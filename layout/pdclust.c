@@ -100,7 +100,7 @@
 #include "layout/pdclust.h"
 #include "pool/pool.h"  /* m0_pool_version */
 #include "fd/fd_internal.h"
-#include "fd/fd.h"      /* m0_fd_perm_cache_init m0_fd_perm_cache_fini */
+#include "fd/fd.h"      /* m0_fd_cache_grid_build */
 
 static const struct m0_bob_type pdclust_bob = {
 	.bt_name         = "pdclust",
@@ -119,11 +119,6 @@ static const struct m0_bob_type pdclust_instance_bob = {
 };
 
 M0_BOB_DEFINE(static, &pdclust_instance_bob, m0_pdclust_instance);
-
-M0_INTERNAL const struct m0_pdclust_src_addr M0_PDCLUST_SRC_NULL = {
-	.sa_group = UINT64_MAX,
-	.sa_unit  = UINT64_MAX,
-};
 
 static bool pdclust_allocated_invariant(const struct m0_pdclust_layout *pl)
 {
@@ -337,12 +332,7 @@ M0_INTERNAL int m0_pdclust_build(struct m0_layout_domain *dom,
 
 M0_INTERNAL bool m0_pdclust_attr_check(const struct m0_pdclust_attr *attr)
 {
-	bool res = attr->pa_P >= attr->pa_N + 2 * attr->pa_K;
-	if (!res)
-		M0_LOG(M0_ERROR, "Bad pdclust attributes (P < N + 2K):"
-		       " P=%"PRIu32" N=%"PRIu32" K=%"PRIu32,
-		       attr->pa_P, attr->pa_N, attr->pa_K);
-	return res;
+	return attr->pa_P >= attr->pa_N + 2 * attr->pa_K;
 }
 
 M0_INTERNAL uint32_t m0_pdclust_N(const struct m0_pdclust_layout *pl)
@@ -774,46 +764,6 @@ M0_INTERNAL void m0_pdclust_instance_inv(struct m0_pdclust_instance *pi,
 static const struct m0_layout_instance_ops pdclust_instance_ops;
 M0_INTERNAL void pdclust_instance_fini(struct m0_layout_instance *li);
 
-M0_INTERNAL void m0_pdclust_perm_cache_destroy(struct m0_layout *layout,
-				               struct m0_pdclust_instance *pi)
-{
-	struct m0_pool_version *pool_ver;
-	uint64_t                cache_cnt;
-	uint64_t                i;
-
-	pool_ver = layout->l_pver;
-	M0_ASSERT(pool_ver != NULL);
-	cache_cnt = layout->l_pver->pv_fd_tree.ft_cache_info.fci_nr;
-	for (i = 0; i < cache_cnt; ++i)
-		m0_fd_perm_cache_fini(&pi->pi_perm_cache[i]);
-	m0_free(pi->pi_perm_cache);
-	pi->pi_cache_nr = 0;
-}
-
-M0_INTERNAL int m0_pdclust_perm_cache_build(struct m0_layout *layout,
-				            struct m0_pdclust_instance *pi)
-{
-	struct m0_fd_cache_info *cache_info;
-	uint64_t                 i;
-	int                      rc = 0;
-
-	M0_PRE(layout != NULL && layout->l_pver != NULL);
-	cache_info = &layout->l_pver->pv_fd_tree.ft_cache_info;
-	M0_ALLOC_ARR(pi->pi_perm_cache, cache_info->fci_nr);
-	if (pi->pi_perm_cache == NULL)
-		return M0_ERR(-ENOMEM);
-	for (i = 0; i < cache_info->fci_nr; ++i) {
-		rc = m0_fd_perm_cache_init(&pi->pi_perm_cache[i],
-				           cache_info->fci_info[i]);
-		if (rc != 0)
-			break;
-	}
-	if (rc != 0)
-		m0_pdclust_perm_cache_destroy(layout, pi);
-	pi->pi_cache_nr = cache_info->fci_nr;
-	return M0_RC(rc);
-}
-
 M0_INTERNAL bool m0_pdclust_is_replicated(struct m0_pdclust_layout *play)
 {
 	return play->pl_attr.pa_N == 1;
@@ -855,9 +805,9 @@ static int pdclust_instance_build(struct m0_layout           *l,
 	M0_ALLOC_PTR(pi);
 err1_injected:
 	if (pi != NULL) {
-		rc = m0_pdclust_perm_cache_build(l, pi);
+		rc = m0_fd_cache_grid_build(l, pi);
 		if (rc != 0)
-		return M0_RC(rc);
+			return M0_RC(rc);
 
 		tc = &pi->pi_tile_cache;
 
@@ -926,7 +876,7 @@ M0_INTERNAL void pdclust_instance_fini(struct m0_layout_instance *li)
 	pl = m0_layout_to_pdl(layout);
 	if (pl->pl_attr.pa_K > 0)
 		m0_parity_math_fini(&pi->pi_math);
-	m0_pdclust_perm_cache_destroy(layout, pi);
+	m0_fd_cache_grid_destroy(layout, pi);
 	m0_layout__instance_fini(&pi->pi_base);
 	m0_mutex_fini(&pi->pi_mutex);
 	m0_pdclust_instance_bob_fini(pi);

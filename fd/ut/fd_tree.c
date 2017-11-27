@@ -29,6 +29,7 @@
 #include "fd/fd_internal.h"
 #include "fd/fd.h"
 #include "fd/ut/common.h"
+#include "pool/pool.h"       /* m0_pool_version */
 #include "ut/ut.h"           /* M0_UT_ASSERT() */
 #include "lib/errno.h"       /* ENOMEM */
 
@@ -38,43 +39,59 @@ static uint32_t int_pow(uint32_t num, uint32_t exp);
 
 static void test_cache_init_fini(void)
 {
-	struct m0_fd_tree        tree;
-	uint32_t                 children_nr;
-	uint32_t                 i;
-	uint32_t                 unique_chld_nr[TP_NR];
-	uint32_t                 list_chld_nr[TP_NR];
-	uint64_t                 cache_len;
-	m0_time_t                seed;
-	int                      rc;
+	struct m0_fd_tree            *tree;
+	struct m0_layout              l;
+	struct m0_pdclust_instance    pi;
+	struct m0_pool_version        pver;
+	struct m0_fd_perm_cache      *cache;
+	struct m0_fd_perm_cache_grid *cache_grid;
+	struct m0_fd__tree_cursor     cursor;
+	struct m0_fd_tree_node       *node;
+	uint32_t                      children_nr;
+	uint32_t                      i;
+	m0_time_t                     seed;
+	int                           rc;
 
-	M0_SET0(&unique_chld_nr);
-	M0_SET0(&list_chld_nr);
+	M0_SET0(&l);
+	M0_SET0(&pi);
+	M0_SET0(&pver);
+
+	l.l_pver = &pver;
+	tree = &pver.pv_fd_tree;
 	seed = m0_time_now();
 	children_nr = m0_rnd(TP_QUATERNARY, &seed);
 	children_nr = TP_QUATERNARY - children_nr;
-	rc = fd_ut_tree_init(&tree, M0_CONF_PVER_HEIGHT - 1);
+	rc = fd_ut_tree_init(tree, M0_CONF_PVER_HEIGHT - 1);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_fd__tree_root_create(&tree, children_nr);
+	rc = m0_fd__tree_root_create(tree, children_nr);
 	M0_UT_ASSERT(rc == 0);
-	unique_chld_nr[children_nr] = 1;
 	for (i = 1; i < M0_CONF_PVER_HEIGHT; ++i) {
 		children_nr = m0_rnd(TP_QUATERNARY, &seed);
 		children_nr = TP_QUATERNARY - children_nr;
-		children_nr = i == tree.ft_depth ? 0 : children_nr;
-		rc = fd_ut_tree_level_populate(&tree, children_nr, i, TA_SYMM);
+		children_nr = i == tree->ft_depth ? 0 : children_nr;
+		rc = fd_ut_tree_level_populate(tree, children_nr, i, TA_SYMM);
 		M0_UT_ASSERT(rc == 0);
-		if (i < M0_CONF_PVER_HEIGHT - 1)
-			unique_chld_nr[children_nr] = 1;
 	}
-	m0_fd__perm_cache_build(&tree);
-	for (i = 0; i < tree.ft_cache_info.fci_nr; ++i) {
-		cache_len = tree.ft_cache_info.fci_info[i];
-		M0_UT_ASSERT(unique_chld_nr[cache_len] == 1);
-		list_chld_nr[cache_len] = 1;
+	rc = m0_fd_cache_grid_build(&l, &pi);
+	M0_UT_ASSERT(rc == 0);
+	cache_grid = pi.pi_perm_cache;
+	/*
+	 * Iterate over the tree and check if cache for each node is in place.
+	 */
+	for (i = 0; i < tree->ft_depth; ++i) {
+		rc = m0_fd__tree_cursor_init(&cursor, tree, i);
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(cache_grid->fcg_cache[i] != NULL);
+		do {
+			node = *(m0_fd__tree_cursor_get(&cursor));
+			cache =
+			  &cache_grid->fcg_cache[i][node->ftn_abs_idx];
+			M0_UT_ASSERT(cache->fpc_len == node->ftn_child_nr);
+		} while (m0_fd__tree_cursor_next(&cursor));
 	}
-	M0_UT_ASSERT(!memcmp(unique_chld_nr, list_chld_nr,
-			     sizeof unique_chld_nr));
-	m0_fd_tree_destroy(&tree);
+
+	m0_fd_cache_grid_destroy(&l, &pi);
+	m0_fd_tree_destroy(tree);
 }
 
 static void test_init_fini(void)
@@ -156,7 +173,7 @@ static uint32_t int_pow(uint32_t num, uint32_t exp)
 static int tree_populate(struct m0_fd_tree *tree, enum tree_type param_type)
 {
 	uint16_t i;
-	int      rc;
+	int      rc = 0;
 	uint64_t children_nr;
 
 	for (i = 1; i <= tree->ft_depth; ++i) {
@@ -165,7 +182,6 @@ static int tree_populate(struct m0_fd_tree *tree, enum tree_type param_type)
 		if (rc != 0)
 			return rc;
 	}
-	rc = m0_fd__perm_cache_build(tree);
 	return rc;
 }
 

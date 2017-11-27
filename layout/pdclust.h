@@ -215,8 +215,7 @@ struct m0_pdclust_instance {
 		uint32_t *tc_lcode;
 	} pi_tile_cache;
 
-	uint64_t                     pi_cache_nr;
-	struct m0_fd_perm_cache     *pi_perm_cache;
+	struct m0_fd_perm_cache_grid *pi_perm_cache;
 	/** Parity math information, initialised according to the layout. */
 	struct m0_parity_math        pi_math;
 
@@ -316,16 +315,9 @@ M0_INTERNAL void m0_pdclust_instance_inv(struct m0_pdclust_instance *pi,
 					 const struct m0_pdclust_tgt_addr *tgt,
 					 struct m0_pdclust_src_addr *src);
 
-M0_INTERNAL int m0_pdclust_perm_cache_build(struct m0_layout *layout,
-					    struct m0_pdclust_instance *pi);
-
-M0_INTERNAL void m0_pdclust_perm_cache_destroy(struct m0_layout *layout,
-					       struct m0_pdclust_instance *pi);
-
 M0_INTERNAL bool m0_pdclust_is_replicated(struct m0_pdclust_layout *play);
-extern struct m0_layout_type m0_pdclust_layout_type;
 
-M0_EXTERN const struct m0_pdclust_src_addr M0_PDCLUST_SRC_NULL;
+extern struct m0_layout_type m0_pdclust_layout_type;
 
 /** @} end group pdclust */
 

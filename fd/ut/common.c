@@ -46,7 +46,7 @@ M0_INTERNAL void fd_ut_symm_tree_create(struct m0_fd_tree *tree,
 	rc = m0_fd__tree_root_create(tree, child_nr[0]);
 	M0_UT_ASSERT(rc == 0);
 
-	for (i = 1; i < depth; ++i) {
+	for (i = 1; i <= depth; ++i) {
 		rc = fd_ut_tree_level_populate(tree, child_nr[i], i, TA_SYMM);
 		M0_UT_ASSERT(rc == 0);
 	}
@@ -60,7 +60,7 @@ M0_INTERNAL void fd_ut_children_populate(uint64_t *children, uint32_t depth)
 	m0_time_t seed;
 
 	seed = m0_time_now();
-	for (i = 0; i < depth; ++i) {
+	for (i = 0; i <= depth; ++i) {
 		j = m0_rnd(TUA_CHILD_NR_MAX, &seed);
 		children[i] = TUA_CHILD_NR_MAX - j;
 	}

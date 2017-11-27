@@ -35,6 +35,7 @@
 #include "dix/meta.h"
 #include "dix/client.h"
 #include "dix/fid_convert.h"
+#include "fd/ut/common.h"
 #include "ut/ut.h"
 #include "ut/misc.h"
 
@@ -351,17 +352,16 @@ static void layout_create(struct m0_layout_domain *domain,
 
 void pdclust_map(void)
 {
-	struct m0_pool_version     pool_ver;
-	uint32_t                   cache_nr;
-	uint64_t                  *cache_len;
-	struct m0_pool             pool;
-	struct m0_fid              fid;
-	struct m0_layout_domain    domain;
-	uint64_t                   id;
-	int                        rc;
-	struct m0_dix_linst        dli;
-	struct m0_dix_ldesc        dld;
-	struct m0_ext              range[] = {{.e_start = 0, .e_end = 100}};
+	struct m0_pool_version  pool_ver;
+	struct m0_pool          pool;
+	struct m0_fid           fid;
+	struct m0_layout_domain domain;
+	uint64_t                id;
+	int                     rc;
+	struct m0_dix_linst     dli;
+	struct m0_dix_ldesc     dld;
+	struct m0_ext           range[] = {{.e_start = 0, .e_end = 100}};
+	uint64_t                fd_child_nr[2];
 
 	fid = DFID(0,1);
 	rc = m0_pool_init(&pool, &M0_FID_TINIT('o', 0, 1), 0);
@@ -370,17 +370,15 @@ void pdclust_map(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_layout_standard_types_register(&domain);
 	M0_UT_ASSERT(rc == 0);
-	/* Init pool_ver. */
-	cache_nr = 1;
-	M0_ALLOC_ARR(cache_len, cache_nr);
-	M0_UT_ASSERT(cache_len != NULL);
 	pool_ver.pv_id = M0_FID_TINIT('v', 1, 1);
-	pool_ver.pv_fd_tree.ft_cache_info.fci_nr   = cache_nr;
-	pool_ver.pv_fd_tree.ft_cache_info.fci_info = cache_len;
 	pool_ver.pv_attr.pa_N = DIX_M0T1FS_LAYOUT_N;
 	pool_ver.pv_attr.pa_K = DIX_M0T1FS_LAYOUT_K;
 	pool_ver.pv_attr.pa_P = DIX_M0T1FS_LAYOUT_P;
-	cache_len[0] = DIX_M0T1FS_LAYOUT_P;
+	rc = fd_ut_tree_init(&pool_ver.pv_fd_tree, 1);
+	M0_UT_ASSERT(rc == 0);
+	fd_child_nr[0] = DIX_M0T1FS_LAYOUT_P;
+	fd_child_nr[1] = 0;
+	fd_ut_symm_tree_create(&pool_ver.pv_fd_tree, TG_DETERM, fd_child_nr, 1);
 	layout_create(&domain, &pool_ver);
 	/* Init layout. */
 	m0_dix_ldesc_init(&dld, range, ARRAY_SIZE(range), HASH_FNC_CITY,
@@ -389,13 +387,13 @@ void pdclust_map(void)
 	rc = m0_dix_layout_init(&dli, &domain, &fid, id, &pool_ver, &dld);
 	M0_UT_ASSERT(rc == 0);
 	layout_check(&dli);
+	m0_fd_tree_destroy(&pool_ver.pv_fd_tree);
 	m0_dix_layout_fini(&dli);
 	m0_dix_ldesc_fini(&dld);
 	m0_layout_domain_cleanup(&domain);
 	m0_layout_standard_types_unregister(&domain);
 	m0_layout_domain_fini(&domain);
 	m0_pool_fini(&pool);
-	m0_free(cache_len);
 }
 
 void meta_val_encdec(void)
