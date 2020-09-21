@@ -128,4 +128,18 @@ Troubleshooting
 
    **Note**: Make sure that the eth1 interface is present in the node by checking ifconfig. Else, update the new interface in the file.
 
+**Build the documents **
+    Steps used to 'make' this doc:
+
+    install pip itself:
+    - curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+    - python get-pip.py
+    - pip install -U sphinx (you may need to do "rpm -e --nodeps pyparsing.noarch")
+    - pip install sphinxcontrib.plantuml
+
+    $ cat /bin/plantuml
+    #!/bin/sh
+    /somewhere_to_your/bin/java -jar /somewhere_to_your/plantuml.jar $@
+
+
 
