@@ -138,8 +138,8 @@ Troubleshooting
     - pip install sphinxcontrib.plantuml
 
     $ cat /bin/plantuml
-    #!/bin/sh
-    /somewhere_to_your/bin/java -jar /somewhere_to_your/plantuml.jar $@
+      #!/bin/sh
+      /somewhere_to_your/bin/java -jar /somewhere_to_your/plantuml.jar $@
 
 
 
