@@ -1,0 +1,17 @@
+name: Dispatch event for cortx submodule
+on:
+  push:
+    branches: [ main ]
+jobs:
+  dispatch:
+    strategy:
+      matrix:
+        repo: ['Seagate/cortx']
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository Dispatch
+        uses: peter-evans/repository-dispatch@v1
+        with:
+          token: ${{ secrets.ACCESS_TOKEN }}
+          repository: ${{ matrix.repo }}
+          event-type: submodule-update-event

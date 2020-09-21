@@ -1,0 +1,15 @@
+[halon]
+# revision can be any valid argument for `git rev-parse`,
+# e.g. branch name, commit id, HEAD etc.
+revision = master
+
+# a raw Gerrit refspec can be specified instead of revision
+#refspec = refs/changes/60/17060/1
+
+# repository to use instead of the default one,
+# e.g. https://github.com/seagate-ssg/halon.git
+#repo = http://gerrit-sage.dco.colo.seagate.com:8080/halon
+
+# other projects can be added in future
+#[sspl]
+#revision = master
