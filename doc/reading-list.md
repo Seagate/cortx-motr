@@ -7,9 +7,7 @@ For non-hyperlinked documentation links, please refer to this file : doc/motr-de
 * Motr data organization
 * Motr architecture 2-pager
 * Summary of M0 architecture
-
-    > Note: H3S there treat as M0, DFD as Trinity... a bit outdated but still actual
-
+   * [Motr in Prose](motr-in-prose.md)
 * M0 Architecture Documentation
 * FAQ
 * Glossary
