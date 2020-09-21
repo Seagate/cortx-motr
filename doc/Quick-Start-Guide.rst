@@ -128,7 +128,7 @@ Troubleshooting
 
    **Note**: Make sure that the eth1 interface is present in the node by checking ifconfig. Else, update the new interface in the file.
 
-**Build the documents **
+**Build the documents ** (Verify the steps)
     Steps used to 'make' this doc:
 
     install pip itself:
