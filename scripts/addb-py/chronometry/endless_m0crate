@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+set -e
+#set -x
+
+SCRIPT_PATH="$(readlink -f $0)"
+SCRIPT_DIR="${SCRIPT_PATH%/*}"
+
+trap set_term_flag SIGTERM
+
+function main()
+{
+    check_required_parameters
+    local iter=0
+
+    while [[ -z $TERMINATE_FLAG ]]; do
+        echo -e "============== start iteration $iter ($(date)) ================\n"
+        set +e
+        USE_MOTR_PORT=$MOTR_PORT \
+          M0_SRC_DIR="$MOTR_SRC_DIR" \
+          $SCRIPT_DIR/p0_hare run m0crate $WORKLOAD
+        set -e
+        echo -e "============== end iteration $iter ($(date)) ================\n\n"
+        wait_before_next_iter
+        iter=$((iter+1))
+    done
+}
+
+function wait_before_next_iter()
+{
+    local it=0
+    local it_limit=20 #20 seconds
+    while [[ -z "$TERMINATE_FLAG" && "$it" -lt "$it_limit" ]]; do
+        sleep 1
+        it=$(($it+1))
+    done
+}
+
+function set_term_flag()
+{
+    echo "got termination request"
+    TERMINATE_FLAG=1
+}
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -w|--workload_config)
+            WORKLOAD="$2"
+            shift
+            ;;
+        --motr-port)
+            MOTR_PORT=$2
+            shift
+            ;;
+        *)
+            echo -e "Invalid option: $1\nUse --help option"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+function check_required_parameters()
+{
+    if [[ -z $WORKLOAD || -z $MOTR_PORT || -z $MOTR_SRC_DIR ]]; then
+        echo "missed required parameter"
+        exit 1
+    fi
+}
+
+main
+exit $?

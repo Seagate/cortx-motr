@@ -1,0 +1,2 @@
+m0tr_objects += reqh/reqh.o \
+                 reqh/reqh_service.o

@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+# exit immediately if one the commands exits with a non-zero status
+set -e
+
+# global variables, which can be overriden in /etc/sysconfig/motr
+MOTR_GENDERS_CONF=/etc/motr/genders
+
+# service local variables
+user_config=/etc/sysconfig/motr
+kernel_config=/etc/sysconfig/motr-kernel
+service_funcs=/usr/libexec/cortx-motr/motr-service.functions
+
+
+start()
+{
+    source $service_funcs
+
+    [[ -r $kernel_config ]] && source $kernel_config
+    [[ -r $user_config   ]] && source $user_config
+
+    m0_load_modules
+}
+
+stop()
+{
+    source $service_funcs
+
+    [ -r $user_config ] && source $user_config
+
+    m0_unload_modules
+}
+
+
+case $1 in
+    start)  start ;;
+    stop)   stop ;;
+esac

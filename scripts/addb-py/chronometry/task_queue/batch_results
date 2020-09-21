@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+set -e
+# set -x
+
+SCRIPT_NAME=`echo $0 | awk -F "/" '{print $NF}'`
+SCRIPT_PATH="$(readlink -f $0)"
+TQ_DIR="${SCRIPT_PATH%/*}"
+
+function usage() {
+    cat << EOF
+
+Usage:
+
+    $SCRIPT_NAME -b <batch_id>
+
+Description:
+
+    The $SCRIPT_NAME script allows to print results of tasks of batch.
+    As an input parameter the script takes batch id. The script checks if all
+tasks of given batch are finished. If not all of tasks are finished then
+the script will return error message.
+    The script gets results of all tasks of batch from taskq mechanism include
+lists of artefacts. Then the script parses s3bench.log files and gets data from
+them. Then data are printed as table.
+    For each task of batch the script shows several detail tables (one table for
+one cycle execution of s3bench tests). Each table contains data of all s3bench
+clients which were executed together on different nodes.
+    After detail tables script shows summary table. Summary table contains most
+significant results of all test runs. Each run is shown as row of summary table.
+
+Required parameters:
+
+    -b, --batch-id      id of batch whose results you want to print
+
+Optional parameters:
+
+    -h, --help          This help
+
+Example:
+
+    $ sudo ./$SCRIPT_NAME -b 'my_batch_2020-04-13-05-07-18'
+
+    task e27689a7-9bbd-4394-8661-3dbdd58f9202
+    +--------------------+-------------+---------+
+    | parameters/results | ssc-vm-0017 |   sum   |
+    +--------------------+-------------+---------+
+    | cli_nr             |      2      |         |
+    | samples            |      2      |         |
+    | obj_s MB           |     100     |         |
+    | errors(W)          |      0      |    0    |
+    | duration(W)        |   10.9713   |         |
+    | request_nr(W)      |      2      |    2    |
+    | Thr. mbs(W)        |   18.2294   | 18.2294 |
+    | Tr. mb(W)          |     200     |   200   |
+    | ttfb-90(W)         |   10.9713   |         |
+    | ttfb-99(W)         |   10.9713   |         |
+    | ttfb-avg(W)        |    10.885   |         |
+    | ttfb-max(W)        |   10.9713   |         |
+    | ttfb-min(W)        |   10.7987   |         |
+    | errors(R)          |      0      |    0    |
+    | duration(R)        |    2.4289   |         |
+    | request_nr(R)      |      2      |    2    |
+    | Thr. mbs(R)        |   82.3433   | 82.3433 |
+    | Tr. mb(R)          |     200     |   200   |
+    | ttfb-90(R)         |    0.1193   |         |
+    | ttfb-99(R)         |    0.1193   |         |
+    | ttfb-avg(R)        |    0.115    |         |
+    | ttfb-max(R)        |    0.1193   |         |
+    | ttfb-min(R)        |    0.1106   |         |
+    +--------------------+-------------+---------+
+
+    task 6deedf03-71a7-484a-85b4-bdc0d167a79e
+    +--------------------+-------------+---------+
+    | parameters/results | ssc-vm-0017 |   sum   |
+    +--------------------+-------------+---------+
+    | cli_nr             |      2      |         |
+    | samples            |      4      |         |
+    | obj_s MB           |      50     |         |
+    | errors(W)          |      0      |    0    |
+    | duration(W)        |   11.5448   |         |
+    | request_nr(W)      |      4      |    4    |
+    | Thr. mbs(W)        |   17.3239   | 17.3239 |
+    | Tr. mb(W)          |     200     |   200   |
+    | ttfb-90(W)         |    5.9339   |         |
+    | ttfb-99(W)         |    5.9339   |         |
+    | ttfb-avg(W)        |    5.7699   |         |
+    | ttfb-max(W)        |    5.9339   |         |
+    | ttfb-min(W)        |    5.6009   |         |
+    | errors(R)          |      0      |    0    |
+    | duration(R)        |    2.6039   |         |
+    | request_nr(R)      |      4      |    4    |
+    | Thr. mbs(R)        |   76.8065   | 76.8065 |
+    | Tr. mb(R)          |     200     |   200   |
+    | ttfb-90(R)         |    0.1306   |         |
+    | ttfb-99(R)         |    0.1306   |         |
+    | ttfb-avg(R)        |    0.1062   |         |
+    | ttfb-max(R)        |    0.1306   |         |
+    | ttfb-min(R)        |    0.0883   |         |
+    +--------------------+-------------+---------+
+    +--------------------+-------------+----------+
+    | parameters/results | ssc-vm-0017 |   sum    |
+    +--------------------+-------------+----------+
+    | cli_nr             |      2      |          |
+    | samples            |      4      |          |
+    | obj_s MB           |      75     |          |
+    | errors(W)          |      0      |    0     |
+    | duration(W)        |   13.5283   |          |
+    | request_nr(W)      |      4      |    4     |
+    | Thr. mbs(W)        |   22.1758   | 22.1758  |
+    | Tr. mb(W)          |     300     |   300    |
+    | ttfb-90(W)         |    6.9883   |          |
+    | ttfb-99(W)         |    6.9883   |          |
+    | ttfb-avg(W)        |    6.7578   |          |
+    | ttfb-max(W)        |    6.9883   |          |
+    | ttfb-min(W)        |    6.5399   |          |
+    | errors(R)          |      0      |    0     |
+    | duration(R)        |    2.9581   |          |
+    | request_nr(R)      |      4      |    4     |
+    | Thr. mbs(R)        |   101.4168  | 101.4168 |
+    | Tr. mb(R)          |     300     |   300    |
+    | ttfb-90(R)         |    0.0897   |          |
+    | ttfb-99(R)         |    0.0897   |          |
+    | ttfb-avg(R)        |    0.0794   |          |
+    | ttfb-max(R)        |    0.0897   |          |
+    | ttfb-min(R)        |    0.068    |          |
+    +--------------------+-------------+----------+
+    +-------------+--------+---------+----------+--------------------------+------------------+--------------------------+------------------+
+    |   task_id   | cli_nr | samples | obj_s MB | Thr. mbs(W)(ssc-vm-0017) | Thr. mbs(W)(sum) | Thr. mbs(R)(ssc-vm-0017) | Thr. mbs(R)(sum) |
+    +-------------+--------+---------+----------+--------------------------+------------------+--------------------------+------------------+
+    | e276***9202 |   2    |    2    |   100    |         18.2294          |     18.2294      |         82.3433          |     82.3433      |
+    | 6dee***a79e |   2    |    4    |    50    |         17.3239          |     17.3239      |         76.8065          |     76.8065      |
+    | 6dee***a79e |   2    |    4    |    75    |         22.1758          |     22.1758      |         101.4168         |     101.4168     |
+    +-------------+--------+---------+----------+--------------------------+------------------+--------------------------+------------------+
+
+EOF
+}
+
+function parse_params() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -b|--batch-id)
+                BATCH_ID="$2"
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "unknown parameter: $1"
+                exit 1
+                ;;
+        esac
+        shift
+    done
+}
+
+function check_required_params() {
+    if [[ -z "$BATCH_ID" ]]; then
+        echo "missed required parameter"
+        exit 1
+    fi
+}
+
+function check_if_all_tasks_finished() {
+    local task_list=$($TQ_DIR/task_queue.py -l | grep "$BATCH_ID")
+
+    if [[ -n "$task_list" ]]; then
+        echo "Not all of the tasks of batch are finished"
+        exit 1
+    fi
+}
+
+function print_results() {
+    $TQ_DIR/task_queue.py -r | grep "$BATCH_ID" | $TQ_DIR/print_task_results
+}
+
+parse_params $@
+check_required_params
+check_if_all_tasks_finished
+print_results

@@ -1,0 +1,22 @@
+
+motr_st_mt_m0mt_SOURCES = motr/st/mt/mt.c \
+		      motr/st/mt/mt_fom.c \
+		      motr/st/st.c  \
+		      motr/st/st_misc.c \
+		      motr/st/st_worker.c \
+		      motr/st/st_assert.c \
+		      motr/st/api.c \
+		      motr/st/oid.c \
+		      motr/st/obj.c  \
+		      motr/st/idx.c \
+		      motr/st/read.c \
+		      motr/st/write.c \
+		      motr/st/cancel.c \
+		      motr/st/osync.c \
+		      motr/st/isync.c \
+		      motr/st/layout.c \
+		      motr/st/example.c \
+		      motr/st/st_assert.h \
+		      motr/st/st.h \
+		      motr/st/st_misc.h
+

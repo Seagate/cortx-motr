@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+### Check if there are some stray "c o l i b r i" or "c 2" keywords left in the
+### code or in filenames
+
+
+build_grep_pattern()
+{
+    local pattern1=$(echo 'c o l i b r i' | sed -e 's/ //g')
+    local pat2=$(echo 'c 2' | sed -e 's/ //g')
+    local pattern2="\
+(([^[:alnum:]-]|^|_)${pat2}\b)|\
+((\b|_)${pat2}_)|\
+(-(D|U)${pat2})|\
+\b${pat2}([[:alpha:]]+)|\
+([[:alpha:]]+)${pat2}_|\
+_${pat2}([[:alpha:]]+)"
+
+    echo "${pattern1}|${pattern2}"
+}
+
+
+build_find_pattern()
+{
+    local pattern1=$(echo 'c o l i b r i' | sed -e 's/ //g')
+    local pattern2=$(echo 'c 2' | sed -e 's/ //g')
+
+    echo "-name $pattern1 -o -name $pattern2"
+}
+
+
+if [[ -n "$1" ]]; then
+    cd "$1"
+fi
+
+if git --no-pager grep -I -i -E -q "$(build_grep_pattern)"; then
+    echo "*** ALERT ***  found some of '$(build_grep_pattern)' keywords in the code:"
+    git --no-pager grep -I -i -E -n "$(build_grep_pattern)"
+    exit 1
+fi
+
+xlibri_files=$(find ./* -path './.git' -prune -o $(build_find_pattern))
+
+if [[ -n "$xlibri_files" ]]; then
+    echo "*** ALERT ***  found some of '$(build_find_pattern)' filenames in the source tree:"
+    find ./* -path './.git' -prune -o $(build_find_pattern)
+    exit 1
+fi

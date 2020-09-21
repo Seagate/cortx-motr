@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+# exit immediately if one the commands exits with a non-zero status
+set -e
+
+# global variables, which can be overriden in /etc/sysconfig/motr
+MOTR_GENDERS_CONF=/etc/motr/genders
+
+# service local variables
+user_config=/etc/sysconfig/motr
+ha_config="/etc/sysconfig/m0t1fs-$2"
+service_funcs=/usr/libexec/cortx-motr/motr-service.functions
+fake_pfid='<0x7200000000000000:0>'
+
+start()
+{
+    local proc_fid=$1
+
+    source $service_funcs
+
+    if [[ -n $proc_fid && ! -e $ha_config ]] ; then
+        m0_exit "service config file '$ha_config' doesn't exist"
+    fi
+
+    if [ -z "$proc_fid" ]; then
+        proc_fid=$fake_pfid
+    fi
+
+    [[ -r $ha_config   ]] && source $ha_config
+    [[ -r $user_config ]] && source $user_config
+
+    m0_log "MOTR_PROCESS_FID: $proc_fid"
+    m0_log "MOTR_M0T1FS_EP: $MOTR_M0T1FS_EP"
+    m0_log "MOTR_HA_EP: $MOTR_HA_EP"
+    m0_log "MOTR_PROFILE_FID: $MOTR_PROFILE_FID"
+    m0_log "MOTR_M0T1FS: $MOTR_M0T1FS"
+
+    local m0t1f=${MOTR_M0T1FS:-$(m0_genders_value_of m0_t1fs)}
+    local mountpoint=${MOTR_M0T1FS_MOUNTPOINT:-$(m0_genders_value_of m0_t1fs_mountpoint)}
+    local ha_ep=${MOTR_HA_EP:-$(m0_get_global_ep_of ha)}
+    local profile="<${MOTR_PROFILE_FID:-$m0_prof_opt}>"
+    local ep_opt=${MOTR_M0T1FS_EP:+,ep=$MOTR_M0T1FS_EP}
+
+    if [[ $m0t1f == "no" ]] ; then
+        return
+    fi
+    [ ! -d "$mountpoint" ] && mkdir -p "$mountpoint"
+
+    set -x
+    mount -t m0t1fs \
+          -o "pfid=$proc_fid,profile=$profile,ha=$ha_ep,oostore,verify${ep_opt}" \
+          m0t1 $mountpoint
+    set +x
+}
+
+stop()
+{
+    source $service_funcs
+
+    [ -r $user_config ] && source $user_config
+    local m0t1f=${MOTR_M0T1FS}
+    if [[ $m0t1f == "no" ]] ; then
+        return
+    fi
+
+    mountpoint=${MOTR_M0T1FS_MOUNTPOINT:-$(m0_genders_value_of m0_t1fs_mountpoint)}
+
+    echo "Stopping m0t1fs"
+    umount $mountpoint
+}
+
+action="$1" && shift
+
+case $action in
+    start)  start "$@" ;;
+    stop)   stop ;;
+esac

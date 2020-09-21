@@ -1,0 +1,522 @@
+==========================
+Meta-data back-end checker
+==========================
+
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:type: feature
+:state: ANALYSIS
+:copyright: Seagate
+:distribution: unlimited
+:self-ref: https://github.com/Seagate/cortx-motr/blob/dev/doc/dev/beck.rst.in
+
+:abstract: This is the tracking file for the "meta-date back-end checker"
+         feature of Motr (née Eos core, née Mero, née Colibri), hereunder
+         referred to as "the Project". This feature a command line utility to
+         check meta-data segment for consistency and recover as much of
+         meta-data as possible in case of a catastrophic failure.
+
+Stakeholders
+============
+
++----------+----------------------+----------------------------+----------------+
+| alias    | full name            | email                      | role           |
++==========+======================+============================+================+
+| nikita   | Nikita Danilov       | nikita.danilov@seagate.com | author,        |
+|          |                      |                            | architect      |
++----------+----------------------+----------------------------+----------------+
+| max      | Maksym Medvied       |                            |                |
++----------+----------------------+----------------------------+----------------+
+| ujjwal   | Ujjwal Lanjewar      |                            |                |
++----------+----------------------+----------------------------+----------------+
+| pradeep  | Pradeep Gothoskar    |                            |                |
++----------+----------------------+----------------------------+----------------+
+| shankar  | Shankar More         |                            |                |
++----------+----------------------+----------------------------+----------------+
+| rakesh   | Rakesh Vaghasiya     |                            | developer      |
++----------+----------------------+----------------------------+----------------+
+| nikhil   | Nikhil Birgade       |                            | developer      |
++----------+----------------------+----------------------------+----------------+
+| jaydeep  | Jaydeep Mohite       |                            | developer      |
++----------+----------------------+----------------------------+----------------+
+| nihar    | Nihar Nayak          |                            | developer      |
++----------+----------------------+----------------------------+----------------+
+| mukund   | Mukund Kanekar       |                            | developer      |
++----------+----------------------+----------------------------+----------------+
+| kanchan  | Kanchan Chaudhari    |                            | developer      |
++----------+----------------------+----------------------------+----------------+
+| shashank | Shashank Parulekar   |                            |                |
++----------+----------------------+----------------------------+----------------+
+
+Proposal
+========
+
+It is proposed to introduce a stand-alone utility for off-line recovery of
+corrupted meta-data stored locally on a node.
+
+Problem statement and context
+-----------------------------
+
+There are 2 types of meta-data in the system:
+
+ - External: created and used by motr applications (s3 server, nfs server)
+
+   - Buckets, directories, attributes, access control, etc.
+
+ - Internal: created and used by motr internally
+
+   - Block allocator (balloc) on each device
+
+   - Mapping from logical object offsets to device blocks
+
+Meta-data errors:
+
+- Local: make an object or a few objects inaccessible
+
+- Global: make all objects inaccessible
+
+What are the sources of meta-data errors:
+
+- Bugs in S3
+
+- Bugs in motr
+
+- Bugs in other components
+
+- Bugs in kernel
+
+- Storage bitrot, misdirected or lost writes
+
+- Memory bitrot
+
+- etc.
+
+Probability of a meta-data error can be reduced by introducing redundancy:
+
+- store multiple copies of meta-data in multiple places (memory, storage, across
+  the network);
+
+- check-sums;
+
+- erasure coding.
+
+But this probability can never be reduced to 0. Practically, this probability is
+sufficiently high at the moment, that we should answer the question:
+
+    *Assume that a global error happened. What do we do?*
+
+The current answer is: re-initialise the cluster and lose all customer data.
+
+This answer is unacceptable. The proposed solution is to try to restore as much
+meta-data as possible.
+
+Note, that this is the last line of defence, and so the usual design constraints
+can be relaxed or ignored. For example, because the alternative is the total
+loss of customer data, availability requirements are no longer of importance and
+the system can be brought off-line for a significant period of time.
+
+Clarification
+=============
+
+Meta-data placement:
+
+- a meta-data volume is exported from the enclosure.
+
+- The volume is under LVM control.
+
+- A file-system (xfs or ext4) is created on the volume.
+
+- The file-system is mounted as /var/$PROJECT_NAME.
+
+- During system initialisation 2 large files are created in this file-system
+  that contain the meta-data log and meta-data segment.
+
+- A server maps the segment file into its address space. The log is used for
+  transactions, after a transaction is logged, it is written into the segment.
+
+See `the presentation <https://seagatetechnology-my.sharepoint.com/:p:/r/personal/nikita_danilov_seagate_com/_layouts/15/Doc.aspx?sourcedoc=%7B45D90A8E-822B-4ED6-A936-873A0A064535%7D>`_ [:download:`local pdf <beck/Recovering from a catastrophic failure in cortx.pdf>`, :download:`local pptx <beck/Recovering from a catastrophic failure in cortx.pptx>`] for introduction.
+
+Solution Proposal
+-----------------
+
+- a catastrophic corruption detection:
+
+  - m0d server crashes repeatedly (fail-over doesn't help) or
+
+  - issues a special IEM.
+
+- After a catastrophic corruption is detected, the system is brought in a
+  special recovery mode:
+
+  - administrator is notified,
+
+  - user-facing services like S3 are shutdown,
+
+  - m0d processes are shutdown,
+
+  - fail-over and other HA activities are suspended, CSM remains functional,
+
+  - the meta-data recovery tool is started on a node that has access to the
+    corrupted meta-data volume (both of them, if both volumes are corrupted),
+
+  - the recovery tool runs for some time (approximately few hours per a terabyte
+    of meta-data), notifying CSM about its progress,
+
+  - the recovery tool ends with the following possible results:
+
+    - OK: meta-data was found to be consistent, services should be restarted,
+
+    - ALL RECOVERED: meta-data corruptions were found and all were recovered,
+      services should be restarted,
+
+    - SOME RECOVERED: meta-data corruptions were found and recovered with
+      possible meta-data loss or spurious (deleted or never created) meta-data
+      introduction, services should be restarted,
+
+    - NO GO: no meta-data recovery is possible, system should be re-initialised.
+
+Details
+~~~~~~~
+
+Recovery tool operates as following:
+
+#. mount /var/$PROJECT_NAME if not yet mounted
+
+#. if mount succeeds
+
+   #. perform the standard meta-data beck-end recovery (replay log);
+
+   #. unmount /var/$PROJECT_NAME;
+
+#. if mount fails (low level error), do not mount file-systems below. Instead of
+   scanning a snapshot of the segment file, the scanning tool will scan the
+   entire snapshot device. The file system on the original device needs to be
+   re-initialised (mkfs) after the snapshot is taken;
+
+#. disable on-enclosure swap device;
+
+#. add on-enclosure swap device to the same LVM group as the meta-data device;
+
+#. create an LVM snapshot of the meta-data device. Snapshot COW blocks will be
+   allocated from the swap device, which (luckily) has the same size as the
+   meta-data device;
+
+#. mount snapshot device read-only at /var/$PROJECT_NAME.snapshot
+
+#. mount original device read-write at /var/$PROJECT_NAME
+
+#. recovery tool opens the segment file under /var/$PROJECT_NAME.snapshot
+   read-only and opens the segment file under /var/$PROJECT_NAME read-write;
+
+#. /var/$PROJECT_NAME is re-initialised (all meta-data lost);
+
+#. snapshot is scanned sequentially;
+
+#. meta-data records are marked by a constant magic number at the beginning and
+   the checksum at the end;
+
+#. the recovery tool scans the snapshot and identifies all valid meta-data
+   records (with a valid magic number and the matching checksum);
+
+#. there are two types of meta-data records that the recovery tool acts on:
+
+   - top-level (global) meta-data records. The tool re-inserts them into the
+     meta-data segment via standard meta-data manipulation code;
+
+   - leaf b-tree nodes. The tool identifies all valid key-value pairs in the
+     b-tree leaf node and re-inserts them into the appropriate b-tree;
+
+#. other meta-data records, for example, non-leaf b-tree nodes and meta-data
+   allocator internal records, are ignored by the tool: they will be re-created
+   in the segment as a by-product, when the records of first two types are
+   re-created.
+
+#. when the scan completes:
+
+ - delete the snapshot,
+
+ - remove the swap device from the LVM,
+
+ - re-initialise the swap device and activate it.
+
+Tool high-level code structure.
+
+.. highlight:: C
+.. code-block:: C
+
+  struct queue todo; /* Shared queue. */
+
+  scanner() { /* Runs as a separate thread or co-routine. */
+         uint64_t next;
+         while (read(snapshot_fd, &next, sizeof next) == sizeof next) {
+                 if (next == MAGIC) {
+                         rec = parse(snapshot_fd);
+                         queue_put(&todo, rec);
+                 }
+         }
+  }
+
+  builder() { /* Runs as a separate thread or co-routine. */
+          struct tx tx; /* current transaction */
+          struct queue q;
+
+          tx_open(&tx);
+          while (true) {
+                  rec = queue_get(&todo);
+                  if (!can_add(&tx, rec)) { /* Large transaction collected. */
+                      complete(&tx, &q);
+                      tx_open(&tx);
+                  }
+                  queue_put(&q, rec);
+          }
+          complete(&tx, &q);
+  }
+
+  complete(tx, q) {
+          while ((rec = queue_get(q)) != NULL) {
+                  execute(tx, rec);
+          }
+          tx_close(tx);
+          sync();
+  }
+
+Assumptions
+~~~~~~~~~~~
+
+- meta-data format can be changed before tool is released: more cross-references
+  in the records to simplify recovery (e.g., each btree node to contain a
+  pointer to the root of the tree).
+
+Issues
+~~~~~~
+
+- Parsing a meta-data record in a segment might require following pointers to
+  other records in the segment. For example, in the current b-tree
+  implementation, a leaf tree node contains pointers to the key-value pairs. To
+  this end, the scanner seeks to the target record, processes it (possibly
+  seeking to other places recursively), then seeks back to the scanning point.
+
+  This requires mapping from the segment addresses to the offsets within the
+  file being scanned. When the file being scanned is the segment file, the map
+  function is very simple: it's a linear map.
+
+  However, when /var/$PROJECT_NAME file system itself is corrupted, the recovery
+  tool scans the entire file system image, and the scan is in the block order of
+  the underlying block device. In this case, the map from segment offsets to the
+  block device offsets depends on how blocks were allocated to the segment file.
+
+  Possible solutions:
+
+  - During mkfs initialise the entire segment file, write logical block number
+    at the beginning of each 4KB block. This would take a lot of time. Scanner
+    uses these offset markers to reconstruct block->segment map.
+
+    - global map is needed it will take huge amount of memory (GBs)
+
+    - and will require an additional scanner pass to construct
+
+  - Put logical offset within each allocated area when it is allocated (in BE
+    allocator-reserved header)
+
+    - again, global map and an additional scanning pass
+
+  - Pre-allocate the entire segment file at mkfs and write the block map in the
+    segment (say, at the end)
+
+    - this needs linux fibmap/fiemap ioctl. Is it supported by xfs?
+
+  - Switch to a block device for a segment.
+
+Proof of concept
+~~~~~~~~~~~~~~~~
+
+- check LVM operations
+
+- simplistic tool to check recovery rate
+
+Notes
+~~~~~
+
+- lvm.conf:
+
+.. highlight:: bash
+.. code-block:: bash
+
+        # Configuration option activation/snapshot_autoextend_threshold.
+        # Auto-extend a snapshot when its usage exceeds this percent.
+        # Setting this to 100 disables automatic extension.
+        # The minimum value is 50 (a smaller value is treated as 50.)
+        # Also see snapshot_autoextend_percent.
+        # Automatic extension requires dmeventd to be monitoring the LV.
+        #
+        # Example
+        # Using 70% autoextend threshold and 20% autoextend size, when a 1G
+        # snapshot exceeds 700M, it is extended to 1.2G, and when it exceeds
+        # 840M, it is extended to 1.44G:
+        # snapshot_autoextend_threshold = 70
+        #
+        snapshot_autoextend_threshold = 70
+
+        # Configuration option activation/snapshot_autoextend_percent.
+        # Auto-extending a snapshot adds this percent extra space.
+        # The amount of additional space added to a snapshot is this
+        # percent of its current size.
+        #
+        # Example
+        # Using 70% autoextend threshold and 20% autoextend size, when a 1G
+        # snapshot exceeds 700M, it is extended to 1.2G, and when it exceeds
+        # 840M, it is extended to 1.44G:
+        # snapshot_autoextend_percent = 20
+        #
+        snapshot_autoextend_percent = 50
+
+- btree.c: add format headers and footers to keys and values.
+
+Alternatives
+~~~~~~~~~~~~
+
+- Do not use snapshots. Cleverly manipulate meta-data in-place within the
+  segment.
+
+- Create a snapshot of the meta-data *file* (somewhere in /var/$PROJECT_NAME),
+  rather than the entire device. This won't work in case /var/$PROJECT_NAME
+  mount failed.
+
+**Decision**: clarification stage ended.
+
+:agreed:
+
+Analysis
+========
+
+Decomposition
+-------------
+
+- analyse and document existing meta-data schema
+
+  - motr (1d)
+
+  - s3
+
+- implement scanner infrastructure (100)
+
+  - statistics (50)
+
+  - progress reporting (50)
+
+- implement builder infrastructure (200)
+
+  - cache for objects (b-trees, anything else) to refine transaction credits (100)
+
+- implement btree common code (100)
+
+- define and implement recovery call-backs interface (for s3)
+
+- implement actions for meta-data records:
+
+  - extmap: (50)
+
+    - validate extent records (block numbers, size, number of extents per
+      object) (50)
+
+      - m0_ext_is_partof(), see m0_balloc_load_extents()
+
+    - insert new extent (100)
+
+    - mark the extent as allocated in balloc (10)
+
+      - new internal balloc interface (100)
+
+      - if extent is already allocated: (10)
+
+	- punch hole or (100)
+
+	- duplicate data (optional, later)
+
+  - ad domain (100)
+
+    - list of all ad domains (to map extent maps to b-trees) (100)
+
+    - 0type rec
+
+  - cas catalogues (200)
+
+    - create distributed indices
+
+    - populate layout catalogue (what is the schema?)
+
+  - cob
+
+    - domain
+
+    - ns
+
+  - pool
+
+- modify meta-data structures:
+
+  - generation identifier (updated on mkfs, uuid? u32?)
+
+- modify existing code:
+
+  - btree (50)
+
+  - cas (50)
+
+  - ad domain (50)
+
+  - mkfs: use generation (10)
+
+  - m0d: issue IEM on meta-data corruption (10)
+
+  - add missing m0_format_footer_{update,verify}()
+
+  - invalidate magic and checksum when structures are freed
+
+- command line options:
+
+  - scan for existing generations? (50)
+
+  - recover given generation, or all (10)
+
+  - dry-run (stats only) (10)
+
+  - manual mode (ask questions) (100)
+
+- prototyping:
+
+  - LVM, snapshot
+
+- outside of motr:
+
+  - detect when a catastrophic failure happened
+
+    - on which node(s)
+
+  - recovery mode in CSM and HA
+
+  - meta-data segment on a dedicated device
+
+$ cat doc/dev/beck.rst.in | grep '([0-9]\+)' | awk '{print $NF}'|cut -c2- | sed 's/)//g' |awk 'BEGIN {t=0;} {t += $1;} END {print t;}'
+
+Total: 1760
+
+Productivity: 20LOC/day
+
+1760/20/5 = 17.6 PW
+
+External dependencies
+---------------------
+
+- detection of a catastrophic failure
+
+- meta-data segment on a dedicated device
+
+- lvm
+
+- generation (mkfs, csm)
+
+- progress feedback
+
+- collection of corrupted images
+
+  - from lab

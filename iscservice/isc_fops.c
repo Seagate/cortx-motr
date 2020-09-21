@@ -1,0 +1,82 @@
+/*
+ * Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * For any questions about this software or licensing,
+ * please email opensource@seagate.com or cortx-questions@seagate.com.
+ *
+ */
+
+
+#include "lib/errno.h"
+#include "lib/memory.h"
+#include "fop/fom.h"
+#include "fop/fop.h"
+#include "iscservice/isc_fops.h"
+#include "iscservice/isc_fops_xc.h"
+#include "lib/errno.h"
+#include "rpc/rpc.h"
+#include "fop/fop_item_type.h"
+#include "fop/fom_generic.h"
+
+struct m0_fop_type m0_fop_isc_fopt;
+struct m0_fop_type m0_fop_isc_rep_fopt;
+
+extern struct m0_reqh_service_type m0_iscs_type;
+extern const struct m0_fom_type_ops m0_fom_isc_type_ops;
+extern struct m0_sm_state_descr isc_fom_phases[];
+extern struct m0_sm_conf isc_sm_conf;
+
+M0_INTERNAL int m0_iscservice_fop_init(void)
+{
+	m0_sm_conf_extend(m0_generic_conf.scf_state, isc_fom_phases,
+			  m0_generic_conf.scf_nr_states);
+	M0_FOP_TYPE_INIT(&m0_fop_isc_fopt,
+			 .name      = "isc-exec-fop",
+			 .opcode    = M0_ISCSERVICE_REQ_OPCODE,
+			 .xt        = m0_fop_isc_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fom_ops   = &m0_fom_isc_type_ops,
+			 .svc_type  = &m0_iscs_type,
+			 .sm        = &isc_sm_conf);
+
+	M0_FOP_TYPE_INIT(&m0_fop_isc_rep_fopt,
+			 .name      = "isc-fop-reply",
+			 .opcode    = M0_ISCSERVICE_REP_OPCODE,
+			 .xt        = m0_fop_isc_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
+			 .svc_type  = &m0_iscs_type
+                         );
+	return m0_fop_type_addb2_instrument(&m0_fop_isc_fopt) ?:
+	       m0_fop_type_addb2_instrument(&m0_fop_isc_rep_fopt);
+}
+
+M0_INTERNAL void m0_iscservice_fop_fini(void)
+{
+	m0_fop_type_addb2_deinstrument(&m0_fop_isc_rep_fopt);
+	m0_fop_type_addb2_deinstrument(&m0_fop_isc_fopt);
+
+	m0_fop_type_fini(&m0_fop_isc_rep_fopt);
+	m0_fop_type_fini(&m0_fop_isc_fopt);
+}
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

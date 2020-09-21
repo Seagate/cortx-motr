@@ -1,0 +1,347 @@
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+cc_binary(
+    # How to run build
+    # bazel build //:s3server --cxxopt="-std=c++11"
+    #                         --define MOTR_INC=<motr headers path>
+    #                         --define MOTR_LIB=<motr lib path>
+    #                         --define MOTR_HELPERS_LIB=<motr helpers lib path>
+    # To build s3server with debug symbols (to be able to analyze core files,
+    # or to run under GDB) add the following option to the command line
+    # arguments listed above:
+    #                         --strip=never
+    # Without this option, bazel strips debug symbols from the binary.
+
+    name = "s3server",
+
+    srcs = glob(["server/*.cc", "server/*.c", "server/*.h",
+                 "mempool/*.c", "mempool/*.h"]),
+
+    # In case of release mode we may have to remove option -ggdb3
+    # In case of debug mode we may have to remove option -O3
+    copts = [
+      "-DEVHTP_HAS_C99", "-DEVHTP_SYS_ARCH=64", "-DGCC_VERSION=4002",
+      "-DHAVE_CONFIG_H", "-DM0_TARGET=MotrTest", "-D_REENTRANT",
+      "-D_GNU_SOURCE", "-DM0_INTERNAL=", "-DM0_EXTERN=extern",
+      # Do NOT change the order of strings in below line
+      "-iquote", "$(MOTR_INC)", "-isystem", "$(MOTR_INC)",
+      "-iquote", ".", "-include", "config.h", "-I/usr/include/libxml2",
+      MOTR_DYNAMIC_INCLUDES,
+      "-fno-common", "-Wall", "-Wno-attributes", "-fno-strict-aliasing",
+      "-fno-omit-frame-pointer", "-Werror", "-ggdb3", "-O3", "-DNDEBUG",
+    ],
+
+    includes = [
+      "third_party/libevent/s3_dist/include/",
+      "third_party/libevhtp/s3_dist/include/evhtp",
+      "third_party/jsoncpp/dist",
+      "$(MOTR_INC)",
+      "mempool",
+    ],
+
+    # For the core file to show symbols and also for backtrace call
+    # in s3server code to show the stack trace we need -rdynamic flag
+    # https://www.gnu.org/software/libc/manual/html_node/Backtraces.html
+    linkopts = [
+      "-rdynamic",
+      "-L$(MOTR_LIB)",
+      "-L$(MOTR_HELPERS_LIB)",
+      "-Lthird_party/libevent/s3_dist/lib/",
+      "-Lthird_party/libevhtp/s3_dist/lib",
+      "-levhtp -levent -levent_pthreads -levent_openssl -lssl -lcrypto -llog4cxx",
+      "-lpthread -ldl -lm -lrt -lmotr-helpers MOTR_LINK_LIB -laio",
+      "-lyaml -lyaml-cpp -luuid -pthread -lxml2 -lgflags -lhiredis",
+      "-pthread -lglog",
+      "-Wl,-rpath,/opt/seagate/cortx/s3/libevent",
+    ],
+
+    deps = [ MOTR_DEPS ],
+)
+
+cc_test(
+    # How to run build
+    # bazel build //:s3ut --cxxopt="-std=c++11"
+    #                     --define MOTR_INC=<motr headers path>
+    #                     --define MOTR_LIB=<motr lib path>
+    #                     --define MOTR_HELPERS_LIB=<motr helpers lib path>
+
+    name = "s3ut",
+
+    srcs = glob(["ut/*.cc", "ut/*.h",
+                 "server/*.cc", "server/*.c", "server/*.h",
+                 "mempool/*.c", "mempool/*.h"],
+                 exclude = ["server/s3server.cc"]),
+
+    copts = [
+      "-DEVHTP_DISABLE_REGEX", "-DEVHTP_HAS_C99", "-DEVHTP_SYS_ARCH=64",
+      "-DGCC_VERSION=4002", "-DHAVE_CONFIG_H", "-DM0_TARGET=MotrTest",
+      "-D_REENTRANT", "-D_GNU_SOURCE", "-DM0_INTERNAL=", "-DS3_GOOGLE_TEST",
+      "-DM0_EXTERN=extern", "-pie", "-Wno-attributes", "-O3", "-Werror",
+      # Do NOT change the order of strings in below line
+      "-iquote", "$(MOTR_INC)", "-isystem", "$(MOTR_INC)",
+      "-I/usr/include/libxml2", MOTR_DYNAMIC_INCLUDES,
+    ],
+
+    includes = [
+      "third_party/libevent/s3_dist/include/",
+      "third_party/libevhtp/s3_dist/include/evhtp",
+      "third_party/jsoncpp/dist",
+      "$(MOTR_INC)",
+      "server/",
+      "mempool",
+    ],
+
+    linkopts = [
+      "-rdynamic",
+      "-L$(MOTR_LIB)",
+      "-L$(MOTR_HELPERS_LIB)",
+      "-Lthird_party/libevent/s3_dist/lib/",
+      "-Lthird_party/libevhtp/s3_dist/lib",
+      "-levhtp -levent -levent_pthreads -levent_openssl -lssl -lcrypto -llog4cxx",
+      "-lpthread -ldl -lm -lrt MOTR_LINK_LIB -lmotr-helpers -laio",
+      "-lyaml -lyaml-cpp -luuid -pthread -lxml2 -lgtest -lgmock -lgflags",
+      "-pthread -lglog -lhiredis",
+      "-Wl,-rpath,third_party/libevent/s3_dist/lib",
+    ],
+
+    data = [
+      "resources",
+    ],
+
+    deps = [ MOTR_DEPS ],
+)
+
+cc_test(
+    # How to run build
+    # bazel build //:s3utdeathtests --cxxopt="-std=c++11"
+    #                               --define MOTR_INC=<motr headers path>
+    #                               --define MOTR_LIB=<motr lib path>
+    #                               --define MOTR_HELPERS_LIB=<motr helpers lib path>
+
+    name = "s3utdeathtests",
+
+    srcs = glob(["ut_death_tests/*.cc", "ut_death_tests/*.h",
+                 "server/*.cc", "server/*.c", "server/*.h",
+                 "mempool/*.c", "mempool/*.h"],
+                 exclude = ["server/s3server.cc"]),
+
+    copts = [
+      "-DEVHTP_DISABLE_REGEX", "-DEVHTP_HAS_C99", "-DEVHTP_SYS_ARCH=64",
+      "-DGCC_VERSION=4002", "-DHAVE_CONFIG_H", "-DM0_TARGET=MotrTest",
+      "-D_REENTRANT", "-D_GNU_SOURCE", "-DM0_INTERNAL=",
+      "-DM0_EXTERN=extern", "-pie", "-Wno-attributes", "-O3", "-Werror",
+      # Do NOT change the order of strings in below line
+      "-iquote", "$(MOTR_INC)", "-isystem", "$(MOTR_INC)",
+      "-I/usr/include/libxml2", MOTR_DYNAMIC_INCLUDES,
+    ],
+
+    includes = [
+      "third_party/libevent/s3_dist/include/",
+      "third_party/libevhtp/s3_dist/include/evhtp",
+      "third_party/jsoncpp/dist",
+      "ut/",
+      "$(MOTR_INC)",
+      "server/",
+      "mempool",
+    ],
+
+    linkopts = [
+      "-rdynamic",
+      "-L$(MOTR_LIB)",
+      "-L$(MOTR_HELPERS_LIB)",
+      "-Lthird_party/libevent/s3_dist/lib/",
+      "-Lthird_party/libevhtp/s3_dist/lib",
+      "-levhtp -levent -levent_pthreads -levent_openssl -lssl -lcrypto -llog4cxx",
+      "-lpthread -ldl -lm -lrt -lmotr-helpers MOTR_LINK_LIB -laio",
+      "-lyaml -lyaml-cpp -luuid -pthread -lxml2 -lgtest -lgmock -lgflags",
+      "-pthread -lglog -lhiredis",
+      "-Wl,-rpath,third_party/libevent/s3_dist/lib",
+    ],
+
+    data = [
+      "resources",
+    ],
+
+    deps = [ MOTR_DEPS ],
+)
+
+cc_binary(
+    # How to run build
+    # bazel build //:s3perfclient
+
+    name = "s3perfclient",
+
+    srcs = glob(["perf/*.cc"]),
+
+    copts = ["-std=c++11", "-fPIC", "-DEVHTP_HAS_C99", "-DEVHTP_SYS_ARCH=64", "-O3"],
+
+    includes = ["third_party/libevent/s3_dist/include/",
+                "third_party/libevhtp/s3_dist/include/evhtp",
+                "server/"],
+
+    linkopts = ["-Lthird_party/libevent/s3_dist/lib",
+                "-Lthird_party/libevhtp/s3_dist/lib",
+                "-levhtp -levent -levent_pthreads -levent_openssl -lssl -lcrypto -lgflags -llog4cxx",
+                "-lpthread -ldl -lrt",
+                "-Wl,-rpath,third_party/libevent/s3_dist/lib"],
+)
+
+cc_binary(
+    # How to run build
+    # bazel build //:motrkvscli --cxxopt="-std=c++11"
+    #                             --define MOTR_INC=<motr headers path>
+    #                             --define MOTR_LIB=<motr lib path>
+    #                             --define MOTR_HELPERS_LIB=<motr helpers lib path>
+
+    name = "motrkvscli",
+
+    srcs = glob(["kvtool/*.cc", "kvtool/*.c", "kvtool/*.h"]),
+
+    copts = [
+      "-DEVHTP_HAS_C99", "-DEVHTP_SYS_ARCH=64", "-DGCC_VERSION=4002",
+      "-DHAVE_CONFIG_H", "-DM0_TARGET=MotrTest", "-D_REENTRANT",
+      "-D_GNU_SOURCE", "-DM0_INTERNAL=", "-DM0_EXTERN=extern",
+      # Do NOT change the order of strings in below line
+      "-iquote", "$(MOTR_INC)", "-isystem", "$(MOTR_INC)",
+      "-iquote", ".", "-include", "config.h",
+      "-fno-common", "-Wall", "-Wno-attributes", "-fno-strict-aliasing",
+      "-fno-omit-frame-pointer", "-Werror", "-ggdb3", "-O3", "-DNDEBUG",
+    ],
+
+    includes = [
+      "$(MOTR_INC)",
+    ],
+
+    linkopts = [
+      "-rdynamic",
+      "-L$(MOTR_LIB)",
+      "-L$(MOTR_HELPERS_LIB)",
+      "-lpthread -ldl -lm -lrt -lmotr-helpers MOTR_LINK_LIB -laio",
+      "-lgflags",
+      "-pthread -lglog",
+    ],
+
+    deps = [ MOTR_DEPS ],
+)
+
+cc_test(
+    # How to run build
+    # bazel build //:s3mempoolut --cxxopt="-std=c++11"
+
+    name = "s3mempoolut",
+
+    srcs = glob(["mempool/*.c", "mempool/*.h", "mempool/ut/*.cc"]),
+
+    copts = ["-DEVHTP_HAS_C99", "-DEVHTP_SYS_ARCH=64", "-O3"],
+
+    includes = [
+      "mempool/",
+    ],
+
+    linkopts = [
+      "-lpthread -ldl -lm -lrt -lgtest -lgmock -rdynamic",
+    ],
+
+)
+
+cc_test(
+    # How to run build
+    # bazel build //:s3mempoolmgrut --cxxopt="-std=c++11"
+    #                     --define MOTR_INC=<motr headers path>
+    #                     --define MOTR_LIB=<motr lib path>
+    #                     --define MOTR_HELPERS_LIB=<motr helpers lib path>
+
+    name = "s3mempoolmgrut",
+
+    srcs = glob(["s3mempoolmgrut/*.cc", "s3mempoolmgrut/*.h",
+                 "server/*.cc", "server/*.c", "server/*.h",
+                 "mempool/*.c", "mempool/*.h"],
+                 exclude = ["server/s3server.cc"]),
+
+    copts = [
+      "-DEVHTP_DISABLE_REGEX", "-DEVHTP_HAS_C99", "-DEVHTP_SYS_ARCH=64",
+      "-DGCC_VERSION=4002", "-DHAVE_CONFIG_H", "-DM0_TARGET=MotrTest",
+      "-D_REENTRANT", "-D_GNU_SOURCE", "-DM0_INTERNAL=", "-DS3_GOOGLE_TEST",
+      "-DM0_EXTERN=extern", "-pie", "-Wno-attributes", "-O3", "-Werror",
+      # Do NOT change the order of strings in below line
+      "-iquote", "$(MOTR_INC)", "-isystem", "$(MOTR_INC)",
+      "-I/usr/include/libxml2", MOTR_DYNAMIC_INCLUDES,
+    ],
+
+    includes = [
+      "third_party/libevent/s3_dist/include/",
+      "third_party/libevhtp/s3_dist/include/evhtp",
+      "third_party/jsoncpp/dist",
+      "$(MOTR_INC)",
+      "server/",
+      "mempool",
+    ],
+
+    linkopts = [
+      "-rdynamic",
+      "-L$(MOTR_LIB)",
+      "-L$(MOTR_HELPERS_LIB)",
+      "-Lthird_party/libevent/s3_dist/lib/",
+      "-Lthird_party/libevhtp/s3_dist/lib",
+      "-levhtp -levent -levent_pthreads -levent_openssl -lssl -lcrypto -llog4cxx",
+      "-lpthread -ldl -lm -lrt -lmotr-helpers MOTR_LINK_LIB -laio",
+      "-lyaml -lyaml-cpp -luuid -pthread -lxml2 -lgtest -lgmock -lgflags",
+      "-pthread -lglog -lhiredis",
+      "-Wl,-rpath,third_party/libevent/s3_dist/lib",
+    ],
+
+    deps = [ MOTR_DEPS ],
+)
+
+cc_library(
+    # How to run build
+    # bazel build //:s3addbplugin --define MOTR_INC=<motr headers path>
+    #                             --define MOTR_LIB=<motr lib path>
+    #                             --define MOTR_HELPERS_LIB=<motr helpers lib path>
+    # To build with debug symbols (to be able to analyze core files,
+    # or to run under GDB) add the following option to the command line
+    # arguments listed above:
+    #                         --strip=never
+    # Without this option, bazel strips debug symbols from the binary.
+
+    name = "s3addbplugin",
+
+    srcs = glob(["addb/plugin/*.c", "addb/plugin/*.h", "server/s3_addb*.h", "server/s3_addb_map*.c"]),
+
+    # In case of release mode we may have to remove option -ggdb3
+    # In case of debug mode we may have to remove option -O3
+    copts = [
+      "-DEVHTP_HAS_C99", "-DEVHTP_SYS_ARCH=64", "-DGCC_VERSION=4002",
+      "-DHAVE_CONFIG_H", "-DM0_TARGET=MotrTest", "-D_REENTRANT",
+      "-D_GNU_SOURCE", "-DM0_INTERNAL=", "-DM0_EXTERN=extern",
+      # Do NOT change the order of strings in below line
+      "-iquote", "$(MOTR_INC)", "-isystem", "$(MOTR_INC)",
+      "-iquote", ".", "-include", "config.h", "-I/usr/include/libxml2", MOTR_DYNAMIC_INCLUDES,
+      "-iquote", "server/", "-fno-common", "-Wall", "-Wno-attributes",
+      "-fno-strict-aliasing", "-fno-omit-frame-pointer", "-Werror", "-ggdb3",
+      "-O3", "-DNDEBUG",
+    ],
+
+    includes = [
+      "$(MOTR_INC)",
+    ],
+
+    deps = [ MOTR_DEPS ],
+)

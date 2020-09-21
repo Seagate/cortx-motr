@@ -1,0 +1,300 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+#
+#
+# Script to calculate cluster size.
+#
+# Usage : ${SCRIPT_NAME}
+#
+# RETURN :
+# 0 : SUCCESS
+# 1 : System Error
+# 2 : Client endpoint busy
+# 3 : m0spiel command timed out
+#
+# On Success returns
+# free space        <int>
+# available space   <int>
+# total space       <int
+# services total    <int
+# services replied  <int
+#
+# Author : Yeshpal Jain
+# email : yeshpal.jain@seagate.com
+#
+#
+
+#set -eu
+#set -x
+export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+
+SCRIPT_NAME=`echo $0 | awk -F "/" '{print $NF}'`
+STATUS_FILE=/tmp/get_size_client$USER
+SAVEIFS=$IFS
+TIMEOUT=5
+lnet_nids=$(lctl list_nids)
+server_addr=""
+client_addr=""
+profile_addr=""
+systemd=0
+declare libmotr_path="/usr/lib64/libmotr.so"
+declare m0spiel_path="/usr/bin/m0spiel"
+declare consul_path="/opt/seagate/cortx/hare/bin/consul"
+declare python2_path="/usr/bin/python2"
+consul_query_args="kv get -recurse m0conf"
+consul_query_cmd="$consul_path $consul_query_args"
+motr_conf_file="/etc/sysconfig/motr"
+
+exit_with_error()
+{
+	msg=$1
+	exit_code=$2
+	>&2 echo -e $msg
+	[[ -e $STATUS_FILE ]] && rm $STATUS_FILE
+	exit $exit_code
+}
+
+get_bin_path() {
+	bin_name="$1"
+	eval path_var="${bin_name}""_path"
+	eval file_path=\${${bin_name}_path}
+	if [ ! -e ${file_path} ] ; then
+		declare $path_var=$(which $bin_name)
+		eval file_path=\${${bin_name}_path}
+	fi
+        # return file_path string, Don't add any other echo statement
+        # in this method.
+	echo "$file_path"
+}
+
+check_bin_path() {
+	bin_name="$1"
+	eval file_path=\${${bin_name}_path}
+	if [ ! -e ${file_path} ] ; then
+		exit_with_error "ERROR: $bin_name not found" 1
+	fi
+}
+
+
+check_lib_path() {
+	arg1=$1
+	lib_name="${arg1%.*}"
+	eval path_var=\${${lib_name}_path}
+
+	if [ ! -e ${path_var} ] ; then
+		exit_with_error "ERROR: $lib_name not found" 1
+	fi
+}
+
+fs_stats_fetch() {
+/usr/bin/timeout --foreground $TIMEOUT $python2_path $m0spiel_path $M0_SPIEL_OPTS <<EOF
+spiel.rconf_status = 0
+def handle_sigterm(signalNumber, frame):
+    if spiel.rconf_status:
+        spiel.rconfc_stop()
+    sys.exit(1)
+    return
+
+
+if spiel.cmd_profile_set(str(Fid($M0_PROFILE_ID))):
+	sys.exit('cannot set profile')
+
+spiel.signal_nr = signal.SIGTERM
+spiel.signal_cb = handle_sigterm
+
+spiel.register_signal()
+
+if spiel.rconfc_start():
+	sys.exit('cannot start rconfc')
+else:
+        spiel.rconf_status = 1
+
+fs_stats = FsStats()
+
+rc = spiel.filesystem_stats_fetch(fs_stats)
+if rc != 0:
+	sys.exit('Error: filesystem stats fetch: \
+                 (status {0})'.format(rc))
+
+spiel.rconfc_stop()
+spiel.rconf_status = 0
+print("  free space       {0:>20}".format(fs_stats.fs_free_disk))
+print("  available space  {0:>20}".format(fs_stats.fs_avail_disk))
+print("  total space      {0:>20}".format(fs_stats.fs_total_disk))
+print("  services total   {0:>20}".format(fs_stats.fs_svc_total))
+print("  services replied {0:>20}".format(fs_stats.fs_svc_replied))
+EOF
+rc=$?
+if [ $rc -ne 0 ] ; then
+	[[ $rc -ge 124 ]] && exit_with_error "m0spiel command timedout" 3
+	exit_with_error "m0spiel command exit with error:$rc" $rc
+fi
+}
+
+# Get endpoints of local node's processes that run service(s) of given type.
+get_endpoints_of() {
+	local svc_type=$1
+
+	$consul_query_cmd |
+        awk -F/ -v host=$(hostname --fqdn) -v svc_type=$svc_type '
+	$3 != host { next }
+	$6 ~ /^endpoint:/ { sub(/^endpoint:/, "", $6); endpoints[$5] = $6 }
+	$6 == "services" && match($7, "^" svc_type ":") { match_p[$5] = 1 }
+	END { for (k in match_p) print endpoints[k] }
+	'
+}
+
+get_ep_status()
+{
+	client_ep=$1
+        # return endpoint running status from hctl,
+	# Dont add any other echo statement in this method.
+	echo "$(hctl status | grep $client_ep |  sed 's/.*\[\([^]]*\)\].*/\1/g' | sed 's/^[[:space:]]*//g')"
+}
+
+main()
+{
+	pid=$$
+	python2_path=$(get_bin_path python2)
+	m0spiel_path=$(get_bin_path m0spiel)
+	check_bin_path python2
+	check_bin_path m0spiel
+        if [ ! -s $libmotr_path ] ; then
+	    [[ -r $motr_conf_file ]] && source $motr_conf_file
+	    [[ -n $MOTR_DEVEL_WORKDIR_PATH ]] && \
+                libmotr_path=$MOTR_DEVEL_WORKDIR_PATH/motr/.libs/libmotr.so
+	    [[ ! -s $libmotr_path ]] && exit_with_error "libmotr Not Found" 1
+        fi
+
+	if [ -z $server_addr ] ; then
+		consul_path=$(get_bin_path consul)
+		check_bin_path consul
+		server_addr=$(get_endpoints_of ha | tail -1)
+	fi
+
+	if [ -z $profile_addr ] ; then
+		profile_addr=$($consul_query_cmd | grep profiles: | sed -n -e 's/^.*\(profiles:\)/\1/p'  | awk '{print $1}'| sed 's/^[^:]*://' | sed 's/:/,/')
+	fi
+
+	if [ -z $client_addr ] ; then
+		local cmd="tail -2"
+		[[  $systemd == 1 ]] && cmd="tail -1"
+		client_addr=$(get_endpoints_of m0_client_other | $cmd | head -1)
+	fi
+
+	M0_SPIEL_OPTS="-s $server_addr -l $libmotr_path --client=$client_addr"
+	M0_PROFILE_ID=$profile_addr
+
+	if [[ -z $server_addr || -z $libmotr_path || -z $client_addr || -z $profile_addr ]]; then
+		exit_with_error "Invalid Arguments" 1
+	fi
+
+	touch $STATUS_FILE
+	exec {FD}<>$STATUS_FILE
+
+	#Wait for $TIMEOUT to acquire the lock
+	if ! flock -x -w $TIMEOUT $FD; then
+		[[ -e $STATUS_FILE ]] && rm $STATUS_FILE
+		exit 2
+	fi
+	#Lock acquired, below command would be executed exclusively to current process
+	fs_stats_fetch
+	[[ -e $STATUS_FILE ]] && rm $STATUS_FILE
+}
+
+function usage() {
+    cat << EOF
+
+Usage: $SCRIPT_NAME [options]
+    -c, --clent            client endpoint address
+
+    -s, --server           server endpoint address
+
+    -p, --profile          profile endpoint address
+
+    -l, --libmotr_path     libmotr path
+
+    -h, --help             this help
+
+Example:
+    $SCRIPT_NAME  [-s ${lnet_nids}:12345:1:1] [-c ${lnet_nids}:12345:1:4]
+                  [-p 0x7000000000000001,0x1e] [-l $libmotr_path ]
+    -c, -s, -l and -p are optional arguments
+
+RETURN :
+0 : SUCCESS
+1 : System Error
+2 : endpoint busy
+3 : m0spiel command timed out
+
+Note: $SCRIPT_NAME can be executed only by privileged user
+
+EOF
+}
+
+
+function check_arg_value() {
+    [[ $# -gt 1 ]] || {
+        exit_with_error "Incorrect use of the option $1\nUse --help option" 1
+    }
+}
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -c| --client)
+            check_arg_value $1 $2
+	    client_addr="$2"
+            shift
+            ;;
+        -s| --server)
+            check_arg_value $1 $2
+            server_addr="$2"
+            shift
+            ;;
+        -p| --profile)
+            check_arg_value $1 $2
+            profile_addr="$2"
+            shift
+            ;;
+        -t| --timeout)
+            check_arg_value $1 $2
+            TIMEOUT=$2
+            shift
+            ;;
+        -l| --libmotr_path)
+            check_arg_value $1 $2
+            libmotr_path=$2
+            shift
+            ;;
+        -d| --daemon)
+	    systemd=1
+            ;;
+        -h| --help)
+            usage
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+main
+exit 0

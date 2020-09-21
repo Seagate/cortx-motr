@@ -1,0 +1,8 @@
+nobase_motr_include_HEADERS += spiel/spiel.h \
+			       spiel/conf_mgmt.h
+
+motr_libmotr_la_SOURCES += spiel/spiel.c \
+			   spiel/spiel_internal.h   \
+			   spiel/cmd.c   \
+			   spiel/cmd_internal.h \
+			   spiel/conf_mgmt.c

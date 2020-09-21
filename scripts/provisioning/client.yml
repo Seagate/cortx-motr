@@ -1,0 +1,40 @@
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+---
+# allow to override hosts to which this playbook applies in command line
+# using '-e override_hosts=HOSTS' option
+- hosts:  '{{ override_hosts | default("clients") }}'
+  become: yes  # run all commands as root
+  roles:
+    - base-os
+    - ssh-target
+    - journald-source
+    - nfs-client
+    - lustre-client
+    - motr-runtime
+    # when provisioning a development environment it's likely that Halon scripts
+    # are going to be used, which require halon-build dependencies to be
+    # installed
+    - role: halon-build
+      when: ansible_user == 'vagrant'
+    - halon-runtime
+    - hare-runtime
+    - iscsi-initiator
+    - s3server-runtime

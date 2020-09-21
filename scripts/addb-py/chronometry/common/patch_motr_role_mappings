@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+function patch_file() {
+    cat $1 | while IFS="" read line; do
+
+        if echo "$line" | grep "name" > /dev/null; then
+            local section_name=$(echo "$line" | awk '{print $3}' | sed 's/"//g')
+        fi
+
+        if [[ -n "$S3_SERVER_MULTIPLICITY" && "$section_name" == "s3server" ]]; then
+            echo "$line" | sed -r "s/multiplicity: [0-9]+/multiplicity: $S3_SERVER_MULTIPLICITY/"
+        elif [[ -n "$MOTR_APP_MULTIPLICITY" && "$section_name" == "motr-app" ]]; then
+            echo "$line" | sed -r "s/multiplicity: [0-9]+/multiplicity: $MOTR_APP_MULTIPLICITY/"
+        else
+            echo "$line"
+        fi
+
+    done
+}
+
+function parse_parameters() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -f|--file)
+                MOTR_ROLE_MAPPINGS_FILE="$2"
+                shift
+                ;;
+            -s|--s3server-multiplicity)
+                S3_SERVER_MULTIPLICITY="$2"
+                shift
+                ;;
+            -c|--motr-app-multiplicity)
+                MOTR_APP_MULTIPLICITY="$2"
+                shift
+                ;;
+            *)
+                echo "unsupported parameter: $1"
+                exit 1
+                ;;
+        esac
+        shift
+    done
+}
+
+function check_required_params() {
+    if [[ -z "$MOTR_ROLE_MAPPINGS_FILE" ]]; then
+        echo "invalid parameters"
+        exit 1
+    fi
+}
+
+parse_parameters $@
+check_required_params
+patch_file $MOTR_ROLE_MAPPINGS_FILE

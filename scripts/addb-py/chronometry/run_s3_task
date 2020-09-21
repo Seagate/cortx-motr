@@ -1,0 +1,485 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+set -e
+set -x
+
+SCRIPT_NAME=`echo $0 | awk -F "/" '{print $NF}'`
+SCRIPT_PATH="$(readlink -f $0)"
+SCRIPT_DIR="${SCRIPT_PATH%/*}"
+
+if [[ -z "$MOTR_SRC_DIR" ]]; then
+    MOTR_SRC_DIR="${SCRIPT_PATH%/*/*/*/*}"
+fi
+
+HALON_SRC_DIR="${MOTR_SRC_DIR}/../halon"
+HARE_SRC_DIR="${MOTR_SRC_DIR}/../cortx-hare"
+S3SERVER_SRC_DIR="${MOTR_SRC_DIR}/../cortx-s3server"
+
+IO_WORKLOAD_TIMEOUT="12h"
+
+# functions _check_root(), _check_is_cluster_online()
+. ${SCRIPT_DIR}/common/common_funcs
+# functions parse_nodes(), ...
+. ${SCRIPT_DIR}/common/remote_execution
+
+# check_motr_version(), check_s3server_version(), update_s3server_build_info()
+. ${SCRIPT_DIR}/common/sw_ver_check_funcs
+
+function perform_fio_tests() {
+    if [[ -n "$FIO_TESTS_DIR" ]]; then
+        _info "perform fio tests: $FIO_TESTS_DIR"
+        $EX_SRV $SCRIPT_DIR/fio_tests $FIO_TESTS_DIR
+        cluster_copy '/tmp/fio_results/*' "`pwd`"
+    fi
+}
+
+function halon_build() {
+    pushd $HALON_SRC_DIR
+
+    set +e
+    git clean -dfx
+    set -e
+
+    git pull
+    popd
+
+    _info "Halon building"
+    $HALON_SRC_DIR/scripts/h0 make &> halon_build.log
+}
+
+function hare_build() {
+    local curr_dir=$(pwd)
+    pushd $HARE_SRC_DIR
+    set +e
+    git clean -dfx
+    set -e
+    _info "Hare building"
+    make &> $curr_dir/hare_build.log
+    popd
+}
+
+function motr_build() {
+    pushd $MOTR_SRC_DIR
+
+    set +e
+    git clean -dfx
+    set -e
+
+    [[ -z $MOTR_GIT_COMMIT ]] || {
+        git checkout .
+        git submodule deinit -f .
+        git checkout $MOTR_GIT_COMMIT
+        git submodule sync
+        git submodule update --init --recursive
+    }
+
+    if [[ -n $NO_MOTR_TRACE ]]; then
+        git apply $SCRIPT_DIR/no_motr_trace.patch
+    fi
+
+    popd
+
+    _info "motr clean"
+    $MOTR_SRC_DIR/scripts/m0 clean
+
+    _info "motr build options: $MOTR_BUILD_OPTIONS"
+    _info "Building Motr commit $MOTR_GIT_COMMIT"
+    MAKE_OPTS=-j$(nproc) CONFIGURE_OPTS="$MOTR_BUILD_OPTIONS" \
+        $MOTR_SRC_DIR/scripts/m0 make &>motr_build.log
+}
+
+function s3server_build() {
+    local work_dir=`pwd`
+
+    pushd $S3SERVER_SRC_DIR
+
+    set +e
+    git clean -dfx
+    set -e
+
+    if [[ -n "$S3_GIT_COMMIT" ]]; then
+        git checkout . #clean all changes of files
+        git submodule deinit -f .
+        git checkout $S3_GIT_COMMIT
+        git submodule sync
+        git submodule update --init --recursive
+    fi
+
+    # Here is the right place for hacking....
+    echo "Overriding S3 build scripts..."
+    cp -rf $SCRIPT_DIR/s3_build_fix/* ./
+
+    _info "S3Server building"
+    _info "S3Server commit: $S3_GIT_COMMIT"
+
+    for srv in $(echo $SRV_NODES | tr ',' ' '); do
+        # preparation to s3server building
+        ssh $srv -T "MOTR_SRC_DIR=\"$MOTR_SRC_DIR\" \
+            ${SCRIPT_DIR}/s3server_integration/s3srv_build_prepare del_symlinks"
+        ssh $srv -T "MOTR_SRC_DIR=\"$MOTR_SRC_DIR\" \
+            ${SCRIPT_DIR}/s3server_integration/s3srv_build_prepare create_symlinks"
+
+        # clean bazel cache
+        set +e
+        ssh $srv "pkill -9 -f bazel"
+        ssh $srv "rm -Rf ~/.cache/bazel"
+        ssh $srv "pushd $(pwd) && bazel shutdown"
+        ssh $srv "pushd $(pwd) && bazel clean --expunge"
+
+        set -e
+        ssh $srv -T "pushd $(pwd) && M0_SRC_DIR=\"$MOTR_SRC_DIR\" ./rebuildall.sh \
+                    --no-check-code --no-s3ut-build \
+                    --no-s3mempoolut-build --no-s3mempoolmgrut-build \
+                    --no-jclient-build --no-jcloudclient-build \
+                    --no-motr-rpm --no-motr-build --no-s3iamcli-build \
+                    && popd" &> $work_dir/s3_build.$srv.log
+    done
+
+    update_s3server_build_info $S3_GIT_COMMIT
+    popd
+}
+
+function run_s3_workload() {
+    local motr_conf_param=""
+    local s3_conf_param=""
+    local disable_addb_param=""
+    local nodes_param=""
+
+    [[ -z $MOTR_CONF ]] || {
+        echo "using motr conf params: $MOTR_CONF"
+        motr_conf_param="-m \"${MOTR_CONF}\""
+    }
+
+    [[ -z $S3_CONF ]] || {
+        echo "using S3 conf params: $S3_CONF"
+        s3_conf_param="-s \"${S3_CONF}\""
+    }
+
+    [[ -z $SRV_CLI_MAP ]] || {
+        echo "srv-cli mapping: $SRV_CLI_MAP"
+        nodes_param="-n \"${SRV_CLI_MAP}\""
+    }
+
+    [[ -z "$TELNET_ADDR" ]] || {
+        echo "hw address: $TELNET_ADDR"
+        local addr_param="--hw-addr $TELNET_ADDR"
+    }
+
+    [[ -z "$TELNET_LOGIN" ]] || {
+        echo "hw login: $TELNET_LOGIN"
+        local login_param="--hw-login $TELNET_LOGIN"
+    }
+
+    [[ -z "$TELNET_PASS" ]] || {
+        echo "hw password: $TELNET_PASS"
+        local pass_param="--hw-pass $TELNET_PASS"
+    }
+
+    [[ -z "$S3_SERVER_MULTIPLICITY" ]] || {
+        echo "s3server multiplicity: $S3_SERVER_MULTIPLICITY"
+        local s3_multi_param="--s3-multiplicity $S3_SERVER_MULTIPLICITY"
+    }
+
+    [[ -z "$S3_SERVER_OPTS" ]] || {
+        echo "s3server CLI options: $S3_SERVER_OPTS"
+        local s3srv_opts_param="--s3srv-opts \"$S3_SERVER_OPTS\""
+    }
+
+    for ((i = 0; i < $((${#WORKLOAD_CONF[*]})); i++)); do
+        app=${APP_CONF[((i))]}
+        conf=${WORKLOAD_CONF[((i))]}
+        local workload_param="$workload_param -w \"$app\" \"$conf\""
+    done
+
+    eval MOTR_SRC_DIR="${MOTR_SRC_DIR}" \
+        timeout --foreground -s SIGKILL $IO_WORKLOAD_TIMEOUT \
+        $SCRIPT_DIR/s3_workload \
+        $workload_param $motr_conf_param $s3_conf_param \
+        -c \"${SKLN_CLUSTER_CONF_DIR}\" $disable_addb_param $nodes_param \
+        $addr_param $login_param $pass_param \
+        $s3_multi_param ${WORKLOAD_OPTS} $s3srv_opts_param $HARE_OPTION
+}
+
+function check_and_stop_cluster() {
+    set +e
+
+    $EX_SRV systemctl stop halond
+    $EX_SRV systemctl stop halon-cleanup
+    $EX_SRV systemctl stop s3authserver
+    $EX_SRV systemctl stop slapd
+    $EX_SRV systemctl stop haproxy
+
+    $EX_SRV systemctl start halon-cleanup
+    $EX_SRV pkill -9 -f m0[cd]
+    $EX_SRV pkill -9 -f s3server
+    $EX_SRV pkill -9 s3bench
+    $EX_SRV pkill -9 -f AuthServer
+    $EX_SRV systemctl start motr-cleanup
+    $EX_SRV $HALON_SRC_DIR/scripts/h0 fini
+    $EX_SRV lsmod | grep -q m0ctl && ( rmmod m0ctl || echo "Failed to unload m0ctl module" )
+    $EX_SRV lsmod | grep -q m0tr && ( rmmod m0tr || echo "Failed to unload m0tr module" )
+    $EX_SRV lsmod | grep -q m0gf && ( rmmod m0gf || echo "Failed to unload m0gf module" )
+    $EX_SRV lsmod | grep -q galois && ( rmmod galois || echo "Failed to unload galois module" )
+    set -e
+
+}
+
+function check_mandatory_args() {
+    [[ -n "$WORKLOAD_CONF" && -n "$PATH_FOR_ARTIFACTS" \
+    && -n "$MOTR_GIT_COMMIT" && -n "$S3_GIT_COMMIT" \
+    && -n "$SKLN_CLUSTER_CONF_DIR" && -n "$SRV_CLI_MAP" ]] || {
+        echo -e "missed mandatory parameter\nUse --help option"
+        exit 1
+    }
+}
+
+function usage() {
+    cat << EOF
+
+Usage: $SCRIPT_NAME [options]
+
+    -c, --cluster-configs     directory containing config files for cluster.
+
+        --s3-multiplicity     parameter specifies number of s3server instances
+                              on server node.
+
+    -w, --workload_config     workload options. It is mandatory option. Has
+                              overrides of m0crate config file default
+                              parameters.
+                              Example: "numClients=8 numSamples=16 objectSize=1024"
+
+    -p, --result-path         path to save results artifacts. It is mandatory
+                              option.
+
+    -m, --motr_config         options for override motr config file values.
+                              There is string with values which replaces current
+                              values in file /etc/sysconfig/motr.
+                              Example: "MOTR_TRACED_M0D=yes MOTR_M0D_OPTS=1"
+
+    -s, --s3srv_config        options for overried S3 server config file values.
+                              There is string with values which replaces current
+                              values in file /opt/seagate/s3/conf/s3config.yaml
+                              Example: "S3_LOG_FILE_MAX_SIZE=200 S3_MOTR_TM_RECV_QUEUE_MIN_LEN=32"
+
+    -g, --motr-git-commit     commit for motr building
+
+        --s3-git-commit       commit for s3server building
+
+    -b, --motr-build-options  options for motr building
+
+    -n, --srv-cli-map         Mapping of server nodes to client nodes.
+                              Format: "srv-node1-name=cli-node1-name srv-node2-name=cli-node2-name..."
+                              Example: "smc33-m09=smc41-m09 smc34-m09=smc42-m09"
+
+        --hw-addr             Address of device used as storage of cluster.
+                              If this address is specified then it will be used for
+                              collection of hardware configuration information.
+
+        --hw-login            Hardware device telnet login
+
+        --hw-pass             Hardware device telnet password
+
+    -f, --fio-tests           FIO tests directory.
+
+    -d, --no-addb-dumps       disable addb2 stobs dumping
+
+        --hare                use Hare as HA service
+
+    -h, --help                this help
+
+Example:
+    $SCRIPT_NAME -w "IOSIZE=4k BLOCK_SIZE=4k NR_THREADS=1" -p ./results
+
+EOF
+}
+
+function check_arg_value() {
+    [[ $# -gt 1 ]] || {
+        echo -e "Incorrect use of the option $1\nUse --help option"
+        exit 1
+    }
+}
+
+function parse_commits_ids() {
+    pushd $MOTR_SRC_DIR
+    git fetch origin
+    git fetch origin "+refs/changes/*:refs/remotes/origin/changes/*"
+    #remove "commit=" part if exist
+    MOTR_GIT_COMMIT=$(echo "$MOTR_GIT_COMMIT" | sed 's/commit=//')
+    if [[ "$MOTR_GIT_COMMIT" == "dev" ]]; then
+        MOTR_GIT_COMMIT=$(git rev-parse origin/dev)
+    fi
+    popd
+
+    pushd $S3SERVER_SRC_DIR
+    git fetch origin
+    git fetch origin "+refs/changes/*:refs/remotes/origin/changes/*"
+    if [[ "$S3_GIT_COMMIT" == "dev" ]]; then
+        S3_GIT_COMMIT=$(git rev-parse origin/dev)
+    fi
+    popd
+}
+
+function save_commits_ids() {
+    echo "$MOTR_GIT_COMMIT" > motr.commit
+    echo "$MOTR_BUILD_OPTIONS" > motr.build_options
+    echo "$S3_GIT_COMMIT" > s3server.commit
+}
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -w|--workload_config)
+            check_arg_value $1 $2 $3
+            APP_CONF+=("$2")
+            WORKLOAD_CONF+=("$3")
+            shift
+            shift
+            ;;
+        -c|--cluster-configs)
+            check_arg_value $1 $2
+            SKLN_CLUSTER_CONF_DIR="$2"
+            shift
+            ;;
+        -m|--motr_config)
+            check_arg_value $1 $2
+            MOTR_CONF=$2
+            shift
+            ;;
+        -s|--s3srv_config)
+            check_arg_value $1 $2
+            S3_CONF=$2
+            shift
+            ;;
+        -g|--motr-git-commit)
+            check_arg_value $1 $2
+            MOTR_GIT_COMMIT=$2
+            shift
+            ;;
+        --s3-git-commit)
+            check_arg_value $1 $2
+            S3_GIT_COMMIT=$2
+            shift
+            ;;
+        -b|--motr-build-options)
+            check_arg_value $1 $2
+            MOTR_BUILD_OPTIONS=$2
+            shift
+            ;;
+        -p|--result-path)
+            check_arg_value $1 $2
+            PATH_FOR_ARTIFACTS=$2
+            shift
+            ;;
+        --no-m0trace-files)
+            WORKLOAD_OPTS+=" $1"
+            ;;
+        --no-m0trace-dumps)
+            WORKLOAD_OPTS+=" $1"
+            ;;
+        --no-addb-stobs)
+            WORKLOAD_OPTS+=" $1"
+            ;;
+        -d|--no-addb-dumps)
+            WORKLOAD_OPTS+=" $1"
+            ;;
+        --no-m0play-db)
+            WORKLOAD_OPTS+=" $1"
+            ;;
+        --no-motr-trace)
+            NO_MOTR_TRACE=1
+            ;;
+        -n|--srv-cli-map)
+            check_arg_value $1 $2
+            SRV_CLI_MAP=$2
+            shift
+            ;;
+        --hw-addr)
+            TELNET_ADDR="$2"
+            shift
+            ;;
+        --hw-login)
+            TELNET_LOGIN="$2"
+            shift
+            ;;
+        --hw-pass)
+            TELNET_PASS="$2"
+            shift
+            ;;
+        --s3-multiplicity)
+            S3_SERVER_MULTIPLICITY="$2"
+            shift
+            ;;
+        --s3srv-opts)
+            check_arg_value $1 $2
+            S3_SERVER_OPTS="$2"
+            shift
+            ;;
+        -f|--fio-tests)
+            FIO_TESTS_DIR="$2"
+            shift
+            ;;
+        --hare)
+            HARE_OPTION="--hare"
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo -e "Invalid option: $1\nUse --help option"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+_check_root
+check_mandatory_args
+parse_nodes
+
+echo "creating $PATH_FOR_ARTIFACTS"
+mkdir -p $PATH_FOR_ARTIFACTS
+pushd $PATH_FOR_ARTIFACTS
+echo "task is started in `pwd`"
+
+check_and_stop_cluster
+perform_fio_tests
+# TODO: Perform LNet tests also - between servers
+parse_commits_ids
+save_commits_ids
+
+if ! check_motr_version $MOTR_GIT_COMMIT "$MOTR_BUILD_OPTIONS"; then
+    motr_build
+    if [[ -n $HARE_OPTION ]]; then
+	hare_build
+    else
+	halon_build
+    fi
+    MOTR_WAS_REBUILDED=1
+fi
+
+if ! check_s3server_version $S3_GIT_COMMIT || [[ -n "$MOTR_WAS_REBUILDED" ]] ; then
+    s3server_build
+fi
+
+run_s3_workload
+popd
+echo "task is finished"

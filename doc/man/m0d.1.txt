@@ -1,0 +1,76 @@
+M0D(1)
+======
+include::asciidoc.conf[]
+
+
+NAME
+----
+m0d - Motr file system service daemon
+
+
+SYNOPSIS
+--------
+*m0d* ['OPTIONS']
+
+
+DESCRIPTION
+-----------
+The m0d(1) command initializes and starts requested Motr file system
+service as a daemon process in user space.
+
+
+OPTIONS
+-------
+'TODO: add all options'
+
+*-x*::
+    List supported transports.
+
+*-l*::
+    List supported services.
+
+*-Q*::
+    Minimum TM Receive queue length.
+
+*-h, --help*::
+    Display help screen and exit.
+
+
+DETAILED DESCRIPTION
+--------------------
+'Blah-blah...'
+
+
+AUTHORS
+-------
+See the Motr distribution AUTHORS file.
+
+
+BUGS
+----
+All bugs are added by Motr Team ;)
+
+
+RESOURCES
+---------
+Main web site: <http://seagate.com/>
+
+
+COPYING
+-------
+Copyright \(C) 2013 Seagate Technology LLC
+You should have received a copy of Seagate's license along with
+this release. If not please contact a Seagate representative.
+
+
+SEE ALSO
+--------
+*motr*(7)
+
+
+MOTR
+----
+Part of the *motr*(7) suite
+
+
+// vim: syntax=asciidoc

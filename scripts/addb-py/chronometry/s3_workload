@@ -1,0 +1,828 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+set -x
+set -e
+
+SCRIPT_NAME=`echo $0 | awk -F "/" '{print $NF}'`
+SCRIPT_PATH="$(readlink -f $0)"
+SCRIPT_DIR="${SCRIPT_PATH%/*}"
+
+if [[ -z "$MOTR_SRC_DIR" ]]; then
+    MOTR_SRC_DIR="${SCRIPT_PATH%/*/*/*/*}"
+fi
+
+HALON_SRC_DIR="${MOTR_SRC_DIR}/../halon"
+HARE_SRC_DIR="${MOTR_SRC_DIR}/../cortx-hare"
+S3_SRC_DIR="${MOTR_SRC_DIR}/../cortx-s3server"
+
+CURENT_DIR=`pwd`
+ARTIFACTS_TOP_DIR=$CURENT_DIR/s3_artifacts_`date '+%Y-%m-%d_%H.%M.%S'`
+
+OVERRIDE_MOTR_CONF_PARAMS=""
+MOTR_CONF_FILE="/etc/sysconfig/motr"
+HALOND_CONF_FILE="/etc/sysconfig/halond"
+HALON_FACTS_FILE="/etc/halon/halon_facts.yaml"
+MOTR_ROLE_MAPPINGS_FILE="/etc/halon/motr_role_mappings"
+
+S3_SERVER_MULTIPLICITY=1
+HA_TYPE="halon" # hare by default
+
+# functions check_root(), _check_is_cluster_online()
+. ${SCRIPT_DIR}/common/common_funcs
+# functions parse_nodes(), ...
+. ${SCRIPT_DIR}/common/remote_execution
+
+OVERRIDE_S3_CONF_PARAMS=""
+
+APPS=(
+    "s3bench"
+    "s3bench"
+)
+
+CONFS=(
+    "-numClients=2 -numSamples=2 -objectSize=50Mb -objectNamePrefix=loadgen"
+    "-numClients=2 -numSamples=4 -objectSize=100Mb -objectNamePrefix=loadgen"
+)
+
+function stop_hare_cluster()
+{
+    set +e
+    hctl shutdown || {
+        _warn "Cluster stop FAILED! Trying to go further."
+    }
+    $EX_SRV systemctl reset-failed hare-hax
+    $EX_SRV systemctl stop s3authserver
+    $EX_SRV systemctl stop slapd
+    $EX_SRV systemctl stop haproxy
+    set -e
+}
+
+function stop_halon_cluster()
+{
+    set +e
+    hctl motr stop || {
+        _warn "Cluster stop FAILED! Trying to go further."
+    }
+    $EX_SRV systemctl stop halond
+    $EX_SRV systemctl stop halon-cleanup
+    $EX_SRV systemctl stop s3authserver
+    $EX_SRV systemctl stop slapd
+    $EX_SRV systemctl stop haproxy
+    set -e
+}
+
+function stop_cluster()
+{
+    if [[ "$HA_TYPE" == "halon" ]]; then
+        stop_halon_cluster
+    else
+        stop_hare_cluster
+    fi
+}
+
+function cleanup_cluster()
+{
+    # make sure that all services are stopped
+    $EX_SRV 'if systemctl is-active s3authserver; then systemctl stop s3authserver; fi'
+    $EX_SRV 'if systemctl is-active slapd; then systemctl stop slapd; fi'
+    $EX_SRV 'if systemctl is-active haproxy; then systemctl stop haproxy; fi'
+
+    local start_script="/opt/seagate/cortx/s3/s3startsystem.sh"
+    local start_script_bak="/opt/seagate/cortx/s3/s3startsystem.sh.bak"
+    $EX_SRV "if [[ -e $start_script_bak ]]; then cp $start_script_bak $start_script; fi"
+
+    set +e
+    $EX_SRV systemctl start halon-cleanup
+    $EX_SRV pkill -9 -f m0crate
+    $EX_SRV pkill -9 m0d
+    $EX_SRV pkill -9 -f s3server
+    $EX_SRV systemctl start motr-cleanup
+    $EX_SRV $HALON_SRC_DIR/scripts/h0 fini
+    systemctl stop hare-consul-agent
+    $EX_SRV "pushd $HARE_SRC_DIR && make uninstall && popd"
+    $EX_SRV rmmod m0tr
+    $EX_SRV rmmod m0gf
+    $EX_SRV rmmod galois
+    set -e
+
+    $EX_SRV 'rm -rf /var/motr/*'
+    $EX_SRV 'rm -rf /var/log/seagate/s3/*'
+    $EX_SRV 'rm -rf /var/crash/*'
+}
+
+function restart_cluster()
+{
+    _info 'cluster restart'
+    cleanup_cluster
+    setup_ha
+
+    configure_ldap
+    configure_haproxy
+    start_s3_related_services
+
+    setup_m0_configs
+    setup_ha_configs
+    setup_s3_configs
+
+    bootstrap_cluster
+}
+
+function setup_ha()
+{
+    if [[ "$HA_TYPE" == "halon" ]]; then
+        _info "setup Halon"
+        $EX_SRV $HALON_SRC_DIR/scripts/h0 init
+
+        # install halon/motr service to cluster
+        $EX_SRV systemctl stop halond
+        $EX_SRV systemctl start motr-cleanup
+        $EX_SRV systemctl start halon-cleanup
+    else
+        _info "setup Hare"
+        CURRENT_CDF="/tmp/cdf.yaml"
+        $EX_SRV $MOTR_SRC_DIR/scripts/install-motr-service -l
+        $EX_SRV "pushd $HARE_SRC_DIR && make devinstall && popd"
+        cat $CLUSTER_CONFIGS_DIR/cdf.s3.yaml \
+        | sed "s/s3:\s*[0-9]*/s3: $S3_SERVER_MULTIPLICITY/" > $CURRENT_CDF
+    fi
+}
+
+function configure_ldap()
+{
+    $EX_SRV $S3_SRC_DIR/scripts/enc_ldap_passwd_in_cfg.sh -l ldapadmin \
+        -p /opt/seagate/cortx/auth/resources/authserver.properties
+}
+
+function configure_haproxy()
+{
+    local haproxy_conf="/etc/haproxy/haproxy.cfg"
+    local haproxy_conf_tmp="/tmp/haproxy.cfg.new"
+    local s3_port_range_start="28081" #TODO it depends on motr_role_mappings
+    $EX_SRV "$SCRIPT_DIR/s3server_integration/patch_haproxy_config $haproxy_conf \
+        $S3_SERVER_MULTIPLICITY $s3_port_range_start > $haproxy_conf_tmp \
+        && mv $haproxy_conf_tmp $haproxy_conf"
+}
+
+function start_s3_related_services()
+{
+    $EX_SRV systemctl start haproxy
+    $EX_SRV systemctl start slapd
+    $EX_SRV systemctl start s3authserver
+}
+
+function setup_m0_configs()
+{
+    _info "copying cluster config files from $CLUSTER_CONFIGS_DIR"
+    cp $CLUSTER_CONFIGS_DIR/motr /tmp/motr
+    override_motr_conf /tmp/motr $OVERRIDE_MOTR_CONF_PARAMS
+    $EX_SRV scp $(hostname):/tmp/motr $MOTR_CONF_FILE
+    rm -f /tmp/motr
+}
+
+function setup_ha_configs()
+{
+    if [[ "$HA_TYPE" == "halon" ]]; then
+        _info "setup Halon configs"
+        # halon_facts.yaml
+        case $(echo $SRV_NODES | sed "s/,/ /g" | wc -w) in
+            1)
+                local node=$(echo $SRV_NODES | awk -F '.' '{print $1}')
+                $EX_SRV cp $CLUSTER_CONFIGS_DIR/halon_facts.$node.s3.yaml $HALON_FACTS_FILE
+                ;;
+            2)
+                $EX_SRV cp $CLUSTER_CONFIGS_DIR/halon_facts.dual.s3.yaml $HALON_FACTS_FILE
+                ;;
+        esac
+
+        $SCRIPT_DIR/common/patch_motr_role_mappings -f /etc/halon/motr_role_mappings \
+            -c 0 -s $S3_SERVER_MULTIPLICITY > /tmp/motr_role_mappings
+
+        $EX_SRV scp $(hostname):/tmp/motr_role_mappings /etc/halon/motr_role_mappings
+    fi
+}
+
+function setup_s3_configs()
+{
+    _info "setup s3server configs"
+    # Copy S3srv release configuration and override
+    cp $S3_SRC_DIR/s3config.release.yaml /tmp/s3config.yaml
+    ${SCRIPT_DIR}/s3server_integration/s3_overrides.py \
+        "${OVERRIDE_S3_CONF_PARAMS}" /tmp/s3config.yaml
+    $EX_SRV scp $(hostname):/tmp/s3config.yaml /opt/seagate/cortx/s3/conf/s3config.yaml
+    rm -f /tmp/s3config.yaml
+
+    $EX_SRV cp /opt/seagate/cortx/s3/s3startsystem.sh /opt/seagate/cortx/s3/s3startsystem.sh.bak
+
+    local s3srv_opts="--addb $S3_SERVER_OPTS"
+    $EX_SRV "sed -i 's/\-\-log_dir \$s3_log_dir/& $s3srv_opts/' \
+        /opt/seagate/cortx/s3/s3startsystem.sh"
+}
+
+function bootstrap_cluster()
+{
+    if [[ "$HA_TYPE" == "halon" ]]; then
+        $EX_SRV systemctl start halond
+        hctl motr bootstrap
+        wait_for_motr_start
+    else
+        hctl bootstrap --mkfs $CURRENT_CDF
+    fi
+}
+
+function create_artifacts_dir() {
+    # Create local dir
+    local num=$1
+    shift
+    local app=$1
+    shift
+
+    ARTIFACTS_DIR=`echo t$num-$app-$@ | sed -r -e 's/\s+/__/g' | sed -r 's/=/-/g'`
+    mkdir -p $ARTIFACTS_DIR
+
+    # Create temporary dir on remote nodes
+    $EX_SRV rm -fr /tmp/s3_workload_arts/ || true
+    $EX_SRV mkdir -p /tmp/s3_workload_arts/
+}
+
+function dump_m0traces() {
+    for filename in m0trace.*; do
+        _info "dump $filename"
+        $MOTR_SRC_DIR/utils/trace/m0trace -i ${filename} -o ${filename}.txt 2>/dev/null \
+            || echo "bad m0trace dump" > $filename.bad
+
+        rm $filename
+    done
+}
+
+function save_s3srv_artifacts() {
+    local auth_dir="auth"
+    local haproxy_dir="haproxy"
+    local log_dir="log"
+    local cfg_dir="cfg"
+    local crash_dir="crash"
+
+    for srv in $(echo $SRV_NODES | tr ',' ' '); do
+        mkdir -p $srv
+        pushd $srv
+
+        # Fetch list of folders per server
+        dirs=`ssh $srv -T "ls /var/motr/ | grep s3server | xargs -n1 basename"`
+        echo $dirs
+        mkdir $dirs
+
+        for s3d in s3server*; do
+            # Copy logs
+            scp -r $srv:/var/log/seagate/s3/$s3d ./$s3d/$log_dir
+
+            # m0trace files
+            if [[ -z $NO_M0TRACE_FILES ]]; then
+                scp -r $srv:/var/motr/$s3d/m0trace* ./$s3d
+
+                if [[ -z $NO_M0TRACE_DUMPS ]]; then
+                    pushd $s3d
+                    dump_m0traces
+                    popd
+                fi
+            fi
+
+            # ADDB stobs
+            if [[ -z $NO_ADDB_STOBS ]]; then
+                scp -r $srv:/var/motr/$s3d/addb* ./$s3d
+
+                local dump="$(pwd)/$s3d/addb*/o/100000000000000:2"
+                if [[ -z $NO_ADDB_DUMPS ]]; then
+                    dump="$(pwd)/$s3d/addb*/o/100000000000000:2"
+                    for d in $dump; do
+                        # local pid=$(echo $d | sed -E 's/.*addb_([0-9]+)[/].*/\1/')
+                        pid=$(echo $d | sed -E 's/.*addb_([0-9]+)[/].*/\1/')
+                        $MOTR_SRC_DIR/utils/m0addb2dump -f \
+                            -p $S3_SRC_DIR/bazel-bin/libs3addbplugin.so \
+                            -- "$d" > $s3d/dumpc_${pid}.txt
+                    done
+                    rm -f m0trace*
+                fi
+            fi
+        done
+
+        mkdir -p $auth_dir
+        scp -r $srv:/var/log/seagate/auth/* $auth_dir || true
+        ssh $srv -T "rm -rf /var/log/seagate/auth/*" || true
+        mv $auth_dir/server/app.log $auth_dir/server/app.$srv.log
+
+        mkdir -p $haproxy_dir
+        mkdir -p $haproxy_dir/$log_dir
+        scp -r $srv:/var/log/haproxy* $haproxy_dir/$log_dir || true
+        ssh $srv -T "rm -rf /var/log/haproxy*" || true
+
+        mkdir -p $haproxy_dir/$cfg_dir
+        scp -r $srv:/etc/haproxy/* $haproxy_dir/$cfg_dir
+
+        mkdir -p $crash_dir
+        scp -r $srv:/var/crash/* $crash_dir || true
+        ssh $srv -T "rm -rf /var/crash/*" || true
+
+        scp -r $srv:/opt/seagate/cortx/s3/conf/s3config.yaml ./
+        scp -r $srv:/opt/seagate/cortx/s3/s3startsystem.sh ./
+        scp -r $srv:/etc/hosts ./
+
+        cp $SCRIPT_DIR/s3server_integration/s3_credentials_$(echo $srv | cut -d. -f1) ./
+
+        popd
+    done
+}
+
+function save_motr_artifacts() {
+    local ios_m0trace_dir="m0trace_ios"
+    local configs_dir="configs"
+
+    if [[ "$HA_TYPE" == "hare" ]]; then
+        # local variables for Hare cluster
+        local ioservice_list=$(cat $ARTIFACTS_TOP_DIR/hctl-status.stop \
+            | grep ioservice | sed 's/\[.*\]//' | awk '{print $2}')
+    fi
+
+    mkdir -p $configs_dir
+
+    pushd $configs_dir
+    cp $MOTR_CONF_FILE ./
+
+    if [[ "$HA_TYPE" == "halon" ]]; then
+        #Halon configs
+        cp $HALOND_CONF_FILE ./
+        cp $HALON_FACTS_FILE ./
+        cp $MOTR_ROLE_MAPPINGS_FILE ./
+    else
+        mv $CURRENT_CDF ./
+    fi
+
+    popd
+
+    mkdir -p $ios_m0trace_dir
+
+    pushd $ios_m0trace_dir
+    if [[ -z $NO_M0TRACE_FILES ]]; then
+        set +e
+
+        if [[ "$HA_TYPE" == "halon" ]]; then
+            #Halon
+            cluster_copy '/var/motr/m0d-$(hctl motr status | grep "\[.*\].*ioservice" | grep $(hctl motr status | grep $(hostname) -A 1 | grep -E -o "([0-9]+[.][0-9]+[.][0-9]+[.][0-9]+)") | awk '"'"'{print $3}'"'"')/m0trace.*' $(pwd)
+        else
+            #Hare
+            local cur_dir=$(pwd)
+            local cur_hostname=$(hostname)
+            for ios_fid in $ioservice_list; do
+                local ios_dir="/var/motr/m0d-$ios_fid"
+                local srv_node_cmd="if [ -e $ios_dir ]; then scp $ios_dir/m0trace.* ${cur_hostname}:${cur_dir} ; fi"
+                $EX_SRV $srv_node_cmd
+            done
+        fi
+
+        set -e
+
+        if [[ -z $NO_M0TRACE_DUMPS ]]; then
+            dump_m0traces
+        fi
+    fi
+    popd # $ios_motrace_dir
+
+    if [[ -z $NO_ADDB_STOBS ]] && [[ -z $NO_ADDB_DUMPS ]]; then
+        # Dump servers
+
+        if [[ "$HA_TYPE" == "halon" ]]; then
+            #Halon
+            $EX_SRV mkdir -p /tmp/m0dumps/
+            $EX_SRV "pushd /tmp/m0dumps && M0_SRC_DIR=\"$MOTR_SRC_DIR\" $SCRIPT_DIR/p0 dump srv && popd"
+            cluster_copy '/tmp/m0dumps/*' $(pwd)
+            $EX_SRV rm -fr /tmp/m0dumps
+        else
+            #Hare
+            local cur_dir=$(pwd)
+            local cur_hostname=$(hostname)
+            for ios_fid in $ioservice_list; do
+                local ios_dir="/var/motr/m0d-$ios_fid"
+                local ios_addb_stob="$ios_dir/addb-stobs/o/100000000000000:2"
+                local pid=$(echo $ios_addb_stob | sed -E 's/.*[x]([a-z0-9]*)[/].*/\1/')
+                srv_node_cmd="if [ -e $ios_addb_stob ]; then scp $ios_addb_stob ${cur_hostname}:${cur_dir} ; fi"
+                $EX_SRV $srv_node_cmd
+                ${MOTR_SRC_DIR}/utils/m0addb2dump -f  -- "$cur_dir/100000000000000:2" > dumps_${pid}.txt
+                rm -f $cur_dir/100000000000000:2
+            done
+        fi
+    fi
+}
+
+function save_hardware_conf() {
+    if [[ -n "$TELNET_ADDR" ]]; then
+        if [[ -z "$TELNET_LOGIN" || -z "$TELNET_PASS" ]]; then
+            _err "missed parameter --hw-login or --hw-pass"
+            exit 1
+        fi
+        _info "saving hardware config"
+        $SCRIPT_DIR/get_hw_conf.exp $TELNET_ADDR $TELNET_LOGIN \
+                                    $TELNET_PASS > hw_conf.json
+    fi
+}
+
+function save_s3cli_artifacts() {
+    client_copy '/tmp/s3bench*' $(pwd)
+}
+
+function save_cli_artifacts() {
+    local app=$1
+
+    if [[ $app == "s3bench" ]]; then
+        save_s3cli_artifacts
+    fi
+
+    cluster_copy '/tmp/s3_workload_arts/*' $(pwd)
+    $EX_SRV rm -fr /tmp/s3_workload_arts/*
+}
+
+function save_srv_artifacts() {
+    local s3srv_dir="s3srv"
+    mkdir -p $s3srv_dir
+    pushd $s3srv_dir
+    save_s3srv_artifacts
+    popd
+
+    local motr_art_dir="m0d"
+    mkdir -p $motr_art_dir
+    pushd $motr_art_dir
+    save_motr_artifacts
+    popd
+
+    local hw_conf_dir="hw_conf"
+    mkdir -p $hw_conf_dir
+    pushd $hw_conf_dir
+    save_hardware_conf
+    popd
+
+    # Generate m0play.db
+    if [[ -z $NO_ADDB_STOBS ]] && [[ -z $NO_ADDB_DUMPS ]] && [[ -z $NO_M0PLAY_DB ]]; then
+        python3 $SCRIPT_DIR/addb2db.py --dumps $motr_art_dir/dump* $s3srv_dir/*/s3server*/dump* #--app $s3srv_dir/*/auth/server/app*.log
+    fi
+}
+
+function check_and_stop_cluster() {
+    if _check_is_hare_cluster_online; then
+        _info "stopping Hare cluster before test"
+        stop_hare_cluster
+    fi
+
+    if _check_is_cluster_online; then
+        _info "stopping cluster before test"
+        stop_halon_cluster
+    fi
+}
+
+function wait_for_motr_start() {
+    echo "wait for motr start"
+
+    while ! _check_is_cluster_online
+    do
+        if _check_is_cluster_failed; then
+            _err "cluster is failed"
+            exit 1
+        fi
+
+        sleep 5
+    done
+}
+
+function override_app_conf() {
+    [[ -z $APPS_OVERRIDED ]] && {
+        _info "overriding workload applications"
+        APPS=()
+        APPS_OVERRIDED=1
+    }
+    APPS+=("$1")
+}
+
+function override_workload_conf() {
+    [[ -z $CONFS_OVERRIDED ]] && {
+        _info "overriding workload configurations"
+        CONFS=()
+        CONFS_OVERRIDED=1
+    }
+    CONFS+=("$1")
+}
+
+function override_motr_conf() {
+    _info "overriding motr config parameters: $@"
+
+    local conf=$1
+    shift
+
+    for param in $@; do
+        local param_name=`echo "${param}" | awk -F "=" '{print $1}'`
+        local param_value=`echo "${param}" | awk -F "=" '{print $2}'`
+
+        sed -i "/.*${param_name}.*/d" $conf
+        param_value="$param_name=$param_value #changed by io_workload script"
+        echo -e "\n$param_value" >> $conf
+    done
+}
+
+function start_stat_utils() {
+    _info "starting dstat"
+    $EX_SRV 'dstat --output /tmp/s3_workload_arts/$(hostname -s)-dstat.log.csv &> /tmp/s3_workload_arts/$(hostname -s)-dstat.log &'
+
+    _info "starting iostat"
+    $EX_SRV 'iostat 1 &> /tmp/s3_workload_arts/$(hostname -s)-iostat.log &'
+}
+
+function start_glances() {
+    _info "starting glances"
+    $EX_SRV 'glances -q --export-csv /tmp/glances.$(hostname -s).csv' &
+    GLANCES_PID=$!
+}
+
+function stop_glances() {
+    _info "stopping glances"
+    set +e
+    kill -9 $GLANCES_PID
+    $EX_SRV pkill -9 -f glances
+    set -e
+
+    cluster_copy '/tmp/glances.*' $(pwd)
+    $EX_SRV 'rm -f /tmp/glances.*'
+}
+
+function stop_stat_utils() {
+    _info "stopping dstat"
+    set +e
+    $EX_SRV pkill dstat
+    set -e
+
+    _info "stopping iostat"
+    set +e
+    $EX_SRV pkill iostat
+    set -e
+}
+
+function prepare_client() {
+    $EX_SRV $SCRIPT_DIR/s3server_integration/s3cli_patch_hosts -m \"$SRV_CLI_MAP\" -n \"s3.seagate.com\"
+    $EX_SRV $SCRIPT_DIR/s3server_integration/s3cli_configure_aws \"$SRV_CLI_MAP\"
+    $EX_SRV $SCRIPT_DIR/s3server_integration/s3cli_aws \"$SRV_CLI_MAP\"
+}
+
+function run_client() {
+    local app=$1
+    shift
+
+    case $app in
+        s3bench)
+            $EX_SRV $SCRIPT_DIR/s3server_integration/s3cli_s3bench \"$SRV_CLI_MAP\" \"$@\"
+            ;;
+        sleep)
+            sleep $@
+            ;;
+        "exit")
+            exit $@
+            ;;
+    esac
+}
+
+function run_tests() {
+    ulimit -Hn 100000
+    ulimit -Sn 100000
+
+    local s3cli_dir="s3cli"
+    restart_cluster
+
+    $EX_SRV $SCRIPT_DIR/s3server_integration/check_and_create_s3_cred
+
+    mkdir -p $ARTIFACTS_TOP_DIR
+    pushd $ARTIFACTS_TOP_DIR
+
+    mkdir -p $s3cli_dir
+    pushd $s3cli_dir
+    start_glances
+    prepare_client
+    for ((i = 0; i < $((${#CONFS[*]})); i++)); do
+        app=${APPS[((i))]}
+        conf=${CONFS[((i))]}
+
+        echo "app: "$app 
+        echo "conf: "$conf
+
+        # In some cases conf may be empty
+        if [[ -z $app ]]; then
+            continue
+        fi
+
+        create_artifacts_dir $i $app $conf
+        pushd $ARTIFACTS_DIR
+        start_stat_utils
+        _info "running test..."
+        run_client $app $conf
+        stop_stat_utils
+        save_cli_artifacts $app
+        popd
+    done
+    stop_glances
+    popd
+
+    set +e
+
+    if [[ "$HA_TYPE" == "halon" ]]; then
+        hctl motr status > hctl-motr-status.stop
+        hctl motr stop || {
+            _warn "Cluster stop FAILED! Trying to go further."
+        }
+    else
+        hctl status > hctl-status.stop
+        hctl shutdown || {
+            _warn "Hare cluster stop FAILED! Trying to go further."
+        }
+    fi
+
+    set -e
+
+    save_srv_artifacts
+    popd
+
+    stop_cluster
+    cleanup_cluster
+}
+
+function usage() {
+    cat << EOF
+
+Usage: $SCRIPT_NAME [options]
+    -c, --cluster-configs  directory containing config files for cluster.
+
+        --s3-multiplicity  parameter specifies number of s3server instances
+                           on server node.
+
+        --config           specifying file for generation halon facts.
+
+    -w, --workload_config  workload options. Overrides default m0crate config
+                           file parameters.
+                           Example: "s3bench" "-numClients=4 -numSamples=16 -objectSize=64Mb -objectNamePrefix=template"
+
+    -m, --motr_config      motr options. Overrides default motr config file
+                           parameters.
+                           Example: "MOTR_TRACED_M0D=yes MOTR_M0D_OPTS=1"
+
+    -s, --s3srv_config     S3 server options. Overrides default S3 server config
+                           file parameters.
+                           Example: "S3_LOG_FILE_MAX_SIZE=200 S3_MOTR_TM_RECV_QUEUE_MIN_LEN=32"
+
+        --s3-cred          path to file that contains S3 credentials
+
+    -n, --srv-cli-map      Mapping of server nodes to client nodes.
+                           Format: "srv-node1-name=cli-node1-name srv-node2-name=cli-node2-name..."
+                           Example: "smc33-m09=smc41-m09 smc34-m09=smc42-m09"
+
+    -d, --no-addb-dumps    disable addb2 stobs dumping
+
+        --hw-addr          Address of device used as storage of cluster.
+                           If this address is specified then it will be used for
+                           collection of hardware configuration information.
+
+        --hw-login         Hardware device telnet login
+
+        --hw-pass          Hardware device telnet password
+
+        --hare             Use Hare as HA service
+
+    -h, --help             this help
+
+Example:
+    $SCRIPT_NAME -w "numClients=2 numSamples=2 objectSize=1048576 objectNamePrefix=loadgen"
+
+EOF
+}
+
+function check_arg_value() {
+    [[ $# -gt 1 ]] || {
+        echo -e "Incorrect use of the option $1\nUse --help option"
+        exit 1
+    }
+}
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --config)
+            check_arg_value $1 $2
+
+            [[ -f "$2" ]] || {
+                echo -e "File not exist: $2"
+                exit 1
+            }
+            PATH_TO_CONFIG=$2
+            shift
+            ;;
+        -w|--workload_config)
+            check_arg_value $1 $2 $3
+            override_app_conf "$2"
+            override_workload_conf "$3"
+            shift
+            shift
+            ;;
+        -m|--motr_config)
+            check_arg_value $1 $2
+            OVERRIDE_MOTR_CONF_PARAMS=$2
+            shift
+            ;;
+        -s|--s3srv_config)
+            check_arg_value $1 $2
+            OVERRIDE_S3_CONF_PARAMS=$2
+            shift
+            ;;
+        --s3-cred)
+            check_arg_value $1 $2
+            S3_CRED_FILE="$2"
+            shift
+            ;;
+        -c|--cluster-configs)
+            check_arg_value $1 $2
+
+            [[ -d $2 ]] || {
+                echo "Directory not exist: $2"
+                exit 1
+            }
+
+            CLUSTER_CONFIGS_DIR=$2
+            shift
+            ;;
+        --no-m0trace-files)
+            NO_M0TRACE_FILES=1;
+            ;;
+        --no-m0trace-dumps)
+            NO_M0TRACE_DUMPS=1;
+            ;;
+        --no-addb-stobs)
+            NO_ADDB_STOBS=1
+            ;;
+        -d|--no-addb-dumps)
+            NO_ADDB_DUMPS=1
+            ;;
+        --no-m0play-db)
+            NO_M0PLAY_DB=1;
+            ;;
+        -n|--srv-cli-map)
+            SRV_CLI_MAP="$2"
+            shift
+            ;;
+        --hw-addr)
+            TELNET_ADDR="$2"
+            shift
+            ;;
+        --hw-login)
+            TELNET_LOGIN="$2"
+            shift
+            ;;
+        --hw-pass)
+            TELNET_PASS="$2"
+            shift
+            ;;
+        --s3-multiplicity)
+            S3_SERVER_MULTIPLICITY="$2"
+            shift
+            ;;
+        --s3srv-opts)
+            check_arg_value $1 $2
+            S3_SERVER_OPTS="$2"
+            shift
+            ;;
+        --hare)
+            HA_TYPE="hare"
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo -e "Invalid option: $1\nUse --help option"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+parse_nodes
+_check_root
+check_and_stop_cluster
+run_tests
+
+exit 0

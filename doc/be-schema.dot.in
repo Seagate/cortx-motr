@@ -1,0 +1,204 @@
+/* m4 be-schema.m4 be-schema.dot.in > be-schema.dot && dot -Tpdf be-schema.dot > be-schema.pdf && open be-schema.pdf */
+
+digraph schema {
+  graph [fontname="courier"]
+  node [fontname="courier", shape=plaintext];
+  subgraph cluster_seg0 {
+    label="seg0";
+    seg0_hdr [label=<RECORD(TYPE(m0_be_seg_hdr)
+                            FORMAT(M0_FORMAT_TYPE_BE_SEG_HDR)
+                            FIELD(bh_id, uint64_t)
+                            FIELD(bh_items_nr, uint32_t)
+                            FIELD(bh_items[])
+                            FIELD(bh_be_version[])
+                            FIELD(bh_gen, uint64_t)
+                            FIELD(bh_alloc[])
+                            FIELD(bh_dict,,,PORT="dict"))>]
+
+    active_rec [label=<SEGDICT("M0_BE_ACTIVE_RECORD", *)>]
+
+    be_seg [label=<SEGDICT("M0_BE:SEG"$N, RECORD(TYPE(m0_be_0type_seg_cfg)
+                                                       FIELD(bsc_stob_key)
+                                                       FIELD(bsc_size)
+                                                       FIELD(bsc_addr,*,,PORT="addr")))>]
+    be_cob [label=<SEGDICT("M0_BE:COB"$N, *)>]
+
+    be_ad [label=<SEGDICT("M0_BE:AD"$N,
+                          RECORD(TYPE(stob_ad_0type_rec)
+                                 FORMAT(M0_FORMAT_TYPE_STOB_AD_0TYPE_REC)
+                                 FIELD(sa0_ad_domain,,,PORT="addom")))>]
+  }
+  subgraph cluster_seg1 {
+    label="seg1";
+
+    seg1_hdr [label=<RECORD(TYPE(m0_be_seg_hdr,PORT="head")
+                            FORMAT(M0_FORMAT_TYPE_BE_SEG_HDR)
+                            FIELD(bh_id, uint64_t)
+                            FIELD(bh_items_nr, uint32_t)
+                            FIELD(bh_items[])
+                            FIELD(bh_be_version[])
+                            FIELD(bh_gen, uint64_t)
+                            FIELD(bh_alloc[])
+                            FIELD(bh_dict,,,PORT="dict"))>]
+
+    cas_state_dict [label=<SEGDICT("cas-state-nr", *)>]
+
+    ag_store_dict [label=<SEGDICT("ag_store_"$N, *)>]
+
+    conf [label=<SEGDICT("conf"$N, *)>]
+
+    cob_dom [label=<RECORD(TYPE(m0_cob_domain, PORT="head")
+                           FORMAT(M0_FORMAT_TYPE_COB_DOMAIN)
+                           FIELD(cd_id)
+                           FIELD(cd_object_index, KV(*DEFINE*,
+			                             M0_BBT_COB_OI,
+                                                     RECORD(TYPE(m0_cob_oikey)
+                                                            FIELD(cok_fid, m0_fid)
+                                                            FIELD(cok_linkno, uint32_t)),
+                                                     RECORD(TYPE(m0_cob_nskey [sic])
+                                                            FIELD(cnk_pfid, m0_fid)
+                                                            FIELD(cnk_name, m0_bitstring))),,
+					          PORT="oi")
+                           FIELD(cd_namespace, KV(*DEFINE*,
+			                          M0_BBT_COB_NS,
+                                                  RECORD(TYPE(m0_cob_nskey)
+                                                         FIELD(cnk_pfid, m0_fid)
+                                                         FIELD(cnk_name, m0_bitstring)),
+                                                  RECORD(TYPE(m0_cob_nsrec)
+                                                         FORMAT(M0_FORMAT_TYPE_COB_NSREC)
+                                                         FIELD(cnr_fid, m0_fid)
+                                                         FIELD(cnr_linkno, uint32_t)
+                                                         FIELD(cnr_nlink, uint32_t)
+                                                         FIELD(cnr_cntr, uint32_t)
+                                                         FIELD(cnr_pad, char[4])
+                                                         FIELD(cnr_omgid, uint64_t)
+                                                         FIELD(cnr_size, uint64_t)
+                                                         FIELD(cnr_blksize, uint64_t)
+                                                         FIELD(cnr_blocks, uint64_t)
+                                                         FIELD(cnr_atime, uint64_t)
+                                                         FIELD(cnr_mtime, uint64_t)
+                                                         FIELD(cnr_ctime, uint64_t)
+                                                         FIELD(cnr_lid, uint64_t)
+                                                         FIELD(cnr_pver, m0_fid))),,
+                                                         PORT="namespace")
+                           FIELD(cd_fileattr_basic, KV(*DEFINE*,
+			                               M0_BBT_COB_FAB,
+						       RECORD(TYPE(m0_cob_fabkey)
+						              FIELD(cfb_fid, m0_fid)),
+						       RECORD(TYPE(m0_cob_fabrec)
+						              FIELD(cfb_fid, m0_fid)
+							      FIELD(cfb_version, uint64_t)
+							      FIELD(cfb_layoutid, uint64_t)
+							      FIELD(cfb_linklen, uint32_t)
+							      FIELD(cfb_link, char[N]))))
+                           FIELD(cd_fileattr_omg)
+                           FIELD(cd_fileattr_ea))>];
+
+    ad_dom [label=<RECORD(TYPE(m0_stob_ad_domain, PORT="head")
+                          FORMAT(M0_FORMAT_TYPE_STOB_AD_DOMAIN)
+                          FIELD(sad_dom_key)
+                          FIELD(sad_bstore_id)
+                          FIELD(sad_ballroom,*,,PORT="ballroom")
+                          FIELD(sad_container_size)
+                          FIELD(sad_path)
+                          FIELD(sad_adata,*,,PORT="emap"))>];
+
+    balloc [label=<RECORD(TYPE(m0_balloc)
+                          FORMAT(M0_FORMAT_TYPE_BALLOC)
+                          FIELD(container_id)
+                          FIELD(cb_container_id)
+                          FIELD(cb_sb)
+                          FIELD(cb_last)
+                          FIELD(cb_ballroom,, PORT="ballroom")
+                          FIELD(cb_db_group_extents, KV(*DEFINE*,
+			                                M0_BBT_BALLOC_GE,
+                                                        RECORD(FIELD(ext.end,m0_bindex_t)),
+                                                        RECORD(FIELD(ext.start,m0_bindex_t))),,
+						     PORT="ge")
+                          FIELD(cb_db_group_desc, KV(*DEFINE*,
+			                             M0_BBT_BALLOC_GD,
+                                                     RECORD(FIELD(groupno,m0_bindex_t)),
+                                                     RECORD(TYPE(m0_balloc_group_desc)
+                                                            FORMAT(M0_FORMAT_TYPE_BALLOC_GROUP_DESC)
+                                                            FIELD(bgd_groupno, m0_bindex_t)
+                                                            FIELD(bgd_freeblocks, m0_bcount_t)
+                                                            FIELD(bgd_fragments, m0_bcount_t)
+                                                            FIELD(bgd_maxchunk, m0_bcount_t)
+                                                            FIELD(bgd_spare_frags, m0_bcount_t)
+                                                            FIELD(bgd_spare_freeblocks, m0_bcount_t)
+                                                            FIELD(bgd_sparestart, m0_bcount_t)
+                                                            FIELD(bgd_spare_maxchunk, m0_bcount_t))),,
+                                                            PORT="gd"))>];
+
+    cas_state [label=<RECORD(TYPE(m0_cas_state)
+                             FORMAT(M0_FORMAT_TYPE_CAS_STATE)
+                             FIELD(cs_meta,*,,PORT="meta")
+                             FIELD(cs_rec_nr)
+                             FIELD(cs_rec_size))>];
+
+    ag_store [label=<RECORD(TYPE(m0_cm_ag_store_data, PORT="head")
+                            FIELD(d_in, m0_cm_ag_id)
+                            FIELD(d_out, m0_cm_ag_id)
+                            FIELD(d_cm_epoch, m0_time_t))>];
+
+    cas_ctg_meta [label=<RECORD(TYPE(m0_cas_ctg [meta], PORT="head")
+                                FORMAT(M0_FORMAT_TYPE_CAS_CTG)
+                                FIELD(cb_tree, KV(('i', 0, 0),
+				                  M0_BBT_CAS,
+                                                  RECORD(FIELD(16, uint64_t)
+                                                         FIELD(fid, struct m0_fid)),
+                                                  RECORD(FIELD(8, uint64_t)
+                                                         FIELD(, cas_ctg *,,PORT="tree")))))>];
+
+    cas_ctg [label=<RECORD(TYPE(m0_cas_ctg, PORT="head")
+                           FORMAT(M0_FORMAT_TYPE_CAS_CTG)
+                           FIELD(cc_tree, KV(component catalogue fid,
+			                     M0_BBT_CAS,
+                                             RECORD(FIELD(KEYSIZE, uint64_t)
+                                                    FIELD(KEY, char[KEYSIZE])),
+                                             RECORD(FIELD(VALSIZE, uint64_t)
+                                                    FIELD(VALUE, char[VALSIZE]))),,
+				          PORT="tree"))>];
+
+    cas_ctidx [label=<RECORD(TYPE(m0_cas_ctg [ctidx], PORT="head")
+                             FORMAT(M0_FORMAT_TYPE_CAS_CTG)
+                             FIELD(cc_tree, KV(('i', 0, 1),
+			                       M0_BBT_CAS,
+                                               RECORD(FIELD(16, uint64_t)
+                                                      FIELD(fid, struct m0_fid)),
+                                               RECORD(FIELD(N, uint64_t)
+                                                      FIELD(, struct m0_dix_layout))),,
+				            PORT="tree"))>];
+
+    emap [label=<RECORD(TYPE(m0_be_emap, PORT="head")
+                             FORMAT(M0_FORMAT_TYPE_BE_EMAP)
+                             FIELD(em_mapping, KV(*DEFINE*,
+			                          M0_BBT_EMAP,
+                                                  RECORD(TYPE(m0_be_emap_key)
+                                                         FORMAT(M0_FORMAT_TYPE_BE_EMAP_KEY)
+                                                         FIELD(ek_prefix, m0_uint128)
+                                                         FIELD(ek_offset, m0_bindex_t)),
+                                                  RECORD(TYPE(m0_be_emap_rec)
+                                                         FORMAT(M0_FORMAT_TYPE_BE_EMAP_REC)
+                                                         FIELD(er_start, m0_bindex_t)
+                                                         FIELD(er_value, uint64_t))),,
+					       PORT="tree"))>];
+}
+  cas_state:meta -> cas_ctg_meta:head
+  cas_ctg_meta:tree -> cas_ctg
+  cas_ctg_meta:tree -> cas_ctidx
+  be_cob:val  -> cob_dom:head
+  be_ad:addom:e  -> ad_dom:head
+  seg1_hdr:dict -> cas_state_dict:head:w
+  cas_state_dict:head:w -> ag_store_dict:head:w
+  ag_store_dict:head:w -> conf:head:w
+  seg0_hdr:dict -> active_rec:head:w
+  active_rec:head:w -> be_seg:head:w
+  be_seg:head:w -> be_cob:head:w
+  be_seg:addr -> seg1_hdr:head
+  be_cob:head:w -> be_ad:head:w
+  ad_dom:ballroom -> balloc:ballroom
+  cas_state_dict:val -> cas_state
+  ag_store_dict:val -> ag_store:head
+  ad_dom:emap:e -> emap:head
+}

@@ -1,0 +1,330 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+#set -x
+set -e
+
+SCRIPT_PATH="$(readlink -f $0)"
+PERF_DIR="${SCRIPT_PATH%/*}"
+
+. ${PERF_DIR}/common/common_funcs
+
+_get_cluster_params() {
+    local status=$(hctl status)
+    CLUSTER_PROFILE=`echo "$status" | grep Profile | awk '{print $2}'`
+    IOS_FID=`echo "$status" | grep "\[.*\].*ioservice" | grep ${NODE_IP} \
+        | awk '{print $3}'`
+
+    [[ -n $CLUSTER_PROFILE ]]
+}
+
+_locals() {
+    if [[ -z "$M0_SRC_DIR" ]]; then
+        M0_SRC_DIR="$(readlink -f $0)"
+        M0_SRC_DIR="${M0_SRC_DIR%/*/*/*/*}"
+    fi
+
+    local status=$(hctl status)
+    local host=$(hostname -s)
+    local addr="([0-9]+[.][0-9]+[.][0-9]+[.][0-9]+)"
+    local addr_ext='.* ([0-9]+[.][0-9]+[.][0-9]+[.][0-9]+@.+:[0-9]{5}:[0-9]{2}:).*'
+    local addr_extp='.* ([0-9]+[.][0-9]+[.][0-9]+[.][0-9]+@.+:[0-9]{5}:[0-9]{2}:[0-9]+).*'
+
+    NODE_IP=`echo "$status" | grep "$host" -A 1 | grep -E -o "$addr"`
+    APP_IP_EXT=`echo "$status" | grep $NODE_IP | grep m0_client | sed -E "s/:[0-9]+$/:/" | awk '{print $NF}' | head -1`
+    HALON_IP_EXT=`echo "$status" | grep hax | grep $NODE_IP | awk '{print $4}'`
+    CONFD_IP_EXT=`echo "$status" | grep confd | awk '{print $4}'`
+
+    MOTR_PORTS=`echo "$status" | grep $NODE_IP | grep m0_client | grep unknown \
+        | awk '{print $4}' | awk -F: '{print $NF}' | tr '\n' ' '`
+
+    MOTR_PORTS_NUM=`echo "$status" | grep $NODE_IP | grep m0_client | grep unknown | wc -l`
+}
+
+_clean() {
+    set +e
+    rm -f m0trace.* ${MOTR_M0D_TRACE_DIR:+$MOTR_M0D_TRACE_DIR/*/m0trace.*}
+    rm -fr addb*
+    rm -fr dumpc*.txt dumps*.txt
+    set -e
+}
+
+_exec() {
+    _info "----- ${@#cmd_} -----"
+    $@
+}
+
+cmd_help() {
+    local ret=${1:-0}
+
+    [ $ret -eq 0 ] && usage || usage >&2
+    exit $ret
+}
+
+_iter_m0crate_params() {
+    local all_params=$(cat ${PERF_DIR}/test_io.yaml.template \
+       | grep -P -o "###__.+=.+__###"                \
+       | sed -E "s/###__(.*=.*)__###/\1/g")
+
+    for param_eq in $all_params; do
+        case $1 in
+            ev) eval $param_eq;;
+            pr) echo $param_eq;;
+            *);;
+        esac
+    done
+}
+
+_set_default_m0crate_params() {
+    MOTR_CONFD_ADDR=$CONFD_IP_EXT
+    MOTR_HA_ADDR=$HALON_IP_EXT
+    PROF=$CLUSTER_PROFILE
+
+    _iter_m0crate_params pr
+
+    _iter_m0crate_params ev
+}
+
+_parse_m0crate_params() {
+    shift # delete 'm0crate' part
+
+    for x in $@; do
+        eval $x;
+    done
+
+    return 0
+}
+
+_set_m0crate_config_file_params() {
+    local config_file=$1
+
+    local all_params=$(cat ${PERF_DIR}/test_io.yaml.template        \
+               | grep -P -o "###__.+__###"                          \
+               | sed -E "s/###__([^=]*?)={0,1}(.*?){0,1}__###/\1/")
+
+    for param_name in $all_params; do
+        local param_value=${!param_name}
+        echo "fill parameter: "$param_name" -> "$param_value
+
+        [[ -n $param_value ]] || {
+            echo "parameter $param_name not found"
+            exit 1
+        }
+
+        sed -i -E "s/###__${param_name}={0,1}(.*?){0,1}__###/${param_value}/" \
+            ${config_file}
+    done
+}
+
+cmd_run() {
+    set +e
+    _check_is_hare_cluster_online || {
+        _err "Cluster is offline."
+        exit 1
+    }
+    set -e
+
+    _clean
+
+    case $1 in
+        m0crate)
+            rm -f /tmp/128M
+            dd if=/dev/urandom of=/tmp/128M bs=1M count=128
+            _set_default_m0crate_params
+            _parse_m0crate_params $@
+
+            if [[ $? -ne 0 ]]; then
+                echo "m0crate parameters parsing failed"
+                exit 1
+            fi
+
+            if [[ -z $APPS ]]; then
+                APPS=1
+            fi
+
+            if [[ "$APPS" -gt "$MOTR_PORTS_NUM" ]]; then
+                APPS=$MOTR_PORTS_NUM
+            fi
+
+            MOTR_PORTS=`echo $MOTR_PORTS | cut -d " " -f1-${APPS}`
+
+            if [[ -n $USE_MOTR_PORT ]]; then
+                _warn "using overrided motr port: $USE_MOTR_PORT"
+                MOTR_PORTS=$USE_MOTR_PORT
+            fi
+
+            for cport in $MOTR_PORTS; do
+                MOTR_LOCAL_ADDR_EXT=${APP_IP_EXT}${cport}
+
+                PROCESS_FID=$(hctl status \
+                    | grep m0_client | grep $MOTR_LOCAL_ADDR_EXT \
+                    | awk '{print $3}')
+
+                local m0crate_conf_path="$(pwd)/test_io${cport}.$(hostname).yaml"
+
+                cp $PERF_DIR/test_io.yaml.template $m0crate_conf_path
+
+                _set_m0crate_config_file_params "$m0crate_conf_path"
+
+                ${M0_SRC_DIR}/motr/m0crate/m0crate \
+                    -S $m0crate_conf_path 2>&1 \
+                    | awk -v port=${MOTR_LOCAL_ADDR_EXT} \
+                    '{ print "m0crate@" port ": " $0}' &
+            done
+            wait;;
+        c0mt)
+            ${M0_SRC_DIR}/motr/st/mt/m0mt \
+                -l ${IP}@tcp:12345:41:303  \
+                -h ${IP}@tcp:12345:34:101  \
+                -p 0x7000000000000001:0x4d \
+                -f 0x7200000000000001:0x28
+            ;;
+        c0cp)
+            ${M0_SRC_DIR}/motr/st/utils/m0cp \
+                -l ${IP}@tcp:12345:41:303  \
+                -H ${IP}@tcp:12345:34:101  \
+                -p 0x7000000000000001:0x4d \
+                -P 0x7200000000000001:0x28 \
+                -o 0x7300000000000001:0x33 /tmp/128M -s 4096 -c 1024
+            ;;
+        *)
+            cmd_help 1
+            ;;
+    esac
+}
+
+cmd_dump() {
+    set +e
+    _check_is_hare_cluster_online && {
+        _warn "Cluster is ONLINE"
+        _warn "Server side ADDB stob is not synced to disk"
+    }
+    set -e
+
+    if [[ $1 == --json ]] ; then
+        local json_dump=true; shift
+        local test_uuid_json='"test_uuid":"'$(uuidgen)'"'
+    fi
+
+    case $1 in
+        srv)
+            [[ -n $IOS_FID ]] || {
+                _warn "Client has no IO service"
+                exit 0
+            }
+            local dump_s="/var/motr/m0d-${IOS_FID}/addb-stobs/o/100000000000000:2"
+
+            for d in $dump_s; do
+                local pid=$(echo $d | sed -E 's/.*[x]([a-z0-9]*)[/].*/\1/')
+                set -x
+                ${M0_SRC_DIR}/utils/m0addb2dump -f  -- "$d" > dumps_${pid}.txt
+                set +x
+
+                if ${json_dump:-false} ; then
+                    set -x
+                    ${M0_SRC_DIR}/utils/m0addb2dump -j -J "$test_uuid_json" \
+                        -- "$d" | xz > dumps_${pid}.jsonl.xz
+                    set +x
+                fi
+            done
+            wait
+            ;;
+        cli)
+            local dump="$(pwd)/addb*/o/100000000000000:2"
+            for d in $dump; do
+                local pid=$(echo $d | sed -E 's/.*addb_([0-9]+)[/].*/\1/')
+                set -x
+                ${M0_SRC_DIR}/utils/m0addb2dump -f  -- "$d" > dumpc_${pid}.txt
+                set +x
+                if ${json_dump:-false} ; then
+                    set -x
+                    ${M0_SRC_DIR}/utils/m0addb2dump -j -J "$test_uuid_json" \
+                        -- "$d" | xz > dumpc_${pid}.jsonl.xz
+                    set +x
+                fi
+            done
+            wait
+            ;;
+        all)
+            cmd_dump srv
+            cmd_dump cli
+            ;;
+        *)
+            cmd_help 1
+            ;;
+    esac
+}
+
+cmd_db() {
+    _info "--- Create db from ${@} ---"
+    python3 ${PERF_DIR}/addb2db.py --dumps $@
+}
+
+cmd_defaults() {
+    _info "--- Default settings ---"
+    _iter_m0crate_params pr
+}
+
+usage() {
+    cat <<EOF
+Usage: ${0##*/} {COMMAND [OPTION]...}...
+
+Commands:
+    run [m0crate [WOKLOAD OPTION LIST]|c0mt|c0cp]       Run appropriate command as a load test.
+
+    dump [srv|cli|all]          Dump appropriate samples from given command.
+
+    db [addb dumps *.txt]       Create performance db from given dump files.
+
+    defaults                    Show list of default settings
+
+    help                        Show this help and exit.
+
+Running m0crate:
+    run m0crate LAYOUT_ID=1 IOSIZE=4k BLOCK_SIZE=4k NR_THREADS=1
+EOF
+}
+
+CMD=
+OPTS=
+while [ $# -gt 0 ]; do
+    case $1 in
+        run|dump|db|defaults|help)
+            [ -z "$CMD" ] || _exec $CMD $OPTS
+            CMD=cmd_${1//-/_}
+            OPTS=;;
+        *)
+            [ -n "$CMD" ] || {
+                _err "Invalid command: $1"
+                _err "Type \`${0##*/} help' for usage."
+                exit 1
+            }
+            OPTS+=" $1";;
+    esac
+    shift
+done
+if [ -n "$CMD" ]; then
+    _locals
+    _get_cluster_params
+    _check_root
+    _exec $CMD $OPTS
+else
+    cmd_help 1
+fi

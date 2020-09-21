@@ -1,0 +1,65 @@
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+common:
+  version: 1
+  description: Test S3 corruption test on cluster
+  priority: 11
+  batch_id: null
+  user: username@seagate.com
+  send_email: false
+  type: s3corrupt
+  timeout: 15m
+  nodes:
+    - srv: smc33-m09.colo.seagate.com
+      cli: smc33-m09.colo.seagate.com
+    - srv: smc34-m09.colo.seagate.com
+      cli: smc34-m09.colo.seagate.com
+
+workload:
+  - app: s3bench
+    param:
+      cli_options: "-numClients=24 -numSamples=2048 -objectSize=128Mb -objectNamePrefix=template"
+  - app: s3bench
+    param:
+      cli_options: "-numClients=24 -numSamples=4096 -objectSize=32Mb -objectNamePrefix=template"
+  - app: s3bench
+    param:
+      cli_options: "-numClients=24 -numSamples=4096 -objectSize=64Mb -objectNamePrefix=template"
+
+s3server:
+  git: b3ab3b0a2d290bbabcef2ba8a48796c566ab0fe4
+  num_instances: 11
+  cmd_line_options: null
+  config_overrides: null
+
+ha: hare
+
+motr:
+  git: 1aa25676d62d56d92712bd637afa188b92d3adb7
+  build_options: "--disable-altogether-mode --enable-release --with-trace-ubuf-size=64"
+  config_overrides: null
+
+execution_options:
+  no_motr_trace: true
+  no_m0trace_files: true
+  no_m0trace_dumps: true
+  no_addb_stobs: true
+  no_addb_dumps: true
+  no_m0play_db: true

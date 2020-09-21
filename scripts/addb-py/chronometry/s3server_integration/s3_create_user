@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+#set -x
+set -e
+
+SCRIPT_NAME=`echo $0 | awk -F "/" '{print $NF}'`
+
+function usage() {
+    cat << EOF
+
+Usage: $SCRIPT_NAME required_options [options]
+
+Required options:
+
+    -n, --name        name of new user
+
+    -e, --email       email of new user
+
+    -u, --ldap-user   ldap user
+
+    -p, --ldap-pass   ldap password
+
+
+Other options:
+
+    -h, --help        this help
+
+Example:
+    $SCRIPT_NAME --name user1 --email user1@example.com --ldap-user ldap_username --ldap-pass ldap_pass
+
+EOF
+}
+
+function parse_params() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            -u|--ldap-user)
+                LDAP_USER="$2"
+                shift
+                ;;
+            -p|--ldap-pass)
+                LDAP_PASS="$2"
+                shift
+                ;;
+            -n|--name)
+                NEW_ACCOUNT_NAME="$2"
+                shift
+                ;;
+            -e|--email)
+                NEW_ACCOUNT_EMAIL="$2"
+                shift
+                ;;
+            *)
+                echo "found unknown parameter: $1"
+                ;;
+        esac
+        shift
+    done
+}
+
+function check_required_params() {
+    if [[ -z "$LDAP_USER" || -z "$LDAP_PASS" || -z "$NEW_ACCOUNT_NAME" \
+       || -z "$NEW_ACCOUNT_EMAIL" ]]; then
+        echo "not found required parameter(s). Use --help for help"
+        exit 1
+    fi
+}
+
+function create_account() {
+    local output=`s3iamcli CreateAccount -n $NEW_ACCOUNT_NAME \
+        -e $NEW_ACCOUNT_EMAIL --ldapuser $LDAP_USER --ldappasswd $LDAP_PASS`
+
+    echo "$output" | awk -F "," '{ for(i = 1; i <= NF; i++) { print $i; } }' \
+        | sed "s/[[:blank:]]//g"
+}
+
+parse_params $@
+check_required_params
+create_account
+exit 0

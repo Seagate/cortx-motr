@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+# exit immediately if one the commands exits with a non-zero status
+set -e
+
+# constants
+readonly PROG_NAME=$(basename $0)
+
+# global variables, which can be overriden in /etc/sysconfig/motr
+MOTR_GENDERS_CONF=/etc/motr/genders
+
+# service local variables
+motr_exec_dir=/usr/libexec/cortx-motr
+user_config=/etc/sysconfig/motr
+kernel_config=/etc/sysconfig/motr-kernel
+service_funcs=$motr_exec_dir/motr-service.functions
+
+
+m0_mkfs()
+{
+    local service=$1
+
+    [[ -n $service ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
+
+    local node_uuid=${MOTR_NODE_UUID:-$(m0_genders_value_of m0_uuid)}
+    local be_opts
+
+    if [[ $service =~ ^ios.* ]] ; then
+        be_opts+=" -z ${MOTR_M0D_IOS_BESEG_SIZE:-$default_m0d_ios_beseg_size}"
+    else
+        local be_segsize=${MOTR_M0D_BESEG_SIZE:-$(m0_genders_value_of m0_be_segment_size)}
+        be_opts+=" -z ${be_segsize:-$default_m0d_beseg_size}"
+    fi
+
+    if [[ -n $MOTR_M0D_BELOG_SIZE ]] ; then
+        be_opts+=" -V $MOTR_M0D_BELOG_SIZE"
+    elif m0_genders_has_variable m0_be_log_size ; then
+        be_opts+=" -V $(m0_genders_value_of m0_be_log_size)"
+    fi
+
+    $motr_exec_dir/motr-server $service m0mkfs "-F -u $node_uuid $be_opts"
+}
+
+source $service_funcs
+
+[[ -r $kernel_config ]] && source $kernel_config
+[[ -r $user_config   ]] && source $user_config
+
+if [[ -n $1 ]] ; then
+    if [[ ${1,,*} =~ ^(0x)?[0-9a-f]+:(0x)?[0-9a-f]+$ ]] ; then
+        service=m0d-$1
+    else
+        service=$1
+    fi
+    m0_mkfs $service
+else
+    ha_is_started=false
+    confd_is_started=false
+    all_services=$(m0_get_services)
+    services=$(echo $all_services | sed -r 's/ha|confd//g')
+
+    # check if there are 'ha' and 'confd' services, we need to start them first,
+    # but only if there are other services on this node which require mkfs
+    if [[ $services != $all_services ]]
+    then
+        if [[ $all_services == *ha* ]] ; then
+            systemctl start motr-mkfs@ha.service
+            if [[ -n $services ]] ; then
+                systemctl start motr-server-ha.service
+                ha_is_started=true
+            fi
+        fi
+
+        if [[ $all_services == *confd* ]] ; then
+            systemctl start motr-mkfs@confd.service
+            if [[ -n $services ]] ; then
+                systemctl start motr-server-confd.service
+                confd_is_started=true
+            fi
+        fi
+    fi
+
+    for s in $services; do
+        systemctl start motr-mkfs@${s}.service
+    done
+
+    if $confd_is_started ; then
+        systemctl stop motr-server-confd.service
+        if systemctl -q is-active motr-trace@confd.service ; then
+            systemctl stop motr-trace@confd.service
+        fi
+    fi
+
+    if $ha_is_started ; then
+        systemctl stop motr-server-ha.service
+        if systemctl -q is-active motr-trace@ha.service ; then
+            systemctl stop motr-trace@ha.service
+        fi
+    fi
+
+    if systemctl -q is-active motr-kernel.service ; then
+        systemctl stop motr-kernel.service
+    fi
+fi

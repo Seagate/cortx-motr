@@ -1,0 +1,60 @@
+@@ 
+@@ Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+@@
+@@ Licensed under the Apache License, Version 2.0 (the "License");
+@@ you may not use this file except in compliance with the License.
+@@ You may obtain a copy of the License at
+@@
+@@   http://www.apache.org/licenses/LICENSE-2.0
+@@
+@@ Unless required by applicable law or agreed to in writing, software
+@@ distributed under the License is distributed on an "AS IS" BASIS,
+@@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@@ See the License for the specific language governing permissions and
+@@ limitations under the License.
+@@ 
+@@ For any questions about this software or licensing,
+@@ please email opensource@seagate.com or cortx-questions@seagate.com.
+@@
+
+diff --git a/lustre.spec b/lustre.spec
+--- a/lustre.spec
++++ b/lustre.spec
+@@ -279,6 +279,18 @@ simulate MDT service threads) locally on the MDS node, and does not need Lustre
+ clients in order to run
+ %endif
+ 
++%package devel
++Summary: Lustre include headers
++Group: Development/Kernel
++Provides: %{lustre_name}-devel = %{version}
++Requires: %{requires_kmod_name} = %{requires_kmod_version}
++BuildRequires: rsync
++Conflicts: %{lustre_name}-dkms
++
++%description devel
++This package contains headers required to build ancillary kernel modules that
++work closely with the standard lustre modules.
++
+ %if 0%{?suse_version}
+ %debug_package
+ %endif
+@@ -442,6 +454,18 @@ echo '%{_sbindir}/wirecheck' >>lustre-tests.files
+ echo '%{_sbindir}/wiretest' >>lustre-tests.files
+ %endif
+ 
++%define lustre_src_dir %{_prefix}/src/%{lustre_name}-%{version}
++
++:> lustre-devel.files
++mkdir -p $RPM_BUILD_ROOT%{lustre_src_dir}
++cp Module.symvers config.h $RPM_BUILD_ROOT%{lustre_src_dir}
++rsync -a libcfs/include            $RPM_BUILD_ROOT%{lustre_src_dir}/libcfs/
++rsync -a lnet/include              $RPM_BUILD_ROOT%{lustre_src_dir}/lnet/
++rsync -a lustre/include            $RPM_BUILD_ROOT%{lustre_src_dir}/lustre/
++find $RPM_BUILD_ROOT -path "$RPM_BUILD_ROOT%{lustre_src_dir}/*" -fprintf lustre-devel.files '/%%P\n'
++
++%files devel -f lustre-devel.files
++
+ %files -f lustre.files
+ %defattr(-,root,root)
+ %{_sbindir}/*

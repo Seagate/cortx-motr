@@ -1,0 +1,1 @@
+m0tr_objects += file/file.o file/di.o

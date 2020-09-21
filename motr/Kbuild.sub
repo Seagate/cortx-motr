@@ -1,0 +1,32 @@
+m0tr_objects += motr/ha.o \
+                  motr/iem.o \
+                  motr/keepalive.o \
+                  motr/keepalive_xc.o \
+                  motr/init.o \
+                  motr/version.o \
+		  motr/client.o \
+                  motr/client_xc.o \
+                  motr/addb_xc.o \
+                  motr/obj_lock.o \
+                  motr/client_init.o \
+                  motr/cob.o \
+                  motr/obj.o \
+                  motr/idx_mock.o \
+                  motr/idx_cass.o \
+                  motr/idx_dix.o \
+                  motr/idx.o \
+                  motr/io_pargrp.o \
+                  motr/io_req_fop.o \
+                  motr/io_req.o \
+                  motr/io_nw_xfer.o \
+                  motr/io.o \
+                  motr/sync.o \
+                  motr/layout.o \
+                  motr/composite_layout.o \
+                  motr/realm.o \
+                  motr/utils.o \
+                  motr/client_internal_xc.o
+
+
+m0tr_objects += motr/linux_kernel/dummy_init_fini.o \
+                  motr/linux_kernel/module.o

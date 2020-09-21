@@ -1,0 +1,1 @@
+ut_libmotr_ut_la_SOURCES += helpers/ut/ufid.c

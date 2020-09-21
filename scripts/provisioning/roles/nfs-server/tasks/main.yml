@@ -1,0 +1,52 @@
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+#
+# NFS server tasks
+#
+---
+- name: configure NFS server
+  block:
+    - name: collect user facts
+      # initial Ansible facts are collected on behalf of 'root' user due to
+      # 'become: yes' directive in the top-level playbook, we need to override
+      # those with real ssh user info because we want to export user's home dir,
+      # not /root
+      become: no
+      setup:
+        filter: ansible_user_*
+
+    - name: create mountpoint for nfs-client {{ ansible_user_dir }}/{{ cmu_nfs_mountpoint }}
+      become: no
+      file:
+        path: '{{ ansible_user_dir }}/{{ cmu_nfs_mountpoint }}'
+        state: directory
+
+    - name: create NFS server exportfs config
+      template:
+        src: vagrant-home.exports.j2
+        dest: /etc/exports.d/vagrant-home.exports
+
+    - name: start nfs-server
+      service: name=nfs-server state=started enabled=yes
+
+    - name: export NFS dirs
+      command: exportfs -rav
+      changed_when: false
+  tags: nfs-server

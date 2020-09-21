@@ -1,0 +1,4 @@
+m0tr_objects += xcode/xcode.o \
+                  xcode/enum.o \
+                  xcode/init.o \
+                  xcode/string.o

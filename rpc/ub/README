@@ -1,0 +1,67 @@
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+See benchmark results and analysis: http://goo.gl/mMaSQ
+
+A set of RPC benchmarks measures data needed for the following plots:
+
+  - rate (in messages per second) vs. number of connections;
+  - rate vs. message length (in bytes);
+  - processor utilisation vs. number of connections.
+
+*Note*: It is important to push along X axis (possibly
+logarithmically) until the peak is found.
+
+*Note*: Expected number of connections per rpc machine --- up to tens
+of millions.
+
+                          +--------------+
+     num. of connections  |              |
+    --------------------->|              |  rate (MPS)
+                          |              +--------------->
+                          |              |
+                          |    rpc-ub    |
+                          |              |  CPU load (%)
+     message length       |              +--------------->
+    --------------------->|              |
+                          |              |
+                          +--------------+
+
+		      Fig. 1  Inputs and outputs
+
+
+       +-------+                                  +-------+
+       |  rpc  |                                  |  rpc  |
+       +---+---+                                  +---+---+
+           |                                          |
+       +---+---+                                  +---+---+
+       |  net  |                                  |  net  |
+       +---+---+            "the pipe"            +---+---+
+           |       +-------+          +-------+       |
+           +-------|  mem  |----------|  mem  |-------+
+                   +-------+          +-------+
+           x                                          x
+           |                                          |
+       +---+---+                                  +---+---+
+       | LNet  |                                  | LNet  |
+       +---+---+                                  +---+---+
+           |                    IB                    |
+           +------------------------------------------+
+
+		     Fig. 2  Subsystems stack

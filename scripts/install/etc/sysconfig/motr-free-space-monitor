@@ -1,0 +1,12 @@
+#Threshold value to send IEM logs to the server, if the used space is more
+#than threshold, the Alert errors would be sent.
+THRESHOLD="70 80 85 90"
+FREQ=30
+MAX_RETRY=10
+EVENT_ID=2
+MODULE_ID=2
+SEVERITY_ID=1
+WORK_DIR="/var/motr/filesystem_stat"
+KEEP_TRACE_NUM=2
+MOTR_FREESPACE_ARGS=""
+TIMEOUT=5

@@ -1,0 +1,13 @@
+
+motr_m0kv_m0kv_SOURCES = motr/m0kv/cmd_main.c \
+		      motr/m0kv/index.c \
+		      motr/m0kv/index_parser.c \
+		      motr/m0kv/index_op.c \
+		      motr/m0kv/index.h \
+		      motr/m0kv/index_parser.h \
+		      motr/m0kv/index_op.h \
+		      motr/m0kv/common.h
+
+EXTRA_DIST  += motr/st/utils/m0kv_st.sh \
+	       motr/st/utils/m0kv_start.sh
+

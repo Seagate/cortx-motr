@@ -1,0 +1,75 @@
+Sheet: Workloads
+
+        CMND  BATCH_NO Dummy_m0crate BSIZE  COUNTS OBJ_ID  ... IS_OOSTORE IS_READ_VERIFY  TM_RECV_QUEUE_MIN_LEN MAX_RPC_MSG_SIZE IDX_SERVICE_ID  ADDB_INIT
+0         dd         1           NaN   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+1       m0cp         1           NaN    4k   786.0  10:10  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+2    m0trunc         1           NaN    4k   512.0  10:10  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+3      m0cat         1           NaN    4k   512.0  10:10  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+4       diff         1           NaN   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+5         du         1           NaN   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+6         du         1           NaN   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+7   m0unlink         1           NaN   NaN     NaN  10:10  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+8    m0crate         1         file1   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+9       m0kv         2           NaN   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+10      m0kv         2           NaN   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+11   m0crate         2         file1   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+12   m0crate         2         file2   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+13   m0crate         2         file3   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+14        dd         3           NaN   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+15   m0crate         3         file1   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+16   m0crate         4         file1   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+17   m0crate         5         file1   NaN     NaN    NaN  ...        NaN            NaN                    NaN              NaN            NaN        NaN
+
+[18 rows x 27 columns]
+==============================================================================
+Sheet: m0crate_io_workload
+
+   BATCH_NO Dummy_m0crate  WORKLOAD_TYPE WORKLOAD_SEED  OPCODE STARTING_OBJ_ID IOSIZE  ... KEY_PREFIX  KEY_ORDER             INDEX_FID    PUT  DEL  GET  NEXT
+0         1         file1              1        tstamp     2.0             NaN     1M  ...        NaN        NaN                   NaN    NaN  NaN  NaN   NaN
+1         2         file1              1        tstamp     5.0           20:20    10m  ...        NaN        NaN                   NaN    NaN  NaN  NaN   NaN
+2         1         file1              1        tstamp     2.0             NaN     1M  ...        NaN        NaN                   NaN    NaN  NaN  NaN   NaN
+3         2         file2              1        tstamp     5.0           30:30    10m  ...        NaN        NaN                   NaN    NaN  NaN  NaN   NaN
+4         2         file3              1        tstamp     6.0           20:20    10m  ...        NaN        NaN                   NaN    NaN  NaN  NaN   NaN
+5         2         file3              1        tstamp     6.0           30:30    10m  ...        NaN        NaN                   NaN    NaN  NaN  NaN   NaN
+6         3         file1              1        tstamp     2.0           30:30     1G  ...        NaN        NaN                   NaN    NaN  NaN  NaN   NaN
+7         4         file1              1        tstamp     2.0           40:40     1G  ...        NaN        NaN                   NaN    NaN  NaN  NaN   NaN
+8         5         file1              0        tstamp     NaN             NaN    NaN  ...     random    ordered  <7800000000000001:0>  100.0  0.0  0.0   0.0
+
+[9 rows x 33 columns]
+==============================================================================
+Sheet: runs_per_batch
+
+   BATCH_NO  NO_OF_RUNS
+0         1           2
+1         2           3
+2         3           1
+3         4           1
+4         5           1
+==============================================================================
+Sheet: sandbox_dir
+
+    sandbox_dir
+0  /tmp/sandbox
+==============================================================================
+Sheet: timeout
+
+   timeout
+0      120
+==============================================================================
+Sheet: cluster_param
+
+    app            cdf  client_index
+0  hare  /tmp/CDF.yaml             1
+==============================================================================
+Sheet: MOTR_CONFIG
+
+              MOTR_LOCAL_ADDR                MOTR_HA_ADDR                     PROF  ... MAX_RPC_MSG_SIZE  IDX_SERVICE_ID  ADDB_INIT
+0  192.168.0.95@tcp:12345:4:1  192.168.0.95@tcp:12345:1:1  0x7000000000000001:0x2c  ...           131072               1          1
+
+[1 rows x 11 columns]
+==============================================================================
+Sheet: singlenode_param
+
+         config_file  base_port
+0  /etc/motr/conf.xc        200
+==============================================================================

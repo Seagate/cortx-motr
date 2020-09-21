@@ -1,0 +1,17 @@
+changequote(,)
+changecom()dnl
+define(RECORD, <table BORDER="0" CELLBORDER="1" CELLSPACING="0">$1</table>)
+define(ROW, <tr><td ALIGN="left" $4>$1</td><td ALIGN="left" $5>$2</td><td ALIGN="left" $6>$3</td></tr>)
+define(ROW2, <tr><td ALIGN="left" $3>$1</td><td ALIGN="left" $4>$2</td></tr>)
+define(TYPE, ROW2(S, $1, BGCOLOR="green" $2, BGCOLOR="green" COLSPAN="2" $3))
+define(FORMAT, ROW2(M, $1, BGCOLOR="gray" $2, BGCOLOR="gray" COLSPAN="2" $3))
+define(FIELD, ROW(-, $1, $2, $3,, $4))
+define(KV, RECORD(ROW2(F,$1, BGCOLOR="red") ROW2(T,$2, BGCOLOR="red") ROW2(K,$3,BGCOLOR="red") ROW2(V,$4,BGCOLOR="red")))
+define(SEGDICT, RECORD(TYPE(be_seg_dict_keyval)
+                       FIELD(dkv_key, $1)
+		       FIELD(dkv_key_len, size_t)
+		       FIELD(dkv_val, $2,, PORT="val")
+		       FORMAT(M0_FORMAT_TYPE_BE_LIST)
+		       FIELD(dkv_link, m0_be_list_link, PORT="head", PORT="next")
+		       FIELD(dkv_magic, M0_BE_SEG_DICT_MAGIC)))
+

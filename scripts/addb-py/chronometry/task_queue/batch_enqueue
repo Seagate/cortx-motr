@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+set -e
+# set -x
+
+SCRIPT_NAME=`echo $0 | awk -F "/" '{print $NF}'`
+SCRIPT_PATH="$(readlink -f $0)"
+TQ_DIR="${SCRIPT_PATH%/*}"
+
+function usage() {
+    cat << EOF
+
+Usage:
+
+    $SCRIPT_NAME -d /path/to/batch/directory
+
+Description:
+
+    $SCRIPT_NAME script allows to put several predefined tasks in the taskq
+mechanism as a batch.
+    As an input parameter, the script takes a directory that contains several
+configuration files .yaml taskq. Each .yaml file defines a task for the taskq
+mechanism and must have the correct format for taskq. The script puts every task
+defined in the .yaml file in the queue.
+    Before putting, the script sets the 'batch_id' parameter to the task.
+The 'batch_id' parameter is generated from the name of the directory in which
+these .yaml files are placed and the current timestamp.
+    Example: if the directory with .yaml files has the name "my_batch", then
+the parameter "batch_id" may have the value "my_batch_2020-04-10-05-05-03-47".
+    It means that each execution of the $SCRIPT_NAME script puts the batch
+of tasks with a unique name. If the .yaml file already contains the 'batch_id'
+parameter, it will be replaced with the automatically generated batch_id, as
+described above.
+    Note: $SCRIPT_NAME doesn't modify the origin .yaml files from this
+directory and uses a temporary copy of them.
+
+Required parameters:
+
+    -d, --batch-dir     Path to directory contains predefined taskq configs.
+
+Optional parameters:
+
+    -h, --help          This help
+
+Example:
+
+    $ sudo ./$SCRIPT_NAME -d ./my_batch/
+    batch_id: my_batch_2020-04-13-05-07-18
+    [{'task_id': 'fbfa964c-2739-4603-9972-e30f6f7153c1'}, {'state': 'ENQUEUED'}]
+    [{'task_id': 'a0694395-8200-4bfe-9478-2adf3e60b446'}, {'state': 'ENQUEUED'}]
+
+EOF
+}
+
+function parse_params() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -d|--batch-dir)
+                TASKQ_CONFIGS_DIR="$2"
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "unknown parameter: $1"
+                exit 1
+                ;;
+        esac
+        shift
+    done
+}
+
+function check_required_params() {
+    if [[ -z "$TASKQ_CONFIGS_DIR" ]]; then
+        echo "not found required parameter"
+        exit 1
+    fi
+}
+
+function detect_batch_name() {
+    BATCH_NAME=`echo $TASKQ_CONFIGS_DIR | sed 's/\/*$//' \
+        | awk -F "/" '{print $NF}'`
+}
+
+function enqueue_tasks() {
+    local tmp_task_conf="./tq_conf_tmp.yaml"
+    local batch_id="${BATCH_NAME}_$(date '+%Y-%m-%d-%H-%M-%S')"
+    echo "batch_id: $batch_id"
+
+    for task_conf in $(ls $TASKQ_CONFIGS_DIR/*.yaml); do
+
+        if grep 'batch_id' $task_conf > /dev/null; then
+            #replace batch_id
+            sed "s/batch_id:.*/batch_id: $batch_id/" $task_conf > $tmp_task_conf
+        else
+            #add batch_id
+            cp $task_conf $tmp_task_conf
+            echo "batch_id: $batch_id" >> $tmp_task_conf
+        fi
+
+        python3 $TQ_DIR/task_queue.py -a < $tmp_task_conf
+    done
+
+    rm -f $tmp_task_conf
+}
+
+parse_params $@
+check_required_params
+detect_batch_name
+enqueue_tasks

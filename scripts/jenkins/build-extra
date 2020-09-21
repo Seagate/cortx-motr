@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+#
+# Build optinal configurations
+#
+
+# auto export all variables
+set -a
+
+# exit with error code on any command failure (including pipes)
+set -e
+set -o pipefail
+
+
+ARTIFACTS=$(pwd)/artifacts
+
+# for backward compatibility with old Jenkins environment we need to `cd` into
+# 'workdir/src' directory if it exists, that is where old Jenkins jobs stored
+# motr sources
+src_dir=workdir/src
+[[ ! -d $src_dir ]] || cd $src_dir
+
+for option in enable-debug disable-m0-asserts ; do
+    sudo git clean -dfx
+    sudo git submodule foreach git clean -dfx
+    ./autogen.sh
+    ./configure --$option |& tee $ARTIFACTS/configure-$option.log
+    make -j |& tee $ARTIFACTS/make-$option.log
+done

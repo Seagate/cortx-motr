@@ -1,0 +1,56 @@
+
+motr_st_user_space_m0st_SOURCES = motr/st/user_space/st_main.c \
+		      motr/st/st.c \
+		      motr/st/st_misc.c \
+		      motr/st/st_worker.c \
+		      motr/st/st_assert.c \
+		      motr/st/api.c \
+		      motr/st/oid.c \
+		      motr/st/obj.c  \
+		      motr/st/idx.c \
+		      motr/st/read.c \
+		      motr/st/write.c \
+		      motr/st/cancel.c \
+		      motr/st/osync.c \
+		      motr/st/isync.c \
+		      motr/st/layout.c \
+		      motr/st/example.c \
+		      motr/st/st_assert.h \
+		      motr/st/st.h \
+		      motr/st/st_misc.h \
+		      motr/st/mt/mt_fom.c
+
+motr_st_utils_m0client_SOURCES = motr/st/utils/client.c \
+		      motr/st/utils/helper.c \
+		      motr/st/utils/helper.h
+motr_st_utils_m0unlink_SOURCES = motr/st/utils/unlink.c \
+		      motr/st/utils/helper.c \
+		      motr/st/utils/helper.h
+motr_st_utils_m0cp_SOURCES = motr/st/utils/copy.c \
+		      motr/st/utils/helper.c \
+		      motr/st/utils/helper.h
+motr_st_utils_m0cat_SOURCES = motr/st/utils/cat.c \
+		      motr/st/utils/helper.c \
+		      motr/st/utils/helper.h
+motr_st_utils_m0touch_SOURCES = motr/st/utils/touch.c \
+		      motr/st/utils/helper.c \
+		      motr/st/utils/helper.h
+motr_st_utils_m0cc_cp_cat_SOURCES = motr/st/utils/cc_cp_cat.c \
+		      motr/st/utils/helper.c \
+		      motr/st/utils/helper.h
+motr_st_utils_m0trunc_SOURCES = motr/st/utils/truncate.c \
+		      motr/st/utils/helper.c \
+		      motr/st/utils/helper.h
+motr_st_utils_m0cp_mt_SOURCES = motr/st/utils/copy_mt.c \
+		      motr/st/utils/helper.c \
+		      motr/st/utils/helper.h
+motr_st_utils_m0composite_SOURCES = motr/st/utils/composite_bootstrap.c
+
+EXTRA_DIST  += motr/st/utils/motr_local_conf.sh \
+	       motr/st/utils/motr_cmd.sh \
+	       motr/st/utils/motr_st_inc.sh \
+	       motr/st/utils/motr_sys_test.sh \
+	       motr/st/utils/motr_device_util.sh \
+	       motr/st/utils/motr_fs.sh \
+	       motr/st/utils/motr_services.sh \
+	       motr/st/linux_kernel/st_kmain.c

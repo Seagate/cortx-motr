@@ -1,0 +1,17 @@
+ut_libmotr_ut_la_SOURCES += motr/ut/cs_ut_main.c rm/st/wlock_helper.c \
+                            motr/ut/client.c \
+                            motr/ut/obj.c \
+                            motr/ut/io_dummy.c \
+                            motr/ut/io_req.c \
+                            motr/ut/io_req_fop.c \
+                            motr/ut/io_pargrp.c \
+                            motr/ut/io_nw_xfer.c \
+                            motr/ut/io.c \
+                            motr/ut/idx.c \
+                            motr/ut/idx_dix.c \
+                            motr/ut/sync.c \
+                            motr/ut/layout.c \
+                            motr/ut/client.h \
+                            motr/st/mt/mt_fom.c
+
+CONFXC_FILES += motr/ut/dix_conf.xc

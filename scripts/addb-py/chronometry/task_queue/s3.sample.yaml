@@ -1,0 +1,66 @@
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+common:
+  version: 1
+  description: Short test description
+  priority: 2
+  batch_id: null
+  user: user@domain.tld
+  send_email: false
+  type: s3client
+  nodes:
+    - srv: smc33-m09.colo.seagate.com
+      cli: smc33-m09.colo.seagate.com
+    - srv: smc34-m09.colo.seagate.com
+      cli: smc34-m09.colo.seagate.com
+
+workload:
+  - app: s3bench
+    param:
+      cli_options: "-numClients=64 -numSamples=128 -objectSize=112Mb -objectNamePrefix=template"
+  - app: sleep
+    param:
+      cli_options: "120"
+  - app: s3bench
+    param:
+      cli_options: "-numClients=64 -numSamples=128 -objectSize=112Mb -objectNamePrefix=template"
+
+s3server:
+  git: c676cc01c68954004bf32542ce7e6c4e7bfa7110
+  num_instances: 11
+  cmd_line_options: null
+  config_overrides:
+    S3_TM_RECV_QUEUE_MIN_LEN: 1024
+    S3_MAX_UNITS_PER_REQUEST: 112
+
+ha: halon
+
+motr:
+  git: 3c6e1148ff5fb18b81236700396bd7881ad61c18
+  build_options: "--disable-altogether-mode --enable-release --with-trace-ubuf-size=64"
+  config_overrides: null
+
+execution_options:
+  no_motr_trace: true
+  no_m0trace_files: true
+  no_m0trace_dumps: true
+  no_addb_stobs: true
+  no_addb_dumps: true
+  no_m0play_db: true

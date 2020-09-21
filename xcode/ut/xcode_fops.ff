@@ -1,0 +1,76 @@
+/* -*- C -*- */
+/*
+ * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * For any questions about this software or licensing,
+ * please email opensource@seagate.com or cortx-questions@seagate.com.
+ *
+ */
+
+
+sequence {
+	u32 tb_cnt;
+	u8  tb_buf
+} m0_test_buf;
+
+record {
+	u32 tk_index;
+	u64 tk_val;
+	u8  tk_flag
+} m0_test_key;
+
+record {
+	u64         p_offset;
+	u32         p_cnt;
+	m0_test_key p_key;
+	m0_test_buf p_buf
+} m0_pair;
+
+sequence {
+	u32     da_cnt;
+	m0_pair da_pair
+} m0_desc_arr;
+
+sequence {
+	u32         fta_cnt;
+	m0_desc_arr fta_data
+} m0_fop_test_arr;
+
+record {
+	u32             ft_cnt;
+	u64             ft_offset;
+	m0_fop_test_arr ft_arr
+} m0_fop_test;
+
+array {
+	u32 el : 8
+} m0_biquad;
+
+array {
+	m0_pair p : 8
+} m0_octopair;
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */

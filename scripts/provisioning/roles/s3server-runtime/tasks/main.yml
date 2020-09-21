@@ -1,0 +1,43 @@
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+#
+# S3server runtime
+#
+---
+- name: dynamically load variables depending on the OS type
+  include_vars: '{{ item  }}'
+  with_first_found: '{{ ansible_os_family }}.yml'
+  tags: s3server
+
+- name: configure 's3server-cortx-deps' repository
+  yum_repository:
+    name:        s3server-cortx-deps
+    file:        s3server-cortx-deps
+    description: s3server cortx dependencies
+    baseurl:     http://cortx-storage.colo.seagate.com/releases/cortx/s3server_uploads
+    gpgcheck:    no
+  when: ansible_os_family == 'RedHat'
+  tags: s3server
+
+- name: install S3server run-time dependencies
+  package:
+    state: present
+    name:  '{{ s3server_runtime_deps_pkgs }}'
+  tags: s3server

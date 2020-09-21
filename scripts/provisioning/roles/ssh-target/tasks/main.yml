@@ -1,0 +1,84 @@
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+#
+# SSH target tasks
+#
+---
+- name: copy SSH jumphost key to {{ inventory_hostname }} host
+  copy:
+    src: '{{ ssh_jumphost_key_file }}'
+    dest:  /home/{{ ansible_user }}/.ssh/id_rsa
+    owner: '{{ ansible_user }}'
+    group: '{{ ansible_user }}'
+    mode: 0600
+  # don't panic if key doesn't exist, ignore it
+  ignore_errors: yes
+  tags: ssh
+
+- name: copy SSH jumphost pub key to {{ inventory_hostname }} host
+  copy:
+    src: '{{ ssh_jumphost_pub_key_file }}'
+    dest:  /home/{{ ansible_user }}/.ssh/id_rsa.pub
+    owner: '{{ ansible_user }}'
+    group: '{{ ansible_user }}'
+  # don't panic if key doesn't exist, ignore it
+  ignore_errors: yes
+  tags: ssh
+
+- name: authorize SSH jumphost pub key on {{ inventory_hostname }} host
+  authorized_key:
+    user:  '{{ item }}'
+    state: present
+    key:   '{{ lookup("file", ssh_jumphost_pub_key_file) }}'
+  with_items:
+    - '{{ ansible_user }}'
+    # Motr cluster tools require a direct root access to nodes, so adding jumphost
+    # pub key for root as well
+    - root
+  # don't panic if pub key doesn't exist, ignore it
+  ignore_errors: yes
+  tags: ssh
+
+- name: use the same key for 'root'
+  copy:
+    src:  /home/{{ ansible_user }}/.ssh
+    dest: /root
+    remote_src: yes
+    mode: preserve
+  tags: ssh
+
+- name: ensure correct permissions for root ssh prvite key
+  file:
+    path:  /root/.ssh/id_rsa
+    mode:  0600
+  tags: ssh
+
+- name: allow root user to login over SSH
+  replace:
+    path:    /etc/ssh/sshd_config
+    regexp:  '^#[ \t]*PermitRootLogin.*$'
+    replace: 'PermitRootLogin yes'
+  register: sshd_config
+  tags: ssh
+
+- name: restart sshd
+  service: name=sshd state=restarted
+  when: sshd_config.changed
+  tags: ssh

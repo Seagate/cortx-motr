@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+# exit immediately if one the commands exits with a non-zero status
+set -e
+
+# constants
+readonly PROG_NAME=$(basename $0)
+
+# global variables, which can be overriden in /etc/sysconfig/motr
+MOTR_GENDERS_CONF=/etc/motr/genders
+
+# service local variables
+user_config=/etc/sysconfig/motr
+service_funcs=/usr/libexec/cortx-motr/motr-service.functions
+
+
+start()
+{
+    source $service_funcs
+
+    [ -r $user_config ] && source $user_config
+
+    MOTR_NODE_LNID=$(m0_get_lnet_nid)
+
+    services=$(m0_get_services)
+
+    for s in $services; do
+        case $s in
+            rms*|mds*|ios*|cas*|fdmi*) t='@' ;;
+            confd|ha) t='-'  ;;
+        esac
+
+        service_dir=$(m0_get_m0d_data_dir_for $s)
+        [ ! -d "$service_dir" ] && mkdir -p "$service_dir"
+
+        systemctl start motr-server${t}${s}.service
+    done
+}
+
+stop()
+{
+    source $service_funcs
+
+    [ -r $user_config ] && source $user_config
+
+    for s in $(m0_get_running_servers | grep -v confd); do
+        systemctl stop motr-server@${s}.service
+    done
+
+    if [[ -n $(m0_get_running_servers | grep confd) ]] ; then
+        systemctl stop motr-server-confd.service
+    fi
+}
+
+
+case $1 in
+    start)  start ;;
+    stop)   stop ;;
+esac

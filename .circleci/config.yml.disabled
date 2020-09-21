@@ -1,0 +1,331 @@
+---
+#
+# Common parts that can be re-used in the actual CircleCI configuration sub-tree
+#
+templates:
+
+  docker_auth:
+    - seagate: &auth-ssg
+        username: seagateci
+        password: $SSG_DOCKERHUB_PASSWD
+
+  docker_images:
+    - latest: &docker-image-latest
+        docker:
+          - image: seagate/motr-devel:latest
+            auth: *auth-ssg
+
+    - 7.4: &docker-image-74
+        docker:
+          - image: seagate/motr-devel:7.4
+            auth: *auth-ssg
+
+    - 7.3: &docker-image-73
+        docker:
+          - image: seagate/motr-devel:7.3
+            auth: *auth-ssg
+
+    - sage: &docker-image-sage
+        docker:
+          - image: seagate/motr-devel:sage
+            auth: *auth-ssg
+
+  steps:
+    - rpmbuild_notests: &rpmbuild-notests
+      - attach_workspace:
+          at: /root
+      - run:
+          name: Building Motr rpms w/o tests
+          working_directory: ~/motr
+          command: |
+              ./configure --with-linux=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build
+              make rpms-notests kernel_src=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build
+      - run:
+          name: Copy Lustre devel package into rpmbuild
+          command: cp /root/lustre-client-devel-*.rpm /root/rpmbuild/RPMS/x86_64
+      - persist_to_workspace:
+          root: /root/rpmbuild
+          paths:
+            - RPMS
+
+  filters:
+    - only_dev: &filter-only-dev
+        branches:
+          only: [ dev ]
+
+    - ignore_dev: &filter-ignore-dev
+        branches:
+          ignore: [ dev ]
+
+    - release_tags: &filter-release-tags
+        branches:
+          ignore: '/.*/'
+        tags:
+          only: '/^v\d+\.\d+.*/'
+
+#
+# CircleCI configuration
+#
+version: 2
+
+
+# CircleCI jobs
+jobs:
+
+  autogen:
+    <<: *docker-image-latest
+    working_directory: ~/motr
+    steps:
+      - checkout
+
+      - run:
+          name: Env
+          command: printenv | grep ^CIRCLE
+
+      - run:
+          name: Checking-out git submodules
+          command: |
+              git submodule sync --recursive
+              git submodule update --init --recursive
+
+      - run:
+          name: Motr revision
+          command: |
+              git describe
+              git --no-pager log -1
+
+      - run:
+          name: Generating Autotools scripts
+          command: ./autogen.sh
+
+      - persist_to_workspace:
+          root: /root
+          paths:
+            - motr
+
+  build:
+    <<: *docker-image-latest
+    steps:
+      - attach_workspace:
+          at: /root
+      - run:
+          name: Building Motr
+          working_directory: ~/motr
+          command: |
+              ./configure --with-linux=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build
+              make -j8
+
+  build_debug:
+    <<: *docker-image-latest
+    steps:
+      - attach_workspace:
+          at: /root
+      - run:
+          name: Building Motr with --enable-debug
+          working_directory: ~/motr
+          command: |
+              ./configure --with-linux=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build \
+                          --enable-debug
+              make -j8
+
+  build_no_asserts:
+    <<: *docker-image-latest
+    steps:
+      - attach_workspace:
+          at: /root
+      - run:
+          name: Building Motr with --disable-m0-asserts
+          working_directory: ~/motr
+          command: |
+              ./configure --with-linux=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build \
+                          --disable-m0-asserts
+              make -j8
+
+  rpmbuild:
+    <<: *docker-image-latest
+    steps:
+      - attach_workspace:
+          at: /root
+      - run:
+          name: Building Motr rpms
+          working_directory: ~/motr
+          command: |
+              ./configure --with-linux=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build
+              make rpms kernel_src=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build
+
+  rpmbuild_notests:
+    <<: *docker-image-latest
+    steps: *rpmbuild-notests
+
+  rpmbuild_notests_74:
+    <<: *docker-image-74
+    steps: *rpmbuild-notests
+
+  rpmbuild_notests_73:
+    <<: *docker-image-73
+    steps: *rpmbuild-notests
+
+  rpmbuild_notests_sage:
+    <<: *docker-image-sage
+    steps: *rpmbuild-notests
+
+  artifacts:
+    docker:
+      - image: centos
+    steps:
+      - attach_workspace:
+          at: /root/rpmbuild
+      - store_artifacts:
+          path: /root/rpmbuild/RPMS/x86_64
+          destination: rpms
+
+  create_github_release:
+    <<: *docker-image-latest
+    steps:
+      - checkout
+      - run:
+          name: Env
+          command: printenv | grep ^CIRCLE
+      - run:
+          name: Create GitHub release
+          command: ./scripts/circleci/github-release --verbose
+
+  github_release_latest:
+    <<: *docker-image-latest
+    working_directory: ~/motr
+    steps:
+      - checkout
+      - run:
+          name: Add GitHub release for the latest CentOS release
+          command: ./scripts/circleci/github-release --verbose --update latest
+
+  github_release_74:
+    <<: *docker-image-74
+    working_directory: ~/motr
+    steps:
+      - checkout
+      - run:
+          name: Add GitHub release for CentOS 7.4
+          command: ./scripts/circleci/github-release --verbose --update 74
+
+  github_release_73:
+    <<: *docker-image-73
+    working_directory: ~/motr
+    steps:
+      - checkout
+      - run:
+          name: Add GitHub release for CentOS 7.3
+          command: ./scripts/circleci/github-release --verbose --update 73
+
+  github_release_sage:
+    <<: *docker-image-sage
+    working_directory: ~/motr
+    steps:
+      - checkout
+      - run:
+          name: Add GitHub release for CentOS SAGE
+          command: ./scripts/circleci/github-release --verbose --update sage
+
+# CircleCI workflows
+workflows:
+  version: 2
+
+  precommit:
+    jobs:
+      - autogen:
+          context: ssg-auth
+          filters: *filter-ignore-dev
+      - build:
+          context: ssg-auth
+          filters: *filter-ignore-dev
+          requires: [ autogen ]
+      - build_debug:
+          context: ssg-auth
+          filters: *filter-ignore-dev
+          requires: [ autogen ]
+      - build_no_asserts:
+          context: ssg-auth
+          filters: *filter-ignore-dev
+          requires: [ autogen ]
+      - rpmbuild:
+          context: ssg-auth
+          filters: *filter-ignore-dev
+          requires: [ autogen ]
+
+  dev_latest:
+    jobs:
+      - autogen:
+          context: ssg-auth
+          filters: *filter-only-dev
+      - build_no_asserts:
+          context: ssg-auth
+          filters: *filter-only-dev
+          requires: [ autogen ]
+      - rpmbuild_notests:
+          context: ssg-auth
+          filters: *filter-only-dev
+          requires: [ autogen ]
+      - artifacts:
+          filters: *filter-only-dev
+          requires: [ rpmbuild_notests ]
+
+  dev_74:
+    jobs:
+      - autogen:
+          context: ssg-auth
+          filters: *filter-only-dev
+      - rpmbuild_notests_74:
+          context: ssg-auth
+          filters: *filter-only-dev
+          requires: [ autogen ]
+      - artifacts:
+          filters: *filter-only-dev
+          requires: [ rpmbuild_notests_74 ]
+
+  dev_73:
+    jobs:
+      - autogen:
+          context: ssg-auth
+          filters: *filter-only-dev
+      - rpmbuild_notests_73:
+          context: ssg-auth
+          filters: *filter-only-dev
+          requires: [ autogen ]
+      - artifacts:
+          filters: *filter-only-dev
+          requires: [ rpmbuild_notests_73 ]
+
+  dev_sage:
+    jobs:
+      - autogen:
+          context: ssg-auth
+          filters: *filter-only-dev
+      - rpmbuild_notests_sage:
+          context: ssg-auth
+          filters: *filter-only-dev
+          requires: [ autogen ]
+      - artifacts:
+          filters: *filter-only-dev
+          requires: [ rpmbuild_notests_sage ]
+
+  github_release:
+    jobs:
+      - create_github_release:
+          context: ssg-auth
+          filters: *filter-release-tags
+      - github_release_latest:
+          context: ssg-auth
+          filters: *filter-release-tags
+          requires: [ create_github_release ]
+      - github_release_74:
+          context: ssg-auth
+          filters: *filter-release-tags
+          requires: [ create_github_release, github_release_latest ]
+      - github_release_73:
+          context: ssg-auth
+          filters: *filter-release-tags
+          requires: [ create_github_release, github_release_latest, github_release_74 ]
+      - github_release_sage:
+          context: ssg-auth
+          filters: *filter-release-tags
+          requires: [ github_release_73 ]

@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+function set_timeout()
+{
+    local user_defined_timeout=$1
+    local time_val_fmt='[0-9]+'
+    local time_unit_fmt='d|h|m|s'
+    local fmt="^$time_val_fmt($time_unit_fmt)\$"
+
+    if ! echo "$user_defined_timeout" | grep -P "$fmt"; then
+        echo "invalid timeout format"
+        exit 1
+    fi
+
+    local time_val=$(echo "$user_defined_timeout" | grep -P -o "$time_val_fmt")
+    local time_unit=$(echo "$user_defined_timeout" | grep -P -o "$time_unit_fmt")
+
+    local multiplier=''
+    case $time_unit in
+        d)
+            multiplier=86400
+            ;;
+        h)
+            multiplier=3600
+            ;;
+        m)
+            multiplier=60
+            ;;
+        s)
+            multiplier=1
+            ;;
+        *)
+            echo "invalid time unit"
+            exit 1
+            ;;
+    esac
+
+    local time_val_sec=$(($time_val*$multiplier))
+    local now=$(date '+%s')
+    DEADLINE_UNIXTIME=$(($now+$time_val_sec))
+}

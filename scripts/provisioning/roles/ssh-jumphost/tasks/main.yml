@@ -1,0 +1,64 @@
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+#
+# SSH jumphost tasks
+#
+---
+- name: generate user SSH key pair
+  user: name={{ ansible_user }} generate_ssh_key=yes
+  tags: ssh
+
+- name: read the public key
+  slurp:
+    src: /home/{{ ansible_user }}/.ssh/id_rsa.pub
+  register: pub_key
+  tags: ssh
+
+# this is needed for `m0genfacts` util, which gathers information about hosts
+# over ssh, so it requires an ssh access to a host even if it's already running
+# on the same host
+- name: enable SSH self-login with the public key
+  authorized_key:
+    user:  '{{ ansible_user }}'
+    state: present
+    key:   '{{ pub_key.content | b64decode }}'
+  tags: ssh
+
+- name: use the same key for 'root'
+  copy:
+    src:  /home/{{ ansible_user }}/.ssh
+    dest: /root
+    remote_src: yes
+    mode: preserve
+  tags: ssh
+
+- name: fetch SSH jumphost key file
+  fetch:
+    src:  ~{{ ansible_user }}/.ssh/id_rsa
+    dest: '{{ ssh_jumphost_key_file }}'
+    flat: yes
+  tags: ssh
+
+- name: fetch SSH jumphost pub key file
+  fetch:
+    src:  ~{{ ansible_user }}/.ssh/id_rsa.pub
+    dest: '{{ ssh_jumphost_pub_key_file }}'
+    flat: yes
+  tags: ssh

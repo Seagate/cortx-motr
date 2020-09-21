@@ -1,0 +1,525 @@
+#!/usr/bin/env python3
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+import subprocess
+import os
+import sys
+import getopt
+from socket import gethostname
+from typing import Dict, List, NamedTuple, Set
+import yaml
+import time
+import calendar
+import ast
+import re
+import pandas as pd
+import xlrd
+import math
+import datetime
+from datetime import date
+from datetime import datetime
+
+workloads_dict = {}
+sandbox_dir_dict = {}
+workload_output_file = None
+timestamp_str = None
+motr_config_dict = None
+m0crate_file_names = {}
+workloads = {}
+per_batch_list_of_m0crate_workloads = {}
+m0crate_files_per_batch = {}
+out_dir = None
+
+def represent_dictionary_order(self, dict_data):
+    return self.represent_mapping('tag:yaml.org,2002:map', dict_data.items())
+
+def setup_yaml():
+    yaml.add_representer(dict, represent_dictionary_order)
+
+def create_out_dir():
+    global out_dir
+    today = date.today()
+    now = datetime.now()
+    d = today.strftime("%b-%d")
+    t = now.strftime("%H:%M")
+    dt_str = ''.join([d, '_', t])
+    out_dir = ''.join([os.getcwd(), "/out_", dt_str, "/"])
+    cmd = ''.join(["mkdir ", out_dir])
+    os.system(cmd)
+'''
+    Get command name from workload excel sheet
+'''
+def create_cmdname_for_cmd(i, workloads_dict):
+    return workloads_dict['CMND'][i]
+
+'''
+    Create parameters from workload excel sheet
+'''
+def create_param_for_cmd(cmd_name, i):
+    workloads_keys_for_params_all = ['BSIZE', 'COUNTS', 'TRUNC_SIZE',
+                                     'BLKS_PER_IO', 'OFFSET', 'UPDATE_MODE',
+                                     'ENABLE_LOCK', 'OBJ_ID', 'INP_FNAME',
+                                     'OUT_FNAME', 'OTHER_PARAMS',
+                                     'M0KV_PARAM']
+    params = ''
+    for j in range(len(workloads_keys_for_params_all)):
+        ret = create_param_for_cmd_helper(cmd_name,
+                                          workloads_keys_for_params_all[j], i)
+        if (ret != None):
+            params = ''.join([params, " ", ret])
+    return params
+
+def create_param_for_cmd_helper(cmd_name, key, i):
+    global workloads_dict
+    global m0crate_files_per_batch
+
+    option_dict = {
+                   'BSIZE':'-s', 'COUNTS':'-c', 'TRUNC_SIZE':'-t',
+                   'BLKS_PER_IO':'-b', 'OFFSET':'-O', 'UPDATE_MODE':'-u',
+                   'ENABLE_LOCK':'-e', 'OBJ_ID':'-o', 'INP_FNAME':'',
+                   'OUT_FNAME': '>', 'OTHER_PARAMS':'', 'M0KV_PARAM':''
+                  }
+    '''
+        Check for empty/nan value from excel sheet
+    '''
+    if  ((type(workloads_dict[key][i]) is float)  and 
+         (math.isnan(workloads_dict[key][i]))):
+        return None
+    else:
+        if (type(workloads_dict[key][i]) is float):
+            workloads_dict[key][i] = int(workloads_dict[key][i])
+        if ((cmd_name == 'm0crate') and (key == 'INP_FNAME')):
+            temp = ''.join(['-S', ' ',  str(workloads_dict[key][i])])
+            return temp
+        temp = ''.join([option_dict[key], ' ', str(workloads_dict[key][i])])
+        return temp   
+
+def create_config_for_cmd(cmd_name, i):
+    workloads_keys_for_config_all = ['MOTR_LOCAL_ADDR', 'MOTR_HA_ADDR',
+                                     'PROF', 'PROCESS_FID',
+                                     'LAYOUT_ID', 'IS_READ_VERIFY',
+                                     'TM_RECV_QUEUE_MIN_LEN',
+                                     'MAX_RPC_MSG_SIZE']
+    config = None
+    for j in range(len(workloads_keys_for_config_all)):
+        ret = create_config_for_cmd_helper(cmd_name,
+                                           workloads_keys_for_config_all[j], i)
+        if (ret != None):
+            config = ''.join([config, " ", ret])
+    return config
+
+def create_config_for_cmd_helper(cmd_name, key, i):
+    global workloads_dict
+    config = None
+    option_dict = {
+                   'MOTR_LOCAL_ADDR':'-l', 'MOTR_HA_ADDR':'-H',
+                   'PROF':'-p', 'PROCESS_FID':'-P',
+                   'LAYOUT_ID':'-L', 'IS_READ_VERIFY':'-r',
+                   'TM_RECV_QUEUE_MIN_LEN':'-q',
+                   'MAX_RPC_MSG_SIZE':'-S'
+                  }
+
+    '''
+        Check for empty/nan value from excel sheet
+    '''
+    if  ((type(workloads_dict[key][i]) is float)  and 
+         (math.isnan(workloads_dict[key][i]))):
+        return None
+    else:
+        if (type(workloads_dict[key][i]) is float):
+            workloads_dict[key][i] = int(workloads_dict[key][i])
+        '''
+           Different parameter options for m0kv
+           m0kv '-h HA_ENDPT -f PROCESS FID'
+           which is different from '-H HA_ENDPT -P PROCESS FID'  
+        '''
+        if ((cmd_name == 'm0kv') and (key == 'MOTR_HA_ADDR')):
+            temp = ''.join(['-h', str(workloads_dict[key][i])])
+            return temp 
+        if ((cmd_name == 'm0kv') and (key == 'PROCESS_FID')):
+            temp = ''.join(['-f', str(workloads_dict[key][i])])
+            return temp 
+        temp = ''.join([option_dict[key], ' ', str(workloads_dict[key][i])])
+        return temp   
+'''
+   Get timeout value from excel sheet.
+   It is used for startup commands which are executed
+   before actual batches of workload starts.
+'''
+def create_timeout_for_cmd(i):
+    global workloads_dict
+    if  ((type(workloads_dict['Timeout'][i]) is float)  and
+         (math.isnan(workloads_dict['Timeout'][i]))):
+        return None
+    else:
+        if (type(workloads_dict['Timeout'][i]) is float):
+          workloads_dict['Timeout'][i] = int(workloads_dict['Timeout'][i])
+        return workloads_dict['Timeout'][i]
+
+'''
+   Get no of runs for each batch from excel sheet.
+'''
+def create_per_batch_runs_dict(excel_file):
+    per_batch_runs_dict = {}
+    df = pd.read_excel(excel_file, sheet_name="runs_per_batch")
+    runs_per_batch_dict = df.to_dict()
+    for k, v in runs_per_batch_dict.items():
+        if (k == 'BATCH_NO'):
+            batches = []
+            for k1, v1 in v.items():
+                batches.append(v1) 
+        if (k == 'NO_OF_RUNS'):
+            runs = []
+            for k1, v1 in v.items():
+                runs.append(v1)
+    for i in range(len(batches)):
+        per_batch_runs_dict[batches[i]] = runs[i] 
+    return per_batch_runs_dict 
+
+'''
+   Get motr config from MOTR_CONFIG excel sheet.
+'''
+def create_motr_config_dict(excel_file):
+    motr_config_dict = {}
+    df = pd.read_excel(excel_file, sheet_name="MOTR_CONFIG")
+    temp = df.to_dict()
+    motr_config_dict= create_motr_config_dict_helper(temp)
+    return motr_config_dict
+
+def create_motr_config_dict_helper(motr_dict):
+    motr_config_dict = {}
+    for key, val in motr_dict.items():
+        for k, v in val.items():
+            motr_config_dict[key] = v
+    return motr_config_dict 
+
+    
+def create_cluster_config_dict(excel_file):
+    cluster_config_dict = {}
+    df = pd.read_excel(excel_file, sheet_name="cluster_param")
+    temp = df.to_dict()
+    for key, val in temp.items():
+        for k, v in val.items():
+            cluster_config_dict[key] = v
+    return cluster_config_dict
+
+def create_singlenode_config_dict(excel_file):
+    singlenode_config_dict = {}
+    df = pd.read_excel(excel_file, sheet_name="singlenode_param")
+    temp = df.to_dict()
+    print(temp)
+    for key, val in temp.items():
+        for k, v in val.items():
+            singlenode_config_dict[key] = v
+    return singlenode_config_dict
+
+def create_sandbox_dir_dict(excel_file):
+    sandbox_dir_dict = {}
+    df = pd.read_excel(excel_file, sheet_name="sandbox_dir")
+    temp = df.to_dict()
+    print(temp)
+    dict_keys = ['sandbox_dir']
+    for key, val in temp.items():
+        if (key in dict_keys):
+            for k, v in val.items():
+                sandbox_dir_dict[key] = v
+    print(sandbox_dir_dict)
+    return sandbox_dir_dict
+
+def create_timeout_dict(excel_file):
+    timeout_dict = {}
+    df = pd.read_excel(excel_file, sheet_name="timeout")
+    temp = df.to_dict()
+    print(temp)
+    dict_keys = ['timeout']
+    for key, val in temp.items():
+        if (key in dict_keys):
+            for k, v in val.items():
+                timeout_dict[key] = v
+    print(timeout_dict)
+    return timeout_dict
+
+def create_workloads_dict(tests_file):
+    global workloads_dict
+    global m0crate_files_per_batch
+
+    batch = {}
+    workloads = {}
+    per_batch_runs_dict = create_per_batch_runs_dict(tests_file)
+
+    df = pd.read_excel(tests_file)
+    workloads_dict = df.to_dict()
+    for key, value in workloads_dict.items():
+        if (key == 'BATCH_NO'):
+            for k, v in value.items():
+                if (v in batch.keys()):
+                    batch[v].append(k)
+                else:
+                    batch[v] = [k]
+    '''
+    batch = {1: [0, 1, 2, 3, 4, 5, 6, 7, 8], 2: [9, 10, 11, 12, 13], 3: [14, 15], 4: [16]}
+    i.e. batch 1 is expanded over rows [0, 1, 2, 3, 4, 5, 6, 7, 8] of excel sheet
+         batch 2 is expanded over rows [9, 10, 11, 12, 13] of excel sheet
+    Note: batches need not to be expanded over consecutive rows
+    '''
+    for k, v in batch.items():
+        temp_list = []
+        params = ""
+        for i in range(len(v)):
+            temp_dict = {}
+            params = ""
+            config_overrides = ""
+            timeout = ""
+            cmdname = create_cmdname_for_cmd(v[i], workloads_dict)
+            temp_dict["cmnd"] = cmdname
+            if (cmdname == "m0crate"):
+                '''Check m0crate dummy and inp file are not null.'''
+                if ((((type(workloads_dict['Dummy_m0crate'][v[i]]) is float) and
+                            (math.isnan(workloads_dict['Dummy_m0crate'][v[i]]))))
+                        and
+                        (((type(workloads_dict['INP_FNAME'][v[i]]) is float) and
+                            (math.isnan(workloads_dict['INP_FNAME'][v[i]]))))):
+                    print("In row {} of excel file m0crate command both "
+                          "dummy filename and input file name are null. "
+                          "Provide either of them and not both. Exiting".format(v[i]))
+                    exit(0)
+
+                '''Check m0crate dummy and inp file are not provided simultaneously.'''
+                if ((workloads_dict['Dummy_m0crate'][v[i]] != None) and
+                    ((workloads_dict['INP_FNAME'][v[i]] != None))):
+                    if ((not((type(workloads_dict['Dummy_m0crate'][v[i]]) is float) and
+                            (math.isnan(workloads_dict['Dummy_m0crate'][v[i]]))))
+                        and
+                        (not((type(workloads_dict['INP_FNAME'][v[i]]) is float) and
+                            (math.isnan(workloads_dict['INP_FNAME'][v[i]]))))):
+
+                        print("In row {} of excel file m0crate command has both "
+                          "dummy filename ({}) and input file name ({}). "
+                          "Exiting.".format(v[i],
+                          workloads_dict['Dummy_m0crate'][v[i]],
+                          workloads_dict['INP_FNAME'][v[i]]))
+                        exit(0)
+            temp_dict["params"] = create_param_for_cmd(cmdname, v[i])
+            temp_dict["config_overrides"] = create_config_for_cmd(cmdname, v[i])
+            temp_dict["timeout"] = create_timeout_for_cmd(v[i])
+            temp_list.append(temp_dict)
+            if (cmdname == "m0crate"):
+                update_m0crate_files_per_batch(k,
+                     str(workloads_dict['Dummy_m0crate'][v[i]]),
+                     temp_dict)
+        workloads[k]= {"batch":  temp_list, "runs": per_batch_runs_dict[k]}
+    return workloads
+
+def update_m0crate_files_per_batch(batch_name, fname, temp_dict):
+    global m0crate_files_per_batch
+    if ((batch_name, fname) not in m0crate_files_per_batch.keys()):
+        m0crate_files_per_batch[(batch_name, fname)] = [temp_dict]
+    else:
+        m0crate_files_per_batch[(batch_name, fname)].append(temp_dict)
+        m0crate_files_per_batch[batch_name].append(fname)
+
+def create_m0crate_workload(tests_file):
+    global motr_config_dict
+    global m0crate_file_names 
+    ''' per_batch_list_of_m0crate_workloads
+       {
+        1: [{workload1},{workload2}],
+        2: [{workload1},{workload2}]
+       }
+    '''
+    global per_batch_list_of_m0crate_workloads
+    global m0crate_files_per_batch
+    global workloads
+    global out_dir
+
+    indices_per_batch_and_file = {}
+    temp_list = []
+    index_list = []
+    m0crate_batches = {}
+    per_batch_list_of_m0crate_workloads={}    
+    df = pd.read_excel(tests_file, sheet_name="m0crate_io_workload")
+    m0crate_workload_dict = df.to_dict()
+    files_containing_workload_dict =  m0crate_workload_dict["Dummy_m0crate"]
+    '''
+    files_containing_workload_dict =
+    {0: 'file1', 1: 'file1', 2: 'file1', 3: 'file2', 4: 'file3', 5: 'file3', 6: 'file1', 7: 'file1'}
+    In excel sheet,
+    file1 is in rows 0, 1, 2, 6
+    file2 is in rows
+    '''
+    '''
+       Get per batch, entries from excel sheet
+    '''
+    for key, value in m0crate_workload_dict.items():
+        if (key == 'BATCH_NO'):
+            for k, v in value.items():
+                if (v in m0crate_batches.keys()):
+                    m0crate_batches[v].append(k)
+                else:
+                    m0crate_batches[v] = [k]
+    '''
+     Create [{(batchno,file):[index1, index2]}]
+     m0crate_batches{1:[0,2], 2: [1, 3, 4, 5], 3: [6], 4: [7]}
+     In excel sheet batch num 1 is present on row nums 0 and 2
+     In excel sheet batch num 2 is present on row nums 1,3,4,5
+     In excel sheet batch num 3 is present on row nums 6
+     In excel sheet batch num 4 is present on row nums 7
+
+     Create key = (batchno, filename) = [row numbers where workloads
+                                         are in (batchno, filename)]
+     indices_per_batch_and_file = {
+                                   (1,file1):[0,2], (2,file1):[1],
+                                   (2,file2):[3], (2,file3):[4,5],
+                                   (3,file1):[6], (4,file1):[7]
+                                  }
+    '''
+    indices_per_batch_and_file = {}
+    for k, v in m0crate_batches.items():
+        #indices_per_batch_and_file
+        for i in range(len(v)):
+            fname = files_containing_workload_dict[v[i]]
+            key = (k, fname)
+            if (key not in indices_per_batch_and_file.keys()):
+                indices_per_batch_and_file[key] = []
+                indices_per_batch_and_file[key].append(v[i])
+            else:
+                indices_per_batch_and_file[key].append(v[i])
+    for k, v in indices_per_batch_and_file.items():
+        batch_no = k[0]
+        fname = k[1]
+        for i in range(len(v)):
+            j = v[i]
+            temp_m0crate_workload_dict = {}
+            for key in m0crate_workload_dict.keys():
+                if (key == 'BATCH_NO' or key == 'Dummy_m0crate'):
+                    continue
+                if ((type(m0crate_workload_dict[key][j]) is float) and
+                    (math.isnan(m0crate_workload_dict[key][j]))):
+                    continue
+                if (type(m0crate_workload_dict[key][j]) is float):
+                    temp_m0crate_workload_dict[key] = int(m0crate_workload_dict[key][j])
+                    continue
+                temp_m0crate_workload_dict[key] = m0crate_workload_dict[key][j]
+            if (len(temp_list) == 0):
+                temp_list = [temp_m0crate_workload_dict]
+            else:
+                temp_list.append(temp_m0crate_workload_dict)
+        per_batch_list_of_m0crate_workloads[k] = temp_list    
+        temp_list = []
+
+    for key, val in per_batch_list_of_m0crate_workloads.items():
+        file_name = ''.join([out_dir, 'm0crate_workload_batch_',
+                            str(key[0]), '_', str(key[1]), '.yaml'])
+        with open(file_name, 'w') as yaml_file:
+            yaml_dict = {'CrateConfig_Sections': ['MOTR_CONFIG', 'WORKLOAD_SPEC']}
+            yaml.dump(yaml_dict, yaml_file, default_flow_style=False)
+            yaml_dict = {'MOTR_CONFIG' : motr_config_dict}
+            yaml.dump(yaml_dict, yaml_file, default_flow_style=False)
+            yaml_list = []
+            for i in range(len(val)):
+                yaml_list.append({'WORKLOAD':val[i]})
+            yaml_dict = {'WORKLOAD_SPEC': yaml_list}
+            yaml.dump(yaml_dict, yaml_file, default_flow_style=False)
+            m0crate_file_names[key] = file_name
+        yaml_file.close()
+
+    '''
+       Update m0crate workload filenames in main workload
+    '''
+    for k_m0crate_file_names, v_m0crate_file_names in m0crate_file_names.items():
+        # Get batch num
+        bno = k_m0crate_file_names[0]
+        fname = k_m0crate_file_names[1]
+        if ((bno, fname) in m0crate_files_per_batch.keys()):
+            temp_list = m0crate_files_per_batch[(bno, fname)]
+            for i in range(len(temp_list)):
+                temp_dict = temp_list[i]
+                temp_dict['params'] = ''.join([" -S ", v_m0crate_file_names])
+
+def create_yaml_file(tests_file):
+    global workload_output_file
+    global motr_config_dict
+    global workloads
+    global per_batch_list_of_m0crate_workloads
+    global m0crate_file_names
+    global out_dir
+
+    create_out_dir()
+    workload_output_file = ''.join(['workload_output', '.yaml'])
+    print("workload file = {}".format(workload_output_file))
+    motr_config_dict = create_motr_config_dict(tests_file)
+    cluster_config_dict = create_cluster_config_dict(tests_file)
+    singlenode_config_dict = create_singlenode_config_dict(tests_file)
+    mode_dict = {
+                 "cluster":cluster_config_dict,
+                 "singlenode":singlenode_config_dict
+                }
+    sandbox_dir_dict = create_sandbox_dir_dict(tests_file)
+    timeout_dict = create_timeout_dict(tests_file)
+    workloads = create_workloads_dict(tests_file)
+
+    m0crate_list_of_dicts = create_m0crate_workload(tests_file)
+    temp_workload_output_file = ''.join([out_dir, workload_output_file])
+    with open(temp_workload_output_file, 'w') as yaml_file:
+        yaml_dict = {'motr' : motr_config_dict}
+        yaml.dump(yaml_dict, yaml_file, default_flow_style=False)
+        yaml.dump({'mode': mode_dict}, yaml_file, default_flow_style=False)
+        yaml.dump(sandbox_dir_dict, yaml_file, default_flow_style=False)
+        yaml.dump(timeout_dict, yaml_file, default_flow_style=False)
+        yaml.dump({'workloads': workloads}, yaml_file, default_flow_style=False)
+    yaml_file.close() 
+    print("Mixed workload file: ", temp_workload_output_file)
+
+    print("\nmocrate workload files as below\n")
+    for v in m0crate_file_names.values():
+        print("{}\n".format(v)) 
+
+def print_help():
+    descr = """
+    To create m0crate and mixed workloads from excel file.
+    Output files are created in ./out directory.
+    Usage: create_workload_from_excel -t <input excel file>
+    
+    Please refer sample excel file in cortx-motr/scripts/workload
+    """
+    print("{}".format(descr))
+
+
+if __name__ == "__main__":
+    argument_list = sys.argv[1:]
+    short_options = "t:h"
+    long_options = ["tests_file="]
+    timestamp_str = "{}".format(format(calendar.timegm(time.gmtime())))
+    try:
+        arguments, values = getopt.getopt(argument_list, short_options, long_options)
+    except getopt.error as err:
+        print(str(err))
+        sys.exit(2)
+
+    for arg, value in arguments:
+        if (arg == '-t'):
+            tests_file = value
+            break
+        if (arg == '-h'):
+            print_help()
+            sys.exit(0)
+    setup_yaml()
+    create_yaml_file(tests_file)

@@ -1,0 +1,57 @@
+#!/usr/bin/awk -f
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+# Resulting ELF image sizes:
+# funcs   text     data    bss       total     filename
+# 1281959 3047409  192880  7907136   11147425  libmotr.so
+# 969554  2805724  171104  7899648   10876476  libmotr-altogether.so
+# 610121  1044956  73872   56678512  57797340  m0tr.ko
+
+{
+    name = $6;
+    if (name != "filename") {
+        if (total[name] == 0) {
+            total[name] = $5;
+            bss[name]   = $4;
+            data[name]  = $3;
+            text[name]  = $2;
+            funcs[name] = $1;
+        } else {
+            total[name] -= $5;
+            bss[name]   -= $4;
+            data[name]  -= $3;
+            text[name]  -= $2;
+            funcs[name] -= $1;
+        }
+    }
+}
+
+END {
+    print "Bloated-by:";
+    print "<size>";
+    printf("    funcs    text     data      bss    total filename\n");
+    for (name in total) {
+        printf("%8d %8d %8d %8d %8d %s\n",
+               funcs[name], text[name], data[name], bss[name],
+               total[name], name);
+    }
+    print "</size>";
+}

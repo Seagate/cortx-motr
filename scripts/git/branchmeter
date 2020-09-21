@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+#
+# Print information about the branch
+#
+usage()
+{
+	echo "Usage: $(basename $0) [options]"
+	echo "Options:"
+	echo "    -h|--help       -- print this help message"
+	echo "    -c|--current    -- show information for current branch only"
+}
+
+print_branch_skew()
+{
+	#
+	# Get the last component in the path
+	#
+	name=`basename $1`
+
+	#
+	# Determine how ahead is dev
+	#
+	commit_lag=`git rev-list ${1}..origin/dev | wc -l`
+
+	#
+	# Check last merge date to/from dev
+	#
+	last_merge=`git log -1 --merges --grep='Merge.*dev' --pretty=short --format="%H %ai" origin/dev..${1} |  awk '{print $2}'`
+
+	comment=''
+
+	if [ "$last_merge" == "" ]; then
+		#
+		# If there are no merges, check the date of the first commit in branch which is not included in dev
+		#
+		last_merge=`git log --pretty=short --format="%H %ai" origin/dev..${1} | tail -1 | awk '{ print $2}'`
+
+		if [ "$last_merge" == "" ]; then
+			#
+			# It means that branch doesn't have any specific commits and fully merged into dev
+			#
+			last_merge=`git log -1 --pretty=short --format="%H %ai" ${1} | awk '{ print $2}'`
+			comment="(in dev)"
+		fi
+	fi
+
+	#
+	# Print branch information.
+	#
+	printf "%-30s\t%6d\t\t%s %s\n" $name $commit_lag $last_merge "$comment"
+}
+
+
+###########
+# Main
+###########
+
+current_branch_only=false
+
+case $1 in
+	-h|--help) usage; exit 1 ;;
+	-c|--current) current_branch_only=true ;;
+esac
+
+#
+# Check if the CWD is a work dir for a git repository.
+#
+if ! git rev-parse --git-dir &> /dev/null ; then
+	echo "This is not a working dir for git repository"
+	exit 1
+fi
+
+#
+# Get list of branches
+#
+if $current_branch_only; then
+	branch_list=`git name-rev --name-only HEAD`
+else
+	branch_list=`git branch -r | grep -v dev`
+fi
+printf "Branch Name \t Commits behind dev \t    Last merge (or branch) date\n"
+
+#
+# Print required information for each branch
+#
+for branch in $branch_list; do
+	print_branch_skew $branch
+done

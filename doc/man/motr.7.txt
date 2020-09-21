@@ -1,0 +1,74 @@
+MOTR(7)
+=======
+include::asciidoc.conf[]
+
+
+NAME
+----
+motr - Motr object stor
+
+
+DESCRIPTION
+-----------
+Motr object stor ['...to be filled']
+
+Motr utilities
+~~~~~~~~~~~~~~
+
+*m0d*::
+  Motr file system service daemon.
+
+*m0console*::
+  Blah blah...
+
+*m0addb2dump*::
+  Blah blah...
+
+*m0tracedump*::
+  Utility to convert binary trace logs to YAML format for further analysis by
+  *m0trace*.
+
+*m0traced*::
+  Daemon, which polls trace buffer of *m0tr.ko* or *m0d* and saves trace
+  records in binary format into continuous trace file for postmortem analysis by
+  *m0tracedump* and *m0trace* utilities.
+
+*m0trace*::
+  Utility to filter, analyze and print in human readable form trace logs in YAML
+  format.
+
+
+AUTHORS
+-------
+See the Motr distribution AUTHORS file.
+
+
+BUGS
+----
+All bugs are added by Motr Team ;)
+
+
+RESOURCES
+---------
+Main web site: <http://seagate.com/>
+
+
+COPYING
+-------
+Copyright \(C) 2013 Seagate Technology LLC
+You should have received a copy of Seagate's license along with
+this release. If not please contact a Seagate representative.
+
+
+SEE ALSO
+--------
+*m0d*(1) *m0console*(8) *m0addb2dump*(1) *m0tracedump*(1) *m0trace*(1)
+*m0traced*(1)
+
+
+MOTR
+----
+Part of the *motr*(7) suite
+
+
+// vim: syntax=asciidoc

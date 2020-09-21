@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.m0confgen}
+M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*}
+
+. $M0_SRC_DIR/utils/functions # report_and_exit
+
+(
+    set -eu -o pipefail
+
+    OUTPUT_FORMATS='confgen xcode json html dot'
+    CG_FILE=$M0_SRC_DIR/ut/conf.cg
+
+    m0confgen() { $M0_SRC_DIR/utils/m0confgen "$@"; }
+
+    m0confgen --self-check
+    m0confgen $CG_FILE | m0confgen -f xcode -t confgen >/dev/null
+    for to_fmt in $OUTPUT_FORMATS; do
+        m0confgen -f confgen -t $to_fmt $CG_FILE >/dev/null
+    done
+)
+rc=$?
+
+if [[ $rc -eq 0 && -d $SANDBOX_DIR ]]; then
+    rm -r $SANDBOX_DIR
+fi
+
+report_and_exit m0confgen $rc

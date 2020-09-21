@@ -1,0 +1,5 @@
+:doctype:      manpage
+:man source:   Motr
+:man version:  @PACKAGE_VERSION@
+:man manual:   Motr User Manual
+// vim: syntax=asciidoc

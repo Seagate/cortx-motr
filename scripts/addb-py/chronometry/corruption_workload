@@ -1,0 +1,611 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+set -x
+set -e
+
+SCRIPT_NAME=`echo $0 | awk -F "/" '{print $NF}'`
+SCRIPT_PATH="$(readlink -f $0)"
+SCRIPT_DIR="${SCRIPT_PATH%/*}"
+
+if [[ -z "$MOTR_SRC_DIR" ]]; then
+    MOTR_SRC_DIR="${SCRIPT_PATH%/*/*/*/*}"
+fi
+
+HALON_SRC_DIR="${MOTR_SRC_DIR}/../halon"
+HARE_SRC_DIR="${MOTR_SRC_DIR}/../cortx-hare"
+
+CURENT_DIR=`pwd`
+ARTIFACTS_TOP_DIR=$CURENT_DIR/m0crate_artifacts_`date '+%Y-%m-%d_%H.%M.%S'`
+
+OVERRIDE_MOTR_CONF_PARAMS=""
+
+# functions check_root(), _check_is_cluster_online()
+. ${SCRIPT_DIR}/common/common_funcs
+# functions parse_nodes(), ...
+. ${SCRIPT_DIR}/common/remote_execution
+
+# function set_timeout()
+. ${SCRIPT_DIR}/common/timeout_funcs
+
+MOTR_CONF_FILE="/etc/sysconfig/motr"
+IOS_RESTART_LOG="/tmp/restart_ios.log"
+
+trap set_term_flag SIGTERM
+
+APPS=(
+    "m0crate"
+    "m0crate"
+)
+
+CONFS=(
+    "LAYOUT_ID=9 IOSIZE=1g BLOCK_SIZE=32m NR_THREADS=16 NR_OBJS=16"
+    "LAYOUT_ID=9 IOSIZE=1g BLOCK_SIZE=32m NR_THREADS=16 NR_OBJS=16"
+)
+
+function stop_hare_cluster()
+{
+    set +e
+    hctl shutdown || {
+        _warn "Cluster stop FAILED! Trying to go further."
+    }
+    set -e
+}
+
+function stop_halon_cluster()
+{
+    set +e
+    hctl motr stop || {
+        _warn "Cluster stop FAILED! Trying to go further."
+    }
+    $EX_SRV systemctl stop halond
+    $EX_SRV systemctl stop halon-cleanup
+    set -e
+}
+
+function stop_cluster()
+{
+    stop_hare_cluster
+}
+
+
+function cleanup_cluster()
+{
+    set +e
+    $EX_SRV hctl shutdown
+    $EX_SRV systemctl start halon-cleanup
+    $EX_SRV pkill -9 consul
+    $EX_SRV pkill -9 -f endless_m0crate
+    $EX_SRV pkill -9 m0crate
+    $EX_SRV pkill -9 -f m0d
+
+    $EX_SRV pkill -9 -f s3server
+    $EX_SRV systemctl start motr-cleanup
+    $EX_SRV $HALON_SRC_DIR/scripts/h0 fini
+    $EX_SRV "pushd $HARE_SRC_DIR && make uninstall && popd"
+    $EX_SRV rmmod m0tr
+    $EX_SRV rmmod m0gf
+
+    $EX_SRV systemctl reset-failed hare-hax
+    set -e
+
+    $EX_SRV 'rm -rf /var/motr/*'
+    $EX_SRV 'rm -rf /var/crash/*'
+}
+
+function restart_cluster()
+{
+    _info 'cluster restart'
+    cleanup_cluster
+    setup_ha
+    setup_m0_configs
+    setup_ha_configs
+    bootstrap_cluster
+}
+
+function setup_ha()
+{
+    _info "setup Hare"
+    CURRENT_CDF="/tmp/cdf.yaml"
+    $EX_SRV $MOTR_SRC_DIR/scripts/install-motr-service -l
+
+    for s in $(echo "$SRV_NODES" | sed 's/,/ /g'); do
+        pdsh -S -w $s "pushd $HARE_SRC_DIR && make devinstall && popd"
+    done
+}
+
+function setup_m0_configs()
+{
+    _info "copying cluster config files from $CLUSTER_CONFIGS_DIR"
+    cp $CLUSTER_CONFIGS_DIR/motr /tmp/motr
+    override_motr_conf /tmp/motr $OVERRIDE_MOTR_CONF_PARAMS
+    $EX_SRV scp $(hostname):/tmp/motr $MOTR_CONF_FILE
+    rm -f /tmp/motr
+}
+
+function setup_ha_configs()
+{  
+   if [[ "$HA_TYPE" == "halon" ]]; then
+        _info "setup Halon configs"
+   else
+        _info "setup Hare configs"
+        case $(echo $SRV_NODES | sed "s/,/ /g" | wc -w) in
+            1)
+                local node=$(echo $SRV_NODES | awk -F '.' '{print $1}')
+                cp $CLUSTER_CONFIGS_DIR/cdf.$node.io.yaml $CURRENT_CDF
+                ;;
+            2)
+                cp $CLUSTER_CONFIGS_DIR/cdf.dual.io.yaml $CURRENT_CDF
+                ;;
+        esac
+   fi
+}
+
+function bootstrap_cluster()
+{
+    hctl bootstrap --mkfs $CURRENT_CDF
+}
+
+
+function create_artifacts_dir()
+{
+    # Create local dir
+    local num=$1
+    shift
+    local app=$1
+    shift
+
+    ARTIFACTS_DIR=`echo t$num-$app-$@ | sed -r -e 's/\s+/__/g' | sed -r 's/=/-/g'`
+    mkdir -p $ARTIFACTS_DIR
+
+    # Create temporary dir on remote nodes
+    $EX_SRV rm -fr /tmp/io_workload_arts/ || true
+    $EX_SRV mkdir -p /tmp/io_workload_arts/
+}
+
+function dump_m0traces()
+{
+    for filename in m0trace.*; do
+        _info "dump $filename"
+        $MOTR_SRC_DIR/utils/trace/m0trace -i ${filename} \
+            -o ${filename}.txt 2>/dev/null
+        rm $filename
+    done
+}
+
+function save_hardware_conf()
+{
+    if [[ -n "$TELNET_ADDR" ]]; then
+
+        if [[ -z "$TELNET_LOGIN" || -z "$TELNET_PASS" ]]; then
+            _err "missed parameter --hw-login or --hw-pass"
+            exit 1
+        fi
+
+        _info "saving of hardware config"
+        $SCRIPT_DIR/get_hw_conf.exp $TELNET_ADDR $TELNET_LOGIN \
+                                      $TELNET_PASS > hw_conf.json
+    fi
+}
+
+function save_cli_artifacts()
+{
+    _info 'Save_cli_artifacts'
+    local app=$1
+
+    if [[ $app == "m0crate" ]]; then
+        cluster_copy '/tmp/m0crate.*.$(hostname).log' $(pwd)
+        $EX_CLI 'rm -f /tmp/m0crate.*.$(hostname).log'
+        mv $SCRIPT_DIR/test_io*.yaml ./
+    fi
+}
+
+function save_motr_artifacts()
+{
+    local ios_m0trace_dir="m0trace_ios"
+    local configs_dir="configs"
+    local crash_dir="crash"
+
+    mkdir -p $configs_dir
+    pushd $configs_dir
+    cp $MOTR_CONF_FILE ./
+    mv $CURRENT_CDF ./
+    popd
+
+    mkdir -p $crash_dir
+    pushd $crash_dir
+    for srv in $(echo $SRV_NODES | tr ',' ' '); do
+        mkdir -p $srv
+        scp -r $srv:/var/crash/* $srv || true
+        ssh $srv -T "rm -rf /var/crash/*" || true
+    done
+    popd
+
+    mv $IOS_RESTART_LOG ./
+    mkdir -p $ios_m0trace_dir
+    pushd $ios_m0trace_dir
+    if [[ -z $NO_M0TRACE_FILES ]]; then
+        set +e
+        local cur_dir=$(pwd)
+        local cur_hostname=$(hostname)
+        local ioservice_list=$(cat $ARTIFACTS_TOP_DIR/hctl-status.stop \
+            | grep ioservice | sed 's/\[.*\]//' | awk '{print $2}')
+
+        for ios_fid in $ioservice_list; do
+            local ios_dir="/var/motr/m0d-$ios_fid"
+            local srv_node_cmd="if [ -e $ios_dir ]; then scp $ios_dir/m0trace.* ${cur_hostname}:${cur_dir} ; fi"
+            $EX_SRV $srv_node_cmd
+        done
+        set -e
+
+        if [[ -z $NO_M0TRACE_DUMPS ]]; then
+            dump_m0traces
+        fi
+    fi
+    popd # $ios_m0trace_dir
+
+    if [[ -z $NO_ADDB_STOBS ]] && [[ -z $NO_ADDB_DUMPS ]]; then
+        # Dump servers
+        local cur_dir=$(pwd)
+        local cur_hostname=$(hostname)
+        for ios_fid in $ioservice_list; do
+            local ios_dir="/var/motr/m0d-$ios_fid"
+            local ios_addb_stob="$ios_dir/addb-stobs/o/100000000000000:2"
+            local pid=$(echo $ios_addb_stob | sed -E 's/.*[x]([a-z0-9]*)[/].*/\1/')
+            srv_node_cmd="if [ -e $ios_addb_stob ]; then scp $ios_addb_stob ${cur_hostname}:${cur_dir} ; fi"
+            $EX_SRV $srv_node_cmd
+            set -x
+            ${MOTR_SRC_DIR}/utils/m0addb2dump -f  -- "$cur_dir/100000000000000:2" > dumps_${pid}.txt
+            set +x
+            rm -f $cur_dir/100000000000000:2
+        done
+    fi
+}
+
+function save_srv_artifacts()
+{
+    local m0cli_dir="m0cli"
+    local motr_art_dir="m0d"
+    local hw_conf_dir="hw_conf"
+
+    mkdir -p $motr_art_dir
+    pushd $motr_art_dir
+    save_motr_artifacts
+    popd
+}
+
+function check_and_stop_cluster()
+{
+    if _check_is_hare_cluster_online; then
+        _info "stopping Hare cluster before test"
+        stop_hare_cluster
+    fi
+
+    if _check_is_cluster_online; then
+        _info "stopping cluster before test"
+        stop_halon_cluster
+    fi
+}
+
+function wait_for_motr_start()
+{
+    echo "wait for motr start"
+
+    while ! _check_is_cluster_online
+    do
+        if _check_is_cluster_failed; then
+            _err "cluster is failed"
+            exit 1
+        fi
+
+        sleep 5
+    done
+}
+
+function override_app_conf()
+{
+    [[ -z $APPS_OVERRIDED ]] && {
+        _info "overriding workload applications"
+        APPS=()
+        APPS_OVERRIDED=1
+    }
+    APPS+=("$1")
+}
+
+function override_workload_conf()
+{
+    [[ -z $CONFS_OVERRIDED ]] && {
+        _info "overriding workload configurations"
+        CONFS=()
+        CONFS_OVERRIDED=1
+    }
+    CONFS+=("$1")
+}
+
+function override_motr_conf()
+{
+    _info "overriding motr config parameters: $@"
+
+    local conf=$1
+    shift
+
+    for param in $@; do
+        local param_name=`echo "${param}" | awk -F "=" '{print $1}'`
+        local param_value=`echo "${param}" | awk -F "=" '{print $2}'`
+
+        sed -i "/.*${param_name}.*/d" $conf
+        param_value="$param_name=$param_value #changed by io_workload script"
+        echo -e "\n$param_value" >> $conf
+    done
+}
+
+function set_term_flag()
+{
+    echo "got termination request"
+    TERMINATE_FLAG=1
+    set +e
+    pkill -9 -f restart_ios
+    set -e
+}
+
+function restart_random_ioservice()
+{
+    local srv_node_list=$(echo $SRV_NODES | sed 's/,/ /g')
+    local srv_node_nr=$(echo $srv_node_list | wc | awk '{print $2}')
+    local rnd_node_index=$(( RANDOM % $srv_node_nr ))
+    local awk_cmd="{print \$$((rnd_node_index+1))}"
+    local rnd_node_name=$(echo $srv_node_list | awk "$awk_cmd")
+
+    _info "kill ioservice on $rnd_node_name"
+    pdsh -S -w $rnd_node_name "$SCRIPT_DIR/restart_ios.sh &>> $IOS_RESTART_LOG" &
+    restart_pid=$!
+    while kill -0 "$restart_pid" >/dev/null 2>&1; do
+        sleep 30
+    done
+}
+
+function run_tests() {
+    ulimit -Hn 100000
+    ulimit -Sn 100000
+
+    local m0cli_dir="m0cli"
+    local m0bins="bins"
+
+    restart_cluster
+
+    mkdir -p $ARTIFACTS_TOP_DIR
+    pushd $ARTIFACTS_TOP_DIR
+
+    mkdir -p $m0cli_dir
+    pushd $m0cli_dir
+
+    mkdir -p $m0bins
+    pushd $m0bins
+    cp $MOTR_SRC_DIR/motr/m0crate/.libs/m0crate ./
+    cp $MOTR_SRC_DIR/motr/.libs/lt-m0d ./
+    popd
+
+    #delete old logs
+    $EX_CLI 'rm -f /tmp/m0crate.*.$(hostname).log'
+
+    for ((i = 0; i < $((${#CONFS[*]})); i++)); do
+        conf=${CONFS[((i))]}
+        echo "conf: "$conf
+        local motr_port=$((i+1)) #TODO: improve that
+        local hostname_cmd='$(hostname)'
+
+        $EX_CLI "MOTR_SRC_DIR=\"$MOTR_SRC_DIR\" \
+            $SCRIPT_DIR/endless_m0crate --motr-port $motr_port -w \"$conf\" \
+            &>> /tmp/m0crate.$motr_port.$hostname_cmd.log &"
+    done
+
+    rm -f $IOS_RESTART_LOG
+    while true; do
+        restart_random_ioservice
+
+        #search for m0d crashes on all srv nodes
+        local found_m0d_crash=""
+
+        for srv_node in $(echo "$SRV_NODES" | sed 's/,/ /g'); do
+            if ssh $srv_node 'ls /var/crash/core*m0d* &> /dev/null'; then
+                _info "found new m0d crashes on $srv_node"
+                found_m0d_crash=1
+            fi
+        done
+
+        if [[ -n "$found_m0d_crash" ]]; then
+            break
+        fi
+
+        if [[ -n "$DEADLINE_UNIXTIME" ]]; then
+            local now=$(date '+%s')
+
+            if [[ "$now" -ge "$DEADLINE_UNIXTIME" ]]; then
+                _info "stopping test by user defined timeout"
+                break
+            fi
+        fi
+
+        if [[ -n "$TERMINATE_FLAG" ]]; then
+            _info "stopping test by termination request"
+            break
+        fi
+    done
+
+    $EX_CLI "$SCRIPT_DIR/kill_endless_m0crate"
+
+    save_cli_artifacts m0crate
+    popd
+
+    set +e
+    hctl status > hctl-status.stop
+    hctl shutdown || {
+        _warn "Hare cluster stop FAILED! Trying to go further."
+    }
+    set -e
+
+    save_srv_artifacts
+    popd
+
+    stop_cluster
+}
+
+function usage()
+{
+    cat << EOF
+
+Usage: $SCRIPT_NAME [options]
+    -c, --cluster-configs  directory containing config files for cluster.
+
+        --config           specifying file for generation halon facts.
+
+    -w, --workload_config  workload options. Overrides default m0crate config
+                           file parameters.
+                           Example: "IOSIZE=4k BLOCK_SIZE=4k"
+
+    -m, --motr_config      motr options. Overrides default motr config file
+                           parameters.
+                           Example: "MOTR_TRACED_M0D=yes MOTR_M0D_OPTS=1"
+
+
+
+    -n, --srv-cli-map      Mapping of server nodes to client nodes.
+                           Format: "srv-node1-name=cli-node1-name srv-node2-name=cli-node2-name..."
+                           Example: "smc33-m09=smc41-m09 smc34-m09=smc42-m09"
+
+    -d, --disable-addb-dump disable addb2 stobs dumping
+
+        --hw-addr          Address of hardware device used as storage of cluster.
+                           If this address is specified then it will be used for
+                           collection of hardware configuration information.
+
+        --hw-login         Hardware device telnet login
+
+        --hw-pass          Hardware device telnet password
+
+        --timeout          Time limit for test execution. May be defined in days,
+                           hours, minutes and seconds.
+                           Examles: 1d, 4h, 50m, 1200s
+
+    -h, --help             this help
+
+Example:
+    $SCRIPT_NAME -w "IOSIZE=4k BLOCK_SIZE=4k NR_THREADS=1"
+
+EOF
+}
+
+function check_arg_value()
+{
+    [[ $# -gt 1 ]] || {
+        echo -e "Incorrect use of the option $1\nUse --help option"
+        exit 1
+    }
+}
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --config)
+            check_arg_value $1 $2
+
+            [[ -f "$2" ]] || {
+                echo -e "File not exist: $2"
+                exit 1
+            }
+            PATH_TO_CONFIG=$2
+            shift
+            ;;
+        -w|--workload_config)
+            check_arg_value $1 $2 $3
+            override_app_conf "$2"
+            override_workload_conf "$3"
+            shift
+            shift
+            ;;
+        -m|--motr_config)
+            check_arg_value $1 $2
+            OVERRIDE_MOTR_CONF_PARAMS=$2
+            shift
+            ;;
+        -c|--cluster-configs)
+            check_arg_value $1 $2
+
+            [[ -d $2 ]] || {
+                echo "Directory not exist: $2"
+                exit 1
+            }
+
+            CLUSTER_CONFIGS_DIR=$2
+            shift
+            ;;
+        --no-m0trace-files)
+            NO_M0TRACE_FILES=1;
+            ;;
+        --no-m0trace-dumps)
+            NO_M0TRACE_DUMPS=1;
+            ;;
+        --no-addb-stobs)
+            NO_ADDB_STOBS=1
+            ;;
+        -d|--no-addb-dumps)
+            NO_ADDB_DUMPS=1
+            ;;
+        --no-m0play-db)
+            NO_M0PLAY_DB=1;
+            ;;
+        -n|--srv-cli-map)
+            SRV_CLI_MAP="$2"
+            shift
+            ;;
+        --hw-addr)
+            TELNET_ADDR="$2"
+            shift
+            ;;
+        --hw-login)
+            TELNET_LOGIN="$2"
+            shift
+            ;;
+        --hw-pass)
+            TELNET_PASS="$2"
+            shift
+            ;;
+        --timeout)
+            set_timeout "$2"
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo -e "Invalid option: $1\nUse --help option"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+parse_nodes
+
+_check_root
+check_and_stop_cluster
+run_tests
+
+exit 0

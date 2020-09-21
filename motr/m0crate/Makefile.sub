@@ -1,0 +1,15 @@
+motr_m0crate_m0crate_SOURCES = \
+	motr/m0crate/crate.c \
+	motr/m0crate/crate_client.h \
+	motr/m0crate/crate_index.c  \
+	motr/m0crate/crate_io.c \
+	motr/m0crate/crate_client_utils.c \
+	motr/m0crate/crate_client_utils.h \
+	motr/m0crate/crate_utils.c \
+	motr/m0crate/crate_utils.h \
+	motr/m0crate/logger.c \
+	motr/m0crate/logger.h \
+	motr/m0crate/parser.c \
+	motr/m0crate/parser.h \
+	motr/m0crate/sha256.c \
+	motr/m0crate/workload.h

@@ -1,0 +1,7 @@
+/.env*
+/.vagrant*
+/*.retry
+/jumphost_rsa*
+/console*.log
+/disk*.vdi
+/disk*.vmdk*

@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+# exit immediately if one the commands exits with a non-zero status
+set -e
+
+# constants
+readonly PROG_NAME=$(basename $0)
+
+# global variables, which can be overriden in /etc/sysconfig/motr
+MOTR_GENDERS_CONF=/etc/motr/genders
+
+# service local variables
+motr_exec_dir=/usr/libexec/cortx-motr
+user_config=/etc/sysconfig/motr
+kernel_config=/etc/sysconfig/motr-kernel
+service_funcs=$motr_exec_dir/motr-service.functions
+
+
+source $service_funcs
+
+[[ -r $kernel_config ]] && source $kernel_config
+[[ -r $user_config   ]] && source $user_config
+
+motr_services=""
+# motr-cleanup is excluded from the list
+for s in m0d@* m0t1fs@* motr-client motr-kernel motr-mkfs motr-mkfs@* motr-server-confd motr-server-ha motr-server@* motr motr-singlenode motr-trace@*; do
+	motr_services="$motr_services $s.service"
+done
+
+systemctl list-units --all $motr_services
+
+m0_log 'Stopping motr-kernel with all dependencies ...'
+systemctl stop motr-kernel || m0_exit 'Failed to stop motr-kernel.'
+
+m0_log 'Stopping all Motr services ...'
+systemctl stop $motr_services || m0_exit 'Failed to stop Motr services.'
+
+systemctl list-units --all $motr_services
+
+for s in $(systemctl list-units --failed $motr_services | awk '/failed/ {if ($4 == "failed") print $2}'); do
+	m0_log "Resetting failed state for $s."
+	systemctl reset-failed $s
+done
+
+m0_log 'Done.'
+
+data_dir=${MOTR_M0D_DATA_DIR:-$MOTR_M0D_DEFAULT_DATA_DIR}
+
+if [[ -d $data_dir ]] ; then
+    m0_log "Cleaning up $data_dir"
+    if ls -ld $data_dir/{confd,m0d-*} &>/dev/null ; then
+        ls -ld $data_dir/{confd,m0d-*} 2>/dev/null
+    fi
+    rm -rf -v $data_dir/{confd,m0d-*}
+fi
+
+if [[ -d $MOTR_LOG_DIR ]] ; then
+    m0_log "Cleaning up $MOTR_LOG_DIR"
+    rm -vrf $MOTR_LOG_DIR/*
+fi
+
+if [[ -n $MOTR_M0D_ADDB_STOB_DIR && -d $MOTR_M0D_ADDB_STOB_DIR ]] ; then
+    m0_log "Cleaning up $MOTR_M0D_ADDB_STOB_DIR"
+    rm -vrf $MOTR_M0D_ADDB_STOB_DIR/
+fi
+
+if [[ -n $MOTR_M0D_TRACE_DIR && -d $MOTR_M0D_TRACE_DIR ]] ; then
+    m0_log "Cleaning up $MOTR_M0D_TRACE_DIR"
+    rm -vrf $MOTR_M0D_TRACE_DIR/
+fi
+
+m0_log "Cleaning up config files in /etc/sysconfig/ dir"
+rm -vf /etc/sysconfig/{motr-kernel,{m0d,m0t1fs,s3server}-*}
+
+exit 0

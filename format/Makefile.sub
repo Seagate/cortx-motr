@@ -1,0 +1,7 @@
+nobase_motr_include_HEADERS += format/format.h
+
+motr_libmotr_la_SOURCES += format/format.c
+
+nodist_motr_libmotr_la_SOURCES  += format/format_xc.c
+
+XC_FILES += format/format_xc.h

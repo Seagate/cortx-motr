@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+. ${SCRIPT_DIR}/../common/common_funcs
+
+function parse_s3_cred_file() {
+    local s3_cred_file=$1
+
+    if [[ -z "$s3_cred_file" ]]; then
+        _err "path to credentials file is not specified"
+        exit 1
+    fi
+
+    S3_CRED_ACCESS_KEY=`cat $s3_cred_file | grep AccessKeyId \
+        | awk -F '=' '{print $2}'`
+
+    S3_CRED_SECRET_KEY=`cat $s3_cred_file | grep SecretKey \
+        | awk -F '=' '{print $2}'`
+
+    if [[ -z "$S3_CRED_ACCESS_KEY" || -z "$S3_CRED_SECRET_KEY" ]]; then
+        _err "invalid format of S3 credentials file $s3_cred_file"
+        exit 1
+    fi
+}
+
+function parse_s3_nodes_map() {
+    local nodes_map=$@
+
+    if [[ -z "$nodes_map" ]]; then
+        _err "nodes mapping is not specified"
+        exit 1
+    fi
+
+    CLI_NODES=""
+    for mapping in $nodes_map; do
+        local cli=$(echo $mapping | grep "$(hostname)" | awk -F '=' '{print $2}')
+        if [[ -z $CLI_NODES ]]; then
+            CLI_NODES="$cli"
+        else
+            CLI_NODES="$CLI_NODES,$cli"
+        fi
+    done
+    # Don't return an error if CLI_NODES is empty - this is valid situation
+}

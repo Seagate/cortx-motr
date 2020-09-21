@@ -1,0 +1,1 @@
+../../../cortx-motr.spec.in

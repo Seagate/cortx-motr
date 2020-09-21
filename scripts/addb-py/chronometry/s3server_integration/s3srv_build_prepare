@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+set -x
+set -e
+
+SCRIPT_PATH="$(readlink -f $0)"
+SCRIPT_DIR="${SCRIPT_PATH%/*}"
+
+if [[ -z "$MOTR_SRC_DIR" ]]; then
+    MOTR_SRC_DIR="${SCRIPT_PATH%/*/*/*/*/*}"
+fi
+
+SYMLINK_DIR="/usr/lib64"
+INCLUDE_DIR="/usr/include"
+
+MOTR_LIBS="${MOTR_SRC_DIR}/motr/.libs/*.so*"
+MOTR_HELPERS_LIBS="${MOTR_SRC_DIR}/helpers/.libs/*.so*"
+MOTR_EXTRA_LIBS="${MOTR_SRC_DIR}/extra-libs/gf-complete/src/.libs/*.so*"
+GALOIS_INCLUDE_DIR="${MOTR_SRC_DIR}/extra-libs/galois/include/galois"
+
+function create_symlinks() {
+    for file_path in $@
+    do
+        echo "creating symlink for $file_path"
+        local filename=`basename ${file_path}`
+        ln -s "${file_path}" "${SYMLINK_DIR}/${filename}"
+    done
+}
+
+function create_include_symlink() {
+    echo "creating symlink for ${MOTR_SRC_DIR}"
+    ln -s "${MOTR_SRC_DIR}" "${INCLUDE_DIR}/motr"
+
+    echo "creating symlink for ${GALOIS_INCLUDE_DIR}"
+    ln -s "${GALOIS_INCLUDE_DIR}" "${INCLUDE_DIR}/galois"
+}
+
+function delete_symlinks() {
+    for file_path in $@
+    do
+        echo "UNLINK PATH: ${file_path}"
+	    echo "File name: $(basename -- $file_path)"
+        find ${SYMLINK_DIR} -lname ${file_path} -exec unlink {} \;
+    done
+}
+
+function delete_include_symlink() {
+    local link_path=""
+    for p in "${MOTR_SRC_DIR}" "${GALOIS_INCLUDE_DIR}"; do
+        link_path=`find ${INCLUDE_DIR} -lname ${p}`
+        echo "DEBUG: delete link_path $p"
+        if [[ -n "$link_path" ]]; then
+            echo "delete symlink: ${link_path}"
+            unlink ${link_path}
+        else
+            echo "not found symlink to motr include"
+        fi
+    done
+}
+
+if [[ "$1" == "del_symlinks" ]]; then
+    echo "delete_include_symlink"
+    delete_include_symlink
+    echo "delete_symlinks ${MOTR_LIBS}"
+    delete_symlinks ${MOTR_LIBS}
+    echo "delete_symlinks ${MOTR_HELPERS_LIBS}"
+    delete_symlinks ${MOTR_HELPERS_LIBS}
+elif [[ "$1" == "create_symlinks" ]]; then
+    create_include_symlink
+    create_symlinks ${MOTR_LIBS}
+    create_symlinks ${MOTR_HELPERS_LIBS}
+fi

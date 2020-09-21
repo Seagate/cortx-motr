@@ -1,0 +1,15 @@
+motr_st_objects += motr/st/linux_kernel/st_kmain.o \
+                     motr/st/st.o \
+                     motr/st/api.o \
+                     motr/st/st_worker.o \
+                     motr/st/st_misc.o \
+                     motr/st/oid.o \
+                     motr/st/obj.o  \
+                     motr/st/idx.o  \
+                     motr/st/read.o \
+                     motr/st/cancel.o \
+                     motr/st/st_assert.o \
+                     motr/st/example.o \
+                     motr/st/write.o \
+                     motr/st/osync.o \
+                     motr/st/layout.o

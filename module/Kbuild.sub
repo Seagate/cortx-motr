@@ -1,0 +1,1 @@
+m0tr_objects += module/module.o module/instance.o module/param.o
