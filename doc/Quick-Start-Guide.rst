@@ -98,35 +98,35 @@ Troubleshooting
 ================
 - If the pip installation fails while installing build dependencies, run the following commands:
 
- 1. **$ python -m pip uninstall pip setuptools**
- 2. **$ sudo ./scripts/install-build-deps**
+  - **$ python -m pip uninstall pip setuptools**
+  - **$ sudo ./scripts/install-build-deps**
 
 - If an installation failure occurs due to the dependency of *pip3* , run the following commands:
 
- 1. **$ sudo yum install -y python34-setuptools**
- 2. **$ sudo easy_install-3.4 pip**
+  - **$ sudo yum install -y python34-setuptools**
+  - **$ sudo easy_install-3.4 pip**
 
 - If an installation failure occurs due to *ply* dependency, run the following command:
 
- - **$ pip3 install ply**
+  - **$ pip3 install ply**
 
 - If **lctl list_nids** does not render an output, perform the following steps:
 
- 1. Create the **lnet.conf** file, if it does not exist.
+  1. Create the **lnet.conf** file, if it does not exist.
 
- 2. Restart the **lnet** service, and run the following commands:
+  2. Restart the **lnet** service, and run the following commands:
 
-  - **cat /etc/modprobe.d/lnet.conf**
+     - **cat /etc/modprobe.d/lnet.conf**
 
-   - **options lnet networks=tcp(eth1) config_on_load=1**
+       - **options lnet networks=tcp(eth1) config_on_load=1**
 
-  - **sudo systemctl restart lnet**
+     - **sudo systemctl restart lnet**
 
-  - **sudo lctl list_nids**
+     - **sudo lctl list_nids**
 
-   - 192.168.1.160@tcp
+       - 192.168.1.160@tcp
 
-   **Note**: Make sure that the eth1 interface is present in the node by checking ifconfig. Else, update the new interface in the file.
+     **Note**: Make sure that the eth1 interface is present in the node by checking ifconfig. Else, update the new interface in the file.
 
 **Build the documents **
     Steps used to 'make' this doc:
