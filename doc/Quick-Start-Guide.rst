@@ -62,7 +62,7 @@ Perform the below mentioned procedure to build the source code.
 
    - **$ sudo ./scripts/m0 rebuild**
 
- **Note**: The **./scripts/m0 rebuild** command includes some clean up.
+   **Note**: The **./scripts/m0 rebuild** command includes some clean up.
 
 Running Tests
 =============
