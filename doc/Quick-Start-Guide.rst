@@ -10,11 +10,11 @@ The prerequisite that is necessary to install the Motr component is mentioned be
 
 - Kernel Version - 3.10.0-1062.el7
 
- - To know the version being used, type the following:
+  - To know the version being used, type the following:
 
-  - **uname -r**
+    - **uname -r**
 
- - Different kernel versions that come from Centos7.7 or RHEL7.7 are supported.
+  - Different kernel versions that come from Centos7.7 or RHEL7.7 are supported.
 
 **********
 Procedure
@@ -35,9 +35,9 @@ To clone the source code, perform the following steps:
 
 Run the following commands:
 
-  a. **$ git clone --recursive git@github.com:Seagate/cortx-motr.git -b main**
+- **$ git clone --recursive git@github.com:Seagate/cortx-motr.git -b main**
 
-  b. **$ cd cortx-motr**
+- **$ cd cortx-motr**
 
 **Note**: To clone the source code, it is necessary to generate the SSH public key. To generate the key, refer `SSH Public Key <https://github.com/Seagate/cortx/blob/main/doc/SSH%20Public%20Key.rst>`_.
 
@@ -48,19 +48,19 @@ Perform the below mentioned procedure to build the source code.
 
 1. Build and install the necessary dependencies. Run the following command to install all the dependent packages.
 
- - **$ sudo ./scripts/install-build-deps**
+   - **$ sudo ./scripts/install-build-deps**
 
 2. Reboot your system. After reboot, run the following commands to check if the lustre network is functioning accurately.
 
- 1. **$ sudo modprobe lnet**
+   - **$ sudo modprobe lnet**
 
- 2. **$ sudo lctl list_nids**
+   - **$ sudo lctl list_nids**
 
 3. To compile, run either of the following commands:
 
- - **$ sudo ./scripts/m0 make**
+   - **$ sudo ./scripts/m0 make**
 
- - **$ sudo ./scripts/m0 rebuild**
+   - **$ sudo ./scripts/m0 rebuild**
 
  **Note**: The **./scripts/m0 rebuild** command includes some clean up.
 
