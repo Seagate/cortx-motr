@@ -26,6 +26,14 @@
 
 #include "net/test/node.h"
 
+/*
+ * We are using Apache license for complete motr code but for MODULE_LICENSE
+ * marker there is no provision to mention Apache for this marker. But as this
+ * marker is necessary to remove the warnings, keeping this blank to make
+ * compiler happy.
+ */
+MODULE_LICENSE();
+
 static char	    *addr = NULL;
 static char	    *addr_console = NULL;
 static unsigned long timeout = 3;
