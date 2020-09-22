@@ -1158,6 +1158,19 @@ static void rconfc__ast_post(struct m0_rconfc  *rconfc,
 	m0_sm_ast_post(rconfc->rc_sm.sm_grp, ast);
 }
 
+static void rconfc_link_ast_post(struct rconfc_link  *lnk,
+			         void                *datum,
+			         void                (*cb)(struct m0_sm_group *,
+						           struct m0_sm_ast *))
+{
+	struct m0_sm_ast *ast = &lnk->rl_link_ast;
+	struct m0_rconfc *rconfc = lnk->rl_rconfc;
+
+	ast->sa_cb = cb;
+	ast->sa_datum = datum;
+	m0_sm_ast_post(rconfc->rc_sm.sm_grp, ast);
+}
+
 static void rconfc_ast_post(struct m0_rconfc  *rconfc,
 			    void             (*cb)(struct m0_sm_group *,
 						   struct m0_sm_ast *))
@@ -1244,6 +1257,8 @@ static void rconfc_herd_link_subscribe(struct rconfc_link *lnk)
 	m0_clink_add_lock(&obj->co_ha_chan, &lnk->rl_ha_clink);
 }
 
+static void rconfc_link_fini_ast(struct m0_sm_group *grp,
+				 struct m0_sm_ast   *ast);
 /**
  * Dismisses subscription to HA notifications in case it was done previously.
  */
@@ -1268,18 +1283,37 @@ static bool rconfc_herd_link__on_death_cb(struct m0_clink *clink)
 	struct rconfc_link *lnk = M0_AMB(lnk, clink, rl_ha_clink);
 	struct m0_conf_obj *obj = M0_AMB(obj, clink->cl_chan, co_ha_chan);
 
-	M0_ENTRY("lnk=%p", lnk);
+	M0_ENTRY("lnk=%p ep:%s rc %d state:%d", lnk, lnk->rl_confd_addr,
+			lnk->rl_rc, lnk->rl_state);
 	M0_ASSERT(m0_fid_eq(&lnk->rl_confd_fid, &obj->co_id));
 	if (obj->co_ha_state != M0_NC_FAILED) {
 		M0_LEAVE("co_ha_state = %d, return true", obj->co_ha_state);
 		return true;
 	}
+	if (!lnk->rl_finalised)
+		rconfc_link_ast_post(lnk, lnk, rconfc_link_fini_ast);
+	M0_LEAVE("lnk=%p co_ha_state = M0_NC_FAILED, return false", lnk);
+	return false;
+}
+
+static void rconfc_link_fini_ast(struct m0_sm_group *grp,
+				 struct m0_sm_ast   *ast)
+{
+	struct rconfc_link *lnk = ast->sa_datum;
+
+	M0_ENTRY("lnk=%p ep:%s rc %d state:%d", lnk, lnk->rl_confd_addr,
+			lnk->rl_rc, lnk->rl_state);
 	m0_rconfc_lock(lnk->rl_rconfc);
 	m0_mutex_lock(&lnk->rl_rconfc->rc_herd_lock);
 	if (lnk->rl_state != CONFC_DEAD && !lnk->rl_fom_queued) {
 		if (lnk->rl_on_state_cb != NULL)  /* For UT only */
 			lnk->rl_on_state_cb(lnk);
 		lnk->rl_fom_queued = true;
+		if (m0_clink_is_armed(&lnk->rl_clink)) {
+			m0_clink_del(&lnk->rl_clink);
+			m0_clink_fini(&lnk->rl_clink);
+			m0_confc_ctx_fini_locked(&lnk->rl_cctx);
+		}
 		m0_fom_init(&lnk->rl_fom, &rconfc_link_fom_type,
 			    &rconfc_link_fom_ops, NULL, NULL,
 			    rconfc_link2reqh(lnk));
@@ -1339,10 +1373,9 @@ static bool rconfc_herd_link__on_death_cb(struct m0_clink *clink)
 		M0_LOG(M0_INFO, "Link to "FID_F" known to be CONFC_DEAD",
 		       FID_P(&lnk->rl_confd_fid));
 	}
+	lnk->rl_finalised = true;
 	m0_mutex_unlock(&lnk->rl_rconfc->rc_herd_lock);
 	m0_rconfc_unlock(lnk->rl_rconfc);
-	M0_LEAVE("lnk=%p co_ha_state = M0_NC_FAILED, return false", lnk);
-	return false;
 }
 
 static void rconfc_herd_link_init(struct rconfc_link *lnk)
@@ -1365,6 +1398,7 @@ static void rconfc_herd_link_init(struct rconfc_link *lnk)
 		lnk->rl_state = CONFC_IDLE;
 	else
 		m0_clink_fini(&lnk->rl_ha_clink);
+	lnk->rl_finalised = false;
 	M0_LEAVE();
 }
 
@@ -1379,7 +1413,7 @@ M0_INTERNAL void rconfc_herd_link_fini(struct rconfc_link *lnk)
 	M0_PRE(lnk->rl_fom_clink.cl_chan == NULL);
 	M0_PRE(lnk->rl_fom_queued || M0_IS0(&lnk->rl_fom));
 	/* dead confc has no internals to fini */
-	if (lnk->rl_state != CONFC_DEAD) {
+	if (!M0_IN(lnk->rl_state, (CONFC_DEAD, CONFC_ARMED))) {
 		rconfc_herd_link_unsubscribe(lnk);
 		_confc_phony_cache_remove(&lnk->rl_rconfc->rc_phony,
 					  &lnk->rl_confd_fid);
@@ -1425,7 +1459,8 @@ static void rconfc_ha_update_ast(struct m0_sm_group *grp,
 	if (rlx->rlc_rm_addr == NULL || !m0_streq(rlx->rlc_rm_addr, rm_addr)) {
 		if (rlock_ctx_is_online(rlx))
 			rlock_ctx_creditor_unset(rlx);
-		rc = rlock_ctx_creditor_setup(rlx, rm_addr);
+		rc = rm_addr != NULL ? rlock_ctx_creditor_setup(rlx, rm_addr) :
+				       -EAGAIN;
 	}
 	if (rc == 0) {
 		rconfc_read_lock_get(rconfc);
@@ -1499,6 +1534,13 @@ static void rconfc_herd_link_destroy(struct rconfc_link *lnk)
 	m0_free(lnk);
 }
 
+M0_INTERNAL void rconfc_herd_link_cleanup(struct rconfc_link *lnk)
+{
+	M0_ENTRY("lnk %p", lnk);
+	rcnf_herd_tlist_del(lnk);
+	M0_LEAVE();
+}
+
 static void rconfc_herd_prune(struct m0_rconfc *rconfc)
 {
 	struct rconfc_link *lnk;
@@ -1565,18 +1607,8 @@ static int rconfc_herd_update(struct m0_rconfc   *rconfc,
 				goto no_mem;
 			lnk->rl_state      = CONFC_DEAD;
 			rcnf_herd_tlink_init_at_tail(lnk, &rconfc->rc_herd);
-		/*
-		 * } XXX: should we update the dead links here? It seems
-		 *        they are not updated anywhere currently, so the
-		 *        dead links get stuck dead forever even though
-		 *        the confds may become Online already.
-		 *
-		 *        Beware also that HAlon returns in Entry Point
-		 *        replies all the cluster confds regardless of their
-		 *        states, i.e. the dead ones might be there as well.
-		 * if (lnk->rl_state == CONFC_DEAD) {
-		 */
-			/*
+			/* Dead links are destroyed during rm revoke and will
+			 * be created again.
 			 * XXX:  rconfc_herd_link_init() can block on waiting
 			 *       and this function is called from an AST:
 			 *       rconfc_conductor_disconnected_ast() ->
@@ -1611,7 +1643,7 @@ static int rconfc_herd_update(struct m0_rconfc   *rconfc,
 		lnk->rl_preserve = true;
 	}
 	ver_accm_init(rconfc->rc_qctx, count);
-	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
+	m0_tl_for (rcnf_herd, &rconfc->rc_herd, lnk) {
 		if (!lnk->rl_preserve) {
 			rconfc_herd_link_fini(lnk);
 			rcnf_herd_tlist_del(lnk);
@@ -1621,7 +1653,7 @@ static int rconfc_herd_update(struct m0_rconfc   *rconfc,
 			 * Clean confc cache, so version will be actually
 			 * queried from confd, not extracted from cache.
 			 */
-			if (lnk->rl_state != CONFC_DEAD)
+			if (!M0_IN(lnk->rl_state, (CONFC_DEAD, CONFC_ARMED)))
 				_confc_cache_clean_lock(&lnk->rl_confc);
 			lnk->rl_preserve = false;
 		}
@@ -1674,6 +1706,7 @@ static int rconfc_conductor_connect(struct m0_rconfc   *rconfc,
 	 * In case active list iteration brings no success, rconfc is just to
 	 * repeat version election starting with ENTRYPOINT request.
 	 */
+	int rc;
 	enum { CONDUCTOR_TIMEOUT_DEFAULT = 200ULL * M0_TIME_ONE_MSEC };
 
 	M0_ENTRY("rconfc = %p, lnk = %p, confd_addr = %s", rconfc, lnk,
@@ -1681,7 +1714,6 @@ static int rconfc_conductor_connect(struct m0_rconfc   *rconfc,
 	M0_PRE(rconfc != NULL);
 	M0_PRE(lnk    != NULL);
 	if (!m0_confc_is_inited(&rconfc->rc_confc)) {
-		int rc;
 		/* first use, initialization required */
 		M0_PRE(_confc_ver_read(&rconfc->rc_confc) ==
 		       M0_CONF_VER_UNKNOWN);
@@ -1695,6 +1727,7 @@ static int rconfc_conductor_connect(struct m0_rconfc   *rconfc,
 
 		m0_confc_gate_ops_set(&rconfc->rc_confc, &rconfc->rc_gops);
 	}
+
 	return M0_RC(m0_confc_reconnect(&rconfc->rc_confc, rconfc->rc_rmach,
 					lnk->rl_confd_addr));
 }
@@ -1898,6 +1931,7 @@ static int rconfc_start_internal(struct m0_rconfc *rconfc)
 			rconfc_herd_destroy(rconfc);
 		return M0_ERR(rc);
 	}
+	rconfc->rc_quorum_decision_is_made = false;
 	return M0_RC(rc);
 }
 
@@ -2120,7 +2154,6 @@ static bool rconfc_gate_check(struct m0_confc *confc)
 	struct m0_rconfc *rconfc;
 	bool              result;
 
-	M0_ENTRY("confc = %p", confc);
 	M0_PRE(confc != NULL);
 	M0_PRE(m0_mutex_is_locked(&confc->cc_lock));
 
@@ -2135,7 +2168,6 @@ static bool rconfc_gate_check(struct m0_confc *confc)
 		m0_mutex_lock(&confc->cc_lock);
 	}
 	result = m0_rconfc_reading_is_allowed(rconfc);
-	M0_LEAVE("result=%s", result ? "true" : "false");
 	return result;
 }
 
@@ -2449,7 +2481,7 @@ static void rconfc_herd_cctxs_fini(struct m0_rconfc *rconfc)
 {
 	struct rconfc_link *lnk;
 
-	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
+	m0_tl_for (rcnf_herd, &rconfc->rc_herd, lnk) {
 		if (lnk->rl_state == CONFC_DEAD)
 			/*
 			 * Even with version elected some links may remain dead
@@ -2464,6 +2496,8 @@ static void rconfc_herd_cctxs_fini(struct m0_rconfc *rconfc)
 		 * of the contexts (because ASTs are not always executed
 		 * in the same order they were scheduled).
 		 */
+		M0_LOG(M0_DEBUG, "lnk:%p, rc = %d, ep = %s state:%d", lnk,
+				lnk->rl_rc, lnk->rl_confd_addr, lnk->rl_state);
 		if (m0_clink_is_armed(&lnk->rl_clink) &&
 		    m0_confc_ctx_is_completed(&lnk->rl_cctx)) {
 			m0_clink_del(&lnk->rl_clink);
@@ -2558,6 +2592,8 @@ static bool rconfc__cb_quorum_test(struct m0_clink *clink)
 	rconfc = lnk->rl_rconfc;
 	M0_ASSERT(rconfc_is_locked(rconfc));
 
+	M0_LOG(M0_DEBUG, "lnk:%p, rc = %d, ep = %s state:%d", lnk, lnk->rl_rc,
+			lnk->rl_confd_addr, lnk->rl_state);
 	if (m0_confc_ctx_is_completed(&lnk->rl_cctx)) {
 		lnk->rl_rc = m0_confc_ctx_error(&lnk->rl_cctx);
 		if (M0_FI_ENABLED("read_ver_failed")) {
@@ -2586,7 +2622,10 @@ static bool rconfc__cb_quorum_test(struct m0_clink *clink)
 		if (quorum_was)
 			rconfc__ast_post(rconfc, lnk, rconfc_cctx_fini);
 		else if (quorum_is || !rconfc_quorum_is_possible(rconfc))
-			rconfc_ast_post(rconfc, rconfc_version_elected);
+			if (!rconfc->rc_quorum_decision_is_made) {
+				rconfc->rc_quorum_decision_is_made = true;
+				rconfc_ast_post(rconfc, rconfc_version_elected);
+			}
 	}
 	M0_LEAVE();
 	return true;
@@ -2611,8 +2650,9 @@ static void rconfc_version_elect(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	va->va_count = 0;
 	m0_forall(idx, va->va_total, M0_SET0(&va->va_items[idx]));
 	/* query confd instances */
-	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
-		if (lnk->rl_state != CONFC_DEAD && lnk->rl_rc == 0) {
+	m0_tl_for (rcnf_herd, &rconfc->rc_herd, lnk) {
+		if (!M0_IN(lnk->rl_state, (CONFC_DEAD, CONFC_ARMED)) &&
+		    lnk->rl_rc == 0) {
 			m0_confc_ctx_init(&lnk->rl_cctx, &lnk->rl_confc);
 
 			m0_clink_init(&lnk->rl_clink, rconfc__cb_quorum_test);
@@ -2762,6 +2802,7 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 	rconfc->rc_expired_cb = expired_cb;
 	rconfc->rc_ready_cb   = ready_cb;
 	rconfc->rc_rlock_ctx  = rlock_ctx;
+	rconfc->rc_quorum_decision_is_made = false;
 
 	rcnf_herd_tlist_init(&rconfc->rc_herd);
 	rcnf_active_tlist_init(&rconfc->rc_active);

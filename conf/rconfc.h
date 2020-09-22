@@ -427,6 +427,10 @@ struct m0_rconfc {
 	 * unrelated to rconfc internal workings, e.g. start timeout expired.
 	 */
 	uint32_t                    rc_sm_state_on_abort;
+	/**
+	 * quorum is computed once and will de done again after rm revoke.
+	 */
+	bool                        rc_quorum_decision_is_made;
 };
 
 /**
