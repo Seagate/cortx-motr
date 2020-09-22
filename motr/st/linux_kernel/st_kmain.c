@@ -31,6 +31,14 @@
 #include "motr/st/st.h"
 #include "motr/st/st_assert.h"
 
+/*
+ * We are using Apache license for complete motr code but for MODULE_LICENSE
+ * marker there is no provision to mention Apache for this marker. But as this
+ * marker is necessary to remove the warnings, keeping this blank to make
+ * compiler happy.
+ */
+MODULE_LICENSE();
+
 enum idx_service {
 	IDX_MOTR = 1,
 	IDX_CASS,
