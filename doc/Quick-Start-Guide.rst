@@ -70,29 +70,29 @@ Unit Test
 ---------
 - To perform unit tests, run the following command:
 
- - **$ sudo ./scripts/m0 run-ut**
+  - **$ sudo ./scripts/m0 run-ut**
 
-  - Running Time (approximate) - 20 to 30 minutes
+  Running Time (approximate) - 20 to 30 minutes
 
 Kernel Space Unit Test
 ----------------------
 - To perform kernel space unit tests, run the following command:
 
- - **$ sudo ./scripts/m0 run-kut**
+  - **$ sudo ./scripts/m0 run-kut**
 
 System Tests
 ------------
 - To list all the system tests, run the following command:
 
- - **$ sudo ./scripts/m0 run-st -l**
+  - **$ sudo ./scripts/m0 run-st -l**
 
 - To perform the motr sanity test, run the following command:
 
- - **$ sudo ./scripts/m0 run-st 52motr-singlenode-sanity**
+  - **$ sudo ./scripts/m0 run-st 52motr-singlenode-sanity**
 
 - To perform all the system tests, run the following command:
 
- - **$ sudo ./scripts/m0 run-st**
+  - **$ sudo ./scripts/m0 run-st**
 
 Troubleshooting
 ================
