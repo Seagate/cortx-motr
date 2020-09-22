@@ -39,7 +39,7 @@ Run the following commands:
 
 - **$ cd cortx-motr**
 
-**Note**: To clone the source code, it is necessary to generate the SSH public key. To generate the key, refer `SSH Public Key <https://github.com/Seagate/cortx/blob/main/doc/SSH%20Public%20Key.rst>`_.
+**Note**: To clone the source code, it is necessary to generate the SSH public key. To generate the key, refer `SSH Public Key <https://github.com/Seagate/cortx/blob/main/doc/SSH_Public_Key.rst>`_.
 
 
 Building the Source Code
