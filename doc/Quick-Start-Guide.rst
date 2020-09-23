@@ -63,6 +63,24 @@ Perform the below mentioned procedure to build the source code.
    - **$ sudo ./scripts/m0 rebuild**
 
    **Note**: The **./scripts/m0 rebuild** command includes some clean up.
+   
+RPM Generation
+===============
+
+If you sure about generating RPMs, run the below mentioned commands.
+
+- $make rpms
+
+The following RPMs are generated in the **/root/rpmbuild/RPMS/x86_64** directory.
+
+- cortx-motr-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
+
+- cortx-motr-debuginfo-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
+
+- cortx-motr-devel-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
+ 
+- cortx-motr-tests-ut-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
+      
 
 Running Tests
 =============
