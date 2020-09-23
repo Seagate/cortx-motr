@@ -7,15 +7,15 @@ configurations. Its main roots are Lustre file system, NFSv4 and database techno
 Get to know
 ===========
 
-- `Quick Start Guide <https://github.com/Seagate/cortx-motr/blob/dev/doc/Quick-Start-Guide.rst>`_
+- `Quick Start Guide <https://github.com/Seagate/cortx-motr/blob/main/doc/Quick-Start-Guide.rst>`_
 
-- `Source Structure <https://github.com/Seagate/cortx-motr/blob/dev/doc/source-structure.md>`_
+- `Source Structure <https://github.com/Seagate/cortx-motr/blob/main/doc/source-structure.md>`_
 
-- `Coding Style <https://github.com/Seagate/cortx-motr/blob/dev/doc/coding-style.md>`_
+- `Coding Style <https://github.com/Seagate/cortx-motr/blob/main/doc/coding-style.md>`_
 
 Surfing
 =======
-Refer `Reading - list <https://github.com/Seagate/cortx-motr/blob/dev/doc/reading-list.md>`_ for complete information.
+Refer `Reading - list <https://github.com/Seagate/cortx-motr/blob/main/doc/reading-list.md>`_ for complete information.
 
 - $ make doc
 
