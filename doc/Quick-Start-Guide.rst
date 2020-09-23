@@ -59,6 +59,19 @@ Perform the below mentioned procedure to build the source code.
 3. To compile, run either of the following commands:
 
    - **$ sudo ./scripts/m0 make**
+   
+   The following rpms are generated.
+   
+   ::
+    
+    cortx-motr-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
+    
+    cortx-motr-debuginfo-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
+    
+    cortx-motr-devel-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
+    
+    cortx-motr-tests-ut-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
+    
 
    - **$ sudo ./scripts/m0 rebuild**
 
