@@ -8,10 +8,10 @@ We take the security of the CORTX project seriously. If you find any security vu
 
 Instead, please report them to us by mailing us at [cortx-questions@seagate.com](mailto:cortx-questionse@seagate.com). 
 
-#### Reporting Format
+### Reporting Format
 
 To make your reporting meaningful and help us understand the nature and scope of the issue, please include as much information as possible. 
 
-#### Preferred Languages
+### Preferred Languages
 
 We prefer all communications to be in English.
