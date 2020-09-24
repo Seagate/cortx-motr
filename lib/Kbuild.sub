@@ -24,6 +24,7 @@ m0tr_objects += lib/assert.o \
                   lib/lockers.o \
                   lib/m0lib.o \
                   lib/memory.o \
+                  lib/mempressure.o \
                   lib/misc.o \
                   lib/mutex.o \
                   lib/queue.o \

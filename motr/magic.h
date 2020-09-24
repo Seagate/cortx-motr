@@ -460,6 +460,12 @@ enum m0_magic_satchel {
 	/* m0_long_lock::l_magix (blessed boss) */
 	M0_FOM_LL_MAGIC = 0x330b1e55edb05577,
 
+/* MEMPRESURE */
+	/* m0_mempressure_cb:: mc_linkage (bosie alcidae) */
+	M0_MP_MAGIC =      0x331509a1b1221a77,
+	/* m0_mempressure_cb:: mp_magic (blood hobble) */
+	M0_MP_RUNQ_MAGIC = 0x33b100d379904a77,
+
 /* FOL */
 	/* m0_fol_rec_header::rh_magic (facade decile) */
 	M0_FOL_REC_MAGIC = 0x33facadedec11e77,

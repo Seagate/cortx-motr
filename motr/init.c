@@ -88,6 +88,7 @@
 #include "fdmi/fdmi.h"
 #include "fdmi/service.h"
 #include "fdmi/fol_fdmi_src.h"
+#include "lib/mempressure.h"
 
 M0_INTERNAL int m0_time_init(void);
 M0_INTERNAL void m0_time_fini(void);
@@ -187,6 +188,7 @@ struct init_fini_call subsystem[] = {
 #ifndef __KERNEL__
 	{ &m0_net_sock_mod_init, &m0_net_sock_mod_fini, "net/sock" },
 #endif
+	{ &m0_mempressure_mod_init,  &m0_mempressure_mod_fini,   "mp" },
 	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
 	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },

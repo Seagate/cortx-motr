@@ -22,6 +22,7 @@ nobase_motr_include_HEADERS += lib/arith.h \
                                lib/locality.h \
                                lib/lockers.h \
                                lib/memory.h \
+                               lib/mempressure.h \
                                lib/misc.h \
                                lib/mutex.h \
                                lib/processor.h \
@@ -78,6 +79,7 @@ motr_libmotr_la_SOURCES += lib/assert.c \
                            lib/lockers.c \
                            lib/m0lib.c \
                            lib/memory.c \
+                           lib/mempressure.c \
                            lib/misc.c \
                            lib/mutex.c \
                            lib/queue.c \
