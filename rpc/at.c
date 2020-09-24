@@ -36,6 +36,7 @@
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "rpc/at.h"
+#include "rpc/item.h"
 
 /**
  * @addtogroup rpc-at
@@ -530,17 +531,24 @@ M0_INTERNAL int m0_rpc_at_reply(struct m0_rpc_at_buf *in,
 				struct m0_fom        *fom,
 				int                   next_phase)
 {
-	const struct m0_rpc_conn *conn     = fom_conn(fom);
-	m0_bcount_t               blen     = repbuf->b_nob;
-	bool                      use_bulk = false;
-	int                       result   = M0_FSO_AGAIN;
-	int                       rc       = 0;
+	const struct m0_rpc_conn  *conn       = fom_conn(fom);
+	m0_bcount_t               blen        = repbuf->b_nob;
+	bool                      use_bulk    = false;
+	int                       result      = M0_FSO_AGAIN;
+	int                       rc          = 0;
+	bool                      bulk_reached;
 
 	M0_PRE(!m0_rpc_at_is_set(out));
 
 	m0_fom_phase_set(fom, next_phase);
 
-	if (blen < rpc_at_bulk_cutoff(conn)) {
+	bulk_reached =
+		m0_rpc_item_bulk_boundary_reached(
+			&fom->fo_rep_fop->f_item,
+			m0_fop_rpc_machine(fom->fo_fop),
+			blen);
+
+	if (!bulk_reached && blen < rpc_at_bulk_cutoff(conn)) {
 		if (in != NULL && in->ab_type == M0_RPC_AT_BULK_RECV) {
 			use_bulk = true;
 		} else if (in == NULL || in->ab_type == M0_RPC_AT_EMPTY) {

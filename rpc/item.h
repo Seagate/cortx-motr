@@ -318,6 +318,12 @@ M0_INTERNAL
 bool m0_rpc_item_max_payload_exceeded(struct m0_rpc_item    *item,
 				      struct m0_rpc_session *session);
 
+/* Checks whether item payload exceeds bulk boundary of RPC message */
+M0_INTERNAL
+bool m0_rpc_item_bulk_boundary_reached(struct m0_rpc_item    *item,
+				       struct m0_rpc_machine *mach,
+				       m0_bcount_t            size);
+
 /**
    Waits until item reaches in one of states specified in
    _states_ or absolute timeout specified by _timeout_ is

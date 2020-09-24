@@ -922,6 +922,21 @@ static bool cas_max_reply_payload_exceeded(struct cas_fom *fom)
 	return payload_exceeded;
 }
 
+static bool cas_bulk_boundary_reached(struct cas_fom *fom,
+				      m0_bcount_t size)
+{
+
+	struct m0_fom         *fom0      = &fom->cf_fom;
+	struct m0_rpc_item    *item = &fom0->fo_rep_fop->f_item;
+	struct m0_rpc_machine *mach = m0_fop_rpc_machine(fom->cf_fom.fo_fop);
+	bool                   bulk_reached = false;
+
+	if (!cas_in_ut())
+		bulk_reached = 
+			m0_rpc_item_bulk_boundary_reached(item, mach, size);
+	return bulk_reached;
+}
+
 static bool cas_key_need_to_send(struct cas_fom *fom, enum m0_cas_opcode opc,
 				 enum m0_cas_type ct, struct m0_cas_op *op,
 				 uint64_t rec_pos)
@@ -1896,14 +1911,20 @@ static bool cas_fid_is_cctg(const struct m0_fid *fid)
 	return m0_fid_type_getfid(fid) == &m0_cctg_fid_type;
 }
 
-static int cas_place(struct m0_buf *dst, struct m0_buf *src, m0_bcount_t cutoff)
+static int cas_place(struct m0_buf  *dst,
+		     struct m0_buf  *src,
+		     struct cas_fom *fom,
+		     m0_bcount_t     cutoff)
 {
-	int result = 0;
+	bool           bulk_reached = false;
+	int            result       = 0;
 
 	if (M0_FI_ENABLED("place_fail"))
 		return M0_ERR(-ENOMEM);
 
-	if (src->b_nob >= cutoff) {
+	bulk_reached = cas_bulk_boundary_reached(fom, src->b_nob);
+
+	if (bulk_reached || src->b_nob >= cutoff) {
 		dst->b_addr = m0_alloc_aligned(src->b_nob, PAGE_SHIFT);
 		if (dst->b_addr == NULL)
 			return M0_ERR(-ENOMEM);
@@ -2247,7 +2268,8 @@ static int cas_prep_send(struct cas_fom *fom, enum m0_cas_opcode opc,
 	switch (CTG_OP_COMBINE(opc, ct)) {
 	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
 		m0_ctg_lookup_result(ctg_op, &val);
-		rc = cas_place(&fom->cf_out_val, &val, rpc_cutoff);
+		rc = cas_place(&fom->cf_out_val, &val,
+			fom, rpc_cutoff);
 		break;
 	case CTG_OP_COMBINE(CO_GET, CT_META):
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
@@ -2259,10 +2281,10 @@ static int cas_prep_send(struct cas_fom *fom, enum m0_cas_opcode opc,
 	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
 	case CTG_OP_COMBINE(CO_CUR, CT_META):
 		m0_ctg_cursor_kv_get(ctg_op, &key, &val);
-		rc = cas_place(&fom->cf_out_key, &key, rpc_cutoff);
+		rc = cas_place(&fom->cf_out_key, &key, fom, rpc_cutoff);
 		if (ct == CT_BTREE && rc == 0)
 			rc = cas_place(&fom->cf_out_val, &val,
-				       rpc_cutoff);
+				       fom, rpc_cutoff);
 		break;
 	}
 

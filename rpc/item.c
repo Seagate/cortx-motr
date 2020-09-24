@@ -473,6 +473,18 @@ m0_bcount_t m0_rpc_item_payload_size(struct m0_rpc_item *item)
 }
 
 M0_INTERNAL
+bool m0_rpc_item_bulk_boundary_reached(struct m0_rpc_item    *item,
+				       struct m0_rpc_machine *mach,
+				       m0_bcount_t            size)
+{
+	M0_PRE(item != NULL);
+	M0_PRE(mach != NULL);
+
+	return (m0_rpc_item_payload_size(item) + size > 
+		mach->rm_bulk_boundary);
+}
+
+M0_INTERNAL
 bool m0_rpc_item_max_payload_exceeded(struct m0_rpc_item    *item,
 				      struct m0_rpc_session *session)
 {

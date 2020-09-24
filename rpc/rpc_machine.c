@@ -153,6 +153,9 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 	/* Bulk transmission requires data to be page aligned. */
 	machine->rm_bulk_cutoff = M0_FI_ENABLED("bulk_cutoff_4K") ? 4096 :
 				  m0_align(max_msg_size / 2, m0_pagesize_get());
+	machine->rm_bulk_boundary = M0_FI_ENABLED("bulk_boundary_16K") ? 16384 :
+		m0_align(max_msg_size / 2, m0_pagesize_get());
+
 	machine->rm_stopping = false;
 	rc = M0_THREAD_INIT(&machine->rm_worker, struct m0_rpc_machine *,
 			    NULL, &rpc_worker_thread_fn, machine, "m0_rpc_worker");

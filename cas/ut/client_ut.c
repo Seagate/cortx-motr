@@ -182,6 +182,7 @@ static int cas_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	cl_rpc_ctx->rcx_fid                = &g_process_fid;
 
 	m0_fi_enable_once("m0_rpc_machine_init", "bulk_cutoff_4K");
+	m0_fi_enable_once("m0_rpc_machine_init", "bulk_boundary_16K");
 	rc = m0_rpc_client_start(cl_rpc_ctx);
 	M0_UT_ASSERT(rc == 0);
 
@@ -205,6 +206,7 @@ static void casc_ut_init(struct m0_rpc_server_ctx *sctx,
 
 	M0_SET0(&sctx->rsx_motr_ctx);
 	m0_fi_enable_once("m0_rpc_machine_init", "bulk_cutoff_4K");
+	m0_fi_enable_once("m0_rpc_machine_init", "bulk_boundary_16K");
 	rc = m0_rpc_server_start(sctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = cas_client_init(cctx, cl_ep_addrs[0],

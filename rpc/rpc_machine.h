@@ -150,11 +150,20 @@ struct m0_rpc_machine {
 	struct m0_mutex_addb2             rm_lock_stats;
 
 	/**
-	 * RPC bulk cut-off value. If AT buffer size equals or bigger than
-	 * cut-off value, then it's transmitted via RPC bulk mechanism.
+	 * RPC bulk cut-off value. If size of individual AT buffer
+	 * equals or bigger than cut-off value, then it's transmitted
+	 * via RPC bulk mechanism.
 	 * @see m0_rpc_at_buf
 	 */
 	m0_bcount_t                       rm_bulk_cutoff;
+
+	/**
+	 * RPC message bulk boundary. If accumulated payload size of
+	 * RPC item equals or bigger than bulk boundary value, then
+	 * all sequential AT buffers are transmitted via RPC bulk mechanism.
+	 * @see m0_rpc_at_buf
+	 */
+	m0_bcount_t                       rm_bulk_boundary;
 };
 
 /**

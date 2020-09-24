@@ -805,6 +805,7 @@ static int nreq_asmbl_prep(struct m0_cas_req *req, struct m0_cas_op *op)
 
 	M0_PRE(op->cg_rec.cr_nr == orig->cg_rec.cr_nr);
 	op->cg_id = orig->cg_id;
+	op->cg_flags = orig->cg_flags;
 	for (i = 0; i < orig->cg_rec.cr_nr; i++) {
 		rec = &op->cg_rec.cr_rec[i];
 		M0_ASSERT(M0_IS0(rec));
