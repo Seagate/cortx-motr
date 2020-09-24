@@ -184,7 +184,23 @@ struct queue {
 	uint64_t        q_max;
 };
 
-enum { CACHE_SIZE = 1000000 };
+enum {
+	CACHE_SIZE 	= 1000000,
+	FID_CACHE_SIZE 	= 32
+};
+
+struct fid_mis_cache {
+        struct m0_fid       mis_fid;
+        uint64_t            mis_fid_cnt;
+};
+
+/**
+ * It is used to store mismatched FID's during EMAP record parsing.
+ */
+struct fid_cache {
+	struct fid_mis_cache  fmc_slot[FID_CACHE_SIZE];
+	int		      fmc_head;
+};
 
 struct cache_slot {
         struct m0_fid       cs_fid;
@@ -222,6 +238,7 @@ struct builder {
 	struct queue              *b_q;
 	struct queue               b_qq;
 	struct m0_be_tx_credit     b_cred;
+	struct fid_cache	   b_fid_cache;
 	struct cache	           b_cache;
 	uint64_t                   b_size;
 	const char                *b_dom_path;
@@ -293,6 +310,10 @@ static void *builder_action(struct builder *b, size_t len,
 static bool fid_without_type_eq(const struct m0_fid *fid0,
 				const struct m0_fid *fid1);
 
+static struct fid_mis_cache *fmc_cache_lookup(struct fid_cache *c,
+					      struct m0_fid *fid);
+static struct fid_mis_cache *fmc_cache_insert(struct fid_cache *c,
+					      const struct m0_fid *fid);
 static struct cache_slot *cache_lookup(struct cache *c, struct m0_fid *fid);
 static struct cache_slot *cache_insert(struct cache *c,
 				       const struct m0_fid *fid);
@@ -947,10 +968,16 @@ static int emap_prep(struct action *act, struct m0_be_tx_credit *credit)
 	struct m0_be_emap_key    *emap_key;
 	int 			  rc;
 	struct m0_be_emap_cursor  it = {};
+	struct fid_mis_cache     *fmc;
 
 	adom = emap_dom_find(act, &emap_ac->emap_fid);
 	if (adom == NULL) {
-		M0_LOG(M0_ERROR, "Invalid FID for emap record found !!!");
+		fmc = fmc_cache_lookup(&act->a_builder->b_fid_cache,
+				       &emap_ac->emap_fid);
+		if (fmc == NULL)
+			fmc = fmc_cache_insert(&act->a_builder->b_fid_cache,
+					       &emap_ac->emap_fid);
+		fmc->mis_fid_cnt++;
 		m0_free(act);
 		return M0_RC(-EINVAL);
 	}
@@ -1254,6 +1281,11 @@ static int ad_dom_init(struct builder *b)
 		adom_info->stob = stob;
 		adom_info->stob_dom = stob_dom;
 		b->b_ad_info[b->b_ad_dom_count] = adom_info;
+
+		M0_LOG(M0_DEBUG, "ad_domain = %"PRIu64" FID:" FID_F,
+		        b->b_ad_dom_count,
+			FID_P(&b->b_ad_domain[b->b_ad_dom_count]->sad_adata.
+			      em_mapping.bb_backlink.bli_fid));
 		b->b_ad_dom_count++;
 	} m0_tl_endfor;
 
@@ -1343,6 +1375,7 @@ static void ad_dom_fini(struct builder *b)
 }
 static void builder_fini(struct builder *b)
 {
+	int i;
 	m0_thread_join(&b->b_thread);
 	m0_thread_fini(&b->b_thread);
 	qfini(&b->b_qq);
@@ -1355,6 +1388,17 @@ static void builder_fini(struct builder *b)
 
 	printf("builder: actions: %9"PRId64" txs: %9"PRId64"\n",
 	       b->b_act, b->b_tx);
+
+	if(b->b_fid_cache.fmc_head > 0)
+	{
+		printf("\nMismatched FID's from emap records");
+		printf("\n%25s %12s \n", "Mismatched FID", "Count");
+		for (i = 0; i < b->b_fid_cache.fmc_head; ++i) {
+			printf("\t"FID_F" %9"PRIu64"\n",
+				FID_P(&b->b_fid_cache.fmc_slot[i].mis_fid),
+				b->b_fid_cache.fmc_slot[i].mis_fid_cnt);
+		}
+	}
 }
 
 static void *builder_action(struct builder *b, size_t len,
@@ -1377,6 +1421,7 @@ static int format_header_verify(const struct m0_format_header *h,
 				uint16_t rtype)
 {
 	struct m0_format_tag    tag = {};
+
 
 	m0_format_header_unpack(&tag, h);
 	if (memcmp(&tag, &rt[rtype].r_tag, sizeof tag) != 0)
@@ -1466,6 +1511,36 @@ static struct cache_slot *cache_insert(struct cache *c,
 
 	if (++c->c_head == CACHE_SIZE)
 		c->c_head = 0;
+	return slot;
+}
+
+static struct fid_mis_cache *fmc_cache_lookup(struct fid_cache *c,
+					      struct m0_fid *fid)
+{
+	int i;
+	int idx;
+
+	for (i = 0, idx = c->fmc_head - 1; i < FID_CACHE_SIZE; ++i, --idx) {
+		if (idx < 0)
+			idx = FID_CACHE_SIZE - 1;
+		if (m0_fid_eq(&c->fmc_slot[idx].mis_fid, fid))
+			return &c->fmc_slot[idx];
+		if (!m0_fid_is_set(&c->fmc_slot[idx].mis_fid))
+			break;
+	}
+	return NULL;
+}
+
+static struct fid_mis_cache *fmc_cache_insert(struct fid_cache *c,
+					      const struct m0_fid *fid)
+{
+	struct fid_mis_cache *slot =  &c->fmc_slot[c->fmc_head];
+
+	slot->mis_fid   = *fid;
+	slot->mis_fid_cnt =  0;
+
+	if (++c->fmc_head == FID_CACHE_SIZE)
+		c->fmc_head = 0;
 	return slot;
 }
 
