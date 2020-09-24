@@ -1101,51 +1101,47 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 				    struct m0_be_op *op,
 				    void *ptr)
 {
-	enum m0_be_alloc_zone_type ztype;
-	struct be_alloc_chunk   *c;
-	struct be_alloc_chunk   *prev;
-	struct be_alloc_chunk   *next;
-	bool		         chunks_were_merged;
+	enum m0_be_alloc_zone_type  ztype;
+	struct be_alloc_chunk      *c;
+	struct be_alloc_chunk      *prev;
+	struct be_alloc_chunk      *next;
+	bool		            chunks_were_merged;
 
-	M0_PRE(ergo(ptr != NULL,
-		    m0_reduce(z, M0_BAP_NR, 0,
-			      +(int)be_alloc_mem_is_in(a, z, ptr, 1)) == 1));
+	M0_PRE(ptr != NULL);
+	M0_PRE(m0_reduce(z, M0_BAP_NR, 0,
+			 +(int)be_alloc_mem_is_in(a, z, ptr, 1)) == 1);
 
 	m0_be_op_active(op);
 
-	if (ptr != NULL) {
-		m0_mutex_lock(&a->ba_lock);
-		M0_PRE_EX(m0_be_allocator__invariant(a));
+	m0_mutex_lock(&a->ba_lock);
+	M0_PRE_EX(m0_be_allocator__invariant(a));
 
-		c = be_alloc_chunk_addr(ptr);
-		M0_PRE(be_alloc_chunk_invariant(a, c));
-		M0_PRE(!c->bac_free);
-		ztype = c->bac_zone;
-		M0_LOG(M0_DEBUG, "allocator=%p c=%p c->bac_size=%lu zone=%d "
-		       "data=%p", a, c, c->bac_size, c->bac_zone, &c->bac_mem);
-		/* algorithm starts here */
-		be_alloc_chunk_mark_free(a, ztype, tx, c);
-		prev = be_alloc_chunk_prev(a, ztype, c);
-		next = be_alloc_chunk_next(a, ztype, c);
-		chunks_were_merged = be_alloc_chunk_trymerge(a, ztype, tx,
-							     prev, c);
-		if (chunks_were_merged)
-			c = prev;
-		be_alloc_chunk_trymerge(a, ztype, tx, c, next);
-		be_allocator_stats_update(&a->ba_h[ztype]->bah_stats,
-					  c->bac_size, false, false);
-		be_allocator_stats_capture(a, ztype, tx);
-		/* and ends here */
-		M0_POST(c->bac_free);
-		M0_POST(c->bac_size > 0);
-		M0_POST(be_alloc_chunk_invariant(a, c));
+	c = be_alloc_chunk_addr(ptr);
+	M0_PRE(be_alloc_chunk_invariant(a, c));
+	M0_PRE(!c->bac_free);
+	ztype = c->bac_zone;
+	M0_LOG(M0_DEBUG,"allocator=%p c=%p c->bac_size=%lu zone=%d "
+			"data=%p", a, c, c->bac_size, c->bac_zone, &c->bac_mem);
+	/* algorithm starts here */
+	be_alloc_chunk_mark_free(a, ztype, tx, c);
+	prev = be_alloc_chunk_prev(a, ztype, c);
+	next = be_alloc_chunk_next(a, ztype, c);
+	chunks_were_merged = be_alloc_chunk_trymerge(a, ztype, tx, prev, c);
+	if (chunks_were_merged)
+		c = prev;
+	be_alloc_chunk_trymerge(a, ztype, tx, c, next);
+	be_allocator_stats_update(&a->ba_h[ztype]->bah_stats,
+				  c->bac_size, false, false);
+	be_allocator_stats_capture(a, ztype, tx);
+	/* and ends here */
+	M0_POST(c->bac_free);
+	M0_POST(c->bac_size > 0);
+	M0_POST(be_alloc_chunk_invariant(a, c));
 
-		M0_POST_EX(m0_be_allocator__invariant(a));
-		m0_mutex_unlock(&a->ba_lock);
-	}
+	M0_POST_EX(m0_be_allocator__invariant(a));
+	m0_mutex_unlock(&a->ba_lock);
 
 	m0_be_op_done(op);
-
 }
 
 M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,

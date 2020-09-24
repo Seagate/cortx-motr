@@ -1747,12 +1747,14 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 	if (rc != 0)
 		return rc;
 	imask = &layout->u.dl_desc.ld_imask;
-	/** @todo Make it asynchronous. */
-	M0_BE_FREE_PTR_SYNC(imask->im_range, cas_seg(tx->t_engine->eng_domain),
-			    tx);
-	imask->im_range = NULL;
-	imask->im_nr = 0;
-
+	if (!m0_dix_imask_is_empty(imask)) {
+		/** @todo Make it asynchronous. */
+		M0_BE_FREE_PTR_SYNC(imask->im_range,
+				    cas_seg(tx->t_engine->eng_domain),
+				    tx);
+		imask->im_range = NULL;
+		imask->im_nr = 0;
+	}
 	/* The key is a component catalogue FID. */
 	ctg_fid_key_fill((void *)&key_data, &cid->ci_fid);
 	key = M0_BUF_INIT_PTR(&key_data);
