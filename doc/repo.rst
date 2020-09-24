@@ -28,16 +28,16 @@ Git rules
 
 1. Branching
 
-   1. There is ``dev`` branch. This is the branch development branches SHOULD
+   1. There is ``main`` branch. This is the branch development branches SHOULD
       be branched off. This is the branch where new patches SHOULD be landed
       first.
-   2. There are release branches. They are branched off ``dev`` at some point
-      in time. A commit from ``dev`` MAY be ported to a release branch.
+   2. There are stable branches. They are branched off ``manin`` at some point
+      in time. A commit from ``main`` MAY be ported to a release branch.
    3. There are development branches. They SHOULD be created for development.
 
 2. Gatekeeping
 
-   1. All commits to ``dev`` or release branches MUST be landed by a
+   1. All commits to ``main`` or release branches MUST be landed by a
       gatekeeper.
    2. There is no gatekeeping for development branches.
 
@@ -46,7 +46,7 @@ GitHub workflow
 
 1. The repo SHOULD cloned from GitHub. Please make sure to use ``git clone
    --recursive``.
-2. A development branch SHOULD be created off ``dev``.
+2. A development branch SHOULD be created off ``main``.
 3. Development continues in the branch. All kinds of `git commit rewrites
    <https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History>`_ MAY be used
    without limitations.  The branch MAY be published to GitHub during the
@@ -60,9 +60,9 @@ GitHub workflow
    the patch, a gatekeeper MUST be assigned for review.
 8. The gatekeeper either approves the pull request and then lands it or leaves
    review comments and the patch goes back to the review phase.
-9. After PR is landed to ``dev`` it MAY be cherry-picked on top of a release
-   branch and then a new PR for this release branch SHOULD be created. If there
-   is no need for additional review for a release branch the code review part
+9. After PR is landed to ``main`` it MAY be cherry-picked on top of a stable
+   branch and then a new PR for this main branch SHOULD be created. If there
+   is no need for additional review for a stable branch the code review part
    is skipped.  Everything else is applicable just like with a regular PR.
 
 Development workflow
@@ -120,7 +120,7 @@ Definitions
 ...........
 
 Base branch
-  The branch where the primary development happens. Currently it's ``dev``.
+  The branch where the primary development happens. Currently it's ``main``.
 
 Feature branch
   The branch that is used for feature development.
