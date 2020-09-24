@@ -172,7 +172,22 @@ enum {
 	M0_BE_DOMAIN_LEVEL_MKFS_SEGMENTS_CREATE,
 	M0_BE_DOMAIN_LEVEL_READY,
 };
-
+/*
+ * To iterate segment objects
+ * */
+M0_INTERNAL int m0_be_segobj_opt_iterate(struct m0_be_seg         *dict,
+			                 const struct m0_be_0type *objtype,
+			                 struct m0_buf            *opt,
+			                 char                    **suffix,
+			                 bool                      begin);
+M0_INTERNAL int m0_be_segobj_opt_next(struct m0_be_seg         *dict,
+			              const struct m0_be_0type *objtype,
+			              struct m0_buf            *opt,
+			              char                    **suffix);
+M0_INTERNAL int m0_be_segobj_opt_begin(struct m0_be_seg         *dict,
+			               const struct m0_be_0type *objtype,
+			               struct m0_buf            *opt,
+			               char                    **suffix);
 M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
 					   const struct m0_be_domain_cfg *cfg);
 
