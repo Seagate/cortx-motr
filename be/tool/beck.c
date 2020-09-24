@@ -1712,7 +1712,12 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 							  tx, &op, &ca->cta_key,
 							  &ca->cta_val),
 				       bo_u.u_btree.t_rc);
-		if (rc != 0)
+
+		if (rc == 0) {
+			m0_ctg_state_inc_update(tx, ca->cta_key.b_nob -
+						M0_CAS_CTG_KV_HDR_SIZE +
+						ca->cta_val.b_nob);
+		} else
 			M0_LOG(M0_DEBUG, "Failed to insert record rc=%d", rc);
 	}
 }
