@@ -378,6 +378,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		seg->bs_size     = g->sg_size;
 		seg->bs_addr     = g->sg_addr;
 		seg->bs_offset   = g->sg_offset;
+		seg->bs_gen	 = g->sg_gen;
 		seg->bs_state    = M0_BSS_OPENED;
 		be_seg_madvise(seg, M0_BE_SEG_CORE_DUMP_LIMIT, MADV_DONTDUMP);
 		be_seg_madvise(seg,                      0ULL, MADV_DONTFORK);
