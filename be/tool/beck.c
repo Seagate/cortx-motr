@@ -93,7 +93,7 @@ struct scanner {
 	 * exceed this value.
 	 */
 	m0_bcount_t	     s_max_reg_size;
-	/* Holds source metadata segment header generation identifier .*/
+	/* Holds source metadata segment header generation identifier. */
 	uint64_t	     s_gen;
 };
 
@@ -557,7 +557,7 @@ static int scanner_init(struct scanner *s)
 	int rc;
 
 	/** Initialising segment header generation identifier explicitly. */
-	s->s_seg = 0;
+	s->s_gen = 0;
 	rc = getat(s, 0, s->s_chunk, sizeof s->s_chunk);
 	if (rc != 0)
 		M0_LOG(M0_FATAL, "Can not read first chunk");
@@ -1098,9 +1098,14 @@ static int seghdr(struct scanner *s, struct rectype *r, char *buf)
 {
 	struct m0_be_seg_hdr *h   = (void *)buf;
 
-	s->s_gen = h->bh_gen;
-	printf("\nSource segment header generation\n");
-	generation_print(s->s_gen);
+	if (s->s_gen == 0) {
+		s->s_gen = h->bh_gen;
+		printf("\nSource segment header generation\n");
+	} else {
+		genadd(h->bh_gen);
+		printf("\nFound another segment header generation\n");
+	}
+	generation_print(h->bh_gen);
 
 	return 0;
 }
@@ -1125,19 +1130,19 @@ static int seghdr_ver(struct scanner *s, struct rectype *r, char *buf)
 static void genadd(uint64_t gen)
 {
 	int i;
+
 	if (gen_count >= ARRAY_SIZE(g))
 		return;
 
 	for (i = 0; i < gen_count; ++i) {
 		if (g[i].g_gen == gen) {
 			g[i].g_count++;
-			break;
+			return;
 		}
 	}
-	if (i == gen_count) {
-		g[gen_count].g_gen = gen;
-		g[gen_count++].g_count = 1;
-	}
+	g[gen_count].g_gen = gen;
+	g[gen_count].g_count = 1;
+	gen_count++;
 }
 
 static void builder_process(struct builder *b)
