@@ -138,6 +138,8 @@ enum {
 	HUNG_FOP_SEC_PERIOD   = 5,
 	HUNG_FOP_TIME_SEC_MAX = 2*60,
 	HUNG_FOP_TIME_SEC_IEM = 5*60,
+	HUNG_FOP_LONG_TIME_SEC_MAX = 5*60,
+	HUNG_FOP_LONG_TIME_SEC_IEM = 10*60,
 };
 
 /**
@@ -335,11 +337,28 @@ M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom)
 		_0C(fom->fo_service->rs_type == fom->fo_type->ft_rstype);
 }
 
+
+static void m0_fom_in_deadlock(const struct m0_fom *fom0)
+{
+	if (!M0_IN(fom0->fo_type->ft_id, (M0_CAS_GET_FOP_OPCODE,
+					  M0_CAS_PUT_FOP_OPCODE,
+					  M0_CAS_DEL_FOP_OPCODE,
+					  M0_CAS_CUR_FOP_OPCODE,
+					  M0_CAS_REP_FOP_OPCODE,
+					  M0_CAS_GCW_FOP_OPCODE,
+					  M0_CAS_GCF_FOP_OPCODE)))
+	    return;
+#ifndef __KERNEL__
+	m0_cas_fom_in_deadlock(fom0);
+#endif
+}
+
 /*
  * TODO: replace with corresponding HA handler when it's integrated
  */
 static bool hung_fom_notify(const struct m0_fom *fom)
 {
+	uint64_t              diff_in_sec;
 	m0_time_t             diff;
 	uint32_t              fop_opcode = 0;
 	struct m0_rpc_item    *item      = NULL;
@@ -353,8 +372,14 @@ static bool hung_fom_notify(const struct m0_fom *fom)
 	    return true;
 
 	diff = m0_time_sub(m0_time_now(), fom->fo_sm_state.sm_state_epoch);
-	if (m0_time_seconds(diff) > min_check(HUNG_FOP_TIME_SEC_MAX,
-					      HUNG_FOP_TIME_SEC_IEM)) {
+	diff_in_sec = m0_time_seconds(diff);
+
+	if (diff_in_sec > min_check(HUNG_FOP_LONG_TIME_SEC_MAX,
+				    HUNG_FOP_LONG_TIME_SEC_IEM))
+		m0_fom_in_deadlock(fom);
+
+	if (diff_in_sec > min_check(HUNG_FOP_TIME_SEC_MAX,
+				    HUNG_FOP_TIME_SEC_IEM)) {
 		M0_LOG(M0_WARN, "FOP HUNG[" TIME_F " seconds in processing]: "
 		       "fom=%p, fop %p[%u] phase: %s", TIME_P(diff), fom,
 		       &fom->fo_fop,
