@@ -329,7 +329,7 @@ get_cluster_configuration() {
         REMOTE_STORAGE_STATUS=1
         REMOTE_LV_SWAP_DEVICE="$(lvs -o path $REMOTE_MD_VOLUMEGROUP | grep $SWAP_DEVICE | awk '{ print $1 }' )"
         REMOTE_LV_MD_DEVICE="$(lvs -o path $REMOTE_MD_VOLUMEGROUP | grep $MD_DEVICE | awk '{ print $1 }')"
-				SINGLE_NODE_RUNNING='--single-node'
+        SINGLE_NODE_RUNNING='--single-node'
 
     else
         # remote ios is failed, can't access the remote storage, recovery not possible on this node
