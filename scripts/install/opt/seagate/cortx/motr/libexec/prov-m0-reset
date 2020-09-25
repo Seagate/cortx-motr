@@ -29,10 +29,10 @@ Mandatory parameters:
 
 Optional parameters:
   --mkfs-only           run mkfs on motr meta data devices.
-  --single-node          run mkfs from single node only.
+  --single-node         run mkfs from single node only.
   --start-consul        start consul
   --stop-consul         stop  consul
-  --get-fid       <service-name> <node-name>  get fid of service
+  --get-fid             <service-name> <node-name>  get fid of service
 Note: parameters can be specified either directly via cmd-line options
 or via a yaml file, e.g.:
 
