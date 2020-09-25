@@ -1,7 +1,7 @@
 =====
 Motr
 =====
-Motr is a distributed storage system, targeting `exascale <https://en.wikipedia.org/wiki/Exascale_computing>`_
+Motr is a distributed object storage system, targeting `exascale <https://en.wikipedia.org/wiki/Exascale_computing>`_
 configurations. Its main roots are Lustre file system, NFSv4 and database technology. It must be noted that traditional file system properties (hierarchical directory namespace, strong POSIX consistency guarantees, &c.) are no longer desirable or achievable at exascale. Instead, Motr is a more general storage system that provides an optional file system interface. This allows wider range of deployments, including cloud.
 
 Get to know
