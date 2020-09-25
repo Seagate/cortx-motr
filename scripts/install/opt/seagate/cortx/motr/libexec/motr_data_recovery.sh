@@ -91,7 +91,7 @@ eval set -- "$TEMP"
 while true; do
     case "$1" in
         -h|--help)           usage; exit ;;
-        --beck-only)     beck_only=true; shift ;;
+        --beck-only)         beck_only=true; shift ;;
         --clean-snapshot)    clean_snapshot=true; shift ;;
         --)                  shift; break ;;
         *)                   break ;;
