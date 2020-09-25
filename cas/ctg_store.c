@@ -781,7 +781,7 @@ static uint64_t ctg_state_update(struct m0_be_tx *tx, uint64_t size,
 	return *recs_nr;
 }
 
-static void ctg_state_inc_update(struct m0_be_tx *tx, uint64_t size)
+M0_INTERNAL void m0_ctg_state_inc_update(struct m0_be_tx *tx, uint64_t size)
 {
 	(void)ctg_state_update(tx, size, true);
 }
@@ -885,7 +885,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			ctg_memcpy(arena, ctg_op->co_val.b_addr,
 				   ctg_op->co_val.b_nob);
 			if (ctg_is_ordinary(ctg_op->co_ctg))
-				ctg_state_inc_update(tx,
+				m0_ctg_state_inc_update(tx,
 					ctg_op->co_key.b_nob -
 				       	M0_CAS_CTG_KV_HDR_SIZE +
 					ctg_op->co_val.b_nob);
