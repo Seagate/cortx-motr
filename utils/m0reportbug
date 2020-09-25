@@ -43,7 +43,7 @@ DEFAULT_INPUT_DIRS_GLOB='/var/motr*'
 IN_DIR=
 CORE_DIR=/var/crash    # path from where m0reportbug will collect cores
 RECOVERY_SCRIPT_DIR=/opt/seagate/cortx/motr/libexec    # dir containing recovery traces and scripts
-RECOVERY_LOG_DIR=/var/log/seagate/motr    # dir containing recovery log/logs
+RECOVERY_LOG_DIR=/var/log/seagate/motr/datarecovery    # dir containing recovery log/logs
 LIVE_CORE_DIR=/var/log/seagate/motr
 
 readonly START_DIR=$PWD

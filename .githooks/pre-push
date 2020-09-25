@@ -1,0 +1,34 @@
+#!/bin/bash
+#set -x
+ 
+LOCAL_REPO="git@github.com:Seagate/cortx-motr.git"
+REMOTE_REPO=`git remote -v | grep "cortx-motr.git" | head -1 | cut -f 2 | cut -f 1 -d " "`
+
+echo "repo local:$LOCAL_REPO | remote:$REMOTE_REPO"
+if [[ $REMOTE_REPO != $LOCAL_REPO ]]; then
+   echo bad repo $LOCAL_REPO $REMOTE_REPO
+fi
+FIRST_REMOTE_COMMIT="81793c00bed8d8b60d2fe0e58a3640648e5e3eca"
+FIRST_REMOTE_AUTHOR="CORTX Community Object Storage"
+#commit 81793c00bed8d8b60d2fe0e58a3640648e5e3eca
+#Author: CORTX Community Object Storage <cortx@seagate.com>
+#Date:   Mon Sep 21 11:30:04 2020 +0000
+
+#    Intial import
+FIRST_LOCAL_COMMIT=`git log --pretty="%H" | tail -n 1 `
+FIRST_LOCAL_AUTHOR=` git log --pretty="%an" | tail -n 1`
+
+if [[ $FIRST_LOCAL_AUTHOR = $FIRST_REMOTE_AUTHOR &&
+      $FIRST_LOCAL_COMMIT = $FIRST_REMOTE_COMMIT ]]; then
+      echo ""
+
+else
+echo bad repo: $FIRST_LOCAL_COMMIT != $FIRST_REMOTE_COMMIT
+     and $FIRST_LOCAL_AUTHOR != $FIRST_REMOTE_AUTHOR
+        cat <<\EOF
+
+Use clean repo, and apply the patches from current repo in it.
+EOF
+        exit 1
+fi
+exit 0
