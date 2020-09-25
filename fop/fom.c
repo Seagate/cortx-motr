@@ -52,6 +52,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "fdmi/fol_fdmi_src.h"
 #include "motr/iem.h"
+#include "fop/fom_generic.h"
 
 /**
  * @addtogroup fom
@@ -138,6 +139,7 @@ enum {
 	HUNG_FOP_SEC_PERIOD   = 5,
 	HUNG_FOP_TIME_SEC_MAX = 2*60,
 	HUNG_FOP_TIME_SEC_IEM = 5*60,
+	HUNG_FOP_HIT_MAX_CNT  = 15,
 };
 
 /**
@@ -192,7 +194,7 @@ M0_TL_DESCR_DEFINE(wail, "wail fom", static, struct m0_fom, fo_linkage,
 M0_TL_DEFINE(wail, static, struct m0_fom);
 
 static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
-				 const struct m0_fom *fom);
+				 struct m0_fom *fom);
 static int loc_thr_create(struct m0_fom_locality *loc);
 
 static void hung_foms_notify(struct m0_locality_chore *chore,
@@ -338,7 +340,7 @@ M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom)
 /*
  * TODO: replace with corresponding HA handler when it's integrated
  */
-static bool hung_fom_notify(const struct m0_fom *fom)
+static bool hung_fom_notify(struct m0_fom *fom)
 {
 	m0_time_t             diff;
 	uint32_t              fop_opcode = 0;
@@ -360,6 +362,10 @@ static bool hung_fom_notify(const struct m0_fom *fom)
 		       &fom->fo_fop,
 		       fom->fo_fop == NULL ? 0 : m0_fop_opcode(fom->fo_fop),
 		       m0_fom_phase_name(fom, m0_fom_phase(fom)));
+
+		fom->fo_hung_cnt++;
+		if (fom->fo_hung_cnt >= HUNG_FOP_HIT_MAX_CNT)
+			m0_fom_ready(fom);
 
 		if (false &&  /* XXX disabled temporarily */
 		    m0_time_seconds(diff) > HUNG_FOP_TIME_SEC_IEM) {
@@ -397,7 +403,7 @@ static bool hung_fom_notify(const struct m0_fom *fom)
 }
 
 static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
-				 const struct m0_fom *fom)
+				 struct m0_fom *fom)
 {
 	return hung_fom_notify(fom);
 }
@@ -813,25 +819,31 @@ static void fom_exec(struct m0_fom *fom)
 	} else {
 		struct m0_fom_callback *cb;
 
-		fom_wait(fom);
-		/*
-		 * If there are pending call-backs, execute them, until one of
-		 * them wakes the fom up. Don't bother to optimize moving
-		 * between queues: this is a rare case.
-		 *
-		 * Note: call-backs are executed in LIFO order.
-		 */
-		M0_ADDB2_PUSH(M0_AVI_FOM_CB);
-		while ((cb = fom->fo_pending) != NULL) {
-			fom->fo_pending = cb_next(cb);
-			cb_run(cb);
+		if (fom->fo_hung_cnt < HUNG_FOP_HIT_MAX_CNT) {
+			fom_wait(fom);
 			/*
-			 * call-back is not allowed to destroy a fom.
+		 	 * If there are pending call-backs, execute them, until one of
+			 * them wakes the fom up. Don't bother to optimize moving
+			 * between queues: this is a rare case.
+			 *
+			 * Note: call-backs are executed in LIFO order.
 			 */
-			M0_ASSERT(m0_fom_phase(fom) != M0_FOM_PHASE_FINISH);
-			if (fom_state(fom) != M0_FOS_WAITING)
-				break;
+			M0_ADDB2_PUSH(M0_AVI_FOM_CB);
+			while ((cb = fom->fo_pending) != NULL) {
+				fom->fo_pending = cb_next(cb);
+				cb_run(cb);
+				/*
+				 * call-back is not allowed to destroy a fom.
+				 */
+				M0_ASSERT(m0_fom_phase(fom) != M0_FOM_PHASE_FINISH);
+				if (fom_state(fom) != M0_FOS_WAITING)
+					break;
+			}
 		}
+
+		if (fom->fo_hung_cnt >= HUNG_FOP_HIT_MAX_CNT)
+			m0_fom_phase_move(fom, M0_ERR(-EAGAIN), M0_FOPH_FAILURE);
+
 		m0_addb2_pop(M0_AVI_FOM_CB);
 		M0_ASSERT(m0_fom_invariant(fom));
 	}

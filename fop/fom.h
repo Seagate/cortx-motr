@@ -346,7 +346,7 @@ struct m0_fom_domain_ops {
 	 *  @todo fom timeout implementation.
 	 */
 	bool   (*fdo_time_is_out)(const struct m0_fom_domain *dom,
-				  const struct m0_fom *fom);
+				  struct m0_fom *fom);
 };
 
 /**
@@ -531,6 +531,7 @@ struct m0_fom {
 	int                       fo_log[32];
 #endif
 	uint64_t                  fo_magic;
+	uint32_t                  fo_hung_cnt;
 };
 
 static inline struct m0_be_tx *m0_fom_tx(struct m0_fom *fom)
