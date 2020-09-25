@@ -432,7 +432,7 @@ static bool  signaled = false;
 
 static void  sig_handler(int num)
 {
-	printf("Cought Signal %d \n", num);
+	printf("Caught Signal %d \n", num);
 	signaled = true;
 }
 
