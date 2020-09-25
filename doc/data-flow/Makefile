@@ -82,17 +82,17 @@ qthelp: $(RST_FILES)
 	@echo
 	@echo "Build finished; now you can run "qcollectiongenerator" with the" \
 	      ".qhcp project file in $(BUILDDIR)/qthelp, like this:"
-	@echo "# qcollectiongenerator $(BUILDDIR)/qthelp/Mero.qhcp"
+	@echo "# qcollectiongenerator $(BUILDDIR)/qthelp/Motr.qhcp"
 	@echo "To view the help file:"
-	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/Mero.qhc"
+	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/Motr.qhc"
 
 devhelp: $(RST_FILES)
 	$(SPHINXBUILD) -b devhelp $(ALLSPHINXOPTS) $(BUILDDIR)/devhelp
 	@echo
 	@echo "Build finished."
 	@echo "To view the help file:"
-	@echo "# mkdir -p $$HOME/.local/share/devhelp/Mero"
-	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/Mero"
+	@echo "# mkdir -p $$HOME/.local/share/devhelp/Motr"
+	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/Motr"
 	@echo "# devhelp"
 
 epub: $(RST_FILES)
