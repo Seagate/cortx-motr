@@ -377,7 +377,7 @@ Tests:
   - id       : 39mount-fail
     script   : m0mount-fail
     dir      : src/st
-    #executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::MotrTest
     executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.m0mount-fail-test
     polltime : 30
