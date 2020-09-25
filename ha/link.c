@@ -972,7 +972,7 @@ static int ha_link_incoming_fom_tick(struct m0_fom *fom)
 		       "id_connection="U128X_F" lmf_id_connection="U128X_F,
 		       U128_P(&id_connection),
 		       U128_P(&req_fop->lmf_id_connection));
-		rep_fop->lmr_rc = -EBADSLT;
+		rep_fop->lmr_rc = M0_ERR(-EBADF);
 	} else {
 		m0_mutex_lock(&hl->hln_lock);
 		if (req_fop->lmf_msg_nr != 0)

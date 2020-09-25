@@ -19,7 +19,6 @@
  *
  */
 
-
 /**
  * @addtogroup netsock
  *
@@ -180,8 +179,9 @@
  * States and transitions
  * ----------------------
  *
- * sock uses non-blocking socket operations through linux epoll(2) interface (a
- * switch to poll(2) or select(2) can be made easily).
+ * sock uses non-blocking socket operations through m0_poll interface
+ * implemented on top of epoll(2) on linux and on top of poll(2) otherwise
+ * interface (a implementation on top of select(2) can be added easily).
  *
  * There are two types of activity in sock module:
  *
@@ -227,9 +227,9 @@
  * but it can easily be adapted to be executed as a chore
  * (m0_locality_chore_init()) within a locality.
  *
- * poller() gets from epoll_wait(2) a list of readable and writable sockets and
- * calls sock_event(), which is socket state machine transition
- * function. sock_event() handles following cases:
+ * poller() gets from m0_poll a list of readable and writable sockets and calls
+ * sock_event(), which is socket state machine transition function. sock_event()
+ * handles following cases:
  *
  *     - an incoming connection (the S_LISTENING socket becomes readable):
  *       accept the connection by calling accept4(2), create the end-point for
@@ -372,15 +372,15 @@
  *     - ipv4 and ipv6 protocol families are supported. Unix domain sockets are
  *       not supported.
  *
- * When a socket is created, it is added to the epoll instance monitored by
+ * When a socket is created, it is added to the m0_poll instance monitored by
  * poller() (sock_init_fd()). All sockets are monitored for read events. Only
  * sockets to end-points with a non-empty list of writers are monitored for
  * writes (ep_balance()).
  *
  * @todo It is not clear how to manage write-monitoring in case of multiple
  * "parallel" sockets to the same end-point. If writeability of all such sockets
- * is monitored, epoll_wait() can busy-loop. If not all of them are monitored,
- * they are useless for concurrent writes.
+ * is monitored, m0_poll() (epoll_wait()) can busy-loop. If not all of them are
+ * monitored, they are useless for concurrent writes.
  *
  * Buffer data are transmitted as a collection of PUT packets. For each packet,
  * first the header is transmitted, then the payload. The payload is transmitted
@@ -447,7 +447,7 @@
  *     - m0_net_tm_init() -> ... -> ma_init(): allocate ma data structure;
  *
  *     - m0_net_tm_start() -> ... -> ma_start(): start poller and initialise
- *       epoll;
+ *       poll;
  *
  *     - transfer machine is active;
  *
@@ -604,16 +604,15 @@
  * @{
  */
 
-#include <sys/epoll.h>                     /* epoll_create */
-
 #include <sys/types.h>
 #include <sys/uio.h>
-#include <sys/socket.h>                    /* epoll_create */
+#include <sys/socket.h>
 #include <netinet/in.h>                    /* INET_ADDRSTRLEN */
 #include <netinet/ip.h>
 #include <arpa/inet.h>                     /* inet_pton, htons */
 #include <string.h>                        /* strchr */
 #include <unistd.h>                        /* close */
+#include <fcntl.h>
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
 #include "lib/trace.h"
@@ -629,6 +628,7 @@
 #include "lib/bitmap.h"
 #include "lib/refs.h"
 #include "lib/time.h"
+#include "lib/poll.h"
 #include "sm/sm.h"
 #include "motr/magic.h"
 #include "net/net.h"
@@ -709,7 +709,7 @@ enum sock_flags {
 	HAS_READ   = M0_BITS(M_READ),
 	/** Non blocking write is possible on the sock. */
 	HAS_WRITE  = M0_BITS(M_WRITE),
-	/** Non-blocking writes are monitored for this sock by epoll(2). */
+	/** Non-blocking writes are monitored for this sock by m0_poll. */
 	WRITE_POLL = M0_BITS(M_NR + 1)
 };
 
@@ -791,8 +791,7 @@ struct ma {
 	 *
 	 */
 	struct m0_thread           t_poller;
-	/** epoll(2) instance file descriptor. */
-	int                        t_epollfd;
+	struct m0_poll             t_poll;
 	bool                       t_shutdown;
 	/** List of finalised sock structures. */
 	struct m0_tl               t_deathrow;
@@ -1144,6 +1143,9 @@ static void ip4_decode(struct addr *a, const struct sockaddr *sa);
 static void ip6_encode(const struct addr *a, struct sockaddr *sa);
 static void ip6_decode(struct addr *a, const struct sockaddr *sa);
 
+static int ssocket(int domain, int type, int protocol);
+static int saccept(int fd, struct sockaddr *addr, socklen_t *len);
+
 static const struct m0_sm_conf sock_conf;
 static const struct m0_sm_conf rw_conf;
 
@@ -1223,17 +1225,17 @@ static bool ma_invariant(const struct ma *ma)
 		m0_net__tm_invariant(net) &&
 		s_tlist_invariant(&ma->t_deathrow) &&
 		/* ma is either fully uninitialised or fully initialised. */
-		_0C((ma->t_poller.t_func == NULL && ma->t_epollfd == -1 &&
+		_0C((ma->t_poller.t_func == NULL &&
 		     m0_nep_tlist_is_empty(eps) &&
 		     s_tlist_is_empty(&ma->t_deathrow)) ||
-		    (ma->t_poller.t_func != NULL && ma->t_epollfd >= 0 &&
+		    (ma->t_poller.t_func != NULL &&
 		     m0_tl_exists(m0_nep, nep, eps,
 				  m0_tl_exists(s, s, &ep_net(nep)->e_sock,
 					  s->s_sm.sm_state == S_LISTENING))) ||
 		    ma->t_shutdown) &&
 		/* In STARTED state ma is fully initialised. */
 		_0C(ergo(net->ntm_state == M0_NET_TM_STARTED,
-			 ma->t_epollfd >= 0)) &&
+			 ma->t_poller.t_func != NULL)) &&
 		_0C(m0_tl_forall(s, s, &ma->t_deathrow, sock_invariant(s))) &&
 		/* Endpoints are unique. */
 		_0C(m0_tl_forall(m0_nep, p, eps,
@@ -1360,9 +1362,9 @@ static bool ma_is_locked(const struct ma *ma)
 static void poller(struct ma *ma)
 {
 	enum { EV_NR = 256 };
-	struct epoll_event ev[EV_NR] = {};
-	int                nr;
-	int                i;
+	struct m0_poll_data pd = {};
+	int                 nr;
+	int                 i;
 	/*
 	 * Notify users that ma reached M0_NET_TM_STARTED state.
 	 *
@@ -1379,13 +1381,15 @@ static void poller(struct ma *ma)
 	 * Because of this, we do not assert ma states here.
 	 */
 	ma_event_post(ma, M0_NET_TM_STARTED);
+	M0_POLL_PREP(&pd, &ma->t_poll, EV_NR);
 	while (1) {
 		if (ma->t_shutdown)
 			break;
 		nr = epoll_wait(ma->t_epollfd, ev, ARRAY_SIZE(ev), 1000);
-		if (nr == -1) {
+		nr = m0_poll(&pd, 1000);
+		if (nr < 0) {
 			M0_LOG(M0_DEBUG, "epoll: %i.", -errno);
-			M0_ASSERT(errno == EINTR);
+			M0_ASSERT(nr == -EINTR);
 			continue;
 		}
 		/* Check again because epoll() may block for some time */
@@ -1395,11 +1399,11 @@ static void poller(struct ma *ma)
 		ma_lock(ma);
 		M0_ASSERT(ma_is_locked(ma) && ma_invariant(ma));
 		for (i = 0; i < nr; ++i) {
-			struct sock *s = ev[i].data.ptr;
+			struct sock *s = m0_poll_ev_datum(&pd, i);
 
 			if (s->s_sm.sm_state == S_DELETED)
 				continue;
-			if (sock_event(s, ev[i].events))
+			if (sock_event(s, m0_poll_ev_flags(&pd, i)))
 				/*
 				 * Ran out of buffers on the receive queue,
 				 * break out, deliver completion events,
@@ -1423,6 +1427,7 @@ static void poller(struct ma *ma)
 		M0_ASSERT(ma_invariant(ma));
 		ma_unlock(ma);
 	}
+	M0_POLL_DONE(&pd);
 }
 
 /**
@@ -1437,7 +1442,7 @@ static void poller(struct ma *ma)
  * Poller thread (ma::t_poller) cannot be started, because a call to
  * m0_net_tm_confine() can be done after initialisation.
  *
- * ->epollfd can be initialised here, but it is easier to initialise everything
+ * ->t_poll can be initialised here, but it is easier to initialise everything
  * in ma_start().
  *
  * Used as m0_net_xprt_ops::xo_tm_init().
@@ -1451,7 +1456,6 @@ static int ma_init(struct m0_net_transfer_mc *net)
 
 	M0_ALLOC_PTR(ma);
 	if (ma != NULL) {
-		ma->t_epollfd = -1;
 		ma->t_shutdown = false;
 		net->ntm_xprt_private = ma;
 		ma->t_ma = net;
@@ -1507,13 +1511,10 @@ static void ma__fini(struct ma *ma)
 			} m0_tl_endfor;
 		} m0_tl_endfor;
 		/*
-		 * Finalise epoll after sockets, because sock_done() removes the
+		 * Finalise poll after sockets, because sock_done() removes the
 		 * socket from the poll set.
 		 */
-		if (ma->t_epollfd >= 0) {
-			close(ma->t_epollfd);
-			ma->t_epollfd = -1;
-		}
+		m0_poll_fini(&ma->t_poll);
 		ma_buf_done(ma);
 		ma_prune(ma);
 		b_tlist_fini(&ma->t_done);
@@ -1557,7 +1558,7 @@ static int ma_start(struct m0_net_transfer_mc *net, const char *name)
 	M0_PRE(net->ntm_state == M0_NET_TM_STARTING);
 
 	/*
-	 * - initialise epoll
+	 * - initialise poll
 	 *
 	 * - parse the address and create the source endpoint
 	 *
@@ -1569,8 +1570,8 @@ static int ma_start(struct m0_net_transfer_mc *net, const char *name)
 	 * listening socket to get the source endpoint to post a ma state change
 	 * event (outside of ma lock).
 	 */
-	ma->t_epollfd = epoll_create(1);
-	if (ma->t_epollfd >= 0) {
+	result = m0_poll_init(&ma->t_poll);
+	if (result == 0) {
 		struct ep *ep;
 
 		result = ep_find(ma, name, &ep);
@@ -1583,8 +1584,7 @@ static int ma_start(struct m0_net_transfer_mc *net, const char *name)
 			}
 			EP_PUT(ep, find);
 		}
-	} else
-		result = -errno;
+	}
 	if (result != 0)
 		ma__fini(ma);
 	M0_POST(ma_invariant(ma));
@@ -2050,7 +2050,7 @@ static void sock_done(struct sock *s, bool balance)
 		mover_fini(&s->s_reader);
 		M0_ASSERT(sock_writer(s) == NULL);
 		if (s->s_fd > 0) {
-			int result = sock_ctl(s, EPOLL_CTL_DEL, 0);
+			int result = sock_ctl(s, M0_PC_DEL, 0);
 			M0_ASSERT(ergo(result != 0, errno == ENOENT));
 			shutdown(s->s_fd, SHUT_RDWR);
 			close(s->s_fd);
@@ -2158,10 +2158,8 @@ static int sock_init_fd(int fd, struct sock *s, struct ep *ep, uint32_t flags)
 	if (fd < 0) {
 		int flag = true;
 
-		fd = socket(ep->e_a.a_family,
-			    /* Linux: set NONBLOCK immediately. */
-			    ep->e_a.a_socktype | SOCK_NONBLOCK,
-			    ep->e_a.a_protocol);
+		fd = ssocket(ep->e_a.a_family, ep->e_a.a_socktype,
+			     ep->e_a.a_protocol);
 		/*
 		 * Perhaps set some other socket options here? SO_LINGER, etc.
 		 */
@@ -2185,7 +2183,7 @@ static int sock_init_fd(int fd, struct sock *s, struct ep *ep, uint32_t flags)
 	}
 	if (fd >= 0 && result == 0) {
 		s->s_fd = fd;
-		result = sock_ctl(s, EPOLL_CTL_ADD, flags & ~EPOLLET);
+		result = sock_ctl(s, M0_PC_ADD, flags & ~EPOLLET);
 	}
 	if (result != 0 || fd < 0)
 		result = M0_ERR(-errno);
@@ -2221,8 +2219,7 @@ static bool sock_event(struct sock *s, uint32_t ev)
 			struct ep *we = s->s_ep;
 
 			addr = we->e_a; /* Copy family, socktype, proto. */
-			fd = accept4(s->s_fd,
-				     (void *)&sa, &socklen, SOCK_NONBLOCK);
+			fd = saccept(s->s_fd, (void *)&sa, &socklen);
 			if (fd >= 0) {
 				struct ep *ep = NULL;
 
@@ -2258,7 +2255,10 @@ static bool sock_event(struct sock *s, uint32_t ev)
 	 * the case of TCP/IP, these are... -- https://manpath.be/f14/2/accept4
 	 */
 						(ENETDOWN, EPROTO, ENOPROTOOPT,
-						 EHOSTDOWN, ENONET,
+						 EHOSTDOWN,
+#if defined(M0_LINUX)
+						 ENONET,
+#endif
 						 EHOSTUNREACH, EOPNOTSUPP,
 						 ENETUNREACH))) {
 				M0_LOG(M0_DEBUG, "Got: %i.", errno);
@@ -2308,10 +2308,7 @@ static int sock_ctl(struct sock *s, int op, uint32_t flags)
 
 	/* Always monitor errors. */
 	flags |= EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
-	result = epoll_ctl(ep_ma(s->s_ep)->t_epollfd, op, s->s_fd,
-			   &(struct epoll_event){
-				   .events = flags,
-				   .data   = { .ptr = s }});
+	result = m0_poll_ctl(&ep_ma(s->s_ep)->t_poll, op, s->s_fd, flags, s);
 	if (result == 0) {
 		if ((flags & EPOLLOUT) != 0)
 			s->s_flags |= WRITE_POLL;
@@ -2468,7 +2465,7 @@ static int ep_balance(struct ep *ep)
 		 */
 		s = s_tlist_head(&ep->e_sock);
 		if (s != NULL)
-			result = sock_ctl(s, EPOLL_CTL_MOD, 0);
+			result = sock_ctl(s, M0_PC_MOD, 0);
 		M0_ASSERT(result == 0);
 	} else {
 		s = m0_tl_find(s, s, &ep->e_sock, M0_IN(s->s_sm.sm_state,
@@ -2482,7 +2479,7 @@ static int ep_balance(struct ep *ep)
 			 */
 			/* Make sure that at least one socket is writable. */
 			if (!(s->s_flags & WRITE_POLL))
-				result = sock_ctl(s, EPOLL_CTL_MOD, EPOLLOUT);
+				result = sock_ctl(s, M0_PC_MOD, EPOLLOUT);
 			else
 				result = 0;
 		}
@@ -3712,6 +3709,36 @@ static void get_done(struct mover *w, struct sock *s)
 	ep_del(w);
 }
 
+#if !defined(M0_LINUX)
+static int sock_nonblock(int fd)
+{
+	if (fd >= 0)
+		fd = fcntl(fd, F_SETFL, O_NONBLOCK) ?: fd;
+	return fd;
+}
+#endif
+
+/** Wrapper around socket(2). */
+static int ssocket(int domain, int type, int protocol)
+{
+#if defined(M0_LINUX)
+	/* Linux: set NONBLOCK immediately. */
+	return socket(domain, type | SOCK_NONBLOCK, protocol);
+#else
+	return sock_nonblock(socket(domain, type, protocol));
+#endif
+}
+
+/** Wrapper around accept(2). */
+static int saccept(int fd, struct sockaddr *addr, socklen_t *len)
+{
+#if defined(M0_LINUX)
+	return accept4(fd, addr, len, SOCK_NONBLOCK);
+#else
+	return sock_nonblock(accept(fd, addr, len));
+#endif
+}
+
 static struct m0_sm_state_descr sock_conf_state[] = {
 	[S_INIT] = {
 		.sd_name = "init",
@@ -4030,6 +4057,7 @@ M0_INTERNAL void ma__print(const struct ma *ma)
 		} m0_tl_endfor;
 	}
 }
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of netsock group */

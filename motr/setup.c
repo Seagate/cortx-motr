@@ -2040,10 +2040,12 @@ static int cs_reqh_ctx_services_validate(struct m0_motr *cctx)
  */
 static int cs_daemonize(struct m0_motr *cctx)
 {
+#if !defined(M0_DARWIN)
 	if (cctx->cc_daemon) {
 		struct sigaction hup_act = { .sa_handler = SIG_IGN };
 		return daemon(1, 0) ?: sigaction(SIGHUP, &hup_act, NULL);
 	}
+#endif
 	return 0;
 }
 
@@ -2071,7 +2073,7 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 {
 	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
 	int                     rc_getops;
-	int                     rc = 0;
+	CAPTURED int            rc = 0;
 
 	M0_ENTRY();
 

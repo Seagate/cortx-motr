@@ -421,7 +421,7 @@ M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_fom *fom)
 	M0_LEAVE();
 }
 
-static uint64_t cp_fom_locality(const struct m0_fom *fom)
+static size_t cp_fom_locality(const struct m0_fom *fom)
 {
 	struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
 

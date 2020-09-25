@@ -39,7 +39,7 @@
 #include "lib/finject.h"
 
 #define NOENT (-ENOENT)
-#define PROCESSING_IS_DONE (-ENOKEY)
+#define PROCESSING_IS_DONE (-ENOMSG)
 
 static void sc_result_add(struct m0_dix_next_sort_ctx  *key_ctx,
 			  uint32_t                      cidx,

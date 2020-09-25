@@ -227,7 +227,7 @@ static void ss_process_fom_fini(struct m0_fom *fom)
 static int ss_process_fom_tick__init(struct m0_fom        *fom,
 				     const struct m0_reqh *reqh)
 {
-	static enum ss_fom_phases next_phase[] = {
+	static const int next_phase[] = {
 		[M0_PROCESS_STOP]         = SS_PROCESS_FOM_STOP,
 		[M0_PROCESS_RECONFIG]     = SS_PROCESS_FOM_RECONFIG_GET_DATA,
 		[M0_PROCESS_HEALTH]       = SS_PROCESS_FOM_HEALTH,

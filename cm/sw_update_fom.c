@@ -102,7 +102,7 @@ static int (*swu_action[]) (struct m0_cm_sw_update *swu) = {
 	[SWU_UPDATE] = swu_update,
 };
 
-static uint64_t cm_swu_fom_locality(const struct m0_fom *fom)
+static size_t cm_swu_fom_locality(const struct m0_fom *fom)
 {
 	return fom->fo_type->ft_id;
 }

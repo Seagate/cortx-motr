@@ -22,7 +22,6 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 
-#include <endian.h>            /* htobe64, betoh64 */
 #include <unistd.h>
 #include "ut/ut.h"
 #include "be/ut/helper.h"
@@ -38,6 +37,7 @@
 #include "dix/fid_convert.h"
 #include "lib/finject.h"
 #include "lib/trace.h"
+#include "lib/byteorder.h"
 
 #define POOL_WIDTH    10
 #define NODES         10
@@ -225,7 +225,7 @@ static void iter_ut_fom_fini(struct m0_fom *fom0)
 	m0_semaphore_up(fom->iu_sem);
 }
 
-static uint64_t iter_ut_fom_locality(const struct m0_fom *fom)
+static size_t iter_ut_fom_locality(const struct m0_fom *fom)
 {
 	return fom->fo_type->ft_id;
 }
@@ -524,7 +524,9 @@ static void iter_ut_ctidx_delete_async(struct iter_ut_fom *fom,
 	fom->iu_op = ITER_UT_OP_CTIDX_DELETE;
 	iter_ut_fom_op(fom, sem);
 }
-static void iter_ut_op(struct m0_cas_ctg *cctg, uint64_t key, uint64_t val, enum iter_ut_fom_op op)
+
+static void iter_ut_op(struct m0_cas_ctg *cctg, uint64_t key, uint64_t val,
+		       enum iter_ut_fom_op op)
 {
 	struct iter_ut_fom fom;
 	struct m0_buf      kbuf = {};
@@ -535,8 +537,8 @@ static void iter_ut_op(struct m0_cas_ctg *cctg, uint64_t key, uint64_t val, enum
 	rc = m0_buf_alloc(&kbuf, sizeof(key));
 	     m0_buf_alloc(&vbuf, sizeof(val));
 	M0_UT_ASSERT(rc == 0);
-	*(uint64_t *)kbuf.b_addr = htobe64(key);
-	*(uint64_t *)vbuf.b_addr = htobe64(val);
+	*(uint64_t *)kbuf.b_addr = m0_byteorder_cpu_to_be64(key);
+	*(uint64_t *)vbuf.b_addr = m0_byteorder_cpu_to_be64(val);
 	fom.iu_ctg = cctg;
 	fom.iu_key = kbuf;
 	fom.iu_val = vbuf;
@@ -836,7 +838,7 @@ static void cctg_not_found(void)
 
 static uint64_t buf_value(const struct m0_buf *buf)
 {
-	return be64toh(*(uint64_t *)buf->b_addr);
+	return m0_byteorder_be64_to_cpu(*(uint64_t *)buf->b_addr);
 }
 
 static void check_dix_iter_key_val(struct m0_dix_cm_iter *iter, int exp_rc,

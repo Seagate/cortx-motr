@@ -1930,7 +1930,7 @@ static int rconfc_entrypoint_consume(struct m0_rconfc *rconfc)
 		 * caused the fid to be zero, it must be considered an
 		 * unrecoverable issue preventing rconfc from further running.
 		 */
-		return M0_ERR(-ENOKEY);
+		return M0_ERR(-ENOMSG);
 	rconfc->rc_quorum = hep->hae_quorum;
 	rlx->rlc_rm_fid = hep->hae_active_rm_fid;
 	M0_LOG(M0_DEBUG, "rm_fid="FID_F, FID_P(&rlx->rlc_rm_fid));
@@ -1972,7 +1972,7 @@ static int rconfc_start_internal(struct m0_rconfc *rconfc)
 
 	rc = rconfc_entrypoint_consume(rconfc);
 	if (rc != 0) {
-		if (M0_IN(rc, (-ENOKEY, -EPERM)))
+		if (M0_IN(rc, (-ENOMSG, -EPERM)))
 			/* HA requested rconfc to stop querying entrypoint */
 			rconfc_fail(rconfc, rc);
 		else

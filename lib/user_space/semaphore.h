@@ -25,18 +25,41 @@
 #ifndef __MOTR_LIB_USER_SPACE_SEMAPHORE_H__
 #define __MOTR_LIB_USER_SPACE_SEMAPHORE_H__
 
+#if defined(M0_LINUX)
+#define USE_SYSV_SEMAPHORE        (0)
+#define USE_POSIX_SEMAPHORE       (1)
+#define USE_POSIX_NAMED_SEMAPHORE (0)
+#elif defined(M0_DARWIN)
+#define USE_SYSV_SEMAPHORE        (1)
+#define USE_POSIX_SEMAPHORE       (0)
+#define USE_POSIX_NAMED_SEMAPHORE (0)
+#else
+#error Wrong platform.
+#endif
+
+#if USE_SYSV_SEMAPHORE
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
+#else
 #include <semaphore.h>
+#endif
 
 /**
    @addtogroup semaphore
 
-   <b>User space semaphore.</b>
+   User space semaphore.
    @{
 */
 
 struct m0_semaphore {
-	/* POSIX semaphore. */
+#if USE_SYSV_SEMAPHORE
+	/** SysV semaphore set identifier, see semget(2). */
+	int s_semid;
+#else
+	/** POSIX semaphore. */
 	sem_t s_sem;
+#endif
 };
 
 /** @} end of semaphore group */

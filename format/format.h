@@ -189,7 +189,7 @@ M0_INTERNAL int m0_format_footer_verify(const void *buffer, bool iem);
 
 /* These values are for "teacake" compatibility. */
 #define M0_BE_MUTEX_PAD 168
-#define M0_BE_RWLOCK_PAD 144
+#define M0_BE_RWLOCK_PAD 256
 #define M0_BE_CLINK_PAD sizeof(struct m0_clink)
 
 #endif /* FORMAT_BE_STRUCT_CONVERTED */

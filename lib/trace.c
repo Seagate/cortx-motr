@@ -238,12 +238,17 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 
 	struct m0_trace_rec_header *header;
 	struct m0_trace_buf_header *tbh = m0_logbuf_header;
-#ifdef __clang__
-	/* Approximation of the stack pointer for clang compiler. */
-	unsigned long               sp = (unsigned long)&tbh;
-#else
+#if defined(M0_LINUX)
 	register unsigned long      sp asm("sp"); /* stack pointer */
-#endif /* __clang__ */
+#elif defined(M0_DARWIN)
+#define sp_get() ({				\
+	register unsigned long __sp asm("esp"); \
+	asm("" : "=r"(__sp));			\
+	__sp;					\
+})
+	unsigned long               sp = sp_get();
+#undef sp_get
+#endif
 
 #ifdef ENABLE_RESTRICTED_TRACE_MODE
 	/* discard records with verbosity level higher than allowed */
@@ -658,17 +663,17 @@ int m0_trace_magic_sym_extra_addr_add(const void *addr)
 
 	if (tbh == (void*)bootlog.bl_area.ta_buf)
 		/* trace subsystem is not ready yet */
-		return -EUNATCH;
+		return M0_ERR(-EBUSY);
 
 	if (tbh->tbh_magic_sym_addresses_nr >=
 	    ARRAY_SIZE(tbh->tbh_magic_sym_addresses))
 		/* no free slots available in the magic sym array */
-		return -ENOSPC;
+		return M0_ERR(-ENOSPC);
 
 	i = tbh->tbh_magic_sym_addresses_nr++;
 	if (i >= ARRAY_SIZE(tbh->tbh_magic_sym_addresses))
 		/* other thread must have stolen the last free slot from us */
-		return -ENOSPC;
+		return M0_ERR(-ENOSPC);
 
 	tbh->tbh_magic_sym_addresses[i] = addr;
 

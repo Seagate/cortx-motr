@@ -584,9 +584,9 @@ M0_INTERNAL int m0_rpc_session_validate(struct m0_rpc_session *session)
 				   m0_rpc_session_state_to_str(
 					   session_state(session)));
 	if (session->s_conn == NULL)
-		return M0_ERR_INFO(-ENOMEDIUM, "Session connection is NULL");
+		return M0_ERR_INFO(-ENOLINK, "Session connection is NULL");
 	if (session->s_conn->c_rpc_machine == NULL)
-		return M0_ERR_INFO(-ENOMEDIUM,
+		return M0_ERR_INFO(-ENOLINK,
 				   "Session connection rpc machine is NULL");
 	return M0_RC(0);
 }

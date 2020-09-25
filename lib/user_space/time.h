@@ -25,6 +25,7 @@
 #ifndef __MOTR_LIB_USER_SPACE_TIME_H__
 #define __MOTR_LIB_USER_SPACE_TIME_H__
 
+#if defined(M0_LINUX)
 #include <time.h>
 
 /**
@@ -41,11 +42,34 @@ enum CLOCK_SOURCES {
 	/** @note POSIX timers on Linux don't support this clock source */
 	M0_CLOCK_SOURCE_MONOTONIC_RAW = CLOCK_MONOTONIC_RAW,
 	/** gettimeofday(). All others clock sources use clock_gettime() */
-	M0_CLOCK_SOURCE_GTOD,
+	M0_CLOCK_SOURCE_GTOD = CLOCK_REALTIME + CLOCK_MONOTONIC +
+				CLOCK_MONOTONIC_RAW,
 	/** CLOCK_REALTIME + CLOCK_MONOTONIC combination.
 	 *  @see m0_utime_init() */
-	M0_CLOCK_SOURCE_REALTIME_MONOTONIC,
+	M0_CLOCK_SOURCE_REALTIME_MONOTONIC
 };
+
+#elif defined(M0_DARWIN)
+/**
+ * Darwin does not have clock_gettime(3). Alternatives are:
+ *
+ *     - gettimeofday(3): portable
+ *
+ *     - host_get_clock_service() + clock_get_time() (see
+ *       https://dshil.github.io/blog/missed-os-x-clock-guide/).
+ *
+ * http://web.archive.org/web/20100501115556/http://le-depotoir.googlecode.com:80/svn/trunk/misc/clock_gettime_stub.c
+ *
+ * http://web.archive.org/web/20100517095152/http://www.wand.net.nz/~smr26/wordpress/2009/01/19/monotonic-time-in-mac-os-x/comment-page-1/
+ */
+enum CLOCK_SOURCES {
+	M0_CLOCK_SOURCE_REALTIME,
+	M0_CLOCK_SOURCE_MONOTONIC,
+	M0_CLOCK_SOURCE_MONOTONIC_RAW,
+	M0_CLOCK_SOURCE_GTOD,
+	M0_CLOCK_SOURCE_REALTIME_MONOTONIC
+};
+#endif
 
 /* __MOTR_LIB_USER_SPACE_TIME_H__ */
 #endif

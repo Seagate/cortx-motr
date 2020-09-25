@@ -268,6 +268,7 @@ M0_INTERNAL void m0_dtm_local_remote_init(struct m0_dtm_local_remote *lre,
 					  struct m0_dtm *local,
 					  struct m0_reqh *reqh)
 {
+	(void)rem_rpc_item_redo_ops; /* @todo Unused variable. */
 	m0_dtm_remote_init(&lre->lre_rem, id, local);
 	lre->lre_rem.re_ops = &rem_local_ops;
 	lre->lre_reqh = reqh;

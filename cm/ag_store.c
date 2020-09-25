@@ -471,7 +471,7 @@ static int (*ag_store_action[]) (struct m0_cm_ag_store *store) = {
 	[AG_STORE_COMPLETE]    = ag_store_complete,
 };
 
-static uint64_t ag_store_fom_locality(const struct m0_fom *fom)
+static size_t ag_store_fom_locality(const struct m0_fom *fom)
 {
 	return fom->fo_type->ft_id;
 }

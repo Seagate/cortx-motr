@@ -25,6 +25,10 @@
 #include <time.h>         /* time */
 #include <err.h>          /* warn */
 
+#if M0_DARWIN
+#include <libgen.h> /* basename */
+#endif
+
 #if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE  /* required for basename, see man basename(3) */
 #endif
@@ -333,26 +337,26 @@ static void tests_add(struct m0_ut_module *m)
 int main(int argc, char *argv[])
 {
 	static struct m0 instance;
-	struct m0_ut_module *ut;
+	CAPTURED struct m0_ut_module *ut;
 	int   rc;
-	bool  list_ut              = false;
-	bool  with_tests           = false;
-	bool  list_owners          = false;
-	bool  yaml_output          = false;
-	bool  finject_stats_before = false;
-	bool  finject_stats_after  = false;
-	bool  parse_trace          = false;
-	int   seed                 = -1;
-	int   count                = 1;
 	int   i;
-	const char *fault_point         = NULL;
-	const char *fp_file_name        = NULL;
-	const char *trace_mask          = NULL;
-	const char *trace_level         = NULL;
-	const char *trace_print_context = NULL;
-	const char *tests_select        = NULL;
-	const char *tests_exclude       = NULL;
-	const char *start_suite         = NULL;
+	CAPTURED bool  list_ut              = false;
+	CAPTURED bool  with_tests           = false;
+	CAPTURED bool  list_owners          = false;
+	CAPTURED bool  yaml_output          = false;
+	CAPTURED bool  finject_stats_before = false;
+	CAPTURED bool  finject_stats_after  = false;
+	CAPTURED bool  parse_trace          = false;
+	CAPTURED int   seed                 = -1;
+	CAPTURED int   count                = 1;
+	const CAPTURED char *fault_point         = NULL;
+	const CAPTURED char *fp_file_name        = NULL;
+	const CAPTURED char *trace_mask          = NULL;
+	const CAPTURED char *trace_level         = NULL;
+	const CAPTURED char *trace_print_context = NULL;
+	const CAPTURED char *tests_select        = NULL;
+	const CAPTURED char *tests_exclude       = NULL;
+	const CAPTURED char *start_suite         = NULL;
 	static char performance_counters[0x1000];
 
 	m0_instance_setup(&instance);

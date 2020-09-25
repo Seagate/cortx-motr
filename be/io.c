@@ -31,6 +31,7 @@
 #include "lib/errno.h"           /* ENOMEM */
 #include "lib/ext.h"             /* m0_ext_are_overlapping */
 #include "lib/locality.h"        /* m0_locality0_get */
+#include "lib/fs.h"              /* m0_fdatasync */
 
 #include "stob/io.h"             /* m0_stob_iovec_sort */
 #include "stob/stob.h"           /* m0_stob_fd */
@@ -579,7 +580,7 @@ static bool be_io_cb(struct m0_clink *link)
 	 */
 	if (rc == 0 && bio->bio_sync) {
 		fd = m0_stob_fd(bip->bip_sio.si_obj);
-		rc = fdatasync(fd);
+		rc = m0_fdatasync(fd);
 		rc = rc == 0 ? 0 : M0_ERR_INFO(-errno, "fd=%d", fd);
 		M0_ASSERT_INFO(rc == 0, "fdatasync() failed: rc=%d", rc);
 	}

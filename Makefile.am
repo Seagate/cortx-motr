@@ -184,7 +184,10 @@ include $(top_srcdir)/xcode/ff2c/Makefile.sub
 
 lib_LTLIBRARIES          += motr/libmotr.la
 motr_libmotr_la_CPPFLAGS  = -DM0_TARGET='libmotr' $(AM_CPPFLAGS)
-motr_libmotr_la_LDFLAGS   = -version-info @LT_VERSION@ -pthread $(AM_LDFLAGS)
+motr_libmotr_la_LDFLAGS   = -version-info @LT_VERSION@ $(AM_LDFLAGS)
+if ON_LINUX
+motr_libmotr_la_LDFLAGS  += -pthread
+endif
 motr_libmotr_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
                             @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ \
                             @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@ @ISAL_LIBS@ \
@@ -247,7 +250,9 @@ include $(top_srcdir)/module/Makefile.sub
 include $(top_srcdir)/mw/Makefile.sub
 include $(top_srcdir)/net/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/Makefile.sub
+if ON_LINUX
 include $(top_srcdir)/net/lnet/Makefile.sub
+endif
 include $(top_srcdir)/net/sock/Makefile.sub
 include $(top_srcdir)/net/libfab/Makefile.sub
 include $(top_srcdir)/pool/Makefile.sub
@@ -385,8 +390,10 @@ include $(top_srcdir)/mdservice/ut/Makefile.sub
 include $(top_srcdir)/motr/ut/Makefile.sub
 include $(top_srcdir)/module/ut/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/ut/Makefile.sub
+if ON_LINUX
 include $(top_srcdir)/net/lnet/ut/Makefile.sub
 include $(top_srcdir)/net/libfab/ut/Makefile.sub
+endif
 include $(top_srcdir)/net/test/ut/Makefile.sub
 include $(top_srcdir)/net/ut/Makefile.sub
 include $(top_srcdir)/pool/ut/Makefile.sub
@@ -446,13 +453,14 @@ include $(top_srcdir)/m0t1fs/linux_kernel/ut/Makefile.sub
 #
 # net/lnet/ut ----------------------------------------- {{{2
 #
-
+if ON_LINUX
 if ENABLE_UNIT_TESTS
 bin_PROGRAMS                      += net/lnet/ut/m0kut-helper
 endif
 net_lnet_ut_m0kut_helper_CPPFLAGS  = -DM0_TARGET='m0kut-helper' $(AM_CPPFLAGS)
 net_lnet_ut_m0kut_helper_LDADD     = $(top_builddir)/motr/libmotr.la \
                                      $(top_builddir)/ut/libmotr-ut.la
+endif
 
 #
 # ut/m0ut and ut/m0ub --------------------------------- {{{2
@@ -542,15 +550,15 @@ include $(top_srcdir)/net/bulk_emulation/st/Makefile.sub
 # net/lnet/st ----------------------------------------- {{{2
 #
 
+if ON_LINUX
 if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                 += net/lnet/st/m0lnetping
 endif
 net_lnet_st_m0lnetping_CPPFLAGS  = -DM0_TARGET='m0lnetping' $(AM_CPPFLAGS)
 net_lnet_st_m0lnetping_LDADD     = $(top_builddir)/motr/libmotr.la \
                                    $(top_builddir)/ut/libmotr-ut.la
-
-
 include $(top_srcdir)/net/lnet/st/Makefile.sub
+endif
 
 #
 # net/test -------------------------------------------- {{{2
@@ -1166,9 +1174,6 @@ EXTRA_DIST += \
               net/Kbuild.sub \
               net/bulk_emulation/Kbuild.sub \
               net/bulk_emulation/ut/Kbuild.sub \
-              net/lnet/Kbuild.sub \
-              net/lnet/st/Kbuild.sub \
-              net/lnet/ut/Kbuild.sub \
               net/sock/Kbuild.sub \
               net/test/Kbuild.sub \
               net/test/ut/Kbuild.sub \
@@ -1194,6 +1199,13 @@ EXTRA_DIST += \
               xcode/Kbuild.sub \
               xcode/ut/Kbuild.sub \
               helpers/Kbuild.sub
+
+if ON_LINUX
+EXTRA_DIST += \
+              net/lnet/Kbuild.sub \
+              net/lnet/st/Kbuild.sub \
+              net/lnet/ut/Kbuild.sub
+endif
 
 
 ################################################################################

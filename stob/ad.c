@@ -884,7 +884,7 @@ static int ext_punch(struct m0_stob *stob, struct m0_dtx *tx,
 	struct m0_be_emap_cursor  it = {};
 	struct m0_be_op          *it_op;
 	struct m0_ext            *ext;
-	int                       rc;
+	CAPTURED int              rc;
 
 	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
 	rc = stob_ad_cursor(adom, stob, todo->e_start, &it);
@@ -1704,8 +1704,8 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 				 struct m0_be_emap_cursor *orig,
 				 const struct m0_ext *ext)
 {
-	int                    result;
-	int                    rc = 0;
+	int                       result;
+	CAPTURED int              rc = 0;
 	struct m0_be_emap_cursor  it = {};
 	/* an extent in the logical name-space to be mapped to ext. */
 	struct m0_ext          todo = {

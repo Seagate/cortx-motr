@@ -68,7 +68,10 @@ enum m0_magic_satchel {
 	M0_ADDB2_SOURCE_MAGIC        = 0x331c01db100ded77,
 	/* Leo falabella */
 	M0_ADDB2_SOURCE_HEAD_MAGIC   = 0x331e0fa1abe11a77,
-
+/* stob/aio_emu.c */
+	/* */
+	M0_AIO_EMU_MAGIC             = 0x3311111111111177,
+	M0_AIO_EMU_HEAD_MAGIC        = 0x3322222222222277,
 /* balloc */
 	/* m0_balloc_super_block::bsb_magic (blessed baloc) */
 	M0_BALLOC_SB_MAGIC = 0x33b1e55edba10c77,

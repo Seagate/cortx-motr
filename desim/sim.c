@@ -18,6 +18,7 @@
  *
  */
 
+#if defined(M0_LINUX)
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -550,6 +551,9 @@ M0_INTERNAL void sim_global_fini(void)
 {
 	cnt_global_fini();
 }
+
+/* M0_LINUX */
+#endif
 
 /** @} end of desim group */
 

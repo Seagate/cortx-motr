@@ -115,7 +115,7 @@ static int args_parse(const char *src, struct args *dest)
 		{ NULL, NULL }
 	};
 
-	s = strdupa(src);
+	s = strdup(src);
 	if (s == NULL)
 		return -ENOMEM;
 
@@ -126,6 +126,7 @@ static int args_parse(const char *src, struct args *dest)
 			return -EINVAL;
 		}
 	}
+	free(s);
 	return args_check_limits(dest);
 }
 

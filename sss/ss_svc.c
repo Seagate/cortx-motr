@@ -333,7 +333,7 @@ exit:
 static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 			     const struct m0_reqh *reqh)
 {
-	static const enum ss_fom_phases next_phase[][2] = {
+	static const int next_phase[][2] = {
 		[M0_SERVICE_START]   = { SS_FOM_START, M0_FOPH_SUCCESS },
 		[M0_SERVICE_STOP]    = { M0_FOPH_TXN_INIT, SS_FOM_STOP },
 		[M0_SERVICE_STATUS]  = { M0_FOPH_TXN_INIT, SS_FOM_STATUS },

@@ -42,6 +42,10 @@
 #include "stob/type.h"   /* m0_stob_type_id_get */
 #include "stob/ioq.h"    /* m0_stob_ioq_init */
 
+#if defined(M0_DARWIN)
+#define O_DIRECT (0)
+#endif
+
 /**
    @addtogroup stoblinux
 
@@ -120,7 +124,7 @@ static char *stob_linux_vsnprintf(const char *format, ...)
 {
 	va_list ap;
 	char    str[MAXPATHLEN];
-	size_t  len;
+	int     len;
 
 	va_start(ap, format);
 	len = vsnprintf(str, ARRAY_SIZE(str), format, ap);

@@ -29,7 +29,7 @@
 #include "lib/buf.h"    /* m0_buf */
 #include "lib/errno.h"  /* EPROTO */
 #include "lib/memory.h" /* m0_alloc */
-#include "lib/thread.h" /* LAMBDA */
+#include "lib/thread.h" /* LAMBDA, LAMBDA_T */
 
 #include "ut/ut.h"
 #include "ut/misc.h"    /* m0_ut_random_shuffle */
@@ -292,9 +292,9 @@ struct m0_be_ut_fmt_group_test {
 	struct m0_be_fmt_group_cfg cfg;
 	bool                       buf_lack;
 	bool                       last;
-	void (*group_spoil)(struct m0_be_ut_fmt_group_test *,
+	void (LAMBDA_T group_spoil)(struct m0_be_ut_fmt_group_test *,
 			    struct m0_be_fmt_group *);
-	void (*encoded_spoil)(struct m0_be_ut_fmt_group_test *,
+	void (LAMBDA_T encoded_spoil)(struct m0_be_ut_fmt_group_test *,
 			      struct m0_buf *);
 };
 
@@ -599,15 +599,21 @@ Motr panic reason: signo: 11
 		  */
 		{
 			.cfg = CFG(0xEA, 100, 99, 800),
-			.encoded_spoil = spoil_nr,
+			.encoded_spoil = LAMBDA
+				((struct m0_be_ut_fmt_group_test *t,
+				  struct m0_buf *b) { return spoil_nr(t, b); })
 		},
 		{
 			.cfg = CFG(10, 0xEA, 99, 0xEA * 8),
-			.encoded_spoil = spoil_nr,
+			.encoded_spoil = LAMBDA
+				((struct m0_be_ut_fmt_group_test *t,
+				  struct m0_buf *b) { return spoil_nr(t, b); })
 		},
 		{
 			.cfg = CFG(10, 100, 0xEA, 800),
-			.encoded_spoil = spoil_nr,
+			.encoded_spoil = LAMBDA
+				((struct m0_be_ut_fmt_group_test *t,
+				  struct m0_buf *b) { return spoil_nr(t, b); })
 		},
 		{
 			.last = true,

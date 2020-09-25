@@ -37,7 +37,7 @@ ulimit -n 4096
 RUNDIR=${RUNDIR:-/var/motr/$(id -un)}
 
 PROG="${0##*/}"
-M0_SRC_DIR="$(readlink -f $0)"
+M0_SRC_DIR="$(realpath $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
 . $M0_SRC_DIR/utils/functions # m0_default_xprt, sandbox_init, report_and_exit

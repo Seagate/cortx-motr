@@ -100,7 +100,7 @@ static void _cb0(struct m0_sm_group *grp, struct m0_sm_ast *a)
 }
 
 static int expected;
-static int simple_tick(struct m0_fom *fom, int *x, int *__unused)
+static int simple_tick(struct m0_fom *fom, int *x, int *unused)
 {
 
 	M0_UT_ASSERT(*x == expected);
@@ -114,7 +114,7 @@ static int simple_tick(struct m0_fom *fom, int *x, int *__unused)
 	}
 }
 
-static int tick_once(struct m0_fom *fom, int *x, int *__unused)
+static int tick_once(struct m0_fom *fom, int *x, int *unused)
 {
 	return -1;
 }
@@ -188,7 +188,7 @@ static int semisimple_tick(struct m0_fom *fom, int *x, int *phase)
 	}
 }
 
-static int cat_tick(struct m0_fom *fom, void *null, int *__unused)
+static int cat_tick(struct m0_fom *fom, void *null, int *unused)
 {
 	struct m0_fom_simple *whisker = container_of(fom, struct m0_fom_simple,
 						     si_fom);

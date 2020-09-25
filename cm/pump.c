@@ -383,7 +383,7 @@ static int (*pump_action[]) (struct m0_cm_cp_pump *cp_pump) = {
 	[CPP_FAIL]      = cpp_fail,
 };
 
-static uint64_t cm_cp_pump_fom_locality(const struct m0_fom *fom)
+static size_t cm_cp_pump_fom_locality(const struct m0_fom *fom)
 {
 	return fom->fo_type->ft_id;
 }

@@ -25,7 +25,11 @@
 #ifndef __MOTR_STOB_IOQ_H__
 #define __MOTR_STOB_IOQ_H__
 
-#include <libaio.h>        /* io_context_t */
+#if M0_LINUX
+#include <libaio.h> /* io_getevents, io_context_t */
+#elif M0_DARWIN
+#include "stob/aio_emu.h"
+#endif
 
 #include "lib/types.h"     /* bool */
 #include "lib/atomic.h"    /* m0_atomic64 */

@@ -19,11 +19,12 @@
  *
  */
 
+#include <unistd.h> /* unlink */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
 #include "lib/trace.h"
 
-#include <unistd.h> /* get_current_dir_name */
+#include "lib/fs.h"                /* m0_getcwd */
 
 #include "ioservice/storage_dev.h" /* m0_storage_devs */
 #include "balloc/balloc.h"         /* BALLOC_DEF_BLOCK_SHIFT */
@@ -121,7 +122,7 @@ static void storage_dev_test(void)
 	rc = rpc_start(&rpc_srv);
 	M0_UT_ASSERT(rc == 0);
 
-	cwd = get_current_dir_name();
+	cwd = m0_getcwd();
 	M0_UT_ASSERT(cwd != NULL);
 	rc = asprintf(&fname1, "%s/test1", cwd);
 	M0_UT_ASSERT(rc > 0);
@@ -228,7 +229,7 @@ static void storage_dev_linux(void)
 	char                     *location2;
 	int                       rc;
 
-	cwd = get_current_dir_name();
+	cwd = m0_getcwd();
 	M0_UT_ASSERT(cwd != NULL);
 	rc = asprintf(&path1, "%s/test1", cwd);
 	M0_UT_ASSERT(rc > 0);

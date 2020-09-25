@@ -27,7 +27,24 @@
 
 #include "lib/types.h"		/* uint16_t */
 
-#include <asm/byteorder.h>	/* __cpu_to_be16 */
+#if M0_LINUX
+#include <asm/byteorder.h> /* __cpu_to_be16 */
+#elif M0_DARWIN
+#include <libkern/OSByteOrder.h>
+#define __cpu_to_be16 OSSwapHostToBigInt16
+#define __cpu_to_be32 OSSwapHostToBigInt32
+#define __cpu_to_be64 OSSwapHostToBigInt64
+#define __cpu_to_le16 OSSwapHostToLittleInt16
+#define __cpu_to_le32 OSSwapHostToLittleInt32
+#define __cpu_to_le64 OSSwapHostToLittleInt64
+
+#define __be16_to_cpu OSSwapBigToHostInt16
+#define __be32_to_cpu OSSwapBigToHostInt32
+#define __be64_to_cpu OSSwapBigToHostInt64
+#define __le16_to_cpu OSSwapLittleToHostInt16
+#define __le32_to_cpu OSSwapLittleToHostInt32
+#define __le64_to_cpu OSSwapLittleToHostInt64
+#endif
 
 
 static uint16_t m0_byteorder_cpu_to_be16(uint16_t cpu_16bits);

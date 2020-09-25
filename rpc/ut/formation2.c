@@ -258,7 +258,7 @@ static void check_ready_packet_has_item(struct m0_rpc_item *item)
 	check_frm(FRM_IDLE, 0, 0);
 }
 
-static void perform_test(int deadline, int kind)
+static void perform_test2(int deadline, int kind)
 {
 	struct m0_rpc_item *item;
 
@@ -271,21 +271,21 @@ static void perform_test(int deadline, int kind)
 
 		M0_UT_ASSERT(!packet_ready_called);
 		check_frm(FRM_BUSY, 1, 0);
-		/* Allow RPC worker to process timeout AST */
+		/* Allow RPC worker to process timeout AST. */
 		m0_rpc_machine_unlock(&rmachine);
 		/*
 		 * The original code slept for 2*timeout here. This is
 		 * unreliable and led to spurious assertion failures
-		 * below. Explicitly wait until the item enters an
-		 * appropriate state.
+		 * below. Explicitly wait until the item enters an appropriate
+		 * state.
 		 */
 		result = m0_rpc_item_timedwait(item,
-			    M0_BITS(M0_RPC_ITEM_URGENT,
-				    M0_RPC_ITEM_SENDING,
-				    M0_RPC_ITEM_SENT,
-				    M0_RPC_ITEM_WAITING_FOR_REPLY,
-				    M0_RPC_ITEM_REPLIED),
-			    M0_TIME_NEVER);
+				    M0_BITS(M0_RPC_ITEM_URGENT,
+					    M0_RPC_ITEM_SENDING,
+					    M0_RPC_ITEM_SENT,
+					    M0_RPC_ITEM_WAITING_FOR_REPLY,
+					    M0_RPC_ITEM_REPLIED),
+				    M0_TIME_NEVER);
 		M0_UT_ASSERT(result == 0);
 		m0_rpc_machine_lock(&rmachine);
 	}
@@ -294,10 +294,10 @@ static void perform_test(int deadline, int kind)
 	m0_rpc_item_fini(item);
 	m0_free(item);
 }
-
 static void frm_test1(void)
 {
 	struct m0_rpc_item *item;
+
 	/*
 	 * Timedout item triggers immediate formation.
 	 * Waiting item do not trigger immediate formation, but they are
@@ -308,10 +308,10 @@ static void frm_test1(void)
 	/* Do not let formation trigger because of size limit */
 	frm->f_constraints.fc_max_nr_bytes_accumulated = ~0;
 
-	perform_test(TIMEDOUT, NORMAL);
-	perform_test(TIMEDOUT, ONEWAY);
-	perform_test(WAITING,  NORMAL);
-	perform_test(WAITING,  ONEWAY);
+	perform_test2(TIMEDOUT, NORMAL);
+	perform_test2(TIMEDOUT, ONEWAY);
+	perform_test2(WAITING,  NORMAL);
+	perform_test2(WAITING,  ONEWAY);
 
 	/* Test: item is moved to URGENT state when call to m0_sm_timeout_arm()
 	   fails to start item->ri_deadline_timeout in frm_insert().
@@ -328,7 +328,7 @@ static void frm_test1(void)
 	M0_LEAVE();
 }
 
-static void perform_test2(int kind)
+void perform_test1(int kind)
 {
 	enum { N = 4 };
 	struct m0_rpc_item   *items[N];
@@ -342,12 +342,11 @@ static void perform_test2(int kind)
 	/* include all ready items */
 	frm->f_constraints.fc_max_packet_size = ~0;
 	/*
-	 * set fc_max_nr_bytes_accumulated such that, formation triggers
-	 * when last item from items[] is enqued
+	 * Set fc_max_nr_bytes_accumulated such that, formation triggers when
+	 * last item from items[] is en-queued.
 	 */
 	frm->f_constraints.fc_max_nr_bytes_accumulated =
 		(N - 1) * item_size + item_size / 2;
-
 	flags_reset();
 	for (i = 0; i < N - 1; ++i) {
 		m0_rpc_frm_enq_item(frm, items[i]);
@@ -357,12 +356,11 @@ static void perform_test2(int kind)
 	m0_rpc_frm_enq_item(frm, items[N - 1]);
 	M0_UT_ASSERT(packet_ready_called);
 	check_frm(FRM_BUSY, 0, 1);
-
 	p = packet_stack_pop();
 	M0_UT_ASSERT(packet_stack_is_empty());
 	for (i = 0; i < N; ++i)
-		M0_UT_ASSERT(m0_rpc_packet_is_carrying_item(p, items[i]));
-
+		M0_UT_ASSERT(
+			     m0_rpc_packet_is_carrying_item(p, items[i]));
 	m0_rpc_frm_packet_done(p);
 	check_frm(FRM_IDLE, 0, 0);
 
@@ -381,8 +379,8 @@ static void frm_test2(void)
 
 	set_timeout(999);
 
-	perform_test2(NORMAL);
-	perform_test2(ONEWAY);
+	perform_test1(NORMAL);
+	perform_test1(ONEWAY);
 
 	M0_LEAVE();
 }

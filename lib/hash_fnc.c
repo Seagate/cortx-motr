@@ -76,11 +76,6 @@ static inline uint64_t rotate(uint64_t val, int shift)
 	return shift == 0 ? val : ((val >> shift) | (val << (64 - shift)));
 }
 
-M0_UNUSED static inline uint32_t rotate32(uint32_t val, int shift)
-{
-	return shift == 0 ? val : ((val >> shift) | (val << (32 - shift)));
-}
-
 M0_INTERNAL uint64_t m0_hash_fnc_fnv1(const void *buffer, m0_bcount_t len)
 {
 	const unsigned char *ptr = (const unsigned char*)buffer;

@@ -34,6 +34,8 @@
  */
 M0_INTERNAL int m0_cleandir(const char *dir);
 
+M0_INTERNAL char *m0_getcwd(void);
+
 #ifndef __KERNEL__
 /**
  * Reads file contents into dynamically allocated string.
@@ -42,6 +44,8 @@ M0_INTERNAL int m0_cleandir(const char *dir);
  *       allocated memory with m0_free(*out).
  */
 M0_INTERNAL int m0_file_read(const char *path, char **out);
+M0_INTERNAL int m0_fdatasync(int fd);
+M0_INTERNAL int m0_syncfs(int fd);
 #endif
 
 #endif /* __MOTR_LIB_FS_H__ */

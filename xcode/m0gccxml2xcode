@@ -102,6 +102,9 @@ use File::Slurp;  # TODO: use 'qw( :std :edit )' when moved to Centos7
 #use Data::Dumper;
 #use Devel::StackTrace;
 
+# Suppress warnings about 'given' and 'when' on macos.
+no warnings 'experimental';
+
 # ###############################################
 #  Parser
 # ###############################################

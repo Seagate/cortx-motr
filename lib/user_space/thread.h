@@ -57,6 +57,7 @@ struct m0_thread_arch_tls {
 	sigjmp_buf *tat_jmp;
 };
 
+#if defined(M0_LINUX)
 /**
    Helper macro creating an anonymous function with a given body.
 
@@ -151,6 +152,15 @@ struct m0_thread_arch_tls {
    @see http://en.wikipedia.org/wiki/Lambda_calculus
  */
 #define LAMBDA(T, ...) ({ T __lambda __VA_ARGS__; &__lambda; })
+#define CAPTURED
+#define LAMBDA_T *
+#endif
+
+#if defined(M0_DARWIN)
+#define LAMBDA(T, ...) (^ T __VA_ARGS__)
+#define CAPTURED __block
+#define LAMBDA_T ^
+#endif
 
 /** @} end of thread group */
 

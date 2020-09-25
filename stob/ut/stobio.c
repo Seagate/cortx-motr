@@ -435,6 +435,11 @@ static void overlapped_rw_test(struct stobio_test *test, int starts_from)
 	WITH_LOCK(&lock, stobio_fini, test);
 }
 
+static void overtest(int x)
+{
+	overlapped_rw_test(&tests[x], x*100);
+}
+
 static void test_stobio(void)
 {
 	int i;
@@ -447,10 +452,7 @@ static void test_stobio(void)
 
 	for (i = 0; i < TEST_NR; ++i) {
 		result = M0_THREAD_INIT
-			(&thread[i], int, NULL,
-			 LAMBDA(void, (int x)
-				{ overlapped_rw_test(&tests[x], x*100); } ), i,
-			 "overlap_test%d", i);
+			(&thread[i], int, NULL, &overtest, i, "overlap_%d", i);
 		M0_UT_ASSERT(result == 0);
 	}
 

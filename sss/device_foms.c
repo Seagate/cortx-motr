@@ -273,7 +273,7 @@ static inline uint32_t sss_dfom_device_cmd(struct m0_sss_dfom *dfom)
  */
 static void sss_device_fom_switch(struct m0_fom *fom)
 {
-	static const enum sss_device_fom_phases next_phase[][2] = {
+	static const int next_phase[][2] = {
 		[M0_DEVICE_ATTACH] = { SSS_DFOM_SDEV_OPENING,
 				       SSS_DFOM_ATTACH_POOL_MACHINE },
 		[M0_DEVICE_DETACH] = { SSS_DFOM_DETACH_STOB,

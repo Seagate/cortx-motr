@@ -28,7 +28,6 @@
 #endif
 #include <sys/types.h>		/* waitpid */
 #include <sys/wait.h>		/* waitpid */
-#include <linux/limits.h>	/* PATH_MAX */
 #include <stdio.h>		/* fprintf */
 #include <stdlib.h>		/* abort */
 #include <unistd.h>		/* fork, sleep */
@@ -37,6 +36,12 @@
 #include "lib/trace_internal.h" /* m0_trace_file_path_get */
 #include "lib/misc.h"		/* ARRAY_SIZE */
 #include "motr/version.h"	/* m0_build_info */
+
+#if defined(M0_LINUX)
+#include <linux/limits.h>       /* PATH_MAX */
+#elif defined(M0_DARWIN)
+#include <sys/syslimits.h>      /* PATH_MAX */
+#endif
 
 /**
  * @addtogroup assert

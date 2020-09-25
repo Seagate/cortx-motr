@@ -374,7 +374,7 @@ static void test_pv2fd_conv(void)
 	for (i = 0; i < M0_CONF_PVER_HEIGHT; ++i)
 		if (pv->pv_u.subtree.pvs_tolerance[i] != 0) {
 			max_failures = pv->pv_u.subtree.pvs_tolerance[i];
-			failure_level     = i;
+			failure_level = i;
 			break;
 		}
 	/*

@@ -39,8 +39,7 @@
 #include <stdarg.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <unistd.h>		/* syscall (gettid)*/
-#include <sys/syscall.h>	/* syscall (gettid) */
+#include <unistd.h>
 
 #endif
 
@@ -146,11 +145,6 @@ uint32_t generate_random(uint32_t max)
 }
 
 #else
-
-pid_t get_tid(void)
-{
-	return syscall(SYS_gettid);
-}
 
 void console_printf(const char *fmt, ...)
 {

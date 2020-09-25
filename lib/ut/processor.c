@@ -18,6 +18,7 @@
  *
  */
 
+#if M0_LINUX
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -742,6 +743,9 @@ struct m0_ub_set m0_processor_ub = {
 		   {.ub_name = NULL}
 		   }
 };
+
+/* M0_LINUX */
+#endif
 
 /*
  *  Local variables:

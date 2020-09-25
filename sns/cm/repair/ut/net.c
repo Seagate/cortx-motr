@@ -201,7 +201,7 @@ static void dummy_fom_fini(struct m0_fom *fom)
 }
 
 /* Over-ridden copy packet FOM locality (using single locality). */
-static uint64_t dummy_fom_locality(const struct m0_fom *fom)
+static size_t dummy_fom_locality(const struct m0_fom *fom)
 {
 	return 0;
 }

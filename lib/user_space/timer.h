@@ -29,6 +29,11 @@
 #include "lib/thread.h"    /* m0_thread */
 #include "lib/semaphore.h" /* m0_semaphore */
 
+#if defined(M0_DARWIN)
+/* There are no POSIX timers on Darwin. */
+typedef struct {} timer_t;
+#endif
+
 /**
    @addtogroup timer
 

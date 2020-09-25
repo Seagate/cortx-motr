@@ -113,8 +113,10 @@ static int conn_establish_item_decode(const struct m0_rpc_item_type *item_type,
 }
 
 static struct m0_rpc_item_type_ops conn_establish_item_type_ops = {
-	M0_FOP_DEFAULT_ITEM_TYPE_OPS,
-	.rito_decode       = conn_establish_item_decode,
+	/*
+	 * ->rito_decode() is overwritten in m0_rpc_session_fop_init().
+	 */
+	M0_FOP_DEFAULT_ITEM_TYPE_OPS
 };
 
 struct m0_fop_type m0_rpc_fop_conn_establish_fopt;
@@ -146,6 +148,7 @@ extern struct m0_reqh_service_type m0_rpc_service_type;
 
 M0_INTERNAL int m0_rpc_session_fop_init(void)
 {
+	conn_establish_item_type_ops.rito_decode = &conn_establish_item_decode;
 	M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_establish_fopt,
 			 .name      = "Rpc conn establish",
 			 .opcode    = M0_RPC_CONN_ESTABLISH_OPCODE,

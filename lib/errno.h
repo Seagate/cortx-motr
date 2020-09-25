@@ -31,6 +31,10 @@
 #include <errno.h>
 #endif
 
+#if defined(M0_DARWIN)
+#define EXFULL EQFULL
+#endif
+
 /* __MOTR_LIB_ERRNO_H__ */
 #endif
 

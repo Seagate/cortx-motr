@@ -48,11 +48,6 @@
 #define M0_EXPORTED(s)
 
 /**
- * Resolve hostname.
- */
-M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz);
-
-/**
  * Print performance counters: getrusage(), /proc/self/io.
  *
  * All errors (can't open file etc.) are silently ignored.

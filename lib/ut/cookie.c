@@ -180,6 +180,9 @@ void test_cookie(void)
 		word = (i & ~0xf) | (i << 16) | (i << 32) | (i << 48);
 		addr = (void *)word;
 		sane = m0_addr_is_sane(addr);
+#if !defined(__KERNEL__) && defined(M0_LINUX)
+		M0_UT_ASSERT(ergo(addr < sbrk(0), sane));
+#endif
 		if (!sane)
 			insane_cnt++;
 	}

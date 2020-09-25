@@ -80,7 +80,7 @@ static bool has_item(const struct m0_rpc_item_source *ris)
 }
 
 static struct m0_rpc_item *get_item(struct m0_rpc_item_source *ris,
-				    size_t max_payload_size)
+				    m0_bcount_t max_payload_size)
 {
 	struct m0_fop         *fop;
 	struct m0_rpc_machine *machine = ris->ris_conn->c_rpc_machine;

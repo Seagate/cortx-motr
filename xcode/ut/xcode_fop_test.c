@@ -309,6 +309,9 @@ static void test_fop_encdec(void)
 	m0_fop_type_fini(&m0_fop_test_fopt);
 }
 
+M0_INTERNAL void m0_xc_xcode_fops_init(void);
+M0_INTERNAL void m0_xc_xcode_fops_fini(void);
+
 static int xcode_bufvec_fop_init(void)
 {
 	m0_xc_xcode_fops_init();

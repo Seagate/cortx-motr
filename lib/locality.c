@@ -187,7 +187,7 @@ M0_INTERNAL void m0_locality_dom_unset(struct m0_fom_domain *dom)
 	glob->lg_dom = NULL;
 }
 
-static void locs_ast_handler(void *__unused)
+static void locs_ast_handler(void *unused)
 {
 	struct locality_global *glob = loc_glob();
 	struct m0_sm_group     *grp  = &glob->lg_grp;
@@ -204,7 +204,7 @@ static void locs_ast_handler(void *__unused)
 	m0_addb2_pop(M0_AVI_LOCALITY);
 }
 
-static int ast_thread_init(void *__unused)
+static int ast_thread_init(void *unused)
 {
 	return 0;
 }

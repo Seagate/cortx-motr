@@ -24,6 +24,7 @@ nobase_motr_include_HEADERS += lib/arith.h \
                                lib/memory.h \
                                lib/misc.h \
                                lib/mutex.h \
+                               lib/poll.h \
                                lib/processor.h \
                                lib/protocol.h \
                                lib/queue.h \
@@ -50,6 +51,9 @@ nobase_motr_include_HEADERS += lib/arith.h \
                                lib/user_space/getopts.h \
                                lib/user_space/misc.h \
                                lib/user_space/mutex.h \
+                               lib/user_space/poll_epoll.h \
+                               lib/user_space/poll_poll.h \
+                               lib/user_space/poll_select.h \
                                lib/user_space/rwlock.h \
                                lib/user_space/semaphore.h \
                                lib/user_space/thread.h \
@@ -104,9 +108,14 @@ motr_libmotr_la_SOURCES += lib/assert.c \
                            lib/user_space/finject_init.c \
                            lib/user_space/fs.c \
                            lib/user_space/memory.c \
+                           lib/user_space/poll_epoll.c \
+                           lib/user_space/poll_poll.c \
+                           lib/user_space/poll_select.c \
                            lib/user_space/processor.c \
                            lib/user_space/rwlock.c \
                            lib/user_space/semaphore.c \
+                           lib/user_space/semaphore_named.c \
+                           lib/user_space/semaphore_sysv.c \
                            lib/user_space/timer.c \
                            lib/user_space/uassert.c \
                            lib/user_space/ucookie.c \

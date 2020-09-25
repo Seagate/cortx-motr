@@ -50,6 +50,8 @@ struct layout_prefix {
 	uint64_t lp_filler;
 };
 
+static const struct m0_layout_ops composite_ops;
+
 /*
  * @post A composite type of layout object is created. User is expected to
  * add a reference on the layout object as required and is expected to release
@@ -61,6 +63,7 @@ M0_INTERNAL void m0_composite_build(struct m0_layout_domain *dom,
 				    struct m0_tl *sub_layouts,
 				    struct m0_composite_layout **out)
 {
+	(void)composite_ops; /* @todo Unused variable. */
 }
 
 #if 0 /* unused code */

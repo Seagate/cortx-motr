@@ -40,6 +40,7 @@ M0_UNUSED static const struct m0_modlev levels_fdmi[] = {
 
 M0_UNUSED static int level_fdmi_enter(struct m0_module *module)
 {
+	(void)levels_fdmi; /* @todo Unused variable. */
 	return 0;
 }
 

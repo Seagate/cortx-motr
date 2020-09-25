@@ -23,9 +23,9 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 
-#include <unistd.h>		/* close(2) */
+#include <unistd.h>		/* close(2), getcwd, get_current_dir_name */
 #include <dirent.h>		/* opendir(3) */
-#include <fcntl.h>		/* open(2) */
+#include <fcntl.h>		/* open(2), F_FULLFSYNC */
 #include <errno.h>
 #include "lib/memory.h"         /* M0_ALLOC_ARR */
 
@@ -97,6 +97,34 @@ M0_INTERNAL int m0_file_read(const char *path, char **out)
 
 	fclose(f);
 	return M0_RC(rc);
+}
+
+M0_INTERNAL char *m0_getcwd(void)
+{
+#if defined(M0_LINUX)
+	return get_current_dir_name();
+#elif defined(M0_DARWIN)
+	return getcwd(NULL, 0);
+#endif
+}
+
+M0_INTERNAL int m0_fdatasync(int fd)
+{
+#if defined(M0_LINUX)
+	return fdatasync(fd);
+#elif defined(M0_DARWIN)
+	return fcntl(fd, F_FULLFSYNC);
+#endif
+}
+
+M0_INTERNAL int m0_syncfs(int fd)
+{
+#if defined(M0_LINUX)
+	return syncfs(fd);
+#elif defined(M0_DARWIN)
+	sync();
+	return 0;
+#endif
 }
 
 #undef M0_TRACE_SUBSYSTEM

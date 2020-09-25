@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include "lib/trace.h"
 
+#include "lib/byteorder.h"
 #include "lib/memory.h"
 #include "sm/sm.h"
 #include "fop/fom.h"
@@ -208,7 +209,7 @@ static int dix_cm_iter_buf_copy(struct m0_buf *dst,
 		m0_buf_copy(dst, src);
 }
 
-static uint64_t dix_cm_iter_fom_locality(const struct m0_fom *fom)
+static size_t dix_cm_iter_fom_locality(const struct m0_fom *fom)
 {
 	return fom->fo_type->ft_id;
 }
@@ -715,7 +716,7 @@ static void parity_group_print(struct m0_dix_layout_iter *iter,
 
 	M0_LOG(M0_DEBUG, "Parity group info for key %"PRIu64
 	       " (pool dev_id/global dev_id):",
-	       be64toh(*(uint64_t *)key->b_addr));
+	       m0_byteorder_be64_to_cpu(*(uint64_t *)key->b_addr));
 	M0_LOG(M0_DEBUG, "=============================================");
 	while (unit < units_nr) {
 		m0_dix_layout_iter_next(iter, &tgt);
@@ -803,7 +804,7 @@ static void tgts_print(struct m0_dix_layout_iter *iter,
 
 	M0_LOG(M0_DEBUG, "Targets for key %"PRIu64
 	       " (pool dev_id/global dev_id):",
-	       be64toh(*(uint64_t *)key->b_addr));
+	       m0_byteorder_be64_to_cpu(*(uint64_t *)key->b_addr));
 	M0_LOG(M0_DEBUG, "=============================================");
 	for (i = 0; i < tgts_nr; i++) {
 		global_dev = m0_dix_tgt2sdev(&iter->dit_linst, tgts[i]);
@@ -931,7 +932,7 @@ int dix_cm_iter_rebalance_tgts_get(struct m0_dix_cm_iter     *iter,
 	if (rc == 0)
 		M0_LOG(M0_DEBUG, "Coordinator? %d, key %"PRIu64,
 		       (int)*is_coordinator,
-		       be64toh(*(uint64_t *)key->b_addr));
+		       m0_byteorder_be64_to_cpu(*(uint64_t *)key->b_addr));
 	m0_free(group_tgts);
 	return M0_RC(rc);
 }
@@ -950,7 +951,7 @@ int dix_cm_iter_repair_tgts_get(struct m0_dix_cm_iter     *iter,
 
 	*is_coordinator = dix_cm_is_repair_coordinator(liter, pm, local_device);
 	M0_LOG(M0_DEBUG, "Coordinator? %d, key %"PRIu64, (int)*is_coordinator,
-	       be64toh(*(uint64_t *)key->b_addr));
+	       m0_byteorder_be64_to_cpu(*(uint64_t *)key->b_addr));
 
 	if (*is_coordinator)
 		rc = dix_cm_repair_tgts_get(liter, pm, tgts, tgts_nr);

@@ -105,6 +105,7 @@ int main(int argc, char **argv)
 	char        *scratch;
 	char        *ch;
 	char        *bname;
+	char        *dname;
 	char        *gname;
 	char        *out_h;
 	char        *out_c;
@@ -138,9 +139,10 @@ int main(int argc, char **argv)
 
 	out_h = fmt("%s_ff.h", scratch);
 	out_c = fmt("%s_ff.c", scratch);
-
-	bname = basename(scratch);
-	gname = fmt("__MOTR_%s_%s_FF_H__", basename(dirname(scratch)), bname);
+	/* basename(3) and dirname(3) can modify the string, duplicate. */
+	bname = fmt("%s", basename(scratch));
+	dname = fmt("%s", basename(dirname(scratch)));
+	gname = fmt("__MOTR_%s_%s_FF_H__", dname, bname);
 
 	for (ch = gname; *ch != 0; ch++) {
 		*ch = toupper(*ch);
@@ -185,6 +187,8 @@ int main(int argc, char **argv)
 	free(out_h);
 	free(gname);
 	free(scratch);
+	free(bname);
+	free(dname);
 	result = munmap(addr, buf.st_size);
 	if (result == -1)
 		warn("cannot munmap");

@@ -64,7 +64,7 @@
  * Typical m0_fom_simple::si_tick() function in such case would look like:
  *
  * @code
- * int foo_tick(struct m0_fom *fom, struct foo *f, int *__unused)
+ * int foo_tick(struct m0_fom *fom, struct foo *f, int *unused)
  * {
  *         switch (foo->f_subphase) {
  *         case SUBPHASE_0:

@@ -26,7 +26,6 @@
 #include <pthread.h>		/* pthread_once */
 #include <unistd.h>		/* syscall */
 #include <sys/syscall.h>	/* syscall */
-#include <unistd.h>		/* chdir, get_current_dir_name */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
@@ -177,11 +176,6 @@ M0_INTERNAL void m0_be_ut_reqh_destroy(void)
 	}
 }
 
-static pid_t gettid_impl(void)
-{
-	return syscall(SYS_gettid);
-}
-
 static void be_ut_sm_group_thread_func(struct m0_be_ut_sm_group_thread *sgt)
 {
 	struct m0_sm_group *grp = &sgt->sgt_grp;
@@ -208,7 +202,7 @@ static int m0_be_ut_sm_group_thread_init(struct m0_be_ut_sm_group_thread **sgtp,
 	M0_ALLOC_PTR(*sgtp);
 	sgt = *sgtp;
 	if (sgt != NULL) {
-		sgt->sgt_tid = gettid_impl();
+		sgt->sgt_tid = m0_tid();
 		sgt->sgt_lock_new = lock_new;
 
 		m0_sm_group_init(&sgt->sgt_grp);
@@ -526,7 +520,7 @@ static void be_ut_sm_group_thread_add(struct m0_be_ut_backend *ut_be,
 static size_t be_ut_backend_sm_group_find(struct m0_be_ut_backend *ut_be)
 {
 	size_t i;
-	pid_t  tid = gettid_impl();
+	pid_t  tid = m0_tid();
 
 	for (i = 0; i < ut_be->but_sgt_size; ++i) {
 		if (ut_be->but_sgt[i]->sgt_tid == tid)
@@ -540,7 +534,7 @@ be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be, bool lock_new)
 {
 	struct m0_be_ut_sm_group_thread *sgt;
 	struct m0_sm_group              *grp;
-	pid_t                            tid = gettid_impl();
+	pid_t                            tid = m0_tid();
 	unsigned                         i;
 	int                              rc;
 

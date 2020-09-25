@@ -37,8 +37,13 @@
 #include "ioservice/fid_convert.h"  /* m0_fid_validate_linuxstob */
 #include "ioservice/storage_dev.h"
 #include "reqh/reqh.h"              /* m0_reqh */
-#include <unistd.h>                 /* fdatasync */
+#include "lib/fs.h"                 /* m0_fdatasync, m0_syncfs */
+#if defined(M0_LINUX)
 #include <sys/vfs.h>                /* fstatfs */
+#elif defined(M0_DARWIN)
+#include <sys/param.h>
+#include <sys/mount.h>              /* fstatfs */
+#endif
 #ifndef __KERNEL__
 #  include "pool/pool.h"            /* m0_pools_common */
 #endif
@@ -784,13 +789,13 @@ static int sdev_stob_fsync(void *psdev)
 
 	if (sdev->isd_type == M0_STORAGE_DEV_TYPE_AD) {
 		fd = m0_stob_fd(sdev->isd_stob);
-		rc = fdatasync(fd);
+		rc = m0_fdatasync(fd);
 		rc = rc == 0 ? 0 : M0_ERR_INFO(-errno, "fd=%d", fd);
 	} else {
 		M0_ASSERT(sdev->isd_type == M0_STORAGE_DEV_TYPE_LINUX);
 		rc = m0_stob_linux_domain_fd_get(sdev->isd_domain, &fd);
 		if (rc == 0) {
-			rc  = syncfs(fd);
+			rc  = m0_syncfs(fd);
 			rc  = rc == 0 ? 0 : M0_ERR_INFO(-errno, "fd=%d", fd);
 			rc1 = m0_stob_linux_domain_fd_put(sdev->isd_domain, fd);
 			rc  = rc ?: rc1;

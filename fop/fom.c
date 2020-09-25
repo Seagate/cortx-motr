@@ -302,12 +302,6 @@ static bool fom_is_blocked(const struct m0_fom *fom)
 		M0_IN(fom->fo_thread->lt_state, (BLOCKED, UNBLOCKING));
 }
 
-/* Returns fom from state machine m0_fom::fo_sm_state */
-M0_UNUSED static inline struct m0_fom *sm2fom(struct m0_sm *sm)
-{
-	return container_of(sm, struct m0_fom, fo_sm_state);
-}
-
 M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom)
 {
 	return

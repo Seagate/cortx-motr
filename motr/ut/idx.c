@@ -652,7 +652,7 @@ static void ut_m0_idx_op_namei(void)
 	idx.in_entity.en_id = id;
 
 	/* Base case */
-	rc = m0_idx_op_namei(&idx.in_entity, &op, M0_IC_GET);
+	rc = m0_idx_op_namei(&idx.in_entity, &op, (int)M0_IC_GET);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(op != NULL);
 	m0_free(op);

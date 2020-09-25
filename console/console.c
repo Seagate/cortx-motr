@@ -214,10 +214,10 @@ int main(int argc, char **argv)
 	uint32_t              opcode         = 0;
 	bool                  show           = false;
 	bool                  input          = false;
-	const char           *client         = NULL;
-	const char           *server         = NULL;
-	const char           *yaml_path      = NULL;
-	const char           *fop_desc       = NULL;
+	CAPTURED const char  *client         = NULL;
+	CAPTURED const char  *server         = NULL;
+	CAPTURED const char  *yaml_path      = NULL;
+	CAPTURED const char  *fop_desc       = NULL;
 	struct m0_net_domain  client_net_dom = {};
 	uint32_t              tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	uint32_t              max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;

@@ -45,40 +45,6 @@ uint32_t m0_strtou32(const char *str, char **endptr, int base)
 }
 M0_EXPORTED(m0_strtou32);
 
-/** Resolve a hostname to a stringified IP address */
-M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz)
-{
-	int            i;
-	int            rc = 0;
-	struct in_addr ipaddr;
-
-	if (inet_aton(name, &ipaddr) == 0) {
-		struct hostent  he;
-		char            he_buf[4096];
-		struct hostent *hp;
-		int             herrno;
-
-		rc = gethostbyname_r(name, &he, he_buf, sizeof he_buf,
-				     &hp, &herrno);
-		if (rc != 0 || hp == NULL)
-			return M0_ERR(-ENOENT);
-		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
-			/* take 1st IPv4 address found */
-			if (hp->h_addrtype == AF_INET &&
-			    hp->h_length == sizeof(ipaddr))
-				break;
-		if (hp->h_addr_list[i] == NULL)
-			return M0_ERR(-EPFNOSUPPORT);
-		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) == NULL)
-			rc = -errno;
-	} else if (strlen(name) >= bufsiz) {
-		rc = -ENOSPC;
-	} else {
-		strcpy(buf, name);
-	}
-	return M0_RC(rc);
-}
-
 M0_INTERNAL void m0_performance_counters(char *buf, size_t buf_len)
 {
 	struct rusage  usage;
@@ -98,14 +64,16 @@ M0_INTERNAL void m0_performance_counters(char *buf, size_t buf_len)
 	rc = getrusage(RUSAGE_SELF, &usage);
 	if (rc == 0) {
 		len = snprintf(buf, buf_len, "utime %ld.%06ld stime %ld.%06ld "
-		               "maxrss %ld nvcsw %ld nivcsw %ld\n"
-		               "minflt %ld majflt %ld "
-		               "inblock %ld oublock %ld\n",
-		               usage.ru_utime.tv_sec, usage.ru_utime.tv_usec,
-		               usage.ru_stime.tv_sec, usage.ru_stime.tv_usec,
-		               usage.ru_maxrss, usage.ru_nvcsw, usage.ru_nivcsw,
-		               usage.ru_minflt, usage.ru_majflt,
-		               usage.ru_inblock, usage.ru_oublock);
+			       "maxrss %ld nvcsw %ld nivcsw %ld\n"
+			       "minflt %ld majflt %ld "
+			       "inblock %ld oublock %ld\n",
+			       usage.ru_utime.tv_sec,
+			       (long)usage.ru_utime.tv_usec,
+			       usage.ru_stime.tv_sec,
+			       (long)usage.ru_stime.tv_usec,
+			       usage.ru_maxrss, usage.ru_nvcsw, usage.ru_nivcsw,
+			       usage.ru_minflt, usage.ru_majflt,
+			       usage.ru_inblock, usage.ru_oublock);
 		if (len >= buf_len || len < 0)
 			len = buf_len;
 		buf_len -= len;

@@ -2008,7 +2008,7 @@ static int cas_device_check(const struct cas_fom   *fom,
 			rc = cas_sdev_state(pm, device_id, &state);
 			if (rc == 0 && !M0_IN(state, (M0_PNDS_ONLINE,
 						      M0_PNDS_SNS_REBALANCING)))
-				rc = M0_ERR(-EBADFD);
+				rc = M0_ERR(-EBADF);
 		} else
 			rc = M0_ERR(-EINVAL);
 	}
@@ -2073,7 +2073,7 @@ static int cas_op_check(struct m0_cas_op *op,
 			stored_layout = (struct m0_dix_layout *)buf.b_addr;
 					/* Match stored and received layouts. */
 			if (!m0_dix_layout_eq(layout, stored_layout))
-				rc = M0_ERR(-EKEYEXPIRED);
+				rc = M0_ERR(-ESTALE);
 		} else if (rc == -ENOENT && (flags & COF_CROW))
 			/*
 			 * It's OK to not find layout with CROW flag set,

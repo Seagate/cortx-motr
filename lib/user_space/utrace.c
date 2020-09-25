@@ -59,6 +59,20 @@ static bool use_mmaped_buffer = true;
 static char trace_file_path[PATH_MAX];
 static size_t trace_buf_size = M0_TRACE_UBUF_SIZE;
 
+static int preallocate(int fd, m0_bcount_t nob)
+{
+#if defined(M0_LINUX)
+	return posix_fallocate(fd, 0, nob);
+#else
+	char ch = 0;
+	for (; nob > 0; --nob) {
+		if (write(fd, &ch, 1) != 1)
+			return errno ?: M0_ERR(-ENOSPC);
+	}
+	return 0;
+#endif
+}
+
 static int logbuf_map()
 {
 	struct    m0_trace_area *trace_area;
@@ -101,11 +115,10 @@ static int logbuf_map()
 
 	if ((logfd = open(trace_file_path, O_RDWR|O_CREAT|O_TRUNC|O_CLOEXEC, 0700)) == -1) {
 		warn("open(\"%s\")", trace_file_path);
-	} else if ((errno = posix_fallocate(logfd, 0, trace_area_size)) != 0) {
+	} else if ((errno = preallocate(logfd, trace_area_size)) != 0) {
 		warn("fallocate(\"%s\", %zu)", trace_file_path, trace_area_size);
 	} else if ((trace_area = mmap(NULL, trace_area_size, PROT_WRITE,
-				      MAP_SHARED, logfd, 0)) == MAP_FAILED)
-	{
+				      MAP_SHARED, logfd, 0)) == MAP_FAILED) {
 		warn("mmap(\"%s\")", trace_file_path);
 	} else {
 		m0_logbuf_header = &trace_area->ta_header;

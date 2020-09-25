@@ -167,9 +167,8 @@ M0_INTERNAL bool m0_layout__invariant(const struct m0_layout *l)
 	 * equal to 0.
 	 */
 	return
-		layout_invariant_internal(l) &&
-		m0_ref_read(&l->l_ref) >= 0 &&
-		l->l_user_count >= 0;
+		_0C(layout_invariant_internal(l)) &&
+		_0C(m0_ref_read(&l->l_ref) >= 0);
 }
 
 M0_INTERNAL bool m0_layout__enum_invariant(const struct m0_layout_enum *e)

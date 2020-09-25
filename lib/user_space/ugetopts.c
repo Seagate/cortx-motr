@@ -20,8 +20,10 @@
  */
 
 
+#if defined(M0_LINUX)
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 2 /* for getopt */
+#endif
 #endif
 #include <unistd.h>     /* getopt */
 #include <stdio.h>      /* fprintf, sscanf */

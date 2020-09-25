@@ -1695,11 +1695,8 @@ static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 	rw->crw_index = m0_fid_cob_device_id(&bp->bp_fids[0]);
 	rw->crw_pver = CONF_PVER_FID;
 	bp->bp_offsets[0] = IO_SEG_START_OFFSET;
-
-
 	for (i = 0; i < buf_nr; ++i)
 		add_buffer_bulk(rbulk, op, i);
-
 	/*
 	 * Allocates memory for array of net buf descriptors and array of
 	 * index vectors from io fop.

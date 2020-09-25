@@ -284,6 +284,11 @@ M0_INTERNAL bool m0_is_awkward(void);
 M0_INTERNAL uint64_t m0_pid(void);
 
 /**
+ * Returns platform-dependent thread identifier.
+ */
+M0_INTERNAL uint64_t m0_tid(void);
+
+/**
  * Returns "process identifier" for userspace process and 0 in the kernel.
  * @see m0_pid().
  */

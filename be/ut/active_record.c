@@ -62,7 +62,7 @@ static void actrec_mkfs(void)
 	seg0  = m0_be_domain_seg0_get(&ut_be.but_dom);
 	dummy.ard_seg = seg0;
 
-	m0_be_active_record_domain_credit(&dummy, ARO_CREATE, 3, &accum);
+	m0_be_active_record_domain_credit(&dummy, RDO_CREATE, 3, &accum);
 	ut_tx_open(tx, &accum);
 	rc = m0_be_active_record_domain_create(&dom_created, tx, seg0,
 					       M0_BUF_INITS("xxx"),
@@ -106,7 +106,7 @@ static void actrec_fini(void)
 	struct m0_be_tx_credit	accum = {};
 	int                     rc;
 
-	m0_be_active_record_domain_credit(dom, ARO_DESTROY, 3, &accum);
+	m0_be_active_record_domain_credit(dom, RDO_DESTROY, 3, &accum);
 	ut_tx_open(tx, &accum);
 	rc = m0_be_active_record_domain_destroy(dom, tx);
 	M0_UT_ASSERT(rc == 0);

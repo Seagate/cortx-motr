@@ -134,7 +134,7 @@ M0_INTERNAL void *m0_arch_alloc_wired(size_t size, unsigned shift)
 		res = NULL;
 		goto out;
 	}
-
+#if M0_LINUX
 	rc = madvise((void*)((unsigned long)res & ~(m0_pagesize_get() - 1)), 1,
 		     MADV_DONTFORK);
 	if (rc == -1) {
@@ -142,18 +142,21 @@ M0_INTERNAL void *m0_arch_alloc_wired(size_t size, unsigned shift)
 		m0_free_wired(res, size, shift);
 		res = NULL;
 	}
+#endif
 out:
 	return res;
 }
 
 M0_INTERNAL void m0_arch_free_wired(void *data, size_t size, unsigned shift)
 {
+#if defined(M0_LINUX)
 	int rc;
 
 	rc = madvise((void*)((unsigned long)data & ~(m0_pagesize_get() - 1)), 1,
 		     MADV_DOFORK);
 	if (rc == -1)
 		M0_LOG(M0_WARN, "madvise() failed: rc=%d", errno);
+#endif
 	munlock(data, 1);
 	m0_free_aligned(data, size, shift);
 }
@@ -187,6 +190,7 @@ M0_INTERNAL void m0_arch_memory_pagein(void *addr, size_t size)
  */
 M0_INTERNAL int m0_arch_dont_dump(void *p, size_t size)
 {
+#if defined(M0_LINUX)
 	int rc;
 	rc = madvise(p, size, MADV_DONTDUMP);
 	if (rc != 0) {
@@ -195,8 +199,10 @@ M0_INTERNAL int m0_arch_dont_dump(void *p, size_t size)
 				 "sysctl -w vm.max_map_count=a_larger_number",
 				 rc);
 	}
-
 	return rc;
+#elif defined(M0_DARWIN)
+	return 0;
+#endif
 }
 
 M0_INTERNAL int m0_arch_memory_init(void)

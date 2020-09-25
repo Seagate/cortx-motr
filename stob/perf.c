@@ -19,12 +19,16 @@
  *
  */
 
+#if defined(M0_LINUX)
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
 #include "lib/trace.h"
 
 #include "stob/perf.h"
 
+#if defined(M0_DARWIN)
+#include <sys/param.h>
+#endif
 #include <sys/mount.h>    /* mount */
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -412,7 +416,11 @@ static int stob_perf_domain_dir_clean(const char *location_data)
 {
 	int rc;
 
+#if defined(M0_DARWIN)
+	(void)unmount(location_data, 0);
+#else
 	(void)umount(location_data);
+#endif
 	rc = rmdir(location_data);
 	rc = rc != 0 ? M0_ERR(-errno) : 0;
 
@@ -932,6 +940,9 @@ const struct m0_stob_type m0_stob_perf_type = {
 /** @} end group stobperf */
 
 #undef M0_TRACE_SUBSYSTEM
+
+/* M0_LINUX */
+#endif
 
 /*
  *  Local variables:

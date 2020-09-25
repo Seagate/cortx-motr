@@ -19,6 +19,7 @@
  *
  */
 
+#if defined(M0_LINUX)
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1176,6 +1177,9 @@ M0_INTERNAL bool m0_processor_is_vm(void)
 
 
 #undef M0_TRACE_SUBSYSTEM
+
+/* M0_LINUX */
+#endif
 
 /** @} end of processor group */
 

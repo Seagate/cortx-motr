@@ -26,6 +26,7 @@
 #define __MOTR_LIB_USER_SPACE_GETOPTS_H__
 
 #include "lib/types.h"
+#include "lib/thread.h"             /* LAMBDA_T */
 
 /**
    @defgroup getopts M0 getopt(3) version from heaven.
@@ -126,13 +127,13 @@ struct m0_getopts_opt {
 	/** Option-type specific data. */
 	union m0_getopts_union {
 		/** Call-back invoked for a GOT_VOID option. */
-		void   (*got_void)(void);
+		void   (LAMBDA_T got_void)(void);
 		/** Call-back invoked for a GOT_NUMBER option. */
-		void   (*got_number)(int64_t num);
+		void   (LAMBDA_T got_number)(int64_t num);
 		/** Call-back invoked for a GOT_SCALED option. */
-		void   (*got_scaled)(m0_bcount_t num);
+		void   (LAMBDA_T got_scaled)(m0_bcount_t num);
 		/** Call-back invoked for a GOT_STRING option. */
-		void   (*got_string)(const char *string);
+		void   (LAMBDA_T got_string)(const char *string);
 		struct {
 			/** Format string for a GOT_FORMAT option. */
 			const char *f_string;

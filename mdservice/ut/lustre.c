@@ -34,9 +34,9 @@
 
 typedef int (*fop_translate_t)(struct m0_fop *fop, void *data);
 
-static void lustre_copy_fid(struct m0_fid *bf,
-                            const struct m0_md_lustre_fid *cf)
+static void lustre_copy_fid(struct m0_fid *bf, const void *in)
 {
+	const struct m0_md_lustre_fid *cf = in;
         m0_fid_set(bf, cf->f_seq, cf->f_oid);
 }
 

@@ -148,10 +148,10 @@ static void test_reply_item_error(void)
 
 extern void (*m0_rpc__item_dropped)(struct m0_rpc_item *item);
 
-static struct m0_semaphore wait;
+static struct m0_semaphore swait;
 static void test_dropped(struct m0_rpc_item *item)
 {
-	m0_semaphore_up(&wait);
+	m0_semaphore_up(&swait);
 }
 
 static void test_timeout(void)
@@ -172,7 +172,7 @@ static void test_timeout(void)
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	m0_fi_enable_once("cs_req_fop_fom_tick", "inject_delay");
 	m0_fi_enable_once("item_received", "drop_signal");
-	m0_semaphore_init(&wait, 0);
+	m0_semaphore_init(&swait, 0);
 	m0_rpc__item_dropped = &test_dropped;
 	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
 			      0 /* deadline */);
@@ -180,8 +180,8 @@ static void test_timeout(void)
 	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
-	m0_semaphore_down(&wait);
-	m0_semaphore_fini(&wait);
+	m0_semaphore_down(&swait);
+	m0_semaphore_fini(&swait);
 	m0_rpc_machine_get_stats(machine, &stats, true);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_dropped_items) &&
 		     IS_INCR_BY_1(nr_timedout_items) &&
@@ -1075,7 +1075,7 @@ static void __ha_timer__dummy(struct m0_sm_timer *timer)
 	obj = m0_rpc_conn2svc(conn);
 	M0_LOG(M0_DEBUG, "obj = %p, fid "FID_F, obj, FID_P(&obj->co_id));
 	M0_UT_ASSERT(obj->co_ha_state == M0_NC_FAILED);
-	m0_semaphore_up(&wait);
+	m0_semaphore_up(&swait);
 	M0_UT_RETURN();
 }
 
@@ -1139,7 +1139,7 @@ static void test_ha_cancel(void)
 	item->ri_nr_sent_max = 2;
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	m0_fi_enable_once("cs_req_fop_fom_tick", "inject_delay");
-	m0_semaphore_init(&wait, 0);
+	m0_semaphore_init(&swait, 0);
 	M0_UT_LOG("posting item = %p", item);
 	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
 			      0 /* deadline */);
@@ -1148,8 +1148,8 @@ static void test_ha_cancel(void)
 	M0_UT_ASSERT(item->ri_error == -ECANCELED);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
-	m0_semaphore_down(&wait);
-	m0_semaphore_fini(&wait);
+	m0_semaphore_down(&swait);
+	m0_semaphore_fini(&swait);
 	m0_fop_put_lock(fop);
 	/* restore HA ops */
 	m0_rpc_conn_ha_cfg_set(session->s_conn, rchc_orig);

@@ -1,5 +1,6 @@
 nobase_motr_include_HEADERS += stob/ad.h \
 				  stob/ad_private.h \
+				  stob/aio_emu.h \
 				  stob/addb2.h \
 				  stob/battr.h \
                                   stob/cache.h \
@@ -16,6 +17,7 @@ nobase_motr_include_HEADERS += stob/ad.h \
                                   stob/type.h
 
 motr_libmotr_la_SOURCES  += stob/ad.c \
+				  stob/aio_emu.c \
                                   stob/cache.c \
                                   stob/domain.c \
                                   stob/io.c \

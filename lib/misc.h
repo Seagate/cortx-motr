@@ -109,14 +109,14 @@ M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
  * @see m0_tlist_forall(), m0_tl_forall(), m0_list_forall().
  * @see m0_list_entry_forall().
  */
-#define m0_forall(var, nr, ...)                                 \
-({                                                              \
-	unsigned __nr = (nr);                                   \
-	unsigned var;                                           \
-								\
-	for (var = 0; var < __nr && ({ __VA_ARGS__ ; }); ++var) \
-		;                                               \
-	var == __nr;                                            \
+#define m0_forall(var, nr, ...)		\
+({						\
+	unsigned __nr = (nr);			\
+	unsigned var;				\
+						\
+	for (var = 0; var < __nr ; ++var)	\
+		({ __VA_ARGS__ ; });		\
+	var == __nr;				\
 })
 
 /**

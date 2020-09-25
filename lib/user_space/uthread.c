@@ -24,7 +24,17 @@
 #include <unistd.h>      /* getpid */
 #include <errno.h>       /* program_invocation_name */
 #include <stdio.h>       /* snprinf */
-#include <linux/limits.h>/* PATH_MAX */
+
+#if defined(M0_LINUX)
+#include <linux/limits.h>       /* PATH_MAX */
+#elif defined(M0_DARWIN)
+#include <sys/syslimits.h>      /* PATH_MAX */
+#include <mach/mach_init.h>
+#include <mach/thread_policy.h>
+#include <mach/mach.h>
+#include <pthread.h>
+#include <mach-o/dyld.h>        /* _NSGetExecutablePath */
+#endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MEMORY
 #include "lib/trace.h"
@@ -129,18 +139,32 @@ M0_INTERNAL int m0_thread_signal(struct m0_thread *q, int sig)
 M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 				  const struct m0_bitmap *processors)
 {
-	size_t    idx;
+	size_t idx;
+#if defined(M0_DARWIN)
+	thread_port_t                 mthread;
+	thread_affinity_policy_data_t policy = {};
+
+	for (idx = 0; idx < processors->b_nr; ++idx) {
+		if (m0_bitmap_get(processors, idx))
+			break;
+	}
+	M0_ASSERT(idx < processors->b_nr);
+	policy.affinity_tag = idx;
+	mthread = pthread_mach_thread_np(q->t_h.h_id);
+	thread_policy_set(mthread, THREAD_AFFINITY_POLICY,
+			  (thread_policy_t)&policy, 1);
+	return 0;
+#else
 	size_t    nr_bits = min64u(processors->b_nr, CPU_SETSIZE);
 	cpu_set_t cpuset;
 
 	CPU_ZERO(&cpuset);
-
 	for (idx = 0; idx < nr_bits; ++idx) {
 		if (m0_bitmap_get(processors, idx))
 			CPU_SET(idx, &cpuset);
 	}
-
 	return -pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
+#endif
 }
 
 M0_INTERNAL char m0_argv0[PATH_MAX] = {};
@@ -167,19 +191,28 @@ M0_INTERNAL void m0_threads_fini(void)
 
 M0_INTERNAL int m0_threads_once_init(void)
 {
-	static char             pidbuf[20];
-	char                   *env_ptr;
+	static char pidbuf[20];
+	char       *env_ptr;
+#if defined(M0_LINUX)
 
 	if (readlink("/proc/self/exe", m0_argv0, sizeof m0_argv0) == -1)
 		return M0_ERR_INFO(errno, "%s", strerror(errno));
-
-	env_ptr = getenv("M0_DEBUGGER");
-	if (env_ptr != NULL)
-		m0_debugger_args[0] = m0_strdup(env_ptr);
 	/*
 	 * Note: program_invocation_name requires _GNU_SOURCE.
 	 */
 	m0_debugger_args[1] = program_invocation_name;
+#elif defined(M0_DARWIN)
+	int      result;
+	uint32_t bufsize = ARRAY_SIZE(m0_argv0);
+
+	result = _NSGetExecutablePath(m0_argv0, &bufsize);
+	if (result != 0)
+		return M0_ERR(-E2BIG);
+	m0_debugger_args[1] = m0_argv0;
+#endif
+	env_ptr = getenv("M0_DEBUGGER");
+	if (env_ptr != NULL)
+		m0_debugger_args[0] = m0_strdup(env_ptr);
 	m0_debugger_args[2] = pidbuf;
 	(void)snprintf(pidbuf, ARRAY_SIZE(pidbuf), "%i", getpid());
 	tls = &main_thread.t_tls;
@@ -221,6 +254,19 @@ M0_INTERNAL bool m0_is_awkward(void)
 M0_INTERNAL uint64_t m0_pid(void)
 {
 	return getpid();
+}
+
+M0_INTERNAL uint64_t m0_tid(void)
+{
+#if M0_DARWIN
+	uint64_t tid;
+	pthread_threadid_np(NULL, &tid);
+	return tid;
+#elif M0_LINUX
+	return syscall(SYS_gettid);
+#else
+#error Platform not supported.
+#endif
 }
 
 M0_INTERNAL uint64_t m0_process(void)

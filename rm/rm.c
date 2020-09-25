@@ -1543,16 +1543,6 @@ static int cached_credits_remove(struct m0_rm_incoming *in)
 	return M0_RC(rc);
 }
 
-M0_UNUSED static inline struct m0_rm_resource_type *
-credit_to_resource_type(struct m0_rm_credit *credit) {
-	return credit->cr_owner->ro_resource->r_type;
-}
-
-M0_UNUSED static inline struct m0_rm_resource_type *
-rem_incoming_to_resource_type(struct m0_rm_remote_incoming *rem_in) {
-	return credit_to_resource_type(&rem_in->ri_incoming.rin_want);
-}
-
 M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 {
 	struct m0_rm_incoming *in     = &rem_in->ri_incoming;

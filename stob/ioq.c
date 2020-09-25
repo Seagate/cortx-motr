@@ -26,7 +26,6 @@
 
 #include <limits.h>			/* IOV_MAX */
 #include <sys/uio.h>			/* iovec */
-#include <libaio.h>                     /* io_getevents */
 
 #include "ha/ha.h"                      /* m0_ha_send */
 #include "ha/msg.h"                     /* m0_ha_msg */
@@ -181,7 +180,7 @@ M0_INTERNAL int m0_stob_linux_io_init(struct m0_stob *stob,
 static void stob_linux_io_release(struct stob_linux_io *lio)
 {
 	if (lio->si_qev != NULL)
-		m0_free(lio->si_qev->iq_iocb.u.c.buf);
+		m0_free(lio->si_qev->iq_iocb.u.v.vec);
 	m0_free0(&lio->si_qev);
 }
 

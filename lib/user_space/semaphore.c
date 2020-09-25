@@ -19,7 +19,8 @@
  *
  */
 
-
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
 #include "lib/semaphore.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -33,6 +34,8 @@
 
    @{
 */
+
+#if USE_POSIX_SEMAPHORE
 
 M0_INTERNAL int m0_semaphore_init(struct m0_semaphore *semaphore,
 				  unsigned value)
@@ -53,6 +56,11 @@ M0_INTERNAL void m0_semaphore_fini(struct m0_semaphore *semaphore)
 	rc = sem_destroy(&semaphore->s_sem);
 	M0_ASSERT_INFO(rc == 0, "rc=%d errno=%d", rc, errno);
 }
+
+/* USE_POSIX_SEMAPHORE */
+#endif
+
+#if USE_POSIX_SEMAPHORE || USE_POSIX_NAMED_SEMAPHORE
 
 M0_INTERNAL void m0_semaphore_down(struct m0_semaphore *semaphore)
 {
@@ -131,6 +139,9 @@ M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 		errno = 0;
 	return rc == 0;
 }
+
+/* USE_POSIX_SEMAPHORE || USE_POSIX_NAMED_SEMAPHORE */
+#endif
 
 /** @} end of semaphore group */
 

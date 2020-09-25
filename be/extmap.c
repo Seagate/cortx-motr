@@ -665,9 +665,11 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 				  struct m0_be_tx          *tx,
 				  struct m0_ext            *ext,
 				  uint64_t                  val,
-	void (*del)(struct m0_be_emap_seg*),
-	void (*cut_left)(struct m0_be_emap_seg*, struct m0_ext*, uint64_t),
-	void (*cut_right)(struct m0_be_emap_seg*, struct m0_ext*, uint64_t))
+	void (LAMBDA_T del)(struct m0_be_emap_seg*),
+	void (LAMBDA_T cut_left)(struct m0_be_emap_seg*, struct m0_ext*,
+				 uint64_t),
+	void (LAMBDA_T cut_right)(struct m0_be_emap_seg*, struct m0_ext*,
+				  uint64_t))
 {
 	struct m0_be_emap_seg *seg      = &it->ec_seg;
 	struct m0_ext         *chunk    = &seg->ee_ext;
