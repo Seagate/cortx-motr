@@ -52,7 +52,7 @@ TEMP=$(getopt --options h,i: \
               --longoptions start-consul \
               --longoptions stop-consul \
               --longoptions mkfs-only,single-node:, \
-	      --longoptions get-fid \
+              --longoptions get-fid \
               --name "$PROG" -- "$@" || true)
 
 (($? == 0)) || { usage >&2; exit 1; }
@@ -171,8 +171,8 @@ reset() {
     while ssh $rnode 'mountpoint /var/motr && ! umount /var/motr'; do sleep 1; done
 
     echo "Formatting volumes $lvolume and $rvolume ..."
-   # mkfs.ext4 $lvolume
-   # mkfs.ext4 $rvolume
+    mkfs.ext4 $lvolume
+    mkfs.ext4 $rvolume
 
     echo 'Mounting /var/motr on both the nodes...'
     mkdir -p /var/motr &&
@@ -221,11 +221,11 @@ reset() {
        sleep 5
     done
 
-   # echo 'Importing /var/lib/hare/consul-conf-exported.json...'
-   # for i in {1..10}; do
-   #     /opt/seagate/cortx/hare/bin/consul kv import \
-   #         @/var/lib/hare/consul-conf-exported.json && break || sleep 5
-   # done
+    echo 'Importing /var/lib/hare/consul-conf-exported.json...'
+    for i in {1..10}; do
+        /opt/seagate/cortx/hare/bin/consul kv import \
+            @/var/lib/hare/consul-conf-exported.json && break || sleep 5
+    done
 }
 
 get_fid() {
@@ -235,7 +235,7 @@ get_fid() {
     # wait until consul becomes available for returning the data
     while ! [[ `/opt/seagate/cortx/hare/bin/consul kv get --recurse m0conf/nodes/$node/processes | grep $service` ]]
     do
-	echo "Trying to fetch fid again"
+	      echo "Trying to fetch fid again"
         sleep 2
     done
     
