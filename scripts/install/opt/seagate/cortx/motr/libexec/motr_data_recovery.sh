@@ -3,7 +3,7 @@
 PROG=${0##*/}
 # Creating the log file under /var/log/seagate/motr
 now=$(date +"%Y_%m_%d__%H_%M_%S")
-LOG_DIR="/var/log/seagate/motr"
+LOG_DIR="/var/log/seagate/motr/datarecovery"
 mkdir -p $LOG_DIR
 LOG_FILE="$LOG_DIR/motr_data_recovery_$now.log"
 touch $LOG_FILE
@@ -47,6 +47,7 @@ REMOTE_NODE_RECOVERY_STATE=0 # To determine the recovery state of remote node
 # Path to dir on local node where we can access remote metadata dir if remote node failed
 FAILOVER_MD_DIR=
 beck_only=false # Run only becktool in the script
+clean_snapshot=false # Removes MD_Snapshot if present and create lv_main_swap again
 ESEGV=134 # Error code for segment fault
 RSTATE0=0 # We do not need to perform any actions before starting recovery
 RSTATE2=2 # We need to do only create snapshot before starting recovery
@@ -54,6 +55,7 @@ RSTATE3=3 # We need to do all operations such as fsck, replay logs, create snaps
 CDF_FILENAME="/var/lib/hare/cluster.yaml" # Cluster defination file needed by prov-m0-reset script
 # HA conf argument file needed by prov-m0-reset script
 HA_ARGS_FILENAME="/opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml"
+SINGLE_NODE_RUNNING=  # Will be set if only one node is running.
 
 usage() {
     cat <<EOF
@@ -62,8 +64,10 @@ Usage: $PROG [--option]
 Master script for the motr data recovery.
 
 Optional parameters.
-    --beck-only     Performs only beck utility.
-    -h, --help      Shows this help text and exit.
+    --beck-only      Performs only beck utility. Use this option only when snapshot
+                     is already present on system.
+    --clean-snapshot Removes MD_Snapshot if present and create lv_main_swap again
+    -h, --help       Shows this help text and exit.
 
 ***Exit codes used by functions in script*** :
  - If a function is executed successfully on both local node
@@ -77,6 +81,7 @@ EOF
 TEMP=$(getopt --options h \
               --longoptions help \
               --longoptions beck-only \
+              --longoptions clean-snapshot \
               --name "$PROG" -- "$@" || true)
 
 (($? == 0)) || { echo "show usage"; exit 1; }
@@ -86,7 +91,8 @@ eval set -- "$TEMP"
 while true; do
     case "$1" in
         -h|--help)           usage; exit ;;
-        --beck-only)     beck_only=true; shift ;;
+        --beck-only)         beck_only=true; shift ;;
+        --clean-snapshot)    clean_snapshot=true; shift ;;
         --)                  shift; break ;;
         *)                   break ;;
     esac
@@ -129,15 +135,8 @@ is_ios_running_on_remote_node() {
 # This function will initialize values of local and remote ioservices 
 # fid variable.
 get_ios_fid() {
-    proc_id=$(/opt/seagate/cortx/hare/bin/consul kv get --recurse \
-              m0conf/nodes/$LOCAL_NODE/processes | grep ios | \
-              awk 'BEGIN {FS="/"} {print $5}')
-    LOCAL_IOS_FID=$(printf '0x7200000000000001:0x%x\n' $proc_id)
-
-    proc_id=$(/opt/seagate/cortx/hare/bin/consul kv get --recurse \
-              m0conf/nodes/$REMOTE_NODE/processes | grep ios | \
-              awk 'BEGIN {FS="/"} {print $5}')
-    REMOTE_IOS_FID=$(printf '0x7200000000000001:0x%x\n' $proc_id)
+    LOCAL_IOS_FID=$(./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --get-fid ios $LOCAL_NODE $SINGLE_NODE_RUNNING)
+    REMOTE_IOS_FID=$(./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --get-fid ios $REMOTE_NODE $SINGLE_NODE_RUNNING)
 
     if [[ $LOCAL_IOS_FID == "0x7200000000000001:0x0" ]] || [[ $REMOTE_IOS_FID == "0x7200000000000001:0x0" ]];then
         die "Cannot get the ioservice fids from consul, please make sure \
@@ -330,6 +329,8 @@ get_cluster_configuration() {
         REMOTE_STORAGE_STATUS=1
         REMOTE_LV_SWAP_DEVICE="$(lvs -o path $REMOTE_MD_VOLUMEGROUP | grep $SWAP_DEVICE | awk '{ print $1 }' )"
         REMOTE_LV_MD_DEVICE="$(lvs -o path $REMOTE_MD_VOLUMEGROUP | grep $MD_DEVICE | awk '{ print $1 }')"
+        SINGLE_NODE_RUNNING='--single-node'
+
     else
         # remote ios is failed, can't access the remote storage, recovery not possible on this node
         die "***ERROR: Remote ioservice is not running and cannot access the remote storage, \
@@ -382,7 +383,7 @@ reinit_mkfs() {
 
     # command line for reinit cluster with mkfs
     m0drlog "Reinitializing the cluster with mkfs, Please wait may take few minutes"
-    run_cmd_on_local_node "./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --mkfs-only"
+    run_cmd_on_local_node "./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --mkfs-only $SINGLE_NODE_RUNNING"
     [[ $? -eq 0 ]] || die "***ERROR: Cluster reinitialization with mkfs failed***"
     m0drlog "Cluster reinitialization with mkfs is completed"
     sleep 3
@@ -434,8 +435,8 @@ replay_logs() {
     if [[ $LOCAL_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
         if [[ $1 == 0 || $1 == 2 ]]; then
             m0drlog "Replaying journal logs on local node"
-            if run_cmd_on_local_node "$M0BETOOL \
-                be_recovery_run $MD_DIR/m0d-$LOCAL_IOS_FID/db"; then
+            if run_cmd_on_local_node "(cd $MD_DIR/datarecovery; $M0BETOOL \
+                be_recovery_run $MD_DIR/m0d-$LOCAL_IOS_FID/db;)"; then
                 m0drlog "Journal logs replayed successfully on local node"
             else
                 m0drlog "ERROR: Journal logs replay failed on local node"
@@ -453,8 +454,8 @@ replay_logs() {
     if [[ $REMOTE_STORAGE_STATUS == 0 ]] && [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
         if [[ $1 == 0 || $1 == 1 ]]; then
             m0drlog "Replaying journal logs on remote node"
-            if run_cmd_on_remote_node "$M0BETOOL \
-                be_recovery_run $MD_DIR/m0d-$REMOTE_IOS_FID/db"; then
+            if run_cmd_on_remote_node "(cd $MD_DIR/datarecovery; $M0BETOOL \
+                be_recovery_run $MD_DIR/m0d-$REMOTE_IOS_FID/db;)"; then
                 m0drlog "Journal logs replayed successfully on remote node"
             else
                 m0drlog "ERROR: Journal logs replay failed on remote node"
@@ -467,8 +468,8 @@ replay_logs() {
     elif [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
         if [[ $1 == 0 || $1 == 1 ]]; then
             m0drlog "Replaying journal logs for remote node from local node"
-            if run_cmd_on_local_node "$M0BETOOL \
-                be_recovery_run $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db"; then
+            if run_cmd_on_local_node "(cd $FAILOVER_MD_DIR/datarecovery; $M0BETOOL \
+                be_recovery_run $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db;)"; then
                 m0drlog "Journal logs replayed successfully for remote node from local node"
             else
                 m0drlog "ERROR: Journal logs replay failed for remote node"
@@ -537,7 +538,10 @@ run_fsck() {
 
     # Try to mount the metadata device on /var/motr on both nodes
     if [[ $LOCAL_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
-        if ! run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR"; then
+        if run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR"; then
+            # create directory "datarecovery" in /var/motr if not exist to store traces
+            run_cmd_on_local_node "mkdir -p $MD_DIR/datarecovery"
+        else
             run_cmd_on_local_node "mkfs.ext4 $LOCAL_MOTR_DEVICE"
             run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR"
             (( exec_status|=1));
@@ -545,13 +549,19 @@ run_fsck() {
     fi
 
     if [[ $REMOTE_STORAGE_STATUS == 0 ]] && [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
-        if ! run_cmd_on_remote_node "mount $REMOTE_MOTR_DEVICE $MD_DIR"; then
+        if run_cmd_on_remote_node "mount $REMOTE_MOTR_DEVICE $MD_DIR"; then
+            # create directory "datarecovery" in /var/motr if not exist to store traces
+            run_cmd_on_remote_node "mkdir -p $MD_DIR/datarecovery"
+        else
             run_cmd_on_remote_node "mkfs.ext4 $REMOTE_MOTR_DEVICE"
             run_cmd_on_remote_node "mount $REMOTE_MOTR_DEVICE $MD_DIR"
             (( exec_status|=2));
         fi
     elif [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
-        if ! run_cmd_on_local_node "mount $REMOTE_MOTR_DEVICE $FAILOVER_MD_DIR"; then
+        if run_cmd_on_local_node "mount $REMOTE_MOTR_DEVICE $FAILOVER_MD_DIR"; then
+            # create directory "datarecovery" in /var/motr if not exist to store traces
+            run_cmd_on_local_node "mkdir -p $FAILOVER_MD_DIR/datarecovery"
+        else
             run_cmd_on_local_node "mkfs.ext4 $REMOTE_MOTR_DEVICE"
             run_cmd_on_local_node "mount $REMOTE_MOTR_DEVICE $FAILOVER_MD_DIR"
             (( exec_status|=2));
@@ -721,17 +731,23 @@ run_becktool() {
     if ! mountpoint -q $MD_DIR; then
         run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR";
         [[ $? -eq 0 ]] || die "Cannot mount metadata device on /var/motr on local node"
+        # create directory "datarecovery" in /var/motr if not exist to store traces
+        run_cmd_on_local_node "mkdir -p $MD_DIR/datarecovery"
     fi
 
     if [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
         if ! run_cmd_on_remote_node "mountpoint -q $MD_DIR"; then
             run_cmd_on_remote_node "mount $REMOTE_MOTR_DEVICE $MD_DIR";
             [[ $? -eq 0 ]] || die "Cannot mount metadata device on /var/motr on remote node"
+            # create directory "datarecovery" in /var/motr if not exist to store traces
+            run_cmd_on_remote_node "mkdir -p $MD_DIR/datarecovery"
         fi
     else
         if ! mountpoint -q $FAILOVER_MD_DIR; then
             run_cmd_on_local_node "mount $REMOTE_MOTR_DEVICE $FAILOVER_MD_DIR"
             [[ $? -eq 0 ]] || die "Cannot mount metadata device on failover dir on local node"
+            # create directory "datarecovery" in /var/motr if not exist to store traces
+            run_cmd_on_local_node "mkdir -p $FAILOVER_MD_DIR/datarecovery"
         fi
     fi
 
@@ -744,14 +760,15 @@ run_becktool() {
         DEST_DOMAIN_DIR="$MD_DIR/m0d-$LOCAL_IOS_FID"
 
         m0drlog "Running Becktool on local node"
-        run_cmd_on_local_node "$BECKTOOL -s $SOURCE_IMAGE \
-                               -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs"
+        run_cmd_on_local_node "(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                               -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs;)"
         cmd_exit_status=$?
         # restart the execution of command if exit code is ESEGV error
         while [[ $cmd_exit_status == $ESEGV ]];
         do
-            run_cmd_on_local_node "$BECKTOOL -s $SOURCE_IMAGE \
-                                   -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs"
+            m0drlog "Restarting Becktool on local node"
+            run_cmd_on_local_node "(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                                   -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs;)"
             cmd_exit_status=$?
         done
 
@@ -771,16 +788,17 @@ run_becktool() {
 
             m0drlog "Running Becktool on remote node"
             # Below statement is for logging purpose
-            echo "Running '$BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs'" >> ${LOG_FILE}
+            echo "Running '(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs;)'" >> ${LOG_FILE}
             run_cmd_on_remote_node "bash -s" <<-EOF
-            $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs
+            (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs;)
 EOF
             cmd_exit_status=$?
             # restart the execution of command if exit code is ESEGV error
             while [[ $cmd_exit_status == $ESEGV ]];
             do
+                m0drlog "Restarting Becktool on remote node"
                 run_cmd_on_remote_node "bash -s" <<-EOF
-                $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs
+                (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs;)
 EOF
                 cmd_exit_status=$?
             done
@@ -795,15 +813,16 @@ EOF
 
             m0drlog "Running Becktool for remote node from local node"
             # Below statement is for logging purpose
-            echo "Running '$BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs'" >> ${LOG_FILE}
-            run_cmd_on_local_node "$BECKTOOL -s $SOURCE_IMAGE \
-                                   -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs"
+            echo "Running '(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs;)'" >> ${LOG_FILE}
+            run_cmd_on_local_node "(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                                   -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs;)"
             cmd_exit_status=$?
             # restart the execution of command if exit code is ESEGV error
             while [[ $cmd_exit_status == $ESEGV ]];
             do
-                run_cmd_on_local_node "$BECKTOOL -s $SOURCE_IMAGE \
-                                       -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs"
+                m0drlog "Restarting Becktool for remote node from local node"
+                run_cmd_on_local_node "(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                                       -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs;)"
                 cmd_exit_status=$?
             done
 
@@ -831,6 +850,7 @@ EOF
                                         die "ERROR: Becktool failed on remote node";
                                       }
             m0drlog "Becktool completed on remote node"
+            cleanup_stobs_dir
             return $exec_status
         else
             pkill -9 m0beck; run_cmd_on_remote_node "pkill -9 m0beck";
@@ -850,6 +870,7 @@ EOF
                                         die "ERROR: Becktool failed on local node";
                                      }
             m0drlog "Becktool completed on local node"
+            cleanup_stobs_dir
             return $exec_status
         else
             pkill -9 m0beck; ((exec_status|=2));
@@ -882,17 +903,31 @@ is_user_root_user # check the script is running with root access
 
 shutdown_services
 
-run_cmd_on_local_node "./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --start-consul"
+run_cmd_on_local_node "./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --start-consul $SINGLE_NODE_RUNNING"
 
 get_cluster_configuration
 
-run_cmd_on_local_node "./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --stop-consul"
+run_cmd_on_local_node "./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --stop-consul $SINGLE_NODE_RUNNING"
 
-# Execute becktool only in the script if option --beck-only is set
+# Execute becktool only in the script if option --beck-only is set.
+# Use --beck-only option only when snapshot is already present on the system.
 if $beck_only ; then
     m0drlog "Running only becktool in the recovery script"
     run_becktool
     exit $?
+fi
+
+# Only remove MD_Snapshot if present and create lv_main_swap again
+if $clean_snapshot ; then
+    m0drlog "Removing MD_Snapshot if present and create lv_main_swap again"
+    remove_snapshot                # remove snapshot on both nodes
+    remove_snapshot_status=$?
+    [[ remove_snapshot_status -eq 0 ]] || { die "ERROR: Remove snapshot failed with code $remove_snapshot_status"; }
+
+    create_swap                    # recreate swap on both nodes
+    create_swap_status=$?
+    [[ create_swap_status -eq 0 ]] || { die "ERROR: Create swap failed with code $create_swap_status"; }
+    exit 0
 fi
 
 run_fsck                       # run fsck on both nodes
