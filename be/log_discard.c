@@ -49,7 +49,6 @@ enum be_log_discard_item_state {
 	LDI_INIT,
 	LDI_STARTING,
 	LDI_FINISHED,
-	LDI_SYNCED,
 	LDI_DISCARDED,
 };
 
@@ -59,7 +58,6 @@ struct m0_be_log_discard_item {
 	void                           *ldi_user_data;
 	m0_time_t                       ldi_time_start;
 	m0_time_t                       ldi_time_finish;
-	bool                            ldi_synced;
 	struct m0_ext                   ldi_ext;
 	struct m0_tlink                 ldi_start_link;
 	uint64_t                        ldi_magic;
@@ -114,7 +112,6 @@ M0_INTERNAL int m0_be_log_discard_init(struct m0_be_log_discard     *ld,
 		*ldi = (struct m0_be_log_discard_item){
 			.ldi_ld     = ld,
 			.ldi_state  = LDI_INIT,
-			.ldi_synced = false,
 		};
 		ld_be_pool_add(&ld->lds_item_pool, ldi);
 		ld_start_tlink_init(ldi);
@@ -230,47 +227,53 @@ static void be_log_discard_item_discard_ast(struct m0_sm_group *grp,
 {
 	struct m0_be_log_discard_item *ldi = ast->sa_datum;
 	struct m0_be_log_discard      *ld  = ldi->ldi_ld;
+	struct m0_be_log_discard_item tmp_ldi;
+	struct m0_ext *ext;
 
-	M0_ENTRY("ld=%p ldi=%p", ld, ldi);
-
-	ld->lds_cfg.ldsc_discard(ld, ldi);
-
+	/* if lds_sync_item is NULL all the ldi are already discarded
+	   and lds_start_q will not have any ldi with LDI_FINISHED state */
+	if (ld->lds_sync_item == NULL)
+		return;
 	be_log_discard_lock(ld);
-	ldi->ldi_state = LDI_DISCARDED;
-	m0_be_log_discard_item_put(ld, ldi);
+	M0_ENTRY("ld=%p ldi=%p", ld, ldi);
+	/* capture the extent and data here in temporary ldi */
+	tmp_ldi.ldi_ext = ldi->ldi_ext;
+	tmp_ldi.ldi_user_data = m0_be_log_discard_item_user_data(ldi);
+	/* All the log discard items in ld->lds_start_q with the LDI_FINISHED state
+	   which are synced will be discarded */
+	m0_tl_for(ld_start, &ld->lds_start_q, ldi) {
+		M0_ASSERT_INFO(ldi->ldi_state == LDI_FINISHED,
+					"ldi=%p state=%d", ldi, ldi->ldi_state);
+		ld_start_tlist_del(ldi);
+		ext = m0_be_log_discard_item_ext(ldi);
+		/* update the extent with the lowest e_start and highest e_end
+		   to get the entire size of the discarded logs */
+		if (tmp_ldi.ldi_ext.e_start > ext->e_start)
+			tmp_ldi.ldi_ext.e_start = ext->e_start;
+		if (tmp_ldi.ldi_ext.e_end  < ext->e_end)
+			tmp_ldi.ldi_ext.e_end = ext->e_end;
+		if (ldi == ld->lds_sync_item)
+		{
+			ldi->ldi_state = LDI_DISCARDED;
+			m0_be_log_discard_item_put(ld, ldi);
+			break;
+		}
+		ldi->ldi_state = LDI_DISCARDED;
+		m0_be_log_discard_item_put(ld, ldi);
+	} m0_tl_endfor;
+	ld->lds_sync_item = NULL;
+	ld->lds_sync_in_progress = false;
+	if (ld_start_tlist_is_empty(&ld->lds_start_q))
+		ld->lds_sync_deadline = M0_TIME_NEVER;
+	be_log_discard_check_sync(ld, false);
+	/* The log pointers (lg_discarded position) for all the discarded items will be updated only once.
+	   This will ensure that interim lg_discarded is not picked up in lgr_last_discarded
+	   during m0_be_log_record_io_prepare() */
+	ld->lds_cfg.ldsc_discard(ld, &tmp_ldi);
 	M0_CNT_DEC(ld->lds_discard_left);
 	if (ld->lds_discard_waiting)
 		m0_semaphore_up(&ld->lds_discard_wait_sem);
 	be_log_discard_unlock(ld);
-}
-
-static void be_log_discard_item_discard(struct m0_be_log_discard      *ld,
-                                        struct m0_be_log_discard_item *ldi)
-{
-	M0_LOG(M0_DEBUG, "ld=%p ldi=%p", ld, ldi);
-
-	M0_PRE(be_log_discard_is_locked(ld));
-	M0_PRE(ldi->ldi_state == LDI_SYNCED);
-
-	M0_CNT_INC(ld->lds_discard_left);
-	ldi->ldi_discard_ast = (struct m0_sm_ast){
-		.sa_cb    = &be_log_discard_item_discard_ast,
-		.sa_datum = ldi,
-	};
-	/* get out of the m0_be_log_discard lock */
-	m0_sm_ast_post(m0_locality_here()->lo_grp, &ldi->ldi_discard_ast);
-}
-
-static void be_log_discard_item_trydiscard(struct m0_be_log_discard      *ld,
-                                           struct m0_be_log_discard_item *ldi)
-{
-	M0_PRE(be_log_discard_is_locked(ld));
-	M0_PRE(M0_IN(ldi->ldi_state, (LDI_STARTING, LDI_FINISHED)));
-
-	if (ldi->ldi_state == LDI_FINISHED && ldi->ldi_synced)
-		ldi->ldi_state = LDI_SYNCED;
-	if (ldi->ldi_state == LDI_SYNCED)
-		be_log_discard_item_discard(ld, ldi);
 }
 
 static void be_log_discard_sync_done_cb(struct m0_be_op *op, void *param)
@@ -282,20 +285,15 @@ static void be_log_discard_sync_done_cb(struct m0_be_op *op, void *param)
 	be_log_discard_lock(ld);
 	M0_PRE(ld->lds_sync_item != NULL);
 	m0_be_op_reset(op);
-	m0_tl_for(ld_start, &ld->lds_start_q, ldi) {
-		M0_ASSERT_INFO(ldi->ldi_state == LDI_FINISHED,
-			       "ldi=%p state=%d", ldi, ldi->ldi_state);
-		ld_start_tlist_del(ldi);
-		ldi->ldi_synced = true;
-		be_log_discard_item_trydiscard(ld, ldi);
-		if (ldi == ld->lds_sync_item)
-			break;
-	} m0_tl_endfor;
-	ld->lds_sync_item = NULL;
-	ld->lds_sync_in_progress = false;
-	if (ld_start_tlist_is_empty(&ld->lds_start_q))
-		ld->lds_sync_deadline = M0_TIME_NEVER;
-	be_log_discard_check_sync(ld, false);
+
+	ldi = ld->lds_sync_item;
+	M0_CNT_INC(ld->lds_discard_left);
+	ldi->ldi_discard_ast = (struct m0_sm_ast){
+		.sa_cb    = &be_log_discard_item_discard_ast,
+		.sa_datum = ldi,
+	};
+	/* get out of the m0_be_log_discard lock */
+	m0_sm_ast_post(m0_locality_here()->lo_grp, &ldi->ldi_discard_ast);
 	be_log_discard_unlock(ld);
 }
 
@@ -416,7 +414,6 @@ m0_be_log_discard_item_finished(struct m0_be_log_discard      *ld,
 	M0_PRE(ldi->ldi_state == LDI_STARTING);
 	ldi->ldi_time_finish = m0_time_now();
 	ldi->ldi_state = LDI_FINISHED;
-	be_log_discard_item_trydiscard(ld, ldi);
 	be_log_discard_unlock(ld);
 }
 
@@ -426,7 +423,6 @@ static void be_log_discard_item_reset(struct m0_be_log_discard      *ld,
 	M0_PRE(M0_IN(ldi->ldi_state, (LDI_INIT, LDI_DISCARDED)));
 
 	ldi->ldi_state       = LDI_INIT;
-	ldi->ldi_synced      = false;
 	ldi->ldi_time_start  = 0;
 	ldi->ldi_time_finish = 0;
 	ldi->ldi_time_start  = M0_TIME_NEVER;
