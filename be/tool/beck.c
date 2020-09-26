@@ -94,6 +94,8 @@ struct scanner {
 	 * exceed this value.
 	 */
 	m0_bcount_t	     s_max_reg_size;
+	/* Holds source metadata segment header generation identifier. */
+	uint64_t	     s_gen;
 };
 
 struct stats {
@@ -269,6 +271,7 @@ static void *scanner_action(size_t len, enum action_opcode opc,
 			    const struct action_ops *ops);
 
 static void genadd(uint64_t gen);
+static void generation_print(uint64_t gen);
 
 static int  scanner_init   (struct scanner *s);
 static int  builder_init   (struct builder *b);
@@ -418,6 +421,7 @@ struct ctg_action {
 static struct scanner s;
 static struct builder b;
 static struct gen g[MAX_GEN] = {};
+static uint16_t gen_count = 0;
 
 static bool  dry_run = false;
 static bool  signaled = false;
@@ -547,12 +551,26 @@ int main(int argc, char **argv)
 
 static char iobuf[4*1024*1024];
 
-enum { DELTA = 10 };
+enum { DELTA = 60 };
+
+static void generation_print(uint64_t gen)
+{
+	time_t    ts = m0_time_seconds(gen);
+	struct tm tm;
+
+	localtime_r(&ts, &tm);
+	printf("%04d-%02d-%02d-%02d:%02d:%02d.%09lu",
+	       tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+	       tm.tm_hour, tm.tm_min, tm.tm_sec,
+	       m0_time_nanoseconds(gen));
+}
 
 static int scanner_init(struct scanner *s)
 {
 	int rc;
 
+	/** Initialising segment header generation identifier explicitly. */
+	s->s_gen = 0;
 	rc = getat(s, 0, s->s_chunk, sizeof s->s_chunk);
 	if (rc != 0)
 		M0_LOG(M0_FATAL, "Can not read first chunk");
@@ -577,8 +595,8 @@ static int scan(struct scanner *s)
 		if (!s->s_byte)
 			s->s_off &= ~0x7;
 		if (time(NULL) - lasttime > DELTA) {
-			printf("Offset: %15lli     Speed: %7.2f MB/s     "
-			       "Completion: %3i%%\n",
+			printf("\nOffset: %15lli     Speed: %7.2f MB/s     "
+			       "Completion: %3i%%",
 			       (long long)s->s_off,
 			       ((double)s->s_off - lastoff) /
 			       DELTA / 1024.0 / 1024.0,
@@ -587,7 +605,7 @@ static int scan(struct scanner *s)
 			lastoff  = s->s_off;
 		}
 	}
-	printf("%25s : %9s %9s %9s %9s\n",
+	printf("\n%25s : %9s %9s %9s %9s\n",
 	       "record", "found", "bad csum", "unaligned", "version");
 	for (i = 0; i < ARRAY_SIZE(rt); ++i) {
 		struct stats *s = &rt[i].r_stats;
@@ -619,19 +637,11 @@ static int scan(struct scanner *s)
 	}
 	if (dry_run)
 		printf("\n*bad kv count is not availabe in dry run mode\n");
-	printf("\ngenerations\n");
-	for (i = 0; i < ARRAY_SIZE(g); ++i) {
-		if (g[i].g_count > 0) {
-			time_t    ts = m0_time_seconds(g[i].g_gen);
-			struct tm tm;
 
-			localtime_r(&ts, &tm);
-			printf("%04d-%02d-%02d-%02d:%02d:%02d.%09lu : "
-			       "%9"PRId64"\n",
-			       tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-			       tm.tm_hour, tm.tm_min, tm.tm_sec,
-			       m0_time_nanoseconds(g[i].g_gen), g[i].g_count);
-		}
+	printf("\ngenerations\n");
+	for (i = 0; i < gen_count; ++i) {
+		generation_print(g[i].g_gen);
+		printf(" : %9"PRId64"\n", g[i].g_count);
 	}
 	return feof(s->s_file) ? 0 : result;
 }
@@ -872,6 +882,9 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
 		idx = ARRAY_SIZE(bt) - 1;
+	genadd(node->bt_backlink.bli_gen);
+	if (s->s_gen != 0 && s->s_gen != node->bt_backlink.bli_gen)
+		return 0;
 	b = &bt[idx];
 	c = &b->b_stats;
 	c->c_node++;
@@ -883,7 +896,6 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	} else
 		c->c_fanout += node->bt_num_active_key + 1;
 	c->c_maxlevel = max64(c->c_maxlevel, node->bt_level);
-	genadd(node->bt_backlink.bli_gen);
 	return 0;
 }
 
@@ -1097,6 +1109,17 @@ static void *action_alloc(size_t len, enum action_opcode opc,
 
 static int seghdr(struct scanner *s, struct rectype *r, char *buf)
 {
+	struct m0_be_seg_hdr *h   = (void *)buf;
+
+	if (s->s_gen == 0) {
+		s->s_gen = h->bh_gen;
+		printf("\nSource segment header generation\n");
+	} else {
+		genadd(h->bh_gen);
+		printf("\nFound another segment header generation\n");
+	}
+	generation_print(h->bh_gen);
+
 	return 0;
 }
 
@@ -1121,12 +1144,18 @@ static void genadd(uint64_t gen)
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(g); ++i) {
-		if (g[i].g_gen == gen || g[i].g_count == 0) {
+	if (gen_count >= ARRAY_SIZE(g))
+		return;
+
+	for (i = 0; i < gen_count; ++i) {
+		if (g[i].g_gen == gen) {
 			g[i].g_count++;
-			break;
+			return;
 		}
 	}
+	g[gen_count].g_gen = gen;
+	g[gen_count].g_count = 1;
+	gen_count++;
 }
 
 static void builder_process(struct builder *b)
@@ -1307,6 +1336,9 @@ static int builder_init(struct builder *b)
 		m0_be_ut_backend_seg_add2(ub, b->b_size, true, NULL, &b->b_seg);
 		M0_ASSERT(b->b_seg != NULL);
 	}
+	printf("\nDestination segment header generation\n");
+	generation_print(b->b_seg->bs_gen);
+
 	result = m0_reqh_be_init(&b->b_reqh, b->b_seg);
 	if (result != 0)
 		return M0_ERR(result);
@@ -1725,7 +1757,12 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 							  tx, &op, &ca->cta_key,
 							  &ca->cta_val),
 				       bo_u.u_btree.t_rc);
-		if (rc != 0)
+
+		if (rc == 0) {
+			m0_ctg_state_inc_update(tx, ca->cta_key.b_nob -
+						M0_CAS_CTG_KV_HDR_SIZE +
+						ca->cta_val.b_nob);
+		} else
 			M0_LOG(M0_DEBUG, "Failed to insert record rc=%d", rc);
 	}
 }
