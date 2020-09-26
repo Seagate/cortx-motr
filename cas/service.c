@@ -1082,7 +1082,12 @@ static int op_sync_wait(struct m0_fom *fom)
 	return M0_FSO_AGAIN;
 }
 
-M0_INTERNAL void m0_cas_fom_in_deadlock(const struct m0_fom *fom0)
+/**
+ * Check specific deadlock case for PUT and DEL operation
+ * 1. PUT - lock->tx_open
+ * 2. DEL - tx_open->lock
+ */
+M0_INTERNAL bool m0_cas_fom_in_deadlock(const struct m0_fom *fom0)
 {
 	struct cas_fom         *fom   = M0_AMB(fom, fom0, cf_fom);;
 	struct m0_long_lock    *lock  = m0_ctg_lock(fom->cf_ctg);
@@ -1091,13 +1096,15 @@ M0_INTERNAL void m0_cas_fom_in_deadlock(const struct m0_fom *fom0)
 	enum m0_cas_opcode      opc   = m0_cas_opcode(fom0->fo_fop);
 	int                     phase = m0_fom_phase(fom0);
 
-	if (phase >= M0_FOPH_TYPE_SPECIFIC && 
-	    gr->tg_state == M0_BGS_FROZEN && !cas_is_ro(opc) &&
-	    ((phase == CAS_PREP && m0_be_tx_state(tx) == M0_BTS_GROUPING &&
+	if (gr->tg_state == M0_BGS_FROZEN && !cas_is_ro(opc) &&
+	    ((phase == M0_FOPH_TXN_WAIT &&
+	      m0_be_tx_state(tx) == M0_BTS_GROUPING &&
 	      m0_long_is_write_locked(lock, fom0)) ||
-	     (m0_be_tx_state(tx) == M0_BTS_ACTIVE &&
+	     (phase == CAS_IDROP_LOCKED &&
+	      m0_be_tx_state(tx) == M0_BTS_ACTIVE &&
 	      !m0_long_is_write_locked(lock, fom0))))
-		exit(1);	
+		return true;
+	return false;
 }
 
 static int cas_fom_tick(struct m0_fom *fom0)

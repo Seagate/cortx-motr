@@ -896,7 +896,7 @@ M0_INTERNAL struct m0_reqh *m0_fom2reqh(const struct m0_fom *fom);
 M0_INTERNAL int m0_fom_timedwait(struct m0_fom *fom, uint64_t phases,
 				 m0_time_t deadline);
 
-M0_INTERNAL void m0_cas_fom_in_deadlock(const struct m0_fom *fom0);
+M0_INTERNAL bool m0_cas_fom_in_deadlock(const struct m0_fom *fom0);
 
 #endif /* __MOTR_FOP_FOM_H__ */
 /** @} end of fom group */

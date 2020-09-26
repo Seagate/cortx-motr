@@ -53,6 +53,9 @@
 #include "fdmi/fol_fdmi_src.h"
 #include "motr/iem.h"
 
+#ifndef __KERNEL__
+#include <stdlib.h>
+#endif
 /**
  * @addtogroup fom
  *
@@ -337,19 +340,14 @@ M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom)
 		_0C(fom->fo_service->rs_type == fom->fo_type->ft_rstype);
 }
 
-
-static void m0_fom_in_deadlock(const struct m0_fom *fom0)
+static void m0_fom_check_deadlock(const struct m0_fom *fom)
 {
-	if (!M0_IN(fom0->fo_type->ft_id, (M0_CAS_GET_FOP_OPCODE,
-					  M0_CAS_PUT_FOP_OPCODE,
-					  M0_CAS_DEL_FOP_OPCODE,
-					  M0_CAS_CUR_FOP_OPCODE,
-					  M0_CAS_REP_FOP_OPCODE,
-					  M0_CAS_GCW_FOP_OPCODE,
-					  M0_CAS_GCF_FOP_OPCODE)))
+	if (!M0_IN(fom->fo_type->ft_id, (M0_CAS_PUT_FOP_OPCODE,
+					 M0_CAS_DEL_FOP_OPCODE)))
 	    return;
 #ifndef __KERNEL__
-	m0_cas_fom_in_deadlock(fom0);
+	if (m0_cas_fom_in_deadlock(fom))
+		exit(1);
 #endif
 }
 
@@ -376,7 +374,7 @@ static bool hung_fom_notify(const struct m0_fom *fom)
 
 	if (diff_in_sec > min_check(HUNG_FOP_LONG_TIME_SEC_MAX,
 				    HUNG_FOP_LONG_TIME_SEC_IEM))
-		m0_fom_in_deadlock(fom);
+		m0_fom_check_deadlock(fom);
 
 	if (diff_in_sec > min_check(HUNG_FOP_TIME_SEC_MAX,
 				    HUNG_FOP_TIME_SEC_IEM)) {
