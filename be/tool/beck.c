@@ -430,7 +430,7 @@ static bool  signaled = false;
 	M0_LOG(level, prefix " %li %s %hu:%hu:%u", s->s_off, recname(r), \
 	       (tag)->ot_version, (tag)->ot_type, (tag)->ot_size)
 
-static void  sig_handler(int num)
+static void sig_handler(int num)
 {
 	printf("Caught Signal %d \n", num);
 	signaled = true;
@@ -524,7 +524,7 @@ int main(int argc, char **argv)
 	result = scanner_init(&s);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise scanner.");
-	if(dry_run) {
+	if (dry_run) {
 		printf("Press CTRL+C to quit.\n");
 		signal(SIGINT, sig_handler);
 	}
