@@ -95,6 +95,8 @@ struct scanner {
 	m0_bcount_t	     s_max_reg_size;
 	/* Holds source metadata segment header generation identifier. */
 	uint64_t	     s_gen;
+	/* Holds source segment zero header/confd generation identifier. */
+	uint64_t	     s_gen0;
 };
 
 struct stats {
@@ -270,8 +272,8 @@ static void *scanner_action(size_t len, enum action_opcode opc,
 			    const struct action_ops *ops);
 
 static void genadd(uint64_t gen);
-static void generation_print(uint64_t gen);
-static void get_and_print_generation_id(FILE *fp);
+static void generation_id_print(uint64_t gen);
+static void generation_id_get(FILE *fp, uint64_t *gen_id);
 
 static int  scanner_init   (struct scanner *s);
 static int  builder_init   (struct builder *b);
@@ -394,9 +396,10 @@ static struct btype bt[] = {
 #undef _B
 
 enum {
-	MAX_GEN    	=     256,
-	MAX_QUEUED 	= 1000000,
-	MAX_REC_SIZE    = 64*1024
+	MAX_GEN    	    =     256,
+	MAX_QUEUED  	    = 1000000,
+	MAX_REC_SIZE        = 64*1024,
+	MAX_GEN_DIFF_IN_SEC = 30
 };
 
 /** It is used to recover meta data of component catalogue store. */
@@ -441,6 +444,7 @@ int main(int argc, char **argv)
 	bool                   print_gen_id = false;
 	struct queue           q            = {};
 	int                    result;
+	uint64_t	       gen_id	    = 0;
 	struct m0_be_tx_credit max;
 
 	m0_node_uuid_string_set(NULL);
@@ -459,7 +463,10 @@ int main(int argc, char **argv)
 		   M0_FLAGARG('b', "Scan every byte (10x slower).", &s.s_byte),
 		   M0_FLAGARG('U', "Run unit tests.", &ut),
 		   M0_FLAGARG('n', "Dry Run.", &dry_run),
-		   M0_FLAGARG('p', "Print Generation Identifier.", &print_gen_id),
+		   M0_FLAGARG('p', "Print Generation Identifier.",
+			      &print_gen_id),
+		   M0_FORMATARG('g', "Get Generation Identifier.", "%"PRIu64,
+				&s.s_gen0),
 		   M0_FLAGARG('V', "Version info.", &version),
 		   M0_STRINGARG('a', "stob domain path",
 			   LAMBDA(void, (const char *s) {
@@ -504,10 +511,26 @@ int main(int argc, char **argv)
 		      err(EX_NOINPUT, "Cannot seek snapshot to the beginning.");
 		printf("Snapshot size: %"PRId64".\n", s.s_size);
 	}
+
+	generation_id_get(s.s_file, &gen_id);
 	if (print_gen_id) {
-		get_and_print_generation_id(s.s_file);
+		generation_id_print(gen_id);
+		printf("\n");
 		fclose(s.s_file);
 		return EX_OK;
+	}
+
+	printf("\nSource segment0 header/confd generation identifier\n");
+	generation_id_print(s.s_gen0);
+
+	s.s_gen = gen_id;
+	printf("\nSource segment1 header generation identifier\n");
+	generation_id_print(s.s_gen);
+	if (!dry_run && s.s_gen == 0)
+	{
+		s.s_gen0 != 0 ? s.s_gen = s.s_gen0 :
+				err(EX_CONFIG, "Cannot find any segment header \
+				    generation identifer");
 	}
 	/*
 	 * Skip builder related calls for dry run as we will not be building a
@@ -547,7 +570,7 @@ static char iobuf[4*1024*1024];
 
 enum { DELTA = 60 };
 
-static void generation_print(uint64_t gen)
+static void generation_id_print(uint64_t gen)
 {
 	time_t    ts = m0_time_seconds(gen);
 	struct tm tm;
@@ -559,13 +582,12 @@ static void generation_print(uint64_t gen)
 	       m0_time_nanoseconds(gen), gen);
 }
 
-static void get_and_print_generation_id(FILE *fp)
+static void generation_id_get(FILE *fp, uint64_t *gen_id)
 {
 	struct m0_format_tag    tag = {};
 	int                     type = M0_FORMAT_TYPE_BE_SEG_HDR;
 	struct m0_be_seg_hdr    seg_hdr;
 	const char             *rt_be_cksum;
-	uint64_t                gen_id;
 	int                     result = EX_OK;
 
 	if (fread(&seg_hdr, 1, sizeof(seg_hdr), fp) == sizeof(seg_hdr)) {
@@ -585,9 +607,7 @@ static void get_and_print_generation_id(FILE *fp)
 				/* After confirming the segment header we can
 				 * read the embedded generation id.
 				 */
-				gen_id = seg_hdr.bh_items[0].sg_gen;
-				generation_print(gen_id);
-				printf("\n");
+				*gen_id = seg_hdr.bh_items[0].sg_gen;
 			} else
 				result = -EX_DATAERR;
 
@@ -604,8 +624,11 @@ static int scanner_init(struct scanner *s)
 {
 	int rc;
 
-	/** Initialising segment header generation identifier explicitly. */
-	s->s_gen = 0;
+	rc = fseeko(s->s_file, 0, SEEK_SET);
+	if (rc != 0) {
+		M0_LOG(M0_FATAL, "Can not seek at the beginning of file");
+		return rc;
+	}
 	rc = getat(s, 0, s->s_chunk, sizeof s->s_chunk);
 	if (rc != 0)
 		M0_LOG(M0_FATAL, "Can not read first chunk");
@@ -676,7 +699,7 @@ static int scan(struct scanner *s)
 	printf("\ngenerations\n");
 	for (i = 0; i < ARRAY_SIZE(g); ++i) {
 		if (g[i].g_count > 0) {
-			generation_print(g[i].g_gen);
+			generation_id_print(g[i].g_gen);
 			printf(" : %9"PRId64"\n", g[i].g_count);
 		}
 	}
@@ -916,12 +939,16 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	int                 idx  = node->bt_backlink.bli_type;
 	struct btype       *b;
 	struct bstats      *c;
+	m0_time_t           diff;
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
 		idx = ARRAY_SIZE(bt) - 1;
+
 	genadd(node->bt_backlink.bli_gen);
-	if (s->s_gen != 0 && s->s_gen != node->bt_backlink.bli_gen)
+	diff = m0_time_sub(node->bt_backlink.bli_gen, s->s_gen);
+	if (m0_time_seconds(diff) > MAX_GEN_DIFF_IN_SEC)
 		return 0;
+
 	b = &bt[idx];
 	c = &b->b_stats;
 	c->c_node++;
@@ -1148,15 +1175,12 @@ static int seghdr(struct scanner *s, struct rectype *r, char *buf)
 {
 	struct m0_be_seg_hdr *h   = (void *)buf;
 
-	if (s->s_gen == 0) {
-		s->s_gen = h->bh_gen;
-		printf("\nSource segment header generation\n");
-	} else {
+	if (s->s_gen != h->bh_gen) {
 		genadd(h->bh_gen);
 		printf("\nFound another segment header generation\n");
+		generation_id_print(h->bh_gen);
 	}
-	generation_print(h->bh_gen);
-	/* 
+	/*
 	 * Flush immediately to avoid losing this information within other lines
 	 * coming on the screen at the same time.
 	 */
@@ -1374,8 +1398,8 @@ static int builder_init(struct builder *b)
 		M0_ASSERT(b->b_seg != NULL);
 	}
 	printf("\nDestination segment header generation\n");
-	generation_print(b->b_seg->bs_gen);
-	/* 
+	generation_id_print(b->b_seg->bs_gen);
+	/*
 	 * Flush immediately to avoid losing this information within other lines
 	 * coming on the screen at the same time.
 	 */
