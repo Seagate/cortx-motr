@@ -271,11 +271,12 @@ static void *scanner_action(size_t len, enum action_opcode opc,
 
 static void genadd(uint64_t gen);
 static void generation_print(uint64_t gen);
+static void get_and_print_generation_id(FILE *fp);
 
 static int  scanner_init   (struct scanner *s);
 static int  builder_init   (struct builder *b);
 static void builder_fini   (struct builder *b);
-static void  ad_dom_fini    (struct builder *b);
+static void ad_dom_fini    (struct builder *b);
 static void builder_thread (struct builder *b);
 static void builder_process(struct builder *b);
 
@@ -419,7 +420,6 @@ struct ctg_action {
 static struct scanner s;
 static struct builder b;
 static struct gen g[MAX_GEN] = {};
-static uint16_t gen_count = 0;
 
 static bool  dry_run = false;
 
@@ -433,12 +433,13 @@ static bool  dry_run = false;
 
 int main(int argc, char **argv)
 {
-	struct m0              instance = {};
-	const char            *spath    = NULL;
-	int                    sfd      = 0; /* Use stdin by default. */
-	bool                   ut       = false;
-	bool                   version  = false;
-	struct queue           q        = {};
+	struct m0              instance     = {};
+	const char            *spath        = NULL;
+	int                    sfd          = 0; /* Use stdin by default. */
+	bool                   ut           = false;
+	bool                   version      = false;
+	bool                   print_gen_id = false;
+	struct queue           q            = {};
 	int                    result;
 	struct m0_be_tx_credit max;
 
@@ -458,6 +459,7 @@ int main(int argc, char **argv)
 		   M0_FLAGARG('b', "Scan every byte (10x slower).", &s.s_byte),
 		   M0_FLAGARG('U', "Run unit tests.", &ut),
 		   M0_FLAGARG('n', "Dry Run.", &dry_run),
+		   M0_FLAGARG('p', "Print Generation Identifier.", &print_gen_id),
 		   M0_FLAGARG('V', "Version info.", &version),
 		   M0_STRINGARG('a', "stob domain path",
 			   LAMBDA(void, (const char *s) {
@@ -480,7 +482,7 @@ int main(int argc, char **argv)
 	if (dry_run)
 		printf("Running in read-only mode.\n");
 
-	if (b.b_dom_path == NULL && !dry_run)
+	if (b.b_dom_path == NULL && !dry_run && !print_gen_id)
 		errx(EX_USAGE, "Specify domain path (-d).");
 	if (spath != NULL) {
 		sfd = open(spath, O_RDONLY);
@@ -501,6 +503,11 @@ int main(int argc, char **argv)
 		if (result != 0)
 		      err(EX_NOINPUT, "Cannot seek snapshot to the beginning.");
 		printf("Snapshot size: %"PRId64".\n", s.s_size);
+	}
+	if (print_gen_id) {
+		get_and_print_generation_id(s.s_file);
+		fclose(s.s_file);
+		return EX_OK;
 	}
 	/*
 	 * Skip builder related calls for dry run as we will not be building a
@@ -546,10 +553,51 @@ static void generation_print(uint64_t gen)
 	struct tm tm;
 
 	localtime_r(&ts, &tm);
-	printf("%04d-%02d-%02d-%02d:%02d:%02d.%09lu",
+	printf("%04d-%02d-%02d-%02d:%02d:%02d.%09lu  (%lu)",
 	       tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 	       tm.tm_hour, tm.tm_min, tm.tm_sec,
-	       m0_time_nanoseconds(gen));
+	       m0_time_nanoseconds(gen), gen);
+}
+
+static void get_and_print_generation_id(FILE *fp)
+{
+	struct m0_format_tag    tag = {};
+	int                     type = M0_FORMAT_TYPE_BE_SEG_HDR;
+	struct m0_be_seg_hdr    seg_hdr;
+	const char             *rt_be_cksum;
+	uint64_t                gen_id;
+	int                     result = EX_OK;
+
+	if (fread(&seg_hdr, 1, sizeof(seg_hdr), fp) == sizeof(seg_hdr)) {
+
+		m0_format_header_unpack(&tag, &seg_hdr.bh_header);
+
+		if (seg_hdr.bh_header.hd_magic == M0_FORMAT_HEADER_MAGIC &&
+		    type == tag.ot_type &&
+		    memcmp(&tag, &rt[type].r_tag, sizeof tag) == 0 &&
+		    m0_format_footer_verify(&seg_hdr, 0) == 0) {
+
+			rt_be_cksum = m0_build_info_get()->
+						bi_xcode_protocol_be_checksum;
+			if (strncmp(seg_hdr.bh_be_version, rt_be_cksum,
+				    M0_BE_SEG_HDR_VERSION_LEN_MAX) == 0 &&
+			    seg_hdr.bh_items_nr == 1) {
+				/* After confirming the segment header we can
+				 * read the embedded generation id.
+				 */
+				gen_id = seg_hdr.bh_items[0].sg_gen;
+				generation_print(gen_id);
+				printf("\n");
+			} else
+				result = -EX_DATAERR;
+
+		} else
+			result = -EX_DATAERR;
+	} else
+		result = -EX_DATAERR;
+
+	if (result == -EX_DATAERR)
+		printf("Invalid format / Checksum error for segment header\n");
 }
 
 static int scanner_init(struct scanner *s)
@@ -626,9 +674,11 @@ static int scan(struct scanner *s)
 		printf("\n*bad kv count is not availabe in dry run mode\n");
 
 	printf("\ngenerations\n");
-	for (i = 0; i < gen_count; ++i) {
-		generation_print(g[i].g_gen);
-		printf(" : %9"PRId64"\n", g[i].g_count);
+	for (i = 0; i < ARRAY_SIZE(g); ++i) {
+		if (g[i].g_count > 0) {
+			generation_print(g[i].g_gen);
+			printf(" : %9"PRId64"\n", g[i].g_count);
+		}
 	}
 	return feof(s->s_file) ? 0 : result;
 }
@@ -1106,6 +1156,11 @@ static int seghdr(struct scanner *s, struct rectype *r, char *buf)
 		printf("\nFound another segment header generation\n");
 	}
 	generation_print(h->bh_gen);
+	/* 
+	 * Flush immediately to avoid losing this information within other lines
+	 * coming on the screen at the same time.
+	 */
+	fflush(stdout);
 
 	return 0;
 }
@@ -1131,18 +1186,13 @@ static void genadd(uint64_t gen)
 {
 	int i;
 
-	if (gen_count >= ARRAY_SIZE(g))
-		return;
-
-	for (i = 0; i < gen_count; ++i) {
-		if (g[i].g_gen == gen) {
+	for (i = 0; i < ARRAY_SIZE(g); ++i) {
+		if (g[i].g_gen == gen || g[i].g_count == 0) {
 			g[i].g_count++;
-			return;
+			g[i].g_gen = gen;
+			break;
 		}
 	}
-	g[gen_count].g_gen = gen;
-	g[gen_count].g_count = 1;
-	gen_count++;
 }
 
 static void builder_process(struct builder *b)
@@ -1325,6 +1375,11 @@ static int builder_init(struct builder *b)
 	}
 	printf("\nDestination segment header generation\n");
 	generation_print(b->b_seg->bs_gen);
+	/* 
+	 * Flush immediately to avoid losing this information within other lines
+	 * coming on the screen at the same time.
+	 */
+	fflush(stdout);
 
 	result = m0_reqh_be_init(&b->b_reqh, b->b_seg);
 	if (result != 0)
