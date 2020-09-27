@@ -37,6 +37,10 @@
 #include "lib/getopts.h"
 #include "motr/client_internal.h"
 
+#if defined(M0_DARWIN)
+#include <libgen.h>                    /* basename */
+#endif
+
 extern struct m0_addb_ctx m0_addb_ctx;
 
 static int noop_lock_init(struct m0_obj *obj)
@@ -1053,20 +1057,16 @@ int m0_utility_args_init(int argc, char **argv,
 				  continue;
 			case 's': if (m0_bcount_get(optarg,
 						    &params->cup_block_size) ==
-						    0) {
-					if (bsize_valid(params->cup_block_size))
+						    0 &&
+				      bsize_valid(params->cup_block_size))
 						continue;
-					fprintf(stderr, "Invalid value for -%c."
-							" Block size "
-							"should be multiple of "
-							"4k and in the range of"
-							" (4k,32m)\n", c);
-					utility_usage(stderr,
-						      basename(argv[0]));
-					exit(EXIT_FAILURE);
-				  }
-				  utility_usage(stderr, basename(argv[0]));
-				  exit(EXIT_FAILURE);
+				fprintf(stderr, "Invalid value for -%c."
+					" Block size "
+					"should be multiple of "
+					"4k and in the range of"
+					" (4k,32m)\n", c);
+				utility_usage(stderr, basename(argv[0]));
+				exit(EXIT_FAILURE);
 			case 'b': if ((params->cup_blks_per_io = atoi(optarg)) < 0)
 				  {
 					fprintf(stderr, "Invalid value "
@@ -1080,41 +1080,32 @@ int m0_utility_args_init(int argc, char **argv,
 				  continue;
 			case 'i':
 			case 'c': if (m0_bcount_get(optarg,
-						    &params->cup_block_count) ==
+						    &params->cup_block_count) !=
 						    0) {
-					if (params->cup_block_count < 0) {
-						fprintf(stderr, "Invalid value "
-							"%lu for -%c. Block "
-							"count should be > 0\n",
-							params->cup_block_count,
-							c);
-						utility_usage(stderr,
-							      basename(argv[0])
-							     );
-						exit(EXIT_FAILURE);
-					}
-					continue;
+					  fprintf(stderr, "Invalid value "
+						  "%lu for -%c. Block "
+						  "count should be > 0\n",
+						  params->cup_block_count,
+						  c);
+					  utility_usage(stderr,
+							basename(argv[0]));
+					  exit(EXIT_FAILURE);
 				  }
-				  utility_usage(stderr, basename(argv[0]));
-				  exit(EXIT_FAILURE);
+				continue;
 			case 't': if (m0_bcount_get(optarg,
-						    &params->cup_trunc_len) ==
+						    &params->cup_trunc_len) !=
 						    0) {
-					if (params->cup_trunc_len <= 0) {
-						fprintf(stderr, "Invalid value "
-							"%lu for -%c. Truncate "
-							"length should be "
-							"> 0\n",
-							params->cup_trunc_len,
-							c);
-						utility_usage(stderr,
-							      basename(argv[0])
-							     );
-						exit(EXIT_FAILURE);
-					}
-					continue;
-				  }
-				  utility_usage(stderr, basename(argv[0]));
+					fprintf(stderr, "Invalid value "
+						"%lu for -%c. Truncate "
+						"length should be "
+						"> 0\n",
+						params->cup_trunc_len,
+						c);
+					utility_usage(stderr,
+						      basename(argv[0]));
+					exit(EXIT_FAILURE);
+				}
+				continue;
 				  exit(EXIT_FAILURE);
 			case 'L': conf->mc_layout_id = atoi(optarg);
 				  if (conf->mc_layout_id <= 0 ||
@@ -1139,20 +1130,14 @@ int m0_utility_args_init(int argc, char **argv,
 				  continue;
 			/* Update offset should be in multiple of 4k. */
 			case 'O': if (!m0_bcount_get(optarg,
-						     &params->cup_offset))
-				  {
-					if (params->cup_offset %
-					    BLK_SIZE_4k == 0)
-						continue;
-					fprintf(stderr, "Invalid value for "
-							"-%c. offset should be "
-							"multiple of 4k\n", c);
-					utility_usage(stderr,
-						      basename(argv[0]));
-					exit(EXIT_FAILURE);
-				  }
-				  utility_usage(stderr, basename(argv[0]));
-				  exit(EXIT_FAILURE);
+						     &params->cup_offset) &&
+				      (params->cup_offset % BLK_SIZE_4k == 0))
+					  continue;
+				fprintf(stderr, "Invalid value for "
+					"-%c. offset should be "
+					"multiple of 4k\n", c);
+				utility_usage(stderr, basename(argv[0]));
+				exit(EXIT_FAILURE);
 			case 'r': conf->mc_is_read_verify = true;
 				  continue;
 			case 'S': temp = atoi(optarg);

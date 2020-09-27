@@ -27,6 +27,10 @@
 #include <string.h>     /* strcpy, basename */
 #include <sysexits.h>   /* EX_* exit codes (EX_OSERR, EX_SOFTWARE) */
 
+#if defined(M0_DARWIN)
+#include <libgen.h>                    /* basename */
+#endif
+
 #include "module/instance.h"       /* m0 */
 #include "motr/init.h"             /* m0_init */
 #include "lib/uuid.h"              /* m0_node_uuid_string_set */
@@ -45,10 +49,10 @@ int main(int argc, char *argv[])
 	static struct m0 instance;
 
 	const char  std_inout_file_name[] = "-";
-	const char *input_file_name       = std_inout_file_name;
-	const char *output_file_name      = std_inout_file_name;
-	const char *m0tr_ko_path          = DEFAULT_MOTR_KO_IMG_PATH;
-	enum m0_trace_parse_flags flags   = M0_TRACE_PARSE_DEFAULT_FLAGS;
+	CAPTURED const char *input_file_name       = std_inout_file_name;
+	CAPTURED const char *output_file_name      = std_inout_file_name;
+	CAPTURED const char *m0tr_ko_path          = DEFAULT_MOTR_KO_IMG_PATH;
+	CAPTURED enum m0_trace_parse_flags flags = M0_TRACE_PARSE_DEFAULT_FLAGS;
 	FILE       *input_file;
 	FILE       *output_file;
 	int         rc;
