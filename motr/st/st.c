@@ -397,7 +397,7 @@ int st_run(const char *test_list_str)
 	uint64_t nr_failed_asserts = 0;
 	uint64_t csec;
 
-	worker_idx  = st_get_worker_idx(get_tid());
+	worker_idx  = st_get_worker_idx(m0_tid());
 	if (worker_idx < 0)
 		return worker_idx;
 

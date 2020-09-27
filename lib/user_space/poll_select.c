@@ -38,7 +38,9 @@
 /* M0_POLL_USE_SELECT */
 #endif
 
-/** @} end of semaphore group */
+#undef M0_TRACE_SUBSYSTEM
+
+/** @} end of poll group */
 
 /*
  *  Local variables:

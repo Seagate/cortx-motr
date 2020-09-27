@@ -182,7 +182,7 @@ static void* st_worker(void *in)
 
 	/* set tid of this worker thread*/
 	idx = *((int *)in);
-	tid = get_tid();
+	tid = m0_tid();
 	st_set_worker_tid(idx, tid);
 
 	cfg = st_get_cfg();

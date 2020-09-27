@@ -97,7 +97,7 @@ bool st_assertimpl(bool c, const char *str_c, const char *file,
 	int                    idx;
 	struct st_worker_stat *st;
 
-	idx = st_get_worker_idx(get_tid());
+	idx = st_get_worker_idx(m0_tid());
 	st = st_get_worker_stat(idx);
 	if (st == NULL)
 		goto EXIT;
@@ -121,7 +121,7 @@ static inline struct st_cleaning_bin *get_bin(void)
 {
 	int widx;
 
-	widx = st_get_worker_idx(get_tid());
+	widx = st_get_worker_idx(m0_tid());
 	if (widx < 0)
 		return NULL;
 
@@ -327,7 +327,7 @@ bool st_is_cleaner_up()
 {
 	int widx;
 
-	widx = st_get_worker_idx(get_tid());
+	widx = st_get_worker_idx(m0_tid());
 	if (widx < 0)
 		return false;
 
@@ -338,7 +338,7 @@ void st_cleaner_enable()
 {
 	int widx;
 
-	widx = st_get_worker_idx(get_tid());
+	widx = st_get_worker_idx(m0_tid());
 	if (widx < 0)
 		return;
 
@@ -349,7 +349,7 @@ void st_cleaner_disable()
 {
 	int widx;
 
-	widx = st_get_worker_idx(get_tid());
+	widx = st_get_worker_idx(m0_tid());
 	if (widx < 0)
 		return;
 

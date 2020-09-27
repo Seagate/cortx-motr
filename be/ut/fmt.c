@@ -600,19 +600,19 @@ Motr panic reason: signo: 11
 		{
 			.cfg = CFG(0xEA, 100, 99, 800),
 			.encoded_spoil = LAMBDA
-				((struct m0_be_ut_fmt_group_test *t,
+			(void, (struct m0_be_ut_fmt_group_test *t,
 				  struct m0_buf *b) { return spoil_nr(t, b); })
 		},
 		{
 			.cfg = CFG(10, 0xEA, 99, 0xEA * 8),
 			.encoded_spoil = LAMBDA
-				((struct m0_be_ut_fmt_group_test *t,
+			(void, (struct m0_be_ut_fmt_group_test *t,
 				  struct m0_buf *b) { return spoil_nr(t, b); })
 		},
 		{
 			.cfg = CFG(10, 100, 0xEA, 800),
 			.encoded_spoil = LAMBDA
-				((struct m0_be_ut_fmt_group_test *t,
+			(void, (struct m0_be_ut_fmt_group_test *t,
 				  struct m0_buf *b) { return spoil_nr(t, b); })
 		},
 		{

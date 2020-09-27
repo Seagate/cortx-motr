@@ -292,6 +292,11 @@ M0_INTERNAL uint64_t m0_pid(void)
 	return current->pid;
 }
 
+M0_INTERNAL uint64_t m0_tid(void)
+{
+	return current->pid;
+}
+
 M0_INTERNAL uint64_t m0_process(void)
 {
 	return 0;

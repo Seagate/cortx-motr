@@ -179,8 +179,8 @@ M0_INTERNAL int m0_stob_linux_io_init(struct m0_stob *stob,
 
 static void stob_linux_io_release(struct stob_linux_io *lio)
 {
-	if (lio->si_qev != NULL)
-		m0_free(lio->si_qev->iq_iocb.u.v.vec);
+	if (lio->si_qev != NULL) /* Discard const. */
+		m0_free((void *)lio->si_qev->iq_iocb.u.v.vec);
 	m0_free0(&lio->si_qev);
 }
 

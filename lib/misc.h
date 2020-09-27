@@ -114,8 +114,10 @@ M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
 	unsigned __nr = (nr);			\
 	unsigned var;				\
 						\
-	for (var = 0; var < __nr ; ++var)	\
-		({ __VA_ARGS__ ; });		\
+	for (var = 0; var < __nr ; ++var) {	\
+		if (!({ __VA_ARGS__ ; }))	\
+			break;			\
+	}					\
 	var == __nr;				\
 })
 

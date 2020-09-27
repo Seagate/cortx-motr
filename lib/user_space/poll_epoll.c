@@ -27,6 +27,8 @@
 #include "lib/types.h"
 #include "lib/misc.h"           /* M0_IS0 */
 
+#include <unistd.h>             /* close */
+
 /**
    @addtogroup poll
 
@@ -74,13 +76,13 @@ M0_INTERNAL int m0_poll(struct m0_poll_data *pd, int msec)
 
 M0_INTERNAL void *m0_poll_ev_datum(struct m0_poll_data *pd, int i)
 {
-	M0_PRE(0 <= i && i < data->pd_nr);
+	M0_PRE(0 <= i && i < pd->pd_nr);
 	return pd->pd_ev[i].data.ptr;
 }
 
 M0_INTERNAL uint64_t m0_poll_ev_flags(struct m0_poll_data *pd, int i)
 {
-	M0_PRE(0 <= i && i < data->pd_nr);
+	M0_PRE(0 <= i && i < pd->pd_nr);
 	return pd->pd_ev[i].events;
 }
 

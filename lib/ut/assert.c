@@ -25,7 +25,7 @@
 
 void test_0C(void)
 {
-	M0_UT_ASSERT(m0_failed_condition == NULL);
+	m0_failed_condition = NULL;
 	M0_UT_ASSERT(!_0C(true && _0C(false)));
 	M0_UT_ASSERT(m0_streq(m0_failed_condition, "false"));
 	M0_UT_ASSERT(_0C(true));

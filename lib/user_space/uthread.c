@@ -26,6 +26,7 @@
 #include <stdio.h>       /* snprinf */
 
 #if defined(M0_LINUX)
+#include <sys/syscall.h>        /* SYS_gettid */
 #include <linux/limits.h>       /* PATH_MAX */
 #elif defined(M0_DARWIN)
 #include <sys/syslimits.h>      /* PATH_MAX */

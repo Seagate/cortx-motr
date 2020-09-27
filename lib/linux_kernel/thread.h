@@ -65,6 +65,10 @@ M0_INTERNAL void m0_thread__cleanup(struct m0_thread *bye);
 M0_INTERNAL struct m0_thread_tls *m0_thread_tls_pop(void);
 M0_INTERNAL void m0_thread_tls_back(struct m0_thread_tls *tls);
 
+#define LAMBDA(T, ...) DO-NOT-USE-LAMBDA-IN-KERNEL!@$%^&* 
+#define CAPTURED 
+#define LAMBDA_T *
+
 /** @} end of thread group */
 #endif /* __MOTR_LIB_LINUX_KERNEL_THREAD_H__ */
 

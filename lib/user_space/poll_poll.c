@@ -147,6 +147,8 @@ static int fd_get(struct m0_poll *poll, int idx)
 /* M0_POLL_USE_POLL */
 #endif
 
+#undef M0_TRACE_SUBSYSTEM
+
 /** @} end of poll group */
 
 /*

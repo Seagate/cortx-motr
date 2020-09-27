@@ -27,9 +27,9 @@
 
 #include "lib/types.h"		/* uint16_t */
 
-#if M0_LINUX
+#if defined(M0_LINUX)
 #include <asm/byteorder.h> /* __cpu_to_be16 */
-#elif M0_DARWIN
+#elif defined(M0_DARWIN)
 #include <libkern/OSByteOrder.h>
 #define __cpu_to_be16 OSSwapHostToBigInt16
 #define __cpu_to_be32 OSSwapHostToBigInt32

@@ -21,6 +21,7 @@
 
 
 #include <Python.h>
+#include "config.h"
 #include "motr/ha.h"            /* m0_motr_ha */
 #include "module/instance.h"
 #include "net/net.h"

@@ -241,13 +241,11 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 #if defined(M0_LINUX)
 	register unsigned long      sp asm("sp"); /* stack pointer */
 #elif defined(M0_DARWIN)
-#define sp_get() ({				\
-	register unsigned long __sp asm("esp"); \
-	asm("" : "=r"(__sp));			\
-	__sp;					\
-})
-	unsigned long               sp = sp_get();
-#undef sp_get
+	unsigned long               sp = ({
+			register unsigned long __sp asm("esp");
+			asm("" : "=r"(__sp));
+			__sp;
+		});
 #endif
 
 #ifdef ENABLE_RESTRICTED_TRACE_MODE
@@ -663,17 +661,17 @@ int m0_trace_magic_sym_extra_addr_add(const void *addr)
 
 	if (tbh == (void*)bootlog.bl_area.ta_buf)
 		/* trace subsystem is not ready yet */
-		return M0_ERR(-EBUSY);
+		return -EBUSY;
 
 	if (tbh->tbh_magic_sym_addresses_nr >=
 	    ARRAY_SIZE(tbh->tbh_magic_sym_addresses))
 		/* no free slots available in the magic sym array */
-		return M0_ERR(-ENOSPC);
+		return -ENOSPC;
 
 	i = tbh->tbh_magic_sym_addresses_nr++;
 	if (i >= ARRAY_SIZE(tbh->tbh_magic_sym_addresses))
 		/* other thread must have stolen the last free slot from us */
-		return M0_ERR(-ENOSPC);
+		return -ENOSPC;
 
 	tbh->tbh_magic_sym_addresses[i] = addr;
 
