@@ -95,8 +95,8 @@ struct scanner {
 	m0_bcount_t	     s_max_reg_size;
 	/* Holds source metadata segment header generation identifier. */
 	uint64_t	     s_gen;
-	/* Holds source segment zero header/confd generation identifier. */
-	uint64_t	     s_gen0;
+	/* Set variable when correct generation identifier has been found */
+	bool	             s_gen_found;
 };
 
 struct stats {
@@ -274,6 +274,7 @@ static void *scanner_action(size_t len, enum action_opcode opc,
 static void genadd(uint64_t gen);
 static void generation_id_print(uint64_t gen);
 static void generation_id_get(FILE *fp, uint64_t *gen_id);
+static int  generation_id_verify(struct scanner *s, uint64_t gen);
 
 static int  scanner_init   (struct scanner *s);
 static int  builder_init   (struct builder *b);
@@ -396,10 +397,10 @@ static struct btype bt[] = {
 #undef _B
 
 enum {
-	MAX_GEN    	    =     256,
-	MAX_QUEUED  	    = 1000000,
-	MAX_REC_SIZE        = 64*1024,
-	MAX_GEN_DIFF_IN_SEC = 30
+	MAX_GEN    	 =     256,
+	MAX_QUEUED  	 = 1000000,
+	MAX_REC_SIZE     = 64*1024,
+	MAX_GEN_DIFF_SEC = 30
 };
 
 /** It is used to recover meta data of component catalogue store. */
@@ -466,7 +467,7 @@ int main(int argc, char **argv)
 		   M0_FLAGARG('p', "Print Generation Identifier.",
 			      &print_gen_id),
 		   M0_FORMATARG('g', "Get Generation Identifier.", "%"PRIu64,
-				&s.s_gen0),
+				&s.s_gen),
 		   M0_FLAGARG('V', "Version info.", &version),
 		   M0_STRINGARG('a', "stob domain path",
 			   LAMBDA(void, (const char *s) {
@@ -519,23 +520,22 @@ int main(int argc, char **argv)
 		fclose(s.s_file);
 		return EX_OK;
 	}
+	if (s.s_gen != 0) {
+		s.s_gen_found = true;
+		printf("\nReceived source segment header generation id\n");
+		generation_id_print(s.s_gen);
+	}
 
-	printf("\nSource segment0 header/confd generation identifier\n");
-	generation_id_print(s.s_gen0);
-
-	s.s_gen = gen_id;
-	printf("\nSource segment1 header generation identifier\n");
+	s.s_gen = gen_id ?: s.s_gen;
+	printf("\nSource segment header generation id to be used by beck.\n");
 	generation_id_print(s.s_gen);
 	/*
-	 * If segment 1 header generation identifier is corrupted then use
-	 * segment 0 header generation identifier. If both segment's generation
-	 * identifier is corrupted then abort beck tool.
+	 *  If both segment's generation identifier is corrupted then abort
+	 *  beck tool.
 	 */
-	if (!dry_run && s.s_gen == 0)
-	{
-		s.s_gen0 != 0 ? s.s_gen = s.s_gen0 :
-				err(EX_CONFIG, "Cannot find any segment header \
-				    generation identifer");
+	if (!dry_run && s.s_gen == 0) {
+		printf("Cannot find any segment header generation identifer");
+		return EX_DATAERR;
 	}
 	/*
 	 * Skip builder related calls for dry run as we will not be building a
@@ -624,6 +624,21 @@ static void generation_id_get(FILE *fp, uint64_t *gen_id)
 
 	if (result == -EX_DATAERR)
 		printf("Invalid format / Checksum error for segment header\n");
+}
+
+static int generation_id_verify(struct scanner *s, uint64_t gen)
+{
+	if (gen == s->s_gen)
+		return 0;
+	else if (s->s_gen_found)
+		return M0_ERR(-EINVAL);
+	else if (gen > s->s_gen &&
+		 m0_time_seconds(m0_time_sub(gen, s->s_gen)) > MAX_GEN_DIFF_SEC)
+		return M0_ERR(-ETIME);
+	else if (gen < s->s_gen &&
+		 m0_time_seconds(m0_time_sub(s->s_gen, gen)) > MAX_GEN_DIFF_SEC)
+		return M0_ERR(-ETIME);
+	return 0;
 }
 
 static int scanner_init(struct scanner *s)
@@ -932,6 +947,12 @@ static int btree(struct scanner *s, struct rectype *r, char *buf)
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
 		idx = ARRAY_SIZE(bt) - 1;
+
+	genadd(tree->bb_backlink.bli_gen);
+	if (!s->s_gen_found) {
+		s->s_gen_found = true;
+		s->s_gen = tree->bb_backlink.bli_gen;
+	}
 	b = &bt[idx];
 	b->b_stats.c_tree++;
 	return 0;
@@ -941,16 +962,11 @@ static int btree_check(struct scanner *s, struct rectype *r, char *buf)
 {
 	struct m0_be_btree *tree = (void *)buf;
 	int                 idx  = tree->bb_backlink.bli_type;
-	m0_time_t           diff;
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
 		return M0_ERR(-ENOENT);
 
-	genadd(tree->bb_backlink.bli_gen);
-	diff = m0_time_sub(tree->bb_backlink.bli_gen, s->s_gen);
-	if (diff != 0 && m0_time_seconds(diff) > MAX_GEN_DIFF_IN_SEC)
-		return M0_ERR(-ETIME);
-	return 0;
+	return generation_id_verify(s, tree->bb_backlink.bli_gen);
 }
 
 static void *scanner_action(size_t len, enum action_opcode opc,
@@ -977,6 +993,11 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
 		idx = ARRAY_SIZE(bt) - 1;
 
+	genadd(node->bt_backlink.bli_gen);
+	if (!s->s_gen_found) {
+		s->s_gen_found = true;
+		s->s_gen = node->bt_backlink.bli_gen;
+	}
 	b = &bt[idx];
 	c = &b->b_stats;
 	c->c_node++;
@@ -995,16 +1016,11 @@ static int bnode_check(struct scanner *s, struct rectype *r, char *buf)
 {
 	struct m0_be_bnode *node = (void *)buf;
 	int                 idx  = node->bt_backlink.bli_type;
-	m0_time_t           diff;
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
 		return M0_ERR(-ENOENT);
 
-	genadd(node->bt_backlink.bli_gen);
-	diff = m0_time_sub(node->bt_backlink.bli_gen, s->s_gen);
-	if (diff != 0 && m0_time_seconds(diff) > MAX_GEN_DIFF_IN_SEC)
-		return M0_ERR(-ETIME);
-	return 0;
+	return generation_id_verify(s, node->bt_backlink.bli_gen);
 }
 
 static struct m0_stob_ad_domain *emap_dom_find(const struct action *act,
