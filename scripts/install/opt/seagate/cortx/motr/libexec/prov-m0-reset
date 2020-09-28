@@ -1,15 +1,35 @@
 #!/usr/bin/env bash
+
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# This program is free software: you can redistribute it and/or modify it under the
+# terms of the GNU Affero General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License along
+# with this program. If not, see <https://www.gnu.org/licenses/>. For any questions
+# about this software or licensing, please email opensource@seagate.com or
+# cortx-questions@seagate.com.
+
 set -eu -o pipefail
 export PS4='+ [${BASH_SOURCE[0]##*/}:${LINENO}${FUNCNAME[0]:+:${FUNCNAME[0]}}] '
-#set -x
+set -x
 
 PROG=${0##*/}
+
+log_file=${M0_RESET_LOG_FILE:-/var/log/m0-reset.log}
+exec &>> $log_file
+exec &> >(stdbuf -oL gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), $0 }')
 
 usage() {
     cat <<EOF
 Usage: $PROG [OPTS] <CDF> [<params.yaml>]
 
-Formats EES Cortx MOTR storage.
+Formats LDR-R1 Cortx MOTR storage.
 
 Here are some prerequisites/guidelines:
 
@@ -19,25 +39,27 @@ Here are some prerequisites/guidelines:
 * The script should be run from the "left" node.
 
 Mandatory parameters:
-  --ip1           <addr>         1st roaming IP address
-  --ip2           <addr>         2nd roaming IP address.
-  --left-node     <n1>  Left  node hostname (default: pod-c1)
-  --right-node    <n2>  Right node hostname (default: pod-c2)
-  --left-volume   <lv>  Left  node /var/motr volume (default: /dev/sdb)
-  --right-volume  <rv>  Right node /var/motr volume (default: /dev/sdc)
-                  <CDF>          Hare Cluster Description File
+  --ip1           <addr> 1st roaming IP address
+  --ip2           <addr> 2nd roaming IP address.
+  --left-iface    <if>  Left node data nw interface (default: eth1)
+  --right-iface   <if>  Right node data nw interface (default: eth1)
+  --left-node     <n1>   Left node hostname (default: pod-c1)
+  --right-node    <n2>   Right node hostname (default: pod-c2)
+  --left-volume   <lv>   Left  node /var/motr volume (default: /dev/sdb)
+  --right-volume  <rv>   Right node /var/motr volume (default: /dev/sdc)
+                  <CDF>  Hare Cluster Description File
 
 Optional parameters:
-  --mkfs-only           run mkfs on motr meta data devices.
-  --single-node         run mkfs from single node only.
-  --start-consul        start consul
-  --stop-consul         stop  consul
-  --get-fid             <service-name> <node-name>  get fid of service
+  --mkfs-only            run mkfs on motr meta data devices.
+  --single-node          run mkfs from single node only.
+
 Note: parameters can be specified either directly via cmd-line options
 or via a yaml file, e.g.:
 
   ip1: <ip>
   ip2: <ip2>
+  left-iface: <iface>
+  right-iface: <iface>
   left-node: <lnode>
   right-node: <rnode>
   left-volume: <lvolume>
@@ -46,13 +68,10 @@ EOF
 }
 
 TEMP=$(getopt --options h,i: \
-              --longoptions help,ip1:,ip2: \
+              --longoptions help,ip1:,ip2:,interface:,left-iface:,right-iface: \
               --longoptions left-node:,right-node: \
               --longoptions left-volume:,right-volume: \
-              --longoptions start-consul \
-              --longoptions stop-consul \
-              --longoptions mkfs-only,single-node:, \
-              --longoptions get-fid \
+              --longoptions mkfs-only,single-node: \
               --name "$PROG" -- "$@" || true)
 
 (($? == 0)) || { usage >&2; exit 1; }
@@ -62,6 +81,8 @@ eval set -- "$TEMP"
 ip1=
 ip2=
 iface=eth1
+left_iface=
+right_iface=
 net_type=tcp
 lnode=pod-c1
 rnode=pod-c2
@@ -69,9 +90,6 @@ lvolume=/dev/sdb
 rvolume=/dev/sdc
 mkfs_only=
 single_node=false
-start_consul_only=
-stop_consul_only=
-get_fid_only=
 
 while true; do
     case "$1" in
@@ -79,16 +97,15 @@ while true; do
         --ip1)               ip1=$2; shift 2 ;;
         --ip2)               ip2=$2; shift 2 ;;
         -i|--interface)      iface=$2; shift 2 ;;
+        --left-iface)        left_iface=$2; shift 2 ;;
+        --right-iface)       right_iface=$2; shift 2 ;;
         --net-type)          net_type=$2; shift 2 ;;
         --left-node)         lnode=$2; shift 2 ;;
         --right-node)        rnode=$2; shift 2 ;;
         --left-volume)       lvolume=$2; shift 2 ;;
         --right-volume)      rvolume=$2; shift 2 ;;
-        --start-consul)      start_consul_only=true; shift ;;
-        --stop-consul)       stop_consul_only=true; shift  ;;
         --mkfs-only)         mkfs_only=true; shift ;;
         --single-node)       single_node=true; shift 2 ;;
-        --get-fid)           get_fid_only=true; shift ;;
         --)                  shift; break ;;
         *)                   break ;;
     esac
@@ -98,10 +115,16 @@ cdf=${1:-}
 argsfile=${2:-}
 
 hare_dir=/var/lib/hare
+export PATH=$PATH:/opt/seagate/cortx/hare/bin
 
 die() {
     echo "$PROG: ERROR: $*" >&2
     exit 1
+}
+
+log() {
+    local msg=$1
+    echo $msg
 }
 
 # Read Virtual ip, node and meta data volume information from args file.
@@ -110,6 +133,8 @@ if [[ -f $argsfile ]]; then
        case $name in
            ip1)          ip1=$value     ;;
            ip2)          ip2=$value     ;;
+           left-iface)   left_iface=$value   ;;
+           right-iface)  right_iface=$value   ;;
            interface)    iface=$value   ;;
            net-type)     net_type=$value ;;
            left-node)    lnode=$value   ;;
@@ -128,9 +153,32 @@ fi
 [[ -b $lvolume ]] || die "meta-data volume $lvolume is not available"
 [[ -b $rvolume ]] || die "meta-data volume $rvolume is not available"
 
+export PATH=$PATH:/opt/seagate/cortx/hare/bin
+
+# This function is duplicated from build-ha-io script.
+# TODO: Remove the function definition once the common functions are available.
+prepare_var_motr_dirs() {
+    log "${FUNCNAME[0]}: make sure there are no stale mounts hanging..."
+    mountpoint -q /var/motr1 && sudo umount /var/motr1 || true
+    ssh $rnode 'mountpoint -q /var/motr2 && sudo umount /var/motr2 || true'
+
+    log "${FUNCNAME[0]}: check & upgrade old setups with /var/motr directories..."
+    [ -d /var/motr ] && ! [ -d /var/motr1 ] && mv /var/motr /var/motr1
+    ssh $rnode '[ -d /var/motr ] && ! [ -d /var/motr2 ] && mv /var/motr /var/motr2'
+
+    log "${FUNCNAME[0]}: prepare dirs..."
+    mkdir -p /var/motr{1,2}
+    ssh $rnode 'mkdir -p /var/motr{1,2}'
+    ln -sf /var/motr1 /var/motr
+    ssh $rnode 'ln -sf /var/motr2 /var/motr'
+
+    sudo mount $lvolume /var/motr1 || true
+    ssh $rnode "sudo mount $rvolume /var/motr2 || true"
+}
+
 reset() {
     echo 'Exporting Consul configuration to /var/lib/hare/consul-conf-exported.json'
-    /opt/seagate/cortx/hare/bin/consul kv export > \
+    consul kv export > \
        /var/lib/hare/consul-conf-exported.json
     # Temporily move consul resources after lnet on both the nodes so that
     # lnet resources are still running after we stop consul.
@@ -166,19 +214,15 @@ reset() {
     ssh $rnode "sudo lctl list_nids | grep -qF $ip2" ||
       die "LNet endpoint $ip2 doesn't appear to be configured at $rnode"
 
-    echo 'Conforming if /var/motr on both the nodes is unmounted...'
-    while mountpoint /var/motr && ! umount /var/motr; do sleep 1; done
-    while ssh $rnode 'mountpoint /var/motr && ! umount /var/motr'; do sleep 1; done
+    echo 'Conforming if /var/motr volumes on both the nodes are unmounted...'
+    while mountpoint /var/motr1 && ! umount /var/motr1; do sleep 1; done
+    while ssh $rnode 'mountpoint /var/motr2 && ! umount /var/motr2'; do sleep 1; done
 
     echo "Formatting volumes $lvolume and $rvolume ..."
     mkfs.ext4 $lvolume
     mkfs.ext4 $rvolume
 
-    echo 'Mounting /var/motr on both the nodes...'
-    mkdir -p /var/motr &&
-      ! mountpoint -q /var/motr && sudo mount $lvolume /var/motr
-    ssh $rnode "mkdir -p /var/motr &&
-      ! mountpoint -q /var/motr && sudo mount $rvolume /var/motr"
+    prepare_var_motr_dirs
 
     echo 'Resetting failed systemd units on both the nodes...'
     sudo systemctl reset-failed hare\* m0d\*
@@ -194,8 +238,8 @@ reset() {
     ssh $rnode 'sudo mkdir -p /var/motr1'
 
     echo 'Unmounting /var/motr from both the nodes...'
-    sudo umount /var/motr
-    ssh $rnode 'sudo umount /var/motr'
+    mountpoint -q /var/motr1 && sudo umount /var/motr1
+    ssh $rnode 'mountpoint -q /var/motr2 && sudo umount /var/motr2'
 
     # Move consul resources back to their original positions in their respective
     # resource groups i.e. after virtual ip resources on both the nodes.
@@ -223,23 +267,16 @@ reset() {
 
     echo 'Importing /var/lib/hare/consul-conf-exported.json...'
     for i in {1..10}; do
-        /opt/seagate/cortx/hare/bin/consul kv import \
+        consul kv import \
             @/var/lib/hare/consul-conf-exported.json && break || sleep 5
     done
 }
 
 get_fid() {
     service=$1
-    node=$2     
+    node=$2
 
-    # wait until consul becomes available for returning the data
-    while ! [[ `/opt/seagate/cortx/hare/bin/consul kv get --recurse m0conf/nodes/$node/processes | grep $service` ]]
-    do
-	      echo "Trying to fetch fid again"
-        sleep 2
-    done
-    
-    proc_id=$(/opt/seagate/cortx/hare/bin/consul kv get --recurse \
+    proc_id=$(consul kv get --recurse \
               m0conf/nodes/$node/processes | grep $service | \
               awk 'BEGIN {FS="/"} {print $5}')
     fid=$(printf '0x7200000000000001:0x%x\n' $proc_id)
@@ -249,7 +286,7 @@ get_fid() {
 get_proc_state() {
     fid=$1
 
-    state=$(/opt/seagate/cortx/hare/bin/consul kv get processes/$fid 2> /dev/null | jq -r '.state')
+    state=$(consul kv get processes/$fid 2> /dev/null | jq -r '.state')
     echo $state
 }
 
@@ -260,7 +297,38 @@ run_cmd() {
 }
 
 get_leader() {
-    /opt/seagate/cortx/hare/bin/consul kv get leader
+    consul kv get leader
+}
+
+cleanup() {
+    log "${FUNCNAME[0]}: Stopping Hax.."
+    run_cmd $node2 "sudo systemctl stop hare-hax-c2"
+    run_cmd $node1 "sudo systemctl stop hare-hax-c1"
+
+    log "${FUNCNAME[0]}: Stopping Consul agents.."
+    run_cmd $node2 "sudo systemctl stop hare-consul-agent-c2"
+    run_cmd $node1 "sudo systemctl stop hare-consul-agent-c1"
+
+    log "${FUNCNAME[0]}: Deleting lnet interfaces.."
+#    run_cmd $node1 "[ `sudo lctl list_nids | grep $ip1` ] && sudo lnetctl net del --net $net_type --if $left_iface:c1" || true
+#    run_cmd $node2 "[ `sudo lctl list_nids | grep $ip2` ] && sudo lnetctl net del --net $net_type --if $right_iface:c2" || true
+
+    run_cmd $node1  "sudo lnetctl net del --net $net_type --if $left_iface:c1" || true
+    run_cmd $node2  "sudo lnetctl net del --net $net_type --if $right_iface:c2" || true
+    log "${FUNCNAME[0]}: Restarting motr-kernel.."
+    run_cmd $node1 "sudo systemctl restart motr-kernel"
+    run_cmd $node2 "sudo systemctl restart motr-kernel"
+
+    run_cmd $node1 "sudo systemctl daemon-reload"
+    run_cmd $node2 "sudo systemctl reset-failed"
+
+    log "${FUNCNAME[0]}: Removing ipaddresses.."
+    run_cmd $node1 "ip addr del $ip1/24 dev $left_iface:c1 || true"
+    run_cmd $node2 "ip addr del $ip2/24 dev $right_iface:c1 || true"
+
+    log "${FUNCNAME[0]}: Unmounting /var/motr devices.."
+    run_cmd $node1 "mountpoint -q /var/motr1 && sudo umount /var/motr1 || true"
+    run_cmd $node2 "mountpoint -q /var/motr2 && sudo umount /var/motr2 || true"
 }
 
 m0_mkfs() {
@@ -283,175 +351,56 @@ m0_mkfs() {
     run_cmd $node2 "systemctl is-active --quiet m0d@$ios_fid_c2" &&
         die 'Active m0d instances found, please stop all the m0d instances'
 
-    echo "Starting motr-mkfs@$confd_fid_c1 (confd)"
     run_cmd $node1 "sudo systemctl start motr-mkfs@$confd_fid_c1"
     while [[ $(get_proc_state $confd_fid_c1) != M0_CONF_HA_PROCESS_STOPPED ]]; do
         sleep 1
     done
     sleep 5
-    echo "Started motr-mkfs@$confd_fid_c1 (confd)"
-
-    echo "Starting m0d@$confd_fid_c1 (confd)"
     run_cmd $node1 "sudo systemctl start m0d@$confd_fid_c1"
     while [[ $(run_cmd $node1 "systemctl is-active m0d@$confd_fid_c1") != 'active' ]]; do
        sleep 5
     done
-    sleep 5
-    echo "Started m0d@$confd_fid_c1 (confd)"
 
-    echo "Starting motr-mkfs@$confd_fid_c2 (confd)"
     run_cmd $node2 "sudo systemctl start motr-mkfs@$confd_fid_c2"
     while [[ $(get_proc_state $confd_fid_c2) != M0_CONF_HA_PROCESS_STOPPED ]]; do
         sleep 1
     done
-    sleep 5
-    echo "Started motr-mkfs@$confd_fid_c2 (confd)"
 
-    echo "Starting m0d@$confd_fid_c2 (confd)"
     run_cmd $node2 "sudo systemctl start m0d@$confd_fid_c2"
     while [[ $(run_cmd $node2 "systemctl is-active m0d@$confd_fid_c2") != 'active' ]]; do
        sleep 5
     done
-    sleep 5
-    echo "Started m0d@$confd_fid_c2 (confd)"
 
-    echo "Starting motr-mkfs@$ios_fid_c1 (ios)"
     run_cmd $node1 "sudo systemctl start motr-mkfs@$ios_fid_c1"
     while [[ $(get_proc_state $ios_fid_c1) != M0_CONF_HA_PROCESS_STOPPED ]]; do
         sleep 1
     done
-    sleep 5
-    echo "Started motr-mkfs@$ios_fid_c1 (ios)"
 
-    echo "Starting motr-mkfs@$ios_fid_c2 (ios)"
     run_cmd $node2 "sudo systemctl start motr-mkfs@$ios_fid_c2"
     while [[ $(get_proc_state $ios_fid_c2) != M0_CONF_HA_PROCESS_STOPPED ]]; do
         sleep 1
     done
-    sleep 5
-    echo "Started motr-mkfs@$ios_fid_c2 (ios)"
 
-    echo "Starting m0d@$ios_fid_c1 (ios)"
     run_cmd $node1 "sudo systemctl start m0d@$ios_fid_c1"
     while [[ $(run_cmd $node1 "systemctl is-active m0d@$ios_fid_c1") != 'active' ]]; do
        sleep 5
     done
-    sleep 5
-    echo "Started m0d@$ios_fid_c1 (ios)"
 
-    echo "Starting m0d@$ios_fid_c2 (ios)"
     run_cmd $node2 "sudo systemctl start m0d@$ios_fid_c2"
     while [[ $(run_cmd $node2 "systemctl is-active m0d@$ios_fid_c2") != 'active' ]]; do
-        sleep 5
+       sleep 5
     done
-    echo "Started m0d@$ios_fid_c2 (ios)"
-    sleep 15
 
-    echo "Stopping m0d@$ios_fid_c1, m0d@$ios_fid_c2, m0d@$confd_fid_c1, m0d@$confd_fid_c2"
     run_cmd $node1 "sudo systemctl stop m0d@$ios_fid_c1"
     run_cmd $node2 "sudo systemctl stop m0d@$ios_fid_c2"
+
     run_cmd $node1 "sudo systemctl stop m0d@$confd_fid_c1"
     run_cmd $node2 "sudo systemctl stop m0d@$confd_fid_c2"
 
-    echo -n "Waiting for all m0d services to stop"
-    while [[ `pgrep m0d` ]]; do
+    while [[ $(run_cmd $node1 "pgrep m0d") &&
+             $(run_cmd $node2 "pgrep m0d") ]]; do
        sleep 5
     done
-    echo "Stopped all m0d services"
-}
-
-start_consul() {
-    local node1=$lnode
-    local node2=$rnode
-    if $single_node; then
-        node1=$(/opt/seagate/cortx/hare/libexec/node-name)
-        node2=$(/opt/seagate/cortx/hare/libexec/node-name)
-    fi
-
-    echo 'Adding ip addresses..'
-    run_cmd $node1 "sudo ifconfig $iface:c1 $ip1"
-    run_cmd $node2 "sudo ifconfig $iface:c2 $ip2"
-
-    echo 'Adding lnet interfaces..'
-    # Its possible that lnet module is not loaded.
-    run_cmd $node1 "sudo modprobe lnet"
-    run_cmd $node2 "sudo modprobe lnet"
-
-    run_cmd $node1 "sudo lnetctl net add --net $net_type --if $iface:c1"
-    run_cmd $node2 "sudo lnetctl net add --net $net_type --if $iface:c2"
-
-    echo 'Restarting motr-kernel..'
-    run_cmd $node1 "sudo systemctl restart motr-kernel"
-    run_cmd $node2 "sudo systemctl restart motr-kernel"
-
-    echo 'Modifying Consul systemd units..'
-    run_cmd $node1 "sudo sed -i 's/^\(ExecStartPost\|ExecStopPost\)=\/usr\/sbin\/attrd_updater/#&/' \
-                        /usr/lib/systemd/system/hare-consul-agent-c1.service"
-    run_cmd $node2 "sudo sed -i 's/^\(ExecStartPost\|ExecStopPost\)=\/usr\/sbin\/attrd_updater/#&/' \
-                        /usr/lib/systemd/system/hare-consul-agent-c2.service"
-
-    run_cmd $node1 "sudo systemctl reset-failed"
-    run_cmd $node2 "sudo systemctl reset-failed"
-    run_cmd $node1 "sudo systemctl daemon-reload"
-    run_cmd $node2 "sudo systemctl daemon-reload"
-
-    echo 'Starting Consul agents..'
-    run_cmd $node1 "sudo systemctl start hare-consul-agent-c1"
-    run_cmd $node2 "sudo systemctl start hare-consul-agent-c2"
-
-    while [[ ($(get_leader) != $lnode) && ($(get_leader) != $rnode) ]]; do
-        sleep 1
-    done
-
-    # An issue is observed if we try to fetch data from Consul immediately
-    # after stating Consul services. So, let's wait till consul becomes available.
-    sleep 10
-    while ! [[ `/opt/seagate/cortx/hare/bin/consul kv get --recurse m0conf/nodes/srvnode-1 | grep confd` ]]
-    do
-        sleep 2
-    done
-
-    while ! [[ `/opt/seagate/cortx/hare/bin/consul kv get --recurse m0conf/nodes/srvnode-2 | grep confd` ]]
-    do
-        sleep 2
-    done
-    echo 'Started Consul agents..'
-}
-
-stop_consul() {
-    local node1=$lnode
-    local node2=$rnode
-    if $single_node; then
-        node1=$(/opt/seagate/cortx/hare/libexec/node-name)
-        node2=$(/opt/seagate/cortx/hare/libexec/node-name)
-    fi
-		
-    echo 'Stopping Consul agents..'
-    run_cmd $node2 "sudo systemctl stop hare-consul-agent-c2"
-    run_cmd $node1 "sudo systemctl stop hare-consul-agent-c1"
-
-    echo 'Deleting lnet interfaces..'
-    run_cmd $node1 "sudo lnetctl net del --net $net_type --if $iface:c1"
-    run_cmd $node2 "sudo lnetctl net del --net $net_type --if $iface:c2"
-
-    echo 'Restarting motr-kernel..'
-    run_cmd $node1 "sudo systemctl restart motr-kernel"
-    run_cmd $node2 "sudo systemctl restart motr-kernel"
-
-    echo 'Restoring Consul systemd units..'
-    run_cmd $node1 "sudo sed -i '/\(#ExecStartPost\|#ExecStopPost\)=\/usr\/sbin\/attrd_updater/s/#//g' \
-                        /usr/lib/systemd/system/hare-consul-agent-c1.service"
-    run_cmd $node2 "sudo sed -i '/\(#ExecStartPost\|#ExecStopPost\)=\/usr\/sbin\/attrd_updater/s/#//g' \
-                        /usr/lib/systemd/system/hare-consul-agent-c2.service"
-
-    run_cmd $node1 "sudo systemctl daemon-reload"
-    run_cmd $node2 "sudo systemctl daemon-reload"
-    run_cmd $node1 "sudo systemctl reset-failed"
-    run_cmd $node2 "sudo systemctl reset-failed"
-
-    echo 'Removing ipaddresses..'
-    run_cmd $node1 "ip addr del $ip1/24 dev $iface:c1"
-    run_cmd $node2 "ip addr del $ip2/24 dev $iface:c1"
 }
 
 mkfs() {
@@ -462,38 +411,108 @@ mkfs() {
         node2=$(/opt/seagate/cortx/hare/libexec/node-name)
     fi
 
-    start_consul
+    log "${FUNCNAME[0]}: Waiting for Consul agents to stop.."
+    while true; do
+        if [[ ! $(ssh $lnode 'pgrep -a consul | grep "consul agent"') &&
+              ! $(ssh $rnode 'pgrep -a consul | grep "consul agent"') ]]; then
+	    break
+        fi
+        sleep 5
+    done
 
-    echo 'Starting Hax..'
+    log "${FUNCNAME[0]}: Cleaning any existing state.."
+    cleanup
+
+    log "${FUNCNAME[0]}: Adding ip addresses.."
+    run_cmd $node1 "sudo ifconfig $left_iface:c1 $ip1"
+    run_cmd $node2 "sudo ifconfig $right_iface:c2 $ip2"
+
+    log "${FUNCNAME[0]}: Adding lnet interfaces.."
+    # Its possible that lnet module is not loaded.
+    run_cmd $node1 "sudo modprobe lnet"
+    run_cmd $node2 "sudo modprobe lnet"
+
+    run_cmd $node1 "sudo lnetctl net add --net $net_type --if $left_iface:c1"
+    run_cmd $node2 "sudo lnetctl net add --net $net_type --if $right_iface:c2"
+
+    log "${FUNCNAME[0]}: Restarting motr-kernel.."
+    run_cmd $node1 "sudo systemctl restart motr-kernel"
+    run_cmd $node2 "sudo systemctl restart motr-kernel"
+
+    log "${FUNCNAME[0]}: Modifying Consul systemd units.."
+    run_cmd $node1 "sudo sed -i 's/^\(ExecStartPost\|ExecStopPost\)=\/usr\/sbin\/attrd_updater/#&/' \
+                        /usr/lib/systemd/system/hare-consul-agent-c1.service"
+    run_cmd $node2 "sudo sed -i 's/^\(ExecStartPost\|ExecStopPost\)=\/usr\/sbin\/attrd_updater/#&/' \
+                        /usr/lib/systemd/system/hare-consul-agent-c2.service"
+
+    log "${FUNCNAME[0]}: Modifying Hax systemd units.."
+    run_cmd $node1 "sudo sed -i 's/^\(ExecStartPost\|ExecStopPost\)=\/usr\/sbin\/attrd_updater/#&/' \
+                        /usr/lib/systemd/system/hare-hax-c1.service"
+    run_cmd $node2 "sudo sed -i 's/^\(ExecStartPost\|ExecStopPost\)=\/usr\/sbin\/attrd_updater/#&/' \
+                        /usr/lib/systemd/system/hare-hax-c2.service"
+
+    run_cmd $node1 "sudo systemctl reset-failed"
+    run_cmd $node2 "sudo systemctl reset-failed"
+    run_cmd $node1 "sudo systemctl daemon-reload"
+    run_cmd $node2 "sudo systemctl daemon-reload"
+
+    log "${FUNCNAME[0]}: Mounting /var/motr devices..."
+    run_cmd $node1 "sudo mount $lvolume /var/motr1 || true"
+    run_cmd $node2 "sudo mount $rvolume /var/motr2 || true"
+
+    log "${FUNCNAME[0]}: Starting Consul agents.."
+    run_cmd $node1 "sudo systemctl start hare-consul-agent-c1"
+    run_cmd $node2 "sudo systemctl start hare-consul-agent-c2"
+
+    log "${FUNCNAME[0]}: Waiting for Consul agents to start.."
+    while true; do
+        if [[ $(run_cmd $node1 "pgrep -a consul | grep 'consul agent'") &&
+              $(run_cmd $node2 "pgrep -a consul | grep 'consul agent'") ]]; then
+	    break
+        fi
+        sleep 5
+    done
+
+    while [[ ($(get_leader) != $lnode) && ($(get_leader) != $rnode) ]]; do
+        sleep 1
+    done
+
+    # An issue is observed if we try to fetch data from Consul immediately
+    # after stating Consul services. So, let's wait for 5 more secs.
+    sleep 5
+
+    log "${FUNCNAME[0]}: Starting Hax.."
     run_cmd $node1 "sudo systemctl start hare-hax-c1"
     run_cmd $node2 "sudo systemctl start hare-hax-c2"
 
     while [[ $(run_cmd $node1 "systemctl is-active hare-hax-c1") != 'active' ||
              $(run_cmd $node2 "systemctl is-active hare-hax-c2") != 'active' ]]; do
-        sleep 5
+           sleep 5
     done
-    echo 'Started Hax..'
 
-    echo 'Doing Motr mkfs..'
+    log "${FUNCNAME[0]}: Doing Motr mkfs.."
     m0_mkfs
-    echo 'Motr mkfs done..'
 
-    echo 'Stopping Hax..'
-    run_cmd $node2 "sudo systemctl stop hare-hax-c2"
-    run_cmd $node1 "sudo systemctl stop hare-hax-c1"
+    cleanup
 
-    stop_consul
+    log "${FUNCNAME[0]}: Restoring Consul systemd units.."
+    run_cmd $node1 "sudo sed -i '/\(#ExecStartPost\|#ExecStopPost\)=\/usr\/sbin\/attrd_updater/s/#//g' \
+                        /usr/lib/systemd/system/hare-consul-agent-c1.service"
+    run_cmd $node2 "sudo sed -i '/\(#ExecStartPost\|#ExecStopPost\)=\/usr\/sbin\/attrd_updater/s/#//g' \
+                        /usr/lib/systemd/system/hare-consul-agent-c2.service"
+
+    log "${FUNCNAME[0]}: Restoring Hax systemd units.."
+    run_cmd $node1 "sudo sed -i '/\(#ExecStartPost\|#ExecStopPost\)=\/usr\/sbin\/attrd_updater/s/#//g' \
+                        /usr/lib/systemd/system/hare-hax-c1.service"
+    run_cmd $node2 "sudo sed -i '/\(#ExecStartPost\|#ExecStopPost\)=\/usr\/sbin\/attrd_updater/s/#//g' \
+                        /usr/lib/systemd/system/hare-hax-c2.service"
+
+    run_cmd $node1 "sudo systemctl daemon-reload"
+    run_cmd $node2 "sudo systemctl reset-failed"
 }
 
-
-if [[ $start_consul_only ]]; then
-    start_consul
-elif [[ $stop_consul_only ]]; then
-    stop_consul
-elif [[ $mkfs_only ]]; then
+if [[ $mkfs_only ]]; then
     mkfs
-elif [[ $get_fid_only ]]; then
-    get_fid $3 $4
 else
     reset
 fi
