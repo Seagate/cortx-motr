@@ -1,0 +1,51 @@
+#!/bin/bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+consul_path="/opt/seagate/cortx/hare/bin/consul"
+consul_query_args="kv get -recurse processes"
+RETRY_CNT=$1
+ios_fid=$(pcs status | grep $(cat /etc/salt/minion_id) | grep ios \
+          | awk -F "[()]" '{print $2}' |  awk -F'@' '{print $2}')
+
+main()
+{
+for i in $ios_fid ; do
+	#status=$($consul_path ${consul_query_args}/$i | awk -F: '{print $4}' | awk -F '"' '{print $2}')
+	j=0
+	while [ $j -lt $RETRY_CNT ] ;
+	do
+		status=$($consul_path ${consul_query_args}/$i | awk -F '"' '{print $4}')
+		if [[ $status == "M0_CONF_HA_PROCESS_STARTED" ]] ; then 
+			echo "IO service are started"
+			return	
+		fi
+		(( j++ ))
+		sleep 1
+	done
+	if [[ $j -ge $RETRY_CNT ]] ; then 
+		echo "$i service failed after $j retries"
+		exit -1
+	fi
+	
+done
+}
+
+main
+exit 0
