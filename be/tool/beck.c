@@ -526,6 +526,11 @@ int main(int argc, char **argv)
 	s.s_gen = gen_id;
 	printf("\nSource segment1 header generation identifier\n");
 	generation_id_print(s.s_gen);
+	/*
+	 * If segment 1 header generation identifier is corrupted then use
+	 * segment 0 header generation identifier. If both segment's generation
+	 * identifier is corrupted then abort beck tool.
+	 */
 	if (!dry_run && s.s_gen == 0)
 	{
 		s.s_gen0 != 0 ? s.s_gen = s.s_gen0 :
@@ -604,7 +609,8 @@ static void generation_id_get(FILE *fp, uint64_t *gen_id)
 			if (strncmp(seg_hdr.bh_be_version, rt_be_cksum,
 				    M0_BE_SEG_HDR_VERSION_LEN_MAX) == 0 &&
 			    seg_hdr.bh_items_nr == 1) {
-				/* After confirming the segment header we can
+				/*
+				 * After confirming the segment header we can
 				 * read the embedded generation id.
 				 */
 				*gen_id = seg_hdr.bh_items[0].sg_gen;
@@ -728,11 +734,16 @@ static int parse(struct scanner *s)
 		}
 		r->r_stats.s_found++;
 		r->r_stats.s_align[!!(s->s_off & 07)]++;
-		lastoff = s->s_off;
-		s->s_off -= sizeof hdr;
-		result = recdo(s, &tag, r);
-		if (result != 0)
-			s->s_off = lastoff;
+		/* Only process btree, bnode and segment header records. */
+		if (dry_run || M0_IN(idx, (M0_FORMAT_TYPE_BE_BTREE,
+					   M0_FORMAT_TYPE_BE_BNODE,
+					   M0_FORMAT_TYPE_BE_SEG_HDR))) {
+			lastoff = s->s_off;
+			s->s_off -= sizeof hdr;
+			result = recdo(s, &tag, r);
+			if (result != 0)
+				s->s_off = lastoff;
+		}
 	} else {
 		M0_LOG(M0_FATAL, "Cannot read hdr->hd_bits.");
 		FLOG(M0_FATAL, s);
@@ -808,14 +819,21 @@ static int recdo(struct scanner *s, const struct m0_format_tag *tag,
 	result = get(s, buf, size);
 	if (result == 0) {
 		if (memcmp(tag, &r->r_tag, sizeof *tag) == 0) {
+			/*
+			 * Check generation identifier before format footer
+			 * verification. Only process the records from most
+			 * recent generation identifier.
+			 */
+			if (r->r_ops != NULL && r->r_ops->ro_check != NULL) {
+				result = r->r_ops->ro_check(s, r, buf);
+			}
+			if (result != 0)
+				return M0_RC(result);
 			result = m0_format_footer_verify(buf, false);
 			if (result != 0) {
 				RLOG(M0_DEBUG, "С", s, r, tag);
 				FLOG(M0_DEBUG, s);
 				r->r_stats.s_chksum++;
-				if (!dry_run && r->r_ops != NULL &&
-				    r->r_ops->ro_check != NULL)
-					result = r->r_ops->ro_check(s, r, buf);
 			} else {
 				RLOG(M0_DEBUG, "R", s, r, tag);
 				if (r->r_ops != NULL &&
@@ -919,6 +937,22 @@ static int btree(struct scanner *s, struct rectype *r, char *buf)
 	return 0;
 }
 
+static int btree_check(struct scanner *s, struct rectype *r, char *buf)
+{
+	struct m0_be_btree *tree = (void *)buf;
+	int                 idx  = tree->bb_backlink.bli_type;
+	m0_time_t           diff;
+
+	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
+		return M0_ERR(-ENOENT);
+
+	genadd(tree->bb_backlink.bli_gen);
+	diff = m0_time_sub(tree->bb_backlink.bli_gen, s->s_gen);
+	if (diff != 0 && m0_time_seconds(diff) > MAX_GEN_DIFF_IN_SEC)
+		return M0_ERR(-ETIME);
+	return 0;
+}
+
 static void *scanner_action(size_t len, enum action_opcode opc,
 			    const struct action_ops *ops)
 {
@@ -939,15 +973,9 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	int                 idx  = node->bt_backlink.bli_type;
 	struct btype       *b;
 	struct bstats      *c;
-	m0_time_t           diff;
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
 		idx = ARRAY_SIZE(bt) - 1;
-
-	genadd(node->bt_backlink.bli_gen);
-	diff = m0_time_sub(node->bt_backlink.bli_gen, s->s_gen);
-	if (m0_time_seconds(diff) > MAX_GEN_DIFF_IN_SEC)
-		return 0;
 
 	b = &bt[idx];
 	c = &b->b_stats;
@@ -960,6 +988,22 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	} else
 		c->c_fanout += node->bt_num_active_key + 1;
 	c->c_maxlevel = max64(c->c_maxlevel, node->bt_level);
+	return 0;
+}
+
+static int bnode_check(struct scanner *s, struct rectype *r, char *buf)
+{
+	struct m0_be_bnode *node = (void *)buf;
+	int                 idx  = node->bt_backlink.bli_type;
+	m0_time_t           diff;
+
+	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
+		return M0_ERR(-ENOENT);
+
+	genadd(node->bt_backlink.bli_gen);
+	diff = m0_time_sub(node->bt_backlink.bli_gen, s->s_gen);
+	if (diff != 0 && m0_time_seconds(diff) > MAX_GEN_DIFF_IN_SEC)
+		return M0_ERR(-ETIME);
 	return 0;
 }
 
@@ -1050,7 +1094,7 @@ static int emap_prep(struct action *act, struct m0_be_tx_credit *credit)
 							    1, credit);
 		emap_key = emap_ac->emap_key.b_addr;
 		rc = emap_entry_lookup(adom, emap_key->ek_prefix, 0, &it);
-		if ( rc == 0 )
+		if (rc == 0)
 			m0_be_emap_close(&it);
 		else
 			m0_be_emap_credit(&adom->sad_adata,
@@ -1173,19 +1217,6 @@ static void *action_alloc(size_t len, enum action_opcode opc,
 
 static int seghdr(struct scanner *s, struct rectype *r, char *buf)
 {
-	struct m0_be_seg_hdr *h   = (void *)buf;
-
-	if (s->s_gen != h->bh_gen) {
-		genadd(h->bh_gen);
-		printf("\nFound another segment header generation\n");
-		generation_id_print(h->bh_gen);
-	}
-	/*
-	 * Flush immediately to avoid losing this information within other lines
-	 * coming on the screen at the same time.
-	 */
-	fflush(stdout);
-
 	return 0;
 }
 
@@ -1203,6 +1234,25 @@ static int seghdr_ver(struct scanner *s, struct rectype *r, char *buf)
 	M0_LOG(M0_INFO, "     vs.: %s",
 	       m0_build_info_get()->bi_xcode_protocol_be_checksum);
 	genadd(h->bh_gen);
+	return 0;
+}
+
+static int seghdr_check(struct scanner *s, struct rectype *r, char *buf)
+{
+	struct m0_be_seg_hdr *h   = (void *)buf;
+
+	if (s->s_gen != h->bh_gen) {
+		genadd(h->bh_gen);
+		printf("\nFound another segment header generation\n");
+		generation_id_print(h->bh_gen);
+		return M0_ERR(-ETIME);
+	}
+	/*
+	 * Flush immediately to avoid losing this information within other lines
+	 * coming on the screen at the same time.
+	 */
+	fflush(stdout);
+
 	return 0;
 }
 
@@ -1953,16 +2003,19 @@ static struct action *qtry(struct queue *q)
 }
 
 static const struct recops btreeops = {
-	.ro_proc = &btree
+	.ro_proc  = &btree,
+	.ro_check = &btree_check
 };
 
 static const struct recops bnodeops = {
-	.ro_proc = &bnode
+	.ro_proc  = &bnode,
+	.ro_check = &bnode_check
 };
 
 static const struct recops seghdrops = {
-	.ro_proc = &seghdr,
-	.ro_ver  = &seghdr_ver
+	.ro_proc  = &seghdr,
+	.ro_ver   = &seghdr_ver,
+	.ro_check = &seghdr_check,
 };
 
 /**
