@@ -225,7 +225,7 @@ re-ordering. See NRS in the references below.
 Each node in the cluster runs one or more Motr instances. Each instance has the 
 same overall structure:
 
-![](/doc/Images/2-Mero-Instance.JPG)
+![](/doc/Images/2-Motr-Instance.JPG)
 
 At the heart of Motr instance is [reqh](#reqh-idea) (request handler). Request 
 handler processes requests in form of [fops](#fop-idea) 
