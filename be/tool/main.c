@@ -47,8 +47,8 @@
 #include "stob/ad.h"            /* m0_stob_ad_domain */
 #include "be/extmap_internal.h" /* m0_be_emap */
 #include "balloc/balloc.h"      /* m0_balloc */
-#include "be/domain.h"	       /*m0_be_segobj_opt_begine,m0_be_segobj_opt_next*/
-#include "lib/uuid.h"		/* m0_node_uuid_string_set */
+#include "be/domain.h"          /*m0_be_segobj_opt_begine,m0_be_segobj_opt_next*/
+#include "lib/uuid.h"           /* m0_node_uuid_string_set */
 
 M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0types", M0_INTERNAL,
 			   struct m0_be_0type, b0_linkage, b0_magic,
@@ -150,8 +150,9 @@ static void scan_btree(struct m0_be_domain *dom, bool print_btree)
 
 	m0_tl_for(zt, &dom->bd_0types, objtype) {
 		for (left = m0_be_segobj_opt_begin(seg, objtype, &opt, &suffix);
-		left > 0 ;
-		left = m0_be_segobj_opt_next(seg, objtype, &opt, &suffix)) {
+		     left > 0 ;
+		     left = m0_be_segobj_opt_next(seg, objtype,
+						  &opt, &suffix)) {
 
 			M0_LOG(M0_ALWAYS, "object b0_name = '%s' suffix = '%s'"
 					  "objtype = %p seg = %p",
