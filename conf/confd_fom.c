@@ -113,6 +113,7 @@ static int conf_fetch_tick(struct m0_fom *fom)
 	struct m0_conf_fetch_resp  *r;
 	struct m0_confd            *confd;
 	int                         rc;
+	M0_ENTRY("fom = %p", fom);
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR)
 		return m0_fom_tick_generic(fom);
@@ -131,6 +132,8 @@ static int conf_fetch_tick(struct m0_fom *fom)
 	r->fr_ver = confd->d_cache->ca_ver;
 	M0_ASSERT(r->fr_ver != M0_CONF_VER_UNKNOWN);
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	M0_LEAVE("rc=%d", rc);
+
 	return M0_FSO_AGAIN;
 }
 

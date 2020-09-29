@@ -35,11 +35,11 @@
 */
 
 enum confc_state {
-	CONFC_IDLE,       /**< The confd is connected to with no reading      */
-	CONFC_ARMED,      /**< Reading version from the confd has started     */
-	CONFC_OPEN,       /**< The confd was used to engage conductor         */
-	CONFC_FAILED,     /**< Reading failure registered with the confd      */
-	CONFC_DEAD,       /**< The confd has failed to establish connection   */
+	CONFC_IDLE,       /**< 0 The confd is connected to with no reading      */
+	CONFC_ARMED,      /**< 1 Reading version from the confd has started     */
+	CONFC_OPEN,       /**< 2 The confd was used to engage conductor         */
+	CONFC_FAILED,     /**< 3 Reading failure registered with the confd      */
+	CONFC_DEAD,       /**< 4 The confd has failed to establish connection   */
 };
 
 /* -------------- Read lock context ----------------- */

@@ -303,9 +303,18 @@ static bool failure_st_invariant(const struct m0_sm *mach);  /* S_FAILURE */
 static bool terminal_st_invariant(const struct m0_sm *mach); /* S_TERMINAL */
 
 /** States of m0_confc_ctx::fc_mach. */
-enum confc_ctx_state { S_INITIAL, S_CHECK, S_WAIT_REPLY, S_WAIT_STATUS,
-		       S_RETRY_CONFD, S_SKIP_CONFD, S_GROW_CACHE, S_FAILURE,
-		       S_TERMINAL, S_NR };
+enum confc_ctx_state {
+	S_INITIAL,      /* 0 */
+	S_CHECK,        /* 1 */
+	S_WAIT_REPLY,   /* 2 */
+	S_WAIT_STATUS,  /* 3 */
+	S_RETRY_CONFD,  /* 4 */
+	S_SKIP_CONFD,   /* 5 */
+	S_GROW_CACHE,   /* 6 */
+	S_FAILURE,      /* 7 */
+	S_TERMINAL,     /* 8 */
+	S_NR
+};
 
 static struct m0_sm_state_descr confc_ctx_states[S_NR] = {
 	[S_INITIAL] = {
@@ -699,8 +708,7 @@ M0_INTERNAL void m0_confc_ctx_fini_locked(struct m0_confc_ctx *ctx)
 
 	m0_confc_ctx_bob_fini(ctx);
 	ctx->fc_confc = NULL;
-
-	M0_LEAVE();
+	M0_LEAVE("ctx=%p", ctx);
 }
 
 M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx)
@@ -794,6 +802,8 @@ static int sm_waiter_init(struct sm_waiter *w, struct m0_confc *confc)
 	int rc = m0_confc_ctx_init(&w->w_ctx, confc);
 	if (rc == 0) {
 		m0_clink_init(&w->w_clink, sm__filter);
+		M0_LOG(M0_DEBUG, "adding clink %p to chan %p",
+				 &w->w_clink, &w->w_ctx.fc_mach.sm_chan);
 		m0_clink_add_lock(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
 	}
 	return M0_RC(rc);
@@ -1086,7 +1096,7 @@ static int check_st_in(struct m0_sm *mach)
 	rc = path_walk(ctx);
 	if (rc < 0) {
 		mach->sm_rc = rc;
-		M0_LEAVE("retval=S_FAILURE");
+		M0_LEAVE("retval=S_FAILURE rc=%d", rc);
 		return S_FAILURE;
 	}
 
@@ -1108,7 +1118,7 @@ static int wait_reply_st_in(struct m0_sm *mach)
 	if (rc == 0)
 		return M0_RC(-1);
 	mach->sm_rc = rc;
-	M0_LEAVE("retval=S_FAILURE");
+	M0_LEAVE("retval=S_FAILURE rc=%d", rc);
 	return S_FAILURE;
 }
 
