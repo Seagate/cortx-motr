@@ -2535,6 +2535,10 @@ static int cs_level_enter(struct m0_module *module)
 			cs_ha_connect(cctx);
 		return M0_RC(0);
 	case CS_LEVEL_REQH_STOP_WORKAROUND:
+		/** During cs_level_enter, if signal is recieved, then
+		  * signal handling is skipped and handled in the next state,
+		  * before adding any change refer comments in gotsignal.
+		  */
 		return M0_RC(0);
 	case CS_LEVEL_RCONFC_INIT_START:
 		if (cctx->cc_no_conf)
