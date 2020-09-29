@@ -138,8 +138,8 @@ is_ios_running_on_remote_node() {
 # This function will initialize values of local and remote ioservices 
 # fid variable.
 get_ios_fid() {
-		LOCAL_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep $LOCAL_NODE -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
-		REMOTE_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep $REMOTE_NODE -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
+		LOCAL_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$LOCAL_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
+		REMOTE_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$REMOTE_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
 
     if [[ $LOCAL_IOS_FID == "" ]] || [[ $REMOTE_IOS_FID == "" ]];then
         die "Failed to get ioservice FIDs."
