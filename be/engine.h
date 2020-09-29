@@ -120,6 +120,9 @@ struct m0_be_engine {
 	bool                       eng_recovery_finished;
 };
 
+M0_INTERNAL void be_engine_lock(struct m0_be_engine *en);
+M0_INTERNAL void be_engine_unlock(struct m0_be_engine *en);
+M0_INTERNAL bool be_engine_is_locked(const struct m0_be_engine *en);
 M0_INTERNAL bool m0_be_engine__invariant(struct m0_be_engine *en);
 
 M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,

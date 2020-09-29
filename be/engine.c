@@ -52,7 +52,6 @@ M0_TL_DESCR_DEFINE(egr, "m0_be_engine::eng_groups[]", static,
 		   M0_BE_TX_MAGIC /* XXX */, M0_BE_TX_ENGINE_MAGIC /* XXX */);
 M0_TL_DEFINE(egr, static, struct m0_be_tx_group);
 
-static bool be_engine_is_locked(const struct m0_be_engine *en);
 static void be_engine_tx_group_open(struct m0_be_engine   *en,
 				    struct m0_be_tx_group *gr);
 static void be_engine_group_freeze(struct m0_be_engine   *en,
@@ -203,17 +202,17 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 	M0_LEAVE();
 }
 
-static void be_engine_lock(struct m0_be_engine *en)
+M0_INTERNAL void be_engine_lock(struct m0_be_engine *en)
 {
 	m0_mutex_lock(en->eng_cfg->bec_lock);
 }
 
-static void be_engine_unlock(struct m0_be_engine *en)
+M0_INTERNAL void be_engine_unlock(struct m0_be_engine *en)
 {
 	m0_mutex_unlock(en->eng_cfg->bec_lock);
 }
 
-static bool be_engine_is_locked(const struct m0_be_engine *en)
+M0_INTERNAL bool be_engine_is_locked(const struct m0_be_engine *en)
 {
 	return m0_mutex_is_locked(en->eng_cfg->bec_lock);
 }
