@@ -1,36 +1,27 @@
-#!/usr/bin/env python3
-#
-# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# For any questions about this software or licensing,
-# please email opensource@seagate.com or cortx-questions@seagate.com.
-#
+#!/usr/bin/python3
 import binascii
 import sys
 import os
 import random
 import argparse
+import time
+#import pdb
 
+#pdb.set_trace()
+timestr = time.strftime("%Y%m%d-%H%M%S")
+log_filename = "hole_creation_"+timestr+".log"
 old_stdout = sys.stdout
-log_file = open("./log_errorInjection.log", "w+")
+log_file = open(log_filename, "w+")
 sys.stdout = log_file
+
+print("***** Script Started *****")
+time_print=time.strftime("%d/%m %H:%M:%S")
+print(time_print)
 
 parser = argparse.ArgumentParser(description="Basic Arguments to run the script")
 parser.add_argument('-rn', action='store_true', default=False, dest='random', help='For inducing error at Random place')
 parser.add_argument('-e', action='store', default= 0, type=int, dest='noOfErr', help='How Many number of error do you want to induce in Metadata')
-parser.add_argument('-rt', action='store', dest='recordT', help='Record Type For inducing error at perticular record like BE_BTREE, BE_EMAP, CAS_CTG etc')
+parser.add_argument('-rt', action='store', dest='Record_Type', help='Record Type For inducing error at perticular record like BE_BTREE, BE_EMAP, CAS_CTG etc')
 parser.add_argument('-m', action='store', dest='file', help='Metadata Path')
 parser.add_argument('-v', action='store_true', default=False, dest='verify', help='Read full Metadata and Print all the Records entry counts')
 parser.add_argument('-a', action='store_true', default=False, dest='allErr', help='Induce Error in All Record at Random place')
@@ -38,6 +29,7 @@ parser.add_argument('-gmd', action='store_true', default=False, dest='allGMD', h
 parser.add_argument('-dmd', action='store_true', default=False, dest='allDMD', help='Induce Error in All DMD type of Record at Random place')
 parser.add_argument('-512k', action='store_true', default=False, dest='err512k', help='Induce 512K bytes error in Metadata')
 parser.add_argument('-huge', action='store_true', default=False, dest='hugeCorruption', help='Induce Huge amount of corruption in Metadata')
+parser.add_argument('-seed', action='store', default=0, type=float, dest='seed', help='Seed for generating Random errors corruption')
 
 args = parser.parse_args();
 #print("Random {0} No of Errors {1} Record Types {2} File name {3} Verify {4}".format(args.random, args.noOfCorr, args.recordType, args.filename, args.verify ))
@@ -45,7 +37,7 @@ args = parser.parse_args();
 results = parser.parse_args()
 print('Induce Random Error        = {!r}'.format(args.random))
 print('No of Error induce         = {!r}'.format(args.noOfErr))
-print('Record Type                = {!r}'.format(args.recordT))
+print('Record Type                = {!r}'.format(args.Record_Type))
 print('Metadata file path         = {!r}'.format(args.file))
 print('Verify Record entries      = {!r}'.format(args.verify))
 print('Induce Error in All Record = {!r}'.format(args.allErr))
@@ -53,14 +45,24 @@ print('Induce Error in GMD Record = {!r}'.format(args.allGMD))
 print('Induce Error in DMD Record = {!r}'.format(args.allDMD))
 print('Induce 512k errors         = {!r}'.format(args.err512k))
 print('Induce huge corruption     = {!r}'.format(args.hugeCorruption))
+print('Seed for random number     = {!r}'.format(args.seed))
 
 filename  = args.file
-recordType= args.recordT
+recordType= args.Record_Type
 noOfCorr  = args.noOfErr
 
+if args.seed != 0:
+	seed = args.seed()
+	print("Seed used: {}".format(seed))
+else:
+	seed = time.time()
+	print("Seed used: {}".format(seed))
+
+random.seed(seed)
+
 if not os.walk(filename):
-    print('The path specified does not exist or Missing file path')
-    sys.exit()
+	print('The path specified does not exist or Missing file path')
+	sys.exit(1)
 
 #M0_FORMAT_HEADER_MAGIC = 0x33011ca5e511de77
 header = b'33011ca5e511de77' 
@@ -172,36 +174,37 @@ def induceCorruption(recordType, noOfCorr):
 	lookupList = recordDict[recordType]
 	if (len(lookupList) & noOfCorr) == 0:
 		print("Record List is empty. Please choose another Record")
+		exit(1)
 	elif len(lookupList) < noOfCorr:
 		print(" Record List contains Less no of entry than Input. Please reduce the number of Error Injection")
+		exit(1)
 	else:
 		print(lookupList)
 		print("**** Inducing {} Error in Record: {} ****".format(noOfCorr,recordType))
 		for i in range(noOfCorr):
-			offset = lookupList[i]
+			offset = lookupList[i]  ## Please add offset here for starting from middle of offset list
 			ReadMetaData(offset+8)
 			EditMetadata(offset+8)			
 
 def induceRandomCorruption(noOfCorr):
-	recType=random.choice(list(recordDict))
-	print("++++ Picked a Random Record from Dictionary Record type:{}++++".format(recType))
-	print("No of Error want to induce: {}".format(noOfCorr))
-	lookupList = recordDict[recType]
-	print(lookupList)
-	if len(lookupList) == 0:
-		print("Record List is empty. Please choose another Record")
-	elif len(lookupList) < noOfCorr:
-		print(" Record List contains Less no of entry than Input. Please reduce the number of Error Injection")
-	else:
-		lookupList = random.sample(lookupList,noOfCorr)
+	while(1):
+		recType=random.choice(list(recordDict))
+		print("++++ Picked a Random Record from Dictionary Record type:{}++++".format(recType))
+		print("No of Error want to induce: {}".format(noOfCorr))
+		lookupList = recordDict[recType]
 		print(lookupList)
-		for i in range(noOfCorr):
-			offset = lookupList[i]
-			print("**** Inducing RANDOM Error in Record at offsets {}****".format(hex(offset+8)))
-			ReadMetaData(offset+8)
-			EditMetadata(offset+8)
-			ReadMetaData(offset+8)
-			print(recordDict)
+		if (len(lookupList) == 0) or (len(lookupList) < noOfCorr) :
+			print("Record List is empty OR contains Less no of entry than Input. Going to next Record")
+		else:
+			lookupList = random.sample(lookupList,noOfCorr)
+			print(lookupList)
+			for i in range(noOfCorr):
+				offset = lookupList[i]
+				print("**** Inducing RANDOM Error in Record at offsets {}****".format(hex(offset+8)))
+				ReadMetaData(offset+8)
+				EditMetadata(offset+8)
+				ReadMetaData(offset+8)
+			break;
 
 def InduceErrInAllRecord():
 	print("++++ Induce Random number of errors in All Records ++++")
@@ -213,7 +216,7 @@ def InduceErrInAllRecord():
 			print("Record List is empty. Moving to Next Record")
 		else:
 			lookupList = random.sample(lookupList, random.randint(1,length))
-			print("Inducing Error at these offsets")
+			print("Inducing {} Error at these offsets".format(len(lookupList)))
 			print(lookupList)
 			for offset in lookupList:
 				print("**** Inducing Error in Record at offsets {}****".format(hex(offset+8)))
@@ -231,7 +234,7 @@ def InduceErrinGMDRecords():
 			print("Record List is empty. Moving to Next Record")
 		else:
 			lookupList = random.sample(lookupList, random.randint(1,length))
-			print("Inducing Error at these offsets")
+			print("Inducing {} Error at these offsets".format(len(lookupList)))
 			print(lookupList)
 			for offset in lookupList:
 				print("**** Inducing Error in Record at offsets {}****".format(hex(offset+8)))
@@ -263,16 +266,18 @@ def induceHugeError():
 		print("** Corrupting 8byte of Metadata at offset {} with b'1111222244443333' **".format(hex(offset)))
 		wbfr.seek(-1, os.SEEK_END)
 		endoffset=wbfr.tell()
-		start = random.randint(1, endoffset)
+		offset = random.randint(1, endoffset)
+		print("Start offset is {}".format(offset))
 		while 1:
-			offset=start+8
+			offset=offset+8
 			wbfr.seek(offset)
 			byte=wbfr.read(8)
 			if not byte:
 				break
 			else:
-				wbfr.seek(offset)
-				wbfr.write(b'\x33\x33\x44\x44\x22\x22\x11\x11')
+				EditMetadata(offset+8)			
+				#wbfr.seek(offset)
+				#wbfr.write(b'\x33\x33\x44\x44\x22\x22\x11\x11')
 		#ReadMetaData(offset)
 
 #Corrupt 512k Metadata in Metadata file from random location
@@ -283,9 +288,11 @@ def induce512kbError():
 		#print("** Corrupting 8byte of Metadata at offset {} with b'1111222244443333' **".format(hex(offset)))
 		wbfr.seek(-524400, os.SEEK_END)
 		endoffset=wbfr.tell()
-		start = random.randint(1, endoffset)
+		#offset = random.randint(1, endoffset)
+		offset = 5244
+		print("Start offset is {}".format(offset))
 		while 1:
-			offset=start+8
+			offset=offset+8
 			j=j+8
 			wbfr.seek(offset)
 			byte=wbfr.read(8)
@@ -295,8 +302,9 @@ def induce512kbError():
 				if j > 524288:
 					break
 				else:
-					wbfr.seek(offset)
-					wbfr.write(b'\x33\x33\x44\x44\x22\x22\x11\x11')
+					EditMetadata(offset)			
+					#wbfr.seek(offset)
+					#wbfr.write(b'\x33\x33\x44\x44\x22\x22\x11\x11')
 					#ReadMetaData(offset)
 
 		
@@ -314,28 +322,30 @@ if args.hugeCorruption:
 	
 
 with open(filename, "rb") as metadata:
-	if os.path.getsize(filename):
-		i=0
-		while 1:
-			flag=0
-			byte=metadata.read(8)
+	#if os.path.getsize(filename):
+	i=0
+	while 1:
+		flag=0
+		byte=metadata.read(8)
+		i=i+8
+		if not byte:
+			break
+		byte=binascii.hexlify(byte[::-1])
+		if byte == header:
+			byte=binascii.hexlify((metadata.read(8))[::-1])					#Read the Type Size Version
 			i=i+8
-			if not byte:
+			type,size=ReadTypeSize(byte)
+			if type not in typeDict.keys():
+				continue
+			record=typeDict[type]
+			if size > b'00000000':
+				recordOffset(record, (i), size)
+				#print("*** RECORD TYPE {}, OFFSET {}, SIZE{} ***".format(record, i*8, size))
+				i=int(size,16)+i-16
+		#Not parsing the whole file for few test as It will take 2+ hours
+		if not args.verify:
+			if i > 11111280000:
 				break
-			byte=binascii.hexlify(byte[::-1])
-			if byte == header:
-				byte=binascii.hexlify((metadata.read(8))[::-1])					#Read the Type Size Version
-				i=i+8
-				type,size=ReadTypeSize(byte)
-				record=typeDict[type]
-				if size > b'00000000':
-					recordOffset(record, (i), size)
-					#print("*** RECORD TYPE {}, OFFSET {}, SIZE{} ***".format(record, i*8, size))
-					#i=int(size,16)+i-16
-			#Not parsing the whole file for few test as It will take 2+ hours
-			if not args.verify:
-				if i > 111280000:
-					break
 
 if args.random:
 	induceRandomCorruption(noOfCorr)
@@ -354,3 +364,8 @@ if args.allGMD:
 	
 if args.allDMD:
 	InduceErrinDMDRecords()
+
+
+time_print=time.strftime("%d/%m %H:%M:%S")
+print(time_print)
+print("***** Script Ended *****")
