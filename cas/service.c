@@ -1097,32 +1097,24 @@ M0_INTERNAL bool m0_cas_fom_in_deadlock(const struct m0_fom *fom0)
 	enum m0_cas_opcode      opc   = m0_cas_opcode(fom0->fo_fop);
 	int                     phase = m0_fom_phase(fom0);
 	bool                    res   = false;
-	bool                  en_lock = false;
 
+	be_engine_lock(tx->t_engine);
 	/**
 	 * FOM1- phase:tx_wait tx-state:4 tx_gr_state:2
 	 *       lock:M0_LONG_LOCK_WR_LOCKED
 	 * FOM2- phase:index-drop-locked tx-state:5 tx_gr_state:2
 	 *       lock:M0_LONG_LOCK_WR_LOCKED
 	 */
-	if (!cas_is_ro(opc) &&
+	if (gr->tg_state == M0_BGS_FROZEN && !cas_is_ro(opc) &&
 	    ((phase == M0_FOPH_TXN_WAIT &&
 	      m0_be_tx_state(tx) == M0_BTS_GROUPING &&
 	      m0_long_is_write_locked(lock, fom0)) ||
 	     (phase == CAS_IDROP_LOCKED &&
 	      m0_be_tx_state(tx) == M0_BTS_ACTIVE &&
-	      !m0_long_is_write_locked(lock, fom0)))) {
-
-		if (!be_engine_is_locked(tx->t_engine)) {
-			be_engine_lock(tx->t_engine);
-			en_lock = true;
-		}
-		if (gr->tg_state == M0_BGS_FROZEN)
+	      !m0_long_is_write_locked(lock, fom0))))
 			res = true;
-		
-		if (en_lock)
-			be_engine_unlock(tx->t_engine);
-	}
+
+	be_engine_unlock(tx->t_engine);
 
 	return res;
 }
