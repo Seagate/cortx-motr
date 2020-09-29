@@ -203,12 +203,12 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void be_engine_lock(struct m0_be_engine *en)
+static void be_engine_lock(struct m0_be_engine *en)
 {
 	m0_mutex_lock(en->eng_cfg->bec_lock);
 }
 
-M0_INTERNAL void be_engine_unlock(struct m0_be_engine *en)
+static void be_engine_unlock(struct m0_be_engine *en)
 {
 	m0_mutex_unlock(en->eng_cfg->bec_lock);
 }

@@ -51,7 +51,6 @@
 #include "cas/cas_xc.h"
 #include "cas/index_gc.h"
 #include "motr/setup.h"              /* m0_reqh_context */
-#include "be/engine.h"
 
 /**
  * @page cas-dld The catalogue service (CAS)
@@ -1096,9 +1095,7 @@ M0_INTERNAL bool m0_cas_fom_in_deadlock(const struct m0_fom *fom0)
 	struct m0_be_tx_group  *gr    = tx->t_group;
 	enum m0_cas_opcode      opc   = m0_cas_opcode(fom0->fo_fop);
 	int                     phase = m0_fom_phase(fom0);
-	bool                    res   = false;
 
-	be_engine_lock(tx->t_engine);
 	/**
 	 * FOM1- phase:tx_wait tx-state:4 tx_gr_state:2
 	 *       lock:M0_LONG_LOCK_WR_LOCKED
@@ -1112,11 +1109,9 @@ M0_INTERNAL bool m0_cas_fom_in_deadlock(const struct m0_fom *fom0)
 	     (phase == CAS_IDROP_LOCKED &&
 	      m0_be_tx_state(tx) == M0_BTS_ACTIVE &&
 	      !m0_long_is_write_locked(lock, fom0))))
-			res = true;
+			return true;
 
-	be_engine_unlock(tx->t_engine);
-
-	return res;
+	return false;
 }
 
 static int cas_fom_tick(struct m0_fom *fom0)
