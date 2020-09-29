@@ -2484,7 +2484,18 @@ static int cs_level_enter(struct m0_module *module)
 	int                     rc;
 
 	M0_ENTRY("cctx=%p level=%d level_name=%s", cctx, level, level_name);
-	if (gotsignal)
+	/** If a signal is recieved in CS_LEVEL_REQH_STOP_WORKAROUND,
+	  * m0_module_fini is called, In m0_module_fini
+	  * CS_LEVEL_RPC_MACHINES_INIT would assert because there are
+	  * active ongoing connection.
+	  * ideally connections are closed in cs_ha_fini during
+	  * cs_level_leave:: CS_LEVEL_REQH_STOP_WORKAROUND.
+	  * In cs_level_enter::CS_LEVEL_REQH_STOP_WORKAROUND, it does nothing
+	  * so just skip the error in CS_LEVEL_REQH_STOP_WORKAROUND
+	  * which will be handled in the next state. during fini, cs_ha_fini
+	  * is called before CS_LEVEL_RPC_MACHINES_INIT
+	 */
+	if (gotsignal && level != CS_LEVEL_REQH_STOP_WORKAROUND)
 		return M0_ERR(-EINTR);
 	switch (level) {
 	case CS_LEVEL_MOTR_INIT:
@@ -2524,6 +2535,10 @@ static int cs_level_enter(struct m0_module *module)
 			cs_ha_connect(cctx);
 		return M0_RC(0);
 	case CS_LEVEL_REQH_STOP_WORKAROUND:
+		/** During cs_level_enter, if signal is recieved, then
+		  * signal handling is skipped and handled in the next state,
+		  * before adding any change refer comments in gotsignal.
+		  */
 		return M0_RC(0);
 	case CS_LEVEL_RCONFC_INIT_START:
 		if (cctx->cc_no_conf)
