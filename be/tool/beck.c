@@ -631,13 +631,13 @@ static int generation_id_verify(struct scanner *s, uint64_t gen)
 	if (gen == s->s_gen)
 		return 0;
 	else if (s->s_gen_found)
-		return M0_ERR(-EINVAL);
+		return -EINVAL;
 	else if (gen > s->s_gen &&
 		 m0_time_seconds(m0_time_sub(gen, s->s_gen)) > MAX_GEN_DIFF_SEC)
-		return M0_ERR(-ETIME);
+		return -ETIME;
 	else if (gen < s->s_gen &&
 		 m0_time_seconds(m0_time_sub(s->s_gen, gen)) > MAX_GEN_DIFF_SEC)
-		return M0_ERR(-ETIME);
+		return -ETIME;
 	return 0;
 }
 
