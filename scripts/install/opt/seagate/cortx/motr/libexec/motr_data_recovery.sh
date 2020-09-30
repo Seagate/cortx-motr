@@ -134,15 +134,14 @@ is_ios_running_on_remote_node() {
     fi
 }
 
-# This function will initialize values of local and remote ioservices 
+# This function will initialize values of local and remote ioservices
 # fid variable.
 get_ios_fid() {
-    LOCAL_IOS_FID=$(./cluster_utility_function $CDF_FILENAME $HA_ARGS_FILENAME --get-fid ios $LOCAL_NODE $SINGLE_NODE_RUNNING)
-    REMOTE_IOS_FID=$(./cluster_utility_function $CDF_FILENAME $HA_ARGS_FILENAME --get-fid ios $REMOTE_NODE $SINGLE_NODE_RUNNING)
+		LOCAL_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$LOCAL_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
+		REMOTE_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$REMOTE_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
 
-    if [[ $LOCAL_IOS_FID == "0x7200000000000001:0x0" ]] || [[ $REMOTE_IOS_FID == "0x7200000000000001:0x0" ]];then
-        die "Cannot get the ioservice fids from consul, please make sure \
-            cluster is atleast up and consul is running"
+    if [[ $LOCAL_IOS_FID == "" ]] || [[ $REMOTE_IOS_FID == "" ]];then
+        die "Failed to get ioservice FIDs."
     fi
 }
 
@@ -175,7 +174,7 @@ get_utility_path() {
         M0BETOOL=$M0_SRC_DIR/be/tool/m0betool
     else
         # use environmental path for utility e.g. /sbin/m0betool
-        M0BETOOL="m0betool" 
+        M0BETOOL="m0betool"
     fi
 }
 
@@ -224,7 +223,7 @@ get_recovery_state_of_remote_node() {
     [[ $REMOTE_STORAGE_STATUS == 0 ]] && \
     test=$(run_cmd_on_remote_node "lvs -o name $REMOTE_MD_VOLUMEGROUP | grep $SNAPSHOT | awk '{ print \$1}'") || \
     test="$(lvs -o name $REMOTE_MD_VOLUMEGROUP | grep $SNAPSHOT | awk '{ print $1}')"
-    
+
     if [ "$test" != "$SNAPSHOT" ]; then
         [[ $REMOTE_STORAGE_STATUS == 0 ]] && \
         test=$(run_cmd_on_remote_node "lvs -o name $REMOTE_MD_VOLUMEGROUP | grep $SWAP_DEVICE | awk '{ print \$1}'") || \
@@ -402,7 +401,7 @@ reinit_mkfs() {
 #   will return 3.
 
 # This function will replay the logs on both nodes.
-# This function will also get the generation id from segment 0. 
+# This function will also get the generation id from segment 0.
 # If mount has failed after fsck then logs cannot be replayed.
 # arg passed to this function is exit status of run_fsck()
 replay_logs_and_get_gen_id_of_seg0() {
@@ -444,21 +443,25 @@ replay_logs_and_get_gen_id_of_seg0() {
             else
                 m0drlog "ERROR: Journal logs replay failed on local node"
                 (( exec_status|=1));
-            fi
+        fi
 
-	    m0drlog "Get generation id of local node from segment 1"
-            LOCAL_SEG_GEN_ID="$($BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:2a -p)"
-	    LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1) 
+        m0drlog "Get generation id of local node from segment 1"
+        LOCAL_SEG_GEN_ID="$($BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:2a -p)"
+        LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
 
-	    if [[ $LOCAL_SEG_GEN_ID -eq 0 ]]; then
-		    m0drlog "Get generation id of local node from segment 0" 
-		    LOCAL_SEG_GEN_ID="$($BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:29 -p)" 
-		    LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1) 
-	    fi	
+        if [[ $LOCAL_SEG_GEN_ID -eq 0 ]]; then
+            m0drlog "Get generation id of local node from segment 0"
+            LOCAL_SEG_GEN_ID="$($BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:29 -p)"
+            LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+        fi
+        echo "segment genid : ($LOCAL_SEG_GEN_ID)"  >  $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id
         else
             m0drlog "ERROR: Mount failed! Can't replay journal logs on local node..."
             (( exec_status|=1));
         fi
+    else
+        LOCAL_SEG_GEN_ID=$(run_cmd_on_local_node  "cat $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id | grep 'segment genid'")
+        LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
     fi
 
     # Check if the fsck is passed on remote node successfully or not
@@ -474,16 +477,18 @@ replay_logs_and_get_gen_id_of_seg0() {
                 m0drlog "ERROR: Journal logs replay failed on remote node"
                 (( exec_status|=2));
             fi
-	    
-	    m0drlog "Get generation id of remote node from segment 1"
-            REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node "$BECKTOOL -s $MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:2a -p")
-	    REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1) 
 
-	    if [[ $REMOTE_SEG_GEN_ID -eq 0 ]]; then
-		    m0drlog "Get generation id of remote node from segment 0" 
-		    REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node "$BECKTOOL -s $MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:29 -p") 
-		    REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1) 
+            m0drlog "Get generation id of remote node from segment 1"
+            REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node "$BECKTOOL -s $MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:2a -p")
+            REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+
+            if [[ $REMOTE_SEG_GEN_ID -eq 0 ]]; then
+                  m0drlog "Get generation id of remote node from segment 0"
+                  REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node "$BECKTOOL -s $MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:29 -p")
+                  REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
             fi
+
+            run_cmd_on_remote_node "echo \"segment genid : ($REMOTE_SEG_GEN_ID)\"  > $MD_DIR/m0d-$REMOTE_IOS_FID/gen_id"
         else
             m0drlog "ERROR: Mount failed! Can't replay journal logs on remote node..."
             (( exec_status|=2));
@@ -499,35 +504,39 @@ replay_logs_and_get_gen_id_of_seg0() {
                 (( exec_status|=2));
             fi
 
-	    m0drlog "Get generation id of remote node from segment 0"
-            REMOTE_SEG_GEN_ID="$($BECKTOOL -s $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:29 -p)"
-	    REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
-	    if [[ $REMOTE_SEG_GEN_ID -eq 0 ]]; then
-		    m0drlog "Get generation id of remote node from segment 0" 
-		    REMOTE_SEG_GEN_ID="$($BECKTOOL -s $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:29 -p)" 
-		    REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1) 
-	    fi 
+            m0drlog "Get generation id of remote node from segment 1"
+            REMOTE_SEG_GEN_ID="$($BECKTOOL -s $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:2a -p)"
+            REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+            if [[ $REMOTE_SEG_GEN_ID -eq 0 ]]; then
+                m0drlog "Get generation id of remote node from segment 0"
+                REMOTE_SEG_GEN_ID="$($BECKTOOL -s $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:29 -p)"
+                REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+            fi
+            echo "segment genid : ($REMOTE_SEG_GEN_ID)"  >  $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/gen_id
         else
             m0drlog "ERROR: Mount failed! Can't replay journal logs on remote node..."
             (( exec_status|=2));
         fi
+     elif [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
+        REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node  "cat $MD_DIR/m0d-$REMOTE_IOS_FID/gen_id | grep 'segment genid'")
+        REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+     else
+        REMOTE_SEG_GEN_ID=$(run_cmd_on_local_node  "cat $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/gen_id | grep 'segment genid'")
+        REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
     fi
 
-    m0drlog "===== [[ $LOCAL_SEG_GEN_ID -eq 0 ]] && [[ $REMOTE_SEG_GEN_ID -eq 0 ]]" 	
-    [[ $LOCAL_SEG_GEN_ID -eq 0 ]] && [[ $REMOTE_SEG_GEN_ID -eq 0 ]] && die "Segment header not found"	
-    [[ $LOCAL_SEG_GEN_ID -ne 0 ]] || LOCAL_SEG_GEN_ID = $REMOTE_SEG_GEN_ID
-    [[ $REMOTE_SEG_GEN_ID -ne 0 ]] || REMOTE_SEG_GEN_ID = $LOCAL_SEG_GEN_ID
-
-
+    [[ $LOCAL_SEG_GEN_ID  -eq 0 ]] && [[ $REMOTE_SEG_GEN_ID -eq 0 ]] && die "Segment header not found"
+    [[ $LOCAL_SEG_GEN_ID  -ne 0 ]] || LOCAL_SEG_GEN_ID=$REMOTE_SEG_GEN_ID
+    [[ $REMOTE_SEG_GEN_ID -ne 0 ]] || REMOTE_SEG_GEN_ID=$LOCAL_SEG_GEN_ID
     return $exec_status
 }
 
-# This function unmount the Metadata device (if it is already mounted) and run fsck tool on it. 
+# This function unmount the Metadata device (if it is already mounted) and run fsck tool on it.
 # After fsck, if mount has failed for Metadata Device then then we format
 # Metadata device with mkfs.ext4 and mount it again.
 run_fsck() {
     local exec_status=0
-    
+
     if [[ $LOCAL_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
         if mountpoint -q $MD_DIR; then
             if ! umount $MD_DIR; then
@@ -737,7 +746,7 @@ cleanup_stobs_dir() {
     [[ $REMOTE_STORAGE_STATUS -eq 0 ]] || run_cmd_on_local_node "umount $FAILOVER_MD_DIR" > /dev/null
 }
 
-# The return statements between { .. }& are to indicate the exit status of 
+# The return statements between { .. }& are to indicate the exit status of
 # child/background process that is spawned not for the function exit status.
 # This function will run beck tool on both nodes
 run_becktool() {
@@ -936,16 +945,12 @@ is_user_root_user # check the script is running with root access
 # If snapshot is available then we are restarting this process as result of
 # either power failure or some other unknown tool termination during previous
 # run in which case we just continue to use previously created snapshot.
-# If snapshot not available then we create the snapshot now, based on the 
+# If snapshot not available then we create the snapshot now, based on the
 # nodes current state for snaphot functions will execute the commands.
 
 shutdown_services
 
-run_cmd_on_local_node "./cluster_utility_function $CDF_FILENAME $HA_ARGS_FILENAME --start-consul $SINGLE_NODE_RUNNING"
-
 get_cluster_configuration
-
-run_cmd_on_local_node "./cluster_utility_function $CDF_FILENAME $HA_ARGS_FILENAME --stop-consul $SINGLE_NODE_RUNNING"
 
 # Execute becktool only in the script if option --beck-only is set.
 # Use --beck-only option only when snapshot is already present on the system.
