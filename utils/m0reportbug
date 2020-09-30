@@ -634,7 +634,6 @@ binaries() {
     outdir=$START_DIR/$OUT_CORES_DIR/scripts
     mkdir -p $outdir
     cp -pv ${RECOVERY_SCRIPT_DIR}/motr_data_recovery.sh $outdir
-    cp -pv ${RECOVERY_SCRIPT_DIR}/prov-m0-reset $outdir
 }
 
 _get_jc_cursor() {
