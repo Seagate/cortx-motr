@@ -158,7 +158,7 @@ get_hostname()
         fi
 
         if [ -z $host ] ; then
-           host="localhost"
+           host=$(hostname --fqdn)
         fi
         echo $host
 }
