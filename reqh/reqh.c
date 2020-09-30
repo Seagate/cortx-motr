@@ -59,6 +59,7 @@
  */
 
 enum {
+	/** ADDB Record Max record size in bytes (10G) */
 	DEFAULT_ADDB2_RECORD_SIZE = 10737418240,
 };
 /**
