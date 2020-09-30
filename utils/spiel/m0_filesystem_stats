@@ -157,7 +157,7 @@ get_hostname()
             host=$(cat /etc/salt/minion_id)
         fi
 
-        if [ -z $host ] ; then
+        if [[ -z "$host" ]] ; then
            host=$(hostname --fqdn)
         fi
         echo $host
@@ -245,6 +245,8 @@ Usage: $SCRIPT_NAME [options]
     -p, --profile          profile endpoint address
 
     -l, --libmotr_path     libmotr path
+
+    -t, --timeout          timeout in seconds
 
     -h, --help             this help
 
