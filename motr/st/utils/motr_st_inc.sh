@@ -80,7 +80,7 @@ motr_st_run_debugger()
     local binary=$2
     shift 2
 
-    echo "gdb $gdbinit --args $binary $@"  >/dev/tty
+    echo "gdb $gdbinit --args $binary $@"
     gdb $gdbinit $gdbparams --args $binary $@
 }
 
@@ -171,7 +171,7 @@ function motr_st_start_u()
 		motr_st_run_debugger $debugger $st_u
 	else
 		echo Running system tests ...
-		echo "# $st_u" >/dev/tty
+		echo "# $st_u"
 		eval $st_u || {
 			echo "Failed to run Motr ST !!"
 			return 1
@@ -205,7 +205,7 @@ function motr_st_list_tests ()
 
 	# Run it
 	echo Running system tests ...
-	echo "# $st_u" >/dev/tty
+	echo "# $st_u"
 	eval $st_u || {
 		echo "Failed to run Motr ST !!"
 		return 1

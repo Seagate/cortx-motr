@@ -446,7 +446,7 @@ Tests:
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.47motr_client
     polltime : 30
-    timeout  : 1800
+    timeout  : 3600
 
   - id       : 48motr-raid0-io
     script   : motr_raid0_st.sh

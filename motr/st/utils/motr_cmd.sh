@@ -75,7 +75,7 @@ cmd_exec="$dir/$1"
 cmd="$cmd_exec $cmd_args"
 
 # Run it
-echo "# $cmd" >/dev/tty
+echo "# $cmd"
 
 eval $cmd || {
 	echo "Failed to run command $1"
