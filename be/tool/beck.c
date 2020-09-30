@@ -599,7 +599,7 @@ static void generation_id_print(uint64_t gen)
 	struct tm tm;
 
 	localtime_r(&ts, &tm);
-	printf("%04d-%02d-%02d-%02d:%02d:%02d.%09lu  (%lu)",
+	printf("%04d-%02d-%02d-%02d:%02d:%02d.%09lu  (%"PRIu64")",
 	       tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 	       tm.tm_hour, tm.tm_min, tm.tm_sec,
 	       m0_time_nanoseconds(gen), gen);
@@ -608,7 +608,6 @@ static void generation_id_print(uint64_t gen)
 static void generation_id_get(FILE *fp, uint64_t *gen_id)
 {
 	struct m0_format_tag  tag    = {};
-	int                   type   = M0_FORMAT_TYPE_BE_SEG_HDR;
 	int                   result = EX_OK;
 	struct m0_be_seg_hdr  seg_hdr;
 	const char           *rt_be_cksum;
@@ -618,8 +617,9 @@ static void generation_id_get(FILE *fp, uint64_t *gen_id)
 		m0_format_header_unpack(&tag, &seg_hdr.bh_header);
 
 		if (seg_hdr.bh_header.hd_magic == M0_FORMAT_HEADER_MAGIC &&
-		    type == tag.ot_type &&
-		    memcmp(&tag, &rt[type].r_tag, sizeof tag) == 0 &&
+		    tag.ot_type == M0_FORMAT_TYPE_BE_SEG_HDR &&
+		    memcmp(&tag, &rt[M0_FORMAT_TYPE_BE_SEG_HDR].r_tag,
+			   sizeof tag) == 0 &&
 		    m0_format_footer_verify(&seg_hdr, 0) == 0) {
 
 			rt_be_cksum = m0_build_info_get()->
@@ -633,14 +633,14 @@ static void generation_id_get(FILE *fp, uint64_t *gen_id)
 				 */
 				*gen_id = seg_hdr.bh_items[0].sg_gen;
 			} else
-				result = M0_ERR(-EX_DATAERR);
+				result = M0_ERR(-EIO);
 
 		} else
-			result = M0_ERR(-EX_DATAERR);
+			result = M0_ERR(-EIO);
 	} else
-		result = M0_ERR(-EX_DATAERR);
+		result = M0_ERR(-EIO);
 
-	if (result == -EX_DATAERR)
+	if (result == -EIO)
 		printf("Invalid format / Checksum error for segment header\n");
 }
 
