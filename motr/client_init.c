@@ -1600,9 +1600,11 @@ int m0_client_init(struct m0_client **m0c_p,
 
 	if (conf->mc_is_addb_init) {
 		char buf[64];
+		/** Client addb record file size set to 1G" */
+		m0_bcount_t size = 1ULL >> 30;
 		sprintf(buf, "linuxstob:./addb_%d", (int)m0_pid());
 		rc = m0_reqh_addb2_init(&m0c->m0c_reqh, buf,
-					0xaddbf11e, true, true);
+					0xaddbf11e, true, true, size);
 	}
 	/* publish the allocated client instance */
 	*m0c_p = m0c;

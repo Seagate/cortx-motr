@@ -279,7 +279,8 @@ M0_INTERNAL void m0_reqh_be_fini(struct m0_reqh *reqh);
 M0_INTERNAL void m0_reqh_layouts_cleanup(struct m0_reqh *reqh);
 
 M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, const char *location,
-				   uint64_t key, bool mkfs, bool force);
+				   uint64_t key, bool mkfs, bool force,
+				   m0_bcount_t size);
 M0_INTERNAL void m0_reqh_addb2_fini(struct m0_reqh *reqh);
 
 M0_INTERNAL int m0_reqh_addb2_submit(struct m0_reqh *reqh,
