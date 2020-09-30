@@ -198,17 +198,31 @@ M0_INTERNAL int m0_addb2_storage_header(struct m0_stob *stob,
 static int it_init(struct m0_addb2_sit *it,
 		   struct m0_addb2_frame_header *h, m0_bindex_t start)
 {
-	struct m0_addb2_frame_header prev;
+	struct m0_addb2_frame_header header;
+	uint64_t                     last_frame_end;
 	int                          result;
 
 	if (start != 0) {
 		result = header_read(it, h, start);
 	} else {
+		/* Search forward for the last frame on the stob. */
 		while (1) {
-			result = header_read(it, &prev, h->he_prev_offset);
-			if (result != 0 || prev.he_seqno != h->he_seqno - 1)
+			result = header_read(it, &header, h->he_offset + h->he_size);
+			if (result != 0 || header.he_seqno != h->he_seqno + 1)
 				break;
-			*h = prev;
+			*h = header;
+		}
+
+		last_frame_end = h->he_offset + h->he_size;
+		/* Search backward */
+		while (1) {
+			result = header_read(it, &header, h->he_prev_offset);
+			if (result != 0 || header.he_seqno != h->he_seqno - 1)
+				break;
+			*h = header;
+			if (header.he_offset >= last_frame_end &&
+				header.he_prev_offset < last_frame_end)
+				break; /* Found the oldest frame. */
 		}
 	}
 	if (result == 0) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -x
+# set -x
 PROG=${0##*/}
 # Creating the log file under /var/log/seagate/motr
 now=$(date +"%Y_%m_%d__%H_%M_%S")
@@ -52,12 +52,15 @@ ESEGV=134 # Error code for segment fault
 RSTATE0=0 # We do not need to perform any actions before starting recovery
 RSTATE2=2 # We need to do only create snapshot before starting recovery
 RSTATE3=3 # We need to do all operations such as fsck, replay logs, create snapshot before starting recovery
-CDF_FILENAME="/var/lib/hare/cluster.yaml" # Cluster defination file needed by cluster_utility_function script
-# HA conf argument file needed by cluster_utility_function script
+CDF_FILENAME="/var/lib/hare/cluster.yaml" # Cluster defination file used by prov-m0-reset
+# HA conf argument file needed by prov-m0-reset script
 HA_ARGS_FILENAME="/opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml"
 SINGLE_NODE_RUNNING=  # Will be set if only one node is running.
 LOCAL_SEG_GEN_ID=0
 REMOTE_SEG_GEN_ID=0
+
+# Add path to utility m0-prov-reset
+PATH=$PATH:/opt/seagate/cortx/ha/conf/script/:.
 
 usage() {
     cat <<EOF
@@ -143,6 +146,7 @@ get_ios_fid() {
     if [[ $LOCAL_IOS_FID == "" ]] || [[ $REMOTE_IOS_FID == "" ]];then
         die "Failed to get ioservice FIDs."
     fi
+
 }
 
 # The function will execute command on the local node
@@ -384,7 +388,7 @@ reinit_mkfs() {
 
     # command line for reinit cluster with mkfs
     m0drlog "Reinitializing the cluster with mkfs, Please wait may take few minutes"
-    run_cmd_on_local_node "set M0_RESET_LOG_FILE=$LOG_FILE;./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --mkfs-only $SINGLE_NODE_RUNNING;unset M0_RESET_LOG_FILE"
+    run_cmd_on_local_node "set M0_RESET_LOG_FILE=$LOG_FILE; prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --mkfs-only $SINGLE_NODE_RUNNING; unset M0_RESET_LOG_FILE"
     [[ $? -eq 0 ]] || die "***ERROR: Cluster reinitialization with mkfs failed***"
     m0drlog "Cluster reinitialization with mkfs is completed"
     sleep 3
@@ -936,7 +940,7 @@ EOF
 is_user_root_user # check the script is running with root access
 [[ $? -eq 0 ]] || { die "Please run script as a root user"; }
 
-# Check for the files needed by cluster_utility_function script as argument
+# Check for the files needed by prov-m0-reset script as argument
 [[ -f $CDF_FILENAME ]] || die "ERROR: File not found $CDF_FILENAME"
 [[ -f $HA_ARGS_FILENAME ]] || die "ERROR: File not found $HA_ARGS_FILENAME"
 
