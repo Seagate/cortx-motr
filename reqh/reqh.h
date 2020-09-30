@@ -60,6 +60,17 @@
    @{
  */
 
+enum {
+	/** ADDB Record Max record size in bytes (10G) */
+	DEFAULT_ADDB2_RECORD_SIZE = 10ULL << 30,
+	/** Min ADDB Record record size in bytes (10M) */
+	MIN_ADDB2_RECORD_SIZE = 10ULL << 20,
+	/** Max ADDB Record record size in bytes (10G) */
+	MAX_ADDB2_RECORD_SIZE = 10ULL << 30,
+	/** ADDB Record size should be multiple of 4K Bytes*/
+	BLK_SIZE = 4ULL << 10
+};
+
 struct m0_fop;
 struct m0_rpc_machine;
 struct m0_addb2_storage;
