@@ -2073,7 +2073,9 @@ static bool rconfc_conductor_disconnect_cb(struct m0_clink *clink)
 	struct m0_rconfc *rconfc = M0_AMB(rconfc, clink, rc_conductor_clink);
 
 	M0_ENTRY("rconfc = %p", rconfc);
+	m0_rconfc_lock(rconfc);
 	rconfc_ast_post(rconfc, rconfc_conductor_disconnected_ast);
+	m0_rconfc_unlock(rconfc);
 	M0_LEAVE();
 	return true;
 }
@@ -2136,7 +2138,9 @@ static bool rconfc_unpinned_cb(struct m0_clink *link)
 	M0_ENTRY("rconfc = %p", rconfc);
 	M0_PRE(rconfc_state(rconfc) == M0_RCS_CONDUCTOR_DRAIN);
 	m0_clink_del(link);
+	m0_rconfc_lock(rconfc);
 	rconfc_ast_post(rconfc, rconfc_conductor_drain);
+	m0_rconfc_unlock(rconfc);
 	M0_LEAVE();
 	return false;
 }
