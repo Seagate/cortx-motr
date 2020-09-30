@@ -150,12 +150,25 @@ if [ $rc -ne 0 ] ; then
 fi
 }
 
+get_hostname()
+{
+        host=" "
+        if [[ -f /etc/salt/minion_id ]] ; then
+            host=$(cat /etc/salt/minion_id)
+        fi
+
+        if [ -z $host ] ; then
+           host="localhost"
+        fi
+        echo $host
+}
+
 # Get endpoints of local node's processes that run service(s) of given type.
 get_endpoints_of() {
 	local svc_type=$1
 
 	$consul_query_cmd |
-        awk -F/ -v host=$(hostname --fqdn) -v svc_type=$svc_type '
+        awk -F/ -v host=$(get_hostname) -v svc_type=$svc_type '
 	$3 != host { next }
 	$6 ~ /^endpoint:/ { sub(/^endpoint:/, "", $6); endpoints[$5] = $6 }
 	$6 == "services" && match($7, "^" svc_type ":") { match_p[$5] = 1 }
