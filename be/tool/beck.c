@@ -608,7 +608,7 @@ static void generation_id_print(uint64_t gen)
 static void generation_id_get(FILE *fp, uint64_t *gen_id)
 {
 	struct m0_format_tag  tag    = {};
-	int                   result = EX_OK;
+	int                   result = 0;
 	struct m0_be_seg_hdr  seg_hdr;
 	const char           *rt_be_cksum;
 
