@@ -57,6 +57,9 @@ CDF_FILENAME="/var/lib/hare/cluster.yaml" # Cluster defination file needed by pr
 HA_ARGS_FILENAME="/opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml"
 SINGLE_NODE_RUNNING=  # Will be set if only one node is running.
 
+# Add path to utility m0-prov-reset
+PATH=$PATH:/opt/seagate/cortx/ha/conf/script/:.
+
 usage() {
     cat <<EOF
 
@@ -135,13 +138,13 @@ is_ios_running_on_remote_node() {
 # This function will initialize values of local and remote ioservices 
 # fid variable.
 get_ios_fid() {
-    LOCAL_IOS_FID=$(./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --get-fid ios $LOCAL_NODE $SINGLE_NODE_RUNNING)
-    REMOTE_IOS_FID=$(./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --get-fid ios $REMOTE_NODE $SINGLE_NODE_RUNNING)
+		LOCAL_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$LOCAL_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
+		REMOTE_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$REMOTE_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
 
-    if [[ $LOCAL_IOS_FID == "0x7200000000000001:0x0" ]] || [[ $REMOTE_IOS_FID == "0x7200000000000001:0x0" ]];then
-        die "Cannot get the ioservice fids from consul, please make sure \
-            cluster is atleast up and consul is running"
+    if [[ $LOCAL_IOS_FID == "" ]] || [[ $REMOTE_IOS_FID == "" ]];then
+        die "Failed to get ioservice FIDs."
     fi
+
 }
 
 # The function will execute command on the local node
@@ -383,7 +386,7 @@ reinit_mkfs() {
 
     # command line for reinit cluster with mkfs
     m0drlog "Reinitializing the cluster with mkfs, Please wait may take few minutes"
-    run_cmd_on_local_node "./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --mkfs-only $SINGLE_NODE_RUNNING"
+    run_cmd_on_local_node "set M0_RESET_LOG_FILE=$LOG_FILE; prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --mkfs-only $SINGLE_NODE_RUNNING; unset M0_RESET_LOG_FILE"
     [[ $? -eq 0 ]] || die "***ERROR: Cluster reinitialization with mkfs failed***"
     m0drlog "Cluster reinitialization with mkfs is completed"
     sleep 3
@@ -903,11 +906,7 @@ is_user_root_user # check the script is running with root access
 
 shutdown_services
 
-run_cmd_on_local_node "./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --start-consul $SINGLE_NODE_RUNNING"
-
 get_cluster_configuration
-
-run_cmd_on_local_node "./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --stop-consul $SINGLE_NODE_RUNNING"
 
 # Execute becktool only in the script if option --beck-only is set.
 # Use --beck-only option only when snapshot is already present on the system.

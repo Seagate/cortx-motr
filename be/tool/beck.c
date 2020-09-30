@@ -35,6 +35,7 @@
 #include <unistd.h>           /* close */
 #include <time.h>             /* localtime_r */
 #include <pthread.h>
+#include <signal.h>           /* signal() to register ctrl + C handler */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
@@ -324,6 +325,7 @@ static void  emap_act(struct action *act, struct m0_be_tx *tx);
 static void  emap_fini(struct action *act);
 static int   emap_kv_get(struct scanner *s, const struct be_btree_key_val *kv,
 		         struct m0_buf *key_buf, struct m0_buf *val_buf);
+static void  sig_handler(int num);
 
 static const struct recops btreeops;
 static const struct recops bnodeops;
@@ -422,6 +424,7 @@ static struct gen g[MAX_GEN] = {};
 static uint16_t gen_count = 0;
 
 static bool  dry_run = false;
+static bool  signaled = false;
 
 #define FLOG(level, s)						\
 	M0_LOG(level, "        at offset: %"PRId64" errno: %s (%i), eof: %i", \
@@ -430,6 +433,12 @@ static bool  dry_run = false;
 #define RLOG(level, prefix, s, r, tag)					\
 	M0_LOG(level, prefix " %li %s %hu:%hu:%u", s->s_off, recname(r), \
 	       (tag)->ot_version, (tag)->ot_type, (tag)->ot_size)
+
+static void sig_handler(int num)
+{
+	printf("Caught Signal %d \n", num);
+	signaled = true;
+}
 
 int main(int argc, char **argv)
 {
@@ -519,6 +528,10 @@ int main(int argc, char **argv)
 	result = scanner_init(&s);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise scanner.");
+	if (dry_run) {
+		printf("Press CTRL+C to quit.\n");
+		signal(SIGINT, sig_handler);
+	}
 	result = scan(&s);
 	if (result != 0)
 		warn("Scan failed: %d.", result);
@@ -573,7 +586,7 @@ static int scan(struct scanner *s)
 	off_t    lastoff  = s->s_off;
 
 	setvbuf(s->s_file, iobuf, _IOFBF, sizeof iobuf);
-	while ((result = get(s, &magic, sizeof magic)) == 0) {
+	while (!signaled && (result = get(s, &magic, sizeof magic)) == 0) {
 		if (magic == M0_FORMAT_HEADER_MAGIC) {
 			s->s_off -= sizeof magic;
 			parse(s);
