@@ -402,6 +402,11 @@ enum {
 	MAX_GEN    	 =     256,
 	MAX_QUEUED  	 = 1000000,
 	MAX_REC_SIZE     = 64*1024,
+	/**
+	 * This value is arrived on the basis of max time difference between
+	 * mkfs run on local and remote node and the assumption that time
+	 * difference between nodes is negligible.
+	 */
 	MAX_GEN_DIFF_SEC = 30
 };
 
@@ -628,12 +633,12 @@ static void generation_id_get(FILE *fp, uint64_t *gen_id)
 				 */
 				*gen_id = seg_hdr.bh_items[0].sg_gen;
 			} else
-				result = -EX_DATAERR;
+				result = M0_ERR(-EX_DATAERR);
 
 		} else
-			result = -EX_DATAERR;
+			result = M0_ERR(-EX_DATAERR);
 	} else
-		result = -EX_DATAERR;
+		result = M0_ERR(-EX_DATAERR);
 
 	if (result == -EX_DATAERR)
 		printf("Invalid format / Checksum error for segment header\n");
@@ -847,10 +852,12 @@ static int recdo(struct scanner *s, const struct m0_format_tag *tag,
 	result = get(s, buf, size);
 	if (result == 0) {
 		if (memcmp(tag, &r->r_tag, sizeof *tag) == 0) {
-			/*
+			/**
 			 * Check generation identifier before format footer
-			 * verification. Only process the records from most
-			 * recent generation identifier.
+			 * verification. Only process the records whose
+			 * generation identifier matches or is within
+			 * +/- MAX_GEN_DIFF_SEC seconds of segment's generation
+			 * identifier.
 			 */
 			if (r->r_ops != NULL && r->r_ops->ro_check != NULL) {
 				result = r->r_ops->ro_check(s, r, buf);
