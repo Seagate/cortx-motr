@@ -214,7 +214,7 @@ M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr)
 	}
 	be_recovery_log_record_iter_destroy(iter);
 	if (!M0_IN(rc, (0, -ENOENT))){
-		M0_LOG(M0_ERROR, "Error");
+		M0_LOG(M0_ERROR, "Error: rc=%d", rc);
 		goto err;
 	}
 	if (rc == -ENOENT && prev == NULL){
@@ -255,7 +255,7 @@ M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr)
 	M0_ASSERT(ergo(rc == 0, prev->lri_header.lrh_pos == last_discarded));
 
 	if (rc != 0){
-		M0_LOG(M0_ERROR, "Error");
+		M0_LOG(M0_ERROR, "Error: rc=%d", rc);
 		goto err;
 	}
 
