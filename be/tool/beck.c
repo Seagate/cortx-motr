@@ -602,11 +602,11 @@ static void generation_id_print(uint64_t gen)
 
 static void generation_id_get(FILE *fp, uint64_t *gen_id)
 {
-	struct m0_format_tag    tag = {};
-	int                     type = M0_FORMAT_TYPE_BE_SEG_HDR;
-	struct m0_be_seg_hdr    seg_hdr;
-	const char             *rt_be_cksum;
-	int                     result = EX_OK;
+	struct m0_format_tag  tag    = {};
+	int                   type   = M0_FORMAT_TYPE_BE_SEG_HDR;
+	int                   result = EX_OK;
+	struct m0_be_seg_hdr  seg_hdr;
+	const char           *rt_be_cksum;
 
 	if (fread(&seg_hdr, 1, sizeof(seg_hdr), fp) == sizeof(seg_hdr)) {
 
