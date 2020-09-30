@@ -37,6 +37,15 @@ core:
     reset:
         script: /usr/sbin/m0provision
         args:
-            - reset
+
+    backup:
+        files:
+             - /etc/sysconfig/motr
+
+    post_update:
+        script: /usr/sbin/m0provision
+        args:
+            - config
+
 support_bundle:
     - /opt/seagate/cortx/motr/libexec/m0reportbug-bundler
