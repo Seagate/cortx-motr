@@ -93,17 +93,6 @@ M0_INTERNAL bool m0_semaphore_trydown(struct m0_semaphore *semaphore)
 	return rc == 0;
 }
 
-M0_INTERNAL unsigned m0_semaphore_value(struct m0_semaphore *semaphore)
-{
-	int rc;
-	int result;
-
-	rc = sem_getvalue(&semaphore->s_sem, &result);
-	M0_ASSERT_INFO(rc == 0, "rc=%d errno=%d", rc, errno);
-	M0_POST(result >= 0);
-	return result;
-}
-
 M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 					const m0_time_t abs_timeout)
 {

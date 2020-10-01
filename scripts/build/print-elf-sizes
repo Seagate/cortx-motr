@@ -20,7 +20,7 @@
 
 
 echo 'Resulting ELF image sizes:'
-
+m
 size motr/.libs/libmotr{,-altogether}.so m0tr.ko 2>/dev/null \
 | awk \
     '{ \

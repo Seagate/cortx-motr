@@ -248,6 +248,10 @@ void test_atomic(void)
 		m0_thread_join(&t[i]);
 		m0_thread_fini(&t[i]);
 	}
+#elif defined(M0_DARWIN)
+	/*
+	 * XXX @todo no barriers on Darwin, skip the test.
+	 */
 #else
 	M0_IMPOSSIBLE("pthread barriers are not supported!");
 #endif

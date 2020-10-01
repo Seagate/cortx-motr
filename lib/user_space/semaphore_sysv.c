@@ -86,13 +86,6 @@ M0_INTERNAL bool m0_semaphore_trydown(struct m0_semaphore *semaphore)
 	return result == 0;
 }
 
-M0_INTERNAL unsigned m0_semaphore_value(struct m0_semaphore *semaphore)
-{
-	int result = semctl(semaphore->s_semid, 0, GETVAL);
-	M0_ASSERT_INFO(result >= 0, "result: %d errno: %d", result, errno);
-	return result;
-}
-
 M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 					const m0_time_t abs_timeout)
 {

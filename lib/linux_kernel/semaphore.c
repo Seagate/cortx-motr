@@ -67,11 +67,6 @@ M0_INTERNAL void m0_semaphore_up(struct m0_semaphore *semaphore)
 	up(&semaphore->s_sem);
 }
 
-M0_INTERNAL unsigned m0_semaphore_value(struct m0_semaphore *semaphore)
-{
-	return semaphore->s_sem.count;
-}
-
 M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 					const m0_time_t abs_timeout)
 {

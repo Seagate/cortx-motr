@@ -65,17 +65,6 @@ M0_INTERNAL bool m0_semaphore_trydown(struct m0_semaphore *semaphore);
 M0_INTERNAL void m0_semaphore_drain(struct m0_semaphore *semaphore);
 
 /**
-   Returns the number of times a P-operation could be executed without blocking.
-
-   @note the return value might, generally, be invalid by the time
-   m0_semaphore_value() returns.
-
-   @note that the parameter is not const. This is because of POSIX
-   sem_getvalue() prototype.
- */
-M0_INTERNAL unsigned m0_semaphore_value(struct m0_semaphore *semaphore);
-
-/**
    Downs the semaphore, blocking for not longer than the (absolute) timeout
    given.
 

@@ -2817,6 +2817,8 @@ static void cs_level_leave(struct m0_module *module)
 		break;
 	case CS_LEVEL_CS_INIT:
 	case CS_LEVEL_RWLOCK_LOCK:
+		m0_rwlock_write_unlock(&cctx->cc_rwlock);
+		break;
 	case CS_LEVEL_ARGS_PARSE:
 	case CS_LEVEL_REQH_CTX_VALIDATE:
 	case CS_LEVEL_DAEMONIZE:
@@ -2905,6 +2907,7 @@ static void cs_level_leave(struct m0_module *module)
 		cs_dtm0_fini(rctx);
 		break;
 	case CS_LEVEL_RWLOCK_UNLOCK:
+		m0_rwlock_write_lock(&cctx->cc_rwlock);
 		break;
 	case CS_LEVEL_STARTED_EVENT_FOR_MKFS:
 		if (cctx->cc_mkfs)

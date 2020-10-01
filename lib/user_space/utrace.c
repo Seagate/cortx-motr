@@ -65,10 +65,12 @@ static int preallocate(int fd, m0_bcount_t nob)
 #if defined(M0_LINUX)
 	return posix_fallocate(fd, 0, nob);
 #else
-	char ch = 0;
-	for (; nob > 0; --nob) {
-		if (write(fd, &ch, 1) != 1)
-			return errno ?: M0_ERR(-ENOSPC);
+	char ch[64*1024] = {};
+	while (nob > 0) {
+		m0_bcount_t nr = min64u(nob, ARRAY_SIZE(ch));
+		if (write(fd, ch, nr) != nr)
+			return errno ?: ENOSPC;
+		nob -= nr;
 	}
 	return 0;
 #endif
@@ -105,7 +107,7 @@ static int logbuf_map()
                         tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 		if (rc < 0) {
 			warn("failed to construct trace file path");
-			return rc;
+			return -EINVAL;
 		}
 		if (rc >= available_bytes) {
 			warnx("failed to construct trace file path, not enough"
@@ -113,14 +115,18 @@ static int logbuf_map()
 			return -ENOBUFS;
 		}
 	}
-
-	if ((logfd = open(trace_file_path, O_RDWR|O_CREAT|O_TRUNC|O_CLOEXEC, 0700)) == -1) {
+	rc = 0;
+	if ((logfd = open(trace_file_path,
+			  O_RDWR|O_CREAT|O_TRUNC|O_CLOEXEC, 0700)) == -1) {
 		warn("open(\"%s\")", trace_file_path);
-	} else if ((errno = preallocate(logfd, trace_area_size)) != 0) {
-		warn("fallocate(\"%s\", %zu)", trace_file_path, trace_area_size);
+		rc = -errno;
+	} else if ((rc = preallocate(logfd, trace_area_size)) != 0) {
+		warn("fallocate(\"%s\", %zu)",
+		     trace_file_path, trace_area_size);
 	} else if ((trace_area = mmap(NULL, trace_area_size, PROT_WRITE,
 				      MAP_SHARED, logfd, 0)) == MAP_FAILED) {
 		warn("mmap(\"%s\")", trace_file_path);
+		rc = -errno;
 	} else {
 		m0_logbuf_header = &trace_area->ta_header;
 		m0_logbuf = trace_area->ta_buf;
@@ -129,7 +135,7 @@ static int logbuf_map()
 		m0_trace_logbuf_size_set(trace_buf_size);
 	}
 
-	return -errno;
+	return rc;
 }
 
 M0_INTERNAL const char *m0_trace_file_path_get(void)

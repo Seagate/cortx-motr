@@ -117,6 +117,7 @@ motr_libmotr_la_SOURCES += lib/assert.c \
                            lib/user_space/semaphore.c \
                            lib/user_space/semaphore_named.c \
                            lib/user_space/semaphore_sysv.c \
+                           lib/user_space/semaphore_gcd.c \
                            lib/user_space/timer.c \
                            lib/user_space/uassert.c \
                            lib/user_space/ucookie.c \

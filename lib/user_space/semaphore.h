@@ -29,10 +29,12 @@
 #define USE_SYSV_SEMAPHORE        (0)
 #define USE_POSIX_SEMAPHORE       (1)
 #define USE_POSIX_NAMED_SEMAPHORE (0)
+#define USE_GCD_SEMAPHORE         (0)
 #elif defined(M0_DARWIN)
-#define USE_SYSV_SEMAPHORE        (1)
+#define USE_SYSV_SEMAPHORE        (0)
 #define USE_POSIX_SEMAPHORE       (0)
 #define USE_POSIX_NAMED_SEMAPHORE (0)
+#define USE_GCD_SEMAPHORE         (1)
 #else
 #error Wrong platform.
 #endif
@@ -41,6 +43,8 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
+#elif USE_GCD_SEMAPHORE
+#include <dispatch/dispatch.h>
 #else
 #include <semaphore.h>
 #endif
@@ -56,6 +60,8 @@ struct m0_semaphore {
 #if USE_SYSV_SEMAPHORE
 	/** SysV semaphore set identifier, see semget(2). */
 	int s_semid;
+#elif USE_GCD_SEMAPHORE
+	dispatch_semaphore_t s_dsem;
 #else
 	/** POSIX semaphore. */
 	sem_t s_sem;

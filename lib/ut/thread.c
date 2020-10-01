@@ -141,7 +141,7 @@ void test_thread(void)
 	result = M0_THREAD_INIT(&t[0], int, &lambda_42_init, &lambda_42_func,
 				42, "lambda-42");
 	M0_UT_ASSERT(result == -42);
-	m0_thread_fini(&t[0]);
+	M0_SET0(&t[0]);
 
 	/* test confine */
 	result = M0_THREAD_INIT(&t[0], int, NULL, &t3, 0, "t3");

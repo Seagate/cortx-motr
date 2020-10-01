@@ -19,7 +19,7 @@
 #
 
 ### wrapper to run user-space programs, which depend on m0tr kernel module
-
+set -x
 #
 # Global vars
 #

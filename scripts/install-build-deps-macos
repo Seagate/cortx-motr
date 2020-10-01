@@ -106,9 +106,12 @@ run N brew install castxml
 run Y perl -MCPAN -e 'install YAML::XS'
 run Y perl -MCPAN -e 'install File::Find::Rule'
 run Y perl -MCPAN -e 'install IO::All'
+run Y perl -MCPAN -e 'install MCE'
+run Y perl -MCPAN -e 'install Sereal'
 run N brew link python@3.8
 run N pip3 install ply
 run N brew install asciidoc
 run N brew install libyaml
 run N brew install gawk
 run N brew install gnu-sed
+run N brew install gnu-getopt
