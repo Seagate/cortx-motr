@@ -435,9 +435,9 @@ static struct gen g[MAX_GEN] = {};
 static bool  dry_run = false;
 static bool  signaled = false;
 
-#define FLOG(level, s)						\
-	M0_LOG(level, "        at offset: %"PRId64" errno: %s (%i), eof: %i", \
-	       ftell(s->s_file), strerror(errno), errno, feof(s->s_file))
+#define FLOG(level, rc, s)						\
+	M0_LOG(level, " rc=%d  at offset: %"PRId64" errno: %s (%i), eof: %i", \
+	       (rc), ftell(s->s_file), strerror(errno), errno, feof(s->s_file))
 
 #define RLOG(level, prefix, s, r, tag)					\
 	M0_LOG(level, prefix " %li %s %hu:%hu:%u", s->s_off, recname(r), \
@@ -779,7 +779,7 @@ static int parse(struct scanner *s)
 		}
 	} else {
 		M0_LOG(M0_FATAL, "Cannot read hdr->hd_bits.");
-		FLOG(M0_FATAL, s);
+		FLOG(M0_FATAL, result, s);
 		result = M0_ERR(-EIO);
 	}
 	return M0_RC(result);
@@ -867,7 +867,7 @@ static int recdo(struct scanner *s, const struct m0_format_tag *tag,
 			result = m0_format_footer_verify(buf, false);
 			if (result != 0) {
 				RLOG(M0_DEBUG, "С", s, r, tag);
-				FLOG(M0_DEBUG, s);
+				FLOG(M0_DEBUG, result, s);
 				r->r_stats.s_chksum++;
 			} else {
 				RLOG(M0_DEBUG, "R", s, r, tag);
@@ -877,7 +877,7 @@ static int recdo(struct scanner *s, const struct m0_format_tag *tag,
 			}
 		} else {
 			RLOG(M0_DEBUG, "V", s, r, tag);
-			FLOG(M0_DEBUG, s);
+			FLOG(M0_DEBUG, result, s);
 			r->r_stats.s_version++;
 			if (r->r_ops != NULL && r->r_ops->ro_ver != NULL)
 				result = r->r_ops->ro_ver(s, r, buf);
@@ -920,7 +920,7 @@ static int getat(struct scanner *s, off_t off, void *buf, size_t nob)
 		result = 0;
 	}
 	if (result != 0 && !feof(f)) {
-		FLOG(M0_FATAL, s);
+		FLOG(M0_FATAL, result, s);
 		s->s_pos = -1;
 	}
 	return M0_RC(result);
