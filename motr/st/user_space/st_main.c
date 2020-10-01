@@ -22,7 +22,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <ucontext.h>               /* getcontext */
 #include <signal.h>                 /* struct stack */
 #include <assert.h>                 /* assert */
 

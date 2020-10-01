@@ -211,7 +211,7 @@ real_device_name()
     local device=$1
 
     [[ -L $device ]] && \
-        device=$(readlink -f $device)
+        device=$(realpath $device)
 
     echo $(basename $device)
 }

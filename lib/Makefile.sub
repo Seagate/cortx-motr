@@ -112,6 +112,7 @@ motr_libmotr_la_SOURCES += lib/assert.c \
                            lib/user_space/poll_poll.c \
                            lib/user_space/poll_select.c \
                            lib/user_space/processor.c \
+                           lib/user_space/processor_darwin.c \
                            lib/user_space/rwlock.c \
                            lib/user_space/semaphore.c \
                            lib/user_space/semaphore_named.c \

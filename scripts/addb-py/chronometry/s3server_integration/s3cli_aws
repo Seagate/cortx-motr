@@ -21,7 +21,7 @@
 set -x
 set -e
 
-SCRIPT_PATH="$(readlink -f $0)"
+SCRIPT_PATH="$(realpath $0)"
 SCRIPT_DIR="${SCRIPT_PATH%/*}"
 
 . ${SCRIPT_DIR}/../common/common_funcs

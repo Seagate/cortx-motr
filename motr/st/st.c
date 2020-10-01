@@ -266,13 +266,6 @@ static int shuffle_tests(struct st_suite *suite)
 	return 0;
 }
 
-M0_UNUSED static inline const char *skipspaces(const char *str)
-{
-	while (isspace(*str))
-		++str;
-	return str;
-}
-
 static const char padding[256] = { [0 ... 254] = ' ', [255] = '\0' };
 
 static void run_test(const struct st_test *test)

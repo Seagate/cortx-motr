@@ -19,7 +19,7 @@
 #
 
 
-SCRIPT_PATH="$(readlink -f "$0")"
+SCRIPT_PATH="$(realpath $0)"
 MOTR_SRC_DIR="${SCRIPT_PATH%/*/*/*}"
 UT_SANDBOX_DIR="/var/motr/m0ut/ut-sandbox"
 ADDB2_STOB="/var/motr/m0ut/ut-sandbox/__s/o/100000000000000:2"

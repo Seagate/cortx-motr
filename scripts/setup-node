@@ -29,7 +29,7 @@ set -eE -o pipefail
 
 # constants
 readonly PROG_NAME="${0##*/}"
-readonly SELF="$(readlink -f $0)"
+readonly SELF="$(realpath $0)"
 readonly TOP_SRCDIR="${SELF%/*/*}"
 readonly VAGRANT_DIR="$TOP_SRCDIR/scripts/provisioning"
 

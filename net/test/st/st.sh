@@ -26,7 +26,7 @@ set -eu
 
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.net-st}
 
-CWD=$(dirname $(readlink -f $0))
+CWD=$(dirname $(realpath $0))
 M0_SRC_DIR=${CWD%/*/*/*}
 
 . $M0_SRC_DIR/utils/functions # die, opcode, sandbox_init, report_and_exit

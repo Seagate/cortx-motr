@@ -138,13 +138,13 @@ int main(int argc, char *argv[])
 {
 	static struct m0 instance;
 
-	struct rpc_ctx *ctxs;
-	const char     *op = NULL;
-	m0_time_t       start;
-	m0_time_t       delta;
-	int             rc;
-	int             i;
-	int             j;
+	struct rpc_ctx      *ctxs;
+	CAPTURED const char *op = NULL;
+	m0_time_t            start;
+	m0_time_t            delta;
+	CAPTURED int         rc;
+	int                  i;
+	int                  j;
 
 	rc = m0_init(&instance);
 	if (rc != 0) {

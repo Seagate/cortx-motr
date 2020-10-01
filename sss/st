@@ -37,7 +37,7 @@ SVC_ID_NOENT='^s|1:99'
 SVC_ID="$SVC_IOS_ID"
 PROC_ID='^r|1:5'
 
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=`realpath $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 . $M0_SRC_DIR/utils/functions # die, opcode, sandbox_init, report_and_exit

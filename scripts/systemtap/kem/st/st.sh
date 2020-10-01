@@ -22,7 +22,7 @@ set -eu
 
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.51kem}
 
-M0_SRC_DIR="$(readlink -f $0)"
+M0_SRC_DIR="$(realpath $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*/*/*/*}"
 
 . "$M0_SRC_DIR/utils/functions" # sandbox_init, report_and_exit

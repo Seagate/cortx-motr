@@ -28,11 +28,11 @@ set -eu
 # # sudo depmod
 # It's useful when you want to debug a module which is in the source tree.
 
-M0_SRC_DIR="$(readlink -f $0)"
+M0_SRC_DIR="$(realpath $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*/*}"
 . $M0_SRC_DIR/utils/functions  # die
 
-if [ ${0##*/} = $(basename $(readlink -f $0)) ]; then
+if [ ${0##*/} = $(basename $(realpath $0)) ]; then
 	die "${0##*/}: Don't execute this script, use a dedicated symlink."
 fi
 

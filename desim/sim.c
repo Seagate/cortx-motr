@@ -18,8 +18,6 @@
  *
  */
 
-#if defined(M0_LINUX)
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -78,7 +76,7 @@ static struct sim_thread *sim_current = NULL;
  * thread mode (see struct sim_thread). This context is restored to switch to
  * the scheduler mode.
  */
-static ucontext_t sim_idle_ctx;
+static _ucontext_t sim_idle_ctx;
 
 /**
  * Wrapper around malloc(3), aborting the simulation when allocation fails.
@@ -108,7 +106,7 @@ M0_INTERNAL void sim_init(struct sim *state)
 {
 	state->ss_bolt = 0;
 	ca_tlist_init(&state->ss_future);
-	getcontext(&sim_idle_ctx);
+	_getcontext(&sim_idle_ctx);
 }
 
 /**
@@ -224,9 +222,9 @@ static void sim_thread_resume(struct sim_thread *thread)
 
 	M0_ASSERT(sim_current == NULL);
 	sim_current = thread;
-	rc = swapcontext(&sim_idle_ctx, &thread->st_ctx);
+	rc = _swapcontext(&sim_idle_ctx, &thread->st_ctx);
 	if (rc != 0)
-		err(EX_UNAVAILABLE, "resume: swapcontext");
+		err(EX_UNAVAILABLE, "resume: _swapcontext");
 }
 
 /**
@@ -239,9 +237,9 @@ static void sim_thread_suspend(struct sim_thread *thread)
 
 	M0_ASSERT(sim_current == thread);
 	sim_current = NULL;
-	rc = swapcontext(&thread->st_ctx, &sim_idle_ctx);
+	rc = _swapcontext(&thread->st_ctx, &sim_idle_ctx);
 	if (rc != 0)
-		err(EX_UNAVAILABLE, "suspend: swapcontext");
+		err(EX_UNAVAILABLE, "suspend: _swapcontext");
 	sim_thread_fix(thread);
 }
 
@@ -308,9 +306,9 @@ M0_INTERNAL void sim_thread_init(struct sim *state, struct sim_thread *thread,
 	if (stacksize < MINSIGSTKSZ)
 		stacksize = MINSIGSTKSZ;
 
-	rc = getcontext(&thread->st_ctx);
+	rc = _getcontext(&thread->st_ctx);
 	if (rc != 0)
-		err(EX_UNAVAILABLE, "getcontext");
+		err(EX_UNAVAILABLE, "_getcontext");
 	thread->st_sim                   = state;
 	thread->st_ctx.uc_link           = &sim_idle_ctx;
 	thread->st_ctx.uc_stack.ss_sp    = thread->st_stack = valloc(stacksize);
@@ -319,12 +317,12 @@ M0_INTERNAL void sim_thread_init(struct sim *state, struct sim_thread *thread,
 	sim_thr_tlink_init(thread);
 	if (thread->st_stack == NULL)
 		err(EX_TEMPFAIL, "malloc(%d) of a stack", stacksize);
-	makecontext(&thread->st_ctx, (void (*)())sim_trampoline,
-		    8,
-		    sim_encode0(func),   sim_encode1(func),
-		    sim_encode0(state),  sim_encode1(state),
-		    sim_encode0(thread), sim_encode1(thread),
-		    sim_encode0(arg),    sim_encode1(arg));
+	_makecontext(&thread->st_ctx, (void (*)())sim_trampoline,
+		     8,
+		     sim_encode0(func),   sim_encode1(func),
+		     sim_encode0(state),  sim_encode1(state),
+		     sim_encode0(thread), sim_encode1(thread),
+		     sim_encode0(arg),    sim_encode1(arg));
 	sim_thread_resume(thread);
 }
 
@@ -551,9 +549,6 @@ M0_INTERNAL void sim_global_fini(void)
 {
 	cnt_global_fini();
 }
-
-/* M0_LINUX */
-#endif
 
 /** @} end of desim group */
 

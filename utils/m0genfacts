@@ -470,7 +470,7 @@ def build_disk_info(host, disk_path, index)
         wwn = '0x0000000' + format('%04d', index)
     end
 
-    slot = run("ls /sys/block/$(basename $(readlink -f #{disk_path}))/device/ 2>/dev/null" +
+    slot = run("ls /sys/block/$(basename $(realpath #{disk_path}))/device/ 2>/dev/null" +
                " | grep enclosure | cut -f2 -d':'", host: host)
     if slot.to_s.strip.empty?
         slot = index

@@ -22,7 +22,7 @@ set -eu
 
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.rpc-st}
 
-M0_SRC_DIR="$(readlink -f $0)"
+M0_SRC_DIR="$(realpath $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*/*}"
 [ -n "${SUDO:-}" ] || SUDO='sudo -E'
 

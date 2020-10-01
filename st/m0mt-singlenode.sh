@@ -21,7 +21,7 @@
 set -exu
 
 
-M0_SRC_DIR="$(readlink -f $0)"
+M0_SRC_DIR="$(realpath $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 export H0_SRC_DIR=${H0_SRC_DIR:-${M0_SRC_DIR%/*}/halon}
 

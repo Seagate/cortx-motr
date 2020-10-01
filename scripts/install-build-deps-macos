@@ -110,8 +110,5 @@ run N brew link python@3.8
 run N pip3 install ply
 run N brew install asciidoc
 run N brew install libyaml
-
-
-
-
-
+run N brew install gawk
+run N brew install gnu-sed

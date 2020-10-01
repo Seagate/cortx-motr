@@ -37,6 +37,7 @@
 #include "lib/uuid.h"        /* m0_uuid_generate */
 #include "lib/string.h"      /* m0_streq */
 #include "lib/ext.h"         /* m0_ext */
+#include "lib/thread.h"      /* CAPTURED */
 #include "module/instance.h" /* m0 */
 #include "pool/pool.h"       /* m0_pool_version */
 #include "conf/confc.h"      /* m0_confc_close */
@@ -406,12 +407,12 @@ int main(int argc, char **argv)
 	int                 rc;
 	struct m0           instance;
 	struct dix_ctx      ctx;
-	char               *local_addr  = NULL;
-	char               *ha_addr     = NULL;
-	char               *prof        = NULL;
-	char               *layout_pver = NULL;
-	char               *ldescr_pver = NULL;
-	char               *action      = NULL;
+	CAPTURED char      *local_addr  = NULL;
+	CAPTURED char      *ha_addr     = NULL;
+	CAPTURED char      *prof        = NULL;
+	CAPTURED char      *layout_pver = NULL;
+	CAPTURED char      *ldescr_pver = NULL;
+	CAPTURED char      *action      = NULL;
 	enum dix_action     act;
 	struct m0_fid       layout_pver_fid;
 	struct m0_fid       ldescr_pver_fid;

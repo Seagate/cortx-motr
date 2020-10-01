@@ -25,7 +25,7 @@ set -e
     exit 1
 }
 
-M0_SRC_DIR=$(readlink -f "${BASH_SOURCE[0]}")
+M0_SRC_DIR=$(realpath "$0")
 M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
 . "$M0_SRC_DIR"/utils/functions # report_and_exit

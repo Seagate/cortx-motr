@@ -249,8 +249,8 @@ static void config_print(struct m0_net_test_console_cfg *cfg)
 static int configure(int argc, char *argv[],
 		     struct m0_net_test_console_cfg *cfg)
 {
-	bool list_if = false;
-	bool success = true;
+	bool          list_if = false;
+	CAPTURED bool success = true;
 
 #define NUMBER_ARG(name)						\
 		M0_NUMBERARG(opt_##name, msg_##name,			\

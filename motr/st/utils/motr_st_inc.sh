@@ -28,7 +28,7 @@ gdbparams=${GDBPARAMS:-}
 
 # Get the location of this script and look for m0st and kernel
 # module in known locations (should changed to a more robust way)
-st_util_dir=$(readlink -f $0)
+st_util_dir=$(realpath $0)
 motr_src=$(echo $(dirname $st_util_dir) \
          | sed -r -e 's#/?motr/st/utils/?$##' -e 's#^/usr/s?bin##')
 

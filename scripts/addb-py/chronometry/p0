@@ -21,7 +21,7 @@
 #set -x
 set -e
 
-SCRIPT_PATH="$(readlink -f $0)"
+SCRIPT_PATH="$(realpath $0)"
 PERF_DIR="${SCRIPT_PATH%/*}"
 
 . ${PERF_DIR}/common/common_funcs
@@ -38,7 +38,7 @@ _get_cluster_params() {
 _locals() {
 
     if [[ -z "$M0_SRC_DIR" ]]; then
-        M0_SRC_DIR="$(readlink -f $0)"
+        M0_SRC_DIR="$(realpath $0)"
         M0_SRC_DIR="${M0_SRC_DIR%/*/*/*/*}"
     fi
 

@@ -18,7 +18,6 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-
 ### wrapper to run user-space programs, which depend on m0tr kernel module
 
 #
@@ -27,7 +26,7 @@
 
 # constants
 readonly PROG_NAME=$(basename $0)
-readonly self=$(readlink -f $0)
+readonly self=$(realpath $0)
 readonly base_rundir='/var/motr'
 readonly top_srcdir=$(echo $(dirname $self) \
                       | sed -r -e 's#/?utils/?$##' -e 's#^/usr/s?bin##')

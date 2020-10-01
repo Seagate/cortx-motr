@@ -27,7 +27,7 @@
 
 # constants
 readonly PROG_NAME=$(basename $0)
-readonly self=$(readlink -f $0)
+readonly self=$(realpath $0)
 readonly base_dir=$(dirname $self)
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}

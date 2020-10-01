@@ -267,7 +267,11 @@ static bool cs_endpoint_is_duplicate(const struct m0_reqh_context *rctx,
 {
 	static int (*cmp[])(const char *s1, const char *s2) = {
 		strcmp,
+#if defined(ENABLE_LUSTRE)
 		m0_net_lnet_ep_addr_net_cmp
+#else
+		strcmp
+#endif
 	};
 	struct cs_endpoint_and_xprt *ex;
 	bool                         seen = false;

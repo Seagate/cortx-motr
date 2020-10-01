@@ -19,7 +19,7 @@
 #
 
 
-motr_st_util_dir=$(dirname $(readlink -f $0))
+motr_st_util_dir=$(dirname $(realpath $0))
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
 . $m0t1fs_dir/common.sh

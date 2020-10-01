@@ -66,9 +66,6 @@ M0_TL_DECLARE(mach, M0_INTERNAL, struct m0_addb2_mach);
 
 M0_INTERNAL void m0_addb2__mach_print(const struct m0_addb2_mach *m);
 
-M0_EXTERN const struct m0_fom_type_ops m0_addb2__fom_type_ops;
-M0_EXTERN const struct m0_sm_conf      m0_addb2__sm_conf;
-
 enum storage_constants {
 	/**
 	 * Use logical block size 2^16 independently of stob block size. This

@@ -25,7 +25,7 @@ umask 0002
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.console-st}
 
-M0_SRC_DIR=$(readlink -f "$0")
+M0_SRC_DIR=$(realpath "$0")
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
 . "$M0_SRC_DIR"/utils/functions # die, opcode, sandbox_init, report_and_exit

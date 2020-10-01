@@ -16,7 +16,7 @@
 # kernel version.
 %define raw_kernel_ver %(
                           if test -n "$kernel_src"; then
-                              basename $(readlink -f "$kernel_src")
+                              basename $(realpath "$kernel_src")
                           else
                               uname -r
                           fi

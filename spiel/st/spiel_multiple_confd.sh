@@ -37,7 +37,7 @@ INSTALLED_FILES=cleanup-on-quit.txt
 error() { echo "$@" >&2; stop 1; }
 say() { echo "$@" | tee -a "$SANDBOX_DIR"/confd1/m0d.log; }
 
-M0_SRC_DIR=$(readlink -f $0)
+M0_SRC_DIR=$(realpath "$0")
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
 . "$M0_SRC_DIR"/utils/functions # die, sandbox_init, report_and_exit

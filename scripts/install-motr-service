@@ -12,7 +12,7 @@
 # constants
 readonly PROG_NAME=$(basename $0)
 
-M0_SRC_DIR="$(readlink -f $0)"
+M0_SRC_DIR="$(realpath $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
 # variables

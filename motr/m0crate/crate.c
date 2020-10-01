@@ -54,6 +54,10 @@
 #include "motr/m0crate/crate_client.h"
 #include "motr/m0crate/crate_utils.h"
 
+#if defined(M0_DARWIN)
+#define O_DIRECT (0)
+#endif
+
 extern struct crate_conf *conf;
 
 const char   cr_default_fpattern[] = "./dir%i/f%i.%i";
@@ -512,11 +516,6 @@ static void workload_run(struct workload *w)
 /*
  * HPCS workload for Creation Rate (crate) benchmark.
  */
-static inline struct cr_hpcs *w2hpcs(struct workload *w)
-{
-        return &w->u.cw_hpcs;
-}
-
 static int hpcs_init(struct workload *w)
 {
 	return 0;

@@ -40,7 +40,7 @@ M0_INTERNAL m0_time_t m0_clock_gettime_wrapper(enum CLOCK_SOURCES clock_id)
 
 	rc = clock_gettime((clockid_t)clock_id, &tp);
 	/* clock_gettime() can fail iff clock_id is invalid */
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc: %i, errno: %i.", rc, errno);
 	return M0_MKTIME(tp.tv_sec, tp.tv_nsec);
 }
 

@@ -135,8 +135,6 @@ extern struct m0_ut_suite m0_fop_lock_ut;
 extern struct m0_ut_suite m0_fom_stats_ut;
 extern struct m0_ut_suite m0_net_bulk_if_ut;
 extern struct m0_ut_suite m0_net_bulk_mem_ut;
-extern struct m0_ut_suite m0_net_lnet_ut;
-extern struct m0_ut_suite m0_net_libfab_ut;
 extern struct m0_ut_suite m0_net_misc_ut;
 extern struct m0_ut_suite m0_net_module_ut;
 extern struct m0_ut_suite m0_net_test_ut;
@@ -186,6 +184,11 @@ extern struct m0_ut_suite btree_ut;
 #define LNET_ENABLED (true)
 #else
 #define LNET_ENABLED (false)
+#endif
+
+#if defined(M0_LINUX)
+extern struct m0_ut_suite m0_net_lnet_ut;
+extern struct m0_ut_suite m0_net_libfab_ut;
 #endif
 
 static void tests_add(struct m0_ut_module *m)
@@ -284,8 +287,10 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &m0_fom_stats_ut, true);
 	m0_ut_add(m, &m0_net_bulk_if_ut, true);
 	m0_ut_add(m, &m0_net_bulk_mem_ut, true);
-	m0_ut_add(m, &m0_net_lnet_ut, LNET_ENABLED);
+#if defined(M0_LINUX)
+	m0_ut_add(m, &m0_net_lnet_ut, !USE_LIBFAB);
 	m0_ut_add(m, &m0_net_libfab_ut, USE_LIBFAB);
+#endif
 	m0_ut_add(m, &m0_net_misc_ut, true);
 	m0_ut_add(m, &m0_net_module_ut, true);
 	m0_ut_add(m, &m0_net_test_ut, true);

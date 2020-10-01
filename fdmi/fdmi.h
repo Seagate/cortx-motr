@@ -29,7 +29,8 @@
 #include "lib/buf.h"
 #include "lib/errno.h"
 #include "lib/refs.h"
-#include "lib/vec.h" /* m0_bufvec_cursor */
+#include "lib/vec.h"           /* m0_bufvec_cursor */
+#include "reqh/reqh_service.h" /* m0_reqh_service_type */
 
 /**
    @page FDMI-DLD-fspec Functional Specification

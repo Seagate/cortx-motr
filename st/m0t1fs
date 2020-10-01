@@ -36,7 +36,7 @@ readonly verbose_level_debug=2
 readonly verbose_level_info=1
 readonly verbose_level_none=0
 
-M0_SRC_DIR=$(readlink -f $0)
+M0_SRC_DIR=$(realpath $0)
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 # variables

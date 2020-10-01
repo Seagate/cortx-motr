@@ -28,7 +28,7 @@
 
 # constants
 readonly PROG_NAME=$(basename $0)
-readonly SELF=$(readlink -f $0)
+readonly SELF=$(realpath $0)
 readonly BASE_DIR=$(dirname $SELF)
 readonly ETC_MOTR_DIR='/etc/motr'
 readonly ETC_HALON_DIR='/etc/halon'

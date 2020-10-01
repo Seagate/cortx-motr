@@ -27,7 +27,7 @@
 
 # constants
 readonly PROG_NAME=$(basename $0)
-readonly self=$(readlink -f $0)
+readonly self=$(realpath $0)
 readonly base_rundir='/var/motr'
 readonly top_srcdir=$(echo $(dirname $self) |
                       sed -r -e 's#/?(utils|ut)/?$##' -e 's#^/usr/s?bin##')

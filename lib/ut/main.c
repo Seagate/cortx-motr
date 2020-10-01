@@ -39,7 +39,6 @@ extern void test_lockers(void);
 extern void test_memory(void);
 extern void m0_test_misc(void);
 extern void test_mutex(void);
-extern void test_processor(void);
 extern void test_queue(void);
 extern void test_refs(void);
 extern void test_rw(void);
@@ -60,6 +59,10 @@ extern void test_combinations(void);
 extern void test_hash_fnc(void);
 extern void m0_test_coroutine(void);
 extern void m0_test_coroutine2(void);
+
+#if defined(M0_LINUX)
+extern void test_processor(void);
+#endif
 
 struct m0_ut_suite libm0_ut = {
 	.ts_name = "libm0-ut",
@@ -84,7 +87,9 @@ struct m0_ut_suite libm0_ut = {
 		{ "misc",             m0_test_misc       },
 		{ "mutex",            test_mutex         },
 		{ "rwlock",           test_rw            },
+#if defined(M0_LINUX)
 		{ "processor",        test_processor     },
+#endif
 		{ "queue",            test_queue         },
 		{ "refs",             test_refs          },
 		{ "thread",           test_thread        },

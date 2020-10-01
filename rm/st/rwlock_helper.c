@@ -40,8 +40,8 @@ int main(int argc, char **argv)
 	struct m0_fid              process_fid = M0_FID_TINIT('r', 1, 5);
 	struct m0_fid              rms_fid = M0_FID_TINIT('s', 3, 10);
 	struct m0_rpc_machine      rpc_mach;
-	const char                *rm_ep;
-	const char                *c_ep;
+	CAPTURED const char       *rm_ep;
+	CAPTURED const char       *c_ep;
 	int                        delay;
 	int                        rc;
 

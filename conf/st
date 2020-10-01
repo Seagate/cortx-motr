@@ -46,7 +46,7 @@ PROCESS_M0T1FS='<0x7200000000000001:4>' # process-4
 
 error() { echo "$@" >&2; stop 1; }
 
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=`realpath $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 . $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit

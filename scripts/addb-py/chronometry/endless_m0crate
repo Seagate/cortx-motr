@@ -21,7 +21,7 @@
 set -e
 #set -x
 
-SCRIPT_PATH="$(readlink -f $0)"
+SCRIPT_PATH="$(realpath $0)"
 SCRIPT_DIR="${SCRIPT_PATH%/*}"
 
 trap set_term_flag SIGTERM

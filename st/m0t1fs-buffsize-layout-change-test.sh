@@ -22,7 +22,7 @@
 set -e
 
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.m0t1fs-writesize-st}
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=`realpath $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 cd "$M0_SRC_DIR"
 

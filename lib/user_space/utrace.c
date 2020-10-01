@@ -34,11 +34,12 @@
 #include <stddef.h>   /* ptrdiff_t */
 #include <time.h>     /* strftime */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
 #include "lib/types.h"
 #include "lib/arith.h"
 #include "lib/memory.h"
 #include "lib/string.h" /* m0_strdup */
-#include "lib/trace.h"
 #include "lib/trace_internal.h"
 #include "lib/cookie.h" /* m0_addr_is_sane_and_aligned */
 
@@ -725,6 +726,8 @@ void m0_error_printf(const char *fmt, ...)
 }
 
 /** @} end of trace group */
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

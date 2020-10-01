@@ -21,7 +21,7 @@
 set -e -o pipefail
 
 readonly PROG_NAME=$(basename $0)
-readonly SELF="$(readlink -f $0)"
+readonly SELF="$(realpath $0)"
 readonly TOP_SRCDIR="${SELF%/*/*}"
 dry_run=
 install_epel=true

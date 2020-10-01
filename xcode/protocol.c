@@ -36,6 +36,10 @@
 #include <sys/stat.h>
 #include <sysexits.h>
 
+#if defined(M0_DARWIN)
+#include <libgen.h>
+#endif
+
 #include "lib/uuid.h"                 /* m0_node_uuid_string_set */
 #include "lib/misc.h"                 /* ARRAY_SIZE */
 #include "lib/user_space/types.h"     /* bool */

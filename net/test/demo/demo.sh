@@ -30,7 +30,7 @@
 # after every test run. See TRACE_RM variable in $SCRIPT_TEST_RUN
 
 # Directory structure
-DIR_SCRIPT="$(readlink -f ${0%/*})"
+DIR_SCRIPT="$(realpath ${0%/*})"
 #	directory with this script
 DIR_SETUP="$DIR_SCRIPT/setup"
 #	[clients|servers]-[user|kernel]

@@ -94,14 +94,44 @@
 
 #include <stdarg.h>
 
-#if defined(__APPLE__)
+#if defined(M0_DARWIN)
 /* for ucontext:
    http://lists.apple.com/archives/darwin-dev/2008/Jan/msg00229.html */
 #define _XOPEN_SOURCE
+
+typedef struct _stack {
+	size_t ss_size;
+	int    ss_flags;
+	void  *ss_sp;
+} _stack_t;
+
+typedef struct _ucontext {
+	struct _stack     uc_stack;
+	struct _ucontext *uc_link;
+} _ucontext_t;
+
+static inline int _getcontext(_ucontext_t *u)
+{
+	return 0;
+}
+
+static inline void _makecontext(_ucontext_t *u, void (*f)(void), int arg, ...)
+{}
+
+static inline int _swapcontext(_ucontext_t *u0, const _ucontext_t *u1)
+{
+	return 0;
+}
+
+#else
+#include <ucontext.h>
+#define _ucontext_t  ucontext_t
+#define _getcontext  getcontext
+#define _makecontext makecontext
+#define _swapcontext swapcontext
 #endif
 
 #include <stdlib.h>
-#include <ucontext.h>
 
 #include "lib/tlist.h"
 #include "desim/cnt.h"
@@ -209,7 +239,7 @@ struct sim_thread {
 	/**
 	 * platform-independent structure holding thread machine state
 	 * (registers and signals mask usually) */
-	ucontext_t          st_ctx;
+	_ucontext_t         st_ctx;
 	/* channel waiting */
 	/** linkage into a sim_chan::ch_threads list */
 	struct m0_tlink     st_block;

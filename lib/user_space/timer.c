@@ -36,13 +36,13 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 
-#if defined(M0_LINUX)
-
 /**
  * @addtogroup timer
  *
  * @{
  */
+
+#if defined(M0_LINUX)
 
 /**
    Hard timer implementation uses TIMER_SIGNO signal
@@ -356,6 +356,9 @@ static void timer_hard_stop(struct m0_timer *timer)
 		m0_semaphore_down(&timer->t_cb_sync_sem);
 }
 
+/* M0_LINUX */
+#endif
+
 /**
    Soft timer working thread.
  */
@@ -456,6 +459,8 @@ static void timer_soft_stop(struct m0_timer *timer)
 	m0_semaphore_down(&timer->t_cb_sync_sem);
 }
 
+#if defined(M0_LINUX)
+
 M0_INTERNAL const struct m0_timer_operations m0_timer_ops[] = {
 	[M0_TIMER_SOFT] = {
 		.tmr_init  = timer_soft_init,
@@ -502,10 +507,53 @@ M0_INTERNAL void m0_timers_fini(void)
 	timer_sigaction(TIMER_SIGNO, NULL);
 }
 
-#undef M0_TRACE_SUBSYSTEM
-
 /* M0_LINUX */
 #endif
+
+#if defined(M0_DARWIN)
+
+M0_INTERNAL const struct m0_timer_operations m0_timer_ops[] = {
+	[M0_TIMER_SOFT] = {
+		.tmr_init  = timer_soft_init,
+		.tmr_fini  = timer_soft_fini,
+		.tmr_start = timer_soft_start,
+		.tmr_stop  = timer_soft_stop,
+	},
+	[M0_TIMER_HARD] = {
+		.tmr_init  = timer_soft_init,
+		.tmr_fini  = timer_soft_fini,
+		.tmr_start = timer_soft_start,
+		.tmr_stop  = timer_soft_stop,
+	},
+};
+
+M0_INTERNAL int m0_timers_init(void)
+{
+	return 0;
+}
+
+M0_INTERNAL void m0_timers_fini(void)
+{
+}
+
+M0_INTERNAL void m0_timer_locality_init(struct m0_timer_locality *loc)
+{}
+
+M0_INTERNAL void m0_timer_locality_fini(struct m0_timer_locality *loc)
+{}
+
+M0_INTERNAL int m0_timer_thread_attach(struct m0_timer_locality *loc)
+{
+	return 0;
+}
+
+M0_INTERNAL void m0_timer_thread_detach(struct m0_timer_locality *loc)
+{}
+
+/* M0_DARWIN */
+#endif
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of timer group */
 

@@ -18,7 +18,7 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-M0_SRC_DIR="$(readlink -f $0)"
+M0_SRC_DIR="$(realpath $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh  # build_conf

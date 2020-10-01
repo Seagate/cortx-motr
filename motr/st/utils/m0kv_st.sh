@@ -27,7 +27,7 @@
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.m0kv-st}
 
 emsg="---"
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=`realpath $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
 num=10
 large_size=30 #131072

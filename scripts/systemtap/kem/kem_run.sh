@@ -25,7 +25,7 @@
 #
 # $ make
 
-KEM_DIR=$(readlink -f "$0")
+KEM_DIR="$(realpath $0)"
 KEM_DIR="${KEM_DIR%/*}"
 
 if [ "$EUID" -ne 0 ]; then

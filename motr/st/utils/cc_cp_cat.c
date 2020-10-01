@@ -21,6 +21,10 @@
 
 #include <getopt.h>
 
+#if defined(M0_DARWIN)
+#include <libgen.h>        /* basename */
+#endif
+
 #include "lib/memory.h"    /* m0_free() */
 #include "lib/trace.h"
 #include "motr/client_internal.h"

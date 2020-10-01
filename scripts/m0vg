@@ -32,7 +32,7 @@ if (( ${BASH_VERSINFO[0]} < 4 )) ; then
 fi
 
 # a workaround for `readlink -f` on BSD systems
-if [[ $(uname) == Darwin ]] && ! readlink -f / &> /dev/null ; then
+if [[ $(uname) == Darwin ]] && ! realpath / &> /dev/null ; then
     if which greadlink &> /dev/null ; then
         alias readlink=greadlink
     else
@@ -50,7 +50,7 @@ fi
 
 # constants
 readonly PROG_NAME="${0##*/}"
-readonly SELF="$(readlink -f $0)"
+readonly SELF="$(realpath $0)"
 readonly TOP_SRCDIR="${SELF%/*/*}"
 readonly VAGRANT_DIR="$TOP_SRCDIR/scripts/provisioning"
 readonly VAGRANT_DEFAULT_DOTFILE_DIR="$VAGRANT_DIR/.vagrant"
@@ -319,12 +319,12 @@ edit_env()
 
 current_workspace()
 {
-    echo $(readlink -f $VAGRANT_DEFAULT_DOTFILE_DIR)
+    echo $(realpath $VAGRANT_DEFAULT_DOTFILE_DIR)
 }
 
 is_current_workspace()
 {
-    [[ $(readlink -f $1) == $(current_workspace) ]]
+    [[ $(realpath $1) == $(current_workspace) ]]
 }
 
 list_workspaces()

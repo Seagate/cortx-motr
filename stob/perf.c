@@ -19,8 +19,6 @@
  *
  */
 
-#if defined(M0_LINUX)
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
 #include "lib/trace.h"
 
@@ -417,7 +415,7 @@ static int stob_perf_domain_dir_clean(const char *location_data)
 	int rc;
 
 #if defined(M0_DARWIN)
-	(void)unmount(location_data, 0);
+	/* (void)unmount(location_data, 0); */
 #else
 	(void)umount(location_data);
 #endif
@@ -488,9 +486,11 @@ static int stob_perf_domain_create(struct m0_stob_type *type,
 #endif
 	if (rc == 0) {
 		dir_created = true;
+#if defined(M0_LINUX)
 		rc = mount("none", location_data, "tmpfs", MS_NODEV | MS_NOEXEC,
 			   tmpfs_opts);
 		rc = rc != 0 ? M0_ERR(-errno) : 0;
+#endif
 	}
 	if (rc == 0)
 		rc = stob_perf_domain_write_config(cfg_str, dom_key,
@@ -940,9 +940,6 @@ const struct m0_stob_type m0_stob_perf_type = {
 /** @} end group stobperf */
 
 #undef M0_TRACE_SUBSYSTEM
-
-/* M0_LINUX */
-#endif
 
 /*
  *  Local variables:

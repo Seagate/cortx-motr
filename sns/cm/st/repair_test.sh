@@ -30,7 +30,7 @@ set -e
 # 3) Once i/o is done, start repair.
 # Note: This script should be run from motr directory
 
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=`realpath $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
 
 N=(8 10 11 12 13 14 15 16 18 20)

@@ -2251,8 +2251,8 @@ struct m0_ut_suite m0_net_lnet_ut = {
 		{ "net_lnet_bulk",          test_bulk },
 		{ "net_lnet_sync",          test_sync },
 		{ "net_lnet_timeout",       test_timeout },
-                { NULL, NULL }
-        }
+		{ NULL, NULL }
+	}
 };
 M0_EXPORTED(m0_net_lnet_ut);
 

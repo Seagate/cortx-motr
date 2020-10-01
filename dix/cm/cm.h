@@ -88,6 +88,7 @@
  */
 #include "lib/chan.h"     /* m0_clink */
 #include "cm/cm.h"
+#include "cm/cp.h"        /* m0_cm_cp_ops */
 #include "cm/repreb/cm.h"
 #include "dix/cm/iter.h"
 

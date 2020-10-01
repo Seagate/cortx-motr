@@ -34,9 +34,12 @@
 #include <sysexits.h>
 #include <execinfo.h>
 #include <signal.h>
-#include <bfd.h>
 #include <stdlib.h>                    /* qsort */
 #include <unistd.h>                    /* sleep */
+
+#if defined(M0_LINUX)
+#include <bfd.h>
+#endif
 
 #include "lib/memory.h"
 #include "lib/assert.h"
@@ -198,10 +201,10 @@ int main(int argc, char **argv)
 	struct m0               instance = {0};
 	int                     result;
 	int                     i;
-	int                     rc;
 	uint64_t                start_time = 0;
 	uint64_t                stop_time  = (uint64_t)-1;
 	char                    buf[80];
+	CAPTURED int            rc;
 
 	sprintf(buf, "linuxstob:"DOM, (int)m0_pid());
 
@@ -288,67 +291,61 @@ int main(int argc, char **argv)
 
 static int plugin_load(struct plugin *plugin)
 {
-    M0_ENTRY();
-    M0_PRE(plugin != NULL);
-    M0_PRE(plugin->p_path != NULL);
+	M0_ENTRY();
+	M0_PRE(plugin != NULL);
+	M0_PRE(plugin->p_path != NULL);
 
-    plugin->p_handle = dlopen(plugin->p_path, RTLD_LAZY);
-
-    if (plugin->p_handle == NULL)
-        return M0_ERR_INFO(-ELIBACC, "%s", dlerror());
-
-    plugin->p_intrp_load = dlsym(plugin->p_handle, M0_ADDB2__PLUGIN_FUNC_NAME);
-
-    if (plugin->p_intrp_load == NULL) {
-        dlclose(plugin->p_handle);
-        plugin->p_handle = NULL;
-        return M0_ERR_INFO(-ELIBBAD, "%s", dlerror());
-    }
-
-    return M0_RC(0);
+	plugin->p_handle = dlopen(plugin->p_path, RTLD_LAZY);
+	if (plugin->p_handle == NULL)
+		return M0_ERR_INFO(-ENOENT, "%s", dlerror());
+	plugin->p_intrp_load = dlsym(plugin->p_handle,
+				     M0_ADDB2__PLUGIN_FUNC_NAME);
+	if (plugin->p_intrp_load == NULL) {
+		dlclose(plugin->p_handle);
+		plugin->p_handle = NULL;
+		return M0_ERR_INFO(-ENOENT, "%s", dlerror());
+	}
+	return M0_RC(0);
 }
 
 static void plugin_unload(struct plugin *plugin)
 {
-    M0_ENTRY();
-    M0_PRE(plugin != NULL);
-    M0_PRE(plugin->p_handle != NULL);
+	M0_ENTRY();
+	M0_PRE(plugin != NULL);
+	M0_PRE(plugin->p_handle != NULL);
 
-    dlclose(plugin->p_handle);
+	dlclose(plugin->p_handle);
 }
 
 static int plugins_load(void)
 {
-    struct plugin *p;
-    int            i;
-    int            rc;
+	struct plugin *p;
+	int            i;
+	int            rc;
 
-    for (i = 0; i < plugins_nr; ++i) {
-        p = &plugins[i];
-        rc = plugin_load(p) ?: p->p_intrp_load(p->p_flag, &p->p_intrp);
-
-        if (rc != 0)
-            return M0_ERR(rc);
-    }
-
-    return M0_RC(0);
+	for (i = 0; i < plugins_nr; ++i) {
+		p = &plugins[i];
+		rc = plugin_load(p) ?: p->p_intrp_load(p->p_flag, &p->p_intrp);
+		if (rc != 0)
+			return M0_ERR(rc);
+	}
+	return M0_RC(0);
 }
 
 static void plugins_unload(void)
 {
-    struct plugin *plugin;
-    int            i;
+	struct plugin *plugin;
+	int            i;
 
-    for (i = 0; i < plugins_nr; ++i) {
-        plugin = &plugins[i];
-        plugin_unload(plugin);
-    }
-
-    plugins_nr = 0;
+	for (i = 0; i < plugins_nr; ++i) {
+		plugin = &plugins[i];
+		plugin_unload(plugin);
+	}
+	plugins_nr = 0;
 }
 
 static bool intrps_equal(const struct m0_addb2__id_intrp *intrp0,
-                         const struct m0_addb2__id_intrp *intrp1)
+			 const struct m0_addb2__id_intrp *intrp1)
 {
     return memcmp(intrp0, intrp1, sizeof(struct m0_addb2__id_intrp)) == 0;
 }
@@ -1400,8 +1397,7 @@ static void val_dump_json(struct m0_addb2__context *ctx,
 		 /* boolean attributes (flags) */
 		if (val->va_nr == 0)
 			printf("true");
-		else if (intrp->ii_print != NULL &&
-			 intrp->ii_print[0] == &hist)
+		else if (intrp->ii_print[0] == &hist)
 			printf("true,");
 	}
 	else {
@@ -1515,6 +1511,7 @@ static void context_fill(struct m0_addb2__context *ctx,
 	}
 }
 
+#if defined(M0_LINUX)
 static bfd      *abfd;
 static asymbol **syms;
 static uint64_t  base;
@@ -1597,6 +1594,23 @@ static void libbfd_resolve(uint64_t delta, char *buf)
 		sprintf(buf, " %s", name);
 	}
 }
+
+/* M0_LINUX */
+#else
+
+static void libbfd_init(const char *libpath)
+{}
+
+static void libbfd_fini(void)
+{}
+
+static void libbfd_resolve(uint64_t delta, char *buf)
+{
+	buf[0] = 0;
+}
+
+/* !M0_LINUX */
+#endif
 
 static void deflate(void)
 {

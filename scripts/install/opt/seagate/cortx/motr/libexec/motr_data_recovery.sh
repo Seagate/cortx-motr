@@ -28,7 +28,7 @@ mkdir -p $LOG_DIR
 LOG_FILE="$LOG_DIR/motr_data_recovery_$now.log"
 touch $LOG_FILE
 # Current directory where motr_recovery.sh/m0dr is present [ scripts/beck/ ]
-SRC_DIR="$(dirname $(readlink -f $0))"
+SRC_DIR="$(dirname $(realpath $0))"
 # cortx-motr main dir path
 M0_SRC_DIR="${SRC_DIR%/*/*}"
 MD_DIR="/var/motr" # Meta Data Directory

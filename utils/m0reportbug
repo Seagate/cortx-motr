@@ -108,8 +108,7 @@ main() {
                 warn "$IN_DIR: no such directory"
                 continue
             }
-
-            export IN_DIR=$(readlink -f $IN_DIR)
+            export IN_DIR=$(realpath $IN_DIR)
 
             local label=$stage
             if ((${#INPUT_DIRS[@]} > 1)) && $uses_IN_DIR; then
@@ -325,7 +324,7 @@ probes() {
 list_input_dirs() {
     local d
     for d in ${INPUT_DIRS[@]}; do
-        find $(readlink -f $d) -exec ls -ld {} +
+        find $(realpath $d) -exec ls -ld {} +
     done
 }
 
@@ -344,7 +343,7 @@ _kdump_files() {
 misc_files() {
     local outdir path f
 
-    (outdir=$(readlink -f .)/misc
+    (outdir=$(realpath .)/misc
      cd "$IN_DIR"
      find . -type f \( -name \*.log -o -name \*.xc \) | cut -c3- |
          while read path; do
@@ -354,7 +353,7 @@ misc_files() {
          done
      )
 
-    outdir=$(readlink -f .)/root-misc
+    outdir=$(realpath .)/root-misc
     {
         find /etc/motr/ -type f 2>/dev/null || true
         find /etc/sysconfig/ -maxdepth 1 -type f \
@@ -407,7 +406,7 @@ _time() {
 program_from_core() {
     local core=$1
     if [ ! -s $core ]; then
-        warn "$(readlink -f $core) is empty"
+        warn "$(realpath $core) is empty"
         return
     fi
     local prog=$(file $core | sed -En "s/.*, from '([^ ']+).*/\1/p")
@@ -435,7 +434,7 @@ program_from_core() {
 
 ### Since $0 may be a relative path (e.g., 'utils/m0reportbug'),
 ### we might not be able to canonicalize it after cd-ing to $OUT_DATA_DIR.
-PROG=$(readlink -f $0)
+PROG=$(realpath $0)
 
 _path_rpm() {
     [ $# -eq 1 ] || die "Usage: ${FUNCNAME[0]} <name>"
@@ -450,7 +449,7 @@ _path_rpm() {
         m0mkfs) echo "/usr/sbin/$name";;
         m0addb2dump) echo "/usr/sbin/$name";;
         m0beck|m0betool) echo "/usr/sbin/$name";;
-        libmotr.so) readlink -f /usr/lib64/libmotr.so;;
+        libmotr.so) realpath /usr/lib64/libmotr.so;;
         m0tr.ko) echo "/lib/modules/$(uname -r)/kernel/fs/motr/$name";;
         m0ham|lt-m0ham) echo "/usr/sbin/$name";;
         m0ut|lt-m0ut)
@@ -482,7 +481,7 @@ _path_src() {
         m0addb2dump)
             [ -z "$subdir" ] || die "${FUNCNAME[0]}: Unexpected argument"
             echo "$src/addb2/$name";;
-        libmotr.so) readlink -f "$src/motr/.libs/libmotr.so";;
+        libmotr.so) realpath "$src/motr/.libs/libmotr.so";;
         m0tr.ko) echo "$src/$name";;
         m0ham|lt-m0ham) echo "$src/ha/.libs/$name";;
         m0ut|lt-m0ut) echo "$src/ut/.libs/$name";;
@@ -765,7 +764,7 @@ _tracedump() {
     local outdir=$2
     local m0tracedump=$(path m0tracedump)
 
-    path=$(readlink -f $path)  # convert to absolute path
+    path=$(realpath $path)  # convert to absolute path
     mkdir -p $outdir$(dirname $path)
     ##
     ## Disable stderr output to suppress these messages:
@@ -810,12 +809,12 @@ addb() {
     local dir path
 
     local m0addb2dump=$(path m0addb2dump)
-    (outdir=$(readlink -f .)/$outdir
+    (outdir=$(realpath .)/$outdir
      cd "$IN_DIR"
      for pid in `pgrep m0d`; do
          find . -type d -name addb-stobs-$pid | cut -c3- | while read dir; do
 	    find $dir/o -type f -name \*:2 | while read path; do
-               path=$(readlink -f $path) # convert to absolute path
+               path=$(realpath $path)  # convert to absolute path
                mkdir -p $outdir$(dirname $path)
                ##
                ## Note that m0addb2dump needs absolute path.
@@ -859,7 +858,7 @@ systemd_journal() {
     if ((nr_boots > NR_BOOTS_MAX)); then
         nr_boots=$NR_BOOTS_MAX
     fi
-    local outdir=$(readlink -f .)
+    local outdir=$(realpath .)
     for ((i = 0; i < nr_boots; ++i)); do
         journalctl -b -$i 2>>$REPORT | _xz >$outdir/systemd-journal_$i.xz
     done

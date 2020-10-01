@@ -268,6 +268,9 @@ M0_INTERNAL bool m0_addb2_net__is_not_locked(const struct m0_addb2_net *net)
 	return m0_mutex_is_not_locked(&net->ne_lock);
 }
 
+M0_EXTERN const struct m0_fom_type_ops m0_addb2__fom_type_ops;
+M0_EXTERN const struct m0_sm_conf      m0_addb2__sm_conf;
+
 M0_INTERNAL int m0_addb2_net_module_init(void)
 {
 	M0_FOP_TYPE_INIT(&net_fopt,
