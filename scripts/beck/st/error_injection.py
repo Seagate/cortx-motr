@@ -12,14 +12,14 @@ import logging
 timestr = time.strftime("%Y%m%d-%H%M%S")
 log_filename = "hole_creation_"+timestr+".log"
 
-logger=logging.getLogger() 
+logger=logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 fh=logging.FileHandler(log_filename)
-fh.setLevel(logging.DEBUG) 
+fh.setLevel(logging.DEBUG)
 
 ch=logging.StreamHandler()
-ch.setLevel(logging.DEBUG) 
+ch.setLevel(logging.DEBUG)
 fformatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 cformatter = logging.Formatter('%(levelname)s : %(message)s')
 fh.setFormatter(fformatter)
@@ -33,7 +33,7 @@ parser = argparse.ArgumentParser(description="Basic Arguments to run the script"
 parser.add_argument('-rn', action='store_true', default=False, dest='random', help='For inducing error at Random place')
 parser.add_argument('-e', action='store', default= 0, type=int, dest='noOfErr', help='How Many number of error do you want to induce in Metadata')
 parser.add_argument('-rt', action='store', dest='Record_Type', help='Record Type For inducing error at perticular record like BE_BTREE, BE_EMAP, CAS_CTG etc')
-parser.add_argument('-m', action='store', dest='file', help='Metadata Path')
+parser.add_argument('-m', action='store', dest='mfile', help='Metadata Path')
 parser.add_argument('-v', action='store_true', default=False, dest='verify', help='Read full Metadata and Print all the Records entry counts')
 parser.add_argument('-a', action='store_true', default=False, dest='allErr', help='Induce Error in All Record at Random place')
 parser.add_argument('-gmd', action='store_true', default=False, dest='allGMD', help='Induce Error in All GMD type of Record at Random place')
@@ -43,13 +43,12 @@ parser.add_argument('-huge', action='store_true', default=False, dest='hugeCorru
 parser.add_argument('-seed', action='store', default=0, type=float, dest='seed', help='Seed for generating Random errors corruption')
 
 args = parser.parse_args();
-#logger.info("Random {0} No of Errors {1} Record Types {2} File name {3} Verify {4}".format(args.random, args.noOfCorr, args.recordType, args.filename, args.verify ))
 
 results = parser.parse_args()
 logger.info('Induce Random Error        = {!r}'.format(args.random))
 logger.info('No of Error induce         = {!r}'.format(args.noOfErr))
 logger.info('Record Type                = {!r}'.format(args.Record_Type))
-logger.info('Metadata file path         = {!r}'.format(args.file))
+logger.info('Metadata file path         = {!r}'.format(args.mfile))
 logger.info('Verify Record entries      = {!r}'.format(args.verify))
 logger.info('Induce Error in All Record = {!r}'.format(args.allErr))
 logger.info('Induce Error in GMD Record = {!r}'.format(args.allGMD))
@@ -58,12 +57,12 @@ logger.info('Induce 512k errors         = {!r}'.format(args.err512k))
 logger.info('Induce huge corruption     = {!r}'.format(args.hugeCorruption))
 logger.info('Seed for random number     = {!r}'.format(args.seed))
 
-filename  = args.file
+filename  = args.mfile
 recordType= args.Record_Type
 noOfCorr  = args.noOfErr
 
 if args.seed != 0:
-	seed = args.seed()
+	seed = args.seed
 	logger.info("Seed used: {}".format(seed))
 else:
 	seed = time.time()
@@ -160,10 +159,10 @@ def recordOffset(record, i, size):
 
 def ReadTypeSize(byte):					#Ex: 0001(ver) 0009(type) 00003dd8(size) 
 	ver=byte[:4]						#.ot_version = src->hd_bits >> 48,
-	type=byte[6:8]						#.ot_type    = src->hd_bits >> 32 & 0x0000ffff,
+	rtype=byte[6:8]						#.ot_type    = src->hd_bits >> 32 & 0x0000ffff,
 	size =byte[8:16]					#.ot_size    = src->hd_bits & 0xffffffff
-	#logger.info("Version {}, Type {}, Size {}".format(ver, type, size))
-	return type,size
+	#logger.info("Version {}, Type {}, Size {}".format(ver, rtype, size))
+	return rtype,size
 
 def EditMetadata(offset):
 	with open(filename, 'r+b') as wbfr:
@@ -297,7 +296,7 @@ def InduceErrinDMDRecords():
 def induceHugeError():
 	count = 0
 	with open(filename, 'r+b') as wbfr:
-		logger.info("** Corrupting 8byte of Metadata at offset {} with b'1111222244443333' **".format(hex(offset)))
+		logger.info("** Corrupting 8byte of Metadata with b'1111222244443333' all place")
 		wbfr.seek(-1, os.SEEK_END)
 		endoffset=wbfr.tell()
 		offset = random.randint(1, endoffset)
@@ -357,7 +356,6 @@ def read_metadata_file():
 		#if os.path.getsize(filename):
 		i=0
 		while 1:
-			flag=0
 			byte=metadata.read(8)
 			i=i+8
 			if not byte:
@@ -366,17 +364,17 @@ def read_metadata_file():
 			if byte == header:
 				byte=binascii.hexlify((metadata.read(8))[::-1])			#Read the Type Size Version
 				i=i+8
-				type,size=ReadTypeSize(byte)
-				if type not in typeDict.keys():
+				rtype,size=ReadTypeSize(byte)
+				if rtype not in typeDict.keys():
 					continue
-				record=typeDict[type]
+				record=typeDict[rtype]
 				if size > b'00000000':
 					recordOffset(record, (i), size)
 					#logger.info("*** RECORD TYPE {}, OFFSET {}, SIZE{} ***".format(record, i*8, size))  #Debug logger.info
 					i=int(size,16)+i-16
 			#Not parsing the whole file for few test as It will take many hours, depending on metadata size
 			if not args.verify:
-				if i > 11111280000:     # Increase this number for reading more location in metadata 
+				if i > 111280000:     # Increase this number for reading more location in metadata
 					break
 
 if args.err512k:
