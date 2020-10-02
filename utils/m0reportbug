@@ -41,7 +41,7 @@ CRASH_AGE_MAX=3 # maximal age (days) of vmcore-dmesg.txt files to be collected
 STAGE_TIME_LIMIT=10 # seconds; if a stage runs longer, show its duration
 DEFAULT_INPUT_DIRS_GLOB='/var/motr*'
 IN_DIR=
-CORE_DIR=/var/crash    # path from where m0reportbug will collect cores
+CORE_DIR=/var/log/crash    # path from where m0reportbug will collect cores
 RECOVERY_SCRIPT_DIR=/opt/seagate/cortx/motr/libexec    # dir containing recovery traces and scripts
 RECOVERY_LOG_DIR=/var/log/seagate/motr/datarecovery    # dir containing recovery log/logs
 LIVE_CORE_DIR=/var/log/seagate/motr
@@ -120,7 +120,7 @@ main() {
         done
     done >>$REPORT
 
-    # Collects live/compressed core generated in /var/crash
+    # Collects live/compressed core generated in /var/log/crash
     IN_DIR=${CORE_DIR}
     local label="backtraces_core $IN_DIR"
     echo -n "$label... " >&2
@@ -827,6 +827,8 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2020-10-02 0.51    Updated core/crash directory location to /var/log/crash
+###
 ### 2020-09-21 0.50    updated m0reportbug to capture below recovery debug data
 ###                    1.m0betool and m0beck binaries.
 ###                    2.motr_data_recovery.sh and prov-m0-reset scripts
