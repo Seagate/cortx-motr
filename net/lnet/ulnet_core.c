@@ -514,8 +514,7 @@ static bool nlx_ucore_domain_invariant(const struct nlx_ucore_domain *ud)
 	    ud->ud_fd >= 0 &&
 	    ud->ud_max_buffer_size > 0 &&
 	    ud->ud_max_buffer_segment_size > 0 &&
-	    ud->ud_max_buffer_segments > 0 &&
-	    ud->ud_nidstrs != NULL;
+	    ud->ud_max_buffer_segments > 0;
 }
 
 /**
@@ -692,12 +691,6 @@ M0_INTERNAL int nlx_core_dom_init(struct m0_net_domain *dom,
 	NLX_IP_SET(max_buffer_segments);
 #undef NLX_IP_SET
 
-	/* cache NID strings */
-	rc = nlx_ucore_nidstrs_get(ud, &ud->ud_nidstrs);
-	if (rc != 0)
-		goto fail_dom_init;
-	m0_atomic64_set(&ud->ud_nidstrs_refcount, 0);
-
 	ud->ud_magic = M0_NET_LNET_UCORE_DOM_MAGIC;
 	cd->cd_upvt = ud;
 
@@ -719,9 +712,6 @@ M0_INTERNAL void nlx_core_dom_fini(struct nlx_core_domain *cd)
 	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
 	M0_PRE(nlx_ucore_domain_invariant(ud));
-
-	M0_ASSERT(m0_atomic64_get(&ud->ud_nidstrs_refcount) == 0);
-	nlx_ucore_nidstrs_put(ud, &ud->ud_nidstrs);
 
 	close(ud->ud_fd);
 	ud->ud_magic = 0;
@@ -1050,34 +1040,26 @@ M0_INTERNAL int nlx_core_nidstr_encode(struct nlx_core_domain *cd,
    This call is not protected by any mutex. It relies on the
    application to not invoke it during domain finalization.
  */
-M0_INTERNAL int nlx_core_nidstrs_get(struct nlx_core_domain *cd,
-				     char *const **nidary)
+M0_INTERNAL int nlx_core_nidstrs_get(struct nlx_core_domain   *cd,
+				     char                   ***nidary)
 {
 	struct nlx_ucore_domain *ud;
 
 	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
 	M0_PRE(nlx_ucore_domain_invariant(ud));
-
-	m0_atomic64_inc(&ud->ud_nidstrs_refcount);
-	*nidary = ud->ud_nidstrs;
-	return 0;
+	return nlx_ucore_nidstrs_get(ud, nidary);
 }
 
-M0_INTERNAL void nlx_core_nidstrs_put(struct nlx_core_domain *cd,
-				      char *const **nidary)
+M0_INTERNAL void nlx_core_nidstrs_put(struct nlx_core_domain   *cd,
+				      char                   ***nidary)
 {
 	struct nlx_ucore_domain *ud;
 
 	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
 	M0_PRE(nlx_ucore_domain_invariant(ud));
-
-	M0_ASSERT(ud->ud_nidstrs == *nidary);
-	M0_ASSERT(m0_atomic64_get(&ud->ud_nidstrs_refcount) > 0);
-	m0_atomic64_dec(&ud->ud_nidstrs_refcount);
-	*nidary = NULL;
-	return;
+	nlx_ucore_nidstrs_put(ud, nidary);
 }
 
 /**

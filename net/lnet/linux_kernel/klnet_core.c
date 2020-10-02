@@ -824,38 +824,6 @@ static struct m0_mutex nlx_kcore_mutex;
 /** List of all transfer machines. Protected by nlx_kcore_mutex. */
 static struct m0_tl nlx_kcore_tms;
 
-/**
- * List of hardcoded nidstrs for LDR R1 failover speedup.
- *
- * Currently we have a list of LNIDs, which is cached during m0tr.ko module
- * insertion. During a failover LNIDs could be added in runtime, which will
- * lift a requirement to re-insert m0tr.ko at that time. This may speed up the
- * failover by having Motr processes, that are running already on the system,
- * to continue to run without restart.
- *
- * Current implementation just adds a hardcoded list of all possible LNIDs when
- * m0tr.ko is inserted, so there will be no need to implement cache
- * invalidation when a failover happens. This is a solution that could be
- * implemented very fast, and it will unblock further testing.
- *
- * Reference: EOS-13330.
- */
-static const char *nlx_kcore_nidstrs_hardcoded[] = {
-	"192.168.0.1@o2ib",
-	"192.168.0.2@o2ib",
-	"192.168.0.3@o2ib",
-	"192.168.0.4@o2ib",
-};
-/** NID strings of LNIs. */
-static char **nlx_kcore_lni_nidstrs;
-/** The count of non-NULL entries in nlx_kcore_lni_nidstrs.
-    @note Caching this count and the string list will no longer be possible
-    if and when dynamic NI addition/removal is supported by LNet.
- */
-static unsigned int nlx_kcore_lni_nr;
-/** Reference counter for nlx_kcore_lni_nidstrs. */
-static struct m0_atomic64 nlx_kcore_lni_refcount;
-
 M0_TL_DESCR_DEFINE(tms, "nlx tms", static, struct nlx_kcore_transfer_mc,
 		   ktm_tm_linkage, ktm_magic, M0_NET_LNET_KCORE_TM_MAGIC,
 		   M0_NET_LNET_KCORE_TMS_MAGIC);
@@ -1724,17 +1692,6 @@ M0_INTERNAL int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
 	return nlx_kcore_buf_event_wait(ctm, ktm, timeout);
 }
 
-M0_INTERNAL int nlx_kcore_nidstr_add(const char *nidstr)
-{
-	M0_ASSERT(nidstr != NULL);
-	nlx_kcore_lni_nidstrs[nlx_kcore_lni_nr] = m0_alloc(strlen(nidstr) + 1);
-	if (nlx_kcore_lni_nidstrs[nlx_kcore_lni_nr] == NULL)
-		return M0_ERR(-ENOMEM);
-	strcpy(nlx_kcore_lni_nidstrs[nlx_kcore_lni_nr], nidstr);
-	++nlx_kcore_lni_nr;
-	return M0_RC_INFO(0, "nidstr=%s", nidstr);
-}
-
 /**
    Decodes a NID string into a NID.
    @param nidstr the string to be decoded.
@@ -1783,35 +1740,44 @@ M0_INTERNAL int nlx_core_nidstr_encode(struct nlx_core_domain *lcdom,	/* not use
    The returned array must be released using nlx_core_nidstrs_put().
    @param nidary A NULL-terminated (like argv) array of NID strings is returned.
  */
-static int nlx_kcore_nidstrs_get(char * const **nidary)
-{
-	M0_PRE(nlx_kcore_lni_nidstrs != NULL);
-	*nidary = nlx_kcore_lni_nidstrs;
-	m0_atomic64_inc(&nlx_kcore_lni_refcount);
-	return 0;
-}
-
 M0_INTERNAL int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom,
-				     char *const **nidary)
+				     char ***nidary)
 {
-	return nlx_kcore_nidstrs_get(nidary);
-}
+	lnet_process_id_t  id;
+	char              *nidstr;
+	int                i;
+	int                j;
+	int                nr;
+	int                rc;
 
-/**
-   Kernel helper to release the strings returned by nlx_kcore_nidstrs_get().
- */
-M0_INTERNAL void nlx_kcore_nidstrs_put(char *const **nidary)
-{
-	M0_PRE(*nidary == nlx_kcore_lni_nidstrs);
-	M0_PRE(m0_atomic64_get(&nlx_kcore_lni_refcount) > 0);
-	m0_atomic64_dec(&nlx_kcore_lni_refcount);
-	*nidary = NULL;
+	for (nr = 0, rc = 0; rc != -ENOENT; ++nr)
+		rc = LNetGetId(nr, &id);
+	M0_ALLOC_ARR(*nidary, nr);
+	if (*nidary == NULL)
+		return M0_ERR(-ENOMEM);
+	for (i = 0; i < nr - 1; ++i) {
+		rc = LNetGetId(i, &id);
+		M0_ASSERT(rc == 0);
+		nidstr = libcfs_nid2str(id.nid);
+		M0_ASSERT(nidstr != NULL);
+		(*nidary)[i] = m0_strdup(nidstr);
+		if ((*nidary)[i] == NULL) {
+			for (j = 0; j < i; ++j)
+				m0_free((*nidary)[j]);
+			return M0_ERR(-ENOMEM);
+		}
+	}
+	return M0_RC(0);
 }
 
 M0_INTERNAL void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom,
-				      char *const **nidary)
+				      char ***nidary)
 {
-	nlx_kcore_nidstrs_put(nidary);
+	int i;
+
+	for (i = 0; (*nidary)[i] != NULL; ++i)
+		m0_free((*nidary)[i]);
+	*nidary = NULL;
 }
 
 M0_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
@@ -1913,16 +1879,16 @@ static int nlx_kcore_tm_start(struct nlx_kcore_domain      *kd,
 		rc = -EINVAL;
 		goto fail;
 	}
-	for (i = 0; i < nlx_kcore_lni_nr; ++i) {
+	for (i = 0; ; ++i) {
 		rc = LNetGetId(i, &id);
-		M0_ASSERT(rc == 0);
+		if (rc == -ENOENT)
+			break;
+		M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 		if (id.nid == cepa->cepa_nid && id.pid == cepa->cepa_pid)
 			break;
 	}
-	if (i == nlx_kcore_lni_nr) {
-		rc = M0_ERR(-ENOENT);
+	if (rc == -ENOENT)
 		goto fail;
-	}
 
 	rc = LNetEQAlloc(M0_NET_LNET_EQ_SIZE, nlx_kcore_eq_cb, &ktm->ktm_eqh);
 	if (rc < 0) {
@@ -2023,16 +1989,8 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
 static void nlx_core_fini(void)
 {
 	int rc;
-	int i;
 
-	M0_ASSERT(m0_atomic64_get(&nlx_kcore_lni_refcount) == 0);
 	nlx_dev_fini();
-	if (nlx_kcore_lni_nidstrs != NULL) {
-		for (i = 0; nlx_kcore_lni_nidstrs[i] != NULL; ++i)
-			m0_free(nlx_kcore_lni_nidstrs[i]);
-		m0_free0(&nlx_kcore_lni_nidstrs);
-	}
-	nlx_kcore_lni_nr = 0;
 	tms_tlist_fini(&nlx_kcore_tms);
 	m0_mutex_fini(&nlx_kcore_mutex);
 	rc = LNetNIFini();
@@ -2042,10 +2000,6 @@ static void nlx_core_fini(void)
 static int nlx_core_init(void)
 {
 	int rc;
-	int i;
-	int j;
-	int nr;
-	lnet_process_id_t id;
 	/*
 	 * Temporarily reset current->journal_info, because LNetNIInit assumes
 	 * it is NULL.
@@ -2069,41 +2023,6 @@ static int nlx_core_init(void)
 	m0_mutex_init(&nlx_kcore_mutex);
 	tms_tlist_init(&nlx_kcore_tms);
 
-	m0_atomic64_set(&nlx_kcore_lni_refcount, 0);
-	for (nr = 0, rc = 0; rc != -ENOENT; ++nr)
-		rc = LNetGetId(nr, &id);
-	M0_ALLOC_ARR(nlx_kcore_lni_nidstrs,
-		     nr + ARRAY_SIZE(nlx_kcore_nidstrs_hardcoded));
-	if (nlx_kcore_lni_nidstrs == NULL) {
-		nlx_core_fini();
-		return M0_ERR(-ENOMEM);
-	}
-	for (i = 0; i < nr - 1; ++i) {
-		rc = LNetGetId(i, &id);
-		M0_ASSERT(rc == 0);
-		rc = nlx_kcore_nidstr_add(libcfs_nid2str(id.nid));
-		if (rc != 0) {
-			nlx_core_fini();
-			return M0_ERR(rc);
-		}
-	}
-	for (i = 0; i < ARRAY_SIZE(nlx_kcore_nidstrs_hardcoded); ++i) {
-		for (j = 0; j < nlx_kcore_lni_nr; ++j) {
-			if (m0_streq(nlx_kcore_lni_nidstrs[j],
-			             nlx_kcore_nidstrs_hardcoded[i]))
-				break;
-		}
-		if (j != nlx_kcore_lni_nr) {
-			M0_LOG(M0_DEBUG, "nidstr=%s has been added already",
-			       nlx_kcore_nidstrs_hardcoded[i]);
-			continue;
-		}
-		rc = nlx_kcore_nidstr_add(nlx_kcore_nidstrs_hardcoded[i]);
-		if (rc != 0) {
-			nlx_core_fini();
-			return M0_ERR(rc);
-		}
-	}
 	rc = nlx_dev_init();
 	if (rc != 0)
 		nlx_core_fini();
