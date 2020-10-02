@@ -1074,7 +1074,8 @@ M0_INTERNAL int m0__idx_cancel(struct m0_op_idx *oi)
 	 * Do no post cancel ast when oi completion/fail
 	 * already called and for not handled types.
 	 */
-	if (!M0_IN(dreq->dr_type, (DIX_CREATE,
+	if (!M0_IN(dreq->dr_type, (DIX_NEXT,
+				   DIX_CREATE,
 				   DIX_DELETE,
 				   DIX_CCTGS_LOOKUP)) &&
 	    !oi->oi_in_completion)
