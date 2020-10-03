@@ -339,12 +339,16 @@ M0_INTERNAL int m0_reqhs_init(void)
 
 #ifndef __KERNEL__
 M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, const char *location,
-				   uint64_t key, bool mkfs, bool force)
+				   uint64_t key, bool mkfs, bool force,
+				   m0_bcount_t size)
 {
 	struct m0_addb2_sys *sys  = m0_fom_dom()->fd_addb2_sys;
 	struct m0_addb2_sys *gsys = m0_addb2_global_get();
 	int                  result;
 
+	if (size == 0)
+		size = DEFAULT_ADDB2_RECORD_SIZE;
+	M0_LOG(M0_ERROR, "Atul...reqh/reqh.c:351...size=%llu\n", (unsigned long long)size);
 	/**
 	 * @todo replace size constant (10GB)  with a value from confc.
 	 */
@@ -364,7 +368,8 @@ M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, const char *location,
 
 #else /* !__KERNEL__ */
 M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, const char *location,
-				   uint64_t key, bool mkfs, bool force)
+				   uint64_t key, bool mkfs, bool force,
+				   m0_bcount_t size)
 {
 	struct m0_addb2_sys *sys = m0_fom_dom()->fd_addb2_sys;
 	int                  result;
