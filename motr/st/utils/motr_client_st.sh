@@ -139,7 +139,6 @@ main()
 {
 	local rc
 
-	mkdir -p $MOTR_M0T1FS_TEST_DIR
 	echo "Motr system tests start:"
 	echo "Test log will be stored in $MOTR_TEST_LOGFILE."
 

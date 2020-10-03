@@ -335,7 +335,7 @@ static struct m0_sm_state_descr confc_ctx_states[S_NR] = {
 					S_FAILURE)
 	},
 	[S_WAIT_REPLY] = {
-		.sd_flags     = 0,
+		.sd_flags     = M0_SDF_FINAL,
 		.sd_name      = "S_WAIT_REPLY",
 		.sd_in        = wait_reply_st_in,
 		.sd_ex        = NULL,
@@ -1431,11 +1431,19 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 			obj = obj->co_parent;
 			M0_CNT_DEC(ri);
 		}
-		rc = request_create(ctx, obj, ri);
-		if (rc == 0) {
-			M0_LEAVE("retval=M0_CS_MISSING");
-			return M0_CS_MISSING;
-		}
+		/* In multi confd setup, main confd may restart and
+		 * other confd will takeover, so until then retry the
+		 * request.
+		 */
+		if (m0_confc_is_online(ctx->fc_confc)) {
+			rc = request_create(ctx, obj, ri);
+			if (rc == 0) {
+				M0_LEAVE("retval=M0_CS_MISSING");
+				return M0_CS_MISSING;
+			}
+		} else
+			rc = M0_ERR(-EAGAIN);
+
 		return M0_RC(rc);
 
 	case M0_CS_LOADING:
