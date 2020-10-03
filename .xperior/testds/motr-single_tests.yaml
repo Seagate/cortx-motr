@@ -446,7 +446,7 @@ Tests:
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.47motr_client
     polltime : 30
-    timeout  : 1800
+    timeout  : 3600
 
   - id       : 48motr-raid0-io
     script   : motr_raid0_st.sh
@@ -562,6 +562,13 @@ Tests:
     polltime : 30
     timeout  : 1800
 
+  - id       : 61spiel-multi-confd
+    script   : spiel_multiple_confd.sh
+    dir      : src/spiel/st/
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/mero/sandbox.61spiel-multi-confd
+    polltime : 30
+    timeout  : 1800
 
   - id       : 61spiel-multi-confd
     script   : spiel_multiple_confd.sh

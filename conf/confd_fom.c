@@ -114,10 +114,10 @@ static int conf_fetch_tick(struct m0_fom *fom)
 	struct m0_confd            *confd;
 	int                         rc;
 
+	M0_ENTRY("fom = %p", fom);
+
 	if (m0_fom_phase(fom) < M0_FOPH_NR)
 		return m0_fom_tick_generic(fom);
-
-	M0_ENTRY();
 
 	q = m0_fop_data(fom->fo_fop);
 	r = m0_fop_data(fom->fo_rep_fop);

@@ -52,7 +52,7 @@ function m0kv_cmd_start()
 	local cmdline="$exec $args $all"
 	if [ $verbose == 1 ]; then
 		echo "Running m0kv command line tool..."
-		echo "$cmdline" > /dev/tty
+		echo "$cmdline"
 	fi
 	eval $cmdline || {
 		err=$?
