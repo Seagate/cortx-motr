@@ -30,14 +30,15 @@ How to run the script:
    On srvnode-2 : /dev/vg_metadata_srvnode-2/lv_raw_metadata
 
 2. Whenever you need to induce holes in metadata, you need to first shutdown the cluster
-   On HW you can use "pcs cluster stop --all" and on VM "hctl shutdown"
+   On HW you can run "pcs cluster stop --all" and on VM "hctl shutdown"
    
 3. It will create a log named as hole_creation_YYYYDDMM_HHMMSS.log
 
 4. For injecting error on random record with user given number of error.
    example: error_injection.py -rn -e <number of error> -m <metadata path>
    
-   It will print seed as well for random number generation. User can use that seed for same hole injection
+   It will print seed as well for random number generation. User can take that seed for 
+   initialize the "random" library: to initialize the random generation 
    
 5. For injecting error on particular record type with user given number of error.
    example: error_injection.py -rt <record type> -e <number of error> -m <metadata path>
@@ -56,10 +57,10 @@ How to run the script:
 9. For injecting 512k bytes errors in metadata. The starting point in error injection will be random.
    example: error_injection.py -512k -m <metadata path>
    
-10. For injecting huge errors in metadata, Means script will randomly take a starting point and start corrupting till end of metadata.
-    example: error_injection.py -512k -m <metadata path>
+10. For injecting huge errors in metadata, script will randomly take a starting point and start corrupting till end of metadata.
+    example: error_injection.py -huge -m <metadata path>
 	
-11. Count all record numbers. This is use for verifying record numbers.
+11. Count all record numbers. This is useful for verifying record numbers.
     example: error_injection.py -v -m <metadata path>
 	
 12. Use -seed for recreation of any random scenario which is -rn, -gmd, -dmd, -a, -512k, -huge.
