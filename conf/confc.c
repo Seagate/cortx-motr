@@ -667,7 +667,7 @@ m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
 	*ctx = (struct m0_confc_ctx){ .fc_confc = confc };
 	m0_sm_init(&ctx->fc_mach, &confc_ctx_states_conf, S_INITIAL,
 		   confc->cc_group);
-	ctx->fc_ast.sa_datum = &ctx->fc_ast_datum;
+	ctx->fc_ast.sa_datum = ctx;
 	m0_clink_init(&ctx->fc_clink, on_object_updated);
 	m0_confc_ctx_bob_init(ctx);
 
@@ -728,7 +728,7 @@ static bool _ctx_check(const void *bob)
 	const struct m0_sm        *mach = &ctx->fc_mach;
 
 	return  _0C(m0_confc_invariant(ctx->fc_confc)) &&
-		_0C(ctx->fc_ast.sa_datum == &ctx->fc_ast_datum) &&
+		_0C(ctx->fc_ast.sa_datum == ctx) &&
 		_0C(ctx->fc_clink.cl_cb == on_object_updated) &&
 		_0C(ergo(ctx->fc_rpc_item != NULL, request_check(ctx))) &&
 		_0C(ergo(mach->sm_state == S_TERMINAL, mach->sm_rc == 0)) &&
@@ -840,8 +840,8 @@ static int sm_waiter_wait(struct sm_waiter *w, struct m0_conf_obj **result)
  * open/close
  * ------------------------------------------------------------------ */
 
-static void ast_state_set(struct m0_sm_ast *ast, enum confc_ctx_state state);
-static void ast_fail(struct m0_sm_ast *ast, int rc);
+static void ctx_state_set (struct m0_confc_ctx *ctx, enum confc_ctx_state state);
+static void ctx_state_fail(struct m0_confc_ctx *ctx, int rc);
 static int path_copy(const struct m0_fid *src, struct m0_fid *dest,
 		     size_t dest_sz);
 
@@ -888,9 +888,9 @@ M0_INTERNAL void m0_confc__open(struct m0_confc_ctx *ctx,
 	}
 	rc = rc ?: path_copy(path, ctx->fc_path, ARRAY_SIZE(ctx->fc_path));
 	if (rc == 0)
-		ast_state_set(&ctx->fc_ast, S_CHECK);
+		ctx_state_set(ctx, S_CHECK);
 	else
-		ast_fail(&ctx->fc_ast, rc);
+		ctx_state_fail(ctx, rc);
 	M0_LEAVE();
 }
 
@@ -935,7 +935,7 @@ M0_INTERNAL void m0_confc_open_by_fid(struct m0_confc_ctx *ctx,
 	if (rc == 0)
 		m0_confc_open(ctx, obj, M0_FID0);
 	else
-		ast_fail(&ctx->fc_ast, rc);
+		ctx_state_fail(ctx, rc);
 }
 
 M0_INTERNAL int m0_confc_open_by_fid_sync(struct m0_confc      *confc,
@@ -1259,7 +1259,7 @@ static void on_replied(struct m0_rpc_item *item)
 		rc = M0_ERR(-EPERM);
 	if (rc == 0) {
 		m0_rpc_item_get(item->ri_reply);
-		ast_state_set(&ctx->fc_ast, S_GROW_CACHE);
+		ctx_state_set(ctx, S_GROW_CACHE);
 	} else {
 		/*
 		 * See if the confc is a 'conductor' governed by rconfc. In case
@@ -1267,11 +1267,11 @@ static void on_replied(struct m0_rpc_item *item)
 		 */
 		if (ctx->fc_confc->cc_gops != NULL &&
 		    ctx->fc_confc->cc_gops->go_skip != NULL)
-			ast_state_set(&ctx->fc_ast, S_SKIP_CONFD);
+			ctx_state_set(ctx, S_SKIP_CONFD);
 		else if (rc == -EAGAIN)
-			ast_state_set(&ctx->fc_ast, S_RETRY_CONFD);
+			ctx_state_set(ctx, S_RETRY_CONFD);
 		else
-			ast_fail(&ctx->fc_ast, rc);
+			ctx_state_fail(ctx, rc);
 	}
 	M0_LEAVE("rc=%d", rc);
 }
@@ -1286,7 +1286,7 @@ static bool on_object_updated(struct m0_clink *link)
 	M0_PRE(confc_is_locked(ctx->fc_confc));
 
 	m0_clink_del(&ctx->fc_clink);
-	ast_state_set(&ctx->fc_ast, S_CHECK);
+	ctx_state_set(ctx, S_CHECK);
 
 	M0_LEAVE();
 	return true; /* event is consumed */
@@ -1460,18 +1460,38 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 
 static void _state_set(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
 {
-	int state = *(int *)ast->sa_datum;
-	M0_PRE(M0_IN(state, (S_INITIAL, S_CHECK, S_WAIT_REPLY, S_WAIT_STATUS,
-			     S_RETRY_CONFD, S_SKIP_CONFD, S_GROW_CACHE,
-                             /* note the absence of S_FAILURE */
-			     S_TERMINAL)));
+	struct m0_confc_ctx *ctx = ast->sa_datum;
+	int state;
 
-	m0_sm_state_set(&ast_to_ctx(ast)->fc_mach, state);
+	if (ctx->fc_confc == NULL) {
+		/* the 'ctx' is already finalized */
+		return;
+	}
+
+	M0_ASSERT(ast_to_ctx(ast) == ctx);
+
+	state = ctx->fc_ast_datum;
+	M0_ASSERT(M0_IN(state, (S_INITIAL, S_CHECK, S_WAIT_REPLY, S_WAIT_STATUS,
+				S_RETRY_CONFD, S_SKIP_CONFD, S_GROW_CACHE,
+				/* note the absence of S_FAILURE */
+				S_TERMINAL)));
+
+	m0_sm_state_set(&ctx->fc_mach, state);
 }
 
-static void _fail(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
+static void _state_fail(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
 {
-	m0_sm_fail(&ast_to_ctx(ast)->fc_mach, S_FAILURE, *(int *)ast->sa_datum);
+	struct m0_confc_ctx *ctx = ast->sa_datum;
+	int rc;
+
+	if (ctx->fc_confc == NULL) {
+		/* the 'ctx' is already finalized */
+		return;
+	}
+
+	M0_ASSERT(ast_to_ctx(ast) == ctx);
+	rc = ctx->fc_ast_datum;
+	m0_sm_fail(&ctx->fc_mach, S_FAILURE, rc);
 }
 
 static void _ast_post(struct m0_sm_ast *ast,
@@ -1481,24 +1501,26 @@ static void _ast_post(struct m0_sm_ast *ast,
 	struct m0_confc_ctx *ctx = ast_to_ctx(ast);
 
 	ast->sa_cb = cb;
-	M0_ASSERT(ast->sa_datum == &ctx->fc_ast_datum);
+	M0_ASSERT(ast->sa_datum == ctx);
 	ctx->fc_ast_datum = datum;
 
 	m0_sm_ast_post(ctx->fc_confc->cc_group, ast);
 }
 
 /** Posts an AST that will advance the state machine to given state. */
-static void ast_state_set(struct m0_sm_ast *ast, enum confc_ctx_state state)
+static void ctx_state_set(struct m0_confc_ctx *ctx, enum confc_ctx_state state)
 {
+	struct m0_sm_ast *ast = &ctx->fc_ast;
 	_ast_post(ast, _state_set, state);
 }
 
 /** Posts an AST that will move the state machine to S_FAILURE state. */
-static void ast_fail(struct m0_sm_ast *ast, int rc)
+static void ctx_state_fail(struct m0_confc_ctx *ctx, int rc)
 {
-	_ast_post(ast, _fail, rc);
+	struct m0_sm_ast *ast = &ctx->fc_ast;
+	_ast_post(ast, _state_fail, rc);
 }
-
+
 /* ------------------------------------------------------------------
  * Configuration cache management
  * ------------------------------------------------------------------ */
