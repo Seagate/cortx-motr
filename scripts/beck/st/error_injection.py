@@ -168,7 +168,7 @@ def InduceCorruption(recordType, noOfErr):
     logger.info(recordType)
     logger.info("Number of Error want to induce: {}".format(noOfErr))
     lookupList = recordDict[recordType]
-    if (len(lookupList) & noOfErr) == 0:
+    if (len(lookupList) and noOfErr) == 0:
         logger.error("Record List is empty. Please choose another Record")
         count = 0
         return count
