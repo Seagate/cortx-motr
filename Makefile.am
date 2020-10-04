@@ -915,6 +915,11 @@ motr_crondir = $(sysconfdir)/cron.hourly
 motr_cron_SCRIPTS = \
     scripts/install$(motrdir)/libexec/m0trace_logrotate.sh
 EXTRA_DIST += $(motr_cron_SCRIPTS)
+
+motr_add2dbdir = $(motrdir)/libexec
+motr_add2db_SCRIPTS = \
+    scripts/addb-py/chronometry/addb2db.py
+EXTRA_DIST += $(motr_add2db_SCRIPTS)
     
 motr_confdir = $(motrdir)/conf
 motr_conf_DATA = scripts/install$(motr_confdir)/motr.conf \

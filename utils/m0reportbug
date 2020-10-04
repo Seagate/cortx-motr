@@ -26,7 +26,7 @@ export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 ### When modifying this script, please increment VERSION and add new
 ### entry to the 'History' section below.
 ### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-VERSION=0.50
+VERSION=0.52
 
 OUT_DATA_DIR=m0reportbug-data
 OUT_CORES_DIR=m0reportbug-cores
@@ -735,6 +735,7 @@ addb() {
     local dir path
 
     local m0addb2dump=$(path m0addb2dump)
+    local addb2db=${RECOVERY_SCRIPT_DIR}/addb2db.py
     (outdir=$(readlink -f .)/$outdir
      cd "$IN_DIR"
      find . -type d -name addb-stobs | cut -c3- | while read dir; do
@@ -748,6 +749,16 @@ addb() {
              ## > lt-m0addb2dump: Cannot create stob: -2: No such file
              ## > or directory
              $m0addb2dump $path | tail -$ADDB_TAIL | _xz >$outdir$path.xz
+             dumpfile_path=$outdir$(dirname $path)
+             $m0addb2dump -f -- $path > ${dumpfile_path}/dump_1.txt
+             if [[ -f $addb2db ]]; then
+                 python3 $addb2db --dumps ${dumpfile_path}/dump_1.txt \
+                                  --db ${dumpfile_path}/m0play.db
+                 xz ${dumpfile_path}/m0play.db
+                 rm ${dumpfile_path}/dump_1.txt
+             else
+                 echo "couldn't find add addb2db.py file"
+             fi
              touch -r $path $outdir$path.xz
              echo $path.xz
          done
@@ -832,6 +843,9 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2020-10-04 0.52    updated m0reportbug to capture addb db using
+###                    addb2db.py
+###
 ### 2020-10-02 0.51    Added /var/log/crash to CORE_DIRS list since on
 ###                    provisioner deployed setup, core would be in /var/log/crash
 ###
