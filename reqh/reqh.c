@@ -348,7 +348,6 @@ M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, const char *location,
 
 	if (size == 0)
 		size = DEFAULT_ADDB2_RECORD_SIZE;
-	M0_LOG(M0_ERROR, "Atul...reqh/reqh.c:351...size=%llu\n", (unsigned long long)size);
 	/**
 	 * @todo replace size constant (10GB)  with a value from confc.
 	 */

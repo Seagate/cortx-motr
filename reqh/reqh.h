@@ -68,7 +68,7 @@ enum {
 	/** Max ADDB Record record size in bytes (10G) */
 	MAX_ADDB2_RECORD_SIZE = 10ULL << 30,
 	/** ADDB Record size should be multiple of 4K Bytes*/
-	BLK_SIZE = 4ULL << 10
+	BLK_SIZE_4k = 4ULL << 10
 };
 
 struct m0_fop;

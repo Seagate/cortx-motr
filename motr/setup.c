@@ -2300,7 +2300,7 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 					if ((size == 0) ||
 					    ((size >= MIN_ADDB2_RECORD_SIZE) &&
 					     (size <= MAX_ADDB2_RECORD_SIZE) &&
-					     (size % BLK_SIZE == 0))) {
+					     (size % BLK_SIZE_4k == 0))) {
 						rctx->rc_addb_record_file_size = size;
 					} else {
 						M0_LOG(M0_ERROR, "Invalid ADDB record size. "

@@ -1600,10 +1600,13 @@ int m0_client_init(struct m0_client **m0c_p,
 
 	if (conf->mc_is_addb_init) {
 		char buf[64];
-		/** Client addb record file size set to 1G" */
-		m0_bcount_t size = 1ULL << 30;
+		/** Default client addb record file size set to 128M" */
+		m0_bcount_t size = 128ULL << 20;
+		if ((conf->mc_addb_size != 0) &&
+		    (conf->mc_addb_size % BLK_SIZE_4k == 0))
+			size = conf->mc_addb_size;
 		sprintf(buf, "linuxstob:./addb_%d", (int)m0_pid());
-		M0_LOG(M0_ERROR, "Atul...motr/client_init.c:1606 size=%llu\n", (unsigned long long)size);		
+		M0_LOG(M0_DEBUG, "Atul...motr/client_init.c:1606 size=%llu\n", (unsigned long long)size);		
 		rc = m0_reqh_addb2_init(&m0c->m0c_reqh, buf,
 					0xaddbf11e, true, true, size);
 	}
