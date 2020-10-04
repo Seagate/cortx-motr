@@ -43,8 +43,6 @@
 enum { M0_MAX_BLOCK_COUNT = 100 };
 
 enum {
-	/** Min block size */
-	BLK_SIZE_4k = 4096,
 	/** Max block size */
 	BLK_SIZE_32m = 32 * 1024 * 1024
 };

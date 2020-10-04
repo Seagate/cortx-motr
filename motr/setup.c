@@ -1614,7 +1614,8 @@ static int cs_storage_setup(struct m0_motr *cctx)
 	}
 
 	rc = m0_reqh_addb2_init(&rctx->rc_reqh, rctx->rc_addb_stlocation,
-				M0_ADDB2_STOB_DOM_KEY, mkfs, force);
+				M0_ADDB2_STOB_DOM_KEY, mkfs, force,
+				rctx->rc_addb_record_file_size);
 	if (rc != 0)
 		goto cleanup_stob;
 
@@ -2292,6 +2293,22 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				LAMBDA(void, (void)
 				{
 					rctx->rc_fis_enabled = true;
+				})),
+			M0_NUMBERARG('r', "ADDB Record storage size",
+				LAMBDA(void, (int64_t size)
+				{
+					if ((size == 0) ||
+					    ((size >= MIN_ADDB2_RECORD_SIZE) &&
+					     (size <= MAX_ADDB2_RECORD_SIZE) &&
+					     (size % BLK_SIZE_4k == 0))) {
+						rctx->rc_addb_record_file_size = size;
+					} else {
+						M0_LOG(M0_ERROR, "Invalid ADDB record size. "
+						       "Record size can be 0. If non-zero then "
+						       "it should be in the range (10M, 10G) bytes"
+						       "and multiple of 4096 bytes.\n");
+						rc = -EINVAL;
+					}
 				})),
 			);
 	/* generate reqh fid in case it is all-zero */

@@ -37,177 +37,178 @@ service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 
 m0_server()
 {
-    local service=$1
-    local cmd=${2:-m0d}
-    local cmd_opts="$3"
+local service=$1
+local cmd=${2:-m0d}
+local cmd_opts="$3"
 
-    source $service_funcs
+source $service_funcs
 
-    [[ -n $service ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
+[[ -n $service ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
 
-    if [[ $service == m0d-* && ! -e $ha_config ]] ; then
-        m0_exit "service config file '$ha_config' doesn't exist"
-    fi
+if [[ $service == m0d-* && ! -e $ha_config ]] ; then
+m0_exit "service config file '$ha_config' doesn't exist"
+fi
 
-    # read configs
-    [[ -r $kernel_config ]] && source $kernel_config
-    [[ -r $ha_config   ]]   && source $ha_config
-    [[ -r $user_config ]]   && source $user_config
+# read configs
+[[ -r $kernel_config ]] && source $kernel_config
+[[ -r $ha_config   ]]   && source $ha_config
+[[ -r $user_config ]]   && source $user_config
 
-    # apply global system tweaks
-    if [[ -n $KERNEL_HUGEPAGE_DEFRAG ]] ; then
-        local hpdefrag_file='/sys/kernel/mm/transparent_hugepage/defrag'
-        echo "$KERNEL_HUGEPAGE_DEFRAG" > $hpdefrag_file
-        m0_log "$hpdefrag_file: $(cat $hpdefrag_file)"
-    fi
+# apply global system tweaks
+if [[ -n $KERNEL_HUGEPAGE_DEFRAG ]] ; then
+local hpdefrag_file='/sys/kernel/mm/transparent_hugepage/defrag'
+echo "$KERNEL_HUGEPAGE_DEFRAG" > $hpdefrag_file
+m0_log "$hpdefrag_file: $(cat $hpdefrag_file)"
+fi
 
-    # validate Halon config
-    if [[ $service == m0d-* ]] ; then
-        [[ -n $MOTR_M0D_EP ]] &&
-            m0_log "MOTR_M0D_EP: $MOTR_M0D_EP" ||
-                m0_exit "MOTR_M0D_EP isn't set for $service service"
+# validate Halon config
+if [[ $service == m0d-* ]] ; then
+[[ -n $MOTR_M0D_EP ]] &&
+    m0_log "MOTR_M0D_EP: $MOTR_M0D_EP" ||
+	m0_exit "MOTR_M0D_EP isn't set for $service service"
 
-        m0_log "MOTR_PROCESS_FID: $(m0_get_proc_fid_for $service)"
+m0_log "MOTR_PROCESS_FID: $(m0_get_proc_fid_for $service)"
 
-        [[ -z $MOTR_HA_EP ]] ||
-            m0_log "MOTR_HA_EP: $MOTR_HA_EP"
+[[ -z $MOTR_HA_EP ]] ||
+    m0_log "MOTR_HA_EP: $MOTR_HA_EP"
 
-        if [[ -n $MOTR_M0D_DATA_DIR ]] ; then
-            m0_log "MOTR_M0D_DATA_DIR: $MOTR_M0D_DATA_DIR"
-        fi
+if [[ -n $MOTR_M0D_DATA_DIR ]] ; then
+    m0_log "MOTR_M0D_DATA_DIR: $MOTR_M0D_DATA_DIR"
+fi
 
-        if [[ -n $MOTR_CONF_XC ]] ; then
-            m0_log "MOTR_CONF_XC: $MOTR_CONF_XC"
-        fi
-    fi
+if [[ -n $MOTR_CONF_XC ]] ; then
+    m0_log "MOTR_CONF_XC: $MOTR_CONF_XC"
+fi
+fi
 
-    [[ -n $MOTR_M0D_DEBUGGER ]] && export M0_DEBUGGER=$MOTR_M0D_DEBUGGER
+[[ -n $MOTR_M0D_DEBUGGER ]] && export M0_DEBUGGER=$MOTR_M0D_DEBUGGER
 
-    local service_dir=$(m0_get_m0d_data_dir_for $service)
-    if [[ $MOTR_M0D_REMOVE_SERVICE_DIR == true ]] && [[ -d "$service_dir" ]] ; then
-        rm -rf "$service_dir"
-    fi
-    [[ ! -d "$service_dir" ]] && mkdir -p "$service_dir"
-    cd "$service_dir"
+local service_dir=$(m0_get_m0d_data_dir_for $service)
+if [[ $MOTR_M0D_REMOVE_SERVICE_DIR == true ]] && [[ -d "$service_dir" ]] ; then
+rm -rf "$service_dir"
+fi
+[[ ! -d "$service_dir" ]] && mkdir -p "$service_dir"
+cd "$service_dir"
 
-    MOTR_M0D_OPTS=${MOTR_M0D_OPTS:-$(m0_get_core_params)}
+MOTR_M0D_OPTS=${MOTR_M0D_OPTS:-$(m0_get_core_params)}
 
-    local stob_type="-T $(m0_get_stob_mode)"
-    local stob_path='-S stobs'
-    local stob_opts
-    local proc_fid="<$(m0_get_proc_fid_for $service)>"
-    local be_seg0_path=
-    local be_seg_path=
-    local be_seg_size=
+local stob_type="-T $(m0_get_stob_mode)"
+local stob_path='-S stobs'
+local stob_opts
+local proc_fid="<$(m0_get_proc_fid_for $service)>"
+local be_seg0_path=
+local be_seg_path=
+local be_seg_size=
 
-    # @todo
-    # These BE segment devices needs to pass through Motr configuration
-    # (confd.xc) as part of MD service. This change may be workaround to
-    # make it use for LDR-R1 data recovery.
-    if [[ -n $MOTR_BE_SEG0_PATH &&  -b $MOTR_BE_SEG0_PATH ]]; then
-        be_seg0_path=" -b $MOTR_BE_SEG0_PATH "
-    fi
+# @todo
+# These BE segment devices needs to pass through Motr configuration
+# (confd.xc) as part of MD service. This change may be workaround to
+# make it use for LDR-R1 data recovery.
+if [[ -n $MOTR_BE_SEG0_PATH &&  -b $MOTR_BE_SEG0_PATH ]]; then
+be_seg0_path=" -b $MOTR_BE_SEG0_PATH "
+fi
 
-    if [[ -n $MOTR_BE_SEG_PATH && -b $MOTR_BE_SEG_PATH ]]; then
-        be_seg_path=" -B $MOTR_BE_SEG_PATH "
-        if [[ -n $MOTR_M0D_IOS_BESEG_SIZE ]]; then
-            be_seg_size=" -z $MOTR_M0D_IOS_BESEG_SIZE"
-        fi
-    fi
+if [[ -n $MOTR_BE_SEG_PATH && -b $MOTR_BE_SEG_PATH ]]; then
+be_seg_path=" -B $MOTR_BE_SEG_PATH "
+if [[ -n $MOTR_M0D_IOS_BESEG_SIZE ]]; then
+    be_seg_size=" -z $MOTR_M0D_IOS_BESEG_SIZE"
+fi
+fi
 
-    # mds and rms are expected to read local configuration until the
-    # order of motr bootstrapping changes to start rms along with
-    # confd prior to any other services, except maybe ha, which is
-    # independent of confd or rms, but to be started prior to any
-    # other m0d or m0t1fs requiring ha for further remote conf read
-    case "$service" in
-        mds*)  MOTR_M0D_OPTS+=" -c ${MOTR_CONF_XC:-$MOTR_CONF_XC_DEFAULT}"
-            ;;
+# mds and rms are expected to read local configuration until the
+# order of motr bootstrapping changes to start rms along with
+# confd prior to any other services, except maybe ha, which is
+# independent of confd or rms, but to be started prior to any
+# other m0d or m0t1fs requiring ha for further remote conf read
+case "$service" in
+mds*)  MOTR_M0D_OPTS+=" -c ${MOTR_CONF_XC:-$MOTR_CONF_XC_DEFAULT}"
+    ;;
 
-        rms*)  MOTR_M0D_OPTS+=" -c ${MOTR_CONF_XC:-$MOTR_CONF_XC_DEFAULT}"
-            ;;
+rms*)  MOTR_M0D_OPTS+=" -c ${MOTR_CONF_XC:-$MOTR_CONF_XC_DEFAULT}"
+    ;;
 
-        fdmi*)  MOTR_M0D_OPTS+=" -c ${MOTR_CONF_XC:-$MOTR_CONF_XC_DEFAULT}"
-            ;;
+fdmi*)  MOTR_M0D_OPTS+=" -c ${MOTR_CONF_XC:-$MOTR_CONF_XC_DEFAULT}"
+    ;;
 
-        ios*)  local disks_conf="/etc/motr/disks-$service.conf"
-               if [[ -r $disks_conf ]]; then
-                   stob_opts+=" -d $disks_conf"
-               else
-                   stob_opts+=' -U '
-               fi
-               stob_path="-S $(m0_get_ios_stob_path_for $service)"
-            ;;
+ios*)  local disks_conf="/etc/motr/disks-$service.conf"
+       if [[ -r $disks_conf ]]; then
+	   stob_opts+=" -d $disks_conf"
+       else
+	   stob_opts+=' -U '
+       fi
+       stob_path="-S $(m0_get_ios_stob_path_for $service)"
+    ;;
 
-        cas*)
-            ;;
+cas*)
+    ;;
 
-        confd|ha*)
-               : ${MOTR_CONF_XC:=$MOTR_CONF_XC_DEFAULT}
+confd|ha*)
+       : ${MOTR_CONF_XC:=$MOTR_CONF_XC_DEFAULT}
 
-               stob_type='-T linux'
-               MOTR_M0D_OPTS+=" -c $MOTR_CONF_XC"
-               if [[ ! -r $MOTR_CONF_XC ||
-                     $(stat -c%Y $MOTR_GENDERS_CONF) -gt $(stat -c%Y $MOTR_CONF_XC) ]]
-               then
-                   m0_build_local_conf > $MOTR_CONF_XC
-               fi
-            ;;
+       stob_type='-T linux'
+       MOTR_M0D_OPTS+=" -c $MOTR_CONF_XC"
+       if [[ ! -r $MOTR_CONF_XC ||
+	     $(stat -c%Y $MOTR_GENDERS_CONF) -gt $(stat -c%Y $MOTR_CONF_XC) ]]
+       then
+	   m0_build_local_conf > $MOTR_CONF_XC
+       fi
+    ;;
 
-        m0d-*) # Halon controlled services
+m0d-*) # Halon controlled services
 
-               # check if it is a confd process
-               if [[ -n $MOTR_CONF_XC ]] ; then
-                   stob_type='-T linux'
-                   MOTR_M0D_OPTS+=" -c $MOTR_CONF_XC"
-               fi
+       # check if it is a confd process
+       if [[ -n $MOTR_CONF_XC ]] ; then
+	   stob_type='-T linux'
+	   MOTR_M0D_OPTS+=" -c $MOTR_CONF_XC"
+       fi
 
-               MOTR_M0D_OPTS+=${MOTR_HA_EP:+ -H $MOTR_HA_EP}
-               MOTR_M0D_OPTS+=" -U"
-            ;;
+       MOTR_M0D_OPTS+=${MOTR_HA_EP:+ -H $MOTR_HA_EP}
+       MOTR_M0D_OPTS+=" -U"
+    ;;
 
-        *)     m0_exit "Failed to start unknown service '$service'," \
-                       " available services are 'mds*' and 'ios*'"
-            ;;
-    esac
+*)     m0_exit "Failed to start unknown service '$service'," \
+	       " available services are 'mds*' and 'ios*'"
+    ;;
+esac
 
-    if [[ $service != m0d-* ]] ; then
-        local ha_ep=${MOTR_HA_EP:-$(m0_get_global_ep_of ha)}
-    fi
+if [[ $service != m0d-* ]] ; then
+local ha_ep=${MOTR_HA_EP:-$(m0_get_global_ep_of ha)}
+fi
 
-    local service_ep
-    if [[ $service == ha ]]; then
-        service_ep="lnet:$ha_ep"
-    else
-        service_ep="lnet:${MOTR_M0D_EP:-$(m0_get_ep_of $service)}"
-        MOTR_M0D_OPTS+=${ha_ep:+ -H $ha_ep}
-    fi
+local service_ep
+if [[ $service == ha ]]; then
+service_ep="lnet:$ha_ep"
+else
+service_ep="lnet:${MOTR_M0D_EP:-$(m0_get_ep_of $service)}"
+MOTR_M0D_OPTS+=${ha_ep:+ -H $ha_ep}
+fi
 
-    local addbstob_dir=${MOTR_M0D_ADDB_STOB_DIR:+$MOTR_M0D_ADDB_STOB_DIR/$service/}
-    [[ -z $addbstob_dir ]] || mkdir -p $addbstob_dir
+local addbstob_dir=${MOTR_M0D_ADDB_STOB_DIR:+$MOTR_M0D_ADDB_STOB_DIR/$service/}
+[[ -z $addbstob_dir ]] || mkdir -p $addbstob_dir
 
-    local binary=$(m0_path_to $cmd)
+local binary=$(m0_path_to $cmd)
 
-    # enable core dumps
-    ulimit -c unlimited
+# enable core dumps
+ulimit -c unlimited
 
-    # Increase vm.max_map_count. MOTR-2171 MOTR-2396
-    sysctl -w vm.max_map_count=30000000
+# Increase vm.max_map_count. MOTR-2171 MOTR-2396
+sysctl -w vm.max_map_count=30000000
 
-    # use custom trace files location if it's specified
-    [[ -z $MOTR_M0D_TRACE_DIR ]] || {
-        export M0_TRACE_DIR=$MOTR_M0D_TRACE_DIR/$service
-        mkdir -p $M0_TRACE_DIR
-    }
+# use custom trace files location if it's specified
+[[ -z $MOTR_M0D_TRACE_DIR ]] || {
+export M0_TRACE_DIR=$MOTR_M0D_TRACE_DIR/$service
+mkdir -p $M0_TRACE_DIR
+}
 
-    # show actual exec commands in log file
-    set -x
+# show actual exec commands in log file
+set -x
 
-    exec $binary -e $service_ep \
-                    -A linuxstob:${addbstob_dir}addb-stobs \
-                    -f $proc_fid $stob_type $stob_path $MOTR_M0D_OPTS \
+addb_opts=" -r ${MOTR_MOD_ADDB_RECORD_SIZE}"
+exec $binary -e $service_ep \
+	    -A linuxstob:${addbstob_dir}addb-stobs \
+	    -f $proc_fid $stob_type $stob_path $MOTR_M0D_OPTS \
                        $be_seg0_path $be_seg_path $be_seg_size \
-                       $stob_opts $cmd_opts $MOTR_M0D_EXTRA_OPTS
+                       $stob_opts $cmd_opts $addb_opts $MOTR_M0D_EXTRA_OPTS
 }
 
 

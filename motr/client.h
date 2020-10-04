@@ -884,6 +884,11 @@ struct m0_config {
 
 	int         mc_idx_service_id;
 	void       *mc_idx_service_conf;
+
+	/*
+ 	 * ADDB size
+ 	 */
+	m0_bcount_t mc_addb_size; 
 };
 
 /** The identifier of the root of realm hierarchy. */

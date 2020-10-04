@@ -87,6 +87,7 @@ enum config_key_val {
 	MAX_NR_OPS,
 	NR_ROUNDS,
 	ADDB_INIT,
+	ADDB_SIZE,
 };
 
 struct key_lookup_table {
@@ -144,6 +145,7 @@ struct key_lookup_table lookuptable[] = {
 	{"MAX_NR_OPS", MAX_NR_OPS},
 	{"NR_ROUNDS", NR_ROUNDS},
 	{"ADDB_INIT", ADDB_INIT},
+	{"ADDB_SIZE", ADDB_SIZE},
 };
 
 #define NKEYS (sizeof(lookuptable)/sizeof(struct key_lookup_table))
@@ -535,6 +537,8 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case ADDB_INIT:
 			conf->is_addb_init = atoi(value);
 			break;
+		case ADDB_SIZE:
+			conf->addb_size = atoi(value);
 		default:
 			break;
 	}
