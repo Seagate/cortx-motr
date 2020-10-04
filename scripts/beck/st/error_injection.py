@@ -129,11 +129,20 @@ DMDList = ['BE_BNODE', 'BE_EMAP_KEY', 'BE_EMAP_REC', 'COB_NSREC', 'BALLOC_GROUP_
 GMDList = ['BE_BTREE', 'BE_EMAP', 'BE_LIST', 'BE_SEG_HDR', 'BALLOC', 'STOB_AD_0TYPE_REC', 'STOB_AD_DOMAIN',
            'COB_DOMAIN', 'CAS_STATE', 'CAS_CTG']
 
+btreeType = {b'01': 'M0_BBT_INVALID', b'02': 'M0_BBT_BALLOC_GROUP_EXTENTS', b'03': 'M0_BBT_BALLOC_GROUP_DESC', b'04': 'M0_BBT_EMAP_EM_MAPPING',
+             b'05': 'M0_BBT_CAS_CTG', b'06': 'M0_BBT_COB_NAMESPACE', b'07': 'M0_BBT_COB_OBJECT_INDEX', b'08': 'M0_BBT_COB_FILEATTR_BASIC',
+             b'09': 'M0_BBT_COB_FILEATTR_EA', b'0a': 'M0_BBT_COB_FILEATTR_OMG', b'0b': 'M0_BBT_CONFDB', b'0c': 'M0_BBT_UT_KV_OPS', b'0d': 'M0_BBT_NR'}
+
+BeBnodeTypeKeys = {}
 
 def RecordOffset(record, i, size):
     if record in recordDict.keys():
         recordDict[record].append(i)
         sizeDict[record].append(size)
+        if record == "BE_BNODE":
+            bliType = i + 16                              # bli_type offet
+            btNumActiveKey = i + 56                       # active key count offset
+            BeBnodeTypeKeys[i] = [bliType, btNumActiveKey]
     else:
         recordDict['EXTRA'].append(i)
         sizeDict['EXTRA'].append(size)
@@ -142,6 +151,7 @@ def ReadTypeSize(byte):  # Ex: 0001(ver) 0009(type) 00003dd8(size)
     # ver = byte[:4]   # .ot_version = src->hd_bits >> 48,
     rtype = byte[6:8]  # .ot_type    = src->hd_bits >> 32 & 0x0000ffff,
     size = byte[8:16]  # .ot_size    = src->hd_bits & 0xffffffff
+    # logger.info("Version {}, Type {}, Size {}".format(ver, rtype, size))  #debug print
     return rtype, size
 
 
@@ -161,6 +171,18 @@ def ReadMetadata(offset):
         data = binascii.hexlify((mdata.read(8))[::-1])
         logger.info("** Metadata at offset {} is {}".format(hex(offset), data))
 
+def ReadBeBNode(offset):
+    llist = BeBnodeTypeKeys[offset]
+    with open(filename, "rb") as mdata:
+        mdata.seek(llist[0])
+        data = binascii.hexlify((mdata.read(8))[::-1])
+        data = data[14:16]
+        logger.info("bli_type of BE_BNODE is: {0}: {1}".format( data, btreeType[data]))
+
+        mdata.seek(llist[1])
+        data = binascii.hexlify((mdata.read(8))[::-1])
+        data = data[8:16]
+        logger.info("Active key count of BE_BNODE is: {}".format( int(data,16)))
 
 def InduceCorruption(recordType, noOfErr):
     count = 0
@@ -184,6 +206,8 @@ def InduceCorruption(recordType, noOfErr):
             offset = lookupList[i]  # Please add offset here for starting from middle of offset list
             ReadMetadata(offset + 8)
             EditMetadata(offset + 8)
+            if recordType == "BE_BNODE":
+                ReadBeBNode(offset)
             count = count + 1
     return count
 
@@ -349,15 +373,16 @@ def read_metadata_file():
             byte = binascii.hexlify(byte[::-1])
             if byte == header:
                 byte = binascii.hexlify((metadata.read(8))[::-1])  # Read the Type Size Version
-                i = i + 8
                 rtype, size = ReadTypeSize(byte)
                 if rtype not in typeDict.keys():
                     continue
                 record = typeDict[rtype]
+                i = i + 8
                 if size > b'00000000':
                     RecordOffset(record, i, size)
-                    # logger.info("*** RECORD TYPE {}, OFFSET {}, SIZE{} ***".format(record, i*8, size))  #Debug print
-                    i = int(size, 16) + i - 16
+                    # logger.info("*** RECORD TYPE {}, OFFSET {}, SIZE{} ***".format(record, i, size))  #Debug print
+                i = int(size, 16) + i - 16
+                metadata.seek(i)
             # Not parsing the whole file for few test as It will take many hours, depending on metadata size
             if not args.verify:
                 if i > 111280000:  # Increase this number for reading more location in metadata
