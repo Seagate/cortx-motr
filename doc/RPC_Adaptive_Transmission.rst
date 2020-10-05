@@ -34,31 +34,31 @@ Requirements
            
            ... 
 
-        case PHASE_X: 
+           case PHASE_X: 
 
-                ... 
+                   ... 
 
-                /* 
+                   /* 
 
-                 * Start loading the buffer. 
+                    * Start loading the buffer. 
 
-                 * 
+                    * 
 
-                 * If the buffer is passed inline, this returns 
+                    * If the buffer is passed inline, this returns 
 
-                 * FSO_AGAIN. If the buffer is passed inbulk, this  
+                    * FSO_AGAIN. If the buffer is passed inbulk, this  
 
-                 * initiates RDMA, arranges for the fom wakeup and  
+                    * initiates RDMA, arranges for the fom wakeup and  
 
-                 * returns FSO_WAIT. 
+                    * returns FSO_WAIT. 
 
-                 * 
+                    * 
 
-                 * In any case the fom moves to PHASE_Y. 
+                    * In any case the fom moves to PHASE_Y. 
 
-                 */ 
+                    */ 
 
-                return m0_rpc_at_load(&fop->at_buf, fom, PHASE_Y); 
+                   return m0_rpc_at_load(&fop->at_buf, fom, PHASE_Y); 
 
         case PHASE_Y: 
 
