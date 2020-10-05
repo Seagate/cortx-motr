@@ -62,10 +62,11 @@ M0_INTERNAL int io_destroy(io_context_t ctx)
 
 M0_INTERNAL int io_submit(io_context_t ctx, long nr, struct iocb *ios[])
 {
-	while (--nr >= 0) {
-		i_tlink_init_at(ios[nr], &ctx->ic_cb);
-	}
-	return 0;
+	int i;
+
+	for (i = 0; i < nr; ++i)
+		i_tlink_init_at(ios[i], &ctx->ic_cb);
+	return nr;
 }
 M0_INTERNAL int io_getevents(io_context_t ctx, long min_nr, long nr,
 			     struct io_event *events, struct timespec *timeout)
@@ -77,13 +78,14 @@ M0_INTERNAL int io_getevents(io_context_t ctx, long min_nr, long nr,
 		nanosleep(timeout, NULL);
 		return 0;
 	} else {
-		for (i = 0; i < nr; ++nr) {
+		for (i = 0; i < nr; ++i) {
 			io = i_tlist_pop(&ctx->ic_cb);
 			if (io == NULL)
 				break;
 			events[i].obj  = io;
 			events[i].data = (void *)io->aio_data;
 			events[i].res  = handle(ctx, io);
+			events[i].res2 = 0;
 		}
 		return i;
 	}
