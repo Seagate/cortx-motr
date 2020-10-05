@@ -24,4 +24,60 @@ Requirements
 
   - buffer size and total rpc size. Rpc initialization takes a new parameter that determines the cutoff size after which inbulk is used.
 
-- receiver side is fom-oriented, i.e., can be easily used within a tick function. 
+- receiver side is fom-oriented, i.e., can be easily used within a tick function.
+
+  ::
+  
+   foo_tick(fom) { 
+   
+           switch (fom_phase(fom)) {
+           
+           ... 
+
+        case PHASE_X: 
+
+                ... 
+
+                /* 
+
+                 * Start loading the buffer. 
+
+                 * 
+
+                 * If the buffer is passed inline, this returns 
+
+                 * FSO_AGAIN. If the buffer is passed inbulk, this  
+
+                 * initiates RDMA, arranges for the fom wakeup and  
+
+                 * returns FSO_WAIT. 
+
+                 * 
+
+                 * In any case the fom moves to PHASE_Y. 
+
+                 */ 
+
+                return m0_rpc_at_load(&fop->at_buf, fom, PHASE_Y); 
+
+        case PHASE_Y: 
+
+                struct m0_buf buf; 
+
+                /* 
+
+                 * Returns loaded buffer. 
+
+                 * 
+
+                 * If inbulk transfer failed, returns error. 
+
+                 */ 
+
+                rc = m0_rpc_at_get(&fop->at_buf, &buf); 
+
+                ... 
+
+        } 
+
+}
