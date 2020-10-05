@@ -342,10 +342,12 @@ static void m0_fom_check_deadlock(const struct m0_fom *fom)
 	if (!M0_IN(fom->fo_type->ft_id, (M0_CAS_PUT_FOP_OPCODE,
 					 M0_CAS_DEL_FOP_OPCODE)))
 	    return;
+#ifndef __KERNEL__
 	if (m0_cas_fom_in_deadlock(fom)) {
 		M0_LOG(M0_ERROR, "found deadlock with fom %p", fom);
 		M0_IMPOSSIBLE("deadlock");
 	}
+#endif
 }
 
 /*
