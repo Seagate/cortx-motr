@@ -319,17 +319,29 @@ setup_loop_devices()
     log "Setting up loop devices"
     for i in $(seq $imgs_cnt) ; do
         local img_file="$loop_img_dir/disk$i.img"
-        debug "/dev/loop$i => $img_file"
+        local free_loopdev=$(losetup -f)
+        debug "$free_loopdev => $img_file"
         [[ -e $img_file ]] ||
             die "image file '$img_file' doesn't exist"
-        losetup /dev/loop$i "$img_file"
+        losetup $free_loopdev "$img_file"
     done
 }
 
 cleanup_loop_devices()
 {
+    local imgs_cnt=$pool_width
+
+    if $cas_enabled ; then
+        imgs_cnt=$((pool_width + ipool_width))
+    fi
+
     log "Removing loop devices"
-    losetup -D
+    for i in $(seq $imgs_cnt) ; do
+        local img_file="$loop_img_dir/disk$i.img"
+        if [[ -e $img_file ]] ; then
+            losetup -d $(losetup -j $img_file -O name | grep loop)
+        fi
+    done
 }
 
 cleanup_loop_images()
