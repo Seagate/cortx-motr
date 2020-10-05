@@ -17,4 +17,4 @@ Design Highlights
 - Using do_sum(), checksum values are computed for each block of data and using do_chk(), checksum values are verified.
 
 
- .. image:: Images/Write.PNG
+  .. image:: Images/Write.PNG
