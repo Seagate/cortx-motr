@@ -18,3 +18,6 @@ Design Highlights
 
 
   .. image:: Images/Write.PNG
+
+
+  .. image:: Images/Read.PNG
