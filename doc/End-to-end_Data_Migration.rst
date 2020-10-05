@@ -15,3 +15,6 @@ Design Highlights
 - Data integrity type and operations are initialized in m0_file.
 
 - Using do_sum(), checksum values are computed for each block of data and using do_chk(), checksum values are verified.
+
+
+ .. image:: images/Write.PNG
