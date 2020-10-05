@@ -19,7 +19,7 @@
 #
 
 ### wrapper to run user-space programs, which depend on m0tr kernel module
-set -x
+
 #
 # Global vars
 #
@@ -207,6 +207,11 @@ run_user()
     $udebugger $binary "$@"
 }
 
+run_lldb()
+{
+    lldb -- $binary "$@"
+}
+
 run_valgrind_memcheck()
 {
     log "valgrind" \
@@ -294,7 +299,14 @@ run_valgrind()
 # not found.
 load_modules()
 {
+<<<<<<< HEAD
     if [[ $(is_lnet_available) == "true" ]]; then
+=======
+    if [ $(uname) != Linux ] ;then
+	return
+    fi
+    if [ "$XPRT" = "lnet" ]; then
+>>>>>>> 641718a3 (m0run: add lldb support.)
         if [[ -n "$top_srcdir" ]] ; then
             source $top_srcdir/utils/modload-all.sh
         else
@@ -314,12 +326,12 @@ load_modules()
                 fi
             fi
 
-                local lnet_status=$(service lnet status)
-                if $force_modules_reload || [[ $lnet_status != running ]] ; then
-                    log '(re)starting LNet service'
-                    service lnet stop
-                    service lnet start
-                fi
+            local lnet_status=$(service lnet status)
+            if $force_modules_reload || [[ $lnet_status != running ]] ; then
+                log '(re)starting LNet service'
+                service lnet stop
+                service lnet start
+            fi
 
             if ! $loaded ; then
                 log 'loading Motr modules'
@@ -336,6 +348,9 @@ load_modules()
 
 unload_modules()
 {
+    if [ $(uname) != Linux ] ;then
+	return
+    fi
     log 'unloading Motr modules'
     modprobe -r m0tr
 }
@@ -385,10 +400,12 @@ load_modules
 ulimit -c unlimited
 ulimit -n 65536
 
-# Increase the maximum number of memory map areas a process may have.
-# m0d process may allocate and madvise() at least 2,000,000 memory map areas.
-# See MOTR-2171 for more details.
-sysctl -q -w vm.max_map_count=30000000
+if [ $(uname) = Linux ] ;then
+    # Increase the maximum number of memory map areas a process may have.
+    # m0d process may allocate and madvise() at least 2,000,000 memory map areas.
+    # See MOTR-2171 for more details.
+    sysctl -q -w vm.max_map_count=30000000
+fi
 
 if [[ -n "$debugger" ]] ; then
     # libmotr will attach debugger in case of panic, disable this as we already
@@ -399,7 +416,12 @@ if [[ -n "$debugger" ]] ; then
         # nasty libtool creates wrapper shell scripts for non-installed
         # binaries and links them on first run under '.libs/' directory with
         # 'lt-' prefix
-        lt_binary="$(dirname $(srcdir_path_of $binary))/.libs/lt-$binary"
+	if [ $(uname) = Linux ] ;then
+	    prefix="lt-"
+	else
+	    prefix=""
+	fi
+        lt_binary="$(dirname $(srcdir_path_of $binary))/.libs/$prefix$binary"
         if [[ ! -x $lt_binary ]] ; then
             log "generating '$lt_binary' binary"
             set +e
@@ -412,7 +434,11 @@ if [[ -n "$debugger" ]] ; then
     case $debugger in
         gdb)                  run_gdb "$@" ;;
         cgdb)                 run_cgdb "$@" ;;
+<<<<<<< HEAD
         user)                 run_user "$@" ;;
+=======
+        lldb)                 run_lldb "$@" ;;
+>>>>>>> 641718a3 (m0run: add lldb support.)
         valgrind)             run_valgrind "$@" ;;
         valgrind-memcheck)    run_valgrind_memcheck "$@" ;;
         valgrind-cachegrind)  run_valgrind_cachegrind "$@" ;;
