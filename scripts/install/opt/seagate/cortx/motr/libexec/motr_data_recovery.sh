@@ -830,14 +830,14 @@ run_becktool() {
                 echo "Deleting core m0beck extra file $core_m0beck_file_count"
                 core_m0beck_last_file_name=$(cd /var/crash; ls -ltr | grep core-m0beck | awk '{print $9}' | tail -n 1)
                 echo "$core_m0beck_last_file_name"
-                rm /var/crash/$core_m0beck_last_file_name
+                rm /var/crash/"$core_m0beck_last_file_name"
             fi
             
             if [[ $m0trace_file_count -gt 3 ]]; then
                 echo "Deleting m0trace extra file $m0trace_file_count"
                 m0trace_last_file_name=$(cd /var/motr/datarecovery; ls -ltr | awk '{print $9}' | tail -n 1)
                 echo "$m0trace_last_file_name"
-                rm /var/motr/datarecovery/$m0trace_last_file_name
+                rm /var/motr/datarecovery/"$m0trace_last_file_name"
             fi
             #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
 
