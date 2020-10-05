@@ -81,3 +81,29 @@ Requirements
            } 
 
     }
+    
+- A sender has an interface to add buffers (m0_buf) to an AT buffer.
+
+  ::
+  
+   struct m0_rpc_at_buf { 
+
+           uint32_t ab_type; /* inline or inbulk */ 
+
+           ... 
+
+   } M0_XCA_UNION; 
+
+   void m0_rpc_at_init(struct m0_rpc_at_buf *ab); 
+
+   void m0_rpc_at_fini(struct m0_rpc_at_buf *ab); 
+
+   /**  
+
+    * Called once for an AT buffer. If this returns success, the AT buffer 
+
+    * can be serialised as part of rpc item. 
+
+    */ 
+
+   int  m0_rpc_at_add(struct m0_rpc_at_buf *ab, const struct m0_buf *buf);
