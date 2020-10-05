@@ -60,24 +60,24 @@ Requirements
 
                    return m0_rpc_at_load(&fop->at_buf, fom, PHASE_Y); 
 
-        case PHASE_Y: 
+           case PHASE_Y: 
 
-                struct m0_buf buf; 
+                   struct m0_buf buf; 
 
-                /* 
+                   /* 
 
-                 * Returns loaded buffer. 
+                    * Returns loaded buffer. 
 
-                 * 
+                    * 
 
-                 * If inbulk transfer failed, returns error. 
+                    * If inbulk transfer failed, returns error. 
 
-                 */ 
+                    */ 
 
-                rc = m0_rpc_at_get(&fop->at_buf, &buf); 
+                   rc = m0_rpc_at_get(&fop->at_buf, &buf); 
 
-                ... 
+                   ... 
 
-        } 
+           } 
 
-}
+  }
