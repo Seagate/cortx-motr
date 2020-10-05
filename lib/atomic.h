@@ -30,19 +30,38 @@
 #include "lib/types.h"
 
 #ifdef __KERNEL__
-#  include "lib/linux_kernel/atomic64.h"
-#else
-#  ifdef ENABLE_SYNC_ATOMIC
-#    include "lib/user_space/__sync_atomic.h"
-#  elif defined (CONFIG_X86_64)
-#    include "lib/user_space/user_x86_64_atomic.h"
-#  elif defined (CONFIG_AARCH64)
+#    include "lib/linux_kernel/atomic64.h"
+#elif defined (CONFIG_AARCH64)
 #    include "lib/user_space/user_aarch64_atomic.h"
-#  else
+#elif defined (CONFIG_X86_64)
+#    if defined(M0_DARWIN)
+#        define ATOMIC_USE_X86_64 (0)
+#        define ATOMIC_USE___SYNC (0)
+#        define ATOMIC_USE_C11    (1)
+#    endif
+#    if defined(M0_LINUX)
+#        ifdef ENABLE_SYNC_ATOMIC
+#            define ATOMIC_USE_X86_64 (0)
+#            define ATOMIC_USE___SYNC (1)
+#            define ATOMIC_USE_C11    (0)
+#        else
+#            define ATOMIC_USE_X86_64 (1)
+#            define ATOMIC_USE___SYNC (0)
+#            define ATOMIC_USE_C11    (0)
+#        endif
+#    endif
+#    if ATOMIC_USE_C11
+#        include "lib/user_space/c11_atomic.h"
+#    endif
+#    if ATOMIC_USE___SYNC
+#        include "lib/user_space/__sync_atomic.h"
+#    endif
+#    if ATOMIC_USE_X86_64
+#        include "lib/user_space/user_x86_64_atomic.h"
+#    endif
+#else
 #    error "Platform is not supported"
-#  endif
 #endif
-
 
 /**
    @defgroup atomic

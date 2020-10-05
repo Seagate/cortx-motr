@@ -61,6 +61,7 @@ nobase_motr_include_HEADERS += lib/arith.h \
                                lib/user_space/timer.h \
                                lib/user_space/trace.h \
                                lib/user_space/types.h \
+                               lib/user_space/c11_atomic.h \
                                lib/user_space/user_x86_64_atomic.h \
                                lib/user_space/user_aarch64_atomic.h \
                                lib/user_space/__sync_atomic.h

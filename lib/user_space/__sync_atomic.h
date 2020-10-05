@@ -107,7 +107,7 @@ static inline void m0_atomic64_add(struct m0_atomic64 *a, int64_t num)
 
 /**
    Atomically subtracts given amount from a counter
- */
+ */2
 static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num)
 {
 	__sync_fetch_and_sub(&a->a_value, num);
