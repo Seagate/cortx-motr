@@ -26,7 +26,7 @@ export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 ### When modifying this script, please increment VERSION and add new
 ### entry to the 'History' section below.
 ### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-VERSION=0.50
+VERSION=0.52
 
 OUT_DATA_DIR=m0reportbug-data
 OUT_CORES_DIR=m0reportbug-cores
@@ -179,7 +179,6 @@ probes() {
         'uptime'
         'm0version'
         'm0d -v'
-        'halond -v'
         'rpm -qi cortx-motr'
         'rpm -qi cortx-hare'
         'rpm -qR cortx-motr'
@@ -215,7 +214,6 @@ probes() {
         'ls /dev/disk/by-*'
         'dmesg'
         'systemctl status -l'
-        'systemctl status -l halond'
         'systemctl status -l motr-kernel'
         'lctl dk'
         'hctl status'
@@ -261,14 +259,7 @@ misc_files() {
              cp -p $path $outdir/$path
              echo $path
          done
-
-     mkdir -p $outdir
-     f=$outdir/halon-rg.json
-     if hctl halon info graph json >$f 2>/dev/null; then
-         echo ${f##*/}
-     else
-         rm $f
-     fi)
+     )
 
     outdir=$(readlink -f .)/root-misc
     {
@@ -279,11 +270,6 @@ misc_files() {
                 echo $f
                 grep '^MOTR_CONF_XC=' $f | cut -d\' -f2 # may produce duplicates
             done | sort -u
-        for f in /etc/halon/halon_facts.yaml /tmp/halond.log; do
-            if [ -f $f ]; then echo $f; fi
-        done
-        find /var/log/ -type f -name halon.decision.log\*
-        _kdump_files
     } | while read path; do
         [ "$path" != "${path#/}" ] || {
             warn "${FUNCNAME[0]}: Absolute path expected: $path"
@@ -298,11 +284,6 @@ misc_files() {
         echo $path
     done
 
-    if [ -d /var/log/halon-persistence ]; then
-        mkdir -p $outdir/var/log
-        cp -rp /var/log/halon-persistence $outdir/var/log/
-        echo /var/log/halon-persistence
-    fi
     if [ -d ${RECOVERY_LOG_DIR} ]; then
         mkdir -p $outdir/recovery
         cp ${RECOVERY_LOG_DIR}/motr_data_recovery* $outdir/recovery/
@@ -376,9 +357,8 @@ _path_rpm() {
         libmotr-ut.so|libmotr-xcode-ff2c.so)
             ## Provided by motr-devel-*.rpm (optional).
             echo "?/usr/lib64/$name.0.0.0";;
-        libgalois.so) echo "/usr/lib64/$name.1.0.0";;
+        libgalois.so) echo "/usr/lib64/libgalois-0.1.so";;
         python) type -p python;;
-        halond) readlink -f /usr/bin/halond;;
         *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
     esac
 }
@@ -409,10 +389,9 @@ _path_src() {
         libmotr-ut.so) echo "$src/ut/.libs/$name.0.0.0";;
         libmotr-xcode-ff2c.so) echo "$src/xcode/ff2c/.libs/$name.0.0.0";;
         libgalois.so)
-            echo "$src/extra-libs/galois/src/.libs/$name.1.0.0";;
+            echo "$src/extra-libs/galois/src/.libs//libgalois-0.1.so";;
         lt-m0rwlock) echo "$src/rm/st/.libs/lt-m0rwlock";;
         python) type -p python;;
-        halond) readlink -f /usr/bin/halond;;
         *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
     esac
 }
@@ -483,7 +462,7 @@ EOF
 backtraces_live() {
     local pid task
 
-    pgrep '\<(lt-)?m0|\<(halond|dd|fio|mount)\>' | while read pid; do
+    pgrep '\<(lt-)?m0|\<(dd|fio|mount)\>' | while read pid; do
         local args="$(ps h -o args $pid)"
         [ -n "$args" ] || continue # the process may be gone
         local prog=$(echo $args | cut -d' ' -f1)
@@ -589,13 +568,6 @@ backtraces_cores() {
         fi
     done
 
-    if [ -d /var/lib/halon ]; then
-        (cd /var/lib/halon
-         find . -type f -name core.\* | cut -c3- | while read core; do
-             _coredump $core $outdir/var/lib/halon
-         done)
-    fi
-
     if [ -d $outdir ] && ! rmdir $outdir 2>/dev/null; then
         ## Core dumps were collected. We need to collect binaries.
         COLLECT_BINARIES_P=1
@@ -614,7 +586,7 @@ binaries() {
 
     mkdir -p $outdir
     ## Note, that we intentionally skip `m0tr.ko' as it's too big (42M).
-    for f in m0mkfs m0d m0ham m0ut m0beck m0betool ${libs[@]} halond; do
+    for f in m0mkfs m0d m0ham m0ut m0beck m0betool ${libs[@]}; do
         s=$(path $f binary)
         if [ -n "$s" ]; then
             ## Strip `.0.0' suffix when copying.
@@ -709,7 +681,7 @@ m0traces() {
         ## Kernel buffer.
         if [ -x "$m0trace" ] && lsmod | grep -q '^m0ctl\b'; then
             mkdir $outdir
-            $m0trace kernel-buf -Y | _xz >$outdir/kernel-buf.yaml.xz
+            $m0trace kernel-buf -Y 2>>$REPORT | _xz >$outdir/kernel-buf.yaml.xz
             echo $outdir/kernel-buf.yaml.xz
         fi
     fi
@@ -761,7 +733,7 @@ systemd_journal() {
     fi
     local outdir=$(readlink -f .)
     for ((i = 0; i < nr_boots; ++i)); do
-        journalctl -b -$i | _xz >$outdir/systemd-journal_$i.xz
+        journalctl -b -$i 2>>$REPORT | _xz >$outdir/systemd-journal_$i.xz
     done
 }
 
@@ -832,6 +804,9 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2020-10-05 0.52    Removed halon related things since we are not using
+###                    it.
+###
 ### 2020-10-02 0.51    Added /var/log/crash to CORE_DIRS list since on
 ###                    provisioner deployed setup, core would be in /var/log/crash
 ###
