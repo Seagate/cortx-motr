@@ -1153,6 +1153,10 @@ static void rconfc__ast_post(struct m0_rconfc  *rconfc,
 {
 	struct m0_sm_ast *ast = &rconfc->rc_ast;
 
+	M0_LOG(M0_DEBUG, "posting AST=%p old %p:%14p:%p new %p:%14p",
+			  ast, ast->sa_cb, ast->sa_datum, ast->sa_next,
+			  cb, datum);
+
 	ast->sa_cb = cb;
 	ast->sa_datum = datum;
 	m0_sm_ast_post(rconfc->rc_sm.sm_grp, ast);
@@ -2650,9 +2654,23 @@ static bool rconfc__cb_quorum_test(struct m0_clink *clink)
 		else if (quorum_is)
 			rconfc_active_populate(rconfc);
 
-		if (quorum_was)
-			rconfc__ast_post(rconfc, lnk, rconfc_cctx_fini);
-		else if (quorum_is || !rconfc_quorum_is_possible(rconfc))
+		if (quorum_was) {
+			struct m0_sm_ast *ast = &rconfc->rc_cctx_fini_ast;
+			/* A different AST rc_cctx_fini_ast is used here,
+			 * other than the rc_ast, to avoid current access to
+			 * the same AST when triggered concurrently from
+			 * different sources.
+			 */
+
+			M0_LOG(M0_DEBUG, "cctx_fini_ast=%p old cb %p:d %p:n %p "
+					 "new cb %p:d %p",
+					  ast, ast->sa_cb, ast->sa_datum,
+					  ast->sa_next,
+					  &rconfc_cctx_fini, lnk);
+			ast->sa_cb = rconfc_cctx_fini;
+			ast->sa_datum = lnk;
+			m0_sm_ast_post(rconfc->rc_sm.sm_grp, ast);
+		} else if (quorum_is || !rconfc_quorum_is_possible(rconfc))
 			if (!rconfc->rc_quorum_decision_is_made) {
 				rconfc->rc_quorum_decision_is_made = true;
 				rconfc_ast_post(rconfc, rconfc_version_elected);
@@ -2683,7 +2701,7 @@ static void rconfc_version_elect(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	/* query confd instances */
 	m0_tl_for (rcnf_herd, &rconfc->rc_herd, lnk) {
 		if (!M0_IN(lnk->rl_state, (CONFC_DEAD, CONFC_ARMED)) &&
-		    lnk->rl_rc == 0) {
+		    lnk->rl_rc == 0 && !lnk->rl_fom_queued) {
 			m0_confc_ctx_init(&lnk->rl_cctx, &lnk->rl_confc);
 
 			m0_clink_init(&lnk->rl_clink, rconfc__cb_quorum_test);
