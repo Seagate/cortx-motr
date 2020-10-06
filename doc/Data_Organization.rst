@@ -70,4 +70,4 @@ A device container root object contains the following.
 
 The following diagram represents a typical device container.
 
- .. image:: Images/Device_container.PNG
+..image :: Images/Device_container.PNG
