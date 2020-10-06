@@ -1777,6 +1777,7 @@ M0_INTERNAL void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom,
 
 	for (i = 0; (*nidary)[i] != NULL; ++i)
 		m0_free((*nidary)[i]);
+	m0_free(*nidary);
 	*nidary = NULL;
 }
 
