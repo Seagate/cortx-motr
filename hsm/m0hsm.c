@@ -261,6 +261,7 @@ int read_fid(const char *s, struct m0_uint128 *fid)
 
 	res = sscanf(s, "%lli:%lli", &hi, &lo);
 	if (res == 1) {
+		fid->u_hi = 0;
 		fid->u_lo = hi;
 	} else if (res == 2) {
 		fid->u_hi = hi;
@@ -373,7 +374,7 @@ static int run_cmd(int argc, char **argv)
 	const char *action;
 	int rc = 0;
 
-	if (!strcmp(argv[optind], "help")) {
+	if (strcmp(argv[optind], "help") == 0) {
 		usage();
 		return 0;
 	}
@@ -395,7 +396,7 @@ static int run_cmd(int argc, char **argv)
 	}
 	optind++;
 
-	if (!strcmp(action, "create")) {
+	if (strcmp(action, "create") == 0) {
 		int tier;
 		struct m0_obj obj;
 
@@ -410,13 +411,13 @@ static int run_cmd(int argc, char **argv)
 		/* Create the object */
 		rc = m0hsm_create(id, &obj, tier, false);
 
-	} else if (!strcmp(action, "show")) {
+	} else if (strcmp(action, "show") == 0) {
 		/* get and display the composite layout */
 		rc = m0hsm_dump(stdout, id, false);
-	} else if (!strcmp(action, "dump")) {
+	} else if (strcmp(action, "dump") == 0) {
 		/* get and display the composite layout */
 		rc = m0hsm_dump(stdout, id, true);
-	} else if (!strcmp(action, "write")) {
+	} else if (strcmp(action, "write") == 0) {
 		off_t offset;
 		size_t len;
 		int seed;
@@ -431,7 +432,7 @@ static int run_cmd(int argc, char **argv)
 
 		rc = m0hsm_test_write(id, offset, len, seed);
 
-	} else if (!strcmp(action, "write_file")) {
+	} else if (strcmp(action, "write_file") == 0) {
 		const char *path;
 
 		if (optind > argc - 1) {
@@ -443,7 +444,7 @@ static int run_cmd(int argc, char **argv)
 
 		rc = m0hsm_write_file(id, path);
 
-	} else if (!strcmp(action, "read")) {
+	} else if (strcmp(action, "read") == 0) {
 		off_t offset;
 		size_t len;
 
@@ -458,7 +459,8 @@ static int run_cmd(int argc, char **argv)
 
 		rc = m0hsm_test_read(id, offset, len);
 
-	} else if (!strcmp(action, "copy") || !strcmp(action, "move")) {
+	} else if (strcmp(action, "copy") == 0 ||
+		   strcmp(action, "move") == 0) {
 		off_t offset;
 		size_t len;
 		int src_tier;
@@ -487,12 +489,12 @@ static int run_cmd(int argc, char **argv)
 				 return -1;
 
 		/* force move flag for 'move' action */
-		if (!strcmp(action, "move"))
+		if (strcmp(action, "move") == 0)
 			flags |= HSM_MOVE;
 
 		rc = m0hsm_copy(id, src_tier, tgt_tier, offset, len, flags);
 
-	} else if (!strcmp(action, "stage")) {
+	} else if (strcmp(action, "stage") == 0) {
 		off_t offset;
 		size_t len;
 		int tgt_tier;
@@ -519,7 +521,7 @@ static int run_cmd(int argc, char **argv)
 
 		rc = m0hsm_stage(id, tgt_tier, offset, len, flags);
 
-	} else if (!strcmp(action, "archive")) {
+	} else if (strcmp(action, "archive") == 0) {
 		off_t offset;
 		size_t len;
 		int tgt_tier;
@@ -546,8 +548,8 @@ static int run_cmd(int argc, char **argv)
 
 		rc = m0hsm_archive(id, tgt_tier, offset, len, flags);
 
-	} else if (!strcmp(action, "release") ||
-		   !strcmp(action, "multi_release")) {
+	} else if (strcmp(action, "release") == 0 ||
+		   strcmp(action, "multi_release") == 0) {
 		off_t offset;
 		size_t len;
 		int tier;
@@ -571,13 +573,13 @@ static int run_cmd(int argc, char **argv)
 			if (parse_release_subopt(argv[optind], &flags))
 				 return -1;
 
-		if (!strcmp(action, "release"))
+		if (strcmp(action, "release") == 0)
 			/* XXX only handle the case of an extent copied to a lower tier */
 			rc = m0hsm_release(id, tier, offset, len, flags);
-		else if (!strcmp(action, "multi_release"))
+		else if (strcmp(action, "multi_release") == 0)
 			rc = m0hsm_multi_release(id, tier, offset, len, flags);
 
-	} else if (!strcmp(action, "set_write_tier")) {
+	} else if (strcmp(action, "set_write_tier") == 0) {
 		int tier;
 
 		if (optind > argc - 1) {
@@ -654,7 +656,7 @@ static int shell_loop()
 		argv = sh_split_line(line, &argc);
 
 		if (argc > 1) {
-			if (!strcmp(argv[1], "quit"))
+			if (strcmp(argv[1], "quit") == 0)
 				break;
 			run_cmd(argc, argv);
 		}
@@ -712,7 +714,7 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	if (!strcmp(argv[optind], "shell")) {
+	if (strcmp(argv[optind], "shell") == 0) {
 		/* run shell */
 		rc = shell_loop();
 	} else {
