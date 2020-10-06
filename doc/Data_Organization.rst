@@ -69,3 +69,5 @@ A device container root object contains the following.
 - a pointer to a special meta-data container on the same device, storing container allocation data (mostly read-only).
 
 The following diagram represents a typical device container.
+
+ .. image:: Images/Device_container.PNG
