@@ -28,4 +28,34 @@ At the moment, team works on the infrastructure necessary for SNS repair and non
 
 - SNS repair auxiliary tasks: These tasks adds interfaces that SNS repair uses to control its resource consumption;
 
-- Replicator protocol translator task: This component builds Motr fops from Lustre change-log entries;  
+- Replicator protocol translator task: This component builds Motr fops from Lustre change-log entries;
+
+*******************
+Future Directions 
+*******************
+
+The overall plan is to implement most difficult features first, and to postpone various optimizations and niceties for later. The following components are of high priority.
+
+- SNS (full I/O support, repair, recovery)
+
+- Distributed Transaction Manager (DTM)
+
+- Non Blocking Availability (NBA)
+
+***************************************************
+Suggestions for Strategic and Tactical Initiatives
+***************************************************
+
+- systematic simulation of the system behavior with a discrete event simulator 
+
+- Trinity-controlled testing and bench marking
+
+************
+Challenges
+************ 
+
+- networking: lnet, portals or oncrpc? 
+
+- containers: merging of meta-data tables. What data-structures are needed? 
+
+- how does our architecture works at exascale? 
