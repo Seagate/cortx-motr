@@ -1,5 +1,5 @@
 ==================
- Current Activity
+Current Activity
 ==================
 
 The major ongoing Motr activity is a T1 project. T1 is a horizontally scalable object store, providing fault tolerant block device tuned for a few selected applications: Lustre, Hadoop, etc. Production release of T1 is expected at the end of 2011, but this estimate is subject to change due to changes in the staffing plans and schedules.
