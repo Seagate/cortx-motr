@@ -970,7 +970,7 @@ static int btree(struct scanner *s, struct rectype *r, char *buf)
 		idx = ARRAY_SIZE(bt) - 1;
 
 	genadd(tree->bb_backlink.bli_gen);
-	check_and_init_genid(s, node->bt_backlink.bli_gen);
+	check_and_init_genid(s, tree->bb_backlink.bli_gen);
 	b = &bt[idx];
 	b->b_stats.c_tree++;
 	return 0;
