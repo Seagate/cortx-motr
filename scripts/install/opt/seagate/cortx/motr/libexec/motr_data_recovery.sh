@@ -144,7 +144,7 @@ run_cmd() {
     local node=$1; shift
     local cmd=$*
     if [[ "$node" == "$LOCAL_NODE" ]];then
-        echo "[`date`]: Running '$cmd'" >> ${LOG_FILE}
+        echo "[`date`]: Running '$cmd'" | tee -a ${LOG_FILE}
         eval "$cmd" 2>&1 | tee -a ${LOG_FILE} # execute the command on current/local node
         return ${PIPESTATUS[0]} # return exit status of first command
     else
@@ -262,8 +262,8 @@ get_recovery_state_of_remote_node() {
 # Assumed that cluster is running at this point.
 get_cluster_configuration() {
 
-    # run_cmd "$LOCAL_NODE" "pvscan --cache"; # Ensure that volumes configs are synced
-    echo "[`date`]: Running '$cmd'" >> ${LOG_FILE}
+    # Ensure that volumes configs are synced
+    echo "[`date`]: Running '$cmd'" | tee -a ${LOG_FILE}
     eval "pvscan --cache" 2>&1 | tee -a ${LOG_FILE}
 
     # Set global variables depending on which node you are on
