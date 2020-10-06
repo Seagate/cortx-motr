@@ -17,11 +17,13 @@ Using HSM on SAGE proto
    processes ids configured in the cluster. Consult with the cluster system
    administrator about which of them you can use.
 
-3. [first time only] Initialize the composite layout index:
+3. Initialize the composite layout index:
     
-    ```bash
-    $ c0composite "$CLIENT_LADDR" "$CLIENT_HA_ADDR" "$CLIENT_PROF_OPT" "$CLIENT_PROC_FID"
-    ```
+   ```bash
+   $ c0composite "$CLIENT_LADDR" "$CLIENT_HA_ADDR" "$CLIENT_PROF_OPT" "$CLIENT_PROC_FID"
+   ```
+
+   Note: this should be done one time only after the cluster bootstrap.
 
 4. Configure pools ids of the tiers in ~/.hsm/config file:
 

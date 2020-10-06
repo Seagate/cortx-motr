@@ -1896,12 +1896,12 @@ uint64_t get_optimal_bs(struct m0_obj *obj, uint64_t obj_sz)
  * @param seed  Used to generate block contents so it can
  *		be used to verify we read the right layer.
  */
-int m0hsm_test_write(struct m0_uint128 id, off_t off, size_t len, int seed)
+int m0hsm_test_write(struct m0_uint128 id, off_t offset, size_t len, int seed)
 {
 	int rc;
 	size_t block_size;
 	size_t rest = len;
-	off_t  start = off;
+	off_t  off = offset;
 	struct m0_composite_layer *layer;
 	struct m0_client_layout *layout = NULL;
 	struct extent wext = {.off = off, .len = len};
@@ -1944,7 +1944,7 @@ int m0hsm_test_write(struct m0_uint128 id, off_t off, size_t len, int seed)
 
 	VERB("Using I/O block size of %zu bytes\n", block_size);
 
-	for (; rest > 0; rest -= block_size, start += block_size) {
+	for (; rest > 0; rest -= block_size, off += block_size) {
 		if (rest < block_size)
 			/* non full block */
 			block_size = rest;
@@ -1955,7 +1955,7 @@ int m0hsm_test_write(struct m0_uint128 id, off_t off, size_t len, int seed)
 			goto fini;
 		}
 
-		rc = map_io_ctx(&ctx, 1, block_size, start, NULL);
+		rc = map_io_ctx(&ctx, 1, block_size, off, NULL);
 		if (rc) {
 			ERROR("map_io_ctx() failed: rc=%d\n", rc);
 			break;
@@ -1983,7 +1983,7 @@ int m0hsm_test_write(struct m0_uint128 id, off_t off, size_t len, int seed)
 
 	if (rc == 0)
 		INFO("%zu bytes successfully written at offset %#"PRIx64" "
-		     "(object id=%#"PRIx64":%#"PRIx64")\n", len, off,
+		     "(object id=%#"PRIx64":%#"PRIx64")\n", len, offset,
 		     id.u_hi, id.u_lo);
 
 	RETURN(rc);
@@ -2013,9 +2013,8 @@ int m0hsm_pwrite(struct m0_obj *obj, void *buffer, size_t length, off_t offset)
 	while (rest > 0) {
 		/* count remaining blocks */
 		blocks = rest / io_size;
-		/* last loop processes unaligned block */
-		if (blocks == 0 && rest > 0) {
-			/* non full block */
+		if (blocks == 0) {
+			/* last non full block */
 			blocks = 1;
 			/* prepare a padded block */
 			INFO("Padding last block of unaligned size %zd up to "
@@ -2072,7 +2071,6 @@ int m0hsm_test_read(struct m0_uint128 id, off_t offset, size_t len)
 	struct m0_obj obj;
 	int blocks;
 	size_t io_size;
-	size_t block_size;
 	struct io_ctx ctx = {0};
 	size_t rest = len;
 	off_t start = offset;
@@ -2096,34 +2094,26 @@ int m0hsm_test_read(struct m0_uint128 id, off_t offset, size_t len)
 	while (rest > 0) {
 		/* count remaining blocks */
 		blocks = rest / io_size;
-		block_size = io_size;
-		if (blocks == 0 && rest > 0) {
-			/* non full block */
+		if (blocks == 0) {
+			/* last non full block */
 			blocks = 1;
-			block_size =  rest;
+			io_size = rest;
 		}
 		if (blocks > MAX_BLOCK_COUNT)
 			blocks = MAX_BLOCK_COUNT;
 
-		rc = prepare_io_ctx(&ctx, blocks, block_size, true);
-		if (rc)
-			RETURN(rc);
-
-		rc = map_io_ctx(&ctx, blocks, block_size, start, NULL);
-		if (rc)
-			RETURN(rc);
-
-		/* read blocks */
-		rc = read_blocks(&obj, &ctx);
+		rc = prepare_io_ctx(&ctx, blocks, io_size, true) ?:
+		     map_io_ctx(&ctx, blocks, io_size, start, NULL) ?:
+		     read_blocks(&obj, &ctx);
 		if (rc)
 			break;
 
 		/* dump them to stdout */
-		dump_data(&ctx.data, block_size);
+		dump_data(&ctx.data, io_size);
 
 		/* update counters */
-		start += blocks * block_size;
-		rest -= blocks * block_size;
+		start += blocks * io_size;
+		rest -= blocks * io_size;
 	}
 
 	m0_entity_fini(&obj.ob_entity);
