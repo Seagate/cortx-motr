@@ -33,6 +33,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
+#include "lib/string.h"
 #include "m0hsm_api.h"
 #include "motr/idx.h"
 
@@ -380,7 +381,7 @@ static int run_cmd(int argc, char **argv)
 	const char *action;
 	int rc = 0;
 
-	if (strcmp(argv[optind], "help") == 0) {
+	if (m0_streq(argv[optind], "help")) {
 		usage();
 		return 0;
 	}
@@ -402,7 +403,7 @@ static int run_cmd(int argc, char **argv)
 	}
 	optind++;
 
-	if (strcmp(action, "create") == 0) {
+	if (m0_streq(action, "create")) {
 		int tier;
 		struct m0_obj obj;
 
@@ -417,13 +418,13 @@ static int run_cmd(int argc, char **argv)
 		/* Create the object */
 		rc = m0hsm_create(id, &obj, tier, false);
 
-	} else if (strcmp(action, "show") == 0) {
+	} else if (m0_streq(action, "show")) {
 		/* get and display the composite layout */
 		rc = m0hsm_dump(stdout, id, false);
-	} else if (strcmp(action, "dump") == 0) {
+	} else if (m0_streq(action, "dump")) {
 		/* get and display the composite layout */
 		rc = m0hsm_dump(stdout, id, true);
-	} else if (strcmp(action, "write") == 0) {
+	} else if (m0_streq(action, "write")) {
 		off_t offset;
 		size_t len;
 		int seed;
@@ -438,7 +439,7 @@ static int run_cmd(int argc, char **argv)
 
 		rc = m0hsm_test_write(id, offset, len, seed);
 
-	} else if (strcmp(action, "write_file") == 0) {
+	} else if (m0_streq(action, "write_file")) {
 		const char *path;
 
 		if (optind > argc - 1) {
@@ -450,7 +451,7 @@ static int run_cmd(int argc, char **argv)
 
 		rc = m0hsm_write_file(id, path);
 
-	} else if (strcmp(action, "read") == 0) {
+	} else if (m0_streq(action, "read")) {
 		off_t offset;
 		size_t len;
 
@@ -465,8 +466,8 @@ static int run_cmd(int argc, char **argv)
 
 		rc = m0hsm_test_read(id, offset, len);
 
-	} else if (strcmp(action, "copy") == 0 ||
-		   strcmp(action, "move") == 0) {
+	} else if (m0_streq(action, "copy") ||
+		   m0_streq(action, "move")) {
 		off_t offset;
 		size_t len;
 		int src_tier;
@@ -495,12 +496,12 @@ static int run_cmd(int argc, char **argv)
 				 return -1;
 
 		/* force move flag for 'move' action */
-		if (strcmp(action, "move") == 0)
+		if (m0_streq(action, "move"))
 			flags |= HSM_MOVE;
 
 		rc = m0hsm_copy(id, src_tier, tgt_tier, offset, len, flags);
 
-	} else if (strcmp(action, "stage") == 0) {
+	} else if (m0_streq(action, "stage")) {
 		off_t offset;
 		size_t len;
 		int tgt_tier;
@@ -527,7 +528,7 @@ static int run_cmd(int argc, char **argv)
 
 		rc = m0hsm_stage(id, tgt_tier, offset, len, flags);
 
-	} else if (strcmp(action, "archive") == 0) {
+	} else if (m0_streq(action, "archive")) {
 		off_t offset;
 		size_t len;
 		int tgt_tier;
@@ -554,8 +555,8 @@ static int run_cmd(int argc, char **argv)
 
 		rc = m0hsm_archive(id, tgt_tier, offset, len, flags);
 
-	} else if (strcmp(action, "release") == 0 ||
-		   strcmp(action, "multi_release") == 0) {
+	} else if (m0_streq(action, "release") ||
+		   m0_streq(action, "multi_release")) {
 		off_t offset;
 		size_t len;
 		int tier;
@@ -579,13 +580,13 @@ static int run_cmd(int argc, char **argv)
 			if (parse_release_subopt(argv[optind], &flags))
 				 return -1;
 
-		if (strcmp(action, "release") == 0)
+		if (m0_streq(action, "release"))
 			/* XXX only handle the case of an extent copied to a lower tier */
 			rc = m0hsm_release(id, tier, offset, len, flags);
-		else if (strcmp(action, "multi_release") == 0)
+		else if (m0_streq(action, "multi_release"))
 			rc = m0hsm_multi_release(id, tier, offset, len, flags);
 
-	} else if (strcmp(action, "set_write_tier") == 0) {
+	} else if (m0_streq(action, "set_write_tier")) {
 		int tier;
 
 		if (optind > argc - 1) {
@@ -666,7 +667,7 @@ static int shell_loop()
 		argv = sh_split_line(line, &argc);
 
 		if (argc > 1) {
-			if (strcmp(argv[1], "quit") == 0)
+			if (m0_streq(argv[1], "quit"))
 				break;
 			run_cmd(argc, argv);
 		}
@@ -719,7 +720,7 @@ int main(int argc, char **argv)
 		goto fini;
 	}
 
-	if (strcmp(argv[optind], "shell") == 0) {
+	if (m0_streq(argv[optind], "shell")) {
 		/* run shell */
 		rc = shell_loop();
 	} else {
