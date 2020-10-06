@@ -339,7 +339,10 @@ cleanup_loop_devices()
     for i in $(seq $imgs_cnt) ; do
         local img_file="$loop_img_dir/disk$i.img"
         if [[ -e $img_file ]] ; then
-            losetup -d $(losetup -j $img_file -O name | grep loop)
+            local loop_todel=$(losetup -j $img_file -O name | grep loop)
+            if [[ -n $loop_todel ]] ; then
+                losetup -d $loop_todel
+            fi
         fi
     done
 }
