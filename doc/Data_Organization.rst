@@ -88,3 +88,18 @@ Metadata containers contain their own metadata (except for integrity metadata) a
 .. image:: Images/Table.PNG
 
 The current leading candidate for organizing tables is the Berkeley DB5 database.
+
+Data Container Object
+----------------------
+
+This object contains data only. Record for file system data objects point to extents or blocks in this type of object.
+
+Meta Data Object
+------------------
+
+A metadata object contains one key-value database table. This object is contained in a metadata container object.
+
+Data Object
+-------------
+
+This object is a set of related allocation records in a metadata database. It points to extents in data container objects and is contained in a table in a metadata object.
