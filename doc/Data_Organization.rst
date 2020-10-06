@@ -55,3 +55,17 @@ Types of Objects
 ------------------
 
 Here we provide more detail on the various types of objects that Motr uses.
+
+Device Container Object
+-----------------------
+This is a special object type for an entire device. Each storage device is a device container object which has associated with it a device root object and a small amount of metadata: allocation information for the container objects on the device and redundant copies of the root object. A device container object contains data container objects and metadata container objects.
+
+A device container root object contains the following.
+
+- a name of the device,
+
+- a list of containers on the device and
+
+- a pointer to a special meta-data container on the same device, storing container allocation data (mostly read-only).
+
+The following diagram represents a typical device container.
