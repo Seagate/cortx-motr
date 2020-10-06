@@ -90,6 +90,7 @@ BuildRequires:  python36-ply
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
 BuildRequires:  python-devel
+BuildRequires:  readline-devel
 %if %{with cassandra}
 BuildRequires:  libcassandra
 BuildRequires:  libuv

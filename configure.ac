@@ -598,6 +598,12 @@ MOTR_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
 )
 AC_SUBST([AIO_LIBS])
 
+# check for readline library
+MOTR_SEARCH_LIBS([readline], [c readline], [READLINE_LIBS],
+        [readline cannot be found! Try to install readline-devel.]
+)
+AC_SUBST([READLINE_LIBS])
+
 # rt library is required for: aio_read(3), aio_write(3), timer_create(2)
 MOTR_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
         [aio_read cannot be found! Try to install librt-devel or libaio-devel.]

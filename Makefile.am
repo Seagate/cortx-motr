@@ -864,6 +864,16 @@ sbin_PROGRAMS              += scripts/systemtap/kem/m0kemc
 scripts_systemtap_kem_m0kemc_CPPFLAGS  = -DM0_TARGET='m0kemc' $(AM_CPPFLAGS)
 scripts_systemtap_kem_m0kemc_LDADD     = $(top_builddir)/motr/libmotr.la -lbfd -ldl
 
+#
+# hsm/m0hsm ------------------------------------------- {{{2
+#
+
+bin_PROGRAMS          += hsm/m0hsm
+hsm_m0hsm_CPPFLAGS     = -DM0_TARGET='m0hsm' $(AM_CPPFLAGS)
+hsm_m0hsm_LDADD        = $(top_builddir)/motr/libmotr.la @READLINE_LIBS@
+
+include $(top_srcdir)/hsm/Makefile.sub
+
 ################################################################################
 #                        Init scripts and config files                      {{{1
 ################################################################################

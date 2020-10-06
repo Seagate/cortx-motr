@@ -22,9 +22,6 @@
  * Original author: Thomas Leibovici <thomas.leibovici@cea.fr>
  */
 
-#include "m0hsm_api.h"
-#include "motr/idx.h"
-
 #include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -33,16 +30,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdio.h>
-
-/* FIXME avoid dependency to readline-devel */
-#if 0
 #include <readline/readline.h>
 #include <readline/history.h>
-#else
-extern char *readline(const char *);
-extern void add_history(const char *);
-extern void using_history(void);
-#endif
+
+#include "m0hsm_api.h"
+#include "motr/idx.h"
 
 static const char *RCFILE = "/.hsm/config";
 
