@@ -638,7 +638,7 @@ char **sh_split_line(char *line, int *argc)
 	tokens[position] = NULL;
 	*argc = position;
 	return tokens;
-err:
+ err:
 	free(tokens);
 	return NULL;
 }
@@ -675,7 +675,7 @@ static int shell_loop()
 
 int main(int argc, char **argv)
 {
-	int rc;
+	int rc = -1;
 	FILE *rcfile;
 	char rcpath[256 + ARRAY_SIZE(RCFILE)];
 
@@ -688,22 +688,22 @@ int main(int argc, char **argv)
 	}
 
 	if (load_client_env())
-		return 1;
+		goto out;
 
 	if (parse_cmd_options(argc, argv))
-		exit(EXIT_FAILURE);
+		goto out;
 
 	/* expect at least m0hsm <action|shell> */
 	if (optind > argc - 1) {
 		usage();
-		exit(EXIT_FAILURE);
+		goto out;
 	}
 
 	/* Initialize cloivis */
 	rc = client_init();
 	if (rc < 0) {
 		fprintf(stderr, "m0hsm: error: client_init() failed!\n");
-		exit(EXIT_FAILURE);
+		goto out;
 	}
 
 	/* Initialize HSM API */
@@ -712,7 +712,7 @@ int main(int argc, char **argv)
 	rc = m0hsm_init(instance, &uber_realm, &hsm_options);
 	if (rc < 0) {
 		fprintf(stderr, "m0hsm: error: m0hsm_init() failed!\n");
-		exit(EXIT_FAILURE);
+		goto fini;
 	}
 
 	if (strcmp(argv[optind], "shell") == 0) {
@@ -722,14 +722,14 @@ int main(int argc, char **argv)
 		/* run command */
 		rc = run_cmd(argc, argv);
 	}
-
+ fini:
 	/* terminate */
 	client_fini();
-
-	if (rc == 0)
-		exit(EXIT_SUCCESS);
-	else
+ out:
+	fclose(rcfile);
+	if (rc != 0)
 		exit(EXIT_FAILURE);
+	exit(EXIT_SUCCESS);
 }
 
 /*
