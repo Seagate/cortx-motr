@@ -606,7 +606,7 @@ static int run_cmd(int argc, char **argv)
 char **sh_split_line(char *line, int *argc)
 {
 	int bufsize = SH_TOK_BUFSIZE, position = 0;
-	char **tokens = malloc(bufsize * sizeof(char*));
+	char **tokens = malloc(bufsize * sizeof(char*)), **tt;
 	char *token;
 
 	if (!tokens) {
@@ -625,11 +625,12 @@ char **sh_split_line(char *line, int *argc)
 
 		if (position >= bufsize) {
 			bufsize += SH_TOK_BUFSIZE;
-			tokens = realloc(tokens, bufsize * sizeof(char*));
-			if (!tokens) {
+			tt = realloc(tokens, bufsize * sizeof(char*));
+			if (!tt) {
 				fprintf(stderr, "m0hsm: allocation error\n");
-				return NULL;
+				goto err;
 			}
+			tokens = tt;
 		}
 
 		token = strtok(NULL, SH_TOK_DELIM);
@@ -637,6 +638,9 @@ char **sh_split_line(char *line, int *argc)
 	tokens[position] = NULL;
 	*argc = position;
 	return tokens;
+err:
+	free(tokens);
+	return NULL;
 }
 
 
