@@ -117,6 +117,7 @@ Requires:       ruby
 Requires:       facter
 Requires:       rubygem-net-ssh
 Requires:       python36-ply
+Requires:       readline
 Requires(pre):  shadow-utils
 Requires(post): findutils
 
