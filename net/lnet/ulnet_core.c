@@ -402,10 +402,6 @@
      a pointer to each nul-terminated NID string, until the number of
      strings returned by the ioctl request have been populated.
 
-   Currently, the kernel implementation caches the NID strings once; the user
-   space core can assume this behavior and cache the result per domain,
-   but may need to change in the future if the kernel implementation changes.
-
    @see @ref LNetDRVDLD-lspec-nids "Corresponding device layer behavior"
 
    @subsection ULNetCoreDLD-lspec-state State Specification
@@ -577,8 +573,7 @@ static unsigned nlx_ucore_nidstrs_thunk = 128;
    Routine to fetch the NID strings from the device driver.
    The subroutine does not modify the domain private structure.
    @param ud Ucore domain. Only the fd field is required to
-   be set, as this subroutine could be used during domain initialization
-   to cache the NID strings.
+   be set.
    @param nidary A NULL-terminated (like argv) array of NID strings is returned.
  */
 static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
