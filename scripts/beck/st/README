@@ -1,0 +1,66 @@
+The script will create hole in metadata as per user choice. There are n number of ways to create hole using error_injection.py script.
+User can check the option using "error_injection.py -help".
+
+***** Script Started *****
+Date Time
+usage: error_injection.py [-h] [-rn] [-e NOOFERR] [-rt RECORD_TYPE] [-m FILE]
+                          [-v] [-a] [-gmd] [-dmd] [-512k] [-huge] [-seed SEED]
+
+Basic Arguments to run the script
+
+optional arguments:
+  -h, --help       show this help message and exit
+  -rn              For inducing error at Random place
+  -e NOOFERR       How Many number of error do you want to induce in Metadata
+  -rt RECORD_TYPE  Record Type For inducing error at perticular record like
+                   BE_BTREE, BE_EMAP, CAS_CTG etc
+  -m FILE          Metadata Path
+  -v               Read full Metadata and Print all the Records entry counts
+  -a               Induce Error in All Record at Random place
+  -gmd             Induce Error in All GMD type of Record at Random place
+  -dmd             Induce Error in All DMD type of Record at Random place
+  -512k            Induce 512K bytes error in Metadata
+  -huge            Induce Huge amount of corruption in Metadata
+  -seed SEED       Seed for generating Random errors corruption
+
+How to run the script:
+1. Find the location of your metadata and note it down.
+   Usually it looks like this:
+   On srvnode-1 : /dev/vg_metadata_srvnode-1/lv_raw_metadata
+   On srvnode-2 : /dev/vg_metadata_srvnode-2/lv_raw_metadata
+
+2. Whenever you need to induce holes in metadata, you need to first shutdown the cluster
+   On HW you can run "pcs cluster stop --all" and on VM "hctl shutdown"
+   
+3. It will create a log named as hole_creation_YYYYDDMM_HHMMSS.log
+
+4. For injecting error on random record with user given number of error.
+   example: error_injection.py -rn -e <number of error> -m <metadata path>
+   
+   It will print seed as well for random number generation. User can take that seed for 
+   initialize the "random" library: to initialize the random generation 
+   
+5. For injecting error on particular record type with user given number of error.
+   example: error_injection.py -rt <record type> -e <number of error> -m <metadata path>
+   
+   Record types are BE_BTREE, BE_EMAP, CAS_CTG, BE_BNODE, BALLOC etc.
+   
+6. For injecting error on all global metadata type records with random number of error.
+   example: error_injection.py -gmd -m <metadata path>
+   
+7. For injecting error on all dynamic metadata type records with random number of error.
+   example: error_injection.py -dmd -m <metadata path>
+   
+8. For injecting error on all metadata type records with random number of error.
+   example: error_injection.py -a -m <metadata path>
+   
+9. For injecting 512k bytes errors in metadata. The starting point in error injection will be random.
+   example: error_injection.py -512k -m <metadata path>
+   
+10. For injecting huge errors in metadata, script will randomly take a starting point and start corrupting till end of metadata.
+    example: error_injection.py -huge -m <metadata path>
+	
+11. Count all record numbers. This is useful for verifying record numbers.
+    example: error_injection.py -v -m <metadata path>
+	
+12. Use -seed for recreation of any random scenario which is -rn, -gmd, -dmd, -a, -512k, -huge.
