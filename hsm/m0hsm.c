@@ -36,7 +36,7 @@
 #include "m0hsm_api.h"
 #include "motr/idx.h"
 
-static const char *RCFILE = "/.hsm/config";
+static const char *RCFILE = ".hsm/config";
 
 /* Client parameters */
 static char *local_addr;
@@ -677,14 +677,9 @@ int main(int argc, char **argv)
 {
 	int rc;
 	FILE *rcfile;
-	char *rcpath = malloc(strlen(getenv("HOME")) + strlen(RCFILE) + 1);
+	char rcpath[256 + ARRAY_SIZE(RCFILE)];
 
-	if (rcpath == NULL) {
-		perror("m0hsm: malloc()");
-		exit(EXIT_FAILURE);
-	}
-
-	strcat(stpcpy(rcpath, getenv("HOME")), RCFILE);
+	snprintf(rcpath, ARRAY_SIZE(rcpath), "%s/%s", getenv("HOME"), RCFILE);
 	rcfile = fopen(rcpath, "r");
 	if (rcfile == NULL) {
 		fprintf(stderr, "m0hsm: error on opening %s file: %s\n",
