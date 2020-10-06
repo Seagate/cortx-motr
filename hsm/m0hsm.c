@@ -269,7 +269,7 @@ int read_fid(const char *s, struct m0_uint128 *fid)
 		fid->u_hi = hi;
 		fid->u_lo = lo;
 	}
-		
+
 	return res;
 }
 
@@ -514,7 +514,7 @@ static int run_cmd(int argc, char **argv)
 		tgt_tier = atoi(argv[optind]);
 		optind++;
 		if (tgt_tier > HSM_TIER_MAX) {
-			fprintf(stderr, "Max tier index: %d\n", HSM_TIER_MAX);
+			fprintf(stderr, "Max tier index: %u\n", HSM_TIER_MAX);
 			return -1;
 		}
 		if (optind < argc)
@@ -541,7 +541,7 @@ static int run_cmd(int argc, char **argv)
 		tgt_tier = atoi(argv[optind]);
 		optind++;
 		if (tgt_tier > HSM_TIER_MAX) {
-			fprintf(stderr, "Max tier index: %d\n", HSM_TIER_MAX);
+			fprintf(stderr, "Max tier index: %u\n", HSM_TIER_MAX);
 			return -1;
 		}
 		if (optind < argc)
@@ -568,7 +568,7 @@ static int run_cmd(int argc, char **argv)
 		tier = atoi(argv[optind]);
 		optind++;
 		if (tier > HSM_TIER_MAX) {
-			fprintf(stderr, "Max tier index: %d\n", HSM_TIER_MAX);
+			fprintf(stderr, "Max tier index: %u\n", HSM_TIER_MAX);
 			return -1;
 		}
 		if (optind < argc)
