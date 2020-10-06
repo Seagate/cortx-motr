@@ -920,14 +920,14 @@ EOF
             while [[ $cmd_exit_status == $ESEGV ]];
             do
                 #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash( receving SEGV signal ), to 2 each.
-                core_m0beck_file_count=$(cd /var/crash; find . -type f -exec stat  -c "%n %y" {} \;| sort -n | grep core-m0beck | awk '{if($2>"'"${SCRIPT_START_DATE}"'") print $2" "$3; else if($2=="'"${SCRIPT_START_DATE}"'" && $3>="'"${SCRIPT_START_TIME}"'") print $2" "$3; else echo }' | wc -l)
+                core_m0beck_file_count=$(cd /var/log/crash; find . -type f -exec stat  -c "%n %y" {} \;| sort -n | grep core-m0beck | awk '{if($2>"'"${SCRIPT_START_DATE}"'") print $2" "$3; else if($2=="'"${SCRIPT_START_DATE}"'" && $3>="'"${SCRIPT_START_TIME}"'") print $2" "$3; else echo }' | wc -l)
                 echo "File count value $core_m0beck_file_count"
                                 
                 if [[ $core_m0beck_file_count -gt 2 ]]; then
                     echo "Deleting core m0beck extra file $core_m0beck_file_count"
-                    core_m0beck_last_file_name=$(cd /var/crash; ls -ltr | grep core-m0beck | awk '{print $9}' | tail -n 1)
+                    core_m0beck_last_file_name=$(cd /var/log/crash; ls -ltr | grep core-m0beck | awk '{print $9}' | tail -n 1)
                     echo "$core_m0beck_last_file_name"
-                    rm "/var/crash/$core_m0beck_last_file_name"
+                    rm "/var/log/crash/$core_m0beck_last_file_name"
                 fi
                 
                 m0trace_file_count=$(cd $FAILOVER_MD_DIR/datarecovery; find . -type f -exec stat  -c "%n %y" {} \;| sort -n | awk '{if($2>"'"${SCRIPT_START_DATE}"'") print $2" "$3; else if($2=="'"${SCRIPT_START_DATE}"'" && $3>="'"${SCRIPT_START_TIME}"'") print $2" "$3; else echo }' | wc -l)
