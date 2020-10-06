@@ -157,7 +157,7 @@ static int m0hsm_write_file(struct m0_uint128 id, const char *path)
 		fprintf(stderr,
 			"open object %#"PRIx64":%#"PRIx64" failed: %d\n",
 			id.u_hi, id.u_lo, rc);
-		return rc;
+		goto err;
 	}
 
 	while ((read_nr = read(fd, io_buff, IO_SIZE)) > 0) {
@@ -180,6 +180,8 @@ static int m0hsm_write_file(struct m0_uint128 id, const char *path)
 	}
 
 	m0_entity_fini(&obj.ob_entity);
+err:
+	free(io_buff);
 	return rc;
 }
 
