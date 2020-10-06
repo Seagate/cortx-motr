@@ -29,3 +29,29 @@ There are 5 kinds of local objects, described in more detail below:
 - objects that contain meta-data data-base tables
 
 - objects that are sets of records of data locations
+
+In addition to object data, an object requires some amount of meta-data:
+
+- allocation meta-data, specifying where object data and other object meta-data can be found
+
+- integrity meta-data in the form of block or record level check-sums
+
+- other object attributes, like size
+
+Meta-data are stored in data-bases in meta-data containers.
+
+The API associated with Motr objects is likely to be similar to the T10 OSDv2 API. We say similar rather than identical because the OSD API may need enhancements. For example, the OSD API lacks sufficient transactional support (the SCALUS project in Europe may define this).
+
+Similarly to devices, storage objects have names and a location data-base is maintained to track them. An object is self-identifiable.
+
+Container Objects
+==================
+
+A Container Object stores other objects inside. A storage device can hold many containers, but containers typically have large sizes (gigabyte-terabyte sized) and use large allocation units (e.g. 64MB). Container objects can hold containers, meta-data objects or data.
+
+Containers can migrate to other devices and they can be merged, combining multiple containers in to one.
+
+Types of Objects
+------------------
+
+Here we provide more detail on the various types of objects that Motr uses.
