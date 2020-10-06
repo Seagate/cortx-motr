@@ -103,3 +103,22 @@ Data Object
 -------------
 
 This object is a set of related allocation records in a metadata database. It points to extents in data container objects and is contained in a table in a metadata object.
+
+Metadata
+=========
+
+In Motr, metadata is organized as tables with relations. Strong compression techniques allow inodes to take up an average of 100 bytes each. In a typical file system, meta-data show high degree of duplication: millions of files have the same combinations of ownership and permission attributes, and the same formula for their layout. Thus far, we have tested tables with sizes up to 300 million entries (on flash). Scalability results are very promising and performance is good. The DB5 transaction log fits well into the Motr architecture, providing a potential change or undo log.
+
+Metadata will be replicated 3 times with distributed transactions. Record-level checksums provide integrity. Replicated metadata objects may not be block-wise identical but are logically identical. This is because the loads of servers will influence the allocation algorithms used within them. One of meta-data replicas possibly stays in flash.
+
+Allocation
+===========
+
+Allocation of space is based on a disk model, with the ext4 allocator as a basic starting point (grouping small files, aligning extends in large files). We profiled and modeled disks and determined that no partial cylinders are read at any time and that I/O in 4MB chunks provides optimal bandwidth.
+
+There are several potential variations to the basic allocation model described above. For example, deduplication at either the storage device or cluster level is being considered, as well as compressed and encrypted layouts.
+
+Data Redundancy
+===============
+
+Motr uses a parity de-clustered layout based on pseudo-random permutations (not traditional block mappings). This scheme adapts easily to different disk counts. Within a T1 object store, transactional before/after semantics are achieved. File layouts can take all disks into account to provide the appropriate striping and redundancy.
