@@ -71,3 +71,7 @@ A device container root object contains the following.
 The following diagram represents a typical device container.
 
 .. image:: Images/Device_container.PNG
+
+Additional redundant copies of device container object meta-data are stored on other devices.
+
+The following illustrates how a file and the associated data is stored.
