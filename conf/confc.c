@@ -670,6 +670,7 @@ m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
 	ctx->fc_ast.sa_datum = ctx;
 	m0_clink_init(&ctx->fc_clink, on_object_updated);
 	m0_confc_ctx_bob_init(ctx);
+	ctx->fc_finalized = false;
 
 	M0_POST(ctx_invariant(ctx));
 	M0_LEAVE("ctx=%p", ctx);
@@ -684,6 +685,7 @@ M0_INTERNAL void m0_confc_ctx_fini_locked(struct m0_confc_ctx *ctx)
 	M0_PRE(ctx_invariant(ctx));
 	M0_PRE(confc_group_is_locked(confc));
 
+	ctx->fc_finalized = true;
 	m0_clink_fini(&ctx->fc_clink);
 	ctx->fc_origin = NULL;
 
@@ -1487,17 +1489,27 @@ static void _state_set(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
 	m0_sm_state_set(&ctx->fc_mach, state);
 }
 
-static void _state_fail(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
+static void
+_state_fail(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
 {
 	struct m0_confc_ctx *ctx = ast->sa_datum;
 	int rc;
 
-	if (ctx->fc_confc == NULL) {
+	if (ctx->fc_confc == NULL || ctx->fc_finalized) {
 		/* the 'ctx' is already finalized */
 		return;
 	}
 
 	M0_ASSERT(ast_to_ctx(ast) == ctx);
+	if (m0_confc_ctx_is_completed(ctx) || ctx->fc_mach.sm_rc < 0) {
+		/*
+		 * Because this can be called from multiple sources,
+		 * we just return if the failure state is already set
+		 * from other sources or it is already completed.
+		 */
+		return;
+	}
+
 	rc = ctx->fc_ast_datum;
 	m0_sm_fail(&ctx->fc_mach, S_FAILURE, rc);
 }
