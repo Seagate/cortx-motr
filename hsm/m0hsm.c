@@ -71,9 +71,13 @@ static int client_init(void)
 	client_conf.mc_profile               = profile;
 	client_conf.mc_process_fid           = proc_fid;
 
-	client_conf.mc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
-	client_conf.mc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
-	/* set to Sage cluster specific values */
+	/*
+	 * Note: max_rpc_msg_size should match server side configuration for
+	 * optimal performance.
+	 */
+	/* TODO Implement runtime configuration to override the defaults:
+	 * (M0_NET_TM_RECV_QUEUE_DEF_LEN and M0_RPC_DEF_MAX_RPC_MSG_SIZE).
+	 * The following values are tuned for the SAGE prototype cluster: */
 	client_conf.mc_tm_recv_queue_min_len = 64;
 	client_conf.mc_max_rpc_msg_size      = 65536;
 
