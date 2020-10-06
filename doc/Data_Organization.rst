@@ -86,3 +86,5 @@ This object contains metadata databases such as directory data, allocation data,
 Metadata containers contain their own metadata (except for integrity metadata) and a root table. The following lists the candidates for tables contained in a metadata container object.
 
 .. image:: Images/Table.PNG
+
+The current leading candidate for organizing tables is the Berkeley DB5 database.
