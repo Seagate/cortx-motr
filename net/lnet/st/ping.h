@@ -38,35 +38,35 @@ struct nlx_ping_ops {
    Context for a ping client or server.
  */
 struct nlx_ping_ctx {
-	const struct nlx_ping_ops	      *pc_ops;
-	struct m0_net_xprt		      *pc_xprt;
-	struct m0_net_domain		       pc_dom;
-	const char		              *pc_network; /* "addr@interface" */
+	const struct nlx_ping_ops             *pc_ops;
+	struct m0_net_xprt                    *pc_xprt;
+	struct m0_net_domain                   pc_dom;
+	const char                            *pc_network;/* "addr@interface" */
 	uint32_t                               pc_pid;
-	uint32_t			       pc_portal;
-	int32_t			               pc_tmid; /* initialized to < 0 */
-	const char			      *pc_rnetwork;
+	uint32_t                               pc_portal;
+	int32_t                                pc_tmid; /* initialized to < 0 */
+	const char                            *pc_rnetwork;
 	uint32_t                               pc_rpid;
-	uint32_t			       pc_rportal;
-	int32_t			               pc_rtmid;
-	int32_t				       pc_status;
-	uint32_t		               pc_nr_bufs;
-	uint32_t		               pc_nr_recv_bufs;
-	uint32_t		               pc_segments;
-	uint32_t		               pc_seg_size;
-        uint32_t                               pc_seg_shift;
+	uint32_t                               pc_rportal;
+	int32_t                                pc_rtmid;
+	int32_t                                pc_status;
+	uint32_t                               pc_nr_bufs;
+	uint32_t                               pc_nr_recv_bufs;
+	uint32_t                               pc_segments;
+	uint32_t                               pc_seg_size;
+	uint32_t                               pc_seg_shift;
 	int                                    pc_min_recv_size;
 	int                                    pc_max_recv_msgs;
-	uint64_t			       pc_bulk_size;
-	struct m0_net_buffer		      *pc_nbs;
+	uint64_t                               pc_bulk_size;
+	struct m0_net_buffer                  *pc_nbs;
 	const struct m0_net_buffer_callbacks  *pc_buf_callbacks;
-	struct m0_bitmap		       pc_nbbm;
-	struct m0_net_transfer_mc	       pc_tm;
-	struct m0_mutex			       pc_mutex;
-	struct m0_cond			       pc_cond;
-	struct m0_list			       pc_work_queue;
-	const char		              *pc_ident;
-	const char		              *pc_compare_buf;
+	struct m0_bitmap                       pc_nbbm;
+	struct m0_net_transfer_mc              pc_tm;
+	struct m0_mutex                        pc_mutex;
+	struct m0_cond                         pc_cond;
+	struct m0_list                         pc_work_queue;
+	const char                            *pc_ident;
+	const char                            *pc_compare_buf;
 	int                                    pc_bulk_timeout;
 	int                                    pc_msg_timeout;
 	int                                    pc_server_bulk_delay;
@@ -82,7 +82,7 @@ struct nlx_ping_ctx {
 	struct m0_clink                        pc_net_clink;
 	uint64_t                               pc_net_signal_count;
 	uint64_t                               pc_blocked_count;
-        uint64_t                               pc_worked_count;
+	uint64_t                               pc_worked_count;
 	struct m0_atomic64                     pc_errors;
 	struct m0_atomic64                     pc_retries;
 	int                                    pc_verbose;
