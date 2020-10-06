@@ -107,19 +107,19 @@ out:
 /** Helper to open an object entity */
 static int open_entity(struct m0_entity *entity)
 {
-       struct m0_op *ops[1] = {NULL};
-       int rc;
+	struct m0_op *ops[1] = {NULL};
+	int rc;
 
-       m0_entity_open(entity, &ops[0]);
-       m0_op_launch(ops, 1);
-       rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
-				       M0_OS_STABLE),
-		       m0_time_from_now(hsm_options.op_timeout, 0));
-       m0_op_fini(ops[0]);
-       m0_op_free(ops[0]);
-       ops[0] = NULL;
+	m0_entity_open(entity, &ops[0]);
+	m0_op_launch(ops, 1);
+	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
+					M0_OS_STABLE),
+			m0_time_from_now(hsm_options.op_timeout, 0));
+	m0_op_fini(ops[0]);
+	m0_op_free(ops[0]);
+	ops[0] = NULL;
 
-       return rc;
+	return rc;
 }
 
 /** wraps m0hsm_pwrite */
@@ -299,8 +299,8 @@ static int parse_copy_subopt(char *opts, enum hsm_cp_flags *flags)
 		case OPT_WRITE_TO_DEST:
 			*flags |= HSM_WRITE_TO_DEST;
 			break;
-                default:
-                        fprintf(stderr, "Unexpected option: %s\n", value);
+		default:
+			fprintf(stderr, "Unexpected option: %s\n", value);
 			return -EINVAL;
 		}
 	}
@@ -325,8 +325,8 @@ static int parse_release_subopt(char *opts, enum hsm_rls_flags *flags)
 			*flags |= HSM_KEEP_LATEST;
 			break;
 
-                default:
-                        fprintf(stderr, "Unexpected option: %s\n", value);
+		default:
+			fprintf(stderr, "Unexpected option: %s\n", value);
 			return -EINVAL;
 		}
 	}

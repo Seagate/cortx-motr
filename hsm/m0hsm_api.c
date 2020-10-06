@@ -313,15 +313,15 @@ static int create_obj(struct m0_uint128 id, struct m0_obj *obj,
 	m0_obj_init(obj, m0_uber_realm, &id, 9 /* XXX: 1MB */);
 			  /* m0_client_layout_id(m0_instance)); */
 
-        rc = open_entity(&obj->ob_entity);
-        if (rc == 0) {
+	rc = open_entity(&obj->ob_entity);
+	if (rc == 0) {
 		ERROR("Object %"PRIx64":%"PRIx64" already exists\n", id.u_hi,
 		      id.u_lo);
-                RETURN(-EEXIST);
+		RETURN(-EEXIST);
 	} else if (rc != -ENOENT) {
 		ERROR("Failed to create object %"PRIx64":%"PRIx64": rc=%d\n",
 		      id.u_hi, id.u_lo, rc);
-                RETURN(rc);
+		RETURN(rc);
 	}
 
 	if (tier_idx != HSM_ANY_TIER) {
@@ -597,7 +597,7 @@ static int layout_set(struct m0_uint128 id, struct m0_client_layout *layout)
 /* The definitions above allow iterating on layers and extent lists */
 #include "motr/magic.h"
 M0_TL_DESCR_DEFINE(clayer, "composite layout layers",
-                   static, struct m0_composite_layer,
+				   static, struct m0_composite_layer,
 		   ccr_tlink, ccr_tlink_magic,
 		   M0_CLAYER_TL_MAGIC, M0_CLAYER_TL_MAGIC);
 M0_TL_DEFINE(clayer, static, struct m0_composite_layer);
@@ -628,7 +628,7 @@ static int get_next_extents(struct m0_idx *idx,
 			       M0_BITS(M0_OS_FAILED,
 				       M0_OS_STABLE),
 			       m0_time_from_now(options.op_timeout,0));
-        rc = rc ? rc : ops[0]->op_sm.sm_rc;
+	rc = rc ? rc : ops[0]->op_sm.sm_rc;
 
 	/* fini and release */
 	m0_op_fini(ops[0]);
@@ -852,8 +852,8 @@ static void print_layer(FILE *stream, struct m0_composite_layer *layer,
 static void print_layout(FILE *stream, const struct m0_client_layout  *layout,
 			 bool details)
 {
-        struct m0_client_composite_layout *clayout;
-        struct m0_composite_layer *layer;
+	struct m0_client_composite_layout *clayout;
+	struct m0_composite_layer *layer;
 	int i;
 
 	clayout = M0_AMB(clayout, layout, ccl_layout);
@@ -1044,8 +1044,8 @@ free_keys:
 static void layout_top_prio(struct m0_client_layout *layout, int32_t *max_gen,
 			    struct m0_uint128 *max_gen_id, uint8_t *top_tier)
 {
-        struct m0_client_composite_layout *clayout;
-        struct m0_composite_layer *layer;
+	struct m0_client_composite_layout *clayout;
+	struct m0_composite_layer *layer;
 
 	*max_gen = -1;
 	*top_tier = UINT8_MAX;
@@ -1136,8 +1136,8 @@ static int layout_layer_clean(struct m0_uint128 parent_id,
 			      struct m0_client_layout *layout,
 			      struct m0_uint128 subobj_id)
 {
-        struct m0_client_composite_layout *clayout;
-        struct m0_composite_layer *layer;
+	struct m0_client_composite_layout *clayout;
+	struct m0_composite_layer *layer;
 
 	clayout = M0_AMB(clayout, layout, ccl_layout);
 	M0_ASSERT(clayout != NULL);
@@ -1698,8 +1698,8 @@ static void dump_data(struct m0_bufvec *data, size_t bsize)
 /** free a bufvec allocated by alloc_empty_vec() */
 static void free_io_vec(struct m0_bufvec *vec)
 {
-        free(vec->ov_vec.v_count);
-        free(vec->ov_buf);
+	free(vec->ov_vec.v_count);
+	free(vec->ov_buf);
 	memset(vec, 0, sizeof(struct m0_bufvec));
 }
 
@@ -1708,18 +1708,18 @@ static int alloc_io_vec(struct m0_bufvec *vec, int blocks, size_t b_size)
 {
 	int i;
 
-        if (!vec || blocks == 0)
-                return -EINVAL;
+	if (!vec || blocks == 0)
+		return -EINVAL;
 
-        vec->ov_vec.v_count = calloc(blocks, sizeof(m0_bcount_t));
-        vec->ov_buf = calloc(blocks, sizeof(void *));
-        if (!vec->ov_vec.v_count || !vec->ov_buf) {
-                /* free() accepts NULL as an argument */
+	vec->ov_vec.v_count = calloc(blocks, sizeof(m0_bcount_t));
+	vec->ov_buf = calloc(blocks, sizeof(void *));
+	if (!vec->ov_vec.v_count || !vec->ov_buf) {
+		/* free() accepts NULL as an argument */
 		free_io_vec(vec);
-                return -ENOMEM;
-        }
+		return -ENOMEM;
+	}
 
-        vec->ov_vec.v_nr = blocks;
+	vec->ov_vec.v_nr = blocks;
 	for (i = 0; i < blocks; i++) {
 	        vec->ov_vec.v_count[i] = b_size;
 	        vec->ov_buf[i] = NULL;
@@ -1804,7 +1804,7 @@ static int map_io_ctx(struct io_ctx *ctx, int blocks, size_t b_size,
 	int i;
 
 	if (!ctx || blocks == 0)
-                return -EINVAL;
+		return -EINVAL;
 
 	M0_ASSERT(check_vec(&ctx->data, blocks) == 0);
 	M0_ASSERT(check_vec(&ctx->attr, blocks) == 0);
@@ -2275,7 +2275,7 @@ static int match_layer_foreach(struct m0_client_layout *layout, uint8_t tier,
 			       bool stop_on_error)
 {
 	struct m0_client_composite_layout *clayout;
-        struct m0_composite_layer  *layer;
+	struct m0_composite_layer  *layer;
 	struct extent match;
 	uint8_t ltier;
 	int rc;
@@ -2338,7 +2338,7 @@ static struct m0_composite_layer *
 	layer_get_by_prio(struct m0_client_layout *layout, int prio)
 {
 	struct m0_client_composite_layout *clayout;
-        struct m0_composite_layer  *layer;
+	struct m0_composite_layer  *layer;
 
 	clayout = M0_AMB(clayout, layout, ccl_layout);
 	M0_ASSERT(clayout != NULL);
@@ -2356,7 +2356,7 @@ static struct m0_composite_layer *
 struct min_gen_check_arg {
 	int min_gen;
 	struct m0_uint128 except_subobj;
-        const struct extent *orig_extent;
+	const struct extent *orig_extent;
 	bool found;
 };
 
@@ -2371,14 +2371,14 @@ static int min_gen_check_cb(void *cb_arg,
 
 	if (m0_uint128_cmp(&layer->ccr_subobj, &arg->except_subobj) == 0) {
 		DEBUG("%s: skip self subobj %#"PRIx64":%#"PRIx64"\n", __func__,
-                      arg->except_subobj.u_hi, arg->except_subobj.u_lo);
+			  arg->except_subobj.u_hi, arg->except_subobj.u_lo);
 		/* skip this subobj */
 		return 0;
 	}
 
 	if (hsm_prio2gen(layer->ccr_priority) < arg->min_gen) {
 		DEBUG("%s: skip layer of lower generation %u\n", __func__,
-                      hsm_prio2gen(layer->ccr_priority));
+			  hsm_prio2gen(layer->ccr_priority));
 		/* lower generation, skip */
 		return 0;
 	}
@@ -2586,7 +2586,7 @@ static int copy_cb(void *cb_arg, struct m0_client_layout *layout,
 		   const struct extent *match,
 		   bool *stop)
 {
-        struct m0_composite_layer *tgt_layer;
+	struct m0_composite_layer *tgt_layer;
 	struct m0_obj subobj = {};
 	struct m0_uint128 subobj_id;
 	int tgt_prio, w_prio;
