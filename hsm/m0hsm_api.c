@@ -109,8 +109,8 @@ static int read_params(FILE *in, struct param *p, int max_params)
 	char s[MAX_LEN];
 
 	for (ln=1; max_params > 0 && fgets(s, MAX_LEN, in); ln++) {
-		if (sscanf(s, " %[#\n\r]", p->name)) /* emty line or comment */
-			continue;
+		if (sscanf(s, " %[#\n\r]", p->name))
+			continue; /* skip emty line or comment */
 		if (sscanf(s, " %[a-z_A-Z0-9] = %[^#\n\r]",
 		           p->name, p->value) < 2) {
 			ERROR("m0hsm: %s: error at line %d: %s\n", __func__,
@@ -1174,7 +1174,7 @@ static int layout_add_top_layer(struct m0_uint128 id,
 	}
 
 	gen++;
-	VERB("Creating new layer: gen=%u, tier=%hhu\n", gen, tier);
+	VERB("Creating new layer: gen=%d, tier=%hhu\n", gen, tier);
 
 	rc = create_obj(hsm_subobj_id(id, gen, tier), &subobj, false, tier);
 	if (rc != 0)
@@ -1989,15 +1989,17 @@ int m0hsm_test_write(struct m0_uint128 id, off_t off, size_t len, int seed)
 	RETURN(rc);
 }
 
-int m0hsm_pwrite(struct m0_obj *obj, void *buf, size_t length, off_t offset)
+int m0hsm_pwrite(struct m0_obj *obj, void *buffer, size_t length, off_t offset)
 {
 	int blocks;
-	size_t io_size;
-	struct io_ctx ctx = {0};
-	ssize_t rest = length;
-	off_t start = offset;
-	struct extent wext;
 	int rc = 0;
+	size_t io_size;
+	ssize_t rest = length;
+	off_t off = offset;
+	char *buf = buffer;
+	char *pad_buf = NULL;
+	struct extent wext;
+	struct io_ctx ctx = {};
 	ENTRY;
 
 	wext.off = offset;
@@ -2009,8 +2011,6 @@ int m0hsm_pwrite(struct m0_obj *obj, void *buf, size_t length, off_t offset)
 	VERB("using io_size of %zu bytes\n", io_size);
 
 	while (rest > 0) {
-		char *pad_buf = NULL;
-
 		/* count remaining blocks */
 		blocks = rest / io_size;
 		/* last loop processes unaligned block */
@@ -2018,12 +2018,12 @@ int m0hsm_pwrite(struct m0_obj *obj, void *buf, size_t length, off_t offset)
 			/* non full block */
 			blocks = 1;
 			/* prepare a padded block */
-			INFO("Padding last block of unaligned size %zu up to "
+			INFO("Padding last block of unaligned size %zd up to "
 			     "%zu\n", rest, io_size);
 			pad_buf = calloc(1, io_size);
 			if (!pad_buf) {
 				rc = -ENOMEM;
-				goto out_free;
+				break;
 			}
 			memcpy(pad_buf, buf, rest);
 			buf = pad_buf;
@@ -2033,28 +2033,20 @@ int m0hsm_pwrite(struct m0_obj *obj, void *buf, size_t length, off_t offset)
 		if (blocks > MAX_BLOCK_COUNT)
 			blocks = MAX_BLOCK_COUNT;
 
-		rc = prepare_io_ctx(&ctx, blocks, io_size, false);
-		if (rc)
-			goto out_free;
-
-		rc = map_io_ctx(&ctx, blocks, io_size, start, buf);
-		if (rc)
-			goto out_free;
-
-		rc = write_blocks(obj, &ctx);
-		if (pad_buf) {
-			free(pad_buf);
-			pad_buf = NULL;
-		}
+		rc = prepare_io_ctx(&ctx, blocks, io_size, false) ?:
+		     map_io_ctx(&ctx, blocks, io_size, off, buf) ?:
+		     write_blocks(obj, &ctx);
 		if (rc)
 			break;
 
 		buf += blocks * io_size;
-		start += blocks * io_size;
+		off += blocks * io_size;
 		rest -= blocks * io_size;
 	}
 
-out_free:
+	if (pad_buf)
+		free(pad_buf);
+
 	/* Free bufvec's and indexvec's */
 	free_io_ctx(&ctx, false);
 

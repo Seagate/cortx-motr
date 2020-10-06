@@ -483,7 +483,7 @@ static int run_cmd(int argc, char **argv)
 		tgt_tier = atoi(argv[optind]);
 		optind++;
 		if (src_tier > HSM_TIER_MAX || tgt_tier > HSM_TIER_MAX) {
-			fprintf(stderr, "Max tier index: %d\n", HSM_TIER_MAX);
+			fprintf(stderr, "Max tier index: %u\n", HSM_TIER_MAX);
 			return -1;
 		}
 		if (optind < argc)
