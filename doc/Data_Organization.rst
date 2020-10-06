@@ -77,3 +77,12 @@ Additional redundant copies of device container object meta-data are stored on o
 The following illustrates how a file and the associated data is stored.
 
 .. image:: Images/Delay.PNG
+
+Meta-data container object
+--------------------------
+
+This object contains metadata databases such as directory data, allocation data, layout data, or quota information. The metadata container for a device has a fixed location.
+
+Metadata containers contain their own metadata (except for integrity metadata) and a root table. The following lists the candidates for tables contained in a metadata container object.
+
+.. image:: Images/Table.PNG
