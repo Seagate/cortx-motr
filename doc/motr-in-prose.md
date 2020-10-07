@@ -225,7 +225,6 @@ re-ordering. See NRS in the references below.
 Each node in the cluster runs one or more Motr instances. Each instance has the 
 same overall structure:
 
-![](/doc/Images/2-Motr-Instance.JPG)
 
 At the heart of Motr instance is [reqh](#reqh-idea) (request handler). Request 
 handler processes requests in form of [fops](#fop-idea) 
@@ -371,7 +370,7 @@ occur in the Motr system.
 The figure below shows the flow of fol records from the nodes where they are 
 generated to fdmi subscribers.
 
-![MapReduce Style Algorithm](https://github.com/Seagate/cortx-motr/blob/Motr_Desc-Guide/doc/Images/3-MapReduce-style-algorithm.JPG)
+![MapReduce Style Algorithm](doc/Images/3-MapReduce-style-algorithm.JPG)
 
 As a simplified example, consider an fdmi-based application running on a 
 dedicated server, connected to two Motr object stores (source and target) and 
