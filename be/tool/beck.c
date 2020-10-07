@@ -1168,7 +1168,7 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 					  tx, &ext,
 					  M0_BALLOC_NORMAL_ZONE);
 		if (rc != 0) {
-			M0_LOG(M0_ERROR, "Failed to reseve extent rc=%d", rc);
+			M0_LOG(M0_ERROR, "Failed to reserve extent rc=%d", rc);
 			return;
 		}
 
