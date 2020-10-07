@@ -1144,6 +1144,12 @@ static int initlift_resource_manager(struct m0_sm *mach)
 	 *       FID to mount.
 	 */
 	if (!m0_fid_eq(&reqh->rh_fid, &fake_pfid)) {
+		if (!m0_confc_is_inited(&reqh->rh_rconfc.rc_confc)) {
+			/* confd quorum is not possible. */
+			rc = M0_ERR(-EINVAL);
+			initlift_fail(rc, m0c);
+			goto exit;
+		}
 
 		/* Confc needs the lock to proceed. */
 		m0_sm_group_unlock(&m0c->m0c_sm_group);
