@@ -677,15 +677,6 @@ m0traces() {
     local m0tracedump=$(path m0tracedump)
     local outdir=$START_DIR/$OUT_TRACES_DIR
 
-    if [[ ! -d $outdir ]]; then
-        ## Kernel buffer. Collecting it only in case of m0t1fs
-        if [ -x "$m0trace" ] && mount | grep -q 'm0t1fs'; then
-             mkdir $outdir
-             $m0trace kernel-buf -Y 2>>$REPORT | _xz >$outdir/kernel-buf.yaml.xz
-             echo $outdir/kernel-buf.yaml.xz
-        fi
-    fi
-
     [ -x "$m0tracedump" ] || return 0 # don't fail
 
     (cd "$IN_DIR"
@@ -805,7 +796,8 @@ exit
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
 ### 2020-10-05 0.52    Removed halon related things since we are not using
-###                    it. Collecting kernel buffer only in case of m0t1fs
+###                    it.Removed collection of kernel buffer because we lack
+###                    of debugfs support due to NON-GPL kernel module license.
 ###
 ### 2020-10-02 0.51    Added /var/log/crash to CORE_DIRS list since on
 ###                    provisioner deployed setup, core would be in /var/log/crash
