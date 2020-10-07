@@ -276,7 +276,8 @@ static void genadd(uint64_t gen);
 static void generation_id_print(uint64_t gen);
 static void generation_id_get(FILE *fp, uint64_t *gen_id);
 static int  generation_id_verify(struct scanner *s, uint64_t gen);
-static inline void check_and_init_genid(struct scanner *s, uint64_t bli_gen);
+static inline void generation_id_check_and_init(struct scanner *s,
+						uint64_t bli_gen);
 
 static int  scanner_init   (struct scanner *s);
 static int  builder_init   (struct builder *b);
@@ -970,7 +971,7 @@ static int btree(struct scanner *s, struct rectype *r, char *buf)
 		idx = ARRAY_SIZE(bt) - 1;
 
 	genadd(tree->bb_backlink.bli_gen);
-	check_and_init_genid(s, tree->bb_backlink.bli_gen);
+	generation_id_check_and_init(s, tree->bb_backlink.bli_gen);
 	b = &bt[idx];
 	b->b_stats.c_tree++;
 	return 0;
@@ -1012,7 +1013,7 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 		idx = ARRAY_SIZE(bt) - 1;
 
 	genadd(node->bt_backlink.bli_gen);
-	check_and_init_genid(s, node->bt_backlink.bli_gen);
+	generation_id_check_and_init(s, node->bt_backlink.bli_gen);
 	b = &bt[idx];
 	c = &b->b_stats;
 	c->c_node++;
@@ -1300,7 +1301,8 @@ static void genadd(uint64_t gen)
 	}
 }
 
-static inline void check_and_init_genid(struct scanner *s, uint64_t bli_gen)
+static inline void generation_id_check_and_init(struct scanner *s,
+						uint64_t bli_gen)
 {
 	if (!s->s_gen_found) {
 		s->s_gen_found = true;
