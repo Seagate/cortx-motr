@@ -433,6 +433,7 @@ static struct builder b;
 static struct gen g[MAX_GEN] = {};
 
 static bool  dry_run = false;
+static bool  disable_directio = false;
 static bool  signaled = false;
 
 #define FLOG(level, rc, s)						\
@@ -478,6 +479,7 @@ int main(int argc, char **argv)
 		   M0_FLAGARG('b', "Scan every byte (10x slower).", &s.s_byte),
 		   M0_FLAGARG('U', "Run unit tests.", &ut),
 		   M0_FLAGARG('n', "Dry Run.", &dry_run),
+		   M0_FLAGARG('I', "Disable directio.", &disable_directio),
 		   M0_FLAGARG('p', "Print Generation Identifier.",
 			      &print_gen_id),
 		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
@@ -1171,7 +1173,7 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 					  tx, &ext,
 					  M0_BALLOC_NORMAL_ZONE);
 		if (rc != 0) {
-			M0_LOG(M0_ERROR, "Failed to reseve extent rc=%d", rc);
+			M0_LOG(M0_ERROR, "Failed to reserve extent rc=%d", rc);
 			return;
 		}
 
@@ -1385,9 +1387,12 @@ static int ad_dom_init(struct builder *b)
 	struct m0_stob_domain    *dom;
 	struct m0_stob_domain    *stob_dom;
 	char 			 *stob_location;
-	char                     *str_cfg_init = "directio=false";
+	char                     *str_cfg_init = "directio=true";
 	struct ad_dom_info       *adom_info;
 	uint64_t		  ad_dom_count;
+
+	if (disable_directio)
+		str_cfg_init = "directio=false";
 
 	stob_location = m0_alloc(strlen(b->b_stob_path) + 20);
 	if (stob_location == NULL)
