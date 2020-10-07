@@ -2566,7 +2566,7 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 		.sd_allowed   = M0_BITS(CAS_META_UNLOCK, CAS_LOOP)
 	},
 	[CAS_META_UNLOCK] = {
-		.sd_name      = "meta_unlock",
+		.sd_name      = "meta-unlock",
 		.sd_allowed   = M0_BITS(CAS_LOOP)
 	},
 	[CAS_LOOP] = {
