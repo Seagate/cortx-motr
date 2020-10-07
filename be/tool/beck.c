@@ -482,7 +482,7 @@ int main(int argc, char **argv)
 		   M0_FLAGARG('I', "Disable directio.", &disable_directio),
 		   M0_FLAGARG('p', "Print Generation Identifier.",
 			      &print_gen_id),
-		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
+		   M0_FORMATARG('g', "Get Generation Identifier.", "%"PRIu64,
 				&s.s_gen),
 		   M0_FLAGARG('V', "Version info.", &version),
 		   M0_STRINGARG('a', "stob domain path",
@@ -536,9 +536,8 @@ int main(int argc, char **argv)
 		fclose(s.s_file);
 		return EX_OK;
 	}
-	if (gen_id != 0)
-		s.s_gen_found = true;
 	if (s.s_gen != 0) {
+		s.s_gen_found = true;
 		printf("\nReceived source segment header generation id\n");
 		generation_id_print(s.s_gen);
 	}
@@ -975,8 +974,6 @@ static int btree(struct scanner *s, struct rectype *r, char *buf)
 	if (!s->s_gen_found) {
 		s->s_gen_found = true;
 		s->s_gen = tree->bb_backlink.bli_gen;
-		printf("\nBeck will use latest generation id found in btree\n");
-		generation_id_print(s->s_gen);
 	}
 	b = &bt[idx];
 	b->b_stats.c_tree++;
@@ -989,7 +986,7 @@ static int btree_check(struct scanner *s, struct rectype *r, char *buf)
 	int                 idx  = tree->bb_backlink.bli_type;
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 
 	return generation_id_verify(s, tree->bb_backlink.bli_gen);
 }
@@ -1022,8 +1019,6 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	if (!s->s_gen_found) {
 		s->s_gen_found = true;
 		s->s_gen = node->bt_backlink.bli_gen;
-		printf("\nBeck will use latest generation id found in bnode\n");
-		generation_id_print(s->s_gen);
 	}
 	b = &bt[idx];
 	c = &b->b_stats;
@@ -1045,7 +1040,7 @@ static int bnode_check(struct scanner *s, struct rectype *r, char *buf)
 	int                 idx  = node->bt_backlink.bli_type;
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 
 	return generation_id_verify(s, node->bt_backlink.bli_gen);
 }
@@ -1496,7 +1491,6 @@ static int builder_init(struct builder *b)
 	}
 	printf("\nDestination segment header generation\n");
 	generation_id_print(b->b_seg->bs_gen);
-	printf("\n");
 	/*
 	 * Flush immediately to avoid losing this information within other lines
 	 * coming on the screen at the same time.
