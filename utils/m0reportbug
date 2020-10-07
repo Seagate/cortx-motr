@@ -677,15 +677,6 @@ m0traces() {
     local m0tracedump=$(path m0tracedump)
     local outdir=$START_DIR/$OUT_TRACES_DIR
 
-    if [[ ! -d $outdir ]]; then
-        ## Kernel buffer.
-        if [ -x "$m0trace" ] && lsmod | grep -q '^m0ctl\b'; then
-            mkdir $outdir
-            $m0trace kernel-buf -Y 2>>$REPORT | _xz >$outdir/kernel-buf.yaml.xz
-            echo $outdir/kernel-buf.yaml.xz
-        fi
-    fi
-
     [ -x "$m0tracedump" ] || return 0 # don't fail
 
     (cd "$IN_DIR"
