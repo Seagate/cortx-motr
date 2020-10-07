@@ -1063,7 +1063,7 @@ Note that each parity group is mapped individually, which means that each next
 group from the same file would go to a different set of targets (and, hence, a 
 different set of storage devices) than previous.
 
-![Capture](https://github.com/Seagate/cortx-motr/blob/Motr_Desc-Guide/doc/Images/8-Capture.jpg)
+![](/doc/Images/8-Capture.jpg)
 
 ### References:
 * [CMU PDL publications](http://www.pdl.cmu.edu/RAID/publications.shtml) 
