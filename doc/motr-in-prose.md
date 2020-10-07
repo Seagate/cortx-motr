@@ -126,7 +126,7 @@ Distributed transaction manager ([dt](#dtm-idea)) allows operations to be
 grouped into distributed transactions, which are guaranteed to be atomic in 
 the face of certain failures.
 
-![Distributed Transaction Manager](https://github.com/Seagate/cortx-motr/blob/Motr_Desc-Guide/doc/Images/1-Distributed-transaction-manager.JPG)
+![](/doc/Images/1-Distributed-transaction-manager.JPG)
 
 Main novel ideas of Motr, that distinguish it from other cluster  file-systems are:
 * fdmi;
