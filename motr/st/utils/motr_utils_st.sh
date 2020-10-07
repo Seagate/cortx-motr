@@ -115,17 +115,17 @@ test_with_N_K()
 	/usr/bin/expect <<EOF
 	set timeout 20
 	spawn $motr_st_util_dir/m0client $MOTR_PARAMS_V > $SANDBOX_DIR/m0client.log
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "touch $object_id3\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "write $object_id2 $src_file $block_size $block_count $blks_per_io\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "read $object_id2 $dest_file $block_size $block_count $blks_per_io\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "delete $object_id3\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "delete $object_id2\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "quit\r"
 EOF
 	echo "m0client test is Successful"

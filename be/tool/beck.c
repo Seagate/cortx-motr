@@ -35,6 +35,7 @@
 #include <unistd.h>           /* close */
 #include <time.h>             /* localtime_r */
 #include <pthread.h>
+#include <signal.h>           /* signal() to register ctrl + C handler */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
@@ -93,6 +94,10 @@ struct scanner {
 	 * exceed this value.
 	 */
 	m0_bcount_t	     s_max_reg_size;
+	/* Holds source metadata segment header generation identifier. */
+	uint64_t	     s_gen;
+	/* Set variable when correct generation identifier has been found */
+	bool	             s_gen_found;
 };
 
 struct stats {
@@ -268,11 +273,14 @@ static void *scanner_action(size_t len, enum action_opcode opc,
 			    const struct action_ops *ops);
 
 static void genadd(uint64_t gen);
+static void generation_id_print(uint64_t gen);
+static void generation_id_get(FILE *fp, uint64_t *gen_id);
+static int  generation_id_verify(struct scanner *s, uint64_t gen);
 
 static int  scanner_init   (struct scanner *s);
 static int  builder_init   (struct builder *b);
 static void builder_fini   (struct builder *b);
-static void  ad_dom_fini    (struct builder *b);
+static void ad_dom_fini    (struct builder *b);
 static void builder_thread (struct builder *b);
 static void builder_process(struct builder *b);
 
@@ -321,6 +329,7 @@ static void  emap_act(struct action *act, struct m0_be_tx *tx);
 static void  emap_fini(struct action *act);
 static int   emap_kv_get(struct scanner *s, const struct be_btree_key_val *kv,
 		         struct m0_buf *key_buf, struct m0_buf *val_buf);
+static void  sig_handler(int num);
 
 static const struct recops btreeops;
 static const struct recops bnodeops;
@@ -390,9 +399,15 @@ static struct btype bt[] = {
 #undef _B
 
 enum {
-	MAX_GEN    	=     256,
-	MAX_QUEUED 	= 1000000,
-	MAX_REC_SIZE    = 64*1024
+	MAX_GEN    	 =     256,
+	MAX_QUEUED  	 = 1000000,
+	MAX_REC_SIZE     = 64*1024,
+	/**
+	 * This value is arrived on the basis of max time difference between
+	 * mkfs run on local and remote node and the assumption that time
+	 * difference between nodes is negligible.
+	 */
+	MAX_GEN_DIFF_SEC = 30
 };
 
 /** It is used to recover meta data of component catalogue store. */
@@ -418,24 +433,33 @@ static struct builder b;
 static struct gen g[MAX_GEN] = {};
 
 static bool  dry_run = false;
+static bool  signaled = false;
 
-#define FLOG(level, s)						\
-	M0_LOG(level, "        at offset: %"PRId64" errno: %s (%i), eof: %i", \
-	       ftell(s->s_file), strerror(errno), errno, feof(s->s_file))
+#define FLOG(level, rc, s)						\
+	M0_LOG(level, " rc=%d  at offset: %"PRId64" errno: %s (%i), eof: %i", \
+	       (rc), ftell(s->s_file), strerror(errno), errno, feof(s->s_file))
 
 #define RLOG(level, prefix, s, r, tag)					\
 	M0_LOG(level, prefix " %li %s %hu:%hu:%u", s->s_off, recname(r), \
 	       (tag)->ot_version, (tag)->ot_type, (tag)->ot_size)
 
+static void sig_handler(int num)
+{
+	printf("Caught Signal %d \n", num);
+	signaled = true;
+}
+
 int main(int argc, char **argv)
 {
-	struct m0              instance = {};
-	const char            *spath    = NULL;
-	int                    sfd      = 0; /* Use stdin by default. */
-	bool                   ut       = false;
-	bool                   version  = false;
-	struct queue           q        = {};
+	struct m0              instance     = {};
+	const char            *spath        = NULL;
+	int                    sfd          = 0; /* Use stdin by default. */
+	bool                   ut           = false;
+	bool                   version      = false;
+	bool                   print_gen_id = false;
+	struct queue           q            = {};
 	int                    result;
+	uint64_t	       gen_id	    = 0;
 	struct m0_be_tx_credit max;
 
 	m0_node_uuid_string_set(NULL);
@@ -454,6 +478,10 @@ int main(int argc, char **argv)
 		   M0_FLAGARG('b', "Scan every byte (10x slower).", &s.s_byte),
 		   M0_FLAGARG('U', "Run unit tests.", &ut),
 		   M0_FLAGARG('n', "Dry Run.", &dry_run),
+		   M0_FLAGARG('p', "Print Generation Identifier.",
+			      &print_gen_id),
+		   M0_FORMATARG('g', "Get Generation Identifier.", "%"PRIu64,
+				&s.s_gen),
 		   M0_FLAGARG('V', "Version info.", &version),
 		   M0_STRINGARG('a', "stob domain path",
 			   LAMBDA(void, (const char *s) {
@@ -476,7 +504,7 @@ int main(int argc, char **argv)
 	if (dry_run)
 		printf("Running in read-only mode.\n");
 
-	if (b.b_dom_path == NULL && !dry_run)
+	if (b.b_dom_path == NULL && !dry_run && !print_gen_id)
 		errx(EX_USAGE, "Specify domain path (-d).");
 	if (spath != NULL) {
 		sfd = open(spath, O_RDONLY);
@@ -498,6 +526,31 @@ int main(int argc, char **argv)
 		      err(EX_NOINPUT, "Cannot seek snapshot to the beginning.");
 		printf("Snapshot size: %"PRId64".\n", s.s_size);
 	}
+
+	generation_id_get(s.s_file, &gen_id);
+	if (print_gen_id) {
+		generation_id_print(gen_id);
+		printf("\n");
+		fclose(s.s_file);
+		return EX_OK;
+	}
+	if (s.s_gen != 0) {
+		s.s_gen_found = true;
+		printf("\nReceived source segment header generation id\n");
+		generation_id_print(s.s_gen);
+	}
+
+	s.s_gen = gen_id ?: s.s_gen;
+	printf("\nSource segment header generation id to be used by beck.\n");
+	generation_id_print(s.s_gen);
+	/*
+	 *  If both segment's generation identifier is corrupted then abort
+	 *  beck tool.
+	 */
+	if (!dry_run && s.s_gen == 0) {
+		printf("Cannot find any segment header generation identifer");
+		return EX_DATAERR;
+	}
 	/*
 	 * Skip builder related calls for dry run as we will not be building a
 	 * new segment.
@@ -515,6 +568,10 @@ int main(int argc, char **argv)
 	result = scanner_init(&s);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise scanner.");
+	if (dry_run) {
+		printf("Press CTRL+C to quit.\n");
+		signal(SIGINT, sig_handler);
+	}
 	result = scan(&s);
 	if (result != 0)
 		warn("Scan failed: %d.", result);
@@ -534,12 +591,83 @@ int main(int argc, char **argv)
 
 static char iobuf[4*1024*1024];
 
-enum { DELTA = 10 };
+enum { DELTA = 60 };
+
+static void generation_id_print(uint64_t gen)
+{
+	time_t    ts = m0_time_seconds(gen);
+	struct tm tm;
+
+	localtime_r(&ts, &tm);
+	printf("%04d-%02d-%02d-%02d:%02d:%02d.%09lu  (%"PRIu64")",
+	       tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+	       tm.tm_hour, tm.tm_min, tm.tm_sec,
+	       m0_time_nanoseconds(gen), gen);
+}
+
+static void generation_id_get(FILE *fp, uint64_t *gen_id)
+{
+	struct m0_format_tag  tag    = {};
+	int                   result = 0;
+	struct m0_be_seg_hdr  seg_hdr;
+	const char           *rt_be_cksum;
+
+	if (fread(&seg_hdr, 1, sizeof(seg_hdr), fp) == sizeof(seg_hdr)) {
+
+		m0_format_header_unpack(&tag, &seg_hdr.bh_header);
+
+		if (seg_hdr.bh_header.hd_magic == M0_FORMAT_HEADER_MAGIC &&
+		    tag.ot_type == M0_FORMAT_TYPE_BE_SEG_HDR &&
+		    memcmp(&tag, &rt[M0_FORMAT_TYPE_BE_SEG_HDR].r_tag,
+			   sizeof tag) == 0 &&
+		    m0_format_footer_verify(&seg_hdr, 0) == 0) {
+
+			rt_be_cksum = m0_build_info_get()->
+						bi_xcode_protocol_be_checksum;
+			if (strncmp(seg_hdr.bh_be_version, rt_be_cksum,
+				    M0_BE_SEG_HDR_VERSION_LEN_MAX) == 0 &&
+			    seg_hdr.bh_items_nr == 1) {
+				/*
+				 * After confirming the segment header we can
+				 * read the embedded generation id.
+				 */
+				*gen_id = seg_hdr.bh_items[0].sg_gen;
+			} else
+				result = M0_ERR(-EIO);
+
+		} else
+			result = M0_ERR(-EIO);
+	} else
+		result = M0_ERR(-EIO);
+
+	if (result == -EIO)
+		printf("Invalid format / Checksum error for segment header\n");
+}
+
+static int generation_id_verify(struct scanner *s, uint64_t gen)
+{
+	if (gen == s->s_gen)
+		return 0;
+	else if (s->s_gen_found)
+		return -EINVAL;
+	else if (gen > s->s_gen &&
+		 m0_time_seconds(m0_time_sub(gen, s->s_gen)) > MAX_GEN_DIFF_SEC)
+		return -ETIME;
+	else if (gen < s->s_gen &&
+		 m0_time_seconds(m0_time_sub(s->s_gen, gen)) > MAX_GEN_DIFF_SEC)
+		return -ETIME;
+	return 0;
+}
 
 static int scanner_init(struct scanner *s)
 {
 	int rc;
 
+	rc = fseeko(s->s_file, 0, SEEK_SET);
+	if (rc != 0) {
+		M0_LOG(M0_FATAL, "Can not seek at the beginning of file");
+		return rc;
+	}
 	rc = getat(s, 0, s->s_chunk, sizeof s->s_chunk);
 	if (rc != 0)
 		M0_LOG(M0_FATAL, "Can not read first chunk");
@@ -555,7 +683,7 @@ static int scan(struct scanner *s)
 	off_t    lastoff  = s->s_off;
 
 	setvbuf(s->s_file, iobuf, _IOFBF, sizeof iobuf);
-	while ((result = get(s, &magic, sizeof magic)) == 0) {
+	while (!signaled && (result = get(s, &magic, sizeof magic)) == 0) {
 		if (magic == M0_FORMAT_HEADER_MAGIC) {
 			s->s_off -= sizeof magic;
 			parse(s);
@@ -564,8 +692,8 @@ static int scan(struct scanner *s)
 		if (!s->s_byte)
 			s->s_off &= ~0x7;
 		if (time(NULL) - lasttime > DELTA) {
-			printf("Offset: %15lli     Speed: %7.2f MB/s     "
-			       "Completion: %3i%%\n",
+			printf("\nOffset: %15lli     Speed: %7.2f MB/s     "
+			       "Completion: %3i%%",
 			       (long long)s->s_off,
 			       ((double)s->s_off - lastoff) /
 			       DELTA / 1024.0 / 1024.0,
@@ -574,7 +702,7 @@ static int scan(struct scanner *s)
 			lastoff  = s->s_off;
 		}
 	}
-	printf("%25s : %9s %9s %9s %9s\n",
+	printf("\n%25s : %9s %9s %9s %9s\n",
 	       "record", "found", "bad csum", "unaligned", "version");
 	for (i = 0; i < ARRAY_SIZE(rt); ++i) {
 		struct stats *s = &rt[i].r_stats;
@@ -606,18 +734,12 @@ static int scan(struct scanner *s)
 	}
 	if (dry_run)
 		printf("\n*bad kv count is not availabe in dry run mode\n");
+
 	printf("\ngenerations\n");
 	for (i = 0; i < ARRAY_SIZE(g); ++i) {
 		if (g[i].g_count > 0) {
-			time_t    ts = m0_time_seconds(g[i].g_gen);
-			struct tm tm;
-
-			localtime_r(&ts, &tm);
-			printf("%04d-%02d-%02d-%02d:%02d:%02d.%09lu : "
-			       "%9"PRId64"\n",
-			       tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-			       tm.tm_hour, tm.tm_min, tm.tm_sec,
-			       m0_time_nanoseconds(g[i].g_gen), g[i].g_count);
+			generation_id_print(g[i].g_gen);
+			printf(" : %9"PRId64"\n", g[i].g_count);
 		}
 	}
 	return feof(s->s_file) ? 0 : result;
@@ -645,14 +767,19 @@ static int parse(struct scanner *s)
 		}
 		r->r_stats.s_found++;
 		r->r_stats.s_align[!!(s->s_off & 07)]++;
-		lastoff = s->s_off;
-		s->s_off -= sizeof hdr;
-		result = recdo(s, &tag, r);
-		if (result != 0)
-			s->s_off = lastoff;
+		/* Only process btree, bnode and segment header records. */
+		if (dry_run || M0_IN(idx, (M0_FORMAT_TYPE_BE_BTREE,
+					   M0_FORMAT_TYPE_BE_BNODE,
+					   M0_FORMAT_TYPE_BE_SEG_HDR))) {
+			lastoff = s->s_off;
+			s->s_off -= sizeof hdr;
+			result = recdo(s, &tag, r);
+			if (result != 0)
+				s->s_off = lastoff;
+		}
 	} else {
 		M0_LOG(M0_FATAL, "Cannot read hdr->hd_bits.");
-		FLOG(M0_FATAL, s);
+		FLOG(M0_FATAL, result, s);
 		result = M0_ERR(-EIO);
 	}
 	return M0_RC(result);
@@ -725,14 +852,23 @@ static int recdo(struct scanner *s, const struct m0_format_tag *tag,
 	result = get(s, buf, size);
 	if (result == 0) {
 		if (memcmp(tag, &r->r_tag, sizeof *tag) == 0) {
+			/**
+			 * Check generation identifier before format footer
+			 * verification. Only process the records whose
+			 * generation identifier matches or is within
+			 * +/- MAX_GEN_DIFF_SEC seconds of segment's generation
+			 * identifier.
+			 */
+			if (r->r_ops != NULL && r->r_ops->ro_check != NULL) {
+				result = r->r_ops->ro_check(s, r, buf);
+			}
+			if (result != 0)
+				return M0_RC(result);
 			result = m0_format_footer_verify(buf, false);
 			if (result != 0) {
 				RLOG(M0_DEBUG, "С", s, r, tag);
-				FLOG(M0_DEBUG, s);
+				FLOG(M0_DEBUG, result, s);
 				r->r_stats.s_chksum++;
-				if (!dry_run && r->r_ops != NULL &&
-				    r->r_ops->ro_check != NULL)
-					result = r->r_ops->ro_check(s, r, buf);
 			} else {
 				RLOG(M0_DEBUG, "R", s, r, tag);
 				if (r->r_ops != NULL &&
@@ -741,7 +877,7 @@ static int recdo(struct scanner *s, const struct m0_format_tag *tag,
 			}
 		} else {
 			RLOG(M0_DEBUG, "V", s, r, tag);
-			FLOG(M0_DEBUG, s);
+			FLOG(M0_DEBUG, result, s);
 			r->r_stats.s_version++;
 			if (r->r_ops != NULL && r->r_ops->ro_ver != NULL)
 				result = r->r_ops->ro_ver(s, r, buf);
@@ -784,7 +920,7 @@ static int getat(struct scanner *s, off_t off, void *buf, size_t nob)
 		result = 0;
 	}
 	if (result != 0 && !feof(f)) {
-		FLOG(M0_FATAL, s);
+		FLOG(M0_FATAL, result, s);
 		s->s_pos = -1;
 	}
 	return M0_RC(result);
@@ -831,9 +967,26 @@ static int btree(struct scanner *s, struct rectype *r, char *buf)
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
 		idx = ARRAY_SIZE(bt) - 1;
+
+	genadd(tree->bb_backlink.bli_gen);
+	if (!s->s_gen_found) {
+		s->s_gen_found = true;
+		s->s_gen = tree->bb_backlink.bli_gen;
+	}
 	b = &bt[idx];
 	b->b_stats.c_tree++;
 	return 0;
+}
+
+static int btree_check(struct scanner *s, struct rectype *r, char *buf)
+{
+	struct m0_be_btree *tree = (void *)buf;
+	int                 idx  = tree->bb_backlink.bli_type;
+
+	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
+		return M0_ERR(-ENOENT);
+
+	return generation_id_verify(s, tree->bb_backlink.bli_gen);
 }
 
 static void *scanner_action(size_t len, enum action_opcode opc,
@@ -859,6 +1012,12 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
 		idx = ARRAY_SIZE(bt) - 1;
+
+	genadd(node->bt_backlink.bli_gen);
+	if (!s->s_gen_found) {
+		s->s_gen_found = true;
+		s->s_gen = node->bt_backlink.bli_gen;
+	}
 	b = &bt[idx];
 	c = &b->b_stats;
 	c->c_node++;
@@ -870,8 +1029,18 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	} else
 		c->c_fanout += node->bt_num_active_key + 1;
 	c->c_maxlevel = max64(c->c_maxlevel, node->bt_level);
-	genadd(node->bt_backlink.bli_gen);
 	return 0;
+}
+
+static int bnode_check(struct scanner *s, struct rectype *r, char *buf)
+{
+	struct m0_be_bnode *node = (void *)buf;
+	int                 idx  = node->bt_backlink.bli_type;
+
+	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
+		return M0_ERR(-ENOENT);
+
+	return generation_id_verify(s, node->bt_backlink.bli_gen);
 }
 
 static struct m0_stob_ad_domain *emap_dom_find(const struct action *act,
@@ -961,7 +1130,7 @@ static int emap_prep(struct action *act, struct m0_be_tx_credit *credit)
 							    1, credit);
 		emap_key = emap_ac->emap_key.b_addr;
 		rc = emap_entry_lookup(adom, emap_key->ek_prefix, 0, &it);
-		if ( rc == 0 )
+		if (rc == 0)
 			m0_be_emap_close(&it);
 		else
 			m0_be_emap_credit(&adom->sad_adata,
@@ -1104,6 +1273,25 @@ static int seghdr_ver(struct scanner *s, struct rectype *r, char *buf)
 	return 0;
 }
 
+static int seghdr_check(struct scanner *s, struct rectype *r, char *buf)
+{
+	struct m0_be_seg_hdr *h   = (void *)buf;
+
+	if (s->s_gen != h->bh_gen) {
+		genadd(h->bh_gen);
+		printf("\nFound another segment header generation\n");
+		generation_id_print(h->bh_gen);
+		return M0_ERR(-ETIME);
+	}
+	/*
+	 * Flush immediately to avoid losing this information within other lines
+	 * coming on the screen at the same time.
+	 */
+	fflush(stdout);
+
+	return 0;
+}
+
 static void genadd(uint64_t gen)
 {
 	int i;
@@ -1111,6 +1299,7 @@ static void genadd(uint64_t gen)
 	for (i = 0; i < ARRAY_SIZE(g); ++i) {
 		if (g[i].g_gen == gen || g[i].g_count == 0) {
 			g[i].g_count++;
+			g[i].g_gen = gen;
 			break;
 		}
 	}
@@ -1294,6 +1483,14 @@ static int builder_init(struct builder *b)
 		m0_be_ut_backend_seg_add2(ub, b->b_size, true, NULL, &b->b_seg);
 		M0_ASSERT(b->b_seg != NULL);
 	}
+	printf("\nDestination segment header generation\n");
+	generation_id_print(b->b_seg->bs_gen);
+	/*
+	 * Flush immediately to avoid losing this information within other lines
+	 * coming on the screen at the same time.
+	 */
+	fflush(stdout);
+
 	result = m0_reqh_be_init(&b->b_reqh, b->b_seg);
 	if (result != 0)
 		return M0_ERR(result);
@@ -1712,7 +1909,12 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 							  tx, &op, &ca->cta_key,
 							  &ca->cta_val),
 				       bo_u.u_btree.t_rc);
-		if (rc != 0)
+
+		if (rc == 0) {
+			m0_ctg_state_inc_update(tx, ca->cta_key.b_nob -
+						M0_CAS_CTG_KV_HDR_SIZE +
+						ca->cta_val.b_nob);
+		} else
 			M0_LOG(M0_DEBUG, "Failed to insert record rc=%d", rc);
 	}
 }
@@ -1837,16 +2039,19 @@ static struct action *qtry(struct queue *q)
 }
 
 static const struct recops btreeops = {
-	.ro_proc = &btree
+	.ro_proc  = &btree,
+	.ro_check = &btree_check
 };
 
 static const struct recops bnodeops = {
-	.ro_proc = &bnode
+	.ro_proc  = &bnode,
+	.ro_check = &bnode_check
 };
 
 static const struct recops seghdrops = {
-	.ro_proc = &seghdr,
-	.ro_ver  = &seghdr_ver
+	.ro_proc  = &seghdr,
+	.ro_ver   = &seghdr_ver,
+	.ro_check = &seghdr_check,
 };
 
 /**
