@@ -1695,38 +1695,6 @@ static void dump_data(struct m0_bufvec *data, size_t bsize)
 			putchar(((char *)data->ov_buf[i])[j]);
 }
 
-/** free a bufvec allocated by alloc_empty_vec() */
-static void free_io_vec(struct m0_bufvec *vec)
-{
-	free(vec->ov_vec.v_count);
-	free(vec->ov_buf);
-	memset(vec, 0, sizeof(struct m0_bufvec));
-}
-
-/** allocate a bufvec without I/O buffers */
-static int alloc_io_vec(struct m0_bufvec *vec, int blocks, size_t b_size)
-{
-	int i;
-
-	if (!vec || blocks == 0)
-		return -EINVAL;
-
-	vec->ov_vec.v_count = calloc(blocks, sizeof(m0_bcount_t));
-	vec->ov_buf = calloc(blocks, sizeof(void *));
-	if (!vec->ov_vec.v_count || !vec->ov_buf) {
-		/* free() accepts NULL as an argument */
-		free_io_vec(vec);
-		return -ENOMEM;
-	}
-
-	vec->ov_vec.v_nr = blocks;
-	for (i = 0; i < blocks; i++) {
-	        vec->ov_vec.v_count[i] = b_size;
-	        vec->ov_buf[i] = NULL;
-	}
-	return 0;
-}
-
 /**
  * Allocate I/O context for a particular number of blocks and block size
  * @param alloc_io_buff	Does the function allocate I/O buffers
@@ -1749,9 +1717,9 @@ static int prepare_io_ctx(struct io_ctx *ctx, int blocks, size_t block_size,
 				return rc;
 		} else {
 			if (ctx->curr_blocks != 0)
-				free_io_vec(&ctx->data);
+				m0_bufvec_free2(&ctx->data);
 
-			rc = alloc_io_vec(&ctx->data, blocks, block_size);
+			rc = m0_bufvec_empty_alloc(&ctx->data, blocks);
 			if (rc != 0)
 				return rc;
 		}
@@ -1819,8 +1787,10 @@ static int map_io_ctx(struct io_ctx *ctx, int blocks, size_t b_size,
 		/* we don't want any attributes */
 		ctx->attr.ov_vec.v_count[i] = 0;
 
+		if (ctx->data.ov_vec.v_count[i] == 0)
+			ctx->data.ov_vec.v_count[i] = b_size;
 		/* check the allocated buffer has the right size */
-		if (ctx->data.ov_vec.v_count[i] != b_size)
+		else if (ctx->data.ov_vec.v_count[i] != b_size)
 			return -EINVAL;
 
 		/* map the user-provided I/O buffer */
@@ -1837,7 +1807,7 @@ static void free_io_ctx(struct io_ctx *ctx, bool alloc_io_buff)
 	if (alloc_io_buff)
 		m0_bufvec_free(&ctx->data);
 	else
-		free_io_vec(&ctx->data);
+		m0_bufvec_free2(&ctx->data);
 	m0_bufvec_free(&ctx->attr);
 	m0_indexvec_free(&ctx->ext);
 }
