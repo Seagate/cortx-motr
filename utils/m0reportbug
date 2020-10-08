@@ -797,7 +797,7 @@ exit
 ### ---------- ------- ----------------------------------------------------
 ### 2020-10-05 0.52    Removed halon related things since we are not using
 ###                    it.Removed collection of kernel buffer because we lack
-###                    of debugfs support due to NON-GPL kernel module license.
+###                    of debugfs support.
 ###
 ### 2020-10-02 0.51    Added /var/log/crash to CORE_DIRS list since on
 ###                    provisioner deployed setup, core would be in /var/log/crash
