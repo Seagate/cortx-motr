@@ -403,7 +403,7 @@ static void ktest_core_ep_addr(void)
 		},
 	};
 	char buf[M0_NET_LNET_XEP_ADDR_LEN];
-	char * const *nidstrs;
+	char **nidstrs;
 	int rc;
 	int i;
 
