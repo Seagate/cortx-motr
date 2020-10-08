@@ -1497,6 +1497,7 @@ _state_fail(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
 
 	if (ctx->fc_confc == NULL || ctx->fc_finalized) {
 		/* the 'ctx' is already finalized */
+		M0_LOG(M0_DEBUG, "ctx %p is already finalized", ctx);
 		return;
 	}
 
@@ -1507,6 +1508,7 @@ _state_fail(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
 		 * we just return if the failure state is already set
 		 * from other sources or it is already completed.
 		 */
+		M0_LOG(M0_DEBUG, "ctx %p is already failed/completed", ctx);
 		return;
 	}
 
