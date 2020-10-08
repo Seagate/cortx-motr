@@ -1156,8 +1156,9 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 	emap_val = emap_ac->emap_val.b_addr;
 	if (emap_val->er_value != AET_HOLE) {
 		emap_key = emap_ac->emap_key.b_addr;
-		ext.e_start = emap_val->er_start >> adom->sad_babshift;
-		ext.e_end =  emap_key->ek_offset >> adom->sad_babshift;
+		ext.e_start = emap_val->er_value >> adom->sad_babshift;
+		ext.e_end   = (emap_val->er_value + emap_key->ek_offset -
+			       emap_val->er_start) >> adom->sad_babshift;
 		m0_ext_init(&ext);
 
 		rc = adom->sad_ballroom->ab_ops->
@@ -1379,7 +1380,7 @@ static int ad_dom_init(struct builder *b)
 	struct m0_stob_domain    *dom;
 	struct m0_stob_domain    *stob_dom;
 	char 			 *stob_location;
-	char 			 *str_cfg_init = "directio=false";
+	char                     *str_cfg_init = "directio=false";
 	struct ad_dom_info       *adom_info;
 	uint64_t		  ad_dom_count;
 
