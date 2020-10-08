@@ -39,6 +39,8 @@ M0_INTERNAL const struct module *m0_motr_ko_get_module(void);
 
 #endif /* __MOTR_MOTR_LINUX_KERNEL_MODULE_H__ */
 
+MODULE_LICENSE("GPL");
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

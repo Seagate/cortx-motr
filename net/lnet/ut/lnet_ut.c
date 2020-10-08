@@ -274,6 +274,10 @@ enum {
 	UT_BULK_SIZE = 2 * 4096,
 	UT_PAGE_SHIFT = 12
 };
+
+#ifndef PAGE_SHIFT
+#define PAGE_SHIFT      12
+#endif
 struct ut_data {
 	int                            _debug_;
 	struct m0_net_tm_callbacks     tmcb;
@@ -299,7 +303,7 @@ struct ut_data {
 };
 
 #ifdef __KERNEL__
-M0_BASSERT(UT_PAGE_SHIFT == PAGE_SHIFT);
+//M0_BASSERT(UT_PAGE_SHIFT == PAGE_SHIFT);
 #endif
 
 #define DOM1 (&td->dom1)

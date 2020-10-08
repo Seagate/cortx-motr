@@ -348,7 +348,7 @@ module_exit(m0_netst_fini_k)
  * marker is necessary to remove the warnings, keeping this blank to make
  * compiler happy.
  */
-MODULE_LICENSE();
+MODULE_LICENSE("GPL");
 
 /** @} */ /* LNetDFS */
 

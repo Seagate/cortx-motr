@@ -56,7 +56,7 @@ m0tr_objects += lib/linux_kernel/finject_init.o \
                   lib/linux_kernel/kmisc.o \
                   lib/linux_kernel/memory.o \
                   lib/linux_kernel/mutex.o \
-                  lib/linux_kernel/processor.o \
+                ##  lib/linux_kernel/processor.o \
                   lib/linux_kernel/rwlock.o \
                   lib/linux_kernel/semaphore.o \
                   lib/linux_kernel/timer.o \

@@ -32,6 +32,8 @@
 #include "motr/linux_kernel/module.h"
 #include "module/instance.h"  /* m0 */
 
+
+
 M0_INTERNAL int __init motr_init(void)
 {
 	static struct m0     instance;
@@ -64,7 +66,7 @@ module_exit(motr_exit);
  * marker is necessary to remove the warnings, keeping this blank to make
  * compiler happy.
  */
-MODULE_LICENSE();
+MODULE_LICENSE("GPL");
 
 /*
  *  Local variables:

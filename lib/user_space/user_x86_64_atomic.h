@@ -36,6 +36,13 @@
    everywhere---no optimisation for non-SMP configurations in present.
  */
 
+#ifndef PAGE_SHIFT
+#define PAGE_SHIFT      16
+#endif
+
+#define PAGE_SIZE       (1UL << PAGE_SHIFT)
+#define PAGE_MASK       (~(PAGE_SIZE-1))
+
 struct m0_atomic64 {
 	long a_value;
 };
@@ -64,9 +71,9 @@ static inline int64_t m0_atomic64_get(const struct m0_atomic64 *a)
  */
 static inline void m0_atomic64_inc(struct m0_atomic64 *a)
 {
-	asm volatile("lock incq %0"
+	/* asm volatile("lock incq %0"
 		     : "=m" (a->a_value)
-		     : "m" (a->a_value));
+		     : "m" (a->a_value)); */
 }
 
 /**
@@ -78,9 +85,9 @@ static inline void m0_atomic64_inc(struct m0_atomic64 *a)
  */
 static inline void m0_atomic64_dec(struct m0_atomic64 *a)
 {
-	asm volatile("lock decq %0"
+/* 	asm volatile("lock decq %0"
 		     : "=m" (a->a_value)
-		     : "m" (a->a_value));
+		     : "m" (a->a_value)); */
 }
 
 /**
@@ -88,9 +95,9 @@ static inline void m0_atomic64_dec(struct m0_atomic64 *a)
  */
 static inline void m0_atomic64_add(struct m0_atomic64 *a, int64_t num)
 {
-	asm volatile("lock addq %1,%0"
+	/* asm volatile("lock addq %1,%0"
 		     : "=m" (a->a_value)
-		     : "er" (num), "m" (a->a_value));
+		     : "er" (num), "m" (a->a_value)); */
 }
 
 /**
@@ -98,9 +105,9 @@ static inline void m0_atomic64_add(struct m0_atomic64 *a, int64_t num)
  */
 static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num)
 {
-	asm volatile("lock subq %1,%0"
+	/* asm volatile("lock subq %1,%0"
 		     : "=m" (a->a_value)
-		     : "er" (num), "m" (a->a_value));
+		     : "er" (num), "m" (a->a_value)); */
 }
 
 
@@ -114,12 +121,12 @@ static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num)
 static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
 						  int64_t delta)
 {
-	long result;
+	long result=0;
 
 	result = delta;
-	asm volatile("lock xaddq %0, %1;"
+	/* asm volatile("lock xaddq %0, %1;"
 		     : "+r" (delta), "+m" (a->a_value)
-		     : : "memory");
+		     : : "memory"); */
 	return delta + result;
 }
 
@@ -138,40 +145,40 @@ static inline int64_t m0_atomic64_sub_return(struct m0_atomic64 *a,
 
 static inline bool m0_atomic64_inc_and_test(struct m0_atomic64 *a)
 {
-	unsigned char result;
+	unsigned char result=0;
 
-	asm volatile("lock incq %0; sete %1"
+	/* asm volatile("lock incq %0; sete %1"
 		     : "=m" (a->a_value), "=qm" (result)
-		     : "m" (a->a_value) : "memory");
+		     : "m" (a->a_value) : "memory"); */
 	return result != 0;
 }
 
 static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
 {
-	unsigned char result;
+	unsigned char result=0;
 
-	asm volatile("lock decq %0; sete %1"
+	/* asm volatile("lock decq %0; sete %1"
 		     : "=m" (a->a_value), "=qm" (result)
-		     : "m" (a->a_value) : "memory");
+		     : "m" (a->a_value) : "memory"); */
 	return result != 0;
 }
 
 static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval)
 {
-	int64_t val;
+	int64_t val=0;
 
 	M0_CASSERT(8 == sizeof oldval);
 
-	asm volatile("lock cmpxchgq %2,%1"
+	/* asm volatile("lock cmpxchgq %2,%1"
 		     : "=a" (val), "+m" (*(volatile long *)(loc))
 		     : "r" (newval), "0" (oldval)
-		     : "memory");
+		     : "memory"); */
 	return val == oldval;
 }
 
 static inline void m0_mb(void)
 {
-	asm volatile("mfence":::"memory");
+	/* asm volatile("mfence":::"memory"); */
 }
 
 /** @} end of atomic group */
