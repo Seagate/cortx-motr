@@ -54,6 +54,7 @@ static int item_reply_received(struct m0_rpc_item *reply,
 static bool item_reply_received_fi(struct m0_rpc_item *req,
 				   struct m0_rpc_item *reply);
 static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply);
+static void rpc_item_xid_unassign(struct m0_rpc_item *item);
 
 const struct m0_sm_conf outgoing_item_sm_conf;
 const struct m0_sm_conf incoming_item_sm_conf;
@@ -77,6 +78,11 @@ M0_TL_DESCR_DEFINE(pending_item, "pending-item-list", M0_INTERNAL,
 		   struct m0_rpc_item, ri_pending_link, ri_magic,
 		   M0_RPC_ITEM_MAGIC, M0_RPC_ITEM_PENDING_CACHE_HEAD_MAGIC);
 M0_TL_DEFINE(pending_item, M0_INTERNAL, struct m0_rpc_item);
+
+M0_TL_DESCR_DEFINE(xidl, "rpc session xid list", M0_INTERNAL,
+		   struct m0_rpc_item, ri_xid_link, ri_magic,
+		   M0_RPC_ITEM_MAGIC, M0_RPC_ITEM_CACHE_HEAD_MAGIC);
+M0_TL_DEFINE(xidl, M0_INTERNAL, struct m0_rpc_item);
 
 /** Global rpc item types list. */
 static struct m0_tl        rpc_item_types_list;
@@ -367,12 +373,15 @@ void m0_rpc_item_init(struct m0_rpc_item *item,
 	item->ri_resend_interval = m0_time(M0_RPC_ITEM_RESEND_INTERVAL, 0);
 	item->ri_nr_sent_max     = ~(uint64_t)0;
 
+	item->ri_xid_assigned_here = false;
+
 	packet_item_tlink_init(item);
 	itemq_tlink_init(item);
         rpcitem_tlink_init(item);
 	rpcitem_tlist_init(&item->ri_compound_items);
 	ric_tlink_init(item);
 	pending_item_tlink_init(item);
+	xidl_tlink_init(item);
 	m0_sm_timeout_init(&item->ri_deadline_timeout);
 	m0_sm_timer_init(&item->ri_timer);
 	/* item->ri_sm will be initialised when the item is posted */
@@ -402,6 +411,8 @@ void m0_rpc_item_fini(struct m0_rpc_item *item)
 	if (itemq_tlink_is_in(item))
 		m0_rpc_frm_remove_item(item->ri_frm, item);
 
+	rpc_item_xid_unassign(item);
+
 	M0_ASSERT(!ric_tlink_is_in(item));
 	M0_ASSERT(!itemq_tlink_is_in(item));
 	M0_ASSERT(!packet_item_tlink_is_in(item));
@@ -413,6 +424,7 @@ void m0_rpc_item_fini(struct m0_rpc_item *item)
 	rpcitem_tlink_fini(item);
 	rpcitem_tlist_fini(&item->ri_compound_items);
 	pending_item_tlink_fini(item);
+	xidl_tlink_fini(item);
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rpc_item_fini);
@@ -524,6 +536,33 @@ static bool rpc_item_needs_xid(const struct m0_rpc_item *item)
 		       M0_RPC_CONN_TERMINATE_REP_OPCODE));
 }
 
+M0_INTERNAL void m0_rpc_item_xid_min_update(struct m0_rpc_item *item)
+{
+	M0_PRE(m0_rpc_machine_is_locked(item->ri_rmachine));
+
+	M0_ENTRY("item="ITEM_FMT" osr_xid=%"PRIu64" "
+	         "osr_session_xid_min=%"PRIu64,
+		 ITEM_ARG(item), item->ri_header.osr_xid,
+		 item->ri_header.osr_session_xid_min);
+	if (item->ri_session == NULL) {
+		M0_LOG(M0_WARN, "item->ri_session == NULL. "
+		       "rpc-packet-encdec-ut case only. "
+		       "Must not be present in production.");
+		return;
+	}
+	if (rpc_item_needs_xid(item)) {
+		M0_ASSERT(!(M0_IN(item->ri_header.osr_xid, (0, UINT64_MAX))));
+		item->ri_header.osr_session_xid_min =
+			xidl_tlist_is_empty(&item->ri_session->s_xid_list) ? 1 :
+			xidl_tlist_head(&item->ri_session->s_xid_list)->
+			ri_header.osr_xid;
+	}
+	M0_LEAVE("item="ITEM_FMT" osr_xid=%"PRIu64" "
+	         "osr_session_xid_min=%"PRIu64,
+		 ITEM_ARG(item), item->ri_header.osr_xid,
+		 item->ri_header.osr_session_xid_min);
+}
+
 M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
 {
 	M0_PRE(m0_rpc_machine_is_locked(item->ri_rmachine));
@@ -540,12 +579,33 @@ M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
 		item->ri_header.osr_xid = rpc_item_needs_xid(item) ?
 					  ++item->ri_session->s_xid :
 					  UINT64_MAX;
+		if (rpc_item_needs_xid(item)) {
+			M0_LOG(M0_DEBUG, "xidl_tlist_add_tail(), item="ITEM_FMT,
+			       ITEM_ARG(item));
+			xidl_tlist_add_tail(&item->ri_session->s_xid_list,
+					    item);
+			item->ri_xid_assigned_here = true;
+		}
 		M0_LOG(M0_DEBUG, ITEM_FMT" set item xid=%"PRIu64" "
 		       "s_xid=%"PRIu64, ITEM_ARG(item), item->ri_header.osr_xid,
 		       item->ri_session == NULL ? UINT64_MAX :
 				item->ri_session->s_xid);
 	}
 	M0_LEAVE();
+}
+
+static void rpc_item_xid_unassign(struct m0_rpc_item *item)
+{
+	M0_ENTRY("item="ITEM_FMT" osr_xid=%"PRIu64" "
+	         "osr_session_xid_min=%"PRIu64" ri_xid_assigned_here=%d",
+		 ITEM_ARG(item), item->ri_header.osr_xid,
+		 item->ri_header.osr_session_xid_min,
+		 !!item->ri_xid_assigned_here);
+	if (item->ri_xid_assigned_here) {
+		M0_ASSERT(m0_rpc_machine_is_locked(item->ri_session->
+						   s_conn->c_rpc_machine));
+		xidl_tlist_del(item);
+	}
 }
 
 /**
@@ -566,8 +626,10 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 	if (!rpc_item_needs_xid(item))
 		return true;
 
-	M0_LOG(M0_DEBUG, "item: "ITEM_FMT" session=%p xid=%"PRIu64
-	       " s_xid=%"PRIu64, ITEM_ARG(item), sess, xid, sess->s_xid);
+	M0_LOG(M0_DEBUG, "item: "ITEM_FMT" session=%p osr_xid=%"PRIu64" "
+	       "osr_session_xid_min=%"PRIu64" s_xid=%"PRIu64,
+	       ITEM_ARG(item), sess, item->ri_header.osr_session_xid_min,
+	       xid, sess->s_xid);
 	/*
 	 * Purge cache on every N-th packet
 	 * (not on every one - that could be pretty expensive).
@@ -575,6 +637,20 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 	if ((xid & 0xff) == 0)
 		m0_rpc_item_cache_purge(&sess->s_reply_cache);
 
+	/*
+	 * Check if an item had been cancelled on the other side.
+	 * If it had, sess->s_xid has to be updated, otherwise this rpc session
+	 * will wait indefinitely for the item, which is not going to come.
+	 */
+	M0_ASSERT(!M0_IN(item->ri_header.osr_session_xid_min, (0, UINT64_MAX)));
+	if (sess->s_xid < item->ri_header.osr_session_xid_min - 1) {
+		M0_LOG(M0_WARN,
+		       "RPC items had been cancelled on the other side."
+		       " Changing session %p xid from %"PRIu64" to %"PRIu64".",
+		       sess, sess->s_xid,
+		       item->ri_header.osr_session_xid_min - 1);
+		sess->s_xid = item->ri_header.osr_session_xid_min - 1;
+	}
 	/*
 	 * The new item which wasn't handled yet.
 	 *
@@ -1592,6 +1668,18 @@ M0_INTERNAL void m0_rpc_item_cache_clear(struct m0_rpc_item_cache *ic)
 			rpc_item_cache_del(ic, item);
 		} m0_tl_endfor;
 	}
+}
+
+M0_INTERNAL void m0_rpc_item_xid_list_init(struct m0_rpc_session *session)
+{
+	M0_PRE(m0_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
+	xidl_tlist_init(&session->s_xid_list);
+}
+
+M0_INTERNAL void m0_rpc_item_xid_list_fini(struct m0_rpc_session *session)
+{
+	M0_PRE(m0_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
+	xidl_tlist_fini(&session->s_xid_list);
 }
 
 M0_INTERNAL void m0_rpc_item_pending_cache_init(struct m0_rpc_session *session)

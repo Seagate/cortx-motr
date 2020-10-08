@@ -341,6 +341,7 @@ M0_INTERNAL int m0_rpc_packet_encode_using_cursor(struct m0_rpc_packet *packet,
 			uint64_t item_sm_id = m0_sm_id_get(&item->ri_sm);
 
 			m0_rpc_item_xid_assign(item);
+			m0_rpc_item_xid_min_update(item);
 			M0_ADDB2_ADD(M0_AVI_RPC_ITEM_ID_ASSIGN,
 				     item_sm_id,
 				     (uint64_t)item->ri_type->rit_opcode,
