@@ -2186,6 +2186,7 @@ static bool rconfc_gate_check(struct m0_confc *confc)
 	struct m0_rconfc *rconfc;
 	bool              result;
 
+	M0_ENTRY("confc = %p", confc);
 	M0_PRE(confc != NULL);
 	M0_PRE(m0_mutex_is_locked(&confc->cc_lock));
 
@@ -2200,6 +2201,7 @@ static bool rconfc_gate_check(struct m0_confc *confc)
 		m0_mutex_lock(&confc->cc_lock);
 	}
 	result = m0_rconfc_reading_is_allowed(rconfc);
+	M0_LEAVE("result=%s", result ? "true" : "false");
 	return result;
 }
 
