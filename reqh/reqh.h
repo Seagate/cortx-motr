@@ -61,8 +61,8 @@
  */
 
 enum {
-	/** ADDB Record Max record size in bytes (10G) */
-	DEFAULT_ADDB2_RECORD_SIZE = 10ULL << 30,
+	/** ADDB Record Max record size in bytes (1G) */
+	DEFAULT_ADDB2_RECORD_SIZE = 1ULL << 30,
 	/** Min ADDB Record record size in bytes (10M) */
 	MIN_ADDB2_RECORD_SIZE = 10ULL << 20,
 	/** Max ADDB Record record size in bytes (10G) */
