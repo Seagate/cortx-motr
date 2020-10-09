@@ -118,6 +118,14 @@ HA services that wrap Motr services must be able to accept the following additio
  
                  , epochTransitionPayload :: a }
                  
-Nodes cannot skip epochs. Therefore, an EpochTransition can only be processed if the current epoch is the one immediately preceding the target epoch. In general, to reach the target epoch of an EpochTransitionRequest, several EpochTransition messages must be sent. These will be processed in order by the target node. An EpochTransition message is parameterized by the type a of the transition payload. The transition payload is specific to each Motr service and in general contains instructions understood by the Motr service to alter the item of shared state associated with HA domain of the epoch. 
+Nodes cannot skip epochs. Therefore, an EpochTransition can only be processed if the current epoch is the one immediately preceding the target epoch. In general, to reach the target epoch of an EpochTransitionRequest, several EpochTransition messages must be sent. These will be processed in order by the target node. An EpochTransition message is parameterized by the type a of the transition payload. The transition payload is specific to each Motr service and in general contains instructions understood by the Motr service to alter the item of shared state associated with HA domain of the epoch.
+
+We do not include an HA domain identifier explicitly in messages. This is because the HA domain is implicit in the service identifier, since we assume that there is exactly one (possibly shared) HA domain for each Motr service.
+
+***************
+Variability
+***************
+
+This design has the Cloud Haskell wrapping process communicate with a Motr service using Motr RPC. However, the internal communication mechanism between the wrapper and the Motr service could well be done through command line instead, pipes, or Unix sockets. The details of how this will be done is a point to be clarified in the future. 
 
 
