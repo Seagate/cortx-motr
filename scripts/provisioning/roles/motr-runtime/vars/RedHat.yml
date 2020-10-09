@@ -38,3 +38,5 @@ motr_runtime_deps_pkgs:
   - ruby
   - rubygem-net-ssh
   - sysvinit-tools
+  - libcgroup
+  - libcgroup-tools

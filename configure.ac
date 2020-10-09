@@ -167,6 +167,7 @@ AH_TEMPLATE([HAVE_MALLINFO],          [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
+AH_TEMPLATE([HAVE_MEMPRESSURE],       [Have mempressure available])
 
 # enable/disable options ------------------------------ {{{2
 
@@ -706,6 +707,13 @@ AS_IF([test x$enable_systemd = xyes],
          AM_CONDITIONAL([HAVE_SYSTEMD], [false])
       ]
 )
+
+#
+# Checking cgroup availability ------------------------------------------- {{{1
+#
+
+AS_IF([type cgcreate >/dev/null 2>&1],
+      AC_DEFINE([HAVE_MEMPRESSURE]))
 
 #
 # Checking cassandra availability ------------------------------------------- {{{1

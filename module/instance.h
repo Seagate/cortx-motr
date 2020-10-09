@@ -30,6 +30,7 @@
 #include "ioservice/storage_dev.h" /* m0_storage_devs */
 #include "ut/stob.h"               /* m0_ut_stob_module */
 #include "motr/process_attr.h"     /* m0_proc_attr */
+#include "lib/mempressure.h"       /* m0_mempressure */
 
 struct m0_be_domain;
 
@@ -49,6 +50,7 @@ enum m0_module_id {
 	M0_MODULE_PROCESSOR,
 	M0_MODULE_POOL,
 	M0_MODULE_ISC,
+	M0_MODULE_MP,
 	/* XXX ... more to come ... */
 	M0_MODULE_NR
 };
