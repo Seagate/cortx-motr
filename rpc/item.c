@@ -1678,7 +1678,13 @@ M0_INTERNAL void m0_rpc_item_xid_list_init(struct m0_rpc_session *session)
 
 M0_INTERNAL void m0_rpc_item_xid_list_fini(struct m0_rpc_session *session)
 {
+	struct m0_rpc_item *item;
+
 	M0_PRE(m0_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
+	m0_tl_for(xidl, &session->s_xid_list, item) {
+		M0_LOG(M0_ERROR, "item="ITEM_FMT" ri_sm.sm_state=%d",
+		       ITEM_ARG(item), item->ri_sm.sm_state);
+	} m0_tl_endfor;
 	xidl_tlist_fini(&session->s_xid_list);
 }
 
