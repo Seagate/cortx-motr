@@ -23,4 +23,16 @@ Definitions
 
 - HA domain: an epoch is always an attribute of a domain. Each domain has its own epoch. Nodes can be members of multiple domains so each node may be tracking not just one epoch but in fact multiple epochs. A domain also has a set of epoch handlers associated with it.
 
+***************
+Requirements
+***************
+
+- [R.MOTR.EPOCH.BROADCAST] When the HA subsystem decides to transition to a new epoch, a message is broadcast to all nodes in the cluster to notify them of an epoch transition. This message may include (recovery) instructions to transition a new shared state. 
+
+- [R.MOTR.EPOCH.DOMAIN] There can be multiple concurrent HA domains in the cluster. Typically, there is one epoch domain associated with each Motr request handler. 
+
+- [R.MOTR.EPOCH.MONOTONE] The epoch for any given domain on any given node changes monotonically. That is, a node can only transition to a later epoch in a domain, not an older one. 
+
+- [R.MOTR.EPOCH.CATCH-UP] A node A that is that is told by another node B that a newer epoch exists, either in response to a message B or because B sent a message to A mentioning a later epoch, can send to failure event to the HA subsystem to request instructions on how to reach the latest epoch. 
+
 
