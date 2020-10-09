@@ -1,7 +1,7 @@
 Motr Reading List
 =================
 
-For non-hyperlinked documentation links, please refer to this file : doc/motr-design-doc-list.rst
+For non-hyperlinked documentation links, please refer to this file : [doc/motr-design-doc-list.rst](motr-design-doc-list.rst).
 
 * this document
 * Motr data organization
@@ -11,6 +11,10 @@ For non-hyperlinked documentation links, please refer to this file : doc/motr-de
 * M0 Architecture Documentation
 * FAQ
 * Glossary
+
+Motr Clients
+------------
+[Client API](../motr/client.h)
 
 Containers
 ----------

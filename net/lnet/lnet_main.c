@@ -944,7 +944,7 @@ M0_INTERNAL int m0_net_lnet_ep_addr_net_cmp(const char *addr1,
 M0_EXPORTED(m0_net_lnet_ep_addr_net_cmp);
 
 M0_INTERNAL int m0_net_lnet_ifaces_get(struct m0_net_domain *dom,
-				       char *const **addrs)
+				       char ***addrs)
 {
 	struct nlx_xo_domain *dp;
 
@@ -955,7 +955,7 @@ M0_INTERNAL int m0_net_lnet_ifaces_get(struct m0_net_domain *dom,
 M0_EXPORTED(m0_net_lnet_ifaces_get);
 
 M0_INTERNAL void m0_net_lnet_ifaces_put(struct m0_net_domain *dom,
-					char *const **addrs)
+					char ***addrs)
 {
 	struct nlx_xo_domain *dp;
 
