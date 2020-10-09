@@ -272,4 +272,35 @@ Speaking about the future Lustre code, Paxos like solutions might be appropriate
 
 - on the other hand, DLM locks acquisition can nicely be expressed as a consensus problem. Currently Lustre solves it by acquiring locks synchronously in a well-defined order.
 
+- agreement on global epochs. To prune undo logs "a global stability" of an epoch has to be detected. This condition is detected by "stability algorithm" that fits well into state machine approach. Fortunately, the core of this algorithm is MIN function that has very good properties (viz., idempotency) that enable much more light weight and scalable replication than direct application of Paxos would produce.
+
+- fsync. To implement faithful cluster-wide fsync a set of servers must agree on a set of operations to synchronize. In this case there is a natural coordinator: a client, or a server where fsync RPC was sent to.
+
+- write-back cache client. With global epochs a write-back cache client effectively inquires servers about their current epoch number (by sending lock ENQUEUE requests), finds the maximum of the received epochs numbers and its own epoch number, and then issues reintegration requests tagged with this maximum. This looks suspiciously similar to the two phases of the Paxos algorithm, except that no majority of any kind is involved, and server reply doesn't imply any kind of promise. The latter is direct consequence of having exactly one "ballot". The situations when one of the servers fails to execute updates of a distributed operation were never discussed in any detail, the reason being that it is always possible to invoke global recovery and to roll-back all inconsistent changes. Alternatively, reintegration can be re-tried, leading, as it seems, to the full Synod algorithm.
+
+********************
+Concluding Remarks
+********************
+
+Paxos seems to be suited for fault tolerant maintenance of relatively small and slowly changing sets of critically important data. This is the view adopted by Chubby implementors and Lampson in [1] too.
+
+Paxos guarantees absolutely identical sequence of execution histories of all state machine instances, which is usually much more than one needs: instances can execute operations in any order as long as _observable_, rather than internal, state is consistent between them (and state is observed through operations). One possible solution is to make state machines finer-grained (e.g., a state machine per file stripe rather than per file system). This works well for data, but breaks for meta-data, where a single operation can involve arbitrary objects.
+
+Alternatively, a replication mechanism with weaker guarantees can be employed (see "virtual synchrony", "process groups", and CBCAST by Birman [3]).
+
+***********
+References
+***********
+
+- [0] Lamport, Paxos made simple, http://research.microsoft.com/en-us/um/people/lamport/pubs/pubs.html#paxos-simple
+
+- [1] Lampson, How to Build a Highly Available System Using Consensus, http://research.microsoft.com/en-us/um/people/blampson/58-Consensus/Abstract.html
+
+- [2] Aguilera, et al., Stable Leader Election, http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.89.4817
+
+- [3] Birman, The process group approach to reliable distributed computing, http://portal.acm.org/citation.cfm?id=163303&coll=portal&dl=ACM
+
+- [4] Schneider, Implementing fault-tolerant services using the state machine approach: A tutorial, http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.20.4762
+
+
 
