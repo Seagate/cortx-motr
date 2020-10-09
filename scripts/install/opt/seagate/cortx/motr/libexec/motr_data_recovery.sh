@@ -857,7 +857,7 @@ run_becktool() {
             m0trace_file_count=$(get_file_count "m0trace" "$MD_DIR/datarecovery" "$SCRIPT_START_TIME")
             echo "File count value $m0trace_file_count"
             if [[ $m0trace_file_count -gt $max_trace_file_count ]]; then
-                    echo "Deleting core m0beck extra file $core_m0beck_file_count"
+                    echo "Deleting core m0beck extra file $m0trace_file_count"
                     rem=$(remove_last_file_generated "m0trace" "$MD_DIR/datarecovery")
                     echo $rem
             fi
@@ -890,7 +890,7 @@ run_becktool() {
             (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $REMOTE_SEG_GEN_ID;)
 EOF
             cmd_exit_status=$?
-             # restart the execution of command if exit code is ESEGV error
+            # restart the execution of command if exit code is ESEGV error
             while [[ $cmd_exit_status == $ESEGV ]];
             do
 
@@ -909,14 +909,14 @@ EOF
 
                 if [[ \$core_m0beck_file_count -gt $max_core_file_count ]]; then
                         echo "Deleting core m0beck extra file \$core_m0beck_file_count"
-                        rem=\$(remove_last_file_generated "core-\m0beck" "$CRASH_DIR")
+                        rem=\$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
                         echo \$rem
                 fi
                 
                 m0trace_file_count=\$(get_file_count "m0trace" "$MD_DIR/datarecovery" "$SCRIPT_START_TIME")
                 echo "File count value \$m0trace_file_count"
                 if [[ \$m0trace_file_count -gt $max_trace_file_count ]]; then
-                        echo "Deleting core m0beck extra file \$core_m0beck_file_count"
+                        echo "Deleting core m0beck extra file \$m0trace_file_count"
                         rem=\$(remove_last_file_generated "m0trace" "$MD_DIR/datarecovery")
                         echo \$rem
                 fi
@@ -960,7 +960,7 @@ EOF
                 m0trace_file_count=$(get_file_count "m0trace" "$FAILOVER_MD_DIR/datarecovery" "$SCRIPT_START_TIME")
                 echo "File count value $m0trace_file_count"
                 if [[ $m0trace_file_count -gt $max_trace_file_count ]]; then
-                        echo "Deleting core m0beck extra file $core_m0beck_file_count"
+                        echo "Deleting core m0beck extra file $m0trace_file_count"
                         rem=$(remove_last_file_generated "m0trace" "$FAILOVER_MD_DIR/datarecovery")
                         echo $rem
                 fi
