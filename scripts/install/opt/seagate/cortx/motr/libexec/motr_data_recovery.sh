@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # set -x
-SCRIPT_START_DATE="$(date +"%Y-%m-%d")"
-SCRIPT_START_TIME="$(date +"%H:%M:%S.%N")"
+SCRIPT_START_TIME="$(date +"%s")"
 PROG=${0##*/}
 # Creating the log file under /var/log/seagate/motr
 now=$(date +"%Y_%m_%d__%H_%M_%S")
@@ -14,6 +13,7 @@ SRC_DIR="$(dirname $(readlink -f $0))"
 # cortx-motr main dir path
 M0_SRC_DIR="${SRC_DIR%/*/*}"
 MD_DIR="/var/motr" # Meta Data Directory
+CRASH_DIR="/var/log/crash" #Crash Directory
 # beck utility path, update this path in get_utility_path() to change path
 BECKTOOL=
 # m0betool utility path, update this path in get_utility_path() to change path
@@ -752,12 +752,37 @@ cleanup_stobs_dir() {
     [[ $REMOTE_STORAGE_STATUS -eq 0 ]] || run_cmd_on_local_node "umount $FAILOVER_MD_DIR" > /dev/null
 }
 
+#The following command gives us the file count on the local node.
+#It takes 2 parameters as input
+#1. filetype : The type of file whose quantity we want to count. Example "m0trace"
+#2. directory : The location where the files of filetype are stored. Example "/var/motr/datarecovery"
+get_file_count() {
+    local file_type=$1
+    local directory=$2
+    local start_time=$3
+    cmd=$(cd $directory; find . -type f -exec stat  -c "%n %Y" {} \;| sort -n | grep $file_type | awk '{if($2>"'$start_time'") print $2; }' | wc -l)
+    echo $cmd
+}
+
+#The following command is used to remove the latest file generated in the given directory
+#It takes 2 parameters as input
+#1. filetype : The type of file which is to be removed. Example "m0trace"
+#2. directory : The location where the files of filetype are stored. Example "/var/motr/datarecovery"
+remove_last_file_generated() {
+    local file_type=$1
+    local directory=$2
+    cmd=$(cd $directory; ls -ltr | grep $file_type | awk '{print $9}' | tail -n 1)
+    echo "$cmd"
+    rm "$directory/$cmd"
+}
+
 # The return statements between { .. }& are to indicate the exit status of
 # child/background process that is spawned not for the function exit status.
 # This function will run beck tool on both nodes
 run_becktool() {
     local exec_status=0
-
+    max_core_file_count=2
+    max_trace_file_count=3
     # m0betool and m0beck depend on motr-kernel service so we try to get service up;
     # if this service does not start in 3 attempt on local node and remote node
     # then we cannot proceed further in the recovery.
@@ -820,24 +845,21 @@ run_becktool() {
         while [[ $cmd_exit_status == $ESEGV ]];
         do
             #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash( receving SEGV signal ), to 2 each.
-            core_m0beck_file_count=$(cd /var/log/crash; find . -type f -exec stat  -c "%n %y" {} \;| sort -n | grep core-m0beck | awk '{if($2>"'"${SCRIPT_START_DATE}"'") print $2" "$3; else if($2=="'"${SCRIPT_START_DATE}"'" && $3>="'"${SCRIPT_START_TIME}"'") print $2" "$3; else echo }' | wc -l)
+            core_m0beck_file_count=$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
             echo "File count value $core_m0beck_file_count"
 
-            if [[ $core_m0beck_file_count -gt 2 ]]; then
-                echo "Deleting core m0beck extra file $core_m0beck_file_count"
-                core_m0beck_last_file_name=$(cd /var/log/crash; ls -ltr | grep core-m0beck | awk '{print $9}' | tail -n 1)
-                echo "$core_m0beck_last_file_name"
-                rm "/var/log/crash/$core_m0beck_last_file_name"
+            if [[ $core_m0beck_file_count -gt $max_core_file_count ]]; then
+                    echo "Deleting core m0beck extra file $core_m0beck_file_count"
+                    rem=$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
+                    echo $rem
             fi
-
-            m0trace_file_count=$(cd $MD_DIR/datarecovery; find . -type f -exec stat  -c "%n %y" {} \;| sort -n | awk '{if($2>"'"${SCRIPT_START_DATE}"'") print $2" "$3; else if($2=="'"${SCRIPT_START_DATE}"'" && $3>="'"${SCRIPT_START_TIME}"'") print $2" "$3; else echo }' | wc -l)
+            
+            m0trace_file_count=$(get_file_count "m0trace" "$MD_DIR/datarecovery" "$SCRIPT_START_TIME")
             echo "File count value $m0trace_file_count"
-
-            if [[ $m0trace_file_count -gt 3 ]]; then
-                echo "Deleting m0trace extra file $m0trace_file_count"
-                m0trace_last_file_name=$(cd $MD_DIR/datarecovery; ls -ltr | awk '{print $9}' | tail -n 1)
-                echo "$m0trace_last_file_name"
-                rm "$MD_DIR/datarecovery/$m0trace_last_file_name"
+            if [[ $m0trace_file_count -gt $max_trace_file_count ]]; then
+                    echo "Deleting core m0beck extra file $core_m0beck_file_count"
+                    rem=$(remove_last_file_generated "m0trace" "$MD_DIR/datarecovery")
+                    echo $rem
             fi
             #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
 
@@ -868,30 +890,36 @@ run_becktool() {
             (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $REMOTE_SEG_GEN_ID;)
 EOF
             cmd_exit_status=$?
-            # restart the execution of command if exit code is ESEGV error
+             # restart the execution of command if exit code is ESEGV error
             while [[ $cmd_exit_status == $ESEGV ]];
             do
+
                 #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash( receving SEGV signal ), to 2 each.
-                 run_cmd_on_remote_node "bash -s" <<EOF
-            core_m0beck_file_count=\$(cd /var/log/crash; find . -type f -exec stat -c "%n %y" {} \;| sort -n | grep core-m0beck | awk '{if(\$2>"'"${SCRIPT_START_DATE}"'") print \$2" "\$3; else if(\$2=="'"${SCRIPT_START_DATE}"'" && \$3>="'"${SCRIPT_START_TIME}"'") print \$2" "\$3; else echo }'| wc -l )
-            echo "File count value \$core_m0beck_file_count"
-            
-            if [ \$core_m0beck_file_count -gt 2 ]; then
-                echo "Deleting core m0beck extra file \$core_m0beck_file_count"
-                core_m0beck_last_file_name=\$(cd /var/log/crash; ls -ltr | grep core-m0beck | awk '{print \$9}' | tail -n 1)
-                echo "\$core_m0beck_last_file_name"
-                rm "/var/log/crash/\$core_m0beck_last_file_name"
-            fi
+                run_cmd_on_remote_node "bash -s" <<EOF
+                $(typeset -f get_file_count)
+                $(typeset -f remove_last_file_generated)
+                $(declare -x CRASH_DIR)
+                $(declare -x MD_DIR)
+                $(declare -x SCRIPT_START_TIME)
+                $(declare -x max_core_file_count)
+                $(declare -x max_trace_file_count)
 
-            m0trace_file_count=\$(cd $MD_DIR/datarecovery; find . -type f -exec stat -c "%n %y" {} \;| sort -n | awk '{if(\$2>"'"${SCRIPT_START_DATE}"'") print \$2" "\$3; else if(\$2=="'"${SCRIPT_START_DATE}"'" && \$3>="'"${SCRIPT_START_TIME}"'") print \$2" "\$3; else echo }'| wc -l )
-            echo "File count value \$m0trace_file_count"
+                core_m0beck_file_count=\$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
+                echo "File count value \$core_m0beck_file_count"
 
-            if [ \$m0trace_file_count -gt 3 ]; then
-                echo "Deleting core m0beck extra file \$m0trace_file_count"
-                m0trace_last_file_name=\$(cd $MD_DIR/datarecovery; ls -ltr | awk '{print \$9}' | tail -n 1)
-                echo "\$m0trace_last_file_name"
-                rm "$MD_DIR/datarecovery/\$m0trace_last_file_name"
-            fi
+                if [[ \$core_m0beck_file_count -gt $max_core_file_count ]]; then
+                        echo "Deleting core m0beck extra file \$core_m0beck_file_count"
+                        rem=\$(remove_last_file_generated "core-\m0beck" "$CRASH_DIR")
+                        echo \$rem
+                fi
+                
+                m0trace_file_count=\$(get_file_count "m0trace" "$MD_DIR/datarecovery" "$SCRIPT_START_TIME")
+                echo "File count value \$m0trace_file_count"
+                if [[ \$m0trace_file_count -gt $max_trace_file_count ]]; then
+                        echo "Deleting core m0beck extra file \$core_m0beck_file_count"
+                        rem=\$(remove_last_file_generated "m0trace" "$MD_DIR/datarecovery")
+                        echo \$rem
+                fi
 EOF
             #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
 
@@ -920,24 +948,21 @@ EOF
             while [[ $cmd_exit_status == $ESEGV ]];
             do
                 #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash( receving SEGV signal ), to 2 each.
-                core_m0beck_file_count=$(cd /var/log/crash; find . -type f -exec stat  -c "%n %y" {} \;| sort -n | grep core-m0beck | awk '{if($2>"'"${SCRIPT_START_DATE}"'") print $2" "$3; else if($2=="'"${SCRIPT_START_DATE}"'" && $3>="'"${SCRIPT_START_TIME}"'") print $2" "$3; else echo }' | wc -l)
+                core_m0beck_file_count=$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
                 echo "File count value $core_m0beck_file_count"
-                                
-                if [[ $core_m0beck_file_count -gt 2 ]]; then
-                    echo "Deleting core m0beck extra file $core_m0beck_file_count"
-                    core_m0beck_last_file_name=$(cd /var/log/crash; ls -ltr | grep core-m0beck | awk '{print $9}' | tail -n 1)
-                    echo "$core_m0beck_last_file_name"
-                    rm "/var/log/crash/$core_m0beck_last_file_name"
+
+                if [[ $core_m0beck_file_count -gt $max_core_file_count ]]; then
+                        echo "Deleting core m0beck extra file $core_m0beck_file_count"
+                        rem=$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
+                        echo $rem
                 fi
                 
-                m0trace_file_count=$(cd $FAILOVER_MD_DIR/datarecovery; find . -type f -exec stat  -c "%n %y" {} \;| sort -n | awk '{if($2>"'"${SCRIPT_START_DATE}"'") print $2" "$3; else if($2=="'"${SCRIPT_START_DATE}"'" && $3>="'"${SCRIPT_START_TIME}"'") print $2" "$3; else echo }' | wc -l)
+                m0trace_file_count=$(get_file_count "m0trace" "$FAILOVER_MD_DIR/datarecovery" "$SCRIPT_START_TIME")
                 echo "File count value $m0trace_file_count"
-                
-                if [[ $m0trace_file_count -gt 3 ]]; then
-                    echo "Deleting m0trace extra file $m0trace_file_count"
-                    m0trace_last_file_name=$(cd $FAILOVER_MD_DIR/datarecovery; ls -ltr | awk '{print $9}' | tail -n 1)
-                    echo "$m0trace_last_file_name"
-                    rm "$FAILOVER_MD_DIR/datarecovery/$m0trace_last_file_name"
+                if [[ $m0trace_file_count -gt $max_trace_file_count ]]; then
+                        echo "Deleting core m0beck extra file $core_m0beck_file_count"
+                        rem=$(remove_last_file_generated "m0trace" "$FAILOVER_MD_DIR/datarecovery")
+                        echo $rem
                 fi
                 #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
 
