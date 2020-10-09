@@ -1602,8 +1602,7 @@ int m0_client_init(struct m0_client **m0c_p,
 		char buf[64];
 		/* Default client addb record file size set to 128M */
 		m0_bcount_t size = 128ULL << 20;
-		if ((conf->mc_addb_size != 0) &&
-		    (conf->mc_addb_size % BLK_SIZE_4k == 0))
+		if (conf->mc_addb_size != 0)
 			size = conf->mc_addb_size;
 		sprintf(buf, "linuxstob:./addb_%d", (int)m0_pid());
 		M0_LOG(M0_DEBUG, "addb size=%llu\n", (unsigned long long)size);

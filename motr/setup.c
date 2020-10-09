@@ -2299,15 +2299,15 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				{
 					if ((size == 0) ||
 					    ((size >= MIN_ADDB2_RECORD_SIZE) &&
-					     (size <= MAX_ADDB2_RECORD_SIZE) &&
-					     (size % BLK_SIZE_4k == 0))) {
+					     (size <= MAX_ADDB2_RECORD_SIZE))) {
+						M0_LOG(M0_DEBUG, "ADDB size = %"PRIu64"", size);
 						rctx->rc_addb_record_file_size = size;
 					} else {
 						M0_LOG(M0_ERROR, "Invalid ADDB record size. "
 						       "Record size can be 0. If non-zero then "
 						       "it should be in the range (10M, 10G) bytes"
 						       "and multiple of 4096 bytes.\n");
-						rc = -EINVAL;
+						rctx->rc_addb_record_file_size = DEFAULT_ADDB2_RECORD_SIZE;
 					}
 				})),
 			);
