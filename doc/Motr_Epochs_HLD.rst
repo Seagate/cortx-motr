@@ -76,7 +76,7 @@ If in addition, src(R) expects a response, then the node should respond with a â
 Logical Specification
 **********************
 
-.. image:: /Images/RC.PNG
+.. image:: Images/RC.PNG
 
 In general, the RC interacts with services using a messaging protocol internal to the HA subsystem. This protocol is that of Cloud Haskell (CH). We introduce Cloud Haskell processes to wrap actual Motr services. This provides an endpoint for Cloud Haskell messages as well as a place to monitor the Motr service. Communication between the actual Motr service and the wrapping Cloud Haskell process happens using a Motr specific communication protocol, Motr RPC. 
 
