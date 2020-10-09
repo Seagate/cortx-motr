@@ -78,6 +78,22 @@ Logical Specification
 
 .. image:: Images/RC.PNG
 
-In general, the RC interacts with services using a messaging protocol internal to the HA subsystem. This protocol is that of Cloud Haskell (CH). We introduce Cloud Haskell processes to wrap actual Motr services. This provides an endpoint for Cloud Haskell messages as well as a place to monitor the Motr service. Communication between the actual Motr service and the wrapping Cloud Haskell process happens using a Motr specific communication protocol, Motr RPC. 
+In general, the RC interacts with services using a messaging protocol internal to the HA subsystem. This protocol is that of Cloud Haskell (CH). We introduce Cloud Haskell processes to wrap actual Motr services. This provides an endpoint for Cloud Haskell messages as well as a place to monitor the Motr service. Communication between the actual Motr service and the wrapping Cloud Haskell process happens using a Motr specific communication protocol, Motr RPC.
+
+Reporting a Late Node
+=====================
+
+Upon receipt of an RPC request, the matching request handler checks the epoch of the sender of the message. If the epoch does not match its current epoch, then epoch handlers are invoked in turn until one epoch handler is found that returns an outcome other than M0_HEO_CONTINUE.
+
+An epoch handler is installed that sends a message to an RPC endpoint associated with the wrapper process upon epoch mismatch, mentioning the current epoch of the HA domain to which the service belongs. If the original RPC request requires a response, then the outcome of this handler is M0_HEO_ERROR. Otherwise, the outcome is M0_HEO_DROP.
+
+The wrapper CH process listens on the designated endpoint and waits for messages from the Motr service. Upon receipt of an epoch failure message, it forwards this message in the form of an HA event to the tracking station, through the usual channels for HA events.   
+
+Setting the Epoch
+=================
+
+In response to a late epoch HA event, the RC needs to perform recovery of the affected node, by replaying each recovery message associated with each epoch change since the current epoch of the affected node. These messages are sent to the wrapper process, who then forwards them using Motr RPC to the actual Motr service. In the extreme, such messages can be as simple as just updating the epoch of the affected HA domain, without touching any other state in the node. Transitioning to the new epoch is done using an epoch handler, who must respond to messages from the wrapper process of a set type with the outcome M0_HEO_OBEY.
+
+Each wrapper process maintains a structure representing the HA domain. Upon receiving an epoch transition message, the wrapper process acquires a write lock on the HA domain structure, increments the epoch and then releases the write lock. In this manner, any RPC request in given HA domain sent between the wrapper process and the actual Motr service will mention the new epoch, and hence trigger the epoch handlers in the Motr service. 
 
 
