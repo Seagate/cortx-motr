@@ -257,4 +257,19 @@ ACCEPT_NACK : A -> P
 
 }
 
+The Synod algorithm is safe (i.e., guarantees that if a value is agreed upon, it is agreed upon consistently) under almost any failure: acceptor failing at any point, proposer failing at any point, network partitioning happening, messages being lost, duplicated, reordered, multiple nodes claiming to be the leader, etc. It handles "Byzantine failures" (i.e., situations where node runs arbitrary, including malicious, code) provided acceptors are redundant enough.
+
+It's easy to note that proposer persistent state (struct proposer_state) is used only to generate unique ballot numbers. If other means to this end (like a monotonic clock surviving node failures) are present, no stable storage is necessary on a proposer.
+
+Lustre
+========
+
+It is not clear how Synod relates to the Lustre recovery. In the existing Lustre code there is no need for any kind of consensus, because there is no replication. One might argue that a client and a server must reach a consensus on the results and effects of all operations that server reported as executed. Viewed from this point, a server acts like a proposer, and a client---as an acceptor, forcing server to accept values from its replay queue. Obviously this is a very degenerate case of a consensus problem. Similarly, a client and a server reach a consensus on the results of the last successfully committed request ("reconstruction" in Lustre terms). In this case, a client is a proposer and a server is an acceptor. Again, this is an extremely degenerate case.
+
+Speaking about the future Lustre code, Paxos like solutions might be appropriate in the following places:
+
+- raid1 for data: assuming well-behaved Lustre clients, only DLM lock owner sends conflicting (overlapping) writes, so there can be no more than one proposer at any time, making point of Paxos somewhat moot: much simpler algorithm can be used;
+
+- on the other hand, DLM locks acquisition can nicely be expressed as a consensus problem. Currently Lustre solves it by acquiring locks synchronously in a well-defined order.
+
 
