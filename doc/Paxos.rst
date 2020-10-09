@@ -56,3 +56,29 @@ For every instance of Synod algorithm each proposer maintains on its stable stor
     integer max_ballot;
 
  } proposer_state;
+ 
+And every acceptor maintains a record
+
+ ::
+ 
+  struct acceptor_state {
+
+     /** number of highest numbered ballot ACCEPTED by
+
+       this acceptor. */
+
+    integer max_accepted_ballot;
+
+    /** value of highest numbered ballot ACCEPTED by
+
+    this acceptor. */
+
+    value_t max_accepted_value;
+
+    /** number of highest numbered ballot PREPARED by
+
+    this acceptor. */
+
+   integer max_prepared_ballot;
+
+  } acceptor_state;
