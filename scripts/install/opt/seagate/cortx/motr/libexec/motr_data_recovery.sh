@@ -140,8 +140,8 @@ is_ios_running_on_remote_node() {
 # This function will initialize values of local and remote ioservices
 # fid variable.
 get_ios_fid() {
-		LOCAL_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$LOCAL_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
-		REMOTE_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$REMOTE_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
+    LOCAL_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$LOCAL_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
+    REMOTE_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$REMOTE_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
 
     if [[ $LOCAL_IOS_FID == "" ]] || [[ $REMOTE_IOS_FID == "" ]];then
         die "Failed to get ioservice FIDs."
@@ -464,10 +464,11 @@ replay_logs_and_get_gen_id_of_seg0() {
             (( exec_status|=1));
         fi
     else
-        LOCAL_SEG_GEN_ID=$(run_cmd_on_local_node  "cat $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id | grep 'segment genid'")
-        LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+        if run_cmd_on_local_node "[[ -f $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id ]]"; then
+            LOCAL_SEG_GEN_ID=$(run_cmd_on_local_node  "cat $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id | grep 'segment genid'")
+            LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+        fi
     fi
-
     # Check if the fsck is passed on remote node successfully or not
     # Here arg1 value as 0, states fsck passed on both local and remote node
     # Here arg1 value as 1, states fsck failed on local node but passed on remote node
@@ -521,12 +522,16 @@ replay_logs_and_get_gen_id_of_seg0() {
             m0drlog "ERROR: Mount failed! Can't replay journal logs on remote node..."
             (( exec_status|=2));
         fi
-     elif [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
-        REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node  "cat $MD_DIR/m0d-$REMOTE_IOS_FID/gen_id | grep 'segment genid'")
-        REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
-     else
-        REMOTE_SEG_GEN_ID=$(run_cmd_on_local_node  "cat $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/gen_id | grep 'segment genid'")
-        REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+    elif [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
+        if run_cmd_on_remote_node "[[ -f $MD_DIR/m0d-$REMOTE_IOS_FID/gen_id ]]"; then
+            REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node  "cat $MD_DIR/m0d-$REMOTE_IOS_FID/gen_id | grep 'segment genid'")
+            REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+        fi
+    else
+        if run_cmd_on_local_node "[[ -f $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/gen_id ]]"; then
+            REMOTE_SEG_GEN_ID=$(run_cmd_on_local_node  "cat $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/gen_id | grep 'segment genid'")
+            REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+        fi
     fi
 
     [[ $LOCAL_SEG_GEN_ID  -eq 0 ]] && [[ $REMOTE_SEG_GEN_ID -eq 0 ]] && die "Segment header not found"
@@ -541,23 +546,21 @@ replay_logs_and_get_gen_id_of_seg0() {
 run_fsck() {
     local exec_status=0
 
-    if [[ $LOCAL_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
-        if mountpoint -q $MD_DIR; then
-            if ! umount $MD_DIR; then
-                die "MD Device might be busy on local node, please try shutting \
-                    down cluster and retry"
-            fi
-            m0drlog "Running fsck on local node"
-            run_cmd_on_local_node "timeout 5m fsck -y $LOCAL_MOTR_DEVICE"
-            [[ $? -eq 0 ]] || m0drlog "ERROR: fsck command failed on local node"
-        else
-            m0drlog "MD device is not mounted on local node. Running fsck on local node."
-            run_cmd_on_local_node "timeout 5m fsck -y $LOCAL_MOTR_DEVICE"
-            [[ $? -eq 0 ]] || m0drlog "ERROR: fsck command failed on local node"
+    if mountpoint -q $MD_DIR; then
+        if ! umount $MD_DIR; then
+            die "MD Device might be busy on local node, please try shutting \
+                down cluster and retry"
         fi
+        m0drlog "Running fsck on local node"
+        run_cmd_on_local_node "timeout 5m fsck -y $LOCAL_MOTR_DEVICE"
+        [[ $? -eq 0 ]] || m0drlog "ERROR: fsck command failed on local node"
+    else
+        m0drlog "MD device is not mounted on local node. Running fsck on local node."
+        run_cmd_on_local_node "timeout 5m fsck -y $LOCAL_MOTR_DEVICE"
+        [[ $? -eq 0 ]] || m0drlog "ERROR: fsck command failed on local node"
     fi
 
-    if [[ $REMOTE_STORAGE_STATUS == 0 ]] && [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
+    if [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
         if run_cmd_on_remote_node "mountpoint -q $MD_DIR"; then
             if ! run_cmd_on_remote_node "umount $MD_DIR"; then
                 die "MD Device might be busy on remote node, please try shutting \
@@ -571,7 +574,7 @@ run_fsck() {
             run_cmd_on_remote_node "timeout 5m fsck -y $REMOTE_MOTR_DEVICE"
             [[ $? -eq 0 ]] || m0drlog "ERROR : fsck command failed on remote node"
         fi
-    elif [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
+     else
         if run_cmd_on_local_node "mountpoint -q $FAILOVER_MD_DIR"; then
             if ! run_cmd_on_local_node "umount $FAILOVER_MD_DIR"; then
                 die "MD Device of remote node might be busy on local node, please try shutting \
@@ -588,18 +591,16 @@ run_fsck() {
     fi
 
     # Try to mount the metadata device on /var/motr on both nodes
-    if [[ $LOCAL_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
-        if run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR"; then
-            # create directory "datarecovery" in /var/motr if not exist to store traces
-            run_cmd_on_local_node "mkdir -p $MD_DIR/datarecovery"
-        else
-            run_cmd_on_local_node "mkfs.ext4 $LOCAL_MOTR_DEVICE"
-            run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR"
-            (( exec_status|=1));
-        fi
+    if run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR"; then
+        # create directory "datarecovery" in /var/motr if not exist to store traces
+        run_cmd_on_local_node "mkdir -p $MD_DIR/datarecovery"
+    else
+        run_cmd_on_local_node "mkfs.ext4 $LOCAL_MOTR_DEVICE"
+        run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR"
+        (( exec_status|=1));
     fi
 
-    if [[ $REMOTE_STORAGE_STATUS == 0 ]] && [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
+    if [[ $REMOTE_STORAGE_STATUS == 0 ]] ; then
         if run_cmd_on_remote_node "mount $REMOTE_MOTR_DEVICE $MD_DIR"; then
             # create directory "datarecovery" in /var/motr if not exist to store traces
             run_cmd_on_remote_node "mkdir -p $MD_DIR/datarecovery"
@@ -608,7 +609,7 @@ run_fsck() {
             run_cmd_on_remote_node "mount $REMOTE_MOTR_DEVICE $MD_DIR"
             (( exec_status|=2));
         fi
-    elif [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
+    else
         if run_cmd_on_local_node "mount $REMOTE_MOTR_DEVICE $FAILOVER_MD_DIR"; then
             # create directory "datarecovery" in /var/motr if not exist to store traces
             run_cmd_on_local_node "mkdir -p $FAILOVER_MD_DIR/datarecovery"

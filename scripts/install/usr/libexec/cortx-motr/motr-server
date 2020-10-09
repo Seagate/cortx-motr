@@ -98,6 +98,7 @@ m0_server()
     local proc_fid="<$(m0_get_proc_fid_for $service)>"
     local be_seg0_path=
     local be_seg_path=
+    local be_seg_size=
 
     # @todo
     # These BE segment devices needs to pass through Motr configuration
@@ -109,6 +110,9 @@ m0_server()
 
     if [[ -n $MOTR_BE_SEG_PATH && -b $MOTR_BE_SEG_PATH ]]; then
         be_seg_path=" -B $MOTR_BE_SEG_PATH "
+        if [[ -n $MOTR_M0D_IOS_BESEG_SIZE ]]; then
+            be_seg_size=" -z $MOTR_M0D_IOS_BESEG_SIZE"
+        fi
     fi
 
     # mds and rms are expected to read local configuration until the
@@ -202,7 +206,7 @@ m0_server()
     exec $binary -e $service_ep \
                     -A linuxstob:${addbstob_dir}addb-stobs \
                     -f $proc_fid $stob_type $stob_path $MOTR_M0D_OPTS \
-                       $be_seg0_path $be_seg_path \
+                       $be_seg0_path $be_seg_path $be_seg_size \
                        $stob_opts $cmd_opts $MOTR_M0D_EXTRA_OPTS
 }
 
