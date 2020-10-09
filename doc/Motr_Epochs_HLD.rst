@@ -94,6 +94,20 @@ Setting the Epoch
 
 In response to a late epoch HA event, the RC needs to perform recovery of the affected node, by replaying each recovery message associated with each epoch change since the current epoch of the affected node. These messages are sent to the wrapper process, who then forwards them using Motr RPC to the actual Motr service. In the extreme, such messages can be as simple as just updating the epoch of the affected HA domain, without touching any other state in the node. Transitioning to the new epoch is done using an epoch handler, who must respond to messages from the wrapper process of a set type with the outcome M0_HEO_OBEY.
 
-Each wrapper process maintains a structure representing the HA domain. Upon receiving an epoch transition message, the wrapper process acquires a write lock on the HA domain structure, increments the epoch and then releases the write lock. In this manner, any RPC request in given HA domain sent between the wrapper process and the actual Motr service will mention the new epoch, and hence trigger the epoch handlers in the Motr service. 
+Each wrapper process maintains a structure representing the HA domain. Upon receiving an epoch transition message, the wrapper process acquires a write lock on the HA domain structure, increments the epoch and then releases the write lock. In this manner, any RPC request in given HA domain sent between the wrapper process and the actual Motr service will mention the new epoch, and hence trigger the epoch handlers in the Motr service.
+
+***************
+Interfaces
+***************
+
+To handle epoch failures, we introduce the following HA event: 
+
+::
+
+ EpochTransitionRequest { service :: ServiceId 
+ 
+                        , currentEpoch :: EpochId
+                        
+                        , targetEpoch  :: EpochId }
 
 
