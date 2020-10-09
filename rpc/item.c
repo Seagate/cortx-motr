@@ -533,7 +533,9 @@ static bool rpc_item_needs_xid(const struct m0_rpc_item *item)
 		      (M0_RPC_CONN_ESTABLISH_OPCODE,
 		       M0_RPC_CONN_ESTABLISH_REP_OPCODE,
 		       M0_RPC_CONN_TERMINATE_OPCODE,
-		       M0_RPC_CONN_TERMINATE_REP_OPCODE));
+		       M0_RPC_CONN_TERMINATE_REP_OPCODE,
+		       M0_RPC_PING_OPCODE,
+		       M0_RPC_PING_REPLY_OPCODE));
 }
 
 M0_INTERNAL void m0_rpc_item_xid_min_update(struct m0_rpc_item *item)
@@ -544,13 +546,8 @@ M0_INTERNAL void m0_rpc_item_xid_min_update(struct m0_rpc_item *item)
 	         "osr_session_xid_min=%"PRIu64,
 		 ITEM_ARG(item), item->ri_header.osr_xid,
 		 item->ri_header.osr_session_xid_min);
-	if (item->ri_session == NULL) {
-		M0_LOG(M0_WARN, "item->ri_session == NULL. "
-		       "rpc-packet-encdec-ut case only. "
-		       "Must not be present in production.");
-		return;
-	}
 	if (rpc_item_needs_xid(item)) {
+		M0_ASSERT(item->ri_session != NULL);
 		M0_ASSERT(!(M0_IN(item->ri_header.osr_xid, (0, UINT64_MAX))));
 		item->ri_header.osr_session_xid_min =
 			xidl_tlist_is_empty(&item->ri_session->s_xid_list) ? 1 :
