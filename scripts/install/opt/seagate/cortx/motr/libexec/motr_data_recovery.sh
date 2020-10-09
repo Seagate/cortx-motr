@@ -931,6 +931,8 @@ EOF
         fi
     fi
 
+    m0drlog "Wait 5 minutes to flush any outstanding IO"
+    sleep 5m
     cleanup_stobs_dir
 
     return $exec_status
