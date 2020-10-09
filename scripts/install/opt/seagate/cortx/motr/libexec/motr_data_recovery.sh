@@ -447,18 +447,18 @@ replay_logs_and_get_gen_id_of_seg0() {
             else
                 m0drlog "ERROR: Journal logs replay failed on local node"
                 (( exec_status|=1));
-        fi
+            fi
 
-        m0drlog "Get generation id of local node from segment 1"
-        LOCAL_SEG_GEN_ID="$($BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:2a -p)"
-        LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
-
-        if [[ $LOCAL_SEG_GEN_ID -eq 0 ]]; then
-            m0drlog "Get generation id of local node from segment 0"
-            LOCAL_SEG_GEN_ID="$($BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:29 -p)"
+            m0drlog "Get generation id of local node from segment 1"
+            LOCAL_SEG_GEN_ID="$($BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:2a -p)"
             LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
-        fi
-        echo "segment genid : ($LOCAL_SEG_GEN_ID)"  >  $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id
+
+            if [[ $LOCAL_SEG_GEN_ID -eq 0 ]]; then
+                m0drlog "Get generation id of local node from segment 0"
+                LOCAL_SEG_GEN_ID="$($BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:29 -p)"
+                LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+            fi
+            echo "segment genid : ($LOCAL_SEG_GEN_ID)"  >  $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id
         else
             m0drlog "ERROR: Mount failed! Can't replay journal logs on local node..."
             (( exec_status|=1));
