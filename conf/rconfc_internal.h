@@ -35,11 +35,11 @@
 */
 
 enum confc_state {
-	CONFC_IDLE,       /**< The confd is connected to with no reading      */
-	CONFC_ARMED,      /**< Reading version from the confd has started     */
-	CONFC_OPEN,       /**< The confd was used to engage conductor         */
-	CONFC_FAILED,     /**< Reading failure registered with the confd      */
-	CONFC_DEAD,       /**< The confd has failed to establish connection   */
+	CONFC_IDLE,       /**< 0 The confd is connected to with no reading      */
+	CONFC_ARMED,      /**< 1 Reading version from the confd has started     */
+	CONFC_OPEN,       /**< 2 The confd was used to engage conductor         */
+	CONFC_FAILED,     /**< 3 Reading failure registered with the confd      */
+	CONFC_DEAD,       /**< 4 The confd has failed to establish connection   */
 };
 
 /* -------------- Read lock context ----------------- */
@@ -113,8 +113,11 @@ struct rconfc_link {
 	bool                 rl_fom_queued;    /**< if FOM already in queue  */
 	/* XXX: intended for UT only */
 	void (*rl_on_state_cb)(struct rconfc_link *lnk);
+	struct m0_sm_ast     rl_link_ast;
+	bool                 rl_finalised;
 };
 
+M0_INTERNAL void rconfc_herd_link_cleanup(struct rconfc_link *lnk);
 /*
  * made accessible for UT suites
  */

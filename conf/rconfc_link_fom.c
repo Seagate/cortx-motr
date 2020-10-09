@@ -95,7 +95,8 @@ static void rconfc_link_fom_fini(struct m0_fom *fom)
 {
 	struct rconfc_link *lnk = M0_AMB(lnk, fom, rl_fom);
 
-	M0_ENTRY("lnk=%p", lnk);
+	M0_ENTRY("lnk=%p state=%d ep=%s ",
+                  lnk, lnk->rl_state, lnk->rl_confd_addr);
 	m0_fom_fini(fom);
 	m0_rconfc_lock(lnk->rl_rconfc);
 	m0_mutex_lock(&lnk->rl_rconfc->rc_herd_lock);
@@ -112,6 +113,7 @@ static void rconfc_link_fom_fini(struct m0_fom *fom)
 		lnk->rl_on_state_cb(lnk);
 	M0_SET0(&lnk->rl_fom);
 	lnk->rl_fom_queued = false;
+	rconfc_herd_link_cleanup(lnk);
 	m0_chan_broadcast(&lnk->rl_rconfc->rc_herd_chan);
 	m0_mutex_unlock(&lnk->rl_rconfc->rc_herd_lock);
 	m0_rconfc_unlock(lnk->rl_rconfc);
