@@ -43,6 +43,33 @@ Design Highlights
 
 - The HA subsystem does not wait for acknowledgements from individual nodes that they have indeed transitioned to the new epoch. Aggregation of acknowledgements is therefore not required. 
 
-- Communication of HA subsystem to nodes is done using Cloud Haskell messages, to make communication with services uniform within the HA subsystem, and to circumscribe the Motr-specific parts of the epoch functionality to the services themselves. 
+- Communication of HA subsystem to nodes is done using Cloud Haskell messages, to make communication with services uniform within the HA subsystem, and to circumscribe the Motr-specific parts of the epoch functionality to the services themselves.
+
+*************************
+Functional Specification
+*************************
+
+It is the Recovery Coordinator (RC), a component of the HA subsystem, that maintains the authoritative answer as to which is the current epoch of any particular HA domain. Within an HA domain, failures which fall in the class of epoch failures warrant changing the epoch of that domain. This is done by the RC following receipt of an HA event failure.
+
+Because the epoch of a domain is global, the RC notifies the entire cluster of the fact that the domain has just transitioned to a new epoch, through a broadcast.
+
+The broadcasted message contains instructions for the node to transition to a new state. A destination node processes the message and transitions both to the new state and the new epoch, both as per the content of the message. Transitioning to both a new state and a new epoch is an atomic operation.
+
+Because only nodes that have transitioned to the new epoch also transition to the new state, it is safe for such nodes to communicate. Moreover, because nodes normally refuse to process RPC requests from other nodes unless the epoch number attached to the request matches the expected one, only nodes that are in the same epoch can communicate. A corollary of this fact is that nodes do not need to acknowledge to the RC that it has in fact transitioned to a new epoch. The RC can merely assume that it has, because even if the node fails to transition to the new epoch, it does not jeopardize the safety of the cluster. A node that fails to transition while all other nodes have is effectively quarantined, since it can no longer communicate in any meaningful way with any other node in the cluster.
+
+Maximal Epoch Failure Events
+============================
+
+A node is expected to post an HA event to the HA subsystem when receiving a RPC request 
+R in any of the following scenarios, where e(R) denotes the epoch of the RPC request and e(self) the epoch of the current node:
+
+                          if e(R)≠e(self) then post an HA event to report
+
+                                             
+                                             fst(max((e(R),src(R)), (e(self),self)))
+
+                          as late, where pairs are ordered lexicographically. 
+
+If in addition, src(R) expects a response, then the node should respond with a “wrong epoch” error.
 
 
