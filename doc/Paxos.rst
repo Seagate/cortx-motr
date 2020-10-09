@@ -49,10 +49,10 @@ For every instance of Synod algorithm each proposer maintains on its stable stor
 
  struct proposer_state {
 
-/** maximal ballot number ever used by this proposer in
+    /** maximal ballot number ever used by this proposer in
 
-this instance of Synod algorithm. */
+      this instance of Synod algorithm. */
 
-integer max_ballot;
+    integer max_ballot;
 
-} proposer_state;
+ } proposer_state;
