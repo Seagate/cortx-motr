@@ -82,3 +82,179 @@ And every acceptor maintains a record
    integer max_prepared_ballot;
 
   } acceptor_state;
+  
+ An operation of synchronously committing a record to the stable storage is denoted by fsync(record). Message M with arguments (A0, ..., AN) sent from node P to node Q is denoted as
+
+- M(A0, ..., AN) : P -> Q
+
+A statement "On M(A0, ..., AN) : P -> Q { ... }" is executed on Q when a matching message is received there.
+
+For simplicity we assume that the number of proposers is fixed and known in advance. This allows to easily generate unique ballot numbers: i-th proposer generates numbers in the sequence.
+
+- i, i + nr_proposers, i + 2 * nr_proposers, ...
+
+It's assumed that proposer_state.max_ballot is initialized with a suitable "proposer number".
+
+With these preliminaries Synod algorithm can be described as:
+
+/** Synod algorithm for proposer P initially trying to
+
+propose value our_value.*/
+
+Proposer(node_t P, value_t our_value):
+
+value_t chosen;
+
+integer max_ballot;
+
+chosen = our_value;
+
+max_ballot = -1;
+
+Phase1: { /* Here execution starts when Synod is invoked or
+
+when a proposer fails and restarts.*/
+
+/* select a unique ballot number*/
+
+proposer_state.max_ballot += nr_proposers;
+
+fsync(&proposer_state);
+
+/* select some quorum of acceptors*/
+
+Q0 = a_quorum(acceptors);
+
+for_each(A in Q0)
+
+PREPARE(proposer_state.max_ballot) : P -> A;
+
+}
+
+Phase 2 {
+
+On PREPARE_ACK(ballot, value) : A -> P {
+
+if (ballot != NIL) {
+
+/*
+
+* Acceptor A already accepted a ballot, find
+
+* highest numbered ballot accepted anywhere
+
+* in the quorum.
+
+
+
+if (ballot > max_ballot) {
+
+max_ballot = ballot;
+
+chosen = value;
+
+}
+
+} else {
+
+/* Acceptor A hasn't yet accepted any ballot.*/
+
+}
+
+}
+
+On PREPARE_NACK : A -> P { restart };
+
+On timeout for PREPARE { restart };
+
+/*
+
+* Proposer received successful replies from the quorum. If
+
+* none of acceptors accepted a value in any other ballot,
+
+* phase 2 proposes original value our_value; otherwise the value
+
+* from the highest numbered accepted ballot is proposed.
+
+* Propose the value.
+
+
+Q1 = a_quorum(acceptors);/* This might be different from Q0*/
+
+for_each(A in Q1)
+
+ACCEPT(proposer_state.max_ballot, chosen) : P -> A;
+
+On ACCEPT_ACK(ballot) : A -> P {;}
+
+On PREPARE_NACK : A -> P { restart };
+
+On timeout for PREPARE { restart };
+
+/*
+
+* ACCEPT_ACK messages were received from the
+
+* quorum. Consensus has been reached.
+
+
+}
+
+Acceptor(node_t A):
+
+On PREPARE(ballot) : P -> A {
+
+if (ballot > acceptor_state.max_prepared_ballot) {
+
+/*
+
+* Acceptor received new highest numbered
+
+* ballot. Remember this and reply. Acceptance of a
+
+* ballot N extracts from acceptor a promise to not
+
+* accept any ballot with number less than N.
+
+
+acceptor_state.max_prepared_ballot = ballot;
+
+fsync(&acceptor_state);
+
+PREPARE_ACK(acceptor_state.max_accepted_ballot,
+
+acceptor_state.max_accepted_value) : A -> P
+
+} else
+
+/*
+
+* Be faithful to this node's previous promise to not
+
+* accept lower numbered ballots.
+
+
+PREPARE_NACK : A -> P
+
+}
+
+On ACCEPT(ballot, value) : P -> A {
+
+if (ballot >= acceptor_state.max_prepared_ballot) {
+
+acceptor_state.max_accepted_ballot = ballot;
+
+acceptor_state.max_accepted_value = value;
+
+fsync(&acceptor_state);
+
+ACCEPT_ACK(ballot) : A -> P
+
+} else
+
+ACCEPT_NACK : A -> P
+
+}
+
+
