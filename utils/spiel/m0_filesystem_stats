@@ -50,7 +50,7 @@ export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 SCRIPT_NAME=`echo $0 | awk -F "/" '{print $NF}'`
 STATUS_FILE=/tmp/get_size_client$USER
 SAVEIFS=$IFS
-TIMEOUT=5
+TIMEOUT=10
 lnet_nids=$(lctl list_nids)
 server_addr=""
 client_addr=""
@@ -251,9 +251,12 @@ Usage: $SCRIPT_NAME [options]
     -h, --help             this help
 
 Example:
-    $SCRIPT_NAME  [-s ${lnet_nids}:12345:1:1] [-c ${lnet_nids}:12345:1:4]
-                  [-p 0x7000000000000001,0x1e] [-l $libmotr_path ]
-    -c, -s, -l and -p are optional arguments
+    $SCRIPT_NAME  
+    -s ${lnet_nids}:12345:1:1
+    -c ${lnet_nids}:12345:1:4
+    -p 0x7000000000000001,0x1e
+    -l $libmotr_path
+     -c, -s, -l and -p are optional arguments
 
 RETURN :
 0 : SUCCESS
