@@ -753,15 +753,16 @@ cleanup_stobs_dir() {
 }
 
 #The following command gives us the file count on the local node.
-#It takes 2 parameters as input
+#It takes 3 parameters as input
 #1. filetype : The type of file whose quantity we want to count. Example "m0trace"
 #2. directory : The location where the files of filetype are stored. Example "/var/motr/datarecovery"
+#3. start_time : The time in seconds since epoch when the script has started its execution.
 get_file_count() {
     local file_type=$1
     local directory=$2
     local start_time=$3
-    cmd=$(cd $directory; find . -type f -exec stat  -c "%n %Y" {} \;| sort -n | grep $file_type | awk '{if($2>"'$start_time'") print $2; }' | wc -l)
-    echo $cmd
+    filecount="$(cd $directory; find . -type f -exec stat  -c "%n %Y" {} \;| sort -n | grep $file_type | awk '{if($2>"'$start_time'") print $2; }' | wc -l)"
+    echo "$filecount"
 }
 
 #The following command is used to remove the latest file generated in the given directory
@@ -771,9 +772,9 @@ get_file_count() {
 remove_last_file_generated() {
     local file_type=$1
     local directory=$2
-    cmd=$(cd $directory; ls -ltr | grep $file_type | awk '{print $9}' | tail -n 1)
-    echo "$cmd"
-    rm "$directory/$cmd"
+    filename="$(cd $directory; ls -ltr | grep $file_type | awk '{print $9}' | tail -n 1)"
+    echo "$filename"
+    rm "$directory/$filename"
 }
 
 # The return statements between { .. }& are to indicate the exit status of
@@ -850,16 +851,16 @@ run_becktool() {
 
             if [[ $core_m0beck_file_count -gt $max_core_file_count ]]; then
                     echo "Deleting core m0beck extra file $core_m0beck_file_count"
-                    rem=$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
-                    echo $rem
+                    rem_file=$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
+                    echo "$rem_file"
             fi
             
             m0trace_file_count=$(get_file_count "m0trace" "$MD_DIR/datarecovery" "$SCRIPT_START_TIME")
             echo "File count value $m0trace_file_count"
             if [[ $m0trace_file_count -gt $max_trace_file_count ]]; then
                     echo "Deleting core m0beck extra file $m0trace_file_count"
-                    rem=$(remove_last_file_generated "m0trace" "$MD_DIR/datarecovery")
-                    echo $rem
+                    rem_file=$(remove_last_file_generated "m0trace" "$MD_DIR/datarecovery")
+                    echo "$rem_file"
             fi
             #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
 
@@ -898,6 +899,8 @@ EOF
                 run_cmd_on_remote_node "bash -s" <<EOF
                 $(typeset -f get_file_count)
                 $(typeset -f remove_last_file_generated)
+                export -f get_file_count
+                export -f remove_last_file_generated
                 $(declare -x CRASH_DIR)
                 $(declare -x MD_DIR)
                 $(declare -x SCRIPT_START_TIME)
@@ -909,16 +912,16 @@ EOF
 
                 if [[ \$core_m0beck_file_count -gt $max_core_file_count ]]; then
                         echo "Deleting core m0beck extra file \$core_m0beck_file_count"
-                        rem=\$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
-                        echo \$rem
+                        rem_file=\$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
+                        echo "\$rem_file"
                 fi
                 
                 m0trace_file_count=\$(get_file_count "m0trace" "$MD_DIR/datarecovery" "$SCRIPT_START_TIME")
                 echo "File count value \$m0trace_file_count"
                 if [[ \$m0trace_file_count -gt $max_trace_file_count ]]; then
                         echo "Deleting core m0beck extra file \$m0trace_file_count"
-                        rem=\$(remove_last_file_generated "m0trace" "$MD_DIR/datarecovery")
-                        echo \$rem
+                        rem_file=\$(remove_last_file_generated "m0trace" "$MD_DIR/datarecovery")
+                        echo "\$rem_file"
                 fi
 EOF
             #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
@@ -953,16 +956,16 @@ EOF
 
                 if [[ $core_m0beck_file_count -gt $max_core_file_count ]]; then
                         echo "Deleting core m0beck extra file $core_m0beck_file_count"
-                        rem=$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
-                        echo $rem
+                        rem_file=$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
+                        echo "$rem_file"
                 fi
                 
                 m0trace_file_count=$(get_file_count "m0trace" "$FAILOVER_MD_DIR/datarecovery" "$SCRIPT_START_TIME")
                 echo "File count value $m0trace_file_count"
                 if [[ $m0trace_file_count -gt $max_trace_file_count ]]; then
                         echo "Deleting core m0beck extra file $m0trace_file_count"
-                        rem=$(remove_last_file_generated "m0trace" "$FAILOVER_MD_DIR/datarecovery")
-                        echo $rem
+                        rem_file=$(remove_last_file_generated "m0trace" "$FAILOVER_MD_DIR/datarecovery")
+                        echo "$rem_file"
                 fi
                 #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
 
