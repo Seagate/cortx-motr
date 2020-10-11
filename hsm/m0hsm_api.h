@@ -27,9 +27,10 @@
 #ifndef __MOTR_HSM_M0HSM_API_H__
 #define __MOTR_HSM_M0HSM_API_H__
 
-#include "motr/client.h"
 #include <stdio.h>
 #include <stdint.h>
+
+#include "motr/client.h"
 
 /*
  * Before using HSM calls, application should initialize Motr client API
