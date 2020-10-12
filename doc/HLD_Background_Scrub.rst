@@ -58,4 +58,10 @@ Requirements
 
 - [r.background.scrub.repair.code.reuse] Background scrub should try to reuse code parts from SNS repair. 
 
-- [r.background.scrub.halon] Background scrub should be able to notify halon in case the number of failures are more than K. 
+- [r.background.scrub.halon] Background scrub should be able to notify halon in case the number of failures are more than K.
+
+*******************
+Design Highlights
+*******************
+
+Background scrub is implemented as a Motr service with its corresponding foms. Unlike SNS repair, scrubbing involves reconstruction of a small subset of data, e.g. a parity group and does not have to be a distributed operation. Although being a pull model (compared to push model of SNS repair), it reuses selected parts of i/o, transformation and network communication as in SNS repair. Data scrubbing is performed as a continuous operation and also on-demand basis. It is started as a background process, thus it is necessary to give a higher priority to normal i/o operations in order to make the data available to user all the time. Failures during data scrubbing must be accounted appropriately and reported to the relevant entity. System resources, e.g. memory, cpu and network bandwidth, must be used judiciously. Background scrub subsystem may have to interact with other Motr subsystems, e.g. i/o, SNS repair, Halon, etc. for concurrency control and failure handling. Scrubbing must be halted in case SNS repair takes over due to a device failure (e.g. disk, controller, Enclosure, rack, etc.).
