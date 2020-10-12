@@ -30,4 +30,32 @@ Following terms are used to discuss and describe background scrub:
 
 - scrub group: a group of relevant data blocks typically distributed across storage devices in a cluster, e.g. a parity group. 
 
-- transformation: reconstruction performed by background scrub worker in-order to recover the corrupted data.    
+- transformation: reconstruction performed by background scrub worker in-order to recover the corrupted data.
+
+***************
+Requirements
+***************
+
+- [r.background.scrub.triggers] Background scrub can be triggered by an i/o failure due to DI checksum mismatch of a data block or by scanner. 
+
+- [r.background.scrub.scan] Scanner can be running continuously in the background. 
+
+- [r.background.scrub.scan.efficient] Scanner should efficiently scan disks for corruptions in a  non-blocking fashion. 
+
+- [r.background.scrub.scan.progress] Scanner should provide an interface that allows to query its progress. 
+
+- [r.background.scrub.io] Scrubber reads and writes relevant data from and to the disk. Reconstructed data is written in a newly allocated data block on the same disk having the failed block. 
+
+- [r.background.scrub.net] Scrubber sends and receives data from remote nodes over the network. 
+
+- [r.background.scrub.xform] Scrubber transforms the data read in-order to reconstruct the lost data. 
+
+- [r.background.scrub.failures] Background scrub should handle failures during its progress, accordingly suspend (for SNS repair to take over) or restart. 
+
+- [r.background.scrub.DI.interface] Background scrub should provide an interface to interact with DI. 
+
+- [r.background.scrub.sns.repair] It should be possible to suspend an ongoing background scrub operation if SNS repair is triggered, possibly due to a device failure. 
+
+- [r.background.scrub.repair.code.reuse] Background scrub should try to reuse code parts from SNS repair. 
+
+- [r.background.scrub.halon] Background scrub should be able to notify halon in case the number of failures are more than K. 
