@@ -160,6 +160,7 @@ struct action {
 	const struct action_ops *a_ops;
 	struct action           *a_next;
 	struct action           *a_prev;
+	off_t	                 a_scan_off;
 };
 
 struct cob_action {
@@ -254,6 +255,11 @@ struct emap_action {
 	struct m0_be_emap_rec   emap_val_data;  /**< emap val data */
 };
 
+struct offset_info {
+	uint64_t magic;
+	off_t    offset;
+};
+
 static int  init(void);
 static void fini(void);
 static int  scan (struct scanner *s);
@@ -330,6 +336,8 @@ static void  emap_fini(struct action *act);
 static int   emap_kv_get(struct scanner *s, const struct be_btree_key_val *kv,
 		         struct m0_buf *key_buf, struct m0_buf *val_buf);
 static void  sig_handler(int num);
+static off_t get_scan_offset(void);
+static void  update_scan_offset(off_t offset);
 
 static const struct recops btreeops;
 static const struct recops bnodeops;
@@ -435,6 +443,7 @@ static struct gen g[MAX_GEN] = {};
 static bool  dry_run = false;
 static bool  disable_directio = false;
 static bool  signaled = false;
+static bool  resume_scan = false;
 
 #define FLOG(level, rc, s)						\
 	M0_LOG(level, " rc=%d  at offset: %"PRId64" errno: %s (%i), eof: %i", \
@@ -480,6 +489,7 @@ int main(int argc, char **argv)
 		   M0_FLAGARG('U', "Run unit tests.", &ut),
 		   M0_FLAGARG('n', "Dry Run.", &dry_run),
 		   M0_FLAGARG('I', "Disable directio.", &disable_directio),
+		   M0_FLAGARG('r', "resume scan.", &resume_scan),
 		   M0_FLAGARG('p', "Print Generation Identifier.",
 			      &print_gen_id),
 		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
@@ -683,8 +693,14 @@ static int scan(struct scanner *s)
 	int      result;
 	int      i;
 	time_t   lasttime = time(NULL);
-	off_t    lastoff  = s->s_off;
+	off_t    lastoff;
 
+	if (resume_scan) {
+		s->s_off = get_scan_offset();
+		M0_LOG(M0_DEBUG, "Resuming Scan from Offset = %li", s->s_off);
+		printf("Resuming Scan from Offset = %li", s->s_off);
+	}
+	lastoff = s->s_off;
 	setvbuf(s->s_file, iobuf, _IOFBF, sizeof iobuf);
 	while (!signaled && (result = get(s, &magic, sizeof magic)) == 0) {
 		if (magic == M0_FORMAT_HEADER_MAGIC) {
@@ -1094,7 +1110,7 @@ static int emap_proc(struct scanner *s, struct btype *b,
 			m0_free(emap_act);
 			continue;
 		}
-
+		emap_act->emap_act.a_scan_off = s->s_off;
 		qput(s->s_q, &emap_act->emap_act);
 	}
 	return ret;
@@ -1313,6 +1329,43 @@ static void genadd(uint64_t gen)
 	}
 }
 
+enum { BE_TX_DELTA = 1024 };
+const char *saved_off_path = "/var/motr/scan_offset";
+
+static off_t get_scan_offset(void)
+{
+	FILE   *ofptr;
+	struct  offset_info off_info;
+	int     ret;
+	off_t   offset = 0;
+
+	ofptr = fopen(saved_off_path, "r");
+	if (ofptr == NULL)
+		return 0;
+	ret = fread(&off_info, sizeof(struct offset_info), 1, ofptr);
+	if(ret > 0 && off_info.magic == M0_FORMAT_HEADER_MAGIC)
+		offset = off_info.offset;
+	fclose(ofptr);
+	return offset;
+}
+
+static void update_scan_offset(off_t offset)
+{
+	FILE   *ofptr;
+	struct  offset_info off_info;
+
+	ofptr = fopen(saved_off_path, "w+");
+	if (ofptr == NULL) {
+		printf("Cannot open seek_offset file :%s\n", saved_off_path);
+		return;
+	}
+	off_info.magic = M0_FORMAT_HEADER_MAGIC;
+	off_info.offset = offset;
+	fwrite(&off_info, sizeof(struct offset_info), 1, ofptr);
+	fclose(ofptr);
+	return;
+}
+
 static void builder_process(struct builder *b)
 {
 	struct action      *act;
@@ -1333,8 +1386,12 @@ static void builder_process(struct builder *b)
 	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
 	m0_sm_group_unlock(grp);
+
 	b->b_cred = M0_BE_TX_CREDIT(0, 0);
 	b->b_tx++;
+	if (b->b_tx % BE_TX_DELTA == 0) {
+		update_scan_offset(act->a_scan_off);
+	}
 }
 
 static void builder_thread(struct builder *b)
@@ -1579,6 +1636,7 @@ static void *builder_action(struct builder *b, size_t len,
 	act->a_opc = opc;
 	act->a_ops = ops;
 	act->a_builder = b;
+	act->a_scan_off = 0;
 	return act;
 }
 
@@ -1823,6 +1881,7 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 		ca->cta_key = kl[i];
 		ca->cta_val = vl[i];
 		ca->cta_ismeta = ismeta;
+		ca->cta_act.a_scan_off = s->s_off;
 		qput(s->s_q, (struct action *)ca);
 	}
 	return 0;
@@ -2137,8 +2196,10 @@ static int cob_proc(struct scanner *s, struct btype *b,
 		}
 		if ((format_header_verify(ca->coa_val.b_addr,
 					  M0_FORMAT_TYPE_COB_NSREC) == 0) &&
-		    (m0_format_footer_verify(ca->coa_valdata, false) == 0))
+		    (m0_format_footer_verify(ca->coa_valdata, false) == 0)) {
+			ca->coa_act.a_scan_off = s->s_off;
 			qput(s->s_q, (struct action *)ca);
+		}
 		else {
 			btree_bad_kv_count_update(bb->bli_type, 1);
 			m0_buf_free(&ca->coa_key);
