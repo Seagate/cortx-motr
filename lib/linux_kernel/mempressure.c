@@ -1,38 +1,32 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published
- * by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- * 
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- * 
- * For any questions about this software or licensing, please email opensource@seagate.com
- * or cortx-questions@seagate.com.
+ * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * For any questions about this software or licensing,
+ * please email opensource@seagate.com or cortx-questions@seagate.com.
  *
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MEMORY
-#if !defined(__KERNEL__)
-#endif
-
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
-
 #include "lib/mempressure.h"
-#include "module/instance.h"
 
 /**
  *  Get method for current event if exist?
  */
-M0_INTERNAL enum m0_arch_mempressure_level m0_mempressure_get(void)
+M0_INTERNAL enum m0_mempressure_level m0_arch_mempressure_get(void)
 {
 	M0_LOG(M0_ERROR, "m0_mempressure_get not supported.");
 	return M0_ERR(-ENOSYS);
@@ -61,7 +55,7 @@ M0_INTERNAL void m0_arch_mempressure_cb_del(struct m0_mempressure_cb *cb)
  *  initialize event queue.
  *  create/run three level [ low, medium, critical ] non-blocking threads. 
  */
-M0_INTERNAL int m0_arch_mempressure_mod_init()
+M0_INTERNAL int m0_arch_mempressure_mod_init(void)
 {
 	return 0;
 }
@@ -69,7 +63,7 @@ M0_INTERNAL int m0_arch_mempressure_mod_init()
 /**
  * finialize the mempressure mod.
  */
-M0_INTERNAL void m0_arch_mempressure_mod_fini()
+M0_INTERNAL void m0_arch_mempressure_mod_fini(void)
 {
 }
 
