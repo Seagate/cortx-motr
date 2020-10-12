@@ -445,6 +445,8 @@ static bool  disable_directio = false;
 static bool  signaled = false;
 static bool  resume_scan = false;
 
+static const char *offset_fname = NULL;
+
 #define FLOG(level, rc, s)						\
 	M0_LOG(level, " rc=%d  at offset: %"PRId64" errno: %s (%i), eof: %i", \
 	       (rc), ftell(s->s_file), strerror(errno), errno, feof(s->s_file))
@@ -489,7 +491,11 @@ int main(int argc, char **argv)
 		   M0_FLAGARG('U', "Run unit tests.", &ut),
 		   M0_FLAGARG('n', "Dry Run.", &dry_run),
 		   M0_FLAGARG('I', "Disable directio.", &disable_directio),
-		   M0_FLAGARG('r', "resume scan.", &resume_scan),
+		   M0_FLAGARG('R', "resume scan.", &resume_scan),
+		   M0_STRINGARG('r', "file to scan offset.",
+			LAMBDA(void, (const char *fname) {
+				offset_fname = fname;
+			})),
 		   M0_FLAGARG('p', "Print Generation Identifier.",
 			      &print_gen_id),
 		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
@@ -515,6 +521,9 @@ int main(int argc, char **argv)
 	}
 	if (dry_run)
 		printf("Running in read-only mode.\n");
+
+	if (offset_fname == NULL && !dry_run)
+		errx(EX_USAGE, "Specify file to save scan offset (-r).");
 
 	if (b.b_dom_path == NULL && !dry_run && !print_gen_id)
 		errx(EX_USAGE, "Specify domain path (-d).");
@@ -695,10 +704,11 @@ static int scan(struct scanner *s)
 	time_t   lasttime = time(NULL);
 	off_t    lastoff;
 
-	if (resume_scan) {
+	if (resume_scan && !dry_run) {
 		s->s_off = get_scan_offset();
 		M0_LOG(M0_DEBUG, "Resuming Scan from Offset = %li", s->s_off);
-		printf("Resuming Scan from Offset = %li", s->s_off);
+		printf("Resuming Scan from Offset = %li file %s",
+		       s->s_off, offset_fname);
 	}
 	lastoff = s->s_off;
 	setvbuf(s->s_file, iobuf, _IOFBF, sizeof iobuf);
@@ -1330,7 +1340,6 @@ static void genadd(uint64_t gen)
 }
 
 enum { BE_TX_DELTA = 1024 };
-const char *saved_off_path = "/var/motr/scan_offset";
 
 static off_t get_scan_offset(void)
 {
@@ -1339,7 +1348,7 @@ static off_t get_scan_offset(void)
 	int     ret;
 	off_t   offset = 0;
 
-	ofptr = fopen(saved_off_path, "r");
+	ofptr = fopen(offset_fname, "r");
 	if (ofptr == NULL)
 		return 0;
 	ret = fread(&off_info, sizeof(struct offset_info), 1, ofptr);
@@ -1354,9 +1363,9 @@ static void update_scan_offset(off_t offset)
 	FILE   *ofptr;
 	struct  offset_info off_info;
 
-	ofptr = fopen(saved_off_path, "w+");
+	ofptr = fopen(offset_fname, "w+");
 	if (ofptr == NULL) {
-		printf("Cannot open seek_offset file :%s\n", saved_off_path);
+		printf("Cannot open seek_offset file :%s\n", offset_fname);
 		return;
 	}
 	off_info.magic = M0_FORMAT_HEADER_MAGIC;
