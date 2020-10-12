@@ -19,6 +19,7 @@ import (
     "unsafe"
     "fmt"
     "flag"
+    "log"
 )
 
 type mio struct {
@@ -32,11 +33,6 @@ func usage() {
     flag.PrintDefaults()
 }
 
-func err(msg string) {
-    fmt.Printf("%s: %s\n", os.Args[0], msg)
-    os.Exit(1)
-}
-
 func check_arg(arg *string, name string) {
     if *arg == "" {
         fmt.Printf("%s: %s must be specified\n", os.Args[0], name)
@@ -45,8 +41,10 @@ func check_arg(arg *string, name string) {
     }
 }
 
-func main() {
+func init() {
     flag.Usage = usage
+    log.SetPrefix(os.Args[0] + ": ")
+    log.SetFlags(log.Lmsgprefix | log.Ldate | log.Ltime)
 
     // Mandatory
     local_ep := flag.String("ep", "", "my `endpoint` address")
@@ -66,6 +64,7 @@ func main() {
     if !*trace_on {
         C.m0_trace_set_mmapped_buffer(false)
     }
+
     C.conf.mc_is_oostore     = true
     C.conf.mc_local_addr     = C.CString(*local_ep)
     C.conf.mc_ha_addr        = C.CString(*hax_ep)
@@ -76,10 +75,12 @@ func main() {
     C.conf.mc_idx_service_id  = C.M0_IDX_DIX;
     C.dix_conf.kc_create_meta = false;
     C.conf.mc_idx_service_conf = unsafe.Pointer(&C.dix_conf)
+}
 
+func main() {
     rc := C.m0_client_init(&C.instance, &C.conf, true)
     if rc != 0 {
-        err(fmt.Sprintf("m0_client_init() failed: %v", rc))
+        log.Panicf("m0_client_init() failed: %v", rc)
     }
-    C.m0_client_fini(C.instance, true)
+    defer C.m0_client_fini(C.instance, true)
 }
