@@ -103,9 +103,8 @@ M0_INTERNAL uint64_t m0_rpc_id_generate(const struct m0_fid *uniq_fid)
 		m0_atomic64_inc(&cnt);
 		millisec = m0_time_nanoseconds(m0_time_now()) * 1000000;
 		id = (millisec << 10) | (m0_atomic64_get(&cnt) & 0x3FF);
+		id = m0_hash(m0_fid_hash(uniq_fid) + id);
 	} while (id == 0 || id == UINT64_MAX);
-
-	id = m0_hash(m0_fid_hash(uniq_fid) + id);
 
 	return id;
 }
