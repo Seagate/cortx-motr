@@ -48,4 +48,38 @@ Telemetry Interface
 
 As part of the standard functions of any management tool the ability to request metrics about the performance and state of the underlying system is a necessity. The HAlon sub system holds what is considered to be the ground truth of the state of the system thus for all metrics and status information it holds within its resource graph the query should be processed by HAlon itself.
 
-It is fore seen that there will be scenarios in which information is being queried that is being recorded by the DCS Collector but about which HAlon has no awareness, in these cases the results should be acquired directly from the node in question through the Low Level verbs. With this information not being held in HAlon’s resource graph there is a requirement that the HL will be able to identify and access the necessary local node Low Level instance.       
+It is fore seen that there will be scenarios in which information is being queried that is being recorded by the DCS Collector but about which HAlon has no awareness, in these cases the results should be acquired directly from the node in question through the Low Level verbs. With this information not being held in HAlon’s resource graph there is a requirement that the HL will be able to identify and access the necessary local node Low Level instance.
+
+***************
+Low Level Verbs
+***************
+
+The Low Level verbs are intended to provide complete abstraction from the underlying hardware and software stacks and to be the interface through which actions on the system are carried out.
+
+Low Level functionality is to include the ability to query underlying hardware and software as well as instruction those components to carry out actions directly related to High Availability; configuration changes and metrics gathering.
+
+It is desired that there be an active component to this library such that upstream applications can register an interest in various resources abstracted away from them by the library. The HAlon system is relying on the Low Level verbs to generate and transmit a stream of events the HAlon stream collectors. 
+
+There are three capabilities to be offered by the Low Level verbs these are:
+
+- Action- Use the actuator code to carry out an operation on the system
+
+- Read - Access a locally stored value and statically read that back
+
+- Listen- Register an interest in notification of state changes; all listeners notified when state change detected
+
+Both actuators and monitors are modular in design and should plug into the LL verbs framework. This is so that future actuators and monitors can be added to extend overall SSPL capabilities without upstream changes being required.
+
+Actuators
+=============== 
+
+The actuators are the parts of the Low Level verbs that are designed to carry out actions on a system and return to the caller the result of these calls. 
+
+Services started with optional configuration file paths: Handles scenarios where an alternative config file might be a valid cause for restart of a node service. 
+
+Sensors
+=======
+
+Three capabilities are to be offered by the monitor component of the Low Level verbs. This is expected to provide the hardware / software abstraction layer to hide the underlying environment from the higher level systems such as HAlon.
+
+SSPL will also likely need to provide an API for access the Motr stats service.        
