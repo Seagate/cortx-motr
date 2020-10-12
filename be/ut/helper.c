@@ -398,6 +398,60 @@ check_mkfs:
 	return rc;
 }
 
+
+M0_INTERNAL int
+m0_be_ut_backend_init_cfg_create(struct m0_be_ut_backend *ut_be,
+				 const struct m0_be_domain_cfg *cfg,
+				 bool mkfs)
+{
+	struct m0_be_domain     *dom;
+	struct m0_be_domain_cfg *c;
+	int                      rc = 0;
+
+	m0_bob_init(&m0_ut_be_backend_bobtype, ut_be);
+
+	ut_be->but_sm_groups_unlocked = false;
+	m0_mutex_init(&ut_be->but_sgt_lock);
+
+	if (cfg == NULL)
+		m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
+	else
+		/*
+		 * Make a copy of `cfg': it can be an automatic variable,
+		 * which scope we should not rely on.
+		 */
+		ut_be->but_dom_cfg = *cfg;
+
+	c = &ut_be->but_dom_cfg;
+	dom = &ut_be->but_dom;
+
+	/* Create reqh, if necessary. */
+	if (c->bc_engine.bec_reqh == NULL)
+		m0_be_ut_reqh_create(&c->bc_engine.bec_reqh);
+
+	/* Use m0_be_ut_backend's stob domain location, if possible. */
+	if (ut_be->but_stob_domain_location != NULL)
+		c->bc_stob_domain_location = ut_be->but_stob_domain_location;
+
+	c->bc_mkfs_mode = mkfs;
+
+	c->bc_log.lc_got_space_cb = m0_be_engine_got_log_space_cb;
+	c->bc_log.lc_full_cb      = m0_be_engine_full_log_cb;
+	c->bc_log.lc_lock         = &dom->bd_engine_lock;
+
+	be_domain_log_cleanup(c->bc_stob_domain_location, &c->bc_log, c->bc_mkfs_mode);
+
+	rc = m0_be_log_create(m0_be_domain_log(dom), &c->bc_log);
+	M0_ASSERT(rc == 0);
+
+	m0_be_log_close(m0_be_domain_log(dom));
+
+	if (ut_be->but_sgt_lock.m_owner)
+		m0_mutex_fini(&ut_be->but_sgt_lock);
+
+	return rc;
+}
+
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
 	int rc = m0_be_ut_backend_init_cfg(ut_be, NULL, true);
