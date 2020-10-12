@@ -80,7 +80,6 @@
  * @{
  */
 
-#if !defined(__KERNEL__)
 static int  thread_start(struct mempressure_obj *lobj);
 static void listener_thread(struct mempressure_obj *lobj);
 static void close_fd_on_exit(struct mempressure_obj *lobj);
@@ -100,8 +99,9 @@ M0_TL_DESCR_DEFINE(runmq, "runq mp", static,
 M0_TL_DEFINE(runmq, static, struct m0_mempressure_cb);
 
 enum {
-	MAX_EVENTS = 2,
+	MAX_EVENTS = 3,
 	SLEN       = 32,
+	TIME_OUT   = 20000,
 };
 
 /**
@@ -116,12 +116,10 @@ static const char *level_name[] = {
 	"critical",
 };
 static char        c_group[SLEN];
-#endif
 
 /**
  * variadic path generating function.
  */
-#if !defined(__KERNEL__)
 static int path_snprintf(char *buf, size_t buflen, const char *format, ...)
 {
 	va_list ap;
@@ -134,12 +132,10 @@ static int path_snprintf(char *buf, size_t buflen, const char *format, ...)
 		return -1;
 	return len;
 }
-#endif
 
 /**
  * variadic command execute function.
  */
-#if !defined(__KERNEL__)
 static int system_do(char *buf, size_t buflen, const char *format, ...)
 {
 	va_list ap;
@@ -157,22 +153,18 @@ static int system_do(char *buf, size_t buflen, const char *format, ...)
 		return -1;
 	return res;
 }
-#endif
 
 /**
  * group lock to protect subscriber event queue.
  */
-#if !defined(__KERNEL__)
 static void event_group_lock(struct m0_mempressure *mp_obj)
 {
 	m0_mutex_lock(&mp_obj->mp_gr_lock);
 }
-#endif
 
 /**
  * Publishes a new event to all the subscribers.
  */
-#if !defined(__KERNEL__)
 static void mp_event_th_run(struct m0_mempressure *mp)
 {
 	struct m0_mempressure_cb *icb;
@@ -185,24 +177,20 @@ static void mp_event_th_run(struct m0_mempressure *mp)
 	} m0_tl_endfor;
 	M0_LEAVE();
 }
-#endif
 
 /**
  * unlock subscriber event queue.
  */
-#if !defined(__KERNEL__)
 static void event_group_unlock(struct m0_mempressure *mp_obj)
 {
 	m0_mutex_unlock(&mp_obj->mp_gr_lock);
 }
-#endif
 
 /**
  * start event listener thread for any obvious event occur.
  *   validate [cgroup/mempresure/ecent_control] path
  *   create and run thread per level.
  */
-#if !defined(__KERNEL__)
 static int thread_start(struct mempressure_obj *lobj)
 {
 	int  result;
@@ -258,12 +246,10 @@ static int thread_start(struct mempressure_obj *lobj)
 	err_blk:
 		return result;
 }
-#endif
 
 /**
  *  close all the fds created by the listener thread.
  */
-#if !defined(__KERNEL__)
 static void close_fd_on_exit(struct mempressure_obj *lobj)
 {
 	int fd;
@@ -287,12 +273,10 @@ static void close_fd_on_exit(struct mempressure_obj *lobj)
 	}
 	M0_LEAVE();
 }
-#endif
 
 /**
  * FD to level translation.
  */
-#if !defined(__KERNEL__)
 static int fd_to_level(struct mempressure_obj *mobj, int fd)
 {
 	int i;
@@ -302,7 +286,6 @@ static int fd_to_level(struct mempressure_obj *mobj, int fd)
 	}
 	return -1;
 }
-#endif
 
 
 /**
@@ -311,7 +294,6 @@ static int fd_to_level(struct mempressure_obj *mobj, int fd)
  * publish the event ast during unlock to all subscriber.
  *
  */
-#if !defined(__KERNEL__)
 static void listener_thread(struct mempressure_obj *lobj)
 {
 	int      result;
@@ -345,7 +327,7 @@ static void listener_thread(struct mempressure_obj *lobj)
 		if (!lobj->mo_p_ref->mp_active)
 			break;
 		lobj->mo_p_ref->mp_cur_level = -1;
-		result = epoll_wait(ep_fd, &events[0], M0_MPL_NR, 50000);
+		result = epoll_wait(ep_fd, &events[0], M0_MPL_NR, TIME_OUT);
 		if ( result != -1) {
 			level = -1;
 			for ( rc = 0; rc < result; rc++) {
@@ -380,39 +362,30 @@ static void listener_thread(struct mempressure_obj *lobj)
 		}
 	M0_LEAVE();
 }
-#endif
 
 /**
  *  Get method for current event if exist?
  */
 M0_INTERNAL enum m0_mempressure_level m0_mempressure_get(void)
 {
-#if !defined(__KERNEL__)
-
 #ifndef HAVE_MEMPRESSURE
 	return M0_ERR(-ENOSYS);;
 #endif
 	struct m0_mempressure *mp_obj = m0_get()->i_moddata[M0_MODULE_MP];
 	return mp_obj->mp_cur_level;
-#else
-	return M0_ERR(-ENOSYS);
-#endif
 }
-M0_EXPORTED(m0_mempressure_get);
 
 /**
  * subscribe interface for registering event_th.
  */
 M0_INTERNAL int m0_mempressure_cb_add(struct m0_mempressure_cb *cb)
 {
-#if !defined(__KERNEL__)
+	struct m0_mempressure *mp = m0_get()->i_moddata[M0_MODULE_MP];
 
 #ifndef HAVE_MEMPRESSURE
 	M0_LOG(M0_ERROR, "m0_mempressure_cb_add not supported.");
 	return M0_ERR(-ENOSYS);;
 #endif
-	struct m0_mempressure *mp = m0_get()->i_moddata[M0_MODULE_MP];
-
 	M0_ENTRY();
 	M0_LOG(M0_DEBUG, "m0_mempressure_cb_add: %p.", cb);
 	event_group_lock(mp);
@@ -420,26 +393,19 @@ M0_INTERNAL int m0_mempressure_cb_add(struct m0_mempressure_cb *cb)
 	event_group_unlock(mp);
 	M0_LEAVE();
 	return 0;
-#else
-	M0_LOG(M0_ERROR, "m0_mempressure_cb_add not supported.");
-	return M0_ERR(-ENOSYS);;
-#endif
 }
-M0_EXPORTED(m0_mempressure_cb_add);
 
 /**
  * unsubscribe interface for event_th.
  */
 M0_INTERNAL void m0_mempressure_cb_del(struct m0_mempressure_cb *cb)
 {
-#if !defined(__KERNEL__)
-
-#ifndef HAVE_MEMPRESSURE
-	M0_LOG(M0_ERROR, "m0_mempressure_cb_add not supported.");
-	return;
-#endif
 	struct m0_mempressure *mp = m0_get()->i_moddata[M0_MODULE_MP];;
 
+#ifndef HAVE_MEMPRESSURE
+	M0_LOG(M0_ERROR, "m0_mempressure_cb_del not supported.");
+	return;
+#endif
 	M0_ENTRY();
 	M0_LOG(M0_DEBUG, "m0_mempressure_cb_del: %p.", cb);
 	event_group_lock(mp);
@@ -447,12 +413,7 @@ M0_INTERNAL void m0_mempressure_cb_del(struct m0_mempressure_cb *cb)
 	runmq_tlink_del_fini(cb);
 	event_group_unlock(mp);
 	M0_LEAVE();
-#else
-	M0_LOG(M0_ERROR, "m0_mempressure_cb_add not supported.");
-	return;
-#endif
 }
-M0_EXPORTED(m0_mempressure_cb_del);
 
 /**
  * mod init method.
@@ -462,7 +423,6 @@ M0_EXPORTED(m0_mempressure_cb_del);
  */
 M0_INTERNAL int m0_mempressure_mod_init()
 {
-#if !defined(__KERNEL__)
 	int    result;
 	int    pid;
 	char   cgroup_cmd[PATH_MAX];
@@ -515,11 +475,7 @@ M0_INTERNAL int m0_mempressure_mod_init()
 			return M0_ERR(-ENOSYS);
 		}
 	return 0;
-#else
-	return 0;
-#endif
 }
-M0_EXPORTED(m0_mempressure_mod_init);
 
 
 /**
@@ -527,7 +483,6 @@ M0_EXPORTED(m0_mempressure_mod_init);
  */
 M0_INTERNAL void m0_mempressure_mod_fini()
 {
-#if !defined(__KERNEL__)
 	struct mempressure_obj  mobj;
 	char                    cgroup_cmd[PATH_MAX];
 
@@ -551,11 +506,7 @@ M0_INTERNAL void m0_mempressure_mod_fini()
 		  c_group);
 	m0_free(mp_obj);
 	M0_LEAVE();
-#else
-	return;
-#endif
 }
-M0_EXPORTED(m0_mempressure_mod_fini);
 
 /** @} end of mempressure */
 #undef M0_TRACE_SUBSYSTEM

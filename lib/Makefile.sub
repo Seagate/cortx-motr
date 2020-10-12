@@ -79,7 +79,6 @@ motr_libmotr_la_SOURCES += lib/assert.c \
                            lib/lockers.c \
                            lib/m0lib.c \
                            lib/memory.c \
-                           lib/mempressure.c \
                            lib/misc.c \
                            lib/mutex.c \
                            lib/queue.c \
@@ -100,6 +99,7 @@ motr_libmotr_la_SOURCES += lib/assert.c \
                            lib/user_space/finject_init.c \
                            lib/user_space/fs.c \
                            lib/user_space/memory.c \
+                           lib/user_space/mempressure.c \
                            lib/user_space/processor.c \
                            lib/user_space/rwlock.c \
                            lib/user_space/semaphore.c \
@@ -152,6 +152,7 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/kuuid.c \
               lib/linux_kernel/kvec.c \
               lib/linux_kernel/memory.c \
+              lib/linux_kernel/mempressure.c \
               lib/linux_kernel/misc.h \
               lib/linux_kernel/mutex.c \
               lib/linux_kernel/mutex.h \
