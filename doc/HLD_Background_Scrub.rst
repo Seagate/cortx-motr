@@ -125,5 +125,23 @@ The scrubber needs to handle failures during the operation. Typical failures wou
 
 - In case the total failures in a scrub group are more than the tolerance factor then make the available redundancy, parity in a parity group for instance, consistent with respect to the available data.
 
-Failure handling must be restricted to the relevant scrubbing operation without affecting other scrubbing operations in-progress. A failed scrub can be retried in further iterations.    
+Failure handling must be restricted to the relevant scrubbing operation without affecting other scrubbing operations in-progress. A failed scrub can be retried in further iterations.
+
+***************
+Scalability
+***************
+
+Major factor affecting data scrubbing operations are:
+
+- Number of storage devices in the given node 
+
+- Amount of data stored in the devices 
+
+- Concurrent normal operations 
+
+- Frequency of corruptions reported 
+
+- Mean time taken by scanner to scan all the data blocks on all the storage devices in a node. 
+
+- Time taken by scrubber to process a scrub request 
   
