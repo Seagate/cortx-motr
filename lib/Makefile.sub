@@ -79,6 +79,7 @@ motr_libmotr_la_SOURCES += lib/assert.c \
                            lib/lockers.c \
                            lib/m0lib.c \
                            lib/memory.c \
+                           lib/mempressure.c \
                            lib/misc.c \
                            lib/mutex.c \
                            lib/queue.c \

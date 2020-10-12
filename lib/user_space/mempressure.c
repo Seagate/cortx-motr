@@ -21,19 +21,8 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MEMORY
-#if !defined(__KERNEL__)
-#include <sys/eventfd.h>
-#include <sys/epoll.h>
-#include <libgen.h>
-#include <errno.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#endif
-
 #include "lib/trace.h"
 
-#include "lib/mutex.h"
 #include "lib/mempressure.h"
 #include "lib/memory.h"
 #include "module/instance.h"
@@ -366,7 +355,7 @@ static void listener_thread(struct mempressure_obj *lobj)
 /**
  *  Get method for current event if exist?
  */
-M0_INTERNAL enum m0_mempressure_level m0_mempressure_get(void)
+M0_INTERNAL enum m0_mempressure_level m0_arch_mempressure_get(void)
 {
 #ifndef HAVE_MEMPRESSURE
 	return M0_ERR(-ENOSYS);;
@@ -378,7 +367,7 @@ M0_INTERNAL enum m0_mempressure_level m0_mempressure_get(void)
 /**
  * subscribe interface for registering event_th.
  */
-M0_INTERNAL int m0_mempressure_cb_add(struct m0_mempressure_cb *cb)
+M0_INTERNAL int m0_arch_mempressure_cb_add(struct m0_mempressure_cb *cb)
 {
 	struct m0_mempressure *mp = m0_get()->i_moddata[M0_MODULE_MP];
 
@@ -398,7 +387,7 @@ M0_INTERNAL int m0_mempressure_cb_add(struct m0_mempressure_cb *cb)
 /**
  * unsubscribe interface for event_th.
  */
-M0_INTERNAL void m0_mempressure_cb_del(struct m0_mempressure_cb *cb)
+M0_INTERNAL void m0_arch_mempressure_cb_del(struct m0_mempressure_cb *cb)
 {
 	struct m0_mempressure *mp = m0_get()->i_moddata[M0_MODULE_MP];;
 
@@ -421,7 +410,7 @@ M0_INTERNAL void m0_mempressure_cb_del(struct m0_mempressure_cb *cb)
  *  initialize event queue.
  *  create/run three level [ low, medium, critical ] non-blocking threads. 
  */
-M0_INTERNAL int m0_mempressure_mod_init()
+M0_INTERNAL int m0_arch_mempressure_mod_init()
 {
 	int    result;
 	int    pid;
@@ -481,7 +470,7 @@ M0_INTERNAL int m0_mempressure_mod_init()
 /**
  * finialize the mempressure mod.
  */
-M0_INTERNAL void m0_mempressure_mod_fini()
+M0_INTERNAL void m0_arch_mempressure_mod_fini()
 {
 	struct mempressure_obj  mobj;
 	char                    cgroup_cmd[PATH_MAX];

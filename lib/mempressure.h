@@ -23,7 +23,19 @@
 #ifndef __MOTR_LIB_MEMPRESSURE_H__
 #define __MOTR_LIB_MEMPRESSURE_H__
 
-#include "lib/thread.h"
+#if !defined(__KERNEL__)
+#include <sys/eventfd.h>
+#include <sys/epoll.h>
+#include <libgen.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#endif
+
+
+#include "lib/thread.h"         /* m0_thread */
+#include "lib/mutex.h"          /* m0_mutex */
 
 #ifdef __KERNEL__
 #define PATH_MAX        4096

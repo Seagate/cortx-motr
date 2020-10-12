@@ -21,39 +21,42 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MEMORY
-#if !defined(__KERNEL__)
-#endif
-
 #include "lib/trace.h"
-
 #include "lib/mempressure.h"
 #include "module/instance.h"
+
+M0_INTERNAL int  m0_arch_mempressure_mod_init(void);
+M0_INTERNAL void m0_arch_mempressure_mod_fini(void);
+M0_INTERNAL enum m0_mempressure_level m0_arch_mempressure_get(void);
+M0_INTERNAL int  m0_arch_mempressure_cb_add(struct m0_mempressure_cb *cb);
+M0_INTERNAL void m0_arch_mempressure_cb_del(struct m0_mempressure_cb *cb);
 
 /**
  *  Get method for current event if exist?
  */
-M0_INTERNAL enum m0_arch_mempressure_level m0_mempressure_get(void)
+M0_INTERNAL enum m0_mempressure_level m0_mempressure_get(void)
 {
-	M0_LOG(M0_ERROR, "m0_mempressure_get not supported.");
-	return M0_ERR(-ENOSYS);
+	return m0_arch_mempressure_get();
 }
+M0_EXPORTED(m0_mempressure_get);
 
 /**
  * subscribe interface for registering event_th.
  */
-M0_INTERNAL int m0_arch_mempressure_cb_add(struct m0_mempressure_cb *cb)
+M0_INTERNAL int m0_mempressure_cb_add(struct m0_mempressure_cb *cb)
 {
-	M0_LOG(M0_ERROR, "m0_mempressure_cb_add not supported.");
-	return M0_ERR(-ENOSYS);;
+	return m0_arch_mempressure_cb_add(cb);
 }
+M0_EXPORTED(m0_mempressure_cb_add);
 
 /**
  * unsubscribe interface for event_th.
  */
-M0_INTERNAL void m0_arch_mempressure_cb_del(struct m0_mempressure_cb *cb)
+M0_INTERNAL void m0_mempressure_cb_del(struct m0_mempressure_cb *cb)
 {
-	M0_LOG(M0_ERROR, "m0_mempressure_cb_del not supported.");
+	m0_arch_mempressure_cb_del(cb);
 }
+M0_EXPORTED(m0_mempressure_cb_del);
 
 /**
  * mod init method.
@@ -61,17 +64,20 @@ M0_INTERNAL void m0_arch_mempressure_cb_del(struct m0_mempressure_cb *cb)
  *  initialize event queue.
  *  create/run three level [ low, medium, critical ] non-blocking threads. 
  */
-M0_INTERNAL int m0_arch_mempressure_mod_init()
+M0_INTERNAL int m0_mempressure_mod_init()
 {
-	return 0;
+	return m0_arch_mempressure_mod_init();
 }
+M0_EXPORTED(m0_mempressure_mod_init);
 
 /**
  * finialize the mempressure mod.
  */
-M0_INTERNAL void m0_arch_mempressure_mod_fini()
+M0_INTERNAL void m0_mempressure_mod_fini()
 {
+	m0_arch_mempressure_mod_fini();
 }
+M0_EXPORTED(m0_mempressure_mod_fini);
 
 /** @} end of mempressure */
 #undef M0_TRACE_SUBSYSTEM
