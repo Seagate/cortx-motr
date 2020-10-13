@@ -41,6 +41,7 @@ import "C"
 import (
     "errors"
     "os"
+    "io"
     "unsafe"
     "fmt"
     "flag"
@@ -51,6 +52,10 @@ type Mio struct {
     obj_id  C.struct_m0_uint128
     obj    *C.struct_m0_obj
     obj_lid uint
+    buf     C.struct_m0_bufvec
+    attr    C.struct_m0_bufvec
+    ext     C.struct_m0_indexvec
+    min_buf []byte
 }
 
 func usage() {
@@ -170,7 +175,7 @@ func (mio *Mio) Create(id string, sz uint64) (err error) {
     if err != nil {
         return err
     }
-    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.obj_id, 9)
+    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.obj_id, 1)
     var op *C.struct_m0_op
     rc := C.m0_entity_create(nil, &mio.obj.ob_entity, &op)
     if rc != 0 {
@@ -188,11 +193,12 @@ func (mio *Mio) Create(id string, sz uint64) (err error) {
     if rc != 0 {
         return errors.New(fmt.Sprintf("create op failed: %d", rc))
     }
+    mio.obj_lid = uint(mio.obj.ob_attr.oa_layout_id)
 
     return nil
 }
 
-func roundup_power2(x uint64) (power uint64) {
+func roundup_power2(x int) (power int) {
     for power = 1; power < x; power *= 2 {}
     return power
 }
@@ -200,7 +206,7 @@ func roundup_power2(x uint64) (power uint64) {
 const MAX_M0_BUFSZ = 128 * 1024 * 1024
 
 // Calculate the optimal block size for the I/O
-func (mio *Mio) get_optimal_bs(obj_sz uint64) uint64 {
+func (mio *Mio) get_optimal_bs(obj_sz int) int {
     if obj_sz > MAX_M0_BUFSZ {
             obj_sz = MAX_M0_BUFSZ
     }
@@ -209,29 +215,87 @@ func (mio *Mio) get_optimal_bs(obj_sz uint64) uint64 {
     if pver == nil {
             log.Panic("cannot find the object's pool version")
     }
-    usz := C.m0_obj_layout_id_to_unit_size(C.ulong(mio.obj_lid))
+    usz := int(C.m0_obj_layout_id_to_unit_size(C.ulong(mio.obj_lid)))
     pa := &pver.pv_attr
-    gsz := C.uint(usz) * pa.pa_N
+    gsz := usz * int(pa.pa_N)
     /* max 2-times pool-width deep, otherwise we may get -E2BIG */
-    max_bs := C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K)
+    max_bs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
 
-    if obj_sz >= uint64(max_bs) {
-            return uint64(max_bs)
-    } else if obj_sz <= uint64(gsz) {
-            return uint64(gsz)
+    if obj_sz >= max_bs {
+            return max_bs
+    } else if obj_sz <= gsz {
+            return gsz
     } else {
             return roundup_power2(obj_sz)
     }
+}
+
+func (mio *Mio) prepare_buf(bs int, p []byte, off int) error {
+    buf := p[off:]
+    if bs < C.PAGE_SIZE {
+        bs = C.PAGE_SIZE
+        mio.min_buf = make([]byte, C.PAGE_SIZE)
+        copy(mio.min_buf, p)
+        buf = mio.min_buf[:]
+    }
+    if mio.buf.ov_buf == nil {
+        if C.m0_bufvec_empty_alloc(&mio.buf, 1) != 0 {
+            return errors.New("mio.buf allocation failed")
+        }
+        if C.m0_bufvec_alloc(&mio.attr, 1, 1) != 0 {
+            return errors.New("mio.attr allocation failed")
+        }
+        if C.m0_indexvec_alloc(&mio.ext, 1) != 0 {
+            return errors.New("mio.ext allocation failed")
+        }
+    }
+    *mio.buf.ov_buf = unsafe.Pointer(&buf)
+    *mio.buf.ov_vec.v_count = C.ulong(bs)
+    *mio.ext.iv_index = C.ulong(off)
+    *mio.ext.iv_vec.v_count = C.ulong(bs)
+    *mio.attr.ov_vec.v_count = 0
+
+    return nil
+}
+
+func (mio *Mio) do_io_op(opcode uint32) (err error) {
+    var op *C.struct_m0_op
+    C.m0_obj_op(mio.obj, opcode, &mio.ext, &mio.buf, &mio.attr, 0, 0, &op)
+    C.m0_op_launch(&op, 1)
+    rc := C.m0_op_wait(op, bits(C.M0_OS_FAILED,
+                               C.M0_OS_STABLE), C.M0_TIME_NEVER)
+    if rc == 0 {
+        rc = C.m0_rc(op)
+    }
+    C.m0_op_fini(op)
+    C.m0_op_free(op)
+    if rc != 0 {
+        return errors.New(fmt.Sprintf("io op (%d) failed: %d", opcode, rc))
+    }
+    return nil
 }
 
 func (mio *Mio) Write(p []byte) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
     }
-    for left := len(p); left > 0; {
-        
+    left, off := len(p), 0
+    bs := mio.get_optimal_bs(left)
+    for ; left > 0; left -= bs {
+        if left < bs {
+            bs = left
+        }
+        err = mio.prepare_buf(bs, p, off)
+        if err != nil {
+            return off, err
+        }
+        err = mio.do_io_op(C.M0_OC_WRITE)
+        if err != nil {
+            return off, err
+        }
+        off += bs
     }
-    return 0, nil
+    return off, nil
 }
 
 func (mio *Mio) Close() {
@@ -248,13 +312,13 @@ func main() {
     err := mio.Open(obj_id)
     if err == nil {
         fmt.Println("object already exists")
-    }
-    if err != nil {
-        err = mio.Create(obj_id, 10000000)
+    } else {
+        err = mio.Create(obj_id, 100000)
         if err != nil {
             log.Panic(err)
         }
         fmt.Println("object created")
     }
     defer mio.Close()
+    io.Copy(&mio, os.Stdin)
 }
