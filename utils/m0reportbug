@@ -728,6 +728,10 @@ systemd_journal() {
     local nr_boots=$(journalctl --list-boot | wc -l)
     if ((nr_boots > NR_BOOTS_MAX)); then
         nr_boots=$NR_BOOTS_MAX
+    elif (($nr_boots == 0)); then
+        # Collects the journal logs eventhough there is no reboots
+	# happened on the system
+        nr_boots=1
     fi
     local outdir=$(readlink -f .)
     for ((i = 0; i < nr_boots; ++i)); do
