@@ -200,5 +200,34 @@ Continuous scrubbing is implemented through a background scrub scanner component
 
 On detection of the corrupted block, scanner creates a scrub request which posted to scrub machine. Scrub machine creates a scrubber corresponding to the request. Once the scrubber has completed the operation with respect to the request, scrub machine notifies the scanner about completion through a call back.
 
-Background scrub subsystem exports the interfaces for management tools to quiesce, resume or restart the scanner as required. Scanner maintains the progress of the scanning operation which can be returned as a result of a query, typically posted by management tools.     
+Background scrub subsystem exports the interfaces for management tools to quiesce, resume or restart the scanner as required. Scanner maintains the progress of the scanning operation which can be returned as a result of a query, typically posted by management tools.
+
+*********************
+Logical Specification
+*********************
+
+Two important components of the background scrub subsystem are a scanner and a scrub machine. Scanner is a continuous Motr process which runs in the background, scanning for Motr data block corruptions while scrub machine is more of a passive entity receiving scrub requests from the background scrub scanner or Motr data integrity component (DI). For every scrub request a scrubber is created which repairs the missing data without changing the file layout. Every scrubber, as shown in the diagram below, gathers enough information and intelligence through file layout to perform required I/O, data transformation and network communication respectively. There could be multiple background scrubbers working on different scrub requests in parallel at any given moment.
+
+External interfaces:
+
+- m0_bs_target_scrub()
+
+- m0_bs_block_scrub() 
+
+Continuous Scrubbing
+====================
+
+Early detection and repair of a data block would avoid failure of further i/o requests on it. 
+
+Continuous scrubbing is implemented through a background scrub scanner component that efficiently iterates over the Motr storage objects, scanning data blocks for corruption. Scanner is more of an active part of background scrub subsystem. As scanning all the storage objects may impact overall system performance, it is important to give more priority to normal i/o operations over scrubbing so that all the data is still accessible while the operation is in-progress. 
+
+On detection of the corrupted block, scanner creates a scrub request which posted to scrub machine. Scrub machine creates a scrubber corresponding to the request. Once the scrubber has completed the operation with respect to the request, scrub machine notifies the scanner about completion through a call back.
+
+Background scrub subsystem exports the interfaces for management tools to quiesce, resume or restart the scanner as required. Scanner maintains the progress of the scanning operation which can be returned as a result of a query, typically posted by management tools.
+
+On-demand Scrubbing
+====================
+
+Due to mismatch in DI checksum typically during an i/o operation, DI subsystem notifies background scrub regarding the corruption. Background scrub subsystem creates a scrub request with enough information and submits it to the scrub machine. Scrub machine creates a scrubber to serve the scrub request. 
+     
   
