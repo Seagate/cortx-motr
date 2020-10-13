@@ -205,7 +205,9 @@ main()
 	fi
 
 	if [ -z $profile_addr ] ; then
-		profile_addr=$($consul_query_cmd | grep profiles: | sed -n -e 's/^.*\(profiles:\)/\1/p'  | awk '{print $1}'| sed 's/^[^:]*://' | sed 's/:/,/')
+		# Obtain the fid of the _first_ profile from Consul KV.
+		profile_addr=$($consul_path kv get -keys 'm0conf/profiles/' |
+				head -1 | cut -d/ -f3)
 	fi
 
 	if [ -z $client_addr ] ; then
