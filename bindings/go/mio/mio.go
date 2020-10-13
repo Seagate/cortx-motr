@@ -1,12 +1,14 @@
 package main
 
-// #cgo CFLAGS: -I../../.. -DM0_EXTERN=extern -DM0_INTERNAL=
+// #cgo CFLAGS: -I../../.. -I../../../extra-libs/galois/include
+// #cgo CFLAGS: -DM0_EXTERN=extern -DM0_INTERNAL=
 // #cgo CFLAGS: -Wno-attributes
 // #cgo LDFLAGS: -L../../../motr/.libs -lmotr
 // #include <stdlib.h>
 // #include "lib/types.h"
 // #include "lib/trace.h"
 // #include "motr/client.h"
+// #include "motr/layout.h" /* m0c_pools_common */
 // #include "motr/idx.h"
 //
 // struct m0_client    *instance = NULL;
@@ -48,7 +50,7 @@ import (
 type Mio struct {
     obj_id  C.struct_m0_uint128
     obj    *C.struct_m0_obj
-
+    obj_lid uint
 }
 
 func usage() {
@@ -126,20 +128,30 @@ func scan_id(s string) (fid C.struct_m0_uint128, err error) {
     return fid, nil
 }
 
-func (mio *Mio) Open(id string) (err error) {
+func (mio *Mio) obj_new(id string) (err error) {
     mio.obj_id, err = scan_id(id)
     if err != nil {
         return err
     }
+    mio.obj = (*C.struct_m0_obj)(C.calloc(1, C.sizeof_struct_m0_obj))
+    return nil
+}
+
+func (mio *Mio) Open(id string) (err error) {
     if mio.obj != nil {
         return errors.New("object is already opened")
     }
-    mio.obj = (*C.struct_m0_obj)(C.calloc(1, C.sizeof_struct_m0_obj))
+    err = mio.obj_new(id)
+    if err != nil {
+        return err
+    }
     C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.obj_id, 0)
     rc := C.m0_open_entity(&mio.obj.ob_entity);
     if rc != 0 {
+        mio.Close()
         return errors.New(fmt.Sprintf("failed to open object entity: %d", rc))
     }
+    mio.obj_lid = uint(mio.obj.ob_attr.oa_layout_id)
     return nil
 }
 
@@ -150,10 +162,15 @@ func bits(values ...C.ulong) (res C.ulong) {
     return res
 }
 
-func (mio *Mio) Create(id string) (err error) {
-    if err = mio.Open(id); err == nil {
-        return errors.New("the object already exists")
+func (mio *Mio) Create(id string, sz uint64) (err error) {
+    if mio.obj != nil {
+        return errors.New("object is already opened")
     }
+    err = mio.obj_new(id)
+    if err != nil {
+        return err
+    }
+    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.obj_id, 9)
     var op *C.struct_m0_op
     rc := C.m0_entity_create(nil, &mio.obj.ob_entity, &op)
     if rc != 0 {
@@ -175,6 +192,48 @@ func (mio *Mio) Create(id string) (err error) {
     return nil
 }
 
+func roundup_power2(x uint64) (power uint64) {
+    for power = 1; power < x; power *= 2 {}
+    return power
+}
+
+const MAX_M0_BUFSZ = 128 * 1024 * 1024
+
+// Calculate the optimal block size for the I/O
+func (mio *Mio) get_optimal_bs(obj_sz uint64) uint64 {
+    if obj_sz > MAX_M0_BUFSZ {
+            obj_sz = MAX_M0_BUFSZ
+    }
+    pver := C.m0_pool_version_find(&C.instance.m0c_pools_common,
+                                   &mio.obj.ob_attr.oa_pver)
+    if pver == nil {
+            log.Panic("cannot find the object's pool version")
+    }
+    usz := C.m0_obj_layout_id_to_unit_size(C.ulong(mio.obj_lid))
+    pa := &pver.pv_attr
+    gsz := C.uint(usz) * pa.pa_N
+    /* max 2-times pool-width deep, otherwise we may get -E2BIG */
+    max_bs := C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K)
+
+    if obj_sz >= uint64(max_bs) {
+            return uint64(max_bs)
+    } else if obj_sz <= uint64(gsz) {
+            return uint64(gsz)
+    } else {
+            return roundup_power2(obj_sz)
+    }
+}
+
+func (mio *Mio) Write(p []byte) (n int, err error) {
+    if mio.obj == nil {
+        return 0, errors.New("object is not opened")
+    }
+    for left := len(p); left > 0; {
+        
+    }
+    return 0, nil
+}
+
 func (mio *Mio) Close() {
     if mio.obj == nil {
         return
@@ -191,7 +250,7 @@ func main() {
         fmt.Println("object already exists")
     }
     if err != nil {
-        err = mio.Create(obj_id)
+        err = mio.Create(obj_id, 10000000)
         if err != nil {
             log.Panic(err)
         }
