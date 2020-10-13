@@ -163,29 +163,27 @@ do_m0provision_action()
     local LVM_SIZE=0
 
     msg "Configuring host [`hostname -f`]"
+    MD_DEVICES=($(lvs -o lv_path | grep "lv_raw_metadata" | grep srvnode | sort -u))
 
-    MD_DEVICE_NODE1=$(lvs -o lv_path | grep "lv_raw_metadata" | grep srvnode-1 | head -1)
-    MD_DEVICE_NODE2=$(lvs -o lv_path | grep "lv_raw_metadata" | grep srvnode-2 | head -1)
-    if [[ $? -eq 0 ]];then
-        LVM_SIZE1=$(lvs $MD_DEVICE_NODE1  -o LV_SIZE \
-              --noheadings --units b --nosuffix | xargs)
-
-        LVM_SIZE2=$(lvs $MD_DEVICE_NODE2  -o LV_SIZE \
-              --noheadings --units b --nosuffix | xargs)
-
-	if [ $LVM_SIZE1 -le $LVM_SIZE2 ] ; then
-		LVM_SIZE=$LVM_SIZE1
-	else
-		LVM_SIZE=$LVM_SIZE2
-	fi
-
-        ANY_ERR=$(echo $LVM_SIZE | grep -i ERROR | wc -l)
+    LVM_SIZE=0
+    for i in ${MD_DEVICES[@]} ;
+    do
+        LVM_SIZE_ITR=$(lvs $i -o LV_SIZE \
+                       --noheadings --units b --nosuffix | xargs)
+        ANY_ERR=$(echo $LVM_SIZE_ITR | grep -i ERROR | wc -l)
         if [[ ( "$ANY_ERR" != "0" ) || ( -z $LVM_SIZE ) ]]; then
-            err "lvs $MD_DEVICE_NODE1/lvs $MD_DEVICE_NODE2 command failed."
+            err "lvs $i command failed."
             msg "[$LVM_SIZE]"
-        elif [[ $LVM_SIZE -ne 0 ]];then
-            sed -i "s/MOTR_M0D_IOS_BESEG_SIZE=.*/MOTR_M0D_IOS_BESEG_SIZE=$LVM_SIZE/g" $MOTR_CONF_FILE
-        fi
+	fi
+	if [[ $LVM_SIZE_ITR -lt $LVM_SIZE || $LVM_SIZE -eq 0 ]] ; then
+	    LVM_SIZE=$LVM_SIZE_ITR
+	fi
+    done
+    if [ $LVM_SIZE -eq 0 ] ; then
+	 err "lvs size invalid [$LVM_SIZE]"
+    else
+         msg "LVM_SIZE = $LVM_SIZE"
+         sed -i "s/MOTR_M0D_IOS_BESEG_SIZE=.*/MOTR_M0D_IOS_BESEG_SIZE=$LVM_SIZE/g" $MOTR_CONF_FILE
     fi
 
     SALT_OPT=$(salt-call --local grains.get virtual)
