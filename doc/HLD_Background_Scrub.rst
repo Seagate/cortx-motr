@@ -127,17 +127,6 @@ The scrubber needs to handle failures during the operation. Typical failures wou
 
 Failure handling must be restricted to the relevant scrubbing operation without affecting other scrubbing operations in-progress. A failed scrub can be retried in further iterations.
 
-***************
-Failures
-***************
-
-- In case of failures greater than the total number of tolerated, (K in pdclust layout), there could possible be files that are repairable while some may not. It is important that non-recoverable data is made consistent with respect to the available data including the redundancy. This also needs support from SNS repair subsystem, which does not mark a disk as repaired until all the files on it are completely recovered. A partial repair could be due to additional failures, thus making the total failures greater than tolerated failures. In such a case it will help to have the disk marked repaired after recovering, nevertheless, subset of data, in-order to save fully recovered files from more failures in future.
-
-- If SNS repair fails to read an unit from a sane disk due to DI failure, SNS repair invokes scrubber to scrub the corrupted unit. SNS repair can continue repairing other relevant parity groups and keep the processing of a group pending while its corrupted unit is being scrubbed.
-
-Also continuing with respect to SNS repair and parity declustered layout, it would help to have idea of infinite spares in real in such situations. 
-
-
 *********************
 Logical Specification
 *********************
@@ -239,6 +228,16 @@ Scenario 4
 ============
 
 .. image:: Images/Scenario4.PNG
+
+***************
+Failures
+***************
+
+- In case of failures greater than the total number of tolerated, (K in pdclust layout), there could possible be files that are repairable while some may not. It is important that non-recoverable data is made consistent with respect to the available data including the redundancy. This also needs support from SNS repair subsystem, which does not mark a disk as repaired until all the files on it are completely recovered. A partial repair could be due to additional failures, thus making the total failures greater than tolerated failures. In such a case it will help to have the disk marked repaired after recovering, nevertheless, subset of data, in-order to save fully recovered files from more failures in future.
+
+- If SNS repair fails to read an unit from a sane disk due to DI failure, SNS repair invokes scrubber to scrub the corrupted unit. SNS repair can continue repairing other relevant parity groups and keep the processing of a group pending while its corrupted unit is being scrubbed.
+
+Also continuing with respect to SNS repair and parity declustered layout, it would help to have idea of infinite spares in real in such situations. 
 
 ***************
 Scalability
