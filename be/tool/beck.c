@@ -522,9 +522,6 @@ int main(int argc, char **argv)
 	if (dry_run)
 		printf("Running in read-only mode.\n");
 
-	if (offset_fname == NULL && !dry_run)
-		errx(EX_USAGE, "Specify file to save scan offset (-r).");
-
 	if (b.b_dom_path == NULL && !dry_run && !print_gen_id)
 		errx(EX_USAGE, "Specify domain path (-d).");
 	if (spath != NULL) {
@@ -573,6 +570,9 @@ int main(int argc, char **argv)
 		printf("Cannot find any segment header generation identifer");
 		return EX_DATAERR;
 	}
+
+	if (offset_fname == NULL && !dry_run)
+		errx(EX_USAGE, "Specify file to save scan offset (-r).");
 	/*
 	 * Skip builder related calls for dry run as we will not be building a
 	 * new segment.
