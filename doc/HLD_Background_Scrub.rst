@@ -137,7 +137,20 @@ Failures
 
 Also continuing with respect to SNS repair and parity declustered layout, it would help to have idea of infinite spares in real in such situations.   
 
+***************
+Scenarios
+***************
 
+.. image:: Images/Scenario1.PNG
+
+
+.. image:: Images/Scenario2.PNG
+
+
+.. image:: Images/Scenario3.PNG
+
+
+.. image:: Images/Scenario4.PNG
 
 ***************
 Scalability
