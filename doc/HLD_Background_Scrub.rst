@@ -228,6 +228,29 @@ Background scrub subsystem exports the interfaces for management tools to quiesc
 On-demand Scrubbing
 ====================
 
-Due to mismatch in DI checksum typically during an i/o operation, DI subsystem notifies background scrub regarding the corruption. Background scrub subsystem creates a scrub request with enough information and submits it to the scrub machine. Scrub machine creates a scrubber to serve the scrub request. 
+Due to mismatch in DI checksum typically during an i/o operation, DI subsystem notifies background scrub regarding the corruption. Background scrub subsystem creates a scrub request with enough information and submits it to the scrub machine. Scrub machine creates a scrubber to serve the scrub request.
+
+Scrub Machine
+===============
+
+Scrub machine is the core of the background scrub subsystem which employs scrubbers that reconstruct the reported corrupt data block. On receiving a scrub request, scrub machine initializes a scrubber, it accounts the number of scrubbers currently in progress. Scrub machine maintains a hash table of the size of the number of storage containers (i.e. disks) on a node and maps the incoming scrub request to one of the buckets in order to handle concurrent writes appropriately. Once all the scrubbers are complete, scrub machine can then transition to idle state, until then it is busy. Scrub machine maintains a bitmap for already scrubbed data blocks and thus is able to identify a duplicate scrub request during a scrubbing iteration.
+
+A scrub machine is stopped and finalized when the corresponding Motr service, background scrub service is stopped. Scrub machine invokes completion call back on the scrub request to notify the concerned party.
+
+Scrub Request
+===============
+
+Scrub request is created in-order to report a data block corruption, presently by the scanner or DI subsystem. It typically comprises of information about data block, mainly the block id, offset, storage container id, etc. User can implement a request completion callback provided by the scrub request interface, which is invoked by the scrub machine on request completion.
+
+Scrubber
+==========
+
+A Scrubber is initialized by scrub machine for each scrub request. Scrubber goes through the phases of i/o, network communication and transformation in-order to reconstruct the corrupted data block. 
+
+Corrupted block is mapped to its corresponding file layout. Using the file layout scrubber, fetches the relevant data and passes it to a transformation function that reconstructs the missing data. Recovered data is then written to the new location on same storage device as the corrupted block. Failures during the operation, transitions scrubber to a fail state, appropriate action is taken to escalate the failures depending on their type.
+
+Typical failures could be missing file layout, unavailability of relevant data blocks, network failures and i/o errors that can be reported.  
+
+ 
      
   
