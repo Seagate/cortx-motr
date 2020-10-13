@@ -141,14 +141,23 @@ Also continuing with respect to SNS repair and parity declustered layout, it wou
 Scenarios
 ***************
 
+Scenario 1
+============
+
 .. image:: Images/Scenario1.PNG
 
+Scenario 2
+============
 
 .. image:: Images/Scenario2.PNG
 
+Scenario 3
+============
 
 .. image:: Images/Scenario3.PNG
 
+Scenario 4
+============
 
 .. image:: Images/Scenario4.PNG
 
