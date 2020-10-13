@@ -249,7 +249,36 @@ A Scrubber is initialized by scrub machine for each scrub request. Scrubber goes
 
 Corrupted block is mapped to its corresponding file layout. Using the file layout scrubber, fetches the relevant data and passes it to a transformation function that reconstructs the missing data. Recovered data is then written to the new location on same storage device as the corrupted block. Failures during the operation, transitions scrubber to a fail state, appropriate action is taken to escalate the failures depending on their type.
 
-Typical failures could be missing file layout, unavailability of relevant data blocks, network failures and i/o errors that can be reported.  
+Typical failures could be missing file layout, unavailability of relevant data blocks, network failures and i/o errors that can be reported.
+
+Concurrency Control
+===================
+
+- The background scrubber addresses concurrency issues with SNS repair and write IO.  The concurrency comes into picture in following cases:
+
+  - while iterating the blocks from disks;
+
+  - while repairing a block with inconsistent checksum.
+
+
+  The first of the two can be addressed by either holding a group level lock of balloc or by holding a lock at the level of ad stob. The second one requires holding a file lock. The lock will be held at the group level across all instances of scrubber running in the cluster. This lock will be relinquished when none of the members of the group require to hold the lock anymore. 
+
+ As an alternative, scrubber operation can be halted until SNS repair is completed. 
+
+- Concurrent writes to the same storage objects by multiple scrubbers is handled by scheduling the scrubber writes based on the storage container ids. 
+
+Dependencies
+============
+
+- DI 
+
+  - [r.di.checksum.calc] Interface to calculate the checksum for given data 
+
+  - [r.di.checksum.match] Interface to read and match the checksum for given data block
+
+- Layout
+
+  - [r.layout.map]: It must be possible to map a corrupted data block to its corresponding file and layout.     
 
  
      
