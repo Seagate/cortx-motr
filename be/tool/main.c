@@ -46,13 +46,13 @@ static const char *betool_help = ""
 "- 'st mkfs'\n"
 "- 'st run'\n"
 "- 'be_recovery_run'\n"
-"- 'create_be_log'\n"
+"- 'be_log_resize'\n"
 "\n"
 "Use case for 'st mkfs' and 'st run': run 'st mkfs' once to initialise \n"
 "BE data structures, then run 'st run' and kill m0betool process during \n"
 "'st run' execution. When 'st run' is called next time BE recovery will \n"
 "replay BE log and 'st run' should be able to continue without any issues. \n"
-"create_be_log will create BE log file with custom size. \n"
+"be_log_resize will create BE log file with custom size. \n"
 "This is an ST for BE recovery.\n"
 "\n"
 "'be_recovery_run' runs BE recovery.\n"
@@ -60,10 +60,10 @@ static const char *betool_help = ""
 "'path' parameter is an optional path to BE domain stob domain location.\n"
 "Default BE domain stob domain location is used when this parameter is absent:"
 "\n"
-"'create_be_log' create BE log file without mkfs.\n"
+"'be_log_resize' create BE log file without mkfs.\n"
 "\n"
-"'path' and 'size' mandatory arguments for create_be_log. 'size' in bytes. \n"
-"Usage: m0betool create_be_log <path> <size> \n"
+"'path' and 'size' mandatory arguments for be_log_resize. 'size' in bytes. \n"
+"Usage: m0betool be_log_resize <path> <size> \n"
 "\n";
 
 static void be_recovery_run(char *path)
@@ -87,7 +87,7 @@ static void be_recovery_run(char *path)
 	m0_betool_m0_fini();
 }
 
-static void create_be_log(char *path, uint64_t size)
+static int be_log_resize(char *path, uint64_t size)
 {
 	struct m0_be_ut_backend ut_be = {};
 	struct m0_be_domain_cfg cfg = {};
@@ -105,10 +105,11 @@ static void create_be_log(char *path, uint64_t size)
 	cfg.bc_log.lc_store_cfg.lsc_size = size;
 	cfg.bc_log.lc_store_cfg.lsc_stob_dont_zero = false;
 
-	rc = m0_be_ut_backend_init_cfg_create(&ut_be, &cfg, true);
-	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
+	rc = m0_be_ut_backend_log_resize(&ut_be, &cfg);
+	M0_LOG(M0_DEBUG, "rc=%d", rc);
 
 	m0_betool_m0_fini();
+	return rc;
 }
 
 int main(int argc, char *argv[])
@@ -124,16 +125,16 @@ int main(int argc, char *argv[])
 		return EXIT_SUCCESS;
 	}
 
-	if (argc > 1 && m0_streq(argv[1], "create_be_log")) {
+	if (argc > 1 && m0_streq(argv[1], "be_log_resize")) {
 		if (argc > 3) {
 			path = argv[2];
-			size = atoi(argv[3]);
+			size = atol(argv[3]);
 		} else {
 			printf("%s", betool_help);
 			return EXIT_FAILURE;
 		}
-		create_be_log(path, size);
-		return EXIT_SUCCESS;
+		rc = be_log_resize(path, size);
+		return rc;
 	}
 
 	if (argc == 3 && m0_streq(argv[1], "st") &&
