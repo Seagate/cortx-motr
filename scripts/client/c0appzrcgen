@@ -21,19 +21,14 @@
 
 #!/usr/bin/env bash
 #
-# This script clean install given Mero packages.
-# It should work on Red Hat and Debian based systems.
-#
-# Ganesan Umanesan <ganesan.umanesan@seagate.com>
-# 23/01/2017
 
-# Takes a positive integer as an input and generates those many
+# Prints addresses which can be used by client applications.
+# Also takes an optional positive integer as an input and generates those many
 # distinct end-points for concurrent clovis instances. The
 # script assumes the presence of conf.xc in /etc/motr
 #
 # Nachiket Sahasrabudhe <nachiket.sahasrabuddhe@seagate.com>
 # 28/06/2018
-
 
 
 conf="/etc/motr/conf.xc"
@@ -55,7 +50,7 @@ sanity_check()
 {
 	if [ ! -f $conf ]
 	then
-		echo "Configuration file does not exist at /etc/mero"
+		echo "Configuration file does not exist at $conf"
 		return 1
 	fi
 	string=`grep $IP $conf | cut -d'"' -f 2 | cut -d ':' -f 1`
@@ -74,7 +69,7 @@ sanity_check()
 unused_port_get()
 {
 	hint=$1
-	port_list=`grep $IP /etc/mero/conf.xc | cut -d '"' -f 2 | cut -d ':' -f 4`
+	port_list=`grep $IP $conf | cut -d '"' -f 2 | cut -d ':' -f 4`
 	while [[ $port_list = *"$hint"* ]]
 	do
 		hint=$(($hint+1))
