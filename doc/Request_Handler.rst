@@ -79,7 +79,7 @@ Use Cases
 
          - fom processing completes, locality and fom are recycled.
          
-    [client intent]
+[client intent]
 
         An application invokes a read-only or read-write system call for data or meta-data not present in the local client cache. 
 
