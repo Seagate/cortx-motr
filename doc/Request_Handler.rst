@@ -77,4 +77,26 @@ Use Cases
 
          - fop-type specific phase packs the result (present in the local cache by this time) and returns it to the user space; 
 
-         - fom processing completes, locality and fom are recycled.   
+         - fom processing completes, locality and fom are recycled.
+         
+    [client intent]
+
+        An application invokes a read-only or read-write system call for data or meta-data not present in the local client cache. 
+
+        - A fom is created for the call; 
+
+        - a locality to execute this fom is created (on the stack), using the current thread as its only handler thread; 
+
+        - standard phases are executed. Resource acquisition phase finds that some necessary resource usage rights are not granted. According to the request handler policy the fop should be executed in the intent mode; 
+
+        - a fop representing the fom is built and sent to the corresponding nodes. This operation can be blocked for various reasons (priorities, rpc cache size limits, network bandwidth caps, &c.). 
+
+        - the fop is executed by the server (see the corresponding use case below); 
+
+        - the reply fop is sent back to the client; 
+
+        - the reply is received by the client; 
+
+        - the results are copied from the reply to the user space; 
+
+        - fom processing completes, the locality and the fom are recycled.  
