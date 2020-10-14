@@ -1381,6 +1381,7 @@ static void builder_process(struct builder *b)
 	struct m0_be_tx     tx = {};
 	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
 	int                 result;
+	off_t               offset = 0;
 
 	m0_sm_group_lock(grp);
 	m0_be_tx_init(&tx, 0, b->b_dom, grp, NULL, NULL, NULL, NULL);
@@ -1388,6 +1389,7 @@ static void builder_process(struct builder *b)
 	result = m0_be_tx_open_sync(&tx);
 	M0_ASSERT(result == 0); /* Anything else we can do? */
 	while ((act = qtry(&b->b_qq)) != NULL) {
+		offset = act->a_scan_off;
 		act->a_ops->o_act(act, &tx);
 		act->a_ops->o_fini(act);
 		m0_free(act);
@@ -1398,8 +1400,10 @@ static void builder_process(struct builder *b)
 
 	b->b_cred = M0_BE_TX_CREDIT(0, 0);
 	b->b_tx++;
-	if (b->b_tx % BE_TX_DELTA == 0) {
-		update_scan_offset(act->a_scan_off);
+	if (offset && ((b->b_tx % BE_TX_DELTA)== 0)) {
+		update_scan_offset(offset);
+		M0_LOG(M0_DEBUG, "saved scan offset =%li to file %s\n",
+		       offset, offset_fname);
 	}
 }
 
