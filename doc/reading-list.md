@@ -15,6 +15,8 @@ For non-hyperlinked documentation links, please refer to this file : [doc/motr-d
 Motr Clients
 ------------
 [Client API](../motr/client.h) shows how to build client applications using the Motr API.  [m0cp](../motr/st/utils/copy.c), [m0cat](../motr/st/utils/cat.c), and [m0kv](../motr/m0kv) are example applications using this API.
+  * In order to run these applications, the **hctl status** command will provide some output which may be useful.  
+  * Additionally, the [c0appzrcgen](../scripts/client/c0appzrcgen) script can be run to provide the local address which clients can use for an IO connection. 
 
 Containers
 ----------
