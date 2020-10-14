@@ -437,7 +437,7 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	struct m0_reqh_service            *svc;
 	const struct m0_reqh_service_type *stype;
 
-	M0_ENTRY();
+	M0_ENTRY("fop:%p, reqh:%p", fop, reqh);
 	M0_PRE(reqh != NULL);
 	M0_PRE(fop != NULL && fop->f_type != NULL);
 
