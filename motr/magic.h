@@ -820,7 +820,7 @@ enum m0_magic_satchel {
 	/* pending_item_tl::td_head_magic (doss doze dose) */
 	M0_RPC_ITEM_PENDING_CACHE_HEAD_MAGIC = 0x33D055D02ED05E77,
 
-	/* pending_item_tl::td_head_magic (solid el cache) */
+	/* xidl_tl::td_head_magic (solid el cache) */
 	M0_RPC_ITEM_XID_LIST_HEAD_MAGIC = 0x335011de1cac4e77,
 
 	/* m0_rpc_item_source::ri_magic (ACCESSIBLE AC) */

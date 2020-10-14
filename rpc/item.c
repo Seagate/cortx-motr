@@ -81,7 +81,7 @@ M0_TL_DEFINE(pending_item, M0_INTERNAL, struct m0_rpc_item);
 
 M0_TL_DESCR_DEFINE(xidl, "rpc session xid list", M0_INTERNAL,
 		   struct m0_rpc_item, ri_xid_link, ri_magic,
-		   M0_RPC_ITEM_MAGIC, M0_RPC_ITEM_CACHE_HEAD_MAGIC);
+		   M0_RPC_ITEM_MAGIC, M0_RPC_ITEM_XID_LIST_HEAD_MAGIC);
 M0_TL_DEFINE(xidl, M0_INTERNAL, struct m0_rpc_item);
 
 /** Global rpc item types list. */
