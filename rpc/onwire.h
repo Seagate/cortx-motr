@@ -95,7 +95,12 @@ struct m0_rpc_item_header2 {
 	struct m0_uint128 osr_uuid;
 	uint64_t          osr_sender_id;
 	uint64_t          osr_session_id;
-	/** @see m0_rpc_session::s_xid_list, m0_rpc_item_xid_min_update(). */
+	/**
+	 * The sender will never send rpc items in this session with osr_xid
+	 * which is less than this value.
+	 *
+	 * @see m0_rpc_session::s_xid_list, m0_rpc_item_xid_min_update().
+	 */
 	uint64_t          osr_session_xid_min;
 	uint64_t          osr_xid;
 	struct m0_cookie  osr_cookie;
