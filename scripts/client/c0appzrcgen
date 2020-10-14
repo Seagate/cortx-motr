@@ -1,0 +1,120 @@
+#/*
+# * COPYRIGHT 2014 SEAGATE LLC
+# *
+# * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+# * HEREIN, ARE THE EXCLUSIVE PROPERTY OF SEAGATE LLC,
+# * ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+# * THE PRIOR WRITTEN PERMISSION OF SEAGATE TECHNOLOGY LIMITED,
+# * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+# * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+# * EXCEPT AS ALLOWED BY THE TERMS OF SEAGATE LICENSES AND AGREEMENTS.
+# *
+# * YOU SHOULD HAVE RECEIVED A COPY OF SEAGATE'S LICENSE ALONG WITH
+# * THIS RELEASE. IF NOT PLEASE CONTACT A SEAGATE REPRESENTATIVE
+# * http://www.xyratex.com/contact
+# *
+# * Original author:  Ganesan Umanesan <ganesan.umanesan@seagate.com>
+# * Original creation date: 10-Jan-2017
+#*/
+
+
+#!/usr/bin/env bash
+#
+# This script clean install given Mero packages.
+# It should work on Red Hat and Debian based systems.
+#
+# Ganesan Umanesan <ganesan.umanesan@seagate.com>
+# 23/01/2017
+
+# Takes a positive integer as an input and generates those many
+# distinct end-points for concurrent clovis instances. The
+# script assumes the presence of conf.xc in /etc/mero
+#
+# Nachiket Sahasrabudhe <nachiket.sahasrabuddhe@seagate.com>
+# 28/06/2018
+
+
+
+conf="/etc/mero/conf.xc"
+base_port=301
+IP=""
+port=""
+
+ip_generate()
+{
+	IP=$(sudo lctl list_nids)
+	if [[ ! ${IP} ]]; then
+		(>&2 echo 'error! m0singlenode not running.')
+		(>&2 echo 'start m0singlenode')
+		exit
+	fi
+}
+
+sanity_check()
+{
+	if [ ! -f $conf ]
+	then
+		echo "Configuration file does not exist at /etc/mero"
+		return 1
+	fi
+	string=`grep $IP $conf | cut -d'"' -f 2 | cut -d ':' -f 1`
+	set -- $string
+	ip=`echo $1`
+	if [ "$ip" != "$IP" ]
+	then
+		echo $ip
+		echo $IP
+		echo "Change in configuration format"
+		return 1
+	fi
+	return 0
+}
+
+unused_port_get()
+{
+	hint=$1
+	port_list=`grep $IP /etc/mero/conf.xc | cut -d '"' -f 2 | cut -d ':' -f 4`
+	while [[ $port_list = *"$hint"* ]]
+	do
+		hint=$(($hint+1))
+	done
+	port=$hint
+}
+
+main()
+{
+	ip_generate
+	sanity_check
+	if [ $? -ne 0 ]
+	then
+		return 1
+	fi
+	proc_nr=1
+
+	if [ $# -eq 1 ]
+	then
+		proc_nr=$1
+	fi
+	for ((i=0; i < $proc_nr; i++)); do
+		#	port[$i]=`$base_port + $i`
+		echo '#local address'
+		hint=$(($base_port+$i))
+		unused_port_get "$hint"
+		echo ${IP}:12345:44:$port
+		echo
+
+		echo '#ha address'
+		echo ${IP}:12345:45:1
+		echo
+
+		echo '#profile id'
+		echo '<0x7000000000000001:0>'
+		echo
+
+		echo '#process id'
+		echo '<0x7200000000000000:0>' 
+		echo
+	done
+}
+
+main $1
