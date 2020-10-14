@@ -80,8 +80,11 @@ M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item);
 
 M0_INTERNAL void m0_rpc_oneway_item_post_locked(const struct m0_rpc_conn *conn,
 						struct m0_rpc_item *item);
-
-M0_INTERNAL uint64_t m0_rpc_id_generate(void);
+/**
+ * Takes a unique fid and hashes it with id generated from timestamp seed to
+ * generate clusterwide unique RPC id.
+ */
+M0_INTERNAL uint64_t m0_rpc_id_generate(const struct m0_fid *uniq_fid);
 
 M0_INTERNAL int m0_rpc_service_start(struct m0_reqh *reqh);
 M0_INTERNAL void m0_rpc_service_stop(struct m0_reqh *reqh);
