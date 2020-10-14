@@ -122,8 +122,8 @@ Troubleshooting
 
 - If an installation failure occurs due to the dependency of *pip3* , run the following commands:
 
-  - **$ sudo yum install -y python34-setuptools**
-  - **$ sudo easy_install-3.4 pip**
+  - **$ sudo yum install -y python36-setuptools**
+  - **$ sudo easy_install-3.6 pip**
 
 - If an installation failure occurs due to *ply* dependency, run the following command:
 
