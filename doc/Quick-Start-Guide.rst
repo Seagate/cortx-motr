@@ -67,7 +67,7 @@ Perform the below mentioned procedure to build the source code.
 RPM Generation
 ===============
 
-If you sure about generating RPMs, run the below mentioned commands.
+If you want to make sure about generating RPMs, run the below mentioned command.
 
 - $make rpms
 
@@ -80,6 +80,8 @@ The following RPMs are generated in the **/root/rpmbuild/RPMS/x86_64** directory
 - cortx-motr-devel-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
  
 - cortx-motr-tests-ut-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
+
+Note : Switch to root user mode to check contents of **/root/rpmbuild/RPMS/x86_64** directory.
 
 Running Tests
 =============
