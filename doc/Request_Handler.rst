@@ -30,4 +30,35 @@ To process a fop, the request handler creates a state machine (fom) representing
 
 - local transaction context: updates to data and meta-data performed as part of the file system operation are executed in a context of local transaction. Transaction context is created by the request handler. This step might involve waiting until enough space is available in the log;
 
-- execution of a fom might involve sending other fops out, for example, sending reply fops from the server back to the client. Request handler deals with the generic part of fop sending, including waiting for a space in the local fop cache.          
+- execution of a fom might involve sending other fops out, for example, sending reply fops from the server back to the client. Request handler deals with the generic part of fop sending, including waiting for a space in the local fop cache.
+
+********************
+Logical Description
+********************
+
+Internal design of request handler is determined to a large degree by the following considerations: 
+
+- the same request handler code should execute on a client (typically a Linux kernel module) and a server (typically a user space program);
+
+- server-side request handler should not use massively threaded (thread-per-request) model, because of its overhead.
+
+The solution (presented in the HLD, referenced above) is to use non-blocking model for fop execution. File operation is broken up into a series of state transitions that do not involve long waits. The resulting state machine (fom) is not bound to any particular thread and can migrate from thread to thread between state transitions. On a server, fom-s are executed by handler threads, attached to a locality, which is typically associated with a processor core.
+
+This organisation achieves the goals indicated above by detaching fom processing from locality configuration: on a server a set of cooperating threads execute state transitions of fom-s from the locality queue. On a client, when a thread enters a Motr code (as a result of file-system system call), a locality is created with this thread as the only handler thread. The fom, representing the system call is created and executed by this thread.
+
+Use Cases
+===============
+
+[client query cached] 
+
+          An application invokes read-only system call (e.g., stat(2) or read(2)) for data or meta-data already present in the local client cache. 
+
+          - A fom is created for the call; 
+
+          - a locality to execute this fom is created (on the stack), using the current thread as its only handler thread; 
+
+          - standard phases are executed. Resource acquisition phase finds that all necessary resource usage rights are already granted; 
+
+          - fop-type specific phase packs the result in user space expected format and returns it to the user space; 
+
+          - fom processing completes, locality and fom are recycled.  
