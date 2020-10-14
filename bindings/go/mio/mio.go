@@ -67,15 +67,14 @@ func checkArg(arg *string, name string) {
     }
 }
 
-// Object size can be specified by user for reading.
+// ObjSize can be specified by user for reading.
 // Also, it is used when creating new object and the resulting
 // size can not be established (like when we read from stdin).
 // This size is used to calculate the optimal unit size of the
 // newly created object.
 var ObjSize uint64
 
-// Initialise mio module.
-// All the standard Motr init stuff is done here.
+// Init mio module. All the standard Motr init stuff is done here.
 func Init() {
     // Mandatory
     localEP  := flag.String("ep", "", "my `endpoint` address")
@@ -122,18 +121,18 @@ func Init() {
     }
 }
 
-// Scan object ID
+// ScanID scans object id from string
 func ScanID(s string) (fid C.struct_m0_uint128, err error) {
     cs := C.CString(s)
     rc := C.m0_uint128_sscanf(cs, &fid)
     C.free(unsafe.Pointer(cs))
     if rc != 0 {
-        return fid, errors.New(fmt.Sprintf("failed to parse fid: %d", rc))
+        return fid, fmt.Errorf("failed to parse fid: %d", rc)
     }
     return fid, nil
 }
 
-func (mio *Mio) obj_new(id string) (err error) {
+func (mio *Mio) objNew(id string) (err error) {
     mio.objID, err = ScanID(id)
     if err != nil {
         return err
@@ -147,7 +146,7 @@ func (mio *Mio) Open(id string) (err error) {
     if mio.obj != nil {
         return errors.New("object is already opened")
     }
-    err = mio.obj_new(id)
+    err = mio.objNew(id)
     if err != nil {
         return err
     }
@@ -155,7 +154,7 @@ func (mio *Mio) Open(id string) (err error) {
     rc := C.m0_open_entity(&mio.obj.ob_entity);
     if rc != 0 {
         mio.Close()
-        return errors.New(fmt.Sprintf("failed to open object entity: %d", rc))
+        return fmt.Errorf("failed to open object entity: %d", rc)
     }
     mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
     mio.off = 0
@@ -189,7 +188,7 @@ func (mio *Mio) Create(id string, sz uint64) (err error) {
     if mio.obj != nil {
         return errors.New("object is already opened")
     }
-    err = mio.obj_new(id)
+    err = mio.objNew(id)
     if err != nil {
         return err
     }
@@ -198,7 +197,7 @@ func (mio *Mio) Create(id string, sz uint64) (err error) {
     var op *C.struct_m0_op
     rc := C.m0_entity_create(nil, &mio.obj.ob_entity, &op)
     if rc != 0 {
-        return errors.New(fmt.Sprintf("failed to create object: %d", rc))
+        return fmt.Errorf("failed to create object: %d", rc)
     }
     C.m0_op_launch(&op, 1)
     rc = C.m0_op_wait(op, bits(C.M0_OS_FAILED,
@@ -225,9 +224,9 @@ func roundupPower2(x int) (power int) {
 const maxM0BufSz = 128 * 1024 * 1024
 
 // Calculate the optimal block size for the I/O
-func (mio *Mio) getOptimalBS(obj_sz int) int {
-    if obj_sz > maxM0BufSz {
-            obj_sz = maxM0BufSz
+func (mio *Mio) getOptimalBS(objSz int) int {
+    if objSz > maxM0BufSz {
+            objSz = maxM0BufSz
     }
     pver := C.m0_pool_version_find(&C.instance.m0c_pools_common,
                                    &mio.obj.ob_attr.oa_pver)
@@ -238,18 +237,18 @@ func (mio *Mio) getOptimalBS(obj_sz int) int {
     pa := &pver.pv_attr
     gsz := usz * int(pa.pa_N)
     /* max 2-times pool-width deep, otherwise we may get -E2BIG */
-    maxBS := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
+    maxBs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
 
-    if obj_sz >= maxBS {
-            return maxBS
-    } else if obj_sz <= gsz {
+    if objSz >= maxBs {
+            return maxBs
+    } else if objSz <= gsz {
             return gsz
     } else {
-            return roundupPower2(obj_sz)
+            return roundupPower2(objSz)
     }
 }
 
-func (mio *Mio) prepareBuf(bs int, p []byte, off int, m_off uint64) error {
+func (mio *Mio) prepareBuf(bs int, p []byte, off int, offMio uint64) error {
     buf := p[off:]
     if bs < C.PAGE_SIZE {
         bs = C.PAGE_SIZE
@@ -270,7 +269,7 @@ func (mio *Mio) prepareBuf(bs int, p []byte, off int, m_off uint64) error {
     }
     *mio.buf.ov_buf = unsafe.Pointer(&buf[0])
     *mio.buf.ov_vec.v_count = C.ulong(bs)
-    *mio.ext.iv_index = C.ulong(m_off)
+    *mio.ext.iv_index = C.ulong(offMio)
     *mio.ext.iv_vec.v_count = C.ulong(bs)
     *mio.attr.ov_vec.v_count = 0
 
@@ -289,7 +288,7 @@ func (mio *Mio) doIO(opcode uint32) (err error) {
     C.m0_op_fini(op)
     C.m0_op_free(op)
     if rc != 0 {
-        return errors.New(fmt.Sprintf("io op (%d) failed: %d", opcode, rc))
+        return fmt.Errorf("io op (%d) failed: %d", opcode, rc)
     }
     return nil
 }
