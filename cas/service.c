@@ -174,8 +174,11 @@
  *                   [generic phases]  |     CAS_META_LOOKUP     |        |
  *                          .          |            |            |        |
  *                          .          |            V            |        |
- *                          .          |   CAS_META_LOOKUP_DONE  |        |
- *                          |          |            |            |        |
+ *           !meta_op       .          |   CAS_META_LOOKUP_DONE  |        |
+ *          +---------CAS_TXN_OPENED   |            |            |        |
+ *          |               |          |            |            |        |
+ *          V               |          |            |            |        |
+ *   CAS_META_UNLOCK------->|          |            |            |        |
  *                          |          |            | ctg_crow   |        |
  *                          |          |            +----------+ |        |
  * +----------------------->|          |            |          | |        |
@@ -363,7 +366,9 @@ struct cas_fom {
 };
 
 enum cas_fom_phase {
-	CAS_LOOP = M0_FOPH_TYPE_SPECIFIC,
+	CAS_TXN_OPENED = M0_FOPH_TYPE_SPECIFIC,
+	CAS_META_UNLOCK,
+	CAS_LOOP,
 	CAS_DONE,
 	CAS_CHECK_PRE,
 	CAS_CHECK,
@@ -1287,8 +1292,6 @@ static int cas_fom_tick(struct m0_fom *fom0)
 				      is_meta ? CAS_CTIDX_LOCK : CAS_PREP);
 		result = M0_FOM_LONG_LOCK_RETURN(result);
 		fom->cf_ipos = 0;
-		if (!is_meta)
-			m0_long_read_unlock(m0_ctg_lock(meta), &fom->cf_meta);
 		break;
 	case CAS_CTIDX_LOCK:
 		result = m0_long_lock(m0_ctg_lock(m0_ctg_ctidx()), !cas_is_ro(opc),
@@ -1329,6 +1332,14 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 * the meta-catalogue) locked, because tree height has to be
 		 * fixed for the correct credit calculation.
 		 */
+		break;
+	case CAS_TXN_OPENED:
+		m0_fom_phase_set(fom0, is_meta ? CAS_LOOP : CAS_META_UNLOCK);
+		break;
+	case CAS_META_UNLOCK:
+		M0_ASSERT(!is_meta);
+		m0_long_read_unlock(m0_ctg_lock(meta), &fom->cf_meta);
+		m0_fom_phase_set(fom0, CAS_LOOP);
 		break;
 	case CAS_LOOP:
 		/* Skip empty CUR requests. */
@@ -2550,6 +2561,14 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 		.sd_name      = "prep",
 		.sd_allowed   = M0_BITS(M0_FOPH_TXN_OPEN, M0_FOPH_FAILURE)
 	},
+	[CAS_TXN_OPENED] = {
+		.sd_name      = "txn-opened",
+		.sd_allowed   = M0_BITS(CAS_META_UNLOCK, CAS_LOOP)
+	},
+	[CAS_META_UNLOCK] = {
+		.sd_name      = "meta-unlock",
+		.sd_allowed   = M0_BITS(CAS_LOOP)
+	},
 	[CAS_LOOP] = {
 		.sd_name      = "loop",
 		.sd_allowed   = M0_BITS(CAS_CTIDX, CAS_INSERT_TO_DEAD,
@@ -2675,6 +2694,9 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "meta-locked",          CAS_LOCK,             CAS_CTIDX_LOCK },
 	{ "tx-credit-calculated", CAS_PREP,             M0_FOPH_TXN_OPEN },
 	{ "keys-vals-invalid",    CAS_PREP,             M0_FOPH_FAILURE },
+	{ "txn-opened-ctg-op?",   CAS_TXN_OPENED,       CAS_META_UNLOCK },
+	{ "txn-opened-meta-op?",  CAS_TXN_OPENED,       CAS_LOOP },
+	{ "meta-unlocked",        CAS_META_UNLOCK,      CAS_LOOP },
 	{ "all-done?",            CAS_LOOP,             M0_FOPH_SUCCESS },
 	{ "reply-too_large",      CAS_LOOP,             M0_FOPH_FAILURE },
 	{ "do-ctidx-op",          CAS_LOOP,             CAS_CTIDX },

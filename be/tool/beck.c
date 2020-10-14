@@ -433,6 +433,7 @@ static struct builder b;
 static struct gen g[MAX_GEN] = {};
 
 static bool  dry_run = false;
+static bool  disable_directio = false;
 static bool  signaled = false;
 
 #define FLOG(level, rc, s)						\
@@ -478,9 +479,10 @@ int main(int argc, char **argv)
 		   M0_FLAGARG('b', "Scan every byte (10x slower).", &s.s_byte),
 		   M0_FLAGARG('U', "Run unit tests.", &ut),
 		   M0_FLAGARG('n', "Dry Run.", &dry_run),
+		   M0_FLAGARG('I', "Disable directio.", &disable_directio),
 		   M0_FLAGARG('p', "Print Generation Identifier.",
 			      &print_gen_id),
-		   M0_FORMATARG('g', "Get Generation Identifier.", "%"PRIu64,
+		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
 				&s.s_gen),
 		   M0_FLAGARG('V', "Version info.", &version),
 		   M0_STRINGARG('a', "stob domain path",
@@ -534,8 +536,9 @@ int main(int argc, char **argv)
 		fclose(s.s_file);
 		return EX_OK;
 	}
-	if (s.s_gen != 0) {
+	if (gen_id != 0)
 		s.s_gen_found = true;
+	if (s.s_gen != 0) {
 		printf("\nReceived source segment header generation id\n");
 		generation_id_print(s.s_gen);
 	}
@@ -972,6 +975,8 @@ static int btree(struct scanner *s, struct rectype *r, char *buf)
 	if (!s->s_gen_found) {
 		s->s_gen_found = true;
 		s->s_gen = tree->bb_backlink.bli_gen;
+		printf("\nBeck will use latest generation id found in btree\n");
+		generation_id_print(s->s_gen);
 	}
 	b = &bt[idx];
 	b->b_stats.c_tree++;
@@ -984,7 +989,7 @@ static int btree_check(struct scanner *s, struct rectype *r, char *buf)
 	int                 idx  = tree->bb_backlink.bli_type;
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
-		return M0_ERR(-ENOENT);
+		return -ENOENT;
 
 	return generation_id_verify(s, tree->bb_backlink.bli_gen);
 }
@@ -1017,6 +1022,8 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	if (!s->s_gen_found) {
 		s->s_gen_found = true;
 		s->s_gen = node->bt_backlink.bli_gen;
+		printf("\nBeck will use latest generation id found in bnode\n");
+		generation_id_print(s->s_gen);
 	}
 	b = &bt[idx];
 	c = &b->b_stats;
@@ -1038,7 +1045,7 @@ static int bnode_check(struct scanner *s, struct rectype *r, char *buf)
 	int                 idx  = node->bt_backlink.bli_type;
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
-		return M0_ERR(-ENOENT);
+		return -ENOENT;
 
 	return generation_id_verify(s, node->bt_backlink.bli_gen);
 }
@@ -1156,8 +1163,9 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 	emap_val = emap_ac->emap_val.b_addr;
 	if (emap_val->er_value != AET_HOLE) {
 		emap_key = emap_ac->emap_key.b_addr;
-		ext.e_start = emap_val->er_start >> adom->sad_babshift;
-		ext.e_end =  emap_key->ek_offset >> adom->sad_babshift;
+		ext.e_start = emap_val->er_value >> adom->sad_babshift;
+		ext.e_end   = (emap_val->er_value + emap_key->ek_offset -
+			       emap_val->er_start) >> adom->sad_babshift;
 		m0_ext_init(&ext);
 
 		rc = adom->sad_ballroom->ab_ops->
@@ -1165,7 +1173,7 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 					  tx, &ext,
 					  M0_BALLOC_NORMAL_ZONE);
 		if (rc != 0) {
-			M0_LOG(M0_ERROR, "Failed to reseve extent rc=%d", rc);
+			M0_LOG(M0_ERROR, "Failed to reserve extent rc=%d", rc);
 			return;
 		}
 
@@ -1379,9 +1387,12 @@ static int ad_dom_init(struct builder *b)
 	struct m0_stob_domain    *dom;
 	struct m0_stob_domain    *stob_dom;
 	char 			 *stob_location;
-	char 			 *str_cfg_init = "directio=false";
+	char                     *str_cfg_init = "directio=true";
 	struct ad_dom_info       *adom_info;
 	uint64_t		  ad_dom_count;
+
+	if (disable_directio)
+		str_cfg_init = "directio=false";
 
 	stob_location = m0_alloc(strlen(b->b_stob_path) + 20);
 	if (stob_location == NULL)
@@ -1485,6 +1496,7 @@ static int builder_init(struct builder *b)
 	}
 	printf("\nDestination segment header generation\n");
 	generation_id_print(b->b_seg->bs_gen);
+	printf("\n");
 	/*
 	 * Flush immediately to avoid losing this information within other lines
 	 * coming on the screen at the same time.
