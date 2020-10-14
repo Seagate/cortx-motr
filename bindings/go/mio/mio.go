@@ -48,55 +48,62 @@ import (
     "log"
 )
 
+// Mio implements Reader and Writer interfaces for Motr
 type Mio struct {
-    obj_id  C.struct_m0_uint128
+    objID   C.struct_m0_uint128
     obj    *C.struct_m0_obj
-    obj_lid uint
+    objLid  uint
     off     uint64
     buf     C.struct_m0_bufvec
     attr    C.struct_m0_bufvec
     ext     C.struct_m0_indexvec
-    min_buf []byte
+    minBuf  []byte
 }
 
-func check_arg(arg *string, name string) {
+func checkArg(arg *string, name string) {
     if *arg == "" {
         fmt.Printf("%s: %s must be specified\n", os.Args[0], name)
         os.Exit(1)
     }
 }
 
-var Obj_size uint64
+// Object size can be specified by user for reading.
+// Also, it is used when creating new object and the resulting
+// size can not be established (like when we read from stdin).
+// This size is used to calculate the optimal unit size of the
+// newly created object.
+var ObjSize uint64
 
+// Initialise mio module.
+// All the standard Motr init stuff is done here.
 func Init() {
     // Mandatory
-    local_ep := flag.String("ep", "", "my `endpoint` address")
-    hax_ep   := flag.String("hax", "", "local hax `endpoint` address")
+    localEP  := flag.String("ep", "", "my `endpoint` address")
+    haxEP    := flag.String("hax", "", "local hax `endpoint` address")
     profile  := flag.String("prof", "", "cluster profile `fid`")
-    proc_fid := flag.String("proc", "", "my process `fid`")
+    procFid  := flag.String("proc", "", "my process `fid`")
     // Optional
-    trace_on := flag.Bool("trace", false, "generate m0trace.pid file")
-
-    flag.Uint64Var(&Obj_size, "osz", 32, "object `size` (in Kbytes)")
+    traceOn  := flag.Bool("trace", false, "generate m0trace.pid file")
+    flag.Uint64Var(&ObjSize, "osz", 32, "object `size` (in Kbytes)")
 
     flag.Parse()
 
-    Obj_size *= 1024
+    ObjSize *= 1024
 
-    check_arg(local_ep, "my endpoint (-ep)")
-    check_arg(hax_ep, "hax endpoint (-hax)")
-    check_arg(profile, "profile fid (-prof)")
-    check_arg(proc_fid, "my process fid (-proc)")
+    checkArg(localEP, "my endpoint (-ep)")
+    checkArg(haxEP,   "hax endpoint (-hax)")
+    checkArg(profile, "profile fid (-prof)")
+    checkArg(procFid, "my process fid (-proc)")
 
-    if !*trace_on {
+    if !*traceOn {
         C.m0_trace_set_mmapped_buffer(false)
     }
 
     C.conf.mc_is_oostore     = true
-    C.conf.mc_local_addr     = C.CString(*local_ep)
-    C.conf.mc_ha_addr        = C.CString(*hax_ep)
+    C.conf.mc_local_addr     = C.CString(*localEP)
+    C.conf.mc_ha_addr        = C.CString(*haxEP)
     C.conf.mc_profile        = C.CString(*profile)
-    C.conf.mc_process_fid    = C.CString(*proc_fid)
+    C.conf.mc_process_fid    = C.CString(*procFid)
     C.conf.mc_tm_recv_queue_min_len =    64
     C.conf.mc_max_rpc_msg_size      = 65536
     C.conf.mc_idx_service_id  = C.M0_IDX_DIX;
@@ -115,7 +122,8 @@ func Init() {
     }
 }
 
-func Scan_id(s string) (fid C.struct_m0_uint128, err error) {
+// Scan object ID
+func ScanID(s string) (fid C.struct_m0_uint128, err error) {
     cs := C.CString(s)
     rc := C.m0_uint128_sscanf(cs, &fid)
     C.free(unsafe.Pointer(cs))
@@ -126,7 +134,7 @@ func Scan_id(s string) (fid C.struct_m0_uint128, err error) {
 }
 
 func (mio *Mio) obj_new(id string) (err error) {
-    mio.obj_id, err = Scan_id(id)
+    mio.objID, err = ScanID(id)
     if err != nil {
         return err
     }
@@ -134,6 +142,7 @@ func (mio *Mio) obj_new(id string) (err error) {
     return nil
 }
 
+// Open object
 func (mio *Mio) Open(id string) (err error) {
     if mio.obj != nil {
         return errors.New("object is already opened")
@@ -142,17 +151,18 @@ func (mio *Mio) Open(id string) (err error) {
     if err != nil {
         return err
     }
-    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.obj_id, 0)
+    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, 0)
     rc := C.m0_open_entity(&mio.obj.ob_entity);
     if rc != 0 {
         mio.Close()
         return errors.New(fmt.Sprintf("failed to open object entity: %d", rc))
     }
-    mio.obj_lid = uint(mio.obj.ob_attr.oa_layout_id)
+    mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
     mio.off = 0
     return nil
 }
 
+// Close object
 func (mio *Mio) Close() {
     if mio.obj == nil {
         return
@@ -174,6 +184,7 @@ func bits(values ...C.ulong) (res C.ulong) {
     return res
 }
 
+// Create object
 func (mio *Mio) Create(id string, sz uint64) (err error) {
     if mio.obj != nil {
         return errors.New("object is already opened")
@@ -182,7 +193,7 @@ func (mio *Mio) Create(id string, sz uint64) (err error) {
     if err != nil {
         return err
     }
-    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.obj_id, 1)
+    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, 1)
 
     var op *C.struct_m0_op
     rc := C.m0_entity_create(nil, &mio.obj.ob_entity, &op)
@@ -201,50 +212,50 @@ func (mio *Mio) Create(id string, sz uint64) (err error) {
     if rc != 0 {
         return errors.New(fmt.Sprintf("create op failed: %d", rc))
     }
-    mio.obj_lid = uint(mio.obj.ob_attr.oa_layout_id)
+    mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
 
     return nil
 }
 
-func roundup_power2(x int) (power int) {
+func roundupPower2(x int) (power int) {
     for power = 1; power < x; power *= 2 {}
     return power
 }
 
-const MAX_M0_BUFSZ = 128 * 1024 * 1024
+const maxM0BufSz = 128 * 1024 * 1024
 
 // Calculate the optimal block size for the I/O
-func (mio *Mio) get_optimal_bs(obj_sz int) int {
-    if obj_sz > MAX_M0_BUFSZ {
-            obj_sz = MAX_M0_BUFSZ
+func (mio *Mio) getOptimalBS(obj_sz int) int {
+    if obj_sz > maxM0BufSz {
+            obj_sz = maxM0BufSz
     }
     pver := C.m0_pool_version_find(&C.instance.m0c_pools_common,
                                    &mio.obj.ob_attr.oa_pver)
     if pver == nil {
             log.Panic("cannot find the object's pool version")
     }
-    usz := int(C.m0_obj_layout_id_to_unit_size(C.ulong(mio.obj_lid)))
+    usz := int(C.m0_obj_layout_id_to_unit_size(C.ulong(mio.objLid)))
     pa := &pver.pv_attr
     gsz := usz * int(pa.pa_N)
     /* max 2-times pool-width deep, otherwise we may get -E2BIG */
-    max_bs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
+    maxBS := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
 
-    if obj_sz >= max_bs {
-            return max_bs
+    if obj_sz >= maxBS {
+            return maxBS
     } else if obj_sz <= gsz {
             return gsz
     } else {
-            return roundup_power2(obj_sz)
+            return roundupPower2(obj_sz)
     }
 }
 
-func (mio *Mio) prepare_buf(bs int, p []byte, off int, m_off uint64) error {
+func (mio *Mio) prepareBuf(bs int, p []byte, off int, m_off uint64) error {
     buf := p[off:]
     if bs < C.PAGE_SIZE {
         bs = C.PAGE_SIZE
         // we need it zero-ed, that's why it's allocated
-        mio.min_buf = make([]byte, bs)
-        buf = mio.min_buf[:]
+        mio.minBuf = make([]byte, bs)
+        buf = mio.minBuf[:]
     }
     if mio.buf.ov_buf == nil {
         if C.m0_bufvec_empty_alloc(&mio.buf, 1) != 0 {
@@ -266,7 +277,7 @@ func (mio *Mio) prepare_buf(bs int, p []byte, off int, m_off uint64) error {
     return nil
 }
 
-func (mio *Mio) do_io_op(opcode uint32) (err error) {
+func (mio *Mio) doIO(opcode uint32) (err error) {
     var op *C.struct_m0_op
     C.m0_obj_op(mio.obj, opcode, &mio.ext, &mio.buf, &mio.attr, 0, 0, &op)
     C.m0_op_launch(&op, 1)
@@ -288,19 +299,19 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
         return 0, errors.New("object is not opened")
     }
     left, off := len(p), 0
-    bs := mio.get_optimal_bs(left)
+    bs := mio.getOptimalBS(left)
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
         }
-        err = mio.prepare_buf(bs, p, off, mio.off)
+        err = mio.prepareBuf(bs, p, off, mio.off)
         if err != nil {
             return off, err
         }
         if bs < C.PAGE_SIZE {
-            copy(mio.min_buf, p[off:])
+            copy(mio.minBuf, p[off:])
         }
-        err = mio.do_io_op(C.M0_OC_WRITE)
+        err = mio.doIO(C.M0_OC_WRITE)
         if err != nil {
             return off, err
         }
@@ -314,25 +325,25 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
     }
-    if mio.off >= Obj_size {
+    if mio.off >= ObjSize {
         return 0, io.EOF
     }
     left, off := len(p), 0
-    bs := mio.get_optimal_bs(left)
-    for ; left > 0 && mio.off < Obj_size; left -= bs {
+    bs := mio.getOptimalBS(left)
+    for ; left > 0 && mio.off < ObjSize; left -= bs {
         if left < bs {
             bs = left
         }
-        err = mio.prepare_buf(bs, p, off, mio.off)
+        err = mio.prepareBuf(bs, p, off, mio.off)
         if err != nil {
             return off, err
         }
-        err = mio.do_io_op(C.M0_OC_READ)
+        err = mio.doIO(C.M0_OC_READ)
         if err != nil {
             return off, err
         }
         if bs < C.PAGE_SIZE {
-            copy(p[off:], mio.min_buf)
+            copy(p[off:], mio.minBuf)
         }
         off += bs
         mio.off += uint64(bs)

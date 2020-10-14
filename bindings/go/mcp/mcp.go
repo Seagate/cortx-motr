@@ -20,11 +20,11 @@ func usage() {
     flag.PrintDefaults()
 }
 
-var buf_size int
+var bufSize int
 
 func init() {
     flag.Usage = usage
-    flag.IntVar(&buf_size, "bsz", 32, "I/O buffer `size` (in Mbytes)")
+    flag.IntVar(&bufSize, "bsz", 32, "I/O buffer `size` (in Mbytes)")
     log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 }
 
@@ -37,15 +37,15 @@ func main() {
 
     src, dst := flag.Arg(0), flag.Arg(1)
 
-    var mio_r, mio_w mio.Mio
+    var mioR, mioW mio.Mio
 
     var reader io.Reader
-    if _, err := mio.Scan_id(src); err == nil {
-        if err = mio_r.Open(src); err != nil {
+    if _, err := mio.ScanID(src); err == nil {
+        if err = mioR.Open(src); err != nil {
             log.Fatalf("failed to open object %v: %v", src, err)
         }
-        defer mio_r.Close()
-        reader = &mio_r
+        defer mioR.Close()
+        reader = &mioR
     } else if src == "-" {
         reader = os.Stdin
     } else {
@@ -58,19 +58,19 @@ func main() {
         if err != nil {
             log.Fatalf("failed to get stat of file %v: %v", src, err)
         }
-        mio.Obj_size = uint64(info.Size())
+        mio.ObjSize = uint64(info.Size())
         reader = file
     }
 
     var writer io.Writer
-    if _, err := mio.Scan_id(dst); err == nil {
-        if err = mio_w.Open(dst); err != nil {
-            if err = mio_w.Create(dst, mio.Obj_size); err != nil {
+    if _, err := mio.ScanID(dst); err == nil {
+        if err = mioW.Open(dst); err != nil {
+            if err = mioW.Create(dst, mio.ObjSize); err != nil {
                 log.Fatalf("failed to create object %v: %v", dst, err)
             }
         }
-        defer mio_w.Close()
-        writer = &mio_w
+        defer mioW.Close()
+        writer = &mioW
     } else if dst == "-" {
         writer = os.Stdout
     } else {
@@ -82,6 +82,6 @@ func main() {
         writer = file
     }
 
-    buf := make([]byte, buf_size * 1024 * 1024)
+    buf := make([]byte, bufSize * 1024 * 1024)
     io.CopyBuffer(writer, reader, buf)
 }
