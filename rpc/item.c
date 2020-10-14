@@ -625,8 +625,8 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 
 	M0_LOG(M0_DEBUG, "item: "ITEM_FMT" session=%p osr_xid=%"PRIu64" "
 	       "osr_session_xid_min=%"PRIu64" s_xid=%"PRIu64,
-	       ITEM_ARG(item), sess, item->ri_header.osr_session_xid_min,
-	       xid, sess->s_xid);
+	       ITEM_ARG(item), sess, xid, item->ri_header.osr_session_xid_min,
+	       sess->s_xid);
 	/*
 	 * Purge cache on every N-th packet
 	 * (not on every one - that could be pretty expensive).
