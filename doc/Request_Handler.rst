@@ -61,4 +61,20 @@ Use Cases
 
           - fop-type specific phase packs the result in user space expected format and returns it to the user space; 
 
-          - fom processing completes, locality and fom are recycled.  
+          - fom processing completes, locality and fom are recycled. 
+          
+[client query wbc]
+
+         An application invokes a read-only system call for data or meta-data not present in the local client cache.
+
+         - A fom is created for the call; 
+
+         - a locality to execute this fom is created (on the stack), using the current thread as its only handler thread; 
+
+         - standard phases are executed. Resource acquisition phase finds that some necessary resource usage rights are not granted. According to the request handler policy the fop should be executed in the wbc mode; 
+
+         - resource acquisition requests are enqueued. When resources are granted, they are cached locally. The fop execution proceeds through the standard phases; 
+
+         - fop-type specific phase packs the result (present in the local cache by this time) and returns it to the user space; 
+
+         - fom processing completes, locality and fom are recycled.   
