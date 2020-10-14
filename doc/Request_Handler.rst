@@ -99,4 +99,22 @@ Use Cases
 
         - the results are copied from the reply to the user space; 
 
-        - fom processing completes, the locality and the fom are recycled.  
+        - fom processing completes, the locality and the fom are recycled.
+        
+[server]
+
+       A server received an incoming fop from a client.
+
+       - A fom is created; 
+
+       - home locality is assigned to the fom; 
+
+       - the fom is placed in the home locality run-queue; 
+
+       - standard phases are executed for the fom; 
+
+       - fop-type specific phases are executed. This involves calls to the underlying data and meta-data stores to query and modify file system; 
+
+       - reply fop is sent to the client; 
+
+       - fom processing terminates, the fom is recycled.   
