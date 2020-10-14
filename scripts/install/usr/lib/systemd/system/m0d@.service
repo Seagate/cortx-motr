@@ -32,5 +32,5 @@ Environment=SHELL=/bin/bash
 EnvironmentFile=/etc/sysconfig/m0d-%i
 Group=motr
 ExecStart=/usr/libexec/cortx-motr/motr-server m0d-%i
-ExecStop=/bin/bash -c "/usr/bin/echo 'killing PID : ${MAINPID}'"
+ExecStop=/usr/bin/echo 'killing PID : ${MAINPID}'
 ExecStop=/bin/kill -9 $MAIN_PID
