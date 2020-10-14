@@ -29,14 +29,14 @@
 
 # Takes a positive integer as an input and generates those many
 # distinct end-points for concurrent clovis instances. The
-# script assumes the presence of conf.xc in /etc/mero
+# script assumes the presence of conf.xc in /etc/motr
 #
 # Nachiket Sahasrabudhe <nachiket.sahasrabuddhe@seagate.com>
 # 28/06/2018
 
 
 
-conf="/etc/mero/conf.xc"
+conf="/etc/motr/conf.xc"
 base_port=301
 IP=""
 port=""
