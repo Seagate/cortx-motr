@@ -1,4 +1,4 @@
-package main
+package mio
 
 // #cgo CFLAGS: -I../../.. -I../../../extra-libs/galois/include
 // #cgo CFLAGS: -DM0_EXTERN=extern -DM0_INTERNAL=
@@ -40,8 +40,8 @@ import "C"
 
 import (
     "errors"
-    "os"
     "io"
+    "os"
     "unsafe"
     "fmt"
     "flag"
@@ -52,49 +52,41 @@ type Mio struct {
     obj_id  C.struct_m0_uint128
     obj    *C.struct_m0_obj
     obj_lid uint
+    off     uint64
     buf     C.struct_m0_bufvec
     attr    C.struct_m0_bufvec
     ext     C.struct_m0_indexvec
     min_buf []byte
 }
 
-func usage() {
-    fmt.Fprintf(flag.CommandLine.Output(),
-                "Usage: %s [options]\n",
-                os.Args[0])
-    flag.PrintDefaults()
-}
-
 func check_arg(arg *string, name string) {
     if *arg == "" {
         fmt.Printf("%s: %s must be specified\n", os.Args[0], name)
-        usage()
         os.Exit(1)
     }
 }
 
-var obj_id string
+var Obj_size uint64
 
-func init() {
-    flag.Usage = usage
-    log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-
+func Init() {
     // Mandatory
     local_ep := flag.String("ep", "", "my `endpoint` address")
     hax_ep   := flag.String("hax", "", "local hax `endpoint` address")
     profile  := flag.String("prof", "", "cluster profile `fid`")
     proc_fid := flag.String("proc", "", "my process `fid`")
-    flag.StringVar(&obj_id, "obj", "", "object `id` to work with")
     // Optional
     trace_on := flag.Bool("trace", false, "generate m0trace.pid file")
 
+    flag.Uint64Var(&Obj_size, "osz", 32, "object `size` (in Kbytes)")
+
     flag.Parse()
+
+    Obj_size *= 1024
 
     check_arg(local_ep, "my endpoint (-ep)")
     check_arg(hax_ep, "hax endpoint (-hax)")
     check_arg(profile, "profile fid (-prof)")
     check_arg(proc_fid, "my process fid (-proc)")
-    check_arg(&obj_id, "object id (-obj)")
 
     if !*trace_on {
         C.m0_trace_set_mmapped_buffer(false)
@@ -123,7 +115,7 @@ func init() {
     }
 }
 
-func scan_id(s string) (fid C.struct_m0_uint128, err error) {
+func Scan_id(s string) (fid C.struct_m0_uint128, err error) {
     cs := C.CString(s)
     rc := C.m0_uint128_sscanf(cs, &fid)
     C.free(unsafe.Pointer(cs))
@@ -134,7 +126,7 @@ func scan_id(s string) (fid C.struct_m0_uint128, err error) {
 }
 
 func (mio *Mio) obj_new(id string) (err error) {
-    mio.obj_id, err = scan_id(id)
+    mio.obj_id, err = Scan_id(id)
     if err != nil {
         return err
     }
@@ -157,7 +149,22 @@ func (mio *Mio) Open(id string) (err error) {
         return errors.New(fmt.Sprintf("failed to open object entity: %d", rc))
     }
     mio.obj_lid = uint(mio.obj.ob_attr.oa_layout_id)
+    mio.off = 0
     return nil
+}
+
+func (mio *Mio) Close() {
+    if mio.obj == nil {
+        return
+    }
+    C.m0_obj_fini(mio.obj)
+    C.free(unsafe.Pointer(mio.obj))
+    mio.obj = nil
+    if mio.buf.ov_buf == nil {
+        C.m0_bufvec_free2(&mio.buf)
+        C.m0_bufvec_free(&mio.attr)
+        C.m0_indexvec_free(&mio.ext)
+    }
 }
 
 func bits(values ...C.ulong) (res C.ulong) {
@@ -176,6 +183,7 @@ func (mio *Mio) Create(id string, sz uint64) (err error) {
         return err
     }
     C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.obj_id, 1)
+
     var op *C.struct_m0_op
     rc := C.m0_entity_create(nil, &mio.obj.ob_entity, &op)
     if rc != 0 {
@@ -230,12 +238,12 @@ func (mio *Mio) get_optimal_bs(obj_sz int) int {
     }
 }
 
-func (mio *Mio) prepare_buf(bs int, p []byte, off int) error {
+func (mio *Mio) prepare_buf(bs int, p []byte, off int, m_off uint64) error {
     buf := p[off:]
     if bs < C.PAGE_SIZE {
         bs = C.PAGE_SIZE
-        mio.min_buf = make([]byte, C.PAGE_SIZE)
-        copy(mio.min_buf, p)
+        // we need it zero-ed, that's why it's allocated
+        mio.min_buf = make([]byte, bs)
         buf = mio.min_buf[:]
     }
     if mio.buf.ov_buf == nil {
@@ -249,9 +257,9 @@ func (mio *Mio) prepare_buf(bs int, p []byte, off int) error {
             return errors.New("mio.ext allocation failed")
         }
     }
-    *mio.buf.ov_buf = unsafe.Pointer(&buf)
+    *mio.buf.ov_buf = unsafe.Pointer(&buf[0])
     *mio.buf.ov_vec.v_count = C.ulong(bs)
-    *mio.ext.iv_index = C.ulong(off)
+    *mio.ext.iv_index = C.ulong(m_off)
     *mio.ext.iv_vec.v_count = C.ulong(bs)
     *mio.attr.ov_vec.v_count = 0
 
@@ -263,7 +271,7 @@ func (mio *Mio) do_io_op(opcode uint32) (err error) {
     C.m0_obj_op(mio.obj, opcode, &mio.ext, &mio.buf, &mio.attr, 0, 0, &op)
     C.m0_op_launch(&op, 1)
     rc := C.m0_op_wait(op, bits(C.M0_OS_FAILED,
-                               C.M0_OS_STABLE), C.M0_TIME_NEVER)
+                                C.M0_OS_STABLE), C.M0_TIME_NEVER)
     if rc == 0 {
         rc = C.m0_rc(op)
     }
@@ -285,40 +293,49 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
         if left < bs {
             bs = left
         }
-        err = mio.prepare_buf(bs, p, off)
+        err = mio.prepare_buf(bs, p, off, mio.off)
         if err != nil {
             return off, err
+        }
+        if bs < C.PAGE_SIZE {
+            copy(mio.min_buf, p[off:])
         }
         err = mio.do_io_op(C.M0_OC_WRITE)
         if err != nil {
             return off, err
         }
         off += bs
+        mio.off += uint64(bs)
     }
     return off, nil
 }
 
-func (mio *Mio) Close() {
+func (mio *Mio) Read(p []byte) (n int, err error) {
     if mio.obj == nil {
-        return
+        return 0, errors.New("object is not opened")
     }
-    C.m0_obj_fini(mio.obj)
-    C.free(unsafe.Pointer(mio.obj))
-    mio.obj = nil
-}
-
-func main() {
-    var mio Mio
-    err := mio.Open(obj_id)
-    if err == nil {
-        fmt.Println("object already exists")
-    } else {
-        err = mio.Create(obj_id, 100000)
-        if err != nil {
-            log.Panic(err)
+    if mio.off >= Obj_size {
+        return 0, io.EOF
+    }
+    left, off := len(p), 0
+    bs := mio.get_optimal_bs(left)
+    for ; left > 0 && mio.off < Obj_size; left -= bs {
+        if left < bs {
+            bs = left
         }
-        fmt.Println("object created")
+        err = mio.prepare_buf(bs, p, off, mio.off)
+        if err != nil {
+            return off, err
+        }
+        err = mio.do_io_op(C.M0_OC_READ)
+        if err != nil {
+            return off, err
+        }
+        if bs < C.PAGE_SIZE {
+            copy(p[off:], mio.min_buf)
+        }
+        off += bs
+        mio.off += uint64(bs)
     }
-    defer mio.Close()
-    io.Copy(&mio, os.Stdin)
+    return off, nil
 }
