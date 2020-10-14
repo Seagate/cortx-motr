@@ -209,7 +209,7 @@ func (mio *Mio) Create(id string, sz uint64) (err error) {
     C.m0_op_free(op)
 
     if rc != 0 {
-        return errors.New(fmt.Sprintf("create op failed: %d", rc))
+        return fmt.Errorf("create op failed: %d", rc)
     }
     mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
 
