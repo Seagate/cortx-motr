@@ -2042,7 +2042,7 @@ int m0hsm_test_read(struct m0_uint128 id, off_t offset, size_t len)
 	int blocks;
 	size_t io_size;
 	struct io_ctx ctx = {0};
-	size_t rest = len;
+	size_t rest;
 	off_t start = offset;
 	int rc;
 	ENTRY;
@@ -2061,7 +2061,7 @@ int m0hsm_test_read(struct m0_uint128 id, off_t offset, size_t len)
 	if (rc)
 		RETURN(rc);
 
-	while (rest > 0) {
+	for (rest = len; rest > 0; rest -= blocks * io_size) {
 		/* count remaining blocks */
 		blocks = rest / io_size;
 		if (blocks == 0) {
@@ -2081,9 +2081,7 @@ int m0hsm_test_read(struct m0_uint128 id, off_t offset, size_t len)
 		/* dump them to stdout */
 		dump_data(&ctx.data, io_size);
 
-		/* update counters */
 		start += blocks * io_size;
-		rest -= blocks * io_size;
 	}
 
 	m0_entity_fini(&obj.ob_entity);
