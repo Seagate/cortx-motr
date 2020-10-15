@@ -63,6 +63,11 @@ struct remote_invoke_var {
 	struct m0_chan      riv_chan;
 } remote_call_info;
 
+static void req_fop_prepare(struct m0_fop *req_fop,
+                            uint32_t       buf_type,
+                            struct m0_fid *fid,
+			    uint32_t       f_type);
+
 static void isc_item_cb(struct m0_rpc_item *item)
 {
 	struct m0_fop *req_fop;
@@ -548,7 +553,8 @@ enum fop_processing_phase {
 	FPP_INVALID,
 };
 
-static uint32_t remote_invocation_async(int exp_rc, uint32_t buf_type,
+static uint32_t remote_invocation_async(struct m0_fid *fid,
+                                        int exp_rc, uint32_t buf_type,
 					uint32_t phase, struct m0_fop **arg_fop)
 {
 	struct m0_fop        *reply_fop;
@@ -563,7 +569,11 @@ static uint32_t remote_invocation_async(int exp_rc, uint32_t buf_type,
 		arg_fop[0] = m0_alloc(sizeof arg_fop[0][0]);
 		M0_UT_ASSERT(arg_fop[0] != NULL);
 		m0_fop_init(arg_fop[0], &m0_fop_isc_fopt,
-			    &remote_call_info.riv_req, m0_fop_release);
+			    NULL, m0_fop_release);
+		rc = m0_fop_data_alloc(arg_fop[0]);
+		M0_ASSERT(rc == 0);
+		req_fop_prepare(arg_fop[0], buf_type, fid, FT_NEITHER_IO);
+
 		arg_fop[0]->f_item.ri_ops = &isc_item_ops;
 		arg_fop[0]->f_item.ri_session = &isc_ut_cctx.rcx_session;
 		rc = m0_rpc_post(&arg_fop[0]->f_item);
@@ -593,20 +603,19 @@ static uint32_t remote_invocation_async(int exp_rc, uint32_t buf_type,
 	return FPP_INVALID;
 }
 
-static void req_fop_prepare(uint32_t buf_type, struct m0_fid *fid,
-			    uint32_t f_type)
+static void req_fop_prepare(struct m0_fop *req_fop,
+			     uint32_t       buf_type,
+			     struct m0_fid *fid,
+			     uint32_t       f_type)
 {
 	struct m0_fop_isc     *fop_isc;
-	struct m0_buf         *data;
+	struct m0_buf          data = M0_BUF_INIT0;
 	struct m0_rpc_machine *rmach;
 	char                  *in_buf;
 	uint32_t               size;
 	int                    rc;
 
-	M0_SET0(&remote_call_info);
-	fop_isc = &remote_call_info.riv_req;
-	data = &remote_call_info.riv_data;
-	*data = M0_BUF_INIT0;
+	fop_isc = m0_fop_data(req_fop);
 	size = 0;
 	rmach = &isc_ut_cctx.rcx_rpc_machine;
 	fop_isc->fi_comp_id = *fid;
@@ -616,19 +625,19 @@ static void req_fop_prepare(uint32_t buf_type, struct m0_fid *fid,
 	case FT_NO_INPUT:
 		break;
 	case FT_NO_OUTPUT:
-		in_buf    = m0_strdup(fixed_str);
+		in_buf = m0_strdup(fixed_str);
 		M0_UT_ASSERT(in_buf != NULL);
-		m0_buf_init(data, (void *)in_buf, strlen(fixed_str));
+		m0_buf_init(&data, (void *)in_buf, strlen(fixed_str));
 		break;
 	case FT_BOTH_IO:
 		size = buf_type == BT_INLINE ? INLINE_LEN : INBULK_LEN;
-		atut__bufdata_alloc(data, size, rmach);
-		memset(data->b_addr, 'a', data->b_nob);
+		atut__bufdata_alloc(&data, size, rmach);
+		memset(data.b_addr, 'a', data.b_nob);
 		break;
 	default:
 		M0_UT_ASSERT(false);
 	}
-	rc = m0_rpc_at_add(&fop_isc->fi_args, data,
+	rc = m0_rpc_at_add(&fop_isc->fi_args, &data,
 			   &isc_ut_cctx.rcx_connection);
 	M0_UT_ASSERT(rc == 0);
 	m0_rpc_at_init(&fop_isc->fi_ret);
@@ -661,7 +670,6 @@ static void ret_codes_precond(int exp_rc, uint32_t buf_type, struct m0_fid *fid)
 		m0_isc_comp_unregister(fid);
 		break;
 	case -ENOMEM:
-		req_fop_prepare(buf_type, fid, FT_BOTH_IO);
 		m0_fi_enable("isc_comp_launch", "oom");
 		break;
 	case -EPROTO:
@@ -669,16 +677,13 @@ static void ret_codes_precond(int exp_rc, uint32_t buf_type, struct m0_fid *fid)
 		remote_call_info.riv_req.fi_comp_id = *fid;
 		break;
 	case -EPERM:
-		req_fop_prepare(buf_type, fid, FT_BOTH_IO);
 		m0_fi_enable("string_update", "comp_error");
 		break;
 	case -ENOMSG:
 		m0_fi_enable("req_fop_prepare", "at_mismatch");
-		req_fop_prepare(buf_type, fid, FT_BOTH_IO);
 		m0_fi_enable("string_update", "at_mismatch");
 		break;
 	case 0:
-		req_fop_prepare(buf_type, fid, FT_BOTH_IO);
 		rc = m0_isc_comp_register(string_update, "string_update", fid);
 		M0_UT_ASSERT(M0_IN(rc, (0, -EEXIST)));
 		break;
@@ -720,34 +725,46 @@ static void ret_codes_postcond(int exp_rc, void *arg)
 	m0_rpc_at_fini(&remote_call_info.riv_req.fi_ret);
 }
 
-static void remote_invocation(int exp_rc, uint32_t f_type)
+static void remote_invocation(struct m0_fid *fid, int exp_rc,
+		              uint32_t f_type, uint32_t buf_type)
 {
-	struct m0_fop         arg_fop;
-	struct m0_fop        *reply_fop;
-	struct m0_fop_isc_rep repl;
-	struct m0_fop_isc    *req;
-	struct m0_buf        *recv_buf;
-	struct m0_isc_comp   *comp;
-	int                   ret_rc;
-	int                   rc;
-	int                   i;
+	struct m0_fop         *req_fop;
+	struct m0_fop         *reply_fop;
+	struct m0_fop_isc_rep *repl;
+	struct m0_fop_isc     *req;
+	struct m0_buf         *recv_buf;
+	struct m0_isc_comp    *comp;
+	int                    ret_rc;
+	int                    rc;
+	int                    i;
 
-	M0_SET0(&arg_fop);
+	M0_ALLOC_PTR(req_fop);
+	M0_ASSERT(req_fop != NULL);
 
-	m0_fop_init(&arg_fop, &m0_fop_isc_fopt, &remote_call_info.riv_req,
-		    m0_fop_release);
-	rc = m0_rpc_post_sync(&arg_fop, &isc_ut_cctx.rcx_session, NULL,
+	m0_fop_init(req_fop, &m0_fop_isc_fopt, NULL, m0_fop_release);
+	rc = m0_fop_data_alloc(req_fop);
+	M0_ASSERT(rc == 0);
+
+	if (M0_IN(exp_rc, (-EINVAL, -ENOMEM, -EPERM, -ENOMSG, 0))) {
+		req_fop_prepare(req_fop, buf_type, fid, f_type);
+	} else {
+		struct m0_fop_isc *fop_isc = m0_fop_data(req_fop);
+		fop_isc->fi_comp_id = *fid;
+	}
+
+	rc = m0_rpc_post_sync(req_fop, &isc_ut_cctx.rcx_session, NULL,
 			      M0_TIME_IMMEDIATELY);
 	M0_UT_ASSERT(rc == 0);
-	reply_fop = m0_rpc_item_to_fop(arg_fop.f_item.ri_reply);
-	repl = *(struct m0_fop_isc_rep *)m0_fop_data(reply_fop);
-	M0_UT_ASSERT(repl.fir_rc == exp_rc);
-	req = m0_fop_data(&arg_fop);
+
+	reply_fop = m0_rpc_item_to_fop(req_fop->f_item.ri_reply);
+	repl = (struct m0_fop_isc_rep *)m0_fop_data(reply_fop);
+	M0_UT_ASSERT(repl->fir_rc == exp_rc);
+	req = m0_fop_data(req_fop);
 	recv_buf = &remote_call_info.riv_recv_buf;
-	ret_rc = m0_rpc_at_rep_get(&req->fi_ret, &repl.fir_ret, recv_buf);
+	ret_rc = m0_rpc_at_rep_get(&req->fi_ret, &repl->fir_ret, recv_buf);
 	/* Ensure that a valid cookie is returned. */
-	comp = m0_cookie_of(&repl.fir_comp_cookie, struct m0_isc_comp, ic_gen);
-	if (!M0_IN(repl.fir_rc, (-ENOENT, -EINVAL))) {
+	comp = m0_cookie_of(&repl->fir_comp_cookie, struct m0_isc_comp, ic_gen);
+	if (!M0_IN(repl->fir_rc, (-ENOENT, -EINVAL))) {
 		M0_UT_ASSERT(comp != NULL);
 		M0_UT_ASSERT(m0_fid_eq(&comp->ic_fid, &req->fi_comp_id));
 	} else if (f_type != FT_NO_INPUT)
@@ -768,7 +785,8 @@ static void remote_invocation(int exp_rc, uint32_t f_type)
 		}
 		break;
 	}
-	m0_rpc_at_fini(&repl.fir_ret);
+	m0_rpc_at_fini(&repl->fir_ret);
+	m0_fop_put_lock(req_fop);
 }
 
 static uint32_t expected_output(uint32_t f_type)
@@ -796,8 +814,7 @@ static void comp_remote_invoke(struct comp_req_aux *cra, uint32_t f_type)
 	fid_get(cra->cra_name, &fid);
 	rc = m0_isc_comp_register(cra->cra_comp, cra->cra_name, &fid);
 	M0_UT_ASSERT(rc == 0);
-	req_fop_prepare(BT_INBULK, &fid, f_type);
-	remote_invocation(exp_rc, f_type);
+	remote_invocation(&fid, exp_rc, f_type, BT_INBULK);
 	m0_isc_comp_unregister(&fid);
 }
 
@@ -864,14 +881,13 @@ static void test_remote_waiting(void)
 	M0_UT_ASSERT(rc == 0);
 	isc_ut_client_start();
 	vis_entry_init(BARRIER_CNT);
-	req_fop_prepare(BT_INLINE, &fid, FT_NEITHER_IO);
 	/* Prepare to wait for reply fop. */
 	m0_mutex_init(&remote_call_info.riv_guard);
 	m0_chan_init(&remote_call_info.riv_chan, &remote_call_info.riv_guard);
 	m0_clink_init(&waiter, NULL);
 	m0_clink_add_lock(&remote_call_info.riv_chan, &waiter);
 	waiter.cl_is_oneshot = true;
-	phase = remote_invocation_async(0, BT_INLINE, FPP_SEND,
+	phase = remote_invocation_async(&fid, 0, BT_INLINE, FPP_SEND,
 					&arg_fop);
 	/* Spin till the fom is executed. */
 	while (vis_ent.ve_count == 0);
@@ -885,7 +901,8 @@ static void test_remote_waiting(void)
 
 	/* Wait for reply fop. */
 	m0_chan_wait(&waiter);
-	phase = remote_invocation_async(0, BT_INLINE, phase, &arg_fop);
+	phase = remote_invocation_async(&fid, 0, BT_INLINE, phase, &arg_fop);
+	m0_fop_put0_lock(arg_fop);
 	M0_UT_ASSERT(phase == FPP_COMPLETE);
 	isc_ut_client_stop();
 	isc_ut_server_stop();
@@ -923,7 +940,7 @@ static void test_remote_err_path(void)
 	for (j = BT_INLINE; j < BT_INBULK + 1; ++j) {
 		for (i = 0; i < ARRAY_SIZE(ret_codes); ++i) {
 			ret_codes_precond(ret_codes[i], j, &fid);
-			remote_invocation(ret_codes[i], FT_BOTH_IO);
+			remote_invocation(&fid, ret_codes[i], FT_BOTH_IO, j);
 			ret_codes_postcond(ret_codes[i], &fid);
 		}
 	}
@@ -936,12 +953,12 @@ struct m0_ut_suite isc_service_ut = {
 	.ts_init  = NULL,
 	.ts_fini  = NULL,
 	.ts_tests = {
-		{"comp-launch", test_comp_launch, "Nachiket"},
-		{"local-error-path", test_local_err_path, "Nachiket"},
-		{"comp-state", test_comp_state, "Nachiket"},
-		{"remote-comp-signature", test_comp_signature, "Nachiket"},
-		{"remote-waiting", test_remote_waiting, "Nachiket"},
-		{"remote-error-path", test_remote_err_path, "Nachiket"},
+		{"comp-launch",           test_comp_launch,     "Nachiket"},
+		{"local-error-path",      test_local_err_path,  "Nachiket"},
+		{"comp-state",            test_comp_state,      "Nachiket"},
+		{"remote-comp-signature", test_comp_signature,  "Nachiket"},
+		{"remote-waiting",        test_remote_waiting,  "Nachiket"},
+		{"remote-error-path",     test_remote_err_path, "Nachiket"},
 		{NULL, NULL}
 	}
 };
