@@ -151,5 +151,12 @@ Refinement
 State
 *************** 
 
-The RPC formation component is implemented as a state machine mostly driven by triggering of external events. 
+The RPC formation component is implemented as a state machine mostly driven by triggering of external events.
+
+States, Events, and Transitions
+===============================
+
+The table below describes the flow of states on triggering of all events. The rows describe the states and there is a column per event. The resultant state is mentioned at the intersection of row and column. 
+
+.. image:: Images/States.PNG
  
