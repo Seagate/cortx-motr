@@ -99,3 +99,33 @@ Additional Requirements
 
 - [r.resource.power]: (electrical) power consumed by a device is a resource.
 
+******************
+Design Highlights
+******************
+
+- hierarchical resource names. Resource name assignment can be simplified by introducing variable length resource identifiers.
+
+- conflict-free schedules: no observable conflicts. Before a resource usage credit is cancelled, the owner must re-integrate all changes which it made to the local copy of the resource. Conflicting usage credits can be granted only after all changes are re-integrated. Yet, the ordering between actual re-integration network requests and cancellation request can be arbitrary, subject to server-side NRS policy.
+
+- resource management code is split into two parts: (i) generic code that implements functionality independent of particular resource type (request queuing, resource ordering, etc.) and (ii) per-resource type code that implement type specific functionality (conflict resolution, etc.).
+
+- an important distinction with a more traditional design (as exemplified by the Vax Cluster or Lustre distributed lock managers) is that there is no strict separation of rôles between "resource manager" and "resource user": the same resource owner can request usage credits from and grant usage credits to other resource owners. This reflects more dynamic nature of Motr resource control flow, with its hierarchical and peer-to-peer caches.
+
+*************************
+Functional Specification
+*************************
+
+External resource management interface is centered around following data-types:
+
+- a resource type;
+
+- a resource owner;
+
+- a usage credit;
+
+- a request for resource usage credit.
+
+The following sequence diagram illustrates the interaction between resource users, resource owners and resource servers.
+
+.. image:: Images/HLDQ.PNG
+
