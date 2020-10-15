@@ -1,0 +1,49 @@
+==========================
+HLD of fop object Iterator
+==========================
+
+This document presents a high level design (HLD) of a fop object iterator. The main purposes of this document are: (i) to be inspected by C2 architects and peer designers to ascertain that high level design is aligned with C2 architecture and other designs, and contains no defects, (ii) to be a source of material for Active Reviews of Intermediate Design (ARID) and detailed level design (DLD) of the same component, (iii) to serve as a design reference document.
+
+This component introduces an infrastructure for “generic fop methods”. To recall, a fop1 is a file operation packet, that contains fields describing a file system operation. Generic fop methods, described in the request handler HLD, allow common tasks such as authorization, authentication, resource pre-allocation, etc. to be done by the generic code (rather than in a per-fop-type way). This can be thought of as a more uniform and generic variant of habeo flags in Lustre 2.0 MDT.
+
+*************
+Definitions
+*************
+
+- a file operation packet (fop) is description of file system state modification that can be passed across the network and stored in a data-base;
+
+- a fop belongs to one of fop types. E.g., there is a fop type for MKDIR, another for WRITE. A fop, belonging to a particular fop type is called an instance of this type;
+
+- structure of data in instances of a fop type is defined by a fop format. A format defines the structure of instance in terms of fop fields. A data value in a fop instance, corresponding to a fop field in instance's format is called a fop field instance.
+
+- for the purposes of the present specification, a file system object is something identified by a fid. A fop identifies objects involved in the operation by carrying their fids as field instances. A fid might be accompanied by a version number, specifying to which version of the object the operation is to be applied.
+
+***************
+Requirements
+***************
+
+- [r.fop-object.reqh]: the major requirements for the fop object iterator interface is to allow object handling code to be lifted from per-fop-type code into a generic request hander part;
+
+- [r.fop-object.batch]: fop batching must be supported. For a batched fop, iterator should return the objects in component fops (recursively, if needed);
+
+- [r.fop-object.ordering]: fop object iterator must return objects in a consistent order, so that request handler can deal with objects without risking dead-locks and without additional sorting pass.
+
+******************
+Design Highlights
+******************
+
+A fop format defines the structure of fields within a fop (of a given fop type). For each fop format, a list is maintained, enumerating format's fields identifying file system objects. This list is built statically when the fop format is constructed. A fop object iterator goes through this list, descending into sub-fields and sub-fops.
+
+*************************
+Functional Specification
+*************************
+
+Fop object iterator component exports a fop object cursor data-type. A cursor is initialized for a given fop instance.
+
+Fop object cursor is used in the following ways (among others):
+
+- by the Network Request Scheduler to asynchronously read-ahead objects involved into queued operations;
+
+- by request handler generic code to load all the objects involved in the operation;
+
+- by distributed transaction manager to check versions of objects against the versions specified in the fop.
