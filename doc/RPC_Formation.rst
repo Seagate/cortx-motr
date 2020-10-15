@@ -58,4 +58,52 @@ Multiple RPC items will be coalesced into one RPC item if intents are similar. T
 
 The RPC item cache could contain bounded and unbounded items in the sense that they may or may not have session information embedded within them. The formation algorithm queries and retrieves the session information for unbounded items after formation is complete and before sending the RPC object on wire.
 
-The RPC Formation algorithm will be triggered only if current rpcs in flight per endpoint are less than max_rpcs_in_flight. It will also take care of distributed deadlocks.     
+The RPC Formation algorithm will be triggered only if current rpcs in flight per endpoint are less than max_rpcs_in_flight. It will also take care of distributed deadlocks.
+
+**********************
+Logical Specification
+**********************
+
+- Formation algorithm is implemented as cooperation of multiple policies like 
+
+  - network transport type policy (guided by max_message_size, max_message_fragments) 
+
+  - target service policy (guided by max_rpcs_in_flight) 
+
+  - item type policies: pack IO requests together in offset order, honoring rpc item deadlines, its priorities and sending rpc groups as one unit.  
+
+- The formation component is a state machine mostly driven by external events. 
+
+- When there are no events, the formation component is in idle state. 
+
+- Other components like RPC Grouping, Sessions and Input component post most of the events to the Formation component. 
+
+- The various external events are  
+
+  - Addition of item in rpc item cache. 
+
+  - Deletion of item from rpc item cache. 
+
+  - Change in parameter for an item from rpc item cache. 
+
+  - Reply received from network layer. 
+
+  - Deadline expired for item from rpc item cache. 
+
+- On triggering of events like mentioned above, corresponding state functions will be called which will carry out necessary actions. 
+
+- RPC Formation component uses an abstract data structure to gather information of rpc items from input cache. The details of this structure are part of Detailed Level Design. 
+
+- This abstract data structure gathers critical information like number of groups, number of rpc items in each group, possible candidates for coalescing, URGENT items &c. 
+
+- Formation algorithm will follow hints about rpc groups which are indications of more items following the current one and will not form a RPC object right away. 
+
+- The formation algorithm will consult this abstract data structure to make optimal rpc objects. 
+
+- On successful formation of an RPC object, it will be posted to the output component. 
+
+- Any deadline expiry event will trigger immediate formation of RPC object with whatever size RPC object that can be formed. 
+
+- If current rpcs in flight for an endpoint have already reached the number max_rpcs_in_flight for that endpoint, no more rpc formation is done until any replies from that endpoint are received and the current rpcs in flight number drop to less than max_rpcs_in_flight. 
+
+- The overpowering criteria is current rpcs in flight should be less than max_rpcs_in_filght. So, even if a timeout event is triggered for an rpc item but if current rpcs in flight have reached max_rpcs_in_flight, no formation will be done.
