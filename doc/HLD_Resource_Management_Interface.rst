@@ -38,3 +38,64 @@ Definitions
 
 - One possible conflict resolution policy would revoke all already granted conflicting credits before granting the new credit. Revocation is effected by sending conflict call-backs to the credits owners. The owners are expected to react by cancelling their cached credits.
 
+
+***************
+Requirements
+***************
+
+- [R.M0.LAYOUT.LAYID.RESOURCE]: layids are handled as a distributed resource (similarly to fids)
+
+- [R.M0.RESOURCE]: scalable hierarchical resource allocation is supported
+
+- [R.M0.RESOURCE.CACHEABLE]: resources can be cached by clients
+
+- [R.M0.RESOURCE.HIERARCICAL]: resources are distributed hierarchically
+
+- [R.M0.RESOURCE.CALLBACK-REVOKE]: scalable call-back and revocation model: revocation can spawn multiple nodes, each owning a part of a resource
+
+- [R.M0.RESOURCE.RECLAIM]: unused resources are reclaimed from users
+
+Additional Requirements
+
+- [r.resource.enqueue.async]: a resource can be enqueued asynchronously
+
+- [r.resource.ordering]: a total ordering of all resources is defined. Resources are enqueued according to the ordering, thus avoiding dead-locks.
+
+- [r.resource.persistent]: a record of resource usage credit acquisition can be persistent (e.g., for disconnected operation).
+
+- [r.resource.conversion]: a resource usage credit can be converted into another usage credit.
+
+- [r.resource.adaptive]: dynamic switch into a lockless mode.
+
+- [r.resource.revocation-partial]: part of a granted resource usage credit can be revoked.
+
+- [r.resource.sublet]: an owner can grant usage credits to further owners, thus organizing a hierarchy of owners.
+
+- [r.resource.separate]: resource management is separate from actual resource placement. For example, locks on file data extents are distributed by a locking service that is separate from data servers.
+
+- [r.resource.open-file]: an open file is a resource (with a special property that this resource can be revoked until owner closes the file).
+
+- [r.resource.lock]: a distributed lock is a resource.
+
+- [r.resource.resource-count]: a count of resource usage credit granted to a particular owner is a resource.
+
+- [r.resource.grant]: free storage space is a resource.
+
+- [r.resource.quota]: storage quota is a resource.
+
+- [r.resource.memory]: server memory is a resource.
+
+- [r.resource.cpu-cycles]: server cpu-cycles are a resource.
+
+- [r.resource.fid]: file identifier is a resource.
+
+- [r.resource.inode-number]: file inode number is a resource.
+
+- [r.resource.network-bandwidth]: network bandwidth is a resource.
+
+- [r.resource.storage-bandwidth]: storage bandwidth is a resource.
+
+- [r.resource.cluster-configuration]: cluster configuration is a resource.
+
+- [r.resource.power]: (electrical) power consumed by a device is a resource.
+
