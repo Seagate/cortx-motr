@@ -9,7 +9,6 @@ package mio
 // #include "lib/trace.h"
 // #include "motr/client.h"
 // #include "motr/layout.h" /* m0c_pools_common */
-// #include "motr/idx.h"
 //
 // struct m0_client    *instance = NULL;
 // struct m0_container container;
@@ -187,16 +186,31 @@ func bits(values ...C.ulong) (res C.ulong) {
     return res
 }
 
+func getOptimalUnitSz(sz uint64) (C.ulong, error) {
+    var pver *C.struct_m0_pool_version
+    rc := C.m0_pool_version_get(&C.instance.m0c_pools_common, nil, &pver)
+    if rc != 0 {
+        return 0, fmt.Errorf("m0_pool_version_get() failed: %v", rc)
+    }
+    lid := C.m0_layout_find_by_buffsize(&C.instance.m0c_reqh.rh_ldom,
+                                        &pver.pv_id, C.ulong(sz))
+    log.Printf("lid=%v\n", lid)
+    return lid, nil
+}
+
 // Create object
-func (mio *Mio) Create(id string, sz uint64) (err error) {
+func (mio *Mio) Create(id string, sz uint64) error {
     if mio.obj != nil {
         return errors.New("object is already opened")
     }
-    err = mio.objNew(id)
-    if err != nil {
+    if err := mio.objNew(id); err != nil {
         return err
     }
-    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, 9)
+    lid, err := getOptimalUnitSz(sz)
+    if err != nil {
+        return fmt.Errorf("failed to figure out object unit size: %v", err)
+    }
+    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, lid)
 
     var op *C.struct_m0_op
     rc := C.m0_entity_create(nil, &mio.obj.ob_entity, &op)
@@ -228,9 +242,9 @@ func roundupPower2(x int) (power int) {
 const maxM0BufSz = 128 * 1024 * 1024
 
 // Calculate the optimal block size for the I/O
-func (mio *Mio) getOptimalBS(objSz int) int {
-    if objSz > maxM0BufSz {
-            objSz = maxM0BufSz
+func (mio *Mio) getOptimalBlockSz(bufSz int) int {
+    if bufSz > maxM0BufSz {
+            bufSz = maxM0BufSz
     }
     pver := C.m0_pool_version_find(&C.instance.m0c_pools_common,
                                    &mio.obj.ob_attr.oa_pver)
@@ -243,12 +257,12 @@ func (mio *Mio) getOptimalBS(objSz int) int {
     /* max 2-times pool-width deep, otherwise we may get -E2BIG */
     maxBs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
 
-    if objSz >= maxBs {
+    if bufSz >= maxBs {
             return maxBs
-    } else if objSz <= gsz {
+    } else if bufSz <= gsz {
             return gsz
     } else {
-            return roundupPower2(objSz)
+            return roundupPower2(bufSz)
     }
 }
 
@@ -306,7 +320,7 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
     }
     ch := make(chan error, threadsN)
     left, off := len(p), 0
-    bs := mio.getOptimalBS(left)
+    bs := mio.getOptimalBlockSz(left)
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
@@ -341,7 +355,7 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
     }
     ch := make(chan error, threadsN)
     left, off := len(p), 0
-    bs := mio.getOptimalBS(left)
+    bs := mio.getOptimalBlockSz(left)
     for ; left > 0 && mio.off < ObjSize; left -= bs {
         if left < bs {
             bs = left
