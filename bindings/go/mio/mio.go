@@ -54,10 +54,11 @@ type Mio struct {
     obj    *C.struct_m0_obj
     objLid  uint
     off     uint64
-    buf     C.struct_m0_bufvec
-    attr    C.struct_m0_bufvec
-    ext     C.struct_m0_indexvec
+    buf     []C.struct_m0_bufvec
+    ext     []C.struct_m0_indexvec
+    attr    []C.struct_m0_bufvec
     minBuf  []byte
+    wg      sync.WaitGroup
 }
 
 func checkArg(arg *string, name string) {
@@ -154,6 +155,11 @@ func (mio *Mio) Open(id string) (err error) {
     if err != nil {
         return err
     }
+
+    mio.buf = make([]C.struct_m0_bufvec, threadsN)
+    mio.ext = make([]C.struct_m0_indexvec, threadsN)
+    mio.attr = make([]C.struct_m0_bufvec, threadsN)
+
     C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, 1)
     rc := C.m0_open_entity(&mio.obj.ob_entity);
     if rc != 0 {
@@ -162,6 +168,7 @@ func (mio *Mio) Open(id string) (err error) {
     }
     mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
     mio.off = 0
+
     return nil
 }
 
@@ -173,10 +180,13 @@ func (mio *Mio) Close() {
     C.m0_obj_fini(mio.obj)
     C.free(unsafe.Pointer(mio.obj))
     mio.obj = nil
-    if mio.buf.ov_buf == nil {
-        C.m0_bufvec_free2(&mio.buf)
-        C.m0_bufvec_free(&mio.attr)
-        C.m0_indexvec_free(&mio.ext)
+
+    for i := 0; i < len(mio.buf); i++ {
+        if mio.buf[i].ov_buf == nil {
+            C.m0_bufvec_free2(&mio.buf[i])
+                C.m0_bufvec_free(&mio.attr[i])
+                C.m0_indexvec_free(&mio.ext[i])
+        }
     }
 }
 
@@ -266,7 +276,8 @@ func (mio *Mio) getOptimalBlockSz(bufSz int) int {
     }
 }
 
-func (mio *Mio) prepareBuf(bs int, p []byte, off int, offMio uint64) error {
+func (mio *Mio) prepareBuf(i int, bs int, p []byte,
+                           off int, offMio uint64) error {
     buf := p[off:]
     if bs < C.PAGE_SIZE {
         bs = C.PAGE_SIZE
@@ -274,32 +285,36 @@ func (mio *Mio) prepareBuf(bs int, p []byte, off int, offMio uint64) error {
         mio.minBuf = make([]byte, bs)
         buf = mio.minBuf[:]
     }
-    if mio.buf.ov_buf == nil {
-        if C.m0_bufvec_empty_alloc(&mio.buf, 1) != 0 {
+    if mio.buf[i].ov_buf == nil {
+        if C.m0_bufvec_empty_alloc(&mio.buf[i], 1) != 0 {
             return errors.New("mio.buf allocation failed")
         }
-        if C.m0_bufvec_alloc(&mio.attr, 1, 1) != 0 {
+        if C.m0_bufvec_alloc(&mio.attr[i], 1, 1) != 0 {
             return errors.New("mio.attr allocation failed")
         }
-        if C.m0_indexvec_alloc(&mio.ext, 1) != 0 {
+        if C.m0_indexvec_alloc(&mio.ext[i], 1) != 0 {
             return errors.New("mio.ext allocation failed")
         }
     }
-    *mio.buf.ov_buf = unsafe.Pointer(&buf[0])
-    *mio.buf.ov_vec.v_count = C.ulong(bs)
-    *mio.ext.iv_index = C.ulong(offMio)
-    *mio.ext.iv_vec.v_count = C.ulong(bs)
-    *mio.attr.ov_vec.v_count = 0
+    *mio.buf[i].ov_buf = unsafe.Pointer(&buf[0])
+    *mio.buf[i].ov_vec.v_count = C.ulong(bs)
+    *mio.ext[i].iv_index = C.ulong(offMio)
+    *mio.ext[i].iv_vec.v_count = C.ulong(bs)
+    *mio.attr[i].ov_vec.v_count = 0
 
     return nil
 }
 
-var wg sync.WaitGroup
+type slot struct {
+    idx int
+    err error
+}
 
-func (mio *Mio) doIO(opcode uint32, ch chan error) {
-    defer wg.Done()
+func (mio *Mio) doIO(i int, opcode uint32, ch chan slot) {
+    defer mio.wg.Done()
     var op *C.struct_m0_op
-    C.m0_obj_op(mio.obj, opcode, &mio.ext, &mio.buf, &mio.attr, 0, 0, &op)
+    C.m0_obj_op(mio.obj, opcode,
+                &mio.ext[i], &mio.buf[i], &mio.attr[i], 0, 0, &op)
     C.m0_op_launch(&op, 1)
     rc := C.m0_op_wait(op, bits(C.M0_OS_FAILED,
                                 C.M0_OS_STABLE), C.M0_TIME_NEVER)
@@ -309,40 +324,44 @@ func (mio *Mio) doIO(opcode uint32, ch chan error) {
     C.m0_op_fini(op)
     C.m0_op_free(op)
     if rc != 0 {
-        ch <- fmt.Errorf("io op (%d) failed: %d", opcode, rc)
+        ch <- slot{i, fmt.Errorf("io op (%d) failed: %d", opcode, rc)}
     }
-    ch <- nil
+    ch <- slot{i, nil}
 }
 
 func (mio *Mio) Write(p []byte) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
     }
-    ch := make(chan error, threadsN)
+    ch := make(chan slot, threadsN)
+    // init chan buffer with slots
+    for i := 0; i < threadsN; i++ {
+        ch <- slot{i, nil}
+    }
     left, off := len(p), 0
     bs := mio.getOptimalBlockSz(left)
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
         }
-        err = mio.prepareBuf(bs, p, off, mio.off)
+        slot := <-ch // get next available
+        if slot.err != nil {
+            break
+        }
+        err = mio.prepareBuf(slot.idx, bs, p, off, mio.off)
         if err != nil {
             return off, err
         }
         if bs < C.PAGE_SIZE {
             copy(mio.minBuf, p[off:])
         }
-        wg.Add(1)
-        go mio.doIO(C.M0_OC_WRITE, ch)
-        err = <-ch
-        if err != nil {
-            break
-        }
+        mio.wg.Add(1)
+        go mio.doIO(slot.idx, C.M0_OC_WRITE, ch)
         off += bs
         mio.off += uint64(bs)
     }
 
-    wg.Wait()
+    mio.wg.Wait()
     return off, err
 }
 
@@ -353,23 +372,27 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
     if mio.off >= ObjSize {
         return 0, io.EOF
     }
-    ch := make(chan error, threadsN)
+    ch := make(chan slot, threadsN)
+    // init the chan buffer
+    for i := 0; i < threadsN; i++ {
+        ch <- slot{i, nil}
+    }
     left, off := len(p), 0
     bs := mio.getOptimalBlockSz(left)
     for ; left > 0 && mio.off < ObjSize; left -= bs {
         if left < bs {
             bs = left
         }
-        err = mio.prepareBuf(bs, p, off, mio.off)
+        slot := <-ch // get next available
+        if slot.err != nil {
+            break
+        }
+        err = mio.prepareBuf(slot.idx, bs, p, off, mio.off)
         if err != nil {
             return off, err
         }
-        wg.Add(1)
-        go mio.doIO(C.M0_OC_READ, ch)
-        err = <-ch
-        if err != nil {
-            break
-        }
+        mio.wg.Add(1)
+        go mio.doIO(slot.idx, C.M0_OC_READ, ch)
         if bs < C.PAGE_SIZE {
             copy(p[off:], mio.minBuf)
         }
@@ -377,6 +400,6 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         mio.off += uint64(bs)
     }
 
-    wg.Wait()
+    mio.wg.Wait()
     return off, err
 }
