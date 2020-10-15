@@ -234,6 +234,18 @@ Additional requirements are:
 
 - [r.resource.power]: (electrical) power consumed by a device is a resource.
 
+Resource Type Methods
+=====================
+
+Implementations of these methods are provided by each resource type. See examples below.
+
+- matches(credit_description0, credit_description1) method: this method returns true iff a credit with description credit_description0 is implied by a credit with description credit_description1. For example, extent lock L0 matches extent lock L1 iff L0's extent is part of L1's extent and L0's lock mode is compatible with L1's lock mode. More generally, for lock-type resources, matching is the same as lock compatibility.
+
+credit_get(owner, credit_description)
+
+- if matches(credit_description, owner.credit_description)
+
+
 
 
 
