@@ -48,6 +48,11 @@ import (
     "unsafe"
 )
 
+type slot struct {
+    idx int
+    err error
+}
+
 // Mio implements Reader and Writer interfaces for Motr
 type Mio struct {
     objID   C.struct_m0_uint128
@@ -58,6 +63,7 @@ type Mio struct {
     ext     []C.struct_m0_indexvec
     attr    []C.struct_m0_bufvec
     minBuf  []byte
+    ch      chan slot
     wg      sync.WaitGroup
 }
 
@@ -146,6 +152,19 @@ func (mio *Mio) objNew(id string) (err error) {
     return nil
 }
 
+func (mio *Mio) finishOpen() {
+    mio.buf = make([]C.struct_m0_bufvec, threadsN)
+    mio.ext = make([]C.struct_m0_indexvec, threadsN)
+    mio.attr = make([]C.struct_m0_bufvec, threadsN)
+    mio.ch = make(chan slot, threadsN)
+    // fill the pool with slots
+    for i := 0; i < threadsN; i++ {
+        mio.ch <- slot{i, nil}
+    }
+    mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
+    mio.off = 0
+}
+
 // Open object
 func (mio *Mio) Open(id string) (err error) {
     if mio.obj != nil {
@@ -156,18 +175,14 @@ func (mio *Mio) Open(id string) (err error) {
         return err
     }
 
-    mio.buf = make([]C.struct_m0_bufvec, threadsN)
-    mio.ext = make([]C.struct_m0_indexvec, threadsN)
-    mio.attr = make([]C.struct_m0_bufvec, threadsN)
-
     C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, 1)
     rc := C.m0_open_entity(&mio.obj.ob_entity);
     if rc != 0 {
         mio.Close()
         return fmt.Errorf("failed to open object entity: %d", rc)
     }
-    mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
-    mio.off = 0
+
+    mio.finishOpen()
 
     return nil
 }
@@ -239,7 +254,7 @@ func (mio *Mio) Create(id string, sz uint64) error {
     if rc != 0 {
         return fmt.Errorf("create op failed: %d", rc)
     }
-    mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
+    mio.finishOpen()
 
     return nil
 }
@@ -305,12 +320,7 @@ func (mio *Mio) prepareBuf(i int, bs int, p []byte,
     return nil
 }
 
-type slot struct {
-    idx int
-    err error
-}
-
-func (mio *Mio) doIO(i int, opcode uint32, ch chan slot) {
+func (mio *Mio) doIO(i int, opcode uint32) {
     defer mio.wg.Done()
     var op *C.struct_m0_op
     C.m0_obj_op(mio.obj, opcode,
@@ -323,20 +333,16 @@ func (mio *Mio) doIO(i int, opcode uint32, ch chan slot) {
     }
     C.m0_op_fini(op)
     C.m0_op_free(op)
+    // put the slot back to the pool
     if rc != 0 {
-        ch <- slot{i, fmt.Errorf("io op (%d) failed: %d", opcode, rc)}
+        mio.ch <- slot{i, fmt.Errorf("io op (%d) failed: %d", opcode, rc)}
     }
-    ch <- slot{i, nil}
+    mio.ch <- slot{i, nil}
 }
 
 func (mio *Mio) Write(p []byte) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
-    }
-    ch := make(chan slot, threadsN)
-    // init chan buffer with slots
-    for i := 0; i < threadsN; i++ {
-        ch <- slot{i, nil}
     }
     left, off := len(p), 0
     bs := mio.getOptimalBlockSz(left)
@@ -344,7 +350,7 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
         if left < bs {
             bs = left
         }
-        slot := <-ch // get next available
+        slot := <-mio.ch // get next available from the pool
         if slot.err != nil {
             break
         }
@@ -356,7 +362,7 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
             copy(mio.minBuf, p[off:])
         }
         mio.wg.Add(1)
-        go mio.doIO(slot.idx, C.M0_OC_WRITE, ch)
+        go mio.doIO(slot.idx, C.M0_OC_WRITE)
         off += bs
         mio.off += uint64(bs)
     }
@@ -372,18 +378,13 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
     if mio.off >= ObjSize {
         return 0, io.EOF
     }
-    ch := make(chan slot, threadsN)
-    // init the chan buffer
-    for i := 0; i < threadsN; i++ {
-        ch <- slot{i, nil}
-    }
     left, off := len(p), 0
     bs := mio.getOptimalBlockSz(left)
     for ; left > 0 && mio.off < ObjSize; left -= bs {
         if left < bs {
             bs = left
         }
-        slot := <-ch // get next available
+        slot := <-mio.ch // get next available
         if slot.err != nil {
             break
         }
@@ -392,7 +393,7 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
             return off, err
         }
         mio.wg.Add(1)
-        go mio.doIO(slot.idx, C.M0_OC_READ, ch)
+        go mio.doIO(slot.idx, C.M0_OC_READ)
         if bs < C.PAGE_SIZE {
             copy(p[off:], mio.minBuf)
         }
