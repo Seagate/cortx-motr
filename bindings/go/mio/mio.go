@@ -154,7 +154,7 @@ func (mio *Mio) Open(id string) (err error) {
     if err != nil {
         return err
     }
-    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, 0)
+    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, 1)
     rc := C.m0_open_entity(&mio.obj.ob_entity);
     if rc != 0 {
         mio.Close()
