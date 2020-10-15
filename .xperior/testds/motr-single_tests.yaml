@@ -562,6 +562,13 @@ Tests:
     polltime : 30
     timeout  : 1800
 
+  - id       : 61spiel-multi-confd
+    script   : spiel_multiple_confd.sh
+    dir      : src/spiel/st/
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/mero/sandbox.61spiel-multi-confd
+    polltime : 30
+    timeout  : 1800
 
 
 # 25 min

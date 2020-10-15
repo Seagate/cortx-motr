@@ -1396,7 +1396,7 @@ regex.
 
 Example:
 
-  m0trace -M 'Sesstion created'
+  m0trace -M 'Session created'
   m0trace -M 'slot \x+ nr_items [1-3]'
 
 =item B<-h|--help>
