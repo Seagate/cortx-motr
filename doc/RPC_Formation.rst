@@ -107,3 +107,49 @@ Logical Specification
 - If current rpcs in flight for an endpoint have already reached the number max_rpcs_in_flight for that endpoint, no more rpc formation is done until any replies from that endpoint are received and the current rpcs in flight number drop to less than max_rpcs_in_flight. 
 
 - The overpowering criteria is current rpcs in flight should be less than max_rpcs_in_filght. So, even if a timeout event is triggered for an rpc item but if current rpcs in flight have reached max_rpcs_in_flight, no formation will be done.
+
+Conformance
+===============
+
+- [r.rpc_formation.network_optimization]: Formation component takes care of amortizing the message as compared to the overhead of sending the message.  
+
+- [r.rpc_formation.maximize_io_throughput]: IO requests (read, write) are coalesced instead of sending multiple requests.  
+
+- [r.rpc_formation.extensible]: Formation algorithm is a simple state machine which can accommodate changes as required. The abstract data structures used are also extensible to make future additions. 
+
+- [r.rpc_formation.send_policy]: Formation component throttles the transmission of RPC objects so that only certain number of RPC objects exist on the wire between 2 endpoints. The size of RPC object is also restricted to a limit.
+
+Dependencies
+=============== 
+
+#. RPC Grouping component: needed for populating the rpc items cache. 
+
+   #. Grouping will put the items in the cache in a sorted manner corresponding to timeouts. This will help to ensure timely formation of needy rpc items.  
+
+   #. Grouping component will make one list per endpoint and hence there will be multiple lists in the rpc items cache(one per endpoint). 
+
+   #. raising events like addition of rpc item to cache, deletion of rpc item from cache, rpc item parameter changed. 
+
+   #. rpc core/grouping component should take care of attaching timer objects with rpc items to take care of deadlines. 
+
+#. RPC Sessions component: needed for getting sessions information for unbounded items. 
+
+#. RPC Input component: needed to raise events for an incoming reply. 
+
+#. RPC Output component: needed to keep track of current rpcs in flight per endpoint. 
+
+#. RPC Statistics component: needed to get/set various parameters crucial to RPC formation.
+
+Refinement
+=============== 
+
+#. The rpc items need to be sorted based on some criteria (timeouts) by the grouping layer.
+
+#. Session component provides an API to get sessions information for an unbounded rpc item.
+
+***************
+State
+*************** 
+
+The RPC formation component is implemented as a state machine mostly driven by triggering of external events. 
+ 
