@@ -84,3 +84,17 @@ Dependencies
 
 - fid: a file system object is identified by a fid;
 
+***************
+Scenarios
+***************
+
+Scenario 1
+
+
+.. image:: Images/fop1.PNG
+
+
+Scenario 2
+
+.. image:: Images/fop2.PNG
+
