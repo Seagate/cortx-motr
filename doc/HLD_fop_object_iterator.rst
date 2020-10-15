@@ -98,3 +98,14 @@ Scenario 2
 
 .. image:: Images/fop2.PNG
 
+***************
+Rationale
+***************
+
+There are two obvious ways to implement iteration over fop fields:
+
+- iterate over all field instances and skip all instances except for the required ones (e.g., except for field instances representing file system objects), or
+
+- introduce additional data, associated with a fop format, enumerating all required fields.
+
+The first approach allows for a greater degree of code sharing between various iterators (iterators returning lists of file system objects, users, capabilities, etc.) because "iterate over all field instances" part is common, but has a drawback of requiring multiple passes over every field instance in a fop. Given that fop iterators are used in the request handler hot code path, the second approach was selected.
