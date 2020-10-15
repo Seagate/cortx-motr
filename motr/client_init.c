@@ -1603,16 +1603,10 @@ int m0_client_init(struct m0_client **m0c_p,
 		/* Default client addb record file size set to 128M */
 		m0_bcount_t size = DEFAULT_CLIENT_ADDB2_RECORD_SIZE;
 		if (conf->mc_addb_size != 0) {
-			if ((conf->mc_addb_size >= MIN_ADDB2_RECORD_SIZE) &&
-		            (conf->mc_addb_size <= MAX_ADDB2_RECORD_SIZE) &&
-		            (conf->mc_addb_size % BLK_SIZE_4k == 0))
-				size = conf->mc_addb_size;
-			else
-				M0_LOG(M0_WARN, "Invalid addb_size(%llu). "
-				       "Setting it to default client addb "
-				       "size(%llu)\n",
-				       (long long unsigned int)conf->mc_addb_size,
-				       (long long unsigned int)size);
+			if (conf->mc_addb_size > MAX_ADDB2_RECORD_SIZE)
+				M0_LOG(M0_WARN, "ADDB size is more than recommended");
+			size = conf->mc_addb_size;
+			M0_LOG(M0_DEBUG, "ADDB size = %"PRIu64"", size);
 		}
 		sprintf(buf, "linuxstob:./addb_%d", (int)m0_pid());
 		M0_LOG(M0_DEBUG, "addb size=%llu\n", (unsigned long long)size);
