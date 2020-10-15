@@ -61,3 +61,26 @@ This pseudo-UML diagram describes the relationships between fop iterator related
 A fop object cursor keeps a stack of fop field instances, corresponding to the current cursor position in a (potentially multiply nested) batched fop.
 
 Each fop field has associated with it an enumeration of sub-fields identifying file system objects (this enumeration is empty most of the time). To advance a cursor, the position in this enumeration for the top of the cursor field stack is advanced and the top is popped off the stack when end of the enumeration is reached.
+
+Conformance
+===============
+
+- [r.fop-object.reqh]: with the help of fop object iterator, request handler can load all the objects in the generic code. With the addition of other iterators, such as fop user iterator, all authorization checks can be lifted into generic code;
+
+- [r.fop-object.batch]: the design of fop object cursor, supports fop batching by recording a stack of positions in a cursor
+
+- [r.fop-object.ordering]: the fop iterator assumes that objects are listed in a fop in the proper order.
+
+Dependencies
+=============
+
+- fop
+
+  - [r.fop.batching]: fops can be batched;
+
+  - [r.fop.nrs]: fops can be used by NRS;
+
+  - [r.fop.ordering]: fields in a fop are ordered so that fids occur in the desired order;
+
+- fid: a file system object is identified by a fid;
+
