@@ -160,3 +160,8 @@ The table below describes the flow of states on triggering of all events. The ro
 
 .. image:: Images/States.PNG
  
+ 
+The table below describes the intent of each state in the formation state machine.
+
+.. image:: Images/Purpose.PNG
+
