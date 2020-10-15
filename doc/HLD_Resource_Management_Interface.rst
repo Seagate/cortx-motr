@@ -178,15 +178,13 @@ Conformance
 
   - originally, a dedicated "management" node runs a resource owner that owns all identifiers (i.e., owns the [0, 0xffffffffffffffff] extent in identifiers name-space);
 
-  - when a server runs short on identifiers (including the time when the server starts up for the first time) it enqueues a credit request to the management node. credit description is simply the number of identifiers to grant. The management node's resource owner finds a not-yet
+  - when a server runs short on identifiers (including the time when the server starts up for the first time) it enqueues a credit request to the management node. credit description is simply the number of identifiers to grant. The management node's resource owner finds a not-yet granted extent of suitable size and returns it to the server's resource owner;
 
- - granted extent of suitable size and returns it to the server's resource owner;
+  - depending on identifier usage, clients can similarly request identifier extents from the servers;
 
- - depending on identifier usage, clients can similarly request identifier extents from the servers;
+  - there is no conflict resolution policy;
 
- - there is no conflict resolution policy;
-
- - identifiers can be cancelled voluntary: e.g., an inode number is cancelled when the file is deleted and fid range is cancelled when client disconnects or is evicted.
+  - identifiers can be cancelled voluntary: e.g., an inode number is cancelled when the file is deleted and fid range is cancelled when client disconnects or is evicted.
 
 - [R.M0.RESOURCE], [R.M0.RESOURCE.HIERARCICAL]: resource owner can enqueue credit requests to other ("master") owners and at the same time bestow credits to "slave" owners. This forms a hierarchy of owners allowing scalable resource management across the cluster.
 
