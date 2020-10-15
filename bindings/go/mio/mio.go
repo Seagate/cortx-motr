@@ -62,7 +62,8 @@ type Mio struct {
 
 func checkArg(arg *string, name string) {
     if *arg == "" {
-        fmt.Printf("%s: %s must be specified\n", os.Args[0], name)
+        fmt.Printf("%s: %s must be specified\n\n", os.Args[0], name)
+        flag.Usage()
         os.Exit(1)
     }
 }
@@ -194,7 +195,6 @@ func getOptimalUnitSz(sz uint64) (C.ulong, error) {
     }
     lid := C.m0_layout_find_by_buffsize(&C.instance.m0c_reqh.rh_ldom,
                                         &pver.pv_id, C.ulong(sz))
-    log.Printf("lid=%v\n", lid)
     return lid, nil
 }
 
