@@ -222,17 +222,17 @@ Additional requirements are:
 
 - [r.resource.quota]: storage quota is a resource.
 
-● [r.resource.memory]: server memory is a resource.
+- [r.resource.memory]: server memory is a resource.
 
-● [r.resource.cpu-cycles]: server cpu-cycles are a resource.
+- [r.resource.cpu-cycles]: server cpu-cycles are a resource.
 
-● [r.resource.network-bandwidth]: network bandwidth is a resource.
+- [r.resource.network-bandwidth]: network bandwidth is a resource.
 
-● [r.resource.storage-bandwidth]: storage bandwidth is a resource.
+- [r.resource.storage-bandwidth]: storage bandwidth is a resource.
 
-● [r.resource.cluster-configuration]: cluster configuration is a resource.
+- [r.resource.cluster-configuration]: cluster configuration is a resource.
 
-● [r.resource.power]: (electrical) power consumed by a device is a resource.
+- [r.resource.power]: (electrical) power consumed by a device is a resource.
 
 
 
