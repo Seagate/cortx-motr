@@ -165,3 +165,39 @@ The table below describes the intent of each state in the formation state machin
 
 .. image:: Images/Purpose.PNG
 
+Concurrency Control
+===================
+
+The internal abstract data structure will have locks for concurrency control. The rpc item cache should have some mechanism to guarantee concurrency control.
+
+Formation algorithm makes no assumptions about threads and is purely driven by events.
+
+
+***************
+Scenarios
+*************** 
+
+Scenario 1
+
+.. image:: Images/SSC1.PNG
+
+Scenario 2
+
+.. image:: Images/SSC2.PNG
+
+Scenario 3
+
+.. image:: Images/SSC3.PNG
+
+Scenario 4
+
+.. image:: Images/SSC4.PNG
+
+Scenario 5
+
+.. image:: Images/SSC5.PNG
+
+
+
+
+
