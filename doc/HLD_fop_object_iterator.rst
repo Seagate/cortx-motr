@@ -47,3 +47,17 @@ Fop object cursor is used in the following ways (among others):
 - by request handler generic code to load all the objects involved in the operation;
 
 - by distributed transaction manager to check versions of objects against the versions specified in the fop.
+
+To support flexible generic operations, a fop cursor returns some additional information associated with a fop field. E.g., a fop object cursor returns bit-flags indicating whether the object should be checked for existence (or non-existence), whether it should be locked.
+
+*********************
+Logical Specification
+*********************
+
+This pseudo-UML diagram describes the relationships between fop iterator related entities:
+
+.. image:: Images/fop.PNG
+
+A fop object cursor keeps a stack of fop field instances, corresponding to the current cursor position in a (potentially multiply nested) batched fop.
+
+Each fop field has associated with it an enumeration of sub-fields identifying file system objects (this enumeration is empty most of the time). To advance a cursor, the position in this enumeration for the top of the cursor field stack is advanced and the top is popped off the stack when end of the enumeration is reached.
