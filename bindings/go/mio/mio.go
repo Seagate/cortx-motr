@@ -39,13 +39,14 @@ package mio
 import "C"
 
 import (
+    "fmt"
+    "log"
     "errors"
     "io"
     "os"
-    "unsafe"
-    "fmt"
     "flag"
-    "log"
+    "sync"
+    "unsafe"
 )
 
 // Mio implements Reader and Writer interfaces for Motr
@@ -74,6 +75,8 @@ func checkArg(arg *string, name string) {
 // newly created object.
 var ObjSize uint64
 
+var threadsN int
+
 // Init mio module. All the standard Motr init stuff is done here.
 func Init() {
     // Mandatory
@@ -84,6 +87,7 @@ func Init() {
     // Optional
     traceOn  := flag.Bool("trace", false, "generate m0trace.pid file")
     flag.Uint64Var(&ObjSize, "osz", 32, "object `size` (in Kbytes)")
+    flag.IntVar(&threadsN, "threads", 1, "`number` of threads to use")
 
     flag.Parse()
 
@@ -192,7 +196,7 @@ func (mio *Mio) Create(id string, sz uint64) (err error) {
     if err != nil {
         return err
     }
-    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, 1)
+    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, 9)
 
     var op *C.struct_m0_op
     rc := C.m0_entity_create(nil, &mio.obj.ob_entity, &op)
@@ -276,7 +280,10 @@ func (mio *Mio) prepareBuf(bs int, p []byte, off int, offMio uint64) error {
     return nil
 }
 
-func (mio *Mio) doIO(opcode uint32) (err error) {
+var wg sync.WaitGroup
+
+func (mio *Mio) doIO(opcode uint32, ch chan error) {
+    defer wg.Done()
     var op *C.struct_m0_op
     C.m0_obj_op(mio.obj, opcode, &mio.ext, &mio.buf, &mio.attr, 0, 0, &op)
     C.m0_op_launch(&op, 1)
@@ -288,15 +295,16 @@ func (mio *Mio) doIO(opcode uint32) (err error) {
     C.m0_op_fini(op)
     C.m0_op_free(op)
     if rc != 0 {
-        return fmt.Errorf("io op (%d) failed: %d", opcode, rc)
+        ch <- fmt.Errorf("io op (%d) failed: %d", opcode, rc)
     }
-    return nil
+    ch <- nil
 }
 
 func (mio *Mio) Write(p []byte) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
     }
+    ch := make(chan error, threadsN)
     left, off := len(p), 0
     bs := mio.getOptimalBS(left)
     for ; left > 0; left -= bs {
@@ -310,14 +318,18 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
         if bs < C.PAGE_SIZE {
             copy(mio.minBuf, p[off:])
         }
-        err = mio.doIO(C.M0_OC_WRITE)
+        wg.Add(1)
+        go mio.doIO(C.M0_OC_WRITE, ch)
+        err = <-ch
         if err != nil {
-            return off, err
+            break
         }
         off += bs
         mio.off += uint64(bs)
     }
-    return off, nil
+
+    wg.Wait()
+    return off, err
 }
 
 func (mio *Mio) Read(p []byte) (n int, err error) {
@@ -327,6 +339,7 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
     if mio.off >= ObjSize {
         return 0, io.EOF
     }
+    ch := make(chan error, threadsN)
     left, off := len(p), 0
     bs := mio.getOptimalBS(left)
     for ; left > 0 && mio.off < ObjSize; left -= bs {
@@ -337,9 +350,11 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         if err != nil {
             return off, err
         }
-        err = mio.doIO(C.M0_OC_READ)
+        wg.Add(1)
+        go mio.doIO(C.M0_OC_READ, ch)
+        err = <-ch
         if err != nil {
-            return off, err
+            break
         }
         if bs < C.PAGE_SIZE {
             copy(p[off:], mio.minBuf)
@@ -347,5 +362,7 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         off += bs
         mio.off += uint64(bs)
     }
-    return off, nil
+
+    wg.Wait()
+    return off, err
 }
