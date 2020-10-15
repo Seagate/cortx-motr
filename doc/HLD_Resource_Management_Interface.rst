@@ -151,6 +151,26 @@ On successful completion the granted credit is held. notify_callback is invoked 
 
 - credit_put(resource_credit): release held credit
 
+*********************
+Logical Specification
+*********************
+
+A resource owner maintains:
+
+- an owned resource usage credit description. The exact representation of this is up to the resource type. This is the description of the resource credits that are actually held by this owner at the moment. Examples:
+
+  - for (meta-data) inode resource type: credit description is a lock mode;
+
+  - for quota resource type: credit description is a quota amount assigned to the owner (a node, typically);
+
+  - for a component data object: credit description is a collection of locked extents together with their lock modes. This collection could be maintained either as a list or a more sophisticated data-structure (e.g., an interval tree);
+
+- a queue of granted resource usage credits. This is a queue of triples (credit, owner, lease) that this owner granted to other owners. Granted credits no longer belong to this owner;
+
+- a queue of incoming pending credits. This is a queue of incoming requests for usage credits, which were sent to this resource owner and are not yet granted, due to whatever circumstances (unresolved conflict, long-term resource scheduling decision, etc.);
+
+- a queue of outgoing pending credits. This is a queue of usage credits that users asked this resource owner to obtain, but that are not yet obtained.
+
 
 
 
