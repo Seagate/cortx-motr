@@ -42,7 +42,17 @@
 M0_INTERNAL int m0_semaphore_init(struct m0_semaphore *semaphore,
 				  unsigned value)
 {
-	semaphore->s_dsem = dispatch_semaphore_create(value);
+	/*
+	 * GCD semaphores has a very peculiar restriction: if initial value of a
+	 * semaphore is not 0, then the semaphore can only be finalised when its
+	 * current value equals its initial value, see
+	 * dispatch_semaphore_wait(3).
+	 *
+	 * As a work-around, initialise with 0, then up appropriately.
+	 */
+	semaphore->s_dsem = dispatch_semaphore_create(0);
+	while (semaphore->s_dsem != NULL && value-- > 0)
+		m0_semaphore_up(semaphore);
 	return semaphore->s_dsem != NULL ? 0 : M0_ERR(-ENOMEM);
 }
 
@@ -53,8 +63,9 @@ M0_INTERNAL void m0_semaphore_fini(struct m0_semaphore *semaphore)
 
 M0_INTERNAL void m0_semaphore_down(struct m0_semaphore *semaphore)
 {
-	int result = dispatch_semaphore_wait(semaphore->s_dsem,
-					     DISPATCH_TIME_FOREVER);
+	int result;
+	result = dispatch_semaphore_wait(semaphore->s_dsem,
+					 DISPATCH_TIME_FOREVER);
 	M0_ASSERT_INFO(result == 0, "result: %d errno: %d", result, errno);
 }
 
@@ -65,8 +76,8 @@ M0_INTERNAL void m0_semaphore_up(struct m0_semaphore *semaphore)
 
 M0_INTERNAL bool m0_semaphore_trydown(struct m0_semaphore *semaphore)
 {
-	int result = dispatch_semaphore_wait(semaphore->s_dsem,
-					     DISPATCH_TIME_NOW);
+	int result;
+	result = dispatch_semaphore_wait(semaphore->s_dsem, DISPATCH_TIME_NOW);
 	return result == 0;
 }
 
