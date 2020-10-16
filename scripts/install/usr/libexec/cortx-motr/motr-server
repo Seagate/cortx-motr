@@ -203,11 +203,12 @@ m0_server()
     # show actual exec commands in log file
     set -x
 
+    addb_opts=" -r ${MOTR_MOD_ADDB_RECORD_SIZE}"
     exec $binary -e $service_ep \
                     -A linuxstob:${addbstob_dir}addb-stobs \
                     -f $proc_fid $stob_type $stob_path $MOTR_M0D_OPTS \
                        $be_seg0_path $be_seg_path $be_seg_size \
-                       $stob_opts $cmd_opts $MOTR_M0D_EXTRA_OPTS
+                       $stob_opts $cmd_opts $addb_opts $MOTR_M0D_EXTRA_OPTS
 }
 
 
