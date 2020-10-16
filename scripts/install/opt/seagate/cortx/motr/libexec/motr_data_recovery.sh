@@ -754,7 +754,7 @@ cleanup_stobs_dir() {
     [[ $REMOTE_STORAGE_STATUS -eq 0 ]] || run_cmd_on_local_node "umount $FAILOVER_MD_DIR" > /dev/null
 }
 
-#The following command gives us the file count on the local node.
+#The following command gives us the file count on the particular node.
 #It takes 3 parameters as input
 #1. filetype : The type of file whose quantity we want to count. Example "m0trace"
 #2. directory : The location where the files of filetype are stored. Example "/var/motr/datarecovery"
@@ -776,7 +776,7 @@ remove_last_file_generated() {
     local directory=$2
     filename="$(cd $directory; ls -ltr | grep $file_type | awk '{print $9}' | tail -n 1)"
     echo "$filename"
-    rm "$directory/$filename"
+    rm -f "$directory/$filename"
 }
 
 # The return statements between { .. }& are to indicate the exit status of
@@ -847,7 +847,7 @@ run_becktool() {
         # restart the execution of command if exit code is ESEGV error
         while [[ $cmd_exit_status == $ESEGV ]];
         do
-            #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash( receving SEGV signal ), to 2 each.
+            #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash( receiving SEGV signal ), to 2 each.
             core_m0beck_file_count=$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
             echo "File count value $core_m0beck_file_count"
 
@@ -897,7 +897,7 @@ EOF
             while [[ $cmd_exit_status == $ESEGV ]];
             do
 
-                #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash( receving SEGV signal ), to 2 each.
+                #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash ( receiving SEGV signal ), to 2 each.
                 run_cmd_on_remote_node "bash -s" <<EOF
                 $(typeset -f get_file_count)
                 $(typeset -f remove_last_file_generated)
@@ -952,7 +952,7 @@ EOF
             # restart the execution of command if exit code is ESEGV error
             while [[ $cmd_exit_status == $ESEGV ]];
             do
-                #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash( receving SEGV signal ), to 2 each.
+                #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash ( receiving SEGV signal ), to 2 each.
                 core_m0beck_file_count=$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
                 echo "File count value $core_m0beck_file_count"
 
