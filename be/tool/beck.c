@@ -557,7 +557,7 @@ static void sig_handler(int num)
 int main(int argc, char **argv)
 {
 	struct m0              instance     = {};
-	const char            *spath        = NULL;
+	CAPTURED const char   *spath        = NULL;
 	int                    sfd          = 0; /* Use stdin by default. */
 	bool                   ut           = false;
 	bool                   version      = false;
