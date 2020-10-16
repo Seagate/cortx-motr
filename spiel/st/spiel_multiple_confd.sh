@@ -137,7 +137,7 @@ stub_confdb() {
 EOF
 }
 
-confd_start() {
+confd_mkfs_start() {
     local idx=$1
     local ep=M0D${idx}_ENDPOINT
     local fid=PROC_FID$idx
@@ -153,6 +153,20 @@ confd_start() {
     echo $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS
     $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>$path/mkfs.log ||
     error 'm0mkfs failed'
+}
+
+confd_start() {
+    local idx=$1
+    local ep=M0D${idx}_ENDPOINT
+    local fid=PROC_FID$idx
+    local path=$SANDBOX_DIR/confd$idx
+    local OPTS="-F -D $path/db -T AD -S $path/stobs\
+    -A linuxstob:$path/addb-stobs -e lnet:${!ep}\
+    -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
+    -w 3 -f ${!fid}"
+
+    echo "--- `date` ---" >>$path/m0d.log
+    cd $path
 
     echo $M0_SRC_DIR/motr/m0d $OPTS
     $M0_SRC_DIR/motr/m0d $OPTS >>$path/m0d.log 2>&1 &
@@ -180,6 +194,12 @@ trap stop EXIT
 
 echo "Prepare"
 start
+
+say "multi confd mkfs start"
+confd_mkfs_start 1 || stop
+confd_mkfs_start 2 || stop
+confd_mkfs_start 3 || stop
+say "multi confd mkfs done"
 
 say "First confd start"
 confd_start 1 || stop
