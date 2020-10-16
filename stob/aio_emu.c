@@ -64,21 +64,25 @@ M0_INTERNAL int io_submit(io_context_t ctx, long nr, struct iocb *ios[])
 {
 	int i;
 
+	m0_mutex_lock(&ctx->ic_lock);
 	for (i = 0; i < nr; ++i)
 		i_tlink_init_at(ios[i], &ctx->ic_cb);
+	m0_mutex_unlock(&ctx->ic_lock);
 	return nr;
 }
+
 M0_INTERNAL int io_getevents(io_context_t ctx, long min_nr, long nr,
 			     struct io_event *events, struct timespec *timeout)
 {
-	int          i;
+	int          i = 0;
 	struct iocb *io;
 
+	m0_mutex_lock(&ctx->ic_lock);
 	if (i_tlist_length(&ctx->ic_cb) < min_nr) {
+		m0_mutex_unlock(&ctx->ic_lock);
 		nanosleep(timeout, NULL);
-		return 0;
 	} else {
-		for (i = 0; i < nr; ++i) {
+		for (; i < nr; ++i) {
 			io = i_tlist_pop(&ctx->ic_cb);
 			if (io == NULL)
 				break;
@@ -87,8 +91,9 @@ M0_INTERNAL int io_getevents(io_context_t ctx, long min_nr, long nr,
 			events[i].res  = handle(ctx, io);
 			events[i].res2 = 0;
 		}
-		return i;
+		m0_mutex_unlock(&ctx->ic_lock);
 	}
+	return i;
 }
 
 static long handle(struct io_context *ctx, const struct iocb *io)
@@ -96,9 +101,8 @@ static long handle(struct io_context *ctx, const struct iocb *io)
 	long result;
 	int  fd = io->aio_fildes;
 
-	m0_mutex_lock(&ctx->ic_lock);
 	result = lseek(fd, io->u.v.offset, SEEK_SET);
-	if (result == 0) {
+	if (result >= 0) {
 		switch (io->aio_lio_opcode) {
 		case IO_CMD_PREADV:
 			result = readv(fd, io->u.v.vec, io->u.v.nr);
@@ -110,7 +114,8 @@ static long handle(struct io_context *ctx, const struct iocb *io)
 			M0_IMPOSSIBLE("Wrong opcode.");
 		}
 	}
-	m0_mutex_unlock(&ctx->ic_lock);
+	if (result == -1)
+		result = M0_ERR(-errno);
 	return result;
 }
 
