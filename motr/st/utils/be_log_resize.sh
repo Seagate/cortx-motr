@@ -27,8 +27,8 @@ change_be_log_size() {
 	echo "Before setting BE log size log_file=$log_file"
 	[[ -f "$log_file" ]] && ls -lsh $log_file
 	echo "db_file=$db_file"
-	echo "m0betool create_be_log $db_file $BE_LOG_SIZE"
-	m0betool create_be_log $db_file $BE_LOG_SIZE
+	echo "m0betool be_log_resize $db_file $BE_LOG_SIZE"
+	m0betool be_log_resize $db_file $BE_LOG_SIZE
 	[[ $? -ne 0 ]] && echo "Failed" && exit 1
 	echo "After setting BE log size log_file=$log_file"
 	[[ -f "$log_file" ]] && ls -lsh $log_file
