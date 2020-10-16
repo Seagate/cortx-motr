@@ -140,6 +140,7 @@
 #include "fop/fom.h"
 #include "stob/io.h"       /* m0_stob_io */
 #include "cob/cob.h"       /* m0_cob */
+#include "ioservice/io_service.h" /* m0_rios_buffer_pool */
 
 struct m0_fid;
 struct m0_fop_file_fid;
@@ -290,6 +291,23 @@ M0_INTERNAL int m0_io_cob_stob_create(struct m0_fom *fom,
 				      struct m0_cob **out);
 
 M0_INTERNAL uint64_t m0_io_size(struct m0_stob_io *sio, uint32_t bshift);
+
+M0_INTERNAL int m0_io_fom_cob_rw_tick(struct m0_fom *fom);
+M0_INTERNAL size_t m0_io_fom_cob_rw_locality_get(const struct m0_fom *fom);
+M0_INTERNAL void m0_io_fom_cob_rw_fini(struct m0_fom *fom);
+M0_INTERNAL int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
+					struct m0_reqh *reqh);
+M0_TL_DESCR_DECLARE(bufferpools, M0_EXTERN);
+M0_TL_DECLARE(bufferpools, M0_EXTERN, struct m0_rios_buffer_pool);
+M0_EXTERN struct m0_io_fom_cob_rw_state_transition io_fom_read_st[];
+M0_EXTERN const struct m0_io_fom_cob_rw_state_transition io_fom_write_st[];
+M0_EXTERN const struct m0_fom_type_ops io_fom_type_ops;
+M0_EXTERN struct m0_sm_conf io_conf;
+M0_TL_DESCR_DECLARE(netbufs, M0_EXTERN);
+M0_TL_DECLARE(netbufs, M0_EXTERN, struct m0_net_buffer);
+M0_TL_DESCR_DECLARE(stobio, M0_EXTERN);
+M0_TL_DECLARE(stobio, M0_EXTERN, struct m0_stob_io_desc);
+
 
 /** @} end of io_foms */
 

@@ -569,23 +569,20 @@
  * @{
  */
 
-M0_TL_DESCR_DEFINE(stobio, "STOB I/O", static, struct m0_stob_io_desc,
+M0_TL_DESCR_DEFINE(stobio, "STOB I/O", M0_INTERNAL, struct m0_stob_io_desc,
 		   siod_linkage,  siod_magic,
 		   M0_STOB_IO_DESC_LINK_MAGIC,  M0_STOB_IO_DESC_HEAD_MAGIC);
-M0_TL_DEFINE(stobio, static, struct m0_stob_io_desc);
+M0_TL_DEFINE(stobio, M0_INTERNAL, struct m0_stob_io_desc);
 
-M0_TL_DESCR_DEFINE(netbufs, "Aquired net buffers", static,
+M0_TL_DESCR_DEFINE(netbufs, "Aquired net buffers", M0_INTERNAL,
 		   struct m0_net_buffer, nb_extern_linkage, nb_magic,
 		   M0_NET_BUFFER_LINK_MAGIC, M0_IOS_NET_BUFFER_HEAD_MAGIC);
-M0_TL_DEFINE(netbufs, static, struct m0_net_buffer);
+M0_TL_DEFINE(netbufs, M0_INTERNAL, struct m0_net_buffer);
 
 M0_TL_DESCR_DEFINE(rpcbulkbufs, "rpc bulk buffers", static,
 		   struct m0_rpc_bulk_buf, bb_link, bb_magic,
 		   M0_RPC_BULK_BUF_MAGIC, M0_RPC_BULK_MAGIC);
 M0_TL_DEFINE(rpcbulkbufs, static, struct m0_rpc_bulk_buf);
-
-M0_TL_DESCR_DECLARE(bufferpools, M0_EXTERN);
-M0_TL_DECLARE(bufferpools, M0_EXTERN, struct m0_rios_buffer_pool);
 
 M0_INTERNAL bool m0_is_read_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_write_fop(const struct m0_fop *fop);
@@ -595,11 +592,6 @@ M0_INTERNAL struct m0_fop_cob_rw_reply *io_rw_rep_get(struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_create_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_delete_fop(const struct m0_fop *fop);
 
-static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
-				   struct m0_reqh *reqh);
-static int m0_io_fom_cob_rw_tick(struct m0_fom *fom);
-static void m0_io_fom_cob_rw_fini(struct m0_fom *fom);
-static size_t m0_io_fom_cob_rw_locality_get(const struct m0_fom *fom);
 M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom);
 static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io);
 
@@ -630,7 +622,7 @@ struct m0_fom_ops ops = {
 /**
  * I/O FOM type operation vector.
  */
-const struct m0_fom_type_ops io_fom_type_ops = {
+M0_INTERNAL const struct m0_fom_type_ops io_fom_type_ops = {
 	.fto_create = m0_io_fom_cob_rw_create,
 };
 
@@ -638,7 +630,7 @@ const struct m0_fom_type_ops io_fom_type_ops = {
  * I/O Read FOM state transition table.
  * @see DLD-bulk-server-lspec-state
  */
-static struct m0_io_fom_cob_rw_state_transition io_fom_read_st[] = {
+M0_INTERNAL struct m0_io_fom_cob_rw_state_transition io_fom_read_st[] = {
 [M0_FOPH_IO_FOM_PREPARE] =
 { M0_FOPH_IO_FOM_PREPARE, &io_prepare,
   M0_FOPH_IO_FOM_BUFFER_ACQUIRE, 0, "io-preparation", },
@@ -676,7 +668,7 @@ static struct m0_io_fom_cob_rw_state_transition io_fom_read_st[] = {
  * I/O Write FOM state transition table.
  * @see DLD-bulk-server-lspec-state
  */
-static const struct m0_io_fom_cob_rw_state_transition io_fom_write_st[] = {
+M0_INTERNAL const struct m0_io_fom_cob_rw_state_transition io_fom_write_st[] = {
 [M0_FOPH_IO_FOM_PREPARE] =
 { M0_FOPH_IO_FOM_PREPARE, &io_prepare,
   M0_FOPH_IO_FOM_BUFFER_ACQUIRE, 0, "io-preparation", },
@@ -819,7 +811,7 @@ struct m0_sm_trans_descr io_phases_trans[] = {
 	{"all-done", M0_FOPH_IO_BUFFER_RELEASE, M0_FOPH_SUCCESS},
 };
 
-struct m0_sm_conf io_conf = {
+M0_INTERNAL struct m0_sm_conf io_conf = {
 	.scf_name      = "io-fom",
 	.scf_nr_states = ARRAY_SIZE(io_phases),
 	.scf_state     = io_phases,
@@ -2263,7 +2255,7 @@ static void stob_be_credit(struct m0_fom *fom)
  *
  * @pre fom != NULL
  */
-static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
+M0_INTERNAL int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 {
 	int                                       rc;
 	int                                       phase = m0_fom_phase(fom);
@@ -2427,7 +2419,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
  *
  * @pre fom != NULL
  */
-static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
+M0_INTERNAL void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 {
 	uint32_t                   colour;
 	struct m0_fop             *fop;
@@ -2509,7 +2501,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 /**
  * Get locality of file operation machine.
  */
-static size_t m0_io_fom_cob_rw_locality_get(const struct m0_fom *fom)
+M0_INTERNAL size_t m0_io_fom_cob_rw_locality_get(const struct m0_fom *fom)
 {
 	uint64_t hash = m0_fid_hash(&io_rw_get(fom->fo_fop)->crw_fid);
 

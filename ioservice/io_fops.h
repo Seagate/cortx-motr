@@ -558,6 +558,12 @@ struct m0_fop_cob_setattr_reply {
 	struct m0_fop_cob_op_rep_common csr_common;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
+M0_INTERNAL void io_fop_replied(struct m0_fop *fop, struct m0_fop *bkpfop);
+M0_INTERNAL int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size);
+M0_INTERNAL void io_fop_desc_get(struct m0_fop *fop,
+				 struct m0_net_buf_desc_data **desc);
+M0_EXTERN const struct m0_fop_type_ops io_fop_rwv_ops;
+
 /* __MOTR_IOSERVICE_IO_FOPS_H__ */
 #endif
 

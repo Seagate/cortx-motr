@@ -61,10 +61,6 @@ M0_TL_DECLARE(rpcitem, M0_INTERNAL, struct m0_rpc_item);
 static struct m0_fid *io_fop_fid_get(struct m0_fop *fop);
 
 static void io_item_replied (struct m0_rpc_item *item);
-static void io_fop_replied  (struct m0_fop *fop, struct m0_fop *bkpfop);
-static void io_fop_desc_get (struct m0_fop *fop,
-			     struct m0_net_buf_desc_data **desc);
-static int  io_fop_coalesce (struct m0_fop *res_fop, uint64_t size);
 static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
 			     uint64_t size);
 
@@ -226,7 +222,7 @@ static int io_fol_cd_rec_frag_redo(struct m0_fop_fol_frag *frag,
 	return io_fol_cd_rec_frag_op(frag, fol, false);
 }
 
-const struct m0_fop_type_ops io_fop_rwv_ops = {
+M0_INTERNAL const struct m0_fop_type_ops io_fop_rwv_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
@@ -1611,7 +1607,7 @@ M0_INTERNAL size_t m0_io_fop_size_get(struct m0_fop *fop)
  * @see m0_io_fop_init().
  * @see m0_rpc_bulk_init().
  */
-static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
+M0_INTERNAL int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 {
 	int			   rc;
 	struct m0_fop		  *fop;
@@ -1770,7 +1766,7 @@ static bool io_fop_fid_equal(struct m0_fop *fop1, struct m0_fop *fop2)
         return m0_fid_eq(io_fop_fid_get(fop1), io_fop_fid_get(fop2));
 }
 
-static void io_fop_replied(struct m0_fop *fop, struct m0_fop *bkpfop)
+M0_INTERNAL void io_fop_replied(struct m0_fop *fop, struct m0_fop *bkpfop)
 {
 	struct m0_io_fop     *cfop;
 	struct m0_rpc_bulk   *rbulk;
@@ -1796,8 +1792,8 @@ static void io_fop_replied(struct m0_fop *fop, struct m0_fop *bkpfop)
 	m0_free(cfop);
 }
 
-static void io_fop_desc_get(struct m0_fop *fop,
-			    struct m0_net_buf_desc_data **desc)
+M0_INTERNAL void io_fop_desc_get(struct m0_fop *fop,
+				 struct m0_net_buf_desc_data **desc)
 {
 	struct m0_fop_cob_rw *rw;
 
