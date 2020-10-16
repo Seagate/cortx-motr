@@ -84,7 +84,11 @@ M0_INTERNAL void m0_be_ut_alloc_create_destroy(void)
 
 	m0_be_ut_seg_allocator_init(&ut_seg, &be_ut_alloc_backend);
 
-	m0_be_ut_seg_allocator_fini(&ut_seg, &be_ut_alloc_backend);
+	/*
+	 * @todo: XXX m0_be_allocator_fini() is called from
+	 * m0_be_ut_seg_allocator_fini() and m0_be_ut_seg_fini().
+	 */
+	/* m0_be_ut_seg_allocator_fini(&ut_seg, &be_ut_alloc_backend); */
 
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&be_ut_alloc_backend);
@@ -176,7 +180,11 @@ static void be_ut_alloc_mt(int nr)
 		m0_thread_join(&be_ut_ts[i].ats_thread);
 		m0_thread_fini(&be_ut_ts[i].ats_thread);
 	}
-	m0_be_ut_seg_allocator_fini(ut_seg, ut_be);
+	/*
+	 * @todo: XXX m0_be_allocator_fini() is called from
+	 * m0_be_ut_seg_allocator_fini() and m0_be_ut_seg_fini().
+	 */
+	/* m0_be_ut_seg_allocator_fini(ut_seg, ut_be); */
 	m0_be_ut_seg_fini(ut_seg);
 	m0_be_ut_backend_fini(ut_be);
 	M0_SET0(ut_be);
@@ -232,7 +240,11 @@ M0_INTERNAL void m0_be_ut_alloc_info(void)
 				       0x100, shift);
 	}
 
-	m0_be_ut_seg_allocator_fini(&ut_seg, &be_ut_alloc_backend);
+	/*
+	 * @todo: XXX m0_be_allocator_fini() is called from
+	 * m0_be_ut_seg_allocator_fini() and m0_be_ut_seg_fini().
+	 */
+	/* m0_be_ut_seg_allocator_fini(&ut_seg, &be_ut_alloc_backend); */
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&be_ut_alloc_backend);
 	M0_SET0(&be_ut_alloc_backend);
@@ -310,7 +322,11 @@ M0_INTERNAL void m0_be_ut_alloc_oom(void)
 			be_ut_alloc_oom_case(a, BE_UT_OOM_ALLOC_START +
 					     alloc_step * BE_UT_OOM_ALLOC_STEP);
 		}
-		m0_be_ut_seg_allocator_fini(&ut_seg, &be_ut_alloc_backend);
+		/*
+		 * @todo: XXX m0_be_allocator_fini() is called from
+		 * m0_be_ut_seg_allocator_fini() and m0_be_ut_seg_fini().
+		 */
+		/* m0_be_ut_seg_allocator_fini(&ut_seg, &be_ut_alloc_backend); */
 		m0_be_ut_seg_fini(&ut_seg);
 	}
 	m0_be_ut_backend_fini(&be_ut_alloc_backend);
