@@ -366,7 +366,6 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
     }
     left, off := len(p), 0
     bs, gs := mio.getOptimalBlockSz(left)
-    log.Printf("off=%v len=%v bs=%v gs=%v", mio.off, left, bs, gs)
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
@@ -400,6 +399,9 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         return 0, io.EOF
     }
     left, off := len(p), 0
+    if uint64(left) > ObjSize {
+        left = int(ObjSize)
+    }
     bs, gs := mio.getOptimalBlockSz(left)
     for ; left > 0 && mio.off < ObjSize; left -= bs {
         if left < bs {
@@ -416,6 +418,7 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         mio.wg.Add(1)
         go mio.doIO(slot.idx, C.M0_OC_READ)
         if mio.minBuf != nil {
+            mio.wg.Wait() // last one anyway
             copy(p[off:], mio.minBuf)
         }
         off += bs
