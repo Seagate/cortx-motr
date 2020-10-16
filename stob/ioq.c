@@ -412,10 +412,10 @@ static void ioq_queue_submit(struct m0_stob_ioq *ioq)
 
 		if (got > 0) {
 			put = io_submit(ioq->ioq_ctx, got, evin);
-			if (put < 0)
+			if (put < 0) {
 				M0_LOG(M0_ERROR, "got=%d put=%d", got, put);
-			if (put < 0)
 				put = 0;
+			}
 			ioq_queue_lock(ioq);
 			for (i = put; i < got; ++i)
 				ioq_queue_put(ioq, qev[i]);
@@ -668,7 +668,10 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 			ioq_complete(ioq, qev, iev->res, iev->res2);
 		}
 		ioq_queue_submit(ioq);
-		m0_addb2_hist_mod(&gotten, got);
+		if (got >= 0)
+			m0_addb2_hist_mod(&gotten, got);
+		else
+			M0_LOG(M0_ERROR, "io_getevents(): %i.", errno);
 		m0_addb2_hist_mod(&queued, ioq->ioq_queued);
 		m0_addb2_hist_mod(&inflight, M0_STOB_IOQ_RING_SIZE -
 				     m0_atomic64_get(&ioq->ioq_avail));
