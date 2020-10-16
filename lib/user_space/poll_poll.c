@@ -94,6 +94,9 @@ M0_INTERNAL int m0_poll_ctl(struct m0_poll *poll, enum m0_poll_cmd cmd, int fd,
 M0_INTERNAL int m0_poll(struct m0_poll_data *pd, int msec)
 {
 	int result = poll(pd->pd_poll->p_fd, pd->pd_poll->p_nr, msec);
+	M0_ASSERT(ergo(result >= 0,
+		       result == m0_count(i, pd->pd_poll->p_nr,
+					  pd->pd_poll->p_fd[i].revents != 0)));
 	return result >= 0 ? result : M0_ERR(-errno);
 }
 
@@ -136,12 +139,13 @@ static int expand(struct m0_poll *poll, int nsize)
 static int fd_get(struct m0_poll *poll, int idx)
 {
 	int i;
+	int idx0 = idx;
 
 	for (i = 0; i < poll->p_nr; ++i) {
 		if (poll->p_fd[i].revents != 0 && idx-- == 0)
 			return i;
 	}
-	M0_IMPOSSIBLE("poll(2) lied.");
+	M0_IMPOSSIBLE("poll(2) lied: %i %i.", idx0, poll->p_nr);
 }
 
 /* M0_POLL_USE_POLL */
