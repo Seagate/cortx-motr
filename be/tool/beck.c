@@ -79,6 +79,7 @@ struct scanner {
 	FILE		    *s_file;
 	off_t		     s_off;
 	off_t		     s_pos;
+	off_t		     s_recstartoff;
 	bool		     s_byte;
 	off_t		     s_size;
 	struct m0_be_seg    *s_seg;
@@ -878,6 +879,7 @@ static int recdo(struct scanner *s, const struct m0_format_tag *tag,
 		return M0_RC(-EINVAL);
 
 	buf = alloca(size);
+	s->s_recstartoff = s->s_off;
 	result = get(s, buf, size);
 	if (result == 0) {
 		if (memcmp(tag, &r->r_tag, sizeof *tag) == 0) {
@@ -1120,7 +1122,7 @@ static int emap_proc(struct scanner *s, struct btype *b,
 			m0_free(emap_act);
 			continue;
 		}
-		emap_act->emap_act.a_scan_off = s->s_off;
+		emap_act->emap_act.a_scan_off = s->s_recstartoff;
 		qput(s->s_q, &emap_act->emap_act);
 	}
 	return ret;
@@ -1894,7 +1896,7 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 		ca->cta_key = kl[i];
 		ca->cta_val = vl[i];
 		ca->cta_ismeta = ismeta;
-		ca->cta_act.a_scan_off = s->s_off;
+		ca->cta_act.a_scan_off = s->s_recstartoff;
 		qput(s->s_q, (struct action *)ca);
 	}
 	return 0;
@@ -2210,7 +2212,7 @@ static int cob_proc(struct scanner *s, struct btype *b,
 		if ((format_header_verify(ca->coa_val.b_addr,
 					  M0_FORMAT_TYPE_COB_NSREC) == 0) &&
 		    (m0_format_footer_verify(ca->coa_valdata, false) == 0)) {
-			ca->coa_act.a_scan_off = s->s_off;
+			ca->coa_act.a_scan_off = s->s_recstartoff;
 			qput(s->s_q, (struct action *)ca);
 		}
 		else {
