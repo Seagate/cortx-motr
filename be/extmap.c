@@ -335,6 +335,8 @@ static void be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db)
 		.ot_type    = M0_FORMAT_TYPE_BE_EMAP,
 		.ot_footer_offset = offsetof(struct m0_be_emap, em_footer)
 	});
+	/* See comment in m0_be_btree_init(). */
+	M0_SET0(emap_rwlock(map));
 	m0_rwlock_init(emap_rwlock(map));
 	m0_buf_init(&map->em_key_buf, &map->em_key, sizeof map->em_key);
 	m0_buf_init(&map->em_val_buf, &map->em_rec, sizeof map->em_rec);

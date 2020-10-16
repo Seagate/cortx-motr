@@ -414,6 +414,8 @@ static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg)
 	});
 	M0_ENTRY();
 	m0_long_lock_init(m0_ctg_lock(ctg));
+	/* See comment in m0_be_btree_init(). */
+	M0_SET0(&ctg->cc_chan_guard.bm_u.mutex);
 	m0_mutex_init(&ctg->cc_chan_guard.bm_u.mutex);
 	m0_chan_init(&ctg->cc_chan.bch_chan, &ctg->cc_chan_guard.bm_u.mutex);
 	ctg->cc_inited = true;
@@ -800,6 +802,8 @@ static int ctg_store__init(struct m0_be_seg *seg, struct m0_cas_state *state)
 	M0_ENTRY();
 
 	ctg_store.cs_state = state;
+	/* See comment in m0_be_btree_init(). */
+	M0_SET0(&state->cs_ctg_init_mutex.bm_u.mutex);
 	m0_mutex_init(&state->cs_ctg_init_mutex.bm_u.mutex);
 	ctg_open(state->cs_meta, seg);
 
@@ -854,6 +858,8 @@ static int ctg_store_create(struct m0_be_seg *seg)
 	rc = ctg_state_create(seg, &tx, &state);
 	if (rc != 0)
 		goto end;
+	/* See comment in m0_be_btree_init(). */
+	M0_SET0(&state->cs_ctg_init_mutex.bm_u.mutex);
 	m0_mutex_init(&state->cs_ctg_init_mutex.bm_u.mutex);
 
 	/* Create catalog-index catalogue. */

@@ -13337,7 +13337,7 @@ static void ut_mtree_mthread_test(void)
 			cpu++;
 			if (cpu >= cpu_count)
 				/**
-				 *  Circle around if thread count is higher 
+				 *  Circle around if thread count is higher
 				 *  than the CPU cores in the system.
 				 */
 				cpu = 1;
@@ -13366,7 +13366,7 @@ static void ut_mtree_mthread_test(void)
 			M0_ASSERT(rc == 0);
 
 			/** Create temp node space and
-  			 *  use it as root node for btree 
+  			 *  use it as root node for btree
   			 */
 			buf = M0_BUF_INIT(rnode_sz, NULL);
 			M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg,
