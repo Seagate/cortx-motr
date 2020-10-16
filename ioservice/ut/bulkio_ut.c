@@ -30,8 +30,15 @@
 #include "bulkio_common.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpclib.h"
-#include "ioservice/io_fops.c"  /* To access static APIs. */
-#include "ioservice/io_foms.c"  /* To access static APIs. */
+#include "ioservice/io_fops.h" /* To access static APIs. */
+#include "ioservice/io_fops_xc.h"
+#include "ioservice/io_service.h" /* m0_reqh_io_service*/
+#include "ioservice/io_foms.h"    /* To access static APIs. */
+#include "ioservice/storage_dev.h" /* m0_storage_devs_lock */
+#include "ioservice/cob_foms.h"    /* m0_fom_cob_op */
+#include "ioservice/fid_convert.h" /* m0_fid_convert_cob2stob */
+#include "stob/domain.h"           /* m0_stob_domain_find_by_stob_id */
+#include "ioservice/cob_foms.h"    /* m0_cc_cob_setup */
 #include "motr/setup.h"
 #include "motr/setup_internal.h" /* m0_motr_conf_setup */
 #include "pool/pool.h"
@@ -111,7 +118,7 @@ struct m0_net_buffer_pool * ut_get_buffer_pool(struct m0_fom *fom)
 
 	fop = fom->fo_fop;
 	serv_obj = container_of(fom->fo_service,
-	                        struct m0_reqh_io_service, rios_gen);
+				struct m0_reqh_io_service, rios_gen);
 
 	/* Get network buffer pool for network domain */
 	fop_ndom = m0_fop_domain_get(fop);
