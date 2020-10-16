@@ -33,6 +33,7 @@
 #include "lib/bitstring.h"
 #include "lib/finject.h"       /* M0_FI_ENABLED */
 #include "lib/uuid.h"
+#include "lib/hash.h"          /* m0_hash() */
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc_internal.h"
@@ -92,7 +93,7 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 	return M0_RC(m0_rpc__post_locked(item));
 }
 
-M0_INTERNAL uint64_t m0_rpc_id_generate(void)
+M0_INTERNAL uint64_t m0_rpc_id_generate(const struct m0_fid *uniq_fid)
 {
 	static struct m0_atomic64 cnt;
 	uint64_t                  id;
@@ -102,6 +103,7 @@ M0_INTERNAL uint64_t m0_rpc_id_generate(void)
 		m0_atomic64_inc(&cnt);
 		millisec = m0_time_nanoseconds(m0_time_now()) * 1000000;
 		id = (millisec << 10) | (m0_atomic64_get(&cnt) & 0x3FF);
+		id = m0_hash(m0_fid_hash(uniq_fid) + id);
 	} while (id == 0 || id == UINT64_MAX);
 
 	return id;
