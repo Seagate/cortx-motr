@@ -115,3 +115,4 @@ run N brew install libyaml
 run N brew install gawk
 run N brew install gnu-sed
 run N brew install gnu-getopt
+run N brew install valgrind
