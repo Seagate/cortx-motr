@@ -93,7 +93,7 @@ func Init() {
     procFid  := flag.String("proc", "", "my process `fid`")
     // Optional
     traceOn  := flag.Bool("trace", false, "generate m0trace.pid file")
-    flag.Uint64Var(&ObjSize, "osz", 32, "object `size` (in Kbytes)")
+    flag.Uint64Var(&ObjSize, "osz", 32, "object `size` to read (in Kbytes)")
     flag.IntVar(&threadsN, "threads", 1, "`number` of threads to use")
 
     flag.Parse()
@@ -203,6 +203,10 @@ func (mio *Mio) Close() {
                 C.m0_indexvec_free(&mio.ext[i])
         }
     }
+    if mio.minBuf != nil {
+        C.free(unsafe.Pointer(&mio.minBuf[0]))
+        mio.minBuf = nil
+    }
 }
 
 func bits(values ...C.ulong) (res C.ulong) {
@@ -266,8 +270,8 @@ func roundupPower2(x int) (power int) {
 
 const maxM0BufSz = 128 * 1024 * 1024
 
-// Calculate the optimal block size for the I/O
-func (mio *Mio) getOptimalBlockSz(bufSz int) int {
+// Estimate the optimal (block, group) sizes for the I/O
+func (mio *Mio) getOptimalBlockSz(bufSz int) (bsz, gsz int) {
     if bufSz > maxM0BufSz {
             bufSz = maxM0BufSz
     }
@@ -278,27 +282,43 @@ func (mio *Mio) getOptimalBlockSz(bufSz int) int {
     }
     usz := int(C.m0_obj_layout_id_to_unit_size(C.ulong(mio.objLid)))
     pa := &pver.pv_attr
-    gsz := usz * int(pa.pa_N)
+    gsz = usz * int(pa.pa_N)
     /* max 2-times pool-width deep, otherwise we may get -E2BIG */
     maxBs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
 
     if bufSz >= maxBs {
-            return maxBs
+            return maxBs, gsz
     } else if bufSz <= gsz {
-            return gsz
+            return gsz, gsz
     } else {
-            return roundupPower2(bufSz)
+            return roundupPower2(bufSz), gsz
     }
 }
 
-func (mio *Mio) prepareBuf(i int, bs int, p []byte,
-                           off int, offMio uint64) error {
+func pointer2slice(p unsafe.Pointer, n int) []byte {
+    // Slice memory layout
+    var slice = struct {
+        addr uintptr
+        len  int
+        cap  int
+    }{uintptr(p), n, n}
+
+    return *(*[]byte)(unsafe.Pointer(&slice))
+}
+
+func (mio *Mio) prepareBuf(p []byte, i, bs, gs, off int,
+                           offMio uint64) error {
     buf := p[off:]
-    if bs < C.PAGE_SIZE {
-        bs = C.PAGE_SIZE
-        // we need it zero-ed, that's why it's allocated
-        mio.minBuf = make([]byte, bs)
+    if rem := bs % gs; rem != 0 {
+        bs += (gs - rem)
+        // Must be zero-ed, so we always allocate it.
+        // gs does not divide bs only at the end of object
+        // so it should not happen very often.
+        mio.minBuf = pointer2slice(C.calloc(1, C.ulong(bs)), bs)
         buf = mio.minBuf[:]
+    } else if mio.minBuf != nil {
+        C.free(unsafe.Pointer(&mio.minBuf[0]))
+        mio.minBuf = nil
     }
     if mio.buf[i].ov_buf == nil {
         if C.m0_bufvec_empty_alloc(&mio.buf[i], 1) != 0 {
@@ -345,7 +365,8 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
         return 0, errors.New("object is not opened")
     }
     left, off := len(p), 0
-    bs := mio.getOptimalBlockSz(left)
+    bs, gs := mio.getOptimalBlockSz(left)
+    log.Printf("off=%v len=%v bs=%v gs=%v", mio.off, left, bs, gs)
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
@@ -354,11 +375,11 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
         if slot.err != nil {
             break
         }
-        err = mio.prepareBuf(slot.idx, bs, p, off, mio.off)
+        err = mio.prepareBuf(p, slot.idx, bs, gs, off, mio.off)
         if err != nil {
             return off, err
         }
-        if bs < C.PAGE_SIZE {
+        if mio.minBuf != nil {
             copy(mio.minBuf, p[off:])
         }
         mio.wg.Add(1)
@@ -379,7 +400,7 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         return 0, io.EOF
     }
     left, off := len(p), 0
-    bs := mio.getOptimalBlockSz(left)
+    bs, gs := mio.getOptimalBlockSz(left)
     for ; left > 0 && mio.off < ObjSize; left -= bs {
         if left < bs {
             bs = left
@@ -388,13 +409,13 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         if slot.err != nil {
             break
         }
-        err = mio.prepareBuf(slot.idx, bs, p, off, mio.off)
+        err = mio.prepareBuf(p, slot.idx, bs, gs, off, mio.off)
         if err != nil {
             return off, err
         }
         mio.wg.Add(1)
         go mio.doIO(slot.idx, C.M0_OC_READ)
-        if bs < C.PAGE_SIZE {
+        if mio.minBuf != nil {
             copy(p[off:], mio.minBuf)
         }
         off += bs
