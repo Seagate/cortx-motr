@@ -398,6 +398,40 @@ check_mkfs:
 	return rc;
 }
 
+
+M0_INTERNAL int
+m0_be_ut_backend_log_resize(struct m0_be_ut_backend *ut_be,
+			    const struct m0_be_domain_cfg *cfg)
+{
+	struct m0_be_domain     *dom;
+	struct m0_be_domain_cfg *c;
+	int                      rc = 0;
+
+	M0_PRE(cfg != NULL);
+	ut_be->but_dom_cfg = *cfg;
+
+	c = &ut_be->but_dom_cfg;
+	dom = &ut_be->but_dom;
+
+	/* Use m0_be_ut_backend's stob domain location, if possible. */
+	if (ut_be->but_stob_domain_location != NULL)
+		c->bc_stob_domain_location = ut_be->but_stob_domain_location;
+
+	c->bc_mkfs_mode = true;
+
+	c->bc_log.lc_got_space_cb = m0_be_engine_got_log_space_cb;
+	c->bc_log.lc_full_cb      = m0_be_engine_full_log_cb;
+	c->bc_log.lc_lock         = &dom->bd_engine_lock;
+
+	be_domain_log_cleanup(c->bc_stob_domain_location, &c->bc_log, c->bc_mkfs_mode);
+
+	rc = m0_be_log_create(m0_be_domain_log(dom), &c->bc_log);
+
+	m0_be_log_close(m0_be_domain_log(dom));
+
+	return rc;
+}
+
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
 	int rc = m0_be_ut_backend_init_cfg(ut_be, NULL, true);
