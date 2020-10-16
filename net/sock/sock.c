@@ -357,17 +357,20 @@
  * Socket interface use
  * --------------------
  *
- * sock module uses standard bsd socket interface, but
+ * sock module uses standard bsd socket interface, which one would assume to be
+ * portable, but
  *
  *     - accept4(2), a linux-specific system call, is used instead of accept(2)
  *       to set SOCK_NONBLOCK option on the new socket, eliminating the cost of
  *       a separate setsockopt(2) call, see sock_event(). Switch to accept(2) is
- *       trivial;
+ *       trivial. See saccept();
  *
  *     - similarly, a non-portable extension to socket(2) is used to set
- *       SOCK_NONBLOCK in socket(2), see sock_init_fd();
+ *       SOCK_NONBLOCK in socket(2), see sock_init_fd(), ssocket();
  *
- *     - bsd Reno "len" fields in socket address structures are optionally used;
+ *     - bsd Reno "sa_len" fields in socket address structures are optionally
+ *       used. Darwin requires that address_len field of socket calls equals
+ *       sa_len, see sbind(), sconnect();
  *
  *     - ipv4 and ipv6 protocol families are supported. Unix domain sockets are
  *       not supported.
@@ -1145,6 +1148,8 @@ static void ip6_decode(struct addr *a, const struct sockaddr *sa);
 
 static int ssocket(int domain, int type, int protocol);
 static int saccept(int fd, struct sockaddr *addr, socklen_t *len);
+static int sbind(int socket, const struct sockaddr *sa, socklen_t len);
+static int sconnect(int socket, const struct sockaddr *sa, socklen_t len);
 
 static const struct m0_sm_conf sock_conf;
 static const struct m0_sm_conf rw_conf;
@@ -1196,13 +1201,13 @@ static const struct socktype stype[] = {
 /*
  * static const char *rw_name[] = {
  * 	"IDLE",
- * 	"PK",
- * 	"HEADER",
- * 	"INTERVAL",
- * 	"PK_DONE",
- * 	"FAIL",
- * 	"DONE",
- * 	};
+ *  	"PK",
+ *  	"HEADER",
+ *  	"INTERVAL",
+ *  	"PK_DONE",
+ *  	"FAIL",
+ *  	"DONE",
+ * };
  */
 
 #ifdef EP_DEBUG
@@ -2122,8 +2127,8 @@ static int sock_init(int fd, struct ep *src, struct ep *tgt, uint32_t flags)
 				struct sockaddr_storage sa = {};
 
 				addr_encode(&ep->e_a, (void *)&sa);
-				result = connect(s->s_fd,
-						 (void *)&sa, sizeof sa);
+				result = sconnect(s->s_fd,
+						  (void *)&sa, sizeof sa);
 			}
 			if (result == 0) {
 				state = S_OPEN;
@@ -2173,8 +2178,8 @@ static int sock_init_fd(int fd, struct sock *s, struct ep *ep, uint32_t flags)
 						    &flag, sizeof flag);
 				if (result == 0) {
 					addr_encode(&ep->e_a, (void *)&sa);
-					result = bind(fd, (void *)&sa,
-						      sizeof sa);
+					result = sbind(fd, (void *)&sa,
+						       sizeof sa);
 				} else
 					result = M0_ERR(-errno);
 			} else
@@ -2702,7 +2707,7 @@ static void ip4_encode(const struct addr *a, struct sockaddr *sa)
 	struct sockaddr_in *sin = (void *)sa;
 
 	M0_SET0(sin);
-#if 0 /* BSD Reno. */
+#if M0_DARWIN /* BSD Reno. */
 	sin->sin_len         = sizeof *sin;
 #endif
 	sin->sin_port        = htons(a->a_port);
@@ -2724,7 +2729,7 @@ static void ip6_encode(const struct addr *a, struct sockaddr *sa)
 	struct sockaddr_in6 *sin6 = (void *)sa;
 
 	M0_SET0(sin6);
-#if 0 /* BSD Reno. */
+#if M0_DARWIN /* BSD Reno. */
 	sin6->sin6_len         = sizeof *sin6;
 #endif
 	sin6->sin6_port        = htons(a->a_port);
@@ -3083,11 +3088,12 @@ static int mover_op(struct mover *m, struct sock *s, int op)
 		} else
 			state = m->m_op->v_op[state][op].o_op(m, s);
 		/*
-		 * printf("... %p: %s -> %s (%p)\n",
-		 *        m, rw_name[m->m_sm.sm_state],
-		 *        state >= 0 ? rw_name[state] : strerror(-state),
-		 *        m->m_buf);
+		 * printf("... %p: %s/%i -> %s (%p)\n",
+		 *        m, rw_name[m->m_sm.sm_state], op,
+		 *         state >= 0 ? rw_name[state] : strerror(-state),
+		 *         m->m_buf);
 		 */
+
 		if (state >= 0) {
 			M0_ASSERT(IS_IN_ARRAY(state, m->m_op->v_op));
 			m0_sm_state_set(&m->m_sm, state);
@@ -3736,6 +3742,26 @@ static int saccept(int fd, struct sockaddr *addr, socklen_t *len)
 	return accept4(fd, addr, len, SOCK_NONBLOCK);
 #else
 	return sock_nonblock(accept(fd, addr, len));
+#endif
+}
+
+/** Wrapper around bind(2). */
+static int sbind(int socket, const struct sockaddr *sa, socklen_t len)
+{
+#if defined(M0_LINUX)
+	return bind(socket, sa, len);
+#else
+	return bind(socket, sa, sa->sa_len);
+#endif
+}
+
+/** Wrapper around connect(2). */
+static int sconnect(int socket, const struct sockaddr *sa, socklen_t len)
+{
+#if defined(M0_LINUX)
+	return connect(socket, sa, len);
+#else
+	return connect(socket, sa, sa->sa_len);
 #endif
 }
 
