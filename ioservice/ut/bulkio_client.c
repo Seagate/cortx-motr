@@ -297,7 +297,10 @@ static void bulkclient_test(void)
 		M0_UT_ASSERT(rbuf->bb_nbuf != NULL);
 		M0_UT_ASSERT(rbuf->bb_nbuf->nb_app_private == rbuf);
 		M0_UT_ASSERT(rbuf->bb_nbuf->nb_flags & M0_NET_BUF_REGISTERED);
-		M0_UT_ASSERT(rbuf->bb_nbuf->nb_flags & M0_NET_BUF_QUEUED);
+		/*
+		 * Cannot assert M0_NET_BUF_QUEUED, because the transfer might
+		 * have already completed.
+		 */
 		rc = memcmp(rbuf->bb_nbuf->nb_desc.nbd_data,
 			    rw->crw_desc.id_descs[i].bdd_desc.nbd_data,
 			    rbuf->bb_nbuf->nb_desc.nbd_len);
@@ -358,7 +361,7 @@ static void bulkclient_test(void)
 
 	rc = m0_rpc_bulk_load(sbulk, &stm->bmt_conn, rw->crw_desc.id_descs,
 			      &m0_rpc__buf_bulk_cb);
-
+	M0_UT_ASSERT(rc == 0);
 	/*
 	 * Buffer completion callbacks also wait to acquire the
 	 * m0_rpc_bulk::rb_mutex and in any case asserts inside the loop
@@ -377,7 +380,6 @@ static void bulkclient_test(void)
 	M0_UT_ASSERT(sbulk->rb_bytes == 2 * M0_0VEC_ALIGN);
 	m0_mutex_unlock(&sbulk->rb_mutex);
 	/* Waits for zero copy to complete. */
-	M0_UT_ASSERT(rc == 0);
 	m0_chan_wait(&s_clink);
 	m0_chan_wait(&c_clink);
 
