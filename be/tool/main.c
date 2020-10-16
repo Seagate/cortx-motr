@@ -32,6 +32,7 @@
 
 #include <stdio.h>              /* printf */
 #include <stdlib.h>             /* EXIT_FAILURE */
+#include <errno.h>              /* ERANGE */
 
 #include "lib/string.h"         /* m0_streq */
 
@@ -117,7 +118,6 @@ int main(int argc, char *argv[])
 	struct m0_be_domain_cfg  cfg = {};
 	char                    *path;
 	int                      rc;
-	uint64_t                 size;
 
 	if (argc > 1 && m0_streq(argv[1], "be_recovery_run")) {
 		path = argc > 2 ? argv[2] : NULL;
@@ -126,13 +126,22 @@ int main(int argc, char *argv[])
 	}
 
 	if (argc > 1 && m0_streq(argv[1], "be_log_resize")) {
+		uint64_t size;
+
 		if (argc > 3) {
 			path = argv[2];
-			size = atol(argv[3]);
+			errno = 0;
+			size = strtoul(argv[3], NULL, 10);
 		} else {
 			printf("%s", betool_help);
 			return EXIT_FAILURE;
 		}
+
+		if (errno == ERANGE || ((size == 0) && (errno != 0))) {
+			printf("%s", betool_help);
+			return EXIT_FAILURE;
+		}
+
 		rc = be_log_resize(path, size);
 		return rc;
 	}
