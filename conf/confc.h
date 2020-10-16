@@ -576,6 +576,9 @@ struct m0_confc_ctx {
 	/** RPC item to be delivered to confd. */
 	struct m0_rpc_item *fc_rpc_item;
 
+	/** Finalized or not */
+	bool                fc_finalized;
+
 	/** Magic number. */
 	uint64_t            fc_magic;
 };

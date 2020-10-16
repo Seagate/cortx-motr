@@ -1125,6 +1125,9 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 		       "data=%p", a, c, c->bac_size, c->bac_zone, &c->bac_mem);
 		/* algorithm starts here */
 		be_alloc_chunk_mark_free(a, ztype, tx, c);
+		/* update stats before c->bac_size gets modified due to merge */
+		be_allocator_stats_update(&a->ba_h[ztype]->bah_stats,
+					  c->bac_size, false, false);
 		prev = be_alloc_chunk_prev(a, ztype, c);
 		next = be_alloc_chunk_next(a, ztype, c);
 		chunks_were_merged = be_alloc_chunk_trymerge(a, ztype, tx,
@@ -1132,8 +1135,6 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 		if (chunks_were_merged)
 			c = prev;
 		be_alloc_chunk_trymerge(a, ztype, tx, c, next);
-		be_allocator_stats_update(&a->ba_h[ztype]->bah_stats,
-					  c->bac_size, false, false);
 		be_allocator_stats_capture(a, ztype, tx);
 		/* and ends here */
 		M0_POST(c->bac_free);

@@ -275,27 +275,27 @@ enum {
 	UT_PAGE_SHIFT = 12
 };
 struct ut_data {
-	int                            _debug_;
-	struct m0_net_tm_callbacks     tmcb;
-	struct m0_net_domain           dom1;
-	struct m0_net_transfer_mc      tm1;
-	struct m0_clink                tmwait1;
-	struct m0_net_buffer_callbacks buf_cb1;
-	struct m0_net_buffer           bufs1[UT_BUFS1];
-	size_t                         buf_size1;
-	m0_bcount_t                    buf_seg_size1;
-	struct m0_net_domain           dom2;
-	struct m0_net_transfer_mc      tm2;
-	struct m0_clink                tmwait2;
-	struct m0_net_buffer_callbacks buf_cb2;
-	struct m0_net_buffer           bufs2[UT_BUFS2];
-	size_t                         buf_size2;
-	m0_bcount_t                    buf_seg_size2;
-	struct m0_net_qstats           qs;
-	char * const                  *nidstrs1;
-	char * const                  *nidstrs2;
-	struct nlx_core_buf_desc       cbd1;
-	struct nlx_core_buf_desc       cbd2;
+	int                              _debug_;
+	struct m0_net_tm_callbacks       tmcb;
+	struct m0_net_domain             dom1;
+	struct m0_net_transfer_mc        tm1;
+	struct m0_clink                  tmwait1;
+	struct m0_net_buffer_callbacks   buf_cb1;
+	struct m0_net_buffer             bufs1[UT_BUFS1];
+	size_t                           buf_size1;
+	m0_bcount_t                      buf_seg_size1;
+	struct m0_net_domain             dom2;
+	struct m0_net_transfer_mc        tm2;
+	struct m0_clink                  tmwait2;
+	struct m0_net_buffer_callbacks   buf_cb2;
+	struct m0_net_buffer             bufs2[UT_BUFS2];
+	size_t                           buf_size2;
+	m0_bcount_t                      buf_seg_size2;
+	struct m0_net_qstats             qs;
+	char                           **nidstrs1;
+	char                           **nidstrs2;
+	struct nlx_core_buf_desc         cbd1;
+	struct nlx_core_buf_desc         cbd2;
 };
 
 #ifdef __KERNEL__
@@ -441,7 +441,7 @@ static void ut_test_framework(ut_test_fw_body_t body,
 do {									\
 	struct m0_net_domain *dom = &td->dom ## which;			\
 	struct m0_net_transfer_mc *tm = &td->tm ## which;		\
-	char * const **nidstrs = &td->nidstrs ## which;			\
+	char ***nidstrs = &td->nidstrs ## which;			\
 	M0_UT_ASSERT(!m0_net_domain_init(dom, &m0_net_lnet_xprt));	\
 	M0_UT_ASSERT(!m0_net_lnet_ifaces_get(dom, nidstrs));		\
 	M0_UT_ASSERT(*nidstrs != NULL && **nidstrs != NULL);		\
@@ -724,7 +724,7 @@ static void test_tm_startstop(void)
 		.ntc_event_cb = ut_tm_ecb,
 	};
 	static struct m0_clink tmwait1;
-	char * const *nidstrs;
+	char **nidstrs;
 	const char *nid_to_use;
 	char epstr[M0_NET_LNET_XEP_ADDR_LEN];
 	char badportal_epstr[M0_NET_LNET_XEP_ADDR_LEN];
