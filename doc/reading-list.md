@@ -16,6 +16,8 @@ Motr Clients
 ------------
 [Client API](../motr/client.h) shows how to build client applications using the Motr API.  [m0cp](../motr/st/utils/copy.c), [m0cat](../motr/st/utils/cat.c), and [m0kv](../motr/m0kv) are example applications using this API.
 
+[Go bindings](../bindings/go) allow to write Motr client applications in Go language quickly and efficiently.
+
 Containers
 ----------
 
