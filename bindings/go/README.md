@@ -40,3 +40,9 @@ Usage: mcp [options] src dst
   -trace
     	generate m0trace.pid file
 ```
+
+To build:
+
+```
+$ cd motr/bindings/go/mcp && go build
+```
