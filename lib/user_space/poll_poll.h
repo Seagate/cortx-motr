@@ -33,6 +33,8 @@
 
 #include <poll.h>
 
+#include "lib/mutex.h"
+
 enum {
 	EPOLLIN    = POLLIN,
 	EPOLLOUT   = POLLOUT,
@@ -44,14 +46,17 @@ enum {
 };
 
 struct m0_poll {
-	int            p_nr;
-	struct pollfd *p_fd;
-	void         **p_dt;
+	int             p_nr;
+	struct pollfd  *p_fd;
+	void          **p_dt;
+	struct m0_mutex p_lock;
 };
 
 struct m0_poll_data {
 	struct m0_poll *pd_poll;
 	int             pd_nr;
+	struct pollfd  *pd_fd;
+	int             pd_count;
 };
 
 #define M0_POLL_PREP(pd, poll, nr)		\
@@ -60,10 +65,15 @@ struct m0_poll_data {
 						\
 	__pd->pd_poll = (poll);		\
 	__pd->pd_nr   = (nr);			\
+	__pd->pd_fd   = NULL;			\
+	__pd->pd_count = 0;			\
 	(void)0;				\
 })
 
-#define M0_POLL_DONE(pd) ((void)0)
+#define M0_POLL_DONE(pd)			\
+({						\
+	m0_free((pd)->pd_fd);			\
+})
 
 /** @} end of poll group */
 

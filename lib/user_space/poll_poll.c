@@ -19,6 +19,7 @@
  *
  */
 
+#include "lib/mutex.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 #include "lib/poll.h"
@@ -39,16 +40,18 @@
 #if M0_POLL_USE_POLL
 
 static int expand(struct m0_poll *poll, int nsize);
-static int fd_get(struct m0_poll *poll, int idx);
+static int fd_get(struct m0_poll_data *pd, int idx);
 
 M0_INTERNAL int m0_poll_init(struct m0_poll *poll)
 {
 	M0_PRE(M0_IS0(poll));
+	m0_mutex_init(&poll->p_lock);
 	return 0;
 }
 
 M0_INTERNAL void m0_poll_fini(struct m0_poll *poll)
 {
+	m0_mutex_fini(&poll->p_lock);
 	m0_free(poll->p_dt);
 	m0_free(poll->p_fd);
 }
@@ -59,10 +62,13 @@ M0_INTERNAL int m0_poll_ctl(struct m0_poll *poll, enum m0_poll_cmd cmd, int fd,
 	int result = 0;
 
 	M0_PRE(fd > 0);
+	m0_mutex_lock(&poll->p_lock);
 	if (fd >= poll->p_nr) {
 		result = expand(poll, max_check(fd + 1, poll->p_nr * 2));
-		if (result != 0)
+		if (result != 0) {
+			m0_mutex_unlock(&poll->p_lock);
 			return M0_ERR(result);
+		}
 	}
 	M0_ASSERT(fd < poll->p_nr);
 	switch (cmd) {
@@ -88,26 +94,43 @@ M0_INTERNAL int m0_poll_ctl(struct m0_poll *poll, enum m0_poll_cmd cmd, int fd,
 			result = M0_ERR(-ENOENT);
 		break;
 	}
+	m0_mutex_unlock(&poll->p_lock);
 	return result;
 }
 
 M0_INTERNAL int m0_poll(struct m0_poll_data *pd, int msec)
 {
-	int result = poll(pd->pd_poll->p_fd, pd->pd_poll->p_nr, msec);
-	M0_ASSERT(ergo(result >= 0,
-		       result == m0_count(i, pd->pd_poll->p_nr,
-					  pd->pd_poll->p_fd[i].revents != 0)));
-	return result >= 0 ? result : M0_ERR(-errno);
+	struct m0_poll *p      = pd->pd_poll;
+	int             result = 0;
+	int             nr;
+	struct pollfd  *pfd;
+
+	m0_mutex_lock(&p->p_lock);
+	pd->pd_count = nr = p->p_nr;
+	M0_ALLOC_ARR(pfd, nr);
+	if (pfd == NULL)
+		result = M0_ERR(-ENOMEM);
+	else
+		pd->pd_fd = memcpy(pfd, p->p_fd, sizeof pfd[0] * nr);
+	m0_mutex_unlock(&p->p_lock);
+	if (result == 0) {
+		result = poll(pfd, nr, msec);
+		M0_ASSERT(ergo(result >= 0,
+			       result == m0_count(i, nr, pfd[i].revents != 0)));
+		if (result < 0)
+			result = M0_ERR(-errno);
+	}
+	return M0_RC(result);
 }
 
 M0_INTERNAL void *m0_poll_ev_datum(struct m0_poll_data *pd, int i)
 {
-	return pd->pd_poll->p_dt[fd_get(pd->pd_poll, i)];
+	return pd->pd_poll->p_dt[fd_get(pd, i)];
 }
 
 M0_INTERNAL uint64_t m0_poll_ev_flags(struct m0_poll_data *pd, int i)
 {
-	return pd->pd_poll->p_fd[fd_get(pd->pd_poll, i)].revents;
+	return pd->pd_fd[fd_get(pd, i)].revents;
 }
 
 static int expand(struct m0_poll *poll, int nsize)
@@ -136,16 +159,16 @@ static int expand(struct m0_poll *poll, int nsize)
 		return M0_ERR(-ENOMEM);
 }
 
-static int fd_get(struct m0_poll *poll, int idx)
+static int fd_get(struct m0_poll_data *pd, int idx)
 {
 	int i;
 	int idx0 = idx;
 
-	for (i = 0; i < poll->p_nr; ++i) {
-		if (poll->p_fd[i].revents != 0 && idx-- == 0)
+	for (i = 0; i < pd->pd_count; ++i) {
+		if (pd->pd_fd[i].revents != 0 && idx-- == 0)
 			return i;
 	}
-	M0_IMPOSSIBLE("poll(2) lied: %i %i.", idx0, poll->p_nr);
+	M0_IMPOSSIBLE("poll(2) lied: %i %i.", idx0, pd->pd_count);
 }
 
 /* M0_POLL_USE_POLL */
