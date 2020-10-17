@@ -1386,8 +1386,8 @@ Display only trace records from specified function. I<FUN> is a C<perl> regex.
 
 Example:
 
-  m0trace -U '^m0_alloc$'
-  m0trace -U '(?<!m0_)(?:alloc|free)'
+  m0trace -u '^m0_alloc$'
+  m0trace -u '(?<!m0_)(?:alloc|free)'
 
 =item B<-m|--msg=I<MSG>>
 
