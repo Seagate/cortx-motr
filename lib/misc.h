@@ -487,6 +487,12 @@ M0_EXTERN const struct m0_key_val M0_KEY_VAL_NULL;
  */
 M0_INTERNAL uint64_t m0_dummy_id_generate(void);
 
+#if defined(__clang__) || defined (__GNUC__)
+#define ATTRIBUTE_NO_SANITIZE_ADDRESS __attribute__((no_sanitize_address))
+#else
+#define ATTRIBUTE_NO_SANITIZE_ADDRESS
+#endif
+
 #endif /* __MOTR_LIB_MISC_H__ */
 
 /*

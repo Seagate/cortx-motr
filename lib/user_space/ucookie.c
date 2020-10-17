@@ -23,7 +23,7 @@
 #include <setjmp.h>        /* setjmp() and longjmp() */
 
 #include "lib/thread.h"
-#include "lib/misc.h"      /* M0_SET0 */
+#include "lib/misc.h"      /* M0_SET0, ATTRIBUTE_NO_SANITIZE_ADDRESS */
 #include "lib/errno.h"     /* errno */
 #include "lib/assert.h"    /* m0_panic */
 
@@ -59,7 +59,8 @@ static void sigsegv(int sig)
  * an error in case of an invalid address gets handled by the
  * function sigsegv().
  */
-M0_INTERNAL bool m0_arch_addr_is_sane(const void *addr)
+M0_INTERNAL ATTRIBUTE_NO_SANITIZE_ADDRESS
+bool m0_arch_addr_is_sane(const void *addr)
 {
 	sigjmp_buf        buf;
 	sigjmp_buf      **tls = &m0_thread_tls()->tls_arch.tat_jmp;
