@@ -138,7 +138,7 @@ static void field_print(const struct m0_xcode_field *f, int i)
 	       i, f->xf_name, f->xf_type->xct_name, f->xf_offset, f->xf_tag);
 }
 
-void (*m0_sm__conf_init)(const struct m0_sm_conf *conf);
+extern void (*m0_sm__conf_init)(const struct m0_sm_conf *conf);
 
 void usage_print(const char* progname) {
 	fprintf(stderr,
