@@ -296,6 +296,7 @@ M0_INTERNAL uint64_t m0_tid(void)
 {
 	return current->pid;
 }
+M0_EXPORTED(m0_tid);
 
 M0_INTERNAL uint64_t m0_process(void)
 {
