@@ -1,4 +1,4 @@
-# Go language binding to Motr - mio
+# Go bindings for Motr - mio
 
 `mio` Go package implements Reader/Writer interface over Motr client I/O API.
 This allows writing Motr client applications quickly and efficiently in the Go language.
