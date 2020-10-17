@@ -415,7 +415,22 @@ static int _init(const char *opts M0_UNUSED)
 {
 	size_t i;
 	int    rc;
+	static struct m0_fid fid = M0_FID_TINIT('r', 1, 1);
 
+	rc = m0_reqh_service_type_register(&ub_fom_stype);
+	M0_UB_ASSERT(rc == 0);
+
+	m0_fom_type_init(&ub_fom_type, M0_UB_FOM_OPCODE,
+			 &ub_fom_type_ops, &ub_fom_stype, &m0_generic_conf);
+
+	/* This benchmark doesn't need network, database and some other
+	 * subsystems for its operation.  Simplistic initialisation
+	 * is justified. */
+	rc = M0_REQH_INIT(&g_reqh,
+			  .rhia_dtm       = (void *)1,
+			  .rhia_db        = NULL,
+			  .rhia_fid       = &fid,
+			  .rhia_mdstore   = (void *)1);
 	rc = m0_reqh_service_type_register(&ub_fom_stype);
 	M0_UB_ASSERT(rc == 0);
 
