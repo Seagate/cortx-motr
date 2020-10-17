@@ -54,7 +54,6 @@ static int item_reply_received(struct m0_rpc_item *reply,
 static bool item_reply_received_fi(struct m0_rpc_item *req,
 				   struct m0_rpc_item *reply);
 static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply);
-static void rpc_item_xid_unassign(struct m0_rpc_item *item);
 
 const struct m0_sm_conf outgoing_item_sm_conf;
 const struct m0_sm_conf incoming_item_sm_conf;
@@ -411,7 +410,7 @@ void m0_rpc_item_fini(struct m0_rpc_item *item)
 	if (itemq_tlink_is_in(item))
 		m0_rpc_frm_remove_item(item->ri_frm, item);
 
-	rpc_item_xid_unassign(item);
+	m0_rpc_item_xid_unassign(item);
 
 	M0_ASSERT(!ric_tlink_is_in(item));
 	M0_ASSERT(!itemq_tlink_is_in(item));
@@ -591,7 +590,7 @@ M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 
-static void rpc_item_xid_unassign(struct m0_rpc_item *item)
+M0_INTERNAL void m0_rpc_item_xid_unassign(struct m0_rpc_item *item)
 {
 	M0_ENTRY("item="ITEM_FMT" osr_xid=%"PRIu64" "
 	         "osr_session_xid_min=%"PRIu64" ri_xid_assigned_here=%d",
@@ -602,6 +601,7 @@ static void rpc_item_xid_unassign(struct m0_rpc_item *item)
 		M0_ASSERT(m0_rpc_machine_is_locked(item->ri_session->
 						   s_conn->c_rpc_machine));
 		xidl_tlist_del(item);
+		item->ri_xid_assigned_here = false;
 	}
 }
 

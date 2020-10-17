@@ -613,6 +613,7 @@ M0_INTERNAL void m0_rpc_item_pending_cache_fini(struct m0_rpc_session *session);
 M0_INTERNAL void m0_rpc_item_pending_cache_add( struct m0_rpc_item *item);
 /** Deletes item from the pending item cache. */
 M0_INTERNAL void m0_rpc_item_pending_cache_del(struct m0_rpc_item *item);
+M0_INTERNAL void m0_rpc_item_xid_unassign(struct m0_rpc_item *item);
 
 #define ITEM_FMT "%p [%s/%s(%u)]"
 #define ITEM_ARG(item) (item), item_kind(item), m0_rpc_item_opname(item), \

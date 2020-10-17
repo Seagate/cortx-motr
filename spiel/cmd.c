@@ -29,6 +29,7 @@
 #include "conf/helpers.h"          /* m0_conf_service_name_dup */
 #include "fid/fid_list.h"          /* m0_fid_item */
 #include "rpc/rpclib.h"            /* m0_rpc_post_with_timeout_sync */
+#include "rpc/item.h"              /* m0_rpc_item_unassign */
 #include "cm/repreb/trigger_fom.h" /* m0_cm_op */
 #include "cm/repreb/trigger_fop.h" /* trigger_fop */
 #include "sns/cm/trigger_fop.h"    /* m0_sns_cm_trigger_fop_alloc */
@@ -204,6 +205,15 @@ static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
 						    NULL,
 						    M0_TIME_IMMEDIATELY,
 						    timeout);
+
+		/*
+		 * 'cmd_fop' is still valid when this function returns.
+		 * But the rpc session is finalized in this function.
+		 * We need to explicitly remove rpc item from session.
+		 */
+		m0_rpc_machine_lock(rmachine);
+		m0_rpc_item_xid_unassign(&cmd_fop->f_item);
+		m0_rpc_machine_unlock(rmachine);
 
 		if (rlink->rlk_connected) {
 			conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
@@ -1153,8 +1163,24 @@ static int spiel__pool_cmd_status_get(struct _pool_cmd_ctx *ctx,
 			status->srs_state = rc;
 		}
 	}
+	/*
+	 * This put() is dual to spiel__pool_cmd_send()
+	 *                        -> spiel_repreb_fop_fill_and_send()
+	 *                        -> spiel_repreb_cmd_send()
+	 *                        -> m0_fop_get()
+	 */
 	m0_fop_put0_lock(fop);
+	/* We still have one valid ref from m0_fop_alloc()->m0_fop_init() */
 	if (repreb->sr_is_connected) {
+		/*
+		 * 'fop' is still valid when this function returns.
+		 * But the rpc session is finalized in this function.
+		 * We need to explicitly remove rpc item from session.
+		 */
+		m0_rpc_machine_lock(ctx->pl_spc->spc_rmachine);
+		m0_rpc_item_xid_unassign(&fop->f_item);
+		m0_rpc_machine_unlock(ctx->pl_spc->spc_rmachine);
+
 		M0_ASSERT(repreb->sr_rlink.rlk_connected);
 		conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
 		m0_rpc_link_disconnect_sync(&repreb->sr_rlink, conn_timeout);
