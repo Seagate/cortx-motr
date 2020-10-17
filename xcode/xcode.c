@@ -156,7 +156,7 @@ static bool at_array(const struct m0_xcode_cursor       *it,
 
 static void **allocp(struct m0_xcode_cursor *it, size_t *out)
 {
-	const struct m0_xcode_cursor_frame *prev;
+	const struct m0_xcode_cursor_frame *prv;
 	const struct m0_xcode_obj          *par;
 	const struct m0_xcode_type         *xt;
 	const struct m0_xcode_type         *pt;
@@ -190,11 +190,10 @@ static void **allocp(struct m0_xcode_cursor *it, size_t *out)
 
 	nob  = 0;
 	top  = m0_xcode_cursor_top(it);
-	prev = top - 1;
+	prv  = top - 1;
 	obj  = &top->s_obj;  /* an object being decoded */
-	par  = &prev->s_obj; /* obj's parent object */
+	par  = &prv->s_obj; /* obj's parent object */
 	xt   = obj->xo_type;
-	pt   = par->xo_type;
 	size = xt->xct_sizeof;
 
 	if (it->xcu_depth == 0) {
@@ -202,17 +201,18 @@ static void **allocp(struct m0_xcode_cursor *it, size_t *out)
 		nob = size;
 		slot = &obj->xo_ptr;
 	} else {
-		if (at_array(it, prev, par))
+		pt = par->xo_type;
+		if (at_array(it, prv, par))
 			/* allocate array */
 			nob = m0_xcode_tag(par) * size;
-		else if (pt->xct_child[prev->s_fieldno].xf_type == &M0_XT_OPAQUE)
+		else if (pt->xct_child[prv->s_fieldno].xf_type == &M0_XT_OPAQUE)
 			/*
 			 * allocate the object referenced by an opaque
 			 * pointer. At this moment "xt" is the type of the
 			 * pointed object.
 			 */
 			nob = size;
-		slot = m0_xcode_addr(par, prev->s_fieldno, ~0ULL);
+		slot = m0_xcode_addr(par, prv->s_fieldno, ~0ULL);
 	}
 	*out = nob;
 	return slot;
