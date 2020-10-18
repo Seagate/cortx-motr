@@ -17,7 +17,7 @@ option.)
 `mcp` (Motr cp) utility is a client application example written in pure Go which uses
 `mio` package and has only 88 lines of code (as of 17 Oct 2020):
 
-```
+```Text
 Usage: mcp [options] src dst
 
  At least one of src and dst arguments must be object id.
@@ -43,6 +43,6 @@ Usage: mcp [options] src dst
 
 To build:
 
-```
-$ cd motr/bindings/go/mcp && go build
+```sh
+cd motr/bindings/go/mcp && go build
 ```
