@@ -1227,8 +1227,8 @@ static void next_common(struct m0_bufvec *keys,
 			struct m0_bufvec *values,
 			uint32_t          flags)
 {
-	struct m0_cas_rec_reply   rep[COUNT];
-	struct m0_cas_next_reply  next_rep[COUNT];
+	struct m0_cas_rec_reply   rep[COUNT + 1];
+	struct m0_cas_next_reply  next_rep[COUNT + 1];
 	const struct m0_fid       ifid = IFID(2, 3);
 	struct m0_cas_id          index = {};
 	struct m0_bufvec          start_key;
