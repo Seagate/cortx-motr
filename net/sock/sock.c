@@ -1214,7 +1214,7 @@ static const struct socktype stype[] = {
 #define EP_GET(e, f) \
 	({ struct ep *__ep = (e); ep_get(__ep); M0_CNT_INC(__ep->e_r_ ## f); })
 #define EP_PUT(e, f) \
-	({ struct ep *__ep = (e); ep_put(__ep); M0_CNT_DEC(__ep->e_r_ ## f); })
+	({ struct ep *__ep = (e); M0_CNT_DEC(__ep->e_r_ ## f); ep_put(__ep); })
 #else
 #define EP_GET(e, f) ep_get(e)
 #define EP_PUT(e, f) ep_put(e)
