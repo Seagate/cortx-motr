@@ -1,4 +1,5 @@
 m0tr_objects += lib/assert.o \
+                  lib/backtrace.o \
                   lib/bitmap.o \
                   lib/bitmap_xc.o \
                   lib/bitstring.o \

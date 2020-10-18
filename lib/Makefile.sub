@@ -1,6 +1,7 @@
 nobase_motr_include_HEADERS += lib/arith.h \
                                lib/assert.h \
                                lib/atomic.h \
+                               lib/backtrace.h \
                                lib/bitmap.h \
                                lib/bitstring.h \
                                lib/bob.h \
@@ -67,6 +68,7 @@ nobase_motr_include_HEADERS += lib/arith.h \
                                lib/user_space/__sync_atomic.h
 
 motr_libmotr_la_SOURCES += lib/assert.c \
+                           lib/backtrace.c \
                            lib/bitmap.c \
                            lib/bitstring.c \
                            lib/bob.c \
