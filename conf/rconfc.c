@@ -1215,7 +1215,7 @@ static void _failure_ast_cb(struct m0_sm_group *grp M0_UNUSED,
 			    struct m0_sm_ast   *ast)
 {
 	struct m0_rconfc *rconfc = ast->sa_datum;
-	struct rlock_ctx *rlx =rconfc->rc_rlock_ctx;
+	struct rlock_ctx *rlx    = rconfc->rc_rlock_ctx;
 
 	/*
 	 * RPC connection to RM may be lost, or there is no remote RM
