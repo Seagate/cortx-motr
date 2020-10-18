@@ -106,8 +106,8 @@ M0_INTERNAL bool m0_addr_is_sane_and_aligned(const uint64_t *addr)
 	return M0_IS_8ALIGNED(addr) && m0_addr_is_sane(addr);
 }
 
-M0_INTERNAL int m0_cookie_dereference(const struct m0_cookie *cookie,
-				      uint64_t ** addr)
+M0_INTERNAL ATTRIBUTE_NO_SANITIZE_ADDRESS int
+m0_cookie_dereference(const struct m0_cookie *cookie, uint64_t ** addr)
 {
 	uint64_t *obj;
 
