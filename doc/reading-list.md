@@ -14,7 +14,7 @@ For non-hyperlinked documentation links, please refer to this file : [doc/motr-d
 
 Motr Clients
 ------------
-[Client API](../motr/client.h) shows how to build client applications using the Motr API.  [m0cp](../motr/st/utils/copy.c), [m0cat](../motr/st/utils/cat.c), and [m0kv](../motr/m0kv) are example applications using this API.
+[Client API](../motr/client.h) shows how to build client applications using the Motr API.  [m0cp](../motr/st/utils/copy.c), [m0cat](../motr/st/utils/cat.c), and [m0kv](../motr/m0kv) are example applications using this API.  In our CORTX parent repo, the [Cluster Setup guide](https://github.com/Seagate/cortx/blob/main/doc/Cluster_Setup.md) has useful information about using these tools.
 
 Containers
 ----------
