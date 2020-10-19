@@ -13,7 +13,7 @@ Using HSM on SAGE proto
    ```
 
    Profile id of the cluster and ha-agent address on your client node can
-   be checked with `hctl mero status` command. As well as all addresses and
+   be checked with `hctl status` command. As well as all addresses and
    processes ids configured in the cluster. Consult with the cluster system
    administrator about which of them you can use.
 
@@ -33,7 +33,7 @@ Using HSM on SAGE proto
    M0_POOL_TIER3 = <0x6f00000000000001:0xca5> # HDDs
    ```
 
-   The exact ids can be taken from the output of `hctl mero status` command.
+   The exact ids can be taken from the output of `hctl status` command.
 
 Now you are ready to use the HSM feature.
 The current setup of the prototype allows using tiers 1, 2 and 3.
