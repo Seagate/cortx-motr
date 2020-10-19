@@ -2,7 +2,8 @@ This document describes motr port to Darwin (aka osx, aka macos, aka xnu)
 platform.
 
 Motr on darwin is not officially supported by Seagate. This port is maintained
-by developers in their spare time.
+by developers in their spare time. To use darwin port one should be ready to
+edit build scripts, debug and fix bugs.
 
 ==============
 Current status
@@ -48,7 +49,8 @@ Install
 
 Execute scripts/install-build-deps-macos.
 
-Make sure that gnu versions of grep, awk, sed and getopt are first in your PATH.
+Make sure that gnu versions of grep, awk, sed and getopt (installed by
+scripts/install-build-deps-macos) are first in your PATH.
 
 Make sure that castxml has version at least 0.3.3 and export CXXXML to point to
 the appropriate castxml binary (brew might install an older version, in this
