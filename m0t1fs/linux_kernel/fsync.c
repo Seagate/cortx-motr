@@ -285,7 +285,7 @@ int m0t1fs_fsync_core(struct m0t1fs_inode *inode, enum m0_fsync_mode mode)
 	M0_PRE(fi.wait_for_reply != NULL);
 	M0_PRE(fi.fop_fini != NULL);
 
-	m0_tlist_init(&fpf_tl, &pending_fops);
+	fpf_tlist_init(&pending_fops);
 
 	/*
 	 * find the inode's list services with pending transactions
@@ -471,7 +471,7 @@ int m0t1fs_sync_fs(struct super_block *sb, int wait)
 
 	csb = M0T1FS_SB(sb);
 
-	m0_tlist_init(&fpf_tl, &pending_fops);
+	fpf_tlist_init(&pending_fops);
 
 	/*
 	 *  loop over all services associated with this super block,

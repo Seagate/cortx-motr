@@ -1765,6 +1765,9 @@ struct cc_req_fop {
 	struct m0_sm_ast     crf_ast;
 
 	struct target_ioreq *crf_tioreq;
+
+	/* A flag to indicate if a m0_fop_init() has called on this crf_fop */
+	bool                 crf_initialized;
 };
 
 /**

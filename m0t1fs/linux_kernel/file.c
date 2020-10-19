@@ -3557,7 +3557,6 @@ err:
 		M0_LOG(M0_INFO, "[%p] target_ioreq deleted for "FID_F,
 		       req, FID_P(&ti->ti_fid));
 		target_ioreq_fini(ti);
-		m0_free0(&ti);
 		++iommstats.d_target_ioreq_nr;
 	} m0_htable_endfor;
 
@@ -4452,7 +4451,6 @@ static void io_request_fini(struct io_request *req)
 		 * are already finalized in nw_xfer_req_complete().
 		 */
 		target_ioreq_fini(ti);
-		m0_free(ti);
 		++iommstats.d_target_ioreq_nr;
 	} m0_htable_endfor;
 
@@ -4680,6 +4678,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	ti->ti_dgvec     = NULL;
 	ti->ti_req_type  = TI_NONE;
 	M0_SET0(&ti->ti_cc_fop);
+	ti->ti_cc_fop.crf_initialized = false;
 	/*
 	 * Target object is usually in ONLINE state unless explicitly
 	 * told otherwise.
@@ -4734,6 +4733,10 @@ static void target_ioreq_fini(struct target_ioreq *ti)
 	M0_ENTRY("target_ioreq %p, ti->ti_nwxfer %p", ti, ti->ti_nwxfer);
 	M0_PRE_EX(target_ioreq_invariant(ti));
 
+	if (ti->ti_cc_fop.crf_initialized) {
+		m0_fop_put_lock(&ti->ti_cc_fop.crf_fop);
+		ti->ti_cc_fop.crf_initialized = false;
+	}
 	target_ioreq_bob_fini(ti);
 	tioreqht_tlink_fini(ti);
 	iofops_tlist_fini(&ti->ti_iofops);
@@ -4746,6 +4749,7 @@ static void target_ioreq_fini(struct target_ioreq *ti)
 	m0_varr_fini(&ti->ti_pageattrs);
 	if (ti->ti_dgvec != NULL)
 		dgmode_rwvec_dealloc_fini(ti->ti_dgvec);
+	m0_free(ti);
 	M0_LEAVE();
 }
 
@@ -5935,14 +5939,14 @@ static void cc_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	if (csb->csb_confc_state.cus_state != M0_CC_READY)
 		rc = M0_ERR(-ESTALE);
 	m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
+
 ref_dec:
 	if (ti->ti_rc == 0 && rc != 0)
 		ti->ti_rc = rc;
 	if (xfer->nxr_rc == 0 && rc != 0)
 		xfer->nxr_rc = rc;
 	m0_fop_put0_lock(&cc_fop->crf_fop);
-	if (reply_fop != NULL)
-		m0_fop_put0_lock(reply_fop);
+	m0_fop_put0_lock(reply_fop);
 	m0_mutex_lock(&xfer->nxr_lock);
 	m0_atomic64_dec(&xfer->nxr_ccfop_nr);
 	if (should_req_sm_complete(req))
@@ -6316,7 +6320,6 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		if (csb->csb_oostore && ti->ti_req_type == TI_COB_CREATE &&
 		    ioreq_sm_state(req) == IRS_WRITE_COMPLETE) {
 			target_ioreq_type_set(ti, TI_NONE);
-			m0_fop_put_lock(&ti->ti_cc_fop.crf_fop);
 			continue;
 		}
 		m0_tl_teardown(iofops, &ti->ti_iofops, irfop) {
@@ -6362,6 +6365,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	       "nxr_rdbulk_nr %llu", req, xfer->nxr_rc,
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_iofop_nr),
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_rdbulk_nr));
+
 	M0_ASSERT(ergo(xfer->nxr_rc == 0, nw_xfer_request_invariant(xfer)));
 
 	/*
@@ -6551,6 +6555,7 @@ static int target_cob_create_fop_prepare(struct target_ioreq *ti)
 		m0_fop_fini(fop);
 		goto out;
 	}
+	ti->ti_cc_fop.crf_initialized = true;
 	fop->f_item.ri_rmachine = m0_fop_session_machine(ti->ti_session);
 
 	fop->f_item.ri_session         = ti->ti_session;
