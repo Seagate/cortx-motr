@@ -46,6 +46,7 @@ core:
         script: /usr/sbin/m0provision
         args:
             - config
+            - be_log_resize
 
 support_bundle:
     - /opt/seagate/cortx/motr/libexec/m0reportbug-bundler

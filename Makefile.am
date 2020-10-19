@@ -922,7 +922,8 @@ motr_conf_DATA = scripts/install$(motr_confdir)/motr.conf \
 EXTRA_DIST += $(motr_conf_DATA)
 
 motr_configdir = $(motrdir)/config
-motr_config_SCRIPTS = scripts/install$(motr_configdir)/motr_cfg.sh
+motr_config_SCRIPTS = scripts/install$(motr_configdir)/motr_cfg.sh \
+		scripts/install$(motr_configdir)/be_resize.sh
 EXTRA_DIST      += $(motr_config_SCRIPTS)
 
 motr_sanitydir = $(motrdir)/sanity

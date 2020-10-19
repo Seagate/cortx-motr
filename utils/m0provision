@@ -107,6 +107,13 @@ do_reset()
 
 }
 
+do_be_log_resize()
+{
+    /opt/seagate/cortx/motr/config/be_resize.sh
+    RESULT=$?
+    die $RESULT
+}
+
 # Write all the functions and set all variables above this line.
 # main()
 
@@ -140,6 +147,10 @@ case $SCRIPT_ACTION in
 
     reset)
         do_reset
+        ;;
+
+    be_log_resize)
+        do_be_log_resize
         ;;
 
     *)
