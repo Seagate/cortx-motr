@@ -83,6 +83,7 @@ func checkArg(arg *string, name string) {
 var ObjSize uint64
 
 var threadsN int
+var pool     *C.struct_m0_fid
 
 // Init mio module. All the standard Motr init stuff is done here.
 func Init() {
@@ -95,6 +96,7 @@ func Init() {
     traceOn  := flag.Bool("trace", false, "generate m0trace.pid file")
     flag.Uint64Var(&ObjSize, "osz", 32, "object `size` to read (in Kbytes)")
     flag.IntVar(&threadsN, "threads", 1, "`number` of threads to use")
+    poolFid  := flag.String("pool", "", "pool `fid` to create object at")
 
     flag.Parse()
 
@@ -104,6 +106,15 @@ func Init() {
     checkArg(haxEP,   "hax endpoint (-hax)")
     checkArg(profile, "profile fid (-prof)")
     checkArg(procFid, "my process fid (-proc)")
+
+    if *poolFid != "" {
+        pool = new(C.struct_m0_fid)
+        id, err := ScanID(*poolFid)
+        if err != nil {
+            log.Panicf("invalid argument at -pool: %v", poolFid)
+        }
+        *pool = C.struct_m0_fid{id.u_hi, id.u_lo}
+    }
 
     if !*traceOn {
         C.m0_trace_set_mmapped_buffer(false)
@@ -242,7 +253,7 @@ func (mio *Mio) Create(id string, sz uint64) error {
     C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, lid)
 
     var op *C.struct_m0_op
-    rc := C.m0_entity_create(nil, &mio.obj.ob_entity, &op)
+    rc := C.m0_entity_create(pool, &mio.obj.ob_entity, &op)
     if rc != 0 {
         return fmt.Errorf("failed to create object: %d", rc)
     }
