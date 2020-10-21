@@ -47,6 +47,8 @@ motr_build_deps_pkgs:
   - python-ply
   - python-devel
   - PyYAML                # required only for tests (m0hagen)
+  - readline              # required for m0hsm tool
+  - readline-devel        # required for m0hsm tool
   - rpm-build
   - systemd-devel
 
