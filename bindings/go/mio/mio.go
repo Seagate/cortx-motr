@@ -82,6 +82,7 @@ func checkArg(arg *string, name string) {
 // newly created object.
 var ObjSize uint64
 
+var verbose bool
 var threadsN int
 var pool     *C.struct_m0_fid
 
@@ -94,7 +95,8 @@ func Init() {
     procFid  := flag.String("proc", "", "my process `fid`")
     // Optional
     traceOn  := flag.Bool("trace", false, "generate m0trace.pid file")
-    flag.Uint64Var(&ObjSize, "osz", 32, "object `size` to read (in Kbytes)")
+    flag.BoolVar(&verbose, "v", false, "be more verbose")
+    flag.Uint64Var(&ObjSize, "osz", 0, "object `size` (in Kbytes)")
     flag.IntVar(&threadsN, "threads", 1, "`number` of threads to use")
     poolFid  := flag.String("pool", "", "pool `fid` to create object at")
 
@@ -377,6 +379,9 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
     }
     left, off := len(p), 0
     bs, gs := mio.getOptimalBlockSz(left)
+    if verbose {
+        log.Printf("off=%v len=%v bs=%v gs=%v", mio.off, left, bs, gs)
+    }
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
@@ -414,6 +419,9 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         }
     }
     bs, gs := mio.getOptimalBlockSz(left)
+    if verbose {
+        log.Printf("off=%v len=%v bs=%v gs=%v", mio.off, left, bs, gs)
+    }
     for ; left > 0 && mio.off < ObjSize; left -= bs {
         if left < bs {
             bs = left
