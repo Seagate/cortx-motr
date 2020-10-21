@@ -395,12 +395,12 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
     }
-    if mio.off >= ObjSize {
-        return 0, io.EOF
-    }
     left, off := len(p), 0
-    if uint64(left) > ObjSize {
-        left = int(ObjSize)
+    if mio.off + uint64(left) > ObjSize {
+        left = int(ObjSize - mio.off)
+        if left <= 0 {
+            return 0, io.EOF
+        }
     }
     bs, gs := mio.getOptimalBlockSz(left)
     for ; left > 0 && mio.off < ObjSize; left -= bs {
