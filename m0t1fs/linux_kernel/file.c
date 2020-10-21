@@ -3557,6 +3557,7 @@ err:
 		M0_LOG(M0_INFO, "[%p] target_ioreq deleted for "FID_F,
 		       req, FID_P(&ti->ti_fid));
 		target_ioreq_fini(ti);
+		m0_free0(&ti);
 		++iommstats.d_target_ioreq_nr;
 	} m0_htable_endfor;
 
@@ -4451,6 +4452,7 @@ static void io_request_fini(struct io_request *req)
 		 * are already finalized in nw_xfer_req_complete().
 		 */
 		target_ioreq_fini(ti);
+		m0_free(ti);
 		++iommstats.d_target_ioreq_nr;
 	} m0_htable_endfor;
 
@@ -4749,7 +4751,6 @@ static void target_ioreq_fini(struct target_ioreq *ti)
 	m0_varr_fini(&ti->ti_pageattrs);
 	if (ti->ti_dgvec != NULL)
 		dgmode_rwvec_dealloc_fini(ti->ti_dgvec);
-	m0_free(ti);
 	M0_LEAVE();
 }
 
