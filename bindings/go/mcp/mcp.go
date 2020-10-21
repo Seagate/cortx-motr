@@ -58,7 +58,9 @@ func main() {
         if err != nil {
             log.Fatalf("failed to get stat of file %v: %v", src, err)
         }
-        mio.ObjSize = uint64(info.Size())
+        if mio.ObjSize == 0 {
+            mio.ObjSize = uint64(info.Size())
+        }
         reader = file
     }
 
