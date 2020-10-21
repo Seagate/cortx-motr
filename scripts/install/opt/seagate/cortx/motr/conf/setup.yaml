@@ -46,6 +46,9 @@ core:
         script: /usr/sbin/m0provision
         args:
             - config
+    update:
+        script: /usr/sbin/m0provision
+        args:
             - be_log_resize
 
 support_bundle:
