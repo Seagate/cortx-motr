@@ -58,7 +58,7 @@ HA_ARGS_FILENAME="/opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml"
 SINGLE_NODE_RUNNING=  # Will be set if only one node is running.
 LOCAL_SEG_GEN_ID=0
 REMOTE_SEG_GEN_ID=0
-
+IS_HW=false # This flag is true in case script is executed on HW otherwise in case of VM this will be false
 # Add path to utility m0-prov-reset
 PATH=$PATH:/opt/seagate/cortx/ha/conf/script/:.
 
@@ -117,6 +117,12 @@ is_user_root_user() {
     fi
 }
 
+# This function will set IS_HW variable to true if script is executed on HW otherwise
+# this variable will be false
+is_current_setup_hw() {
+    [[ `which pcs` ]] && IS_HW=true || IS_HW=false
+}
+
 # The function will return 0 if ioservice is started on local node,
 # else this will return 1
 is_ios_running_on_local_node() {
@@ -140,13 +146,21 @@ is_ios_running_on_remote_node() {
 # This function will initialize values of local and remote ioservices
 # fid variable.
 get_ios_fid() {
-    LOCAL_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$LOCAL_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
-    REMOTE_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$REMOTE_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
+    ips=$(m0confgen -f xcode -t json /etc/motr/confd.xc |  jq -r '.[] | select(.type == "@M0_CST_IOS") | .endpoints[0]')
+    for ip in $ips; do
+        id=$(m0confgen -f xcode -t json /etc/motr/confd.xc |  jq -r --arg "IP" "$ip" '.[] | select(.objid|startswith("process")) |  select(.endpoint == $IP) | .objid' | cut -d '-' -f2)
+        fid=$(printf '0x7200000000000001:%#x\n' $id)
 
-    if [[ $LOCAL_IOS_FID == "" ]] || [[ $REMOTE_IOS_FID == "" ]];then
-        die "Failed to get ioservice FIDs."
+        if [[ "$fid" == $(cat /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep $LOCAL_NODE -B 1 | grep FID | cut -f 2 -d "=" | tr -d \') ]]; then
+            LOCAL_IOS_FID=$fid
+        else
+            REMOTE_IOS_FID=$fid
+        fi
+    done
+
+    if [[ $LOCAL_IOS_FID == "0x7200000000000001:0x0" ]] || [[ $REMOTE_IOS_FID == "0x7200000000000001:0x0" ]];then
+        die "Failed to get ioservice FID"
     fi
-
 }
 
 # The function will execute command on the local node
@@ -202,6 +216,7 @@ get_recovery_state_of_local_node() {
             SWAP_SIZE="$(lvs -o lvname,size $LOCAL_MD_VOLUMEGROUP --units K --nosuffix| \
                         grep $SWAP_DEVICE | awk '{ print  $2 }')"
 
+            [[ `which bc` ]] || { yum install -y bc || die "Not able install *bc* package on local node, please install this package and try again."; }
             # If the comparison is true then bc return 1 otherwise return 0
             if [ $(bc <<< "$MD_SIZE > $SWAP_SIZE") = 1 ]; then
                 die "ERROR: Metadata size is not less than swap size on local node !!"
@@ -260,6 +275,33 @@ get_recovery_state_of_remote_node() {
     m0drlog "Remote Node Recovery State is $REMOTE_NODE_RECOVERY_STATE"
 }
 
+# This function will initialize the variables to path of metadata device
+get_motr_device_path() {
+    if $IS_HW; then
+        if [[ $(cat /var/lib/hare/node-name) == "srvnode-1" ]]; then
+            # Path for metadata device for local node
+            LOCAL_MOTR_DEVICE=$(grep left-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+                                awk '{ print $2 }')
+            # Path for metadata device for remote node
+            REMOTE_MOTR_DEVICE=$(grep right-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+                                awk '{ print $2 }')
+        elif [[ $(cat /var/lib/hare/node-name) == "srvnode-2" ]]; then
+            # Path for metadata device for local node
+            LOCAL_MOTR_DEVICE=$(grep right-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+                                awk '{ print $2 }')
+            # Path for metadata device for remote node
+            REMOTE_MOTR_DEVICE=$(grep left-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+                                awk '{ print $2 }')
+        fi
+    else
+        LOCAL_MOTR_DEVICE=$( mount | grep /var/motr | awk '{print $1}' )
+        [[ -z "$LOCAL_MOTR_DEVICE" ]] && die "Please mount the metadata device on /var/motr on local node"
+        # Path for metadata device for remote node
+        REMOTE_MOTR_DEVICE=$( run_cmd_on_remote_node "mount | grep /var/motr | awk '{print \$1}'" )
+        [[ -z "$REMOTE_MOTR_DEVICE" ]] && die "Please mount the metadata device on /var/motr on remote node"
+    fi
+}
+
 # This function will initialize the variables in this script according to
 # cluster configuration, check ios status, initialize the globals based on
 # current node and analyse snapshot presence on the both nodes.
@@ -272,27 +314,14 @@ get_cluster_configuration() {
 
         LOCAL_NODE="srvnode-1"
         REMOTE_NODE="srvnode-2"
-        # Path for metadata device for local node
-        LOCAL_MOTR_DEVICE=$(grep left-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
-                            awk '{ print $2 }')
-        # Path for metadata device for remote node
-        REMOTE_MOTR_DEVICE=$(grep right-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
-                            awk '{ print $2 }')
-
         FAILOVER_MD_DIR="/var/motr2"
-
+        get_motr_device_path
     elif [[ $(cat /var/lib/hare/node-name) == "srvnode-2" ]]; then
 
         LOCAL_NODE="srvnode-2"
         REMOTE_NODE="srvnode-1"
-        # Path for metadata device for local node
-        LOCAL_MOTR_DEVICE=$(grep right-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
-                            awk '{ print $2 }')
-        # Path for metadata device for remote node
-        REMOTE_MOTR_DEVICE=$(grep left-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
-                            awk '{ print $2 }')
-
         FAILOVER_MD_DIR="/var/motr1"
+        get_motr_device_path
     fi
 
     LOCAL_MD_VOLUMEGROUP="vg_metadata_"$LOCAL_NODE
@@ -350,11 +379,17 @@ get_cluster_configuration() {
 # This function shutdown the cluster with all services on both nodes
 shutdown_services() {
     m0drlog "Stopping cluster, this may take few minutes"
-    pcs cluster stop --all
-    sleep 10
-    m0drlog "Cluster is stoppped"
-    if pcs status; then # cluster is still running
-        die "Cluster did not shutdown correctly. Please try again."
+    if $IS_HW; then
+        pcs cluster stop --all
+        sleep 10
+        m0drlog "Cluster is stoppped"
+        if pcs status; then # cluster is still running
+            die "Cluster did not shutdown correctly. Please try again."
+        fi
+    else
+        run_cmd_on_local_node "hctl shutdown"
+        run_cmd_on_local_node "hctl status"
+        run_cmd_on_local_node "systemctl reset-failed"
     fi
 }
 
@@ -362,36 +397,52 @@ shutdown_services() {
 # else this will return 1
 reinit_mkfs() {
 
-    # Unmount the /var/motr if mounted on both nodes
-    if mountpoint -q $MD_DIR; then
-        if ! umount $MD_DIR; then
-            die "MD Device might be busy on local node, please try shutting \
-                down cluster and retry"
-        fi
-    fi
-
-    if [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
-        if run_cmd_on_remote_node "mountpoint -q $MD_DIR"; then
-            if ! run_cmd_on_remote_node "umount $MD_DIR"; then
-                die "MD Device might be busy on remote node, please try shutting \
+    if $IS_HW; then
+        # Unmount the /var/motr if mounted on both nodes
+        if mountpoint -q $MD_DIR; then
+            if ! umount $MD_DIR; then
+                die "MD Device might be busy on local node, please try shutting \
                     down cluster and retry"
             fi
         fi
+
+        if [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
+            if run_cmd_on_remote_node "mountpoint -q $MD_DIR"; then
+                if ! run_cmd_on_remote_node "umount $MD_DIR"; then
+                    die "MD Device might be busy on remote node, please try shutting \
+                        down cluster and retry"
+                fi
+            fi
+        else
+            if run_cmd_on_local_node "mountpoint -q $FAILOVER_MD_DIR"; then
+                if ! run_cmd_on_local_node "umount $FAILOVER_MD_DIR"; then
+                    die "MD Device of remote node might be busy on local node, please try shutting \
+                        down cluster and retry"
+                fi
+            fi
+        fi
+
+        # command line for reinit cluster with mkfs
+        m0drlog "Reinitializing the cluster with mkfs, Please wait may take few minutes"
+        run_cmd_on_local_node "set M0_RESET_LOG_FILE=$LOG_FILE; prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --mkfs-only $SINGLE_NODE_RUNNING; unset M0_RESET_LOG_FILE"
+        [[ $? -eq 0 ]] || die "***ERROR: Cluster reinitialization with mkfs failed***"
+        m0drlog "Cluster reinitialization with mkfs is completed"
+        sleep 3
     else
-        if run_cmd_on_local_node "mountpoint -q $FAILOVER_MD_DIR"; then
-            if ! run_cmd_on_local_node "umount $FAILOVER_MD_DIR"; then
-                die "MD Device of remote node might be busy on local node, please try shutting \
-                    down cluster and retry"
-            fi
+        run_cmd_on_local_node "systemctl reset-failed"
+        run_cmd_on_remote_node "systemctl reset-failed"
+        run_cmd_on_local_node "hctl bootstrap --mkfs /var/lib/hare/cluster.yaml"
+        run_cmd_on_local_node "hctl status" # verify status
+        sleep 3
+        run_cmd_on_local_node "hctl shutdown"
+        run_cmd_on_local_node "hctl status" # Confirm that cluster shutdown
+
+        if is_ios_running_on_local_node && is_ios_running_on_remote_node; then
+            return 1 # cluster did not shutdown correctly, ios are still on
+        else
+            return 0
         fi
     fi
-
-    # command line for reinit cluster with mkfs
-    m0drlog "Reinitializing the cluster with mkfs, Please wait may take few minutes"
-    run_cmd_on_local_node "set M0_RESET_LOG_FILE=$LOG_FILE; prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --mkfs-only $SINGLE_NODE_RUNNING; unset M0_RESET_LOG_FILE"
-    [[ $? -eq 0 ]] || die "***ERROR: Cluster reinitialization with mkfs failed***"
-    m0drlog "Cluster reinitialization with mkfs is completed"
-    sleep 3
 }
 
 # ***Return codes used by following functions*** :
@@ -450,12 +501,12 @@ replay_logs_and_get_gen_id_of_seg0() {
             fi
 
             m0drlog "Get generation id of local node from segment 1"
-            LOCAL_SEG_GEN_ID="$($BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:2a -p)"
+            LOCAL_SEG_GEN_ID="$(cd $MD_DIR/datarecovery; $BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:2a -p)"
             LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
 
             if [[ $LOCAL_SEG_GEN_ID -eq 0 ]]; then
                 m0drlog "Get generation id of local node from segment 0"
-                LOCAL_SEG_GEN_ID="$($BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:29 -p)"
+                LOCAL_SEG_GEN_ID="$(cd $MD_DIR/datarecovery; $BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:29 -p)"
                 LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
             fi
             echo "segment genid : ($LOCAL_SEG_GEN_ID)"  >  $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id
@@ -484,12 +535,12 @@ replay_logs_and_get_gen_id_of_seg0() {
             fi
 
             m0drlog "Get generation id of remote node from segment 1"
-            REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node "$BECKTOOL -s $MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:2a -p")
+            REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node "(cd $MD_DIR/datarecovery; $BECKTOOL -s $MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:2a -p)")
             REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
 
             if [[ $REMOTE_SEG_GEN_ID -eq 0 ]]; then
                   m0drlog "Get generation id of remote node from segment 0"
-                  REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node "$BECKTOOL -s $MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:29 -p")
+                  REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node "(cd $MD_DIR/datarecovery; $BECKTOOL -s $MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:29 -p)")
                   REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
             fi
 
@@ -510,11 +561,11 @@ replay_logs_and_get_gen_id_of_seg0() {
             fi
 
             m0drlog "Get generation id of remote node from segment 1"
-            REMOTE_SEG_GEN_ID="$($BECKTOOL -s $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:2a -p)"
+            REMOTE_SEG_GEN_ID="$(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:2a -p)"
             REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
             if [[ $REMOTE_SEG_GEN_ID -eq 0 ]]; then
                 m0drlog "Get generation id of remote node from segment 0"
-                REMOTE_SEG_GEN_ID="$($BECKTOOL -s $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:29 -p)"
+                REMOTE_SEG_GEN_ID="$(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:29 -p)"
                 REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
             fi
             echo "segment genid : ($REMOTE_SEG_GEN_ID)"  >  $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/gen_id
@@ -965,17 +1016,20 @@ flush_io(){
     fi
 
     m0drlog "Wait 5 minutes to flush any outstanding IO"
-    sleep 5m
+    # sleep 5m
 }
 # ------------------------- script start --------------------------------
 
 is_user_root_user # check the script is running with root access
 [[ $? -eq 0 ]] || { die "Please run script as a root user"; }
 
+is_current_setup_hw # Check if the script is executed on HW setup
+
 # Check for the files needed by prov-m0-reset script as argument
 [[ -f $CDF_FILENAME ]] || die "ERROR: File not found $CDF_FILENAME"
-[[ -f $HA_ARGS_FILENAME ]] || die "ERROR: File not found $HA_ARGS_FILENAME"
-
+if $IS_HW; then
+    [[ -f $HA_ARGS_FILENAME ]] || die "ERROR: File not found $HA_ARGS_FILENAME"
+fi
 # First we try to get the current cluster configuration. After that we check
 # for the snapshot presence on both nodes.
 # If snapshot is available then we are restarting this process as result of
