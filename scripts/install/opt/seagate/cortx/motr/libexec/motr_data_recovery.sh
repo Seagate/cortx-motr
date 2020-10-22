@@ -1016,7 +1016,7 @@ flush_io(){
     fi
 
     m0drlog "Wait 5 minutes to flush any outstanding IO"
-    # sleep 5m
+    sleep 5m
 }
 # ------------------------- script start --------------------------------
 
