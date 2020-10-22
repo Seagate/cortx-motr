@@ -432,6 +432,7 @@ reinit_mkfs() {
         run_cmd_on_local_node "systemctl reset-failed"
         run_cmd_on_remote_node "systemctl reset-failed"
         run_cmd_on_local_node "hctl bootstrap --mkfs /var/lib/hare/cluster.yaml"
+        [[ $? -eq 0 ]] || die "***ERROR: Cluster reinitialization with mkfs failed***"
         run_cmd_on_local_node "hctl status" # verify status
         sleep 3
         run_cmd_on_local_node "hctl shutdown"
