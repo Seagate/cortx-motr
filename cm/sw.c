@@ -73,7 +73,8 @@ M0_INTERNAL void m0_cm_sw_copy(struct m0_cm_sw *dst,
 	m0_cm_ag_id_copy(&dst->sw_hi, &src->sw_hi);
 }
 
-M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *sw_onwire,
+M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm,
+				     struct m0_cm_sw_onwire *sw_onwire,
 				     uint64_t proxy_id, const char *ep,
 				     const struct m0_cm_sw *sw,
 				     const struct m0_cm_sw *out_interval)
@@ -106,7 +107,11 @@ M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *s
 	else
 		sw_onwire->swo_cm_status = M0_PX_STOP;
 
-	return 0;
+	M0_LOG(M0_DEBUG, "local ep=%s state=%u",
+			 sw_onwire->swo_cm_ep.ep,
+			 sw_onwire->swo_cm_status);
+
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm)

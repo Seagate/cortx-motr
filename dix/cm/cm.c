@@ -349,9 +349,10 @@ static bool dix_cm_proxies_completed_cb(struct m0_clink *cl)
 	struct m0_cm            *cm  = &dcm->dcm_base;
 	struct m0_cm_aggr_group *end_mark;
 	bool                     completed;
+	M0_ENTRY();
 
 	M0_PRE(m0_cm_is_locked(cm));
-	completed  = cm->cm_proxy_active_nr == 0;
+	completed = (cm->cm_proxy_active_nr == 0);
 	if (completed || cm->cm_abort) {
 		end_mark = m0_cm_aggr_group_locate(cm, &GRP_END_MARK_ID, true);
 		M0_ASSERT(end_mark != NULL);
@@ -360,7 +361,7 @@ static bool dix_cm_proxies_completed_cb(struct m0_clink *cl)
 		m0_clink_fini(cl);
 	}
 
-	return false;
+	return M0_RC(false);
 }
 
 M0_INTERNAL int m0_dix_cm_start(struct m0_cm *cm)
@@ -600,6 +601,12 @@ M0_INTERNAL int m0_dix_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 			dix_cp->dc_ctg_op_flags |= COF_CREATE;
 			dix_cp->dc_is_local      = true;
 			dcm->dcm_cp_in_progress  = true;
+			M0_LOG(M0_FATAL, "Found key=%.*s val=%.*s "
+					 "cfid="FID_F"dfid="FID_F,
+					 (int)key.b_nob, (char*)key.b_addr,
+					 (int)val.b_nob, (char*)val.b_addr,
+					 FID_P(&local_cctg_fid),
+					 FID_P(&dix_fid));
 			rc = M0_FSO_AGAIN;
 		} else {
 			/*

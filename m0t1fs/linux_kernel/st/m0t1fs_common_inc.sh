@@ -696,10 +696,10 @@ service_cas_eps_with_m0tifs_get()
 {
 	local lnet_nid=`sudo lctl list_nids | head -1`
 	local service_eps=(
-		"$lnet_nid:${CASEP[0]}"
-		"$lnet_nid:${CASEP[1]}"
-		"$lnet_nid:${CASEP[2]}"
-		"$lnet_nid:${CASEP[3]}"
+		"$lnet_nid:${IOSEP[0]}"
+		"$lnet_nid:${IOSEP[1]}"
+		"$lnet_nid:${IOSEP[2]}"
+		"$lnet_nid:${IOSEP[3]}"
 		"$lnet_nid:${HA_EP}"
 	)
 	# Return list of endpoints

@@ -353,7 +353,19 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 
 M0_INTERNAL bool m0_cm_aggr_group_tlists_are_empty(struct m0_cm *cm)
 {
-	return cm->cm_aggr_grps_in_nr == 0 && cm->cm_aggr_grps_out_nr == 0;
+	struct m0_cm_ag_id grp_end_mark_id = (struct m0_cm_ag_id) {
+		.ai_hi = M0_UINT128((uint64_t)-1, (uint64_t)-1),
+		.ai_lo = M0_UINT128((uint64_t)-1, (uint64_t)-1)
+	};
+
+	/* DIX cm, always has a AG with [-1:-1::-1:-1] in its incoming list */
+
+	return (cm->cm_aggr_grps_in_nr == 0 ||
+		(cm->cm_aggr_grps_in_nr == 1 &&
+		 m0_cm_ag_in_hi(cm) != NULL &&
+		 m0_cm_ag_id_cmp(&m0_cm_ag_in_hi(cm)->cag_id, &grp_end_mark_id) == 0)
+	       ) &&
+		cm->cm_aggr_grps_out_nr == 0;
 }
 
 M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
