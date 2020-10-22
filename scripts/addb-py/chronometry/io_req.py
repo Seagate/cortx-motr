@@ -27,15 +27,17 @@ from req_utils import *
 def graph_build(relations, ext_graph: Digraph=None, is_cob: bool=False):
     if is_cob:
         t = "cob"
+        client_id = "client_id"
     else:
         t = "ioo"
+        client_id = "id"
 
     graph = ext_graph if ext_graph is not None else Digraph(
         strict=True, format='png', node_attr = {'shape': 'plaintext'})
 
     #           relation  |     from    |    to       | table or direct | flags
     #                     |table/mapping|table/mapping|     mapping     |
-    schema = [("client_id",  "client_id", f"{t}_id"   , f"client_to_{t}",  "C"),
+    schema = [("client_id",  client_id  , f"{t}_id"   , f"client_to_{t}",  "C"),
               (f"{t}_id"  ,  f"{t}_id"  , "rpc_id"    , f"{t}_to_rpc"   ,  "C"),
               ("crpc_id"  ,  "crpc_id"  , "srpc_id"   , ""              , "C1"),
               ("crpc_id"  ,  "rpc_id"   , "bulk_id"   , "bulk_to_rpc"   , "Cs"),
@@ -60,7 +62,7 @@ query_template="""
 SELECT
 
 DISTINCT({io_req_type}_to_rpc.rpc_id),
-client_to_{io_req_type}.client_id,
+client_to_{io_req_type}.{client_id_name},
 client_to_{io_req_type}.{io_req_type}_id,
 rpc_to_sxid.opcode,
 rpc_to_sxid.xid, rpc_to_sxid.session_id,
@@ -92,7 +94,7 @@ AND   (fom_to_stio.stio_id is NULL OR fom_desc.pid=fom_to_stio.pid)
 AND   (fom_to_tx.tx_id is NULL OR fom_desc.pid=fom_to_tx.pid)
 AND   (tx_to_gr.gr_id is NULL OR fom_desc.pid=tx_to_gr.pid)
 
-AND   client_to_{io_req_type}.client_id={client_id};
+AND   client_to_{io_req_type}.{client_id_name}={client_id};
 """
 
 def get_timelines(client_id: str, grange: int, client_pid: int=None, create_attr_graph: bool=False,
@@ -107,13 +109,16 @@ def get_timelines(client_id: str, grange: int, client_pid: int=None, create_attr
         io_req_type = "cob"
         opcodes = "(45,46,47,128,130)"
         io_req_table = cob_req
+        client_id_name = "client_id"
     else:
         io_req_type = "ioo"
         opcodes = "(41,42,45,46,47)"
         io_req_table = ioo_req
+        client_id_name = "id"
 
     pid_filter = f"AND   client_to_{io_req_type}.pid={client_pid}" if client_pid is not None else ""
-    query = query_template.format(io_req_type=io_req_type, opcodes=opcodes,
+    query = query_template.format(client_id_name=client_id_name,
+                                  io_req_type=io_req_type, opcodes=opcodes,
                                   client_id=client_id, pid_filter=pid_filter)
 
     with DB.atomic():
