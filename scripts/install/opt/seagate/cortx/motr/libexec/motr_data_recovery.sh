@@ -816,7 +816,7 @@ run_becktool() {
         m0drlog "Running Becktool on local node"
         run_cmd_on_local_node "(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
                                -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $LOCAL_SEG_GEN_ID \
-                               -r $MD_DIR/lscan_offset;)"
+                               -r $MD_DIR/scan_offset;)"
         cmd_exit_status=$?
         # restart the execution of command if exit code is ESEGV or OOM error
         while [[ $cmd_exit_status == $ESEGV ]] || [[ $cmd_exit_status == $EOOM ]];
@@ -824,7 +824,7 @@ run_becktool() {
             m0drlog "Restarting Becktool on local node"
             run_cmd_on_local_node "(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
                                    -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $LOCAL_SEG_GEN_ID \
-                                   -r $MD_DIR/lscan_offset -R;)"
+                                   -r $MD_DIR/scan_offset -R;)"
             cmd_exit_status=$?
         done
 
@@ -846,12 +846,12 @@ run_becktool() {
             # Below statement is for logging purpose
             echo "Running '(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
                             -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
-                            -g $REMOTE_SEG_GEN_ID -r $MD_DIR/rscan_offset;)'" \
+                            -g $REMOTE_SEG_GEN_ID -r $MD_DIR/scan_offset;)'" \
                             >> ${LOG_FILE}
             run_cmd_on_remote_node "bash -s" <<-EOF
             (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
              -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
-             -g $REMOTE_SEG_GEN_ID -r $MD_DIR/rscan_offset;)
+             -g $REMOTE_SEG_GEN_ID -r $MD_DIR/scan_offset;)
 EOF
             cmd_exit_status=$?
             # restart the execution of command if exit code is ESEGV or OOM error
@@ -861,7 +861,7 @@ EOF
                 run_cmd_on_remote_node "bash -s" <<-EOF
                 (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
                  -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
-                 -g $REMOTE_SEG_GEN_ID -r $MD_DIR/rscan_offset -R;)
+                 -g $REMOTE_SEG_GEN_ID -r $MD_DIR/scan_offset -R;)
 EOF
                 cmd_exit_status=$?
             done
@@ -878,10 +878,10 @@ EOF
             # Below statement is for logging purpose
             echo "Running '(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
                             -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
-                            -g $REMOTE_SEG_GEN_ID -r $MD_DIR/rscan_offset;)'" >> ${LOG_FILE}
+                            -g $REMOTE_SEG_GEN_ID -r $FAILOVER_MD_DIR/scan_offset;)'" >> ${LOG_FILE}
             run_cmd_on_local_node "(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
                                     -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
-                                    -g $REMOTE_SEG_GEN_ID -r $MD_DIR/rscan_offset;)"
+                                    -g $REMOTE_SEG_GEN_ID -r $FAILOVER_MD_DIR/scan_offset;)"
             cmd_exit_status=$?
             # restart the execution of command if exit code is ESEGV or OOM error
             while [[ $cmd_exit_status == $ESEGV ]] || [[ $cmd_exit_status == $EOOM ]];
@@ -889,7 +889,7 @@ EOF
                 m0drlog "Restarting Becktool for remote node from local node"
                 run_cmd_on_local_node "(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
                                         -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
-                                        -g $REMOTE_SEG_GEN_ID -r $MD_DIR/rscan_offset -R;)"
+                                        -g $REMOTE_SEG_GEN_ID -r $FAILOVER_MD_DIR/scan_offset -R;)"
                 cmd_exit_status=$?
             done
 
