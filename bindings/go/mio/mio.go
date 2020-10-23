@@ -406,7 +406,7 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
     if verbose {
         elapsed := time.Now().Sub(start)
         n := len(p) - left
-        log.Printf("off=%v len=%v bs=%v gs=%v speed=%v (Mbytes/sec)",
+        log.Printf("W: off=%v len=%v bs=%v gs=%v speed=%v (Mbytes/sec)",
 		   mio.off - uint64(n), n, bs_saved, gs,
 		   n / int(elapsed.Milliseconds()) * 1000 / 1024 / 1024)
     }
@@ -453,7 +453,7 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
     if verbose {
         elapsed := time.Now().Sub(start)
         n := len(p) - left
-        log.Printf("off=%v len=%v bs=%v gs=%v speed=%v (Mbytes/sec)",
+        log.Printf("R: off=%v len=%v bs=%v gs=%v speed=%v (Mbytes/sec)",
 		   mio.off - uint64(n), n, bs_saved, gs,
 		   n / int(elapsed.Milliseconds()) * 1000 / 1024 / 1024)
     }
