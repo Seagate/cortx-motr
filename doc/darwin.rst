@@ -27,7 +27,7 @@ The port was built and tested with command line tools (cc, lldb, etc.).
 Goals
 =====
 
-Darwin is not supposed to be a production ready port any time soon. It was
+Darwin port is not supposed to be a production ready port any time soon. It was
 created because:
 
 - clang is a good compiler, quite different from gcc, producing different set
