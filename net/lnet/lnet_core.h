@@ -494,14 +494,14 @@ static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
    @param lcdom Domain pointer.
    @param nidary A NULL-terminated (like argv) array of NID strings is returned.
  */
-static int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom,
-				char * const **nidary);
+static int nlx_core_nidstrs_get(struct nlx_core_domain   *lcdom,
+				char                   ***nidary);
 
 /**
    Releases the string array returned by nlx_core_nidstrs_get().
  */
-static void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom,
-				 char * const **nidary);
+static void nlx_core_nidstrs_put(struct nlx_core_domain   *lcdom,
+				 char                   ***nidary);
 
 /**
    Starts a transfer machine. Internally this results in

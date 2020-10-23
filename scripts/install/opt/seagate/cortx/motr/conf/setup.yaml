@@ -17,7 +17,7 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-core:
+motr:
     post_install:
         script: /usr/sbin/m0provision
         args:

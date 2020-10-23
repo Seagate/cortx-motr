@@ -923,7 +923,37 @@ run_becktool() {
 
     return $exec_status
 }
+#flush the any outstanding IO
+flush_io(){
 
+    m0drlog "flush outstanding IO from buffers"
+
+    LV_SNAPSHOT=run_cmd "$LOCAL_NODE" "lvs -o path $LOCAL_MD_VOLUMEGROUP | grep $SNAPSHOT "
+    LV_MD_DEVICE=run_cmd "$LOCAL_NODE" "lvs -o path $LOCAL_MD_VOLUMEGROUP | grep $MD_DEVICE "
+
+    run_cmd "$LOCAL_NODE"  "blockdev --flushbufs $LV_MD_DEVICE"
+    run_cmd "$LOCAL_NODE"  "blockdev --flushbufs $LV_SNAPSHOT"
+
+    if [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
+
+        LV_SNAPSHOT=run_cmd "$REMOTE_NODE" "lvs -o path $REMOTE_MD_VOLUMEGROUP | \
+                        grep $SNAPSHOT" )
+        LV_MD_DEVICE=run_cmd "$REMOTE_NODE" "lvs -o path $REMOTE_MD_VOLUMEGROUP | \
+                        grep $MD_DEVICE" )
+        run_cmd "$REMOTE_NODE" "blockdev --flushbufs $LV_MD_DEVICE"
+        run_cmd "$REMOTE_NODE" "blockdev --flushbufs $LV_SNAPSHOT"
+    else
+        LV_SNAPSHOT=run_cmd "$LOCAL_NODE" "lvs -o path $REMOTE_MD_VOLUMEGROUP | \
+                        grep $SNAPSHOT" )
+        LV_MD_DEVICE=run_cmd "$LOCAL_NODE" "lvs -o path $REMOTE_MD_VOLUMEGROUP | \
+                        grep $MD_DEVICE" )
+        run_cmd "$LOCAL_NODE" "blockdev --flushbufs $LV_MD_DEVICE"
+        run_cmd "$LOCAL_NODE" "blockdev --flushbufs $LV_SNAPSHOT"
+    fi
+
+    m0drlog "Wait 5 minutes to flush any outstanding IO"
+    sleep 5m
+}
 # ------------------------- script start --------------------------------
 
 is_user_root_user # check the script is running with root access
@@ -987,6 +1017,8 @@ reinit_mkfs                    # reinit mkfs only on both nodes
 run_becktool                   # run becktool on both nodes
 run_becktool_status=$?
 [[ run_becktool_status -eq 0 ]] || { die "ERROR: Run becktool failed with code $run_becktool_status"; }
+
+flush_io                        # flush io on both the nodes
 
 remove_snapshot_all_nodes      # remove snapshot on both nodes
 remove_snapshot_status=$?

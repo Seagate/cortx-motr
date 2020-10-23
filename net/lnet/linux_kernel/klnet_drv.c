@@ -1153,8 +1153,8 @@ static int nlx_dev_ioctl_nidstr_encode(struct m0_lnet_dev_nid_encdec_params *p)
 static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
 				     struct m0_lnet_dev_nidstrs_get_params *p)
 {
-	char * const *nidstrs;
-	int rc = nlx_kcore_nidstrs_get(&nidstrs);
+	char **nidstrs;
+	int rc = nlx_core_nidstrs_get(NULL, &nidstrs);
 	char *buf;
 	m0_bcount_t sz;
 	int i;
@@ -1164,20 +1164,20 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
 	for (i = 0, sz = 1; nidstrs[i] != NULL; ++i)
 		sz += strlen(nidstrs[i]) + 1;
 	if (sz > p->dng_size) {
-		nlx_kcore_nidstrs_put(&nidstrs);
+		nlx_core_nidstrs_put(NULL, &nidstrs);
 		return M0_ERR_INFO(-EFBIG, "sz=%"PRIu64" p->dng_size=%"PRIu64,
 				   sz, p->dng_size);
 	}
 	NLX_ALLOC(buf, sz);
 	if (buf == NULL) {
-		nlx_kcore_nidstrs_put(&nidstrs);
+		nlx_core_nidstrs_put(NULL, &nidstrs);
 		return M0_ERR(-ENOMEM);
 	}
 	for (i = 0, sz = 0; nidstrs[i] != NULL; ++i) {
 		strcpy(&buf[sz], nidstrs[i]);
 		sz += strlen(nidstrs[i]) + 1;
 	}
-	nlx_kcore_nidstrs_put(&nidstrs);
+	nlx_core_nidstrs_put(NULL, &nidstrs);
 	if (copy_to_user((void __user *) p->dng_buf, buf, sz))
 		rc = -EFAULT;
 	else

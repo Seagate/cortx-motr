@@ -114,6 +114,8 @@ static int conf_fetch_tick(struct m0_fom *fom)
 	struct m0_confd            *confd;
 	int                         rc;
 
+	M0_ENTRY("fom = %p", fom);
+
 	if (m0_fom_phase(fom) < M0_FOPH_NR)
 		return m0_fom_tick_generic(fom);
 
@@ -131,6 +133,8 @@ static int conf_fetch_tick(struct m0_fom *fom)
 	r->fr_ver = confd->d_cache->ca_ver;
 	M0_ASSERT(r->fr_ver != M0_CONF_VER_UNKNOWN);
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+
+	M0_LEAVE();
 	return M0_FSO_AGAIN;
 }
 
@@ -252,6 +256,7 @@ static void cache_ver_update(struct m0_conf_cache *cache)
 {
 	struct m0_conf_obj *root;
 
+	M0_ENTRY();
 	root = confd_cache_lookup(cache, &M0_CONF_ROOT_FID);
 	M0_ASSERT(root != NULL); /* conf data must be cached already */
 

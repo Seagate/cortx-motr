@@ -121,10 +121,10 @@ void m0_net_test_u_print_bsize(double bsize)
 
 void m0_net_test_u_lnet_info(void)
 {
-	struct m0_net_domain  dom;
-	int		      rc;
-	char * const	     *nidstrs;
-	int		      i;
+	struct m0_net_domain   dom;
+	int		       rc;
+	char                 **nidstrs;
+	int		       i;
 
 	M0_SET0(&dom);
 	rc = m0_net_domain_init(&dom, &m0_net_lnet_xprt);
