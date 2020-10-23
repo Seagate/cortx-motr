@@ -1019,7 +1019,7 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 		idx = ARRAY_SIZE(bt) - 1;
 
 	genadd(node->bt_backlink.bli_gen);
-	if (generation_id_check_and_init(s, node->bt_backlink.bli_gen) {
+	if (generation_id_check_and_init(s, node->bt_backlink.bli_gen)) {
 		printf("\nBeck will use latest generation id found in bnode\n");
 		generation_id_print(s->s_gen);
 	}
