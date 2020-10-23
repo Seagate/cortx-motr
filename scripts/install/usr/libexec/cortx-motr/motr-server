@@ -35,6 +35,76 @@ ha_config="/etc/sysconfig/m0d-${1#m0d-}"
 kernel_config=/etc/sysconfig/motr-kernel
 service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 
+# BE log resize
+NODE_NAME="/var/lib/hare/node-name"
+MD_DIR="/var/motr"
+M0BETOOL="m0betool"
+BE_REPLAY="be_recovery_run"
+BE_RESIZE="be_log_resize"
+
+
+be_log_resize() {
+   local local_node=""
+   local local_ios_fid=""
+   local new_be_log_size=""
+   local current_be_log_size=""
+
+   # Get local node information
+   if [[ $(cat "$NODE_NAME") == "srvnode-1" ]]; then
+       local_node="srvnode-1"
+   elif [[ $(cat "$NODE_NAME") == "srvnode-2" ]]; then
+       local_node="srvnode-2"
+   else
+       # TODO: Need to handle for LDR2
+       m0_log "node-name is not avaialble"
+       return 0
+   fi
+   m0_log "Node: $local_node"
+
+   # This function will initialize values of local ioservice fid
+   local_ios_fid=$(cat /etc/sysconfig/m0d-0x7200000000000001:0x* | grep "$local_node" -B 1 | grep FID | cut -f 2 -d "=" | tr -d \')
+   if [[ $local_ios_fid == "" ]]; then
+      m0_log "Failed to get ioservice FID"
+      return 0
+   fi
+   m0_log "IOS Fid: $local_ios_fid"
+
+   # Extract current BE Log file size
+   new_be_log_size=$(grep -w MOTR_M0D_BELOG_SIZE $user_config | grep -v '#' | cut -d"=" -f2)
+   if [[ -z $new_be_log_size ]]; then
+      m0_log "BE log size is not configured"
+      return 0
+   fi
+   m0_log "Given BE log size: $new_be_log_size"
+
+   # Validate current BE LOG file size and New BE LOG file size
+   current_be_log_size=$(ls -l "$MD_DIR"/m0d-"$local_ios_fid"/db-log/o/0:28 | awk '{ print $5 }')
+   if [[ $current_be_log_size == "" ]]; then
+      m0_log "Failed to get existing be log size"
+      return 0
+   fi
+
+   if [[ "$current_be_log_size" == "$new_be_log_size" ]]; then
+      m0_log "Current and New BE log sizes are equal"
+      return 0
+   fi
+   m0_log "Current BE log size:  $current_be_log_size"
+
+   # Replay exist BE log
+   if ! $($M0BETOOL $BE_REPLAY $MD_DIR/m0d-$local_ios_fid/db); then
+      m0_log "BE Log replay is failed in local node"
+      return 0
+   fi
+   m0_log "Completed log_replay"
+
+   # Resizing BE log file size with new BE log size
+   if ! $($M0BETOOL $BE_RESIZE $MD_DIR/m0d-$local_ios_fid/db $new_be_log_size); then
+      m0_log "BE Log resize is failed in local node"
+      return 0
+   fi
+   m0_log "Completed log_resize"
+}
+
 m0_server()
 {
     local service=$1
@@ -206,6 +276,12 @@ m0_server()
     fi
 
     set -x
+
+    # BE log resize
+    if [[ "$2" != "m0mkfs" ]]; then
+	be_log_resize
+    fi
+
     exec $binary -e $service_ep \
                     -A linuxstob:${addbstob_dir}addb-stobs \
                     -f $proc_fid $stob_type $stob_path $MOTR_M0D_OPTS \
