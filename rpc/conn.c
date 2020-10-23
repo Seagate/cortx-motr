@@ -20,6 +20,7 @@
  */
 
 
+#include "sm/sm.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "lib/errno.h"
@@ -1450,10 +1451,12 @@ M0_INTERNAL int m0_rpc_conn_ha_timer_start(struct m0_rpc_conn *conn)
 M0_INTERNAL void m0_rpc_conn_ha_timer_stop(struct m0_rpc_conn *conn)
 {
 	M0_ENTRY("conn %p", conn);
+	struct m0_sm_timer *hat = &conn->c_ha_timer;
+
 	M0_PRE(m0_rpc_machine_is_locked(conn->c_rpc_machine));
-	if (m0_sm_timer_is_armed(&conn->c_ha_timer)) {
+	if (m0_sm_timer_is_armed(hat)) {
 		M0_LOG(M0_DEBUG, "Cancelling HA timer; rpc conn=%p", conn);
-		m0_sm_timer_cancel(&conn->c_ha_timer);
+		m0_sm_timer_cancel(hat);
 	}
 	if (M0_IN(conn->c_ha_timer.tr_timer.t_state,
 		 (M0_TIMER_STOPPED, M0_TIMER_INITED)))
