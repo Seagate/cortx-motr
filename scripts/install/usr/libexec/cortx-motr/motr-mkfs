@@ -33,6 +33,7 @@ motr_exec_dir=/usr/libexec/cortx-motr
 user_config=/etc/sysconfig/motr
 kernel_config=/etc/sysconfig/motr-kernel
 service_funcs=$motr_exec_dir/motr-service.functions
+ha_config="/etc/sysconfig/m0d-${1#m0d-}"
 
 
 m0_mkfs()
@@ -47,8 +48,12 @@ m0_mkfs()
     if [[ $service =~ ^ios.* ]] ; then
         be_opts+=" -z ${MOTR_M0D_IOS_BESEG_SIZE:-$default_m0d_ios_beseg_size}"
     else
-        local be_segsize=${MOTR_M0D_BESEG_SIZE:-$(m0_genders_value_of m0_be_segment_size)}
-        be_opts+=" -z ${be_segsize:-$default_m0d_beseg_size}"
+        if [[ -n $MOTR_BE_SEG_PATH && -b $MOTR_BE_SEG_PATH ]]; then
+             m0_log 'ios seg size is set to LVM size:$MOTR_M0D_IOS_BESEG_SIZE'
+	else
+	     local be_segsize=${MOTR_M0D_BESEG_SIZE:-$(m0_genders_value_of m0_be_segment_size)}
+             be_opts+=" -z ${be_segsize:-$default_m0d_beseg_size}"
+        fi
     fi
 
     if [[ -n $MOTR_M0D_BELOG_SIZE ]] ; then
@@ -64,6 +69,7 @@ source $service_funcs
 
 [[ -r $kernel_config ]] && source $kernel_config
 [[ -r $user_config   ]] && source $user_config
+[[ -r $ha_config     ]] && source $ha_config
 
 if [[ -n $1 ]] ; then
     if [[ ${1,,*} =~ ^(0x)?[0-9a-f]+:(0x)?[0-9a-f]+$ ]] ; then
