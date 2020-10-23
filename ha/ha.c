@@ -39,6 +39,7 @@
  * @{
  */
 
+#include "lib/chan.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_HA
 #include "lib/trace.h"
 
@@ -204,7 +205,7 @@ static int ha_link_ctx_init(struct m0_ha                     *ha,
 	m0_clink_init(&hlx->hlx_clink, &ha_link_event_cb);
 	m0_clink_add_lock(m0_ha_link_chan(hl), &hlx->hlx_clink);
 	m0_clink_init(&hlx->hlx_stop_clink, &ha_link_stop_cb);
-	hlx->hlx_stop_clink.cl_is_oneshot = true;
+	hlx->hlx_stop_clink.cl_flags = M0_CF_ONESHOT;
 	hlx->hlx_disconnecting = hlx_type == HLX_OUTGOING;
 	hlx->hlx_process_fid   = *process_fid;
 

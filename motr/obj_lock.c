@@ -199,7 +199,7 @@ M0_INTERNAL int m0_obj_lock_get(struct m0_obj *obj,
 	M0_PRE(obj != NULL);
 	M0_PRE(req != NULL);
 	M0_PRE(clink != NULL);
-	M0_ASSERT(clink->cl_is_oneshot);
+	M0_ASSERT((clink->cl_flags & M0_CF_ONESHOT) != 0);
 
 	ctx = m0_cookie_of(&obj->ob_cookie, struct m0_rm_lock_ctx,
 			   rmc_gen);
@@ -222,7 +222,7 @@ M0_INTERNAL int m0_obj_lock_get_sync(struct m0_obj *obj,
 	M0_PRE(req != NULL);
 
 	m0_clink_init(&clink, NULL);
-	clink.cl_is_oneshot = true;
+	clink.cl_flags = M0_CF_ONESHOT;
 	m0_obj_lock_get(obj, req, &clink, rw_type);
 	m0_chan_wait(&clink);
 	m0_clink_fini(&clink);

@@ -1235,7 +1235,7 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 	m0_sm_group_init(&ctx->sc_sm_grp);
 	m0_sm_init(&ctx->sc_sm, &service_ctx_states_conf,
 		   M0_RSC_OFFLINE, &ctx->sc_sm_grp);
-	ctx->sc_rlink_wait.cl_is_oneshot = true;
+	ctx->sc_rlink_wait.cl_flags = M0_CF_ONESHOT;
 
 	M0_POST(reqh_service_context_invariant(ctx));
 	return M0_RC(0);

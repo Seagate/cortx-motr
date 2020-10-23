@@ -301,7 +301,7 @@ static void file_lock_wait(struct m0_sns_cm_file_ctx *fctx,
 static void file_unlock_and_wait(struct m0_sns_cm_file_ctx *fctx,
 				 struct m0_clink *clink)
 {
-	clink->cl_is_oneshot = true;
+	clink->cl_flags = M0_CF_ONESHOT;
 	m0_clink_add_lock(&fctx->sf_sm.sm_chan, clink);
 	m0_sns_cm_file_unlock(scm, &fctx->sf_fid);
 	m0_chan_wait(clink);

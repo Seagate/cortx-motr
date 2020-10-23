@@ -333,7 +333,7 @@ int touch(struct m0_container *container,
 		goto init_error;
 
 	m0_clink_init(&clink, NULL);
-	clink.cl_is_oneshot = true;
+	clink.cl_flags = M0_CF_ONESHOT;
 	lock_ops->olo_write_lock_get(&obj, &req, &clink);
 	if (take_locks)
 		m0_chan_wait(&clink);

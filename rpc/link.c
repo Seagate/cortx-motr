@@ -678,7 +678,7 @@ static void rpc_link_fom_queue(struct m0_rpc_link *rlink,
 	struct m0_rpc_machine *mach = rlink->rlk_conn.c_rpc_machine;
 
 	M0_ENTRY("rlink=%p", rlink);
-	M0_PRE(ergo(wait_clink != NULL, wait_clink->cl_is_oneshot));
+	M0_PRE(ergo(wait_clink != NULL, wait_clink->cl_flags & M0_CF_ONESHOT));
 
 	rlink->rlk_rc = 0;
 	if (wait_clink != NULL)
@@ -700,7 +700,7 @@ static int rpc_link_call_sync(struct m0_rpc_link *rlink,
 	M0_ENTRY("rlink=%p", rlink);
 
 	m0_clink_init(&clink, NULL);
-	clink.cl_is_oneshot = true;
+	clink.cl_flags = M0_CF_ONESHOT;
 	cb(rlink, abs_timeout, &clink);
 	m0_chan_wait(&clink);
 	m0_clink_fini(&clink);

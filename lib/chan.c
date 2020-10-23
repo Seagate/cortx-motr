@@ -60,6 +60,10 @@ M0_TL_DESCR_DEFINE(clink, "chan clinks", static, struct m0_clink, cl_linkage,
 
 M0_TL_DEFINE(clink, static, struct m0_clink);
 
+static void clink_del(struct m0_clink *link);
+static void semaphore_fini(struct m0_clink *link);
+static void down_tail(struct m0_clink *link, bool got);
+
 static bool clink_is_head(const struct m0_clink *clink)
 {
 	return clink->cl_group == clink;
@@ -123,12 +127,28 @@ M0_EXPORTED(m0_chan_fini_lock);
 
 static void clink_signal(struct m0_clink *clink)
 {
+	/*
+	 * This function must satisfy a number of subtle conditions:
+	 *
+	 *     - clink can be manipulated from its call-back;
+	 *
+	 *     - clink can freed by the waiter immediately after the semaphore
+	 *       is increased;
+	 *
+	 *     - semaphore must be finalised after it was increased.
+	 */
 	struct m0_clink      *grp      = clink->cl_group;
 	struct m0_chan_addb2 *ca       = clink->cl_chan->ch_addb2;
 	bool                  consumed = false;
 
-	if (clink->cl_is_oneshot)
-		m0_clink_del(clink);
+	if (clink->cl_flags & M0_CF_ONESHOT) {
+		clink_del(clink);
+		if (clink->cl_cb == NULL) {
+			clink->cl_flags |= M0_CF_HEARD_BANSHEE;
+			m0_semaphore_up(&grp->cl_wait);
+			return;
+		}
+	}
 	if (clink->cl_cb != NULL) {
 		m0_enter_awkward();
 		if (ca == NULL)
@@ -138,6 +158,7 @@ static void clink_signal(struct m0_clink *clink)
 				      m0_ptr_wrap(clink->cl_cb),
 				      consumed = clink->cl_cb(clink));
 		m0_exit_awkward();
+		M0_ASSERT(ergo(clink->cl_flags & M0_CF_ONESHOT, consumed));
 	}
 	if (!consumed)
 		m0_semaphore_up(&grp->cl_wait);
@@ -193,7 +214,7 @@ static void clink_init(struct m0_clink *link,
 	link->cl_group      = group;
 	link->cl_chan       = NULL;
 	link->cl_cb         = cb;
-	link->cl_is_oneshot = false;
+	link->cl_flags      = 0;
 	clink_tlink_init(link);
 	M0_POST(clink_is_head(group));
 }
@@ -209,6 +230,8 @@ M0_INTERNAL void m0_clink_fini(struct m0_clink *link)
 {
 	/* do NOT finalise the semaphore here */
 	clink_tlink_fini(link);
+	if (link->cl_flags & M0_CF_HEARD_BANSHEE)
+		semaphore_fini(link);
 }
 M0_EXPORTED(m0_clink_fini);
 
@@ -260,11 +283,7 @@ void m0_clink_add_lock(struct m0_chan *chan, struct m0_clink *link)
 }
 M0_EXPORTED(m0_clink_add_lock);
 
-/**
-   @pre   m0_clink_is_armed(link)
-   @post !m0_clink_is_armed(link)
- */
-M0_INTERNAL void m0_clink_del(struct m0_clink *link)
+static void clink_del(struct m0_clink *link)
 {
 	struct m0_chan *chan = link->cl_chan;
 
@@ -280,13 +299,27 @@ M0_INTERNAL void m0_clink_del(struct m0_clink *link)
 		m0_addb2_hist_mod(&chan->ch_addb2->ca_queue_hist,
 				  chan->ch_waiters);
 	M0_ASSERT_EX(m0_chan_invariant(chan));
-	if (clink_is_head(link))
-		m0_semaphore_fini(&link->cl_wait);
 	/*
-	 * Do not zero link->cl_chan: for one-short clinks channel should be
+	 * Do not zero link->cl_chan: for one-shot clinks, the channel should be
 	 * still valid at the time of m0_chan_wait() call.
 	 */
 	M0_POST(!m0_clink_is_armed(link));
+}
+
+static void semaphore_fini(struct m0_clink *link)
+{
+	if (clink_is_head(link))
+		m0_semaphore_fini(&link->cl_wait);
+}
+
+/**
+   @pre   m0_clink_is_armed(link)
+   @post !m0_clink_is_armed(link)
+ */
+M0_INTERNAL void m0_clink_del(struct m0_clink *link)
+{
+	clink_del(link);
+	semaphore_fini(link);
 }
 M0_EXPORTED(m0_clink_del);
 
@@ -325,12 +358,15 @@ M0_INTERNAL void m0_clink_cleanup_locked(struct m0_clink *link)
 
 M0_INTERNAL void m0_clink_signal(struct m0_clink *clink)
 {
+	M0_PRE(!(clink->cl_flags & M0_CF_ONESHOT));
 	clink_signal(clink);
 }
 
 M0_INTERNAL bool m0_chan_trywait(struct m0_clink *link)
 {
-	return m0_semaphore_trydown(&link->cl_group->cl_wait);
+	bool got = m0_semaphore_trydown(&link->cl_group->cl_wait);
+	down_tail(link, got);
+	return got;
 }
 
 M0_INTERNAL void m0_chan_wait(struct m0_clink *link)
@@ -343,6 +379,7 @@ M0_INTERNAL void m0_chan_wait(struct m0_clink *link)
 		M0_ADDB2_HIST(ca->ca_wait, &ca->ca_wait_hist,
 			      m0_ptr_wrap(__builtin_return_address(0)),
 			      m0_semaphore_down(&link->cl_group->cl_wait));
+	down_tail(link, true);
 }
 M0_EXPORTED(m0_chan_wait);
 
@@ -360,9 +397,18 @@ M0_INTERNAL bool m0_chan_timedwait(struct m0_clink *link,
 		       m0_ptr_wrap(__builtin_return_address(0)),
 		       got = m0_semaphore_timeddown(&link->cl_group->cl_wait,
 						    abs_timeout));
+	down_tail(link, got);
 	return got;
 }
 M0_EXPORTED(m0_chan_timedwait);
+
+static void down_tail(struct m0_clink *link, bool got)
+{
+	if (got && (link->cl_flags & M0_CF_HEARD_BANSHEE)) {
+		link->cl_flags &= ~M0_CF_HEARD_BANSHEE;
+		semaphore_fini(link);
+	}
+}
 
 /** @} end of chan group */
 

@@ -757,7 +757,7 @@ M0_INTERNAL void m0_storage_devs_detach_all(struct m0_storage_devs *devs)
 	m0_tl_for(storage_dev, &devs->sds_devices, dev) {
 		M0_SET0(clink);
 		m0_clink_init(clink, storage_devs_detached_cb);
-		clink->cl_is_oneshot = true;
+		clink->cl_flags = M0_CF_ONESHOT;
 		m0_clink_add_lock(&dev->isd_detached_chan, clink);
 
 		m0_storage_dev_detach(dev);

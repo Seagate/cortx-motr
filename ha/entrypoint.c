@@ -443,7 +443,7 @@ m0_ha_entrypoint_client_init(struct m0_ha_entrypoint_client     *ecl,
 	if (rc == 0) {
 		m0_clink_init(&ecl->ecl_rlink_wait,
 			      ha_entrypoint_client_rlink_cb);
-		ecl->ecl_rlink_wait.cl_is_oneshot = true;
+		ecl->ecl_rlink_wait.cl_flags = M0_CF_ONESHOT;
 		m0_mutex_init(&ecl->ecl_fom_running_lock);
 		m0_sm_group_init(&ecl->ecl_sm_group);
 		m0_sm_init(&ecl->ecl_sm, &ha_entrypoint_client_states_conf,

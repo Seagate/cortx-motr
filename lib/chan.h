@@ -236,6 +236,10 @@ struct m0_chan {
 	uint32_t              ch_waiters;
 	struct m0_chan_addb2 *ch_addb2;
 };
+enum m0_clink_flags {
+	M0_CF_ONESHOT       = 1 << 0,
+	M0_CF_HEARD_BANSHEE = 1 << 1
+};
 
 /**
    A record of interest in events on a stream.
@@ -281,7 +285,7 @@ struct m0_clink {
 	/** Linkage into m0_chan::ch_links */
 	struct m0_tlink     cl_linkage;
 	struct m0_semaphore cl_wait;
-	bool                cl_is_oneshot;
+	uint32_t            cl_flags;
 	uint64_t            cl_magic;
 };
 

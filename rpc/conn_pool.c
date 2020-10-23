@@ -118,7 +118,7 @@ static int conn_pool_item_init(
 		m0_chan_init(&item->cpi_chan, &pool->cp_ch_mutex);
 
 		m0_clink_init(&item->cpi_clink, pool_item_clink_cb);
-		item->cpi_clink.cl_is_oneshot = true;
+		item->cpi_clink.cl_flags = M0_CF_ONESHOT;
 
 		rpc_conn_pool_items_tlink_init_at_tail(item, &pool->cp_items);
 		item->cpi_pool = pool;
@@ -209,7 +209,7 @@ M0_INTERNAL int m0_rpc_conn_pool_get_sync(
 
 	if (rc == -EBUSY) {
 		m0_clink_init(&clink, NULL);
-		clink.cl_is_oneshot = true;
+		clink.cl_flags = M0_CF_ONESHOT;
 		m0_clink_add_lock(m0_rpc_conn_pool_session_chan(*session),
 				  &clink);
 		m0_chan_wait(&clink);

@@ -523,7 +523,7 @@ M0_INTERNAL int m0_isc_comp_req_exec_sync(struct m0_isc_comp_req *comp_req)
 
 	m0_clink_init(&waiter, NULL);
 	m0_clink_add_lock(&comp_req->icr_chan, &waiter);
-	waiter.cl_is_oneshot = true;
+	waiter.cl_flags = M0_CF_ONESHOT;
 	rc = m0_isc_comp_req_exec(comp_req);
 	if (rc != 0) {
 		m0_clink_del_lock(&waiter);

@@ -252,7 +252,7 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 	m0_chan_init(&hl->hln_quiesce_chan, &hl->hln_quiesce_chan_lock);
 	m0_clink_add_lock(&hl->hln_quiesce_chan, &hl->hln_quiesce_wait);
 	m0_sm_timer_init(&hl->hln_reconnect_wait_timer);
-	hl->hln_rpc_wait.cl_is_oneshot = true;
+	hl->hln_rpc_wait.cl_flags = M0_CF_ONESHOT;
 	hl->hln_reconnect = false;
 	hl->hln_reconnect_wait = false;
 	hl->hln_reconnect_cfg_is_set = false;
@@ -412,7 +412,7 @@ M0_INTERNAL void m0_ha_link_start(struct m0_ha_link          *hl,
 M0_INTERNAL void m0_ha_link_stop(struct m0_ha_link *hl, struct m0_clink *clink)
 {
 	M0_ENTRY("hl=%p", hl);
-	M0_PRE(clink->cl_is_oneshot);
+	M0_PRE(clink->cl_flags & M0_CF_ONESHOT);
 	m0_clink_add_lock(&hl->hln_stop_chan, clink);
 	m0_semaphore_up(&hl->hln_stop_cond);
 	ha_link_outgoing_fom_wakeup(hl);

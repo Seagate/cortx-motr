@@ -373,7 +373,7 @@ void rlut_connect_async()
 	M0_UT_ASSERT(rc == 0);
 
 	m0_clink_init(&clink, NULL);
-	clink.cl_is_oneshot = true;
+	clink.cl_flags = M0_CF_ONESHOT;
 
 	m0_rpc_link_connect_async(rlink,
 				  m0_time_from_now(RLUT_SESS_TIMEOUT, 0),
@@ -389,7 +389,7 @@ void rlut_connect_async()
 	m0_clink_fini(&clink);
 
 	m0_clink_init(&clink, NULL);
-	clink.cl_is_oneshot = true;
+	clink.cl_flags = M0_CF_ONESHOT;
 	m0_rpc_link_disconnect_async(rlink,
 				     m0_time_from_now(RLUT_SESS_TIMEOUT, 0),
 				     &clink);

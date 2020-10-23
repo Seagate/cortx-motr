@@ -108,7 +108,7 @@ static void ha_ut_link_init(struct ha_ut_link_ctx   *link_ctx,
 	int rc;
 
 	m0_clink_init(&link_ctx->ulc_stop_clink, NULL);
-	link_ctx->ulc_stop_clink.cl_is_oneshot = true;
+	link_ctx->ulc_stop_clink.cl_flags = M0_CF_ONESHOT;
 	ha_ut_link_cfg_create(&link_ctx->ulc_cfg, rpc_ctx, hl_service);
 	rc = m0_ha_link_init(&link_ctx->ulc_link, &link_ctx->ulc_cfg);
 	M0_UT_ASSERT(rc == 0);
@@ -514,7 +514,7 @@ void m0_ha_ut_link_reconnect_simple(void)
 	M0_ALLOC_ARR(hl_conn_cfg, 3);
 	M0_UT_ASSERT(hl_conn_cfg != NULL);
 	m0_clink_init(&stop_clink, NULL);
-	stop_clink.cl_is_oneshot = true;
+	stop_clink.cl_flags = M0_CF_ONESHOT;
 
 	for (i = 0; i < 3; ++i) {
 		ha_ut_link_cfg_create(&hl_cfg[i], rpc_ctx, hl_service);

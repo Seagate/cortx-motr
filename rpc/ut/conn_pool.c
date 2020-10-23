@@ -152,7 +152,7 @@ static void rpc_conn_pool_async(void) {
 	m0_cond_init(&connection_pending_cond, &cond_mutex);
 
 	m0_clink_init(&cp_pending->clink, pending_cp_clink_cb);
-	cp_pending->clink.cl_is_oneshot = true;
+	cp_pending->clink.cl_flags = M0_CF_ONESHOT;
 	cp_pending->session = session;
 	cp_pending->cb_called = false;
 	m0_clink_add_lock(m0_rpc_conn_pool_session_chan(session),

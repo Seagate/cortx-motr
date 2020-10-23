@@ -499,7 +499,7 @@ static void test_comp_state(void)
 	comp_req_init(&comp_req, 0);
 	m0_clink_init(&waiter, NULL);
 	m0_clink_add_lock(&comp_req.icr_chan, &waiter);
-	waiter.cl_is_oneshot = true;
+	waiter.cl_flags = M0_CF_ONESHOT;
 
 	rc = m0_isc_comp_req_exec(&comp_req);
 	M0_UT_ASSERT(rc == 0);
@@ -875,7 +875,7 @@ static void test_remote_waiting(void)
 	m0_chan_init(&remote_call_info.riv_chan, &remote_call_info.riv_guard);
 	m0_clink_init(&waiter, NULL);
 	m0_clink_add_lock(&remote_call_info.riv_chan, &waiter);
-	waiter.cl_is_oneshot = true;
+	waiter.cl_flags = M0_CF_ONESHOT;
 	phase = remote_invocation_async(&fid, 0, BT_INLINE, FPP_SEND,
 					&arg_fop);
 	/* Spin till the fom is executed. */

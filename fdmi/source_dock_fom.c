@@ -587,7 +587,7 @@ static int sd_fom_save_pending_fop(struct fdmi_sd_fom    *sd_fom,
 	m0_fop_get(fop);
 	pending_fop->fti_fop = fop;
 	m0_clink_init(&pending_fop->fti_clink, pending_fop_clink_cb);
-	pending_fop->fti_clink.cl_is_oneshot = true;
+	pending_fop->fti_clink.cl_flags = M0_CF_ONESHOT;
 	pending_fop->fti_session = session;
 	pending_fop->sd_fom = sd_fom;
 	m0_clink_add_lock(m0_rpc_conn_pool_session_chan(session),

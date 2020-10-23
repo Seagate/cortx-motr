@@ -200,7 +200,7 @@ static void dix_cli_start_ast_cb(struct m0_sm_group *grp M0_UNUSED,
 	m0_dix_meta_req_init(mreq, cli, dix_cli_smgrp(cli));
 	m0_clink_init(&cli->dx_clink, dix_cli_meta_read_clink_cb);
 	m0_clink_add_lock(&mreq->dmr_chan, cl);
-	cl->cl_is_oneshot = true;
+	cl->cl_flags = M0_CF_ONESHOT;
 	rc = m0_dix_root_read(mreq);
 	if (rc != 0) {
 		m0_clink_del_lock(cl);

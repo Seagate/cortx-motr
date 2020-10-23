@@ -1482,7 +1482,7 @@ M0_INTERNAL void m0_fom_callback_arm(struct m0_fom *fom, struct m0_chan *chan,
 	cb->fc_ast.sa_cb = &fom_ast_cb;
 	cb->fc_state = M0_FCS_ARMED;
 	m0_mb();
-	cb->fc_clink.cl_is_oneshot = true;
+	cb->fc_clink.cl_flags = M0_CF_ONESHOT;
 	m0_clink_add(chan, &cb->fc_clink);
 }
 

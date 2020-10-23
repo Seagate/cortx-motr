@@ -1774,7 +1774,7 @@ static void spiel_process_disconnect_async(struct spiel_proc_item *proc)
 	M0_ENTRY(FID_F, FID_P(&proc->spi_fid));
 	conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
 	m0_clink_init(&proc->spi_rlink_wait, spiel_proc_item_disconnect_cb);
-	proc->spi_rlink_wait.cl_is_oneshot = true;
+	proc->spi_rlink_wait.cl_flags = M0_CF_ONESHOT;
 	m0_rpc_link_disconnect_async(&proc->spi_rlink, conn_timeout,
 				     &proc->spi_rlink_wait);
 	M0_LEAVE();
@@ -1926,7 +1926,7 @@ static void spiel_process__health_async(struct _fs_stats_ctx    *fsx,
 	if (rc != 0)
 		goto err;
 	m0_clink_init(&proc->spi_rlink_wait, spiel_proc_item_rlink_cb);
-	proc->spi_rlink_wait.cl_is_oneshot = true;
+	proc->spi_rlink_wait.cl_flags = M0_CF_ONESHOT;
 	m0_rpc_link_connect_async(&proc->spi_rlink, conn_timeout,
 				  &proc->spi_rlink_wait);
 	M0_LEAVE();
