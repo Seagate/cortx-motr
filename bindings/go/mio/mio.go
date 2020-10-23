@@ -380,7 +380,7 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
     }
     left, off := len(p), 0
     bs, gs := mio.getOptimalBlockSz(left)
-    start, bs_saved := time.Now(), bs
+    start, bsSaved := time.Now(), bs
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
@@ -407,7 +407,7 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
         elapsed := time.Now().Sub(start)
         n := len(p) - left
         log.Printf("W: off=%v len=%v bs=%v gs=%v speed=%v (Mbytes/sec)",
-		   mio.off - uint64(n), n, bs_saved, gs,
+		   mio.off - uint64(n), n, bsSaved, gs,
 		   n / int(elapsed.Milliseconds()) * 1000 / 1024 / 1024)
     }
 
@@ -426,7 +426,7 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         }
     }
     bs, gs := mio.getOptimalBlockSz(left)
-    start, bs_saved := time.Now(), bs
+    start, bsSaved := time.Now(), bs
     for ; left > 0 && mio.off < ObjSize; left -= bs {
         if left < bs {
             bs = left
@@ -454,7 +454,7 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         elapsed := time.Now().Sub(start)
         n := len(p) - left
         log.Printf("R: off=%v len=%v bs=%v gs=%v speed=%v (Mbytes/sec)",
-		   mio.off - uint64(n), n, bs_saved, gs,
+		   mio.off - uint64(n), n, bsSaved, gs,
 		   n / int(elapsed.Milliseconds()) * 1000 / 1024 / 1024)
     }
 
