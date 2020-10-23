@@ -1002,6 +1002,33 @@ M0_INTERNAL int m0__io_ref_get(struct m0_client *m0c);
 M0_INTERNAL void m0__io_ref_put(struct m0_client *m0c);
 M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop);
 M0_INTERNAL bool entity_id_is_valid(const struct m0_uint128 *id);
+M0_INTERNAL void initlift_fail(int rc, struct m0_client *m0c);
+M0_INTERNAL void m0_op_launch_one(struct m0_op *op);
+
+/**
+ * Client initialises these components, in this order. If something fails
+ * it automatically reverses and moves back to IL_UNINITIALISED.
+ *
+ * Rule of thumb: if you need a goto, you are probably tracking some kind of
+ *                state that should be added here instead.
+ */
+enum initlift_states {
+	IL_UNINITIALISED = 0,
+	IL_NET, /* TODO: break this out */
+	IL_RPC, /* TODO: break this out */
+	IL_AST_THREAD,
+	IL_HA,
+	IL_CONFC,    /* Creates confc and stashes in m0c */
+	IL_POOLS,
+	IL_POOL_VERSION,
+	IL_RESOURCE_MANAGER,
+	IL_LAYOUT_DB,
+	IL_IDX_SERVICE,
+	IL_ROOT_FID, /* TODO: remove this m0t1fs ism */
+	IL_ADDB2,
+	IL_INITIALISED,
+	IL_FAILED,
+};
 
 /**
  * Returns the m0_client instance, found from the provided index.
