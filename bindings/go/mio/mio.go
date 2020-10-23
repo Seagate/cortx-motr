@@ -374,6 +374,19 @@ func (mio *Mio) doIO(i int, opcode uint32) {
     mio.ch <- slot{i, nil}
 }
 
+func getBW(n int, d time.Duration) (int, string) {
+    bw := n / int(d.Milliseconds()) * 1000 / 1024 / 1024
+    if bw != 0 {
+        return bw, "Mbytes/sec"
+    }
+    bw = n / int(d.Milliseconds()) * 1000 / 1024
+    if bw != 0 {
+        return bw, "Kbytes/sec"
+    }
+    bw = n / int(d.Milliseconds()) * 1000
+    return bw, "Bytes/sec"
+}
+
 func (mio *Mio) Write(p []byte) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
@@ -406,9 +419,9 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
     if verbose {
         elapsed := time.Now().Sub(start)
         n := len(p) - left
-        log.Printf("W: off=%v len=%v bs=%v gs=%v speed=%v (Mbytes/sec)",
-		   mio.off - uint64(n), n, bsSaved, gs,
-		   n / int(elapsed.Milliseconds()) * 1000 / 1024 / 1024)
+        bw, m := getBW(n, elapsed)
+        log.Printf("W: off=%v len=%v bs=%v gs=%v speed=%v (%v)",
+		   mio.off - uint64(n), n, bsSaved, gs, bw, m)
     }
 
     return off, err
@@ -453,9 +466,9 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
     if verbose {
         elapsed := time.Now().Sub(start)
         n := len(p) - left
-        log.Printf("R: off=%v len=%v bs=%v gs=%v speed=%v (Mbytes/sec)",
-		   mio.off - uint64(n), n, bsSaved, gs,
-		   n / int(elapsed.Milliseconds()) * 1000 / 1024 / 1024)
+        bw, m := getBW(n, elapsed)
+        log.Printf("R: off=%v len=%v bs=%v gs=%v speed=%v (%v)",
+		   mio.off - uint64(n), n, bsSaved, gs, bw, m)
     }
 
     return off, err
