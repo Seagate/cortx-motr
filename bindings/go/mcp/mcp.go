@@ -85,6 +85,7 @@ func main() {
     }
 
     buf := make([]byte, bufSize * 1024 * 1024)
-    // always use buf, hack from https://github.com/golang/go/issues/16474
-    io.CopyBuffer(struct{ io.Writer }{writer}, struct{ io.Reader }{reader}, buf)
+    // Force Writer to always use buf.(Otherwise, the performance
+    // might suffer. A tip from https://github.com/golang/go/issues/16474)
+    io.CopyBuffer(struct{ io.Writer }{writer}, reader, buf)
 }
