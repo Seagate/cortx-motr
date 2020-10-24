@@ -60,7 +60,7 @@ be_log_resize() {
    current_be_log_size=$(ls -l "$MD_DIR"/"$service_fid"/db-log/o/0:28 | awk '{ print $5 }')
    if [[ $current_be_log_size == "" ]]; then
       m0_log "Failed to get existing be log size"
-      return 0
+      return 1
    fi
 
    if [[ "$current_be_log_size" == "$new_be_log_size" ]]; then
