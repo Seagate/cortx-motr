@@ -58,7 +58,7 @@ HA_ARGS_FILENAME="/opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml"
 SINGLE_NODE_RUNNING=  # Will be set if only one node is running.
 LOCAL_SEG_GEN_ID=0
 REMOTE_SEG_GEN_ID=0
-
+IS_HW=false # This flag is true in case script is executed on HW otherwise in case of VM this will be false
 # Add path to utility m0-prov-reset
 PATH=$PATH:/opt/seagate/cortx/ha/conf/script/:.
 
@@ -109,6 +109,20 @@ m0drlog() {
 
 die() { m0drlog "$@" ; exit 1; }
 
+# This function will identify the local and remote node names
+identify_nodes() {
+    # Set global variables depending on which node you are on
+    if [[ $(cat /var/lib/hare/node-name) == "srvnode-1" ]]; then
+        LOCAL_NODE="srvnode-1"
+        REMOTE_NODE="srvnode-2"
+        FAILOVER_MD_DIR="/var/motr2"
+    elif [[ $(cat /var/lib/hare/node-name) == "srvnode-2" ]]; then
+        LOCAL_NODE="srvnode-2"
+        REMOTE_NODE="srvnode-1"
+        FAILOVER_MD_DIR="/var/motr1"
+    fi
+}
+
 # Check if the current user is root user or not
 # return 1 if not a root user
 is_user_root_user() {
@@ -117,11 +131,17 @@ is_user_root_user() {
     fi
 }
 
+# This function will set IS_HW variable if script is executed on HW otherwise
+# this variable will be false
+is_current_setup_hw() {
+    [[ `which pcs` ]] && IS_HW=true || IS_HW=false
+}
+
 # The function will return 0 if ioservice is started on the specified node,
 # else this will return 1
 is_ios_running() {
     local ios_fid=$1
-    if $(run_cmd "$LOCAL_NODE" "hctl status | grep -i ioservice | grep $ios_fid | grep -i started"); then
+    if run_cmd "$LOCAL_NODE" "hctl status | grep -i ioservice | grep $ios_fid | grep -i started"; then
         return 0
     else
         return 1
@@ -131,27 +151,31 @@ is_ios_running() {
 # This function will initialize values of local and remote ioservices
 # fid variable.
 get_ios_fid() {
-    LOCAL_IOS_FID=$(cat /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$LOCAL_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
-    REMOTE_IOS_FID=$(cat /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$REMOTE_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
+    ips=$(m0confgen -f xcode -t json /etc/motr/confd.xc |  jq -r '.[] | select(.type == "@M0_CST_IOS") | .endpoints[0]')
+    for ip in $ips; do
+        id=$(m0confgen -f xcode -t json /etc/motr/confd.xc |  jq -r --arg "IP" "$ip" '.[] | select(.objid|startswith("process")) |  select(.endpoint == $IP) | .objid' | cut -d '-' -f2)
+        fid=$(printf '0x7200000000000001:%#x\n' $id)
 
-    if [[ $LOCAL_IOS_FID == "" ]] || [[ $REMOTE_IOS_FID == "" ]];then
-        die "Failed to get ioservice FIDs."
+        if [[ "$fid" == $(cat /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep $LOCAL_NODE -B 1 | grep FID | cut -f 2 -d "=" | tr -d \') ]]; then
+            LOCAL_IOS_FID=$fid
+        else
+            REMOTE_IOS_FID=$fid
+        fi
+    done
+
+    if [[ $LOCAL_IOS_FID == "0x7200000000000001:0x0" ]] || [[ $REMOTE_IOS_FID == "0x7200000000000001:0x0" ]];then
+        die "Failed to get ioservice FID"
     fi
+
 }
 
 # The function will execute command on the specified node
 run_cmd() {
-    local node=$1; shift
+    local node=$1; shift;
     local cmd=$*
-    if [[ "$node" == "$LOCAL_NODE" ]];then
-        echo "[`date`]: Running '$cmd'" | tee -a ${LOG_FILE}
-        eval "$cmd" 2>&1 | tee -a ${LOG_FILE} # execute the command on current/local node
-        return ${PIPESTATUS[0]} # return exit status of first command
-    else
-        echo "[`date`]: Running 'ssh root@$REMOTE_NODE $cmd'" >> ${LOG_FILE}
-        ssh root@$REMOTE_NODE "$cmd" 2>&1 | tee -a ${LOG_FILE} # execute the command
-        return ${PIPESTATUS[0]} # return exit status of first command
-    fi
+    echo "[`date`]: Running 'ssh root@$node $cmd'" >> ${LOG_FILE}
+    ssh root@$node "$cmd" 2>&1 | tee -a ${LOG_FILE} # execute the command
+    return ${PIPESTATUS[0]} # return exit status of first command
 }
 
 # This function will initialize paths for the m0beck and m0betool utility
@@ -175,13 +199,14 @@ get_utility_path() {
 get_lvs_info() {
     local node=$1
     local infotype=$2
-    local volgrp=$3
-    local dev=$4
-    local printparam=$5
+    local volume_group=$3
+    local logical_volume=$4
+    local print_param=$5
+
     if [[ "$print_param" == "" ]]; then
-        return $(run_cmd "$node" "lvs -o $infotype $volgrp | grep $dev")
+        echo $(run_cmd "$node" "lvs -o $infotype $volume_group | grep $logical_volume")
     else
-        return $(run_cmd "$node" "lvs -o $infotype $volgrp | grep $dev | awk '{ print $printparam }'")
+        echo $(run_cmd "$node" "lvs -o $infotype $volume_group | grep $logical_volume | awk '{ print \$$print_param }'")
     fi
 }
 
@@ -195,19 +220,20 @@ get_lvs_info() {
 get_recovery_state_of_local_node() {
     local state=0
 
-    test=$(get_lvs_info "$LOCAL_NODE" "name" "$LOCAL_MD_VOLUMEGROUP" "$SNAPSHOT" "$1")
+    test=$(get_lvs_info "$LOCAL_NODE" "name" "$LOCAL_MD_VOLUMEGROUP" "$SNAPSHOT" "1")
     if [ "$test" != "$SNAPSHOT" ]; then
-        test=$(get_lvs_info "$LOCAL_NODE" "name" "$LOCAL_MD_VOLUMEGROUP" "$SWAP_DEVICE" "$1")
+        test=$(get_lvs_info "$LOCAL_NODE" "name" "$LOCAL_MD_VOLUMEGROUP" "$SWAP_DEVICE" "1")
         if [ "$test" = "$SWAP_DEVICE" ]; then
-            MD_SIZE=$(get_lvs_info "$LOCAL_NODE" "lvname,size" "$LOCAL_MD_VOLUMEGROUP --units K --nosuffix" "$MD_DEVICE" "$2")
+            MD_SIZE=$(get_lvs_info "$LOCAL_NODE" "lvname,size" "$LOCAL_MD_VOLUMEGROUP --units K --nosuffix" "$MD_DEVICE" "2")
 
-            SWAP_SIZE=$(get_lvs_info "$LOCAL_NODE" "lvname,size" "$LOCAL_MD_VOLUMEGROUP --units K --nosuffix" "$SWAP_DEVICE" "$2")
+            SWAP_SIZE=$(get_lvs_info "$LOCAL_NODE" "lvname,size" "$LOCAL_MD_VOLUMEGROUP --units K --nosuffix" "$SWAP_DEVICE" "2")
 
+            [[ `which bc` ]] || { yum install -y bc || die "Not able install *bc* package on local node, please install this package and try again."; }
             # If the comparison is true then bc return 1 otherwise return 0
             if [ $(bc <<< "$MD_SIZE > $SWAP_SIZE") = 1 ]; then
                 die "ERROR: Metadata size is not less than swap size on local node !!"
             fi
-            (( state|=1 )); # run_fsck, replay_logs_and_get_gen_id_of_seg0, remove_swap_all_nodes
+            (( state|=1 )); # run_fsck, replay_logs_and_get_gen_id_of_seg0, remove_swap_on_all_nodes
         fi
         (( state|=2 ));     # create snapshot
     fi
@@ -226,34 +252,61 @@ get_recovery_state_of_local_node() {
 get_recovery_state_of_remote_node() {
     local state=0
     [[ $REMOTE_STORAGE_STATUS == 0 ]] && \
-    test=$(get_lvs_info "$REMOTE_NODE" "name" "$REMOTE_MD_VOLUMEGROUP" "$SNAPSHOT" "\$1") || \
-    test=$(get_lvs_info "$LOCAL_NODE" "name" "$REMOTE_MD_VOLUMEGROUP" "$SNAPSHOT" "$1")
+    test=$(get_lvs_info "$REMOTE_NODE" "name" "$REMOTE_MD_VOLUMEGROUP" "$SNAPSHOT" "1") || \
+    test=$(get_lvs_info "$LOCAL_NODE" "name" "$REMOTE_MD_VOLUMEGROUP" "$SNAPSHOT" "1")
 
     if [ "$test" != "$SNAPSHOT" ]; then
         [[ $REMOTE_STORAGE_STATUS == 0 ]] && \
-        test=$(get_lvs_info "$REMOTE_NODE" "name" "$REMOTE_MD_VOLUMEGROUP" "$SWAP_DEVICE" "\$1") || \
-        test=$(get_lvs_info "$LOCAL_NODE" "name" "$REMOTE_MD_VOLUMEGROUP" "$SWAP_DEVICE" "$1")
+        test=$(get_lvs_info "$REMOTE_NODE" "name" "$REMOTE_MD_VOLUMEGROUP" "$SWAP_DEVICE" "1") || \
+        test=$(get_lvs_info "$LOCAL_NODE" "name" "$REMOTE_MD_VOLUMEGROUP" "$SWAP_DEVICE" "1")
 
         if [ "$test" = "$SWAP_DEVICE" ]; then
             [[ $REMOTE_STORAGE_STATUS == 0 ]] && \
-            MD_SIZE=$(get_lvs_info "$REMOTE_NODE" "lvname,size" "$REMOTE_MD_VOLUMEGROUP --units K --nosuffix" "$MD_DEVICE" "\$2") || \
-            MD_SIZE=$(get_lvs_info "$LOCAL_NODE" "lvname,size" "$REMOTE_MD_VOLUMEGROUP --units K --nosuffix" "$MD_DEVICE" "$2")
+            MD_SIZE=$(get_lvs_info "$REMOTE_NODE" "lvname,size" "$REMOTE_MD_VOLUMEGROUP --units K --nosuffix" "$MD_DEVICE" "2") || \
+            MD_SIZE=$(get_lvs_info "$LOCAL_NODE" "lvname,size" "$REMOTE_MD_VOLUMEGROUP --units K --nosuffix" "$MD_DEVICE" "2")
 
             [[ $REMOTE_STORAGE_STATUS == 0 ]] && \
-            SWAP_SIZE=$(get_lvs_info "$REMOTE_NODE" "lvname,size $REMOTE_MD_VOLUMEGROUP --units K --nosuffix" "$SWAP_DEVICE" "\$2") || \
-            SWAP_SIZE=$(get_lvs_info "$LOCAL_NODE" "lvname,size $REMOTE_MD_VOLUMEGROUP --units K --nosuffix" "$SWAP_DEVICE" "$2")
+            SWAP_SIZE=$(get_lvs_info "$REMOTE_NODE" "lvname,size" "$REMOTE_MD_VOLUMEGROUP --units K --nosuffix" "$SWAP_DEVICE" "2") || \
+            SWAP_SIZE=$(get_lvs_info "$LOCAL_NODE" "lvname,size" "$REMOTE_MD_VOLUMEGROUP --units K --nosuffix" "$SWAP_DEVICE" "2")
 
             # If the comparison is true then bc return 1 otherwise return 0
             if [ $(bc <<< "$MD_SIZE > $SWAP_SIZE") = 1 ]; then
                 die "ERROR: Metadata size is not less than swap size on remote node !!"
             fi
-            (( state|=1 )); # run_fsck, replay_logs_and_get_gen_id_of_seg0, remove_swap_all_nodes
+            (( state|=1 )); # run_fsck, replay_logs_and_get_gen_id_of_seg0, remove_swap_on_all_nodes
         fi
         (( state|=2 ));     # create snapshot
     fi
 
     REMOTE_NODE_RECOVERY_STATE=$state
     m0drlog "Remote Node Recovery State is $REMOTE_NODE_RECOVERY_STATE"
+}
+
+# This function will initialize the variables to path of metadata device
+get_motr_device_path() {
+    if $IS_HW; then
+        if [[ $(cat /var/lib/hare/node-name) == "srvnode-1" ]]; then
+            # Path for metadata device for local node
+            LOCAL_MOTR_DEVICE=$(run_cmd "$LOCAL_NODE" "grep left-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+                                awk '{ print \$2 }'")
+            # Path for metadata device for remote node
+            REMOTE_MOTR_DEVICE=$(run_cmd "$LOCAL_NODE" "grep right-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+                                awk '{ print \$2 }'")
+        elif [[ $(cat /var/lib/hare/node-name) == "srvnode-2" ]]; then
+            # Path for metadata device for local node
+            LOCAL_MOTR_DEVICE=$(run_cmd "$LOCAL_NODE" "grep right-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+                                awk '{ print \$2 }'")
+            # Path for metadata device for remote node
+            REMOTE_MOTR_DEVICE=$(run_cmd "$LOCAL_NODE" "grep left-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+                                awk '{ print \$2 }'")
+        fi
+    else
+        LOCAL_MOTR_DEVICE=$(run_cmd "$LOCAL_NODE" "mount | grep /var/motr | awk '{print \$1}'")
+        [[ -z "$LOCAL_MOTR_DEVICE" ]] && die "Please mount the metadata device on /var/motr on local node"
+        # Path for metadata device for remote node
+        REMOTE_MOTR_DEVICE=$(run_cmd "$REMOTE_NODE" "mount | grep /var/motr | awk '{print \$1}'")
+        [[ -z "$REMOTE_MOTR_DEVICE" ]] && die "Please mount the metadata device on /var/motr on remote node"
+    fi
 }
 
 # This function will initialize the variables in this script according to
@@ -263,42 +316,14 @@ get_recovery_state_of_remote_node() {
 get_cluster_configuration() {
 
     # Ensure that volumes configs are synced
-    echo "[`date`]: Running '$cmd'" | tee -a ${LOG_FILE}
-    eval "pvscan --cache" 2>&1 | tee -a ${LOG_FILE}
-
-    # Set global variables depending on which node you are on
-    if [[ $(cat /var/lib/hare/node-name) == "srvnode-1" ]]; then
-
-        LOCAL_NODE="srvnode-1"
-        REMOTE_NODE="srvnode-2"
-        # Path for metadata device for local node
-        LOCAL_MOTR_DEVICE=$(run_cmd "$LOCAL_NODE" "grep left-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
-                            awk '{ print $2 }'")
-        # Path for metadata device for remote node
-        REMOTE_MOTR_DEVICE=$(run_cmd "$LOCAL_NODE" "grep right-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
-                            awk '{ print $2 }'")
-
-        FAILOVER_MD_DIR="/var/motr2"
-
-    elif [[ $(cat /var/lib/hare/node-name) == "srvnode-2" ]]; then
-
-        LOCAL_NODE="srvnode-2"
-        REMOTE_NODE="srvnode-1"
-        # Path for metadata device for local node
-        LOCAL_MOTR_DEVICE=$(run_cmd "$LOCAL_NODE" "grep right-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
-                            awk '{ print $2 }'")
-        # Path for metadata device for remote node
-        REMOTE_MOTR_DEVICE=$(run_cmd "$LOCAL_NODE" "grep left-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
-                            awk '{ print $2 }'")
-
-        FAILOVER_MD_DIR="/var/motr1"
-    fi
+    run_cmd "$LOCAL_NODE" "pvscan --cache"
+    get_motr_device_path
 
     LOCAL_MD_VOLUMEGROUP="vg_metadata_"$LOCAL_NODE
     REMOTE_MD_VOLUMEGROUP="vg_metadata_"$REMOTE_NODE
 
-    LOCAL_LV_SWAP_DEVICE=$(get_lvs_info "$LOCAL_NODE" "path" "$LOCAL_MD_VOLUMEGROUP" "$SWAP_DEVICE" "$1")
-    LOCAL_LV_MD_DEVICE=$(get_lvs_info "$LOCAL_NODE" "path" "$LOCAL_MD_VOLUMEGROUP" "$MD_DEVICE" "$1")
+    LOCAL_LV_SWAP_DEVICE=$(get_lvs_info "$LOCAL_NODE" "path" "$LOCAL_MD_VOLUMEGROUP" "$SWAP_DEVICE" "1")
+    LOCAL_LV_MD_DEVICE=$(get_lvs_info "$LOCAL_NODE" "path" "$LOCAL_MD_VOLUMEGROUP" "$MD_DEVICE" "1")
 
     get_ios_fid
     get_utility_path
@@ -317,22 +342,22 @@ get_cluster_configuration() {
     if is_ios_running "$REMOTE_IOS_FID"; then
         m0drlog "Proceeding to perform recovery on remote node."
         run_cmd "$REMOTE_NODE" "pvscan --cache"; # Ensure that volumes configs are synced
-        REMOTE_LV_SWAP_DEVICE=$(get_lvs_info "$REMOTE_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$SWAP_DEVICE" "\$1")
-        REMOTE_LV_MD_DEVICE=$(get_lvs_info "$REMOTE_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$MD_DEVICE" "\$1")
+        REMOTE_LV_SWAP_DEVICE=$(get_lvs_info "$REMOTE_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$SWAP_DEVICE" "1")
+        REMOTE_LV_MD_DEVICE=$(get_lvs_info "$REMOTE_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$MD_DEVICE" "1")
         REMOTE_STORAGE_STATUS=0 # We can run commands on remote node
     elif run_cmd "$REMOTE_NODE" "dd if=$REMOTE_MOTR_DEVICE of=/dev/null bs=4096 count=1"; then
         m0drlog "Remote ioservice is not running, but we can access the storage on remote node, \
                 performing recovery of storage on remote node"
         run_cmd "$REMOTE_NODE" "pvscan --cache"; # Ensure that volumes configs are synced
-        REMOTE_LV_SWAP_DEVICE=$(get_lvs_info "$REMOTE_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$SWAP_DEVICE" "\$1")
-        REMOTE_LV_MD_DEVICE=$(get_lvs_info "$REMOTE_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$MD_DEVICE" "\$1")
+        REMOTE_LV_SWAP_DEVICE=$(get_lvs_info "$REMOTE_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$SWAP_DEVICE" "1")
+        REMOTE_LV_MD_DEVICE=$(get_lvs_info "$REMOTE_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$MD_DEVICE" "1")
         REMOTE_STORAGE_STATUS=0
     elif run_cmd "$LOCAL_NODE" "dd if=$REMOTE_MOTR_DEVICE of=/dev/null bs=4096 count=1"; then
         m0drlog "Remote ioservice is not running and remote node is not reachable, \
                 but can access remote storage through local node, performing recovery of storage on remote node, from local node"
         REMOTE_STORAGE_STATUS=1
-        REMOTE_LV_SWAP_DEVICE=$(get_lvs_info "$LOCAL_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$SWAP_DEVICE" "$1")
-        REMOTE_LV_MD_DEVICE=$(get_lvs_info "$LOCAL_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$MD_DEVICE" "$1")
+        REMOTE_LV_SWAP_DEVICE=$(get_lvs_info "$LOCAL_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$SWAP_DEVICE" "1")
+        REMOTE_LV_MD_DEVICE=$(get_lvs_info "$LOCAL_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$MD_DEVICE" "1")
         SINGLE_NODE_RUNNING='--single-node'
     else
         # remote ios is failed, can't access the remote storage, recovery not possible on this node
@@ -348,11 +373,16 @@ get_cluster_configuration() {
 # This function shutdown the cluster with all services on both nodes
 shutdown_services() {
     m0drlog "Stopping cluster, this may take few minutes"
-    pcs cluster stop --all
-    sleep 10
-    m0drlog "Cluster is stoppped"
-    if pcs status; then # cluster is still running
-        die "Cluster did not shutdown correctly. Please try again."
+    if $IS_HW; then
+        run_cmd "$LOCAL_NODE" "pcs cluster stop --all"
+        run_cmd "$LOCAL_NODE" "sleep 10"
+        m0drlog "Cluster is stoppped"
+        if run_cmd "$LOCAL_NODE" "pcs status"; then # cluster is still running
+            die "Cluster did not shutdown correctly. Please try again."
+        fi
+    else
+        run_cmd "$LOCAL_NODE" "hctl shutdown"
+        run_cmd "$LOCAL_NODE" "hctl status"
     fi
 }
 
@@ -377,24 +407,38 @@ unmount_device() {
 # else this will return 1
 reinit_mkfs() {
 
-    # Unmount the /var/motr if mounted on both nodes
-    unmount_device "$LOCAL_NODE" "$MD_DIR" "MD Device might be busy on local node, \
-                    please try shutting down cluster and retry"
-
-    if [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
-        unmount_device "$REMOTE_NODE" "$MD_DIR" "MD Device might be busy on remote node, \
+    if $IS_HW; then
+        # Unmount the /var/motr if mounted on both nodes
+        unmount_device "$LOCAL_NODE" "$MD_DIR" "MD Device might be busy on local node, \
                         please try shutting down cluster and retry"
+
+        if [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
+            unmount_device "$REMOTE_NODE" "$MD_DIR" "MD Device might be busy on remote node, \
+                            please try shutting down cluster and retry"
+        else
+            unmount_device "$LOCAL_NODE" "$FAILOVER_MD_DIR" "MD Device of remote node might be busy on local node, \
+                            please try shutting down cluster and retry"
+        fi
+
+        # command line for reinit cluster with mkfs
+        m0drlog "Reinitializing the cluster with mkfs, Please wait may take few minutes"
+        run_cmd "$LOCAL_NODE" "set M0_RESET_LOG_FILE=$LOG_FILE; prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --mkfs-only $SINGLE_NODE_RUNNING; unset M0_RESET_LOG_FILE"
+        [[ $? -eq 0 ]] || die "***ERROR: Cluster reinitialization with mkfs failed***"
+        m0drlog "Cluster reinitialization with mkfs is completed"
+        sleep 3
     else
-        unmount_device "$LOCAL_NODE" "$FAILOVER_MD_DIR" "MD Device of remote node might be busy on local node, \
-                        please try shutting down cluster and retry"
+        run_cmd "$LOCAL_NODE" "systemctl reset-failed"
+        run_cmd "$REMOTE_NODE" "systemctl reset-failed"
+        run_cmd "$LOCAL_NODE" "hctl bootstrap --mkfs $CDF_FILENAME"
+        [[ $? -eq 0 ]] || die "***ERROR: Cluster reinitialization with mkfs failed***"
+        run_cmd "$LOCAL_NODE" "hctl status"
+        run_cmd "$LOCAL_NODE" "sleep 3"
+        run_cmd "$LOCAL_NODE" "hctl shutdown"
+        run_cmd "$LOCAL_NODE" "hctl status"
+        if is_ios_running "$LOCAL_IOS_FID" && is_ios_running "$REMOTE_IOS_FID"; then
+            die "***ERROR: Cluster did not shutdown correctly, ios are still on***"
+        fi
     fi
-
-    # command line for reinit cluster with mkfs
-    m0drlog "Reinitializing the cluster with mkfs, Please wait may take few minutes"
-    run_cmd "$LOCAL_NODE" "set M0_RESET_LOG_FILE=$LOG_FILE; prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --mkfs-only $SINGLE_NODE_RUNNING; unset M0_RESET_LOG_FILE"
-    [[ $? -eq 0 ]] || die "***ERROR: Cluster reinitialization with mkfs failed***"
-    m0drlog "Cluster reinitialization with mkfs is completed"
-    sleep 3
 }
 
 # This function will try to start the motr-kernel service on the specified node
@@ -414,32 +458,36 @@ start_motr_kernel_service() {
 # This function will replay journal logs on the specified node
 replay_journal_logs() {
     local node=$1
-    local dir=$2
+    local md_dir=$2
     local ios_fid=$3
-    return $(run_cmd "$node" "(cd $dir/datarecovery; $M0BETOOL be_recovery_run $dir/m0d-$ios_fid/db;)")
+    $(run_cmd "$node" "(cd $md_dir/datarecovery; $M0BETOOL be_recovery_run $md_dir/m0d-$ios_fid/db;)")
 }
 
 # This function will fetch the generation id
 get_gen_id() {
     local node=$1
-    local dir=$2
+    local md_dir=$2
     local ios_fid=$3
     if [[ "$ios_fid" == "$LOCAL_IOS_FID" ]];then
         m0drlog "Get generation id of local node from segment 1"
-        LOCAL_SEG_GEN_ID=$(run_cmd "$node" "$BECKTOOL -s $dir/m0d-$ios_fid/db/o/100000000000000:2a -p | cut -d \"(\" -f2 | cut -d \")\" -f1")
+        LOCAL_SEG_GEN_ID=$(run_cmd "$node" "(cd $md_dir/datarecovery; $BECKTOOL -s $md_dir/m0d-$ios_fid/db/o/100000000000000:2a -p)")
+        LOCAL_SEG_GEN_ID=$(run_cmd "$node" "echo '$LOCAL_SEG_GEN_ID' | cut -d '(' -f2 | cut -d ')' -f1 | tail -1")
         if [[ $LOCAL_SEG_GEN_ID -eq 0 ]]; then
             m0drlog "Get generation id of local node from segment 0"
-            LOCAL_SEG_GEN_ID=$(run_cmd "$node" "$BECKTOOL -s $dir/m0d-$ios_fid/db/o/100000000000000:29 -p | cut -d \"(\" -f2 | cut -d \")\" -f1")
+            LOCAL_SEG_GEN_ID=$(run_cmd "$node" "(cd $md_dir/datarecovery; $BECKTOOL -s $md_dir/m0d-$ios_fid/db/o/100000000000000:29 -p)")
+            LOCAL_SEG_GEN_ID=$(run_cmd "$node" "echo '$LOCAL_SEG_GEN_ID' | cut -d '(' -f2 | cut -d ')' -f1 | tail -1")
         fi
-        run_cmd "$node" "echo \"segment genid : ($LOCAL_SEG_GEN_ID)\"  >  $dir/m0d-$ios_fid/gen_id"
+        run_cmd "$node" "echo \"segment genid : ($LOCAL_SEG_GEN_ID)\"  >  $md_dir/m0d-$ios_fid/gen_id"
     else
         m0drlog "Get generation id of remote node from segment 1"
-        REMOTE_SEG_GEN_ID=$(run_cmd "$node" "$BECKTOOL -s $dir/m0d-$ios_fid/db/o/100000000000000:2a -p | cut -d \"(\" -f2 | cut -d \")\" -f1")
+        REMOTE_SEG_GEN_ID=$(run_cmd "$node" "(cd $md_dir/datarecovery; $BECKTOOL -s $md_dir/m0d-$ios_fid/db/o/100000000000000:2a -p)")
+        REMOTE_SEG_GEN_ID=$(run_cmd "$node" "echo '$REMOTE_SEG_GEN_ID' | cut -d '(' -f2 | cut -d ')' -f1 | tail -1")
         if [[ $REMOTE_SEG_GEN_ID -eq 0 ]]; then
             m0drlog "Get generation id of remote node from segment 0"
-            REMOTE_SEG_GEN_ID=$(run_cmd "$node" "$BECKTOOL -s $dir/m0d-$ios_fid/db/o/100000000000000:29 -p | cut -d \"(\" -f2 | cut -d \")\" -f1")
+            REMOTE_SEG_GEN_ID=$(run_cmd "$node" "(cd $md_dir/datarecovery; $BECKTOOL -s $md_dir/m0d-$ios_fid/db/o/100000000000000:29 -p)")
+            REMOTE_SEG_GEN_ID=$(run_cmd "$node" "echo '$REMOTE_SEG_GEN_ID' | cut -d '(' -f2 | cut -d ')' -f1 | tail -1")
         fi
-        run_cmd "$node" "echo \"segment genid : ($REMOTE_SEG_GEN_ID)\"  >  $dir/m0d-$ios_fid/gen_id"
+        run_cmd "$node" "echo \"segment genid : ($REMOTE_SEG_GEN_ID)\"  >  $md_dir/m0d-$ios_fid/gen_id"
     fi
 }
 
@@ -492,7 +540,8 @@ replay_logs_and_get_gen_id_of_seg0() {
         fi
     else
         if run_cmd "$LOCAL_NODE" "[[ -f $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id ]]"; then
-            LOCAL_SEG_GEN_ID=$(run_cmd "$LOCAL_NODE"  "cat $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id | grep 'segment genid' | cut -d \"(\" -f2 | cut -d \")\" -f1")
+            LOCAL_SEG_GEN_ID=$(run_cmd "$LOCAL_NODE" "cat $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id")
+            LOCAL_SEG_GEN_ID=$(run_cmd "$LOCAL_NODE" "echo '$LOCAL_SEG_GEN_ID' | cut -d '(' -f2 | cut -d ')' -f1 | tail -1")
         fi
     fi
     # Check if the fsck is passed on remote node successfully or not
@@ -530,11 +579,13 @@ replay_logs_and_get_gen_id_of_seg0() {
         fi
      elif [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
         if run_cmd "$REMOTE_NODE" "[[ -f $MD_DIR/m0d-$REMOTE_IOS_FID/gen_id ]]"; then
-            REMOTE_SEG_GEN_ID=$(run_cmd "$REMOTE_NODE" "cat $MD_DIR/m0d-$REMOTE_IOS_FID/gen_id | grep 'segment genid' | cut -d \"(\" -f2 | cut -d \")\" -f1")
+            REMOTE_SEG_GEN_ID=$(run_cmd "$REMOTE_NODE" "cat $MD_DIR/m0d-$REMOTE_IOS_FID/gen_id")
+            REMOTE_SEG_GEN_ID=$(run_cmd "$REMOTE_NODE" "echo '$REMOTE_SEG_GEN_ID' | cut -d '(' -f2 | cut -d ')' -f1 | tail -1")
         fi
      else
         if run_cmd "$LOCAL_NODE" "[[ -f $FAILOVER_MD_FDIR/m0d-$REMOTE_IOS_FID/gen_id ]]"; then
-            REMOTE_SEG_GEN_ID=$(run_cmd "$LOCAL_NODE" "cat $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/gen_id | grep 'segment genid' | cut -d \"(\" -f2 | cut -d \")\" -f1")
+            REMOTE_SEG_GEN_ID=$(run_cmd "$LOCAL_NODE" "cat $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/gen_id")
+            REMOTE_SEG_GEN_ID=$(run_cmd "$REMOTE_NODE" "echo '$REMOTE_SEG_GEN_ID' | cut -d '(' -f2 | cut -d ')' -f1 | tail -1")
         fi
     fi
 
@@ -544,7 +595,7 @@ replay_logs_and_get_gen_id_of_seg0() {
     return $exec_status
 }
 
-# This function will do a mkfs and mount the specified device on the specified node
+# This function will do a mkfs and mount the specified device on the specified dir
 makefs_and_mount() {
     local node=$1
     local dir=$2
@@ -618,11 +669,11 @@ remove_swap() {
 }
 
 # This function remove the swap device on both nodes
-remove_swap_all_nodes() {
+remove_swap_on_all_nodes() {
     local exec_status=0
     if [[ $LOCAL_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
         m0drlog "Running remove swap on local node"
-        remove_swap "$LOCAL_NODE" "$LOCAL_SWAP_DEVICE"
+        remove_swap "$LOCAL_NODE" "$LOCAL_LV_SWAP_DEVICE"
         [[ $? -eq 0 ]] || { (( exec_status|=1)); }
     fi
 
@@ -642,13 +693,13 @@ remove_swap_all_nodes() {
 # This function will create the snapshot on specified node
 create_snapshot() {
     local node=$1
-    local snap=$2
+    local snapshot=$2
     local device=$3
-    run_cmd "$node" "lvcreate -pr -l 100%FREE -s -n $snap $device"
+    run_cmd "$node" "lvcreate -pr -l 100%FREE -s -n $snapshot $device"
 }
 
 # This function will create the snapshot of metadata on both nodes
-create_snapshot_all_nodes() {
+create_snapshot_on_all_nodes() {
     local exec_status=0
 
     if [[ $LOCAL_NODE_RECOVERY_STATE == $RSTATE2 ]] || [[ $LOCAL_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
@@ -674,8 +725,7 @@ create_snapshot_all_nodes() {
 remove_snapshot() {
     local node=$1
     local vol_grp=$2
-    local snap=$3
-    LV_SNAPSHOT=$(run_cmd "$node" "lvs -o path $vol_grp | grep $SNAPSHOT ")
+    LV_SNAPSHOT=$(get_lvs_info "$node" "path" "$vol_grp" "$SNAPSHOT")
     run_cmd "$node" "lvremove -f $LV_SNAPSHOT"
 }
 
@@ -707,12 +757,11 @@ remove_snapshot_all_nodes() {
 # correct state after recovery.
 create_swap() {
     local node=$1
-    local volgrp=$2
+    local volume_group=$2
     local print_param=$3
     run_cmd "$node" "pvscan --cache"; # Ensure that volumes configs are synced
-    run_cmd "$node" "lvcreate -n $SWAP_DEVICE -l 100%FREE $volgrp"
+    run_cmd "$node" "lvcreate -n $SWAP_DEVICE -l 100%FREE $volume_group"
     run_cmd "$node" "pvscan --cache"; # Ensure that volumes configs are synced
-    return $(run_cmd "$node" "lvs -o path $volgrp | grep $SWAP_DEVICE | awk '{ print $print_param }'")
 }
 
 # This function will enable the swap device on the specified node
@@ -726,22 +775,25 @@ enable_swap() {
 # This function will create the swap device on both nodes
 # `pvscan --cache` is used repeatedly because we need to ensure system is in
 # correct state after recovery.
-create_swap_all_nodes() {
+create_swap_on_all_nodes() {
     local exec_status=0
 
     m0drlog "Running create swap on local node"
-    LOCAL_SWAP_DEVICE=$(create_swap "$LOCAL_NODE" "$LOCAL_MD_VOLUMEGROUP" "$1")
+    create_swap "$LOCAL_NODE" "$LOCAL_MD_VOLUMEGROUP" "1"
+    LOCAL_LV_SWAP_DEVICE=$(get_lvs_info "$LOCAL_NODE" "path" "$LOCAL_MD_VOLUMEGROUP" "$SWAP_DEVICE" "1")
     enable_swap "$LOCAL_NODE" "$LOCAL_LV_SWAP_DEVICE"
     [[ $? -eq 0 ]] || { (( exec_status|=1)); }
 
     m0drlog "Running create swap on remote node"
     if [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
-        REMOTE_LV_SWAP_DEVICE=$(create_swap "$REMOTE_NODE" "$REMOTE_MD_VOLUMEGROUP" "\$1")
+        create_swap "$REMOTE_NODE" "$REMOTE_MD_VOLUMEGROUP" "1"
+        REMOTE_LV_SWAP_DEVICE=$(get_lvs_info "$REMOTE_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$SWAP_DEVICE" "1")
         enable_swap "$REMOTE_NODE" "$REMOTE_LV_SWAP_DEVICE"
         [[ $? -eq 0 ]] || { (( exec_status|=2)); }
     else
         m0drlog "Running create swap for remote node from local node"
-        REMOTE_LV_SWAP_DEVICE=$(create_swap "$LOCAL_NODE" "$REMOTE_MD_VOLUMEGROUP" "\$1")
+        create_swap "$LOCAL_NODE" "$REMOTE_MD_VOLUMEGROUP" "1"
+        REMOTE_LV_SWAP_DEVICE=$(get_lvs_info "$LOCAL_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$SWAP_DEVICE" "1")
         enable_swap "$LOCAL_NODE" "$REMOTE_LV_SWAP_DEVICE"
         [[ $? -eq 0 ]] || { (( exec_status|=2)); }
     fi
@@ -773,13 +825,15 @@ check_and_mount() {
     fi
 }
 
-becktool() {
+exec_becktool() {
     local node=$1
-    local dir=$2
-    local src=$3
-    local dest=$4
+    local md_dir=$2
+    local source_image=$3
+    local dest_domain_dir=$4
     local genid=$5
-    return $(run_cmd "$node" "(cd $dir/datarecovery; $BECKTOOL -s $src -d $dest/db -a $dest/stobs -g $genid;)")
+    run_cmd "$node" "bash -s" <<-EOF
+    (cd $md_dir/datarecovery; $BECKTOOL -s $source_image -d $dest_domain_dir/db -a $dest_domain_dir/stobs -g $genid;)
+EOF
 }
 
 # The return statements between { .. }& are to indicate the exit status of
@@ -814,13 +868,13 @@ run_becktool() {
         DEST_DOMAIN_DIR="$MD_DIR/m0d-$LOCAL_IOS_FID"
 
         m0drlog "Running Becktool on local node"
-        becktool "$LOCAL_NODE" "$MD_DIR" "$SOURCE_IMAGE" "$DEST_DOMAIN_DIR" "$LOCAL_SEG_GEN_ID"
+        exec_becktool "$LOCAL_NODE" "$MD_DIR" "$SOURCE_IMAGE" "$DEST_DOMAIN_DIR" "$LOCAL_SEG_GEN_ID"
         cmd_exit_status=$?
         # restart the execution of command if exit code is ESEGV error
         while [[ $cmd_exit_status == $ESEGV ]];
         do
             m0drlog "Restarting Becktool on local node"
-            becktool "$LOCAL_NODE" "$MD_DIR" "$SOURCE_IMAGE" "$DEST_DOMAIN_DIR" "$LOCAL_SEG_GEN_ID"
+            exec_becktool "$LOCAL_NODE" "$MD_DIR" "$SOURCE_IMAGE" "$DEST_DOMAIN_DIR" "$LOCAL_SEG_GEN_ID"
             cmd_exit_status=$?
         done
 
@@ -838,13 +892,13 @@ run_becktool() {
             DEST_DOMAIN_DIR="$MD_DIR/m0d-$REMOTE_IOS_FID"
 
             m0drlog "Running Becktool on remote node"
-            becktool "$REMOTE_NODE" "$MD_DIR" "$SOURCE_IMAGE" "$DEST_DOMAIN_DIR" "$REMOTE_SEG_GEN_ID"
+            exec_becktool "$REMOTE_NODE" "$MD_DIR" "$SOURCE_IMAGE" "$DEST_DOMAIN_DIR" "$REMOTE_SEG_GEN_ID"
             cmd_exit_status=$?
             # restart the execution of command if exit code is ESEGV error
             while [[ $cmd_exit_status == $ESEGV ]];
             do
                 m0drlog "Restarting Becktool on remote node"
-                becktool "$REMOTE_NODE" "$MD_DIR" "$SOURCE_IMAGE" "$DEST_DOMAIN_DIR" "$REMOTE_SEG_GEN_ID"
+                exec_becktool "$REMOTE_NODE" "$MD_DIR" "$SOURCE_IMAGE" "$DEST_DOMAIN_DIR" "$REMOTE_SEG_GEN_ID"
                 cmd_exit_status=$?
             done
 
@@ -856,13 +910,13 @@ run_becktool() {
             DEST_DOMAIN_DIR="$FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID"
 
             m0drlog "Running Becktool for remote node from local node"
-            becktool "$LOCAL_NODE" "$FAILOVER_MD_DIR" "$SOURCE_IMAGE" "$DEST_DOMAIN_DIR" "$REMOTE_SEG_GEN_ID"
+            exec_becktool "$LOCAL_NODE" "$FAILOVER_MD_DIR" "$SOURCE_IMAGE" "$DEST_DOMAIN_DIR" "$REMOTE_SEG_GEN_ID"
             cmd_exit_status=$?
             # restart the execution of command if exit code is ESEGV error
             while [[ $cmd_exit_status == $ESEGV ]];
             do
                 m0drlog "Restarting Becktool for remote node from local node"
-                becktool "$LOCAL_NODE" "$FAILOVER_MD_DIR" "$SOURCE_IMAGE" "$DEST_DOMAIN_DIR" "$REMOTE_SEG_GEN_ID"
+                exec_becktool "$LOCAL_NODE" "$FAILOVER_MD_DIR" "$SOURCE_IMAGE" "$DEST_DOMAIN_DIR" "$REMOTE_SEG_GEN_ID"
                 cmd_exit_status=$?
             done
 
@@ -923,45 +977,49 @@ run_becktool() {
 
     return $exec_status
 }
+
 #flush the any outstanding IO
 flush_io(){
 
     m0drlog "flush outstanding IO from buffers"
 
-    LV_SNAPSHOT=run_cmd "$LOCAL_NODE" "lvs -o path $LOCAL_MD_VOLUMEGROUP | grep $SNAPSHOT "
-    LV_MD_DEVICE=run_cmd "$LOCAL_NODE" "lvs -o path $LOCAL_MD_VOLUMEGROUP | grep $MD_DEVICE "
+    LV_SNAPSHOT=$(get_lvs_info "$LOCAL_NODE" "path" "$LOCAL_MD_VOLUMEGROUP" "$SNAPSHOT")
+    LV_MD_DEVICE=$(get_lvs_info "$LOCAL_NODE" "path" "$LOCAL_MD_VOLUMEGROUP" "$MD_DEVICE")
 
     run_cmd "$LOCAL_NODE"  "blockdev --flushbufs $LV_MD_DEVICE"
     run_cmd "$LOCAL_NODE"  "blockdev --flushbufs $LV_SNAPSHOT"
 
     if [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
 
-        LV_SNAPSHOT=run_cmd "$REMOTE_NODE" "lvs -o path $REMOTE_MD_VOLUMEGROUP | \
-                        grep $SNAPSHOT" )
-        LV_MD_DEVICE=run_cmd "$REMOTE_NODE" "lvs -o path $REMOTE_MD_VOLUMEGROUP | \
-                        grep $MD_DEVICE" )
+        LV_SNAPSHOT=$(get_lvs_info "$REMOTE_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$SNAPSHOT")
+        LV_MD_DEVICE=$(get_lvs_info "$REMOTE_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$MD_DEVICE")
         run_cmd "$REMOTE_NODE" "blockdev --flushbufs $LV_MD_DEVICE"
         run_cmd "$REMOTE_NODE" "blockdev --flushbufs $LV_SNAPSHOT"
     else
-        LV_SNAPSHOT=run_cmd "$LOCAL_NODE" "lvs -o path $REMOTE_MD_VOLUMEGROUP | \
-                        grep $SNAPSHOT" )
-        LV_MD_DEVICE=run_cmd "$LOCAL_NODE" "lvs -o path $REMOTE_MD_VOLUMEGROUP | \
-                        grep $MD_DEVICE" )
+        LV_SNAPSHOT=$(get_lvs_info "$LOCAL_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$SNAPSHOT")
+        LV_MD_DEVICE=$(get_lvs_info "$LOCAL_NODE" "path" "$REMOTE_MD_VOLUMEGROUP" "$MD_DEVICE")
         run_cmd "$LOCAL_NODE" "blockdev --flushbufs $LV_MD_DEVICE"
         run_cmd "$LOCAL_NODE" "blockdev --flushbufs $LV_SNAPSHOT"
     fi
 
     m0drlog "Wait 5 minutes to flush any outstanding IO"
-    sleep 5m
+    run_cmd "$LOCAL_NODE" "sleep 5m"
 }
 # ------------------------- script start --------------------------------
 
-is_user_root_user # check the script is running with root access
+is_user_root_user # Check the script is running with root access
 [[ $? -eq 0 ]] || { die "Please run script as a root user"; }
+
+is_current_setup_hw # Check if the script is executed on HW setup
 
 # Check for the files needed by prov-m0-reset script as argument
 [[ -f $CDF_FILENAME ]] || die "ERROR: File not found $CDF_FILENAME"
-[[ -f $HA_ARGS_FILENAME ]] || die "ERROR: File not found $HA_ARGS_FILENAME"
+if $IS_HW; then
+    [[ -f $HA_ARGS_FILENAME ]] || die "ERROR: File not found $HA_ARGS_FILENAME"
+fi
+
+# Identify local and remote nodes
+identify_nodes
 
 # First we try to get the current cluster configuration. After that we check
 # for the snapshot presence on both nodes.
@@ -977,20 +1035,20 @@ get_cluster_configuration
 
 # Execute becktool only in the script if option --beck-only is set.
 # Use --beck-only option only when snapshot is already present on the system.
-if $beck_only ; then
+if $beck_only; then
     m0drlog "Running only becktool in the recovery script"
     run_becktool
     exit $?
 fi
 
 # Only remove MD_Snapshot if present and create lv_main_swap again
-if $clean_snapshot ; then
+if $clean_snapshot; then
     m0drlog "Removing MD_Snapshot if present and create lv_main_swap again"
     remove_snapshot_all_nodes      # remove snapshot on both nodes
     remove_snapshot_status=$?
     [[ remove_snapshot_status -eq 0 ]] || { die "ERROR: Remove snapshot failed with code $remove_snapshot_status"; }
 
-    create_swap_all_nodes          # recreate swap on both nodes
+    create_swap_on_all_nodes          # recreate swap on both nodes
     create_swap_status=$?
     [[ create_swap_status -eq 0 ]] || { die "ERROR: Create swap failed with code $create_swap_status"; }
     exit 0
@@ -1004,11 +1062,11 @@ replay_logs_and_get_gen_id_of_seg0 $run_fsck_status   # replay logs on both node
 replay_logs_and_get_gen_id_of_seg0_status=$?
 [[ replay_logs_and_get_gen_id_of_seg0_status -eq 0 ]] || { m0drlog "ERROR: Replay logs failed with code $replay_logs_and_get_gen_id_of_seg0_status"; }
 
-remove_swap_all_nodes          # remove swap on both nodes
+remove_swap_on_all_nodes          # remove swap on both nodes
 remove_swap_status=$?
 [[ remove_swap_status -eq 0 ]] || { die "ERROR: Remove swap failed with code $remove_swap_status"; }
 
-create_snapshot_all_nodes      # create snapshot on both node
+create_snapshot_on_all_nodes      # create snapshot on both node
 create_snapshot_status=$?
 [[ create_snapshot_status -eq 0 ]] || { die "ERROR: Create snapshot failed with code $create_snapshot_status"; }
 
@@ -1024,7 +1082,7 @@ remove_snapshot_all_nodes      # remove snapshot on both nodes
 remove_snapshot_status=$?
 [[ remove_snapshot_status -eq 0 ]] || { die "ERROR: Remove snapshot failed with code $remove_snapshot_status"; }
 
-create_swap_all_nodes          # recreate swap on both nodes
+create_swap_on_all_nodes          # recreate swap on both nodes
 create_swap_status=$?
 [[ create_swap_status -eq 0 ]] || { die "ERROR: Create swap failed with code $create_swap_status"; }
 
