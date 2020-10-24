@@ -277,7 +277,7 @@ fi
 if [ $1 -eq 2 ] ; then
    echo "Upgrading %{_localstatedir}/motr group and permissions"
    find %{_localstatedir}/motr ! -group motr -exec chown :motr '{}' \; -exec chmod g+w,o-rwx '{}' \;
-   /usr/sbin/m0provision config
+   /usr/sbin/m0provision config > /var/log/motr-rpm-update.log
 fi
 
 %postun

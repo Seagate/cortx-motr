@@ -17,7 +17,7 @@
 # For any questions about this software or licensing,
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
-
+#set -x
 
 MOTR_CONF_FILE="/opt/seagate/cortx/motr/conf/motr.conf"
 ETC_SYSCONFIG_MOTR="/etc/sysconfig/motr"
@@ -165,7 +165,7 @@ do_m0provision_action()
     msg "Configuring host [`hostname -f`]"
 
     MD_DEVICE=$(lvs -o lv_path | grep "lv_raw_metadata" | head -1)
-    if [[ $? -eq 0 ]];then
+    if [[ $? -eq 0 && $MD_DEVICE != "" ]];then
         LVM_SIZE=$(lvs $MD_DEVICE  -o LV_SIZE \
               --noheadings --units b --nosuffix | xargs)
 
@@ -179,16 +179,19 @@ do_m0provision_action()
     fi
 
     SALT_OPT=$(salt-call --local grains.get virtual)
+    platform=$(get_platform)
+    echo "Server type is $platform"
 
     ANY_ERR=$(echo $SALT_OPT | grep -i ERROR | wc -l)
     if [ "$ANY_ERR" != "0" ]; then
-        err "Salt command failed."
+        msg "Salt command failed or not available."
         msg "[$SALT_OPT]"
-        die $ERR_CFG_SALT_FAILED
+        #die $ERR_CFG_SALT_FAILED
     fi
 
     CLUSTER_TYPE=$(echo $SALT_OPT | grep physical | wc -l)
-    if [ "$CLUSTER_TYPE" != "1" ]; then
+    echo $CLUSTER_TYPE
+    if [[ "$CLUSTER_TYPE" != "1" ]] && [[ $platform != "physical" ]]; then
         msg "CLUSTER_TYPE is [$CLUSTER_TYPE]. Config operation is not allowed."
         msg "Only physical clusters will be configured here. "
         msg "[$SALT_OPT]"

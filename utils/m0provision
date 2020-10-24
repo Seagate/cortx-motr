@@ -69,7 +69,7 @@ do_init()
 do_config()
 {
     msg "Update config"
-    /opt/seagate/cortx/motr/conf/motr_cfg.sh
+    /opt/seagate/cortx/motr/libexec/motr_cfg.sh
     RESULT=$?
     die $RESULT
 }
