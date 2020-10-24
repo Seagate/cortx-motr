@@ -79,7 +79,6 @@ func checkArg(arg *string, name string) {
 
 var verbose bool
 var threadsN int
-var pool     *C.struct_m0_fid
 
 // Init initialises mio module.
 // All the usual Motr's init stuff is done here.
@@ -93,7 +92,6 @@ func Init() {
     traceOn  := flag.Bool("trace", false, "generate m0trace.pid file")
     flag.BoolVar(&verbose, "v", false, "be more verbose")
     flag.IntVar(&threadsN, "threads", 1, "`number` of threads to use")
-    poolFid  := flag.String("pool", "", "pool `fid` to create object at")
 
     flag.Parse()
 
@@ -101,15 +99,6 @@ func Init() {
     checkArg(haxEP,   "hax endpoint (-hax)")
     checkArg(profile, "profile fid (-prof)")
     checkArg(procFid, "my process fid (-proc)")
-
-    if *poolFid != "" {
-        pool = new(C.struct_m0_fid)
-        id, err := ScanID(*poolFid)
-        if err != nil {
-            log.Panicf("invalid argument at -pool: %v", poolFid)
-        }
-        *pool = C.struct_m0_fid{id.u_hi, id.u_lo}
-    }
 
     if !*traceOn {
         C.m0_trace_set_mmapped_buffer(false)
@@ -242,16 +231,36 @@ func getOptimalUnitSz(sz uint64) (C.ulong, error) {
     return lid, nil
 }
 
+func anyPool(pools []string) (res *C.struct_m0_fid) {
+    for _, pool := range pools {
+        if pool == "" {
+            return nil // use default
+        }
+        id, err := ScanID(pool)
+        if err != nil {
+            log.Panicf("invalid pool: %v", pool)
+        }
+        res = new(C.struct_m0_fid)
+        *res = C.struct_m0_fid{id.u_hi, id.u_lo}
+        break
+    }
+    return res
+}
+
 // Create creates object. Estimated object size must be specified
 // so that the optimal object unit size and block size for the best
-// I/O performance on the object could be calculated.
-func (mio *Mio) Create(id string, sz uint64) error {
+// I/O performance on the object could be calculated. Optionally,
+// the pool fid can be provided, if the object to be created on a
+// non-default pool.
+func (mio *Mio) Create(id string, sz uint64, pools ...string) error {
     if mio.obj != nil {
         return errors.New("object is already opened")
     }
     if err := mio.objNew(id); err != nil {
         return err
     }
+    pool := anyPool(pools)
+
     lid, err := getOptimalUnitSz(sz)
     if err != nil {
         return fmt.Errorf("failed to figure out object unit size: %v", err)

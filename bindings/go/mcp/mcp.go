@@ -22,6 +22,7 @@ func usage() {
 
 var objSize uint64
 var bufSize int
+var pool    *string
 
 func init() {
     log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
@@ -29,6 +30,7 @@ func init() {
     flag.Usage = usage
     flag.IntVar(&bufSize, "bsz", 32, "I/O buffer `size` (in Mbytes)")
     flag.Uint64Var(&objSize, "osz", 0, "object `size` (in Kbytes)")
+    pool = flag.String("pool", "", "pool `fid` to create object at")
 }
 
 func main() {
@@ -71,7 +73,7 @@ func main() {
     var writer io.Writer
     if _, err := mio.ScanID(dst); err == nil {
         if err = mioW.Open(dst); err != nil {
-            if err = mioW.Create(dst, objSize); err != nil {
+            if err = mioW.Create(dst, objSize, *pool); err != nil {
                 log.Fatalf("failed to create object %v: %v", dst, err)
             }
         }
