@@ -145,24 +145,32 @@ main() {
     done
 
     # Collects live/compressed core generated in /var/crash
-    IN_DIR=${LIVE_CORE_DIR}
-    local label="backtraces_core $IN_DIR"
-    echo -n "$label... " >&2
-    section "[$label]" >>$REPORT
-    local t=$(date +%s)
-    backtraces_cores >>$REPORT
-    # Remove live-cores generated in LIVE_CORE_DIR
-    rm -rf $LIVE_CORE_DIR/core-live.*
-    echo "OK$(_time $t)" >&2
+    if [ -d $LIVE_CORE_DIR ]; then
+        IN_DIR=${LIVE_CORE_DIR}
+        local label="backtraces_core $IN_DIR"
+        echo -n "$label... " >&2
+        section "[$label]" >>$REPORT
+        local t=$(date +%s)
+        backtraces_cores >>$REPORT
+        # Remove live-cores generated in LIVE_CORE_DIR
+        rm -rf $LIVE_CORE_DIR/core-live.*
+        echo "OK$(_time $t)" >&2
+    else
+        warn "$LIVE_CORE_DIR: no such directory"
+    fi
 
     # Collects traces for beck run
-    IN_DIR=${RECOVERY_SCRIPT_DIR}
-    local label="m0traces $IN_DIR"
-    echo -n "$label... " >&2
-    section "[$label]" >>$REPORT
-    local t=$(date +%s)
-    m0traces >>$REPORT
-    echo "OK$(_time $t)" >&2
+    if [ -d $RECOVERY_SCRIPT_DIR ]; then
+        IN_DIR=${RECOVERY_SCRIPT_DIR}
+        local label="m0traces $IN_DIR"
+        echo -n "$label... " >&2
+        section "[$label]" >>$REPORT
+        local t=$(date +%s)
+        m0traces >>$REPORT
+        echo "OK$(_time $t)" >&2
+    else
+        warn "$RECOVERY_SCRIPT_DIR: no such directory"
+    fi
 
     popd >/dev/null
     tar --remove-files -cJf $OUT_DATA_DIR{.tar.xz,}
@@ -619,9 +627,11 @@ binaries() {
         fi
     done
     ## copy recovery scripts
-    outdir=$START_DIR/$OUT_CORES_DIR/scripts
-    mkdir -p $outdir
-    cp -pv ${RECOVERY_SCRIPT_DIR}/motr_data_recovery.sh $outdir
+    if [ -f ${RECOVERY_SCRIPT_DIR}/motr_data_recovery.sh ]; then
+        outdir=$START_DIR/$OUT_CORES_DIR/scripts
+        mkdir -p $outdir
+        cp -pv ${RECOVERY_SCRIPT_DIR}/motr_data_recovery.sh $outdir
+    fi
 }
 
 _get_jc_cursor() {
