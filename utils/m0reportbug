@@ -18,7 +18,7 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-#set -eu
+set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
@@ -742,11 +742,8 @@ addb-files() {
     for file_path in $(find ${IN_DIR}/m0d-*/addb-stobs/o  -name "100000000000000:2" 2>/dev/null); do
         if [ -f "$file_path" ]; then
             ios_fid=$(echo $file_path | cut -d '/' -f4 | cut -d '-' -f2)
-            res=$(hctl status | grep 'ioservice' | grep  $ios_fid  2>/dev/null)
-            if [ -n "$res" ]; then
-                 echo $file_path
+            [[ $(hctl status | grep 'ioservice' | grep  $ios_fid  2>/dev/null) ]] &&
                  cat $file_path | _xz > addb_files/$IN_DIR/m0d_addb__${ios_fid}.xz
-            fi
         fi
     done
 }
@@ -832,7 +829,7 @@ exit
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
 ### 2020-10-19 0.53    Added addb-files options to collect addb files from
-###                    both server and client
+###                    both server(ioservice) and client(s3server)
 ###
 ### 2020-10-05 0.52    Removed halon related things since we are not using
 ###                    it.Removed collection of kernel buffer because we lack
