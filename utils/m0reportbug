@@ -18,7 +18,7 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-set -eu
+#set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
@@ -26,7 +26,7 @@ export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 ### When modifying this script, please increment VERSION and add new
 ### entry to the 'History' section below.
 ### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-VERSION=0.52
+VERSION=0.53
 
 OUT_DATA_DIR=m0reportbug-data
 OUT_CORES_DIR=m0reportbug-cores
@@ -45,6 +45,7 @@ CORE_DIRS=("/var/crash/" "/var/log/crash/") # path from where m0reportbug will c
 RECOVERY_SCRIPT_DIR=/opt/seagate/cortx/motr/libexec    # dir containing recovery traces and scripts
 RECOVERY_LOG_DIR=/var/log/seagate/motr/datarecovery    # dir containing recovery log/logs
 LIVE_CORE_DIR=/var/log/seagate/motr
+ADDB_FILE_DUMP=/var/log/seagate/motr-addb-dump
 
 readonly START_DIR=$PWD
 
@@ -65,6 +66,7 @@ main() {
         ^m0traces
         ^addb # Should go after `m0traces' stage (m0addb2dump creates new
               # m0traces, which we don't want to collect).
+       ^addb-files
         systemd_journal
         sysrq_info
     )
@@ -93,6 +95,7 @@ main() {
 
         case $stage in
             addb) [ ${COLLECT_ADDB_P:-0} -eq 1 ] || continue;;
+            addb-files) [ ${COLLECT_ADDB_FILE_P:-0} -eq 1 ] || continue;;
             binaries) [ ${COLLECT_BINARIES_P:-0} -eq 1 ] || continue;;
         esac
 
@@ -724,6 +727,30 @@ addb() {
      done)
 }
 
+addb-files() {
+    echo "addb-files : $IN_DIR"
+    mkdir -p addb_files/$IN_DIR
+
+    for i in $(pgrep s3server) ; do
+        local file_path=$(ls ${IN_DIR}/s3server-*/addb_*/o/100000000000000\:2 2>/dev/null | grep $i)
+        if [ $? -eq 0 ] && [ -f "$file_path" ]; then
+            echo $file_path
+            cat $file_path | _xz > addb_files/$IN_DIR/s3_addb_${i}.xz;
+       fi
+    done
+
+    for file_path in $(find ${IN_DIR}/m0d-*/addb-stobs/o  -name "100000000000000:2" 2>/dev/null); do
+        if [ -f "$file_path" ]; then
+            ios_fid=$(echo $file_path | cut -d '/' -f4 | cut -d '-' -f2)
+            res=$(hctl status | grep 'ioservice' | grep  $ios_fid  2>/dev/null)
+            if [ -n "$res" ]; then
+                 echo $file_path
+                 cat $file_path | _xz > addb_files/$IN_DIR/m0d_addb__${ios_fid}.xz
+            fi
+        fi
+    done
+}
+
 systemd_journal() {
     local nr_boots=$(journalctl --list-boot | wc -l)
     if ((nr_boots > NR_BOOTS_MAX)); then
@@ -744,6 +771,7 @@ and their subdirectories.
 Options:
     -h, --help      Show this help and exit.
     --addb          Collect ADDB data.
+    --addb-files    Collect ADDB files from s3 and client
     -b, --binaries  Collect Motr binaries even if there are no core dumps.
     --nr-boots      How many boots to query systemd journal for\
  (default is $NR_BOOTS_MAX).
@@ -767,13 +795,14 @@ optparse() {
     ## command (e.g., invalid option) will result in program failure.
     ##
     local TEMP # do not assign value here
-    TEMP=$(getopt -o hpbV --long help,addb,binaries,nr-boots:,path,version \
+    TEMP=$(getopt -o hpbV --long help,addb,addb-files,binaries,nr-boots:,path,version \
                   -n "${0##*/}" -- "$@")
     eval set -- "$TEMP"
     while true; do
         case "$1" in
             -h|--help) usage; exit 0;;
             --addb) COLLECT_ADDB_P=1;;
+            --addb-files) COLLECT_ADDB_FILE_P=1;;
             -b|--binaries) COLLECT_BINARIES_P=1;;
             --nr-boots) NR_BOOTS_MAX=$2; shift;;
             -p|--path)
@@ -802,6 +831,9 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2020-10-19 0.53    Added addb-files options to collect addb files from
+###                    both server and client
+###
 ### 2020-10-05 0.52    Removed halon related things since we are not using
 ###                    it.Removed collection of kernel buffer because we lack
 ###                    of debugfs support.Removed collection of m0traces of
