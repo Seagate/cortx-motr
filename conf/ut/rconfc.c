@@ -247,6 +247,7 @@ static void test_start_failures(void)
 	m0_rconfc_fini(&rconfc);
 
 	m0_fi_enable_once("rconfc_read_lock_complete", "rlock_req_failed");
+	m0_fi_enable_once("_failure_ast_cb", "rlock_req_failed");
 	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
 			    NULL);
 	M0_UT_ASSERT(rc == 0);
