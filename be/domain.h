@@ -175,6 +175,9 @@ enum {
 
 M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
 					   const struct m0_be_domain_cfg *cfg);
+M0_INTERNAL void
+be_domain_log_cleanup(const char *stob_domain_location,
+		      struct m0_be_log_cfg *log_cfg, bool create);
 
 /*
  * Temporary solution until segment I/O is implemented using direct I/O.

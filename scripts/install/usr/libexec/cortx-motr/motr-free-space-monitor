@@ -133,7 +133,8 @@ def print_iem(usage_percentage):
     evt_id = iem_event_id
     msg = f"Cluster size {usage_percentage}"
     msg_b = msg.encode('utf-8')
-    libmotr.m0_motr_iem(ctypes.c_char_p(file_parm_b), function_parm, line_num,
+    libmotr.m0_time_init()
+    libmotr.m0_iem(ctypes.c_char_p(file_parm_b), function_parm, line_num,
                         sev_id, mod_id, evt_id, ctypes.c_char_p(msg_b))
 
 

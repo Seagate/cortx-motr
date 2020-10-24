@@ -661,6 +661,7 @@ static void test_cs_ut_rconfc_fatal(void)
 	/* Imitate issue with read lock acquisition. */
 	m0_fi_enable_once("cs_rconfc_fatal_cb", "ut_signal");
 	m0_fi_enable_once("rconfc_read_lock_complete", "rlock_req_failed");
+	m0_fi_enable_once("_failure_ast_cb", "rlock_req_failed");
 	cs_ut_write_lock_trigger(reqh);
 	sleep(1);
 	/* Make sure SIGUSR2 has been got. */
