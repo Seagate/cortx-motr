@@ -54,10 +54,11 @@ type slot struct {
     err error
 }
 
-// Mio implements Reader and Writer interfaces for Motr
+// Mio implements io.Reader / io.Writer interfaces for Motr.
 type Mio struct {
     objID   C.struct_m0_uint128
     obj    *C.struct_m0_obj
+    objSz   uint64
     objLid  uint
     off     uint64
     buf     []C.struct_m0_bufvec
@@ -76,18 +77,12 @@ func checkArg(arg *string, name string) {
     }
 }
 
-// ObjSize can be specified by user for reading.
-// Also, it is used when creating new object and the resulting
-// size can not be established (like when we read from stdin).
-// This size is used to calculate the optimal unit size of the
-// newly created object.
-var ObjSize uint64
-
 var verbose bool
 var threadsN int
 var pool     *C.struct_m0_fid
 
-// Init mio module. All the standard Motr init stuff is done here.
+// Init initialises mio module.
+// All the usual Motr's init stuff is done here.
 func Init() {
     // Mandatory
     localEP  := flag.String("ep", "", "my `endpoint` address")
@@ -97,13 +92,10 @@ func Init() {
     // Optional
     traceOn  := flag.Bool("trace", false, "generate m0trace.pid file")
     flag.BoolVar(&verbose, "v", false, "be more verbose")
-    flag.Uint64Var(&ObjSize, "osz", 0, "object `size` (in Kbytes)")
     flag.IntVar(&threadsN, "threads", 1, "`number` of threads to use")
     poolFid  := flag.String("pool", "", "pool `fid` to create object at")
 
     flag.Parse()
-
-    ObjSize *= 1024
 
     checkArg(localEP, "my endpoint (-ep)")
     checkArg(haxEP,   "hax endpoint (-hax)")
@@ -146,7 +138,7 @@ func Init() {
     }
 }
 
-// ScanID scans object id from string
+// ScanID scans object id from string.
 func ScanID(s string) (fid C.struct_m0_uint128, err error) {
     cs := C.CString(s)
     rc := C.m0_uint128_sscanf(cs, &fid)
@@ -166,7 +158,7 @@ func (mio *Mio) objNew(id string) (err error) {
     return nil
 }
 
-func (mio *Mio) finishOpen() {
+func (mio *Mio) finishOpen(sz uint64) {
     mio.buf = make([]C.struct_m0_bufvec, threadsN)
     mio.ext = make([]C.struct_m0_indexvec, threadsN)
     mio.attr = make([]C.struct_m0_bufvec, threadsN)
@@ -177,10 +169,14 @@ func (mio *Mio) finishOpen() {
     }
     mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
     mio.off = 0
+    mio.objSz = sz
 }
 
-// Open object
-func (mio *Mio) Open(id string) (err error) {
+// Open opens object for reading ant/or writing. The size
+// must be specified when openning object for reading. Otherwise,
+// nothing will be read. (Motr doesn't store objects metadata
+// along with the objects.)
+func (mio *Mio) Open(id string, anySz ...uint64) (err error) {
     if mio.obj != nil {
         return errors.New("object is already opened")
     }
@@ -196,12 +192,17 @@ func (mio *Mio) Open(id string) (err error) {
         return fmt.Errorf("failed to open object entity: %d", rc)
     }
 
-    mio.finishOpen()
+    sz := uint64(0)
+    for _, v := range anySz {
+        sz = v
+    }
+    mio.finishOpen(sz)
 
     return nil
 }
 
-// Close object
+// Close closes the object and releases all the resources that were
+// allocated while working with it.
 func (mio *Mio) Close() {
     if mio.obj == nil {
         return
@@ -241,7 +242,9 @@ func getOptimalUnitSz(sz uint64) (C.ulong, error) {
     return lid, nil
 }
 
-// Create object
+// Create creates object. Estimated object size must be specified
+// so that the optimal object unit size and block size for the best
+// I/O performance on the object could be calculated.
 func (mio *Mio) Create(id string, sz uint64) error {
     if mio.obj != nil {
         return errors.New("object is already opened")
@@ -272,7 +275,7 @@ func (mio *Mio) Create(id string, sz uint64) error {
     if rc != 0 {
         return fmt.Errorf("create op failed: %d", rc)
     }
-    mio.finishOpen()
+    mio.finishOpen(sz)
 
     return nil
 }
@@ -376,11 +379,11 @@ func (mio *Mio) doIO(i int, opcode uint32) {
 
 func getBW(n int, d time.Duration) (int, string) {
     bw := n / int(d.Milliseconds()) * 1000 / 1024 / 1024
-    if bw != 0 {
+    if bw > 9 {
         return bw, "Mbytes/sec"
     }
     bw = n / int(d.Milliseconds()) * 1000 / 1024
-    if bw != 0 {
+    if bw > 9 {
         return bw, "Kbytes/sec"
     }
     bw = n / int(d.Milliseconds()) * 1000
@@ -393,7 +396,7 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
     }
     left, off := len(p), 0
     bs, gs := mio.getOptimalBlockSz(left)
-    start, bsSaved := time.Now(), bs
+    start, offSaved, bsSaved := time.Now(), mio.off, bs
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
@@ -418,10 +421,10 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
 
     if verbose {
         elapsed := time.Now().Sub(start)
-        n := len(p) - left
-        bw, m := getBW(n, elapsed)
+        n := int(mio.off - offSaved)
+        bw, units := getBW(n, elapsed)
         log.Printf("W: off=%v len=%v bs=%v gs=%v speed=%v (%v)",
-		   mio.off - uint64(n), n, bsSaved, gs, bw, m)
+		   offSaved, n, bsSaved, gs, bw, units)
     }
 
     return off, err
@@ -432,15 +435,15 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         return 0, errors.New("object is not opened")
     }
     left, off := len(p), 0
-    if mio.off + uint64(left) > ObjSize {
-        left = int(ObjSize - mio.off)
+    if mio.off + uint64(left) > mio.objSz {
+        left = int(mio.objSz - mio.off)
         if left <= 0 {
             return 0, io.EOF
         }
     }
     bs, gs := mio.getOptimalBlockSz(left)
-    start, bsSaved := time.Now(), bs
-    for ; left > 0 && mio.off < ObjSize; left -= bs {
+    start, offSaved, bsSaved := time.Now(), mio.off, bs
+    for ; left > 0; left -= bs {
         if left < bs {
             bs = left
         }
@@ -465,10 +468,10 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
 
     if verbose {
         elapsed := time.Now().Sub(start)
-        n := len(p) - left
-        bw, m := getBW(n, elapsed)
+        n := int(mio.off - offSaved)
+        bw, units := getBW(n, elapsed)
         log.Printf("R: off=%v len=%v bs=%v gs=%v speed=%v (%v)",
-		   mio.off - uint64(n), n, bsSaved, gs, bw, m)
+		   offSaved, n, bsSaved, gs, bw, units)
     }
 
     return off, err

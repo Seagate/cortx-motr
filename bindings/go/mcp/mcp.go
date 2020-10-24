@@ -20,12 +20,15 @@ func usage() {
     flag.PrintDefaults()
 }
 
+var objSize uint64
 var bufSize int
 
 func init() {
+    log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+
     flag.Usage = usage
     flag.IntVar(&bufSize, "bsz", 32, "I/O buffer `size` (in Mbytes)")
-    log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+    flag.Uint64Var(&objSize, "osz", 0, "object `size` (in Kbytes)")
 }
 
 func main() {
@@ -34,6 +37,7 @@ func main() {
         usage()
         os.Exit(1)
     }
+    objSize *= 1024
 
     src, dst := flag.Arg(0), flag.Arg(1)
 
@@ -41,7 +45,7 @@ func main() {
 
     var reader io.Reader
     if _, err := mio.ScanID(src); err == nil {
-        if err = mioR.Open(src); err != nil {
+        if err = mioR.Open(src, objSize); err != nil {
             log.Fatalf("failed to open object %v: %v", src, err)
         }
         defer mioR.Close()
@@ -58,8 +62,8 @@ func main() {
         if err != nil {
             log.Fatalf("failed to get stat of file %v: %v", src, err)
         }
-        if mio.ObjSize == 0 {
-            mio.ObjSize = uint64(info.Size())
+        if objSize == 0 {
+            objSize = uint64(info.Size())
         }
         reader = file
     }
@@ -67,7 +71,7 @@ func main() {
     var writer io.Writer
     if _, err := mio.ScanID(dst); err == nil {
         if err = mioW.Open(dst); err != nil {
-            if err = mioW.Create(dst, mio.ObjSize); err != nil {
+            if err = mioW.Create(dst, objSize); err != nil {
                 log.Fatalf("failed to create object %v: %v", dst, err)
             }
         }
