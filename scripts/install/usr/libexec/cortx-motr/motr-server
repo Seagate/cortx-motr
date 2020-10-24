@@ -36,7 +36,6 @@ kernel_config=/etc/sysconfig/motr-kernel
 service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 
 # BE log resize
-NODE_NAME="/var/lib/hare/node-name"
 MD_DIR="/var/motr"
 M0BETOOL="m0betool"
 BE_REPLAY="be_recovery_run"
@@ -71,17 +70,17 @@ be_log_resize() {
 
    # Replay exist BE log
    if ! $($M0BETOOL $BE_REPLAY $MD_DIR/"$service_fid"/db); then
-      m0_log "m0d service $service_fid  log replay is failed in local node"
+      m0_log "m0d service $service_fid  log replay is failed"
       return 0
    fi
    m0_log "Completed log_replay"
 
    # Resizing BE log file size with new BE log size
    if ! $($M0BETOOL $BE_RESIZE $MD_DIR/"$service_fid"/db $new_be_log_size); then
-      m0_log "m0d service $service_fid log resize is failed in local node"
+      m0_log "m0d service $service_fid log resize is failed"
       return 0
    fi
-   m0_log "Completed log_resize"
+   m0_log "Completed log_resize with $new_be_log_size"
 }
 
 m0_server()
