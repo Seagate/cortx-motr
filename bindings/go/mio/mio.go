@@ -231,20 +231,20 @@ func getOptimalUnitSz(sz uint64) (C.ulong, error) {
     return lid, nil
 }
 
-func anyPool(pools []string) (res *C.struct_m0_fid) {
+func anyPool(pools []string) (res *C.struct_m0_fid, err error) {
     for _, pool := range pools {
         if pool == "" {
-            return nil // use default
+            return nil, nil // use default
         }
         id, err := ScanID(pool)
         if err != nil {
-            log.Panicf("invalid pool: %v", pool)
+            return nil, fmt.Errorf("invalid pool: %v", pool)
         }
         res = new(C.struct_m0_fid)
         *res = C.struct_m0_fid{id.u_hi, id.u_lo}
         break
     }
-    return res
+    return res, nil
 }
 
 // Create creates object. Estimated object size must be specified
@@ -259,7 +259,10 @@ func (mio *Mio) Create(id string, sz uint64, pools ...string) error {
     if err := mio.objNew(id); err != nil {
         return err
     }
-    pool := anyPool(pools)
+    pool, err := anyPool(pools)
+    if err != nil {
+        return err
+    }
 
     lid, err := getOptimalUnitSz(sz)
     if err != nil {
