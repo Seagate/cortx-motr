@@ -214,6 +214,7 @@ static void sync_fop_done(struct sync_fop_wrapper *sfw, int rc)
 {
 	struct m0_op_sync       *os;
 	struct sync_request     *sreq;
+	struct m0_fop           *fop;
 
 	M0_ENTRY();
 
@@ -223,6 +224,9 @@ static void sync_fop_done(struct sync_fop_wrapper *sfw, int rc)
 	m0_mutex_lock(&sreq->sr_fops_lock);
 	sreq->sr_nr_fops--;
 	spf_tlist_del(sfw);
+	fop = &sfw->sfw_fop;
+	m0_fop_put_lock(fop);
+
 	if (sreq->sr_nr_fops == 0) {
 		/* All fops for this SYNC request have been replied. */
 		sreq->sr_rc = sreq->sr_rc?:rc;
@@ -404,11 +408,11 @@ static const struct m0_rpc_item_ops sync_ri_ops = {
  * which is freed on the last m0_fop_put().
  */
 static
-int sync_request_fop_send(struct sync_request      *sreq,
-				 struct m0_reqh_service_txid     *stx,
-				 enum m0_fsync_mode               mode,
-				 bool                             set_ri_ops,
-				 struct sync_fop_wrapper **sfw_out)
+int sync_request_fop_send(struct sync_request         *sreq,
+			  struct m0_reqh_service_txid *stx,
+			  enum m0_fsync_mode           mode,
+			  bool                         set_ri_ops,
+			  struct sync_fop_wrapper    **sfw_out)
 {
 	int                             rc;
 	struct m0_fop                  *fop;
@@ -482,8 +486,8 @@ int sync_request_fop_send(struct sync_request      *sreq,
  * the FSYNC reply fops.
  */
 static int sync_request_launch(struct sync_request *sreq,
-				      enum m0_fsync_mode mode,
-				      bool wait_after_launch)
+			       enum m0_fsync_mode mode,
+			       bool wait_after_launch)
 {
 	int                             rc;
 	int                             saved_error = 0;
