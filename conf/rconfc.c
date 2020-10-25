@@ -1215,7 +1215,17 @@ static void _failure_ast_cb(struct m0_sm_group *grp M0_UNUSED,
 			    struct m0_sm_ast   *ast)
 {
 	struct m0_rconfc *rconfc = ast->sa_datum;
+	struct rlock_ctx *rlx    = rconfc->rc_rlock_ctx;
 
+	/*
+	 * RPC connection to RM may be lost, or there is no remote RM
+	 * service anymore to respond to read lock request, so need to
+	 * handle this to prevent read lock context from further
+	 * communication attempts
+	 */
+	M0_ASSERT(rlock_ctx_is_online(rlx));
+	if (!M0_FI_ENABLED("rlock_req_failed"))
+		rlock_ctx_creditor_unset(rlx);
 	rconfc_fail(rconfc, rconfc->rc_datum);
 }
 
@@ -2734,14 +2744,6 @@ static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 	rlx = rconfc->rc_rlock_ctx;
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Read lock request failed with rc = %d", rc);
-		/*
-		 * RPC connection to RM may be lost, or there is no remote RM
-		 * service anymore to respond to read lock request, so need to
-		 * handle this to prevent read lock context from further
-		 * communication attempts
-		 */
-		M0_ASSERT(rlock_ctx_is_online(rlx));
-		rlock_ctx_creditor_unset(rlx);
 	}
 
 	if (M0_FI_ENABLED("rlock_req_failed"))
