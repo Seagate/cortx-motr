@@ -190,7 +190,8 @@ if __name__ == '__main__':
         cluster_size = read_cluster_size()
         if not cluster_size:
             log.error("Could not read filesystem stats")
-            sys.exit(IEM_ERR_FILE)
+            time.sleep(30)
+            continue
 
         cluster_usage_percentage = cluster_size[USAGE_PERCENTAGE]
         if cluster_usage_percentage > iem_min_threshold:
