@@ -267,6 +267,7 @@ getent passwd motr >/dev/null || useradd --system --shell /sbin/nologin \
 %post -e
 /sbin/depmod -a
 systemctl daemon-reload
+/usr/sbin/m0provision config > /var/log/motr-rpm-conf-update.log
 
 if [ x%%{?no_trace_logs} != x ] ; then
     /bin/sed -i -r -e "s/(MOTR_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/motr
@@ -277,7 +278,6 @@ fi
 if [ $1 -eq 2 ] ; then
    echo "Upgrading %{_localstatedir}/motr group and permissions"
    find %{_localstatedir}/motr ! -group motr -exec chown :motr '{}' \; -exec chmod g+w,o-rwx '{}' \;
-   /usr/sbin/m0provision config > /var/log/motr-rpm-update.log
 fi
 
 %postun
