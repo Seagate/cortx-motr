@@ -92,7 +92,7 @@ my %cli_option;
 my @target_file_names;
 my $top_src_dir;
 my $src_prefix;
-my $licence_file = 'LICENCE';
+my $licence_file = 'scripts/licence_header';
 my $user_name;
 my $user_email;
 my $copyright_header;
@@ -107,16 +107,11 @@ sub build_copyright_header
     $copyright =~ s/^/ * /gxms;
     $copyright =~ s/\s+$//gxms;
 
-    my $dt = DateTime->now;
-    my $current_date = $dt->day . '-' . $dt->month_abbr . '-' . $dt->year;
-
     return <<"END_COPYRIGHT"
 /* -*- C -*- */
 /*
 $copyright
  *
- * Original author: $user_name <$user_email>
- * Original creation date: $current_date
  */
 END_COPYRIGHT
 }
