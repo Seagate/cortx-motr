@@ -44,6 +44,8 @@ FS_ERR_RETRY = 2
 FS_ERR_TIMEOUT = 3
 IEM_ERR_FILE = 4
 conf = {}
+max_retry_count = 10
+retry_counter = 0
 
 with open("/etc/sysconfig/motr-free-space-monitor") as f:
     for config in f.read().splitlines():
@@ -189,9 +191,14 @@ if __name__ == '__main__':
         wait_time = iem_alert_check_interval
         cluster_size = read_cluster_size()
         if not cluster_size:
-            log.error("Could not read filesystem stats")
-            time.sleep(30)
-            continue
+            if retry_counter < max_retry_count:
+                retry_counter += 1
+                log.error("Could not read filesystem stats, will retry after 30 seconds")
+                time.sleep(30)
+                continue
+            else:
+                log.error("Reached to max retry count, terminating process")
+                sys.exit(IEM_ERR_FILE)
 
         cluster_usage_percentage = cluster_size[USAGE_PERCENTAGE]
         if cluster_usage_percentage > iem_min_threshold:
