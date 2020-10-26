@@ -44,8 +44,6 @@ FS_ERR_RETRY = 2
 FS_ERR_TIMEOUT = 3
 IEM_ERR_FILE = 4
 conf = {}
-max_retry_count = 10
-retry_counter = 0
 
 with open("/etc/sysconfig/motr-free-space-monitor") as f:
     for config in f.read().splitlines():
@@ -109,19 +107,23 @@ def execute_command(command):
 
 
 def read_cluster_size():
-    capacity_info = execute_command(GET_STORAGE_DETAILS_CMD)
-    if not capacity_info:
-        return None
-    storage_detail = {}
-    storage_detail[SIZE] = capacity_info[TOTAL_SPACE]
-    storage_detail[USED] = (capacity_info[TOTAL_SPACE] -
-                            capacity_info[FREE_SPACE])
-    storage_detail[AVAILABLE] = capacity_info[FREE_SPACE]
-    if not capacity_info[TOTAL_SPACE]:
-        return None
-    storage_detail[USAGE_PERCENTAGE] = round(100 - (capacity_info[FREE_SPACE] /
-                                                    capacity_info[TOTAL_SPACE])
-                                             * 100, 2)
+    storage_detail = None
+    for count in range(0, iem_max_retry):
+        capacity_info = execute_command(GET_STORAGE_DETAILS_CMD)
+        if not capacity_info:
+            return None
+        storage_detail = {}
+        storage_detail[SIZE] = capacity_info[TOTAL_SPACE]
+        storage_detail[USED] = (capacity_info[TOTAL_SPACE] -
+                                capacity_info[FREE_SPACE])
+        storage_detail[AVAILABLE] = capacity_info[FREE_SPACE]
+        if not capacity_info[TOTAL_SPACE]:
+            time.sleep(iem_alert_check_interval)
+            storage_detail = None
+            continue
+        storage_detail[USAGE_PERCENTAGE] = round(100 - (capacity_info[FREE_SPACE] /
+                                                        capacity_info[TOTAL_SPACE])
+                                                 * 100, 2)
     return storage_detail
 
 
@@ -191,13 +193,7 @@ if __name__ == '__main__':
         wait_time = iem_alert_check_interval
         cluster_size = read_cluster_size()
         if not cluster_size:
-            if retry_counter < max_retry_count:
-                retry_counter += 1
-                log.error("Could not read filesystem stats, will retry after 30 seconds")
-                time.sleep(30)
-                continue
-            else:
-                log.error("Reached to max retry count, terminating process")
+                log.error("Could not read filesystem stats")
                 sys.exit(IEM_ERR_FILE)
 
         cluster_usage_percentage = cluster_size[USAGE_PERCENTAGE]
