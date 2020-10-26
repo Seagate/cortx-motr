@@ -43,6 +43,7 @@ import (
     "log"
     "errors"
     "io"
+    "reflect"
     "os"
     "time"
     "sync"
@@ -325,14 +326,14 @@ func (mio *Mio) getOptimalBlockSz(bufSz int) (bsz, gsz int) {
 }
 
 func pointer2slice(p unsafe.Pointer, n int) []byte {
-    // Slice memory layout
-    var slice = struct {
-        addr uintptr
-        len  int
-        cap  int
-    }{uintptr(p), n, n}
+    var res []byte
 
-    return *(*[]byte)(unsafe.Pointer(&slice))
+    slice := (*reflect.SliceHeader)(unsafe.Pointer(&res))
+    slice.Data = uintptr(p)
+    slice.Len = n
+    slice.Cap = n
+
+    return res
 }
 
 func (mio *Mio) prepareBuf(p []byte, i, bs, gs, off int,
