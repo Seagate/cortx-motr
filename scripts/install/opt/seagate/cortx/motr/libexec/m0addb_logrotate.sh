@@ -35,19 +35,6 @@ where:
         exit 1; 
 }
 
-get_platform() 
-{
-    plt=$(systemd-detect-virt)
- 
-    if [[ $plt = "none" ]]; then
-        plt="physical"
-    else
-        plt="virtual"
-    fi
-
-    echo "$plt"
-}
-
 check_param() 
 {
     PARAM=$1
@@ -61,9 +48,6 @@ check_param()
 
     echo $retval
 }
-
-platform=$(get_platform)
-echo "Server type is $platform"
 
 # max addb stob directories count in each log directory
 log_dirs_max_count=2
@@ -85,11 +69,7 @@ while getopts ":n:" option; do
     esac
 done
 
-if [[ $platform = "virtual" ]]; then
-    log_dirs_max_count=2
-else
-    log_dirs_max_count=`expr $log_dirs_max_count + 2`
-fi
+log_dirs_max_count=2
 
 echo "Max log dir count: $log_dirs_max_count"
 echo "ADDB Log directory: $motr_logdirs"
@@ -124,14 +104,8 @@ for motr_logdir in $motr_logdirs ; do
             # is older dirs comes first
             echo "LOG_DIR is $log_dir"
             
-            if [[ $platform = "physical" ]]; then
-                peserve_dirs=`expr $log_dirs_max_count - 2`
-                dirs_to_remove=`ls -tr "$log_dir" | grep addb-stobs- | \
-                                     head -n -$peserve_dirs | awk 'NR>2'`
-            else
-                dirs_to_remove=`ls -tr "$log_dir" | grep addb-stobs- | \
+            dirs_to_remove=`ls -tr "$log_dir" | grep addb-stobs- | \
                                      head -n $remove_dir_count`
-            fi
 
             for dir in $dirs_to_remove ; do
                 # remove only if dir not sym dir
