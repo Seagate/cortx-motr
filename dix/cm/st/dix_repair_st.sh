@@ -198,9 +198,11 @@ insert() {
 	local put="put \"${fid}\" @${keys_file} @${vals_file}"
 	local get="get \"${fid}\" @${keys_file}"
 	echo "Check existing records after repair and rebalance"
+	echo "XXXXXXXXXXXXXXXX" && read xxxxx
 	${MOTRTOOL} ${create} ${put}
 	rc=$?
 	[ $rc != 0 ] && return $rc
+	echo "YYYYYYYYYYYYYYY" && read yyyyy
 	device_fail
 	rc=$?
 	[ $rc != 0 ] && return $rc
@@ -596,7 +598,7 @@ main() {
 	[ $rc != 0 ] && return $rc
 	execute_tests
 	rc=$?
-	[ $rc != 0 ]
+	[ $rc != 0 ] && "echo test cases failed"
 	stop
 	if [ $rc -eq 0 ]; then
 		sandbox_fini

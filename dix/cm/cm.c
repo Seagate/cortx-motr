@@ -370,6 +370,7 @@ M0_INTERNAL int m0_dix_cm_start(struct m0_cm *cm)
 	struct m0_cm_aggr_group *ag   = NULL;
 	struct m0_reqh          *reqh = cm->cm_service.rs_reqh;
 	int                      rc;
+	M0_ENTRY();
 
 	M0_PRE(m0_cm_is_locked(cm));
 
@@ -564,6 +565,8 @@ M0_INTERNAL int m0_dix_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 			m0_chan_unlock(&iter->di_completed);
 			m0_dix_cm_iter_next(iter);
 			dcm->dcm_iter_inprogress = true;
+			M0_LOG(M0_DEBUG, "pump fom %p going to await iter %p",
+					 pfom, &iter->di_fom);
 		}
 		return M0_FSO_WAIT;
 	} else {
