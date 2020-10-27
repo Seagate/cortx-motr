@@ -324,9 +324,10 @@ main()
 		error_handling $? "Failed to copy object"
 	}
 	mkdir $MOTR_TRACE_DIR
-	P=8
+
 	N=1
 	K=0
+	P=8
 	test_with_N_K $N $K $P
 	if [ $rc -ne "0" ]
 	then
@@ -337,6 +338,7 @@ main()
 
 	N=1
 	K=2
+	P=8
 	test_with_N_K $N $K $P
 	rc=$?
 	if [ $rc -ne "0" ]
@@ -348,6 +350,7 @@ main()
 
 	N=4
 	K=2
+	P=8
 	test_with_N_K $N $K $P
 	rc=$?
 	echo $rc

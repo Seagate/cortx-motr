@@ -624,9 +624,8 @@ again:
 	m0_op_launch(ops, 1);
 
 	/* wait */
-	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
-					       M0_OS_STABLE),
-			       M0_TIME_NEVER);
+	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED, M0_OS_STABLE),
+			M0_TIME_NEVER);
 	op_rc = ops[0]->op_sm.sm_rc;
 
 	/* fini and release */

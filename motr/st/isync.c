@@ -297,7 +297,7 @@ static void isync_error_handling(void)
 				     nr_kvp, false, NULL, idx_to_sync);
 	ST_ASSERT_FATAL(rc == 0);
 
-	/* Lauch and wait on sync op. */
+	/* Launch and wait on sync op. */
 	rc = m0_sync_op_init(&sync_op);
 	M0_ASSERT(rc == 0);
 	rc = m0_sync_entity_add(sync_op, &idx_to_sync[0]->in_entity);
@@ -340,7 +340,7 @@ static void isync_by_sync_op(void)
 				     nr_kvp, false, NULL, idx_to_sync);
 	ST_ASSERT_FATAL(rc == 0);
 
-	/* Lauch and wait on sync op. */
+	/* Launch and wait on sync op. */
 	rc = m0_sync_op_init(&sync_op);
 	M0_ASSERT(rc == 0);
 	rc = m0_sync_entity_add(sync_op, &idx_to_sync[0]->in_entity);
@@ -384,7 +384,7 @@ static void isync_on_op(void)
 				     true, op_to_sync, idx_to_sync);
 	ST_ASSERT_FATAL(rc == 0);
 
-	/* Lauch and wait on sync op. */
+	/* Launch and wait on sync op. */
 	rc = m0_sync_op_init(&sync_op);
 	M0_ASSERT(rc == 0);
 	rc = m0_sync_op_add(sync_op, op_to_sync[0]);
@@ -399,7 +399,7 @@ static void isync_on_op(void)
 	st_op_free(sync_op);
 
 	/* Finalise the index. */
-	st_idx_fini(*idx_to_sync);
+	st_idx_fini(idx_to_sync[0]);
 }
 
 static void isync_on_idx_delete(void)
@@ -424,7 +424,7 @@ static void isync_on_idx_delete(void)
 	rc = idx_create_or_delete(IDX_DELETE, id, false, NULL, idx_to_sync);
 	ST_ASSERT_FATAL(rc == 0);
 
-	/* Lauch and wait on sync op. */
+	/* Launch and wait on sync op. */
 	rc = m0_sync_op_init(&sync_op);
 	M0_ASSERT(rc == 0);
 	rc = m0_sync_entity_add(sync_op, &idx_to_sync[0]->in_entity);
@@ -473,7 +473,7 @@ static void isync_on_kv_delete(void)
 				     true, op_to_sync, idx_to_sync);
 	ST_ASSERT_FATAL(rc == 0);
 
-	/* Lauch and wait on sync op. */
+	/* Launch and wait on sync op. */
 	rc = m0_sync_op_init(&sync_op);
 	M0_ASSERT(rc == 0);
 	rc = m0_sync_op_add(sync_op, op_to_sync[0]);
