@@ -331,6 +331,14 @@ struct m0_rpc_session {
 	uint64_t                  s_xid;
 
 	/**
+	 * List of all rpc items in the session that have xid and are going to
+	 * be sent.
+	 * Items in the list are in osr_xid increasing order.
+	 * @see m0_rpc_item:ri_xid_link, m0_rpc_item_xid_min_update(), xidl.
+	 */
+	struct m0_tl              s_xid_list;
+
+	/**
 	 * Replies to resend if needed.
 	 * This cache is protected with rpc machine lock.
 	 */
