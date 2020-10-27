@@ -73,10 +73,29 @@
 M0_TL_DESCR_DECLARE(ad_domains, M0_EXTERN);
 M0_TL_DECLARE(ad_domains, M0_EXTERN, struct ad_domain_map);
 
-struct queue;
+struct queue {
+	pthread_mutex_t q_lock;
+	pthread_cond_t  q_cond;
+	struct action  *q_head;
+	struct action  *q_tail;
+	uint64_t        q_nr;
+	uint64_t        q_max;
+};
 
 struct scanner {
 	FILE		    *s_file;
+	/**
+	 * It holds the BE segment offset of the bnode which is then used by
+	 * scanner thread to read bnode.
+	 */
+	off_t		     s_start_off;
+	/**
+	 * Queue to store bnode offset in the BE segment.
+	 */
+	struct queue	     s_bnode_q;
+	/** Scanner thread which processes the bnodes. */
+	struct m0_thread     s_thread;
+	struct m0_mutex      s_lock;
 	off_t		     s_off;
 	off_t		     s_pos;
 	bool		     s_byte;
@@ -145,10 +164,12 @@ struct gen {
 };
 
 enum action_opcode {
-	AO_INIT = 1,
-	AO_CTG,
-	AO_DONE,
-	AO_NR
+	AO_INIT       = 1,
+	AO_DONE       = 2,
+	AO_CTG        = 3,
+	AO_COB        = 4,
+	AO_EMAP_FIRST = 5,
+	AO_NR         = 30
 };
 
 struct action_ops;
@@ -160,6 +181,11 @@ struct action {
 	const struct action_ops *a_ops;
 	struct action           *a_next;
 	struct action           *a_prev;
+};
+
+struct bnode_act {
+	struct action bna_act;
+	off_t         bna_offset;
 };
 
 struct cob_action {
@@ -178,15 +204,6 @@ struct action_ops {
 	int  (*o_prep)(struct action *act, struct m0_be_tx_credit *cred);
 	void (*o_act) (struct action *act, struct m0_be_tx *tx);
 	void (*o_fini)(struct action *act);
-};
-
-struct queue {
-	pthread_mutex_t q_lock;
-	pthread_cond_t  q_cond;
-	struct action  *q_head;
-	struct action  *q_tail;
-	uint64_t        q_nr;
-	uint64_t        q_max;
 };
 
 enum { CACHE_SIZE = 1000000 };
@@ -320,8 +337,6 @@ static void test(void);
 static int cob_proc(struct scanner *s, struct btype *b,
 		    struct m0_be_bnode *node);
 
-static void *action_alloc(size_t len, enum action_opcode opc,
-			  const struct action_ops *ops);
 static int   emap_proc(struct scanner *s, struct btype *b,
 		       struct m0_be_bnode *node);
 static int   emap_prep(struct action *act, struct m0_be_tx_credit *cred);
@@ -331,6 +346,7 @@ static int   emap_kv_get(struct scanner *s, const struct be_btree_key_val *kv,
 		         struct m0_buf *key_buf, struct m0_buf *val_buf);
 static void  sig_handler(int num);
 
+static void scanner_thread(struct scanner *s);
 static const struct recops btreeops;
 static const struct recops bnodeops;
 static const struct recops seghdrops;
@@ -400,6 +416,7 @@ static struct btype bt[] = {
 
 enum {
 	MAX_GEN    	 =     256,
+	MAX_SCAN_QUEUED	 = 1000000,
 	MAX_QUEUED  	 = 1000000,
 	MAX_REC_SIZE     = 64*1024,
 	/**
@@ -407,7 +424,7 @@ enum {
 	 * mkfs run on local and remote node and the assumption that time
 	 * difference between nodes is negligible.
 	 */
-	MAX_GEN_DIFF_SEC = 30
+	MAX_GEN_DIFF_SEC =      30
 };
 
 /** It is used to recover meta data of component catalogue store. */
@@ -560,11 +577,16 @@ int main(int argc, char **argv)
 	 */
 	if (!dry_run) {
 		qinit(&q, MAX_QUEUED);
+		qinit(&s.s_bnode_q, MAX_SCAN_QUEUED);
 		s.s_q = b.b_q = &q;
 		result = builder_init(&b);
 		s.s_seg = b.b_seg;
 		m0_be_engine_tx_size_max(&b.b_dom->bd_engine, &max, NULL);
 		s.s_max_reg_size = max.tc_reg_size;
+		if (result != 0)
+			err(EX_CONFIG, "Cannot initialise builder.");
+		result = M0_THREAD_INIT(&s.s_thread, struct scanner *,
+					NULL, &scanner_thread, &s, "scannner");
 		if (result != 0)
 			err(EX_CONFIG, "Cannot initialise builder.");
 	}
@@ -580,9 +602,14 @@ int main(int argc, char **argv)
 		warn("Scan failed: %d.", result);
 
 	if (!dry_run) {
+		qput(&s.s_bnode_q, scanner_action(sizeof(struct action),
+						  AO_DONE, NULL));
 		qput(&q, builder_action(&b, sizeof(struct action), AO_DONE,
 					&done_ops));
 		builder_fini(&b);
+		m0_thread_join(&s.s_thread);
+		m0_thread_fini(&s.s_thread);
+		qfini(&s.s_bnode_q);
 		qfini(&q);
 	}
 	fini();
@@ -590,6 +617,25 @@ int main(int argc, char **argv)
 		close(sfd);
 	m0_fini();
 	return EX_OK;
+}
+
+static void scanner_thread(struct scanner *s)
+{
+	struct m0_be_bnode  node;
+	struct bnode_act   *ba;
+	struct btype       *b;
+	int                 rc;
+
+	do {
+		ba  = (struct bnode_act *)qget(&s->s_bnode_q);
+		if (ba->bna_act.a_opc != AO_DONE) {
+			rc = getat(s, ba->bna_offset, &node, sizeof node);
+			M0_ASSERT(rc == 0);
+			b = &bt[node.bt_backlink.bli_type];
+			b->b_proc(s, b, &node);
+			m0_free(ba);
+		}
+	} while (ba->bna_act.a_opc != AO_DONE);
 }
 
 static char iobuf[4*1024*1024];
@@ -685,7 +731,7 @@ static int scan(struct scanner *s)
 	time_t   lasttime = time(NULL);
 	off_t    lastoff  = s->s_off;
 
-	setvbuf(s->s_file, iobuf, _IOFBF, sizeof iobuf);
+	setvbuf(s->s_file, iobuf, _IONBF, sizeof iobuf);
 	while (!signaled && (result = get(s, &magic, sizeof magic)) == 0) {
 		if (magic == M0_FORMAT_HEADER_MAGIC) {
 			s->s_off -= sizeof magic;
@@ -904,6 +950,7 @@ static int getat(struct scanner *s, off_t off, void *buf, size_t nob)
 	int   result = 0;
 	FILE *f      = s->s_file;
 
+	m0_mutex_lock(&s->s_lock);
 	if (off != s->s_pos)
 		result = fseeko(f, off, SEEK_SET);
 	if (result != 0) {
@@ -926,6 +973,7 @@ static int getat(struct scanner *s, off_t off, void *buf, size_t nob)
 		FLOG(M0_FATAL, result, s);
 		s->s_pos = -1;
 	}
+	m0_mutex_unlock(&s->s_lock);
 	return M0_RC(result);
 }
 
@@ -949,6 +997,7 @@ static int deref(struct scanner *s, const void *addr, void *buf, size_t nob)
 static int get(struct scanner *s, void *buf, size_t nob)
 {
 	int result = 0;
+	s->s_start_off = s->s_off;
 	if (!(s->s_off >= s->s_chunk_pos &&
 	      s->s_off + nob < s->s_chunk_pos + sizeof s->s_chunk)) {
 		result = getat(s, s->s_off, s->s_chunk, sizeof s->s_chunk);
@@ -1014,6 +1063,7 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	int                 idx  = node->bt_backlink.bli_type;
 	struct btype       *b;
 	struct bstats      *c;
+	struct bnode_act   *ba;
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
 		idx = ARRAY_SIZE(bt) - 1;
@@ -1028,8 +1078,11 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	b = &bt[idx];
 	c = &b->b_stats;
 	c->c_node++;
-	if (!dry_run && b->b_proc != NULL)
-		b->b_proc(s, b, node);
+	if (!dry_run && b->b_proc != NULL) {
+		ba = scanner_action(sizeof *ba, AO_INIT, NULL);
+		ba->bna_offset = s->s_start_off;
+		qput(&s->s_bnode_q, &ba->bna_act);
+	}
 	c->c_kv += node->bt_num_active_key;
 	if (node->bt_isleaf) {
 		c->c_leaf++;
@@ -1051,9 +1104,10 @@ static int bnode_check(struct scanner *s, struct rectype *r, char *buf)
 }
 
 static struct m0_stob_ad_domain *emap_dom_find(const struct action *act,
-					       const struct m0_fid *emap_fid)
+					       const struct m0_fid *emap_fid,
+					       int  *lockid)
 {
-	struct m0_stob_ad_domain *adom;
+	struct m0_stob_ad_domain *adom = NULL;
 	int			  i;
 
 	for (i = 0; i < act->a_builder->b_ad_dom_count; i++) {
@@ -1063,6 +1117,7 @@ static struct m0_stob_ad_domain *emap_dom_find(const struct action *act,
 			break;
 		}
 	}
+	*lockid = i;
 	return (i == act->a_builder->b_ad_dom_count) ? NULL: adom;
 }
 
@@ -1072,30 +1127,39 @@ static const struct action_ops emap_ops = {
 	.o_fini = &emap_fini
 };
 
-static int emap_proc(struct scanner *s, struct btype *b,
+static int emap_proc(struct scanner *s, struct btype *btype,
 		     struct m0_be_bnode *node)
 {
-	struct emap_action   *emap_act;
-	int 		      i;
-	int 		      ret = 0;
+	struct m0_stob_ad_domain *adom = NULL;
+	struct emap_action       *ea;
+	int                       id;
+	int 		          i;
+	int 		          ret = 0;
 
 	for (i = 0; i < node->bt_num_active_key; i++) {
-		emap_act = action_alloc(sizeof *emap_act,
-					AO_INIT,
-					&emap_ops);
-		emap_act->emap_fid = node->bt_backlink.bli_fid;
-		emap_act->emap_key = M0_BUF_INIT_PTR(&emap_act->emap_key_data);
-		emap_act->emap_val = M0_BUF_INIT_PTR(&emap_act->emap_val_data);
+		ea = scanner_action(sizeof *ea, AO_EMAP_FIRST, &emap_ops);
+		ea->emap_fid = node->bt_backlink.bli_fid;
+		ea->emap_key = M0_BUF_INIT_PTR(&ea->emap_key_data);
+		ea->emap_val = M0_BUF_INIT_PTR(&ea->emap_val_data);
 
 		ret = emap_kv_get(s, &node->bt_kv_arr[i],
-				  &emap_act->emap_key, &emap_act->emap_val);
+				  &ea->emap_key, &ea->emap_val);
 		if (ret != 0) {
 			btree_bad_kv_count_update(node->bt_backlink.bli_type, 1);
-			m0_free(emap_act);
+			m0_free(ea);
 			continue;
 		}
 
-		qput(s->s_q, &emap_act->emap_act);
+	        ea->emap_act.a_builder = &b;
+		adom = emap_dom_find(&ea->emap_act, &ea->emap_fid, &id);
+		if (adom != NULL) {
+			ea->emap_act.a_opc += id;
+			qput(s->s_q, &ea->emap_act);
+		} else {
+			btree_bad_kv_count_update(node->bt_backlink.bli_type, 1);
+			m0_free(ea);
+			continue;
+		}
 	}
 	return ret;
 }
@@ -1123,8 +1187,9 @@ static int emap_prep(struct action *act, struct m0_be_tx_credit *credit)
 	struct m0_be_emap_key    *emap_key;
 	int 			  rc;
 	struct m0_be_emap_cursor  it = {};
+	int                       id;
 
-	adom = emap_dom_find(act, &emap_ac->emap_fid);
+	adom = emap_dom_find(act, &emap_ac->emap_fid, &id);
 	if (adom == NULL) {
 		M0_LOG(M0_ERROR, "Invalid FID for emap record found !!!");
 		m0_free(act);
@@ -1158,8 +1223,9 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 	struct m0_be_emap_rec    *emap_val;
 	struct m0_be_emap_cursor  it = {};
 	struct m0_ext             in_ext;
+	int                       id;
 
-	adom = emap_dom_find(act, &emap_ac->emap_fid);
+	adom = emap_dom_find(act, &emap_ac->emap_fid, &id);
 	emap_val = emap_ac->emap_val.b_addr;
 	if (emap_val->er_value != AET_HOLE) {
 		emap_key = emap_ac->emap_key.b_addr;
@@ -1244,19 +1310,6 @@ static int emap_kv_get(struct scanner *s, const struct be_btree_key_val *kv,
 		format_header_verify(val->b_addr,
 				     M0_FORMAT_TYPE_BE_EMAP_REC)   ?:
 		m0_format_footer_verify(val->b_addr, false);
-}
-
-static void *action_alloc(size_t len, enum action_opcode opc,
-			  const struct action_ops *ops)
-{
-	struct action     *act;
-	M0_PRE(len >= sizeof *act);
-
-	act = m0_alloc(len);
-	M0_ASSERT(act != NULL);
-	act->a_opc = opc;
-	act->a_ops = ops;
-	return act;
 }
 
 static int seghdr(struct scanner *s, struct rectype *r, char *buf)
@@ -2122,8 +2175,7 @@ static int cob_proc(struct scanner *s, struct btype *b,
 	M0_PRE(bb->bli_type == M0_BBT_COB_NAMESPACE);
 
 	for (i = 0; i < node->bt_num_active_key; i++) {
-
-		ca = scanner_action(sizeof *ca, AO_INIT, &cob_ops);
+		ca = scanner_action(sizeof *ca, AO_COB, &cob_ops);
 		ca->coa_fid = bb->bli_fid;
 
 		ca->coa_val = M0_BUF_INIT(sizeof(struct m0_cob_nsrec),
