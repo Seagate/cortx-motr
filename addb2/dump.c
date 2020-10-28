@@ -1170,11 +1170,11 @@ struct m0_addb2__id_intrp ids[] = {
 	{ M0_AVI_CLIENT_COB_REQ,      "cob-req-state", { &dec, &cob_req_state },
 	  { "cob_id", "cob_state" } },
 	{ M0_AVI_CLIENT_TO_COB_REQ,   "client-to-cob", { &dec, &dec },
-	  { "id", "cob_id" } },
+	  { "client_id", "cob_id" } },
 	{ M0_AVI_CLIENT_COB_REQ_TO_RPC, "cob-to-rpc",  { &dec, &dec },
 	  { "cob_id", "rpc_id" } },
 	{ M0_AVI_CLIENT_TO_IOO,       "client-to-ioo", { &dec, &dec },
-	  { "id", "ioo_id" } },
+	  { "client_id", "ioo_id" } },
 	{ M0_AVI_IOO_TO_RPC,   "ioo-to-rpc",    { &dec, &dec },
 	  { "ioo_id", "rpc_id" } },
 
