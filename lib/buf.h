@@ -104,6 +104,15 @@ M0_INTERNAL int m0_buf_cmp(const struct m0_buf *x, const struct m0_buf *y);
 M0_INTERNAL bool m0_buf_eq(const struct m0_buf *x, const struct m0_buf *y);
 
 /**
+ * Copies a buffer without allocation.
+ * Destination buffer must point to a valid memory location and it has to have
+ * the same size as the source buffer.
+ *
+ * @pre dst->b_nob == src->b_nob
+ */
+M0_INTERNAL void m0_buf_memcpy(struct m0_buf *dst, struct m0_buf *src);
+
+/**
  * Copies a buffer.
  *
  * User is responsible for m0_buf_free()ing `dest'.
