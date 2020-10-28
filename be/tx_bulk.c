@@ -394,6 +394,7 @@ static bool be_tx_bulk_open_cb(struct m0_clink *clink)
 			worker->tbw_rc = tx->t_sm.sm_rc;
 			M0_LOG(M0_ERROR, "tx=%p rc=%d", tx, worker->tbw_rc);
 			be_tx_bulk_queues_drain(tb);
+			/* the operation is not going to be executed */
 			worker->tbw_items_nr = 0;
 			/*
 			 * Can't call m0_be_tx_fini(tx) here because
@@ -425,7 +426,6 @@ static void be_tx_bulk_close_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		                                 tb_cfg->tbc_datum,
 		                                 worker->tbw_item[i].bbd_user));
 	}
-	worker->tbw_items_nr = 0;
 	m0_be_tx_close(&worker->tbw_tx);
 	M0_LEAVE("worker=%p", worker);
 }
@@ -433,10 +433,18 @@ static void be_tx_bulk_close_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 static void be_tx_bulk_gc_cb(struct m0_be_tx *tx, void *param)
 {
 	struct be_tx_bulk_worker *worker = param;
+	struct m0_be_tx_bulk     *tb;
+	uint64_t                  i;
 
 	M0_ENTRY("worker=%p", worker);
 	M0_PRE(tx == &worker->tbw_tx);
 
+	tb = worker->tbw_tb;
+	for (i = 0; i < worker->tbw_items_nr; ++i) {
+		tb->btb_cfg.tbc_done(tb, tb->btb_cfg.tbc_datum,
+		                     worker->tbw_item[i].bbd_user);
+	}
+	worker->tbw_items_nr = 0;
 	m0_sm_ast_post(worker->tbw_grp, &worker->tbw_queue_get);
 
 	M0_LEAVE("worker=%p", worker);

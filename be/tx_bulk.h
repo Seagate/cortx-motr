@@ -76,6 +76,10 @@ struct m0_be_tx_bulk_cfg {
 	                                 struct m0_be_op      *op,
 	                                 void                 *datum,
 	                                 void                 *user);
+	/** tx with this operation had become persistent */
+	void                   (*tbc_done)(struct m0_be_tx_bulk *tb,
+	                                   void                 *datum,
+	                                   void                 *user);
 };
 
 struct m0_be_tx_bulk {

@@ -172,6 +172,13 @@ static void be_ut_tx_bulk_usecase_do(struct m0_be_tx_bulk   *tb,
 	m0_be_op_done(op);
 }
 
+static void be_ut_tx_bulk_usecase_done(struct m0_be_tx_bulk   *tb,
+                                       void                   *datum,
+                                       void                   *user)
+{
+	/* XXX */
+}
+
 static void be_ut_tx_bulk_usecase_test_prepare(struct m0_be_ut_backend *ut_be,
                                                struct m0_be_ut_seg     *ut_seg,
                                                void                    *ptr)
@@ -198,6 +205,7 @@ void m0_be_ut_tx_bulk_usecase(void)
 		.tbc_partitions_nr         = 1,    /* XXX */
 		.tbc_work_items_per_tx_max = 3,
 		.tbc_do                    = &be_ut_tx_bulk_usecase_do,
+		.tbc_done                  = &be_ut_tx_bulk_usecase_done,
 	};
 	M0_ALLOC_PTR(bu);
 	M0_UT_ASSERT(bu != NULL);
@@ -327,6 +335,13 @@ static void be_ut_tx_bulk_state_do(struct m0_be_tx_bulk   *tb,
 	m0_be_op_done(op);
 }
 
+static void be_ut_tx_bulk_state_done(struct m0_be_tx_bulk   *tb,
+                                     void                   *datum,
+                                     void                   *user)
+{
+	/* XXX */
+}
+
 static void be_ut_tx_bulk_test_prepare(struct m0_be_ut_backend *ut_be,
                                        struct m0_be_ut_seg     *ut_seg,
                                        void                    *ptr)
@@ -366,6 +381,7 @@ static void be_ut_tx_bulk_state_test_run(struct be_ut_tx_bulk_state  *tbs,
 		.tbc_partitions_nr         = 1,    /* XXX */
 		.tbc_work_items_per_tx_max = 1,
 		.tbc_do                    = &be_ut_tx_bulk_state_do,
+		.tbc_done                  = &be_ut_tx_bulk_state_done,
 	};
 
 	tb_cfg.tbc_datum = tbs;

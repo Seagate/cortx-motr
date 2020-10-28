@@ -760,6 +760,13 @@ out:
 	m0_be_op_done(op);
 }
 
+static void balloc_group_write_done(struct m0_be_tx_bulk *tb,
+                                    void                 *datum,
+                                    void                 *user)
+{
+	M0_LOG(M0_DEBUG, "tb=%p datum=%p user=%p", tb, datum, user);
+}
+
 static void balloc_zone_init(struct m0_balloc_zone_param *zone, uint64_t type,
 			     m0_bcount_t start, m0_bcount_t size,
 			     m0_bcount_t freeblocks, m0_bcount_t fragments,
@@ -812,6 +819,7 @@ static int balloc_groups_write(struct m0_balloc *bal)
 		.tbc_dom                   = bal->cb_be_seg->bs_domain,
 		.tbc_datum                 = &bgs,
 		.tbc_do                    = &balloc_group_write_do,
+		.tbc_done                  = &balloc_group_write_done,
 	};
 
 	rc = m0_be_tx_bulk_init(&tb, &tb_cfg);
