@@ -26,7 +26,7 @@ export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 ### When modifying this script, please increment VERSION and add new
 ### entry to the 'History' section below.
 ### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-VERSION=0.52
+VERSION=0.53
 
 OUT_DATA_DIR=m0reportbug-data
 OUT_CORES_DIR=m0reportbug-cores
@@ -65,6 +65,7 @@ main() {
         ^m0traces
         ^addb # Should go after `m0traces' stage (m0addb2dump creates new
               # m0traces, which we don't want to collect).
+       ^addb-files
         systemd_journal
         sysrq_info
     )
@@ -93,6 +94,7 @@ main() {
 
         case $stage in
             addb) [ ${COLLECT_ADDB_P:-0} -eq 1 ] || continue;;
+            addb-files) [ ${SKIP_ADDB_FILE_P:-0} -eq 1 ] && continue;;
             binaries) [ ${COLLECT_BINARIES_P:-0} -eq 1 ] || continue;;
         esac
 
@@ -143,24 +145,32 @@ main() {
     done
 
     # Collects live/compressed core generated in /var/crash
-    IN_DIR=${LIVE_CORE_DIR}
-    local label="backtraces_core $IN_DIR"
-    echo -n "$label... " >&2
-    section "[$label]" >>$REPORT
-    local t=$(date +%s)
-    backtraces_cores >>$REPORT
-    # Remove live-cores generated in LIVE_CORE_DIR
-    rm -rf $LIVE_CORE_DIR/core-live.*
-    echo "OK$(_time $t)" >&2
+    if [ -d $LIVE_CORE_DIR ]; then
+        IN_DIR=${LIVE_CORE_DIR}
+        local label="backtraces_core $IN_DIR"
+        echo -n "$label... " >&2
+        section "[$label]" >>$REPORT
+        local t=$(date +%s)
+        backtraces_cores >>$REPORT
+        # Remove live-cores generated in LIVE_CORE_DIR
+        rm -rf $LIVE_CORE_DIR/core-live.*
+        echo "OK$(_time $t)" >&2
+    else
+        warn "$LIVE_CORE_DIR: no such directory"
+    fi
 
     # Collects traces for beck run
-    IN_DIR=${RECOVERY_SCRIPT_DIR}
-    local label="m0traces $IN_DIR"
-    echo -n "$label... " >&2
-    section "[$label]" >>$REPORT
-    local t=$(date +%s)
-    m0traces >>$REPORT
-    echo "OK$(_time $t)" >&2
+    if [ -d $RECOVERY_SCRIPT_DIR ]; then
+        IN_DIR=${RECOVERY_SCRIPT_DIR}
+        local label="m0traces $IN_DIR"
+        echo -n "$label... " >&2
+        section "[$label]" >>$REPORT
+        local t=$(date +%s)
+        m0traces >>$REPORT
+        echo "OK$(_time $t)" >&2
+    else
+        warn "$RECOVERY_SCRIPT_DIR: no such directory"
+    fi
 
     popd >/dev/null
     tar --remove-files -cJf $OUT_DATA_DIR{.tar.xz,}
@@ -617,9 +627,11 @@ binaries() {
         fi
     done
     ## copy recovery scripts
-    outdir=$START_DIR/$OUT_CORES_DIR/scripts
-    mkdir -p $outdir
-    cp -pv ${RECOVERY_SCRIPT_DIR}/motr_data_recovery.sh $outdir
+    if [ -f ${RECOVERY_SCRIPT_DIR}/motr_data_recovery.sh ]; then
+        outdir=$START_DIR/$OUT_CORES_DIR/scripts
+        mkdir -p $outdir
+        cp -pv ${RECOVERY_SCRIPT_DIR}/motr_data_recovery.sh $outdir
+    fi
 }
 
 _get_jc_cursor() {
@@ -724,6 +736,27 @@ addb() {
      done)
 }
 
+addb-files() {
+    echo "addb-files : $IN_DIR"
+    mkdir -p addb_files/$IN_DIR
+
+    for i in $(pgrep s3server) ; do
+        local file_path=$(ls ${IN_DIR}/s3server-*/addb_*/o/100000000000000\:2 2>/dev/null | grep $i)
+        if [ $? -eq 0 ] && [ -f "$file_path" ]; then
+            echo $file_path
+            cat $file_path | _xz > addb_files/$IN_DIR/s3_addb_${i}.xz;
+       fi
+    done
+
+    for file_path in $(find ${IN_DIR}/m0d-*/addb-stobs/o  -name "100000000000000:2" 2>/dev/null); do
+        if [ -f "$file_path" ]; then
+            ios_fid=$(echo $file_path | cut -d '/' -f4 | cut -d '-' -f2)
+            [[ $(hctl status | grep 'ioservice' | grep  $ios_fid  2>/dev/null) ]] &&
+                 cat $file_path | _xz > addb_files/$IN_DIR/m0d_addb__${ios_fid}.xz
+        fi
+    done
+}
+
 systemd_journal() {
     local nr_boots=$(journalctl --list-boot | wc -l)
     if ((nr_boots > NR_BOOTS_MAX)); then
@@ -742,13 +775,14 @@ Gather forensic data, needed to investigate Motr issues, from INPUT_DIR(s)
 and their subdirectories.
 
 Options:
-    -h, --help      Show this help and exit.
-    --addb          Collect ADDB data.
-    -b, --binaries  Collect Motr binaries even if there are no core dumps.
-    --nr-boots      How many boots to query systemd journal for\
+    -h, --help         Show this help and exit.
+    --addb             Collect ADDB data.
+    --skip-addb-files  skip collection of ADDB files
+    -b, --binaries     Collect Motr binaries even if there are no core dumps.
+    --nr-boots         How many boots to query systemd journal for\
  (default is $NR_BOOTS_MAX).
-    -p, --path      Show locations of Motr binaries: m0d, m0tr.ko, etc.
-    -V, --version   Show version number and exit.
+    -p, --path         Show locations of Motr binaries: m0d, m0tr.ko, etc.
+    -V, --version      Show version number and exit.
 
 If no explicit INPUT_DIR arguments are provided, the script will use
 $DEFAULT_INPUT_DIRS_GLOB glob pattern.
@@ -767,13 +801,14 @@ optparse() {
     ## command (e.g., invalid option) will result in program failure.
     ##
     local TEMP # do not assign value here
-    TEMP=$(getopt -o hpbV --long help,addb,binaries,nr-boots:,path,version \
+    TEMP=$(getopt -o hpbV --long help,addb,skip-addb-files,binaries,nr-boots:,path,version \
                   -n "${0##*/}" -- "$@")
     eval set -- "$TEMP"
     while true; do
         case "$1" in
             -h|--help) usage; exit 0;;
             --addb) COLLECT_ADDB_P=1;;
+            --skip-addb-files) SKIP_ADDB_FILE_P=1;;
             -b|--binaries) COLLECT_BINARIES_P=1;;
             --nr-boots) NR_BOOTS_MAX=$2; shift;;
             -p|--path)
@@ -802,6 +837,9 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2020-10-19 0.53    Added addb-files options to collect addb files from
+###                    both server(ioservice) and client(s3server)
+###
 ### 2020-10-05 0.52    Removed halon related things since we are not using
 ###                    it.Removed collection of kernel buffer because we lack
 ###                    of debugfs support.Removed collection of m0traces of
