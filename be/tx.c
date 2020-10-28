@@ -238,6 +238,7 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 {
 	enum m0_be_tx_state state;
 
+	M0_ENTRY("tx=%p", tx);
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_DONE, M0_BTS_FAILED)));
 	M0_PRE(tx->t_ref == 0);
 
