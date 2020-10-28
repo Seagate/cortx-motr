@@ -23,6 +23,8 @@
 # Default number of latest log files is 5
 # ./m0trace_logrotate.sh 5
 
+source "/opt/seagate/cortx/motr/common/cortx_util_funcs.sh"
+
 usage() { 
         echo "Usage: bash $(basename $0) [--help|-h]
                      [-n LogFileCount]
@@ -33,19 +35,6 @@ where:
               virtual  : Default count of log files is 2
 --help|-h     display this help and exit" 1>&2; 
         exit 1; 
-}
-
-get_platform() 
-{
-    plt=$(systemd-detect-virt)
- 
-    if [[ $plt = "none" ]]; then
-        plt="physical"
-    else
-        plt="virtual"
-    fi
-
-    echo "$plt"
 }
 
 check_param() 
