@@ -24,6 +24,9 @@
 /**
  * @addtogroup be
  *
+ * Further directions
+ *
+ * - make test_work_put() functions multithreaded to test MPMC queues;
  * @{
  */
 
@@ -37,10 +40,12 @@
 #include "lib/errno.h"          /* ENOENT */
 
 #include "be/ut/helper.h"       /* m0_be_ut_backend_init */
+#include "be/op.h"              /* m0_be_op */
 
 #include "ut/ut.h"              /* M0_UT_ASSERT */
 
 enum {
+	BE_UT_TX_BULK_Q_SIZE_MAX     = 0x100,
 	BE_UT_TX_BULK_SEG_SIZE       = 1UL << 26,
 	BE_UT_TX_BULK_TX_SIZE_MAX_BP = 2000,
 };
@@ -55,6 +60,10 @@ static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg    *tb_cfg,
 					(struct m0_be_ut_backend *ut_be,
 					 struct m0_be_ut_seg     *ut_seg,
 					 void                    *ptr),
+				   void                       (*test_work_put)
+				        (struct m0_be_tx_bulk *tb,
+                                         bool                  success,
+					 void                 *ptr),
 				   void                        *ptr,
 				   bool                         success)
 {
@@ -62,6 +71,7 @@ static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg    *tb_cfg,
 	struct m0_be_domain_cfg  cfg = {};
 	struct m0_be_tx_bulk    *tb;
 	struct m0_be_ut_seg     *ut_seg;
+	struct m0_be_op         *op;
 	int                      rc;
 
 	M0_ALLOC_PTR(ut_be);
@@ -94,8 +104,19 @@ static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg    *tb_cfg,
 
 	tb_cfg->tbc_dom = &ut_be->but_dom;
 	rc = m0_be_tx_bulk_init(tb, tb_cfg);
+
 	M0_UT_ASSERT(rc == 0);
-	M0_BE_OP_SYNC(op, m0_be_tx_bulk_run(tb, &op));
+	M0_ALLOC_PTR(op);
+	M0_UT_ASSERT(op != NULL);
+	m0_be_op_init(op);
+
+	m0_be_tx_bulk_run(tb, op);
+	test_work_put(tb, success, ptr);
+	m0_be_op_wait(op);
+
+	m0_be_op_fini(op);
+	m0_free(op);
+
 	rc = m0_be_tx_bulk_status(tb);
 	M0_UT_ASSERT(equi(rc == 0, success));
 	m0_be_tx_bulk_fini(tb);
@@ -117,36 +138,23 @@ struct be_ut_tx_bulk_usecase {
 	struct m0_be_seg *tbu_seg;
 	void             *tbu_pos;
 	void             *tbu_end;
-	struct m0_mutex   tbu_lock;
 };
 
-static void be_ut_tx_bulk_usecase_next(struct m0_be_tx_bulk  *tb,
-                                       struct m0_be_op       *op,
-                                       void                  *datum,
-                                       void                 **user)
+static void be_ut_tx_bulk_usecase_work_put(struct m0_be_tx_bulk *tb,
+                                           bool                  success,
+                                           void                 *ptr)
 {
-	struct be_ut_tx_bulk_usecase *bu = datum;
-	bool                          next_is_available;
+	struct be_ut_tx_bulk_usecase *bu = ptr;
 
-	m0_be_op_active(op);
-	m0_mutex_lock(&bu->tbu_lock);
-	next_is_available = bu->tbu_pos + sizeof(uint64_t) < bu->tbu_end;
-	if (next_is_available) {
-		*user = bu->tbu_pos;
+	M0_UT_ASSERT(success);
+	while (bu->tbu_pos + sizeof(uint64_t) < bu->tbu_end) {
+		M0_BE_OP_SYNC(op,
+			      m0_be_tx_bulk_put(tb, &op,
+			                        &M0_BE_TX_CREDIT_TYPE(uint64_t),
+			                        0, 0, bu->tbu_pos));
 		bu->tbu_pos += sizeof(uint64_t);
 	}
-	m0_be_op_rc_set(op, next_is_available ? 0 : -ENOENT);
-	m0_mutex_unlock(&bu->tbu_lock);
-	m0_be_op_done(op);
-}
-
-static void be_ut_tx_bulk_usecase_credit(struct m0_be_tx_bulk   *tb,
-                                         struct m0_be_tx_credit *accum,
-                                         m0_bcount_t            *accum_payload,
-                                         void                   *datum,
-                                         void                   *user)
-{
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(uint64_t));
+	m0_be_tx_bulk_end(tb);
 }
 
 static void be_ut_tx_bulk_usecase_do(struct m0_be_tx_bulk   *tb,
@@ -181,19 +189,23 @@ void m0_be_ut_tx_bulk_usecase(void)
 {
 	struct be_ut_tx_bulk_usecase *bu;
 	struct m0_be_tx_bulk_cfg      tb_cfg = {
-		.tbc_next   = &be_ut_tx_bulk_usecase_next,
-		.tbc_credit = &be_ut_tx_bulk_usecase_credit,
-		.tbc_do     = &be_ut_tx_bulk_usecase_do,
+		.tbc_q_cfg                 = {
+			.bqc_q_size_max       = BE_UT_TX_BULK_Q_SIZE_MAX,
+			.bqc_producers_nr_max = 1,
+			.bqc_consumers_nr_max = 0x100,  /* XXX */
+		},
+		.tbc_workers_nr            = 0x40, /* XXX */
+		.tbc_partitions_nr         = 1,    /* XXX */
+		.tbc_work_items_per_tx_max = 3,
+		.tbc_do                    = &be_ut_tx_bulk_usecase_do,
 	};
 	M0_ALLOC_PTR(bu);
 	M0_UT_ASSERT(bu != NULL);
 	tb_cfg.tbc_datum = bu;
-	m0_mutex_init(&bu->tbu_lock);
-
 	be_ut_tx_bulk_test_run(&tb_cfg, NULL,
-			       &be_ut_tx_bulk_usecase_test_prepare, bu, true);
-
-	m0_mutex_fini(&bu->tbu_lock);
+			       &be_ut_tx_bulk_usecase_test_prepare,
+			       &be_ut_tx_bulk_usecase_work_put,
+			       bu, true);
 	m0_free(bu);
 }
 
@@ -233,8 +245,6 @@ struct be_ut_tx_bulk_state {
 	struct m0_be_tx_credit   bbs_cred_max;
 	m0_bcount_t              bbs_payload_max;
 	struct m0_be_seg        *bbs_seg;
-	struct m0_mutex          bbs_lock;
-	uint64_t                 bbs_nr;
 	uint32_t                 bbs_buf_nr;
 	m0_bcount_t              bbs_buf_size;
 	void                   **bbs_buf;
@@ -264,37 +274,26 @@ static void be_ut_tx_bulk_state_calc(struct be_ut_tx_bulk_state *tbs,
 	*cred_payload += payload_v;
 }
 
-static void be_ut_tx_bulk_state_next(struct m0_be_tx_bulk  *tb,
-                                     struct m0_be_op       *op,
-                                     void                  *datum,
-                                     void                 **user)
+static void be_ut_tx_bulk_state_work_put(struct m0_be_tx_bulk *tb,
+                                         bool                  success,
+                                         void                 *ptr)
 {
-	struct be_ut_tx_bulk_state *tbs = datum;
-	bool                        next_is_available;
-
-	m0_be_op_active(op);
-	m0_mutex_lock(&tbs->bbs_lock);
-	next_is_available = tbs->bbs_nr < tbs->bbs_nr_max;
-	if (next_is_available)
-		*user = (void *)(tbs->bbs_nr++);
-	m0_be_op_rc_set(op, next_is_available ? 0 : -ENOENT);
-	m0_mutex_unlock(&tbs->bbs_lock);
-	m0_be_op_done(op);
-}
-
-static void be_ut_tx_bulk_state_credit(struct m0_be_tx_bulk   *tb,
-                                       struct m0_be_tx_credit *accum,
-                                       m0_bcount_t            *accum_payload,
-                                       void                   *datum,
-                                       void                   *user)
-{
-	struct be_ut_tx_bulk_state *tbs = datum;
+	struct be_ut_tx_bulk_state *tbs = ptr;
 	struct m0_be_tx_credit      cred;
 	m0_bcount_t                 cred_payload;
+	uint64_t                    i;
+	bool                        put_successful = true;
 
-	be_ut_tx_bulk_state_calc(tbs, true, &cred, &cred_payload);
-	m0_be_tx_credit_add(accum, &cred);
-	*accum_payload += cred_payload;
+	for (i = 0; i < tbs->bbs_nr_max; ++i) {
+		be_ut_tx_bulk_state_calc(tbs, true, &cred, &cred_payload);
+		M0_BE_OP_SYNC(op, put_successful =
+		              m0_be_tx_bulk_put(tb, &op, &cred, cred_payload, 0,
+		                                (void *)i));
+		if (!put_successful)
+			break;
+	}
+	M0_UT_ASSERT(equi(success, put_successful));
+	m0_be_tx_bulk_end(tb);
 }
 
 static void be_ut_tx_bulk_state_do(struct m0_be_tx_bulk   *tb,
@@ -357,24 +356,29 @@ static void be_ut_tx_bulk_state_test_run(struct be_ut_tx_bulk_state  *tbs,
 					 struct be_ut_tx_bulk_be_cfg *be_cfg,
                                          bool                         success)
 {
-	struct m0_be_tx_bulk_cfg    tb_cfg = {
-		.tbc_next   = &be_ut_tx_bulk_state_next,
-		.tbc_credit = &be_ut_tx_bulk_state_credit,
-		.tbc_do     = &be_ut_tx_bulk_state_do,
+	struct m0_be_tx_bulk_cfg tb_cfg = {
+		.tbc_q_cfg                 = {
+			.bqc_q_size_max       = BE_UT_TX_BULK_Q_SIZE_MAX,
+			.bqc_producers_nr_max = 1,
+			.bqc_consumers_nr_max = 0x100,  /* XXX */
+		},
+		.tbc_workers_nr            = 0x40, /* XXX */
+		.tbc_partitions_nr         = 1,    /* XXX */
+		.tbc_work_items_per_tx_max = 1,
+		.tbc_do                    = &be_ut_tx_bulk_state_do,
 	};
+
 	tb_cfg.tbc_datum = tbs;
-	m0_mutex_init(&tbs->bbs_lock);
-	tbs->bbs_nr       = 0;
 	tbs->bbs_buf_nr   = BE_UT_TX_BULK_BUF_NR;
 	tbs->bbs_buf_size = BE_UT_TX_BULK_BUF_SIZE;
 	M0_ALLOC_ARR(tbs->bbs_buf, tbs->bbs_buf_nr);
 	M0_UT_ASSERT(tbs->bbs_buf != NULL);
 
 	be_ut_tx_bulk_test_run(&tb_cfg, be_cfg, &be_ut_tx_bulk_test_prepare,
+	                       &be_ut_tx_bulk_state_work_put,
 			       tbs, success);
 
 	m0_free(tbs->bbs_buf);
-	m0_mutex_fini(&tbs->bbs_lock);
 }
 
 void m0_be_ut_tx_bulk_empty(void)
