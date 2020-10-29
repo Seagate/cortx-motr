@@ -156,7 +156,8 @@ struct btype { /* b-tree type */
 	enum m0_be_btree_type  b_type;
 	const char            *b_name;
 	int                  (*b_proc)(struct scanner *s, struct btype *b,
-				       struct m0_be_bnode *node);
+				       struct m0_be_bnode *node,
+				       off_t  node_offset);
 	struct bstats          b_stats;
 };
 
@@ -181,6 +182,7 @@ struct action {
 	enum action_opcode       a_opc;
 	struct builder          *a_builder;
 	const struct action_ops *a_ops;
+	off_t                    a_node_offset;
 	struct action           *a_next;
 	struct action           *a_prev;
 };
@@ -336,16 +338,16 @@ static struct action *qtry (struct queue *q);
 static struct action *qpeek(struct queue *q);
 
 static int  ctg_proc(struct scanner *s, struct btype *b,
-		    struct m0_be_bnode *node);
+		     struct m0_be_bnode *node, off_t node_offset);
 static int ctg_pver_fid_get(struct m0_fid *fid);
 
 static void test(void);
 
 static int cob_proc(struct scanner *s, struct btype *b,
-		    struct m0_be_bnode *node);
+		    struct m0_be_bnode *node, off_t node_offset);
 
 static int   emap_proc(struct scanner *s, struct btype *b,
-		       struct m0_be_bnode *node);
+		       struct m0_be_bnode *node, off_t node_offset);
 static int   emap_prep(struct action *act, struct m0_be_tx_credit *cred);
 static void  emap_act(struct action *act, struct m0_be_tx *tx);
 static void  emap_fini(struct action *act);
@@ -685,7 +687,7 @@ static void scanner_thread(struct scanner *s)
 			rc = getat(s, ba->bna_offset, &node, sizeof node);
 			M0_ASSERT(rc == 0);
 			b = &bt[node.bt_backlink.bli_type];
-			b->b_proc(s, b, &node);
+			b->b_proc(s, b, &node, ba->bna_offset);
 			m0_free(ba);
 		}
 	} while (ba->bna_act.a_opc != AO_DONE);
@@ -1189,7 +1191,7 @@ static const struct action_ops emap_ops = {
 };
 
 static int emap_proc(struct scanner *s, struct btype *btype,
-		     struct m0_be_bnode *node)
+		     struct m0_be_bnode *node, off_t node_offset)
 {
 	struct m0_stob_ad_domain *adom = NULL;
 	struct emap_action       *ea;
@@ -1211,7 +1213,8 @@ static int emap_proc(struct scanner *s, struct btype *btype,
 			continue;
 		}
 
-	        ea->emap_act.a_builder = &b;
+	        ea->emap_act.a_builder     = &b;
+	        ea->emap_act.a_node_offset = node_offset;
 		adom = emap_dom_find(&ea->emap_act, &ea->emap_fid, &id);
 		if (adom != NULL) {
 			ea->emap_act.a_opc += id;
@@ -1451,9 +1454,21 @@ static void builder_do(struct m0_be_tx_bulk   *tb,
 		b->b_act++;
 		act->a_ops->o_act(act, tx);
 		act->a_ops->o_fini(act);
-		m0_free(act);
 	}
 	m0_be_op_done(op);
+}
+
+static void builder_done(struct m0_be_tx_bulk   *tb,
+			 void                   *datum,
+			 void                   *user)
+{
+	struct action  *act;
+
+	act = user;
+	if (act != NULL) {
+		/* TODO save offset periodically */
+		m0_free(act);
+	}
 }
 
 static void builder_work_put(struct m0_be_tx_bulk *tb, struct builder *b)
@@ -1492,6 +1507,7 @@ static void builder_thread(struct builder *b)
 	tb_cfg.tbc_dom   =  b->b_dom;
 	tb_cfg.tbc_datum =  b;
 	tb_cfg.tbc_do    = &builder_do,
+	tb_cfg.tbc_done  = &builder_done,
 
 	rc = m0_be_tx_bulk_init(&tb, &tb_cfg);
 	if (rc == 0) {
@@ -2088,7 +2104,7 @@ static int ctg_btree_fid_get(struct m0_buf *kbuf, struct m0_fid *fid)
 }
 
 static int ctg_proc(struct scanner *s, struct btype *b,
-		    struct m0_be_bnode *node)
+		    struct m0_be_bnode *node, off_t node_offset)
 {
 	struct m0_be_bnode           n = {};
 	struct m0_be_btree_backlink *bl = &node->bt_backlink;
@@ -2161,6 +2177,7 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 		ca->cta_key = kl[i];
 		ca->cta_val = vl[i];
 		ca->cta_ismeta = ismeta;
+		ca->cta_act.a_node_offset = node_offset;
 		qput(s->s_q, (struct action *)ca);
 	}
 	return 0;
@@ -2450,7 +2467,7 @@ static int cob_kv_get(struct scanner *s, const struct be_btree_key_val  *kv,
  * @param node btree node.
  */
 static int cob_proc(struct scanner *s, struct btype *b,
-		    struct m0_be_bnode *node)
+		    struct m0_be_bnode *node, off_t node_offset)
 {
 	struct cob_action           *ca;
 	int                          i;
@@ -2462,7 +2479,8 @@ static int cob_proc(struct scanner *s, struct btype *b,
 	for (i = 0; i < node->bt_num_active_key; i++) {
 
 		ca = scanner_action(sizeof *ca, AO_COB, &cob_ops);
-		ca->coa_fid = bb->bli_fid;
+		ca->coa_fid               = bb->bli_fid;
+		ca->coa_act.a_node_offset = node_offset;
 
 		ca->coa_val = M0_BUF_INIT(sizeof(struct m0_cob_nsrec),
 					  ca->coa_valdata);
