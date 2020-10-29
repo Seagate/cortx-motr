@@ -754,9 +754,8 @@ addb-files() {
     for pid in `pgrep m0d`; do
         for file_path in $(find ${IN_DIR}/m0d-*/addb-stobs-$pid/o  -name "100000000000000:2" 2>/dev/null); do
             if [ -f "$file_path" ]; then
-                ios_fid=$(echo $file_path | cut -d '/' -f4 | cut -d '-' -f2)
-                [[ $(hctl status | grep 'ioservice' | grep  $ios_fid  2>/dev/null) ]] &&
-                     cat $file_path | _xz > addb_files/$IN_DIR/m0d_addb__${ios_fid}.xz
+                fid=$(echo $file_path | cut -d '/' -f4 | cut -d '-' -f2)
+                cat $file_path | _xz > addb_files/$IN_DIR/m0d_addb__${fid}.xz
             fi
         done
     done

@@ -86,7 +86,7 @@ for motr_logdir in $motr_logdirs ; do
     # iterate through all log directories of each m0d instance
     for log_dir in $log_dirs ; do
         # get the no. of stob dir count
-        addb_dirs=`find $log_dir -maxdepth 1 -type d -name "addb-stobs-*"`
+        addb_dirs=`find $log_dir -maxdepth 1 -type d -name "addb-stobs*"`
         addb_dirs_count=`echo "$addb_dirs" | grep -v "^$" | wc -l`
 
         echo "## found $addb_dirs_count dir(s) in log directory $log_dir ##"
@@ -104,7 +104,7 @@ for motr_logdir in $motr_logdirs ; do
             # is older dirs comes first
             echo "LOG_DIR is $log_dir"
             
-            dirs_to_remove=`ls -tr "$log_dir" | grep addb-stobs- | \
+            dirs_to_remove=`ls -tr "$log_dir" | grep addb-stobs | \
                                      head -n $remove_dir_count`
 
             for dir in $dirs_to_remove ; do
