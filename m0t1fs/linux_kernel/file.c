@@ -4680,6 +4680,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	ti->ti_dgvec     = NULL;
 	ti->ti_req_type  = TI_NONE;
 	M0_SET0(&ti->ti_cc_fop);
+	ti->ti_cc_fop_inited = false;
 	/*
 	 * Target object is usually in ONLINE state unless explicitly
 	 * told otherwise.
@@ -4746,6 +4747,16 @@ static void target_ioreq_fini(struct target_ioreq *ti)
 	m0_varr_fini(&ti->ti_pageattrs);
 	if (ti->ti_dgvec != NULL)
 		dgmode_rwvec_dealloc_fini(ti->ti_dgvec);
+
+	if (ti->ti_cc_fop_inited) {
+		struct m0_rpc_item *item = &ti->ti_cc_fop.crf_fop.f_item;
+		M0_LOG(M0_DEBUG, "item=%p %s osr_xid=%"PRIu64,
+				  item, m0_rpc_item_opname(item),
+				  item->ri_header.osr_xid);
+		ti->ti_cc_fop_inited = false;
+		m0_fop_put_lock(&ti->ti_cc_fop.crf_fop);
+	}
+
 	M0_LEAVE();
 }
 
@@ -6316,7 +6327,6 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		if (csb->csb_oostore && ti->ti_req_type == TI_COB_CREATE &&
 		    ioreq_sm_state(req) == IRS_WRITE_COMPLETE) {
 			target_ioreq_type_set(ti, TI_NONE);
-			m0_fop_put_lock(&ti->ti_cc_fop.crf_fop);
 			continue;
 		}
 		m0_tl_teardown(iofops, &ti->ti_iofops, irfop) {
@@ -6551,8 +6561,8 @@ static int target_cob_create_fop_prepare(struct target_ioreq *ti)
 		m0_fop_fini(fop);
 		goto out;
 	}
+	ti->ti_cc_fop_inited = true;
 	fop->f_item.ri_rmachine = m0_fop_session_machine(ti->ti_session);
-
 	fop->f_item.ri_session         = ti->ti_session;
 	fop->f_item.ri_ops             = &cc_item_ops;
 	fop->f_item.ri_nr_sent_max     = M0T1FS_RPC_MAX_RETRIES;

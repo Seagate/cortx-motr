@@ -761,6 +761,10 @@ struct target_ioreq {
 	struct m0_tl                   ti_iofops;
 	/** Fop when the ti_req_type == TI_COB_CREATE|TI_COB_TRUNCATE. */
 	struct cc_req_fop              ti_cc_fop;
+
+	/** flag to indicate if cc_fop is used */
+	bool                           ti_cc_fop_inited;
+
 	/** Resulting IO fops are sent on this rpc session. */
 	struct m0_rpc_session         *ti_session;
 
