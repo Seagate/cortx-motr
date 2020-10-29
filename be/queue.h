@@ -110,9 +110,9 @@ M0_INTERNAL void m0_be_queue_fini(struct m0_be_queue *bq);
 M0_INTERNAL void m0_be_queue_lock(struct m0_be_queue *bq);
 M0_INTERNAL void m0_be_queue_unlock(struct m0_be_queue *bq);
 
-M0_INTERNAL void m0_be_queue_put(struct m0_be_queue *bq,
-                                 struct m0_be_op    *op,
-                                 struct m0_buf      *data);
+M0_INTERNAL void m0_be_queue_put(struct m0_be_queue  *bq,
+                                 struct m0_be_op     *op,
+                                 const struct m0_buf *data);
 /* nothing is going to be added to the queue after this call */
 M0_INTERNAL void m0_be_queue_end(struct m0_be_queue *bq);
 M0_INTERNAL void m0_be_queue_get(struct m0_be_queue *bq,
