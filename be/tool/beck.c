@@ -332,8 +332,8 @@ static void  emap_fini(struct action *act);
 static int   emap_kv_get(struct scanner *s, const struct be_btree_key_val *kv,
 		         struct m0_buf *key_buf, struct m0_buf *val_buf);
 static void  sig_handler(int num);
-static int   override_be_cfg_def_from_yaml(const char              *yaml_file,
-					   struct m0_be_domain_cfg *cfg);
+static int   be_cfg_from_yaml_update(const char              *yaml_file,
+				     struct m0_be_domain_cfg *cfg);
 
 static const struct recops btreeops;
 static const struct recops bnodeops;
@@ -1507,8 +1507,8 @@ static int builder_init(struct builder *b)
 	m0_be_ut_backend_cfg_default(&ub->but_dom_cfg);
 	/* Check for any BE configuration overrides. */
 	if (b->b_be_config_file) {
-		result = override_be_cfg_def_from_yaml(b->b_be_config_file,
-						       &ub->but_dom_cfg);
+		result = be_cfg_from_yaml_update(b->b_be_config_file,
+					         &ub->but_dom_cfg);
 		if (result != 0)
 			return M0_ERR(result);
 	}
@@ -1595,81 +1595,98 @@ static void builder_fini(struct builder *b)
 	       b->b_act, b->b_tx);
 }
 
-static void override_be_cfg_defaults(struct m0_be_domain_cfg *cfg,
-			     	     const char              *str_key,
-			     	     const char              *str_value)
+static void be_cfg_update(struct m0_be_domain_cfg *cfg,
+			  const char              *str_key,
+			  const char              *str_value)
 {
 	uint64_t  value1_64;
 	uint64_t  value2_64;
+	uint64_t  value1_32;
 	char     *s1;
 	char     *s2;
 	bool      value_overridden = true;
 
-	if (m0_streq(str_key,"bec_tx_active_max"))
-		cfg->bc_engine.bec_tx_active_max = m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "bec_group_nr"))
-		cfg->bc_engine.bec_group_nr = m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "tgc_tx_nr_max"))
-		cfg->bc_engine.bec_group_cfg.tgc_tx_nr_max = m0_strtou64(str_value,
-									 0, 10);
-	else if (m0_streq(str_key, "tgc_size_max")) {
+	/** Cover variables accepting two comma-separated values. */
+	if (m0_streq(str_key, "tgc_size_max")  || 
+	    m0_streq(str_key, "bec_tx_size_max")) {
+
 		s1 = m0_strdup(str_value);
 		s2 = strchr(s1, ',');
 
 		*s2 = '\0';
 		s2++;
 
-		value1_64 = m0_strtou64(s1, 0, 10);
-		value2_64 = m0_strtou64(s2, 0, 10);
+		value1_64 = m0_strtou64(s1, NULL, 10);
+		value2_64 = m0_strtou64(s2, NULL, 10);
+
 		m0_free(s1);
 
-		cfg->bc_engine.bec_group_cfg.tgc_size_max = 
+		M0_ASSERT_INFO((value1_64 != ULLONG_MAX) &&
+				(value2_64 != ULLONG_MAX),
+				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+
+		if (m0_streq(str_key, "tgc_size_max")) {
+			cfg->bc_engine.bec_group_cfg.tgc_size_max = 
 					M0_BE_TX_CREDIT(value1_64, value2_64);
+		}
+		else {
+			cfg->bc_engine.bec_tx_size_max =
+					M0_BE_TX_CREDIT(value1_64, value2_64);
+		}
 	}
-	else if (m0_streq(str_key, "tgc_payload_max"))
-		cfg->bc_engine.bec_group_cfg.tgc_payload_max = 
-						m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "bec_tx_size_max")) {
-		s1 = m0_strdup(str_value);
-		s2 = strchr(s1, ',');
+	/** Cover variables accepting a single 32-bit value */
+	else if (m0_streq(str_key, "bpdc_seg_io_nr") ||
+		 m0_streq(str_key, "ldsc_items_max") ||
+		 m0_streq(str_key, "ldsc_items_threshold")) {
 
-		*s2 = '\0';
-		s2++;
+		value1_32 =m0_strtou32(str_value, NULL, 10);
 
-		value1_64 = m0_strtou64(s1, 0, 10);
-		value2_64 = m0_strtou64(s2, 0, 10);
-		m0_free(s1);
+		M0_ASSERT_INFO((value1_32 != ULONG_MAX),
+				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
 
-		cfg->bc_engine.bec_tx_size_max = M0_BE_TX_CREDIT(value1_64, 
-								 value2_64);
+		if (m0_streq(str_key, "bpdc_seg_io_nr")) {
+			cfg->bc_pd_cfg.bpdc_seg_io_nr = value1_32;
+		}
+		else if (m0_streq(str_key, "ldsc_items_max")) {
+			cfg->bc_log_discard_cfg.ldsc_items_max = value1_32;
+		}
+		else if (m0_streq(str_key, "ldsc_items_threshold")) {
+			cfg->bc_log_discard_cfg.ldsc_items_threshold =
+								value1_32;
+		}
 	}
-	else if (m0_streq(str_key, "bec_tx_payload_max"))
-		cfg->bc_engine.bec_tx_payload_max = m0_strtou64(str_value,
-								0, 10);
-	else if (m0_streq(str_key, "bec_group_freeze_timeout_min"))
-		cfg->bc_engine.bec_group_freeze_timeout_min = 
-						m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "bec_group_freeze_timeout_max"))
-		cfg->bc_engine.bec_group_freeze_timeout_max = 
-						m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "bec_group_freeze_timeout_limit"))
-		cfg->bc_engine.bec_group_freeze_timeout_limit = 
-						m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "lc_full_threshold"))
-		cfg->bc_log.lc_full_threshold = m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "bpdc_seg_io_nr"))
-		cfg->bc_pd_cfg.bpdc_seg_io_nr = m0_strtou32(str_value, 0, 10);
-	else if (m0_streq(str_key, "ldsc_items_max"))
-		cfg->bc_log_discard_cfg.ldsc_items_max = m0_strtou32(str_value,
-								     0, 10);
-	else if (m0_streq(str_key, "ldsc_items_threshold"))
-		cfg->bc_log_discard_cfg.ldsc_items_threshold = 
-						m0_strtou32(str_value, 0, 10);
-	else if (m0_streq(str_key, "ldsc_sync_timeout"))
-		cfg->bc_log_discard_cfg.ldsc_sync_timeout = 
-						m0_strtou64(str_value, 0, 10);
-	else
-		value_overridden = false;
+	/** These variables accept a single 64-bit value. */
+	else {
+		value1_64 = m0_strtou64(str_value, NULL, 10);
+
+		M0_ASSERT_INFO((value1_64 != ULLONG_MAX),
+				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+
+		if (m0_streq(str_key, "bec_tx_active_max"))
+			cfg->bc_engine.bec_tx_active_max = value1_64;
+		else if (m0_streq(str_key, "bec_group_nr"))
+			cfg->bc_engine.bec_group_nr = value1_64;
+		else if (m0_streq(str_key, "tgc_tx_nr_max"))
+			cfg->bc_engine.bec_group_cfg.tgc_tx_nr_max = value1_64;
+		else if (m0_streq(str_key, "tgc_payload_max"))
+			cfg->bc_engine.bec_group_cfg.tgc_payload_max = 
+								value1_64;
+		else if (m0_streq(str_key, "bec_tx_payload_max"))
+			cfg->bc_engine.bec_tx_payload_max = value1_64;
+		else if (m0_streq(str_key, "bec_group_freeze_timeout_min"))
+			cfg->bc_engine.bec_group_freeze_timeout_min = value1_64;
+		else if (m0_streq(str_key, "bec_group_freeze_timeout_max"))
+			cfg->bc_engine.bec_group_freeze_timeout_max = value1_64;
+		else if (m0_streq(str_key, "bec_group_freeze_timeout_limit"))
+			cfg->bc_engine.bec_group_freeze_timeout_limit =
+								value1_64;
+		else if (m0_streq(str_key, "lc_full_threshold"))
+			cfg->bc_log.lc_full_threshold = value1_64;
+		else if (m0_streq(str_key, "ldsc_sync_timeout"))
+			cfg->bc_log_discard_cfg.ldsc_sync_timeout = value1_64;
+		else
+			value_overridden = false;
+	}
 
 	if (value_overridden) {
 		printf("%s = %s\n", str_key, str_value);
@@ -1677,17 +1694,17 @@ static void override_be_cfg_defaults(struct m0_be_domain_cfg *cfg,
 	}
 }
 
-static int  override_be_cfg_def_from_yaml(const char *yaml_file,
-					  struct m0_be_domain_cfg *cfg)
+static int  be_cfg_from_yaml_update(const char              *yaml_file,
+				    struct m0_be_domain_cfg *cfg)
 {
 	FILE *fp;
 	yaml_parser_t parser;
 	yaml_token_t  token;
 	char         *scalar_value;
 	char          key[MAX_KEY_LEN];
-	char          value[MAX_KEY_LEN];
+	char          value[MAX_VALUE_LEN];
 	int           rc;
-	int           is_key = 0;
+	bool          is_key = false;
 	bool          key_received = false;
 	bool          value_received = false;
 
@@ -1696,6 +1713,7 @@ static int  override_be_cfg_def_from_yaml(const char *yaml_file,
 
 	if (!yaml_parser_initialize(&parser)) {
 		printf("Failed to initialize yaml parser.\n");
+		fclose(fp);
 		return -ENOMEM;
 	}
 
@@ -1708,24 +1726,25 @@ static int  override_be_cfg_def_from_yaml(const char *yaml_file,
 		yaml_parser_scan(&parser, &token);
 		switch (token.type) {
 			case YAML_KEY_TOKEN:
-				is_key = 1;
+				is_key = true;
 				break;
 			case YAML_VALUE_TOKEN:
-				is_key = 0;
+				is_key = false;
 				break;
 			case YAML_SCALAR_TOKEN:
 				scalar_value = (char *)token.data.scalar.value;
 				if (is_key) {
-					strcpy(key, scalar_value);
+					strncpy(key, scalar_value, sizeof(key));
+					key[sizeof(key) - 1] = '\0';
 					key_received = true;
 				} else {
-					strcpy(value, scalar_value);
+					strncpy(value, scalar_value, sizeof(value));
+					value[sizeof(value) - 1] = '\0';
 					value_received = true;
 				}
 
 				if (key_received && value_received) {
-					override_be_cfg_defaults(cfg, key, 
-								 value);
+					be_cfg_update(cfg, key, value);
 					key_received = false;
 					value_received = false;
 				}
