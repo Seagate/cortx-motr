@@ -839,6 +839,7 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 M0_INTERNAL int m0_cm_proxies_fini(struct m0_cm *cm)
 {
 	struct m0_cm_proxy *pxy;
+	int                 rc = 0;
 
 	M0_ENTRY();
 	M0_PRE(m0_cm_is_locked(cm));
@@ -847,15 +848,17 @@ M0_INTERNAL int m0_cm_proxies_fini(struct m0_cm *cm)
 		/* Check if proxy has completed. */
 		M0_LOG(M0_DEBUG, "pxy %p (to %s), is_done %d",
 				  pxy, pxy->px_endpoint, (int)pxy->px_is_done);
-		if (!m0_cm_proxy_is_done(pxy))
-			return M0_RC(-EAGAIN);
+		if (!m0_cm_proxy_is_done(pxy)) {
+			rc = M0_RC(-EAGAIN);
+			continue;
+		}
 		M0_LOG(M0_DEBUG, "Stop proxy. cm %p, pxy %p",cm,  pxy);
 		m0_cm_proxy_del(cm, pxy);
 		m0_cm_proxy_fini(pxy);
 		m0_free(pxy);
 	} m0_tl_endfor;
 
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)

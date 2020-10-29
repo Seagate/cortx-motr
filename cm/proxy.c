@@ -421,12 +421,15 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 				 &cm->cm_sw_last_updated_hi);
 	m0_cm_ag_out_interval(cm, &out_interval);
 	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %lu"
-			 " pending updates: %u posted: %u state=%u",
+			 " pending updates: %u posted: %u state=%u"
+			 " px_update_rc=%d px_send_final_update=%d",
 			 proxy->px_endpoint,
 			 cm->cm_aggr_grps_in_nr,
 			 proxy->px_updates_pending,
 			 (uint32_t)proxy->px_nr_updates_posted,
-			 proxy->px_status);
+			 proxy->px_status,
+			 proxy->px_update_rc,
+			 !!proxy->px_send_final_update);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
 	/*
@@ -443,10 +446,13 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	     cm->cm_quiesce))) {
 		if (proxy->px_update_rc == -ECANCELED ||
 		     (M0_IN(proxy->px_status, (M0_PX_FAILED, M0_PX_STOP)) &&
-		      !proxy->px_send_final_update))
+		      !proxy->px_send_final_update)) {
+			M0_LOG(M0_DEBUG, "No more updating");
 			proxy->px_updates_pending = 0;
-		else
+		} else {
+			M0_LOG(M0_DEBUG, "One more updating");
 			m0_cm_proxy_remote_update(proxy, &in_interval, &out_interval);
+		}
 	}
 
 	if (m0_cm_state_get(cm) == M0_CMS_READY &&
@@ -528,7 +534,8 @@ static void cm_proxy_sw_onwire_post(struct m0_cm_proxy *proxy,
 {
 	struct m0_rpc_item *item;
 
-	M0_ENTRY("fop: %p conn: %p", fop, conn);
+	M0_ENTRY("fop: %p conn: %p to pxy %p (%s)",
+			fop, conn, proxy, proxy->px_endpoint);
 	M0_PRE(fop != NULL && conn != NULL);
 
 	item              = m0_fop_to_rpc_item(fop);
@@ -567,7 +574,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	const char                   *ep;
 	int                           rc;
 
-	M0_ENTRY("proxy: %p", proxy);
+	M0_ENTRY("proxy: %p (%s)", proxy, proxy->px_endpoint);
 	M0_PRE(proxy != NULL);
 	cm = proxy->px_cm;
 	M0_PRE(m0_cm_is_locked(cm));

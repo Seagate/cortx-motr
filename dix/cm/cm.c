@@ -565,7 +565,8 @@ M0_INTERNAL int m0_dix_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 			m0_chan_unlock(&iter->di_completed);
 			m0_dix_cm_iter_next(iter);
 			dcm->dcm_iter_inprogress = true;
-			M0_LOG(M0_DEBUG, "pump fom %p going to await iter %p",
+			M0_LOG(M0_FATAL, "pump fom %p going to wait for "
+					 "iter fom %p",
 					 pfom, &iter->di_fom);
 		}
 		return M0_FSO_WAIT;

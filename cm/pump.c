@@ -54,27 +54,27 @@ enum cm_cp_pump_fom_phase {
 	 * packet FOM, during latter's finalisation, which sets the
 	 * m0_cm_cp_pump::p_fom phase to CPP_ALLOC and calls m0_fom_wakeup().
 	 */
-	CPP_ALLOC = M0_FOM_PHASE_INIT,
-	CPP_FINI  = M0_FOM_PHASE_FINISH,
+	CPP_ALLOC = M0_FOM_PHASE_INIT,   /* 0 */
+	CPP_FINI  = M0_FOM_PHASE_FINISH, /* 1 */
 	/**
 	 * Copy packets allocated in CPP_ALLOC phase are configured in this
 	 * phase.
 	 */
-	CPP_DATA_NEXT,
+	CPP_DATA_NEXT,                   /* 2 */
 	/**
 	 * m0_cm_cp_pump::p_fom is transitioned to CPP_COMPLETE phase, once
 	 * m0_cm_data_next() returns -ENODATA (i.e. there's no more data to
 	 * process for the iterator).
 	 */
-	CPP_COMPLETE,
-	CPP_STOP,
+	CPP_COMPLETE,                    /* 3 */
+	CPP_STOP,                        /* 4 */
 	/**
 	 * Copy machine is notified about the failure, and m0_cm_cp_pump::p_fom
 	 * remains in CPP_FAIL state. Once copy machine handles the failure
 	 * pump FOM is resumed, else stopped if the copy machine operation is to
 	 * be terminated.
 	 */
-	CPP_FAIL,
+	CPP_FAIL,                        /* 5 */
 	CPP_NR
 };
 

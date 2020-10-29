@@ -1045,7 +1045,9 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 	struct m0_be_tx       *tx;
 	int                    rc;
 
-	M0_ENTRY("fom %p, dix_cm %p, phase %d", fom, dix_cm, phase);
+	M0_ENTRY("fom %p, dix_cm %p, phase %d(%s)",
+		 fom, dix_cm, phase, m0_fom_phase_name(fom, phase));
+
 	switch (phase) {
 	case DIX_ITER_INIT:
 		dix_cm_iter_init(iter);
@@ -1389,6 +1391,12 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 	}
 	if (result < 0)
 		result = dix_cm_iter_failure(iter, result);
+
+	if (result == M0_FSO_WAIT) {
+		M0_LOG(M0_FATAL, "iter fom %p current state=%d(%s)",
+				 fom, m0_fom_phase(fom),
+				 m0_fom_phase_name(fom, m0_fom_phase(fom)));
+	}
 	return M0_RC(result);
 }
 

@@ -103,7 +103,7 @@ M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm,
 	else if (m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) &&
 		 cm->cm_sw_update.swu_is_complete &&
 		 !m0_cm_aggr_group_tlists_are_empty(cm))
-			sw_onwire->swo_cm_status = M0_PX_COMPLETE;
+			sw_onwire->swo_cm_status = M0_PX_COMPLETE; /*HHHH*/
 	else
 		sw_onwire->swo_cm_status = M0_PX_STOP;
 
@@ -152,8 +152,9 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 	m0_cm_ag_out_interval(cm, &out_interval);
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
 		pxy->px_send_final_update = cm->cm_done;
-		ID_LOG("proxy last updated",
-				&pxy->px_last_sw_onwire_sent.sw_hi);
+		M0_LOG(M0_DEBUG, "proxy %p (%s) last updated"M0_AG_F,
+				 pxy, pxy->px_endpoint,
+				 M0_AG_P(&pxy->px_last_sw_onwire_sent.sw_hi));
 		if ((start || pxy->px_send_final_update || cm->cm_quiesce ||
 		    cm->cm_abort ||
 		    !m0_cm_proxy_is_updated(pxy, &in_interval)) &&
