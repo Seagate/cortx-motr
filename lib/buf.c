@@ -81,7 +81,7 @@ M0_INTERNAL bool m0_buf_eq(const struct m0_buf *x, const struct m0_buf *y)
 		memcmp(x->b_addr, y->b_addr, x->b_nob) == 0;
 }
 
-M0_INTERNAL void m0_buf_memcpy(struct m0_buf *dst, struct m0_buf *src)
+M0_INTERNAL void m0_buf_memcpy(struct m0_buf *dst, const struct m0_buf *src)
 {
 	M0_PRE(dst->b_nob == src->b_nob);
 	M0_PRE(dst->b_addr != NULL);
