@@ -57,7 +57,7 @@ EOF
 do_post_install()
 {
     msg "TOBE implemented."
-    die $ERR_NOT_IMPLEMENTED
+    die 0
 }
 
 do_init()
