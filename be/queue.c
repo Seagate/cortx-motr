@@ -24,7 +24,6 @@
 /**
  * @addtogroup be
  *
- * TODO add consts for m0_buf
  * @{
  */
 
@@ -211,8 +210,8 @@ static bool be_queue_is_full(struct m0_be_queue *bq)
 	return be_queue_q_size(bq) >= bq->bq_cfg.bqc_q_size_max;
 }
 
-static struct be_queue_item *be_queue_q_put(struct m0_be_queue *bq,
-                                            struct m0_buf      *data)
+static struct be_queue_item *be_queue_q_put(struct m0_be_queue  *bq,
+                                            const struct m0_buf *data)
 {
 	struct be_queue_item *bqi;
 
@@ -331,9 +330,9 @@ static bool be_queue_op_get_is_waiting(struct m0_be_queue *bq)
 	return !bqop_tlist_is_empty(&bq->bq_op_get);
 }
 
-M0_INTERNAL void m0_be_queue_put(struct m0_be_queue *bq,
-                                 struct m0_be_op    *op,
-                                 struct m0_buf      *data)
+M0_INTERNAL void m0_be_queue_put(struct m0_be_queue  *bq,
+                                 struct m0_be_op     *op,
+                                 const struct m0_buf *data)
 {
 	struct be_queue_item *bqi;
 	bool                  was_full;
