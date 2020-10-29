@@ -1,5 +1,6 @@
 package mio
 
+// #cgo CFLAGS: -I/usr/include/motr
 // #cgo CFLAGS: -I../../.. -I../../../extra-libs/galois/include
 // #cgo CFLAGS: -DM0_EXTERN=extern -DM0_INTERNAL=
 // #cgo CFLAGS: -Wno-attributes
