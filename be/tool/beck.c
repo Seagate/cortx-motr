@@ -1697,7 +1697,7 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 static int  be_cfg_from_yaml_update(const char              *yaml_file,
 				    struct m0_be_domain_cfg *cfg)
 {
-	FILE *fp;
+	FILE         *fp;
 	yaml_parser_t parser;
 	yaml_token_t  token;
 	char         *scalar_value;
