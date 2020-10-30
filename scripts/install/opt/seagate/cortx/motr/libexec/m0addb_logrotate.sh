@@ -29,8 +29,7 @@ usage() {
 Retain recent modified directories of given count and remove older motr addb stob directories.
 where:
 -n            number of latest addb stob directories to retain 
-              Physical : Default count of addb stob directories are 2+2 first directories
-              virtual  : Default count of log dirs is 2
+              Default count of addb stob directories is 2
 --help|-h     display this help and exit" 1>&2; 
         exit 1; 
 }
