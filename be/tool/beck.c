@@ -281,6 +281,12 @@ struct emap_action {
 	struct m0_be_emap_rec   emap_val_data;  /**< emap val data */
 };
 
+struct offset_info {
+	off_t             *oi_offset;
+	uint64_t           oi_workers_nr;
+	struct m0_mutex    oi_lock;
+};
+
 static int  init(void);
 static void fini(void);
 static int  scan (struct scanner *s);
@@ -354,6 +360,10 @@ static void  emap_fini(struct action *act);
 static int   emap_kv_get(struct scanner *s, const struct be_btree_key_val *kv,
 		         struct m0_buf *key_buf, struct m0_buf *val_buf);
 static void  sig_handler(int num);
+static int   scan_offset_init(uint64_t workers_nr);
+static void  scan_offset_fini(void);
+static off_t scan_offset_get(void);
+static void  scan_offset_update(off_t offset, uint64_t worker_id);
 static int   override_be_cfg_def_from_yaml(const char               *yaml_file,
 					   struct m0_be_domain_cfg  *cfg,
 					   struct m0_be_tx_bulk_cfg *tb_cfg);
@@ -464,11 +474,14 @@ struct ctg_action {
 static struct scanner s;
 static struct builder b;
 static struct gen g[MAX_GEN] = {};
+static struct offset_info off_info;
 
 static bool  dry_run = false;
 static bool  disable_directio = false;
 static bool  signaled = false;
+static bool  resume_scan = false;
 
+static const char *offset_file = NULL;
 static struct m0_be_tx_bulk_cfg default_tb_cfg = (struct m0_be_tx_bulk_cfg){
 		.tbc_q_cfg = {
 			.bqc_q_size_max       = 1000,
@@ -527,6 +540,11 @@ int main(int argc, char **argv)
 		   M0_FLAGARG('U', "Run unit tests.", &ut),
 		   M0_FLAGARG('n', "Dry Run.", &dry_run),
 		   M0_FLAGARG('I', "Disable directio.", &disable_directio),
+		   M0_FLAGARG('R', "resume scan.", &resume_scan),
+		   M0_STRINGARG('r', "file to save scan offsets.",
+			LAMBDA(void, (const char *fname) {
+				offset_file = fname;
+			})),
 		   M0_FLAGARG('p', "Print Generation Identifier.",
 			      &print_gen_id),
 		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
@@ -626,6 +644,9 @@ int main(int argc, char **argv)
 		printf("Cannot find any segment header generation identifer");
 		return EX_DATAERR;
 	}
+
+	if (offset_file == NULL && !dry_run)
+		errx(EX_USAGE, "Specify file to save scan offsets (-r).");
 	/*
 	 * Skip builder related calls for dry run as we will not be building a
 	 * new segment.
@@ -644,6 +665,9 @@ int main(int argc, char **argv)
 					NULL, &scanner_thread, &s, "scannner");
 		if (result != 0)
 			err(EX_CONFIG, "Cannot initialise scanner thread.");
+		result = scan_offset_init(default_tb_cfg.tbc_workers_nr);
+		if (result != 0)
+			err(EX_CONFIG, "scan offset save/restore init failure");
 	}
 	result = scanner_init(&s);
 	if (result != 0)
@@ -666,6 +690,7 @@ int main(int argc, char **argv)
 		m0_thread_fini(&s.s_thread);
 		qfini(&s.s_bnode_q);
 		qfini(&q);
+		scan_offset_fini();
 	}
 	fini();
 	if (spath != NULL)
@@ -784,10 +809,16 @@ static int scan(struct scanner *s)
 	int      result;
 	int      i;
 	time_t   lasttime = time(NULL);
-	off_t    lastoff  = s->s_off;
+	off_t    lastoff;
 	uint64_t lastrecord = 0;
 	uint64_t lastdata = 0;
-
+	if (resume_scan && !dry_run) {
+		s->s_off = scan_offset_get();
+		M0_LOG(M0_DEBUG, "Resuming Scan from Offset = %li", s->s_off);
+		printf("Resuming Scan from Offset = %li file %s",
+		       s->s_off, offset_file);
+	}
+	lastoff  = s->s_off;
 	setvbuf(s->s_file, iobuf, _IONBF, sizeof iobuf);
 	while (!signaled && (result = get(s, &magic, sizeof magic)) == 0) {
 		if (magic == M0_FORMAT_HEADER_MAGIC) {
@@ -1439,6 +1470,77 @@ static void genadd(uint64_t gen)
 	}
 }
 
+static int scan_offset_init(uint64_t workers_nr)
+{
+	m0_mutex_lock(&off_info.oi_lock);
+	off_info.oi_workers_nr = workers_nr;
+	off_info.oi_offset = m0_alloc(sizeof(off_t) * workers_nr);
+	if (off_info.oi_offset == NULL) {
+		m0_mutex_unlock(&off_info.oi_lock);
+		return M0_ERR(-ENOMEM);
+	}
+	m0_mutex_unlock(&off_info.oi_lock);
+	return 0;
+}
+
+static void scan_offset_fini(void)
+{
+	m0_mutex_lock(&off_info.oi_lock);
+	m0_free(off_info.oi_offset);
+	m0_mutex_unlock(&off_info.oi_lock);
+}
+
+static off_t scan_offset_get(void)
+{
+	FILE    *ofptr;
+	int      ret;
+	off_t    offset = 0;
+	uint64_t i;
+
+	m0_mutex_lock(&off_info.oi_lock);
+	ofptr = fopen(offset_file, "r");
+	if (ofptr == NULL) {
+		m0_mutex_unlock(&off_info.oi_lock);
+		return 0;
+	}
+	ret = fread(off_info.oi_offset, sizeof(off_t),
+		    off_info.oi_workers_nr, ofptr);
+	if (ret > 0) {
+		fclose(ofptr);
+		offset = off_info.oi_offset[0];
+		for (i = 1; i < off_info.oi_workers_nr; ++i) {
+			if (offset > off_info.oi_offset[i])
+				offset = off_info.oi_offset[i];
+		}
+		m0_mutex_unlock(&off_info.oi_lock);
+	} else {
+		fclose(ofptr);
+		m0_mutex_unlock(&off_info.oi_lock);
+		return 0;
+	}
+	return offset;
+}
+
+static void scan_offset_update(off_t offset, uint64_t worker_id)
+{
+	FILE   *ofptr;
+	struct  offset_info off_info;
+
+	m0_mutex_lock(&off_info.oi_lock);
+	ofptr = fopen(offset_file, "w+");
+	if (ofptr == NULL) {
+		printf("Cannot open seek_offset file :%s\n", offset_file);
+		m0_mutex_unlock(&off_info.oi_lock);
+		return;
+	}
+	off_info.oi_offset[worker_id] = offset;
+	fwrite(&off_info.oi_offset, sizeof(off_t),
+	       off_info.oi_workers_nr, ofptr);
+	fclose(ofptr);
+	m0_mutex_unlock(&off_info.oi_lock);
+	return;
+}
+
 static void builder_do(struct m0_be_tx_bulk   *tb,
 		       struct m0_be_tx        *tx,
 		       struct m0_be_op        *op,
@@ -1466,7 +1568,8 @@ static void builder_done(struct m0_be_tx_bulk   *tb,
 
 	act = user;
 	if (act != NULL) {
-		/* TODO save offset periodically */
+		/* TODO save offset periodically, get worker ID */
+		scan_offset_update(act->a_node_offset, 0);
 		m0_free(act);
 	}
 }
