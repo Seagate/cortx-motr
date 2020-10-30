@@ -75,11 +75,15 @@ struct m0_be_tx_bulk_cfg {
 	                                 struct m0_be_tx      *tx,
 	                                 struct m0_be_op      *op,
 	                                 void                 *datum,
-	                                 void                 *user);
+	                                 void                 *user,
+	                                 uint64_t              worker_index,
+	                                 uint64_t              partition);
 	/** tx with this operation had become persistent */
 	void                   (*tbc_done)(struct m0_be_tx_bulk *tb,
 	                                   void                 *datum,
-	                                   void                 *user);
+	                                   void                 *user,
+	                                   uint64_t              worker_index,
+	                                   uint64_t              partition);
 };
 
 struct m0_be_tx_bulk {

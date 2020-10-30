@@ -65,6 +65,7 @@ struct be_tx_bulk_item {
 	(btbi)->bbd_payload_size
 
 struct be_tx_bulk_worker {
+	uint64_t                tbw_index;
 	struct m0_be_tx         tbw_tx;
 	struct m0_be_tx_bulk   *tbw_tb;
 	struct be_tx_bulk_item *tbw_item;
@@ -149,6 +150,7 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 		 */
 		worker_locality  = worker_partition % localities_nr;
 		*worker = (struct be_tx_bulk_worker){
+			.tbw_index                = i,
 			.tbw_tb                   = tb,
 			.tbw_items_nr             = 0,
 			.tbw_queue_get_successful = false,
@@ -424,7 +426,9 @@ static void be_tx_bulk_close_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	for (i = 0; i < worker->tbw_items_nr; ++i) {
 		M0_BE_OP_SYNC(op, tb_cfg->tbc_do(tb, &worker->tbw_tx, &op,
 		                                 tb_cfg->tbc_datum,
-		                                 worker->tbw_item[i].bbd_user));
+		                                 worker->tbw_item[i].bbd_user,
+		                                 worker->tbw_index,
+		                                 worker->tbw_partition));
 	}
 	m0_be_tx_close(&worker->tbw_tx);
 	M0_LEAVE("worker=%p", worker);
@@ -442,7 +446,8 @@ static void be_tx_bulk_gc_cb(struct m0_be_tx *tx, void *param)
 	tb = worker->tbw_tb;
 	for (i = 0; i < worker->tbw_items_nr; ++i) {
 		tb->btb_cfg.tbc_done(tb, tb->btb_cfg.tbc_datum,
-		                     worker->tbw_item[i].bbd_user);
+		                     worker->tbw_item[i].bbd_user,
+		                     worker->tbw_index, worker->tbw_partition);
 	}
 	worker->tbw_items_nr = 0;
 	m0_sm_ast_post(worker->tbw_grp, &worker->tbw_queue_get);

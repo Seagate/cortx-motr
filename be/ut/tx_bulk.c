@@ -157,11 +157,13 @@ static void be_ut_tx_bulk_usecase_work_put(struct m0_be_tx_bulk *tb,
 	m0_be_tx_bulk_end(tb);
 }
 
-static void be_ut_tx_bulk_usecase_do(struct m0_be_tx_bulk   *tb,
-                                     struct m0_be_tx        *tx,
-                                     struct m0_be_op        *op,
-                                     void                   *datum,
-                                     void                   *user)
+static void be_ut_tx_bulk_usecase_do(struct m0_be_tx_bulk *tb,
+                                     struct m0_be_tx      *tx,
+                                     struct m0_be_op      *op,
+                                     void                 *datum,
+                                     void                 *user,
+                                     uint64_t              worker_index,
+                                     uint64_t              partition)
 {
 	struct be_ut_tx_bulk_usecase *bu = datum;
 	uint64_t                     *value = user;
@@ -172,9 +174,11 @@ static void be_ut_tx_bulk_usecase_do(struct m0_be_tx_bulk   *tb,
 	m0_be_op_done(op);
 }
 
-static void be_ut_tx_bulk_usecase_done(struct m0_be_tx_bulk   *tb,
-                                       void                   *datum,
-                                       void                   *user)
+static void be_ut_tx_bulk_usecase_done(struct m0_be_tx_bulk *tb,
+                                       void                 *datum,
+                                       void                 *user,
+                                       uint64_t              worker_index,
+                                       uint64_t              partition)
 {
 	/* XXX */
 }
@@ -304,11 +308,13 @@ static void be_ut_tx_bulk_state_work_put(struct m0_be_tx_bulk *tb,
 	m0_be_tx_bulk_end(tb);
 }
 
-static void be_ut_tx_bulk_state_do(struct m0_be_tx_bulk   *tb,
-                                   struct m0_be_tx        *tx,
-                                   struct m0_be_op        *op,
-                                   void                   *datum,
-                                   void                   *user)
+static void be_ut_tx_bulk_state_do(struct m0_be_tx_bulk *tb,
+                                   struct m0_be_tx      *tx,
+                                   struct m0_be_op      *op,
+                                   void                 *datum,
+                                   void                 *user,
+                                   uint64_t              worker_index,
+                                   uint64_t              partition)
 {
 	struct be_ut_tx_bulk_state *tbs = datum;
 	struct m0_be_tx_credit      use;
@@ -335,9 +341,11 @@ static void be_ut_tx_bulk_state_do(struct m0_be_tx_bulk   *tb,
 	m0_be_op_done(op);
 }
 
-static void be_ut_tx_bulk_state_done(struct m0_be_tx_bulk   *tb,
-                                     void                   *datum,
-                                     void                   *user)
+static void be_ut_tx_bulk_state_done(struct m0_be_tx_bulk *tb,
+                                     void                 *datum,
+                                     void                 *user,
+                                     uint64_t              worker_index,
+                                     uint64_t              partition)
 {
 	/* XXX */
 }
