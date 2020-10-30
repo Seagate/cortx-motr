@@ -233,10 +233,10 @@ func getOptimalUnitSz(sz uint64) (C.ulong, error) {
     return lid, nil
 }
 
-func anyPool(pools []string) (res *C.struct_m0_fid, err error) {
+func checkPool(pools []string) (res *C.struct_m0_fid, err error) {
     for _, pool := range pools {
         if pool == "" {
-            return nil, nil // use default
+            return nil, nil // default pool to be used
         }
         id, err := ScanID(pool)
         if err != nil {
@@ -254,14 +254,14 @@ func anyPool(pools []string) (res *C.struct_m0_fid, err error) {
 // I/O performance on the object could be calculated. Optionally,
 // the pool fid can be provided, if the object to be created on a
 // non-default pool.
-func (mio *Mio) Create(id string, sz uint64, pools ...string) error {
+func (mio *Mio) Create(id string, sz uint64, anyPool ...string) error {
     if mio.obj != nil {
         return errors.New("object is already opened")
     }
     if err := mio.objNew(id); err != nil {
         return err
     }
-    pool, err := anyPool(pools)
+    pool, err := checkPool(anyPool)
     if err != nil {
         return err
     }
