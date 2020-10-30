@@ -15,7 +15,7 @@ Read()/Write() request. (For example, see the source code of `mcp` utility and i
 option.)
 
 `mcp` (Motr cp) utility is a client application example written in pure Go which uses
-`mio` package and has only 88 lines of code (as of 17 Oct 2020):
+`mio` package and has only 97 lines of code (as of 30 Oct 2020):
 
 ```Text
 Usage: mcp [options] src dst
@@ -30,7 +30,9 @@ Usage: mcp [options] src dst
   -hax endpoint
     	local hax endpoint address
   -osz size
-    	object size (in Kbytes) (default 32)
+    	object size (in Kbytes)
+  -pool fid
+    	pool fid to create object at
   -proc fid
     	my process fid
   -prof fid
@@ -39,6 +41,7 @@ Usage: mcp [options] src dst
     	number of threads to use (default 1)
   -trace
     	generate m0trace.pid file
+  -v	be more verbose
 ```
 
 To build:
