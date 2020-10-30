@@ -360,10 +360,10 @@ static void  emap_fini(struct action *act);
 static int   emap_kv_get(struct scanner *s, const struct be_btree_key_val *kv,
 		         struct m0_buf *key_buf, struct m0_buf *val_buf);
 static void  sig_handler(int num);
-static int   scan_offset_init(uint64_t workers_nr);
-static void  scan_offset_fini(void);
-static off_t scan_offset_get(void);
-static void  scan_offset_update(off_t offset, uint64_t worker_id);
+static int   nv_scan_offset_init(uint64_t workers_nr);
+static void  nv_scan_offset_fini(void);
+static off_t nv_scan_offset_get(void);
+static void  nv_scan_offset_update(off_t offset, uint64_t worker_id);
 static int   override_be_cfg_def_from_yaml(const char               *yaml_file,
 					   struct m0_be_domain_cfg  *cfg,
 					   struct m0_be_tx_bulk_cfg *tb_cfg);
@@ -665,7 +665,7 @@ int main(int argc, char **argv)
 					NULL, &scanner_thread, &s, "scannner");
 		if (result != 0)
 			err(EX_CONFIG, "Cannot initialise scanner thread.");
-		result = scan_offset_init(default_tb_cfg.tbc_workers_nr);
+		result = nv_scan_offset_init(default_tb_cfg.tbc_workers_nr);
 		if (result != 0)
 			err(EX_CONFIG, "scan offset save/restore init failure");
 	}
@@ -690,7 +690,7 @@ int main(int argc, char **argv)
 		m0_thread_fini(&s.s_thread);
 		qfini(&s.s_bnode_q);
 		qfini(&q);
-		scan_offset_fini();
+		nv_scan_offset_fini();
 	}
 	fini();
 	if (spath != NULL)
@@ -813,7 +813,7 @@ static int scan(struct scanner *s)
 	uint64_t lastrecord = 0;
 	uint64_t lastdata = 0;
 	if (resume_scan && !dry_run) {
-		s->s_off = scan_offset_get();
+		s->s_off = nv_scan_offset_get();
 		M0_LOG(M0_DEBUG, "Resuming Scan from Offset = %li", s->s_off);
 		printf("Resuming Scan from Offset = %li file %s",
 		       s->s_off, offset_file);
@@ -1470,7 +1470,7 @@ static void genadd(uint64_t gen)
 	}
 }
 
-static int scan_offset_init(uint64_t workers_nr)
+static int nv_scan_offset_init(uint64_t workers_nr)
 {
 	m0_mutex_lock(&off_info.oi_lock);
 	off_info.oi_workers_nr = workers_nr;
@@ -1483,14 +1483,14 @@ static int scan_offset_init(uint64_t workers_nr)
 	return 0;
 }
 
-static void scan_offset_fini(void)
+static void nv_scan_offset_fini(void)
 {
 	m0_mutex_lock(&off_info.oi_lock);
 	m0_free(off_info.oi_offset);
 	m0_mutex_unlock(&off_info.oi_lock);
 }
 
-static off_t scan_offset_get(void)
+static off_t nv_scan_offset_get(void)
 {
 	FILE    *ofptr;
 	int      ret;
@@ -1521,7 +1521,7 @@ static off_t scan_offset_get(void)
 	return offset;
 }
 
-static void scan_offset_update(off_t offset, uint64_t worker_id)
+static void nv_scan_offset_update(off_t offset, uint64_t worker_id)
 {
 	FILE   *ofptr;
 	struct  offset_info off_info;
@@ -1565,11 +1565,13 @@ static void builder_done(struct m0_be_tx_bulk   *tb,
 			 void                   *user)
 {
 	struct action  *act;
+	uint64_t        worker_id = 0; /*TBD*/
 
 	act = user;
 	if (act != NULL) {
 		/* TODO save offset periodically, get worker ID */
-		scan_offset_update(act->a_node_offset, 0);
+		if (act->a_node_offset != off_info.oi_offset[worker_id])
+			nv_scan_offset_update(act->a_node_offset, worker_id);
 		m0_free(act);
 	}
 }
