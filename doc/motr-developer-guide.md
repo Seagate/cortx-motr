@@ -170,23 +170,22 @@ Motr applications. Please refer to source code "lib/"
 
    * How to compile & build this example
    
- 	One way is to use the Motr building framework. This example is compiled and built
-	within the Motr building framework. If you have a new application, add it to the
-	top level Makefile.am and add a Makefile.sub in your directory.
+One way is to use the Motr building framework. This example is compiled and built
+within the Motr building framework. If you have a new application, add it to the
+top level Makefile.am and add a Makefile.sub in your directory.
 	
-	You can also treat this example as a standalone application, and build it out of
-	More building framework. Please refer to the comments in the source code.
-	If Motr-devel source code or RPM is already installed, you may find the header
-	files in "/usr/include/motr " dir and binary libraries in "/lib".
+You can also treat this example as a standalone application, and build it out of
+More building framework. Please refer to the comments in the source code.
+If Motr-devel source code or RPM is already installed, you may find the header
+files in "/usr/include/motr " dir and binary libraries in "/lib".
 
    * How to run this example
-
-	The first way is to run application against an running Cortx Motr system. Please
-	refer to [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md)
-	and [Quick Start Guide](/doc/Quick-Start-Guide.rst).
+The first way is to run application against an running Cortx Motr system. Please
+refer to [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md)
+and [Quick Start Guide](/doc/Quick-Start-Guide.rst).
 	
-	The second way is to run the "motr/examples/setup_a_running_motr_system.sh", and then
-	run this example application from another teminal.
+The second way is to run the "motr/examples/setup_a_running_motr_system.sh", and then
+run this example application from another teminal.
 
 ## A simple Cortx Motr application (index)
    * TODO
