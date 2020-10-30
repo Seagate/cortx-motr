@@ -1606,9 +1606,10 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 	char     *s2;
 	bool      value_overridden = true;
 
-	/** Cover variables accepting two comma-separated values. */
 	if (m0_streq(str_key, "tgc_size_max")  || 
 	    m0_streq(str_key, "bec_tx_size_max")) {
+
+		/** Cover variables accepting two comma-separated values. */
 
 		s1 = m0_strdup(str_value);
 		s2 = strchr(s1, ',');
@@ -1628,16 +1629,15 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 		if (m0_streq(str_key, "tgc_size_max")) {
 			cfg->bc_engine.bec_group_cfg.tgc_size_max = 
 					M0_BE_TX_CREDIT(value1_64, value2_64);
-		}
-		else {
+		} else {
 			cfg->bc_engine.bec_tx_size_max =
 					M0_BE_TX_CREDIT(value1_64, value2_64);
 		}
-	}
-	/** Cover variables accepting a single 32-bit value */
-	else if (m0_streq(str_key, "bpdc_seg_io_nr") ||
-		 m0_streq(str_key, "ldsc_items_max") ||
-		 m0_streq(str_key, "ldsc_items_threshold")) {
+	} else if (m0_streq(str_key, "bpdc_seg_io_nr") ||
+		   m0_streq(str_key, "ldsc_items_max") ||
+		   m0_streq(str_key, "ldsc_items_threshold")) {
+
+		/** Cover variables accepting a single 32-bit value */
 
 		value1_32 =m0_strtou32(str_value, NULL, 10);
 
@@ -1646,17 +1646,15 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 
 		if (m0_streq(str_key, "bpdc_seg_io_nr")) {
 			cfg->bc_pd_cfg.bpdc_seg_io_nr = value1_32;
-		}
-		else if (m0_streq(str_key, "ldsc_items_max")) {
+		} else if (m0_streq(str_key, "ldsc_items_max")) {
 			cfg->bc_log_discard_cfg.ldsc_items_max = value1_32;
-		}
-		else if (m0_streq(str_key, "ldsc_items_threshold")) {
+		} else if (m0_streq(str_key, "ldsc_items_threshold")) {
 			cfg->bc_log_discard_cfg.ldsc_items_threshold =
 								value1_32;
 		}
-	}
-	/** These variables accept a single 64-bit value. */
-	else {
+	} else {
+
+		/** These variables accept a single 64-bit value. */
 		value1_64 = m0_strtou64(str_value, NULL, 10);
 
 		M0_ASSERT_INFO((value1_64 != ULLONG_MAX),
