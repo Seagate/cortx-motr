@@ -207,3 +207,11 @@ run this example application from another teminal.
 	- hsm/
   * A Cortx Motr Python wrapper:
 	- spiel/
+  * A S3Server using Motr client APIs to access Cortx Motr services:
+	- https://github.com/Seagate/cortx-s3server
+This is one of the components of Cortx project.
+  * A library which uses Motr client APIs to access Cortx Motr services, to provide file system accessibility:
+	- https://github.com/Seagate/cortx-posix
+This is one of the components of Cortx project.
+
+
