@@ -102,7 +102,7 @@ M0_INTERNAL int m0_be_queue_init(struct m0_be_queue     *bq,
 		 cfg->bqc_producers_nr_max, cfg->bqc_consumers_nr_max);
 	M0_PRE(M0_IS0(bq));
 	M0_PRE(cfg->bqc_q_size_max > 0);
-	M0_PRE(cfg->bqc_consumers_nr_max > 0);
+	M0_PRE(cfg->bqc_producers_nr_max > 0);
 	M0_PRE(cfg->bqc_consumers_nr_max > 0);
 	M0_PRE(cfg->bqc_item_length > 0);
 	M0_PRE(M0_IS_8ALIGNED(cfg->bqc_item_length));
