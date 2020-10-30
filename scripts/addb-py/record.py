@@ -154,9 +154,9 @@ class trace(object):
             self.line((x, 0), (x, height), stroke = self.axis, stroke_width = 10)
             self.text("locality " + str(i), insert = (x + 10, 20))
         for _ in range(self.iomax):
-            self.iolast.append(datetime.datetime(1970, 01, 01))
+            self.iolast.append(datetime.datetime(1970, 1, 1))
         for _ in range(self.netmax):
-            self.netlast.append(datetime.datetime(1970, 01, 01))
+            self.netlast.append(datetime.datetime(1970, 1, 1))
         self.line((self.lockstart - 10, 0), (self.lockstart - 10, height),
                   stroke = self.axis, stroke_width = 10)
         self.text("lock", insert = (self.lockstart + 10, 20))
@@ -256,7 +256,7 @@ class trace(object):
                 y += self.textstep
                 if i > 30:
                     if not self.warnedlabel:
-                        print "Labels are overcrowded. Increase image height."
+                        print("Labels are overcrowded. Increase image height.")
                         self.warnedlabel = True
                     break
                 i += 1
@@ -308,7 +308,7 @@ class trace(object):
             self.tline(l1, (x, y1), **self.dash)
         elif not self.warnedio:
             self.warnedio = True
-            print "Too many concurrent IO-s. Increase iomax."
+            print("Too many concurrent IO-s. Increase iomax.")
 
     def netbufadd(self, time, buf, qtype, seconds, stime, status, length):
         qname = [
@@ -344,7 +344,7 @@ class trace(object):
             self.tline(l2, (x, y2), **self.dash)
         elif not self.warnednet:
             self.warnednet = True
-            print "Too many concurrent netbufs. Increase netmax."
+            print("Too many concurrent netbufs. Increase netmax.")
 
     def mutex(self, mname, label, time, seconds, addr):
         duration = datetime.timedelta(microseconds = float(seconds) * 1000000)
@@ -356,7 +356,7 @@ class trace(object):
             if len(self.locks) >= self.lockmax:
                 if not self.warnedlock:
                     self.warnedlock = True                
-                    print "Too many locks. Increase lockmax."
+                    print("Too many locks. Increase lockmax.")
                 return
             self.locks[addr] = len(self.locks)
         lane = self.locks[addr]
@@ -442,7 +442,7 @@ class record(object):
         trace.processed = trace.processed + 1
         if (trace.verb > 0 and
             self.time - trace.lastreport > datetime.timedelta(seconds = 1)):
-            print self.time, trace.processed - trace.reported, trace.processed
+            print(self.time, trace.processed - trace.reported, trace.processed)
             trace.lastreport = self.time
             trace.reported   = trace.processed
 

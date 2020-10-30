@@ -81,6 +81,7 @@
 #include "stob/addb2.h"
 #include "stob/addb2_xc.h"                /* m0_xc_m0_stio_req_states_enum */
 #include "net/addb2.h"
+#include "be/addb2.h"
 #include "ioservice/io_addb2.h"
 #include "cas/cas_addb2.h"
 #include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
@@ -1133,6 +1134,10 @@ struct m0_addb2__id_intrp ids[] = {
 	  { "fom", "wait", "hold"} },
 	{ M0_AVI_CAS_KV_SIZES,    "cas-kv-sizes",  { FID, &dec, &dec },
 	  { "ifid", NULL, "ksize", "vsize"} },
+
+	/* be */
+	{ M0_AVI_BE_TX_CAPTURE, "tx-capture", { &dec, &dec, &hex, &dec },
+	  { "tid", "lsn", "addr", "size" } },
 
 	/* client -> md|io-path */
 	{ M0_AVI_CLIENT_SM_OP,         "op-state", { &op_state, SKIP2 } },

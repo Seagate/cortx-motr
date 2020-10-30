@@ -35,6 +35,8 @@
 #include "lib/memory.h"                 /* m0_alloc_nz */
 #include "fol/fol.h"            /* m0_fol_rec_encode() */
 
+#include "addb2/addb2.h"
+#include "be/addb2.h"
 #include "be/op.h"              /* m0_be_op */
 #include "be/domain.h"          /* m0_be_domain_engine */
 #include "be/engine.h"          /* m0_be_engine__tx_state_set */
@@ -185,6 +187,8 @@ static void be_tx_state_move(struct m0_be_tx     *tx,
 			     enum m0_be_tx_state  state,
 			     int                  rc);
 
+static struct m0_atomic64 tx_id = {};
+
 M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 			       uint64_t             tid,
 			       struct m0_be_domain *dom,
@@ -198,9 +202,10 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 	enum m0_be_tx_state state;
 
 	M0_PRE(M0_IS0(tx));
+	M0_ASSERT(tid == 0);
 
 	*tx = (struct m0_be_tx){
-		.t_id               = tid,
+		.t_id               = m0_atomic64_add_return(&tx_id, 1),
 		.t_engine           = m0_be_domain_engine(dom),
 		.t_dom              = dom,
 		.t_persistent       = persistent,
@@ -308,6 +313,8 @@ static void be_tx_make_reg_d(struct m0_be_tx        *tx,
 	M0_POST(m0_be_reg__invariant(&rd->rd_reg));
 }
 
+static struct m0_atomic64 lsn = {};
+
 M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
 				  const struct m0_be_reg *reg)
 {
@@ -318,6 +325,9 @@ M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
 	be_tx_make_reg_d(tx, &rd, reg);
 	rd.rd_gen_idx = m0_be_reg_gen_idx(reg);
 	m0_be_reg_area_capture(&tx->t_reg_area, &rd);
+	M0_ADDB2_ADD(M0_AVI_BE_TX_CAPTURE, tx->t_id,
+		     m0_atomic64_add_return(&lsn, 1),
+		     (uint64_t)reg->br_addr, reg->br_size);
 }
 
 M0_INTERNAL void

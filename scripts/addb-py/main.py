@@ -55,9 +55,9 @@ def processinput(argv):
     try:
         opts, args = getopt.getopt(argv[1:], "h:w:l:d:s:t:o:f:v:L:")
     except getopt.GetoptError:
-        print "{} [options]\n\nOptions:\n".format(argv[0])
+        print("{} [options]\n\nOptions:\n".format(argv[0]))
         for k in xlate:
-            print "    {} : {}".format(k, xlate[k][2])
+            print("    {} : {}".format(k, xlate[k][2]))
         sys.exit(2)
     for opt, arg in opts:
         xl = xlate[opt]

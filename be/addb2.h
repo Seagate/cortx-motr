@@ -52,6 +52,8 @@ enum m0_avi_be_labels {
 	M0_AVI_BE_TX_ATTR_RA_PREP_TC_REG_SIZE,
 	M0_AVI_BE_TX_ATTR_RA_CAPT_TC_REG_NR,
 	M0_AVI_BE_TX_ATTR_RA_CAPT_TC_REG_SIZE,
+
+	M0_AVI_BE_TX_CAPTURE
 } M0_XCA_ENUM;
 
 /** @} end of be group */
