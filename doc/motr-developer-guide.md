@@ -38,8 +38,9 @@ Source code is available at: [example1.c](/motr/examples/example1.c)
   * Include necessary header files
 ```C	
 	#include "motr/client.h"
+	#include "motr/idx.h"
 ```
-	There are also various Motr libraries header files that can be used in
+There are also various Motr libraries header files that can be used in
 Motr applications. Please refer to source code "lib/"
 
   * Define necessary variables (global or in main() function)
@@ -167,22 +168,24 @@ Motr applications. Please refer to source code "lib/"
 	- Finalize and free the operation with m0_op_fini() and m0_op_free().
 	- Close/Finalize the object.
 
-   * How to compile & build this example:
-	- One way is to use the Motr building framework. This example is compiled and built
+   * How to compile & build this example
+   
+ 	One way is to use the Motr building framework. This example is compiled and built
 	within the Motr building framework. If you have a new application, add it to the
 	top level Makefile.am and add a Makefile.sub in your directory.
 	
-	- You can also treat this example as a standalone application, and build it out of
+	You can also treat this example as a standalone application, and build it out of
 	More building framework. Please refer to the comments in the source code.
 	If Motr-devel source code or RPM is already installed, you may find the header
 	files in "/usr/include/motr " dir and binary libraries in "/lib".
 
-   * How to run this example:
-	- The first way is to run application against an running Cortx Motr system. Please
+   * How to run this example
+
+	The first way is to run application against an running Cortx Motr system. Please
 	refer to [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md)
 	and [Quick Start Guide](/doc/Quick-Start-Guide.rst).
 	
-	- The second way is to run the "motr/examples/setup_a_running_motr_system.sh", and then
+	The second way is to run the "motr/examples/setup_a_running_motr_system.sh", and then
 	run this example application from another teminal.
 
 ## A simple Cortx Motr application (index)
