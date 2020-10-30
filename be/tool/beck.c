@@ -1541,11 +1541,13 @@ static void nv_scan_offset_update(off_t offset, uint64_t worker_id)
 	return;
 }
 
-static void builder_do(struct m0_be_tx_bulk   *tb,
-		       struct m0_be_tx        *tx,
-		       struct m0_be_op        *op,
-		       void                   *datum,
-		       void                   *user)
+static void builder_do(struct m0_be_tx_bulk *tb,
+		       struct m0_be_tx      *tx,
+		       struct m0_be_op      *op,
+		       void                 *datum,
+		       void                 *user,
+		       uint64_t              worker_index,
+		       uint64_t              partition)
 {
 	struct action  *act;
 	struct builder *b = datum;
@@ -1560,18 +1562,18 @@ static void builder_do(struct m0_be_tx_bulk   *tb,
 	m0_be_op_done(op);
 }
 
-static void builder_done(struct m0_be_tx_bulk   *tb,
-			 void                   *datum,
-			 void                   *user)
+static void builder_done(struct m0_be_tx_bulk *tb,
+			 void                 *datum,
+			 void                 *user,
+			 uint64_t              worker_index,
+			 uint64_t              partition)
 {
 	struct action  *act;
-	uint64_t        worker_id = 0; /*TBD*/
 
 	act = user;
 	if (act != NULL) {
-		/* TODO save offset periodically, get worker ID */
-		if (act->a_node_offset != off_info.oi_offset[worker_id])
-			nv_scan_offset_update(act->a_node_offset, worker_id);
+		if (act->a_node_offset != off_info.oi_offset[worker_index])
+			nv_scan_offset_update(act->a_node_offset, worker_index);
 		m0_free(act);
 	}
 }
