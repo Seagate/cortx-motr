@@ -255,8 +255,8 @@ static void be_queue_q_get(struct m0_be_queue *bq,
 }
 
 static void be_queue_op_put(struct m0_be_queue   *bq,
-                          struct m0_be_op    *op,
-                          struct be_queue_item *bqi)
+                            struct m0_be_op      *op,
+                            struct be_queue_item *bqi)
 {
 	struct be_queue_wait_op *bwo;
 
