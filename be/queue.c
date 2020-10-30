@@ -341,6 +341,7 @@ M0_INTERNAL void m0_be_queue_put(struct m0_be_queue  *bq,
 	M0_PRE(m0_mutex_is_locked(&bq->bq_lock));
 	M0_PRE(be_queue_invariant(bq));
 	M0_PRE(!bq->bq_the_end);
+	M0_PRE(data->b_nob == bq->bq_cfg.bqc_item_length);
 
 	m0_be_op_active(op);
 	was_full = be_queue_is_full(bq);
@@ -383,6 +384,7 @@ M0_INTERNAL void m0_be_queue_get(struct m0_be_queue *bq,
 {
 	M0_PRE(m0_mutex_is_locked(&bq->bq_lock));
 	M0_PRE(be_queue_invariant(bq));
+	M0_PRE(data->b_nob == bq->bq_cfg.bqc_item_length);
 
 	M0_ENTRY("bq="BEQ_F, BEQ_P(bq));
 	m0_be_op_active(op);
@@ -408,6 +410,7 @@ M0_INTERNAL bool m0_be_queue_peek(struct m0_be_queue *bq,
 {
 	M0_PRE(m0_mutex_is_locked(&bq->bq_lock));
 	M0_PRE(be_queue_invariant(bq));
+	M0_PRE(data->b_nob == bq->bq_cfg.bqc_item_length);
 
 	if (be_queue_is_empty(bq) ||
 	    be_queue_op_get_is_waiting(bq)) {
