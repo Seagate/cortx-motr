@@ -678,11 +678,13 @@ static void balloc_group_work_put(struct m0_balloc               *bal,
 	m0_be_tx_bulk_end(tb);
 }
 
-static void balloc_group_write_do(struct m0_be_tx_bulk   *tb,
-                                  struct m0_be_tx        *tx,
-                                  struct m0_be_op        *op,
-                                  void                   *datum,
-                                  void                   *user)
+static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
+                                  struct m0_be_tx      *tx,
+                                  struct m0_be_op      *op,
+                                  void                 *datum,
+                                  void                 *user,
+                                  uint64_t              worker_index,
+                                  uint64_t              partition)
 {
 	struct balloc_groups_write_cfg *bgs = datum;
 	struct balloc_group_write_cfg  *bgc = user;
@@ -762,9 +764,12 @@ out:
 
 static void balloc_group_write_done(struct m0_be_tx_bulk *tb,
                                     void                 *datum,
-                                    void                 *user)
+                                    void                 *user,
+                                    uint64_t              worker_index,
+                                    uint64_t              partition)
 {
-	M0_LOG(M0_DEBUG, "tb=%p datum=%p user=%p", tb, datum, user);
+	M0_LOG(M0_DEBUG, "tb=%p datum=%p user=%p worker_index=%"PRIu64" "
+	       "partition=%"PRIu64, tb, datum, user, worker_index, partition);
 }
 
 static void balloc_zone_init(struct m0_balloc_zone_param *zone, uint64_t type,
