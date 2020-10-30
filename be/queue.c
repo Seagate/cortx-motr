@@ -318,7 +318,7 @@ static void be_queue_op_get_done(struct m0_be_queue *bq, bool success)
 	if (success) {
 		be_queue_q_get(bq, &bwo->bbo_data, bwo->bbo_successful);
 	} else {
-		bwo->bbo_successful = false;
+		*bwo->bbo_successful = false;
 	}
 	m0_be_op_done(bwo->bbo_op);
 	bqop_tlist_move(&bq->bq_op_get_unused, bwo);
