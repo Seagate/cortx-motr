@@ -29,7 +29,7 @@ motr:
     config:
         script: /usr/sbin/m0provision
         args:
-            - config
+            - post_install
     test:
         script: /usr/sbin/m0provision
         args:
@@ -45,7 +45,6 @@ motr:
     post_update:
         script: /usr/sbin/m0provision
         args:
-            - config
 
 support_bundle:
     - /opt/seagate/cortx/motr/libexec/m0reportbug-bundler

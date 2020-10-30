@@ -103,7 +103,7 @@ try to adhere to some higher level idioms.
                   enum reason   mit_why;
           };
 
-      (Rationale: his makes search for field name usage easier.)
+      (Rationale: This makes search for field name usage easier.)
 
   * typedefs are used only for "scalar" data types, including
     function pointers, but excluding enums. Compound data types

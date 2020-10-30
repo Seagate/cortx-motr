@@ -50,6 +50,7 @@ M0_INTERNAL bool m0_rpc_item_is_request(const struct m0_rpc_item *item);
 M0_INTERNAL bool m0_rpc_item_is_reply(const struct m0_rpc_item *item);
 
 M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item);
+M0_INTERNAL void m0_rpc_item_xid_min_update(struct m0_rpc_item *item);
 
 M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
 				     enum m0_rpc_item_dir dir);
