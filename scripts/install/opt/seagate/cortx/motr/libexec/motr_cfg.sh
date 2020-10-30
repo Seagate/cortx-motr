@@ -195,19 +195,26 @@ do_m0provision_action()
     local LVM_SIZE=0
 
     msg "Configuring host [`hostname -f`]"
+    MD_DEVICES=($(lvs -o lv_path | grep "lv_raw_metadata" | grep srvnode | sort -u))
 
-    MD_DEVICE=$(lvs -o lv_path | grep "lv_raw_metadata" | head -1)
-    if [[ $? -eq 0 && $MD_DEVICE != "" ]];then
-        LVM_SIZE=$(lvs $MD_DEVICE  -o LV_SIZE \
-              --noheadings --units b --nosuffix | xargs)
-
-        ANY_ERR=$(echo $LVM_SIZE | grep -i ERROR | wc -l)
+    for i in ${MD_DEVICES[@]};
+    do
+        LVM_SIZE_ITR=$(lvs $i -o LV_SIZE \
+                       --noheadings --units b --nosuffix | xargs)
+        ANY_ERR=$(echo $LVM_SIZE_ITR | grep -i ERROR | wc -l)
         if [[ ( "$ANY_ERR" != "0" ) || ( -z $LVM_SIZE ) ]]; then
-            err "lvs $MD_DEVICE command failed."
+            err "lvs $i command failed."
             msg "[$LVM_SIZE]"
-        elif [[ $LVM_SIZE -ne 0 ]];then
-            sed -i "s/MOTR_M0D_IOS_BESEG_SIZE=.*/MOTR_M0D_IOS_BESEG_SIZE=$LVM_SIZE/g" $MOTR_CONF_FILE
-        fi
+	fi
+	if [[ $LVM_SIZE_ITR -lt $LVM_SIZE -o $LVM_SIZE -eq 0 ]]; then
+	    LVM_SIZE=$LVM_SIZE_ITR
+	fi
+    done
+    if [ $LVM_SIZE -eq 0 ]; then
+	 err "lvs size invalid [$LVM_SIZE]"
+    else
+         msg "LVM_SIZE = $LVM_SIZE"
+         sed -i "s/MOTR_M0D_IOS_BESEG_SIZE=.*/MOTR_M0D_IOS_BESEG_SIZE=$LVM_SIZE/g" $MOTR_CONF_FILE
     fi
 
     SALT_OPT=$(salt-call --local grains.get virtual)
