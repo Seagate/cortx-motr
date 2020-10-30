@@ -222,6 +222,7 @@ fi
 %attr(0770, motr, motr) %{_localstatedir}/motr
 %config %attr(0664, motr, motr) %{_sysconfdir}/sysconfig/*
 %config %attr(0755, root, root) %{_sysconfdir}/cron.hourly/m0trace*
+%config %attr(0755, root, root) %{_sysconfdir}/cron.hourly/m0addb*
 %{_sysconfdir}/systemd/system/*
 %{_sysconfdir}/security/limits.d/90-motr.conf
 /opt/seagate/cortx/motr/*
