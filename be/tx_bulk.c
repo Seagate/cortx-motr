@@ -243,7 +243,8 @@ static void be_tx_bulk_finish_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	uint32_t                  i;
 	bool                      done;
 
-	M0_ENTRY("tb=%p worker=%p", tb, worker);
+	M0_ENTRY("tb=%p worker=%p tbw_index=%"PRIu64,
+		 tb, worker, worker->tbw_index);
 	M0_PRE(ast == &worker->tbw_finish);
 
 	worker->tbw_done = true;
@@ -273,7 +274,7 @@ static void be_tx_bulk_queue_get_cb(struct m0_sm_group *grp,
 	struct m0_be_tx_bulk     *tb = worker->tbw_tb;
 	struct m0_be_queue       *bq = &tb->btb_q[worker->tbw_partition];
 
-	M0_ENTRY("worker=%p", worker);
+	M0_ENTRY("worker=%p tbw_index=%"PRIu64, worker, worker->tbw_index);
 	M0_PRE(ast == &worker->tbw_queue_get);
 	M0_PRE(worker->tbw_items_nr == 0);
 	M0_PRE(ergo(worker->tbw_rc != 0, tb->btb_tx_open_failed));
@@ -291,14 +292,16 @@ static void be_tx_bulk_queue_get_cb(struct m0_sm_group *grp,
 		                &worker->tbw_queue_get_successful);
 		m0_be_queue_unlock(bq);
 	}
-	M0_LEAVE("worker=%p tbw_rc=%d", worker, worker->tbw_rc);
+	M0_LEAVE("worker=%p tbw_index=%"PRIu64" tbw_rc=%d",
+		 worker, worker->tbw_index, worker->tbw_rc);
 }
 
 static void be_tx_bulk_queue_get_done_cb(struct m0_be_op *op, void *param)
 {
 	struct be_tx_bulk_worker *worker = param;
 
-	M0_ENTRY("worker=%p", worker);
+	M0_ENTRY("worker=%p tbw_index=%"PRIu64" tbw_queue_get_successful=%d",
+		 worker, worker->tbw_index, !!worker->tbw_queue_get_successful);
 
 	if (worker->tbw_queue_get_successful) {
 		worker->tbw_items_nr = 1;
@@ -342,7 +345,7 @@ static void be_tx_bulk_init_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_PRE(ast == &worker->tbw_init);
 
-	M0_ENTRY("worker=%p", worker);
+	M0_ENTRY("worker=%p tbw_index=%"PRIu64, worker, worker->tbw_index);
 	M0_PRE(worker->tbw_items_nr == 1);
 
 	accum_credit       = worker->tbw_item[0].bbd_credit;
@@ -370,7 +373,7 @@ static void be_tx_bulk_init_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		m0_be_queue_unlock(bq);
 	}
 	be_tx_bulk_open(worker, &accum_credit, accum_payload_size);
-	M0_LEAVE("worker=%p", worker);
+	M0_LEAVE("worker=%p tbw_index=%"PRIu64, worker, worker->tbw_index);
 }
 
 static bool be_tx_bulk_open_cb(struct m0_clink *clink)
@@ -380,7 +383,7 @@ static bool be_tx_bulk_open_cb(struct m0_clink *clink)
 	struct m0_be_tx          *tx;
 
 	worker = container_of(clink, struct be_tx_bulk_worker, tbw_clink);
-	M0_ENTRY("worker=%p", worker);
+	M0_ENTRY("worker=%p tbw_index=%"PRIu64, worker, worker->tbw_index);
 	tx = &worker->tbw_tx;
 	tb =  worker->tbw_tb;
 	if (M0_IN(m0_be_tx_state(tx), (M0_BTS_ACTIVE, M0_BTS_FAILED))) {
@@ -408,7 +411,7 @@ static bool be_tx_bulk_open_cb(struct m0_clink *clink)
 			be_tx_bulk_gc_cb(tx, worker);
 		}
 	}
-	M0_LEAVE("worker=%p", worker);
+	M0_LEAVE("worker=%p tbw_index=%"PRIu64, worker, worker->tbw_index);
 	return false;
 }
 
@@ -419,11 +422,13 @@ static void be_tx_bulk_close_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_be_tx_bulk      *tb;
 	uint64_t                   i;
 
-	M0_ENTRY("worker=%p", worker);
+	M0_ENTRY("worker=%p tbw_index=%"PRIu64, worker, worker->tbw_index);
 	M0_PRE(ast == &worker->tbw_close);
 	tb = worker->tbw_tb;
 	tb_cfg = &tb->btb_cfg;
 	for (i = 0; i < worker->tbw_items_nr; ++i) {
+		M0_LOG(M0_DEBUG, "worker=%p tbw_index=%"PRIu64" bbd_user=%p",
+		       worker, worker->tbw_index, worker->tbw_item[i].bbd_user);
 		M0_BE_OP_SYNC(op, tb_cfg->tbc_do(tb, &worker->tbw_tx, &op,
 		                                 tb_cfg->tbc_datum,
 		                                 worker->tbw_item[i].bbd_user,
@@ -431,7 +436,7 @@ static void be_tx_bulk_close_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		                                 worker->tbw_partition));
 	}
 	m0_be_tx_close(&worker->tbw_tx);
-	M0_LEAVE("worker=%p", worker);
+	M0_LEAVE("worker=%p tbw_index=%"PRIu64, worker, worker->tbw_index);
 }
 
 static void be_tx_bulk_gc_cb(struct m0_be_tx *tx, void *param)
@@ -440,11 +445,13 @@ static void be_tx_bulk_gc_cb(struct m0_be_tx *tx, void *param)
 	struct m0_be_tx_bulk     *tb;
 	uint64_t                  i;
 
-	M0_ENTRY("worker=%p", worker);
+	M0_ENTRY("worker=%p tbw_index=%"PRIu64, worker, worker->tbw_index);
 	M0_PRE(tx == &worker->tbw_tx);
 
 	tb = worker->tbw_tb;
 	for (i = 0; i < worker->tbw_items_nr; ++i) {
+		M0_LOG(M0_DEBUG, "worker=%p tbw_index=%"PRIu64" bbd_user=%p",
+		       worker, worker->tbw_index, worker->tbw_item[i].bbd_user);
 		tb->btb_cfg.tbc_done(tb, tb->btb_cfg.tbc_datum,
 		                     worker->tbw_item[i].bbd_user,
 		                     worker->tbw_index, worker->tbw_partition);
@@ -452,22 +459,23 @@ static void be_tx_bulk_gc_cb(struct m0_be_tx *tx, void *param)
 	worker->tbw_items_nr = 0;
 	m0_sm_ast_post(worker->tbw_grp, &worker->tbw_queue_get);
 
-	M0_LEAVE("worker=%p", worker);
+	M0_LEAVE("worker=%p tbw_index=%"PRIu64, worker, worker->tbw_index);
 }
 
 M0_INTERNAL void m0_be_tx_bulk_run(struct m0_be_tx_bulk *tb,
                                    struct m0_be_op      *op)
 {
-	uint32_t i;
+	struct be_tx_bulk_worker *worker;
+	uint32_t                  i;
 
 	M0_ENTRY();
 	tb->btb_op = op;
 	m0_be_op_active(tb->btb_op);
 	for (i = 0; i < tb->btb_cfg.tbc_workers_nr; ++i) {
-		M0_LOG(M0_DEBUG, "i=%"PRIu32" worker=%p",
-		       i, &tb->btb_worker[i]);
-		m0_sm_ast_post(tb->btb_worker[i].tbw_grp,
-		               &tb->btb_worker[i].tbw_queue_get);
+		worker = &tb->btb_worker[i];
+		M0_LOG(M0_DEBUG, "worker=%p tbw_index=%"PRIu64,
+		       worker, worker->tbw_index);
+		m0_sm_ast_post(worker->tbw_grp, &worker->tbw_queue_get);
 	}
 	M0_LEAVE();
 }
