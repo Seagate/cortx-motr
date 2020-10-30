@@ -172,6 +172,11 @@ main() {
         warn "$RECOVERY_SCRIPT_DIR: no such directory"
     fi
 
+    # Collect rpm-update-logs
+    if [ -f /var/log/motr-rpm-conf-update.log ]; then
+        cp -pv /var/log/motr-rpm-conf-update.log $OUT_DATA_DIR/
+    fi
+
     popd >/dev/null
     tar --remove-files -cJf $OUT_DATA_DIR{.tar.xz,}
     local files=$OUT_DATA_DIR.tar.xz
@@ -766,6 +771,10 @@ systemd_journal() {
     for ((i = 0; i < nr_boots; ++i)); do
         journalctl -b -$i 2>>$REPORT | _xz >$outdir/systemd-journal_$i.xz
     done
+
+    if [ -z $nr_boots ]; then
+        journalctl 2>>$REPORT | _xz > $outdir/systemd-journal.xz
+    fi
 }
 
 usage() {
