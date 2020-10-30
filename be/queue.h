@@ -28,11 +28,19 @@
 /**
  * @defgroup be
  *
+ * Fair bounded MPMC queue.
+ *
  * Highlights
  *
- * - put()/get()/peek()/end() expect queue lock to be taken;
+ * - m0_be_queue_put()/m0_be_queue_end()/m0_be_queue_get()/m0_be_queue_peek()
+ *   expect the queue lock to be taken using m0_be_queue_lock();
+ * - memory allocation happens only in m0_be_queue_init(). All other queue
+ *   functions don't allocate memory from heap and just use pre-allocated
+ *   memory, that had been allocated in m0_be_queue_init();
+ * - in each function that could block m0_be_op is used to tell that the
+ *   operation is complete;
  * - op callbacks are called from under m0_be_queue lock, so they MUST NOT call
- *   m0_be_queue functions for the same bq;
+ *   m0_be_queue functions for the same queue;
  * - queues use lists in this way: items are added at tail and are removed from
  *   the head;
  *
@@ -110,15 +118,59 @@ M0_INTERNAL void m0_be_queue_fini(struct m0_be_queue *bq);
 M0_INTERNAL void m0_be_queue_lock(struct m0_be_queue *bq);
 M0_INTERNAL void m0_be_queue_unlock(struct m0_be_queue *bq);
 
-M0_INTERNAL void m0_be_queue_put(struct m0_be_queue *bq,
-                                 struct m0_be_op    *op,
-                                 struct m0_buf      *data);
-/* nothing is going to be added to the queue after this call */
+/*
+ * Put a buffer to the queue.
+ *
+ * @param data  the data from this buffer is copied to the queue internal data
+ *              structures
+ *
+ * @pre data->b_nob == bq->bq_cfg.bqc_item_length
+ *
+ * - if the queue is full, then the operation would block until a space for at
+ *   least one item becomes available in the queue;
+ * - different producers waiting on m0_be_queue_put() would be awaken in the
+ *   same order they were put to sleep.
+ */
+M0_INTERNAL void m0_be_queue_put(struct m0_be_queue  *bq,
+                                 struct m0_be_op     *op,
+                                 const struct m0_buf *data);
+
+/*
+ * Nothing is going to be put to the queue after this call.
+ * This function could be called only once.
+ */
 M0_INTERNAL void m0_be_queue_end(struct m0_be_queue *bq);
+
+/*
+ * Get a buffer from the queue.
+ *
+ * @param data          The data is copied from queue internal data structures
+ *                      to the buffer this parameter points to.
+ * @param successful    true if the data is returned, false if the queue is
+ *                      empty and m0_be_queue_end() has been called before this
+ *                      call.
+ *
+ * @pre data->b_nob == bq->bq_cfg.bqc_item_length
+ *
+ * - if the queue is empty, then the operation would block until at least one
+ *   item becomes available in the queue;
+ * - different consumers waiting on m0_be_queue_get() would be awaken in the
+ *   same order they were put to sleep.
+ */
 M0_INTERNAL void m0_be_queue_get(struct m0_be_queue *bq,
                                  struct m0_be_op    *op,
                                  struct m0_buf      *data,
                                  bool               *successful);
+
+/*
+ * Peek at the queue.
+ *
+ * @param data  the buffer that is in the queue internal data structures is
+ *              copied to the memory data parameter points to.
+ * @return      true if the data was copied, false if the queue is empty.
+ *
+ * @pre data->b_nob == bq->bq_cfg.bqc_item_length
+ */
 M0_INTERNAL bool m0_be_queue_peek(struct m0_be_queue *bq,
                                   struct m0_buf      *data);
 

@@ -199,7 +199,7 @@ static void be_ut_queue_thread(void *_param)
 			}
 		} else {
 			M0_SET0(&data);
-			successful = false;
+			successful = param->butqp_index % 2 == 0;
 			before = m0_atomic64_add_return(&ctx->butx_clock, 1);
 			m0_be_queue_lock(bq);
 			M0_BE_QUEUE_GET(bq, op, &data, &successful);

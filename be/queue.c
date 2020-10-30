@@ -24,7 +24,6 @@
 /**
  * @addtogroup be
  *
- * TODO add consts for m0_buf
  * @{
  */
 
@@ -103,7 +102,7 @@ M0_INTERNAL int m0_be_queue_init(struct m0_be_queue     *bq,
 		 cfg->bqc_producers_nr_max, cfg->bqc_consumers_nr_max);
 	M0_PRE(M0_IS0(bq));
 	M0_PRE(cfg->bqc_q_size_max > 0);
-	M0_PRE(cfg->bqc_consumers_nr_max > 0);
+	M0_PRE(cfg->bqc_producers_nr_max > 0);
 	M0_PRE(cfg->bqc_consumers_nr_max > 0);
 	M0_PRE(cfg->bqc_item_length > 0);
 	M0_PRE(M0_IS_8ALIGNED(cfg->bqc_item_length));
@@ -211,8 +210,8 @@ static bool be_queue_is_full(struct m0_be_queue *bq)
 	return be_queue_q_size(bq) >= bq->bq_cfg.bqc_q_size_max;
 }
 
-static struct be_queue_item *be_queue_q_put(struct m0_be_queue *bq,
-                                            struct m0_buf      *data)
+static struct be_queue_item *be_queue_q_put(struct m0_be_queue  *bq,
+                                            const struct m0_buf *data)
 {
 	struct be_queue_item *bqi;
 
@@ -256,8 +255,8 @@ static void be_queue_q_get(struct m0_be_queue *bq,
 }
 
 static void be_queue_op_put(struct m0_be_queue   *bq,
-                          struct m0_be_op    *op,
-                          struct be_queue_item *bqi)
+                            struct m0_be_op      *op,
+                            struct be_queue_item *bqi)
 {
 	struct be_queue_wait_op *bwo;
 
@@ -319,7 +318,7 @@ static void be_queue_op_get_done(struct m0_be_queue *bq, bool success)
 	if (success) {
 		be_queue_q_get(bq, &bwo->bbo_data, bwo->bbo_successful);
 	} else {
-		bwo->bbo_successful = false;
+		*bwo->bbo_successful = false;
 	}
 	m0_be_op_done(bwo->bbo_op);
 	bqop_tlist_move(&bq->bq_op_get_unused, bwo);
@@ -331,9 +330,9 @@ static bool be_queue_op_get_is_waiting(struct m0_be_queue *bq)
 	return !bqop_tlist_is_empty(&bq->bq_op_get);
 }
 
-M0_INTERNAL void m0_be_queue_put(struct m0_be_queue *bq,
-                                 struct m0_be_op    *op,
-                                 struct m0_buf      *data)
+M0_INTERNAL void m0_be_queue_put(struct m0_be_queue  *bq,
+                                 struct m0_be_op     *op,
+                                 const struct m0_buf *data)
 {
 	struct be_queue_item *bqi;
 	bool                  was_full;
@@ -342,6 +341,7 @@ M0_INTERNAL void m0_be_queue_put(struct m0_be_queue *bq,
 	M0_PRE(m0_mutex_is_locked(&bq->bq_lock));
 	M0_PRE(be_queue_invariant(bq));
 	M0_PRE(!bq->bq_the_end);
+	M0_PRE(data->b_nob == bq->bq_cfg.bqc_item_length);
 
 	m0_be_op_active(op);
 	was_full = be_queue_is_full(bq);
@@ -384,6 +384,7 @@ M0_INTERNAL void m0_be_queue_get(struct m0_be_queue *bq,
 {
 	M0_PRE(m0_mutex_is_locked(&bq->bq_lock));
 	M0_PRE(be_queue_invariant(bq));
+	M0_PRE(data->b_nob == bq->bq_cfg.bqc_item_length);
 
 	M0_ENTRY("bq="BEQ_F, BEQ_P(bq));
 	m0_be_op_active(op);
@@ -409,6 +410,7 @@ M0_INTERNAL bool m0_be_queue_peek(struct m0_be_queue *bq,
 {
 	M0_PRE(m0_mutex_is_locked(&bq->bq_lock));
 	M0_PRE(be_queue_invariant(bq));
+	M0_PRE(data->b_nob == bq->bq_cfg.bqc_item_length);
 
 	if (be_queue_is_empty(bq) ||
 	    be_queue_op_get_is_waiting(bq)) {

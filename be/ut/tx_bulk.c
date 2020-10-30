@@ -38,6 +38,7 @@
 #include "lib/mutex.h"          /* m0_mutex */
 #include "lib/memory.h"         /* M0_ALLOC_PTR */
 #include "lib/errno.h"          /* ENOENT */
+#include "lib/atomic.h"         /* m0_atomic64 */
 
 #include "be/ut/helper.h"       /* m0_be_ut_backend_init */
 #include "be/op.h"              /* m0_be_op */
@@ -260,6 +261,7 @@ struct be_ut_tx_bulk_state {
 	uint32_t                 bbs_buf_nr;
 	m0_bcount_t              bbs_buf_size;
 	void                   **bbs_buf;
+	struct m0_atomic64      *bbs_callback_counter;
 };
 
 static void be_ut_tx_bulk_state_calc(struct be_ut_tx_bulk_state *tbs,
@@ -321,9 +323,12 @@ static void be_ut_tx_bulk_state_do(struct m0_be_tx_bulk *tb,
 	struct m0_buf               buf;
 	m0_bcount_t                 left;
 	m0_bcount_t                 use_payload;
+	uint64_t                    counter;
 	uint64_t                    start = (uint64_t)user;
 	uint64_t                    i;
 
+	counter = m0_atomic64_add_return(&tbs->bbs_callback_counter[start], 1);
+	M0_UT_ASSERT(counter == 1);
 	m0_be_op_active(op);
 	be_ut_tx_bulk_state_calc(tbs, false, &use, &use_payload);
 	left = use.tc_reg_size;
@@ -339,6 +344,8 @@ static void be_ut_tx_bulk_state_do(struct m0_be_tx_bulk *tb,
 	tx->t_payload.b_nob = use_payload;
 	memset(tx->t_payload.b_addr, 0, tx->t_payload.b_nob);
 	m0_be_op_done(op);
+	counter = m0_atomic64_add_return(&tbs->bbs_callback_counter[start], 1);
+	M0_UT_ASSERT(counter == 2);
 }
 
 static void be_ut_tx_bulk_state_done(struct m0_be_tx_bulk *tb,
@@ -347,7 +354,12 @@ static void be_ut_tx_bulk_state_done(struct m0_be_tx_bulk *tb,
                                      uint64_t              worker_index,
                                      uint64_t              partition)
 {
-	/* XXX */
+	struct be_ut_tx_bulk_state *tbs = datum;
+	uint64_t                    start = (uint64_t)user;
+	uint64_t                    counter;
+
+	counter = m0_atomic64_add_return(&tbs->bbs_callback_counter[start], 1);
+	M0_UT_ASSERT(counter == 3);
 }
 
 static void be_ut_tx_bulk_test_prepare(struct m0_be_ut_backend *ut_be,
@@ -397,11 +409,18 @@ static void be_ut_tx_bulk_state_test_run(struct be_ut_tx_bulk_state  *tbs,
 	tbs->bbs_buf_size = BE_UT_TX_BULK_BUF_SIZE;
 	M0_ALLOC_ARR(tbs->bbs_buf, tbs->bbs_buf_nr);
 	M0_UT_ASSERT(tbs->bbs_buf != NULL);
+	M0_ALLOC_ARR(tbs->bbs_callback_counter, tbs->bbs_nr_max);
+	M0_UT_ASSERT(tbs->bbs_callback_counter != NULL);
 
 	be_ut_tx_bulk_test_run(&tb_cfg, be_cfg, &be_ut_tx_bulk_test_prepare,
 	                       &be_ut_tx_bulk_state_work_put,
 			       tbs, success);
 
+	M0_UT_ASSERT(ergo(success, m0_forall(i, tbs->bbs_nr_max,
+		  m0_atomic64_get(&tbs->bbs_callback_counter[i]) == 3)));
+	M0_UT_ASSERT(ergo(!success, m0_forall(i, tbs->bbs_nr_max,
+		  m0_atomic64_get(&tbs->bbs_callback_counter[i]) == 0)));
+	m0_free(tbs->bbs_callback_counter);
 	m0_free(tbs->bbs_buf);
 }
 
