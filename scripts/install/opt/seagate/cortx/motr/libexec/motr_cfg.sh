@@ -195,22 +195,22 @@ do_m0provision_action()
     local LVM_SIZE=0
 
     msg "Configuring host [`hostname -f`]"
-    MD_DEVICES=($(lvs -o lv_path | grep "lv_raw_metadata" | grep srvnode | sort -u))
+    MD_DEVICES=($(lvs -o lv_path | grep "lv_raw_metadata" | grep srvnode  | sort -u))
 
     for i in ${MD_DEVICES[@]};
     do
         LVM_SIZE_ITR=$(lvs $i -o LV_SIZE \
                        --noheadings --units b --nosuffix | xargs)
         ANY_ERR=$(echo $LVM_SIZE_ITR | grep -i ERROR | wc -l)
-        if [[ ( "$ANY_ERR" != "0" ) || ( -z $LVM_SIZE ) ]]; then
+        if [[ ( "$ANY_ERR" != "0" ) || ( -z "$LVM_SIZE" ) ]]; then
             err "lvs $i command failed."
             msg "[$LVM_SIZE]"
 	fi
-	if [[ $LVM_SIZE_ITR -lt $LVM_SIZE -o $LVM_SIZE -eq 0 ]]; then
+	if [[ "$LVM_SIZE_ITR" -lt "$LVM_SIZE" || "$LVM_SIZE" -eq 0 ]]; then
 	    LVM_SIZE=$LVM_SIZE_ITR
 	fi
     done
-    if [ $LVM_SIZE -eq 0 ]; then
+    if [ "$LVM_SIZE" -eq 0 ]; then
 	 err "lvs size invalid [$LVM_SIZE]"
     else
          msg "LVM_SIZE = $LVM_SIZE"
