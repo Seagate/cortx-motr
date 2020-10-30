@@ -415,16 +415,16 @@ static struct btype bt[] = {
 #undef _B
 
 enum {
-	MAX_GEN    	 =     256,
-	MAX_SCAN_QUEUED	 = 1000000,
-	MAX_QUEUED  	 = 1000000,
-	MAX_REC_SIZE     = 64*1024,
+	MAX_GEN    	 =      256,
+	MAX_SCAN_QUEUED	 = 10000000,
+	MAX_QUEUED  	 =  1000000,
+	MAX_REC_SIZE     =  64*1024,
 	/**
 	 * This value is arrived on the basis of max time difference between
 	 * mkfs run on local and remote node and the assumption that time
 	 * difference between nodes is negligible.
 	 */
-	MAX_GEN_DIFF_SEC =      30
+	MAX_GEN_DIFF_SEC =       30
 };
 
 /** It is used to recover meta data of component catalogue store. */
@@ -604,12 +604,12 @@ int main(int argc, char **argv)
 	if (!dry_run) {
 		qput(&s.s_bnode_q, scanner_action(sizeof(struct action),
 						  AO_DONE, NULL));
-		qput(&q, builder_action(&b, sizeof(struct action), AO_DONE,
-					&done_ops));
-		builder_fini(&b);
 		m0_thread_join(&s.s_thread);
 		m0_thread_fini(&s.s_thread);
 		qfini(&s.s_bnode_q);
+		qput(&q, builder_action(&b, sizeof(struct action), AO_DONE,
+					&done_ops));
+		builder_fini(&b);
 		qfini(&q);
 	}
 	fini();
