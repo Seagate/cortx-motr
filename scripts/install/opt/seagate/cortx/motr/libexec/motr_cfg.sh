@@ -192,29 +192,33 @@ chk_key_value()
 do_m0provision_action()
 {
     local CFG_LINE=""
+    local LVM_SIZE_MIN=0
     local LVM_SIZE=0
 
+    if [ ! -x /usr/sbin/lvs ]; then
+        err "lvs command not available."
+    fi
+
     msg "Configuring host [`hostname -f`]"
-    MD_DEVICES=($(lvs -o lv_path | grep "lv_raw_metadata" | grep srvnode  | sort -u))
+    MD_DEVICES=($(lvs -o lv_path 2>/dev/null | grep "lv_raw_metadata" | grep srvnode  | sort -u))
 
     for i in ${MD_DEVICES[@]};
     do
-        LVM_SIZE_ITR=$(lvs $i -o LV_SIZE \
+        LVM_SIZE=$(lvs $i -o LV_SIZE \
                        --noheadings --units b --nosuffix | xargs)
-        ANY_ERR=$(echo $LVM_SIZE_ITR | grep -i ERROR | wc -l)
+        ANY_ERR=$(echo $LVM_SIZE | grep -i ERROR | wc -l)
         if [[ ( "$ANY_ERR" != "0" ) || ( -z "$LVM_SIZE" ) ]]; then
             err "lvs $i command failed."
-            msg "[$LVM_SIZE]"
-	fi
-	if [[ "$LVM_SIZE_ITR" -lt "$LVM_SIZE" || "$LVM_SIZE" -eq 0 ]]; then
-	    LVM_SIZE=$LVM_SIZE_ITR
+            msg "[$LVM_SIZE_MIN]"
+	elif [[ "$LVM_SIZE" -lt "$LVM_SIZE_MIN" || "$LVM_SIZE_MIN" -eq 0 ]]; then
+	    LVM_SIZE_MIN=$LVM_SIZE
 	fi
     done
-    if [ "$LVM_SIZE" -eq 0 ]; then
-	 err "lvs size invalid [$LVM_SIZE]"
+    if [ "$LVM_SIZE_MIN" -eq 0 ]; then
+	 err "lvs size invalid [$LVM_SIZE_MIN]"
     else
-         msg "LVM_SIZE = $LVM_SIZE"
-         sed -i "s/MOTR_M0D_IOS_BESEG_SIZE=.*/MOTR_M0D_IOS_BESEG_SIZE=$LVM_SIZE/g" $MOTR_CONF_FILE
+         msg "LVM_SIZE_MIN = $LVM_SIZE_MIN"
+         sed -i "s/MOTR_M0D_IOS_BESEG_SIZE=.*/MOTR_M0D_IOS_BESEG_SIZE=$LVM_SIZE_MIN/g" $MOTR_CONF_FILE
     fi
 
     SALT_OPT=$(salt-call --local grains.get virtual)
