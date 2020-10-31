@@ -151,7 +151,9 @@ get_ios_fid() {
         id=$(m0confgen -f xcode -t json /etc/motr/confd.xc |  jq -r --arg "IP" "$ip" '.[] | select(.objid|startswith("process")) |  select(.endpoint == $IP) | .objid' | cut -d '-' -f2)
         fid=$(printf '0x7200000000000001:%#x\n' $id)
 
-        if [[ "$fid" == $(cat /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep $LOCAL_NODE -B 1 | grep FID | cut -f 2 -d "=" | tr -d \') ]]; then
+        local_node_fids=$(cat /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep $LOCAL_NODE -B 1 | grep FID | cut -f 2 -d "=" | tr -d \')
+
+        if echo $local_node_fids | grep $fid > /dev/null; then
             LOCAL_IOS_FID=$fid
         else
             REMOTE_IOS_FID=$fid
