@@ -290,8 +290,8 @@ static int  builder_init   (struct builder *b);
 static void builder_fini   (struct builder *b);
 static void ad_dom_fini    (struct builder *b);
 static void builder_thread (struct builder *b);
-static void  be_cfg_default_init(struct m0_be_domain_cfg  *dom_cfg,
-				 struct m0_be_tx_bulk_cfg *tb_cfg);
+static void be_cfg_default_init(struct m0_be_domain_cfg  *dom_cfg,
+				struct m0_be_tx_bulk_cfg *tb_cfg);
 
 static int format_header_verify(const struct m0_format_header *h,
 				uint16_t rtype);
@@ -1634,6 +1634,10 @@ static void builder_fini(struct builder *b)
 	printf("builder: actions: %9"PRId64"\n", b->b_act);
 }
 
+/**
+ * These values provided the maximum builder performance after experiments on 
+ * hardware.
+ */
 static void  be_cfg_default_init(struct m0_be_domain_cfg  *dom_cfg,
 				 struct m0_be_tx_bulk_cfg *tb_cfg)
 {
