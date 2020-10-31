@@ -88,6 +88,7 @@ struct be_ut_queue_ctx {
 	struct m0_be_queue        *butx_bq;
 	/* producer increments and takes butx_data[] with the index returned */
 	struct m0_atomic64         butx_pos;
+	/* logical clock to check queue operations orderding */
 	struct m0_atomic64         butx_clock;
 	struct be_ut_queue_data   *butx_data;
 	struct be_ut_queue_result *butx_result;
@@ -224,6 +225,13 @@ static void be_ut_queue_thread(void *_param)
 	m0_free(op);
 }
 
+/**
+ * The test launches be_ut_queue_cfg::butc_producers +
+ * be_ut_queue_cfg::butc_consumers threads for producers and consumers
+ * respectively. Each producer/consumer thread does
+ * M0_BE_QUEUE_PUT()/M0_BE_QUEUE_GET() in a loop, and it also tries to
+ * M0_BE_QUEUE_PEEK() before each put()/get().
+ */
 static void be_ut_queue_with_cfg(struct be_ut_queue_cfg *test_cfg)
 {
 	struct m0_ut_threads_descr      *td;
@@ -287,8 +295,14 @@ static void be_ut_queue_with_cfg(struct be_ut_queue_cfg *test_cfg)
 			 0 : params[i].butqp_index < remainder) +
 			!params[i].butqp_is_producer;
 	}
+	/* all producer threads would put items_nr items to the queue */
 	M0_UT_ASSERT(m0_reduce(j, test_cfg->butc_producers,
 			       0, + params[j].butqp_items_nr) == items_nr);
+	/*
+	 * All consumer threads would try to get items_nr + butc_consumers items
+	 * from the queue. Only items_nr M0_BE_QUEUE_GET()s would be
+	 * successful, the rest would be unsuccessful.
+	 */
 	M0_UT_ASSERT(m0_reduce(j, test_cfg->butc_consumers,
 			       0, + params[test_cfg->butc_producers +
 					   j].butqp_items_nr) ==
@@ -308,10 +322,15 @@ static void be_ut_queue_with_cfg(struct be_ut_queue_cfg *test_cfg)
 		m0_semaphore_fini(&params[i].butqp_sem_start);
 
 	r = ctx->butx_result;
+	/* M0_BE_QUEUE_GET() has been called successfully for items_nr items */
 	M0_UT_ASSERT(m0_reduce(j, test_cfg->butc_consumers,
 			       0, + params[test_cfg->butc_producers +
 					   j].butqp_gets_successful) ==
 		     items_nr);
+	/*
+	 * There has been exactly butc_consumers unsuccessful M0_BE_QUEUE_GET()
+	 * calls.
+	 */
 	M0_UT_ASSERT(m0_reduce(j, test_cfg->butc_consumers,
 			       0, + params[test_cfg->butc_producers +
 					   j].butqp_gets_unsuccessful) ==
