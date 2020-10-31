@@ -36,8 +36,8 @@ REMOTE_LV_MD_DEVICE=
 SNAPSHOT="MD_Snapshot" # Snapshot name
 LOCAL_NODE=            # Local node hostname
 REMOTE_NODE=           # Remote node hostname
-LOCAL_IOS_FID=""         # Local ioservice fid
-REMOTE_IOS_FID=""       # Remote ioservice fid
+LOCAL_IOS_FID="0x7200000000000001:0x0" # Local ioservice fid
+REMOTE_IOS_FID="0x7200000000000001:0x0" # Remote ioservice fid
 # REMOTE_STORAGE_STATUS is used to determine remote storage is accessibility,
 # If value is 0 then remote storage is accessible on remote node,
 # If value 1 then remote storage is accessible via local node.
