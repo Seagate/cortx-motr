@@ -36,6 +36,7 @@
 #include <time.h>             /* localtime_r */
 #include <pthread.h>
 #include <signal.h>           /* signal() to register ctrl + C handler */
+#include <yaml.h>
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
@@ -74,10 +75,29 @@
 M0_TL_DESCR_DECLARE(ad_domains, M0_EXTERN);
 M0_TL_DECLARE(ad_domains, M0_EXTERN, struct ad_domain_map);
 
-struct queue;
+struct queue {
+	pthread_mutex_t q_lock;
+	pthread_cond_t  q_cond;
+	struct action  *q_head;
+	struct action  *q_tail;
+	uint64_t        q_nr;
+	uint64_t        q_max;
+};
 
 struct scanner {
 	FILE		    *s_file;
+	/**
+	 * It holds the BE segment offset of the bnode which is then used by
+	 * scanner thread to read bnode.
+	 */
+	off_t		     s_start_off;
+	/**
+	 * Queue to store bnode offset in the BE segment.
+	 */
+	struct queue	     s_bnode_q;
+	/** Scanner thread which processes the bnodes. */
+	struct m0_thread     s_thread;
+	struct m0_mutex      s_lock;
 	off_t		     s_off;
 	off_t		     s_pos;
 	bool		     s_byte;
@@ -165,6 +185,11 @@ struct action {
 	struct action           *a_prev;
 };
 
+struct bnode_act {
+	struct action bna_act;
+	off_t         bna_offset;
+};
+
 struct cob_action {
 	struct action coa_act;
 	/** Buffer to hold cob namespace key. */
@@ -181,15 +206,6 @@ struct action_ops {
 	int  (*o_prep)(struct action *act, struct m0_be_tx_credit *cred);
 	void (*o_act) (struct action *act, struct m0_be_tx *tx);
 	void (*o_fini)(struct action *act);
-};
-
-struct queue {
-	pthread_mutex_t q_lock;
-	pthread_cond_t  q_cond;
-	struct action  *q_head;
-	struct action  *q_tail;
-	uint64_t        q_nr;
-	uint64_t        q_max;
 };
 
 enum { CACHE_SIZE = 1000000 };
@@ -233,6 +249,7 @@ struct builder {
 	uint64_t                   b_size;
 	const char                *b_dom_path;
 	const char                *b_stob_path; /**< stob path for ad_domain */
+	const char                *b_be_config_file; /** BE configuration */
 
 	uint64_t                   b_act;
 	uint64_t                   b_data;
@@ -329,8 +346,6 @@ static void test(void);
 static int cob_proc(struct scanner *s, struct btype *b,
 		    struct m0_be_bnode *node);
 
-static void *action_alloc(size_t len, enum action_opcode opc,
-			  const struct action_ops *ops);
 static int   emap_proc(struct scanner *s, struct btype *b,
 		       struct m0_be_bnode *node);
 static int   emap_prep(struct action *act, struct m0_be_tx_credit *cred);
@@ -339,7 +354,10 @@ static void  emap_fini(struct action *act);
 static int   emap_kv_get(struct scanner *s, const struct be_btree_key_val *kv,
 		         struct m0_buf *key_buf, struct m0_buf *val_buf);
 static void  sig_handler(int num);
+static int   be_cfg_from_yaml_update(const char              *yaml_file,
+				     struct m0_be_domain_cfg *cfg);
 
+static void scanner_thread(struct scanner *s);
 static const struct recops btreeops;
 static const struct recops bnodeops;
 static const struct recops seghdrops;
@@ -408,15 +426,18 @@ static struct btype bt[] = {
 #undef _B
 
 enum {
-	MAX_GEN    	 =     256,
-	MAX_QUEUED  	 = 1000000,
-	MAX_REC_SIZE     = 64*1024,
+	MAX_GEN    	 =      256,
+	MAX_SCAN_QUEUED	 = 10000000,
+	MAX_QUEUED  	 =  1000000,
+	MAX_REC_SIZE     =  64*1024,
 	/**
 	 * This value is arrived on the basis of max time difference between
 	 * mkfs run on local and remote node and the assumption that time
 	 * difference between nodes is negligible.
 	 */
-	MAX_GEN_DIFF_SEC = 30
+	MAX_GEN_DIFF_SEC =       30,
+	MAX_KEY_LEN      =      256,
+	MAX_VALUE_LEN    =      256
 };
 
 /** It is used to recover meta data of component catalogue store. */
@@ -481,6 +502,7 @@ int main(int argc, char **argv)
 	int                    result;
 	uint64_t	       gen_id	    = 0;
 	struct m0_be_tx_credit max;
+	FILE                  *fp;
 
 	m0_node_uuid_string_set(NULL);
 	result = m0_init(&instance);
@@ -504,6 +526,10 @@ int main(int argc, char **argv)
 		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
 				&s.s_gen),
 		   M0_FLAGARG('V', "Version info.", &version),
+		   M0_STRINGARG('y', "YAML file path",
+			   LAMBDA(void, (const char *s) {
+				   b.b_be_config_file = s;
+				   })),
 		   M0_STRINGARG('a', "stob domain path",
 			   LAMBDA(void, (const char *s) {
 				   b.b_stob_path = s;
@@ -548,6 +574,13 @@ int main(int argc, char **argv)
 		printf("Snapshot size: %"PRId64".\n", s.s_size);
 	}
 
+	if (b.b_be_config_file && !dry_run && !print_gen_id) {
+		fp = fopen(b.b_be_config_file, "r");
+		if (fp == NULL)
+			err(EX_NOINPUT, "Failed to open yaml file \"%s\".",
+			    b.b_be_config_file);
+		fclose(fp);
+	}
 	generation_id_get(s.s_file, &gen_id);
 	if (print_gen_id) {
 		generation_id_print(gen_id);
@@ -560,11 +593,15 @@ int main(int argc, char **argv)
 	if (s.s_gen != 0) {
 		printf("\nReceived source segment header generation id\n");
 		generation_id_print(s.s_gen);
+		printf("\n");
+		fflush(stdout);
 	}
 
 	s.s_gen = gen_id ?: s.s_gen;
 	printf("\nSource segment header generation id to be used by beck.\n");
 	generation_id_print(s.s_gen);
+	printf("\n");
+	fflush(stdout);
 	/*
 	 *  If both segment's generation identifier is corrupted then abort
 	 *  beck tool.
@@ -579,11 +616,16 @@ int main(int argc, char **argv)
 	 */
 	if (!dry_run) {
 		qinit(&q, MAX_QUEUED);
+		qinit(&s.s_bnode_q, MAX_SCAN_QUEUED);
 		s.s_q = b.b_q = &q;
 		result = builder_init(&b);
 		s.s_seg = b.b_seg;
 		m0_be_engine_tx_size_max(&b.b_dom->bd_engine, &max, NULL);
 		s.s_max_reg_size = max.tc_reg_size;
+		if (result != 0)
+			err(EX_CONFIG, "Cannot initialise builder.");
+		result = M0_THREAD_INIT(&s.s_thread, struct scanner *,
+					NULL, &scanner_thread, &s, "scannner");
 		if (result != 0)
 			err(EX_CONFIG, "Cannot initialise builder.");
 	}
@@ -599,6 +641,11 @@ int main(int argc, char **argv)
 		warn("Scan failed: %d.", result);
 
 	if (!dry_run) {
+		qput(&s.s_bnode_q, scanner_action(sizeof(struct action),
+						  AO_DONE, NULL));
+		m0_thread_join(&s.s_thread);
+		m0_thread_fini(&s.s_thread);
+		qfini(&s.s_bnode_q);
 		qput(&q, builder_action(&b, sizeof(struct action), AO_DONE,
 					&done_ops));
 		builder_fini(&b);
@@ -609,6 +656,25 @@ int main(int argc, char **argv)
 		close(sfd);
 	m0_fini();
 	return EX_OK;
+}
+
+static void scanner_thread(struct scanner *s)
+{
+	struct m0_be_bnode  node;
+	struct bnode_act   *ba;
+	struct btype       *b;
+	int                 rc;
+
+	do {
+		ba  = (struct bnode_act *)qget(&s->s_bnode_q);
+		if (ba->bna_act.a_opc != AO_DONE) {
+			rc = getat(s, ba->bna_offset, &node, sizeof node);
+			M0_ASSERT(rc == 0);
+			b = &bt[node.bt_backlink.bli_type];
+			b->b_proc(s, b, &node);
+			m0_free(ba);
+		}
+	} while (ba->bna_act.a_opc != AO_DONE);
 }
 
 static char iobuf[4*1024*1024];
@@ -706,7 +772,7 @@ static int scan(struct scanner *s)
 	uint64_t lastrecord = 0;
 	uint64_t lastdata = 0;
 
-	setvbuf(s->s_file, iobuf, _IOFBF, sizeof iobuf);
+	setvbuf(s->s_file, iobuf, _IONBF, sizeof iobuf);
 	while (!signaled && (result = get(s, &magic, sizeof magic)) == 0) {
 		if (magic == M0_FORMAT_HEADER_MAGIC) {
 			s->s_off -= sizeof magic;
@@ -931,6 +997,7 @@ static int getat(struct scanner *s, off_t off, void *buf, size_t nob)
 	int   result = 0;
 	FILE *f      = s->s_file;
 
+	m0_mutex_lock(&s->s_lock);
 	if (off != s->s_pos)
 		result = fseeko(f, off, SEEK_SET);
 	if (result != 0) {
@@ -953,6 +1020,7 @@ static int getat(struct scanner *s, off_t off, void *buf, size_t nob)
 		FLOG(M0_FATAL, result, s);
 		s->s_pos = -1;
 	}
+	m0_mutex_unlock(&s->s_lock);
 	return M0_RC(result);
 }
 
@@ -976,6 +1044,7 @@ static int deref(struct scanner *s, const void *addr, void *buf, size_t nob)
 static int get(struct scanner *s, void *buf, size_t nob)
 {
 	int result = 0;
+	s->s_start_off = s->s_off;
 	if (!(s->s_off >= s->s_chunk_pos &&
 	      s->s_off + nob < s->s_chunk_pos + sizeof s->s_chunk)) {
 		result = getat(s, s->s_off, s->s_chunk, sizeof s->s_chunk);
@@ -1041,6 +1110,7 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	int                 idx  = node->bt_backlink.bli_type;
 	struct btype       *b;
 	struct bstats      *c;
+	struct bnode_act   *ba;
 
 	if (!IS_IN_ARRAY(idx, bt) || bt[idx].b_type == 0)
 		idx = ARRAY_SIZE(bt) - 1;
@@ -1055,8 +1125,11 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	b = &bt[idx];
 	c = &b->b_stats;
 	c->c_node++;
-	if (!dry_run && b->b_proc != NULL)
-		b->b_proc(s, b, node);
+	if (!dry_run && b->b_proc != NULL) {
+		ba = scanner_action(sizeof *ba, AO_INIT, NULL);
+		ba->bna_offset = s->s_start_off;
+		qput(&s->s_bnode_q, &ba->bna_act);
+	}
 	c->c_kv += node->bt_num_active_key;
 	if (node->bt_isleaf) {
 		c->c_leaf++;
@@ -1101,30 +1174,39 @@ static const struct action_ops emap_ops = {
 	.o_fini = &emap_fini
 };
 
-static int emap_proc(struct scanner *s, struct btype *b,
+static int emap_proc(struct scanner *s, struct btype *btype,
 		     struct m0_be_bnode *node)
 {
-	struct emap_action   *emap_act;
-	int 		      i;
-	int 		      ret = 0;
+	struct m0_stob_ad_domain *adom = NULL;
+	struct emap_action       *ea;
+	int                       id;
+	int 		          i;
+	int 		          ret = 0;
 
 	for (i = 0; i < node->bt_num_active_key; i++) {
-		emap_act = action_alloc(sizeof *emap_act,
-					AO_INIT,
-					&emap_ops);
-		emap_act->emap_fid = node->bt_backlink.bli_fid;
-		emap_act->emap_key = M0_BUF_INIT_PTR(&emap_act->emap_key_data);
-		emap_act->emap_val = M0_BUF_INIT_PTR(&emap_act->emap_val_data);
+		ea = scanner_action(sizeof *ea, AO_EMAP_FIRST, &emap_ops);
+		ea->emap_fid = node->bt_backlink.bli_fid;
+		ea->emap_key = M0_BUF_INIT_PTR(&ea->emap_key_data);
+		ea->emap_val = M0_BUF_INIT_PTR(&ea->emap_val_data);
 
 		ret = emap_kv_get(s, &node->bt_kv_arr[i],
-				  &emap_act->emap_key, &emap_act->emap_val);
+				  &ea->emap_key, &ea->emap_val);
 		if (ret != 0) {
 			btree_bad_kv_count_update(node->bt_backlink.bli_type, 1);
-			m0_free(emap_act);
+			m0_free(ea);
 			continue;
 		}
 
-		qput(s->s_q, &emap_act->emap_act);
+	        ea->emap_act.a_builder = &b;
+		adom = emap_dom_find(&ea->emap_act, &ea->emap_fid, &id);
+		if (adom != NULL) {
+			ea->emap_act.a_opc += id;
+			qput(s->s_q, &ea->emap_act);
+		} else {
+			btree_bad_kv_count_update(node->bt_backlink.bli_type, 1);
+			m0_free(ea);
+			continue;
+		}
 	}
 	return ret;
 }
@@ -1193,7 +1275,6 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 	int                       id;
 
 	adom = emap_dom_find(act, &emap_ac->emap_fid, &id);
-
 	emap_val = emap_ac->emap_val.b_addr;
 	if (emap_val->er_value != AET_HOLE) {
 		emap_key = emap_ac->emap_key.b_addr;
@@ -1284,19 +1365,6 @@ static int emap_kv_get(struct scanner *s, const struct be_btree_key_val *kv,
 		format_header_verify(val->b_addr,
 				     M0_FORMAT_TYPE_BE_EMAP_REC)   ?:
 		m0_format_footer_verify(val->b_addr, false);
-}
-
-static void *action_alloc(size_t len, enum action_opcode opc,
-			  const struct action_ops *ops)
-{
-	struct action     *act;
-	M0_PRE(len >= sizeof *act);
-
-	act = m0_alloc(len);
-	M0_ASSERT(act != NULL);
-	act->a_opc = opc;
-	act->a_ops = ops;
-	return act;
 }
 
 static int seghdr(struct scanner *s, struct rectype *r, char *buf)
@@ -1554,6 +1622,13 @@ static int builder_init(struct builder *b)
 	ub->but_dom_cfg.bc_engine.bec_reqh = &b->b_reqh;
 	m0_be_ut_backend_cfg_default(&ub->but_dom_cfg);
 	be_cfg_default_init(&ub->but_dom_cfg, &default_tb_cfg);
+	/* Check for any BE configuration overrides. */
+	if (b->b_be_config_file) {
+		result = be_cfg_from_yaml_update(b->b_be_config_file,
+					         &ub->but_dom_cfg);
+		if (result != 0)
+			return M0_ERR(result);
+	}
 	result = m0_be_ut_backend_init_cfg(ub, &ub->but_dom_cfg, false);
 	if (result != 0)
 		return M0_ERR(result);
@@ -1659,6 +1734,185 @@ static void  be_cfg_default_init(struct m0_be_domain_cfg  *dom_cfg,
 	dom_cfg->bc_log_discard_cfg.ldsc_sync_timeout = M0_TIME_ONE_SECOND * 60ULL;
 	tb_cfg->tbc_workers_nr = 64;
 	tb_cfg->tbc_work_items_per_tx_max = 100;
+}
+
+static void be_cfg_update(struct m0_be_domain_cfg *cfg,
+			  const char              *str_key,
+			  const char              *str_value)
+{
+	uint64_t  value1_64;
+	uint64_t  value2_64;
+	uint64_t  value1_32;
+	char     *s1;
+	char     *s2;
+	bool      value_overridden = true;
+
+	if (m0_streq(str_key, "tgc_size_max")  || 
+	    m0_streq(str_key, "bec_tx_size_max")) {
+
+		/** Cover variables accepting two comma-separated values. */
+
+		s1 = m0_strdup(str_value);
+		s2 = strchr(s1, ',');
+
+		*s2 = '\0';
+		s2++;
+
+		value1_64 = m0_strtou64(s1, NULL, 10);
+		value2_64 = m0_strtou64(s2, NULL, 10);
+
+		m0_free(s1);
+
+		M0_ASSERT_INFO((value1_64 != ULLONG_MAX) &&
+				(value2_64 != ULLONG_MAX),
+				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+
+		if (m0_streq(str_key, "tgc_size_max")) {
+			cfg->bc_engine.bec_group_cfg.tgc_size_max = 
+					M0_BE_TX_CREDIT(value1_64, value2_64);
+		} else {
+			cfg->bc_engine.bec_tx_size_max =
+					M0_BE_TX_CREDIT(value1_64, value2_64);
+		}
+	} else if (m0_streq(str_key, "bpdc_seg_io_nr") ||
+		   m0_streq(str_key, "ldsc_items_max") ||
+		   m0_streq(str_key, "ldsc_items_threshold")) {
+
+		/** Cover variables accepting a single 32-bit value */
+
+		value1_32 =m0_strtou32(str_value, NULL, 10);
+
+		M0_ASSERT_INFO((value1_32 != ULONG_MAX),
+				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+
+		if (m0_streq(str_key, "bpdc_seg_io_nr")) {
+			cfg->bc_pd_cfg.bpdc_seg_io_nr = value1_32;
+		} else if (m0_streq(str_key, "ldsc_items_max")) {
+			cfg->bc_log_discard_cfg.ldsc_items_max = value1_32;
+		} else if (m0_streq(str_key, "ldsc_items_threshold")) {
+			cfg->bc_log_discard_cfg.ldsc_items_threshold =
+								value1_32;
+		}
+	} else {
+
+		/** These variables accept a single 64-bit value. */
+		value1_64 = m0_strtou64(str_value, NULL, 10);
+
+		M0_ASSERT_INFO((value1_64 != ULLONG_MAX),
+				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+
+		if (m0_streq(str_key, "bec_tx_active_max"))
+			cfg->bc_engine.bec_tx_active_max = value1_64;
+		else if (m0_streq(str_key, "bec_group_nr"))
+			cfg->bc_engine.bec_group_nr = value1_64;
+		else if (m0_streq(str_key, "tgc_tx_nr_max"))
+			cfg->bc_engine.bec_group_cfg.tgc_tx_nr_max = value1_64;
+		else if (m0_streq(str_key, "tgc_payload_max"))
+			cfg->bc_engine.bec_group_cfg.tgc_payload_max = 
+								value1_64;
+		else if (m0_streq(str_key, "bec_tx_payload_max"))
+			cfg->bc_engine.bec_tx_payload_max = value1_64;
+		else if (m0_streq(str_key, "bec_group_freeze_timeout_min"))
+			cfg->bc_engine.bec_group_freeze_timeout_min = value1_64;
+		else if (m0_streq(str_key, "bec_group_freeze_timeout_max"))
+			cfg->bc_engine.bec_group_freeze_timeout_max = value1_64;
+		else if (m0_streq(str_key, "bec_group_freeze_timeout_limit"))
+			cfg->bc_engine.bec_group_freeze_timeout_limit =
+								value1_64;
+		else if (m0_streq(str_key, "lc_full_threshold"))
+			cfg->bc_log.lc_full_threshold = value1_64;
+		else if (m0_streq(str_key, "ldsc_sync_timeout"))
+			cfg->bc_log_discard_cfg.ldsc_sync_timeout = value1_64;
+		else
+			value_overridden = false;
+	}
+
+	if (value_overridden) {
+		printf("%s = %s\n", str_key, str_value);
+		fflush(stdout);
+	}
+}
+
+static int  be_cfg_from_yaml_update(const char              *yaml_file,
+				    struct m0_be_domain_cfg *cfg)
+{
+	FILE         *fp;
+	yaml_parser_t parser;
+	yaml_token_t  token;
+	char         *scalar_value;
+	char          key[MAX_KEY_LEN];
+	char          value[MAX_VALUE_LEN];
+	int           rc;
+	bool          is_key = false;
+	bool          key_received = false;
+	bool          value_received = false;
+
+	fp = fopen(yaml_file, "r");
+	M0_ASSERT(fp != NULL);
+
+	if (!yaml_parser_initialize(&parser)) {
+		printf("Failed to initialize yaml parser.\n");
+		fclose(fp);
+		return -ENOMEM;
+	}
+
+	yaml_parser_set_input_file(&parser, fp);
+
+	printf("Changed following BE defaults:\n");
+
+	do {
+		rc = 0;
+		yaml_parser_scan(&parser, &token);
+		switch (token.type) {
+			case YAML_KEY_TOKEN:
+				is_key = true;
+				break;
+			case YAML_VALUE_TOKEN:
+				is_key = false;
+				break;
+			case YAML_SCALAR_TOKEN:
+				scalar_value = (char *)token.data.scalar.value;
+				if (is_key) {
+					strncpy(key, scalar_value, sizeof(key));
+					key[sizeof(key) - 1] = '\0';
+					key_received = true;
+				} else {
+					strncpy(value, scalar_value, sizeof(value));
+					value[sizeof(value) - 1] = '\0';
+					value_received = true;
+				}
+
+				if (key_received && value_received) {
+					be_cfg_update(cfg, key, value);
+					key_received = false;
+					value_received = false;
+				}
+				break;
+			case YAML_NO_TOKEN:
+				rc = -EINVAL;
+				break;
+			default:
+				break;
+		}
+
+		if (rc != 0) {
+			fclose(fp);
+			printf("Failed to parse %s\n", key);
+			return rc;
+		}
+
+		if (token.type != YAML_STREAM_END_TOKEN)
+			yaml_token_delete(&token);
+
+	} while (token.type != YAML_STREAM_END_TOKEN);
+
+	yaml_token_delete(&token);
+
+	yaml_parser_delete(&parser);
+
+	fclose(fp);
+
+	return 0;
 }
 
 static void *builder_action(struct builder *b, size_t len,
@@ -2215,8 +2469,7 @@ static int cob_proc(struct scanner *s, struct btype *b,
 	M0_PRE(bb->bli_type == M0_BBT_COB_NAMESPACE);
 
 	for (i = 0; i < node->bt_num_active_key; i++) {
-
-		ca = scanner_action(sizeof *ca, AO_INIT, &cob_ops);
+		ca = scanner_action(sizeof *ca, AO_COB, &cob_ops);
 		ca->coa_fid = bb->bli_fid;
 
 		ca->coa_val = M0_BUF_INIT(sizeof(struct m0_cob_nsrec),

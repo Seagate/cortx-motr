@@ -169,7 +169,7 @@ We thank you for stopping by to check out the CORTX Community. We are fully dedi
 
 Please [contribute to the CORTX Motr](https://github.com/Seagate/cortx/blob/main/doc/SuggestedContributions.md) initiative and join our movement to make data storage better, efficient, and more accessible. 
 
-Refer to the [Motr Coding Style Guide](../dev/doc/coding-style.md) and the [CORTX Contribution Guide](https://github.com/Seagate/cortx/blob/main/doc/CORTXContributionGuide.md) to get started with your first contribution.
+Refer to the [Motr Coding Style Guide](../dev/doc/coding-style.md) and the [CORTX Contribution Guide](https://github.com/Seagate/cortx/blob/main/CONTRIBUTING.md) to get started with your first contribution.
 
 ### Reach Out to Us
 
