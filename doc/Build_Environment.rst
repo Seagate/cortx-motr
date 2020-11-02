@@ -135,4 +135,44 @@ Generation Path
 
 Generation part is very simplistic for all of the build systems described. One just specifies what targets needed: binaries, libraries, etc. The only exception is that, we may possibly need handling for not standard source files, such as fol template, to generate fol tables for db4.
 
+Repository Path
+================
+
+So far there are three repositories for storing different logical parts of the Motr source tree:
+
+
+As one can see, motr-core and motr-db4 are separate repositories. There is no some logical explanation why we need them separately now as there are no requirements dictating this structure. We surely can have such a requirements in future and more flexible repository structure allows to adopt quickly. Additionally, there are not many drawbacks in current structure to not do so.
+
+While motr-db4 repository is having completely the same structure as standard db4 distribution (we do not want to multiply differences, so that we could switch to new version quickly), motr-core, on the other hands, having the structure, discussed below.
+
+- doc - documentation such as installation guide, APIs description;
+
+- man - standard manual pages for binaries, config files (if any), etc;
+
+- src - source code;
+
+  - addb - addb module;
+
+  - ctdb - ctdb module;
+
+  - fol - fol module;
+
+  - nrs - nrs module;
+
+  - sns - sns module;
+
+  - net - networking code;
+
+  - lib - common code for all the modules;
+
+- include - all motr include files;
+
+- patches - db4 patches;
+
+- tests - testing framework.
+
+Every sub directory, which contains something to build (code, man pages, etc), should have own build script. This build script builds only thing related to its directory. This is worth to mention, as some build systems allow to do everything from the project root directory. This would make root build script huge and even the best build system in the world will not save it from becoming mess very quickly.
+
+It is important to configure the project before building. This allows build system to adopt to different versions of libraries installed, find compiler and linker paths, etc., giving the ability to be as portable as possible.
+
 
