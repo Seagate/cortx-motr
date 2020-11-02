@@ -205,4 +205,52 @@ Conformance
 
 - [req.build-env.testing] - We just create tests directory, place tests code there and build it all along with the rest of the package.
 
+Dependencies
+===============
+
+- configure-stage
+
+  - scons
+
+    - python
+
+  - autotools
+
+    - bash
+
+      - cygwin (Windows)
+
+  - cmake
+
+    - bash
+
+      - cygwin (Windows)
+
+
+    - cmake interpreter
+
+- build-stage
+
+  - scons
+
+    - python
+
+    - make
+
+    - gcc, linker
+
+  - autotools
+
+    - make
+
+    - gcc, linker
+
+  - cmake
+
+    - native build tool
+
+- git
+
+  - server side hooks
+
 
