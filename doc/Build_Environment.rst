@@ -140,6 +140,7 @@ Repository Path
 
 So far there are three repositories for storing different logical parts of the Motr source tree:
 
+.. image:: Images/REP.PNG
 
 As one can see, motr-core and motr-db4 are separate repositories. There is no some logical explanation why we need them separately now as there are no requirements dictating this structure. We surely can have such a requirements in future and more flexible repository structure allows to adopt quickly. Additionally, there are not many drawbacks in current structure to not do so.
 
