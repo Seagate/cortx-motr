@@ -85,4 +85,7 @@ Here is the list of what should be checked by configure part:
 
 - Any software packages we need to build the project, such as db4 or Linux kernel, should be specified in the way like this: with-gss=gss-path with-linux=linux-kernel-path.
 
+The following configuring options form configure part functionality:
+
+.. image:: Images/Few.PNG 
 
