@@ -33,6 +33,8 @@ Get to know
 
 - `Coding Style <https://github.com/Seagate/cortx-motr/blob/main/doc/coding-style.md>`_
 
+- `Developer Guide </doc/motr-developer-guide.md>`_
+
 Surfing
 =======
 Refer to `Reading - list <https://github.com/Seagate/cortx-motr/blob/main/doc/reading-list.md>`_ for complete information.
