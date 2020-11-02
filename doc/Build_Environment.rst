@@ -191,4 +191,18 @@ Conformance
 
 - [req.build-env.configure-stage] - All build systems have powerful configure functionality, in which they check all the system specifics, such as platform, endianess, headers, etc.
 
+- [req.build-env.configure-options] - All build systems, which could be used by Colibri build environment, may easily pass configure options down to the generation part.
+
+- [req.build-env.build-stage] - All build systems have build stage, which is usually follows after configure stage and builds objects, using configure options and findings.
+
+- [req.build-env.simultaneous-builds] - Most of build systems can do simultaneous builds (parallel builds in Autotools manual). Still, scons is doing this the way exactly we need, that is, generates build tree in specified location without needs to do something more by hands. Latter is required for Autotools and Cmake. They imply, that one does this: mkdir build; cd build; configure ... && make.
+
+- [req.build-env.build-dir] - Scons build system allows easily to specify the directory all the binaries should be generated in. Others do not allow to do it simple-portable way.
+
+- [req.build-env.debug] - Just one of options. May be handled easily by all build systems.
+
+- [req.build-env.performance] - Scons provides slightly more flexibility here due to rich set of "deciders" - functions to check if source file has changed since last build. It also may be much faster than autotools because of caches and different way of building the sources (no need to chdir to every single directory all the time).
+
+- [req.build-env.testing] - We just create tests directory, place tests code there and build it all along with the rest of the package.
+
 
