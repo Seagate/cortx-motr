@@ -116,4 +116,23 @@ Logical Specification
 Configuration Part
 ===================
 
+Configuration part, in whatever build system it is implemented, check the following system specifics:
+
+- Platform check - part of standard check in Autotools and Cmake. Very easy to figure out in Scons;
+
+- Build tools, such as compiler, linker, etc., are usualy the part of standard configure checks for all build systems;
+
+- Header files check - one line macro/function in all build systems;
+
+- Libraries checks - one line macro/function in all build systems;
+
+- Not standard functions - one line macro/function in all build systems;
+
+- Configure options - handled differently in all build systems but still is very easy to talk much about. DLD will show examples of all the checks including configure options checks.
+
+Generation Path
+===============
+
+Generation part is very simplistic for all of the build systems described. One just specifies what targets needed: binaries, libraries, etc. The only exception is that, we may possibly need handling for not standard source files, such as fol template, to generate fol tables for db4.
+
 
