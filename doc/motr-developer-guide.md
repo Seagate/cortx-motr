@@ -38,7 +38,6 @@ Source code is available at: [example1.c](/motr/examples/example1.c)
   * Include necessary header files
 ```C	
 	#include "motr/client.h"
-	#include "motr/idx.h"
 ```
 There are also various Motr libraries header files that can be used in
 Motr applications. Please refer to source code "lib/"
@@ -56,7 +55,6 @@ Motr applications. Please refer to source code "lib/"
 ```C
 
 	#include "motr/client.h"
-	#include "motr/idx.h"
 
 	static struct m0_client         *m0_instance = NULL;
 	static struct m0_container       motr_container;
@@ -83,6 +81,17 @@ Motr applications. Please refer to source code "lib/"
 	        return 0;
 	}
 ```
+The most important and necessary configuration parameters:
+
+    - HA Addr    : HA service addr in Motr service
+    - Local Addr : Local addr used to connect to Motr service
+    - Profile FID: The Profile FID in Motr service
+    - Process FID: The Process FID in Motr service
+
+These parameters can be queried from:
+
+    - `hctl status` from a Motr depolyment, or
+    - Run "motr/examples/setup_a_running_motr_system.sh" to setup a single node Motr, and parameters will be shown.
 
   * The first function to use Cortx Motr is to call m0_client_init():
 ```C
@@ -106,7 +115,9 @@ Motr applications. Please refer to source code "lib/"
 
   * The steps to create an object: function object_create().
 	- Init the m0_obj struct with m0_obj_init().
-	- Init the object create operation with m0_entity_create().
+	- Init the object create operation with m0_entity_create(). An ID is needed
+	for this object. In this example, ID is configured from command line. Developers
+	are responsible to generate an unique ID for their object.
 	- Launch the operation with m0_op_launch().
 	- Wait for the operation to be executed: stable or failed with m0_op_wait().
 	- Retrieve the result.
