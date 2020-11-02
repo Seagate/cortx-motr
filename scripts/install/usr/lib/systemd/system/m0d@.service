@@ -25,7 +25,7 @@ After=motr-kernel.service
 Before=motr-trace@%i.service
 
 [Service]
-Type=simple
+Type=notify
 TimeoutStopSec=5min
 Restart=no
 Environment=SHELL=/bin/bash

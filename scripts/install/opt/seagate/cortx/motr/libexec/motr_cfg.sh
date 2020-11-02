@@ -17,7 +17,7 @@
 # For any questions about this software or licensing,
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
-
+#set -x
 
 MOTR_CONF_FILE="/opt/seagate/cortx/motr/conf/motr.conf"
 ETC_SYSCONFIG_MOTR="/etc/sysconfig/motr"
@@ -157,6 +157,38 @@ set_key_value() # ARG1 [KEY] ARG2 [VALUE] ARG3 [FILE]
 
 }
 
+chk_key_value()
+{
+    _key=$1
+    _value=$2
+    ret=1 # 0: value are same 1: value are different
+    IFS=$'\n'
+    for CFG_LINE in `cat $ETC_SYSCONFIG_MOTR`; do       
+        if [[ "$CFG_LINE" == "#"* ]]; then
+
+            # If key is commented then still we need to update
+            # /etc/sysconfig/motr
+            if [[ "$CFG_LINE" == *"$_key="* ]]; then
+                ret=1
+                break
+            fi 
+            dbg "Commented line [$CFG_LINE]"
+        else
+            IFS='='; CFG_LINE_ARRAY=($CFG_LINE); unset IFS;
+            local KEY=${CFG_LINE_ARRAY[0]}
+            local VALUE=${CFG_LINE_ARRAY[1]}
+            KEY=$(echo $KEY | xargs)
+            VALUE=$(echo $VALUE | xargs)
+            if [[ "$KEY" == "$_key" && "$VALUE" == "$_value" ]];then
+                ret=0
+                break  
+            fi
+        fi
+    done
+    unset $IFS
+    echo $ret
+}
+
 do_m0provision_action()
 {
     local CFG_LINE=""
@@ -165,7 +197,7 @@ do_m0provision_action()
     msg "Configuring host [`hostname -f`]"
 
     MD_DEVICE=$(lvs -o lv_path | grep "lv_raw_metadata" | head -1)
-    if [[ $? -eq 0 ]];then
+    if [[ $? -eq 0 && $MD_DEVICE != "" ]];then
         LVM_SIZE=$(lvs $MD_DEVICE  -o LV_SIZE \
               --noheadings --units b --nosuffix | xargs)
 
@@ -179,16 +211,19 @@ do_m0provision_action()
     fi
 
     SALT_OPT=$(salt-call --local grains.get virtual)
+    platform=$(get_platform)
+    echo "Server type is $platform"
 
     ANY_ERR=$(echo $SALT_OPT | grep -i ERROR | wc -l)
     if [ "$ANY_ERR" != "0" ]; then
-        err "Salt command failed."
+        msg "Salt command failed or not available."
         msg "[$SALT_OPT]"
-        die $ERR_CFG_SALT_FAILED
+        #die $ERR_CFG_SALT_FAILED
     fi
 
     CLUSTER_TYPE=$(echo $SALT_OPT | grep physical | wc -l)
-    if [ "$CLUSTER_TYPE" != "1" ]; then
+    echo $CLUSTER_TYPE
+    if [[ "$CLUSTER_TYPE" != "1" ]] && [[ $platform != "physical" ]]; then
         msg "CLUSTER_TYPE is [$CLUSTER_TYPE]. Config operation is not allowed."
         msg "Only physical clusters will be configured here. "
         msg "[$SALT_OPT]"
@@ -210,7 +245,13 @@ do_m0provision_action()
             VALUE=$(echo $VALUE | xargs)
             if [ "$KEY" != "" ]; then
                 msg "Updating KEY [$KEY]; VALUE [$VALUE]"
-                set_key_value $KEY "$VALUE" $ETC_SYSCONFIG_MOTR
+                # update /etc/sysconfig/motr file
+                # only when the key values are different
+                # from motr.conf file
+                res=$(chk_key_value $KEY "$VALUE")
+                if [[ $ret -ne 0 ]];then
+                    set_key_value $KEY "$VALUE" $ETC_SYSCONFIG_MOTR
+                fi
             else
                 dbg "Not processing [$CFG_LINE]"
             fi

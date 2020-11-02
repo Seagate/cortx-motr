@@ -908,22 +908,21 @@ motr_libexec_SCRIPTS = \
     scripts/install$(motrdir)/libexec/m0reportbug-bundler \
     scripts/install$(motrdir)/libexec/m0_ha_sim \
     scripts/install$(motrdir)/libexec/motr_data_recovery.sh \
-    scripts/install$(motrdir)/libexec/m0trace_logrotate.sh
+    scripts/install$(motrdir)/libexec/m0trace_logrotate.sh \
+    scripts/install$(motrdir)/libexec/motr_cfg.sh \
+    scripts/install$(motrdir)/libexec/m0addb_logrotate.sh
 EXTRA_DIST += $(motr_libexec_SCRIPTS)
 
 motr_crondir = $(sysconfdir)/cron.hourly
 motr_cron_SCRIPTS = \
-    scripts/install$(motrdir)/libexec/m0trace_logrotate.sh
+    scripts/install$(motrdir)/libexec/m0trace_logrotate.sh \
+    scripts/install$(motrdir)/libexec/m0addb_logrotate.sh
 EXTRA_DIST += $(motr_cron_SCRIPTS)
     
 motr_confdir = $(motrdir)/conf
 motr_conf_DATA = scripts/install$(motr_confdir)/motr.conf \
                     scripts/install$(motr_confdir)/setup.yaml
 EXTRA_DIST += $(motr_conf_DATA)
-
-motr_configdir = $(motrdir)/config
-motr_config_SCRIPTS = scripts/install$(motr_configdir)/motr_cfg.sh
-EXTRA_DIST      += $(motr_config_SCRIPTS)
 
 motr_sanitydir = $(motrdir)/sanity
 motr_sanity_SCRIPTS = \
