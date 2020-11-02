@@ -167,12 +167,12 @@ struct gen {
 };
 
 enum action_opcode {
-	AO_INIT = 1,
-	AO_DONE = 2,
-	AO_CTG  = 3,
-	AO_COB  = 4,
+	AO_INIT       = 1,
+	AO_DONE       = 2,
+	AO_CTG        = 3,
+	AO_COB        = 4,
 	AO_EMAP_FIRST = 5,
-	AO_NR = 30
+	AO_NR         = 30
 };
 
 struct action_ops;
@@ -360,15 +360,12 @@ static void  emap_fini(struct action *act);
 static int   emap_kv_get(struct scanner *s, const struct be_btree_key_val *kv,
 		         struct m0_buf *key_buf, struct m0_buf *val_buf);
 static void  sig_handler(int num);
+static int   be_cfg_from_yaml_update(const char              *yaml_file,
+				     struct m0_be_domain_cfg *cfg);
 static int   nv_scan_offset_init(uint64_t workers_nr);
 static void  nv_scan_offset_fini(void);
 static off_t nv_scan_offset_get(void);
 static void  nv_scan_offset_update(off_t offset, uint64_t worker_id);
-static int   override_be_cfg_def_from_yaml(const char               *yaml_file,
-					   struct m0_be_domain_cfg  *cfg,
-					   struct m0_be_tx_bulk_cfg *tb_cfg);
-static void   be_cfg_default_init(struct m0_be_domain_cfg  *cfg,
-				 struct m0_be_tx_bulk_cfg *tb_cfg);
 
 static void scanner_thread(struct scanner *s);
 static const struct recops btreeops;
@@ -439,18 +436,18 @@ static struct btype bt[] = {
 #undef _B
 
 enum {
-	MAX_GEN    	 =     256,
-	MAX_SCAN_QUEUED	 = 1000000,
-	MAX_QUEUED  	 =  100000,
-	MAX_REC_SIZE     = 64*1024,
+	MAX_GEN    	 =      256,
+	MAX_SCAN_QUEUED	 = 10000000,
+	MAX_QUEUED  	 =  1000000,
+	MAX_REC_SIZE     =  64*1024,
 	/**
 	 * This value is arrived on the basis of max time difference between
 	 * mkfs run on local and remote node and the assumption that time
 	 * difference between nodes is negligible.
 	 */
-	MAX_GEN_DIFF_SEC =      30,
-	MAX_KEY_LEN      =     256,
-	MAX_VALUE_LEN    =     256
+	MAX_GEN_DIFF_SEC =       30,
+	MAX_KEY_LEN      =      256,
+	MAX_VALUE_LEN    =      256
 };
 
 /** It is used to recover meta data of component catalogue store. */
@@ -550,9 +547,6 @@ int main(int argc, char **argv)
 		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
 				&s.s_gen),
 		   M0_FLAGARG('V', "Version info.", &version),
-		   M0_FLAGARG('T', "parse trace log produced earlier"
-			      " (trace data is read from STDIN)",
-			      &parse_trace),
 		   M0_STRINGARG('y', "YAML file path",
 			   LAMBDA(void, (const char *s) {
 				   b.b_be_config_file = s;
@@ -573,12 +567,6 @@ int main(int argc, char **argv)
 	}
 	if (version) {
 		m0_build_info_print();
-		return EX_OK;
-	}
-	if (parse_trace) {
-		m0_node_uuid_string_set(NULL);
-		m0_trace_parse(stdin, stdout, NULL,
-			       M0_TRACE_PARSE_DEFAULT_FLAGS, 0, 0);
 		return EX_OK;
 	}
 	if (dry_run)
@@ -683,12 +671,12 @@ int main(int argc, char **argv)
 	if (!dry_run) {
 		qput(&s.s_bnode_q, scanner_action(sizeof(struct action),
 						  AO_DONE, NULL));
-		qput(&q, builder_action(&b, sizeof(struct action), AO_DONE,
-					&done_ops));
-		builder_fini(&b);
 		m0_thread_join(&s.s_thread);
 		m0_thread_fini(&s.s_thread);
 		qfini(&s.s_bnode_q);
+		qput(&q, builder_action(&b, sizeof(struct action), AO_DONE,
+					&done_ops));
+		builder_fini(&b);
 		qfini(&q);
 		nv_scan_offset_fini();
 	}
@@ -1323,7 +1311,6 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 	int                       id;
 
 	adom = emap_dom_find(act, &emap_ac->emap_fid, &id);
-
 	emap_val = emap_ac->emap_val.b_addr;
 	if (emap_val->er_value != AET_HOLE) {
 		emap_key = emap_ac->emap_key.b_addr;
@@ -1747,14 +1734,13 @@ static int builder_init(struct builder *b)
 		b->b_dom_path[0] == '/' ? "" : "./", b->b_dom_path);
 	ub->but_dom_cfg.bc_engine.bec_reqh = &b->b_reqh;
 	m0_be_ut_backend_cfg_default(&ub->but_dom_cfg);
-	be_cfg_default_init(&ub->but_dom_cfg, &default_tb_cfg);
 	/* Check for any BE configuration overrides. */
-	if (b->b_be_config_file)
-		result = override_be_cfg_def_from_yaml(b->b_be_config_file,
-						       &ub->but_dom_cfg,
-						       &default_tb_cfg);
-	if (result != 0)
-		return M0_ERR(result);
+	if (b->b_be_config_file) {
+		result = be_cfg_from_yaml_update(b->b_be_config_file,
+					         &ub->but_dom_cfg);
+		if (result != 0)
+			return M0_ERR(result);
+	}
 	result = m0_be_ut_backend_init_cfg(ub, &ub->but_dom_cfg, false);
 	if (result != 0)
 		return M0_ERR(result);
@@ -1835,86 +1821,96 @@ static void builder_fini(struct builder *b)
 	printf("builder: actions: %9"PRId64"\n", b->b_act);
 }
 
-static void override_be_cfg_defaults(struct m0_be_domain_cfg  *dom_cfg,
-				     struct m0_be_tx_bulk_cfg *tb_cfg,
-			     	     const char               *str_key,
-			     	     const char               *str_value)
+static void be_cfg_update(struct m0_be_domain_cfg *cfg,
+			  const char              *str_key,
+			  const char              *str_value)
 {
 	uint64_t  value1_64;
 	uint64_t  value2_64;
+	uint64_t  value1_32;
 	char     *s1;
 	char     *s2;
 	bool      value_overridden = true;
 
-	if (m0_streq(str_key,"bec_tx_active_max"))
-		dom_cfg->bc_engine.bec_tx_active_max = m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "bec_group_nr"))
-		dom_cfg->bc_engine.bec_group_nr = m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "tgc_tx_nr_max"))
-		dom_cfg->bc_engine.bec_group_cfg.tgc_tx_nr_max = m0_strtou64(str_value,
-									 0, 10);
-	else if (m0_streq(str_key, "tgc_size_max")) {
+	if (m0_streq(str_key, "tgc_size_max")  || 
+	    m0_streq(str_key, "bec_tx_size_max")) {
+
+		/** Cover variables accepting two comma-separated values. */
+
 		s1 = m0_strdup(str_value);
 		s2 = strchr(s1, ',');
 
 		*s2 = '\0';
 		s2++;
 
-		value1_64 = m0_strtou64(s1, 0, 10);
-		value2_64 = m0_strtou64(s2, 0, 10);
+		value1_64 = m0_strtou64(s1, NULL, 10);
+		value2_64 = m0_strtou64(s2, NULL, 10);
+
 		m0_free(s1);
 
-		dom_cfg->bc_engine.bec_group_cfg.tgc_size_max =
+		M0_ASSERT_INFO((value1_64 != ULLONG_MAX) &&
+				(value2_64 != ULLONG_MAX),
+				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+
+		if (m0_streq(str_key, "tgc_size_max")) {
+			cfg->bc_engine.bec_group_cfg.tgc_size_max = 
 					M0_BE_TX_CREDIT(value1_64, value2_64);
+		} else {
+			cfg->bc_engine.bec_tx_size_max =
+					M0_BE_TX_CREDIT(value1_64, value2_64);
+		}
+	} else if (m0_streq(str_key, "bpdc_seg_io_nr") ||
+		   m0_streq(str_key, "ldsc_items_max") ||
+		   m0_streq(str_key, "ldsc_items_threshold")) {
+
+		/** Cover variables accepting a single 32-bit value */
+
+		value1_32 =m0_strtou32(str_value, NULL, 10);
+
+		M0_ASSERT_INFO((value1_32 != ULONG_MAX),
+				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+
+		if (m0_streq(str_key, "bpdc_seg_io_nr")) {
+			cfg->bc_pd_cfg.bpdc_seg_io_nr = value1_32;
+		} else if (m0_streq(str_key, "ldsc_items_max")) {
+			cfg->bc_log_discard_cfg.ldsc_items_max = value1_32;
+		} else if (m0_streq(str_key, "ldsc_items_threshold")) {
+			cfg->bc_log_discard_cfg.ldsc_items_threshold =
+								value1_32;
+		}
+	} else {
+
+		/** These variables accept a single 64-bit value. */
+		value1_64 = m0_strtou64(str_value, NULL, 10);
+
+		M0_ASSERT_INFO((value1_64 != ULLONG_MAX),
+				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+
+		if (m0_streq(str_key, "bec_tx_active_max"))
+			cfg->bc_engine.bec_tx_active_max = value1_64;
+		else if (m0_streq(str_key, "bec_group_nr"))
+			cfg->bc_engine.bec_group_nr = value1_64;
+		else if (m0_streq(str_key, "tgc_tx_nr_max"))
+			cfg->bc_engine.bec_group_cfg.tgc_tx_nr_max = value1_64;
+		else if (m0_streq(str_key, "tgc_payload_max"))
+			cfg->bc_engine.bec_group_cfg.tgc_payload_max = 
+								value1_64;
+		else if (m0_streq(str_key, "bec_tx_payload_max"))
+			cfg->bc_engine.bec_tx_payload_max = value1_64;
+		else if (m0_streq(str_key, "bec_group_freeze_timeout_min"))
+			cfg->bc_engine.bec_group_freeze_timeout_min = value1_64;
+		else if (m0_streq(str_key, "bec_group_freeze_timeout_max"))
+			cfg->bc_engine.bec_group_freeze_timeout_max = value1_64;
+		else if (m0_streq(str_key, "bec_group_freeze_timeout_limit"))
+			cfg->bc_engine.bec_group_freeze_timeout_limit =
+								value1_64;
+		else if (m0_streq(str_key, "lc_full_threshold"))
+			cfg->bc_log.lc_full_threshold = value1_64;
+		else if (m0_streq(str_key, "ldsc_sync_timeout"))
+			cfg->bc_log_discard_cfg.ldsc_sync_timeout = value1_64;
+		else
+			value_overridden = false;
 	}
-	else if (m0_streq(str_key, "tgc_payload_max"))
-		dom_cfg->bc_engine.bec_group_cfg.tgc_payload_max =
-						m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "bec_tx_size_max")) {
-		s1 = m0_strdup(str_value);
-		s2 = strchr(s1, ',');
-
-		*s2 = '\0';
-		s2++;
-
-		value1_64 = m0_strtou64(s1, 0, 10);
-		value2_64 = m0_strtou64(s2, 0, 10);
-		m0_free(s1);
-
-		dom_cfg->bc_engine.bec_tx_size_max = M0_BE_TX_CREDIT(value1_64,
-								 value2_64);
-	}
-	else if (m0_streq(str_key, "bec_tx_payload_max"))
-		dom_cfg->bc_engine.bec_tx_payload_max = m0_strtou64(str_value,
-								0, 10);
-	else if (m0_streq(str_key, "bec_group_freeze_timeout_min"))
-		dom_cfg->bc_engine.bec_group_freeze_timeout_min =
-						m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "bec_group_freeze_timeout_max"))
-		dom_cfg->bc_engine.bec_group_freeze_timeout_max =
-						m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "bec_group_freeze_timeout_limit"))
-		dom_cfg->bc_engine.bec_group_freeze_timeout_limit =
-						m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "lc_full_threshold"))
-		dom_cfg->bc_log.lc_full_threshold = m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "bpdc_seg_io_nr"))
-		dom_cfg->bc_pd_cfg.bpdc_seg_io_nr = m0_strtou32(str_value, 0, 10);
-	else if (m0_streq(str_key, "ldsc_items_max"))
-		dom_cfg->bc_log_discard_cfg.ldsc_items_max = m0_strtou32(str_value,
-								     0, 10);
-	else if (m0_streq(str_key, "ldsc_items_threshold"))
-		dom_cfg->bc_log_discard_cfg.ldsc_items_threshold =
-						m0_strtou32(str_value, 0, 10);
-	else if (m0_streq(str_key, "ldsc_sync_timeout"))
-		dom_cfg->bc_log_discard_cfg.ldsc_sync_timeout =
-						m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "tbc_workers_nr"))
-		tb_cfg->tbc_workers_nr = m0_strtou64(str_value, 0, 10);
-	else if (m0_streq(str_key, "tbc_work_items_per_tx_max"))
-		tb_cfg->tbc_work_items_per_tx_max = m0_strtou64(str_value, 0, 10);
-	else
-		value_overridden = false;
 
 	if (value_overridden) {
 		printf("%s = %s\n", str_key, str_value);
@@ -1922,42 +1918,17 @@ static void override_be_cfg_defaults(struct m0_be_domain_cfg  *dom_cfg,
 	}
 }
 
-static void  be_cfg_default_init(struct m0_be_domain_cfg  *dom_cfg,
-				 struct m0_be_tx_bulk_cfg *tb_cfg)
+static int  be_cfg_from_yaml_update(const char              *yaml_file,
+				    struct m0_be_domain_cfg *cfg)
 {
-	dom_cfg->bc_engine.bec_tx_active_max = 256;
-	dom_cfg->bc_engine.bec_group_nr = 5;
-	dom_cfg->bc_engine.bec_group_cfg.tgc_tx_nr_max = 128;
-	dom_cfg->bc_engine.bec_group_cfg.tgc_size_max = M0_BE_TX_CREDIT(5621440,
-									961373440);
-	dom_cfg->bc_engine.bec_group_cfg.tgc_payload_max = 367772160;
-	dom_cfg->bc_engine.bec_tx_size_max = M0_BE_TX_CREDIT(1 << 18, 44UL << 20);
-	dom_cfg->bc_engine.bec_tx_payload_max = 1 << 21;
-	dom_cfg->bc_engine.bec_group_freeze_timeout_min   =     1ULL * M0_TIME_ONE_MSEC;
-	dom_cfg->bc_engine.bec_group_freeze_timeout_max   =    50ULL * M0_TIME_ONE_MSEC;
-	dom_cfg->bc_engine.bec_group_freeze_timeout_limit = 60000ULL * M0_TIME_ONE_MSEC;
-	dom_cfg->bc_log.lc_full_threshold = 20 * (1 << 20);
-	dom_cfg->bc_pd_cfg.bpdc_seg_io_nr = 5;
-	dom_cfg->bc_log_discard_cfg.ldsc_items_max = 0x100;
-	dom_cfg->bc_log_discard_cfg.ldsc_items_threshold = 0x80;
-	dom_cfg->bc_log_discard_cfg.ldsc_sync_timeout = M0_TIME_ONE_SECOND * 60ULL;
-	tb_cfg->tbc_workers_nr = 64;
-	tb_cfg->tbc_work_items_per_tx_max = 10;
-
-}
-
-static int  override_be_cfg_def_from_yaml(const char               *yaml_file,
-					  struct m0_be_domain_cfg  *dom_cfg,
-					  struct m0_be_tx_bulk_cfg *tb_cfg)
-{
-	FILE *fp;
+	FILE         *fp;
 	yaml_parser_t parser;
 	yaml_token_t  token;
 	char         *scalar_value;
 	char          key[MAX_KEY_LEN];
-	char          value[MAX_KEY_LEN];
+	char          value[MAX_VALUE_LEN];
 	int           rc;
-	int           is_key = 0;
+	bool          is_key = false;
 	bool          key_received = false;
 	bool          value_received = false;
 
@@ -1966,6 +1937,7 @@ static int  override_be_cfg_def_from_yaml(const char               *yaml_file,
 
 	if (!yaml_parser_initialize(&parser)) {
 		printf("Failed to initialize yaml parser.\n");
+		fclose(fp);
 		return -ENOMEM;
 	}
 
@@ -1978,24 +1950,25 @@ static int  override_be_cfg_def_from_yaml(const char               *yaml_file,
 		yaml_parser_scan(&parser, &token);
 		switch (token.type) {
 			case YAML_KEY_TOKEN:
-				is_key = 1;
+				is_key = true;
 				break;
 			case YAML_VALUE_TOKEN:
-				is_key = 0;
+				is_key = false;
 				break;
 			case YAML_SCALAR_TOKEN:
 				scalar_value = (char *)token.data.scalar.value;
 				if (is_key) {
-					strcpy(key, scalar_value);
+					strncpy(key, scalar_value, sizeof(key));
+					key[sizeof(key) - 1] = '\0';
 					key_received = true;
 				} else {
-					strcpy(value, scalar_value);
+					strncpy(value, scalar_value, sizeof(value));
+					value[sizeof(value) - 1] = '\0';
 					value_received = true;
 				}
 
 				if (key_received && value_received) {
-					override_be_cfg_defaults(dom_cfg, tb_cfg,
-								 key, value);
+					be_cfg_update(cfg, key, value);
 					key_received = false;
 					value_received = false;
 				}
