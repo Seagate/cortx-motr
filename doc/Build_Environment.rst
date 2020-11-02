@@ -185,9 +185,9 @@ Conformance
 
 - [req.build-env.user-kernel] - Configure stage allows to specify linux kernel location. This theoretically allows to build kernel components in same tree with user space components, according kernel manuals on how to build kernel components out of kernel source tree.
 
- Issue is that, kernel is built using make and its out-of-tree building is based on make. One needs to create specially formatted make file to be able to build kernel modules. This means that scons cannot be used for building kernel modules unless somebody adds scons support to linux kernel. Or alternatively we can call make from scons.
+Issue is that, kernel is built using make and its out-of-tree building is based on make. One needs to create specially formatted make file to be able to build kernel modules. This means that scons cannot be used for building kernel modules unless somebody adds scons support to linux kernel. Or alternatively we can call make from scons.
 
- That said, to cover this requirement we need to use Autotools (make based build system) and this contradicts to other requirements (portability). This may end up with attempt to use two build systems in parallel, which leads to more complexity and bugs.
+That said, to cover this requirement we need to use Autotools (make based build system) and this contradicts to other requirements (portability). This may end up with attempt to use two build systems in parallel, which leads to more complexity and bugs.
 
 - [req.build-env.configure-stage] - All build systems have powerful configure functionality, in which they check all the system specifics, such as platform, endianess, headers, etc.
 
