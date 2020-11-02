@@ -513,7 +513,6 @@ int main(int argc, char **argv)
 	bool                   ut           = false;
 	bool                   version      = false;
 	bool                   print_gen_id = false;
-	bool                   parse_trace  = false;
 	struct queue           q = {};
 	int                    result;
 	uint64_t	       gen_id	    = 0;
@@ -1832,7 +1831,7 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 	char     *s2;
 	bool      value_overridden = true;
 
-	if (m0_streq(str_key, "tgc_size_max")  || 
+	if (m0_streq(str_key, "tgc_size_max")  ||
 	    m0_streq(str_key, "bec_tx_size_max")) {
 
 		/** Cover variables accepting two comma-separated values. */
@@ -1853,7 +1852,7 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
 
 		if (m0_streq(str_key, "tgc_size_max")) {
-			cfg->bc_engine.bec_group_cfg.tgc_size_max = 
+			cfg->bc_engine.bec_group_cfg.tgc_size_max =
 					M0_BE_TX_CREDIT(value1_64, value2_64);
 		} else {
 			cfg->bc_engine.bec_tx_size_max =
@@ -1893,7 +1892,7 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 		else if (m0_streq(str_key, "tgc_tx_nr_max"))
 			cfg->bc_engine.bec_group_cfg.tgc_tx_nr_max = value1_64;
 		else if (m0_streq(str_key, "tgc_payload_max"))
-			cfg->bc_engine.bec_group_cfg.tgc_payload_max = 
+			cfg->bc_engine.bec_group_cfg.tgc_payload_max =
 								value1_64;
 		else if (m0_streq(str_key, "bec_tx_payload_max"))
 			cfg->bc_engine.bec_tx_payload_max = value1_64;
