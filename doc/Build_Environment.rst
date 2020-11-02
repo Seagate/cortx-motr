@@ -252,5 +252,33 @@ Dependencies
 - git
 
   - server side hooks
+  
+Refinement
+==========
+
+Scons Specifics
+----------------
+
+- Scons scripts run into two phases:
+
+  - Preparation. All the code in script is executed. All targets like Program, Library or Object are added to special construction list;
+
+  - Construction. Construction list, formed in previous stage, is processed to build all the targets specified. Everything that builds with custom builder, will be also built in construction phase. This means, that custom builders are better not used for generating source code from templates, because generation will happen in construction phase, where the source code has to be already generated.
+
+- There is possibility to define custom Builder (builds non-standard input files) and Scanner (parses non-standard input files).
+
+Linking against non installed libraries
+---------------------------------------
+
+One more thing to work out deeply in the DLD is linking against not installed shared libraries. We may potentially have this need to link against our custom db-4 version. Issue is that, linking against such libraries means that they cannot be found by dynamic linker and as such, cannot be used without additional hands work like setting up LD_LIBRARY_PATH. Worth to say, that most of build system rely and recommend to link against installed libraries.
+
+This all raises couple of rather important questions, which should be discussed in the DLD:
+
+- Do we really need to link against not-installed db-4 libraries or we better install them?
+
+- If we do install them, should we rename them to not conflict with already installed libraries in the system or should we maintain our custom db-4 APIs the way that it is still usable for the rest of system tools?
+
+- If we do not install our custom db-4, is it good style to link against it statically?
+
 
 
