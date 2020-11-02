@@ -79,4 +79,26 @@ Enumeration is implemented using the c2_db_cursor interfaces. The sequence of op
 
 #. Subsequent records are fetched using c2_db_cursor_next().
 
-#. Traversal ends if at any time the device-id component of the returned key changes from the desired device-id, or we’ve exhausted all records in the database 
+#. Traversal ends if at any time the device-id component of the returned key changes from the desired device-id, or we’ve exhausted all records in the database.
+
+*****************
+Iterator Support
+*****************
+
+Purpose:
+
+To minimize the time for which the database lock is held.  There will be background concurrent activity when the database is traversed,and one can't hold the lock while iterating through the records.
+
+- THUNK limit for number of record fetches during enumeration operation.
+
+- After the limit is reached, release the lock, and then restart the enumeration from where it was last left.
+
+********************
+Iterator Operations
+********************
+
+- Fetch: Loads the next batch of records into the iterator and updates the iterator state to correctly position for the next call.
+
+- Reload: Reload the records from the current position, because the map   may have been altered by an intervening call to add or delete a record.
+
+- Check for end: Determines if the record in the specified position will exhaust the iterator.
