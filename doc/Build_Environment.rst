@@ -24,3 +24,32 @@ Definitions
 
 - cmake - one more alternative build system used for big projects. Its main difference from others is that, it generates build scripts/files, native to each platform it is used on from some very simple script, describing project checks, targets, etc. Native scripts for each platform is: makefiles for unices, MS VisualStudio project for Windows and Eclipse project for java applications.
 
+***************
+Requirements
+***************
+
+- [req.build-env.traditional] - All the traditional features of build systems, such as using timestamps optimization, build correctness, should be supported.
+
+- [req.build-env.portability] - The same build system and source tree should be used for building Colibri on all supported platforms.
+
+- [req.build-env.user-kernel] - The source code tree contains user space code and targets (libraries, binaries) as well as kernel space code (kernel modules).
+
+- [req.build-env.configure-stage] - Configure stage should be present to check various system specifics, libraries, functions, headers.
+
+- [req.build-env.configure-options] - Configure stage should support passing various configure options, such paths to other software packages to use, debug on/off, etc.
+
+- [req.build-env.build-stage] - Build stage should be powerful enough to be able to do non-traditional build tasks, such as generating code from templates, execute shell commands, etc.
+
+- [req.build-env.simultaneous-builds] - Simultaneous builds from the same or different nodes should be supported. Different architectures may be built simultaneously.
+
+- [req.build-env.build-dir] - All object files, binaries and libraries, should be placed out of the source tree.
+
+- [req.build-env.debug] - Debug on/off targets are supported and placed in different directories.
+
+- [req.build-env.performance] - Complex project structure is supported and handled in a sophisticated way to provide as fast builds as possible.
+
+- [req.build-env.testing] - Testing framework is built along with the project software.
+
+- [req.build-env.git-repo] - Git repository is used for storing the project source code and build system files.
+
+- [req.build-env.git-hooks] - Git commit hooks are set in the repository to mail code changes to the peers.
