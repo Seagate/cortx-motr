@@ -293,5 +293,44 @@ There are three ways of solving this:
 
 - Add scons support to linux kernel (lots of effort and out of our main focus).
 
+***************
+State
+***************
+
+Events and Transitions
+=========================
+
+Events:
+
+- debug on/off is specified;
+
+- with-db4 option is specified;
+
+- architecture is detected;
+
+- build dir is specified;
+
+- build failure
+
+States:
+
+- configuring;
+
+- generation
+
+State Invariants
+=================
+
+Whole the build environment changes its state from configuring to generating. In scons this is done seamlessly, without user attention. Still these two states are separated in time.
+
+Concurrency Control
+===================
+
+- [concur.simultaneous-build.different-nodes] - Separate build directories are used for maintaining consistency. Dir names are formed using node name and architecture name. In correctly configured network, this ensures correct simultaneous build;
+
+- [concur.simultaneous-build.same-node] - Separate build directories are used for maintaining consistency. Directory names are specified by user, running the build command.
+
+
+
 
 
