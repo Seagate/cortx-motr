@@ -53,3 +53,36 @@ Requirements
 - [req.build-env.git-repo] - Git repository is used for storing the project source code and build system files.
 
 - [req.build-env.git-hooks] - Git commit hooks are set in the repository to mail code changes to the peers.
+
+************************
+Functional Specification
+************************
+
+To meet the requirements, three main parts of the build environment should be implemented:
+
+- Configuration part. It should make sure, that required portability level is reached. It also should implement build options, such as paths to the software packages we use, debug on/off, etc;
+
+- Generation part. Objects and binaries generation part of the build process should be implemented with focus on portability, performance and correctness. Both, configuring and generation parts should support the ability to generate binaries in a directory away of source code. This enables simultaneous builds as well as minimizes mess in source tree after the project is built;
+
+- Repository part. All the source code should be placed in number of git repositories with all the scripts, allowing comfortable development.
+
+Configuration Part
+===================
+
+Here is the list of what should be checked by configure part:
+
+- Architecture, operating system, endianes - this may be required for small workarounds based on this information;
+
+- All the tools required for building the project - compiler, linker, man generator, etc;
+
+- Header files we use in the project. They may be different or placed in different locations;
+
+- Libraries we link against in the project. Some functions may be placed in different libraries on different platforms. For example, pthread API functions are located in libpthread on Linux and libc on Mac OS X systems;
+
+- Functions, which we know are not standard or may be different on some platforms (direct I/O);
+
+- Optional things, such as debug on/off or things like whether to build or not server or client, should be moved to build/configuring options in a way like this: debug=1;
+
+- Any software packages we need to build the project, such as db4 or Linux kernel, should be specified in the way like this: with-gss=gss-path with-linux=linux-kernel-path.
+
+
