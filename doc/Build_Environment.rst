@@ -280,5 +280,18 @@ This all raises couple of rather important questions, which should be discussed 
 
 - If we do not install our custom db-4, is it good style to link against it statically?
 
+Building Kernel Modules
+------------------------
+
+There is an issue with building kernel modules using scons. As kernel is make based, one needs to generate specially formatted makefiles and call make from scons script. This is not looking very well. We need to think on how to solve this.
+
+There are three ways of solving this:
+
+- Generate makefiles and call make from scons;
+
+- Reject scons completely and use Autotools (contradicts to portability use cases);
+
+- Add scons support to linux kernel (lots of effort and out of our main focus).
+
 
 
