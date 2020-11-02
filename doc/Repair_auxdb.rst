@@ -107,3 +107,12 @@ Typical Usage
 ==============
 
 .. image:: Images/usage.PNG
+
+HLD, Source Code, and UT
+========================
+
+- HLD: High level design of Auxiliary Databases for SNS repair
+
+- Source code: core/ioservice/cobfid_map.[ch]
+
+- UT code: core/ioservice/cobfid_map.c
