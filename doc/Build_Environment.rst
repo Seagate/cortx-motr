@@ -87,5 +87,33 @@ Here is the list of what should be checked by configure part:
 
 The following configuring options form configure part functionality:
 
-.. image:: Images/Few.PNG 
+.. image:: Images/Few.PNG
+
+Generation Part
+===============
+
+Here is the list if build part functionality:
+
+- Options provided by configure part are taken into account, including paths, debug and optimization options;
+
+- Support for simultaneous builds and generating binaries out of the source tree;
+
+- Support for features like generating source code from templates (db4 fol records).
+
+Repository Part
+===============
+
+The following functionality is provided:
+
+- Source code is stored in a repository, supporting branches and commit hooks;
+
+- Commit hooks are set to mail repository changes to the peers. Commit emails contain standard diff of the changes maid.
+
+*********************
+Logical Specification
+*********************
+
+Configuration Part
+===================
+
 
