@@ -191,12 +191,19 @@ If Motr-devel source code or RPM is already installed, you may find the header
 files in "/usr/include/motr " dir and binary libraries in "/lib".
 
    * How to run this example
+   
 The first way is to run application against an running Cortx Motr system. Please
 refer to [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md)
-and [Quick Start Guide](/doc/Quick-Start-Guide.rst).
+and [Quick Start Guide](/doc/Quick-Start-Guide.rst). `hctl status` will display Motr service
+configuration parameters.
 	
-The second way is to run the "motr/examples/setup_a_running_motr_system.sh", and then
-run this example application from another teminal.
+The second way is to run the "motr/examples/setup_a_running_motr_system.sh" in a singlenode mode.
+Motr service configuration parameters will be shown there. Then run this example application 
+from another teminal.
+
+Cortx Motr object is idenfitied by a 128-bit unsigned integer. An id should be provided
+as the last argument to this program. In this example, we will only use this id as the lower
+64-bit of an object identification. This id should be larger than 0x100000ULL, that is 1048576 in decimal.
 
 ## A simple Cortx Motr application (index)
    * TODO
