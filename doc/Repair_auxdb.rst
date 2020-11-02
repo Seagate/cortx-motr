@@ -32,3 +32,25 @@ SNS Repair and Aux: DB
 - A single table is necessary which maps the gob fid to cob fid for every device.
 
 - This information is used by storage agents to iterate over gob-fid->cob-fid mapping for its device, selecting the next cob to process.
+
+***************
+COB - FID Map
+***************
+
+- C2 database tables are key-value associations
+
+- A typical record in the cobfid_map will have,
+
+  Key   : (device_id, fid)
+  
+  Value: cob_fid
+
+where
+
+- device/container id  : uint64_t
+
+- fid  (gob fid)       : struct c2_fid
+
+- cob_fid              : struct c2_uint128
+
+**Note**: Tuple of {device_id, fid, cob_fid} is always unique.
