@@ -102,3 +102,8 @@ Iterator Operations
 - Reload: Reload the records from the current position, because the map   may have been altered by an intervening call to add or delete a record.
 
 - Check for end: Determines if the record in the specified position will exhaust the iterator.
+
+Typical Usage
+==============
+
+.. image:: Images/usage.PNG
