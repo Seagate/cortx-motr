@@ -245,6 +245,7 @@ include $(top_srcdir)/net/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/Makefile.sub
 include $(top_srcdir)/net/lnet/Makefile.sub
 include $(top_srcdir)/net/sock/Makefile.sub
+include $(top_srcdir)/perm/Makefile.sub
 include $(top_srcdir)/pool/Makefile.sub
 include $(top_srcdir)/reqh/Makefile.sub
 include $(top_srcdir)/rm/Makefile.sub
@@ -842,6 +843,11 @@ pool_m0poolmach_LDADD     = $(top_builddir)/motr/libmotr.la
 sbin_PROGRAMS              += addb2/m0addb2dump
 addb2_m0addb2dump_CPPFLAGS  = -DM0_TARGET='m0addb2dump' $(AM_CPPFLAGS)
 addb2_m0addb2dump_LDADD     = $(top_builddir)/motr/libmotr.la -lbfd -ldl
+
+# perm/perm ----------------------------------- {{{2
+sbin_PROGRAMS              += perm/perm
+perm_perm_CPPFLAGS          = -DM0_TARGET='m0perm' $(AM_CPPFLAGS)
+perm_perm_LDADD             = $(top_builddir)/motr/libmotr.la
 
 #
 # xcode/m0protocol ------------------------------------ {{{2
