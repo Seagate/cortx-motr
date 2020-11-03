@@ -1,10 +1,8 @@
-Using HSM on SAGE proto
-=======================
+Using HSM
+=========
 
-1. Connect to a client supporting multi-pool (as of today, client-[24-28]).
+1. Set the following environment variables:
 
-2. Set the following environment variables:
-   
    ```bash
    export CLIENT_PROF_OPT="<0x7000000000000001:0x480>"   # profile id
    export CLIENT_HA_ADDR="172.18.1.24@o2ib:12345:34:101" # ha-agent address
@@ -17,15 +15,15 @@ Using HSM on SAGE proto
    processes ids configured in the cluster. Consult with the cluster system
    administrator about which of them you can use.
 
-3. Initialize the composite layout index:
-    
+2. Initialize the composite layout index:
+
    ```Text
    $ c0composite "$CLIENT_LADDR" "$CLIENT_HA_ADDR" "$CLIENT_PROF_OPT" "$CLIENT_PROC_FID"
    ```
 
    Note: this should be done one time only after the cluster bootstrap.
 
-4. Configure pools ids of the tiers in ~/.hsm/config file:
+3. Configure pools ids of the tiers in ~/.hsm/config file:
 
    ```Text
    M0_POOL_TIER1 = <0x6f00000000000001:0xc74> # NVME
@@ -36,7 +34,6 @@ Using HSM on SAGE proto
    The exact ids can be taken from the output of `hctl status` command.
 
 Now you are ready to use the HSM feature.
-The current setup of the prototype allows using tiers 1, 2 and 3.
 
 First test using m0hsm shell:
 
