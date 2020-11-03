@@ -1457,6 +1457,7 @@ static void genadd(uint64_t gen)
 
 static int nv_scan_offset_init(uint64_t workers_nr)
 {
+	m0_mutex_init(&off_info.oi_lock);
 	m0_mutex_lock(&off_info.oi_lock);
 	off_info.oi_workers_nr = workers_nr;
 	off_info.oi_offset = m0_alloc(sizeof(off_t) * workers_nr);
@@ -1473,6 +1474,7 @@ static void nv_scan_offset_fini(void)
 	m0_mutex_lock(&off_info.oi_lock);
 	m0_free(off_info.oi_offset);
 	m0_mutex_unlock(&off_info.oi_lock);
+	m0_mutex_fini(&off_info.oi_lock);
 }
 
 static off_t nv_scan_offset_get(void)
@@ -1821,7 +1823,7 @@ static void builder_fini(struct builder *b)
 }
 
 /**
- * These values provided the maximum builder performance after experiments on 
+ * These values provided the maximum builder performance after experiments on
  * hardware.
  */
 static void  be_cfg_default_init(struct m0_be_domain_cfg  *dom_cfg,
