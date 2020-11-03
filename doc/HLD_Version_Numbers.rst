@@ -130,5 +130,20 @@ Instead, intent mode requires an additional mechanism (variously known as "last_
 
 Note that for WBC-managed units, the lock can be released any time after the version number has been generated and assigned to an update. Specifically, the lock can be revoked from a client and granted to another client even before the updates generated under the lock leave the client memory. In this situation the client loses cached unit state (i.e., it can no longer satisfy reads locally), but it continues to cache updates (obviously, this generalizes NRS scenarios, where data remain on a client after their protecting lock has been revoked). 
 
-Also note, that a client can add any unit with a nop update to any operation without changing its semantics. This way, a client can use any update DLM lock as an ad-hoc update stream (indeed, the WBC mode can be seen as an intent mode with an update stream per each update lock).    
+Also note, that a client can add any unit with a nop update to any operation without changing its semantics. This way, a client can use any update DLM lock as an ad-hoc update stream (indeed, the WBC mode can be seen as an intent mode with an update stream per each update lock).
+
+Conformance
+===============
+
+- [r.verno.serial]: version number ordering is compatible with ordering of events in the unit serial history. Indeed, version numbers are ordered by lsn-s or, equivalently (thanks to the version number ordering invariant), by version counters and the latter are (by the version number update protocol) in the same order as updates in the serial history; 
+
+- [r.verno.resource]: a client (or a proxy server) obtains the current value of a unit's version counter together with the update lock on the unit. The client can then increment this counter multiple times to produce a stream of local version numbers. When corresponding state updates are re-integrated to the server, matching version numbers are produced by using server fol lsn-s. This way, the clients can independently generate version numbers usable on a server; 
+
+- [r.verno.dtm]: this is a consequence of [r.verno.serial] fulfillment: if updates are replayed in the order of their version numbers, original serial history is exactly reproduced; 
+
+- [r.verno.optimistic-concurrency]: version numbers can be used for scalable generation of pseudo-times are discussed in [1]; 
+
+- [r.verno.update-streams]: as described in the cache re-integration section of the Functional specification, update stream mechanism can be implementing by introducing a special unit tracking re-integration state. This unit servers as a transactional stream caret, tracking re-integration progress in the presence of failures; 
+
+- [r.verno.fol]: by design, version number contains lsn field. 
 
