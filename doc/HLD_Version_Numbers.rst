@@ -160,7 +160,7 @@ Dependencies
 
 - [r.resource]: scalable distributed resource management is implemented 
 
-  - [r.resource.cacheable]: resources are cacheable by consumers 
+   - [r.resource.cacheable]: resources are cacheable by consumers 
 
 - rpc: 
 
