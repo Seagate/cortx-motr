@@ -603,26 +603,58 @@ M0_INTERNAL m0_bcount_t m0_bufvec_cursor_copy(struct m0_bufvec_cursor *dcur,
 					      struct m0_bufvec_cursor *scur,
 					      m0_bcount_t num_bytes)
 {
-	m0_bcount_t frag_size    = 0;
 	m0_bcount_t bytes_copied = 0;
-	/* bitwise OR used below to ensure both cursors get moved
-	   without short-circuit logic, also why cursor move is before
-	   simpler num_bytes check */
-	while (!(m0_bufvec_cursor_move(dcur, frag_size) |
-		 m0_bufvec_cursor_move(scur, frag_size)) &&
-	       num_bytes > 0) {
-		frag_size = min3(m0_bufvec_cursor_step(dcur),
-				 m0_bufvec_cursor_step(scur),
-				 num_bytes);
-		memmove(bufvec_cursor_addr(dcur),
-			bufvec_cursor_addr(scur),
+
+	M0_BUFVEC_FOR2(dcur, scur, frag_size) {
+		if (num_bytes == 0)
+			break;
+		frag_size = min_check(frag_size, num_bytes);
+		memmove(bufvec_cursor_addr(dcur), bufvec_cursor_addr(scur),
 			frag_size);
 		num_bytes -= frag_size;
 		bytes_copied += frag_size;
-	}
+	} M0_BUFVEC_ENDFOR2
 	return bytes_copied;
 }
 M0_EXPORTED(m0_bufvec_cursor_copy);
+
+M0_INTERNAL int m0_bufvec_cursor_cmp(struct m0_bufvec_cursor *c0,
+				     struct m0_bufvec_cursor *c1)
+{
+	int result = 0;
+
+	M0_BUFVEC_FOR2(c0, c1, frag_size) {
+		result = memcmp(bufvec_cursor_addr(c0), bufvec_cursor_addr(c1),
+				frag_size);
+		if (result != 0)
+			break;
+	} M0_BUFVEC_ENDFOR2
+	return result;
+}
+M0_EXPORTED(m0_bufvec_cursor_cmp);
+
+M0_INTERNAL m0_bcount_t m0_bufvec_cursor_prefix(struct m0_bufvec_cursor *c0,
+						struct m0_bufvec_cursor *c1)
+{
+	m0_bcount_t prefix = 0;
+	m0_bcount_t i;
+
+	M0_BUFVEC_FOR2(c0, c1, frag_size) {
+		char *a0 = bufvec_cursor_addr(c0);
+		char *a1 = bufvec_cursor_addr(c1);
+		/*
+		 * Surprisingly, there is no standard library function for
+		 * the longest common prefix.
+		 */
+		for (i = 0; i < frag_size; i++) {
+			if (a0[i] != a1[i])
+				return prefix + i;
+		}
+		prefix += frag_size;
+	} M0_BUFVEC_ENDFOR2
+	return prefix;
+}
+M0_EXPORTED(m0_bufvec_cursor_prefix);
 
 M0_INTERNAL m0_bcount_t m0_bufvec_cursor_copyto(struct m0_bufvec_cursor *dcur,
 						void *sdata,
