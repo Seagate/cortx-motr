@@ -1511,7 +1511,6 @@ static off_t nv_scan_offset_get(void)
 static void nv_scan_offset_update(off_t offset, uint64_t worker_id)
 {
 	FILE   *ofptr;
-	struct  offset_info off_info;
 
 	m0_mutex_lock(&off_info.oi_lock);
 	ofptr = fopen(offset_file, "w+");
