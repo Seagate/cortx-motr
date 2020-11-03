@@ -24,3 +24,36 @@ See the Glossary for general M0 definitions and HLD of FOL for the definitions o
 
 - A unit version number is an additional piece of information attached to the unit. A version number is drawn from some linearly ordered domain. A version number changes on every update of the unit state in such a way that ordering of unit states in the serial history can be deduced by comparing version numbers associated with the corresponding states.    
 
+***************
+Requirements
+***************
+
+- [r.verno.serial]: version numbers order unit states in the unit serial history; 
+
+- [r.verno.resource]: version numbers are managed as a scalable distributed resource3: entities caching a given unit could also cache4 some range of version numbers and to generate version numbers for updates of local cached state locally; 
+
+- [r.verno.dtm]: version numbers are usable for distributed transaction5 recovery: when cached update is replayed to restore lost unit state, unit version number is used to determine whether update is already present in the survived unit state; 
+ 
+- [r.verno.optimistic-concurrency]: version numbers are usable for optimistic concurrency control in the spirit of NAMOS [1]; 
+
+- [r.verno.update-streams]: version numbers are usable for implementation of update streams6 (see On file versions [0]); 
+
+- [r.verno.fol]: a unit version number identifies the fol record that brought the unit into the state corresponding to the version number.
+
+******************
+Design Highlights
+******************
+
+In the presence of caching, requirements [r.verno.resource] and [r.verno.fol] are seemingly contradictory: if two caching client nodes assigned (as allowed by [r.verno.resource]) version numbers to two independent units, then after re-integration of units to their common master server, the version numbers must refer to the master's fol, but clients cannot produce such references without extremely inefficient serialization of all accesses to the units on the server. 
+
+To deal with that, a version number is made compound: it consists of two components: 
+
+- LSN7: a reference to a fol record, corresponding to the unit state;
+
+- VC: a version counter, which is an ordinal number of update in the unit's serial history.
+
+When a unit state is updated, a new version number is produced, with lsn referring to the fol local to the node where update is made. When unit state is re-integrated to another node, lsn part of version number is replaced with a reference to target node fol, resulting in a compound version number who's lsn matches the target node's fol. The vc remains unchanged; a monotonically increasing unit history independent of any node-specific relationship.  The unit state can be traced through the vc, the fol references can be traced through the lsn. See [0] for additional recovery related advantages of compound version numbers. 
+
+Note that introduction of compound version numbers does not, by itself, require additional indices for fol records, because whenever one wants to refer to a particular unit version from some persistent of volatile data-structure (e.g., a snapshot of file-set descriptor), one uses a compound version number. This version number contains lsn, that can be used to locate required fol entry efficiently. This means that no additional indexing of fol records (e.g., indexing by vc) is needed. The before-version-numbers, stored in the fol record, provide for navigation of unit history in the direction of the things past.  
+
+ 
