@@ -19,7 +19,7 @@ Using HSM on SAGE proto
 
 3. Initialize the composite layout index:
     
-   ```bash
+   ```Text
    $ c0composite "$CLIENT_LADDR" "$CLIENT_HA_ADDR" "$CLIENT_PROF_OPT" "$CLIENT_PROC_FID"
    ```
 
@@ -27,7 +27,7 @@ Using HSM on SAGE proto
 
 4. Configure pools ids of the tiers in ~/.hsm/config file:
 
-   ```
+   ```Text
    M0_POOL_TIER1 = <0x6f00000000000001:0xc74> # NVME
    M0_POOL_TIER2 = <0x6f00000000000001:0xc8a> # SSDs
    M0_POOL_TIER3 = <0x6f00000000000001:0xca5> # HDDs
@@ -40,13 +40,13 @@ The current setup of the prototype allows using tiers 1, 2 and 3.
 
 First test using m0hsm shell:
 
-```bash
+```Text
 $ ./m0hsm shell
 ```
 
 Type `help` for the list of available commands and their syntax:
 
-```
+```Text
 m0hsm> help
 Usage: m0hsm <action> <fid> [...]
   actions:
@@ -71,21 +71,21 @@ Usage: m0hsm <action> <fid> [...]
 
 Create an object on tier 2: `create <fid> <tier_idx>`
 
-```
+```Text
 m0hsm> create 0x1000000 2
 Composite object successfully created with id=0:0x1000000
 ```
 
 Display initial state: `show <fid>`
 
-```
+```Text
 m0hsm> show 0x1000000
 - gen 0, tier 2, extents:  (writable)
 ```
 
 Write data to it: `write <fid> <offset> <length> <seed>`
 
-```
+```Text
 m0hsm> write 0x1000000 0x0 0x1000  42
 4096 bytes successfully written at offset 0 (object id=0:0x1000000)
 ```
@@ -93,7 +93,7 @@ m0hsm> write 0x1000000 0x0 0x1000  42
 HSM in action: move data from tier 2 to tier 3:
 `move <fid> <offset> <length> <src_tier> <tgt_tier> [options]`
 
-```
+```Text
 m0hsm> move 0x1000000 0 0xFFFF 2 3
 Archiving extent [0-0xfff] (gen 0) from tier 2 to tier 3
 4096 bytes successfully copied from subobj <0xffffff02:0x1000000> to <0xffffff03:0x1000000> at offset 0
@@ -102,7 +102,7 @@ Extent [0-0xfff] (gen 0) successfully released from tier 2
 
 Check final state:
 
-```
+```Text
 m0hsm> show 0x1000000
 - gen 1, tier 2, extents:  (writable)
 - gen 0, tier 3, extents: [0->0xfff]
