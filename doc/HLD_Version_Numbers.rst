@@ -110,5 +110,25 @@ There is an additional subtler advantage: WBC provides for a very simple recover
 
 - should the request be replayed at all (the request should only be replayed if its updates were executed by the server before failure, but then lost together with volatile state during the failure)?
 
-- in what order the requests should be replayed?  
+- in what order the requests should be replayed? 
+
+With client-assigned version numbers the answers are as following: 
+
+- the update should re-played if and only if its before-version-number for a unit is not less than the version number stored in the unit; 
+
+- the updates for a given unit should be applied in the order of their version counters (this is well-defined for operations updating multiple units, thanks to the version number comparison invariant). 
+
+The advantages of intent mode of operation is that it does not require additional lock-related rpcs and scales well in the face of inter-client contention and large client work-sets that would require prohibitively many locks in the WBC mode. Clearly, WBC recovery mechanism is not directly applicable to the intent mode, because a client cannot assign version numbers to the updates (the client learns version numbers assigned by a server from reply messages, but this doesn't work in the situation when a server fails and a reply message is lost).
+
+Instead, intent mode requires an additional mechanism (variously known as "last_rcvd", "session slots", etc.). As was mentioned earlier, from the point of view of version numbers, this mechanism amounts to WBC caching of a special "update stream unit" by the client. The version number of this unit is used to order all updates issued by the client. It is important to observe that in the intent mode, the update stream unit is maintained according to the WBC protocol: client (trivially) owns an exclusive lock on it and assigns version numbers to the updates to this unit, whereas, locking and versioning of all other units is done by the server as in intent mode. A little contemplation shows that there is nothing really special in update stream unit: any unit can play its rôle. This leads to a more general hybrid mode of operation of which WBC and intent modes are extreme cases: 
+
+- a client holds locks on some units and caches their state (including updates) under these locks;
+
+- a client can perform an operation on a set of units only when it holds a lock on at least one unit from the set. These locked units play the rôle similar to the update stream unit of intent mode. For all locked units, the client assigns new version numbers and tags the updates with them. For the rest of the units, the server grabs the locks (possibly revoking them from other nodes), assigns version numbers and follows the rep-ack locking protocol;
+
+- updates are sent out in such a way that for any operation in flight, there is at least one client locked unit in it, for which it is the only operation in flight. Dependent ordering can be recovered on the client by laddering through the vc-s of the locked units during replay. For example, if child A and parent D are both locked but child B is not, then write A, chmod B are ordered by A then D.  Similarly locked A, B and intent'ed D doesn't retain any ordering between those ops. In the case of intent mode of operation this reduces to the infamous "mdc_semaphore rule".
+
+Note that for WBC-managed units, the lock can be released any time after the version number has been generated and assigned to an update. Specifically, the lock can be revoked from a client and granted to another client even before the updates generated under the lock leave the client memory. In this situation the client loses cached unit state (i.e., it can no longer satisfy reads locally), but it continues to cache updates (obviously, this generalizes NRS scenarios, where data remain on a client after their protecting lock has been revoked). 
+
+Also note, that a client can add any unit with a nop update to any operation without changing its semantics. This way, a client can use any update DLM lock as an ad-hoc update stream (indeed, the WBC mode can be seen as an intent mode with an update stream per each update lock).    
 
