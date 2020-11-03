@@ -145,5 +145,38 @@ Conformance
 
 - [r.verno.update-streams]: as described in the cache re-integration section of the Functional specification, update stream mechanism can be implementing by introducing a special unit tracking re-integration state. This unit servers as a transactional stream caret, tracking re-integration progress in the presence of failures; 
 
-- [r.verno.fol]: by design, version number contains lsn field. 
+- [r.verno.fol]: by design, version number contains lsn field.
+
+Dependencies
+===============
+
+- [r.dtx]: distributed transactions are supported 
+
+  - [r.dtx.units]: file system updates acts on units 
+
+  - [r.dtx.units.identity]: units affected by a given update are identifiable 
+
+  - [R.DTX.SERIALIZABLE]: updates are serializable 
+
+- [r.resource]: scalable distributed resource management is implemented 
+
+  - [r.resource.cacheable]: resources are cacheable by consumers 
+
+- rpc: 
+
+  - [R.NET.RPC.STREAMS.MULTIPLE]: multiple update concurrent streams between a given pair of nodes are supported 
+
+- fol 
+
+  - [r.fol.lsn]: fol records are identifiable by lsn 
+
+  - [r.fol.verno]: fol record stores before- and after- version numbers 
+
+  - [r.fol.lsn.compare]: lsn numbers can be compared 
+
+- back-end 
+
+  - [r.back-end.store-verno]: back end stores current version number as object attribute 
+
+  - [R.BACK-END.TRANSACTIONAL]: back-end supports local transactions 
 
