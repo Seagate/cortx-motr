@@ -1,1 +1,26 @@
+======================================
+High Level Design of Version Numbers
+======================================
+
+This document presents a high level design (HLD) of version numbers in Motr M0 core. The main purposes of this document are: (i) to be inspected by M0 architects and peer designers to ascertain that high level design is aligned with M0 architecture and other designs, and contains no defects, (ii) to be a source of material for Active Reviews of Intermediate Design (ARID) and detailed level design (DLD) of the same component, (iii) to serve as a design reference document.
+
+***************
+Introduction
+*************** 
+
+Version numbers identify particular file system states and order updates thereof. They are used for distributed transaction management, concurrency control (both lock based and optimistic) and object history navigation.
+
+A version number is stored together with the file system state whose version it identifies. Specifically, multiple cached replicas of the same state are all tagged with version numbers matching each other in the sense defined below. Version numbers are treated as a distributed resource. A piece of file system state to which a version number is assigned is called a unit. Unit granularity can be a file system object or a part of a file system object. 
+
+***************
+Definitions
+*************** 
+
+See the Glossary for general M0 definitions and HLD of FOL for the definitions of file system operation, update and lsn. The following additional definitions are required:
+
+- for the purposes of the present design it is assumed that a file system update acts on units1. For example, a typical meta-data update acts on one or more "inodes" and a typical data update acts on inodes and data blocks. Inodes, data blocks, directory entries, etc. are all examples of units. It is further assumed that units involved in an update are unambiguously identified2 and that complete file system state is a disjoint union of states of comprising units. (Of course, there are consistency relationships between units, e.g., inode nlink counter must be consistent with contents of directories in the name-space).
+
+- It is guaranteed that operations (updates and queries) against a given unit are serializable3 in the face of concurrent requests issued by the file system users. This means that observable (through query requests) unit state looks as if updates of the unit were executed serially in some order. Note that the ordering of updates is further constrained by the distributed transaction management considerations which are outside the scope of this document.
+
+- A unit version number is an additional piece of information attached to the unit. A version number is drawn from some linearly ordered domain. A version number changes on every update of the unit state in such a way that ordering of unit states in the serial history can be deduced by comparing version numbers associated with the corresponding states.    
 
