@@ -359,9 +359,9 @@ static const struct m0_be_0type m0_be_0type_seg = {
 	.b0_fini = be_0type_seg_fini,
 };
 
-static void be_domain_log_cleanup(const char           *stob_domain_location,
-				  struct m0_be_log_cfg *log_cfg,
-				  bool                  create)
+M0_INTERNAL void
+be_domain_log_cleanup(const char *stob_domain_location,
+		      struct m0_be_log_cfg *log_cfg, bool create)
 {
 	const char *location_add = "-log";
 	char       *location;

@@ -52,8 +52,9 @@ struct crate_conf {
         char *cass_keyspace;
 	int tm_recv_queue_min_len;
 	int max_rpc_msg_size;
-        int col_family;
+	int col_family;
 	int log_level;
+	uint64_t addb_size;
 };
 
 enum m0_operation_type {

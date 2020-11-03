@@ -524,46 +524,46 @@
  * Operation codes for entity, object and index.
  */
 enum m0_entity_opcode {
-	M0_EO_INVALID,
-	M0_EO_CREATE,
-	M0_EO_DELETE,
-	M0_EO_SYNC,
-	M0_EO_OPEN,
-	M0_EO_GETATTR,
-	M0_EO_SETATTR,
-	M0_EO_LAYOUT_GET,
-	M0_EO_LAYOUT_SET,
-	M0_EO_NR
+	M0_EO_INVALID,    /* 0 */
+	M0_EO_CREATE,     /* 1 */
+	M0_EO_DELETE,     /* 2 */
+	M0_EO_SYNC,       /* 3 */
+	M0_EO_OPEN,       /* 4 */
+	M0_EO_GETATTR,    /* 5 */
+	M0_EO_SETATTR,    /* 6 */
+	M0_EO_LAYOUT_GET, /* 7 */
+	M0_EO_LAYOUT_SET, /* 8 */
+	M0_EO_NR          /* 9 */
 } M0_XCA_ENUM;
 
 /** Object operation codes. */
 enum m0_obj_opcode {
 	/** Read object data. */
-	M0_OC_READ = M0_EO_NR + 1,
+	M0_OC_READ = M0_EO_NR + 1,  /* 10 */
 	/** Write object data. */
-	M0_OC_WRITE,
+	M0_OC_WRITE,                /* 11 */
 	/** Pre-allocate space. */
-	M0_OC_ALLOC,
+	M0_OC_ALLOC,                /* 12 */
 	/** De-allocate space, consecutive reads will return 0s. */
-	M0_OC_FREE,
-	M0_OC_NR
+	M0_OC_FREE,                 /* 13 */
+	M0_OC_NR                    /* 14 */
 } M0_XCA_ENUM;
 
 /* Index operation codes. */
 enum m0_idx_opcode {
 	/** Lookup a value with the given key. */
-	M0_IC_GET = M0_OC_NR + 1,
+	M0_IC_GET = M0_OC_NR + 1,  /* 15 */
 	/** Insert or update the value, given a key. */
-	M0_IC_PUT,
+	M0_IC_PUT,                 /* 16 */
 	/** Delete the value, if any, for the given key. */
-	M0_IC_DEL,
+	M0_IC_DEL,                 /* 17 */
 	/** Given a key, return the next key and its value. */
-	M0_IC_NEXT,
+	M0_IC_NEXT,                /* 18 */
 	/** Check an index for an existence. */
-	M0_IC_LOOKUP,
+	M0_IC_LOOKUP,              /* 19 */
 	/** Given an index id, get the list of next indices. */
-	M0_IC_LIST,
-	M0_IC_NR
+	M0_IC_LIST,                /* 20 */
+	M0_IC_NR                   /* 21 */
 } M0_XCA_ENUM;
 
 /**
@@ -884,6 +884,11 @@ struct m0_config {
 
 	int         mc_idx_service_id;
 	void       *mc_idx_service_conf;
+
+	/**
+ 	 * ADDB size
+ 	 */
+	m0_bcount_t mc_addb_size; 
 };
 
 /** The identifier of the root of realm hierarchy. */

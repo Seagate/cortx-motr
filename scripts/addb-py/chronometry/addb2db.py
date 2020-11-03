@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -196,7 +197,7 @@ class client_to_dix(BaseModel):
 
 class client_to_cob(BaseModel):
     pid       = IntegerField()
-    id        = IntegerField()
+    client_id = IntegerField()
     cob_id    = IntegerField()
 
 class cob_to_rpc(BaseModel):
@@ -206,7 +207,7 @@ class cob_to_rpc(BaseModel):
 
 class client_to_ioo(BaseModel):
     pid       = IntegerField()
-    id        = IntegerField()
+    client_id = IntegerField()
     ioo_id    = IntegerField()
 
 class ioo_to_rpc(BaseModel):

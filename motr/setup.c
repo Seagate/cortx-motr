@@ -1614,7 +1614,8 @@ static int cs_storage_setup(struct m0_motr *cctx)
 	}
 
 	rc = m0_reqh_addb2_init(&rctx->rc_reqh, rctx->rc_addb_stlocation,
-				M0_ADDB2_STOB_DOM_KEY, mkfs, force);
+				M0_ADDB2_STOB_DOM_KEY, true, force,
+				rctx->rc_addb_record_file_size);
 	if (rc != 0)
 		goto cleanup_stob;
 
@@ -2243,8 +2244,10 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				})),
 			M0_STRINGARG('A', "ADDB storage domain location",
 				LAMBDA(void, (const char *s)
-				{
-					rctx->rc_addb_stlocation = s;
+				{    
+                                        char tmp_buf[128];
+                                        sprintf(tmp_buf, "%s-%d", s, (int)m0_pid());
+                                        rctx->rc_addb_stlocation = strdup(tmp_buf);	
 				})),
 			M0_STRINGARG('d', "Device configuration file",
 				LAMBDA(void, (const char *s)
@@ -2292,6 +2295,14 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				LAMBDA(void, (void)
 				{
 					rctx->rc_fis_enabled = true;
+				})),
+			M0_NUMBERARG('r', "ADDB Record storage size",
+				LAMBDA(void, (int64_t size)
+				{
+					if (size > MAX_ADDB2_RECORD_SIZE)
+						M0_LOG(M0_WARN, "ADDB size is more than recommended");
+					M0_LOG(M0_DEBUG, "ADDB size = %"PRIu64"", size);
+					rctx->rc_addb_record_file_size = size;
 				})),
 			);
 	/* generate reqh fid in case it is all-zero */

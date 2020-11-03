@@ -17,7 +17,7 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-core:
+motr:
     post_install:
         script: /usr/sbin/m0provision
         args:
@@ -29,7 +29,7 @@ core:
     config:
         script: /usr/sbin/m0provision
         args:
-            - config
+            - post_install
     test:
         script: /usr/sbin/m0provision
         args:
@@ -45,7 +45,6 @@ core:
     post_update:
         script: /usr/sbin/m0provision
         args:
-            - config
 
 support_bundle:
     - /opt/seagate/cortx/motr/libexec/m0reportbug-bundler
