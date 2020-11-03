@@ -160,7 +160,7 @@ Dependencies
 
 - [r.resource]: scalable distributed resource management is implemented 
 
-   - [r.resource.cacheable]: resources are cacheable by consumers 
+  - [r.resource.cacheable]: resources are cacheable by consumers 
 
 - rpc: 
 
@@ -178,5 +178,40 @@ Dependencies
 
   - [r.back-end.store-verno]: back end stores current version number as object attribute 
 
-  - [R.BACK-END.TRANSACTIONAL]: back-end supports local transactions 
+  - [R.BACK-END.TRANSACTIONAL]: back-end supports local transactions
+  
+Security Model
+===============
+
+A node can wreak chaos in the system by spoofing version numbers, so they must be protected by the same means as the rest of meta-data.
+
+Refinement
+===============
+
+Version number component has little internal logic. 
+
+***************
+State
+***************
+
+See version number comparison invariant above. 
+
+Use Cases (Scenarios)
+=====================
+
+Scenario 1
+
+.. image:: Images/scev1.PNG
+
+Scenario 2
+
+.. image:: Images/scev2.PNG
+
+Scenario 3
+
+.. image:: Images/scev3.PNG
+
+Scenario 4
+
+.. image:: Images/scev4.PNG
 
