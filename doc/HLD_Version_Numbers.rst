@@ -74,7 +74,41 @@ becomes after open("foo") call:
 
 - [a version number applicability check] distributed transaction manager uses version numbers for recovery: when an update is replayed on a node, a modification to an unit should be replayed if and only if before-version shipped with an update is the same as before-version stored in the unit;
 
-- [a version number in an update stream] cache re-integration uses version numbers to implement update streams. For each update stream between a client node C and a server node S, a special stream unit U is created. This unit is persistently stored on S and cached on C. Each update cached on C and targeted for re-integration on S modifies U. Therefore, each update sent from C to S contains U's version counter which is incremented by each update. This counter acts like a xid of the traditional Lustre protocol, and (U, U.VC) pair acts as a (session, slot) pair of the NFSv4 session protocol. The collection of these special units for all update streams is similar to last_rcvd file of Lustre and to EOS cache of NFSv4. 
+- [a version number in an update stream] cache re-integration uses version numbers to implement update streams. For each update stream between a client node C and a server node S, a special stream unit U is created. This unit is persistently stored on S and cached on C. Each update cached on C and targeted for re-integration on S modifies U. Therefore, each update sent from C to S contains U's version counter which is incremented by each update. This counter acts like a xid of the traditional Lustre protocol, and (U, U.VC) pair acts as a (session, slot) pair of the NFSv4 session protocol. The collection of these special units for all update streams is similar to last_rcvd file of Lustre and to EOS cache of NFSv4.
 
+*********************
+Logical Specification
+*********************
 
- 
+Ordering
+=========
+
+Internally, version number is defined as a two-component data-structure (struct M0_verno), with little internal state or logic. 
+
+The following invariant, referred to as a version number comparison invariant is maintained:
+
+where v0 and v1 are two version numbers for the same unit (taken on the same node), and lsn comparison function is defined by the FOL HLD11. This invariant means that per-object and per-fol (i.e., per-node) orderings of updates are compatible.
+
+Hybrid Operations
+=================
+
+Using Lustre and Lustre terminology as an example, two modes of client-server interaction could be distinguished:
+
+- intent mode. In this mode, a client holds no update locks and does not cache updates. An operation is sent from a client to a server without any version information. The server assigns version numbers (transaction identifier in Lustre corresponds to lsn) locally and returns them to the client in a reply message. Before executing an operation, the server grabs all necessary locks and holds them until it receives an acknowledgement from the client that the latter received the reply (this is known as a rep-ack locking);
+
+- write-back cache (WBC) mode. In this mode, a client holds update locks and executes updates locally, assigning version numbers to them. Updates are sent to the servers later. The locks are released only after a reply to an update re-integration message has been received.
+
+Note, that Lustre does not follow these idealized descriptions precisely.
+
+WBC mode provides important advantages: 
+
+- a client might cache updates locally and use cached units to satisfy queries without contacting servers; 
+
+- a client might send updates to the servers in batches significantly reducing networking overhead.
+
+There is an additional subtler advantage: WBC provides for a very simple recovery mechanism. When a recovering server receives replayed requests from clients it has to answer the following questions: 
+
+- should the request be replayed at all (the request should only be replayed if its updates were executed by the server before failure, but then lost together with volatile state during the failure)?
+
+- in what order the requests should be replayed?  
+
