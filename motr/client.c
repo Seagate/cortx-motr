@@ -403,14 +403,14 @@ void m0_obj_init(struct m0_obj *obj,
 	M0_PRE(id != NULL);
 	M0_PRE(entity_id_is_valid(id));
 	M0_PRE(M0_IS0(obj));
+	M0_PRE(layout_id < m0_lid_to_unit_map_nr);
 
 	/* Initalise the entity */
 	m0_entity_init(&obj->ob_entity, parent, id, M0_ET_OBJ);
 
 	/* set the blocksize to a reasonable default */
 	obj->ob_attr.oa_bshift = M0_DEFAULT_BUF_SHIFT;
-	M0_ASSERT(layout_id > 0 && layout_id < m0_lid_to_unit_map_nr);
-	obj->ob_attr.oa_layout_id = layout_id;
+	obj->ob_attr.oa_layout_id = layout_id ?: M0_DEFAULT_LAYOUT_ID;
 
 #ifdef OSYNC
 	m0_mutex_init(&obj->ob_pending_tx_lock);
