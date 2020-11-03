@@ -265,14 +265,14 @@ static int read_data_from_object(struct m0_obj      *obj,
 	int          rc;
 	struct m0_op *ops[1] = { NULL };
 
-	/* Create the write request */
+	/* Create the read request */
 	m0_obj_op(obj, M0_OC_READ, ext, data, attr, 0, 0, &ops[0]);
 	if (ops[0] == NULL) {
 		printf("Failed to init a read op\n");
 		return -EINVAL;
 	}
 
-	/* Launch the write request*/
+	/* Launch the read request*/
 	m0_op_launch(ops, 1);
 
 	/* wait */
@@ -341,7 +341,7 @@ static int object_read(struct m0_container *container)
 	}
 	prepare_ext_vecs(&ext, &data, &attr, 2, 4096, &last_offset, '\0');
 
-	/* Start to write data to object */
+	/* Start to read data to object */
 	rc = read_data_from_object(&obj, &ext, &data, &attr);
 	if (rc == 0) {
 		verify_show_data(&data, 'A');
