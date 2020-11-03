@@ -570,6 +570,14 @@ Tests:
     polltime : 30
     timeout  : 1800
 
+  - id       : 62dix-repair-st-lookup-insery
+    script   : dix_repair_st.sh -v lookup insert
+    dir      : src/dix/cm/st/
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/mero/sandbox.62dix-repair-st
+    polltime : 30
+    timeout  : 1800
+
 
 # 25 min
 dangerous: 'yes'
