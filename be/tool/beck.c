@@ -262,9 +262,6 @@ struct builder {
 	 * construct dix layout.
 	 */
 	struct m0_fid              b_pver_fid;
-	struct m0_mutex            b_lock;
-	int                        b_qid;
-	struct m0_mutex            b_lock_idx;
 	struct m0_mutex            b_emaplock[AO_NR - AO_EMAP_FIRST];
 	struct m0_mutex            b_coblock;
 	struct m0_mutex            b_ctglock;
@@ -303,6 +300,7 @@ static void generation_id_get(FILE *fp, uint64_t *gen_id);
 static int  generation_id_verify(struct scanner *s, uint64_t gen);
 
 static int  scanner_init   (struct scanner *s);
+static void scanner_fini   (struct scanner *s);
 static int  builder_init   (struct builder *b);
 static void builder_fini   (struct builder *b);
 static void ad_dom_fini    (struct builder *b);
@@ -651,6 +649,7 @@ int main(int argc, char **argv)
 		builder_fini(&b);
 		qfini(&q);
 	}
+	scanner_fini(&s);
 	fini();
 	if (spath != NULL)
 		close(sfd);
@@ -751,6 +750,7 @@ static int scanner_init(struct scanner *s)
 {
 	int rc;
 
+	m0_mutex_init(&s->s_lock);
 	rc = fseeko(s->s_file, 0, SEEK_SET);
 	if (rc != 0) {
 		M0_LOG(M0_FATAL, "Can not seek at the beginning of file");
@@ -760,6 +760,11 @@ static int scanner_init(struct scanner *s)
 	if (rc != 0)
 		M0_LOG(M0_FATAL, "Can not read first chunk");
 	return rc;
+}
+
+static void scanner_fini(struct scanner *s)
+{
+	m0_mutex_fini(&s->s_lock);
 }
 
 static int scan(struct scanner *s)
@@ -1607,6 +1612,7 @@ static int builder_init(struct builder *b)
 	struct m0_be_ut_backend *ub = &b->b_backend;
 	static struct m0_fid     fid = M0_FID_TINIT('r', 1, 1);
 	int                      result;
+	int                      i;
 
 	result = M0_REQH_INIT(&b->b_reqh,
 			      .rhia_dtm     = (void *)1,
@@ -1669,6 +1675,10 @@ static int builder_init(struct builder *b)
 					    m0_get()->i_mds_cdom_key);
 	m0_cob_domain_init(b->b_mds_cdom, b->b_seg);
 
+	for (i = 0; i < AO_NR - AO_EMAP_FIRST; i++)
+		m0_mutex_init(&b->b_emaplock[i]);
+	m0_mutex_init(&b->b_coblock);
+	m0_mutex_init(&b->b_ctglock);
 	result = ad_dom_init(b);
 	if (result != 0)
 		return M0_ERR(result);
@@ -1695,8 +1705,16 @@ static void ad_dom_fini(struct builder *b)
 	m0_free(b->b_ad_domain);
 
 }
+
 static void builder_fini(struct builder *b)
 {
+	int i;
+
+	for (i = 0; i < AO_NR - AO_EMAP_FIRST; i++)
+		m0_mutex_fini(&b->b_emaplock[i]);
+	m0_mutex_fini(&b->b_coblock);
+	m0_mutex_fini(&b->b_ctglock);
+
 	m0_thread_join(&b->b_thread);
 	m0_thread_fini(&b->b_thread);
 	m0_ctg_store_fini();
@@ -1710,7 +1728,7 @@ static void builder_fini(struct builder *b)
 }
 
 /**
- * These values provided the maximum builder performance after experiments on 
+ * These values provided the maximum builder performance after experiments on
  * hardware.
  */
 static void  be_cfg_default_init(struct m0_be_domain_cfg  *dom_cfg,
@@ -1747,7 +1765,7 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 	char     *s2;
 	bool      value_overridden = true;
 
-	if (m0_streq(str_key, "tgc_size_max")  || 
+	if (m0_streq(str_key, "tgc_size_max")  ||
 	    m0_streq(str_key, "bec_tx_size_max")) {
 
 		/** Cover variables accepting two comma-separated values. */
@@ -1768,7 +1786,7 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
 
 		if (m0_streq(str_key, "tgc_size_max")) {
-			cfg->bc_engine.bec_group_cfg.tgc_size_max = 
+			cfg->bc_engine.bec_group_cfg.tgc_size_max =
 					M0_BE_TX_CREDIT(value1_64, value2_64);
 		} else {
 			cfg->bc_engine.bec_tx_size_max =
@@ -1808,7 +1826,7 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 		else if (m0_streq(str_key, "tgc_tx_nr_max"))
 			cfg->bc_engine.bec_group_cfg.tgc_tx_nr_max = value1_64;
 		else if (m0_streq(str_key, "tgc_payload_max"))
-			cfg->bc_engine.bec_group_cfg.tgc_payload_max = 
+			cfg->bc_engine.bec_group_cfg.tgc_payload_max =
 								value1_64;
 		else if (m0_streq(str_key, "bec_tx_payload_max"))
 			cfg->bc_engine.bec_tx_payload_max = value1_64;
