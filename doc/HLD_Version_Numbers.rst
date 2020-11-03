@@ -215,3 +215,17 @@ Scenario 4
 
 .. image:: Images/scev4.PNG
 
+
+***************
+Failures
+***************
+
+This specification is all about handling failures. 
+
+Analysis
+===============
+
+The hybrid operation mode introduced above, disentangles issues of resource management and concurrency control from failure recovery, which traditional session-slot based protocols fail to do. It's also instructive to compare version maintenance with the epoch algorithm: version numbers are, roughly speaking, per-object epochs.
+
+
+
