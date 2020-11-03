@@ -68,4 +68,13 @@ Other sub-systems use version numbers in a number of ways:
 
 .. image:: Images/rev1.PNG
 
+becomes after open("foo") call: 
+
+.. image:: Images/rev2.PNG
+
+- [a version number applicability check] distributed transaction manager uses version numbers for recovery: when an update is replayed on a node, a modification to an unit should be replayed if and only if before-version shipped with an update is the same as before-version stored in the unit;
+
+- [a version number in an update stream] cache re-integration uses version numbers to implement update streams. For each update stream between a client node C and a server node S, a special stream unit U is created. This unit is persistently stored on S and cached on C. Each update cached on C and targeted for re-integration on S modifies U. Therefore, each update sent from C to S contains U's version counter which is incremented by each update. This counter acts like a xid of the traditional Lustre protocol, and (U, U.VC) pair acts as a (session, slot) pair of the NFSv4 session protocol. The collection of these special units for all update streams is similar to last_rcvd file of Lustre and to EOS cache of NFSv4. 
+
+
  
