@@ -870,7 +870,7 @@ scripts_systemtap_kem_m0kemc_LDADD     = $(top_builddir)/motr/libmotr.la -lbfd -
 
 bin_PROGRAMS          += hsm/m0hsm
 hsm_m0hsm_CPPFLAGS     = -DM0_TARGET='m0hsm' $(AM_CPPFLAGS)
-hsm_m0hsm_LDADD        = $(top_builddir)/motr/libmotr.la @READLINE_LIBS@
+hsm_m0hsm_LDADD        = $(top_builddir)/motr/libmotr.la @LIBEDIT_LIBS@
 
 include $(top_srcdir)/hsm/Makefile.sub
 

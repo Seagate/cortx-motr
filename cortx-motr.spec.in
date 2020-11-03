@@ -90,7 +90,7 @@ BuildRequires:  python36-ply
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
 BuildRequires:  python-devel
-BuildRequires:  readline-devel
+BuildRequires:  libedit-devel
 %if %{with cassandra}
 BuildRequires:  libcassandra
 BuildRequires:  libuv
@@ -117,7 +117,7 @@ Requires:       ruby
 Requires:       facter
 Requires:       rubygem-net-ssh
 Requires:       python36-ply
-Requires:       readline
+Requires:       libedit
 Requires(pre):  shadow-utils
 Requires(post): findutils
 

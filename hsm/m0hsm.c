@@ -30,8 +30,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <readline/readline.h>
-#include <readline/history.h>
+#include <editline/readline.h>
 
 #include "lib/string.h"
 #include "m0hsm_api.h"
