@@ -8,7 +8,7 @@ The first document developers should read is: [Motr Client API ](/motr/client.h)
 It explains basic notations, terminologies, and data structures in Cortx Motr.
 Developers are also assumed having a running Cortx Motr system: please refer to
 [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md)
-and [Quick Start Guide](/doc/Quick-Start-Guide.rst)
+and [Quick Start Guide](/doc/Quick-Start-Guide.rst).
 
 Cortx Motr provides object based operations and index (a.k.a key/value) based operations.
 
@@ -88,10 +88,12 @@ The most important and necessary configuration parameters:
     - Profile FID: The Profile FID in Motr service
     - Process FID: The Process FID in Motr service
 
-These parameters can be queried from:
+These parameters can be queried with one of the following options:
 
-    - `hctl status` from a Motr depolyment, or
-    - Run "motr/examples/setup_a_running_motr_system.sh" to setup a single node Motr, and parameters will be shown.
+    - `hctl status` will show these parameters
+If you've followed these instructions [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md) or [Quick Start Guide](/doc/Quick-Start-Guide.rst) to setup a Cortx Motr system. Or
+
+    - Run "motr/examples/setup_a_running_motr_system.sh" to setup a single node Motr, and parameters will be shown there.
 
   * The first function to use Cortx Motr is to call m0_client_init():
 ```C
@@ -192,7 +194,7 @@ files in "/usr/include/motr " dir and binary libraries in "/lib".
 
    * How to run this example
    
-The first way is to run application against an running Cortx Motr system. Please
+The first way is to run application against a running Cortx Motr system. Please
 refer to [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md)
 and [Quick Start Guide](/doc/Quick-Start-Guide.rst). `hctl status` will display Motr service
 configuration parameters.
