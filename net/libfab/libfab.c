@@ -20,6 +20,31 @@
  */
 
 
+/**
+ * Mapping for m0net-->libfabric API
+ * xo_dom_init                    =  fi_getinfo, fi_fabric, fi_domain
+ * xo_dom_fini                    =  fi_close, // free resources
+ * xo_tm_init                     =  // Empty function ? fi_send
+ * xo_tm_confine                  =
+ * xo_tm_start                    =  // fi_send
+ * xo_tm_stop                     =  fi_cancel
+ * xo_tm_fini                     =  // Empty function
+ * xo_end_point_create            =  fi_endpoint, fi_pep, fi_av, fi_cq, fi_cntr, fi_eq, fi_bind(av/cq/cntr/eq), fi_pep_bind
+ * xo_buf_register                =  fi_mr_reg, fi_mr_desc, fi_mr_key, fi_mr_bind, fi_mr_enable
+ * xo_buf_deregister              =  fi_close
+ * xo_buf_add                     =  fi_send/fi_recv
+ * xo_buf_del                     =  fi_cancel // Why del buffer? What is the action in sock/lnet
+ * xo_bev_deliver_sync            =  Is it needed?
+ * xo_bev_deliver_all             =  Is it needed?
+ * xo_bev_pending                 =  Is it needed?
+ * xo_bev_notify                  =  Is it needed?
+ * xo_get_max_buffer_size         =  // need to define new API
+ * xo_get_max_buffer_segment_size =  // need to define new functions
+ * xo_get_max_buffer_segments     =  // need to define new functions
+ * xo_get_max_buffer_desc_size    =  
+ * 
+ */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
 
 
