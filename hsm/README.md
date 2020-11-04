@@ -1,6 +1,10 @@
 Using HSM
 =========
 
+HSM stands for Hierarchical Storage Management. m0hsm tool allows to
+create composite objects in Motr, write/read to/from them and move them
+between the tiers (pools). Here is how to use the tool:
+
 1. Set the following environment variables:
 
    ```bash
