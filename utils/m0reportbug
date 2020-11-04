@@ -45,6 +45,7 @@ CORE_DIRS=("/var/crash/" "/var/log/crash/") # path from where m0reportbug will c
 RECOVERY_SCRIPT_DIR=/opt/seagate/cortx/motr/libexec    # dir containing recovery traces and scripts
 RECOVERY_LOG_DIR=/var/log/seagate/motr/datarecovery    # dir containing recovery log/logs
 LIVE_CORE_DIR=/var/log/seagate/motr
+M0TR_M0D_TRACE_DIR=/var/log/seagate/motr/trace
 
 readonly START_DIR=$PWD
 
@@ -172,6 +173,22 @@ main() {
         warn "$RECOVERY_SCRIPT_DIR: no such directory"
     fi
 
+    # Collects traces of m0d process(confd, ios) only
+    M0TR_M0D_TRACE_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_TRACE_DIR" | cut -d '=' -f2)
+    M0D_TRACE_DIR="${M0TR_M0D_TRACE_DIR%\'}"
+    M0D_TRACE_DIR="${M0D_TRACE_DIR#\'}"
+
+    if [ -d $M0D_TRACE_DIR ]; then
+        IN_DIR=${M0D_TRACE_DIR}
+        local label="m0traces $IN_DIR"
+        echo -n "$label... " >&2
+        section "[$label]" >>$REPORT
+        local t=$(date +%s)
+        m0traces >>$REPORT
+        echo "OK$(_time $t)" >&2
+    else
+        warn "$M0TR_M0D_TRACE_DIR: no such directory"
+    fi
     popd >/dev/null
     # Collect rpm-update-logs
     if [ -f /var/log/motr-rpm-conf-update.log ]; then
