@@ -206,6 +206,33 @@ The design provides an API for the higher level application to associate the int
  
  int M0_net_tm_confine(struct M0_net_transfer_mc *tm, const struct M0_bitmap *processors);
  
-Support for this interface is transport specific and availability may also vary between user space and kernel space. If used, it should be called before the transfer machine is started. See Processor affinity for transfer machines for further detail
+Support for this interface is transport specific and availability may also vary between user space and kernel space. If used, it should be called before the transfer machine is started. See Processor affinity for transfer machines for further detail.
+
+**Controlling network buffer event delivery**
+
+The design provides the following APIs for the higher level application to control when network buffer event delivery takes place and which thread is used for the buffer event callback.
+
+::
+
+ void M0_net_buffer_event_deliver_all(struct M0_net_transfer_mc *tm); 
+ 
+ int M0_net_buffer_event_deliver_synchronously(struct M0_net_transfer_mc *tm); 
+ 
+ bool M0_net_buffer_event_pending(struct M0_net_transfer_mc *tm); 
+ 
+ void M0_net_buffer_event_notify(struct M0_net_transfer_mc *tm, struct M0_chan *chan);
+ 
+See Request handler control of network buffer event delivery for the proposed usage.
+
+The M0_net_buffer_event_deliver_synchronously() subroutine must be invoked before starting the transfer machine, to disable the automatic asynchronous delivery of network buffer events on a transport provided thread. Instead, the application should periodically check for the presence of network buffer events with the M0_net_buffer_event_pending() subroutine and if any are present, cause them to get delivered by invoking the M0_net_buffer_event_deliver_all() subroutine. Buffer events will be delivered on the same thread making the subroutine call, using the existing buffer callback mechanism. If no buffer events are present, the application can use the non-blocking M0_net_buffer_event_notify() subroutine to request notification of the arrival of the next buffer event on a wait channel; the application can then proceed to block itself by waiting on this and possibly other channels for events of interest.
+
+This support will not be made available in existing bulk emulation transports, but the new APIs will not indicate error if invoked for these transports. Instead, asynchronous network buffer event delivery is always enabled and these new APIs will never signal the presence of buffer events for these transports. This allows a smooth transition from the bulk emulation transports to the LNet transport.
+
+Additional Interfaces
+----------------------
+
+The design permits the implementation to expose additional interfaces if necessary, as long as their usage is optional. In particular, interfaces to extract or compare the network interface component in an end point address would be useful to the Mero request handler setup code. Other interfaces may be required for configurable parameters controlling internal resource consumption limits.
+
+
 
 
