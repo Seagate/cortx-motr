@@ -194,4 +194,18 @@ The M0_NET_QT_MSG_RECV queue callback handler semantics are modified to not clea
 
 See Support for multiple message delivery in a single network buffer.
 
+**Specifying processor affinity for a transfer machine**
+
+The design provides an API for the higher level application to associate the internal threads used by a transfer machine with a set of processors. In particular the API guarantees that buffer and transfer machine callbacks will be made only on the processors specified.
+
+::
+
+ #include “lib/processor.h”
+ 
+ ...
+ 
+ int M0_net_tm_confine(struct M0_net_transfer_mc *tm, const struct M0_bitmap *processors);
+ 
+Support for this interface is transport specific and availability may also vary between user space and kernel space. If used, it should be called before the transfer machine is started. See Processor affinity for transfer machines for further detail
+
 
