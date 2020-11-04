@@ -293,5 +293,29 @@ The M0_net_buffer_event_pending() subroutine should not perform any context swit
 
 The notification of the presence of a buffer event must be delivered asynchronously to the invocation of the non-blocking M0_net_buffer_event_notify() subroutine. The implementation must use a background thread for the task; presumably the application will confine this thread to the desired set of processors with the M0_net_tm_confine() subroutine. The context switching impact is low, because the application would not have invoked the M0_net_buffer_event_notify() subroutine unless it had no work to do. The subroutine should arrange for the background thread to block until the arrival of the next buffer event (if need be) and then signal on the specified channel. No further attempt should be made to signal on the channel until the next call to the M0_net_buffer_event_notify() subroutine - the implementation can determine the disposition of the thread after the channel is signalled.
 
+**Efficient communication between user and kernel spaces**
+
+The implementation shall use the following strategies to reduce the communication overhead between user and kernel space:
+
+- Use shared memory as much as possible instead of copying data.
+
+- The LNet event processing must be done in the kernel.
+
+- Calls from user space to the kernel should combine as many operations as possible.
+
+- Use atomic variables for serialization if possible. Dependency [r.M0.lib.atomic.interoperable-kernel-user-support].
+
+- Resource consumption to support these communication mechanisms should be bounded and configurable through the user space process.
+
+- Minimize context switches. This is captured in refinement [r.M0.net.xprt.lnet.efficient-user-to-kernel-comm].
+
+As an example, consider using a producer-consumer pattern with circular queues to both initiate network buffer operations and deliver events. These circular queues are allocated in shared memory and queue position indices (not pointers) are managed via atomic operations. Minimal data is actually copied between user and kernel space - only notification of production. Multiple operations can be processed per transition across the user-kernel boundary.
+
+- The user space transport uses a classical producer-consumer pattern to queue pending operations with the operation dispatcher in the kernel. The user space operation dispatcher will add as many pending operations as possible from its pending buffer operation queue, to the circular queue for network buffer operations that it shares with its counterpart in the kernel, the operations processor. As part of this step, the network buffer vector for the network buffer operation will be copied to the shared circular queue, which minimizes the payload of the notification ioctl call that follows. Once it has drained its pending operations queue or filled the circular buffer, the operation dispatcher will then notify the operation processor in the kernel, via an ioctl, that there are items to process in the shared circular queue. The operation dispatcher will schedule these operations in the context of the ioctl call itself, recovering and mapping each network buffer vector into kernel space. The actual payload of the ioctl call itself is minimal, as all the operational data is in the shared circular queue.
+
+- A similar producer-consumer pattern is used in the reverse direction to send network buffer completion events from the kernel to user space. The event processor in user space has a thread blocked in an ioctl call, waiting for notification on the availability of buffer operation completion events in the shared circular event queue. When the call returns with an indication of available events, the event processor dequeues and delivers each event from the circular queue until the queue is empty. The cycle then continues with the event processor once again blocking on the same kernel ioctl call. The minor race condition implicit in the temporal separation between the test that the circular queue is empty and the ioctl call to wait, is easily overcome by the ioctl call returning immediately if the circular queue is not empty. In the kernel, the event dispatcher arranges for such an blocking ioctl call to unblock after it has added events to the circular queue. It is up to the implementation to ensure that there are always sufficient slots available in the circular queue so that events do not get dropped; this is reasonably predictable, being a function of the number of pending buffer operations and the permitted reuse of receive buffers.
+
+This is illustrated in the following figure:
+
 
 
