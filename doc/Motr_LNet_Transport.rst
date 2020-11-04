@@ -275,5 +275,23 @@ There is no reason why automatic and manual provisioning cannot co-exist. It is 
 
 The implementation can support hardware optimizations available at buffer registration time, when made available in future revisions of the LNet API. In particular, Infiniband hardware internally registers a vector (translating a virtual memory address to a "bus address") and produces a cookie, identifying the vector. It is this vector registration capability that was the original reason to introduce M0_net_buf_register(), as separate from M0_net_buf_add() in the Network API.
 
+**Processor affinity for transfer machines**
+
+The API allows an application to associate the internal threads used by a transfer machine with a set of processors. This must be done using the M0_net_tm_confine() subroutine before the transfer machine is started. Support for this interfaces is transport specific and availability may also vary between user space and kernel space. The API should return an error if not supported.
+
+The design assumes that the M0_thread_confine() subroutine from “lib/thread.h” will be used to implement this support. The implementation will need to define an additional transport operation to convey this request to the transport.
+
+The API provides the M0_net_tm_colour_set() subroutine for the application to associate a “color” with a transfer machine. This colour is used when automatically provisioning network buffers to the receive queue from a buffer pool. The application can also use this association explicitly when provisioning network buffers for the transfer machine in other buffer pool use cases. The colour value can be fetched with the M0_net_tm_colour_get() subroutine.
+
+**Synchronous network buffer event delivery**
+
+The design provides support for an advanced application (like the Request handler) to control when buffer events are delivered. This gives the application greater control over thread scheduling and enables it to co-ordinate network usage with that of other objects, allowing for better locality of reference. This is illustrated in the Request handler control of network buffer event delivery use case. The feature will be implemented with the [r.M0.net.synchronous-buffer-event-delivery] refinement.
+
+If this feature is used, then the implementation should not deliver buffer events until requested, and should do so only on the thread invoking the M0_net_buffer_event_deliver_all() subroutine - i.e. network buffer event delivery is done synchronously under application control. This subroutine effectively invokes the M0_net_buffer_event_post() subroutine for each pending buffer event. It is not an error if no events are present when this subroutine is called; this addresses a known race condition described in Concurrency control.
+
+The M0_net_buffer_event_pending() subroutine should not perform any context switching operation if possible. It may be impossible to avoid the use of a serialization primitive while doing so, but proper usage by the application will considerably reduce the possibility of a context switch when the transfer machine is operated in this fashion.
+
+The notification of the presence of a buffer event must be delivered asynchronously to the invocation of the non-blocking M0_net_buffer_event_notify() subroutine. The implementation must use a background thread for the task; presumably the application will confine this thread to the desired set of processors with the M0_net_tm_confine() subroutine. The context switching impact is low, because the application would not have invoked the M0_net_buffer_event_notify() subroutine unless it had no work to do. The subroutine should arrange for the background thread to block until the arrival of the next buffer event (if need be) and then signal on the specified channel. No further attempt should be made to signal on the channel until the next call to the M0_net_buffer_event_notify() subroutine - the implementation can determine the disposition of the thread after the channel is signalled.
+
 
 
