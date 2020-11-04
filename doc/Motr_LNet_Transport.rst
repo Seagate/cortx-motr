@@ -233,6 +233,27 @@ Additional Interfaces
 
 The design permits the implementation to expose additional interfaces if necessary, as long as their usage is optional. In particular, interfaces to extract or compare the network interface component in an end point address would be useful to the Mero request handler setup code. Other interfaces may be required for configurable parameters controlling internal resource consumption limits.
 
+**Support for multiple message delivery in a single network buffer**
+
+The implementation will provide support for this feature by using the LNet max_size field in a memory descriptor (MD).
+
+The implementation should de-queue the receive network buffer when LNet unlinks the MD associated with the network buffer vector memory. The implementation must ensure that there is a mechanism to indicate that the M0_NET_BUF_QUEUED flag should not be cleared by the M0_net_buffer_event_post() subroutine under these circumstances. This is captured in refinement [r.M0.net.xprt.lnet.multiple-messages-in-buffer].
+
+**Automatic provisioning of receive buffers**
+
+The design supports policy based automatic provisioning of network buffers to the receive queues of transfer machines from a buffer pool associated with the transfer machine. This support is independent of the transport being used, and hence can apply to the earlier bulk emulation transports as well.
+
+A detailed description of a buffer pool object itself is beyond the scope of this document, and is covered by the [r.M0.net.network-buffer-pool] dependency, but briefly, a buffer pool has the following significant characteristics:
+
+- It is associated with a single network domain.
+
+- It contains a collection of unused, registered network buffers from the associated network domain.
+
+- It provides non-blocking operations to obtain a network buffer from the pool, and to return a network buffer to the pool.
+
+- It provides a “not-empty” callback to notify when buffers are added to the pool.
+
+- It offers policies to enforce certain disciplines like the size and number of network buffers.
 
 
 
