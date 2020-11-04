@@ -319,5 +319,30 @@ This is illustrated in the following figure:
 
 .. image:: Images/KERNEL.PNG
 
+Conformance
+===============
+
+- [i.M0.net.rdma] LNET supports RDMA and the feature is exposed through the Mero network bulk interfaces.
+
+- [i.M0.net.ib] LNET supports Infiniband.
+
+- [i.M0.net.xprt.lnet.kernel] The design provides a kernel transport.
+
+- [i.M0.net.xprt.lnet.user] The design provides a user space transport.
+
+- [i.M0.net.xprt.lnet.user.multi-process] The design allows multiple concurrent user space processes to use LNet.
+
+- [i.M0.net.xprt.lnet.user.no-gpl] The design avoids using user space GPL interfaces. 
+
+- [i.M0.net.xprt.lnet.user.min-syscalls] The [r.M0.net.xprt.lnet.efficient-user-to-kernel-comm] refinement will address this.
+
+- [i.M0.net.xprt.lnet.min-buffer-vm-setup] During buffer registration user memory pages get pinned in the kernel.
+
+- [i.M0.net.xprt.lnet.processor-affinity] LNet currently provides no processor affinity support. The [r.M0.net.xprt.lnet.processor-affinity] refinement will provide higher layers the ability to associate transfer machine threads with processors. ● [r.M0.net.buffer-event-delivery-control] The [r.M0.net.synchronous-buffer-event-delivery] refinement will provide this feature.
+
+- [i.M0.net.xprt.lnet.buffer-registration] The API supports buffer pre-registration before use. Any hardware optimizations possible at this time can be utilized when available through the LNet API. See Future LNet buffer registration support.
+
+- [i.M0.net.xprt.auto-provisioned-receive-buffer-pool] The design provides transport independent support to automatically provision the receive queues of transfer machines on demand, from pools of unused, registered, network buffers.
+
 
 
