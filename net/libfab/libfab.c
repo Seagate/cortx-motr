@@ -57,20 +57,8 @@ struct trasfer_ma {
 	// TODO: Is poller thread required ?
 }
 
-
-/** Returns (find or create) the end-point with the given name. */
-static int ep_find(struct ma *ma, const char *name, struct ep **out)
-{
-	struct addr addr = {};
-	/*
-	* TODO: Check if addr_resolve() and ep_create() needs to be implemented or 
-	* is there support in libfabric already
-	*/
-	return addr_resolve(&addr, name) ?: ep_create(ma, &addr, name, out);
-}
-
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
-static int dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
+static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
 	M0_ENTRY();
 	/*
@@ -85,7 +73,7 @@ static int dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 }
 
 /** Used as m0_net_xprt_ops::xo_dom_fini(). */
-static void dom_fini(struct m0_net_domain *dom)
+static void libfab_dom_fini(struct m0_net_domain *dom)
 {
 	M0_ENTRY();
 	/*
@@ -101,18 +89,17 @@ static void dom_fini(struct m0_net_domain *dom)
  *
  * Used as m0_net_xprt_ops::xo_tm_init().
  */
-static int ma_init(struct m0_net_transfer_mc *net)
+static int libfab_ma_init(struct m0_net_transfer_mc *net)
 {
    /*
-   approach 1:   
-	 Looks like this would be empty function, 
-   * as completion queue and counters are initialised during endpoint creation 
+      approach 1:   
+      Looks like this would be empty function, 
+    * as completion queue and counters are initialised during endpoint creation 
    */
    
    /* 
-    approach 2 - Recommended
-     completion queue and counters can be initialised  here based on list of endpoints
-	 
+      approach 2 - Recommended
+      completion queue and counters can be initialised  here based on list of endpoints
    */
 	return M0_RC(result);
 }
@@ -121,16 +108,18 @@ static int ma_init(struct m0_net_transfer_mc *net)
 /**
  * Starts initialised ma.
  *
- * Initialises everything that ma_init() didn't. Note that ma is in
+ * Initialises everything that libfab_ma_init() didn't. Note that ma is in
  * M0_NET_TM_STARTING state after this returns. Switch to M0_NET_TM_STARTED
  * happens when the poller thread posts special event.
  *
  * Used as m0_net_xprt_ops::xo_tm_start().
  */
-static int ma_start(struct m0_net_transfer_mc *net, const char *name)
+static int libfab_ma_start(struct m0_net_transfer_mc *net, const char *name)
 {
 	/*
-	*  check if worker thread needs to be added to check completion queue, refer nlx_xo_tm_start() LNet 
+	* TODO:
+	* poller thread needs to be added to check completion queue, 
+	* refer nlx_xo_tm_start() LNet 
 	*/
 }
 
@@ -140,7 +129,7 @@ static int ma_start(struct m0_net_transfer_mc *net, const char *name)
  *
  * Used as m0_net_xprt_ops::xo_tm_stop().
  */
-static int ma_stop(struct m0_net_transfer_mc *net, bool cancel)
+static int libfab_ma_stop(struct m0_net_transfer_mc *net, bool cancel)
 {
 	/* TODO: fi_cancel () */
 
@@ -150,12 +139,12 @@ static int ma_stop(struct m0_net_transfer_mc *net, bool cancel)
 /**
  * Used as m0_net_xprt_ops::xo_ma_fini().
  */
-static void ma_fini(struct m0_net_transfer_mc *net)
+static void libfab_ma_fini(struct m0_net_transfer_mc *net)
 {
-	/* TODO: Reverses the actions of ma_init() */
-
+	/* TODO: 
+	 * Reverse the actions of libfab_ma_init() 
+	 * */
 }
-
 
 /**
  * Returns an end-point with the given name.
@@ -164,17 +153,16 @@ static void ma_fini(struct m0_net_transfer_mc *net)
  *
  * @see m0_net_end_point_create().
  */
-static int end_point_create(struct m0_net_end_point **epp,
+static int libfab_end_point_create(struct m0_net_end_point **epp,
 			    struct m0_net_transfer_mc *net,
 			    const char *name)
 {
-	struct ep *ep;
-	struct ma *ma = net->ntm_xprt_private;
-	int        result;
+	/*
+ 	* TODO:
+	* fi_endpoint, fi_pep, fi_av, fi_cq, fi_cntr, fi_eq, fi_bind(av/cq/cntr/eq), fi_pep_bind
+ 	* */
+	int        result = 0;
 
-	M0_PRE(ma_is_locked(ma) && ma_invariant(ma));
-	result = ep_find(ma, name, &ep);
-	*epp = result == 0 ? &ep->e_ep : NULL;
 	return M0_RC(result);
 }
 
@@ -185,13 +173,15 @@ static int end_point_create(struct m0_net_end_point **epp,
  *
  * @see m0_net_buffer_register().
  */
-static int buf_register(struct m0_net_buffer *nb)
+static int libfab_buf_register(struct m0_net_buffer *nb)
 {
+	int        result = 0;
 	/*
 	* TODO
-	* fi_mr_reg()
+	* fi_mr_reg, fi_mr_desc, fi_mr_key, fi_mr_bind, fi_mr_enable
 	*/
 	
+	return M0_RC(result);
 }	
 
 /**
@@ -201,9 +191,11 @@ static int buf_register(struct m0_net_buffer *nb)
  *
  * @see m0_net_buffer_deregister().
  */
-static void buf_deregister(struct m0_net_buffer *nb)
+static void libfab_buf_deregister(struct m0_net_buffer *nb)
 {
-	/*fi_close() */
+	/*
+ 	* TODO:
+ 	* fi_close() */
 }
 
 /**
@@ -213,9 +205,14 @@ static void buf_deregister(struct m0_net_buffer *nb)
  *
  * @see m0_net_buffer_add().
  */
-static int buf_add(struct m0_net_buffer *nb)
+static int libfab_buf_add(struct m0_net_buffer *nb)
 {
-	/* Needs to be explored, refer nlx_xo_buf_add() from LNet */
+	int        result = 0;
+	/*
+ 	* TODO:
+ 	*   fi_send/fi_recv
+ 	* */
+	return M0_RC(result);
 }
 
 
@@ -227,7 +224,7 @@ static int buf_add(struct m0_net_buffer *nb)
  *
  * @see m0_net_buffer_del().
  */
-static void buf_del(struct m0_net_buffer *nb)
+static void libfab_buf_del(struct m0_net_buffer *nb)
 {
 	struct buf *buf = nb->nb_xprt_private;
 	struct ma  *ma  = buf_ma(buf);
@@ -237,11 +234,144 @@ static void buf_del(struct m0_net_buffer *nb)
 	buf_done(buf, -ECANCELED);
 }
 
-static int ma_confine(struct m0_net_transfer_mc *ma,
+static int libfab_ma_confine(struct m0_net_transfer_mc *ma,
 		      const struct m0_bitmap *processors)
 {
 	return -ENOSYS;
 }
+
+static int libfab_bev_deliver_sync(struct m0_net_transfer_mc *ma)
+{
+	/*
+ 	* TODO:
+ 	* Check if it is required ?
+ 	* */
+	return 0;
+}
+
+static void libfab_bev_deliver_all(struct m0_net_transfer_mc *ma)
+{
+	/*
+ 	* TODO:
+ 	* Check if it is required ?
+ 	* */
+}
+
+static bool libfab_bev_pending(struct m0_net_transfer_mc *ma)
+{
+	/*
+ 	* TODO:
+ 	* Check if it is required ?
+ 	* */
+	return false;
+}
+
+static void libfab_bev_notify(struct m0_net_transfer_mc *ma, struct m0_chan *chan)
+{
+	/*
+ 	* TODO:
+ 	* Check if it is required ?
+ 	* */
+}
+
+/**
+ * Maximal number of bytes in a buffer.
+ *
+ * Used as m0_net_xprt_ops::xo_get_max_buffer_size()
+ *
+ * @see m0_net_domain_get_max_buffer_size()
+ */
+static m0_bcount_t libfab_get_max_buffer_size(const struct m0_net_domain *dom)
+{
+	/*
+ 	* TODO:
+ 	* Explore libfab code and return approriate value based on
+ 	* underlying protocol used i.e. tcp/udp/verbs
+ 	* Might have to add switch case based on protocol used 
+ 	* */
+	return M0_BCOUNT_MAX / 2;
+}
+
+/**
+ * Maximal number of bytes in a buffer segment.
+ *
+ * Used as m0_net_xprt_ops::xo_get_max_buffer_segment_size()
+ *
+ * @see m0_net_domain_get_max_buffer_segment_size()
+ */
+static m0_bcount_t libfab_get_max_buffer_segment_size(const struct m0_net_domain *dom)
+{
+	/*
+ 	* TODO:
+ 	* same as get_max_buffer_size()
+	* This is maximum size of buffer segment size
+ 	* */
+	return M0_BCOUNT_MAX / 2;
+}
+
+/**
+ * Maximal number of segments in a buffer
+ *
+ * Used as m0_net_xprt_ops::xo_get_max_buffer_segments()
+ *
+ * @see m0_net_domain_get_max_buffer_segments()
+ */
+static int32_t libfab_get_max_buffer_segments(const struct m0_net_domain *dom)
+{
+	/*
+ 	* TODO:
+ 	* same as libfab_get_max_buffer_size()
+	* This is maximum number of segments supported 
+	* */
+	return INT32_MAX / 2; /* Beat this, LNet! */
+}
+
+/**
+ * Maximal number of bytes in a buffer descriptor.
+ *
+ * Used as m0_net_xprt_ops::xo_get_max_buffer_desc_size()
+ *
+ * @see m0_net_domain_get_max_buffer_desc_size()
+ */
+static m0_bcount_t libfab_get_max_buffer_desc_size(const struct m0_net_domain *dom)
+{
+	/*
+ 	* TODO:
+ 	* same as libfab_get_max_buffer_size()
+	* This is size of buffer descriptor structure size, refer fi_mr_desc() 
+	* */
+	return sizeof(struct bdesc);
+}
+
+
+static const struct m0_net_xprt_ops libfab_xprt_ops = {
+	.xo_dom_init                    = &libfab_dom_init,
+	.xo_dom_fini                    = &libfab_dom_fini,
+	.xo_tm_init                     = &libfab_ma_init,
+	.xo_tm_confine                  = &libfab_ma_confine,
+	.xo_tm_start                    = &libfab_ma_start,
+	.xo_tm_stop                     = &libfab_ma_stop,
+	.xo_tm_fini                     = &libfab_ma_fini,
+	.xo_end_point_create            = &libfab_end_point_create,
+	.xo_buf_register                = &libfab_buf_register,
+	.xo_buf_deregister              = &libfab_buf_deregister,
+	.xo_buf_add                     = &libfab_buf_add,
+	.xo_buf_del                     = &libfab_buf_del,
+	.xo_bev_deliver_sync            = &libfab_bev_deliver_sync,
+	.xo_bev_deliver_all             = &libfab_bev_deliver_all,
+	.xo_bev_pending                 = &libfab_bev_pending,
+	.xo_bev_notify                  = &libfab_bev_notify,
+	.xo_get_max_buffer_size         = &libfab_get_max_buffer_size,
+	.xo_get_max_buffer_segment_size = &libfab_get_max_buffer_segment_size,
+	.xo_get_max_buffer_segments     = &libfab_get_max_buffer_segments,
+	.xo_get_max_buffer_desc_size    = &libfab_get_max_buffer_desc_size
+};
+
+const struct m0_net_xprt m0_net_libfab_xprt = {
+	.nx_name = "libfab",
+	.nx_ops  = &libfab_xprt_ops
+};
+
 
 #undef M0_TRACE_SUBSYSTEM
 
