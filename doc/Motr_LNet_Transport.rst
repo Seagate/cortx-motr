@@ -166,4 +166,26 @@ The M0_net_domain_buffer_pool_not_empty() subroutine should be used, directly or
 
 Mixing automatic provisioning and manual provisioning in a given transfer machine is not recommended, mainly because the application would have to support two buffer release mechanisms for the automatic and manually provisioned network buffers, which may get confusing. See Automatic provisioning of receive buffers for details on how automatic provisioning works.
 
+**Requesting multiple message delivery in a single network buffer**
+
+The design extends the semantics of the existing Motr network interfaces to support delivery of multiple messages into a single network buffer. This requires the following changes:
+
+- A new field in the network buffer to indicate a minimum size threshold.
+
+- A documented change in behavior in the M0_NET_QT_MSG_RECV callback.
+
+The API will add the following field to struct M0_net_buffer:
+
+::
+
+ struct M0_net_buffer {
+ 
+    …
+    
+    M0_bcount_t nb_min_receive_size; 
+    
+    uint32_t nb_max_receive_msgs;
+    
+ };
+
 
