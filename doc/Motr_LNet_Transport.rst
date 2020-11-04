@@ -79,3 +79,27 @@ Requirements
 - [r.M0.net.xprt.lnet.buffer-registration] Provide support for hardware optimization through buffer pre-registration.
 
 - [r.M0.net.xprt.auto-provisioned-receive-buffer-pool] Provide support for a pool of network buffers from which transfer machines can automatically be provisioned with receive buffers. Multiple transfer machines can share the same pool, but each transfer machine is only associated with a single pool. There can be multiple pools in a network domain, but a pool cannot span multiple network domains.
+
+******************
+Design Highlights
+******************
+
+The following figure shows the components of the proposed design and usage relationships between it and other related components:
+
+.. image:: Images/LNET.PNG
+
+- The design provides an LNet based transport for the Motr Network Layer, that co-exists with the concurrent use of LNet by Lustre. In the figure, the transport is labelled M0_lnet_u in user space and M0_lnet_k in the kernel.
+
+- The user space transport does not use ULA to avoid GPL tainting. Instead it uses a proprietary device driver, labelled M0_lnet_dd in the figure, to communicate with the kernel transport module through private interfaces.
+
+- Each transfer machine is assigned an end point address that directly identifies the NID, PID and Portal Number portion of an LNet address, and a transfer machine identifier. The design will support multiple transfer machines for a given 3-tuple of NID, PID and Portal Number. It is the responsibility of higher level software to make network address assignments to Motr components such as servers and command line utilities, and how clients are provided these addresses.
+
+- The design provides transport independent support to automatically provision the receive queues of transfer machines on demand, from pools of unused, registered, network buffers. This results in greater utilization of receive buffers, as fragmentation of the available buffer space is reduced by delaying the commitment of attaching a buffer to specific transfer machines.
+
+- The design supports the reception of multiple messages into a single network buffer. Events will be delivered for each message serially.
+
+- The design addresses the overhead of communication between user space and kernel space. In particular, shared memory is used as much as possible, and each context switch involves more than one operation or event if possible.
+
+- The design allows an application to specify processor affinity for a transfer machine.
+
+- The design allows an application to control how and when buffer event delivery takes place. This is of particular interest to the user space request handler
