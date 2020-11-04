@@ -368,3 +368,46 @@ Security Model
 
 No security model is defined; the new transport inherits whatever security model LNet provides today.
 
+Refinement
+==========
+
+- [r.M0.net.xprt.lnet.transport-variable]
+
+  - The implementation shall name the transport variable as specified in this document.
+
+- [r.M0.net.xprt.lnet.end-point-address]
+
+  - The implementation should support the mapping of end point address to LNet address as described in Mapping of Endpoint Address to LNet Address, including the reservation of a portion of the match bit space in which to encode the transfer machine identifier.
+
+- [r.M0.net.xprt.support-for-auto-provisioned-receive-queue] The implementation should follow the strategy outlined in Automatic provisioning of receive buffers. It should also follow the serialization model outlined in Concurrency control.
+
+- [r.M0.net.xprt.lnet.multiple-messages-in-buffer]
+
+  - Add a nb_min_receive_size field to struct M0_net_buffer.
+
+  - Document the behavioral change of the receive message callback.
+
+  - Provide a mechanism for the transport to indicate that the M0_NET_BUF_QUEUED flag should not be cleared by the M0_net_buffer_event_post() subroutine.
+
+  - Modify all existing usage to set the nb_min_receive_size field to the buffer length.
+
+- [r.M0.net.xprt.lnet.efficient-user-to-kernel-comm] 
+
+  - The implementation should follow the strategies recommended in Efficient communication between user and kernel spaces, including the creation of a private device driver to facilitate such communication.
+
+- [r.M0.net.xprt.lnet.cleanup-on-process-termination]
+
+  - The implementation should release all kernel resources held by a process using the LNet transport when that process terminates.
+
+- [r.M0.net.xprt.lnet.dynamic-address-assignment]
+
+  - The implementation may support dynamic assignment of transfer machine identifier using the strategy outlined in Mapping of Endpoint Address to LNet Address. We recommend that the implementation dynamically assign transfer machine identifiers from higher numbers downward to reduce the chance of conflicting with well-known transfer machine identifiers.
+
+- [r.M0.net.xprt.lnet.processor-affinity] 
+
+  - The implementation must provide support for this feature, as outlined in Processor affinity for transfer machines. The implementation will need to define an additional transport operation to convey this request to the transport. Availability may vary by kernel or user space.
+
+- [r.M0.net.synchronous-buffer-event-delivery] 
+
+  - The implementation must provide support for this feature as outlined in Controlling network buffer event delivery and Synchronous network buffer event delivery.
+
