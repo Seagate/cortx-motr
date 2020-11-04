@@ -51,3 +51,31 @@ Definitions
 - Transfer Machine Identifier: This is an unsigned integer that is a component of the end point address of a transfer machine. The number identifies a unique instance of a transfer machine in the set of addresses that use the same 3-tuple of NID, PID and Portal Number. The transfer machine identifier is related to a portion of the Match bits address space in an LNet address - i.e. it is used in the ME associated with the receive queue of the transfer machine.
 
 Refer to [3], [5] and to net/net.h in the Motr source tree, for additional terms and definitions.
+
+***************
+Requirements
+***************
+
+- [r.M0.net.rdma] Remote DMA is supported. [2]
+
+- [r.M0.net.ib] Infiniband is supported. [2] 
+
+- [r.M0.net.xprt.lnet.kernel] Create an LNET transport in the kernel. [1] 
+
+- [r.M0.net.xprt.lnet.user] Create an LNET transport for user space. [1]
+
+- [r.M0.net.xprt.lnet.user.multi-process] Multiple user space processes can concurrently use the LNet transport. [1]
+
+- [r.M0.net.xprt.lnet.user.no-gpl] Do not get tainted with the use of GPL interfaces in the user space implementation. [1]
+
+- [r.M0.net.xprt.lnet.user.min-syscalls] Minimize the number of system calls required by the user space transport. [1]
+
+- [r.M0.net.xprt.lnet.min-buffer-vm-setup] Minimize the amount of virtual memory setup required for network buffers in the user space transport. [1]
+
+- [r.M0.net.xprt.lnet.processor-affinity] Provide optimizations based on processor affinity.
+
+- [r.M0.net.buffer-event-delivery-control] Provide control over the detection and delivery of network buffer events.
+
+- [r.M0.net.xprt.lnet.buffer-registration] Provide support for hardware optimization through buffer pre-registration.
+
+- [r.M0.net.xprt.auto-provisioned-receive-buffer-pool] Provide support for a pool of network buffers from which transfer machines can automatically be provisioned with receive buffers. Multiple transfer machines can share the same pool, but each transfer machine is only associated with a single pool. There can be multiple pools in a network domain, but a pool cannot span multiple network domains.
