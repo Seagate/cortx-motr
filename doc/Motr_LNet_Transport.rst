@@ -187,5 +187,11 @@ The API will add the following field to struct M0_net_buffer:
     uint32_t nb_max_receive_msgs;
     
  };
+ 
+These values are only applicable to network buffers on the M0_NET_QT_MSG_RECV queue. If the transport supports this feature, then the network buffer is reused if possible, provided there is at least nb_min_receive_size space left in the network buffer vector embedded in this network buffer after a message is received. A zero value for nb_min_receive_size is not allowed. At most nb_max_receive_msgs messages are permitted in the buffer.
+
+The M0_NET_QT_MSG_RECV queue callback handler semantics are modified to not clear the M0_NET_BUF_QUEUED flag if the network buffer has been reused. Applications should not attempt to add the network buffer to a queue or de-register it until an event arrives with this flag unset.
+
+See Support for multiple message delivery in a single network buffer.
 
 
