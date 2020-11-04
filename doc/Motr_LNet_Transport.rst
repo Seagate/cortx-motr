@@ -231,7 +231,7 @@ This support will not be made available in existing bulk emulation transports, b
 Additional Interfaces
 ----------------------
 
-The design permits the implementation to expose additional interfaces if necessary, as long as their usage is optional. In particular, interfaces to extract or compare the network interface component in an end point address would be useful to the Mero request handler setup code. Other interfaces may be required for configurable parameters controlling internal resource consumption limits.
+The design permits the implementation to expose additional interfaces if necessary, as long as their usage is optional. In particular, interfaces to extract or compare the network interface component in an end point address would be useful to the Motr request handler setup code. Other interfaces may be required for configurable parameters controlling internal resource consumption limits.
 
 **Support for multiple message delivery in a single network buffer**
 
@@ -270,6 +270,10 @@ It is possible for the pool to have no network buffers available when the M0_net
 The use of a receive pool is optional, but if attached to a transfer machine, the association lasts the life span of the transfer machine. When a transfer machine is stopped or failed, receive buffers from (any) buffer pools will be put back into their pool. This will be done by the M0_net_tm_event_post() subroutine before delivering the state change event to the application or signalling on the transfer machine’s channel.
 
 There is no reason why automatic and manual provisioning cannot co-exist. It is not desirable to mix the two, but mainly because the application has to handle two different buffer release schemes- transport level semantics of the transfer machine are not affected by the use of automatic provisioning.
+
+**Future LNet buffer registration support**
+
+The implementation can support hardware optimizations available at buffer registration time, when made available in future revisions of the LNet API. In particular, Infiniband hardware internally registers a vector (translating a virtual memory address to a "bus address") and produces a cookie, identifying the vector. It is this vector registration capability that was the original reason to introduce M0_net_buf_register(), as separate from M0_net_buf_add() in the Network API.
 
 
 
