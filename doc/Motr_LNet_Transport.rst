@@ -322,7 +322,7 @@ This is illustrated in the following figure:
 Conformance
 ===============
 
-- [i.M0.net.rdma] LNET supports RDMA and the feature is exposed through the Mero network bulk interfaces.
+- [i.M0.net.rdma] LNET supports RDMA and the feature is exposed through the Motr network bulk interfaces.
 
 - [i.M0.net.ib] LNET supports Infiniband.
 
@@ -362,4 +362,9 @@ Supporting this variant efficiently may require a more sophisticated internal or
 - A further refinement of the above would be to maintain two linked lists, one for un-affiliated buffers and one for affiliated buffers. If the search of the affiliated list is not successful, then the head of the unaffiliated list is chosen. A big part of this variant is that returned buffers get added to the tail of the affiliated list. This will increase the likelihood that a get operation would find an affiliated buffer toward the head of the affiliated list, because automatic re-provisioning by a transfer machine takes place before the network buffer completion callback is made, and hence before the application gets to process and return the network buffer to the pool. The sweep starts from the head of the affiliated list, moving buffers to the unaffiliated list, until it finds a buffer that is within the minimum time bound.
 
 Better than O(n) search (closer to O(1)) can be accomplished with more complex data structures and algorithms. Essentially it will require maintaining a per transfer machine list somewhere. The pool can only learn of the existence of a new transfer machine when the put operation is involved and will have to be told when the transfer machine is stopped. If the per transfer machine list is anchored in the pool, then the set of such anchors must be dynamically extensible. The alternative of anchoring the list in the transfer machine itself has pros and cons; it would work very well for the receive buffer queue, but does not extend to support other buffer pools for arbitrary purposes. In other words, it is possible to create an optimal 2-level pool (a per transfer machine pool in the data structure itself, with a shared backing store buffer pool) dedicated to receive network buffer processing, but not a generalized solution. Such a pool would exhibit excellent locality of reference but would be more complex because high water thresholds would have to be maintained to return buffers back to the global pool.
+
+Security Model
+==============
+
+No security model is defined; the new transport inherits whatever security model LNet provides today.
 
