@@ -410,4 +410,53 @@ Refinement
 - [r.M0.net.synchronous-buffer-event-delivery] 
 
   - The implementation must provide support for this feature as outlined in Controlling network buffer event delivery and Synchronous network buffer event delivery.
+  
+State
+=====
+
+A network buffer used to receive messages may be used to deliver multiple messages if its nb_min_receive_size field is non-zero. Such a network buffer may still be queued when the buffer event signifying a received message is delivered.
+
+When a transfer machine stops or fails, all network buffers associated with buffer pools should be put back into their pool. The atomic variable, ntm_recv_pool_deficit, used to count the number of network buffers needed should be set to zero. This should be done before notification of the state change is made.
+
+Transfer machines now either support automatic asynchronous buffer event delivery on a transport thread (the default), or can be configured to synchronously deliver buffer events on an application thread. The two modes of operation are mutually exclusive and must be established before starting the transfer machine.
+
+State Invariants
+-----------------
+
+User space buffers pin memory pages in the kernel when registered. Hence, registered user space buffers must be associated with a set of kernel struct page pointers to the referenced memory.
+
+The invariants of the transfer machine and network buffer objects should capture the fact that if a pool is associated with these objects, then the pool is in the same network domain. The transfer machine invariant, in particular, should ensure that the value of the atomic variable, ntm_recv_pool_deficit is zero when the transfer machine is in an inoperable state.
+
+See the refinement [r.M0.net.xprt.support-for-auto-provisioned-receive-queue].
+
+Concurrency Control
+--------------------
+
+The LNet transport module is sandwiched between the asynchronous Motr network API above, and the asynchronous LNet API below. It must plan on operating within the serialization models of both these components. In addition, significant use is made of the kernel’s memory management interfaces, which have their own serialization model. The use of a device driver to facilitate user space to kernel communication must also be addressed.
+
+The implementation mechanism chosen will further govern the serialization model in the kernel. The choice of the number of EQs will control how much inherent independent concurrency is possible. For example, sharing of EQs across transfer machines or for different network buffer queues could require greater concurrency control than the use of dedicated EQs per network buffer queue per transfer machine.
+
+Serialization of the kernel transport is anticipated to be relatively straightforward, with safeguards required for network buffer queues.
+
+Serialization between user and kernel space should take the form of shared memory circular queues co-ordinated with atomic indices. A producer-consumer model should be used, with opposite roles assigned to the kernel and user space process; appropriate notification of change should be made through the device driver. Separate circular queues should be used for buffer operations (user to kernel) and event delivery (kernel to user). [r.M0.net.xprt.lnet.efficient-user-to-kernel-comm]
+
+Automatic provisioning can only be enabled before a transfer machine is started. Once enabled, it cannot be disabled. Thus, provisioning operations are implicitly protected by the state of the transfer machine - the “not-empty” callback subroutine will never fail to find its transfer machine, though it should take care to examine the state before performing any provisioning. The life span of a network buffer pool must exceed that of the transfer machines that use the pool. The life span of a network domain must exceed that of associated network buffer pools.
+
+Automatic provisioning of receive network buffers from the receive buffer pool takes place either through the M0_net_buffer_event_post() subroutine or triggered by the receive buffer pool’s “not-empty” callback with the M0_net_domain_buffer_pool_not_empty subroutine. Two important conditions should be met while provisioning:
+
+- Minimize processing on the pool callback: The buffer pool maintains its own independent lock domain; it invokes the M0_net_domain_buffer_pool_not_empty subroutine (provided for use as the not-empty callback) while holding its lock. The callback is invoked on the stack of the caller who used the put operation on the pool. It is essential, therefore, that the not-empty callback perform minimal work - it should only trigger an attempt to reprovision transfer machines, not do the provisioning.
+
+- Minimize interference with the processor affinity of the transfer machine: Ideally, the transfer machine is only referenced on a single processor, resulting in a strong likelihood that its data structures are in the cache of that processor. Provisioning transfer machines requires iteration over a list, and if the transfer machine lock has to be obtained for each, it could adversely impact such caching. We provided the atomic variable, ntm_recv_pool_deficit, with a count of the number of network buffers to provision so that this lock is obtained only when the transfer machine really needs to be provisioned, and not for every invocation of the buffer pool callback. The transfer machine invariant will enforce that the value of this atomic will be 0 when the transfer machine is not in an operable state.
+
+Actual provisioning should be done on a domain private thread awoken for this purpose. A transfer machine needs provisioning if it is in the started state, it is associated with the pool, and its receive queue length is less than the configured minimum (determined via an atomic variable as outlined above). To provision, the thread will obtain network buffers from the pool with the get() operation, and add them to the receive queue of the transfer machine with the (internal equivalent) of the M0_net_buffer_add_call that assumes that the transfer machine is locked.
+
+The design requires that receive buffers obtained from buffer pools be put back to their pools when a transfer machine is stopped or fails, prior to notifying the higher level application of the change in state. This action will be done in the M0_net_tm_event_post() subroutine, before invoking the state change callback. The subroutine obtains the transfer machine mutex, and hence has the same degree of serialization as that used in automatic provisioning.
+
+The synchronous delivery of network buffer events utilizes the transfer machine lock internally, when needed. The lock must not be held in the M0_net_buffer_event_deliver_all() subroutine across calls to the M0_net_buffer_event_post() subroutine.
+
+In the use case described in Request handler control of network buffer event delivery there is a possibility that the application could wake up for reasons other than the arrival of a network buffer event, and once more test for the presence of network buffer events even while the background thread is making a similar test. It is possible that the application could consume all events and once more make a request for future notification while the semaphore count in its wait channel is non-zero. In this case it would return immediately, find no additional network events and repeat the request; the M0_net_buffer_event_deliver_all() subroutine will not return an error if no events are present.
+
+
+
+
 
