@@ -102,4 +102,48 @@ The following figure shows the components of the proposed design and usage relat
 
 - The design allows an application to specify processor affinity for a transfer machine.
 
-- The design allows an application to control how and when buffer event delivery takes place. This is of particular interest to the user space request handler
+- The design allows an application to control how and when buffer event delivery takes place. This is of particular interest to the user space request handler.
+
+****************************
+Functional Specification
+****************************
+
+The design follows the existing specification of the Motr Network module described in net/net.h and [5] for the most part. See the Logical Specification for reasons behind the features described in the functional specification.
+
+LNet Transfer Machine End Point Address
+========================================
+
+The Motr LNet transport defines the following 4-tuple end point address format for transfer machines:
+
+- NetworkIdentifierString : PID : PortalNumber : TransferMachineIdentifier
+
+where the NetworkIdentifierString (a NID string), the PID and the Portal Number are as defined in an LNet Address. The TransferMachineIdentifier is defined in the definition section.
+
+Every Motr service request handler, client and utility program needs a set of unique end point addresses. This requirement is not unique to the LNet transport: an end point address is in general pattern
+
+- TransportAddress : TransferMachineIdentifier
+
+with the transfer machine identifier component further qualifying the transport address portion, resulting in a unique end point address per transfer machine. The existing bulk emulation transports use the same pattern, though they use a 2-tuple transport address and call the transfer machine identifier component a “service id” [5]. Furthermore, there is a strong relationship between a TransferMachineIdentifier and a FOP state machine locality [6] which needs further investigation. These issues are beyond the scope of this document and are captured in the [r.M0.net.xprt.lnet.address-assignment] dependency.
+
+The TransferMachineIdentifier is represented in an LNet ME by a portion of the higher order Match bits that form a complete LNet address. See Mapping of Endpoint Address to LNet Address for details.
+
+All fields in the end point address must be specified. For example:
+
+- 10.72.49.14@o2ib0:12345:31:0
+
+- 192.168.96.128@tcp1:12345:32:0
+
+The implementation should provide support to make it easy to dynamically assign an available transfer machine identifier by specifying a * (asterisk) character as the transfer machine component of the end point addressed passed to the M0_net_tm_start subroutine:
+
+- 10.72.49.14@o2ib0:12345:31:*
+
+If the call succeeds, the real address assigned by be recovered from the transfer machine’s ntm_ep field. This is captured in refinement [r.M0.net.xprt.lnet.dynamic-address-assignment].
+
+Transport Variable
+------------------
+
+The design requires the implementation to expose the following variable in user and kernel space through the header file net/lnet.h:
+
+- extern struct M0_net_xprt M0_lnet_xprt;
+
+The variable represents the LNet transport module, and its address should be passed to the M0_net_domain_init() subroutine to create a network domain that uses this transport. This is captured in the refinement [r.M0.net.xprt.lnet.transport-variable].
