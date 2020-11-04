@@ -147,3 +147,9 @@ The design requires the implementation to expose the following variable in user 
 - extern struct M0_net_xprt M0_lnet_xprt;
 
 The variable represents the LNet transport module, and its address should be passed to the M0_net_domain_init() subroutine to create a network domain that uses this transport. This is captured in the refinement [r.M0.net.xprt.lnet.transport-variable].
+
+**Support for automatic provisioning from receive buffer pools**
+
+The design includes support for the use of pools of network buffers that will be used to receive messages from one or more transfer machines associated with each pool. This results in greater utilization of receive buffers, as fragmentation is reduced by delaying the commitment of attaching a buffer to specific transfer machines. This results in transfer machines performing on-demand, minimal, policy-based provisioning of their receive queues. This support is transport independent, and hence, can apply to the earlier bulk emulation transports in addition to the LNet transport.
+
+The design uses the struct M0_net_buffer_pool object to group network buffers into a pool. New APIs will be added to associate a network buffer pool with a transfer machine, to control the number of buffers the transfer machine will auto-provision from the pool, and additional fields will be added to the transfer machine and network buffer data structures.
