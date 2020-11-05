@@ -456,6 +456,36 @@ The synchronous delivery of network buffer events utilizes the transfer machine 
 
 In the use case described in Request handler control of network buffer event delivery there is a possibility that the application could wake up for reasons other than the arrival of a network buffer event, and once more test for the presence of network buffer events even while the background thread is making a similar test. It is possible that the application could consume all events and once more make a request for future notification while the semaphore count in its wait channel is non-zero. In this case it would return immediately, find no additional network events and repeat the request; the M0_net_buffer_event_deliver_all() subroutine will not return an error if no events are present.
 
+Scenarios
+===============
+A Motr component, whether it is a kernel file system client, server, or tool, uses the following pattern for multiple-message reception into a single network buffer.
+
+#. The component creates and starts one or more transfer machines, identifying the actual end points of the transfer machines.
+
+#. The component provisions network buffers to be used for receipt of unsolicited messages. The method differs based on whether a buffer pool is used or not.
+
+   #. When a buffer pool is used, these steps are performed.
+
+      #. The network buffers are provisioned, with nb_min_receive_size set to allow multiple delivery of messages. The network buffers are added to a buffer pool.
+
+      #. The buffer pool is registered with a network domain and associated with one or more transfer machines. Internally, the transfer machines will get buffers from the pool and add them to their M0_NET_QT_MSG_RECV queues.
+
+   #. When a buffer pool is not used, these steps are performed.
+
+      #. Network buffers are provisioned with nb_min_receive_size set to allow multiple delivery of messages.
+
+      #. The network buffers are registered with the network domain and added to a transfer machine M0_NET_QT_MSG_RECV queue.
+
+#. When a message is received, two sub-cases are possible as part of processing the message. It is the responsibility of the component itself to coordinate between these two sub-cases.
+
+  #. When a message is received and the M0_NET_BUF_QUEUED flag is set in the network buffer, then the client does not re-enqueue the network buffer as there is still space remaining in the buffer for additional messages.
+
+  #. When a message is received and the M0_NET_BUF_QUEUED flag is not set in the network buffer, then the component takes one of two paths, depending on whether a buffer pool is in use or not.
+
+     #. When a buffer pool is in use, the component puts the buffer back in the buffer pool so it can be re-used.
+
+     #. When a buffer pool is not in use, the component may re-enqueue the network buffer after processing is complete, as there is no space remaining in the buffer for additional messages.
+
 
 
 
