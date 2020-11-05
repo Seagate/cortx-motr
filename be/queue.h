@@ -37,8 +37,11 @@
  * - memory allocation happens only in m0_be_queue_init(). All other queue
  *   functions don't allocate memory from heap and just use pre-allocated
  *   memory, that had been allocated in m0_be_queue_init();
- * - in each function that could block m0_be_op is used to tell that the
- *   operation is complete;
+ * - the interface is non-blocking, i.e. each function always returns without
+ *   waiting on a synchromisation primitive or something similar. If an
+ *   operation, provided by a function, requires waiting for something (free
+ *   space available, an item etc.), m0_be_op is used to tell that the operation
+ *   is complete;
  * - op callbacks are called from under m0_be_queue lock, so they MUST NOT call
  *   m0_be_queue functions for the same queue;
  * - queues use lists in this way: items are added at tail and are removed from
