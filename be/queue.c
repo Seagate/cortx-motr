@@ -127,19 +127,19 @@ M0_INTERNAL int m0_be_queue_init(struct m0_be_queue     *bq,
 	bqop_tlist_init(&bq->bq_op_put_unused);
 	for (i = 0; i < bq->bq_cfg.bqc_producers_nr_max; ++i) {
 		bqop_tlink_init_at_tail(&bq->bq_ops_put[i],
-					 &bq->bq_op_put_unused);
+		                        &bq->bq_op_put_unused);
 	}
 	bqop_tlist_init(&bq->bq_op_put);
 	bqop_tlist_init(&bq->bq_op_get_unused);
 	for (i = 0; i < bq->bq_cfg.bqc_consumers_nr_max; ++i) {
 		bqop_tlink_init_at_tail(&bq->bq_ops_get[i],
-					 &bq->bq_op_get_unused);
+		                        &bq->bq_op_get_unused);
 	}
 	bqop_tlist_init(&bq->bq_op_get);
 	bqq_tlist_init(&bq->bq_q_unused);
 	for (i = 0; i < be_queue_qitems_nr(bq); ++i) {
 		bqq_tlink_init_at_tail(be_queue_qitem(bq, i),
-				       &bq->bq_q_unused);
+		                       &bq->bq_q_unused);
 	}
 	bqq_tlist_init(&bq->bq_q);
 	return M0_RC(0);
@@ -147,9 +147,9 @@ M0_INTERNAL int m0_be_queue_init(struct m0_be_queue     *bq,
 
 M0_INTERNAL void m0_be_queue_fini(struct m0_be_queue *bq)
 {
-	struct be_queue_wait_op  *bwo;
-	struct be_queue_item     *bqi;
-	uint64_t                i;
+	struct be_queue_wait_op *bwo;
+	struct be_queue_item    *bqi;
+	uint64_t                 i;
 
 	M0_ENTRY("bq="BEQ_F, BEQ_P(bq));
 	M0_ASSERT_INFO(bq->bq_enqueued == bq->bq_dequeued,
