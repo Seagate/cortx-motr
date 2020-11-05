@@ -485,6 +485,27 @@ A Motr component, whether it is a kernel file system client, server, or tool, us
      #. When a buffer pool is in use, the component puts the buffer back in the buffer pool so it can be re-used.
 
      #. When a buffer pool is not in use, the component may re-enqueue the network buffer after processing is complete, as there is no space remaining in the buffer for additional messages.
+     
+     
+**Sending non-bulk messages from Motr components**
+
+A Motr component, whether a user-space server, user-space tool or kernel file system client uses the following pattern to use the LNet transport to send messages to another component. Memory for send queues can be allocated once, or the send buffer can be built up dynamically from serialized data and references to existing memory.
+
+#. The component optionally allocates memory to one or more M0_net_buffer objects and registers those objects with the network layer. These network buffers are a pool of message send buffers.
+
+#. To send a message, the component uses one of two strategies.
+
+   #. The component selects one of the buffers previously allocated and serializes the message data into that buffer.
+
+   #. The component builds up a fresh M0_net_buffer object out of memory pages newly allocated and references to other memory (to avoid copies), and registers the resulting object with the network layer.
+
+#. The component enqueues the message for transmission.
+
+#. When a buffer operation completes, it uses one of two strategies, corresponding to the earlier approach.
+
+  #. If the component used previously allocated buffers, it returns the buffer to the pool of send buffers.
+
+  #. If the component built up the buffer from partly serialized and partly referenced data, it de-registers the buffer and de-provisions the memory.
 
 
 
