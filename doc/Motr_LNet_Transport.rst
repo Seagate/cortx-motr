@@ -582,6 +582,43 @@ Combined, this translates to LNet only supporting a single PID (12345) with up t
 
 Additional information on current LNet behavior can be found in [4].
 
+Deployment
+===============
+
+Motr’s use of LNet must co-exist with simultaneous use of LNet by Lustre on the same host.
+
+Network
+------------------
+
+LNet must be set up using existing tools and interfaces provided by Lustre. Dependency: [r.lnet.preconfigured].
+
+LNet Transfer machine end point addresses are statically assigned to Motr runtime components through the central configuration database. The specification requires that the implementation use a disjoint set of portals from Lustre, primarily because of limitations in the LNet implementation. See Rationale for details.
+
+Core
+-----
+
+This specification will benefit if Lustre is distributed with a larger value of MAX_PORTALS than the current value of 64 in Lustre 2.0.
+
+Installation
+---------------
+
+LNet is capable of running without Lustre, but currently is distributed only through Lustre packages. It is not in the scope of this document to require changes to this situation, but it would be beneficial to pure Motr servers (non-Lustre) to have LNet distributed in packages independent of Lustre.
+
+References
+===========
+
+- [1] T1 Task Definitions
+
+- [2] Mero Summary Requirements Table 
+
+- [3] M0 Glossary 
+
+- [4] M0LNet Preliminary Design Questions 
+
+- [5] RPC Bulk Transfer Task Plan
+
+- [6] HLD of the FOP state machine
+
 
 
 
