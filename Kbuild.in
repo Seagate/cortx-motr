@@ -96,6 +96,7 @@ include $(src)/net/Kbuild.sub
 include $(src)/net/bulk_emulation/Kbuild.sub
 include $(src)/net/lnet/Kbuild.sub
 include $(src)/net/sock/Kbuild.sub
+include $(src)/net/libfab/Kbuild.sub
 include $(src)/pool/Kbuild.sub
 include $(src)/reqh/Kbuild.sub
 include $(src)/rm/Kbuild.sub

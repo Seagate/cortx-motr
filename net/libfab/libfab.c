@@ -45,8 +45,20 @@
  * 
  */
 
+/**
+ * @addtogroup netlibfab
+ *
+ * Overview
+ * --------
+ * */
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
 
+
+#include "net/net.h"
+#include "lib/bitmap.h"
+#include "lib/chan.h"
+#include "lib/trace.h"
+#include <errno.h>
 
 
 /** Network transfer machine */
@@ -55,7 +67,7 @@ struct trasfer_ma {
 	struct m0_net_transfer_mc *t_ma;
 
 	// TODO: Is poller thread required ?
-}
+};
 
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
@@ -91,6 +103,7 @@ static void libfab_dom_fini(struct m0_net_domain *dom)
  */
 static int libfab_ma_init(struct m0_net_transfer_mc *net)
 {
+	int result = 0;
    /*
       approach 1:   
       Looks like this would be empty function, 
@@ -121,6 +134,7 @@ static int libfab_ma_start(struct m0_net_transfer_mc *net, const char *name)
 	* poller thread needs to be added to check completion queue, 
 	* refer nlx_xo_tm_start() LNet 
 	*/
+	return 0;
 }
 
 /**
@@ -226,12 +240,11 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
  */
 static void libfab_buf_del(struct m0_net_buffer *nb)
 {
-	struct buf *buf = nb->nb_xprt_private;
-	struct ma  *ma  = buf_ma(buf);
 
-	M0_PRE(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
-	nb->nb_flags |= M0_NET_BUF_CANCELLED;
-	buf_done(buf, -ECANCELED);
+	/*
+ 	* TODO:
+ 	*   fi_cancel
+ 	* */
 }
 
 static int libfab_ma_confine(struct m0_net_transfer_mc *ma,
@@ -340,7 +353,8 @@ static m0_bcount_t libfab_get_max_buffer_desc_size(const struct m0_net_domain *d
  	* same as libfab_get_max_buffer_size()
 	* This is size of buffer descriptor structure size, refer fi_mr_desc() 
 	* */
-	return sizeof(struct bdesc);
+	//return sizeof(struct bdesc);
+	return 0;
 }
 
 
@@ -375,7 +389,7 @@ const struct m0_net_xprt m0_net_libfab_xprt = {
 
 #undef M0_TRACE_SUBSYSTEM
 
-/** @} end of netsock group */
+/** @} end of netlibfab group */
 
 /*
  *  Local variables:

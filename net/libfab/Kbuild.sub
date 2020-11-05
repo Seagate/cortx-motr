@@ -1,0 +1,2 @@
+m0tr_objects += \
+                  net/libfab/xcode_xc.o

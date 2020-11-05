@@ -245,6 +245,7 @@ include $(top_srcdir)/net/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/Makefile.sub
 include $(top_srcdir)/net/lnet/Makefile.sub
 include $(top_srcdir)/net/sock/Makefile.sub
+include $(top_srcdir)/net/libfab/Makefile.sub
 include $(top_srcdir)/pool/Makefile.sub
 include $(top_srcdir)/reqh/Makefile.sub
 include $(top_srcdir)/rm/Makefile.sub
