@@ -156,7 +156,12 @@ M0_INTERNAL void m0_be_queue_fini(struct m0_be_queue *bq)
 	               "bq="BEQ_F, BEQ_P(bq));
 
 	m0_tl_for(bqq, &bq->bq_q, bqi) {
-		M0_LOG(M0_ERROR, "there is an item in the queue"); /* XXX */
+		/*
+		 * M0_LOG() couldn't print the item buffer at once,
+		 * unfortunately. So let's just at least show the number of
+		 * items by printing every item.
+		 */
+		M0_LOG(M0_ERROR, "there is an item in the queue");
 	} m0_tl_endfor;
 	bqq_tlist_fini(&bq->bq_q);
 	m0_tl_for(bqop, &bq->bq_op_get, bwo) {
