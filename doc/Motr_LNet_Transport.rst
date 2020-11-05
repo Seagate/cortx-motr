@@ -526,6 +526,22 @@ A Motr server uses the following pattern to use the LNet transport to initiate a
 
 #. When a network buffer operation completes, the network buffer can be returned to the pool of network buffers.
 
+**User space bulk buffer access from Motr tools**
+
+A Motr tool uses the following pattern to use the LNet transport to initiate passive bulk tranfers to Motr server components:
+
+#. The tool should use an end point address that is not assigned to any mero server or file system client. It should use a dynamic address to achieve this.
+
+#. To perform a bulk operation, the tool provisions a network buffer. The tool then registers this buffer and enqueues the buffer for transmission.
+
+#. When a buffer operation completes, the buffer can be de-registered and the memory can be de-provisioned.
+
+**Obtaining dynamic addresses for Motr tools**
+
+A Motr tool is a relatively short lived process, typically a command line invocation of a program to communicate with a Motr server. One cannot assign fixed addresses to such tools, as the failure of a human interactive program because of the existence of another executing instance of the same program is generally considered unacceptable behavior, and one that precludes the creation of scriptable tools.
+
+Instead, all tools could be assigned a shared combination of NID, PID and Portal Number, and at run time, the tool process can dynamically assign unique addresses to itself by creating a transfer machine with a wildcard transfer machine identifier. This is captured in refinement [r.M0.net.xprt.lnet.dynamic-address-assignment] and Mapping of Endpoint Address to LNet Address. Dependency: [r.M0.net.xprt.lnet.address-assignment]
+
 
 
 
