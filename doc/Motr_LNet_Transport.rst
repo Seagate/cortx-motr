@@ -563,5 +563,26 @@ Other
 
 We had some concerns and questions regarding the serialization model used by LNet, and whether using multiple portals is more efficient than sharing a single portal. The feedback we received indicates that LNet uses relatively coarse locking internally, with no appreciable difference in performance for these cases. There may be improvements in the future, but that is not guaranteed; the suggestion was to use multiple portals if possible, but that also raises concerns about the restricted available portal space left in LNet (around 30 unused portals) and the fact that all LNet users share the same portals space. [4].
 
+Rationale
+===============
+
+One important design choice was the choice to use a custom driver rather than ULA, or a re-implementation of the ULA. The primary reason for not using the ULA directly is that it is covered by the GPL, which would limit the licensing choices for Motr overall. It would have been possible to implement our own ULA-like driver and library. After that, a user-level LNet transport would still be required on top of this ULA-like driver. However, Motr does not require the full set of possible functions and use cases supported by LNet. Implementing a custom driver, tailored to the Motr net bulk transport, means that only the functionality required by Motr must be supported. The driver can also be optimized specifically for the Motr use cases, without concern for other users. For these reasons, a re-implementation of the ULA was not pursued.
+
+Certain LNet implementation idiosyncrasies also impact the design. We call out the following, in particular:
+
+The portal number space is huge, but the implementation supports just the values 0-63 [4].
+
+- Only messages addressed to PID 12345 get delivered. This is despite the fact that LNet allows us to specify any address in the LNetGet, LNetPut and LNetMEAttach subroutines.
+
+- ME matches are constrained to either all network interfaces or to those matching a single NID, i.e. a set of NIDs cannot be specified.
+
+- No processor affinity support.
+
+Combined, this translates to LNet only supporting a single PID (12345) with up to 64 portals, out of which about half (34 actually) seem to be in use by Lustre and other clients. Looking at this another way: discounting the NID component of an external LNet address, out of the remaining 64 bits (32 bit PID and 32 bit Portal Number), about 5 bits only are available for Motr use! This forced the design to extend its external end point address to cover a portion of the match bit space, represented by the Transfer Machine Identifier.
+
+Additional information on current LNet behavior can be found in [4].
+
+
+
 
 
