@@ -122,7 +122,7 @@ static int dix_net_init(struct dix_ctx *ctx, const char *local_addr)
 {
 	M0_LOG(M0_DEBUG, "local ep is %s", local_addr);
 	ctx->dc_laddr = local_addr;
-	return M0_RC(m0_net_domain_init(&ctx->dc_ndom, &m0_net_lnet_xprt));
+	return M0_RC(m0_net_domain_init(&ctx->dc_ndom, &m0_net_xprt_obj));
 }
 
 static int dix_rpc_init(struct dix_ctx *ctx)

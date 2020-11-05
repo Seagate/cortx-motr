@@ -37,6 +37,7 @@
 #include "dix/fid_convert.h"
 #include "ut/ut.h"
 #include "ut/misc.h"
+#include "net/sock/sock.h"
 
 enum {
 	DIX_M0T1FS_LAYOUT_P = 9,
@@ -120,7 +121,8 @@ static char *dix_startup_cmd[] = { "m0d", "-T", "linux",
 static const char *cdbnames[]         = { "dix1" };
 static const char *cl_ep_addrs[]      = { "0@lo:12345:34:2" };
 static const char *srv_ep_addrs[]     = { "0@lo:12345:34:1" };
-static struct m0_net_xprt *cs_xprts[] = { &m0_net_lnet_xprt};
+static struct m0_net_xprt *cs_xprts[] = { &m0_net_lnet_xprt,
+					  &m0_net_sock_xprt};
 
 static struct cl_ctx            dix_ut_cctx;
 static struct m0_rpc_server_ctx dix_ut_sctx = {

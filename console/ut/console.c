@@ -68,7 +68,7 @@ enum {
 	MAX_RETRIES        = 5,
 };
 
-static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
+static struct m0_net_xprt   *xprt = &m0_net_xprt_obj;
 static struct m0_net_domain  client_net_dom = { };
 
 static struct m0_rpc_client_ctx cctx = {

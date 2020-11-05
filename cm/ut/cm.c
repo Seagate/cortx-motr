@@ -33,7 +33,7 @@
 #include "ut/ut.h"
 
 static struct m0_rpc_server_ctx cm_ut_sctx;
-static struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
+static struct m0_net_xprt *xprt = &m0_net_xprt_obj;
 static const char *SERVER_LOGFILE = "cm_ut.log";
 char  *cm_ut_server_args[] = { "m0d", "-T", "LINUX",
 				"-D", "sr_db", "-S", "sr_stob",

@@ -35,6 +35,7 @@
 enum m0_net_xprt_id {
 	M0_NET_XPRT_LNET,
 	M0_NET_XPRT_BULKMEM,
+	M0_NET_XPRT_SOCK,
 	M0_NET_XPRT_NR
 };
 

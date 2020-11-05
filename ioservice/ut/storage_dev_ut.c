@@ -53,7 +53,7 @@ static int rpc_start(struct m0_rpc_server_ctx *rpc_srv)
 	char                log_name[LOG_NAME_MAX_LEN];
 	char                full_ep[EP_MAX_LEN];
 	char                max_rpc_size[RPC_SIZE_MAX_LEN];
-	struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
+	struct m0_net_xprt *xprt = &m0_net_xprt_obj;
 
 	snprintf(full_ep, EP_MAX_LEN, "lnet:%s", confd_ep);
 	snprintf(max_rpc_size, RPC_SIZE_MAX_LEN,

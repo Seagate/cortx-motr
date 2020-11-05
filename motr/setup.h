@@ -23,9 +23,9 @@
 
 #ifndef __MOTR_MOTR_MOTR_SETUP_H__
 #define __MOTR_MOTR_MOTR_SETUP_H__
-
+#ifndef __KERNEL__
 #include <stdio.h> /* FILE */
-
+#endif
 #include "lib/tlist.h"
 #include "lib/types.h"        /* m0_uint128 */
 #include "reqh/reqh_service.h"
@@ -35,7 +35,9 @@
 #include "mdstore/mdstore.h"  /* m0_mdstore */
 #include "fol/fol.h"          /* m0_fol */
 #include "reqh/reqh.h"        /* m0_reqh */
-#include "yaml.h"             /* yaml_document_t */
+#ifndef __KERNEL__
+#include "yaml.h" 
+#endif            /* yaml_document_t */
 
 #include "be/ut/helper.h"     /* m0_be_ut_backend_seg_add2 */
 #include "pool/pool.h"        /* m0_pools_common */
@@ -195,7 +197,9 @@ struct cs_endpoint_and_xprt {
  */
 struct cs_stob_file {
 	bool            sf_is_initialised;
+#ifndef __KERNEL__
 	yaml_document_t sf_document;
+#endif
 };
 
 /**
@@ -377,8 +381,9 @@ struct m0_motr {
 	   Default is set to stdout.
 	   @see m0_cs_init()
 	 */
+#ifndef __KERNEL__
 	FILE                       *cc_outfile;
-
+#endif
 	/**
 	 * List of buffer pools in motr context.
 	 * @see cs_buffer_pool::cs_bp_linkage
@@ -489,8 +494,10 @@ struct cs_ad_stob {
    @param out File descriptor to which output is written
    @param should the storage be prepared just like mkfs does?
  */
+#ifndef __KERNEL__
 int m0_cs_init(struct m0_motr *cs_motr,
 	       struct m0_net_xprt **xprts, size_t xprts_nr, FILE *out, bool mkfs);
+#endif
 /**
    Finalises motr context.
  */

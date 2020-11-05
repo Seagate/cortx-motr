@@ -24,6 +24,7 @@
 #include "net/bulk_mem.h"         /* m0_net_bulk_mem_xprt */
 #include "ut/misc.h"              /* M0_UT_PATH */
 #include "ut/ut.h"
+#include "net/sock/sock.h"
 
 extern const struct m0_tl_descr bufferpools_tl;
 
@@ -72,7 +73,8 @@ static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-T", "AD",
 /* Transports used in motr context. */
 static struct m0_net_xprt *cs_xprts[] = {
 	&m0_net_lnet_xprt,
-	&m0_net_bulk_mem_xprt
+	&m0_net_bulk_mem_xprt,
+	&m0_net_sock_xprt
 };
 
 #define SERVER_LOG_FILE_NAME "cs_ut.errlog"

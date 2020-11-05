@@ -89,7 +89,7 @@ static int   max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 
 static char server_endpoint[M0_NET_LNET_XEP_ADDR_LEN];
 
-static struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
+static struct m0_net_xprt *xprt = &m0_net_xprt_obj;
 
 static int build_endpoint_addr(char *out_buf, size_t buf_size)
 {

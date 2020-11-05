@@ -37,6 +37,7 @@
 #include "dix/client.h"
 #include "dix/meta.h"
 #include "fop/fom_simple.h"     /* m0_fom_simple */
+#include "net/sock/sock.h"
 
 #define WAIT_TIMEOUT               M0_TIME_NEVER
 #define SERVER_LOG_FILE_NAME       "cas_server.log"
@@ -63,7 +64,8 @@ static char *cas_startup_cmd[] = { "m0d", "-T", "linux",
 static const char         *local_ep_addr = "0@lo:12345:34:2";
 static const char         *srv_ep_addr   = { "0@lo:12345:34:1" };
 static const char         *process_fid   = M0_UT_CONF_PROCESS;
-static struct m0_net_xprt *cs_xprts[]    = { &m0_net_lnet_xprt };
+static struct m0_net_xprt *cs_xprts[]    = { &m0_net_lnet_xprt,
+					     &m0_net_sock_xprt};
 
 static struct m0_rpc_server_ctx dix_ut_sctx = {
 		.rsx_xprts            = cs_xprts,

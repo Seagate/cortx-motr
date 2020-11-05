@@ -45,6 +45,7 @@
 #include "motr/version.h"
 #include "module/instance.h"  /* m0 */
 #include "net/lnet/lnet.h"
+#include "net/sock/sock.h"
 #include "reqh/reqh_service.h"
 #include "motr/process_attr.h"
 #include "ha/note.h"          /* M0_NC_ONLINE */
@@ -67,9 +68,9 @@ static struct m0_net_xprt *cs_xprts[] = {
  *       endpoint address ("lnet:" or "sock:"), see cs_xprt_lookup().
  */
 /* #ifdef ENABLE_LUSTRE */
-	&m0_net_lnet_xprt /* , */
+	&m0_net_lnet_xprt,
 /* #endif */
-	/* &m0_net_sock_xprt */
+	&m0_net_sock_xprt
 };
 
 /* Signal handler result */

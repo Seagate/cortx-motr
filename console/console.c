@@ -326,7 +326,7 @@ int main(int argc, char **argv)
 		goto end;
 	}
 
-	result = m0_net_domain_init(&client_net_dom, &m0_net_lnet_xprt);
+	result = m0_net_domain_init(&client_net_dom, &m0_net_xprt_obj);
 	M0_ASSERT(result == 0);
 
 	/* Init the console members from CLI input */

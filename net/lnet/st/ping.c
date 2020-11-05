@@ -1498,7 +1498,7 @@ void nlx_ping_server_spawn(struct m0_thread *server_thread,
 {
 	int rc;
 
-	sctx->pc_xprt = &m0_net_lnet_xprt;
+	sctx->pc_xprt = &m0_net_xprt_obj;
 	sctx->pc_pid = M0_NET_LNET_PID;
 
 	m0_mutex_lock(&sctx->pc_mutex);
@@ -1847,7 +1847,7 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 	if (cctx == NULL)
 		goto free_ctx;
 
-	cctx->pc_xprt         = &m0_net_lnet_xprt;
+	cctx->pc_xprt         = &m0_net_xprt_obj;
 	cctx->pc_ops          = params->ops;
 	cctx->pc_nr_bufs      = params->nr_bufs;
 	cctx->pc_bulk_size    = params->bulk_size;

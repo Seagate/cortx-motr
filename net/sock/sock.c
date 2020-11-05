@@ -3868,11 +3868,12 @@ static const struct m0_net_xprt_ops xprt_ops = {
 	.xo_get_max_buffer_desc_size    = &get_max_buffer_desc_size
 };
 
-const struct m0_net_xprt m0_net_sock_xprt = {
+struct m0_net_xprt m0_net_sock_xprt = {
 	.nx_name = "sock",
 	.nx_ops  = &xprt_ops
 };
-
+M0_EXPORTED(m0_net_sock_xprt);
+#if 0
 /*
  * TODO: This is a temporary workaround. It's needed because "lnet" xprt object
  *       is hardcoded in many places. When a proper build and/or run time
@@ -3884,6 +3885,7 @@ struct m0_net_xprt m0_net_lnet_xprt = {
 	.nx_name = "lnet",
 	.nx_ops  = &xprt_ops
 };
+#endif
 #endif
 
 M0_INTERNAL int m0_net_sock_mod_init(void)

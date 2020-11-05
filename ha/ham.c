@@ -235,7 +235,7 @@ static void ham_rpc_ctx_init(struct ham_rpc_ctx *ctx,
 	M0_PRE(local_endpoint != NULL && *local_endpoint != '\0');
 	M0_PRE(m0_conf_fid_type(local_process) == &M0_CONF_PROCESS_TYPE);
 
-	rc = m0_net_domain_init(&ctx->mrc_net_dom, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(&ctx->mrc_net_dom, &m0_net_xprt_obj);
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_net_buffer_pool_setup(
 		&ctx->mrc_net_dom,

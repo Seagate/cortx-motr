@@ -63,7 +63,7 @@ int main(int argc, char **argv)
         if (rc != 0)
                 return M0_ERR(rc);
 	printf("s %s, c %s, d %d\n", rm_ep, c_ep, delay);
-	rc = m0_net_domain_init(&domain, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(&domain, &m0_net_xprt_obj);
 	if (rc != 0)
 		goto m0_fini;
 	rc = m0_rpc_net_buffer_pool_setup(&domain, &buffer_pool, 2, 1);

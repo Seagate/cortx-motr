@@ -713,7 +713,7 @@ static int halon_interface_level_enter(struct m0_module *module)
 		return M0_RC(0);
 	case M0_HALON_INTERFACE_LEVEL_NET_DOMAIN:
 		return M0_RC(m0_net_domain_init(&hii->hii_net_domain,
-		                                &m0_net_lnet_xprt));
+		                                &m0_net_xprt_obj));
 	case M0_HALON_INTERFACE_LEVEL_NET_BUFFER_POOL:
 		return M0_RC(m0_rpc_net_buffer_pool_setup(
 		                &hii->hii_net_domain, &hii->hii_net_buffer_pool,

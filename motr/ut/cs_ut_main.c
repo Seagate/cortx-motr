@@ -28,6 +28,7 @@
 #include "ut/ut.h"
 #include "motr/iem.h"
 #include "rm/st/wlock_helper.h"
+#include "net/sock/sock.h"
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
@@ -195,7 +196,8 @@ static const char *srv_ep_addrs[] = { SERVER_ENDPOINT_ADDR, "127.0.0.1:35678" };
  */
 static struct m0_net_xprt *cs_xprts[] = {
 	&m0_net_lnet_xprt,
-	&m0_net_bulk_mem_xprt
+	&m0_net_bulk_mem_xprt,
+	&m0_net_sock_xprt
 };
 
 enum { MAX_RPCS_IN_FLIGHT = 10 };

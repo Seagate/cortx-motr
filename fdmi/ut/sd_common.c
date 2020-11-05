@@ -35,6 +35,7 @@
 #include "rpc/item_internal.h"    /* m0_rpc_item_failed */
 #include "rpc/session_internal.h"
 #include "rpc/conn_internal.h"
+#include "net/sock/sock.h"
 
 #include "fdmi/ut/sd_common.h"
 
@@ -49,6 +50,7 @@ static struct m0_mdstore           md;
 
 static struct m0_net_xprt *sd_ut_xprts[] = {
 	&m0_net_lnet_xprt,
+	&m0_net_sock_xprt,
 };
 static FILE               *sd_ut_lfile;
 
@@ -178,7 +180,7 @@ void prepare_rpc_env(struct test_rpc_env         *env,
 {
 	enum { TEST_TM_NR = 1 }; /* Number of TMs. */
 	int                      rc;
-	struct m0_net_xprt      *xprt = &m0_net_lnet_xprt;
+	struct m0_net_xprt      *xprt = &m0_net_xprt_obj;
 
 	M0_ENTRY();
 
