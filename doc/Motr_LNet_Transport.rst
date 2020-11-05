@@ -506,6 +506,25 @@ A Motr component, whether a user-space server, user-space tool or kernel file sy
   #. If the component used previously allocated buffers, it returns the buffer to the pool of send buffers.
 
   #. If the component built up the buffer from partly serialized and partly referenced data, it de-registers the buffer and de-provisions the memory.
+  
+  
+**Kernel space bulk buffer access from file system clients**
+
+A motr file system client uses the following pattern to use the LNet transport to initiate passive bulk transfers with motr servers. Memory for bulk queues will come from user space memory. The user space memory is not controlled by motr; it is used as a result of system calls, eg read() and write().
+
+#. The client populates a network buffer from mapped user pages, registers this buffer with the network layer and enqueues the buffer for transmission.
+
+#. When a buffer operation completes, the client will de-register the network buffer and de-provision the memory assigned.
+
+**User space bulk buffer access from Motr servers**
+
+A Motr server uses the following pattern to use the LNet transport to initiate active bulk transfers to other Motr components.
+
+#. The server establishes a network buffer pool. The server allocates a set of network buffers provisioned with memory and registers them with the network domain.
+
+#. To perform a bulk operation, the server gets a network buffer from the network buffer pool, populates the memory with data to send in the case of active send, and enqueues the network buffer for transmission.
+
+#. When a network buffer operation completes, the network buffer can be returned to the pool of network buffers.
 
 
 
