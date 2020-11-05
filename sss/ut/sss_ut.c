@@ -53,7 +53,7 @@ static const struct m0_fid ut_fid = {
 };
 
 static struct m0_net_domain    client_net_dom;
-static struct m0_net_xprt     *xprt = &m0_net_lnet_xprt;
+static struct m0_net_xprt     *xprt = &m0_net_xprt_obj;
 
 static char *server_argv[] = {
 	"sss_ut", "-T", "AD", "-D", SERVER_DB_NAME,

@@ -474,7 +474,7 @@ static void client_start(void)
 	struct m0_rpc_client_ctx *cl_rpc_ctx = &at_cctx.acl_rpc_ctx;
 	int                       rc;
 
-	rc = m0_net_domain_init(&at_cctx.acl_ndom, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(&at_cctx.acl_ndom, &m0_net_xprt_obj);
 	M0_UT_ASSERT(rc == 0);
 
 	cl_rpc_ctx->rcx_net_dom            = &at_cctx.acl_ndom;
@@ -523,7 +523,7 @@ static void reqh_stop(void)
 
 static void reqh_init(void)
 {
-	struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
+	struct m0_net_xprt *xprt = &m0_net_xprt_obj;
 	int                 rc;
 
 	M0_SET0(&atreqh);

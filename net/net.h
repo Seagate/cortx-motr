@@ -89,7 +89,10 @@ struct m0_net_buf_desc;
 struct m0_net_buffer_event;
 struct m0_net_buffer_callbacks;
 struct m0_net_qstats;
-
+/**
+ *    The Network transport pointer to be used in m0_net_domain_init().
+ */
+extern struct m0_net_xprt m0_net_xprt_obj;
 /**
    Constructor for the network library
  */

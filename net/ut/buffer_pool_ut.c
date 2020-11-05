@@ -55,7 +55,7 @@ static void test_init(void)
 
 	M0_ALLOC_PTR(bp.nbp_ndom);
 	M0_UT_ASSERT(bp.nbp_ndom != NULL);
-	rc = m0_net_domain_init(bp.nbp_ndom, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(bp.nbp_ndom, &m0_net_xprt_obj);
 	M0_ASSERT(rc == 0);
 	bp.nbp_ops = &b_ops;
 	rc = m0_net_buffer_pool_init(&bp, bp.nbp_ndom,

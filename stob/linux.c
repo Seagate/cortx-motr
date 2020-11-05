@@ -246,7 +246,9 @@ static int stob_linux_domain_init(struct m0_stob_type *type,
 
 	rc = rc ?: stob_linux_domain_key_get_set(path, &dom_key, true);
 	rc = rc ?: m0_stob_domain__dom_key_is_valid(dom_key) ? 0 : -EINVAL;
+#ifdef __KERNEL__
 	rc = rc ?: m0_stob_ioq_init(&ldom->sld_ioq);
+#endif
 	if (rc == 0) {
 		m0_stob_ioq_directio_setup(&ldom->sld_ioq,
 					   ldom->sld_cfg.sldc_use_directio);
@@ -267,8 +269,9 @@ static int stob_linux_domain_init(struct m0_stob_type *type,
 static void stob_linux_domain_fini(struct m0_stob_domain *dom)
 {
 	struct m0_stob_linux_domain *ldom = m0_stob_linux_domain_container(dom);
-
+#ifdef __KERNEL__
 	m0_stob_ioq_fini(&ldom->sld_ioq);
+#endif
 	m0_free(ldom->sld_path);
 	m0_free(ldom);
 }

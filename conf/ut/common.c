@@ -31,7 +31,7 @@
 
 struct m0_conf_cache m0_conf_ut_cache;
 struct m0_sm_group   m0_conf_ut_grp;
-struct m0_net_xprt  *m0_conf_ut_xprt = &m0_net_lnet_xprt;
+struct m0_net_xprt  *m0_conf_ut_xprt = &m0_net_xprt_obj;
 
 /* Filters out intermediate state transitions of m0_confc_ctx::fc_mach. */
 static bool _filter(struct m0_clink *link)

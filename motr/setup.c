@@ -19,12 +19,12 @@
  *
  */
 
-
+#ifndef __KERNEL__
 #include <stdio.h>     /* fprintf */
 #include <sys/stat.h>  /* mkdir */
 #include <unistd.h>    /* daemon */
 #include <err.h>
-
+#endif
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0D
 #include "lib/trace.h"
 
@@ -64,7 +64,9 @@
 #include "ioservice/fid_convert.h" /* M0_AD_STOB_LINUX_DOM_KEY */
 #include "ioservice/storage_dev.h"
 #include "ioservice/io_service.h"  /* m0_ios_net_buffer_pool_size_set */
+#ifndef __KERNEL__
 #include "stob/linux.h"
+#endif
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
 
 /**
@@ -73,7 +75,7 @@
  */
 
 extern struct m0_reqh_service_type m0_ss_svc_type;
-
+struct m0_net_xprt m0_net_xprt_obj;
 /**
  * The space for M0_BAP_REPAIR zone in BE allocator is calculated based on
  * distributed index replication factor and total number of target disks. But
@@ -214,6 +216,7 @@ static struct m0_net_xprt *cs_xprt_lookup(const char *xprt_name,
 }
 
 /** Lists supported network transports. */
+#ifndef __KERNEL__
 static void cs_xprts_list(FILE *out, struct m0_net_xprt **xprts,
 			  size_t xprts_nr)
 {
@@ -225,7 +228,6 @@ static void cs_xprts_list(FILE *out, struct m0_net_xprt **xprts,
 	for (i = 0; i < xprts_nr; ++i)
 		fprintf(out, " %s\n", xprts[i]->nx_name);
 }
-
 /** Lists supported stob types. */
 static void cs_stob_types_list(FILE *out)
 {
@@ -238,6 +240,7 @@ static void cs_stob_types_list(FILE *out)
 		fprintf(out, " %s\n", m0_cs_stypes[i]);
 }
 
+#endif
 /** Checks if the specified storage type is supported in a motr context. */
 static bool stype_is_valid(const char *stype)
 {
@@ -315,8 +318,10 @@ static int cs_endpoint_validate(struct m0_motr *cctx, const char *ep,
 M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
 				       const char *ep)
 {
+#ifndef __KERNEL__
 	char *sptr;
 	char *endpoint;
+#endif
 	int   ep_len;
 
 	M0_PRE(ep != NULL);
@@ -329,6 +334,7 @@ M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
 
 	strncpy(epx->ex_scrbuf, ep, ep_len);
 	epx->ex_scrbuf[ep_len - 1] = '\0';
+#ifndef __KERNEL__
 	epx->ex_xprt = strtok_r(epx->ex_scrbuf, ":", &sptr);
 	if (epx->ex_xprt == NULL)
 		goto err;
@@ -336,15 +342,16 @@ M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
 	endpoint = strtok_r(NULL, "\0", &sptr);
 	if (endpoint == NULL)
 		goto err;
-
 	epx->ex_endpoint = endpoint;
+#endif
 	cs_endpoint_and_xprt_bob_init(epx);
 	cs_eps_tlink_init(epx);
 	return 0;
-
+#ifndef __KERNEL__
 err:
 	m0_free(epx->ex_scrbuf);
 	return M0_ERR(-EINVAL);
+#endif
 }
 
 M0_INTERNAL void m0_ep_and_xprt_fini(struct cs_endpoint_and_xprt *epx)
@@ -361,6 +368,7 @@ M0_INTERNAL void m0_ep_and_xprt_fini(struct cs_endpoint_and_xprt *epx)
    motr endpoint.
    Motr endpoint is of 2 parts network xprt:network endpoint.
  */
+#ifndef __KERNEL__
 static int ep_and_xprt_append(struct m0_tl *head, const char *ep)
 {
 	struct cs_endpoint_and_xprt *epx;
@@ -383,7 +391,7 @@ err:
 	m0_free(epx);
 	return M0_ERR(-EINVAL);
 }
-
+#endif
 /**
    Checks if specified service has already a duplicate entry in given request
    handler context.
@@ -726,6 +734,7 @@ static int cs_buffer_pool_setup(struct m0_motr *cctx)
 	return M0_RC(rc);
 }
 
+#ifndef __KERNEL__
 static int stob_file_id_get(yaml_document_t *doc, yaml_node_t *node,
 			    uint64_t *id)
 {
@@ -763,7 +772,6 @@ static const char *stob_file_path_get(yaml_document_t *doc, yaml_node_t *node)
 
 	return NULL;
 }
-
 static int cs_stob_file_load(const char *dfile, struct cs_stobs *stob)
 {
 	FILE            *f;
@@ -792,7 +800,7 @@ end:
 	fclose(f);
 	return M0_RC(rc);
 }
-
+#endif
 static void cs_storage_devs_fini(void)
 {
 	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
@@ -814,25 +822,30 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 				bool                      disable_direct_io)
 {
 	int                     rc;
+#ifndef __KERNEL__
 	int                     result;
 	uint64_t                cid;
 	uint64_t                stob_file_id;
 	const char             *f_path;
+#endif
 	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
 	struct m0_storage_dev  *dev;
+#ifndef __KERNEL__
 	yaml_document_t        *doc;
 	yaml_node_t            *node;
 	yaml_node_t            *s_node;
 	yaml_node_item_t       *item;
+#endif
 	m0_bcount_t             size = 0; /* Uses BALLOC_DEF_CONTAINER_SIZE; */
 
 	struct m0_motr         *cctx;
 	struct m0_reqh_context *rctx;
 	struct m0_confc        *confc;
 	struct m0_reqh         *reqh;
+#ifndef __KERNEL__
 	struct m0_fid           sdev_fid;
 	struct m0_conf_sdev    *conf_sdev;
-
+#endif
 	M0_ENTRY();
 	M0_PRE(ergo(type == M0_STORAGE_DEV_TYPE_AD, stob->s_sdom != NULL));
 
@@ -847,6 +860,7 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 
 	if (stob->s_sfile.sf_is_initialised) {
 		M0_LOG(M0_DEBUG, "yaml config");
+#ifndef __KERNEL__
 		doc = &stob->s_sfile.sf_document;
 		for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
 			for (item = (node)->data.sequence.items.start;
@@ -906,6 +920,7 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 				}
 			}
 		}
+#endif
 	} else if (stob->s_ad_disks_init || M0_FI_ENABLED("init_via_conf")) {
 		M0_LOG(M0_DEBUG, "conf config");
 		rc = cs_conf_storage_init(stob, devs, force);
@@ -1093,8 +1108,10 @@ static void cs_storage_fini(struct cs_stobs *stob)
 	cs_storage_devs_fini();
 	if (stob->s_sdom != NULL)
 		m0_stob_domain_fini(stob->s_sdom);
+#ifndef __KERNEL__
 	if (stob->s_sfile.sf_is_initialised)
 		yaml_document_delete(&stob->s_sfile.sf_document);
+#endif
 }
 
 /**
@@ -1244,7 +1261,8 @@ cs_net_domain_init(struct cs_endpoint_and_xprt *ep, struct m0_motr *cctx)
 	xprt = cs_xprt_lookup(ep->ex_xprt, cctx->cc_xprts, cctx->cc_xprts_nr);
 	if (xprt == NULL)
 		return M0_ERR(-EINVAL);
-
+        M0_LOG(M0_ALWAYS, "Network transport name: %s", xprt->nx_name);
+	m0_net_xprt_obj = *xprt;
 	ndom = m0_cs_net_domain_locate(cctx, ep->ex_xprt);
 	if (ndom != NULL)
 		return 0; /* pass */
@@ -1593,7 +1611,7 @@ static int cs_storage_setup(struct m0_motr *cctx)
 		M0_LOG(M0_ERROR, "m0_reqh_be_init: rc=%d", rc);
 		goto be_fini;
 	}
-
+#ifndef __KERNEL__
 	if (!rctx->rc_stob.s_ad_disks_init && rctx->rc_dfilepath != NULL) {
 		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob);
 		if (rc != 0) {
@@ -1602,7 +1620,7 @@ static int cs_storage_setup(struct m0_motr *cctx)
 			goto reqh_be_fini;
 		}
 	}
-
+#endif
 	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
 			     M0_AD_STOB_LINUX_DOM_KEY,
 			     &rctx->rc_stob, rctx->rc_beseg,
@@ -1806,7 +1824,7 @@ static void cs_motr_fini(struct m0_motr *cctx)
 		m0_free(cctx->cc_args.ca_argv[--cctx->cc_args.ca_argc]);
 	m0_free(cctx->cc_args.ca_argv);
 }
-
+#ifndef __KERNEL__
 static void cs_usage(FILE *out, const char *progname)
 {
 	M0_PRE(out != NULL);
@@ -1902,7 +1920,7 @@ static void cs_help(FILE *out, const char *progname)
 "        -f '<0x7200000000000001:1>'\n",
 		progname);
 }
-
+#endif
 static int cs_reqh_ctx_validate(struct m0_motr *cctx)
 {
 	struct m0_reqh_context      *rctx = &cctx->cc_reqh_ctx;
@@ -1929,7 +1947,9 @@ static int cs_reqh_ctx_validate(struct m0_motr *cctx)
 		return M0_RC(0);
 
 	if (!stype_is_valid(rctx->rc_stype)) {
+#ifndef __KERNEL__
 		cs_stob_types_list(cctx->cc_outfile);
+#endif
 		return M0_ERR_INFO(-EINVAL, "Invalid service type");
 	}
 
@@ -1992,12 +2012,15 @@ static int cs_reqh_ctx_services_validate(struct m0_motr *cctx)
 static int cs_daemonize(struct m0_motr *cctx)
 {
 	if (cctx->cc_daemon) {
+#ifndef __KERNEL__
 		struct sigaction hup_act = { .sa_handler = SIG_IGN };
 		return daemon(1, 0) ?: sigaction(SIGHUP, &hup_act, NULL);
+#endif
 	}
 	return 0;
 }
 
+#ifndef __KERNEL__
 static int process_fid_parse(const char *str, struct m0_fid *fid)
 {
 	M0_PRE(str != NULL);
@@ -2016,7 +2039,6 @@ static void process_fid_generate_conditional(struct m0_reqh_context *rctx)
 		m0_fid_tassume(&rctx->rc_fid, &M0_CONF_PROCESS_TYPE.cot_ftype);
 	}
 }
-
 /** Parses CLI arguments, filling m0_motr structure. */
 static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 {
@@ -2310,13 +2332,13 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 
 	return M0_RC(rc_getops ?: rc);
 }
-
 static int cs_args_parse(struct m0_motr *cctx, int argc, char **argv)
 {
 	M0_ENTRY();
 	return _args_parse(cctx, argc, argv);
 }
 
+#endif
 static void cs_ha_connect(struct m0_motr *cctx)
 {
 	m0_motr_ha_connect(&cctx->cc_motr_ha);
@@ -2332,14 +2354,14 @@ static int cs_conf_setup(struct m0_motr *cctx)
 		.ca_group   = m0_locality0_get()->lo_grp
 	};
 	int                  rc;
-
+#ifndef __KERNEL__
 	if (cctx->cc_reqh_ctx.rc_confdb != NULL) {
 		rc = m0_file_read(cctx->cc_reqh_ctx.rc_confdb,
 				  &conf_args.ca_confstr);
 		if (rc != 0)
 			return M0_ERR(rc);
 	}
-
+#endif
 	rc = m0_reqh_conf_setup(reqh, &conf_args);
 	/* confstr is not needed after m0_reqh_conf_setup() */
 	m0_free0(&conf_args.ca_confstr);
@@ -2380,13 +2402,15 @@ static void cs_rconfc_fatal_cb(struct m0_rconfc *rconfc)
 	int signum = M0_FI_ENABLED("ut_signal") ? SIGUSR2 : SIGINT;
 
 	M0_ENTRY("signum=%d", signum);
+#ifndef __KERNEL__
 	if (kill(getpid(), signum) != 0)
 		M0_LOG(M0_ERROR, "kill() failed with errno=%d", errno);
+#endif
 	M0_LEAVE();
 }
 
+#ifndef __KERNEL__
 volatile sig_atomic_t gotsignal;
-
 /**
  * For the sake of UT framework. Possible signal value sent due to rconfc fell
  * into failed state in the course of UT passage needs to be cleaned up.
@@ -2396,7 +2420,7 @@ M0_INTERNAL void m0_cs_gotsignal_reset(void)
 	/* get rid of remnants of cs_rconfc_fatal_cb() if called */
 	gotsignal = 0;
 }
-
+#endif
 /**
  * motr/setup initialisation levels.
  *
@@ -2506,8 +2530,10 @@ static int cs_level_enter(struct m0_module *module)
 	  * which will be handled in the next state. during fini, cs_ha_fini
 	  * is called before CS_LEVEL_RPC_MACHINES_INIT
 	 */
+#ifndef __KERNEL__
 	if (gotsignal && level != CS_LEVEL_REQH_STOP_WORKAROUND)
 		return M0_ERR(-EINTR);
+#endif
 	switch (level) {
 	case CS_LEVEL_MOTR_INIT:
 		cs_motr_init(cctx);
@@ -2522,9 +2548,11 @@ static int cs_level_enter(struct m0_module *module)
 		m0_rwlock_write_lock(&cctx->cc_rwlock);
 		return M0_RC(0);
 	case CS_LEVEL_ARGS_PARSE:
+#ifndef __KERNEL__
 		return M0_RC(cs_args_parse(cctx,
 					   cctx->cc_setup_env_argc,
 					   cctx->cc_setup_env_argv));
+#endif
 	case CS_LEVEL_REQH_CTX_VALIDATE:
 		return M0_RC(cs_reqh_ctx_validate(cctx));
 	case CS_LEVEL_DAEMONIZE:
@@ -2579,8 +2607,10 @@ static int cs_level_enter(struct m0_module *module)
 	case CS_LEVEL_CONF_ARGS_PARSE:
 		if (cctx->cc_no_conf)
 			return M0_RC(0);
+#ifndef __KERNEL__
 		return M0_RC(_args_parse(cctx, cctx->cc_args.ca_argc,
 		                         cctx->cc_args.ca_argv));
+#endif
 	case CS_LEVEL_HA_CONNECT_ATTEMPT2:
 		if (cctx->cc_no_conf)
 			return M0_RC(0);
@@ -2944,7 +2974,7 @@ int m0_cs_start(struct m0_motr *cctx)
 		m0_module_fini(&cctx->cc_module, CS_LEVEL_SETUP_ENV);
 	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
 }
-
+#ifndef __KERNEL__
 int m0_cs_init(struct m0_motr *cctx, struct m0_net_xprt **xprts,
 	       size_t xprts_nr, FILE *out, bool mkfs)
 {
@@ -2974,7 +3004,7 @@ int m0_cs_init(struct m0_motr *cctx, struct m0_net_xprt **xprts,
 	}
 	return M0_RC(rc);
 }
-
+#endif
 void m0_cs_fini(struct m0_motr *cctx)
 {
 	M0_ENTRY();
@@ -2993,20 +3023,25 @@ M0_INTERNAL int m0_motr_stob_reopen(struct m0_reqh *reqh,
 				    struct m0_poolmach *pm,
 				    uint32_t dev_id)
 {
+#ifndef __KERNEL__
 	struct m0_stob_id       stob_id;
+#endif
 	struct m0_reqh_context *rctx;
 	struct cs_stobs        *stob;
+#ifndef __KERNEL__
 	yaml_document_t        *doc;
 	yaml_node_t            *node;
 	yaml_node_t            *s_node;
 	yaml_node_item_t       *item;
 	const char             *f_path;
 	uint64_t                cid;
-	int                     rc = 0;
 	int                     result;
 
+#endif
+	int                     rc = 0;
 	rctx = m0_cs_reqh_context(reqh);
 	stob = &rctx->rc_stob;
+#ifndef __KERNEL__
 	doc = &stob->s_sfile.sf_document;
 	if (rctx->rc_stob.s_ad_disks_init)
 		return M0_RC(cs_conf_device_reopen(pm, stob, dev_id));
@@ -3029,6 +3064,7 @@ M0_INTERNAL int m0_motr_stob_reopen(struct m0_reqh *reqh,
 			}
 		}
 	}
+#endif
 	return M0_RC(rc);
 }
 

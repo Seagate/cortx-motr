@@ -40,7 +40,7 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 	enum { UT_BUF_NR = 8, UT_TM_NR = 2 };
 	int rc;
 
-	ctx->rmc_xprt = &m0_net_lnet_xprt;
+	ctx->rmc_xprt = &m0_net_xprt_obj;
 	rc = m0_net_domain_init(&ctx->rmc_net_dom, ctx->rmc_xprt);
 	M0_ASSERT(rc == 0);
 

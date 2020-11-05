@@ -43,7 +43,7 @@ M0_INTERNAL int repair_client_init(void)
 {
 	int rc;
 
-	rc = m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(&cl_ndom, &m0_net_xprt_obj);
 	if (rc == 0) {
 		cl_ctx.rcx_local_addr  = cl_ep_addr;
 		cl_ctx.rcx_remote_addr = srv_ep_addr[0];

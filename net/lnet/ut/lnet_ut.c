@@ -442,7 +442,7 @@ do {									\
 	struct m0_net_domain *dom = &td->dom ## which;			\
 	struct m0_net_transfer_mc *tm = &td->tm ## which;		\
 	char ***nidstrs = &td->nidstrs ## which;			\
-	M0_UT_ASSERT(!m0_net_domain_init(dom, &m0_net_lnet_xprt));	\
+	M0_UT_ASSERT(!m0_net_domain_init(dom, &m0_net_xprt_obj));	\
 	M0_UT_ASSERT(!m0_net_lnet_ifaces_get(dom, nidstrs));		\
 	M0_UT_ASSERT(*nidstrs != NULL && **nidstrs != NULL);		\
 	{								\
@@ -605,14 +605,14 @@ static void test_fail(void)
 	const char *sav = nlx_ucore_dev_name;
 
 	nlx_ucore_dev_name = "/dev/no such device";
-	M0_UT_ASSERT(m0_net_domain_init(&dom, &m0_net_lnet_xprt) != 0);
+	M0_UT_ASSERT(m0_net_domain_init(&dom, &m0_net_xprt_obj) != 0);
 	nlx_ucore_dev_name = sav;
 
 	M0_UT_ASSERT(nlx_core_kmem_loc_is_empty(&loc));
 	M0_UT_ASSERT(!nlx_core_kmem_loc_invariant(&loc));
 
 	M0_UT_ASSERT(!nlx_dom_invariant(&dom));
-	M0_UT_ASSERT(!m0_net_domain_init(&dom, &m0_net_lnet_xprt));
+	M0_UT_ASSERT(!m0_net_domain_init(&dom, &m0_net_xprt_obj));
 	M0_UT_ASSERT(nlx_dom_invariant(&dom));
 	dp = dom.nd_xprt_private;
 	M0_UT_ASSERT(nlx_core_ep_addr_decode(&dp->xd_core, "0@lo:xpid:0:0",
@@ -694,7 +694,7 @@ static void test_tm_initfini(void)
 	/* TEST
 	   Domain setup.
 	*/
-	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_lnet_xprt));
+	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_xprt_obj));
 	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1));
 
 	/* should be able to fini it immediately */
@@ -743,7 +743,7 @@ static void test_tm_startstop(void)
 	/* also walk realloc block in nlx_ucore_nidstrs_get */
 	thunk = nlx_ucore_nidstrs_thunk;
 	nlx_ucore_nidstrs_thunk = 6;
-	M0_UT_ASSERT(!m0_net_domain_init(dom, &m0_net_lnet_xprt));
+	M0_UT_ASSERT(!m0_net_domain_init(dom, &m0_net_xprt_obj));
 	m0_net_lnet_dom_set_debug(dom, 0);
 	M0_UT_ASSERT(!m0_net_lnet_ifaces_get(dom, &nidstrs));
 	nlx_ucore_nidstrs_thunk = thunk;
@@ -823,7 +823,7 @@ static void test_tm_startstop(void)
 
 	for (i = 0; i < STARTSTOP_DOM_NR; ++i) {
 		tm[i].ntm_callbacks = &cbs1;
-		M0_UT_ASSERT(!m0_net_domain_init(&dom[i], &m0_net_lnet_xprt));
+		M0_UT_ASSERT(!m0_net_domain_init(&dom[i], &m0_net_xprt_obj));
 		M0_UT_ASSERT(!m0_net_tm_init(&tm[i], &dom[i]));
 		M0_UT_ASSERT(m0_bitmap_init(&procs, 1) == 0);
 		m0_bitmap_set(&procs, 0, true);

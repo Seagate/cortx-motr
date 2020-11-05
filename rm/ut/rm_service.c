@@ -44,7 +44,7 @@ static char *server_argv[] = {
 
 extern struct m0_reqh_service_type m0_rms_type;
 
-static struct m0_net_xprt *xprt        = &m0_net_lnet_xprt;
+static struct m0_net_xprt *xprt        = &m0_net_xprt_obj;
 static struct rm_ctx  *server_ctx  = &rm_ctxs[SERVER_1];
 static struct rm_ctx  *client_ctx  = &rm_ctxs[SERVER_2];
 static struct m0_clink     tests_clink[TEST_NR];

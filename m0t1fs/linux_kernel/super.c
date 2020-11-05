@@ -598,7 +598,7 @@ int m0t1fs_net_init(struct m0t1fs_sb *csb, const char *ep)
 		M0_LOG(M0_DEBUG, "local ep is %s", laddr);
 		csb->csb_laddr = laddr;
 	}
-	csb->csb_xprt  = &m0_net_lnet_xprt;
+	csb->csb_xprt  = &m0_net_xprt_obj;
 	xprt           =  csb->csb_xprt;
 	ndom           = &csb->csb_ndom;
 

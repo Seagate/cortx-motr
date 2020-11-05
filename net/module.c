@@ -22,6 +22,8 @@
 #include "net/module.h"
 #include "module/instance.h"
 #include "net/lnet/lnet.h"    /* m0_net_lnet_xprt */
+#include "net/sock/sock.h"
+#include "net/net.h"
 #include "net/bulk_mem.h"     /* m0_net_bulk_mem_xprt */
 #include "lib/memory.h"       /* M0_ALLOC_PTR */
 
@@ -63,6 +65,10 @@ static struct {
 	[M0_NET_XPRT_BULKMEM] = {
 		.name = "\"bulk-mem\" m0_net_xprt_module",
 		.xprt = &m0_net_bulk_mem_xprt
+	},
+	[M0_NET_XPRT_SOCK] = {
+		.name = "\"sock\" m0_net_xprt_module",
+		.xprt = &m0_net_sock_xprt
 	}
 };
 M0_BASSERT(ARRAY_SIZE(net_xprt_mods) ==

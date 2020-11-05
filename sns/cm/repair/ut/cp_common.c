@@ -22,6 +22,7 @@
 
 #include "ioservice/io_service.h"        /* m0_ios_cdom_get */
 #include "net/lnet/lnet.h"               /* m0_net_lnet_xprt */
+#include "net/sock/sock.h"               /* m0_net_sock_xprt */
 #include "motr/setup.h"                  /* m0_motr */
 #include "sns/cm/repair/ut/cp_common.h"  /* cs_fini */
 #include "ut/misc.h"                     /* M0_UT_PATH */
@@ -54,6 +55,7 @@ char      *sns_cm_ut_svc_linux[] = { "m0d", "-T", "LINUX",
 
 struct m0_net_xprt *sr_xprts[] = {
         &m0_net_lnet_xprt,
+        &m0_net_sock_xprt,
 };
 
 FILE           *lfile;

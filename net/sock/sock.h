@@ -25,6 +25,7 @@
 #ifndef __MOTR_NET_SOCK_SOCK_H__
 #define __MOTR_NET_SOCK_SOCK_H__
 
+extern struct m0_net_xprt m0_net_sock_xprt;
 /**
  * @defgroup netsock
  *

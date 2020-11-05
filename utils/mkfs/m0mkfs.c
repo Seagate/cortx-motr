@@ -37,7 +37,7 @@
 #include "module/instance.h"  /* m0 */
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
-
+#include "net/sock/sock.h"
 /**
    @addtogroup m0mkfs
    @{
@@ -92,7 +92,8 @@
    by a particular node in a cluster.
  */
 static struct m0_net_xprt *cs_xprts[] = {
-	&m0_net_lnet_xprt
+	&m0_net_lnet_xprt,
+	&m0_net_sock_xprt
 };
 
 M0_INTERNAL int main(int argc, char **argv)

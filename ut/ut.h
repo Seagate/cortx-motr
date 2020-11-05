@@ -29,6 +29,7 @@
 #include "lib/types.h"
 #include "lib/list.h"     /* m0_list_link, m0_list */
 #include "fid/fid.h"
+#include "net/net.h"      /* m0_net_xprt_obj */
 
 struct m0_ut_module;
 

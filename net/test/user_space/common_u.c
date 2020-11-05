@@ -127,7 +127,7 @@ void m0_net_test_u_lnet_info(void)
 	int		       i;
 
 	M0_SET0(&dom);
-	rc = m0_net_domain_init(&dom, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(&dom, &m0_net_xprt_obj);
 	M0_ASSERT(rc == 0);
 
 	m0_net_test_u_printf(

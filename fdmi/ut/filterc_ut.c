@@ -43,7 +43,7 @@ static struct m0_fdmi_src_rec  g_src_rec;
 static struct m0_filterc_ops  *ufc_fco;
 static struct m0_reqh_service *ufc_fdmi_service;
 
-static struct m0_net_xprt *m0_fdmi_ut_xprt = &m0_net_lnet_xprt;
+static struct m0_net_xprt *m0_fdmi_ut_xprt = &m0_net_xprt_obj;
 
 /* ----------------------------------------------------------------
  * Tests

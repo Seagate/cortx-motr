@@ -24,9 +24,9 @@
 
 #ifndef __MOTR_STOB_IOQ_H__
 #define __MOTR_STOB_IOQ_H__
-
+#ifndef __KERNEL__
 #include <libaio.h>        /* io_context_t */
-
+#endif
 #include "lib/types.h"     /* bool */
 #include "lib/atomic.h"    /* m0_atomic64 */
 #include "lib/thread.h"    /* m0_thread */
@@ -72,7 +72,9 @@ struct m0_stob_ioq {
 	    It contains adieu request fragments currently being executed by the
 	    kernel. The kernel delivers AIO completion events through this
 	    buffer. */
+#ifndef __KERNEL__
 	io_context_t             ioq_ctx;
+#endif
 	/** Free slots in the ring buffer. */
 	struct m0_atomic64       ioq_avail;
 	/** Used slots in the ring buffer. */
@@ -88,11 +90,14 @@ struct m0_stob_ioq {
 	struct m0_queue          ioq_queue;
 	struct m0_semaphore      ioq_stop_sem[M0_STOB_IOQ_NR_THREADS];
 	struct m0_timer          ioq_stop_timer[M0_STOB_IOQ_NR_THREADS];
+#ifdef __KERNEL__
 	struct m0_timer_locality ioq_stop_timer_loc[M0_STOB_IOQ_NR_THREADS];
+#endif
 };
-
+#ifndef __KERNEL__
 M0_INTERNAL int m0_stob_ioq_init(struct m0_stob_ioq *ioq);
 M0_INTERNAL void m0_stob_ioq_fini(struct m0_stob_ioq *ioq);
+#endif
 M0_INTERNAL void m0_stob_ioq_directio_setup(struct m0_stob_ioq *ioq,
 					    bool use_directio);
 

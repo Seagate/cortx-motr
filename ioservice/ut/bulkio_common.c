@@ -411,7 +411,7 @@ void bulkio_params_init(struct bulkio_params *bp)
 
 	io_buffers_allocate(bp);
 
-	bp->bp_xprt = &m0_net_lnet_xprt;
+	bp->bp_xprt = &m0_net_xprt_obj;
 	rc = m0_net_domain_init(&bp->bp_cnetdom, bp->bp_xprt);
 	M0_ASSERT(rc == 0);
 
