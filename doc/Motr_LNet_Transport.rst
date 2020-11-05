@@ -542,7 +542,26 @@ A Motr tool is a relatively short lived process, typically a command line invoca
 
 Instead, all tools could be assigned a shared combination of NID, PID and Portal Number, and at run time, the tool process can dynamically assign unique addresses to itself by creating a transfer machine with a wildcard transfer machine identifier. This is captured in refinement [r.M0.net.xprt.lnet.dynamic-address-assignment] and Mapping of Endpoint Address to LNet Address. Dependency: [r.M0.net.xprt.lnet.address-assignment]
 
+**Request handler control of network buffer event delivery**
 
+The user space Motr request handler operates within a locality domain that includes, among other things, a processor, a transfer machine, a set of FOMs in execution, and handlers to create new FOMs for FOPs. The request handler attempts to perform all I/O operations asynchronously, using a single handler thread, to minimize the thread context switching overhead.
+
+Failures
+========
+
+One failure situation that must be explicitly addressed is the termination of the user space process that uses the LNet transport. All resources consumed by this process must be released in the kernel. In particular, where shared memory is used, the implementation design should take into account the accessibility of this shared memory at this time. Refinement: [r.M0.net.xprt.lnet.cleanup-on-process-termination]
+
+Analysis
+=========
+
+The number of LNet based transfer machines that can be created on a host is constrained by the number of LNet portals not assigned to Lustre or other consumers such as Cray. In Lustre 2.0, the number of unassigned portal numbers is 30.
+
+In terms of performance, the design is no more scalable than LNet itself. The design does not impose a very high overhead in communicating between user space and the kernel and uses considerably more efficient event processing than ULA.
+
+Other
+=====
+
+We had some concerns and questions regarding the serialization model used by LNet, and whether using multiple portals is more efficient than sharing a single portal. The feedback we received indicates that LNet uses relatively coarse locking internally, with no appreciable difference in performance for these cases. There may be improvements in the future, but that is not guaranteed; the suggestion was to use multiple portals if possible, but that also raises concerns about the restricted available portal space left in LNet (around 30 unused portals) and the fact that all LNet users share the same portals space. [4].
 
 
 
