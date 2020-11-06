@@ -28,7 +28,7 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
 
 do_motr_start=1
 do_dixinit=1
-verbose=1
+verbose=0
 fids_file="${SANDBOX_DIR}/fids.txt"
 keys_file="${SANDBOX_DIR}/keys.txt"
 vals_file="${SANDBOX_DIR}/vals.txt"
@@ -479,7 +479,10 @@ st_init() {
 	# generate source files for KEYS, VALS, FIDS
 	${MOTRTOOL} ${gen}
 	[ $? != 0 ] && return 1
+
+	# We use this file because it contains human-readable values.
 	cp $M0_SRC_DIR/dix/cm/st/src_vals.txt ${vals_file}
+
 	cp ${vals_file} ${keys_file}
 	ls -l ${fids_file} ${vals_file}
 	echo ${fids_file}

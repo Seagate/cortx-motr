@@ -59,6 +59,10 @@ struct m0_cm_ag_id {
 	M0_LOG(M0_DEBUG, prefix "=["M0_AG_F"] has incoming: %d",	\
 	       M0_AG_P(id), !!(has_incoming));
 
+#define GRP_END_MARK_ID (struct m0_cm_ag_id) {           \
+        .ai_hi = M0_UINT128((uint64_t)-1, (uint64_t)-1), \
+        .ai_lo = M0_UINT128((uint64_t)-1, (uint64_t)-1)  \
+}
 
 /** Copy Machine Aggregation Group. */
 struct m0_cm_aggr_group {

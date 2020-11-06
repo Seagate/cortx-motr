@@ -91,10 +91,6 @@
 #include "cm/repreb/cm.h"
 #include "dix/cm/iter.h"
 
-#define GRP_END_MARK_ID (struct m0_cm_ag_id) {           \
-	.ai_hi = M0_UINT128((uint64_t)-1, (uint64_t)-1), \
-	.ai_lo = M0_UINT128((uint64_t)-1, (uint64_t)-1)  \
-}
 /* Import */
 enum m0_pool_nd_state;
 struct m0_pdclust_layout;

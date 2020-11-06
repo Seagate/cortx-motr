@@ -1393,7 +1393,7 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 		result = dix_cm_iter_failure(iter, result);
 
 	if (result == M0_FSO_WAIT) {
-		M0_LOG(M0_FATAL, "iter fom %p current state=%d(%s)",
+		M0_LOG(M0_DEBUG, "iter fom %p current state=%d(%s)",
 				 fom, m0_fom_phase(fom),
 				 m0_fom_phase_name(fom, m0_fom_phase(fom)));
 	}

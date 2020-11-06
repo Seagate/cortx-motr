@@ -353,12 +353,9 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 
 M0_INTERNAL bool m0_cm_aggr_group_tlists_are_empty(struct m0_cm *cm)
 {
-	struct m0_cm_ag_id grp_end_mark_id = (struct m0_cm_ag_id) {
-		.ai_hi = M0_UINT128((uint64_t)-1, (uint64_t)-1),
-		.ai_lo = M0_UINT128((uint64_t)-1, (uint64_t)-1)
-	};
+	struct m0_cm_ag_id grp_end_mark_id = GRP_END_MARK_ID;
 
-	/* DIX cm, always has a AG with [-1:-1::-1:-1] in its incoming list */
+	/* DIX cm, always has an AG with [-1:-1::-1:-1] in its incoming list */
 	M0_LOG(M0_DEBUG, "cm=%p ag_in_nr=%"PRIu64" ag_out_nr=%"PRIu64
 			 " m0_cm_ag_in_hi(cm)=%p",
 			 cm, cm->cm_aggr_grps_in_nr,

@@ -565,7 +565,7 @@ M0_INTERNAL int m0_dix_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 			m0_chan_unlock(&iter->di_completed);
 			m0_dix_cm_iter_next(iter);
 			dcm->dcm_iter_inprogress = true;
-			M0_LOG(M0_FATAL, "pump fom %p going to wait for "
+			M0_LOG(M0_DEBUG, "pump fom %p going to wait for "
 					 "iter fom %p",
 					 pfom, &iter->di_fom);
 		}
@@ -605,12 +605,16 @@ M0_INTERNAL int m0_dix_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 			dix_cp->dc_ctg_op_flags |= COF_CREATE;
 			dix_cp->dc_is_local      = true;
 			dcm->dcm_cp_in_progress  = true;
-			M0_LOG(M0_FATAL, "Found key=%.*s val=%.*s "
+
+			/* XXX The following is used to print key & val */
+			/*
+			M0_LOG(M0_DEBUG, "Found key=%.*s val=%.*s "
 					 "cfid="FID_F"dfid="FID_F,
 					 (int)key.b_nob, (char*)key.b_addr,
 					 (int)val.b_nob, (char*)val.b_addr,
 					 FID_P(&local_cctg_fid),
 					 FID_P(&dix_fid));
+			*/
 			rc = M0_FSO_AGAIN;
 		} else {
 			/*

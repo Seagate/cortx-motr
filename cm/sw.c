@@ -103,7 +103,7 @@ M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm,
 	else if (m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) &&
 		 cm->cm_sw_update.swu_is_complete &&
 		 !m0_cm_aggr_group_tlists_are_empty(cm))
-			sw_onwire->swo_cm_status = M0_PX_COMPLETE; /*HHHH*/
+			sw_onwire->swo_cm_status = M0_PX_COMPLETE;
 	else
 		sw_onwire->swo_cm_status = M0_PX_STOP;
 

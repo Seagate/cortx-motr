@@ -847,7 +847,7 @@ M0_INTERNAL int m0_cm_proxies_fini(struct m0_cm *cm)
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
 		/* Check if proxy has completed. */
 		M0_LOG(M0_DEBUG, "pxy %p (to %s), is_done %d",
-				  pxy, pxy->px_endpoint, (int)pxy->px_is_done);
+				  pxy, pxy->px_endpoint, !!pxy->px_is_done);
 		if (!m0_cm_proxy_is_done(pxy)) {
 			rc = M0_RC(-EAGAIN);
 			continue;

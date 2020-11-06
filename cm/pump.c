@@ -201,13 +201,6 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 			 !!cm->cm_sw_update.swu_is_complete,
 			 cm->cm_proxy_nr);
 
-	if (m0_cm_ag_in_hi(cm) != NULL)
-		M0_LOG(M0_DEBUG, "hi="M0_AG_F,
-			 M0_AG_P(&m0_cm_ag_in_hi(cm)->cag_id));
-	if (m0_cm_ag_in_lo(cm) != NULL)
-		M0_LOG(M0_DEBUG, "lo="M0_AG_F,
-			 M0_AG_P(&m0_cm_ag_in_lo(cm)->cag_id));
-
 	if (!m0_cm_aggr_group_tlists_are_empty(cm) ||
 	    !cm->cm_sw_update.swu_is_complete) {
 		if (cm->cm_proxy_nr == 0)

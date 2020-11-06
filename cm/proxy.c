@@ -446,13 +446,10 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	     cm->cm_quiesce))) {
 		if (proxy->px_update_rc == -ECANCELED ||
 		     (M0_IN(proxy->px_status, (M0_PX_FAILED, M0_PX_STOP)) &&
-		      !proxy->px_send_final_update)) {
-			M0_LOG(M0_DEBUG, "No more updating");
+		      !proxy->px_send_final_update))
 			proxy->px_updates_pending = 0;
-		} else {
-			M0_LOG(M0_DEBUG, "One more updating");
+		else
 			m0_cm_proxy_remote_update(proxy, &in_interval, &out_interval);
-		}
 	}
 
 	if (m0_cm_state_get(cm) == M0_CMS_READY &&
@@ -535,7 +532,7 @@ static void cm_proxy_sw_onwire_post(struct m0_cm_proxy *proxy,
 	struct m0_rpc_item *item;
 
 	M0_ENTRY("fop: %p conn: %p to pxy %p (%s)",
-			fop, conn, proxy, proxy->px_endpoint);
+		  fop, conn, proxy, proxy->px_endpoint);
 	M0_PRE(fop != NULL && conn != NULL);
 
 	item              = m0_fop_to_rpc_item(fop);
