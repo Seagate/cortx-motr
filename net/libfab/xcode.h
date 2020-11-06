@@ -47,7 +47,7 @@
  * libfabric module binary structures
  * -----------------------------
  */
-//#ifndef __KERNEL__
+
 /** Peer address. */
 struct fab_addr {
 	uint32_t        a_family;
@@ -55,7 +55,7 @@ struct fab_addr {
 	uint32_t        a_protocol;
 	uint32_t        a_port;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
-//#endif
+
 /** @} end of netlibfab group */
 #endif /* __MOTR_NET_LIBFAB_XCODE_H__ */
 
