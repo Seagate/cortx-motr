@@ -1499,10 +1499,20 @@ static off_t nv_scan_offset_get(void)
 		    off_info.oi_workers_nr, ofptr);
 	if (ret > 0) {
 		fclose(ofptr);
-		offset = off_info.oi_offset[0];
-		for (i = 1; i < off_info.oi_workers_nr; ++i) {
+		/* look for first non zero offset */
+		for (i = 0; i < off_info.oi_workers_nr; ++i) {
+			if (off_info.oi_offset[i]){
+				offset = off_info.oi_offset[i];
+				/* non-zero offset found break */
+				break;
+			}
+		}
+		printf("offset[%"PRIu64"]=%li\n", i, off_info.oi_offset[i] );
+		/* look for lowest non-zero offset in remaining entries */
+		for (++i; i < off_info.oi_workers_nr; ++i) {
 			if (offset > off_info.oi_offset[i])
 				offset = off_info.oi_offset[i];
+			printf("offset[%"PRIu64"]=%li\n", i, off_info.oi_offset[i] );
 		}
 		m0_mutex_unlock(&off_info.oi_lock);
 	} else {
@@ -1525,7 +1535,7 @@ static void nv_scan_offset_update(off_t offset, uint64_t worker_id)
 		return;
 	}
 	off_info.oi_offset[worker_id] = offset;
-	fwrite(&off_info.oi_offset, sizeof(off_t),
+	fwrite(off_info.oi_offset, sizeof(off_t),
 	       off_info.oi_workers_nr, ofptr);
 	fclose(ofptr);
 	m0_mutex_unlock(&off_info.oi_lock);
