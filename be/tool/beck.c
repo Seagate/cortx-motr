@@ -284,11 +284,18 @@ struct worker_off_info {
 	uint64_t           woi_partition;
 };
 
+struct scanner_off_info {
+	off_t    soi_offset;
+	bool     soi_scanqempty;
+	bool     soi_bnodeqempty;
+};
+
 struct offset_info {
 	struct worker_off_info *oi_offset;
 	uint64_t               *oi_act_added;
 	uint64_t                oi_workers_nr;
 	uint64_t                oi_partitions_nr;
+	struct scanner_off_info oi_scanoff;
 	struct m0_mutex         oi_lock;
 };
 
@@ -350,6 +357,7 @@ static void qput(struct queue *q, struct action *act);
 static struct action *qget (struct queue *q);
 static struct action *qtry (struct queue *q);
 static struct action *qpeek(struct queue *q);
+static bool           isqempty(struct queue *q);
 
 static int  ctg_proc(struct scanner *s, struct btype *b,
 		     struct m0_be_bnode *node, off_t node_offset);
@@ -1488,6 +1496,7 @@ static int nv_scan_offset_init(uint64_t workers_nr,
 
 	off_info.oi_act_added = m0_alloc(sizeof(uint64_t) * partitions_nr);
 	if (off_info.oi_act_added == NULL) {
+		m0_free(off_info.oi_offset);
 		m0_mutex_unlock(&off_info.oi_lock);
 		return M0_ERR(-ENOMEM);
 	}
@@ -1509,11 +1518,14 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 	FILE     *ofptr;
 	int       wret;
 	int       pret;
+	int       sret;
 	off_t     offset = snapshot_size;
+	off_t     max_offset = 0;
 	uint64_t *act_completed;
 	uint64_t  i;
-	struct    worker_off_info *winfo;
 	uint64_t  partition;
+	struct worker_off_info  *winfo;
+	struct scanner_off_info *sinfo;
 
 	m0_mutex_lock(&off_info.oi_lock);
 	ofptr = fopen(offset_file, "r");
@@ -1523,6 +1535,7 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 	}
 	act_completed = m0_alloc(sizeof(uint64_t) * off_info.oi_partitions_nr);
 	if (act_completed == NULL) {
+		fclose(ofptr);
 		m0_mutex_unlock(&off_info.oi_lock);
 		return M0_ERR(-ENOMEM);
 	}
@@ -1530,15 +1543,16 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 		     off_info.oi_workers_nr, ofptr);
 	pret = fread(off_info.oi_act_added, sizeof(uint64_t),
 		     off_info.oi_partitions_nr, ofptr);
-	if (wret > 0 && pret > 0) {
+	sret = fread(&off_info.oi_scanoff, sizeof(struct scanner_off_info),
+		     1, ofptr);
+	if ((wret > 0) && (pret > 0) && (sret > 0)) {
 		/* compute completed actions for partition*/
 		for (i = 0; i < off_info.oi_workers_nr; ++i) {
 			winfo = &off_info.oi_offset[i];
 			partition = winfo->woi_partition;
 			act_completed[partition] += winfo->woi_act_completed;
 		}
-		/* look for lowest offset in partitions having incomplete
-		 * actions*/
+		/* look for lowest offset in active partitions */
 		for (i = 0; i < off_info.oi_workers_nr; ++i) {
 			winfo = &off_info.oi_offset[i];
 			partition = winfo->woi_partition;
@@ -1547,8 +1561,21 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 			    act_completed[partition]) {
 				if (offset > winfo->woi_offset)
 					offset = winfo->woi_offset;
+			} else {
+				if (max_offset < winfo->woi_offset)
+					max_offset = winfo->woi_offset;
 			}
 			printf("offset[%"PRIu64"]=%li\n", i, winfo->woi_offset);
+		}
+		/* all partitions were idle */
+		if(offset == snapshot_size) {
+			sinfo = &off_info.oi_scanoff;
+			if(sinfo->soi_scanqempty && sinfo->soi_bnodeqempty) {
+				offset = sinfo->soi_offset;
+			        printf("partitions idle,scanner offset=%li\n",
+				       offset);
+			} else
+				offset = max_offset;
 		}
 		fclose(ofptr);
 		m0_free(act_completed);
@@ -1579,10 +1606,15 @@ static void nv_scan_offset_update(off_t offset, uint64_t worker_id,
 	}
 	winfo->woi_offset = offset;
 	winfo->woi_partition = partition;
+	off_info.oi_scanoff.soi_offset      = s.s_off;
+	off_info.oi_scanoff.soi_bnodeqempty = isqempty(&s.s_bnode_q);
+	off_info.oi_scanoff.soi_scanqempty  = isqempty(s.s_q);
 	fwrite(off_info.oi_offset, sizeof(struct worker_off_info),
 	       off_info.oi_workers_nr, ofptr);
 	fwrite(off_info.oi_act_added, sizeof(uint64_t),
 	       off_info.oi_partitions_nr, ofptr);
+	fwrite(&off_info.oi_scanoff, sizeof(struct scanner_off_info),
+	       1, ofptr);
 	fclose(ofptr);
 	m0_mutex_unlock(&off_info.oi_lock);
 	return;
@@ -2589,6 +2621,16 @@ static struct action *qtry(struct queue *q)
 	return act;
 }
 
+static bool isqempty(struct queue *q)
+{
+	bool ret;
+
+	pthread_mutex_lock(&q->q_lock);
+	M0_PRE(qinvariant(q));
+	ret = (q->q_nr == 0) ? true : false;
+	pthread_mutex_unlock(&q->q_lock);
+	return ret;
+}
 static const struct recops btreeops = {
 	.ro_proc  = &btree,
 	.ro_check = &btree_check
