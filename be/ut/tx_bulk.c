@@ -49,6 +49,7 @@ enum {
 	BE_UT_TX_BULK_Q_SIZE_MAX     = 0x100,
 	BE_UT_TX_BULK_SEG_SIZE       = 1UL << 26,
 	BE_UT_TX_BULK_TX_SIZE_MAX_BP = 2000,
+	BE_UT_TX_BULK_WORKERS        = 0x40,
 };
 
 struct be_ut_tx_bulk_be_cfg {
@@ -204,10 +205,10 @@ void m0_be_ut_tx_bulk_usecase(void)
 		.tbc_q_cfg                 = {
 			.bqc_q_size_max       = BE_UT_TX_BULK_Q_SIZE_MAX,
 			.bqc_producers_nr_max = 1,
-			.bqc_consumers_nr_max = 0x100,  /* XXX */
+			.bqc_consumers_nr_max = BE_UT_TX_BULK_WORKERS,
 		},
-		.tbc_workers_nr            = 0x40, /* XXX */
-		.tbc_partitions_nr         = 1,    /* XXX */
+		.tbc_workers_nr            = BE_UT_TX_BULK_WORKERS,
+		.tbc_partitions_nr         = 1,
 		.tbc_work_items_per_tx_max = 3,
 		.tbc_do                    = &be_ut_tx_bulk_usecase_do,
 		.tbc_done                  = &be_ut_tx_bulk_usecase_done,
@@ -395,10 +396,10 @@ static void be_ut_tx_bulk_state_test_run(struct be_ut_tx_bulk_state  *tbs,
 		.tbc_q_cfg                 = {
 			.bqc_q_size_max       = BE_UT_TX_BULK_Q_SIZE_MAX,
 			.bqc_producers_nr_max = 1,
-			.bqc_consumers_nr_max = 0x100,  /* XXX */
+			.bqc_consumers_nr_max = BE_UT_TX_BULK_WORKERS,
 		},
-		.tbc_workers_nr            = 0x40, /* XXX */
-		.tbc_partitions_nr         = 1,    /* XXX */
+		.tbc_workers_nr            = BE_UT_TX_BULK_WORKERS,
+		.tbc_partitions_nr         = 1,
 		.tbc_work_items_per_tx_max = 1,
 		.tbc_do                    = &be_ut_tx_bulk_state_do,
 		.tbc_done                  = &be_ut_tx_bulk_state_done,
