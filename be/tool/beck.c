@@ -1481,6 +1481,8 @@ static void genadd(uint64_t gen)
 static int nv_scan_offset_init(uint64_t workers_nr,
 			       uint64_t partitions_nr)
 {
+	uint64_t  i;
+
 	m0_mutex_init(&off_info.oi_lock);
 	m0_mutex_lock(&off_info.oi_lock);
 	off_info.oi_workers_nr = workers_nr;
@@ -1499,6 +1501,8 @@ static int nv_scan_offset_init(uint64_t workers_nr,
 		m0_mutex_unlock(&off_info.oi_lock);
 		return M0_ERR(-ENOMEM);
 	}
+	for (i = 0; i < off_info.oi_workers_nr; ++i)
+		off_info.oi_offset[i].woi_partition = i % partitions_nr;
 	m0_mutex_unlock(&off_info.oi_lock);
 	return 0;
 }
