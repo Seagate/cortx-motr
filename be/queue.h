@@ -28,7 +28,7 @@
 /**
  * @defgroup be
  *
- * Fair bounded MPMC queue.
+ * Fair bounded FIFO MPMC queue.
  *
  * Highlights
  *
@@ -46,6 +46,62 @@
  *   m0_be_queue functions for the same queue;
  * - queues use lists in this way: items are added at tail and are removed from
  *   the head;
+ *
+ * Design decisions
+ *
+ * - as the queue is bounded m0_be_queue_put() could be called when the queue is
+ *   full. In this case op wouldn't become done until there is more space in the
+ *   queue. The implementation actually adds the item to the queue in such
+ *   cases, because it doesn't change externally visible behaviour and it makes
+ *   the implementation simpler by avoiding having another "almost-put-it-there"
+ *   queues;
+ * - m0_be_queue_get() could fail iff m0_be_queue_end() has been called for the
+ *   queue. This may happen after m0_be_queue_get() is already finished and the
+ *   user waits for the operation completion on op. This makes it impossible to
+ *   pass the "if-the-get-is-successful" flag as the return value of the
+ *   function, so it's returned as a pointer to a boolean flag;
+ * - m0_be_queue_peek() doesn't need m0_be_op because it always returns whatever
+ *   is at the top of the queue. So it could return "something has been
+ *   returned" as the return value of the function.
+ *
+ * Internal queues diagram
+ *
+ * - the queue is neither full nor empty
+ *
+ * @verbatim
+ *                 m0_be_queue_put()
+ *                        |
+ *                        v
+ *          +---+---+---+---+         +---+---+---+---+---+---+
+ *    head  |   |   |   |   | bq_q    |   |   |   |   |   |   | bq_q_unused
+ *          +---+---+---+---+         +---+---+---+---+---+---+
+ *            |
+ *            v
+ *     m0_be_queue_get()
+ *
+ * @endverbatim
+ *
+ * - the queue is full
+ *
+ * @verbatim
+ *                                                  m0_be_queue_put()
+ *                                                           |
+ *                                                           v
+ *                                                         +---+  +---+
+ *                                                         |   |<<|   |
+ *          +---+---+---+---+---+---+---+---+---+---+      +---+  +---+
+ *          |   |   |   |   |   |   |   |   |   |   | bq_q |   |<<|   |
+ *          +---+---+---+---+---+---+---+---+---+---+      +---+  +---+
+ *            |                                              ^      ^
+ *            v                                         this one    |
+ *     m0_be_queue_get()                                is still    |
+*                                                       in bq_q     |
+ *                                                                  |
+ *                                                      bq_op_put list
+ *                                                      items point to the
+ *                                                      items that are in
+ *                                                      the put wait list
+ * @endverbatim
  *
  * Further directions
  *
