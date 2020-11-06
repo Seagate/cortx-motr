@@ -301,22 +301,11 @@ static int px_complete(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 	return M0_RC(0);
 }
 
-static int px_stop(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
-		   struct m0_cm_sw *out_interval, m0_time_t px_epoch,
-		   uint32_t px_status)
+static int px_stop_fail(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
+			struct m0_cm_sw *out_interval, m0_time_t px_epoch,
+			uint32_t px_status)
 {
-	M0_ENTRY("pxy=%p, endpoint=%s", p, p->px_endpoint);
-	_sw_update(p, in_interval, out_interval, px_status);
-	m0_cm_frozen_ag_cleanup(p->px_cm, p);
-	proxy_done(p);
-	return M0_RC(0);
-}
-
-static int px_fail(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
-		   struct m0_cm_sw *out_interval, m0_time_t px_epoch,
-		   uint32_t px_status)
-{
-	M0_ENTRY("pxy=%p, endpoint=%s", p, p->px_endpoint);
+	M0_ENTRY("pxy=%p, endpoint=%s state=%u", p, p->px_endpoint, px_status);
 	_sw_update(p, in_interval, out_interval, px_status);
 	m0_cm_frozen_ag_cleanup(p->px_cm, p);
 	proxy_done(p);
@@ -329,8 +318,8 @@ static int (*px_action[])(struct m0_cm_proxy *px, struct m0_cm_sw *in_interval,
 	[M0_PX_READY]    = px_ready,
 	[M0_PX_ACTIVE]   = px_active,
 	[M0_PX_COMPLETE] = px_complete,
-	[M0_PX_STOP]     = px_stop,
-	[M0_PX_FAILED]   = px_fail
+	[M0_PX_STOP]     = px_stop_fail,
+	[M0_PX_FAILED]   = px_stop_fail
 };
 
 M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
@@ -572,8 +561,8 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	int                           rc;
 	struct m0_cm_sw_onwire      *swo;
 
-	M0_ENTRY("proxy: %p (%s)", proxy, proxy->px_endpoint);
 	M0_PRE(proxy != NULL);
+	M0_ENTRY("proxy: %p (%s)", proxy, proxy->px_endpoint);
 	cm = proxy->px_cm;
 	M0_PRE(m0_cm_is_locked(cm));
 
@@ -598,12 +587,16 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 		return M0_ERR(rc);
 	}
 
-	swo = m0_fop_data(fop);
-	/* This is the final update. No more SW update will be sent.
-	 * It must be set to STOP, so proxy can be finalized on remote node.
-	 * */
-	if (proxy->px_send_final_update)
+	if (proxy->px_send_final_update) {
+		proxy->px_send_final_update = false;
+
+		/* This is the final update. No more SW update will be sent.
+		 * It must be set to STOP, so the proxy on remote node can
+		 * be finalized.
+		 */
+		swo = m0_fop_data(fop);
 		swo->swo_cm_status = M0_PX_STOP;
+	}
 
 	sw_fop->pso_proxy = proxy;
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
@@ -613,8 +606,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 
 	M0_LOG(M0_DEBUG, "Sending to %s hi: ["M0_AG_F"]",
 	       proxy->px_endpoint, M0_AG_P(&in_interval->sw_hi));
-	if (proxy->px_send_final_update)
-		proxy->px_send_final_update = false;
+
 	return M0_RC(0);
 }
 

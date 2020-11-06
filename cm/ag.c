@@ -355,18 +355,18 @@ M0_INTERNAL bool m0_cm_aggr_group_tlists_are_empty(struct m0_cm *cm)
 {
 	struct m0_cm_ag_id grp_end_mark_id = GRP_END_MARK_ID;
 
-	/* DIX cm, always has an AG with [-1:-1::-1:-1] in its incoming list */
 	M0_LOG(M0_DEBUG, "cm=%p ag_in_nr=%"PRIu64" ag_out_nr=%"PRIu64
 			 " m0_cm_ag_in_hi(cm)=%p",
 			 cm, cm->cm_aggr_grps_in_nr,
 			 cm->cm_aggr_grps_out_nr, m0_cm_ag_in_hi(cm));
+
+	/* For DIX cm, always has a GRP_END_MARK_ID in its incoming list */
 	if (m0_cm_ag_in_hi(cm) != NULL)
 		M0_LOG(M0_DEBUG, "m0_cm_ag_in_hi(cm)->cag_id="M0_AG_F,
 				 M0_AG_P(&m0_cm_ag_in_hi(cm)->cag_id));
 
 	return (cm->cm_aggr_grps_in_nr == 0 ||
 		(cm->cm_aggr_grps_in_nr == 1 &&
-		 m0_cm_ag_in_hi(cm) != NULL &&
 		 m0_cm_ag_id_cmp(&m0_cm_ag_in_hi(cm)->cag_id,
 				 &grp_end_mark_id) == 0)
 	       ) &&

@@ -849,7 +849,8 @@ M0_INTERNAL int m0_cm_proxies_fini(struct m0_cm *cm)
 		M0_LOG(M0_DEBUG, "pxy %p (to %s), is_done %d",
 				  pxy, pxy->px_endpoint, !!pxy->px_is_done);
 		if (!m0_cm_proxy_is_done(pxy)) {
-			rc = M0_RC(-EAGAIN);
+			rc = -EAGAIN;
+			M0_LOG(M0_DEBUG, "pxy %p is still active", pxy);
 			continue;
 		}
 		M0_LOG(M0_DEBUG, "Stop proxy. cm %p, pxy %p",cm,  pxy);
