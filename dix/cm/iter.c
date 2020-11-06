@@ -1502,7 +1502,7 @@ M0_INTERNAL int m0_dix_cm_iter_get(struct m0_dix_cm_iter *iter,
 			M0_CNT_INC(iter->di_tgts_cur);
 		}
 
-		return rc;
+		return M0_RC(rc);
 	}
 }
 

@@ -1119,9 +1119,9 @@ M0_INTERNAL int m0_cm_complete(struct m0_cm *cm)
 	 */
 	rc = m0_cm_proxies_fini(cm);
 	if (rc == -EAGAIN)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	if (!m0_cm_ag_store_is_complete(&cm->cm_ag_store))
-		return M0_ERR(-EAGAIN);
+		return M0_RC(-EAGAIN);
 
 	m0_cm_notify(cm);
 

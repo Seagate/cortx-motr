@@ -270,9 +270,9 @@ static int px_ready(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 				cm->cm_sw_last_updated_hi = hi;
 		}
 		M0_CNT_INC(cm->cm_nr_proxy_updated);
-		rc = M0_RC(0);
+		rc = 0;
 	} else if (m0_cm_state_get(cm) < M0_CMS_READY)
-		rc = M0_ERR(-EINVAL);
+		rc = -EINVAL;
 
 	return M0_RC(rc);
 }
@@ -354,12 +354,12 @@ M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 
 	if (px_status < pxy->px_status) {
 		m0_cm_proxy_unlock(pxy);
-		return M0_ERR(-EINVAL);
+		return M0_RC(-EINVAL);
 	}
 
 	if (pxy->px_status != M0_PX_INIT && !epoch_check(pxy, px_epoch)) {
 		m0_cm_proxy_unlock(pxy);
-		return M0_ERR(-EINVAL);
+		return M0_RC(-EINVAL);
 	}
 
 	if (px_status >= M0_PX_COMPLETE &&
