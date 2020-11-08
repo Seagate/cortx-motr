@@ -559,7 +559,6 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	struct m0_fop                *fop;
 	const char                   *ep;
 	int                           rc;
-	struct m0_cm_sw_onwire      *swo;
 
 	M0_PRE(proxy != NULL);
 	M0_ENTRY("proxy: %p (%s)", proxy, proxy->px_endpoint);
@@ -588,6 +587,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	}
 
 	if (proxy->px_send_final_update) {
+		struct m0_cm_sw_onwire *swo;
 		proxy->px_send_final_update = false;
 
 		/* This is the final update. No more SW update will be sent.
