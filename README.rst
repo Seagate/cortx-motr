@@ -27,15 +27,17 @@ configurations. To ensure the most efficient storage utilization, Motr interacts
 Get to know
 ===========
 
-- `Quick Start Guide <https://github.com/Seagate/cortx-motr/blob/main/doc/Quick-Start-Guide.rst>`_
+- `Quick Start Guide </doc/Quick-Start-Guide.rst>`_
 
-- `Source Structure <https://github.com/Seagate/cortx-motr/blob/main/doc/source-structure.md>`_
+- `Source Structure </doc/source-structure.md>`_
 
-- `Coding Style <https://github.com/Seagate/cortx-motr/blob/main/doc/coding-style.md>`_
+- `Coding Style </doc/coding-style.md>`_
+
+- `Developer Guide </doc/motr-developer-guide.md>`_
 
 Surfing
 =======
-Refer to `Reading - list <https://github.com/Seagate/cortx-motr/blob/main/doc/reading-list.md>`_ for complete information.
+Refer to `Reading - list </doc/reading-list.md>`_ for complete information.
 
 - $ make doc
 
