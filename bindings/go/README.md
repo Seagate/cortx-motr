@@ -44,7 +44,8 @@ Usage: mcp [options] src dst
   -v	be more verbose
 ```
 
-To build:
+In order to build, [build Motr](../../doc/Quick-Start-Guide.rst) first
+(or install motr-devel package). Then run:
 
 ```sh
 cd motr/bindings/go/mcp && go build
