@@ -420,8 +420,6 @@ int main(int argc, char *argv[])
 	motr_conf.mc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 	motr_conf.mc_idx_service_id        = M0_IDX_DIX;
 	motr_conf.mc_idx_service_conf      = (void *)&motr_dix_conf;
-	motr_conf.mc_is_read_verify        = false;
-
 
 	rc = m0_client_init(&m0_instance, &motr_conf, true);
 	if (rc != 0) {
