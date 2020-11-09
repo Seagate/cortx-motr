@@ -279,6 +279,7 @@ struct emap_action {
 static int  init(void);
 static void fini(void);
 static int  scan (struct scanner *s);
+static void stats_print(void);
 static int  parse(struct scanner *s);
 static int  get  (struct scanner *s, void *buf, size_t nob);
 static int  getat(struct scanner *s, off_t off, void *buf, size_t nob);
@@ -637,15 +638,17 @@ int main(int argc, char **argv)
 		signal(SIGINT, sig_handler);
 	}
 	result = scan(&s);
-	if (result != 0)
-		warn("Scan failed: %d.", result);
-
+	printf("\n Pending to process bnodes=%"PRIu64 " It may take some time",
+	       s.s_bnode_q.q_nr);
 	qput(&s.s_bnode_q, scanner_action(sizeof(struct action),
 					  AO_DONE, NULL));
 	m0_thread_join(&s.s_thread);
 	m0_thread_fini(&s.s_thread);
 	qfini(&s.s_bnode_q);
+	if (result != 0)
+		warn("Scan failed: %d.", result);
 
+	stats_print();
 	if (!dry_run) {
 		qput(&q, builder_action(&b, sizeof(struct action), AO_DONE,
 					&done_ops));
@@ -808,7 +811,6 @@ static int scan(struct scanner *s)
 {
 	uint64_t magic;
 	int      result;
-	int      i;
 	time_t   lasttime = time(NULL);
 	off_t    lastoff  = s->s_off;
 
@@ -832,6 +834,13 @@ static int scan(struct scanner *s)
 			lastoff  = s->s_off;
 		}
 	}
+	return feof(s->s_file) ? 0 : result;
+}
+
+static void stats_print(void)
+{
+	int i;
+
 	printf("\n%25s : %9s %9s %9s %9s\n",
 	       "record", "found", "bad csum", "unaligned", "version");
 	for (i = 0; i < ARRAY_SIZE(rt); ++i) {
@@ -872,7 +881,6 @@ static int scan(struct scanner *s)
 			printf(" : %9"PRId64"\n", g[i].g_count);
 		}
 	}
-	return feof(s->s_file) ? 0 : result;
 }
 
 static int parse(struct scanner *s)
@@ -1753,7 +1761,7 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 	char     *s2;
 	bool      value_overridden = true;
 
-	if (m0_streq(str_key, "tgc_size_max")  || 
+	if (m0_streq(str_key, "tgc_size_max")  ||
 	    m0_streq(str_key, "bec_tx_size_max")) {
 
 		/** Cover variables accepting two comma-separated values. */
@@ -1774,7 +1782,7 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
 
 		if (m0_streq(str_key, "tgc_size_max")) {
-			cfg->bc_engine.bec_group_cfg.tgc_size_max = 
+			cfg->bc_engine.bec_group_cfg.tgc_size_max =
 					M0_BE_TX_CREDIT(value1_64, value2_64);
 		} else {
 			cfg->bc_engine.bec_tx_size_max =
@@ -1814,7 +1822,7 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 		else if (m0_streq(str_key, "tgc_tx_nr_max"))
 			cfg->bc_engine.bec_group_cfg.tgc_tx_nr_max = value1_64;
 		else if (m0_streq(str_key, "tgc_payload_max"))
-			cfg->bc_engine.bec_group_cfg.tgc_payload_max = 
+			cfg->bc_engine.bec_group_cfg.tgc_payload_max =
 								value1_64;
 		else if (m0_streq(str_key, "bec_tx_payload_max"))
 			cfg->bc_engine.bec_tx_payload_max = value1_64;
