@@ -36,6 +36,8 @@ motr_build_deps_pkgs:
   - libuuid-devel
   - libyaml
   - libyaml-devel
+  - libedit
+  - libedit-devel
   - make
   - perl
   - perl-File-Find-Rule
