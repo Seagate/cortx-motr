@@ -269,6 +269,9 @@ static void be_queue_op_put(struct m0_be_queue   *bq,
 	M0_PRE(!bqop_tlist_is_empty(&bq->bq_op_put_unused));
 
 	bwo = bqop_tlist_head(&bq->bq_op_put_unused);
+	M0_ASSERT_INFO(bwo != NULL,
+	               "Too many producers: bqc_producers_nr_max=%"PRIu64,
+	               bq->bq_cfg.bqc_producers_nr_max);
 	bwo->bbo_bqi = bqi;
 	bwo->bbo_op  = op;
 	bqop_tlist_move_tail(&bq->bq_op_put, bwo);
@@ -304,6 +307,9 @@ static void be_queue_op_get(struct m0_be_queue *bq,
 	M0_PRE(!bqop_tlist_is_empty(&bq->bq_op_get_unused));
 
 	bwo = bqop_tlist_head(&bq->bq_op_get_unused);
+	M0_ASSERT_INFO(bwo != NULL,
+	               "Too many consumers: bqc_consumers_nr_max=%"PRIu64,
+	               bq->bq_cfg.bqc_consumers_nr_max);
 	bwo->bbo_data       = *data;
 	bwo->bbo_successful = successful;
 	bwo->bbo_op         = op;
