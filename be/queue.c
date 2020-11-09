@@ -70,7 +70,7 @@ M0_TL_DESCR_DEFINE(bqop, "m0_be_queue::bq_op_*[]", static,
 M0_TL_DEFINE(bqop, static, struct be_queue_wait_op);
 
 
-static uint64_t be_queue_qitems_nr(struct m0_be_queue *bq)
+static uint64_t bq_queue_items_max(struct m0_be_queue *bq)
 {
 	return bq->bq_cfg.bqc_q_size_max + bq->bq_cfg.bqc_producers_nr_max;
 }
@@ -78,7 +78,7 @@ static uint64_t be_queue_qitems_nr(struct m0_be_queue *bq)
 static struct be_queue_item *be_queue_qitem(struct m0_be_queue *bq,
 					    uint64_t            index)
 {
-	M0_PRE(index < be_queue_qitems_nr(bq));
+	M0_PRE(index < bq_queue_items_max(bq));
 	return (struct be_queue_item *)
 		(bq->bq_qitems + index *
 		 (sizeof(struct be_queue_item) + bq->bq_cfg.bqc_item_length));
@@ -111,7 +111,7 @@ M0_INTERNAL int m0_be_queue_init(struct m0_be_queue     *bq,
 	bq->bq_the_end = false;
 	bq->bq_enqueued = 0;
 	bq->bq_dequeued = 0;
-	M0_ALLOC_ARR(bq->bq_qitems, be_queue_qitems_nr(bq) *
+	M0_ALLOC_ARR(bq->bq_qitems, bq_queue_items_max(bq) *
 		     (sizeof(struct be_queue_item) + cfg->bqc_item_length));
 	M0_ALLOC_ARR(bq->bq_ops_put, bq->bq_cfg.bqc_producers_nr_max);
 	M0_ALLOC_ARR(bq->bq_ops_get, bq->bq_cfg.bqc_consumers_nr_max);
@@ -137,7 +137,7 @@ M0_INTERNAL int m0_be_queue_init(struct m0_be_queue     *bq,
 	}
 	bqop_tlist_init(&bq->bq_op_get);
 	bqq_tlist_init(&bq->bq_q_unused);
-	for (i = 0; i < be_queue_qitems_nr(bq); ++i) {
+	for (i = 0; i < bq_queue_items_max(bq); ++i) {
 		bqq_tlink_init_at_tail(be_queue_qitem(bq, i),
 		                       &bq->bq_q_unused);
 	}
@@ -177,7 +177,7 @@ M0_INTERNAL void m0_be_queue_fini(struct m0_be_queue *bq)
 	for (i = 0; i < bq->bq_cfg.bqc_producers_nr_max; ++i)
 		bqop_tlink_del_fini(&bq->bq_ops_put[i]);
 	bqop_tlist_fini(&bq->bq_op_put_unused);
-	for (i = 0; i < be_queue_qitems_nr(bq); ++i)
+	for (i = 0; i < bq_queue_items_max(bq); ++i)
 		bqq_tlink_del_fini(be_queue_qitem(bq, i));
 	bqq_tlist_fini(&bq->bq_q_unused);
 	m0_mutex_fini(&bq->bq_lock);
@@ -197,7 +197,7 @@ M0_INTERNAL void m0_be_queue_unlock(struct m0_be_queue *bq)
 	m0_mutex_unlock(&bq->bq_lock);
 }
 
-static uint64_t be_queue_q_size(struct m0_be_queue *bq)
+static uint64_t be_queue_items_nr(struct m0_be_queue *bq)
 {
 	M0_PRE(m0_mutex_is_locked(&bq->bq_lock));
 	M0_ASSERT_INFO(bq->bq_enqueued >= bq->bq_dequeued,
@@ -207,12 +207,12 @@ static uint64_t be_queue_q_size(struct m0_be_queue *bq)
 
 static bool be_queue_is_empty(struct m0_be_queue *bq)
 {
-	return be_queue_q_size(bq) == 0;
+	return be_queue_items_nr(bq) == 0;
 }
 
 static bool be_queue_is_full(struct m0_be_queue *bq)
 {
-	return be_queue_q_size(bq) >= bq->bq_cfg.bqc_q_size_max;
+	return be_queue_items_nr(bq) >= bq->bq_cfg.bqc_q_size_max;
 }
 
 static struct be_queue_item *be_queue_q_put(struct m0_be_queue  *bq,
