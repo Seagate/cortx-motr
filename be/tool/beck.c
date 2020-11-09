@@ -100,6 +100,9 @@ struct scanner {
 	off_t		     s_off;
 	off_t		     s_pos;
 	bool		     s_byte;
+	/**
+	 * This determines if invalid OIDs are logged instead silent discards */
+	bool                 s_print_invalid_oids;
 	off_t		     s_size;
 	struct m0_be_seg    *s_seg;
 	struct queue	    *s_q;
@@ -295,6 +298,7 @@ static void genadd(uint64_t gen);
 static void generation_id_print(uint64_t gen);
 static void generation_id_get(FILE *fp, uint64_t *gen_id);
 static int  generation_id_verify(struct scanner *s, uint64_t gen);
+static void seg_get(FILE *fp, struct m0_be_seg *out);
 
 static int  scanner_init   (struct scanner *s);
 static int  builder_init   (struct builder *b);
@@ -419,18 +423,20 @@ static struct btype bt[] = {
 #undef _B
 
 enum {
-	MAX_GEN    	 =      256,
-	MAX_SCAN_QUEUED	 = 10000000,
-	MAX_QUEUED  	 =  1000000,
-	MAX_REC_SIZE     =  64*1024,
+	MAX_GEN    	         = 256,
+	MAX_SCAN_QUEUED	         = 10000000,
+	MAX_QUEUED  	         = 1000000,
+	MAX_REC_SIZE             = 64*1024,
 	/**
-	 * This value is arrived on the basis of max time difference between
-	 * mkfs run on local and remote node and the assumption that time
-	 * difference between nodes is negligible.
+	 * The value in MAX_GEN_DIFF_SEC is arrived on the basis of max time
+	 * difference between mkfs run on local and remote node and the
+	 * assumption that clock time delta between nodes is negligible.
 	 */
-	MAX_GEN_DIFF_SEC =       30,
-	MAX_KEY_LEN      =      256,
-	MAX_VALUE_LEN    =      256
+	MAX_GEN_DIFF_SEC         = 30,
+	MAX_KEY_LEN              = 256,
+	MAX_VALUE_LEN            = 256,
+	DEFAULT_BE_SEG_LOAD_ADDR = 0x400000100000,
+	DEFAULT_BE_MAX_TX_REG_SZ = 46137344
 };
 
 /** It is used to recover meta data of component catalogue store. */
@@ -454,6 +460,7 @@ struct ctg_action {
 static struct scanner s;
 static struct builder b;
 static struct gen g[MAX_GEN] = {};
+static struct m0_be_seg s_seg = {}; /** Used only in dry-run mode. */
 
 static bool  dry_run = false;
 static bool  disable_directio = false;
@@ -509,6 +516,7 @@ int main(int argc, char **argv)
 		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
 				&s.s_gen),
 		   M0_FLAGARG('V', "Version info.", &version),
+		   M0_FLAGARG('e', "Print errored OIDs.", &s.s_print_invalid_oids),
 		   M0_STRINGARG('y', "YAML file path",
 			   LAMBDA(void, (const char *s) {
 				   b.b_be_config_file = s;
@@ -593,13 +601,17 @@ int main(int argc, char **argv)
 		printf("Cannot find any segment header generation identifer");
 		return EX_DATAERR;
 	}
+	qinit(&s.s_bnode_q, MAX_SCAN_QUEUED);
+	result = M0_THREAD_INIT(&s.s_thread, struct scanner *,
+				NULL, &scanner_thread, &s, "scannner");
+	if (result != 0)
+		err(EX_CONFIG, "Cannot start scanner thread.");
 	/*
 	 * Skip builder related calls for dry run as we will not be building a
 	 * new segment.
 	 */
 	if (!dry_run) {
 		qinit(&q, MAX_QUEUED);
-		qinit(&s.s_bnode_q, MAX_SCAN_QUEUED);
 		s.s_q = b.b_q = &q;
 		result = builder_init(&b);
 		s.s_seg = b.b_seg;
@@ -607,11 +619,16 @@ int main(int argc, char **argv)
 		s.s_max_reg_size = max.tc_reg_size;
 		if (result != 0)
 			err(EX_CONFIG, "Cannot initialise builder.");
-		result = M0_THREAD_INIT(&s.s_thread, struct scanner *,
-					NULL, &scanner_thread, &s, "scannner");
-		if (result != 0)
-			err(EX_CONFIG, "Cannot initialise builder.");
+	} else {
+		/**
+		 *  Since we do not have builder variables holding segment data,
+		 *  we use the global variable s_seg for this purpose.
+		 */
+		seg_get(s.s_file, &s_seg);
+		s.s_seg = &s_seg;
+		s.s_max_reg_size = DEFAULT_BE_MAX_TX_REG_SZ;
 	}
+
 	result = scanner_init(&s);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise scanner.");
@@ -623,12 +640,13 @@ int main(int argc, char **argv)
 	if (result != 0)
 		warn("Scan failed: %d.", result);
 
+	qput(&s.s_bnode_q, scanner_action(sizeof(struct action),
+					  AO_DONE, NULL));
+	m0_thread_join(&s.s_thread);
+	m0_thread_fini(&s.s_thread);
+	qfini(&s.s_bnode_q);
+
 	if (!dry_run) {
-		qput(&s.s_bnode_q, scanner_action(sizeof(struct action),
-						  AO_DONE, NULL));
-		m0_thread_join(&s.s_thread);
-		m0_thread_fini(&s.s_thread);
-		qfini(&s.s_bnode_q);
 		qput(&q, builder_action(&b, sizeof(struct action), AO_DONE,
 					&done_ops));
 		builder_fini(&b);
@@ -676,12 +694,16 @@ static void generation_id_print(uint64_t gen)
 	       m0_time_nanoseconds(gen), gen);
 }
 
-static void generation_id_get(FILE *fp, uint64_t *gen_id)
+static bool seg_hdr_get(FILE *fp, struct m0_be_seg_hdr *out)
 {
-	struct m0_format_tag  tag    = {};
-	int                   result = 0;
+	struct m0_format_tag  tag          = {};
+	bool                  result       = false;
 	struct m0_be_seg_hdr  seg_hdr;
 	const char           *rt_be_cksum;
+	off_t                 old_offset;
+
+	old_offset = ftello(fp);
+	fseeko(fp, 0, SEEK_SET);
 
 	if (fread(&seg_hdr, 1, sizeof(seg_hdr), fp) == sizeof(seg_hdr)) {
 
@@ -694,25 +716,62 @@ static void generation_id_get(FILE *fp, uint64_t *gen_id)
 		    m0_format_footer_verify(&seg_hdr, 0) == 0) {
 
 			rt_be_cksum = m0_build_info_get()->
-						bi_xcode_protocol_be_checksum;
+				      bi_xcode_protocol_be_checksum;
 			if (strncmp(seg_hdr.bh_be_version, rt_be_cksum,
 				    M0_BE_SEG_HDR_VERSION_LEN_MAX) == 0 &&
 			    seg_hdr.bh_items_nr == 1) {
-				/*
-				 * After confirming the segment header we can
-				 * read the embedded generation id.
-				 */
-				*gen_id = seg_hdr.bh_items[0].sg_gen;
-			} else
-				result = M0_ERR(-EIO);
+				*out = seg_hdr;
+				result = true;
+			}
+		}
+	}
 
-		} else
-			result = M0_ERR(-EIO);
-	} else
-		result = M0_ERR(-EIO);
+	fseeko(fp, old_offset, SEEK_SET);
+	return (result);
+}
 
-	if (result == -EIO)
-		printf("Invalid format / Checksum error for segment header\n");
+static void generation_id_get(FILE *fp, uint64_t *gen_id)
+{
+	struct m0_be_seg_hdr seg_hdr;
+
+	if (seg_hdr_get(fp, &seg_hdr))
+		*gen_id = seg_hdr.bh_items[0].sg_gen;
+	else
+		printf("Invalid format / Checksum error for segment header. "
+		       "Could not extract Generation ID.\n");
+}
+
+static void seg_get(FILE *fp, struct m0_be_seg *out)
+{
+	struct m0_be_seg_hdr         seg_hdr;
+	struct m0_be_seg             seg;
+	const struct m0_be_seg_geom *g;
+
+	/** Update the values from the segment in file passed as parameter */
+	if (seg_hdr_get(fp, &seg_hdr)) {
+		g = &seg_hdr.bh_items[0];
+
+		seg.bs_reserved = sizeof(seg_hdr);
+		seg.bs_size     = g->sg_size;
+		seg.bs_addr     = g->sg_addr;
+		seg.bs_offset   = g->sg_offset;
+		seg.bs_gen      = g->sg_gen;
+	} else {
+		/**
+		 *  If file has corrupted segment then use these
+		 *  hardcoded values.
+		 */
+		printf("Invalid format / Checksum error for segment header. "
+		       "Could not extract Segment map information. "
+		       "Using possible defaults\n");
+		seg.bs_reserved = sizeof(seg_hdr);
+		seg.bs_size     = s.s_size;
+		seg.bs_addr     = (void *)DEFAULT_BE_SEG_LOAD_ADDR;
+		seg.bs_offset   = 0;
+	}
+
+	*out = seg;
+
 }
 
 static int generation_id_verify(struct scanner *s, uint64_t gen)
@@ -839,9 +898,9 @@ static int parse(struct scanner *s)
 		r->r_stats.s_found++;
 		r->r_stats.s_align[!!(s->s_off & 07)]++;
 		/* Only process btree, bnode and segment header records. */
-		if (dry_run || M0_IN(idx, (M0_FORMAT_TYPE_BE_BTREE,
-					   M0_FORMAT_TYPE_BE_BNODE,
-					   M0_FORMAT_TYPE_BE_SEG_HDR))) {
+		if (M0_IN(idx, (M0_FORMAT_TYPE_BE_BTREE,
+				M0_FORMAT_TYPE_BE_BNODE,
+				M0_FORMAT_TYPE_BE_SEG_HDR))) {
 			lastoff = s->s_off;
 			s->s_off -= sizeof hdr;
 			result = recdo(s, &tag, r);
@@ -1007,8 +1066,7 @@ static int deref(struct scanner *s, const void *addr, void *buf, size_t nob)
 	    m0_be_seg_contains(s->s_seg, addr + nob - 1)) {
 		if (off >= s->s_chunk_pos &&
 		    off + nob < s->s_chunk_pos + sizeof s->s_chunk) {
-			memcpy(buf, &s->s_chunk[off - s->s_chunk_pos],
-			       nob);
+			memcpy(buf, &s->s_chunk[off - s->s_chunk_pos], nob);
 			return 0;
 		} else
 			return getat(s, off, buf, nob);
@@ -1100,7 +1158,7 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	b = &bt[idx];
 	c = &b->b_stats;
 	c->c_node++;
-	if (!dry_run && b->b_proc != NULL) {
+	if (b->b_proc != NULL) {
 		ba = scanner_action(sizeof *ba, AO_INIT, NULL);
 		ba->bna_offset = s->s_start_off;
 		qput(&s->s_bnode_q, &ba->bna_act);
@@ -1149,14 +1207,40 @@ static const struct action_ops emap_ops = {
 	.o_fini = &emap_fini
 };
 
+static void emap_to_gob_convert(const struct m0_uint128 *emap_prefix,
+				struct m0_fid           *out)
+{
+	struct m0_fid      dom_id = {};
+	struct m0_stob_id  stob_id;
+	struct m0_fid      cob_fid;
+	struct m0_fid      gob_fid;
+
+	m0_fid_tassume(&dom_id, &m0_stob_ad_type.st_fidt);
+
+	/** Convert emap to stob_id */
+	m0_stob_id_make(emap_prefix->u_hi, emap_prefix->u_lo, &dom_id, &stob_id);
+
+	/** Convert stob_id to cob id */
+	m0_fid_convert_adstob2cob(&stob_id, &cob_fid);
+
+	/** Convert COB id to GOB id */
+	m0_fid_convert_cob2gob(&cob_fid, &gob_fid);
+
+	*out = gob_fid;
+}
+
+
 static int emap_proc(struct scanner *s, struct btype *btype,
 		     struct m0_be_bnode *node)
 {
 	struct m0_stob_ad_domain *adom = NULL;
 	struct emap_action       *ea;
 	int                       id;
-	int 		          i;
-	int 		          ret = 0;
+	int                       i;
+	int                       ret = 0;
+	struct m0_be_emap_key    *ek;
+	struct m0_be_emap_rec    *ev;
+	struct m0_fid             gob_id;
 
 	for (i = 0; i < node->bt_num_active_key; i++) {
 		ea = scanner_action(sizeof *ea, AO_EMAP_FIRST, &emap_ops);
@@ -1166,22 +1250,32 @@ static int emap_proc(struct scanner *s, struct btype *btype,
 
 		ret = emap_kv_get(s, &node->bt_kv_arr[i],
 				  &ea->emap_key, &ea->emap_val);
+		ek = ea->emap_key.b_addr;
+		ev = ea->emap_val.b_addr;
+
+		emap_to_gob_convert(&ek->ek_prefix, &gob_id);
+		printf("EMAP {KEY PREFIX = "U128X_F", REC VALUE = %"PRIx64"} -> GOB = "FID_F"\n", U128_P(&ek->ek_prefix), ev->er_value, FID_P(&gob_id));
 		if (ret != 0) {
+			M0_LOG(M0_ERROR, "Error in COB ID ");
 			btree_bad_kv_count_update(node->bt_backlink.bli_type, 1);
 			m0_free(ea);
 			continue;
 		}
 
-	        ea->emap_act.a_builder = &b;
-		adom = emap_dom_find(&ea->emap_act, &ea->emap_fid, &id);
-		if (adom != NULL) {
-			ea->emap_act.a_opc += id;
-			qput(s->s_q, &ea->emap_act);
-		} else {
-			btree_bad_kv_count_update(node->bt_backlink.bli_type, 1);
+		if (!dry_run) {
+			ea->emap_act.a_builder = &b;
+			adom = emap_dom_find(&ea->emap_act, &ea->emap_fid, &id);
+			if (adom != NULL) {
+				ea->emap_act.a_opc += id;
+				qput(s->s_q, &ea->emap_act);
+			} else {
+				btree_bad_kv_count_update(
+						node->bt_backlink.bli_type, 1);
+				m0_free(ea);
+				continue;
+			}
+		} else
 			m0_free(ea);
-			continue;
-		}
 	}
 	return ret;
 }
@@ -2021,7 +2115,7 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 	struct m0_fid                fid;
 	int                          i;
 	int                          rc;
-	bool			     ismeta;
+	bool                         ismeta;
 
 	M0_PRE(bl->bli_type == M0_BBT_CAS_CTG);
 	if (!btree_node_pre_is_valid(node, s)                          ||
@@ -2030,6 +2124,8 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 					  node->bt_num_active_key);
 		return 0;
 	}
+	if (dry_run)
+		return 0;
 	for (i = 0; i < node->bt_num_active_key; i++) {
 		if (ctg_kv_get(s, node->bt_kv_arr[i].btree_key,
 			       &kl[n.bt_num_active_key]) != 0) {
@@ -2379,11 +2475,13 @@ static int cob_proc(struct scanner *s, struct btype *b,
 	int                          i;
 	int                          rc;
 	struct m0_be_btree_backlink *bb  = &node->bt_backlink;
+	struct m0_cob_nskey         *nskey;
+	struct m0_cob_nsrec         *nsrec;
 
 	M0_PRE(bb->bli_type == M0_BBT_COB_NAMESPACE);
 
 	for (i = 0; i < node->bt_num_active_key; i++) {
-		ca = scanner_action(sizeof *ca, AO_COB, &cob_ops);
+		ca = scanner_action(sizeof*ca, AO_COB,&cob_ops);
 		ca->coa_fid = bb->bli_fid;
 
 		ca->coa_val = M0_BUF_INIT(sizeof(struct m0_cob_nsrec),
@@ -2395,11 +2493,27 @@ static int cob_proc(struct scanner *s, struct btype *b,
 			m0_free(ca);
 			continue;
 		}
+
+		nskey = ca->coa_key.b_addr;
+		nsrec = ca->coa_val.b_addr;
+		printf("COB KEY cnk_pfid = "FID_F"\n", FID_P(&nskey->cnk_pfid));
+		printf("COB REC cnr_fid = "FID_F"\n", FID_P(&nsrec->cnr_fid));
 		if ((format_header_verify(ca->coa_val.b_addr,
 					  M0_FORMAT_TYPE_COB_NSREC) == 0) &&
 		    (m0_format_footer_verify(ca->coa_valdata, false) == 0))
-			qput(s->s_q, (struct action *)ca);
+			if (!dry_run)
+				qput(s->s_q, (struct action *)ca);
+			else {
+				m0_buf_free(&ca->coa_key);
+				m0_free(ca);
+			}
 		else {
+			if (s->s_print_invalid_oids) {
+				nskey = ca->coa_key.b_addr;
+				M0_LOG(M0_ERROR, "Found corrupted OID " FID_F,
+				       FID_P(&nskey->cnk_pfid));
+			}
+
 			btree_bad_kv_count_update(bb->bli_type, 1);
 			m0_buf_free(&ca->coa_key);
 			m0_free(ca);
