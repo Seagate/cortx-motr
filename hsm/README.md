@@ -22,7 +22,7 @@ between the tiers (pools). Here is how to use the tool:
 2. Initialize the composite layout index:
 
    ```Text
-   $ c0composite "$CLIENT_LADDR" "$CLIENT_HA_ADDR" "$CLIENT_PROF_OPT" "$CLIENT_PROC_FID"
+   $ m0composite "$CLIENT_LADDR" "$CLIENT_HA_ADDR" "$CLIENT_PROF_OPT" "$CLIENT_PROC_FID"
    ```
 
    Note: this should be done one time only after the cluster bootstrap.
