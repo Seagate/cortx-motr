@@ -226,7 +226,7 @@ static struct be_queue_item *be_queue_q_put(struct m0_be_queue  *bq,
 	m0_buf_memcpy(&BE_QUEUE_ITEM2BUF(bq, bqi), data);
 	bqq_tlist_move_tail(&bq->bq_q, bqi);
 	++bq->bq_enqueued;
-	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
+	M0_LOG(M0_DEBUG, "bq="BEQ_F, BEQ_P(bq));
 	return bqi;
 }
 
@@ -239,7 +239,7 @@ static void be_queue_q_peek(struct m0_be_queue *bq, struct m0_buf *data)
 
 	bqi = bqq_tlist_head(&bq->bq_q);
 	m0_buf_memcpy(data, &BE_QUEUE_ITEM2BUF(bq, bqi));
-	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
+	M0_LOG(M0_DEBUG, "bq="BEQ_F, BEQ_P(bq));
 }
 
 static void be_queue_q_get(struct m0_be_queue *bq,
@@ -256,7 +256,7 @@ static void be_queue_q_get(struct m0_be_queue *bq,
 	*successful = true;
 	bqq_tlist_move(&bq->bq_q_unused, bqi);
 	++bq->bq_dequeued;
-	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
+	M0_LOG(M0_DEBUG, "bq="BEQ_F, BEQ_P(bq));
 }
 
 static void be_queue_op_put(struct m0_be_queue   *bq,
@@ -272,7 +272,7 @@ static void be_queue_op_put(struct m0_be_queue   *bq,
 	bwo->bbo_bqi = bqi;
 	bwo->bbo_op  = op;
 	bqop_tlist_move_tail(&bq->bq_op_put, bwo);
-	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
+	M0_LOG(M0_DEBUG, "bq="BEQ_F, BEQ_P(bq));
 }
 
 static void be_queue_op_put_done(struct m0_be_queue *bq)
@@ -285,7 +285,7 @@ static void be_queue_op_put_done(struct m0_be_queue *bq)
 	bwo = bqop_tlist_head(&bq->bq_op_put);
 	m0_be_op_done(bwo->bbo_op);
 	bqop_tlist_move(&bq->bq_op_put_unused, bwo);
-	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
+	M0_LOG(M0_DEBUG, "bq="BEQ_F, BEQ_P(bq));
 }
 
 static bool be_queue_op_put_is_waiting(struct m0_be_queue *bq)
@@ -308,7 +308,7 @@ static void be_queue_op_get(struct m0_be_queue *bq,
 	bwo->bbo_successful = successful;
 	bwo->bbo_op         = op;
 	bqop_tlist_move_tail(&bq->bq_op_get, bwo);
-	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
+	M0_LOG(M0_DEBUG, "bq="BEQ_F, BEQ_P(bq));
 }
 
 static void be_queue_op_get_done(struct m0_be_queue *bq, bool success)
@@ -365,6 +365,7 @@ M0_INTERNAL void m0_be_queue_put(struct m0_be_queue  *bq,
 		be_queue_op_get_done(bq, true);
 
 	M0_POST(be_queue_invariant(bq));
+	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
 }
 
 M0_INTERNAL void m0_be_queue_end(struct m0_be_queue *bq)
