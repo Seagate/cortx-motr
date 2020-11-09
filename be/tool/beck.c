@@ -543,6 +543,13 @@ int main(int argc, char **argv)
 	if (dry_run)
 		printf("Running in read-only mode.\n");
 
+	if (s.s_print_invalid_oids)
+		printf("Will print INVALID GOB IDs when found during scanning.\n");
+	else
+		printf("Will not print INVALID GOB IDs if found during "
+		       "scanning. To print INVALID GOBs please pass "
+		       "-e option.\n");
+
 	if (b.b_dom_path == NULL && !dry_run && !print_gen_id)
 		errx(EX_USAGE, "Specify domain path (-d).");
 	if (spath != NULL) {
@@ -1219,7 +1226,7 @@ static void emap_to_gob_convert(const struct m0_uint128 *emap_prefix,
 				struct m0_fid           *out)
 {
 	struct m0_fid      dom_id = {};
-	struct m0_stob_id  stob_id;
+	struct m0_stob_id  stob_id = {};
 	struct m0_fid      cob_fid;
 	struct m0_fid      gob_fid;
 
@@ -1229,14 +1236,14 @@ static void emap_to_gob_convert(const struct m0_uint128 *emap_prefix,
 	m0_stob_id_make(emap_prefix->u_hi, emap_prefix->u_lo, &dom_id, &stob_id);
 
 	/** Convert stob_id to cob id */
-	m0_fid_convert_adstob2cob(&stob_id, &cob_fid);
+	cob_fid = stob_id.si_fid;
+	m0_fid_tassume(&cob_fid, &m0_cob_fid_type);
 
 	/** Convert COB id to GOB id */
 	m0_fid_convert_cob2gob(&cob_fid, &gob_fid);
 
 	*out = gob_fid;
 }
-
 
 static int emap_proc(struct scanner *s, struct btype *btype,
 		     struct m0_be_bnode *node)
@@ -1247,7 +1254,6 @@ static int emap_proc(struct scanner *s, struct btype *btype,
 	int                       i;
 	int                       ret = 0;
 	struct m0_be_emap_key    *ek;
-	struct m0_be_emap_rec    *ev;
 	struct m0_fid             gob_id;
 
 	for (i = 0; i < node->bt_num_active_key; i++) {
@@ -1258,13 +1264,12 @@ static int emap_proc(struct scanner *s, struct btype *btype,
 
 		ret = emap_kv_get(s, &node->bt_kv_arr[i],
 				  &ea->emap_key, &ea->emap_val);
-		ek = ea->emap_key.b_addr;
-		ev = ea->emap_val.b_addr;
-
-		emap_to_gob_convert(&ek->ek_prefix, &gob_id);
-		printf("EMAP {KEY PREFIX = "U128X_F", REC VALUE = %"PRIx64"} -> GOB = "FID_F"\n", U128_P(&ek->ek_prefix), ev->er_value, FID_P(&gob_id));
 		if (ret != 0) {
-			M0_LOG(M0_ERROR, "Error in COB ID ");
+			if (s->s_print_invalid_oids) {
+				ek = ea->emap_key.b_addr;
+				emap_to_gob_convert(&ek->ek_prefix, &gob_id);
+				M0_LOG(M0_ERROR, "Found corrupted EMAP entry for GOB "FID_F, FID_P(&gob_id));
+			}
 			btree_bad_kv_count_update(node->bt_backlink.bli_type, 1);
 			m0_free(ea);
 			continue;
@@ -2484,7 +2489,6 @@ static int cob_proc(struct scanner *s, struct btype *b,
 	int                          rc;
 	struct m0_be_btree_backlink *bb  = &node->bt_backlink;
 	struct m0_cob_nskey         *nskey;
-	struct m0_cob_nsrec         *nsrec;
 
 	M0_PRE(bb->bli_type == M0_BBT_COB_NAMESPACE);
 
@@ -2502,10 +2506,6 @@ static int cob_proc(struct scanner *s, struct btype *b,
 			continue;
 		}
 
-		nskey = ca->coa_key.b_addr;
-		nsrec = ca->coa_val.b_addr;
-		printf("COB KEY cnk_pfid = "FID_F"\n", FID_P(&nskey->cnk_pfid));
-		printf("COB REC cnr_fid = "FID_F"\n", FID_P(&nsrec->cnr_fid));
 		if ((format_header_verify(ca->coa_val.b_addr,
 					  M0_FORMAT_TYPE_COB_NSREC) == 0) &&
 		    (m0_format_footer_verify(ca->coa_valdata, false) == 0))
@@ -2518,7 +2518,7 @@ static int cob_proc(struct scanner *s, struct btype *b,
 		else {
 			if (s->s_print_invalid_oids) {
 				nskey = ca->coa_key.b_addr;
-				M0_LOG(M0_ERROR, "Found corrupted OID " FID_F,
+				M0_LOG(M0_ERROR, "Found corrupted COB OID " FID_F,
 				       FID_P(&nskey->cnk_pfid));
 			}
 
