@@ -205,7 +205,6 @@ void m0_be_ut_tx_bulk_usecase(void)
 		.tbc_q_cfg                 = {
 			.bqc_q_size_max       = BE_UT_TX_BULK_Q_SIZE_MAX,
 			.bqc_producers_nr_max = 1,
-			.bqc_consumers_nr_max = BE_UT_TX_BULK_WORKERS,
 		},
 		.tbc_workers_nr            = BE_UT_TX_BULK_WORKERS,
 		.tbc_partitions_nr         = 1,
@@ -396,7 +395,6 @@ static void be_ut_tx_bulk_state_test_run(struct be_ut_tx_bulk_state  *tbs,
 		.tbc_q_cfg                 = {
 			.bqc_q_size_max       = BE_UT_TX_BULK_Q_SIZE_MAX,
 			.bqc_producers_nr_max = 1,
-			.bqc_consumers_nr_max = BE_UT_TX_BULK_WORKERS,
 		},
 		.tbc_workers_nr            = BE_UT_TX_BULK_WORKERS,
 		.tbc_partitions_nr         = 1,

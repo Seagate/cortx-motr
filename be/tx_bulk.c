@@ -147,6 +147,11 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 	M0_PRE(tb_cfg->tbc_partitions_nr <= tb_cfg->tbc_workers_nr);
 	M0_PRE(tb_cfg->tbc_work_items_per_tx_max > 0);
 	M0_PRE(tb_cfg->tbc_q_cfg.bqc_item_length == 0);
+	/*
+	 * Consumers for the queues are workers, so this value will be set by
+	 * tx_bulk for each queue separately.
+	 */
+	M0_PRE(tb_cfg->tbc_q_cfg.bqc_consumers_nr_max == 0);
 
 	tb->btb_cfg = *tb_cfg;
 	tb->btb_tx_open_failed = false;
@@ -163,6 +168,7 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 	M0_ALLOC_ARR(tb->btb_q, tb->btb_cfg.tbc_partitions_nr);
 	M0_ASSERT(tb->btb_q != NULL);
 	tb->btb_cfg.tbc_q_cfg.bqc_item_length = sizeof(struct be_tx_bulk_item);
+	tb->btb_cfg.tbc_q_cfg.bqc_consumers_nr_max = tb->btb_cfg.tbc_workers_nr;
 	for (i = 0; i < tb_cfg->tbc_partitions_nr; ++i) {
 		rc = m0_be_queue_init(&tb->btb_q[i], &tb->btb_cfg.tbc_q_cfg);
 		if (rc != 0)
