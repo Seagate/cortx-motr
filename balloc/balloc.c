@@ -816,7 +816,6 @@ static int balloc_groups_write(struct m0_balloc *bal)
 		.tbc_q_cfg                 = {
 			.bqc_q_size_max       = 0x100,
 			.bqc_producers_nr_max = 1,
-			.bqc_consumers_nr_max = 0x100,
 		},
 		.tbc_workers_nr            = 0x40,
 		.tbc_partitions_nr         = 1,
