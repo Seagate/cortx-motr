@@ -24,6 +24,7 @@
 /**
  * @addtogroup be
  *
+ * Worker SM
  * @verbatim
  *  m0_be_tx_bulk_run()
  *   |  - m0_be_op_active(tb->btb_op)
@@ -143,7 +144,10 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 
 	M0_PRE(M0_IS0(tb));
 	M0_PRE(tb_cfg->tbc_partitions_nr > 0);
-	/* Can't have more partitions that workers. For now. */
+	/*
+	 * Can't have more partitions that workers because each worker handles
+	 * only one partition.
+	 */
 	M0_PRE(tb_cfg->tbc_partitions_nr <= tb_cfg->tbc_workers_nr);
 	M0_PRE(tb_cfg->tbc_work_items_per_tx_max > 0);
 	M0_PRE(tb_cfg->tbc_q_cfg.bqc_item_length == 0);
