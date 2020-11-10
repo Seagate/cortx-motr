@@ -1551,8 +1551,7 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 
 					if (off_info.oi_act_added[p] >
 					    off_info.oi_act_done[p]) {
-						if ((winfo->woi_act_done[p] > 0) &&
-						    (offset > winfo->woi_offset[p]))
+						if (offset > winfo->woi_offset[p])
 							offset = winfo->woi_offset[p];
 					} else {
 						if (max_offset < winfo->woi_offset[p])
