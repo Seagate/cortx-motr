@@ -1292,6 +1292,8 @@ M0_INTERNAL void m0_fom_locality_inc(struct m0_fom *fom)
 	uint64_t                cnt;
 
 	M0_ASSERT(key != 0);
+	M0_ASSERT(m0_reqh_service_bob_check(fom->fo_service));
+
 	cnt = (uint64_t)m0_locality_lockers_get(&loc->fl_locality, key);
 	M0_CNT_INC(cnt);
 	M0_CNT_INC(loc->fl_foms);

@@ -473,6 +473,8 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 
 	M0_ASSERT(svc->rs_ops != NULL);
 	svc_st = m0_reqh_service_state_get(svc);
+	if (svc_st == M0_RST_STOPPED)
+		return M0_ERR(-ESHUTDOWN);
 
 	switch (rh_st) {
 	case M0_REQH_ST_NORMAL:

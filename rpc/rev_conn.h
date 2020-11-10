@@ -37,7 +37,7 @@
  */
 
 enum {
-	M0_REV_CONN_TIMEOUT            = 5,
+	M0_REV_CONN_TIMEOUT            = 10,
 	M0_REV_CONN_MAX_RPCS_IN_FLIGHT = 1,
 };
 
