@@ -453,6 +453,10 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	if (svc == NULL)
 		return M0_ERR(-ECONNREFUSED);
 
+	svc_st = m0_reqh_service_state_get(svc);
+	if (svc_st == M0_RST_STOPPED)
+		return M0_ERR(-ESHUTDOWN);
+
 	rh_st = m0_reqh_state_get(reqh);
 	if (rh_st == M0_REQH_ST_INIT) {
 		/*
@@ -472,9 +476,6 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 		return M0_ERR(-ESHUTDOWN);
 
 	M0_ASSERT(svc->rs_ops != NULL);
-	svc_st = m0_reqh_service_state_get(svc);
-	if (svc_st == M0_RST_STOPPED)
-		return M0_ERR(-ESHUTDOWN);
 
 	switch (rh_st) {
 	case M0_REQH_ST_NORMAL:
