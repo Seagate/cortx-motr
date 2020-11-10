@@ -784,7 +784,7 @@ static void be_ut_tx_bulk_parallel_thread(void *_param)
 	m0_free(tb_cfg);
 }
 
-void m0_be_ut_tx_bulk_parallel_1_51(void)
+void m0_be_ut_tx_bulk_parallel_1_15(void)
 {
 	struct be_ut_tx_bulk_parallel_thread_param *params;
 	struct be_ut_tx_bulk_parallel_work_item    *wi;
