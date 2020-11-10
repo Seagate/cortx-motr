@@ -77,8 +77,10 @@ conditions, *etc*.
 Analysis (ANALYSIS)
 -------------------
 
-The modification is analysed in terms of the Project software structure. An
-analysis produces:
+The modification is analysed in terms of the Project software
+structure. Possible implementations are considered and documented. Prototypes
+are created and experiments are ran to select the implementation strategy to
+follow. An analysis produces:
 
 * a list of software components that have to be changed,
 * a high level description of changes, their intent, scope and interaction.
