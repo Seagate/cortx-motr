@@ -525,9 +525,9 @@ static void disallowed_fop_free(struct m0_fom_simple *sfom)
 	m0_free(container_of(sfom, struct disallowed_fop_reply, ffr_sfom));
 }
 
-static void fop_disallowed(struct m0_reqh *reqh,
-			   struct m0_fop  *req_fop,
-			   int             rc)
+M0_INTERNAL void m0_fop_disallowed(struct m0_reqh *reqh,
+			           struct m0_fop  *req_fop,
+			           int             rc)
 {
 	struct disallowed_fop_reply *reply;
 
@@ -569,7 +569,7 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 			    m0_reqh_service_find(rst, reqh) == NULL)
 				return M0_ERR_INFO(-ESHUTDOWN,
 						   "Service shutdown.");
-			fop_disallowed(reqh, fop, M0_ERR(rc));
+			m0_fop_disallowed(reqh, fop, M0_ERR(rc));
 		}
 		/*
 		 * Note :

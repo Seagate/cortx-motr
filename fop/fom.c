@@ -50,6 +50,7 @@
 #include "sm/sm.h"
 #include "rpc/rpc_machine.h"
 #include "rpc/rpc_opcodes.h"
+#include "rpc/item_internal.h"
 #include "fdmi/fol_fdmi_src.h"
 #include "motr/iem.h"
 
@@ -501,11 +502,26 @@ static void addb2_introduce(struct m0_fom *fom)
 
 static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_fom *fom = container_of(ast, struct m0_fom, fo_cb.fc_ast);
+	struct m0_fom  *fom = container_of(ast, struct m0_fom, fo_cb.fc_ast);
+	struct m0_fop  *fop = fom->fo_fop;
+	struct m0_reqh *reqh;
 
 	M0_PRE(m0_fom_invariant(fom));
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_INIT);
 
+	reqh = fom->fo_service->rs_reqh;
+	if (fop != NULL && m0_rpc_item_is_request(&fop->f_item)) {
+		m0_rwlock_read_lock(&reqh->rh_rwlock);
+		if (m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED && 
+	    	    m0_reqh_service_state_get(fom->fo_service) ==
+		    M0_RST_STOPPED) {
+			m0_rwlock_read_unlock(&reqh->rh_rwlock);
+			m0_fop_disallowed(reqh, fop, M0_ERR(-ESHUTDOWN));
+			fom->fo_ops->fo_fini(fom);
+			return;
+		}
+		m0_rwlock_read_unlock(&reqh->rh_rwlock);
+	}
 	addb2_introduce(fom);
 	m0_fom_locality_inc(fom);
 	fom_ready(fom);
