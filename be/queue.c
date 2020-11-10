@@ -70,7 +70,7 @@ M0_TL_DESCR_DEFINE(bqop, "m0_be_queue::bq_op_*[]", static,
 M0_TL_DEFINE(bqop, static, struct be_queue_wait_op);
 
 
-static uint64_t be_queue_qitems_nr(struct m0_be_queue *bq)
+static uint64_t bq_queue_items_max(struct m0_be_queue *bq)
 {
 	return bq->bq_cfg.bqc_q_size_max + bq->bq_cfg.bqc_producers_nr_max;
 }
@@ -78,7 +78,7 @@ static uint64_t be_queue_qitems_nr(struct m0_be_queue *bq)
 static struct be_queue_item *be_queue_qitem(struct m0_be_queue *bq,
 					    uint64_t            index)
 {
-	M0_PRE(index < be_queue_qitems_nr(bq));
+	M0_PRE(index < bq_queue_items_max(bq));
 	return (struct be_queue_item *)
 		(bq->bq_qitems + index *
 		 (sizeof(struct be_queue_item) + bq->bq_cfg.bqc_item_length));
@@ -111,7 +111,7 @@ M0_INTERNAL int m0_be_queue_init(struct m0_be_queue     *bq,
 	bq->bq_the_end = false;
 	bq->bq_enqueued = 0;
 	bq->bq_dequeued = 0;
-	M0_ALLOC_ARR(bq->bq_qitems, be_queue_qitems_nr(bq) *
+	M0_ALLOC_ARR(bq->bq_qitems, bq_queue_items_max(bq) *
 		     (sizeof(struct be_queue_item) + cfg->bqc_item_length));
 	M0_ALLOC_ARR(bq->bq_ops_put, bq->bq_cfg.bqc_producers_nr_max);
 	M0_ALLOC_ARR(bq->bq_ops_get, bq->bq_cfg.bqc_consumers_nr_max);
@@ -127,19 +127,19 @@ M0_INTERNAL int m0_be_queue_init(struct m0_be_queue     *bq,
 	bqop_tlist_init(&bq->bq_op_put_unused);
 	for (i = 0; i < bq->bq_cfg.bqc_producers_nr_max; ++i) {
 		bqop_tlink_init_at_tail(&bq->bq_ops_put[i],
-					 &bq->bq_op_put_unused);
+		                        &bq->bq_op_put_unused);
 	}
 	bqop_tlist_init(&bq->bq_op_put);
 	bqop_tlist_init(&bq->bq_op_get_unused);
 	for (i = 0; i < bq->bq_cfg.bqc_consumers_nr_max; ++i) {
 		bqop_tlink_init_at_tail(&bq->bq_ops_get[i],
-					 &bq->bq_op_get_unused);
+		                        &bq->bq_op_get_unused);
 	}
 	bqop_tlist_init(&bq->bq_op_get);
 	bqq_tlist_init(&bq->bq_q_unused);
-	for (i = 0; i < be_queue_qitems_nr(bq); ++i) {
+	for (i = 0; i < bq_queue_items_max(bq); ++i) {
 		bqq_tlink_init_at_tail(be_queue_qitem(bq, i),
-				       &bq->bq_q_unused);
+		                       &bq->bq_q_unused);
 	}
 	bqq_tlist_init(&bq->bq_q);
 	return M0_RC(0);
@@ -147,16 +147,21 @@ M0_INTERNAL int m0_be_queue_init(struct m0_be_queue     *bq,
 
 M0_INTERNAL void m0_be_queue_fini(struct m0_be_queue *bq)
 {
-	struct be_queue_wait_op  *bwo;
-	struct be_queue_item     *bqi;
-	uint64_t                i;
+	struct be_queue_wait_op *bwo;
+	struct be_queue_item    *bqi;
+	uint64_t                 i;
 
 	M0_ENTRY("bq="BEQ_F, BEQ_P(bq));
 	M0_ASSERT_INFO(bq->bq_enqueued == bq->bq_dequeued,
 	               "bq="BEQ_F, BEQ_P(bq));
 
 	m0_tl_for(bqq, &bq->bq_q, bqi) {
-		M0_LOG(M0_ERROR, "there is an item in the queue"); /* XXX */
+		/*
+		 * M0_LOG() couldn't print the item buffer at once,
+		 * unfortunately. So let's just at least show the number of
+		 * items by printing every item.
+		 */
+		M0_LOG(M0_ERROR, "there is an item in the queue");
 	} m0_tl_endfor;
 	bqq_tlist_fini(&bq->bq_q);
 	m0_tl_for(bqop, &bq->bq_op_get, bwo) {
@@ -172,7 +177,7 @@ M0_INTERNAL void m0_be_queue_fini(struct m0_be_queue *bq)
 	for (i = 0; i < bq->bq_cfg.bqc_producers_nr_max; ++i)
 		bqop_tlink_del_fini(&bq->bq_ops_put[i]);
 	bqop_tlist_fini(&bq->bq_op_put_unused);
-	for (i = 0; i < be_queue_qitems_nr(bq); ++i)
+	for (i = 0; i < bq_queue_items_max(bq); ++i)
 		bqq_tlink_del_fini(be_queue_qitem(bq, i));
 	bqq_tlist_fini(&bq->bq_q_unused);
 	m0_mutex_fini(&bq->bq_lock);
@@ -192,7 +197,7 @@ M0_INTERNAL void m0_be_queue_unlock(struct m0_be_queue *bq)
 	m0_mutex_unlock(&bq->bq_lock);
 }
 
-static uint64_t be_queue_q_size(struct m0_be_queue *bq)
+static uint64_t be_queue_items_nr(struct m0_be_queue *bq)
 {
 	M0_PRE(m0_mutex_is_locked(&bq->bq_lock));
 	M0_ASSERT_INFO(bq->bq_enqueued >= bq->bq_dequeued,
@@ -202,12 +207,12 @@ static uint64_t be_queue_q_size(struct m0_be_queue *bq)
 
 static bool be_queue_is_empty(struct m0_be_queue *bq)
 {
-	return be_queue_q_size(bq) == 0;
+	return be_queue_items_nr(bq) == 0;
 }
 
 static bool be_queue_is_full(struct m0_be_queue *bq)
 {
-	return be_queue_q_size(bq) >= bq->bq_cfg.bqc_q_size_max;
+	return be_queue_items_nr(bq) >= bq->bq_cfg.bqc_q_size_max;
 }
 
 static struct be_queue_item *be_queue_q_put(struct m0_be_queue  *bq,
@@ -221,7 +226,7 @@ static struct be_queue_item *be_queue_q_put(struct m0_be_queue  *bq,
 	m0_buf_memcpy(&BE_QUEUE_ITEM2BUF(bq, bqi), data);
 	bqq_tlist_move_tail(&bq->bq_q, bqi);
 	++bq->bq_enqueued;
-	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
+	M0_LOG(M0_DEBUG, "bq="BEQ_F, BEQ_P(bq));
 	return bqi;
 }
 
@@ -234,7 +239,7 @@ static void be_queue_q_peek(struct m0_be_queue *bq, struct m0_buf *data)
 
 	bqi = bqq_tlist_head(&bq->bq_q);
 	m0_buf_memcpy(data, &BE_QUEUE_ITEM2BUF(bq, bqi));
-	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
+	M0_LOG(M0_DEBUG, "bq="BEQ_F, BEQ_P(bq));
 }
 
 static void be_queue_q_get(struct m0_be_queue *bq,
@@ -251,7 +256,7 @@ static void be_queue_q_get(struct m0_be_queue *bq,
 	*successful = true;
 	bqq_tlist_move(&bq->bq_q_unused, bqi);
 	++bq->bq_dequeued;
-	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
+	M0_LOG(M0_DEBUG, "bq="BEQ_F, BEQ_P(bq));
 }
 
 static void be_queue_op_put(struct m0_be_queue   *bq,
@@ -264,10 +269,13 @@ static void be_queue_op_put(struct m0_be_queue   *bq,
 	M0_PRE(!bqop_tlist_is_empty(&bq->bq_op_put_unused));
 
 	bwo = bqop_tlist_head(&bq->bq_op_put_unused);
+	M0_ASSERT_INFO(bwo != NULL,
+	               "Too many producers: bqc_producers_nr_max=%"PRIu64,
+	               bq->bq_cfg.bqc_producers_nr_max);
 	bwo->bbo_bqi = bqi;
 	bwo->bbo_op  = op;
 	bqop_tlist_move_tail(&bq->bq_op_put, bwo);
-	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
+	M0_LOG(M0_DEBUG, "bq="BEQ_F, BEQ_P(bq));
 }
 
 static void be_queue_op_put_done(struct m0_be_queue *bq)
@@ -280,7 +288,7 @@ static void be_queue_op_put_done(struct m0_be_queue *bq)
 	bwo = bqop_tlist_head(&bq->bq_op_put);
 	m0_be_op_done(bwo->bbo_op);
 	bqop_tlist_move(&bq->bq_op_put_unused, bwo);
-	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
+	M0_LOG(M0_DEBUG, "bq="BEQ_F, BEQ_P(bq));
 }
 
 static bool be_queue_op_put_is_waiting(struct m0_be_queue *bq)
@@ -299,11 +307,14 @@ static void be_queue_op_get(struct m0_be_queue *bq,
 	M0_PRE(!bqop_tlist_is_empty(&bq->bq_op_get_unused));
 
 	bwo = bqop_tlist_head(&bq->bq_op_get_unused);
+	M0_ASSERT_INFO(bwo != NULL,
+	               "Too many consumers: bqc_consumers_nr_max=%"PRIu64,
+	               bq->bq_cfg.bqc_consumers_nr_max);
 	bwo->bbo_data       = *data;
 	bwo->bbo_successful = successful;
 	bwo->bbo_op         = op;
 	bqop_tlist_move_tail(&bq->bq_op_get, bwo);
-	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
+	M0_LOG(M0_DEBUG, "bq="BEQ_F, BEQ_P(bq));
 }
 
 static void be_queue_op_get_done(struct m0_be_queue *bq, bool success)
@@ -360,6 +371,7 @@ M0_INTERNAL void m0_be_queue_put(struct m0_be_queue  *bq,
 		be_queue_op_get_done(bq, true);
 
 	M0_POST(be_queue_invariant(bq));
+	M0_LEAVE("bq="BEQ_F, BEQ_P(bq));
 }
 
 M0_INTERNAL void m0_be_queue_end(struct m0_be_queue *bq)

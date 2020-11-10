@@ -24,6 +24,41 @@
 /**
  * @addtogroup be
  *
+ * @verbatim
+ *  m0_be_tx_bulk_run()
+ *   |  - m0_be_op_active(tb->btb_op)
+ *   v
+ *   \>------------------+
+ *                       |     +<---------------------------------------------<\
+ *                       v     v                                               ^
+ *    /<------- be_tx_bulk_queue_get_cb()                                      |
+ *    v                     |    - asynchronously get an item                  |
+ *    |                     |      with M0_BE_QUEUE_GET()                      |
+ *    |                     v                                                  |
+ *    |    /<--  be_tx_bulk_queue_get_done_cb()                                |
+ *    |    v                |     - m0_sm_ast_post() to get our of the locks   |
+ *    |    |                v                                                  |
+ *    |    |       be_tx_bulk_init_cb()                                        |
+ *    |    |                |     - get more items with M0_BE_QUEUE_PEEK() and |
+ *    |    |                |       M0_BE_QUEUE_GET() without blocking         |
+ *    |    |                |     - m0_be_tx_init()                            |
+ *    |    |                |     - m0_be_tx_prep()                            |
+ *    |    |                |     - m0_be_tx_open()                            |
+ *    |    |                v                                                  |
+ *    |    |     be_tx_bulk_close_cb()                                         |
+ *    |    |                |     - tbc_do() for the items                     |
+ *    |    |                |     - m0_be_tx_close()                           |
+ *    |    |                |                                                  |
+ *    |    |                v                                                  |
+ *    |    |       be_tx_bulk_gc_cb()                                          |
+ *    |    |                v     - tbc_done() for the items                   ^
+ *    |    |                \>------------------------------------------------>/
+ *    |    |
+ *    v    v
+ *  be_tx_bulk_finish_cb()
+ *          - m0_be_op_done(tb->btb_op)
+ *
+ * @endverbatim
  * @{
  */
 
