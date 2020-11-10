@@ -172,9 +172,8 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 		m0_mutex_fini(&tb->btb_lock);
 		return M0_ERR(rc);
 	}
-	/* XXX error handling */
 	M0_ALLOC_ARR(tb->btb_q, tb->btb_cfg.tbc_partitions_nr);
-	M0_ASSERT(tb->btb_q != NULL);
+	M0_ASSERT(tb->btb_q != NULL);   /* XXX handle allocation error */
 	tb->btb_cfg.tbc_q_cfg.bqc_item_length = sizeof(struct be_tx_bulk_item);
 	tb->btb_cfg.tbc_q_cfg.bqc_consumers_nr_max = tb->btb_cfg.tbc_workers_nr;
 	for (i = 0; i < tb_cfg->tbc_partitions_nr; ++i) {
@@ -225,7 +224,7 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 		                      worker, M0_BOS_DONE);
 		M0_ALLOC_ARR(worker->tbw_item,
 			     tb->btb_cfg.tbc_work_items_per_tx_max);
-		M0_ASSERT(worker->tbw_item != NULL);  /* XXX */
+		M0_ASSERT(worker->tbw_item != NULL);  /* XXX handle error */
 	}
 	if (tb->btb_cfg.tbc_partitions_nr <= localities_nr) {
 		/*
