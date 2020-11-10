@@ -445,9 +445,6 @@ m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 M0_INTERNAL struct m0_confc *m0_reqh2confc(struct m0_reqh *reqh);
 M0_INTERNAL struct m0_fid *m0_reqh2profile(struct m0_reqh *reqh);
 
-M0_INTERNAL void m0_fop_disallowed(struct m0_reqh *reqh,
-				   struct m0_fop  *req_fop,
-				   int             rc);
 /** @} endgroup reqh */
 
 /* __MOTR_REQH_REQH_H__ */
