@@ -36,7 +36,7 @@
  *    |                     |      with M0_BE_QUEUE_GET()                      |
  *    |                     v                                                  |
  *    |    /<--  be_tx_bulk_queue_get_done_cb()                                |
- *    |    v                |     - m0_sm_ast_post() to get our of the locks   |
+ *    |    v                |     - m0_sm_ast_post() to get out of the locks   |
  *    |    |                v                                                  |
  *    |    |       be_tx_bulk_init_cb()                                        |
  *    |    |                |     - get more items with M0_BE_QUEUE_PEEK() and |
