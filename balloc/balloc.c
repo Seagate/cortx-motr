@@ -789,7 +789,6 @@ static void balloc_zone_init(struct m0_balloc_zone_param *zone, uint64_t type,
 static int balloc_groups_write(struct m0_balloc *bal)
 {
 	struct balloc_groups_write_cfg  bgs;
-	struct m0_be_op                 op = {};
 	struct m0_balloc_super_block   *sb = &bal->cb_sb;
 	struct m0_be_tx_bulk_cfg        tb_cfg;
 	struct m0_be_tx_bulk            tb = {};
@@ -828,11 +827,10 @@ static int balloc_groups_write(struct m0_balloc *bal)
 
 	rc = m0_be_tx_bulk_init(&tb, &tb_cfg);
 	if (rc == 0) {
-		m0_be_op_init(&op);
-		m0_be_tx_bulk_run(&tb, &op);
-		balloc_group_work_put(bal, &tb, &bgs);
-		m0_be_op_wait(&op);
-		m0_be_op_fini(&op);
+		M0_BE_OP_SYNC(op, ({
+			m0_be_tx_bulk_run(&tb, &op);
+			balloc_group_work_put(bal, &tb, &bgs);
+		}));
 		rc = m0_be_tx_bulk_status(&tb);
 		m0_be_tx_bulk_fini(&tb);
 	}
