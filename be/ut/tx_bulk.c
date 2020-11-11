@@ -42,25 +42,89 @@
 
 #include "be/ut/helper.h"       /* m0_be_ut_backend_init */
 #include "be/op.h"              /* m0_be_op */
+#include "be/queue.h"           /* m0_be_queue */
 
 #include "ut/ut.h"              /* M0_UT_ASSERT */
+#include "ut/threads.h"         /* m0_ut_threads_start */
 
 enum {
 	BE_UT_TX_BULK_Q_SIZE_MAX     = 0x100,
 	BE_UT_TX_BULK_SEG_SIZE       = 1UL << 26,
 	BE_UT_TX_BULK_TX_SIZE_MAX_BP = 2000,
+	BE_UT_TX_BULK_WORKERS        = 0x40,
+};
+
+struct be_ut_tx_bulk_be_ctx {
+	struct m0_be_ut_backend *tbbx_ut_be;
+	struct m0_be_ut_seg     *tbbx_ut_seg;
 };
 
 struct be_ut_tx_bulk_be_cfg {
 	size_t tbbc_tx_group_nr;
+	size_t tbbc_tx_nr_max;
 };
 
-static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg    *tb_cfg,
-				   struct be_ut_tx_bulk_be_cfg *be_cfg,
-                                   void                       (*test_prepare)
+static void be_ut_tx_bulk_test_init(struct be_ut_tx_bulk_be_ctx **be_ctx_out,
+                                    struct be_ut_tx_bulk_be_cfg  *be_cfg,
+                                    void                        (*test_prepare)
 					(struct m0_be_ut_backend *ut_be,
 					 struct m0_be_ut_seg     *ut_seg,
 					 void                    *ptr),
+				    void                         *ptr)
+{
+	struct be_ut_tx_bulk_be_ctx *be_ctx;
+	struct m0_be_domain_cfg      cfg = {};
+	int                          rc;
+
+	M0_ALLOC_PTR(be_ctx);
+	M0_UT_ASSERT(be_ctx != NULL);
+
+	M0_ALLOC_PTR(be_ctx->tbbx_ut_be);
+	M0_UT_ASSERT(be_ctx->tbbx_ut_be != NULL);
+	M0_ALLOC_PTR(be_ctx->tbbx_ut_seg);
+	M0_UT_ASSERT(be_ctx->tbbx_ut_seg != NULL);
+	/*
+	 * Decrease max group and tx size to reduce seg and log I/O size needed
+	 * for tx_bulk UTs.
+	 */
+	m0_be_ut_backend_cfg_default(&cfg);
+	if (be_cfg != NULL) {
+		if (be_cfg->tbbc_tx_group_nr != 0) {
+			cfg.bc_engine.bec_group_nr = be_cfg->tbbc_tx_group_nr;
+			cfg.bc_pd_cfg.bpdc_seg_io_nr =
+				max64u(cfg.bc_pd_cfg.bpdc_seg_io_nr,
+				       be_cfg->tbbc_tx_group_nr);
+		}
+		if (be_cfg->tbbc_tx_nr_max != 0) {
+			cfg.bc_engine.bec_group_cfg.tgc_tx_nr_max =
+				be_cfg->tbbc_tx_nr_max;
+		}
+	}
+	m0_be_tx_credit_mul_bp(&cfg.bc_engine.bec_tx_size_max,
+	                       BE_UT_TX_BULK_TX_SIZE_MAX_BP);
+	m0_be_tx_credit_mul_bp(&cfg.bc_engine.bec_group_cfg.tgc_size_max,
+	                       BE_UT_TX_BULK_TX_SIZE_MAX_BP);
+	rc = m0_be_ut_backend_init_cfg(be_ctx->tbbx_ut_be, &cfg, true);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_ut_seg_init(be_ctx->tbbx_ut_seg, be_ctx->tbbx_ut_be,
+			  BE_UT_TX_BULK_SEG_SIZE);
+
+	test_prepare(be_ctx->tbbx_ut_be, be_ctx->tbbx_ut_seg, ptr);
+
+	*be_ctx_out = be_ctx;
+}
+
+static void be_ut_tx_bulk_test_fini(struct be_ut_tx_bulk_be_ctx *be_ctx)
+{
+	m0_be_ut_seg_fini(be_ctx->tbbx_ut_seg);
+	m0_free(be_ctx->tbbx_ut_seg);
+	m0_be_ut_backend_fini(be_ctx->tbbx_ut_be);
+	m0_free(be_ctx->tbbx_ut_be);
+	m0_free(be_ctx);
+}
+
+static void be_ut_tx_bulk_test_run(struct be_ut_tx_bulk_be_ctx *be_ctx,
+                                   struct m0_be_tx_bulk_cfg    *tb_cfg,
 				   void                       (*test_work_put)
 				        (struct m0_be_tx_bulk *tb,
                                          bool                  success,
@@ -68,45 +132,17 @@ static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg    *tb_cfg,
 				   void                        *ptr,
 				   bool                         success)
 {
-	struct m0_be_ut_backend *ut_be;
-	struct m0_be_domain_cfg  cfg = {};
-	struct m0_be_tx_bulk    *tb;
-	struct m0_be_ut_seg     *ut_seg;
-	struct m0_be_op         *op;
-	int                      rc;
+	struct m0_be_tx_bulk *tb;
+	struct m0_be_op      *op;
+	int                   rc;
 
-	M0_ALLOC_PTR(ut_be);
-	M0_UT_ASSERT(ut_be != NULL);
 	M0_ALLOC_PTR(tb);
 	M0_UT_ASSERT(tb != NULL);
-	M0_ALLOC_PTR(ut_seg);
-	M0_UT_ASSERT(ut_seg != NULL);
 
-	/*
-	 * Decrease max group and tx size to reduce seg and log I/O size needed
-	 * for tx_bulk UTs.
-	 */
-	m0_be_ut_backend_cfg_default(&cfg);
-	if (be_cfg != NULL && be_cfg->tbbc_tx_group_nr != 0) {
-		cfg.bc_engine.bec_group_nr = be_cfg->tbbc_tx_group_nr;
-		cfg.bc_pd_cfg.bpdc_seg_io_nr =
-			max64u(cfg.bc_pd_cfg.bpdc_seg_io_nr,
-			       be_cfg->tbbc_tx_group_nr);
-	}
-	m0_be_tx_credit_mul_bp(&cfg.bc_engine.bec_tx_size_max,
-	                       BE_UT_TX_BULK_TX_SIZE_MAX_BP);
-	m0_be_tx_credit_mul_bp(&cfg.bc_engine.bec_group_cfg.tgc_size_max,
-	                       BE_UT_TX_BULK_TX_SIZE_MAX_BP);
-	rc = m0_be_ut_backend_init_cfg(ut_be, &cfg, true);
-	M0_UT_ASSERT(rc == 0);
-	m0_be_ut_seg_init(ut_seg, ut_be, BE_UT_TX_BULK_SEG_SIZE);
-
-	test_prepare(ut_be, ut_seg, ptr);
-
-	tb_cfg->tbc_dom = &ut_be->but_dom;
+	tb_cfg->tbc_dom = &be_ctx->tbbx_ut_be->but_dom;
 	rc = m0_be_tx_bulk_init(tb, tb_cfg);
-
 	M0_UT_ASSERT(rc == 0);
+
 	M0_ALLOC_PTR(op);
 	M0_UT_ASSERT(op != NULL);
 	m0_be_op_init(op);
@@ -122,12 +158,7 @@ static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg    *tb_cfg,
 	M0_UT_ASSERT(equi(rc == 0, success));
 	m0_be_tx_bulk_fini(tb);
 
-	m0_be_ut_seg_fini(ut_seg);
-	m0_be_ut_backend_fini(ut_be);
-
-	m0_free(ut_seg);
 	m0_free(tb);
-	m0_free(ut_be);
 }
 
 
@@ -200,25 +231,27 @@ static void be_ut_tx_bulk_usecase_test_prepare(struct m0_be_ut_backend *ut_be,
 void m0_be_ut_tx_bulk_usecase(void)
 {
 	struct be_ut_tx_bulk_usecase *bu;
+	struct be_ut_tx_bulk_be_ctx  *be_ctx;
 	struct m0_be_tx_bulk_cfg      tb_cfg = {
 		.tbc_q_cfg                 = {
 			.bqc_q_size_max       = BE_UT_TX_BULK_Q_SIZE_MAX,
 			.bqc_producers_nr_max = 1,
-			.bqc_consumers_nr_max = 0x100,  /* XXX */
 		},
-		.tbc_workers_nr            = 0x40, /* XXX */
-		.tbc_partitions_nr         = 1,    /* XXX */
+		.tbc_workers_nr            = BE_UT_TX_BULK_WORKERS,
+		.tbc_partitions_nr         = 1,
 		.tbc_work_items_per_tx_max = 3,
 		.tbc_do                    = &be_ut_tx_bulk_usecase_do,
 		.tbc_done                  = &be_ut_tx_bulk_usecase_done,
 	};
+
 	M0_ALLOC_PTR(bu);
 	M0_UT_ASSERT(bu != NULL);
 	tb_cfg.tbc_datum = bu;
-	be_ut_tx_bulk_test_run(&tb_cfg, NULL,
-			       &be_ut_tx_bulk_usecase_test_prepare,
-			       &be_ut_tx_bulk_usecase_work_put,
+	be_ut_tx_bulk_test_init(&be_ctx, NULL,
+	                        &be_ut_tx_bulk_usecase_test_prepare, bu);
+	be_ut_tx_bulk_test_run(be_ctx, &tb_cfg, &be_ut_tx_bulk_usecase_work_put,
 			       bu, true);
+	be_ut_tx_bulk_test_fini(be_ctx);
 	m0_free(bu);
 }
 
@@ -362,14 +395,14 @@ static void be_ut_tx_bulk_state_done(struct m0_be_tx_bulk *tb,
 	M0_UT_ASSERT(counter == 3);
 }
 
-static void be_ut_tx_bulk_test_prepare(struct m0_be_ut_backend *ut_be,
-                                       struct m0_be_ut_seg     *ut_seg,
-                                       void                    *ptr)
+static void be_ut_tx_bulk_state_test_prepare(struct m0_be_ut_backend *ut_be,
+                                             struct m0_be_ut_seg     *ut_seg,
+                                             void                    *ptr)
 {
 	struct be_ut_tx_bulk_state *tbs = ptr;
 	uint32_t                    i;
 
-	tbs->bbs_seg         = ut_seg->bus_seg;
+	tbs->bbs_seg = ut_seg->bus_seg;
 	m0_be_domain_tx_size_max(&ut_be->but_dom, &tbs->bbs_cred_max,
 				 &tbs->bbs_payload_max);
 	for (i = 0; i < tbs->bbs_buf_nr; ++i) {
@@ -391,14 +424,14 @@ static void be_ut_tx_bulk_state_test_run(struct be_ut_tx_bulk_state  *tbs,
 					 struct be_ut_tx_bulk_be_cfg *be_cfg,
                                          bool                         success)
 {
-	struct m0_be_tx_bulk_cfg tb_cfg = {
+	struct be_ut_tx_bulk_be_ctx *be_ctx;
+	struct m0_be_tx_bulk_cfg     tb_cfg = {
 		.tbc_q_cfg                 = {
 			.bqc_q_size_max       = BE_UT_TX_BULK_Q_SIZE_MAX,
 			.bqc_producers_nr_max = 1,
-			.bqc_consumers_nr_max = 0x100,  /* XXX */
 		},
-		.tbc_workers_nr            = 0x40, /* XXX */
-		.tbc_partitions_nr         = 1,    /* XXX */
+		.tbc_workers_nr            = BE_UT_TX_BULK_WORKERS,
+		.tbc_partitions_nr         = 1,
 		.tbc_work_items_per_tx_max = 1,
 		.tbc_do                    = &be_ut_tx_bulk_state_do,
 		.tbc_done                  = &be_ut_tx_bulk_state_done,
@@ -412,9 +445,11 @@ static void be_ut_tx_bulk_state_test_run(struct be_ut_tx_bulk_state  *tbs,
 	M0_ALLOC_ARR(tbs->bbs_callback_counter, tbs->bbs_nr_max);
 	M0_UT_ASSERT(tbs->bbs_callback_counter != NULL);
 
-	be_ut_tx_bulk_test_run(&tb_cfg, be_cfg, &be_ut_tx_bulk_test_prepare,
-	                       &be_ut_tx_bulk_state_work_put,
+	be_ut_tx_bulk_test_init(&be_ctx, NULL,
+	                        &be_ut_tx_bulk_state_test_prepare, tbs);
+	be_ut_tx_bulk_test_run(be_ctx, &tb_cfg, &be_ut_tx_bulk_state_work_put,
 			       tbs, success);
+	be_ut_tx_bulk_test_fini(be_ctx);
 
 	M0_UT_ASSERT(ergo(success, m0_forall(i, tbs->bbs_nr_max,
 		  m0_atomic64_get(&tbs->bbs_callback_counter[i]) == 3)));
@@ -591,6 +626,257 @@ void m0_be_ut_tx_bulk_large_cred(void)
 		.bbs_payload_use     = 0,
 		.bbs_payload_use_bp  = 2,
 	}), NULL, true);
+}
+
+enum {
+	BE_UT_TX_BULK_PARALLEL_THREADS_NR          = 0x10,
+	BE_UT_TX_BULK_PARALLEL_QUEUE_SIZE_MAX      = 4,
+	BE_UT_TX_BULK_PARALLEL_PARTITIONS_NR_MAX   = 15,
+	BE_UT_TX_BULK_PARALLEL_WORKERS_NR_MAX      = 15,
+	BE_UT_TX_BULK_PARALLEL_ALLOC               = 0x10000,
+	BE_UT_TX_BULK_PARALLEL_Q_SIZE_MAX          = 0x10,
+	BE_UT_TX_BULK_PARALLEL_ITEMS_PER_PARTITION = 31,
+	BE_UT_TX_BULK_PARALLEL_ITEMS_PER_TX_MAX    = 3,
+};
+
+struct be_ut_tx_bulk_parallel_ctx {
+	struct be_ut_tx_bulk_be_ctx *bubc_be_ctx;
+	void                        *bubc_start;
+	struct m0_atomic64           bubc_counter;
+};
+
+struct be_ut_tx_bulk_parallel_thread_param {
+	struct m0_be_queue *bubp_bq;
+};
+
+struct be_ut_tx_bulk_parallel_work_item {
+	struct be_ut_tx_bulk_parallel_ctx *bubw_ctx;
+	uint64_t                           bubw_q_size_max;
+	uint64_t                           bubw_partitions_nr;
+	uint64_t                           bubw_workers_nr;
+	uint64_t                           bubw_work_items_per_partition;
+	uint64_t                           bubw_work_items_per_tx_max;
+	struct m0_atomic64                 bubw_do_calls;
+	struct m0_atomic64                 bubw_done_calls;
+};
+
+static void be_ut_tx_bulk_parallel_test_prepare(struct m0_be_ut_backend *ut_be,
+                                                struct m0_be_ut_seg     *ut_seg,
+                                                void                    *ptr)
+{
+	struct be_ut_tx_bulk_parallel_ctx *ctx = ptr;
+
+	m0_be_ut_alloc(ut_be, ut_seg, &ctx->bubc_start,
+		       BE_UT_TX_BULK_PARALLEL_ALLOC);
+	M0_UT_ASSERT(ctx->bubc_start != NULL);
+	m0_atomic64_set(&ctx->bubc_counter, 0);
+}
+
+static void be_ut_tx_bulk_parallel_work_put(struct m0_be_tx_bulk *tb,
+                                            bool                  success,
+                                            void                 *ptr)
+{
+	struct be_ut_tx_bulk_parallel_work_item *wi = ptr;
+	uint64_t                                 i;
+	uint64_t                                 j;
+	void                                    *addr;
+	bool                                     successful;
+
+	for (i = 0; i < wi->bubw_work_items_per_partition; ++i) {
+		for (j = 0; j < wi->bubw_partitions_nr; ++j) {
+			addr = wi->bubw_ctx->bubc_start +
+			       (m0_atomic64_add_return(
+					&wi->bubw_ctx->bubc_counter, 1) %
+			        (BE_UT_TX_BULK_PARALLEL_ALLOC /
+				 sizeof(uint64_t)));
+			M0_BE_OP_SYNC(op, successful =
+			      m0_be_tx_bulk_put(tb, &op,
+			                        &M0_BE_TX_CREDIT_TYPE(uint64_t),
+			                        0, j, addr));
+			M0_UT_ASSERT(successful);
+		}
+	}
+	m0_be_tx_bulk_end(tb);
+}
+
+static void be_ut_tx_bulk_parallel_do(struct m0_be_tx_bulk *tb,
+                                      struct m0_be_tx      *tx,
+                                      struct m0_be_op      *op,
+                                      void                 *datum,
+                                      void                 *user,
+                                      uint64_t              worker_index,
+                                      uint64_t              partition)
+{
+	struct be_ut_tx_bulk_parallel_work_item *wi = datum;
+	uint64_t                                *value = user;
+
+	m0_be_op_active(op);
+	*value = (uint64_t)value;
+	M0_BE_TX_CAPTURE_PTR(wi->bubw_ctx->bubc_be_ctx->tbbx_ut_seg->bus_seg,
+			     tx, value);
+	m0_atomic64_inc(&wi->bubw_do_calls);
+	m0_be_op_done(op);
+}
+
+static void be_ut_tx_bulk_parallel_done(struct m0_be_tx_bulk *tb,
+                                        void                 *datum,
+                                        void                 *user,
+                                        uint64_t              worker_index,
+                                        uint64_t              partition)
+{
+	struct be_ut_tx_bulk_parallel_work_item *wi = datum;
+
+	m0_atomic64_inc(&wi->bubw_done_calls);
+}
+
+static void be_ut_tx_bulk_parallel_thread(void *_param)
+{
+	struct be_ut_tx_bulk_parallel_thread_param *param = _param;
+	struct be_ut_tx_bulk_parallel_work_item    *wi;
+	struct m0_be_tx_bulk_cfg                   *tb_cfg;
+	struct m0_be_op                            *op;
+	bool                                        successful;
+
+	M0_ALLOC_PTR(tb_cfg);
+	M0_UT_ASSERT(tb_cfg != NULL);
+	M0_ALLOC_PTR(op);
+	M0_UT_ASSERT(op != NULL);
+	m0_be_op_init(op);
+	M0_ALLOC_PTR(wi);
+	M0_UT_ASSERT(wi != NULL);
+	while (1) {
+		m0_be_queue_lock(param->bubp_bq);
+		M0_BE_QUEUE_GET(param->bubp_bq, op, wi, &successful);
+		m0_be_queue_unlock(param->bubp_bq);
+		m0_be_op_wait(op);
+		if (!successful) {
+			break;
+		}
+		m0_be_op_reset(op);
+		*tb_cfg = (struct m0_be_tx_bulk_cfg) {
+			.tbc_q_cfg                 = {
+				.bqc_q_size_max       = wi->bubw_q_size_max,
+				.bqc_producers_nr_max = 1,
+			},
+			.tbc_workers_nr            = wi->bubw_workers_nr,
+			.tbc_partitions_nr         = wi->bubw_partitions_nr,
+			.tbc_work_items_per_tx_max =
+				wi->bubw_work_items_per_tx_max,
+			.tbc_datum                 = wi,
+			.tbc_do                    = &be_ut_tx_bulk_parallel_do,
+			.tbc_done                  =
+				&be_ut_tx_bulk_parallel_done,
+		};
+		m0_atomic64_set(&wi->bubw_do_calls, 0);
+		m0_atomic64_set(&wi->bubw_done_calls, 0);
+		be_ut_tx_bulk_test_run(wi->bubw_ctx->bubc_be_ctx, tb_cfg,
+				       &be_ut_tx_bulk_parallel_work_put,
+				       wi, true);
+		M0_UT_ASSERT(m0_atomic64_get(&wi->bubw_do_calls) ==
+		             m0_atomic64_get(&wi->bubw_done_calls));
+		M0_UT_ASSERT(m0_atomic64_get(&wi->bubw_do_calls) ==
+		             wi->bubw_partitions_nr *
+			     wi->bubw_work_items_per_partition);
+	}
+	m0_free(wi);
+	m0_be_op_fini(op);
+	m0_free(op);
+	m0_free(tb_cfg);
+}
+
+void m0_be_ut_tx_bulk_parallel_1_15(void)
+{
+	struct be_ut_tx_bulk_parallel_thread_param *params;
+	struct be_ut_tx_bulk_parallel_work_item    *wi;
+	struct be_ut_tx_bulk_parallel_ctx          *ctx;
+	struct m0_ut_threads_descr                 *td;
+	struct m0_be_queue                         *bq;
+	struct m0_be_op                            *op;
+	uint64_t                                    partitions_nr;
+	uint64_t                                    workers_nr;
+	uint64_t                                    i;
+	int                                         rc;
+
+	M0_ALLOC_PTR(bq);
+	M0_UT_ASSERT(bq != NULL);
+	rc = m0_be_queue_init(bq, &(struct m0_be_queue_cfg){
+		.bqc_q_size_max       = BE_UT_TX_BULK_PARALLEL_QUEUE_SIZE_MAX,
+		.bqc_producers_nr_max = 1,
+		.bqc_consumers_nr_max = BE_UT_TX_BULK_PARALLEL_THREADS_NR,
+		.bqc_item_length      = sizeof(*wi),
+	});
+	M0_UT_ASSERT(rc == 0);
+
+	M0_ALLOC_PTR(ctx);
+	M0_UT_ASSERT(ctx != NULL);
+	be_ut_tx_bulk_test_init(&ctx->bubc_be_ctx,
+				&((struct be_ut_tx_bulk_be_cfg){
+				  .tbbc_tx_group_nr = 4,
+				  .tbbc_tx_nr_max = 32,
+				  }),
+	                        &be_ut_tx_bulk_parallel_test_prepare, ctx);
+
+	M0_ALLOC_ARR(params, BE_UT_TX_BULK_PARALLEL_THREADS_NR);
+	M0_UT_ASSERT(params != NULL);
+	for (i = 0; i < BE_UT_TX_BULK_PARALLEL_THREADS_NR; ++i) {
+		params[i] = (struct be_ut_tx_bulk_parallel_thread_param){
+			.bubp_bq = bq,
+		};
+	}
+
+	M0_ALLOC_PTR(td);
+	M0_UT_ASSERT(td != NULL);
+	td->utd_thread_func = &be_ut_tx_bulk_parallel_thread;
+	m0_ut_threads_start(td, BE_UT_TX_BULK_PARALLEL_THREADS_NR,
+			    params, sizeof(params[0]));
+
+	M0_ALLOC_PTR(op);
+	M0_UT_ASSERT(op != NULL);
+	m0_be_op_init(op);
+	M0_ALLOC_PTR(wi);
+	M0_UT_ASSERT(wi != NULL);
+	M0_CASSERT(BE_UT_TX_BULK_PARALLEL_PARTITIONS_NR_MAX <=
+	           BE_UT_TX_BULK_PARALLEL_WORKERS_NR_MAX);
+	for (partitions_nr = 1;
+	     partitions_nr <= BE_UT_TX_BULK_PARALLEL_PARTITIONS_NR_MAX;
+	     ++partitions_nr) {
+		for (workers_nr = partitions_nr;
+		     workers_nr <= BE_UT_TX_BULK_PARALLEL_WORKERS_NR_MAX;
+		     ++workers_nr) {
+			*wi = (struct be_ut_tx_bulk_parallel_work_item){
+				.bubw_ctx                      = ctx,
+				.bubw_q_size_max               =
+					BE_UT_TX_BULK_PARALLEL_Q_SIZE_MAX,
+				.bubw_partitions_nr            = partitions_nr,
+				.bubw_workers_nr               = workers_nr,
+				.bubw_work_items_per_partition =
+				     BE_UT_TX_BULK_PARALLEL_ITEMS_PER_PARTITION,
+				.bubw_work_items_per_tx_max    =
+					BE_UT_TX_BULK_PARALLEL_ITEMS_PER_TX_MAX,
+			};
+			m0_be_queue_lock(bq);
+			M0_BE_QUEUE_PUT(bq, op, wi);
+			m0_be_queue_unlock(bq);
+			m0_be_op_wait(op);
+			m0_be_op_reset(op);
+		}
+	}
+	m0_be_op_fini(op);
+	m0_free(op);
+	m0_free(wi);
+	m0_be_queue_lock(bq);
+	m0_be_queue_end(bq);
+	m0_be_queue_unlock(bq);
+
+	m0_ut_threads_stop(td);
+	m0_free(td);
+
+	m0_free(params);
+	be_ut_tx_bulk_test_fini(ctx->bubc_be_ctx);
+	m0_free(ctx);
+	m0_be_queue_fini(bq);
+	m0_free(bq);
+
 }
 
 #undef M0_TRACE_SUBSYSTEM

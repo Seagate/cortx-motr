@@ -24,6 +24,42 @@
 /**
  * @addtogroup be
  *
+ * Worker SM
+ * @verbatim
+ *  m0_be_tx_bulk_run()
+ *   |  - m0_be_op_active(tb->btb_op)
+ *   v
+ *   \>------------------+
+ *                       |     +<---------------------------------------------<\
+ *                       v     v                                               ^
+ *    /<------- be_tx_bulk_queue_get_cb()                                      |
+ *    v                     |    - asynchronously get an item                  |
+ *    |                     |      with M0_BE_QUEUE_GET()                      |
+ *    |                     v                                                  |
+ *    |    /<--  be_tx_bulk_queue_get_done_cb()                                |
+ *    |    v                |     - m0_sm_ast_post() to get out of the locks   |
+ *    |    |                v                                                  |
+ *    |    |       be_tx_bulk_init_cb()                                        |
+ *    |    |                |     - get more items with M0_BE_QUEUE_PEEK() and |
+ *    |    |                |       M0_BE_QUEUE_GET() without blocking         |
+ *    |    |                |     - m0_be_tx_init()                            |
+ *    |    |                |     - m0_be_tx_prep()                            |
+ *    |    |                |     - m0_be_tx_open()                            |
+ *    |    |                v                                                  |
+ *    |    |     be_tx_bulk_close_cb()                                         |
+ *    |    |                |     - tbc_do() for the items                     |
+ *    |    |                |     - m0_be_tx_close()                           |
+ *    |    |                |                                                  |
+ *    |    |                v                                                  |
+ *    |    |       be_tx_bulk_gc_cb()                                          |
+ *    |    |                v     - tbc_done() for the items                   ^
+ *    |    |                \>------------------------------------------------>/
+ *    |    |
+ *    v    v
+ *  be_tx_bulk_finish_cb()
+ *          - m0_be_op_done(tb->btb_op)
+ *
+ * @endverbatim
  * @{
  */
 
@@ -66,6 +102,8 @@ struct be_tx_bulk_item {
 
 struct be_tx_bulk_worker {
 	uint64_t                tbw_index;
+	uint64_t                tbw_partition;
+	uint64_t                tbw_locality;
 	struct m0_be_tx         tbw_tx;
 	struct m0_be_tx_bulk   *tbw_tb;
 	struct be_tx_bulk_item *tbw_item;
@@ -82,7 +120,6 @@ struct be_tx_bulk_worker {
 	struct m0_be_op         tbw_op;
 	bool                    tbw_failed;
 	bool                    tbw_done;
-	uint64_t                tbw_partition;
 	bool                    tbw_terminate_order;
 };
 
@@ -101,17 +138,28 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 {
 	struct be_tx_bulk_worker *worker;
 	uint64_t                  worker_partition;
-	uint64_t                  worker_locality;
+	uint64_t                  workers_per_partition;
+	uint64_t                  partitions_per_locality;
 	uint64_t                  localities_nr;
-	uint32_t                  i;
+	uint64_t                  i;
+	uint64_t                  j;
+	uint64_t                  k;
 	int                       rc;
 
 	M0_PRE(M0_IS0(tb));
 	M0_PRE(tb_cfg->tbc_partitions_nr > 0);
-	/* Can't have more partitions that workers. For now. */
+	/*
+	 * Can't have more partitions than workers because each worker handles
+	 * only one partition.
+	 */
 	M0_PRE(tb_cfg->tbc_partitions_nr <= tb_cfg->tbc_workers_nr);
 	M0_PRE(tb_cfg->tbc_work_items_per_tx_max > 0);
 	M0_PRE(tb_cfg->tbc_q_cfg.bqc_item_length == 0);
+	/*
+	 * Consumers for the queues are workers, so this value will be set by
+	 * tx_bulk for each queue separately.
+	 */
+	M0_PRE(tb_cfg->tbc_q_cfg.bqc_consumers_nr_max == 0);
 
 	tb->btb_cfg = *tb_cfg;
 	tb->btb_tx_open_failed = false;
@@ -124,10 +172,10 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 		m0_mutex_fini(&tb->btb_lock);
 		return M0_ERR(rc);
 	}
-	/* XXX error handling */
 	M0_ALLOC_ARR(tb->btb_q, tb->btb_cfg.tbc_partitions_nr);
-	M0_ASSERT(tb->btb_q != NULL);
+	M0_ASSERT(tb->btb_q != NULL);   /* XXX handle allocation error */
 	tb->btb_cfg.tbc_q_cfg.bqc_item_length = sizeof(struct be_tx_bulk_item);
+	tb->btb_cfg.tbc_q_cfg.bqc_consumers_nr_max = tb->btb_cfg.tbc_workers_nr;
 	for (i = 0; i < tb_cfg->tbc_partitions_nr; ++i) {
 		rc = m0_be_queue_init(&tb->btb_q[i], &tb->btb_cfg.tbc_q_cfg);
 		if (rc != 0)
@@ -143,19 +191,13 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 	localities_nr = m0_fom_dom()->fd_localities_nr;
 	for (i = 0; i < tb->btb_cfg.tbc_workers_nr; ++i) {
 		worker = &tb->btb_worker[i];
-		worker_partition = i % tb->btb_cfg.tbc_partitions_nr;
-		/*
-		 * Each locality has a partitition assigned, and each worker
-		 * will be in one of such partititons.
-		 */
-		worker_locality  = worker_partition % localities_nr;
 		*worker = (struct be_tx_bulk_worker){
 			.tbw_index                = i,
 			.tbw_tb                   = tb,
 			.tbw_items_nr             = 0,
 			.tbw_queue_get_successful = false,
 			.tbw_grp                  =
-				m0_locality_get(worker_locality)->lo_grp,
+				m0_locality_get(worker->tbw_locality)->lo_grp,
 			.tbw_rc                   = 0,
 			.tbw_queue_get            = {
 				.sa_cb    = &be_tx_bulk_queue_get_cb,
@@ -175,7 +217,6 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 			},
 			.tbw_failed               = false,
 			.tbw_done                 = false,
-			.tbw_partition            = worker_partition,
 		};
 		m0_be_op_init(&worker->tbw_op);
 		m0_be_op_callback_set(&worker->tbw_op,
@@ -183,7 +224,62 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 		                      worker, M0_BOS_DONE);
 		M0_ALLOC_ARR(worker->tbw_item,
 			     tb->btb_cfg.tbc_work_items_per_tx_max);
-		M0_ASSERT(worker->tbw_item != NULL);  /* XXX */
+		M0_ASSERT(worker->tbw_item != NULL);  /* XXX handle error */
+	}
+	if (tb->btb_cfg.tbc_partitions_nr <= localities_nr) {
+		/*
+		 * - each locality has a partition assigned;
+		 * - each worker takes it's work from one of such partitions.
+		 */
+		for (i = 0; i < tb->btb_cfg.tbc_workers_nr; ++i) {
+			worker = &tb->btb_worker[i];
+			worker->tbw_locality = i % localities_nr;
+			worker->tbw_partition = worker->tbw_locality %
+						tb->btb_cfg.tbc_partitions_nr;
+		}
+	} else {
+		/*
+		 * - each partition has a single locality assigned;
+		 * - each partition has several workers assigned;
+		 * - workers are running in the locality, assigned to the
+		 *   partition the worker takes it's work from.
+		 */
+		workers_per_partition = tb->btb_cfg.tbc_workers_nr /
+					tb->btb_cfg.tbc_partitions_nr;
+		partitions_per_locality = (tb->btb_cfg.tbc_partitions_nr +
+					   localities_nr - 1) / localities_nr;
+		worker = &tb->btb_worker[0];
+		worker_partition = 0;
+		for (i = 0; i < localities_nr; ++i) {
+			if (i != 0 &&
+			    i == tb->btb_cfg.tbc_partitions_nr % localities_nr)
+				--partitions_per_locality;
+			for (j = 0; j < partitions_per_locality; ++j) {
+				if (worker_partition ==
+				    tb->btb_cfg.tbc_partitions_nr -
+				    tb->btb_cfg.tbc_workers_nr %
+				    tb->btb_cfg.tbc_partitions_nr)
+					++workers_per_partition;
+				for (k = 0; k < workers_per_partition; ++k) {
+					worker->tbw_locality = i;
+					worker->tbw_partition =
+						worker_partition;
+					++worker;
+				}
+				++worker_partition;
+			}
+		}
+		M0_ASSERT(worker_partition == tb->btb_cfg.tbc_partitions_nr);
+		M0_ASSERT(worker ==
+			  &tb->btb_worker[tb->btb_cfg.tbc_workers_nr]);
+		M0_ASSERT(m0_forall(i, tb->btb_cfg.tbc_partitions_nr,
+		    M0_IN(m0_reduce(j, tb->btb_cfg.tbc_workers_nr, 0,
+		                    + (tb->btb_worker[j].tbw_partition == i)),
+		          (workers_per_partition, workers_per_partition - 1))));
+	}
+	for (i = 0; i < tb->btb_cfg.tbc_workers_nr; ++i) {
+		worker = &tb->btb_worker[i];
+		worker->tbw_grp = m0_locality_get(worker->tbw_locality)->lo_grp;
 	}
 	return rc;
 }
@@ -243,12 +339,14 @@ static void be_tx_bulk_finish_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	uint32_t                  i;
 	bool                      done;
 
-	M0_ENTRY("tb=%p worker=%p tbw_index=%"PRIu64,
-		 tb, worker, worker->tbw_index);
+	M0_ENTRY("tb=%p worker=%p tbw_index=%"PRIu64" tbw_partition=%"PRIu64" "
+	         "tbw_locality=%"PRIu64, tb, worker, worker->tbw_index,
+		 worker->tbw_partition, worker->tbw_locality);
 	M0_PRE(ast == &worker->tbw_finish);
 
-	worker->tbw_done = true;
 	be_tx_bulk_lock(tb);
+	M0_ASSERT(!worker->tbw_done);
+	worker->tbw_done = true;
 	for (i = 0; i < tb->btb_cfg.tbc_workers_nr; ++i)
 		done_nr += tb->btb_worker[i].tbw_done;
 	M0_LOG(M0_DEBUG, "done_nr=%"PRIu32, done_nr);
@@ -258,6 +356,7 @@ static void be_tx_bulk_finish_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		for (i = 0; i < tb->btb_cfg.tbc_workers_nr; ++i)
 			tb->btb_rc = tb->btb_worker[i].tbw_rc ?: tb->btb_rc;
 		tb->btb_done = true;
+		M0_LOG(M0_DEBUG, "btb_done = true");
 	}
 	be_tx_bulk_unlock(tb);
 	if (done) {
