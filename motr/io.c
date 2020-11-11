@@ -556,6 +556,7 @@ static int obj_io_init(struct m0_obj      *obj,
 	ioo->ioo_sns_state = SRS_UNINITIALIZED;
 	ioo->ioo_ext = *ext;
 	ioo->ioo_flags = flags;
+	ioo->ioo_flags |= M0_OOF_SYNC;
 	if (M0_IN(opcode, (M0_OC_READ, M0_OC_WRITE))) {
 		ioo->ioo_data = *data;
 		ioo->ioo_attr = *attr;
