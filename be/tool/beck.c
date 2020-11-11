@@ -501,7 +501,6 @@ static struct m0_be_tx_bulk_cfg default_tb_cfg = (struct m0_be_tx_bulk_cfg){
 		.tbc_q_cfg = {
 			.bqc_q_size_max       = 1000,
 			.bqc_producers_nr_max = 1,
-			.bqc_consumers_nr_max = 0x100,
 		},
 			.tbc_workers_nr       = 0x40,
 			.tbc_partitions_nr    = AO_NR,
