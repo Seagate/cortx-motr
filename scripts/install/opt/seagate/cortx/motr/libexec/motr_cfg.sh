@@ -157,10 +157,27 @@ set_key_value() # ARG1 [KEY] ARG2 [VALUE] ARG3 [FILE]
 
 }
 
+lvm_size_percentage_diff()
+{
+    MAX=$1
+    MIN=$2
+    local percent=0
+
+    if [ $MAX -eq $MIN ]; then
+       percent=0
+    fi
+
+   percent=$((100 * ($MAX - $MIN)/$MAX))
+   echo $percent
+
+}
+
 do_m0provision_action()
 {
     local CFG_LINE=""
     local LVM_SIZE_MIN=0
+    local LVM_SIZE_MAX=0
+    local MAX_DIFF_TOLERANCE=5
     local LVM_SIZE=0
 
     msg "Configuring host [`hostname -f`]"
@@ -168,27 +185,50 @@ do_m0provision_action()
         err "lvs command not available."
     else
         MD_DEVICES=($(lvs -o lv_path 2>/dev/null | grep "lv_raw_metadata" | grep srvnode  | sort -u))
-    fi
 
-    for i in ${MD_DEVICES[@]};
-    do
-        LVM_SIZE=$(lvs $i -o LV_SIZE \
-                       --noheadings --units b --nosuffix | xargs)
-        ANY_ERR=$(echo $LVM_SIZE | grep -i ERROR | wc -l)
-        if [[ ( "$ANY_ERR" != "0" ) || ( -z "$LVM_SIZE" ) ]]; then
-            err "lvs $i command failed."
-            msg "[$LVM_SIZE_MIN]"
-	elif [[ "$LVM_SIZE" -lt "$LVM_SIZE_MIN" || "$LVM_SIZE_MIN" -eq 0 ]]; then
-	    LVM_SIZE_MIN=$LVM_SIZE
-	fi
-    done
-    if [ "$LVM_SIZE_MIN" -eq 0 ]; then
-	 err "lvs size invalid [$LVM_SIZE_MIN]"
-    else
-         msg "LVM_SIZE_MIN = $LVM_SIZE_MIN"
-         sed -i "s/MOTR_M0D_IOS_BESEG_SIZE=.*/MOTR_M0D_IOS_BESEG_SIZE=$LVM_SIZE_MIN/g" $MOTR_CONF_FILE
-    fi
-
+        # Initializing MIN and MAX to first lvm size in the list. 
+        if [ ${#MD_DEVICES[@]} -ne 0 ]; then
+            LVM_SIZE=$(lvs ${MD_DEVICES[0]} -o LV_SIZE \
+                           --noheadings --units b --nosuffix | xargs)
+            ANY_ERR=$(echo $LVM_SIZE | grep -i ERROR | wc -l)
+            if [[ ( "$ANY_ERR" != "0" ) || ( -z "$LVM_SIZE" ) ]]; then
+                err "lvs $i command failed."
+                msg "[$LVM_SIZE]"
+            else 
+                LVM_SIZE_MIN=$LVM_SIZE
+                LVM_SIZE_MAX=$LVM_SIZE
+            fi
+        fi
+    
+        for i in ${MD_DEVICES[@]};
+        do
+            LVM_SIZE=$(lvs $i -o LV_SIZE \
+                           --noheadings --units b --nosuffix | xargs)
+            ANY_ERR=$(echo $LVM_SIZE | grep -i ERROR | wc -l)
+            if [[ ( "$ANY_ERR" != "0" ) || ( -z "$LVM_SIZE" ) ]]; then
+                err "lvs $i command failed."
+                msg "[$LVM_SIZE]"
+    	elif [[ "$LVM_SIZE" -lt "$LVM_SIZE_MIN" ]]; then
+    	    LVM_SIZE_MIN=$LVM_SIZE
+            elif [[ "$LVM_SIZE" -gt "$LVM_SIZE_MAX" ]]; then
+                LVM_SIZE_MAX=$LVM_SIZE
+            fi
+        done
+        if [[ "$LVM_SIZE_MIN" -eq 0 || "$LVM_SIZE_MAX" -eq 0 ]]; then
+            err "lvm size invalid [$LVM_SIZE_MIN]"
+        else
+             diff_per=$(lvm_size_percentage_diff "$LVM_SIZE_MAX" "$LVM_SIZE_MIN");
+             if [ "$diff_per" -lt "$MAX_DIFF_TOLERANCE" ]; then
+                 msg "LVM_SIZE_MIN = $LVM_SIZE_MIN"
+                 sed -i "s/MOTR_M0D_IOS_BESEG_SIZE=.*/MOTR_M0D_IOS_BESEG_SIZE=$LVM_SIZE_MIN/g" $MOTR_CONF_FILE
+             else
+                 err "This setup configuration seems invalid"
+                 err "Difference between metadata volume size is beyond tolerance level, $diff_per > $MAX_DIFF_TOLERANCE"
+                 die $ERR_NOT_IMPLEMENTED
+             fi 
+        fi
+    fi 
+   
     SALT_OPT=$(salt-call --local grains.get virtual)
     platform=$(get_platform)
     echo "Server type is $platform"
