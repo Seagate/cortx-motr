@@ -31,15 +31,12 @@
 #ifndef __MOTR_NET_LIBFAB_XCODE_H__
 #define __MOTR_NET_LIBFAB_XCODE_H__
 
-#ifndef __KERNEL__
-#include <sys/types.h>
-#include <netinet/in.h>                    /* INET_ADDRSTRLEN */
-#include <netinet/ip.h>
-#include <arpa/inet.h>                     /* inet_pton, htons */
+#ifdef __KERNEL__
+#  include "lib/linux_kernel/types.h"
 #else
-#include <linux/in.h>
-#include <linux/in6.h>
+#  include "lib/user_space/types.h"
 #endif
+
 
 #include "xcode/xcode_attr.h"
 
@@ -48,10 +45,9 @@
  * -----------------------------
  */
 
-/** Peer address. */
+/** TODO: Update below struct as per libfab requirement */
 struct fab_addr {
-	uint32_t        a_family;
-	uint32_t        a_socktype;
+	uint32_t        a_type;
 	uint32_t        a_protocol;
 	uint32_t        a_port;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
