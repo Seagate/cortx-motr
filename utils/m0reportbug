@@ -173,6 +173,11 @@ main() {
     fi
 
     popd >/dev/null
+    # Collect rpm-update-logs
+    if [ -f /var/log/motr-rpm-conf-update.log ]; then
+        cp -pv /var/log/motr-rpm-conf-update.log $OUT_DATA_DIR/
+    fi
+
     tar --remove-files -cJf $OUT_DATA_DIR{.tar.xz,}
     local files=$OUT_DATA_DIR.tar.xz
     for t in $OUT_CORES_DIR $OUT_TRACES_DIR; do
@@ -719,21 +724,24 @@ addb() {
     local m0addb2dump=$(path m0addb2dump)
     (outdir=$(readlink -f .)/$outdir
      cd "$IN_DIR"
-     find . -type d -name addb-stobs | cut -c3- | while read dir; do
-         find $dir/o -type f -name \*:2 | while read path; do
-             path=$(readlink -f $path)  # convert to absolute path
-             mkdir -p $outdir$(dirname $path)
-             ##
-             ## Note that m0addb2dump needs absolute path.
-             ## If relative path is provided, m0addb2dump fails:
-             ##
-             ## > lt-m0addb2dump: Cannot create stob: -2: No such file
-             ## > or directory
-             $m0addb2dump $path | tail -$ADDB_TAIL | _xz >$outdir$path.xz
-             touch -r $path $outdir$path.xz
-             echo $path.xz
+     for pid in `pgrep m0d`; do
+         find . -type d -name addb-stobs-$pid | cut -c3- | while read dir; do
+	    find $dir/o -type f -name \*:2 | while read path; do
+               path=$(readlink -f $path) # convert to absolute path
+               mkdir -p $outdir$(dirname $path)
+               ##
+               ## Note that m0addb2dump needs absolute path.
+               ## If relative path is provided, m0addb2dump fails:
+               ##
+               ## > lt-m0addb2dump: Cannot create stob: -2: No such file
+               ## > or directory
+               $m0addb2dump $path | tail -$ADDB_TAIL | _xz >$outdir$path.xz
+               touch -r $path $outdir$path.xz
+               echo $path.xz
+            done
          done
      done)
+
 }
 
 addb-files() {
@@ -748,12 +756,13 @@ addb-files() {
        fi
     done
 
-    for file_path in $(find ${IN_DIR}/m0d-*/addb-stobs/o  -name "100000000000000:2" 2>/dev/null); do
-        if [ -f "$file_path" ]; then
-            ios_fid=$(echo $file_path | cut -d '/' -f4 | cut -d '-' -f2)
-            [[ $(hctl status | grep 'ioservice' | grep  $ios_fid  2>/dev/null) ]] &&
-                 cat $file_path | _xz > addb_files/$IN_DIR/m0d_addb__${ios_fid}.xz
-        fi
+    for pid in `pgrep m0d`; do
+        for file_path in $(find ${IN_DIR}/m0d-*/addb-stobs-$pid/o  -name "100000000000000:2" 2>/dev/null); do
+            if [ -f "$file_path" ]; then
+                fid=$(echo $file_path | cut -d '/' -f4 | cut -d '-' -f2)
+                cat $file_path | _xz > addb_files/$IN_DIR/m0d_addb__${fid}.xz
+            fi
+        done
     done
 }
 
@@ -766,6 +775,10 @@ systemd_journal() {
     for ((i = 0; i < nr_boots; ++i)); do
         journalctl -b -$i 2>>$REPORT | _xz >$outdir/systemd-journal_$i.xz
     done
+
+    if ((nr_boots == 0)); then
+        journalctl 2>>$REPORT | _xz > $outdir/systemd-journal.xz
+    fi
 }
 
 usage() {
