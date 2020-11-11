@@ -252,7 +252,7 @@ struct builder {
 	const char                *b_be_config_file; /** BE configuration */
 
 	uint64_t                   b_act;
-	uint64_t                   b_data;
+	uint64_t                   b_data; /**< data throughput */
 	/** ioservice cob domain. */
 	struct m0_cob_domain      *b_ios_cdom;
 	/** mdservice cob domain. */
@@ -464,6 +464,10 @@ static bool  dry_run = false;
 static bool  disable_directio = false;
 static bool  signaled = false;
 
+/**
+ * These values provided the maximum builder performance after experiments on
+ * hardware.
+ */
 static struct m0_be_tx_bulk_cfg default_tb_cfg = (struct m0_be_tx_bulk_cfg){
 		.tbc_q_cfg = {
 			.bqc_q_size_max       = 1000,
@@ -1235,7 +1239,7 @@ static int emap_prep(struct action *act, struct m0_be_tx_credit *credit)
 	int                       id;
 
 	adom = emap_dom_find(act, &emap_ac->emap_fid, &id);
-	if (adom == NULL) {
+	if (adom == NULL || id < 0 || id >= AO_NR - AO_EMAP_FIRST) {
 		M0_LOG(M0_ERROR, "Invalid FID for emap record found !!!");
 		m0_free(act);
 		return M0_RC(-EINVAL);
