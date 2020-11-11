@@ -193,8 +193,8 @@ The bottom half i.e. AST part would be run by a dedicated thread & would be sync
 
 - [r.addb.post.non-blocking] Decrease performance impact of ADDB monitoring.
 
-Use Cases
-=========
+ Use Cases
+===========
 
 **Statistical monitoring of addb records that already have statistical information in them**
 
