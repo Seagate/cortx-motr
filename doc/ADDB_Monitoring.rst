@@ -50,4 +50,24 @@ Requirements
 
 - [r.addb.monitor.stats-service.query] Client (for eg. m0stats, m0t1fs, etc.) can query to this stats service for getting state information. 
 
-- [r.addb.monitor.stats-service.single-instance] There would be only one instance of the stats service in the cluster/system. 
+- [r.addb.monitor.stats-service.single-instance] There would be only one instance of the stats service in the cluster/system.
+
+*************************
+Functional Specification
+*************************
+
+There are two APIs that are globally visible, they are to add/delete monitors.
+
+::
+
+ void m0_addb_monitor_add(struct m0_addb_monitor *mon); 
+
+ void m0_addb_monitor_del(struct  m0_addb_monitor *mon); 
+
+ADDB monitors do two main work / things:
+
+- Report statistics online
+
+- Report exceptional conditions like failure, etc 
+
+ 
