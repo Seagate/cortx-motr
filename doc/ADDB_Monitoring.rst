@@ -112,6 +112,16 @@ ADDB monitors are represented as follows:
 
  }; 
 
-             
+Structure field descriptions:
+
+- am_watch(), a monitor specific function.Actual monitoring logic is to be written in this function. It does the processing of all the addb records of its interests and can post the summary statistics obtained directly or computed as addb records that gets delivered to endpoint where addb service is running and to the endpoint where stats service is running as addb records. Also, it can post the exceptional conditions to a special service & a local HA component.
+
+- am_datum, provides for some private information that be kept per monitor.
+
+- am_linkage, links monitor to the global monitor list.
+
+There is a global list of all the monitors, add() would just add the monitor to this global list while del () would just remove this particular monitor from this global list. Monitors are added during  addb sub-system initialization and deleted during the addb sub-system finalization. 
+
+   
 
  
