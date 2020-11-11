@@ -191,7 +191,34 @@ The bottom half i.e. AST part would be run by a dedicated thread & would be sync
 
 - [r.addb.post] ADDB monitor can post addb records. 
 
-- [r.addb.post.non-blocking] Decrease performance impact of ADDB monitoring. 
+- [r.addb.post.non-blocking] Decrease performance impact of ADDB monitoring.
+
+Use Cases
+=========
+
+**Statistical monitoring of addb records that already have statistical information in them**
+
+Following steps show how an addb monitor collects statistical information on a particular node (client/server) from addb records and send it to stats service as addb records:
+
+#. Create ADDB monitor, add it to the global list of monitors. 
+
+#. Define the type of addb record that it will generate. 
+
+#. Get the statistics information from these addb records periodically. 
+
+#. Send this statistical information to the endpoint where stats service is running as addb records & to the endpoint where addb service is running if the node is a client or to the addb stob if the node is server periodically.
+
+**Statistical monitoring of addb records that do not contain statistical information in them** 
+
+Following steps show how an addb monitor collects statistical information on a particular node(client/server) from addb records and send it to stats service as addb records:
+
+#. Create ADDB monitor, add it to the global list of monitors. 
+
+#. Define the type of addb record that it will generate. 
+
+#. Continuously compute statistics from the monitored addb records. 
+
+#. Send this statistical information to the endpoint where stats service is running as addb records & to the endpoint where addb service is running if the node is a client or to the addb stob if the node is server periodically.      
 
    
 
