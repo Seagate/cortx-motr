@@ -183,17 +183,19 @@ enum tx_state {
 enum { KV_MAX = 16 };
 
 struct kv {
-	uint64_t  k_key;
-	uint64_t  k_val;
-	void     *k_buf;
+	uint64_t      k_txid;
+	enum tx_state k_txstate;
+	uint64_t      k_key;
+	uint64_t      k_val;
+	void         *k_buf;
 };
 
 struct sys_proc_state {
 	enum pstate   ss_pstate;
 	enum ha_state ss_hastate;
 	int           ss_bcount;
-	uint64_t      ss_txid;
-	enum tx_state ss_txstate;
+	uint64_t      ss_txid_last;
+	int           ss_kvnr;
 	struct kv     ss_kv[KV_MAX];
 };
 
@@ -272,7 +274,7 @@ static void event_fini(struct event *e);
 static void *palloc(struct proc *proc);
 static void *pget(struct proc *proc);
 
-static void cont(struct proc *proc, struct cb *cb,
+static void cont(struct proc *proc,
 		 void (*invoke)(struct cb *cb, struct event *e, void *data));
 
 static void *xalloc(size_t nob);
@@ -291,6 +293,7 @@ static void sys_start(struct cb *c, struct event *e, void *d);
 static void sys_prep(struct perm *p);
 static void sys_proc_init(struct proc *proc);
 static void sys_pfree(struct proc *proc, struct sys_proc_state *ss);
+static void *sys_pinit(struct proc *proc, struct sys_proc_state *ss);
 static struct sys_proc_state *sys_pget(struct proc *proc);
 
 static uint64_t      tx_open (struct proc *proc);
@@ -307,6 +310,8 @@ static void req(struct proc *src, struct proc *dst, enum msg_op mop,
 		uint64_t p0, uint64_t p1);
 static void send(struct proc *src, struct proc *dst, enum msg_type mt,
 		 enum msg_op mop, uint64_t p0, uint64_t p1, enum pstate pstate);
+
+static struct kv *kv_get(struct proc *proc);
 
 static int crash_nr = 3;
 static int hastate_nr = 3;
@@ -445,7 +450,8 @@ static void *palloc(struct proc *proc)
 		struct pin *n = pin(step, false, proc);
 
 		n->n_data = xalloc(proc->pr_size);
-		return memcpy(n->n_data, (last ?: n)->n_data, proc->pr_size);
+		return sys_pinit(proc, memcpy(n->n_data, (last ?: n)->n_data,
+					      proc->pr_size));
 	} else
 		return last->n_data;
 }
@@ -500,6 +506,7 @@ static void sys_crash(struct cb *c, struct event *e, void *d)
 
 	M0_PRE(ss->ss_pstate != P_CRASHED);
 	ss->ss_pstate = P_CRASHED;
+	memset(ss + 1, 0, c->c_proc->pr_size - sizeof *ss);
 	post(e->e_perm, event_alloc(e->e_perm, E_START, c->c_proc, NULL, 0, 0,
 				    e->e_p0 + 1, 0, P_CRASHED, -1));
 }
@@ -540,7 +547,7 @@ static void sys_hastate(struct cb *c, struct event *e, void *d)
 		m0_tl_for(p, &e->e_perm->p_proc, proc) {
 			if (proc != e->e_perm->p_fatum) {
 				req(e->e_perm->p_fatum, proc, O_HASET,
-				    (uint64_t)c->c_proc, has);
+				    c->c_proc->pr_idx, has);
 			}
 		} m0_tl_endfor;
 		post(e->e_perm, event_alloc(e->e_perm, E_HASTATE, c->c_proc,
@@ -564,7 +571,7 @@ static void sys_proc_init(struct proc *proc)
 {
 	struct cb             *cb;
 	struct perm           *p  = proc->pr_perm;
-	struct sys_proc_state *ss = palloc(proc);
+	struct sys_proc_state *ss = sys_pget(proc);
 
 	ss->ss_pstate  = P_STARTED;
 	post(p, event_alloc(p, E_CRASH, proc, NULL, 0, 0, 0, 0, P_CRASHED, -1));
@@ -592,8 +599,14 @@ static void sys_pfree(struct proc *proc, struct sys_proc_state *ss)
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(ss->ss_kv); ++i)
+	for (i = 0; i < ss->ss_kvnr; ++i)
 		m0_free(ss->ss_kv[i].k_buf);
+}
+
+static void *sys_pinit(struct proc *proc, struct sys_proc_state *ss)
+{
+	ss->ss_kvnr = 0;
+	return ss;
 }
 
 static struct sys_proc_state *sys_pget(struct proc *proc)
@@ -734,63 +747,58 @@ static void event_fini(struct event *e)
 	m0_free(e);
 }
 
-static uint64_t txid = 0;
 static uint64_t tx_open(struct proc *proc)
 {
-	struct sys_proc_state *ss = palloc(proc);
+	struct sys_proc_state *ss = sys_pget(proc);
+	struct kv             *kv = kv_get(proc);
 
-	M0_PRE(ss->ss_txstate != T_OPEN);
-	ss->ss_txid    = ++txid;
-	ss->ss_txstate = T_OPEN;
-	memset(ss->ss_kv, 0, sizeof ss->ss_kv);
-	return txid;
+	kv->k_txid    = ++ss->ss_txid_last;
+	kv->k_txstate = T_OPEN;
+	return kv->k_txid;
 }
 
 static void tx_set(struct proc *proc, uint64_t tid,
 		   uint64_t key, uint64_t val, void *buf)
 {
-	struct sys_proc_state *ss = palloc(proc);
-	int                    i;
+	struct kv *kv = kv_get(proc);
 
 	M0_PRE(key != 0);
-	ss->ss_txstate = T_OPEN;
-	ss->ss_txid    = tid;
-	for (i = 0; i < ARRAY_SIZE(ss->ss_kv); ++i) {
-		if (ss->ss_kv[i].k_key == 0)
-			break;
-	}
-	M0_ASSERT(i < ARRAY_SIZE(ss->ss_kv));
-	ss->ss_kv[i].k_key = key;
-	ss->ss_kv[i].k_val = val;
-	ss->ss_kv[i].k_buf = buf;
+	kv->k_txid    = tid;
+	kv->k_txstate = T_OPEN;
+	kv->k_key     = key;
+	kv->k_val     = val;
+	kv->k_buf     = buf;
 }
 
 static bool tx_logged_enabled(const struct event *e)
 {
-	return true;
+	uint64_t tid = e->e_p0;
+	/* Transactions are logged in order of opening. */
+	return m0_forall(i, tid - 1, tx_state(e->e_proc, i + 1) >= T_LOGGED);
 }
 
 static void tx_logged(struct cb *c, struct event *e, void *d)
 {
-	struct sys_proc_state *ss = palloc(c->c_proc);
+	struct sys_proc_state *ss = sys_pget(c->c_proc);
+	struct kv             *kv = kv_get(c->c_proc);
 
-	ss->ss_txid = e->e_p0;
-	ss->ss_txstate = T_LOGGED;
-	memset(ss->ss_kv, 0, sizeof ss->ss_kv);
+	kv->k_txid    = e->e_p0;
+	kv->k_txstate = T_LOGGED;
 	post(e->e_perm, event_alloc(e->e_perm, E_TXSTATE, c->c_proc, NULL,
-				    T_COMMITTED, 0, ss->ss_txid, 0,
+				    T_COMMITTED, 0, kv->k_txid, 0,
 				    P_STARTED, ss->ss_bcount));
 }
 
 static void tx_close(struct proc *proc, uint64_t tid)
 {
-	struct sys_proc_state *ss = palloc(proc);
+	struct sys_proc_state *ss = sys_pget(proc);
+	struct kv             *kv = kv_get(proc);
 	struct event          *e;
 
-	ss->ss_txstate = T_CLOSED;
-	ss->ss_txid    = tid;
+	kv->k_txstate = T_CLOSED;
+	kv->k_txid    = tid;
 	e = event_alloc(proc->pr_perm, E_TXSTATE, proc, NULL, T_LOGGED, 0,
-			ss->ss_txid, 0, P_STARTED, ss->ss_bcount);
+			tid, 0, P_STARTED, ss->ss_bcount);
 	e->e_enabled = &tx_logged_enabled;
 	post(proc->pr_perm, e);
 }
@@ -798,14 +806,17 @@ static void tx_close(struct proc *proc, uint64_t tid)
 static enum tx_state tx_state(struct proc *proc, uint64_t txid)
 {
 	struct pin *n;
+	int         i;
 
 	M0_PRE(txid != 0);
 	for (n = v_tlist_tail(&proc->pr_hist); n != NULL;
 	     n = v_tlist_prev(&proc->pr_hist, n)) {
 		struct sys_proc_state *ss = n->n_data;
 
-		if (ss->ss_txid == txid)
-			return ss->ss_txstate;
+		for (i = ss->ss_kvnr - 1; i >= 0; --i) {
+			if (ss->ss_kv[i].k_txid == txid)
+				return ss->ss_kv[i].k_txstate;
+		}
 	}
 	return T_NONE;
 }
@@ -823,20 +834,27 @@ static void tx_get(struct proc *proc, uint64_t key, uint64_t *val, void **buf)
 
 		if (ss->ss_pstate == P_CRASHED)
 			need = T_LOGGED;
-		if (ss->ss_txid != 0 && ss->ss_txstate == T_OPEN &&
-		    tx_state(proc, ss->ss_txid) >= need) {
-			for (i = 0; i < ARRAY_SIZE(ss->ss_kv); ++i) {
-				if (ss->ss_kv[i].k_key == key) {
-					*val = ss->ss_kv[i].k_val;
-					*buf = ss->ss_kv[i].k_buf;
-					return;
-				} else if (ss->ss_kv[i].k_key == 0)
-					break;
+		for (i = ss->ss_kvnr - 1; i >= 0; --i) {
+			if (ss->ss_kv[i].k_key == key &&
+			    ss->ss_kv[i].k_txstate == T_OPEN &&
+			    (need == T_OPEN ||
+			     tx_state(proc, ss->ss_kv[i].k_txid) >= need)) {
+				*val = ss->ss_kv[i].k_val;
+				*buf = ss->ss_kv[i].k_buf;
+				return;
 			}
 		}
 	}
 	*val = 0;
 	*buf = NULL;
+}
+
+static struct kv *kv_get(struct proc *proc)
+{
+	struct sys_proc_state *ss = sys_pget(proc);
+
+	M0_ASSERT(ss->ss_kvnr < ARRAY_SIZE(ss->ss_kv));
+	return &ss->ss_kv[ss->ss_kvnr++];
 }
 
 static void req(struct proc *src, struct proc *dst, enum msg_op mop,
@@ -869,24 +887,20 @@ static void send(struct proc *src, struct proc *dst, enum msg_type mt,
 	post(src->pr_perm, e);
 }
 
-static void cont(struct proc *proc, struct cb *cb,
+static void cont(struct proc *proc,
 		 void (*invoke)(struct cb *cb, struct event *e, void *data))
 {
-	static uint64_t sel0 = 0;
+	static uint64_t  sel0 = 0;
+	struct cb       *cb;
 
-	if (cb == NULL) {
-		cb = cb_add(proc->pr_perm, proc);
-		cb->c_op = E_CONT;
-		cb->c_proc = proc;
-	}
-	M0_ASSERT(cb->c_op == E_CONT);
-	M0_ASSERT(cb->c_proc == proc);
+	cb = cb_add(proc->pr_perm, proc);
+	cb->c_op     = E_CONT;
+	cb->c_proc   = proc;
 	cb->c_invoke = invoke;
-	cb->c_sel0 = ++sel0;
+	cb->c_sel0   = ++sel0;
 	post(proc->pr_perm, event_alloc(proc->pr_perm, E_CONT, proc, NULL,
 					sel0, 0, 0, 0, P_STARTED,
 					sys_pget(proc)->ss_bcount));
-
 }
 
 static void *xalloc(size_t nob)
@@ -966,7 +980,7 @@ int main(int argc, char **argv)
 {
 	struct perm   p;
 	struct m0     instance = {0};
-	struct proc  *proc     = NULL;
+	struct proc **proc;
 	int           result;
 	int           i;
 	int           proc_nr = 2;
@@ -976,7 +990,7 @@ int main(int argc, char **argv)
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise motr: %d", result);
 
-	result = M0_GETOPTS("m0_beck", argc, argv,
+	result = M0_GETOPTS("perm", argc, argv,
 		   M0_FORMATARG('d', "Print depth", "%i", &print_depth),
 		   M0_FORMATARG('c', "Crash nr", "%i", &crash_nr),
 		   M0_FORMATARG('h', "Hastate nr", "%i", &hastate_nr),
@@ -984,22 +998,30 @@ int main(int argc, char **argv)
 	if (result != 0)
 		err(EX_CONFIG, "Wrong option.");
 	perm_init(&p);
+	proc = xalloc(proc_nr * sizeof proc[0]);
 	for (i = 0; i < proc_nr; ++i) {
-		proc = proc_add(&p, sizeof(struct sys_proc_state),
-				(void *)&sys_pfree);
+		proc[i] = proc_add(&p, sizeof(struct sys_proc_state),
+				   (void *)&sys_pfree);
 	}
 	invariant_add(&p);
 	perm_prep(&p);
-	cont(proc, NULL, LAMBDA(void, (struct cb *c, struct event *e, void *d) {
+	cont(proc[0], LAMBDA(void, (struct cb *c, struct event *e, void *d) {
 				uint64_t tid = tx_open(e->e_proc);
 
 				tx_set(e->e_proc, tid, 17, 12, NULL);
 				tx_close(e->e_proc, tid);
 			}));
-	cont(proc, NULL, LAMBDA(void, (struct cb *c, struct event *e, void *d) {
+	cont(proc[0], LAMBDA(void, (struct cb *c, struct event *e, void *d) {
+				uint64_t tid = tx_open(e->e_proc);
+
+				tx_set(e->e_proc, tid, 17, 13, NULL);
+				tx_close(e->e_proc, tid);
+			}));
+	cont(proc[0], LAMBDA(void, (struct cb *c, struct event *e, void *d) {
 				uint64_t val;
 				void    *buf;
 				tx_get(e->e_proc, 17, &val, &buf);
+				M0_ASSERT(M0_IN(val, (12, 13, 0)));
 				/* printf("GOT: %"PRId64" %p\n", val, buf); */
 			}));
 	perm_run(&p);
