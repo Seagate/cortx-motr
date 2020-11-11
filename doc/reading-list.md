@@ -79,6 +79,12 @@ RPC
 
 * AR of rpc layer
 
+Function Shipping
+---
+
+* Outdated document about how function shipping works in motr: [PDF](PDF/motr_function_shipping.pdf).
+
+
 Network
 -------
 
