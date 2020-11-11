@@ -85,7 +85,32 @@ These stats summary ADDB records can be produced on any node, this could be clie
 
 A node produces summary record one for each type,(type here means a system metric) that makes sense for it. For eg. as client does not have storage, so it will not produce “free storage space” summary records (as a monitor to produce this type of record would not be present).
 
-For not readily available stats, we have all the data necessary to compute the stats, but these data are scattered across multiple addb records. So, we need to build the summary by scanning such multiple addb records. Examples are average processor load in last N seconds, fop processing rate in last N seconds. These are more like top, vmstat. Lets consider, fop processing rate example. Information about fop processing rate is indirectly stored in fop state machine addb records. Computation of fop processing rate can be done by “fop complete” addb records along with their timestamps.      
+For not readily available stats, we have all the data necessary to compute the stats, but these data are scattered across multiple addb records. So, we need to build the summary by scanning such multiple addb records. Examples are average processor load in last N seconds, fop processing rate in last N seconds. These are more like top, vmstat. Lets consider, fop processing rate example. Information about fop processing rate is indirectly stored in fop state machine addb records. Computation of fop processing rate can be done by “fop complete” addb records along with their timestamps.
+
+Exceptional Conditions Reporting
+=================================
+
+Monitors will be used to detect exceptional conditions. Periodic posting is not applicable for such conditions as failures are to be reported as soon as possible. Monitor updates its data structures to indicate a failure and will initiate a failure report by posting AST. During ASTs execution fop is sent to local HA component to notify about the failure. Monitors can also produce exception records from normal addb records for example is fop transition is taking too long, then this would be an exception.
+
+======================
+Logical specification  
+======================
+
+ADDB monitors are represented as follows:
+
+::
+
+ struct m0_addb_monitor {
+
+         void       (*am_watch) (const struct m0_addb_monitor *mon, const struct 
+
+ m0_addb_rec *rec, const struct m0_addb_mc *mc_to_post_on);
+
+     void                 *am_datum;
+
+     struct m0_tlink am_linkage;
+
+ }; 
 
              
 
