@@ -1686,7 +1686,6 @@ static void builder_work_put(struct m0_be_tx_bulk *tb, struct builder *b)
 
 static void builder_thread(struct builder *b)
 {
-	struct m0_be_op          op = {};
 	struct m0_be_tx_bulk_cfg tb_cfg;
 	struct m0_be_tx_bulk     tb = {};
 	int                      rc;
@@ -1699,11 +1698,10 @@ static void builder_thread(struct builder *b)
 
 	rc = m0_be_tx_bulk_init(&tb, &tb_cfg);
 	if (rc == 0) {
-		m0_be_op_init(&op);
-		m0_be_tx_bulk_run(&tb, &op);
-		builder_work_put(&tb, b);
-		m0_be_op_wait(&op);
-		m0_be_op_fini(&op);
+		M0_BE_OP_SYNC(op, ({
+				   m0_be_tx_bulk_run(&tb, &op);
+				   builder_work_put(&tb, b);
+				   }));
 		rc = m0_be_tx_bulk_status(&tb);
 		m0_be_tx_bulk_fini(&tb);
 	}
@@ -2406,7 +2404,8 @@ static struct cache_slot *ctg_getslot_insertcred(struct ctg_action *ca,
 	struct cache_slot *slot;
 
 	slot = cache_lookup(&b->b_cache, cas_ctg_fid);
-	slot = cache_insert(&b->b_cache, cas_ctg_fid);
+	if (slot == NULL)
+		slot = cache_insert(&b->b_cache, cas_ctg_fid);
 	m0_ctg_create_credit(accum);
 	ca->cta_cid.ci_fid = ca->cta_fid;
 	m0_fid_tchange(&ca->cta_cid.ci_fid, 'T');
