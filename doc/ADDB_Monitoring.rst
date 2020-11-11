@@ -164,7 +164,34 @@ The bottom half i.e. AST part would be run by a dedicated thread & would be sync
 
 - [r.addb.stats-service.query] Implementation of stats service handles this. 
 
-- [r.addb.stats-service.single-instance] Implementation of stats service handles this. 
+- [r.addb.stats-service.single-instance] Implementation of stats service handles this.
+
+Dependencies
+=============
+
+- [r.addb.retention] ADDB monitor generates addb records. 
+
+- [r.addb.retention.storage] ADDB monitor generates addb records. 
+
+- [r.addb.timings] ADDB monitor may need to calculate processing rate statistics. 
+
+- [r.addb.filtering] ADDB monitor needs information from addb records. 
+
+- [r.addb.record.type.datapoint] ADDB monitor can generate datapoint addb records. 
+
+- [r.addb.record.type.counter] ADDB monitor can generate counter addb records. 
+
+- [r.addb.record.type.event] ADDB monitor can generate event addb record 
+
+- [r.addb.record.type.counter.statistics] ADDB monitor needs to do statistics reporting. 
+
+- [r.addb.record.definition] ADDB monitor can define new addb record. 
+
+- [r.addb.record.definition.extensible] 
+
+- [r.addb.post] ADDB monitor can post addb records. 
+
+- [r.addb.post.non-blocking] Decrease performance impact of ADDB monitoring. 
 
    
 
