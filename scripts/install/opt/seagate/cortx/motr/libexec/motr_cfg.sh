@@ -157,6 +157,38 @@ set_key_value() # ARG1 [KEY] ARG2 [VALUE] ARG3 [FILE]
 
 }
 
+chk_key_value()
+{
+    _key=$1
+    _value=$2
+    ret=1 # 0: value are same 1: value are different
+    IFS=$'\n'
+    for CFG_LINE in `cat $ETC_SYSCONFIG_MOTR`; do       
+        if [[ "$CFG_LINE" == "#"* ]]; then
+
+            # If key is commented then still we need to update
+            # /etc/sysconfig/motr
+            if [[ "$CFG_LINE" == *"$_key="* ]]; then
+                ret=1
+                break
+            fi 
+            dbg "Commented line [$CFG_LINE]"
+        else
+            IFS='='; CFG_LINE_ARRAY=($CFG_LINE); unset IFS;
+            local KEY=${CFG_LINE_ARRAY[0]}
+            local VALUE=${CFG_LINE_ARRAY[1]}
+            KEY=$(echo $KEY | xargs)
+            VALUE=$(echo $VALUE | xargs)
+            if [[ "$KEY" == "$_key" && "$VALUE" == "$_value" ]];then
+                ret=0
+                break  
+            fi
+        fi
+    done
+    unset $IFS
+    echo $ret
+}
+
 do_m0provision_action()
 {
     local CFG_LINE=""
@@ -213,7 +245,13 @@ do_m0provision_action()
             VALUE=$(echo $VALUE | xargs)
             if [ "$KEY" != "" ]; then
                 msg "Updating KEY [$KEY]; VALUE [$VALUE]"
-                set_key_value $KEY "$VALUE" $ETC_SYSCONFIG_MOTR
+                # update /etc/sysconfig/motr file
+                # only when the key values are different
+                # from motr.conf file
+                res=$(chk_key_value $KEY "$VALUE")
+                if [[ $res -ne 0 ]];then
+                    set_key_value $KEY "$VALUE" $ETC_SYSCONFIG_MOTR
+                fi
             else
                 dbg "Not processing [$CFG_LINE]"
             fi

@@ -253,8 +253,6 @@ m0_server()
        addb_opts=" -r ${MOTR_MOD_ADDB_RECORD_SIZE}"
     fi
 
-    set -x
-
     # m0d services log resize
     if [[ "$2" != "m0mkfs" ]]; then
        service_fid=$1
@@ -262,6 +260,7 @@ m0_server()
        be_log_resize
     fi
 
+    set -x
     exec $binary -e $service_ep \
                     -A linuxstob:${addbstob_dir}addb-stobs \
                     -f $proc_fid $stob_type $stob_path $MOTR_M0D_OPTS \

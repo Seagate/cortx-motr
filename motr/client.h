@@ -1752,6 +1752,8 @@ void m0_client_layout_free(struct m0_client_layout *layout);
 
 //** @} end of client group */
 
+#include "motr/idx.h" /* export m0_idx operations and services to client. */
+
 #endif /* __MOTR_CLIENT_H__ */
 
 /*

@@ -677,6 +677,18 @@ motr_m0kv_m0kv_LDADD    = $(top_builddir)/motr/libmotr.la \
 include $(top_srcdir)/motr/m0kv/Makefile.sub
 
 #
+# motr/examples ----------------------------------------- {{{2
+#
+bin_PROGRAMS                    += motr/examples/example1
+
+motr_examples_example1_CPPFLAGS = -DM0_TARGET='example1' $(AM_CPPFLAGS)
+motr_examples_example1_LDADD    = $(top_builddir)/motr/libmotr.la \
+                                    @UUID_LIBS@
+
+include $(top_srcdir)/motr/examples/Makefile.sub
+
+
+#
 # motr/crate ----------------------------------------- {{{2
 #
 sbin_PROGRAMS                    += motr/m0crate/m0crate
@@ -909,12 +921,14 @@ motr_libexec_SCRIPTS = \
     scripts/install$(motrdir)/libexec/m0_ha_sim \
     scripts/install$(motrdir)/libexec/motr_data_recovery.sh \
     scripts/install$(motrdir)/libexec/m0trace_logrotate.sh \
-    scripts/install$(motrdir)/libexec/motr_cfg.sh
+    scripts/install$(motrdir)/libexec/motr_cfg.sh \
+    scripts/install$(motrdir)/libexec/m0addb_logrotate.sh
 EXTRA_DIST += $(motr_libexec_SCRIPTS)
 
 motr_crondir = $(sysconfdir)/cron.hourly
 motr_cron_SCRIPTS = \
-    scripts/install$(motrdir)/libexec/m0trace_logrotate.sh
+    scripts/install$(motrdir)/libexec/m0trace_logrotate.sh \
+    scripts/install$(motrdir)/libexec/m0addb_logrotate.sh
 EXTRA_DIST += $(motr_cron_SCRIPTS)
     
 motr_confdir = $(motrdir)/conf

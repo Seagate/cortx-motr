@@ -29,6 +29,7 @@ motr:
     config:
         script: /usr/sbin/m0provision
         args:
+            - post_install
     test:
         script: /usr/sbin/m0provision
         args:
