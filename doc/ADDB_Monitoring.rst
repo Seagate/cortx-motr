@@ -166,8 +166,8 @@ The bottom half i.e. AST part would be run by a dedicated thread & would be sync
 
 - [r.addb.stats-service.single-instance] Implementation of stats service handles this.
 
-Dependencies
-=============
+ Dependencies
+==============
 
 - [r.addb.retention] ADDB monitor generates addb records. 
 
