@@ -218,7 +218,29 @@ Following steps show how an addb monitor collects statistical information on a p
 
 #. Continuously compute statistics from the monitored addb records. 
 
-#. Send this statistical information to the endpoint where stats service is running as addb records & to the endpoint where addb service is running if the node is a client or to the addb stob if the node is server periodically.      
+#. Send this statistical information to the endpoint where stats service is running as addb records & to the endpoint where addb service is running if the node is a client or to the addb stob if the node is server periodically.     
+
+**Exceptional conditions monitoring**
+
+Exceptional conditions such as failures, overflows, etc. could be generated inside monitoring(exceptions occurred as a result of interpreting the statistical information generated after monitoring addb records) or outside monitoring (other sub-system failures). Following steps are to be taken:
+
+#. Generate the exception description fop. 
+
+#. Post this fop to a local HA component.  
+
+**Building a cluster wide global & local state in memory on a node where stats service is running**  
+
+#. Create in-memory state structure of the cluster on this node. 
+
+#. Receive statistical summary addb records from all the node. 
+
+#. Update the state with the information in these latest addb records.
+
+**Query for some state information to the stats service**
+
+#. Construct & send a request fop for specific or complete state information to the stats service & wait for reply. 
+
+#. Stats service checks for requesting information, gathers it in reply fop & sends it back to the node from where request was initiated.   
 
    
 
