@@ -33,11 +33,9 @@
 #include <stdio.h>              /* printf */
 #include <stdlib.h>             /* EXIT_FAILURE */
 #include <errno.h>              /* ERANGE */
-#include <string.h>     	/* strcmp */
 
 #include "lib/string.h"         /* m0_streq */
 #include "lib/errno.h"          /* ENOMEM */
-
 #include "be/tool/st.h"         /* m0_betool_st_mkfs */
 #include "be/tool/common.h"     /* m0_betool_m0_init */
 #include "be/ut/helper.h"       /* m0_be_ut_backend */
@@ -50,11 +48,8 @@
 #include "be/domain.h"          /*m0_be_segobj_opt_begine,m0_be_segobj_opt_next*/
 #include "lib/uuid.h"           /* m0_node_uuid_string_set */
 
-M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0types", M0_INTERNAL,
-			   struct m0_be_0type, b0_linkage, b0_magic,
-			   M0_BE_0TYPE_MAGIC, M0_BE_0TYPE_MAGIC);
-M0_TL_DEFINE(zt, static, struct m0_be_0type);
-
+M0_TL_DESCR_DECLARE(zt, M0_EXTERN);
+M0_TL_DEFINE(zt, M0_EXTERN, struct m0_be_0type);
 
 static const char *betool_help = ""
 "Usage: m0betool [cmd] [path] [size]\n"
@@ -159,11 +154,11 @@ static void scan_btree(struct m0_be_domain *dom, bool print_btree)
 					  objtype->b0_name, suffix,
 					  objtype, seg );
 
-			if (strcmp(objtype->b0_name, "M0_BE:COB") == 0) {
+			if (m0_streq(objtype->b0_name, "M0_BE:COB") == 0) {
 				cdom = *(struct m0_cob_domain**)opt.b_addr;
 				track_cob_btrees(cdom, print_btree);
 			}
-			else if (strcmp(objtype->b0_name, "M0_BE:AD") == 0) {
+			else if (m0_streq(objtype->b0_name, "M0_BE:AD") == 0) {
 				rec = (struct stob_ad_0type_rec *)opt.b_addr;
 				track_ad_btrees(rec, print_btree);
 			}
@@ -278,6 +273,7 @@ int main(int argc, char *argv[])
 
 		rc = be_log_resize(path, size);
 		return rc;
+	}
 	if (argc > 1 && (m0_streq(argv[1], "track_btree") ||
 			 m0_streq(argv[1], "print_btree"))) {
 		path = argc > 2 ? argv[2] : NULL;

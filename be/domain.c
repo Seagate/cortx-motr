@@ -37,7 +37,7 @@
 M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0types", M0_INTERNAL,
 			   struct m0_be_0type, b0_linkage, b0_magic,
 			   M0_BE_0TYPE_MAGIC, M0_BE_0TYPE_MAGIC);
-M0_TL_DEFINE(zt, static, struct m0_be_0type);
+M0_TL_DEFINE(zt, M0_INTERNAL, struct m0_be_0type);
 
 M0_TL_DESCR_DEFINE(seg, "m0_be_domain::bd_segs", M0_INTERNAL,
 			   struct m0_be_seg, bs_linkage, bs_magic,
@@ -60,7 +60,7 @@ static void be_domain_unlock(struct m0_be_domain *dom)
 	m0_mutex_unlock(&dom->bd_lock);
 }
 
-M0_INTERNAL int m0_be_segobj_opt_iterate(struct m0_be_seg         *dict,
+static int m0_be_segobj_opt_iterate(struct m0_be_seg         *dict,
 					 const struct m0_be_0type *objtype,
 					 struct m0_buf            *opt,
 					 char                    **suffix,

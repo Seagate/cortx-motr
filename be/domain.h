@@ -175,11 +175,6 @@ enum {
 /*
  * To iterate segment objects
  * */
-M0_INTERNAL int m0_be_segobj_opt_iterate(struct m0_be_seg         *dict,
-			                 const struct m0_be_0type *objtype,
-			                 struct m0_buf            *opt,
-			                 char                    **suffix,
-			                 bool                      begin);
 M0_INTERNAL int m0_be_segobj_opt_next(struct m0_be_seg         *dict,
 			              const struct m0_be_0type *objtype,
 			              struct m0_buf            *opt,
