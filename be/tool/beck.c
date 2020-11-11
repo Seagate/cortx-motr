@@ -1033,15 +1033,9 @@ static int deref(struct scanner *s, const void *addr, void *buf, size_t nob)
 	off_t off = addr - s->s_seg->bs_addr;
 
 	if (m0_be_seg_contains(s->s_seg, addr) &&
-	    m0_be_seg_contains(s->s_seg, addr + nob - 1)) {
-		if (off >= s->s_chunk_pos &&
-		    off + nob < s->s_chunk_pos + sizeof s->s_chunk) {
-			memcpy(buf, &s->s_chunk[off - s->s_chunk_pos],
-			       nob);
-			return 0;
-		} else
-			return getat(s, off, buf, nob);
-	} else
+	    m0_be_seg_contains(s->s_seg, addr + nob - 1))
+		return getat(s, off, buf, nob);
+	else
 		return M0_ERR(-EFAULT);
 }
 
