@@ -120,7 +120,28 @@ Structure field descriptions:
 
 - am_linkage, links monitor to the global monitor list.
 
-There is a global list of all the monitors, add() would just add the monitor to this global list while del () would just remove this particular monitor from this global list. Monitors are added during  addb sub-system initialization and deleted during the addb sub-system finalization. 
+There is a global list of all the monitors, add() would just add the monitor to this global list while del () would just remove this particular monitor from this global list. Monitors are added during  addb sub-system initialization and deleted during the addb sub-system finalization.
+
+Addition / Deletion of ADDB monitors
+====================================
+
+Monitors can be added and removed dynamically through configuration. But, currently they would be hard-coded in the addb sub-system. 
+
+During addb sub-system initialization all the monitors needs to be added using m0_addb_monitor_add() API & during addb sub-system finalization all the added monitors needs to be deleted/removed using m0_addb_monitor_del() API.
+
+Invocation of ADDB monitors
+=========================== 
+
+When any addb record is posted on a node(whether a client or a server), we invoke all the monitor’s am_watch() API, present in the global monitor list. These monitors do relevant work only for the addb record types that they want to monitor & for the rest they do nothing. During execution of am_watch(), a monitor can create an addb record and also post it. This posting of addb records from inside monitor is to be done using the AST (Asynchronous system trap) mechanism provided by the Motr.  
+
+Execution of monitor
+====================
+
+Partial execution i.e. top half is executed for all the addb records during monitor invocation. This just updates the monitor specific summary data or posts an ast if an exception had been encountered.
+
+There is a periodic posting of these addb summary records and this is done by the locality thread on the m0d. This thread also runs the ASTs that are posted for the exception summary records. 
+
+The bottom half i.e. AST part would be run by a dedicated thread & would be synchronized among the various others threads that would run monitors with a sm (state machine) group lock.  
 
    
 
