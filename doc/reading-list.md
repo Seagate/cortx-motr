@@ -18,6 +18,8 @@ Motr Clients
 
 [Go bindings](../bindings/go) allow to write Motr client applications in Go language quickly and efficiently.
 
+[HSM Tool](../hsm) reference application utilizes Motr's Composite Objects Layout API, which allows to build Hierarchical Storage Management (HSM) in a multiple pools/tiers configuration clusters.
+
 Containers
 ----------
 
