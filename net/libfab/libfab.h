@@ -36,17 +36,24 @@
  * @{
  */
 
-struct libfab_ct {
-	struct fi_info *fi_pep, *fi, *hints;
+// #define FI_MAJOR_VERSION 1
+// #define FI_MINOR_VERSION 1
+
+struct libfabric_domain_params {
+	struct fi_info    *fi;
+	struct fi_info    *hints;
 	struct fid_fabric *fabric;
 	struct fid_domain *domain;
-	struct fid_pep *pep;
-	struct fid_ep *ep;
-	struct fid_cq *txcq, *rxcq;
-	struct fid_mr *mr;
-	struct fid_av *av;
-	struct fid_eq *eq;
+};
+struct libfab_params {
+	struct fid_mr     *mr;
 #if 0
+	struct fid_pep    *pep;
+	struct fid_ep     *ep;
+	struct fid_cq     *txcq;
+	struct fid_cq     *rxcq;
+	struct fid_av     *av;
+	struct fid_eq     *eq;
 	struct fid_mr no_mr;
 	void *tx_ctx_ptr, *rx_ctx_ptr;
 	struct fi_context tx_ctx[2], rx_ctx[2];

@@ -57,7 +57,9 @@
 #include "net/net.h"
 #include "lib/bitmap.h"
 #include "lib/chan.h"
+#include "lib/memory.h"
 #include "lib/trace.h"
+#include "libfab.h"
 #include <errno.h>
 
 
@@ -69,18 +71,39 @@ struct trasfer_ma {
 	// TODO: Is poller thread required ?
 };
 
+
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
+	struct libfabric_domain_params *fab;
+	int rc;
+
 	M0_ENTRY();
-	/*
-	*  TODO:
-	* fi_fabric()
-	* fi_eq_open()
-	* fi_domain()
-	* fi_open_ops() for domain 
-	* fi_set_ops()  for domain
-	*/
+	
+	fab = m0_alloc(sizeof(*fab));
+	if (fab == NULL)
+		return M0_RC(-ENOMEM);
+
+	fab->hints = fi_allocinfo();
+	if (fab->hints != NULL) {
+		// fab->hints->ep_attr->type = FI_EP_RDM;
+		// fab->hints->caps = FI_MSG;
+		// fab->hints->fabric_attr->prov_name = "verbs";
+		rc=fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION), 
+			      NULL, NULL, 0, fab->hints, &fab->fi);
+		if (rc != 0) {
+			rc=fi_fabric(fab->fi->fabric_attr, &fab->fabric, NULL);
+			if (rc != 0) {
+				rc=fi_domain(fab->fabric, fab->fi, &fab->domain,
+					     NULL);
+				if (rc != 0)
+					dom->nd_xprt_private = fab->domain;
+				else
+					dom->nd_xprt_private = NULL;
+			}
+		}
+		fi_freeinfo(fab->hints);
+	}
 	return M0_RC(0);
 }
 
