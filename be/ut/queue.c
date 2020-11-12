@@ -39,7 +39,7 @@
 #include "lib/misc.h"           /* m0_reduce */
 #include "lib/buf.h"            /* m0_buf_eq */
 
-#include "ut/threads.h"         /* m0_be_theads_start */
+#include "ut/threads.h"         /* m0_ut_theads_start */
 #include "ut/ut.h"              /* M0_UT_ASSERT */
 
 #include "be/tx_credit.h"       /* M0_BE_TX_CREDIT */
