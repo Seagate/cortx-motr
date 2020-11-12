@@ -178,7 +178,7 @@ main() {
     M0D_TRACE_DIR="${M0TR_M0D_TRACE_DIR%\'}"
     M0D_TRACE_DIR="${M0D_TRACE_DIR#\'}"
 
-    if [ -d $M0D_TRACE_DIR ]; then
+    if [[ -d "$M0D_TRACE_DIR" ]]; then
         IN_DIR=${M0D_TRACE_DIR}
         local label="m0traces $IN_DIR"
         echo -n "$label... " >&2
@@ -189,6 +189,24 @@ main() {
     else
         warn "$M0TR_M0D_TRACE_DIR: no such directory"
     fi
+
+    # Collects addb record files for process(confd, ios and s3server)
+    ADDB_RECORD_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_ADDB_STOB_DIR" | cut -d '=' -f2)
+    ADDB_DIR="${ADDB_RECORD_DIR%\'}"
+    ADDB_DIR="${ADDB_DIR#\'}"
+
+    if [[ -d "$ADDB_DIR" ]]; then
+        IN_DIR=${ADDB_DIR}
+        local label="addb-files $IN_DIR"
+        echo -n "$label... " >&2
+        section "[$label]" >>$REPORT
+        local t=$(date +%s)
+        addb-files >>$REPORT
+        echo "OK$(_time $t)" >&2
+    else
+        warn "$ADDB_DIR: no such directory"
+    fi
+
     popd >/dev/null
     # Collect rpm-update-logs
     if [ -f /var/log/motr-rpm-conf-update.log ]; then
@@ -776,7 +794,7 @@ addb-files() {
     for pid in `pgrep m0d`; do
         for file_path in $(find ${IN_DIR}/m0d-*/addb-stobs-$pid/o  -name "100000000000000:2" 2>/dev/null); do
             if [ -f "$file_path" ]; then
-                fid=$(echo $file_path | cut -d '/' -f4 | cut -d '-' -f2)
+                fid=$(echo $file_path | cut -d '/' -f7 | cut -d '-' -f2)
                 cat $file_path | _xz > addb_files/$IN_DIR/m0d_addb__${fid}.xz
             fi
         done
