@@ -230,7 +230,8 @@ start_m0d:
 		else if (rc == 0)
 			warnx("systemd notifications not allowed\n");
 		else
-			warnx("systemd READY notification successfull\n");
+			warnx("systemd READY notification successful\n");
+		rc = 0;
 #endif
 		result = cs_wait_signal();
 		if (gotsignal)
