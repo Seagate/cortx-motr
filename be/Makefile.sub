@@ -23,6 +23,7 @@ nobase_motr_include_HEADERS += \
 			       be/op.h              \
                                be/pool.h            \
                                be/pd.h              \
+                               be/queue.h           \
 			       be/recovery.h        \
                                be/seg.h             \
                                be/seg0.h            \
@@ -60,6 +61,7 @@ motr_libmotr_la_SOURCES += be/alloc.c           \
 			   be/op.c              \
                            be/pool.c            \
                            be/pd.c              \
+			   be/queue.c           \
 			   be/recovery.c        \
 			   be/seg.c             \
 			   be/seg0.c            \
