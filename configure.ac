@@ -590,6 +590,16 @@ Red Hat based systems])
 # Checking required libraries --------------------------------------------- {{{1
 #
 
+# fi_fabric() requires libfabric
+MOTR_SEARCH_LIBS([fi_fabric], [c fabric], [FAB_LIBS],
+        [libfabric cannot be found! Try to install libfabric-devel.]
+)
+AC_SUBST([FAB_LIBS])
+
+AS_IF([test "$FAB_LIBS/" ],
+      [M0_LDFLAGS="-lfabric $M0_LDFLAGS"]
+)
+
 # sqrt() requires m library
 MOTR_SEARCH_LIBS([sqrt], [c m], [MATH_LIBS],
         [sqrt cannot be found! Try to install libc-devel.]
@@ -1019,6 +1029,7 @@ echo "M0_KCFLAGS     :  \"$M0_KCFLAGS\""
 echo "M0_LDFLAGS     :  \"$M0_LDFLAGS\""
 echo ""
 echo "MATH_LIBS      :  \"$MATH_LIBS\""
+echo "FAB_LIBS       :  \"$FAB_LIBS\""
 echo "PTHREAD_LIBS   :  \"$PTHREAD_LIBS\""
 echo "AIO_LIBS       :  \"$AIO_LIBS\""
 echo "RT_LIBS        :  \"$RT_LIBS\""
