@@ -223,7 +223,7 @@ do_m0provision_action()
                  sed -i "s/MOTR_M0D_IOS_BESEG_SIZE=.*/MOTR_M0D_IOS_BESEG_SIZE=$LVM_SIZE_MIN/g" $MOTR_CONF_FILE
              else
                  err "This setup configuration seems invalid"
-                 err "Difference between metadata volume size is beyond tolerance level, $diff_per > $MAX_DIFF_TOLERANCE"
+                 err "Difference between metadata volume size is beyond tolerance level, [ $LVM_SIZE_MAX > $LVM_SIZE_MIN ]"
                  die $ERR_NOT_IMPLEMENTED
              fi 
         fi
