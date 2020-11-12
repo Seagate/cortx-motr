@@ -224,7 +224,6 @@ do_m0provision_action()
              else
                  err "This setup configuration seems invalid"
                  err "Difference between metadata volume size is beyond tolerance level, [ $LVM_SIZE_MAX > $LVM_SIZE_MIN ]"
-                 die $ERR_NOT_IMPLEMENTED
              fi 
         fi
     fi 
