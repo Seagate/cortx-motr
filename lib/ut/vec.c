@@ -25,11 +25,15 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/assert.h"
+#include "lib/bitmap.h"
+#include "lib/time.h"
+#include "lib/arith.h"
 
 static void test_ivec_cursor(void);
 static void test_bufvec_cursor(void);
 static void test_bufvec_cursor_copyto_copyfrom(void);
 static void test_indexvec_varr_cursor(void);
+static void test_cmp(void);
 
 enum {
 	NR  = 255,
@@ -135,12 +139,10 @@ void test_vec(void)
 	m0_bufvec_free_aligned(&bv, M0_SEG_SHIFT);    /* no-op */
 
 	test_bufvec_cursor();
-
 	test_bufvec_cursor_copyto_copyfrom();
-
 	test_ivec_cursor();
-
 	test_indexvec_varr_cursor();
+	test_cmp();
 }
 
 static void test_indexvec_varr_cursor(void)
@@ -560,6 +562,117 @@ static void test_bufvec_cursor_copyto_copyfrom(void)
 		M0_UT_ASSERT(struct_char3.char1 == struct_char1.char1);
 		M0_UT_ASSERT(struct_char3.char2 == struct_char1.char2);
 		M0_UT_ASSERT(struct_char3.char3 == struct_char1.char3);
+	}
+}
+
+static struct m0_bufvec *split(const char *src, int n)
+{
+	struct m0_bitmap  map;
+	int               result;
+	struct m0_bufvec *vec;
+	int               i;
+	int               len;
+	int               pos;
+	int               off;
+	int               tot  = strlen(src) + 1 + n - 1;
+	static uint64_t   seed = 0;
+
+	M0_UT_ASSERT(n > 0);
+	if (seed == 0)
+		seed = m0_time_now();
+	result = m0_bitmap_init(&map, tot + 1);
+	M0_UT_ASSERT(result == 0);
+	m0_bitmap_set(&map, tot, true);
+	for (i = 0; i < n - 1; ++i) {
+		int p;
+
+		do {
+			p = m0_rnd(tot, &seed);
+		} while (m0_bitmap_get(&map, p));
+		m0_bitmap_set(&map, p, true);
+	}
+	M0_ALLOC_PTR(vec);
+	M0_UT_ASSERT(vec != NULL);
+	M0_ALLOC_ARR(vec->ov_vec.v_count, n);
+	M0_UT_ASSERT(vec->ov_vec.v_count != NULL);
+	M0_ALLOC_ARR(vec->ov_buf, n);
+	M0_UT_ASSERT(vec->ov_buf != NULL);
+	vec->ov_vec.v_nr = n;
+	for (i = 0, len = 0, pos = 0, off = 0; i <= tot; ++i, ++len) {
+		if (m0_bitmap_get(&map, i)) {
+			M0_ALLOC_ARR(vec->ov_buf[pos], len);
+			M0_UT_ASSERT(vec->ov_buf[pos] != NULL);
+			vec->ov_vec.v_count[pos] = len;
+			memcpy(vec->ov_buf[pos], src + off, len);
+			off += len;
+			pos++;
+			len = -1;
+			continue;
+		}
+	}
+	m0_bitmap_fini(&map);
+	return vec;
+}
+
+static const char abc[] = "vextcwmflyjabszingqurdkoph";
+static const char aBc[] = "vextcwmflyjabszingQurdkoph";
+
+static void test_cmp(void)
+{
+	int n;
+	int i;
+
+	for (n = 1; n < 15; ++n) {
+		for (i = 0; i < 1000; ++i) {
+			struct m0_bufvec *v0 = split(abc, n);
+			struct m0_bufvec *v1 = split(abc, 2 * n);
+			struct m0_bufvec_cursor c0;
+			struct m0_bufvec_cursor c1;
+			m0_bcount_t             nob;
+
+			M0_UT_ASSERT(m0_vec_count(&v0->ov_vec) == sizeof abc);
+			M0_UT_ASSERT(m0_vec_count(&v1->ov_vec) == sizeof abc);
+			m0_bufvec_cursor_init(&c0, v0);
+			m0_bufvec_cursor_init(&c1, v1);
+			M0_UT_ASSERT(m0_bufvec_cursor_cmp(&c0, &c1) == 0);
+			m0_bufvec_cursor_init(&c0, v0);
+			m0_bufvec_cursor_init(&c1, v1);
+			M0_UT_ASSERT(m0_bufvec_cursor_cmp(&c1, &c0) == 0);
+			m0_bufvec_cursor_init(&c0, v0);
+			m0_bufvec_cursor_init(&c1, v1);
+			M0_UT_ASSERT(m0_bufvec_cursor_cmp(&c0, &c0) == 0);
+			m0_bufvec_cursor_init(&c0, v0);
+			m0_bufvec_cursor_init(&c1, v1);
+			M0_UT_ASSERT(m0_bufvec_cursor_cmp(&c1, &c1) == 0);
+			m0_bufvec_free(v1);
+			v1 = split(aBc, 2 * n);
+			m0_bufvec_cursor_init(&c0, v0);
+			m0_bufvec_cursor_init(&c1, v1);
+			M0_UT_ASSERT(m0_bufvec_cursor_cmp(&c0, &c1) > 0);
+			m0_bufvec_cursor_init(&c0, v0);
+			m0_bufvec_cursor_init(&c1, v1);
+			M0_UT_ASSERT(m0_bufvec_cursor_cmp(&c1, &c0) < 0);
+			m0_bufvec_cursor_init(&c0, v0);
+			m0_bufvec_cursor_init(&c1, v1);
+			M0_UT_ASSERT(m0_bufvec_cursor_prefix(&c1, &c0) == 18);
+			m0_bufvec_cursor_init(&c0, v0);
+			m0_bufvec_cursor_init(&c1, v1);
+			nob = m0_bufvec_cursor_copy(&c1, &c0, sizeof abc - 1);
+			M0_UT_ASSERT(nob == sizeof abc - 1);
+			M0_UT_ASSERT(m0_bufvec_cursor_cmp(&c0, &c1) == 0);
+			m0_bufvec_cursor_init(&c0, v0);
+			m0_bufvec_cursor_init(&c1, v1);
+			nob = m0_bufvec_cursor_copy(&c1, &c0, sizeof abc);
+			M0_UT_ASSERT(nob == sizeof abc);
+			M0_UT_ASSERT(m0_bufvec_cursor_cmp(&c0, &c1) == 0);
+			m0_bufvec_cursor_init(&c0, v0);
+			m0_bufvec_cursor_init(&c1, v1);
+			nob = m0_bufvec_cursor_copy(&c1, &c0, sizeof abc + 1);
+			M0_UT_ASSERT(nob == sizeof abc);
+			M0_UT_ASSERT(m0_bufvec_cursor_cmp(&c0, &c1) == 0);
+			m0_bufvec_free(v0);
+			m0_bufvec_free(v1);
+		}
 	}
 }
 
