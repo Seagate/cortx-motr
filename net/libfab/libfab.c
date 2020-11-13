@@ -105,6 +105,9 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 		}
 		fi_freeinfo(fab->hints);
 	}
+	else
+		rc = -ENOMEM;
+
 	return M0_RC(rc);
 }
 

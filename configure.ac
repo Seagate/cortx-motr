@@ -456,6 +456,7 @@ AC_SUBST([BUILD_KERNEL])
 # Skip all checks in distribution mode
 AS_IF([test x$enable_dist_mode = xno],[
 
+
 #
 # Checking Lustre sources ------------------------------------------------- {{{1
 #
@@ -590,15 +591,6 @@ Red Hat based systems])
 # Checking required libraries --------------------------------------------- {{{1
 #
 
-# fi_fabric() requires libfabric
-MOTR_SEARCH_LIBS([fi_fabric], [fabric], [FAB_LIBS],
-        [libfabric cannot be found! Try to install libfabric-devel.]
-)
-AC_SUBST([FAB_LIBS])
-
-AS_IF([test "$FAB_LIBS/" ],
-      [M0_LDFLAGS="-lfabric $M0_LDFLAGS"]
-)
 
 # sqrt() requires m library
 MOTR_SEARCH_LIBS([sqrt], [c m], [MATH_LIBS],
@@ -777,6 +769,26 @@ AS_IF([test x$with_lustre != xno],[
        MOTR_LINUX_WRITE_BEGIN_END
        MOTR_LINUX_SENDFILE
 ])
+
+#
+# Checking libfabric library----------------------------------------------- {{{1
+#
+
+AC_ARG_WITH([libfab],
+        [AS_HELP_STRING([--with-libfab=path],
+                        [set path to libfabric library, default is /usr/lib64/])],
+        [FAB_LIBS="-L$with_libfab -lfabric"],
+        [FAB_LIBS="-lfabric"]
+)
+
+AS_IF([ test "x$with_libfab" == "xno"],
+        MOTR_SEARCH_LIBS([fi_fabric], [fabric], [FAB_LIBS],
+        [libfabric cannot be found!!! Try to install libfabric-devel.])
+)
+
+AS_IF([test "$FAB_LIBS/" ],
+      [M0_LDFLAGS="$FAB_LIBS $M0_LDFLAGS"]
+)
 
 #
 # Checking Lustre --------------------------------------------------------- {{{1
