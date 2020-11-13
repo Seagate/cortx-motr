@@ -58,7 +58,6 @@
 #include "lib/bitmap.h"
 #include "lib/chan.h"
 #include "lib/memory.h"
-#include "lib/trace.h"
 #include "libfab.h"
 #include <errno.h>
 
@@ -74,7 +73,6 @@ struct transfer_ma {
 	* TODO: Is poller thread required ?
 	*/
 };
-
 
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
@@ -93,13 +91,14 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 		// fab->hints->ep_attr->type = FI_EP_RDM;
 		// fab->hints->caps = FI_MSG;
 		// fab->hints->fabric_attr->prov_name = "verbs";
-		rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION), 
-			      NULL, NULL, 0, fab->hints, &fab->fi);
+		rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
+				NULL, NULL, 0, fab->hints, &fab->fi);
 		if (rc == FI_SUCCESS ) {
-			rc = fi_fabric(fab->fi->fabric_attr, &fab->fabric, NULL);
+			rc = fi_fabric(fab->fi->fabric_attr, &fab->fabric,
+				       NULL);
 			if (rc == FI_SUCCESS ) {
-				rc = fi_domain(fab->fabric, fab->fi, &fab->domain,
-					     NULL);
+				rc = fi_domain(fab->fabric, fab->fi,
+					       &fab->domain, NULL);
 				if (rc == FI_SUCCESS )
 					dom->nd_xprt_private = fab->domain;
 			}
@@ -132,7 +131,8 @@ static int libfab_ma_init(struct m0_net_transfer_mc *net)
    /* 
       approach 2 - Recommended
       Poller thread should be started here
-      completion queue and counters can be initialised  here based on list of endpoints
+      completion queue and counters can be initialised
+      here based on list of endpoints
    */
 	return M0_RC(result);
 }
