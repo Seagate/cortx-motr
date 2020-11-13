@@ -628,60 +628,63 @@ struct balloc_group_write_cfg {
 struct balloc_groups_write_cfg {
 	struct balloc_group_write_cfg *bgs_bgc;
 	struct m0_balloc              *bgs_bal;
-	m0_bcount_t                    bgs_current;
 	m0_bcount_t                    bgs_max;
 	int                            bgs_rc;
 	struct m0_mutex                bgs_lock;
 };
 
-static void balloc_group_write_next(struct m0_be_tx_bulk  *tb,
-                                    struct m0_be_op       *op,
-                                    void                  *datum,
-                                    void                 **user)
+static void
+balloc_group_write_credit(struct m0_balloc               *bal,
+                          struct m0_be_tx_bulk           *tb,
+                          struct balloc_groups_write_cfg *bgs,
+                          struct m0_be_tx_credit         *credit)
 {
-	struct balloc_groups_write_cfg *bgs = datum;
-	struct balloc_group_write_cfg  *bgc;
-
-	m0_be_op_active(op);
-	m0_mutex_lock(&bgs->bgs_lock);
-	if (bgs->bgs_rc == 0 && bgs->bgs_current < bgs->bgs_max) {
-		bgc  = &bgs->bgs_bgc[bgs->bgs_current];
-		*bgc = (struct balloc_group_write_cfg){
-			.bgc_bal = bgs->bgs_bal,
-			.bgc_i   = bgs->bgs_current,
-		};
-		*user = bgc;
-		++bgs->bgs_current;
-		m0_be_op_rc_set(op, 0);
-	} else {
-		m0_be_op_rc_set(op, -ENOENT);
-	}
-	m0_mutex_unlock(&bgs->bgs_lock);
-	m0_be_op_done(op);
-}
-
-static void balloc_group_write_credit(struct m0_be_tx_bulk   *tb,
-                                      struct m0_be_tx_credit *accum,
-                                      m0_bcount_t            *accum_payload,
-                                      void                   *datum,
-                                      void                   *user)
-{
-	struct balloc_groups_write_cfg *bgs = datum;
-	struct m0_balloc               *bal = bgs->bgs_bal;
-
 	m0_be_btree_insert_credit(&bal->cb_db_group_extents, 2,
 		M0_MEMBER_SIZE(struct m0_ext, e_start),
-		M0_MEMBER_SIZE(struct m0_ext, e_end), accum);
+		M0_MEMBER_SIZE(struct m0_ext, e_end), credit);
 	m0_be_btree_insert_credit(&bal->cb_db_group_desc, 2,
 		M0_MEMBER_SIZE(struct m0_balloc_group_desc, bgd_groupno),
-		sizeof(struct m0_balloc_group_desc), accum);
+		sizeof(struct m0_balloc_group_desc), credit);
 }
 
-static void balloc_group_write_do(struct m0_be_tx_bulk   *tb,
-                                  struct m0_be_tx        *tx,
-                                  struct m0_be_op        *op,
-                                  void                   *datum,
-                                  void                   *user)
+static void balloc_group_work_put(struct m0_balloc               *bal,
+                                  struct m0_be_tx_bulk           *tb,
+                                  struct balloc_groups_write_cfg *bgs)
+{
+	struct balloc_group_write_cfg *bgc;
+	struct m0_be_tx_credit         credit;
+	m0_bcount_t                    i;
+	bool                           put_successful;
+	int                            rc;
+
+	for (i = 0; i < bgs->bgs_max; ++i) {
+		m0_mutex_lock(&bgs->bgs_lock);
+		rc = bgs->bgs_rc;
+		m0_mutex_unlock(&bgs->bgs_lock);
+		if (rc != 0)
+			break;
+		bgc  = &bgs->bgs_bgc[i];
+		*bgc = (struct balloc_group_write_cfg){
+			.bgc_bal = bgs->bgs_bal,
+			.bgc_i   = i,
+		};
+		credit = M0_BE_TX_CREDIT(0, 0);
+		balloc_group_write_credit(bal, tb, bgs, &credit);
+		M0_BE_OP_SYNC(op, put_successful =
+			      m0_be_tx_bulk_put(tb, &op, &credit, 0, 0, bgc));
+		if (!put_successful)
+			break;
+	}
+	m0_be_tx_bulk_end(tb);
+}
+
+static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
+                                  struct m0_be_tx      *tx,
+                                  struct m0_be_op      *op,
+                                  void                 *datum,
+                                  void                 *user,
+                                  uint64_t              worker_index,
+                                  uint64_t              partition)
 {
 	struct balloc_groups_write_cfg *bgs = datum;
 	struct balloc_group_write_cfg  *bgc = user;
@@ -759,6 +762,16 @@ out:
 	m0_be_op_done(op);
 }
 
+static void balloc_group_write_done(struct m0_be_tx_bulk *tb,
+                                    void                 *datum,
+                                    void                 *user,
+                                    uint64_t              worker_index,
+                                    uint64_t              partition)
+{
+	M0_LOG(M0_DEBUG, "tb=%p datum=%p user=%p worker_index=%"PRIu64" "
+	       "partition=%"PRIu64, tb, datum, user, worker_index, partition);
+}
+
 static void balloc_zone_init(struct m0_balloc_zone_param *zone, uint64_t type,
 			     m0_bcount_t start, m0_bcount_t size,
 			     m0_bcount_t freeblocks, m0_bcount_t fragments,
@@ -778,7 +791,7 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	struct balloc_groups_write_cfg  bgs;
 	struct m0_balloc_super_block   *sb = &bal->cb_sb;
 	struct m0_be_tx_bulk_cfg        tb_cfg;
-	struct m0_be_tx_bulk            tb;
+	struct m0_be_tx_bulk            tb = {};
 	int                             rc;
 
 	M0_ENTRY();
@@ -789,7 +802,6 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	}
 	bgs = (struct balloc_groups_write_cfg) {
 		.bgs_bal     = bal,
-		.bgs_current = 0,
 		.bgs_max     = sb->bsb_groupcount,
 		.bgs_rc      = 0,
 	};
@@ -800,16 +812,25 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	}
 	m0_mutex_init(&bgs.bgs_lock);
 	tb_cfg = (struct m0_be_tx_bulk_cfg){
-		.tbc_dom    = bal->cb_be_seg->bs_domain,
-		.tbc_datum  = &bgs,
-		.tbc_next   = &balloc_group_write_next,
-		.tbc_credit = &balloc_group_write_credit,
-		.tbc_do     = &balloc_group_write_do,
+		.tbc_q_cfg                 = {
+			.bqc_q_size_max       = 0x100,
+			.bqc_producers_nr_max = 1,
+		},
+		.tbc_workers_nr            = 0x40,
+		.tbc_partitions_nr         = 1,
+		.tbc_work_items_per_tx_max = 1,
+		.tbc_dom                   = bal->cb_be_seg->bs_domain,
+		.tbc_datum                 = &bgs,
+		.tbc_do                    = &balloc_group_write_do,
+		.tbc_done                  = &balloc_group_write_done,
 	};
 
 	rc = m0_be_tx_bulk_init(&tb, &tb_cfg);
 	if (rc == 0) {
-		M0_BE_OP_SYNC(op, m0_be_tx_bulk_run(&tb, &op));
+		M0_BE_OP_SYNC(op, ({
+			m0_be_tx_bulk_run(&tb, &op);
+			balloc_group_work_put(bal, &tb, &bgs);
+		}));
 		rc = m0_be_tx_bulk_status(&tb);
 		m0_be_tx_bulk_fini(&tb);
 	}
