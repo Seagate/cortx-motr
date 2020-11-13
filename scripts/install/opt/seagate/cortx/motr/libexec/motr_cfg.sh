@@ -195,7 +195,7 @@ lvm_size_percentage_diff()
     MIN=$2
     local percent=0
 
-   percent=$((100 * ($MAX - $MIN)/$MAX))
+   percent=$((100 * (MAX - MIN)/MAX))
    echo $percent
 }
 
@@ -214,7 +214,7 @@ do_m0provision_action()
     else
         MD_DEVICES=($(lvs -o lv_path 2>/dev/null | grep "lv_raw_metadata" | grep srvnode  | sort -u))
 
-        for i in ${MD_DEVICES[@]};
+        for i in "${MD_DEVICES[@]}";
         do
             LVM_SIZE=$(lvs $i -o LV_SIZE \
                            --noheadings --units b --nosuffix | xargs)
@@ -231,7 +231,7 @@ do_m0provision_action()
             elif [[ "$LVM_SIZE" -gt "$LVM_SIZE_MAX" ]]; then
                 LVM_SIZE_MAX=$LVM_SIZE
             fi
-            MD_DEVICE_CNT=`expr $MD_DEVICE_CNT + 1` 
+            MD_DEVICE_CNT=$((MD_DEVICE_CNT + 1))
         done
         if [[ "$LVM_SIZE_MIN" -eq 0 || "$LVM_SIZE_MAX" -eq 0 ]]; then
             err "lvm size invalid [$LVM_SIZE_MIN]"
