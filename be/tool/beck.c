@@ -101,7 +101,8 @@ struct scanner {
 	off_t		     s_pos;
 	bool		     s_byte;
 	/**
-	 * This determines if invalid OIDs are logged instead silent discards */
+	 * This determines if invalid OIDs are logged instead silent discard
+	 */
 	bool                 s_print_invalid_oids;
 	off_t		     s_size;
 	struct m0_be_seg    *s_seg;
@@ -517,7 +518,8 @@ int main(int argc, char **argv)
 		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
 				&s.s_gen),
 		   M0_FLAGARG('V', "Version info.", &version),
-		   M0_FLAGARG('e', "Print errored OIDs.", &s.s_print_invalid_oids),
+		   M0_FLAGARG('e', "Print errored OIDs.",
+			      &s.s_print_invalid_oids),
 		   M0_STRINGARG('y', "YAML file path",
 			   LAMBDA(void, (const char *s) {
 				   b.b_be_config_file = s;
@@ -543,12 +545,9 @@ int main(int argc, char **argv)
 	if (dry_run)
 		printf("Running in read-only mode.\n");
 
-	if (s.s_print_invalid_oids)
-		printf("Will print INVALID GOB IDs when found during scanning.\n");
-	else
-		printf("Will not print INVALID GOB IDs if found during "
-		       "scanning. To print INVALID GOBs please pass "
-		       "-e option.\n");
+	if (!s.s_print_invalid_oids)
+		printf("Will not print INVALID GOB IDs if found since '-e'"
+		       "option was not specified. \n");
 
 	if (b.b_dom_path == NULL && !dry_run && !print_gen_id)
 		errx(EX_USAGE, "Specify domain path (-d).");
@@ -747,7 +746,7 @@ static void generation_id_get(FILE *fp, uint64_t *gen_id)
 	if (seg_hdr_get(fp, &seg_hdr))
 		*gen_id = seg_hdr.bh_items[0].sg_gen;
 	else
-		printf("Invalid format / Checksum error for segment header. "
+		printf("Checksum error for segment header. "
 		       "Could not extract Generation ID.\n");
 }
 
@@ -771,7 +770,7 @@ static void seg_get(FILE *fp, struct m0_be_seg *out)
 		 *  If file has corrupted segment then use these
 		 *  hardcoded values.
 		 */
-		printf("Invalid format / Checksum error for segment header. "
+		printf("Checksum error for segment header. "
 		       "Could not extract Segment map information. "
 		       "Using possible defaults\n");
 		seg.bs_reserved = sizeof(seg_hdr);
@@ -865,21 +864,12 @@ static void stats_print(void)
 		struct bstats *s = &bt[i].b_stats;
 		if (bname(&bt[i]) == NULL)
 			continue;
-		if (dry_run)
-			printf("%25s : %9"PRId64" %9"PRId64" %9"PRId64" "
-			       "%9"PRId64" %9"PRId64" %9s %9"PRId64"\n",
-			       bname(&bt[i]),
-			       s->c_tree, s->c_node, s->c_leaf, s->c_maxlevel,
-			       s->c_kv, "NA*", s->c_fanout);
-		else
-			printf("%25s : %9"PRId64" %9"PRId64" %9"PRId64" "
-			       "%9"PRId64" %9"PRId64" %9"PRId64" %9"PRId64"\n",
-			       bname(&bt[i]),
-			       s->c_tree, s->c_node, s->c_leaf, s->c_maxlevel,
-			       s->c_kv, s->c_kv_bad, s->c_fanout);
+		printf("%25s : %9"PRId64" %9"PRId64" %9"PRId64" "
+		       "%9"PRId64" %9"PRId64" %9"PRId64" %9"PRId64"\n",
+		       bname(&bt[i]),
+		       s->c_tree, s->c_node, s->c_leaf, s->c_maxlevel,
+		       s->c_kv, s->c_kv_bad, s->c_fanout);
 	}
-	if (dry_run)
-		printf("\n*bad kv count is not availabe in dry run mode\n");
 
 	printf("\ngenerations\n");
 	for (i = 0; i < ARRAY_SIZE(g); ++i) {
@@ -1255,6 +1245,7 @@ static int emap_proc(struct scanner *s, struct btype *btype,
 	int                       ret = 0;
 	struct m0_be_emap_key    *ek;
 	struct m0_fid             gob_id;
+	uint64_t                  inv_emap_off;
 
 	for (i = 0; i < node->bt_num_active_key; i++) {
 		ea = scanner_action(sizeof *ea, AO_EMAP_FIRST, &emap_ops);
@@ -1267,8 +1258,12 @@ static int emap_proc(struct scanner *s, struct btype *btype,
 		if (ret != 0) {
 			if (s->s_print_invalid_oids) {
 				ek = ea->emap_key.b_addr;
+				inv_emap_off = node->bt_kv_arr[i].btree_key -
+					       s->s_seg->bs_addr;
 				emap_to_gob_convert(&ek->ek_prefix, &gob_id);
-				M0_LOG(M0_ERROR, "Found corrupted EMAP entry for GOB "FID_F, FID_P(&gob_id));
+				M0_LOG(M0_ERROR, "Found incorrect EMAP entry at"
+				       " segment offset %"PRIx64" for GOB "
+				       FID_F, inv_emap_off, FID_P(&gob_id));
 			}
 			btree_bad_kv_count_update(node->bt_backlink.bli_type, 1);
 			m0_free(ea);
@@ -2137,8 +2132,6 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 					  node->bt_num_active_key);
 		return 0;
 	}
-	if (dry_run)
-		return 0;
 	for (i = 0; i < node->bt_num_active_key; i++) {
 		if (ctg_kv_get(s, node->bt_kv_arr[i].btree_key,
 			       &kl[n.bt_num_active_key]) != 0) {
@@ -2150,7 +2143,8 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 			       &vl[n.bt_num_active_key]) == 0) {
 
 			if (btree_kv_post_is_valid(s, &kl[n.bt_num_active_key],
-						   &vl[n.bt_num_active_key])) {
+						   &vl[n.bt_num_active_key]) &&
+			    !dry_run) {
 				n.bt_kv_arr[n.bt_num_active_key].btree_key =
 					kl[n.bt_num_active_key].b_addr;
 				n.bt_num_active_key++;
@@ -2186,7 +2180,9 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 				continue;
 			if (rc != 0)
 				btree_bad_kv_count_update(bl->bli_type, 1);
-		} else
+		} else if (dry_run)
+			continue;
+		 else
 			fid = bl->bli_fid;
 		ca = scanner_action(sizeof *ca, AO_CTG, &ctg_ops);
 		ca->cta_fid = fid;
@@ -2489,6 +2485,7 @@ static int cob_proc(struct scanner *s, struct btype *b,
 	int                          rc;
 	struct m0_be_btree_backlink *bb  = &node->bt_backlink;
 	struct m0_cob_nskey         *nskey;
+	uint64_t                     inv_cob_off;
 
 	M0_PRE(bb->bli_type == M0_BBT_COB_NAMESPACE);
 
@@ -2518,7 +2515,11 @@ static int cob_proc(struct scanner *s, struct btype *b,
 		else {
 			if (s->s_print_invalid_oids) {
 				nskey = ca->coa_key.b_addr;
-				M0_LOG(M0_ERROR, "Found corrupted COB OID " FID_F,
+				inv_cob_off = node->bt_kv_arr[i].btree_val -
+					       s->s_seg->bs_addr;
+				M0_LOG(M0_ERROR, "Found incorrect COB entry at "
+				       "segment offset %"PRIx64" for GOB "
+				       FID_F, inv_cob_off,
 				       FID_P(&nskey->cnk_pfid));
 			}
 
