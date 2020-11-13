@@ -249,7 +249,7 @@ do_m0provision_action()
                 # only when the key values are different
                 # from motr.conf file
                 res=$(chk_key_value $KEY "$VALUE")
-                if [[ $ret -ne 0 ]];then
+                if [[ $res -ne 0 ]];then
                     set_key_value $KEY "$VALUE" $ETC_SYSCONFIG_MOTR
                 fi
             else

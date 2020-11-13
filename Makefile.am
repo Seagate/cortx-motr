@@ -677,6 +677,18 @@ motr_m0kv_m0kv_LDADD    = $(top_builddir)/motr/libmotr.la \
 include $(top_srcdir)/motr/m0kv/Makefile.sub
 
 #
+# motr/examples ----------------------------------------- {{{2
+#
+bin_PROGRAMS                    += motr/examples/example1
+
+motr_examples_example1_CPPFLAGS = -DM0_TARGET='example1' $(AM_CPPFLAGS)
+motr_examples_example1_LDADD    = $(top_builddir)/motr/libmotr.la \
+                                    @UUID_LIBS@
+
+include $(top_srcdir)/motr/examples/Makefile.sub
+
+
+#
 # motr/crate ----------------------------------------- {{{2
 #
 sbin_PROGRAMS                    += motr/m0crate/m0crate
@@ -863,6 +875,16 @@ be_tool_m0beck_LDADD         = $(top_builddir)/motr/libmotr.la
 sbin_PROGRAMS              += scripts/systemtap/kem/m0kemc
 scripts_systemtap_kem_m0kemc_CPPFLAGS  = -DM0_TARGET='m0kemc' $(AM_CPPFLAGS)
 scripts_systemtap_kem_m0kemc_LDADD     = $(top_builddir)/motr/libmotr.la -lbfd -ldl
+
+#
+# hsm/m0hsm ------------------------------------------- {{{2
+#
+
+bin_PROGRAMS          += hsm/m0hsm
+hsm_m0hsm_CPPFLAGS     = -DM0_TARGET='m0hsm' $(AM_CPPFLAGS)
+hsm_m0hsm_LDADD        = $(top_builddir)/motr/libmotr.la @LIBEDIT_LIBS@
+
+include $(top_srcdir)/hsm/Makefile.sub
 
 ################################################################################
 #                        Init scripts and config files                      {{{1

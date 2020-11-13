@@ -1,0 +1,1 @@
+motr_examples_example1_SOURCES = motr/examples/example1.c
