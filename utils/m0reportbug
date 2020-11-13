@@ -784,7 +784,7 @@ addb-files() {
     mkdir -p addb_files/$IN_DIR
 
     for i in $(pgrep s3server) ; do
-        local file_path=$(ls ${IN_DIR}/s3server-*/addb_*/o/100000000000000\:2 2>/dev/null | grep $i)
+        local file_path=$(ls ${IN_DIR}/../s3server-*/addb_*/o/100000000000000\:2 2>/dev/null | grep $i)
         if [ $? -eq 0 ] && [ -f "$file_path" ]; then
             echo $file_path
             cat $file_path | _xz > addb_files/$IN_DIR/s3_addb_${i}.xz;
