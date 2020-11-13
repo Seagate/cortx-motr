@@ -1483,6 +1483,8 @@ static int nv_scan_offset_init(uint64_t workers_nr,
 {
 	uint64_t  p;
 
+	M0_PRE(partitions_nr <= AO_NR);
+
 	m0_mutex_init(&off_info.oi_lock);
 	m0_mutex_lock(&off_info.oi_lock);
 	off_info.oi_workers_nr = workers_nr;
@@ -1497,7 +1499,7 @@ static int nv_scan_offset_init(uint64_t workers_nr,
 
 	memset(&off_info.oi_act_added[0], 0, sizeof(off_info.oi_act_added));
 	memset(&off_info.oi_act_done[0], 0, sizeof(off_info.oi_act_done));
-	for (p = 0; p < AO_NR; p++)
+	for (p = 0; p < off_info.oi_partitions_nr; p++)
 		m0_mutex_init(&off_info.oi_part_lock[p]);
 	m0_mutex_unlock(&off_info.oi_lock);
 	return 0;
@@ -1509,7 +1511,7 @@ static void nv_scan_offset_fini(void)
 
 	m0_mutex_lock(&off_info.oi_lock);
 	m0_free(off_info.oi_offset);
-	for (p = 0; p < AO_NR; p++)
+	for (p = 0; p < off_info.oi_partitions_nr; p++)
 		m0_mutex_fini(&off_info.oi_part_lock[p]);
 	m0_mutex_unlock(&off_info.oi_lock);
 	m0_mutex_fini(&off_info.oi_lock);
@@ -1542,23 +1544,32 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 		     1, ofptr);
 	if ((wret > 0) && (pret > 0) && (sret > 0)) {
 		/* look for lowest offset in active partitions */
-		for (p = 0; p < AO_NR; p++) {
+		for (p = 0; p < off_info.oi_partitions_nr; p++) {
+			/* skip idle partitions */
+			if (off_info.oi_act_added[p] == 0)
+				continue;
 			/* check for incomplete actions */
-			if (off_info.oi_act_added[p] > 0) {
-				for (w = 0; w < off_info.oi_workers_nr; w++) {
-					winfo = &off_info.oi_offset[w];
+			for (w = 0; w < off_info.oi_workers_nr; w++) {
+				/* for now skip workers not beloging to
+				 * this partitions, may need to remove this
+				 * check once static mapping is removed from
+				 * tx_bulk.c */
+				if ((w % off_info.oi_partitions_nr) != p)
+					continue;
 
-					if (off_info.oi_act_added[p] >
-					    off_info.oi_act_done[p]) {
-						if (offset > winfo->woi_offset[p])
-							offset = winfo->woi_offset[p];
-					} else {
-						if (max_offset < winfo->woi_offset[p])
-							max_offset = winfo->woi_offset[p];
-					}
-					printf("p=%"PRIu64",w=%"PRIu64",offset=%li\n",
-					       p, w, winfo->woi_offset[p]);
+				winfo = &off_info.oi_offset[w];
+
+				if (off_info.oi_act_added[p] >
+				    off_info.oi_act_done[p]) {
+					if (offset > winfo->woi_offset[p])
+						offset = winfo->woi_offset[p];
+				} else {
+					if (max_offset < winfo->woi_offset[p])
+						max_offset =
+							winfo->woi_offset[p];
 				}
+				printf("p=%"PRIu64",w=%"PRIu64",offset=%li\n",
+				       p, w, winfo->woi_offset[p]);
 			}
 		}
 		/* all partitions were idle */
@@ -1605,7 +1616,7 @@ static void nv_scan_offset_update(void)
 	fwrite(off_info.oi_offset, sizeof(struct worker_off_info),
 	       off_info.oi_workers_nr, ofptr);
 	fwrite(&off_info.oi_act_added[0], sizeof(uint64_t),
-	       AO_NR*2, ofptr);
+	       off_info.oi_partitions_nr*2, ofptr);
 	fwrite(&off_info.oi_scanoff, sizeof(struct scanner_off_info),
 	       1, ofptr);
 	fclose(ofptr);
