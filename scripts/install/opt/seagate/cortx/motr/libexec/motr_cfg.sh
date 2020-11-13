@@ -195,13 +195,8 @@ lvm_size_percentage_diff()
     MIN=$2
     local percent=0
 
-    if [ $MAX -eq $MIN ]; then
-       percent=0
-    fi
-
    percent=$((100 * ($MAX - $MIN)/$MAX))
    echo $percent
-
 }
 
 do_m0provision_action()
@@ -211,6 +206,7 @@ do_m0provision_action()
     local LVM_SIZE_MAX=0
     local MAX_DIFF_TOLERANCE=5
     local LVM_SIZE=0
+    local MD_DEVICE_CNT=0
 
     msg "Configuring host [`hostname -f`]"
     if [ ! -x /usr/sbin/lvs ]; then
@@ -218,20 +214,6 @@ do_m0provision_action()
     else
         MD_DEVICES=($(lvs -o lv_path 2>/dev/null | grep "lv_raw_metadata" | grep srvnode  | sort -u))
 
-        # Initializing MIN and MAX to first lvm size in the list. 
-        if [ ${#MD_DEVICES[@]} -ne 0 ]; then
-            LVM_SIZE=$(lvs ${MD_DEVICES[0]} -o LV_SIZE \
-                           --noheadings --units b --nosuffix | xargs)
-            ANY_ERR=$(echo $LVM_SIZE | grep -i ERROR | wc -l)
-            if [[ ( "$ANY_ERR" != "0" ) || ( -z "$LVM_SIZE" ) ]]; then
-                err "lvs $i command failed."
-                msg "[$LVM_SIZE]"
-            else 
-                LVM_SIZE_MIN=$LVM_SIZE
-                LVM_SIZE_MAX=$LVM_SIZE
-            fi
-        fi
-    
         for i in ${MD_DEVICES[@]};
         do
             LVM_SIZE=$(lvs $i -o LV_SIZE \
@@ -240,11 +222,16 @@ do_m0provision_action()
             if [[ ( "$ANY_ERR" != "0" ) || ( -z "$LVM_SIZE" ) ]]; then
                 err "lvs $i command failed."
                 msg "[$LVM_SIZE]"
-    	elif [[ "$LVM_SIZE" -lt "$LVM_SIZE_MIN" ]]; then
-    	    LVM_SIZE_MIN=$LVM_SIZE
+            elif [[ "$MD_DEVICE_CNT" -eq 0 ]]; then
+                # Initializing MIN and MAX to the first lvm size in the list. 
+                LVM_SIZE_MIN=$LVM_SIZE
+                LVM_SIZE_MAX=$LVM_SIZE
+            elif [[ "$LVM_SIZE" -lt "$LVM_SIZE_MIN" ]]; then
+                LVM_SIZE_MIN=$LVM_SIZE
             elif [[ "$LVM_SIZE" -gt "$LVM_SIZE_MAX" ]]; then
                 LVM_SIZE_MAX=$LVM_SIZE
             fi
+            MD_DEVICE_CNT=`expr $MD_DEVICE_CNT + 1` 
         done
         if [[ "$LVM_SIZE_MIN" -eq 0 || "$LVM_SIZE_MAX" -eq 0 ]]; then
             err "lvm size invalid [$LVM_SIZE_MIN]"
