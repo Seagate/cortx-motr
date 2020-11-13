@@ -216,9 +216,9 @@ do_m0provision_action()
 
         for i in "${MD_DEVICES[@]}";
         do
-            LVM_SIZE=$(lvs $i -o LV_SIZE \
+            LVM_SIZE=$(lvs "$i" -o LV_SIZE \
                            --noheadings --units b --nosuffix | xargs)
-            ANY_ERR=$(echo $LVM_SIZE | grep -i ERROR | wc -l)
+            ANY_ERR=$(echo "$LVM_SIZE" | grep -i ERROR | wc -l)
             if [[ ( "$ANY_ERR" != "0" ) || ( -z "$LVM_SIZE" ) ]]; then
                 err "lvs $i command failed."
                 msg "[$LVM_SIZE]"
