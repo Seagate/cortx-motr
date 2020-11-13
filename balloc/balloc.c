@@ -70,7 +70,6 @@ struct balloc_allocation_context {
 	uint32_t		       bac_status;  /* allocation status */
 };
 
-/** XXX @todo rewrite using M0_BE_OP_SYNC() */
 static inline int btree_lookup_sync(struct m0_be_btree  *tree,
 			       const struct m0_buf *key,
 			       struct m0_buf       *val)
@@ -1273,7 +1272,6 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 				       struct m0_balloc_group_info *grp)
 {
 	struct m0_be_btree	  *db_ext = &cb->cb_db_group_extents;
-	struct m0_be_btree_cursor  cursor;
 	struct m0_buf              key;
 	struct m0_buf              val;
 	struct m0_lext            *ex;
@@ -1306,8 +1304,6 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		return M0_RC(0);
 	}
 
-	m0_be_btree_cursor_init(&cursor, db_ext);
-
 	spare_range.e_start = grp->bgi_spare.bzp_range.e_start;
 	spare_range.e_end = (grp->bgi_groupno + 1) << cb->cb_sb.bsb_gsbits;
 	m0_ext_init(&spare_range);
@@ -1326,13 +1322,14 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	grp->bgi_spare.bzp_freeblocks = 0;
 	for (i = 0; i < group_fragments_get(grp) +
 	     group_spare_fragments_get(grp); i++, ex++) {
-		key = (struct m0_buf)M0_BUF_INIT_PTR(&next_key);
-		rc = m0_be_btree_cursor_get_sync(&cursor, &key, true);
+		ex->le_ext.e_end = next_key;
+		key = M0_BUF_INIT_PTR(&ex->le_ext.e_end);
+		val = M0_BUF_INIT_PTR(&ex->le_ext.e_start);
+		rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_lookup_slant(db_ext, &op,
+								    &key, &val),
+				       bo_u.u_btree.t_rc);
 		if (rc != 0)
 			break;
-		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
-		ex->le_ext.e_end   = *(m0_bindex_t*)key.b_addr;
-		ex->le_ext.e_start = *(m0_bindex_t*)val.b_addr;
 		m0_ext_init(&ex->le_ext);
 		if (m0_ext_is_partof(&normal_range, &ex->le_ext)) {
 			m0_list_add_tail(group_normal_ext(grp),
@@ -1353,7 +1350,6 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		next_key = ex->le_ext.e_end + 1;
 		/* balloc_debug_dump_extent("loading...", ex); */
 	}
-	m0_be_btree_cursor_fini(&cursor);
 
 	if (i != group_fragments_get(grp) + group_spare_fragments_get(grp))
 		M0_LOG(M0_ERROR, "fragments mismatch: i=%llu frags=%lld",
@@ -1605,29 +1601,37 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 	if (cur->e_end == tgt->e_end) {
 		key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 
-		/* at the head of a free extent */
 		rc = btree_delete_sync(db, tx, &key);
 		if (rc != 0)
 			return M0_RC(rc);
 
 		if (cur->e_start < tgt->e_start) {
-			/* A smaller extent still exists */
+			/* +--------------+--------------------+ */
+			/* |   cur free   |     allocated      | */
+			/* |      |  tgt  |                    | */
+			/* +------+-------+--------------------+ */
 			cur->e_end = tgt->e_start;
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 			rc = btree_insert_sync(db, tx, &key, &val);
 			if (rc != 0)
 				return M0_RC(rc);
-			maxchunk = max_check(maxchunk, m0_ext_length(cur));
 		} else {
+			/* +-------------+---------------------+ */
+			/* |   cur free  |      allocated      | */
+			/* |     tgt     |                     | */
+			/* +-------------+---------------------+ */
 			le = container_of(cur, struct m0_lext, le_ext);
 			lext_del(le);
 			zp->bzp_fragments--;
 		}
 	} else {
-		struct m0_ext next = *cur;
+		struct m0_ext new = *cur;
 
-		/* in the middle of a free extent. Cut it. */
+		/* +-----------------------------------+ */
+		/* |              cur free             | */
+		/* |     tgt    |                      | */
+		/* +------------+----------------------+ */
 		cur->e_start = tgt->e_end;
 
 		key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
@@ -1636,16 +1640,17 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 		if (rc != 0)
 			return M0_RC(rc);
 
-		maxchunk = max_check(maxchunk, m0_ext_length(cur));
-
-		if (next.e_start < tgt->e_start) {
-			/* there is still a head */
-			next.e_end = tgt->e_start;
-			le = lext_create(&next);
+		if (new.e_start < tgt->e_start) {
+			/* +-----------------------------------+ */
+			/* |              cur free             | */
+			/* |  new  |   tgt   |                 | */
+			/* +-------+---------+-----------------+ */
+			new.e_end = tgt->e_start;
+			le = lext_create(&new);
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
-			key = (struct m0_buf)M0_BUF_INIT_PTR(&next.e_end);
-			val = (struct m0_buf)M0_BUF_INIT_PTR(&next.e_start);
+			key = (struct m0_buf)M0_BUF_INIT_PTR(&new.e_end);
+			val = (struct m0_buf)M0_BUF_INIT_PTR(&new.e_start);
 			rc = btree_insert_sync(db, tx, &key, &val);
 			if (rc != 0) {
 				m0_free(le);
@@ -1654,7 +1659,6 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			lcur = container_of(cur, struct m0_lext, le_ext);
 			m0_list_add_before(&lcur->le_link, &le->le_link);
 			zp->bzp_fragments++;
-			maxchunk = max_check(maxchunk, m0_ext_length(&next));
 		}
 	}
 	zp->bzp_maxchunk = maxchunk;
@@ -1739,7 +1743,11 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 
 	if (!found) {
 		if (frags == 0) {
-			/* no fragments at all */
+			/*       No free fragments at all:       */
+			/* +-----------------------------------+ */
+			/* |              allocated            | */
+			/* |       |     tgt free     |        | */
+			/* +-------+------------------+--------+ */
 			le = lext_create(tgt);
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
@@ -1756,7 +1764,11 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 		} else {
 			/* at the tail */
 			if (cur->e_end < tgt->e_start) {
-				/* to be the last one, standalone */
+				/*    To be the last one, standalone:    */
+				/* +-----------+-----------------------+ */
+				/* |    cur    |                       | */
+				/* |           |  |      tgt free      | */
+				/* +-----------+--+--------------------+ */
 				le = lext_create(tgt);
 				if (le == NULL)
 					return M0_RC(-ENOMEM);
@@ -1771,13 +1783,16 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 				++zp->bzp_fragments;
 				maxchunk = max_check(maxchunk, m0_ext_length(tgt));
 			} else {
+				/* +-----------+-----------------------+ */
+				/* |    cur    |-->                    | */
+				/* |           |       tgt free        | */
+				/* +-----------+-----------------------+ */
 				M0_ASSERT(cur->e_end == tgt->e_start);
 				key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 				rc = btree_delete_sync(db, tx, &key);
 				if (rc != 0)
 					return M0_RC(rc);
 				cur->e_end = tgt->e_end;
-				key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 				val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 				rc = btree_insert_sync(db, tx, &key, &val);
 				if (rc != 0)
@@ -1788,7 +1803,11 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 	} else if (found && pre == NULL) {
 		/* on the head */
 		if (tgt->e_end < cur->e_start) {
-			/* to be the first one */
+			/*       To be the first one:            */
+			/* +---------------+-------------------+ */
+			/* |               |     cur free      | */
+			/* | |   tgt   |   |                   | */
+			/* +-+---------+---+-------------------+ */
 			le = lext_create(tgt);
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
@@ -1803,7 +1822,11 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			++zp->bzp_fragments;
 			maxchunk = max_check(maxchunk, m0_ext_length(tgt));
 		} else {
-			/* join with the first one */
+			/*      Join with the first one:         */
+			/* +---------------+-------------------+ */
+			/* |            <--|     cur free      | */
+			/* |     |   tgt   |                   | */
+			/* +-----+---------+-------------------+ */
 			M0_ASSERT(tgt->e_end == cur->e_start);
 			cur->e_start = tgt->e_start;
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
@@ -1817,7 +1840,11 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 		/* in the middle */
 		if (pre->e_end == tgt->e_start &&
 		    tgt->e_end == cur->e_start) {
-			/* joint with both */
+			/*        Joint with both:               */
+			/* +-------+-------+-------------------+ */
+			/* |  pre  |--> <--|    cur free       | */
+			/* |       |  tgt  |                   | */
+			/* +-------+-------+-------------------+ */
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_end);
 			rc = btree_delete_sync(db, tx, &key);
 			if (rc != 0)
@@ -1833,20 +1860,27 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			--zp->bzp_fragments;
 			maxchunk = max_check(maxchunk, m0_ext_length(cur));
 		} else if (pre->e_end == tgt->e_start) {
-			/* joint with prev */
+			/*          Joint with prev:             */
+			/* +-------+----------+----------------+ */
+			/* |  pre  |-->       |    cur free    | */
+			/* |       |  tgt  |                   | */
+			/* +-------+-------+-------------------+ */
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_end);
 			rc = btree_delete_sync(db, tx, &key);
 			if (rc != 0)
 				return M0_RC(rc);
 			pre->e_end = tgt->e_end;
-			key = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_end);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_start);
 			rc = btree_insert_sync(db, tx, &key, &val);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(pre));
 		} else if (tgt->e_end == cur->e_start) {
-			/* joint with current */
+			/*        Joint with current:            */
+			/* +-------+----------+----------------+ */
+			/* |  pre  |       <--|    cur free    | */
+			/* |          |  tgt  |                | */
+			/* +----------+-------+----------------+ */
 			cur->e_start = tgt->e_start;
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
@@ -1855,7 +1889,11 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(cur));
 		} else {
-			/* add a new one */
+			/*           Add a new one:              */
+			/* +-------+------------+--------------+ */
+			/* |  pre  |            |   cur free   | */
+			/* |          |  tgt  |                | */
+			/* +----------+-------+----------------+ */
 			le = lext_create(tgt);
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
