@@ -591,7 +591,7 @@ Red Hat based systems])
 #
 
 # fi_fabric() requires libfabric
-MOTR_SEARCH_LIBS([fi_fabric], [c fabric], [FAB_LIBS],
+MOTR_SEARCH_LIBS([fi_fabric], [fabric], [FAB_LIBS],
         [libfabric cannot be found! Try to install libfabric-devel.]
 )
 AC_SUBST([FAB_LIBS])

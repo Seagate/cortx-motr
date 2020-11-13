@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2019-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@
  * xo_buf_register                =  fi_mr_reg, fi_mr_desc, fi_mr_key, fi_mr_bind, fi_mr_enable
  * xo_buf_deregister              =  fi_close
  * xo_buf_add                     =  fi_send/fi_recv
- * xo_buf_del                     =  fi_cancel // Why del buffer? What is the action in sock/lnet
+ * xo_buf_del                     =  fi_cancel 
  * xo_bev_deliver_sync            =  Is it needed?
  * xo_bev_deliver_all             =  Is it needed?
  * xo_bev_pending                 =  Is it needed?
@@ -48,11 +48,11 @@
 /**
  * @addtogroup netlibfab
  *
- * Overview
- * --------
- * */
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
+ * @{
+ */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
+#include "lib/trace.h"
 
 #include "net/net.h"
 #include "lib/bitmap.h"
@@ -64,11 +64,15 @@
 
 
 /** Network transfer machine */
-struct trasfer_ma {
-	/** Generic transfer machine with buffer queues, etc. */
+struct transfer_ma {
+	/**
+	* Generic transfer machine with buffer queues, etc. 
+	*/
 	struct m0_net_transfer_mc *t_ma;
 
-	// TODO: Is poller thread required ?
+	/**
+	* TODO: Is poller thread required ?
+	*/
 };
 
 
@@ -80,7 +84,7 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 
 	M0_ENTRY();
 	
-	fab = m0_alloc(sizeof(*fab));
+	M0_ALLOC_PTR(fab);
 	if (fab == NULL)
 		return M0_RC(-ENOMEM);
 
@@ -89,22 +93,20 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 		// fab->hints->ep_attr->type = FI_EP_RDM;
 		// fab->hints->caps = FI_MSG;
 		// fab->hints->fabric_attr->prov_name = "verbs";
-		rc=fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION), 
+		rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION), 
 			      NULL, NULL, 0, fab->hints, &fab->fi);
-		if (rc != 0) {
-			rc=fi_fabric(fab->fi->fabric_attr, &fab->fabric, NULL);
-			if (rc != 0) {
-				rc=fi_domain(fab->fabric, fab->fi, &fab->domain,
+		if (rc == FI_SUCCESS ) {
+			rc = fi_fabric(fab->fi->fabric_attr, &fab->fabric, NULL);
+			if (rc == FI_SUCCESS ) {
+				rc = fi_domain(fab->fabric, fab->fi, &fab->domain,
 					     NULL);
-				if (rc != 0)
+				if (rc == FI_SUCCESS )
 					dom->nd_xprt_private = fab->domain;
-				else
-					dom->nd_xprt_private = NULL;
 			}
 		}
 		fi_freeinfo(fab->hints);
 	}
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 /** Used as m0_net_xprt_ops::xo_dom_fini(). */
@@ -127,14 +129,9 @@ static void libfab_dom_fini(struct m0_net_domain *dom)
 static int libfab_ma_init(struct m0_net_transfer_mc *net)
 {
 	int result = 0;
-   /*
-      approach 1:   
-      Looks like this would be empty function, 
-    * as completion queue and counters are initialised during endpoint creation 
-   */
-   
    /* 
       approach 2 - Recommended
+      Poller thread should be started here
       completion queue and counters can be initialised  here based on list of endpoints
    */
 	return M0_RC(result);
@@ -212,13 +209,14 @@ static int libfab_end_point_create(struct m0_net_end_point **epp,
  */
 static int libfab_buf_register(struct m0_net_buffer *nb)
 {
-	int        result = 0;
+	int        		ret = 0;
+
+	return M0_RC(ret);
+
 	/*
 	* TODO
 	* fi_mr_reg, fi_mr_desc, fi_mr_key, fi_mr_bind, fi_mr_enable
 	*/
-	
-	return M0_RC(result);
 }	
 
 /**
@@ -408,7 +406,6 @@ const struct m0_net_xprt m0_net_libfab_xprt = {
 	.nx_name = "libfab",
 	.nx_ops  = &libfab_xprt_ops
 };
-
 
 #undef M0_TRACE_SUBSYSTEM
 
