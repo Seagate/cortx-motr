@@ -132,6 +132,35 @@ Possible implementation strategies:
   dtrace, or system tap) scripts. RI client invokes gdb, attaches to a running
   motr instance and executes scripts.
 
+Running a motr process (unit tests in this case) under gdb incurs a significant
+overhead:
+
+.. code-block:: bash
+
+   $ time sudo ./utils/m0run m0ut -- 2>/dev/null >/dev/null
+
+   real	21m49.922s
+   user	6m29.864s
+   sys	1m25.702s
+
+   real	22m8.696s
+   user	6m32.970s
+   sys	2m39.871s
+
+   real	21m50.809s
+   user	6m31.976s
+   sys	1m24.338s
+
+   $ time sudo ./utils/m0run -d m0ut -- 2>/dev/null >/dev/null
+
+   real	31m47.175s
+   user	14m10.062s
+   sys	2m24.339s
+
+   real	32m52.940s
+   user	15m18.484s
+   sys	3m25.295s
+
 Requirements (REQS)
 -------------------
 
