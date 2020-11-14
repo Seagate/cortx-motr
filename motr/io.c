@@ -731,8 +731,9 @@ int m0_obj_op(struct m0_obj       *obj,
 	M0_ENTRY();
 	M0_PRE(obj != NULL);
 	M0_PRE(op != NULL);
-	M0_PRE(ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE))));
-	M0_PRE(ergo(opcode != M0_OC_READ, flags == 0));
+	M0_PRE(ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE,
+							M0_OOF_NOIO))));
+	M0_PRE(ergo(opcode != M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOIO))));
 
 	if (M0_FI_ENABLED("fail_op"))
 		return M0_ERR(-EINVAL);

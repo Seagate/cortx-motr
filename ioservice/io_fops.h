@@ -358,6 +358,8 @@ struct m0_fop_cob_writev_rep {
 enum m0_io_flags {
 	M0_IO_FLAG_CROW   = (1 << 0), /**< Create cob on write if not present */
 	M0_IO_FLAG_NOHOLE = (1 << 1), /**< Return error if read see holes */
+	/** Skip actual data transfer across network and storage. */
+	M0_IO_FLAG_NOIO   = (1 << 2)
 };
 
 /**
