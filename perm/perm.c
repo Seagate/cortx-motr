@@ -393,7 +393,7 @@ static void perm_run(struct perm *p)
 		M0_ASSERT(perm_invariant(p));
 		M0_ASSERT(last->s_cur != NULL);
 		if (last->s_nr < print_depth) {
-			printf("%9"PRId64" ", nr);
+			printf("%11"PRId64" ", nr);
 			step_print(last);
 		}
 		nr++;
