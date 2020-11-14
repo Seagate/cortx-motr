@@ -417,6 +417,19 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *tree,
 				    struct m0_buf *dest_value);
 
 /**
+ * Looks up for a record with the closest key >= given @key.
+ * The result is copied into provided @key and @value buffers.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
+ *
+ * @see m0_be_btree_create() regarding @op structure "mission".
+ */
+M0_INTERNAL void m0_be_btree_lookup_slant(struct m0_be_btree *tree,
+					  struct m0_be_op *op,
+					  struct m0_buf *key,
+					  struct m0_buf *value);
+
+/**
  * Looks up for a maximum key value in the given @tree.
  *
  * @see m0_be_btree_create() regarding @op structure "mission".
