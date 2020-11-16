@@ -1595,7 +1595,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 		}
 	}
 
-	M0_LOG(M0_DEBUG, "maxchunk=0x%"PRIx64" maxchunk=0x%"PRIx64,
+	M0_LOG(M0_DEBUG, "bzp_maxchunk=0x%"PRIx64" next_maxchunk=0x%"PRIx64,
 	       zp->bzp_maxchunk, maxchunk);
 
 	if (cur->e_end == tgt->e_end) {
@@ -1616,6 +1616,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			rc = btree_insert_sync(db, tx, &key, &val);
 			if (rc != 0)
 				return M0_RC(rc);
+			maxchunk = max_check(maxchunk, m0_ext_length(cur));
 		} else {
 			/* +-------------+---------------------+ */
 			/* |   cur free  |      allocated      | */
@@ -1640,6 +1641,8 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 		if (rc != 0)
 			return M0_RC(rc);
 
+		maxchunk = max_check(maxchunk, m0_ext_length(cur));
+
 		if (new.e_start < tgt->e_start) {
 			/* +-----------------------------------+ */
 			/* |              cur free             | */
@@ -1659,6 +1662,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			lcur = container_of(cur, struct m0_lext, le_ext);
 			m0_list_add_before(&lcur->le_link, &le->le_link);
 			zp->bzp_fragments++;
+			maxchunk = max_check(maxchunk, m0_ext_length(&new));
 		}
 	}
 	zp->bzp_maxchunk = maxchunk;
@@ -2028,11 +2032,15 @@ static int is_group_good_enough(struct balloc_allocation_context *bac,
 				m0_bcount_t maxchunk, m0_bcount_t free,
 				m0_bcount_t fragments)
 {
-	if (free == 0)
+	if (free == 0) {
+		M0_LOG(M0_DEBUG, "bac=%p: no free blocks", bac);
 		return 0;
+	}
 
-	if (fragments == 0)
+	if (fragments == 0) {
+		M0_LOG(M0_DEBUG, "bac=%p: no fragments", bac);
 		return 0;
+	}
 
 	switch (bac->bac_criteria) {
 	case 0:
@@ -2049,6 +2057,10 @@ static int is_group_good_enough(struct balloc_allocation_context *bac,
 	default:
 		M0_ASSERT(0);
 	}
+
+	M0_LOG(M0_DEBUG, "bac=%p criteria=%d: no big enough chunk: "
+	       "goal=0x%08lx maxchunk=%08lx", bac, bac->bac_criteria,
+	       m0_ext_length(&bac->bac_goal), maxchunk);
 
 	return 0;
 }
