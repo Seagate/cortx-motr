@@ -255,12 +255,12 @@ Following failure cases are listed along with their handling mechanism:
 
 - Exceptional conditions are reported to local HA component using a fop, a failure of receiving a fop by local HA component can happen, this would mean that some exceptional conditions can go unnoticed by local HA component. This type of failure is ignored.
 
- Rationale
+Rationale
 ============
 
 The existing ADDB implementation and the newly developed tracing subsystem contributed greatly to the requirement to use C macro interfaces with compile time validation. 
 
- Compatibility
+Compatibility
 ================
 
 The proposed ADDB monitoring mechanism will not break compatibility with the existing mechanism. It acts like and add-on to the current ADDB mechanism.
@@ -270,12 +270,12 @@ Network
 
 The ADDB monitoring mechanism works within the Motr network framework.
 
- Persistent storage
+Persistent storage
 =====================  
 
 ADDB repositories are stored in Motr storage objects. ADDB summary records are stored as usual addb records. Stats service do not require any disk storage space.
 
- Installation
+Installation
 ==============
 
 The ADDB monitoring component can be added/deleted by modified the configuration related to it.     
