@@ -167,9 +167,9 @@ Conformance
 
 - [r.addb.stats-service.single-instance] Implementation of stats service handles this.
 
-==============
+**************
  Dependencies
-==============
+**************
 
 - [r.addb.retention] ADDB monitor generates addb records. 
 
@@ -195,9 +195,9 @@ Conformance
 
 - [r.addb.post.non-blocking] Decrease performance impact of ADDB monitoring.
 
-===========
+***********
  Use Cases
-===========
+***********
 
 **Statistical monitoring of addb records that already have statistical information in them**
 
@@ -245,9 +245,9 @@ Exceptional conditions such as failures, overflows, etc. could be generated insi
 
 #. Stats service checks for requesting information, gathers it in reply fop & sends it back to the node from where request was initiated.
 
-==========
+**********
  Failures
-==========
+**********
 
 Following failure cases are listed along with their handling mechanism: 
 
