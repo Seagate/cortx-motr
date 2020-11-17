@@ -63,7 +63,7 @@ Interfaces
 
 #. Delete record from cobfid_map - executed on every ioservice when a file gets deleted.
 
-#. Enumerate devices/containers (In future, device id will begeneralized to container id) - Used by storage agents (typically storage-in agent to iterate over fid-cob_fid mapping to select nextcob for repair).
+#. Enumerate devices/containers (In future, device id will be generalized to container id) - Used by storage agents (typically storage-in agent to iterate over fid-cob_fid mapping to select nextcob for repair).
 
 #. Enumerate map (devices + fid).
 
