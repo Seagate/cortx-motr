@@ -265,7 +265,7 @@ The existing ADDB implementation and the newly developed tracing subsystem contr
 
 The proposed ADDB monitoring mechanism will not break compatibility with the existing mechanism. It acts like and add-on to the current ADDB mechanism.
 
- Network   
+Network   
 =========
 
 The ADDB monitoring mechanism works within the Motr network framework.
