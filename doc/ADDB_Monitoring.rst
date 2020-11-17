@@ -122,14 +122,14 @@ Structure field descriptions:
 
 There is a global list of all the monitors, add() would just add the monitor to this global list while del () would just remove this particular monitor from this global list. Monitors are added during  addb sub-system initialization and deleted during the addb sub-system finalization.
 
- Addition / Deletion of ADDB monitors
+Addition / Deletion of ADDB monitors
 ======================================
 
 Monitors can be added and removed dynamically through configuration. But, currently they would be hard-coded in the addb sub-system. 
 
 During addb sub-system initialization all the monitors needs to be added using m0_addb_monitor_add() API & during addb sub-system finalization all the added monitors needs to be deleted/removed using m0_addb_monitor_del() API.
 
- Invocation of ADDB monitors
+Invocation of ADDB monitors
 ============================= 
 
 When any addb record is posted on a node(whether a client or a server), we invoke all the monitor’s am_watch() API, present in the global monitor list. These monitors do relevant work only for the addb record types that they want to monitor & for the rest they do nothing. During execution of am_watch(), a monitor can create an addb record and also post it. This posting of addb records from inside monitor is to be done using the AST (Asynchronous system trap) mechanism provided by the Motr.  
