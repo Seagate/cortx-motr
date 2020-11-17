@@ -202,3 +202,33 @@ Define and initialize the fop type for the new fop and associate the correspondi
                    .fop_ops = m0_rpc_fop_conn_establish_ops); 
 
  }
+ 
+A request FOP is sent by invoking a rpc routine m0_rpc_post(), and its corresponding reply can be sent by invoking m0_rpc_reply_post() (as per new rpc layer).
+
+- Client side
+
+  Every request fop should be submitted to request handler for processing (both at the client as well as at the server side) which is then forwarded by the request handler    itself, although currently (for “november” demo) we do not have request handler at the client side. Thus sending a FOP from the client side just involves submitting it to rpc layer by invoking m0_rpc_post(). So, this may look something similar to this:
+  
+  ::
+  
+   system_call()->m0t1fs_sys_call()
+   
+   m0t2fs_sys_call() {
+   
+        /* create fop */
+        
+        m0_rpc_post();
+        
+   }
+
+
+
+
+
+
+
+
+
+
+
+
