@@ -944,7 +944,7 @@ static void add(struct m0_addb2_mach *mach,
 		while (n-- > 0)
 			buffer_add(buf, *value++);
 	}
-	M0_POST_EX(trace_invariant(&buf->b_trace.o_tr));
+	M0_POST_EX(ergo(buf != NULL, trace_invariant(&buf->b_trace.o_tr)));
 }
 
 /**
