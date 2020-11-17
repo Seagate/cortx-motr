@@ -131,3 +131,5 @@ A fop can be sent as a request FOP or a reply FOP. A fop is sent across using th
        struct m0_rpc_item      f_item;
 
  ...
+ 
+Sending a fop involves initializing various fop and rpc item structures and then invoking the m0_rpc_post routines. The steps for the same are described below with few code examples.
