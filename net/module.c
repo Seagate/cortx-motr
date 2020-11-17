@@ -26,7 +26,6 @@
 #include "net/net.h"
 #include "net/bulk_mem.h"     /* m0_net_bulk_mem_xprt */
 #include "lib/memory.h"       /* M0_ALLOC_PTR */
-
 static struct m0_module *net_module_create(struct m0 *instance);
 static int  level_net_enter(struct m0_module *module);
 static void level_net_leave(struct m0_module *module);
@@ -66,10 +65,18 @@ static struct {
 		.name = "\"bulk-mem\" m0_net_xprt_module",
 		.xprt = &m0_net_bulk_mem_xprt
 	},
+#ifndef __KERNEL__
 	[M0_NET_XPRT_SOCK] = {
 		.name = "\"sock\" m0_net_xprt_module",
 		.xprt = &m0_net_sock_xprt
 	}
+/*
+	[M0_NET_XPRT_LIBFABRIC] = {
+		.name = "\"libfabric\" m0_net_xprt_module",
+		.xprt = &m0_net_libfabric_xprt
+	}
+*/
+#endif
 };
 M0_BASSERT(ARRAY_SIZE(net_xprt_mods) ==
 	   ARRAY_SIZE(M0_FIELD_VALUE(struct m0_net_module, n_xprts)));
@@ -133,7 +140,6 @@ static void level_net_leave(struct m0_module *module)
 static int level_net_xprt_enter(struct m0_module *module)
 {
 	struct m0_net_xprt_module *m = M0_AMB(m, module, nx_module);
-
 	M0_PRE(module->m_cur + 1 == M0_LEVEL_NET_DOMAIN);
 	return m0_net_domain_init(&m->nx_domain, m->nx_xprt);
 }

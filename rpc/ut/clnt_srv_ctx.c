@@ -27,7 +27,6 @@
 #include "ut/cs_fop_xc.h"       /* cs_ds2_req_fop */
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
 #include "ut/misc.h"            /* M0_UT_PATH */
-
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
 
 #define SERVER_DB_NAME        "rpc_ut_server.db"
@@ -42,9 +41,8 @@ enum {
 	CONNECT_TIMEOUT    = 5,
 	MAX_RETRIES        = 5,
 };
-
-static struct m0_net_xprt  *xprt = &m0_net_xprt_obj;
 static struct m0_net_domain client_net_dom;
+static struct m0_net_xprt  *xprt;
 
 #ifndef __KERNEL__
 static struct m0_rpc_client_ctx cctx = {
@@ -71,6 +69,7 @@ static struct m0_rpc_server_ctx sctx;
  */
 static inline void sctx_reset(void)
 {
+
 	sctx = (struct m0_rpc_server_ctx){
 		.rsx_xprts            = &xprt,
 		.rsx_xprts_nr         = 1,
@@ -83,10 +82,9 @@ static inline void sctx_reset(void)
 static inline void start_rpc_client_and_server(void)
 {
 	int rc;
-
+	xprt = m0_net_xprt_obj;
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
-
 	sctx_reset();
 	rc = m0_rpc_server_start(&sctx);
 	M0_ASSERT(rc == 0);
@@ -101,7 +99,6 @@ static inline void start_rpc_client_and_server(void)
 static inline void stop_rpc_client_and_server(void)
 {
 	int rc;
-
 	rc = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(rc == 0);
 	m0_rpc_server_stop(&sctx);
@@ -128,7 +125,6 @@ static inline struct m0_fop *fop_alloc(struct m0_rpc_machine *machine)
 }
 
 #endif /* !__KERNEL__ */
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

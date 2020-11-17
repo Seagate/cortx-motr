@@ -93,7 +93,10 @@
  */
 static struct m0_net_xprt *cs_xprts[] = {
 	&m0_net_lnet_xprt,
+#ifndef __KERNEL__
 	&m0_net_sock_xprt
+	/*&m0_net_libfabric_xprt*/
+#endif
 };
 
 M0_INTERNAL int main(int argc, char **argv)

@@ -41,14 +41,15 @@
 
 M0_INTERNAL void m0_ha_ut_rpc_ctx_init(struct m0_ha_ut_rpc_ctx *ctx)
 {
-	struct m0_fid  process_fid = M0_FID_TINIT('r', 0, 1);
-	const uint32_t tms_nr      = 1;
-	const uint32_t bufs_nr     =
+	struct m0_fid       process_fid = M0_FID_TINIT('r', 0, 1);
+	const uint32_t      tms_nr      = 1;
+	const uint32_t      bufs_nr     =
 		m0_rpc_bufs_nr(M0_NET_TM_RECV_QUEUE_DEF_LEN, tms_nr);
-	const char    *ep          = "0@lo:12345:42:100";
-	int            rc;
+	const char         *ep          = "0@lo:12345:42:100";
+	int                 rc;
+	struct m0_net_xprt *xprt = m0_net_xprt_get();
 
-	rc = m0_net_domain_init(&ctx->hurc_net_domain, &m0_net_xprt_obj);
+	rc = m0_net_domain_init(&ctx->hurc_net_domain, xprt);
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_net_buffer_pool_setup(&ctx->hurc_net_domain,
 					  &ctx->hurc_buffer_pool,

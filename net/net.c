@@ -28,6 +28,9 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/mutex.h"
+#include "lib/assert.h"
+#include "net/lnet/lnet.h"
+#include "net/sock/sock.h"
 #ifndef __KERNEL__
 #  include "lib/string.h"  /* m0_streq */
 #endif
@@ -36,7 +39,8 @@
 #include "lib/trace.h"
 
 #include "net/net_otw_types.h"
-
+#include "net/net.h"
+struct m0_net_xprt *m0_net_xprt_obj;
 /**
    @addtogroup net
    @{
@@ -56,6 +60,13 @@ struct m0_mutex m0_net_mutex;
 
 M0_INTERNAL int m0_net_init(void)
 {
+	M0_ENTRY();
+	m0_net_xprt_obj = &m0_net_lnet_xprt;
+/*
+#ifndef __KERNEL__
+	m0_net_xprt_obj = &m0_net_sock_xprt;
+#endif
+*/
 	m0_mutex_init(&m0_net_mutex);
 	return 0;
 }
@@ -134,6 +145,32 @@ M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint)
 }
 #endif /* !__KERNEL__ */
 
+void m0_net_default_xprt_set(void)
+{
+	m0_net_xprt_obj = &m0_net_lnet_xprt;
+/*
+#ifndef __KERNEL__
+	m0_net_xprt_obj = &m0_net_sock_xprt;
+#endif
+*/
+}
+M0_EXPORTED(m0_net_default_xprt_set);
+
+struct m0_net_xprt *m0_net_xprt_set(struct m0_net_xprt *xptr)
+{
+	M0_ENTRY();
+	M0_PRE(xptr != NULL);
+		m0_net_xprt_obj = xptr;
+	return m0_net_xprt_obj;
+}
+M0_EXPORTED(m0_net_xprt_set);
+
+struct m0_net_xprt *m0_net_xprt_get(void)
+{
+	M0_ENTRY();
+	return m0_net_xprt_obj;
+}
+M0_EXPORTED(m0_net_xprt_get);
 #undef M0_TRACE_SUBSYSTEM
 
 /*

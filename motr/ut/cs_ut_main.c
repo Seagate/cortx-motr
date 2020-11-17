@@ -197,7 +197,10 @@ static const char *srv_ep_addrs[] = { SERVER_ENDPOINT_ADDR, "127.0.0.1:35678" };
 static struct m0_net_xprt *cs_xprts[] = {
 	&m0_net_lnet_xprt,
 	&m0_net_bulk_mem_xprt,
+#ifndef __KERNEL__
 	&m0_net_sock_xprt
+	/*&m0_net_libfabric_xprt*/
+#endif
 };
 
 enum { MAX_RPCS_IN_FLIGHT = 10 };

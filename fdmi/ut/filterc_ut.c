@@ -43,8 +43,6 @@ static struct m0_fdmi_src_rec  g_src_rec;
 static struct m0_filterc_ops  *ufc_fco;
 static struct m0_reqh_service *ufc_fdmi_service;
 
-static struct m0_net_xprt *m0_fdmi_ut_xprt = &m0_net_xprt_obj;
-
 /* ----------------------------------------------------------------
  * Tests
  * ---------------------------------------------------------------- */
@@ -74,7 +72,6 @@ enum {
 };
 
 static struct m0_rpc_server_ctx sctx = {
-	.rsx_xprts         = &m0_fdmi_ut_xprt,
 	.rsx_xprts_nr      = 1,
 	.rsx_argv          = server_argv,
 	.rsx_argc          = ARRAY_SIZE(server_argv),
@@ -154,11 +151,11 @@ static int ut_filterc_fco_start(struct m0_filterc_ctx *ctx,
 
 static void rpc_client_and_server_start(void)
 {
-	int rc;
-
-	rc = m0_net_domain_init(&client_net_dom, m0_fdmi_ut_xprt);
+	int                 rc;
+	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_UT_ASSERT(rc == 0);
-
+	sctx.rsx_xprts = &xprt;
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);
@@ -167,9 +164,11 @@ static void rpc_client_and_server_start(void)
 
 static void rpc_client_and_server_stop(void)
 {
-	int rc;
+	int                 rc;
+	struct m0_net_xprt *xprt = m0_net_xprt_get();
 	rc = m0_rpc_client_stop(&cctx);
 	M0_UT_ASSERT(rc == 0);
+	sctx.rsx_xprts = &xprt;
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);
 }

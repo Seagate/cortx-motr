@@ -379,8 +379,9 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 
 void bulkio_params_init(struct bulkio_params *bp)
 {
-	int i;
-	int rc;
+	int                 i;
+	int                 rc;
+	struct m0_net_xprt *xprt = m0_net_xprt_get();
 
 	M0_ASSERT(bp != NULL);
 
@@ -411,7 +412,7 @@ void bulkio_params_init(struct bulkio_params *bp)
 
 	io_buffers_allocate(bp);
 
-	bp->bp_xprt = &m0_net_xprt_obj;
+	bp->bp_xprt = xprt;
 	rc = m0_net_domain_init(&bp->bp_cnetdom, bp->bp_xprt);
 	M0_ASSERT(rc == 0);
 

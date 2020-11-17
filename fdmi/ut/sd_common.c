@@ -50,7 +50,10 @@ static struct m0_mdstore           md;
 
 static struct m0_net_xprt *sd_ut_xprts[] = {
 	&m0_net_lnet_xprt,
+#ifndef __KERNEL__
 	&m0_net_sock_xprt,
+	/*&m0_net_libfabric_xprt,*/
+#endif
 };
 static FILE               *sd_ut_lfile;
 
@@ -180,7 +183,7 @@ void prepare_rpc_env(struct test_rpc_env         *env,
 {
 	enum { TEST_TM_NR = 1 }; /* Number of TMs. */
 	int                      rc;
-	struct m0_net_xprt      *xprt = &m0_net_xprt_obj;
+	struct m0_net_xprt      *xprt = m0_net_xprt_get();
 
 	M0_ENTRY();
 

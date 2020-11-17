@@ -131,13 +131,11 @@ static void test_rpclib(void)
 	 * run within a single process, because in this case transport is
 	 * initialized by m0_rpc_server_start().
 	 */
-
 	sctx_reset();
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 	if (rc != 0)
 		return;
-
 	rc = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(rc == 0);
 	if (rc != 0)
@@ -157,7 +155,7 @@ server_fini:
 static int test_rpclib_init(void)
 {
 	int rc;
-
+	xprt = m0_net_xprt_obj;
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
 	return rc;

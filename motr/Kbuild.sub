@@ -25,8 +25,7 @@ m0tr_objects += motr/ha.o \
                   motr/composite_layout.o \
                   motr/realm.o \
                   motr/utils.o \
-                  motr/client_internal_xc.o \
-		  motr/setup.o
+                  motr/client_internal_xc.o 
 
 
 m0tr_objects += motr/linux_kernel/dummy_init_fini.o \

@@ -242,7 +242,7 @@ static void conf_save_load_fail(void)
 static int conf_ut_reqh_init(struct m0_conf_ut_reqh *conf_reqh,
 			     const char             *ep_addr)
 {
-	struct m0_net_xprt *xprt = &m0_net_xprt_obj;
+	struct m0_net_xprt *xprt = m0_net_xprt_get();
 	enum { NR_TMS = 1 };
 	int rc;
 

@@ -158,7 +158,6 @@ include $(src)/xcode/ut/Kbuild.sub
 include $(src)/be/ut/Kbuild.sub
 include $(src)/sns/ut/Kbuild.sub
 include $(src)/ha/ut/Kbuild.sub
-include $(src)/motr/Kbuild.sub
 
 #
 # m0ctl.ko -------------------------------------------- {{{1
@@ -177,7 +176,6 @@ m0lnetping-y = $(m0lnetping_objects)
 m0lnetping_objects :=
 
 include $(src)/net/lnet/st/Kbuild.sub
-include $(src)/motr/Kbuild.sub
 
 
 #
@@ -188,7 +186,6 @@ m0rpcping-y = $(m0rpcping_objects)
 m0rpcping_objects :=
 
 include $(src)/rpc/it/Kbuild.sub
-include $(src)/motr/Kbuild.sub
 
 
 #

@@ -89,8 +89,6 @@ static int   max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 
 static char server_endpoint[M0_NET_LNET_XEP_ADDR_LEN];
 
-static struct m0_net_xprt *xprt = &m0_net_xprt_obj;
-
 static int build_endpoint_addr(char *out_buf, size_t buf_size)
 {
 	char *ep_name;
@@ -237,10 +235,11 @@ static void deinit_plugin(struct fdmi_plugin_ctx *ctx)
 static int run_server(void)
 {
 	enum { STRING_LEN = 16 };
-	static char tm_len[STRING_LEN];
-	static char rpc_size[STRING_LEN];
-	int	    rc;
-	char       *argv[] = {
+	static char         tm_len[STRING_LEN];
+	static char         rpc_size[STRING_LEN];
+	int	            rc;
+	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	char               *argv[] = {
 		"rpclib_ut", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
 		"-A", SERVER_ADDB_STOB_FILE_NAME, "-w", "5",

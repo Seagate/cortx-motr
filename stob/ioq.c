@@ -412,9 +412,7 @@ static void ioq_queue_submit(struct m0_stob_ioq *ioq)
 		ioq_queue_unlock(ioq);
 
 		if (got > 0) {
-#ifdef __KERNEL__
 			put = io_submit(ioq->ioq_ctx, got, evin);
-#endif
 			if (put < 0)
 				M0_LOG(M0_ERROR, "got=%d put=%d", got, put);
 			if (put < 0)
@@ -433,7 +431,6 @@ static void ioq_queue_submit(struct m0_stob_ioq *ioq)
 /**
  * Handles detection of drive IO error by signalling HA.
  */
-#ifdef __KERNEL__
 static void ioq_io_error(struct m0_stob_ioq *ioq, struct ioq_qev *qev)
 {
 	struct m0_stob_io    *io    = qev->iq_io;
@@ -485,7 +482,7 @@ static void ioq_io_error(struct m0_stob_ioq *ioq, struct ioq_qev *qev)
 
 	M0_LEAVE("tag=%"PRIu64, tag);
 }
-#endif
+
 /* Note: it is not the number of emulated errors, see below. */
 int64_t emulate_disk_errors_nr = 0;
 
@@ -495,7 +492,6 @@ int64_t emulate_disk_errors_nr = 0;
    When all fragments of a certain adieu request have completed, signals
    m0_stob_io::si_wait.
  */
-#ifdef __KERNEL__
 static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 			 long res, long res2)
 {
@@ -591,8 +587,7 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 		m0_chan_broadcast_lock(&io->si_wait);
 	}
 }
-#endif
-#ifdef __KERNEL__
+
 static const struct timespec ioq_timeout_default = {
 	.tv_sec  = 1,
 	.tv_nsec = 0
@@ -605,6 +600,7 @@ static unsigned long stob_ioq_timer_cb(unsigned long data)
 	m0_semaphore_up(stop_sem);
 	return 0;
 }
+
 static int stob_ioq_thread_init(struct m0_stob_ioq *ioq)
 {
 	struct m0_timer_locality *timer_loc;
@@ -630,7 +626,7 @@ static int stob_ioq_thread_init(struct m0_stob_ioq *ioq)
 	m0_semaphore_init(&ioq->ioq_stop_sem[thread_index], 0);
 	return M0_RC(rc);
 }
-#endif
+
 /**
    Linux adieu worker thread.
 
@@ -638,16 +634,13 @@ static int stob_ioq_thread_init(struct m0_stob_ioq *ioq)
    events to the users. Moves fragments from the admission queue to the ring
    buffer.
  */
-#ifdef __KERNEL__
 static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 {
 	int got;
 	int avail;
 	int i;
 	struct io_event      evout[M0_STOB_IOQ_BATCH_OUT_SIZE];
-#ifdef __KERNEL__
 	struct timespec      timeout;
-#endif
 	struct m0_addb2_hist inflight = {};
 	struct m0_addb2_hist queued   = {};
 	struct m0_addb2_hist gotten   = {};
@@ -659,11 +652,9 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 	m0_addb2_hist_add_auto(&queued,   1000, M0_AVI_STOB_IOQ_QUEUED, -1);
 	m0_addb2_hist_add_auto(&gotten,   1000, M0_AVI_STOB_IOQ_GOT, -1);
 	while (!m0_semaphore_trydown(&ioq->ioq_stop_sem[thread_index])) {
-#ifdef __KERNEL__
 		timeout = ioq_timeout_default;
 		got = io_getevents(ioq->ioq_ctx, 1, ARRAY_SIZE(evout),
 				   evout, &timeout);
-#endif
 		if (got > 0) {
 			avail = m0_atomic64_add_return(&ioq->ioq_avail, got);
 			M0_ASSERT(avail <= M0_STOB_IOQ_RING_SIZE);
@@ -691,21 +682,19 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 	m0_timer_thread_detach(&ioq->ioq_stop_timer_loc[thread_index]);
 	m0_timer_locality_fini(&ioq->ioq_stop_timer_loc[thread_index]);
 }
-#endif
-#ifdef __KERNEL__
+
 M0_INTERNAL int m0_stob_ioq_init(struct m0_stob_ioq *ioq)
 {
 	int result;
-#ifdef __KERNEL__
 	int i;
+
 	ioq->ioq_ctx      = NULL;
-#endif
 	m0_atomic64_set(&ioq->ioq_avail, M0_STOB_IOQ_RING_SIZE);
 	ioq->ioq_queued   = 0;
 
 	m0_queue_init(&ioq->ioq_queue);
 	m0_mutex_init(&ioq->ioq_lock);
-#ifdef __KERNEL__
+
 	result = io_setup(M0_STOB_IOQ_RING_SIZE, &ioq->ioq_ctx);
 	if (result == 0) {
 		for (i = 0; i < ARRAY_SIZE(ioq->ioq_thread); ++i) {
@@ -721,10 +710,9 @@ M0_INTERNAL int m0_stob_ioq_init(struct m0_stob_ioq *ioq)
 	}
 	if (result != 0)
 		m0_stob_ioq_fini(ioq);
-#endif
 	return result;
 }
-#endif
+
 M0_INTERNAL void m0_stob_ioq_fini(struct m0_stob_ioq *ioq)
 {
 	int i;
@@ -735,10 +723,8 @@ M0_INTERNAL void m0_stob_ioq_fini(struct m0_stob_ioq *ioq)
 		if (ioq->ioq_thread[i].t_func != NULL)
 			m0_thread_join(&ioq->ioq_thread[i]);
 	}
-#ifdef __KERNEL__
 	if (ioq->ioq_ctx != NULL)
 		io_destroy(ioq->ioq_ctx);
-#endif
 	m0_queue_fini(&ioq->ioq_queue);
 	m0_mutex_fini(&ioq->ioq_lock);
 }

@@ -120,9 +120,10 @@ static void dix_ha_fini(struct dix_ctx *ctx)
 
 static int dix_net_init(struct dix_ctx *ctx, const char *local_addr)
 {
+	struct m0_net_xprt *xprt = m0_net_xprt_get();
 	M0_LOG(M0_DEBUG, "local ep is %s", local_addr);
 	ctx->dc_laddr = local_addr;
-	return M0_RC(m0_net_domain_init(&ctx->dc_ndom, &m0_net_xprt_obj));
+	return M0_RC(m0_net_domain_init(&ctx->dc_ndom, xprt));
 }
 
 static int dix_rpc_init(struct dix_ctx *ctx)

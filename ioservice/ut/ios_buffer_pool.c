@@ -74,7 +74,10 @@ static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-T", "AD",
 static struct m0_net_xprt *cs_xprts[] = {
 	&m0_net_lnet_xprt,
 	&m0_net_bulk_mem_xprt,
+#ifndef __KERNEL__
 	&m0_net_sock_xprt
+	/*&m0_net_libfabric_xprt*/
+#endif
 };
 
 #define SERVER_LOG_FILE_NAME "cs_ut.errlog"

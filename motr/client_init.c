@@ -453,7 +453,7 @@ static int client_net_init(struct m0_client *m0c)
 	strncpy(laddr, m0c->m0c_config->mc_local_addr, laddr_len);
 	m0c->m0c_laddr = laddr;
 
-	m0c->m0c_xprt = &m0_net_xprt_obj;
+	m0c->m0c_xprt = m0_net_xprt_get();
 	xprt =  m0c->m0c_xprt;
 	ndom = &m0c->m0c_ndom;
 

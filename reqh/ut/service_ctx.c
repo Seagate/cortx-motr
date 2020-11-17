@@ -29,10 +29,13 @@
 #define SERVER_LOG_FILE_NAME       "reqh_service_ctx.log"
 
 static struct m0_net_xprt       *ut_xprts[] = { &m0_net_lnet_xprt,
-						&m0_net_sock_xprt,};
+#ifndef __KERNEL__
+						&m0_net_sock_xprt,
+						/*&m0_net_libfabric_xprt,*/
+#endif
+					      };
 static struct m0_rpc_server_ctx  ut_sctx;
 static struct m0_net_domain      ut_client_net_dom;
-static struct m0_net_xprt       *ut_xprt = &m0_net_xprt_obj;
 static struct m0_rpc_machine     ut_rmach;
 static const char               *ut_ep_addr_remote = "0@lo:12345:34:999";
 static struct m0_net_buffer_pool ut_buf_pool;
@@ -67,6 +70,7 @@ static int reqh_service_ctx_ut__remote_rmach_init(void)
 	enum { NR_TMS = 1 };
 	int      rc;
 	uint32_t bufs_nr;
+	struct m0_net_xprt *ut_xprt = m0_net_xprt_get();
 
 	rc = m0_net_domain_init(&ut_client_net_dom, ut_xprt);
 	M0_ASSERT(rc == 0);

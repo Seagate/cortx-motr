@@ -121,10 +121,11 @@ static void cobfoms_utinit(void)
 	struct m0_rpc_server_ctx *sctx;
 	struct m0_rpc_client_ctx *cctx;
 
+	struct m0_net_xprt       *xprt = m0_net_xprt_get();
 	M0_ALLOC_PTR(cut);
 	M0_UT_ASSERT(cut != NULL);
 
-	cut->cu_xprt = &m0_net_xprt_obj;
+	cut->cu_xprt = xprt;
 
 	rc = m0_net_domain_init(&cut->cu_nd, cut->cu_xprt);
 	M0_UT_ASSERT(rc == 0);

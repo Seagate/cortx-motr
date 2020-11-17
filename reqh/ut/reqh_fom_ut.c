@@ -411,7 +411,7 @@ void test_reqh(void)
 	int                    result;
 	char                   opath[64];
 	const char            *path;
-	struct m0_net_xprt    *xprt        = &m0_net_xprt_obj;
+	struct m0_net_xprt    *xprt        = m0_net_xprt_get();
 	struct m0_net_domain   net_dom     = { };
 	struct m0_net_domain   srv_net_dom = { };
 	struct m0_stob_domain *bdom;

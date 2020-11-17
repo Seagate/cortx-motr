@@ -29,7 +29,6 @@
 #include "net/lnet/lnet.h"	/* m0_net_lnet_ifaces_get */
 
 #include "net/test/commands.h"
-
 /* NTC_ == NET_TEST_COMMANDS_ */
 enum {
 	NTC_TMID_START	      = 300,

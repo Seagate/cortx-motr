@@ -672,6 +672,7 @@ static int halon_interface_level_enter(struct m0_module *module)
 	struct m0_halon_interface_internal *hii;
 	enum m0_halon_interface_level       level = module->m_cur + 1;
 
+	struct m0_net_xprt                 *xprt = m0_net_xprt_get();
 	hii = bob_of(module, struct m0_halon_interface_internal, hii_module,
 	             &halon_interface_bob_type);
 	M0_ENTRY("hii=%p level=%d %s", hii, level,
@@ -713,7 +714,7 @@ static int halon_interface_level_enter(struct m0_module *module)
 		return M0_RC(0);
 	case M0_HALON_INTERFACE_LEVEL_NET_DOMAIN:
 		return M0_RC(m0_net_domain_init(&hii->hii_net_domain,
-		                                &m0_net_xprt_obj));
+		                                xprt));
 	case M0_HALON_INTERFACE_LEVEL_NET_BUFFER_POOL:
 		return M0_RC(m0_rpc_net_buffer_pool_setup(
 		                &hii->hii_net_domain, &hii->hii_net_buffer_pool,

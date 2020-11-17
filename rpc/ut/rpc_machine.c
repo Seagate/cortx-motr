@@ -42,7 +42,7 @@ static int rpc_mc_ut_init(void)
 	enum { NR_TMS = 1 };
 	int      rc;
 	uint32_t bufs_nr;
-
+	xprt = m0_net_xprt_obj;	
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
 

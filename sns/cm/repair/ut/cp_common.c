@@ -55,7 +55,10 @@ char      *sns_cm_ut_svc_linux[] = { "m0d", "-T", "LINUX",
 
 struct m0_net_xprt *sr_xprts[] = {
         &m0_net_lnet_xprt,
+#ifndef __KERNEL__
         &m0_net_sock_xprt,
+        /*&m0_net_libfabric_xprt,*/
+#endif
 };
 
 FILE           *lfile;

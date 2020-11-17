@@ -383,7 +383,6 @@ enum {
 M0_EXTERN struct m0_cm_type sns_repair_cmt;
 M0_EXTERN struct m0_cm_type sns_rebalance_cmt;
 
-extern struct m0_net_xprt m0_net_xprt_obj;
 extern const struct m0_sns_cm_helpers repair_helpers;
 extern const struct m0_sns_cm_helpers rebalance_helpers;
 
@@ -494,6 +493,7 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 	m0_bcount_t            segment_size;
 	uint32_t               segments_nr;
 	int                    rc;
+	struct m0_net_xprt    *xprt = m0_net_xprt_get();;
 
 	M0_ENTRY("cm: %p", cm);
 
@@ -505,7 +505,7 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 	 */
 	colours = m0_reqh_nr_localities(reqh);
 	ndom = m0_cs_net_domain_locate(m0_cs_ctx_get(reqh),
-				       m0_net_xprt_obj.nx_name);
+				       xprt->nx_name);
 	/*
 	 * XXX This should be fixed, buffer pool ops should be a parameter to
 	 * m0_net_buffer_pool_init() as it is NULL checked in

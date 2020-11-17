@@ -92,7 +92,9 @@ static const char         *cdbnames[] = { "cas1" };
 static const char      *cl_ep_addrs[] = { "0@lo:12345:34:2" };
 static const char     *srv_ep_addrs[] = { "0@lo:12345:34:1" };
 static struct m0_net_xprt *cs_xprts[] = { &m0_net_lnet_xprt,
-					  &m0_net_sock_xprt};
+					  &m0_net_sock_xprt
+					  /*&m0_net_libfabric_xprt*/
+					};
 
 static struct cl_ctx            casc_ut_cctx;
 static struct m0_rpc_server_ctx casc_ut_sctx = {

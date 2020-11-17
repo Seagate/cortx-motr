@@ -47,7 +47,6 @@
 #define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
 #define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
 
-static struct m0_net_xprt    *xprt = &m0_net_xprt_obj;
 static struct m0_net_domain   client_net_dom;
 struct m0_conf_root          *root;
 
@@ -81,7 +80,6 @@ static char *server_argv[] = {
 };
 
 static struct m0_rpc_server_ctx sctx = {
-	.rsx_xprts         = &xprt,
 	.rsx_xprts_nr      = 1,
 	.rsx_argv          = server_argv,
 	.rsx_argc          = ARRAY_SIZE(server_argv),
@@ -112,11 +110,13 @@ static struct {
 
 static void start_rpc_client_and_server(void)
 {
-	int rc;
+	int                 rc;
 
+	struct m0_net_xprt *xprt = m0_net_xprt_get();
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
 	M0_SET0(&sctx.rsx_motr_ctx);
+	sctx.rsx_xprts = &xprt;
 	rc = m0_rpc_server_start(&sctx);
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);
@@ -125,10 +125,12 @@ static void start_rpc_client_and_server(void)
 
 static void stop_rpc_client_and_server(void)
 {
-	int rc;
+	int                 rc;
+	struct m0_net_xprt *xprt = m0_net_xprt_get();
 
 	rc = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(rc == 0);
+	sctx.rsx_xprts = &xprt; 
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);
 }
