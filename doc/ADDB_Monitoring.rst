@@ -14,9 +14,7 @@ ADDB monitors serve two purposes:
  Definitions
 ***************
 
-ADDB Analysis and Diagnostic Data Base. See [0] for additional details. 
-
-ADDB base record type [Text Wrapping Break]The architecture defines “event”, “data point” and “counter” type ADDB record categories.  See [0] for additional details.  In this HLD we will use the word “exception” instead of “event”.  We’ll use the term “event” to describe any derivation of the base record types. 
+ADDB base record type architecture defines “event”, “data point” and “counter” type ADDB record categories.  In this HLD we will use the word “exception” instead of “event”.  We’ll use the term “event” to describe any derivation of the base record types. 
 
 Summary ADDB records 
 
