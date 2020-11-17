@@ -103,3 +103,31 @@ After writing FOPs and creating .ff file for a particular module, we need to mak
  MOSTLYCLEANFILES = $(FOM_FOPS)
 
 On compiling fom_io_xc.ff file using ff2c compiler, it creates corresponding fom_io_xc.h and fom_io_xc.c.
+
+***********************
+Encoding-Decoding FOP
+***********************
+
+Rather than sending individual items between Colibri services as separate RPCs, as in traditional RPC mechanisms, multiple items are batched and sent as a single RPC. Batching allows larger messages to be sent, allowing the cost of message passing to be amortized among the multiple items. The upper layers of the RPC module, specifically, the Formation module, select which items are to be batched into a single RPC. Once items are selected, the RPC Formation module then creates that single in-core RPC object. This object is then encoded/serialized into an on wire rpc object and copied into a network buffer using the exported interfaces ( m0_rpc_encode () and m0_rpc_decode()). Each onwire rpc object includes a header with common information, followed by a sequence of items. This RPC is sent to the receiver stored and decoded into individual items. The items are queued on the appropriate queues for processing.
+
+***************
+Sending a FOP
+***************
+
+A fop can be sent as a request FOP or a reply FOP. A fop is sent across using the various rpc interfaces. Every fop has an rpc item embedded into it.
+
+::
+
+ struct m0_fop {
+
+ ...
+
+       /**
+
+          RPC item for this FOP
+
+        */
+
+       struct m0_rpc_item      f_item;
+
+ ...
