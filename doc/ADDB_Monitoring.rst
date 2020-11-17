@@ -134,7 +134,7 @@ During addb sub-system initialization all the monitors needs to be added using m
 
 When any addb record is posted on a node(whether a client or a server), we invoke all the monitor’s am_watch() API, present in the global monitor list. These monitors do relevant work only for the addb record types that they want to monitor & for the rest they do nothing. During execution of am_watch(), a monitor can create an addb record and also post it. This posting of addb records from inside monitor is to be done using the AST (Asynchronous system trap) mechanism provided by the Motr.  
 
- Execution of monitor
+Execution of monitor
 ======================
 
 Partial execution i.e. top half is executed for all the addb records during monitor invocation. This just updates the monitor specific summary data or posts an ast if an exception had been encountered.
@@ -143,7 +143,8 @@ There is a periodic posting of these addb summary records and this is done by th
 
 The bottom half i.e. AST part would be run by a dedicated thread & would be synchronized among the various others threads that would run monitors with a sm (state machine) group lock.
 
- Conformance
+===============
+Conformance
 ===============
 
 - [i.addb.monitor.add] An API is made available for this. 
@@ -166,7 +167,8 @@ The bottom half i.e. AST part would be run by a dedicated thread & would be sync
 
 - [r.addb.stats-service.single-instance] Implementation of stats service handles this.
 
- Dependencies
+==============
+Dependencies
 ==============
 
 - [r.addb.retention] ADDB monitor generates addb records. 
@@ -193,7 +195,8 @@ The bottom half i.e. AST part would be run by a dedicated thread & would be sync
 
 - [r.addb.post.non-blocking] Decrease performance impact of ADDB monitoring.
 
- Use Cases
+===========
+Use Cases
 ===========
 
 **Statistical monitoring of addb records that already have statistical information in them**
@@ -242,7 +245,8 @@ Exceptional conditions such as failures, overflows, etc. could be generated insi
 
 #. Stats service checks for requesting information, gathers it in reply fop & sends it back to the node from where request was initiated.
 
- Failures
+==========
+Failures
 ==========
 
 Following failure cases are listed along with their handling mechanism: 
