@@ -133,3 +133,32 @@ A fop can be sent as a request FOP or a reply FOP. A fop is sent across using th
  ...
  
 Sending a fop involves initializing various fop and rpc item structures and then invoking the m0_rpc_post routines. The steps for the same are described below with few code examples.
+
+Define and initialize the fop_type ops
+======================================
+
+::
+
+ const struct m0_fop_type_ops m0_rpc_fop_conn_establish_ops = {
+
+       .fto_fom_init = &m0_rpc_fop_conn_establish_fom_init
+
+
+ };
+
+Define and initialize the rpc item_type ops
+============================================
+
+::
+
+ static struct m0_rpc_item_type_ops default_item_type_ops = { 
+
+       .rito_encode = m0_rpc_fop_item_type_default_encode, 
+
+       .rito_decode = m0_rpc_fop_item_type_default_decode, 
+
+       .rito_payload_size = m0_fop_item_type_default_onwire_size, 
+
+ };
+
+
