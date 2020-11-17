@@ -223,6 +223,9 @@ m0_nanosleep
 m0_net_domain_fini
 m0_net_domain_init
 m0_net_end_point_put
+m0_net_default_xprt_set
+m0_net_xprt_get
+m0_net_xprt_set
 m0_node_uuid_init
 m0_node_uuid_string_get
 m0_node_uuid_string_set

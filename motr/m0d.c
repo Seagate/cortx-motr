@@ -60,17 +60,11 @@
    by a particular node in a cluster.
  */
 static struct m0_net_xprt *cs_xprts[] = {
-/*
- * TODO: Enable "sock" transport when it's fully integrated.
- *       There many places where "lnet" xprt object is hardcoded. They need to
- *       be fixed first. E.g. implement a similar mechanism that is used here in
- *       m0d - the transport is selected based on a string prefix in the
- *       endpoint address ("lnet:" or "sock:"), see cs_xprt_lookup().
- */
-/* #ifdef ENABLE_LUSTRE */
 	&m0_net_lnet_xprt,
-/* #endif */
+#ifndef __KERNEL__
 	&m0_net_sock_xprt
+	/*&m0_net_libfabric_xprt*/
+#endif
 };
 
 /* Signal handler result */

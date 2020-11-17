@@ -25,7 +25,6 @@
 #include "lib/semaphore.h"	/* m0_semaphore */
 #include "lib/memory.h"		/* m0_alloc */
 #include "net/lnet/lnet.h"	/* m0_net_lnet_ifaces_get */
-
 #include "net/test/network.h"
 
 enum {
@@ -367,18 +366,15 @@ void m0_net_test_network_ut_bulk(void)
 static void tm_event_cb_empty(const struct m0_net_tm_event *ev)
 {
 }
-
 static void cb_empty(struct m0_net_test_network_ctx *ctx,
 		     const uint32_t buf_index,
 		     enum m0_net_queue_type q,
 		     const struct m0_net_buffer_event *ev)
 {
 }
-
 static const struct m0_net_tm_callbacks tm_cb_empty = {
 	.ntc_event_cb = tm_event_cb_empty
 };
-
 static struct m0_net_test_network_buffer_callbacks buf_cb_empty = {
 	.ntnbc_cb = {
 		[M0_NET_QT_MSG_RECV]		= cb_empty,
@@ -389,7 +385,6 @@ static struct m0_net_test_network_buffer_callbacks buf_cb_empty = {
 		[M0_NET_QT_ACTIVE_BULK_SEND]	= cb_empty,
 	}
 };
-
 /**
    Compare bulk network buffer descriptors.
  */
@@ -411,7 +406,6 @@ static bool buf_desc_eq(struct m0_net_test_network_ctx *ctx1,
 	return d1->nbd_len == d2->nbd_len &&
 		memcmp(d1->nbd_data, d2->nbd_data, d1->nbd_len) == 0;
 }
-
 static void multiple_buf_desc_encode_decode(struct m0_net_test_network_ctx *ctx,
 					    int count)
 {
@@ -446,7 +440,6 @@ static void multiple_buf_desc_encode_decode(struct m0_net_test_network_ctx *ctx,
 		M0_UT_ASSERT(rc_bool);
 	}
 }
-
 void m0_net_test_network_ut_buf_desc(void)
 {
 	static struct m0_net_test_network_cfg cfg;
@@ -466,7 +459,6 @@ void m0_net_test_network_ut_buf_desc(void)
 	cfg.ntncfg_timeouts	 = m0_net_test_network_timeouts_never();
 	rc = m0_net_test_network_ctx_init(&ctx, &cfg, "0@lo:12345:42:*");
 	M0_UT_ASSERT(rc == 0);
-
 	/* add some ep - tranfer machine ep */
 	rc = m0_net_test_network_ep_add(&ctx, ctx.ntc_tm->ntm_ep->nep_addr);
 	M0_UT_ASSERT(rc == 0);

@@ -3873,20 +3873,6 @@ struct m0_net_xprt m0_net_sock_xprt = {
 	.nx_ops  = &xprt_ops
 };
 M0_EXPORTED(m0_net_sock_xprt);
-#if 0
-/*
- * TODO: This is a temporary workaround. It's needed because "lnet" xprt object
- *       is hardcoded in many places. When a proper build and/or run time
- *       selection of the net transport is implement for all m0_net users, this
- *       object declaration, which disguises "sock" as "lnet", can be removed.
- */
-#if !defined(ENABLE_LUSTRE)
-struct m0_net_xprt m0_net_lnet_xprt = {
-	.nx_name = "lnet",
-	.nx_ops  = &xprt_ops
-};
-#endif
-#endif
 
 M0_INTERNAL int m0_net_sock_mod_init(void)
 {

@@ -168,7 +168,7 @@ static void bulkclient_test(void)
 	rc = m0_file_lock_type_register(rm_dom, &flock_rt);
 	M0_ASSERT(rc == 0);
 
-	xprt = &m0_net_xprt_obj;
+	xprt = m0_net_xprt_get();
 	rc = m0_net_domain_init(&nd, xprt);
 	M0_UT_ASSERT(rc == 0);
 

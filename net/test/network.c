@@ -284,7 +284,7 @@ static int net_test_network_ctx_initfini(struct m0_net_test_network_ctx *ctx,
 	if (ctx->ntc_ep == NULL)
 		goto free_buf_bulk;
 
-	rc = m0_net_domain_init(ctx->ntc_dom, &m0_net_xprt_obj);
+	rc = m0_net_domain_init(ctx->ntc_dom, m0_net_xprt_obj);
 	if (rc != 0)
 		goto free_ep;
 

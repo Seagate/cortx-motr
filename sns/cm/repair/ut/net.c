@@ -80,7 +80,6 @@ enum {
 };
 
 static struct m0_net_domain  client_net_dom;
-static struct m0_net_xprt   *xprt = &m0_net_xprt_obj;
 static struct m0_semaphore   sem;
 static struct m0_semaphore   cp_sem;
 static struct m0_semaphore   read_cp_sem;
@@ -741,6 +740,7 @@ static void sender_init()
 	uint32_t              colours;
 	int                   nr_bufs;
 	int                   rc;
+	struct m0_net_xprt   *xprt = m0_net_xprt_get();
 
 	M0_SET0(&rmach_ctx);
 	M0_SET0(&sender_cm);

@@ -93,7 +93,6 @@ static void test_simple_transitions(void)
 	int rc;
 
 	/* TEST1: Simple request and reply sequence */
-	M0_LOG(M0_DEBUG, "TEST:1:START");
 	m0_rpc_machine_get_stats(machine, &saved, false /* clear stats? */);
 	fop = fop_alloc(machine);
 	item = &fop->f_item;
@@ -109,7 +108,6 @@ static void test_simple_transitions(void)
 		     IS_INCR_BY_1(nr_rcvd_items));
 	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
 	m0_fop_put_lock(fop);
-	M0_LOG(M0_DEBUG, "TEST:1:END");
 }
 
 void disable_packet_ready_set_reply_error(int arg)
@@ -1008,7 +1006,6 @@ static void test_item_cache(void)
 	int                       items_nr;
 	int                       n;
 	int                       i;
-
 	M0_ALLOC_ARR(items, M0_RPC_ITEM_CACHE_ITEMS_NR_MAX);
 	M0_UT_ASSERT(items != NULL);
 	for (i = 0; i < M0_RPC_ITEM_CACHE_ITEMS_NR_MAX; ++i) {

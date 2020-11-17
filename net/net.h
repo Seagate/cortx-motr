@@ -92,7 +92,7 @@ struct m0_net_qstats;
 /**
  *    The Network transport pointer to be used in m0_net_domain_init().
  */
-extern struct m0_net_xprt m0_net_xprt_obj;
+extern struct m0_net_xprt *m0_net_xprt_obj;
 /**
    Constructor for the network library
  */
@@ -1755,8 +1755,11 @@ M0_TL_DECLARE(m0_net_tm, M0_INTERNAL, struct m0_net_buffer);
  *     ipv4addr = 1*3DIGIT "." 1*3DIGIT "." 1*3DIGIT "." 1*3DIGIT ; 0..255
  */
 M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint);
-#endif
 
+#endif
+struct m0_net_xprt *m0_net_xprt_set(struct m0_net_xprt *xprt);
+struct m0_net_xprt *m0_net_xprt_get(void);
+void m0_net_default_xprt_set(void);
 /** @} end of networking group */
 #endif /* __MOTR_NET_NET_H__ */
 

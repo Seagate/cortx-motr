@@ -221,6 +221,7 @@ int main(int argc, char **argv)
 	struct m0_net_domain  client_net_dom = {};
 	uint32_t              tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	uint32_t              max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
+	struct m0_net_xprt   *xprt = m0_net_xprt_get();
 
 	struct m0_rpc_client_ctx cctx = {
 		.rcx_net_dom               = &client_net_dom,
@@ -326,7 +327,7 @@ int main(int argc, char **argv)
 		goto end;
 	}
 
-	result = m0_net_domain_init(&client_net_dom, &m0_net_xprt_obj);
+	result = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(result == 0);
 
 	/* Init the console members from CLI input */

@@ -230,12 +230,13 @@ static void ham_rpc_ctx_init(struct ham_rpc_ctx *ctx,
 			     const struct m0_fid *local_process)
 {
 	enum { NR_TMS = 1 };
-	int rc;
+	int                 rc;
+	struct m0_net_xprt *xprt = m0_net_xprt_get();
 
 	M0_PRE(local_endpoint != NULL && *local_endpoint != '\0');
 	M0_PRE(m0_conf_fid_type(local_process) == &M0_CONF_PROCESS_TYPE);
 
-	rc = m0_net_domain_init(&ctx->mrc_net_dom, &m0_net_xprt_obj);
+	rc = m0_net_domain_init(&ctx->mrc_net_dom, xprt);
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_net_buffer_pool_setup(
 		&ctx->mrc_net_dom,

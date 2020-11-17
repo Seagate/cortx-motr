@@ -31,7 +31,6 @@
 #include "lib/finject.h"
 
 #include "net/lnet/lnet.h"         /* m0_net_lnet_xprt */
-#include "net/sock/sock.h"         /* m0_net_sock_xprt */
 #include "rpc/rpclib.h"
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 #include "ut/cs_service.h"         /* m0_cs_default_stypes */

@@ -68,7 +68,6 @@ enum {
 	MAX_RETRIES        = 5,
 };
 
-static struct m0_net_xprt   *xprt = &m0_net_xprt_obj;
 static struct m0_net_domain  client_net_dom = { };
 
 static struct m0_rpc_client_ctx cctx = {
@@ -91,8 +90,8 @@ static struct m0_rpc_server_ctx sctx;
 
 static int cons_init(void)
 {
-	int result;
-
+	int                  result;
+	struct m0_net_xprt  *xprt = m0_net_xprt_get();
 	timeout = 10;
 	result = m0_console_fop_init();
 	M0_ASSERT(result == 0);
@@ -449,8 +448,8 @@ static void cons_client_fini(struct m0_rpc_client_ctx *cctx)
 
 static void cons_server_init(struct m0_rpc_server_ctx *sctx)
 {
-	int result;
-
+	int                 result;
+	struct m0_net_xprt *xprt = m0_net_xprt_get();
 	*sctx = (struct m0_rpc_server_ctx){
 		.rsx_xprts            = &xprt,
 		.rsx_xprts_nr         = 1,

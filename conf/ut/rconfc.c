@@ -45,7 +45,6 @@ static struct m0_semaphore   g_ready_sem;
 static struct m0_semaphore   g_fatal_sem;
 static struct m0_reqh       *ut_reqh;
 static struct m0_net_domain  client_net_dom;
-static struct m0_net_xprt   *xprt = &m0_net_xprt_obj;
 static struct m0_fid         profile = M0_FID_TINIT('p', 1, 0);
 static bool (*ha_clink_cb_orig)(struct m0_clink *clink);
 
@@ -77,7 +76,8 @@ static struct m0_rpc_client_ctx cctx = {
 static int rconfc_ut_motr_start(struct m0_rpc_machine    *mach,
 				struct m0_rpc_server_ctx *rctx)
 {
-	int rc;
+	int                 rc;
+	struct m0_net_xprt *xprt = m0_net_xprt_get();
 #define NAME(ext) "rconfc-ut" ext
 	char *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
@@ -87,7 +87,7 @@ static int rconfc_ut_motr_start(struct m0_rpc_machine    *mach,
 		"-c", M0_UT_PATH("diter.xc")
 	};
 	*rctx = (struct m0_rpc_server_ctx) {
-		.rsx_xprts         = &m0_conf_ut_xprt,
+		.rsx_xprts         = &xprt,
 		.rsx_xprts_nr      = 1,
 		.rsx_argv          = argv,
 		.rsx_argc          = ARRAY_SIZE(argv),
@@ -99,7 +99,7 @@ static int rconfc_ut_motr_start(struct m0_rpc_machine    *mach,
 	rc = m0_rpc_server_start(rctx);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ut_rpc_machine_start(mach, m0_conf_ut_xprt,
+	rc = m0_ut_rpc_machine_start(mach, xprt,
 				     CLIENT_ENDPOINT_ADDR);
 	M0_UT_ASSERT(rc == 0);
 	ut_reqh = mach->rm_reqh;
@@ -1334,6 +1334,7 @@ static void test_drain(void)
 	struct rlock_ctx        *rlx;
 	struct m0_rconfc        *rconfc;
 	struct root_object       root_obj;
+	struct m0_net_xprt      *xprt = m0_net_xprt_get();
 
 	rc = rconfc_ut_motr_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
