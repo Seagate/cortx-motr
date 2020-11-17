@@ -160,5 +160,18 @@ Define and initialize the rpc item_type ops
        .rito_payload_size = m0_fop_item_type_default_onwire_size, 
 
  };
+ 
+Define and initialize the rpc item type
+========================================
+
+::
+
+ m0_RPC_ITEM_TYPE_DEF(m0_rpc_item_conn_establish,
+
+                  m0_RPC_FOP_CONN_ESTABLISH_OPCODE,
+
+                  m0_RPC_ITEM_TYPE_REQUEST | m0_RPC_ITEM_TYPE_MUTABO,
+
+                  &default_item_type_ops);
 
 
