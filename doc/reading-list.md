@@ -82,7 +82,7 @@ RPC
 Function Shipping
 ---
 
-* Outdated document about how function shipping works in motr: [PDF](PDF/motr_function_shipping.pdf).
+* Function shipping (In-storage-compute) usage in motr: [PDF](PDF/motr_function_shipping.pdf).
 
 
 Network
