@@ -36,6 +36,19 @@ extern void m0_be_ut_op_mt(void);
 extern void m0_be_ut_op_set_usecase(void);
 extern void m0_be_ut_op_set_tree(void);
 
+extern void m0_be_ut_queue_1_1_1(void);
+extern void m0_be_ut_queue_2_1_1(void);
+extern void m0_be_ut_queue_100_1_1(void);
+extern void m0_be_ut_queue_100_1_10(void);
+extern void m0_be_ut_queue_100_10_1(void);
+extern void m0_be_ut_queue_100_10_10(void);
+extern void m0_be_ut_queue_10_100_1(void);
+extern void m0_be_ut_queue_10_100_5(void);
+extern void m0_be_ut_queue_10_1_100(void);
+extern void m0_be_ut_queue_10_5_100(void);
+extern void m0_be_ut_queue_10_100_100(void);
+extern void m0_be_ut_queue_from_1_to_10(void);
+
 extern void m0_be_ut_pool_usecase(void);
 
 extern void m0_be_ut_reg_d_tree(void);
@@ -116,6 +129,7 @@ extern void m0_be_ut_tx_bulk_medium_tx(void);
 extern void m0_be_ut_tx_bulk_medium_tx_multi(void);
 extern void m0_be_ut_tx_bulk_medium_cred(void);
 extern void m0_be_ut_tx_bulk_large_cred(void);
+extern void m0_be_ut_tx_bulk_parallel_1_15(void);
 
 extern void m0_be_ut_fl(void);
 
@@ -157,6 +171,18 @@ struct m0_ut_suite be_ut = {
 		{ "op-mt",                   m0_be_ut_op_mt                   },
 		{ "op_set-usecase",          m0_be_ut_op_set_usecase          },
 		{ "op_set-tree",             m0_be_ut_op_set_tree             },
+		{ "queue-1_1_1",             m0_be_ut_queue_1_1_1             },
+		{ "queue-2_1_1",             m0_be_ut_queue_2_1_1             },
+		{ "queue-100_1_1",           m0_be_ut_queue_100_1_1           },
+		{ "queue-100_1_10",          m0_be_ut_queue_100_1_10          },
+		{ "queue-100_10_1",          m0_be_ut_queue_100_10_1          },
+		{ "queue-100_10_10",         m0_be_ut_queue_100_10_10         },
+		{ "queue-10_100_1",          m0_be_ut_queue_10_100_1          },
+		{ "queue-10_100_5",          m0_be_ut_queue_10_100_5          },
+		{ "queue-10_1_100",          m0_be_ut_queue_10_1_100          },
+		{ "queue-10_5_100",          m0_be_ut_queue_10_5_100          },
+		{ "queue-10_100_100",        m0_be_ut_queue_10_100_100        },
+		{ "queue-from_1_to_10",      m0_be_ut_queue_from_1_to_10      },
 		{ "pool-usecase",            m0_be_ut_pool_usecase            },
 		{ "reg_d_tree",              m0_be_ut_reg_d_tree              },
 // XXX		{ "regmap-simple",           m0_be_ut_regmap_simple           },
@@ -225,6 +251,7 @@ struct m0_ut_suite be_ut = {
 		{ "tx_bulk-medium_tx_multi", m0_be_ut_tx_bulk_medium_tx_multi },
 		{ "tx_bulk-medium_cred",     m0_be_ut_tx_bulk_medium_cred     },
 		{ "tx_bulk-large_cred",      m0_be_ut_tx_bulk_large_cred      },
+		{ "tx_bulk-parallel_1_15",   m0_be_ut_tx_bulk_parallel_1_15   },
 		{ "fl",                      m0_be_ut_fl                      },
 		{ "alloc-init",              m0_be_ut_alloc_init_fini         },
 		{ "alloc-create",            m0_be_ut_alloc_create_destroy    },

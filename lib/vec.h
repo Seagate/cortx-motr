@@ -405,6 +405,39 @@ M0_INTERNAL m0_bcount_t m0_bufvec_cursor_copyfrom(struct m0_bufvec_cursor *scur,
 						  m0_bcount_t num_bytes);
 
 /**
+ * Compares contents of cursors. Return value the same as in memcmp(3).
+ *
+ * The positions of the cursors after the call are undefined.
+ */
+M0_INTERNAL int m0_bufvec_cursor_cmp(struct m0_bufvec_cursor *c0,
+				     struct m0_bufvec_cursor *c1);
+/**
+ * Returns the length of the common prefix of 2 cursors.
+ *
+ * The positions of the cursors after the call are undefined.
+ */
+M0_INTERNAL m0_bcount_t m0_bufvec_cursor_prefix(struct m0_bufvec_cursor *c0,
+						struct m0_bufvec_cursor *c1);
+
+/**
+ * Iterates over fragments of 2 bufvecs.
+ *
+ * Bit-wise OR used below to ensure both cursors get moved without short-circuit
+ * logic.
+ */
+#define M0_BUFVEC_FOR2(c0, c1, frag)				\
+{								\
+	struct m0_bufvec_cursor *__c0 = (c0);			\
+	struct m0_bufvec_cursor *__c1 = (c1);			\
+	m0_bcount_t              frag = 0;			\
+	while (!(m0_bufvec_cursor_move(__c0, frag) |		\
+		 m0_bufvec_cursor_move(__c1, frag))) {		\
+		frag = min_check(m0_bufvec_cursor_step(__c0),	\
+				 m0_bufvec_cursor_step(__c1));
+
+#define M0_BUFVEC_ENDFOR2 } }
+
+/**
    Mechanism to traverse given index vector (m0_indexvec)
    keeping track of segment counts and vector boundary.
  */
