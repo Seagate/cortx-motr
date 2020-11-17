@@ -92,9 +92,9 @@ Exceptional Conditions Reporting
 
 Monitors will be used to detect exceptional conditions. Periodic posting is not applicable for such conditions as failures are to be reported as soon as possible. Monitor updates its data structures to indicate a failure and will initiate a failure report by posting AST. During ASTs execution fop is sent to local HA component to notify about the failure. Monitors can also produce exception records from normal addb records for example is fop transition is taking too long, then this would be an exception.
 
-======================
+***********************
 Logical specification  
-======================
+***********************
 
 ADDB monitors are represented as follows:
 
@@ -143,9 +143,9 @@ There is a periodic posting of these addb summary records and this is done by th
 
 The bottom half i.e. AST part would be run by a dedicated thread & would be synchronized among the various others threads that would run monitors with a sm (state machine) group lock.
 
-===============
+*************
 Conformance
-===============
+*************
 
 - [i.addb.monitor.add] An API is made available for this. 
 
@@ -168,7 +168,7 @@ Conformance
 - [r.addb.stats-service.single-instance] Implementation of stats service handles this.
 
 ==============
-Dependencies
+ Dependencies
 ==============
 
 - [r.addb.retention] ADDB monitor generates addb records. 
@@ -196,7 +196,7 @@ Dependencies
 - [r.addb.post.non-blocking] Decrease performance impact of ADDB monitoring.
 
 ===========
-Use Cases
+ Use Cases
 ===========
 
 **Statistical monitoring of addb records that already have statistical information in them**
@@ -246,7 +246,7 @@ Exceptional conditions such as failures, overflows, etc. could be generated insi
 #. Stats service checks for requesting information, gathers it in reply fop & sends it back to the node from where request was initiated.
 
 ==========
-Failures
+ Failures
 ==========
 
 Following failure cases are listed along with their handling mechanism: 
