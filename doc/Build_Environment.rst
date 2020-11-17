@@ -87,7 +87,19 @@ Here is the list of what should be checked by configure part:
 
 The following configuring options form configure part functionality:
 
-.. image:: Images/Few.PNG
++------------------------+-------------------------------------------------------------------------------------------+
+|**Name**                |**Description**                                                                            |
++========================+===========================================================================================+
+|debug=on/off            |Specified whether to build with or without debug information for the objects and binaries. |
++------------------------+-------------------------------------------------------------------------------------------+
+|with-db4=db4-path       |    Db4 location we want to use for the metadata server.                                   |
++------------------------+-------------------------------------------------------------------------------------------+
+|with-linux=linux-path   | Linux kernel location we want to use for kernel components                                |
++------------------------+-------------------------------------------------------------------------------------------+
+|with-gss=gss-path       | Gss libraries location we want to use for security.                                       |
++------------------------+-------------------------------------------------------------------------------------------+
+|build-dir=build-path    |  Location where the object files and binaries should be generated.                        |
++------------------------+-------------------------------------------------------------------------------------------+
 
 Generation Part
 ===============
