@@ -221,9 +221,9 @@ A request FOP is sent by invoking a rpc routine m0_rpc_post(), and its correspon
         
    }
    
- - Server Side
+- Server Side
  
-   At server side a fop should be submitted to request handler for processing, invoking m0_reqh_fop_handle() and the reply is then sent by one of the standard/generic phases of the request handler.
+  At server side a fop should be submitted to request handler for processing, invoking m0_reqh_fop_handle() and the reply is then sent by one of the standard/generic phases of the request handler.
 
 
 
