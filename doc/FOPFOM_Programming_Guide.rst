@@ -174,4 +174,31 @@ Define and initialize the rpc item type
 
                   &default_item_type_ops);
 
+Define and initialize the fop type for the new fop and associate the corresponding item type
+==============================================================================================
 
+::
+
+ struct m0_fop_type m0_rpc_fop_conn_establish_fopt; 
+
+ /* In module’s init function */ 
+
+ foo_subsystem_init() 
+
+ { 
+
+         m0_xc_foo_subsystem_xc_init() /* Provided by ff2c compiler */
+
+         m0_FOP_TYPE_INIT(&m0_rpc_fop_conn_establish_fopt, 
+
+                   .name = "rpc conn establish", 
+
+                   .opcode = m0_RPC_FOP_CONN_ESTABLISH_REP_OPCODE, 
+
+                   /* Provided by ff2c */ 
+
+                   .xt = m0_rpc_fop_conn_establish_xt, 
+
+                   .fop_ops = m0_rpc_fop_conn_establish_ops); 
+
+ }
