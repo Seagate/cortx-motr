@@ -115,8 +115,12 @@ struct m0_be_log_discard {
 	 * XXX Temporary solution.
 	 */
 	struct m0_semaphore                  lds_discard_wait_sem;
-	int                                  lds_discard_left;
 	bool                                 lds_discard_waiting;
+	/**
+	 * Ast and flags to discard multiple log records at once.
+	 */
+	struct m0_sm_ast                     lds_discard_ast;
+	bool                                 lds_discard_ast_posted;
 };
 
 M0_INTERNAL int m0_be_log_discard_init(struct m0_be_log_discard     *ld,

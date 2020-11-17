@@ -104,7 +104,7 @@ class fom_desc(BaseModel):
     time       = IntegerField()
     pid        = IntegerField()
     service    = TextField()
-    sender     = IntegerField()
+    sender     = TextField()
     req_opcode = TextField()
     rep_opcode = TextField()
     local      = TextField()
