@@ -254,4 +254,37 @@ Example:
          m0_addb_record if_addb
 
  } m0_test_io_addb;
+ 
+============
+FOM
+============
+
+Every file operation (FOP) is executed by its corresponding file operation machine (FOM). FOM for the corresponding FOP is instantiated by the request handler when it receives a FOP for execution. Every FOP should have corresponding FOM for its execution.
+
+************************
+FOM - Writing Guidelines
+************************
+
+The major purpose of having FOMs and request handler is to have a non-blocking execution of a file operation.
+
+***************
+FOM - Execution
+***************
+
+A FOP is submitted to request handler through m0_reqh_fop_handle() interface for processing. Request handler then creates corresponding FOM by invoking the following:
+
+- m0_fop_type::ft_fom_type::ft_ops::fto_create()
+
+- m0_fop_type_ops::ft_fom_init()
+
+Once the FOM is created, a home locality is selected for the FOM by invoking the following:
+
+- m0_fom_ops::fo_home_locality()
+
+After selecting home locality, FOM is then submitted into the locality's run queue for processing. Every FOM submitted into locality run queue is picked up by the idle locality handler thread for execution. Handler thread invokes m0_fom_ops::fo_phase() (core FOM execution routine also performs FOM phase transitions) method implemented by every FOM. FOM initially executes its standard/generic phases and then transitions to FOP specific execution phases.
+
+A FOM should check whether it needs to execute a generic phase or a FOP specific phase by checking the phase enumeration. If the FOM phase enumeration is less than FOPH_NR + 1, then the FOM should invoke standard phase execution routine, m0_fom_state_generic(), else perform FOP specific operation.
+
+**Note**: All the standard phases have enumeration less than the FOP specific phases, thus a FOM writer should keep in mind that the fop specific phases should start from FOPH_NR + 1 (i.e enumeration greater than the standard FOM phase).
+
 
