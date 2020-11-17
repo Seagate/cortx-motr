@@ -224,19 +224,34 @@ A request FOP is sent by invoking a rpc routine m0_rpc_post(), and its correspon
 - Server Side
  
   At server side a fop should be submitted to request handler for processing, invoking m0_reqh_fop_handle() and the reply is then sent by one of the standard/generic phases of the request handler.
+  
+Using remote fops (not present in same file) from one fop
+=========================================================
+
+The current format of fop operations need all fop formats referenced in the .ff file to be present in the same file. However with introduction of bulk IO client-server, there arises a need of referencing remote fops from one .ff file. Bulk IO transfer needs IO fop to contain a m0_net_buf_desc which is fop itself. ff2c compiler has a construct called “require” for this purpose. "require" statement introduces a dependency on other source file. For each "require", an #include directive is produced, which includes corresponding header file, "lib/vec.h" in this case require "lib/vec";
+
+Example:
+
+::
+
+ require "net/net_otw_types"; 
+
+ require "addb/addbff/addb";
+
+ sequence {
+
+           u32 id_nr;
+
+           m0_net_buf_desc id_descs
+
+ } m0_io_descs;
+
+ record {
+
+         u64 if_st;
 
 
+         m0_addb_record if_addb
 
-
-
-
-
-
-
-
-
-
-
-
-
+ } m0_test_io_addb;
 
