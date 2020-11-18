@@ -414,6 +414,8 @@ After defining the above structure, we need to have two subroutines(something li
 
 
  }
+ 
+- Defining FOM
 
 
    
