@@ -419,17 +419,17 @@ After defining and building a FOP as above, we can now define its corresponding 
  
 - Defining FOM
 
- ::
+  ::
 
- static struct m0_fom_ops reqh_ut_write_fom_ops = {
+   static struct m0_fom_ops reqh_ut_write_fom_ops = {
 
-       .fo_fini = reqh_ut_io_fom_fini
+         .fo_fini = reqh_ut_io_fom_fini
 
-       .fo_state = reqh_ut_write_fom_state, (implements actual fom operation)
+         .fo_state = reqh_ut_write_fom_state, (implements actual fom operation)
 
-       .fo_home_locality = reqh_ut_find_fom_home_locality,
+         .fo_home_locality = reqh_ut_find_fom_home_locality,
 
- };
+   };
 
 FOM type operations structure
 
