@@ -560,7 +560,7 @@ A typical fom state function would look something similar to this:
 
    }
 
-... 
+**Note**: For additional details on the implementation of above methods please refer to request handler UT code in colibri/core/reqh/ut/reqh_fom_ut.
 
    
    
