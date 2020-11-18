@@ -320,4 +320,15 @@ As mentioned previously, every FOM should implement corresponding fo_state() met
 Sending a reply FOP
 ====================
 
+- On successful execution, FOM creates the corresponding reply FOP and assigns it to m0_fom::fo_rep_fop (reply is sent by the request handler and not the FOM).
+
+- Sending reply fop could be a blocking operation, So this is done by one of the generic or standard phases of the FOM.
+
+- Once FOM execution is complete (that could mean success or failure) FOM sets appropriate reply FOP within the FOM object.
+
+- Once the reply FOP is set, change the FOM phase to FOPH_SUCCESS or FOPH_FAILURE as per the result of operation and return from the m0_fom::fo_state() method (FOM execution routine).
+
+- FOM is then transitioned back to its one of the standard phases (FOPH_QUEUE_REPLY) which sends the reply (as mentioned in the above diagram). Once reply is sent, FOM is transitioned back to one of the fop specific phases, in order to perform cleanup operations if any.
+
+
 
