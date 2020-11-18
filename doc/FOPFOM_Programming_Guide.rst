@@ -415,7 +415,41 @@ After defining the above structure, we need to have two subroutines(something li
 
  }
  
+After defining and building a FOP as above, we can now define its corresponding FOM.
+ 
 - Defining FOM
+
+ ::
+
+ static struct m0_fom_ops reqh_ut_write_fom_ops = {
+
+       .fo_fini = reqh_ut_io_fom_fini
+
+       .fo_state = reqh_ut_write_fom_state, (implements actual fom operation)
+
+       .fo_home_locality = reqh_ut_find_fom_home_locality,
+
+ };
+
+FOM type operations structure
+
+::
+
+ static const struct m0_fom_type_ops reqh_ut_write_fom_type_ops = {
+
+       .fto_create = reqh_ut_write_fom_create,
+
+ };
+
+FOM type structure, this is embedded inside struct m0_fop_type,
+
+::
+
+ static struct m0_fom_type reqh_ut_write_fom_mopt = {
+
+       .ft_ops = &reqh_ut_write_fom_type_ops,
+
+ };
 
 
    
