@@ -287,4 +287,37 @@ A FOM should check whether it needs to execute a generic phase or a FOP specific
 
 **Note**: All the standard phases have enumeration less than the FOP specific phases, thus a FOM writer should keep in mind that the fop specific phases should start from FOPH_NR + 1 (i.e enumeration greater than the standard FOM phase).
 
+Writing a non-blocking FOM
+===========================
+
+All the operations done by the FOM should be non-blocking. Non-blocking behavior of the FOM in standard/generic phases is handled implicitly, the FOM needs to handle the same explicitly during FOP specific execution phases.
+
+Every potentially blocking FOP specific operation should have a corresponding execution phase as well as waiting phase.
+
+As mentioned previously, every FOM should implement corresponding fo_state() method that performs actual state transitions as well as FOP specific operations.
+
+- Calling Synchronous function from FOM
+
+  - For synchronous operations, FOM should invoke m0_fom_block_enter(), before the operation is started.
+
+  - It creates and adds one or more locality worker threads so that there exist at least one thread to service incoming FOPs.
+
+  - On completion of operation, FOM should call m0_fom_block_leave(), this is an undo routine corresponding to m0_fom_block_enter(), It terminates any extra idle locality worker threads.
+
+- Calling Asynchronous function from FOM
+
+  - For an asynchronous FOM operation, FOM should invoke m0_fom_block_at(), and m0_fom_block_enter() is not mandatory in this case.
+
+  - Before executing a blocking operation, FOM should invoke m0_fom_block_at() and register the waiting channel, and transition FOM into its corresponding wait phase. m0_fom_block_at() puts the FOM onto locality wait list, so now the thread execution FOM, can pick up the next ready to be executed FOM from the locality run queue and begin its execution.
+
+  - FOM waits until it receives a completion event on the registered channel.
+
+  - On completion of blocking operation, the waiting channel is signaled.
+
+    FOM is then removed from the locality wait list and put back on the locality runq for further execution.
+
+
+Sending a reply FOP
+====================
+
 
