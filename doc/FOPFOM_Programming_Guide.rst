@@ -451,6 +451,116 @@ FOM type structure, this is embedded inside struct m0_fop_type,
 
  };
 
+A typical fom state function would look something similar to this:
+
+::
+
+ int reqh_ut_write_fom_state(struct m0_fom *fom
+
+ {
+
+         ...
+
+         /*
+
+            checks if FOM should transition into a generic/standard
+
+            phase or FOP specific phase.
+
+         */
+
+         if (fom->fo_phase < FOPH_NR) {
+
+                 result = m0_fom_state_generic(fom);
+
+         } else {
+
+             ...
+
+                /* FOP specific phase */
+
+                if (fom->fo_phase == FOPH_WRITE_STOB_IO) { 
+
+                    ... 
+
+                     /* For synchronous FOM operation */ 
+
+                      m0_fom_block_enter(fom); 
+
+                    /* For asynchronous FOM operation */ 
+
+                      m0_fom_block_at(fom, 
+                                 
+                                  &fom_obj->rh_ut_stio.si_wait);
+ 
+                      result = 
+
+                         m0_stob_io_launch(&fom_obj->rh_ut_stio, 
+
+                         fom_obj->rh_ut_stobj,
+
+                         &fom->fo_tx, NULL);
+
+                  ... 
+
+                     if (result != 0) { 
+
+                        fom->fo_rc = result; 
+
+                        fom->fo_phase = FOPH_FAILURE; 
+
+                     } else { 
+
+                          fom->fo_phase = 
+
+                                       FOPH_WRITE_STOB_IO_WAIT; 
+
+                          result = FSO_WAIT; 
+
+                     } 
+
+            } else if (fom->fo_phase == 
+
+                                    FOPH_WRITE_STOB_IO_WAIT) { 
+
+                   /* 
+
+                       Terminate extra idle threads created 
+
+                       by m0_fom_block_enter() 
+
+                  */ 
+
+                m0_fom_block_leave(fom); 
+
+             ...
+
+                if (fom->fo_rc != 0) 
+
+                      fom->fo_phase = FOPH_FAILURE; 
+
+                else { 
+
+                      … 
+
+                      fom->fo_phase = FOPH_SUCCESS; 
+
+                                          } 
+
+                     } 
+
+         if (fom->fo_phase == FOPH_FAILURE || fom->fo_phase == 
+
+                                              FOPH_SUCCESS) {
+
+                                                               
+                           ...
+
+                     result = FSO_AGAIN; 
+
+   }
+
+... 
 
    
    
