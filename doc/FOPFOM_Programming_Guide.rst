@@ -330,5 +330,44 @@ Sending a reply FOP
 
 - FOM is then transitioned back to its one of the standard phases (FOPH_QUEUE_REPLY) which sends the reply (as mentioned in the above diagram). Once reply is sent, FOM is transitioned back to one of the fop specific phases, in order to perform cleanup operations if any.
 
+Examples
+---------
+
+Consider a simple write FOM example
+
+- Declaring FOP in reqh_ut_fom_xc.ff file
+
+  ::
+  
+   record {
+   
+           u64 f_seq;
+           
+           u64 f_oid
+           
+    } reqh_ut_fom_fop_fid;
+    
+    
+    record {
+    
+            reqh_ut_fom_fop_fid fiw_object;
+            
+            u8                   fiw_value
+            
+    };
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+
 
 
