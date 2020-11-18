@@ -363,6 +363,59 @@ Consider a simple write FOM example
   - reqh_ut_fom_io_write, is a structure containing an object of struct reqh_ut_fom_fop_fid and a native byte type member.
   
 - Defining and building a FOP
+
+  To build a particular FOP we need to define its corresponding m0_fop_type_ops and m0_fop_type structures as follows:
+
+::
+
+ static struct m0_fop_type_ops reqh_ut_write_fop_ops = {
+
+        .fto_fom_init = reqh_ut_io_fom_init,
+
+ };
+
+ struct m0_fop_type reqh_ut_fom_io_write_fopt;
+
+After defining the above structure, we need to have two subroutines(something like below) which actually builds the FOPs, and adds them to the global FOPs list.
+
+::
+
+ /** Function to clean reqh ut io fops */
+
+ void reqh_ut_fom_io_fop_fini(void)
+
+ {
+
+         m0_fop_type_fini(&reqh_ut_fom_io_write_fopt);
+
+         m0_xc_reqh_ut_fom_xc_fini();
+
+ }
+
+ /** Function to intialise reqh ut io fops. */
+
+ int reqh_ut_fom_io_fop_init(void)
+
+ {
+
+         m0_xc_reqh_ut_fom_xc_init();
+
+         return m0_FOP_TYPE_INIT(&reqh_ut_fom_io_write_fopt,
+
+                                 .name = "write",
+
+                                 .opcode = WRITE_REQ, 
+
+                                 .fop_ops = reqh_ut_write_fop_ops,
+
+                                 /* See Below */ 
+
+                                 .fom_ops = reqh_ut_write_fom_ops);
+
+
+ }
+
+
    
    
    
