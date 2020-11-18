@@ -314,7 +314,7 @@ M0_INTERNAL void m0_stob_iovec_sort(struct m0_stob_io *stob)
 	struct m0_bufvec   *bvec = &stob->si_user;
 	int                 i;
 	bool                exchanged;
-	bool                different_count;
+	bool                separate_v_count;
 
 #define SWAP_NEXT(arr, idx)			\
 ({						\
@@ -327,7 +327,7 @@ M0_INTERNAL void m0_stob_iovec_sort(struct m0_stob_io *stob)
 	_arr[_idx + 1] = _tmp;			\
 })
 
-	different_count = ivec->iv_vec.v_count != bvec->ov_vec.v_count;
+	separate_v_count = ivec->iv_vec.v_count != bvec->ov_vec.v_count;
 
 	/*
 	 * Bubble sort the index vectores.
@@ -341,7 +341,7 @@ M0_INTERNAL void m0_stob_iovec_sort(struct m0_stob_io *stob)
 				SWAP_NEXT(ivec->iv_index, i);
 				SWAP_NEXT(ivec->iv_vec.v_count, i);
 				SWAP_NEXT(bvec->ov_buf, i);
-				if (different_count)
+				if (separate_v_count)
 					SWAP_NEXT(bvec->ov_vec.v_count, i);
 				exchanged = true;
 			}

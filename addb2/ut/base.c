@@ -117,7 +117,7 @@ static void push_pop(void)
 			0x1100000000000000 | LABEL_ID_0, /* PUSH 17, 1 */
 			SKIPME,                          /* time-stamp */
 			payload[0],                      /* payload */
-			0x0f00000000000000,              /* POP */
+			0xf000000000000000 | LABEL_ID_0, /* POP */
 			SKIPME,                          /* time-stamp */
 			END
 		}
@@ -143,7 +143,7 @@ static void push0_pop(void)
 		.tr_body = (uint64_t[]){
 			0x1000000000000000 | LABEL_ID_0, /* PUSH 17, 0 */
 			SKIPME,                          /* time-stamp */
-			0x0f00000000000000,              /* POP */
+			0xf000000000000000 | LABEL_ID_0, /* POP */
 			SKIPME,                          /* time-stamp */
 			END
 		}
@@ -173,7 +173,7 @@ static void push5_pop(void)
 			payload[5],
 			payload[6],
 			payload[7],
-			0x0f00000000000000,               /* POP */
+			0xf000000000000000 | LABEL_ID_0,  /* POP */
 			SKIPME,                           /* time-stamp */
 			END
 		}
@@ -206,11 +206,11 @@ static void pushN_popN(void)
 			payload[0],
 			payload[1],
 			payload[2],
-			0x0f00000000000000,                    /* POP */
+			0xf000000000000000 | (LABEL_ID_0 + 3), /* POP */
 			SKIPME,                                /* time-stamp */
-			0x0f00000000000000,                    /* POP */
+			0xf000000000000000 | (LABEL_ID_0 + 2), /* POP */
 			SKIPME,                                /* time-stamp */
-			0x0f00000000000000,                    /* POP */
+			0xf000000000000000 | (LABEL_ID_0 + 0), /* POP */
 			SKIPME,                                /* time-stamp */
 			END
 		}
@@ -279,9 +279,9 @@ static void add_var(void)
 			payload[3],
 			payload[4],
 			payload[5],
-			0x0f00000000000000,                    /* POP */
+			0xf000000000000000 | (LABEL_ID_0 + 1), /* POP */
 			SKIPME,                                /* time-stamp */
-			0x0f00000000000000,                    /* POP */
+			0xf000000000000000 | (LABEL_ID_0 + 0), /* POP */
 			SKIPME,                                /* time-stamp */
 			END
 		}

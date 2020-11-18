@@ -250,6 +250,7 @@ enum fom_state_transition_tests {
 	TEST07,
 	TEST10,
 	TEST11,
+	TEST12
 };
 
 static int                        i = 0;
@@ -685,6 +686,14 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	                     m0_fom_phase(fom) == M0_FOPH_SUCCESS);
 
 	        fill_buffers_pool(colour);
+		next_write_test = TEST12;
+	} else if (next_write_test == TEST12) {
+		/* @todo XXX Add tests for M0_FOPH_IO_SYNC, M0_IO_FLAG_SYNC. */
+	        fom_phase_set(fom, M0_FOPH_IO_SYNC);
+	        rc = m0_io_fom_cob_rw_tick(fom);
+	        M0_UT_ASSERT(m0_fom_rc(fom) == 0 &&
+	                     rc == M0_FSO_AGAIN &&
+	                     m0_fom_phase(fom) == M0_FOPH_QUEUE_REPLY);
 	} else {
 	        M0_UT_ASSERT(0); /* this should not happen */
 	        rc = M0_FSO_WAIT; /* to avoid compiler warning */
