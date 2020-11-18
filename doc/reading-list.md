@@ -81,6 +81,12 @@ RPC
 
 * AR of rpc layer
 
+Function Shipping
+---
+
+* Function shipping (In-storage-compute) usage in motr: [PDF](PDF/motr_function_shipping.pdf).
+
+
 Network
 -------
 
