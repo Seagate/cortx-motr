@@ -192,6 +192,48 @@ List Layout types
 
 Layouts are influenced by layout types. A block map style layout will contain array (tree) of all the storage blocks. A formula based layout will work with parameters (variables) of the formula. There will be one or more tables storing the layout type information. 
 
-During the initialization of the layout module, it will be necessary to load all the known layout types from the database. This will in turn help to create a layout for the file of a desired layout type using the layout type operations.        
+During the initialization of the layout module, it will be necessary to load all the known layout types from the database. This will in turn help to create a layout for the file of a desired layout type using the layout type operations.
+
+***************
+Layout Schema
+***************
+
+UML/ER Diagram
+===============
+
+This is yet to be done. But the following tables should give some idea.
+
+Layout Tables
+==============
+
+File Id to Layout Id Mapping
+-------------------------------
+
+File id to layout id mapping is stored by the basic file attributes table (FAB). Hence, there is no table in the layout schema to store this mapping. Following file id to layout id mapping is shown for the completeness of the example in this section and is assumed to be part of FAB.
+
++----------------------+--------------------------------------+
+|**File Id (c2_fid)**  | **Layout Id (c2_layout_id)**         |
++======================+======================================+
+|fid1001               |L1                                    |
++----------------------+--------------------------------------+
+|fid1002               |L1                                    |
++----------------------+--------------------------------------+
+|fid1003               |L1                                    |
++----------------------+--------------------------------------+
+|fid1004               |L2                                    |
++----------------------+--------------------------------------+
+|fid1005               |L2                                    |
++----------------------+--------------------------------------+
+|fid1006               |L3                                    |
++----------------------+--------------------------------------+
+|fid1007               |L4                                    |
++----------------------+--------------------------------------+
+|fid1008               |L5                                    |
++----------------------+--------------------------------------+
+|...                   |...                                   |
++----------------------+--------------------------------------+
+|fid....x              |L6                                    |
++----------------------+--------------------------------------+
+
 
 
