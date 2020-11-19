@@ -52,7 +52,9 @@ enum ha_state;
 enum pstate {
 	P_CRASHED,
 	P_STARTING,
-	P_STARTED
+	P_STARTED,
+
+	P_NR
 };
 
 enum event_op {
@@ -65,6 +67,8 @@ enum event_op {
 	E_TXSTATE,
 	E_TXSET,
 	E_CONT,
+	E_REQLOST,
+	E_REPLOST,
 
 	E_NR
 };
@@ -81,6 +85,7 @@ enum msg_type {
 enum msg_op {
 	O_NONE,
 	O_HASET,
+	O_USER,
 
 	O_NR
 };
@@ -275,7 +280,8 @@ static void *palloc(struct proc *proc);
 static void *pget(struct proc *proc);
 
 static void cont(struct proc *proc,
-		 void (*invoke)(struct cb *cb, struct event *e, void *data));
+		 void (*invoke)(struct cb *cb, struct event *e,
+				void *data)) M0_UNUSED;
 
 static void *xalloc(size_t nob);
 
@@ -296,20 +302,25 @@ static void sys_pfree(struct proc *proc, struct sys_proc_state *ss);
 static void *sys_pinit(struct proc *proc, struct sys_proc_state *ss);
 static struct sys_proc_state *sys_pget(struct proc *proc);
 
-static uint64_t      tx_open (struct proc *proc);
+static uint64_t      tx_open (struct proc *proc) M0_UNUSED;
 static void          tx_set  (struct proc *proc, uint64_t tid,
-			      uint64_t key, uint64_t val, void *buf);
-static void          tx_close(struct proc *proc, uint64_t tid);
-static enum tx_state tx_state(struct proc *proc, uint64_t txid);
+			      uint64_t key, uint64_t val, void *buf) M0_UNUSED;
+static void          tx_close(struct proc *proc, uint64_t tid) M0_UNUSED;
+static enum tx_state tx_state(struct proc *proc, uint64_t txid) M0_UNUSED;
 static void          tx_get  (struct proc *proc,
-			      uint64_t key, uint64_t *val, void **buf);
+			      uint64_t key, uint64_t *val, void **bf) M0_UNUSED;
 static bool tx_logged_enabled(const struct event *e);
 static void tx_logged(struct cb *c, struct event *e, void *d);
 
 static void req(struct proc *src, struct proc *dst, enum msg_op mop,
 		uint64_t p0, uint64_t p1);
+static struct event *lossless(struct proc *src, struct proc *dst,
+			      enum msg_op mop, uint64_t p0, uint64_t p1);
+#if 0
 static void send(struct proc *src, struct proc *dst, enum msg_type mt,
 		 enum msg_op mop, uint64_t p0, uint64_t p1, enum pstate pstate);
+#endif
+static enum ha_state thinks(struct proc *subject, struct proc *object);
 
 static struct kv *kv_get(struct proc *proc);
 
@@ -543,17 +554,16 @@ static void sys_hastate(struct cb *c, struct event *e, void *d)
 			has = H_PERMANENT;
 	} else
 		has = -1;
-	if (has >= 0) {
-		m0_tl_for(p, &e->e_perm->p_proc, proc) {
-			if (proc != e->e_perm->p_fatum) {
-				req(e->e_perm->p_fatum, proc, O_HASET,
-				    c->c_proc->pr_idx, has);
-			}
-		} m0_tl_endfor;
+	m0_tl_for(p, &e->e_perm->p_proc, proc) {
+		if (proc != e->e_perm->p_fatum) {
+			lossless(e->e_perm->p_fatum, proc, O_HASET,
+				 c->c_proc->pr_idx, ss->ss_hastate);
+		}
+	} m0_tl_endfor;
+	if (has >= 0)
 		post(e->e_perm, event_alloc(e->e_perm, E_HASTATE, c->c_proc,
 					    NULL, has, 0, e->e_p0 + 1,
 					    0, P_CRASHED, -1));
-	}
 }
 
 static void sys_prep(struct perm *p)
@@ -857,12 +867,6 @@ static struct kv *kv_get(struct proc *proc)
 	return &ss->ss_kv[ss->ss_kvnr++];
 }
 
-static void req(struct proc *src, struct proc *dst, enum msg_op mop,
-		uint64_t p0, uint64_t p1)
-{
-	send(src, dst, M_REQ, mop, p0, p1, P_STARTED);
-}
-
 static bool recv_enabled(const struct event *e)
 {
 	return m0_tl_forall(h, n, &s_tlist_tail(&e->e_perm->p_step)->s_event, ({
@@ -876,16 +880,54 @@ static bool recv_enabled(const struct event *e)
 				     scan->e_seq  >= e->e_seq); }));
 }
 
+static bool lost_enabled(const struct event *e)
+{
+	/*
+	 * A request can be lost only if it is no longer being resent.
+	 *
+	 * Resend stops when the source node crashes or receives an HA
+	 * notification about target permanent failure (or when the reply is
+	 * received, but this is irrelevant).
+	 */
+	return  sys_pget(e->e_src)->ss_bcount != e->e_p1 ||
+		sys_pget(e->e_src)->ss_pstate != P_STARTED ||
+		thinks(e->e_src, e->e_proc) == H_PERMANENT;
+}
+
+static struct event *lossless(struct proc *src, struct proc *dst,
+			      enum msg_op mop, uint64_t p0, uint64_t p1)
+{
+	struct event *recv = event_alloc(src->pr_perm, E_RECV, dst, src,
+					 M_REQ, mop, p0, p1, P_STARTED, -1);
+	recv->e_enabled = &recv_enabled;
+	post(src->pr_perm, recv);
+	return recv;
+}
+
+static void req(struct proc *src, struct proc *dst, enum msg_op mop,
+		uint64_t p0, uint64_t p1)
+{
+	struct event *recv = lossless(src, dst, mop, p0, p1);
+	struct event *lost = event_alloc(src->pr_perm, E_REQLOST, dst, src,
+					 0, 0, (uint64_t)recv,
+					 sys_pget(dst)->ss_bcount,
+					 P_CRASHED, -1);
+	recv->e_alternative = lost;
+	lost->e_enabled = &lost_enabled;
+	lost->e_alternative = recv;
+	post(src->pr_perm, lost);
+}
+
+#if 0
 static void send(struct proc *src, struct proc *dst, enum msg_type mt,
 		 enum msg_op mop, uint64_t p0, uint64_t p1, enum pstate pstate)
 {
 	struct event *e = event_alloc(src->pr_perm, E_RECV, dst, src,
 				      mt, mop, p0, p1, pstate,
 				      sys_pget(dst)->ss_bcount);
-	if (mt == M_REQ)
-		e->e_enabled = &recv_enabled;
 	post(src->pr_perm, e);
 }
+#endif
 
 static void cont(struct proc *proc,
 		 void (*invoke)(struct cb *cb, struct event *e, void *data))
@@ -901,6 +943,21 @@ static void cont(struct proc *proc,
 	post(proc->pr_perm, event_alloc(proc->pr_perm, E_CONT, proc, NULL,
 					sel0, 0, 0, 0, P_STARTED,
 					sys_pget(proc)->ss_bcount));
+}
+
+static enum ha_state thinks(struct proc *proc, struct proc *object)
+{
+	struct step *s;
+
+	for (s = s_tlist_tail(&proc->pr_perm->p_step); s != NULL;
+	     s = s_tlist_prev(&proc->pr_perm->p_step, s)) {
+		struct event *cur = s->s_cur->n_vhead;
+
+		if (cur->e_op == E_RECV && cur->e_proc == proc &&
+		    cur->e_sel1 == O_HASET && object->pr_idx == cur->e_p0)
+			return cur->e_p1;
+	}
+	return H_ONLINE;
 }
 
 static void *xalloc(size_t nob)
@@ -936,7 +993,9 @@ static void event_print(const struct event *e)
 		[E_HASTATE] = "hastate",
 		[E_TXSTATE] = "txstate",
 		[E_TXSET]   = "txset",
-		[E_CONT]    = "cont"
+		[E_CONT]    = "cont",
+		[E_REQLOST] = "rep-lost",
+		[E_REPLOST] = "req-lost"
 	};
 	static const char *mtname[] = {
 		[M_NONE]  = "",
@@ -946,7 +1005,8 @@ static void event_print(const struct event *e)
 	};
 	static const char *mopname[] = {
 		[O_NONE]  = "",
-		[O_HASET] = "haset"
+		[O_HASET] = "haset",
+		[O_USER]  = "user"
 	};
 	static const char *hasname[] = {
 		[H_ONLINE]    = "online",
@@ -1005,7 +1065,8 @@ int main(int argc, char **argv)
 	}
 	invariant_add(&p);
 	perm_prep(&p);
-	cont(proc[0], LAMBDA(void, (struct cb *c, struct event *e, void *d) {
+#if 0
+        cont(proc[0], LAMBDA(void, (struct cb *c, struct event *e, void *d) {
 				uint64_t tid = tx_open(e->e_proc);
 
 				tx_set(e->e_proc, tid, 17, 12, NULL);
@@ -1024,6 +1085,8 @@ int main(int argc, char **argv)
 				M0_ASSERT(M0_IN(val, (12, 13, 0)));
 				/* printf("GOT: %"PRId64" %p\n", val, buf); */
 			}));
+#endif
+	req(proc[0], proc[0], O_USER, 42, 43);
 	perm_run(&p);
 	perm_fini(&p);
 	m0_fini();
