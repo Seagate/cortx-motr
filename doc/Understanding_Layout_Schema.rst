@@ -309,4 +309,86 @@ This table is to be implemented using c2_emap table which is a framework to stor
 |           |table, of the corresponding      |
 |           |layout.                          |
 +-----------+---------------------------------+
+
+Assumptions
+===============
+
+- Meta-data striping (traditionally called clustered meta-data) is outside of T1 scope. This is by referring to SNS Overview document.
+
+- Directory striping is not yet considered in this document nor does it seem to be touched by the HLD. Will appreciate to receive inputs on that so that it can be considered into the design.
+
+Queries
+=======
+
+- Supported Layout types: What is the exact list of layout types that we need to consider during layout schema design? 
+
+- FileId to LayoutId mapping:  
+
+  - Will this mapping be stored as a part of the Fileattr_basic table (c2_cob_fabrec)? 
+
+  - If yes, do we still want to store it in Layout Schema as well for any reason like performance? 
+
+- Layout updates:  
+
+  - When some properties/parameters of a layout are updated, the layoutid will be retained as is. Is that correct? 
+
+  - Should layout modification function generate a layout change notification? 
+
+  - Should the modified layout be marked as invalid till old layout is dropped by all the servers using it? 
+
+- Layout fields to indicate if active/degraded: Do we need some fields in the layout type description tables to indicate if the specific layout is active, if it is in a degraded mode and anything else if any? 
+
+- Reference on a layout: What do we mean by this and where and how is this to be used? 
+
+- UI for layout creation: What is the user (admin) interface for creating a layout? 
+
+- Storage pool: It is assumed that a storage pool is allocated per layout and thus can not be shared by multiple files (since there is one separate layout instance per file). Is that understanding correct? 
+
+- Composite layout type:  
+
+  - Can this be elaborated a bit as how do we want to store it? 
+
+  - Is this applicable for pdclust layout type? 
+
+- Storing storage pool info:  
+
+  - Does layout schema need to store storage pool info or it will be stored by the pool module? 
+
+  - If yes, what additional tables are required for that?  
+
+- Failure vector:  
+
+  - HLD of parity de-clustering algorithm mentions “Failure vector is an attribute associated with a layout and checked on every IO by the server“.  
+
+  - Is the Storage Pool Table the right place to store failure vector? 
+
+- Parity de-clustering (pdclust) formula:  
+
+  - Referring to one possible formula by referring to the layout related video is SiFID = Ai + B + F * SomeLargeNumber. 
+
+  - Would you please demonstrate how do different parameters of this formula (A, B, F) map to the input parameters N, K and anything else if any. 
+
+- Handling failure in case of pdclust layout: 
+
+  - Let us consider using a formula like SiFID = Ai + B + F * SomeLargeNumber, as is explained in the video regarding Layouts.  
+
+  - After say first failure, the whole file will get a different layout now that F will have value of 1. 
+
+  - Is this correct or do we have a composite layout - one layout upto some part of the file and another for the later part of the file? 
+
+- Layout caching: As per the component description of T1.2IndTasks, layout caching is part of the Layout Schema task. Just wanted to confirm if this is valid as of now?  
+
+- Policy: Can you please shed some light upon various policies those may play role into layout module like selecting a layout type for a file being created, storage preallocation, parent directory attributes etc. 
+
+- Local RAID:  
+
+  - Can we define what local RAID is?  
+
+  - Do we need to consider that into the list of supported raid layouts? 
+
+- RAID and pdclust layout types relation:  
+
+  - It seems to be possible to derive pdclust parameters from raid parameters. In other words, pdclust could be said as a special case of RAID.  
+
+  - Considering that, do we want the raid and pdclust layouts to be stored in the same table or different tables?  
    
