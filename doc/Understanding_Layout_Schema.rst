@@ -235,5 +235,35 @@ File id to layout id mapping is stored by the basic file attributes table (FAB).
 |fid....x              |L6                                    |
 +----------------------+--------------------------------------+
 
+The Table Layouts is mentioned below.
 
 
++----------------------+--------------------------------------------+
+|Table Name            | layouts                                    |
++----------------------+--------------------------------------------+
+|Key                   |layout_id (Type: c2_layout_id)              |
++----------------------+--------------------------------------------+
+|Record                |- layout_type (pdclust, composite, coblist) |
+|                      |                                            |
+|                      |- reference_count                           |
+|                      |                                            |
+|                      |- byte_array                                |
+|                      |                                            |
++----------------------+--------------------------------------------+
+|Comments              |byte_array is parsed and                    |
+|                      |composed by the layout_type specific        |
+|                      |decoding and encoding methods.              |
+|                      |                                            |
+|                      |                                            |
+|                      |For parity-declustered layout type with     | 
+|                      |formula-type as “LINEAR”, the byte_array    |
+|                      |contains the record with N (number of data  |
+|                      |units in parity group) (Type: uint32_t),    |
+|                      |K (number of parity units in parity groups) |
+|                      |(Type: uint32_t) and unit size              |
+|                      |(Type: uint32_t).                           |
+|                      |                                            |
+|                      |For parity-declustered layout type with     |
+|                      |formula-type as “LIST”, the byte_array      |
+|                      |contains list of cob ids.                   |
++----------------------+--------------------------------------------+
