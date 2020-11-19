@@ -392,3 +392,176 @@ Queries
 
   - Considering that, do we want the raid and pdclust layouts to be stored in the same table or different tables?  
    
+***************
+Notes
+***************
+
+**Motr File Striping using Component Objects**
+
+ 
+- Motr uses object based striping to store files. 
+
+- For each file (as visible to an end user of file system), a number of "component objects" (COB) are created. 
+
+- Typically a COB is created per device in the pool. (A pool in this context is a collection of servers running io services and storage devices attached to these servers.)  
+
+- The file is "striped" across these component objects, similarly to how a traditional RAID device is striped across underlying physical devices. 
+
+**COB identifier / COB id / COB fid**
+
+- Fid in Motr is 128-bit quantity, composed of 2 8-byte values. 
+
+- To form a COB identifier, only a portion of file's fid can be used, because we need 8 bytes for parameter (that is file fid).  
+
+- The whole pair (fid, COB index) is considered as COB fid and is also referred as COB identifier. 
+
+**Motr File Layout** 
+
+A file layout is used by a client to do IO against a file. 
+
+The Motr file layout stores component object ids either in a form of a list, or as a formula. The most basic layout IO interface is a mapping of file's logical namespace into storage objects' namespace. 
+ 
+
+Mapping a logical file offset to physical block numbers involves two mappings as below: 
+
+- Logical-offset-in-file to “cob-id, offset-in-cob” mapping 
+
+  - Component object id is obtained by using the file's layout.  
+
+  - Offset ??? (probably derived by using simple arithmetic) 
+
+- Offset-in-cob to block-numbers 
+
+  - This is stored/determined by the special type of storage object (not discussed any further in this document). 
+
+**Layout Formula** 
+
+- Formula is a type of layout.  
+
+- Using formula, we calculate cob ids each time we need them, instead of storing those cob ids. 
+
+- Once user queries for cob ids for a file, we point to the formula using the layout DB and the formula does the job of calculating the cob ids. 
+
+- Fid of i-th component object is calculated as a function of formula  attributes (stored in the layout DB), formula parameters (supplied by the user as input ) and i. 
+
+- For example, a formula might have attribute X and parameter F. Then fid of i-th cob can be calculated as (X + F, i). When a file uses this formula, it substitutes its (file's) fid as F. 
+
+- One layout formula (stored as a part of a layout), can produce different sets of cob fids, when different values of parameter are substituted into it. Multiple files can use the same layout formula (which is stored only once in the data-base) and yet have separate sets of cobs. 
+
+- For example, a file with fid 100 say F1 has cobs (100, 0), ... (100, 83) and a file with fid 101 say F2 has cobs (101, 0), ... (101, 83). These files use the same layout formula to generate cob fids: (F, i), where F is an input parameter (file fid) and i is a cob "index". The whole pair (F, i) is used as a cob identifier. 
+
+- Considering this same example above, formula is an economical way to store a single L0 record in the layout data-base. This is a record for a formula with a parameter F. Then file F1 stores L0.layoutid in its fab (basic file attribute) record and the file F2 stores the same. 
+
+**Disjoint sets** 
+
+- Typically all files in a pool use the same values of N (number of data units in a parity group) and K (number of parity units in a parity group). 
+
+- There will be multiple formulae for the same N and K, simply because with a single formula it's very difficult to arrange for disjointness of cob sets. 
+
+- Takes the simplest example, we looked at above, when a cob fid is calculated as (F, i). This guarantees that different files (with different fids) get disjoint sets of cobs, but consecutive cob fids, e.g., (100, 7), (100, 8) are always scattered across different servers in the pool. 
+
+- This means that a map that maps cob id to its location in the cluster (and we need such map) will be extremely fragmented and large. 
+
+- This is why there could be a "large_number" in a formula: allowing to map large continuous batches of cobs to the same server, while maintaining disjointness. ( The formula being referred could be “SiFID = Ai + B + F * SomeLargeNumber”) 
+
+- The "large_number" in formula is used to make cobid->serviceid map more compact. ?? 
+
+**Layout policy, File Creation, Resource Manager** 
+
+- Layout formulae are created administratively. The assignment policy should be more runtimeish.  
+
+- Something like POSIX ACL assignment. E.g., a directory has a default layout and when a file is created in this directory it inherits this layout. 
+
+- Plus an ioctl() to assign a layout. 
+
+- "layouts can be assigned both by the server ("Lustre style") and by the client, when a client uses existing layout formula to create a file. In the latter case, the client can create inode and component objects concurrently." 
+
+- Motr has a so-called "resource manager" sub-system which allows various file system resources to be distributed across nodes. 
+
+- Fids and layouts are resources. This means that a node (including a client) can "cache" a range of fids (not yet used for any file). 
+
+- In a "traditional" file system, like Lustre, file creation happens as follows: 
+
+  - A client sends CREATE request to the meta-data server. 
+
+  - The server creates an "inode" and assigns attributes, like layout to the new file. 
+
+  - Now, there are two possibilities: either meta-data server sends CREATE requests to the data-servers to create component objects, or it replies back to the client and the client sends these CREATEs.  
+
+- File creation with Motr Resource Manager: 
+
+  - With our wonderful resource manager, the client can assign attributes, like fid and layout to the file _before_ it sends the CREATE fop to the md service. 
+
+  - Therefore, it can send CREATE fops to ioservices (to create cobs), before it gets reply from the mdservice, because it already knows the layout. 
+
+  - This removes an rpc latency from the critical meta-data path. 
+
+  - And it adds an ability to batch operations on a client: create a million files locally, destroy 999999 of them and sends remaining CREATE to mds. 
+
+  - Lustre and NFS would send 1000000+999999 rpcs instead of 1 in this case. 
+
+**Reference count on a layout**
+
+- Layouts need persistent reference counters too. 
+
+- The layout must remain in the data-base while its layoutid is stored anywhere in the data-base. 
+
+- But for a formula, the counter never drops to 0, because the formula is created and destroyed administratively. 
+
+- And for a non-formulaic layout, the reference counter would be typically 1. 
+
+- Refcount is incremented when a layout is associated with a new user. 
+
+  - When a first file is created using this layout, this will be the first user. 
+
+  - If multiple files use the same layout, the counter is incremented for each one. 
+
+  - In other words, when any new file is created/associated with a particular layout, it's ref count is incremented. 
+
+- Refcount is decremented when a layout is detached from its user. 
+
+**Use Case of a file layout with formula: Reading from a file F0** 
+
+- Fetch F0 cob. 
+
+- Fetch F0 fab. 
+
+- Extract layoutid from fab. 
+
+- Fetch corresponding layout from the layout table. 
+
+- See that the layout is a formula, taking a single parameter F. 
+
+- Substitute F0's fid into formula. 
+
+- Get a set of cob fids to operate on. 
+
+**Composite layout** 
+
+- T1.2IndTasks->components states that “Only need parity declustered layouts in db”. It looks like we need composite layout type as well (to demonstrate recovery).  
+
+- It is not yet clear whether we can demonstrate SNS repair without composite layouts. 
+
+- We want to store a composite layout like like list of "layout ids - extents" pairs. 
+
+- But list is, generally, not scalable enough. Hence, a tree is needed. 
+
+- Perhaps in a separate table.  
+
+**Layout attributes - Number of data and parity units in a parity group (N, K)** 
+
+- Should each formula duplicate them? 
+
+- They could be properties of something else that is specific per storage pool. 
+
+- Considering them as layout attributes to start with and will explore more on if they could be properties of something that is specific per storage pool. 
+
+- There is one important point about "something" that one has to keep in mind. Layouts can be invalidated by changes in hardware configuration, including failures. This is described (without much detail though) in "HLD of SNS repair". 
+
+***************
+Use Cases
+***************
+
+- NBA
+
+- Multiple massive readers: single file read by large numbers of readers could turn into a bittorrent-like layout (clients can access multiple copies of data cached on multiple clients). 
