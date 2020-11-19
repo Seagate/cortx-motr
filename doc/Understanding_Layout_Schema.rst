@@ -55,7 +55,45 @@ In a traditional NAS deployment, there is a NAS server and multiple NFS or CIFS 
 
 - Possibly they need to be in network-byte order (pre-encoded) for easy transport 
 
-- A part (region of a file) of the layout could be delivered if necessary  
+- A part (region of a file) of the layout could be delivered if necessary 
+
+***************
+Design Goals
+***************
+
+Looking at the history of the file-layouts, it’s very clear that the file layouts evolve over a period of time. A host of copy services (snapshot, back-up, archiving, data de-duplication, replication etc) can also influence the file layout. In Motr the layout will be transported between two servers. The file layout will need a compact description so that it will consume minimal resources (memory, network bandwidth). Motr should support multiple layouts. It should allow accommodation of new (future) layouts. It should allow migration of file data from one layout to another. The design goals for the file layouts (and schema) are listed below:
+
+- Support multiple layouts within the file-system 
+
+- Provide support to add new layouts 
+
+- Provide support for composite/mixed layouts (combining different layout types together) 
+
+- Provide migration of file data from one layout to another 
+
+- Provide compact description of the layouts 
+
+- Provide pre-encoded layouts (where necessary) for easy transport 
+
+*********************
+Motr Layout Types  
+*********************
+
+HLD for layout schema lists the following layout types: 
+
+- SNS 
+
+- Local RAID 
+
+- RAID levels 
+
+- Future layouts such as de-duplication, encryption, compression 
+
+Although these layout types are well classified from schema perspective, we believe there will be two types of layouts that will be supported for the planned demo: 
+
+- Parity de-clustering layout (c2_pdclust_layout) (Conceptually this is ‘SNS layout with parity de-clustering as a property’ and is referred as pdclust layout.) 
+
+- Composite layout (mixed layout for representing layout under repair) 
  
 
    
