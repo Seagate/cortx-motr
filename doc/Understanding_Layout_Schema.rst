@@ -122,7 +122,76 @@ This interface will make following assumptions:
 
 - Sub-maps (aka sub-layout) will be created before creating top level layout. 
 
-- Layout creation operation will fill in type-specific data in the type tables (or the fields in a record that are specific to a layout).      
- 
+- Layout creation operation will fill in type-specific data in the type tables (or the fields in a record that are specific to a layout).
 
-   
+Assigning Layout To A File
+===========================
+
+A file layout is one of the attributes of the file. A layoutid is assigned to a file when a file is created and it is then stored in the file attributes as one of the properties of the file. In Motr, a file will be created using a file create (or open) FOP. There are various parameters that may need to be considered while assigning layoutid to a file. Some of the parameters are listed below:
+
+- Parent dir inheritance attribute 
+
+- Policy (e.g. prealloc blocks?)
+
+A few assumptions regarding file create operation: 
+
+- If a policy such as storage pre-allocation is used, the block (blocks of backing store) reservation will happen first. 
+
+- Creation of a file requires creation of its component objects and the creator (a client, usually) must assure that cobs can be created (i.e., that free identifiers exist). 
+
+- File-id to layout-id mapping is stored by the fileattr_basic table (also called as fab).
+
+Updating or Modifying Layouts 
+==============================
+
+The layouts will be modified under the following conditions: 
+
+- The system administrator changes the layout properties 
+
+- The underlying storage of the layout is affected
+
+These events will lead to a composite layout until the file data migrates to the new layout completely. The layout schema should provide interface to update the existing layout. Modifying the layout may result in a new layout.
+
+The modification to the layout opens up following design related queries:
+
+- Should update to the layout change the layoutid? 
+
+- Should this function generate a layout change notification? 
+
+- Should the modified layout be marked as invalid till old layout is dropped by all the servers using it?
+
+Searching Layouts
+===================
+
+The layout provides mapping of logical file block to corresponding logical storage block(s). In many circumstances identifying layout using fileid is useful. While in some other conditions the inverse (or reverse) mapping from storage to files is useful. Hence the search function should provide flexibility to obtain layoutid (key to the layout) using different parameters (or mechanisms).
+
+The query interface of the layout will be used to obtain the details of the layout structure where as search interface will provide only the layoutid.
+
+Search by storage object id 
+----------------------------
+
+When there is a back-end storage failure, it has to be marked into the database (Motr meta-data). The layouts affected by the storage device will also have to be updated. To provide this functionality, searching the layout by storage id (inverse mapping) is useful. This type of interface is also helpful for the recovery IO (Motr middleware).
+
+Search by file id
+------------------
+
+This mapping will often be used by the client performing the IO on the file. When an IO is being performed on a file, a layout will be obtained by using fileid. 
+
+Query / Lookup Layout
+======================
+
+A layout is queried using a layoutid. This function will fetch all the details of the layout. This query can either be covering the entire file or a region of the file. For compact layouts such as layout formulae, this will not matter. This interface will be used by the clients for performing IO against a file. Query for a file region or partial layout is out of the scope of layout schema.
+
+Deleting a Layout
+===================
+
+The HLD talks about holding a reference to a layout and decrementing the reference to the layout when a file is deleted. Although this idea is quite appealing, it’s implementation in the schema is not clear at this point in time. Until this design and use-case becomes clear, we will simply delete a layout when the file (using this layout) is deleted. 
+
+List Layout types
+==================
+
+Layouts are influenced by layout types. A block map style layout will contain array (tree) of all the storage blocks. A formula based layout will work with parameters (variables) of the formula. There will be one or more tables storing the layout type information. 
+
+During the initialization of the layout module, it will be necessary to load all the known layout types from the database. This will in turn help to create a layout for the file of a desired layout type using the layout type operations.        
+
+
