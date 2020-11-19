@@ -286,4 +286,27 @@ Tabular representation of “layouts” table with example
 +------------+--------------+-----------------------------+-----------------------+
 |L6          |pdclust       | 1                           |LIST, cob1, cob2, cob3 |       
 +------------+--------------+-----------------------------+-----------------------+
+
+**Table “composite_layout_extent_map”**
+
+Conceptually, composite_layout_extent_map stores "extent-layout id" pairs for all the files using composite layouts.
+
+This table is to be implemented using c2_emap table which is a framework to store extent map collection. c2_emap stores a collection of related extent maps. Individual maps within a collection are identified by an element of the key called as prefix (128 bit). In case of composite_layout_extent_map, prefix would incorporate layout_id for the composite layout.
+
++-----------+---------------------------------+
+|Table Name |composite_layout_extent_map      |
++-----------+---------------------------------+
+|Key        |- composite_layout_id            |
+|           |                                 |
+|           |- last_offset_of_segment         |
++-----------+---------------------------------+
+|Record     |- start_offset_of_segment        |
+|           |                                 |
+|           |- layout_id                      |
++-----------+---------------------------------+
+|Comments   |layout_id is a foreign key       |
+|           |referring record, in the layouts |
+|           |table, of the corresponding      |
+|           |layout.                          |
++-----------+---------------------------------+
    
