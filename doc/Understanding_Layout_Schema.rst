@@ -93,7 +93,36 @@ Although these layout types are well classified from schema perspective, we beli
 
 - Parity de-clustering layout (c2_pdclust_layout) (Conceptually this is ‘SNS layout with parity de-clustering as a property’ and is referred as pdclust layout.) 
 
-- Composite layout (mixed layout for representing layout under repair) 
+- Composite layout (mixed layout for representing layout under repair)
+
+*************************
+Layout Schema Interfaces
+*************************
+
+Creating Layouts
+================
+
+Motr will support certain number of layout types (e.g. pdclust, raid, composite). Creating a layout of any of the supported types is an administrative task. (Note: Need to figure out what is the user interface to create a layout).
+
+There are various parameters that will have to be considered while initializing any file layout. Some of the parameters are listed below:
+
+- Policy (e.g. prealloc blocks?) 
+
+- Layout Type 
+
+- Layout type specific data (This may contain sub-maps) 
+
+- Backing store
+
+This interface will make following assumptions:
+
+- While initializing a layout, parameters like the ones mentioned above will be considered by another encapsulating task viz. “Layout”. The task “Layout Schema” will not play any role into that. 
+
+- Backing store objects will be created before making this call. Appropriate heuristics will be used while creating these objects. For example, for a RAID-like layout the storage objects for the stripe units will not be located on the same disk [The term storage object used here is different from Motr storage object. The storage object referred here will map to component object of Motr. 
+
+- Sub-maps (aka sub-layout) will be created before creating top level layout. 
+
+- Layout creation operation will fill in type-specific data in the type tables (or the fields in a record that are specific to a layout).      
  
 
    
