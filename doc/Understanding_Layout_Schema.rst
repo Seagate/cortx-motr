@@ -23,3 +23,39 @@ Most of the disk-based file-systems access any file using meta-data for that fil
 - 1 triple indirect block 
 
 The traditional block map in an inode would contain logical disk block numbers. A block map for direct blocks is simply an array of block numbers.   
+
+Optimization using extents 
+---------------------------
+
+The traditional EXT2 file layout (block map) was evolved to store extents or block clusters for a file in EXT4. This provided more compact storage for the file layout and also provided better sequential access to the file data. This layout started storing <starting block number, len> instead of storing only a block number within the file layout.
+
+File layout for snapshots
+==========================
+
+With advent of 24x7 availability of the applications and a requirement to back-up the on-line file-system created a need for creating the snapshots of the file system. A snapshot of a file-system creates a point in time copy of all the files in a file system. If a file is modified after the snapshot is created, there is need to store only the incremental changes. Duplicating the entire block map for the file would waste the storage space. This created a need to access the new modified blocks and old unmodified blocks through the file. The classical block map was again modified to create a block map chain that would point to old block map as necessary (Not an EXT4 feature).   
+
+File Layout in distributed name-space
+=======================================
+
+In many organizations, file systems are deployed using NAS boxes. As the storage demands grow, more NAS boxes are added. This creates lot of administrative overhead. To provide storage scalability, a single unified namespace, and easier administration, many solutions such as clustered NAS, scale-out NAS, file switches and file virtualization products were developed. 
+
+Many of these products developed their own layouts. The files were accessed using a head server with bunch of NAS boxes behind it. The files are accessed using a top-level layout within a single distributed name space. This layout would then map to the underlying file system. The top-level layout now points to the files on different underlying file-systems rather than a block map. These layouts are stored either as data or attributes of a traditional inode. The underlying (stand-alone) file system uses the classical block-map layout.
+
+Lustre case
+=============
+
+Lustre has two levels of mapping. The first level of mapping is stored on MDS as a file EA. The layout is structured as {{ost1,fid1}, {ost2,fid2}, {ost3,fid3}, {ost4,fid4}, … {ost-n,fid-n}}, along with stripe size. So the logical offset in a file can be calculated into one of the object represented by {ost-index, fid}. With this info, lustre client communicates to that ost, accessing the object with that specified fid. Another mapping from object logical offset to disk block is done by a local disk file system, ldiskfs (the origin of ext4).
+
+pNFS and file layouts
+=====================
+
+In a traditional NAS deployment, there is a NAS server and multiple NFS or CIFS clients. With the advent of SAN, even the client machines started having direct access to the storage. To boost the performance of overall system, pNFS  like systems were developed. The pNFS  clients started requesting file layouts so that they could perform direct I/O (this does not mean un buffered I/O) to the files. This created different kinds of requirements for the file-layouts. The layouts that are to be transported need to be  
+
+- Compact (not occupying a lot of space/memory) 
+
+- Possibly they need to be in network-byte order (pre-encoded) for easy transport 
+
+- A part (region of a file) of the layout could be delivered if necessary  
+ 
+
+   
