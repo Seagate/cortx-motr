@@ -280,7 +280,36 @@ Scenario 3
 
 Scenario 4
 
-.. image:: Images/scev4.PNG
++-----------------------------+------------------------------------------------------------+
+|Scenario                     |[usecase.verno.re-play]                                     |
++-----------------------------+------------------------------------------------------------+
+|Relevant quality attributes  |fault tolerance                                             |
++-----------------------------+------------------------------------------------------------+
+|Stimulus                     |a client sends an rpc to a failed server during recovery    |
++-----------------------------+------------------------------------------------------------+
+|Stimulus source              |server restart                                              |
++-----------------------------+------------------------------------------------------------+
+|Environment                  |recovery                                                    |
++-----------------------------+------------------------------------------------------------+
+|Artifact                     |the server receives the rpc, tagged with REPLAY flag        |
++-----------------------------+------------------------------------------------------------+
+|Response                     |the server compares before-version-counters in the rpc      |
+|                             |with version counters in the units:                         |
+|                             |- if RPC.vc < U.vc, the rpc is a resend and should be       |
+|                             |  ignored;                                                  |
+|                             |                                                            |
+|                             |- if RPC.vc == U.vc, the rpc can be applied right away;     |
+|                             |                                                            |
+|                             |- if RPC.vc > U.vc, the rpc should be queued until missing  |
+|                             |  rpc-s are received from other clients, or until recovery  | 
+|                             |  window is closed. As an optimization, if rpc is an        |
+|                             |  "overwrite" update, rather than "diff" update, it can be  |
+|                             |  applied right away                                        |
++-----------------------------+------------------------------------------------------------+
+|Response Measure             |                                                            |
++-----------------------------+------------------------------------------------------------+
+|Questions and Issues         |                                                            |
++-----------------------------+------------------------------------------------------------+
 
 
 ***************
