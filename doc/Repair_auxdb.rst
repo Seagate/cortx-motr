@@ -106,46 +106,33 @@ Iterator Operations
 Typical Usage
 ==============
 
-::
+.. code-block:: C
 
  struct m0_dbenv mydbenv;
- 
  struct m0_addb_ctx myaddb_ctx;
- 
  struct m0_cobfid_map mymap;
- 
  struct m0_cobfid_map_iter myiter;
- 
  uint64_t container_id;
- 
  struct m0_fid file_fid;
- 
  struct m0_uint128 cob_fid;
 
  /* initialize mydbenv */
  
  /* create or open the map */
- 
  rc = m0_cobfid_map_init(&mymap, &mydbenv, &myaddb_ctx, "mycobfidmapname");
 
  /* insert records */
- 
  rc = m0_cobfid_map_add(&mymap, container_id, file_fid, cob_fid, &mydbtx);
 
  ...
 
  /* enumerate */
- 
  rc = m0_cobfid_map_container_enum(&mymap, container_id, &myiter, &mydbtx);
- 
  while ((rc = m0_cobfid_map_iter_next(&myiter, &container_id, &file_fid, &cob_fid, &mydbtx)) == 0) {
- 
         /* process record */
-        
  }
 
  /* cleanup */
- 
  m0_cobfid_map_fini(&mymap);
 
 HLD, Source Code, and UT
