@@ -175,7 +175,9 @@ Troubleshooting
       
        /somewhere_to_your/bin/java -jar /somewhere_to_your/plantuml.jar $@
        
-      **The CORTX Motr submodule was last tested by @saumyasunder on 10/11/2020 on VMware Workstation 16 Pro.**
+ 
+ 
+ **The CORTX Motr submodule was last tested by @saumyasunder on 10/11/2020 on VMware Workstation 16 Pro.**
 
 
 
