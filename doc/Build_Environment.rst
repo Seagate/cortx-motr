@@ -150,7 +150,7 @@ Generation part is very simplistic for all of the build systems described. One j
 Repository Path
 ================
 
-So far there are three repositories for storing different logical parts of the Motr source tree:
+So far this is the repository storing different logical parts of the Motr source tree:
 
 +------------------------+-------------------------------------------------------------------------------------------+
 |**Name**                |**Description**                                                                            |
