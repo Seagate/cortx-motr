@@ -155,53 +155,32 @@ So far there are three repositories for storing different logical parts of the M
 +------------------------+-------------------------------------------------------------------------------------------+
 |**Name**                |**Description**                                                                            |
 +========================+===========================================================================================+
-|Motr                    |Git clone ssh:/gitosis@git.clusterstor.com/motr.git                                        |
+|cortx-motr              | git clone --recursive git@github.com:Seagate/cortx-motr.git                               |
 |                        |                                                                                           |
-|                        | Root repository holding the following:                                                    |
-|                        |                                                                                           |
-|                        |   - Motr-core - Motr repository                                                           |
-|                        |                                                                                           |
-|                        |   - Motr-db4 - modified db4 repository                                                    |
-|                        |                                                                                           |
-|                        |   - Motr-get - bash script for fetching both repositories                                 |
-|                        |                                                                                           |
-+------------------------+-------------------------------------------------------------------------------------------+
-|Motr-core               |Git clone ssh:/gitosis@git.clusterstor.com/motr-core.git                                   |
-|                        |                                                                                           |
-|                        | Repository for storing motr-core source code.                                             |
-+------------------------+-------------------------------------------------------------------------------------------+
-|Motr-db4                | Git clone ssh:/gitosis@git.clusterstor.com/motr-db4.git                                   |
 +------------------------+-------------------------------------------------------------------------------------------+
 
-As one can see, motr-core and motr-db4 are separate repositories. There is no some logical explanation why we need them separately now as there are no requirements dictating this structure. We surely can have such a requirements in future and more flexible repository structure allows to adopt quickly. Additionally, there are not many drawbacks in current structure to not do so.
-
-While motr-db4 repository is having completely the same structure as standard db4 distribution (we do not want to multiply differences, so that we could switch to new version quickly), motr-core, on the other hands, having the structure, discussed below.
+cortx-motr has the following structures.
 
 - doc - documentation such as installation guide, APIs description;
 
 - man - standard manual pages for binaries, config files (if any), etc;
 
-- src - source code;
+- addb - addb module;
 
-  - addb - addb module;
+- ctdb - ctdb module;
 
-  - ctdb - ctdb module;
+- fol - fol module;
 
-  - fol - fol module;
+- nrs - nrs module;
 
-  - nrs - nrs module;
+- sns - sns module;
 
-  - sns - sns module;
+- net - networking code;
 
-  - net - networking code;
-
-  - lib - common code for all the modules;
+- lib - common code for all the modules;
 
 - include - all motr include files;
 
-- patches - db4 patches;
-
-- tests - testing framework.
 
 Every sub directory, which contains something to build (code, man pages, etc), should have own build script. This build script builds only thing related to its directory. This is worth to mention, as some build systems allow to do everything from the project root directory. This would make root build script huge and even the best build system in the world will not save it from becoming mess very quickly.
 
@@ -360,8 +339,3 @@ Concurrency Control
 - [concur.simultaneous-build.different-nodes] - Separate build directories are used for maintaining consistency. Dir names are formed using node name and architecture name. In correctly configured network, this ensures correct simultaneous build;
 
 - [concur.simultaneous-build.same-node] - Separate build directories are used for maintaining consistency. Directory names are specified by user, running the build command.
-
-
-
-
-
