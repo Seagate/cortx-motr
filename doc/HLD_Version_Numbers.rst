@@ -254,7 +254,29 @@ Scenario 2
 
 Scenario 3
 
-.. image:: Images/scev3.PNG
++-----------------------------+------------------------------------------------------------+
+|Scenario                     |[usecase.verno.resend]                                      |
++-----------------------------+------------------------------------------------------------+
+|Relevant quality attributes  |fault tolerance                                             |
++-----------------------------+------------------------------------------------------------+
+|Stimulus                     |a client resends an rpc                                     |
++-----------------------------+------------------------------------------------------------+
+|Stimulus source              |network failure                                             |
++-----------------------------+------------------------------------------------------------+
+|Environment                  |normal cluster operation after a transient network failure  |
++-----------------------------+------------------------------------------------------------+
+|Artifact                     |a server receives the rpc                                   |
++-----------------------------+------------------------------------------------------------+
+|Response                     |the server compares version counter in the rpc with the     |
+|                             |version counter stored in the unit. Version counters are the| 
+|                             |same. Resend is detected. The server fetches fol record from| 
+|                             |the fol and returns reply to the client without re-executing| 
+|                             |the operation.                                              |
++-----------------------------+------------------------------------------------------------+
+|Response Measure             |Exactly-once-semantics is maintained                        |
++-----------------------------+------------------------------------------------------------+
+|Questions and Issues         |fol records should store operation results                  |
++-----------------------------+------------------------------------------------------------+
 
 Scenario 4
 
