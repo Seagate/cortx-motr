@@ -295,6 +295,7 @@ Scenario 4
 +-----------------------------+------------------------------------------------------------+
 |Response                     |the server compares before-version-counters in the rpc      |
 |                             |with version counters in the units:                         |
+|                             |                                                            |
 |                             |- if RPC.vc < U.vc, the rpc is a resend and should be       |
 |                             |  ignored;                                                  |
 |                             |                                                            |
