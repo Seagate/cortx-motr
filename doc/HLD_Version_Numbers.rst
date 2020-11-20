@@ -30,7 +30,7 @@ Requirements
 
 - [r.verno.serial]: version numbers order unit states in the unit serial history; 
 
-- [r.verno.resource]: version numbers are managed as a scalable distributed resource [3]: entities caching a given unit could also cache4 some range of version numbers and to generate version numbers for updates of local cached state locally; 
+- [r.verno.resource]: version numbers are managed as a scalable distributed resource [3]: entities caching a given unit could also cache [4] some range of version numbers and to generate version numbers for updates of local cached state locally; 
 
 - [r.verno.dtm]: version numbers are usable for distributed transaction [5] recovery: when cached update is replayed to restore lost unit state, unit version number is used to determine whether update is already present in the survived unit state; 
  
@@ -48,7 +48,7 @@ In the presence of caching, requirements [r.verno.resource] and [r.verno.fol] ar
 
 To deal with that, a version number is made compound: it consists of two components: 
 
-- LSN7: a reference to a fol record, corresponding to the unit state;
+- LSN [7]: a reference to a fol record, corresponding to the unit state;
 
 - VC: a version counter, which is an ordinal number of update in the unit's serial history.
 
@@ -87,7 +87,7 @@ Internally, version number is defined as a two-component data-structure (struct 
 
 The following invariant, referred to as a version number comparison invariant is maintained:
 
-where v0 and v1 are two version numbers for the same unit (taken on the same node), and lsn comparison function is defined by the FOL HLD11. This invariant means that per-object and per-fol (i.e., per-node) orderings of updates are compatible.
+where v0 and v1 are two version numbers for the same unit (taken on the same node), and lsn comparison function is defined by the FOL HLD [11]. This invariant means that per-object and per-fol (i.e., per-node) orderings of updates are compatible.
 
 Hybrid Operations
 =================
