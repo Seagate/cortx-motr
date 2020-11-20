@@ -201,7 +201,27 @@ Use Cases (Scenarios)
 
 Scenario 1
 
-.. image:: Images/scev1.PNG
++-----------------------------+------------------------------------------------------------+
+|Scenario                     |[usecase.verno.new-unit]                                    |
++-----------------------------+------------------------------------------------------------+
+|Relevant quality attributes  |usability, observability                                    |
++-----------------------------+------------------------------------------------------------+
+|Stimulus                     |a request to create a new file is processed by an MD server |
++-----------------------------+------------------------------------------------------------+
+|Stimulus source              |user application                                            |
++-----------------------------+------------------------------------------------------------+
+|Environment                  |normal operation of a cluster                               |
++-----------------------------+------------------------------------------------------------+
+|Artifact                     |a fol record, describing the update                         |
++-----------------------------+------------------------------------------------------------+
+|Response                     |the new inode is tagged with the version number of the      |
+|                             |form (lsn, 0), where lsn is log sequence number of the fol  |
+|                             |record. The fol record contains (M0_LSN_NONE, ~0) as version| 
+|                             |number, where M0_LSN_NONE is a special reserved lsn,        |
+|                             |indicating that no previous version exists and VC value (~0)| 
+|                             |is immaterial.                                              |
++-----------------------------+------------------------------------------------------------+
+
 
 Scenario 2
 
