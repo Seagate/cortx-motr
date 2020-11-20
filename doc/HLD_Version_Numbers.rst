@@ -18,9 +18,9 @@ Definitions
 
 See the Glossary for general M0 definitions and HLD of FOL for the definitions of file system operation, update and lsn. The following additional definitions are required:
 
-- for the purposes of the present design it is assumed that a file system update acts on units [1]. For example, a typical meta-data update acts on one or more "inodes" and a typical data update acts on inodes and data blocks. Inodes, data blocks, directory entries, etc. are all examples of units. It is further assumed that units involved in an update are unambiguously identified [2] and that complete file system state is a disjoint union of states of comprising units. (Of course, there are consistency relationships between units, e.g., inode nlink counter must be consistent with contents of directories in the name-space).
+- for the purposes of the present design it is assumed that a file system update acts on units (r.dtx.units). For example, a typical meta-data update acts on one or more "inodes" and a typical data update acts on inodes and data blocks. Inodes, data blocks, directory entries, etc. are all examples of units. It is further assumed that units involved in an update are unambiguously identified (r.dtx.units.identify) and that complete file system state is a disjoint union of states of comprising units. (Of course, there are consistency relationships between units, e.g., inode nlink counter must be consistent with contents of directories in the name-space).
 
-- It is guaranteed that operations (updates and queries) against a given unit are serializable [3] in the face of concurrent requests issued by the file system users. This means that observable (through query requests) unit state looks as if updates of the unit were executed serially in some order. Note that the ordering of updates is further constrained by the distributed transaction management considerations which are outside the scope of this document.
+- It is guaranteed that operations (updates and queries) against a given unit are serializable in the face of concurrent requests issued by the file system users. This means that observable (through query requests) unit state looks as if updates of the unit were executed serially in some order. Note that the ordering of updates is further constrained by the distributed transaction management considerations which are outside the scope of this document.
 
 - A unit version number is an additional piece of information attached to the unit. A version number is drawn from some linearly ordered domain. A version number changes on every update of the unit state in such a way that ordering of unit states in the serial history can be deduced by comparing version numbers associated with the corresponding states.    
 
@@ -30,13 +30,13 @@ Requirements
 
 - [r.verno.serial]: version numbers order unit states in the unit serial history; 
 
-- [r.verno.resource]: version numbers are managed as a scalable distributed resource [3]: entities caching a given unit could also cache [4] some range of version numbers and to generate version numbers for updates of local cached state locally; 
+- [r.verno.resource]: version numbers are managed as a scalable distributed resource (r.resource): entities caching a given unit could also cache (r.resource.cacheable) some range of version numbers and to generate version numbers for updates of local cached state locally; 
 
-- [r.verno.dtm]: version numbers are usable for distributed transaction [5] recovery: when cached update is replayed to restore lost unit state, unit version number is used to determine whether update is already present in the survived unit state; 
+- [r.verno.dtm]: version numbers are usable for distributed transaction (r.dtx) recovery: when cached update is replayed to restore lost unit state, unit version number is used to determine whether update is already present in the survived unit state; 
  
 - [r.verno.optimistic-concurrency]: version numbers are usable for optimistic concurrency control in the spirit of NAMOS [1]; 
 
-- [r.verno.update-streams]: version numbers are usable for implementation of update streams [6] (see On file versions [0]); 
+- [r.verno.update-streams]: version numbers are usable for implementation of update streams (R.NET.RPC.STREAMS.MULTIPLE) (see On file versions [0]); 
 
 - [r.verno.fol]: a unit version number identifies the fol record that brought the unit into the state corresponding to the version number.
 
@@ -48,7 +48,7 @@ In the presence of caching, requirements [r.verno.resource] and [r.verno.fol] ar
 
 To deal with that, a version number is made compound: it consists of two components: 
 
-- LSN [7]: a reference to a fol record, corresponding to the unit state;
+- LSN (r.fol.lsn): a reference to a fol record, corresponding to the unit state;
 
 - VC: a version counter, which is an ordinal number of update in the unit's serial history.
 
@@ -62,9 +62,9 @@ Functional Specification
 
 Other sub-systems use version numbers in a number of ways:
 
-- [a version number in a fol record] a fol record stores version numbers [8] that units modified by the update had before the update was applied. These are called before-version-numbers (similarly to a before-image stored by data-bases in a transactional log). The version number a unit would have after the update is applied (called after-version-number) can be constructed: its lsn is the lsn of the fol record in question and its version counter is one more than the version counter of before-version. The lsn parts of before-version-numbers constitute prev-lsn references as defined by the FOL HLD;
+- [a version number in a fol record] a fol record stores version numbers (r.fol.verno) that units modified by the update had before the update was applied. These are called before-version-numbers (similarly to a before-image stored by data-bases in a transactional log). The version number a unit would have after the update is applied (called after-version-number) can be constructed: its lsn is the lsn of the fol record in question and its version counter is one more than the version counter of before-version. The lsn parts of before-version-numbers constitute prev-lsn references as defined by the FOL HLD;
 
-- [a version number update protocol] a unit has version number of its latest state as an attribute [9]. This attribute is modified with every update to the unit state. lsn part of this version number points to the fol record with the last update for the unit. When new update is performed, new fol record is transactionally [10] appended to the log, pointing to the previous record through last-lsn, and in-unit version number is changed to point to the new record. Effectively, this maintains a single-linked list of records updating a given unit, except that a single record can belong to multiple lists. For example, initial configuration:  
+- [a version number update protocol] a unit has version number of its latest state as an attribute (r.back-end.store-verno). This attribute is modified with every update to the unit state. lsn part of this version number points to the fol record with the last update for the unit. When new update is performed, new fol record is transactionally (R.BACK-END.TRANSACTIONAL) appended to the log, pointing to the previous record through last-lsn, and in-unit version number is changed to point to the new record. Effectively, this maintains a single-linked list of records updating a given unit, except that a single record can belong to multiple lists. For example, initial configuration:  
 
 .. image:: Images/rev1.PNG
 
@@ -87,7 +87,7 @@ Internally, version number is defined as a two-component data-structure (struct 
 
 The following invariant, referred to as a version number comparison invariant is maintained:
 
-where v0 and v1 are two version numbers for the same unit (taken on the same node), and lsn comparison function is defined by the FOL HLD [11]. This invariant means that per-object and per-fol (i.e., per-node) orderings of updates are compatible.
+where v0 and v1 are two version numbers for the same unit (taken on the same node), and lsn comparison function is defined by the FOL HLD (r.fol.lsn.compare). This invariant means that per-object and per-fol (i.e., per-node) orderings of updates are compatible.
 
 Hybrid Operations
 =================
