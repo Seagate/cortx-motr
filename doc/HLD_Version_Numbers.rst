@@ -231,27 +231,23 @@ Scenario 1
 Scenario 2
 
 +-----------------------------+------------------------------------------------------------+
-|Scenario                     |[usecase.verno.new-unit]                                    |
+|Scenario                     |[usecase.verno.update]                                      |
 +-----------------------------+------------------------------------------------------------+
 |Relevant quality attributes  |usability, observability                                    |
 +-----------------------------+------------------------------------------------------------+
-|Stimulus                     |a request to create a new file is processed by an MD server |
+|Stimulus                     |a request to update a unit is received by an MD server      |
 +-----------------------------+------------------------------------------------------------+
 |Stimulus source              |user application                                            |
 +-----------------------------+------------------------------------------------------------+
 |Environment                  |normal operation of a cluster                               |
 +-----------------------------+------------------------------------------------------------+
-|Artifact                     |a fol record, describing the update                         |
+|Artifact                     |a fol record F, describing the update                       |
 +-----------------------------+------------------------------------------------------------+
-|Response                     |the new inode is tagged with the version number of the      |
-|                             |form (lsn, 0), where lsn is log sequence number of the fol  |
-|                             |record. The fol record contains (M0_LSN_NONE, ~0) as version| 
-|                             |number, where M0_LSN_NONE is a special reserved lsn,        |
-|                             |indicating that no previous version exists and VC value (~0)| 
-|                             |is immaterial.                                              |
+|Response                     |the unit version number (lsn, vc) is replaced with          |
+|                             |(F.lsn, vc + 1), F gets (lsn, vc) as before-version-number  |
+|                             |for the unit                                                |
 +-----------------------------+------------------------------------------------------------+
-|Response Measure             |a single linked list of fol records updating the newly      |
-|                             |created unit is thusly created.                             |
+|Response Measure             |single linked list of unit updates is maintained            |
 +-----------------------------+------------------------------------------------------------+
 |Questions and Issues         |                                                            |
 +-----------------------------+------------------------------------------------------------+
