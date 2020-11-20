@@ -324,5 +324,12 @@ Analysis
 
 The hybrid operation mode introduced above, disentangles issues of resource management and concurrency control from failure recovery, which traditional session-slot based protocols fail to do. It's also instructive to compare version maintenance with the epoch algorithm: version numbers are, roughly speaking, per-object epochs.
 
+*********************
+References
+*********************
+
+- [0] - On File Versions
+
+- [1]- Naming and Synchronization in a Decentralized Computer System (D.P. Reed)
 
 
