@@ -95,18 +95,13 @@ Logical specification
 
 ADDB monitors are represented as follows:
 
-::
+.. code-block:: C
 
  struct m0_addb_monitor {
-
          void       (*am_watch) (const struct m0_addb_monitor *mon, const struct 
-
  m0_addb_rec *rec, const struct m0_addb_mc *mc_to_post_on);
-
      void                 *am_datum;
-
      struct m0_tlink am_linkage;
-
  }; 
 
 Structure field descriptions:
