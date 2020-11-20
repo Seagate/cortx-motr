@@ -59,7 +59,6 @@ There are two APIs that are globally visible, they are to add/delete monitors.
 .. code-block:: C
 
  void m0_addb_monitor_add(struct m0_addb_monitor *mon); 
-
  void m0_addb_monitor_del(struct  m0_addb_monitor *mon); 
 
 ADDB monitors do two main work / things:
