@@ -83,7 +83,7 @@ Logical Specification
 Ordering
 =========
 
-Internally, version number is defined as a two-component data-structure (struct M0_verno), with little internal state or logic. 
+Internally, version number is defined as a two-component data-structure (struct m0_verno), with little internal state or logic. 
 
 The following invariant, referred to as a version number comparison invariant is maintained:
 
