@@ -100,10 +100,11 @@ ADDB monitors are represented as follows:
 .. code-block:: C
 
  struct m0_addb_monitor {
-         void       (*am_watch) (const struct m0_addb_monitor *mon, const struct 
- m0_addb_rec *rec, const struct m0_addb_mc *mc_to_post_on);
-     void                 *am_datum;
-     struct m0_tlink am_linkage;
+         void       (*am_watch) (const struct m0_addb_monitor *mon, 
+                                 const struct m0_addb_rec *rec,
+                                 const struct m0_addb_mc *mc_to_post_on);
+     void            *am_datum;
+     struct m0_tlink  am_linkage;
  }; 
 
 Structure field descriptions:
@@ -275,5 +276,7 @@ Installation
 The ADDB monitoring component can be added/deleted by modified the configuration related to it.     
 
    
-
+References
+==========
+[0] HLD of ADDB collection mechanism
  
