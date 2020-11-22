@@ -302,7 +302,8 @@ static void generation_id_get(FILE *fp, uint64_t *gen_id);
 static int  generation_id_verify(struct scanner *s, uint64_t gen);
 static void seg_get(FILE *fp, struct m0_be_seg *out);
 
-static int  scanner_init   (struct scanner *s);
+static int  scanner_cache_init   (struct scanner *s);
+
 static int  builder_init   (struct builder *b);
 static void builder_fini   (struct builder *b);
 static void ad_dom_fini    (struct builder *b);
@@ -438,7 +439,11 @@ enum {
 	MAX_KEY_LEN              = 256,
 	MAX_VALUE_LEN            = 256,
 	DEFAULT_BE_SEG_LOAD_ADDR = 0x400000100000,
-	DEFAULT_BE_MAX_TX_REG_SZ = 46137344
+	/**
+	 * The value of 44MB for DEFAULT_BE_MAX_TX_REG_SZwas picked from the
+	 * routine m0_be_ut_backend_cfg_default()
+	 */
+	DEFAULT_BE_MAX_TX_REG_SZ = (44 * 1024 * 1024)
 };
 
 /** It is used to recover meta data of component catalogue store. */
@@ -459,8 +464,8 @@ struct ctg_action {
 	struct cache_slot *cta_slot;
 };
 
-static struct scanner s;
-static struct builder b;
+static struct scanner beck_scanner;
+static struct builder beck_builder;
 static struct gen g[MAX_GEN] = {};
 static struct m0_be_seg s_seg = {}; /** Used only in dry-run mode. */
 
@@ -508,29 +513,31 @@ int main(int argc, char **argv)
 			LAMBDA(void, (const char *path) {
 				spath = path;
 			})),
-		   M0_FORMATARG('S', "Snapshot size", "%"SCNi64, &s.s_size),
-		   M0_FLAGARG('b', "Scan every byte (10x slower).", &s.s_byte),
+		   M0_FORMATARG('S', "Snapshot size", "%"SCNi64,
+				&beck_scanner.s_size),
+		   M0_FLAGARG('b', "Scan every byte (10x slower).",
+			      &beck_scanner.s_byte),
 		   M0_FLAGARG('U', "Run unit tests.", &ut),
 		   M0_FLAGARG('n', "Dry Run.", &dry_run),
 		   M0_FLAGARG('I', "Disable directio.", &disable_directio),
 		   M0_FLAGARG('p', "Print Generation Identifier.",
 			      &print_gen_id),
 		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
-				&s.s_gen),
+				&beck_scanner.s_gen),
 		   M0_FLAGARG('V', "Version info.", &version),
 		   M0_FLAGARG('e', "Print errored OIDs.",
-			      &s.s_print_invalid_oids),
+			      &beck_scanner.s_print_invalid_oids),
 		   M0_STRINGARG('y', "YAML file path",
 			   LAMBDA(void, (const char *s) {
-				   b.b_be_config_file = s;
+				   beck_builder.b_be_config_file = s;
 				   })),
 		   M0_STRINGARG('a', "stob domain path",
 			   LAMBDA(void, (const char *s) {
-				   b.b_stob_path = s;
+				   beck_builder.b_stob_path = s;
 				   })),
 		   M0_STRINGARG('d', "segment stob domain path path",
 			LAMBDA(void, (const char *s) {
-				b.b_dom_path = s;
+				beck_builder.b_dom_path = s;
 			})));
 	if (result != 0)
 		errx(EX_USAGE, "Wrong option: %d.", result);
@@ -545,72 +552,73 @@ int main(int argc, char **argv)
 	if (dry_run)
 		printf("Running in read-only mode.\n");
 
-	if (!s.s_print_invalid_oids)
+	if (!beck_scanner.s_print_invalid_oids)
 		printf("Will not print INVALID GOB IDs if found since '-e'"
 		       "option was not specified. \n");
 
-	if (b.b_dom_path == NULL && !dry_run && !print_gen_id)
+	if (beck_builder.b_dom_path == NULL && !dry_run && !print_gen_id)
 		errx(EX_USAGE, "Specify domain path (-d).");
 	if (spath != NULL) {
 		sfd = open(spath, O_RDONLY);
 		if (sfd == -1)
 			err(EX_NOINPUT, "Cannot open snapshot \"%s\".", spath);
 	}
-	s.s_file = fdopen(sfd, "r");
-	if (s.s_file == NULL)
+	beck_scanner.s_file = fdopen(sfd, "r");
+	if (beck_scanner.s_file == NULL)
 		err(EX_NOINPUT, "Cannot open snapshot.");
-	if (s.s_size == 0) {
-		result = fseek(s.s_file, 0, SEEK_END);
+	if (beck_scanner.s_size == 0) {
+		result = fseek(beck_scanner.s_file, 0, SEEK_END);
 		if (result != 0)
 			err(EX_NOINPUT, "Cannot seek snapshot to the end.");
-		b.b_size = s.s_size = ftello(s.s_file);
-		if (s.s_size == -1)
+		beck_builder.b_size = beck_scanner.s_size =
+						ftello(beck_scanner.s_file);
+		if (beck_scanner.s_size == -1)
 			err(EX_NOINPUT, "Cannot tell snapshot size.");
-		result = fseek(s.s_file, 0, SEEK_SET);
+		result = fseek(beck_scanner.s_file, 0, SEEK_SET);
 		if (result != 0)
 		      err(EX_NOINPUT, "Cannot seek snapshot to the beginning.");
-		printf("Snapshot size: %"PRId64".\n", s.s_size);
+		printf("Snapshot size: %"PRId64".\n", beck_scanner.s_size);
 	}
 
-	if (b.b_be_config_file && !dry_run && !print_gen_id) {
-		fp = fopen(b.b_be_config_file, "r");
+	if (beck_builder.b_be_config_file && !dry_run && !print_gen_id) {
+		fp = fopen(beck_builder.b_be_config_file, "r");
 		if (fp == NULL)
 			err(EX_NOINPUT, "Failed to open yaml file \"%s\".",
-			    b.b_be_config_file);
+			    beck_builder.b_be_config_file);
 		fclose(fp);
 	}
-	generation_id_get(s.s_file, &gen_id);
+	generation_id_get(beck_scanner.s_file, &gen_id);
 	if (print_gen_id) {
 		generation_id_print(gen_id);
 		printf("\n");
-		fclose(s.s_file);
+		fclose(beck_scanner.s_file);
 		return EX_OK;
 	}
 	if (gen_id != 0)
-		s.s_gen_found = true;
-	if (s.s_gen != 0) {
+		beck_scanner.s_gen_found = true;
+	if (beck_scanner.s_gen != 0) {
 		printf("\nReceived source segment header generation id\n");
-		generation_id_print(s.s_gen);
+		generation_id_print(beck_scanner.s_gen);
 		printf("\n");
 		fflush(stdout);
 	}
 
-	s.s_gen = gen_id ?: s.s_gen;
+	beck_scanner.s_gen = gen_id ?: beck_scanner.s_gen;
 	printf("\nSource segment header generation id to be used by beck.\n");
-	generation_id_print(s.s_gen);
+	generation_id_print(beck_scanner.s_gen);
 	printf("\n");
 	fflush(stdout);
 	/*
 	 *  If both segment's generation identifier is corrupted then abort
 	 *  beck tool.
 	 */
-	if (!dry_run && s.s_gen == 0) {
+	if (!dry_run && beck_scanner.s_gen == 0) {
 		printf("Cannot find any segment header generation identifer");
 		return EX_DATAERR;
 	}
-	qinit(&s.s_bnode_q, MAX_SCAN_QUEUED);
-	result = M0_THREAD_INIT(&s.s_thread, struct scanner *,
-				NULL, &scanner_thread, &s, "scannner");
+	qinit(&beck_scanner.s_bnode_q, MAX_SCAN_QUEUED);
+	result = M0_THREAD_INIT(&beck_scanner.s_thread, struct scanner *,
+				NULL, &scanner_thread, &beck_scanner, "scannner");
 	if (result != 0)
 		err(EX_CONFIG, "Cannot start scanner thread.");
 	/*
@@ -619,11 +627,12 @@ int main(int argc, char **argv)
 	 */
 	if (!dry_run) {
 		qinit(&q, MAX_QUEUED);
-		s.s_q = b.b_q = &q;
-		result = builder_init(&b);
-		s.s_seg = b.b_seg;
-		m0_be_engine_tx_size_max(&b.b_dom->bd_engine, &max, NULL);
-		s.s_max_reg_size = max.tc_reg_size;
+		beck_scanner.s_q = beck_builder.b_q = &q;
+		result = builder_init(&beck_builder);
+		beck_scanner.s_seg = beck_builder.b_seg;
+		m0_be_engine_tx_size_max(&beck_builder.b_dom->bd_engine,
+					 &max, NULL);
+		beck_scanner.s_max_reg_size = max.tc_reg_size;
 		if (result != 0)
 			err(EX_CONFIG, "Cannot initialise builder.");
 	} else {
@@ -631,34 +640,34 @@ int main(int argc, char **argv)
 		 *  Since we do not have builder variables holding segment data,
 		 *  we use the global variable s_seg for this purpose.
 		 */
-		seg_get(s.s_file, &s_seg);
-		s.s_seg = &s_seg;
-		s.s_max_reg_size = DEFAULT_BE_MAX_TX_REG_SZ;
+		seg_get(beck_scanner.s_file, &s_seg);
+		beck_scanner.s_seg = &s_seg;
+		beck_scanner.s_max_reg_size = DEFAULT_BE_MAX_TX_REG_SZ;
 	}
 
-	result = scanner_init(&s);
+	result = scanner_cache_init(&beck_scanner);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise scanner.");
 	if (dry_run) {
 		printf("Press CTRL+C to quit.\n");
 		signal(SIGINT, sig_handler);
 	}
-	result = scan(&s);
+	result = scan(&beck_scanner);
 	printf("\n Pending to process bnodes=%"PRIu64 " It may take some time",
-	       s.s_bnode_q.q_nr);
-	qput(&s.s_bnode_q, scanner_action(sizeof(struct action),
+	       beck_scanner.s_bnode_q.q_nr);
+	qput(&beck_scanner.s_bnode_q, scanner_action(sizeof(struct action),
 					  AO_DONE, NULL));
-	m0_thread_join(&s.s_thread);
-	m0_thread_fini(&s.s_thread);
-	qfini(&s.s_bnode_q);
+	m0_thread_join(&beck_scanner.s_thread);
+	m0_thread_fini(&beck_scanner.s_thread);
+	qfini(&beck_scanner.s_bnode_q);
 	if (result != 0)
 		warn("Scan failed: %d.", result);
 
 	stats_print();
 	if (!dry_run) {
-		qput(&q, builder_action(&b, sizeof(struct action), AO_DONE,
+		qput(&q, builder_action(&beck_builder, sizeof(struct action), AO_DONE,
 					&done_ops));
-		builder_fini(&b);
+		builder_fini(&beck_builder);
 		qfini(&q);
 	}
 	fini();
@@ -766,6 +775,7 @@ static void seg_get(FILE *fp, struct m0_be_seg *out)
 		seg.bs_offset   = g->sg_offset;
 		seg.bs_gen      = g->sg_gen;
 	} else {
+		M0_ASSERT(beck_scanner.s_size != 0);
 		/**
 		 *  If file has corrupted segment then use these
 		 *  hardcoded values.
@@ -774,7 +784,7 @@ static void seg_get(FILE *fp, struct m0_be_seg *out)
 		       "Could not extract Segment map information. "
 		       "Using possible defaults\n");
 		seg.bs_reserved = sizeof(seg_hdr);
-		seg.bs_size     = s.s_size;
+		seg.bs_size     = beck_scanner.s_size;
 		seg.bs_addr     = (void *)DEFAULT_BE_SEG_LOAD_ADDR;
 		seg.bs_offset   = 0;
 	}
@@ -798,7 +808,7 @@ static int generation_id_verify(struct scanner *s, uint64_t gen)
 	return 0;
 }
 
-static int scanner_init(struct scanner *s)
+static int scanner_cache_init(struct scanner *s)
 {
 	int rc;
 
@@ -1271,7 +1281,7 @@ static int emap_proc(struct scanner *s, struct btype *btype,
 		}
 
 		if (!dry_run) {
-			ea->emap_act.a_builder = &b;
+			ea->emap_act.a_builder = &beck_builder;
 			adom = emap_dom_find(&ea->emap_act, &ea->emap_fid, &id);
 			if (adom != NULL) {
 				ea->emap_act.a_opc += id;
@@ -2505,14 +2515,14 @@ static int cob_proc(struct scanner *s, struct btype *b,
 
 		if ((format_header_verify(ca->coa_val.b_addr,
 					  M0_FORMAT_TYPE_COB_NSREC) == 0) &&
-		    (m0_format_footer_verify(ca->coa_valdata, false) == 0))
+		    (m0_format_footer_verify(ca->coa_valdata, false) == 0)) {
 			if (!dry_run)
 				qput(s->s_q, (struct action *)ca);
 			else {
 				m0_buf_free(&ca->coa_key);
 				m0_free(ca);
 			}
-		else {
+		} else {
 			if (s->s_print_invalid_oids) {
 				nskey = ca->coa_key.b_addr;
 				inv_cob_off = node->bt_kv_arr[i].btree_val -
