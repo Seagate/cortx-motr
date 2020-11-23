@@ -1,5 +1,5 @@
 ============
-FOPFOM Guide
+FOP/FOM Guide
 ============
 
 FOP stands for File Operation Packet. In a network or a distributed file-system, a file operation on a client may result in sending a message to a server to carry out that operation. FOP is a generic mechanism to define a application specific protocol within Motr file-system. The application here means any sub-system (within the file-system) above networking layer. FOP is not necessarily restricted to the file operations - unlike the name suggests. Thus it provides more generic and flexible framework to develop a protocol. In this aspect, FOP is different from traditional network file-system protocols messages.
@@ -30,20 +30,15 @@ Native types:
 
 A FOP can be declared as follows
 
-::
+.. code-block:: C
 
  record { 
-
          u64 f_seq; 
-
-         u64 f_oid }
- 
- m0_fop_file_fid; 
+         u64 f_oid 
+ } m0_fop_file_fid; 
 
  sequence { 
-
          u32 f_count;
-
          u8 f_buf
  } m0_fop_io_buf;
  
@@ -66,40 +61,31 @@ After writing FOPs and creating .ff file for a particular module, we need to mak
 
 **Simple FOP, containing native data types in file fom_io_xc.ff**:
 
-::
+.. code-block:: C
 
  record {
-
          u64 f_seq; 
-
          u64 f_oid
-
  } reqh_ut_fom_fop_fid;
 
 **Makefile.am entry:**
 
-::
+.. code-block::
 
  UT_SRCDIR = @SRCDIR@/reqh/ut 
-
  noinst_LTLIBRARIES = libreqh-ut.la 
-
  INCLUDES = -I. -I$(top_srcdir)/include \ -I$(top_srcdir) 
-
  FOM_FOPS = fom_io_xc.h fom_io_xc.c 
-
+ 
  $(FOM_FOPS): fom_io_xc.ff \ 
-
          $(top_builddir)/xcode/ff2c/ff2c 
-
          $(top_builddir)/xcode/ff2c $< 
-
+         
  libreqh_ut_la_SOURCES = $(FOM_FOPS) \ 
-
                          reqh_fom_ut.c fom_io_xc.ff 
 
  EXTRA_DIST = fom_io.ff 
-
+ 
  MOSTLYCLEANFILES = $(FOM_FOPS)
 
 On compiling fom_io_xc.ff file using ff2c compiler, it creates corresponding fom_io_xc.h and fom_io_xc.c.
@@ -116,91 +102,66 @@ Sending a FOP
 
 A fop can be sent as a request FOP or a reply FOP. A fop is sent across using the various rpc interfaces. Every fop has an rpc item embedded into it.
 
-::
+.. code-block:: C
 
  struct m0_fop {
-
  ...
-
        /**
-
           RPC item for this FOP
-
         */
-
        struct m0_rpc_item      f_item;
 
  ...
+ };
  
 Sending a fop involves initializing various fop and rpc item structures and then invoking the m0_rpc_post routines. The steps for the same are described below with few code examples.
 
 Define and initialize the fop_type ops
 ======================================
 
-::
+.. code-block:: C
 
  const struct m0_fop_type_ops m0_rpc_fop_conn_establish_ops = {
-
        .fto_fom_init = &m0_rpc_fop_conn_establish_fom_init
-
-
  };
 
 Define and initialize the rpc item_type ops
 ============================================
 
-::
+.. code-block:: C
 
  static struct m0_rpc_item_type_ops default_item_type_ops = { 
-
        .rito_encode = m0_rpc_fop_item_type_default_encode, 
-
        .rito_decode = m0_rpc_fop_item_type_default_decode, 
-
        .rito_payload_size = m0_fop_item_type_default_onwire_size, 
-
  };
  
 Define and initialize the rpc item type
 ========================================
 
-::
+.. code-block:: C
 
  m0_RPC_ITEM_TYPE_DEF(m0_rpc_item_conn_establish,
-
                   m0_RPC_FOP_CONN_ESTABLISH_OPCODE,
-
                   m0_RPC_ITEM_TYPE_REQUEST | m0_RPC_ITEM_TYPE_MUTABO,
-
                   &default_item_type_ops);
 
 Define and initialize the fop type for the new fop and associate the corresponding item type
 ==============================================================================================
 
-::
+.. code-block:: C
 
  struct m0_fop_type m0_rpc_fop_conn_establish_fopt; 
-
  /* In module’s init function */ 
-
  foo_subsystem_init() 
-
  { 
-
          m0_xc_foo_subsystem_xc_init() /* Provided by ff2c compiler */
-
          m0_FOP_TYPE_INIT(&m0_rpc_fop_conn_establish_fopt, 
-
                    .name = "rpc conn establish", 
-
                    .opcode = m0_RPC_FOP_CONN_ESTABLISH_REP_OPCODE, 
-
                    /* Provided by ff2c */ 
-
                    .xt = m0_rpc_fop_conn_establish_xt, 
-
                    .fop_ops = m0_rpc_fop_conn_establish_ops); 
-
  }
  
 A request FOP is sent by invoking a rpc routine m0_rpc_post(), and its corresponding reply can be sent by invoking m0_rpc_reply_post() (as per new rpc layer).
@@ -209,16 +170,12 @@ A request FOP is sent by invoking a rpc routine m0_rpc_post(), and its correspon
 
   Every request fop should be submitted to request handler for processing (both at the client as well as at the server side) which is then forwarded by the request handler    itself, although currently (for “november” demo) we do not have request handler at the client side. Thus sending a FOP from the client side just involves submitting it to rpc layer by invoking m0_rpc_post(). So, this may look something similar to this:
   
-  ::
+.. code-block:: C
   
    system_call()->m0t1fs_sys_call()
-   
    m0t2fs_sys_call() {
-   
         /* create fop */
-        
         m0_rpc_post();
-        
    }
    
 - Server Side
@@ -232,27 +189,19 @@ The current format of fop operations need all fop formats referenced in the .ff 
 
 Example:
 
-::
+.. code-block:: C
 
  require "net/net_otw_types"; 
-
  require "addb/addbff/addb";
 
  sequence {
-
            u32 id_nr;
-
            m0_net_buf_desc id_descs
-
  } m0_io_descs;
 
  record {
-
          u64 if_st;
-
-
          m0_addb_record if_addb
-
  } m0_test_io_addb;
  
 ============
@@ -337,23 +286,15 @@ Consider a simple write FOM example
 
 - Declaring FOP in reqh_ut_fom_xc.ff file
 
-  ::
+.. code-block:: C
   
    record {
-   
            u64 f_seq;
-           
            u64 f_oid
-           
     } reqh_ut_fom_fop_fid;
-    
-    
     record {
-    
             reqh_ut_fom_fop_fid fiw_object;
-            
             u8                   fiw_value
-            
     };
     
   There are two types of structures defined:
@@ -366,215 +307,124 @@ Consider a simple write FOM example
 
   To build a particular FOP we need to define its corresponding m0_fop_type_ops and m0_fop_type structures as follows:
 
-::
+.. code-block:: C
 
  static struct m0_fop_type_ops reqh_ut_write_fop_ops = {
-
         .fto_fom_init = reqh_ut_io_fom_init,
-
  };
 
  struct m0_fop_type reqh_ut_fom_io_write_fopt;
 
 After defining the above structure, we need to have two subroutines(something like below) which actually builds the FOPs, and adds them to the global FOPs list.
 
-::
+.. code-block:: C
 
  /** Function to clean reqh ut io fops */
-
  void reqh_ut_fom_io_fop_fini(void)
-
  {
-
          m0_fop_type_fini(&reqh_ut_fom_io_write_fopt);
-
          m0_xc_reqh_ut_fom_xc_fini();
-
  }
 
  /** Function to intialise reqh ut io fops. */
-
  int reqh_ut_fom_io_fop_init(void)
-
  {
-
          m0_xc_reqh_ut_fom_xc_init();
-
          return m0_FOP_TYPE_INIT(&reqh_ut_fom_io_write_fopt,
-
                                  .name = "write",
-
                                  .opcode = WRITE_REQ, 
-
                                  .fop_ops = reqh_ut_write_fop_ops,
-
                                  /* See Below */ 
-
                                  .fom_ops = reqh_ut_write_fom_ops);
-
-
  }
  
 After defining and building a FOP as above, we can now define its corresponding FOM.
  
 - Defining FOM
 
-  ::
+.. code-block:: C
 
    static struct m0_fom_ops reqh_ut_write_fom_ops = {
-
          .fo_fini = reqh_ut_io_fom_fini
-
          .fo_state = reqh_ut_write_fom_state, (implements actual fom operation)
-
          .fo_home_locality = reqh_ut_find_fom_home_locality,
-
    };
 
 FOM type operations structure
 
-::
+.. code-block:: C
 
  static const struct m0_fom_type_ops reqh_ut_write_fom_type_ops = {
-
        .fto_create = reqh_ut_write_fom_create,
-
  };
 
 FOM type structure, this is embedded inside struct m0_fop_type,
 
-::
+.. code-block:: C
 
  static struct m0_fom_type reqh_ut_write_fom_mopt = {
-
        .ft_ops = &reqh_ut_write_fom_type_ops,
-
  };
 
 A typical fom state function would look something similar to this:
 
-::
+.. code-block:: C
 
  int reqh_ut_write_fom_state(struct m0_fom *fom
-
  {
-
          ...
-
          /*
-
             checks if FOM should transition into a generic/standard
-
             phase or FOP specific phase.
-
          */
 
          if (fom->fo_phase < FOPH_NR) {
-
                  result = m0_fom_state_generic(fom);
-
          } else {
-
-             ...
-
+                ...
                 /* FOP specific phase */
-
                 if (fom->fo_phase == FOPH_WRITE_STOB_IO) { 
-
-                    ... 
-
-                     /* For synchronous FOM operation */ 
-
+                      ... 
+                      /* For synchronous FOM operation */ 
                       m0_fom_block_enter(fom); 
-
-                    /* For asynchronous FOM operation */ 
-
+                      /* For asynchronous FOM operation */ 
                       m0_fom_block_at(fom, 
-                                 
                                   &fom_obj->rh_ut_stio.si_wait);
- 
                       result = 
-
                          m0_stob_io_launch(&fom_obj->rh_ut_stio, 
-
                          fom_obj->rh_ut_stobj,
-
                          &fom->fo_tx, NULL);
-
-                  ... 
-
+                     ... 
                      if (result != 0) { 
-
                         fom->fo_rc = result; 
-
                         fom->fo_phase = FOPH_FAILURE; 
-
                      } else { 
-
                           fom->fo_phase = 
-
                                        FOPH_WRITE_STOB_IO_WAIT; 
-
                           result = FSO_WAIT; 
-
                      } 
-
-            } else if (fom->fo_phase == 
-
+                } else if (fom->fo_phase == 
                                     FOPH_WRITE_STOB_IO_WAIT) { 
-
                    /* 
-
                        Terminate extra idle threads created 
-
                        by m0_fom_block_enter() 
-
                   */ 
-
-                m0_fom_block_leave(fom); 
-
-             ...
-
-                if (fom->fo_rc != 0) 
-
+                  m0_fom_block_leave(fom); 
+                  ...
+                  if (fom->fo_rc != 0) 
                       fom->fo_phase = FOPH_FAILURE; 
-
-                else { 
-
-                      … 
-
+                  else { 
+                      ... 
                       fom->fo_phase = FOPH_SUCCESS; 
-
-                                          } 
-
-                     } 
+                  } 
+         } 
 
          if (fom->fo_phase == FOPH_FAILURE || fom->fo_phase == 
-
-                                              FOPH_SUCCESS) {
-
-                                                               
-                           ...
-
-                     result = FSO_AGAIN; 
-
-   }
+                                              FOPH_SUCCESS) {  
+                  ...
+                  result = FSO_AGAIN; 
+         }
+ }
 
 **Note**: For additional details on the implementation of above methods please refer to request handler UT code in colibri/core/reqh/ut/reqh_fom_ut.
-
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-
-
 
