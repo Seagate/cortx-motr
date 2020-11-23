@@ -328,8 +328,6 @@ static void generic_reply_build(struct m0_fom *fom)
 	}
 }
 
-extern struct m0_fop_type cgc_fake_fopt;
-
 /**
  * Handles fom execution failure, if fom fails in one of
  * the standard phases, then we construct a generic error
@@ -346,17 +344,12 @@ static int fom_failure(struct m0_fom *fom)
 	if (rc != 0) {
 		M0_LOG(M0_NOTICE, "fom_rc=%d", rc);
 		/*
-		 * It is a workaround. An internal FOM is not related to a FOP.
-		 * cgc_fom is such a fom. But it has a fake fop, without rpc
-		 * machine. So skip building reply for it.
+		 * A local does not have request fop or a reply fop.
 		 */
-		if (fom->fo_fop != NULL) {
-#ifndef __KERNEL__
-			if (fom->fo_fop->f_type != &cgc_fake_fopt)
-#endif
-				generic_reply_build(fom);
+		if (fom->fo_fop != NULL && !fom->fo_local) {
+			generic_reply_build(fom);
 		} else {
-			M0_LOG(M0_ERROR, "fom_rc=%d. This FOM has no fop/rpc",
+			M0_LOG(M0_NOTICE, "fom_rc=%d. Local FOM has no fop/rpc",
 					 rc);
 		}
 	}
@@ -458,7 +451,7 @@ M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom)
  * reply fop is cached until the changes are integrated
  * with the server.
  *
- * @pre fom->fo_rep_fop != NULL
+ * @pre fom->fo_rep_fop != NULL if fom is not local
  *
  * @todo Implement write back cache, during which we may perform updates on
  *       local objects and re-integrate with the server later, in that case we
@@ -467,16 +460,18 @@ M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom)
  */
 static int fom_queue_reply(struct m0_fom *fom)
 {
-	M0_PRE(fom->fo_rep_fop != NULL);
+	if (!fom->fo_local) {
+		M0_PRE(fom->fo_rep_fop != NULL);
 
-	M0_LOG(M0_DEBUG, "request %p[%u], reply %p, reply->ri_error %d",
-	       m0_fop_to_rpc_item(fom->fo_fop),
-	       m0_fop_to_rpc_item(fom->fo_fop)->ri_type->rit_opcode,
-	       m0_fop_to_rpc_item(fom->fo_rep_fop),
-	       m0_fop_to_rpc_item(fom->fo_rep_fop)->ri_error);
-	if (!fom->fo_local)
+		M0_LOG(M0_DEBUG, "request %p[%u], reply %p, reply->ri_error %d",
+			m0_fop_to_rpc_item(fom->fo_fop),
+			m0_fop_to_rpc_item(fom->fo_fop)->ri_type->rit_opcode,
+			m0_fop_to_rpc_item(fom->fo_rep_fop),
+			m0_fop_to_rpc_item(fom->fo_rep_fop)->ri_error);
+
 		m0_rpc_reply_post(m0_fop_to_rpc_item(fom->fo_fop),
 				  m0_fop_to_rpc_item(fom->fo_rep_fop));
+	}
 	return M0_FSO_AGAIN;
 }
 
