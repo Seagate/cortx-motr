@@ -292,6 +292,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
 	io_conf.scf_state[M0_FOPH_TXN_INIT].sd_allowed |=
 		M0_BITS(M0_FOPH_IO_FOM_PREPARE);
+	io_conf.scf_state[M0_FOPH_QUEUE_REPLY].sd_allowed |=
+		M0_BITS(M0_FOPH_IO_SYNC);
 
 	m0_sm_conf_init(&io_conf);
 #else
