@@ -8,7 +8,8 @@ The first document developers should read is: [Motr Client API ](/motr/client.h)
 It explains basic notations, terminologies, and data structures in Cortx Motr.
 Developers are also assumed having a running Cortx Motr system: please refer to
 [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md)
-and [Quick Start Guide](/doc/Quick-Start-Guide.rst).
+and [Quick Start Guide](/doc/Quick-Start-Guide.rst).  For debugging, ADDB can be
+very useful and is described in these [two](ADDB.rst) [documents](addb2-primer).
 
 Cortx Motr provides object based operations and index (a.k.a key/value) based operations.
 

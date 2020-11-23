@@ -54,20 +54,19 @@ enum m0_balloc_allocation_status {
 };
 
 struct balloc_allocation_context {
-	struct m0_balloc	      *bac_ctxt;
-	struct m0_be_tx		      *bac_tx;
+	uint32_t                       bac_criteria;
+	uint32_t                       bac_order2;  /* order of 2 */
+	uint32_t                       bac_scanned; /* groups scanned */
+	uint32_t                       bac_found;   /* count of found */
+	uint32_t                       bac_status;  /* allocation status */
+	uint64_t                       bac_flags;
+	struct m0_balloc              *bac_ctxt;
+	struct m0_be_tx               *bac_tx;
 	struct m0_balloc_allocate_req *bac_req;
-	struct m0_ext		       bac_orig; /*< original */
-	struct m0_ext		       bac_goal; /*< after normalization */
-	struct m0_ext		       bac_best; /*< best available */
-	struct m0_ext		       bac_final;/*< final results */
-
-	uint64_t		       bac_flags;
-	uint64_t		       bac_criteria;
-	uint32_t		       bac_order2;  /* order of 2 */
-	uint32_t		       bac_scanned; /* groups scanned */
-	uint32_t		       bac_found;   /* count of found */
-	uint32_t		       bac_status;  /* allocation status */
+	struct m0_ext                  bac_orig; /*< original */
+	struct m0_ext                  bac_goal; /*< after normalization */
+	struct m0_ext                  bac_best; /*< best available */
+	struct m0_ext                  bac_final;/*< final results */
 };
 
 static inline int btree_lookup_sync(struct m0_be_btree  *tree,
@@ -158,59 +157,62 @@ static bool is_normal(uint64_t alloc_flags);
 static bool is_any(uint64_t alloc_flag);
 
 
-/* This macro is to control the debug verbose message */
-#undef BALLOC_ENABLE_DUMP
-
 static void balloc_debug_dump_extent(const char *tag, struct m0_ext *ex)
 {
-#ifdef BALLOC_ENABLE_DUMP
+if (ENABLE_BALLOC_DUMP) {
 
 	if (ex == NULL)
 		return;
 
-	M0_LOG(M0_DEBUG, "dumping ex@%p:%s\n"
-	       "|----"EXT_F, ex, (char*) tag, EXT_P(ex));
-#endif
+	M0_LOG(M0_DEBUG, "ex@%p:%s "EXT_F, ex, (char*) tag, EXT_P(ex));
+}
 }
 
 M0_INTERNAL void m0_balloc_debug_dump_group(const char *tag,
 					    struct m0_balloc_group_info *grp)
 {
-#ifdef BALLOC_ENABLE_DUMP
+if (ENABLE_BALLOC_DUMP) {
 	if (grp == NULL)
 		return;
 
-	M0_LOG(M0_DEBUG, "dumping group_desc@%p:%s\n"
-	       "|-----groupno=%08llx, freeblocks=%08llx, maxchunk=0x%08llx, "
-		"fragments=0x%08llx",
+	M0_LOG(M0_DEBUG, "group_desc@%p:%s groupno=%08llx "
+	       "normal: free=%08llx maxchunk=0x%08llx frags=0x%08llx"
+	       " spare: free=%08llx maxchunk=0x%08llx frags=0x%08llx",
 		grp, (char*) tag,
 		(unsigned long long) grp->bgi_groupno,
-		(unsigned long long) grp->bgi_freeblocks,
-		(unsigned long long) grp->bgi_maxchunk,
-		(unsigned long long) grp->bgi_fragments);
-#endif
+		(unsigned long long) grp->bgi_normal.bzp_freeblocks,
+		(unsigned long long) grp->bgi_normal.bzp_maxchunk,
+		(unsigned long long) grp->bgi_normal.bzp_fragments,
+		(unsigned long long) grp->bgi_spare.bzp_freeblocks,
+		(unsigned long long) grp->bgi_spare.bzp_maxchunk,
+		(unsigned long long) grp->bgi_spare.bzp_fragments);
+}
 }
 
 M0_INTERNAL void m0_balloc_debug_dump_group_extent(const char *tag,
 					struct m0_balloc_group_info *grp)
 {
-#ifdef BALLOC_ENABLE_DUMP
+if (ENABLE_BALLOC_DUMP) {
 	struct m0_lext	*ex;
 
 	if (grp == NULL || grp->bgi_extents == NULL)
 		return;
 
-	M0_LOG(M0_DEBUG, "dumping free extents@%p:%s for grp=%04llx",
+	M0_LOG(M0_DEBUG, "free extents@%p:%s for grp=%04llx:",
 		grp, (char*) tag, (unsigned long long) grp->bgi_groupno);
-	m0_list_for_each_entry(&grp->bgi_ext_list, ex, struct m0_lext, le_link)
-		M0_LOG(M0_DEBUG, EXT_F, EXT_P(&ex->le_ext));
-#endif
+	m0_list_for_each_entry(&grp->bgi_normal.bzp_extents, ex,
+			       struct m0_lext, le_link)
+		M0_LOG(M0_DEBUG, "normal: "EXT_F, EXT_P(&ex->le_ext));
+	m0_list_for_each_entry(&grp->bgi_spare.bzp_extents, ex,
+			       struct m0_lext, le_link)
+		M0_LOG(M0_DEBUG, "spare: "EXT_F, EXT_P(&ex->le_ext));
+}
 }
 
 M0_INTERNAL void m0_balloc_debug_dump_sb(const char *tag,
 					 struct m0_balloc_super_block *sb)
 {
-#ifdef BALLOC_ENABLE_DUMP
+if (ENABLE_BALLOC_DUMP) {
 	if (sb == NULL)
 		return;
 
@@ -246,7 +248,7 @@ M0_INTERNAL void m0_balloc_debug_dump_sb(const char *tag,
 		(unsigned long long) sb->bsb_max_mnt_count,
 		(unsigned long long) sb->bsb_stripe_size
 		);
-#endif
+}
 }
 
 static inline m0_bindex_t
@@ -1293,16 +1295,16 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		return M0_RC(0);
 	}
 
-	M0_ALLOC_ARR(grp->bgi_extents, group_fragments_get(grp) +
-		     group_spare_fragments_get(grp) + 1);
-	if (grp->bgi_extents == NULL)
-		return M0_RC(-ENOMEM);
-
-	if (group_fragments_get(grp) == 0 &&
+	if (group_fragments_get(grp) +
 	    group_spare_fragments_get(grp) == 0) {
 		M0_LOG(M0_NOTICE, "zero fragments");
 		return M0_RC(0);
 	}
+
+	M0_ALLOC_ARR(grp->bgi_extents, group_fragments_get(grp) +
+		     group_spare_fragments_get(grp) + 1);
+	if (grp->bgi_extents == NULL)
+		return M0_RC(-ENOMEM);
 
 	spare_range.e_start = grp->bgi_spare.bzp_range.e_start;
 	spare_range.e_end = (grp->bgi_groupno + 1) << cb->cb_sb.bsb_gsbits;
@@ -1312,8 +1314,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	m0_ext_init(&normal_range);
 
 	ex = grp->bgi_extents;
-	ex->le_ext.e_end = (grp->bgi_groupno << cb->cb_sb.bsb_gsbits) + 1;
-	next_key = ex->le_ext.e_end;
+	next_key = (grp->bgi_groupno << cb->cb_sb.bsb_gsbits) + 1;
 	normal_frags = 0;
 	spare_frags = 0;
 	grp->bgi_normal.bzp_maxchunk = 0;
@@ -1332,8 +1333,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 			break;
 		m0_ext_init(&ex->le_ext);
 		if (m0_ext_is_partof(&normal_range, &ex->le_ext)) {
-			m0_list_add_tail(group_normal_ext(grp),
-					 &ex->le_link);
+			m0_list_add_tail(group_normal_ext(grp), &ex->le_link);
 			++normal_frags;
 			zone_params_update(grp, &ex->le_ext,
 					   M0_BALLOC_NORMAL_ZONE);
@@ -1342,13 +1342,12 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 			++spare_frags;
 			zone_params_update(grp, &ex->le_ext,
 					   M0_BALLOC_SPARE_ZONE);
-		}
-		else {
+		} else {
 			M0_LOG(M0_ERROR, "Invalid extent");
 			M0_ASSERT(false);
 		}
 		next_key = ex->le_ext.e_end + 1;
-		/* balloc_debug_dump_extent("loading...", ex); */
+		balloc_debug_dump_extent("loading...", &ex->le_ext);
 	}
 
 	if (i != group_fragments_get(grp) + group_spare_fragments_get(grp))
@@ -1595,7 +1594,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 		}
 	}
 
-	M0_LOG(M0_DEBUG, "maxchunk=0x%"PRIx64" maxchunk=0x%"PRIx64,
+	M0_LOG(M0_DEBUG, "bzp_maxchunk=0x%"PRIx64" next_maxchunk=0x%"PRIx64,
 	       zp->bzp_maxchunk, maxchunk);
 
 	if (cur->e_end == tgt->e_end) {
@@ -1616,6 +1615,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			rc = btree_insert_sync(db, tx, &key, &val);
 			if (rc != 0)
 				return M0_RC(rc);
+			maxchunk = max_check(maxchunk, m0_ext_length(cur));
 		} else {
 			/* +-------------+---------------------+ */
 			/* |   cur free  |      allocated      | */
@@ -1640,6 +1640,8 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 		if (rc != 0)
 			return M0_RC(rc);
 
+		maxchunk = max_check(maxchunk, m0_ext_length(cur));
+
 		if (new.e_start < tgt->e_start) {
 			/* +-----------------------------------+ */
 			/* |              cur free             | */
@@ -1659,6 +1661,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			lcur = container_of(cur, struct m0_lext, le_ext);
 			m0_list_add_before(&lcur->le_link, &le->le_link);
 			zp->bzp_fragments++;
+			maxchunk = max_check(maxchunk, m0_ext_length(&new));
 		}
 	}
 	zp->bzp_maxchunk = maxchunk;
@@ -2028,11 +2031,15 @@ static int is_group_good_enough(struct balloc_allocation_context *bac,
 				m0_bcount_t maxchunk, m0_bcount_t free,
 				m0_bcount_t fragments)
 {
-	if (free == 0)
+	if (free == 0) {
+		M0_LOG(M0_DEBUG, "bac=%p: no free blocks", bac);
 		return 0;
+	}
 
-	if (fragments == 0)
+	if (fragments == 0) {
+		M0_LOG(M0_DEBUG, "bac=%p: no fragments", bac);
 		return 0;
+	}
 
 	switch (bac->bac_criteria) {
 	case 0:
@@ -2049,6 +2056,10 @@ static int is_group_good_enough(struct balloc_allocation_context *bac,
 	default:
 		M0_ASSERT(0);
 	}
+
+	M0_LOG(M0_DEBUG, "bac=%p criteria=%d: no big enough chunk: "
+	       "goal=0x%08lx maxchunk=%08lx", bac, bac->bac_criteria,
+	       m0_ext_length(&bac->bac_goal), maxchunk);
 
 	return 0;
 }

@@ -68,11 +68,11 @@ static struct m0_realm  *m0_uber_realm;
 			fprintf(options.log_stream, _fmt, ##__VA_ARGS__)
 #define VERB(_fmt, ...) if (options.trace_level >= LOG_VERB) \
 			fprintf(options.log_stream, _fmt, ##__VA_ARGS__)
-#define DEBUG(_fmt, ...) if (options.trace_level >= LOG_DEBUG) \
+#define DBG(_fmt, ...) if (options.trace_level >= LOG_DEBUG) \
 			fprintf(options.log_stream, _fmt, ##__VA_ARGS__)
 
-#define ENTRY DEBUG("> ENTERING %s()\n", __func__)
-#define RETURN(_rc) do { DEBUG("< LEAVING %s() line %d, rc=%d\n", \
+#define ENTRY DBG("> ENTERING %s()\n", __func__)
+#define RETURN(_rc) do { DBG("< LEAVING %s() line %d, rc=%d\n", \
 			         __func__, __LINE__, (_rc)); \
 			 return (_rc); } while(0)
 
@@ -117,7 +117,7 @@ static int read_params(FILE *in, struct param *p, int max_params)
 			      ln, s);
 			return -1;
 		}
-		DEBUG("%s: %d: name='%s' value='%s'\n", __func__,
+		DBG("%s: %d: name='%s' value='%s'\n", __func__,
 		      ln, p->name, p->value);
 		p++, max_params--, n++;
 	}
@@ -151,7 +151,7 @@ static int hsm_pools_fids_set(struct param p[], int n)
 
 	for (i = 0; n > 0; n--, p++, i += rc) {
 		rc = hsm_pool_fid_set(p);
-		DEBUG("%s: rc=%d\n", __func__, rc);
+		DBG("%s: rc=%d\n", __func__, rc);
 		if (rc < 0)
 			return rc;
 	}
@@ -189,7 +189,7 @@ int m0hsm_init(struct m0_client *instance, struct m0_realm *uber_realm,
 		return -EINVAL;
 	}
 
-	DEBUG("%s: read %d params\n", __func__, rc);
+	DBG("%s: read %d params\n", __func__, rc);
 
 	if (hsm_pools_fids_set(hsm_rc_params, rc) < 0) {
 		ERROR("%s: failed to configure pools\n", __func__);
@@ -307,7 +307,7 @@ static int create_obj(struct m0_uint128 id, struct m0_obj *obj,
 	int rc;
 	ENTRY;
 
-	DEBUG("creating id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
+	DBG("creating id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
 
 	/* first create the main object with a default layout */
 	m0_obj_init(obj, m0_uber_realm, &id, 9 /* XXX: 1MB */);
@@ -326,7 +326,7 @@ static int create_obj(struct m0_uint128 id, struct m0_obj *obj,
 
 	if (tier_idx != HSM_ANY_TIER) {
 		pool = hsm_tier2pool(tier_idx);
-		DEBUG("%s: got pool "FID_F"\n", __func__, FID_P(pool));
+		DBG("%s: got pool "FID_F"\n", __func__, FID_P(pool));
 		if (pool == NULL || !m0_fid_is_set(pool)) {
 			ERROR("m0hsm: pool index %d is not configured\n", tier_idx);
 			return -EINVAL;
@@ -363,7 +363,7 @@ static int delete_obj(struct m0_uint128 id)
 
 	memset(&obj, 0, sizeof(struct m0_obj));
 
-	DEBUG("deleting id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
+	DBG("deleting id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
 
 	m0_obj_init(&obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
 	m0_entity_delete(&obj.ob_entity, &ops[0]);
@@ -393,7 +393,7 @@ static int create_obj_with_layout(struct m0_uint128 id,
 	int rc;
 	ENTRY;
 
-	DEBUG("creating id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
+	DBG("creating id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
 
 	/* first create the main object with a default layout */
 	m0_obj_init(obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
@@ -442,7 +442,7 @@ static int delete_obj_set_parent_layout(struct m0_uint128 id,
 
 	ENTRY;
 
-	DEBUG("deleting id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
+	DBG("deleting id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
 
 	memset(&obj, 0, sizeof(struct m0_obj));
 	memset(&parent_obj, 0, sizeof(struct m0_obj));
@@ -677,7 +677,7 @@ static int read_extent_keys(struct m0_uint128 subobjid,
 		ext->ce_off = key.cek_off;
 		ext->ce_len = val.cev_len;
 
-		DEBUG("%s: extent %#"PRIx64":%#"PRIx64
+		DBG("%s: extent %#"PRIx64":%#"PRIx64
 		      " [%#"PRIx64"-%#"PRIx64"]\n", __func__,
 		      ext->ce_id.u_hi, ext->ce_id.u_lo, key.cek_off,
 		      key.cek_off + ext->ce_len - 1);
@@ -946,7 +946,7 @@ static int layer_extent_add(struct m0_uint128 subobjid,
 		goto out_free;
 	}
 
-	DEBUG("%s %s extent for <%"PRIx64":%"PRIx64">: "
+	DBG("%s %s extent for <%"PRIx64":%"PRIx64">: "
 		"[%#"PRIx64"-%#"PRIx64"]\n",
 		overwrite ? "Changing" : "Adding",
 		write ? "write" : "read",
@@ -1009,7 +1009,7 @@ static int layer_extent_del(struct m0_uint128 subobjid, off_t off, bool write)
 		goto out_free;
 	}
 
-	DEBUG("Dropping %s extent for <%"PRIx64":%"PRIx64"> at offset %#"PRIx64
+	DBG("Dropping %s extent for <%"PRIx64":%"PRIx64"> at offset %#"PRIx64
 		" (if it exists)\n", write ? "write" : "read",
 		subobjid.u_hi, subobjid.u_lo, off);
 
@@ -1115,7 +1115,7 @@ static int layer_check_clean(struct m0_uint128 parent_id,
 
 	/* does the subobject still has extent? */
 	if (!cext_tlist_is_empty(&layer->ccr_rd_exts)) {
-		DEBUG("Subobj %"PRIx64":%"PRIx64" still has read extents\n",
+		DBG("Subobj %"PRIx64":%"PRIx64" still has read extents\n",
 		      layer->ccr_subobj.u_hi, layer->ccr_subobj.u_lo);
 		RETURN(-ENOTEMPTY);
 	}
@@ -1165,7 +1165,7 @@ static int layout_add_top_layer(struct m0_uint128 id,
 	int rc;
 	ENTRY;
 
-	DEBUG("Adding new layer in tier %u to collect new writes\n", tier);
+	DBG("Adding new layer in tier %u to collect new writes\n", tier);
 
 	layout_top_prio(layout, &gen, &old_id, &top_tier);
 	if (gen == -1) {
@@ -1344,7 +1344,7 @@ static enum ext_match_code ext_match(struct m0_uint128 layer_id,
 				match->len = ext->ce_len + ext_in->len;
 				is_merged = true;
 
-				DEBUG("Merge with previous extent "
+				DBG("Merge with previous extent "
 				    "starting at %#"PRIx64"\n", ext->ce_off);
 
 				/* Merged extent keeps the same offset
@@ -1363,7 +1363,7 @@ static enum ext_match_code ext_match(struct m0_uint128 layer_id,
 					match->len += ext->ce_len;
 				}
 
-				DEBUG("Merge with next extent starting "
+				DBG("Merge with next extent starting "
 				    "at %#"PRIx64"\n", ext->ce_off);
 
 				/* Merged extent offset is different.
@@ -1513,12 +1513,12 @@ static int add_merge_read_extent(struct m0_composite_layer *layer,
 		break;
 
 	case EM_FULL:
-		DEBUG("Extent included to another. Nothing to do\n");
+		DBG("Extent included to another. Nothing to do\n");
 		rc = 0;
 		break;
 
 	case EM_PARTIAL:
-		DEBUG("Extent overlap detected: must merge\n");
+		DBG("Extent overlap detected: must merge\n");
 
 		/* Add the extent in overwrite mode. Other merged extents
 		 * have been dropped by ext_match previously. */
@@ -2320,14 +2320,14 @@ static int min_gen_check_cb(void *cb_arg,
 	struct extent dummy;
 
 	if (m0_uint128_cmp(&layer->ccr_subobj, &arg->except_subobj) == 0) {
-		DEBUG("%s: skip self subobj %#"PRIx64":%#"PRIx64"\n", __func__,
+		DBG("%s: skip self subobj %#"PRIx64":%#"PRIx64"\n", __func__,
 			  arg->except_subobj.u_hi, arg->except_subobj.u_lo);
 		/* skip this subobj */
 		return 0;
 	}
 
 	if (hsm_prio2gen(layer->ccr_priority) < arg->min_gen) {
-		DEBUG("%s: skip layer of lower generation %u\n", __func__,
+		DBG("%s: skip layer of lower generation %u\n", __func__,
 			  hsm_prio2gen(layer->ccr_priority));
 		/* lower generation, skip */
 		return 0;
@@ -2343,7 +2343,7 @@ static int min_gen_check_cb(void *cb_arg,
 	}
 
 	/* partial match */
-	DEBUG("%s: partial match\n", __func__);
+	DBG("%s: partial match\n", __func__);
 	return 0;
 }
 
@@ -2593,7 +2593,7 @@ static int copy_cb(void *cb_arg, struct m0_client_layout *layout,
 	} else {
 		struct extent already_ext;
 
-		DEBUG("Target layer already exists\n");
+		DBG("Target layer already exists\n");
 		subobj_id = tgt_layer->ccr_subobj;
 
 		/* check if the given segment is already present */
@@ -2641,7 +2641,7 @@ static int copy_cb(void *cb_arg, struct m0_client_layout *layout,
 		/* Finally, add the subobject to the composite layout (if it was new).
 		 * XXX Is there a need to do this before the copy? perhaps to archive
 		 * multiple extents in parallel. */
-		DEBUG("Adding subobj <%"PRIx64":%"PRIx64"> as layer with prio %#x\n",
+		DBG("Adding subobj <%"PRIx64":%"PRIx64"> as layer with prio %#x\n",
 			subobj_id.u_hi, subobj_id.u_lo, tgt_prio);
 		m0_composite_layer_add(layout, &subobj, tgt_prio);
 
