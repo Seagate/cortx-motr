@@ -785,10 +785,7 @@ AS_IF([ test "x$with_libfab" == "xno"],
         MOTR_SEARCH_LIBS([fi_fabric], [fabric], [FAB_LIBS],
         [libfabric cannot be found!!! Try to install libfabric-devel.])
 )
-
-AS_IF([test "$FAB_LIBS/" ],
-      [M0_LDFLAGS="$FAB_LIBS $M0_LDFLAGS"]
-)
+AC_SUBST([FAB_LIBS])
 
 #
 # Checking Lustre --------------------------------------------------------- {{{1
