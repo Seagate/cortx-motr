@@ -46,7 +46,7 @@ Definitions
 
 - **Mapped memory page A memory page (struct page)**: that has been pinned in memory using the get_user_pages subroutine.
 
-- **Receive Network Buffer Pool**: This is a pool of network buffers, shared between several transfer machines. This common pool reduces the fragmentation of the cache of receive buffers in a network domain that would arise were each transfer machine to be individually provisioned with receive buffers. The actual staging and management of network buffers in the pool is provided through the [r.M0.net.network-buffer-pool] dependency.
+- **Receive Network Buffer Pool**: This is a pool of network buffers, shared between several transfer machines. This common pool reduces the fragmentation of the cache of receive buffers in a network domain that would arise were each transfer machine to be individually provisioned with receive buffers. The actual staging and management of network buffers in the pool is provided through the [r.m0.net.network-buffer-pool] dependency.
 
 - **Transfer Machine Identifier**: This is an unsigned integer that is a component of the end point address of a transfer machine. The number identifies a unique instance of a transfer machine in the set of addresses that use the same 3-tuple of NID, PID and Portal Number. The transfer machine identifier is related to a portion of the Match bits address space in an LNet address - i.e. it is used in the ME associated with the receive queue of the transfer machine.
 
@@ -265,33 +265,33 @@ Transports automatically dequeue receive buffers when they get filled; notificat
 
 The application has a critical role to play in the returning a network buffer back to its pool. If this is not done, it is possible for the pool to get exhausted and messages to get lost. This responsibility is no different from normal non-pool operation, where the application has to re-queue the receive network buffer. The application should note that when multiple message delivery is enabled in a receive buffer, the buffer flags should be examined to determine if the buffer has been dequeued.
 
-It is possible for the pool to have no network buffers available when the M0_net_buffer_event_post() subroutine is invoked. This means that a transfer machine receive queue length can drop below its configured minimum, and there has to be a mechanism available to remedy this when buffers become available once again. Fortunately, the pool provides a callback on a “not-empty” condition. The application is responsible for arranging that the M0_net_domain_recv_pool_not_empty() subroutine is invoked from the pool’s “not-empty” callback. When invoked in response to the “not-empty” condition, this callback will trigger an attempt to provision the transfer machines of the network domain associated with this pool, until their receive queues have reached their minimum length. While doing so, care should be taken that minimal work is actually done on the pool callback - the pool get operation in particular should not be done. Additionally, care should be taken to avoid obtaining the transfer machine’s lock in this arbitrary thread context, as doing so would reduce the efficacy of the transfer machine’s processor affinity. See Concurrency control for more detail on the serialization model used during automatic provisioning and the use of the ntm_recv_queue_deficit atomic variable.
+It is possible for the pool to have no network buffers available when the m0_net_buffer_event_post() subroutine is invoked. This means that a transfer machine receive queue length can drop below its configured minimum, and there has to be a mechanism available to remedy this when buffers become available once again. Fortunately, the pool provides a callback on a “not-empty” condition. The application is responsible for arranging that the m0_net_domain_recv_pool_not_empty() subroutine is invoked from the pool’s “not-empty” callback. When invoked in response to the “not-empty” condition, this callback will trigger an attempt to provision the transfer machines of the network domain associated with this pool, until their receive queues have reached their minimum length. While doing so, care should be taken that minimal work is actually done on the pool callback - the pool get operation in particular should not be done. Additionally, care should be taken to avoid obtaining the transfer machine’s lock in this arbitrary thread context, as doing so would reduce the efficacy of the transfer machine’s processor affinity. See Concurrency control for more detail on the serialization model used during automatic provisioning and the use of the ntm_recv_queue_deficit atomic variable.
 
-The use of a receive pool is optional, but if attached to a transfer machine, the association lasts the life span of the transfer machine. When a transfer machine is stopped or failed, receive buffers from (any) buffer pools will be put back into their pool. This will be done by the M0_net_tm_event_post() subroutine before delivering the state change event to the application or signalling on the transfer machine’s channel.
+The use of a receive pool is optional, but if attached to a transfer machine, the association lasts the life span of the transfer machine. When a transfer machine is stopped or failed, receive buffers from (any) buffer pools will be put back into their pool. This will be done by the m0_net_tm_event_post() subroutine before delivering the state change event to the application or signalling on the transfer machine’s channel.
 
 There is no reason why automatic and manual provisioning cannot co-exist. It is not desirable to mix the two, but mainly because the application has to handle two different buffer release schemes- transport level semantics of the transfer machine are not affected by the use of automatic provisioning.
 
 **Future LNet buffer registration support**
 
-The implementation can support hardware optimizations available at buffer registration time, when made available in future revisions of the LNet API. In particular, Infiniband hardware internally registers a vector (translating a virtual memory address to a "bus address") and produces a cookie, identifying the vector. It is this vector registration capability that was the original reason to introduce M0_net_buf_register(), as separate from M0_net_buf_add() in the Network API.
+The implementation can support hardware optimizations available at buffer registration time, when made available in future revisions of the LNet API. In particular, Infiniband hardware internally registers a vector (translating a virtual memory address to a "bus address") and produces a cookie, identifying the vector. It is this vector registration capability that was the original reason to introduce m0_net_buf_register(), as separate from m0_net_buf_add() in the Network API.
 
 **Processor affinity for transfer machines**
 
-The API allows an application to associate the internal threads used by a transfer machine with a set of processors. This must be done using the M0_net_tm_confine() subroutine before the transfer machine is started. Support for this interfaces is transport specific and availability may also vary between user space and kernel space. The API should return an error if not supported.
+The API allows an application to associate the internal threads used by a transfer machine with a set of processors. This must be done using the m0_net_tm_confine() subroutine before the transfer machine is started. Support for this interfaces is transport specific and availability may also vary between user space and kernel space. The API should return an error if not supported.
 
-The design assumes that the M0_thread_confine() subroutine from “lib/thread.h” will be used to implement this support. The implementation will need to define an additional transport operation to convey this request to the transport.
+The design assumes that the m0_thread_confine() subroutine from “lib/thread.h” will be used to implement this support. The implementation will need to define an additional transport operation to convey this request to the transport.
 
-The API provides the M0_net_tm_colour_set() subroutine for the application to associate a “color” with a transfer machine. This colour is used when automatically provisioning network buffers to the receive queue from a buffer pool. The application can also use this association explicitly when provisioning network buffers for the transfer machine in other buffer pool use cases. The colour value can be fetched with the M0_net_tm_colour_get() subroutine.
+The API provides the m0_net_tm_colour_set() subroutine for the application to associate a “color” with a transfer machine. This colour is used when automatically provisioning network buffers to the receive queue from a buffer pool. The application can also use this association explicitly when provisioning network buffers for the transfer machine in other buffer pool use cases. The colour value can be fetched with the m0_net_tm_colour_get() subroutine.
 
 **Synchronous network buffer event delivery**
 
-The design provides support for an advanced application (like the Request handler) to control when buffer events are delivered. This gives the application greater control over thread scheduling and enables it to co-ordinate network usage with that of other objects, allowing for better locality of reference. This is illustrated in the Request handler control of network buffer event delivery use case. The feature will be implemented with the [r.M0.net.synchronous-buffer-event-delivery] refinement.
+The design provides support for an advanced application (like the Request handler) to control when buffer events are delivered. This gives the application greater control over thread scheduling and enables it to co-ordinate network usage with that of other objects, allowing for better locality of reference. This is illustrated in the Request handler control of network buffer event delivery use case. The feature will be implemented with the [r.m0.net.synchronous-buffer-event-delivery] refinement.
 
-If this feature is used, then the implementation should not deliver buffer events until requested, and should do so only on the thread invoking the M0_net_buffer_event_deliver_all() subroutine - i.e. network buffer event delivery is done synchronously under application control. This subroutine effectively invokes the M0_net_buffer_event_post() subroutine for each pending buffer event. It is not an error if no events are present when this subroutine is called; this addresses a known race condition described in Concurrency control.
+If this feature is used, then the implementation should not deliver buffer events until requested, and should do so only on the thread invoking the m0_net_buffer_event_deliver_all() subroutine - i.e. network buffer event delivery is done synchronously under application control. This subroutine effectively invokes the m0_net_buffer_event_post() subroutine for each pending buffer event. It is not an error if no events are present when this subroutine is called; this addresses a known race condition described in Concurrency control.
 
-The M0_net_buffer_event_pending() subroutine should not perform any context switching operation if possible. It may be impossible to avoid the use of a serialization primitive while doing so, but proper usage by the application will considerably reduce the possibility of a context switch when the transfer machine is operated in this fashion.
+The m0_net_buffer_event_pending() subroutine should not perform any context switching operation if possible. It may be impossible to avoid the use of a serialization primitive while doing so, but proper usage by the application will considerably reduce the possibility of a context switch when the transfer machine is operated in this fashion.
 
-The notification of the presence of a buffer event must be delivered asynchronously to the invocation of the non-blocking M0_net_buffer_event_notify() subroutine. The implementation must use a background thread for the task; presumably the application will confine this thread to the desired set of processors with the M0_net_tm_confine() subroutine. The context switching impact is low, because the application would not have invoked the M0_net_buffer_event_notify() subroutine unless it had no work to do. The subroutine should arrange for the background thread to block until the arrival of the next buffer event (if need be) and then signal on the specified channel. No further attempt should be made to signal on the channel until the next call to the M0_net_buffer_event_notify() subroutine - the implementation can determine the disposition of the thread after the channel is signalled.
+The notification of the presence of a buffer event must be delivered asynchronously to the invocation of the non-blocking m0_net_buffer_event_notify() subroutine. The implementation must use a background thread for the task; presumably the application will confine this thread to the desired set of processors with the m0_net_tm_confine() subroutine. The context switching impact is low, because the application would not have invoked the m0_net_buffer_event_notify() subroutine unless it had no work to do. The subroutine should arrange for the background thread to block until the arrival of the next buffer event (if need be) and then signal on the specified channel. No further attempt should be made to signal on the channel until the next call to the m0_net_buffer_event_notify() subroutine - the implementation can determine the disposition of the thread after the channel is signalled.
 
 **Efficient communication between user and kernel spaces**
 
@@ -303,11 +303,11 @@ The implementation shall use the following strategies to reduce the communicatio
 
 - Calls from user space to the kernel should combine as many operations as possible.
 
-- Use atomic variables for serialization if possible. Dependency [r.M0.lib.atomic.interoperable-kernel-user-support].
+- Use atomic variables for serialization if possible. Dependency [r.m0.lib.atomic.interoperable-kernel-user-support].
 
 - Resource consumption to support these communication mechanisms should be bounded and configurable through the user space process.
 
-- Minimize context switches. This is captured in refinement [r.M0.net.xprt.lnet.efficient-user-to-kernel-comm].
+- Minimize context switches. This is captured in refinement [r.m0.net.xprt.lnet.efficient-user-to-kernel-comm].
 
 As an example, consider using a producer-consumer pattern with circular queues to both initiate network buffer operations and deliver events. These circular queues are allocated in shared memory and queue position indices (not pointers) are managed via atomic operations. Minimal data is actually copied between user and kernel space - only notification of production. Multiple operations can be processed per transition across the user-kernel boundary.
 
@@ -322,38 +322,38 @@ This is illustrated in the following figure:
 Conformance
 ===============
 
-- [i.M0.net.rdma] LNET supports RDMA and the feature is exposed through the Motr network bulk interfaces.
+- [i.m0.net.rdma] LNET supports RDMA and the feature is exposed through the Motr network bulk interfaces.
 
-- [i.M0.net.ib] LNET supports Infiniband.
+- [i.m0.net.ib] LNET supports Infiniband.
 
-- [i.M0.net.xprt.lnet.kernel] The design provides a kernel transport.
+- [i.m0.net.xprt.lnet.kernel] The design provides a kernel transport.
 
-- [i.M0.net.xprt.lnet.user] The design provides a user space transport.
+- [i.m0.net.xprt.lnet.user] The design provides a user space transport.
 
-- [i.M0.net.xprt.lnet.user.multi-process] The design allows multiple concurrent user space processes to use LNet.
+- [i.m0.net.xprt.lnet.user.multi-process] The design allows multiple concurrent user space processes to use LNet.
 
-- [i.M0.net.xprt.lnet.user.no-gpl] The design avoids using user space GPL interfaces. 
+- [i.m0.net.xprt.lnet.user.no-gpl] The design avoids using user space GPL interfaces. 
 
-- [i.M0.net.xprt.lnet.user.min-syscalls] The [r.M0.net.xprt.lnet.efficient-user-to-kernel-comm] refinement will address this.
+- [i.m0.net.xprt.lnet.user.min-syscalls] The [r.m0.net.xprt.lnet.efficient-user-to-kernel-comm] refinement will address this.
 
-- [i.M0.net.xprt.lnet.min-buffer-vm-setup] During buffer registration user memory pages get pinned in the kernel.
+- [i.m0.net.xprt.lnet.min-buffer-vm-setup] During buffer registration user memory pages get pinned in the kernel.
 
-- [i.M0.net.xprt.lnet.processor-affinity] LNet currently provides no processor affinity support. The [r.M0.net.xprt.lnet.processor-affinity] refinement will provide higher layers the ability to associate transfer machine threads with processors. ● [r.M0.net.buffer-event-delivery-control] The [r.M0.net.synchronous-buffer-event-delivery] refinement will provide this feature.
+- [i.m0.net.xprt.lnet.processor-affinity] LNet currently provides no processor affinity support. The [r.m0.net.xprt.lnet.processor-affinity] refinement will provide higher layers the ability to associate transfer machine threads with processors. ● [r.m0.net.buffer-event-delivery-control] The [r.m0.net.synchronous-buffer-event-delivery] refinement will provide this feature.
 
-- [i.M0.net.xprt.lnet.buffer-registration] The API supports buffer pre-registration before use. Any hardware optimizations possible at this time can be utilized when available through the LNet API. See Future LNet buffer registration support.
+- [i.m0.net.xprt.lnet.buffer-registration] The API supports buffer pre-registration before use. Any hardware optimizations possible at this time can be utilized when available through the LNet API. See Future LNet buffer registration support.
 
-- [i.M0.net.xprt.auto-provisioned-receive-buffer-pool] The design provides transport independent support to automatically provision the receive queues of transfer machines on demand, from pools of unused, registered, network buffers.
+- [i.m0.net.xprt.auto-provisioned-receive-buffer-pool] The design provides transport independent support to automatically provision the receive queues of transfer machines on demand, from pools of unused, registered, network buffers.
 
 Dependencies
 ===============
 
 - [r.lnet.preconfigured] The design assumes that LNET modules and associated LNDs are pre-configured on a host.
 
-- [r.M0.lib.atomic.interoperable-kernel-user-support] The design assumes that the Motr library’s support for atomic operations is interoperable across the kernel and user space boundaries when using shared memory.
+- [r.m0.lib.atomic.interoperable-kernel-user-support] The design assumes that the Motr library’s support for atomic operations is interoperable across the kernel and user space boundaries when using shared memory.
 
-- [r.M0.net.xprt.lnet.address-assignment] The design assumes that the assignment of LNet transport addresses to Motr components is made elsewhere. Note the constraint that all addresses must use a PID value of 12345, and a Portal Number that does not clash with existing usage (Lustre and Cray). It is recommended that all Motr servers be assigned low (values close to 0) transfer machine identifiers values. In addition, it is recommended that some set of such addresses be reserved for Motr tools that are relatively short lived - they will dynamically get transfer machine identifiers at run time. These two recommendations reduce the chance of a collision between Motr server transfer machine identifiers and dynamic transfer machine identifiers. Another aspect to consider is the possible alignment of FOP state machine localities [6] with transfer machine identifiers.
+- [r.m0.net.xprt.lnet.address-assignment] The design assumes that the assignment of LNet transport addresses to Motr components is made elsewhere. Note the constraint that all addresses must use a PID value of 12345, and a Portal Number that does not clash with existing usage (Lustre and Cray). It is recommended that all Motr servers be assigned low (values close to 0) transfer machine identifiers values. In addition, it is recommended that some set of such addresses be reserved for Motr tools that are relatively short lived - they will dynamically get transfer machine identifiers at run time. These two recommendations reduce the chance of a collision between Motr server transfer machine identifiers and dynamic transfer machine identifiers. Another aspect to consider is the possible alignment of FOP state machine localities [6] with transfer machine identifiers.
 
-- [r.M0.net.network-buffer-pool] Support for a pool of network buffers involving no higher level interfaces than the network module itself. There can be multiple pools in a network domain, but a pool cannot span multiple network domains. Non-blocking interfaces are available to get and put network buffers, and a callback to signal the availability of buffers is provided. This design benefits considerably from a “colored” variant of the get operation, one that will preferentially return the most recently used buffer last associated with a specific transfer machine, or if none such are found, a buffer which has no previous transfer machine association, or if none such are found, the least recently used buffer from the pool, if any.
+- [r.m0.net.network-buffer-pool] Support for a pool of network buffers involving no higher level interfaces than the network module itself. There can be multiple pools in a network domain, but a pool cannot span multiple network domains. Non-blocking interfaces are available to get and put network buffers, and a callback to signal the availability of buffers is provided. This design benefits considerably from a “colored” variant of the get operation, one that will preferentially return the most recently used buffer last associated with a specific transfer machine, or if none such are found, a buffer which has no previous transfer machine association, or if none such are found, the least recently used buffer from the pool, if any.
 
 Supporting this variant efficiently may require a more sophisticated internal organization of the buffer pool than is possible with a simple linked list; however, a simple ordered linked list could suffice if coupled with a little more sophisticated selection mechanism than “head-of-the-list”. Note that buffers have no transfer machine affinity until first used, and that the nb_tm field of the buffer can be used to determine the last transfer machine association when the buffer is put back into the pool. Here are some possible approaches:
 
@@ -371,43 +371,43 @@ No security model is defined; the new transport inherits whatever security model
 Refinement
 ==========
 
-- [r.M0.net.xprt.lnet.transport-variable]
+- [r.m0.net.xprt.lnet.transport-variable]
 
   - The implementation shall name the transport variable as specified in this document.
 
-- [r.M0.net.xprt.lnet.end-point-address]
+- [r.m0.net.xprt.lnet.end-point-address]
 
   - The implementation should support the mapping of end point address to LNet address as described in Mapping of Endpoint Address to LNet Address, including the reservation of a portion of the match bit space in which to encode the transfer machine identifier.
 
-- [r.M0.net.xprt.support-for-auto-provisioned-receive-queue] The implementation should follow the strategy outlined in Automatic provisioning of receive buffers. It should also follow the serialization model outlined in Concurrency control.
+- [r.m0.net.xprt.support-for-auto-provisioned-receive-queue] The implementation should follow the strategy outlined in Automatic provisioning of receive buffers. It should also follow the serialization model outlined in Concurrency control.
 
-- [r.M0.net.xprt.lnet.multiple-messages-in-buffer]
+- [r.m0.net.xprt.lnet.multiple-messages-in-buffer]
 
-  - Add a nb_min_receive_size field to struct M0_net_buffer.
+  - Add a nb_min_receive_size field to struct m0_net_buffer.
 
   - Document the behavioral change of the receive message callback.
 
-  - Provide a mechanism for the transport to indicate that the M0_NET_BUF_QUEUED flag should not be cleared by the M0_net_buffer_event_post() subroutine.
+  - Provide a mechanism for the transport to indicate that the m0_NET_BUF_QUEUED flag should not be cleared by the m0_net_buffer_event_post() subroutine.
 
   - Modify all existing usage to set the nb_min_receive_size field to the buffer length.
 
-- [r.M0.net.xprt.lnet.efficient-user-to-kernel-comm] 
+- [r.m0.net.xprt.lnet.efficient-user-to-kernel-comm] 
 
   - The implementation should follow the strategies recommended in Efficient communication between user and kernel spaces, including the creation of a private device driver to facilitate such communication.
 
-- [r.M0.net.xprt.lnet.cleanup-on-process-termination]
+- [r.m0.net.xprt.lnet.cleanup-on-process-termination]
 
   - The implementation should release all kernel resources held by a process using the LNet transport when that process terminates.
 
-- [r.M0.net.xprt.lnet.dynamic-address-assignment]
+- [r.m0.net.xprt.lnet.dynamic-address-assignment]
 
   - The implementation may support dynamic assignment of transfer machine identifier using the strategy outlined in Mapping of Endpoint Address to LNet Address. We recommend that the implementation dynamically assign transfer machine identifiers from higher numbers downward to reduce the chance of conflicting with well-known transfer machine identifiers.
 
-- [r.M0.net.xprt.lnet.processor-affinity] 
+- [r.m0.net.xprt.lnet.processor-affinity] 
 
   - The implementation must provide support for this feature, as outlined in Processor affinity for transfer machines. The implementation will need to define an additional transport operation to convey this request to the transport. Availability may vary by kernel or user space.
 
-- [r.M0.net.synchronous-buffer-event-delivery] 
+- [r.m0.net.synchronous-buffer-event-delivery] 
 
   - The implementation must provide support for this feature as outlined in Controlling network buffer event delivery and Synchronous network buffer event delivery.
   
@@ -427,7 +427,7 @@ User space buffers pin memory pages in the kernel when registered. Hence, regist
 
 The invariants of the transfer machine and network buffer objects should capture the fact that if a pool is associated with these objects, then the pool is in the same network domain. The transfer machine invariant, in particular, should ensure that the value of the atomic variable, ntm_recv_pool_deficit is zero when the transfer machine is in an inoperable state.
 
-See the refinement [r.M0.net.xprt.support-for-auto-provisioned-receive-queue].
+See the refinement [r.m0.net.xprt.support-for-auto-provisioned-receive-queue].
 
 Concurrency Control
 --------------------
@@ -438,23 +438,23 @@ The implementation mechanism chosen will further govern the serialization model 
 
 Serialization of the kernel transport is anticipated to be relatively straightforward, with safeguards required for network buffer queues.
 
-Serialization between user and kernel space should take the form of shared memory circular queues co-ordinated with atomic indices. A producer-consumer model should be used, with opposite roles assigned to the kernel and user space process; appropriate notification of change should be made through the device driver. Separate circular queues should be used for buffer operations (user to kernel) and event delivery (kernel to user). [r.M0.net.xprt.lnet.efficient-user-to-kernel-comm]
+Serialization between user and kernel space should take the form of shared memory circular queues co-ordinated with atomic indices. A producer-consumer model should be used, with opposite roles assigned to the kernel and user space process; appropriate notification of change should be made through the device driver. Separate circular queues should be used for buffer operations (user to kernel) and event delivery (kernel to user). [r.m0.net.xprt.lnet.efficient-user-to-kernel-comm]
 
 Automatic provisioning can only be enabled before a transfer machine is started. Once enabled, it cannot be disabled. Thus, provisioning operations are implicitly protected by the state of the transfer machine - the “not-empty” callback subroutine will never fail to find its transfer machine, though it should take care to examine the state before performing any provisioning. The life span of a network buffer pool must exceed that of the transfer machines that use the pool. The life span of a network domain must exceed that of associated network buffer pools.
 
-Automatic provisioning of receive network buffers from the receive buffer pool takes place either through the M0_net_buffer_event_post() subroutine or triggered by the receive buffer pool’s “not-empty” callback with the M0_net_domain_buffer_pool_not_empty subroutine. Two important conditions should be met while provisioning:
+Automatic provisioning of receive network buffers from the receive buffer pool takes place either through the m0_net_buffer_event_post() subroutine or triggered by the receive buffer pool’s “not-empty” callback with the m0_net_domain_buffer_pool_not_empty subroutine. Two important conditions should be met while provisioning:
 
-- Minimize processing on the pool callback: The buffer pool maintains its own independent lock domain; it invokes the M0_net_domain_buffer_pool_not_empty subroutine (provided for use as the not-empty callback) while holding its lock. The callback is invoked on the stack of the caller who used the put operation on the pool. It is essential, therefore, that the not-empty callback perform minimal work - it should only trigger an attempt to reprovision transfer machines, not do the provisioning.
+- Minimize processing on the pool callback: The buffer pool maintains its own independent lock domain; it invokes the m0_net_domain_buffer_pool_not_empty subroutine (provided for use as the not-empty callback) while holding its lock. The callback is invoked on the stack of the caller who used the put operation on the pool. It is essential, therefore, that the not-empty callback perform minimal work - it should only trigger an attempt to reprovision transfer machines, not do the provisioning.
 
 - Minimize interference with the processor affinity of the transfer machine: Ideally, the transfer machine is only referenced on a single processor, resulting in a strong likelihood that its data structures are in the cache of that processor. Provisioning transfer machines requires iteration over a list, and if the transfer machine lock has to be obtained for each, it could adversely impact such caching. We provided the atomic variable, ntm_recv_pool_deficit, with a count of the number of network buffers to provision so that this lock is obtained only when the transfer machine really needs to be provisioned, and not for every invocation of the buffer pool callback. The transfer machine invariant will enforce that the value of this atomic will be 0 when the transfer machine is not in an operable state.
 
-Actual provisioning should be done on a domain private thread awoken for this purpose. A transfer machine needs provisioning if it is in the started state, it is associated with the pool, and its receive queue length is less than the configured minimum (determined via an atomic variable as outlined above). To provision, the thread will obtain network buffers from the pool with the get() operation, and add them to the receive queue of the transfer machine with the (internal equivalent) of the M0_net_buffer_add_call that assumes that the transfer machine is locked.
+Actual provisioning should be done on a domain private thread awoken for this purpose. A transfer machine needs provisioning if it is in the started state, it is associated with the pool, and its receive queue length is less than the configured minimum (determined via an atomic variable as outlined above). To provision, the thread will obtain network buffers from the pool with the get() operation, and add them to the receive queue of the transfer machine with the (internal equivalent) of the m0_net_buffer_add_call that assumes that the transfer machine is locked.
 
-The design requires that receive buffers obtained from buffer pools be put back to their pools when a transfer machine is stopped or fails, prior to notifying the higher level application of the change in state. This action will be done in the M0_net_tm_event_post() subroutine, before invoking the state change callback. The subroutine obtains the transfer machine mutex, and hence has the same degree of serialization as that used in automatic provisioning.
+The design requires that receive buffers obtained from buffer pools be put back to their pools when a transfer machine is stopped or fails, prior to notifying the higher level application of the change in state. This action will be done in the m0_net_tm_event_post() subroutine, before invoking the state change callback. The subroutine obtains the transfer machine mutex, and hence has the same degree of serialization as that used in automatic provisioning.
 
-The synchronous delivery of network buffer events utilizes the transfer machine lock internally, when needed. The lock must not be held in the M0_net_buffer_event_deliver_all() subroutine across calls to the M0_net_buffer_event_post() subroutine.
+The synchronous delivery of network buffer events utilizes the transfer machine lock internally, when needed. The lock must not be held in the m0_net_buffer_event_deliver_all() subroutine across calls to the m0_net_buffer_event_post() subroutine.
 
-In the use case described in Request handler control of network buffer event delivery there is a possibility that the application could wake up for reasons other than the arrival of a network buffer event, and once more test for the presence of network buffer events even while the background thread is making a similar test. It is possible that the application could consume all events and once more make a request for future notification while the semaphore count in its wait channel is non-zero. In this case it would return immediately, find no additional network events and repeat the request; the M0_net_buffer_event_deliver_all() subroutine will not return an error if no events are present.
+In the use case described in Request handler control of network buffer event delivery there is a possibility that the application could wake up for reasons other than the arrival of a network buffer event, and once more test for the presence of network buffer events even while the background thread is making a similar test. It is possible that the application could consume all events and once more make a request for future notification while the semaphore count in its wait channel is non-zero. In this case it would return immediately, find no additional network events and repeat the request; the m0_net_buffer_event_deliver_all() subroutine will not return an error if no events are present.
 
 Scenarios
 ===============
@@ -468,19 +468,19 @@ A Motr component, whether it is a kernel file system client, server, or tool, us
 
       #. The network buffers are provisioned, with nb_min_receive_size set to allow multiple delivery of messages. The network buffers are added to a buffer pool.
 
-      #. The buffer pool is registered with a network domain and associated with one or more transfer machines. Internally, the transfer machines will get buffers from the pool and add them to their M0_NET_QT_MSG_RECV queues.
+      #. The buffer pool is registered with a network domain and associated with one or more transfer machines. Internally, the transfer machines will get buffers from the pool and add them to their m0_NET_QT_MSG_RECV queues.
 
    #. When a buffer pool is not used, these steps are performed.
 
       #. Network buffers are provisioned with nb_min_receive_size set to allow multiple delivery of messages.
 
-      #. The network buffers are registered with the network domain and added to a transfer machine M0_NET_QT_MSG_RECV queue.
+      #. The network buffers are registered with the network domain and added to a transfer machine m0_NET_QT_MSG_RECV queue.
 
 #. When a message is received, two sub-cases are possible as part of processing the message. It is the responsibility of the component itself to coordinate between these two sub-cases.
 
-  #. When a message is received and the M0_NET_BUF_QUEUED flag is set in the network buffer, then the client does not re-enqueue the network buffer as there is still space remaining in the buffer for additional messages.
+  #. When a message is received and the m0_NET_BUF_QUEUED flag is set in the network buffer, then the client does not re-enqueue the network buffer as there is still space remaining in the buffer for additional messages.
 
-  #. When a message is received and the M0_NET_BUF_QUEUED flag is not set in the network buffer, then the component takes one of two paths, depending on whether a buffer pool is in use or not.
+  #. When a message is received and the m0_NET_BUF_QUEUED flag is not set in the network buffer, then the component takes one of two paths, depending on whether a buffer pool is in use or not.
 
      #. When a buffer pool is in use, the component puts the buffer back in the buffer pool so it can be re-used.
 
@@ -491,13 +491,13 @@ A Motr component, whether it is a kernel file system client, server, or tool, us
 
 A Motr component, whether a user-space server, user-space tool or kernel file system client uses the following pattern to use the LNet transport to send messages to another component. Memory for send queues can be allocated once, or the send buffer can be built up dynamically from serialized data and references to existing memory.
 
-#. The component optionally allocates memory to one or more M0_net_buffer objects and registers those objects with the network layer. These network buffers are a pool of message send buffers.
+#. The component optionally allocates memory to one or more m0_net_buffer objects and registers those objects with the network layer. These network buffers are a pool of message send buffers.
 
 #. To send a message, the component uses one of two strategies.
 
    #. The component selects one of the buffers previously allocated and serializes the message data into that buffer.
 
-   #. The component builds up a fresh M0_net_buffer object out of memory pages newly allocated and references to other memory (to avoid copies), and registers the resulting object with the network layer.
+   #. The component builds up a fresh m0_net_buffer object out of memory pages newly allocated and references to other memory (to avoid copies), and registers the resulting object with the network layer.
 
 #. The component enqueues the message for transmission.
 
@@ -540,7 +540,7 @@ A Motr tool uses the following pattern to use the LNet transport to initiate pas
 
 A Motr tool is a relatively short lived process, typically a command line invocation of a program to communicate with a Motr server. One cannot assign fixed addresses to such tools, as the failure of a human interactive program because of the existence of another executing instance of the same program is generally considered unacceptable behavior, and one that precludes the creation of scriptable tools.
 
-Instead, all tools could be assigned a shared combination of NID, PID and Portal Number, and at run time, the tool process can dynamically assign unique addresses to itself by creating a transfer machine with a wildcard transfer machine identifier. This is captured in refinement [r.M0.net.xprt.lnet.dynamic-address-assignment] and Mapping of Endpoint Address to LNet Address. Dependency: [r.M0.net.xprt.lnet.address-assignment]
+Instead, all tools could be assigned a shared combination of NID, PID and Portal Number, and at run time, the tool process can dynamically assign unique addresses to itself by creating a transfer machine with a wildcard transfer machine identifier. This is captured in refinement [r.m0.net.xprt.lnet.dynamic-address-assignment] and Mapping of Endpoint Address to LNet Address. Dependency: [r.m0.net.xprt.lnet.address-assignment]
 
 **Request handler control of network buffer event delivery**
 
@@ -549,7 +549,7 @@ The user space Motr request handler operates within a locality domain that inclu
 Failures
 ========
 
-One failure situation that must be explicitly addressed is the termination of the user space process that uses the LNet transport. All resources consumed by this process must be released in the kernel. In particular, where shared memory is used, the implementation design should take into account the accessibility of this shared memory at this time. Refinement: [r.M0.net.xprt.lnet.cleanup-on-process-termination]
+One failure situation that must be explicitly addressed is the termination of the user space process that uses the LNet transport. All resources consumed by this process must be released in the kernel. In particular, where shared memory is used, the implementation design should take into account the accessibility of this shared memory at this time. Refinement: [r.m0.net.xprt.lnet.cleanup-on-process-termination]
 
 Analysis
 =========
@@ -611,9 +611,9 @@ References
 
 - [2] Mero Summary Requirements Table 
 
-- [3] M0 Glossary 
+- [3] m0 Glossary 
 
-- [4] M0LNet Preliminary Design Questions 
+- [4] m0LNet Preliminary Design Questions 
 
 - [5] RPC Bulk Transfer Task Plan
 
