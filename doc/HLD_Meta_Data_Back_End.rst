@@ -87,29 +87,24 @@ Use Cases
 Scenarios
 ==========
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
++-----------------------------+----------------------------------------------------------------+
+| Scenario                    | [usecase.component.name]                                       |
++-----------------------------+----------------------------------------------------------------+
+|Relevant quality attributes  |[e.g., fault tolerance, scalability, usability, re-usability]   |
++-----------------------------+----------------------------------------------------------------+
+|Stimulus                     |[an incoming event that triggers the use case]                  |
++-----------------------------+----------------------------------------------------------------+
+|Stimulus source              |[system or external world entity that caused the stimulus]      |
++-----------------------------+----------------------------------------------------------------+
+|Environment                  | [part of the system involved in the scenario]                  |
++-----------------------------+----------------------------------------------------------------+
+|Artifact                     |[change to the system produced by the stimulus]                 |
++-----------------------------+----------------------------------------------------------------+
+|Response                     |[how the component responds to the system change]               |
++-----------------------------+----------------------------------------------------------------+
+|Response measure             |[qualitative and (preferably) quantitative measures of response | 
+|                             |that must be maintained]                                        |
++-----------------------------+----------------------------------------------------------------+
+|Questions and Answers        |                                                                |
++-----------------------------+----------------------------------------------------------------+
 
