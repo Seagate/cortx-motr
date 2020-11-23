@@ -105,13 +105,13 @@ A fop can be sent as a request FOP or a reply FOP. A fop is sent across using th
 .. code-block:: C
 
  struct m0_fop {
- ...
+       ...
        /**
           RPC item for this FOP
         */
        struct m0_rpc_item      f_item;
 
- ...
+       ...
  };
  
 Sending a fop involves initializing various fop and rpc item structures and then invoking the m0_rpc_post routines. The steps for the same are described below with few code examples.
@@ -297,7 +297,7 @@ Consider a simple write FOM example
             u8                   fiw_value
     };
     
-  There are two types of structures defined:
+There are two types of structures defined:
   
   - reqh_ut_fom_fop_fid, is a structure with native data types, (i.e uint64_t). This is optional, although we would need to build these user defined types separately to use them in other structures.
   
