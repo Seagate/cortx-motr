@@ -328,6 +328,8 @@ static void generic_reply_build(struct m0_fom *fom)
 	}
 }
 
+extern struct m0_fop_type cgc_fake_fopt;
+
 /**
  * Handles fom execution failure, if fom fails in one of
  * the standard phases, then we construct a generic error
@@ -343,7 +345,20 @@ static int fom_failure(struct m0_fom *fom)
 
 	if (rc != 0) {
 		M0_LOG(M0_NOTICE, "fom_rc=%d", rc);
-		generic_reply_build(fom);
+		/*
+		 * It is a workaround. An internal FOM is not related to a FOP.
+		 * cgc_fom is such a fom. But it has a fake fop, without rpc
+		 * machine. So skip building reply for it.
+		 */
+		if (fom->fo_fop != NULL) {
+#ifndef __KERNEL__
+			if (fom->fo_fop->f_type != &cgc_fake_fopt)
+#endif
+				generic_reply_build(fom);
+		} else {
+			M0_LOG(M0_ERROR, "fom_rc=%d. This FOM has no fop/rpc",
+					 rc);
+		}
 	}
 	/*
 	 * If transaction was initialised, but not opened, finalise it.
