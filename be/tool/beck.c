@@ -289,10 +289,15 @@ struct scanner_off_info {
 	bool     soi_bnodeqempty;
 };
 
+struct part_info {
+	uint64_t           poi_act_added[AO_NR];
+	uint64_t           poi_act_done[AO_NR];
+	off_t              poi_1st_bnode_offset[AO_NR];
+};
+
 struct offset_info {
+	struct part_info        oi_pinfo;
 	struct worker_off_info *oi_offset;
-	uint64_t                oi_act_added[AO_NR];
-	uint64_t                oi_act_done[AO_NR];
 	struct m0_mutex         oi_part_lock[AO_NR];
 	uint64_t                oi_workers_nr;
 	uint64_t                oi_partitions_nr;
@@ -1496,8 +1501,7 @@ static int nv_scan_offset_init(uint64_t workers_nr,
 		return M0_ERR(-ENOMEM);
 	}
 
-	memset(&off_info.oi_act_added[0], 0, sizeof(off_info.oi_act_added));
-	memset(&off_info.oi_act_done[0], 0, sizeof(off_info.oi_act_done));
+	memset(&off_info.oi_pinfo, 0, sizeof(struct part_info));
 	for (p = 0; p < off_info.oi_partitions_nr; p++)
 		m0_mutex_init(&off_info.oi_part_lock[p]);
 	m0_mutex_unlock(&off_info.oi_lock);
@@ -1526,6 +1530,7 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 	off_t     max_offset = 0;
 	uint64_t  p;
 	uint64_t  w;
+	struct part_info        *pinfo;
 	struct worker_off_info  *winfo;
 	struct scanner_off_info *sinfo;
 
@@ -1537,29 +1542,36 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 	}
 	wret = fread(off_info.oi_offset, sizeof(struct worker_off_info),
 		     off_info.oi_workers_nr, ofptr);
-	pret = fread(&off_info.oi_act_added[0], sizeof(uint64_t),
-		     AO_NR*2, ofptr);
+	pret = fread(&off_info.oi_pinfo, sizeof(struct part_info),
+		     1, ofptr);
 	sret = fread(&off_info.oi_scanoff, sizeof(struct scanner_off_info),
 		     1, ofptr);
 	if ((wret > 0) && (pret > 0) && (sret > 0)) {
+		pinfo = &off_info.oi_pinfo;
 		/* look for lowest offset in active partitions */
 		for (p = 0; p < off_info.oi_partitions_nr; p++) {
 			/* skip idle partitions */
-			if (off_info.oi_act_added[p] == 0)
+			if (pinfo->poi_act_added[p] == 0)
 				continue;
+			/* in case action was added but none of the is completed
+			 * then check for first bnode offset */
+			if (pinfo->poi_act_done[p] == 0) {
+				if (offset > pinfo->poi_1st_bnode_offset[p])
+					offset = pinfo->poi_1st_bnode_offset[p];
+				continue;
+			}
 			/* check for incomplete actions */
 			for (w = 0; w < off_info.oi_workers_nr; w++) {
-				/* for now skip workers not beloging to
-				 * this partitions, may need to remove this
-				 * check once static mapping is removed from
-				 * tx_bulk.c */
-				if ((w % off_info.oi_partitions_nr) != p)
+				winfo = &off_info.oi_offset[w];
+				/* discard workers which have NOT processed
+				 * single action for given partition till now*/
+				if (winfo->woi_offset[p] <
+				    pinfo->poi_1st_bnode_offset[p])
 					continue;
 
-				winfo = &off_info.oi_offset[w];
 
-				if (off_info.oi_act_added[p] >
-				    off_info.oi_act_done[p]) {
+				if (pinfo->poi_act_added[p] >
+				    pinfo->poi_act_done[p]) {
 					if (offset > winfo->woi_offset[p])
 						offset = winfo->woi_offset[p];
 				} else {
@@ -1583,10 +1595,10 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 		}
 		/* reset counters as there will NOT be any completions for
 		 * missed actions */
-		memset(&off_info.oi_act_added[0], 0,
-		       sizeof(off_info.oi_act_added));
-		memset(&off_info.oi_act_done[0], 0,
-		       sizeof(off_info.oi_act_done));
+		memset(&off_info.oi_pinfo.poi_act_added[0], 0,
+		       sizeof(off_info.oi_pinfo.poi_act_added));
+		memset(&off_info.oi_pinfo.poi_act_done[0], 0,
+		       sizeof(off_info.oi_pinfo.poi_act_done));
 		fclose(ofptr);
 		m0_mutex_unlock(&off_info.oi_lock);
 	} else {
@@ -1614,8 +1626,8 @@ static void nv_scan_offset_update(void)
 	off_info.oi_scanoff.soi_scanqempty  = isqempty(s.s_q);
 	fwrite(off_info.oi_offset, sizeof(struct worker_off_info),
 	       off_info.oi_workers_nr, ofptr);
-	fwrite(&off_info.oi_act_added[0], sizeof(uint64_t),
-	       off_info.oi_partitions_nr*2, ofptr);
+	fwrite(&off_info.oi_pinfo, sizeof(struct part_info),
+	       1, ofptr);
 	fwrite(&off_info.oi_scanoff, sizeof(struct scanner_off_info),
 	       1, ofptr);
 	fclose(ofptr);
@@ -1659,7 +1671,7 @@ static void builder_done(struct m0_be_tx_bulk *tb,
 		winfo->woi_offset[partition] = act->a_node_offset;
 		winfo->woi_act_done[partition]++;
 		m0_mutex_lock(&off_info.oi_part_lock[partition]);
-		off_info.oi_act_done[partition]++;
+		off_info.oi_pinfo.poi_act_done[partition]++;
 		m0_mutex_unlock(&off_info.oi_part_lock[partition]);
 
 		if (!(winfo->woi_act_done[partition] % 2))
@@ -1672,6 +1684,7 @@ static void builder_work_put(struct m0_be_tx_bulk *tb, struct builder *b)
 {
 	struct action          *act;
 	struct m0_be_tx_credit  credit;
+	struct part_info       *pinfo;
 	bool                    put_successful;
 	int                     rc;
 
@@ -1688,7 +1701,13 @@ static void builder_work_put(struct m0_be_tx_bulk *tb, struct builder *b)
 							act->a_opc, act));
 			if (!put_successful)
 				break;
-			off_info.oi_act_added[act->a_opc]++;
+
+			pinfo = &off_info.oi_pinfo;
+			pinfo->poi_act_added[act->a_opc]++;
+			/* save offset of first bnode in partitions */
+			if (pinfo->poi_act_added[act->a_opc] == 1)
+				pinfo->poi_1st_bnode_offset[act->a_opc] =
+					act->a_node_offset;
 		}
 	} while (act->a_opc != AO_DONE);
 	m0_be_tx_bulk_end(tb);
