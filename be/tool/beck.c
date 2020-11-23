@@ -446,10 +446,10 @@ enum {
 	MAX_VALUE_LEN            = 256,
 	DEFAULT_BE_SEG_LOAD_ADDR = 0x400000100000,
 	/**
-	 * The value of 44MB for DEFAULT_BE_MAX_TX_REG_SZwas picked from the
+	 * The value of 44MB for DEFAULT_BE_MAX_TX_REG_SZ was picked from the
 	 * routine m0_be_ut_backend_cfg_default()
 	 */
-	DEFAULT_BE_MAX_TX_REG_SZ = (44 * 1024 * 1024)
+	DEFAULT_BE_MAX_TX_REG_SZ = (44 * 1024 * 1024ULL)
 };
 
 /** It is used to recover meta data of component catalogue store. */
@@ -642,7 +642,8 @@ int main(int argc, char **argv)
 	}
 	qinit(&beck_scanner.s_bnode_q, MAX_SCAN_QUEUED);
 	result = M0_THREAD_INIT(&beck_scanner.s_thread, struct scanner *,
-				NULL, &scanner_thread, &beck_scanner, "scannner");
+				NULL, &scanner_thread, &beck_scanner,
+				"scannner");
 	if (result != 0)
 		err(EX_CONFIG, "Cannot start scanner thread.");
 	/*
@@ -689,8 +690,8 @@ int main(int argc, char **argv)
 
 	stats_print();
 	if (!dry_run) {
-		qput(&q, builder_action(&beck_builder, sizeof(struct action), AO_DONE,
-					&done_ops));
+		qput(&q, builder_action(&beck_builder, sizeof(struct action),
+					AO_DONE, &done_ops));
 		builder_fini(&beck_builder);
 		qfini(&q);
 	}
@@ -883,8 +884,9 @@ static int scan(struct scanner *s)
 			s->s_off &= ~0x7;
 		if (time(NULL) - lasttime > DELTA) {
 			printf("\nOffset: %15lli     Speed: %7.2f MB/s     "
-			       "Completion: %3i%%     Action: %"PRIu64" records/s"
-			       "     Data Speed: %7.2f MB/s",
+			       "Completion: %3i%%     "
+			       "Action: %"PRIu64" records/s     "
+			       "Data Speed: %7.2f MB/s",
 			       (long long)s->s_off,
 			       ((double)s->s_off - lastoff) /
 			       DELTA / 1024.0 / 1024.0,
@@ -1276,7 +1278,8 @@ static void emap_to_gob_convert(const struct m0_uint128 *emap_prefix,
 	m0_fid_tassume(&dom_id, &m0_stob_ad_type.st_fidt);
 
 	/** Convert emap to stob_id */
-	m0_stob_id_make(emap_prefix->u_hi, emap_prefix->u_lo, &dom_id, &stob_id);
+	m0_stob_id_make(emap_prefix->u_hi, emap_prefix->u_lo, &dom_id,
+			&stob_id);
 
 	/** Convert stob_id to cob id */
 	cob_fid = stob_id.si_fid;
@@ -1318,7 +1321,8 @@ static int emap_proc(struct scanner *s, struct btype *btype,
 				       " segment offset %"PRIx64" for GOB "
 				       FID_F, inv_emap_off, FID_P(&gob_id));
 			}
-			btree_bad_kv_count_update(node->bt_backlink.bli_type, 1);
+			btree_bad_kv_count_update(node->bt_backlink.bli_type,
+						  1);
 			m0_free(ea);
 			continue;
 		}
@@ -1424,8 +1428,9 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 			return;
 		}
 
-		beck_builder.b_data += ((ext.e_end - ext.e_start) << adom->sad_babshift)
-			    << adom->sad_bshift;
+		beck_builder.b_data +=
+			((ext.e_end - ext.e_start) << adom->sad_babshift)
+			<< adom->sad_bshift;
 
 		rc = emap_entry_lookup(adom, emap_key->ek_prefix, 0, &it);
 		/* No emap entry found for current stob, insert hole */
@@ -1860,19 +1865,24 @@ static void  be_cfg_default_init(struct m0_be_domain_cfg  *dom_cfg,
 	dom_cfg->bc_engine.bec_tx_active_max = 256;
 	dom_cfg->bc_engine.bec_group_nr = 5;
 	dom_cfg->bc_engine.bec_group_cfg.tgc_tx_nr_max = 128;
-	dom_cfg->bc_engine.bec_group_cfg.tgc_size_max = M0_BE_TX_CREDIT(5621440,
-									961373440);
+	dom_cfg->bc_engine.bec_group_cfg.tgc_size_max =
+					M0_BE_TX_CREDIT(5621440, 961373440);
 	dom_cfg->bc_engine.bec_group_cfg.tgc_payload_max = 367772160;
-	dom_cfg->bc_engine.bec_tx_size_max = M0_BE_TX_CREDIT(1 << 18, 44UL << 20);
+	dom_cfg->bc_engine.bec_tx_size_max =
+					M0_BE_TX_CREDIT(1 << 18, 44UL << 20);
 	dom_cfg->bc_engine.bec_tx_payload_max = 1 << 21;
-	dom_cfg->bc_engine.bec_group_freeze_timeout_min   =     1ULL * M0_TIME_ONE_MSEC;
-	dom_cfg->bc_engine.bec_group_freeze_timeout_max   =    50ULL * M0_TIME_ONE_MSEC;
-	dom_cfg->bc_engine.bec_group_freeze_timeout_limit = 60000ULL * M0_TIME_ONE_MSEC;
+	dom_cfg->bc_engine.bec_group_freeze_timeout_min =
+						1ULL * M0_TIME_ONE_MSEC;
+	dom_cfg->bc_engine.bec_group_freeze_timeout_max =
+						50ULL * M0_TIME_ONE_MSEC;
+	dom_cfg->bc_engine.bec_group_freeze_timeout_limit =
+						60000ULL * M0_TIME_ONE_MSEC;
 	dom_cfg->bc_log.lc_full_threshold = 20 * (1 << 20);
 	dom_cfg->bc_pd_cfg.bpdc_seg_io_nr = 5;
 	dom_cfg->bc_log_discard_cfg.ldsc_items_max = 0x100;
 	dom_cfg->bc_log_discard_cfg.ldsc_items_threshold = 0x80;
-	dom_cfg->bc_log_discard_cfg.ldsc_sync_timeout = M0_TIME_ONE_SECOND * 60ULL;
+	dom_cfg->bc_log_discard_cfg.ldsc_sync_timeout =
+						M0_TIME_ONE_SECOND * 60ULL;
 	tb_cfg->tbc_workers_nr = 64;
 	tb_cfg->tbc_work_items_per_tx_max = 100;
 }
@@ -1906,7 +1916,8 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 
 		M0_ASSERT_INFO((value1_64 != ULLONG_MAX) &&
 				(value2_64 != ULLONG_MAX),
-				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+				"Invalid value %s for variable %s in yaml file.",
+			        str_value, str_key);
 
 		if (m0_streq(str_key, "tgc_size_max")) {
 			cfg->bc_engine.bec_group_cfg.tgc_size_max =
@@ -1924,7 +1935,8 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 		value1_32 =m0_strtou32(str_value, NULL, 10);
 
 		M0_ASSERT_INFO((value1_32 != ULONG_MAX),
-				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+				"Invalid value %s for variable %s in yaml file.",
+			        str_value, str_key);
 
 		if (m0_streq(str_key, "bpdc_seg_io_nr")) {
 			cfg->bc_pd_cfg.bpdc_seg_io_nr = value1_32;
@@ -1940,7 +1952,8 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 		value1_64 = m0_strtou64(str_value, NULL, 10);
 
 		M0_ASSERT_INFO((value1_64 != ULLONG_MAX),
-				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+				"Invalid value %s for variable %s in yaml file.",
+			        str_value, str_key);
 
 		if (m0_streq(str_key, "bec_tx_active_max"))
 			cfg->bc_engine.bec_tx_active_max = value1_64;
@@ -2018,7 +2031,8 @@ static int  be_cfg_from_yaml_update(const char              *yaml_file,
 					key[sizeof(key) - 1] = '\0';
 					key_received = true;
 				} else {
-					strncpy(value, scalar_value, sizeof(value));
+					strncpy(value, scalar_value,
+								sizeof(value));
 					value[sizeof(value) - 1] = '\0';
 					value_received = true;
 				}
