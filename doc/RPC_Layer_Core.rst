@@ -216,14 +216,51 @@ Simplification: FOP processing can be organized via pipeline multithreaded patte
 
 As it was mentioned, subcomponents of “RPC processing” run in their own separate threads acquired from pool. To organize multithreaded interaction and mandatory (constraining) load balancing, “one-side” bounded queues[2] are used. Number of queues between stages and fetching policy is performance related subject and should be reviewed in DLD.
 
+Dependencies
+================
+
+Cached FOPs might have dependencies each on other. This could affect the order of fop sending. That's why formation subcomponent should analyse those dependencies and produce RPCs accordingly
+
+- c2_rpc_queue type is used to implement a queue for the staged interaction of the FOP processing subcomponent. This ADT can be based on a generic bounded queue for the first implementation, and specialized with more effective implementations for concrete case at later stages (fetching policy, locking/unlocking policy, etc.);
+
+- c2_rpc_session and c2_rpc_slot map directly to sessions and slots described in [1,2];
+
+- c2_rpc is a container of c2_rpc_items;
+
+- c2_rpc_item is a container of FOPs or ADDBs (or something to be transmitted) with attributes related to RPC processing, like priority, caching, etc.
+
+- c2_rpcmachine is a RPC processing machine, several instances of it might be existing simultaneously.
+
+- c2_update_stream is an ADT associated with sessions and slots used for FOP sending with FIFO and EOS constrains.
 
 
+*********************
+State
+*********************
+
+Design has no explicit states. Data flow control depends on RPC-item placement in RPC queues and on some flags like caching and priority of RPC-item. The design is based on principles of streaming processing, where resources, like CPU, network, are allocated by a compulsory balancing scheme for each item being processed.
 
 
+Concurrency Control
+====================
 
+RPC component creates thread pool (s), service threads of which are allocated for processing FOPs and RPC items on each stage of RPC processing subcomponent. It should be possible to provide automated load balancing based on statistics of network utilization, CPU utilization, etc.
 
+*********************
+Use Cases
+*********************
 
+Scenarios
+==========
 
+It's supposed that client handles IO read() / write(). On each such IO request a new FOP is created. These "reads" and "writes" run in a multi-threaded environment. After FOPs are built they are passed to "RPC processing".
 
+*********************
+Analysis
+*********************
 
+Scalibility
+===========
+
+It is believed that significant improvements in the RPC processing efficiency and general throughput can be achieved by limited number of threads in pool. Number of these threads should be controlled according to CPU usage and network utilization statistics, provided by statistics subcomponent and according to RPC component settings like c2_rpc_slot_max.
 
