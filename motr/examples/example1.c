@@ -75,8 +75,9 @@ static int object_create(struct m0_container *container)
 	rc = m0_op_wait(ops[0],
 			M0_BITS(M0_OS_FAILED, M0_OS_STABLE),
 			M0_TIME_NEVER);
-	if (rc == 0)
+	if (rc == 0) {
 		rc = ops[0]->op_rc;
+	}
 
 	m0_op_fini(ops[0]);
 	m0_op_free(ops[0]);
