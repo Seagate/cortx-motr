@@ -57,7 +57,7 @@ static int object_create(struct m0_container *container)
 {
 	struct m0_obj     obj;
 	struct m0_client *instance;
-	struct m0_op     *ops[1] = {NULL};
+	struct m0_op     *ops[1] = { NULL };
 	int               rc;
 
 	M0_SET0(&obj);
