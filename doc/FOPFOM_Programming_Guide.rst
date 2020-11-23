@@ -39,7 +39,7 @@ A FOP can be declared as follows
 
  sequence { 
          u32 f_count;
-         u8 f_buf
+         u8  f_buf
  } m0_fop_io_buf;
  
  
@@ -294,7 +294,7 @@ Consider a simple write FOM example
     } reqh_ut_fom_fop_fid;
     record {
             reqh_ut_fom_fop_fid fiw_object;
-            u8                   fiw_value
+            u8                  fiw_value
     };
     
 There are two types of structures defined:
