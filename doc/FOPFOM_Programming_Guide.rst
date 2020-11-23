@@ -298,10 +298,9 @@ Consider a simple write FOM example
     };
     
 There are two types of structures defined:
+ - reqh_ut_fom_fop_fid, is a structure with native data types, (i.e uint64_t). This is optional, although we would need to build these user defined types separately to use them in other structures.
   
-  - reqh_ut_fom_fop_fid, is a structure with native data types, (i.e uint64_t). This is optional, although we would need to build these user defined types separately to use them in other structures.
-  
-  - reqh_ut_fom_io_write, is a structure containing an object of struct reqh_ut_fom_fop_fid and a native byte type member.
+ - reqh_ut_fom_io_write, is a structure containing an object of struct reqh_ut_fom_fop_fid and a native byte type member.
   
 - Defining and building a FOP
 
