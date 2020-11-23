@@ -52,7 +52,13 @@ check_param()
 log_dirs_max_count=2
 # have hard coded the log path, 
 # Need to get it from config file 
-motr_logdirs=`ls -d /var/motr*`
+ADDB_RECORD_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_ADDB_STOB_DIR" | cut -d '=' -f2)
+ADDB_DIR="${ADDB_RECORD_DIR%\'}"
+ADDB_DIR="${ADDB_DIR#\'}"
+addb_rec_dirs=`ls -d $ADDB_DIR`
+if [ -n "$ADDB_DIR" ]; then
+    addb_rec_dirs="$addb_rec_dirs $ADDB_DIR"
+fi
 
 while getopts ":n:" option; do
     case "${option}" in
@@ -71,14 +77,14 @@ done
 log_dirs_max_count=2
 
 echo "Max log dir count: $log_dirs_max_count"
-echo "ADDB Log directory: $motr_logdirs"
+echo "ADDB Log directory: $addb_rec_dirs"
 
 # check for log directory entries
-for motr_logdir in $motr_logdirs ; do
-    [[ $(check_param $motr_logdir) = "continue" ]] && continue || echo "$motr_logdir"
+for addb_rec_dir in $addb_rec_dirs ; do
+    [[ $(check_param $addb_rec_dir) = "continue" ]] && continue || echo "$addb_rec_dir"
 
     # get the log directory of each m0d instance
-    log_dirs=`find $motr_logdir -maxdepth 1 -type d -name m0d-\*`
+    log_dirs=`find $addb_rec_dir -maxdepth 1 -type d -name m0d-\*`
 
     [[ $(check_param $log_dirs) = "continue" ]] && continue || echo "$log_dirs"
 

@@ -55,7 +55,7 @@ RSTATE2=2 # We need to do only create snapshot before starting recovery
 RSTATE3=3 # We need to do all operations such as fsck, replay logs, create snapshot before starting recovery
 CDF_FILENAME="/var/lib/hare/cluster.yaml" # Cluster defination file used by prov-m0-reset
 # HA conf argument file needed by prov-m0-reset script
-HA_ARGS_FILENAME="/opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml"
+HA_ARGS_FILENAME="/opt/seagate/cortx/iostack-ha/conf/build-ha-args.yaml"
 SINGLE_NODE_RUNNING=  # Will be set if only one node is running.
 LOCAL_SEG_GEN_ID=0
 REMOTE_SEG_GEN_ID=0
@@ -274,10 +274,10 @@ get_cluster_configuration() {
         LOCAL_NODE="srvnode-1"
         REMOTE_NODE="srvnode-2"
         # Path for metadata device for local node
-        LOCAL_MOTR_DEVICE=$(grep left-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+        LOCAL_MOTR_DEVICE=$(grep left-volume $HA_ARGS_FILENAME |\
                             awk '{ print $2 }')
         # Path for metadata device for remote node
-        REMOTE_MOTR_DEVICE=$(grep right-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+        REMOTE_MOTR_DEVICE=$(grep right-volume $HA_ARGS_FILENAME |\
                             awk '{ print $2 }')
 
         FAILOVER_MD_DIR="/var/motr2"
@@ -287,10 +287,10 @@ get_cluster_configuration() {
         LOCAL_NODE="srvnode-2"
         REMOTE_NODE="srvnode-1"
         # Path for metadata device for local node
-        LOCAL_MOTR_DEVICE=$(grep right-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+        LOCAL_MOTR_DEVICE=$(grep right-volume $HA_ARGS_FILENAME |\
                             awk '{ print $2 }')
         # Path for metadata device for remote node
-        REMOTE_MOTR_DEVICE=$(grep left-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+        REMOTE_MOTR_DEVICE=$(grep left-volume $HA_ARGS_FILENAME |\
                             awk '{ print $2 }')
 
         FAILOVER_MD_DIR="/var/motr1"

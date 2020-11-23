@@ -247,6 +247,7 @@ enum m0_io_fom_cob_rw_phases {
 	M0_FOPH_IO_ZERO_COPY_INIT,
 	M0_FOPH_IO_ZERO_COPY_WAIT,
 	M0_FOPH_IO_BUFFER_RELEASE,
+	M0_FOPH_IO_SYNC
 };
 
 /**
