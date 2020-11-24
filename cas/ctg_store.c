@@ -1537,15 +1537,40 @@ M0_INTERNAL void m0_ctg_drop_credit(struct m0_fom          *fom,
 	m0_bcount_t            records_nr;
 	m0_bcount_t            records_ok;
 	struct m0_be_tx_credit record_cred;
+	struct m0_be_tx_credit nodes_cred = {};
 
-	m0_be_btree_clear_credit(&ctg->cc_tree, accum, &record_cred,
+	m0_be_btree_clear_credit(&ctg->cc_tree, &nodes_cred, &record_cred,
 				 &records_nr);
 	records_nr = records_nr ?: 1;
 	for (records_ok = 0;
-	     !m0_be_should_break(m0_fom_tx(fom)->t_engine, accum,
-				 &record_cred) && records_ok < records_nr;
+	     /**
+	      * Take only a half of maximum number of credits, and rely on the
+	      * number of credits for nodes which has to be less then number of
+	      * credits for the records to be deleted. So that we leave the room
+	      * for the credits requied for nodes deletion.
+	      */
+	     !m0_be_should_break_half(m0_fom_tx(fom)->t_engine, accum,
+				      &record_cred) && records_ok < records_nr;
 	     records_ok++)
 		m0_be_tx_credit_add(accum, &record_cred);
+
+	/**
+	 * Credits for all nodes are being calculated inside
+	 * m0_be_btree_clear_credit(). This is too much and can exceed allowed
+	 * credits limit.
+	 * Here, all nodes credits are being adjusted respectively to the number
+	 * or records used during deletion (records_ok). Statistically the
+	 * number of node credits after such adjustment has to be reasonable.
+	 * In general, the following relation is fair:
+	 *     deleted_nodes_nr / all_nodes_nr == records_ok / records_nr.
+	 */
+	if (records_ok > 0 && records_nr >= records_ok) {
+		nodes_cred.tc_reg_nr   =
+			nodes_cred.tc_reg_nr   * records_ok / records_nr;
+		nodes_cred.tc_reg_size =
+			nodes_cred.tc_reg_size * records_ok / records_nr;
+	}
+	m0_be_tx_credit_add(accum, &nodes_cred);
 
 	*limit = records_ok;
 }
