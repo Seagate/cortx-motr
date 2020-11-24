@@ -275,6 +275,11 @@ static struct event *event_alloc(struct perm *p, enum event_op eop,
 				 uint64_t sel0, uint64_t sel1,
 				 uint64_t p0, uint64_t p1, enum pstate pstate,
 				 int bcount);
+static struct event *event_post(struct perm *p, enum event_op eop,
+				struct proc *proc, struct proc *src,
+				uint64_t sel0, uint64_t sel1,
+				uint64_t p0, uint64_t p1, enum pstate pstate,
+				int bcount);
 static void event_fini(struct event *e);
 static void *palloc(struct proc *proc);
 static void *pget(struct proc *proc);
@@ -518,8 +523,10 @@ static void sys_crash(struct cb *c, struct event *e, void *d)
 	M0_PRE(ss->ss_pstate != P_CRASHED);
 	ss->ss_pstate = P_CRASHED;
 	memset(ss + 1, 0, c->c_proc->pr_size - sizeof *ss);
-	post(e->e_perm, event_alloc(e->e_perm, E_START, c->c_proc, NULL, 0, 0,
-				    e->e_p0 + 1, 0, P_CRASHED, -1));
+	if (e->e_p0 + 1 < crash_nr) {
+		event_post(e->e_perm, E_START, c->c_proc, NULL, 0, 0,
+			   e->e_p0 + 1, 0, P_CRASHED, -1);
+	}
 }
 
 static void sys_start(struct cb *c, struct event *e, void *d)
@@ -529,10 +536,9 @@ static void sys_start(struct cb *c, struct event *e, void *d)
 	M0_PRE(ss->ss_pstate == P_CRASHED);
 	ss->ss_pstate = P_STARTED;
 	ss->ss_bcount++;
-	if (e->e_p0 < crash_nr) {
-		post(e->e_perm, event_alloc(e->e_perm, E_CRASH, c->c_proc,
-					    NULL, 0, 0, e->e_p0 + 1, 0,
-					    P_STARTING, -1));
+	if (e->e_p0 + 1 < crash_nr) {
+		event_post(e->e_perm, E_CRASH, c->c_proc, NULL, 0, 0,
+			   e->e_p0 + 1, 0, P_STARTING, -1);
 	}
 }
 
@@ -545,25 +551,26 @@ static void sys_hastate(struct cb *c, struct event *e, void *d)
 	M0_PRE(ss->ss_hastate != e->e_sel0);
 	M0_PRE(ss->ss_hastate != H_PERMANENT);
 	ss->ss_hastate = e->e_sel0;
-	if (ss->ss_hastate == H_ONLINE) {
-		has = H_TRANSIENT;
-	} else if (ss->ss_hastate == H_TRANSIENT) {
-		if (e->e_p0 < hastate_nr)
-			has = H_ONLINE;
-		else
-			has = H_PERMANENT;
-	} else
-		has = -1;
 	m0_tl_for(p, &e->e_perm->p_proc, proc) {
 		if (proc != e->e_perm->p_fatum) {
 			lossless(e->e_perm->p_fatum, proc, O_HASET,
 				 c->c_proc->pr_idx, ss->ss_hastate);
 		}
 	} m0_tl_endfor;
-	if (has >= 0)
-		post(e->e_perm, event_alloc(e->e_perm, E_HASTATE, c->c_proc,
-					    NULL, has, 0, e->e_p0 + 1,
-					    0, P_CRASHED, -1));
+	if (e->e_p0 + 1 < hastate_nr) {
+		if (ss->ss_hastate == H_ONLINE) {
+			has = H_TRANSIENT;
+		} else if (ss->ss_hastate == H_TRANSIENT) {
+			if (e->e_p0 + 2 < hastate_nr)
+				has = H_ONLINE;
+			else
+				has = H_PERMANENT;
+		} else
+			has = -1;
+		if (has >= 0)
+			event_post(e->e_perm, E_HASTATE, c->c_proc, NULL,
+				   has, 0, e->e_p0 + 1, 0, P_CRASHED, -1);
+	}
 }
 
 static void sys_prep(struct perm *p)
@@ -584,7 +591,8 @@ static void sys_proc_init(struct proc *proc)
 	struct sys_proc_state *ss = sys_pget(proc);
 
 	ss->ss_pstate  = P_STARTED;
-	post(p, event_alloc(p, E_CRASH, proc, NULL, 0, 0, 0, 0, P_CRASHED, -1));
+	if (0 < crash_nr)
+		event_post(p, E_CRASH, proc, NULL, 0, 0, 0, 0, P_CRASHED, -1);
 	cb = cb_add(p, proc);
 	cb->c_op = E_CRASH;
 	cb->c_invoke = &sys_crash;
@@ -593,12 +601,12 @@ static void sys_proc_init(struct proc *proc)
 	cb->c_invoke = &sys_start;
 
 	ss->ss_hastate = H_ONLINE;
-	post(p, event_alloc(p, E_HASTATE, proc, NULL, H_TRANSIENT,
-			    0, 0, 0, P_CRASHED, -1));
+	if (0 < hastate_nr)
+		event_post(p, E_HASTATE, proc, NULL, H_TRANSIENT,
+			   0, 0, 0, P_CRASHED, -1);
 	cb = cb_add(p, proc);
 	cb->c_op = E_HASTATE;
 	cb->c_invoke = &sys_hastate;
-
 	cb = cb_add(p, proc);
 	cb->c_op = E_TXSTATE;
 	cb->c_sel0 = T_LOGGED;
@@ -752,6 +760,18 @@ static struct event *event_alloc(struct perm *p, enum event_op eop,
 	return e;
 }
 
+static struct event *event_post(struct perm *p, enum event_op eop,
+				struct proc *proc, struct proc *src,
+				uint64_t sel0, uint64_t sel1,
+				uint64_t p0, uint64_t p1, enum pstate pstate,
+				int bcount)
+{
+	struct event *e = event_alloc(p, eop, proc, src, sel0, sel1,
+				      p0, p1, pstate, bcount);
+	post(p, e);
+	return e;
+}
+
 static void event_fini(struct event *e)
 {
 	m0_free(e);
@@ -794,9 +814,8 @@ static void tx_logged(struct cb *c, struct event *e, void *d)
 
 	kv->k_txid    = e->e_p0;
 	kv->k_txstate = T_LOGGED;
-	post(e->e_perm, event_alloc(e->e_perm, E_TXSTATE, c->c_proc, NULL,
-				    T_COMMITTED, 0, kv->k_txid, 0,
-				    P_STARTED, ss->ss_bcount));
+	event_post(e->e_perm, E_TXSTATE, c->c_proc, NULL, T_COMMITTED, 0,
+		   kv->k_txid, 0, P_STARTED, ss->ss_bcount);
 }
 
 static void tx_close(struct proc *proc, uint64_t tid)
@@ -807,10 +826,9 @@ static void tx_close(struct proc *proc, uint64_t tid)
 
 	kv->k_txstate = T_CLOSED;
 	kv->k_txid    = tid;
-	e = event_alloc(proc->pr_perm, E_TXSTATE, proc, NULL, T_LOGGED, 0,
-			tid, 0, P_STARTED, ss->ss_bcount);
+	e = event_post(proc->pr_perm, E_TXSTATE, proc, NULL, T_LOGGED, 0,
+		       tid, 0, P_STARTED, ss->ss_bcount);
 	e->e_enabled = &tx_logged_enabled;
-	post(proc->pr_perm, e);
 }
 
 static enum tx_state tx_state(struct proc *proc, uint64_t txid)
@@ -897,10 +915,9 @@ static bool lost_enabled(const struct event *e)
 static struct event *lossless(struct proc *src, struct proc *dst,
 			      enum msg_op mop, uint64_t p0, uint64_t p1)
 {
-	struct event *recv = event_alloc(src->pr_perm, E_RECV, dst, src,
-					 M_REQ, mop, p0, p1, P_STARTED, -1);
+	struct event *recv = event_post(src->pr_perm, E_RECV, dst, src,
+					M_REQ, mop, p0, p1, P_STARTED, -1);
 	recv->e_enabled = &recv_enabled;
-	post(src->pr_perm, recv);
 	return recv;
 }
 
@@ -908,24 +925,22 @@ static void req(struct proc *src, struct proc *dst, enum msg_op mop,
 		uint64_t p0, uint64_t p1)
 {
 	struct event *recv = lossless(src, dst, mop, p0, p1);
-	struct event *lost = event_alloc(src->pr_perm, E_REQLOST, dst, src,
-					 0, 0, (uint64_t)recv,
-					 sys_pget(dst)->ss_bcount,
-					 P_CRASHED, -1);
+	struct event *lost = event_post(src->pr_perm, E_REQLOST, dst, src,
+					0, 0, (uint64_t)recv,
+					sys_pget(dst)->ss_bcount,
+					P_CRASHED, -1);
 	recv->e_alternative = lost;
 	lost->e_enabled = &lost_enabled;
 	lost->e_alternative = recv;
-	post(src->pr_perm, lost);
 }
 
 #if 0
 static void send(struct proc *src, struct proc *dst, enum msg_type mt,
 		 enum msg_op mop, uint64_t p0, uint64_t p1, enum pstate pstate)
 {
-	struct event *e = event_alloc(src->pr_perm, E_RECV, dst, src,
-				      mt, mop, p0, p1, pstate,
-				      sys_pget(dst)->ss_bcount);
-	post(src->pr_perm, e);
+	struct event *e = event_post(src->pr_perm, E_RECV, dst, src,
+				     mt, mop, p0, p1, pstate,
+				     sys_pget(dst)->ss_bcount);
 }
 #endif
 
@@ -940,9 +955,8 @@ static void cont(struct proc *proc,
 	cb->c_proc   = proc;
 	cb->c_invoke = invoke;
 	cb->c_sel0   = ++sel0;
-	post(proc->pr_perm, event_alloc(proc->pr_perm, E_CONT, proc, NULL,
-					sel0, 0, 0, 0, P_STARTED,
-					sys_pget(proc)->ss_bcount));
+	event_post(proc->pr_perm, E_CONT, proc, NULL, sel0, 0, 0, 0, P_STARTED,
+		   sys_pget(proc)->ss_bcount);
 }
 
 static enum ha_state thinks(struct proc *proc, struct proc *object)
@@ -1036,6 +1050,23 @@ static void event_print(const struct event *e)
 	printf("]");
 }
 
+/** Models. */
+enum model {
+      MOD_NONE,
+      MOD_CONT,
+      MOD_REQ,
+      MOD_2PC
+};
+
+
+struct m2pc_state {
+	struct sys_proc_state m_base;
+	int                   m_c_nr;
+	int                   m_a_nr;
+	bool                  m_commit;
+	bool                  m_done;
+};
+
 int main(int argc, char **argv)
 {
 	struct perm   p;
@@ -1043,7 +1074,9 @@ int main(int argc, char **argv)
 	struct proc **proc;
 	int           result;
 	int           i;
-	int           proc_nr = 2;
+	int           proc_nr  = 2;
+	enum model    model    = MOD_NONE;
+	int           psize;
 
 	m0_node_uuid_string_set(NULL);
 	result = m0_init(&instance);
@@ -1051,6 +1084,7 @@ int main(int argc, char **argv)
 		err(EX_CONFIG, "Cannot initialise motr: %d", result);
 
 	result = M0_GETOPTS("perm", argc, argv,
+		   M0_FORMATARG('m', "Model", "%i", &model),
 		   M0_FORMATARG('d', "Print depth", "%i", &print_depth),
 		   M0_FORMATARG('c', "Crash nr", "%i", &crash_nr),
 		   M0_FORMATARG('h', "Hastate nr", "%i", &hastate_nr),
@@ -1058,35 +1092,52 @@ int main(int argc, char **argv)
 	if (result != 0)
 		err(EX_CONFIG, "Wrong option.");
 	perm_init(&p);
+	psize = model == MOD_2PC ? sizeof(struct m2pc_state) :
+		sizeof(struct sys_proc_state);
 	proc = xalloc(proc_nr * sizeof proc[0]);
 	for (i = 0; i < proc_nr; ++i) {
-		proc[i] = proc_add(&p, sizeof(struct sys_proc_state),
-				   (void *)&sys_pfree);
+		proc[i] = proc_add(&p, psize, (void *)&sys_pfree);
 	}
 	invariant_add(&p);
 	perm_prep(&p);
-#if 0
-        cont(proc[0], LAMBDA(void, (struct cb *c, struct event *e, void *d) {
+
+	switch (model) {
+	case MOD_NONE:
+		break;
+	case MOD_CONT:
+		cont(proc[0], LAMBDA(void, (struct cb *c,
+					    struct event *e, void *d) {
 				uint64_t tid = tx_open(e->e_proc);
 
 				tx_set(e->e_proc, tid, 17, 12, NULL);
 				tx_close(e->e_proc, tid);
 			}));
-	cont(proc[0], LAMBDA(void, (struct cb *c, struct event *e, void *d) {
+		cont(proc[0], LAMBDA(void, (struct cb *c,
+					    struct event *e, void *d) {
 				uint64_t tid = tx_open(e->e_proc);
 
 				tx_set(e->e_proc, tid, 17, 13, NULL);
 				tx_close(e->e_proc, tid);
 			}));
-	cont(proc[0], LAMBDA(void, (struct cb *c, struct event *e, void *d) {
+		cont(proc[0], LAMBDA(void, (struct cb *c,
+					    struct event *e, void *d) {
 				uint64_t val;
 				void    *buf;
 				tx_get(e->e_proc, 17, &val, &buf);
 				M0_ASSERT(M0_IN(val, (12, 13, 0)));
 				/* printf("GOT: %"PRId64" %p\n", val, buf); */
 			}));
-#endif
-	req(proc[0], proc[0], O_USER, 42, 43);
+		break;
+	case MOD_REQ:
+		req(proc[0], proc[0], O_USER, 42, 43);
+		break;
+	case MOD_2PC: {
+	}
+		break;
+	default:
+		M0_IMPOSSIBLE("Wrong model.");
+		break;
+	}
 	perm_run(&p);
 	perm_fini(&p);
 	m0_fini();
