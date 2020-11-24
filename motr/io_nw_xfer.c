@@ -36,6 +36,8 @@
 #include "sns/parity_repair.h"   /* m0_sns_repair_spare_map*/
 #include "fd/fd.h"               /* m0_fd_fwd_map m0_fd_bwd_map */
 #include "motr/addb.h"
+#include "rpc/item.h"
+#include "rpc/rpc_internal.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"           /* M0_LOG */
@@ -357,7 +359,7 @@ M0_INTERNAL bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 void target_ioreq_fini(struct target_ioreq *ti)
 {
 	struct m0_op_io *ioo;
-	unsigned int            opcode;
+	unsigned int     opcode;
 
 	M0_ENTRY("target_ioreq %p", ti);
 
@@ -389,6 +391,13 @@ void target_ioreq_fini(struct target_ioreq *ti)
 
 	if (ti->ti_dgvec != NULL)
 		dgmode_rwvec_dealloc_fini(ti->ti_dgvec);
+	if (ti->ti_cc_fop_inited) {
+		struct m0_rpc_item *item = &ti->ti_cc_fop.crf_fop.f_item;
+		M0_LOG(M0_DEBUG, "item="ITEM_FMT" osr_xid=%"PRIu64,
+				  ITEM_ARG(item), item->ri_header.osr_xid);
+		ti->ti_cc_fop_inited = false;
+		m0_fop_put_lock(&ti->ti_cc_fop.crf_fop);
+	}
 
 	m0_free(ti);
 	M0_LEAVE();
@@ -920,6 +929,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_index = ti->ti_obj;
 		if (ioo->ioo_flags & M0_OOF_NOHOLE)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
+		if (ioo->ioo_flags & M0_OOF_SYNC)
+			rw_fop->crw_flags |= M0_IO_FLAG_SYNC;
 		io_attr = m0_io_attr(ioo);
 		rw_fop->crw_lid = io_attr->oa_layout_id;
 
@@ -976,9 +987,12 @@ static const struct target_ioreq_ops tioreq_ops = {
 
 static int target_cob_fop_prepare(struct target_ioreq *ti)
 {
+	int rc;
+	M0_ENTRY("ti=%p type=%d", ti, ti->ti_req_type);
 	M0_PRE(M0_IN(ti->ti_req_type, (TI_COB_CREATE, TI_COB_TRUNCATE)));
 
-	return ioreq_cc_fop_init(ti);
+	rc = ioreq_cc_fop_init(ti);
+	return M0_RC(rc);
 }
 
 /**
@@ -1022,6 +1036,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	ti->ti_dgvec     = NULL;
 	ti->ti_req_type  = TI_NONE;
 	M0_SET0(&ti->ti_cc_fop);
+	ti->ti_cc_fop_inited = false;
 
 	/*
 	 * Target object is usually in ONLINE state unless explicitly
@@ -1447,7 +1462,6 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		    ti->ti_req_type == TI_COB_CREATE &&
 		    ioreq_sm_state(ioo) == IRS_WRITE_COMPLETE) {
 			ti->ti_req_type = TI_NONE;
-			m0_fop_put_lock(&ti->ti_cc_fop.crf_fop);
 			continue;
 		}
 
@@ -1455,8 +1469,6 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		    ti->ti_req_type == TI_COB_TRUNCATE &&
 		    ioreq_sm_state(ioo) == IRS_TRUNCATE_COMPLETE) {
 			ti->ti_req_type = TI_NONE;
-			if (ti->ti_trunc_ivec.iv_vec.v_nr > 0)
-				m0_fop_put_lock(&ti->ti_cc_fop.crf_fop);
 		}
 
 		m0_tl_teardown(iofops, &ti->ti_iofops, irfop) {
@@ -1607,6 +1619,8 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			 * An error returned by rpc post has been ignored.
 			 * It will be handled in the respective bottom half.
 			 */
+			M0_LOG(M0_DEBUG, "item="ITEM_FMT" osr_xid=%"PRIu64,
+				ITEM_ARG(item), item->ri_header.osr_xid);
 			rc = m0_rpc_post(item);
 			M0_CNT_INC(nr_dispatched);
 			m0_op_io_to_rpc_map(ioo, item);
@@ -1621,6 +1635,10 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 				 * ignored. It will be handled in the
 				 * io_bottom_half().
 				 */
+				M0_LOG(M0_DEBUG, "item="ITEM_FMT
+						 " osr_xid=%"PRIu64,
+						 ITEM_ARG(item),
+						 item->ri_header.osr_xid);
 				rc = m0_rpc_post(item);
 				M0_CNT_INC(nr_dispatched);
 				m0_op_io_to_rpc_map(ioo, item);

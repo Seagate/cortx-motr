@@ -17,7 +17,7 @@
 # For any questions about this software or licensing,
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
-
+#set -x
 
 MOTR_CONF_FILE="/opt/seagate/cortx/motr/conf/motr.conf"
 ETC_SYSCONFIG_MOTR="/etc/sysconfig/motr"
@@ -157,38 +157,110 @@ set_key_value() # ARG1 [KEY] ARG2 [VALUE] ARG3 [FILE]
 
 }
 
+chk_key_value()
+{
+    _key=$1
+    _value=$2
+    ret=1 # 0: value are same 1: value are different
+    IFS=$'\n'
+    for CFG_LINE in `cat $ETC_SYSCONFIG_MOTR`; do       
+        if [[ "$CFG_LINE" == "#"* ]]; then
+
+            # If key is commented then still we need to update
+            # /etc/sysconfig/motr
+            if [[ "$CFG_LINE" == *"$_key="* ]]; then
+                ret=1
+                break
+            fi 
+            dbg "Commented line [$CFG_LINE]"
+        else
+            IFS='='; CFG_LINE_ARRAY=($CFG_LINE); unset IFS;
+            local KEY=${CFG_LINE_ARRAY[0]}
+            local VALUE=${CFG_LINE_ARRAY[1]}
+            KEY=$(echo $KEY | xargs)
+            VALUE=$(echo $VALUE | xargs)
+            if [[ "$KEY" == "$_key" && "$VALUE" == "$_value" ]];then
+                ret=0
+                break  
+            fi
+        fi
+    done
+    unset $IFS
+    echo $ret
+}
+
+lvm_size_percentage_diff()
+{
+    MAX=$1
+    MIN=$2
+    local percent=0
+
+   percent=$((100 * (MAX - MIN)/MAX))
+   echo $percent
+}
+
 do_m0provision_action()
 {
     local CFG_LINE=""
+    local LVM_SIZE_MIN=0
+    local LVM_SIZE_MAX=0
+    local MAX_DIFF_TOLERANCE=5
     local LVM_SIZE=0
+    local MD_DEVICE_CNT=0
 
     msg "Configuring host [`hostname -f`]"
+    if [ ! -x /usr/sbin/lvs ]; then
+        err "lvs command not available."
+    else
+        MD_DEVICES=($(lvs -o lv_path 2>/dev/null | grep "lv_raw_metadata" | grep srvnode  | sort -u))
 
-    MD_DEVICE=$(lvs -o lv_path | grep "lv_raw_metadata" | head -1)
-    if [[ $? -eq 0 ]];then
-        LVM_SIZE=$(lvs $MD_DEVICE  -o LV_SIZE \
-              --noheadings --units b --nosuffix | xargs)
-
-        ANY_ERR=$(echo $LVM_SIZE | grep -i ERROR | wc -l)
-        if [[ ( "$ANY_ERR" != "0" ) || ( -z $LVM_SIZE ) ]]; then
-            err "lvs $MD_DEVICE command failed."
-            msg "[$LVM_SIZE]"
-        elif [[ $LVM_SIZE -ne 0 ]];then
-            sed -i "s/MOTR_M0D_IOS_BESEG_SIZE=.*/MOTR_M0D_IOS_BESEG_SIZE=$LVM_SIZE/g" $MOTR_CONF_FILE
+        for i in "${MD_DEVICES[@]}";
+        do
+            LVM_SIZE=$(lvs "$i" -o LV_SIZE \
+                           --noheadings --units b --nosuffix | xargs)
+            ANY_ERR=$(echo "$LVM_SIZE" | grep -i ERROR | wc -l)
+            if [[ ( "$ANY_ERR" != "0" ) || ( -z "$LVM_SIZE" ) ]]; then
+                err "lvs $i command failed."
+                msg "[$LVM_SIZE]"
+            elif [[ "$MD_DEVICE_CNT" -eq 0 ]]; then
+                # Initializing MIN and MAX to the first lvm size in the list. 
+                LVM_SIZE_MIN=$LVM_SIZE
+                LVM_SIZE_MAX=$LVM_SIZE
+            elif [[ "$LVM_SIZE" -lt "$LVM_SIZE_MIN" ]]; then
+                LVM_SIZE_MIN=$LVM_SIZE
+            elif [[ "$LVM_SIZE" -gt "$LVM_SIZE_MAX" ]]; then
+                LVM_SIZE_MAX=$LVM_SIZE
+            fi
+            MD_DEVICE_CNT=$((MD_DEVICE_CNT + 1))
+        done
+        if [[ "$LVM_SIZE_MIN" -eq 0 || "$LVM_SIZE_MAX" -eq 0 ]]; then
+            err "lvm size invalid [$LVM_SIZE_MIN]"
+        else
+             diff_per=$(lvm_size_percentage_diff "$LVM_SIZE_MAX" "$LVM_SIZE_MIN");
+             if [ "$diff_per" -lt "$MAX_DIFF_TOLERANCE" ]; then
+                 msg "LVM_SIZE_MIN = $LVM_SIZE_MIN"
+                 sed -i "s/MOTR_M0D_IOS_BESEG_SIZE=.*/MOTR_M0D_IOS_BESEG_SIZE=$LVM_SIZE_MIN/g" $MOTR_CONF_FILE
+             else
+                 err "This setup configuration seems invalid"
+                 err "Difference between metadata volume size is beyond tolerance level, [ $LVM_SIZE_MAX > $LVM_SIZE_MIN ]"
+             fi 
         fi
-    fi
-
+    fi 
+   
     SALT_OPT=$(salt-call --local grains.get virtual)
+    platform=$(get_platform)
+    echo "Server type is $platform"
 
     ANY_ERR=$(echo $SALT_OPT | grep -i ERROR | wc -l)
     if [ "$ANY_ERR" != "0" ]; then
-        err "Salt command failed."
+        msg "Salt command failed or not available."
         msg "[$SALT_OPT]"
-        die $ERR_CFG_SALT_FAILED
+        #die $ERR_CFG_SALT_FAILED
     fi
 
     CLUSTER_TYPE=$(echo $SALT_OPT | grep physical | wc -l)
-    if [ "$CLUSTER_TYPE" != "1" ]; then
+    echo $CLUSTER_TYPE
+    if [[ "$CLUSTER_TYPE" != "1" ]] && [[ $platform != "physical" ]]; then
         msg "CLUSTER_TYPE is [$CLUSTER_TYPE]. Config operation is not allowed."
         msg "Only physical clusters will be configured here. "
         msg "[$SALT_OPT]"
@@ -210,7 +282,13 @@ do_m0provision_action()
             VALUE=$(echo $VALUE | xargs)
             if [ "$KEY" != "" ]; then
                 msg "Updating KEY [$KEY]; VALUE [$VALUE]"
-                set_key_value $KEY "$VALUE" $ETC_SYSCONFIG_MOTR
+                # update /etc/sysconfig/motr file
+                # only when the key values are different
+                # from motr.conf file
+                res=$(chk_key_value $KEY "$VALUE")
+                if [[ $res -ne 0 ]];then
+                    set_key_value $KEY "$VALUE" $ETC_SYSCONFIG_MOTR
+                fi
             else
                 dbg "Not processing [$CFG_LINE]"
             fi

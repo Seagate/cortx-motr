@@ -108,6 +108,7 @@ static void storage_dev_test(void)
 	int                      total_size;
 	int                      grp_size;
 	char                    *cwd;
+	char                     tmp_location[128];
 	char                    *fname1, *fname2;
 	int                      block_size = 1 << BALLOC_DEF_BLOCK_SHIFT;
 	struct m0_conf_sdev      sdev = {
@@ -132,7 +133,8 @@ static void storage_dev_test(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* init */
-	domain = m0_stob_domain_find_by_location(location);
+	snprintf(tmp_location, 128, "%s-%d", location, (int)m0_pid());
+	domain = m0_stob_domain_find_by_location(tmp_location);
 	rc = m0_storage_devs_init(&devs,
 				  M0_STORAGE_DEV_TYPE_AD,
 				  rpc_srv.rsx_motr_ctx.cc_reqh_ctx.rc_beseg,
