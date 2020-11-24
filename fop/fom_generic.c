@@ -346,12 +346,11 @@ static int fom_failure(struct m0_fom *fom)
 		/*
 		 * A local fom does not have request fop or reply fop.
 		 */
-		if (fom->fo_fop != NULL && !fom->fo_local) {
+		if (fom->fo_fop != NULL && !fom->fo_local)
 			generic_reply_build(fom);
-		} else {
+		else
 			M0_LOG(M0_NOTICE, "fom_rc=%d. Local FOM has no fop/rpc",
 					 rc);
-		}
 	}
 	/*
 	 * If transaction was initialised, but not opened, finalise it.
