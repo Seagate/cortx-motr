@@ -205,15 +205,6 @@ static void init_fini(void)
 	fini();
 }
 
-static void init_cgc_fail_fini(void)
-{
-	m0_fi_enable_once("cgc_fom_tick", "fail_in_cgc_generic_phase");
-	init();
-	fini();
-	m0_fi_disable("cgc_fom_tick", "fail_in_cgc_generic_phase");
-}
-
-
 /**
  * Different fails during service startup.
  */
@@ -971,6 +962,31 @@ static void index_op(struct m0_fop_type *ft, struct m0_fid *index,
 		     uint64_t key, uint64_t val)
 {
 	index_op_rc(ft, index, key, val, 0);
+}
+
+static void init_cgc_fail_fini(void)
+{
+	m0_fi_enable_once("cgc_fom_tick", "fail_in_cgc_generic_phase");
+	init();
+	fini();
+	m0_fi_disable("cgc_fom_tick", "fail_in_cgc_generic_phase");
+
+
+	init();
+	meta_fid_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	index_op(&cas_put_fopt, &ifid, 1, 2);
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
+	index_op(&cas_del_fopt, &ifid, 1, NOVAL);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	fini();
+
+
+	m0_fi_enable_once("cgc_fom_tick", "fail_in_cgc_generic_phase");
+	init();
+	fini();
+	m0_fi_disable("cgc_fom_tick", "fail_in_cgc_generic_phase");
 }
 
 /**
