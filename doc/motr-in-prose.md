@@ -149,8 +149,9 @@ Motr used to be called SCIF and H3S in the earlier documents.
 Lustre is a cluster file-system, designed in late 90s early 00s by Peter Braam 
 at CMU. Lustre was developed by ClusterFS, which was acquired by Sun 
 Microsystems, which was acquired by Oracle, Lustre IP was then acquired by 
-Xyratex, which was acquired by Seagate. Lustre is highly successful in the
-HPC space, running on 7 to 9 supercomputers from Top10 list.
+Xyratex, which was acquired by Seagate—file systems habent sua fata. Lustre
+is highly successful in the HPC space, running on 7 to 9 supercomputers from
+Top10 list.
 Lustre is different from Motr in a number of ways:
 * Lustre is a strictly client-server system. There are client nodes, that issue 
   file system operations to server nodes;
