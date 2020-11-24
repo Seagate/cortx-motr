@@ -207,7 +207,7 @@ States, Events, and Transitions
 
 Every block is either allocated, or free. Tracking of free space is covered by this component. Tracking is allocated block is managed by object block mapping. That is another component. Blocks can be allocated from container. Blocks can also be freed from objects.
 
-Allocated blocks and free blocks should be consistent. They should cover the whole container space, without any intersections. This will be checked by fsck-like tools in Colibri Core. Allocation databases are usually replicated, so that this can improve the metadata integrity.
+Allocated blocks and free blocks should be consistent. They should cover the whole container space, without any intersections. This will be checked by fsck-like tools in Motr Core. Allocation databases are usually replicated, so that this can improve the metadata integrity.
 
 Concurrency Control
 ======================
