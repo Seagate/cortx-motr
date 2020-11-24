@@ -205,6 +205,15 @@ static void init_fini(void)
 	fini();
 }
 
+static void init_cgc_fail_fini(void)
+{
+	m0_fi_enable_once("cgc_fom_tick", "fail_in_cgc_generic_phase");
+	init();
+	fini();
+	m0_fi_disable("cgc_fom_tick", "fail_in_cgc_generic_phase");
+}
+
+
 /**
  * Different fails during service startup.
  */
@@ -1936,6 +1945,7 @@ struct m0_ut_suite cas_service_ut = {
 	.ts_fini   = NULL,
 	.ts_tests  = {
 		{ "init-fini",               &init_fini,             "Nikita" },
+		{ "init-cgc-fail-fini",      &init_cgc_fail_fini,    "Hua"    },
 		{ "init-fail",               &init_fail,             "Leonid" },
 		{ "re-init",                 &reinit,                "Egor"   },
 		{ "re-start",                &restart,               "Nikita" },

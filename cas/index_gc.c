@@ -226,14 +226,22 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		 * Seek for an index to drop and collect credits before
 		 * transaction initialized.
 		 */
-		if (phase == M0_FOPH_AUTHORISATION)
+		if (phase == M0_FOPH_AUTHORISATION) {
+			if (M0_FI_ENABLED("fail_in_cgc_generic_phase")) {
+				M0_LOG(M0_DEBUG, "Fail the FOM at TXN_INIT");
+				m0_fom_phase_move(fom0, -ENOMEM, M0_FOPH_FAILURE);
+				result = M0_FSO_AGAIN;
+				break;
+			}
 			m0_fom_phase_set(fom0, CGC_LOOKUP);
+		}
 		/*
 		 * Intercept generic fom control flow control after transaction
 		 * init but before its start complete: need to reserve credits.
 		 */
 		if (phase == M0_FOPH_TXN_INIT)
 			m0_fom_phase_set(fom0, CGC_CREDITS);
+
 		/*
 		 * Jump over fom_queue_reply() which does nothing if fom is
 		 * local, but still asserts in absence of fo_rep_fop which we do
@@ -449,6 +457,7 @@ static void cgc_start_fom(struct m0_fom *fom0, struct m0_fop *fop)
 	m0_long_lock_link_init(&fom->cg_dead_index, fom0,
 			       &fom->cg_dead_index_addb2);
 	m0_fom_queue(fom0);
+	M0_LOG(M0_DEBUG, "CGC fom enqueued");
 	M0_LEAVE();
 }
 
@@ -524,6 +533,7 @@ M0_INTERNAL void m0_cas_gc_start(struct m0_reqh_service *service)
 		/*
 		 * GC fom was not running, start it now.
 		 */
+		M0_LOG(M0_DEBUG, "Starting CGC fom");
 		M0_ALLOC_PTR(fom);
 		rc = m0_ctg_store_init(dom);
 		if (rc != 0 || fom == NULL) {
