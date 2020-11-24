@@ -460,6 +460,8 @@ M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom)
  */
 static int fom_queue_reply(struct m0_fom *fom)
 {
+	M0_ENTRY("fom=%p req=%p reply=%p local=%d",
+		  fom, fom->fo_fop, fom->fo_rep_fop, !!fom->fo_local);
 	if (!fom->fo_local) {
 		M0_PRE(fom->fo_rep_fop != NULL);
 

@@ -486,6 +486,17 @@ static void cgc_fom_fini(struct m0_fom *fom0)
 	m0_ref_put(&fom0->fo_fop->f_ref);
 	fom0->fo_fop = NULL;
 	m0_fom_fini(fom0);
+	if (m0_long_is_write_locked(m0_ctg_lock(m0_ctg_dead_index()), fom0)) {
+		int rc = m0_fom_rc(fom0);
+		/*
+		 * If this cgc fom fails in some generic phase,
+		 * this lock maybe is still held because it does not
+		 * have a chance to release this lock.
+		 */
+		M0_ASSERT(rc != 0);
+		m0_long_unlock(m0_ctg_lock(m0_ctg_dead_index()),
+			       &fom->cg_dead_index);
+	}
 	m0_long_lock_link_fini(&fom->cg_dead_index);
 	/*
 	 * If have more job to do, start another fom using current fom memory.
