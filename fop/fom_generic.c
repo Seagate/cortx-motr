@@ -344,7 +344,7 @@ static int fom_failure(struct m0_fom *fom)
 	if (rc != 0) {
 		M0_LOG(M0_NOTICE, "fom_rc=%d", rc);
 		/*
-		 * A local does not have request fop or a reply fop.
+		 * A local fom does not have request fop or reply fop.
 		 */
 		if (fom->fo_fop != NULL && !fom->fo_local) {
 			generic_reply_build(fom);

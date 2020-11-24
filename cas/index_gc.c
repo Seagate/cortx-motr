@@ -229,7 +229,8 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		if (phase == M0_FOPH_AUTHORISATION) {
 			if (M0_FI_ENABLED("fail_in_cgc_generic_phase")) {
 				M0_LOG(M0_DEBUG, "Fail the FOM at TXN_INIT");
-				m0_fom_phase_move(fom0, -ENOMEM, M0_FOPH_FAILURE);
+				m0_fom_phase_move(fom0, -ENOMEM,
+						  M0_FOPH_FAILURE);
 				result = M0_FSO_AGAIN;
 				break;
 			}
