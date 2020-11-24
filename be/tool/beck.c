@@ -215,6 +215,7 @@ struct action_ops {
 };
 
 enum { CACHE_SIZE = 1000000 };
+enum { NV_OFFSET_SAVE_ACT_DELTA = 1000 };
 
 struct cache_slot {
         struct m0_fid       cs_fid;
@@ -1810,7 +1811,7 @@ static void builder_done(struct m0_be_tx_bulk   *tb,
 		off_info.oi_pinfo.pi_act_done[partition]++;
 		m0_mutex_unlock(&off_info.oi_part_lock[partition]);
 
-		if (!(winfo->woi_act_done[partition] % 2))
+		if (!(winfo->woi_act_done[partition] % NV_OFFSET_SAVE_ACT_DELTA))
 			nv_scan_offset_update();
 		m0_free(act);
 	}
