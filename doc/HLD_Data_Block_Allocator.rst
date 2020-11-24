@@ -173,6 +173,16 @@ Comparison of C2 data-block-allocator and Ext4 multi-block allocator is mentione
 
 
 
+These metadata for the free space tracking and space statistics are stored in database, while database themselves are stored in regular files. These files are stored in some metadata containers. The high availability, reliability and integrity of these database files rely on these metadata containers. The metadata containers usually are striped over multiple devices, with parity protection. These databases may also use replication technology to improve data availability.
+
+
+
+
+
+
+
+
+
 
 
 
