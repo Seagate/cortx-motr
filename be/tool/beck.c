@@ -1757,9 +1757,9 @@ static void nv_scan_offset_update(void)
 		m0_mutex_unlock(&off_info.oi_lock);
 		return;
 	}
-	off_info.oi_scanoff.soi_offset      = s.s_off;
-	off_info.oi_scanoff.soi_bnodeqempty = isqempty(&s.s_bnode_q);
-	off_info.oi_scanoff.soi_scanqempty  = isqempty(s.s_q);
+	off_info.oi_scanoff.soi_offset      = beck_scanner.s_off;
+	off_info.oi_scanoff.soi_bnodeqempty = isqempty(&beck_scanner.s_bnode_q);
+	off_info.oi_scanoff.soi_scanqempty  = isqempty(beck_scanner.s_q);
 	fwrite(off_info.oi_offset, sizeof(struct worker_off_info),
 	       off_info.oi_workers_nr, ofptr);
 	fwrite(&off_info.oi_pinfo, sizeof(struct part_info),
