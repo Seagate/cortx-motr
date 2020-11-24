@@ -136,7 +136,7 @@ AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
-AH_TEMPLATE([ENABLE_LIB_FAB],         [Enable Libfabric network stack ])
+AH_TEMPLATE([ENABLE_LIBFAB],          [Enable Libfabric network stack ])
 AH_TEMPLATE([ENABLE_CASTXML],         [Use CastXML instead of GCC-XML])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
@@ -789,15 +789,15 @@ libfabric sources, using --with-libfab option.])]
 )
 
 AS_IF([test -z $with_libfab],[
-        LIB_FAB="-lfabric"
+        LIBFAB_LIBS="-lfabric"
       ],[
         LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
-        LIB_FAB="-L$LIBFABRIC/lib -lfabric"
+        LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
       ]
 )
 
-AC_DEFINE([ENABLE_LIB_FAB])
-AC_SUBST([LIB_FAB])
+AC_DEFINE([ENABLE_LIBFAB])
+AC_SUBST([LIBFAB_LIBS])
 AC_SUBST([LIB_FAB_INCLUDES])
 
 AS_IF([! test -z "$with_libfab"],
@@ -1055,7 +1055,7 @@ echo "M0_KCFLAGS     :  \"$M0_KCFLAGS\""
 echo "M0_LDFLAGS     :  \"$M0_LDFLAGS\""
 echo ""
 echo "MATH_LIBS      :  \"$MATH_LIBS\""
-echo "LIB_FAB        :  \"$LIB_FAB\""
+echo "LIBFAB_LIBS    :  \"$LIBFAB_LIBS\""
 echo "PTHREAD_LIBS   :  \"$PTHREAD_LIBS\""
 echo "AIO_LIBS       :  \"$AIO_LIBS\""
 echo "RT_LIBS        :  \"$RT_LIBS\""
