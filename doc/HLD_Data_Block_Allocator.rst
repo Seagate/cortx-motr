@@ -182,21 +182,51 @@ Comparison of C2 data-block-allocator and Ext4 multi-block allocator is mentione
 
 These metadata for the free space tracking and space statistics are stored in database, while database themselves are stored in regular files. These files are stored in some metadata containers. The high availability, reliability and integrity of these database files rely on these metadata containers. The metadata containers usually are striped over multiple devices, with parity protection. These databases may also use replication technology to improve data availability.
 
+Conformance
+============
+
+- Every group has its own group description and free space extent table. Locks have group granularity. This reduces lock contention, and therefore leads to good performance.
+
+- Free space is represented in extent. This is efficient in most cases.
+
+- Update to the allocation status is protected by database transactions. This insures the data-block-allocator survive from node crash.
+
+- Operations of the allocator is logged by FOL. This log can be used by other components, i.e. fsck
+
+Dependencies
+==============
+
+Some dependencies on container. But simulation of simple container will be used to avoid this.
+
+*************
+State
+*************
+
+States, Events, and Transitions
+================================
+
+Every block is either allocated, or free. Tracking of free space is covered by this component. Tracking is allocated block is managed by object block mapping. That is another component. Blocks can be allocated from container. Blocks can also be freed from objects.
+
+Allocated blocks and free blocks should be consistent. They should cover the whole container space, without any intersections. This will be checked by fsck-like tools in Colibri Core. Allocation databases are usually replicated, so that this can improve the metadata integrity.
+
+Concurrency Control
+======================
+
+Concurrent read access to group description and free space extents are permitted. Write (update) access should be serialized. Concurrent read/write access to different group description and free space extents are permitted. This enables parallel allocation in SMP systems.
 
 
+*************
+Analysis
+*************
+
+Scalability
+=============
+
+Lock per group enables concurrent access to the free space extent tables and description tables. This improves scalability.
 
 
+************
+References
+************
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+- [0]Ext4 multi-block allocator
