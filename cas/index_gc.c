@@ -115,6 +115,7 @@ struct cgc_fom {
 	struct m0_long_lock_addb2  cg_dead_index_addb2;
 	struct m0_cas_ctg         *cg_ctg;
 	struct m0_ctg_op           cg_ctg_op;
+	bool                       cg_ctg_op_initialized;
 	struct m0_buf              cg_ctg_key;
 	struct m0_reqh            *cg_reqh;
 	m0_bcount_t                cg_del_limit;
@@ -218,6 +219,22 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
+		if (phase == M0_FOPH_FAILURE) {
+			struct m0_long_lock *ll;
+			ll = m0_ctg_lock(m0_ctg_dead_index());
+
+			M0_LOG(M0_DEBUG, "Cleanup CGC");
+			if (m0_long_is_write_locked(ll, fom0)) {
+				m0_long_unlock(ll, &fom->cg_dead_index);
+				M0_LOG(M0_DEBUG, "Lock released");
+			}
+
+			if (fom->cg_ctg_op_initialized) {
+				m0_ctg_op_fini(ctg_op);
+				fom->cg_ctg_op_initialized = false;
+				M0_LOG(M0_DEBUG, "ctg op finalized");
+			}
+		}
 		result = m0_fom_tick_generic(fom0);
 		/*
 		 * Intercept generic fom control flow when starting transaction
@@ -242,7 +259,6 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		 */
 		if (phase == M0_FOPH_TXN_INIT)
 			m0_fom_phase_set(fom0, CGC_CREDITS);
-
 		/*
 		 * Jump over fom_queue_reply() which does nothing if fom is
 		 * local, but still asserts in absence of fo_rep_fop which we do
@@ -253,6 +269,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		break;
 	case CGC_LOOKUP:
 		m0_ctg_op_init(ctg_op, fom0, 0);
+		fom->cg_ctg_op_initialized = true;
 		/*
 		 * Actually we need any value from the dead index. Min key value
 		 * is ok. Do not need to lock dead index here: btree logic uses
@@ -455,6 +472,7 @@ static void cgc_start_fom(struct m0_fom *fom0, struct m0_fop *fop)
 	m0_fom_init(fom0, &fop->f_type->ft_fom_type,
 		    &cgc_fom_ops, fop, NULL, fom->cg_reqh);
 	fom0->fo_local = true;
+	fom->cg_ctg_op_initialized = false;
 	m0_long_lock_link_init(&fom->cg_dead_index, fom0,
 			       &fom->cg_dead_index_addb2);
 	m0_fom_queue(fom0);
@@ -486,15 +504,6 @@ static void cgc_fom_fini(struct m0_fom *fom0)
 	m0_ref_put(&fom0->fo_fop->f_ref);
 	fom0->fo_fop = NULL;
 	m0_fom_fini(fom0);
-	if (m0_long_is_write_locked(m0_ctg_lock(m0_ctg_dead_index()), fom0)) {
-		/*
-		 * If this cgc fom fails in some generic phase,
-		 * this lock maybe is still held because it does not
-		 * have a chance to release this lock.
-		 */
-		m0_long_unlock(m0_ctg_lock(m0_ctg_dead_index()),
-			       &fom->cg_dead_index);
-	}
 	m0_long_lock_link_fini(&fom->cg_dead_index);
 	/*
 	 * If have more job to do, start another fom using current fom memory.
