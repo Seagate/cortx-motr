@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # set -x
+SCRIPT_START_TIME="$(date +"%s")"
 PROG=${0##*/}
 # Creating the log file under /var/log/seagate/motr
 now=$(date +"%Y_%m_%d__%H_%M_%S")
@@ -12,6 +13,7 @@ SRC_DIR="$(dirname $(readlink -f $0))"
 # cortx-motr main dir path
 M0_SRC_DIR="${SRC_DIR%/*/*}"
 MD_DIR="/var/motr" # Meta Data Directory
+CRASH_DIR="/var/log/crash" #Crash Directory
 # beck utility path, update this path in get_utility_path() to change path
 BECKTOOL=
 # m0betool utility path, update this path in get_utility_path() to change path
@@ -753,12 +755,38 @@ cleanup_stobs_dir() {
     [[ $REMOTE_STORAGE_STATUS -eq 0 ]] || run_cmd_on_local_node "umount $FAILOVER_MD_DIR" > /dev/null
 }
 
+#The following command gives us the file count on the particular node.
+#It takes 3 parameters as input
+#1. filetype : The type of file whose quantity we want to count. Example "m0trace"
+#2. directory : The location where the files of filetype are stored. Example "/var/motr/datarecovery"
+#3. start_time : The time in seconds since epoch when the script has started its execution.
+get_file_count() {
+    local file_type=$1
+    local directory=$2
+    local start_time=$3
+    filecount="$(cd $directory; find . -type f -exec stat  -c "%n %Y" {} \;| sort -n | grep $file_type | awk '{if($2>"'$start_time'") print $2; }' | wc -l)"
+    echo "$filecount"
+}
+
+#The following command is used to remove the latest file generated in the given directory
+#It takes 2 parameters as input
+#1. filetype : The type of file which is to be removed. Example "m0trace"
+#2. directory : The location where the files of filetype are stored. Example "/var/motr/datarecovery"
+remove_last_file_generated() {
+    local file_type=$1
+    local directory=$2
+    filename="$(cd $directory; ls -ltr | grep $file_type | awk '{print $9}' | tail -n 1)"
+    echo "$filename"
+    rm -f "$directory/$filename"
+}
+
 # The return statements between { .. }& are to indicate the exit status of
 # child/background process that is spawned not for the function exit status.
 # This function will run beck tool on both nodes
 run_becktool() {
     local exec_status=0
-
+    max_core_file_count=2
+    max_trace_file_count=3
     # m0betool and m0beck depend on motr-kernel service so we try to get service up;
     # if this service does not start in 3 attempt on local node and remote node
     # then we cannot proceed further in the recovery.
@@ -821,6 +849,25 @@ run_becktool() {
         # restart the execution of command if exit code is ESEGV or OOM error
         while [[ $cmd_exit_status == $ESEGV ]] || [[ $cmd_exit_status == $EOOM ]];
         do
+            #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash( receiving SEGV signal ), to 2 each.
+            core_m0beck_file_count=$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
+            echo "File count value $core_m0beck_file_count"
+
+            if [[ $core_m0beck_file_count -gt $max_core_file_count ]]; then
+                    echo "Deleting core m0beck extra file $core_m0beck_file_count"
+                    rem_file=$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
+                    echo "$rem_file"
+            fi
+            
+            m0trace_file_count=$(get_file_count "m0trace" "$MD_DIR/datarecovery" "$SCRIPT_START_TIME")
+            echo "File count value $m0trace_file_count"
+            if [[ $m0trace_file_count -gt $max_trace_file_count ]]; then
+                    echo "Deleting core m0beck extra file $m0trace_file_count"
+                    rem_file=$(remove_last_file_generated "m0trace" "$MD_DIR/datarecovery")
+                    echo "$rem_file"
+            fi
+            #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
+
             m0drlog "Restarting Becktool on local node"
             run_cmd_on_local_node "(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
                                    -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $LOCAL_SEG_GEN_ID \
@@ -857,6 +904,38 @@ EOF
             # restart the execution of command if exit code is ESEGV or OOM error
             while [[ $cmd_exit_status == $ESEGV ]] || [[ $cmd_exit_status == $EOOM ]];
             do
+
+                #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash ( receiving SEGV signal ), to 2 each.
+                run_cmd_on_remote_node "bash -s" <<EOF
+                $(typeset -f get_file_count)
+                $(typeset -f remove_last_file_generated)
+                export -f get_file_count
+                export -f remove_last_file_generated
+                $(declare -x CRASH_DIR)
+                $(declare -x MD_DIR)
+                $(declare -x SCRIPT_START_TIME)
+                $(declare -x max_core_file_count)
+                $(declare -x max_trace_file_count)
+
+                core_m0beck_file_count=\$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
+                echo "File count value \$core_m0beck_file_count"
+
+                if [[ \$core_m0beck_file_count -gt $max_core_file_count ]]; then
+                        echo "Deleting core m0beck extra file \$core_m0beck_file_count"
+                        rem_file=\$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
+                        echo "\$rem_file"
+                fi
+                
+                m0trace_file_count=\$(get_file_count "m0trace" "$MD_DIR/datarecovery" "$SCRIPT_START_TIME")
+                echo "File count value \$m0trace_file_count"
+                if [[ \$m0trace_file_count -gt $max_trace_file_count ]]; then
+                        echo "Deleting core m0beck extra file \$m0trace_file_count"
+                        rem_file=\$(remove_last_file_generated "m0trace" "$MD_DIR/datarecovery")
+                        echo "\$rem_file"
+                fi
+EOF
+            #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
+
                 m0drlog "Restarting Becktool on remote node"
                 run_cmd_on_remote_node "bash -s" <<-EOF
                 (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
@@ -886,6 +965,25 @@ EOF
             # restart the execution of command if exit code is ESEGV or OOM error
             while [[ $cmd_exit_status == $ESEGV ]] || [[ $cmd_exit_status == $EOOM ]];
             do
+                #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash ( receiving SEGV signal ), to 2 each.
+                core_m0beck_file_count=$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
+                echo "File count value $core_m0beck_file_count"
+
+                if [[ $core_m0beck_file_count -gt $max_core_file_count ]]; then
+                        echo "Deleting core m0beck extra file $core_m0beck_file_count"
+                        rem_file=$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
+                        echo "$rem_file"
+                fi
+                
+                m0trace_file_count=$(get_file_count "m0trace" "$FAILOVER_MD_DIR/datarecovery" "$SCRIPT_START_TIME")
+                echo "File count value $m0trace_file_count"
+                if [[ $m0trace_file_count -gt $max_trace_file_count ]]; then
+                        echo "Deleting core m0beck extra file $m0trace_file_count"
+                        rem_file=$(remove_last_file_generated "m0trace" "$FAILOVER_MD_DIR/datarecovery")
+                        echo "$rem_file"
+                fi
+                #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
+
                 m0drlog "Restarting Becktool for remote node from local node"
                 run_cmd_on_local_node "(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
                                         -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
