@@ -214,6 +214,38 @@ Concurrency Control
 
 Concurrent read access to group description and free space extents are permitted. Write (update) access should be serialized. Concurrent read/write access to different group description and free space extents are permitted. This enables parallel allocation in SMP systems.
 
+**************
+Use Cases
+**************
+
+Scenarios
+=============
+
+Scenario 1
+
++---------------------------+-------------------------------------------------------------+
+|Scenario                   |   [usecase.data-block-allocator.format]                     |
++---------------------------+-------------------------------------------------------------+
+|Relevant quality attributes|                                                             |
++---------------------------+-------------------------------------------------------------+
+|Stimulus                   |Initialize a container                                       |
++---------------------------+-------------------------------------------------------------+
+|Stimulus source            |User/Admin                                                   |
++---------------------------+-------------------------------------------------------------+
+|Environment                |Container                                                    |
++---------------------------+-------------------------------------------------------------+
+|Artifact                   |Fully formatted container, ready for use                     |
++---------------------------+-------------------------------------------------------------+
+|Response                   |Initialize the metadata in the db                            |
++---------------------------+-------------------------------------------------------------+
+|Response measure           |Container is in its initial status, ready for use            |
++---------------------------+-------------------------------------------------------------+
+|Questions and issues       |                                                             |
++---------------------------+-------------------------------------------------------------+
+
+
+
+
 
 *************
 Analysis
