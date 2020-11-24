@@ -1,11 +1,4 @@
 nobase_motr_include_HEADERS += net/libfab/libfab.h
 
 motr_libmotr_la_SOURCES  += \
-			    net/libfab/libfab.c \
-			    net/libfab/xcode.h
-
-nodist_motr_libmotr_la_SOURCES  += \
-			    net/libfab/xcode_xc.c
-
-XC_FILES += \
-			    net/libfab/xcode_xc.h
+			    net/libfab/libfab.c

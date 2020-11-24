@@ -136,6 +136,7 @@ AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
+AH_TEMPLATE([ENABLE_LIB_FAB],         [Enable Libfabric network stack ])
 AH_TEMPLATE([ENABLE_CASTXML],         [Use CastXML instead of GCC-XML])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
@@ -776,16 +777,32 @@ AS_IF([test x$with_lustre != xno],[
 
 AC_ARG_WITH([libfab],
         [AS_HELP_STRING([--with-libfab=path],
-                        [set path to libfabric library, default is /usr/lib64/])],
-        [FAB_LIBS="-L$with_libfab -lfabric"],
-        [FAB_LIBS="-lfabric"]
+                        [set path to user installed libfabric headers and library])],
+        [LIBFABRIC=$with_libfab],
+        [LIBFABRIC=""]
 )
 
-AS_IF([ test "x$with_libfab" == "xno"],
-        MOTR_SEARCH_LIBS([fi_fabric], [fabric], [FAB_LIBS],
-        [libfabric cannot be found!!! Try to install libfabric-devel.])
+AS_IF([test -z "$with_libfab" && ! test -f "/usr/include/rdma/fabric.h"],
+      [AC_MSG_ERROR([Libfabric cannot be found! Please, install \
+libfabric-devel package or provide the path to a directory with built \
+libfabric sources, using --with-libfab option.])]
 )
-AC_SUBST([FAB_LIBS])
+
+AS_IF([test -z $with_libfab],[
+        LIB_FAB="-lfabric"
+      ],[
+        LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
+        LIB_FAB="-L$LIBFABRIC/lib -lfabric"
+      ]
+)
+
+AC_DEFINE([ENABLE_LIB_FAB])
+AC_SUBST([LIB_FAB])
+AC_SUBST([LIB_FAB_INCLUDES])
+
+AS_IF([! test -z "$with_libfab"],
+        [ M0_CPPFLAGS="$M0_CPPFLAGS $LIB_FAB_INCLUDES"]
+)
 
 #
 # Checking Lustre --------------------------------------------------------- {{{1
@@ -1038,7 +1055,7 @@ echo "M0_KCFLAGS     :  \"$M0_KCFLAGS\""
 echo "M0_LDFLAGS     :  \"$M0_LDFLAGS\""
 echo ""
 echo "MATH_LIBS      :  \"$MATH_LIBS\""
-echo "FAB_LIBS       :  \"$FAB_LIBS\""
+echo "LIB_FAB        :  \"$LIB_FAB\""
 echo "PTHREAD_LIBS   :  \"$PTHREAD_LIBS\""
 echo "AIO_LIBS       :  \"$AIO_LIBS\""
 echo "RT_LIBS        :  \"$RT_LIBS\""
