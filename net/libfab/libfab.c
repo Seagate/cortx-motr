@@ -88,25 +88,27 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 
 	fab->hints = fi_allocinfo();
 	if (fab->hints != NULL) {
-		// fab->hints->ep_attr->type = FI_EP_RDM;
-		// fab->hints->caps = FI_MSG;
-		// fab->hints->fabric_attr->prov_name = "verbs";
+		/*
+		* TODO: Added for future use
+		* fab->hints->ep_attr->type = FI_EP_RDM;
+		* fab->hints->caps = FI_MSG;
+		* fab->hints->fabric_attr->prov_name = "verbs";
+		*/
 		rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
 				NULL, NULL, 0, fab->hints, &fab->fi);
-		if (rc == FI_SUCCESS ) {
+		if (rc == FI_SUCCESS) {
 			rc = fi_fabric(fab->fi->fabric_attr, &fab->fabric,
 				       NULL);
-			if (rc == FI_SUCCESS ) {
+			if (rc == FI_SUCCESS) {
 				rc = fi_domain(fab->fabric, fab->fi,
 					       &fab->domain, NULL);
-				if (rc == FI_SUCCESS )
+				if (rc == FI_SUCCESS)
 					dom->nd_xprt_private = fab->domain;
 			}
 		}
 		fi_freeinfo(fab->hints);
-	}
-	else
-		rc = -ENOMEM;
+	} else 
+		rc = M0_ERR(-ENOMEM); 
 
 	return M0_RC(rc);
 }
@@ -409,6 +411,7 @@ const struct m0_net_xprt m0_net_libfab_xprt = {
 	.nx_name = "libfab",
 	.nx_ops  = &libfab_xprt_ops
 };
+M0_EXPORTED(m0_net_libfab_xprt);
 
 #undef M0_TRACE_SUBSYSTEM
 
