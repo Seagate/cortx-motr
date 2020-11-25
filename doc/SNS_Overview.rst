@@ -2,7 +2,7 @@
 SNS Overview
 ======================
 
-This document summarizes SNS and local RAID discussions in the C2 architecture team. The goal is to provide a starting point for design level discussions and resource estimation. Note that this documents is not a substitute for a list of requirements or use-cases. Intended audience includes T1 team and C2 architects.
+This document summarizes SNS and local RAID discussions in the Motr architecture team. The goal is to provide a starting point for design level discussions and resource estimation. Note that this documents is not a substitute for a list of requirements or use-cases. Intended audience includes T1 team and Motr architects.
 
 ****************
 Overview
@@ -70,4 +70,4 @@ Items
 
 - Benchmarking. The questions of optimal stripe size, layouts, data placement, etc. cannot be solved without systematic benchmarking and simulation. 
 
-- Multiple-failure handling. Usual RAID5 method protects against a single failure. C2 SNS and local RAID must be configurable to maintain reliability in the presence of multiple simultaneous failures.
+- Multiple-failure handling. Usual RAID5 method protects against a single failure. Motr SNS and local RAID must be configurable to maintain reliability in the presence of multiple simultaneous failures.
