@@ -160,7 +160,8 @@ struct btype { /* b-tree type */
 	enum m0_be_btree_type  b_type;
 	const char            *b_name;
 	int                  (*b_proc)(struct scanner *s, struct btype *b,
-				       struct m0_be_bnode *node);
+				       struct m0_be_bnode *node,
+				       off_t  node_offset);
 	struct bstats          b_stats;
 };
 
@@ -185,6 +186,7 @@ struct action {
 	enum action_opcode       a_opc;
 	struct builder          *a_builder;
 	const struct action_ops *a_ops;
+	off_t                    a_node_offset;
 	struct action           *a_next;
 	struct action           *a_prev;
 };
@@ -213,6 +215,7 @@ struct action_ops {
 };
 
 enum { CACHE_SIZE = 1000000 };
+enum { NV_OFFSET_SAVE_ACT_DELTA = 1000 };
 
 struct cache_slot {
         struct m0_fid       cs_fid;
@@ -280,6 +283,33 @@ struct emap_action {
 	struct m0_be_emap_rec   emap_val_data;  /**< emap val data */
 };
 
+struct worker_off_info {
+	off_t              woi_offset[AO_NR];
+	uint64_t           woi_act_done[AO_NR];
+};
+
+struct scanner_off_info {
+	off_t    soi_offset;
+	bool     soi_scanqempty;
+	bool     soi_bnodeqempty;
+};
+
+struct part_info {
+	uint64_t           pi_act_added[AO_NR];
+	uint64_t           pi_act_done[AO_NR];
+	off_t              pi_1st_bnode_offset[AO_NR];
+};
+
+struct offset_info {
+	struct part_info        oi_pinfo;
+	struct worker_off_info *oi_offset;
+	struct m0_mutex         oi_part_lock[AO_NR];
+	uint64_t                oi_workers_nr;
+	uint64_t                oi_partitions_nr;
+	struct scanner_off_info oi_scanoff;
+	struct m0_mutex         oi_lock;
+};
+
 static int  init(void);
 static void fini(void);
 static int  scan (struct scanner *s);
@@ -342,18 +372,19 @@ static void qput(struct queue *q, struct action *act);
 static struct action *qget (struct queue *q);
 static struct action *qtry (struct queue *q);
 static struct action *qpeek(struct queue *q);
+static bool           isqempty(struct queue *q);
 
 static int  ctg_proc(struct scanner *s, struct btype *b,
-		    struct m0_be_bnode *node);
+		     struct m0_be_bnode *node, off_t node_offset);
 static int ctg_pver_fid_get(struct m0_fid *fid);
 
 static void test(void);
 
 static int cob_proc(struct scanner *s, struct btype *b,
-		    struct m0_be_bnode *node);
+		    struct m0_be_bnode *node, off_t node_offset);
 
 static int   emap_proc(struct scanner *s, struct btype *b,
-		       struct m0_be_bnode *node);
+		       struct m0_be_bnode *node, off_t node_offset);
 static int   emap_prep(struct action *act, struct m0_be_tx_credit *cred);
 static void  emap_act(struct action *act, struct m0_be_tx *tx);
 static void  emap_fini(struct action *act);
@@ -362,6 +393,11 @@ static int   emap_kv_get(struct scanner *s, const struct be_btree_key_val *kv,
 static void  sig_handler(int num);
 static int   be_cfg_from_yaml_update(const char              *yaml_file,
 				     struct m0_be_domain_cfg *cfg);
+static int   nv_scan_offset_init(uint64_t workers_nr,
+				 uint64_t partitions_nr);
+static void  nv_scan_offset_fini(void);
+static off_t nv_scan_offset_get(off_t snapshot_size);
+static void  nv_scan_offset_update(void);
 
 static void scanner_thread(struct scanner *s);
 static const struct recops btreeops;
@@ -474,10 +510,14 @@ static struct scanner beck_scanner;
 static struct builder beck_builder;
 static struct gen g[MAX_GEN] = {};
 static struct m0_be_seg s_seg = {}; /** Used only in dry-run mode. */
+static struct offset_info off_info;
 
 static bool  dry_run = false;
 static bool  disable_directio = false;
 static bool  signaled = false;
+static bool  resume_scan = false;
+
+static const char *offset_file = NULL;
 
 /**
  * These values provided the maximum builder performance after experiments on
@@ -544,6 +584,11 @@ int main(int argc, char **argv)
 		   M0_FLAGARG('U', "Run unit tests.", &ut),
 		   M0_FLAGARG('n', "Dry Run.", &dry_run),
 		   M0_FLAGARG('I', "Disable directio.", &disable_directio),
+		   M0_FLAGARG('R', "resume scan.", &resume_scan),
+		   M0_STRINGARG('r', "file to save scan offsets.",
+			LAMBDA(void, (const char *fname) {
+				offset_file = fname;
+			})),
 		   M0_FLAGARG('p', "Print Generation Identifier.",
 			      &print_gen_id),
 		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
@@ -640,6 +685,10 @@ int main(int argc, char **argv)
 		printf("Cannot find any segment header generation identifer");
 		return EX_DATAERR;
 	}
+
+	if (offset_file == NULL && !dry_run)
+		errx(EX_USAGE, "Specify file to save scan offsets (-r).");
+
 	qinit(&beck_scanner.s_bnode_q, MAX_SCAN_QUEUED);
 	result = M0_THREAD_INIT(&beck_scanner.s_thread, struct scanner *,
 				NULL, &scanner_thread, &beck_scanner,
@@ -660,6 +709,10 @@ int main(int argc, char **argv)
 		beck_scanner.s_max_reg_size = max.tc_reg_size;
 		if (result != 0)
 			err(EX_CONFIG, "Cannot initialise builder.");
+		result = nv_scan_offset_init(default_tb_cfg.tbc_workers_nr,
+					     default_tb_cfg.tbc_partitions_nr);
+		if (result != 0)
+			err(EX_CONFIG, "scan offset save/restore init failure");
 	} else {
 		/**
 		 *  Since we do not have builder variables holding segment data,
@@ -694,6 +747,7 @@ int main(int argc, char **argv)
 					AO_DONE, &done_ops));
 		builder_fini(&beck_builder);
 		qfini(&q);
+		nv_scan_offset_fini();
 	}
 	scanner_fini(&beck_scanner);
 	fini();
@@ -716,7 +770,7 @@ static void scanner_thread(struct scanner *s)
 			rc = getat(s, ba->bna_offset, &node, sizeof node);
 			M0_ASSERT(rc == 0);
 			b = &bt[node.bt_backlink.bli_type];
-			b->b_proc(s, b, &node);
+			b->b_proc(s, b, &node, ba->bna_offset);
 			m0_free(ba);
 		}
 	} while (ba->bna_act.a_opc != AO_DONE);
@@ -872,7 +926,13 @@ static int scan(struct scanner *s)
 	off_t    lastoff  = s->s_off;
 	uint64_t lastrecord = 0;
 	uint64_t lastdata = 0;
-
+	if (resume_scan && !dry_run) {
+		s->s_off = nv_scan_offset_get(s->s_size);
+		M0_LOG(M0_DEBUG, "Resuming Scan from Offset = %li", s->s_off);
+		printf("Resuming Scan from Offset = %li file %s",
+		       s->s_off, offset_file);
+	}
+	lastoff  = s->s_off;
 	setvbuf(s->s_file, iobuf, _IONBF, sizeof iobuf);
 	while (!signaled && (result = get(s, &magic, sizeof magic)) == 0) {
 		if (magic == M0_FORMAT_HEADER_MAGIC) {
@@ -1292,7 +1352,7 @@ static void emap_to_gob_convert(const struct m0_uint128 *emap_prefix,
 }
 
 static int emap_proc(struct scanner *s, struct btype *btype,
-		     struct m0_be_bnode *node)
+		     struct m0_be_bnode *node, off_t node_offset)
 {
 	struct m0_stob_ad_domain *adom = NULL;
 	struct emap_action       *ea;
@@ -1329,6 +1389,7 @@ static int emap_proc(struct scanner *s, struct btype *btype,
 
 		if (!dry_run) {
 			ea->emap_act.a_builder = &beck_builder;
+	        ea->emap_act.a_node_offset = node_offset;
 			adom = emap_dom_find(&ea->emap_act, &ea->emap_fid, &id);
 			if (adom != NULL) {
 				ea->emap_act.a_opc += id;
@@ -1556,6 +1617,161 @@ static void genadd(uint64_t gen)
 	}
 }
 
+static int nv_scan_offset_init(uint64_t workers_nr,
+			       uint64_t partitions_nr)
+{
+	uint64_t  p;
+
+	M0_PRE(partitions_nr <= AO_NR);
+
+	m0_mutex_init(&off_info.oi_lock);
+	m0_mutex_lock(&off_info.oi_lock);
+	off_info.oi_workers_nr = workers_nr;
+	off_info.oi_partitions_nr = partitions_nr;
+
+	off_info.oi_offset = m0_alloc(sizeof(struct worker_off_info) *
+				      workers_nr);
+	if (off_info.oi_offset == NULL) {
+		m0_mutex_unlock(&off_info.oi_lock);
+		return M0_ERR(-ENOMEM);
+	}
+
+	memset(&off_info.oi_pinfo, 0, sizeof(struct part_info));
+	for (p = 0; p < off_info.oi_partitions_nr; p++)
+		m0_mutex_init(&off_info.oi_part_lock[p]);
+	m0_mutex_unlock(&off_info.oi_lock);
+	return 0;
+}
+
+static void nv_scan_offset_fini(void)
+{
+	uint64_t  p;
+
+	m0_mutex_lock(&off_info.oi_lock);
+	m0_free(off_info.oi_offset);
+	for (p = 0; p < off_info.oi_partitions_nr; p++)
+		m0_mutex_fini(&off_info.oi_part_lock[p]);
+	m0_mutex_unlock(&off_info.oi_lock);
+	m0_mutex_fini(&off_info.oi_lock);
+}
+
+static off_t nv_scan_offset_get(off_t snapshot_size)
+{
+	FILE     *ofptr;
+	int       wret;
+	int       pret;
+	int       sret;
+	off_t     offset = snapshot_size;
+	off_t     max_offset = 0;
+	uint64_t  p;
+	uint64_t  w;
+	struct part_info        *pinfo;
+	struct worker_off_info  *winfo;
+	struct scanner_off_info *sinfo;
+
+	m0_mutex_lock(&off_info.oi_lock);
+	ofptr = fopen(offset_file, "r");
+	if (ofptr == NULL) {
+		m0_mutex_unlock(&off_info.oi_lock);
+		return 0;
+	}
+	wret = fread(off_info.oi_offset, sizeof(struct worker_off_info),
+		     off_info.oi_workers_nr, ofptr);
+	pret = fread(&off_info.oi_pinfo, sizeof(struct part_info),
+		     1, ofptr);
+	sret = fread(&off_info.oi_scanoff, sizeof(struct scanner_off_info),
+		     1, ofptr);
+	if ((wret > 0) && (pret > 0) && (sret > 0)) {
+		pinfo = &off_info.oi_pinfo;
+		/* look for lowest offset in active partitions */
+		for (p = 0; p < off_info.oi_partitions_nr; p++) {
+			/* skip idle partitions */
+			if (pinfo->pi_act_added[p] == 0)
+				continue;
+			/* in case action/actions was/were added
+			 * but none of them is completed
+			 * then check for first bnode offset */
+			if (pinfo->pi_act_done[p] == 0) {
+				if (offset > pinfo->pi_1st_bnode_offset[p])
+					offset = pinfo->pi_1st_bnode_offset[p];
+				continue;
+			}
+			/* check for incomplete actions */
+			for (w = 0; w < off_info.oi_workers_nr; w++) {
+				winfo = &off_info.oi_offset[w];
+				/* discard workers which have NOT processed
+				 * atleast single action for given partition
+				 * till now*/
+				if (winfo->woi_offset[p] <
+				    pinfo->pi_1st_bnode_offset[p])
+					continue;
+
+
+				if (pinfo->pi_act_added[p] >
+				    pinfo->pi_act_done[p]) {
+					if (offset > winfo->woi_offset[p])
+						offset = winfo->woi_offset[p];
+				} else {
+					if (max_offset < winfo->woi_offset[p])
+						max_offset =
+							winfo->woi_offset[p];
+				}
+				printf("p=%"PRIu64",w=%"PRIu64",offset=%li\n",
+				       p, w, winfo->woi_offset[p]);
+			}
+		}
+		/* all partitions were idle */
+		if(offset == snapshot_size) {
+			sinfo = &off_info.oi_scanoff;
+			if(sinfo->soi_scanqempty && sinfo->soi_bnodeqempty) {
+				offset = sinfo->soi_offset;
+			        printf("partitions idle,scanner offset=%li\n",
+				       offset);
+			} else
+				offset = max_offset;
+		}
+		/* reset counters as there will NOT be any completions for
+		 * missed actions */
+		memset(&off_info.oi_pinfo.pi_act_added[0], 0,
+		       sizeof(off_info.oi_pinfo.pi_act_added));
+		memset(&off_info.oi_pinfo.pi_act_done[0], 0,
+		       sizeof(off_info.oi_pinfo.pi_act_done));
+		fclose(ofptr);
+		m0_mutex_unlock(&off_info.oi_lock);
+	} else {
+		fclose(ofptr);
+		m0_mutex_unlock(&off_info.oi_lock);
+		return 0;
+	}
+	return offset;
+}
+
+static void nv_scan_offset_update(void)
+{
+	FILE   *ofptr;
+
+	m0_mutex_lock(&off_info.oi_lock);
+
+	ofptr = fopen(offset_file, "w+");
+	if (ofptr == NULL) {
+		printf("Cannot open seek_offset file :%s\n", offset_file);
+		m0_mutex_unlock(&off_info.oi_lock);
+		return;
+	}
+	off_info.oi_scanoff.soi_offset      = beck_scanner.s_off;
+	off_info.oi_scanoff.soi_bnodeqempty = isqempty(&beck_scanner.s_bnode_q);
+	off_info.oi_scanoff.soi_scanqempty  = isqempty(beck_scanner.s_q);
+	fwrite(off_info.oi_offset, sizeof(struct worker_off_info),
+	       off_info.oi_workers_nr, ofptr);
+	fwrite(&off_info.oi_pinfo, sizeof(struct part_info),
+	       1, ofptr);
+	fwrite(&off_info.oi_scanoff, sizeof(struct scanner_off_info),
+	       1, ofptr);
+	fclose(ofptr);
+	m0_mutex_unlock(&off_info.oi_lock);
+	return;
+}
+
 static void builder_do(struct m0_be_tx_bulk   *tb,
 		       struct m0_be_tx        *tx,
 		       struct m0_be_op        *op,
@@ -1573,7 +1789,6 @@ static void builder_do(struct m0_be_tx_bulk   *tb,
 		b->b_act++;
 		act->a_ops->o_act(act, tx);
 		act->a_ops->o_fini(act);
-		m0_free(act);
 	}
 	m0_be_op_done(op);
 }
@@ -1584,13 +1799,29 @@ static void builder_done(struct m0_be_tx_bulk   *tb,
 			 uint64_t                worker_index,
 			 uint64_t                partition)
 {
+	struct action          *act;
+	struct worker_off_info *winfo;
 
+	act = user;
+	if (act != NULL) {
+		winfo = &off_info.oi_offset[worker_index];
+		winfo->woi_offset[partition] = act->a_node_offset;
+		winfo->woi_act_done[partition]++;
+		m0_mutex_lock(&off_info.oi_part_lock[partition]);
+		off_info.oi_pinfo.pi_act_done[partition]++;
+		m0_mutex_unlock(&off_info.oi_part_lock[partition]);
+
+		if (!(winfo->woi_act_done[partition] % NV_OFFSET_SAVE_ACT_DELTA))
+			nv_scan_offset_update();
+		m0_free(act);
+	}
 }
 
 static void builder_work_put(struct m0_be_tx_bulk *tb, struct builder *b)
 {
 	struct action          *act;
 	struct m0_be_tx_credit  credit;
+	struct part_info       *pinfo;
 	bool                    put_successful;
 	int                     rc;
 
@@ -1607,6 +1838,13 @@ static void builder_work_put(struct m0_be_tx_bulk *tb, struct builder *b)
 							act->a_opc, act));
 			if (!put_successful)
 				break;
+
+			pinfo = &off_info.oi_pinfo;
+			pinfo->pi_act_added[act->a_opc]++;
+			/* save offset of first bnode in partitions */
+			if (pinfo->pi_act_added[act->a_opc] == 1)
+				pinfo->pi_1st_bnode_offset[act->a_opc] =
+					act->a_node_offset;
 		}
 	} while (act->a_opc != AO_DONE);
 	m0_be_tx_bulk_end(tb);
@@ -2254,7 +2492,7 @@ static int ctg_btree_fid_get(struct m0_buf *kbuf, struct m0_fid *fid)
 }
 
 static int ctg_proc(struct scanner *s, struct btype *b,
-		    struct m0_be_bnode *node)
+		    struct m0_be_bnode *node, off_t node_offset)
 {
 	struct m0_be_bnode           n = {};
 	struct m0_be_btree_backlink *bl = &node->bt_backlink;
@@ -2330,6 +2568,7 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 		ca->cta_key = kl[i];
 		ca->cta_val = vl[i];
 		ca->cta_ismeta = ismeta;
+		ca->cta_act.a_node_offset = node_offset;
 		qput(s->s_q, (struct action *)ca);
 	}
 	return 0;
@@ -2556,6 +2795,16 @@ static struct action *qtry(struct queue *q)
 	return act;
 }
 
+static bool isqempty(struct queue *q)
+{
+	bool ret;
+
+	pthread_mutex_lock(&q->q_lock);
+	M0_PRE(qinvariant(q));
+	ret = (q->q_nr == 0) ? true : false;
+	pthread_mutex_unlock(&q->q_lock);
+	return ret;
+}
 static const struct recops btreeops = {
 	.ro_proc  = &btree,
 	.ro_check = &btree_check
@@ -2618,7 +2867,7 @@ static int cob_kv_get(struct scanner *s, const struct be_btree_key_val  *kv,
  * @param node btree node.
  */
 static int cob_proc(struct scanner *s, struct btype *b,
-		    struct m0_be_bnode *node)
+		    struct m0_be_bnode *node, off_t node_offset)
 {
 	struct cob_action           *ca;
 	int                          i;
@@ -2631,7 +2880,8 @@ static int cob_proc(struct scanner *s, struct btype *b,
 
 	for (i = 0; i < node->bt_num_active_key; i++) {
 		ca = scanner_action(sizeof*ca, AO_COB,&cob_ops);
-		ca->coa_fid = bb->bli_fid;
+		ca->coa_fid               = bb->bli_fid;
+		ca->coa_act.a_node_offset = node_offset;
 
 		ca->coa_val = M0_BUF_INIT(sizeof(struct m0_cob_nsrec),
 					  ca->coa_valdata);
