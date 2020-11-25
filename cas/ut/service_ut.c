@@ -964,29 +964,6 @@ static void index_op(struct m0_fop_type *ft, struct m0_fid *index,
 	index_op_rc(ft, index, key, val, 0);
 }
 
-static void init_cgc_fail_fini(void)
-{
-	m0_fi_enable_once("cgc_fom_tick", "fail_in_cgc_generic_phase");
-	init();
-	fini();
-	m0_fi_disable("cgc_fom_tick", "fail_in_cgc_generic_phase");
-
-	init();
-	meta_fid_submit(&cas_put_fopt, &ifid);
-	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
-	index_op(&cas_put_fopt, &ifid, 1, 2);
-	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
-	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
-	index_op(&cas_del_fopt, &ifid, 1, NOVAL);
-	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
-	fini();
-
-	m0_fi_enable_once("cgc_fom_tick", "fail_in_cgc_generic_phase");
-	init();
-	fini();
-	m0_fi_disable("cgc_fom_tick", "fail_in_cgc_generic_phase");
-}
-
 /**
  * Test insertion (in a non-meta index).
  */
@@ -1884,7 +1861,7 @@ enum {
  * To test dididing tree clear by transactions run:
  * sudo ./utils/m0run m0ut -- -t cas-service:create-insert-drop -c
  */
-static void create_insert_drop(void)
+static void create_insert_drop_with_fail(bool inject_fail)
 {
 	struct m0_cas_id nonce0 = { .ci_fid = IFID(2, 3) };
 	struct m0_cas_id nonce1 = { .ci_fid = IFID(2, 4) };
@@ -1942,6 +1919,8 @@ static void create_insert_drop(void)
 	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
 	M0_UT_ASSERT(rep_check(1, -ENOENT, BUNSET, BUNSET));
 
+	if (inject_fail)
+		m0_fi_enable_once("cgc_fom_tick", "fail_after_index_found");
 	/*
 	 * Wait for GC complete.
 	 */
@@ -1949,7 +1928,32 @@ static void create_insert_drop(void)
 			(struct meta_rec[]) {
 				{ .cid = nonce0 }},
 			1);
+	if (inject_fail)
+		m0_fi_disable("cgc_fom_tick", "fail_after_index_found");
 	fini();
+}
+
+static void create_insert_drop()
+{
+	create_insert_drop_with_fail(false);
+}
+
+static void create_insert_drop_fail()
+{
+	create_insert_drop_with_fail(true);
+}
+
+static void init_cgc_fail_fini(void)
+{
+	m0_fi_enable_once("cgc_fom_tick", "fail_in_cgc_generic_phase");
+	init();
+	fini();
+	m0_fi_disable("cgc_fom_tick", "fail_in_cgc_generic_phase");
+
+	m0_fi_enable_once("cgc_fom_tick", "fail_after_index_found");
+	init();
+	fini();
+	m0_fi_disable("cgc_fom_tick", "fail_after_index_found");
 }
 
 struct m0_ut_suite cas_service_ut = {
@@ -1959,7 +1963,6 @@ struct m0_ut_suite cas_service_ut = {
 	.ts_fini   = NULL,
 	.ts_tests  = {
 		{ "init-fini",               &init_fini,             "Nikita" },
-		{ "init-cgc-fail-fini",      &init_cgc_fail_fini,    "Hua"    },
 		{ "init-fail",               &init_fail,             "Leonid" },
 		{ "re-init",                 &reinit,                "Egor"   },
 		{ "re-start",                &restart,               "Nikita" },
@@ -2005,6 +2008,8 @@ struct m0_ut_suite cas_service_ut = {
 		{ "multi-delete-fail",       &multi_delete_fail,     "Leonid" },
 		{ "multi-create-drop",       &multi_create_drop,     "Eugene" },
 		{ "create-insert-drop",      &create_insert_drop,    "Eugene" },
+		{ "create-insert-drop-fail", &create_insert_drop_fail, "Hua"  },
+		{ "init-cgc-fail-fini",      &init_cgc_fail_fini,    "Hua"    },
 		{ "cctg-create",             &cctg_create,           "Sergey" },
 		{ "cctg-create-lookup",      &cctg_create_lookup,    "Sergey" },
 		{ "cctg-create-delete",      &cctg_create_delete,    "Sergey" },

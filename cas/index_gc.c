@@ -229,6 +229,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 				M0_LOG(M0_DEBUG, "Lock released");
 			}
 
+			m0_ctg_fini(fom0, fom->cg_ctg);
 			if (fom->cg_ctg_op_initialized) {
 				m0_ctg_op_fini(ctg_op);
 				fom->cg_ctg_op_initialized = false;
@@ -296,6 +297,13 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 					&fom->cg_dead_index,
 					M0_FOPH_TXN_INIT);
 			result = M0_FOM_LONG_LOCK_RETURN(result);
+
+			if (M0_FI_ENABLED("fail_after_index_found")) {
+				M0_LOG(M0_DEBUG, "Fail after CGC_INDEX_FOUND");
+				m0_fom_phase_move(fom0, -ENOMEM,
+						  M0_FOPH_FAILURE);
+				result = M0_FSO_AGAIN;
+			}
 		} else {
 			/*
 			 * -ENOENT is expected here meaning no entries in dead
@@ -313,6 +321,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 			m0_fom_phase_set(fom0, M0_FOPH_SUCCESS);
 		}
 		m0_ctg_op_fini(ctg_op);
+		fom->cg_ctg_op_initialized = false;
 		break;
 	case CGC_CREDITS:
 		/*
@@ -337,6 +346,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		 * all records from the tree but keep empty tree alive.
 		 */
 		m0_ctg_op_init(ctg_op, fom0, 0);
+		fom->cg_ctg_op_initialized = true;
 		result = m0_ctg_truncate(ctg_op, fom->cg_ctg,
 					 fom->cg_del_limit,
 					 CGC_TREE_DROP);
@@ -344,9 +354,11 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 	case CGC_TREE_DROP:
 		rc = m0_ctg_op_rc(ctg_op);
 		m0_ctg_op_fini(ctg_op);
+		fom->cg_ctg_op_initialized = false;
 		if (rc == 0 && m0_be_btree_is_empty(&fom->cg_ctg->cc_tree)) {
 			M0_LOG(M0_DEBUG, "tree cleaned, now drop it");
 			m0_ctg_op_init(ctg_op, fom0, 0);
+			fom->cg_ctg_op_initialized = true;
 			result = m0_ctg_drop(ctg_op, fom->cg_ctg,
 					     CGC_LOCK_DEAD_INDEX);
 		} else {
@@ -366,12 +378,15 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 	case CGC_LOCK_DEAD_INDEX:
 		m0_ctg_op_fini(ctg_op);
 		m0_ctg_op_init(ctg_op, fom0, 0);
-		result = m0_ctg_fini(ctg_op, fom->cg_ctg,
-				     CGC_RM_FROM_DEAD_INDEX);
+		fom->cg_ctg_op_initialized = true;
+		m0_ctg_fini(fom0, fom->cg_ctg);
+		m0_fom_phase_set(fom0, CGC_RM_FROM_DEAD_INDEX);
+		result = M0_FSO_AGAIN;
 		break;
 	case CGC_RM_FROM_DEAD_INDEX:
 		m0_ctg_op_fini(ctg_op);
 		m0_ctg_op_init(ctg_op, fom0, 0);
+		fom->cg_ctg_op_initialized = true;
 		/*
 		 * Now completely forget this ctg by deleting its descriptor
 		 * from "dead index" catalogue.
@@ -383,6 +398,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		m0_long_unlock(m0_ctg_lock(m0_ctg_dead_index()),
 			       &fom->cg_dead_index);
 		m0_ctg_op_fini(ctg_op);
+		fom->cg_ctg_op_initialized = false;
 		/*
 		 * Retry: maybe, have more trees to drop.
 		 */
