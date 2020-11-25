@@ -14,7 +14,7 @@ SNS (Server Network Striping) and local RAID are mechanisms to achieve data redu
 Items
 ****************
 
-- Striping is, generally, two-level. SNS stores a file in a collection of component files, using logical offsets within component files to determine where file data go. A component file is stored by a C2 back-end in a container, which is a thin abstraction layer on top of device. A container can itself be striped over other containers (or de-duped, encrypted, compressed, etc.). 
+- Striping is, generally, two-level. SNS stores a file in a collection of component files, using logical offsets within component files to determine where file data go. A component file is stored by a Motr back-end in a container, which is a thin abstraction layer on top of device. A container can itself be striped over other containers (or de-duped, encrypted, compressed, etc.). 
 
 - The same algorithms and the same data-structures are used for SNS and local RAID.
 
