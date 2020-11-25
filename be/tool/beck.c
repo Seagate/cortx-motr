@@ -1389,7 +1389,7 @@ static int emap_proc(struct scanner *s, struct btype *btype,
 
 		if (!dry_run) {
 			ea->emap_act.a_builder = &beck_builder;
-	        ea->emap_act.a_node_offset = node_offset;
+			ea->emap_act.a_node_offset = node_offset;
 			adom = emap_dom_find(&ea->emap_act, &ea->emap_fid, &id);
 			if (adom != NULL) {
 				ea->emap_act.a_opc += id;
@@ -1811,7 +1811,8 @@ static void builder_done(struct m0_be_tx_bulk   *tb,
 		off_info.oi_pinfo.pi_act_done[partition]++;
 		m0_mutex_unlock(&off_info.oi_part_lock[partition]);
 
-		if (!(winfo->woi_act_done[partition] % NV_OFFSET_SAVE_ACT_DELTA))
+		if (winfo->woi_act_done[partition] % NV_OFFSET_SAVE_ACT_DELTA ==
+		    0)
 			nv_scan_offset_update();
 		m0_free(act);
 	}
