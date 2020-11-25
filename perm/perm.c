@@ -86,6 +86,8 @@ enum msg_op {
 	O_NONE,
 	O_HASET,
 	O_USER,
+	O_PREP,
+	O_ACK,
 
 	O_NR
 };
@@ -160,14 +162,8 @@ struct invariant {
 	bool            (*i_check)(const struct step *s);
 };
 
-enum cb_type {
-	C_SIMPLE,
-	C_THREAD
-};
-
 struct cb {
 	uint64_t         c_magix;
-	enum cb_type     c_type;
 	struct m0_tlink  c_linkage;
 	struct proc     *c_proc;
 	enum event_op    c_op;
@@ -285,6 +281,7 @@ static void *palloc(struct proc *proc);
 static void *pget(struct proc *proc);
 
 static void cont(struct proc *proc,
+		 void (*print)(const struct event *e),
 		 void (*invoke)(struct cb *cb, struct event *e,
 				void *data)) M0_UNUSED;
 
@@ -331,7 +328,10 @@ static struct kv *kv_get(struct proc *proc);
 
 static int crash_nr = 3;
 static int hastate_nr = 3;
-static int print_depth = 1000000;
+static int print_depth = INT_MAX;
+static int max_depth = INT_MAX;
+static int proc_nr  = 2;
+struct proc **procs = NULL;
 
 static bool perm_invariant(const struct perm *p)
 {
@@ -420,7 +420,7 @@ static void perm_run(struct perm *p)
 			inv->i_check(next);
 		} m0_tl_endfor;
 		last = next;
-		while (last->s_cur == NULL) {
+		while (last->s_cur == NULL || last->s_nr > max_depth) {
 			step_fini(last);
 			if (s_tlist_is_empty(&p->p_step))
 				return;
@@ -474,7 +474,6 @@ static void *palloc(struct proc *proc)
 
 static void invoke(struct step *step, struct event *e, struct cb *cb)
 {
-	M0_ASSERT(cb->c_type == C_SIMPLE);
 	cb->c_invoke(cb, e, palloc(cb->c_proc));
 }
 
@@ -945,18 +944,21 @@ static void send(struct proc *src, struct proc *dst, enum msg_type mt,
 #endif
 
 static void cont(struct proc *proc,
+		 void (*print)(const struct event *e),
 		 void (*invoke)(struct cb *cb, struct event *e, void *data))
 {
 	static uint64_t  sel0 = 0;
 	struct cb       *cb;
+	struct event    *e;
 
 	cb = cb_add(proc->pr_perm, proc);
 	cb->c_op     = E_CONT;
 	cb->c_proc   = proc;
 	cb->c_invoke = invoke;
 	cb->c_sel0   = ++sel0;
-	event_post(proc->pr_perm, E_CONT, proc, NULL, sel0, 0, 0, 0, P_STARTED,
-		   sys_pget(proc)->ss_bcount);
+	e = event_post(proc->pr_perm, E_CONT, proc, NULL, sel0, 0,
+		       0, 0, P_STARTED, sys_pget(proc)->ss_bcount);
+	e->e_print = print;
 }
 
 static enum ha_state thinks(struct proc *proc, struct proc *object)
@@ -1020,13 +1022,22 @@ static void event_print(const struct event *e)
 	static const char *mopname[] = {
 		[O_NONE]  = "",
 		[O_HASET] = "haset",
-		[O_USER]  = "user"
+		[O_USER]  = "user",
+		[O_PREP]  = "prep",
+		[O_ACK]   = "ack"
 	};
 	static const char *hasname[] = {
 		[H_ONLINE]    = "online",
 		[H_TRANSIENT] = "transient",
 		[H_PERMANENT] = "permanent",
 	};
+	static const char *txname[] = {
+		[T_NONE]      = "none",
+		[T_OPEN]      = "open",
+		[T_CLOSED]    = "closed",
+		[T_LOGGED]    = "logged",
+		[T_COMMITTED] = "committed"
+};
 	printf("[");
 	if (e->e_src != NULL)
 		printf("%i->", e->e_src->pr_idx);
@@ -1039,6 +1050,8 @@ static void event_print(const struct event *e)
 		printf("%s:%s", mtname[e->e_sel0], mopname[e->e_sel1]);
 	else if (e->e_op == E_HASTATE)
 		printf("%s", hasname[e->e_sel0]);
+	else if (e->e_op == E_TXSTATE)
+		printf("%s", txname[e->e_sel0]);
 	else
 		printf("%"PRIx64":%"PRIx64"", e->e_sel0, e->e_sel1);
 	if (e->e_p0 != 0 || e->e_p1 != 0)
@@ -1052,30 +1065,225 @@ static void event_print(const struct event *e)
 
 /** Models. */
 enum model {
-      MOD_NONE,
-      MOD_CONT,
-      MOD_REQ,
-      MOD_2PC
+	MOD_NONE,
+	MOD_CONT,
+	MOD_REQ,
+	MOD_2PC
 };
 
+enum tpc_key {
+	PHASE = 1,
+	PREP_SENT,
+	PREP_RCVD,
+	DECISION,
+	ACK_SENT,
+	ACK_RCVD,
 
-struct m2pc_state {
-	struct sys_proc_state m_base;
-	int                   m_c_nr;
-	int                   m_a_nr;
-	bool                  m_commit;
-	bool                  m_done;
+	PREP_FROM,
+	ACK_FROM = PREP_FROM + 1000
 };
+
+enum tpc_val {
+	INIT,
+	PREP,
+	PWAIT,
+	ACK,
+	AWAIT,
+	DONE
+};
+
+enum decision {
+	D_COMMIT = 1,
+	D_ABORT
+};
+
+struct tpc {
+	struct sys_proc_state t_base;
+	uint64_t              t_txid;
+};
+
+static void tpc_set(struct proc *proc, uint64_t key, uint64_t val)
+{
+	struct tpc *tpc  = palloc(proc);
+	M0_ASSERT(tpc->t_txid != 0);
+	tx_set(proc, tpc->t_txid, key, val, NULL);
+}
+
+static uint64_t tpc_get(struct proc *proc, uint64_t key)
+{
+	uint64_t val;
+	void    *buf;
+	tx_get(proc, key, &val, &buf);
+	return val;
+}
+
+static void tpc_coordinator_print(const struct event *e)
+{
+	struct proc *proc = e->e_proc;
+	static const char *pname[] = {
+		[INIT]  = "init",
+		[PREP]  = "prep",
+		[PWAIT] = "pwait",
+		[ACK]   = "ack",
+		[AWAIT] = "await",
+		[DONE]  = "done"
+	};
+	M0_ASSERT(proc == procs[0]);
+	printf("%s: P:%"PRId64"/%"PRId64" A:%"PRId64"/%"PRId64" D:%"PRId64,
+	       pname[tpc_get(proc, PHASE)], tpc_get(proc, PREP_SENT),
+	       tpc_get(proc, PREP_RCVD), tpc_get(proc, ACK_SENT),
+	       tpc_get(proc, ACK_RCVD), tpc_get(proc, DECISION));
+}
+
+static void tpc_coordinator_balance(struct proc *proc);
+
+static void tpc_coordinator_kick(struct proc *proc)
+{
+	cont(proc, &tpc_coordinator_print,
+	     LAMBDA(void, (struct cb *cx, struct event *ex, void *dx) {
+		tpc_coordinator_balance(ex->e_proc);
+	}));
+}
+
+static void tpc_coordinator_tick(struct cb *c, struct event *e, void *d)
+{
+	struct proc *proc  = e->e_proc;
+	struct tpc  *tpc   = palloc(proc);
+	int          decision;
+	int          got;
+
+	if (tpc->t_txid == 0)
+		tpc->t_txid = tx_open(proc);
+	if (e->e_op ==  E_START) {
+		;
+	} else if (e->e_op == E_RECV && e->e_sel1 == O_PREP) {
+		decision = tpc_get(proc, PREP_FROM + e->e_src->pr_idx);
+		if (decision == 0) {
+			decision = e->e_p0;
+			got = tpc_get(proc, PREP_RCVD);
+			tpc_set(proc, PREP_RCVD, got + 1);
+			tpc_set(proc, PREP_FROM + e->e_src->pr_idx, decision);
+			if (decision == D_ABORT)
+				tpc_set(proc, DECISION, D_ABORT);
+		} else {
+			M0_ASSERT(decision == e->e_p0);
+		}
+	} else if (e->e_op == E_RECV && e->e_sel1 == O_ACK) {
+		decision = tpc_get(proc, ACK_FROM + e->e_src->pr_idx);
+		if (decision == 0) {
+			got = tpc_get(proc, PREP_RCVD);
+			tpc_set(proc, PREP_RCVD, got + 1);
+			tpc_set(proc, PREP_FROM + e->e_src->pr_idx, 1);
+		} else {
+			M0_ASSERT(decision == 1);
+		}
+	} else if (e->e_op == E_RECV && e->e_sel1 == O_HASET) {
+		;
+	} else
+		M0_IMPOSSIBLE("Wrong event.");
+	tx_close(proc, tpc->t_txid);
+	tpc->t_txid = 0;
+	tpc_coordinator_kick(proc);
+}
+
+static void tpc_coordinator_balance(struct proc *proc)
+{
+	struct tpc *tpc = palloc(proc);
+	int         phase;
+	int         idx;
+	int         decision;
+	bool        more = true;
+
+	if (tpc->t_txid == 0)
+		tpc->t_txid = tx_open(proc);
+	phase = tpc_get(proc, PHASE);
+	switch (phase) {
+	case INIT:
+		tpc_set(proc, DECISION, D_COMMIT);
+		tpc_set(proc, PHASE, PREP);
+		tx_close(proc, tpc->t_txid);
+		tpc->t_txid = 0;
+		break;
+	case PREP:
+		idx = tpc_get(proc, PREP_SENT);
+		M0_ASSERT(0 <= idx && idx < proc_nr);
+		if (idx + 1 == proc_nr) {
+			tpc_set(proc, PHASE, PWAIT);
+			tx_close(proc, tpc->t_txid);
+			tpc->t_txid = 0;
+		} else {
+			tpc_set(proc, PREP_SENT, idx + 1);
+			req(proc, procs[idx], O_PREP, 0, 0);
+		}
+		break;
+	case PWAIT:
+		idx = tpc_get(proc, PREP_RCVD);
+		M0_ASSERT(0 <= idx && idx < proc_nr);
+		if (idx + 1 == proc_nr) {
+			tpc_set(proc, PHASE, ACK);
+		} else {
+			tx_close(proc, tpc->t_txid);
+			tpc->t_txid = 0;
+			more = false;
+		}
+		break;
+	case ACK:
+		idx      = tpc_get(proc, ACK_SENT);
+		decision = tpc_get(proc, DECISION);
+		M0_ASSERT(0 <= idx && idx < proc_nr);
+		M0_ASSERT(M0_IN(decision, (D_COMMIT, D_ABORT)));
+		if (idx + 1 == proc_nr) {
+			tpc_set(proc, PHASE, AWAIT);
+			tx_close(proc, tpc->t_txid);
+			tpc->t_txid = 0;
+		} else {
+			tpc_set(proc, ACK_SENT, idx + 1);
+			req(proc, procs[idx], O_ACK, decision, 0);
+		}
+		break;
+	case AWAIT:
+		idx = tpc_get(proc, ACK_RCVD);
+		M0_ASSERT(0 <= idx && idx < proc_nr);
+		if (idx + 1 == proc_nr) {
+			tpc_set(proc, PHASE, DONE);
+		} else {
+			tx_close(proc, tpc->t_txid);
+			tpc->t_txid = 0;
+			more = false;
+		}
+		break;
+	case DONE:
+		more = false; /* Ain't kicking no more. */
+	}
+	if (more)
+		tpc_coordinator_kick(proc);
+}
+
+static void tpc_coordinator_init(struct proc *proc)
+{
+	struct perm *p = proc->pr_perm;
+	struct cb   *cb;
+
+	cb = cb_add(p, proc);
+	cb->c_op = E_START;
+	cb->c_invoke = &tpc_coordinator_tick;
+	cb = cb_add(p, proc);
+	cb->c_op = E_RECV;
+	cb->c_invoke = &tpc_coordinator_tick;
+	tpc_coordinator_kick(proc);
+}
+
+static void tpc_cohort_init(struct proc *proc)
+{
+}
 
 int main(int argc, char **argv)
 {
 	struct perm   p;
 	struct m0     instance = {0};
-	struct proc **proc;
+	enum model    model    = MOD_NONE;
 	int           result;
 	int           i;
-	int           proc_nr  = 2;
-	enum model    model    = MOD_NONE;
 	int           psize;
 
 	m0_node_uuid_string_set(NULL);
@@ -1085,18 +1293,19 @@ int main(int argc, char **argv)
 
 	result = M0_GETOPTS("perm", argc, argv,
 		   M0_FORMATARG('m', "Model", "%i", &model),
+		   M0_FORMATARG('D', "Max depth", "%i", &max_depth),
 		   M0_FORMATARG('d', "Print depth", "%i", &print_depth),
 		   M0_FORMATARG('c', "Crash nr", "%i", &crash_nr),
 		   M0_FORMATARG('h', "Hastate nr", "%i", &hastate_nr),
 		   M0_FORMATARG('p', "Number of processes", "%i", &proc_nr));
 	if (result != 0)
 		err(EX_CONFIG, "Wrong option.");
-	perm_init(&p);
-	psize = model == MOD_2PC ? sizeof(struct m2pc_state) :
+	psize = model == MOD_2PC ? sizeof(struct tpc) :
 		sizeof(struct sys_proc_state);
-	proc = xalloc(proc_nr * sizeof proc[0]);
+	perm_init(&p);
+	procs = xalloc(proc_nr * sizeof procs[0]);
 	for (i = 0; i < proc_nr; ++i) {
-		proc[i] = proc_add(&p, psize, (void *)&sys_pfree);
+		procs[i] = proc_add(&p, psize, (void *)&sys_pfree);
 	}
 	invariant_add(&p);
 	perm_prep(&p);
@@ -1105,34 +1314,36 @@ int main(int argc, char **argv)
 	case MOD_NONE:
 		break;
 	case MOD_CONT:
-		cont(proc[0], LAMBDA(void, (struct cb *c,
-					    struct event *e, void *d) {
+		cont(procs[0], NULL, LAMBDA(void, (struct cb *c,
+					     struct event *e, void *d) {
 				uint64_t tid = tx_open(e->e_proc);
 
 				tx_set(e->e_proc, tid, 17, 12, NULL);
 				tx_close(e->e_proc, tid);
-			}));
-		cont(proc[0], LAMBDA(void, (struct cb *c,
-					    struct event *e, void *d) {
+		}));
+		cont(procs[0], NULL, LAMBDA(void, (struct cb *c,
+					     struct event *e, void *d) {
 				uint64_t tid = tx_open(e->e_proc);
 
 				tx_set(e->e_proc, tid, 17, 13, NULL);
 				tx_close(e->e_proc, tid);
-			}));
-		cont(proc[0], LAMBDA(void, (struct cb *c,
-					    struct event *e, void *d) {
+		}));
+		cont(procs[0], NULL, LAMBDA(void, (struct cb *c,
+					     struct event *e, void *d) {
 				uint64_t val;
 				void    *buf;
 				tx_get(e->e_proc, 17, &val, &buf);
 				M0_ASSERT(M0_IN(val, (12, 13, 0)));
 				/* printf("GOT: %"PRId64" %p\n", val, buf); */
-			}));
+		}));
 		break;
 	case MOD_REQ:
-		req(proc[0], proc[0], O_USER, 42, 43);
+		req(procs[0], procs[0], O_USER, 42, 43);
 		break;
-	case MOD_2PC: {
-	}
+	case MOD_2PC:
+		tpc_coordinator_init(procs[0]);
+		for (i = 1; i < proc_nr; ++i)
+			tpc_cohort_init(procs[i]);
 		break;
 	default:
 		M0_IMPOSSIBLE("Wrong model.");
