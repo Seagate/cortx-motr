@@ -30,9 +30,9 @@ Items
 
   - formulae should work efficiently with small FLDB (Fid Location Data-Base) and CLDB (Container Location Data-Base), in the face of object migration. 
   
-- Concurrency control. Concurrent conflicting operations on a striped file must preserve consistency. Striping with redundancy introduces dependencies between data updates: parity and corresponding data must be updated atomically. T1 does not provide concurrent access to exported block devices, but still have some concurrency, e.g., during recovery.
+- Concurrency control. Concurrent conflicting operations on a striped file must preserve consistency. Striping with redundancy introduces dependencies between data updates: parity and corresponding data must be updated atomically. Current version does not provide concurrent access to exported block devices, but still have some concurrency, e.g., during recovery.
 
-- Meta-data can be striped too (this is traditionally called clustered meta-data). This is outside of T1 scope.
+- Meta-data can be striped too (this is traditionally called clustered meta-data). This is outside of current version scope.
 
 - Failures. Network partition between a client and one of the data servers can happen. Partition between servers can happen. Partitions can be asymmetric. Data server can crash and restart losing all its volatile storage. Data server can crash forever. Data server can lose one or several of its drives. There can be latent media failures. Striping maintains data availability in the presence of certain combinations of the above failures. The strategy here relies on three mechanisms:
 
