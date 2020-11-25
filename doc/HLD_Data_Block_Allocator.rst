@@ -54,7 +54,7 @@ Requirements
 Design Highlights
 *****************
 
-C2 data-block-allocator will use the same algorithm as that from ext4 to do block allocation. But instead of using bitmap to track the block usage, C2 will use extent to track the free space. These free space extent will be stored in database, and updated with transaction support. Highlights in the C2 allocator (or derived from ext4 allocator) are:
+Motr data-block-allocator will use the same algorithm as that from ext4 to do block allocation. But instead of using bitmap to track the block usage, Motr will use extent to track the free space. These free space extent will be stored in database, and updated with transaction support. Highlights in the Motr allocator (or derived from ext4 allocator) are:
 
 - Container is equally divided into groups, which can be locked respectively.
 
