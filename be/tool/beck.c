@@ -1838,13 +1838,14 @@ static void builder_fini(struct builder *b)
 {
 	int i;
 
+	m0_thread_join(&b->b_thread);
+	m0_thread_fini(&b->b_thread);
+
 	for (i = 0; i < AO_NR - AO_EMAP_FIRST; i++)
 		m0_mutex_fini(&b->b_emaplock[i]);
 	m0_mutex_fini(&b->b_coblock);
 	m0_mutex_fini(&b->b_ctglock);
 
-	m0_thread_join(&b->b_thread);
-	m0_thread_fini(&b->b_thread);
 	m0_ctg_store_fini();
 	m0_reqh_be_fini(&b->b_reqh);
 	ad_dom_fini(b);
