@@ -72,35 +72,35 @@ Motr data-block-allocator will use the same algorithm as that from ext4 to do bl
 Functional Specification
 ***************************
 
-C2_mb_format
+m0_mb_format
 ==============
 
 Format the specified container, create groups, initialize the free space extent.
 
-int C2_mb_format(c2_mb_context *ctxt);
+int m0_mb_format(m0_mb_context *ctxt);
 
 - ctxt: context pointer, including handle to database, transaction id, global variables. The allocation database is usually replicated to harden the data integrity.
 
 - return value: if succeeded, 0 should be returned. Otherwise negative value will be returned to indicate error
 
 
-C2_mb_init
+m0_mb_init
 ===========
 
 Init the working environment.
 
-int C2_mb_init(c2_mb_context **ctxt);
+int m0_mb_init(m0_mb_context **ctxt);
 
 - ctxt: pointer to context pointer. The context will be allocated in this function and global variable and environment will be set up properly.
 
 - return value: if succeeded, 0 should be returned. Otherwise negative value will be returned to indicate error.
 
-C2_mb_allocate_blocks
+m0_mb_allocate_blocks
 ======================
 
 Allocate blocks from the container.
 
-int C2_allocate_blocks(c2_mb_context *ctxt, c2_mb_allocate_request * req);
+int m0_allocate_blocks(m0_mb_context *ctxt, m0_mb_allocate_request * req);
 
 - ctxt: context pointer, including handle to database, transaction id, global variables.
 
@@ -108,12 +108,12 @@ int C2_allocate_blocks(c2_mb_context *ctxt, c2_mb_allocate_request * req);
 
 - return value: if succeeded, physical block number in the container. Otherwise negative value will be returned to indicate error
 
-C2_mb_free_blocks
+m0_mb_free_blocks
 ==================
 
 Free blocks back to the container.
 
-int C2_free_blocks(c2_mb_context *ctxt, c2_mb_free_request * req);
+int m0_free_blocks(m0_mb_context *ctxt, m0_mb_free_request * req);
 
 - ctxt: context pointer, including handle to database, transaction id, global variables.
 
@@ -121,12 +121,12 @@ int C2_free_blocks(c2_mb_context *ctxt, c2_mb_free_request * req);
 
 - return value: if succeeded, 0 should be returned. Otherwise negative value will be returned to indicate error.
 
-C2_mb_enforce
+m0_mb_enforce
 ==============
 
 Modify the allocation status by enforce: set extent as allocated or free.
 
-int c2_mb_enforce(c2_mb_context *ctx, bool alloc, c2_extent *ext);
+int m0_mb_enforce(m0_mb_context *ctx, bool alloc, m0_extent *ext);
 
 - ctxt: context pointer, including handle to database, transaction id, global variables.
 
@@ -153,20 +153,20 @@ Free space is tracked by extent. Every extent has a "start" block number and "co
 
 Allocation of blocks are using the same algorithm with that of ext4: buddy-style. Various flags are passed to the allocator to control the size of allocation. Different applications may need different allocation size and different block placement, e.g. stream data and striped data have different requirements. In all the following operations, FOL log will be generated and logged, and these logs may help to do file system checking (fsck-ing).
 
-- C2_mb_format. This routine creates database, group description tables, free space extent tables for container. Every container has a table called super_block, which contains container-wide information, such as block size, group size, etc. Every group has two tables: description table and free extent table. They are used to store group-wide information and its allocation states.
+- m0_mb_format. This routine creates database, group description tables, free space extent tables for container. Every container has a table called super_block, which contains container-wide information, such as block size, group size, etc. Every group has two tables: description table and free extent table. They are used to store group-wide information and its allocation states.
 
-- c2_mb_init. This routine creates a working environment, reading information about the container and its groups from the data tables.
+- m0_mb_init. This routine creates a working environment, reading information about the container and its groups from the data tables.
 
-- c2_mb_allocate_blocks. This routine searches in groups to find best suitable free spaces. It uses the in-memory buddy system to help the searching. And then if free space is allocated successfully, updates to the group description and free space tables are done within the same transaction.
+- m0_mb_allocate_blocks. This routine searches in groups to find best suitable free spaces. It uses the in-memory buddy system to help the searching. And then if free space is allocated successfully, updates to the group description and free space tables are done within the same transaction.
 
-- c2_mb_free_blocks. This routine updates the in-memory buddy system, and then update the group description and free space tables to reflect these changes. Sanity checking against double free will be done here.
+- m0_mb_free_blocks. This routine updates the in-memory buddy system, and then update the group description and free space tables to reflect these changes. Sanity checking against double free will be done here.
 
-- c2_mb_enforce. This routine is used by fsck or other tools to modify block allocation status forcibly.
+- m0_mb_enforce. This routine is used by fsck or other tools to modify block allocation status forcibly.
 
-Comparison of C2 data-block-allocator and Ext4 multi-block allocator is mentioned in the below table.
+Comparison of Motr data-block-allocator and Ext4 multi-block allocator is mentioned in the below table.
 
 +--------------------------------+----------------------------------------------+-----------------------------------------------+
-|                                |Ext4 Multi-block Allocator                    |C2 data-block-allocator                        |
+|                                |Ext4 Multi-block Allocator                    |Motr data-block-allocator                      |
 +--------------------------------+----------------------------------------------+-----------------------------------------------+
 |on-disk free block tracking     |bitmap                                        |extent                                         |
 +--------------------------------+----------------------------------------------+-----------------------------------------------+
