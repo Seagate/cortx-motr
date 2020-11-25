@@ -2,7 +2,7 @@
 SNS Overview
 ======================
 
-This document summarizes SNS and local RAID discussions in the Motr architecture team. The goal is to provide a starting point for design level discussions and resource estimation. Note that this documents is not a substitute for a list of requirements or use-cases. Intended audience includes T1 team and Motr architects.
+This document summarizes SNS and local RAID discussions in the Motr architecture team. The goal is to provide a starting point for design level discussions and resource estimation. Note that this documents is not a substitute for a list of requirements or use-cases. The intended audience of this document consists of Motr customers, architects, designers and developers.
 
 ****************
 Overview
