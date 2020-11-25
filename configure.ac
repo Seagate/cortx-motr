@@ -782,27 +782,22 @@ AC_ARG_WITH([libfab],
         [LIBFABRIC=""]
 )
 
-AS_IF([test -z "$with_libfab" && ! test -f "/usr/include/rdma/fabric.h"],
-      [AC_MSG_ERROR([Libfabric cannot be found! Please, install \
-libfabric-devel package or provide the path to a directory with built \
-libfabric sources, using --with-libfab option.])]
-)
+AC_CHECK_HEADERS([rdma/fabric.h],
+        [LIBFAB_LIBS="-lfabric"])
 
-AS_IF([test -z $with_libfab],[
-        LIBFAB_LIBS="-lfabric"
-      ],[
+AC_DEFINE([ENABLE_LIBFAB])
+
+AS_IF([test x$with_libfab != xno && ! test -z "$with_libfab"],
+      [
         LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
         LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
+        M0_CPPFLAGS="$M0_CPPFLAGS $LIB_FAB_INCLUDES"
       ]
 )
 
-AC_DEFINE([ENABLE_LIBFAB])
 AC_SUBST([LIBFAB_LIBS])
-AC_SUBST([LIB_FAB_INCLUDES])
-
-AS_IF([! test -z "$with_libfab"],
-        [ M0_CPPFLAGS="$M0_CPPFLAGS $LIB_FAB_INCLUDES"]
-)
+AM_CONDITIONAL([ENABLE_LIBFAB],
+               [test x$with_libfab != xno && ! test -z "$LIBFAB_LIBS"])
 
 #
 # Checking Lustre --------------------------------------------------------- {{{1
