@@ -95,9 +95,9 @@ Listed subcomponents share RPC component state e.g. RPC-items, connections, slot
 
   - Do grouping by fid of file;
 
-  - Maximal count of RPCs in processing (C2_MAX_RPCS_IN_FLIGHT);
+  - Maximal count of RPCs in processing (Motr_MAX_RPCS_IN_FLIGHT);
 
-  - Maximal count of pages per RPC (C2_MAX_PAGES_PER_RPC).
+  - Maximal count of pages per RPC (Motr_MAX_PAGES_PER_RPC).
 
   Further description of formation is out of the scope of this document and described in formation HLD [4].
 
