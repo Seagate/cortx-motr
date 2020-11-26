@@ -14,7 +14,7 @@ RPC layer is a high level part of Motr network stack. It contains operations all
 Definitions
 **************
 
-- fop, file operation packet, a description of file operation suitable for sending over network and storing on a storage device. File operation packet (FOP) identifies file operation type and operation parameters;
+- **fop**, file operation packet, a description of file operation suitable for sending over network and storing on a storage device. File operation packet (FOP) identifies file operation type and operation parameters;
 
 - rpc, is a container for fops and other auxiliary data. For example, addb records are placed in rpcs alongside with fops
 
