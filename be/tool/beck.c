@@ -963,16 +963,16 @@ static int scan(struct scanner *s)
 			lastrecord = beck_builder.b_act;
 			lastdata = beck_builder.b_data;
 
-			/** save scanner offset if scanner and bnode queue's
-			 * are empty and scanner is progressing by delta bytes
-			 */
-			if( s->s_off - lastnvsaveoff >
-			    NV_OFFSET_SAVE_DELTA_IN_BYTES &&
-			    isqempty(&s->s_bnode_q)&&
-			    isqempty(s->s_q) ) {
-				lastnvsaveoff = s->s_off;
-				nv_scan_offset_update();
-			}
+		}
+		/** save scanner offset if scanner and bnode queue's
+		 * are empty and scanner has progressed by delta bytes
+		 */
+		if( s->s_off - lastnvsaveoff >
+		    NV_OFFSET_SAVE_DELTA_IN_BYTES &&
+		    isqempty(&s->s_bnode_q)&&
+		    isqempty(s->s_q) ) {
+			lastnvsaveoff = s->s_off;
+			nv_scan_offset_update();
 		}
 	}
 	return feof(s->s_file) ? 0 : result;
