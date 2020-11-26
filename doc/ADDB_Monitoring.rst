@@ -91,6 +91,8 @@ Exceptional Conditions Reporting
 
 Monitors will be used to detect exceptional conditions. Periodic posting is not applicable for such conditions as failures are to be reported as soon as possible. Monitor updates its data structures to indicate a failure and will initiate a failure report by posting AST. During ASTs execution fop is sent to local HA component to notify about the failure. Monitors can also produce exception records from normal addb records for example is fop transition is taking too long, then this would be an exception.
 
+.. image:: Images/ADDB_Monitoring.PNG
+
 ***********************
 Logical specification  
 ***********************

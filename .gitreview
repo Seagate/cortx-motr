@@ -1,7 +1,0 @@
-[gerrit]
-host=es-gerrit.xyus.xyratex.com
-port=29418
-project=motr
-defaultbranch=dev
-defaultremote=origin
-defaultrebase=0
