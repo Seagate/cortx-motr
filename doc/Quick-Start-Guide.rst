@@ -58,11 +58,11 @@ Perform the below mentioned procedure to build the source code.
 
 3. To compile, run either of the following commands:
 
-   - **$ sudo ./scripts/m0 make**
+   - **$ scripts/m0 make**
 
-   - **$ sudo ./scripts/m0 rebuild**
+   - **$ scripts/m0 rebuild**
 
-   **Note**: The **./scripts/m0 rebuild** command includes some clean up.
+   **Note**: The **scripts/m0 rebuild** command includes some clean up.
    
 RPM Generation
 ===============
