@@ -36,17 +36,27 @@
  * @{
  */
 
-// #define FI_MAJOR_VERSION 1
-// #define FI_MINOR_VERSION 1
-
-struct libfabric_domain_params {
+/**
+ *    Libfabric parameters.
+ * 
+ */
+struct libfab_dom_params {
 	struct fi_info    *fi;      /* Fabric info */
 	struct fi_info    *hints;   /* Fabric info to configure flags */
 	struct fid_fabric *fabric;  /* Fabric fid */
 	struct fid_domain *domain;  /* Domain fid */
 };
-struct libfab_params {
-	struct fid_mr     *mr; 	/* Memory region to be registered */
+
+/**
+ *    Private data pointed to by m0_net_buffer::nb_xprt_private.
+ * 
+ */
+struct libfab_buf_params {
+        /** Pointer back to the network buffer */
+        struct m0_net_buffer   *xb_nb;  
+        /** libfab memory region */
+        struct fid_mr           *mr;
+
 };
 
 /** @} end of netlibfab group */

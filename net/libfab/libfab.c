@@ -58,6 +58,8 @@
 #include "lib/bitmap.h"
 #include "lib/chan.h"
 #include "lib/memory.h"
+#include "lib/types.h"
+#include "lib/memory.h" /*M0_ALLOC_PTR()*/
 #include "libfab.h"
 #include <errno.h>
 
@@ -74,11 +76,17 @@ struct transfer_ma {
 	*/
 };
 
+#define FAB_MR_ACCESS  (FI_READ | FI_WRITE | FI_RECV | FI_SEND | \
+			FI_REMOTE_READ | FI_REMOTE_WRITE)
+#define FAB_MR_OFFSET   0
+#define FAB_MR_FLAG     0
+#define FAB_MR_KEY      0XABCD
+
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
-	struct libfabric_domain_params *fab;
-	int rc;
+	struct libfab_dom_params *fab;
+	int 			  rc;
 
 	M0_ENTRY();
 	
@@ -205,8 +213,9 @@ static int libfab_end_point_create(struct m0_net_end_point **epp,
 	return M0_RC(result);
 }
 
+
 /**
- * Initialises a network buffer.
+ * Register a network buffer.
  *
  * Used as m0_net_xprt_ops::xo_buf_register().
  *
@@ -214,18 +223,30 @@ static int libfab_end_point_create(struct m0_net_end_point **epp,
  */
 static int libfab_buf_register(struct m0_net_buffer *nb)
 {
-	int        		ret = 0;
+	int			  ret;
+	struct fid_domain	 *domain = nb->nb_dom->nd_xprt_private;
+	struct libfab_buf_params *bp;
 
+	M0_PRE(nb->nb_xprt_private == NULL);
+
+	M0_ALLOC_PTR(bp);
+	if (bp == NULL)
+		return M0_ERR(-ENOMEM);
+
+	nb->nb_xprt_private = bp;
+	bp->xb_nb = nb;
+	/* Registers buffer that can be used for send/recv and local/remote RMA. */
+	ret = fi_mr_reg(domain, nb->nb_buffer.ov_buf[0], nb->nb_length,
+			FAB_MR_ACCESS, FAB_MR_OFFSET, FAB_MR_KEY,
+			FAB_MR_FLAG, &bp->mr, NULL);	
+	if (ret == FI_SUCCESS)
+		ret = fi_mr_enable(bp->mr);	
 	return M0_RC(ret);
+}
 
-	/*
-	* TODO
-	* fi_mr_reg, fi_mr_desc, fi_mr_key, fi_mr_bind, fi_mr_enable
-	*/
-}	
 
 /**
- * Finalises a network buffer.
+ * Deregister a network buffer.
  *
  * Used as m0_net_xprt_ops::xo_buf_deregister().
  *
@@ -233,9 +254,14 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
  */
 static void libfab_buf_deregister(struct m0_net_buffer *nb)
 {
-	/*
- 	* TODO:
- 	* fi_close() */
+	struct libfab_buf_params *bp = nb->nb_xprt_private;
+	int			  ret;
+
+	ret = fi_close(&bp->mr->fid);
+	if (ret == FI_SUCCESS) {
+		m0_free(bp);
+		nb->nb_xprt_private = NULL;
+	}
 }
 
 /**
