@@ -95,9 +95,9 @@ Listed subcomponents share RPC component state e.g. RPC-items, connections, slot
 
   - Do grouping by fid of file;
 
-  - Maximal count of RPCs in processing (Motr_MAX_RPCS_IN_FLIGHT);
+  - Maximal count of RPCs in processing (M0_MAX_RPCS_IN_FLIGHT);
 
-  - Maximal count of pages per RPC (Motr_MAX_PAGES_PER_RPC).
+  - Maximal count of pages per RPC (M0_MAX_PAGES_PER_RPC).
 
   Further description of formation is out of the scope of this document and described in formation HLD [4].
 
@@ -163,7 +163,7 @@ Statistics subcomponent is used to gather and share various statistics of RPC la
 
   - Some units measured in bytes/sec or pages/sec;
 
-- Some constant and slow varying properties like C2_MAX_PAGES_PER_RPC or C2_MAX_RPCS_IN_FLIGHT.
+- Some constant and slow varying properties like M0_MAX_PAGES_PER_RPC or M0_MAX_RPCS_IN_FLIGHT.
 
 Statistics subcomponent expose simple interface which takes property name or key and returns its value in raw form.
 
@@ -171,37 +171,37 @@ Interface description:
 
 Component IF:
 
-- int c2_rpc_core_init(...);
+- int m0_rpc_core_init(...);
 
-- void c2_rpc_core_fini();
+- void m0_rpc_core_fini();
 
 Statistics IF:
 
-- void* c2_rpc_stat_get_prop();
+- void* m0_rpc_stat_get_prop();
 
 Connectivity IF:
 
-- c2_rpc_session_id c2_rpc_session_link(c2_service_id);
+- m0_rpc_session_id m0_rpc_session_link(m0_service_id);
 
-- c2_rpc_slot_id c2_rpc_slot_link(c2_rpc_session_id);
+- m0_rpc_slot_id m0_rpc_slot_link(m0_rpc_session_id);
 
-- void c2_rpc_session_unlink(c2_rpc_session_id);
+- void m0_rpc_session_unlink(m0_rpc_session_id);
 
-- void c2_rpc_slot_unlink(c2_rpc_slot_id);
+- void m0_rpc_slot_unlink(m0_rpc_slot_id);
 
-- void c2_rpc_slot_max_set(uint32_t max);
+- void m0_rpc_slot_max_set(uint32_t max);
 
 Processing IF:
 
-- int c2_rpc_item_send(c2_rpc_item*, c2_service_id, c2_rpc_prio, c2_rpc_caching_type, c2_rpc_callback*);
+- int m0_rpc_item_send(m0_rpc_item*, m0_service_id, m0_rpc_prio, m0_rpc_caching_type, m0_rpc_callback*);
 
-- int c2_rpc_items_send(c2_upstream*, c2_service_id, c2_rpc_prio, c2_rpc_caching_type, c2_rpc_callback*); // send with defined update stream
+- int m0_rpc_items_send(m0_upstream*, m0_service_id, m0_rpc_prio, m0_rpc_caching_type, m0_rpc_callback*); // send with defined update stream
 
-- int c2_rpc_fop_wait(c2_service_id, c2_rpc_prio, c2_rpc_caching_type, c2_rpc_callback*);
+- int m0_rpc_fop_wait(m0_service_id, m0_rpc_prio, m0_rpc_caching_type, m0_rpc_callback*);
 
-- int c2_rpc_upstream_register(c2_rpc_item*, c2_upstream_callback*);
+- int m0_rpc_upstream_register(m0_rpc_item*, m0_upstream_callback*);
 
-- void c2_rpc_upstream_unregister(c2_upstream_callback*);
+- void m0_rpc_upstream_unregister(m0_upstream_callback*);
 
 ********************************
 Logical Specification
@@ -210,28 +210,28 @@ Logical Specification
 Conformance
 ===============
 
-To implement high-speed RPC processing subcomponent implementation should optimally utilize the resources of the host system. To perform this, Grouping, Formation and Output subcomponents should exploit multithreading. It’s well known fact that CPU utilization is optimal when the number of “processing threads” is equal to CPU cores plus number of “IO-threads”. That’s why mentioned subcomponents should use thread pool with optimal parameters. Output (transmitting) stage may have its separate pool, a number of threads which can vary and correlate with network statistics. The level of parallelism can be also tuned from the outside of RPC core component. It's possible to control it by limiting number of slots being processed simultaneously (c2_rpc_slot_max_set IF).
+To implement high-speed RPC processing subcomponent implementation should optimally utilize the resources of the host system. To perform this, Grouping, Formation and Output subcomponents should exploit multithreading. It’s well known fact that CPU utilization is optimal when the number of “processing threads” is equal to CPU cores plus number of “IO-threads”. That’s why mentioned subcomponents should use thread pool with optimal parameters. Output (transmitting) stage may have its separate pool, a number of threads which can vary and correlate with network statistics. The level of parallelism can be also tuned from the outside of RPC core component. It's possible to control it by limiting number of slots being processed simultaneously (m0_rpc_slot_max_set IF).
 
-Simplification: FOP processing can be organized via pipeline multithreaded pattern[3]. It would be slower in performance aspect, but faster to implement, easier to support and it could be also reused (not insisting for some reasons).
+Simplification: FOP processing can be organized via pipeline multithreaded pattern [3]. It would be slower in performance aspect, but faster to implement, easier to support and it could be also reused (not insisting for some reasons).
 
-As it was mentioned, subcomponents of “RPC processing” run in their own separate threads acquired from pool. To organize multithreaded interaction and mandatory (constraining) load balancing, “one-side” bounded queues[2] are used. Number of queues between stages and fetching policy is performance related subject and should be reviewed in DLD.
+As it was mentioned, subcomponents of “RPC processing” run in their own separate threads acquired from pool. To organize multithreaded interaction and mandatory (constraining) load balancing, “one-side” bounded queues [2] are used. Number of queues between stages and fetching policy is performance related subject and should be reviewed in DLD.
 
 Dependencies
 ================
 
 Cached FOPs might have dependencies each on other. This could affect the order of fop sending. That's why formation subcomponent should analyse those dependencies and produce RPCs accordingly
 
-- c2_rpc_queue type is used to implement a queue for the staged interaction of the FOP processing subcomponent. This ADT can be based on a generic bounded queue for the first implementation, and specialized with more effective implementations for concrete case at later stages (fetching policy, locking/unlocking policy, etc.);
+- m0_rpc_queue type is used to implement a queue for the staged interaction of the FOP processing subcomponent. This ADT can be based on a generic bounded queue for the first implementation, and specialized with more effective implementations for concrete case at later stages (fetching policy, locking/unlocking policy, etc.);
 
-- c2_rpc_session and c2_rpc_slot map directly to sessions and slots described in [1,2];
+- m0_rpc_session and m0_rpc_slot map directly to sessions and slots described in [1,2];
 
-- c2_rpc is a container of c2_rpc_items;
+- m0_rpc is a container of m0_rpc_items;
 
-- c2_rpc_item is a container of FOPs or ADDBs (or something to be transmitted) with attributes related to RPC processing, like priority, caching, etc.
+- m0_rpc_item is a container of FOPs or ADDBs (or something to be transmitted) with attributes related to RPC processing, like priority, caching, etc.
 
-- c2_rpcmachine is a RPC processing machine, several instances of it might be existing simultaneously.
+- m0_rpcmachine is a RPC processing machine, several instances of it might be existing simultaneously.
 
-- c2_update_stream is an ADT associated with sessions and slots used for FOP sending with FIFO and EOS constrains.
+- m0_update_stream is an ADT associated with sessions and slots used for FOP sending with FIFO and EOS constrains.
 
 
 *********************
@@ -262,5 +262,5 @@ Analysis
 Scalibility
 ===========
 
-It is believed that significant improvements in the RPC processing efficiency and general throughput can be achieved by limited number of threads in pool. Number of these threads should be controlled according to CPU usage and network utilization statistics, provided by statistics subcomponent and according to RPC component settings like c2_rpc_slot_max.
+It is believed that significant improvements in the RPC processing efficiency and general throughput can be achieved by limited number of threads in pool. Number of these threads should be controlled according to CPU usage and network utilization statistics, provided by statistics subcomponent and according to RPC component settings like m0_rpc_slot_max.
 
