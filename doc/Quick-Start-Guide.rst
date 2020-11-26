@@ -173,8 +173,13 @@ Troubleshooting
        #!/bin/sh
        /somewhere_to_your/bin/java -jar /somewhere_to_your/plantuml.jar $@
        
-**The CORTX Motr submodule was last tested by @saumyasunder on 10/11/2020 on VMware Workstation 16 Pro.**
+        
+Tested by:
 
+- Nov 25, 2020: Philippe Daniel (CEA) 
 
+- Oct 11, 2020: Saumya Sunder (saumya.sunder@seagate.com) on a Windows laptop running VMWare Fusion Pro 16
 
+- Oct 02, 2020: Venkataraman Padmanabhan (venkataraman.padmanabhan@seagate.com) on a Windows laptop running VMWare Fusion Pro 16
 
+- Aug 09, 2020: Venkataraman Padmanabhan (venkataraman.padmanabhan@seagate.com) on a Windows laptop running VMWare Fusion Pro 16
