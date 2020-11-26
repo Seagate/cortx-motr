@@ -91,7 +91,7 @@ HLD for layout schema lists the following layout types:
 
 Although these layout types are well classified from schema perspective, we believe there will be two types of layouts that will be supported for the planned demo: 
 
-- Parity de-clustering layout (c2_pdclust_layout) (Conceptually this is ‘SNS layout with parity de-clustering as a property’ and is referred as pdclust layout.) 
+- Parity de-clustering layout (m0_pdclust_layout) (Conceptually this is ‘SNS layout with parity de-clustering as a property’ and is referred as pdclust layout.) 
 
 - Composite layout (mixed layout for representing layout under repair)
 
@@ -212,7 +212,7 @@ File Id to Layout Id Mapping
 File id to layout id mapping is stored by the basic file attributes table (FAB). Hence, there is no table in the layout schema to store this mapping. Following file id to layout id mapping is shown for the completeness of the example in this section and is assumed to be part of FAB.
 
 +----------------------+--------------------------------------+
-|**File Id (c2_fid)**  | **Layout Id (c2_layout_id)**         |
+|**File Id (m0_fid)**  | **Layout Id (m0_layout_id)**         |
 +======================+======================================+
 |fid1001               |L1                                    |
 +----------------------+--------------------------------------+
@@ -241,7 +241,7 @@ The Table Layouts is mentioned below.
 +----------------------+--------------------------------------------+
 |Table Name            | layouts                                    |
 +----------------------+--------------------------------------------+
-|Key                   |layout_id (Type: c2_layout_id)              |
+|Key                   |layout_id (Type: m0_layout_id)              |
 +----------------------+--------------------------------------------+
 |Record                |- layout_type (pdclust, composite, coblist) |
 |                      |                                            |
@@ -272,7 +272,7 @@ Tabular representation of “layouts” table with example
 
 
 +------------+--------------+-----------------------------+-----------------------+
-|layout_id   | layout_type  | reference_count (c2_uint32) | byte_array            |
+|layout_id   | layout_type  | reference_count (m0_uint32) | byte_array            |
 +============+==============+=============================+=======================+
 |L1          |pdclust       | 3                           |LINEAR, U, N, K        |
 +------------+--------------+-----------------------------+-----------------------+
@@ -291,7 +291,7 @@ Tabular representation of “layouts” table with example
 
 Conceptually, composite_layout_extent_map stores "extent-layout id" pairs for all the files using composite layouts.
 
-This table is to be implemented using c2_emap table which is a framework to store extent map collection. c2_emap stores a collection of related extent maps. Individual maps within a collection are identified by an element of the key called as prefix (128 bit). In case of composite_layout_extent_map, prefix would incorporate layout_id for the composite layout.
+This table is to be implemented using m0_emap table which is a framework to store extent map collection. m0_emap stores a collection of related extent maps. Individual maps within a collection are identified by an element of the key called as prefix (128 bit). In case of composite_layout_extent_map, prefix would incorporate layout_id for the composite layout.
 
 +-----------+---------------------------------+
 |Table Name |composite_layout_extent_map      |
@@ -313,7 +313,7 @@ This table is to be implemented using c2_emap table which is a framework to stor
 Assumptions
 ===============
 
-- Meta-data striping (traditionally called clustered meta-data) is outside of T1 scope. This is by referring to SNS Overview document.
+- Meta-data striping (traditionally called clustered meta-data) is outside of current version scope. This is by referring to SNS Overview document.
 
 - Directory striping is not yet considered in this document nor does it seem to be touched by the HLD. Will appreciate to receive inputs on that so that it can be considered into the design.
 
@@ -324,7 +324,7 @@ Queries
 
 - FileId to LayoutId mapping:  
 
-  - Will this mapping be stored as a part of the Fileattr_basic table (c2_cob_fabrec)? 
+  - Will this mapping be stored as a part of the Fileattr_basic table (m0_cob_fabrec)? 
 
   - If yes, do we still want to store it in Layout Schema as well for any reason like performance? 
 
