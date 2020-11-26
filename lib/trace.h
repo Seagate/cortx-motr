@@ -147,6 +147,10 @@
    @{
  */
 
+/*
+#define M0_TRACE_DISABLE (1)
+*/
+
 /**
    M0_LOG(level, fmt, ...) is the main user interface for the tracing. It
    accepts the arguments in printf(3) format for the numbers, but there are some
@@ -518,6 +522,9 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
  * to your eyes and sanity.
  */
 
+#if defined(M0_TRACE_DISABLE)
+#define M0_TRACE_POINT(LEVEL, NR, DECL, OFFSET, SIZEOF, ISSTR, HASSTR, FMT, ...)
+#else
 /**
  * This is a low-level entry point into tracing sub-system.
  *
@@ -562,6 +569,7 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
 	printf_check(FMT , ## __VA_ARGS__);				\
 	m0_trace_allot(&__trace_descr, &(const struct t_body){ __VA_ARGS__ });\
 })
+#endif /* M0_TRACE_DISABLE */
 
 #ifndef M0_TRACE_SUBSYSTEM
 #  define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER
