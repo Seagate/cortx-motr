@@ -18,15 +18,15 @@ The data block allocator manages the free spaces in the container, and provides 
 Definitions
 ******************
 
-- Extent. Extent is used to describe a range of space, with "start" block number and "count" of blocks.
+- **Extent**. Extent is used to describe a range of space, with "start" block number and "count" of blocks.
 
-- Block. The smallest unit of allocation.
+- **Block**. The smallest unit of allocation.
 
-- Block Size. The number of bytes of a Block.
+- **Block Size**. The number of bytes of a Block.
 
-- Group. The whole space is equally divided into groups with fixed size. That means every group has the same amount of blocks. When allocating spaces, groups are iterated to search for the best candidate. Group is locked during this step. Having multiple groups in a container can reduce the lock contention.
+- **Group**. The whole space is equally divided into groups with fixed size. That means every group has the same amount of blocks. When allocating spaces, groups are iterated to search for the best candidate. Group is locked during this step. Having multiple groups in a container can reduce the lock contention.
 
-- Super Group. Group 0 is an special group. It contains metadata of this container, and is not allocatable to ordinary objects.
+- **Super Group**. Group 0 is an special group. It contains metadata of this container, and is not allocatable to ordinary objects.
 
 *************
 Requirements
@@ -35,8 +35,6 @@ Requirements
 - The data-block-allocator should perform well for large continuous I/O, small object I/O.
 
 - The data-block-allocator should survive node crash.
-
-- DB5 should be used to track the block usage.
 
 - The allocator should have similar strategy as the ext4 allocator.
 
