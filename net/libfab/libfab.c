@@ -407,7 +407,7 @@ static const struct m0_net_xprt_ops libfab_xprt_ops = {
 	.xo_get_max_buffer_desc_size    = &libfab_get_max_buffer_desc_size
 };
 
-const struct m0_net_xprt m0_net_libfab_xprt = {
+struct m0_net_xprt m0_net_libfab_xprt = {
 	.nx_name = "libfab",
 	.nx_ops  = &libfab_xprt_ops
 };

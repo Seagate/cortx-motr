@@ -30,6 +30,8 @@
 #include "rdma/fi_endpoint.h"
 #include "rdma/fabric.h"
 
+extern struct m0_net_xprt m0_net_libfab_xprt;
+
 /**
  * @defgroup netlibfab
  *
