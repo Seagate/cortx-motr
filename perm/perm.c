@@ -26,6 +26,8 @@
 #include <err.h>
 #include <sysexits.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
 
 #include "lib/getopts.h"
 #include "lib/memory.h"
@@ -162,6 +164,10 @@ struct invariant {
 	bool            (*i_check)(const struct step *s);
 };
 
+enum cb_flags {
+	CF_SELF_DESTRUCT = 1 << 0
+};
+
 struct cb {
 	uint64_t         c_magix;
 	struct m0_tlink  c_linkage;
@@ -169,6 +175,7 @@ struct cb {
 	enum event_op    c_op;
 	uint64_t         c_sel0;
 	uint64_t         c_sel1;
+	uint64_t         c_flags;
 	bool           (*c_check)(const struct cb *cb, const struct event *e);
 	void           (*c_invoke)(struct cb *cb, struct event *e, void *data);
 };
@@ -246,7 +253,9 @@ static struct proc *proc_add(struct perm *p, int size,
 			     void (*pfree)(const struct proc *p,
 					   const void *data));
 static struct cb *cb_add(struct perm *p, struct proc *proc);
-static struct invariant *invariant_add(struct perm *p);
+static void cb_del(struct cb *cb);
+static struct invariant *invariant_add(struct perm *p,
+				       bool (*check)(const struct step *s));
 
 static struct step *step_add(struct step *s, struct event *e);
 static struct step *step_alloc(struct perm *p, struct step *prev);
@@ -280,12 +289,13 @@ static void event_fini(struct event *e);
 static void *palloc(struct proc *proc);
 static void *pget(struct proc *proc);
 
-static void cont(struct proc *proc,
-		 void (*print)(const struct event *e),
-		 void (*invoke)(struct cb *cb, struct event *e,
-				void *data)) M0_UNUSED;
+static struct event *cont(struct proc *proc,
+			  void (*print)(const struct event *e),
+			  void (*invoke)(struct cb *cb, struct event *e,
+					 void *data)) M0_UNUSED;
 
 static void *xalloc(size_t nob);
+static void  xfree(void *addr);
 
 static bool perm_invariant(const struct perm *p);
 static bool step_invariant(const struct step *s);
@@ -330,8 +340,10 @@ static int crash_nr = 3;
 static int hastate_nr = 3;
 static int print_depth = INT_MAX;
 static int max_depth = INT_MAX;
-static int proc_nr  = 2;
-struct proc **procs = NULL;
+static int proc_nr = 2;
+static int fork_depth = 0;
+static bool hide_disabled = false;
+static struct proc **procs = NULL;
 
 static bool perm_invariant(const struct perm *p)
 {
@@ -399,6 +411,7 @@ static void perm_run(struct perm *p)
 {
 	uint64_t     nr   = 0;
 	struct step *last = s_tlist_tail(&p->p_step);
+	int          root = 0;
 
 	last->s_cur = h_tlist_head(&last->s_event);
 	while (true) {
@@ -409,6 +422,8 @@ static void perm_run(struct perm *p)
 		M0_ASSERT(perm_invariant(p));
 		M0_ASSERT(last->s_cur != NULL);
 		if (last->s_nr < print_depth) {
+			if (fork_depth != 0)
+				printf("%6d:", getpid());
 			printf("%11"PRId64" ", nr);
 			step_print(last);
 		}
@@ -420,11 +435,21 @@ static void perm_run(struct perm *p)
 			inv->i_check(next);
 		} m0_tl_endfor;
 		last = next;
+		if (last->s_nr < fork_depth) {
+			int result = fork();
+			M0_ASSERT(result >= 0);
+			if (result > 0)
+				last->s_cur = NULL;
+			else
+				root = last->s_nr;
+		}
 		while (last->s_cur == NULL || last->s_nr > max_depth) {
 			step_fini(last);
 			if (s_tlist_is_empty(&p->p_step))
 				return;
 			last = s_tlist_tail(&p->p_step);
+			if (last->s_nr < root)
+				return;
 			last->s_cur = h_tlist_next(&last->s_event, last->s_cur);
 			step_fix(last);
 		}
@@ -436,8 +461,11 @@ static void happens(struct step *step, struct event *e)
 	struct cb *cb;
 
 	m0_tl_for(cb, &step->s_perm->p_cb, cb) {
-		if (matches(e, cb))
+		if (matches(e, cb)) {
 			invoke(step, e, cb);
+			if (cb->c_flags & CF_SELF_DESTRUCT)
+				cb_del(cb);
+		}
 	} m0_tl_endfor;
 }
 
@@ -617,7 +645,7 @@ static void sys_pfree(struct proc *proc, struct sys_proc_state *ss)
 	int i;
 
 	for (i = 0; i < ss->ss_kvnr; ++i)
-		m0_free(ss->ss_kv[i].k_buf);
+		xfree(ss->ss_kv[i].k_buf);
 }
 
 static void *sys_pinit(struct proc *proc, struct sys_proc_state *ss)
@@ -665,7 +693,7 @@ static void step_fini(struct step *s)
 		v_tlink_del_fini(scan);
 		if (v_tlist_is_empty(&e->e_hist))
 			event_fini(e);
-		m0_free(scan);
+		xfree(scan);
 	}
 	m0_tl_teardown(h, &s->s_proc, scan) {
 		proc = scan->n_vhead;
@@ -673,10 +701,10 @@ static void step_fini(struct step *s)
 		v_tlink_del_fini(scan);
 		if (proc->pr_pfree != NULL)
 			proc->pr_pfree(proc, scan->n_data);
-		m0_free(scan->n_data);
-		m0_free(scan);
+		xfree(scan->n_data);
+		xfree(scan);
 	}
-	m0_free(s);
+	xfree(s);
 }
 
 static struct pin *pin(struct step *step, bool event, void *head)
@@ -729,9 +757,20 @@ static struct cb *cb_add(struct perm *p, struct proc *proc)
 	return cb;
 }
 
-static struct invariant *invariant_add(struct perm *p)
+static void cb_del(struct cb *cb)
 {
-	return NULL;
+	cb_tlink_del_fini(cb);
+	xfree(cb);
+}
+
+static struct invariant *invariant_add(struct perm *p,
+				       bool (*check)(const struct step *s))
+{
+	struct invariant *inv = xalloc(sizeof *inv);
+
+	i_tlink_init_at_tail(inv, &p->p_invariant);
+	inv->i_check = check;
+	return inv;
 }
 
 static int eseq = 0;
@@ -773,7 +812,7 @@ static struct event *event_post(struct perm *p, enum event_op eop,
 
 static void event_fini(struct event *e)
 {
-	m0_free(e);
+	xfree(e);
 }
 
 static uint64_t tx_open(struct proc *proc)
@@ -881,6 +920,7 @@ static struct kv *kv_get(struct proc *proc)
 	struct sys_proc_state *ss = sys_pget(proc);
 
 	M0_ASSERT(ss->ss_kvnr < ARRAY_SIZE(ss->ss_kv));
+	M0_SET0(&ss->ss_kv[ss->ss_kvnr]);
 	return &ss->ss_kv[ss->ss_kvnr++];
 }
 
@@ -943,9 +983,10 @@ static void send(struct proc *src, struct proc *dst, enum msg_type mt,
 }
 #endif
 
-static void cont(struct proc *proc,
-		 void (*print)(const struct event *e),
-		 void (*invoke)(struct cb *cb, struct event *e, void *data))
+static struct event *cont(struct proc *proc,
+			  void (*print)(const struct event *e),
+			  void (*invoke)(struct cb *cb,
+					 struct event *e, void *data))
 {
 	static uint64_t  sel0 = 0;
 	struct cb       *cb;
@@ -956,9 +997,11 @@ static void cont(struct proc *proc,
 	cb->c_proc   = proc;
 	cb->c_invoke = invoke;
 	cb->c_sel0   = ++sel0;
+	cb->c_flags |= CF_SELF_DESTRUCT;
 	e = event_post(proc->pr_perm, E_CONT, proc, NULL, sel0, 0,
 		       0, 0, P_STARTED, sys_pget(proc)->ss_bcount);
 	e->e_print = print;
+	return e;
 }
 
 static enum ha_state thinks(struct proc *proc, struct proc *object)
@@ -984,6 +1027,11 @@ static void *xalloc(size_t nob)
 	return data;
 }
 
+static void xfree(void *addr)
+{
+	return m0_free(addr);
+}
+
 static void step_print(const struct step *s)
 {
 	struct pin *scan;
@@ -991,8 +1039,12 @@ static void step_print(const struct step *s)
 	printf("%*.*s%3"PRIi64":",
 	       (int)s->s_nr * 4, (int)s->s_nr * 4, "", s->s_nr);
 	m0_tl_for(h, &s->s_event, scan) {
+		bool on = enabled(scan->n_vhead);
+
+		if (!on && hide_disabled)
+			continue;
 		printf(" %s", scan == s->s_cur ? "^" : "");
-		printf("%s", enabled(scan->n_vhead) ? "" : "-");
+		printf("%s", on ? "" : "-");
 		event_print(scan->n_vhead);
 	} m0_tl_endfor;
 	printf("\n");
@@ -1010,8 +1062,8 @@ static void event_print(const struct event *e)
 		[E_TXSTATE] = "txstate",
 		[E_TXSET]   = "txset",
 		[E_CONT]    = "cont",
-		[E_REQLOST] = "rep-lost",
-		[E_REPLOST] = "req-lost"
+		[E_REQLOST] = "req-lost",
+		[E_REPLOST] = "rep-lost"
 	};
 	static const char *mtname[] = {
 		[M_NONE]  = "",
@@ -1117,6 +1169,14 @@ static uint64_t tpc_get(struct proc *proc, uint64_t key)
 	return val;
 }
 
+static void tpc_close(struct proc *proc)
+{
+	struct tpc *tpc  = palloc(proc);
+	M0_ASSERT(tpc->t_txid != 0);
+	tx_close(proc, tpc->t_txid);
+	tpc->t_txid = 0;
+}
+
 static void tpc_coordinator_print(const struct event *e)
 {
 	struct proc *proc = e->e_proc;
@@ -1147,8 +1207,9 @@ static void tpc_coordinator_kick(struct proc *proc)
 
 static void tpc_coordinator_tick(struct cb *c, struct event *e, void *d)
 {
-	struct proc *proc  = e->e_proc;
-	struct tpc  *tpc   = palloc(proc);
+	struct proc *proc = e->e_proc;
+	struct tpc  *tpc  = palloc(proc);
+	int          idx  = e->e_src->pr_idx;
 	int          decision;
 	int          got;
 
@@ -1157,23 +1218,23 @@ static void tpc_coordinator_tick(struct cb *c, struct event *e, void *d)
 	if (e->e_op ==  E_START) {
 		;
 	} else if (e->e_op == E_RECV && e->e_sel1 == O_PREP) {
-		decision = tpc_get(proc, PREP_FROM + e->e_src->pr_idx);
+		decision = tpc_get(proc, PREP_FROM + idx);
 		if (decision == 0) {
 			decision = e->e_p0;
 			got = tpc_get(proc, PREP_RCVD);
 			tpc_set(proc, PREP_RCVD, got + 1);
-			tpc_set(proc, PREP_FROM + e->e_src->pr_idx, decision);
+			tpc_set(proc, PREP_FROM + idx, decision);
 			if (decision == D_ABORT)
 				tpc_set(proc, DECISION, D_ABORT);
 		} else {
 			M0_ASSERT(decision == e->e_p0);
 		}
 	} else if (e->e_op == E_RECV && e->e_sel1 == O_ACK) {
-		decision = tpc_get(proc, ACK_FROM + e->e_src->pr_idx);
+		decision = tpc_get(proc, ACK_FROM + idx);
 		if (decision == 0) {
-			got = tpc_get(proc, PREP_RCVD);
-			tpc_set(proc, PREP_RCVD, got + 1);
-			tpc_set(proc, PREP_FROM + e->e_src->pr_idx, 1);
+			got = tpc_get(proc, ACK_RCVD);
+			tpc_set(proc, ACK_RCVD, got + 1);
+			tpc_set(proc, ACK_FROM + idx, 1);
 		} else {
 			M0_ASSERT(decision == 1);
 		}
@@ -1181,8 +1242,7 @@ static void tpc_coordinator_tick(struct cb *c, struct event *e, void *d)
 		;
 	} else
 		M0_IMPOSSIBLE("Wrong event.");
-	tx_close(proc, tpc->t_txid);
-	tpc->t_txid = 0;
+	tpc_close(proc);
 	tpc_coordinator_kick(proc);
 }
 
@@ -1201,19 +1261,17 @@ static void tpc_coordinator_balance(struct proc *proc)
 	case INIT:
 		tpc_set(proc, DECISION, D_COMMIT);
 		tpc_set(proc, PHASE, PREP);
-		tx_close(proc, tpc->t_txid);
-		tpc->t_txid = 0;
+		tpc_close(proc);
 		break;
 	case PREP:
 		idx = tpc_get(proc, PREP_SENT);
 		M0_ASSERT(0 <= idx && idx < proc_nr);
 		if (idx + 1 == proc_nr) {
 			tpc_set(proc, PHASE, PWAIT);
-			tx_close(proc, tpc->t_txid);
-			tpc->t_txid = 0;
+			tpc_close(proc);
 		} else {
 			tpc_set(proc, PREP_SENT, idx + 1);
-			req(proc, procs[idx], O_PREP, 0, 0);
+			req(proc, procs[idx + 1], O_PREP, 0, 0);
 		}
 		break;
 	case PWAIT:
@@ -1222,8 +1280,7 @@ static void tpc_coordinator_balance(struct proc *proc)
 		if (idx + 1 == proc_nr) {
 			tpc_set(proc, PHASE, ACK);
 		} else {
-			tx_close(proc, tpc->t_txid);
-			tpc->t_txid = 0;
+			tpc_close(proc);
 			more = false;
 		}
 		break;
@@ -1234,11 +1291,10 @@ static void tpc_coordinator_balance(struct proc *proc)
 		M0_ASSERT(M0_IN(decision, (D_COMMIT, D_ABORT)));
 		if (idx + 1 == proc_nr) {
 			tpc_set(proc, PHASE, AWAIT);
-			tx_close(proc, tpc->t_txid);
-			tpc->t_txid = 0;
+			tpc_close(proc);
 		} else {
 			tpc_set(proc, ACK_SENT, idx + 1);
-			req(proc, procs[idx], O_ACK, decision, 0);
+			req(proc, procs[idx + 1], O_ACK, decision, 0);
 		}
 		break;
 	case AWAIT:
@@ -1247,8 +1303,7 @@ static void tpc_coordinator_balance(struct proc *proc)
 		if (idx + 1 == proc_nr) {
 			tpc_set(proc, PHASE, DONE);
 		} else {
-			tx_close(proc, tpc->t_txid);
-			tpc->t_txid = 0;
+			tpc_close(proc);
 			more = false;
 		}
 		break;
@@ -1257,6 +1312,27 @@ static void tpc_coordinator_balance(struct proc *proc)
 	}
 	if (more)
 		tpc_coordinator_kick(proc);
+}
+
+static bool tpc_invariant(const struct step *s)
+{
+	struct proc *coo      = procs[0];
+	int          decision = tpc_get(coo, DECISION);
+
+	return  /* M0_IN(tpc_get(coo, PHASE), (INIT, PREP, PWAIT, ACK,
+					    AWAIT, DONE)) &&
+		M0_IN(decision, (0, D_COMMIT, D_ABORT)) &&
+		tpc_get(coo, PREP_RCVD) <= tpc_get(coo, PREP_SENT) &&
+		tpc_get(coo, ACK_RCVD)  <= tpc_get(coo, ACK_SENT) && */
+		ergo(tpc_get(coo, PHASE) == DONE,
+		     M0_IN(decision, (D_COMMIT, D_ABORT)) &&
+		     m0_forall(i, proc_nr - 1,
+			M0_IN(tpc_get(procs[i + 1], DECISION), (D_COMMIT,
+								D_ABORT))) &&
+		     (decision == D_COMMIT) == m0_forall(i, proc_nr - 1,
+			tpc_get(procs[i + 1], DECISION) == D_COMMIT) &&
+		     (decision == D_ABORT) == m0_exists(i, proc_nr - 1,
+			tpc_get(procs[i + 1], DECISION) == D_ABORT));
 }
 
 static void tpc_coordinator_init(struct proc *proc)
@@ -1271,10 +1347,67 @@ static void tpc_coordinator_init(struct proc *proc)
 	cb->c_op = E_RECV;
 	cb->c_invoke = &tpc_coordinator_tick;
 	tpc_coordinator_kick(proc);
+	invariant_add(p, &tpc_invariant);
+}
+
+static void tpc_cohort_prep(struct proc *proc, int decision)
+{
+	struct tpc *tpc = palloc(proc);
+
+	M0_ASSERT(tpc->t_txid == 0);
+	tpc->t_txid = tx_open(proc);
+	tpc_set(proc, DECISION, decision);
+	req(proc, procs[0], O_PREP, decision, 0);
+	tpc_close(proc);
+}
+
+static void tpc_cohort_tick(struct cb *c, struct event *e, void *d)
+{
+	struct proc *proc  = e->e_proc;
+	int          decision;
+
+	M0_ASSERT(proc->pr_idx > 0);
+	if (e->e_op == E_RECV && e->e_sel1 == O_PREP) {
+		struct event *docommit = NULL;
+		struct event *doabort  = NULL;
+
+		decision = tpc_get(proc, DECISION);
+		if (decision == 0 || decision == D_COMMIT) {
+			docommit = cont(proc, NULL,
+				LAMBDA(void, (struct cb *cx,
+					      struct event *ex, void *dx) {
+				tpc_cohort_prep(ex->e_proc, D_COMMIT);
+			}));
+		}
+		if (decision == 0 || decision == D_ABORT) {
+			doabort = cont(proc, NULL,
+				LAMBDA(void, (struct cb *cx,
+					      struct event *ex, void *dx) {
+				tpc_cohort_prep(ex->e_proc, D_ABORT);
+			}));
+		}
+		if (docommit != NULL)
+			docommit->e_alternative = doabort;
+		if (doabort != NULL)
+			doabort->e_alternative  = docommit;
+	} else if (e->e_op == E_RECV && e->e_sel1 == O_ACK) {
+		decision = tpc_get(proc, DECISION);
+		M0_ASSERT(M0_IN(e->e_p0, (D_ABORT, D_COMMIT)));
+		M0_ASSERT(ergo(decision == D_ABORT, e->e_p0 == D_ABORT));
+		req(proc, procs[0], O_ACK, 0, 0);
+	} else if (e->e_op == E_RECV && e->e_sel1 == O_HASET) {
+		;
+	} else
+		M0_IMPOSSIBLE("Wrong event.");
 }
 
 static void tpc_cohort_init(struct proc *proc)
 {
+	struct cb *cb;
+
+	cb = cb_add(proc->pr_perm, proc);
+	cb->c_op = E_RECV;
+	cb->c_invoke = &tpc_cohort_tick;
 }
 
 int main(int argc, char **argv)
@@ -1295,7 +1428,9 @@ int main(int argc, char **argv)
 		   M0_FORMATARG('m', "Model", "%i", &model),
 		   M0_FORMATARG('D', "Max depth", "%i", &max_depth),
 		   M0_FORMATARG('d', "Print depth", "%i", &print_depth),
+		   M0_FORMATARG('f', "Fork depth", "%i", &fork_depth),
 		   M0_FORMATARG('c', "Crash nr", "%i", &crash_nr),
+		   M0_FLAGARG  ('H', "Hide disabled events", &hide_disabled),
 		   M0_FORMATARG('h', "Hastate nr", "%i", &hastate_nr),
 		   M0_FORMATARG('p', "Number of processes", "%i", &proc_nr));
 	if (result != 0)
@@ -1307,7 +1442,6 @@ int main(int argc, char **argv)
 	for (i = 0; i < proc_nr; ++i) {
 		procs[i] = proc_add(&p, psize, (void *)&sys_pfree);
 	}
-	invariant_add(&p);
 	perm_prep(&p);
 
 	switch (model) {
