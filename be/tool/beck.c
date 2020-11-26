@@ -70,6 +70,7 @@
 #include "ioservice/fid_convert.h" /* m0_fid_convert_cob2adstob */
 #include "ioservice/cob_foms.h"    /* m0_cc_stob_cr_credit */
 #include "be/extmap_internal.h"    /* m0_be_emap */
+#include "be/tx_bulk.h"   /* m0_be_tx_bulk */
 
 M0_TL_DESCR_DECLARE(ad_domains, M0_EXTERN);
 M0_TL_DECLARE(ad_domains, M0_EXTERN, struct ad_domain_map);
@@ -100,6 +101,10 @@ struct scanner {
 	off_t		     s_off;
 	off_t		     s_pos;
 	bool		     s_byte;
+	/**
+	 * This determines if invalid OIDs are logged instead silent discard
+	 */
+	bool                 s_print_invalid_oids;
 	off_t		     s_size;
 	struct m0_be_seg    *s_seg;
 	struct queue	    *s_q;
@@ -243,7 +248,6 @@ struct builder {
 	struct ad_dom_info	 **b_ad_info; /**< ad_domain info array */
 	struct m0_thread           b_thread;
 	struct queue              *b_q;
-	struct queue               b_qq;
 	struct m0_be_tx_credit     b_cred;
 	struct cache	           b_cache;
 	uint64_t                   b_size;
@@ -252,7 +256,7 @@ struct builder {
 	const char                *b_be_config_file; /** BE configuration */
 
 	uint64_t                   b_act;
-	uint64_t                   b_tx;
+	uint64_t                   b_data; /**< data throughput */
 	/** ioservice cob domain. */
 	struct m0_cob_domain      *b_ios_cdom;
 	/** mdservice cob domain. */
@@ -262,6 +266,9 @@ struct builder {
 	 * construct dix layout.
 	 */
 	struct m0_fid              b_pver_fid;
+	struct m0_mutex            b_emaplock[AO_NR - AO_EMAP_FIRST];
+	struct m0_mutex            b_coblock;
+	struct m0_mutex            b_ctglock;
 };
 
 struct emap_action {
@@ -276,6 +283,7 @@ struct emap_action {
 static int  init(void);
 static void fini(void);
 static int  scan (struct scanner *s);
+static void stats_print(void);
 static int  parse(struct scanner *s);
 static int  get  (struct scanner *s, void *buf, size_t nob);
 static int  getat(struct scanner *s, off_t off, void *buf, size_t nob);
@@ -295,13 +303,18 @@ static void genadd(uint64_t gen);
 static void generation_id_print(uint64_t gen);
 static void generation_id_get(FILE *fp, uint64_t *gen_id);
 static int  generation_id_verify(struct scanner *s, uint64_t gen);
+static void seg_get(FILE *fp, struct m0_be_seg *out);
+
+static int  scanner_cache_init   (struct scanner *s);
 
 static int  scanner_init   (struct scanner *s);
+static void scanner_fini   (struct scanner *s);
 static int  builder_init   (struct builder *b);
 static void builder_fini   (struct builder *b);
 static void ad_dom_fini    (struct builder *b);
 static void builder_thread (struct builder *b);
-static void builder_process(struct builder *b);
+static void be_cfg_default_init(struct m0_be_domain_cfg  *dom_cfg,
+				struct m0_be_tx_bulk_cfg *tb_cfg);
 
 static int format_header_verify(const struct m0_format_header *h,
 				uint16_t rtype);
@@ -419,18 +432,24 @@ static struct btype bt[] = {
 #undef _B
 
 enum {
-	MAX_GEN    	 =      256,
-	MAX_SCAN_QUEUED	 = 10000000,
-	MAX_QUEUED  	 =  1000000,
-	MAX_REC_SIZE     =  64*1024,
+	MAX_GEN    	         = 256,
+	MAX_SCAN_QUEUED	         = 10000000,
+	MAX_QUEUED  	         = 1000000,
+	MAX_REC_SIZE             = 64*1024,
 	/**
-	 * This value is arrived on the basis of max time difference between
-	 * mkfs run on local and remote node and the assumption that time
-	 * difference between nodes is negligible.
+	 * The value in MAX_GEN_DIFF_SEC is arrived on the basis of max time
+	 * difference between mkfs run on local and remote node and the
+	 * assumption that clock time delta between nodes is negligible.
 	 */
-	MAX_GEN_DIFF_SEC =       30,
-	MAX_KEY_LEN      =      256,
-	MAX_VALUE_LEN    =      256
+	MAX_GEN_DIFF_SEC         = 30,
+	MAX_KEY_LEN              = 256,
+	MAX_VALUE_LEN            = 256,
+	DEFAULT_BE_SEG_LOAD_ADDR = 0x400000100000,
+	/**
+	 * The value of 44MB for DEFAULT_BE_MAX_TX_REG_SZ was picked from the
+	 * routine m0_be_ut_backend_cfg_default()
+	 */
+	DEFAULT_BE_MAX_TX_REG_SZ = (44 * 1024 * 1024ULL)
 };
 
 /** It is used to recover meta data of component catalogue store. */
@@ -451,14 +470,28 @@ struct ctg_action {
 	struct cache_slot *cta_slot;
 };
 
-static struct scanner s;
-static struct builder b;
+static struct scanner beck_scanner;
+static struct builder beck_builder;
 static struct gen g[MAX_GEN] = {};
+static struct m0_be_seg s_seg = {}; /** Used only in dry-run mode. */
 
 static bool  dry_run = false;
 static bool  disable_directio = false;
 static bool  signaled = false;
 
+/**
+ * These values provided the maximum builder performance after experiments on
+ * hardware.
+ */
+static struct m0_be_tx_bulk_cfg default_tb_cfg = (struct m0_be_tx_bulk_cfg){
+		.tbc_q_cfg = {
+			.bqc_q_size_max       = 1000,
+			.bqc_producers_nr_max = 1,
+		},
+			.tbc_workers_nr       = 0x40,
+			.tbc_partitions_nr    = AO_NR,
+			.tbc_work_items_per_tx_max = 1,
+	};
 #define FLOG(level, rc, s)						\
 	M0_LOG(level, " rc=%d  at offset: %"PRId64" errno: %s (%i), eof: %i", \
 	       (rc), ftell(s->s_file), strerror(errno), errno, feof(s->s_file))
@@ -494,32 +527,41 @@ int main(int argc, char **argv)
 	result = init();
 	if (result != 0)
 		errx(EX_CONFIG, "Cannot initialise beck: %d.", result);
+	result = scanner_init(&beck_scanner);
+	if (result != 0) {
+		errx(EX_CONFIG, "Cannot initialise scanner: %d.", result);
+	}
+
 	result = M0_GETOPTS("m0_beck", argc, argv,
 		   M0_STRINGARG('s', "Path to snapshot (file or device).",
 			LAMBDA(void, (const char *path) {
 				spath = path;
 			})),
-		   M0_FORMATARG('S', "Snapshot size", "%"SCNi64, &s.s_size),
-		   M0_FLAGARG('b', "Scan every byte (10x slower).", &s.s_byte),
+		   M0_FORMATARG('S', "Snapshot size", "%"SCNi64,
+				&beck_scanner.s_size),
+		   M0_FLAGARG('b', "Scan every byte (10x slower).",
+			      &beck_scanner.s_byte),
 		   M0_FLAGARG('U', "Run unit tests.", &ut),
 		   M0_FLAGARG('n', "Dry Run.", &dry_run),
 		   M0_FLAGARG('I', "Disable directio.", &disable_directio),
 		   M0_FLAGARG('p', "Print Generation Identifier.",
 			      &print_gen_id),
 		   M0_FORMATARG('g', "Generation Identifier.", "%"PRIu64,
-				&s.s_gen),
+				&beck_scanner.s_gen),
 		   M0_FLAGARG('V', "Version info.", &version),
+		   M0_FLAGARG('e', "Print errored OIDs.",
+			      &beck_scanner.s_print_invalid_oids),
 		   M0_STRINGARG('y', "YAML file path",
 			   LAMBDA(void, (const char *s) {
-				   b.b_be_config_file = s;
+				   beck_builder.b_be_config_file = s;
 				   })),
 		   M0_STRINGARG('a', "stob domain path",
 			   LAMBDA(void, (const char *s) {
-				   b.b_stob_path = s;
+				   beck_builder.b_stob_path = s;
 				   })),
 		   M0_STRINGARG('d', "segment stob domain path path",
 			LAMBDA(void, (const char *s) {
-				b.b_dom_path = s;
+				beck_builder.b_dom_path = s;
 			})));
 	if (result != 0)
 		errx(EX_USAGE, "Wrong option: %d.", result);
@@ -534,106 +576,126 @@ int main(int argc, char **argv)
 	if (dry_run)
 		printf("Running in read-only mode.\n");
 
-	if (b.b_dom_path == NULL && !dry_run && !print_gen_id)
+	if (!beck_scanner.s_print_invalid_oids)
+		printf("Will not print INVALID GOB IDs if found since '-e'"
+		       "option was not specified. \n");
+
+	if (beck_builder.b_dom_path == NULL && !dry_run && !print_gen_id)
 		errx(EX_USAGE, "Specify domain path (-d).");
 	if (spath != NULL) {
 		sfd = open(spath, O_RDONLY);
 		if (sfd == -1)
 			err(EX_NOINPUT, "Cannot open snapshot \"%s\".", spath);
 	}
-	s.s_file = fdopen(sfd, "r");
-	if (s.s_file == NULL)
+	beck_scanner.s_file = fdopen(sfd, "r");
+	if (beck_scanner.s_file == NULL)
 		err(EX_NOINPUT, "Cannot open snapshot.");
-	if (s.s_size == 0) {
-		result = fseek(s.s_file, 0, SEEK_END);
+	if (beck_scanner.s_size == 0) {
+		result = fseek(beck_scanner.s_file, 0, SEEK_END);
 		if (result != 0)
 			err(EX_NOINPUT, "Cannot seek snapshot to the end.");
-		b.b_size = s.s_size = ftello(s.s_file);
-		if (s.s_size == -1)
+		beck_builder.b_size = beck_scanner.s_size =
+						ftello(beck_scanner.s_file);
+		if (beck_scanner.s_size == -1)
 			err(EX_NOINPUT, "Cannot tell snapshot size.");
-		result = fseek(s.s_file, 0, SEEK_SET);
+		result = fseek(beck_scanner.s_file, 0, SEEK_SET);
 		if (result != 0)
 		      err(EX_NOINPUT, "Cannot seek snapshot to the beginning.");
-		printf("Snapshot size: %"PRId64".\n", s.s_size);
+		printf("Snapshot size: %"PRId64".\n", beck_scanner.s_size);
 	}
 
-	if (b.b_be_config_file && !dry_run && !print_gen_id) {
-		fp = fopen(b.b_be_config_file, "r");
+	if (beck_builder.b_be_config_file && !dry_run && !print_gen_id) {
+		fp = fopen(beck_builder.b_be_config_file, "r");
 		if (fp == NULL)
 			err(EX_NOINPUT, "Failed to open yaml file \"%s\".",
-			    b.b_be_config_file);
+			    beck_builder.b_be_config_file);
 		fclose(fp);
 	}
-	generation_id_get(s.s_file, &gen_id);
+	generation_id_get(beck_scanner.s_file, &gen_id);
 	if (print_gen_id) {
 		generation_id_print(gen_id);
 		printf("\n");
-		fclose(s.s_file);
+		fclose(beck_scanner.s_file);
 		return EX_OK;
 	}
 	if (gen_id != 0)
-		s.s_gen_found = true;
-	if (s.s_gen != 0) {
+		beck_scanner.s_gen_found = true;
+	if (beck_scanner.s_gen != 0) {
 		printf("\nReceived source segment header generation id\n");
-		generation_id_print(s.s_gen);
+		generation_id_print(beck_scanner.s_gen);
 		printf("\n");
 		fflush(stdout);
 	}
 
-	s.s_gen = gen_id ?: s.s_gen;
+	beck_scanner.s_gen = gen_id ?: beck_scanner.s_gen;
 	printf("\nSource segment header generation id to be used by beck.\n");
-	generation_id_print(s.s_gen);
+	generation_id_print(beck_scanner.s_gen);
 	printf("\n");
 	fflush(stdout);
 	/*
 	 *  If both segment's generation identifier is corrupted then abort
 	 *  beck tool.
 	 */
-	if (!dry_run && s.s_gen == 0) {
+	if (!dry_run && beck_scanner.s_gen == 0) {
 		printf("Cannot find any segment header generation identifer");
 		return EX_DATAERR;
 	}
+	qinit(&beck_scanner.s_bnode_q, MAX_SCAN_QUEUED);
+	result = M0_THREAD_INIT(&beck_scanner.s_thread, struct scanner *,
+				NULL, &scanner_thread, &beck_scanner,
+				"scannner");
+	if (result != 0)
+		err(EX_CONFIG, "Cannot start scanner thread.");
 	/*
 	 * Skip builder related calls for dry run as we will not be building a
 	 * new segment.
 	 */
 	if (!dry_run) {
 		qinit(&q, MAX_QUEUED);
-		qinit(&s.s_bnode_q, MAX_SCAN_QUEUED);
-		s.s_q = b.b_q = &q;
-		result = builder_init(&b);
-		s.s_seg = b.b_seg;
-		m0_be_engine_tx_size_max(&b.b_dom->bd_engine, &max, NULL);
-		s.s_max_reg_size = max.tc_reg_size;
+		beck_scanner.s_q = beck_builder.b_q = &q;
+		result = builder_init(&beck_builder);
+		beck_scanner.s_seg = beck_builder.b_seg;
+		m0_be_engine_tx_size_max(&beck_builder.b_dom->bd_engine,
+					 &max, NULL);
+		beck_scanner.s_max_reg_size = max.tc_reg_size;
 		if (result != 0)
 			err(EX_CONFIG, "Cannot initialise builder.");
-		result = M0_THREAD_INIT(&s.s_thread, struct scanner *,
-					NULL, &scanner_thread, &s, "scannner");
-		if (result != 0)
-			err(EX_CONFIG, "Cannot initialise builder.");
+	} else {
+		/**
+		 *  Since we do not have builder variables holding segment data,
+		 *  we use the global variable s_seg for this purpose.
+		 */
+		seg_get(beck_scanner.s_file, &s_seg);
+		beck_scanner.s_seg = &s_seg;
+		beck_scanner.s_max_reg_size = DEFAULT_BE_MAX_TX_REG_SZ;
 	}
-	result = scanner_init(&s);
+
+	result = scanner_cache_init(&beck_scanner);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise scanner.");
 	if (dry_run) {
 		printf("Press CTRL+C to quit.\n");
 		signal(SIGINT, sig_handler);
 	}
-	result = scan(&s);
+	result = scan(&beck_scanner);
+	printf("\n Pending to process bnodes=%"PRIu64 " It may take some time",
+	       beck_scanner.s_bnode_q.q_nr);
+	qput(&beck_scanner.s_bnode_q, scanner_action(sizeof(struct action),
+					  AO_DONE, NULL));
+	m0_thread_join(&beck_scanner.s_thread);
+	m0_thread_fini(&beck_scanner.s_thread);
+	qfini(&beck_scanner.s_bnode_q);
 	if (result != 0)
 		warn("Scan failed: %d.", result);
 
+	stats_print();
 	if (!dry_run) {
-		qput(&s.s_bnode_q, scanner_action(sizeof(struct action),
-						  AO_DONE, NULL));
-		m0_thread_join(&s.s_thread);
-		m0_thread_fini(&s.s_thread);
-		qfini(&s.s_bnode_q);
-		qput(&q, builder_action(&b, sizeof(struct action), AO_DONE,
-					&done_ops));
-		builder_fini(&b);
+		qput(&q, builder_action(&beck_builder, sizeof(struct action),
+					AO_DONE, &done_ops));
+		builder_fini(&beck_builder);
 		qfini(&q);
 	}
+	scanner_fini(&beck_scanner);
 	fini();
 	if (spath != NULL)
 		close(sfd);
@@ -676,12 +738,16 @@ static void generation_id_print(uint64_t gen)
 	       m0_time_nanoseconds(gen), gen);
 }
 
-static void generation_id_get(FILE *fp, uint64_t *gen_id)
+static bool seg_hdr_get(FILE *fp, struct m0_be_seg_hdr *out)
 {
-	struct m0_format_tag  tag    = {};
-	int                   result = 0;
+	struct m0_format_tag  tag          = {};
+	bool                  result       = false;
 	struct m0_be_seg_hdr  seg_hdr;
 	const char           *rt_be_cksum;
+	off_t                 old_offset;
+
+	old_offset = ftello(fp);
+	fseeko(fp, 0, SEEK_SET);
 
 	if (fread(&seg_hdr, 1, sizeof(seg_hdr), fp) == sizeof(seg_hdr)) {
 
@@ -694,25 +760,63 @@ static void generation_id_get(FILE *fp, uint64_t *gen_id)
 		    m0_format_footer_verify(&seg_hdr, 0) == 0) {
 
 			rt_be_cksum = m0_build_info_get()->
-						bi_xcode_protocol_be_checksum;
+				      bi_xcode_protocol_be_checksum;
 			if (strncmp(seg_hdr.bh_be_version, rt_be_cksum,
 				    M0_BE_SEG_HDR_VERSION_LEN_MAX) == 0 &&
 			    seg_hdr.bh_items_nr == 1) {
-				/*
-				 * After confirming the segment header we can
-				 * read the embedded generation id.
-				 */
-				*gen_id = seg_hdr.bh_items[0].sg_gen;
-			} else
-				result = M0_ERR(-EIO);
+				*out = seg_hdr;
+				result = true;
+			}
+		}
+	}
 
-		} else
-			result = M0_ERR(-EIO);
-	} else
-		result = M0_ERR(-EIO);
+	fseeko(fp, old_offset, SEEK_SET);
+	return (result);
+}
 
-	if (result == -EIO)
-		printf("Invalid format / Checksum error for segment header\n");
+static void generation_id_get(FILE *fp, uint64_t *gen_id)
+{
+	struct m0_be_seg_hdr seg_hdr;
+
+	if (seg_hdr_get(fp, &seg_hdr))
+		*gen_id = seg_hdr.bh_items[0].sg_gen;
+	else
+		printf("Checksum error for segment header. "
+		       "Could not extract Generation ID.\n");
+}
+
+static void seg_get(FILE *fp, struct m0_be_seg *out)
+{
+	struct m0_be_seg_hdr         seg_hdr;
+	struct m0_be_seg             seg;
+	const struct m0_be_seg_geom *g;
+
+	/** Update the values from the segment in file passed as parameter */
+	if (seg_hdr_get(fp, &seg_hdr)) {
+		g = &seg_hdr.bh_items[0];
+
+		seg.bs_reserved = sizeof(seg_hdr);
+		seg.bs_size     = g->sg_size;
+		seg.bs_addr     = g->sg_addr;
+		seg.bs_offset   = g->sg_offset;
+		seg.bs_gen      = g->sg_gen;
+	} else {
+		M0_ASSERT(beck_scanner.s_size != 0);
+		/**
+		 *  If file has corrupted segment then use these
+		 *  hardcoded values.
+		 */
+		printf("Checksum error for segment header. "
+		       "Could not extract Segment map information. "
+		       "Using possible defaults\n");
+		seg.bs_reserved = sizeof(seg_hdr);
+		seg.bs_size     = beck_scanner.s_size;
+		seg.bs_addr     = (void *)DEFAULT_BE_SEG_LOAD_ADDR;
+		seg.bs_offset   = 0;
+	}
+
+	*out = seg;
+
 }
 
 static int generation_id_verify(struct scanner *s, uint64_t gen)
@@ -732,8 +836,18 @@ static int generation_id_verify(struct scanner *s, uint64_t gen)
 
 static int scanner_init(struct scanner *s)
 {
+	int rc = 0;
+
+	m0_mutex_init(&s->s_lock);
+
+	return rc;
+}
+
+static int scanner_cache_init(struct scanner *s)
+{
 	int rc;
 
+	m0_mutex_init(&s->s_lock);
 	rc = fseeko(s->s_file, 0, SEEK_SET);
 	if (rc != 0) {
 		M0_LOG(M0_FATAL, "Can not seek at the beginning of file");
@@ -745,13 +859,19 @@ static int scanner_init(struct scanner *s)
 	return rc;
 }
 
+static void scanner_fini(struct scanner *s)
+{
+	m0_mutex_fini(&s->s_lock);
+}
+
 static int scan(struct scanner *s)
 {
 	uint64_t magic;
 	int      result;
-	int      i;
 	time_t   lasttime = time(NULL);
 	off_t    lastoff  = s->s_off;
+	uint64_t lastrecord = 0;
+	uint64_t lastdata = 0;
 
 	setvbuf(s->s_file, iobuf, _IONBF, sizeof iobuf);
 	while (!signaled && (result = get(s, &magic, sizeof magic)) == 0) {
@@ -764,15 +884,29 @@ static int scan(struct scanner *s)
 			s->s_off &= ~0x7;
 		if (time(NULL) - lasttime > DELTA) {
 			printf("\nOffset: %15lli     Speed: %7.2f MB/s     "
-			       "Completion: %3i%%",
+			       "Completion: %3i%%     "
+			       "Action: %"PRIu64" records/s     "
+			       "Data Speed: %7.2f MB/s",
 			       (long long)s->s_off,
 			       ((double)s->s_off - lastoff) /
 			       DELTA / 1024.0 / 1024.0,
-			       (int)(s->s_off * 100 / s->s_size));
+			       (int)(s->s_off * 100 / s->s_size),
+			       (beck_builder.b_act - lastrecord) / DELTA,
+			       ((double)beck_builder.b_data - lastdata) /
+			       DELTA / 1024.0 / 1024.0);
 			lasttime = time(NULL);
 			lastoff  = s->s_off;
+			lastrecord = beck_builder.b_act;
+			lastdata = beck_builder.b_data;
 		}
 	}
+	return feof(s->s_file) ? 0 : result;
+}
+
+static void stats_print(void)
+{
+	int i;
+
 	printf("\n%25s : %9s %9s %9s %9s\n",
 	       "record", "found", "bad csum", "unaligned", "version");
 	for (i = 0; i < ARRAY_SIZE(rt); ++i) {
@@ -790,21 +924,12 @@ static int scan(struct scanner *s)
 		struct bstats *s = &bt[i].b_stats;
 		if (bname(&bt[i]) == NULL)
 			continue;
-		if (dry_run)
-			printf("%25s : %9"PRId64" %9"PRId64" %9"PRId64" "
-			       "%9"PRId64" %9"PRId64" %9s %9"PRId64"\n",
-			       bname(&bt[i]),
-			       s->c_tree, s->c_node, s->c_leaf, s->c_maxlevel,
-			       s->c_kv, "NA*", s->c_fanout);
-		else
-			printf("%25s : %9"PRId64" %9"PRId64" %9"PRId64" "
-			       "%9"PRId64" %9"PRId64" %9"PRId64" %9"PRId64"\n",
-			       bname(&bt[i]),
-			       s->c_tree, s->c_node, s->c_leaf, s->c_maxlevel,
-			       s->c_kv, s->c_kv_bad, s->c_fanout);
+		printf("%25s : %9"PRId64" %9"PRId64" %9"PRId64" "
+		       "%9"PRId64" %9"PRId64" %9"PRId64" %9"PRId64"\n",
+		       bname(&bt[i]),
+		       s->c_tree, s->c_node, s->c_leaf, s->c_maxlevel,
+		       s->c_kv, s->c_kv_bad, s->c_fanout);
 	}
-	if (dry_run)
-		printf("\n*bad kv count is not availabe in dry run mode\n");
 
 	printf("\ngenerations\n");
 	for (i = 0; i < ARRAY_SIZE(g); ++i) {
@@ -813,7 +938,6 @@ static int scan(struct scanner *s)
 			printf(" : %9"PRId64"\n", g[i].g_count);
 		}
 	}
-	return feof(s->s_file) ? 0 : result;
 }
 
 static int parse(struct scanner *s)
@@ -839,9 +963,9 @@ static int parse(struct scanner *s)
 		r->r_stats.s_found++;
 		r->r_stats.s_align[!!(s->s_off & 07)]++;
 		/* Only process btree, bnode and segment header records. */
-		if (dry_run || M0_IN(idx, (M0_FORMAT_TYPE_BE_BTREE,
-					   M0_FORMAT_TYPE_BE_BNODE,
-					   M0_FORMAT_TYPE_BE_SEG_HDR))) {
+		if (M0_IN(idx, (M0_FORMAT_TYPE_BE_BTREE,
+				M0_FORMAT_TYPE_BE_BNODE,
+				M0_FORMAT_TYPE_BE_SEG_HDR))) {
 			lastoff = s->s_off;
 			s->s_off -= sizeof hdr;
 			result = recdo(s, &tag, r);
@@ -1004,15 +1128,9 @@ static int deref(struct scanner *s, const void *addr, void *buf, size_t nob)
 	off_t off = addr - s->s_seg->bs_addr;
 
 	if (m0_be_seg_contains(s->s_seg, addr) &&
-	    m0_be_seg_contains(s->s_seg, addr + nob - 1)) {
-		if (off >= s->s_chunk_pos &&
-		    off + nob < s->s_chunk_pos + sizeof s->s_chunk) {
-			memcpy(buf, &s->s_chunk[off - s->s_chunk_pos],
-			       nob);
-			return 0;
-		} else
-			return getat(s, off, buf, nob);
-	} else
+	    m0_be_seg_contains(s->s_seg, addr + nob - 1))
+		return getat(s, off, buf, nob);
+	else
 		return M0_ERR(-EFAULT);
 }
 
@@ -1100,7 +1218,7 @@ static int bnode(struct scanner *s, struct rectype *r, char *buf)
 	b = &bt[idx];
 	c = &b->b_stats;
 	c->c_node++;
-	if (!dry_run && b->b_proc != NULL) {
+	if (b->b_proc != NULL) {
 		ba = scanner_action(sizeof *ba, AO_INIT, NULL);
 		ba->bna_offset = s->s_start_off;
 		qput(&s->s_bnode_q, &ba->bna_act);
@@ -1149,14 +1267,41 @@ static const struct action_ops emap_ops = {
 	.o_fini = &emap_fini
 };
 
+static void emap_to_gob_convert(const struct m0_uint128 *emap_prefix,
+				struct m0_fid           *out)
+{
+	struct m0_fid      dom_id = {};
+	struct m0_stob_id  stob_id = {};
+	struct m0_fid      cob_fid;
+	struct m0_fid      gob_fid;
+
+	m0_fid_tassume(&dom_id, &m0_stob_ad_type.st_fidt);
+
+	/** Convert emap to stob_id */
+	m0_stob_id_make(emap_prefix->u_hi, emap_prefix->u_lo, &dom_id,
+			&stob_id);
+
+	/** Convert stob_id to cob id */
+	cob_fid = stob_id.si_fid;
+	m0_fid_tassume(&cob_fid, &m0_cob_fid_type);
+
+	/** Convert COB id to GOB id */
+	m0_fid_convert_cob2gob(&cob_fid, &gob_fid);
+
+	*out = gob_fid;
+}
+
 static int emap_proc(struct scanner *s, struct btype *btype,
 		     struct m0_be_bnode *node)
 {
 	struct m0_stob_ad_domain *adom = NULL;
 	struct emap_action       *ea;
 	int                       id;
-	int 		          i;
-	int 		          ret = 0;
+	int                       i;
+	int                       ret = 0;
+	struct m0_be_emap_key    *ek;
+	struct m0_fid             gob_id;
+	uint64_t                  inv_emap_off;
 
 	for (i = 0; i < node->bt_num_active_key; i++) {
 		ea = scanner_action(sizeof *ea, AO_EMAP_FIRST, &emap_ops);
@@ -1167,21 +1312,35 @@ static int emap_proc(struct scanner *s, struct btype *btype,
 		ret = emap_kv_get(s, &node->bt_kv_arr[i],
 				  &ea->emap_key, &ea->emap_val);
 		if (ret != 0) {
-			btree_bad_kv_count_update(node->bt_backlink.bli_type, 1);
+			if (s->s_print_invalid_oids) {
+				ek = ea->emap_key.b_addr;
+				inv_emap_off = node->bt_kv_arr[i].btree_key -
+					       s->s_seg->bs_addr;
+				emap_to_gob_convert(&ek->ek_prefix, &gob_id);
+				M0_LOG(M0_ERROR, "Found incorrect EMAP entry at"
+				       " segment offset %"PRIx64" for GOB "
+				       FID_F, inv_emap_off, FID_P(&gob_id));
+			}
+			btree_bad_kv_count_update(node->bt_backlink.bli_type,
+						  1);
 			m0_free(ea);
 			continue;
 		}
 
-	        ea->emap_act.a_builder = &b;
-		adom = emap_dom_find(&ea->emap_act, &ea->emap_fid, &id);
-		if (adom != NULL) {
-			ea->emap_act.a_opc += id;
-			qput(s->s_q, &ea->emap_act);
-		} else {
-			btree_bad_kv_count_update(node->bt_backlink.bli_type, 1);
+		if (!dry_run) {
+			ea->emap_act.a_builder = &beck_builder;
+			adom = emap_dom_find(&ea->emap_act, &ea->emap_fid, &id);
+			if (adom != NULL) {
+				ea->emap_act.a_opc += id;
+				qput(s->s_q, &ea->emap_act);
+			} else {
+				btree_bad_kv_count_update(
+						node->bt_backlink.bli_type, 1);
+				m0_free(ea);
+				continue;
+			}
+		} else
 			m0_free(ea);
-			continue;
-		}
 	}
 	return ret;
 }
@@ -1212,12 +1371,13 @@ static int emap_prep(struct action *act, struct m0_be_tx_credit *credit)
 	int                       id;
 
 	adom = emap_dom_find(act, &emap_ac->emap_fid, &id);
-	if (adom == NULL) {
+	if (adom == NULL || id < 0 || id >= AO_NR - AO_EMAP_FIRST) {
 		M0_LOG(M0_ERROR, "Invalid FID for emap record found !!!");
 		m0_free(act);
 		return M0_RC(-EINVAL);
 	}
 
+	m0_mutex_lock(&beck_builder.b_emaplock[id]);
 	emap_val = emap_ac->emap_val.b_addr;
 	if (emap_val->er_value != AET_HOLE) {
 		adom->sad_ballroom->ab_ops->bo_alloc_credit(adom->sad_ballroom,
@@ -1232,6 +1392,7 @@ static int emap_prep(struct action *act, struct m0_be_tx_credit *credit)
 		m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE,
 				  BALLOC_FRAGS_MAX + 1, credit);
 	}
+	m0_mutex_unlock(&beck_builder.b_emaplock[id]);
 	return 0;
 }
 
@@ -1256,14 +1417,20 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 			       emap_val->er_start) >> adom->sad_babshift;
 		m0_ext_init(&ext);
 
+		m0_mutex_lock(&beck_builder.b_emaplock[id]);
 		rc = adom->sad_ballroom->ab_ops->
 			bo_reserve_extent(adom->sad_ballroom,
 					  tx, &ext,
 					  M0_BALLOC_NORMAL_ZONE);
 		if (rc != 0) {
+			m0_mutex_unlock(&beck_builder.b_emaplock[id]);
 			M0_LOG(M0_ERROR, "Failed to reserve extent rc=%d", rc);
 			return;
 		}
+
+		beck_builder.b_data +=
+			((ext.e_end - ext.e_start) << adom->sad_babshift)
+			<< adom->sad_bshift;
 
 		rc = emap_entry_lookup(adom, emap_key->ek_prefix, 0, &it);
 		/* No emap entry found for current stob, insert hole */
@@ -1309,6 +1476,7 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 			m0_be_op_fini(&it.ec_op);
 			m0_be_emap_close(&it);
 		}
+		m0_mutex_unlock(&beck_builder.b_emaplock[id]);
 	}
 
 	if (rc != 0)
@@ -1388,61 +1556,89 @@ static void genadd(uint64_t gen)
 	}
 }
 
-static void builder_process(struct builder *b)
+static void builder_do(struct m0_be_tx_bulk   *tb,
+		       struct m0_be_tx        *tx,
+		       struct m0_be_op        *op,
+		       void                   *datum,
+		       void                   *user,
+		       uint64_t                worker_index,
+		       uint64_t                partition)
 {
-	struct action      *act;
-	struct m0_be_tx     tx = {};
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
-	int                 result;
+	struct action  *act;
+	struct builder *b = datum;
 
-	m0_sm_group_lock(grp);
-	m0_be_tx_init(&tx, 0, b->b_dom, grp, NULL, NULL, NULL, NULL);
-	m0_be_tx_prep(&tx, &b->b_cred);
-	result = m0_be_tx_open_sync(&tx);
-	M0_ASSERT(result == 0); /* Anything else we can do? */
-	while ((act = qtry(&b->b_qq)) != NULL) {
-		act->a_ops->o_act(act, &tx);
+	m0_be_op_active(op);
+	act = user;
+	if (act != NULL) {
+		b->b_act++;
+		act->a_ops->o_act(act, tx);
 		act->a_ops->o_fini(act);
 		m0_free(act);
 	}
-	m0_be_tx_close_sync(&tx);
-	m0_be_tx_fini(&tx);
-	m0_sm_group_unlock(grp);
-	b->b_cred = M0_BE_TX_CREDIT(0, 0);
-	b->b_tx++;
+	m0_be_op_done(op);
+}
+
+static void builder_done(struct m0_be_tx_bulk   *tb,
+			 void                   *datum,
+			 void                   *user,
+			 uint64_t                worker_index,
+			 uint64_t                partition)
+{
+
+}
+
+static void builder_work_put(struct m0_be_tx_bulk *tb, struct builder *b)
+{
+	struct action          *act;
+	struct m0_be_tx_credit  credit;
+	bool                    put_successful;
+	int                     rc;
+
+	do {
+		act = qget(b->b_q);
+		if (act->a_opc != AO_DONE) {
+			credit = M0_BE_TX_CREDIT(0, 0);
+			act->a_builder = b;
+			rc = act->a_ops->o_prep(act, &credit);
+			if (rc != 0)
+				continue;
+			M0_BE_OP_SYNC(op, put_successful =
+				      m0_be_tx_bulk_put(tb, &op, &credit, 0,
+							act->a_opc, act));
+			if (!put_successful)
+				break;
+		}
+	} while (act->a_opc != AO_DONE);
+	m0_be_tx_bulk_end(tb);
 }
 
 static void builder_thread(struct builder *b)
 {
-	struct m0_be_tx_credit delta = {};
-	struct action         *act;
-	int		       ret;
+	struct m0_be_tx_bulk_cfg tb_cfg;
+	struct m0_be_tx_bulk     tb = {};
+	int                      rc;
 
-	do {
-		delta = M0_BE_TX_CREDIT(0, 0);
-		act = qget(b->b_q);
-		act->a_builder = b;
-		ret = act->a_ops->o_prep(act, &delta);
-		// if o_prep() returns non-zero status, move to next record
-		if (ret != 0)
-			continue;
-		if (m0_be_should_break(&b->b_dom->bd_engine,
-				       &b->b_cred, &delta) ||
-		    act->a_opc == AO_DONE) {
-			builder_process(b);
-		}
-		if (act->a_opc != AO_DONE) {
-			m0_be_tx_credit_add(&b->b_cred, &delta);
-			qput(&b->b_qq, act);
-			b->b_act++;
-		}
-	} while (act->a_opc != AO_DONE);
-	M0_ASSERT(b->b_qq.q_nr == 0);
+	tb_cfg           =  default_tb_cfg;
+	tb_cfg.tbc_dom   =  b->b_dom;
+	tb_cfg.tbc_datum =  b;
+	tb_cfg.tbc_do    = &builder_do,
+	tb_cfg.tbc_done  = &builder_done,
 
-	/* Below clean up used as m0_be_ut_backend_fini()  fails because of
-	* unlocked thread's sm group. Simplify this task and call the exit
-	* function for builder thread.
-	*/
+	rc = m0_be_tx_bulk_init(&tb, &tb_cfg);
+	if (rc == 0) {
+		M0_BE_OP_SYNC(op, ({
+				   m0_be_tx_bulk_run(&tb, &op);
+				   builder_work_put(&tb, b);
+				   }));
+		rc = m0_be_tx_bulk_status(&tb);
+		m0_be_tx_bulk_fini(&tb);
+	}
+
+	/**
+	 * Below clean up used as m0_be_ut_backend_fini()  fails because of
+	 * unlocked thread's sm group. Simplify this task and call the exit
+	 * function for builder thread.
+	 */
 	if (&b->b_backend != NULL) {
 		(void)m0_be_ut_backend_sm_group_lookup(&b->b_backend);
 		m0_be_ut_backend_thread_exit(&b->b_backend);
@@ -1544,6 +1740,7 @@ static int builder_init(struct builder *b)
 	struct m0_be_ut_backend *ub = &b->b_backend;
 	static struct m0_fid     fid = M0_FID_TINIT('r', 1, 1);
 	int                      result;
+	int                      i;
 
 	result = M0_REQH_INIT(&b->b_reqh,
 			      .rhia_dtm     = (void *)1,
@@ -1558,6 +1755,7 @@ static int builder_init(struct builder *b)
 		b->b_dom_path[0] == '/' ? "" : "./", b->b_dom_path);
 	ub->but_dom_cfg.bc_engine.bec_reqh = &b->b_reqh;
 	m0_be_ut_backend_cfg_default(&ub->but_dom_cfg);
+	be_cfg_default_init(&ub->but_dom_cfg, &default_tb_cfg);
 	/* Check for any BE configuration overrides. */
 	if (b->b_be_config_file) {
 		result = be_cfg_from_yaml_update(b->b_be_config_file,
@@ -1605,10 +1803,13 @@ static int builder_init(struct builder *b)
 					    m0_get()->i_mds_cdom_key);
 	m0_cob_domain_init(b->b_mds_cdom, b->b_seg);
 
+	for (i = 0; i < AO_NR - AO_EMAP_FIRST; i++)
+		m0_mutex_init(&b->b_emaplock[i]);
+	m0_mutex_init(&b->b_coblock);
+	m0_mutex_init(&b->b_ctglock);
 	result = ad_dom_init(b);
 	if (result != 0)
 		return M0_ERR(result);
-	qinit(&b->b_qq, UINT64_MAX);
 	result = M0_THREAD_INIT(&b->b_thread, struct builder *,
 				NULL, &builder_thread, b, "builder");
 	return M0_RC(result);
@@ -1632,11 +1833,19 @@ static void ad_dom_fini(struct builder *b)
 	m0_free(b->b_ad_domain);
 
 }
+
 static void builder_fini(struct builder *b)
 {
+	int i;
+
 	m0_thread_join(&b->b_thread);
 	m0_thread_fini(&b->b_thread);
-	qfini(&b->b_qq);
+
+	for (i = 0; i < AO_NR - AO_EMAP_FIRST; i++)
+		m0_mutex_fini(&b->b_emaplock[i]);
+	m0_mutex_fini(&b->b_coblock);
+	m0_mutex_fini(&b->b_ctglock);
+
 	m0_ctg_store_fini();
 	m0_reqh_be_fini(&b->b_reqh);
 	ad_dom_fini(b);
@@ -1644,8 +1853,39 @@ static void builder_fini(struct builder *b)
 	m0_reqh_fini(&b->b_reqh);
 	m0_free(b->b_backend.but_stob_domain_location);
 
-	printf("builder: actions: %9"PRId64" txs: %9"PRId64"\n",
-	       b->b_act, b->b_tx);
+	printf("builder: actions: %9"PRId64"\n", b->b_act);
+}
+
+/**
+ * These values provided the maximum builder performance after experiments on
+ * hardware.
+ */
+static void  be_cfg_default_init(struct m0_be_domain_cfg  *dom_cfg,
+				 struct m0_be_tx_bulk_cfg *tb_cfg)
+{
+	dom_cfg->bc_engine.bec_tx_active_max = 256;
+	dom_cfg->bc_engine.bec_group_nr = 5;
+	dom_cfg->bc_engine.bec_group_cfg.tgc_tx_nr_max = 128;
+	dom_cfg->bc_engine.bec_group_cfg.tgc_size_max =
+					M0_BE_TX_CREDIT(5621440, 961373440);
+	dom_cfg->bc_engine.bec_group_cfg.tgc_payload_max = 367772160;
+	dom_cfg->bc_engine.bec_tx_size_max =
+					M0_BE_TX_CREDIT(1 << 18, 44UL << 20);
+	dom_cfg->bc_engine.bec_tx_payload_max = 1 << 21;
+	dom_cfg->bc_engine.bec_group_freeze_timeout_min =
+						1ULL * M0_TIME_ONE_MSEC;
+	dom_cfg->bc_engine.bec_group_freeze_timeout_max =
+						50ULL * M0_TIME_ONE_MSEC;
+	dom_cfg->bc_engine.bec_group_freeze_timeout_limit =
+						60000ULL * M0_TIME_ONE_MSEC;
+	dom_cfg->bc_log.lc_full_threshold = 20 * (1 << 20);
+	dom_cfg->bc_pd_cfg.bpdc_seg_io_nr = 5;
+	dom_cfg->bc_log_discard_cfg.ldsc_items_max = 0x100;
+	dom_cfg->bc_log_discard_cfg.ldsc_items_threshold = 0x80;
+	dom_cfg->bc_log_discard_cfg.ldsc_sync_timeout =
+						M0_TIME_ONE_SECOND * 60ULL;
+	tb_cfg->tbc_workers_nr = 64;
+	tb_cfg->tbc_work_items_per_tx_max = 100;
 }
 
 static void be_cfg_update(struct m0_be_domain_cfg *cfg,
@@ -1659,7 +1899,7 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 	char     *s2;
 	bool      value_overridden = true;
 
-	if (m0_streq(str_key, "tgc_size_max")  || 
+	if (m0_streq(str_key, "tgc_size_max")  ||
 	    m0_streq(str_key, "bec_tx_size_max")) {
 
 		/** Cover variables accepting two comma-separated values. */
@@ -1677,10 +1917,11 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 
 		M0_ASSERT_INFO((value1_64 != ULLONG_MAX) &&
 				(value2_64 != ULLONG_MAX),
-				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+				"Invalid value %s for variable %s in yaml file.",
+			        str_value, str_key);
 
 		if (m0_streq(str_key, "tgc_size_max")) {
-			cfg->bc_engine.bec_group_cfg.tgc_size_max = 
+			cfg->bc_engine.bec_group_cfg.tgc_size_max =
 					M0_BE_TX_CREDIT(value1_64, value2_64);
 		} else {
 			cfg->bc_engine.bec_tx_size_max =
@@ -1695,7 +1936,8 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 		value1_32 =m0_strtou32(str_value, NULL, 10);
 
 		M0_ASSERT_INFO((value1_32 != ULONG_MAX),
-				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+				"Invalid value %s for variable %s in yaml file.",
+			        str_value, str_key);
 
 		if (m0_streq(str_key, "bpdc_seg_io_nr")) {
 			cfg->bc_pd_cfg.bpdc_seg_io_nr = value1_32;
@@ -1711,7 +1953,8 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 		value1_64 = m0_strtou64(str_value, NULL, 10);
 
 		M0_ASSERT_INFO((value1_64 != ULLONG_MAX),
-				"Invalid value %s for variable %s in yaml file.", str_value, str_key);
+				"Invalid value %s for variable %s in yaml file.",
+			        str_value, str_key);
 
 		if (m0_streq(str_key, "bec_tx_active_max"))
 			cfg->bc_engine.bec_tx_active_max = value1_64;
@@ -1720,7 +1963,7 @@ static void be_cfg_update(struct m0_be_domain_cfg *cfg,
 		else if (m0_streq(str_key, "tgc_tx_nr_max"))
 			cfg->bc_engine.bec_group_cfg.tgc_tx_nr_max = value1_64;
 		else if (m0_streq(str_key, "tgc_payload_max"))
-			cfg->bc_engine.bec_group_cfg.tgc_payload_max = 
+			cfg->bc_engine.bec_group_cfg.tgc_payload_max =
 								value1_64;
 		else if (m0_streq(str_key, "bec_tx_payload_max"))
 			cfg->bc_engine.bec_tx_payload_max = value1_64;
@@ -1789,7 +2032,8 @@ static int  be_cfg_from_yaml_update(const char              *yaml_file,
 					key[sizeof(key) - 1] = '\0';
 					key_received = true;
 				} else {
-					strncpy(value, scalar_value, sizeof(value));
+					strncpy(value, scalar_value,
+								sizeof(value));
 					value[sizeof(value) - 1] = '\0';
 					value_received = true;
 				}
@@ -2021,7 +2265,7 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 	struct m0_fid                fid;
 	int                          i;
 	int                          rc;
-	bool			     ismeta;
+	bool                         ismeta;
 
 	M0_PRE(bl->bli_type == M0_BBT_CAS_CTG);
 	if (!btree_node_pre_is_valid(node, s)                          ||
@@ -2041,7 +2285,8 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 			       &vl[n.bt_num_active_key]) == 0) {
 
 			if (btree_kv_post_is_valid(s, &kl[n.bt_num_active_key],
-						   &vl[n.bt_num_active_key])) {
+						   &vl[n.bt_num_active_key]) &&
+			    !dry_run) {
 				n.bt_kv_arr[n.bt_num_active_key].btree_key =
 					kl[n.bt_num_active_key].b_addr;
 				n.bt_num_active_key++;
@@ -2077,7 +2322,9 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 				continue;
 			if (rc != 0)
 				btree_bad_kv_count_update(bl->bli_type, 1);
-		} else
+		} else if (dry_run)
+			continue;
+		 else
 			fid = bl->bli_fid;
 		ca = scanner_action(sizeof *ca, AO_CTG, &ctg_ops);
 		ca->cta_fid = fid;
@@ -2097,35 +2344,31 @@ static struct cache_slot *ctg_getslot_insertcred(struct ctg_action *ca,
 	struct cache_slot *slot;
 
 	slot = cache_lookup(&b->b_cache, cas_ctg_fid);
-	if (slot == NULL) {
+	if (slot == NULL)
 		slot = cache_insert(&b->b_cache, cas_ctg_fid);
-		m0_ctg_create_credit(accum);
-		ca->cta_cid.ci_fid = ca->cta_fid;
-		m0_fid_tchange(&ca->cta_cid.ci_fid, 'T');
-		ca->cta_cid.ci_layout.dl_type = DIX_LTYPE_DESCR;
-		m0_dix_ldesc_init(&ca->cta_cid.ci_layout.u.dl_desc,
-				  &(struct m0_ext) { .e_start = 0,
-				  .e_end = IMASK_INF },
-				  1, HASH_FNC_CITY, &b->b_pver_fid);
-		m0_ctg_ctidx_insert_credits(&ca->cta_cid, accum);
-	}
+	m0_ctg_create_credit(accum);
+	ca->cta_cid.ci_fid = ca->cta_fid;
+	m0_fid_tchange(&ca->cta_cid.ci_fid, 'T');
+	ca->cta_cid.ci_layout.dl_type = DIX_LTYPE_DESCR;
+	m0_dix_ldesc_init(&ca->cta_cid.ci_layout.u.dl_desc,
+			  &(struct m0_ext) { .e_start = 0,
+			  .e_end = IMASK_INF },
+			  1, HASH_FNC_CITY, &b->b_pver_fid);
+	m0_ctg_ctidx_insert_credits(&ca->cta_cid, accum);
 	return slot;
 }
 
-static int ctg_prep(struct action *act, struct m0_be_tx_credit *cred)
+static int ctg_prep(struct action *act, struct m0_be_tx_credit *accum)
 {
 	struct ctg_action      *ca    = M0_AMB(ca, act, cta_act);
 	struct m0_be_btree      tree  = {};
-	struct m0_be_tx_credit  accum = {};
 
+	m0_mutex_lock(&beck_builder.b_ctglock);
 	ca->cta_slot = ctg_getslot_insertcred(ca, act->a_builder,
-					      &ca->cta_fid, &accum);
-	if (!ca->cta_ismeta)
-		m0_be_btree_insert_credit(&tree, 1,
-					  ca->cta_key.b_nob,
-					  ca->cta_val.b_nob,
-					  &accum);
-	*cred = accum;
+					      &ca->cta_fid, accum);
+	m0_be_btree_insert_credit(&tree, 1, ca->cta_key.b_nob,
+				  ca->cta_val.b_nob, accum);
+	m0_mutex_unlock(&beck_builder.b_ctglock);
 	return 0;
 }
 
@@ -2159,6 +2402,7 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 	struct m0_cas_ctg *cc;
 	int                rc;
 
+	m0_mutex_lock(&beck_builder.b_ctglock);
 	if (ca->cta_slot->cs_tree == NULL) {
 		rc = m0_ctg_meta_find_ctg(m0_ctg_meta(),
 					  &M0_FID_TINIT('T',
@@ -2169,6 +2413,7 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 			cc = ctg_create_meta(ca, tx);
 		} else if (rc != 0) {
 			M0_LOG(M0_DEBUG, "Btree not found rc=%d", rc);
+			m0_mutex_unlock(&beck_builder.b_ctglock);
 			return;
 		}
 		if (cc != NULL) {
@@ -2190,6 +2435,7 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 		} else
 			M0_LOG(M0_DEBUG, "Failed to insert record rc=%d", rc);
 	}
+	m0_mutex_unlock(&beck_builder.b_ctglock);
 }
 
 static void ctg_fini(struct action *act)
@@ -2379,11 +2625,13 @@ static int cob_proc(struct scanner *s, struct btype *b,
 	int                          i;
 	int                          rc;
 	struct m0_be_btree_backlink *bb  = &node->bt_backlink;
+	struct m0_cob_nskey         *nskey;
+	uint64_t                     inv_cob_off;
 
 	M0_PRE(bb->bli_type == M0_BBT_COB_NAMESPACE);
 
 	for (i = 0; i < node->bt_num_active_key; i++) {
-		ca = scanner_action(sizeof *ca, AO_COB, &cob_ops);
+		ca = scanner_action(sizeof*ca, AO_COB,&cob_ops);
 		ca->coa_fid = bb->bli_fid;
 
 		ca->coa_val = M0_BUF_INIT(sizeof(struct m0_cob_nsrec),
@@ -2395,11 +2643,27 @@ static int cob_proc(struct scanner *s, struct btype *b,
 			m0_free(ca);
 			continue;
 		}
+
 		if ((format_header_verify(ca->coa_val.b_addr,
 					  M0_FORMAT_TYPE_COB_NSREC) == 0) &&
-		    (m0_format_footer_verify(ca->coa_valdata, false) == 0))
-			qput(s->s_q, (struct action *)ca);
-		else {
+		    (m0_format_footer_verify(ca->coa_valdata, false) == 0)) {
+			if (!dry_run)
+				qput(s->s_q, (struct action *)ca);
+			else {
+				m0_buf_free(&ca->coa_key);
+				m0_free(ca);
+			}
+		} else {
+			if (s->s_print_invalid_oids) {
+				nskey = ca->coa_key.b_addr;
+				inv_cob_off = node->bt_kv_arr[i].btree_val -
+					       s->s_seg->bs_addr;
+				M0_LOG(M0_ERROR, "Found incorrect COB entry at "
+				       "segment offset %"PRIx64" for GOB "
+				       FID_F, inv_cob_off,
+				       FID_P(&nskey->cnk_pfid));
+			}
+
 			btree_bad_kv_count_update(bb->bli_type, 1);
 			m0_buf_free(&ca->coa_key);
 			m0_free(ca);
@@ -2414,23 +2678,23 @@ static int cob_proc(struct scanner *s, struct btype *b,
  * @param[in]  act  builder action.
  * @param[out] cred credits allocated for addition and deletion operation.
  */
-static int cob_prep(struct action *act, struct m0_be_tx_credit *cred)
+static int cob_prep(struct action *act, struct m0_be_tx_credit *accum)
 {
-	struct m0_be_tx_credit  accum = {};
 	struct cob_action      *ca = container_of(act, struct cob_action,
 						  coa_act);
 	struct m0_cob_nsrec    *nsrec = ca->coa_val.b_addr;
 	struct m0_stob_id       stob_id;
 
+	m0_mutex_lock(&beck_builder.b_coblock);
  	if (m0_fid_validate_cob(&nsrec->cnr_fid)) {
 		m0_fid_convert_cob2adstob(&nsrec->cnr_fid, &stob_id);
-		m0_cc_stob_cr_credit(&stob_id, &accum);
+		m0_cc_stob_cr_credit(&stob_id, accum);
 	}
 	m0_cob_tx_credit(act->a_builder->b_ios_cdom, M0_COB_OP_NAME_ADD,
-			 &accum);
+			 accum);
 	m0_cob_tx_credit(act->a_builder->b_ios_cdom, M0_COB_OP_NAME_DEL,
-			 &accum);
-	*cred = accum;
+			 accum);
+	m0_mutex_unlock(&beck_builder.b_coblock);
 	return 0;
 }
 
@@ -2457,6 +2721,9 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 	struct m0_stob_ad_domain *adom;
 	struct m0_be_emap_cursor  it = {};
 	struct m0_uint128         prefix;
+	int			  id;
+
+	m0_mutex_lock(&beck_builder.b_coblock);
 
 	if (m0_fid_eq(&ca->coa_fid, &ios_ns->bb_backlink.bli_fid))
 		m0_cob_init(act->a_builder->b_ios_cdom, &cob);
@@ -2474,6 +2741,10 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 		adom = stob_ad_domain2ad(sdom);
 		prefix = M0_UINT128(stob_id.si_fid.f_container,
 				    stob_id.si_fid.f_key);
+		emap_dom_find(&ca->coa_act,
+			      &adom->sad_adata.em_mapping.bb_backlink.bli_fid,
+			      &id);
+		m0_mutex_lock(&beck_builder.b_emaplock[id]);
 		rc = M0_BE_OP_SYNC_RET_WITH(&it.ec_op,
 					    m0_be_emap_lookup(&adom->sad_adata,
 							      &prefix, 0, &it),
@@ -2489,7 +2760,9 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 								     AET_HOLE),
 					       bo_u.u_emap.e_rc);
 		}
+		m0_mutex_unlock(&beck_builder.b_emaplock[id]);
 	}
+	m0_mutex_unlock(&beck_builder.b_coblock);
 }
 
 /**

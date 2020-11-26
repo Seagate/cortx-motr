@@ -1,3 +1,40 @@
+/*
+ * Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * For any questions about this software or licensing,
+ * please email opensource@seagate.com or cortx-questions@seagate.com.
+ *
+ */
+
+// Package mio implements io.Reader/io.Writer interface over
+// Motr client I/O API. This allows writing Motr client applications
+// quickly and efficiently in the Go language.
+//
+// mio automatically determines the optimal unit (stripe) size for the
+// newly created object (based on the object size provided by user
+// in the mio.Create(obj, sz) call), as well as the optimal block size
+// for Motr I/O based on the cluster configuration. So users don't have
+// to bother about tuning these Motr-specific parameters for each specific
+// object to reach maximum I/O performance on it and yet don't waste space
+// (in case of a small objects).
+//
+// mio allows to read/write the blocks to Motr in parallel threads (see
+// -threads option) provided the buffer size (len(p)) is big enough to
+// accomodate several of such blocks in one Read(p)/Write(p) request.
+//
+// For the usage example, refer to mcp utility.
 package mio
 
 // #cgo CFLAGS: -I/usr/include/motr
@@ -233,10 +270,10 @@ func getOptimalUnitSz(sz uint64) (C.ulong, error) {
     return lid, nil
 }
 
-func anyPool(pools []string) (res *C.struct_m0_fid, err error) {
+func checkPool(pools []string) (res *C.struct_m0_fid, err error) {
     for _, pool := range pools {
         if pool == "" {
-            return nil, nil // use default
+            return nil, nil // default pool to be used
         }
         id, err := ScanID(pool)
         if err != nil {
@@ -254,14 +291,14 @@ func anyPool(pools []string) (res *C.struct_m0_fid, err error) {
 // I/O performance on the object could be calculated. Optionally,
 // the pool fid can be provided, if the object to be created on a
 // non-default pool.
-func (mio *Mio) Create(id string, sz uint64, pools ...string) error {
+func (mio *Mio) Create(id string, sz uint64, anyPool ...string) error {
     if mio.obj != nil {
         return errors.New("object is already opened")
     }
     if err := mio.objNew(id); err != nil {
         return err
     }
-    pool, err := anyPool(pools)
+    pool, err := checkPool(anyPool)
     if err != nil {
         return err
     }
