@@ -215,6 +215,7 @@ struct action_ops {
 };
 
 enum { CACHE_SIZE = 1000000 };
+enum { NV_OFFSET_SAVE_DELTA_IN_BYTES = 0x40000000 }; /* 1G */
 enum { NV_OFFSET_SAVE_ACT_DELTA = 1000 };
 
 struct cache_slot {
@@ -924,7 +925,8 @@ static int scan(struct scanner *s)
 	uint64_t magic;
 	int      result;
 	time_t   lasttime = time(NULL);
-	off_t    lastoff  = s->s_off;
+	off_t    lastoff;
+	off_t    lastnvsaveoff;
 	uint64_t lastrecord = 0;
 	uint64_t lastdata = 0;
 	if (resume_scan && !dry_run) {
@@ -933,7 +935,8 @@ static int scan(struct scanner *s)
 		printf("Resuming Scan from Offset = %li file %s",
 		       s->s_off, offset_file);
 	}
-	lastoff  = s->s_off;
+	lastoff	      = s->s_off;
+	lastnvsaveoff = s->s_off;
 	setvbuf(s->s_file, iobuf, _IONBF, sizeof iobuf);
 	while (!signaled && (result = get(s, &magic, sizeof magic)) == 0) {
 		if (magic == M0_FORMAT_HEADER_MAGIC) {
@@ -959,6 +962,17 @@ static int scan(struct scanner *s)
 			lastoff  = s->s_off;
 			lastrecord = beck_builder.b_act;
 			lastdata = beck_builder.b_data;
+
+			/** save scanner offset if scanner and bnode queue's
+			 * are empty and scanner is progressing by delta bytes
+			 */
+			if( s->s_off - lastnvsaveoff >
+			    NV_OFFSET_SAVE_DELTA_IN_BYTES &&
+			    isqempty(&s->s_bnode_q)&&
+			    isqempty(s->s_q) ) {
+				lastnvsaveoff = s->s_off;
+				nv_scan_offset_update();
+			}
 		}
 	}
 	return feof(s->s_file) ? 0 : result;
