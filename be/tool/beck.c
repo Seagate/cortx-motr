@@ -285,6 +285,7 @@ struct emap_action {
 
 struct worker_off_info {
 	off_t              woi_offset[AO_NR];
+	uint64_t           woi_act_added[AO_NR];
 	uint64_t           woi_act_done[AO_NR];
 };
 
@@ -1699,11 +1700,10 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 			/* check for incomplete actions */
 			for (w = 0; w < off_info.oi_workers_nr; w++) {
 				winfo = &off_info.oi_offset[w];
-				/* discard workers which have NOT processed
+				/* discard workers which have NOT started
 				 * atleast single action for given partition
 				 * till now*/
-				if (winfo->woi_offset[p] <
-				    pinfo->pi_1st_bnode_offset[p])
+				if (winfo->woi_act_added[p] == 0)
 					continue;
 
 
@@ -1736,6 +1736,13 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 		       sizeof(off_info.oi_pinfo.pi_act_added));
 		memset(&off_info.oi_pinfo.pi_act_done[0], 0,
 		       sizeof(off_info.oi_pinfo.pi_act_done));
+		for (w = 0; w < off_info.oi_workers_nr; w++) {
+			winfo = &off_info.oi_offset[w];
+			memset(&winfo->woi_act_added[0], 0,
+			       sizeof(winfo->woi_act_added));
+			memset(&winfo->woi_act_done[0], 0,
+			       sizeof(winfo->woi_act_done));
+		}
 		fclose(ofptr);
 		m0_mutex_unlock(&off_info.oi_lock);
 	} else {
@@ -1782,11 +1789,14 @@ static void builder_do(struct m0_be_tx_bulk   *tb,
 {
 	struct action  *act;
 	struct builder *b = datum;
+	struct worker_off_info *winfo;
 
 	m0_be_op_active(op);
 	act = user;
 	if (act != NULL) {
 		b->b_act++;
+		winfo = &off_info.oi_offset[worker_index];
+		winfo->woi_act_added[partition]++;
 		act->a_ops->o_act(act, tx);
 		act->a_ops->o_fini(act);
 	}
