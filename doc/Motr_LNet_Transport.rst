@@ -14,9 +14,9 @@ The scope of this HLD includes the net.lnet-user and net.lnet-kernel tasks descr
 Definitions
 ***************
 
-- **Network Buffer**: This term is used to refer to a struct Motr_net_buffer. The word “buffer”, if used by itself, will be qualified by its context - it may not always refer to a network buffer.
+- **Network Buffer**: This term is used to refer to a struct m0_net_buffer. The word “buffer”, if used by itself, will be qualified by its context - it may not always refer to a network buffer.
 
-- **Network Buffer Vector**: This term is used to refer to the struct Motr_bufvec that is embedded in a network buffer. The related term, “I/O vector” if used, will be qualified by its context - it may not always refer to a network buffer vector.
+- **Network Buffer Vector**: This term is used to refer to the struct m0_bufvec that is embedded in a network buffer. The related term, “I/O vector” if used, will be qualified by its context - it may not always refer to a network buffer vector.
 
 - **Event queue, EQ LNet**: A data structure used to receive LNet events. Associated with an MD. The Lustre Networking module. It implements version 3.2 of the Portals Message Passing Interface, and provides access to a number of different transport protocols including InfiniBand and TCP over Ethernet.
 
@@ -56,29 +56,29 @@ Refer to [3], [5] and to net/net.h in the Motr source tree, for additional terms
 Requirements
 ***************
 
-- [r.m0.net.rdma] Remote DMA is supported. [2]
+- **[r.m0.net.rdma]** Remote DMA is supported. [2]
 
-- [r.m0.net.ib] Infiniband is supported. [2] 
+- **[r.m0.net.ib]** Infiniband is supported. [2] 
 
-- [r.m0.net.xprt.lnet.kernel] Create an LNET transport in the kernel. [1] 
+- **[r.m0.net.xprt.lnet.kernel]** Create an LNET transport in the kernel. [1] 
 
-- [r.m0.net.xprt.lnet.user] Create an LNET transport for user space. [1]
+- **[r.m0.net.xprt.lnet.user]** Create an LNET transport for user space. [1]
 
-- [r.m0.net.xprt.lnet.user.multi-process] Multiple user space processes can concurrently use the LNet transport. [1]
+- **[r.m0.net.xprt.lnet.user.multi-process]** Multiple user space processes can concurrently use the LNet transport. [1]
 
-- [r.m0.net.xprt.lnet.user.no-gpl] Do not get tainted with the use of GPL interfaces in the user space implementation. [1]
+- **[r.m0.net.xprt.lnet.user.no-gpl]** Do not get tainted with the use of GPL interfaces in the user space implementation. [1]
 
-- [r.m0.net.xprt.lnet.user.min-syscalls] Minimize the number of system calls required by the user space transport. [1]
+- **[r.m0.net.xprt.lnet.user.min-syscalls]** Minimize the number of system calls required by the user space transport. [1]
 
-- [r.m0.net.xprt.lnet.min-buffer-vm-setup] Minimize the amount of virtual memory setup required for network buffers in the user space transport. [1]
+- **[r.m0.net.xprt.lnet.min-buffer-vm-setup]** Minimize the amount of virtual memory setup required for network buffers in the user space transport. [1]
 
-- [r.m0.net.xprt.lnet.processor-affinity] Provide optimizations based on processor affinity.
+- **[r.m0.net.xprt.lnet.processor-affinity]** Provide optimizations based on processor affinity.
 
-- [r.m0.net.buffer-event-delivery-control] Provide control over the detection and delivery of network buffer events.
+- **[r.m0.net.buffer-event-delivery-control]** Provide control over the detection and delivery of network buffer events.
 
-- [r.m0.net.xprt.lnet.buffer-registration] Provide support for hardware optimization through buffer pre-registration.
+- **[r.m0.net.xprt.lnet.buffer-registration]** Provide support for hardware optimization through buffer pre-registration.
 
-- [r.m0.net.xprt.auto-provisioned-receive-buffer-pool] Provide support for a pool of network buffers from which transfer machines can automatically be provisioned with receive buffers. Multiple transfer machines can share the same pool, but each transfer machine is only associated with a single pool. There can be multiple pools in a network domain, but a pool cannot span multiple network domains.
+- **[r.m0.net.xprt.auto-provisioned-receive-buffer-pool]** Provide support for a pool of network buffers from which transfer machines can automatically be provisioned with receive buffers. Multiple transfer machines can share the same pool, but each transfer machine is only associated with a single pool. There can be multiple pools in a network domain, but a pool cannot span multiple network domains.
 
 ******************
 Design Highlights
@@ -154,13 +154,12 @@ The design includes support for the use of pools of network buffers that will be
 
 The design uses the struct m0_net_buffer_pool object to group network buffers into a pool. New APIs will be added to associate a network buffer pool with a transfer machine, to control the number of buffers the transfer machine will auto-provision from the pool, and additional fields will be added to the transfer machine and network buffer data structures.
 
-The m0_net_tm_pool_attach() subroutine assigns the transfer machine a buffer pool in the same domain. A buffer pool can only be attached before the transfer machine is started. A given buffer pool can be attached to more than one transfer machine, but each transfer machine can only have an association with a single buffer pool. The life span of the buffer pool must exceed that of all associated transfer machines. Once a buffer pool has been attached to a transfer machine, the transfer machine implementation will obtain network buffers from the pool to populate its m0_NET_QT_ACTIVE_BULK_RECV queue on an as-needed basis [r.m0.net.xprt.support-for-auto-provisioned-receive-queue].
+The m0_net_tm_pool_attach() subroutine assigns the transfer machine a buffer pool in the same domain. A buffer pool can only be attached before the transfer machine is started. A given buffer pool can be attached to more than one transfer machine, but each transfer machine can only have an association with a single buffer pool. The life span of the buffer pool must exceed that of all associated transfer machines. Once a buffer pool has been attached to a transfer machine, the transfer machine implementation will obtain network buffers from the pool to populate its M0_NET_QT_ACTIVE_BULK_RECV queue on an as-needed basis [r.m0.net.xprt.support-for-auto-provisioned-receive-queue].
 
-The application provided buffer operation completion callbacks are defined by the callbacks argument of the attach subroutine - only the receive queue callback is used in this case. When the application callback is invoked upon receipt of a message, it is up to the application callback to determine whether to return the network buffer to the pool (identified by the network buffer’s nb_pool field) or not. The application should make sure that network buffers with the m0_NET_BUF_QUEUED flag set are not released back to the pool - this flag would be set in situations where there is sufficient space left in the network buffer for additional messages. See Requesting multiple message delivery in a single network buffer for details.
+The application provided buffer operation completion callbacks are defined by the callbacks argument of the attach subroutine - only the receive queue callback is used in this case. When the application callback is invoked upon receipt of a message, it is up to the application callback to determine whether to return the network buffer to the pool (identified by the network buffer’s nb_pool field) or not. The application should make sure that network buffers with the M0_NET_BUF_QUEUED flag set are not released back to the pool - this flag would be set in situations where there is sufficient space left in the network buffer for additional messages. See Requesting multiple message delivery in a single network buffer for details.
 
 When a transfer machine is stopped or fails, receive buffers that have been provisioned from a buffer pool will be put back into that pool by the time the state change event is delivered.
 
-The m0_net_tm_pool_length_set() subroutine is used to set the policy for the number of buffers the that will automatically be added to a transfer machine’s receive queue. The default value of 2 (m0_NET_TM_RECV_QUEUE_DEF_LEN) should be raised only if the transfer machine concerned is expected to have a very high temporal density of messages; reducing the value to 1 runs the risk of dropping messages when the active network buffer gets filled; zero is disallowed. If the length is reduced, the transfer machine will not immediately de-queue buffers it has already queued, but will allow the queue to drain as buffers are used up; auto-provisioning will not recommence until the queue length drops below the new size.
 
 The m0_net_domain_buffer_pool_not_empty() subroutine should be used, directly or indirectly, as the “not-empty” callback of a network buffer pool. We recommend direct use of this callback - i.e. the buffer pool is dedicated for receive buffers provisioning purposes only.
 
@@ -172,11 +171,11 @@ The design extends the semantics of the existing Motr network interfaces to supp
 
 - A new field in the network buffer to indicate a minimum size threshold.
 
-- A documented change in behavior in the m0_NET_QT_MSG_RECV callback.
+- A documented change in behavior in the M0_NET_QT_MSG_RECV callback.
 
 The API will add the following field to struct m0_net_buffer:
 
-::
+.. code-block:: C
 
  struct m0_net_buffer {
  
@@ -188,9 +187,9 @@ The API will add the following field to struct m0_net_buffer:
     
  };
  
-These values are only applicable to network buffers on the m0_NET_QT_MSG_RECV queue. If the transport supports this feature, then the network buffer is reused if possible, provided there is at least nb_min_receive_size space left in the network buffer vector embedded in this network buffer after a message is received. A zero value for nb_min_receive_size is not allowed. At most nb_max_receive_msgs messages are permitted in the buffer.
+These values are only applicable to network buffers on the M0_NET_QT_MSG_RECV queue. If the transport supports this feature, then the network buffer is reused if possible, provided there is at least nb_min_receive_size space left in the network buffer vector embedded in this network buffer after a message is received. A zero value for nb_min_receive_size is not allowed. At most nb_max_receive_msgs messages are permitted in the buffer.
 
-The m0_NET_QT_MSG_RECV queue callback handler semantics are modified to not clear the m0_NET_BUF_QUEUED flag if the network buffer has been reused. Applications should not attempt to add the network buffer to a queue or de-register it until an event arrives with this flag unset.
+The M0_NET_QT_MSG_RECV queue callback handler semantics are modified to not clear the M0_NET_BUF_QUEUED flag if the network buffer has been reused. Applications should not attempt to add the network buffer to a queue or de-register it until an event arrives with this flag unset.
 
 See Support for multiple message delivery in a single network buffer.
 
@@ -198,7 +197,7 @@ See Support for multiple message delivery in a single network buffer.
 
 The design provides an API for the higher level application to associate the internal threads used by a transfer machine with a set of processors. In particular the API guarantees that buffer and transfer machine callbacks will be made only on the processors specified.
 
-::
+.. code-block:: C
 
  #include “lib/processor.h”
  
@@ -212,14 +211,11 @@ Support for this interface is transport specific and availability may also vary 
 
 The design provides the following APIs for the higher level application to control when network buffer event delivery takes place and which thread is used for the buffer event callback.
 
-::
+.. code-block:: C
 
  void m0_net_buffer_event_deliver_all(struct m0_net_transfer_mc *tm); 
- 
  int m0_net_buffer_event_deliver_synchronously(struct m0_net_transfer_mc *tm); 
- 
  bool m0_net_buffer_event_pending(struct m0_net_transfer_mc *tm); 
- 
  void m0_net_buffer_event_notify(struct m0_net_transfer_mc *tm, struct m0_chan *chan);
  
 See Request handler control of network buffer event delivery for the proposed usage.
@@ -237,7 +233,7 @@ The design permits the implementation to expose additional interfaces if necessa
 
 The implementation will provide support for this feature by using the LNet max_size field in a memory descriptor (MD).
 
-The implementation should de-queue the receive network buffer when LNet unlinks the MD associated with the network buffer vector memory. The implementation must ensure that there is a mechanism to indicate that the m0_NET_BUF_QUEUED flag should not be cleared by the m0_net_buffer_event_post() subroutine under these circumstances. This is captured in refinement [r.m0.net.xprt.lnet.multiple-messages-in-buffer].
+The implementation should de-queue the receive network buffer when LNet unlinks the MD associated with the network buffer vector memory. The implementation must ensure that there is a mechanism to indicate that the M0_NET_BUF_QUEUED flag should not be cleared by the m0_net_buffer_event_post() subroutine under these circumstances. This is captured in refinement [r.m0.net.xprt.lnet.multiple-messages-in-buffer].
 
 **Automatic provisioning of receive buffers**
 
@@ -257,7 +253,7 @@ A detailed description of a buffer pool object itself is beyond the scope of thi
 
 The rest of this section refers to the data structures and subroutines described in the functional specification section, Support for auto-provisioning from receive buffer pools.
 
-The m0_net_tm_pool_attach() subroutine is used, prior to starting a transfer machine, to associate it with a network buffer pool. This buffer pool is assumed to exist until the transfer machine is finalized. When the transfer machine is started, an attempt is made to fill the m0_NET_QT_MSG_RECV queue with a minimum number of network buffers from the pool. The network buffers will have their nb_callbacks value set from the transfer machine’s ntm_recv_pool_callbacks value.
+The m0_net_tm_pool_attach() subroutine is used, prior to starting a transfer machine, to associate it with a network buffer pool. This buffer pool is assumed to exist until the transfer machine is finalized. When the transfer machine is started, an attempt is made to fill the M0_NET_QT_MSG_RECV queue with a minimum number of network buffers from the pool. The network buffers will have their nb_callbacks value set from the transfer machine’s ntm_recv_pool_callbacks value.
 
 The advantages of using a common pool to provision the receive buffers of multiple transfer machines diminishes as the minimum receive queue length of a transfer machine increases. This is because as the number increases, more network buffers need to be assigned (“pinned”) to specific transfer machines, fragmenting the total available receive network buffer space. The best utilization of total receive network buffer space is achieved by using a minimum receive queue length of 1 in all the transfer machines; however, this could result in messages getting dropped in the time it takes to provision a new network buffer when the first gets filled. The default minimum receive queue length value is set to 2, a reasonably balanced compromise value; it can be modified with the m0_net_tm_pool_length_set() subroutine if desired.
 
@@ -338,7 +334,9 @@ Conformance
 
 - [i.m0.net.xprt.lnet.min-buffer-vm-setup] During buffer registration user memory pages get pinned in the kernel.
 
-- [i.m0.net.xprt.lnet.processor-affinity] LNet currently provides no processor affinity support. The [r.m0.net.xprt.lnet.processor-affinity] refinement will provide higher layers the ability to associate transfer machine threads with processors. ● [r.m0.net.buffer-event-delivery-control] The [r.m0.net.synchronous-buffer-event-delivery] refinement will provide this feature.
+- [i.m0.net.xprt.lnet.processor-affinity] LNet currently provides no processor affinity support. The [r.m0.net.xprt.lnet.processor-affinity] refinement will provide higher layers the ability to associate transfer machine threads with processors. 
+
+- [r.m0.net.buffer-event-delivery-control] The [r.m0.net.synchronous-buffer-event-delivery] refinement will provide this feature.
 
 - [i.m0.net.xprt.lnet.buffer-registration] The API supports buffer pre-registration before use. Any hardware optimizations possible at this time can be utilized when available through the LNet API. See Future LNet buffer registration support.
 
@@ -387,7 +385,7 @@ Refinement
 
   - Document the behavioral change of the receive message callback.
 
-  - Provide a mechanism for the transport to indicate that the m0_NET_BUF_QUEUED flag should not be cleared by the m0_net_buffer_event_post() subroutine.
+  - Provide a mechanism for the transport to indicate that the M0_NET_BUF_QUEUED flag should not be cleared by the m0_net_buffer_event_post() subroutine.
 
   - Modify all existing usage to set the nb_min_receive_size field to the buffer length.
 
@@ -468,23 +466,23 @@ A Motr component, whether it is a kernel file system client, server, or tool, us
 
       #. The network buffers are provisioned, with nb_min_receive_size set to allow multiple delivery of messages. The network buffers are added to a buffer pool.
 
-      #. The buffer pool is registered with a network domain and associated with one or more transfer machines. Internally, the transfer machines will get buffers from the pool and add them to their m0_NET_QT_MSG_RECV queues.
+      #. The buffer pool is registered with a network domain and associated with one or more transfer machines. Internally, the transfer machines will get buffers from the pool and add them to their M0_NET_QT_MSG_RECV queues.
 
    #. When a buffer pool is not used, these steps are performed.
 
       #. Network buffers are provisioned with nb_min_receive_size set to allow multiple delivery of messages.
 
-      #. The network buffers are registered with the network domain and added to a transfer machine m0_NET_QT_MSG_RECV queue.
+      #. The network buffers are registered with the network domain and added to a transfer machine M0_NET_QT_MSG_RECV queue.
 
 #. When a message is received, two sub-cases are possible as part of processing the message. It is the responsibility of the component itself to coordinate between these two sub-cases.
 
-  #. When a message is received and the m0_NET_BUF_QUEUED flag is set in the network buffer, then the client does not re-enqueue the network buffer as there is still space remaining in the buffer for additional messages.
+   #. When a message is received and the M0_NET_BUF_QUEUED flag is set in the network buffer, then the client does not re-enqueue the network buffer as there is still space remaining in the buffer for additional messages.
 
-  #. When a message is received and the m0_NET_BUF_QUEUED flag is not set in the network buffer, then the component takes one of two paths, depending on whether a buffer pool is in use or not.
+   #. When a message is received and the M0_NET_BUF_QUEUED flag is not set in the network buffer, then the component takes one of two paths, depending on whether a buffer pool is in use or not.
 
-     #. When a buffer pool is in use, the component puts the buffer back in the buffer pool so it can be re-used.
+      #. When a buffer pool is in use, the component puts the buffer back in the buffer pool so it can be re-used.
 
-     #. When a buffer pool is not in use, the component may re-enqueue the network buffer after processing is complete, as there is no space remaining in the buffer for additional messages.
+      #. When a buffer pool is not in use, the component may re-enqueue the network buffer after processing is complete, as there is no space remaining in the buffer for additional messages.
      
      
 **Sending non-bulk messages from Motr components**
@@ -503,9 +501,9 @@ A Motr component, whether a user-space server, user-space tool or kernel file sy
 
 #. When a buffer operation completes, it uses one of two strategies, corresponding to the earlier approach.
 
-  #. If the component used previously allocated buffers, it returns the buffer to the pool of send buffers.
+   #. If the component used previously allocated buffers, it returns the buffer to the pool of send buffers.
 
-  #. If the component built up the buffer from partly serialized and partly referenced data, it de-registers the buffer and de-provisions the memory.
+   #. If the component built up the buffer from partly serialized and partly referenced data, it de-registers the buffer and de-provisions the memory.
   
   
 **Kernel space bulk buffer access from file system clients**
