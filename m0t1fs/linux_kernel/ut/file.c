@@ -1035,7 +1035,7 @@ static void dgmode_readio_test(void)
 	struct io_req_fop          *irfop;
 	struct m0_indexvec_varr     ivv;
 	struct m0_rpc_bulk         *rbulk;
-	struct pargrp_iomap        *map;
+	struct pargrp_iomap        *map = NULL;
 	struct target_ioreq        *ti;
 	struct m0_rpc_session      *session;
 	struct m0_layout_enum      *le;

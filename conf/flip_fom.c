@@ -197,7 +197,7 @@ static int conf_after_flip_apply(struct m0_reqh *reqh, const char *filename)
 	struct m0_rpc_machine *rmach    = rconfc->rc_rmach;
 	m0_rconfc_cb_t         exp_cb   = rconfc->rc_expired_cb;
 	m0_rconfc_cb_t         ready_cb = rconfc->rc_ready_cb;
-	char                  *local_conf;
+	char                  *local_conf = NULL;
 	int                    rc;
 
 	M0_ENTRY();

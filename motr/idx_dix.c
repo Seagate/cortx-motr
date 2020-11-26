@@ -244,7 +244,7 @@ static void cas_get_reply_copy(struct m0_cas_req *req,
 			       struct m0_bufvec  *bvec)
 {
 	uint64_t                rep_count = m0_cas_req_nr(req);
-	struct m0_cas_get_reply rep;
+	struct m0_cas_get_reply rep = {};
 	uint64_t                i;
 
 	/* Assertion is guaranteed by CAS client. */
@@ -1053,7 +1053,7 @@ static void idx_op_cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 	M0_LEAVE();
 }
-	
+
 M0_INTERNAL int m0__idx_cancel(struct m0_op_idx *oi)
 {
 	struct m0_sm_ast   *op_ast;

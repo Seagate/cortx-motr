@@ -209,7 +209,7 @@ static void update_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
 			    int count)
 {
 	struct m0_fop			*fop;
-	struct m0_fom			*fom;
+	struct m0_fom			*fom = NULL;
 	struct m0_stats_update_fop      *ufop;
 	int				 i;
 	int				 rc;
