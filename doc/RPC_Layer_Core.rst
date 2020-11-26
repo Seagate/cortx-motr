@@ -2,13 +2,13 @@
 RPC Layer Core
 ==================
 
-This document presents a high level design (HLD) of rpc layer core of Colibri C2 core. The main purposes of this document are: (i) to be inspected by C2 architects and peer designers to ascertain that high level design is aligned with C2 architecture and other designs, and contains no defects, (ii) to be a source of material for Active Reviews of Intermediate Design (ARID) and detailed level design (DLD) of the same component, (iii) to serve as a design reference document. The intended audience of this document consists of C2 customers, architects, designers and developers.
+This document presents a high level design (HLD) of rpc layer core of Motr core. The main purposes of this document are: (i) to be inspected by Motr architects and peer designers to ascertain that high level design is aligned with Motr architecture and other designs, and contains no defects, (ii) to be a source of material for Active Reviews of Intermediate Design (ARID) and detailed level design (DLD) of the same component, (iii) to serve as a design reference document. The intended audience of this document consists of Motr customers, architects, designers and developers.
 
 **************
 Introduction
 **************
 
-RPC layer is a high level part of C2 network stack. It contains operations allowing user to send RPC items, containing File Operation Packets (FOP) to network destinations. RPC layer speaks about FOPs being sent from and to end-points and RPCs, which are containers for FOPs, being sent to services. RPC layer is a part of a C2 server as well as a C2 client.
+RPC layer is a high level part of Motr network stack. It contains operations allowing user to send RPC items, containing File Operation Packets (FOP) to network destinations. RPC layer speaks about FOPs being sent from and to end-points and RPCs, which are containers for FOPs, being sent to services. RPC layer is a part of a Motr server as well as a Motr client.
 
 **************
 Definitions
