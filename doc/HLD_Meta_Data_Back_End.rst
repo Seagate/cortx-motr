@@ -28,41 +28,41 @@ Dependencies
 Requirements
 *********************
 
-- R.C2.MDSTORE.NUMA: allocator respects NUMA topology 
+- **R.M0.MDSTORE.NUMA**: allocator respects NUMA topology 
 
-- R.C2.REQH.10M: performance goal of 10M transactions per second on a 16 core system with a battery backed memory. 
+- **R.MO.REQH.10M**: performance goal of 10M transactions per second on a 16 core system with a battery backed memory. 
 
-- R.C2.MDSTORE.LOOKUP: Lookup of a value by key is supported 
+- **R.M0.MDSTORE.LOOKUP**: Lookup of a value by key is supported 
 
-- R.C2.MDSTORE.ITERATE: Iteration through records is supported. 
+- **R.M0.MDSTORE.ITERATE**: Iteration through records is supported. 
 
-- R.C2.MDSTORE.CAN-GROW: The linear size of the address space can grow dynamically 
+- **R.M0.MDSTORE.CAN-GROW**: The linear size of the address space can grow dynamically 
 
-- R.C2.MDSTORE.SPARSE-PROVISIONING: including pre-allocation 
+- **R.M0.MDSTORE.SPARSE-PROVISIONING**: including pre-allocation 
 
-- R.C2.MDSTORE.COMPACT, R.C2.MDSTORE.DEFRAGMENT: used container space can be compacted and de-fragmented 
+- **R.M0.MDSTORE.COMPACT, R.M0.MDSTORE.DEFRAGMENT**: used container space can be compacted and de-fragmented 
 
-- R.C2.MDSTORE.FSCK: scavenger is supported 
+- **R.M0.MDSTORE.FSCK**: scavenger is supported 
 
-- R.C2.MDSTORE.PERSISTENT-MEMORY: The log and dirty pages are (optionally) in a persistent memory 
+- **R.M0.MDSTORE.PERSISTENT-MEMORY**: The log and dirty pages are (optionally) in a persistent memory 
 
-- R.C2.MDSTORE.SEGMENT-SERVER-REMOTE: backing containers can be either local or remote 
+- **R.M0.MDSTORE.SEGMENT-SERVER-REMOTE**: backing containers can be either local or remote 
 
-- R.C2.MDSTORE.ADDRESS-MAPPING-OFFSETS: offset structure friendly to container migration and merging 
+- **R.M0.MDSTORE.ADDRESS-MAPPING-OFFSETS**: offset structure friendly to container migration and merging 
 
-- R.C2.MDSTORE.SNAPSHOTS: snapshots are supported 
+- **R.M0.MDSTORE.SNAPSHOTS**: snapshots are supported 
 
-- R.C2.MDSTORE.SLABS-ON-VOLUMES: slab-based space allocator 
+- **R.M0.MDSTORE.SLABS-ON-VOLUMES**: slab-based space allocator 
 
-- R.C2.MDSTORE.SEGMENT-LAYOUT: Any object layout for a meta-data segment is supported 
+- **R.M0.MDSTORE.SEGMENT-LAYOUT** Any object layout for a meta-data segment is supported 
 
-- R.C2.MDSTORE.DATA.MDKEY: Data objects carry meta-data key for sorting (like reiser4 key assignment does). 
+- **R.M0.MDSTORE.DATA.MDKEY**: Data objects carry meta-data key for sorting (like reiser4 key assignment does). 
 
-- R.C2.MDSTORE.RECOVERY-SIMPLER: There is a possibility of doing a recovery twice. There is also a possibility to use either object level mirroring or a logical transaction mirroring. 
+- **R.M0.MDSTORE.RECOVERY-SIMPLER**: There is a possibility of doing a recovery twice. There is also a possibility to use either object level mirroring or a logical transaction mirroring. 
 
-- R.C2.MDSTORE.CRYPTOGRAPHY: optionally meta-data records are encrypted 
+- **R.M0.MDSTORE.CRYPTOGRAPHY**: optionally meta-data records are encrypted 
 
-- R.C2.MDSTORE.PROXY: proxy meta-data server is supported. A client and a server are almost identical. 
+- **R.M0.MDSTORE.PROXY**: proxy meta-data server is supported. A client and a server are almost identical. 
 
 *********************
 Design Highlights
