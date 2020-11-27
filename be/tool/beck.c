@@ -179,6 +179,8 @@ enum action_opcode {
 	AO_NR         = 30
 };
 
+enum { MAX_WORKERS_NR = 64 };
+
 struct action_ops;
 struct builder;
 
@@ -302,13 +304,17 @@ struct part_info {
 	off_t              pi_1st_bnode_offset[AO_NR];
 };
 
+struct nv_offset_info {
+	uint64_t                noi_magic;  /* header magic */
+	struct part_info        noi_pinfo;
+	struct worker_off_info  noi_offset[MAX_WORKERS_NR];
+	struct scanner_off_info noi_scanoff;
+};
+
 struct offset_info {
-	struct part_info        oi_pinfo;
-	struct worker_off_info *oi_offset;
 	struct m0_mutex         oi_part_lock[AO_NR];
 	uint64_t                oi_workers_nr;
 	uint64_t                oi_partitions_nr;
-	struct scanner_off_info oi_scanoff;
 	struct m0_mutex         oi_lock;
 };
 
@@ -512,6 +518,7 @@ static struct scanner beck_scanner;
 static struct builder beck_builder;
 static struct gen g[MAX_GEN] = {};
 static struct m0_be_seg s_seg = {}; /** Used only in dry-run mode. */
+static struct nv_offset_info nv_off_info;
 static struct offset_info off_info;
 
 static bool  dry_run = false;
@@ -1637,24 +1644,19 @@ static int nv_scan_offset_init(uint64_t workers_nr,
 {
 	uint64_t  p;
 
+	/** update MAX_WORKERS_NR limit if below
+	 * pre-condition fails while tunning for
+	 * performance
+	 * */
+	M0_PRE(workers_nr <= MAX_WORKERS_NR);
 	M0_PRE(partitions_nr <= AO_NR);
 
 	m0_mutex_init(&off_info.oi_lock);
-	m0_mutex_lock(&off_info.oi_lock);
 	off_info.oi_workers_nr = workers_nr;
 	off_info.oi_partitions_nr = partitions_nr;
 
-	off_info.oi_offset = m0_alloc(sizeof(struct worker_off_info) *
-				      workers_nr);
-	if (off_info.oi_offset == NULL) {
-		m0_mutex_unlock(&off_info.oi_lock);
-		return M0_ERR(-ENOMEM);
-	}
-
-	memset(&off_info.oi_pinfo, 0, sizeof(struct part_info));
 	for (p = 0; p < off_info.oi_partitions_nr; p++)
 		m0_mutex_init(&off_info.oi_part_lock[p]);
-	m0_mutex_unlock(&off_info.oi_lock);
 	return 0;
 }
 
@@ -1662,20 +1664,15 @@ static void nv_scan_offset_fini(void)
 {
 	uint64_t  p;
 
-	m0_mutex_lock(&off_info.oi_lock);
-	m0_free(off_info.oi_offset);
 	for (p = 0; p < off_info.oi_partitions_nr; p++)
 		m0_mutex_fini(&off_info.oi_part_lock[p]);
-	m0_mutex_unlock(&off_info.oi_lock);
 	m0_mutex_fini(&off_info.oi_lock);
 }
 
 static off_t nv_scan_offset_get(off_t snapshot_size)
 {
 	FILE     *ofptr;
-	int       wret;
-	int       pret;
-	int       sret;
+	int       ret;
 	off_t     offset = snapshot_size;
 	off_t     max_offset = 0;
 	uint64_t  p;
@@ -1690,14 +1687,11 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 		m0_mutex_unlock(&off_info.oi_lock);
 		return 0;
 	}
-	wret = fread(off_info.oi_offset, sizeof(struct worker_off_info),
-		     off_info.oi_workers_nr, ofptr);
-	pret = fread(&off_info.oi_pinfo, sizeof(struct part_info),
+	ret = fread(&nv_off_info, sizeof(struct nv_offset_info),
 		     1, ofptr);
-	sret = fread(&off_info.oi_scanoff, sizeof(struct scanner_off_info),
-		     1, ofptr);
-	if ((wret > 0) && (pret > 0) && (sret > 0)) {
-		pinfo = &off_info.oi_pinfo;
+	if ((ret == sizeof(struct nv_offset_info)) &&
+	    (nv_off_info.noi_magic == M0_FORMAT_HEADER_MAGIC)) {
+		pinfo = &nv_off_info.noi_pinfo;
 		/* look for lowest offset in active partitions */
 		for (p = 0; p < off_info.oi_partitions_nr; p++) {
 			/* skip idle partitions */
@@ -1713,7 +1707,7 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 			}
 			/* check for incomplete actions */
 			for (w = 0; w < off_info.oi_workers_nr; w++) {
-				winfo = &off_info.oi_offset[w];
+				winfo = &nv_off_info.noi_offset[w];
 				/* discard workers which have NOT started
 				 * atleast single action for given partition
 				 * till now*/
@@ -1736,7 +1730,7 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 		}
 		/* all partitions were idle */
 		if(offset == snapshot_size) {
-			sinfo = &off_info.oi_scanoff;
+			sinfo = &nv_off_info.noi_scanoff;
 			if(sinfo->soi_scanqempty && sinfo->soi_bnodeqempty) {
 				offset = sinfo->soi_offset;
 			        printf("partitions idle,scanner offset=%li\n",
@@ -1746,12 +1740,12 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 		}
 		/* reset counters as there will NOT be any completions for
 		 * missed actions */
-		memset(&off_info.oi_pinfo.pi_act_added[0], 0,
-		       sizeof(off_info.oi_pinfo.pi_act_added));
-		memset(&off_info.oi_pinfo.pi_act_done[0], 0,
-		       sizeof(off_info.oi_pinfo.pi_act_done));
+		memset(&nv_off_info.noi_pinfo.pi_act_added[0], 0,
+		       sizeof(nv_off_info.noi_pinfo.pi_act_added));
+		memset(&nv_off_info.noi_pinfo.pi_act_done[0], 0,
+		       sizeof(nv_off_info.noi_pinfo.pi_act_done));
 		for (w = 0; w < off_info.oi_workers_nr; w++) {
-			winfo = &off_info.oi_offset[w];
+			winfo = &nv_off_info.noi_offset[w];
 			memset(&winfo->woi_act_added[0], 0,
 			       sizeof(winfo->woi_act_added));
 			memset(&winfo->woi_act_done[0], 0,
@@ -1770,6 +1764,7 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 static void nv_scan_offset_update(void)
 {
 	FILE   *ofptr;
+	struct scanner_off_info *sinfo;
 
 	m0_mutex_lock(&off_info.oi_lock);
 
@@ -1779,14 +1774,13 @@ static void nv_scan_offset_update(void)
 		m0_mutex_unlock(&off_info.oi_lock);
 		return;
 	}
-	off_info.oi_scanoff.soi_offset      = beck_scanner.s_off;
-	off_info.oi_scanoff.soi_bnodeqempty = isqempty(&beck_scanner.s_bnode_q);
-	off_info.oi_scanoff.soi_scanqempty  = isqempty(beck_scanner.s_q);
-	fwrite(off_info.oi_offset, sizeof(struct worker_off_info),
-	       off_info.oi_workers_nr, ofptr);
-	fwrite(&off_info.oi_pinfo, sizeof(struct part_info),
-	       1, ofptr);
-	fwrite(&off_info.oi_scanoff, sizeof(struct scanner_off_info),
+	sinfo = &nv_off_info.noi_scanoff;
+
+	nv_off_info.noi_magic  = M0_FORMAT_HEADER_MAGIC;
+	sinfo->soi_offset      = beck_scanner.s_off;
+	sinfo->soi_bnodeqempty = isqempty(&beck_scanner.s_bnode_q);
+	sinfo->soi_scanqempty  = isqempty(beck_scanner.s_q);
+	fwrite(&nv_off_info, sizeof(struct nv_offset_info),
 	       1, ofptr);
 	fclose(ofptr);
 	m0_mutex_unlock(&off_info.oi_lock);
@@ -1809,7 +1803,7 @@ static void builder_do(struct m0_be_tx_bulk   *tb,
 	act = user;
 	if (act != NULL) {
 		b->b_act++;
-		winfo = &off_info.oi_offset[worker_index];
+		winfo = &nv_off_info.noi_offset[worker_index];
 		winfo->woi_act_added[partition]++;
 		act->a_ops->o_act(act, tx);
 		act->a_ops->o_fini(act);
@@ -1828,11 +1822,11 @@ static void builder_done(struct m0_be_tx_bulk   *tb,
 
 	act = user;
 	if (act != NULL) {
-		winfo = &off_info.oi_offset[worker_index];
+		winfo = &nv_off_info.noi_offset[worker_index];
 		winfo->woi_offset[partition] = act->a_node_offset;
 		winfo->woi_act_done[partition]++;
 		m0_mutex_lock(&off_info.oi_part_lock[partition]);
-		off_info.oi_pinfo.pi_act_done[partition]++;
+		nv_off_info.noi_pinfo.pi_act_done[partition]++;
 		m0_mutex_unlock(&off_info.oi_part_lock[partition]);
 
 		if (winfo->woi_act_done[partition] % NV_OFFSET_SAVE_ACT_DELTA ==
@@ -1864,7 +1858,7 @@ static void builder_work_put(struct m0_be_tx_bulk *tb, struct builder *b)
 			if (!put_successful)
 				break;
 
-			pinfo = &off_info.oi_pinfo;
+			pinfo = &nv_off_info.noi_pinfo;
 			pinfo->pi_act_added[act->a_opc]++;
 			/* save offset of first bnode in partitions */
 			if (pinfo->pi_act_added[act->a_opc] == 1)
