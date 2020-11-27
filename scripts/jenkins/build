@@ -57,7 +57,7 @@ if [[ $1 = docs ]] ; then
 make -j doc |& tee $ARTIFACTS/make.log
 else
 [[ -d $HOME/rpmbuild ]] && rm -rf $HOME/rpmbuild/*
-./configure |& tee -a $ARTIFACTS/configure.log
+./configure --enable-coverage |& tee -a $ARTIFACTS/configure.log
 make -j |& tee $ARTIFACTS/make.log
 cp -v xcode/protocol*.txt $ARTIFACTS/
 make -j rpms |& tee $ARTIFACTS/rpm.log
