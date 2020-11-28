@@ -1152,6 +1152,7 @@ enum decision {
 struct tpc {
 	struct sys_proc_state t_base;
 	uint64_t              t_txid;
+	bool                  t_done;
 };
 
 static void tpc_set(struct proc *proc, uint64_t key, uint64_t val)
@@ -1308,6 +1309,7 @@ static void tpc_coordinator_balance(struct proc *proc)
 		}
 		break;
 	case DONE:
+		tpc->t_done = true;
 		more = false; /* Ain't kicking no more. */
 	}
 	if (more)
@@ -1316,15 +1318,18 @@ static void tpc_coordinator_balance(struct proc *proc)
 
 static bool tpc_invariant(const struct step *s)
 {
-	struct proc *coo      = procs[0];
-	int          decision = tpc_get(coo, DECISION);
+	int          decision;
+	struct proc *coo = procs[0];
+	struct tpc  *tpc = palloc(coo);
 
 	return  /* M0_IN(tpc_get(coo, PHASE), (INIT, PREP, PWAIT, ACK,
 					    AWAIT, DONE)) &&
 		M0_IN(decision, (0, D_COMMIT, D_ABORT)) &&
 		tpc_get(coo, PREP_RCVD) <= tpc_get(coo, PREP_SENT) &&
 		tpc_get(coo, ACK_RCVD)  <= tpc_get(coo, ACK_SENT) && */
-		ergo(tpc_get(coo, PHASE) == DONE,
+		ergo(tpc->t_done,
+		     (decision = tpc_get(coo, DECISION), true) &&
+		     tpc_get(coo, PHASE) == DONE &&
 		     M0_IN(decision, (D_COMMIT, D_ABORT)) &&
 		     m0_forall(i, proc_nr - 1,
 			M0_IN(tpc_get(procs[i + 1], DECISION), (D_COMMIT,
