@@ -758,22 +758,28 @@ AC_SUBST([OPENSSL_LIBS])
         [io_getevents cannot be found! Try to install libaio-devel.])
        AC_SUBST([AIO_LIBS])
 
+MOTR_SEARCH_LIBS([dlopen], [c dl], [DL_LIBS],
+        [dlopen cannot be found! Try to install libdl.]
+)
+AC_SUBST([DL_LIBS])
+
 # check for libedit library
 MOTR_SEARCH_LIBS([readline], [c edit], [LIBEDIT_LIBS],
         [libedit cannot be found! Try to install libedit-devel.]
 )
 AC_SUBST([LIBEDIT_LIBS])
 
+AS_IF([test x$use_linux = xyes],
+# check for aio library (io_submit(3) & co.)
+      [MOTR_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
+        [io_getevents cannot be found! Try to install libaio-devel.])
+       AC_SUBST([AIO_LIBS])
+
 # rt library is required for: aio_read(3), aio_write(3), timer_create(2)
        MOTR_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
         [aio_read cannot be found! Try to install librt-devel or libaio-devel.]
 )
 AC_SUBST([RT_LIBS])
-
-MOTR_SEARCH_LIBS([dlopen], [c dl], [DL_LIBS],
-        [dlopen cannot be found! Try to install libdl.]
-)
-AC_SUBST([DL_LIBS])
 
 MOTR_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
 	[uuid_generate cannot be found! Try to install libuuid and libuuid-devel.])
