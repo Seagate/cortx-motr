@@ -123,9 +123,16 @@ def print_iem(usage_percentage):
     evt_id = iem_event_id
     msg = f"Cluster size {usage_percentage}"
     msg_b = msg.encode('utf-8')
-    libmotr.m0_time_init()
-    libmotr.m0_iem(ctypes.c_char_p(file_parm_b), function_parm, line_num,
-                        sev_id, mod_id, evt_id, ctypes.c_char_p(msg_b))
+
+#   Current libmotr api "m0_iem()" is generalize for all IEM alerts from motr.
+#   Which is not allowing to provide free space monitor alert message as
+#   required format, hence added print log to provide alert in required format.
+#   Keeping exiting logic as well (commented) as it may required in LDR-R2
+
+    log.error(f"IEC: AS0020020002: Usable storage is {usage_percentage} % full");
+#    libmotr.m0_time_init()
+#    libmotr.m0_iem(ctypes.c_char_p(file_parm_b), function_parm, line_num,
+#                        sev_id, mod_id, evt_id, ctypes.c_char_p(msg_b))
 
 
 if __name__ == '__main__':
@@ -182,11 +189,11 @@ if __name__ == '__main__':
 
         cluster_usage_percentage = cluster_size[USAGE_PERCENTAGE]
         if cluster_usage_percentage > iem_min_threshold:
-            if (cluster_usage_prev < iem_alert_low_thresold and
-                cluster_usage_percentage > iem_alert_low_thresold):
+            if (cluster_usage_prev <= iem_alert_low_thresold and
+                cluster_usage_percentage >= iem_alert_low_thresold):
                 send_iem = True
-            if (cluster_usage_prev < iem_alert_high_thresold and
-                cluster_usage_percentage > iem_alert_high_thresold):
+            if (cluster_usage_prev <= iem_alert_high_thresold and
+                cluster_usage_percentage >= iem_alert_high_thresold):
                 send_iem = True
 
             if send_iem:
