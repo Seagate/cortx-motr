@@ -25,7 +25,6 @@
 #ifndef __MOTR_IDX_H__
 #define __MOTR_IDX_H__
 
-#include "motr/client.h" /* m0_entity_opcode */
 #include "dix/layout.h"    /* m0_dix_ldesc */
 
 /**
@@ -216,6 +215,11 @@ struct m0_idx_dix_config {
 extern const struct m0_bob_type oi_bobtype;
 M0_BOB_DECLARE(M0_INTERNAL, m0_op_idx);
 
+struct m0_sm_group;
+struct m0_sm_ast;
+struct m0_op;
+struct m0_client;
+
 M0_INTERNAL bool m0__idx_op_invariant(struct m0_op_idx *oi);
 M0_INTERNAL void idx_op_ast_complete(struct m0_sm_group *grp,
 				     struct m0_sm_ast   *ast);
@@ -226,6 +230,8 @@ M0_INTERNAL void idx_op_ast_stable(struct m0_sm_group *grp,
 M0_INTERNAL void idx_op_ast_fail(struct m0_sm_group *grp,
 				 struct m0_sm_ast *ast);
 
+enum m0_entity_opcode;
+struct m0_entity;
 
 M0_INTERNAL int m0_idx_op_namei(struct m0_entity *entity,
 				struct m0_op **op,
