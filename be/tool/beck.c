@@ -1927,10 +1927,8 @@ static void builder_thread(struct builder *b)
 	 * unlocked thread's sm group. Simplify this task and call the exit
 	 * function for builder thread.
 	 */
-	if (&b->b_backend != NULL) {
-		(void)m0_be_ut_backend_sm_group_lookup(&b->b_backend);
-		m0_be_ut_backend_thread_exit(&b->b_backend);
-	}
+	(void)m0_be_ut_backend_sm_group_lookup(&b->b_backend);
+	m0_be_ut_backend_thread_exit(&b->b_backend);
 }
 
 static int ad_dom_init(struct builder *b)
