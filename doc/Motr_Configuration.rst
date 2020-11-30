@@ -24,7 +24,7 @@ Minimal node-local configuration will be stored in a plain text /etc/motr/motr.c
 
 - Security.key.pub=/root/rsa/key.pub
 
-- User.map=/etc/colibri/usermap (maybe)
+- User.map=/etc/motr/usermap (maybe)
 
 - Disk.exclude=/dev/sda
 
