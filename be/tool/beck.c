@@ -1689,7 +1689,7 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 	}
 	ret = fread(&nv_off_info, sizeof(struct nv_offset_info),
 		     1, ofptr);
-	if ((ret == sizeof(struct nv_offset_info)) &&
+	if ((ret == 1) &&
 	    (nv_off_info.noi_magic == M0_FORMAT_HEADER_MAGIC)) {
 		pinfo = &nv_off_info.noi_pinfo;
 		/* look for lowest offset in active partitions */
