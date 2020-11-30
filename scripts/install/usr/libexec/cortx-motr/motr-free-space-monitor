@@ -129,6 +129,7 @@ def print_iem(usage_percentage):
 #   required format, hence added print log to provide alert in required format.
 #   Keeping exiting logic as well (commented) as it may required in LDR-R2
 
+    usage_percentage = int(usage_percentage)
     log.error(f"IEC: AS0020020002: Usable storage is {usage_percentage} % full");
 #    libmotr.m0_time_init()
 #    libmotr.m0_iem(ctypes.c_char_p(file_parm_b), function_parm, line_num,
