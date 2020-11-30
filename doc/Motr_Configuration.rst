@@ -14,5 +14,61 @@ Functional Description
 
 **Alerts**: if something happens that Motr doesn’t have a clear resolution, an alert should be raised to the sysadmin via Trinity. This does not include e.g. standard recovery scenarios – alerts should be kept to a minimum. (System monitoring falls outside the scope of configuration.) Events that might cause data loss (“I see a new drive has been added to my raid group. I see no Motr data on it currently, but it does appear to have been formatted in the past. Shall I erase this disk and use it as additional Motr storage?”), or a decision that needs to be made by a human (“A new empty drive has been added, shall I add it to group X or group Y?).
 
+************************
+Logical Description
+************************
+
+Minimal node-local configuration will be stored in a plain text /etc/motr/motr.conf file in YAML format. Limited number of items can be configured here (all have default values):
+
+- Confignode.addr=a,b,… (unless we do self-discovery)
+
+- Security.key.pub=/root/rsa/key.pub
+
+- User.map=/etc/colibri/usermap (maybe)
+
+- Disk.exclude=/dev/sda
+
+- Net.exclude=ethX
+
+- Profile=router
+
+There will be a “master” configuration node that all nodes that participate in a filesystem will contact (like MGS in Lustre). It would be nice if this was discovered automatically, via a broadcast query as servers start up. Communication to the config node should follow security protocols. This node will maintain an SQL-type configuration database, consisting of the following:
+
+- Node data
+
+  - Location
+
+  - ID
+
+  - Last known status (timestamp, value, message)
+
+  - Hardware list (drives, networks, …)
+
+  - Services list (T1 backend v1.2.4, router, …)
+
+- Drive data
+
+  - Uuid
+
+  - Status (ok, degraded, unresponsive)
+
+  - Setting (use, ignore, decommission)
+
+  - Containers stored here
+
+- Motr tuning parameters
+
+- Filesystem definitions (e.g which disks are part of which filesystem)
+
+- Routing table
+
+The Trinity GUI will interact with this database to define services, storage pools, containers, filesystems, and parameters. Disks can be set to be formatted from this gui as well. A small “MGC”-like service will run on all the nodes to enact remote configuration changes sent by the MGS. 
+
+Servers should be started via standard Linux start/stop scripts like “service motr start”. This will initiate the hardware scan and communication with the config node, and eventually start motr userspace servers. Clients will start M0 kernel client with “mount”, as NFS and Lustre currently do. Client profiles may be specified with mount options: mount –t motr –o profile=thinclient confignodeip://fsname /mnt/M0.
+
+
+
+
+
 
 
