@@ -197,14 +197,16 @@ if __name__ == '__main__':
                 cluster_usage_percentage >= iem_alert_high_thresold):
                 send_iem = True
 
+#           update idx as per current usage percent to get current next low from
+#           from threshold list.
+            idx = bisect.bisect_right(param_list, cluster_usage_percentage)
+            if idx >= list_len:
+                idx = list_len - 1
+            iem_alert_low_new = param_list[idx]
+
             if send_iem:
-                idx = bisect.bisect_right(param_list, int(iem_alert_low_thresold))
-                if idx >= list_len:
-                    idx = list_len - 1
-                iem_alert_low_new = param_list[idx]
-                if iem_alert_high_thresold > iem_alert_low_thresold:
-                    iem_alert_low_thresold = iem_alert_low_new
-                    print_iem(cluster_usage_percentage)
+                print_iem(cluster_usage_percentage)
+            iem_alert_low_thresold = iem_alert_low_new
             cluster_usage_prev = cluster_usage_percentage
         else:
             if cluster_usage_prev > iem_min_threshold:
