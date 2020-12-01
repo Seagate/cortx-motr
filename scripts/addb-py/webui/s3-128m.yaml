@@ -1,0 +1,44 @@
+conf:
+  common:
+    batch_id: null
+    description: Beta_RC-7
+    nodes:
+    - cli: smc33-m09.colo.seagate.com
+      srv: smc33-m09.colo.seagate.com
+    - cli: smc34-m09.colo.seagate.com
+      srv: smc34-m09.colo.seagate.com
+    priority: 1
+    send_email: true
+    type: s3client
+    user: yeshpal.jain@seagate.com
+    version: 1
+  execution_options:
+    no_addb_dumps: true
+    no_addb_stobs: true
+    no_m0play_db: true
+    no_m0trace_dumps: false
+    no_m0trace_files: false
+    no_mero_trace: false
+  ha: halon
+  mero:
+    build_options: --disable-altogether-mode --enable-release --with-trace-ubuf-size=64
+    config_overrides: null
+    git: 99a16fd761d29a4398edf66f1a0eaa509a2605a5
+  s3server:
+    cmd_line_options: null
+    config_overrides:
+      S3_CLOVIS_MAX_UNITS_PER_REQUEST: 112
+      S3_CLOVIS_TM_RECV_QUEUE_MIN_LEN: 1024
+    git: c676cc01c68954004bf32542ce7e6c4e7bfa7110
+    num_instances: 11
+  workload:
+  - app: s3bench
+    param:
+      cli_options: -numClients=128 -numSamples=1024 -objectSize=128Mb -objectNamePrefix=template
+  - app: sleep
+    param:
+      cli_options: '120'
+  - app: s3bench
+    param:
+      cli_options: -numClients=128 -numSamples=1024 -objectSize=128Mb -objectNamePrefix=template
+

@@ -1,0 +1,103 @@
+<table width=100%>
+  <tr>
+    <td>
+      Search(={{(names | filter:searchText).length}}):
+      <br>
+      <input class="form-control" ng-model="searchText" id="searchText">
+      <br>
+      Limit(={{limit}}):<br><select class="form-control"
+			ng-init="limit='100'"
+			ng-model="limit"
+			ng-change="pageChanged()">
+        <option value="100" selected>100</option>
+        <option value="9999999">all</option>
+      </select>
+    </td>
+  </tr>
+</table>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>tid</th>
+      <th>state</th>
+      <th>user</th>
+      <th>time</th>
+      <th>workload</th>
+    </tr>
+  </thead>
+  <tr ng-repeat="row in names | filter:searchText | limitTo:itemsPerPage:(currentPage-1)*itemsPerPage">
+      <td>{{row.task_id_short}}</td>
+      <td>{{row.state}}</td>
+      <td>{{row.user}}</td>
+      <td>
+	<table>
+	  <tr ng-repeat="(key,val) in row.time">
+	    <td><u>{{key}}:</u><br>{{val}}</td>
+	  </tr>
+	</table>
+      </td>
+      <td>
+	<!-- WORKLOAD -->
+	<table>
+	  <tr>
+	    <td>
+	      <u>description:</u> {{row.desc}} <u>priority:</u> {{row.prio}}
+	    </td>
+	  <tr>
+	  <tr ng-repeat="(key,val) in row.workload">
+		<td>
+		  <u>{{val.cmd}}</u>
+		</td>
+	  </tr>
+	</table>
+	<!-- <table>
+	  <tr>
+	    <td>
+	      <u>extopts:</u>
+	      <span ng-repeat="(key,val) in row.exopt">
+		{{key}}={{val}}
+	      </span>
+	    </td>
+	  </tr>
+	  <tr>
+	    <td>
+	      <u>build_opts:</u> {{row.merobuild.build_options}} <br>
+	      <span ng-if="row.merobuild.config_overrides">
+		<u>mero_config_overrides:</u>
+		<span ng-repeat="(key,val) in row.merobuild.config_overrides">
+		  {{key}}={{val}}
+		</span>
+		<br>
+	      </span>
+	      <span ng-if="row.s3build.config_overrides">
+		<u>s3_config_overrides:</u>
+		<span ng-repeat="(key,val) in row.s3build.config_overrides">
+		  {{key}}={{val}}
+		</span>
+		<br>
+	      </span>
+	      <u>git</u>: mero (
+	      <a href="https://github.com/Seagate/cortx-motr/commit/{{row.merobuild.git}}">
+		{{row.merobuild.git.substring(0,6)}}
+	      </a>)<span ng-if="row.s3build.git">, s3 (
+	      <a href="https://github.com/Seagate/cortx-s3server/commit/{{row.s3build.git}}">
+		{{row.s3build.git.substring(0,6)}}
+	      </a>)</span>
+	    </td>
+	  </tr>
+	</table> -->
+	<!-- /WORKLOAD -->
+      </td>
+  </tr>
+</table>
+<table width=100%>
+  <tr>
+    <td>
+      <ul uib-pagination
+	  class="pagination-sm"
+	  items-per-page="itemsPerPage"
+	  total-items="(names | filter:searchText).length"
+	  ng-model="currentPage"></ul>
+    </td>
+  </tr>
+</table>

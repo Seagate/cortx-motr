@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+SCRIPT_PATH="$(readlink -f $0)"
+PL_WEB_DIR="${SCRIPT_PATH%/*}"
+PL_WEB_SYSTEMD_SERVICE_FILE='/etc/systemd/system/pl-web.service'
+
+function main()
+{
+    check_root
+    cp $PL_WEB_DIR/pl-web.service.template $PL_WEB_SYSTEMD_SERVICE_FILE
+    sed -i "s|<PERFLINE_WEB_DIR>|$PL_WEB_DIR|g" $PL_WEB_SYSTEMD_SERVICE_FILE
+    systemctl daemon-reload
+}
+
+function check_root()
+{
+    if [[ $UID -ne 0 ]]; then
+        echo 'Please, run this script with "root" privileges.' >&2
+        exit 1
+    fi
+}
+
+main $@
+exit $?

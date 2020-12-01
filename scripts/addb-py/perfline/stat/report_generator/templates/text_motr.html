@@ -1,0 +1,13 @@
+<tr><th colspan="3">Configs</th></tr>
+<tr>
+    <th>Motr config</th>
+    <th colspan="3">
+    {% for motr in motr_config %}
+        {{motr}}<br>
+    {% endfor %}
+    </th>
+
+</tr>
+
+{% include 'text_haproxy.html' %}
+{% include 'text_s3_config.html' %}

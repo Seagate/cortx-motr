@@ -1,0 +1,37 @@
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+common:
+  version: 1
+  description: EOS-8613 s3bench 128Mb for baseline numbers, no MKFS
+  priority: 1
+  batch_id: null
+  user: user@seagate.com
+  send_email: false
+
+workload:
+  - cmd: /root/release/perfline/workload/s3bench_run.sh -n 1000 -c 128 -o 128m
+
+execution_options:
+  mkfs: false
+  no_m0trace_files: true
+  no_m0trace_dumps: true
+  no_addb_stobs: false
+  no_addb_dumps: false
+  no_m0play_db: false

@@ -1,0 +1,12 @@
+<tr><th colspan="3">Disks mapping</th></tr>
+
+<tr>
+    <th>Disks mapping</th>
+        {% for strings in disks_mapping_info %}
+        <th style="text-align:left">
+            {% for string in strings %}
+            {{string}}<br>
+            {% endfor %}
+        </th>
+        {% endfor %}
+</tr>

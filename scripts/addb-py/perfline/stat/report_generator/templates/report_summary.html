@@ -1,0 +1,58 @@
+<table table-layout=auto align=center cellpadding="5" border="1">
+    
+    <tr>
+        <th colspan="3">Workload logs</a></th>
+    </tr>
+    <tr>
+        {% for name in workload_filenames %}
+            <th>{{name}}</th>
+        {% endfor %}
+    </tr>
+    <tr>
+        {% for name in workload_filenames %}
+            <th><a href="/report/{{task_id}}/workload/{{name}}" download>Download</a></th>
+        {% endfor %}
+    </tr>
+</table>
+<br><br><br>
+<table table-layout=auto align=center cellpadding="5" border="1">
+    <tr>
+        <th colspan="3">Report summary</th>
+    </tr> 
+    <tr>
+        <th></th>
+        {% for names in rw_stats.keys() %}
+            <th>{{names}}</th>
+        {% endfor %}
+    </tr> 
+    <tr>
+        <th>Test parameters</th>
+        <th style="text-align:left">
+            {% for value in rw_stats.values() %}
+                {% for v in value[0] %}
+                    {{v}}<br>
+                {% endfor %}
+            {% endfor %}
+        </th>
+    </tr>
+    <tr>
+        <th>Write results</th>
+        <th style="text-align:left">
+            {% for value in rw_stats.values() %}
+                {% for v in value[1] %}
+                    {{v}}<br>
+                {% endfor %}
+            {% endfor %}
+        </th>
+    </tr>
+    <tr>
+        <th>Read results</th>
+        <th style="text-align:left">
+            {% for value in rw_stats.values() %}
+                {% for v in value[2] %}
+                    {{v}}<br>
+                {% endfor %}
+            {% endfor %}
+        </th>
+    </tr>
+</table>

@@ -1,0 +1,75 @@
+- name: Copy statistic scirpts to secondary node
+  hosts: secondary_node
+  become: yes
+  tasks:
+  - file:
+      path: /var/perfline
+      state: directory
+  - copy:
+      src: "{{ playbook_dir }}/../perfline/stat"
+      dest: /root/perfline/perfline
+
+- name: Copy sources to master node
+  hosts: master_node
+  become: yes
+  vars:
+    perfline_dir: /root/perfline
+  tasks:
+  - file:
+      path: /var/perfline
+      state: directory
+  - name: Copy perfline working dir
+    copy:
+      src: "{{ playbook_dir }}/../perfline"
+      dest: "{{ perfline_dir }}"
+  - name: Copy webui dir
+    copy:
+      src: "{{ playbook_dir }}/../webui"
+      dest: "{{ perfline_dir }}"
+  - name: Copy chronometry dir
+    copy:
+      src: "{{ playbook_dir }}/../chronometry"
+      dest: "{{ perfline_dir }}"
+
+  - name: Copy huey_consumer python bin
+    copy:
+      src: "{{ playbook_dir }}/huey_consumer"
+      dest: /usr/local/bin/huey_consumer
+
+  - name: Open port for webui
+    firewalld: port=8005/tcp zone=public permanent=true state=enabled immediate=yes
+
+  - name: Install perfline python dependencies
+    pip:
+      name:
+        - huey
+        - plumbum
+        - cerberus
+        - pandas
+        - matplotlib
+        - Flask
+        - PyYAML
+        - Jinja2
+      executable: pip3
+  - name: Install perfline system dependencies
+    yum:
+      name:
+        - sysstat
+      state: present
+  
+  - name: Copy webui systemd file
+    copy:
+      src: "{{ playbook_dir }}/webui.service"
+      dest: /etc/systemd/system/webui.service
+  - name: Copy huey-consumer systemd file
+    copy:
+      src: "{{ playbook_dir }}/huey-consumer.service"
+      dest: /etc/systemd/system/huey-consumer.service
+  - name: Start webui service
+    systemd: state=started name=webui daemon_reload=yes
+  - name: Start huey-consumer service
+    systemd: state=started name=huey-consumer daemon_reload=yes
+
+
+      
+      

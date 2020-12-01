@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+function main()
+{
+local artif_host=$1
+    local artifacts_dir=$2
+    shift
+    shift
+
+    local app=$1 #motr, s3server
+    
+    if [[ "$app" == "motr" ]]; then
+        shift
+
+        for ios_fid in $@; do
+            local ios_dir="/var/motr/m0d-$ios_fid"
+
+            if [[ -e $ios_dir ]]; then
+                pushd $ios_dir
+
+                for filename in m0trace.*; do
+                    echo "dump $filename"
+                    m0trace -i ${filename} -o ${filename}.txt 2>/dev/null
+                done
+
+                scp m0trace*txt root@${artif_host}:${artifacts_dir}
+		rm -rf m0trace*txt || true
+                popd
+            fi
+        done
+    elif [[ "$app" == "s3server" ]]; then
+        
+        for s3dir in $(ls /var/motr | grep s3server); do
+            pushd /var/motr/$s3dir
+
+            for filename in m0trace.*; do
+                echo "dump $filename"
+                m0trace -i ${filename} -o ${filename}.txt 2>/dev/null
+            done
+
+            scp m0trace*txt root@${artif_host}:${artifacts_dir}/$(hostname)/$s3dir
+	    rm -rf m0trace*txt || true
+            popd
+        done
+    else
+        echo "unsupported app: $app"
+    fi
+}
+
+main $@
+exit $?

@@ -1,0 +1,12 @@
+<tr><th colspan="3">Nodes mapping</th></tr>
+
+<tr>
+    <th>Nodes mapping</th>
+        {% for strings in nodes_mapping_info %}
+        <th style="text-align:left">
+            {% for string in strings %}
+            {{string}}<br>
+            {% endfor %}
+        </th>
+        {% endfor %}
+</tr>

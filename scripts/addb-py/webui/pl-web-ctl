@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+
+# set -x
+set -e
+
+LOG_FILE='/var/log/pl_web.log'
+PID_FILE='/var/run/pl_web.pid'
+
+function main()
+{
+    check_root
+    echo "current dir: $(pwd)"
+    local cmd=$1
+
+    case $cmd in
+        start)
+            start_service
+            ;;
+        stop)
+            stop_service
+            ;;
+        *)
+            echo "unsupported command: $cmd"
+            return 1
+            ;;
+    esac
+}
+
+function is_service_running()
+{
+    if [[ ! -f "$PID_FILE" ]]; then
+        return 1
+    fi
+
+    local pid=$(cat $PID_FILE)
+
+    if ! kill -0 $pid &> /dev/null; then
+        return 1
+    fi
+
+    CURR_PID=$pid
+    return 0
+}
+
+function start_service()
+{
+    if is_service_running; then
+        echo "service already is started (pid: $CURR_PID)"
+        exit 1
+    fi
+
+    echo "starting of service"
+    python3 ./server.py run &> $LOG_FILE &
+    local pid=$!
+    echo $pid > $PID_FILE
+    echo "pid: $pid"
+}
+
+function stop_service()
+{
+    if ! is_service_running; then
+        echo "service is not started yet"
+        exit 1
+    fi
+
+    echo "stopping of service"
+    if kill $CURR_PID; then
+        rm $PID_FILE
+    else
+        echo "killing of process $CURR_PID failed"
+    fi
+}
+
+function check_root()
+{
+    if [[ $UID -ne 0 ]]; then
+        echo 'Please, run this script with "root" privileges.' >&2
+        exit 1
+    fi
+}
+
+main $@
+exit $?

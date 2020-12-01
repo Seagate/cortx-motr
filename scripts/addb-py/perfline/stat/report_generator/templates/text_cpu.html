@@ -1,0 +1,11 @@
+<tr><th colspan="3">CPU</th></tr>
+<tr>
+    <th>CPU info</th>
+        {% for strings in cpu_info %}
+        <th style="text-align:left;" >
+            {% for string in strings %}
+            {{string}}<br>
+            {% endfor %}
+        </th>
+    {% endfor %}
+</tr>
