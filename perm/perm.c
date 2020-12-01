@@ -852,8 +852,9 @@ static void tx_logged(struct cb *c, struct event *e, void *d)
 
 	kv->k_txid    = e->e_p0;
 	kv->k_txstate = T_LOGGED;
-	event_post(e->e_perm, E_TXSTATE, c->c_proc, NULL, T_COMMITTED, 0,
-		   kv->k_txid, 0, P_STARTED, ss->ss_bcount);
+	if (0)
+		event_post(e->e_perm, E_TXSTATE, c->c_proc, NULL, T_COMMITTED, 0,
+			   kv->k_txid, 0, P_STARTED, ss->ss_bcount);
 }
 
 static void tx_close(struct proc *proc, uint64_t tid)
@@ -1109,7 +1110,7 @@ static void event_print(const struct event *e)
 	if (e->e_p0 != 0 || e->e_p1 != 0)
 		printf("[%"PRIx64":%"PRIx64"]", e->e_p0, e->e_p1);
 	if (e->e_print != NULL) {
-		printf(" ");
+		printf(":");
 		e->e_print(e);
 	}
 	printf("]");
@@ -1190,7 +1191,9 @@ static void tpc_coordinator_print(const struct event *e)
 		[DONE]  = "done"
 	};
 	M0_ASSERT(proc == procs[0]);
-	printf("%s: P:%"PRId64"/%"PRId64" A:%"PRId64"/%"PRId64" D:%"PRId64,
+	printf("%s", pname[tpc_get(proc, PHASE)]);
+	return;
+	printf("%s:P:%"PRId64"/%"PRId64"A:%"PRId64"/%"PRId64"D:%"PRId64,
 	       pname[tpc_get(proc, PHASE)], tpc_get(proc, PREP_SENT),
 	       tpc_get(proc, PREP_RCVD), tpc_get(proc, ACK_SENT),
 	       tpc_get(proc, ACK_RCVD), tpc_get(proc, DECISION));
@@ -1210,7 +1213,7 @@ static void tpc_coordinator_tick(struct cb *c, struct event *e, void *d)
 {
 	struct proc *proc = e->e_proc;
 	struct tpc  *tpc  = palloc(proc);
-	int          idx  = e->e_src->pr_idx;
+	int          idx  = e->e_src != NULL ? e->e_src->pr_idx : 0;
 	int          decision;
 	int          got;
 
