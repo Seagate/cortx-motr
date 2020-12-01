@@ -1,0 +1,25 @@
+<tr>
+    <th>Multipath config</th>
+        {% for strings in multipath_conf %}
+        <th style="text-align:left">
+            {% for string in strings %}
+            {{string}}<br>
+            {% endfor %}
+        </th>
+        {% endfor %}
+    </tr>
+    <tr>
+        <th>Multipath devices list</th>
+            {% for strings in multipath_info %}
+            <th style="text-align:left;vertical-align:top;">
+                <details>
+                    <summary>SPOILER</summary>
+                {% for string in strings %}
+                {{string}}<br>
+                {% endfor %}
+                </details>
+            </th>
+            {% endfor %}
+        </tr>
+    
+    

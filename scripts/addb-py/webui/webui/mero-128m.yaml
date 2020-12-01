@@ -1,0 +1,39 @@
+common:
+  version: 1
+  description: test m0crate and motr
+  priority: 2
+  batch_id: null
+  type: m0crate
+  user: alexander.sukhachev@seagate.com
+  send_email: true
+  nodes:
+    - srv: smc33-m09.colo.seagate.com
+      cli: smc33-m09.colo.seagate.com
+    - srv: smc34-m09.colo.seagate.com
+      cli: smc34-m09.colo.seagate.com
+
+
+workload:
+  - app: m0crate
+    param:
+      config_overrides:
+        LAYOUT_ID: 9
+        CLOVIS_IOSIZE: 1g
+        BLOCK_SIZE: 112m
+        NR_THREADS: 16
+        NR_OBJS: 10
+
+ha: halon
+
+mero:
+  git: ef5d7a16c1ac4bdcb626be4d7e5a6c04e736c483
+  build_options: "--disable-altogether-mode --enable-release --with-trace-ubuf-size=64"
+  config_overrides: null
+
+execution_options:
+  no_mero_trace: false
+  no_m0trace_files: false
+  no_m0trace_dumps: false
+  no_addb_stobs: false
+  no_addb_dumps: false
+  no_m0play_db: false

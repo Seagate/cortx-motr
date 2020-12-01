@@ -1,0 +1,14 @@
+<!-- <tr><th colspan="3">Haproxy config</th></tr> -->
+<tr>
+<th>Haproxy config</th>
+    {% for strings in haproxy_info %}
+    <th style="text-align:left;vertical-align:top;" >
+        <details>
+            <summary>SPOILER</summary>
+        {% for string in strings %}
+        {{string}}<br>
+        {% endfor %}
+        </details>
+    </th>
+    {% endfor %}
+</tr>

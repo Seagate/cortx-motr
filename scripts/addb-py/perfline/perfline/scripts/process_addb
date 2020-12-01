@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+set -e
+set -x
+
+# TOOLS_DIR="/root/chronometry"
+SCRIPT_PATH="$(readlink -f $0)"
+SCRIPT_DIR="${SCRIPT_PATH%/*}"
+TOOLS_DIR="$SCRIPT_DIR/../../chronometry"
+
+function main()
+{
+    # echo "P1: $1"
+    # echo "P2: $2"
+    # echo "P3: $3"
+    # echo "P4: $4"
+    # echo "P5: $5"
+    # echo "P6: $6"
+    # echo "P7: $7"
+    # echo "P8: $8"
+    # echo "P9: $9"
+    # echo "P10: ${10}"
+
+    parse_params "$@"
+
+    if [[ "$APP" == "motr" ]]; then
+        process_motr_addb
+    elif [[ "$APP" == "s3server" ]]; then
+        process_s3_addb
+    else
+        echo "unsupported app: $app"
+    fi
+}
+
+parse_params()
+{
+    while [[ $# -gt 0 ]]; do
+    
+    case $1 in
+        --host)
+            ARTIF_HOST="$2"
+            shift
+            ;;
+        --dir)
+            ARTIF_DIR="$2"
+            shift
+            ;;
+        --app)
+            APP="$2"
+            shift
+            ;;
+        --io-services)
+            IO_SERVICES="$2"
+            shift
+            ;;
+        --no-m0play-db)
+            NO_M0PLAY_DB="1"
+            ;;
+	--start)
+	    START_TIME="$2"
+	    shift
+	    ;;
+	--stop)
+	    STOP_TIME="$2"
+	    shift
+	    ;;
+    esac
+
+    shift
+    done
+}
+
+function process_motr_addb()
+{
+    for ios_fid in $IO_SERVICES; do
+        local ios_dir="/var/motr/m0d-$ios_fid"
+        local ios_addb_stob="$ios_dir/addb-stobs/o/100000000000000:2"
+        local pid=$(echo $ios_addb_stob | sed -E 's/.*[x]([a-z0-9]*)[/].*/\1/')
+
+        if [[ -e $ios_addb_stob ]]; then
+            pushd $ios_dir/addb-stobs/o/
+            /home/721080/EOS-8613/cortx-motr/utils/m0addb2dump -f -s $START_TIME -e $STOP_TIME -- "$ios_addb_stob" > ./dumps_${pid}.txt
+            scp dumps_* root@${ARTIF_HOST}:${ARTIF_DIR}
+            generate_m0playdb dumps_${pid}.txt $pid root@${ARTIF_HOST}:${ARTIF_DIR}
+
+            ls ./
+            popd
+        fi
+    done
+}
+
+function process_s3_addb()
+{
+    for addb_stob in /var/motr/s3server*/addb*/o/100000000000000:2; do
+        pushd $(dirname $addb_stob)
+        pid=$(echo $addb_stob | sed -E 's/.*addb_([0-9]+)[/].*/\1/')
+        /home/721080/EOS-8613/cortx-motr/utils/m0addb2dump -f -s $START_TIME -e $STOP_TIME -p /opt/seagate/cortx/s3/addb-plugin/libs3addbplugin.so \
+            -- "$addb_stob" > ./dumpc_${pid}.txt
+        scp dumpc_* root@${ARTIF_HOST}:${ARTIF_DIR}/$(hostname)
+        generate_m0playdb dumpc_${pid}.txt $pid root@${ARTIF_HOST}:${ARTIF_DIR}/$(hostname)
+
+        ls ./
+        popd
+    done    
+}
+
+function generate_m0playdb()
+{
+    if [[ -n "$NO_M0PLAY_DB" ]]; then
+        return 0
+    fi
+
+    local addb_dump="$1"
+    local pid="$2"
+    local remote_path="$3"
+
+    python3 $TOOLS_DIR/addb2new.py --procs 16 --dumps ./$addb_dump
+    mv m0play.db m0play_${pid}.db
+    scp m0play_${pid}.db $remote_path
+}
+
+main "$@"
+exit $?

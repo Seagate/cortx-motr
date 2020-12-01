@@ -1,0 +1,11 @@
+<h2 align=center>DSTAT plots </h2>
+{% for label in dstat_net_info %}
+    <div class="row">
+        <h2 align=center>{{label}}</h2>
+        {% for node_num in range(node_amount) %}
+            <div class="column">
+            <img src="/report/{{task_id}}/dstat_imgs/{{node_num}}/{{label}}" alt="{{label}}">
+            </div>
+        {% endfor %}
+    </div>
+{% endfor %}

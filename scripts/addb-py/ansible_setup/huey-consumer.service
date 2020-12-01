@@ -1,0 +1,10 @@
+[Unit]
+Description=huey consumer service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/perfline/perfline
+ExecStart=/usr/local/bin/huey_consumer perfline.huey -k process
+
+[Install]
+WantedBy=multi-user.target

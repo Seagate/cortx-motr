@@ -1,0 +1,12 @@
+<tr><th colspan="3">Version info</th></tr>
+
+<tr>
+    <th>Commit info</th>
+        {% for strings in commit_info %}
+        <th style="text-align:left">
+            {% for string in strings %}
+            {{string}}<br>
+            {% endfor %}
+        </th>
+        {% endfor %}
+</tr>

@@ -1,0 +1,14 @@
+<html>
+    <body>
+        <h3>Task: {{ task_id }}</h3>
+        <h3>Artifacts: {{ artifacts_nr }}</h5>
+        <table>
+            {% for file in files %}
+            <tr>
+                <td> <a href="/artifacts/{{ task_id }}{{ file }}">{{ file }}</a> </td>
+            </tr>
+            {% endfor %}
+            
+        </table>
+    </body>
+</html>

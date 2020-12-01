@@ -1,0 +1,20 @@
+<table width="100%" cellpadding="5" border="1">
+    <tbody>
+        <tr> 
+        <th>Hostnames</th> 
+        {% for name in node_names %}
+        <th>{{name}}</th> 
+        {% endfor %}
+        </tr>
+
+        {% include 'text_nodes_mapping.html' %}
+        {% include 'text_commit_info.html' %}
+        {% include 'text_cpu.html' %}
+        {% include 'text_memory.html' %}
+        {% include 'text_disks_mapping.html' %}
+        {% include 'text_interfaces.html' %}
+        {% include 'text_cluster.html' %}
+        {% include 'text_motr.html' %}
+
+    </tbody>
+</table>

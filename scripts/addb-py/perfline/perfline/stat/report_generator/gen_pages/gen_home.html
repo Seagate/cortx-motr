@@ -1,0 +1,3533 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <link rel="stylesheet" type="text/css" href="css">
+  </head>
+  <body>
+    <h1 align=center>Performance Report &#128293;</h1>
+<ul>
+    <li><a class="active" href="">Aggregated</a></li>
+    <li><a>Node 1</a></li>
+    <li><a>Node 2</a></li>
+    <li style="float:right"><a>Download PDF</a></li>
+</ul> <br><br><br>
+<table width="30%" align=center cellpadding="5" border="1">
+    <tr>
+        <th></th>
+        <th>Started at</th>
+        <th>Finished at</th>
+    </tr> 
+    <tr>
+        <th>Test execution</th>
+        <th>Wednesday, 28 October 2020 03:11:11AM</th>
+        <th>Wednesday, 28 October 2020 03:11:22AM</th>
+    </tr>
+    <tr>
+        <th>Workload execution</th>
+        <th>Wednesday, 28 October 2020 03:11:14AM</th>
+        <th>Wednesday, 28 October 2020 03:11:19AM</th>
+    </tr>
+    <tr>
+        <th colspan="3"><a href="workload" download>Download workload log</a></th>
+    </tr>
+</table> <br><br><br>
+    <table width="30%" align=center cellpadding="5" border="1">
+    <tr>
+        <th colspan="3">Report summary</th>
+    </tr> 
+    <tr>
+        <th>Test parameters</th>
+        <th style="text-align:left">
+            
+                endpoint(s):&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp[http://s3.seagate.com]
+<br>
+            
+                bucket:&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspbucket0
+<br>
+            
+                objectNamePrefix:&nbsps3workload
+<br>
+            
+                objectSize:&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp128.0000&nbspMB
+<br>
+            
+                numClients:&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp128
+<br>
+            
+                numSamples:&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp15000
+<br>
+            
+                verbose:&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp%!d(bool=true)
+<br>
+            
+        </th>
+    </tr>
+    <tr>
+        <th>Write results</th>
+        <th style="text-align:left">
+            
+                Total&nbspTransferred:&nbsp1920000.000&nbspMB
+<br>
+            
+                Total&nbspThroughput:&nbsp&nbsp2158.71&nbspMB/s
+<br>
+            
+                Total&nbspDuration:&nbsp&nbsp&nbsp&nbsp889.420&nbsps
+<br>
+            
+                Number&nbspof&nbspErrors:&nbsp&nbsp0
+<br>
+            
+                ------------------------------------
+<br>
+            
+                Write&nbsptimes&nbspMax:&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp17.986&nbsps
+<br>
+            
+                Write&nbsptimes&nbsp99th&nbsp%ile:&nbsp14.167&nbsps
+<br>
+            
+                Write&nbsptimes&nbsp90th&nbsp%ile:&nbsp10.894&nbsps
+<br>
+            
+                Write&nbsptimes&nbsp75th&nbsp%ile:&nbsp9.212&nbsps
+<br>
+            
+                Write&nbsptimes&nbsp50th&nbsp%ile:&nbsp7.402&nbsps
+<br>
+            
+                Write&nbsptimes&nbsp25th&nbsp%ile:&nbsp5.754&nbsps
+<br>
+            
+                Write&nbsptimes&nbspMin:&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp1.420&nbsps
+<br>
+            
+        </th>
+    </tr>
+    <tr>
+        <th>Read results</th>
+        <th style="text-align:left">
+            
+                Total&nbspTransferred:&nbsp1920000.000&nbspMB
+<br>
+            
+                Total&nbspThroughput:&nbsp&nbsp3460.23&nbspMB/s
+<br>
+            
+                Total&nbspDuration:&nbsp&nbsp&nbsp&nbsp554.876&nbsps
+<br>
+            
+                Number&nbspof&nbspErrors:&nbsp&nbsp0
+<br>
+            
+                ------------------------------------
+<br>
+            
+                Read&nbsptimes&nbspMax:&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp9.604&nbsps
+<br>
+            
+                Read&nbsptimes&nbsp99th&nbsp%ile:&nbsp7.154&nbsps
+<br>
+            
+                Read&nbsptimes&nbsp90th&nbsp%ile:&nbsp5.962&nbsps
+<br>
+            
+                Read&nbsptimes&nbsp75th&nbsp%ile:&nbsp5.316&nbsps
+<br>
+            
+                Read&nbsptimes&nbsp50th&nbsp%ile:&nbsp4.643&nbsps
+<br>
+            
+                Read&nbsptimes&nbsp25th&nbsp%ile:&nbsp4.063&nbsps
+<br>
+            
+                Read&nbsptimes&nbspMin:&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp1.269&nbsps
+<br>
+            
+        </th>
+    </tr>
+</table> <br><br><br>
+    <table width="100%" cellpadding="5" border="1">
+    <tbody>
+        <tr> 
+        <th>Hostnames</th> 
+        
+        <th>smc51-m08.colo.seagate.com</th> 
+        
+        <th>smc52-m08.colo.seagate.com</th> 
+        
+        </tr>
+
+        <tr><th colspan="3">Nodes mapping</th></tr>
+
+<tr>
+    <th>Nodes mapping</th>
+        
+        <th style="text-align:left">
+            
+            srvnode-1&nbspsmc51-m08.colo.seagate.com
+<br>
+            
+        </th>
+        
+        <th style="text-align:left">
+            
+            srvnode-2&nbspsmc52-m08.colo.seagate.com
+<br>
+            
+        </th>
+        
+</tr>
+        <tr><th colspan="3">Version info</th></tr>
+
+<tr>
+    <th>Commit info</th>
+        
+        <th style="text-align:left">
+            
+            cortxs3server:&nbspgitf48b53a<br>
+            
+            cortxs3iamcli:&nbspgitf48b53a<br>
+            
+            cortxhare:&nbspgit637567b<br>
+            
+            cortxmotr:&nbspgit5e1d97c<br>
+            
+        </th>
+        
+        <th style="text-align:left">
+            
+            cortxs3server:&nbspgitf48b53a<br>
+            
+            cortxs3iamcli:&nbspgitf48b53a<br>
+            
+            cortxhare:&nbspgit637567b<br>
+            
+            cortxmotr:&nbspgit5e1d97c<br>
+            
+        </th>
+        
+</tr>
+        <tr><th colspan="3">CPU</th></tr>
+
+<tr>
+<th>Architecture</th>
+    
+    <th>x86_64</th>
+    
+    <th>x86_64</th>
+    
+</tr>
+
+<tr>
+<th>BogoMIPS</th>
+    
+    <th>4400.00</th>
+    
+    <th>4400.00</th>
+    
+</tr>
+
+<tr>
+<th>Byte Order</th>
+    
+    <th>Little Endian</th>
+    
+    <th>Little Endian</th>
+    
+</tr>
+
+<tr>
+<th>CPU MHz</th>
+    
+    <th>2699.914</th>
+    
+    <th>2699.914</th>
+    
+</tr>
+
+<tr>
+<th>CPU family</th>
+    
+    <th>6</th>
+    
+    <th>6</th>
+    
+</tr>
+
+<tr>
+<th>CPU max MHz</th>
+    
+    <th>3200.0000</th>
+    
+    <th>3200.0000</th>
+    
+</tr>
+
+<tr>
+<th>CPU min MHz</th>
+    
+    <th>1000.0000</th>
+    
+    <th>1000.0000</th>
+    
+</tr>
+
+<tr>
+<th>CPU op-mode(s)</th>
+    
+    <th>32-bit, 64-bit</th>
+    
+    <th>32-bit, 64-bit</th>
+    
+</tr>
+
+<tr>
+<th>CPU(s)</th>
+    
+    <th>48</th>
+    
+    <th>48</th>
+    
+</tr>
+
+<tr>
+<th>Core(s) per socket</th>
+    
+    <th>12</th>
+    
+    <th>12</th>
+    
+</tr>
+
+<tr>
+<th>L1d cache</th>
+    
+    <th>32K</th>
+    
+    <th>32K</th>
+    
+</tr>
+
+<tr>
+<th>L1i cache</th>
+    
+    <th>32K</th>
+    
+    <th>32K</th>
+    
+</tr>
+
+<tr>
+<th>L2 cache</th>
+    
+    <th>1024K</th>
+    
+    <th>1024K</th>
+    
+</tr>
+
+<tr>
+<th>L3 cache</th>
+    
+    <th>16896K</th>
+    
+    <th>16896K</th>
+    
+</tr>
+
+<tr>
+<th>Model</th>
+    
+    <th>85</th>
+    
+    <th>85</th>
+    
+</tr>
+
+<tr>
+<th>Model name</th>
+    
+    <th>Intel(R) Xeon(R) Silver 4214 CPU @ 2.20GHz</th>
+    
+    <th>Intel(R) Xeon(R) Silver 4214 CPU @ 2.20GHz</th>
+    
+</tr>
+
+<tr>
+<th>NUMA node(s)</th>
+    
+    <th>2</th>
+    
+    <th>2</th>
+    
+</tr>
+
+<tr>
+<th>NUMA node0 CPU(s)</th>
+    
+    <th>0-11,24-35</th>
+    
+    <th>0-11,24-35</th>
+    
+</tr>
+
+<tr>
+<th>NUMA node1 CPU(s)</th>
+    
+    <th>12-23,36-47</th>
+    
+    <th>12-23,36-47</th>
+    
+</tr>
+
+<tr>
+<th>On-line CPU(s) list</th>
+    
+    <th>0-47</th>
+    
+    <th>0-47</th>
+    
+</tr>
+
+<tr>
+<th>Socket(s)</th>
+    
+    <th>2</th>
+    
+    <th>2</th>
+    
+</tr>
+
+<tr>
+<th>Stepping</th>
+    
+    <th>7</th>
+    
+    <th>7</th>
+    
+</tr>
+
+<tr>
+<th>Thread(s) per core</th>
+    
+    <th>2</th>
+    
+    <th>2</th>
+    
+</tr>
+
+<tr>
+<th>Vendor ID</th>
+    
+    <th>GenuineIntel</th>
+    
+    <th>GenuineIntel</th>
+    
+</tr>
+
+<tr>
+<th>Virtualization</th>
+    
+    <th>VT-x</th>
+    
+    <th>VT-x</th>
+    
+</tr>
+
+        <tr><th colspan="3">Memory info</th></tr>
+<tr>
+<th>Total memory</th>
+    
+    <th style="text-align:left;" >
+        196.496184 GB
+    </th>
+    
+    <th style="text-align:left;" >
+        196.496184 GB
+    </th>
+    
+</tr>
+        <tr><th colspan="3">Disks mapping</th></tr>
+
+<tr>
+    <th>Disks mapping</th>
+        
+        <th style="text-align:left">
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpatha&nbspdm-16
+<br>
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathi&nbspdm-10
+<br>
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathj&nbspdm-17
+<br>
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathk&nbspdm-15
+<br>
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathl&nbspdm-13
+<br>
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathm&nbspdm-5
+<br>
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathn&nbspdm-8
+<br>
+            
+            MD&nbsp/dev/mapper/mpathh1&nbspdm-12
+<br>
+            
+        </th>
+        
+        <th style="text-align:left">
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathp&nbspdm-0
+<br>
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathb&nbspdm-1
+<br>
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathc&nbspdm-8
+<br>
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathd&nbspdm-4
+<br>
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathe&nbspdm-5
+<br>
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathf&nbspdm-7
+<br>
+            
+            IO&nbsp/dev/disk/by-id/dm-name-mpathg&nbspdm-3
+<br>
+            
+            MD&nbsp/dev/mapper/mpatho1&nbspdm-14
+<br>
+            
+        </th>
+        
+</tr>
+        <tr><th colspan="3">Network</th></tr>
+<tr>
+<th>Network interfaces info</th>
+    
+    <th style="text-align:left">
+        
+        1:&nbsplo:&nbsp<LOOPBACK,UP,LOWER_UP>&nbspmtu&nbsp65536&nbspqdisc&nbspnoqueue&nbspstate&nbspUNKNOWN&nbspgroup&nbspdefault&nbspqlen&nbsp1000
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplink/loopback&nbsp00:00:00:00:00:00&nbspbrd&nbsp00:00:00:00:00:00
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp127.0.0.1/8&nbspscope&nbsphost&nbsplo
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet6&nbsp::1/128&nbspscope&nbsphost&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        2:&nbspeno1:&nbsp<BROADCAST,MULTICAST,UP,LOWER_UP>&nbspmtu&nbsp1500&nbspqdisc&nbspmq&nbspstate&nbspUP&nbspgroup&nbspdefault&nbspqlen&nbsp1000
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplink/ether&nbspac:1f:6b:c9:45:4e&nbspbrd&nbspff:ff:ff:ff:ff:ff
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp10.230.247.173/20&nbspbrd&nbsp10.230.255.255&nbspscope&nbspglobal&nbspnoprefixroute&nbspdynamic&nbspeno1
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbsp367011sec&nbsppreferred_lft&nbsp367011sec
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp10.230.255.20/24&nbspbrd&nbsp10.230.255.255&nbspscope&nbspglobal&nbspeno1:v1
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet6&nbspfe80::ae1f:6bff:fec9:454e/64&nbspscope&nbsplink&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        3:&nbspenp175s0f0:&nbsp<BROADCAST,MULTICAST,UP,LOWER_UP>&nbspmtu&nbsp9000&nbspqdisc&nbspmq&nbspstate&nbspUP&nbspgroup&nbspdefault&nbspqlen&nbsp1000
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplink/ether&nbsp1c:34:da:63:30:10&nbspbrd&nbspff:ff:ff:ff:ff:ff
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp172.16.0.175/16&nbspbrd&nbsp172.16.255.255&nbspscope&nbspglobal&nbspenp175s0f0
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp172.16.8.20/16&nbspbrd&nbsp172.16.255.255&nbspscope&nbspglobal&nbspsecondary&nbspenp175s0f0
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet6&nbspfe80::1e34:daff:fe63:3010/64&nbspscope&nbsplink&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        4:&nbspenp175s0f1:&nbsp<BROADCAST,MULTICAST,UP,LOWER_UP>&nbspmtu&nbsp9000&nbspqdisc&nbspmq&nbspstate&nbspUP&nbspgroup&nbspdefault&nbspqlen&nbsp1000
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplink/ether&nbsp1c:34:da:63:30:11&nbspbrd&nbspff:ff:ff:ff:ff:ff
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp192.168.0.1/24&nbspbrd&nbsp192.168.0.255&nbspscope&nbspglobal&nbspenp175s0f1
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp192.168.0.3/24&nbspbrd&nbsp192.168.0.255&nbspscope&nbspglobal&nbspsecondary&nbspenp175s0f1:c1
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet6&nbspfe80::1e34:daff:fe63:3011/64&nbspscope&nbsplink&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        5:&nbspeno2:&nbsp<NO-CARRIER,BROADCAST,MULTICAST,UP>&nbspmtu&nbsp1500&nbspqdisc&nbspmq&nbspstate&nbspDOWN&nbspgroup&nbspdefault&nbspqlen&nbsp1000
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplink/ether&nbspac:1f:6b:c9:45:4f&nbspbrd&nbspff:ff:ff:ff:ff:ff
+<br>
+        
+        6:&nbsptap0:&nbsp<BROADCAST,MULTICAST,UP,LOWER_UP>&nbspmtu&nbsp1500&nbspqdisc&nbsppfifo_fast&nbspstate&nbspUNKNOWN&nbspgroup&nbspdefault&nbspqlen&nbsp1000
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplink/ether&nbsp82:7e:76:83:2f:df&nbspbrd&nbspff:ff:ff:ff:ff:ff
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp10.0.0.4/24&nbspscope&nbspglobal&nbsptap0
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet6&nbspfe80::807e:76ff:fe83:2fdf/64&nbspscope&nbsplink&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever<br>
+        
+    </th>
+    
+    <th style="text-align:left">
+        
+        1:&nbsplo:&nbsp<LOOPBACK,UP,LOWER_UP>&nbspmtu&nbsp65536&nbspqdisc&nbspnoqueue&nbspstate&nbspUNKNOWN&nbspgroup&nbspdefault&nbspqlen&nbsp1000
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplink/loopback&nbsp00:00:00:00:00:00&nbspbrd&nbsp00:00:00:00:00:00
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp127.0.0.1/8&nbspscope&nbsphost&nbsplo
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet6&nbsp::1/128&nbspscope&nbsphost&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        2:&nbspeno1:&nbsp<BROADCAST,MULTICAST,UP,LOWER_UP>&nbspmtu&nbsp1500&nbspqdisc&nbspmq&nbspstate&nbspUP&nbspgroup&nbspdefault&nbspqlen&nbsp1000
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplink/ether&nbspac:1f:6b:c9:45:4e&nbspbrd&nbspff:ff:ff:ff:ff:ff
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp10.230.247.173/20&nbspbrd&nbsp10.230.255.255&nbspscope&nbspglobal&nbspnoprefixroute&nbspdynamic&nbspeno1
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbsp367011sec&nbsppreferred_lft&nbsp367011sec
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp10.230.255.20/24&nbspbrd&nbsp10.230.255.255&nbspscope&nbspglobal&nbspeno1:v1
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet6&nbspfe80::ae1f:6bff:fec9:454e/64&nbspscope&nbsplink&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        3:&nbspenp175s0f0:&nbsp<BROADCAST,MULTICAST,UP,LOWER_UP>&nbspmtu&nbsp9000&nbspqdisc&nbspmq&nbspstate&nbspUP&nbspgroup&nbspdefault&nbspqlen&nbsp1000
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplink/ether&nbsp1c:34:da:63:30:10&nbspbrd&nbspff:ff:ff:ff:ff:ff
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp172.16.0.175/16&nbspbrd&nbsp172.16.255.255&nbspscope&nbspglobal&nbspenp175s0f0
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp172.16.8.20/16&nbspbrd&nbsp172.16.255.255&nbspscope&nbspglobal&nbspsecondary&nbspenp175s0f0
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet6&nbspfe80::1e34:daff:fe63:3010/64&nbspscope&nbsplink&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        4:&nbspenp175s0f1:&nbsp<BROADCAST,MULTICAST,UP,LOWER_UP>&nbspmtu&nbsp9000&nbspqdisc&nbspmq&nbspstate&nbspUP&nbspgroup&nbspdefault&nbspqlen&nbsp1000
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplink/ether&nbsp1c:34:da:63:30:11&nbspbrd&nbspff:ff:ff:ff:ff:ff
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp192.168.0.1/24&nbspbrd&nbsp192.168.0.255&nbspscope&nbspglobal&nbspenp175s0f1
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp192.168.0.3/24&nbspbrd&nbsp192.168.0.255&nbspscope&nbspglobal&nbspsecondary&nbspenp175s0f1:c1
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet6&nbspfe80::1e34:daff:fe63:3011/64&nbspscope&nbsplink&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        5:&nbspeno2:&nbsp<NO-CARRIER,BROADCAST,MULTICAST,UP>&nbspmtu&nbsp1500&nbspqdisc&nbspmq&nbspstate&nbspDOWN&nbspgroup&nbspdefault&nbspqlen&nbsp1000
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplink/ether&nbspac:1f:6b:c9:45:4f&nbspbrd&nbspff:ff:ff:ff:ff:ff
+<br>
+        
+        6:&nbsptap0:&nbsp<BROADCAST,MULTICAST,UP,LOWER_UP>&nbspmtu&nbsp1500&nbspqdisc&nbsppfifo_fast&nbspstate&nbspUNKNOWN&nbspgroup&nbspdefault&nbspqlen&nbsp1000
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplink/ether&nbsp82:7e:76:83:2f:df&nbspbrd&nbspff:ff:ff:ff:ff:ff
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet&nbsp10.0.0.4/24&nbspscope&nbspglobal&nbsptap0
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspinet6&nbspfe80::807e:76ff:fe83:2fdf/64&nbspscope&nbsplink&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspvalid_lft&nbspforever&nbsppreferred_lft&nbspforever<br>
+        
+    </th>
+    
+</tr>
+<!-- <tr><th colspan="3">Hosts file</th></tr> -->
+<tr>
+<th>Hosts file</th>
+    
+    <th style="text-align:left;" >
+        
+        127.0.0.1&nbsp&nbsp&nbsp&nbsp&nbsplocalhost&nbsplocalhost.localdomain&nbsplocalhost4&nbsplocalhost4.localdomain4
+<br>
+        
+        ::1&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsplocalhost&nbsplocalhost.localdomain&nbsplocalhost6&nbsplocalhost6.localdomain6
+<br>
+        
+        192.168.0.1&nbsp&nbsp&nbspsrvnode-1
+<br>
+        
+        192.168.0.2&nbsp&nbsp&nbspsrvnode-2
+<br>
+        
+        172.16.8.20&nbsps3.seagate.com&nbspsts.seagate.com&nbspiam.seagate.com&nbspsts.cloud.seagate.com
+<br>
+        
+    </th>
+    
+    <th style="text-align:left;" >
+        
+        127.0.0.1&nbsp&nbsp&nbsp&nbsp&nbsplocalhost&nbsplocalhost.localdomain&nbsplocalhost4&nbsplocalhost4.localdomain4
+<br>
+        
+        ::1&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsplocalhost&nbsplocalhost.localdomain&nbsplocalhost6&nbsplocalhost6.localdomain6
+<br>
+        
+        -------------------------------------------------------------------------------
+<br>
+        
+        192.168.0.1&nbsp&nbsp&nbspsrvnode-1
+<br>
+        
+        192.168.0.2&nbsp&nbsp&nbspsrvnode-2
+<br>
+        
+        172.16.8.20&nbsps3.seagate.com&nbspsts.seagate.com&nbspiam.seagate.com&nbspsts.cloud.seagate.com
+<br>
+        
+    </th>
+    
+</tr>
+<!-- <tr><th colspan="3">Network</th></tr> -->
+<tr>
+<th>LNET config</th>
+    
+    <th style="text-align:left">
+        
+        options lnet networks=o2ib(enp175s0f1)  config_on_load=1  lnet_peer_discovery_disabled=1
+<br>
+        
+    </th>
+    
+    <th style="text-align:left">
+        
+        options lnet networks=o2ib(enp175s0f1)  config_on_load=1  lnet_peer_discovery_disabled=1
+<br>
+        
+    </th>
+    
+</tr>
+<tr>
+<th>LNET nids</th>
+    
+    <th style="text-align:left">
+        
+        192.168.0.1@o2ib
+<br>
+        
+        192.168.0.3@o2ib<br>
+        
+    </th>
+    
+    <th style="text-align:left">
+        
+        192.168.0.1@o2ib
+<br>
+        
+        192.168.0.3@o2ib<br>
+        
+    </th>
+    
+</tr>
+
+<tr>
+    <th>Multipath config</th>
+        
+        <th style="text-align:left">
+            
+            defaults&nbsp{
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp#&nbsphttps://access.redhat.com/solutions/137073
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsppolling_interval&nbsp5
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspfast_io_fail_tmo&nbsp5
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspdev_loss_tmo&nbsp10
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspchecker_timeout&nbsp15
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspmax_fds&nbsp8192
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspuser_friendly_names&nbspyes
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspno_path_retry&nbsp5
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspfind_multipaths&nbspyes
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp}
+<br>
+            
+            
+<br>
+            
+            devices&nbsp{
+<br>
+            
+            &nbsp&nbspdevice&nbsp{
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbspproduct&nbsp"*"
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbsppath_grouping_policy&nbspgroup_by_prio
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbspuid_attribute&nbsp"ID_SERIAL"
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbspvendor&nbsp"SEAGATE"
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbspprio&nbspalua
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbsphardware_handler&nbsp"1&nbspalua"
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbsppath_selector&nbsp"service-time&nbsp0"
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbsppath_checker&nbsptur
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbspfailback&nbspimmediate
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbsprr_weight&nbspuniform
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbsprr_min_io_rq&nbsp1
+<br>
+            
+            &nbsp&nbsp}
+<br>
+            
+            }
+<br>
+            
+            blacklist&nbsp{
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp}
+<br>
+            
+        </th>
+        
+        <th style="text-align:left">
+            
+            defaults&nbsp{
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp#&nbsphttps://access.redhat.com/solutions/137073
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsppolling_interval&nbsp5
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspfast_io_fail_tmo&nbsp5
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspdev_loss_tmo&nbsp10
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspchecker_timeout&nbsp15
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspmax_fds&nbsp8192
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspuser_friendly_names&nbspyes
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspno_path_retry&nbsp5
+<br>
+            
+            &nbsp&nbsp&nbsp&nbspfind_multipaths&nbspyes
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp}
+<br>
+            
+            
+<br>
+            
+            devices&nbsp{
+<br>
+            
+            &nbsp&nbspdevice&nbsp{
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbspproduct&nbsp"*"
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbsppath_grouping_policy&nbspgroup_by_prio
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbspuid_attribute&nbsp"ID_SERIAL"
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbspvendor&nbsp"SEAGATE"
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbspprio&nbspalua
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbsphardware_handler&nbsp"1&nbspalua"
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbsppath_selector&nbsp"service-time&nbsp0"
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbsppath_checker&nbsptur
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbspfailback&nbspimmediate
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbsprr_weight&nbspuniform
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp&nbsp&nbsprr_min_io_rq&nbsp1
+<br>
+            
+            &nbsp&nbsp}
+<br>
+            
+            }
+<br>
+            
+            blacklist&nbsp{
+<br>
+            
+            &nbsp&nbsp&nbsp&nbsp}
+<br>
+            
+        </th>
+        
+    </tr>
+    <tr>
+        <th>Multipath devices list</th>
+            
+            <th style="text-align:left;vertical-align:top;">
+                <details>
+                    <summary>SPOILER</summary>
+                
+                mpathe&nbsp(3600c0ff00050f14abc845b5f02000000)&nbspdm-3&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:13&nbspsdas&nbsp66:192&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:13&nbspsdbi&nbsp67:192&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:13&nbspsdm&nbsp&nbsp8:192&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:13&nbspsdac&nbsp65:192&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathd&nbsp(3600c0ff00050f14abc845b5f01000000)&nbspdm-4&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:12&nbspsdar&nbsp66:176&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:12&nbspsdbh&nbsp67:176&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:12&nbspsdl&nbsp&nbsp8:176&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:12&nbspsdab&nbsp65:176&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathp&nbsp(3600c0ff00050f14aba845b5f02000000)&nbspdm-1&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:9&nbsp&nbspsdao&nbsp66:128&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:9&nbsp&nbspsdbe&nbsp67:128&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:9&nbsp&nbspsdi&nbsp&nbsp8:128&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:9&nbsp&nbspsdy&nbsp&nbsp65:128&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathc&nbsp(3600c0ff00050f14abb845b5f02000000)&nbspdm-2&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:11&nbspsdaq&nbsp66:160&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:11&nbspsdbg&nbsp67:160&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:11&nbspsdk&nbsp&nbsp8:160&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:11&nbspsdaa&nbsp65:160&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpatho&nbsp(3600c0ff00050f14aba845b5f01000000)&nbspdm-0&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:8&nbsp&nbspsdan&nbsp66:112&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:8&nbsp&nbspsdbd&nbsp67:112&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:8&nbsp&nbspsdh&nbsp&nbsp8:112&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:8&nbsp&nbspsdx&nbsp&nbsp65:112&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathb&nbsp(3600c0ff00050f14abb845b5f01000000)&nbspdm-9&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:10&nbspsdap&nbsp66:144&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:10&nbspsdbf&nbsp67:144&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:10&nbspsdj&nbsp&nbsp8:144&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:10&nbspsdz&nbsp&nbsp65:144&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathn&nbsp(3600c0ff00050f1096a845b5f03000000)&nbspdm-8&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:7&nbsp&nbspsdg&nbsp&nbsp8:96&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:7&nbsp&nbspsdw&nbsp&nbsp65:96&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:7&nbsp&nbspsdam&nbsp66:96&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:7&nbsp&nbspsdbc&nbsp67:96&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpatha&nbsp(3600c0ff00050f10968845b5f02000000)&nbspdm-16&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:1&nbsp&nbspsda&nbsp&nbsp8:0&nbsp&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:1&nbsp&nbspsdq&nbsp&nbsp65:0&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:1&nbsp&nbspsdag&nbsp66:0&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:1&nbsp&nbspsdaw&nbsp67:0&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathm&nbsp(3600c0ff00050f1096a845b5f02000000)&nbspdm-5&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:6&nbsp&nbspsdf&nbsp&nbsp8:80&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:6&nbsp&nbspsdv&nbsp&nbsp65:80&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:6&nbsp&nbspsdal&nbsp66:80&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:6&nbsp&nbspsdbb&nbsp67:80&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathl&nbsp(3600c0ff00050f1096a845b5f01000000)&nbspdm-13&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:5&nbsp&nbspsde&nbsp&nbsp8:64&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:5&nbsp&nbspsdu&nbsp&nbsp65:64&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:5&nbsp&nbspsdak&nbsp66:64&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:5&nbsp&nbspsdba&nbsp67:64&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathk&nbsp(3600c0ff00050f10969845b5f03000000)&nbspdm-15&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:4&nbsp&nbspsdd&nbsp&nbsp8:48&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:4&nbsp&nbspsdt&nbsp&nbsp65:48&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:4&nbsp&nbspsdaj&nbsp66:48&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:4&nbsp&nbspsdaz&nbsp67:48&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathj&nbsp(3600c0ff00050f10969845b5f02000000)&nbspdm-17&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:3&nbsp&nbspsdc&nbsp&nbsp8:32&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:3&nbsp&nbspsds&nbsp&nbsp65:32&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:3&nbsp&nbspsdai&nbsp66:32&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:3&nbsp&nbspsday&nbsp67:32&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathi&nbsp(3600c0ff00050f10969845b5f01000000)&nbspdm-10&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:2&nbsp&nbspsdb&nbsp&nbsp8:16&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:2&nbsp&nbspsdr&nbsp&nbsp65:16&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:2&nbsp&nbspsdah&nbsp66:16&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:2&nbsp&nbspsdax&nbsp67:16&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathh&nbsp(3600c0ff00050f10968845b5f01000000)&nbspdm-12&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:16&nbspsdp&nbsp&nbsp8:240&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:16&nbspsdaf&nbsp65:240&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:16&nbspsdav&nbsp66:240&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:16&nbspsdbl&nbsp67:240&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathg&nbsp(3600c0ff00050f14abd845b5f01000000)&nbspdm-14&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:15&nbspsdau&nbsp66:224&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:15&nbspsdbk&nbsp67:224&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:15&nbspsdo&nbsp&nbsp8:224&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:15&nbspsdae&nbsp65:224&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathf&nbsp(3600c0ff00050f14abc845b5f03000000)&nbspdm-11&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:14&nbspsdat&nbsp66:208&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:14&nbspsdbj&nbsp67:208&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:14&nbspsdn&nbsp&nbsp8:208&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:14&nbspsdad&nbsp65:208&nbspactive&nbspready&nbsprunning<br>
+                
+                </details>
+            </th>
+            
+            <th style="text-align:left;vertical-align:top;">
+                <details>
+                    <summary>SPOILER</summary>
+                
+                mpathe&nbsp(3600c0ff00050f14abc845b5f02000000)&nbspdm-3&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:13&nbspsdas&nbsp66:192&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:13&nbspsdbi&nbsp67:192&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:13&nbspsdm&nbsp&nbsp8:192&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:13&nbspsdac&nbsp65:192&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathd&nbsp(3600c0ff00050f14abc845b5f01000000)&nbspdm-4&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:12&nbspsdar&nbsp66:176&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:12&nbspsdbh&nbsp67:176&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:12&nbspsdl&nbsp&nbsp8:176&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:12&nbspsdab&nbsp65:176&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathp&nbsp(3600c0ff00050f14aba845b5f02000000)&nbspdm-1&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:9&nbsp&nbspsdao&nbsp66:128&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:9&nbsp&nbspsdbe&nbsp67:128&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:9&nbsp&nbspsdi&nbsp&nbsp8:128&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:9&nbsp&nbspsdy&nbsp&nbsp65:128&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathc&nbsp(3600c0ff00050f14abb845b5f02000000)&nbspdm-2&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:11&nbspsdaq&nbsp66:160&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:11&nbspsdbg&nbsp67:160&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:11&nbspsdk&nbsp&nbsp8:160&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:11&nbspsdaa&nbsp65:160&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpatho&nbsp(3600c0ff00050f14aba845b5f01000000)&nbspdm-0&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:8&nbsp&nbspsdan&nbsp66:112&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:8&nbsp&nbspsdbd&nbsp67:112&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:8&nbsp&nbspsdh&nbsp&nbsp8:112&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:8&nbsp&nbspsdx&nbsp&nbsp65:112&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathb&nbsp(3600c0ff00050f14abb845b5f01000000)&nbspdm-9&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:10&nbspsdap&nbsp66:144&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:10&nbspsdbf&nbsp67:144&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:10&nbspsdj&nbsp&nbsp8:144&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:10&nbspsdz&nbsp&nbsp65:144&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathn&nbsp(3600c0ff00050f1096a845b5f03000000)&nbspdm-8&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:7&nbsp&nbspsdg&nbsp&nbsp8:96&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:7&nbsp&nbspsdw&nbsp&nbsp65:96&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:7&nbsp&nbspsdam&nbsp66:96&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:7&nbsp&nbspsdbc&nbsp67:96&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpatha&nbsp(3600c0ff00050f10968845b5f02000000)&nbspdm-16&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:1&nbsp&nbspsda&nbsp&nbsp8:0&nbsp&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:1&nbsp&nbspsdq&nbsp&nbsp65:0&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:1&nbsp&nbspsdag&nbsp66:0&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:1&nbsp&nbspsdaw&nbsp67:0&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathm&nbsp(3600c0ff00050f1096a845b5f02000000)&nbspdm-5&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:6&nbsp&nbspsdf&nbsp&nbsp8:80&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:6&nbsp&nbspsdv&nbsp&nbsp65:80&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:6&nbsp&nbspsdal&nbsp66:80&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:6&nbsp&nbspsdbb&nbsp67:80&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathl&nbsp(3600c0ff00050f1096a845b5f01000000)&nbspdm-13&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:5&nbsp&nbspsde&nbsp&nbsp8:64&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:5&nbsp&nbspsdu&nbsp&nbsp65:64&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:5&nbsp&nbspsdak&nbsp66:64&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:5&nbsp&nbspsdba&nbsp67:64&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathk&nbsp(3600c0ff00050f10969845b5f03000000)&nbspdm-15&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:4&nbsp&nbspsdd&nbsp&nbsp8:48&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:4&nbsp&nbspsdt&nbsp&nbsp65:48&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:4&nbsp&nbspsdaj&nbsp66:48&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:4&nbsp&nbspsdaz&nbsp67:48&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathj&nbsp(3600c0ff00050f10969845b5f02000000)&nbspdm-17&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:3&nbsp&nbspsdc&nbsp&nbsp8:32&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:3&nbsp&nbspsds&nbsp&nbsp65:32&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:3&nbsp&nbspsdai&nbsp66:32&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:3&nbsp&nbspsday&nbsp67:32&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathi&nbsp(3600c0ff00050f10969845b5f01000000)&nbspdm-10&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:2&nbsp&nbspsdb&nbsp&nbsp8:16&nbsp&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:2&nbsp&nbspsdr&nbsp&nbsp65:16&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:2&nbsp&nbspsdah&nbsp66:16&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:2&nbsp&nbspsdax&nbsp67:16&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathh&nbsp(3600c0ff00050f10968845b5f01000000)&nbspdm-12&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:0:16&nbspsdp&nbsp&nbsp8:240&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:1:16&nbspsdaf&nbsp65:240&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:2:16&nbspsdav&nbsp66:240&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:3:16&nbspsdbl&nbsp67:240&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathg&nbsp(3600c0ff00050f14abd845b5f01000000)&nbspdm-14&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:15&nbspsdau&nbsp66:224&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:15&nbspsdbk&nbsp67:224&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:15&nbspsdo&nbsp&nbsp8:224&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:15&nbspsdae&nbsp65:224&nbspactive&nbspready&nbsprunning
+<br>
+                
+                mpathf&nbsp(3600c0ff00050f14abc845b5f03000000)&nbspdm-11&nbspSEAGATE&nbsp,5565&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+<br>
+                
+                size=57T&nbspfeatures='1&nbspqueue_if_no_path'&nbsphwhandler='1&nbspalua'&nbspwp=rw
+<br>
+                
+                |-+-&nbsppolicy='service-time&nbsp0'&nbspprio=50&nbspstatus=active
+<br>
+                
+                |&nbsp|-&nbsp0:0:2:14&nbspsdat&nbsp66:208&nbspactive&nbspready&nbsprunning
+<br>
+                
+                |&nbsp`-&nbsp0:0:3:14&nbspsdbj&nbsp67:208&nbspactive&nbspready&nbsprunning
+<br>
+                
+                `-+-&nbsppolicy='service-time&nbsp0'&nbspprio=10&nbspstatus=enabled
+<br>
+                
+                &nbsp&nbsp|-&nbsp0:0:0:14&nbspsdn&nbsp&nbsp8:208&nbsp&nbspactive&nbspready&nbsprunning
+<br>
+                
+                &nbsp&nbsp`-&nbsp0:0:1:14&nbspsdad&nbsp65:208&nbspactive&nbspready&nbsprunning<br>
+                
+                </details>
+            </th>
+            
+        </tr>
+    
+    
+
+
+        <tr><th colspan="3">Cluster info</th></tr>
+<tr>
+<th>Cluster info</th>
+    
+    <th style="text-align:left">
+        
+        
+        hostname:srvnode-1 <br>
+        
+        
+        
+        data_iface:enp175s0f1:c1 <br>
+        
+        
+        
+        data_iface_type:o2ib <br>
+        
+        
+        
+            m0_servers:<br>
+            
+                &nbsp&nbsp&nbsp&nbsp{'runs_confd': True, 'io_disks': {'data': []}}<br>
+            
+                &nbsp&nbsp&nbsp&nbsp{'io_disks': {'meta_data': '/dev/vg_metadata_srvnode-1/lv_raw_metadata', 'data': ['/dev/disk/by-id/dm-name-mpatha', '/dev/disk/by-id/dm-name-mpathi', '/dev/disk/by-id/dm-name-mpathj', '/dev/disk/by-id/dm-name-mpathk', '/dev/disk/by-id/dm-name-mpathl', '/dev/disk/by-id/dm-name-mpathm', '/dev/disk/by-id/dm-name-mpathn']}}<br>
+             
+        
+        
+        
+        m0_clients:{'s3': 11, 'other': 3} <br>
+        
+        
+    </th>
+    
+    <th style="text-align:left">
+        
+        
+        hostname:srvnode-2 <br>
+        
+        
+        
+        data_iface:enp175s0f1:c2 <br>
+        
+        
+        
+        data_iface_type:o2ib <br>
+        
+        
+        
+            m0_servers:<br>
+            
+                &nbsp&nbsp&nbsp&nbsp{'runs_confd': True, 'io_disks': {'data': []}}<br>
+            
+                &nbsp&nbsp&nbsp&nbsp{'io_disks': {'meta_data': '/dev/vg_metadata_srvnode-2/lv_raw_metadata', 'data': ['/dev/disk/by-id/dm-name-mpathp', '/dev/disk/by-id/dm-name-mpathb', '/dev/disk/by-id/dm-name-mpathc', '/dev/disk/by-id/dm-name-mpathd', '/dev/disk/by-id/dm-name-mpathe', '/dev/disk/by-id/dm-name-mpathf', '/dev/disk/by-id/dm-name-mpathg']}}<br>
+             
+        
+        
+        
+        m0_clients:{'s3': 11, 'other': 3} <br>
+        
+        
+    </th>
+    
+</tr>
+        <tr><th colspan="3">Configs</th></tr>
+<tr>
+    <th>Motr config</th>
+    <th colspan="3">
+    
+        KERNEL_HUGEPAGE_DEFRAG='never'
+<br>
+    
+        MOTR_LOG_DIR='/var/log/motr'
+<br>
+    
+        MOTR_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'
+<br>
+    
+        MOTR_M0D_MAX_RPC_MSG_SIZE=524288
+<br>
+    
+        MOTR_M0D_MIN_RPC_RECVQ_LEN=512
+<br>
+    
+        MOTR_M0D_IOS_BUFFER_POOL_SIZE=512
+<br>
+    
+        MOTR_M0D_BESEG_SIZE=8589934592
+<br>
+    
+        MOTR_M0D_IOS_BESEG_SIZE=30036509851648
+<br>
+    
+        MOTR_M0D_BETXGR_TX_NR_MAX=82 #256 #82
+<br>
+    
+        MOTR_M0D_BETXGR_REG_NR_MAX=2097152
+<br>
+    
+        MOTR_M0D_BETXGR_REG_SIZE_MAX=536870912
+<br>
+    
+        MOTR_M0D_BETXGR_PAYLOAD_SIZE_MAX=134217728
+<br>
+    
+        MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MIN=300
+<br>
+    
+        MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MAX=300
+<br>
+    
+        MOTR_M0D_BETX_REG_NR_MAX=524288
+<br>
+    
+        MOTR_M0D_BETX_REG_SIZE_MAX=83886080
+<br>
+    
+        MOTR_M0D_BETX_PAYLOAD_SIZE_MAX=2097152
+<br>
+    
+        MOTR_M0T1FS=yes
+<br>
+    
+        MOTR_TRACED_CHECK_INPUT=30
+<br>
+    
+        MOTR_TRACED_MIN_LOG_CHUNKS=2
+<br>
+    
+        MOTR_TRACED_MAX_LOG_CHUNKS=6
+<br>
+    
+        MOTR_TRACED_MIN_LOG_CHUNK_SIZE_MB=16
+<br>
+    
+        MOTR_TRACED_MAX_LOG_CHUNK_SIZE_MB=1024
+<br>
+    
+        MOTR_TRACED_KEEP_LOGS_NUM=2
+<br>
+    
+    </th>
+
+</tr>
+
+<!-- <tr><th colspan="3">Haproxy config</th></tr> -->
+<tr>
+<th>Haproxy config</th>
+    
+    <th style="text-align:left;vertical-align:top;" >
+        <details>
+            <summary>SPOILER</summary>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        #&nbspGlobal&nbspsettings
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        global
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplog&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp127.0.0.1&nbsplocal2&nbspinfo&nbsp&nbsp&nbsp&nbsp#Log&nbspconfiguration
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspcreate&nbspa&nbsprsyslog.d/haproxy.conf&nbspwith&nbsprules&nbspto&nbspcreate
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbsp/var/log/haproxy.log&nbspfile.
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspchroot&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp/var/lib/haproxy
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsppidfile&nbsp&nbsp&nbsp&nbsp&nbsp/var/run/haproxy.pid
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspmaxconn&nbsp&nbsp&nbsp&nbsp&nbsp13
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspuser&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsphaproxy&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#Haproxy&nbsprunning&nbspunder&nbspuser&nbspand&nbspgroup&nbsp"haproxy"
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspgroup&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsphaproxy
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspnbproc&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp12
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspdaemon
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspturn&nbspon&nbspstats&nbspunix&nbspsocket
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#stats&nbspsocket&nbsp/var/lib/haproxy/stats
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#SSL&nbspoptions
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptune.ssl.default-dh-param&nbsp2048
+<br>
+        
+        
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        #&nbspcommon&nbspdefaults&nbspthat&nbspall&nbspthe&nbsp'listen'&nbspand&nbsp'backend'&nbspsections&nbspwill
+<br>
+        
+        #&nbspuse&nbspif&nbspnot&nbspdesignated&nbspin&nbsptheir&nbspblock
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        defaults
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspmode&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsphttp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspredispatch
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplog&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspglobal
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsphttplog
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsplog-separate-errors
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspdontlognull
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#option&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsphttp-tunnel
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspforwardfor
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsperrorfile&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp503&nbsp/etc/haproxy/errors/503.http
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspretries&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp3
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbsphttp-request&nbsp&nbsp&nbsp&nbsp10s
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbspqueue&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp10s
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspConnect&nbsptimeout&nbspto&nbspserver
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbspconnect&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp5s
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspInactivity&nbsptimeout&nbspw.r.t&nbspS3&nbspclient
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbspclient&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp360s
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspInactivity&nbsptimeout&nbspw.r.t&nbspbackend&nbspS3&nbspservers
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbspserver&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp360s
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbsphttp-keep-alive&nbsp10s
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#timeout&nbsptunnel&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp60s
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbspclient-fin&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp20s
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbspcheck&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp10s
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspmaxconn&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp3000
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        #HAProxy&nbspMonitoring&nbspConfig
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        #&nbsplisten&nbsphaproxy3-monitoring&nbsp*:8080&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#Haproxy&nbspMonitoring&nbsprun&nbspon&nbspport&nbsp8080
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspmode&nbsphttp
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspoption&nbspforwardfor
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspoption&nbsphttpclose
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspstats&nbspenable
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspstats&nbspshow-legends
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspstats&nbsprefresh&nbsp10s
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspstats&nbspuri&nbsp/stats&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#URL&nbspfor&nbspHAProxy&nbspmonitoring
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspstats&nbsprealm&nbspHaproxy\&nbspStatistics
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbsp#stats&nbspauth&nbsphowtoforge:howtoforge&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#User&nbspand&nbspPassword&nbspfor&nbsplogin&nbspto&nbspthe&nbspmonitoring&nbspdashboard
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbsp#stats&nbspadmin&nbspif&nbspTRUE
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbsp#default_backend&nbspapp-main&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#This&nbspis&nbspoptionally&nbspfor&nbspmonitoring&nbspbackend&nbsp&nbsp&nbsp&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        #&nbspFrontEnd&nbspConfiguration
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        frontend&nbspmain
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbsps3&nbspserver&nbspport
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp172.16.8.20:80
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp172.16.8.20:443&nbspssl&nbspcrt&nbsp/etc/ssl/stx/stx.pem
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp127.0.0.1:80&nbsp#####&nbsplocalhost&nbsp80&nbsprequired&nbspfor&nbspAuth&nbsp-&nbspS3&nbspconnection
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp127.0.0.1:443&nbspssl&nbspcrt&nbsp/etc/ssl/stx/stx.pem&nbsp###&nbsplocalhost&nbsprequired&nbspfor&nbspCSM/UDX
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp192.168.0.1:80
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp192.168.0.1:443&nbspssl&nbspcrt&nbsp/etc/ssl/stx/stx.pem
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp172.16.0.175:80
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp172.16.0.175:443&nbspssl&nbspcrt&nbsp/etc/ssl/stx/stx.pem
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbspforwardfor
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspdefault_backend&nbspapp-main
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbsps3&nbspauth&nbspserver&nbspport
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp0.0.0.0:9080
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp0.0.0.0:9443&nbspssl&nbspcrt&nbsp/etc/ssl/stx/stx.pem
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspacl&nbsps3authbackendacl&nbspdst_port&nbsp9443
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspacl&nbsps3authbackendacl&nbspdst_port&nbsp9080
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspuse_backend&nbsps3-auth&nbspif&nbsps3authbackendacl
+<br>
+        
+        
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        #&nbspBackEnd&nbsproundrobin&nbspas&nbspbalance&nbspalgorithm
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        backend&nbspapp-main
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbalance&nbspstatic-rr&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#Balance&nbspalgorithm
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsphttp-response&nbspset-header&nbspServer&nbspSeagateS3
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspCheck&nbspthe&nbspS3&nbspserver&nbspapplication&nbspis&nbspup&nbspand&nbsphealthy&nbsp-&nbsp200&nbspstatus&nbspcode
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsphttpchk&nbspHEAD&nbsp/&nbspHTTP/1.1\r\nHost:\&nbsplocalhost
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspoption&nbsplog-health-checks
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspdefault-server&nbspinter&nbsp2s&nbspfastinter&nbsp100&nbsprise&nbsp1&nbspfall&nbsp5&nbspon-error&nbspfastinter
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspWith&nbspthe&nbsplines&nbspunder&nbspfor&nbspenabling&nbspSSL&nbspcommunication&nbspi.e.&nbspHTTPS
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-100&nbsp192.168.0.1:28081&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp100
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-101&nbsp192.168.0.1:28082&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp101
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-102&nbsp192.168.0.1:28083&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp102
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-103&nbsp192.168.0.1:28084&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp103
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-104&nbsp192.168.0.1:28085&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp104
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-105&nbsp192.168.0.1:28086&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp105
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-106&nbsp192.168.0.1:28087&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp106
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-107&nbsp192.168.0.1:28088&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp107
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-108&nbsp192.168.0.1:28089&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp108
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-109&nbsp192.168.0.1:28090&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp109
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-110&nbsp192.168.0.1:28091&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp110
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspwith
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspserver&nbsps3-instance-1&nbsp192.168.0.1:8081&nbspcheck&nbspssl&nbspverify&nbsprequired&nbspca-file&nbsp/etc/ssl/stx/stx.pem
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspserver&nbsps3-instance-2&nbsp192.168.0.1:8082&nbspcheck&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#&nbsps3&nbspinstance&nbsp2
+<br>
+        
+        
+<br>
+        
+        #----------------------------------------------------------------------
+<br>
+        
+        #&nbspBackEnd&nbsproundrobin&nbspas&nbspbalance&nbspalgorith&nbspfor&nbsps3&nbspauth&nbspserver
+<br>
+        
+        #----------------------------------------------------------------------
+<br>
+        
+        backend&nbsps3-auth
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbalance&nbspstatic-rr&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#Balance&nbspalgorithm
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspCheck&nbspthe&nbspS3&nbspAuth&nbspserver&nbspapplication&nbspis&nbspup&nbspand&nbsphealthy&nbsp-&nbsp200&nbspstatus&nbspcode
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsphttpchk&nbspHEAD&nbsp/auth/health&nbspHTTP/1.1\r\nHost:\&nbsplocalhost
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspoption&nbsplog-health-checks
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspdefault-server&nbspinter&nbsp2s&nbspfastinter&nbsp100&nbsprise&nbsp1&nbspfall&nbsp5&nbspon-error&nbspfastinter
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3authserver-instance1&nbsp192.168.0.1:9085
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#server&nbsps3authserver-instance1&nbsp192.168.0.1:9085&nbspcheck&nbsp&nbsp#&nbsps3&nbspauth&nbspserver&nbspinstance&nbsp1
+<br>
+        
+        </details>
+    </th>
+    
+    <th style="text-align:left;vertical-align:top;" >
+        <details>
+            <summary>SPOILER</summary>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        #&nbspGlobal&nbspsettings
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        global
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplog&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp127.0.0.1&nbsplocal2&nbspinfo&nbsp&nbsp&nbsp&nbsp#Log&nbspconfiguration
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspcreate&nbspa&nbsprsyslog.d/haproxy.conf&nbspwith&nbsprules&nbspto&nbspcreate
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbsp/var/log/haproxy.log&nbspfile.
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspchroot&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp/var/lib/haproxy
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsppidfile&nbsp&nbsp&nbsp&nbsp&nbsp/var/run/haproxy.pid
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspmaxconn&nbsp&nbsp&nbsp&nbsp&nbsp13
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspuser&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsphaproxy&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#Haproxy&nbsprunning&nbspunder&nbspuser&nbspand&nbspgroup&nbsp"haproxy"
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspgroup&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsphaproxy
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspnbproc&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp12
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspdaemon
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspturn&nbspon&nbspstats&nbspunix&nbspsocket
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#stats&nbspsocket&nbsp/var/lib/haproxy/stats
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#SSL&nbspoptions
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptune.ssl.default-dh-param&nbsp2048
+<br>
+        
+        
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        #&nbspcommon&nbspdefaults&nbspthat&nbspall&nbspthe&nbsp'listen'&nbspand&nbsp'backend'&nbspsections&nbspwill
+<br>
+        
+        #&nbspuse&nbspif&nbspnot&nbspdesignated&nbspin&nbsptheir&nbspblock
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        defaults
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspmode&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsphttp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspredispatch
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsplog&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspglobal
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsphttplog
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsplog-separate-errors
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspdontlognull
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#option&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsphttp-tunnel
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbspforwardfor
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsperrorfile&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp503&nbsp/etc/haproxy/errors/503.http
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspretries&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp3
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbsphttp-request&nbsp&nbsp&nbsp&nbsp10s
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbspqueue&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp10s
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspConnect&nbsptimeout&nbspto&nbspserver
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbspconnect&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp5s
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspInactivity&nbsptimeout&nbspw.r.t&nbspS3&nbspclient
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbspclient&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp360s
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspInactivity&nbsptimeout&nbspw.r.t&nbspbackend&nbspS3&nbspservers
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbspserver&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp360s
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbsphttp-keep-alive&nbsp10s
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#timeout&nbsptunnel&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp60s
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbspclient-fin&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp20s
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsptimeout&nbspcheck&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp10s
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspmaxconn&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp3000
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        #HAProxy&nbspMonitoring&nbspConfig
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        #&nbsplisten&nbsphaproxy3-monitoring&nbsp*:8080&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#Haproxy&nbspMonitoring&nbsprun&nbspon&nbspport&nbsp8080
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspmode&nbsphttp
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspoption&nbspforwardfor
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspoption&nbsphttpclose
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspstats&nbspenable
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspstats&nbspshow-legends
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspstats&nbsprefresh&nbsp10s
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspstats&nbspuri&nbsp/stats&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#URL&nbspfor&nbspHAProxy&nbspmonitoring
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbspstats&nbsprealm&nbspHaproxy\&nbspStatistics
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbsp#stats&nbspauth&nbsphowtoforge:howtoforge&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#User&nbspand&nbspPassword&nbspfor&nbsplogin&nbspto&nbspthe&nbspmonitoring&nbspdashboard
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbsp#stats&nbspadmin&nbspif&nbspTRUE
+<br>
+        
+        #&nbsp&nbsp&nbsp&nbsp&nbsp#default_backend&nbspapp-main&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#This&nbspis&nbspoptionally&nbspfor&nbspmonitoring&nbspbackend&nbsp&nbsp&nbsp&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        #&nbspFrontEnd&nbspConfiguration
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        frontend&nbspmain
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbsps3&nbspserver&nbspport
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp172.16.8.20:80
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp172.16.8.20:443&nbspssl&nbspcrt&nbsp/etc/ssl/stx/stx.pem
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp127.0.0.1:80&nbsp#####&nbsplocalhost&nbsp80&nbsprequired&nbspfor&nbspAuth&nbsp-&nbspS3&nbspconnection
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp127.0.0.1:443&nbspssl&nbspcrt&nbsp/etc/ssl/stx/stx.pem&nbsp###&nbsplocalhost&nbsprequired&nbspfor&nbspCSM/UDX
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp192.168.0.2:80
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp192.168.0.2:443&nbspssl&nbspcrt&nbsp/etc/ssl/stx/stx.pem
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp172.16.0.177:80
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp172.16.0.177:443&nbspssl&nbspcrt&nbsp/etc/ssl/stx/stx.pem
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbspforwardfor
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspdefault_backend&nbspapp-main
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbsps3&nbspauth&nbspserver&nbspport
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp0.0.0.0:9080
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbind&nbsp0.0.0.0:9443&nbspssl&nbspcrt&nbsp/etc/ssl/stx/stx.pem
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspacl&nbsps3authbackendacl&nbspdst_port&nbsp9443
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspacl&nbsps3authbackendacl&nbspdst_port&nbsp9080
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspuse_backend&nbsps3-auth&nbspif&nbsps3authbackendacl
+<br>
+        
+        
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        #&nbspBackEnd&nbsproundrobin&nbspas&nbspbalance&nbspalgorithm
+<br>
+        
+        #---------------------------------------------------------------------
+<br>
+        
+        backend&nbspapp-main
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbalance&nbspstatic-rr&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#Balance&nbspalgorithm
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsphttp-response&nbspset-header&nbspServer&nbspSeagateS3
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspCheck&nbspthe&nbspS3&nbspserver&nbspapplication&nbspis&nbspup&nbspand&nbsphealthy&nbsp-&nbsp200&nbspstatus&nbspcode
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsphttpchk&nbspHEAD&nbsp/&nbspHTTP/1.1\r\nHost:\&nbsplocalhost
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspoption&nbsplog-health-checks
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspdefault-server&nbspinter&nbsp2s&nbspfastinter&nbsp100&nbsprise&nbsp1&nbspfall&nbsp5&nbspon-error&nbspfastinter
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspWith&nbspthe&nbsplines&nbspunder&nbspfor&nbspenabling&nbspSSL&nbspcommunication&nbspi.e.&nbspHTTPS
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-100&nbsp192.168.0.2:28081&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp100
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-101&nbsp192.168.0.2:28082&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp101
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-102&nbsp192.168.0.2:28083&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp102
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-103&nbsp192.168.0.2:28084&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp103
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-104&nbsp192.168.0.2:28085&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp104
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-105&nbsp192.168.0.2:28086&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp105
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-106&nbsp192.168.0.2:28087&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp106
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-107&nbsp192.168.0.2:28088&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp107
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-108&nbsp192.168.0.2:28089&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp108
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-109&nbsp192.168.0.2:28090&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp109
+<br>
+        
+        
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3-instance-110&nbsp192.168.0.2:28091&nbspcheck&nbsp&nbsp#&nbsps3&nbspinstance&nbsp110
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspwith
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspserver&nbsps3-instance-1&nbsp192.168.0.2:8081&nbspcheck&nbspssl&nbspverify&nbsprequired&nbspca-file&nbsp/etc/ssl/stx/stx.pem
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspserver&nbsps3-instance-2&nbsp192.168.0.2:8082&nbspcheck&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#&nbsps3&nbspinstance&nbsp2
+<br>
+        
+        
+<br>
+        
+        #----------------------------------------------------------------------
+<br>
+        
+        #&nbspBackEnd&nbsproundrobin&nbspas&nbspbalance&nbspalgorith&nbspfor&nbsps3&nbspauth&nbspserver
+<br>
+        
+        #----------------------------------------------------------------------
+<br>
+        
+        backend&nbsps3-auth
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspbalance&nbspstatic-rr&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp#Balance&nbspalgorithm
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspCheck&nbspthe&nbspS3&nbspAuth&nbspserver&nbspapplication&nbspis&nbspup&nbspand&nbsphealthy&nbsp-&nbsp200&nbspstatus&nbspcode
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspoption&nbsphttpchk&nbspHEAD&nbsp/auth/health&nbspHTTP/1.1\r\nHost:\&nbsplocalhost
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#&nbspoption&nbsplog-health-checks
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspdefault-server&nbspinter&nbsp2s&nbspfastinter&nbsp100&nbsprise&nbsp1&nbspfall&nbsp5&nbspon-error&nbspfastinter
+<br>
+        
+        
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp
+<br>
+        
+        &nbsp&nbsp&nbsp&nbspserver&nbsps3authserver-instance1&nbsp192.168.0.2:9085
+<br>
+        
+        &nbsp&nbsp&nbsp&nbsp#server&nbsps3authserver-instance1&nbsp192.168.0.2:9085&nbspcheck&nbsp&nbsp#&nbsps3&nbspauth&nbspserver&nbspinstance&nbsp1
+<br>
+        
+        </details>
+    </th>
+    
+</tr>
+<!-- <tr><th colspan="3">S3 config</th></tr> -->
+<tr>
+<th>S3 config</th>
+    
+    <th style="text-align:left;vertical-align:top;" >
+        <details>
+            <summary>SPOILER</summary>
+        
+        
+<br>
+        
+        S3Config_Sections: [S3_SERVER_CONFIG, S3_AUTH_CONFIG, S3_MOTR_CONFIG, S3_THIRDPARTY_CONFIG, S3_VERSION_CONFIG]
+<br>
+        
+        S3_SERVER_CONFIG:                                     <br>
+        
+           S3_DAEMON_WORKING_DIR: "/var/motr/"                <br>
+        
+           S3_DAEMON_DO_REDIRECTION: 1                          <br>
+        
+           S3_LOG_DIR: "/var/log/seagate/s3"                    <br>
+        
+           S3_LOG_MODE: INFO                                    <br>
+        
+           S3_LOG_FILE_MAX_SIZE: 100                            <br>
+        
+           S3_LOG_ENABLE_BUFFERING: true                        <br>
+        
+           S3_ENABLE_AUTH_SSL: false                             <br>
+        
+           S3_REUSEPORT: true                                   <br>
+        
+           S3_MOTR_HTTP_REUSEPORT: true                         <br>
+        
+           S3_IAM_CERT_FILE: "/etc/ssl/stx-s3/s3auth/s3authserver.crt" <br>
+        
+           S3_LOG_FLUSH_FREQUENCY: 30                           <br>
+        
+           S3_AUDIT_LOG_DIR: "/var/log/seagate/s3"              <br>
+        
+           S3_AUDIT_LOG_CONFIG: "/opt/seagate/cortx/s3/conf/s3server_audit_log.properties" <br>
+        
+           S3_AUDIT_LOG_FORMAT_TYPE: "JSON"                     <br>
+        
+           S3_AUDIT_LOGGER_POLICY: "rsyslog-tcp"                <br>
+        
+           S3_AUDIT_LOGGER_HOST: "localhost"                    <br>
+        
+           S3_AUDIT_LOGGER_PORT: 514                            <br>
+        
+           S3_AUDIT_LOGGER_RSYSLOG_MSGID: "s3server-audit-logging"  <br>
+        
+           S3_AUDIT_LOGGER_KAFKA_WEB_PATH: "/topics/s3auditlogs" <br>
+        
+           S3_AUDIT_MAX_RETRY_COUNT: 5                          <br>
+        
+           S3_SERVER_IPV4_BIND_ADDR: 0.0.0.0                    <br>
+        
+           S3_SERVER_IPV6_BIND_ADDR: ~                          <br>
+        
+           S3_SERVER_BIND_PORT: 28081                            <br>
+        
+           S3_SERVER_MOTR_HTTP_BIND_ADDR: 127.0.0.1             <br>
+        
+           S3_SERVER_MOTR_HTTP_BIND_PORT: 7081                  <br>
+        
+           S3_SERVER_REGION_ENDPOINTS: [s3-us-west-2.seagate.com, s3-us.seagate.com, s3-europe.seagate.com, s3-asia.seagate.com]
+<br>
+        
+           S3_SERVER_DEFAULT_ENDPOINT: s3.seagate.com
+<br>
+        
+           S3_SERVER_SHUTDOWN_GRACE_PERIOD: 7                   <br>
+        
+           S3_SERVER_SSL_ENABLE: false                          <br>
+        
+           S3_SERVER_CERT_FILE: "/etc/ssl/stx-s3/s3/ca.crt"     <br>
+        
+           S3_SERVER_PEM_FILE: "/etc/ssl/stx-s3/s3/s3server.pem" <br>
+        
+           S3_SERVER_SSL_SESSION_TIMEOUT: 172800                <br>
+        
+           S3_ENABLE_PERF: 0                                    <br>
+        
+           S3_PERF_LOG_FILENAME: "/var/log/seagate/s3/perf.log" <br>
+        
+           S3_READ_AHEAD_MULTIPLE: 1                            <br>
+        
+           S3_MAX_RETRY_COUNT: 3                                <br>
+        
+           S3_ENABLE_MURMURHASH_OID: false                      <br>
+        
+           S3_RETRY_INTERVAL_MILLISEC: 500                      <br>
+        
+           S3_CLIENT_REQ_READ_TIMEOUT_SECS: 20                  <br>
+        
+           S3_ENABLE_STATS: true                                <br>
+        
+           S3_STATSD_IP_ADDR: 127.0.0.1                         <br>
+        
+           S3_STATSD_PORT: 8125                                 <br>
+        
+           S3_STATSD_MAX_SEND_RETRY: 3                          <br>
+        
+           S3_STATS_ALLOWLIST_FILENAME: "/opt/seagate/cortx/s3/conf/s3stats-allowlist.yaml"  <br>
+        
+           S3_PERF_STATS_INOUT_BYTES_INTERVAL_MSEC: 1000        <br>
+        
+           S3_SERVER_ENABLE_OBJECT_LEAK_TRACKING: false         <br>
+        
+           S3_REDIS_SERVER_ADDRESS: "127.0.0.1"                 <br>
+        
+           S3_REDIS_SERVER_PORT: 6379                           <br>
+        
+        S3_AUTH_CONFIG:                                         <br>
+        
+           S3_AUTH_IP_ADDR: ipv4:127.0.0.1                      <br>
+        
+                                                                <br>
+        
+                                                                <br>
+        
+           S3_AUTH_PORT: 9085                                   <br>
+        
+        S3_MOTR_CONFIG:                                     <br>
+        
+           S3_MOTR_LOCAL_ADDR: <ipaddress>@tcp:12345:33:100   <br>
+        
+           S3_MOTR_HA_ADDR: <ipaddress>@tcp:12345:34:1        <br>
+        
+           S3_MOTR_PROF: <0x7000000000000001:0>               <br>
+        
+           S3_MOTR_LAYOUT_ID: 9                               <br>
+        
+                                                                <br>
+        
+                                                                <br>
+        
+                                                                <br>
+        
+           S3_MOTR_UNIT_SIZE: 1048576                         <br>
+        
+           S3_MOTR_MAX_UNITS_PER_REQUEST: 32                  <br>
+        
+           S3_MOTR_MAX_IDX_FETCH_COUNT: 30                    <br>
+        
+           S3_MOTR_IS_OOSTORE: true                           <br>
+        
+           S3_MOTR_IS_READ_VERIFY: false                      <br>
+        
+           S3_MOTR_TM_RECV_QUEUE_MIN_LEN: 16                  <br>
+        
+           S3_MOTR_MAX_RPC_MSG_SIZE: 524288                   <br>
+        
+           S3_MOTR_PROCESS_FID: <0x7200000000000000:0>        <br>
+        
+           S3_MOTR_IDX_SERVICE_ID: 1                          <br>
+        
+           S3_MOTR_CASS_CLUSTER_EP: 127.0.0.1                 <br>
+        
+           S3_MOTR_CASS_KEYSPACE: "motr_index_keyspace"     <br>
+        
+           S3_MOTR_CASS_MAX_COL_FAMILY_NUM: 1                 <br>
+        
+           S3_UNIT_SIZES_FOR_MEMORY_POOL: [4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576] <br>
+        
+           S3_MOTR_READ_POOL_INITIAL_BUFFER_COUNT: 10        <br>
+        
+           S3_MOTR_READ_POOL_EXPANDABLE_COUNT: 50            <br>
+        
+           S3_MOTR_READ_POOL_MAX_THRESHOLD: 1048576000        <br>
+        
+           S3_MOTR_READ_MEMPOOL_ZERO_BUFFER: false           <br>
+        
+           S3_MOTR_OPERATION_WAIT_PERIOD: 90                  <br>
+        
+        S3_THIRDPARTY_CONFIG:
+<br>
+        
+           S3_LIBEVENT_POOL_BUFFER_SIZE: 16384                  <br>
+        
+           S3_LIBEVENT_MAX_READ_SIZE: 16384                     <br>
+        
+           S3_LIBEVENT_POOL_INITIAL_SIZE: 3221225472            <br>
+        
+           S3_LIBEVENT_POOL_EXPANDABLE_SIZE: 134217728          <br>
+        
+           S3_LIBEVENT_POOL_MAX_THRESHOLD: 3221225472           <br>
+        
+           S3_LIBEVENT_POOL_RESERVE_SIZE: 134217728             <br>
+        
+           S3_LIBEVENT_MEMPOOL_ZERO_BUFFER: false               <br>
+        
+           S3_LIBEVENT_POOL_RESERVE_PERCENT: 5                  <br>
+        
+        S3_VERSION_CONFIG:
+<br>
+        
+           VERSION: 1
+<br>
+        
+        </details>
+    </th>
+    
+    <th style="text-align:left;vertical-align:top;" >
+        <details>
+            <summary>SPOILER</summary>
+        
+        
+<br>
+        
+        S3Config_Sections: [S3_SERVER_CONFIG, S3_AUTH_CONFIG, S3_MOTR_CONFIG, S3_THIRDPARTY_CONFIG, S3_VERSION_CONFIG]
+<br>
+        
+        S3_SERVER_CONFIG:                                     <br>
+        
+           S3_DAEMON_WORKING_DIR: "/var/motr/"                <br>
+        
+           S3_DAEMON_DO_REDIRECTION: 1                          <br>
+        
+           S3_LOG_DIR: "/var/log/seagate/s3"                    <br>
+        
+           S3_LOG_MODE: INFO                                    <br>
+        
+           S3_LOG_FILE_MAX_SIZE: 100                            <br>
+        
+           S3_LOG_ENABLE_BUFFERING: true                        <br>
+        
+           S3_ENABLE_AUTH_SSL: false                             <br>
+        
+           S3_REUSEPORT: true                                   <br>
+        
+           S3_MOTR_HTTP_REUSEPORT: true                         <br>
+        
+           S3_IAM_CERT_FILE: "/etc/ssl/stx-s3/s3auth/s3authserver.crt" <br>
+        
+           S3_LOG_FLUSH_FREQUENCY: 30                           <br>
+        
+           S3_AUDIT_LOG_DIR: "/var/log/seagate/s3"              <br>
+        
+           S3_AUDIT_LOG_CONFIG: "/opt/seagate/cortx/s3/conf/s3server_audit_log.properties" <br>
+        
+           S3_AUDIT_LOG_FORMAT_TYPE: "JSON"                     <br>
+        
+           S3_AUDIT_LOGGER_POLICY: "rsyslog-tcp"                <br>
+        
+           S3_AUDIT_LOGGER_HOST: "localhost"                    <br>
+        
+           S3_AUDIT_LOGGER_PORT: 514                            <br>
+        
+           S3_AUDIT_LOGGER_RSYSLOG_MSGID: "s3server-audit-logging"  <br>
+        
+           S3_AUDIT_LOGGER_KAFKA_WEB_PATH: "/topics/s3auditlogs" <br>
+        
+           S3_AUDIT_MAX_RETRY_COUNT: 5                          <br>
+        
+           S3_SERVER_IPV4_BIND_ADDR: 0.0.0.0                    <br>
+        
+           S3_SERVER_IPV6_BIND_ADDR: ~                          <br>
+        
+           S3_SERVER_BIND_PORT: 28081                            <br>
+        
+           S3_SERVER_MOTR_HTTP_BIND_ADDR: 127.0.0.1             <br>
+        
+           S3_SERVER_MOTR_HTTP_BIND_PORT: 7081                  <br>
+        
+           S3_SERVER_REGION_ENDPOINTS: [s3-us-west-2.seagate.com, s3-us.seagate.com, s3-europe.seagate.com, s3-asia.seagate.com]
+<br>
+        
+           S3_SERVER_DEFAULT_ENDPOINT: s3.seagate.com
+<br>
+        
+           S3_SERVER_SHUTDOWN_GRACE_PERIOD: 7                   <br>
+        
+           S3_SERVER_SSL_ENABLE: false                          <br>
+        
+           S3_SERVER_CERT_FILE: "/etc/ssl/stx-s3/s3/ca.crt"     <br>
+        
+           S3_SERVER_PEM_FILE: "/etc/ssl/stx-s3/s3/s3server.pem" <br>
+        
+           S3_SERVER_SSL_SESSION_TIMEOUT: 172800                <br>
+        
+           S3_ENABLE_PERF: 0                                    <br>
+        
+           S3_PERF_LOG_FILENAME: "/var/log/seagate/s3/perf.log" <br>
+        
+           S3_READ_AHEAD_MULTIPLE: 1                            <br>
+        
+           S3_MAX_RETRY_COUNT: 3                                <br>
+        
+           S3_ENABLE_MURMURHASH_OID: false                      <br>
+        
+           S3_RETRY_INTERVAL_MILLISEC: 500                      <br>
+        
+           S3_CLIENT_REQ_READ_TIMEOUT_SECS: 20                  <br>
+        
+           S3_ENABLE_STATS: true                                <br>
+        
+           S3_STATSD_IP_ADDR: 127.0.0.1                         <br>
+        
+           S3_STATSD_PORT: 8125                                 <br>
+        
+           S3_STATSD_MAX_SEND_RETRY: 3                          <br>
+        
+           S3_STATS_ALLOWLIST_FILENAME: "/opt/seagate/cortx/s3/conf/s3stats-allowlist.yaml"  <br>
+        
+           S3_PERF_STATS_INOUT_BYTES_INTERVAL_MSEC: 1000        <br>
+        
+           S3_SERVER_ENABLE_OBJECT_LEAK_TRACKING: false         <br>
+        
+           S3_REDIS_SERVER_ADDRESS: "127.0.0.1"                 <br>
+        
+           S3_REDIS_SERVER_PORT: 6379                           <br>
+        
+        S3_AUTH_CONFIG:                                         <br>
+        
+           S3_AUTH_IP_ADDR: ipv4:127.0.0.1                      <br>
+        
+                                                                <br>
+        
+                                                                <br>
+        
+           S3_AUTH_PORT: 9085                                   <br>
+        
+        S3_MOTR_CONFIG:                                     <br>
+        
+           S3_MOTR_LOCAL_ADDR: <ipaddress>@tcp:12345:33:100   <br>
+        
+           S3_MOTR_HA_ADDR: <ipaddress>@tcp:12345:34:1        <br>
+        
+           S3_MOTR_PROF: <0x7000000000000001:0>               <br>
+        
+           S3_MOTR_LAYOUT_ID: 9                               <br>
+        
+                                                                <br>
+        
+                                                                <br>
+        
+                                                                <br>
+        
+           S3_MOTR_UNIT_SIZE: 1048576                         <br>
+        
+           S3_MOTR_MAX_UNITS_PER_REQUEST: 32                  <br>
+        
+           S3_MOTR_MAX_IDX_FETCH_COUNT: 30                    <br>
+        
+           S3_MOTR_IS_OOSTORE: true                           <br>
+        
+           S3_MOTR_IS_READ_VERIFY: false                      <br>
+        
+           S3_MOTR_TM_RECV_QUEUE_MIN_LEN: 16                  <br>
+        
+           S3_MOTR_MAX_RPC_MSG_SIZE: 524288                   <br>
+        
+           S3_MOTR_PROCESS_FID: <0x7200000000000000:0>        <br>
+        
+           S3_MOTR_IDX_SERVICE_ID: 1                          <br>
+        
+           S3_MOTR_CASS_CLUSTER_EP: 127.0.0.1                 <br>
+        
+           S3_MOTR_CASS_KEYSPACE: "motr_index_keyspace"     <br>
+        
+           S3_MOTR_CASS_MAX_COL_FAMILY_NUM: 1                 <br>
+        
+           S3_UNIT_SIZES_FOR_MEMORY_POOL: [4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576] <br>
+        
+           S3_MOTR_READ_POOL_INITIAL_BUFFER_COUNT: 10        <br>
+        
+           S3_MOTR_READ_POOL_EXPANDABLE_COUNT: 50            <br>
+        
+           S3_MOTR_READ_POOL_MAX_THRESHOLD: 1048576000        <br>
+        
+           S3_MOTR_READ_MEMPOOL_ZERO_BUFFER: false           <br>
+        
+           S3_MOTR_OPERATION_WAIT_PERIOD: 90                  <br>
+        
+        S3_THIRDPARTY_CONFIG:
+<br>
+        
+           S3_LIBEVENT_POOL_BUFFER_SIZE: 16384                  <br>
+        
+           S3_LIBEVENT_MAX_READ_SIZE: 16384                     <br>
+        
+           S3_LIBEVENT_POOL_INITIAL_SIZE: 3221225472            <br>
+        
+           S3_LIBEVENT_POOL_EXPANDABLE_SIZE: 134217728          <br>
+        
+           S3_LIBEVENT_POOL_MAX_THRESHOLD: 3221225472           <br>
+        
+           S3_LIBEVENT_POOL_RESERVE_SIZE: 134217728             <br>
+        
+           S3_LIBEVENT_MEMPOOL_ZERO_BUFFER: false               <br>
+        
+           S3_LIBEVENT_POOL_RESERVE_PERCENT: 5                  <br>
+        
+        S3_VERSION_CONFIG:
+<br>
+        
+           VERSION: 1
+<br>
+        
+        </details>
+    </th>
+    
+</tr>
+
+    </tbody>
+</table>
+    <h2 align=center>IOSTAT plots </h2>
+<div class="row">
+    
+        <div class="column">
+        <img src="iostat1" alt="Aggregated">
+        </div>
+    
+        <div class="column">
+        <img src="iostat2" alt="Aggregated">
+        </div>
+    
+</div>
+<details>
+<summary>IOSTAT side-by-side (spoiler)</summary>
+    
+        <div class="row">
+            <h2 align=center>io_rqm</h2>
+            
+                <div class="column">
+                <img src="io_rqm0" alt="io_rqm">
+                </div>
+            
+                <div class="column">
+                <img src="io_rqm1" alt="io_rqm">
+                </div>
+            
+        </div>
+    
+        <div class="row">
+            <h2 align=center>svctm</h2>
+            
+                <div class="column">
+                <img src="svctm0" alt="svctm">
+                </div>
+            
+                <div class="column">
+                <img src="svctm1" alt="svctm">
+                </div>
+            
+        </div>
+    
+        <div class="row">
+            <h2 align=center>iops</h2>
+            
+                <div class="column">
+                <img src="iops0" alt="iops">
+                </div>
+            
+                <div class="column">
+                <img src="iops1" alt="iops">
+                </div>
+            
+        </div>
+    
+        <div class="row">
+            <h2 align=center>await</h2>
+            
+                <div class="column">
+                <img src="await0" alt="await">
+                </div>
+            
+                <div class="column">
+                <img src="await1" alt="await">
+                </div>
+            
+        </div>
+    
+        <div class="row">
+            <h2 align=center>%util</h2>
+            
+                <div class="column">
+                <img src="%util0" alt="%util">
+                </div>
+            
+                <div class="column">
+                <img src="%util1" alt="%util">
+                </div>
+            
+        </div>
+    
+        <div class="row">
+            <h2 align=center>avgqu-sz</h2>
+            
+                <div class="column">
+                <img src="avgqu-sz0" alt="avgqu-sz">
+                </div>
+            
+                <div class="column">
+                <img src="avgqu-sz1" alt="avgqu-sz">
+                </div>
+            
+        </div>
+    
+        <div class="row">
+            <h2 align=center>avgrq-sz</h2>
+            
+                <div class="column">
+                <img src="avgrq-sz0" alt="avgrq-sz">
+                </div>
+            
+                <div class="column">
+                <img src="avgrq-sz1" alt="avgrq-sz">
+                </div>
+            
+        </div>
+    
+        <div class="row">
+            <h2 align=center>io_transfer</h2>
+            
+                <div class="column">
+                <img src="io_transfer0" alt="io_transfer">
+                </div>
+            
+                <div class="column">
+                <img src="io_transfer1" alt="io_transfer">
+                </div>
+            
+        </div>
+    
+</details>
+    <h2 align=center>BLKTRACE plots </h2>
+<div class="row">
+    
+        <div class="column">
+        <img src="blktrace1" alt="Aggregated">
+        </div>
+    
+        <div class="column">
+        <img src="blktrace2" alt="Aggregated">
+        </div>
+    
+</div>
+  </body>
+</html>

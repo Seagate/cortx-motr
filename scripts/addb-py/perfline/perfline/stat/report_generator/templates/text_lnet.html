@@ -1,0 +1,22 @@
+<!-- <tr><th colspan="3">Network</th></tr> -->
+<tr>
+<th>LNET config</th>
+    {% for strings in lnet_conf %}
+    <th style="text-align:left">
+        {% for string in strings %}
+        {{string}}<br>
+        {% endfor %}
+    </th>
+    {% endfor %}
+</tr>
+<tr>
+<th>LNET nids</th>
+    {% for strings in lnet_info %}
+    <th style="text-align:left">
+        {% for string in strings %}
+        {{string}}<br>
+        {% endfor %}
+    </th>
+    {% endfor %}
+</tr>
+

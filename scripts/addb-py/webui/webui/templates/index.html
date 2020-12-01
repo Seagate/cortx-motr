@@ -1,0 +1,264 @@
+<script src="templates/scripts/angular.min.js"></script>
+<script src="templates/scripts/angular-route.min.js"></script>
+<script src="templates/scripts/ui-bootstrap-tpls-2.5.0.min.js"></script>
+<link rel="stylesheet" href="templates/scripts/bootstrap.min.css">
+<script src="templates/scripts/jquery.min.js"></script>
+<script src="templates/scripts/bootstrap.min.js"></script>
+
+<style>
+  #cover-spin {
+    position:fixed;
+    width:100%;
+    left:0;right:0;top:0;bottom:0;
+    background-color: rgba(190,190,190,0.9);
+    z-index:9999;
+    display:none;
+    background: rgba(190,190,190,0.9) url(templates/gif/spinner.gif) no-repeat center center;
+  }
+  #cover-help {
+    position:fixed;
+    width:100%;
+    left:0;right:0;top:0;bottom:0;
+    background-color: rgba(190,190,190,0.9);
+    z-index:9999;
+    display:none;
+  }
+</style>
+
+<body>
+<div ng-app="tqUIApp">
+<nav class="navbar navbar-default">
+  <div class="container-fluid">
+    <div class="navbar-header"> <a class="navbar-brand" href="#">{{ '{{$root.tqhost}}' }}</a> </div>
+    <ul class="nav navbar-nav">
+      <li><a href="#!queue">Queue</a></li>
+      <li><a href="#!results">Results</a></li>
+      <li><a href="#!log">Log</a></li>
+
+      <li class="dropdown">
+        <a class="dropdown-toggle" data-toggle="dropdown" href="">
+          Add Task<span class="caret"></span>
+        </a>
+        <ul class="dropdown-menu">
+          <li><a href="#!addtask/user_defined">User defined</a></li>
+          <li><a href="#!addtask/s3bench">s3bench</a></li>
+          <li><a href="#!addtask/s3bench_mkfs">s3bench-mkfs</a></li>     
+
+     <!-- <li><a href="#!addtask/2">Mero/io-bs=1m</a></li>
+          <li><a href="#!addtask/s3-128m">S3/io-bs=128m</a></li>
+          <li><a href="#!addtask/4">S3/io-bs=1m</a></li>
+          <li><a href="#!addtask/5">S3/md-*</a></li>
+          <li><a href="#!addtask/6">NFS</a></li> -->
+        </ul>
+      </li>
+
+    </ul>
+  </div>
+</nav>
+
+<div ng-view id="appview"></div>
+<div id="cover-spin"></div>
+<div id="cover-help">
+  <pre style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+=----------------------------=
+%    Perf Task Queue WebUI   %
+=----------------------------=
+^    `   - Stats             $
+^    1   - Queue             $
+^    2   - Results           $
+^    3   - Log               $
+^    4,1 - Add task #1       $
+^    4,2 - Add task #2       $
+^    4,n - Add task #n       $
+^    a   - Prev page         $
+^    d   - Next page         $
+^    w   - To page top       $
+^    s   - To page bottom    $
+^    /   - Filter tasks      $
+^    ?   - This help         $
+^    Esc - Exit help         $
+=----------------------------=</pre>
+</div>
+</div>
+</body>
+
+<script>
+var LASTKEY = 0;
+document.body.addEventListener('keyup', function(e) {
+    clickPage = function(pageName) {
+	var a = document.getElementsByTagName("a");
+	var t = pageName;
+	var found;
+
+	for (var i = 0; i < a.length; i++) {
+	    if (a[i].textContent == t) {
+		found = a[i];
+		break;
+	    }
+	}
+
+	found.click();
+    };
+
+    var activeElement = document.activeElement;
+    var inputs = ['input', 'select', 'button', 'textarea'];
+
+    if (activeElement &&
+	inputs.indexOf(activeElement.tagName.toLowerCase()) !== -1) {
+	return;
+    }
+
+    if (LASTKEY == 52) { // 4
+	if (e.keyCode == 49) {
+	    window.location.href = '#!/addtask/mero-128m';
+	}
+	if (e.keyCode == 50) {
+	    window.location.href = '#!/addtask/s3-128m';
+	}
+	LASTKEY = 0;
+	return;
+    }
+    if (e.keyCode == 49) { // 1
+	window.location.href = '#!/queue';
+    }
+    if (e.keyCode == 50) { // 2
+	window.location.href = '#!/results';
+    }
+    if (e.keyCode == 51) { // 3
+	window.location.href = '#!/log';
+    }
+    if (e.keyCode == 68) { // d
+	clickPage("Next");
+    }
+    if (e.keyCode == 65) { // a
+	clickPage("Previous");
+    }
+    if (e.keyCode == 192) { //`
+	window.location.href = '#!/';
+    }
+    if (e.keyCode == 191 && e.shiftKey) { //?
+	$('#cover-help').show(0);
+    }
+    if (e.keyCode == 27) { // Esc
+	$('#cover-spin').hide(0);
+	$('#cover-help').hide(0);
+    }
+    if (e.keyCode == 87) { // w
+	$("html, body").animate({scrollTop: 0}, 250, 'swing');
+    }
+    if (e.keyCode == 83) { // s
+	$("html, body").animate({scrollTop: document.body.scrollHeight}, 250, 'swing');
+    }
+    if (e.keyCode == 191 && !e.shiftKey) { // '/'
+	document.getElementById("searchText").focus();
+    }
+    LASTKEY = e.keyCode;
+});
+
+var app = angular.module('tqUIApp', ['ui.bootstrap', 'ngRoute']);
+app.config(['$compileProvider', function ($compileProvider) {
+    $compileProvider.debugInfoEnabled(false);
+}]);
+app.config(function($routeProvider) {
+    $routeProvider
+    .when("/addtask/:taskId", {
+        templateUrl : "templates/task.html",
+	controller: "addTaskCC"
+    }).when("/results", {
+        templateUrl : "templates/results.html",
+	controller: "resultsCC"
+    }).when("/queue", {
+        templateUrl : "templates/queue.html",
+	controller: "queueCC"
+    }).when("/log", {
+        templateUrl : "templates/log.html",
+	controller: "logCC"
+    }).when("/", {
+        templateUrl : "templates/stats.html",
+	controller: "statsCC"
+    });
+});
+app.run(['$rootScope', '$http', function($rootScope, $http) {
+    $http.get("/api/tqhost")
+	.then(function (response) {
+	    $rootScope.tqhost = response.data.tqhost;
+	});
+}]);
+app.controller('resultsCC', function($scope, $window, $http) {
+    $scope.currentPage  = 1;
+    $scope.itemsPerPage = 10;
+    $scope.limit = 100;
+
+    $scope.reload = function() {
+	$('#cover-spin').show(0);
+	$http.get("/api/results/" + $scope.limit)
+	    .then(function (response) {
+		$scope.heads = response.data.heads;
+		$scope.names = response.data.results;
+		$('#cover-spin').hide(0);
+	    });
+    }
+
+    $scope.pageChanged = function() {
+	$scope.reload();
+    };
+
+    $scope.toTop = function() {
+	//$window.scrollTo(0, 0);
+	$("html, body").animate({scrollTop:0}, 250, 'swing');
+    }
+
+    $scope.reload();
+});
+app.controller('queueCC', function($scope, $http) {
+    $scope.currentPage  = 1;
+    $scope.itemsPerPage = 10;
+    $scope.limit = 100;
+
+    $scope.reload = function() {
+	//$('#cover-spin').show(0);
+	$http.get("/api/queue/" + $scope.limit)
+	    .then(function (response) {
+		$scope.heads = response.data.heads;
+		$scope.names = response.data.queue;
+		//$('#cover-spin').hide(0);
+	    });
+    }
+
+    $scope.pageChanged = function() {
+	$scope.reload();
+    };
+
+    $scope.reload();
+});
+app.controller('addTaskCC', function($scope, $http, $routeParams) {
+    $scope.params = $routeParams;
+    $scope.task = ""
+
+    $http.get("/api/task/"+$scope.params.taskId)
+	.then(function (response) {
+	    $scope.task = response.data.task;
+	});
+});
+app.controller('logCC', function($scope, $rootScope, $http, $interval) {
+    if ($rootScope.fired == null) {
+	$interval(function () {
+	    $http.get("/api/log/"+($rootScope.log == null))
+		.then(function (response) {
+		    if ($rootScope.log == null) {
+			$rootScope.log = response.data.tqlog;
+			$rootScope.fired = 1;
+		    } else {
+			$rootScope.log = $rootScope.log + response.data.tqlog;
+		    }
+		});
+	}, 5000);
+    }
+});
+app.controller('statsCC', function($scope, $http) {
+    $http.get("/api/stats")
+	.then(function (response) {
+	    $scope.stats = response.data.stats;
+	});
+});
+</script>
