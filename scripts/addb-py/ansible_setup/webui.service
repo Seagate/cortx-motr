@@ -1,0 +1,10 @@
+[Unit]
+Description=web ui for task queue
+
+[Service]
+Type=simple
+WorkingDirectory=/root/perfline/webui
+ExecStart=/usr/bin/python3.6 /root/perfline/webui/server.py
+
+[Install]
+WantedBy=multi-user.target

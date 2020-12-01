@@ -1,0 +1,21 @@
+<h2 align=center>IOSTAT plots </h2>
+<div class="row">
+    {% for node_num in range(node_amount) %}
+        <div class="column">
+        <img src="/report/{{task_id}}/imgs/{{node_num}}/iostat" alt="Aggregated">
+        </div>
+    {% endfor %}
+</div>
+<details>
+<summary>IOSTAT side-by-side (spoiler)</summary>
+    {% for label in iostat_det_imgs %}
+        <div class="row">
+            <h2 align=center>{{label}}</h2>
+            {% for node_num in range(node_amount) %}
+                <div class="column">
+                <img src="/report/{{task_id}}/imgs/{{node_num}}/{{label}}" alt="{{label}}">
+                </div>
+            {% endfor %}
+        </div>
+    {% endfor %}
+</details>

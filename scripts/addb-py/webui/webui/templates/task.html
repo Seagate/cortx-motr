@@ -1,0 +1,50 @@
+<style>
+
+input[type=text], select, textarea {
+    width: 100%;
+    height: 60%;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: vertical;
+}
+
+input[type=submit] {
+    margin-top: 4px;
+    float: right;
+}
+
+.container {
+  border-radius: 5px;
+  background-color: #f2f2f2;
+  padding: 20px;
+}
+
+.col-25 {
+  float: left;
+  width: 25%;
+  margin-top: 4px;
+}
+
+.col-75 {
+  float: left;
+  width: 75%;
+  margin-top: 4px;
+}
+
+</style>
+
+<div class="container">
+  <form action="/addtask" method="post">
+      <div class="col-25">
+        <label for="config">Task configuration:</label>
+      </div>
+    <div style="col-75">
+      <textarea id="config" name="config">{{task}}</textarea>
+    </div>
+    <div>
+      taskId: {{params.taskId}}
+      <input type="submit" value="Submit">
+    </div>
+  </form>
+</div>

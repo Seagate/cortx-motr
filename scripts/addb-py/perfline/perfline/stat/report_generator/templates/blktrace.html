@@ -1,0 +1,8 @@
+<h2 align=center>BLKTRACE plots </h2>
+<div class="row">
+    {% for node_num in range(node_amount) %}
+        <div class="column">
+        <img src="/report/{{task_id}}/imgs/{{node_num}}/blktrace" alt="Aggregated">
+        </div>
+    {% endfor %}
+</div>

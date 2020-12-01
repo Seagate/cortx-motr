@@ -1,0 +1,16 @@
+<tr><th colspan="3">Network</th></tr>
+<tr>
+<th>Network interfaces info</th>
+    {% for strings in network_infos %}
+    <th style="text-align:left">
+        {% for string in strings %}
+        {{string}}<br>
+        {% endfor %}
+    </th>
+    {% endfor %}
+</tr>
+{% include 'text_hosts.html' %}
+{% include 'text_lnet.html' %}
+{% include 'text_multipath.html' %}
+
+

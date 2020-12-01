@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+RESULT_DB="./m0play.db"
+
+function main()
+{
+    cp $1 $RESULT_DB
+    shift
+
+    TABLES=$(echo '.tables' | sqlite3 $RESULT_DB)
+
+    # TABLES="client_to_dix dix_to_mdix dix_to_cas cas_to_rpc"
+
+    for db in $@; do
+        echo "merge $db"
+        merge_db $db
+    done
+
+}
+
+function merge_db()
+{
+    local db_path=$1
+
+    local sql="attach '$db_path' as db2;"
+    for table in $TABLES; do
+        sql="$sql BEGIN; insert into $table select ALL_FIELDS from db2.$table; COMMIT;"
+    done
+    sql="$sql detach db2;"
+    
+    echo $sql | sed 's/ALL_FIELDS/*/g' | sqlite3 $RESULT_DB
+}
+
+main $@
+exit $?

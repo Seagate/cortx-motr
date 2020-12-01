@@ -1,0 +1,11 @@
+<!-- <tr><th colspan="3">Hosts file</th></tr> -->
+<tr>
+<th>Hosts file</th>
+    {% for strings in hosts_info %}
+    <th style="text-align:left;" >
+        {% for string in strings %}
+        {{string}}<br>
+        {% endfor %}
+    </th>
+    {% endfor %}
+</tr>
