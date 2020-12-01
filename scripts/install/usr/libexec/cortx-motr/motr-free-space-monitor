@@ -156,7 +156,7 @@ if __name__ == '__main__':
     thr_min = min(param_list)
     thr_max = max(param_list)
     iem_alert_low_thresold = thr_min
-    iem_alert_high_thresold = min(100, thr_max + 1)
+    iem_alert_high_thresold = min(100, thr_max)
     iem_min_threshold = iem_alert_low_thresold
     list_len = len(param_list)
     os.makedirs(iem_work_dir, exist_ok=True)
@@ -190,11 +190,8 @@ if __name__ == '__main__':
 
         cluster_usage_percentage = cluster_size[USAGE_PERCENTAGE]
         if cluster_usage_percentage > iem_min_threshold:
-            if (cluster_usage_prev <= iem_alert_low_thresold and
+            if (cluster_usage_prev < iem_alert_low_thresold and
                 cluster_usage_percentage >= iem_alert_low_thresold):
-                send_iem = True
-            if (cluster_usage_prev <= iem_alert_high_thresold and
-                cluster_usage_percentage >= iem_alert_high_thresold):
                 send_iem = True
 
 #           update idx as per current usage percent to get current next low from
@@ -202,16 +199,15 @@ if __name__ == '__main__':
             idx = bisect.bisect_right(param_list, cluster_usage_percentage)
             if idx >= list_len:
                 idx = list_len - 1
-            iem_alert_low_new = param_list[idx]
+            iem_alert_low_thresold = param_list[idx]
 
             if send_iem:
                 print_iem(cluster_usage_percentage)
-            iem_alert_low_thresold = iem_alert_low_new
             cluster_usage_prev = cluster_usage_percentage
         else:
             if cluster_usage_prev > iem_min_threshold:
                 print_iem(cluster_usage_percentage)
                 cluster_usage_prev = 0
                 iem_alert_low_thresold = thr_min
-                iem_alert_high_thresold = thr_max
+                iem_alert_high_thresold = min(100, thr_max)
         time.sleep(wait_time)
