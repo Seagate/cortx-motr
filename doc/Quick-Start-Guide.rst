@@ -55,9 +55,11 @@ Perform the below mentioned procedure to build the source code.
 2. Reboot your system. After reboot, run the following commands to check if the lustre network is functioning accurately.
 
    - **$ vi /etc/modprobe.d/lnet.conf**
-         A proper configuration file is needed for LNet. Please use the command `ip a` to get
-         a list of network interfaces and then modify the `lnet.conf` to use one of the network interfaces.
+
+         A proper configuration file is needed for LNet. Please use the command *ip a* to get
+         a list of network interfaces and then modify the *lnet.conf* to use one of the network interfaces.
          Please refer to the `<#Troubleshooting>`_ section for more information.
+
    - **$ sudo modprobe lnet**
 
    - **$ sudo lctl list_nids**
@@ -77,7 +79,7 @@ If you want to make sure about generating RPMs, run the below mentioned command.
 
 - **$ make rpms**
 
-The following RPMs are generated in the **/root/rpmbuild/RPMS/x86_64** directory (if running with `root` user).
+The following RPMs are generated in the **/root/rpmbuild/RPMS/x86_64** directory (if running with *root* user).
 
 - cortx-motr-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
 
