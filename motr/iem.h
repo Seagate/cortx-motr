@@ -25,6 +25,8 @@
 #ifndef __MOTR_IEM_H__
 #define __MOTR_IEM_H__
 
+#include "lib/types.h"
+
 enum m0_motr_iem_severity {
 	M0_MOTR_IEM_SEVERITY_TEST = 0,
 	M0_MOTR_IEM_SEVERITY_A_ALERT,
@@ -87,6 +89,7 @@ enum m0_motr_iem_event {
  * @param sev_id a valid value from enum m0_motr_iem_severity
  * @param mod_id a valid value from enum m0_motr_iem_module
  * @param evt_id a valid value from enum m0_motr_iem_event
+ * @param report_count print event count if TRUE.
  * @param desc a string description with variable args. Can be NULL,
  *             max (512-1) bytes in length.
  */
@@ -94,15 +97,16 @@ void m0_iem(const char* file, const char* function, int line,
 	    const enum m0_motr_iem_severity sev_id,
 	    const enum m0_motr_iem_module mod_id,
 	    const enum m0_motr_iem_event evt_id,
+	    const bool report_evt_count,
 	    const char* desc, ...);
 
 #define M0_MOTR_IEM(_sev_id, _mod_id, _evt_id) \
 	m0_iem(__FILE__, __FUNCTION__, __LINE__, \
-	       _sev_id, _mod_id, _evt_id, NULL)
+	       _sev_id, _mod_id, _evt_id, true, NULL)
 
 #define M0_MOTR_IEM_DESC(_sev_id, _mod_id, _evt_id, _desc, ...) \
 	m0_iem(__FILE__, __FUNCTION__, __LINE__, \
-	       _sev_id, _mod_id, _evt_id, _desc, __VA_ARGS__)
+	       _sev_id, _mod_id, _evt_id, true, _desc, __VA_ARGS__)
 
 
 #endif  // __MOTR_IEM_H__
