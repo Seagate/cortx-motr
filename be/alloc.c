@@ -295,8 +295,8 @@ be_allocator_call_stats_print(struct m0_be_allocator_call_stats *cs,
                               const char                        *descr)
 {
 #define P_ACS(acs) (acs)->bcs_nr, (acs)->bcs_size
-	M0_LOG(M0_DEBUG, "%s (nr, size): alloc_success=(%lu, %lu), "
-	       "free=(%lu, %lu), alloc_failure=(%lu, %lu)", descr,
+	M0_LOG(M0_DEBUG, "%s (nr, size): alloc_success=(%lu, %"PRId64"), "
+	       "free=(%lu, %"PRId64"), alloc_failure=(%lu, %"PRId64")", descr,
 	       P_ACS(&cs->bacs_alloc_success), P_ACS(&cs->bacs_free),
 	       P_ACS(&cs->bacs_alloc_failure));
 #undef P_ACS
@@ -304,11 +304,11 @@ be_allocator_call_stats_print(struct m0_be_allocator_call_stats *cs,
 
 static void be_allocator_stats_print(struct m0_be_allocator_stats *stats)
 {
-	M0_LOG(M0_DEBUG, "stats=%p chunk_overhead=%lu boundary=%lu "
+	M0_LOG(M0_DEBUG, "stats=%p chunk_overhead=%"PRId64" boundary=%"PRId64" "
 	       "print_interval=%lu print_index=%lu",
 	       stats, stats->bas_chunk_overhead, stats->bas_stat0_boundary,
 	       stats->bas_print_interval, stats->bas_print_index);
-	M0_LOG(M0_DEBUG, "chunks=%lu free_chunks=%lu",
+	M0_LOG(M0_DEBUG, "chunks=%"PRId64" free_chunks=%"PRId64,
 	       stats->bas_chunks_nr, stats->bas_free_chunks_nr);
 	be_allocator_call_stats_print(&stats->bas_total, "           total");
 	be_allocator_call_stats_print(&stats->bas_stat0, "size <= boundary");
@@ -722,11 +722,13 @@ M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
 	struct m0_be_seg_hdr *seg_hdr;
 	int                   i;
 
-	M0_ENTRY("a=%p seg=%p seg->bs_addr=%p seg->bs_size=%lu",
+	M0_ENTRY("a=%p seg=%p seg->bs_addr=%p seg->bs_size=%"PRId64,
 		 a, seg, seg->bs_addr, seg->bs_size);
 
 	M0_PRE(m0_be_seg__invariant(seg));
 
+	/* See comment in m0_be_btree_init(). */
+	M0_SET0(&a->ba_lock);
 	m0_mutex_init(&a->ba_lock);
 
 	a->ba_seg = seg;
@@ -1030,7 +1032,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
 	M0_ASSERT_INFO(size <= (M0_BCOUNT_MAX - (1UL << shift)) / 2,
-		       "size=%lu", size);
+		       "size=%"PRId64, size);
 
 	m0_be_op_active(op);
 
@@ -1061,8 +1063,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	be_allocator_stats_capture(a, ztype, tx);
 	/* and ends here */
 
-	M0_LOG(M0_DEBUG, "allocator=%p size=%lu shift=%u "
-	       "c=%p c->bac_size=%lu ptr=%p", a, size, shift, c,
+	M0_LOG(M0_DEBUG, "allocator=%p size=%"PRId64" shift=%u "
+	       "c=%p c->bac_size=%"PRId64" ptr=%p", a, size, shift, c,
 	       c == NULL ? 0 : c->bac_size, *ptr);
 	if (*ptr == NULL) {
 		be_allocator_stats_print(&a->ba_h[ztype]->bah_stats);
@@ -1120,7 +1122,7 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 	M0_PRE(be_alloc_chunk_invariant(a, c));
 	M0_PRE(!c->bac_free);
 	ztype = c->bac_zone;
-	M0_LOG(M0_DEBUG, "allocator=%p c=%p c->bac_size=%lu zone=%d "
+	M0_LOG(M0_DEBUG, "allocator=%p c=%p c->bac_size=%"PRId64" zone=%d "
 			"data=%p", a, c, c->bac_size, c->bac_zone, &c->bac_mem);
 	/* algorithm starts here */
 	be_alloc_chunk_mark_free(a, ztype, tx, c);

@@ -503,7 +503,7 @@ void m0_cob_domain_fini(struct m0_cob_domain *dom)
 
 static void cob_domain_id2str(char **s, const struct m0_cob_domain_id *cdid)
 {
-	return m0_asprintf(s, "%016lX", cdid->id);
+	return m0_asprintf(s, "%016"PRIX64"", cdid->id);
 }
 
 M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,

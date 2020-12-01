@@ -303,7 +303,7 @@ static void extents_release(struct m0_balloc_group_info *grp,
 		lext_del(le);
 		++frags;
 	}
-	M0_LOG(M0_DEBUG, "zone_type = %d, grp=%p grpno=%lu list_frags=%d"
+	M0_LOG(M0_DEBUG, "zone_type = %d, grp=%p grpno=%"PRId64" list_frags=%d"
 	       "bzp_frags=%d", (int)zone_type, grp, grp->bgi_groupno,
 	       (int)frags, (int)zp->bzp_fragments);
 	M0_ASSERT(ergo(frags > 0, frags == zp->bzp_fragments));
@@ -988,7 +988,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 		goto out;
 	}
 
-	M0_LOG(M0_INFO, "Group Count = %lu", bal->cb_sb.bsb_groupcount);
+	M0_LOG(M0_INFO, "Group Count = %"PRId64, bal->cb_sb.bsb_groupcount);
 
 	M0_ALLOC_ARR(bal->cb_group_info, bal->cb_sb.bsb_groupcount);
 	rc = bal->cb_group_info == NULL ? M0_ERR(-ENOMEM) : 0;
@@ -1420,7 +1420,8 @@ static int balloc_find_extent_buddy(struct balloc_allocation_context *bac,
 
 	zp = is_spare(alloc_flag) ? &grp->bgi_spare : &grp->bgi_normal;
 
-	M0_LOG(M0_DEBUG, "start=%lu len=%lu", zp->bzp_range.e_start, len);
+	M0_LOG(M0_DEBUG, "start=%"PRId64" len=%"PRId64,
+	       zp->bzp_range.e_start, len);
 
 	start = zp->bzp_range.e_start;
 	m0_list_for_each_entry(&zp->bzp_extents, le, struct m0_lext, le_link) {
@@ -2058,7 +2059,7 @@ static int is_group_good_enough(struct balloc_allocation_context *bac,
 	}
 
 	M0_LOG(M0_DEBUG, "bac=%p criteria=%d: no big enough chunk: "
-	       "goal=0x%08lx maxchunk=%08lx", bac, bac->bac_criteria,
+	       "goal=0x%08"PRIx64" maxchunk=%08"PRIx64, bac, bac->bac_criteria,
 	       m0_ext_length(&bac->bac_goal), maxchunk);
 
 	return 0;

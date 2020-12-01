@@ -572,7 +572,7 @@ M0_INTERNAL void m0_cm_state_set(struct m0_cm *cm, enum m0_cm_state state)
 	M0_PRE(m0_cm_is_locked(cm));
 
 	m0_sm_state_set(&cm->cm_mach, state);
-	M0_LOG(M0_INFO, "CM:%s%lu: %i", (char *)cm->cm_type->ct_stype.rst_name,
+	M0_LOG(M0_INFO, "CM:%s%"PRId64": %i", (char *)cm->cm_type->ct_stype.rst_name,
 	       cm->cm_id, m0_cm_state_get(cm));
 }
 
@@ -966,7 +966,7 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm)
 	M0_PRE(m0_cm_invariant(cm));
 
 	cm->cm_ops->cmo_fini(cm);
-	M0_LOG(M0_INFO, "CM: %s:%lu: %i",
+	M0_LOG(M0_INFO, "CM: %s:%"PRId64": %i",
 	      (char *)cm->cm_type->ct_stype.rst_name,
 	      cm->cm_id, cm->cm_mach.sm_state);
 	m0_cm_state_set(cm, M0_CMS_FINI);

@@ -907,8 +907,8 @@ M0_INTERNAL int m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
 	if (nr_bufs + scm->sc_ibp_reserved_nr > ibp->nbp_free)
 		rc = -ENOSPC;
 	m0_net_buffer_pool_unlock(ibp);
-	M0_LOG(M0_DEBUG, "nr_bufs: [%lu] free buffers in: [%u] out: [%u] \
-	       sc_ibp_reserved_nr: [%lu]", nr_bufs, ibp->nbp_free,
+	M0_LOG(M0_DEBUG, "nr_bufs: [%"PRId64"] free buffers in: [%u] out: [%u] \
+	       sc_ibp_reserved_nr: [%"PRId64"]", nr_bufs, ibp->nbp_free,
 	       scm->sc_obp.sb_bp.nbp_free, scm->sc_ibp_reserved_nr);
 
 	return M0_RC(rc);

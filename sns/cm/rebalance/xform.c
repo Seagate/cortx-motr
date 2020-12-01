@@ -67,8 +67,8 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 	cm = ag->cag_cm;
 	m0_cm_ag_lock(ag);
 
-        M0_LOG(M0_DEBUG, "xform: id ["M0_AG_F"] local_cp_nr: [%lu]\
-	       transformed_cp_nr: [%lu] has_incoming: %d\n",
+        M0_LOG(M0_DEBUG, "xform: id ["M0_AG_F"] local_cp_nr: [%"PRId64"]\
+	       transformed_cp_nr: [%"PRId64"] has_incoming: %d\n",
                M0_AG_P(&id), ag->cag_cp_local_nr, ag->cag_transformed_cp_nr,
 	       ag->cag_has_incoming);
 

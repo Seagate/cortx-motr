@@ -391,7 +391,8 @@ static void print_trace_buf_header(FILE *ofile,
 	fprintf(ofile, "  header_addr:        %p\n", tbh->tbh_header_addr);
 	fprintf(ofile, "  header_size:        %u\t\t# bytes\n", tbh->tbh_header_size);
 	fprintf(ofile, "  buffer_addr:        %p\n", tbh->tbh_buf_addr);
-	fprintf(ofile, "  buffer_size:        %lu\t\t# bytes\n", tbh->tbh_buf_size);
+	fprintf(ofile, "  buffer_size:        %"PRId64"\t\t# bytes\n",
+		tbh->tbh_buf_size);
 
 	if (tbh->tbh_buf_type == M0_TRACE_BUF_KERNEL) {
 		fprintf(ofile, "  mod_struct_addr:    %p\n",
@@ -457,7 +458,8 @@ static int calc_trace_descr_offset(const struct m0_trace_buf_header *tbh,
 		msym = (uint64_t*)((char*)ko_addr + msym_file_offset);
 		if (*msym != M0_TRACE_MAGIC) {
 			warnx("invalid trace magic symbol value in '%s' file at"
-			      " offset 0x%lx: 0x%lx (expected 0x%lx)",
+			      " offset 0x%"PRId64": 0x%"PRId64
+			      " (expected 0x%lx)",
 			      m0tr_ko_path, msym_file_offset, *msym,
 			      M0_TRACE_MAGIC);
 			return EX_DATAERR;

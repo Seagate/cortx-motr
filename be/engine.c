@@ -182,7 +182,7 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 	 */
 	M0_ASSERT_INFO(log_size == log_free,
 		       "There is at least one transaction which didn't become "
-		       "stable yet. log_size = %lu, log_free = %lu",
+		       "stable yet. log_size = %"PRId64", log_free = %"PRId64,
 		       log_size, log_free);
 
 	m0_semaphore_fini(&en->eng_recovery_wait_sem);
@@ -304,8 +304,9 @@ static void be_engine_got_tx_open(struct m0_be_engine *en,
 		    tx->t_payload_prepared > en->eng_cfg->bec_tx_payload_max) {
 			M0_LOG(M0_ERROR,
 			       "tx=%p engine=%p t_prepared="BETXCR_F" "
-			       "t_payload_prepared=%lu bec_tx_size_max="BETXCR_F
-			       " bec_tx_payload_max=%lu",
+			       "t_payload_prepared=%"PRId64" "
+			       "bec_tx_size_max="BETXCR_F
+			       " bec_tx_payload_max=%"PRId64,
 			       tx, en, BETXCR_P(&tx->t_prepared),
 			       tx->t_payload_prepared,
 			       BETXCR_P(&en->eng_cfg->bec_tx_size_max),
@@ -822,7 +823,7 @@ M0_INTERNAL int m0_be_engine_start(struct m0_be_engine *en)
 	if (en->eng_cfg->bec_wait_for_recovery) {
 		m0_semaphore_down(&en->eng_recovery_wait_sem);
 		recovery_time = m0_time_now() - recovery_time;
-		M0_LOG(M0_INFO, "BE recovery execution time: %lu",
+		M0_LOG(M0_INFO, "BE recovery execution time: %"PRId64,
 		       recovery_time);
 		/* XXX workaround BEGIN */
 		if (!en->eng_cfg->bec_domain->bd_cfg.bc_mkfs_mode) {

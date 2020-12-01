@@ -195,7 +195,7 @@ static int fsync_fom_tick(struct m0_fom *fom)
 			(M0_FSYNC_MODE_ACTIVE, M0_FSYNC_MODE_PASSIVE)));
 
 	txid = req->ff_be_remid.tri_txid;
-	M0_LOG(M0_DEBUG, "Target tx:%lu\n", txid);
+	M0_LOG(M0_DEBUG, "Target tx: %"PRId64"\n", txid);
 	rctx = container_of(m0_fom_reqh(fom), struct m0_reqh_context, rc_reqh);
 
 
@@ -235,14 +235,15 @@ static int fsync_fom_tick(struct m0_fom *fom)
 		 * engine, use it to return an error if the value received
 		 * is greater than the value in the engine(ahead in the future).
 		 */
-		M0_LOG(M0_DEBUG, "tx not found:%lu\n", txid);
+		M0_LOG(M0_DEBUG, "tx not found: %"PRId64"\n", txid);
 		rc = 0;
 		goto fsync_done;
 	}
 
 	/* if the target tx has been logged, we're done */
 	if (m0_be_tx_state(target_tx) >= M0_BTS_LOGGED) {
-		M0_LOG(M0_DEBUG, "TX has been logged:%lu\n", target_tx->t_id);
+		M0_LOG(M0_DEBUG, "TX has been logged: %"PRId64"\n",
+		       target_tx->t_id);
 		m0_be_tx_put(target_tx);
 		rc = 0;
 		goto fsync_done;
@@ -253,7 +254,8 @@ static int fsync_fom_tick(struct m0_fom *fom)
 	case M0_FOPH_FSYNC_FOM_START:
 		/* maybe the tx must be forced */
 		if (req->ff_fsync_mode == M0_FSYNC_MODE_ACTIVE) {
-			M0_LOG(M0_DEBUG, "force tx:%lu\n", target_tx->t_id);
+			M0_LOG(M0_DEBUG, "force tx: %"PRId64"\n",
+			       target_tx->t_id);
 			m0_be_tx_force(target_tx);
 		}
 

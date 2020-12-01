@@ -223,10 +223,9 @@ M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
 {
 	char buf[0x400];
 
-	snprintf(buf, ARRAY_SIZE(buf), "%p:"FID_F":"FID_F":%lu", seg,
-			FID_P(&bstore_id->si_domain_fid),
-			FID_P(&bstore_id->si_fid),
-			size);
+	snprintf(buf, ARRAY_SIZE(buf), "%p:"FID_F":"FID_F":%"PRId64, seg,
+		 FID_P(&bstore_id->si_domain_fid),
+		 FID_P(&bstore_id->si_fid), size);
 	*str = m0_strdup(buf);
 }
 
@@ -268,7 +267,7 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 	M0_ALLOC_PTR(cfg);
 	if (cfg != NULL) {
 		/* format = seg:domain_fid:fid:container_size */
-		rc = sscanf(str_cfg_create, "%p:"FID_SF":"FID_SF":%lu",
+		rc = sscanf(str_cfg_create, "%p:"FID_SF":"FID_SF":%"SCNd64"",
 			    (void **)&cfg->adg_seg,
 			    FID_S(&cfg->adg_id.si_domain_fid),
 			    FID_S(&cfg->adg_id.si_fid),
@@ -293,7 +292,7 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 		cfg->adg_blocks_per_group = grp_blocks;
 		cfg->adg_spare_blocks_per_group =
 			m0_stob_ad_spares_calc(grp_blocks);
-		M0_LOG(M0_DEBUG, "device size %lu", cfg->adg_container_size);
+		M0_LOG(M0_DEBUG, "device size %"PRId64, cfg->adg_container_size);
 		*cfg_create = cfg;
 	}
 	return M0_RC(rc);
@@ -1080,8 +1079,8 @@ static uint32_t stob_ad_write_map_count(struct m0_stob_ad_domain *adom,
 	bool                   eov;
 	struct m0_ivec_cursor  it;
 
-	M0_ENTRY("dom=%p bshift=%u babshift=%d pack=%hhx", adom,
-		 adom->sad_bshift, adom->sad_babshift, pack);
+	M0_ENTRY("dom=%p bshift=%u babshift=%d pack=%x", adom,
+		 adom->sad_bshift, adom->sad_babshift, (int)pack);
 
 	frags = 0;
 	m0_ivec_cursor_init(&it, iv);
@@ -1093,7 +1092,7 @@ static uint32_t stob_ad_write_map_count(struct m0_stob_ad_domain *adom,
 		frag_size = min_check(m0_ivec_cursor_step(&it), grp_size);
 		M0_ASSERT(frag_size > 0);
 		M0_ASSERT(frag_size <= (size_t)~0ULL);
-		M0_LOG(M0_DEBUG, "frag_size=0x%lx", frag_size);
+		M0_LOG(M0_DEBUG, "frag_size=0x%"PRId64, frag_size);
 
 		eov = m0_ivec_cursor_move(&it, frag_size);
 
@@ -1825,7 +1824,8 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 			break;
 		got = m0_ext_length(&wext->we_ext);
 		M0_ASSERT(todo >= got);
-		M0_LOG(M0_DEBUG, "got=%lu: " EXT_F, got, EXT_P(&wext->we_ext));
+		M0_LOG(M0_DEBUG, "got=%"PRId64": " EXT_F,
+		       got, EXT_P(&wext->we_ext));
 		todo -= got;
 		++bfrags;
 		if (todo > 0) {
