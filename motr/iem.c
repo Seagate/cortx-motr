@@ -59,7 +59,8 @@ void m0_iem(const char* file, const char* function, int line,
 	    const enum m0_motr_iem_severity sev_id,
 	    const enum m0_motr_iem_module mod_id,
 	    const enum m0_motr_iem_event evt_id,
-	    const char* msg, ...)
+	    const bool report_evt_count,
+	    const char *msg, ...)
 {
 	char     description[512] = {0x0};
 	va_list  aptr;
@@ -80,21 +81,36 @@ void m0_iem(const char* file, const char* function, int line,
 		va_end(aptr);
 	}
 	if (++iem_re[evt_id].ir_niems < THRESHOLD) {
-		m0_console_printf("IEC: %c%c%03x%03x%04x: counts %"PRIx64", "
-				  "%s\n",
-				  m0_motr_iem_severity[sev_id],
-				  M0_MOTR_IEM_SOURCE_ID,
-				  M0_MOTR_IEM_COMPONENT_ID_MOTR,
-				  mod_id, evt_id, iem_re[evt_id].ir_total,
-				  description);
+		if (report_evt_count)
+			m0_console_printf("IEC: %c%c%03x%03x%04x: "
+					  "Event count: %"PRIx64", %s\n",
+					  m0_motr_iem_severity[sev_id],
+					  M0_MOTR_IEM_SOURCE_ID,
+					  M0_MOTR_IEM_COMPONENT_ID_MOTR, mod_id,
+					  evt_id, iem_re[evt_id].ir_total,
+					  description);
+		else
+			m0_console_printf("IEC: %c%c%03x%03x%04x: %s\n",
+					  m0_motr_iem_severity[sev_id],
+					  M0_MOTR_IEM_SOURCE_ID,
+					  M0_MOTR_IEM_COMPONENT_ID_MOTR,
+					  mod_id, evt_id, description);
+
 		m0_console_flush();
 	}
 	/* Do not throttle trace messages. */
-	M0_LOG(M0_INFO, "IEC: %c%c%3x%3x%4x: counts %"PRIx64", %s",
-	       m0_motr_iem_severity[sev_id],
-	       M0_MOTR_IEM_SOURCE_ID, M0_MOTR_IEM_COMPONENT_ID_MOTR,
-	       mod_id, evt_id, iem_re[evt_id].ir_total,
-	       (const char*)description);
+	if (report_evt_count)
+		M0_LOG(M0_INFO, "IEC: %c%c%3x%3x%4x: Event count %"PRIx64", %s",
+		       m0_motr_iem_severity[sev_id],
+		       M0_MOTR_IEM_SOURCE_ID, M0_MOTR_IEM_COMPONENT_ID_MOTR,
+		       mod_id, evt_id, iem_re[evt_id].ir_total,
+		       (const char *)description);
+	else
+		M0_LOG(M0_INFO, "IEC: %c%c%3x%3x%4x: %s",
+		       m0_motr_iem_severity[sev_id],
+		       M0_MOTR_IEM_SOURCE_ID, M0_MOTR_IEM_COMPONENT_ID_MOTR,
+		       mod_id, evt_id, (const char *)description);
+
 	M0_LOG(M0_INFO, "from %s:%s:%d",
 	       (const char*)file, (const char*)function, line);
 }

@@ -703,6 +703,14 @@ static void test_cs_ut_iem(void)
 		M0_MOTR_IEM_EVENT_FREE_SPACE,
 		"DUMMY Description, Dummy number[%d], Dummy text [%s]",
 		__LINE__, __FUNCTION__);
+
+	m0_iem(__FILE__, __FUNCTION__, __LINE__, \
+		       M0_MOTR_IEM_SEVERITY_N_NOTICE, M0_MOTR_IEM_MODULE_IO,
+		       M0_MOTR_IEM_EVENT_FREE_SPACE, false, 
+		       "Usable Storage is %d %% full, "
+		       "Total Usable storage: %d TB and "
+		       "Available Staorage: %d GB", 70, 216, 64);
+
 }
 
 struct m0_ut_suite m0d_ut = {

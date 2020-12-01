@@ -112,18 +112,14 @@ M0_INTERNAL void m0_format_footer_update(const void *buffer)
 	m0_format_footer_generate(footer, buffer, footer_offset);
 }
 
-static void format_iem_post(const char *msg, uint64_t expected, uint64_t got,
-			    bool iem)
+static void format_iem_post(const char *msg, bool iem)
 {
 	if (iem)
 		M0_MOTR_IEM_DESC(M0_MOTR_IEM_SEVERITY_E_ERROR,
 				 M0_MOTR_IEM_MODULE_IO,
-				 M0_MOTR_IEM_EVENT_MD_ERROR,
-		                 "%s expected %"PRIx64", got %"PRIx64,
-				 msg, expected, got);
+				 M0_MOTR_IEM_EVENT_MD_ERROR, "%s", msg);
 	else
-		M0_LOG(M0_ERROR, "%s expected %"PRIx64", got %"PRIx64,
-		       msg, expected, got);
+		M0_LOG(M0_ERROR, "%s", msg);
 }
 
 M0_INTERNAL int m0_format_footer_verify_generic(
@@ -137,15 +133,12 @@ M0_INTERNAL int m0_format_footer_verify_generic(
 	M0_PRE(footer != NULL);
 
 	if (footer->ft_magic != M0_FORMAT_FOOTER_MAGIC) {
-		format_iem_post("format footer magic mismatch,",
-				(uint64_t)M0_FORMAT_FOOTER_MAGIC,
-				footer->ft_magic, iem);
+		format_iem_post("Internal corruption detected", iem);
 		return M0_ERR(-EPROTO);
 	}
 	checksum = m0_hash_fnc_fnv1(buffer, size);
 	if (footer->ft_checksum != checksum) {
-		format_iem_post("format footer checksum mismatch,",
-				footer->ft_checksum, checksum, iem);
+		format_iem_post("Internal corruption detected", iem);
 		return M0_ERR(-EPROTO);
 	}
 	return M0_RC(0);
@@ -160,10 +153,7 @@ M0_INTERNAL int m0_format_footer_verify(const void *buffer, bool iem)
 	M0_ASSERT(buffer != NULL);
 	rc = get_footer_from_buf(buffer, &footer, &footer_offset);
 	if (rc != 0) {
-		format_iem_post("format header magic mismatch,",
-				(uint64_t)M0_FORMAT_HEADER_MAGIC,
-				((struct m0_format_header *)buffer)->hd_magic,
-				iem);
+		format_iem_post("Internal corruption detected", iem);
 		return M0_ERR(rc);
 	}
 	return m0_format_footer_verify_generic(footer, buffer,
