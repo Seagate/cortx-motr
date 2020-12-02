@@ -41,11 +41,11 @@ Use cases
        100G NIC with dual port is needed, one port is used for private data and
        other port is used for public data.
        If 25G is used two NIC's are needed for private data and two are for public
-       data, so four ports needs to reserved in the switch per node.
-       For 10G NIC for each node 6 cards are needed i.e per node 6 ports needs to be reserved
-       in the switch.
+       data, so four ports needs to be reserved in the switch per node.
+       For 10G NIC each node 6 cards are needed i.e per node 6 ports needs to be
+       reserved in the switch.
    * - **requirements**
      - It should be possible to connect LR to 10G, 25G and
        100G networks
    * - **interaction**
-      -
+     -
