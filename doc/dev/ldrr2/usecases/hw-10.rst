@@ -24,115 +24,83 @@ Use cases
 .. list-table::
    :header-rows: 1
 
-   * - field
-     - name
-   * - scenario name
+   * - **field**
+     - **value**
+   * - **scenario name**
      - [u.hw-10.full-storage-time]
-   * - context
+   * - **context**
      - cortx system test
-   * - trigger
+   * - **trigger**
      - an enclosure is to be filled up completely by the tests to verify "no
        space" conditions.
-   * - requirements
+   * - **requirements**
      - filling an enclosure should take reasonable time. It should be estimated.
-   * - interaction
+   * - **interaction**
      - Estimate fill-up time.
 
 
 .. list-table::
    :header-rows: 1
 
-   * - field
-     - name
-   * - scenario name
-     - [u.hw-10.drive-rebuilt-time
-   * - context
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-10.drive-rebuilt-time]
+   * - **context**
      - normal system operation
-   * - trigger
+   * - **trigger**
      - a drive within an enclosure fails
-   * - requirements
+   * - **requirements**
      - rebuild time (which is proportional to the drive size) affects system
        availability and reliability.
-   * - interaction
+   * - **interaction**
      - Estimate rebuild time.
 
 .. list-table::
    :header-rows: 1
 
-   * - field
-     - name
-   * - scenario name
+   * - **field**
+     - **value**
+   * - **scenario name**
      - [u.hw-10.firmware-dev]
-   * - context
+   * - **context**
      - ldr r2 development
-   * - trigger
+   * - **trigger**
      - new type of drive is released by Seagate
-   * - requirements
+   * - **requirements**
      -
-   * - interaction
+   * - **interaction**
      - firmware should be tested
      
 .. list-table::
    :header-rows: 1
 
-   * - field
-     - name
-   * - scenario name
-     - [u.hw-10.firmware-field]
-   * - context
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-10.firmware-**field**]
+   * - **context**
      - normal system operation
-   * - trigger
+   * - **trigger**
      - release of new version of r2 with new drive support
-   * - requirements
+   * - **requirements**
      - firmware should be upgradable
-   * - interaction
+   * - **interaction**
      - upgrade process shold upgrade the firmware
      
 .. list-table::
    :header-rows: 1
 
-   * - field
-     - name
-   * - scenario name
+   * - **field**
+     - **value**
+   * - **scenario name**
      - [u.hw-10.performance]
-   * - context
+   * - **context**
      - ldr r2 development
-   * - trigger
+   * - **trigger**
      - new type of drive is released by Seagate
-   * - requirements
+   * - **requirements**
      - supported drives should be tested for performance
-   * - interaction
+   * - **interaction**
      - plan performance analysis of new drives in the development schedule
-     
-.. list-table::
-   :header-rows: 1
-
-   * - field
-     - name
-   * - scenario name
-     -
-   * - context
-     -
-   * - trigger
-     -
-   * - requirements
-     -
-   * - interaction
-     -
-     
-.. list-table::
-   :header-rows: 1
-
-   * - field
-     - name
-   * - scenario name
-     -
-   * - context
-     -
-   * - trigger
-     -
-   * - requirements
-     -
-   * - interaction
-     -
      
