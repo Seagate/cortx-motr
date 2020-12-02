@@ -1,0 +1,38 @@
+------
+**S3**
+------
+
+S3-10 Any supported S3 API call must comply with AWS spec
+------------------
+
+* Try each supported AWS api call
+        - The call should succeed or fail depeding upon the context of the call
+        - In case of faiures proper error code needs to be returned to the caller.
+        
+* Call aws put-object to write object to the cluster.
+        - Data needs to be stored in the cluster.
+        - If error was encountered while saving then appropriate error should
+          be returned.
+
+* Call aws get-object to read object from the cluster
+        - If the object is found in the cluster then the object data should be
+          returned.
+        - If the object is not present on the cluster then error code '404' should
+          be returned.
+          
+
+S3-15 CopyObject API
+--------------------
+
+* Call aws copy-object for a particular object
+        - If the read access is granted for the source object and write access
+          to the destination bucket then a copy of the source object should be
+          made in the destination bucket.
+
+
+IAM-15 It should be possible to reset password for any S3 or IAM user account
+-----------------------------------------------------------------------------
+
+TBD
+
+
