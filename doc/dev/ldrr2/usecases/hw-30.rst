@@ -36,6 +36,10 @@ Use cases
        supported
    * - **interaction**
      - provisioner, motr and s3 must support optional private interconnect
+   * - **assumptions**
+     - alternatives: (0) private interconnect: RDMA and no unencrypted data on
+       public network; (1) no private interconnect: either unencrypted data on
+       public network or loss of performance due to no-RDMA.
 
 .. list-table::
    :header-rows: 1
@@ -91,13 +95,4 @@ Use cases
        some parts of the cluster and disabled in others
    * - **interaction**
      - provisioner and motr should support this
-
-
-
-       
-
-       
-       
-
-
 

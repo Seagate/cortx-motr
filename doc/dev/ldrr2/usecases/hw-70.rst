@@ -1,0 +1,37 @@
+==============
+HW-70 usecases
+==============
+
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+
+.. list-table::
+   :header-rows: 1
+
+   * - id
+     - feature
+     - description
+     - priority
+   * - hw-70
+     - Server and network cost shouldn’t exceed Cost requirements (CT-10)
+     - 
+     - p0
+
+Use cases
+=========
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-70.server-memory]
+   * - **context**
+     - ldr r2 development
+   * - **trigger**
+     - reduce server cost
+   * - **requirements**
+     - estimate how much server memory cortx needs
+   * - **interaction**
+     - test the system measure memory consumption
+
