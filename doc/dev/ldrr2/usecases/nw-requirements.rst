@@ -26,8 +26,8 @@ Network requirements usecases
 
 Use cases
 =========
-
-.. list-table::
+ 
+ .. list-table::
    :header-rows: 1
 
    * - **field**
@@ -48,3 +48,4 @@ Use cases
      - It should be possible to connect LR to 10G, 25G and
        100G networks
    * - **interaction**
+      -
