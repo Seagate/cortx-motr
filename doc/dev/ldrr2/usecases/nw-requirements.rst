@@ -45,14 +45,15 @@ Use cases
    * - **assumptions**
      - rdma is supported by NIC
    * - **interaction**
-     - For LR R2 minimum 50Gbps network speed is needed for private data.
-       100G NIC with dual port is needed, one port is used for private data and
-       other port is used for public data.
-       If 25G is used two NIC's are needed for private data and two are for public
-       data, so four ports needs to be reserved in the switch per node.
-       For 10G NIC each node 10 cards are needed i.e per node 10 ports needs to be
-       reserved in the switch.
-       This may need more ports in the switch, which can add cost and complexity.
+     - #. For LR R2 minimum 50Gbps network speed is needed for private data.
+       #. 100G NIC with dual port is needed, one port is used for private data and
+          other port is used for public data.
+       #. If 25G is used two NIC's are needed for private data and two are for public
+          data, so four ports needs to be reserved in the switch per node.
+       #. For 10G NIC, each node 10 cards are needed i.e per node 10 ports needs to be
+          reserved in the switch.
+       #. Use of 25G or 10G NIC's may need more ports in the switch, which can add to
+          the cost and complexity.
      
  .. list-table::
    :header-rows: 1
@@ -70,7 +71,11 @@ Use cases
    * - **assumptions**
      - Switches needs to support rdma and number of ports and their speeds should be same
    * - **interaction**
-     -
+     - As per https://en.wikipedia.org/wiki/RDMA_over_Converged_Ethernet
+       apart from Mellanox others don't support RoCE, but there are some other vendors
+       mentioned in the wiki.
+       https://www.marvell.com/products/ethernet-adapters-and-controllers/universal-rdma.html
+       https://www.broadcom.com/products/ethernet-connectivity/network-adapters/200gb-nic-ocp/p2200g
      
  .. list-table::
    :header-rows: 1
