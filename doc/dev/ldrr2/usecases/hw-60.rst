@@ -34,7 +34,29 @@ Use cases
      - 
    * - **requirements**
      - distribution of enclosures and servers within rack should be defined
+   * - **questions**
+     - is storage set always confined in a rack?
    * - **interaction**
-     - Define: is storage set always confined in a rack? If no, plan to test
-       cross-rack storage sets.
+     - plan to test cross-rack storage sets, if necessary.
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-60.rack.lab]
+   * - **context**
+     - ldr r2 development
+   * - **trigger**
+     - system tests
+   * - **requirements**
+     - make sure that there is at least one fully populated rack available for
+       testing and benchmarking
+   * - **interaction**
+     -
+
+     
+
 
