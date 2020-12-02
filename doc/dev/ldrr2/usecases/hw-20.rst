@@ -1,0 +1,54 @@
+==============
+HW-20 usecases
+==============
+
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+
+.. list-table::
+   :header-rows: 1
+
+   * - id
+     - feature
+     - description
+     - priority
+   * - hw-20
+     - LR cluster must support Supermicro 1U COTS servers
+     - There should be a clear process to certify additional servers as needed.
+     - p0
+
+Use cases
+=========
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-20.certification]
+   * - **context**
+     - cortx development
+   * - **trigger**
+     - an additional server is to be certified
+   * - **requirements**
+     - certification process should be specified in advance
+   * - **interaction**
+     - specify the certification process. Set of tests, benchmarks and tests.
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-20.lab]
+   * - **context**
+     - ldr r2 development
+   * - **trigger**
+     - need to test a configuration with Supermicro 1U server
+   * - **requirements**
+     - servers should be available and set up in the lab in advance
+   * - **interaction**
+     - schedule servers delivery and installation
+
