@@ -45,7 +45,7 @@ Use cases
    * - **field**
      - **value**
    * - **scenario name**
-     - [u.hw-10.drive-rebuilt-time]
+     - [u.hw-10.drive-rebuild-time]
    * - **context**
      - normal system operation
    * - **trigger**
