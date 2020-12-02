@@ -63,7 +63,10 @@ Use cases
    * - **trigger**
      - 
    * - **requirements**
-     - It should be possible to connect LR to Cisco, Juniper, Arista and Mellanox switches 
+     - It should be possible to connect LR to Cisco, Juniper, Arista and Mellanox switches.
+   * - **assumptions**
+     - Switches needs to support rdma
+       Number of ports and their speeds should be same
    * - **interaction**
      -
      
