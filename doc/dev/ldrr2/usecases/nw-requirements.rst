@@ -44,8 +44,41 @@ Use cases
        data, so four ports needs to be reserved in the switch per node.
        For 10G NIC each node 6 cards are needed i.e per node 6 ports needs to be
        reserved in the switch.
+       Refer CT-10
    * - **requirements**
      - It should be possible to connect LR to 10G, 25G and
        100G networks
+   * - **interaction**
+     -
+     
+ .. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.net-12.switches-from-different-vendors]
+   * - **context**
+     - cortx supported network
+   * - **trigger**
+     - 
+   * - **requirements**
+     - It should be possible to connect LR to Cisco, Juniper, Arista and Mellanox switches 
+   * - **interaction**
+     -
+     
+ .. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.net-20.static-ip]
+   * - **context**
+     - cortx supported network
+   * - **trigger**
+     - 
+   * - **requirements**
+     - LR must allow static IPs configuration for all interfaces
    * - **interaction**
      -
