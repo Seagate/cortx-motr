@@ -71,11 +71,11 @@ Use cases
    * - **assumptions**
      - Switches needs to support rdma and number of ports and their speeds should be same
    * - **interaction**
-     - As per https://en.wikipedia.org/wiki/RDMA_over_Converged_Ethernet
-       apart from Mellanox others don't support RoCE, but there are some other vendors
-       mentioned in the wiki.
-       https://www.marvell.com/products/ethernet-adapters-and-controllers/universal-rdma.html
-       https://www.broadcom.com/products/ethernet-connectivity/network-adapters/200gb-nic-ocp/p2200g
+     - #. As per https://en.wikipedia.org/wiki/RDMA_over_Converged_Ethernet
+          Cisco, Juniper, Arista switches don't support RoCE, but there are
+          some other vendors apart from Mellanox mentioned in the wiki.
+       #. https://www.marvell.com/products/ethernet-adapters-and-controllers/universal-rdma.html
+       #. https://www.broadcom.com/products/ethernet-connectivity/network-adapters/200gb-nic-ocp/p2200g
      
  .. list-table::
    :header-rows: 1
