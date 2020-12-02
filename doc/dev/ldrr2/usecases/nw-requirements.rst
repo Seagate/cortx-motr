@@ -82,8 +82,9 @@ Use cases
    * - **context**
      - cortx supported network
    * - **trigger**
-     - 
+     - For data interfaces static IP needs to be set before starting the cluster as in R1.
    * - **requirements**
      - LR must allow static IPs configuration for all interfaces
    * - **interaction**
-     -
+     - As per MGM-110 and GUI-40 support for change in ip's after cluster is configured
+       is not for P0.
