@@ -103,7 +103,7 @@ Unit Test
 
 - To list all available unit tests, run the following command:
 
-  - **$ ./scripts/m0 run-ut -l**
+  - **$ sudo ./scripts/m0 run-ut -l**
 
 - To run some unit test(s), e.g. "libm0-ut", run the following command:
 
