@@ -192,7 +192,7 @@ Troubleshooting
         
 Tested by:
 
-- Dec 1st, 2020: Huang Hua (hua.huang@seagate.com) in CentOS 7.7.1908.
+- Dec 1, 2020: Huang Hua (hua.huang@seagate.com) in CentOS 7.7.1908
 
 - Nov 25, 2020: Philippe Daniel (CEA) 
 
