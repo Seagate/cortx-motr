@@ -86,5 +86,5 @@ Use cases
    * - **requirements**
      - LR must allow static IPs configuration for all interfaces
    * - **interaction**
-     - As per MGM-110 and GUI-40 support for change in ip's after cluster is configured
+     - As per MGM-110 and GUI-30 support for change in ip's after cluster is configured
        is not for P0.
