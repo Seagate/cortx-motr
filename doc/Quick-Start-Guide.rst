@@ -176,6 +176,8 @@ Troubleshooting
         
 Tested by:
 
+- Nov 30, 2020: Hua Huang (hua.huang@seagate.com)
+
 - Nov 25, 2020: Philippe Daniel (CEA) 
 
 - Oct 11, 2020: Saumya Sunder (saumya.sunder@seagate.com) on a Windows laptop running VMWare Fusion Pro 16
