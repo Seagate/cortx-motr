@@ -373,7 +373,7 @@ enum {
 	 */
 	PUSH   = 0x10,
 	/** Pop of the top-most context label. */
-	POP    = 0x0f,
+	POP    = 0xf0,
 	/**
 	 * Add operation. Lowest 4 bits are number of 64-bit values in payload.
 	 */
@@ -402,6 +402,7 @@ static uint64_t tag(uint8_t code, uint64_t id);
 static void sensor_place(struct m0_addb2_mach *m, struct m0_addb2_sensor *s);
 static void record_consume(struct m0_addb2_mach *m,
 			   uint64_t id, int n, const uint64_t *value);
+static bool trace_invariant(const struct m0_addb2_trace *tr);
 
 /**
  * Depths of machine context stack.
@@ -455,7 +456,7 @@ void m0_addb2_pop(uint64_t id)
 			s->s_ops->so_fini(s);
 		}
 		sensor_tlist_fini(&e->e_sensor);
-		add(m, tag(POP, 0), 0, NULL);
+		add(m, tag(POP, id), 0, NULL);
 		/* decrease the depth *after* add(), see m0_addb2_push(). */
 		-- MACH_DEPTH(m);
 		mach_put(m);
@@ -654,6 +655,7 @@ void m0_addb2_trace_done(const struct m0_addb2_trace *ctrace)
 	struct buffer         *buf   = M0_AMB(buf, trace, b_trace.o_tr);
 	struct m0_addb2_mach  *mach  = buf->b_trace.o_mach;
 
+	M0_PRE_EX(trace_invariant(ctrace));
 	if (mach != NULL) { /* mach == NULL for a trace from network. */
 		m0_mutex_lock(&mach->ma_lock);
 		M0_PRE_EX(buf_tlist_contains(&mach->ma_busy, buf));
@@ -703,6 +705,8 @@ int m0_addb2_cursor_next(struct m0_addb2_cursor *cur)
 {
 	struct m0_addb2_record *r = &cur->cu_rec;
 
+	M0_PRE_EX(trace_invariant(cur->cu_trace));
+	/* Sync changes with trace_invariant(). */
 	while (cur->cu_pos < cur->cu_trace->tr_nr) {
 		uint64_t *addr  = &cur->cu_trace->tr_body[cur->cu_pos];
 		uint64_t  datum = addr[0];
@@ -714,8 +718,8 @@ int m0_addb2_cursor_next(struct m0_addb2_cursor *cur)
 
 		datum &= ~TAG_MASK;
 		addr += 2;
-		switch (tag) {
-		case PUSH ... PUSH + VALUE_MAX_NR:
+		switch (tag & ~0xFULL) {
+		case PUSH:
 			if (r->ar_label_nr < ARRAY_SIZE(r->ar_label)) {
 				r->ar_label[r->ar_label_nr ++] =
 					(struct m0_addb2_value) {
@@ -734,35 +738,11 @@ int m0_addb2_cursor_next(struct m0_addb2_cursor *cur)
 				-- r->ar_label_nr;
 				cur->cu_pos += 2;
 				continue;
-			} else {
-				/**
-				   WARN!
-				   =====
-				   Code below is inproper way of fixing
-				   ADDB2 Underflow bug, which causes addb2
-				   iterator to stop. Leaving initial code
-				   as a reference here. Still this change is
-				   needed in dev branch for now as far as
-				   it unblocks Motr and S3 team.
-
-				 -       } else
-				 -             M0_LOG(M0_NOTICE, "Underflow.");
-				 +       } else {
-				 +             M0_LOG(M0_WARN, "Underflow.");
-				 +             return 0;
-				 +       }
-
-				   Negative implications from this patch:
-				    - Some addb2 pages with be lost.
-				      On the real HW during performance testing
-				      it can be 2-3% of records.
-				 */
+			} else
 				M0_LOG(M0_WARN, "Underflow.");
-				return 0;
-			}
 			break;
-		case DATA ... DATA + VALUE_MAX_NR:
-		case SENSOR ... SENSOR + VALUE_MAX_NR:
+		case DATA:
+		case SENSOR:
 			r->ar_val = (struct m0_addb2_value) {
 				.va_id   = datum,
 				.va_time = time,
@@ -846,13 +826,15 @@ static struct buffer *mach_buffer(struct m0_addb2_mach *mach)
 			int n = 0;
 
 			M0_CNT_DEC(mach->ma_idle_nr);
-			for (i = 0; i < MACH_DEPTH(mach) && n >= 0; ++i) {
+			for (i = 0; i < MACH_DEPTH(mach); ++i) {
 				struct tentry          *e = &mach->ma_label[i];
 				struct m0_addb2_value  *v = e->e_recval;
 				struct m0_addb2_sensor *s;
 
 				add(mach, tag(PUSH | v->va_nr, v->va_id),
 				    v->va_nr, v->va_data);
+				if (n < 0)
+					continue;
 				m0_tl_for(sensor, &e->e_sensor, s) {
 					if (buffer_space(mach->ma_cur) <
 					    SENSOR_THRESHOLD) {
@@ -962,6 +944,7 @@ static void add(struct m0_addb2_mach *mach,
 		while (n-- > 0)
 			buffer_add(buf, *value++);
 	}
+	M0_POST_EX(ergo(buf != NULL, trace_invariant(&buf->b_trace.o_tr)));
 }
 
 /**
@@ -994,6 +977,7 @@ static void pack(struct m0_addb2_mach *m)
 		 */
 		buf_tlist_add_tail(&m->ma_busy, m->ma_cur);
 		M0_CNT_INC(m->ma_busy_nr);
+		M0_ASSERT_EX(trace_invariant(&o->o_tr));
 		m0_mutex_unlock(&m->ma_lock);
 		wait = m->ma_ops->apo_submit(m, o) > 0;
 		m0_mutex_lock(&m->ma_lock);
@@ -1039,6 +1023,7 @@ static int buffer_alloc(struct m0_addb2_mach *mach)
 		buf->b_trace.o_mach = mach;
 		buf_tlink_init_at_tail(buf, &mach->ma_idle);
 		M0_CNT_INC(mach->ma_idle_nr);
+		M0_POST_EX(trace_invariant(&buf->b_trace.o_tr));
 		return 0;
 	} else {
 		M0_LOG(M0_NOTICE, "Cannot allocate ADDB2 buffer.");
@@ -1050,6 +1035,7 @@ static int buffer_alloc(struct m0_addb2_mach *mach)
 
 static void buffer_fini(struct buffer *buf)
 {
+	M0_PRE_EX(trace_invariant(&buf->b_trace.o_tr));
 	buf_tlink_fini(buf);
 	m0_free(buf->b_trace.o_tr.tr_body);
 	m0_free(buf);
@@ -1111,6 +1097,44 @@ M0_INTERNAL uint64_t m0_addb2__dummy_payload[1] = {};
 
 M0_INTERNAL uint64_t m0_addb2__dummy_payload_size =
 	ARRAY_SIZE(m0_addb2__dummy_payload);
+
+static bool trace_invariant(const struct m0_addb2_trace *tr)
+{
+	int      i     = 0;
+	int      depth = 0;
+	uint64_t stack[M0_ADDB2_LABEL_MAX];
+
+	/* Sync changes with m0_addb2_cursor_next(). */
+	while (i < tr->tr_nr) {
+		uint64_t datum = tr->tr_body[i];
+		uint64_t tag   = datum >> (64 - 8);
+		uint8_t  nr    = tag & 0xf;
+
+		datum &= ~TAG_MASK;
+		switch (tag & ~0xfull) {
+		case PUSH:
+			if (_0C(depth < ARRAY_SIZE(stack)))
+				stack[depth++] = datum;
+			else
+				return false;
+			break;
+		case POP:
+			if (_0C(depth > 0) && _0C(stack[depth - 1] == datum))
+				--depth;
+			else
+				return false;
+			i += 2;
+			continue;
+		case DATA:
+		case SENSOR:
+			break;
+		default:
+			return false;
+		}
+		i += nr + 2;
+	}
+	return true;
+}
 
 M0_INTERNAL void m0_addb2__mach_print(const struct m0_addb2_mach *m)
 {

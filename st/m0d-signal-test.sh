@@ -49,6 +49,7 @@ test_for_signal()
     local sig=$1
     echo "------------------ Configuring Motr for $sig test ------------------"
     systemctl start motr-mkfs
+    local cursor=$(journalctl --show-cursor -n0 | grep -e '-- cursor:' | sed -e 's/^-- cursor: //')
     systemctl start motr
 
     echo 'Waiting for ios1 to become active'
@@ -56,7 +57,6 @@ test_for_signal()
         sleep 1
     done
 
-    local cursor=$(journalctl --show-cursor -n0 | grep -e '-- cursor:' | sed -e 's/^-- cursor: //')
     while ! journalctl -c "$cursor" -l -u motr-server@ios1 | grep -q 'Press CTRL+C to quit'; do
         sleep 1
     done

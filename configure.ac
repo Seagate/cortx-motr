@@ -146,6 +146,7 @@ AH_TEMPLATE([ENABLE_FRAME_POINTERS],  [Enable frame pointers (for better stack t
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
+AH_TEMPLATE([ENABLE_BALLOC_DUMP],     [Enable balloc dumps in trace log.])
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in atomic functions])
 AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
 AH_TEMPLATE([ENABLE_FREE_POISON],     [Poison freed memory for debugging.])
@@ -260,6 +261,15 @@ AC_ARG_ENABLE([finject],
 )
 AS_IF([test x$enable_finject = xyes],
       AC_DEFINE([ENABLE_FAULT_INJECTION]))
+
+# balloc-dump {{{3
+AC_ARG_ENABLE([balloc_dump],
+        AS_HELP_STRING([--disable-balloc-dump], [disable balloc dumps in trace]),
+        [], [enable_balloc_dump=$enable_dev_mode]
+)
+AS_IF([test x$enable_balloc_dump = xyes],
+      AC_DEFINE([ENABLE_BALLOC_DUMP], 1),
+      AC_DEFINE([ENABLE_BALLOC_DUMP], 0))
 
 # immediate-trace {{{3
 AC_ARG_ENABLE([immediate-trace],
@@ -597,6 +607,12 @@ MOTR_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
         [io_getevents cannot be found! Try to install libaio-devel.]
 )
 AC_SUBST([AIO_LIBS])
+
+# check for libedit library
+MOTR_SEARCH_LIBS([readline], [c edit], [LIBEDIT_LIBS],
+        [libedit cannot be found! Try to install libedit-devel.]
+)
+AC_SUBST([LIBEDIT_LIBS])
 
 # rt library is required for: aio_read(3), aio_write(3), timer_create(2)
 MOTR_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
