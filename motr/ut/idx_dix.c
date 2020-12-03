@@ -37,7 +37,6 @@
 #include "dix/client.h"
 #include "dix/meta.h"
 #include "fop/fom_simple.h"     /* m0_fom_simple */
-#include "net/sock/sock.h"
 
 #define WAIT_TIMEOUT               M0_TIME_NEVER
 #define SERVER_LOG_FILE_NAME       "cas_server.log"
@@ -64,16 +63,8 @@ static char *cas_startup_cmd[] = { "m0d", "-T", "linux",
 static const char         *local_ep_addr = "0@lo:12345:34:2";
 static const char         *srv_ep_addr   = { "0@lo:12345:34:1" };
 static const char         *process_fid   = M0_UT_CONF_PROCESS;
-static struct m0_net_xprt *cs_xprts[]    = { &m0_net_lnet_xprt,
-#ifndef __KERNEL__
-					     &m0_net_sock_xprt
-					     /*&m0_net_libfabric_xprt*/
-#endif
-					   };
 
 static struct m0_rpc_server_ctx dix_ut_sctx = {
-		.rsx_xprts            = cs_xprts,
-		.rsx_xprts_nr         = ARRAY_SIZE(cs_xprts),
 		.rsx_argv             = cas_startup_cmd,
 		.rsx_argc             = ARRAY_SIZE(cas_startup_cmd),
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
@@ -144,6 +135,8 @@ static void idx_dix_ut_init()
 	int rc;
 
 	M0_SET0(&dix_ut_sctx.rsx_motr_ctx);
+	dix_ut_sctx.rsx_xprts = m0_net_all_xprt_get();
+	dix_ut_sctx.rsx_xprts_nr = m0_net_xprt_nr_get();
 	rc = m0_rpc_server_start(&dix_ut_sctx);
 	M0_ASSERT(rc == 0);
 	dix_config_init();

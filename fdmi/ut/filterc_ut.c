@@ -152,7 +152,7 @@ static int ut_filterc_fco_start(struct m0_filterc_ctx *ctx,
 static void rpc_client_and_server_start(void)
 {
 	int                 rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_UT_ASSERT(rc == 0);
 	sctx.rsx_xprts = &xprt;
@@ -165,7 +165,7 @@ static void rpc_client_and_server_start(void)
 static void rpc_client_and_server_stop(void)
 {
 	int                 rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	rc = m0_rpc_client_stop(&cctx);
 	M0_UT_ASSERT(rc == 0);
 	sctx.rsx_xprts = &xprt;

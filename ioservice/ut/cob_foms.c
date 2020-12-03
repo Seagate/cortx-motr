@@ -121,7 +121,7 @@ static void cobfoms_utinit(void)
 	struct m0_rpc_server_ctx *sctx;
 	struct m0_rpc_client_ctx *cctx;
 
-	struct m0_net_xprt       *xprt = m0_net_xprt_get();
+	struct m0_net_xprt       *xprt = m0_net_xprt_default_get();
 	M0_ALLOC_PTR(cut);
 	M0_UT_ASSERT(cut != NULL);
 

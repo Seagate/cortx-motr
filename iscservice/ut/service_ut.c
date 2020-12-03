@@ -142,7 +142,7 @@ static void fid_get(const char *f_name, struct m0_fid *fid)
 int isc_ut_server_start(void)
 {
 	int                 rc = 0;
-        struct m0_net_xprt *xprt = m0_net_xprt_get();
+        struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	M0_SET0(&isc_ut_sctx);
 	isc_ut_sctx.rsx_xprts         = &xprt;
 	isc_ut_sctx.rsx_xprts_nr      = 1;
@@ -173,7 +173,7 @@ static void isc_ut_client_start(void)
 {
 	int                 rc;
 
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	M0_SET0(&isc_ut_cctx);
 	rc = m0_net_domain_init(&isc_ut_client_ndom, xprt);
 	M0_UT_ASSERT(rc == 0);

@@ -30,7 +30,6 @@
 #include "lib/mutex.h"
 #include "lib/assert.h"
 #include "net/lnet/lnet.h"
-#include "net/sock/sock.h"
 #ifndef __KERNEL__
 #  include "lib/string.h"  /* m0_streq */
 #endif
@@ -40,7 +39,11 @@
 
 #include "net/net_otw_types.h"
 #include "net/net.h"
-struct m0_net_xprt *m0_net_xprt_obj;
+
+#define XPRT_MAX 4
+
+static struct m0_net_xprt *xprts[XPRT_MAX] = {0};
+static struct m0_net_xprt *xprt_default;
 /**
    @addtogroup net
    @{
@@ -61,10 +64,11 @@ struct m0_mutex m0_net_mutex;
 M0_INTERNAL int m0_net_init(void)
 {
 	M0_ENTRY();
-	m0_net_xprt_obj = &m0_net_lnet_xprt;
+	if (m0_net_xprt_default_get() == NULL) 
+		m0_net_xprt_default_set(&m0_net_lnet_xprt);
 /*
 #ifndef __KERNEL__
-	m0_net_xprt_obj = &m0_net_sock_xprt;
+	m0_net_xprt_default_set(&m0_net_sock_xprt);
 #endif
 */
 	m0_mutex_init(&m0_net_mutex);
@@ -145,32 +149,70 @@ M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint)
 }
 #endif /* !__KERNEL__ */
 
-void m0_net_default_xprt_set(void)
-{
-	m0_net_xprt_obj = &m0_net_lnet_xprt;
-/*
-#ifndef __KERNEL__
-	m0_net_xprt_obj = &m0_net_sock_xprt;
-#endif
-*/
-}
-M0_EXPORTED(m0_net_default_xprt_set);
-
-struct m0_net_xprt *m0_net_xprt_set(struct m0_net_xprt *xptr)
+void m0_net_xprt_default_set(struct m0_net_xprt *xprt)
 {
 	M0_ENTRY();
-	M0_PRE(xptr != NULL);
-		m0_net_xprt_obj = xptr;
-	return m0_net_xprt_obj;
+	xprt_default = xprt;
+	m0_net_xprt_register(xprt);
 }
-M0_EXPORTED(m0_net_xprt_set);
+M0_EXPORTED(m0_net_xprt_default_set);
 
-struct m0_net_xprt *m0_net_xprt_get(void)
+struct m0_net_xprt *m0_net_xprt_default_get(void)
 {
 	M0_ENTRY();
-	return m0_net_xprt_obj;
+	return xprt_default;
 }
-M0_EXPORTED(m0_net_xprt_get);
+M0_EXPORTED(m0_net_xprt_default_get);
+
+struct m0_net_xprt **m0_net_all_xprt_get(void)
+{
+	M0_ENTRY();
+	return xprts;
+}
+M0_EXPORTED(m0_net_all_xprt_get);
+
+int m0_net_xprt_nr_get(void)
+{
+	int i;
+	
+	M0_ENTRY();
+	for (i = 0; i < ARRAY_SIZE(xprts); i++) {
+		if (xprts[i] == NULL)
+			return i;
+	}
+	return ARRAY_SIZE(xprts);
+}
+M0_EXPORTED(m0_net_xprt_nr_get);
+
+void m0_net_xprt_register(struct m0_net_xprt *xprt)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(xprts); ++i) {
+		if (xprts[i] == xprt) {
+			return;
+		} else if (xprts[i] == NULL) {
+			xprts[i] = xprt;
+			return;
+		}
+	}
+	M0_IMPOSSIBLE("Too many xprts.");
+}
+M0_EXPORTED(m0_net_xprt_register);
+
+void m0_net_xprt_deregister(struct m0_net_xprt *xprt)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(xprts); ++i) {
+		if (xprts[i] == xprt) {
+			xprts[i] = NULL;
+			return;
+		}
+	}
+	M0_IMPOSSIBLE("Wrong xprt.");
+}
+M0_EXPORTED(m0_net_xprt_deregister);
 #undef M0_TRACE_SUBSYSTEM
 
 /*

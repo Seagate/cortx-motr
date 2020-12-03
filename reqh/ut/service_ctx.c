@@ -24,16 +24,9 @@
 #include "rpc/rpclib.h"                 /* m0_rpc_server_start */
 #include "ut/misc.h"                    /* M0_UT_PATH */
 #include "ut/ut.h"
-#include "net/sock/sock.h"
 
 #define SERVER_LOG_FILE_NAME       "reqh_service_ctx.log"
 
-static struct m0_net_xprt       *ut_xprts[] = { &m0_net_lnet_xprt,
-#ifndef __KERNEL__
-						&m0_net_sock_xprt,
-						/*&m0_net_libfabric_xprt,*/
-#endif
-					      };
 static struct m0_rpc_server_ctx  ut_sctx;
 static struct m0_net_domain      ut_client_net_dom;
 static struct m0_rpc_machine     ut_rmach;
@@ -54,12 +47,13 @@ static void reqh_service_ctx_ut_test_helper(char *ut_argv[], int ut_argc,
 					   void (*ut_body)(void))
 {
 	ut_sctx = (struct m0_rpc_server_ctx) {
-		.rsx_xprts            = ut_xprts,
-		.rsx_xprts_nr         = ARRAY_SIZE(ut_xprts),
 		.rsx_argv             = ut_argv,
 		.rsx_argc             = ut_argc,
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
 	};
+
+	ut_sctx.rsx_xprts = m0_net_all_xprt_get();
+	ut_sctx.rsx_xprts_nr = m0_net_xprt_nr_get();
 	M0_UT_ASSERT(m0_rpc_server_start(&ut_sctx) == 0);
 	ut_body();
 	m0_rpc_server_stop(&ut_sctx);
@@ -70,7 +64,7 @@ static int reqh_service_ctx_ut__remote_rmach_init(void)
 	enum { NR_TMS = 1 };
 	int      rc;
 	uint32_t bufs_nr;
-	struct m0_net_xprt *ut_xprt = m0_net_xprt_get();
+	struct m0_net_xprt *ut_xprt = m0_net_xprt_default_get();
 
 	rc = m0_net_domain_init(&ut_client_net_dom, ut_xprt);
 	M0_ASSERT(rc == 0);

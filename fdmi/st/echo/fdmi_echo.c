@@ -238,7 +238,7 @@ static int run_server(void)
 	static char         tm_len[STRING_LEN];
 	static char         rpc_size[STRING_LEN];
 	int	            rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	char               *argv[] = {
 		"rpclib_ut", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,

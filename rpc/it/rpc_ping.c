@@ -291,7 +291,7 @@ static int run_client(void)
 	static struct m0_net_domain     client_net_dom;
 	static struct m0_rpc_client_ctx cctx;
 	static struct m0_fid            process_fid = M0_FID_TINIT('r', 0, 1);
-	struct m0_net_xprt             *xprt = m0_net_xprt_get();
+	struct m0_net_xprt             *xprt = m0_net_xprt_default_get();
 
 	m0_time_t start;
 	m0_time_t delta;
@@ -382,7 +382,7 @@ static int run_server(void)
 	static char tm_len[STRING_LEN];
 	static char rpc_size[STRING_LEN];
 	int	    rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	char       *argv[] = {
 		"rpclib_ut",
 		"-e", server_endpoint,

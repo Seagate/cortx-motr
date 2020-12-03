@@ -77,7 +77,7 @@ static int rconfc_ut_motr_start(struct m0_rpc_machine    *mach,
 				struct m0_rpc_server_ctx *rctx)
 {
 	int                 rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 #define NAME(ext) "rconfc-ut" ext
 	char *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
@@ -1334,7 +1334,7 @@ static void test_drain(void)
 	struct rlock_ctx        *rlx;
 	struct m0_rconfc        *rconfc;
 	struct root_object       root_obj;
-	struct m0_net_xprt      *xprt = m0_net_xprt_get();
+	struct m0_net_xprt      *xprt = m0_net_xprt_default_get();
 
 	rc = rconfc_ut_motr_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);

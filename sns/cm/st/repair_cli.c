@@ -42,7 +42,7 @@ const char *srv_ep_addr[MAX_SERVERS];
 M0_INTERNAL int repair_client_init(void)
 {
 	int rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	rc = m0_net_domain_init(&cl_ndom, xprt);
 	if (rc == 0) {
 		cl_ctx.rcx_local_addr  = cl_ep_addr;

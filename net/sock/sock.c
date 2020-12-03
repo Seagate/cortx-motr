@@ -3877,6 +3877,10 @@ M0_EXPORTED(m0_net_sock_xprt);
 M0_INTERNAL int m0_net_sock_mod_init(void)
 {
 	int result;
+
+	m0_net_xprt_register(&m0_net_sock_xprt);
+	if (m0_net_xprt_default_get() == NULL)
+		m0_net_xprt_default_set(&m0_net_sock_xprt);
 	/*
 	 * Ignore SIGPIPE that a write to socket gets when RST is received.
 	 *
@@ -3890,6 +3894,7 @@ M0_INTERNAL int m0_net_sock_mod_init(void)
 
 M0_INTERNAL void m0_net_sock_mod_fini(void)
 {
+	m0_net_xprt_deregister(&m0_net_sock_xprt);
 }
 
 M0_INTERNAL void mover__print(const struct mover *m)

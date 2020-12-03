@@ -21,7 +21,6 @@
 
 
 #include "fop/fop.h"            /* m0_fop_alloc */
-#include "net/lnet/lnet.h"      /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"
 #include "ut/cs_fop.h"          /* cs_ds2_req_fop_fopt */
 #include "ut/cs_fop_xc.h"       /* cs_ds2_req_fop */
@@ -82,7 +81,7 @@ static inline void sctx_reset(void)
 static inline void start_rpc_client_and_server(void)
 {
 	int rc;
-	xprt = m0_net_xprt_obj;
+	xprt = m0_net_xprt_default_get();
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
 	sctx_reset();

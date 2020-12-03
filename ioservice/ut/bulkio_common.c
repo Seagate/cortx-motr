@@ -381,7 +381,7 @@ void bulkio_params_init(struct bulkio_params *bp)
 {
 	int                 i;
 	int                 rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 
 	M0_ASSERT(bp != NULL);
 

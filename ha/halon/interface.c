@@ -672,7 +672,7 @@ static int halon_interface_level_enter(struct m0_module *module)
 	struct m0_halon_interface_internal *hii;
 	enum m0_halon_interface_level       level = module->m_cur + 1;
 
-	struct m0_net_xprt                 *xprt = m0_net_xprt_get();
+	struct m0_net_xprt                 *xprt = m0_net_xprt_default_get();
 	hii = bob_of(module, struct m0_halon_interface_internal, hii_module,
 	             &halon_interface_bob_type);
 	M0_ENTRY("hii=%p level=%d %s", hii, level,

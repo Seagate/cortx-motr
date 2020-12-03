@@ -25,7 +25,6 @@
 #include "conf/obj_ops.h"   /* m0_conf_obj_find_lock */
 #include "conf/helpers.h"   /* m0_conf_full_load */
 #include "rpc/rpclib.h"     /* m0_rpc_client_ctx */
-#include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
 
 #include "ha/note.c"
 
@@ -112,7 +111,7 @@ static void start_rpc_client_and_server(void)
 {
 	int                 rc;
 
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
 	M0_SET0(&sctx.rsx_motr_ctx);
@@ -126,7 +125,7 @@ static void start_rpc_client_and_server(void)
 static void stop_rpc_client_and_server(void)
 {
 	int                 rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 
 	rc = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(rc == 0);

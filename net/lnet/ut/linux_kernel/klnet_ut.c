@@ -237,7 +237,7 @@ static void ktest_buf_shape(void)
 	void *base;
 	unsigned num_pages;
 
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	M0_SET0(&dom1);
 	M0_UT_ASSERT(!m0_net_domain_init(&dom1,  xprt));
 
@@ -294,7 +294,7 @@ static void ktest_buf_reg(void)
 	struct nlx_core_domain *cd;
 	struct nlx_xo_domain *dp;
 	struct nlx_kcore_domain *kd;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 
 	M0_SET0(&dom1);
 	M0_SET0(&nb1);

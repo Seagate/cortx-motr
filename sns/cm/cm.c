@@ -493,7 +493,7 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 	m0_bcount_t            segment_size;
 	uint32_t               segments_nr;
 	int                    rc;
-	struct m0_net_xprt    *xprt = m0_net_xprt_get();;
+	struct m0_net_xprt    *xprt = m0_net_xprt_default_get();
 
 	M0_ENTRY("cm: %p", cm);
 

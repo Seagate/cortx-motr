@@ -417,7 +417,7 @@ static void ut_test_framework(ut_test_fw_body_t body,
 	struct ut_data     *td;
 	int                 i;
 	int                 rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 
 	/*
 	  Setup.
@@ -604,7 +604,7 @@ static void test_fail(void)
 	struct nlx_core_kmem_loc loc = { .kl_checksum = 0 };
 	struct nlx_core_ep_addr cepa;
 	const char *sav = nlx_ucore_dev_name;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 
 	nlx_ucore_dev_name = "/dev/no such device";
 	M0_UT_ASSERT(m0_net_domain_init(&dom, xprt) != 0);
@@ -649,7 +649,7 @@ static void test_tm_initfini(void)
 	static char *n2t0 = "192.168.96.128@tcp1:12345:31:0";
 	static char *n2t1 = "192.168.96.128@tcp1:12345:31:1";
 	static char *n2ts = "192.168.96.128@tcp1:12345:31:*";
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 
 	/* TEST
 	   Network name comparsion.
@@ -736,7 +736,7 @@ static void test_tm_startstop(void)
 	struct m0_bitmap procs;
 	unsigned thunk;
 	int i;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 
 	M0_ALLOC_PTR(dom);
 	M0_ALLOC_PTR(tm);

@@ -21,8 +21,6 @@
 
 
 #include "ioservice/io_service.h"        /* m0_ios_cdom_get */
-#include "net/lnet/lnet.h"               /* m0_net_lnet_xprt */
-#include "net/sock/sock.h"               /* m0_net_sock_xprt */
 #include "motr/setup.h"                  /* m0_motr */
 #include "sns/cm/repair/ut/cp_common.h"  /* cs_fini */
 #include "ut/misc.h"                     /* M0_UT_PATH */
@@ -52,14 +50,6 @@ char      *sns_cm_ut_svc_linux[] = { "m0d", "-T", "LINUX",
 				     "-e", "lnet:0@lo:12345:34:1",
 				     "-H", "0@lo:12345:34:1",
 				     "-c", M0_UT_PATH("conf.xc")};
-
-struct m0_net_xprt *sr_xprts[] = {
-        &m0_net_lnet_xprt,
-#ifndef __KERNEL__
-        &m0_net_sock_xprt,
-        /*&m0_net_libfabric_xprt,*/
-#endif
-};
 
 FILE           *lfile;
 struct m0_motr  sctx;
@@ -178,13 +168,14 @@ struct m0_sns_cm *reqh2snscm(struct m0_reqh *reqh)
 static int cs_init_setup_env(struct m0_motr *sctx, int stob_type)
 {
 	int rc;
-
+	
 	M0_SET0(sctx);
 
 	lfile = fopen(log_file_name, "w+");
 	M0_ASSERT(lfile != NULL);
 
-	rc = m0_cs_init(sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile, true);
+	rc = m0_cs_init(sctx, m0_net_all_xprt_get(), m0_net_xprt_nr_get(),
+			lfile, true);
 	if (rc != 0)
 		return rc;
 
