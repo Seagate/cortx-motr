@@ -147,6 +147,73 @@ Relationships between these entities in configuration database:
 
 
 
++--------------------------+---------------------------------------------------------------------+
+|Table Name                |storage_devices                                                      |
++--------------------------+---------------------------------------------------------------------+
+|Key                       |dev_uuid                                                             |
++--------------------------+---------------------------------------------------------------------+
+|Record                    |- dev_interface_type (SCSI, ATA, ...)                                |
+|                          |                                                                     |
+|                          |- dev_type (disk, flash or tape)                                     |
+|                          |                                                                     |
+|                          |- size                                                               |                                                 
+|                          |                                                                     |
+|                          |- is_removable                                                       |
+|                          |                                                                     |
+|                          |- is_read_only                                                       |
+|                          |                                                                     |
+|                          |- status (OK, unresponsive, degraded)                                |
+|                          |                                                                     |
+|                          |- node_name                                                          |
+|                          |                                                                     |
+|                          |- file_name                                                          |
+|                          |                                                                     |
+|                          |- format (ext3/ext4/...)                                             |
+|                          |                                                                     |
+|                          |- partition_table_type (raw (no-partition), DOS partition)           |
++--------------------------+---------------------------------------------------------------------+
+|Comments                  |dev_uuid can be taken as serial-num from `hdparm -I <dev_file>`      |
+|                          |node_name is foreign key referring record, in nodes table,           |
+|                          |of the node to which the storage device belongs.                     |
+|                          |                                                                     |
+|                          |                                                                     |
+|                          |file_name is name of device file that represents this storage device |
++--------------------------+---------------------------------------------------------------------+
+
+
++--------------------------+---------------------------------------------------------------------+
+|Table Name                |storage_device_partitions                                            |
++--------------------------+---------------------------------------------------------------------+
+|Key                       |partition_uuid                                                       |
++--------------------------+---------------------------------------------------------------------+
+|Record                    |- start                                                              |
+|                          |                                                                     |
+|                          |- size                                                               |
+|                          |                                                                     |
+|                          |- dev_udid                                                           |                                                 
+|                          |                                                                     |
+|                          |- partition index                                                    |
+|                          |                                                                     |
+|                          |- file_name                                                          |
+|                          |                                                                     |
+|                          |- format (ext3/ext4/.../?)                                           |
++--------------------------+---------------------------------------------------------------------+
+|Comments                  |file_name is name of block device file that represents this          |
+|                          |storage device partition.                                            |
+|                          |start is  offset of partition from start of storage                  |
+|                          |size is size of partition in number of sectors                       |
+|                          |                                                                     |
+|                          |dev_uuid is foreign key referring record, in storage_devices         |
+|                          |table, of storage device to which this partition belongs.            |
+|                          |One possible way to define partition_uuid is <dev_uuid,              |
+|                          |partition_index>                                                     |
++--------------------------+---------------------------------------------------------------------+
+
+
+
+
+
+
 
 
 
