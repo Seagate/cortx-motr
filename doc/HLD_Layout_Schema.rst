@@ -94,6 +94,8 @@ Layout Schema
 
 Layout schema is the organization of layout data structures used for database storing. The following figure depicts the schema.
 
+.. image:: Images/layout.PNG
+
 
 
 
