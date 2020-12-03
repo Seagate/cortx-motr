@@ -16,7 +16,9 @@ The prerequisite that is necessary to install the Motr component is mentioned be
 
   - Different kernel versions that come from Centos7.7 or RHEL7.7 are supported.
 
-- **ansible** is needed. Please refer to `Install EPEP repo <https://github.com/Seagate/cortx/blob/main/doc/LocalVMSetup.md#4-you-may-need-to-add-epel-repo>`_
+- **Ansible** is needed. 
+
+  - Please refer to `Install EPEP repo <https://github.com/Seagate/cortx/blob/main/doc/LocalVMSetup.md#4-you-may-need-to-add-epel-repo>`_.
 
 **********
 Procedure
@@ -56,9 +58,8 @@ Perform the below mentioned procedure to build the source code.
 
    - **$ vi /etc/modprobe.d/lnet.conf**
 
-         A proper configuration file is needed for LNet. Please use the command *ip a* to get
-         a list of network interfaces and then modify the *lnet.conf* to use one of the network interfaces.
-         Please refer to the `<#Troubleshooting>`_ section for more information.
+     A proper configuration file is needed for LNet. Please use the command *ip a* to get a list of network interfaces and then modify the *lnet.conf* to use one of the network interfaces. Please refer to the `<#Troubleshooting>`_ section for more information.
+              
 
    - **$ sudo modprobe lnet**
 
