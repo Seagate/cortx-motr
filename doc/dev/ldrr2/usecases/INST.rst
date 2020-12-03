@@ -2,25 +2,87 @@
 CORTX Use Case for LR R2 (INSTALLATION)
 =======================================
 
-+-------------+--------------------------------------------------+---------------------------------+--------+
-| INST-10     | Define site survey document / process for new    |                                 |P0      |
-|             | deployment.                                      |                                 |        |
-+-------------+--------------------------------------------------+---------------------------------+--------+
+:author: Huang Hua <hua.huang@seagate.com>
 
+Requirements
+============
 
-+---------------------------+-------------------------------------------------------------------------------+
-|Use Case ID                | Use Case Description                                                          |
-+===========================+===============================================================================+
-|usecase.INST-10.1          | A site survey document is defined by XXX.                                     |
-+---------------------------+-------------------------------------------------------------------------------+
-|usecase.INST-10.2          | Customers fill the site survey document.                                      |
-+---------------------------+-------------------------------------------------------------------------------+
-|usecase.INST-10.3          | The site survey document is processed and analyzed.                           |
-+---------------------------+-------------------------------------------------------------------------------+
-|usecase.INST-10.4          | The process of new deployment on customer side is defined by XXX.             |
-|                           | This includes User Manual, Admin Guide, Field Engineer Manual, etc.           |
-+---------------------------+-------------------------------------------------------------------------------+
-|usecase.INST-10.5          | Field engineers follow the process or documents to deploy or upgrade a system |
-|                           | on customer side.                                                             |
-|                           | The survey document is a reference for this deply.                            |
-+---------------------------+-------------------------------------------------------------------------------+
+.. list-table::
+   :header-rows: 1
+
+   * - id
+     - feature
+     - description
+     - priority
+   * - INST-10
+     - Define site survey document / process for new deployment.
+     -
+     - p0
+
+Use cases
+=========
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.INST-10.survey-document]
+   * - **context**
+     - customer site
+   * - **trigger**
+     -
+   * - **requirements**
+     -
+   * - **interaction**
+     - A site survery document is defined by solution architect.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.INST-10.process-survey-document]
+   * - **context**
+     - customer site
+   * - **trigger**
+     -
+   * - **requirements**
+     -
+   * - **interaction**
+     - A site survery document is processed and analyzed.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.INST-10.process-for-new-deploy]
+   * - **context**
+     - customer site
+   * - **trigger**
+     -
+   * - **requirements**
+     -
+   * - **interaction**
+     - A process of new deplyment is defined by solution architect and field engineers.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.INST-10.launch-new-deploy]
+   * - **context**
+     - customer site
+   * - **trigger**
+     -
+   * - **requirements**
+     -
+   * - **interaction**
+     - Field engineers follow the process for new deploy to launch a new deployment.
+       The survey document is a reference for this deply.
