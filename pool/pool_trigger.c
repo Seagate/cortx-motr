@@ -63,7 +63,7 @@ struct rpc_ctx {
 static int poolmach_client_init(void)
 {
 	int rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 
 	rc = m0_net_domain_init(&cl_ndom, xprt);
 	if (rc != 0)

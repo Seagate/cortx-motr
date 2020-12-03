@@ -44,7 +44,7 @@ int main(int argc, char **argv)
 	const char                *c_ep;
 	int                        delay;
 	int                        rc;
-	struct m0_net_xprt        *xprt = m0_net_xprt_get();
+	struct m0_net_xprt        *xprt = m0_net_xprt_default_get();
 
 	rc = m0_init(&instance);
 	if (rc != 0)

@@ -21,7 +21,6 @@
 
 
 #include "rm/rm_service.h"
-#include "net/lnet/lnet.h" /* m0_net_lnet_xprt */
 #include "rm/ut/rmut.h"    /* rm_ctx */
 #include "rpc/rpclib.h"    /* m0_rpc_server_ctx */
 #include "ut/misc.h"       /* M0_UT_PATH */
@@ -72,7 +71,7 @@ static void rm_service_stop(struct m0_rpc_server_ctx *sctx)
 static void rm_svc_server(const int tid)
 {
 
-	struct m0_net_xprt *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	sctx.rsx_xprts = &xprt; 
 	rm_service_start(&sctx);
 

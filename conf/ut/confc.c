@@ -431,7 +431,7 @@ static void test_confc_net(void)
 {
 	struct m0_rpc_machine mach;
 	int                   rc;
-	struct m0_net_xprt   *xprt = m0_net_xprt_get();
+	struct m0_net_xprt   *xprt = m0_net_xprt_default_get();
 #define NAME(ext) "ut_confd" ext
 	char                    *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"),

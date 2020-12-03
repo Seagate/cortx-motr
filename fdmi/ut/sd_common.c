@@ -35,7 +35,6 @@
 #include "rpc/item_internal.h"    /* m0_rpc_item_failed */
 #include "rpc/session_internal.h"
 #include "rpc/conn_internal.h"
-#include "net/sock/sock.h"
 
 #include "fdmi/ut/sd_common.h"
 
@@ -48,13 +47,6 @@ static struct m0_mdstore           md;
 
 #define LOG_FILE_NAME "fdmi_sd_ut.errlog"
 
-static struct m0_net_xprt *sd_ut_xprts[] = {
-	&m0_net_lnet_xprt,
-#ifndef __KERNEL__
-	&m0_net_sock_xprt,
-	/*&m0_net_libfabric_xprt,*/
-#endif
-};
 static FILE               *sd_ut_lfile;
 
 /* ------------------------------------------------------------------
@@ -86,8 +78,8 @@ void fdmi_serv_start_ut(const struct m0_filterc_ops *filterc_ops)
 	sd_ut_lfile = fopen(LOG_FILE_NAME, "w+");
 	M0_UT_ASSERT(sd_ut_lfile != NULL);
 
-	rc = m0_cs_init(&g_sd_ut.motr, sd_ut_xprts, ARRAY_SIZE(sd_ut_xprts),
-			sd_ut_lfile, false);
+	rc = m0_cs_init(&g_sd_ut.motr, m0_net_all_xprt_get(), 
+			m0_net_xprt_nr_get(),sd_ut_lfile, false);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = M0_REQH_INIT(reqh,
@@ -183,7 +175,7 @@ void prepare_rpc_env(struct test_rpc_env         *env,
 {
 	enum { TEST_TM_NR = 1 }; /* Number of TMs. */
 	int                      rc;
-	struct m0_net_xprt      *xprt = m0_net_xprt_get();
+	struct m0_net_xprt      *xprt = m0_net_xprt_default_get();
 
 	M0_ENTRY();
 

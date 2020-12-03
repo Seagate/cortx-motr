@@ -740,7 +740,7 @@ static void sender_init()
 	uint32_t              colours;
 	int                   nr_bufs;
 	int                   rc;
-	struct m0_net_xprt   *xprt = m0_net_xprt_get();
+	struct m0_net_xprt   *xprt = m0_net_xprt_default_get();
 
 	M0_SET0(&rmach_ctx);
 	M0_SET0(&sender_cm);

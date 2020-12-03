@@ -572,7 +572,7 @@ int m0t1fs_rm_service_start(struct m0t1fs_sb *csb)
 
 int m0t1fs_net_init(struct m0t1fs_sb *csb, const char *ep)
 {
-	struct m0_net_xprt   *xprt = m0_net_xprt_get();
+	struct m0_net_xprt   *xprt = m0_net_xprt_default_get();
 	struct m0_net_domain *ndom;
 	int                   rc;
 	char                 *laddr = NULL;

@@ -26,7 +26,6 @@
 #include "sss/ss_fops.h"       /* m0_sss_req */
 #include "sss/process_fops.h"  /* m0_ss_process_req */
 #include "sss/device_fops.h"   /* m0_sss_device_fop */
-#include "net/lnet/lnet.h"     /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"        /* m0_rpc_server_ctx */
 #include "lib/finject.h"
 #include "ut/misc.h"           /* M0_UT_PATH */
@@ -53,7 +52,6 @@ static const struct m0_fid ut_fid = {
 };
 
 static struct m0_net_domain    client_net_dom;
-//static struct m0_net_xprt     *xprt = &m0_net_xprt_obj;
 
 static char *server_argv[] = {
 	"sss_ut", "-T", "AD", "-D", SERVER_DB_NAME,
@@ -85,7 +83,7 @@ extern struct m0_fop_type m0_fop_process_fopt;
 static void rpc_client_and_server_start(void)
 {
 	int rc;
-	struct m0_net_xprt      *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	sctx.rsx_xprts = &xprt;
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
@@ -107,7 +105,7 @@ static void rpc_client_and_server_start(void)
 static void rpc_client_and_server_stop(void)
 {
 	int rc;
-	struct m0_net_xprt      *xprt = m0_net_xprt_get();
+	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	M0_LOG(M0_DEBUG, "stop");
 	rc = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(rc == 0);

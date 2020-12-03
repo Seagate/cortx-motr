@@ -54,8 +54,7 @@ static void test_init(void)
 	uint32_t    buf_nr    = 10;
 	struct m0_net_xprt *xprt = NULL;
 
-	m0_net_default_xprt_set();
-	xprt = m0_net_xprt_get();
+	xprt = m0_net_xprt_default_get();
 	M0_ALLOC_PTR(bp.nbp_ndom);
 	M0_UT_ASSERT(bp.nbp_ndom != NULL);
 	rc = m0_net_domain_init(bp.nbp_ndom, xprt);

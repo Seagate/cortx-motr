@@ -37,7 +37,7 @@
 #include "module/instance.h"  /* m0 */
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
-#include "net/sock/sock.h"
+
 /**
    @addtogroup m0mkfs
    @{
@@ -91,13 +91,6 @@
    Represents various network transports supported
    by a particular node in a cluster.
  */
-static struct m0_net_xprt *cs_xprts[] = {
-	&m0_net_lnet_xprt,
-#ifndef __KERNEL__
-	&m0_net_sock_xprt
-	/*&m0_net_libfabric_xprt*/
-#endif
-};
 
 M0_INTERNAL int main(int argc, char **argv)
 {
@@ -135,7 +128,8 @@ M0_INTERNAL int main(int argc, char **argv)
 		goto out;
 	}
 
-	rc = m0_cs_init(&motr_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr, true);
+	rc = m0_cs_init(&motr_ctx, m0_net_all_xprt_get(), m0_net_xprt_nr_get(), 
+			stderr, true);
 	if (rc != 0) {
 		fprintf(stderr, "\n Failed to initialise Motr \n");
 		goto cleanup;

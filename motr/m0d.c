@@ -44,8 +44,6 @@
 #include "motr/init.h"
 #include "motr/version.h"
 #include "module/instance.h"  /* m0 */
-#include "net/lnet/lnet.h"
-#include "net/sock/sock.h"
 #include "reqh/reqh_service.h"
 #include "motr/process_attr.h"
 #include "ha/note.h"          /* M0_NC_ONLINE */
@@ -55,17 +53,6 @@
    @{
  */
 
-/**
-   Represents various network transports supported
-   by a particular node in a cluster.
- */
-static struct m0_net_xprt *cs_xprts[] = {
-	&m0_net_lnet_xprt,
-#ifndef __KERNEL__
-	&m0_net_sock_xprt
-	/*&m0_net_libfabric_xprt*/
-#endif
-};
 
 /* Signal handler result */
 enum result_status
@@ -131,12 +118,12 @@ static int cs_wait_signal(void)
 
 M0_INTERNAL int main(int argc, char **argv)
 {
-	static struct m0       instance;
-	int                    trace_buf_size;
-	int                    result;
-	int                    rc;
-	struct m0_motr         motr_ctx;
-	struct rlimit          rlim = {10240, 10240};
+	static struct m0 instance;
+	int              trace_buf_size;
+	int              result;
+	int              rc;
+	struct m0_motr   motr_ctx;
+	struct rlimit    rlim = {10240, 10240};
 
 	if (argc > 1 &&
 	    (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0)) {
@@ -187,7 +174,8 @@ init_m0d:
 
 start_m0d:
 	M0_SET0(&motr_ctx);
-	rc = m0_cs_init(&motr_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr, false);
+	rc = m0_cs_init(&motr_ctx, m0_net_all_xprt_get(), m0_net_xprt_nr_get(), 
+			stderr, false);
 	if (rc != 0) {
 		warnx("\n Failed to initialise Motr \n");
 		goto cleanup2;
