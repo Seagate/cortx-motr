@@ -110,8 +110,39 @@ Relationships between these entities in configuration database:
 
 
 
-
-
++--------------------------+---------------------------------------------------------------------+
+|Table Name                |nodes                                                                |
++--------------------------+---------------------------------------------------------------------+
+|Key                       |node_name                                                            |
++--------------------------+---------------------------------------------------------------------+
+|Record                    |- node-uuid/serial_num                                               |
+|                          |                                                                     |
+|                          |- memory_size                                                        |
+|                          |                                                                     |
+|                          |- nr_processors                                                      |                                                 
+|                          |                                                                     |
+|                          |- last-known-state (ONLINE/OFFLINE/FAILED/...)                       |
+|                          |                                                                     |
+|                          |- is_virtual                                                         |
+|                          |                                                                     |
+|                          |- native_endianness                                                  |
+|                          |                                                                     |
+|                          |- pool_id                                                            |
++--------------------------+---------------------------------------------------------------------+
+|Comments                  |node_name is a human readable name independent of network.           |
+|                          |node_name of a node is unique within the cluster.                    |
+|                          |is_virtual is true for virtual nodes and false for physical nodes.   |
+|                          |                                                                     |
+|                          |Trinity can provide unique name for each node.                       |
+|                          |On linux box,                                                        |
+|                          |uuid of a node can be taken from output of `dmidecode -s system-uuid.|
+|                          |serial number of a node can be reteived from `dmidecode -s           |
+|                          |baseboard-serial-number`.                                            |
+|                          |                                                                     |
+|                          |nodes table maintains information about only server nodes.           |
+|                          |pool_id is a reference in storage_pools table, identifying record    |
+|                          |of a storage pool to which this node belongs.                        |
++--------------------------+---------------------------------------------------------------------+
 
 
 
