@@ -290,6 +290,35 @@ Relationships between these entities in configuration database:
 +--------------------------+---------------------------------------------------------------------+
 
 
+Conformance
+============
+
+- [R.M0.CONFIGURATION.SCHEMA.CENTRALISED] 
+
+  - Configuration database is kept on motr confd.
+  
+Dependencies
+============
+
+- [R.M0.CONFIGURATION.NODE.NAME]
+
+  - Each node must have a human readable name that is unique within the names of all nodes in the cluster.
+  
+- [R.M0.CONFIGURATION.FS.NAME] 
+
+  - Each file-system should have a human readable name that is unique within names of all file-systems in the cluster.
+  
+- [R.M0.CONFIGURATION.SERVICE.ENDPOINT]
+
+  - Value provided to end-point attribute of record in Services table must have enough information for clients to be able to connect to the service.
+  
+  
+***************
+Use Cases
+***************
+
+Scenario
+===========
 
 
 
