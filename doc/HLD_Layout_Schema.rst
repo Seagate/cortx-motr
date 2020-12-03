@@ -43,6 +43,72 @@ Requirements
   
 - [r.layout.schema.sub-layouts] sub-layouts (future).
 
+******************
+Design Highlights
+******************
+
+Lustre stores layout (LOVEA) as an extended attribute of file. Every file has its own layout stored in EA, even though they have similar striping pattern. This does not only waste precious meta-data storage, but also impact performance, because to access a file, a separate EA has to be loaded from disk and network.
+
+In Motr, layout is a meta-data that is stored separately. It can be transferred from meta-data server to clients or other servers. It is used to locate file data or meta-data according to the offset of desired data.
+
+Layouts in Motr are generalized to locate data and meta-data for all objects: file, dir, encrypted file, compressed file, de-dup files, etc.
+
+A layout describes a mapping in term of sub-maps. A sub-map can be specified in a one of the following ways:
+
+- a layout id (layid) of a layout that implements a sub-map;
+
+- a directly embedded layout that implements a sub-map;
+
+- a fid of a file (a component file) whose file layout implements a sub-map;
+
+- a storage address (a block number usually).
+
+The layout schema is to organize these layout data structures in memory and in database and store them in database.
+
+
+*************************
+Functional Specification
+*************************
+
+Layout Types
+=============
+
+Layout is used to locate data and meta-data for various types of files/objects in Motr. The following layouts will be defined:
+
+- SNS. File data or metadata will be striped over multiple devices within a pool.
+
+- local raid. Device data will span over multiple local disks.
+
+- Generic. File data or meta-data is striped with some pre-defined RAID pattern. File is striped within component file; block device is striped over extents; And also the sub-map can be another layout.
+
+- Other types of layout are also supported( in the future), such as de-dup, encryption, compression.
+
+
+Layout Hierarchy
+==================
+
+Layout is organized as sub-maps in a hierarchy. The sub-map should be resolved until some preliminary address (e.g. block number of physical device) is reached.
+
+Layout Schema
+================
+
+Layout schema is the organization of layout data structures used for database storing. The following figure depicts the schema.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
