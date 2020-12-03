@@ -302,9 +302,9 @@ function stop_stat_utils()
     $EX_SRV "$STAT_DIR/dstat_stop.sh"
 
     echo "Gather static info"
-    $EX_SRV "$STAT_DIR/collect_static_info.sh" &
+    $EX_SRV "$STAT_DIR/collect_static_info.sh"
 
-    wait
+    # wait
 }
 
 function start_measuring_workload_time()

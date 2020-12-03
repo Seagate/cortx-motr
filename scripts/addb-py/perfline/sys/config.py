@@ -22,6 +22,6 @@ from huey import SqliteHuey
 huey = SqliteHuey(filename='sys/s3cluster_queue.db')
 artifacts_dir = f'/var/perfline'
 pack_artifacts = False
-nodes='ssc-vm-c-1042.colo.seagate.com,ssc-vm-c-1043.colo.seagate.com'
-ha_type='hare'
+nodes='smc51-m08.colo.seagate.com,smc52-m08.colo.seagate.com'
+ha_type='pcs'
 # TODO: Pass parameter of type: HARE or Pacemaker

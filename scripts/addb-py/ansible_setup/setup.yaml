@@ -1,13 +1,17 @@
-- name: Copy statistic scirpts to secondary node
+- name: Copy perfline scirpts to secondary node
   hosts: secondary_node
   become: yes
+  vars:
+    perfline_dir: /root/perfline
   tasks:
   - file:
       path: /var/perfline
       state: directory
-  - copy:
-      src: "{{ playbook_dir }}/../perfline/stat"
-      dest: /root/perfline/perfline
+  - name: Copy perfline working dir
+    copy:
+      src: "{{ playbook_dir }}/../perfline"
+      dest: "{{ perfline_dir }}"
+  # chmod 
 
 - name: Copy sources to master node
   hosts: master_node
@@ -55,7 +59,14 @@
     yum:
       name:
         - sysstat
+        - pdsh
       state: present
+
+  - name: Changing permission for execution for perfline_proxy
+    file: dest=/root/perfline/webui/perfline_proxy.sh mode=a+x
+
+  - name: Changing permission for execution
+    file: dest=/root/perfline/perfline/scripts/worker.sh mode=a+x
   
   - name: Copy webui systemd file
     copy:
