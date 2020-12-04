@@ -28,17 +28,6 @@ TOOLS_DIR="$SCRIPT_DIR/../../chronometry"
 
 function main()
 {
-    # echo "P1: $1"
-    # echo "P2: $2"
-    # echo "P3: $3"
-    # echo "P4: $4"
-    # echo "P5: $5"
-    # echo "P6: $6"
-    # echo "P7: $7"
-    # echo "P8: $8"
-    # echo "P9: $9"
-    # echo "P10: ${10}"
-
     parse_params "$@"
 
     if [[ "$APP" == "motr" ]]; then
