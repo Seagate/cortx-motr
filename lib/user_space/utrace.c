@@ -458,7 +458,7 @@ static int calc_trace_descr_offset(const struct m0_trace_buf_header *tbh,
 		msym = (uint64_t*)((char*)ko_addr + msym_file_offset);
 		if (*msym != M0_TRACE_MAGIC) {
 			warnx("invalid trace magic symbol value in '%s' file at"
-			      " offset 0x%"PRId64": 0x%"PRId64
+			      " offset 0x%"PRIx64": 0x%"PRIx64
 			      " (expected 0x%lx)",
 			      m0tr_ko_path, msym_file_offset, *msym,
 			      M0_TRACE_MAGIC);

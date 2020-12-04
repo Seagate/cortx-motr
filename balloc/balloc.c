@@ -2059,8 +2059,8 @@ static int is_group_good_enough(struct balloc_allocation_context *bac,
 	}
 
 	M0_LOG(M0_DEBUG, "bac=%p criteria=%d: no big enough chunk: "
-	       "goal=0x%08"PRIx64" maxchunk=%08"PRIx64, bac, bac->bac_criteria,
-	       m0_ext_length(&bac->bac_goal), maxchunk);
+	       "goal=0x%08"PRIx64" maxchunk=0x%08"PRIx64,
+	       bac, bac->bac_criteria, m0_ext_length(&bac->bac_goal), maxchunk);
 
 	return 0;
 }

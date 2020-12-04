@@ -1079,7 +1079,7 @@ static uint32_t stob_ad_write_map_count(struct m0_stob_ad_domain *adom,
 	bool                   eov;
 	struct m0_ivec_cursor  it;
 
-	M0_ENTRY("dom=%p bshift=%u babshift=%d pack=%x", adom,
+	M0_ENTRY("dom=%p bshift=%u babshift=%d pack=%#x", adom,
 		 adom->sad_bshift, adom->sad_babshift, (int)pack);
 
 	frags = 0;
@@ -1092,7 +1092,7 @@ static uint32_t stob_ad_write_map_count(struct m0_stob_ad_domain *adom,
 		frag_size = min_check(m0_ivec_cursor_step(&it), grp_size);
 		M0_ASSERT(frag_size > 0);
 		M0_ASSERT(frag_size <= (size_t)~0ULL);
-		M0_LOG(M0_DEBUG, "frag_size=0x%"PRId64, frag_size);
+		M0_LOG(M0_DEBUG, "frag_size=0x%"PRIx64, frag_size);
 
 		eov = m0_ivec_cursor_move(&it, frag_size);
 
