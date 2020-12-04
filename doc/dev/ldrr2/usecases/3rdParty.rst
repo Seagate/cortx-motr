@@ -2,7 +2,7 @@
 3rd Party Software
 =================
 
-Requirement 1:
+Requirement 1: SW-10
 =================
 
 .. list-table::
@@ -37,7 +37,7 @@ Requirement 1:
        #. Check if any changes needed in motr if packages are changed
        #. If needed change motr and test 
 
-Requirement 2:
+Requirement 2: SW-20
 =================
 
 .. list-table::
@@ -72,7 +72,7 @@ Requirement 2:
        #. Check libfabric version 
        #. Check code version used for erasure coding
 
-Requirement 3:
+Requirement 3: SW-30
 =================
 
 .. list-table::
@@ -108,7 +108,7 @@ Requirement 3:
        #. If missing add IEM
        #. Note: Notify SSPL and CSM for the new IEM being added
 
-Requirement 4:
+Requirement 4: SW-40
 =================
 
 .. list-table::
@@ -140,8 +140,9 @@ Requirement 4:
      - All CORTX component should be user space
    * - **Interaction**
      - #. Integrate libfabric in motr
+       #. Remove the need for m0d to get UUID (UUID is received from Kernel)
 
-Requirement 5-6:
+Requirement 5-6: SW-50 & SW-60
 =================
 
 .. list-table::
