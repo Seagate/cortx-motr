@@ -929,8 +929,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_index = ti->ti_obj;
 		if (ioo->ioo_flags & M0_OOF_NOHOLE)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
-		if (ioo->ioo_flags & M0_OOF_SYNC)
-			rw_fop->crw_flags |= M0_IO_FLAG_SYNC;
 		io_attr = m0_io_attr(ioo);
 		rw_fop->crw_lid = io_attr->oa_layout_id;
 

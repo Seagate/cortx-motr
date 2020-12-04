@@ -582,7 +582,6 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	struct m0_fop_cob_op_rep_common *r_common;
 	struct m0_fop_cob_op_reply      *reply;
 	struct m0_stob                  *stob = NULL;
-	struct m0_be_tx                 *tx = m0_fom_tx(fom);
 
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_ops != NULL);
@@ -725,19 +724,12 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 				m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
 				return M0_FSO_AGAIN;
 			}
-
-			if (cob_op->fco_fop_type == M0_COB_OP_CREATE &&
-			    m0_be_tx_state(tx) < M0_BTS_LOGGED) {
-				M0_LOG(M0_DEBUG, "fom wait for tx to be logged");
-				m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
-				return M0_FSO_WAIT;
-			}
 			break;
 		case M0_FOPH_TXN_COMMIT_WAIT:
 			if (!cob_op->fco_is_done && m0_fom_rc(fom) == 0) {
 				rc = m0_fom_tx_commit_wait(fom);
 				if (rc == M0_FSO_AGAIN) {
-					M0_SET0(tx);
+					M0_SET0(m0_fom_tx(fom));
 					m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
 				} else
 					return M0_RC(rc);

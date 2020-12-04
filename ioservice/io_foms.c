@@ -604,7 +604,6 @@ static int net_buffer_acquire(struct m0_fom *);
 static int io_prepare(struct m0_fom *);
 static int io_launch(struct m0_fom *);
 static int io_finish(struct m0_fom *);
-static int io_sync(struct m0_fom *fom);
 static int zero_copy_initiate(struct m0_fom *);
 static int zero_copy_finish(struct m0_fom *);
 static int net_buffer_release(struct m0_fom *);
@@ -705,10 +704,6 @@ static const struct m0_io_fom_cob_rw_state_transition io_fom_write_st[] = {
 [M0_FOPH_IO_BUFFER_RELEASE] =
 { M0_FOPH_IO_BUFFER_RELEASE, &net_buffer_release,
   M0_FOPH_IO_FOM_BUFFER_ACQUIRE, 0, "network-buffer-release", },
-
-[M0_FOPH_IO_SYNC] =
-{ M0_FOPH_IO_SYNC, &io_sync, M0_FOPH_QUEUE_REPLY,  M0_FOPH_IO_SYNC, "io-sync" }
-
 };
 
 struct m0_sm_state_descr io_phases[] = {
@@ -760,10 +755,6 @@ struct m0_sm_state_descr io_phases[] = {
 		.sd_allowed   = M0_BITS(M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
 					M0_FOPH_SUCCESS)
 	},
-	[M0_FOPH_IO_SYNC] = {
-		.sd_name      = "tx-sync",
-		.sd_allowed   = M0_BITS(M0_FOPH_IO_SYNC, M0_FOPH_QUEUE_REPLY)
-	},
 };
 
 struct m0_sm_trans_descr io_phases_trans[] = {
@@ -808,9 +799,6 @@ struct m0_sm_trans_descr io_phases_trans[] = {
 	{"zero-copy-wait-failed", M0_FOPH_IO_ZERO_COPY_WAIT, M0_FOPH_FAILURE},
 	{"network-buffer-released",
 	 M0_FOPH_IO_BUFFER_RELEASE, M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
-	{"tx-wait", M0_FOPH_QUEUE_REPLY, M0_FOPH_IO_SYNC },
-	{"tx-wait-more", M0_FOPH_IO_SYNC, M0_FOPH_IO_SYNC },
-	{"tx-wait-done", M0_FOPH_IO_SYNC, M0_FOPH_QUEUE_REPLY },
 	{"all-done", M0_FOPH_IO_BUFFER_RELEASE, M0_FOPH_SUCCESS},
 };
 
@@ -1967,23 +1955,6 @@ static int io_finish(struct m0_fom *fom)
 	return M0_FSO_AGAIN;
 }
 
-/**
- * If necessary, waits until the transaction for this fom becomes persistent.
- */
-static int io_sync(struct m0_fom *fom)
-{
-	struct m0_io_fom_cob_rw *fobj = M0_AMB(fobj, fom, fcrw_gen);
-	struct m0_be_tx         *tx   = m0_fom_tx(fom);
-
-	if ((fobj->fcrw_flags & M0_IO_FLAG_SYNC) &&
-	    m0_be_tx_state(tx) < M0_BTS_LOGGED) {
-		M0_LOG(M0_DEBUG, "fom wait for tx to be logged");
-		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
-		return M0_FSO_WAIT;
-	} else
-		return M0_FSO_AGAIN;
-}
-
 /*
  * This function converts the on-wire m0_io_indexvec to in-mem m0_indexvec,
  * with index and count values appropriately block shifted.
@@ -2137,7 +2108,6 @@ static void stob_be_credit(struct m0_fom *fom)
 static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 {
 	int                                       rc;
-	int                                       phase = m0_fom_phase(fom);
 	struct m0_io_fom_cob_rw                  *fom_obj;
 	struct m0_io_fom_cob_rw_state_transition  st;
 	struct m0_fop_cob_rw                     *rwfop;
@@ -2153,11 +2123,11 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 
 	M0_ENTRY("fom %p, fop %p, item %p[%u] %s" FID_F, fom, fom->fo_fop,
 		 m0_fop_to_rpc_item(fom->fo_fop), m0_fop_opcode(fom->fo_fop),
-		 m0_fom_phase_name(fom, phase),
+		 m0_fom_phase_name(fom, m0_fom_phase(fom)),
 		 FID_P(&rwfop->crw_fid));
 
 	/* first handle generic phase */
-	if (phase == M0_FOPH_INIT) {
+	if (m0_fom_phase(fom) == M0_FOPH_INIT) {
 		rc = indexvec_wire2mem(fom) ?:
 			stob_io_create(fom);
 		if (rc != 0) {
@@ -2165,8 +2135,8 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 			return M0_RC(M0_FSO_AGAIN);
 		}
 	}
-	if (phase < M0_FOPH_NR && m0_is_write_fop(fom->fo_fop)) {
-		if (phase == M0_FOPH_TXN_OPEN) {
+	if (m0_fom_phase(fom) < M0_FOPH_NR && m0_is_write_fop(fom->fo_fop)) {
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
 			struct m0_be_tx_credit *accum;
 
 			accum = m0_fom_tx_credit(fom);
@@ -2182,30 +2152,24 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 				m0_cob_tx_credit(fom_cdom(fom),
 						 M0_COB_OP_DELETE, accum);
 			}
-		} else if (phase == M0_FOPH_AUTHORISATION) {
+		} else if (m0_fom_phase(fom) == M0_FOPH_AUTHORISATION) {
 			rc = m0_fom_tick_generic(fom);
 			if (m0_fom_phase(fom) == M0_FOPH_TXN_INIT)
 				m0_fom_phase_set(fom, M0_FOPH_IO_FOM_PREPARE);
 			return M0_RC(rc);
-		} else if (phase == M0_FOPH_TXN_WAIT) {
+		} else if (m0_fom_phase(fom) == M0_FOPH_TXN_WAIT) {
 			rc = m0_fom_tick_generic(fom);
 			if (m0_fom_phase(fom) == M0_FOPH_IO_FOM_PREPARE)
 				m0_fom_phase_set(fom, M0_FOPH_IO_STOB_INIT);
 			return M0_RC(rc);
-		} else if (phase == M0_FOPH_TXN_COMMIT) {
-			rc = m0_fom_tick_generic(fom);
-			M0_ASSERT(rc == M0_FSO_AGAIN);
-			M0_ASSERT(m0_fom_phase(fom) == M0_FOPH_QUEUE_REPLY);
-			if (m0_is_write_fop(fom->fo_fop))
-				m0_fom_phase_set(fom, M0_FOPH_IO_SYNC);
-			return M0_RC(rc);
 		}
 	}
-	if (phase < M0_FOPH_NR) {
+	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		M0_LOG(M0_DEBUG, "fom=%p, stob=%p, rc=%d", fom,
 		       fom_obj->fcrw_stob, m0_fom_rc(fom));
 
-		if (phase == M0_FOPH_FAILURE && fom_obj->fcrw_stob != NULL &&
+		if (m0_fom_phase(fom) == M0_FOPH_FAILURE &&
+		    fom_obj->fcrw_stob != NULL &&
 		    m0_fom_rc(fom) == -E2BIG) {
 			m0_storage_dev_stob_put(m0_cs_storage_devs_get(),
 						fom_obj->fcrw_stob);
@@ -2250,6 +2214,8 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	m0_fom_phase_set(fom, rc == M0_FSO_AGAIN ?
 				st.fcrw_st_next_phase_again :
 				st.fcrw_st_next_phase_wait);
+	M0_ASSERT(m0_fom_phase(fom) > M0_FOPH_NR &&
+		  m0_fom_phase(fom) <= M0_FOPH_IO_BUFFER_RELEASE);
 	return M0_RC(rc);
 }
 
