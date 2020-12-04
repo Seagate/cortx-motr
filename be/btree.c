@@ -1256,18 +1256,17 @@ static void btree_truncate(struct m0_be_btree *btree, struct m0_be_tx *tx,
 			 * node->bt_child_arr[node->bt_num_active_key]
 			 * leaf node
 			 */
-			if (i > 0) {
+			if (i > 0 && limit > 0) {
 				btree_pair_release(btree, tx,
 						&parent->bt_kv_arr[i-1]);
 
-				if (limit > 0)
-					limit--;
+				limit--;
+				parent->bt_num_active_key--;
 			}
 
 			if (i == 0)
 				parent->bt_isleaf = true;
-			else
-				parent->bt_num_active_key--;
+
 			if (parent == btree->bb_root &&
 			    parent->bt_num_active_key == 0) {
 				/*
