@@ -11,7 +11,17 @@
     copy:
       src: "{{ playbook_dir }}/../perfline"
       dest: "{{ perfline_dir }}"
-  # chmod 
+
+  - name: Changing permission for execution for perfline scripts
+    file: path=/root/perfline/perfline/scripts mode=a+x state=directory recurse=yes
+  - name: Changing permission for execution for stat scripts
+    file: path=/root/perfline/perfline/stat mode=a+x state=directory recurse=yes
+  - name: Changing permission for execution for stat scripts
+    file: path=/root/perfline/perfline/workload mode=a+x state=directory recurse=yes
+  - name: Changing permission for execution for perfline.py
+    file: dest=/root/perfline/perfline/perfline.py mode=a+x
+  - name: Changing permission for execution for perfline_proxy
+    file: dest=/root/perfline/webui/perfline_proxy.sh mode=a+x
 
 - name: Copy sources to master node
   hosts: master_node
@@ -54,6 +64,8 @@
         - Flask
         - PyYAML
         - Jinja2
+        - iostat-tool
+        - peewee
       executable: pip3
   - name: Install perfline system dependencies
     yum:
@@ -62,11 +74,16 @@
         - pdsh
       state: present
 
+  - name: Changing permission for execution for perfline scripts
+    file: path=/root/perfline/perfline/scripts mode=a+x state=directory recurse=yes
+  - name: Changing permission for execution for stat scripts
+    file: path=/root/perfline/perfline/stat mode=a+x state=directory recurse=yes
+  - name: Changing permission for execution for stat scripts
+    file: path=/root/perfline/perfline/workload mode=a+x state=directory recurse=yes
+  - name: Changing permission for execution for perfline.py
+    file: dest=/root/perfline/perfline/perfline.py mode=a+x
   - name: Changing permission for execution for perfline_proxy
     file: dest=/root/perfline/webui/perfline_proxy.sh mode=a+x
-
-  - name: Changing permission for execution
-    file: dest=/root/perfline/perfline/scripts/worker.sh mode=a+x
   
   - name: Copy webui systemd file
     copy:
