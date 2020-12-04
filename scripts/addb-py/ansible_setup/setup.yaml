@@ -20,8 +20,6 @@
     file: path=/root/perfline/perfline/workload mode=a+x state=directory recurse=yes
   - name: Changing permission for execution for perfline.py
     file: dest=/root/perfline/perfline/perfline.py mode=a+x
-  - name: Changing permission for execution for perfline_proxy
-    file: dest=/root/perfline/webui/perfline_proxy.sh mode=a+x
 
 - name: Copy sources to master node
   hosts: master_node
