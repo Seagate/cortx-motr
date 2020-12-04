@@ -31,7 +31,6 @@ report_resource_map = dict()
 AGGREGATED_PERF_FILE = '/root/perfline/webui/images/aggregated_perf_{0}.png'
 
 
-
 # @app.after_request
 # def add_header(resp):
 #     resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -48,23 +47,24 @@ def add_header(response):
     response.headers['Expires'] = '-1'
     return response
 
+
 def refresh_performance_img():
-    
+
     lines = pl_api.get_results().split('\n')
-    lines = filter(None, lines) #remove empty line
+    lines = filter(None, lines)  # remove empty line
 
     results = [yaml.safe_load(line) for line in lines]
 
     sizes = ['100k', '1m', '16m', '128m']
-    rw_data = {size:(list(), list(), list()) for size in sizes}
+    rw_data = {size: (list(), list(), list()) for size in sizes}
     # rw_data = {
-    #     '100k': ((list(), list()), 
+    #     '100k': ((list(), list()),
     #             (list(), list()),
-    #     '1m': ((list(), list()), 
+    #     '1m': ((list(), list()),
     #             (list(), list()),
-    #     '16m': ((list(), list()), 
+    #     '16m': ((list(), list()),
     #             (list(), list()),
-    #     '128m': ((list(), list()), 
+    #     '128m': ((list(), list()),
     #             (list(), list()),
     # }
     for r in results:
@@ -75,18 +75,19 @@ def refresh_performance_img():
             task_descr = r[2]['info']['conf']['common'].get('description')
             task_finish_time = r[2]['info']['finish_time']
             task_id = r[0]['task_id']
-            
+
             if 'Perf benchmark' not in task_descr:
                 continue
             task_descr.split(',')
-            size = next(t.strip().split('=')[1] for t in task_descr.split(',') if t.strip().split('=')[0] == 'size')
+            size = next(t.strip().split('=')[1] for t in task_descr.split(
+                ',') if t.strip().split('=')[0] == 'size')
             if size not in rw_data:
                 continue
 
             rw_file_path = f'/var/perfline/result_{task_id}/rw_stat'
             if isfile(rw_file_path):
                 with open(rw_file_path, 'r') as rw_file:
-                    rw_info = rw_file.readlines() 
+                    rw_info = rw_file.readlines()
                     rw_data[size][0].append(float(rw_info[0].split(' ')[0]))
                     rw_data[size][1].append(float(rw_info[1].split(' ')[0]))
             else:
@@ -98,22 +99,22 @@ def refresh_performance_img():
 
             rw_data[size][2].append(f)
         except Exception as e:
-            print( "exception: " + str(e))
-    
+            print("exception: " + str(e))
+
     print(rw_data)
 
     for size, data in rw_data.items():
         fig, ax = plt.subplots(1)
 
-        ax.plot(data[2], data[0], label="write")              
-        ax.plot(data[2], data[1], label="read")              
-        plt.title(size)           
+        ax.plot(data[2], data[0], label="write")
+        ax.plot(data[2], data[1], label="read")
+        plt.title(size)
         plt.ylabel('MB/s')
         plt.legend(loc='best')
         fig.autofmt_xdate()
         plt.savefig(AGGREGATED_PERF_FILE.format(size))
         plt.cla()
-    
+
 
 @app.route('/aggregated_perf_img/<string:size>')
 def aggregated_perf_img(size):
@@ -130,7 +131,9 @@ def index():
 def templates(path):
     return send_from_directory('templates', path)
 
+
 STUPID_CACHE = dict()
+
 
 @app.route('/stats/<path:path>')
 def stats(path):
@@ -186,7 +189,7 @@ def tq_task_common_get(elem, r):
 def tq_results_read(limit: int) -> Dict:
     lines = pl_api.get_results().split('\n')[-limit:]
     print(lines)
-    lines = filter(None, lines) #remove empty line
+    lines = filter(None, lines)  # remove empty line
 
     out = []
     results = [yaml.safe_load(line) for line in lines]
@@ -221,7 +224,7 @@ def tq_results_read(limit: int) -> Dict:
             #     elem['perfagg'] = perf_aggr_data[t_id]
             # else:
             #     elem['perfagg'] = {"bW": "UNKNOWN"}
-            
+
             rw_info = read_rw_stats(task["task_id"])
             elem['rw_stats'] = {
                 "rw": rw_info
@@ -230,28 +233,30 @@ def tq_results_read(limit: int) -> Dict:
             elem['artifacts'] = {
                 "artifacts_page": "artifacts/{0}".format(task['task_id']),
             }
-            
+
             elem['perfagg'] = {
                 "report_page": "report/{0}".format(task['task_id']),
             }
         except Exception as e:
-            print( "exception: " + str(e))
+            print("exception: " + str(e))
 
         out.append(elem)
 
     return list(reversed(out))
 
+
 def read_rw_stats(task_id):
     rw_file_path = f'/var/perfline/result_{task_id}/rw_stat'
     if isfile(rw_file_path):
         with open(rw_file_path, 'r') as rw_file:
-            return rw_file.readlines() 
+            return rw_file.readlines()
     else:
         return [0, 0]
 
+
 def tq_queue_read(limit: int) -> Dict:
     lines = pl_api.get_queue().split('\n')[-limit:]
-    lines = filter(None, lines) #remove empty line
+    lines = filter(None, lines)  # remove empty line
 
     out = []
     results = [yaml.safe_load(line) for line in lines]
@@ -286,37 +291,40 @@ def results(limit=9999999):
 def define_path_for_report_imgs(tid):
     path_to_stats = f'/var/perfline/result_{tid}/stats'
     path_to_workload = f'/var/perfline/result_{tid}/client'
-    nodes_stat_dirs = [join(path_to_stats, f) for f in os.listdir(path_to_stats) if isdir(join(path_to_stats, f))]
+    nodes_stat_dirs = [join(path_to_stats, f) for f in os.listdir(
+        path_to_stats) if isdir(join(path_to_stats, f))]
 
-    workload_files = {f : join(path_to_workload, f) for f in os.listdir(path_to_workload) if isfile(join(path_to_workload, f))}
+    workload_files = {f: join(path_to_workload, f) for f in os.listdir(
+        path_to_workload) if isfile(join(path_to_workload, f))}
 
-    iostat_aggegated_imgs = [f'{path}/iostat/iostat.aggregated.png' for path in nodes_stat_dirs]
+    iostat_aggegated_imgs = [
+        f'{path}/iostat/iostat.aggregated.png' for path in nodes_stat_dirs]
 
     iostat_detailed_imgs = {
-        'io_rqm' : [f'{path}/iostat/iostat.io_rqm.png' for path in nodes_stat_dirs],
-        'svctm' : [f'{path}/iostat/iostat.svctm.png' for path in nodes_stat_dirs],
-        'iops' : [f'{path}/iostat/iostat.iops.png' for path in nodes_stat_dirs],
-        'await' : [f'{path}/iostat/iostat.await.png' for path in nodes_stat_dirs],
-        '%util' : [f'{path}/iostat/iostat.%util.png' for path in nodes_stat_dirs],
-        'avgqu-sz' : [f'{path}/iostat/iostat.avgqu-sz.png' for path in nodes_stat_dirs],
-        'avgrq-sz' : [f'{path}/iostat/iostat.avgrq-sz.png' for path in nodes_stat_dirs],
-        'io_transfer' : [f'{path}/iostat/iostat.io_transfer.png' for path in nodes_stat_dirs]
+        'io_rqm': [f'{path}/iostat/iostat.io_rqm.png' for path in nodes_stat_dirs],
+        'svctm': [f'{path}/iostat/iostat.svctm.png' for path in nodes_stat_dirs],
+        'iops': [f'{path}/iostat/iostat.iops.png' for path in nodes_stat_dirs],
+        'await': [f'{path}/iostat/iostat.await.png' for path in nodes_stat_dirs],
+        '%util': [f'{path}/iostat/iostat.%util.png' for path in nodes_stat_dirs],
+        'avgqu-sz': [f'{path}/iostat/iostat.avgqu-sz.png' for path in nodes_stat_dirs],
+        'avgrq-sz': [f'{path}/iostat/iostat.avgrq-sz.png' for path in nodes_stat_dirs],
+        'io_transfer': [f'{path}/iostat/iostat.io_transfer.png' for path in nodes_stat_dirs]
     }
 
     blktrace_imgs = []
     for path in nodes_stat_dirs:
         if isdir(f'{path}/blktrace'):
-            agg_img = next((f'/blktrace/{f}' for f in os.listdir(f'{path}/blktrace') if 'node' in f and 'aggregated' in f), None)
+            agg_img = next((f'/blktrace/{f}' for f in os.listdir(
+                f'{path}/blktrace') if 'node' in f and 'aggregated' in f), None)
             if agg_img:
                 blktrace_imgs.append(path + agg_img)
-    
+
     report_resource_map[tid] = {
         'iostat': iostat_aggegated_imgs,
         'blktrace': blktrace_imgs,
     }
     report_resource_map[tid].update(iostat_detailed_imgs)
     report_resource_map[tid]['workload_files'] = workload_files
-
 
 
 @app.route('/report/<string:tid>')
@@ -327,7 +335,7 @@ def report(tid=None):
         return 'Report was not generated for this workload'
 
     with open(path_to_report, 'r') as report_file:
-        report_html = report_file.read()    
+        report_html = report_file.read()
 
     define_path_for_report_imgs(tid)
     return report_html
@@ -344,7 +352,8 @@ def serve_report_imgs(tid, node_id, img_type):
     print(imgs_dict)
     path_to_img = imgs_dict.get(img_type)[int(node_id)]
     return send_file(path_to_img, mimetype='image/svg+xml' if img_type == 'blktrace' else 'image')
-    
+
+
 @app.route('/report/<string:tid>/dstat_imgs/<string:node_id>/<string:img_type>')
 def serve_dstat_imgs(tid, node_id, img_type):
     # Easy safe check
@@ -352,9 +361,11 @@ def serve_dstat_imgs(tid, node_id, img_type):
         return None
 
     path_to_stats = f'/var/perfline/result_{tid}/stats'
-    nodes_stat_dirs = [join(path_to_stats, f) for f in os.listdir(path_to_stats) if isdir(join(path_to_stats, f))]
+    nodes_stat_dirs = [join(path_to_stats, f) for f in os.listdir(
+        path_to_stats) if isdir(join(path_to_stats, f))]
 
-    path_to_img = join(nodes_stat_dirs[int(node_id)], 'dstat', img_type + '.png')
+    path_to_img = join(
+        nodes_stat_dirs[int(node_id)], 'dstat', img_type + '.png')
     return send_file(path_to_img, mimetype='image')
 
 
@@ -432,18 +443,21 @@ def getlog(morelines: str):
         response.set_cookie('logcookie', uid)
     return response
 
+
 @app.route('/artifacts/<uuid:task_id>/<path:subpath>')
 def get_artifact(task_id, subpath):
     path = 'result_{0}/{1}'.format(task_id, subpath)
     return send_from_directory(config.artifacts_dir + '/', path)
 
+
 @app.route('/artifacts/<uuid:task_id>')
 def artifacts_list_page(task_id):
     files = list()
 
-    for item in os.walk('{0}/result_{1}'.format(config.artifacts_dir, task_id)): #TODO
+    for item in os.walk('{0}/result_{1}'.format(config.artifacts_dir, task_id)):  # TODO
         for file_name in item[2]:
-            dir_name = item[0].replace('{0}/result_{1}'.format(config.artifacts_dir, task_id), '', 1) #TODO
+            dir_name = item[0].replace(
+                '{0}/result_{1}'.format(config.artifacts_dir, task_id), '', 1)  # TODO
             files.append('{0}/{1}'.format(dir_name, file_name))
 
     context = dict()

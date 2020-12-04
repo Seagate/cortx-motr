@@ -23,8 +23,10 @@ from datetime import datetime
 import os
 import plumbum
 
+
 def get_overrides(overrides):
-    return " ".join([f"{x}={y}" for (x,y) in overrides.items()]) 
+    return " ".join([f"{x}={y}" for (x, y) in overrides.items()])
+
 
 def parse_options(conf, result_dir):
     options = []
@@ -59,12 +61,14 @@ def parse_options(conf, result_dir):
     print(options)
     return options
 
+
 def run_cmds(cmds, path):
     # TODO: Implement me!
     return
 
+
 def send_mail(to, status, tid):
-    nl="\n"
+    nl = "\n"
     msg = f"Subject: Cluster task queue{nl}Task {tid} {status}"
     sendmail = plumbum.local["sendmail"]
     echo = plumbum.local["echo"]
@@ -74,30 +78,33 @@ def send_mail(to, status, tid):
     except:
         print(f"Couldn't send email to {to}")
 
+
 def pack_artifacts(path):
     tar = plumbum.local["tar"]
     parent_dir = '/'.join(path.split('/')[:-1])
     archive_dir = path.split('/')[-1]
-    tar[f"-cJvf {parent_dir}/{archive_dir}.tar.xz -C {parent_dir} {archive_dir}".split(" ")] & plumbum.FG
+    tar[f"-cJvf {parent_dir}/{archive_dir}.tar.xz -C {parent_dir} {archive_dir}".split(
+        " ")] & plumbum.FG
     print(f"Rm path: {path}")
     rm = plumbum.local["rm"]
     # rm[f"-rf {path}".split(" ")]()
 
+
 @huey.task(context=True)
 def worker_task(conf_opt, task):
-    conf,opt = conf_opt
+    conf, opt = conf_opt
     current_task = {
         'task_id': task.id,
-        'pid'    : os.getpid(),
-        'args'   : conf_opt,
+        'pid': os.getpid(),
+        'args': conf_opt,
     }
     huey.put('current_task', current_task)
 
     result = {
-        'conf'          : conf,
-        'start_time'    : str(datetime.now()),
-        'path'          : f"{config.artifacts_dir}",
-        'artifacts_dir' : f"{config.artifacts_dir}/result_{task.id}",
+        'conf': conf,
+        'start_time': str(datetime.now()),
+        'path': f"{config.artifacts_dir}",
+        'artifacts_dir': f"{config.artifacts_dir}/result_{task.id}",
     }
     result.update(opt)
 
@@ -116,9 +123,9 @@ def worker_task(conf_opt, task):
             tee = plumbum.local['tee']
             options = parse_options(conf, result["artifacts_dir"])
             (run_workload[options] | tee['/tmp/workload.log']) & plumbum.FG
-            result['status']='SUCCESS'
+            result['status'] = 'SUCCESS'
         except plumbum.commands.processes.ProcessExecutionError:
-            result['status']='FAILED'
+            result['status'] = 'FAILED'
 
         mv = plumbum.local['mv']
         mv['/tmp/workload.log', result["artifacts_dir"]] & plumbum.FG
@@ -136,6 +143,7 @@ def worker_task(conf_opt, task):
         pack_artifacts(result["artifacts_dir"])
 
     return result
+
 
 @huey.post_execute()
 def post_execute_hook(task, task_value, exc):

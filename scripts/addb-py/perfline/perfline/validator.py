@@ -19,39 +19,41 @@
 
 from cerberus import Validator
 
+
 def get_schema_motr():
     schema_motr = {
         'common': {
             'type': 'dict',
             'schema': {
-                'version'    : {'type': 'integer', 'allowed': [ 1 ] },
+                'version': {'type': 'integer', 'allowed': [1]},
                 'description': {'required': False, 'nullable': True},
-                'priority'   : {'type': 'integer', 'min': 1},
-                'batch_id'   : {'required': False, 'nullable': True},
-                'user'       : {'type': 'string', 'regex': '.*@seagate\.com'},
+                'priority': {'type': 'integer', 'min': 1},
+                'batch_id': {'required': False, 'nullable': True},
+                'user': {'type': 'string', 'regex': '.*@seagate\.com'},
             }
         },
         'workload': {
-            'type'  : 'list',
+            'type': 'list',
             'schema': {
-                'type'  : 'dict',
+                'type': 'dict',
                 'schema': {
-                    'cmd'  : {'type' : 'string'},
+                    'cmd': {'type': 'string'},
                 }
             }
         },
-        'execution_options' : {
-            'type'   : 'dict',
-            'schema' : {
-                'no_m0trace_files' : {'type' : 'boolean'},
-                'no_m0trace_dumps' : {'type' : 'boolean'},
-                'no_addb_stobs'    : {'type' : 'boolean'},
-                'no_addb_dumps'    : {'type' : 'boolean'},
-                'no_m0play_db'     : {'type' : 'boolean'}
+        'execution_options': {
+            'type': 'dict',
+            'schema': {
+                'no_m0trace_files': {'type': 'boolean'},
+                'no_m0trace_dumps': {'type': 'boolean'},
+                'no_addb_stobs': {'type': 'boolean'},
+                'no_addb_dumps': {'type': 'boolean'},
+                'no_m0play_db': {'type': 'boolean'}
             }
         }
     }
     return schema_motr
+
 
 def validate_config(config):
     v = Validator(allow_unknown=True, require_all=True)
