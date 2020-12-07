@@ -8,7 +8,7 @@ box StorageSet1 (SS1) #FEFEFE
 participant "S3 Server/N1" as N1
 participant "ctrl-A/CL-1" as CL_1
 participant "ctrl-B/CR-1" as CR_1
-participant "N2" as N2
+participant "N2" as N2 #red
 participant "CL-2" as CL_2
 participant "CR-2" as CR_2
 participant "N3" as N3
@@ -16,7 +16,7 @@ participant "CL-3" as CL_3
 participant "CR-3" as CR_3
 end box
 box StorageSet2 (SS2) #EEEEEE
-participant "N4" as N4
+participant "N4" as N4 #red
 participant "CL-4" as CL_4
 participant "CR-4" as CR_4
 participant "N5" as N5
