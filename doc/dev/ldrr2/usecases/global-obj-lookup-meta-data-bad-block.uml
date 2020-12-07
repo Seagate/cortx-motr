@@ -1,11 +1,11 @@
 @startuml
 
-title Simple Object Upload in LR R2
+title Simple Object Upload in case of a bad block in meta-data
 
 participant "S3 Client" as client
 participant "S3 Server/N1" as N1
-participant "diskgroup-A/CL-1" as CL_1
-participant "diskgroup-B/CR-1" as CR_1
+participant "disk group-A/CL-1" as CL_1
+participant "disk group-B/CR-1" as CR_1
 participant "N2" as N2
 participant "CL-2" as CL_2
 participant "CR-2" as CR_2
@@ -27,6 +27,17 @@ autoactivate on
 
 client -> N1: PUT /bucket_name/object_name
 
+
+N1 -> N1: get_keyval(global_bucket_index,\n key = "bucket_name")
+N1 --> N1: value = error due to bad meta-data
+note left
+   If lookup gets error from m0d due to bad-block on external meta-data,
+   get the keyval from other nodes (1 + 2).
+   As global meta-data is stored in all the nodes, any two nodes can be
+   selected.
+   Use the same mechanism for global bucket index and global bucket md index.
+end note
+
 N1 -> N2: get_keyval(global_bucket_index,\n key = "bucket_name")
 N2 --> N1: value = account_id of bucket owner
 
@@ -37,18 +48,27 @@ N1 -> N5: get_keyval(BUCKET_nnn_obj_index,\n key = "object_name");
 note left
    * Index OID for this index is stored
       in bucket metadata JSON.
+      New fileds needed,
+      - pool id
+      - pver
+      - layout
    * This call checks if object is present.
 end note
 N5 --> N1: not found
 
 N1 -> N1: create_object
+note left
+  update m0_obj with the following fields
+  * get pver
+  * layout id
+  mdcob is not needed
+end note
 N1 --> N1: success (completed)
 
 loop until all data is written
   N1 -> N4: Write data
   N1 -> N5: Write data
   N1 -> N6: Write data
-
   N5 --> N1: success
   N6 --> N1: success
   N4 --> N1: success
