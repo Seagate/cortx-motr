@@ -1,6 +1,7 @@
 @startuml
 title <b>S3 Get Object - Local diskgroup in error (Non DTM)</b>
 
+actor "S3 client" as S3C #blue
 box "N-1"
 actor S3 #red
 actor m0d1
@@ -39,7 +40,7 @@ database "DG6-R"
 endbox
 
 note over "DG1-L": <b>Local disk group\n<b> is in error.
--->S3: Get Object
+S3C --> S3: Get Object
 S3-->m0d3 :Read Object
 activate S3
 
@@ -73,7 +74,7 @@ m0d2-[#green]>S3
 
 |||
 
-<-S3: Object Data
+S3C <- S3: Object Data
 deactivate S3
 @enduml
 
