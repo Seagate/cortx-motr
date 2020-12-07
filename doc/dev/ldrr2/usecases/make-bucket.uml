@@ -3,7 +3,7 @@
 title Make bucket in LR R2
 
 participant "S3 Client" as client
-box StorageSet1 (SS1) #LightGreen
+box "StorageSet1" #LightGreen
 participant "S3 Server/N1" as N1
 participant "diskgroup-A/CL-1" as CL_1
 participant "diskgroup-B/CR-1" as CR_1
@@ -14,7 +14,7 @@ participant "N3" as N3
 participant "CL-3" as CL_3
 participant "CR-3" as CR_3
 end box
-box StorageSet2 (SS2) #LightBlue
+box "StorageSet2" #LightBlue
 participant "N4" as N4
 participant "CL-4" as CL_4
 participant "CR-4" as CR_4
@@ -30,10 +30,10 @@ autoactivate on
 
 client -> N1: MB /bucket_name
 
-N1 -> N1: get_accountID()
+N1 -> N1: acctID= get_accountID()
+N1 -> N1: value = bucket metadata JSON
 
-loop until all data is written
-  value = bucket metadata JSON
+loop until all bucket meta-data is inserted
   N1 -> N1: put_keyval(bucket_name,acctID,val)
   N1 -> N2: put_keyval(bucket_name,acctID,val)
   N1 -> N3: put_keyval(bucket_name,acctID,val)
