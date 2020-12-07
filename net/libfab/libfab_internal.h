@@ -38,15 +38,13 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  * @{
  */
 
-// #define FI_MAJOR_VERSION 1
-// #define FI_MINOR_VERSION 1
-
-struct libfabric_domain_params {
-	struct fi_info    *fi;      /* Fabric info */
-	struct fi_info    *hints;   /* Fabric info to configure flags */
-	struct fid_fabric *fabric;  /* Fabric fid */
-	struct fid_domain *domain;  /* Domain fid */
+struct m0_fab__dom_param {
+	struct fi_info    *fab_fi;      /* Fabric info */
+	struct fi_info    *fab_hints;   /* Fabric info to configure flags */
+	struct fid_fabric *fab_fabric;  /* Fabric fid */
+	struct fid_domain *fab_domain;  /* Domain fid */
 };
+
 struct libfab_params {
 	struct fid_mr     *mr; 	/* Memory region to be registered */
 };
