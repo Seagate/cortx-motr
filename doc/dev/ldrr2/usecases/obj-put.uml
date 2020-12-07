@@ -25,7 +25,7 @@ participant "CR-5" as CR_5
 participant "N6" as N6
 participant "CL-6" as CL_6
 participant "CR-6" as CR_6
-endbox
+end box
 
 autoactivate on
 
