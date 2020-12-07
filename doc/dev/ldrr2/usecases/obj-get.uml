@@ -1,6 +1,6 @@
 @startuml
 
-title Simple Object Upload in LR R2
+title Simple Object Download in LR R2
 
 participant "S3 Client" as client
 box "StorageSet1" #LightGreen
@@ -14,7 +14,6 @@ participant "N3" as N3
 participant "CL-3" as CL_3
 participant "CR-3" as CR_3
 end box
-
 box "StorageSet2" #LightBlue
 participant "N4" as N4
 participant "CL-4" as CL_4
@@ -25,11 +24,12 @@ participant "CR-5" as CR_5
 participant "N6" as N6
 participant "CL-6" as CL_6
 participant "CR-6" as CR_6
-endbox
+end box
+
 
 autoactivate on
 
-client -> N1: PUT /bucket_name/object_name
+client -> N1: GET /bucket_name/object_name
 
 N1 -> N2: get_keyval(global_bucket_index,\n key = "bucket_name")
 N2 --> N1: value = account_id of bucket owner
@@ -43,36 +43,27 @@ note left
       in bucket metadata JSON.
    * This call checks if object is present.
 end note
-N5 --> N1: not found
+N5 --> N1: Success
 
-N1 -> N1: create_object
+N1 -> N6: get_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
+N6 --> N1: success (completed)
+
 note left
   update m0_obj with the following fields
   * get pver
   * layout id
-  mdcob is not needed
 end note
 N1 --> N1: success (completed)
 
-loop until all data is written
-  N1 -> N4: Write data
-  N1 -> N5: Write data
-  N1 -> N6: Write data
+loop until all data is read
+  N1 -> N4: Read data
+  N1 -> N5: Read data
+  N1 -> N6: Read data
 
   N5 --> N1: success
   N6 --> N1: success
   N4 --> N1: success
 end
-
-N1 -> N6: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
-N1 -> N5: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
-N1 -> N4: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
-note left
-  With DTM sync is not needed
-end note
-N4 --> N1: success
-N5 --> N1: success
-N6 --> N1: success (completed)
 
 N1 --> client: 200 OK
 
