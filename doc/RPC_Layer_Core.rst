@@ -214,6 +214,8 @@ Conformance
 
 To implement high-speed RPC processing subcomponent implementation should optimally utilize the resources of the host system. To perform this, Grouping, Formation and Output subcomponents should exploit multithreading. It’s well known fact that CPU utilization is optimal when the number of “processing threads” is equal to CPU cores plus number of “IO-threads”. That’s why mentioned subcomponents should use thread pool with optimal parameters. Output (transmitting) stage may have its separate pool, a number of threads which can vary and correlate with network statistics. The level of parallelism can be also tuned from the outside of RPC core component. It's possible to control it by limiting number of slots being processed simultaneously (m0_rpc_slot_max_set IF).
 
+.. image:: Images/layercore.PNG
+
 Simplification: FOP processing can be organized via pipeline multithreaded pattern [3]. It would be slower in performance aspect, but faster to implement, easier to support and it could be also reused (not insisting for some reasons).
 
 As it was mentioned, subcomponents of “RPC processing” run in their own separate threads acquired from pool. To organize multithreaded interaction and mandatory (constraining) load balancing, “one-side” bounded queues [2] are used. Number of queues between stages and fetching policy is performance related subject and should be reviewed in DLD.
