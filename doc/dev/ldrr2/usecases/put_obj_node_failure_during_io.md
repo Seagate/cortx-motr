@@ -84,7 +84,7 @@ end note
   N6 --> N1: Success (write P1 & P2)
   N4 --X N1: ERROR (write 1 & 2)
 note left
-   * One of the Write Data returns error (Node 4)
+   * Two of the Write Data Units returns error (Node 4)
    * __**Return Success if Total-Error <= #Parity-Unit **__
 end note
 
