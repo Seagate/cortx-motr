@@ -712,8 +712,10 @@ def setup_shared_motr_src_dir(config)
     # it can be customized via M0_VM_SHARED_DIR environment variable
     path = !ENV['M0_VM_SHARED_DIR'].nil? ? File.expand_path(ENV['M0_VM_SHARED_DIR'])
          :                                 File.expand_path(MOTR_TOP_SRC_DIR + '/..')
-    type = ENV['M0_VM_SHARE_TYPE'] ||
-           RbConfig::CONFIG['host_os'] =~ /mingw/i ? 'provider' : 'nfs'
+    type = ENV['M0_VM_SHARE_TYPE']
+    if type.nil?
+      type = RbConfig::CONFIG['host_os'] =~ /mingw/i ? 'provider' : 'nfs'
+    end
 
     case type
     when 'provider'
