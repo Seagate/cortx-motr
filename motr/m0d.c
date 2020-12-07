@@ -212,12 +212,6 @@ start_m0d:
 	if (rc != 0)
 		goto cleanup1;
 
-	rc = m0_cs_start(&motr_ctx);
-	if (rc == 0) {
-		/* For st/m0d-signal-test.sh */
-		m0_console_printf("Started\n");
-		m0_console_flush();
-
 #ifdef HAVE_SYSTEMD
 		/*
 	 	 * From the systemd's point of view, service can be considered as
@@ -231,8 +225,14 @@ start_m0d:
 			warnx("systemd notifications not allowed\n");
 		else
 			warnx("systemd READY notification successful\n");
-		rc = 0;
 #endif
+
+	rc = m0_cs_start(&motr_ctx);
+	if (rc == 0) {
+		/* For st/m0d-signal-test.sh */
+		m0_console_printf("Started\n");
+		m0_console_flush();
+
 		result = cs_wait_signal();
 		if (gotsignal)
 			warnx("got signal %d", gotsignal);
