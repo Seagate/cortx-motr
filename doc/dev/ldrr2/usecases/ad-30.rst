@@ -1,0 +1,57 @@
+==============
+AD-10 usecases
+==============
+
+:author: Huang Hua <hua.huang@seagate.com>
+
+.. list-table::
+   :header-rows: 1
+
+   * - id
+     - feature
+     - description
+     - priority
+   * - AD-30
+     - The cluster should continue I/O and management service during upgrade for CORTX, 3rd party SW, OS or any HW component's FW
+     - May run pre-upgrade checks to ensure overall health and readiness of the cluster
+     - p0
+
+Use cases
+=========
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-30.motr-upgrade-sw-compaitibility]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - SW upgrade
+   * - **requirements**
+     - Motr software is compatible to previous version. If disk format, network protocol,
+       utility arguments and functionality are changed, they must be inter-operable with previous
+       version.
+   * - **interaction**
+     -
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-30.motr-rolling-upgrade]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - SW upgrade
+   * - **requirements**
+     - Stops one of the Motr server, upgrades its Motr software, and brings it back to online.
+       And applies this to another Motr server.
+   * - **interaction**
+     -
+

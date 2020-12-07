@@ -1,0 +1,240 @@
+==============
+AD-20 usecases
+==============
+
+:author: Huang Hua <hua.huang@seagate.com>
+
+.. list-table::
+   :header-rows: 1
+
+   * - id
+     - feature
+     - description
+     - priority
+   * - AD-20
+     - The cluster should offer up to 11 9s data durability. See Data Protection schemes table below for more details
+     - Definition: the probability that the object will remain intact and accessible after a period of one year.
+     - p0
+
+Use cases
+=========
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-20.index-in-global-pool]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - In some case of failure.
+   * - **requirements**
+     - Index in global pool is replicated to all nodes. This provodes the maximal data availablity.
+       These index contains the most important metadata.
+   * - **interaction**
+     -
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-20.index-in-stoageset-pool]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - In some case of failure.
+   * - **requirements**
+     - This pool expands to the whole storage set. Index in this pool uses 1+2 layout.
+       This has a very high availablility. A maximal of two nodes failures can be achieved.
+       A maximal of two controller failures can be achieved.
+   * - **interaction**
+     -
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-20.object-in-stoageset-pool]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - In some case of failure.
+   * - **requirements**
+     - This pool expands to the whole storage set. Objects in this pool use 4+2 layout.
+       This has a very high availablility. A maximal of one node failures can be achieved.
+       A maximal of two controller failures can be achieved.
+   * - **interaction**
+     -
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-20.object-di]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - To pretect DI in some case of failure.
+   * - **requirements**
+     - DI checksum checking to ensure data remains intact.
+   * - **interaction**
+     -
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-20.object-di-generate-on-client]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - write data to objects
+   * - **requirements**
+     - DI checksum is generated on client side for each data unit.
+   * - **interaction**
+     -
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-20.object-di-client-to-server]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - write data to objects.
+   * - **requirements**
+     - DI checksum for data units is passed to server, and verified by server.
+       If fails, error is returned to client. Client should retry writing again.
+   * - **interaction**
+     -
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-20.object-di-store-on-server]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - write data to objects.
+   * - **requirements**
+     - DI checksum for data units is stored on server, as metadata of object.
+   * - **interaction**
+     -
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-20.object-di-read-from-server]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - read data from objects.
+   * - **requirements**
+     - DI checksum for data units, as metadata of object is read from store, and verified.
+       If fails, server returns error to client. Client should try to read parity and reconsutrct data,
+       and then overwrite this data unit.
+   * - **interaction**
+     -
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-20.object-di-server-to-client]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - read data from objects.
+   * - **requirements**
+     - DI checksum for data units, as metadata of object returned from server to client.
+   * - **interaction**
+     -
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-20.object-di-client-verify]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - read data from objects.
+   * - **requirements**
+     - Client gets the DI checksum and verifies data and checksum. If fails, client should re-launch the read request again.
+   * - **interaction**
+     -
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-20.motr-offline-checker]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - Some type of data corruption is found.
+   * - **requirements**
+     - Motr server on this node stops service (but maybe Motr server on other nodes are
+       still in service, or maybe not), and does offline checking and fixing.
+   * - **interaction**
+     -
+
+
+SNS rebalance for object and DIX
+---------------------------------
+
+This is a way to restore data availability and durability when failed components are replaced.
+But it is still not decided if SNS direct rebalance is needed.
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-20.sns-direct-rebalance]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - Failed controller or node is replaced.
+   * - **requirements**
+     - Do SNS rebalance for object and DIX after controller or node is replaced.
+   * - **interaction**
+     -
+
+ 
