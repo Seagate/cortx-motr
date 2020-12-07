@@ -1,0 +1,56 @@
+@startuml
+title <b>S3 Get Object - Local diskgroup in error (Non DTM)</b>
+
+box "N-1"
+actor S3
+participant "C1-L"
+participant "C1-R"
+endbox
+
+box "N-2"
+participant "C2-L"
+participant "C2-R"
+endbox
+
+box "N-3"
+participant "C3-L"
+participant "C3-R"
+endbox
+
+box "N-4"
+participant "C4-L"
+participant "C4-R"
+endbox
+
+box "N-5"
+participant "C5-L"
+participant "C5-R"
+endbox
+
+box "N-6"
+participant "C6-L"
+participant "C6-R"
+endbox
+
+S3->"C1-L" :Get \nObject
+
+activate "C1-L"
+
+"C1-L" --> "C3-L" :Block-1
+"C3-L" ->  "C1-L"
+
+"C1-L" --> "C2-R" :Block-2
+"C2-R" ->  "C1-L"
+
+"C1-L" -[#green]-> "C2-L" : Read Parity
+
+"C2-L" -[#green]> "C1-L"
+
+... <b>~~Reconstruct data using Parity~~</b> ...
+|||
+"C1-L" -> S3
+deactivate "C1-L"
+@enduml
+
+
+
