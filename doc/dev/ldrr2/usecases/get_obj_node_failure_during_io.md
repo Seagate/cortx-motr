@@ -55,7 +55,7 @@ note left
    * M total node in the Storage System, with __**Node4**__ in error
    * __**Any error in local lookup will needs to be retried with other nodes in SS**__
 end note
-N5 --> N1: not found
+N5 --> N1: Found
 note left
 This lookup returns: Layout ID, Pool Version, Object ID, which helps to identify SS
 end note
