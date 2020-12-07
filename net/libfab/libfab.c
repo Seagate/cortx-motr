@@ -74,10 +74,14 @@ struct transfer_ma {
 	*/
 };
 
+static int libfab_init_ep_res(struct libfab_fab_params *fab,
+			      struct libfab_ep_params *ep,
+			      struct libfab_ep_res *ep_res);
+
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
-	struct libfabric_domain_params *fab;
+	struct libfabric_fab_params *fab;
 	int rc;
 
 	M0_ENTRY();
@@ -103,7 +107,7 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 				rc = fi_domain(fab->fabric, fab->fi,
 					       &fab->domain, NULL);
 				if (rc == FI_SUCCESS)
-					dom->nd_xprt_private = fab->domain;
+					dom->nd_xprt_private = fab;
 			}
 		}
 		fi_freeinfo(fab->hints);
@@ -186,6 +190,82 @@ static void libfab_ma_fini(struct m0_net_transfer_mc *net)
 }
 
 /**
+ * Init resources and bind it to the endpoint.
+ */
+static int libfab_init_ep_res(struct libfab_fab_params *fab,
+			      struct libfab_ep_params *ep,
+			      struct libfab_ep_res *ep_res)
+{
+	int rc = 0;
+	M0_ENTRY();
+
+	if (ep_res->cq_attr != NULL) {
+		ep_res->cq_attr->wait_obj = FI_WAIT_NONE;
+		ep_res->cq_attr->format = FI_CQ_FORMAT_UNSPEC;
+		
+		ep_res->cq_attr->size = fab->fi->tx_attr->size;
+		rc = fi_cq_open(fab->domain, ep_res->cq_attr, &ep->tx_cq, NULL);
+		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+		ep_res->cq_attr->size = fab->fi->rx_attr->size;
+		rc = fi_cq_open(fab->domain, ep_res->cq_attr, &ep->rx_cq, NULL);
+		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+		
+		rc = fi_ep_bind(ep->ep, &ep_res->tx_cq->fid, FI_SEND);
+		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+		rc = fi_ep_bind(ep->ep, &ep_res->rx_cq->fid, FI_RECV);
+		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+	}
+
+	if (ep_res->eq != NULL) {
+		ep_res->eq_attr->wait_obj = FI_WAIT_UNSPEC;
+		rc = fi_eq_open(fab->fabric, &ep_res->eq_attr, &ep->eq, NULL);
+		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+		
+		rc = fi_ep_bind(ep->ep, ep->eq->fid, 0);
+		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+	}
+
+	if (ep_res->av_attr != NULL) {
+		ep_res->av_attr->type = FI_AV_UNSPEC;
+		rc = fi_av_open(fab->domain, &ep_res->av_attr, &ep->av, NULL);
+		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+
+		rc = fi_ep_bind(ep->ep, &ep->av->fid, 0);
+		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+	}
+
+	if (ep_res->cntr_attr != NULL) {
+		ep_res->cntr_attr->wait_obj = FI_WAIT_NONE;
+		rc = fi_cntr_open(fab->domain, ep_res->cntr_attr, &ep->tx_cntr, 
+				  NULL);
+		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+	
+		rc = fi_cntr_open(fab->domain, ep_res->cntr_attr, &ep->rx_cntr, 
+				  NULL);
+		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+
+		rc = fi_ep_bind(ep->ep, ep->tx_cntr->fid, 0);
+		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+		rc = fi_ep_bind(ep->ep, ep->rx_cntr->fid, 0);
+		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+	}
+
+	return M0_RC(rc);
+}
+
+/**
  * Returns an end-point with the given name.
  *
  * Used as m0_net_xprt_ops::xo_end_point_create().
@@ -193,16 +273,42 @@ static void libfab_ma_fini(struct m0_net_transfer_mc *net)
  * @see m0_net_end_point_create().
  */
 static int libfab_end_point_create(struct m0_net_end_point **epp,
-			    struct m0_net_transfer_mc *net,
+			    struct m0_net_transfer_mc *tm,
 			    const char *name)
 {
 	/*
  	* TODO:
 	* fi_endpoint, fi_pep, fi_av, fi_cq, fi_cntr, fi_eq, fi_bind(av/cq/cntr/eq), fi_pep_bind
  	* */
-	int        result = 0;
+	struct libfab_fab_params *fab;
+	struct libfab_ep_params  *ep;
+	struct libfab_ep_res     *ep_res;
+	int                       rc = 0;
 
-	return M0_RC(result);
+	M0_ALLOC_PTR(ep_res->cq_attr);
+	if (ep_res->cq_attr == NULL)
+		return M0_RC(-ENOMEM);
+	
+	M0_ALLOC_PTR(ep_res->eq_attr);
+	if (ep_res->eq_attr == NULL)
+		return M0_RC(-ENOMEM);
+	
+	ep_res->av_attr = NULL;
+	ep_res->cntr_attr = NULL;
+
+	fab = tm->ntm_dom->nd_xprt_private;
+	
+	rc = fi_endpoint(fab->domain, fab->fi, &ep->ep, NULL);
+	if (rc != FI_SUCCESS)
+		return M0_RC(rc);
+
+	rc = libfab_init_ep_res(fab, ep, ep_res);
+	if (rc != FI_SUCCESS)
+		return M0_RC(rc);
+
+	rc = fi_enable(ep->ep);
+
+	return M0_RC(rc);
 }
 
 /**

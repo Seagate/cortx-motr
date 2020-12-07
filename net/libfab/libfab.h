@@ -39,14 +39,32 @@
 // #define FI_MAJOR_VERSION 1
 // #define FI_MINOR_VERSION 1
 
-struct libfabric_domain_params {
+struct libfab_fab_params {
 	struct fi_info    *fi;      /* Fabric info */
 	struct fi_info    *hints;   /* Fabric info to configure flags */
 	struct fid_fabric *fabric;  /* Fabric fid */
 	struct fid_domain *domain;  /* Domain fid */
 };
-struct libfab_params {
+struct libfab_buf_params {
 	struct fid_mr     *mr; 	/* Memory region to be registered */
+};
+
+struct libfab_ep_params {
+	struct fi_ep   *ep;      /* Endpoint */
+	struct fi_pep  *pep;     /* Passive endpoint */
+	struct fi_av   *av;      /* Address vector */
+	struct fi_eq   *eq;      /* Event queue */
+	struct fi_cq   *tx_cq;   /* Transmit Completion Queue */
+	struct fi_cq   *rx_cq;   /* Recv Completion Queue */
+	struct fi_cntr *tx_cntr; /* Transmit Counter */
+	struct fi_cntr *rx_cntr; /* Recv Counter */
+};
+
+struct libfab_ep_res {
+	struct fi_cq_attr   *cq_attr;   /* Completion Queue attributes */
+	struct fi_av_attr   *av_attr;   /* Address Vector attributes */
+	struct fi_eq_attr   *eq_attr;   /* Event Queue attributes */
+	struct fi_cntr_attr *cntr_attr; /* Counter attributes */
 };
 
 /** @} end of netlibfab group */
