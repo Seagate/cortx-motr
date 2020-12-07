@@ -1,4 +1,4 @@
 [submodule "extra-libs/galois"]
 	path = extra-libs/galois
-	url = ../cortx-motr-galois
+	url = git@github.com:Seagate/cortx-motr-galois
 	ignore = untracked
