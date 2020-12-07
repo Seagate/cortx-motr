@@ -1,7 +1,6 @@
+# Simple Object Upload + 2 Storage Set Cluster + Node failure During IO
 ```plantuml
 @startuml
-
-title Simple Obj Upload with two storage set cluster
 
 participant "S3 Client" as client
 box StorageSet1 (SS1) #FEFEFE
@@ -63,16 +62,30 @@ N1 -> N1: create_object
 N1 --> N1: success (completed)
 
 loop until all data is written
-  N1 -> N4: Write data
-  N1 -> N5: Write data
-  N1 -> N6: Write data
+  N1 -> "N4": Write data 1
+note left
+   Assuming 4+2 parity
+end note
+  "N4" -> CL_4
+  N1 -> "N4": Write data 2
+  "N4" -> CR_4
 
-  N5 --> N1: success
-  N6 --> N1: success
-  N4 --X N1: success
+  N1 -> "N5": Write data 3
+  "N5" -> CL_5
+  N1 -> "N5": Write data 4
+  "N5" -> CR_5
+
+  N1 -> "N6": Write data P1
+  "N6" -> CL_6
+  N1 -> "N6": Write data P2
+  "N6" -> CR_6
+
+  N5 --> N1: Success (write 3 & 4)
+  N6 --> N1: Success (write P1 & P2)
+  N4 --X N1: ERROR (write 1 & 2)
 note left
    * One of the Write Data returns error (Node 4)
-   * __**Return Success if Total-Error < #Parity-Unit **__
+   * __**Return Success if Total-Error <= #Parity-Unit **__
 end note
 
 end
