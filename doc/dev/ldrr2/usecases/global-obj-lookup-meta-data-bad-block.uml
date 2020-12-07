@@ -31,19 +31,16 @@ autoactivate on
 
 client -> N1: PUT /bucket_name/object_name
 
-
 N1 -> N1: get_keyval(global_bucket_index,\n key = "bucket_name")
 N1 --> N1: value = error due to bad meta-data
 note left
    If lookup gets error from m0d due to bad-block on external meta-data,
-   get the keyval from other nodes (1 + 2).
-   As global meta-data is stored in all the nodes, any two nodes can be
-   selected.
+   get the keyval from next non-failure node from the storage sets.
    Use the same mechanism for global bucket index and global bucket md index.
 end note
 
-N1 -> N2: get_keyval(global_bucket_index,\n key = "bucket_name")
-N2 --> N1: value = account_id of bucket owner
+N1 -> N4: get_keyval(global_bucket_index,\n key = "bucket_name")
+N4 --> N1: value = account_id of bucket owner
 
 N1 -> N3: get_keyval(global_bucket_md_index,\n key = "account_id/bucket_name")
 N3 --> N1: value = bucket metadata JSON
@@ -52,7 +49,7 @@ N1 -> N5: get_keyval(BUCKET_nnn_obj_index,\n key = "object_name");
 note left
    * Index OID for this index is stored
       in bucket metadata JSON.
-      New fileds needed,
+     Following New fields are needed,
       - pool id
       - pver
       - layout
