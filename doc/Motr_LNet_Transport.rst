@@ -313,7 +313,7 @@ As an example, consider using a producer-consumer pattern with circular queues t
 
 This is illustrated in the following figure:
 
-.. image:: Images/KERNEL.PNG
+.. image:: Images/LNET1.PNG
 
 Conformance
 ===============
