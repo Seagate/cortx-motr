@@ -43,15 +43,17 @@ N3 --> N1: value = bucket metadata JSON
 
 note left
    * Global lookup will have 1 + N-1 replication 
-   * N total node in the system
+   * N total node in the system with __**Node2**__ in error
    * __**Any error in global lookup will needs to be retried with other nodes**__
 end note
 
 == Lookup 3 : Local Storage Set  ==
+N1 -> N4: get_keyval(BUCKET_nnn_obj_index,\n key = "object_name");
+N4 --X N1 : Error
 N1 -> N5: get_keyval(BUCKET_nnn_obj_index,\n key = "object_name");
 note left
    * KV in Local Storage Set will have 1 + M-1 replication 
-   * M total node in the Storage System
+   * M total node in the Storage System, with __**Node4**__ in error
    * __**Any error in local lookup will needs to be retried with other nodes in SS**__
 end note
 N5 --> N1: not found
@@ -69,15 +71,18 @@ loop until all data is written
   N6 --> N1: success
   N4 --X N1: success
 note left
-   * One of the Write Data returns error
+   * One of the Write Data returns error (Node 4)
    * __**Return Success if Total-Error < #Parity-Unit **__
 end note
 
 end
 
 == Local SS metadata write ==
+N1 -> N4: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
+N4 --X N1: ERROR
+
 N1 -> N5: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
-N5 --X N1: ERROR
+N5 --> N1: success (completed)
 
 N1 -> N6: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
 N6 --> N1: success (completed)
