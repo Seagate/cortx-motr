@@ -598,6 +598,43 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
     end
   end
 
+  # VMware Desktop --------------------------
+  #
+
+  node.vm.provider :vmware_desktop do |v|
+    # visible machine name
+    v.vmx['displayName'] = vm_prefix + '_' + node.vm.vgname
+
+    # show VM's window
+    v.gui = enable_gui
+
+    v.vmx['numvcpus'] = cpu_nr
+    v.vmx['memsize']  = mem_mb
+
+    # re-use main VM disk as copy-on-write base image
+    v.linked_clone = true
+
+    # serial console file
+    v.vmx['serial0.fileType'] = 'file'
+    v.vmx['serial0.fileName'] = File.expand_path(console_log_dir).to_s +
+                                "/console_#{node.vm.vgname}.log"
+    v.vmx['serial0.present']  = 'TRUE'
+
+    # disks
+    vdiskmanager = 'C:\Program Files (x86)\VMware\VMware Workstation\vmware-vdiskmanager.exe'
+    if PROVIDER == :vmware_desktop and File.exist?(vdiskmanager)
+      (1..disk_nr).each do |i|
+        disk_file = File.expand_path(disks_dir).to_s + "/disk_#{node.vm.vgname}_#{i}.vmdk"
+        if !File.exists?(disk_file)
+          `"#{vdiskmanager}" -c -s #{disk_size}GB -a lsilogic -t 0 #{disk_file}`
+        end
+        v.vmx["scsi0:#{i}.filename"] = disk_file
+        v.vmx["scsi0:#{i}.present"]  = 'TRUE'
+        v.vmx["scsi0:#{i}.redo"]     = ''
+      end
+    end
+  end
+
   # Hyper-v -----------------------------
   #
 
