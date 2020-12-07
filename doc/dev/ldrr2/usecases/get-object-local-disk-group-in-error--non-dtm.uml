@@ -3,54 +3,66 @@ title <b>S3 Get Object - Local diskgroup in error (Non DTM)</b>
 
 box "N-1"
 actor S3
+actor m0d1
 participant "C1-L"
 participant "C1-R"
 endbox
 
 box "N-2"
+actor m0d2
 participant "C2-L"
 participant "C2-R"
 endbox
 
 box "N-3"
+actor m0d3
 participant "C3-L"
 participant "C3-R"
 endbox
 
 box "N-4"
+actor m0d4
 participant "C4-L"
 participant "C4-R"
 endbox
 
 box "N-5"
+actor m0d5
 participant "C5-L"
 participant "C5-R"
 endbox
 
 box "N-6"
+actor m0d6
 participant "C6-L"
 participant "C6-R"
 endbox
 
-S3->"C1-L" :Get \nObject
+note over "C1-L": Local disk group\n is in error.
+S3-->m0d3 :Read \nObject
+activate S3
 
-activate "C1-L"
+S3-->m0d2 :Read \nObject
 
-"C1-L" --> "C3-L" :Block-1
-"C3-L" ->  "C1-L"
+S3-->m0d2 :Read \nParity
 
-"C1-L" --> "C2-R" :Block-2
-"C2-R" ->  "C1-L"
+m0d3 --> "C3-L" :Block-1
+"C3-L" -->  m0d3
+m0d3-->S3
 
-"C1-L" -[#green]-> "C2-L" : Read Parity
+m0d2-->"C2-R" :Block-2
+"C2-R" -->  m0d2
+m0d2-->S3
 
-"C2-L" -[#green]> "C1-L"
+m0d2-[#green]->"C2-L" :Block-Parity
+"C2-L" -[#green]->  m0d2
+m0d2-[#green]->S3
 
 ... <b>~~Reconstruct data using Parity~~</b> ...
-|||
-"C1-L" -> S3
-deactivate "C1-L"
-@enduml
 
+|||
+
+note over S3: Send Read data to S3 client
+@enduml
 
 
