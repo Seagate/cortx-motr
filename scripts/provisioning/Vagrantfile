@@ -705,6 +705,10 @@ def setup_shared_nfs_dir(config, src_path)
   end
 end
 
+def setup_shared_smb_dir(config, src_path)
+  config.vm.synced_folder src_path, '/data', type: 'smb'
+end
+
 # share a top-level project dir (one level up from motr src dir)
 def setup_shared_motr_src_dir(config)
   if ARGV[0] and ARGV[0].match(/^(?:up|provision|reload)$/)
@@ -724,6 +728,8 @@ def setup_shared_motr_src_dir(config)
       setup_shared_rsync_dir(config, path)
     when 'rsync-auto'
       setup_shared_rsync_dir(config, path, auto_sync: true)
+    when 'smb'
+      setup_shared_smb_dir(config, path)
     when 'none'
       puts "==> #{config.vm.vgname}: shared dir is disabled (M0_VM_SHARE_TYPE=none)"
     else # nfs is used by default
