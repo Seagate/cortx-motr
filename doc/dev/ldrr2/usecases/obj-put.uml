@@ -42,6 +42,12 @@ end note
 N5 --> N1: not found
 
 N1 -> N1: create_object
+note left
+  update m0_obj with the following fields
+  * get pver
+  * layout id
+  mdcob is not needed
+end note
 N1 --> N1: success (completed)
 
 loop until all data is written
@@ -55,6 +61,13 @@ loop until all data is written
 end
 
 N1 -> N6: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
+N1 -> N5: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
+N1 -> N4: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
+note left
+  With DTM sync is not needed
+end note
+N4 --> N1: success
+N5 --> N1: success
 N6 --> N1: success (completed)
 
 N1 --> client: 200 OK
