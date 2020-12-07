@@ -39,6 +39,7 @@ database "DG6-R"
 endbox
 
 note over "DG1-L": <b>Local disk group\n<b> is in error.
+-->S3: Get Object
 S3-->m0d3 :Read Object
 activate S3
 
@@ -72,7 +73,8 @@ m0d2-[#green]>S3
 
 |||
 
-note over S3: <b>Send Read data\n<b> to S3 client
+<-S3: Object Data
+deactivate S3
 @enduml
 
 
