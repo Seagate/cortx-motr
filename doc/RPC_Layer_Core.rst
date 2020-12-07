@@ -167,6 +167,8 @@ Statistics subcomponent is used to gather and share various statistics of RPC la
 
 Statistics subcomponent expose simple interface which takes property name or key and returns its value in raw form.
 
+.. image:: Images/rpccore.PNG
+
 Interface description:
 
 Component IF:
