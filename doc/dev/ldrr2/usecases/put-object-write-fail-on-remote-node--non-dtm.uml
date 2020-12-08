@@ -115,7 +115,7 @@ m0d3->S3
 m0d3->S3
 
 "DG3-L" -->  m0d3 --
-m0d3->S3
+m0d3->S3 --
 
 "DG1-L" -->  m0d1
 m0d1->S3
@@ -124,7 +124,7 @@ m0d1->S3
 m0d1->S3
 
 "DG1-L" -->  m0d1 --
-m0d1->S3
+m0d1->S3 --
 
 
 S3C <- S3 -- : Object Data
