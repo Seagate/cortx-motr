@@ -1,0 +1,132 @@
+@startuml
+title <b>S3 Put Object - Data error encountered on Local diskgroup (Non DTM)</b>
+
+actor "S3 client" as S3C #blue
+box "N-1"
+actor S3 #red
+actor m0d1
+database "DG1-L"
+database "DG1-R"
+endbox
+
+box "N-2"
+actor m0d2
+database "DG2-L"
+database "DG2-R"
+endbox
+
+box "N-3"
+actor m0d3
+database "DG3-L"
+database "DG3-R"
+endbox
+
+box "N-4"
+actor m0d4
+database "DG4-L"
+database "DG4-R"
+endbox
+
+box "N-5"
+actor m0d5
+database "DG5-L"
+database "DG5-R"
+endbox
+
+box "N-6"
+actor m0d6
+database "DG6-L"
+database "DG6-R"
+endbox
+
+S3C -> S3 ++: Put Object
+S3->m0d3 ++ :Write Object
+m0d3 -> "DG3-L" ++ :Write Block-1
+
+S3->m0d2 ++ :Write Object
+m0d2 -> "DG2-R" ++ :Write Block-2
+
+S3->m0d1 ++ :Write Object
+m0d1 -> "DG1-L" ++ :Write Block-3
+
+S3->m0d1 :Write Parity
+m0d1 -> "DG1-R" ++ :Write Block-Parity
+
+
+"DG3-L" -->  m0d3 --
+m0d3-->S3 --
+
+"DG2-R" --> m0d2 --
+m0d2-->S3 --
+
+note over "DG1-L": Write failed
+
+"DG1-L" -[#blue]->x  m0d1 --
+m0d1-[#blue]->S3
+
+"DG1-R" -->  m0d1 --
+m0d1-->S3 --
+
+S3-->m0d3 ++ :Delete Object
+m0d3 --> "DG3-L" ++ :Delete Block-1
+
+S3-->m0d2 ++ :Delete Object
+m0d2 --> "DG2-R" ++ :Delete Block-2
+
+S3-->m0d1 :Delete Parity
+m0d1 --> "DG1-R" ++ :Delete Block-Parity
+
+"DG3-L" -->  m0d3 --
+m0d3-->S3 --
+
+"DG2-R" -->  m0d2 --
+m0d2-->S3 --
+
+"DG1-R" -->  m0d1 --
+m0d1-->S3 --
+
+... <b><size:20>~~Switch to Pool version which supports 2+2 replication among nodes N2 and N3~~</b> ...
+
+
+S3->m0d3 ++ :Write Object
+m0d3 -> "DG3-L" ++ :Write Block-1
+
+S3->m0d3 :Write Object
+m0d3 -> "DG3-R" ++ :Write Block-2
+
+S3->m0d3 :Write Object
+m0d3 -> "DG3-L" :Write Block-3
+
+S3->m0d2 ++ :Write Object
+m0d2 -> "DG2-L" ++ :Write copy of Block-1
+
+S3->m0d2 :Write Object
+m0d2 -> "DG2-R" ++ :Write copy of Block-2
+
+S3->m0d2 :Write Object
+m0d2 -> "DG2-L" :Write copy of Block-3
+
+
+
+"DG3-L" -->  m0d3
+m0d3-->S3
+
+"DG3-R" -->  m0d3 --
+m0d3-->S3
+
+"DG3-L" -->  m0d3 --
+m0d3-->S3 --
+
+"DG2-L" -->  m0d1
+m0d2-->S3
+
+"DG2-R" -->  m0d1 --
+m0d2-->S3
+
+"DG2-L" -->  m0d1 --
+m0d2-->S3 --
+
+
+S3C <-- S3 -- : Object Data
+@enduml
+
