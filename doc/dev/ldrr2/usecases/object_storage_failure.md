@@ -3,6 +3,13 @@
 * Various cases of error are described in section below
 * Initial condition is same for all described below
 
+## Basic Assumptions
+Following are the basic assumptions for creating the sequence flow for various error scenarios
+- Global Bucket list is replicated across stroage set.
+-- Lookup into global metadata will give Stroage Set where the bucket list and data reside
+- Bucket Object List Table is replcated within storage set
+-- Bucket Object List Table if we make this global than size of global data inreases lot? So this should be within storage set, but objects can be part of different storage set but Object data does not span across storage set ?
+
 ## Initial Condition : 
 * Two Storage Set (SS) in cluster
 * Each storage set with 3 nodes
@@ -10,10 +17,38 @@
 * Global bucket is replicated across all nodes of cluster (N):
    - This is small amount of global bucket data
    - Frequency of creation of this bucket data is low
-   - Replication to all nodes allows each storage set to easily support one node failure and will also help with case of Storage Set addition (or for SS replication of #num_of_node_failure_in_storage_set + 1) is sufficient) 
+   - Replication to all nodes allows each storage set to easily support one node failure and will also help with case of Storage Set addition.
+   -- Full replication will help in performance, mimimum replication needed in a storage set is #num_of_node_failure_in_storage_set + 1 
 * Local S3 metadata should be replicated across atleast 3 nodes of a storage set
    - Replication of data across 3 nodes of storage set, will helps in node failure     
 * Data is striped in 4+2 parity config
+
+## DTM Usage
+This section will analyze the DTM usage in various scenario with assumption that
+
+
+### Scenario
+Following scenario will be analyzed w.r.t. DTM role to restore storage system to consistent state w.r.t metadata and data.
+
+- IO Failure: Node or IO Service going down temporarily
+- Software Upgrade: Node going through SW upgrade.
+- Storage Set Addition: A new storage set becoming part of cluster
+
+#### IO Failure
+A node or storage unavailable for some time can cause following issues
+1. Node will not be able to update following metadata and it will get out of sync with cluster
+   1. Global Bucket List : Across Storage Set
+   1. Bucket Object List Table : Within Storage Set
+1. Data unit directed to the node will get dropped and object will lose units of data (1-MAX_DISK_GROUP_IN_SS) 
+
+#### Software (SW) Upgrade
+Without DTM, cluster can service Read Object request during SW upgrade but for write object and bucket creation metadata will need DTM. 
+
+#### Storage Set Addition
+A new storage set addition will need to sync Global Bucket List and DTM will be needed for that.
+
+As for P0 we can live with object in degraded state, we can skip DTM for Data.
+But the DTM is mandatory for keeping the cluster distributed metadata in consistent state.
 
 # I. Node failure During IO
 ## Error Scenario : 
