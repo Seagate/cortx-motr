@@ -1,0 +1,115 @@
+@startuml
+title <b>S3 Get Object - bad block on data volume (with DTM or without DTM)</b>
+
+actor "S3 client" as S3C #blue
+box "N-1"
+actor "S3server(Motr client)" as S3 #red
+actor m0d1
+database "DG1-L"
+database "DG1-R"
+endbox
+
+box "N-2"
+actor m0d2
+database "DG2-L"
+database "DG2-R"
+endbox
+
+box "N-3"
+actor m0d3
+database "DG3-L"
+database "DG3-R"
+endbox
+
+box "N-4"
+actor m0d4
+database "DG4-L"
+database "DG4-R"
+endbox
+
+box "N-5"
+actor m0d5
+database "DG5-L"
+database "DG5-R"
+endbox
+
+box "N-6"
+actor m0d6
+database "DG6-L"
+database "DG6-R"
+endbox
+
+S3C --> S3: Get Object
+
+S3      ->    S3  : Query Motr OID from list.
+activate S3
+note right
+Query the mapping from S3 object to Motr object
+from the bucket object list index.
+This is an index operation.
+It is omitted here.
+It is depicted in another use case.
+end note
+deactivate S3
+
+
+S3-->m0d3 :Read Object
+activate S3
+m0d3 --> "DG3-L" :Read Block-1
+activate "DG3-L"
+m0d3 --> "DG3-R" :Read Block-2
+activate "DG3-R"
+
+
+S3-->m0d2 :Read Object
+m0d2 --> "DG2-L" :Read Block-3
+activate "DG2-L"
+m0d2 --> "DG2-R" :Read Block-4
+activate "DG2-R"
+
+
+
+"DG3-L" ->  m0d3: Return Block-1
+deactivate "DG3-L"
+"DG3-R" ->  m0d3: Return Block-2
+deactivate "DG3-R"
+m0d3->S3
+
+"DG2-L" ->  m0d2: Return Block-3
+deactivate "DG2-L"
+"DG2-R" -[#green]> m0d2: ERROR (Bad Block)
+note right
+Disk read error, checksum error,
+balloc error, extmap error, OOM
+end note
+deactivate "DG2-R"
+m0d2-[#green]>S3: I/O ERROR for Block-4
+
+
+
+S3-[#blue]->m0d1 :Read Parity
+m0d1    -[#blue]> "DG1-L" :Read Parity-1
+activate "DG1-L"
+"DG1-L" -[#blue]> m0d1: Return Parity-1
+deactivate "DG1-L"
+m0d1-[#blue]>S3
+
+
+
+S3->S3: Reconstruct data
+activate S3
+deactivate S3
+note right
+Reconstruct data with
+surviving data and parity.
+For non-full parity group read,
+Motr client needs to read enough
+data units and parity units to achieve this.
+end note
+
+
+|||
+
+S3C <- S3: Object Data
+deactivate S3
+@enduml
