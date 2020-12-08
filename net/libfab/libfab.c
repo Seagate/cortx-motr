@@ -58,7 +58,7 @@
 #include "lib/bitmap.h"
 #include "lib/chan.h"
 #include "lib/memory.h"
-#include "libfab.h"
+#include "libfab_internal.h"
 #include <errno.h>
 
 
@@ -81,36 +81,39 @@ static int libfab_init_ep_res(struct libfab_fab_params *fab,
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
-	struct libfabric_fab_params *fab;
+	struct m0_fab__dom_param *fab_dom;
 	int rc;
 
 	M0_ENTRY();
 	
-	M0_ALLOC_PTR(fab);
-	if (fab == NULL)
+	M0_ALLOC_PTR(fab_dom);
+	if (fab_dom == NULL)
 		return M0_RC(-ENOMEM);
 
-	fab->hints = fi_allocinfo();
-	if (fab->hints != NULL) {
+	fab_dom->fab_hints = fi_allocinfo();
+	if (fab_dom->fab_hints != NULL) {
 		/*
 		* TODO: Added for future use
-		* fab->hints->ep_attr->type = FI_EP_RDM;
-		* fab->hints->caps = FI_MSG;
-		* fab->hints->fabric_attr->prov_name = "verbs";
+		* fab_dom->fab_hints->ep_attr->type = FI_EP_RDM;
+		* fab_dom->fab_hints->caps = FI_MSG;
+		* fab_dom->fab_hints->fabric_attr->prov_name = "verbs";
 		*/
 		rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
-				NULL, NULL, 0, fab->hints, &fab->fi);
+				NULL, NULL, 0, fab_dom->fab_hints,
+				&fab_dom->fab_fi);
 		if (rc == FI_SUCCESS) {
-			rc = fi_fabric(fab->fi->fabric_attr, &fab->fabric,
-				       NULL);
+			rc = fi_fabric(fab_dom->fab_fi->fabric_attr,
+				       &fab_dom->fab_fabric, NULL);
 			if (rc == FI_SUCCESS) {
-				rc = fi_domain(fab->fabric, fab->fi,
-					       &fab->domain, NULL);
+				rc = fi_domain(fab_dom->fab_fabric,
+					       fab_dom->fab_fi,
+					       &fab_dom->fab_domain, NULL);
 				if (rc == FI_SUCCESS)
-					dom->nd_xprt_private = fab;
+					dom->nd_xprt_private = 
+							    fab_dom->fab_domain;
 			}
 		}
-		fi_freeinfo(fab->hints);
+		fi_freeinfo(fab_dom->fab_hints);
 	} else 
 		rc = M0_ERR(-ENOMEM); 
 
@@ -513,7 +516,7 @@ static const struct m0_net_xprt_ops libfab_xprt_ops = {
 	.xo_get_max_buffer_desc_size    = &libfab_get_max_buffer_desc_size
 };
 
-const struct m0_net_xprt m0_net_libfab_xprt = {
+struct m0_net_xprt m0_net_libfab_xprt = {
 	.nx_name = "libfab",
 	.nx_ops  = &libfab_xprt_ops
 };
