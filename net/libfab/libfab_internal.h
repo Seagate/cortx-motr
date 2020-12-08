@@ -49,22 +49,22 @@ struct libfab_params {
 	struct fid_mr     *mr; 	/* Memory region to be registered */
 };
 
-struct libfab_ep_params {
-	struct fi_ep   *ep;      /* Endpoint */
-	struct fi_pep  *pep;     /* Passive endpoint */
-	struct fi_av   *av;      /* Address vector */
-	struct fi_eq   *eq;      /* Event queue */
-	struct fi_cq   *tx_cq;   /* Transmit Completion Queue */
-	struct fi_cq   *rx_cq;   /* Recv Completion Queue */
-	struct fi_cntr *tx_cntr; /* Transmit Counter */
-	struct fi_cntr *rx_cntr; /* Recv Counter */
+struct m0_fab__ep_param {
+	struct fid_ep   *fab_ep;       /* Endpoint */
+	struct fid_pep  *fab_pep;      /* Passive endpoint */
+	struct fid_av   *fab_av;       /* Address vector */
+	struct fid_eq   *fab_eq;       /* Event queue */
+	struct fid_cq   *fab_tx_cq;    /* Transmit Completion Queue */
+	struct fid_cq   *fab_rx_cq;    /* Recv Completion Queue */
+	struct fid_cntr *fab_tx_cntr;  /* Transmit Counter */
+	struct fid_cntr *fab_rx_cntr;  /* Recv Counter */
 };
 
-struct libfab_ep_res {
-	struct fi_cq_attr   *cq_attr;   /* Completion Queue attributes */
-	struct fi_av_attr   *av_attr;   /* Address Vector attributes */
-	struct fi_eq_attr   *eq_attr;   /* Event Queue attributes */
-	struct fi_cntr_attr *cntr_attr; /* Counter attributes */
+struct m0_fab__ep_res {
+	struct fi_cq_attr   *fab_cq_attr;   /* Completion Queue attributes */
+	struct fi_av_attr   *fab_av_attr;   /* Address Vector attributes */
+	struct fi_eq_attr   *fab_eq_attr;   /* Event Queue attributes */
+	struct fi_cntr_attr *fab_cntr_attr; /* Counter attributes */
 };
 
 /** @} end of netlibfab group */
