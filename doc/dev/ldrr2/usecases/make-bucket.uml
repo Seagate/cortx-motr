@@ -33,10 +33,7 @@ client -> N1: MB /bucket_name
 N1 -> N1: acctID= get_accountID()
 N1 -> N1: value = bucket metadata JSON
 
-loop until all bucket meta-data is inserted
-  N1 -> N1: put_keyval(bucket_name,acctID,val)
-  N1 -> N2: put_keyval(bucket_name,acctID,val)
-  N1 -> N3: put_keyval(bucket_name,acctID,val)
+loop until all bucket meta-data is inserted in a storage set
   N1 -> N4: put_keyval(bucket_name,acctID,val)
   N1 -> N5: put_keyval(bucket_name,acctID,val)
   N1 -> N6: put_keyval(bucket_name,acctID,val)
@@ -44,9 +41,6 @@ loop until all bucket meta-data is inserted
   N5 --> N1: success
   N6 --> N1: success
   N4 --> N1: success
-  N1 --> N1: success
-  N2 --> N1: success
-  N3 --> N1: success
 end
 
 N1 --> client: 200 OK
