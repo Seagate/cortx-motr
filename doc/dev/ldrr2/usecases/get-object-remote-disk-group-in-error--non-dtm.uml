@@ -40,41 +40,61 @@ database "DG6-R"
 endbox
 
 note over "DG2-L": <b>Remote disk group\n<b> is in error.
-S3C --> S3: Get Object
-S3-->m0d3 :Read Object
-activate S3
+S3C --> S3 ++: Get Object
+|||
+... <b>~~<size:20>This object was written with Pool version 4+2 striping~~</b> ...
 
-m0d3 --> "DG3-L" :Read Block-1
-activate "DG3-L"
+S3-->m0d3 ++:Read Object
 
-S3-->m0d1 :Read Object
+m0d3 --> "DG3-L" ++:Read Block-1
 
-m0d1 --> "DG1-L" :Read Block-2
-activate "DG1-L"
+S3-->m0d1 ++:Read Object
+m0d1 --> "DG1-L" ++:Read Block-2
 
 S3-->m0d1 :Read Parity
+m0d1-[#green]->"DG1-R" ++:Read Block-Parity
 
-m0d1-[#green]->"DG1-R" :Read Block-Parity
-activate "DG1-R"
+"DG3-L" ->  m0d3 --
 
-"DG3-L" ->  m0d3
-deactivate "DG3-L"
+m0d3->S3 --
 
-m0d3->S3
-
-"DG1-L" ->  m0d1
-deactivate "DG1-L"
+"DG1-L" ->  m0d1 --
 m0d1->S3
 
-"DG1-R" -[#green]>  m0d1
-deactivate "DG1-R"
-m0d1-[#green]>S3
+"DG1-R" -[#green]>  m0d1 --
+m0d1-[#green]>S3 --
 
 ... <b>~~<size:20>Reconstruct data using Parity~~</b> ...
 
 |||
 
-S3C <- S3: Object Data
-deactivate S3
+S3C <- S3 --: Object Data
+|||
+|||
+|||
+
+S3C --> S3 ++ : Get Object
+|||
+... <b>~~<size:20>This object was written with Pool version 2+2 replication~~</b> ...
+
+S3-->m0d3 ++ :Read Object
+m0d3 --> "DG3-L" ++ :Read Block-1
+
+S3-->m0d1 ++ :Read Object
+m0d1 --> "DG1-R" ++ :Read copy of Block-2
+
+S3-->m0d3 :Read Object
+m0d3-->"DG3-R" ++ :Read Block-3
+
+"DG3-L" ->  m0d3 --
+m0d3->S3
+
+"DG1-R" ->  m0d1 --
+m0d1->S3 --
+
+"DG3-R" ->  m0d3 --
+m0d3->S3 --
+
+S3C <- S3 -- : Object Data
 @enduml
 

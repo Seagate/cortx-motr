@@ -59,18 +59,19 @@ m0d3->S3 --
 note over "DG2-R": Write failed
 
 "DG2-R" -[#blue]->x m0d2 --
+note over m0d2: Notify HA !!!
 m0d2-[#blue]->S3 --
 
 "DG1-L" -->  m0d1 --
 m0d1->S3
 
 "DG1-R" -->  m0d1 --
-m0d1->S3
+m0d1->S3 --
 
 S3-->m0d3 ++ :Delete Object
 m0d3 --> "DG3-L" ++ :Delete Block-1
 
-S3-->m0d1 :Delete Object
+S3-->m0d1 ++:Delete Object
 m0d1 --> "DG1-L" ++ :Delete Block-3
 
 S3-->m0d1 :Delete Parity
@@ -129,4 +130,3 @@ m0d1->S3 --
 
 S3C <- S3 -- : Object Data
 @enduml
-
