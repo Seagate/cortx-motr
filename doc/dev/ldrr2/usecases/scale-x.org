@@ -1,0 +1,304 @@
+#+TITLE: LDRv2 Performance Use Cases
+#+AUTHOR: Anatoliy Bilenko
+#+OPTIONS: ^:nil
+#+HTML_HEAD: <link rel="stylesheet" type="text/css" href="https://gongzhitaao.org/orgcss/org.css"/>
+#+LATEX_HEADER: \usepackage{adjustbox}
+
+
+
+* version
+|   | Version | Date             | Author   | Desciption of changes |
+|---+---------+------------------+----------+-----------------------|
+|   |   0.0.1 | <2020-12-02 Wed> | Anatoliy | Initial               |
+|   |         |                  |          |                       |
+* usecases
+** requirements
+ #+LATEX: \begin{adjustbox}{width={\textwidth},keepaspectratio}
+ #+ATTR_LATEX: :placement [!h]
+ #+LATEX: \centering
+| RequireID | Phase | Reqirement                                                                                       |
+|-----------+-------+--------------------------------------------------------------------------------------------------|
+| SCALE-10  | P0    | LR cluster should support between 3 and 12 nodes                                                 |
+| SCALE-30  | P0    | Aggregated performance for the cluster must grow within 90% of linearly with the number of nodes |
+| SCALE-40  | P0    | Read: 3GB/sec; Write: 2.5GB/sec per node for 16MB objects                                        |
+| SCALE-50  | P0    | Read: 1GB/sec, Write: 850MB/sec per node for 256KB objects                                       |
+| SCALE-60  | P0    | 600 sessions per node                                                                            |
+| SCALE-70  | P0    | 100M objects per node   (for 12-Node 100M x 12)                                                  |
+| SCALE-80  | P0    | Time to first byte = 150ms (99%) for all workloads (mostly fore small obects)                    |
+| SCALE-110 | P0    | Delete during write shouldn’t cause more than 10% performance degradation                        |
+#+LATEX: \end{adjustbox}
+
+** usecases
+
+- ~DEF:~ Usecase describes a series of events and interactions between
+an actor and a system, in order to reach actor's goal.
+
+- ~DEF:~ Provide definition of end-to-end usecases.
+
+
+#+ATTR_LATEX: :center t :placement [H]
+#+name: dot-eg-table
+| Usecase ID        | Component Dep  | Type | RequireID | deps            | Usecase                                                                                  |
+|-------------------+----------------+------+-----------+-----------------+------------------------------------------------------------------------------------------|
+| 3to12-provision   | Prov           | HL   | SCALE-10  |                 | Provision 3 node deployment                                                              |
+| 3to12-addnode     | Prov HA        | HL   | SCALE-10  | 3to12-provision | Add a storage set to 3, 6, 9 node deployment                                             |
+| 3to12-replacenode | Prov HA        | HL   | SCALE-10  | 3to12-provision | Replace node in 3-12 node cluster by any reason                                          |
+| 3to12-reballance  | Prov HA Motr   | HL   | SCALE-10  | 3to12-addnode   | Reballance capacity after storage set addition                                           |
+| perf-linear-grow  | S3 Motr HA     | DL   | SCALE-30  | 3to12-addnode   | RM grants the lock                                                                       |
+| perf-linear-grow  | S3 Motr HA     | DL   | SCALE-30  | 3to12-addnode   | Cross Switch traffic                                                                     |
+| perf-linear-grow  | S3 Motr HA     | DL   | SCALE-30  | 3to12-addnode   | Cross Rack traffic                                                                       |
+| perf-small-obj    | S3 Motr LB     |      | SCALE-40  |                 |                                                                                          |
+| perf-large-obj    | S3 Motr LB     |      | SCALE-50  |                 |                                                                                          |
+| perf-sessions     | S3 Motr LB     |      | SCALE-60  |                 |                                                                                          |
+| perf-capacity     | S3 Motr        |      | SCALE-70  |                 |                                                                                          |
+| perf-ttfb         | S3 Motr 5u84   |      | SCALE-80  |                 |                                                                                          |
+| perf-mixed        | S3 Motr 5u84   |      | SCALE-110 |                 | Deletes \\ writes                                                                        |
+| perf-random       | S3 Motr 5u84   |      | SCALE-110 |                 |                                                                                          |
+| perf-workload     | S3             |      | SCALE-110 |                 | Workload characteristics                                                                 |
+|                   | Switch Network |      | SCALE-110 |                 | Bonding                                                                                  |
+|                   | Switch Network |      | SCALE-110 |                 | Number of ports                                                                          |
+|                   | Switch Network |      | SCALE-110 |                 | MTU                                                                                      |
+|                   | Switch Network |      | SCALE-110 |                 | ROCE                                                                                     |
+|                   | HAProxy        |      | SCALE-110 |                 | HTTPS stripping(CPU%)                                                                    |
+|                   | Network        |      | SCALE-110 |                 | ZeroCopy (Limitation: PCIe#lanes)                                                        |
+|                   | Network        |      | SCALE-110 |                 | Limitation: Ingress Throughput 100GBit/s                                                 |
+|                   | Network        |      | SCALE-110 |                 | Network card: ROCE (CPU%)                                                                |
+|                   | LNet           |      | SCALE-110 |                 | LNet ROCE (CPU%)                                                                         |
+|                   | LibFabric      |      | SCALE-110 |                 | LibFabric ZeroCopy support (CPU%)                                                        |
+|                   | Network        |      | SCALE-110 |                 | Security (eats CPU% to encode trafic)                                                    |
+|                   | Motr S3        |      | SCALE-110 |                 | m0_net perf (1thread, 2.5GB/s per process, MEM% for buffers)                             |
+|                   | Motr S3        |      | SCALE-110 |                 | m0_rpc perf (req types, req (tm queue) in flight, MEM% for buffers)                      |
+|                   | Motr S3        |      | SCALE-110 |                 | m0_clovis parity sums calc (CPU%)                                                        |
+|                   | Motr S3        |      | SCALE-110 |                 | S3 protocol: Reduce number of meta reqs (latency)                                        |
+|                   | Motr S3        |      | SCALE-110 |                 | S3 protocol: Revise S3 protocol and remove intent-deletes (latency/throughput)           |
+|                   | Motr S3        |      | SCALE-110 |                 | S3 protocol: Revise S3 metadata schema                                                   |
+|                   | Motr S3        |      | SCALE-110 |                 | DTM0 MD traffic (additional latecies for PUT/DEL)                                        |
+|                   | Motr S3        |      | SCALE-110 |                 | Throttling for different usecases (including DTM0) on Clovis and/or S3 level             |
+|                   | Motr S3        |      | SCALE-110 |                 | Degraded mode performance (sums recalc)                                                  |
+|                   | Motr S3        |      | SCALE-110 |                 | RM locks for R2 :))))                                                                    |
+|                   | Motr S3        |      | SCALE-110 |                 | Memory consumption for N concurrent sessions                                             |
+|                   | 5u84           |      | SCALE-110 |                 | SAS ZeroCopy (Limitation: PCIe#lanes)                                                    |
+|                   | 5u84           |      | SCALE-110 |                 | HDD Type                                                                                 |
+|                   | 5u84           |      | SCALE-110 |                 | Controller cache type                                                                    |
+|                   | 5u84           |      | SCALE-110 |                 | Controller's accepted pattern                                                            |
+|                   | 5u84           |      | SCALE-110 |                 | Different layout than 8+2                                                                |
+|                   | 5u84           |      | SCALE-110 |                 | Different operational mode than Virtual Adapt                                            |
+|                   | 5u84           |      | SCALE-110 |                 | Different multipath config                                                               |
+|                   | 5u84           |      | SCALE-110 |                 | Operation in more than 90% filling                                                       |
+|                   | 5u84           |      | SCALE-110 |                 | Degraded mode performance                                                                |
+|                   | 5u84           |      | SCALE-110 |                 | IO Latencies and repeatability of results                                                |
+|                   | Motr           |      | SCALE-110 |                 | ZeroCopy (Limitation: PCIe#lanes)                                                        |
+|                   | Motr           |      | SCALE-110 |                 | m0_net perf (1thread, 2.5GB/s per process, MEM% for buffers)                             |
+|                   | Motr           |      | SCALE-110 |                 | m0_net perf, multiple m0d to compensate                                                  |
+|                   | Motr           |      | SCALE-110 |                 | m0_rpc perf Formation (latency/throughput)                                               |
+|                   | Motr           |      | SCALE-110 |                 | m0_rpc perf reduces number of resends for long living rpcs and net buffs (lack of buffs) |
+|                   | Motr           |      | SCALE-110 |                 | m0_reqh FOM HUNG, locality HUNGs deactivates CPU core (CPU%)                             |
+|                   | Motr           |      | SCALE-110 |                 | m0_reqh FOM scheduling latencies                                                         |
+|                   | Motr           |      | SCALE-110 |                 | m0_reqh AST INSPECTION w.r.t. performance                                                |
+|                   | Motr           |      | SCALE-110 |                 | m0_be_tx unlimit number of OPENED txs in flight                                          |
+|                   | Motr           |      | SCALE-110 |                 | m0_be_tx reg area [sigh]                                                                 |
+|                   | Motr           |      | SCALE-110 |                 | m0_be_btree access/delete/insert/update times                                            |
+|                   | Motr           |      | SCALE-110 |                 | m0_be_btree load pattern (IO)                                                            |
+|                   | Motr           |      | SCALE-110 |                 | m0_be_btree concurrency                                                                  |
+|                   | Motr           |      | SCALE-110 |                 | m0_be_btree ranged ops                                                                   |
+|                   | Motr           |      | SCALE-110 |                 | m0_be_balloc access/delete/insert/update times (CPU%, #PF, IO)                           |
+|                   | Motr           |      | SCALE-110 |                 | m0_be_balloc load pattern                                                                |
+|                   | Motr           |      | SCALE-110 |                 | m0_be_balloc concurrency                                                                 |
+|                   | Motr           |      | SCALE-110 |                 | m0_be_balloc fragmentation                                                               |
+|                   | Motr           |      | SCALE-110 |                 | m0_stobio performance w.r.t. 5u84, qd, bs and load pattern                               |
+|                   | Motr           |      | SCALE-110 |                 | m0_stobio performance limit concurrency in fragmentation usecase                         |
+|                   | Motr           |      | SCALE-110 |                 | write aggregation                                                                        |
+|                   | Motr           |      | SCALE-110 |                 | SWAP/PD                                                                                  |
+|                   | Motr           |      | SCALE-110 |                 | random workload                                                                          |
+|                   | Motr           |      | SCALE-110 |                 | mixed workload                                                                           |
+|                   | Motr           |      | SCALE-110 |                 | performance during update                                                                |
+|                   | Motr           |      | SCALE-110 |                 | performance MD_COB revise                                                                |
+|                   | Motr           |      | SCALE-110 |                 | performance COB revise                                                                   |
+|                   | Motr           |      | SCALE-110 |                 | CAS: catalogue long lock                                                                 |
+|                   | Motr           |      | SCALE-110 |                 | DTM0: accessing structures                                                               |
+
+** dependencies
+
+#+name: make-dot
+#+BEGIN_SRC emacs-lisp :var table=dot-eg-table :results output :exports none
+(eval-when-compile
+  (require 'cl))
+
+(defun tostr(any)
+	 (if (stringp any)
+	     any
+	   (number-to-string any)))
+
+(mapcar #'(lambda (x)
+            (if (not (or (string-equal "$" (tostr (first x)))
+			 (string-equal "^" (tostr (first x)))))
+		(princ (format "\"%s\" [label =\"%s\", shape = \"box\"];\n"
+	                           (first x) (first x)))))
+table)
+
+(defun printr (row)
+  (mapcar #'(lambda (dep) (princ (format "\"%s\" -> \"%s\";\n" dep (first row))))
+	  (split-string (tostr (nth-value 4 row)))))
+
+(mapcar 'printr table)
+
+#+END_SRC
+
+#+BEGIN_SRC dot :file test-dot.png :var input=make-dot :exports results
+digraph {
+ $input
+}
+#+END_SRC
+
+#+RESULTS:
+[[file:test-dot.png]]
+
+** usecases definitions [0/1]
+*** TODO 3to12-provision
+Assuming that the cluster will be deployed according to the following
+layers diagram and performance factors listed as an annotation to the
+nodes of the graph:
+#+BEGIN_SRC dot :file 3to12-provision.png :exports results
+digraph dxd{
+
+
+	"S3 client1" [shape=rect label=<
+			<table border="1" cellborder="0">
+			<tr><td align="left"><font color="darkgreen">S3 Client1</font></td></tr>
+			<tr><td align="left">Workload characteristics</td></tr>
+	</table>>];
+	"S3 client2" [shape=rect];
+	"S3 clientN" [shape=rect];
+
+	"Load Balancer" [shape=rect label=<
+			<table border="1" cellborder="0">
+			<tr><td align="left"><font color="darkgreen">Load Balancer / Switch</font></td></tr>
+			<tr><td align="left">Bonding</td></tr>
+			<tr><td align="left">Number of ports</td></tr>
+			<tr><td align="left">MTU</td></tr>
+			<tr><td align="left">ROCE</td></tr>
+	</table>>];
+
+	subgraph cluster_node1 {
+	label="node1"
+
+	HAProxy_Node1 [shape=rect label=<
+			<table border="1" cellborder="0">
+			<tr><td align="left"><font color="darkgreen">HAProxy</font></td></tr>
+			<tr><td align="left">HTTPS stripping(CPU%)</td></tr>
+	</table>>];
+	"S3Server1(Node1)" [shape=rect label=<
+			<table border="1" cellborder="0">
+			<tr><td align="left"><font color="darkgreen">S3Server1</font></td></tr>
+			<tr><td align="left">ZeroCopy (Limitation: PCIe#lanes) </td></tr>
+			<tr><td align="left">Limitation: Ingress Throughput 100GBit/s</td></tr>
+			<tr><td align="left">Network card: ROCE (CPU%)</td></tr>
+			<tr><td align="left">LNet ROCE (CPU%)</td></tr>
+			<tr><td align="left">LibFabric ZeroCopy support (CPU%)</td></tr>
+			<tr><td align="left">Security (eats CPU% to encode trafic)</td></tr>
+			<tr><td align="left">m0_net perf (1thread, 2.5GB/s per process, MEM% for buffers)</td></tr>
+			<tr><td align="left">m0_rpc perf (req types, req (tm queue) in flight, MEM% for buffers)</td></tr>
+			<tr><td align="left">m0_clovis parity sums calc (CPU%)</td></tr>
+			<tr><td align="left">S3 protocol: Reduce number of meta reqs (latency)</td></tr>
+			<tr><td align="left">S3 protocol: Revise S3 protocol and remove intent-deletes (latency/throughput)</td></tr>
+			<tr><td align="left">S3 protocol: Revise S3 metadata schema</td></tr>
+			<tr><td align="left">DTM0 MD traffic (additional latecies for PUT/DEL)</td></tr>
+			<tr><td align="left">Throttling for different usecases (including DTM0) on Clovis and/or S3 level</td></tr>
+			<tr><td align="left">Degraded mode performance (sums recalc)</td></tr>
+			<tr><td align="left">RM locks for R2 :)))) </td></tr>
+			<tr><td align="left">Memory consumption for N concurrent sessions </td></tr>
+	</table>>];
+	"m0d1(Node1)" [shape=rect];
+	"5u84_1(Node1)" [shape=rect];
+	HAProxy_Node1 [shape=rect];
+	"S3Server2(Node1)" [shape=rect];
+	"m0d2(Node1)"  [shape=rect];
+	"5u84_1(Node1)" [shape=rect label=<
+			<table border="1" cellborder="0">
+			<tr><td align="left"><font color="darkgreen">m0dN</font></td></tr>
+			<tr><td align="left">SAS ZeroCopy (Limitation: PCIe#lanes)</td></tr>
+			<tr><td align="left">HDD Type</td></tr>
+			<tr><td align="left">Controller cache type</td></tr>
+			<tr><td align="left">Controller's accepted pattern</td></tr>
+			<tr><td align="left">Different layout than 8+2</td></tr>
+			<tr><td align="left">Different operational mode than Virtual Adapt</td></tr>
+			<tr><td align="left">Different multipath config</td></tr>
+			<tr><td align="left">Operation in more than 90% filling</td></tr>
+			<tr><td align="left">Degraded mode performance</td></tr>
+			<tr><td align="left">IO Latencies and repeatability of results</td></tr>
+	</table>>];
+	"m0dN(Node1)" [shape=rect label=<
+			<table border="1" cellborder="0">
+			<tr><td align="left"><font color="darkgreen">m0dN</font></td></tr>
+			<tr><td align="left">ZeroCopy (Limitation: PCIe#lanes)</td></tr>
+			<tr><td align="left">m0_net perf (1thread, 2.5GB/s per process, MEM% for buffers)</td></tr>
+			<tr><td align="left">m0_net perf, multiple m0d to compensate </td></tr>
+			<tr><td align="left">m0_rpc perf Formation (latency/throughput)</td></tr>
+			<tr><td align="left">m0_rpc perf reduces number of resends for long living rpcs and net buffs (lack of buffs)</td></tr>
+			<tr><td align="left">m0_reqh FOM HUNG, locality HUNGs deactivates CPU core (CPU%)</td></tr>
+			<tr><td align="left">m0_reqh FOM scheduling latencies</td></tr>
+			<tr><td align="left">m0_reqh AST INSPECTION w.r.t. performance</td></tr>
+			<tr><td align="left">m0_be_tx unlimit number of OPENED txs in flight</td></tr>
+			<tr><td align="left">m0_be_tx reg area [sigh]</td></tr>
+			<tr><td align="left">m0_be_btree access/delete/insert/update times</td></tr>
+			<tr><td align="left">m0_be_btree load pattern (IO)</td></tr>
+			<tr><td align="left">m0_be_btree concurrency</td></tr>
+			<tr><td align="left">m0_be_btree ranged ops</td></tr>
+			<tr><td align="left">m0_be_balloc access/delete/insert/update times (CPU%, #PF, IO)</td></tr>
+			<tr><td align="left">m0_be_balloc load pattern</td></tr>
+			<tr><td align="left">m0_be_balloc concurrency</td></tr>
+			<tr><td align="left">m0_be_balloc fragmentation</td></tr>
+			<tr><td align="left">m0_stobio performance w.r.t. 5u84, qd, bs and load pattern</td></tr>
+			<tr><td align="left">m0_stobio performance limit concurrency in fragmentation usecase</td></tr>
+			<tr><td align="left">write aggregation</td></tr>
+			<tr><td align="left">SWAP/PD</td></tr>
+			<tr><td align="left">random workload</td></tr>
+			<tr><td align="left">mixed workload</td></tr>
+			<tr><td align="left">performance during update</td></tr>
+			<tr><td align="left">performance MD_COB revise</td></tr>
+			<tr><td align="left">performance COB revise</td></tr>
+			<tr><td align="left">CAS: catalogue long lock</td></tr>
+			<tr><td align="left">DTM0: accessing structures</td></tr>
+	</table>>];
+	}
+
+
+
+	subgraph cluster_nodeN {
+	label="nodeN"
+	"HAProxy(NodeN)" [shape=rect];
+	"S3ServerN(NodeN)" [shape=rect];
+	"m0dN(NodeN)" [shape=rect];
+	"5u84_N(NodeN)" [shape=rect];
+	"...(NodeN)" [shape=rect];
+	}
+
+	subgraph cluster_node2 {
+	"HAProxy(Node2)" [shape=rect];
+	"...(Node2)" [shape=rect];
+	}
+
+	"S3 client2" -> "Load Balancer"
+	"S3 clientN" -> "Load Balancer"
+
+	"S3 client1" -> "Load Balancer" -> HAProxy_Node1 -> "S3Server1(Node1)" -> "m0d1(Node1)" -> "5u84_1(Node1)";
+	"S3Server1(Node1)" -> "m0dN(Node1)" -> "5u84_1(Node1)";
+	HAProxy_Node1 -> "S3Server2(Node1)" -> "m0d2(Node1)"  -> "5u84_1(Node1)";
+	"S3Server2(Node1)" -> "m0dN(Node1)";
+
+	"Load Balancer" -> "HAProxy(Node2)" -> "...(Node2)";
+	"Load Balancer" -> "HAProxy(NodeN)" -> "...(NodeN)";
+	"HAProxy(NodeN)" -> "S3ServerN(NodeN)" -> "m0dN(NodeN)" -> "5u84_N(NodeN)";
+
+
+	"S3Server1(Node1)" -> "m0dN(NodeN)";
+	"S3Server2(Node1)" -> "m0dN(NodeN)";
+
+	"S3ServerN(NodeN)" -> "m0d1(Node1)" [label="Cross-server traffic goes \nthrough the same network card (100GBit/s per port)" style=dashed]
+	"S3ServerN(NodeN)" -> "m0d2(Node1)" [label="Cross-server traffic can be encrypted (CPU%)" style=dashed]
+	"S3ServerN(NodeN)" -> "m0dN(Node1)" [style=dashed]
+}
+#+END_SRC
+
+#+RESULTS:
+[[file:3to12-provision.png]]

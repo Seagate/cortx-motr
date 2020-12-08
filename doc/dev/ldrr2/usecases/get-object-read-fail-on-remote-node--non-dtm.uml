@@ -1,57 +1,87 @@
 @startuml
-title <b>S3 Get Object - Data error encountered on Remote node (Non DTM)</b>
+title <b>S3 Get Object - Data error encountered on Remote diskgroup (Non DTM)</b>
 
+actor "S3 client" as S3C #blue
 box "N-1"
-actor S3
-participant "C1-L"
-participant "C1-R"
+actor S3 #red
+actor m0d1
+database "DG1-L"
+database "DG1-R"
 endbox
 
 box "N-2"
-participant "C2-L"
-participant "C2-R"
+actor m0d2
+database "DG2-L"
+database "DG2-R"
 endbox
 
 box "N-3"
-participant "C3-L"
-participant "C3-R"
+actor m0d3
+database "DG3-L"
+database "DG3-R"
 endbox
 
 box "N-4"
-participant "C4-L"
-participant "C4-R"
+actor m0d4
+database "DG4-L"
+database "DG4-R"
 endbox
 
 box "N-5"
-participant "C5-L"
-participant "C5-R"
+actor m0d5
+database "DG5-L"
+database "DG5-R"
 endbox
 
 box "N-6"
-participant "C6-L"
-participant "C6-R"
+actor m0d6
+database "DG6-L"
+database "DG6-R"
 endbox
 
-S3->"C1-L" :Get \nObject
+S3C --> S3: Get Object
+S3-->m0d3 :Read Object
+activate S3
+m0d3 --> "DG3-L" :Read Block-1
+activate "DG3-L"
 
-activate "C1-L"
+S3-->m0d2 :Read Object
+m0d2 --> "DG2-R" :Read Block-2
+activate "DG2-R"
 
-"C1-L" --> "C3-L" :Block-1
-"C3-L" ->  "C1-L"
+S3-->m0d1 :Read Object
+m0d1 --> "DG1-L" :Read Block-3
+activate "DG1-L"
 
-"C1-L" --> "C2-R" :Block-2
-"C2-R" -[#blue]>x  "C1-L"
+"DG3-L" ->  m0d3
+deactivate "DG3-L"
+m0d3->S3
 
-"C1-L" --> "C1-L" :Block-3
+note over "DG2-R": Read failed
 
-"C1-L" -[#green]-> "C2-L" : Read Parity
+"DG2-R" -[#blue]>x m0d2
+deactivate "DG2-R"
+m0d2-[#blue]->S3
 
-"C2-L" -[#green]> "C1-L"
+"DG1-L" ->  m0d1
+deactivate "DG1-L"
+m0d1->S3
 
-... <b>~~Reconstruct data using Parity~~</b> ...
+
+
+S3-->m0d1 :Read Parity
+m0d1-[#green]->"DG1-R" :Read Block-Parity
+activate "DG1-R"
 |||
-"C1-L" -> S3
-deactivate "C1-L"
+"DG1-R" -[#green]>  m0d1
+deactivate "DG1-R"
+m0d1-[#green]>S3
+
+... <b><size:20>~~Reconstruct data using Parity~~</b> ...
+|||
+
+S3C <- S3: Object Data
+deactivate S3
 @enduml
 
 
