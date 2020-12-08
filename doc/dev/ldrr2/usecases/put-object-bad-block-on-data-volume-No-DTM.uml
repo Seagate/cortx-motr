@@ -1,0 +1,106 @@
+@startuml
+title <b>S3 PUT Object - bad block on data volume (without DTM)</b>
+
+actor "S3 client" as S3C #blue
+box "N-1"
+actor "S3server(Motr client)" as S3 #red
+actor m0d1
+database "metaDB1"
+database "DG1-L"
+database "DG1-R"
+endbox
+
+box "N-2"
+actor m0d2
+database "metaDB2"
+database "DG2-L"
+database "DG2-R"
+endbox
+
+box "N-3"
+actor m0d3
+database "metaDB3"
+database "DG3-L"
+database "DG3-R"
+endbox
+
+
+S3C --> S3: PUT/Create Object
+
+activate S3
+S3-->m0d1 :PUT object
+
+S3-->m0d2 :PUT object
+
+S3-->m0d3 :PUT object
+
+
+
+
+
+m0d1 --> "DG1-L" :write Block-1
+activate "DG1-L"
+m0d1 --> "DG1-R" :write Block-2
+activate "DG1-R"
+
+
+m0d2 --> "DG2-L" :write Block-3
+activate "DG2-L"
+m0d2 --> "DG2-R" :write Block-4
+activate "DG2-R"
+
+m0d3 --> "DG3-L" :write Parity-1
+activate "DG3-L"
+m0d3 --> "DG3-R" :write parity-2
+activate "DG3-R"
+
+
+
+"DG3-L" ->  m0d3: Parity-1 written
+deactivate "DG3-L"
+"DG3-R" ->  m0d3: Parity-2 written
+deactivate "DG3-R"
+
+
+"DG2-L" ->  m0d2: Block-1 written
+deactivate "DG2-L"
+"DG2-R" -[#green]> m0d2: Block-2 written failure
+note right
+Bad block, data volume error,
+OOM, checksum error, etc.
+end note
+deactivate "DG2-R"
+
+
+"DG1-L" ->  m0d1: Block-1 written
+deactivate "DG1-L"
+"DG1-R" ->  m0d1: Block-2 written
+deactivate "DG1-R"
+
+
+
+m0d3    ->    S3  : Return success
+m0d2-[#green]>S3  : I/O ERROR for Block-2
+m0d1   ->     S3  : Return success
+
+
+S3      ->    S3  : Add entry in list.
+activate S3
+note right
+Add a mapping from S3 object to Motr object
+into the bucket object list index.
+This is an index operation.
+It is omitted here.
+It is depicted in another use case.
+end note
+deactivate S3
+
+|||
+
+S3C <- S3: PUT Object Success
+note right
+If no more than 2 units (data unit or parity unit)
+fails, return success. Otherwise failure.
+end note
+deactivate S3
+@enduml
