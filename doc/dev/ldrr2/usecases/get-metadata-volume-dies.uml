@@ -1,0 +1,153 @@
+@startuml
+title <b>S3 Get Object - Metadata Volume dies (with DTM)</b>
+
+actor "S3 client" as S3C #blue
+box "N-1"
+actor m0d1
+database "metaDB1"
+database "DG1-L"
+database "DG1-R"
+endbox
+
+box "N-2"
+actor m0d2
+database "metaDB2"
+database "DG2-L"
+database "DG2-R"
+endbox
+
+box "N-3"
+actor "S3server(Motr client)" as S3 #red
+actor m0d3
+database "metaDB3" #green
+database "DG3-L"
+database "DG3-R"
+endbox
+
+box "N-4"
+actor m0d4
+database "metaDB4"
+database "DG4-L"
+database "DG4-R"
+endbox
+
+box "N-5"
+actor m0d5
+database "metaDB5" #green
+database "DG5-L"
+database "DG5-R"
+endbox
+
+box "N-6"
+actor m0d6
+database "metaDB6"
+database "DG6-L"
+database "DG6-R"
+endbox
+
+S3C  --> S3   : Get Object
+
+
+S3   --> m0d3 : lookup account_info
+activate S3
+activate m0d3
+note right
+Lookup account_info with
+bucket_name. Choose the node
+with the least network hop
+in the global pool.
+end note
+m0d3 --> "metaDB3" : get_keyval
+activate "metaDB3"
+m0d3 <[#green]-  "metaDB3" : Volume dies, Error returned
+deactivate "metaDB3"
+S3  <[#green]-   m0d3      : Error returned
+note right: this lookup failed
+deactivate m0d3
+
+S3   --> m0d2 : lookup account_info (RETRY)
+activate m0d2
+note left
+Lookup account_info with
+bucket_name. Choose the node
+with the least network hop
+in the global pool.
+end note
+m0d2 --> "metaDB2" : get_keyval
+activate "metaDB2"
+m0d2 <-  "metaDB2" : success
+deactivate "metaDB2"
+S3  <-   m0d2      : success
+deactivate m0d2
+
+
+
+S3   --> m0d2 : lookup bucket_md
+activate m0d2
+note left
+Lookup bucket_md with "account/bucket_name".
+Choose the node with the least network hop
+in the global pool. bucket_md contains
+"object list" index. But don't try the node
+with failed metadata volume.
+end note
+m0d2 --> "metaDB2" : get_keyval
+activate "metaDB2"
+m0d2 <-  "metaDB2" : key/val returned
+deactivate "metaDB2"
+S3  <-   m0d2      : bucket_md returned
+note left: this bucket_md contains bucket object list OID
+deactivate m0d2
+
+
+
+S3   --> m0d5 : lookup OID
+activate m0d5
+note right
+Lookup Motr OID with "bucket_name/object_name"
+in object_list index. This index is stored in
+one of the storageset, in 1+2 layout. Here
+object_list of this "bucket_name" is stored
+in storageset 2.
+end note
+m0d5 --> "metaDB5" : get_keyval
+activate "metaDB5"
+m0d5 <[#green]-  "metaDB5" : Volume dies
+deactivate "metaDB5"
+S3   <[#green]-   m0d5     : Error returned
+note right: this lookup failed
+deactivate m0d5
+
+S3   --> m0d4 : lookup OID (RETRY)
+activate m0d4
+note right
+switch to another node in storageset 2.
+here node 4 is used. It has replica.
+end note
+m0d4 --> "metaDB4" : get_keyval
+activate "metaDB4"
+m0d4 <-  "metaDB4" : key/val returned
+deactivate "metaDB4"
+S3  <-   m0d4      : OID returned
+deactivate m0d4
+
+
+
+
+
+S3  -[#blue]> S3  : Read the object with OID
+note right
+S3server is going to read this Motr object.
+This is covered by another use case.
+This might go to another storageset, not
+the same storageset on which
+the object_list index resides.
+end note
+
+
+
+|||
+
+S3C <- S3: Object Data
+deactivate S3
+@enduml
