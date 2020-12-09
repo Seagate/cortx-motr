@@ -1,0 +1,65 @@
++-----------+------------------------------------------------+
+| **SW-40** |  **CORTX should have no kernel dependencies**  |
++-----------+------------------------------------------------+
+1. Replace LNET dependency with libFabric.
+  1.a. Debugging and Testing the changes.
+  1.b. Performance measurements of the cluster with these changes.
+
+
++-----------+-----------------------------------------------------------------------------------------+
+| **SW-50** |  **CORTX should use no 3rd party SW unless it is appropriately permissively licensed**  |
++-----------+-----------------------------------------------------------------------------------------+
+1. Replace libgalois with Intel ISA.
+  1.a. Debugging and Testing the changes.
+  1.b. Performance measurements of the cluster with these changes.
+
+
++-----------+----------------------------------------------+
+| **SW-60** |  **Legal recommendations must be followed**  |
++-----------+----------------------------------------------+
+1. BTree changes for Legal reasons.
+  1.a. Debugging and Testing code changes.
+2. Balloc changes for Legal reasons.
+  2.a. Debugging and Testing code changes.
+3. Performance measurements of the cluster with above changes.
+
+
++--------------+-----------------------------------------------------------------+
+| **SCALE-40** |  **Read: 3GB/sec; Write: 2.5GB/sec per node for 16MB objects**  |
++--------------+-----------------------------------------------------------------+
+1. Performance measurement and tuning work involving Balloc, Btree and BE Tx grouping.
+  1.a. Iteratively debugging the performance related changes.
+
+
++--------------+-----------------------------------------------------------------+
+| **SCALE-50** |  **Read: 1GB/sec, Write: 850MB/sec per node for 256KB objects**  |
++--------------+-----------------------------------------------------------------+
+1. Performance measurement and tuning work involving Balloc, Btree and BE Tx grouping.
+  1.a. Iteratively debugging the performance related changes.
+
+
++--------------+----------------------------------------------------------------------------------------------+
+| **SCALE-80** |  **Time to first byte = 150ms (99%) – assuming we’re within 600 sessions limit (SCALE-60)**  |
++--------------+----------------------------------------------------------------------------------------------+
+1. Throttle Writes to allow Reads by controlling network buffers used in Write data transfers and provide those to Reads.
+  1.a. Debugging and Testing code changes.
+2. Throttle currently executing Reads to accept and execute new Read commands. This also involves changes to network buffer management for capturing the Read data from the STOBs.
+  2.a. Debugging and Testing code changes.
+
+
++-----------+----------------------+
+| **S3-15** |  **CopyObject API**  |
++-----------+----------------------+
+**If S3 handles this then Motr does not need to make any changes. **
+
+
++-------------+-----------------------------------------------------+
+| **BCKT-50** |  **A bucket shouldn’t be limited to a StorageSet**  |
++-------------+-----------------------------------------------------+
+1. DTM to distribute the Global Bucket information to all the Servers in the Cluster. DTM needs to be working for this.
+  1.a. Debugging and Testing DTM code to make sure the above requirement is satisfied.
+
+
+
+
+
