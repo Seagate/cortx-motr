@@ -38,6 +38,14 @@
   1.a. Iteratively debugging the performance related changes.
 
 
++--------------+---------------------------------------------------------------------------------------------+
+| **AD-90** |  **If more than a single node is down per StorageSet and data is not accessible the customer** |
+|           |  **should get 500 response for all I/O operations**                                            |
++--------------+---------------------------------------------------------------------------------------------+
+1. Changes to Motr code to detect absence of other 2 nodes and return error
+**Not sure if we already have this one**
+  1.a. Debugging and Testing of this new code.
+
 +--------------+----------------------------------------------------------------------------------------------+
 | **SCALE-80** |  **Time to first byte = 150ms (99%) – assuming we’re within 600 sessions limit (SCALE-60)**  |
 +--------------+----------------------------------------------------------------------------------------------+
