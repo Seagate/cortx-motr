@@ -24,6 +24,7 @@
 
 #ifndef __MOTR_NET_LIBFAB_H__
 #define __MOTR_NET_LIBFAB_H__
+#include <netinet/in.h>                    /* INET_ADDRSTRLEN */
 
 #include "rdma/fi_eq.h"
 #include "rdma/fi_domain.h"
@@ -39,32 +40,38 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  */
 
 struct m0_fab__dom_param {
-	struct fi_info    *fab_fi;      /* Fabric info */
-	struct fi_info    *fab_hints;   /* Fabric info to configure flags */
-	struct fid_fabric *fab_fabric;  /* Fabric fid */
-	struct fid_domain *fab_domain;  /* Domain fid */
+	struct fi_info    *fdp_fi;      /* Fabric info */
+	struct fi_info    *fdp_hints;   /* Fabric info to configure flags */
+	struct fid_fabric *fdp_fabric;  /* Fabric fid */
+	struct fid_domain *fdp_domain;  /* Domain fid */
 };
 
 struct libfab_params {
 	struct fid_mr     *mr; 	/* Memory region to be registered */
 };
 
+struct m0_fab__ep_name {
+	char fen_addr[INET6_ADDRSTRLEN + 6];     /* + 6 for ":<max port no>" */
+};
+
 struct m0_fab__ep_param {
-	struct fid_ep   *fab_ep;       /* Endpoint */
-	struct fid_pep  *fab_pep;      /* Passive endpoint */
-	struct fid_av   *fab_av;       /* Address vector */
-	struct fid_eq   *fab_eq;       /* Event queue */
-	struct fid_cq   *fab_tx_cq;    /* Transmit Completion Queue */
-	struct fid_cq   *fab_rx_cq;    /* Recv Completion Queue */
-	struct fid_cntr *fab_tx_cntr;  /* Transmit Counter */
-	struct fid_cntr *fab_rx_cntr;  /* Recv Counter */
+	struct m0_net_end_point  fep_nep;      /* linked into a per-tm list */
+	struct m0_fab__ep_name   fep_name;     /* "addr:port" in str format */
+	struct fid_ep           *fep_ep;       /* Endpoint */
+	struct fid_pep          *fep_pep;      /* Passive endpoint */
+	struct fid_av           *fep_av;       /* Address vector */
+	struct fid_eq           *fep_eq;       /* Event queue */
+	struct fid_cq           *fep_tx_cq;    /* Transmit Completion Queue */
+	struct fid_cq           *fep_rx_cq;    /* Recv Completion Queue */
+	struct fid_cntr         *fep_tx_cntr;  /* Transmit Counter */
+	struct fid_cntr         *fep_rx_cntr;  /* Recv Counter */
 };
 
 struct m0_fab__ep_res {
-	struct fi_cq_attr   *fab_cq_attr;   /* Completion Queue attributes */
-	struct fi_av_attr   *fab_av_attr;   /* Address Vector attributes */
-	struct fi_eq_attr   *fab_eq_attr;   /* Event Queue attributes */
-	struct fi_cntr_attr *fab_cntr_attr; /* Counter attributes */
+	struct fi_cq_attr   *fer_cq_attr;   /* Completion Queue attributes */
+	struct fi_av_attr   *fer_av_attr;   /* Address Vector attributes */
+	struct fi_eq_attr   *fer_eq_attr;   /* Event Queue attributes */
+	struct fi_cntr_attr *fer_cntr_attr; /* Counter attributes */
 };
 
 /** @} end of netlibfab group */
