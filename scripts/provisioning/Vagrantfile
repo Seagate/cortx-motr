@@ -224,7 +224,8 @@ Vagrant.configure('2') do |config|
     if RbConfig::CONFIG['host_os'] =~ /mingw/i &&
        !provisioned?(cmu.vm.hostname) &&
        ENV['M0_VM_BOX_URL'].nil?
-      cmu.vm.synced_folder '.', '/vagrant', type: 'smb'
+      cmu.vm.synced_folder '.', '/vagrant', type: 'smb',
+        smb_username: ENV["SMB_USERNAME"], smb_password: ENV["SMB_PASSWORD"]
     end
 
     if !ENV['M0_VM_CMU_ENABLE_PUBLIC_NET'].nil? &&
@@ -764,7 +765,8 @@ def setup_shared_nfs_dir(config, src_path)
 end
 
 def setup_shared_smb_dir(config, src_path)
-  config.vm.synced_folder src_path, '/data', type: 'smb'
+  config.vm.synced_folder src_path, '/data', type: 'smb',
+    smb_username: ENV["SMB_USERNAME"], smb_password: ENV["SMB_PASSWORD"]
 end
 
 # share a top-level project dir (one level up from motr src dir)
