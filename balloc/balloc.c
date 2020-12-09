@@ -1554,6 +1554,56 @@ static bool is_extent_free(struct m0_balloc_group_info *grp,
 	return frags < zp->bzp_fragments;
 }
 
+static bool is_extent_partof_best_extent(struct m0_balloc_group_info *grp,
+					 struct m0_ext *best, uint64_t alloc_type,
+					 struct m0_ext **current)
+{
+	struct m0_lext              *le;
+	struct m0_balloc_zone_param *zp;
+	m0_bcount_t                  frags = 0;
+
+	M0_ENTRY();
+
+	zp = is_spare(alloc_type) ? &grp->bgi_spare : &grp->bgi_normal;
+
+	m0_list_for_each_entry(&zp->bzp_extents, le, struct m0_lext, le_link) {
+		*current = &le->le_ext;
+		if (m0_ext_is_partof(best, *current))
+			break;
+		++frags;
+	}
+	return frags < zp->bzp_fragments;
+}
+
+/**
+ * Reset final extent if current extent is part of best extent
+ *
+ * @param[in]  bac	  balloc allocation context
+ * @param[in]  cur	  current extent in extent list.
+ * @param[in]  alloc_type allocation type.
+ * @return true if reset final and best extent.
+ *	   false if current extent is not part of best extent
+ */
+static bool reset_final_extent(struct balloc_allocation_context *bac,
+			       struct m0_ext *cur, uint64_t alloc_type)
+{
+	m0_bindex_t    start = bac->bac_best.e_start;
+	m0_bcount_t    len   = m0_ext_length(&bac->bac_goal);
+
+	M0_ENTRY();
+	if (m0_ext_is_partof(&bac->bac_best, cur)) {
+		while (start < cur->e_start)
+			start += len;
+		if (start < cur->e_end && len <= cur->e_end - start) {
+			bac->bac_best = *cur;
+			bac->bac_final.e_start = start;
+			bac->bac_final.e_end = bac->bac_final.e_start + len;
+			return true;
+		}
+	}
+	return false;
+}
+
 static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 				  struct m0_balloc_group_info *grp,
 				  struct m0_ext *tgt, uint64_t alloc_type,
@@ -2532,8 +2582,12 @@ static int allocate_blocks(int cr, struct balloc_allocation_context *bac,
 	if (rc == 0 && bac->bac_status == M0_BALLOC_AC_FOUND) {
 		if (len < m0_ext_length(&bac->bac_best))
 			balloc_new_preallocation(bac);
-		M0_ASSERT(is_extent_free(grp, &bac->bac_final, alloc_type,
-					 &cur));
+		if (!is_extent_free(grp, &bac->bac_final, alloc_type, &cur)) {
+			M0_ASSERT(is_extent_partof_best_extent(grp,
+				 &bac->bac_best, alloc_type, &cur));
+			M0_ASSERT(reset_final_extent(bac, cur, alloc_type));
+		}
+
 		rc = balloc_alloc_db_update(bac->bac_ctxt, bac->bac_tx, grp,
 					    &bac->bac_final, alloc_type, cur);
 	}
