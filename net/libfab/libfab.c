@@ -64,6 +64,8 @@
 #define LIBFAB_VERSION FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION)
 
 static char *providers[] = { "verbs", "tcp", "sockets" };
+static char default_node[] = "127.0.0.1";
+static char default_port[] = "47592";
 
 /** Network transfer machine */
 struct transfer_ma {
@@ -77,9 +79,27 @@ struct transfer_ma {
 	*/
 };
 
-static int libfab_init_ep_res(struct m0_fab__dom_param *fab,
+static int libfab_ep_res_init(struct m0_fab__dom_param *fab,
 			      struct m0_fab__ep_param *ep,
 			      struct m0_fab__ep_res *ep_res);
+static void libfab_ep_addr_decode(const char *ep_name, char *node, char *port);
+static int libfab_ep_find(const char *name, struct m0_net_transfer_mc *tm, 
+			  struct m0_net_end_point **epp);
+static void libfab_fab_param_free(struct m0_fab__dom_param *fab);
+
+#if 0
+static void libfab_ep_param_free(struct m0_fab__ep_param *ep);
+static void libfab_ep_res_free(struct m0_fab__ep_res *ep_res);
+#endif /* #if 0 */
+
+static void libfab_ep_addr_decode(const char *ep_name, char *node, char *port)
+{
+	/* TODO : EOS-15552 */
+	M0_ENTRY();
+
+	node = default_node;
+	port = default_port;
+}
 
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
@@ -87,6 +107,8 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	struct m0_fab__dom_param *fab;
 	int                       rc;
 	int                       i;
+	char                     *node = 0;
+	char                     *port = 0;
 
 	M0_ENTRY();
 	
@@ -101,9 +123,11 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 		* fab->hints->ep_attr->type = FI_EP_RDM;
 		* fab->hints->caps = FI_MSG;
 		*/
+		libfab_ep_addr_decode(NULL, node, port);
+		
 		for (i = 0; i < ARRAY_SIZE(providers); i++) {
 			fab->fab_hints->fabric_attr->prov_name = providers[i];
-			rc = fi_getinfo(LIBFAB_VERSION,NULL, NULL, 0, 
+			rc = fi_getinfo(LIBFAB_VERSION, node, port, 0, 
 					fab->fab_hints, &fab->fab_fi);
 			if (rc == FI_SUCCESS) {
 				break;
@@ -199,10 +223,25 @@ static void libfab_ma_fini(struct m0_net_transfer_mc *net)
 	 * */
 }
 
+static int libfab_ep_find(const char *name, struct m0_net_transfer_mc *tm, 
+			  struct m0_net_end_point **epp)
+{
+	/* TODO : search for ep name in ma list
+	
+	struct m0_net_end_point *net;
+	m0_tl_for(m0_nep, &ma->t_ma->ntm_end_points, net) {
+		struct m0_libfab__ep_params *xep = libfab_ep_net(net);
+		if (ep_eq(xep, addr)) {
+			return M0_RC(0);
+		}
+	} m0_tl_endfor;*/
+	return 0;
+}
+
 /**
  * Init resources and bind it to the endpoint.
  */
-static int libfab_init_ep_res(struct m0_fab__dom_param *fab,
+static int libfab_ep_res_init(struct m0_fab__dom_param *fab,
 			      struct m0_fab__ep_param *ep,
 			      struct m0_fab__ep_res *ep_res)
 {
@@ -290,15 +329,38 @@ static int libfab_end_point_create(struct m0_net_end_point **epp,
 				   struct m0_net_transfer_mc *tm,
 				   const char *name)
 {
-	/*
- 	* TODO:
-	* fi_endpoint, fi_pep, fi_av, fi_cq, fi_cntr, fi_eq, fi_bind(av/cq/cntr/eq), fi_pep_bind
- 	* */
+	struct m0_net_end_point  *net;
 	struct m0_fab__dom_param *fab;
+	struct m0_fab__dom_param *new_fab;
 	struct m0_fab__ep_param  *ep;
 	struct m0_fab__ep_res    *ep_res;
 	int                       rc = 0;
+	char                     *node = 0;
+	char                     *port = 0;
 
+	rc = libfab_ep_find(name, tm, epp);
+	if (rc == 0)
+		return M0_RC(rc);
+
+	fab = tm->ntm_dom->nd_xprt_private;
+
+	/* Re-init domain if required with the endpoint address */
+	libfab_ep_addr_decode(name, node, port);
+	rc = fi_getinfo(LIBFAB_VERSION, node, port, 0, fab->fab_hints, 
+			&new_fab->fab_fi);
+	if (new_fab != fab) {
+		libfab_fab_param_free(fab);
+		fab = new_fab;
+		rc = fi_fabric(fab->fab_fi->fabric_attr, &fab->fab_fabric, 
+			       NULL);
+		if (rc == FI_SUCCESS) {
+			rc = fi_domain(fab->fab_fabric, fab->fab_fi,
+				&fab->fab_domain, NULL);
+			if (rc == FI_SUCCESS)
+				tm->ntm_dom->nd_xprt_private = fab;
+		}
+	}
+	
 	M0_ALLOC_PTR(ep);
 	M0_ALLOC_PTR(ep_res);
 	
@@ -312,18 +374,19 @@ static int libfab_end_point_create(struct m0_net_end_point **epp,
 	
 	ep_res->fab_av_attr = NULL;
 	ep_res->fab_cntr_attr = NULL;
-
-	fab = tm->ntm_dom->nd_xprt_private;
 	
 	rc = fi_endpoint(fab->fab_domain, fab->fab_fi, &ep->fab_ep, NULL);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 
-	rc = libfab_init_ep_res(fab, ep, ep_res);
+	rc = libfab_ep_res_init(fab, ep, ep_res);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 
 	rc = fi_enable(ep->fab_ep);
+
+	net = &ep->fab_nep;
+	m0_nep_tlink_init_at_tail(net, &tm->ntm_end_points);
 
 	return M0_RC(rc);
 }
@@ -506,6 +569,61 @@ static m0_bcount_t libfab_get_max_buffer_desc_size(const struct m0_net_domain *d
 	return 0;
 }
 
+
+static void libfab_fab_param_free(struct m0_fab__dom_param *fab)
+{
+	/* TODO : EOS-14941 */
+}
+
+#if 0
+static void libfab_ep_param_free(struct m0_fab__ep_param *ep)
+{
+	m0_nep_tlist_remove(ep->fab_nep, &tm->ntm_end_points);
+
+	if (ep->fab_ep != NULL)
+		free(ep->fab_ep);
+
+	if (ep->fab_pep != NULL)
+		free(ep->fab_pep);
+
+	if (ep->fab_av != NULL)
+		free(ep->fab_av);
+
+	if (ep->fab_eq != NULL)
+		free(ep->fab_eq);
+	
+	if (ep->fab_tx_cq != NULL)
+		free(ep->fab_tx_cq);
+	
+	if (ep->fab_rx_cq != NULL)
+		free(ep->fab_rx_cq);
+	
+	if (ep->fab_tx_cntr != NULL)
+		free(ep->fab_tx_cntr);
+	
+	if (ep->fab_rx_cntr != NULL)
+		free(ep->fab_rx_cntr);
+
+	free(ep);
+}
+
+static void libfab_ep_res_free(struct m0_fab__ep_res *ep_res)
+{
+	if (ep_res->fab_cq_attr != NULL)
+		free(ep_res->fab_cq_attr);
+
+	if (ep_res->fab_eq_attr != NULL)
+		free(ep_res->fab_eq_attr);
+
+	if (ep_res->fab_av_attr != NULL)
+		free(ep_res->fab_av_attr);
+
+	if (ep_res->fab_cntr_attr != NULL)
+		free(ep_res->fab_cntr_attr);
+
+	free(ep_res);
+}
+#endif /* #if 0 */
 
 static const struct m0_net_xprt_ops libfab_xprt_ops = {
 	.xo_dom_init                    = &libfab_dom_init,

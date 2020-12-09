@@ -50,14 +50,15 @@ struct libfab_params {
 };
 
 struct m0_fab__ep_param {
-	struct fid_ep   *fab_ep;       /* Endpoint */
-	struct fid_pep  *fab_pep;      /* Passive endpoint */
-	struct fid_av   *fab_av;       /* Address vector */
-	struct fid_eq   *fab_eq;       /* Event queue */
-	struct fid_cq   *fab_tx_cq;    /* Transmit Completion Queue */
-	struct fid_cq   *fab_rx_cq;    /* Recv Completion Queue */
-	struct fid_cntr *fab_tx_cntr;  /* Transmit Counter */
-	struct fid_cntr *fab_rx_cntr;  /* Recv Counter */
+	struct m0_net_end_point  fab_nep;      /* linked into a per-tm list */
+	struct fid_ep           *fab_ep;       /* Endpoint */
+	struct fid_pep          *fab_pep;      /* Passive endpoint */
+	struct fid_av           *fab_av;       /* Address vector */
+	struct fid_eq           *fab_eq;       /* Event queue */
+	struct fid_cq           *fab_tx_cq;    /* Transmit Completion Queue */
+	struct fid_cq           *fab_rx_cq;    /* Recv Completion Queue */
+	struct fid_cntr         *fab_tx_cntr;  /* Transmit Counter */
+	struct fid_cntr         *fab_rx_cntr;  /* Recv Counter */
 };
 
 struct m0_fab__ep_res {
