@@ -30,9 +30,11 @@ def guess_provider()
            : File.exists?(virtualbox)               ? :virtualbox
            :                                          nil
   when /mingw/i
+    vmware = 'C:\\Program Files (x86)\\VMware\\VMware Workstation\\'
     hyperv = 'C:\\Program Files\\Hyper-V\\'
     virtualbox = 'C:\\Program Files\\Oracle\\VirtualBox\\'
-    return Dir.exists?(hyperv)       ? :hyperv
+    return Dir.exists?(vmware)       ? :vmware_desktop
+           : Dir.exists?(hyperv)     ? :hyperv
            : Dir.exists?(virtualbox) ? :virtualbox
            :                           nil
   end
@@ -619,6 +621,18 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
     v.vmx['serial0.fileName'] = File.expand_path(console_log_dir).to_s +
                                 "/console_#{node.vm.vgname}.log"
     v.vmx['serial0.present']  = 'TRUE'
+
+    # network
+    #   try to uncomment the following line to disable Vagrant's warning about
+    #   overwriting VMX settings (NOTE: VM's network may stop working after that)
+    v.whitelist_verified = true
+    # workaround incorrect IP address detection by vagrant-hostmanager plugin
+    v.ssh_info_public = true
+    # a workaround for VMware networking settings in newer Vagrant versions,
+    # try to uncomment the following lines if network doesn't work in your
+    # combination of VMware/Vagrant versions
+    #v.vmx['ethernet0.pcislotnumber'] = 32
+    #v.vmx['ethernet1.pcislotnumber'] = 33
 
     # disks
     vdiskmanager = 'C:\Program Files (x86)\VMware\VMware Workstation\vmware-vdiskmanager.exe'
