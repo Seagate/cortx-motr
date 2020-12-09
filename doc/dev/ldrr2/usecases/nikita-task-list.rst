@@ -15,6 +15,8 @@ Tasks
 :depends:
 :resources:
 
+-------
+   
 :id: [t.io-error-data]
 :name: handle io errors on data device
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -27,6 +29,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.io-error-meta-data]
 :name: handle io errors on meta-data device
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -38,6 +44,10 @@ Tasks
 :process: DLD, DLDINSP, CODE, INSP, ST
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.io-error-read]
 :name: motr client gracefully recovers from errors or read
@@ -53,6 +63,10 @@ Tasks
 :depends: 
 :resources:
 
+------
+
+
+
 :id: [t.io-error-write]
 :name: s3 and motr client gracefully recovers from errors or write
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -66,6 +80,10 @@ Tasks
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.md-error-read]
 :name: motr client gracefully recovers from errors or meta-data lookup
@@ -81,6 +99,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.md-error-write]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -94,6 +116,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.md-checksum]
 :name: verify meta-data checksums on read
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -103,6 +129,10 @@ Tasks
 :req:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.b-tree-rewrite]
 :name:
@@ -115,6 +145,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.balloc-rewrite]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -125,6 +159,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.lnet-libfabric]
 :name:
@@ -137,6 +175,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.galois-isa]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -147,6 +189,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.multiple-pools]
 :name:
@@ -159,6 +205,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.multiple-pools-policy]
 :name:
@@ -173,6 +223,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.pools-policy-health]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -185,6 +239,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.pools-policy-free-space]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -196,6 +254,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.s3.use-dtm]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -206,6 +268,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.s3-store-object-meta-data]
 :name:
@@ -219,6 +285,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.avoid-md-cobs]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -229,6 +299,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.s3-cache]
 :name:
@@ -243,6 +317,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.beck]
 :name: update beck tool to work with new meta-data layout
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -253,6 +331,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.s3-no-replication]
 :name:
@@ -265,6 +347,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.dix-local-lookup]
 :name: if possible to distributed index lookup locally
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -276,6 +362,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.cobs-loc_info]
 :name: store pool version and layout identifiers in cobs
@@ -290,6 +380,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.s3-pending-list]
 :name: clarify placement and use of pending list with s3 team
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -300,6 +394,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.hare-notifications]
 :name: hare delivers notification about process, node, device state changes
@@ -312,6 +410,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.hare-partitions]
 :name: handle network partitions in hare
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -322,6 +424,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.hare-split-brain]
 :name: handle split brain situations in hare
@@ -334,6 +440,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.N+K+S]
 :name: handle K != S in motr
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -345,6 +455,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.resends]
 :name: check that resend number is set for infinity everywhere
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -355,6 +469,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.dix-global-replication-check]
 :name: check that fix supports 1+N replication
@@ -368,6 +486,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.dix-global-replication-check]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -379,6 +501,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.dtm-throttling]
 :name: throttle incoming requests during dtm catchup
@@ -393,6 +519,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.hare-dtm-recovery]
 :name: hare should participate in dtm recovery
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -403,6 +533,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.perf-tx-group]
 :name: Re-implement transaction groups 
@@ -415,6 +549,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.perf-ldap-auth-caching]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -425,6 +563,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.perf-tls-overhead-measure]
 :name:
@@ -437,6 +579,10 @@ Tasks
 :depends:
 :resources:
 
+------
+
+
+
 :id: [t.hare-restart-notification]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -448,6 +594,10 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [t.dtm-recovery-1]
 :name: 
@@ -462,16 +612,9 @@ Tasks
 :depends:
 :resources:
 
-:id: [t.]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:justification:
-:component: motr
-:req:
-:process:
-:depends:
-:resources:
+------
+
+
 
 :id: [t.]
 :name:
@@ -484,16 +627,9 @@ Tasks
 :depends:
 :resources:
 
-:id: [t.]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:justification:
-:component: motr
-:req:
-:process:
-:depends:
-:resources:
+------
+
+
 
 :id: [t.]
 :name:
@@ -506,16 +642,9 @@ Tasks
 :depends:
 :resources:
 
-:id: [t.]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:justification:
-:component: motr
-:req:
-:process:
-:depends:
-:resources:
+------
+
+
 
 :id: [t.]
 :name:
@@ -528,16 +657,9 @@ Tasks
 :depends:
 :resources:
 
-:id: [t.]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:justification:
-:component: motr
-:req:
-:process:
-:depends:
-:resources:
+------
+
+
 
 :id: [t.]
 :name:
@@ -550,16 +672,9 @@ Tasks
 :depends:
 :resources:
 
-:id: [t.]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:justification:
-:component: motr
-:req:
-:process:
-:depends:
-:resources:
+------
+
+
 
 :id: [t.]
 :name:
@@ -571,6 +686,85 @@ Tasks
 :process:
 :depends:
 :resources:
+
+------
+
+
+
+:id: [t.]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:justification:
+:component: motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+
+
+:id: [t.]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:justification:
+:component: motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+
+
+:id: [t.]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:justification:
+:component: motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+
+
+:id: [t.]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:justification:
+:component: motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+
+
+:id: [t.]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:justification:
+:component: motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+
 
 =========
 Questions
@@ -587,6 +781,10 @@ Questions
 :depends: t.io-error-write
 :resources:
 
+------
+
+
+
 :id: [q.concurrent-PUT]
 :name: 
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -596,6 +794,10 @@ Questions
 :req:
 :depends:
 :resources:
+
+------
+
+
 
 :id: [q.concurrent-bucket-operation]
 :name: 
@@ -607,6 +809,10 @@ Questions
 :depends:
 :resources:
 
+------
+
+
+
 :id: [q.service dependencies]
 :name: who is tracking service dependencies?
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -616,6 +822,10 @@ Questions
 :req:
 :depends:
 :resources:
+
+------
+
+
 
 ===========
 Assumptions
@@ -630,4 +840,8 @@ Assumptions
 :req:
 :depends:
 :resources:
+
+------
+
+
 
