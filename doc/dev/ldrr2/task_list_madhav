@@ -1,0 +1,172 @@
+Tasks : LR R2 : P0
+==============
+HW:10 
+SCALE:10
+ 1) Deployement of 3 nodes with 5u84 with ADAPT
+ 2) Deployemnt of 6 nodes i.e two storage sets
+ 3) Deployment of 12 nodes i.e four storage sets
+ 4) Design for 36 nodes i.e 9 storages sets
+     How many nodes per rack ?
+ 5) 3,6 and 12 node deployment in VM
+ 6) configure pool per storage sets
+ 7) fsstat per pool as well as aggerated
+ 8) design pool selection policy and use it during object creation
+ 
+ HW:20  super micro COTS
+ HW:30  multiple vendors
+ 
+ 9) Deploy with different available vendors of RoCE nic and swicth and do the
+    performance analysis.
+ 10) Check 50Gbps is sufficient for S3 data or more is needed (Test with 12 node deployment)
+ 11) Check 50Gbps is sufficient for motr-motr data or more is needed ((Test with 12 node deployment)
+ 
+ SW-10
+ 12) centos 8 support gccxml to other alternatives may be cast xml
+ 13) check with lustre on centos 8
+ 14) build on centos 8 and deploy on 3 node VM's once Hare is ready
+ 15) deploy on centos 8 h/w setup once motr + hare + s3 are ready
+ 
+ SW-40
+  16) Libfabric xprt impplementation
+  17) m0nettest with libfabric
+  18) performance analysis with libfabic with LDR R1 setup and
+      compare with Lnet results
+  19) Do all the long run and QA manual and automation tests once libfabric
+      is ready with LR R1 setup
+  20) performance analysis with libfabic with LDR R2 setup configs
+       3-node, 6-node, 12-node
+  SW-60
+  21) port galois to intel ISA
+  22) Performance analysis with galosi and intel ISA
+  23) Btree re-write
+  24) Btree concurrency/performance analysis
+  25) Balloc re-write
+  26) Balloc read/write/delete performance analysis
+  
+  NET-10
+  27) Configure bonding to add the support for 10G and 25G networks
+  28) Performance analysis the stack with 10G,25G and 100G networks
+  29) Evaluate with both Lnet and Libfabrics
+
+  NET-12
+  30) Only RoCE supported switch vendors can be used for data
+  
+  NET-20
+  31) motr needs to work with static Ip's config
+      (Note: motr conf update + hare support is needed to support
+	   private ip change after deployment)
+		   
+   SCALE-10
+   Refer HW-10
+   
+  SCALE-30:
+  32) performance with 3 node setup
+  33) performance with 4 node setup  and check linear performace 
+  34) performance with 6 node/ 9node setup 
+  35) Fix performace bottlenecks
+   
+  SCALE-40
+  36) With 16 MB object check performance with 3-node and 6-node setups
+	    
+  37) after libfabrics, balloc, btree and be rewrite check the performance
+	
+  38) Try to increase performace per node upto 2.5GB/s per node for write and 3GB/s for read
+	
+  39) Populate the setup wit 16MB within a week it should fill te storage in 3-node setup
+	     multiple clients may be needed.
+	
+	   
+  SCALE-50
+  40) With 256 KB object check performance with 3-node and 6-node setups
+	    
+  41) after libfabrics, balloc, btree and be rewrite check the performance
+	
+  42) Try to increase performace per node upto 850MB/s per node for write and 1GB/s for read
+	
+  43) Populate the setup with 256KB, within three weeks it should fill te storage in 3-node setup
+	    multiple clients may be needed.
+		
+  SCALE-60 : P1
+  44) Validate 600 session with LR R2 deployments of 3node,6node and 12nodes
+	
+  SCALE-70
+  45) populate 100M objects per node with 3 node setup and do the performance analysis
+	    Check with 256K, 1M, 16M and 128 M objects
+  46)  Also do the performance analysis at different stages of storage 50%, 70%,80% and 90%
+	
+  SCALE:80
+  47) Check Time to first byte 150ms 99% of the time for different object sizes
+  48) Check TTFB at different stages of storage 50%, 70%,80% and 90%
+	
+  AD-10,20,30
+  49) Remove a node from the 3-node or 6-node setup/cluster and update it to new rpm
+	    version and the add it back to the cluster
+  50) Test update of rpm's of a node in VM's with 3node deployment
+	
+  51) Disk group failure domain needs to be supported
+  52) Use 4+2+0 protection scheme
+  53) When a node in storage is is being updated/failed new objects are created
+     with Pool version of remaining two nodes with 2+2+0 or other storage set is
+		used.
+
+ AD-50 : p0 ?
+	
+	AD-80
+	 Same as 53
+	 
+	 AD-83 P0 ? 
+	  Regeneration not supported
+	
+	 
+	 AD-90
+	 54) Return failures in case of more than one failure in a storage set
+	 
+	 BCKT-50
+	 55) create bucket in all the node of all the storgae sets
+	 56) Store pool-id and layout for object list
+	 57) Store poolversion and lid with s3 object meta-data i.e mdcob is not needed
+	 
+	 MGM-60
+	 58) Return aggr performance, may be s3 only task
+	 
+	 MGM-120
+	 59) Need to shutdown and restart a node 
+	 MGM-130
+	 60) Need to stop the cluster and start again
+	    All the ongoing IO should be completed and new IO will get 500 error.
+		
+	 MGM-220
+	  61) Check with Switch or FW update(should be non-disruptive) and see that cluster
+	    is still online
+	  
+	  SEC-130
+	  62) Security vulnerabilty handling for motr
+	  
+	  OP-20
+	  63) check the cluster and IO after server is replaced for a node
+	  
+	  OP-70
+	  64) Support motr setup for automatic deployment with provisioner
+	  
+	  VM-10
+	  65) VM support
+	  
+	  SUP-20
+	  66) support bundle analysis
+	
+	
+	
+	
+	
+   
+ 
+Assumptions
+===========
+1) enclosure rebuild is not supported, which may mean node replacement is not supported.
+2) RoCE support is needed for nic and switches
+3) 100Gbps Ethernet cards with RoCE support are used
+4) Once deployed private ip's are not changed
+5) In case of node failure/update 2+2+0 is used if only single
+
+Dependencies
+===========
