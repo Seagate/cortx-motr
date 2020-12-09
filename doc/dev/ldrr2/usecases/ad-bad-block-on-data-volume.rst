@@ -18,10 +18,12 @@ data volume failures usecases
 | MKBUCKET     |     N/A        |     N/A         |     N/A          |     N/A         |
 +--------------+----------------+-----------------+------------------+-----------------+
 
-
-Object PUT and index kv_put does not detect bad block on data volume during write.
-
 Object GET from local node and remote note are the same.
+
+Please refer to:
+`Get object with bad block on data volume             <get-object-bad-block-on-data-volume.uml>`_
+`PUT object with bad block on data volume with DTM    <put-object-bad-block-on-data-volume-DTM.uml>`_
+`PUT object with bad block on data volume without DTM <put-object-bad-block-on-data-volume-No_DTM.uml>`_
 
 Use cases
 =========

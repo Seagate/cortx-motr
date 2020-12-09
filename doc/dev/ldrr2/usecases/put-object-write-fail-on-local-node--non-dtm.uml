@@ -1,5 +1,5 @@
 @startuml
-title <b>S3 Put Object - Data error encountered on Remote diskgroup (Non DTM)</b>
+title <b>S3 Put Object - Data error encountered on Local diskgroup (Non DTM)</b>
 
 actor "S3 client" as S3C #blue
 box "N-1"
@@ -54,39 +54,39 @@ m0d1 -> "DG1-R" ++ :Write Block-Parity
 
 
 "DG3-L" -->  m0d3 --
-m0d3->S3 --
+m0d3-->S3 --
 
-note over "DG2-R": Write failed
+"DG2-R" --> m0d2 --
+m0d2-->S3 --
 
-"DG2-R" -[#blue]->x m0d2 --
-note over m0d2: Notify HA !!!
-m0d2-[#blue]->S3 --
+note over "DG1-L": Write failed
 
-"DG1-L" -->  m0d1 --
-m0d1->S3
+"DG1-L" -[#blue]->x  m0d1 --
+note over m0d1: Notify HA !!!
+m0d1-[#blue]->S3
 
 "DG1-R" -->  m0d1 --
-m0d1->S3 --
+m0d1-->S3 --
 
 S3-->m0d3 ++ :Delete Object
 m0d3 --> "DG3-L" ++ :Delete Block-1
 
-S3-->m0d1 ++:Delete Object
-m0d1 --> "DG1-L" ++ :Delete Block-3
+S3-->m0d2 ++ :Delete Object
+m0d2 --> "DG2-R" ++ :Delete Block-2
 
-S3-->m0d1 :Delete Parity
+S3-->m0d1 ++:Delete Parity
 m0d1 --> "DG1-R" ++ :Delete Block-Parity
 
 "DG3-L" -->  m0d3 --
-m0d3->S3 --
+m0d3-->S3 --
 
-"DG1-L" -->  m0d1 --
-m0d1->S3
+"DG2-R" -->  m0d2 --
+m0d2-->S3 --
 
 "DG1-R" -->  m0d1 --
-m0d1->S3 --
+m0d1-->S3 --
 
-... <b><size:20>~~Switch to Pool version which supports 2+2 replication among nodes N1 and N3~~</b> ...
+... <b><size:20>~~Switch to Pool version which supports 2+2 replication among nodes N2 and N3~~</b> ...
 
 
 S3->m0d3 ++ :Write Object
@@ -98,35 +98,35 @@ m0d3 -> "DG3-R" ++ :Write Block-2
 S3->m0d3 :Write Object
 m0d3 -> "DG3-L" :Write Block-3
 
-S3->m0d1 ++ :Write Object
-m0d1 -> "DG1-L" ++ :Write copy of Block-1
+S3->m0d2 ++ :Write Object
+m0d2 -> "DG2-L" ++ :Write copy of Block-1
 
-S3->m0d1 :Write Object
-m0d1 -> "DG1-R" ++ :Write copy of Block-2
+S3->m0d2 :Write Object
+m0d2 -> "DG2-R" ++ :Write copy of Block-2
 
-S3->m0d1 :Write Object
-m0d1 -> "DG1-L" :Write copy of Block-3
+S3->m0d2 :Write Object
+m0d2 -> "DG2-L" :Write copy of Block-3
 
 
 
 "DG3-L" -->  m0d3
-m0d3->S3
+m0d3-->S3
 
 "DG3-R" -->  m0d3 --
-m0d3->S3
+m0d3-->S3
 
 "DG3-L" -->  m0d3 --
-m0d3->S3 --
+m0d3-->S3 --
 
-"DG1-L" -->  m0d1
-m0d1->S3
+"DG2-L" -->  m0d2
+m0d2-->S3
 
-"DG1-R" -->  m0d1 --
-m0d1->S3
+"DG2-R" -->  m0d2 --
+m0d2-->S3
 
-"DG1-L" -->  m0d1 --
-m0d1->S3 --
+"DG2-L" -->  m0d2 --
+m0d2-->S3 --
 
 
-S3C <- S3 -- : Object Data
+S3C <-- S3 -- : Object Data
 @enduml

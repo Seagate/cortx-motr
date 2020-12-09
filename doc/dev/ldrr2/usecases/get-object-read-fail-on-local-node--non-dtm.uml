@@ -39,49 +39,40 @@ database "DG6-L"
 database "DG6-R"
 endbox
 
-S3C --> S3: Get Object
-S3-->m0d3 :Read Object
-activate S3
-m0d3 --> "DG3-L" :Read Block-1
-activate "DG3-L"
+S3C --> S3 ++: Get Object
+S3-->m0d3 ++ :Read Object
+m0d3 --> "DG3-L" ++:Read Block-1
 
-S3-->m0d2 :Read Object
-m0d2 --> "DG2-R" :Read Block-2
-activate "DG2-R"
+S3-->m0d2 ++:Read Object
+m0d2 --> "DG2-R" ++:Read Block-2
 
-S3-->m0d1 :Read Object
-m0d1 --> "DG1-L" :Read Block-3
-activate "DG1-L"
+S3-->m0d1 ++:Read Object
+m0d1 --> "DG1-L" ++:Read Block-3
 
-"DG3-L" ->  m0d3
-deactivate "DG3-L"
-m0d3->S3
+"DG3-L" ->  m0d3 --
+m0d3->S3 --
 
-"DG2-R" ->  m0d2
-deactivate "DG2-R"
-m0d2->S3
+"DG2-R" ->  m0d2 --
+m0d2->S3 --
 
 note over "DG1-L": Read failed
 
-"DG1-L" -[#blue]>x m0d1
-deactivate "DG1-L"
-m0d1-[#blue]->S3
+"DG1-L" -[#blue]>x m0d1 --
+note over m0d1: Notify HA !!!
+m0d1-[#blue]->S3 --
 
 
 
-S3-->m0d2 :Read Parity
-m0d2-[#green]->"DG2-L" :Read Block-Parity
-activate "DG2-L"
+S3-->m0d2 ++ :Read Parity
+m0d2-[#green]->"DG2-L" ++ :Read Block-Parity
 |||
-"DG2-L" -[#green]>  m0d2
-deactivate "DG2-L"
-m0d2-[#green]>S3
+"DG2-L" -[#green]>  m0d2 --
+m0d2-[#green]>S3 --
 
 ... <b><size:20>~~Reconstruct data using Parity~~</b> ...
 |||
 
-S3C <- S3: Object Data
-deactivate S3
+S3C <- S3 --: Object Data
 @enduml
 
 
