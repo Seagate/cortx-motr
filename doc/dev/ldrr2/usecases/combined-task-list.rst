@@ -853,7 +853,7 @@ Task-40
 :component: motr, perf
 :req: SW-60
 :process: simple
-:depends: t.balloc-new
+:depends: t.balloc-rewrite
 :resources:
 
 -------
@@ -867,7 +867,7 @@ Task-40
 :component: motr, perf
 :req: SW-60
 :process: simple
-:depends: t.btree-new
+:depends: t.scale-m0tr-btree
 :resources:
 
 -------
@@ -881,7 +881,7 @@ Task-40
 :component: motr
 :req: SW-60
 :process: simple
-:depends: t.btree-new
+:depends: t.scale-m0tr-btree
 :resources:
 
 -------
@@ -930,6 +930,8 @@ Task-40
 
 -------
 
+
+****** 1 ******
 :id: [t.perf-ttfb]
 :name: check ttfb performance
 :author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
@@ -938,7 +940,7 @@ Task-40
          and 90%.
 :justification:
 :component: motr, perf
-:req: SCALE-70
+:req: SCALE-80
 :process: simple
 :depends: t.3-node-deploy
 :resources:
@@ -1106,6 +1108,7 @@ Assumptions
 
 ------
 
+****** 1 ******
 :id: [t.io-perf-ttfb]
 :name: io performance
 :author: shashank
