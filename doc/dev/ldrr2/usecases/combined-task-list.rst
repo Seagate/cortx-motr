@@ -2464,9 +2464,11 @@ m0tr tasks for scalability (Anatoliy)
 
 :id: [t.display-md-usage]
 :name: Display near realtime usage of metadata space
-:detail: motr to send updates to notify user of metadata size used. Enclosure/Node should go to write protect mode in this scenario.
-There should be no crash of metadata usage is over.
-:justification: metadata usage should be displayed so user is aware of actual space used by metadata.
+:detail: motr to send updates to notify user of metadata size used. 
+         Enclosure/Node should go to write protect mode in this scenario.
+         There should be no crash of metadata usage is over.
+:justification: metadata usage should be displayed so user is aware of actual
+                space used by metadata.
 :component: motr, motr.beck
 :req: SCALE-10
 :process:
@@ -2478,7 +2480,9 @@ There should be no crash of metadata usage is over.
 :id: [t.hw-10.2]
 :name: Handling Asssymetric Strorage Set in a Cluster
 :author:
-:detail:  Enclosure in a Storage Set will be symetric w.r.t capacity (validate with PLM), but across storage set they can be assymetric. Check impact of this and add support for its handling in motr.
+:detail:  Enclosure in a Storage Set will be symetric w.r.t capacity (validate
+          with PLM), but across storage set they can be assymetric. Check impact
+          of this and add support for its handling in motr.
 :justification:
 :component: motr
 :req: HW-10
