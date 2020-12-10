@@ -602,7 +602,45 @@ Tasks
 
 ------
 
+:id: [t.linear-scale]
+:name: measure how performance grows with cluster size
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: measure how performance grows with cluster size. Start with 3 nodes,
+         then add another 3 and another 3.
+:justification:
+:component: motr, hare
+:req: SCALE-30
+:process: deploy, measure.
+:depends:
+:resources:
 
+-------
+
+:id: [t.upgrade-non-disruptive]
+:name: non-disruptive 0-downtime upgrade
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: non-disruptive 0-downtime upgrade. What about switch firmware upgrade?
+:justification:
+:component:
+:req: AD-30, MGM-220
+:process:
+:depends:
+:resources:
+
+-------
+
+:id: [t.upgrade]
+:name: motr part of cortx upgrade
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: 
+:justification:
+:component: motr
+:req: MGM-220
+:process:
+:depends: libfabric (requires kernel module unload otherwise)
+:resources:
+
+------
 
 :id: [t.dtm-recovery-1]
 :name:
@@ -613,6 +651,45 @@ Tasks
 :justification:
 :component: motr
 :req:
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [t.1-node-failure]
+:name: test that system masks 1 node failure in a storage set
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: test with 1 storage set and with 2 storage sets
+:justification:
+:component: motr
+:req: AD-80
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [t.2-node-failure]
+:name: test that system gracefully handles 2+ node failures in a storage set
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: test that 500 is returned to user
+:justification:
+:component: motr
+:req: AD-90
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [t.ip-addressing]
+:name: design and document addressing scheme used with libfabric
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: list ports that should be open.
+:justification:
+:component: motr
+:req: SEC-10
 :process:
 :depends:
 :resources:
@@ -1013,6 +1090,18 @@ Assumptions
 
 ------
 
+:id: [a.no-regeneration]
+:name: AD-83 will be excepted. 2+2 striping will be used instead.
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:justification: Gregory, Dan
+:component:
+:req: AD-83
+:depends:
+:resources:
+
+------
+
 
 
 
@@ -1222,7 +1311,7 @@ From Shankar
 :justification:
 :component: all
 :req: OP-20
-:process: check, fix
+:process: 
 :depends:
 :resources:
 
