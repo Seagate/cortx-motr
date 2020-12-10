@@ -1049,28 +1049,24 @@ Assumptions
 From Shankar
 ------------
 
-:id: [t.hw-10.1]
-:name:
-:author:
-:detail: Any special handling for HAMR or SMR drive needs to ne enabled in PODS or 5u84  
-:justification:
-:component: Motr
-:req:
-:process:
+:id: [t.support-different-drive]
+:name: Benchmark and tune performance with different drive types
+:detail: Different drive type can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference drives and capacity sizes. Check for any special handling for HAMR or SMR drive needs to ne enabled in PODS or 5u84  
+:justification: Analyzing impact on performance will help in drive selection.
+:component: motr, Performance evaluation team
+:req: HW-10
+:process: Test suite for performance evaluation
 :depends:
-:resources:
 
 ------
 
-
-
 :id: [t.hw-10.2]
-:name:
+:name: Handling Asssymetric Strorage Set in a Cluster
 :author:
-:detail: Handling Asssymetric Strorage Set Part of Cluster (Assuming enclosure in SS are symetric w.r.t capacity)
+:detail:  Enclosure in a Storage Set will be symetric w.r.t capacity (validate with PLM), but across storage set they can be assymetric. Check impact of this and add support for its handling in motr.
 :justification:
-:component: Motr
-:req:
+:component: motr
+:req: HW-10
 :process:
 :depends:
 :resources:
@@ -2517,18 +2513,6 @@ m0tr tasks for scalability (Anatoliy)
 :resources:
 
 ------
-
-:id: [t.support-different-drive]
-:name: Benchmark and tune performance with different drive types
-:detail: Different drive type can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference drives and capacity sizes
-:justification: Analyzing impact on performance will help in drive selection.
-:component: motr, Performance evaluation team
-:req: HW-10
-:process: Test suite for performance evaluation
-:depends:
-:resources:
-
--------
 
 :id: [t.support-different-servers]
 :name: Benchmark and tune performance with different server
