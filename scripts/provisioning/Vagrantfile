@@ -644,6 +644,11 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
 
     # disks
     vdiskmanager = 'C:\Program Files (x86)\VMware\VMware Workstation\vmware-vdiskmanager.exe'
+    if RbConfig::CONFIG['host_os'] =~ /darwin/
+      # After some time when all developers upgrade their vmware plugin
+      # to vmware_desktop, vmware_fusion provider could be removed.
+      vdiskmanager = '/Applications/VMware Fusion.app/Contents/Library/vmware-vdiskmanager'
+    end
     if PROVIDER == :vmware_desktop and File.exist?(vdiskmanager)
       (1..disk_nr).each do |i|
         disk_file = File.expand_path(disks_dir).to_s + "/disk_#{node.vm.vgname}_#{i}.vmdk"
