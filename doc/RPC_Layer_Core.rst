@@ -83,6 +83,10 @@ RPC core component can be decomposed into the following subcomponents:
 
 - Statistics.
 
+
+.. image:: Images/processing.PNG
+
+
 Listed subcomponents share RPC component state e.g. RPC-items, connections, slots, sessions, channels, etc. RPC processing is a subcomponent which is responsible of the following actions:
 
 - Grouping input items (FOPs, ADDB, etc.) into containers (RPCs). Grouping subcomponent performs grouping of input items and produces the RPC items cache. Items are grouped by the following criteria:
