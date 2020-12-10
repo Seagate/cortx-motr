@@ -1060,38 +1060,11 @@ From Shankar
 
 ------
 
-:id: [t.hw-20.2]
-:name:
-:author:
-:detail: Test perfromance numbers with different server and create benchmark table for customer reference
-:justification:
-:component: Motr
-:req:
-:process:
-:depends:
-:resources:
-
-------
-
-:id: [t.hw-30.1]
-:name:
-:author:
-:detail: Benchmark performance with different newtork equipment 
-:justification:
-:component: Motr
-:req:
-:process:
-:depends:
-:resources:
-
-------
-
-
 :id: [t.hw-30.2]
 :name:
 :author:
 :detail:  Test number of active session supported with new hardware 
-:justification:
+:justification: Number of supported active session can get impacted with changes to hardware 
 :component: Motr
 :req:
 :process:
@@ -1146,16 +1119,15 @@ From Shankar
 :id: [t.sw-30.1]
 :name:
 :author:
-:detail: libfabric: Add code to generate IEM for any unxpected error thrown by libfabric. Dependency : Notify SSPL and CSM for new IEM addition
+:detail: libfabric: Add code to generate IEM for any unxpected error thrown by libfabric and Intel ISA. 
 :justification:
 :component: Motr
 :req:
 :process:
-:depends:
+:depends: Notify SSPL and CSM for new IEM addition
 :resources:
 
 ------
-
 
 :id: [t.sw-40.2]
 :name:
@@ -1170,21 +1142,6 @@ From Shankar
 
 ------
 
-
-:id: [t.net-10.1]
-:name:
-:author:
-:detail:  Benchamark performance with netwrok of different speed
-:justification:
-:component: Motr
-:req:
-:process:
-:depends:
-:resources:
-
-------
-
-
 :id: [t.net-10.1]
 :name:
 :author:
@@ -1197,7 +1154,6 @@ From Shankar
 :resources:
 
 ------
-
 
 :id: [t.net-20.1]
 :name:
@@ -2470,7 +2426,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Different networking equipment can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference networking equipment.
 :justification: Analyzing impact on performance will help customer in server selection.
 :component: motr, Performance evaluation team
-:req: HW-30
+:req: HW-30 NET-10
 :process: Test suite for performance evaluation
 :depends:
 :resources:
