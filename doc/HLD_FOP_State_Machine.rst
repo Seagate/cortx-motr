@@ -302,4 +302,69 @@ Scenario 4
 +----------------------------+----------------------------------------------------------------------------+
 
 
+************
+Failures
+************
 
+
+- failure of a fom state transition: this lands fom in the standard FAILED phase; 
+
+- dead-lock: dealing with the dead-lock (including ones involving activity in multiple address space) is outside of the scope of the present design. It is assumed that general mechanisms of dead-lock avoidance (resource ordering, &c.) are used; 
+
+- time-out: if a fom is staying in the wait-list for too long, it is forced into FAILED state.
+
+==========
+Analysis
+==========
+
+An important question is how db5 accesses are handled in a non-blocking model. Potential solutions: 
+
+- do not consider call to db5 a fom state change (i.e., use enter-block and leave-block around every call to db5). Advantages: 
+
+  - simplest solution. Few or no code changes; 
+
+  - disadvantages: data-base calls do block often and for a long time (up to and including forever). Non-blocking model might easily degenerate into a thread-per-request under these conditions: imaging all handler threads blocked in db5 when a new fop arrives. New thread is created &c; 
+
+- use a global thread or a global pool of threads to handle all db5 activity. Handler threads queue data-base requests to the global thread: 
+
+  - advantages: purity and efficiency of non-blocking model is maintained. All db5 foot-print is confined to a cache of one or a few cores; 
+
+  - disadvantages: programming model is more complex: queuing and de-queuing of db calls is necessary. db5 foot-print might well be nearly the total foot-print of a meta-data server, because almost all data are stored in db5; 
+
+- use a per-locality thread (or few per-locality threads) to handle db5 activity in the locale: 
+
+  - advantages: purity and efficiency of non-blocking model is maintained. db5 foot-print is confined and distributed across localities; 
+
+  - disadvantages: db5 threads of different localities will fight for shared db5 data, including cache-hot b-tree index nodes leading to worse cache utilization and cache-line ping-ponging (on a positive side, higher level b-tree nodes are rarely modified and so can be shared my multiple cores)
+  
+Scalability
+============
+
+The point of non-blocking model is to improve server scalability by 
+
+ 
+- reducing cache foot-print, by replacing thread stacks with smaller fom-s; 
+
+- reducing scheduler overhead by using state machines instead of blocking and waking threads; 
+
+- improving cache utilization by binding fom-s to home localities.
+
+***********
+References
+***********
+
+- [0] The C10K problem 
+
+- [1] LKML Archive Query: debate on 700 threads vs. asynchronous code 
+
+- [2] Why Events Are A Bad Idea (for High-concurrency Servers) 
+
+- [3] HLD of resource management interfaces 
+
+- [4] QAS File Operation Packet  
+
+- [5] M0 Core - Module Generalization View  
+
+- [6] Finite-state machine 
+
+- [7] HLD of request handler    
