@@ -721,37 +721,34 @@ Assumptions
 From Shashank
 -------------
 
+------
 
-+--------------+-----------------------------------------------------------------+
-| **SCALE-40** |  **Read: 3GB/sec; Write: 2.5GB/sec per node for 16MB objects**  |
-+--------------+-----------------------------------------------------------------+
-1. Performance measurement and tuning work involving Balloc, Btree and BE Tx grouping.
+:id: [t.io-perf-rw]
+:name: io performance
+:author: 
+:detail: support PRD performance numbers for 16MB and 256KB object sizes
+:justification:
+:component: motr, s3
+:req: SCALE-40, SCALE-50
+:process: check, DLD, DLDINSP, code, INSP, fix
+:depends: SW-50, SW-60
+:resources:
 
-  - 1.a. Iteratively debugging the performance related changes.
+------
 
+:id: [t.io-perf-ttfb]
+:name: io performance
+:author: 
+:detail: support Time-To-First-Byte of <150ms for any Object size
+:justification:
+:component: motr, s3
+:req: SCALE-80
+:process: check, DLD, DLDINSP, code, INSP, fix
+:depends: SW-50, SW-60
+:resources:
 
-+--------------+-----------------------------------------------------------------+
-| **SCALE-50** |  **Read: 1GB/sec, Write: 850MB/sec per node for 256KB objects**  |
-+--------------+-----------------------------------------------------------------+
-1. Performance measurement and tuning work involving Balloc, Btree and BE Tx grouping.
+------
 
-  - 1.a. Iteratively debugging the performance related changes.
-
-+--------------+----------------------------------------------------------------------------------------------+
-| **SCALE-80** |  **Time to first byte = 150ms (99%) – assuming we’re within 600 sessions limit (SCALE-60)**  |
-+--------------+----------------------------------------------------------------------------------------------+
-1. Throttle Writes to allow Reads by controlling network buffers used in Write data transfers and provide those to Reads.
-
-  - 1.a. Debugging and Testing code changes.
-
-2. Throttle currently executing Reads to accept and execute new Read commands. This also involves changes to network buffer management for capturing the Read data from the STOBs.
-
-  - 2.a. Debugging and Testing code changes.
-
-+-----------+----------------------+
-| **S3-15** |  **CopyObject API**  |
-+-----------+----------------------+
-**If S3 handles this then Motr does not need to make any changes.**
 
 ------------
 From Shankar
