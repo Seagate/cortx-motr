@@ -778,7 +778,7 @@ Tasks
 -------
 
 :id: [t.galois-perf]
-:name galois to intel ISA perf analysis 
+:name: galois to intel ISA perf analysis 
 :author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
 :detail: Performance analysis with galois and intel ISA
          for 4+2 and 8+2 configs
@@ -1016,15 +1016,11 @@ Assumptions
 
 
 
--------------
-From Shashank
--------------
-
 ------
 
 :id: [t.io-perf-rw]
 :name: io performance
-:author: 
+:author: shashank 
 :detail: support PRD performance numbers for 16MB and 256KB object sizes
 :justification:
 :component: motr, s3
@@ -1037,7 +1033,7 @@ From Shashank
 
 :id: [t.io-perf-ttfb]
 :name: io performance
-:author: 
+:author: shashank
 :detail: support Time-To-First-Byte of <150ms for any Object size
 :justification:
 :component: motr, s3
@@ -1114,87 +1110,6 @@ SCALE-50 : Read: 1GB/sec, Write: 850MB/sec per node for 256KB objects
   - 2. Small object performance: Evaluate and add Hash list for CAS btree access
 
 
------------
-From Madhav
------------
-
-
-
-HW-10
-SCALE-10
-  1) Deployement of 3 nodes with 5u84 with ADAPT
-  2) Deployemnt of 6 nodes i.e two storage sets
-  3) Deployment of 12 nodes i.e four storage sets
-  4) Design for 36 nodes i.e 9 storages sets
-     How many nodes per rack ?
-  5) 3,6 and 12 node deployment in VM
-  6) configure pool per storage sets
-  7) fsstat per pool as well as aggerated
-  8) design pool selection policy and use it during object creation
-
-HW-20  super micro COTS
-HW-30  multiple vendors
-
-  9) Deploy with different available vendors of RoCE nic and swicth and do the
-     performance analysis.
-  10) Check 50Gbps is sufficient for S3 data or more is needed (Test with 12 node deployment)
-  11) Check 50Gbps is sufficient for motr-motr data or more is needed ((Test with 12 node deployment)
-
-SW-10
-  12) centos 8 support gccxml to other alternatives may be cast xml
-  13) check with lustre on centos 8
-  14.0) build on centos 8 and deploy on 3 node VM's without Hare
-  14.1) build on centos 8 and deploy on 3 node VM's once Hare is ready
-  15) deploy on centos 8 h/w setup once motr + hare + s3 are ready
-
-
-SW-40
-  17) m0nettest with libfabric
-  18) performance analysis with libfabic with LDR R1 setup and
-      compare with Lnet results
-  19) Do all the long run and QA manual and automation tests once libfabric
-      is ready with LR R1 setup
-  20) performance analysis with libfabic with LDR R2 setup configs
-       3-node, 6-node, 12-node
-
-
-SW-60
-  22) Performance analysis with galosi and intel ISA
-  24) Btree concurrency/performance analysis
-  26) Balloc read/write/delete performance analysis
-
-
-
-NET-10
-  27) Configure bonding to add the support for 10G and 25G networks
-  28) Performance analysis the stack with 10G,25G and 100G networks
-  29) Evaluate with both Lnet and Libfabrics
-
-
-NET-12
-  30) Only RoCE supported switch vendors can be used for data
-
-SCALE-70
-  45) populate 100M objects per node with 3 node setup and do the performance analysis
-	    Check with 256K, 1M, 16M and 128 M objects
-  46)  Also do the performance analysis at different stages of storage 50%, 70%,80% and 90%
-
-
-SCALE-80
-  47) Check Time to first byte 150ms 99% of the time for different object sizes
-  48) Check TTFB at different stages of storage 50%, 70%,80% and 90%
-
-AD-10,20,30
-  49) Remove a node from the 3-node or 6-node setup/cluster and update it to new rpm
-	    version and the add it back to the cluster
-  50) Test update of rpm's of a node in VM's with 3node deployment
-
-  51) Disk group failure domain needs to be supported
-
-
-MGM-60
-  58) Return aggr performance, may be s3 only task
-
 ------
 
 :id: [t.startup-shutdown]
@@ -1211,10 +1126,6 @@ MGM-60
 
 ------
 
-
-MGM-220
-  61) Check with Switch or FW update(should be non-disruptive) and see that cluster
-	    is still online
 
 ------
 
@@ -1247,15 +1158,6 @@ MGM-220
 
 ------
 
-OP-70
-  64) Support motr setup for automatic deployment with provisioner
-
-VM-10
-  65) VM support
-
-  
-------
-
 :id: [t.support-bundle]
 :name: Debug logs in support bundle.
 :author: 
@@ -1271,11 +1173,6 @@ VM-10
 ------
 
 
--------------
-From Huanghua
--------------
-
-
 :id: [t.cluster-aging-testing]
 :name: Cluster Aging testing.
 :author: hua.huang@seagate.com
@@ -1287,13 +1184,7 @@ From Huanghua
 :depends:
 :resources:
 
-------
-
-
 -------------
-From Anatoliy
--------------
-
 
 :id: [t.dtm-all2all]
 :name:
