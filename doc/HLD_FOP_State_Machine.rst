@@ -84,7 +84,33 @@ A run-queue is a per-locality list of fom-s ready for a next state transition. A
 
 - when an event occurs that triggers next state transition for the fom. At the event occurrence, the fom is moved from a wait-queue to the run-queue of its home locality.
 
-A run-queue is maintained in the FIFO order. 
+A run-queue is maintained in the FIFO order.
+
+Wait-list
+==========
+
+A wait-list is a per-locality list of fom-s waiting for some event to happen. When a fom is about to wait for an event, which means waiting on a channel [r.lib.chan], a call-back (technically, a clink, see description of the channel interface in M0 library) is registered with the channel and the fom is parked to the wait-list. When the event happens, the call-back is invoked. This call-back moves the fom from the wait-list to the run-queue of its home locality.
+
+Handler Thread
+===============
+
+One or few handler threads are attached to every locality. These threads run a loop of: 
+
+- (NEXT) take a fom at head of the locality run-queue and remove it from the queue; 
+
+- (CALL) execute the next state transition until fom is just about to block; 
+
+- (RETURN) register the wait-queue call-back and place the fom to the wait-queue;
+
+(NEXT) and (RETURN) steps in this loop are atomic w.r.t. other handler threads of the same locality. Ideally, (CALL) step is non-blocking (of course, a user-level thread can always be preempted by the kernel, but this is not relevant). Unfortunately this is not always possible because:
+
+- in some cases, only blocking interfaces are available (e.g., a page fault in a user level process, or a posix mutex acquisition); 
+
+- in some cases, splitting state transition into non-blocking segments would be excessively cumbersome. For example, making every call to the memory allocator a blocking point would render code very difficult to follow.
+
+In these situations, fom code has to bracket a potential blocking point by an enter-block/leave-block pair of markers. In an enter-block call, it is checked that the locality has enough idle handler threads to continue processing in case of a block. If the check determines that number of idle threads is below some (configurable) threshold, a new handler thread is created and attached to the locality. This guarantees that in a case where the call protected by enter-block does block, the locality has enough idle threads to handle state transitions without waiting for handler threads to become available. The relationship between entities described above can be illustrated by the following diagram: 
+
+.. image:: Images/run-que.PNG
 
 
 
