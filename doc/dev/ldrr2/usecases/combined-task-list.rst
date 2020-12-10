@@ -1060,38 +1060,11 @@ From Shankar
 
 ------
 
-:id: [t.hw-20.2]
-:name:
-:author:
-:detail: Test perfromance numbers with different server and create benchmark table for customer reference
-:justification:
-:component: Motr
-:req:
-:process:
-:depends:
-:resources:
-
-------
-
-:id: [t.hw-30.1]
-:name:
-:author:
-:detail: Benchmark performance with different newtork equipment 
-:justification:
-:component: Motr
-:req:
-:process:
-:depends:
-:resources:
-
-------
-
-
 :id: [t.hw-30.2]
 :name:
 :author:
 :detail:  Test number of active session supported with new hardware 
-:justification:
+:justification: Number of supported active session can get impacted with changes to hardware 
 :component: Motr
 :req:
 :process:
@@ -1146,16 +1119,15 @@ From Shankar
 :id: [t.sw-30.1]
 :name:
 :author:
-:detail: libfabric: Add code to generate IEM for any unxpected error thrown by libfabric. Dependency : Notify SSPL and CSM for new IEM addition
+:detail: libfabric: Add code to generate IEM for any unxpected error thrown by libfabric and Intel ISA. 
 :justification:
 :component: Motr
 :req:
 :process:
-:depends:
+:depends: Notify SSPL and CSM for new IEM addition
 :resources:
 
 ------
-
 
 :id: [t.sw-40.2]
 :name:
@@ -1170,11 +1142,10 @@ From Shankar
 
 ------
 
-
 :id: [t.net-10.1]
 :name:
 :author:
-:detail:  Benchamark performance with netwrok of different speed
+:detail: Evaluate Perfromance impact with multiple storage set with low speed interconnect 
 :justification:
 :component: Motr
 :req:
@@ -1183,21 +1154,6 @@ From Shankar
 :resources:
 
 ------
-
-
-:id: [t.net-10.1]
-:name:
-:author:
-:detail: Evaluate Perfromance impact with multiple SS with low speed include 
-:justification:
-:component: Motr
-:req:
-:process:
-:depends:
-:resources:
-
-------
-
 
 :id: [t.net-20.1]
 :name:
@@ -1212,20 +1168,10 @@ From Shankar
 
 ------
 
-SCALE-10 LR cluster should support between 3 and 36 nodes. For P0 test up to 12 nodes config – but it should be possible to deploy a larger cluster. Scale requirements specified below must be tested at least up to 12 nodes
-  - 4. Create process to make sure one global metadata update is happening at a time in cluster (for exterme corner scenario)
-  - 6. Checksum for key and value. Key and Value to be stored together?
-  - 7. Switch to 2+2 parity scheme for data in case of node failire (confirm with PLM)?
-    - Will avoid need for Data DTM
-  - 9. Any error in data write to be ignored with the number of failure is within limits
-  - 13. Display metadata used and go to write protect if MD is all used
-
-------
-
 :id: [t.global-md-serialize]
-:name: serialize global meta-data create in the cluster
+:name: Serialize global meta-data create in the cluster
 :author: shankar 
-:detail: Create process to make sure one global metadata update is happening at a time in cluster
+:detail: Create process to make sure one global metadata update is happening at a time in cluster. This will remove corner cases related to network partitions.
 :justification:
 :component: motr, s3
 :req: SCALE10
@@ -2480,7 +2426,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Different networking equipment can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference networking equipment.
 :justification: Analyzing impact on performance will help customer in server selection.
 :component: motr, Performance evaluation team
-:req: HW-30
+:req: HW-30 NET-10
 :process: Test suite for performance evaluation
 :depends:
 :resources:
@@ -2514,6 +2460,18 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends:
 :resources:
+-------
+
+:id: [t.display-md-usage]
+:name: Display near realtime usage of metadata space
+:detail: motr to send updates to notify user of metadata size used. Enclosure/Node should go to write protect mode in this scenario.
+There should be no crash of metadata usage is over.
+:justification: metadata usage should be displayed so user is aware of actual space used by metadata.
+:component: motr, motr.beck
+:req: SCALE-10
+:process:
+:depends:
+:resources:
 
 ------
 
@@ -2528,5 +2486,6 @@ m0tr tasks for scalability (Anatoliy)
 :depends: This will may not be P0
 :resources:
 
--------
+------
+
 
