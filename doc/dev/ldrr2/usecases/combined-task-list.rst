@@ -1470,3 +1470,632 @@ Assumption
 
 ------
 
+
+
+=====================================
+m0tr tasks for scalability (Anatoliy)
+=====================================
+
+:id: [t.scale-m0tr-m0be]
+:name:
+:author: anatoliy
+:detail: BE META TASK
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr]
+:name:
+:author: anatoliy
+:detail: BE GROUP META TASK
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: m0be
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr-mockG]
+:name:
+:author: anatoliy
+:detail: Mock BE tx group with in-memory tx execution
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr-mockA]
+:name:
+:author: anatoliy
+:detail: Mock BE allocator with sequential in-memory allocator
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr-5u84]
+:name:
+:author: anatoliy
+:detail: Tune 5u84 w.r.t. the new configuration
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-mockA txgr-mockG
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr-A]
+:name:
+:author: anatoliy
+:detail: Detailed design new block allocator w.r.t. to MRD performance requirements
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-5u84 txgr-G-optimistic
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr-G]
+:name:
+:author: anatoliy
+:detail: Detailed design for new tx group logic
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-5u84
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr-G-fom]
+:name:
+:author: anatoliy
+:detail: Update tx group FOM logic
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-G
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-txgr-G-log]
+:name:
+:author: anatoliy
+:detail: Update BE log w.r.t. new group logic
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-G-fom txgr-G-tx
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr-G-serialize]
+:name:
+:author: anatoliy
+:detail: Provide new tx group serialisation algo
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-G
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr-G-throttle]
+:name:
+:author: anatoliy
+:detail: Provide new tx group serialisation algo throttling when there’re cyclic deps
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-G-serialize
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr-G-optimistic]
+:name:
+:author: anatoliy
+:detail: Update BE structures w.r.t. minimise cyclic dependencies on the data
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources: txgr-G
+
+------
+
+
+:id: [t.scale-m0tr-txgr-G-tx]
+:name:
+:author: anatoliy
+:detail: Update TX SM w.r.t. new tx group logic
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-G-fom
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr-G-tx-regarea]
+:name:
+:author: anatoliy
+:detail: Update reg area w.r.t. new tx group logic
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-G-tx
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr-G-recovery]
+:name:
+:author: anatoliy
+:detail: Update recovery w.r.t. new log format
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-G-serialize txgr-G-log
+:resources:
+
+------
+
+:id: [t.scale-m0tr-txgr-G-5u84]
+:name:
+:author: anatoliy
+:detail: Tune new algo w.r.t. 5u84 for different workloads and bss
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-G txgr-A
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-txgr-G-STAB]
+:name:
+:author: anatoliy
+:detail: Stabilise new algo
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-G-5u84 txgr-G-recovery
+:resources:
+
+------
+
+:id: [t.scale-m0tr-parity]
+:name:
+:author: anatoliy
+:detail: PARITY MATH META TASK
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [t.scale-m0tr-parity-degraded]
+:name:
+:author: anatoliy
+:detail: Performance optimisation in degraded modes
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: parity
+:resources:
+
+------
+
+:id: [t.scale-m0tr-parity-incremental]
+:name:
+:author: anatoliy
+:detail: Incremental parity sums calc
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: parity
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-parity-isa-int]
+:name:
+:author: anatoliy
+:detail: ISA integration
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: parity
+:resources:
+
+------
+
+:id: [t.scale-m0tr-parity-isa-tune]
+:name:
+:author: anatoliy
+:detail: ISA tuning
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: parity
+:resources:
+
+------
+
+:id: [t.scale-m0tr-parity-isa-n32log]
+:name:
+:author: anatoliy
+:detail: n^3 -> n^2*log(n) linear system solver
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: parity
+:resources:
+
+------
+
+:id: [t.scale-m0tr-parity-isa-reg]
+:name:
+:author: anatoliy
+:detail: integrate region operations
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: parity
+:resources:
+
+------
+
+:id: [t.scale-m0tr-parity-isa-vander]
+:name:
+:author: anatoliy
+:detail: revise vandermonde matrix part of the algo w.r.t. ISA
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: parity
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-parity-isa-NKS]
+:name:
+:author: anatoliy
+:detail: optimisation for different layouts N+K+S
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: parity
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-btree]
+:name:
+:author: anatoliy
+:detail: NEW BTREE IMPLEMENTATION META TASK
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: m0be txgr-G-optimistic
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-swap]
+:name:
+:author: anatoliy
+:detail: SWAP META TASK
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: m0be
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-stob]
+:name:
+:author: anatoliy
+:detail: STOB META TASK
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: txgr-G-STAB
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-stob-concurrency]
+:name:
+:author: anatoliy
+:detail: limit concurrency w.r.t. different workloads
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: stob
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-stob-work-small]
+:name:
+:author: anatoliy
+:detail: small blocks
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: stob-concurrency
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-stob-work-large]
+:name:
+:author: anatoliy
+:detail: large blocks
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: stob-concurrency
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-stob-metadata]
+:name:
+:author: anatoliy
+:detail: metadata stobs
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: stob-concurrency
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-stob-4-be-log]
+:name:
+:author: anatoliy
+:detail: log stobs
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: stob-concurrency
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-writeagg]
+:name:
+:author: anatoliy
+:detail: WRITE AGGREGATION META TASK
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: m0be
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-throttling]
+:name:
+:author: anatoliy
+:detail: MERO LEVEL THROTTLING META TASK
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-rpc]
+:name:
+:author: anatoliy
+:detail: RPC META TASK
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-rpc-formation]
+:name:
+:author: anatoliy
+:detail: Formation tuning
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: rpc
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-rpc-long-live]
+:name:
+:author: anatoliy
+:detail: Tune “resends” for long living RPC
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: rpc
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-perfinfra]
+:name:
+:author: anatoliy
+:detail: Performance infrastructure for R2
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-perfinfra-addb]
+:name:
+:author: anatoliy
+:detail:  ADDB related work
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: perfinfra
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-cas]
+:name:
+:author: anatoliy
+:detail: CAS SERVICE META TASK
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-cas-lock]
+:name:
+:author: anatoliy
+:detail: CAS locking schema optimisation
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: cas
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-reqh]
+:name:
+:author: anatoliy
+:detail: REQUEST HANDLER META TASK
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-reqh-long-lock]
+:name:
+:author: anatoliy
+:detail: long lock fairness
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: reqh
+:resources:
+
+------
+
+
+:id: [t.scale-m0tr-reqh-ast]
+:name:
+:author: anatoliy
+:detail: AST profiling
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: reqh
+:resources:
+
+------
+
