@@ -442,6 +442,7 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -794,7 +795,7 @@ Task-40
 :component: motr, perf
 :req: SW-40
 :process: simple
-:depends: t.libfabrics-xprt
+:depends: t.lnet-libfabric
 :resources:
 
 -------
@@ -810,7 +811,7 @@ Task-40
 :component: motr, perf
 :req: SW-40
 :process: simple
-:depends: t.libfabrics-xprt
+:depends: t.lnet-libfabric
 :resources:
 
 -------
@@ -825,7 +826,7 @@ Task-40
 :component: motr, perf
 :req: SW-40
 :process: simple
-:depends: t.libfabrics-xprt
+:depends: t.lnet-libfabric
 :resources:
 
 -------
@@ -839,7 +840,7 @@ Task-40
 :component: motr, perf
 :req: SW-60
 :process: simple
-:depends: t.galois-intel-isa
+:depends: t.galois-isa
 :resources:
 
 -------
@@ -867,7 +868,7 @@ Task-40
 :component: motr, perf
 :req: SW-60
 :process: simple
-:depends: t.scale-m0tr-btree
+:depends: t.b-tree-rewrite
 :resources:
 
 -------
@@ -881,7 +882,7 @@ Task-40
 :component: motr
 :req: SW-60
 :process: simple
-:depends: t.scale-m0tr-btree
+:depends: t.b-tree-rewrite
 :resources:
 
 -------
@@ -895,7 +896,7 @@ Task-40
 :component: motr, perf
 :req: NET-10
 :process: simple
-:depends: t.libfabrics-xprt
+:depends: t.lnet-libfabric
 :resources:
 
 -------
@@ -2168,19 +2169,6 @@ m0tr tasks for scalability (Anatoliy)
 ------
 
 
-:id: [t.scale-m0tr-parity-isa-int]
-:name:
-:author: anatoliy
-:detail: ISA integration
-:justification:
-:component: Motr
-:req: SCALE-10, SCALE-40, SCALE-50
-:process:
-:depends: parity
-:resources:
-
-------
-
 :id: [t.scale-m0tr-parity-isa-tune]
 :name:
 :author: anatoliy
@@ -2243,34 +2231,6 @@ m0tr tasks for scalability (Anatoliy)
 :req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: parity
-:resources:
-
-------
-
-
-:id: [t.scale-m0tr-btree]
-:name:
-:author: anatoliy
-:detail: NEW BTREE IMPLEMENTATION META TASK
-:justification:
-:component: Motr
-:req: SCALE-10, SCALE-40, SCALE-50
-:process:
-:depends: m0be txgr-G-optimistic
-:resources:
-
-------
-
-
-:id: [t.scale-m0tr-swap]
-:name:
-:author: anatoliy
-:detail: SWAP META TASK
-:justification:
-:component: Motr
-:req: SCALE-10, SCALE-40, SCALE-50
-:process:
-:depends: m0be
 :resources:
 
 ------
@@ -2613,3 +2573,4 @@ m0tr tasks for scalability (Anatoliy)
 :resources:
 
 ------
+
