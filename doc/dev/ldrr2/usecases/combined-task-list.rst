@@ -1049,51 +1049,216 @@ Assumptions
 From Shankar
 ------------
 
-HW - 10  Support Largest Drive
+:id: [t.hw-10.1]
+:name:
+:author:
+:detail: Any special handling for HAMR or SMR drive needs to ne enabled in PODS or 5u84  
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
 
-  - 1. Any special handling for HAMR or SMR drive needs to ne enabled in PODS or 5u84
-  - 2. Handling Asssymetric Strorage Set Part of Cluster
-    - Assuming enclosure in SS are symetric w.r.t capacity
-  - 3. IO distribution based on sizes available/remaining
-
-
-HW-20 LR cluster must support Supermicro 1U COTS servers
-  - 1. Test number of active session supported with new hardware
-  - 2. Test perfromance numbers with different server and create benchmark table for customer reference
-
-
-HW30: LR cluster may include optional certified networking equipment for private interconnect
-  - 1. Benchmark performance with different newtork equipment
-  - 2. Test number of active session supported with new hardware
+------
 
 
-SW-10 Lyve Rack must be running on the supported CentOS version
-  - 1. Build motr with selected CentOS (8.x) and make sure all unit tests and system tests are passing
-  - 2. Change motr code as per changes to dependency package
+
+:id: [t.hw-10.2]
+:name:
+:author:
+:detail: Handling Asssymetric Strorage Set Part of Cluster (Assuming enclosure in SS are symetric w.r.t capacity)
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
 
 
-SW-20 All 3rd party applications must be running recent, maintained versions
-  - 1. Check latest verison of libfabric and Intel ISA is used.
-    (Before final release to QA for testing, validate everything (motr) is working with latest version of software)
+
+:id: [t.hw-10.3]
+:name:
+:author:
+:detail: IO distribution based on sizes available/remaining
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [t.hw-20.1]
+:name:
+:author:
+:detail: IO distribution based on sizes available/remaining
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
 
 
-SW-30 Any failure of any 3rd party SW component must be detected by CORTX
-  - 1. libfabric: Add code to generate IEM for any unxpected error thrown by libfabric
-    - Dependency : Notify SSPL and CSM for new IEM addition
+
+:id: [t.hw-20.2]
+:name:
+:author:
+:detail: Test perfromance numbers with different server and create benchmark table for customer reference
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [t.hw-30.1]
+:name:
+:author:
+:detail: Benchmark performance with different newtork equipment 
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
 
 
-SW-40 CORTX should have no kernel dependencies
-  - 2. Remove the need for m0d to get UUID (UUID is received from Kernel)
+:id: [t.hw-30.2]
+:name:
+:author:
+:detail:  Test number of active session supported with new hardware 
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
 
 
-NET-10 It should be possible to connect LR data network to 10G, 25G and 100G networks
-  - 1. Benchamark performance with netwrok of different speed
-  - 2. Evaluate Perfromance impact with multiple SS with low speed include
+:id: [t.sw-10.1]
+:name:
+:author:
+:detail: Build motr with selected CentOS (8.x) and make sure all unit tests and system tests are passing.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
 
 
-NET-20 LR must allow static IPs configuration for all interfaces
-  - 1. Change in config file for motr for libfabric initialialization
-    - Assuming upagrade will be disruptive
+:id: [t.sw-10.2]
+:name:
+:author:
+:detail: Change motr code as per changes to dependency package 
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+
+:id: [t.sw-20.1]
+:name:
+:author:
+:detail: Check latest verison of libfabric and Intel ISA is used. (Before final release to QA for testing, validate everything (motr) is working with latest version of software)
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+
+:id: [t.sw-30.1]
+:name:
+:author:
+:detail: libfabric: Add code to generate IEM for any unxpected error thrown by libfabric. Dependency : Notify SSPL and CSM for new IEM addition
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+
+:id: [t.sw-40.2]
+:name:
+:author:
+:detail: Remove the need for m0d to get UUID (UUID is received from Kernel) 
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+
+:id: [t.net-10.1]
+:name:
+:author:
+:detail:  Benchamark performance with netwrok of different speed
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+
+:id: [t.net-10.1]
+:name:
+:author:
+:detail: Evaluate Perfromance impact with multiple SS with low speed include 
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+
+:id: [t.net-20.1]
+:name:
+:author:
+:detail: Change in config file for motr for libfabric initialialization. Assuming upagrade will be disruptive
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
 
 
 SCALE-10 LR cluster should support between 3 and 36 nodes. For P0 test up to 12 nodes config – but it should be possible to deploy a larger cluster. Scale requirements specified below must be tested at least up to 12 nodes
