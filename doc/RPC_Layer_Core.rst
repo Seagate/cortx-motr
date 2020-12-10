@@ -268,3 +268,23 @@ Scalibility
 
 It is believed that significant improvements in the RPC processing efficiency and general throughput can be achieved by limited number of threads in pool. Number of these threads should be controlled according to CPU usage and network utilization statistics, provided by statistics subcomponent and according to RPC component settings like m0_rpc_slot_max.
 
+***********
+References
+***********
+
+- [0] Networking architecture 1-pager
+
+- [1] Architecture review of rpc layer
+ 
+- [2] Bounded queue for MT environment
+
+- [3] Multithreaded pipeline and pipen filter (saw nicer referece somewhere...)
+
+- [4] Formation HLD
+
+- [5] Sessions HLD (will be linked when ready)
+
+- [6] http://en.wikipedia.org/wiki/Publish/subscribe
+
+
+
