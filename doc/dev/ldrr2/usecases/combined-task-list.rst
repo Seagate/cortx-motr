@@ -2368,8 +2368,35 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Different networking equipment can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference networking equipment.
 :justification: Analyzing impact on performance will help customer in server selection.
 :component: motr, Performance evaluation team
-:req: HW-20
+:req: HW-30
 :process: Test suite for performance evaluation
+:depends:
+:resources:
+
+-------
+
+:id: [t.small-object-performance]
+:name: Increase parallelism in accessing b-tree EMAP
+:detail: Create hash function which will take object ID and point to a b-tree. Store this hash table in metadata.
+Test perfromance with varying sizes of hash entries e.g 128,256,512 and 1024 and conclude on size to use.
+:justification: Will reduce lock contention and help improve performance.
+:component: motr, motr.beck
+:req: SCALE-50
+:process: 
+:depends:
+:resources:
+
+-------
+
+:id: [t.small-object-performance]
+:name: Increase parallelism in accessing b-tree e.g EMAP and CAS
+:detail: Create hash function which will take object ID and point to a b-tree. Store this hash table in metadata.
+Test perfromance with varying sizes of hash entries e.g 128,256,512 and 1024 and conclude on size to use.
+Note: Design of hash function for CAS will need some design work to arrive at structure.
+:justification: Will reduce lock contention and help improve performance.
+:component: motr, motr.beck
+:req: SCALE-50
+:process:
 :depends:
 :resources:
 
