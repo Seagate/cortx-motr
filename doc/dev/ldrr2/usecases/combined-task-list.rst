@@ -1060,49 +1060,6 @@ From Shankar
 
 ------
 
-:id: [t.hw-10.2]
-:name: Handling Asssymetric Strorage Set in a Cluster
-:author:
-:detail:  Enclosure in a Storage Set will be symetric w.r.t capacity (validate with PLM), but across storage set they can be assymetric. Check impact of this and add support for its handling in motr.
-:justification:
-:component: motr
-:req: HW-10
-:process:
-:depends:
-:resources:
-
-------
-
-
-
-:id: [t.hw-10.3]
-:name:
-:author:
-:detail: IO distribution based on sizes available/remaining
-:justification:
-:component: Motr
-:req:
-:process:
-:depends:
-:resources:
-
-------
-
-:id: [t.hw-20.1]
-:name:
-:author:
-:detail: IO distribution based on sizes available/remaining
-:justification:
-:component: Motr
-:req:
-:process:
-:depends:
-:resources:
-
-------
-
-
-
 :id: [t.hw-20.2]
 :name:
 :author:
@@ -1255,8 +1212,6 @@ From Shankar
 
 ------
 
-
-
 SCALE-10 LR cluster should support between 3 and 36 nodes. For P0 test up to 12 nodes config – but it should be possible to deploy a larger cluster. Scale requirements specified below must be tested at least up to 12 nodes
   - 4. Create process to make sure one global metadata update is happening at a time in cluster (for exterme corner scenario)
   - 6. Checksum for key and value. Key and Value to be stored together?
@@ -1264,12 +1219,6 @@ SCALE-10 LR cluster should support between 3 and 36 nodes. For P0 test up to 12 
     - Will avoid need for Data DTM
   - 9. Any error in data write to be ignored with the number of failure is within limits
   - 13. Display metadata used and go to write protect if MD is all used
-
-
-SCALE-50 : Read: 1GB/sec, Write: 850MB/sec per node for 256KB objects
-  - 1. Small object performance: Create Hash list for emap btree access will help to speedup emap access
-  - 2. Small object performance: Evaluate and add Hash list for CAS btree access
-
 
 ------
 
@@ -2566,4 +2515,18 @@ m0tr tasks for scalability (Anatoliy)
 :depends:
 :resources:
 
+------
+
+:id: [t.hw-10.2]
+:name: Handling Asssymetric Strorage Set in a Cluster
+:author:
+:detail:  Enclosure in a Storage Set will be symetric w.r.t capacity (validate with PLM), but across storage set they can be assymetric. Check impact of this and add support for its handling in motr.
+:justification:
+:component: motr
+:req: HW-10
+:process:
+:depends: This will may not be P0
+:resources:
+
 -------
+
