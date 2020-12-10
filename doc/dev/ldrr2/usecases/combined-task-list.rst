@@ -820,6 +820,7 @@ From Madhav
 -----------
 
 
+
 HW-10
 SCALE-10
   1) Deployement of 3 nodes with 5u84 with ADAPT
@@ -895,21 +896,57 @@ AD-10,20,30
 MGM-60
   58) Return aggr performance, may be s3 only task
 
-MGM-120
-  59) Need to shutdown and restart a node
-MGM-130
-  60) Need to stop the cluster and start again
-      All the ongoing IO should be completed and new IO will get 500 error.
+------
+
+:id: [t.startup-shutdown]
+:name: Power UP/ Power DOWN the cluster gracefully.
+:author: 
+:detail: make sure all the IOs complete before shutdown and data is available
+         on next POWER UP.
+:justification:
+:component: all
+:req: MGM-120, MGM-130
+:process: check, fix
+:depends:
+:resources:
+
+------
+
 
 MGM-220
   61) Check with Switch or FW update(should be non-disruptive) and see that cluster
 	    is still online
 
-SEC-130
-  62) Security vulnerabilty handling for motr
+------
 
-OP-20
-  63) check the cluster and IO after server is replaced for a node
+:id: [t.security-motr]
+:name: Check Security vulnerability of Motr process and Motr data.
+:author: 
+:detail: 
+:justification:
+:component: all
+:req: SEC-130
+:process: check, fix
+:depends:
+:resources:
+
+------
+
+
+:id: [t.hardware-maintenance]
+:name: Replace any FRU within cluster.
+:author: 
+:detail: Motr process on the Node containing the FRU should shutdown gracefully
+	before the replacement and after the replacement the Motr process should
+	be able to start and continue IOs.
+:justification:
+:component: all
+:req: OP-20
+:process: check, fix
+:depends:
+:resources:
+
+------
 
 OP-70
   64) Support motr setup for automatic deployment with provisioner
@@ -917,8 +954,22 @@ OP-70
 VM-10
   65) VM support
 
-SUP-20
-  66) support bundle analysis
+  
+------
+
+:id: [t.support-bundle]
+:name: Debug logs in support bundle.
+:author: 
+:detail: Descriptive logs in Motr (especially ERRORS and WARNINGS) should help
+         isolate the issue quickly.
+:justification:
+:component: all
+:req: SUP-20
+:process: check, fix
+:depends:
+:resources:
+
+------
 
 
 -------------
