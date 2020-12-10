@@ -726,27 +726,32 @@ From Shashank
 | **SCALE-40** |  **Read: 3GB/sec; Write: 2.5GB/sec per node for 16MB objects**  |
 +--------------+-----------------------------------------------------------------+
 1. Performance measurement and tuning work involving Balloc, Btree and BE Tx grouping.
-  1.a. Iteratively debugging the performance related changes.
+
+  - 1.a. Iteratively debugging the performance related changes.
 
 
 +--------------+-----------------------------------------------------------------+
 | **SCALE-50** |  **Read: 1GB/sec, Write: 850MB/sec per node for 256KB objects**  |
 +--------------+-----------------------------------------------------------------+
 1. Performance measurement and tuning work involving Balloc, Btree and BE Tx grouping.
-  1.a. Iteratively debugging the performance related changes.
+
+  - 1.a. Iteratively debugging the performance related changes.
 
 +--------------+----------------------------------------------------------------------------------------------+
 | **SCALE-80** |  **Time to first byte = 150ms (99%) – assuming we’re within 600 sessions limit (SCALE-60)**  |
 +--------------+----------------------------------------------------------------------------------------------+
 1. Throttle Writes to allow Reads by controlling network buffers used in Write data transfers and provide those to Reads.
-  1.a. Debugging and Testing code changes.
+
+  - 1.a. Debugging and Testing code changes.
+
 2. Throttle currently executing Reads to accept and execute new Read commands. This also involves changes to network buffer management for capturing the Read data from the STOBs.
-  2.a. Debugging and Testing code changes.
+
+  - 2.a. Debugging and Testing code changes.
 
 +-----------+----------------------+
 | **S3-15** |  **CopyObject API**  |
 +-----------+----------------------+
-**If S3 handles this then Motr does not need to make any changes. **
+**If S3 handles this then Motr does not need to make any changes.**
 
 ------------
 From Shankar
@@ -755,7 +760,7 @@ From Shankar
 HW - 10:  Support Largest Drive:
 1. Any special handling for HAMR or SMR drive needs to ne enabled in PODS or 5u84
 2. Handling Asssymetric Strorage Set Part of Cluster
-    - Assuming enclosure in SS are symetric w.r.t capacity
+  - Assuming enclosure in SS are symetric w.r.t capacity
 3. IO distribution based on sizes available/remaining
 
 
@@ -776,12 +781,12 @@ SW-10: Lyve Rack must be running on the supported CentOS version
 
 SW-20: All 3rd party applications must be running recent, maintained versions
 1. Check latest verison of libfabric and Intel ISA is used.
-    ( Before final release to QA for testing, validate everything (motr) is working with latest version of software)
+   (Before final release to QA for testing, validate everything (motr) is working with latest version of software)
 
 
 SW-30: Any failure of any 3rd party SW component must be detected by CORTX
 1. libfabric: Add code to generate IEM for any unxpected error thrown by libfabric
-    - Dependency : Notify SSPL and CSM for new IEM addition
+  - Dependency : Notify SSPL and CSM for new IEM addition
 
 
 SW-40: CORTX should have no kernel dependencies
@@ -796,7 +801,7 @@ NET-10 : It should be possible to connect LR data network to 10G, 25G and 100G n
 
 NET-20: LR must allow static IPs configuration for all interfaces
 1. Change in config file for motr for libfabric initialialization
-     - Assuming upagrade will be disruptive
+  - Assuming upagrade will be disruptive
 
 
 
@@ -804,7 +809,7 @@ SCALE-10: LR cluster should support between 3 and 36 nodes. For P0 test up to 12
 4. Create process to make sure one global metadata update is happening at a time in cluster (for exterme corner scenario)
 6. Checksum for key and value. Key and Value to be stored together?
 7. Switch to 2+2 parity scheme for data in case of node failire (confirm with PLM)?
-    - Will avoid need for Data DTM
+  - Will avoid need for Data DTM
 9. Any error in data write to be ignored with the number of failure is within limits
 13. Display metadata used and go to write protect if MD is all used
 
