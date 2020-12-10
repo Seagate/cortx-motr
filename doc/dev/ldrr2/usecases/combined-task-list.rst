@@ -1846,7 +1846,7 @@ Assumption
 
 ------
 
-:id: [a.dtm-total-bw]
+:id: [t.dtm-total-bw]
 :name:
 :author: anatoliy
 :detail: total time measureed in person weeks in the next 6 months will be accounted as TT = sum(Est) / days per week / peoples involvement
@@ -1857,6 +1857,7 @@ Assumption
 :depends:
 :resources:
 :dup: NONE
+:est: 168 Person Weeks (33 calander weeks) 
 
 ------
 
