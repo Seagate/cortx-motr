@@ -1112,9 +1112,26 @@ SCALE-50 : Read: 1GB/sec, Write: 850MB/sec per node for 256KB objects
 
 ------
 
+:id: [t.global-md-serialize]
+:name: serialize global meta-data create in the cluster
+:author: shankar 
+:detail: Create process to make sure one global metadata update is happening at a time in cluster
+:justification:
+:component: motr, s3
+:req: SCALE10
+:process: check, fix
+:depends:
+:resources:
+
+------
+
 :id: [t.startup-shutdown]
 :name: Power UP/ Power DOWN the cluster gracefully.
-:author: 
+:author: madhav 
+
+:id: [t.startup-shutdown]
+:name: Power UP/ Power DOWN the cluster gracefully.
+:author: madhav 
 :detail: make sure all the IOs complete before shutdown and data is available
          on next POWER UP.
 :justification:
@@ -1126,12 +1143,9 @@ SCALE-50 : Read: 1GB/sec, Write: 850MB/sec per node for 256KB objects
 
 ------
 
-
-------
-
 :id: [t.security-motr]
 :name: Check Security vulnerability of Motr process and Motr data.
-:author: 
+:author:  madhav
 :detail: 
 :justification:
 :component: all
