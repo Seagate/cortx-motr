@@ -112,9 +112,101 @@ In these situations, fom code has to bracket a potential blocking point by an en
 
 .. image:: Images/run-que.PNG
 
+Time-outs
+==========
+
+Periodically (say, once a second) a given number of fom-s on a wait-list (or a given fraction of a wait-list length) is scanned. If a fom is found to be blocked for more than a configurable time-out, it is forced to the FAILED phase. The time-out determined dynamically as a function of a server load and network latencies.
+
+Load-balancing
+===============
+
+Recent experience shows that performance of a file system server is usually predominantly determined by the processor cache utilization and binding file system request processing to cores can be enormously advantageous. To this end Motr request handler introduces localities and assigns a home locality to each incoming fop. Yet, it is generally possible that such partitioning of a work-load would leave some localities underutilized and some others—overloaded. Two possible strategies to deal with this are:
+
+- move tasks (i.e., fom-s) from overloaded partition to underutilized ones; 
+
+- move resources (cores, associated handler threads and memory) from underutilized partitions to overloaded ones;
+
+Note that it is the second strategy where the similarity between a fom infrastructure and a kernel scheduler breaks: there is nothing similar in the operating systems.
+
+Long Term Scheduling
+=====================
+
+Network request scheduler (NRS) has its own queue of fop-s waiting for the execution. Together with request handler queues, this comprises a two level scheduling mechanism for long term scheduling decisions.
 
 
+************
+Conformance
+************
 
+- [r.non-blocking.few-threads]: thread-per-request model is abandoned. A locality has only a few threads, typically some small number (1–3) of threads per core; 
+
+- [r.non-blocking.easy]: fom processing is split in a relatively small number of relatively large non-blocking phases;  
+
+- [r.non-blocking.extensibility]: a "cross-cut" functionality adds new state to the common part of fom. This state is automatically present in all fom-s; 
+
+- [r.non-blocking.network]: network communication interface supports asynchronous completion notification [r.rpc.async] ST ; 
+
+- [r.non-blocking.storage]: storage transfers support asynchronous completion notification (see stob interface description)[r.stob.async]; 
+
+- [r.non-blocking.resources]: resource enqueuing interface (right_get()) supports asynchronous completion notification (see [3])[r.resource.enqueue.async]; 
+
+- [r.non-blocking.other-block]: this requirement is discharged by enter-block/leave-block pairs described in the handler thread subsection above. 
+
+**************
+Dependencies
+**************
+
+- fop: fops are used by Mero 
+
+- library: 
+
+  - [r.lib.threads]: library supports threading 
+
+  - [r.lib.processor]: library can enumerate existing (available, online) processors 
+
+  - [r.lib.core]: library can enumerate existing (available, online) cores and learn their cache sharing relations; 
+
+  - [r.lib.memory-partitioning]: it is possible to force a thread to allocate memory from a particular pool (with a specified location in NUMA hierarchy); 
+
+  - [r.lib.chan]: library supports asynchronous channel notification; 
+
+- rpc: 
+
+  - [r.rpc.async] ST: asynchronous RPCs are supported; 
+
+- storage: 
+
+  - [r.stob.async]: asynchronous storage transfers are supported; 
+
+- resources: 
+
+  - [r.resource.enqueue.async]: asynchronous resource enqueuing is supported. 
+
+
+***************
+Security Model
+***************
+
+Security checks (authorization and authentication) are done in one of the standard fom phases (see [7]).
+
+***********
+Refinement
+***********
+
+The data-structures, their relationships, concurrency control and liveness issues follow quite straightforwardly from the logical specification above.
+
+========
+State
+========
+
+See [7] for the description of fom state machine.
+
+***********
+Use Cases
+***********
+
+Scenarios
+===========
 
 
 
