@@ -619,7 +619,306 @@ Tasks
 
 ------
 
+:id: [t.deploy-manual-3node]
+:name: Deployement of 3 nodes with 5u84 with ADAPT
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: take into account: 4 + 2 + 0 for data and 1 + 2  for meta-data 
+:justification:
+:component: motr, s3
+:req: HW10, SCALE10
+:process: simple
+:depends: availabilty of h/w
+:resources:
 
+-------
+
+:id: [t.deploy-manual-6node]
+:name: Deployement of 6 nodes with 5u84 with ADAPT
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: take into account: create a pool per storage set of 3 nodes
+         and use pool selection policy for each new object
+:justification:
+:component: motr, s3
+:req: HW10, SCALE10
+:process: simple
+:depends: 6-node h/w and t.pool-selection-policy
+:resources:
+
+-------
+
+:id: [t.pool-selection-policy]
+:name: Add a policy to select a pool per storage set for new objects
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: take into account: Policy can either be round-robin or based on
+         available storage space in the storage set or skip a storage set
+         if there is any failure or is under update
+:justification:
+:component: motr, s3, hare
+:req: HW10, SCALE10
+:process: simple
+:depends: hare needs to support multiple pools
+:resources:
+
+-------
+
+:id: [t.manual-deploy-vm-3-6-12-nodes]
+:name: Manually deploy motr + s3 + hare in VM's with multiple pool per
+       storage set.
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Do S3 io from client for 3 node setup and verify that pool from
+         all the storage sets are used.
+:justification:
+:component: motr, s3, hare
+:req: HW10, SCALE10
+:process: simple
+:depends: t.pool-selection-policy, S3 needs to scale above 3 nodes, until
+          then it is run on first 3 nodes only.
+:resources:
+
+-------
+
+:id: [t.fsstat]
+:name: fsstat per pool as well as aggerated
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Provide support for per pool statistics and aggregated stats
+:justification:
+:component: motr, hare
+:req: HW10, SCALE10
+:process: simple
+:depends: t.pool-selection-policy
+:resources:
+
+-------
+
+:id: [t.multiple-nw-vendors-support]
+:name: Deploy with different available vendors of RoCE nic and switch
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Deploy and do the performance analysis with different vendors or
+         provide a framework to do such thing.
+:justification:
+:component: motr, perf
+:req: HW30
+:process: simple
+:depends: avaialabilty of network hw from different vendors
+:resources:
+
+-------
+
+:id: [t.validate-50gbs-NW-S3]
+:name: Check 50Gbps is sufficient for S3 data or more is needed
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Check 50Gbps is sufficient for S3 data or more is needed
+         Test with 6/9/12 node deployment as well.
+:justification:
+:component: motr, perf, s3
+:req: HW30
+:process: simple
+:depends: hw
+:resources:
+
+-------
+
+:id: [t.validate-50gbs-NW-motr]
+:name: Check 50Gbps is sufficient for motr data or more is needed
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Check 50Gbps is sufficient for S3 data or more is needed
+         Test with 6/9/12 node deployment as well.
+:justification:
+:component: motr, perf
+:req: HW30
+:process: simple
+:depends: hw
+:resources:
+
+-------
+
+:id: [t.libfabrics-m0nettest]
+:name: Test the performance of libfabrics with m0nettest
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Test and compare m0nettest with libfabric and lnet transport between
+         two nodes and if possible between three nodes as well.
+:justification:
+:component: motr, perf
+:req: SW40
+:process: simple
+:depends: t.libfabrics-xprt
+:resources:
+
+-------
+
+:id: [t.libfabrics-perf]
+:name: Test the performance of libfabrics with 3-node setup
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: performance analysis with libfabic with LDR R1 setup
+         and compare with Lnet results
+         and then do the performance analysis with libfabic with
+         LDR R2 setup and compare with Lnet results
+:justification:
+:component: motr, perf
+:req: SW40
+:process: simple
+:depends: t.libfabrics-xprt
+:resources:
+
+-------
+
+:id: [t.libfabrics-stability]
+:name: Test the stability of libfabrics with 3-node setup
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Do all the long run and QA manual and automation tests with
+         libfabric i.e QA automation and stability test suite must complete
+         with it.
+:justification:
+:component: motr, perf
+:req: SW40
+:process: simple
+:depends: t.libfabrics-xprt
+:resources:
+
+-------
+
+:id: [t.galois-perf]
+:name galois to intel ISA perf analysis 
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Performance analysis with galois and intel ISA
+         for 4+2 and 8+2 configs
+:justification:
+:component: motr, perf
+:req: SW60
+:process: simple
+:depends: t.galois-intel-isa
+:resources:
+
+-------
+
+:id: [t.balloc-perf]
+:name: Balloc read/write/delete performance analysis
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Performance analysis of balloc on 3-node/6-node
+         setups
+:justification:
+:component: motr, perf
+:req: SW60
+:process: simple
+:depends: t.balloc-new
+:resources:
+
+-------
+
+:id: [t.btree-perf]
+:name: Btree concurrency/performance analysis
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Performance analysis of btree on 3-node/6-node
+         setups
+:justification:
+:component: motr, perf
+:req: SW60
+:process: simple
+:depends: t.btree-new
+:resources:
+
+-------
+
+:id: [t.btree-perf]
+:name: Btree concurrency/performance analysis
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Performance analysis of btree on 3-node/6-node
+         setups
+:justification:
+:component: motr, perf
+:req: SW60
+:process: simple
+:depends: t.btree-new
+:resources:
+
+-------
+
+:id: [t.net-perf]
+:name: Performance analysis the stack with 10G,25G and 100G networks
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: use bonding for 10G and 25G n/w and do the performance anlysis with
+         libfabrics and lnet
+:justification:
+:component: motr, perf
+:req: NET10
+:process: simple
+:depends: t.libfabrics-xprt
+:resources:
+
+-------
+
+:id: [t.net-sw-perf]
+:name: Only RoCE supported switch vendors can be used for data
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Do the performance analysis with RoCE supported switches
+:justification:
+:component: motr, perf
+:req: NET12
+:process: simple
+:depends: different nw switch vendors
+:resources:
+
+-------
+
+:id: [t.perf-obj-100M]
+:name: populate 100M objects per node
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: populate 100M objects per node with 3 node setup and do
+         the performance analysis. Check with 256K, 1M, 16M and
+         128M objects.
+         Also do the performance analysis at different stages of
+         storage 50%, 70%,80% and 90%
+:justification:
+:component: motr, perf
+:req: SCALE70
+:process: simple
+:depends: t.3-node-deploy
+:resources:
+
+-------
+
+:id: [t.perf-ttfb]
+:name: check ttfb performance
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Check Time to first byte 150ms 99% of the time for different object
+         size and also check TTFB at different stages of storage 50%, 70%, 80%
+         and 90%.
+:justification:
+:component: motr, perf
+:req: SCALE70
+:process: simple
+:depends: t.3-node-deploy
+:resources:
+
+-------
+
+:id: [t.dg-failure-domain]
+:name: Add support fro diskgroup failure domain
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Map controller to diskgroup failure domain
+:justification:
+:component: motr
+:req: AD 10,20,30
+:process: simple
+:depends: 3 node hw
+:resources:
+
+-------
+
+:id: [t.update-rpm-single-node]
+:name: rpm update
+:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
+:detail: Remove a node from the 3-node or 6-node setup/cluster and update it
+         to new rpm version and the add it back to the cluster.
+         Test update of rpm's of a node in VM's with 3node deployment
+:justification:
+:component: motr, hare
+:req: AD 10,20,30
+:process: simple
+:depends: t.hare-add-remove-node
+:resources:
+
+-------
 
 :id: [t.]
 :name:
