@@ -931,7 +931,7 @@ Task-40
 -------
 
 
-****** 1 ******
+****** DUPLICATE 1 ******
 :id: [t.perf-ttfb]
 :name: check ttfb performance
 :author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
@@ -1108,7 +1108,7 @@ Assumptions
 
 ------
 
-****** 1 ******
+****** DUPLICATE 1 ******
 :id: [t.io-perf-ttfb]
 :name: io performance
 :author: shashank
