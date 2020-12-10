@@ -819,13 +819,13 @@ Tasks
 
 -------
 
-:id: [t.btree-perf]
-:name: Btree concurrency/performance analysis
+:id: [t.btree-stabilty]
+:name: Btree concurrency/stability analysis
 :author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
-:detail: Performance analysis of btree on 3-node/6-node
+:detail: Check the stability with new btree on 3-node/6-node
          setups
 :justification:
-:component: motr, perf
+:component: motr
 :req: SW60
 :process: simple
 :depends: t.btree-new
