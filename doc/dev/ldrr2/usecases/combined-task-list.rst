@@ -2500,7 +2500,9 @@ m0tr tasks for scalability (Anatoliy)
 
 :id: [t.support-different-servers]
 :name: Benchmark and tune performance with different server
-:detail: Different server can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference server
+:detail: Different server can give different performance. Running standard
+         benchmark workload profile and checking if there is any deviation from
+         reference server
 :justification: Analyzing impact on performance will help customer in server selection.
 :component: motr, Performance evaluation team
 :req: HW-20
@@ -2512,7 +2514,9 @@ m0tr tasks for scalability (Anatoliy)
 
 :id: [t.support-different-network-equipment]
 :name: Benchmark and tune performance with different network equipment
-:detail: Different networking equipment can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference networking equipment.
+:detail: Different networking equipment can give different performance. Running
+         standard benchmark workload profile and checking if there is any
+         deviation from reference networking equipment.
 :justification: Analyzing impact on performance will help customer in server selection.
 :component: motr, Performance evaluation team
 :req: HW-30 NET-10
