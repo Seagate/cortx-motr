@@ -13,6 +13,7 @@ Tasks
 :process: simple
 :depends:
 :resources:
+:dup: NONE
 
 -------
    
@@ -27,6 +28,7 @@ Tasks
 :process: check, fix
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -43,6 +45,7 @@ Tasks
 :process: DLD, DLDINSP, CODE, INSP, ST
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -61,10 +64,9 @@ Tasks
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
 :depends:
 :resources:
+:dup: NONE
 
 ------
-
-
 
 :id: [t.io-error-write]
 :name: s3 and motr client gracefully recovers from errors of write
@@ -81,10 +83,9 @@ Tasks
 :resources:
 :**question**: In a 4+2 pool, if (at most) two of the data/parity units write fail,
            can we claim the write as success?
+:dup: NONE
 
 ------
-
-
 
 :id: [t.md-error-read]
 :name: motr client gracefully recovers from errors of meta-data lookup
@@ -100,6 +101,7 @@ Tasks
 :depends:
 :resources:
 :**question**: Is this a DIX operation?
+:dup: NONE
 
 ------
 
@@ -115,10 +117,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
-
-
 
 :id: [t.md-checksum]
 :name: verify meta-data checksums on read
@@ -129,10 +130,9 @@ Tasks
 :req: AD-10, AD-20
 :depends:
 :resources:
+:dup: NONE
 
 ------
-
-
 
 :id: [t.b-tree-rewrite]
 :name:
@@ -144,10 +144,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: t.btree-new?
 
 ------
-
-
 
 :id: [t.balloc-rewrite]
 :name:
@@ -159,10 +158,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: t.balloc-new
 
 ------
-
-
 
 :id: [t.lnet-libfabric]
 :name:
@@ -174,10 +172,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: t.libfabrics-xprt?
 
 ------
-
-
 
 :id: [t.galois-isa]
 :name:
@@ -189,10 +186,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: t.galois-intel-isa
 
 ------
-
-
 
 :id: [t.multiple-pools]
 :name:
@@ -209,8 +205,6 @@ Tasks
                has multiple-pool support.
 ------
 
-
-
 :id: [t.multiple-pools-policy]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -225,10 +219,9 @@ Tasks
 :resources:
 :**question**: If pool is not specified, Motr client should make the decision. If Motr client (here S3 server)
                has already specified the pool, Motr will use that pool.
+:dup: t.pool-selection-policy
 
 ------
-
-
 
 :id: [t.pools-policy-health]
 :name:
@@ -241,10 +234,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
-
-
 
 :id: [t.pools-policy-free-space]
 :name:
@@ -256,10 +248,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
-
-
 
 :id: [t.s3.use-dtm]
 :name:
@@ -271,10 +262,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: t.dtm-s3-int
 
 ------
-
-
 
 :id: [t.s3-store-object-meta-data]
 :name:
@@ -287,7 +277,8 @@ Tasks
 :process:
 :depends:
 :resources:
-
+:dup: NONE
+   
 ------
 
 :id: [t.avoid-md-cobs]
@@ -300,13 +291,14 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
 :id: [t.s3-cache]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail: cache bucket and account global meta-data in memory, for o longer than
+:detail: cache bucket and account global meta-data in memory, for no longer than
          X seconds. Create bucket (and auth update) should be delayed by N
          seconds.
 :justification:
@@ -315,10 +307,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
-
-
 
 :id: [t.beck]
 :name: update beck tool to work with new meta-data layout
@@ -330,6 +321,7 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -345,6 +337,7 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -361,10 +354,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
-
-
 
 :id: [t.cobs-loc_info]
 :name: store pool version and layout identifiers in cobs
@@ -378,10 +370,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
-
-
 
 :id: [t.s3-pending-list]
 :name: clarify placement and use of pending list with s3 team
@@ -393,6 +384,7 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -408,10 +400,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: t.dtm-ha-int
 
 ------
-
-
 
 :id: [t.hare-partitions]
 :name: handle network partitions in hare
@@ -423,10 +414,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: t.dtm-ha-int
 
 ------
-
-
 
 :id: [t.hare-split-brain]
 :name: handle split brain situations in hare
@@ -438,10 +428,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: t.dtm-ha-int
 
 ------
-
-
 
 :id: [t.N+K+S]
 :name: handle K != S in motr (S can be ZERO)
@@ -468,6 +457,7 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -484,6 +474,7 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -500,6 +491,7 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -517,10 +509,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
-
-
 
 :id: [t.hare-dtm-recovery]
 :name: hare should participate in dtm recovery
@@ -532,6 +523,7 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: t.dtm-ha-int
 
 ------
 
@@ -547,10 +539,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: t.scale-m0tr-txgr
 
 ------
-
-
 
 :id: [t.perf-ldap-auth-caching]
 :name:
@@ -562,10 +553,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
-
-
 
 :id: [t.perf-tls-overhead-measure]
 :name:
@@ -577,10 +567,9 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
-
-
 
 :id: [t.hare-restart-notification]
 :name:
@@ -593,6 +582,7 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: t.dtm-ha-int
 
 ------
 
@@ -607,6 +597,7 @@ Tasks
 :process: deploy, measure.
 :depends:
 :resources:
+:dup: NONE
 
 -------
 
@@ -620,6 +611,7 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 -------
 
@@ -631,23 +623,9 @@ Tasks
 :component: motr
 :req: MGM-220
 :process:
-:depends: libfabric (requires kernel module unload otherwise)
+:depends: t.lnet-libfabric (requires kernel module unload otherwise)
 :resources:
-
-------
-
-:id: [t.dtm-recovery-1]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail: when a motr instance learns that other instance is in recovery, the
-         former sends to the latter at least 1 recovery message. This is needed
-         to detect recovery completion.
-:justification:
-:component: motr
-:req: AD-10, AD-20
-:process:
-:depends:
-:resources:
+:dup: NONE
 
 ------
 
@@ -661,6 +639,10 @@ Tasks
 :process:
 :depends:
 :resources:
+:dup: NONE
+
+Task-40
+=======
 
 ------
 
@@ -1098,8 +1080,18 @@ Assumptions
 
 ------
 
-
-
+:id: [a.dtm-recovery-1]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: when a motr instance learns that other instance is in recovery, the
+         former sends to the latter at least 1 recovery message. This is needed
+         to detect recovery completion.
+:justification:
+:component: motr
+:req: 
+:process:
+:depends:
+:resources:
 
 ------
 
@@ -1767,7 +1759,7 @@ From Shankar
 
 ------
 
-:id: [t.dtm-ha-int ]
+:id: [t.dtm-ha-int]
 :name:
 :author: anatoliy
 :detail: Provide HA integration with Motr instances including design of the interraction protocol (not a fine-grained task)
@@ -2546,6 +2538,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends:
 :resources:
+
 -------
 
 :id: [t.display-md-usage]
@@ -2577,5 +2570,3 @@ m0tr tasks for scalability (Anatoliy)
 :resources:
 
 ------
-
-
