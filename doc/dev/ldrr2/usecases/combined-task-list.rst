@@ -1026,7 +1026,7 @@ Assumptions
 :component: motr, s3
 :req: SCALE-40, SCALE-50
 :process: check, DLD, DLDINSP, code, INSP, fix
-:depends: SW-50, SW-60
+:depends:
 :resources:
 
 ------
@@ -1039,7 +1039,7 @@ Assumptions
 :component: motr, s3
 :req: SCALE-80
 :process: check, DLD, DLDINSP, code, INSP, fix
-:depends: SW-50, SW-60
+:depends:
 :resources:
 
 ------
