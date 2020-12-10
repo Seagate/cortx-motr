@@ -1509,6 +1509,7 @@ From Shankar
 :process:
 :depends: dtxsm-cli-wait
 :resources:
+:dup: NONE
 
 ------
 
@@ -1522,6 +1523,7 @@ From Shankar
 :process:
 :depends: dtxsm-cli-wait
 :resources:
+:dup: NONE
 
 ------
 
@@ -1535,6 +1537,7 @@ From Shankar
 :process:
 :depends: 10
 :resources:
+:dup: NONE
 
 ------
 
@@ -1548,6 +1551,7 @@ From Shankar
 :process:
 :depends: 10
 :resources:
+:dup: NONE
 
 ------
 
@@ -1561,6 +1565,7 @@ From Shankar
 :process:
 :depends: deploy-vm
 :resources:
+:dup: NONE
 
 ------
 
@@ -1574,6 +1579,7 @@ From Shankar
 :process:
 :depends: dtxsm-cli-wait
 :resources:
+:dup: NONE
 
 ------
 
@@ -1587,6 +1593,7 @@ From Shankar
 :process:
 :depends: dtxsm-cli-wait
 :resources:
+:dup: NONE
 
 ------
 
@@ -1600,6 +1607,7 @@ From Shankar
 :process:
 :depends: dtxsm-cli-wait
 :resources:
+:dup: NONE
 
 ------
 
@@ -1613,6 +1621,7 @@ From Shankar
 :process:
 :depends: dtxsm-cli-wait
 :resources:
+:dup: NONE
 
 ------
 
@@ -1626,6 +1635,7 @@ From Shankar
 :process:
 :depends: dtxsm-cli-wait
 :resources:
+:dup: NONE
 
 ------
 
@@ -1639,6 +1649,7 @@ From Shankar
 :process:
 :depends: 26
 :resources:
+:dup: NONE
 
 ------
 
@@ -1652,6 +1663,7 @@ From Shankar
 :process:
 :depends: 26
 :resources:
+:dup: NONE
 
 ------
 
@@ -1665,6 +1677,7 @@ From Shankar
 :process:
 :depends: 26
 :resources:
+:dup: NONE
 
 ------
 
@@ -1678,6 +1691,7 @@ From Shankar
 :process:
 :depends: 26
 :resources:
+:dup: NONE
 
 ------
 
@@ -1691,6 +1705,7 @@ From Shankar
 :process:
 :depends: 26
 :resources:
+:dup: NONE
 
 ------
 
@@ -1704,6 +1719,7 @@ From Shankar
 :process:
 :depends: 31
 :resources:
+:dup: NONE
 
 ------
 
@@ -1717,6 +1733,7 @@ From Shankar
 :process:
 :depends: 31
 :resources:
+:dup: NONE
 
 ------
 
@@ -1730,6 +1747,7 @@ From Shankar
 :process:
 :depends: deploy-vm
 :resources:
+:dup: NONE
 
 ------
 
@@ -1743,6 +1761,7 @@ From Shankar
 :process:
 :depends: 1
 :resources:
+:dup: NONE
 
 ------
 
@@ -1756,6 +1775,7 @@ From Shankar
 :process:
 :depends: deploy-vm
 :resources:
+:dup: NONE
 
 ------
 
@@ -1769,6 +1789,7 @@ From Shankar
 :process:
 :depends: observ
 :resources:
+:dup: hare-dtm-recovery
 
 ------
 
@@ -1782,6 +1803,7 @@ From Shankar
 :process:
 :depends: observ
 :resources:
+:dup: s3.use-dtm
 
 ------
 
@@ -1795,6 +1817,7 @@ From Shankar
 :process:
 :depends: ha-int s3-int
 :resources:
+:dup: NONE
 
 ------
 
@@ -1813,6 +1836,7 @@ Assumption
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -1826,6 +1850,7 @@ Assumption
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -1839,6 +1864,7 @@ Assumption
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -1852,6 +1878,7 @@ Assumption
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -1871,6 +1898,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends:
 :resources:
+:dup: NONE
 
 ------
 
@@ -1884,6 +1912,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: m0be
 :resources:
+:dup: NONE
 
 ------
 
@@ -1897,6 +1926,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr
 :resources:
+:dup: NONE
 
 ------
 
@@ -1910,6 +1940,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr
 :resources:
+:dup: NONE
 
 ------
 
@@ -1923,6 +1954,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr-mockA txgr-mockG
 :resources:
+:dup: NONE
 
 ------
 
@@ -1936,6 +1968,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr-5u84 txgr-G-optimistic
 :resources:
+:dup: NONE
 
 ------
 
@@ -1949,6 +1982,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr-5u84
 :resources:
+:dup: NONE
 
 ------
 
@@ -1962,6 +1996,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr-G
 :resources:
+:dup: NONE
 
 ------
 
@@ -1976,6 +2011,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr-G-fom txgr-G-tx
 :resources:
+:dup: NONE
 
 ------
 
@@ -1989,6 +2025,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr-G
 :resources:
+:dup: NONE
 
 ------
 
@@ -2002,6 +2039,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr-G-serialize
 :resources:
+:dup: NONE
 
 ------
 
@@ -2015,6 +2053,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends:
 :resources: txgr-G
+:dup: NONE
 
 ------
 
@@ -2029,6 +2068,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr-G-fom
 :resources:
+:dup: NONE
 
 ------
 
@@ -2042,6 +2082,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr-G-tx
 :resources:
+:dup: NONE
 
 ------
 
@@ -2055,6 +2096,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr-G-serialize txgr-G-log
 :resources:
+:dup: NONE
 
 ------
 
@@ -2068,6 +2110,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: txgr-G txgr-A
 :resources:
+:dup: NONE
 
 ------
 
