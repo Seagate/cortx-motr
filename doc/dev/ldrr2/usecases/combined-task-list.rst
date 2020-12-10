@@ -15,7 +15,7 @@ Tasks
 :resources:
 
 -------
-
+   
 :id: [t.io-error-data]
 :name: handle io errors on data device
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -375,7 +375,7 @@ Tasks
 :id: [t.cobs-loc_info]
 :name: store pool version and layout identifiers in cobs
 :author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail: md cobs are removed, so data cobs should store pool version and layout
+:detail: md cobs are removed, so data cobs should store pver and layout
          identifiers. This is needed for future SNS repair. And also for beck
          tool. Maybe this is done already?
 :justification:
