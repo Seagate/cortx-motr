@@ -71,11 +71,43 @@ Tasks
 :name: s3 and motr client gracefully recovers from errors or write
 :author: Nikita Danilov <nikita.danilov@seagate.com>
 :detail: if motr client cannot complete write in time (error or timeout) it
-         reports this to s3. s3 allocates new fid and repeats object creation in
-         an alternative pool (2+2). If 2+2 creation fails, return error to s3
-         client. See [q.object-cleanup].
+         reports this to s3. s3 allocates new fid and repeats last write in an
+         alternative pool (2+2). s3 records starting offset and new fid in
+         object meta-data. If 2+2 creation fails, return error to s3 client. See
+         [q.object-cleanup]. See [t.s3.io-error-write].
 :justification:
 :component: motr.client, motr.pool, s3
+:req: AD-10, AD-20
+:process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
+:depends:
+:resources:
+
+------
+
+
+
+:id: [t.s3.io-error-write]
+:name: s3 and motr client gracefully recovers from errors or write
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: support degraded 2+2 objects in s3, see [t.io-error-write]. Store fids
+         and offsets of parts in s3 json.
+:justification:
+:component: motr, s3
+:req: AD-10, AD-20
+:process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
+:depends:
+:resources:
+
+------
+
+
+
+:id: [t.2+2.conf]
+:name: s3 and motr client gracefully recovers from errors or write
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: prepare 2+2 pools needed by [t.io-error-write]
+:justification:
+:component: motr, provisioner
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
 :depends:
@@ -121,9 +153,10 @@ Tasks
 
 
 :id: [t.md-checksum]
-:name: verify meta-data checksums on read
+:name: verify meta-data check-sums on read
 :author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail: verify be record checksum on access
+:detail: verify be record checksum on access. Maybe this is already partially
+         done.
 :justification:
 :component: motr.be
 :req:
@@ -137,13 +170,16 @@ Tasks
 :id: [t.b-tree-rewrite]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
+:detail: new implementation of b-tree. Must satisfy requirements for further rN
+         releases. Support: prefix-compression, check-sums for keys and
+         values. Large keys and values. Page daemon. Concurrency. Non-blocking
+         implementation.
 :justification:
 :component: motr
 :req:
 :process:
 :depends:
-:resources:
+:resources: Lead: nikita
 
 ------
 
@@ -152,13 +188,13 @@ Tasks
 :id: [t.balloc-rewrite]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
+:detail: re-implement block allocator. Design for object storage.
 :justification:
 :component: motr
 :req:
 :process:
 :depends:
-:resources:
+:resources: Lead: madhav
 
 ------
 
@@ -188,7 +224,7 @@ Tasks
 :req:
 :process:
 :depends:
-:resources:
+:resources: Lead: Huang Hua.
 
 ------
 
@@ -233,7 +269,7 @@ Tasks
 :detail: policy to prefer healthy pools (based on availability updates from
          hare)
 :justification: optional?
-:component: motr.client, provisioner
+:component: motr.client, provisioner, hare
 :req:
 :process:
 :depends:
@@ -295,23 +331,6 @@ Tasks
 :detail: avoid md-cob lookups when pver and layout id are set in the structure.
 :justification:
 :component: motr.client
-:req:
-:process:
-:depends:
-:resources:
-
-------
-
-
-
-:id: [t.s3-cache]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail: cache bucket and account global meta-data in memory, for o longer than
-         X seconds. Create bucket (and auth update) should be delayed by N
-         seconds.
-:justification:
-:component: s3
 :req:
 :process:
 :depends:
@@ -529,6 +548,23 @@ Tasks
 :detail:
 :justification:
 :component: motr.dtm, hare
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+
+
+:id: [t.perf-s3-cache]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: cache bucket and account global meta-data in memory, for o longer than
+         X seconds. Create bucket (and auth update) should be delayed by X
+         seconds.
+:justification:
+:component: s3
 :req:
 :process:
 :depends:

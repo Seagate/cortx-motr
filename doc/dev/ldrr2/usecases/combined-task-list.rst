@@ -80,10 +80,10 @@ confidence : high med low
 :name: s3 and motr client gracefully recovers from errors of write
 :author: Nikita Danilov <nikita.danilov@seagate.com>
 :detail: if motr client cannot complete write in time (error or timeout) it
-         reports this to s3. s3 allocates new fid and repeats object creation in
-         an alternative pool (2+2). If 2+2 creation fails, return error to s3
-         client. It can go to other healthy storage set if avaialble.
-         See [q.object-cleanup].
+         reports this to s3. s3 allocates new fid and repeats last write in an
+         alternative pool (2+2). s3 records starting offset and new fid in
+         object meta-data. If 2+2 creation fails, return error to s3 client. See
+         [q.object-cleanup]. See [t.s3.io-error-write].
 :justification:
 :component: motr.client, motr.pool, s3
 :req: AD-10, AD-20
@@ -133,6 +133,21 @@ confidence : high med low
 
 ------
 
+:id: [t.s3.io-error-write]
+:name: s3 and motr client gracefully recovers from errors on write
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: support degraded 2+2 objects in s3, see [t.io-error-write]. Store fids
+         and offsets of parts in s3 json.
+:justification:
+:component: s3
+:req: AD-10, AD-20
+:process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
+:depends:
+:resources:
+:dup: NONE
+
+------
+
 :id: [t.md-checksum]
 :name: verify meta-data checksums on read
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -151,13 +166,17 @@ confidence : high med low
 :id: [t.b-tree-rewrite]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: new implementation of b-tree. Must satisfy requirements for further
+         releases. Support: prefix-compression, check-sums for keys and
+         values. Large keys and values. Page daemon. Concurrency. Non-blocking
+         implementation.
 :detail:
 :justification:
 :component: motr
 :req: SW-60
 :process:
 :depends:
-:resources:
+:resources: Lead: nikita
 :dup: NONE
 :est: L_L med 
 
@@ -166,13 +185,13 @@ confidence : high med low
 :id: [t.balloc-rewrite]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
+:detail: re-implement block allocator. Design for object storage.
 :justification:
 :component: motr
 :req: SW-60
 :process:
 :depends:
-:resources:
+:resources: Lead: madhav
 :dup: NONE
 :est: M_L med 
 
@@ -202,7 +221,7 @@ confidence : high med low
 :req: SW-60
 :process:
 :depends:
-:resources:
+:resources: Lead: Huang Hua.
 :dup: NONE
 :est: S_M high 
 
@@ -251,7 +270,7 @@ confidence : high med low
 :detail: policy to prefer healthy pools (based on availability updates from
          hare)
 :justification: optional?
-:component: motr.client, provisioner
+:component: motr.client, provisioner, hare
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
 :depends:
@@ -319,22 +338,6 @@ confidence : high med low
 :resources:
 :dup: NONE
 :est: S_S high
-
-------
-
-:id: [t.s3-cache]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail: cache bucket and account global meta-data in memory, for no longer than
-         X seconds. Create bucket (and auth update) should be delayed by N
-         seconds.
-:justification:
-:component: s3
-:req: SCALE-10, AD-10, AD-20
-:process:
-:depends:
-:resources:
-:dup: NONE
 
 ------
 
@@ -562,6 +565,22 @@ confidence : high med low
 :resources:
 :dup: t.dtm-ha-int
 :est: M_L low
+
+------
+
+:id: [t.perf-s3-cache]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: cache bucket and account global meta-data in memory, for no longer than
+         X seconds. Create bucket (and auth update) should be delayed by N
+         seconds.
+:justification:
+:component: s3
+:req: SCALE-10, AD-10, AD-20
+:process:
+:depends:
+:resources:
+:dup: NONE
 
 ------
 
