@@ -2326,7 +2326,6 @@ m0tr tasks for scalability (Anatoliy)
 
 ------
 
-
 :id: [t.scale-m0tr-reqh-ast]
 :name:
 :author: anatoliy
@@ -2340,3 +2339,38 @@ m0tr tasks for scalability (Anatoliy)
 
 ------
 
+:id: [t.support-different-drive]
+:name: Benchmark and tune performance with different drive types
+:detail: Different drive type can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference drives and capacity sizes
+:justification: Analyzing impact on performance will help in drive selection.
+:component: motr, Performance evaluation team
+:req: HW-10
+:process: Test suite for performance evaluation
+:depends:
+:resources:
+
+-------
+
+:id: [t.support-different-servers]
+:name: Benchmark and tune performance with different server
+:detail: Different server can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference server
+:justification: Analyzing impact on performance will help customer in server selection.
+:component: motr, Performance evaluation team
+:req: HW-20
+:process: Test suite for performance evaluation
+:depends:
+:resources:
+
+-------
+
+:id: [t.support-different-network-equipment]
+:name: Benchmark and tune performance with different network equipment
+:detail: Different networking equipment can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference networking equipment.
+:justification: Analyzing impact on performance will help customer in server selection.
+:component: motr, Performance evaluation team
+:req: HW-20
+:process: Test suite for performance evaluation
+:depends:
+:resources:
+
+-------
