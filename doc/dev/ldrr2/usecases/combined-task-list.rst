@@ -95,15 +95,13 @@ Tasks
          should be defined.
 :justification:
 :component: motr.client
-:req:
+:req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
 :depends:
 :resources:
 :**question**: Is this a DIX operation?
 
 ------
-
-
 
 :id: [t.md-error-write]
 :name:
@@ -113,7 +111,7 @@ Tasks
          service. CLARIFY.
 :justification:
 :component: motr.client, motr.dtm
-:req:
+:req: AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -128,7 +126,7 @@ Tasks
 :detail: verify be record checksum on access
 :justification:
 :component: motr.be
-:req:
+:req: AD-10, AD-20
 :depends:
 :resources:
 
@@ -142,7 +140,7 @@ Tasks
 :detail:
 :justification:
 :component: motr
-:req:
+:req: SW-60
 :process:
 :depends:
 :resources:
@@ -157,7 +155,7 @@ Tasks
 :detail:
 :justification:
 :component: motr
-:req:
+:req: SW-60
 :process:
 :depends:
 :resources:
@@ -172,7 +170,7 @@ Tasks
 :detail:
 :justification:
 :component: motr
-:req:
+:req: SW-40
 :process:
 :depends:
 :resources:
@@ -187,7 +185,7 @@ Tasks
 :detail:
 :justification:
 :component: motr
-:req:
+:req: SW-60
 :process:
 :depends:
 :resources:
@@ -203,7 +201,7 @@ Tasks
          2+2. Some code is already there was used in A200. Maybe m0t1fs only?
 :justification:
 :component: motr.client, provisioner
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends:
 :resources:
@@ -221,7 +219,7 @@ Tasks
          creation. Default policy: round-robin
 :justification:
 :component: motr.client, provisioner
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends:
 :resources:
@@ -239,7 +237,7 @@ Tasks
          hare)
 :justification: optional?
 :component: motr.client, provisioner
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -254,7 +252,7 @@ Tasks
 :detail: policy to prefer pools with most free space
 :justification: optional?
 :component: motr.client, provisioner
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -269,7 +267,7 @@ Tasks
 :detail:
 :justification:
 :component: motr.dtm, s3
-:req:
+:req: SCALE-10, AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -285,14 +283,12 @@ Tasks
          json. S3 should set pver and layout id when creating m0_obj structure.
 :justification:
 :component: s3, motr.client
-:req:
+:req: SCALE-10, AD-10, AD-20
 :process:
 :depends:
 :resources:
 
 ------
-
-
 
 :id: [t.avoid-md-cobs]
 :name:
@@ -300,14 +296,12 @@ Tasks
 :detail: avoid md-cob lookups when pver and layout id are set in the structure.
 :justification:
 :component: motr.client
-:req:
+:req: SCALE-10, AD-10, AD-20
 :process:
 :depends:
 :resources:
 
 ------
-
-
 
 :id: [t.s3-cache]
 :name:
@@ -317,7 +311,7 @@ Tasks
          seconds.
 :justification:
 :component: s3
-:req:
+:req: SCALE-10, AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -332,7 +326,7 @@ Tasks
 :detail: motr changes (no md cobs, new b-tree), s3 changes.
 :justification:
 :component: motr.beck
-:req:
+:req: AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -347,7 +341,7 @@ Tasks
 :detail: s3-level explicit replication of s3 top meta-data is no longer needed.
 :justification:
 :component: s3
-:req:
+:req: AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -363,7 +357,7 @@ Tasks
          select the network-closest node.
 :justification:
 :component: motr.client
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -380,7 +374,7 @@ Tasks
          tool. Maybe this is done already?
 :justification:
 :component: motr.ios
-:req:
+:req: AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -395,7 +389,7 @@ Tasks
 :detail: Is pending list global or local meta-data? Transactionality of updates.
 :justification:
 :component: s3
-:req:
+:req: AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -410,7 +404,7 @@ Tasks
 :detail: reliable notifications. Data and meta-data devices.
 :justification:
 :component: motr
-:req:
+:req: AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -425,7 +419,7 @@ Tasks
 :detail: CLARIFY
 :justification:
 :component: motr
-:req:
+:req: AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -440,7 +434,7 @@ Tasks
 :detail: CLARIFY
 :justification:
 :component: motr
-:req:
+:req: AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -455,7 +449,7 @@ Tasks
 :detail: identify and fix code that assumes K == S
 :justification:
 :component: motr.client, motr.ios, motr.sns, dix, cas
-:req:
+:req: AD-10, AD-20, Possible data protection schemes
 :process:
 :depends:
 :resources:
@@ -470,7 +464,7 @@ Tasks
 :detail:
 :justification:
 :component: motr
-:req:
+:req: AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -486,7 +480,7 @@ Tasks
          number of nodes
 :justification:
 :component: motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -495,14 +489,14 @@ Tasks
 
 
 
-:id: [t.dix-global-replication-check]
+:id: [t.dix-global-replication]
 :name:
 :author: Nikita Danilov <nikita.danilov@seagate.com>
 :detail: setup global replication of top-level s3 indices. Setup global
          meta-data pool. S3 should create global indices in this pool.
 :justification:
 :component: motr.dix, provisioner, s3
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -519,7 +513,7 @@ Tasks
          recovery itself?
 :justification:
 :component: motr.dtm
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -534,7 +528,7 @@ Tasks
 :detail:
 :justification:
 :component: motr.dtm, hare
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -549,7 +543,7 @@ Tasks
 :detail:
 :justification:
 :component: motr.be
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends:
 :resources:
@@ -564,7 +558,7 @@ Tasks
 :detail:
 :justification:
 :component: motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends:
 :resources:
@@ -579,7 +573,7 @@ Tasks
 :detail:
 :justification:
 :component: motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends:
 :resources:
@@ -595,7 +589,7 @@ Tasks
          dies.
 :justification:
 :component: motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -650,7 +644,7 @@ Tasks
          to detect recovery completion.
 :justification:
 :component: motr
-:req:
+:req: AD-10, AD-20
 :process:
 :depends:
 :resources:
@@ -702,7 +696,7 @@ Tasks
 :detail: take into account: 4 + 2 + 0 for data and 1 + 2  for meta-data 
 :justification:
 :component: motr, s3
-:req: HW10, SCALE10
+:req: HW-10, SCALE-10
 :process: simple
 :depends: availabilty of h/w
 :resources:
@@ -716,7 +710,7 @@ Tasks
          and use pool selection policy for each new object
 :justification:
 :component: motr, s3
-:req: HW10, SCALE10
+:req: HW-10, SCALE-10
 :process: simple
 :depends: 6-node h/w and t.pool-selection-policy
 :resources:
@@ -731,7 +725,7 @@ Tasks
          if there is any failure or is under update
 :justification:
 :component: motr, s3, hare
-:req: HW10, SCALE10
+:req: HW-10, SCALE-10
 :process: simple
 :depends: hare needs to support multiple pools
 :resources:
@@ -746,7 +740,7 @@ Tasks
          all the storage sets are used.
 :justification:
 :component: motr, s3, hare
-:req: HW10, SCALE10
+:req: HW-10, SCALE-10
 :process: simple
 :depends: t.pool-selection-policy, S3 needs to scale above 3 nodes, until
           then it is run on first 3 nodes only.
@@ -760,7 +754,7 @@ Tasks
 :detail: Provide support for per pool statistics and aggregated stats
 :justification:
 :component: motr, hare
-:req: HW10, SCALE10
+:req: HW-10, SCALE-10
 :process: simple
 :depends: t.pool-selection-policy
 :resources:
@@ -774,7 +768,7 @@ Tasks
          provide a framework to do such thing.
 :justification:
 :component: motr, perf
-:req: HW30
+:req: HW-30
 :process: simple
 :depends: avaialabilty of network hw from different vendors
 :resources:
@@ -788,7 +782,7 @@ Tasks
          Test with 6/9/12 node deployment as well.
 :justification:
 :component: motr, perf, s3
-:req: HW30
+:req: HW-30
 :process: simple
 :depends: hw
 :resources:
@@ -802,7 +796,7 @@ Tasks
          Test with 6/9/12 node deployment as well.
 :justification:
 :component: motr, perf
-:req: HW30
+:req: HW-30
 :process: simple
 :depends: hw
 :resources:
@@ -816,7 +810,7 @@ Tasks
          two nodes and if possible between three nodes as well.
 :justification:
 :component: motr, perf
-:req: SW40
+:req: SW-40
 :process: simple
 :depends: t.libfabrics-xprt
 :resources:
@@ -832,7 +826,7 @@ Tasks
          LDR R2 setup and compare with Lnet results
 :justification:
 :component: motr, perf
-:req: SW40
+:req: SW-40
 :process: simple
 :depends: t.libfabrics-xprt
 :resources:
@@ -847,7 +841,7 @@ Tasks
          with it.
 :justification:
 :component: motr, perf
-:req: SW40
+:req: SW-40
 :process: simple
 :depends: t.libfabrics-xprt
 :resources:
@@ -861,7 +855,7 @@ Tasks
          for 4+2 and 8+2 configs
 :justification:
 :component: motr, perf
-:req: SW60
+:req: SW-60
 :process: simple
 :depends: t.galois-intel-isa
 :resources:
@@ -875,7 +869,7 @@ Tasks
          setups
 :justification:
 :component: motr, perf
-:req: SW60
+:req: SW-60
 :process: simple
 :depends: t.balloc-new
 :resources:
@@ -889,7 +883,7 @@ Tasks
          setups
 :justification:
 :component: motr, perf
-:req: SW60
+:req: SW-60
 :process: simple
 :depends: t.btree-new
 :resources:
@@ -903,7 +897,7 @@ Tasks
          setups
 :justification:
 :component: motr
-:req: SW60
+:req: SW-60
 :process: simple
 :depends: t.btree-new
 :resources:
@@ -917,7 +911,7 @@ Tasks
          libfabrics and lnet
 :justification:
 :component: motr, perf
-:req: NET10
+:req: NET-10
 :process: simple
 :depends: t.libfabrics-xprt
 :resources:
@@ -930,7 +924,7 @@ Tasks
 :detail: Do the performance analysis with RoCE supported switches
 :justification:
 :component: motr, perf
-:req: NET12
+:req: NET-12
 :process: simple
 :depends: different nw switch vendors
 :resources:
@@ -947,7 +941,7 @@ Tasks
          storage 50%, 70%,80% and 90%
 :justification:
 :component: motr, perf
-:req: SCALE70
+:req: SCALE-70
 :process: simple
 :depends: t.3-node-deploy
 :resources:
@@ -962,7 +956,7 @@ Tasks
          and 90%.
 :justification:
 :component: motr, perf
-:req: SCALE70
+:req: SCALE-70
 :process: simple
 :depends: t.3-node-deploy
 :resources:
@@ -975,7 +969,7 @@ Tasks
 :detail: Map controller to diskgroup failure domain
 :justification:
 :component: motr
-:req: AD 10,20,30
+:req: AD-10, AD-20, AD-30
 :process: simple
 :depends: 3 node hw
 :resources:
@@ -990,7 +984,7 @@ Tasks
          Test update of rpm's of a node in VM's with 3node deployment
 :justification:
 :component: motr, hare
-:req: AD 10,20,30
+:req: AD-10, AD-20, AD-30
 :process: simple
 :depends: t.hare-add-remove-node
 :resources:
@@ -1155,7 +1149,7 @@ From Shankar
 :detail:  Test number of active session supported with new hardware 
 :justification: Number of supported active session can get impacted with changes to hardware 
 :component: Motr
-:req:
+:req: HW-30
 :process:
 :depends:
 :resources:
@@ -1169,7 +1163,7 @@ From Shankar
 :detail: Build motr with selected CentOS (8.x) and make sure all unit tests and system tests are passing.
 :justification:
 :component: Motr
-:req:
+:req: SW-10
 :process:
 :depends:
 :resources:
@@ -1183,7 +1177,7 @@ From Shankar
 :detail: Change motr code as per changes to dependency package 
 :justification:
 :component: Motr
-:req:
+:req: SW-10
 :process:
 :depends:
 :resources:
@@ -1197,7 +1191,7 @@ From Shankar
 :detail: Check latest verison of libfabric and Intel ISA is used. (Before final release to QA for testing, validate everything (motr) is working with latest version of software)
 :justification:
 :component: Motr
-:req:
+:req: SW-20
 :process:
 :depends:
 :resources:
@@ -1211,7 +1205,7 @@ From Shankar
 :detail: libfabric: Add code to generate IEM for any unxpected error thrown by libfabric and Intel ISA. 
 :justification:
 :component: Motr
-:req:
+:req: SW-30
 :process:
 :depends: Notify SSPL and CSM for new IEM addition
 :resources:
@@ -1224,7 +1218,7 @@ From Shankar
 :detail: Remove the need for m0d to get UUID (UUID is received from Kernel) 
 :justification:
 :component: Motr
-:req:
+:req: SW-40
 :process:
 :depends:
 :resources:
@@ -1237,7 +1231,7 @@ From Shankar
 :detail: Evaluate Perfromance impact with multiple storage set with low speed interconnect 
 :justification:
 :component: Motr
-:req:
+:req: NET-10
 :process:
 :depends:
 :resources:
@@ -1250,7 +1244,7 @@ From Shankar
 :detail: Change in config file for motr for libfabric initialialization. Assuming upagrade will be disruptive
 :justification:
 :component: Motr
-:req:
+:req: NET-20
 :process:
 :depends:
 :resources:
@@ -1263,16 +1257,12 @@ From Shankar
 :detail: Create process to make sure one global metadata update is happening at a time in cluster. This will remove corner cases related to network partitions.
 :justification:
 :component: motr, s3
-:req: SCALE10
+:req: SCALE-10
 :process: check, fix
 :depends:
 :resources:
 
 ------
-
-:id: [t.startup-shutdown]
-:name: Power UP/ Power DOWN the cluster gracefully.
-:author: madhav 
 
 :id: [t.startup-shutdown]
 :name: Power UP/ Power DOWN the cluster gracefully.
@@ -1338,7 +1328,7 @@ From Shankar
 :detail: To fill nearly full, to test performance and corner cases, alerts.
 :justification:
 :component: motr
-:req:
+:req: SCALE-10
 :process:
 :depends:
 :resources:
@@ -1351,7 +1341,7 @@ From Shankar
 :detail: During start of the cluster establish rpc connections between each m0d service and others m0ds
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends:
 :resources:
@@ -1364,7 +1354,7 @@ From Shankar
 :detail: Register DTM0 FOP types which are quite enough to send dtxes and service specific payloads (CAS_PUT CAS_DEL here)
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends:
 :resources:
@@ -1377,7 +1367,7 @@ From Shankar
 :detail: Register DTM0 FOP types to deliver executed, persistent and redo callbacks to different parties
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends:
 :resources:
@@ -1390,7 +1380,7 @@ From Shankar
 :detail: Create a clovis utility which is able to send dtx-related FOPs to DTM0 service
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: dtx-fop cb-fop
 :resources:
@@ -1403,7 +1393,7 @@ From Shankar
 :detail: Define DTX state machine for the client side
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: deploy-vm
 :resources:
@@ -1416,7 +1406,7 @@ From Shankar
 :detail: Implement dummy dtm0 service which is able to accept DTM0 FOPs and log them.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: dtm0-srv
 :resources:
@@ -1429,7 +1419,7 @@ From Shankar
 :detail: Implement versioning timestamping in a single originator configuration (PoC0).
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: deploy-vm
 :resources:
@@ -1442,7 +1432,7 @@ From Shankar
 :detail: Propagate DTX SM transitions to clovis OP trasitions
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: dtxsm-cli fop-tool
 :resources:
@@ -1455,9 +1445,9 @@ From Shankar
 :detail: Update clovis launch logic w.r.t. ~dtx==NULL~ and ~dtx!=NULL~
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
-:depends: 11
+:depends: t.dtm-11
 :resources:
 
 ------
@@ -1468,9 +1458,9 @@ From Shankar
 :detail: Provide dtx state logic near by ~clovis_op_launch()~ -> ~op->launch()~
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
-:depends: 12
+:depends: t.dtm-12
 :resources:
 
 ------
@@ -1481,7 +1471,7 @@ From Shankar
 :detail: Provide dtx state wait logic
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: 13 observ
 :resources:
@@ -1494,7 +1484,7 @@ From Shankar
 :detail:  Provide c0mt-alike test to emulate load patterns with a high level of parallelism for DIX PUT and DEL operations.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: dtxsm-cli-wait
 :resources:
@@ -1507,7 +1497,7 @@ From Shankar
 :detail: Provide a way to emulate transient failures all over the stack deterministically and with the help of FI, crash to emulate such failure.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: dtxsm-cli-wait
 :resources:
@@ -1520,7 +1510,7 @@ From Shankar
 :detail: Emulate transient failure of m0d during PUT after DEL workload.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: dtxsm-cli-wait
 :resources:
@@ -1533,7 +1523,7 @@ From Shankar
 :detail: Emulate transient failure of m0d during DEL after PUT workload.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: dtxsm-cli-wait
 :resources:
@@ -1546,7 +1536,7 @@ From Shankar
 :detail: Implement DTM0 local persistent log structure on top of BE.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: 10
 :resources:
@@ -1559,7 +1549,7 @@ From Shankar
 :detail: Implement DTM0 local non-persistent log structure for originators.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: 10
 :resources:
@@ -1572,7 +1562,7 @@ From Shankar
 :detail: Implement DTM0 local txr (log element) structure on top of BE.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: deploy-vm
 :resources:
@@ -1585,7 +1575,7 @@ From Shankar
 :detail: Implement txr execution logic during specific service request execution.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: dtxsm-cli-wait
 :resources:
@@ -1598,7 +1588,7 @@ From Shankar
 :detail: Implement a special strucutre to store versions for keys stored in CAS.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: dtxsm-cli-wait
 :resources:
@@ -1611,7 +1601,7 @@ From Shankar
 :detail: Implement a logic which covers a proper key and value selection accordingly to versions for DELs after PUTs
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: dtxsm-cli-wait
 :resources:
@@ -1624,7 +1614,7 @@ From Shankar
 :detail: Implement a logic which covers a proper key and value selection accordingly to versions for PUTs after DELs
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: dtxsm-cli-wait
 :resources:
@@ -1637,7 +1627,7 @@ From Shankar
 :detail: Tombstones management, keys will not be overwritten by the objects with older versions.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: dtxsm-cli-wait
 :resources:
@@ -1650,7 +1640,7 @@ From Shankar
 :detail: Redo       callback logic
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: 26
 :resources:
@@ -1663,7 +1653,7 @@ From Shankar
 :detail: Persistent callback logic
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: 26
 :resources:
@@ -1676,7 +1666,7 @@ From Shankar
 :detail: Executed   callback logic
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: 26
 :resources:
@@ -1689,7 +1679,7 @@ From Shankar
 :detail: Recovery logic iterating over DTM0 logs and sending corresponding redo messages to participants; triggered by HA.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: 26
 :resources:
@@ -1702,7 +1692,7 @@ From Shankar
 :detail: Integrate txr execution logic into CAS serice including proper tx credit calculation, should be executed as a part of local transaction.
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: 26
 :resources:
@@ -1715,7 +1705,7 @@ From Shankar
 :detail: A Tool for an initial DTM0 log analysis
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: 31
 :resources:
@@ -1728,7 +1718,7 @@ From Shankar
 :detail: A Replay tool which will be able to save current dtm0 log and replay it again, useful for debugging
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: 31
 :resources:
@@ -1741,7 +1731,7 @@ From Shankar
 :detail: Tool for the DTM0 protocol visualisation
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: deploy-vm
 :resources:
@@ -1754,7 +1744,7 @@ From Shankar
 :detail: Make RPC bulk to follow magic link semantics
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: 1
 :resources:
@@ -1767,7 +1757,7 @@ From Shankar
 :detail: Provide observability and debuggability for the development cycle (not a fine-grained task)
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: deploy-vm
 :resources:
@@ -1780,7 +1770,7 @@ From Shankar
 :detail: Provide HA integration with Motr instances including design of the interraction protocol (not a fine-grained task)
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: observ
 :resources:
@@ -1793,7 +1783,7 @@ From Shankar
 :detail: Provide S3 level integarion on new clovis interface with embedded dtx transactions (not a fine-grained task)
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: observ
 :resources:
@@ -1806,7 +1796,7 @@ From Shankar
 :detail: Provide a test infra to cover major failure cases in 1-node and n-node environments (not a fine-grained task)
 :justification:
 :component: Motr
-:req:
+:req: AD-10, AD-20, AD-30
 :process:
 :depends: ha-int s3-int
 :resources:
@@ -1882,7 +1872,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: BE META TASK
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends:
 :resources:
@@ -1895,7 +1885,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: BE GROUP META TASK
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: m0be
 :resources:
@@ -1908,7 +1898,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Mock BE tx group with in-memory tx execution
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr
 :resources:
@@ -1921,7 +1911,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Mock BE allocator with sequential in-memory allocator
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr
 :resources:
@@ -1934,7 +1924,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Tune 5u84 w.r.t. the new configuration
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-mockA txgr-mockG
 :resources:
@@ -1947,7 +1937,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Detailed design new block allocator w.r.t. to MRD performance requirements
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-5u84 txgr-G-optimistic
 :resources:
@@ -1960,7 +1950,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Detailed design for new tx group logic
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-5u84
 :resources:
@@ -1973,7 +1963,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Update tx group FOM logic
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-G
 :resources:
@@ -1987,7 +1977,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Update BE log w.r.t. new group logic
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-G-fom txgr-G-tx
 :resources:
@@ -2000,7 +1990,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Provide new tx group serialisation algo
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-G
 :resources:
@@ -2013,7 +2003,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Provide new tx group serialisation algo throttling when there’re cyclic deps
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-G-serialize
 :resources:
@@ -2026,7 +2016,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Update BE structures w.r.t. minimise cyclic dependencies on the data
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends:
 :resources: txgr-G
@@ -2040,7 +2030,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Update TX SM w.r.t. new tx group logic
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-G-fom
 :resources:
@@ -2053,7 +2043,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Update reg area w.r.t. new tx group logic
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-G-tx
 :resources:
@@ -2066,7 +2056,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Update recovery w.r.t. new log format
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-G-serialize txgr-G-log
 :resources:
@@ -2079,7 +2069,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Tune new algo w.r.t. 5u84 for different workloads and bss
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-G txgr-A
 :resources:
@@ -2093,7 +2083,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Stabilise new algo
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-G-5u84 txgr-G-recovery
 :resources:
@@ -2106,7 +2096,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: PARITY MATH META TASK
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends:
 :resources:
@@ -2119,7 +2109,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Performance optimisation in degraded modes
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: parity
 :resources:
@@ -2132,7 +2122,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Incremental parity sums calc
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: parity
 :resources:
@@ -2146,7 +2136,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: ISA integration
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: parity
 :resources:
@@ -2159,7 +2149,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: ISA tuning
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: parity
 :resources:
@@ -2172,7 +2162,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: n^3 -> n^2*log(n) linear system solver
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: parity
 :resources:
@@ -2185,7 +2175,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: integrate region operations
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: parity
 :resources:
@@ -2198,7 +2188,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: revise vandermonde matrix part of the algo w.r.t. ISA
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: parity
 :resources:
@@ -2212,7 +2202,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: optimisation for different layouts N+K+S
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: parity
 :resources:
@@ -2226,7 +2216,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: NEW BTREE IMPLEMENTATION META TASK
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: m0be txgr-G-optimistic
 :resources:
@@ -2240,7 +2230,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: SWAP META TASK
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: m0be
 :resources:
@@ -2254,7 +2244,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: STOB META TASK
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: txgr-G-STAB
 :resources:
@@ -2268,7 +2258,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: limit concurrency w.r.t. different workloads
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: stob
 :resources:
@@ -2282,7 +2272,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: small blocks
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: stob-concurrency
 :resources:
@@ -2296,7 +2286,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: large blocks
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: stob-concurrency
 :resources:
@@ -2310,7 +2300,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: metadata stobs
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: stob-concurrency
 :resources:
@@ -2324,7 +2314,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: log stobs
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: stob-concurrency
 :resources:
@@ -2338,7 +2328,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: WRITE AGGREGATION META TASK
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: m0be
 :resources:
@@ -2352,7 +2342,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: MERO LEVEL THROTTLING META TASK
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: 
 :resources:
@@ -2366,7 +2356,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: RPC META TASK
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: 
 :resources:
@@ -2380,7 +2370,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Formation tuning
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: rpc
 :resources:
@@ -2394,7 +2384,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Tune “resends” for long living RPC
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: rpc
 :resources:
@@ -2408,7 +2398,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Performance infrastructure for R2
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: 
 :resources:
@@ -2422,7 +2412,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail:  ADDB related work
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: perfinfra
 :resources:
@@ -2436,7 +2426,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: CAS SERVICE META TASK
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: 
 :resources:
@@ -2450,7 +2440,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: CAS locking schema optimisation
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: cas
 :resources:
@@ -2464,7 +2454,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: REQUEST HANDLER META TASK
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: 
 :resources:
@@ -2478,7 +2468,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: long lock fairness
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: reqh
 :resources:
@@ -2491,7 +2481,7 @@ m0tr tasks for scalability (Anatoliy)
 :detail: AST profiling
 :justification:
 :component: Motr
-:req:
+:req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends: reqh
 :resources:
