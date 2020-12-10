@@ -1,6 +1,10 @@
 =====
 Tasks
 =====
+S : Small 
+M : Medium (~300 to 1000 of code)
+L : Large (~1000 lines of code like DTM)
+confidence : high med low
 
 :id: [t.md-overhead]
 :name: estimate meta-data overhead for r2
@@ -14,6 +18,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_S high
 
 -------
    
@@ -29,6 +34,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_S med
 
 ------
 
@@ -38,14 +44,15 @@ Tasks
 :name: handle io errors on meta-data device
 :author: Nikita Danilov <nikita.danilov@seagate.com>
 :detail: If motr/be gets io error when doing io to a segment or a log, it should
-         report it (iem, hare) and them shutdown gracefully.
+         report it (iem, hare) and them shutdown gracefully. (server-side only)
 :justification:
 :component: motr.be
 :req: AD-10, AD-20
 :process: DLD, DLDINSP, CODE, INSP, ST
 :depends:
-:resources:
+:resources: Lead by BE expert
 :dup: NONE
+:est: S_M med
 
 ------
 
@@ -57,7 +64,7 @@ Tasks
 :detail: If motr client cannot get some units from one of the servers in time
          (error, or timeout), it reconstructs the missing units from
          redundancy. Late units might still arrive. Buffer ownership and
-         lifetime should be defined.
+         lifetime should be defined. server side rpc cancel may be needed.
 :justification:
 :component: motr.client
 :req: AD-10, AD-20
@@ -65,6 +72,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: M_M med
 
 ------
 
@@ -74,7 +82,8 @@ Tasks
 :detail: if motr client cannot complete write in time (error or timeout) it
          reports this to s3. s3 allocates new fid and repeats object creation in
          an alternative pool (2+2). If 2+2 creation fails, return error to s3
-         client. See [q.object-cleanup].
+         client. It can go to other healthy storage set if avaialble.
+         See [q.object-cleanup].
 :justification:
 :component: motr.client, motr.pool, s3
 :req: AD-10, AD-20
@@ -84,6 +93,7 @@ Tasks
 :**question**: In a 4+2 pool, if (at most) two of the data/parity units write fail,
            can we claim the write as success?
 :dup: NONE
+:est: S_M med
 
 ------
 
@@ -102,6 +112,7 @@ Tasks
 :resources:
 :**question**: Is this a DIX operation?
 :dup: NONE
+:est: S_M high
 
 ------
 
@@ -118,19 +129,22 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_S high
 
 ------
 
 :id: [t.md-checksum]
 :name: verify meta-data checksums on read
 :author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail: verify be record checksum on access
+:detail: verify be record checksum on access.
+         Optional: based on performance
 :justification:
 :component: motr.be
 :req: AD-10, AD-20
-:depends:
+:depends: 
 :resources:
 :dup: NONE
+:est: S_M high
 
 ------
 
@@ -144,7 +158,8 @@ Tasks
 :process:
 :depends:
 :resources:
-:dup: t.btree-new?
+:dup: NONE
+:est: L_L med 
 
 ------
 
@@ -158,7 +173,8 @@ Tasks
 :process:
 :depends:
 :resources:
-:dup: t.balloc-new
+:dup: NONE
+:est: M_L med 
 
 ------
 
@@ -172,7 +188,8 @@ Tasks
 :process:
 :depends:
 :resources:
-:dup: t.libfabrics-xprt?
+:dup: NONE
+:est: M_M med 
 
 ------
 
@@ -186,7 +203,8 @@ Tasks
 :process:
 :depends:
 :resources:
-:dup: t.galois-intel-isa
+:dup: NONE
+:est: S_M high 
 
 ------
 
@@ -203,6 +221,8 @@ Tasks
 :resources:
 :**question**: I think the Mero in SAGE cluster (some old version of Motr) already
                has multiple-pool support.
+:est: M_M high
+
 ------
 
 :id: [t.multiple-pools-policy]
@@ -215,11 +235,13 @@ Tasks
 :component: motr.client, provisioner
 :req: SCALE-10, SCALE-40, SCALE-50
 :process:
-:depends:
+:depends: t.multiple-pools
 :resources:
 :**question**: If pool is not specified, Motr client should make the decision. If Motr client (here S3 server)
                has already specified the pool, Motr will use that pool.
 :dup: t.pool-selection-policy
+:est: S_M high
+
 
 ------
 
@@ -235,6 +257,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_S high
 
 ------
 
@@ -249,6 +272,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_M high
 
 ------
 
@@ -263,6 +287,7 @@ Tasks
 :depends:
 :resources:
 :dup: t.dtm-s3-int
+:est: M_L med
 
 ------
 
@@ -278,6 +303,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_M high
    
 ------
 
@@ -292,6 +318,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_S high
 
 ------
 
@@ -322,9 +349,9 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: M_M med
 
 ------
-
 
 
 :id: [t.s3-no-replication]
@@ -342,7 +369,6 @@ Tasks
 ------
 
 
-
 :id: [t.dix-local-lookup]
 :name: if possible to distributed index lookup locally
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -355,6 +381,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_S med
 
 ------
 
@@ -371,6 +398,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_S med
 
 ------
 
@@ -395,12 +423,13 @@ Tasks
 :author: Nikita Danilov <nikita.danilov@seagate.com>
 :detail: reliable notifications. Data and meta-data devices.
 :justification:
-:component: motr
+:component: hare, motr
 :req: AD-10, AD-20
 :process:
 :depends:
 :resources:
 :dup: t.dtm-ha-int
+:est: M_M low
 
 ------
 
@@ -409,12 +438,13 @@ Tasks
 :author: Nikita Danilov <nikita.danilov@seagate.com>
 :detail: CLARIFY
 :justification:
-:component: motr
+:component: hare, motr
 :req: AD-10, AD-20
 :process:
 :depends:
 :resources:
 :dup: t.dtm-ha-int
+:est: M_M low
 
 ------
 
@@ -423,12 +453,13 @@ Tasks
 :author: Nikita Danilov <nikita.danilov@seagate.com>
 :detail: CLARIFY
 :justification:
-:component: motr
+:component: hare, motr
 :req: AD-10, AD-20
 :process:
 :depends:
 :resources:
 :dup: t.dtm-ha-int
+:est: M_M low
 
 ------
 
@@ -443,6 +474,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_M med
 
 ------
 
@@ -459,6 +491,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_M med
 
 ------
 
@@ -468,7 +501,7 @@ Tasks
 :name: check that fix supports 1+N replication
 :author: Nikita Danilov <nikita.danilov@seagate.com>
 :detail: check that dix can replicate global indices with 1+N, where N is the
-         number of nodes
+         number of nodes in all storage sets in the cluster.
 :justification:
 :component: motr
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
@@ -476,6 +509,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_M high
 
 ------
 
@@ -493,6 +527,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: S_M high
 
 ------
 
@@ -511,6 +546,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: M_M low
 
 ------
 
@@ -525,22 +561,7 @@ Tasks
 :depends:
 :resources:
 :dup: t.dtm-ha-int
-
-------
-
-
-
-:id: [t.perf-tx-group]
-:name: Re-implement transaction groups
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:justification:
-:component: motr.be
-:req: SCALE-10, SCALE-40, SCALE-50
-:process:
-:depends:
-:resources:
-:dup: t.scale-m0tr-txgr
+:est: M_L low
 
 ------
 
@@ -549,7 +570,7 @@ Tasks
 :author: Nikita Danilov <nikita.danilov@seagate.com>
 :detail:
 :justification:
-:component: motr
+:component: s3, motr
 :req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends:
@@ -563,7 +584,7 @@ Tasks
 :author: Nikita Danilov <nikita.danilov@seagate.com>
 :detail:
 :justification:
-:component: motr
+:component: s3, motr
 :req: SCALE-10, SCALE-40, SCALE-50
 :process:
 :depends:
@@ -578,12 +599,13 @@ Tasks
 :detail: hare should arrange for a notification from systemd when a process
          dies.
 :justification:
-:component: motr
+:component: hare, motr
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
 :depends:
 :resources:
 :dup: t.dtm-ha-int
+:est: S_S med
 
 ------
 
@@ -599,6 +621,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: M_M med
 
 -------
 
@@ -613,6 +636,7 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: M_M med
 
 -------
 
@@ -627,6 +651,7 @@ Tasks
 :depends: t.lnet-libfabric (requires kernel module unload otherwise)
 :resources:
 :dup: NONE
+:est: S_S high
 
 ------
 
@@ -641,9 +666,8 @@ Tasks
 :depends:
 :resources:
 :dup: NONE
+:est: M_M high
 
-Task-40
-=======
 
 ------
 
@@ -657,6 +681,7 @@ Task-40
 :process:
 :depends:
 :resources:
+:est: M_M high
 
 ------
 
@@ -670,6 +695,7 @@ Task-40
 :process:
 :depends:
 :resources:
+:est: S_S high
 
 ------
 
@@ -683,6 +709,7 @@ Task-40
 :process: simple
 :depends: availabilty of h/w
 :resources:
+:est: S_M high
 
 -------
 
@@ -697,21 +724,7 @@ Task-40
 :process: simple
 :depends: 6-node h/w and t.pool-selection-policy
 :resources:
-
--------
-
-:id: [t.pool-selection-policy]
-:name: Add a policy to select a pool per storage set for new objects
-:author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
-:detail: take into account: Policy can either be round-robin or based on
-         available storage space in the storage set or skip a storage set
-         if there is any failure or is under update
-:justification:
-:component: motr, s3, hare
-:req: HW-10, SCALE-10
-:process: simple
-:depends: hare needs to support multiple pools
-:resources:
+:est: S_M high
 
 -------
 
@@ -728,6 +741,8 @@ Task-40
 :depends: t.pool-selection-policy, S3 needs to scale above 3 nodes, until
           then it is run on first 3 nodes only.
 :resources:
+:est: S_M high
+
 
 -------
 
@@ -741,6 +756,7 @@ Task-40
 :process: simple
 :depends: t.pool-selection-policy
 :resources:
+:est: S_M high
 
 -------
 
@@ -753,8 +769,9 @@ Task-40
 :component: motr, perf
 :req: HW-30
 :process: simple
-:depends: avaialabilty of network hw from different vendors
+:depends: avaialabilty of network hw with rdma from different vendors
 :resources:
+:est: S_M high
 
 -------
 
@@ -769,6 +786,7 @@ Task-40
 :process: simple
 :depends: hw
 :resources:
+:est: M_M high
 
 -------
 
@@ -783,6 +801,7 @@ Task-40
 :process: simple
 :depends: hw
 :resources:
+:est: M_M high
 
 -------
 
@@ -797,6 +816,7 @@ Task-40
 :process: simple
 :depends: t.lnet-libfabric
 :resources:
+:est: S_M high
 
 -------
 
@@ -813,6 +833,7 @@ Task-40
 :process: simple
 :depends: t.lnet-libfabric
 :resources:
+:est: M_M med
 
 -------
 
@@ -828,6 +849,7 @@ Task-40
 :process: simple
 :depends: t.lnet-libfabric
 :resources:
+:est: M_M med
 
 -------
 
@@ -842,6 +864,7 @@ Task-40
 :process: simple
 :depends: t.galois-isa
 :resources:
+:est: M_M med
 
 -------
 
@@ -856,6 +879,7 @@ Task-40
 :process: simple
 :depends: t.balloc-rewrite
 :resources:
+:est: M_M med
 
 -------
 
@@ -870,6 +894,7 @@ Task-40
 :process: simple
 :depends: t.b-tree-rewrite
 :resources:
+:est: M_L med
 
 -------
 
@@ -884,6 +909,7 @@ Task-40
 :process: simple
 :depends: t.b-tree-rewrite
 :resources:
+:est: M_L med
 
 -------
 
@@ -898,6 +924,7 @@ Task-40
 :process: simple
 :depends: t.lnet-libfabric
 :resources:
+:est: S_M med
 
 -------
 
@@ -911,6 +938,7 @@ Task-40
 :process: simple
 :depends: different nw switch vendors
 :resources:
+:est: S_M med
 
 -------
 
@@ -928,6 +956,7 @@ Task-40
 :process: simple
 :depends: t.3-node-deploy
 :resources:
+:est: M_M med
 
 -------
 
@@ -940,11 +969,12 @@ Task-40
          size and also check TTFB at different stages of storage 50%, 70%, 80%
          and 90%.
 :justification:
-:component: motr, perf
+:component: s3, motr, perf
 :req: SCALE-80
 :process: simple
 :depends: t.3-node-deploy
 :resources:
+:est: M_M med
 
 -------
 
@@ -958,6 +988,7 @@ Task-40
 :process: simple
 :depends: 3 node hw
 :resources:
+:est: S_M med
 
 -------
 
@@ -973,6 +1004,7 @@ Task-40
 :process: simple
 :depends: t.hare-add-remove-node
 :resources:
+:dup: yes
 
 -------
 
@@ -1106,20 +1138,7 @@ Assumptions
 :process: check, DLD, DLDINSP, code, INSP, fix
 :depends:
 :resources:
-
-------
-
-****** DUPLICATE 1 ******
-:id: [t.io-perf-ttfb]
-:name: io performance
-:author: shashank
-:detail: support Time-To-First-Byte of <150ms for any Object size
-:justification:
-:component: motr, s3
-:req: SCALE-80
-:process: check, DLD, DLDINSP, code, INSP, fix
-:depends:
-:resources:
+:est: M_M low
 
 ------
 
@@ -1136,6 +1155,7 @@ From Shankar
 :req: HW-10
 :process: Test suite for performance evaluation
 :depends:
+:est: S_S med
 
 ------
 
@@ -1149,34 +1169,7 @@ From Shankar
 :process:
 :depends:
 :resources:
-
-------
-
-
-:id: [t.sw-10.1]
-:name:
-:author:
-:detail: Build motr with selected CentOS (8.x) and make sure all unit tests and system tests are passing.
-:justification:
-:component: Motr
-:req: SW-10
-:process:
-:depends:
-:resources:
-
-------
-
-
-:id: [t.sw-10.2]
-:name:
-:author:
-:detail: Change motr code as per changes to dependency package 
-:justification:
-:component: Motr
-:req: SW-10
-:process:
-:depends:
-:resources:
+:est: S_S med
 
 ------
 
@@ -1191,6 +1184,8 @@ From Shankar
 :process:
 :depends:
 :resources:
+:est: S_S high
+
 
 ------
 
@@ -1205,6 +1200,7 @@ From Shankar
 :process:
 :depends: Notify SSPL and CSM for new IEM addition
 :resources:
+:est: S_S high
 
 ------
 
@@ -1218,32 +1214,7 @@ From Shankar
 :process:
 :depends:
 :resources:
-
-------
-
-:id: [t.net-10.1]
-:name:
-:author:
-:detail: Evaluate Perfromance impact with multiple storage set with low speed interconnect 
-:justification:
-:component: Motr
-:req: NET-10
-:process:
-:depends:
-:resources:
-
-------
-
-:id: [t.net-20.1]
-:name:
-:author:
-:detail: Change in config file for motr for libfabric initialialization. Assuming upagrade will be disruptive
-:justification:
-:component: Motr
-:req: NET-20
-:process:
-:depends:
-:resources:
+:est: S_S high
 
 ------
 
@@ -1257,6 +1228,7 @@ From Shankar
 :process: check, fix
 :depends:
 :resources:
+:est: no
 
 ------
 
@@ -1271,6 +1243,7 @@ From Shankar
 :process: check, fix
 :depends:
 :resources:
+:est: S_M high
 
 ------
 
@@ -1284,6 +1257,7 @@ From Shankar
 :process: check, fix
 :depends:
 :resources:
+:est: S_M low
 
 ------
 
@@ -1298,8 +1272,9 @@ From Shankar
 :component: all
 :req: OP-20
 :process: 
-:depends:
+:depends: 5u84 support for disks replaced in new enclosure and data availability
 :resources:
+:est: M_M low
 
 ------
 
@@ -1314,6 +1289,7 @@ From Shankar
 :process: check, fix
 :depends:
 :resources:
+:est: S_M med
 
 ------
 
@@ -1328,6 +1304,7 @@ From Shankar
 :process:
 :depends:
 :resources:
+:est: M_M med
 
 -------------
 
@@ -2497,6 +2474,7 @@ m0tr tasks for scalability (Anatoliy)
 :process: Test suite for performance evaluation
 :depends:
 :resources:
+:est: S_M med
 
 -------
 
@@ -2511,6 +2489,7 @@ m0tr tasks for scalability (Anatoliy)
 :process: Test suite for performance evaluation
 :depends:
 :resources:
+:est: S_M med
 
 -------
 
@@ -2525,11 +2504,12 @@ m0tr tasks for scalability (Anatoliy)
 :process: 
 :depends:
 :resources:
+:est: M_M med
 
 -------
 
 :id: [t.small-object-performance]
-:name: Increase parallelism in accessing b-tree e.g EMAP and CAS
+:name: Increase parallelism in accessing b-tree CAS
 :detail: Create hash function which will take object ID and point to a b-tree.
          Store this hash table in metadata. Test perfromance with varying sizes 
          of hash entries e.g 128,256,512 and 1024 and conclude on size to use.
@@ -2541,6 +2521,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends:
 :resources:
+:est: M_M med
 
 -------
 
@@ -2556,6 +2537,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends:
 :resources:
+:est: S_M low
 
 ------
 
@@ -2571,6 +2553,7 @@ m0tr tasks for scalability (Anatoliy)
 :process:
 :depends: This will may not be P0
 :resources:
+:est: no
 
 ------
 
