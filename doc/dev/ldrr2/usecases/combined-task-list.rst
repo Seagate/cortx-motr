@@ -757,66 +757,65 @@ From Shashank
 From Shankar
 ------------
 
-HW - 10:  Support Largest Drive:
-1. Any special handling for HAMR or SMR drive needs to ne enabled in PODS or 5u84
-2. Handling Asssymetric Strorage Set Part of Cluster
-  - Assuming enclosure in SS are symetric w.r.t capacity
-3. IO distribution based on sizes available/remaining
+HW - 10  Support Largest Drive
+
+  - 1. Any special handling for HAMR or SMR drive needs to ne enabled in PODS or 5u84
+  - 2. Handling Asssymetric Strorage Set Part of Cluster
+    - Assuming enclosure in SS are symetric w.r.t capacity
+  - 3. IO distribution based on sizes available/remaining
 
 
-HW-20: LR cluster must support Supermicro 1U COTS servers
-1. Test number of active session supported with new hardware
-2. Test perfromance numbers with different server and create benchmark table for customer reference
+HW-20 LR cluster must support Supermicro 1U COTS servers
+  - 1. Test number of active session supported with new hardware
+  - 2. Test perfromance numbers with different server and create benchmark table for customer reference
 
 
 HW30: LR cluster may include optional certified networking equipment for private interconnect
-1. Benchmark performance with different newtork equipment
-2. Test number of active session supported with new hardware
+  - 1. Benchmark performance with different newtork equipment
+  - 2. Test number of active session supported with new hardware
 
 
-SW-10: Lyve Rack must be running on the supported CentOS version
-1. Build motr with selected CentOS (8.x) and make sure all unit tests and system tests are passing
-2. Change motr code as per changes to dependency package
+SW-10 Lyve Rack must be running on the supported CentOS version
+  - 1. Build motr with selected CentOS (8.x) and make sure all unit tests and system tests are passing
+  - 2. Change motr code as per changes to dependency package
 
 
-SW-20: All 3rd party applications must be running recent, maintained versions
-1. Check latest verison of libfabric and Intel ISA is used.
-   (Before final release to QA for testing, validate everything (motr) is working with latest version of software)
+SW-20 All 3rd party applications must be running recent, maintained versions
+  - 1. Check latest verison of libfabric and Intel ISA is used.
+    (Before final release to QA for testing, validate everything (motr) is working with latest version of software)
 
 
-SW-30: Any failure of any 3rd party SW component must be detected by CORTX
-1. libfabric: Add code to generate IEM for any unxpected error thrown by libfabric
-  - Dependency : Notify SSPL and CSM for new IEM addition
+SW-30 Any failure of any 3rd party SW component must be detected by CORTX
+  - 1. libfabric: Add code to generate IEM for any unxpected error thrown by libfabric
+    - Dependency : Notify SSPL and CSM for new IEM addition
 
 
-SW-40: CORTX should have no kernel dependencies
-2. Remove the need for m0d to get UUID (UUID is received from Kernel)
+SW-40 CORTX should have no kernel dependencies
+  - 2. Remove the need for m0d to get UUID (UUID is received from Kernel)
 
 
-NET-10 : It should be possible to connect LR data network to 10G, 25G and 100G networks
-1. Benchamark performance with netwrok of different speed
-2. Evaluate Perfromance impact with multiple SS with low speed include
+NET-10 It should be possible to connect LR data network to 10G, 25G and 100G networks
+  - 1. Benchamark performance with netwrok of different speed
+  - 2. Evaluate Perfromance impact with multiple SS with low speed include
 
 
-
-NET-20: LR must allow static IPs configuration for all interfaces
-1. Change in config file for motr for libfabric initialialization
-  - Assuming upagrade will be disruptive
-
+NET-20 LR must allow static IPs configuration for all interfaces
+  - 1. Change in config file for motr for libfabric initialialization
+    - Assuming upagrade will be disruptive
 
 
-SCALE-10: LR cluster should support between 3 and 36 nodes. For P0 test up to 12 nodes config – but it should be possible to deploy a larger cluster. Scale requirements specified below must be tested at least up to 12 nodes
-4. Create process to make sure one global metadata update is happening at a time in cluster (for exterme corner scenario)
-6. Checksum for key and value. Key and Value to be stored together?
-7. Switch to 2+2 parity scheme for data in case of node failire (confirm with PLM)?
-  - Will avoid need for Data DTM
-9. Any error in data write to be ignored with the number of failure is within limits
-13. Display metadata used and go to write protect if MD is all used
+SCALE-10 LR cluster should support between 3 and 36 nodes. For P0 test up to 12 nodes config – but it should be possible to deploy a larger cluster. Scale requirements specified below must be tested at least up to 12 nodes
+  - 4. Create process to make sure one global metadata update is happening at a time in cluster (for exterme corner scenario)
+  - 6. Checksum for key and value. Key and Value to be stored together?
+  - 7. Switch to 2+2 parity scheme for data in case of node failire (confirm with PLM)?
+    - Will avoid need for Data DTM
+  - 9. Any error in data write to be ignored with the number of failure is within limits
+  - 13. Display metadata used and go to write protect if MD is all used
 
 
 SCALE-50 : Read: 1GB/sec, Write: 850MB/sec per node for 256KB objects
-1. Small object performance: Create Hash list for emap btree access will help to speedup emap access
-2. Small object performance: Evaluate and add Hash list for CAS btree access
+  - 1. Small object performance: Create Hash list for emap btree access will help to speedup emap access
+  - 2. Small object performance: Evaluate and add Hash list for CAS btree access
 
 
 -----------
@@ -824,35 +823,35 @@ From Madhav
 -----------
 
 
-HW:10
-SCALE:10
- 1) Deployement of 3 nodes with 5u84 with ADAPT
- 2) Deployemnt of 6 nodes i.e two storage sets
- 3) Deployment of 12 nodes i.e four storage sets
- 4) Design for 36 nodes i.e 9 storages sets
+HW-10
+SCALE-10
+  1) Deployement of 3 nodes with 5u84 with ADAPT
+  2) Deployemnt of 6 nodes i.e two storage sets
+  3) Deployment of 12 nodes i.e four storage sets
+  4) Design for 36 nodes i.e 9 storages sets
      How many nodes per rack ?
- 5) 3,6 and 12 node deployment in VM
- 6) configure pool per storage sets
- 7) fsstat per pool as well as aggerated
- 8) design pool selection policy and use it during object creation
+  5) 3,6 and 12 node deployment in VM
+  6) configure pool per storage sets
+  7) fsstat per pool as well as aggerated
+  8) design pool selection policy and use it during object creation
 
- HW:20  super micro COTS
- HW:30  multiple vendors
+HW-20  super micro COTS
+HW-30  multiple vendors
 
- 9) Deploy with different available vendors of RoCE nic and swicth and do the
-    performance analysis.
- 10) Check 50Gbps is sufficient for S3 data or more is needed (Test with 12 node deployment)
- 11) Check 50Gbps is sufficient for motr-motr data or more is needed ((Test with 12 node deployment)
+  9) Deploy with different available vendors of RoCE nic and swicth and do the
+     performance analysis.
+  10) Check 50Gbps is sufficient for S3 data or more is needed (Test with 12 node deployment)
+  11) Check 50Gbps is sufficient for motr-motr data or more is needed ((Test with 12 node deployment)
 
- SW-10
- 12) centos 8 support gccxml to other alternatives may be cast xml
- 13) check with lustre on centos 8
- 14.0) build on centos 8 and deploy on 3 node VM's without Hare
- 14.1) build on centos 8 and deploy on 3 node VM's once Hare is ready
- 15) deploy on centos 8 h/w setup once motr + hare + s3 are ready
+SW-10
+  12) centos 8 support gccxml to other alternatives may be cast xml
+  13) check with lustre on centos 8
+  14.0) build on centos 8 and deploy on 3 node VM's without Hare
+  14.1) build on centos 8 and deploy on 3 node VM's once Hare is ready
+  15) deploy on centos 8 h/w setup once motr + hare + s3 are ready
 
 
- SW-40
+SW-40
   17) m0nettest with libfabric
   18) performance analysis with libfabic with LDR R1 setup and
       compare with Lnet results
@@ -862,33 +861,33 @@ SCALE:10
        3-node, 6-node, 12-node
 
 
-  SW-60
+SW-60
   22) Performance analysis with galosi and intel ISA
   24) Btree concurrency/performance analysis
   26) Balloc read/write/delete performance analysis
 
 
 
-  NET-10
+NET-10
   27) Configure bonding to add the support for 10G and 25G networks
   28) Performance analysis the stack with 10G,25G and 100G networks
   29) Evaluate with both Lnet and Libfabrics
 
 
-  NET-12
+NET-12
   30) Only RoCE supported switch vendors can be used for data
 
-  SCALE-70
+SCALE-70
   45) populate 100M objects per node with 3 node setup and do the performance analysis
 	    Check with 256K, 1M, 16M and 128 M objects
   46)  Also do the performance analysis at different stages of storage 50%, 70%,80% and 90%
 
 
-  SCALE:80
+SCALE-80
   47) Check Time to first byte 150ms 99% of the time for different object sizes
   48) Check TTFB at different stages of storage 50%, 70%,80% and 90%
 
-  AD-10,20,30
+AD-10,20,30
   49) Remove a node from the 3-node or 6-node setup/cluster and update it to new rpm
 	    version and the add it back to the cluster
   50) Test update of rpm's of a node in VM's with 3node deployment
@@ -896,32 +895,32 @@ SCALE:10
   51) Disk group failure domain needs to be supported
 
 
-  MGM-60
+MGM-60
   58) Return aggr performance, may be s3 only task
 
-  MGM-120
+MGM-120
   59) Need to shutdown and restart a node
-  MGM-130
+MGM-130
   60) Need to stop the cluster and start again
       All the ongoing IO should be completed and new IO will get 500 error.
 
-  MGM-220
+MGM-220
   61) Check with Switch or FW update(should be non-disruptive) and see that cluster
 	    is still online
 
-  SEC-130
+SEC-130
   62) Security vulnerabilty handling for motr
 
-  OP-20
+OP-20
   63) check the cluster and IO after server is replaced for a node
 
-  OP-70
+OP-70
   64) Support motr setup for automatic deployment with provisioner
 
-  VM-10
+VM-10
   65) VM support
 
-  SUP-20
+SUP-20
   66) support bundle analysis
 
 
@@ -929,10 +928,10 @@ SCALE:10
 From Huanghua
 -------------
 
-   * - **task name**
-     - **description**
-   * - Cluster Aging testing.
-     - To fill nearly full, to test performance and corner cases, alerts.
+  * - **task name**
+    - **description**
+  * - Cluster Aging testing.
+    - To fill nearly full, to test performance and corner cases, alerts.
 
 
 
