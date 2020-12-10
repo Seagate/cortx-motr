@@ -928,116 +928,548 @@ SUP-20
 From Huanghua
 -------------
 
-  * - **task name**
-    - **description**
-  * - Cluster Aging testing.
-    - To fill nearly full, to test performance and corner cases, alerts.
 
+:id: [t.cluster-aging-testing]
+:name: Cluster Aging testing.
+:author: hua.huang@seagate.com
+:detail: To fill nearly full, to test performance and corner cases, alerts.
+:justification:
+:component: motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
 
 
 -------------
 From Anatoliy
 -------------
 
-Break Down of DTM task
+
+:id: [t.dtm-all2all]
+:name:
+:author: anatoliy
+:detail: During start of the cluster establish rpc connections between each m0d service and others m0ds
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [t.dtm-dtx-fop]
+:name:
+:author: anatoliy
+:detail: Register DTM0 FOP types which are quite enough to send dtxes and service specific payloads (CAS_PUT CAS_DEL here)
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [t.dtm-cb-fop]
+:name:
+:author: anatoliy
+:detail: Register DTM0 FOP types to deliver executed, persistent and redo callbacks to different parties
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [t.dtm-dtm0-srv]
+:name:
+:author: anatoliy
+:detail: Create a clovis utility which is able to send dtx-related FOPs to DTM0 service
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: dtx-fop cb-fop
+:resources:
+
+------
+
+:id: [t.dtm-dtxsm-cli]
+:name:
+:author: anatoliy
+:detail: Define DTX state machine for the client side
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: deploy-vm
+:resources:
+
+------
+
+:id: [t.dtm-fop-tool]
+:name:
+:author: anatoliy
+:detail: Implement dummy dtm0 service which is able to accept DTM0 FOPs and log them.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: dtm0-srv
+:resources:
+
+------
+
+:id: [t.dtm-epoch]
+:name:
+:author: anatoliy
+:detail: Implement versioning timestamping in a single originator configuration (PoC0).
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: deploy-vm
+:resources:
+
+------
+
+:id: [t.dtm-11]
+:name:
+:author: anatoliy
+:detail: Propagate DTX SM transitions to clovis OP trasitions
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: dtxsm-cli fop-tool
+:resources:
+
+------
+
+:id: [t.dtm-12]
+:name:
+:author: anatoliy
+:detail: Update clovis launch logic w.r.t. ~dtx==NULL~ and ~dtx!=NULL~
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 11
+:resources:
+
+------
+
+:id: [t.dtm-13]
+:name:
+:author: anatoliy
+:detail: Provide dtx state logic near by ~clovis_op_launch()~ -> ~op->launch()~
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 12
+:resources:
+
+------
+
+:id: [t.dtm-dtxsm-cli-wait]
+:name:
+:author: anatoliy
+:detail: Provide dtx state wait logic
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 13 observ
+:resources:
+
+------
+
+:id: [t.dtm-15]
+:name:
+:author: anatoliy
+:detail:  Provide c0mt-alike test to emulate load patterns with a high level of parallelism for DIX PUT and DEL operations.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: dtxsm-cli-wait
+:resources:
+
+------
+
+:id: [t.dtm-16]
+:name:
+:author: anatoliy
+:detail: Provide a way to emulate transient failures all over the stack deterministically and with the help of FI, crash to emulate such failure.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: dtxsm-cli-wait
+:resources:
+
+------
+
+:id: [t.dtm-17]
+:name:
+:author: anatoliy
+:detail: Emulate transient failure of m0d during PUT after DEL workload.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: dtxsm-cli-wait
+:resources:
+
+------
+
+:id: [t.dtm-18]
+:name:
+:author: anatoliy
+:detail: Emulate transient failure of m0d during DEL after PUT workload.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: dtxsm-cli-wait
+:resources:
+
+------
+
+:id: [t.dtm-plog]
+:name:
+:author: anatoliy
+:detail: Implement DTM0 local persistent log structure on top of BE.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 10
+:resources:
+
+------
+
+:id: [t.dtm-nplog]
+:name:
+:author: anatoliy
+:detail: Implement DTM0 local non-persistent log structure for originators.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 10
+:resources:
+
+------
+
+:id: [t.dtm-log-txr]
+:name:
+:author: anatoliy
+:detail: Implement DTM0 local txr (log element) structure on top of BE.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: deploy-vm
+:resources:
+
+------
+
+:id: [t.dtm-22]
+:name:
+:author: anatoliy
+:detail: Implement txr execution logic during specific service request execution.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: dtxsm-cli-wait
+:resources:
+
+------
+
+:id: [t.dtm-23]
+:name:
+:author: anatoliy
+:detail: Implement a special strucutre to store versions for keys stored in CAS.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: dtxsm-cli-wait
+:resources:
+
+------
+
+:id: [t.dtm-24]
+:name:
+:author: anatoliy
+:detail: Implement a logic which covers a proper key and value selection accordingly to versions for DELs after PUTs
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: dtxsm-cli-wait
+:resources:
+
+------
+
+:id: [t.dtm-25 ]
+:name:
+:author: anatoliy
+:detail: Implement a logic which covers a proper key and value selection accordingly to versions for PUTs after DELs
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: dtxsm-cli-wait
+:resources:
+
+------
+
+:id: [t.dtm-26]
+:name:
+:author: anatoliy
+:detail: Tombstones management, keys will not be overwritten by the objects with older versions.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: dtxsm-cli-wait
+:resources:
+
+------
+
+:id: [t.dtm-27]
+:name:
+:author: anatoliy
+:detail: Redo       callback logic
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 26
+:resources:
+
+------
+
+:id: [t.dtm-28]
+:name:
+:author: anatoliy
+:detail: Persistent callback logic
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 26
+:resources:
+
+------
+
+:id: [t.dtm-29]
+:name:
+:author: anatoliy
+:detail: Executed   callback logic
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 26
+:resources:
+
+------
+
+:id: [t.dtm-30]
+:name:
+:author: anatoliy
+:detail: Recovery logic iterating over DTM0 logs and sending corresponding redo messages to participants; triggered by HA.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 26
+:resources:
+
+------
+
+:id: [t.dtm-31]
+:name:
+:author: anatoliy
+:detail: Integrate txr execution logic into CAS serice including proper tx credit calculation, should be executed as a part of local transaction.
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 26
+:resources:
+
+------
+
+:id: [t.dtm-32]
+:name:
+:author: anatoliy
+:detail: A Tool for an initial DTM0 log analysis
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 31
+:resources:
+
+------
+
+:id: [t.dtm-33]
+:name:
+:author: anatoliy
+:detail: A Replay tool which will be able to save current dtm0 log and replay it again, useful for debugging
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 31
+:resources:
+
+------
+
+:id: [t.dtm-proto-vis]
+:name:
+:author: anatoliy
+:detail: Tool for the DTM0 protocol visualisation
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: deploy-vm
+:resources:
+
+------
+
+:id: [t.dtm-magic-bulk]
+:name:
+:author: anatoliy
+:detail: Make RPC bulk to follow magic link semantics
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: 1
+:resources:
+
+------
+
+:id: [t.dtm-observ]
+:name:
+:author: anatoliy
+:detail: Provide observability and debuggability for the development cycle (not a fine-grained task)
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: deploy-vm
+:resources:
+
+------
+
+:id: [t.dtm-ha-int ]
+:name:
+:author: anatoliy
+:detail: Provide HA integration with Motr instances including design of the interraction protocol (not a fine-grained task)
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: observ
+:resources:
+
+------
+
+:id: [t.dtm-s3-int]
+:name:
+:author: anatoliy
+:detail: Provide S3 level integarion on new clovis interface with embedded dtx transactions (not a fine-grained task)
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: observ
+:resources:
+
+------
+
+:id: [t.dtm-over-test]
+:name:
+:author: anatoliy
+:detail: Provide a test infra to cover major failure cases in 1-node and n-node environments (not a fine-grained task)
+:justification:
+:component: Motr
+:req:
+:process:
+:depends: ha-int s3-int
+:resources:
+
+------
 
 
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| ID             | Comp       | Type        | Est | TAG  | deps               | Task description                                                                                                                         |
-+================+============+=============+=====+======+====================+==========================================================================================================================================+
-| 1              | Mero       | Feature     |   5 |      |                    | Support S=0 in the DIX code (PoC0)                                                                                                       |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 2              | Hare       | Feature     |   5 |      | 1                  | Provide HARE configuration for N=1,K=2, *S=0* configuration                                                                              |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| deploy-vm      | Infra      | Feature     |   7 |      | 2                  | Deploy a single node VM with N=1,K=2, *S=0* configuration                                                                                |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 4              | Hare       | Feature     |   5 |      | deploy-vm          | Provide HA link callbacks related to process state changes                                                                               |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| all2all        | Mero       | Feature     |   9 |      | deploy-vm          | During start of the cluster establish rpc connections between each m0d service and others m0ds                                           |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| distrib        | Infra      | Feature     |   9 |      | deploy-vm          | Use m0crate or any other tool to generate md +and io+ traffic to the cluster and check correctness of traffic distribution               |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| dtx-fop        | Mero       | Feature     |  12 |      | deploy-vm          | Register DTM0 FOP types which are quite enough to send dtxes and service specific payloads (CAS_PUT CAS_DEL here)                        |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| cb-fop         | Mero       | Feature     |   8 |      | deploy-vm          | Register DTM0 FOP types to deliver executed, persistent and redo callbacks to different parties                                          |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| dtm0-srv       | Mero       | Feature     |  11 |      | dtx-fop cb-fop     | Create a clovis utility which is able to send dtx-related FOPs to DTM0 service                                                           |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| fop-tool       | Mero       | Feature     |  11 |      | dtm0-srv           | Implement dummy dtm0 service which is able to accept DTM0 FOPs and log them.                                                             |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| dtxsm-cli      | Mero       | Feature     |  11 |      | deploy-vm          | Define DTX state machine for the client side                                                                                             |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| epoch          | Mero       | Feature     |   2 |      | deploy-vm          | Implement versioning timestamping in a single originator configuration (PoC0).                                                           |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 11             | Mero       | Integration |   7 | CIR  | dtxsm-cli fop-tool | Propagate DTX SM transitions to clovis OP trasitions                                                                                     |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 12             | Mero       | Integration |  20 | CIR  | 11                 | Update clovis launch logic w.r.t. ~dtx==NULL~ and ~dtx!=NULL~                                                                            |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 13             | Mero       | Integration |   5 | CIR  | 12                 | Provide dtx state logic near by ~clovis_op_launch()~ -> ~op->launch()~                                                                   |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| dtxsm-cli-wait | Mero       | Integration |   2 | CIR  | 13 observ          | Provide dtx state wait logic                                                                                                             |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 15             | Mero       | Test        |  20 | MDTT | dtxsm-cli-wait     | Provide c0mt-alike test to emulate load patterns with a high level of parallelism for DIX PUT and DEL operations.                        |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 16             | Mero       | Test        |   5 | MDTT | dtxsm-cli-wait     | Provide a way to emulate transient failures all over the stack deterministically and with the help of FI, crash to emulate such failure. |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 17             | Mero       | Test        |  18 | MDTT | dtxsm-cli-wait     | Emulate transient failure of m0d during PUT after DEL workload.                                                                          |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 18             | Mero       | Test        |  10 | MDTT | dtxsm-cli-wait     | Emulate transient failure of m0d during DEL after PUT workload.                                                                          |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| plog           | Mero       | Feature     |  10 | DTML | deploy-vm          | Implement DTM0 local persistent log structure on top of BE.                                                                              |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| nplog          | Mero       | Feature     |  10 | DTML | deploy-vm          | Implement DTM0 local non-persistent log structure for originators.                                                                       |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| log-txr        | Mero       | Feature     |   8 | DTML | deploy-vm          | Implement DTM0 local txr (log element) structure on top of BE.                                                                           |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 22             | Mero       | Feature     |   5 | DTML | dtxsm-cli-wait     | Implement txr execution logic during specific service request execution.                                                                 |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 23             | Mero       | Feature     |   5 | DTML | dtxsm-cli-wait     | Implement a special strucutre to store versions for keys stored in CAS.                                                                  |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 24             | Mero       | Feature     |  20 | DTML | dtxsm-cli-wait     | Implement a logic which covers a proper key and value selection accordingly to versions for DELs after PUTs                              |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 25             | Mero       | Feature     |   5 | DTML | dtxsm-cli-wait     | Implement a logic which covers a proper key and value selection accordingly to versions for PUTs after DELs                              |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 26             | Mero       | Feature     |  20 | DTML | dtxsm-cli-wait     | Tombstones management, keys will not be overwritten by the objects with older versions.                                                  |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 27             | Mero       | Feature     |  15 | DTML | 26                 | Redo       callback logic                                                                                                                |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 28             | Mero       | Feature     |  15 | DTML | 26                 | Persistent callback logic                                                                                                                |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 29             | Mero       | Feature     |  15 | DTML | 26                 | Executed   callback logic                                                                                                                |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 30             | Mero       | Feature     |  20 | DTML | 26                 | Recovery logic iterating over DTM0 logs and sending corresponding redo messages to participants; triggered by HA.                        |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 31             | Mero       | Integration |   5 |      | 26                 | Integrate txr execution logic into CAS serice including proper tx credit calculation, should be executed as a part of local transaction. |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 32             | Mero       | Tool        |  15 |      | 31                 | A Tool for an initial DTM0 log analysis                                                                                                  |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| 33             | Mero       | Tool+Test   |  15 |      | 31                 | A Replay tool which will be able to save current dtm0 log and replay it again, useful for debugging                                      |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| proto-vis      | Mero       | Tool        |   5 |      | deploy-vm          | Tool for the DTM0 protocol visualisation                                                                                                 |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| magic-bulk     | Mero       | Feature     |  20 |      | 1                  | Make RPC bulk to follow magic link semantics                                                                                             |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| observ         | Mero S3    | Feature     |  40 |      | deploy-vm          | Provide observability and debuggability for the development cycle (not a fine-grained task)                                              |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| ha-int         | Mero S3 HA | Feature     |  50 |      | observ             | Provide HA integration with Motr instances including design of the interraction protocol (not a fine-grained task)                       |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| s3-int         | Mero S3    | Feature     |  50 |      | observ             | Provide S3 level integarion on new clovis interface with embedded dtx transactions (not a fine-grained task)                             |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| over-test      | Mero S3 HA | Feature     |  55 |      | ha-int s3-int      | Provide a test infra to cover major failure cases in 1-node and n-node environments (not a fine-grained task)                            |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| non-tech       |            | Assumption  |   0 |      |                    | involvement of new people will reduce my bw down to 60%                                                                                  |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| non-tech       |            | Assumption  |   0 |      |                    | Inital bw of Anil will be accounted as 30%                                                                                               |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| non-tech       |            | Assumption  |   0 |      |                    | Inital bw of Mehul will be accounted as 60%                                                                                              |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| non-tech       |            | Assumption  |   0 |      |                    | total time measureed in person weeks in the next 6 months will be accounted as TT = sum(Est) / days per week / peoples involvement       |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| $              |            |             |  33 |      |                    | Total time (Calendar weeks)                                                                                                              |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| ^              |            |             |   x |      |                    |                                                                                                                                          |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
+==========
+Assumption
+==========
 
+:id: [a.dtm-new-people]
+:name:
+:author: anatoliy
+:detail: involvement of new people will reduce my bw down to 60%
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [a.dtm-anil-bw]
+:name:
+:author: anatoliy
+:detail: Inital bw of Anil will be accounted as 30%
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [a.dtm-Mehul-bw]
+:name:
+:author: anatoliy
+:detail: Inital bw of Mehul will be accounted as 60%
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
+
+:id: [a.dtm-total-bw]
+:name:
+:author: anatoliy
+:detail: total time measureed in person weeks in the next 6 months will be accounted as TT = sum(Est) / days per week / peoples involvement
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+
+------
 
