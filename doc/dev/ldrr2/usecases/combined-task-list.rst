@@ -634,8 +634,93 @@ Tasks
 
 ------
 
----------------------------------------
+
+
+
+=========
+Questions
+=========
+
+:id: [q.object-cleanup]
+:name: when object is discarded and re-created in 2+2, should the old one be
+       cleaned up?
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:to: Dan
+:component:
+:req:
+:depends: t.io-error-write
+:resources:
+
+------
+
+
+
+:id: [q.concurrent-PUT]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:to: Dan
+:component:
+:req:
+:depends:
+:resources:
+
+------
+
+
+
+:id: [q.concurrent-bucket-operation]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:to: Dan
+:component:
+:req:
+:depends:
+:resources:
+
+------
+
+
+
+:id: [q.service dependencies]
+:name: who is tracking service dependencies?
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: Who re-starts s3 when motr is restarted? pacemaker?
+:to: Dan
+:component:
+:req:
+:depends:
+:resources:
+
+------
+
+
+
+===========
+Assumptions
+===========
+
+:id: [a.no-repair]
+:name: no {SNS, DIX} repair is needed for P0
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:justification: Gregory, Dan
+:component:
+:req:
+:depends:
+:resources:
+
+------
+
+
+
+
+-------------
 From Shashank
+-------------
+
 
 +--------------+-----------------------------------------------------------------+
 | **SCALE-40** |  **Read: 3GB/sec; Write: 2.5GB/sec per node for 16MB objects**  |
@@ -663,9 +748,9 @@ From Shashank
 +-----------+----------------------+
 **If S3 handles this then Motr does not need to make any changes. **
 
-----------------------------
+------------
 From Shankar
-
+------------
 
 HW - 10:  Support Largest Drive:
 1. Any special handling for HAMR or SMR drive needs to ne enabled in PODS or 5u84
@@ -729,8 +814,9 @@ SCALE-50 : Read: 1GB/sec, Write: 850MB/sec per node for 256KB objects
 2. Small object performance: Evaluate and add Hash list for CAS btree access
 
 
-----------------------------------------------
+-----------
 From Madhav
+-----------
 
 
 HW:10
@@ -834,8 +920,9 @@ SCALE:10
   66) support bundle analysis
 
 
--------------------------------------------
+-------------
 From Huanghua
+-------------
 
    * - **task name**
      - **description**
@@ -844,15 +931,16 @@ From Huanghua
 
 
 
-----------------------------------------------
+-------------
 From Anatoliy
+-------------
 
 Break Down of DTM task
-========================
+
 
 +----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
 | ID             | Comp       | Type        | Est | TAG  | deps               | Task description                                                                                                                         |
-+----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
++================+============+=============+=====+======+====================+==========================================================================================================================================+
 | 1              | Mero       | Feature     |   5 |      |                    | Support S=0 in the DIX code (PoC0)                                                                                                       |
 +----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
 | 2              | Hare       | Feature     |   5 |      | 1                  | Provide HARE configuration for N=1,K=2, *S=0* configuration                                                                              |
@@ -943,91 +1031,9 @@ Break Down of DTM task
 +----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
 | non-tech       |            | Assumption  |   0 |      |                    | total time measureed in person weeks in the next 6 months will be accounted as TT = sum(Est) / days per week / peoples involvement       |
 +----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| $              |            |             |  33 |      |                    | Total time (Calendar weeks)                                                                                                        |
+| $              |            |             |  33 |      |                    | Total time (Calendar weeks)                                                                                                              |
 +----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
 | ^              |            |             |   x |      |                    |                                                                                                                                          |
 +----------------+------------+-------------+-----+------+--------------------+------------------------------------------------------------------------------------------------------------------------------------------+
-
-
-
-
-
-=========
-Questions
-=========
-
-:id: [q.object-cleanup]
-:name: when object is discarded and re-created in 2+2, should the old one be
-       cleaned up?
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:to: Dan
-:component:
-:req:
-:depends: t.io-error-write
-:resources:
-
-------
-
-
-
-:id: [q.concurrent-PUT]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:to: Dan
-:component:
-:req:
-:depends:
-:resources:
-
-------
-
-
-
-:id: [q.concurrent-bucket-operation]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:to: Dan
-:component:
-:req:
-:depends:
-:resources:
-
-------
-
-
-
-:id: [q.service dependencies]
-:name: who is tracking service dependencies?
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail: Who re-starts s3 when motr is restarted? pacemaker?
-:to: Dan
-:component:
-:req:
-:depends:
-:resources:
-
-------
-
-
-
-===========
-Assumptions
-===========
-
-:id: [a.no-repair]
-:name: no {SNS, DIX} repair is needed for P0
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:justification: Gregory, Dan
-:component:
-:req:
-:depends:
-:resources:
-
-------
-
 
 
