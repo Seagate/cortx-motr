@@ -108,7 +108,7 @@ confidence : high med low
 :component: motr.client
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
-:depends: t.deploy-manual-3node, t.md-checksum, t.dix-global-replication
+:depends: t.md-checksum, t.dix-global-replication, t.deploy-manual-3node
 :resources:
 :**question**: Is this a DIX operation?
 :dup: NONE
