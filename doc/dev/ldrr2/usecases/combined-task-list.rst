@@ -1,7 +1,7 @@
 =====
 Tasks
 =====
-S : Small 
+S : Small
 M : Medium (~300 to 1000 of code)
 L : Large (~1000 lines of code like DTM)
 confidence : high med low
@@ -15,13 +15,13 @@ confidence : high med low
 :component: motr, input from s3
 :req: Possible data protection schemes
 :process: simple
-:depends: t.deploy-manual-3node, t.deploy-manual-6node, 
+:depends: t.deploy-manual-3node, t.deploy-manual-6node,
 :resources:
 :dup: NONE
 :est: S_S high
 
 -------
-   
+
 :id: [t.io-error-data]
 :name: handle io errors on data device
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -176,7 +176,7 @@ confidence : high med low
 :depends:
 :resources: Lead: nikita
 :dup: NONE
-:est: L_L med 
+:est: L_L med
 
 ------
 
@@ -191,7 +191,7 @@ confidence : high med low
 :depends:
 :resources: Lead: madhav
 :dup: NONE
-:est: M_L med 
+:est: M_L med
 
 ------
 
@@ -206,7 +206,7 @@ confidence : high med low
 :depends:
 :resources:
 :dup: NONE
-:est: M_M med 
+:est: M_M med
 
 ------
 
@@ -221,7 +221,7 @@ confidence : high med low
 :depends:
 :resources: Lead: Huang Hua.
 :dup: NONE
-:est: S_M high 
+:est: S_M high
 
 ------
 
@@ -234,7 +234,7 @@ confidence : high med low
 :component: motr.client, provisioner
 :req: SCALE-10, SCALE-40, SCALE-50
 :process:
-:depends: t.N+K+S, t.deploy-manual-3node, t.deploy-manual-6node, 
+:depends: t.N+K+S, t.deploy-manual-3node, t.deploy-manual-6node,
 :resources:
 :**question**: I think the Mero in SAGE cluster (some old version of Motr) already
                has multiple-pool support.
@@ -321,7 +321,7 @@ confidence : high med low
 :resources:
 :dup: NONE
 :est: S_M high
-   
+
 ------
 
 :id: [t.avoid-md-cobs]
@@ -634,7 +634,7 @@ confidence : high med low
 :component: motr, hare
 :req: SCALE-30
 :process: deploy, measure.
-:depends: t.deploy-manual-3node, t.deploy-manual-6node, 
+:depends: t.deploy-manual-3node, t.deploy-manual-6node,
           t.manual-deploy-vm-3-6-12-nodes, t.perf-s3-cache,
           t.perf-ldap-auth-caching, t.perf-tls-overhead-measure, t.perf-ttfb,
           t.balloc-perf, t.galois-perf, t.libfabrics-perf, t.btree-perf,
@@ -663,7 +663,7 @@ confidence : high med low
 :id: [t.update]
 :name: motr part of cortx update
 :author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail: 
+:detail:
 :justification:
 :component: motr
 :req: MGM-220
@@ -723,7 +723,7 @@ confidence : high med low
 :id: [t.deploy-manual-3node]
 :name: Deployement of 3 nodes with 5u84 with ADAPT
 :author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
-:detail: take into account: 4 + 2 + 0 for data and 1 + 2  for meta-data 
+:detail: take into account: 4 + 2 + 0 for data and 1 + 2  for meta-data
 :justification:
 :component: motr, s3
 :req: HW-10, SCALE-10
@@ -875,7 +875,7 @@ confidence : high med low
 -------
 
 :id: [t.galois-perf]
-:name: galois to intel ISA perf analysis 
+:name: galois to intel ISA perf analysis
 :author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
 :detail: Performance analysis with galois and intel ISA
          for 4+2 and 8+2 configs
@@ -1045,7 +1045,7 @@ confidence : high med low
 
 :id: [t.io-perf-rw]
 :name: io performance
-:author: shashank 
+:author: shashank
 :detail: support PRD performance numbers for 16MB and 256KB object sizes
 :justification:
 :component: motr, s3
@@ -1061,7 +1061,7 @@ confidence : high med low
 
 :id: [t.support-different-drive]
 :name: Benchmark and tune performance with different drive types
-:detail: Different drive type can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference drives and capacity sizes. Check for any special handling for HAMR or SMR drive needs to ne enabled in PODS or 5u84  
+:detail: Different drive type can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference drives and capacity sizes. Check for any special handling for HAMR or SMR drive needs to ne enabled in PODS or 5u84
 :justification: Analyzing impact on performance will help in drive selection.
 :component: motr, Performance evaluation team
 :req: HW-10
@@ -1074,8 +1074,8 @@ confidence : high med low
 :id: [t.hw-30.2]
 :name:
 :author:
-:detail:  Test number of active session supported with new hardware 
-:justification: Number of supported active session can get impacted with changes to hardware 
+:detail:  Test number of active session supported with new hardware
+:justification: Number of supported active session can get impacted with changes to hardware
 :component: Motr
 :req: HW-20
 :process:
@@ -1105,7 +1105,7 @@ confidence : high med low
 :id: [t.sw-30.1]
 :name:
 :author:
-:detail: libfabric: Add code to generate IEM for any unxpected error thrown by libfabric and Intel ISA. 
+:detail: libfabric: Add code to generate IEM for any unxpected error thrown by libfabric and Intel ISA.
 :justification:
 :component: Motr
 :req: SW-30
@@ -1120,7 +1120,7 @@ confidence : high med low
 :id: [t.sw-40.2]
 :name:
 :author:
-:detail: Remove the need for m0d to get UUID (UUID is received from Kernel) 
+:detail: Remove the need for m0d to get UUID (UUID is received from Kernel)
 :justification:
 :component: Motr
 :req: SW-40
@@ -1133,7 +1133,7 @@ confidence : high med low
 
 :id: [t.global-md-serialize]
 :name: Serialize global meta-data create in the cluster
-:author: shankar 
+:author: shankar
 :detail: Create process to make sure one global metadata update is happening at
          a time in cluster. This will remove corner cases related to network
          partitions.
@@ -1149,7 +1149,7 @@ confidence : high med low
 
 :id: [t.startup-shutdown]
 :name: Power UP/ Power DOWN the cluster gracefully.
-:author: madhav 
+:author: madhav
 :detail: make sure all the IOs complete before shutdown and data is available
          on next POWER UP.
 :justification:
@@ -1165,7 +1165,7 @@ confidence : high med low
 :id: [t.security-motr]
 :name: Check Security vulnerability of Motr process and Motr data.
 :author:  madhav
-:detail: 
+:detail:
 :justification:
 :component: all
 :req: SEC-130
@@ -1179,14 +1179,14 @@ confidence : high med low
 
 :id: [t.hardware-maintenance]
 :name: Replace any FRU within cluster.
-:author: 
+:author:
 :detail: Motr process on the Node containing the FRU should shutdown gracefully
 	before the replacement and after the replacement the Motr process should
 	be able to start and continue IOs.
 :justification:
 :component: all
 :req: OP-20
-:process: 
+:process:
 :depends: 5u84 support for disks replaced in new enclosure and data availability
 :resources:
 :est: M_M low
@@ -1195,7 +1195,7 @@ confidence : high med low
 
 :id: [t.support-bundle]
 :name: Debug logs in support bundle.
-:author: 
+:author:
 :detail: Descriptive logs in Motr (especially ERRORS and WARNINGS) should help
          isolate the issue quickly.
 :justification:
@@ -1234,6 +1234,7 @@ confidence : high med low
 :process:
 :depends:
 :resources:
+:est: 9PD
 
 ------
 
@@ -1247,6 +1248,7 @@ confidence : high med low
 :process:
 :depends:
 :resources:
+:est: 11PD
 
 ------
 
@@ -1260,6 +1262,7 @@ confidence : high med low
 :process:
 :depends:
 :resources:
+:est: 11PD
 
 ------
 
@@ -1273,6 +1276,7 @@ confidence : high med low
 :process:
 :depends: t.dtm-dtx-fop t.dtm-cb-fop
 :resources:
+:est: 11PD
 
 ------
 
@@ -1286,6 +1290,7 @@ confidence : high med low
 :process:
 :depends:
 :resources:
+:est: 11PD
 
 ------
 
@@ -1299,6 +1304,7 @@ confidence : high med low
 :process:
 :depends: t.dtm-dtm0-srv
 :resources:
+:est: 11PD
 
 ------
 
@@ -1312,6 +1318,7 @@ confidence : high med low
 :process:
 :depends:
 :resources:
+:est: 2PD
 
 ------
 
@@ -1325,6 +1332,7 @@ confidence : high med low
 :process:
 :depends: t.dtm-dtxsm-cli t.dtm-fop-tool
 :resources:
+:est: 7PD
 
 ------
 
@@ -1338,6 +1346,7 @@ confidence : high med low
 :process:
 :depends: t.dtm-11
 :resources:
+:est: 20PD
 
 ------
 
@@ -1351,6 +1360,7 @@ confidence : high med low
 :process:
 :depends: t.dtm-12
 :resources:
+:est: 5PD
 
 ------
 
@@ -1364,6 +1374,7 @@ confidence : high med low
 :process:
 :depends: t.dtm-13 t.dtm-observ
 :resources:
+:est: 2PD
 
 ------
 
@@ -1377,6 +1388,7 @@ confidence : high med low
 :process:
 :depends: t.dtm-dtxsm-cli-wait
 :resources:
+:est: 20PD
 
 ------
 
@@ -1390,6 +1402,7 @@ confidence : high med low
 :process:
 :depends: t.dtm-dtxsm-cli-wait
 :resources:
+:est: 5PD
 
 ------
 
@@ -1404,6 +1417,7 @@ confidence : high med low
 :depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
+:est: 18PD
 
 ------
 
@@ -1418,6 +1432,7 @@ confidence : high med low
 :depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
+:est: 10PD
 
 ------
 
@@ -1432,6 +1447,7 @@ confidence : high med low
 :depends: t.dtm-10
 :resources:
 :dup: NONE
+:est: 10PD
 
 ------
 
@@ -1446,6 +1462,7 @@ confidence : high med low
 :depends: t.dtm-10
 :resources:
 :dup: NONE
+:est: 10PD
 
 ------
 
@@ -1460,6 +1477,7 @@ confidence : high med low
 :depends: NONE
 :resources:
 :dup: NONE
+:est: 8PD
 
 ------
 
@@ -1474,6 +1492,7 @@ confidence : high med low
 :depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
+:est: 5PD
 
 ------
 
@@ -1488,6 +1507,7 @@ confidence : high med low
 :depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
+:est: 5PD
 
 ------
 
@@ -1502,6 +1522,7 @@ confidence : high med low
 :depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
+:est: 20PD
 
 ------
 
@@ -1516,6 +1537,7 @@ confidence : high med low
 :depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
+:est: 5PD
 
 ------
 
@@ -1530,6 +1552,7 @@ confidence : high med low
 :depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
+:est: 20PD
 
 ------
 
@@ -1544,6 +1567,7 @@ confidence : high med low
 :depends: t.dtm-26
 :resources:
 :dup: NONE
+:est: 15PD
 
 ------
 
@@ -1558,6 +1582,7 @@ confidence : high med low
 :depends: t.dtm-26
 :resources:
 :dup: NONE
+:est: 15PD
 
 ------
 
@@ -1572,6 +1597,7 @@ confidence : high med low
 :depends: t.dtm-26
 :resources:
 :dup: NONE
+:est: 15PD
 
 ------
 
@@ -1586,6 +1612,7 @@ confidence : high med low
 :depends: t.dtm-26
 :resources:
 :dup: NONE
+:est: 20PD
 
 ------
 
@@ -1600,6 +1627,7 @@ confidence : high med low
 :depends: t.dtm-26
 :resources:
 :dup: NONE
+:est: 5PD
 
 ------
 
@@ -1614,6 +1642,7 @@ confidence : high med low
 :depends: t.dtm-31
 :resources:
 :dup: NONE
+:est: 15PD
 
 ------
 
@@ -1628,6 +1657,7 @@ confidence : high med low
 :depends: t.dtm-31
 :resources:
 :dup: NONE
+:est: 15PD
 
 ------
 
@@ -1642,6 +1672,7 @@ confidence : high med low
 :depends: NONE
 :resources:
 :dup: NONE
+:est: 5PD
 
 ------
 
@@ -1656,6 +1687,7 @@ confidence : high med low
 :depends: NONE
 :resources:
 :dup: NONE
+:est: 20PD
 
 ------
 
@@ -1670,6 +1702,7 @@ confidence : high med low
 :depends: NONE
 :resources:
 :dup: NONE
+:est: 40PD
 
 ------
 
@@ -1684,6 +1717,7 @@ confidence : high med low
 :depends: t.dtm-observ
 :resources:
 :dup: hare-dtm-recovery
+:est: 50PD
 
 ------
 
@@ -1698,6 +1732,7 @@ confidence : high med low
 :depends: t.dtm-observ
 :resources:
 :dup: s3.use-dtm
+:est: 50PD
 
 ------
 
@@ -1712,6 +1747,7 @@ confidence : high med low
 :depends: t.dtm-ha-int t.dtm-s3-int
 :resources:
 :dup: NONE
+:est: 55PD
 
 ------
 
@@ -1729,7 +1765,7 @@ confidence : high med low
 :depends:
 :resources:
 :dup: NONE
-:est: 168 Person Weeks (33 calander weeks) 
+:est: 168 Person Weeks (33 calander weeks)
 
 ------
 
@@ -2361,7 +2397,7 @@ m0tr tasks for scalability (Anatoliy)
 :req: HW-30 NET-10
 :process: Test suite for performance evaluation
 :depends: Networking Equipment from different vendor
-:resources: 
+:resources:
 :est: S_M med
 
 -------
@@ -2369,12 +2405,12 @@ m0tr tasks for scalability (Anatoliy)
 :id: [t.small-object-performance]
 :name: Increase parallelism in accessing b-tree EMAP
 :detail: Create hash function which will take object ID and point to a b-tree.
-         Store this hash table in metadata. Test perfromance with varying sizes 
+         Store this hash table in metadata. Test perfromance with varying sizes
          of hash entries e.g 128,256,512 and 1024 and conclude on size to use.
 :justification: Will reduce lock contention and help improve performance.
 :component: motr, motr.beck
 :req: SCALE-50
-:process: 
+:process:
 :depends: t.3-node-deploy, t.b-tree-rewrite
 :resources:
 :est: M_M med
@@ -2384,7 +2420,7 @@ m0tr tasks for scalability (Anatoliy)
 :id: [t.small-object-performance]
 :name: Increase parallelism in accessing b-tree CAS
 :detail: Create hash function which will take object ID and point to a b-tree.
-         Store this hash table in metadata. Test perfromance with varying sizes 
+         Store this hash table in metadata. Test perfromance with varying sizes
          of hash entries e.g 128,256,512 and 1024 and conclude on size to use.
          Note: Design of hash function for CAS will need some design work to
          arrive at structure e.g hash for meta b-tree can be created
@@ -2400,7 +2436,7 @@ m0tr tasks for scalability (Anatoliy)
 
 :id: [t.display-md-usage]
 :name: Display near realtime usage of metadata space
-:detail: motr to send updates to notify user of metadata size used. 
+:detail: motr to send updates to notify user of metadata size used.
          Enclosure/Node should go to write protect mode in this scenario.
          There should be no crash of metadata usage is over.
 :justification: metadata usage should be displayed so user is aware of actual
@@ -2408,7 +2444,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: motr, motr.beck
 :req: SCALE-10
 :process:
-:depends: Hare, Messaging, CSM 
+:depends: Hare, Messaging, CSM
 :resources:
 :est: S_M low
 
@@ -2528,7 +2564,7 @@ Assumptions
          to detect recovery completion.
 :justification:
 :component: motr
-:req: 
+:req:
 :process:
 :depends:
 :resources:
@@ -2582,169 +2618,168 @@ Integration
 
 
 -------
-   
+
 :id: [t.integrate-io-error-handling]
 :name: integrate io-error handling in data path
-:author: 
+:author:
 :detail: integrate error handling and possible recovery in normal io path.
 :justification:
 :component: motr.ios
 :req:
 :process: check, integrate, fix
-:depends: 
+:depends:
 :resources:
-:dup: 
+:dup:
 :est: S_S med
 
 ------
 
 :id: [t.integrate-md-error-handling]
 :name: integrate md-error handling in data path
-:author: 
+:author:
 :detail: integrate error handling and possible recovery in normal md io path.
 :justification:
 :component: motr.ios
 :req:
 :process: check, integrate, fix
-:depends: 
+:depends:
 :resources:
-:dup: 
+:dup:
 :est: M_M med
 
 ------
 
 :id: [t.integrate-md-error-handling]
 :name: integrate md-error handling in data path
-:author: 
+:author:
 :detail: integrate error handling and possible recovery in normal md io path.
 :justification:
 :component: motr.ios
 :req:
 :process: check, integrate, fix
-:depends: 
+:depends:
 :resources:
-:dup: 
+:dup:
 :est: M_M med
 
 ------
 
 :id: [t.integrate-balloc]
 :name: integrate balloc in md path
-:author: 
+:author:
 :detail: integrate balloc code to handle both happy and error path in md.
 :justification:
 :component: motr.ios
 :req:
 :process: check, integrate, fix
-:depends: 
+:depends:
 :resources:
-:dup: 
+:dup:
 :est: S_M med
 
 ------
 
 :id: [t.integrate-btree]
 :name: integrate btree in md path
-:author: 
+:author:
 :detail: integrate btree code to handle both happy and error path in md.
 :justification:
 :component: motr.ios
 :req:
 :process: check, integrate, fix
-:depends: 
+:depends:
 :resources:
-:dup: 
+:dup:
 :est: M_M med
 
 ------
 
 :id: [t.integrate-libfabric]
 :name: integrate libfabric code
-:author: 
+:author:
 :detail: integrate libfabric code in the io path.
 :justification:
 :component: motr.ios
 :req:
 :process: check, integrate, fix
-:depends: 
+:depends:
 :resources:
-:dup: 
+:dup:
 :est: S_M med
 
 ------
 
 :id: [t.integrate-intel-isa]
 :name: integrate intel-isa code
-:author: 
+:author:
 :detail: replace libgalois with intel-isa code in the io path.
 :justification:
 :component: motr.ios
 :req:
 :process: check, integrate, fix
-:depends: 
+:depends:
 :resources:
-:dup: 
+:dup:
 :est: S_M med
 
 ------
 
 :id: [t.integrate-multiple-pool-changes]
 :name: integrate code to suppport multiple pools of different configs.
-:author: 
+:author:
 :detail: integrate support for multiple pools in io error path.
 :justification:
 :component: motr.ios
 :req:
 :process: check, integrate, fix
-:depends: 
+:depends:
 :resources:
-:dup: 
+:dup:
 :est: S_M med
 
 ------
 
 :id: [t.integrate-hare-modifications]
 :name: integrate hare changes in motr code.
-:author: 
+:author:
 :detail: integrate hare new/modified notifications in motr code.
 :justification:
 :component: motr.ios
 :req:
 :process: check, integrate, fix
-:depends: 
+:depends:
 :resources:
-:dup: 
+:dup:
 :est: M_M med
 
 ------
 
 :id: [t.integrate-dix]
 :name: integrate dix changes in motr code.
-:author: 
+:author:
 :detail: integrate dix changes for global distribution and global queries in motr.
 :justification:
 :component: motr.ios
 :req:
 :process: check, integrate, fix
-:depends: 
+:depends:
 :resources:
-:dup: 
+:dup:
 :est: S_M med
 
 ------
 
 :id: [t.integrate-motr-uuid]
 :name: integrate changes to get uuid for motr.
-:author: 
+:author:
 :detail: integrate changes to get uuid for motr from a non-kernel uuid provider.
 :justification:
 :component: motr
 :req:
 :process: check, integrate, fix
-:depends: 
+:depends:
 :resources:
-:dup: 
+:dup:
 :est: S_S med
 
 ------
-
