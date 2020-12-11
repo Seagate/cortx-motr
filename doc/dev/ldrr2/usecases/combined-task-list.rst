@@ -31,7 +31,7 @@ confidence : high med low
 :component: motr.ios
 :req: AD-10, AD-20
 :process: check, fix
-:depends:
+:depends: t.deploy-manual-3node
 :resources:
 :dup: NONE
 :est: S_S med
@@ -49,7 +49,7 @@ confidence : high med low
 :component: motr.be
 :req: AD-10, AD-20
 :process: DLD, DLDINSP, CODE, INSP, ST
-:depends:
+:depends: t.deploy-manual-3node
 :resources: Lead by BE expert
 :dup: NONE
 :est: S_M med
@@ -69,7 +69,7 @@ confidence : high med low
 :component: motr.client
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
-:depends:
+:depends: t.deploy-manual-3node
 :resources:
 :dup: NONE
 :est: M_M med
@@ -88,7 +88,7 @@ confidence : high med low
 :component: motr.client, motr.pool, s3
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
-:depends:
+:depends: t.deploy-manual-3node, t.multiple-pools
 :resources:
 :**question**: In a 4+2 pool, if (at most) two of the data/parity units write fail,
            can we claim the write as success?
@@ -108,7 +108,7 @@ confidence : high med low
 :component: motr.client
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
-:depends:
+:depends: t.deploy-manual-3node
 :resources:
 :**question**: Is this a DIX operation?
 :dup: NONE
@@ -142,7 +142,7 @@ confidence : high med low
 :component: s3
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
-:depends:
+:depends: t.io-error-write 
 :resources:
 :dup: NONE
 
@@ -349,7 +349,7 @@ confidence : high med low
 :component: motr.beck
 :req: AD-10, AD-20
 :process:
-:depends:
+:depends: t.b-tree-rewrite
 :resources:
 :dup: NONE
 :est: M_M med
@@ -381,7 +381,7 @@ confidence : high med low
 :component: motr.client
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
-:depends:
+:depends: t.deploy-manual-3node
 :resources:
 :dup: NONE
 :est: S_S med
@@ -398,7 +398,7 @@ confidence : high med low
 :component: motr.ios
 :req: AD-10, AD-20
 :process:
-:depends:
+:depends: t.deploy-manual-3node
 :resources:
 :dup: NONE
 :est: S_S med
@@ -474,13 +474,12 @@ confidence : high med low
 :component: motr.client, motr.ios, motr.sns, dix, cas
 :req: AD-10, AD-20, Possible data protection schemes
 :process:
-:depends:
+:depends: t.deploy-manual-3node
 :resources:
 :dup: NONE
 :est: S_M med
 
 ------
-
 
 
 :id: [t.resends]
@@ -509,7 +508,7 @@ confidence : high med low
 :component: motr
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
-:depends:
+:depends:  t.deploy-manual-3node, t.deploy-manual-6node
 :resources:
 :dup: NONE
 :est: S_M high
@@ -527,7 +526,7 @@ confidence : high med low
 :component: motr.dix, provisioner, s3
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
-:depends:
+:depends:  t.deploy-manual-3node, t.deploy-manual-6node
 :resources:
 :dup: NONE
 :est: S_M high
