@@ -1182,7 +1182,7 @@ From Shankar
 :component: motr, Performance evaluation team
 :req: HW-10
 :process: Test suite for performance evaluation
-:depends: hw
+:depends: hw availability
 :est: S_S med
 
 ------
@@ -1193,9 +1193,9 @@ From Shankar
 :detail:  Test number of active session supported with new hardware 
 :justification: Number of supported active session can get impacted with changes to hardware 
 :component: Motr
-:req: HW-30
+:req: HW-20
 :process:
-:depends:
+:depends:  hw availability
 :resources:
 :est: S_S med
 
@@ -1210,7 +1210,7 @@ From Shankar
 :component: Motr
 :req: SW-20
 :process:
-:depends:
+:depends:  t.lnet-libfabric, t.galois-isa
 :resources:
 :est: S_S high
 
