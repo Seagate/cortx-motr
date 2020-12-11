@@ -637,7 +637,11 @@ confidence : high med low
 :component: motr, hare
 :req: SCALE-30
 :process: deploy, measure.
-:depends:
+:depends: t.deploy-manual-3node, t.deploy-manual-6node, 
+          t.manual-deploy-vm-3-6-12-nodes, t.perf-s3-cache,
+          t.perf-ldap-auth-caching, t.perf-tls-overhead-measure, t.perf-ttfb,
+          t.balloc-perf, t.galois-perf, t.libfabrics-perf, t.btree-perf,
+          t.net-perf
 :resources:
 :dup: NONE
 :est: M_M med
@@ -652,7 +656,7 @@ confidence : high med low
 :component:
 :req: AD-30, MGM-220
 :process:
-:depends:
+:depends:  t.update-rpm-single-node
 :resources:
 :dup: NONE
 :est: M_M med
@@ -667,7 +671,8 @@ confidence : high med low
 :component: motr
 :req: MGM-220
 :process:
-:depends: t.lnet-libfabric (requires kernel module unload otherwise)
+:depends: t.lnet-libfabric (requires kernel module unload otherwise),
+          t.update-rpm-single-node
 :resources:
 :dup: NONE
 :est: S_S high
@@ -682,7 +687,7 @@ confidence : high med low
 :component: motr
 :req: AD-80
 :process:
-:depends:
+:depends:  t.dg-failure-domain
 :resources:
 :dup: NONE
 :est: M_M high
@@ -698,7 +703,7 @@ confidence : high med low
 :component: motr
 :req: AD-90
 :process:
-:depends:
+:depends:  t.dg-failure-domain
 :resources:
 :est: M_M high
 
@@ -712,7 +717,7 @@ confidence : high med low
 :component: motr
 :req: SEC-10
 :process:
-:depends:
+:depends:  t.libfabrics-m0nettest, t.lnet-libfabric
 :resources:
 :est: S_S high
 
@@ -803,7 +808,7 @@ confidence : high med low
 :component: motr, perf, s3
 :req: HW-30
 :process: simple
-:depends: hw
+:depends: hw, t.validate-50gbs-NW-motr
 :resources:
 :est: M_M high
 
@@ -818,7 +823,7 @@ confidence : high med low
 :component: motr, perf
 :req: HW-30
 :process: simple
-:depends: hw
+:depends: hw, t.lnet-libfabric, t.ip-addressing
 :resources:
 :est: M_M high
 
@@ -833,7 +838,7 @@ confidence : high med low
 :component: motr, perf
 :req: SW-40
 :process: simple
-:depends: t.lnet-libfabric
+:depends: t.lnet-libfabric, t.ip-addressing
 :resources:
 :est: S_M high
 
@@ -850,7 +855,7 @@ confidence : high med low
 :component: motr, perf
 :req: SW-40
 :process: simple
-:depends: t.lnet-libfabric
+:depends: t.lnet-libfabric, t.ip-addressing
 :resources:
 :est: M_M med
 
@@ -866,7 +871,7 @@ confidence : high med low
 :component: motr, perf
 :req: SW-40
 :process: simple
-:depends: t.lnet-libfabric
+:depends: t.lnet-libfabric, t.ip-addressing
 :resources:
 :est: M_M med
 
@@ -973,7 +978,8 @@ confidence : high med low
 :component: motr, perf
 :req: SCALE-70
 :process: simple
-:depends: t.3-node-deploy
+:depends: t.3-node-deploy, t.net-perf, t.galois-perf, t.balloc-perf,
+          t.btree-perf, t.net-sw-perf
 :resources:
 :est: M_M med
 
@@ -991,7 +997,8 @@ confidence : high med low
 :component: s3, motr, perf
 :req: SCALE-80
 :process: simple
-:depends: t.3-node-deploy
+:depends: t.3-node-deploy, t.net-perf, t.galois-perf, t.balloc-perf,
+          t.btree-perf, t.net-sw-perf
 :resources:
 :est: M_M med
 
@@ -1142,7 +1149,8 @@ Assumptions
 :component: motr
 :req: 
 :process:
-:depends:
+:depends:  t.dtm-all2all, t.dtm-dtx-fop, t.dtm-cb-fop, t.dtm-epoch, t.dtm-plog,
+           t.dtm-nplog, t.dtm-log-txr, t.dtm-26, t.dtm-27, t.dtm-30
 :resources:
 
 ------
@@ -1155,7 +1163,8 @@ Assumptions
 :component: motr, s3
 :req: SCALE-40, SCALE-50
 :process: check, DLD, DLDINSP, code, INSP, fix
-:depends:
+:depends:  t.perf-s3-cache, t.perf-ldap-auth-caching, t.libfabrics-perf,
+           t.galois-perf, t.balloc-perf, t.btree-perf, t.net-perf
 :resources:
 :est: M_M low
 
@@ -1173,7 +1182,7 @@ From Shankar
 :component: motr, Performance evaluation team
 :req: HW-10
 :process: Test suite for performance evaluation
-:depends:
+:depends: hw
 :est: S_S med
 
 ------
