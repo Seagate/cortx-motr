@@ -53,7 +53,7 @@
     - { version: 2.10.5, enabled: '{{ (redhat_release is version("7.5", "=")) | ternary("yes", "no") }}' }
     - { version: 2.10.8, enabled: '{{ (redhat_release is version("7.6", "=")) | ternary("yes", "no") }}' }
     - { version: 2.12.4, enabled: '{{ (redhat_release is version("7.7", "=")) | ternary("yes", "no") }}' }
-    - { version: 2.12.5, enabled: '{{ (redhat_release is version("7.8", ">=")) | ternary("yes", "no") }}' }
+    - { version: 2.12.5, enabled: '{{ (redhat_release is version("7.8", "=")) | ternary("yes", "no") }}' }
     - { version: 2.12.6, enabled: '{{ (redhat_release is version("7.9", ">=")) | ternary("yes", "no") }}' }
   when: ansible_os_family == 'RedHat'
   tags:
