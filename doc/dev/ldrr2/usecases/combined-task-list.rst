@@ -655,7 +655,7 @@ confidence : high med low
 :component:
 :req: AD-30, MGM-220
 :process:
-:depends:  t.update-rpm-single-node
+:depends:  t.deploy-manual-3node, t.multiple-pools, t.deploy-manual-6node, t.update-rpm-single-node
 :resources:
 :dup: NONE
 :est: M_M med
@@ -686,7 +686,7 @@ confidence : high med low
 :component: motr
 :req: AD-80
 :process:
-:depends:  t.dg-failure-domain
+:depends:  t.dg-failure-domain, t.deploy-manual-3node, t.multiple-pools
 :resources:
 :dup: NONE
 :est: M_M high
@@ -702,7 +702,7 @@ confidence : high med low
 :component: motr
 :req: AD-90
 :process:
-:depends:  t.dg-failure-domain
+:depends:  t.dg-failure-domain, t.deploy-manual-3node
 :resources:
 :est: M_M high
 
@@ -985,7 +985,6 @@ confidence : high med low
 -------
 
 
-****** DUPLICATE 1 ******
 :id: [t.perf-ttfb]
 :name: check ttfb performance
 :author: Madhavrao Vemuri <madhav.vemuri@seagate.com>
@@ -1011,7 +1010,7 @@ confidence : high med low
 :component: motr
 :req: AD-10, AD-20, AD-30
 :process: simple
-:depends: 3 node hw
+:depends: t.3-node-deploy,
 :resources:
 :est: S_M med
 
@@ -1170,10 +1169,6 @@ Assumptions
 ------
 
 
-------------
-From Shankar
-------------
-
 :id: [t.support-different-drive]
 :name: Benchmark and tune performance with different drive types
 :detail: Different drive type can give different performance. Running standard benchmark workload profile and checking if there is any deviation from reference drives and capacity sizes. Check for any special handling for HAMR or SMR drive needs to ne enabled in PODS or 5u84  
@@ -1269,7 +1264,7 @@ From Shankar
 :component: all
 :req: MGM-120, MGM-130
 :process: check, fix
-:depends:  hw availability
+:depends: t.3-node-deploy
 :resources:
 :est: S_M high
 
@@ -1330,7 +1325,7 @@ From Shankar
 :component: motr
 :req: SCALE-10
 :process:
-:depends: hw availability, t.b-tree-rewrite, t.balloc-rewrite, t.lnet-libfabric,
+:depends: t.3-node-deploy, t.b-tree-rewrite, t.balloc-rewrite, t.lnet-libfabric,
           t.galois-isa, t.md-checksum
 :resources:
 :est: M_M med
@@ -2532,7 +2527,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: motr, motr.beck
 :req: SCALE-50
 :process: 
-:depends: VM for implementation and HW for testing
+:depends: t.3-node-deploy
 :resources:
 :est: M_M med
 
@@ -2549,7 +2544,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: motr, motr.beck
 :req: SCALE-50
 :process:
-:depends:  VM for implementation and HW for testing
+:depends: t.3-node-deploy
 :resources:
 :est: M_M med
 
