@@ -1,0 +1,104 @@
+@startuml
+title <b>S3 Get Object - In normal case (with DTM)</b>
+
+actor "S3 client" as S3C #blue
+box "N-1"
+actor m0d1
+database "metaDB1"
+database "DG1-L"
+database "DG1-R"
+endbox
+
+box "N-2"
+actor m0d2
+database "metaDB2"
+database "DG2-L"
+database "DG2-R"
+endbox
+
+box "N-3"
+actor "S3server(Motr client)" as S3 #red
+actor m0d3
+database "metaDB3"
+database "DG3-L"
+database "DG3-R"
+endbox
+
+box "N-4"
+actor m0d4
+database "metaDB4"
+database "DG4-L"
+database "DG4-R"
+endbox
+
+box "N-5"
+actor m0d5
+database "metaDB5"
+database "DG5-L"
+database "DG5-R"
+endbox
+
+box "N-6"
+actor m0d6
+database "metaDB6"
+database "DG6-L"
+database "DG6-R"
+endbox
+
+S3C  --> S3   : Get Object
+
+
+S3   --> m0d3 : lookup account_info
+activate S3
+note right
+Lookup account_info with bucket_name.
+Choose the node with the least network hop
+in the global pool.
+end note
+m0d3 --> "metaDB3" : get_keyval
+activate "metaDB3"
+m0d3 <-  "metaDB3" : key/val returned
+deactivate "metaDB3"
+S3  <-   m0d3      : account_info returned
+
+S3   --> m0d3 : lookup bucket_md
+note right
+Lookup bucket_md with "account/bucket_name".
+Choose the node with the least network hop
+in the global pool. bucket_md contains
+"object list" index.
+end note
+m0d3 --> "metaDB3" : get_keyval
+activate "metaDB3"
+m0d3 <-  "metaDB3" : key/val returned
+deactivate "metaDB3"
+S3  <-   m0d3      : bucket_md returned
+
+S3   --> m0d5 : lookup OID
+note right
+Lookup Motr OID with "bucket_name/object_name" in object_list index.
+This index is stored in one of the storageset, in 1+2 layout.
+Here object_list of this "bucket_name" is stored in storageset 2.
+end note
+m0d5 --> "metaDB5" : get_keyval
+activate "metaDB5"
+m0d5 <-  "metaDB5" : key/val returned
+deactivate "metaDB5"
+S3  <-   m0d5      : OID returned
+
+
+S3  -[#blue]> S3  : Read the object with OID
+note right
+S3server is going to read this Motr object.
+This is covered by another use case.
+This might go to another storageset, not the same storageset on which
+the object_list index resides.
+end note
+
+
+
+|||
+
+S3C <- S3: Object Data
+deactivate S3
+@enduml

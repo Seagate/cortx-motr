@@ -1,0 +1,106 @@
+==============
+HW-10 usecases
+==============
+
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+
+.. list-table::
+   :header-rows: 1
+
+   * - id
+     - feature
+     - description
+     - priority
+   * - hw-10
+     - LR cluster must support Seagate 5U84 RBOD enclosures running the ADAPT
+       firmware with 16TB, 18TB and 20TB drives. Future: support largest drives
+       available from Seagate
+     - The largest capacity drives available from Seagate must be supported also
+     - p0
+
+Use cases
+=========
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-10.full-storage-time]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - an enclosure is to be filled up completely by the tests to verify "no
+       space" conditions.
+   * - **requirements**
+     - filling an enclosure should take reasonable time. It should be estimated.
+   * - **interaction**
+     - Estimate fill-up time.
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-10.drive-rebuild-time]
+   * - **context**
+     - normal system operation
+   * - **trigger**
+     - a drive within an enclosure fails
+   * - **requirements**
+     - rebuild time (which is proportional to the drive size) affects system
+       availability and reliability.
+   * - **interaction**
+     - Estimate rebuild time.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-10.firmware-dev]
+   * - **context**
+     - ldr r2 development
+   * - **trigger**
+     - new type of drive is released by Seagate
+   * - **requirements**
+     -
+   * - **interaction**
+     - firmware should be tested
+     
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-10.firmware-**field**]
+   * - **context**
+     - normal system operation
+   * - **trigger**
+     - release of new version of r2 with new drive support
+   * - **requirements**
+     - firmware should be upgradable
+   * - **interaction**
+     - upgrade process shold upgrade the firmware
+     
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-10.performance]
+   * - **context**
+     - ldr r2 development
+   * - **trigger**
+     - new type of drive is released by Seagate
+   * - **requirements**
+     - supported drives should be tested for performance
+   * - **interaction**
+     - plan performance analysis of new drives in the development schedule
+     

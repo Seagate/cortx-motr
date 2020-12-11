@@ -1,0 +1,108 @@
+==============
+AD-50 usecases
+==============
+
+:author: Huang Hua <hua.huang@seagate.com>
+
+.. list-table::
+   :header-rows: 1
+
+   * - id
+     - feature
+     - description
+     - priority
+   * - AD-50
+     - A StorageSet must allow cluster capacity increments by no more than 3 enclosures
+     -
+     - p0
+
+
+**comments** say that: Motr cluster allows to increment with 3-node storageset.
+This is the minimal number.
+
+
+Use cases
+=========
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-50.motr-increment-by-3-node]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - expand Motr cluster
+   * - **requirements**
+     - While Motr cluster is running, one more 3-node storageset is added online.
+   * - **interaction**
+     - Hare utility is used to bring up the new storageset.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-50.motr-increment-by-3-node-hare]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - expand Motr cluster
+   * - **requirements**
+     - Hare is enhanced to support adding one more storageset. Hare utility, HA messages are enhanced.
+   * - **interaction**
+     -
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-50.motr-increment-by-3-node-conf-update-notification]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - expand Motr cluster
+   * - **requirements**
+     - When new storageset is added, Hare sends out conf update notification to existing More server.
+   * - **interaction**
+     -
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-50.motr-increment-by-3-node-reconf]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - expand Motr cluster
+   * - **requirements**
+     - Motr handles the conf update notification, reconfigures itself to new conf.
+   * - **interaction**
+     -
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-50.motr-increment-by-3-node-global-pool]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - expand Motr cluster
+   * - **requirements**
+     - Global pool should expand to all nodes in all storageset. When new storageset is added, index in global pool
+       is replicated to all nodes.
+   * - **interaction**
+     - See [u.ad-10.bucket_name2account-index-global] and [u.ad-10.account-bucketname2bucket_md-index-global]
+
+

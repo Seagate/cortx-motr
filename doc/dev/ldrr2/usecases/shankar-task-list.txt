@@ -1,0 +1,82 @@
+___________________________________________________________________________________________________
+HW - 10:  Support Largest Drive:
+1. Any special handling for HAMR or SMR drive needs to ne enabled in PODS or 5u84
+2. Handling Asssymetric Strorage Set Part of Cluster
+    - Assuming enclosure in SS are symetric w.r.t capacity
+3. IO distribution based on sizes available/remaining
+
+HW-20: LR cluster must support Supermicro 1U COTS servers 
+1. Test number of active session supported with new hardware
+2. Test perfromance numbers with different server and create benchmark table for customer reference
+
+HW30: LR cluster may include optional certified networking equipment for private interconnect 
+1. Benchmark performance with different newtork equipment
+2. Test number of active session supported with new hardware
+
+HW-70 : Server and network cost shouldn’t exceed Cost requirements (CT-10) 
+1. Cost tering should be created along with performance benchmark to customer can select the best as per their needs?
+___________________________________________________________________________________________________
+SW-10: Lyve Rack must be running on the supported CentOS version 
+1. Build motr with selected CentOS and make sure all unit tests and system tests are passing
+2. Change motr code as per changes to dependency package
+
+SW-20: All 3rd party applications must be running recent, maintained versions  
+1. Check latest verison of libfabric and Intel ISA is used.
+    ( Before final release to QA for testing, validate everything (motr) is working with latest version of software)
+
+SW-30: Any failure of any 3rd party SW component must be detected by CORTX
+1. libfabric: Add code to generate IEM for any unxpected error thrown by libfabric
+    - Dependency : Notify SSPL and CSM for new IEM addition
+
+SW-40: CORTX should have no kernel dependencies  
+1. Lnet task breakdown already done
+2. Remove the need for m0d to get UUID (UUID is received from Kernel)
+
+SW-50 & SW-60: CORTX should use no 3rd party SW unless it is appropriately permissively licensed. Legal recommendations must be followed 
+1. Galois -> ISA
+2. Btree implementation
+3. balloc implementation
+___________________________________________________________________________________________________
+
+NET-10 : It should be possible to connect LR data network to 10G, 25G and 100G networks  
+1. Benchamark performance with netwrok of different speed
+2. Evaluate Perfromance impact with multiple SS with low speed include
+
+NET-20: LR must allow static IPs configuration for all interfaces 
+1. Change in config file for motr for libfabric initialialization
+     - Assuming upagrade will be disruptive 
+____________________________________________________________________________________________________
+SCALE-10: LR cluster should support between 3 and 36 nodes. For P0 test up to 12 nodes config – but it should be possible to deploy a larger cluster. Scale requirements specified below must be tested at least up to 12 nodes 
+<Scaling>
+1. Global meta data to be replicated across all the nodes of cluster
+2. Caching implementation of global metadata to avoid IO access
+3. Update to global metadata should make sure that all node of SS which received request and alreast 1 nodes have acknwoledged update
+4. Create process to make sure one global metadata update is happening at a time in cluster (for exterme corner scenario)
+4. Local meta replicaiton scheme 1+K
+5. Ack local metadata update only when 1+K nodes have acked transaction logged ?
+6. Checksum for key and value. Key and Value to be stored together?
+7. Switch to 2+2 parity scheme for data in case of node failire (confirm with PLM)?
+    - Will avoid need for Data DTM
+8. Any read error in getting metadata to be retired with replicated node
+9. Any error in data write to be ignored with the number of failure is within limits
+10. Any error in read data from DG to be recovery from parity units	
+11. Inteface with Hare for the DTM reapair start
+12. Lock over bucket list table for writing
+       - Some protocol e.g. mark an entry being added temporarily so that other node can't process IO for the same object 
+13. Display metadata used and go to write protect if MD is all used
+____________________________________________________________________________________________________
+SCALE-50 : Read: 1GB/sec, Write: 850MB/sec per node for 256KB objects 
+1. Small object performance: Create Hash list for emap btree access will help to seepup emap access
+2. Small object performance: Evaluate and add Hash list for CAS btree access
+
+
+
+
+
+
+
+
+
+
+
+

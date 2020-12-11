@@ -1,0 +1,283 @@
+==============
+AD-10 usecases
+==============
+
+:author: Huang Hua <hua.huang@seagate.com>
+
+.. list-table::
+   :header-rows: 1
+
+   * - id
+     - feature
+     - description
+     - priority
+   * - AD-10
+     - The cluster should offer 5 9s availability for data and management services.
+     - Less than 6 minutes of service interruption (planned and unplanned) per year.
+     - p0
+
+Use cases
+=========
+
+
+bucket_name -> account
+----------------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.bucket_name2account-index]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - create or query account info by bucket_name.
+   * - **requirements**
+     - the mapping from bucket_name to account info is stored in a known index.
+       a predefined, global known index is used here. Account info is returned.
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from the known index.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.bucket_name2account-index-global]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - access to bucket_name2account-index.
+   * - **requirements**
+     - bucket_name-account-index is created in a global pool. it is using 1+(n-1) layout schema.
+       it is replicated too all nodes in a motr cluster. (n is the number of nodes in motr cluster)
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from this index.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.bucket_name2account-index-local]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - access to bucket_name2account-index.
+   * - **requirements**
+     - bucket_name-account-index access should to go to the local replica (the node
+       on which the motr client (that is s3server) is running).
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from this index.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.bucket_name2account-index-local-fail-retry]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - access to bucket_name2account-index.
+   * - **requirements**
+     - bucket_name-account-index access should go to the local replica. but if local replica
+       is not available (due to any reason, e.g. controller failure, node failure, data corruption),
+       this access will go to other replicas. Retry this until a valid replica is found, or all replicas have
+       been tried then return failure.
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from this index.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.bucket_name2account-index-cache]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - create or query account info by bucket_name.
+   * - **requirements**
+     - The whole key/val pairs can be cached in memory, because this is a 99.99% percent of
+       query.
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from the known index.
+
+
+
+
+account/bucket_name -> bucket_md
+--------------------------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.account-bucketname2bucket_md-index]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - create or query bucket_md with key {account, bucket_name}.
+   * - **requirements**
+     - a bucket_md is maintained for {account, bucket_name}. This is stored in a known index.
+       A record of bucket_md is returned. bucket_md contains an index, its layout id, and pool version.
+       This index is used to have all { s3 object -> motr object} mapping.
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from the known index.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.account-bucketname2bucket_md-index-global]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - access to bucket_md with key {account, bucket_name}.
+   * - **requirements**
+     - The index for this mapping is stored in a global pool. A global pool is 1+(N-1) replicated.
+       N is the number of all nodes in Motr cluster.
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from this index.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.account-bucketname2bucket_md-index-local]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - Access to bucket_md with key {account, bucket_name}.
+   * - **requirements**
+     - Access to "account-bucketname2bucket_md-index" should go to the local replica (the node
+       on which the motr client (that is s3server) is running).
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from this index.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.account-bucketname2bucket_md-index-local-fail-retry]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - Access to bucket_md with key {account, bucket_name}.
+   * - **requirements**
+     - Access to "account-bucketname2bucket_md-index" should go to the local replica. but if local replica
+       is not available (due to any reason, e.g. controller failure, node failure, data corruption),
+       this access will go to other replicas. Retry this until a valid replica is found, or all replicas have
+       been tried then return failure.
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from this index.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.account-bucketname2bucket_md-index-cache]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - create or query bucket_md with key {account, bucket_name}.
+   * - **requirements**
+     - The whole key/val pairs can be cached in memory, because this is mostly a query operation.
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from the known index.
+
+
+
+s3 object -> Motr object
+------------------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.s3_object2motr_object-index]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - create or query "s3 object" -> "Motr object" mapping.
+   * - **requirements**
+     - When s3 clients do object get or put, s3server will query or create "s3 object" -> "Motr object" mapping.
+       This index is stored in one of the storageset pool. This pool uses 1+2 (or 1 + 1) layout. This pool is
+       stored in one of the storage set. So this index is replicated.
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from the this index.
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.s3_object2motr_object-index-local]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - create or query "s3 object" -> "Motr object" mapping.
+   * - **requirements**
+     - When accessing the "s3 object" -> "Motr object" mapping index, the s3server should access the local replica.
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from the this index.
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.s3_object2motr_object-index-fail-retry]
+   * - **context**
+     - cortx system test
+   * - **trigger**
+     - create or query "s3 object" -> "Motr object" mapping.
+   * - **requirements**
+     - When accessing the "s3 object" -> "Motr object" mapping index, if the local replica is not available
+       due to any reason (node failure, controller failure, data corruption, etc.), Motr client library
+       should switch to access other replicas, until a valid replica is found, or all replicas have been tried and
+       then return error.
+   * - **interaction**
+     - s3 server put_keyval() or get_keyval from the this index.
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.ad-10.motr-online-checker]
+   * - **context**
+     - cortx system
+   * - **trigger**
+     - Some type of data corruption is found.
+   * - **requirements**
+     - Motr server starts online meta-data checking and fixing. This should be completed in a short time of period.
+   * - **interaction**
+     -
+
+

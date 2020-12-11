@@ -1,0 +1,98 @@
+==============
+HW-30 usecases
+==============
+
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+
+.. list-table::
+   :header-rows: 1
+
+   * - id
+     - feature
+     - description
+     - priority
+   * - hw-30
+     - LR cluster may include optional certified networking equipment for
+       private interconnect
+     - If such private interconnect is required
+     - p0
+
+Use cases
+=========
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-30.private-interconnect-optional]
+   * - **context**
+     - normal system operation
+   * - **trigger**
+     - optional private interconnect is present
+   * - **requirements**
+     - configuration with and without private interconnect must be tested and
+       supported
+   * - **interaction**
+     - provisioner, motr and s3 must support optional private interconnect
+   * - **assumptions**
+     - alternatives: (0) private interconnect: RDMA and no unencrypted data on
+       public network; (1) no private interconnect: either unencrypted data on
+       public network or loss of performance due to no-RDMA.
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-30.private-interconnect-dynamic]
+   * - **assumptions**
+     - private interconnect can be enabled or disabled on an active system
+   * - **context**
+     - normal system operation
+   * - **trigger**
+     - private interconnect is enabled or disabled
+   * - **requirements**
+     - system should continue operation without downtime
+   * - **interaction**
+     - provisioner, motr and s3 must support activation or de-activation of
+       private interconnect at run-time
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-30.private-interconnect-performance]
+   * - **context**
+     - ldr r2 development
+   * - **trigger**
+     - performance tests
+   * - **requirements**
+     - performance implications of private interconnect must be understood
+   * - **interaction**
+     - benchmark configurations with and without private interconnect
+
+.. list-table::
+   :header-rows: 1
+
+   * - **field**
+     - **value**
+   * - **scenario name**
+     - [u.hw-30.private-interconnect-hybrid]
+   * - **assumptions**
+     - different parts (racks?) of ldr r2 deployment can have different states
+       of interconnect
+   * - **context**
+     - normal system operation
+   * - **trigger**
+     - 
+   * - **requirements**
+     - cortx must support deployment where private interconnect is enabled in
+       some parts of the cluster and disabled in others
+   * - **interaction**
+     - provisioner and motr should support this
+
