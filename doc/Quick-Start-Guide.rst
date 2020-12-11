@@ -16,6 +16,10 @@ The prerequisite that is necessary to install the Motr component is mentioned be
 
   - Different kernel versions that come from Centos7.7 or RHEL7.7 are supported.
 
+- **Ansible** is needed. 
+
+  - Please refer to `Install EPEP repo <https://github.com/Seagate/cortx/blob/main/doc/LocalVMSetup.md#4-you-may-need-to-add-epel-repo>`_.
+
 **********
 Procedure
 **********
@@ -52,6 +56,11 @@ Perform the below mentioned procedure to build the source code.
 
 2. Reboot your system. After reboot, run the following commands to check if the lustre network is functioning accurately.
 
+   - **$ vi /etc/modprobe.d/lnet.conf**
+
+     A proper configuration file is needed for LNet. Please use the command *ip a* to get a list of network interfaces and then modify the *lnet.conf* to use one of the network interfaces. Please refer to the `<#Troubleshooting>`_ section for more information.
+              
+
    - **$ sudo modprobe lnet**
 
    - **$ sudo lctl list_nids**
@@ -69,9 +78,9 @@ RPM Generation
 
 If you want to make sure about generating RPMs, run the below mentioned command.
 
-- $make rpms
+- **$ make rpms**
 
-The following RPMs are generated in the **/root/rpmbuild/RPMS/x86_64** directory.
+The following RPMs are generated in the **/root/rpmbuild/RPMS/x86_64** directory (if running with *root* user).
 
 - cortx-motr-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
 
@@ -92,6 +101,14 @@ Unit Test
   - **$ sudo ./scripts/m0 run-ut**
 
   Running Time (approximate) - 20 to 30 minutes
+
+- To list all available unit tests, run the following command:
+
+  - **$ sudo ./scripts/m0 run-ut -l**
+
+- To run some unit test(s), e.g. "libm0-ut", run the following command:
+
+  - **$ sudo ./scripts/m0 run-ut -t libm0-ut**
 
 Kernel Space Unit Test
 ----------------------
@@ -175,6 +192,8 @@ Troubleshooting
        
         
 Tested by:
+
+- Dec 1, 2020: Huang Hua (hua.huang@seagate.com) in CentOS 7.7.1908
 
 - Nov 25, 2020: Philippe Daniel (CEA) 
 
