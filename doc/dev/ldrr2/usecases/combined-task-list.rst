@@ -31,7 +31,7 @@ confidence : high med low
 :component: motr.ios
 :req: AD-10, AD-20
 :process: check, fix
-:depends:
+:depends: Motr code
 :resources:
 :dup: NONE
 :est: S_S med
@@ -49,7 +49,7 @@ confidence : high med low
 :component: motr.be
 :req: AD-10, AD-20
 :process: DLD, DLDINSP, CODE, INSP, ST
-:depends:
+:depends: Motr code
 :resources: Lead by BE expert
 :dup: NONE
 :est: S_M med
@@ -108,7 +108,7 @@ confidence : high med low
 :component: motr.client
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
-:depends:
+:depends:  t.md-checksum, t.dix-global-replication
 :resources:
 :**question**: Is this a DIX operation?
 :dup: NONE
@@ -126,7 +126,7 @@ confidence : high med low
 :component: motr.client, motr.dtm
 :req: AD-10, AD-20
 :process:
-:depends:
+:depends:  t.dix-global-replication
 :resources:
 :dup: NONE
 :est: S_S high
@@ -142,7 +142,7 @@ confidence : high med low
 :component: s3
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
-:depends:
+:depends:  t.multiple-pools, t.multiple-pools-policy, t.s3-store-object-meta-data
 :resources:
 :dup: NONE
 
