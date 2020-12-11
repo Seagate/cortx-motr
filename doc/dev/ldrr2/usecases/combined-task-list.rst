@@ -32,13 +32,11 @@ confidence : high med low
 :req: AD-10, AD-20
 :process: check, fix
 :depends: t.deploy-manual-3node
-:resources:
+:resources: 1 dev
 :dup: NONE
 :est: S_S med
 
 ------
-
-
 
 :id: [t.io-error-meta-data]
 :name: handle io errors on meta-data device
@@ -50,7 +48,7 @@ confidence : high med low
 :req: AD-10, AD-20
 :process: DLD, DLDINSP, CODE, INSP, ST
 :depends: t.deploy-manual-3node
-:resources: Lead by BE expert
+:resources: Lead by BE expert, 1 dev
 :dup: NONE
 :est: S_M med
 
@@ -69,8 +67,8 @@ confidence : high med low
 :component: motr.client
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
-:depends: t.deploy-manual-3node
-:resources:
+:depends: t.deploy-manual-3node, t.hare-notifications
+:resources: 2 devs
 :dup: NONE
 :est: M_M med
 
@@ -88,7 +86,7 @@ confidence : high med low
 :component: motr.client, motr.pool, s3
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
-:depends: t.deploy-manual-3node, t.multiple-pools
+:depends: t.deploy-manual-3node, t.multiple-pools, t.hare-notifications
 :resources:
 :**question**: In a 4+2 pool, if (at most) two of the data/parity units write fail,
            can we claim the write as success?
@@ -108,7 +106,7 @@ confidence : high med low
 :component: motr.client
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
-:depends:t.deploy-manual-3node, t.md-checksum, t.dix-global-replication
+:depends:t.deploy-manual-3node, t.md-checksum, t.dix-global-replication, t.hare-notifications
 :resources:
 :**question**: Is this a DIX operation?
 :dup: NONE
@@ -126,7 +124,7 @@ confidence : high med low
 :component: motr.client, motr.dtm
 :req: AD-10, AD-20
 :process:
-:depends:  t.dix-global-replication
+:depends:  t.dix-global-replication, t.hare-notifications
 :resources:
 :dup: NONE
 :est: S_S high
@@ -236,7 +234,7 @@ confidence : high med low
 :component: motr.client, provisioner
 :req: SCALE-10, SCALE-40, SCALE-50
 :process:
-:depends:
+:depends: t.N+K+S
 :resources:
 :**question**: I think the Mero in SAGE cluster (some old version of Motr) already
                has multiple-pool support.
@@ -273,7 +271,7 @@ confidence : high med low
 :component: motr.client, provisioner, hare
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
-:depends:
+:depends: t.multiple-pools-policy, t.hare-notifications
 :resources:
 :dup: NONE
 :est: S_S high
@@ -288,7 +286,7 @@ confidence : high med low
 :component: motr.client, provisioner
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
-:depends:
+:depends: t.multiple-pools-policy, t.fsstat
 :resources:
 :dup: NONE
 :est: S_M high
@@ -349,7 +347,7 @@ confidence : high med low
 :component: motr.beck
 :req: AD-10, AD-20
 :process:
-:depends: t.b-tree-rewrite, t.balloc-rewrite, t.md-checksum
+:depends: t.cobs-loc_info, t.avoid-md-cobs, t.b-tree-rewrite, t.balloc-rewrite, t.md-checksum
 :resources:
 :dup: NONE
 :est: M_M med
@@ -429,7 +427,7 @@ confidence : high med low
 :component: hare, motr
 :req: AD-10, AD-20
 :process:
-:depends:
+:depends: t.hare-restart-notification
 :resources:
 :dup: t.dtm-ha-int
 :est: M_M low
@@ -526,7 +524,7 @@ confidence : high med low
 :component: motr.dix, provisioner, s3
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
-:depends:  t.deploy-manual-3node, t.deploy-manual-6node
+:depends: t.dix-global-replication-check, t.deploy-manual-3node, t.deploy-manual-6node
 :resources:
 :dup: NONE
 :est: S_M high
@@ -647,10 +645,10 @@ confidence : high med low
 
 -------
 
-:id: [t.upgrade-non-disruptive]
-:name: non-disruptive 0-downtime upgrade
+:id: [t.update-non-disruptive]
+:name: non-disruptive 0-downtime update
 :author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail: non-disruptive 0-downtime upgrade. What about switch firmware upgrade?
+:detail: non-disruptive 0-downtime update. What about switch firmware update?
 :justification:
 :component:
 :req: AD-30, MGM-220
@@ -662,8 +660,8 @@ confidence : high med low
 
 -------
 
-:id: [t.upgrade]
-:name: motr part of cortx upgrade
+:id: [t.update]
+:name: motr part of cortx update
 :author: Nikita Danilov <nikita.danilov@seagate.com>
 :detail: 
 :justification:
@@ -1041,114 +1039,6 @@ confidence : high med low
 :req:
 :process:
 :depends:
-:resources:
-
-------
-
-
-
-
-=========
-Questions
-=========
-
-:id: [q.object-cleanup]
-:name: when object is discarded and re-created in 2+2, should the old one be
-       cleaned up?
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:to: Dan
-:component:
-:req:
-:depends: t.io-error-write
-:resources:
-
-------
-
-
-
-:id: [q.concurrent-PUT]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:to: Dan
-:component:
-:req:
-:depends:
-:resources:
-
-------
-
-
-
-:id: [q.concurrent-bucket-operation]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:to: Dan
-:component:
-:req:
-:depends:
-:resources:
-
-------
-
-
-
-:id: [q.service dependencies]
-:name: who is tracking service dependencies?
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail: Who re-starts s3 when motr is restarted? pacemaker?
-:to: Dan
-:component:
-:req:
-:depends:
-:resources:
-
-------
-
-
-
-===========
-Assumptions
-===========
-
-:id: [a.no-repair]
-:name: no {SNS, DIX} repair is needed for P0
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:justification: Gregory, Dan
-:component:
-:req:
-:depends:
-:resources:
-
-------
-
-:id: [a.no-regeneration]
-:name: AD-83 will be excepted. 2+2 striping will be used instead.
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail:
-:justification: Gregory, Dan
-:component:
-:req: AD-83
-:depends:
-:resources:
-
-------
-
-:id: [a.dtm-recovery-1]
-:name:
-:author: Nikita Danilov <nikita.danilov@seagate.com>
-:detail: when a motr instance learns that other instance is in recovery, the
-         former sends to the latter at least 1 recovery message. This is needed
-         to detect recovery completion.
-:justification:
-:component: motr
-:req: 
-:process:
-:depends:  t.dtm-all2all, t.dtm-dtx-fop, t.dtm-cb-fop, t.dtm-epoch, t.dtm-plog,
-           t.dtm-nplog, t.dtm-log-txr, t.dtm-26, t.dtm-27, t.dtm-30
 :resources:
 
 ------
@@ -1823,50 +1713,6 @@ Assumptions
 
 ------
 
-
-==========
-Assumption
-==========
-
-:id: [a.dtm-new-people]
-:name:
-:author: anatoliy
-:detail: involvement of new people will reduce my bw down to 60%
-:justification:
-:component: Motr
-:req:
-:process:
-:depends:
-:resources:
-:dup: NONE
-
-------
-
-:id: [a.dtm-anil-bw]
-:name:
-:author: anatoliy
-:detail: Inital bw of Anil will be accounted as 30%
-:justification:
-:component: Motr
-:req:
-:process:
-:depends:
-:resources:
-:dup: NONE
-
-------
-
-:id: [a.dtm-Mehul-bw]
-:name:
-:author: anatoliy
-:detail: Inital bw of Mehul will be accounted as 60%
-:justification:
-:component: Motr
-:req:
-:process:
-:depends:
-:resources:
-:dup: NONE
 
 ------
 
@@ -2581,4 +2427,146 @@ m0tr tasks for scalability (Anatoliy)
 :est: no
 
 ------
+
+=========
+Questions
+=========
+
+:id: [q.object-cleanup]
+:name: when object is discarded and re-created in 2+2, should the old one be
+       cleaned up?
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:to: Dan
+:component:
+:req:
+:depends: t.io-error-write
+:resources:
+
+------
+
+
+
+:id: [q.concurrent-PUT]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:to: Dan
+:component:
+:req:
+:depends:
+:resources:
+
+------
+
+
+
+:id: [q.concurrent-bucket-operation]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:to: Dan
+:component:
+:req:
+:depends:
+:resources:
+
+------
+
+
+
+:id: [q.service dependencies]
+:name: who is tracking service dependencies?
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: Who re-starts s3 when motr is restarted? pacemaker?
+:to: Dan
+:component:
+:req:
+:depends:
+:resources:
+
+------
+
+
+
+===========
+Assumptions
+===========
+
+:id: [a.no-repair]
+:name: no {SNS, DIX} repair is needed for P0
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:justification: Gregory, Dan
+:component:
+:req:
+:depends:
+:resources:
+
+------
+
+:id: [a.no-regeneration]
+:name: AD-83 will be excepted. 2+2 striping will be used instead.
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail:
+:justification: Gregory, Dan
+:component:
+:req: AD-83
+:depends:
+:resources:
+
+------
+
+:id: [a.dtm-recovery-1]
+:name:
+:author: Nikita Danilov <nikita.danilov@seagate.com>
+:detail: when a motr instance learns that other instance is in recovery, the
+         former sends to the latter at least 1 recovery message. This is needed
+         to detect recovery completion.
+:justification:
+:component: motr
+:req: 
+:process:
+:depends:
+:resources:
+
+:id: [a.dtm-new-people]
+:name:
+:author: anatoliy
+:detail: involvement of new people will reduce Anatoliy's bw down to 60%
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+:dup: NONE
+
+------
+
+:id: [a.dtm-Anil-bw]
+:name:
+:author: anatoliy
+:detail: Inital bw of Anil will be accounted as 30%
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+:dup: NONE
+
+------
+
+:id: [a.dtm-Mehul-bw]
+:name:
+:author: anatoliy
+:detail: Inital bw of Mehul will be accounted as 60%
+:justification:
+:component: Motr
+:req:
+:process:
+:depends:
+:resources:
+:dup: NONE
 
