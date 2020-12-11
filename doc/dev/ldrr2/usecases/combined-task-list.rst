@@ -15,7 +15,7 @@ confidence : high med low
 :component: motr, input from s3
 :req: Possible data protection schemes
 :process: simple
-:depends:
+:depends: t.deploy-manual-3node, t.deploy-manual-6node, 
 :resources:
 :dup: NONE
 :est: S_S high
@@ -154,7 +154,7 @@ confidence : high med low
 :justification:
 :component: motr.be
 :req: AD-10, AD-20
-:depends: 
+:depends:
 :resources:
 :dup: NONE
 :est: S_M high
@@ -234,7 +234,7 @@ confidence : high med low
 :component: motr.client, provisioner
 :req: SCALE-10, SCALE-40, SCALE-50
 :process:
-:depends: t.N+K+S
+:depends: t.N+K+S, t.deploy-manual-3node, t.deploy-manual-6node, 
 :resources:
 :**question**: I think the Mero in SAGE cluster (some old version of Motr) already
                has multiple-pool support.
@@ -271,7 +271,7 @@ confidence : high med low
 :component: motr.client, provisioner, hare
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
-:depends: t.multiple-pools-policy, t.hare-notifications
+:depends: t.multiple-pools-policy, t.hare-notifications, t.multiple-pools
 :resources:
 :dup: NONE
 :est: S_S high
@@ -286,7 +286,7 @@ confidence : high med low
 :component: motr.client, provisioner
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
-:depends: t.multiple-pools-policy, t.fsstat
+:depends: t.multiple-pools-policy, t.fsstat, t.multiple-pools
 :resources:
 :dup: NONE
 :est: S_M high
@@ -301,7 +301,7 @@ confidence : high med low
 :component: motr.dtm, s3
 :req: SCALE-10, AD-10, AD-20
 :process:
-:depends:
+:depends: t.dtm-*
 :resources:
 :dup: t.dtm-s3-int
 :est: M_L med
@@ -332,7 +332,7 @@ confidence : high med low
 :component: motr.client
 :req: SCALE-10, AD-10, AD-20
 :process:
-:depends:
+:depends: t.s3-store-object-meta-data
 :resources:
 :dup: NONE
 :est: S_S high
@@ -543,7 +543,7 @@ confidence : high med low
 :component: motr.dtm
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
-:depends:
+:depends: s3?
 :resources:
 :dup: NONE
 :est: M_M low
@@ -558,7 +558,7 @@ confidence : high med low
 :component: motr.dtm, hare
 :req: SCALE-10, SCALE-40, SCALE-50, AD-10, AD-20
 :process:
-:depends:
+:depends: t.dtm-*
 :resources:
 :dup: t.dtm-ha-int
 :est: M_L low
@@ -1269,7 +1269,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: dtx-fop cb-fop
+:depends: t.dtm-dtx-fop t.dtm-cb-fop
 :resources:
 
 ------
@@ -1282,7 +1282,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: deploy-vm
+:depends:
 :resources:
 
 ------
@@ -1295,7 +1295,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: dtm0-srv
+:depends: t.dtm-dtm0-srv
 :resources:
 
 ------
@@ -1308,7 +1308,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: deploy-vm
+:depends:
 :resources:
 
 ------
@@ -1321,7 +1321,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: dtxsm-cli fop-tool
+:depends: t.dtm-dtxsm-cli t.dtm-fop-tool
 :resources:
 
 ------
@@ -1360,7 +1360,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: 13 observ
+:depends: t.dtm-13 t.dtm-observ
 :resources:
 
 ------
@@ -1373,7 +1373,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: dtxsm-cli-wait
+:depends: t.dtm-dtxsm-cli-wait
 :resources:
 
 ------
@@ -1386,7 +1386,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: dtxsm-cli-wait
+:depends: t.dtm-dtxsm-cli-wait
 :resources:
 
 ------
@@ -1399,7 +1399,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: dtxsm-cli-wait
+:depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
 
@@ -1413,7 +1413,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: dtxsm-cli-wait
+:depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
 
@@ -1427,7 +1427,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: 10
+:depends: t.dtm-10
 :resources:
 :dup: NONE
 
@@ -1441,7 +1441,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: 10
+:depends: t.dtm-10
 :resources:
 :dup: NONE
 
@@ -1455,7 +1455,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: deploy-vm
+:depends: NONE
 :resources:
 :dup: NONE
 
@@ -1469,7 +1469,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: dtxsm-cli-wait
+:depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
 
@@ -1483,7 +1483,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: dtxsm-cli-wait
+:depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
 
@@ -1497,7 +1497,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: dtxsm-cli-wait
+:depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
 
@@ -1511,7 +1511,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: dtxsm-cli-wait
+:depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
 
@@ -1525,7 +1525,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: dtxsm-cli-wait
+:depends: t.dtm-dtxsm-cli-wait
 :resources:
 :dup: NONE
 
@@ -1539,7 +1539,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: 26
+:depends: t.dtm-26
 :resources:
 :dup: NONE
 
@@ -1553,7 +1553,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: 26
+:depends: t.dtm-26
 :resources:
 :dup: NONE
 
@@ -1567,7 +1567,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: 26
+:depends: t.dtm-26
 :resources:
 :dup: NONE
 
@@ -1581,7 +1581,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: 26
+:depends: t.dtm-26
 :resources:
 :dup: NONE
 
@@ -1595,7 +1595,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: 26
+:depends: t.dtm-26
 :resources:
 :dup: NONE
 
@@ -1609,7 +1609,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: 31
+:depends: t.dtm-31
 :resources:
 :dup: NONE
 
@@ -1623,7 +1623,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: 31
+:depends: t.dtm-31
 :resources:
 :dup: NONE
 
@@ -1637,7 +1637,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: deploy-vm
+:depends: NONE
 :resources:
 :dup: NONE
 
@@ -1651,7 +1651,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: 1
+:depends: NONE
 :resources:
 :dup: NONE
 
@@ -1665,7 +1665,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: deploy-vm
+:depends: NONE
 :resources:
 :dup: NONE
 
@@ -1679,7 +1679,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: observ
+:depends: t.dtm-observ
 :resources:
 :dup: hare-dtm-recovery
 
@@ -1693,7 +1693,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: observ
+:depends: t.dtm-observ
 :resources:
 :dup: s3.use-dtm
 
@@ -1707,7 +1707,7 @@ confidence : high med low
 :component: Motr
 :req: AD-10, AD-20, AD-30
 :process:
-:depends: ha-int s3-int
+:depends: t.dtm-ha-int t.dtm-s3-int
 :resources:
 :dup: NONE
 
@@ -2190,7 +2190,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: Motr
 :req: SCALE-10, SCALE-40, SCALE-50
 :process:
-:depends: 
+:depends:
 :resources:
 
 ------
@@ -2204,7 +2204,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: Motr
 :req: SCALE-10, SCALE-40, SCALE-50
 :process:
-:depends: 
+:depends:
 :resources:
 
 ------
@@ -2246,7 +2246,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: Motr
 :req: SCALE-10, SCALE-40, SCALE-50
 :process:
-:depends: 
+:depends:
 :resources:
 
 ------
@@ -2274,7 +2274,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: Motr
 :req: SCALE-10, SCALE-40, SCALE-50
 :process:
-:depends: 
+:depends:
 :resources:
 
 ------
@@ -2302,7 +2302,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: Motr
 :req: SCALE-10, SCALE-40, SCALE-50
 :process:
-:depends: 
+:depends:
 :resources:
 
 ------
@@ -2373,7 +2373,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: motr, motr.beck
 :req: SCALE-50
 :process: 
-:depends: t.3-node-deploy
+:depends: t.3-node-deploy, t.b-tree-rewrite
 :resources:
 :est: M_M med
 
@@ -2390,7 +2390,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: motr, motr.beck
 :req: SCALE-50
 :process:
-:depends: t.3-node-deploy
+:depends: t.3-node-deploy, t.b-tree-rewrite
 :resources:
 :est: M_M med
 
