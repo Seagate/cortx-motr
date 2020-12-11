@@ -1134,7 +1134,9 @@ confidence : high med low
 :id: [t.global-md-serialize]
 :name: Serialize global meta-data create in the cluster
 :author: shankar 
-:detail: Create process to make sure one global metadata update is happening at a time in cluster. This will remove corner cases related to network partitions.
+:detail: Create process to make sure one global metadata update is happening at
+         a time in cluster. This will remove corner cases related to network
+         partitions.
 :justification:
 :component: motr, s3
 :req: SCALE-10
@@ -2428,7 +2430,8 @@ m0tr tasks for scalability (Anatoliy)
 
 ------
 
-=========
+
+========
 Questions
 =========
 
@@ -2569,4 +2572,179 @@ Assumptions
 :depends:
 :resources:
 :dup: NONE
+
+-------
+
+
+
+Integration
+-----------
+
+
+-------
+   
+:id: [t.integrate-io-error-handling]
+:name: integrate io-error handling in data path
+:author: 
+:detail: integrate error handling and possible recovery in normal io path.
+:justification:
+:component: motr.ios
+:req:
+:process: check, integrate, fix
+:depends: 
+:resources:
+:dup: 
+:est: S_S med
+
+------
+
+:id: [t.integrate-md-error-handling]
+:name: integrate md-error handling in data path
+:author: 
+:detail: integrate error handling and possible recovery in normal md io path.
+:justification:
+:component: motr.ios
+:req:
+:process: check, integrate, fix
+:depends: 
+:resources:
+:dup: 
+:est: M_M med
+
+------
+
+:id: [t.integrate-md-error-handling]
+:name: integrate md-error handling in data path
+:author: 
+:detail: integrate error handling and possible recovery in normal md io path.
+:justification:
+:component: motr.ios
+:req:
+:process: check, integrate, fix
+:depends: 
+:resources:
+:dup: 
+:est: M_M med
+
+------
+
+:id: [t.integrate-balloc]
+:name: integrate balloc in md path
+:author: 
+:detail: integrate balloc code to handle both happy and error path in md.
+:justification:
+:component: motr.ios
+:req:
+:process: check, integrate, fix
+:depends: 
+:resources:
+:dup: 
+:est: S_M med
+
+------
+
+:id: [t.integrate-btree]
+:name: integrate btree in md path
+:author: 
+:detail: integrate btree code to handle both happy and error path in md.
+:justification:
+:component: motr.ios
+:req:
+:process: check, integrate, fix
+:depends: 
+:resources:
+:dup: 
+:est: M_M med
+
+------
+
+:id: [t.integrate-libfabric]
+:name: integrate libfabric code
+:author: 
+:detail: integrate libfabric code in the io path.
+:justification:
+:component: motr.ios
+:req:
+:process: check, integrate, fix
+:depends: 
+:resources:
+:dup: 
+:est: S_M med
+
+------
+
+:id: [t.integrate-intel-isa]
+:name: integrate intel-isa code
+:author: 
+:detail: replace libgalois with intel-isa code in the io path.
+:justification:
+:component: motr.ios
+:req:
+:process: check, integrate, fix
+:depends: 
+:resources:
+:dup: 
+:est: S_M med
+
+------
+
+:id: [t.integrate-multiple-pool-changes]
+:name: integrate code to suppport multiple pools of different configs.
+:author: 
+:detail: integrate support for multiple pools in io error path.
+:justification:
+:component: motr.ios
+:req:
+:process: check, integrate, fix
+:depends: 
+:resources:
+:dup: 
+:est: S_M med
+
+------
+
+:id: [t.integrate-hare-modifications]
+:name: integrate hare changes in motr code.
+:author: 
+:detail: integrate hare new/modified notifications in motr code.
+:justification:
+:component: motr.ios
+:req:
+:process: check, integrate, fix
+:depends: 
+:resources:
+:dup: 
+:est: M_M med
+
+------
+
+:id: [t.integrate-dix]
+:name: integrate dix changes in motr code.
+:author: 
+:detail: integrate dix changes for global distribution and global queries in motr.
+:justification:
+:component: motr.ios
+:req:
+:process: check, integrate, fix
+:depends: 
+:resources:
+:dup: 
+:est: S_M med
+
+------
+
+:id: [t.integrate-motr-uuid]
+:name: integrate changes to get uuid for motr.
+:author: 
+:detail: integrate changes to get uuid for motr from a non-kernel uuid provider.
+:justification:
+:component: motr
+:req:
+:process: check, integrate, fix
+:depends: 
+:resources:
+:dup: 
+:est: S_S med
+
+------
 
