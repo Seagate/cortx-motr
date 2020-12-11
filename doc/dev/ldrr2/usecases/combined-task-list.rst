@@ -349,7 +349,7 @@ confidence : high med low
 :component: motr.beck
 :req: AD-10, AD-20
 :process:
-:depends: t.b-tree-rewrite
+:depends: t.b-tree-rewrite, t.balloc-rewrite, t.md-checksum
 :resources:
 :dup: NONE
 :est: M_M med
