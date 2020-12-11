@@ -1226,7 +1226,8 @@ From Shankar
 :component: Motr
 :req: SW-30
 :process:
-:depends: Notify SSPL and CSM for new IEM addition
+:depends: Notify SSPL and CSM for new IEM addition, t.lnet-libfabric,
+          t.galois-isa
 :resources:
 :est: S_S high
 
@@ -1254,7 +1255,7 @@ From Shankar
 :component: motr, s3
 :req: SCALE-10
 :process: check, fix
-:depends:
+:depends:  t.dix-global-replication
 :resources:
 :est: no
 
@@ -1269,7 +1270,7 @@ From Shankar
 :component: all
 :req: MGM-120, MGM-130
 :process: check, fix
-:depends:
+:depends:  hw availability
 :resources:
 :est: S_M high
 
@@ -1283,7 +1284,7 @@ From Shankar
 :component: all
 :req: SEC-130
 :process: check, fix
-:depends:
+:depends:  Motr code
 :resources:
 :est: S_M low
 
@@ -1315,7 +1316,7 @@ From Shankar
 :component: all
 :req: SUP-20
 :process: check, fix
-:depends:
+:depends:  Motr code
 :resources:
 :est: S_M med
 
@@ -1330,7 +1331,8 @@ From Shankar
 :component: motr
 :req: SCALE-10
 :process:
-:depends:
+:depends: hw availability, t.b-tree-rewrite, t.balloc-rewrite, t.lnet-libfabric,
+          t.galois-isa, t.md-checksum
 :resources:
 :est: M_M med
 
