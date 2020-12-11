@@ -2531,7 +2531,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: motr, motr.beck
 :req: SCALE-50
 :process: 
-:depends:
+:depends: motr, motr.beck
 :resources:
 :est: M_M med
 
@@ -2543,12 +2543,12 @@ m0tr tasks for scalability (Anatoliy)
          Store this hash table in metadata. Test perfromance with varying sizes 
          of hash entries e.g 128,256,512 and 1024 and conclude on size to use.
          Note: Design of hash function for CAS will need some design work to
-         arrive at structure.
+         arrive at structure e.g hash for meta b-tree can be created
 :justification: Will reduce lock contention and help improve performance.
 :component: motr, motr.beck
 :req: SCALE-50
 :process:
-:depends:
+:depends: motr, motr.beck
 :resources:
 :est: M_M med
 
@@ -2564,7 +2564,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: motr, motr.beck
 :req: SCALE-10
 :process:
-:depends:
+:depends: Hare, Messaging, CSM 
 :resources:
 :est: S_M low
 
