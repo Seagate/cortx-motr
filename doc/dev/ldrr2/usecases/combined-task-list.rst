@@ -2501,7 +2501,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: motr, Performance evaluation team
 :req: HW-20
 :process: Test suite for performance evaluation
-:depends:
+:depends: Different server
 :resources:
 :est: S_M med
 
@@ -2512,12 +2512,12 @@ m0tr tasks for scalability (Anatoliy)
 :detail: Different networking equipment can give different performance. Running
          standard benchmark workload profile and checking if there is any
          deviation from reference networking equipment.
-:justification: Analyzing impact on performance will help customer in server selection.
+:justification: Benchmark will help customer in device selection.
 :component: motr, Performance evaluation team
 :req: HW-30 NET-10
 :process: Test suite for performance evaluation
-:depends:
-:resources:
+:depends: Networking Equipment from different vendor
+:resources: 
 :est: S_M med
 
 -------
@@ -2531,7 +2531,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: motr, motr.beck
 :req: SCALE-50
 :process: 
-:depends: motr, motr.beck
+:depends: VM for implementation and HW for testing
 :resources:
 :est: M_M med
 
@@ -2548,7 +2548,7 @@ m0tr tasks for scalability (Anatoliy)
 :component: motr, motr.beck
 :req: SCALE-50
 :process:
-:depends: motr, motr.beck
+:depends:  VM for implementation and HW for testing
 :resources:
 :est: M_M med
 
