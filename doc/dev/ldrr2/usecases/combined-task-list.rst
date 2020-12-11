@@ -108,7 +108,7 @@ confidence : high med low
 :component: motr.client
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
-:depends: t.deploy-manual-3node
+:depends: t.deploy-manual-3node, t.md-checksum, t.dix-global-replication
 :resources:
 :**question**: Is this a DIX operation?
 :dup: NONE
@@ -126,7 +126,7 @@ confidence : high med low
 :component: motr.client, motr.dtm
 :req: AD-10, AD-20
 :process:
-:depends:
+:depends:  t.dix-global-replication
 :resources:
 :dup: NONE
 :est: S_S high
@@ -142,7 +142,7 @@ confidence : high med low
 :component: s3
 :req: AD-10, AD-20
 :process: HLD, HLDINSP, DLD, DLDINSP, CODE, INSP, ST
-:depends: t.io-error-write 
+:depends: t.io-error-write, t.multiple-pools, t.multiple-pools-policy, t.s3-store-object-meta-data
 :resources:
 :dup: NONE
 
