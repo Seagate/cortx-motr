@@ -1,5 +1,6 @@
 m0nettest.sh
 m0nettestd.sh
+test-libfab.sh
 test-user.sh
 m0netperf.sh
 m0netperfd.sh

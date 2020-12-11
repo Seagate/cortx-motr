@@ -1013,6 +1013,7 @@ AC_CONFIG_FILES([m0t1fs/linux_kernel/st/common.sh],
                 [chmod +x m0t1fs/linux_kernel/st/common.sh])
 AC_CONFIG_FILES([net/test/m0nettest.sh], [chmod +x net/test/m0nettest.sh])
 AC_CONFIG_FILES([net/test/m0nettestd.sh], [chmod +x net/test/m0nettestd.sh])
+AC_CONFIG_FILES([net/test/test-libfab.sh], [chmod +x net/test/test-libfab.sh])
 AC_CONFIG_FILES([net/test/test-user.sh], [chmod +x net/test/test-user.sh])
 AC_CONFIG_FILES([net/test/st/st-config.sh], [chmod +x net/test/st/st-config.sh])
 AC_CONFIG_FILES([net/test/demo/demo-config.sh], [chmod +x net/test/demo/demo-config.sh])

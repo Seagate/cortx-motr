@@ -22,15 +22,14 @@
 
 #pragma once
 
-#ifndef __MOTR_NET_LIBFAB_INTERVAL_H__
-#define __MOTR_NET_LIBFAB_INTERVAL_H__
+#ifndef __MOTR_NET_LIBFAB_H__
+#define __MOTR_NET_LIBFAB_H__
 
-#include "rdma/fi_eq.h"
-#include "rdma/fi_domain.h"
-#include "rdma/fi_endpoint.h"
-#include "rdma/fabric.h"
 
 extern struct m0_net_xprt m0_net_libfab_xprt;
+
+M0_INTERNAL int  m0_net_libfab_init(void);
+M0_INTERNAL void m0_net_libfab_fini(void);
 
 /**
  * @defgroup netlibfab
@@ -38,19 +37,8 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  * @{
  */
 
-struct m0_fab__dom_param {
-	struct fi_info    *fab_fi;      /* Fabric info */
-	struct fi_info    *fab_hints;   /* Fabric info to configure flags */
-	struct fid_fabric *fab_fabric;  /* Fabric fid */
-	struct fid_domain *fab_domain;  /* Domain fid */
-};
-
-struct libfab_params {
-	struct fid_mr     *mr; 	/* Memory region to be registered */
-};
-
 /** @} end of netlibfab group */
-#endif /* __MOTR_NET_LIBFAB_INTERVAL_H__ */
+#endif /* __MOTR_NET_LIBFAB_H__ */
 
 /*
  *  Local variables:
