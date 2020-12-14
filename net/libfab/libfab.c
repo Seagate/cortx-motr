@@ -80,6 +80,7 @@ enum m0_fab__mr_params {
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
 	struct m0_fab__dom_param *fab_dom;
+	struct fi_info           *fab_hints;
 	int 			  rc;
 
 	M0_ENTRY();
@@ -88,16 +89,16 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	if (fab_dom == NULL)
 		return M0_RC(-ENOMEM);
 
-	fab_dom->fdp_hints = fi_allocinfo();
-	if (fab_dom->fdp_hints != NULL) {
+	fab_hints = fi_allocinfo();
+	if (fab_hints != NULL) {
 		/*
 		* TODO: Added for future use
-		* fab_dom->fdp_hints->ep_attr->type = FI_EP_RDM;
-		* fab_dom->fdp_hints->caps = FI_MSG;
-		* fab_dom->fdp_hints->fabric_attr->prov_name = "verbs";
+		* fab_hints->ep_attr->type = FI_EP_RDM;
+		* fab_hints->caps = FI_MSG;
+		* fab_hints->fabric_attr->prov_name = "verbs";
 		*/
 		rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
-				NULL, NULL, 0, fab_dom->fdp_hints,
+				NULL, NULL, 0, fab_hints,
 				&fab_dom->fdp_fi);
 		if (rc == FI_SUCCESS) {
 			rc = fi_fabric(fab_dom->fdp_fi->fabric_attr,
@@ -113,9 +114,9 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 
 		if ( rc != FI_SUCCESS)
 		{
-			fi_freeinfo(fab_dom->fdp_hints);
 			m0_free(fab_dom);
 		}
+		fi_freeinfo(fab_hints);
 	} else 
 		rc = M0_ERR(-ENOMEM); 
 
@@ -145,12 +146,6 @@ static void libfab_fab_param_free(struct m0_fab__dom_param *fab_dom)
 		fi_freeinfo(fab_dom->fdp_fi);
 		fab_dom->fdp_fi = NULL;
 	}
-
-	if (fab_dom->fdp_hints != NULL) {
-		fi_freeinfo(fab_dom->fdp_hints);
-		fab_dom->fdp_hints = NULL;
-	}
-
 }
 
 /** Used as m0_net_xprt_ops::xo_dom_fini(). */

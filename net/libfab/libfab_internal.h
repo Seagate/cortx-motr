@@ -44,7 +44,6 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  */
 struct m0_fab__dom_param {
 	struct fi_info       *fdp_fi;      /* Fabric info */
-	struct fi_info       *fdp_hints;   /* Fabric info to configure flags */
 	struct fid_fabric    *fdp_fabric;  /* Fabric fid */
 	struct fid_domain    *fdp_domain;  /* Domain fid */
 };
