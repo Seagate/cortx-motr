@@ -1,4 +1,4 @@
-Build and test environment for Motr
+Build and Test Environment for Motr
 ===================================
 
 * [Quick Start (MacOS)](#quick-start-macos)
@@ -170,7 +170,13 @@ Quick Start (Windows)
       git config --global core.autocrlf input
       ```
 
-    - Clone Motr repository somewhere, just as an example let's say it's in `$HOME/src/motr`
+    - Clone Motr repository somewhere, just as an example let's say it's in `$HOME/src/motr`:
+
+      ```bash
+      mkdir -p src
+      cd src
+      git clone --recursive git@github.com:Seagate/cortx-motr.git motr
+      ```
 
     - Create a persistent alias for `m0vg` script:
 
@@ -188,11 +194,18 @@ Quick Start (Windows)
 
     - Follow the steps from _Run_ section under _Quick Start (MacOS)_ above.
 
-      > *NOTE*: during `m0vg up cmu` command execution you may be asked to enter
+      > *NOTE*: during `m0vg up <node>` command execution you may be asked to enter
       > your Windows username and password, and then grant permissions for
-      > creating Windows shared directory - that is required to enable
-      > passwordless ssh access from _cmu_ VM to other VMs, it will be asked
-      > only once when creating _cmu_ VM for the first time.
+      > creating Windows shared directory. To avoid manually entering the
+      > credentials for every node, set SMB_USERNAME/SMB_PASSWORD environment
+      > variables with the correspondent values. Note: make sure SMB_PASSWORD is
+      > not saved to your bash history for security reasons. Hint: set
+      > HISTCONTROL=ignoreboth in your ~/.bash_profile and when setting the
+      > SMB_PASSWORD env variable - add space in the beginning of the line:
+      > ```bash
+      > $ <add-space-here> export SMB_PASSWORD=<your-password>
+      > ```
+      > The command won't be saved in your history of commands then.
 
 Overview
 --------
