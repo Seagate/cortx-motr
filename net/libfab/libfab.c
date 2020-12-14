@@ -87,38 +87,40 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	
 	M0_ALLOC_PTR(fab_dom);
 	if (fab_dom == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	fab_hints = fi_allocinfo();
-	if (fab_hints != NULL) {
-		/*
-		* TODO: Added for future use
-		* fab_hints->ep_attr->type = FI_EP_RDM;
-		* fab_hints->caps = FI_MSG;
-		* fab_hints->fabric_attr->prov_name = "verbs";
-		*/
-		rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
-				NULL, NULL, 0, fab_hints,
-				&fab_dom->fdp_fi);
-		if (rc == FI_SUCCESS) {
-			rc = fi_fabric(fab_dom->fdp_fi->fabric_attr,
-				       &fab_dom->fdp_fabric, NULL);
-			if (rc == FI_SUCCESS) {
-				rc = fi_domain(fab_dom->fdp_fabric,
-					       fab_dom->fdp_fi,
-					       &fab_dom->fdp_domain, NULL);
-				if (rc == FI_SUCCESS)
-					dom->nd_xprt_private = fab_dom;
-			}
-		}
+	if (fab_hints == NULL) {
+		 m0_free(fab_dom);
+		return M0_ERR(-ENOMEM); 
+	}
 
-		if ( rc != FI_SUCCESS)
-		{
-			m0_free(fab_dom);
+	/*
+	* TODO: Added for future use
+	* fab_hints->ep_attr->type = FI_EP_RDM;
+	* fab_hints->caps = FI_MSG;
+	* fab_hints->fabric_attr->prov_name = "verbs";
+	*/
+	rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
+			NULL, NULL, 0, fab_hints,
+			&fab_dom->fdp_fi);
+	if (rc == FI_SUCCESS) {
+		rc = fi_fabric(fab_dom->fdp_fi->fabric_attr,
+			       &fab_dom->fdp_fabric, NULL);
+		if (rc == FI_SUCCESS) {
+			rc = fi_domain(fab_dom->fdp_fabric,
+				       fab_dom->fdp_fi,
+				       &fab_dom->fdp_domain, NULL);
+			if (rc == FI_SUCCESS)
+				dom->nd_xprt_private = fab_dom;
 		}
-		fi_freeinfo(fab_hints);
-	} else 
-		rc = M0_ERR(-ENOMEM); 
+	}
+
+	if ( rc != FI_SUCCESS)
+	{
+		m0_free(fab_dom);
+	}
+	fi_freeinfo(fab_hints);
 
 	return M0_RC(rc);
 }
