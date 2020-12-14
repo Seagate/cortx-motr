@@ -624,9 +624,8 @@ M0_INTERNAL void m0_ctg_try_init(struct m0_cas_ctg *ctg);
  *
  * Should be called after m0_ctg_drop().
  */
-M0_INTERNAL int m0_ctg_fini(struct m0_ctg_op  *ctg_op,
-			    struct m0_cas_ctg *ctg,
-			    int                next_phase);
+M0_INTERNAL void m0_ctg_fini(struct m0_fom     *fom0,
+			     struct m0_cas_ctg *ctg);
 
 /**
  * Calculates credits necessary to move catalogue to "dead index" catalogue.
