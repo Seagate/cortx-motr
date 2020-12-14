@@ -82,7 +82,7 @@ struct transfer_ma {
 static int libfab_ep_res_init(struct m0_fab__dom_param *fab,
 			      struct m0_fab__ep_param *ep,
 			      struct m0_fab__ep_res *ep_res);
-static void libfab_ep_addr_decode(const char *ep_name, char *node, char *port);
+static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port);
 static int libfab_ep_find(const char *name, struct m0_net_transfer_mc *tm, 
 			  struct m0_net_end_point **epp);
 static void libfab_fab_param_free(struct m0_fab__dom_param *fab);
@@ -92,13 +92,26 @@ static void libfab_ep_param_free(struct m0_fab__ep_param *ep);
 static void libfab_ep_res_free(struct m0_fab__ep_res *ep_res);
 #endif /* #if 0 */
 
-static void libfab_ep_addr_decode(const char *ep_name, char *node, char *port)
+static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port)
 {
-	/* TODO : EOS-15552 */
-	M0_ENTRY();
+	char  *cp = strchr(ep_name, ':');
+	size_t n  = cp - ep_name;
+	int    rc = 0;
 
-	node = default_node;
-	port = default_port;
+	if (cp == NULL || n == 0 || ep_name == NULL)
+		return M0_ERR(-EINVAL);
+
+	M0_ENTRY("ep_name=%s", ep_name);
+
+	memcpy(node, ep_name, n);
+	node[n] = 0;
+
+	++cp;
+	n=strlen(cp);
+	memcpy(port, cp, n);
+	port[n] = 0;
+
+        return M0_RC(rc);
 }
 
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
