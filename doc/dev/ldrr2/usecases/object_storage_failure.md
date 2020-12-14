@@ -32,7 +32,10 @@ CORTX R2 will have following characteristics
    - e.g In above figure Node 1 from Storage Set 1 can server read request for object stored in Storage Set 2
 
 ### Storage-Set
-Storage set
+The figure below shows the details of storage set
+![Storage Set Details](images/StorageSetDetails.JPG)
+
+### Failure Domain
 
 # Function-Requirement
 This section will list all the functional requirement for motr scaleout architecture
