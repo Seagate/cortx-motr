@@ -126,29 +126,29 @@ static void libfab_fab_param_free(struct m0_fab__dom_param *fab_dom)
 {
 	int    ret;
 
-	if (fab_dom->fab_domain != NULL) {
-		ret = fi_close(&(fab_dom->fab_domain)->fid);
+	if (fab_dom->fdp_domain != NULL) {
+		ret = fi_close(&(fab_dom->fdp_domain)->fid);
 		if (ret != FI_SUCCESS)
-			M0_LOG(M0_ERROR, "fab_domain fi_close ret=%d fid=%d",
-			       ret, (int)(fab_dom->fab_domain)->fid.fclass);
+			M0_LOG(M0_ERROR, "fdp_domain fi_close ret=%d fid=%d",
+			       ret, (int)(fab_dom->fdp_domain)->fid.fclass);
 	}
 
-	if (fab_dom->fab_fabric != NULL) {
-		ret = fi_close(&(fab_dom->fab_fabric)->fid);
+	if (fab_dom->fdp_fabric != NULL) {
+		ret = fi_close(&(fab_dom->fdp_fabric)->fid);
 		if (ret != FI_SUCCESS)
-			M0_LOG(M0_ERROR, "fab_fabric fi_close ret=%d fid=%d",
-			       ret, (int)(fab_dom->fab_fabric)->fid.fclass);
-		fab_dom->fab_fabric = NULL;
+			M0_LOG(M0_ERROR, "fdp_fabric fi_close ret=%d fid=%d",
+			       ret, (int)(fab_dom->fdp_fabric)->fid.fclass);
+		fab_dom->fdp_fabric = NULL;
 	}
 
-	if (fab_dom->fab_fi != NULL) {
-		fi_freeinfo(fab_dom->fab_fi);
-		fab_dom->fab_fi = NULL;
+	if (fab_dom->fdp_fi != NULL) {
+		fi_freeinfo(fab_dom->fdp_fi);
+		fab_dom->fdp_fi = NULL;
 	}
 
-	if (fab_dom->fab_hints != NULL) {
-		fi_freeinfo(fab_dom->fab_hints);
-		fab_dom->fab_hints = NULL;
+	if (fab_dom->fdp_hints != NULL) {
+		fi_freeinfo(fab_dom->fdp_hints);
+		fab_dom->fdp_hints = NULL;
 	}
 
 }

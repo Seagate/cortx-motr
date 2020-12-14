@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef __LIBFAB_INTERNAL_H__
-#define __LIBFAB_INTERNAL_H__
+#ifndef __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__
+#define __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__
 
 #include "rdma/fi_eq.h"
 #include "rdma/fi_domain.h"
@@ -60,7 +60,7 @@ struct m0_fab__buf_params {
 };
 
 /** @} end of netlibfab group */
-#endif /* __LIBFAB_INTERNAL_H__ */
+#endif /* __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__ */
 
 /*
  *  Local variables:
