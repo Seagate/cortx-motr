@@ -42,16 +42,20 @@
   ignore_errors: yes
   tags: ssh
 
-- name: authorize SSH jumphost pub key on {{ inventory_hostname }} host
+- name: authorize SSH jumphost pub key on {{ inventory_hostname }} host for root
   authorized_key:
-    user:  '{{ item }}'
+    user:  root
     state: present
     key:   '{{ lookup("file", ssh_jumphost_pub_key_file) }}'
-  with_items:
-    - '{{ ansible_user }}'
-    # Motr cluster tools require a direct root access to nodes, so adding jumphost
-    # pub key for root as well
-    - root
+  # don't panic if pub key doesn't exist, ignore it
+  ignore_errors: yes
+  tags: ssh
+
+- name: authorize SSH jumphost pub key on {{ inventory_hostname }} host for ansible_user
+  authorized_key:
+    user:  '{{ ansible_user }}'
+    state: present
+    key:   '{{ lookup("file", ssh_jumphost_pub_key_file) }}'
   # don't panic if pub key doesn't exist, ignore it
   ignore_errors: yes
   tags: ssh
