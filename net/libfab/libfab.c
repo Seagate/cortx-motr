@@ -105,8 +105,7 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 					       fab_dom->fab_fi,
 					       &fab_dom->fab_domain, NULL);
 				if (rc == FI_SUCCESS)
-					dom->nd_xprt_private = 
-							    fab_dom->fab_domain;
+					dom->nd_xprt_private = fab_dom;
 			}
 		}
 		fi_freeinfo(fab_dom->fab_hints);
@@ -116,15 +115,47 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	return M0_RC(rc);
 }
 
+static void libfab_fab_param_free(struct m0_fab__dom_param *fab_dom)
+{
+	int    ret;
+
+	if (fab_dom->fab_domain != NULL) {
+		ret = fi_close(&(fab_dom->fab_domain)->fid);
+		if (ret != FI_SUCCESS)
+			M0_LOG(M0_ERROR, "fab_domain fi_close ret=%d fid=%d",
+			       ret, (int)(fab_dom->fab_domain)->fid.fclass);
+	}
+
+	if (fab_dom->fab_fabric != NULL) {
+		ret = fi_close(&(fab_dom->fab_fabric)->fid);
+		if (ret != FI_SUCCESS)
+			M0_LOG(M0_ERROR, "fab_fabric fi_close ret=%d fid=%d",
+			       ret, (int)(fab_dom->fab_fabric)->fid.fclass);
+		fab_dom->fab_fabric = NULL;
+	}
+
+	if (fab_dom->fab_fi != NULL) {
+		fi_freeinfo(fab_dom->fab_fi);
+		fab_dom->fab_fi = NULL;
+	}
+
+	if (fab_dom->fab_hints != NULL) {
+		fi_freeinfo(fab_dom->fab_hints);
+		fab_dom->fab_hints = NULL;
+	}
+
+}
+
 /** Used as m0_net_xprt_ops::xo_dom_fini(). */
 static void libfab_dom_fini(struct m0_net_domain *dom)
 {
+	struct m0_fab__dom_param *fab_dom = dom->nd_xprt_private;
+
 	M0_ENTRY();
-	/*
-	* TODO
-	* fi_close()
-	* Check if other are required refer pp_free_res()
-	*/
+
+	libfab_fab_param_free(fab_dom);
+	dom->nd_xprt_private = NULL;
+
 	M0_LEAVE();
 }
 
