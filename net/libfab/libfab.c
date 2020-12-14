@@ -63,24 +63,18 @@
 #include "libfab_internal.h"
 #include <errno.h>
 
-
-/** Network transfer machine */
-struct transfer_ma {
-	/**
-	* Generic transfer machine with buffer queues, etc. 
-	*/
-	struct m0_net_transfer_mc *t_ma;
-
-	/**
-	* TODO: Is poller thread required ?
-	*/
+/** Parameters required for libfabric configuration */
+enum m0_fab__mr_params {
+	/** Fabric memory access. */
+	FAB_MR_ACCESS  = (FI_READ | FI_WRITE | FI_RECV | FI_SEND | \
+			FI_REMOTE_READ | FI_REMOTE_WRITE),
+	/** Fabric memory offset. */
+	FAB_MR_OFFSET  = 0,
+	/** Fabric memory flag. */
+	FAB_MR_FLAG    = 0,
+	/** Key used for memory registration. */
+	FAB_MR_KEY     = 0XABCD,
 };
-
-#define FAB_MR_ACCESS  (FI_READ | FI_WRITE | FI_RECV | FI_SEND | \
-			FI_REMOTE_READ | FI_REMOTE_WRITE)
-#define FAB_MR_OFFSET   0
-#define FAB_MR_FLAG     0
-#define FAB_MR_KEY      0XABCD
 
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
@@ -94,30 +88,29 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	if (fab_dom == NULL)
 		return M0_RC(-ENOMEM);
 
-	fab_dom->fab_hints = fi_allocinfo();
-	if (fab_dom->fab_hints != NULL) {
+	fab_dom->fdp_hints = fi_allocinfo();
+	if (fab_dom->fdp_hints != NULL) {
 		/*
 		* TODO: Added for future use
-		* fab_dom->fab_hints->ep_attr->type = FI_EP_RDM;
-		* fab_dom->fab_hints->caps = FI_MSG;
-		* fab_dom->fab_hints->fabric_attr->prov_name = "verbs";
+		* fab_dom->fdp_hints->ep_attr->type = FI_EP_RDM;
+		* fab_dom->fdp_hints->caps = FI_MSG;
+		* fab_dom->fdp_hints->fabric_attr->prov_name = "verbs";
 		*/
 		rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
-				NULL, NULL, 0, fab_dom->fab_hints,
-				&fab_dom->fab_fi);
+				NULL, NULL, 0, fab_dom->fdp_hints,
+				&fab_dom->fdp_fi);
 		if (rc == FI_SUCCESS) {
-			rc = fi_fabric(fab_dom->fab_fi->fabric_attr,
-				       &fab_dom->fab_fabric, NULL);
+			rc = fi_fabric(fab_dom->fdp_fi->fabric_attr,
+				       &fab_dom->fdp_fabric, NULL);
 			if (rc == FI_SUCCESS) {
-				rc = fi_domain(fab_dom->fab_fabric,
-					       fab_dom->fab_fi,
-					       &fab_dom->fab_domain, NULL);
+				rc = fi_domain(fab_dom->fdp_fabric,
+					       fab_dom->fdp_fi,
+					       &fab_dom->fdp_domain, NULL);
 				if (rc == FI_SUCCESS)
 					dom->nd_xprt_private = 
-							    fab_dom->fab_domain;
+							    fab_dom->fdp_domain;
 			}
 		}
-		fi_freeinfo(fab_dom->fab_hints);
 	} else 
 		rc = M0_ERR(-ENOMEM); 
 
@@ -226,9 +219,9 @@ static int libfab_end_point_create(struct m0_net_end_point **epp,
  */
 static int libfab_buf_register(struct m0_net_buffer *nb)
 {
-	int			  ret;
-	struct fid_domain	 *domain = nb->nb_dom->nd_xprt_private;
-	struct libfab_buf_params *bp;
+	int			      ret;
+	struct fid_domain	     *domain = nb->nb_dom->nd_xprt_private;
+	struct m0_fab__buf_params    *bp;
 
 	M0_PRE(nb->nb_xprt_private == NULL);
 
@@ -237,16 +230,15 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 		return M0_ERR(-ENOMEM);
 
 	nb->nb_xprt_private = bp;
-	bp->xb_nb = nb;
+	bp->fbp_nb = nb;
 	/* Registers buffer that can be used for send/recv and local/remote RMA. */
 	ret = fi_mr_reg(domain, nb->nb_buffer.ov_buf[0], nb->nb_length,
 			FAB_MR_ACCESS, FAB_MR_OFFSET, FAB_MR_KEY,
-			FAB_MR_FLAG, &bp->mr, NULL);	
+			FAB_MR_FLAG, &bp->fbp_mr, NULL);	
 	if (ret == FI_SUCCESS)
-		ret = fi_mr_enable(bp->mr);	
+		ret = fi_mr_enable(bp->fbp_mr);	
 	return M0_RC(ret);
 }
-
 
 /**
  * Deregister a network buffer.
@@ -257,10 +249,10 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
  */
 static void libfab_buf_deregister(struct m0_net_buffer *nb)
 {
-	struct libfab_buf_params *bp = nb->nb_xprt_private;
-	int			  ret;
+	struct m0_fab__buf_params *bp = nb->nb_xprt_private;
+	int			   ret;
 
-	ret = fi_close(&bp->mr->fid);
+	ret = fi_close(&bp->fbp_mr->fid);
 	if (ret == FI_SUCCESS) {
 		m0_free(bp);
 		nb->nb_xprt_private = NULL;

@@ -43,10 +43,10 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  * 
  */
 struct m0_fab__dom_param {
-	struct fi_info    *fab_fi;      /* Fabric info */
-	struct fi_info    *fab_hints;   /* Fabric info to configure flags */
-	struct fid_fabric *fab_fabric;  /* Fabric fid */
-	struct fid_domain *fab_domain;  /* Domain fid */
+	struct fi_info       *fdp_fi;      /* Fabric info */
+	struct fi_info       *fdp_hints;   /* Fabric info to configure flags */
+	struct fid_fabric    *fdp_fabric;  /* Fabric fid */
+	struct fid_domain    *fdp_domain;  /* Domain fid */
 };
 
 
@@ -54,12 +54,9 @@ struct m0_fab__dom_param {
  *    Private data pointed to by m0_net_buffer::nb_xprt_private.
  * 
  */
-struct libfab_buf_params {
-        /** Pointer back to the network buffer */
-        struct m0_net_buffer   *xb_nb;  
-        /** libfab memory region */
-        struct fid_mr           *mr;
-
+struct m0_fab__buf_params {
+        struct m0_net_buffer   *fbp_nb; /* Pointer back to the network buffer */
+        struct fid_mr          *fbp_mr; /* Libfab memory region */
 };
 
 /** @} end of netlibfab group */
