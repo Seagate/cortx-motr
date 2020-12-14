@@ -300,6 +300,16 @@
     - lustre-devel
     - lustre
 
+- name: install libfab
+  block:
+    - name: install libfabric
+      yum:
+        name: libfabric-devel
+        state: latest
+  when: ansible_os_family == 'RedHat'
+  tags:
+    - libfab
+
 - name: build mscgen from src rpm
   block:
     - name: download mscgen src rpm
