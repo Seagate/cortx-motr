@@ -137,7 +137,11 @@ AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
 AH_TEMPLATE([ENABLE_LIBFAB],          [Enable Libfabric network stack ])
+<<<<<<< HEAD
 AH_TEMPLATE([ENABLE_GCCXML],          [Use deprecated GCC-XML instead of CastXML])
+=======
+AH_TEMPLATE([ENABLE_CASTXML],         [Use CastXML instead of GCC-XML])
+>>>>>>> EOS-14568 Libfab: Create net layer framework for libfabric integration (#207)
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
 AH_TEMPLATE([ENABLE_RELEASE],         [Enable release mode (this has the same effect as --disable-dev-mode).])
@@ -794,12 +798,15 @@ AS_IF([test x$with_lustre != xno],[
 # Checking libfabric library----------------------------------------------- {{{1
 #
 
+<<<<<<< HEAD
 AC_ARG_ENABLE([libfab],
         [AS_HELP_STRING([--enable-libfab],
                         [Use libfabric transport])],
         [],[enable_libfab=yes]
 )
 
+=======
+>>>>>>> EOS-14568 Libfab: Create net layer framework for libfabric integration (#207)
 AC_ARG_WITH([libfab],
         [AS_HELP_STRING([--with-libfab=path],
                         [set path to user installed libfabric headers and library])],
@@ -807,6 +814,7 @@ AC_ARG_WITH([libfab],
         [LIBFABRIC=""]
 )
 
+<<<<<<< HEAD
 AS_IF([! test -z "$with_libfab"],
       [
         LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
@@ -823,12 +831,32 @@ AS_IF([test x$enable_libfab = xyes],
 		AC_MSG_ERROR([rdma/fabric.h is not found. Try to install libfabric package])
           )
         M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
+=======
+AC_DEFINE([ENABLE_LIBFAB])
+
+AS_IF([test x$with_libfab != xno && ! test -z "$with_libfab"],
+      [
+        LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
+        LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
+        M0_CPPFLAGS="$M0_CPPFLAGS $LIB_FAB_INCLUDES"
+      ],[
+	MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
+                  [fi_fabric cannot be found! Try to install libfabric-devel package]
+          )
+	AC_CHECK_HEADERS([rdma/fabric.h], [],
+		AC_MSG_ERROR([rdma/fabric.h is not found. Try to install libfabric-devel package])
+          )
+>>>>>>> EOS-14568 Libfab: Create net layer framework for libfabric integration (#207)
       ]
 )
 
 AC_SUBST([LIBFAB_LIBS])
 AM_CONDITIONAL([ENABLE_LIBFAB],
+<<<<<<< HEAD
                [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
+=======
+               [test x$with_libfab != xno && ! test -z "$LIBFAB_LIBS"])
+>>>>>>> EOS-14568 Libfab: Create net layer framework for libfabric integration (#207)
 
 #
 # Checking Lustre --------------------------------------------------------- {{{1
