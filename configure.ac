@@ -782,9 +782,6 @@ AC_ARG_WITH([libfab],
         [LIBFABRIC=""]
 )
 
-AC_CHECK_HEADERS([rdma/fabric.h],
-        [LIBFAB_LIBS="-lfabric"])
-
 AC_DEFINE([ENABLE_LIBFAB])
 
 AS_IF([test x$with_libfab != xno && ! test -z "$with_libfab"],
@@ -792,6 +789,13 @@ AS_IF([test x$with_libfab != xno && ! test -z "$with_libfab"],
         LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
         LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
         M0_CPPFLAGS="$M0_CPPFLAGS $LIB_FAB_INCLUDES"
+      ],[
+	MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
+                  [fi_fabric cannot be found! Try to install libfabric-devel package]
+          )
+	AC_CHECK_HEADERS([rdma/fabric.h], [],
+		AC_MSG_ERROR([rdma/fabric.h is not found. Try to install libfabric-devel package])
+          )
       ]
 )
 
