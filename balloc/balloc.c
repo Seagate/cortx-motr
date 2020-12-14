@@ -2413,6 +2413,9 @@ repeat:
 	for (;cr < 3 && bac->bac_status == M0_BALLOC_AC_CONTINUE; cr++) {
 		M0_LOG(M0_DEBUG, "cr=%d", cr);
 		bac->bac_criteria = cr;
+		bac->bac_found = 0;
+		M0_SET0(&bac->bac_best);
+		m0_ext_init(&bac->bac_best);
 		/*
 		 * searching for the right group start
 		 * from the goal value specified
