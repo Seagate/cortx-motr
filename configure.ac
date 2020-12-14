@@ -136,6 +136,7 @@ AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
+AH_TEMPLATE([ENABLE_LIBFAB],          [Enable Libfabric network stack ])
 AH_TEMPLATE([ENABLE_GCCXML],          [Use deprecated GCC-XML instead of CastXML])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
@@ -463,6 +464,7 @@ AC_SUBST([BUILD_KERNEL])
 # Skip all checks in distribution mode
 AS_IF([test x$enable_dist_mode = xno],[
 
+
 #
 # Checking Lustre sources ------------------------------------------------- {{{1
 #
@@ -600,6 +602,7 @@ Red Hat based systems])
 #
 # Checking required libraries --------------------------------------------- {{{1
 #
+
 
 # sqrt() requires m library
 MOTR_SEARCH_LIBS([sqrt], [c m], [MATH_LIBS],
@@ -796,6 +799,38 @@ AS_IF([test x$with_lustre != xno],[
        MOTR_LINUX_WRITE_BEGIN_END
        MOTR_LINUX_SENDFILE
 ])
+
+#
+# Checking libfabric library----------------------------------------------- {{{1
+#
+
+AC_ARG_WITH([libfab],
+        [AS_HELP_STRING([--with-libfab=path],
+                        [set path to user installed libfabric headers and library])],
+        [LIBFABRIC=$with_libfab],
+        [LIBFABRIC=""]
+)
+
+AC_DEFINE([ENABLE_LIBFAB])
+
+AS_IF([test x$with_libfab != xno && ! test -z "$with_libfab"],
+      [
+        LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
+        LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
+        M0_CPPFLAGS="$M0_CPPFLAGS $LIB_FAB_INCLUDES"
+      ],[
+	MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
+                  [fi_fabric cannot be found! Try to install libfabric-devel package]
+          )
+	AC_CHECK_HEADERS([rdma/fabric.h], [],
+		AC_MSG_ERROR([rdma/fabric.h is not found. Try to install libfabric-devel package])
+          )
+      ]
+)
+
+AC_SUBST([LIBFAB_LIBS])
+AM_CONDITIONAL([ENABLE_LIBFAB],
+               [test x$with_libfab != xno && ! test -z "$LIBFAB_LIBS"])
 
 #
 # Checking Lustre --------------------------------------------------------- {{{1
@@ -1048,6 +1083,7 @@ echo "M0_KCFLAGS     :  \"$M0_KCFLAGS\""
 echo "M0_LDFLAGS     :  \"$M0_LDFLAGS\""
 echo ""
 echo "MATH_LIBS      :  \"$MATH_LIBS\""
+echo "LIBFAB_LIBS    :  \"$LIBFAB_LIBS\""
 echo "PTHREAD_LIBS   :  \"$PTHREAD_LIBS\""
 echo "AIO_LIBS       :  \"$AIO_LIBS\""
 echo "RT_LIBS        :  \"$RT_LIBS\""
