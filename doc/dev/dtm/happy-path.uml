@@ -1,0 +1,146 @@
+@startuml
+
+' The diagram describes a use-case where
+' the participants did not experience
+' a failure (the so-called "happy-path").
+' The goal of the diagram is to show the interactions
+' between CAS client/service and DTM library/service.
+
+header DTM Happy-Path \n By Ivan A. 2020-14-12.
+footer Page %page% of %lastpage%
+
+title DTM Happy-Path
+
+' The types of processes used here:
+' 	- Originators (participants without peristent storage)
+' 	- Participants (participants with persistent storage).
+
+
+box "Client (0)"
+	participant "Motr Client" as user
+	participant "DIX0" as DIX0
+	participant "DTM0" as DTM0
+end box
+
+box "ServerLeft (1)"
+	participant "CAS1" as CAS1
+	participant "DTM1" as DTM1
+end box
+
+box "ServerMiddle (2)"
+	participant "CAS2" as CAS2
+	participant "DTM2" as DTM2
+end box
+
+box "ServerRight (3)"
+	participant "CAS3" as CAS3
+	participant "DTM3" as DTM3
+end box
+
+' Prepare op and start execution on (1) 2{{{
+
+activate user
+user -> DIX0: clnt_op = { op=PUT, records=k1-k16,v1-v6 }
+DIX0 -> CAS1: GET_LAYOUT_AND_PVER
+CAS1 -> DIX0: layout_info (pool version, layout id, etc.)
+DIX0 -> DIX0: layout = clnt_op.records.map(m0_dix_target_(layout_info, record))
+DIX0 -> DTM0: dtx_open(...) returns dtx { clock: now(), tx_id: new_id() }
+DIX0 -> DTM0: dtx.add_and_close(pa_p=layout, pa_v=DIX0.fid)
+DTM0 -> DTM0: dtx = { clock, tx_id, \npa_v=self.fid,\n pa_p=layout,\n states[1:3]=[FUTURE] }
+DIX0 -> DIX0: dix_req[1:3] = { dtx, layout, records, src: DIX0.fid, dst: CAS[i].fid }
+DIX0 -> DTM0: dtx_prepared(dtx, dix_req[])
+DTM0 -> DTM0: dtx.states = [PREPARED] * 3
+DTM0 -> DIX0: ok, ready
+DIX0 -> CAS1: send(dix_req[1]) "REQUEST"
+DIX0 -> DTM0: dtx_inprogress(dtx, dix_req[1])
+
+' 2}}}
+
+' Execute it on (1) 2{{{
+activate CAS1
+DIX0 -> CAS2: send(dix_req[2])
+DIX0 -> DTM0: dtx_inprogress(dtx, dix_req[2])
+activate CAS2
+DIX0 -> CAS3: send(dix_req[3])
+DIX0 -> DTM0: dtx_inprogress(dtx, dix_req[3])
+activate CAS3
+CAS1 -> DTM1: dtx_recv(fom.fop.request.dtx)
+DTM1 -> CAS1: returns (dtx, ready)
+CAS1 -> CAS1: FOM_TX_OPEN: fom.ltx = be_tx.open()
+CAS1 -> CAS1: FOM_CAS_LOOP: cas_reply = cas_exec(fom)
+CAS1 -> CAS1: FOM_SUCCESS: fom.fop.reply = cas_reply
+CAS1 -> DTM1: FOM_FOL_REC_ADD: dtm_log_add(fom)
+CAS1 -> CAS1: FOM_TX_COMMIT: fom.ltx.close()
+CAS1 -> CAS1: FOM_QUEUE_REPLY: rpc_post(fom.fop.reply)
+CAS1 -> DIX0: send reply "EXECUTED" {dtx, cas_reply}
+deactivate CAS1
+DIX0 -> DTM0: dtx_executed(reply.dtx)
+DIX0 -> user: lookup_op(reply.dtx).on_executed()
+deactivate user
+activate CAS1
+' }}}
+
+' CAS1 persistent 2{{{
+CAS1 -> DTM1: dtm_log_peristent(dtx, [pa=self])
+activate DTM1
+DTM1 -> DTM0: send(PERSISTENT, dtx)
+DTM0 -> DIX0: on_persistent(dtx)
+DIX0 -> user: lookup_op(dtx).on_persistent()
+activate user
+DTM1 -> DTM2: send(PERSISTENT, dtx)
+DTM1 -> DTM3: send(PERSISTENT, dtx)
+deactivate CAS1
+deactivate DTM1
+DTM0 -> DTM0: dtm_log_persistent(dtx, pa=CAS1)
+DTM2 -> DTM2: dtm_log_persistent(dtx, pa=CAS1)
+DTM3 -> DTM3: dtm_log_persistent(dtx, pa=CAS1)
+' }}}
+
+' CAS2 execution 2{{{
+CAS2 -> DTM2: dtx_recv
+CAS2 -> CAS2: execute ...
+CAS2 -> DTM2: dtm_log_add(fom)
+CAS2 -> DIX0: send reply "EXECUTED" {dtx, cas_reply}
+' 2}}}
+' 
+' CAS2 persistent 2{{{
+CAS2 -> DTM2: dtm_log_persistent(dtx, [pa=self])
+DTM2 -> DTM0: send(PERSISTENT, dtx)
+DTM2 -> DTM1: send(PERSISTENT, dtx)
+DTM2 -> DTM3: send(PERSISTENT, dtx)
+' 2}}}
+
+' CAS2 mark persistent 2{{{
+DTM0 -> DTM0: dtm_log_persistent(dtx, pa=CAS2)
+DTM1 -> DTM1: dtm_log_persistent(dtx, pa=CAS2)
+DTM3 -> DTM3: dtm_log_persistent(dtx, pa=CAS2)
+' 2}}}
+
+' CAS3 execution 2{{{
+CAS3 -> DTM3: dtx_recv
+CAS3 -> CAS3: execute ...
+CAS3 -> DTM3: dtm_log_add(fom)
+CAS3 -> DIX0: send reply "EXECUTED" {dtx, cas_reply}
+' 2}}}
+
+' CAS3 persistent 2{{{
+CAS3 -> DTM3: dtm_log_persistent(dtx, [pa=self])
+DTM3 -> DTM0: send(PERSISTENT, dtx)
+DTM3 -> DTM1: send(PERSISTENT, dtx)
+DTM3 -> DTM2: send(PERSISTENT, dtx)
+DTM3 -> DTM3: dtm_log_stable(dtx)
+' 2}}}
+
+' CAS3 mark persistent 2{{{
+DTM0 -> DTM0: dtm_log_persistent(dtx, pa=CAS3)
+DTM0 -> DTM0: dtm_log_stable(dtx)
+DTM0 -> DIX0: on_stable(dtx)
+DIX0 -> user: lookup_op(dtx).on_stable()
+DTM1 -> DTM1: dtm_log_persistent(dtx, pa=CAS3)
+DTM1 -> DTM1: dtm_stable(dtx)
+DTM2 -> DTM2: dtm_log_persistent(dtx, pa=CAS3)
+DTM2 -> DTM2: dtm_stable(dtx)
+' 2}}}
+
+@enduml
+' vim: textwidth=80 nowrap foldmethod=marker
