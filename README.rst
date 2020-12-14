@@ -50,7 +50,7 @@ Get to know
 
 - `Developer Guide </doc/motr-developer-guide.md>`_
 
-- `Provisioning Guide for Building and Testing </scripts/provisioning/README.md>`_
+- `Provisioning Guide for Building and Testing Environment </scripts/provisioning/README.md>`_
 
 Surfing
 =======
