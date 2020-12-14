@@ -54,6 +54,13 @@ struct m0_fab__ep_name {
 	char fen_addr[INET6_ADDRSTRLEN + 6];     /* + 6 for ":<max port no>" */
 };
 
+struct m0_fab__ep_res {
+	struct fi_cq_attr   *fer_cq_attr;   /* Completion Queue attributes */
+	struct fi_av_attr   *fer_av_attr;   /* Address Vector attributes */
+	struct fi_eq_attr   *fer_eq_attr;   /* Event Queue attributes */
+	struct fi_cntr_attr *fer_cntr_attr; /* Counter attributes */
+};
+
 struct m0_fab__ep_param {
 	struct m0_net_end_point  fep_nep;      /* linked into a per-tm list */
 	struct m0_fab__ep_name   fep_name;     /* "addr:port" in str format */
@@ -65,13 +72,7 @@ struct m0_fab__ep_param {
 	struct fid_cq           *fep_rx_cq;    /* Recv Completion Queue */
 	struct fid_cntr         *fep_tx_cntr;  /* Transmit Counter */
 	struct fid_cntr         *fep_rx_cntr;  /* Recv Counter */
-};
-
-struct m0_fab__ep_res {
-	struct fi_cq_attr   *fer_cq_attr;   /* Completion Queue attributes */
-	struct fi_av_attr   *fer_av_attr;   /* Address Vector attributes */
-	struct fi_eq_attr   *fer_eq_attr;   /* Event Queue attributes */
-	struct fi_cntr_attr *fer_cntr_attr; /* Counter attributes */
+	struct m0_fab__ep_res   *fep_ep_res;
 };
 
 /** @} end of netlibfab group */
