@@ -1,0 +1,18 @@
+[Anatoliy]
+ - list of significant assumptions;
+ - list of significant usecases.
+
+[Ivan]
+Usecase: Happy path.
+
+[Mehul + Anil]
+Usecase: Basic transient failures
+cover transient failure usecase using log notation proposed by Nikita:
+https://github.com/Seagate/cortx-motr-old/blob/gerrit-dev/documentation/doc/dev/dtm/rpc-ha-be.rst
+
+ - 1 transient failure of participant1;
+ - 3 MD requests in flight before and during transien failure of participant1;
+ - 3 MD requests in flight after the failure of participant1;
+ - 3 redo requests in flight (reordering);
+ - bunch of log messages related to events happened in the system.
+ - recovery stop mechanism
