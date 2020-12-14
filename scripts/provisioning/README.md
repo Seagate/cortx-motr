@@ -198,14 +198,9 @@ Quick Start (Windows)
       > your Windows username and password, and then grant permissions for
       > creating Windows shared directory. To avoid manually entering the
       > credentials for every node, set SMB_USERNAME/SMB_PASSWORD environment
-      > variables with the correspondent values. Note: make sure SMB_PASSWORD is
-      > not saved to your bash history for security reasons. Hint: set
-      > HISTCONTROL=ignoreboth in your ~/.bash_profile and when setting the
-      > SMB_PASSWORD env variable - add space in the beginning of the line:
-      > ```bash
-      > $ <add-space-here> export SMB_PASSWORD=<your-password>
-      > ```
-      > The command won't be saved in your history of commands then.
+      > variables with the correspondent values. Note: make sure SMB_PASSWORD
+      > is [not saved in your bash history](https://stackoverflow.com/a/29188490/3812944)
+      > (for security reasons).
 
 Overview
 --------
