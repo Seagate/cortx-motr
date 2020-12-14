@@ -1,7 +1,25 @@
+# Table of contents
+1. [Overview](#Overview)
+   - [CORTX-Cluster](#CORTX-Cluster)
+2. [Function-Requirement](#Function-Requirement)
+    1. [Sub paragraph](#subparagraph1)
+3. [Another paragraph](#paragraph2)
+
 # Overview
-* This document talks about get/read object flow with error scenario
-* Various cases of error are described in section below
-* Initial condition is same for all described below
+This document will be describe LDR R2 motr architecture and design
+## CORTX-Cluster
+Following are the hirarchy of Cortx Cluster
+1. Cortx Cluster 
+   - Top Level cluster can have any number of storage set
+1. Storage Set 
+   - Storage set can have any number of nodes
+   - Number of nodes can vary with storage set (e.g N1 != N2)
+   - The capacity of storge set can differ even if number of nodes are same (N1 == N2)
+
+![CORTX Cluster with Storage Set](images/CortexV2StorageSet.JPG)
+
+# Function-Requirement
+This section will list all the functional requirement for motr scaleout architecture
 
 ## Basic Assumptions
 Following are the basic assumptions for creating the sequence flow for various error scenarios
