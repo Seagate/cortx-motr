@@ -8,15 +8,31 @@
 # Overview
 This document will be describe LDR R2 motr architecture and design
 ## CORTX-Cluster
-Following are the hirarchy of Cortx Cluster
+Following are the hierarchy of Cortx Cluster
 1. Cortx Cluster 
-   - Top Level cluster can have any number of storage set
+   - Top Level cluster will have multiple storage set
+   - Each storage set will be connected at network layer
 1. Storage Set 
-   - Storage set can have any number of nodes
-   - Number of nodes can vary with storage set (e.g N1 != N2)
+   - Storage set will have multiple nodes
+   - Number of nodes can vary with storage set (e.g N1 != N2) 
    - The capacity of storge set can differ even if number of nodes are same (N1 == N2)
+1. Nodes
+   - Node consist of server and enclosure pair. 
+   - For R2, enclosure is isolated and only node can access its enclosure.
 
 ![CORTX Cluster with Storage Set](images/CortexV2StorageSet.JPG)
+
+### R2-CORTX-Cluster
+CORTX R2 will have following characteristics
+1. Storage set will communicate with each other at network layer. 
+   - e.g In above figure Storage Set 1 and 2 are shown connected at network layer
+1. **IOs will be confined to Storage Set.**
+   - Data will only be striped across nodes in a Storage Set.
+1. Any node in cluster can server S3 request for any storage set.
+   - e.g In above figure Node 1 from Storage Set 1 can server read request for object stored in Storage Set 2
+
+### Storage-Set
+Storage set
 
 # Function-Requirement
 This section will list all the functional requirement for motr scaleout architecture
