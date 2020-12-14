@@ -135,7 +135,7 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 			       NULL);
 		if (rc == FI_SUCCESS) {
 			rc = fi_domain(fab->fdp_fabric, fab->fdp_fi,
-				&fab->fdp_domain, NULL);
+				       &fab->fdp_domain, NULL);
 			if (rc == FI_SUCCESS)
 				dom->nd_xprt_private = fab;
 		}
