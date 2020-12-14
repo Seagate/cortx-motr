@@ -1,6 +1,18 @@
 Build and test environment for Motr
 ===================================
 
+* [Quick Start (MacOS)](#quick-start-macos)
+* [Quick Start (Windows)](#quick-start-windows)
+* [Overview](#overview)
+* [Requirements](#requirements)
+* [DevVM provisioning](#devvm-provisioning)
+* [Building and running Motr](#building-and-running-motr)
+* [Vagrant basics](#vagrant-basics)
+* [Streamlining VMs creation and provisioning with snapshots](#streamlining-vms-creation-and-provisioning-with-snapshots)
+* [Managing multiple VM sets with workspaces](#managing-multiple-vm-sets-with-workspaces)
+* [Executing Ansible commands manually](#executing-ansible-commands-manually)
+* [VirtualBox / VMware / Libvirt specifics](#virtualbox--vmware--libvirt-specifics)
+
 Quick Start (MacOS)
 -------------------
 
