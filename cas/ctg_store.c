@@ -302,20 +302,25 @@ static void ctg_destroy(struct m0_cas_ctg *ctg, struct m0_be_tx *tx)
 	M0_BE_FREE_PTR_SYNC(ctg, cas_seg(tx->t_engine->eng_domain), tx);
 }
 
-M0_INTERNAL int m0_ctg_fini(struct m0_ctg_op  *ctg_op,
-			    struct m0_cas_ctg *ctg,
-			    int                next_phase)
+M0_INTERNAL void m0_ctg_fini(struct m0_fom     *fom,
+			     struct m0_cas_ctg *ctg)
 {
-	struct m0_be_tx *tx = &ctg_op->co_fom->fo_tx.tx_betx;
+	if (ctg != NULL && ctg->cc_inited) {
+		struct m0_dtx   *dtx = &fom->fo_tx;
 
-	ctg_fini(ctg);
-	/*
-	 * TODO: implement asynchronous free after memory free API added into
-	 * ctg_exec in the scope of asynchronus ctidx operations task.
-	 */
-	M0_BE_FREE_PTR_SYNC(ctg, cas_seg(tx->t_engine->eng_domain), tx);
-	m0_fom_phase_set(ctg_op->co_fom, next_phase);
-	return M0_FSO_AGAIN;
+		ctg_fini(ctg);
+		/*
+		 * TODO: implement asynchronous free after memory free API
+		 * added into ctg_exec in the scope of asynchronous ctidx
+		 * operations task.
+		 */
+		if (dtx->tx_state != M0_DTX_INVALID) {
+			struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
+			if (m0_be_tx_state(tx) == M0_BTS_ACTIVE)
+				M0_BE_FREE_PTR_SYNC(ctg,
+					cas_seg(tx->t_engine->eng_domain), tx);
+		}
+	}
 }
 
 /**
