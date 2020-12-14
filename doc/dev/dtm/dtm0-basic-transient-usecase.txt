@@ -1,0 +1,192 @@
+## - 1 transient failure of participant1;
+## - 3 MD requests in flight before and during transien failure of participant1;
+## - 3 MD requests in flight after the failure of participant1;
+## - 3 redo requests in flight (reordering);
+## - bunch of log messages related to events happened in the system.
+## - recovery stop mechanism
+
+Assumptions:
+- One originator and 3 participants
+
+
+
+@10 [o1: DIX PUT k1, v1]                                            o1                                          p1                              p2                              p3
+  @11 [o1: request (o1 -> p1: PUT k1, v1, 1@10)]
+  @12 [o1: request (o1 -> p2: PUT k1, v1, 1@10)]
+  @13 [o1: request (o1 -> p3: PUT k1, v1, 1@10)]        {[PUT, k1, v1, 1@10, state=SENT]}                      {}                              {}                              {}
+
+  @15 [p1: received (o1 -> p1: PUT k1, v1, 1@10)]
+  @15 [p2: received (o1 -> p2: PUT k1, v1, 1@10)]
+  @15 [p3: received (o1 -> p3: PUT k1, v1, 1@10)]
+
+
+@20 [o1: DIX PUT k2, v2]
+  @21 [o1: request (o1 -> p1: PUT k2, v2, 1@20)]
+  @22 [o1: request (o1 -> p2: PUT k2, v2, 1@20)]
+  @23 [o1: request (o1 -> p3: PUT k2, v2, 1@20)]        {[PUT, k1, v1, 1@10, state=SENT],                      {}                              {}                              {}
+                                                         [PUT, k2, v2, 1@20, state=SENT]}
+
+
+  @25 [p1: received (o1 -> p1: PUT k2, v2, 1@20)]
+  @25 [p2: received (o1 -> p2: PUT k2, v2, 1@20)]
+  @25 [p3: received (o1 -> p3: PUT k2, v2, 1@20)]
+
+
+@30 [o1: DIX PUT k3, v3]
+  @31 [o1: request (o1 -> p1: PUT k3, v3, 1@30)]
+  @32 [o1: request (o1 -> p2: PUT k3, v3, 1@30)]
+  @33 [o1: request (o1 -> p3: PUT k3, v3, 1@30)]   {[PUT, k1, v1, 1@10, st=SN],                     {}                              {}                              {}
+                                                    [PUT, k2, v2, 1@20, st=SN],
+                                                    [PUT, k3, v3, 1@30, st=SN]}
+
+  @35 [p1: received (o1 -> p1: PUT k3, v3, 1@30)]
+  @35 [p2: received (o1 -> p2: PUT k3, v3, 1@30)]
+  @35 [p3: received (o1 -> p3: PUT k3, v3, 1@30)]
+
+@40 [p1: reply (p1 -> o1: PUT k1, v1, 1@10)]
+		## o1 -> DTM user: op_executed(1@10)
+@40 [p2: reply (p2 -> o1: PUT k1, v1, 1@10)]
+@40 [p3: reply (p3 -> o1: PUT k1, v1, 1@10)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
+                                                     [PUT, k2, v2, 1@20, st=SN],
+                                                     [PUT, k3, v3, 1@30, st=SN]}
+
+@50 [p1: reply (p1 -> o1: PUT k2, v2, 1@20)]
+		## o1 -> DTM user: op_executed(1@20)
+@50 [p2: reply (p2 -> o1: PUT k2, v2, 1@20)]
+@50 [p3: reply (p3 -> o1: PUT k2, v2, 1@20)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
+                                                     [PUT, k2, v2, 1@20, st=EX],        {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
+                                                     [PUT, k3, v3, 1@30, st=SN]}
+
+@60 [p1: reply (p1 -> o1: PUT k3, v3, 1@30)]
+		## o1 -> DTM user: op_executed(1@30)
+@60 [p2: reply (p2 -> o1: PUT k3, v3, 1@30)]
+@60 [p3: reply (p3 -> o1: PUT k3, v3, 1@30)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
+                                                     [PUT, k2, v2, 1@20, st=EX],        {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
+                                                     [PUT, k3, v3, 1@30, st=EX]}        {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}
+
+
+
+@65 [p1-> CRASHED]
+	## operations 1@10, 1@20 and 1@30 may not be on persistent storage.
+	## HA sends notice to all surving paritcipants and the originator.
+
+
+@70 [o1: DIX PUT k4, v4]
+  @71 [o1: request (o1 -> p2: PUT k4, v4, 1@70)]
+  @72 [o1: request (o1 -> p3: PUT k4, v4, 1@70)]    {[PUT, k1, v1, 1@10, st=EX],         {}                             {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
+                                                     [PUT, k2, v2, 1@20, st=EX],         {}                             {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
+                                                     [PUT, k3, v3, 1@30, st=EX],         {}                             {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}
+                                                     [PUT, k4, v4, 1@70, st=SN]}         {}                             {}                              {}
+
+
+  @73 [p2: received (o1 -> p2: PUT k4, v4, 1@70)]
+  @73 [p3: received (o1 -> p3: PUT k4, v4, 1@70)]
+
+
+@80 [o1: DIX PUT k5, v5]
+  @82 [o1: request (o1 -> p2: PUT k5, v5, 1@80)]
+  @83 [o1: request (o1 -> p3: PUT k5, v5, 1@80)]    {[PUT, k1, v1, 1@10, st=EX],         {}                             {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
+                                                     [PUT, k2, v2, 1@20, st=EX],         {}                             {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
+                                                     [PUT, k3, v3, 1@30, st=EX],         {}                             {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}
+                                                     [PUT, k4, v4, 1@70, st=SN],         {}                             {}                              {}
+                                                     [PUT, k5, v5, 1@80, st=SN]}         {}                             {}                              {}
+
+
+  @84 [p2: received (o1 -> p2: PUT k5, v5, 1@80)]
+  @84 [p3: received (o1 -> p3: PUT k5, v5, 1@80)]
+
+
+@90 [o1: DIX PUT k6, v6]
+  @92 [o1: request (o1 -> p2: PUT k6, v6, 1@90)]
+  @93 [o1: request (o1 -> p3: PUT k6, v6, 1@90)]    {[PUT, k1, v1, 1@10, st=EX],         {}                             {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
+                                                     [PUT, k2, v2, 1@20, st=EX],         {}                             {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
+                                                     [PUT, k3, v3, 1@30, st=EX],         {}                             {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}
+                                                     [PUT, k4, v4, 1@70, st=SN],         {}                             {}                              {}
+                                                     [PUT, k5, v5, 1@80, st=SN],         {}                             {}                              {}
+                                                     [PUT, k6, v6, 1@90, st=SN]}         {}                             {}                              {}
+
+
+  @94 [p2: received (o1 -> p2: PUT k6, v6, 1@90)]
+  @94 [p3: received (o1 -> p3: PUT k6, v6, 1@90)]
+
+@100 [p2: reply (p2 -> o1: PUT k4, v4, 1@70)]
+		## o1 -> DTM user: op_executed(1@70)
+@100 [p3: reply (p3 -> o1: PUT k4, v4, 1@70)]
+
+@110 [p2: reply (p2 -> o1: PUT k5, v5, 1@80)]
+		## o1 -> DTM user: op_executed(1@80)
+@120 [p3: reply (p3 -> o1: PUT k5, v5, 1@80)]
+
+@130 [p2: reply (p2 -> o1: PUT k6, v6, 1@90)]
+		## o1 -> DTM user: op_executed(1@90)
+@130 [p3: reply (p3 -> o1: PUT k6, v6, 1@90)]    {[PUT, k1, v1, 1@10, st=EX],         {}                             {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
+                                                  [PUT, k2, v2, 1@20, st=EX],         {}                             {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
+                                                  [PUT, k3, v3, 1@30, st=EX],         {}                             {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}
+                                                  [PUT, k4, v4, 1@70, st=EX],         {}                             {[PUT, k4, v4, 1@70, st=EX]}    {[PUT, k4, v4, 1@70, st=EX]}
+                                                  [PUT, k5, v5, 1@80, st=EX],         {}                             {[PUT, k5, v5, 1@80, st=EX]}    {[PUT, k5, v5, 1@80, st=EX]}
+                                                  [PUT, k6, v6, 1@90, st=EX]}         {}                             {[PUT, k6, v6, 1@90, st=EX]}    {[PUT, k6, v6, 1@90, st=EX]}
+
+
+
+@140 [p1: recovering(p1 -> HA:  @140] ## RECOVERING
+	## HA sends notice to everybody informing of p1 recovering.
+
+@150 [p1: received-redo (p2 -> p1: [PUT k1, v1, 1@10], [PUT k2, v2, 1@20], [PUT k4, v4, 1@70], [PUT k5, v5, 1@80], [PUT k3, v3, 1@30], [PUT k6, v6, 1@90])
+@160 [p1: received-redo (p3 -> p1: [PUT k1, v1, 1@10], [PUT k2, v2, 1@20], [PUT k3, v3, 1@30], [PUT k5, v5, 1@80], [PUT k4, v4, 1@70], [PUT k6, v6, 1@90])
+@170 [p1: received-redo (o1 -> p1: [PUT k1, v1, 1@10], [PUT k2, v2, 1@20], [PUT k4, v4, 1@70], [PUT k3, v3, 1@30], [PUT k5, v5, 1@80], [PUT k6, v6, 1@90])
+
+
+@180 [p2: PERSISTENT (p2 -> o1, p1, p3: 1@10)]
+	## o1 -> DTM user: op_persistent(1@10)
+@180 [p2: PERSISTENT (p2 -> o1, p1, p3: 1@20)]
+	## o1 -> DTM user: op_persistent(1@20)
+@180 [p3: PERSISTENT (p3 -> o1, p1, p2: 1@30)]
+	## o1 -> DTM user: op_persistent(1@30)
+@180 [p3: PERSISTENT (p3 -> o1, p1, p2: 1@70)]
+	## o1 -> DTM user: op_persistent(1@70)    {[PUT, k1, v1, 1@10, st=PR, VPV],         {}                             {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
+                                               [PUT, k2, v2, 1@20, st=PR, VPV],         {}                             {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
+                                               [PUT, k3, v3, 1@30, st=PR, VVP],         {}                             {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}
+                                               [PUT, k4, v4, 1@70, st=PR, VVP],         {}                             {[PUT, k4, v4, 1@70, st=EX]}    {[PUT, k4, v4, 1@70, st=EX]}
+                                               [PUT, k5, v5, 1@80, st=EX],              {}                             {[PUT, k5, v5, 1@80, st=EX]}    {[PUT, k5, v5, 1@80, st=EX]}
+                                               [PUT, k6, v6, 1@90, st=EX]}              {}                             {[PUT, k6, v6, 1@90, st=EX]}    {[PUT, k6, v6, 1@90, st=EX]}
+
+
+
+@190 [p1: reply (p1 -> o1: PUT k1, v1, 1@10)]
+		## o1 -> DTM user: op_executed(1@10)
+@191 [p1: reply (p1 -> o1: PUT k2, v2, 1@20)]
+		## o1 -> DTM user: op_executed(1@20)
+@192 [p1: reply (p1 -> o1: PUT k4, v4, 1@70)]
+		## o1 -> DTM user: op_executed(1@70)
+@193 [p1: reply (p1 -> o1: PUT k3, v3, 1@30)]
+		## o1 -> DTM user: op_executed(1@30)
+@194 [p1: reply (p1 -> o1: PUT k5, v5, 1@80)]
+		## o1 -> DTM user: op_executed(1@80)
+@195 [p1: reply (p1 -> o1: PUT k6, v6, 1@90)]
+		## o1 -> DTM user: op_executed(1@90)
+
+@196 [p1: online(p1 -> HA)] ## ONLINE
+	## HA sends notice to everybody informing p1 is online.
+
+@197 [p1: PERSISTENT (p1 -> o1, p2, p3: 1@10)]
+@198 [p1: PERSISTENT (p1 -> o1, p2, p3: 1@20)]
+@199 [p1: PERSISTENT (p1 -> o1, p2, p3: 1@70)]
+
+
+@200 [p2: PERSISTENT (p2 -> o1, p1, p3: 1@30)]
+@201 [p2: PERSISTENT (p2 -> o1, p1, p3: 1@70)]
+@202 [p2: PERSISTENT (p2 -> o1, p1, p3: 1@80)]
+	## o1 -> DTM user: op_persistent(1@80)
+@203 [p2: PERSISTENT (p2 -> o1, p1, p3: 1@90)]
+	## o1 -> DTM user: op_persistent(1@90)
+
+
+@200 [p3: PERSISTENT (p3 -> o1, p1, p2: 1@10)]
+@201 [p3: PERSISTENT (p3 -> o1, p1, p2: 1@20)]
+@202 [p3: PERSISTENT (p3 -> o1, p1, p2: 1@80)]
+@203 [p3: PERSISTENT (p3 -> o1, p1, p2: 1@90)]
+
+@204 [p1: PERSISTENT (p1 -> o1, p2, p3: 1@30)]
+@205 [p1: PERSISTENT (p1 -> o1, p2, p3: 1@80)]
+@206 [p1: PERSISTENT (p1 -> o1, p2, p3: 1@90)]
+
