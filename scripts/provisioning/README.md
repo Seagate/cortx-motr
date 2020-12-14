@@ -19,15 +19,21 @@ Quick Start (MacOS)
 
           brew install coreutils
 
-    - [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
-    - [Vagrant](https://www.vagrantup.com/downloads.html)
-    - Vagrant plugins
+    - [VMware Fusion](https://www.vmware.com/go/downloadfusion) or
+      [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
+      (VMware is recommended for better experience)
+    - [Vagrant](https://www.vagrantup.com/downloads.html) (and
+      [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) in case of VMware)
+    - Vagrant plugins (for VMware the license needs to be [purchased](https://www.vagrantup.com/vmware))
 
-          vagrant plugin install vagrant-{env,hostmanager,scp,vbguest}
+          vagrant plugin install vagrant-{env,hostmanager,scp}
+          vagrant plugin install vagrant-vmware-desktop # for VMware or
+          
+          vagrant plugin install vagrant-vbguest # for VirtualBox
 
     - Ansible
 
-          brew install ansible
+          brew install ansible # on Linux or macOS hosts
 
 * Configure
     - `m0vg` script (make sure you have `$HOME/bin` in the `$PATH`)
@@ -125,11 +131,17 @@ Quick Start (Windows)
 ---------------------
 
 * Install
-    - [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
-    - [Vagrant](https://www.vagrantup.com/downloads.html)
-    - Vagrant plugins
+    - [VMware Workstation](https://www.vmware.com/go/downloadworkstation) or
+      [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
+      (VMware is recommended for better experience)
+    - [Vagrant](https://www.vagrantup.com/downloads.html) (and
+      [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) in case of VMware)
+    - Vagrant plugins (for VMware the license needs to be [purchased](https://www.vagrantup.com/vmware))
 
-          vagrant plugin install vagrant-{env,hostmanager,scp,vbguest}
+          vagrant plugin install vagrant-{env,hostmanager,scp}
+          vagrant plugin install vagrant-vmware-desktop # for VMware or
+
+          vagrant plugin install vagrant-vbguest # for VirtualBox
 
     - [Git for Windows](https://git-scm.com/download/win)
       During installation, when asked, choose the following options (keep other options to their default setting):
@@ -140,7 +152,7 @@ Quick Start (Windows)
 
 * Configure
 
-    - Open _Git Bash_ terminal, add CRLF configuration option to make sure that Motr/Halon scripts can work on VM
+    - Open _Git Bash_ terminal, add CRLF configuration option to make sure that Motr/Hare scripts can work on VM
 
       ```bash
       git config --global core.autocrlf input
@@ -196,17 +208,16 @@ directory containing motr source code is shared with each machine over _NFS_.
 This should provide a short-enough "prepare/build/test" cycle for efficient
 development workflow.
 
-Depending on the host OS, different virtualization providers are supported. On
-_Linux_ those are _Libvirt/KVM_ and _VirtualBox_. On _Mac OS_ - _VirtualBox_
-and _VMware Fusion_.
+Depending on the host OS, different virtualization providers are supported: on
+_Linux_ those are _Libvirt/KVM_ and _VirtualBox_, on _macOS_ - _VMware Fusion_
+and _VirtualBox_, on _Windows_ - _VMware Workstation_ and _VirtualBox_.
 
 Requirements
 ------------
 
 In order to run these scripts, additional tools have to be installed first. It's
-assumed that either _Mac OS_ or _Linux_ is used as a host operating system. It
-should work on a _Windows_ host as well, though some additional configuration
-steps may be required.
+assumed that either _macOS_, _Windows_ or _Linux_ is used as a host operating
+system.
 
 * Minimum Host OS
     - 8GB of RAM
@@ -214,12 +225,15 @@ steps may be required.
     - 2 CPU cores
 
 * Additional Software/Tools:
-    - [VirtualBox](https://www.virtualbox.org/wiki/Downloads) _OR_
-      [VMware Fusion](https://www.vmware.com/products/fusion.html) +
-      [Vagrant VMware plugin](https://www.vagrantup.com/vmware/index.html) (_Mac OS_ only)
+    - [VMware Fusion](https://www.vmware.com/products/fusion.html) (for _macOS_) or
+      [VMware Workstation](https://www.vmware.com/products/workstation-pro.html) (for _Windows_) _OR_
+      [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
+      (VMware is recommended for better experience in terms of memory utilisation)
     - `libvirt + qemu-kvm` (_Linux_ only)
     - [Vagrant](https://www.vagrantup.com/downloads.html)
-    - [Ansible](https://github.com/ansible/ansible) (_Mac OS_ and _Linux_ only)
+    - [Vagrant VMware plugin](https://www.vagrantup.com/vmware) +
+      [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) (in case of VMware)
+    - [Ansible](https://github.com/ansible/ansible) (_macOS_ and _Linux_ only)
     - [Git for Windows](https://git-scm.com/download/win) (_Windows_ only)
 
 On _Ubuntu Linux_ all of the above prerequisites can be installed with a single
@@ -229,14 +243,14 @@ command:
 
 Though, it's actually better to get a more up-to-day versions of _Vagrant_ and
 _Ansible_ than those provided by a distribution. The procedure is same as
-described below for _Mac OS_.
+described below for _macOS_.
 
-On _Mac OS_ the easiest way to install those tools is to download
+On _macOS_ the easiest way to install those tools is to download
 _VirtualBox_/_VMware Fusion_  and _Vagrant_ packages from their official
 web-sites (refer to the links above).
 
 And install _Ansible_ using _Python_ package manager `pip`, which is
-available on _Mac OS_ "out of the box":
+available on _macOS_ "out of the box":
 
 ```bash
 # install for current user only
@@ -259,19 +273,19 @@ brew install ansible
 ```
 
 After _Vagrant_ is installed, a couple of plugins need to be installed also. On
-_Linux_ it is `vagrant-libvirt` (for _kvm_ support), and on _Mac OS_ it's
-`vagrant-vbguest`, when using _VirtualBox_ and `vagrant-vmware-fusion`, when
-using _VMware Fusion_:
+_Linux_ it is `vagrant-libvirt` (for _kvm_ support), and on _macOS_/_Windows_ it's
+`vagrant-vbguest`, when using _VirtualBox_ and `vagrant-vmware-desktop`, when
+using _VMware Fusion/Workstation_:
 
 ```bash
 # linux with Qemu/KVM
 vagrant plugin install vagrant-libvirt
 
-# macos with VirtualBox
+# macOS with VirtualBox
 vagrant plugin install vagrant-vbguest
 
-# macos with VMware Fusion
-vagrant plugin install vagrant-vmware-fusion
+# macOS/Windows with VMware Fusion/Workstation
+vagrant plugin install vagrant-vmware-desktop
 ```
 
 It's highly recommend to install a few more _Vagrant_ plugins for a better user
