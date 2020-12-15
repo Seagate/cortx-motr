@@ -417,8 +417,6 @@ confidence : high med low
 
 ------
 
-
-
 :id: [t.hare-notifications]
 :name: hare delivers notification about process, node, device state changes
 :author: Nikita Danilov <nikita.danilov@seagate.com>
@@ -1751,9 +1749,6 @@ confidence : high med low
 
 ------
 
-
-------
-
 :id: [t.dtm-total-bw]
 :name:
 :author: anatoliy
@@ -2467,7 +2462,7 @@ m0tr tasks for scalability (Anatoliy)
 ------
 
 
-========
+=========
 Questions
 =========
 
