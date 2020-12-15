@@ -2182,7 +2182,7 @@ static int balloc_check_limits(struct balloc_allocation_context *bac,
 static int balloc_measure_extent(struct balloc_allocation_context *bac,
 				 struct m0_balloc_group_info *grp,
 				 enum m0_balloc_allocation_flag alloc_flag,
-				 struct m0_ext *ex)
+				 struct m0_ext *ex, int end_of_group)
 {
 	struct m0_ext *goal = &bac->bac_goal;
 	struct m0_ext *best = &bac->bac_best;
@@ -2221,7 +2221,7 @@ static int balloc_measure_extent(struct balloc_allocation_context *bac,
 	}
 
 	if (m0_ext_length(best) >= m0_ext_length(goal))
-		rc = balloc_check_limits(bac, grp, 0, alloc_flag);
+		rc = balloc_check_limits(bac, grp, end_of_group, alloc_flag);
 	M0_LEAVE();
 	return M0_RC(rc);
 }
@@ -2239,6 +2239,7 @@ static int balloc_wild_scan_group(struct balloc_allocation_context *bac,
 	struct m0_ext	*ex;
 	struct m0_lext	*le;
 	int		 rc;
+	int              end_of_group = 0;
 	M0_ENTRY();
 
 #ifdef __SPARE_SPACE__
@@ -2251,6 +2252,30 @@ static int balloc_wild_scan_group(struct balloc_allocation_context *bac,
 	list = &grp->bgi_normal.bzp_extents;
 #endif
 
+	/**
+	 * Check to detect the block allocation request which came earlier
+	 * for criteria 1 on same group and come again for criteria 2 with
+	 * already set best extent.
+	 * In criteria 1 bac_status not marked to M0_BALLOC_AC_FOUND
+	 * because bac_found < M0_BALLOC_DEFAULT_MIN_TO_SCAN
+	 * Now with criteria 2 on same group with already set best extent may
+	 * not part of extent in free extent list because another requests
+	 * may have updated extents in free list.
+	 * Reset bac_found and best extent by detecting this case so that it
+	 * will find correct best extent and also set end_of_group flag so
+	 * balloc_check_limits() could call balloc_use_best_found() to set
+	 * final extent from best extent.
+	 */
+	if (bac->bac_found != 0) {
+		m0_bindex_t group = balloc_bn2gn(bac->bac_best.e_start,
+						 bac->bac_ctxt);
+		if (group == grp->bgi_groupno) {
+			end_of_group = 1;
+			bac->bac_found = 0;
+			M0_SET0(&bac->bac_best);
+			m0_ext_init(&bac->bac_best);
+		}
+	}
 
 	M0_LOG(M0_DEBUG, "Wild scanning at group %llu: freeblocks=%llu",
 		(unsigned long long)grp->bgi_groupno,
@@ -2266,7 +2291,7 @@ static int balloc_wild_scan_group(struct balloc_allocation_context *bac,
 				(unsigned long long)ex->e_end);
 			return M0_RC(-EINVAL);
 		}
-		balloc_measure_extent(bac, grp, alloc_flag, ex);
+		balloc_measure_extent(bac, grp, alloc_flag, ex, end_of_group);
 
 		free -= m0_ext_length(ex);
 		if (free == 0 || bac->bac_status != M0_BALLOC_AC_CONTINUE)
@@ -2413,9 +2438,6 @@ repeat:
 	for (;cr < 3 && bac->bac_status == M0_BALLOC_AC_CONTINUE; cr++) {
 		M0_LOG(M0_DEBUG, "cr=%d", cr);
 		bac->bac_criteria = cr;
-		bac->bac_found = 0;
-		M0_SET0(&bac->bac_best);
-		m0_ext_init(&bac->bac_best);
 		/*
 		 * searching for the right group start
 		 * from the goal value specified
