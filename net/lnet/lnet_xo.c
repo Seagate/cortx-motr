@@ -28,9 +28,8 @@
 static bool nlx_dom_invariant(const struct m0_net_domain *dom)
 {
 	const struct nlx_xo_domain *dp = dom->nd_xprt_private;
-	struct m0_net_xprt         *xprt = m0_net_xprt_default_get();
 	return _0C(dp != NULL) && _0C(dp->xd_dom == dom) &&
-		_0C(dom->nd_xprt == xprt);
+		_0C(dom->nd_xprt == &m0_net_lnet_xprt);
 }
 
 static bool nlx_ep_invariant(const struct m0_net_end_point *ep)
@@ -108,7 +107,7 @@ static int nlx_xo_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 
 	M0_ENTRY();
 	M0_PRE(dom->nd_xprt_private == NULL);
-	M0_PRE(xprt == m0_net_xprt_default_get());
+	M0_PRE(xprt == &m0_net_lnet_xprt);
 	NLX_ALLOC_ALIGNED_PTR(dp);
 	if (dp == NULL)
 		return M0_RC(-ENOMEM);
