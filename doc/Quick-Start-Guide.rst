@@ -73,6 +73,8 @@ Perform the below mentioned procedure to build the source code.
 
    **Note**: The **scripts/m0 rebuild** command includes some clean up.
    
+Refer to `Provisioning Guide for Building and Testing Environment </scripts/provisioning/README.md>`_.
+   
 RPM Generation
 ===============
 
