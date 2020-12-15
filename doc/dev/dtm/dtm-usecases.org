@@ -1,0 +1,18 @@
+* Usecases
+** Happy path
+** 1 transient failure of persistent participant and subsequent DTM recovery
+** 1 transient failure of persistent participant and subsequent another 1 subsequent failure during recovery
+** n transient failures of originators
+** n transient failures of originators and k failures of persistent participants
+** DTM recovery stop
+** DTM during persistent failures
+** DTM transaction abort (cancelation of clovis operation)
+** Clovis interface w.r.t. distributed transactions
+C-level interface
+Affected clovis calls
+** HA callbacks
+** DTM Log truncation
+** Dependency tracking (explicit and inexplicit)
+** DTM message delivery diring failures
+deliver executed callback after persistent participant failure
+** DTM transaction and record versions
