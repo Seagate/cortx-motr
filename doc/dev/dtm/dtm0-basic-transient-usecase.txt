@@ -10,10 +10,10 @@ Assumptions:
 
 
 
-@10 [o1: DIX PUT k1, v1]                                            o1                                          p1                              p2                              p3
+@10 [o1: DIX PUT k1, v1]                                            o1                              p1                                p2                                p3
   @11 [o1: request (o1 -> p1: PUT k1, v1, 1@10)]
   @12 [o1: request (o1 -> p2: PUT k1, v1, 1@10)]
-  @13 [o1: request (o1 -> p3: PUT k1, v1, 1@10)]        {[PUT, k1, v1, 1@10, state=SENT]}                      {}                              {}                              {}
+  @13 [o1: request (o1 -> p3: PUT k1, v1, 1@10)]    {[PUT, k1, v1, 1@10, state=SENT]}                {[]}                              {[]}                              {[]}
 
   @15 [p1: received (o1 -> p1: PUT k1, v1, 1@10)]
   @15 [p2: received (o1 -> p2: PUT k1, v1, 1@10)]
@@ -23,8 +23,8 @@ Assumptions:
 @20 [o1: DIX PUT k2, v2]
   @21 [o1: request (o1 -> p1: PUT k2, v2, 1@20)]
   @22 [o1: request (o1 -> p2: PUT k2, v2, 1@20)]
-  @23 [o1: request (o1 -> p3: PUT k2, v2, 1@20)]        {[PUT, k1, v1, 1@10, state=SENT],                      {}                              {}                              {}
-                                                         [PUT, k2, v2, 1@20, state=SENT]}
+  @23 [o1: request (o1 -> p3: PUT k2, v2, 1@20)]    {[PUT, k1, v1, 1@10, state=SENT],                {[]}                              {[]}                              {[]}
+                                                     [PUT, k2, v2, 1@20, state=SENT]}
 
 
   @25 [p1: received (o1 -> p1: PUT k2, v2, 1@20)]
@@ -35,9 +35,9 @@ Assumptions:
 @30 [o1: DIX PUT k3, v3]
   @31 [o1: request (o1 -> p1: PUT k3, v3, 1@30)]
   @32 [o1: request (o1 -> p2: PUT k3, v3, 1@30)]
-  @33 [o1: request (o1 -> p3: PUT k3, v3, 1@30)]   {[PUT, k1, v1, 1@10, st=SN],                     {}                              {}                              {}
-                                                    [PUT, k2, v2, 1@20, st=SN],
-                                                    [PUT, k3, v3, 1@30, st=SN]}
+  @33 [o1: request (o1 -> p3: PUT k3, v3, 1@30)]    {[PUT, k1, v1, 1@10, st=SN],                     {[]}                              {[]}                              {[]}
+                                                     [PUT, k2, v2, 1@20, st=SN],
+                                                     [PUT, k3, v3, 1@30, st=SN]}
 
   @35 [p1: received (o1 -> p1: PUT k3, v3, 1@30)]
   @35 [p2: received (o1 -> p2: PUT k3, v3, 1@30)]
@@ -53,16 +53,16 @@ Assumptions:
 @50 [p1: reply (p1 -> o1: PUT k2, v2, 1@20)]
 		## o1 -> DTM user: op_executed(1@20)
 @50 [p2: reply (p2 -> o1: PUT k2, v2, 1@20)]
-@50 [p3: reply (p3 -> o1: PUT k2, v2, 1@20)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
-                                                     [PUT, k2, v2, 1@20, st=EX],        {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
+@50 [p3: reply (p3 -> o1: PUT k2, v2, 1@20)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],
+                                                     [PUT, k2, v2, 1@20, st=EX],         [PUT, k2, v2, 1@20, st=EX]}     [PUT, k2, v2, 1@20, st=EX]}     [PUT, k2, v2, 1@20, st=EX]}
                                                      [PUT, k3, v3, 1@30, st=SN]}
 
 @60 [p1: reply (p1 -> o1: PUT k3, v3, 1@30)]
 		## o1 -> DTM user: op_executed(1@30)
 @60 [p2: reply (p2 -> o1: PUT k3, v3, 1@30)]
-@60 [p3: reply (p3 -> o1: PUT k3, v3, 1@30)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
-                                                     [PUT, k2, v2, 1@20, st=EX],        {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
-                                                     [PUT, k3, v3, 1@30, st=EX]}        {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}
+@60 [p3: reply (p3 -> o1: PUT k3, v3, 1@30)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],
+                                                     [PUT, k2, v2, 1@20, st=EX],         [PUT, k2, v2, 1@20, st=EX],     [PUT, k2, v2, 1@20, st=EX],     [PUT, k2, v2, 1@20, st=EX],
+                                                     [PUT, k3, v3, 1@30, st=EX]}         [PUT, k3, v3, 1@30, st=EX]}     [PUT, k3, v3, 1@30, st=EX]}     [PUT, k3, v3, 1@30, st=EX]}
 
 
 
@@ -73,10 +73,10 @@ Assumptions:
 
 @70 [o1: DIX PUT k4, v4]
   @71 [o1: request (o1 -> p2: PUT k4, v4, 1@70)]
-  @72 [o1: request (o1 -> p3: PUT k4, v4, 1@70)]    {[PUT, k1, v1, 1@10, st=EX],         {}                             {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
-                                                     [PUT, k2, v2, 1@20, st=EX],         {}                             {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
-                                                     [PUT, k3, v3, 1@30, st=EX],         {}                             {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}
-                                                     [PUT, k4, v4, 1@70, st=SN]}         {}                             {}                              {}
+  @72 [o1: request (o1 -> p3: PUT k4, v4, 1@70)]    {[PUT, k1, v1, 1@10, st=EX],         {[],                            {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],
+                                                     [PUT, k2, v2, 1@20, st=EX],          [],                             [PUT, k2, v2, 1@20, st=EX],     [PUT, k2, v2, 1@20, st=EX],
+                                                     [PUT, k3, v3, 1@30, st=EX],          [],                             [PUT, k3, v3, 1@30, st=EX],     [PUT, k3, v3, 1@30, st=EX],
+                                                     [PUT, k4, v4, 1@70, st=SN]}          []}                              []}                             []}
 
 
   @73 [p2: received (o1 -> p2: PUT k4, v4, 1@70)]
@@ -85,11 +85,11 @@ Assumptions:
 
 @80 [o1: DIX PUT k5, v5]
   @82 [o1: request (o1 -> p2: PUT k5, v5, 1@80)]
-  @83 [o1: request (o1 -> p3: PUT k5, v5, 1@80)]    {[PUT, k1, v1, 1@10, st=EX],         {}                             {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
-                                                     [PUT, k2, v2, 1@20, st=EX],         {}                             {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
-                                                     [PUT, k3, v3, 1@30, st=EX],         {}                             {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}
-                                                     [PUT, k4, v4, 1@70, st=SN],         {}                             {}                              {}
-                                                     [PUT, k5, v5, 1@80, st=SN]}         {}                             {}                              {}
+  @83 [o1: request (o1 -> p3: PUT k5, v5, 1@80)]    {[PUT, k1, v1, 1@10, st=EX],        {[],                            {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],
+                                                     [PUT, k2, v2, 1@20, st=EX],         [],                             [PUT, k2, v2, 1@20, st=EX],     [PUT, k2, v2, 1@20, st=EX],
+                                                     [PUT, k3, v3, 1@30, st=EX],         [],                             [PUT, k3, v3, 1@30, st=EX],     [PUT, k3, v3, 1@30, st=EX],
+                                                     [PUT, k4, v4, 1@70, st=SN],         [],                             [],                             [],
+                                                     [PUT, k5, v5, 1@80, st=SN]}         []}                             []}                             []}
 
 
   @84 [p2: received (o1 -> p2: PUT k5, v5, 1@80)]
@@ -98,12 +98,12 @@ Assumptions:
 
 @90 [o1: DIX PUT k6, v6]
   @92 [o1: request (o1 -> p2: PUT k6, v6, 1@90)]
-  @93 [o1: request (o1 -> p3: PUT k6, v6, 1@90)]    {[PUT, k1, v1, 1@10, st=EX],         {}                             {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
-                                                     [PUT, k2, v2, 1@20, st=EX],         {}                             {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
-                                                     [PUT, k3, v3, 1@30, st=EX],         {}                             {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}
-                                                     [PUT, k4, v4, 1@70, st=SN],         {}                             {}                              {}
-                                                     [PUT, k5, v5, 1@80, st=SN],         {}                             {}                              {}
-                                                     [PUT, k6, v6, 1@90, st=SN]}         {}                             {}                              {}
+  @93 [o1: request (o1 -> p3: PUT k6, v6, 1@90)]    {[PUT, k1, v1, 1@10, st=EX],        {[],                            {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],
+                                                     [PUT, k2, v2, 1@20, st=EX],         [],                             [PUT, k2, v2, 1@20, st=EX],     [PUT, k2, v2, 1@20, st=EX],
+                                                     [PUT, k3, v3, 1@30, st=EX],         [],                             [PUT, k3, v3, 1@30, st=EX],     [PUT, k3, v3, 1@30, st=EX],
+                                                     [PUT, k4, v4, 1@70, st=SN],         [],                             [],                             [],
+                                                     [PUT, k5, v5, 1@80, st=SN],         [],                             [],                             [],
+                                                     [PUT, k6, v6, 1@90, st=SN]}         []}                             []}                             []}
 
 
   @94 [p2: received (o1 -> p2: PUT k6, v6, 1@90)]
@@ -119,12 +119,12 @@ Assumptions:
 
 @130 [p2: reply (p2 -> o1: PUT k6, v6, 1@90)]
 		## o1 -> DTM user: op_executed(1@90)
-@130 [p3: reply (p3 -> o1: PUT k6, v6, 1@90)]    {[PUT, k1, v1, 1@10, st=EX],         {}                             {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
-                                                  [PUT, k2, v2, 1@20, st=EX],         {}                             {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
-                                                  [PUT, k3, v3, 1@30, st=EX],         {}                             {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}
-                                                  [PUT, k4, v4, 1@70, st=EX],         {}                             {[PUT, k4, v4, 1@70, st=EX]}    {[PUT, k4, v4, 1@70, st=EX]}
-                                                  [PUT, k5, v5, 1@80, st=EX],         {}                             {[PUT, k5, v5, 1@80, st=EX]}    {[PUT, k5, v5, 1@80, st=EX]}
-                                                  [PUT, k6, v6, 1@90, st=EX]}         {}                             {[PUT, k6, v6, 1@90, st=EX]}    {[PUT, k6, v6, 1@90, st=EX]}
+@130 [p3: reply (p3 -> o1: PUT k6, v6, 1@90)]       {[PUT, k1, v1, 1@10, st=EX],    {[],                              {[PUT, k1, v1, 1@10, st=EX],   {[PUT, k1, v1, 1@10, st=EX],
+                                                     [PUT, k2, v2, 1@20, st=EX],     [],                               [PUT, k2, v2, 1@20, st=EX],    [PUT, k2, v2, 1@20, st=EX],
+                                                     [PUT, k3, v3, 1@30, st=EX],     [],                               [PUT, k3, v3, 1@30, st=EX],    [PUT, k3, v3, 1@30, st=EX],
+                                                     [PUT, k4, v4, 1@70, st=EX],     [],                               [PUT, k4, v4, 1@70, st=EX],    [PUT, k4, v4, 1@70, st=EX],
+                                                     [PUT, k5, v5, 1@80, st=EX],     [],                               [PUT, k5, v5, 1@80, st=EX],    [PUT, k5, v5, 1@80, st=EX],
+                                                     [PUT, k6, v6, 1@90, st=EX]}     []}                               [PUT, k6, v6, 1@90, st=EX]}    [PUT, k6, v6, 1@90, st=EX]}
 
 
 
@@ -143,27 +143,26 @@ Assumptions:
 @180 [p3: PERSISTENT (p3 -> o1, p1, p2: 1@30)]
 	## o1 -> DTM user: op_persistent(1@30)
 @180 [p3: PERSISTENT (p3 -> o1, p1, p2: 1@70)]
-	## o1 -> DTM user: op_persistent(1@70)    {[PUT, k1, v1, 1@10, st=PR, VPV],         {}                             {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
-                                               [PUT, k2, v2, 1@20, st=PR, VPV],         {}                             {[PUT, k2, v2, 1@20, st=EX]}    {[PUT, k2, v2, 1@20, st=EX]}
-                                               [PUT, k3, v3, 1@30, st=PR, VVP],         {}                             {[PUT, k3, v3, 1@30, st=EX]}    {[PUT, k3, v3, 1@30, st=EX]}
-                                               [PUT, k4, v4, 1@70, st=PR, VVP],         {}                             {[PUT, k4, v4, 1@70, st=EX]}    {[PUT, k4, v4, 1@70, st=EX]}
-                                               [PUT, k5, v5, 1@80, st=EX],              {}                             {[PUT, k5, v5, 1@80, st=EX]}    {[PUT, k5, v5, 1@80, st=EX]}
-                                               [PUT, k6, v6, 1@90, st=EX]}              {}                             {[PUT, k6, v6, 1@90, st=EX]}    {[PUT, k6, v6, 1@90, st=EX]}
-
+    ## o1 -> DTM user: op_persistent(1@70)          {[PUT, k1, v1, 1@10, st=PR, VPV], {[PUT, k1, v1, 1@10, st=RV, VPV], {[PUT, k1, v1, 1@10, st=PR, VPV], {[PUT, k1, v1, 1@10, st=EX, VPV],
+                                                     [PUT, k2, v2, 1@20, st=PR, VPV],  [PUT, k2, v2, 1@20, st=RV, VPV],  [PUT, k2, v2, 1@20, st=PR, VPV],  [PUT, k2, v2, 1@20, st=EX, VPV],
+                                                     [PUT, k3, v3, 1@30, st=PR, VVP],  [PUT, k3, v3, 1@30, st=RV, VVP],  [PUT, k3, v3, 1@30, st=EX, VVP],  [PUT, k3, v3, 1@30, st=PR, VVP],
+                                                     [PUT, k4, v4, 1@70, st=PR, VVP],  [PUT, k4, v4, 1@70, st=RV, VVP],  [PUT, k4, v4, 1@70, st=EX, VVP],  [PUT, k4, v4, 1@70, st=PR, VVP],
+                                                     [PUT, k5, v5, 1@80, st=EX, VVV],  [PUT, k5, v5, 1@80, st=RV, VVV],  [PUT, k5, v5, 1@80, st=EX, VVV],  [PUT, k5, v5, 1@80, st=EX, VVV],
+                                                     [PUT, k6, v6, 1@90, st=EX, VVV]}  [PUT, k6, v6, 1@90, st=RV, VVV]}  [PUT, k6, v6, 1@90, st=EX, VVV]}  [PUT, k6, v6, 1@90, st=EX, VVV]}
 
 
 @190 [p1: reply (p1 -> o1: PUT k1, v1, 1@10)]
-		## o1 -> DTM user: op_executed(1@10)
 @191 [p1: reply (p1 -> o1: PUT k2, v2, 1@20)]
-		## o1 -> DTM user: op_executed(1@20)
 @192 [p1: reply (p1 -> o1: PUT k4, v4, 1@70)]
-		## o1 -> DTM user: op_executed(1@70)
 @193 [p1: reply (p1 -> o1: PUT k3, v3, 1@30)]
-		## o1 -> DTM user: op_executed(1@30)
 @194 [p1: reply (p1 -> o1: PUT k5, v5, 1@80)]
-		## o1 -> DTM user: op_executed(1@80)
-@195 [p1: reply (p1 -> o1: PUT k6, v6, 1@90)]
-		## o1 -> DTM user: op_executed(1@90)
+    @195 [p1: reply (p1 -> o1: PUT k6, v6, 1@90)]   {[PUT, k1, v1, 1@10, st=PR, VPV], {[PUT, k1, v1, 1@10, st=EX, VPV], {[PUT, k1, v1, 1@10, st=PR, VPV], {[PUT, k1, v1, 1@10, st=EX, VPV],
+                                                     [PUT, k2, v2, 1@20, st=PR, VPV],  [PUT, k2, v2, 1@20, st=EX, VPV],  [PUT, k2, v2, 1@20, st=PR, VPV],  [PUT, k2, v2, 1@20, st=EX, VPV],
+                                                     [PUT, k3, v3, 1@30, st=PR, VVP],  [PUT, k3, v3, 1@30, st=EX, VVP],  [PUT, k3, v3, 1@30, st=EX, VVP],  [PUT, k3, v3, 1@30, st=PR, VVP],
+                                                     [PUT, k4, v4, 1@70, st=PR, VVP],  [PUT, k4, v4, 1@70, st=EX, VVP],  [PUT, k4, v4, 1@70, st=EX, VVP],  [PUT, k4, v4, 1@70, st=PR, VVP],
+                                                     [PUT, k5, v5, 1@80, st=EX, VVV],  [PUT, k5, v5, 1@80, st=EX, VVV],  [PUT, k5, v5, 1@80, st=EX, VVV],  [PUT, k5, v5, 1@80, st=EX, VVV],
+                                                     [PUT, k6, v6, 1@90, st=EX, VVV]}  [PUT, k6, v6, 1@90, st=EX, VVV]}  [PUT, k6, v6, 1@90, st=EX, VVV]}  [PUT, k6, v6, 1@90, st=EX, VVV]}
+
 
 @196 [p1: online(p1 -> HA)] ## ONLINE
 	## HA sends notice to everybody informing p1 is online.
@@ -188,5 +187,11 @@ Assumptions:
 
 @204 [p1: PERSISTENT (p1 -> o1, p2, p3: 1@30)]
 @205 [p1: PERSISTENT (p1 -> o1, p2, p3: 1@80)]
-@206 [p1: PERSISTENT (p1 -> o1, p2, p3: 1@90)]
+@206 [p1: PERSISTENT (p1 -> o1, p2, p3: 1@90)]      {[PUT, k1, v1, 1@10, st=PR, PPP], {[PUT, k1, v1, 1@10, st=PR, PPP], {[PUT, k1, v1, 1@10, st=PR, PPP], {[PUT, k1, v1, 1@10, st=PR, PPP],
+                                                     [PUT, k2, v2, 1@20, st=PR, PPP],  [PUT, k2, v2, 1@20, st=PR, PPP],  [PUT, k2, v2, 1@20, st=PR, PPP],  [PUT, k2, v2, 1@20, st=PR, PPP],
+                                                     [PUT, k3, v3, 1@30, st=PR, PPP],  [PUT, k3, v3, 1@30, st=PR, PPP],  [PUT, k3, v3, 1@30, st=PR, PPP],  [PUT, k3, v3, 1@30, st=PR, PPP],
+                                                     [PUT, k4, v4, 1@70, st=PR, PPP],  [PUT, k4, v4, 1@70, st=PR, PPP],  [PUT, k4, v4, 1@70, st=PR, PPP],  [PUT, k4, v4, 1@70, st=PR, PPP],
+                                                     [PUT, k5, v5, 1@80, st=PR, PPP],  [PUT, k5, v5, 1@80, st=PR, PPP],  [PUT, k5, v5, 1@80, st=PR, PPP],  [PUT, k5, v5, 1@80, st=PR, PPP],
+                                                     [PUT, k6, v6, 1@90, st=PR, PPP]}  [PUT, k6, v6, 1@90, st=PR, PPP]}  [PUT, k6, v6, 1@90, st=PR, PPP]}  [PUT, k6, v6, 1@90, st=PR, PPP]}
+
 
