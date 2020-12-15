@@ -44,7 +44,7 @@ Get to know
 
 - `Quick Start Guide </doc/Quick-Start-Guide.rst>`_
 
-- `Example Cluster Setup <https://github.com/Seagate/cortx-motr/discussions/285>`_
+- `Example Cluster Setup </discussions/285>`_
 
 - `Source Structure </doc/source-structure.md>`_
 
