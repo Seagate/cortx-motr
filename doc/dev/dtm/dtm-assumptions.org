@@ -1,0 +1,89 @@
+
+
+* Assumptions
+
+** [A.HA.failures]
+
+Motr doesn't treat failures and relies on HA.
+
+
+** [A.DIX.permanent.failures]
+
+DIX supports not more that K+1 permanent failures. In cases when
+previous failures are repaired and new occurs, the previous one is
+treated as permanent.
+
+
+** [A.DIX.no-consistency-handling-after-any-fail]
+
+DIX request processing logic itself does not handle, process or
+maintain any equipment related failures seen by it like CAS service or
+storage device state transitions over ONLINE <-> TRANSIENT <-> FAILED
+state chain. DIX is just interpreting these state transitions and
+according to this information returns corresponding error codes to the
+user of DIX.
+
+
+** [A.DIX.cas_req.contain.txr]
+
+Every time CAS request is sent by DIX, DIX has to include DTM0 TXR
+record into it related to DTM0 transaction.
+
+
+** [A.DIX.cas_req.dtm0.message.assymetry]
+
+During normal DIX operation mode in cases without any permanent or
+transient failures, DTM0 EXECUTE and PERSISTENT messages have to be
+delivered to the DIX client inside cas_req_reply without any
+additional network messages. For failure cases they delivered as a
+separate network messages.
+
+
+** [A.DIX.no-spares]
+
+We don't use spares in the first approach.
+
+
+** [A.DIX.k+1.copies]
+
+In the case of any CAS service failure, after it’s registered in DIX
+request processing logic, DIX has to follow the rule that it has sent
+K+1 replicas onto corresponding CAS/DTM services in an applicable
+format (generic cas requests, dtm0 requests to write log, etc.) if
+this is possible. In any other case treated as DIX request error.
+
+
+** [A.DIX.dtm0-role]
+
+In the case of transient failure of any equipment related to current
+DIX request processing after DIX interpreted such a failure as a CAS
+service state change, all maintenance of persistency consistency is
+performed by DTM0.
+
+
+** [A.DIX.drepreb-role]
+
+In case of permanent failure of any equipment related to current DIX
+request processing after DIX registered such a failure as a CAS
+service state change, all maintenance of persistency consistency on
+newly arrived storage devices or services is performed by DIX direct
+rebalance.
+
+
+** [A.DIX.drepreb-dix-coexist]
+
+During DIX direct rebalance of one of storage devices, normal DIX
+operations have to be performed as usual. This has to be achieved by
+the use of combination of “write flag” and “tombstones” therefore, no
+specific DIX request processing phases for DEL and PUT operations are
+not needed.
+
+
+** [A.DIX.dtm0.only-one]
+
+Only one DIX operation execution is supported by DTM0 transaction.
+
+
+** [A.RPC.magic-link]
+
+RPC supports magic link semantics.
