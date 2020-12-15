@@ -27,7 +27,7 @@ Tests:
     sandbox  : /var/motr/m0ut
     groupname: 01motr-single-node
     polltime : 15
-    timeout  : 1800
+    timeout  : 3600
 
   - id       : 01kernel-tests
     script   : m0kut
@@ -54,7 +54,7 @@ Tests:
     sandbox  : /var/motr/sandbox.02system-tests
     groupname: 02motr-single-node
     polltime : 30
-    timeout  : 3000
+    timeout  : 4800
 
   - id       : 03initscript-tests
     script   : initscripts
@@ -63,7 +63,7 @@ Tests:
     #executor : Xperior::Executor::Skip
     groupname: 01motr-single-node
     polltime : 30
-    timeout  : 1800
+    timeout  : 3600
     roles: StoreSyslog  CustomLogCollector
     #NetconsoleCollector
     #collect_logs :
@@ -236,7 +236,7 @@ Tests:
     sandbox  : /var/motr/sandbox.20pool-version-test
     groupname: 02motr-single-node
     polltime : 30
-    timeout  : 660
+    timeout  : 1320
 
   - id       : 21spiel-test
     script   : m0t1fs_spiel_st.sh
@@ -286,7 +286,7 @@ Tests:
     sandbox  : /var/motr/sandbox.25spiel-sns-repair-test
     groupname: 04motr-single-node
     polltime : 30
-    timeout  : 1800
+    timeout  : 3600
 
   - id       : 26spiel-sns-repair-quiesce-test
     script   : m0t1fs_spiel_sns_repair_quiesce.sh
@@ -296,7 +296,7 @@ Tests:
     sandbox  : /var/motr/sandbox.26spiel-sns-repair-quiesce-test
     groupname: 04motr-single-node
     polltime : 30
-    timeout  : 900
+    timeout  : 1800
 
   - id       : 27sns-repair-io-fail-test
     script   : m0t1fs_sns_repair_ios_fail.sh
@@ -568,7 +568,7 @@ Tests:
     sandbox  : /var/motr/sandbox.54sns-repair-motr-1f
     groupname: 03motr-single-node
     polltime : 30
-    timeout  : 600
+    timeout  : 1200
 
   - id       : 55sns-repair-motr-1n-1f
     script   : sns_repair_motr_1n_1f.sh
@@ -604,7 +604,7 @@ Tests:
     sandbox  : /var/motr/sandbox.58sns-repair-motr-ios-fail
     groupname: 03motr-single-node
     polltime : 30
-    timeout  : 1800
+    timeout  : 3600
 
   - id       : 59sns-repair-motr-abort
     script   : sns_repair_motr_abort.sh
@@ -622,7 +622,7 @@ Tests:
     sandbox  : /var/motr/sandbox.60sns-repair-motr-abort-quiesce
     groupname: 03motr-single-node
     polltime : 30
-    timeout  : 1800
+    timeout  : 3600
 
   - id       : 61spiel-multi-confd
     script   : spiel_multiple_confd.sh
