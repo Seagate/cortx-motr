@@ -2261,8 +2261,8 @@ static int balloc_wild_scan_group(struct balloc_allocation_context *bac,
 	 * Now with criteria 2 on same group with already set best extent may
 	 * not part of extent in free extent list because another requests
 	 * may have updated extents in free list.
-	 * Reset bac_found and best extent by detecting this case so that it
-	 * will find correct best extent and also set end_of_group flag so
+	 * Reset best extent by detecting this case so that it
+	 * will find correct best extent, also set end_of_group flag so
 	 * balloc_check_limits() could call balloc_use_best_found() to set
 	 * final extent from best extent.
 	 */
