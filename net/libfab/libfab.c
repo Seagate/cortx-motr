@@ -52,65 +52,69 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
-#include "lib/trace.h"
+#include "lib/trace.h"          /* M0_ENTRY() */
+#include "net/net.h"            /* struct m0_net_domain */
+#include "lib/memory.h"         /* M0_ALLOC_PTR()*/
+#include "libfab_internal.h"    /* struct m0_fab__dom_param */
 
-#include "net/net.h"
-#include "lib/bitmap.h"
-#include "lib/chan.h"
-#include "lib/memory.h"
-#include "libfab_internal.h"
-#include <errno.h>
-
-
-/** Network transfer machine */
-struct transfer_ma {
-	/**
-	* Generic transfer machine with buffer queues, etc. 
-	*/
-	struct m0_net_transfer_mc *t_ma;
-
-	/**
-	* TODO: Is poller thread required ?
-	*/
+/** Parameters required for libfabric configuration */
+enum m0_fab__mr_params {
+	/** Fabric memory access. */
+	FAB_MR_ACCESS  = (FI_READ | FI_WRITE | FI_RECV | FI_SEND | \
+			FI_REMOTE_READ | FI_REMOTE_WRITE),
+	/** Fabric memory offset. */
+	FAB_MR_OFFSET  = 0,
+	/** Fabric memory flag. */
+	FAB_MR_FLAG    = 0,
+	/** Key used for memory registration. */
+	FAB_MR_KEY     = 0XABCD,
 };
 
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
 	struct m0_fab__dom_param *fab_dom;
-	int rc;
+	struct fi_info           *fab_hints;
+	int 			  rc;
 
 	M0_ENTRY();
 	
 	M0_ALLOC_PTR(fab_dom);
 	if (fab_dom == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
-	fab_dom->fab_hints = fi_allocinfo();
-	if (fab_dom->fab_hints != NULL) {
-		/*
-		* TODO: Added for future use
-		* fab_dom->fab_hints->ep_attr->type = FI_EP_RDM;
-		* fab_dom->fab_hints->caps = FI_MSG;
-		* fab_dom->fab_hints->fabric_attr->prov_name = "verbs";
-		*/
-		rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
-				NULL, NULL, 0, fab_dom->fab_hints,
-				&fab_dom->fab_fi);
+	fab_hints = fi_allocinfo();
+	if (fab_hints == NULL) {
+		 m0_free(fab_dom);
+		return M0_ERR(-ENOMEM); 
+	}
+
+	/*
+	* TODO: Added for future use
+	* fab_hints->ep_attr->type = FI_EP_RDM;
+	* fab_hints->caps = FI_MSG;
+	* fab_hints->fabric_attr->prov_name = "verbs";
+	*/
+	rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
+			NULL, NULL, 0, fab_hints,
+			&fab_dom->fdp_fi);
+	if (rc == FI_SUCCESS) {
+		rc = fi_fabric(fab_dom->fdp_fi->fabric_attr,
+			       &fab_dom->fdp_fabric, NULL);
 		if (rc == FI_SUCCESS) {
-			rc = fi_fabric(fab_dom->fab_fi->fabric_attr,
-				       &fab_dom->fab_fabric, NULL);
-			if (rc == FI_SUCCESS) {
-				rc = fi_domain(fab_dom->fab_fabric,
-					       fab_dom->fab_fi,
-					       &fab_dom->fab_domain, NULL);
-				if (rc == FI_SUCCESS)
-					dom->nd_xprt_private = fab_dom;
-			}
+			rc = fi_domain(fab_dom->fdp_fabric,
+				       fab_dom->fdp_fi,
+				       &fab_dom->fdp_domain, NULL);
+			if (rc == FI_SUCCESS)
+				dom->nd_xprt_private = fab_dom;
 		}
-		fi_freeinfo(fab_dom->fab_hints);
-	} else 
-		rc = M0_ERR(-ENOMEM); 
+	}
+
+	if ( rc != FI_SUCCESS)
+	{
+		m0_free(fab_dom);
+	}
+	fi_freeinfo(fab_hints);
 
 	return M0_RC(rc);
 }
@@ -119,31 +123,25 @@ static void libfab_fab_param_free(struct m0_fab__dom_param *fab_dom)
 {
 	int    ret;
 
-	if (fab_dom->fab_domain != NULL) {
-		ret = fi_close(&(fab_dom->fab_domain)->fid);
+	if (fab_dom->fdp_domain != NULL) {
+		ret = fi_close(&(fab_dom->fdp_domain)->fid);
 		if (ret != FI_SUCCESS)
-			M0_LOG(M0_ERROR, "fab_domain fi_close ret=%d fid=%d",
-			       ret, (int)(fab_dom->fab_domain)->fid.fclass);
+			M0_LOG(M0_ERROR, "fdp_domain fi_close ret=%d fid=%d",
+			       ret, (int)(fab_dom->fdp_domain)->fid.fclass);
 	}
 
-	if (fab_dom->fab_fabric != NULL) {
-		ret = fi_close(&(fab_dom->fab_fabric)->fid);
+	if (fab_dom->fdp_fabric != NULL) {
+		ret = fi_close(&(fab_dom->fdp_fabric)->fid);
 		if (ret != FI_SUCCESS)
-			M0_LOG(M0_ERROR, "fab_fabric fi_close ret=%d fid=%d",
-			       ret, (int)(fab_dom->fab_fabric)->fid.fclass);
-		fab_dom->fab_fabric = NULL;
+			M0_LOG(M0_ERROR, "fdp_fabric fi_close ret=%d fid=%d",
+			       ret, (int)(fab_dom->fdp_fabric)->fid.fclass);
+		fab_dom->fdp_fabric = NULL;
 	}
 
-	if (fab_dom->fab_fi != NULL) {
-		fi_freeinfo(fab_dom->fab_fi);
-		fab_dom->fab_fi = NULL;
+	if (fab_dom->fdp_fi != NULL) {
+		fi_freeinfo(fab_dom->fdp_fi);
+		fab_dom->fdp_fi = NULL;
 	}
-
-	if (fab_dom->fab_hints != NULL) {
-		fi_freeinfo(fab_dom->fab_hints);
-		fab_dom->fab_hints = NULL;
-	}
-
 }
 
 /** Used as m0_net_xprt_ops::xo_dom_fini(). */
@@ -239,27 +237,9 @@ static int libfab_end_point_create(struct m0_net_end_point **epp,
 	return M0_RC(result);
 }
 
-/**
- * Initialises a network buffer.
- *
- * Used as m0_net_xprt_ops::xo_buf_register().
- *
- * @see m0_net_buffer_register().
- */
-static int libfab_buf_register(struct m0_net_buffer *nb)
-{
-	int        		ret = 0;
-
-	return M0_RC(ret);
-
-	/*
-	* TODO
-	* fi_mr_reg, fi_mr_desc, fi_mr_key, fi_mr_bind, fi_mr_enable
-	*/
-}	
 
 /**
- * Finalises a network buffer.
+ * Deregister a network buffer.
  *
  * Used as m0_net_xprt_ops::xo_buf_deregister().
  *
@@ -267,9 +247,53 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
  */
 static void libfab_buf_deregister(struct m0_net_buffer *nb)
 {
-	/*
- 	* TODO:
- 	* fi_close() */
+	struct m0_fab__buf_params *fbp = nb->nb_xprt_private;
+	int			   ret;
+
+	ret = fi_close(&fbp->fbp_mr->fid);
+	M0_PRE(ret == FI_SUCCESS);
+	m0_free(fbp);
+	nb->nb_xprt_private = NULL;
+}
+
+/**
+ * Register a network buffer.
+ *
+ * Used as m0_net_xprt_ops::xo_buf_register().
+ *
+ * @see m0_net_buffer_register().
+ */
+static int libfab_buf_register(struct m0_net_buffer *nb)
+{
+	int			      ret;
+	struct m0_fab__dom_param     *fab_dom = nb->nb_dom->nd_xprt_private;
+	struct fid_domain	     *domain = fab_dom->fdp_domain;
+	struct m0_fab__buf_params    *fbp;
+
+	M0_PRE(nb->nb_xprt_private == NULL);
+
+	M0_ALLOC_PTR(fbp);
+	if (fbp == NULL)
+		return M0_ERR(-ENOMEM);
+
+	nb->nb_xprt_private = fbp;
+	fbp->fbp_nb = nb;
+	/* Registers buffer that can be used for send/recv and local/remote RMA. */
+	ret = fi_mr_reg(domain, nb->nb_buffer.ov_buf[0], nb->nb_length,
+			FAB_MR_ACCESS, FAB_MR_OFFSET, FAB_MR_KEY,
+			FAB_MR_FLAG, &fbp->fbp_mr, NULL);	
+	if (ret != FI_SUCCESS)
+	{
+		nb->nb_xprt_private = NULL;
+		m0_free(fbp);
+		return M0_ERR(ret);
+	}
+	
+	ret = fi_mr_enable(fbp->fbp_mr);
+	if (ret != FI_SUCCESS)
+		libfab_buf_deregister(nb); /* Failed to enable memory region */
+
+	return M0_RC(ret);
 }
 
 /**
