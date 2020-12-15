@@ -44,6 +44,7 @@
 
 static struct m0_net_xprt *xprts[XPRT_MAX] = {0};
 static struct m0_net_xprt *xprt_default;
+struct m0_net_xprt *m0_net_xprt_obj;
 /**
    @addtogroup net
    @{
@@ -153,9 +154,11 @@ void m0_net_xprt_default_set(struct m0_net_xprt *xprt)
 {
 	M0_ENTRY();
 	xprt_default = xprt;
+	m0_net_xprt_obj = xprt_default;
 	m0_net_xprt_register(xprt);
 }
 M0_EXPORTED(m0_net_xprt_default_set);
+M0_EXPORTED(m0_net_xprt_obj);
 
 struct m0_net_xprt *m0_net_xprt_default_get(void)
 {

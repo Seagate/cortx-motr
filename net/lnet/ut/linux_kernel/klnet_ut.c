@@ -237,9 +237,8 @@ static void ktest_buf_shape(void)
 	void *base;
 	unsigned num_pages;
 
-	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	M0_SET0(&dom1);
-	M0_UT_ASSERT(!m0_net_domain_init(&dom1,  xprt));
+	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_lnet_xprt));
 
 	/* buffer shape APIs */
 	M0_UT_ASSERT(m0_net_domain_get_max_buffer_size(&dom1)
@@ -294,13 +293,12 @@ static void ktest_buf_reg(void)
 	struct nlx_core_domain *cd;
 	struct nlx_xo_domain *dp;
 	struct nlx_kcore_domain *kd;
-	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 
 	M0_SET0(&dom1);
 	M0_SET0(&nb1);
 	M0_SET0(&nb3);
 
-	M0_UT_ASSERT(!m0_net_domain_init(&dom1, xprt));
+	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_lnet_xprt));
 
 	/* TEST
 	   Register a network buffer of maximal size and perfectly aligned on

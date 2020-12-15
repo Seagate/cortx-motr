@@ -1760,6 +1760,7 @@ void m0_net_xprt_register(struct m0_net_xprt *xprt);
 void m0_net_xprt_deregister(struct m0_net_xprt *xprt);
 struct m0_net_xprt **m0_net_all_xprt_get(void);
 int m0_net_xprt_nr_get(void);
+extern struct m0_net_xprt *m0_net_xprt_obj;
 /** @} end of networking group */
 #endif /* __MOTR_NET_NET_H__ */
 
