@@ -2271,7 +2271,6 @@ static int balloc_wild_scan_group(struct balloc_allocation_context *bac,
 						 bac->bac_ctxt);
 		if (group == grp->bgi_groupno) {
 			end_of_group = 1;
-			bac->bac_found = 0;
 			M0_SET0(&bac->bac_best);
 			m0_ext_init(&bac->bac_best);
 		}
