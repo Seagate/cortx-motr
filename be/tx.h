@@ -656,6 +656,10 @@ M0_INTERNAL bool m0_be_should_break(struct m0_be_engine          *eng,
 				    const struct m0_be_tx_credit *accum,
 				    const struct m0_be_tx_credit *delta);
 
+M0_INTERNAL bool m0_be_should_break_half(struct m0_be_engine          *eng,
+					 const struct m0_be_tx_credit *accum,
+					 const struct m0_be_tx_credit *delta);
+
 /** @} end of be group */
 #endif /* __MOTR_BE_TX_H__ */
 
