@@ -52,16 +52,10 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
-#include "lib/trace.h"
-
-#include "net/net.h"
-#include "lib/bitmap.h"
-#include "lib/chan.h"
-#include "lib/memory.h"
-#include "lib/types.h"
-#include "lib/memory.h" /*M0_ALLOC_PTR()*/
-#include "libfab_internal.h"
-#include <errno.h>
+#include "lib/trace.h"          /* M0_ENTRY() */
+#include "net/net.h"            /* struct m0_net_domain */
+#include "lib/memory.h"         /* M0_ALLOC_PTR()*/
+#include "libfab_internal.h"    /* struct m0_fab__dom_param */
 
 /** Parameters required for libfabric configuration */
 enum m0_fab__mr_params {
