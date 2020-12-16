@@ -73,9 +73,8 @@ int main(int argc, char **argv)
 		"-c", M0_UT_PATH("diter.xc"),
 		"-q", tm_len, "-m", rpc_size
 	};
-	struct m0_net_xprt      *xprt = m0_net_xprt_default_get();
+	struct m0_net_xprt      *xprt;
 	struct m0_rpc_server_ctx sctx = {
-		.rsx_xprts            = &xprt,
 		.rsx_xprts_nr         = 1,
 		.rsx_argv             = server_argv,
 		.rsx_argc             = ARRAY_SIZE(server_argv),
@@ -92,6 +91,9 @@ int main(int argc, char **argv)
 	result = m0_ut_init(&instance);
 	if (result != 0)
 		return M0_RC(-result);
+
+	xprt = m0_net_xprt_default_get();
+	sctx.rsx_xprts = &xprt;
 
 	m0_console_verbose = false;
 	result = M0_GETOPTS("server", argc, argv,
