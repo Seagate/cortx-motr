@@ -1,6 +1,10 @@
 # Table of contents
 1. [Overview](#Overview)
    - [CORTX-Cluster](#CORTX-Cluster)
+      - [CORTX-Cluster-R2](#CORTX-Cluster-R2)
+      - [Storage-Set-R2](#Storage-Set-R2)
+         - [Enclosure](#Enclosure)
+            - [Enclosure-SSD-Config-For-Metadata](#Enclosure-SSD-Config-For-Metadata)
 2. [Function-Requirement](#Function-Requirement)
     1. [Sub paragraph](#subparagraph1)
 3. [Another paragraph](#paragraph2)
@@ -22,7 +26,7 @@ Following are the hierarchy of Cortx Cluster
 
 ![CORTX Cluster with Storage Set](images/CortexV2StorageSet.JPG)
 
-### R2-CORTX-Cluster
+### CORTX-Cluster-R2
 CORTX R2 will have following characteristics
 1. Storage set will communicate with each other at network layer. 
    - e.g In above figure Storage Set 1 and 2 are shown connected at network layer
@@ -31,9 +35,26 @@ CORTX R2 will have following characteristics
 1. Any node in cluster can server S3 request for any storage set.
    - e.g In above figure Node 1 from Storage Set 1 can server read request for object stored in Storage Set 2
 
-### Storage-Set
+### Storage-Set-R2
 The figure below shows the details of storage set
 ![Storage Set Details](images/StorageSetDetails.JPG)
+
+Element of Storage set are described in following section
+
+#### Enclosure
+Enclosure+Firmware creates Disk Group (DG) by groupping set of drives which contoller can access. Controller access drives through SAS Expander, so each contoller can access all DG. This helps to provide controller failover.
+
+Enclosure Firmware also provides management interface to create set of volumes. As per enclosure team creating 8 volume gives optimal perfromance
+
+##### Enclosure-SSD-Config-For-Metadata
+To improve the speed of metadata access SSDs can be used in following ways in enclosure.
+![Enclosure Metadata Config](images/EnclosureSSDConfig.JPG)
+- HDDs will be part of Standart Disk Group while
+- SSDs will be part of Performance Disk Group 
+- Metadata volume affinity should be set for Performance
+- Ideally SSD Capacity >= Metadata Volume Size / 2
+
+**TODO**: Analyze the impact of  multiple DG in a storage pool and it failure handling
 
 ### Failure Domain
 
