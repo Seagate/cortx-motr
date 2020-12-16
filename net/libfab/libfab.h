@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef __MOTR_NET_LIBFAB_H__
-#define __MOTR_NET_LIBFAB_H__
+#ifndef __MOTR_NET_LIBFAB_LIBFAB_H__
+#define __MOTR_NET_LIBFAB_LIBFAB_H__
 
 
 extern struct m0_net_xprt m0_net_libfab_xprt;
@@ -38,7 +38,7 @@ M0_INTERNAL void m0_net_libfab_fini(void);
  */
 
 /** @} end of netlibfab group */
-#endif /* __MOTR_NET_LIBFAB_H__ */
+#endif /* __MOTR_NET_LIBFAB_LIBFAB_H__ */
 
 /*
  *  Local variables:
