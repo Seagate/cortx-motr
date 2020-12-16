@@ -92,12 +92,39 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 	*/
 }
 
+static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port);
+
+/* Used to take the ip and port from the given end point */
+static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port)
+{
+        char  *cp = strchr(ep_name, ':');
+        size_t n  = cp - ep_name;
+        int    rc = 0;
+
+        if (cp == NULL || n == 0 || ep_name == NULL)
+                return M0_ERR(-EINVAL);
+
+        M0_ENTRY("ep_name=%s", ep_name);
+
+        memcpy(node, ep_name, n);
+        node[n] = 0;
+
+        ++cp;
+        n=strlen(cp);
+        memcpy(port, cp, n);
+        port[n] = 0;
+
+        return M0_RC(rc);
+}
+
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
 	struct m0_fab__dom_param *fab_dom;
 	struct fi_info           *fab_hints;
 	int 			  rc;
+	char                     *node = 0;
+	char                     *port = 0;
 
 	M0_ENTRY();
 	
@@ -117,6 +144,8 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	* fab_hints->caps = FI_MSG;
 	* fab_hints->fabric_attr->prov_name = "verbs";
 	*/
+	libfab_ep_addr_decode(NULL, node, port);
+
 	rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
 			NULL, NULL, 0, fab_hints,
 			&fab_dom->fdp_fi);
