@@ -75,24 +75,26 @@ static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port);
 /* Used to take the ip and port from the given end point */
 static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port)
 {
-        char  *cp = strchr(ep_name, ':');
-        size_t n  = cp - ep_name;
-        int    rc = 0;
+	char     *cp = strchr(ep_name, ':');
+	size_t    n  = cp - ep_name;
+	int       rc = 0;
 
-        if (cp == NULL || n == 0 || ep_name == NULL)
-                return M0_ERR(-EINVAL);
+	M0_PRE(ep_name != NULL);
 
-        M0_ENTRY("ep_name=%s", ep_name);
+	if (cp == NULL || n == 0 )
+		return M0_ERR(-EINVAL);
 
-        memcpy(node, ep_name, n);
-        node[n] = 0;
+	M0_ENTRY("ep_name=%s", ep_name);
 
-        ++cp;
-        n=strlen(cp);
-        memcpy(port, cp, n);
-        port[n] = 0;
+	memcpy(node, ep_name, n);
+	node[n] = 0;
 
-        return M0_RC(rc);
+	++cp;
+	n=strlen(cp);
+	memcpy(port, cp, n);
+	port[n] = 0;
+
+	return M0_RC(rc);
 }
 
 
