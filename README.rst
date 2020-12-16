@@ -44,6 +44,8 @@ Get to know
 
 - `Quick Start Guide </doc/Quick-Start-Guide.rst>`_
 
+- `Architectural Summary </doc/motr-in-prose.md>`_
+
 - `Source Structure </doc/source-structure.md>`_
 
 - `Coding Style </doc/coding-style.md>`_
