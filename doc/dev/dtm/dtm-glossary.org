@@ -1,0 +1,21 @@
+* Glossary
+** process
+** participant
+** originator
+** failure
+** distributed transaction
+** distributed transaction record (txr)
+** local transaction
+** Motr process
+** HA
+** DTM
+** dependency
+** version
+** log
+** message
+txr
+persistent
+executed
+redo
+** txr state
+** process state
