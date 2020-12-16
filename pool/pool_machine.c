@@ -920,7 +920,7 @@ M0_INTERNAL void m0_poolmach_failvec_apply(struct m0_poolmach *pm,
 	struct m0_pooldev        *pd;
 	struct m0_pool           *pool;
 	uint32_t                  i;
-	uint32_t                  pd_idx;
+	uint32_t                  pd_idx = 0;
 	int                       rc;
 
 	M0_PRE(!pm->pm_state->pst_su_initialised);
