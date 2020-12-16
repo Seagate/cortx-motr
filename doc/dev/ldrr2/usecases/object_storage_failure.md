@@ -1,17 +1,16 @@
 # Table of contents
-1. [Overview](#Overview)
-   - [CORTX-Cluster](#CORTX-Cluster)
-      - [CORTX-Cluster-R2](#CORTX-Cluster-R2)
-      - [Storage-Set-R2](#Storage-Set-R2)
-         - [Enclosure](#Enclosure)
-            - [Enclosure-SSD-Config-For-Metadata](#Enclosure-SSD-Config-For-Metadata)
-2. [Function-Requirement](#Function-Requirement)
-    1. [Sub paragraph](#subparagraph1)
-3. [Another paragraph](#paragraph2)
+1. [1:Overview](#1:Overview)   
+1. [2:CORTX-Cluster-R2](#2:CORTX-Cluster-R2)
+      - [2.1:Storage-Set](#2.1:Storage-Set)
+         - [2.1.1:Enclosure](#2.1.1:Enclosure)
+            - [2.1.1.1:Enclosure-SSD-Config-For-Metadata](#2.1.1.1:Enclosure-SSD-Config-For-Metadata)
+         - [2.1.2:Server](#2.1.2:Server)
+      - [2.2:Failure-domain](#2.2:Failure-domain)
 
-# Overview
+# 1:Overview
 This document will be describe LDR R2 motr architecture and design
-## CORTX-Cluster
+
+# 2:CORTX-Cluster-R2
 Following are the hierarchy of Cortx Cluster
 1. Cortx Cluster 
    - Top Level cluster will have multiple storage set
@@ -26,7 +25,6 @@ Following are the hierarchy of Cortx Cluster
 
 ![CORTX Cluster with Storage Set](images/CortexV2StorageSet.JPG)
 
-### CORTX-Cluster-R2
 CORTX R2 will have following characteristics
 1. Storage set will communicate with each other at network layer. 
    - e.g In above figure Storage Set 1 and 2 are shown connected at network layer
@@ -35,18 +33,18 @@ CORTX R2 will have following characteristics
 1. Any node in cluster can server S3 request for any storage set.
    - e.g In above figure Node 1 from Storage Set 1 can server read request for object stored in Storage Set 2
 
-### Storage-Set-R2
+## 2.1:Storage-Set
 The figure below shows the details of storage set
 ![Storage Set Details](images/StorageSetDetails.JPG)
 
 Element of Storage set are described in following section
 
-#### Enclosure
+### 2.1.1:Enclosure
 Enclosure+Firmware creates Disk Group (DG) by groupping set of drives which contoller can access. Controller access drives through SAS Expander, so each contoller can access all DG. This helps to provide controller failover.
 
 Enclosure Firmware also provides management interface to create set of volumes. As per enclosure team creating 8 volume gives optimal perfromance
 
-##### Enclosure-SSD-Config-For-Metadata
+#### 2.1.1.1:Enclosure-SSD-Config-For-Metadata
 To improve the speed of metadata access SSDs can be used in following ways in enclosure.
 ![Enclosure Metadata Config](images/EnclosureSSDConfig.JPG)
 - HDDs will be part of Standart Disk Group while
@@ -54,13 +52,33 @@ To improve the speed of metadata access SSDs can be used in following ways in en
 - Metadata volume affinity should be set for Performance
 - Ideally SSD Capacity >= Metadata Volume Size / 2
 
-**TODO**: Analyze the impact of  multiple DG in a storage pool and it failure handling
+**TODO**: Analyze the impact of  multiple DG in a storage pool and it's failure handling
 
-### Failure Domain
+### 2.1.2:Server
+All the Servers in CORTX cluster are able to communicate with each other using network interface. As S3 request can arrive at any node in the cluster, S3 server (running on node) should be able to locate the storage set in which object info is located and then the further details about object can be retrieved. 
+**Note**: Object info and Object can reside on different storage set.
+![Server MetaData Layout](images/ServerMetaDataLayout.JPG)
 
-# Function-Requirement
-This section will list all the functional requirement for motr scaleout architecture
+To support the above functionality following S3 metadata should be replicated across storage set
+1. Global Bucket Index
+1. Bucket List Index
 
+As the size of this metadata is small, it will be beneficial to replicate this across all the nodes of cluster and during lookup, the local node can provide all the data. Caching mechanism will also help to speedup the lookup for these data.
+
+Note that following new fields needs to be added to existing S3 metadata:
+- New field needs to be  added to the Bucket List Index metadata to locate storage set in  which 'Object List Table' is present. 
+- 'Object List Table' to storage 'Pool Version' and 'Layout ID' locate the Storage Set in which object is located.
+
+**JIRA**: S3 metadata should have version field and reserved field to allow upgraded to metadata without any need for migration?
+
+## 2.2:Failure-domain
+This section will analyze failure domain and its impact on data/metadata consistency.
+With respect of motr following category of failure can occur:
+1. Storage Unavailable
+   a. 
+
+
+** NOTE: Work In Progress **
 ## Basic Assumptions
 Following are the basic assumptions for creating the sequence flow for various error scenarios
 - Global Bucket list is replicated across stroage set.
