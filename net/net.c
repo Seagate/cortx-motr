@@ -43,8 +43,7 @@
 #define XPRT_MAX 4
 
 static struct m0_net_xprt *xprts[XPRT_MAX] = {0};
-static struct m0_net_xprt *xprt_default;
-struct m0_net_xprt *m0_net_xprt_obj;
+static struct m0_net_xprt *xprt_default = NULL;
 /**
    @addtogroup net
    @{
@@ -153,16 +152,18 @@ M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint)
 void m0_net_xprt_default_set(struct m0_net_xprt *xprt)
 {
 	M0_ENTRY();
+	M0_LOG(M0_DEBUG, "setting default xprt to %p:%s", xprt, xprt->nx_name);
 	xprt_default = xprt;
-	m0_net_xprt_obj = xprt_default;
 	m0_net_xprt_register(xprt);
 }
 M0_EXPORTED(m0_net_xprt_default_set);
-M0_EXPORTED(m0_net_xprt_obj);
 
 struct m0_net_xprt *m0_net_xprt_default_get(void)
 {
 	M0_ENTRY();
+	M0_LOG(M0_DEBUG, "getting default xprt to %p:%s",
+			  xprt_default,
+			  xprt_default?xprt_default->nx_name:"NULL");
 	return xprt_default;
 }
 M0_EXPORTED(m0_net_xprt_default_get);
