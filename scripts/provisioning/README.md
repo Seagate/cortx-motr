@@ -477,6 +477,15 @@ vagrant up /ssu/
 vagrant up cmu /ssu/ /client/
 ```
 
+> *NOTE*: on Windows host, _Ansible_ is running on guest VMs (not on host) and
+> all the _Ansible_ tasks scripts are rsync-ed to guests at `/vagrant/` folder.
+> So whenever the scripts are updated on host they can be rsync-ed to guests
+> (in order to pick up the changes) with the following command:
+>
+> ```bash
+> m0vg rsync cmu /ssu/ /client/
+> ```
+
 Streamlining VMs creation and provisioning with snapshots
 ---------------------------------------------------------
 
