@@ -75,8 +75,10 @@ M0_INTERNAL int m0_net_libfab_init(void)
 {
 	int result = 0;
 
-	m0_net_xprt_register(&m0_net_libfab_xprt);
-	/*  Uncomment it when all the changes are intergated
+	
+	/*  TODO: Uncomment it when all the changes are intergated
+	*  commnet to avoid compilation ERROR 
+	*  m0_net_xprt_register(&m0_net_libfab_xprt);
 	*  m0_net_xprt_default_set(&m0_net_libfab_xprt);
 	*/
 	return M0_RC(result);
@@ -84,7 +86,10 @@ M0_INTERNAL int m0_net_libfab_init(void)
 
 M0_INTERNAL void m0_net_libfab_fini(void)
 {
-	m0_net_xprt_deregister(&m0_net_libfab_xprt);
+	/*  TODO: Uncomment it when all the changes are intergated
+	*  commnet to avoid compilation ERROR 
+	*	m0_net_xprt_deregister(&m0_net_libfab_xprt);
+	*/
 }
 
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
