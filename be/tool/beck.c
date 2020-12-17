@@ -2104,8 +2104,8 @@ static bool btree_node_pre_is_valid(const struct m0_be_bnode *node,
 {
 	M0_PRE(node != NULL);
 	return
-		(node->bt_num_active_key < ARRAY_SIZE(node->bt_kv_arr))    &&
-		(m0_fid_tget(&node->bt_backlink.bli_fid) == 'b')       	   &&
+		(node->bt_num_active_key <= ARRAY_SIZE(node->bt_kv_arr))   &&
+		(m0_fid_tget(&node->bt_backlink.bli_fid) == 'b')           &&
 		(node->bt_isleaf == (node->bt_level == 0))                 &&
 		m0_forall(i, node->bt_num_active_key,
 			  node->bt_kv_arr[i].btree_key != NULL &&
