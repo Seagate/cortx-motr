@@ -124,7 +124,7 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
 	struct m0_fab__dom_param *fab_dom;
 	struct fi_info           *fab_hints;
-	int 			          rc;
+	int 			  rc;
 	char                      node[16];
 	char                      port[8];
 	char                      *ep_name = "127.0.0.1:42365"
