@@ -422,7 +422,7 @@ static void ptr(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 {
 	if (json_output)
 		/* JSON spec supports only decimal format (int and float) */
-		sprintf(buf, "{\"ptr\":%"PRId64"}", (uint64_t)*(void **)v);
+		sprintf(buf, "{\"ptr\":%"PRIu64"}", (uint64_t)*(void **)v);
 	else
 		sprintf(buf, "@%p", *(void **)v);
 }
@@ -653,8 +653,8 @@ static void sym(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 			buf += strlen(buf);
 		}
 		if (json_output)
-			sprintf(buf, "\"symbol\":{\"addr\":%"PRId64","
-				     "\"addr_ptr_wrap\":%"PRId64"}",
+			sprintf(buf, "\"symbol\":{\"addr\":%"PRIu64","
+				     "\"addr_ptr_wrap\":%"PRIu64"}",
 				(uint64_t)addr, v[0]);
 		else
 			sprintf(buf, " @%p/%"PRIx64, addr, v[0]);
