@@ -42,7 +42,6 @@
 #include "conf/confc.h"      /* m0_confc_close */
 #include "conf/ha.h"         /* m0_conf_ha_process_event_post */
 #include "conf/helpers.h"    /* m0_confc_args */
-#include "net/lnet/lnet.h"   /* m0_net_lnet_xprt */
 #include "motr/ha.h"
 #include "rpc/rpc_machine.h" /* m0_rpc_machine */
 #include "rpc/rpc.h"         /* m0_rpc_bufs_nr */

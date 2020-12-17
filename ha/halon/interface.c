@@ -52,7 +52,6 @@
 #include "lib/thread.h"         /* m0_process */
 
 #include "net/net.h"            /* M0_NET_TM_RECV_QUEUE_DEF_LEN */
-#include "net/lnet/lnet.h"      /* m0_net_lnet_xprt */
 #include "net/buffer_pool.h"    /* m0_net_buffer_pool */
 #include "fid/fid.h"            /* m0_fid */
 #include "module/instance.h"    /* m0 */

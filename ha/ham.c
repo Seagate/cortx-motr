@@ -46,7 +46,6 @@
 #include "module/instance.h"  /* m0 */
 #include "motr/init.h"        /* m0_init */
 #include "net/net.h"          /* m0_net_domain */
-#include "net/lnet/lnet.h"    /* m0_net_lnet_xprt */
 #include "net/buffer_pool.h"  /* m0_net_buffer_pool */
 #include "reqh/reqh.h"        /* m0_reqh */
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine */
