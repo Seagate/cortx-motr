@@ -693,16 +693,36 @@ M0_INTERNAL void m0_be_tx__group_assign(struct m0_be_tx       *tx,
 		tx->t_group = gr;
 }
 
-M0_INTERNAL bool m0_be_should_break(struct m0_be_engine          *eng,
-				    const struct m0_be_tx_credit *accum,
-				    const struct m0_be_tx_credit *delta)
+static bool be_should_break(struct m0_be_engine          *eng,
+			    uint64_t                      fraction,
+			    const struct m0_be_tx_credit *accum,
+			    const struct m0_be_tx_credit *delta)
 {
 	struct m0_be_tx_credit total = *accum;
 	struct m0_be_tx_credit max;
 
+	M0_PRE(fraction > 0);
+
 	m0_be_tx_credit_add(&total, delta);
 	m0_be_engine_tx_size_max(eng, &max, NULL);
+
+	max.tc_reg_size /= fraction;
+	max.tc_reg_nr   /= fraction;
 	return !m0_be_tx_credit_le(&total, &max);
+}
+
+M0_INTERNAL bool m0_be_should_break(struct m0_be_engine          *eng,
+				    const struct m0_be_tx_credit *accum,
+				    const struct m0_be_tx_credit *delta)
+{
+	return be_should_break(eng, 1, accum, delta);
+}
+
+M0_INTERNAL bool m0_be_should_break_half(struct m0_be_engine          *eng,
+					 const struct m0_be_tx_credit *accum,
+					 const struct m0_be_tx_credit *delta)
+{
+	return be_should_break(eng, 2, accum, delta);
 }
 
 M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
