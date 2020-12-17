@@ -124,9 +124,10 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
 	struct m0_fab__dom_param *fab_dom;
 	struct fi_info           *fab_hints;
-	int 			  rc;
-	char                     *node = 0;
-	char                     *port = 0;
+	int 			          rc;
+	char                      node[16];
+	char                      port[8];
+	char                      *ep_name = "127.0.0.1:42365"
 
 	M0_ENTRY();
 	
@@ -146,7 +147,10 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	* fab_hints->caps = FI_MSG;
 	* fab_hints->fabric_attr->prov_name = "verbs";
 	*/
-	libfab_ep_addr_decode(NULL, node, port);
+	/* TODO - adding this decode API until actual args are
+	 * passsed from tm
+	 */
+	libfab_ep_addr_decode(ep_name, &node, &port);
 
 	rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
 			NULL, NULL, 0, fab_hints,
