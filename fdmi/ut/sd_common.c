@@ -79,7 +79,7 @@ void fdmi_serv_start_ut(const struct m0_filterc_ops *filterc_ops)
 	M0_UT_ASSERT(sd_ut_lfile != NULL);
 
 	rc = m0_cs_init(&g_sd_ut.motr, m0_net_all_xprt_get(), 
-			m0_net_xprt_nr_get(),sd_ut_lfile, false);
+			m0_net_xprt_nr_get(), sd_ut_lfile, false);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = M0_REQH_INIT(reqh,

@@ -28,7 +28,6 @@
 #include "motr/magic.h"	/* M0_NET_TEST_NETWORK_BD_MAGIC */
 
 #include "net/net.h"		/* m0_net_buffer */
-#include "net/lnet/lnet.h"	/* m0_net_lnet_xprt */
 
 #include "net/test/network.h"
 
