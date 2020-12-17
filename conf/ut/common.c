@@ -26,7 +26,6 @@
 #include "conf/ut/common.h"
 #include "lib/fs.h"         /* m0_file_read */
 #include "rpc/rpclib.h"     /* m0_rpc_server_ctx */
-#include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
 #include "ut/ut.h"
 
 struct m0_conf_cache m0_conf_ut_cache;

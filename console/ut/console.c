@@ -25,7 +25,6 @@
 
 #define CONSOLE_UT
 #include "console/console.c"  /* timeout */
-#include "net/lnet/lnet.h"    /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"       /* m0_rpc_client_ctx */
 #include "rpc/rpc_opcodes.h"  /* M0_CONS_FOP_DEVICE_OPCODE */
 #include "ut/misc.h"          /* M0_UT_PATH */

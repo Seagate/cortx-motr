@@ -27,7 +27,6 @@
 #include "fdmi/fdmi.h"
 #include "fdmi/ut/sd_common.h"  /* M0_FDMI_UT_PATH */
 
-#include "net/lnet/lnet.h"      /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
 #include "lib/string.h"         /* m0_strdup */
