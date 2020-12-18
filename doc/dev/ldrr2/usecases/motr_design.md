@@ -1,11 +1,11 @@
 # Table of contents
-1. [1:Overview](#1:Overview)   
-1. [2:CORTX-Cluster-R2](#2:CORTX-Cluster-R2)
-      - [2.1:Storage-Set](#2.1:Storage-Set)
-         - [2.1.1:Enclosure](#2.1.1:Enclosure)
-            - [2.1.1.1:Enclosure-SSD-Config-For-Metadata](#2.1.1.1:Enclosure-SSD-Config-For-Metadata)
-         - [2.1.2:Server](#2.1.2:Server)
-      - [2.2:Failure-domain](#2.2:Failure-domain)
+- [1:Overview](#1:Overview)   
+- [2:CORTX-Cluster-R2](#2:CORTX-Cluster-R2)
+   - [2.1:Storage-Set](#2.1:Storage-Set)
+      - [2.1.1:Enclosure](#2.1.1:Enclosure)
+         - [2.1.1.1:Enclosure-SSD-Config-For-Metadata](#2.1.1.1:Enclosure-SSD-Config-For-Metadata)
+      - [2.1.2:Server](#2.1.2:Server)
+   - [2.2:Failure-domain](#2.2:Failure-domain)
 
 # 1:Overview
 This document will be describe LDR R2 motr architecture and design
@@ -25,7 +25,7 @@ Following are the hierarchy of Cortx Cluster
 
 ![CORTX Cluster with Storage Set](images/CortexV2StorageSet.JPG)
 
-CORTX R2 will have following characteristics
+**Assumption**: CORTX R2 will have following characteristics
 1. Storage set will communicate with each other at network layer. 
    - e.g In above figure Storage Set 1 and 2 are shown connected at network layer
 1. **IOs will be confined to Storage Set.**
@@ -33,11 +33,17 @@ CORTX R2 will have following characteristics
 1. Any node in cluster can server S3 request for any storage set.
    - e.g In above figure Node 1 from Storage Set 1 can server read request for object stored in Storage Set 2
 
+Note that any change in the above assumption will have implications on design.
+
 ## 2.1:Storage-Set
 The figure below shows the details of storage set
+- Storage set consist of N number of nodes i.e server and enclosure pair
+- For LDRR2 each enclosure will have two Disk Droup (DG) and DG can be a failure domain.
+- Two serve two DG, each server will need two instance of motr IO and CAS running on it.
+
 ![Storage Set Details](images/StorageSetDetails.JPG)
 
-Element of Storage set are described in following section
+Elements of Storage set are described in following section
 
 ### 2.1.1:Enclosure
 Enclosure+Firmware creates Disk Group (DG) by groupping set of drives which contoller can access. Controller access drives through SAS Expander, so each contoller can access all DG. This helps to provide controller failover.
@@ -47,7 +53,7 @@ Enclosure Firmware also provides management interface to create set of volumes. 
 #### 2.1.1.1:Enclosure-SSD-Config-For-Metadata
 To improve the speed of metadata access SSDs can be used in following ways in enclosure.
 ![Enclosure Metadata Config](images/EnclosureSSDConfig.JPG)
-- HDDs will be part of Standart Disk Group while
+- HDDs will be part of Standard Disk Group while
 - SSDs will be part of Performance Disk Group 
 - Metadata volume affinity should be set for Performance
 - Ideally SSD Capacity >= Metadata Volume Size / 2
@@ -71,14 +77,48 @@ Note that following new fields needs to be added to existing S3 metadata:
 
 **JIRA**: S3 metadata should have version field and reserved field to allow upgraded to metadata without any need for migration?
 
+** NOTE: Work In Progress **
+
 ## 2.2:Failure-domain
 This section will analyze failure domain and its impact on data/metadata consistency.
 With respect of motr following category of failure can occur:
+
+| Failure  | Failure Component | Description | Motr Failure Domain Mapping | 
+| ----------- | ----------- | ----------- | ----------- | 
+| Storage | Disk Group | Single/Dual Disk Group Failure | DG Failure |
+|  | Controller | Single Controller Failure | No Impact (User notification) |
+|  |  | Both Controller Failure | Dual DG Failure / Node Failure |
+|  | SAS HBA  | Both DG unaccessible | Dual DG Failure / Node Failure |
+|  | Enclosure | Both DG unaccessible | Dual DG Failure / Node Failure |
+
+Network 
+
+| Failure  | Failure Component | Description | Desired Action | 
+| ----------- | ----------- | ----------- | ----------- | 
+| Network | Network Interface | Single Node getting isolated from others | Majority node which are part of storage set will make quorum and single node to be taken down by HA action  |
+|  | Controller | Single Controller Failure | No Impact (User notification) |
+|  |  | Both Controller Failure | Dual DG Failure / Node Failure |
+|  | SAS HBA  | Both DG unaccessible | Dual DG Failure / Node Failure |
+|  | Enclosure | Both DG unaccessible | Dual DG Failure / Node Failure |
+
+
+1. Network Unit : 
+   - NW Interface failure
+   - NW Partion
+   
+| Failure  | Failure Type   | Side Effect     | Desired Action | 
+| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+| Storage | Temporary | IOs will timeout for that DG/Volume | -Total IO timeout should be less than S3 timeout |
+|   |   |   | -Method to detect storage unit unavailiable to avoid sending IO request to it |
+|   |   |   | -Method to detect storage unit is available to allow sending IO request to it |
+
 1. Storage Unavailable
-   a. 
+   a. Temporary Failure
+   b. Permanent Failure
+2. Network Unavailable
+   a. Temporary Failure
+   b. Permananet Failure
 
-
-** NOTE: Work In Progress **
 ## Basic Assumptions
 Following are the basic assumptions for creating the sequence flow for various error scenarios
 - Global Bucket list is replicated across stroage set.
