@@ -31,7 +31,7 @@ Scenario 1 (out-of-order-execution) [PUT-DEL]:
 	@11  [o1: request (o1 -> p2, p3: PUT k1, v1, 1@10)]
 	@20  [o1: reply (p2 -> o1: PUT k1, v1, 1@10)]
 		## o1 -> DTM user: op_executed(1@10)
-	@30  [o1: reply (p3 -> o1: PUT k1, v1, 1@10)]   	{[PUT, k1, v1, 1@10, st=EX, -VV]}	    {[]}					    {[PUT, k1, v1, 1@10, st=EX, -V-]}    {[PUT, k1, v1, 1@10, st=EX, --V]}
+	@30  [o1: reply (p3 -> o1: PUT k1, v1, 1@10)]       	{[PUT, k1, v1, 1@10, st=EX, -VV]}	    {[]}					    {[PUT, k1, v1, 1@10, st=EX, -V-]}    {[PUT, k1, v1, 1@10, st=EX, --V]}
 
 
 ##  Stage 3): DIX DEL operation called
@@ -80,8 +80,6 @@ Scenario 1 (out-of-order-execution) [PUT-DEL]:
 	@100  [p1 -> ONLINE]
 
 
-
-
 Scenario 2 (correct-order-execution)[PUT-DEL]:
   One of the participants has failed transiently when the operations are sent.
   The redo-requests arrive at the recovering participant in correct order.
@@ -104,7 +102,6 @@ Scenario 2 (correct-order-execution)[PUT-DEL]:
 		## o1 -> DTM user: op_executed(1@10)
 	@30  [o1: reply (p3 -> o1: PUT k1, v1, 1@10)]   	{[PUT, k1, v1, 1@10, st=EX, -VV]}	    {[]}					    {[PUT, k1, v1, 1@10, st=EX, -V-]}    {[PUT, k1, v1, 1@10, st=EX, --V]}
 
-
 ##  Stage 3): DIX DEL operation called
 	@40 [o1: DIX DEL k1]
 	@41  [o1: request (o1 -> p2, p3: DEL 1@40)]
@@ -125,72 +122,157 @@ Scenario 2 (correct-order-execution)[PUT-DEL]:
 
 	@80  [p1 -> RECOVERING]
 
-	@81  [p1: received-redo (p2 -> p1: [DEL k1 1@40, -PP])
-	@82  [p1: received-redo (p2 -> p1: [PUT k1, v1, 1@10, -PP])
-	@83  [p1: received-redo (o1 -> p1: [PUT k1, v1, 1@10, -PP])
-	@84  [p1: received-redo (o1 -> p1: [DEL k1 1@40, -PP])
-	@85  [p1: received-redo (p3 -> p1: [PUT k1, v1, 1@10, -PP])
-	@86  [p1: received-redo (p3 -> p1: [DEL k1 1@40, -PP])
+	@81  [p1: received-redo (p2 -> p1: [PUT k1, v1, 1@10, -PP])
+	@82  [p1: received-redo (p2 -> p1: [DEL k1 1@40, -PP])
+	@83  [p1: received-redo (o1 -> p1: [DEL k1 1@40, -PP])
+	@84  [p1: received-redo (o1 -> p1: [PUT k1, v1, 1@10, -PP])
+	@85  [p1: received-redo (p3 -> p1: [DEL k1 1@40, -PP])
+	@86  [p1: received-redo (p3 -> p1: [PUT k1, v1, 1@10, -PP])
 
-	@87  [o1: reply (p1 -> o1: DEL k1, 1@10)]           {[PUT, k1, v1, 1@10, st=PR, -PP],   {[DEL, k1, 1@40, st=EX, VPP]}       {[PUT, k1, v1, 1@10, st=PR, -PP],    {[PUT, k1, v1, 1@10, st=PR, -PP],
+	@87  [o1: reply (p1 -> o1: PUT k1, v1, 1@10)]       {[PUT, k1, v1, 1@10, st=PR, VPP],   {[PUT, k1, v1, 1@10, st=EX, VPP]}   {[PUT, k1, v1, 1@10, st=PR, -PP],    {[PUT, k1, v1, 1@10, st=PR, -PP],
+                                                          [DEL, k1, 1@40, st=PR, -PP]}                                            [DEL, k1, 1@40, st=PR, -PP]}         [DEL, k1, 1@40, st=PR, -PP]}
+
+	@88  [o1: reply (p1 -> o1: DEL k1, 1@40)]           {[PUT, k1, v1, 1@10, st=PR, VPP],  {[PUT, k1, v1, 1@10, st=EX, VPP],       {[PUT, k1, v1, 1@10, st=PR, -PP],    {[PUT, k1, v1, 1@10, st=PR, -PP],
+                                                         [DEL, k1, 1@40, st=PR, VPP]}       [DEL, k1, 1@40, st=EX, VPP]}            [DEL, k1, 1@40, st=PR, -PP]}         [DEL, k1, 1@40, st=PR, -PP]}
                                                                                               ## k1:status=TS,version=@40
-                                                         [DEL, k1, 1@40, st=PR, VPP]}                                            [DEL, k1, 1@40, st=PR, -PP]}         [DEL, k1, 1@40, st=PR, -PP]}
 
-	@88  [o1: reply (p1 -> o1: PUT k1, v1, 1@10)]        {[PUT, k1, v1, 1@10, st=PR, VPP],  {[DEL, k1, 1@40, st=EX, VPP],       {[PUT, k1, v1, 1@10, st=PR, -PP],    {[PUT, k1, v1, 1@10, st=PR, -PP],
+    @89  [p1: PERSISTENT (p1 -> o1, p2, p3: 1@10, PPP)]  {[PUT, k1, v1, 1@10, st=PR, PPP],  {[PUT, k1, v1 1@10, st=PR, PPP],       {[PUT, k1, v1, 1@10, st=PR, PPP],    {[PUT, k1, v1, 1@10, st=PR, PPP],
+                                                          [DEL, k1, 1@40, st=PR, VPP]}       [DEL, k1, 1@40, st=EX, VPP]}           [DEL, k1, 1@40, st=PR, -PP]}         [DEL, k1, 1@40, st=PR, -PP]}
                                                                                               ## k1:status=TS,version=@40
-                                                          [DEL, k1, 1@40, st=PR, VPP]}       [PUT, k1, v1, 1@10, st=EX, VPP]}    [DEL, k1, 1@40, st=PR, -PP]}         [DEL, k1, 1@40, st=PR, -PP]}
 
-    @89  [p1: PERSISTENT (p1 -> o1, p2, p3: 1@40, PPP)]  {[PUT, k1, v1, 1@10, st=PR, VPP],  {[DEL, k1, 1@40, st=PR, PPP],       {[PUT, k1, v1, 1@10, st=PR, -PP],    {[PUT, k1, v1, 1@10, st=PR, -PP],
+    @90  [p1: PERSISTENT (p1 -> o1, p2, p3: 1@40, PPP)]  {[PUT, k1, v1, 1@10, st=PR, PPP],  {[PUT, k1, v1 1@10, st=PR, PPP],       {[PUT, k1, v1, 1@10, st=PR, PPP],    {[PUT, k1, v1, 1@10, st=PR, PPP],
+                                                          [DEL, k1, 1@40, st=PR, PPP]}       [DEL, k1, 1@40, st=PR, PPP]}           [DEL, k1, 1@40, st=PR, PPP]}         [DEL, k1, 1@40, st=PR, PPP]}
                                                                                               ## k1:status=TS,version=@40
-                                                          [DEL, k1, 1@40, st=PR, PPP]}       [PUT, k1, v1, 1@10, st=EX, VPP]}    [DEL, k1, 1@40, st=PR, PPP]}         [DEL, k1, 1@40, st=PR, PPP]}
-
-    @90  [p1: PERSISTENT (p1 -> o1, p2, p3: 1@10, PPP)]  {[PUT, k1, v1, 1@10, st=PR, PPP],  {[DEL, k1, 1@40, st=PR, PPP],       {[PUT, k1, v1, 1@10, st=PR, PPP],    {[PUT, k1, v1, 1@10, st=PR, PPP],
-                                                                                              ## k1:status=TS,version=@40
-                                                          [DEL, k1, 1@40, st=PR, PPP]}       [PUT, k1, v1, 1@10, st=PR, PPP]}    [DEL, k1, 1@40, st=PR, PPP]}         [DEL, k1, 1@40, st=PR, PPP]}
-
 	@100  [p1 -> ONLINE]
 
 
-
-
-  Case 1b: The operations arrive in reverse order at a participant
+Scenario 3 (out-of-order-execution) [DEL-PUT]:
+  One of the participants has failed transiently when the operations are sent.
+  The redo-requests arrive at the recovering participant in reverse order.
   Assumptions:
-  - 2 originators; o1 and o2
+  - 1 originators; o1
   - 3 participants; p1, p2, p3
-  - Originator o1 issues a PUT request with key k1 and value v1
-  - Originator o2 issues a DEL request with key k1
+  - Participant p1 has failed transiently when the following operations are issued:
+  	- Originator o1 issues a DEL request with key k1
+  	- Later, originator o1 issues a PUT request with key k1 and value v1
+  - Participant p1 enters RECOVERING state and receives the redo-requests for these
+	operations in reverse order.
 
-  This case is a generalization of the earlier case.
+##  Stage 1): Initial stage
+	@00 [p1 -> CRASHED];
 
-  Case 2: At the end of the scenarios described in 1a and 1b all participants are up and running.
-          Another PUT request is now issued for key k1.
+##  Stage 2): DIX DEL operation called
+	@10 [o1: DIX DEL k1]
+	@11  [o1: request (o1 -> p2, p3: DEL 1@10)]
+	@20  [o1: reply (p2 -> o1: DEL k1 1@10)]
+		## o1 -> DTM user: op_executed(1@10)
+	@30  [o1: reply (p3 -> o1: DEL k1 1@10)]            {[DEL, k1, 1@10, st=EX, -VV]}           {[]}                         {[DEL, k1, 1@10, st=EX, -V-]}         {[DEL, k1, 1@10, st=EX, --V]}
 
-##  Stage 1): Initial stage                                             o1                                  p1                                      p2                                  p3
-    @100                                                 {[PUT, k1, v1, 1@10, st=PR, PPP],   {[DEL, k1, 1@40, st=PR, PPP, T],       {[PUT, k1, v1, 1@10, st=PR, PPP],    {[PUT, k1, v1, 1@10, st=PR, PPP],
-                                                          [DEL, k1, 1@40, st=PR, PPP]}        [PUT, k1, v1, 1@10, st=PR, PPP, I]}    [DEL, k1, 1@40, st=PR, PPP, T]}      [DEL, k1, 1@40, st=PR, PPP, T]}
+##  Stage 3): DIX PUT operation called                               o1                        	p1                                p2                                p3
+	@40 [o1: DIX PUT k1, v1]
+	@41  [o1: request (o1 -> p2, p3: PUT k1, v1, 1@40)]
+	@50  [o1: reply (p2 -> o1: PUT k1, v1, 1@40)]
+		## o1 -> DTM user: op_executed(1@10)
+	@60  [o1: reply (p3 -> o1: PUT k1, v1, 1@40)]       {[DEL, k1, 1@10, st=EX, -VV],           {[]}                        {[DEL, k1, 1@10, st=EX, -V-],        {[DEL, k1, 1@10, st=EX, --V],
+                                                         [PUT, k1, v1, 1@40, st=EX, -VV]}	    {[]}					     [PUT, k1, v1, 1@40, st=EX, -V-]}     [PUT, k1, v1, 1@40, st=EX, --V]}
 
-	@100 [o1: DIX PUT k1, v2]                                            o1                        	p1                                p2                                p3
-	@110 [o1: request (o1 -> p1, p2, p3: PUT k1, v2, 1@100)]
-	@120 [o1: reply (p2 -> o1: PUT k1, v2, 1@100)]
-		## o1 -> DTM user: op_executed(1@100)
-	@130 [o1: reply (p1 -> o1: PUT k1, v2, 1@100)]
-	@140 [o1: reply (p3 -> o1: PUT k1, v2, 1@100)]       {[PUT, k1, v1, 1@10, st=PR, PPP],   {[DEL, k1, 1@40, st=PR, PPP, T],       {[PUT, k1, v1, 1@10, st=PR, PPP],    {[PUT, k1, v1, 1@10, st=PR, PPP],
-                                                          [DEL, k1, 1@40, st=PR, PPP],        [PUT, k1, v1, 1@10, st=PR, PPP, I],    [DEL, k1, 1@40, st=PR, PPP, T],      [DEL, k1, 1@40, st=PR, PPP, T],
-                                                          [PUT, k1, v2, 1@100, st=EX, VVV]}	  [PUT, k1, v2, 1@100, st=EX, V--]}	     [PUT, k1, v2, 1@100, st=EX, -V-]}    [PUT, k1, v2, 1@100, st=EX, --V]}
+    @70  [p2: PERSISTENT (p2 -> o1, p3: 1@10, -P-)]     {[DEL, k1, 1@10, st=PR, -PV],           {[]}                        {[DEL, k1, 1@10, st=PR, -P-],        {[DEL, k1, 1@10, st=EX, -PV],
+                                                         [PUT, k1, v1, 1@40, st=EX, -VV]}	    {[]}					     [PUT, k1, v1, 1@40, st=EX, -V-]}     [PUT, k1, v1, 1@40, st=EX, --V]}
 
-    @150 [p1: PERSISTENT (p1 -> o1, p2, p3: 1@100, P--)] {[PUT, k1, v1, 1@10, st=PR, PPP],   {[DEL, k1, 1@40, st=PR, PPP, T],       {[PUT, k1, v1, 1@10, st=PR, PPP],    {[PUT, k1, v1, 1@10, st=PR, PPP],
-                                                          [DEL, k1, 1@40, st=PR, PPP],        [PUT, k1, v1, 1@10, st=PR, PPP, I],    [DEL, k1, 1@40, st=PR, PPP, T],      [DEL, k1, 1@40, st=PR, PPP, T],
-                                                          [PUT, k1, v2, 1@100, st=PR, PVV]}	  [PUT, k1, v2, 1@100, st=PR, P--]}	     [PUT, k1, v2, 1@100, st=EX, PV-]}    [PUT, k1, v2, 1@100, st=EX, P-V]}
+    @75  [p3: PERSISTENT (p3 -> o1, p2: 1@10, -PP)]     {[DEL, k1, 1@10, st=PR, -PP],           {[]}                        {[DEL, k1, 1@10, st=PR, -PP],        {[DEL, k1, 1@10, st=PR, -PP],
+                                                         [PUT, k1, v1, 1@40, st=EX, -VV]}	    {[]}					     [PUT, k1, v1, 1@40, st=EX, -V-]}     [PUT, k1, v1, 1@40, st=EX, --V]}
 
+    @76  [p2: PERSISTENT (p2 -> o1, p3: 1@40, -P-)]     {[DEL, k1, 1@10, st=PR, -PP],           {[]}                        {[DEL, k1, 1@10, st=PR, -PP],        {[DEL, k1, 1@10, st=PR, -PP],
+                                                         [PUT, k1, v1, 1@40, st=PR, -PV]}	    {[]}					     [PUT, k1, v1, 1@40, st=PR, -P-]}     [PUT, k1, v1, 1@40, st=EX, -PV]}
 
-    @160 [p2: PERSISTENT (p2 -> o1, p1, p3: 1@100, PP-)] {[PUT, k1, v1, 1@10, st=PR, PPP],   {[DEL, k1, 1@40, st=PR, PPP, T],       {[PUT, k1, v1, 1@10, st=PR, PPP],    {[PUT, k1, v1, 1@10, st=PR, PPP],
-                                                          [DEL, k1, 1@40, st=PR, PPP],        [PUT, k1, v1, 1@10, st=PR, PPP, I],    [DEL, k1, 1@40, st=PR, PPP, T],      [DEL, k1, 1@40, st=PR, PPP, T],
-                                                          [PUT, k1, v2, 1@100, st=PR, PPV]}	  [PUT, k1, v2, 1@100, st=PR, PP-]}	     [PUT, k1, v2, 1@100, st=PR, PP-]}    [PUT, k1, v2, 1@100, st=EX, PPV]}
+    @77  [p3: PERSISTENT (p3 -> o1, p2: 1@40, -PP)]     {[DEL, k1, 1@10, st=PR, -PP],           {[]}                        {[DEL, k1, 1@10, st=PR, -PP],        {[DEL, k1, 1@10, st=PR, -PP],
+                                                         [PUT, k1, v1, 1@40, st=PR, -PP]}	    {[]}					     [PUT, k1, v1, 1@40, st=PR, -PP]}     [PUT, k1, v1, 1@40, st=PR, -PP]}
 
+	@80  [p1 -> RECOVERING]
 
-    @170 [p3: PERSISTENT (p3 -> o1, p1, p2: 1@100, PPP)] {[PUT, k1, v1, 1@10, st=PR, PPP],   {[DEL, k1, 1@40, st=PR, PPP, T],       {[PUT, k1, v1, 1@10, st=PR, PPP],    {[PUT, k1, v1, 1@10, st=PR, PPP],
-                                                          [DEL, k1, 1@40, st=PR, PPP],        [PUT, k1, v1, 1@10, st=PR, PPP, I],    [DEL, k1, 1@40, st=PR, PPP, T],      [DEL, k1, 1@40, st=PR, PPP, T],
-                                                          [PUT, k1, v2, 1@100, st=PR, PPP]}	  [PUT, k1, v2, 1@100, st=PR, PPP]}	     [PUT, k1, v2, 1@100, st=PR, PPP]}    [PUT, k1, v2, 1@100, st=PR, PPP]}
+	@81  [p1: received-redo (p2 -> p1: [PUT k1, v1, 1@40, -PP])
+	@82  [p1: received-redo (p2 -> p1: [DEL k1 1@10, -PP])
+	@83  [p1: received-redo (o1 -> p1: [DEL k1 1@10, -PP])
+	@84  [p1: received-redo (o1 -> p1: [PUT k1, v1, 1@40, -PP])
+	@85  [p1: received-redo (p3 -> p1: [DEL k1 1@10, -PP])
+	@86  [p1: received-redo (p3 -> p1: [PUT k1, v1, 1@40, -PP])
 
+	@87  [o1: reply (p1 -> o1: PUT k1, v1, 1@40)]       {[DEL, k1, 1@10, st=PR, -PP],       {[PUT, k1, v1, 1@40, st=EX, VPP]} {[DEL, k1, 1@10, st=PR, -PP],        {[DEL, k1, 1@10, st=PR, -PP],
+                                                         [PUT, k1, v1, 1@40, st=PR, VPP]}	   					               [PUT, k1, v1, 1@40, st=PR, -PP]}     [PUT, k1, v1, 1@40, st=PR, -PP]}
 
+	@88  [o1: reply (p1 -> o1: DEL k1, 1@10)]           {[DEL, k1, 1@10, st=PR, VPP],       {[PUT, k1, v1, 1@40, st=EX, VPP], {[DEL, k1, 1@10, st=PR, -PP],        {[DEL, k1, 1@10, st=PR, -PP],
+                                                         [PUT, k1, v1, 1@40, st=PR, VPP]}	 [DEL, k1, 1@10, st=EX, VPP]}      [PUT, k1, v1, 1@40, st=PR, -PP]}     [PUT, k1, v1, 1@40, st=PR, -PP]}
+
+    @89  [p1: PERSISTENT (p1 -> o1, p2, p3: 1@40, PPP)] {[DEL, k1, 1@10, st=PR, VPP],       {[PUT, k1, v1, 1@40, st=PR, PPP], {[DEL, k1, 1@10, st=PR, -PP],        {[DEL, k1, 1@10, st=PR, -PP],
+                                                         [PUT, k1, v1, 1@40, st=PR, PPP]}	 [DEL, k1, 1@10, st=EX, VPP]}      [PUT, k1, v1, 1@40, st=PR, PPP]}     [PUT, k1, v1, 1@40, st=PR, PPP]}
+
+    @90  [p1: PERSISTENT (p1 -> o1, p2, p3: 1@10, PPP)] {[DEL, k1, 1@10, st=PR, PPP],       {[PUT, k1, v1, 1@40, st=PR, PPP], {[DEL, k1, 1@10, st=PR, PPP],        {[DEL, k1, 1@10, st=PR, PPP],
+                                                         [PUT, k1, v1, 1@40, st=PR, PPP]}	 [DEL, k1, 1@10, st=PR, PPP]}      [PUT, k1, v1, 1@40, st=PR, PPP]}     [PUT, k1, v1, 1@40, st=PR, PPP]}
+
+	@100  [p1 -> ONLINE]
+
+Scenario 4 (correct-order-execution) [DEL-PUT]:
+  One of the participants has failed transiently when the operations are sent.
+  The redo-requests arrive at the recovering participant in correct order.
+  Assumptions:
+  - 1 originators; o1
+  - 3 participants; p1, p2, p3
+  - Participant p1 has failed transiently when the following operations are issued:
+  	- Originator o1 issues a DEL request with key k1
+  	- Later, originator o1 issues a PUT request with key k1 and value v1
+  - Participant p1 enters RECOVERING state and receives the redo-requests for these
+	operations in correct order.
+
+##  Stage 1): Initial stage
+	@00 [p1 -> CRASHED];
+
+##  Stage 2): DIX DEL operation called
+	@10 [o1: DIX DEL k1]
+	@11  [o1: request (o1 -> p2, p3: DEL 1@10)]
+	@20  [o1: reply (p2 -> o1: DEL k1 1@10)]
+		## o1 -> DTM user: op_executed(1@10)
+	@30  [o1: reply (p3 -> o1: DEL k1 1@10)]            {[DEL, k1, 1@10, st=EX, -VV]}           {[]}                         {[DEL, k1, 1@10, st=EX, -V-]}         {[DEL, k1, 1@10, st=EX, --V]}
+
+##  Stage 3): DIX PUT operation called                               o1                        	p1                                p2                                p3
+	@40 [o1: DIX PUT k1, v1]
+	@41  [o1: request (o1 -> p2, p3: PUT k1, v1, 1@40)]
+	@50  [o1: reply (p2 -> o1: PUT k1, v1, 1@40)]
+		## o1 -> DTM user: op_executed(1@10)
+	@60  [o1: reply (p3 -> o1: PUT k1, v1, 1@40)]       {[DEL, k1, 1@10, st=EX, -VV],           {[]}                        {[DEL, k1, 1@10, st=EX, -V-],        {[DEL, k1, 1@10, st=EX, --V],
+                                                         [PUT, k1, v1, 1@40, st=EX, -VV]}	    {[]}					     [PUT, k1, v1, 1@40, st=EX, -V-]}     [PUT, k1, v1, 1@40, st=EX, --V]}
+
+    @70  [p2: PERSISTENT (p2 -> o1, p3: 1@10, -P-)]     {[DEL, k1, 1@10, st=PR, -PV],           {[]}                        {[DEL, k1, 1@10, st=PR, -P-],        {[DEL, k1, 1@10, st=EX, -PV],
+                                                         [PUT, k1, v1, 1@40, st=EX, -VV]}	    {[]}					     [PUT, k1, v1, 1@40, st=EX, -V-]}     [PUT, k1, v1, 1@40, st=EX, --V]}
+
+    @75  [p3: PERSISTENT (p3 -> o1, p2: 1@10, -PP)]     {[DEL, k1, 1@10, st=PR, -PP],           {[]}                        {[DEL, k1, 1@10, st=PR, -PP],        {[DEL, k1, 1@10, st=PR, -PP],
+                                                         [PUT, k1, v1, 1@40, st=EX, -VV]}	    {[]}					     [PUT, k1, v1, 1@40, st=EX, -V-]}     [PUT, k1, v1, 1@40, st=EX, --V]}
+
+    @76  [p2: PERSISTENT (p2 -> o1, p3: 1@40, -P-)]     {[DEL, k1, 1@10, st=PR, -PP],           {[]}                        {[DEL, k1, 1@10, st=PR, -PP],        {[DEL, k1, 1@10, st=PR, -PP],
+                                                         [PUT, k1, v1, 1@40, st=PR, -PV]}	    {[]}					     [PUT, k1, v1, 1@40, st=PR, -P-]}     [PUT, k1, v1, 1@40, st=EX, -PV]}
+
+    @77  [p3: PERSISTENT (p3 -> o1, p2: 1@40, -PP)]     {[DEL, k1, 1@10, st=PR, -PP],           {[]}                        {[DEL, k1, 1@10, st=PR, -PP],        {[DEL, k1, 1@10, st=PR, -PP],
+                                                         [PUT, k1, v1, 1@40, st=PR, -PP]}	    {[]}					     [PUT, k1, v1, 1@40, st=PR, -PP]}     [PUT, k1, v1, 1@40, st=PR, -PP]}
+
+	@80  [p1 -> RECOVERING]
+
+	@81  [p1: received-redo (p2 -> p1: [DEL k1 1@10, -PP])
+	@82  [p1: received-redo (p2 -> p1: [PUT k1, v1, 1@40, -PP])
+	@83  [p1: received-redo (o1 -> p1: [PUT k1, v1, 1@40, -PP])
+	@84  [p1: received-redo (o1 -> p1: [DEL k1 1@10, -PP])
+	@85  [p1: received-redo (p3 -> p1: [PUT k1, v1, 1@40, -PP])
+	@86  [p1: received-redo (p3 -> p1: [DEL k1 1@10, -PP])
+
+	@87  [o1: reply (p1 -> o1: DEL k1, 1@10)]           {[DEL, k1, 1@10, st=PR, VPP],       {[DEL, k1, 1@10, st=EX, VPP]}     {[DEL, k1, 1@10, st=PR, -PP],        {[DEL, k1, 1@10, st=PR, -PP],
+                                                         [PUT, k1, v1, 1@40, st=PR, -PP]}	   					               [PUT, k1, v1, 1@40, st=PR, -PP]}     [PUT, k1, v1, 1@40, st=PR, -PP]}
+
+	@88  [o1: reply (p1 -> o1: PUT k1, v1, 1@40)]       {[DEL, k1, 1@10, st=PR, VPP],       {[DEL, k1, 1@10, st=EX, VPP],     {[DEL, k1, 1@10, st=PR, -PP],        {[DEL, k1, 1@10, st=PR, -PP],
+                                                         [PUT, k1, v1, 1@40, st=PR, VPP]}	 [PUT, k1, v1, 1@40, st=EX, VPP]}  [PUT, k1, v1, 1@40, st=PR, -PP]}     [PUT, k1, v1, 1@40, st=PR, -PP]}
+
+    @89  [p1: PERSISTENT (p1 -> o1, p2, p3: 1@10, PPP)] {[DEL, k1, 1@10, st=PR, PPP],       {[DEL, k1, 1@10, st=PR, PPP],     {[DEL, k1, 1@10, st=PR, PPP],        {[DEL, k1, 1@10, st=PR, PPP],
+                                                         [PUT, k1, v1, 1@40, st=PR, VPP]}	 [PUT, k1, v1, 1@40, st=EX, VPP]}  [PUT, k1, v1, 1@40, st=PR, -PP]}     [PUT, k1, v1, 1@40, st=PR, -PP]}
+
+    @90  [p1: PERSISTENT (p1 -> o1, p2, p3: 1@40, PPP)] {[DEL, k1, 1@10, st=PR, PPP],       {[DEL, k1, 1@10, st=PR, PPP],     {[DEL, k1, 1@10, st=PR, PPP],        {[DEL, k1, 1@10, st=PR, PPP],
+                                                         [PUT, k1, v1, 1@40, st=PR, PPP]}	 [PUT, k1, v1, 1@40, st=PR, PPP]}  [PUT, k1, v1, 1@40, st=PR, PPP]}     [PUT, k1, v1, 1@40, st=PR, PPP]}
+
+	@100  [p1 -> ONLINE]
 
