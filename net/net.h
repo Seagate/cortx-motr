@@ -403,6 +403,9 @@ struct m0_net_domain {
          */
 	m0_bcount_t         nd_get_max_buffer_desc_size;
 
+	/** The network domain name which is to be initialiazed */
+	const char         *nd_name;
+
 	uint64_t            nd_magix;
 };
 
