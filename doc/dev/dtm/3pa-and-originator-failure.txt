@@ -1,0 +1,202 @@
+# Use-case description
+
+* 3 participants with persistent storage (p1, p2, p3);
+
+* 1 participant (originator) without persistent storage;
+
+* S3 client wants to create 3 objects with metadata;
+
+* S3 server and a part of the cluster gets rebooted;
+
+* S3 client time-out and sends a request to delete the objects.
+
+* DTM ensures consistency of data across the cluster.
+
+# Events and states
+
+Legend:
+	o1, p1, p2, p3 - file operation logs (persistent and volatile parts).
+	I,V,P - state of participants of a log entry (e.g, st=VVV means "assume it to be executed everywhere if no one failed").
+		I - InProgress (to-be-sent/to-be-executed);
+		V - Volatile (Executed);
+		P - Persistent (got-the-notice/got-comitted).
+	NETWORK,DISK,PROC - events in the system (RPC messages, HA messages, fsync notifications, process states).
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+NETWORK,DISK,PROC	User				o1				p1				p2				p3
+|			|				|				|				|				|
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@10-15:
+			{ [DIX PUT k1 @10] }
+			{ [DIX PUT k2 @11] }
+			{ [DIX PUT k3 @12] } 
+
+						{
+						R1[CAS PUT k1 @10 st=III],
+						R2[CAS PUT k2 @11 st=III],
+						R3[CAS PUT k3 @12 st=III],
+						}
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@20:
+o1 -> p1: request o1.R1, request o1.R2, request o1.R3
+o1 -> p2: request o1.R1
+o1 -> p3: request o1.R1, request o1.R2, request o1.R3
+# The requests to p2 with o1.R1 and o1.R3 got stuck
+#  somewhere (for example, the RPC messages were not yet scheduled to be sent out).
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@25:
+p1: received o1.R1, o1.R2, o1.R3
+p2: received o1.R1
+p3: received o1.R1, O1.R2, o1.R3
+# Due to network re-ordering (or re-ordering in some request handler queue),
+# the request arrive in different order.
+						{					{				{				{				
+						R1[CAS PUT k1 @10 st=III],		R1[CAS PUT k1 @10 st=III],	R1[CAS PUT k2 @11 st=III],	R1[CAS PUT k3 @12 st=III],	
+						R2[CAS PUT k2 @11 st=III],		R2[CAS PUT k2 @11 st=III],					R2[CAS PUT k2 @11 st=III],	
+						R3[CAS PUT k3 @12 st=III],		R3[CAS PUT k3 @12 st=III],					R3[CAS PUT k1 @10 st=III],	
+						}					}				}				}				
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@30-40:
+# The request are executed
+						{					{				{				{				
+						R1[CAS PUT k1 @10 st=III],		R1[CAS PUT k1 @10 st=VVV],	R1[CAS PUT k2 @11 st=VVV],	R1[CAS PUT k3 @12 st=VVV],	
+						R2[CAS PUT k2 @11 st=III],		R2[CAS PUT k2 @11 st=III],					R2[CAS PUT k2 @11 st=III],	
+						R3[CAS PUT k3 @12 st=III],		R3[CAS PUT k3 @12 st=III],					R3[CAS PUT k1 @10 st=III],	
+						}					}				}				}				
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@50:
+p1 -> o1: reply p1.R1
+p2 -> o1: reply p1.R1
+p3 -> o1: reply p1.R1
+# Reply was sent for each executed request.
+						{					{				{				{				
+						R1[CAS PUT k1 @10 st=VII],		R1[CAS PUT k1 @10 st=VVV],	R1[CAS PUT k2 @11 st=VVV],	R1[CAS PUT k3 @12 st=VVV],	
+						R2[CAS PUT k2 @11 st=IVI],		R2[CAS PUT k2 @11 st=III],					R2[CAS PUT k2 @11 st=III],	
+						R3[CAS PUT k3 @12 st=IIV],		R3[CAS PUT k3 @12 st=III],					R3[CAS PUT k1 @10 st=III],	
+						}					}				}				}				
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@60:
+p1disk -> p1: committed(R1)
+p2disk -> p2: committed(R1)
+p3disk -> p3: committed(R1)
+# As you see we have 3 different records to reach persistent states on 3 different nodes:
+						{					{				{				{				
+						R1[CAS PUT k1 @10 st=VVV],		R1[CAS PUT k1 @10 st=PVV],	R1[CAS PUT k2 @11 st=VPV],	R1[CAS PUT k3 @12 st=VVP],	
+						R2[CAS PUT k2 @11 st=VVV],		R2[CAS PUT k2 @11 st=VVV],					R2[CAS PUT k2 @11 st=VVV],	
+						R3[CAS PUT k3 @12 st=VVV],		R3[CAS PUT k3 @12 st=VVV],					R3[CAS PUT k1 @10 st=VVV],	
+						}					}				}				}				
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@70:
+p1proc: reboot
+p3proc: reboot
+o1proc: reboot as o2
+# Assume: o1proc co-exists with p1proc
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@80-85:
+HA -> p1: CRASHED
+HA -> p3: CRASHED
+HA -> o2: INIT (?)
+p1 -> HA: ready to RECOVERING@80
+p3 -> HA: ready to RECOVERING@81
+o2 -> HA: ready to ONLINE@82
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@90:
+HA -> p2: p1 is RECOVERING@80
+HA -> p2: p3 is RECOVERING@81
+HA -> p2: o1 is OFFLINE@80
+HA -> p2: o2 is ONLINE@82
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+WARNING: The section below is not finished yet :WARNING
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+NETWORK,DISK,PROC	User				o2				p1				p2				p3
+|			|				|				|				|				|
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@100-105:
+# S3 client sends a DEL operation to remove the objects.
+# It leads to 3 calls to motr client which:
+			{ [DIX DEL k1] }
+			{ [DIX DEL k2] }
+			{ [DIX DEL k3] } 
+						{					{				{				{				
+						R1[CAS DEL k1 @100 st=III],		R1[CAS PUT k1 @10 st=PVV],	R1[CAS PUT k2 @11 st=VPV],	R1[CAS PUT k3 @12 st=VVP],	
+						R2[CAS DEL k2 @101 st=III],														
+						R3[CAS DEL k3 @102 st=III],														
+						}					}				}				}				
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@110:
+o2 -> p1: request o2.R1, request o2.R2, request o2.R3
+o2 -> p2: request o2.R1, request o2.R2, request o2.R3
+o2 -> p3: request o2.R1, request o2.R2, request o2.R3
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@115:
+p1: received o2.R1, received o2.R2, received o2.R3
+p2: received o2.R1, received o2.R2, received o2.R3
+p3: received o2.R1, received o2.R2, received o2.R3
+
+						{					{				{				{				
+						R1[CAS DEL k1 @100 st=III],		R1[CAS PUT k1 @10  st=PVV],	R1[CAS PUT k2 @11  st=VPV],	R1[CAS PUT k3 @12  st=VVP],	
+						R2[CAS DEL k2 @101 st=III],		R2[CAS DEL k1 @100 st=III],	R2[CAS DEL k1 @100 st=III],	R2[CAS DEL k1 @100 st=III],	
+						R3[CAS DEL k3 @102 st=III],		R3[CAS DEL k2 @101 st=III],	R3[CAS DEL k2 @101 st=III],	R3[CAS DEL k2 @101 st=III],	
+											R4[CAS DEL k3 @102 st=III],	R4[CAS DEL k3 @102 st=III],	R4[CAS DEL k3 @102 st=III],	
+						}					}				}				}				
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@120:
+## Here are the messages that have to be sent:
+# Recovering of o1 on p1
+p1 -> p2: REDO p1.R1
+p1 -> p3: REDO p1.R1
+# Recovering of p1
+p2 -> p1: REDO p2.R1
+# Recovering of o1 on p2
+p2 -> p1: REDO p2.R1
+p2 -> p3: REDO p2.R1
+# Recovering of p3
+p2 -> p3: REDO p2.R1
+# Recovering of o1 on p3
+p3 -> p1: REDO p3.R1
+p3 -> p2: REDO p3.R1
+## Here are the message that have to actually be sent (without duplicates):
+p1 -> p2: REDO p1.R1
+p1 -> p3: REDO p1.R1
+p2 -> p1: REDO p2.R1
+p2 -> p3: REDO p2.R1
+p3 -> p1: REDO p3.R1
+p3 -> p2: REDO p3.R1
+# Note: duplicates are ommitted in the FOLs.
+
+						{					{				{				{				
+						R1[CAS DEL k1 @100 st=III],		R1[CAS PUT k1 @10  st=PVV],	R1[CAS PUT k2 @11  st=VPV],	R1[CAS PUT k3 @12  st=VVP],	
+						R2[CAS DEL k2 @101 st=III],		R2[CAS DEL k1 @100 st=III],	R2[CAS DEL k1 @100 st=III],	R2[CAS DEL k1 @100 st=III],	
+						R3[CAS DEL k3 @102 st=III],		R3[CAS DEL k2 @101 st=III],	R3[CAS DEL k2 @101 st=III],	R3[CAS DEL k2 @101 st=III],	
+											R4[CAS DEL k3 @102 st=III],	R4[CAS DEL k3 @102 st=III],	R4[CAS DEL k3 @102 st=III],	
+											R5[CAS PUT k2 @11  st=III],	R5[CAS PUT k1 @10  st=III],	R5[CAS PUT k1 @10  st=III],		
+											R6[CAS PUT k3 @12  st=III],	R6[CAS PUT k3 @12  st=III],	R6[CAS PUT k2 @11  st=III],		
+						}					}				}				}				
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@130:
+# The requests are executed. The KVS on each node will have the following content if 
+# p1 does not put tombstones:
+
+p1: kvs = <empty set>, tombstones = { k1@100, k2@101, k3@102 }
+p2: kvs = { k1@10, k3@12 }, tombstones = <empty set>
+p3: kvs = <empty set>, tombstones = { k1@100, k2@101, k3@102 }
+
+# However, if p1 was able to put tombstones then all the KVS would have had <empty set>,
+# which would be the expected behavior in this situation.
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
