@@ -279,6 +279,8 @@ ansible-playbook ${ansible_verbose:+-$ansible_verbose} ${node_type}.yml
     ${limit_hosts:+--limit $limit_hosts}
     ${extra_vars:+--extra-vars $extra_vars}
     $dry_run
+    -v
+    -vvv
 COMMAND_END
 )
 

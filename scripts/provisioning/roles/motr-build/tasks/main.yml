@@ -31,6 +31,40 @@
     state: present
     name:  '{{ motr_build_deps_pkgs }}'
 
+- name: Build and install Intel isa-l
+  block:
+  - name: Get the isa-l tarball from github.com
+    get_url:
+      url="https://github.com/intel/isa-l/archive/v2.30.0.tar.gz"
+      dest=/tmp/isa-l-v2.30.0.tar.gz
+
+  - name: Unarchive source
+    unarchive:
+      src="/tmp/isa-l-v2.30.0.tar.gz"
+      dest="/tmp/"
+      copy=no
+
+  - name: autogen
+    command: sh autogen.sh
+    args:
+       chdir: /tmp/isa-l-2.30.0/
+
+  - name: configure
+    command: ./configure
+    args:
+       chdir: /tmp/isa-l-2.30.0/
+
+  - name: make
+    command: make
+    args:
+       chdir: /tmp/isa-l-2.30.0/
+
+  - name: Install the tarball
+    command: sudo make install
+    args:
+       chdir: /tmp/isa-l-2.30.0/
+
+
 - name: install Motr build-time python3 dependencies
   package:
     state: present
