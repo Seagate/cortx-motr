@@ -1,5 +1,5 @@
 ## - 1 transient failure of participant1;
-## - 3 MD requests in flight before and during transien failure of participant1;
+## - 3 MD requests in flight before and during transient failure of participant1;
 ## - 3 MD requests in flight after the failure of participant1;
 ## - 3 redo requests in flight (reordering);
 ## - bunch of log messages related to events happened in the system.
@@ -8,65 +8,116 @@
 Assumptions:
 - One originator and 3 participants
 
+Notations:
+- o  : originator;    /* o1, o2, o3 ... */
+- p  : participants;  /* p1, p2, p3 ... */
+- tx : transaction;   /* tx1, tx2, tx3 ... */
+- m  : message;       /* m0, m1, m2, ... */
+       - m0.1         /* message m0 for process p1 */
+       - m0.2         /* message m0 for process p2 */
+       .
+       .
+       .
+- k  : keys:          /* k1, k2, k3 ... */
+- v  : values:        /* v1, v2, v3 ... */
 
 
-@10 [o1: DIX PUT k1, v1]                                            o1                              p1                                p2                                p3
-  @11 [o1: request (o1 -> p1: PUT k1, v1, 1@10)]
-  @12 [o1: request (o1 -> p2: PUT k1, v1, 1@10)]
-  @13 [o1: request (o1 -> p3: PUT k1, v1, 1@10)]    {[PUT, k1, v1, 1@10, state=SENT]}                {[]}                              {[]}                              {[]}
+[o1.set(<k1, v1>)] @t10
+[o1.send(m1)] @t11 /* m1.dst = p1 */
+[o1.send(m1)] @t12 /* m1.dst = p2 */
+[o1.send(m1)] @t13 /* m1.dst = p3 */
 
-  @15 [p1: received (o1 -> p1: PUT k1, v1, 1@10)]
-  @15 [p2: received (o1 -> p2: PUT k1, v1, 1@10)]
-  @15 [p3: received (o1 -> p3: PUT k1, v1, 1@10)]
+##  @10 [o1: DIX PUT k1, v1]                                            o1                                p1                                p2                                p3
+##  @11 [o1: request (o1 -> p1: PUT k1, v1, 1@10)]
+##  @12 [o1: request (o1 -> p2: PUT k1, v1, 1@10)]
+##  @13 [o1: request (o1 -> p3: PUT k1, v1, 1@10)]    {[PUT, k1, v1, 1@10, state=SENT]}                {[]}                              {[]}                              {[]}
 
+[p1.recv(m1)] @t15
+[p2.recv(m1)] @t15
+[p3.recv(m1)] @t15
 
-@20 [o1: DIX PUT k2, v2]
-  @21 [o1: request (o1 -> p1: PUT k2, v2, 1@20)]
-  @22 [o1: request (o1 -> p2: PUT k2, v2, 1@20)]
-  @23 [o1: request (o1 -> p3: PUT k2, v2, 1@20)]    {[PUT, k1, v1, 1@10, state=SENT],                {[]}                              {[]}                              {[]}
-                                                     [PUT, k2, v2, 1@20, state=SENT]}
+##  @15 [p1: received (o1 -> p1: PUT k1, v1, 1@10)]
+##  @15 [p2: received (o1 -> p2: PUT k1, v1, 1@10)]
+##  @15 [p3: received (o1 -> p3: PUT k1, v1, 1@10)]
 
+[o1.set(<k2, v2>)] @t20
+[o1.send(m2)] @t21 /* m2.dst = p1 */
+[o1.send(m2)] @t22 /* m2.dst = p2 */
+[o1.send(m2)] @t23 /* m2.dst = p3 */
 
-  @25 [p1: received (o1 -> p1: PUT k2, v2, 1@20)]
-  @25 [p2: received (o1 -> p2: PUT k2, v2, 1@20)]
-  @25 [p3: received (o1 -> p3: PUT k2, v2, 1@20)]
-
-
-@30 [o1: DIX PUT k3, v3]
-  @31 [o1: request (o1 -> p1: PUT k3, v3, 1@30)]
-  @32 [o1: request (o1 -> p2: PUT k3, v3, 1@30)]
-  @33 [o1: request (o1 -> p3: PUT k3, v3, 1@30)]    {[PUT, k1, v1, 1@10, st=SN],                     {[]}                              {[]}                              {[]}
-                                                     [PUT, k2, v2, 1@20, st=SN],
-                                                     [PUT, k3, v3, 1@30, st=SN]}
-
-  @35 [p1: received (o1 -> p1: PUT k3, v3, 1@30)]
-  @35 [p2: received (o1 -> p2: PUT k3, v3, 1@30)]
-  @35 [p3: received (o1 -> p3: PUT k3, v3, 1@30)]
-
-@40 [p1: reply (p1 -> o1: PUT k1, v1, 1@10)]
-		## o1 -> DTM user: op_executed(1@10)
-@40 [p2: reply (p2 -> o1: PUT k1, v1, 1@10)]
-@40 [p3: reply (p3 -> o1: PUT k1, v1, 1@10)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
-                                                     [PUT, k2, v2, 1@20, st=SN],
-                                                     [PUT, k3, v3, 1@30, st=SN]}
-
-@50 [p1: reply (p1 -> o1: PUT k2, v2, 1@20)]
-		## o1 -> DTM user: op_executed(1@20)
-@50 [p2: reply (p2 -> o1: PUT k2, v2, 1@20)]
-@50 [p3: reply (p3 -> o1: PUT k2, v2, 1@20)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],
-                                                     [PUT, k2, v2, 1@20, st=EX],         [PUT, k2, v2, 1@20, st=EX]}     [PUT, k2, v2, 1@20, st=EX]}     [PUT, k2, v2, 1@20, st=EX]}
-                                                     [PUT, k3, v3, 1@30, st=SN]}
-
-@60 [p1: reply (p1 -> o1: PUT k3, v3, 1@30)]
-		## o1 -> DTM user: op_executed(1@30)
-@60 [p2: reply (p2 -> o1: PUT k3, v3, 1@30)]
-@60 [p3: reply (p3 -> o1: PUT k3, v3, 1@30)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],
-                                                     [PUT, k2, v2, 1@20, st=EX],         [PUT, k2, v2, 1@20, st=EX],     [PUT, k2, v2, 1@20, st=EX],     [PUT, k2, v2, 1@20, st=EX],
-                                                     [PUT, k3, v3, 1@30, st=EX]}         [PUT, k3, v3, 1@30, st=EX]}     [PUT, k3, v3, 1@30, st=EX]}     [PUT, k3, v3, 1@30, st=EX]}
+##  @20 [o1: DIX PUT k2, v2]
+##  @21 [o1: request (o1 -> p1: PUT k2, v2, 1@20)]
+##  @22 [o1: request (o1 -> p2: PUT k2, v2, 1@20)]
+##  @23 [o1: request (o1 -> p3: PUT k2, v2, 1@20)]    {[PUT, k1, v1, 1@10, state=SENT],                {[]}                              {[]}                              {[]}
+##                                                     [PUT, k2, v2, 1@20, state=SENT]}
 
 
+[p1.recv(m2)] @t25
+[p2.recv(m2)] @t25
+[p3.recv(m2)] @t25
+##  @25 [p1: received (o1 -> p1: PUT k2, v2, 1@20)]
+##  @25 [p2: received (o1 -> p2: PUT k2, v2, 1@20)]
+##  @25 [p3: received (o1 -> p3: PUT k2, v2, 1@20)]
 
-@65 [p1-> CRASHED]
+
+[o1.set(<k3, v3>)] @t30
+[o1.send(m3)] @t31 /* m3.dst = p1 */
+[o1.send(m3)] @t32 /* m3.dst = p2 */
+[o1.send(m3)] @t33 /* m3.dst = p3 */
+
+##  @30 [o1: DIX PUT k3, v3]
+##    @31 [o1: request (o1 -> p1: PUT k3, v3, 1@30)]
+##    @32 [o1: request (o1 -> p2: PUT k3, v3, 1@30)]
+##    @33 [o1: request (o1 -> p3: PUT k3, v3, 1@30)]    {[PUT, k1, v1, 1@10, st=SN],                     {[]}                              {[]}                              {[]}
+##                                                       [PUT, k2, v2, 1@20, st=SN],
+##                                                       [PUT, k3, v3, 1@30, st=SN]}
+
+[p1.recv(m3)] @t35
+[p2.recv(m3)] @t35
+[p3.recv(m3)] @t35
+
+##  @35 [p1: received (o1 -> p1: PUT k3, v3, 1@30)]
+##  @35 [p2: received (o1 -> p2: PUT k3, v3, 1@30)]
+##  @35 [p3: received (o1 -> p3: PUT k3, v3, 1@30)]
+
+[p1.send(m1.reply)] @t40
+[p2.send(m1.reply)] @t40
+[p3.send(m1.reply)] @t40
+
+
+##  @40 [p1: reply (p1 -> o1: PUT k1, v1, 1@10)]
+##  		## o1 -> DTM user: op_executed(1@10)
+##  @40 [p2: reply (p2 -> o1: PUT k1, v1, 1@10)]
+##  @40 [p3: reply (p3 -> o1: PUT k1, v1, 1@10)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}    {[PUT, k1, v1, 1@10, st=EX]}
+##                                                       [PUT, k2, v2, 1@20, st=SN],
+##                                                       [PUT, k3, v3, 1@30, st=SN]}
+
+[p1.send(m2.reply)] @t50
+[p2.send(m2.reply)] @t50
+[p3.send(m2.reply)] @t50
+
+##  @50 [p1: reply (p1 -> o1: PUT k2, v2, 1@20)]
+##  		## o1 -> DTM user: op_executed(1@20)
+##  @50 [p2: reply (p2 -> o1: PUT k2, v2, 1@20)]
+##  @50 [p3: reply (p3 -> o1: PUT k2, v2, 1@20)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],
+##                                                       [PUT, k2, v2, 1@20, st=EX],         [PUT, k2, v2, 1@20, st=EX]}     [PUT, k2, v2, 1@20, st=EX]}     [PUT, k2, v2, 1@20, st=EX]}
+##                                                       [PUT, k3, v3, 1@30, st=SN]}
+
+[p1.send(m3.reply)] @t60
+[p2.send(m3.reply)] @t60
+[p3.send(m3.reply)] @t60
+
+##  @60 [p1: reply (p1 -> o1: PUT k3, v3, 1@30)]
+##  		## o1 -> DTM user: op_executed(1@30)
+##  @60 [p2: reply (p2 -> o1: PUT k3, v3, 1@30)]
+##  @60 [p3: reply (p3 -> o1: PUT k3, v3, 1@30)]        {[PUT, k1, v1, 1@10, st=EX],        {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],    {[PUT, k1, v1, 1@10, st=EX],
+##                                                       [PUT, k2, v2, 1@20, st=EX],         [PUT, k2, v2, 1@20, st=EX],     [PUT, k2, v2, 1@20, st=EX],     [PUT, k2, v2, 1@20, st=EX],
+##                                                       [PUT, k3, v3, 1@30, st=EX]}         [PUT, k3, v3, 1@30, st=EX]}     [PUT, k3, v3, 1@30, st=EX]}     [PUT, k3, v3, 1@30, st=EX]}
+
+
+[p1.crashed] @t65
+
+##  @65 [p1-> CRASHED]
 	## operations 1@10, 1@20 and 1@30 may not be on persistent storage.
 	## HA sends notice to all surving paritcipants and the originator.
 
