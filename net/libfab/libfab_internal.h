@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef __MOTR_NET_LIBFAB_H__
-#define __MOTR_NET_LIBFAB_H__
+#ifndef __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__
+#define __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__
 #include <netinet/in.h>                    /* INET_ADDRSTRLEN */
 
 #include "rdma/fi_eq.h"
@@ -83,7 +83,7 @@ struct m0_fab__ep {
 };
 
 /** @} end of netlibfab group */
-#endif /* __MOTR_NET_LIBFAB_H__ */
+#endif /* __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__ */
 
 /*
  *  Local variables:

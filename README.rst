@@ -44,11 +44,17 @@ Get to know
 
 - `Quick Start Guide </doc/Quick-Start-Guide.rst>`_
 
+- `Architectural Summary </doc/motr-in-prose.md>`_
+
+- `Example Cluster Setup <https://github.com/Seagate/cortx-motr/discussions/285>`_
+
 - `Source Structure </doc/source-structure.md>`_
 
 - `Coding Style </doc/coding-style.md>`_
 
 - `Developer Guide </doc/motr-developer-guide.md>`_
+
+- `Provisioning Guide for Building and Testing Environment </scripts/provisioning/README.md>`_
 
 Surfing
 =======

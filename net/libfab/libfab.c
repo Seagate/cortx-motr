@@ -52,14 +52,10 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
-#include "lib/trace.h"
-
-#include "net/net.h"
-#include "lib/bitmap.h"
-#include "lib/chan.h"
-#include "lib/memory.h"
-#include "libfab_internal.h"
-#include <errno.h>
+#include "lib/trace.h"          /* M0_ENTRY() */
+#include "net/net.h"            /* struct m0_net_domain */
+#include "lib/memory.h"         /* M0_ALLOC_PTR()*/
+#include "libfab_internal.h"    /* struct m0_fab__dom_param */
 
 #define LIBFAB_VERSION FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION)
 
@@ -67,6 +63,18 @@ static char *providers[] = { "verbs", "tcp", "sockets" };
 /* TODO: Remove after merging EOS-15552 */
 static char def_node[] = "127.0.0.1";
 static char def_port[] = "1000";
+/** Parameters required for libfabric configuration */
+enum m0_fab__mr_params {
+	/** Fabric memory access. */
+	FAB_MR_ACCESS  = (FI_READ | FI_WRITE | FI_RECV | FI_SEND | \
+			FI_REMOTE_READ | FI_REMOTE_WRITE),
+	/** Fabric memory offset. */
+	FAB_MR_OFFSET  = 0,
+	/** Fabric memory flag. */
+	FAB_MR_FLAG    = 0,
+	/** Key used for memory registration. */
+	FAB_MR_KEY     = 0XABCD,
+};
 
 static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port);
 static int libfab_ep_res_init(struct m0_fab__ep_param *ep);
@@ -85,6 +93,7 @@ static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port)
 	port = def_port;
 	return M0_RC(0);
 }
+
 
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
@@ -603,28 +612,35 @@ static int libfab_end_point_create(struct m0_net_end_point **epp,
  */
 static int libfab_buf_register(struct m0_net_buffer *nb)
 {
-	int        		ret = 0;
+	int			      ret;
+	struct m0_fab__dom_param     *fab_dom = nb->nb_dom->nd_xprt_private;
+	struct fid_domain	     *domain = fab_dom->fdp_domain;
+	struct m0_fab__buf_params    *fbp;
+
+	M0_PRE(nb->nb_xprt_private == NULL);
+
+	M0_ALLOC_PTR(fbp);
+	if (fbp == NULL)
+		return M0_ERR(-ENOMEM);
+
+	nb->nb_xprt_private = fbp;
+	fbp->fbp_nb = nb;
+	/* Registers buffer that can be used for send/recv and local/remote RMA. */
+	ret = fi_mr_reg(domain, nb->nb_buffer.ov_buf[0], nb->nb_length,
+			FAB_MR_ACCESS, FAB_MR_OFFSET, FAB_MR_KEY,
+			FAB_MR_FLAG, &fbp->fbp_mr, NULL);	
+	if (ret != FI_SUCCESS)
+	{
+		nb->nb_xprt_private = NULL;
+		m0_free(fbp);
+		return M0_ERR(ret);
+	}
+	
+	ret = fi_mr_enable(fbp->fbp_mr);
+	if (ret != FI_SUCCESS)
+		libfab_buf_deregister(nb); /* Failed to enable memory region */
 
 	return M0_RC(ret);
-
-	/*
-	* TODO:
-	* fi_mr_reg, fi_mr_desc, fi_mr_key, fi_mr_bind, fi_mr_enable
-	*/
-}	
-
-/**
- * Finalises a network buffer.
- *
- * Used as m0_net_xprt_ops::xo_buf_deregister().
- *
- * @see m0_net_buffer_deregister().
- */
-static void libfab_buf_deregister(struct m0_net_buffer *nb)
-{
-	/*
- 	* TODO:
- 	* fi_close() */
 }
 
 /**
