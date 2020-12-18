@@ -1,6 +1,8 @@
 ## Delete usecase with Tombstones
 
-There are two conflicting PUT and DEL operations observed for the same key.
+There are 4 ways in which a pair of conflicting PUT and DEL requests can be executed
+on a recovering participant.
+
 Scenario 1 (out-of-order-execution) [PUT-DEL]:
 Scenario 2 (correct-order-execution)[PUT-DEL]:
 Scenario 3 (out-of-order-execution) [DEL-PUT]:
