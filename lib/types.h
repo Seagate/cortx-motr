@@ -39,21 +39,19 @@ struct m0_uint128 {
 
 #define M0_UINT128(hi, lo) (struct m0_uint128) { .u_hi = (hi), .u_lo = (lo) }
 
-#define U128X_F "%" PRIx64 ":%" PRIx64 ""
-#define U128D_F "%lu:%lu"
+#define U128X_F "%"PRIx64":%"PRIx64
+#define U128D_F "%"PRId64":%"PRId64
 #define U128_P(x) (x)->u_hi, (x)->u_lo
 #define U128_S(u) &(u)->u_hi, &(u)->u_lo
 
-#define U128X_F_SAFE "%s%lx:%lx"
+#define U128X_F_SAFE "%s%"PRIx64":%"PRIx64
 #define U128_P_SAFE(x) \
 	((x) != NULL ? "" : "(null) "), \
-	((x) != NULL ? (unsigned long)(x)->u_hi : 0), \
-	((x) != NULL ? (unsigned long)(x)->u_lo : 0)
+	((x) != NULL ? (x)->u_hi : 0), ((x) != NULL ? (x)->u_lo : 0)
 
 #define U128_P_SAFE_EX(y, x) \
 	((y) != NULL ? "" : "(null) "), \
-	((y) != NULL ? (unsigned long)(x)->u_hi : 0), \
-	((y) != NULL ? (unsigned long)(x)->u_lo : 0)
+	((y) != NULL ? (x)->u_hi : 0), ((y) != NULL ? (x)->u_lo : 0)
 
 M0_INTERNAL bool m0_uint128_eq(const struct m0_uint128 *u0,
 			       const struct m0_uint128 *u1);

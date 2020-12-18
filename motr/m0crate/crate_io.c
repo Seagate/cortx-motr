@@ -784,7 +784,7 @@ void cr_get_oids(struct m0_uint128 *ids, uint32_t nr_objs)
 		ids[i].u_hi = nz_rand();
 		/* Highest 8 bits are left for Motr. */
 		ids[i].u_hi = ids[i].u_hi & ~(0xFFUL << 56);
-		cr_log(CLL_TRACE, "oid %016lx:%016lx\n",
+		cr_log(CLL_TRACE, "oid %016"PRIx64":%016"PRIx64"\n",
 		       ids[i].u_hi, ids[i].u_lo);
 	}
 }
@@ -1017,7 +1017,7 @@ void run(struct workload *w, struct workload_task *tasks)
 	cwi->cwi_finish_time = m0_time_now();
 
 	cr_log(CLL_INFO, "I/O workload is finished.\n");
-	cr_log(CLL_INFO, "Total: time="TIME_F" objs=%d ops=%lu\n",
+	cr_log(CLL_INFO, "Total: time="TIME_F" objs=%d ops=%"PRIu64"\n",
 	       TIME_P(m0_time_sub(cwi->cwi_finish_time, cwi->cwi_start_time)),
 	       cwi->cwi_nr_objs * w->cw_nr_thread,
 	       cwi->cwi_ops_done[CR_WRITE] + cwi->cwi_ops_done[CR_READ]);
@@ -1041,7 +1041,8 @@ void run(struct workload *w, struct workload_task *tasks)
 	written = cwi->cwi_bs * cwi->cwi_bcount_per_op *
 	          cwi->cwi_ops_done[CR_WRITE];
 	cr_log(CLL_INFO, "W: "TIME_F" ("TIME_F" per op), "
-	       "%lu KiB, %lu KiB/s\n", TIME_P(cwi->cwi_time[CR_WRITE]),
+	       "%"PRIu64" KiB, %"PRIu64" KiB/s\n",
+	       TIME_P(cwi->cwi_time[CR_WRITE]),
 	       TIME_P(cwi->cwi_g.cg_cwi_acc_time[CR_WRITE] /
 		      cwi->cwi_ops_done[CR_WRITE]), written/1024,
 	       bw(written, cwi->cwi_time[CR_WRITE]) /1024);
@@ -1050,7 +1051,8 @@ void run(struct workload *w, struct workload_task *tasks)
 	read = cwi->cwi_bs * cwi->cwi_bcount_per_op *
 	       cwi->cwi_ops_done[CR_READ];
 	cr_log(CLL_INFO, "R: "TIME_F" ("TIME_F" per op), "
-	       "%lu KiB, %lu KiB/s\n", TIME_P(cwi->cwi_time[CR_READ]),
+	       "%"PRIu64" KiB, %"PRIu64" KiB/s\n",
+	       TIME_P(cwi->cwi_time[CR_READ]),
 	       TIME_P(cwi->cwi_g.cg_cwi_acc_time[CR_READ] /
 		      cwi->cwi_ops_done[CR_READ]), read/1024,
 	       bw(read, cwi->cwi_time[CR_READ]) /1024);

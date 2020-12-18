@@ -162,7 +162,7 @@ static const struct m0_trace_buf_header *read_trace_buf_header(int ifd)
 
 	log_info("Trace buffer header:  [%s]\n", input_file_name);
 	log_info("  header size: %u\n", tb_header->tbh_header_size);
-	log_info("  buffer size: %lu\n", tb_header->tbh_buf_size);
+	log_info("  buffer size: %"PRIu64"\n", tb_header->tbh_buf_size);
 	log_info("  buffer type: %s\n",
 		tb_header->tbh_buf_type == M0_TRACE_BUF_KERNEL ? "kernel" :
 		tb_header->tbh_buf_type == M0_TRACE_BUF_USER   ? "user"   :
