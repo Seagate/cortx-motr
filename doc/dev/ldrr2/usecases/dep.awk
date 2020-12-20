@@ -1,13 +1,18 @@
-BEGIN { print "digraph {"; }
+BEGIN {
+	print "digraph ldrr2motr {";
+	print "    ratio = \"auto\";"
+	print "    mincross = 2.0;"
+}
 
 function norm(s) {
-	gsub(/^[ \t]+/,"", s);
-	gsub(/\./,"_", s);
-	gsub(/[ +()-/]/,"_", s);
-	return "_" s;
+	c = s;
+	gsub(/^[ \t]+/,"", c);
+	gsub(/\./,"_", c);
+	gsub(/[ +()-/]/,"_", c);
+	return "_" c;
 }
 function complete() {
-	print norm(id);
+	print norm(id) "[shape=box, label=\"" id "\"]";
 	split(depends, d, ", *");
 	for (t in d) {
 		print norm(id) " -> " norm(d[t]);
