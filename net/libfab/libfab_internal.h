@@ -26,10 +26,11 @@
 #define __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__
 #include <netinet/in.h>                    /* INET_ADDRSTRLEN */
 
-#include "rdma/fi_eq.h"
-#include "rdma/fi_domain.h"
-#include "rdma/fi_endpoint.h"
 #include "rdma/fabric.h"
+#include "rdma/fi_cm.h"
+#include "rdma/fi_domain.h"
+#include "rdma/fi_eq.h"
+#include "rdma/fi_endpoint.h"
 
 extern struct m0_net_xprt m0_net_libfab_xprt;
 
@@ -39,18 +40,13 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  * @{
  */
 
-struct m0_fab__tm {
-	struct m0_net_transfer_mc *ftm_ma;     /* Generic transfer machine */
-	struct m0_thread           ftm_poller; /* Poller thread */
-	int                        ftm_epollfd;/* epoll(2) file descriptor. */
-	struct fid_poll           *ftm_pollset;
-	struct fid_wait           *ftm_waitset;
-	struct m0_tl               ftm_fin_ep; /* List of finalised ep */
-	bool                       ftm_close;  /* tm Shutdown flag */
-};
-
-struct libfab_params {
-	struct fid_mr     *mr; 	/* Memory region to be registered */
+/**
+ *    Private data pointed to by m0_net_buffer::nb_xprt_private.
+ * 
+ */
+struct m0_fab__buf {
+	struct m0_net_buffer   *fbp_nb; /* Pointer back to the network buffer */
+	struct fid_mr          *fbp_mr; /* Libfab memory region */
 };
 
 struct m0_fab__ep_name {
@@ -59,16 +55,12 @@ struct m0_fab__ep_name {
 };
 
 struct m0_fab__ep_res {
-	struct fid_av      *fer_av;            /* Address vector */
-	struct fi_av_attr   fer_av_attr;       /* Address Vector attributes */
-	struct fid_eq      *fer_eq;            /* Event queue */
-	struct fi_eq_attr   fer_eq_attr;       /* Event Queue attributes */
-	struct fid_cq      *fer_tx_cq;         /* Transmit Completion Queue */
-	struct fid_cq      *fer_rx_cq;         /* Recv Completion Queue */
-	struct fi_cq_attr   fer_cq_attr;       /* Completion Queue attributes */
-	struct fid_cntr    *fer_tx_cntr;       /* Transmit Counter */
-	struct fid_cntr    *fer_rx_cntr;       /* Recv Counter */
-	struct fi_cntr_attr fer_cntr_attr;     /* Counter attributes */
+	struct fid_av           *fer_av;       /* Address vector */
+	struct fid_eq           *fer_eq;       /* Event queue */
+	struct fid_cq           *fer_tx_cq;    /* Transmit Completion Queue */
+	struct fid_cq           *fer_rx_cq;    /* Recv Completion Queue */
+	struct fid_cntr         *fer_tx_cntr;  /* Transmit Counter */
+	struct fid_cntr         *fer_rx_cntr;  /* Recv Counter */
 };
 
 struct m0_fab__ep {
@@ -80,6 +72,16 @@ struct m0_fab__ep {
 	struct fid_ep           *fep_ep;       /* Endpoint */
 	struct fid_pep          *fep_pep;      /* Passive endpoint */
 	struct m0_fab__ep_res    fep_ep_res;
+};
+
+struct m0_fab__tm {
+	struct m0_net_transfer_mc *ftm_net_ma;  /* Generic transfer machine */
+	struct m0_thread           ftm_poller;  /* Poller thread */
+	int                        ftm_epollfd; /* epoll(2) file descriptor. */
+	struct fid_poll           *ftm_pollset;
+	struct fid_wait           *ftm_waitset;
+	struct m0_fab__ep         *ftm_pep;     /* Passive ep(listening mode) */
+	bool                       ftm_shutdown;/* tm Shutdown flag */
 };
 
 /** @} end of netlibfab group */
