@@ -6,6 +6,15 @@
          - [2.1.1.1:Enclosure-SSD-Config-For-Metadata](#2.1.1.1:Enclosure-SSD-Config-For-Metadata)
       - [2.1.2:Server](#2.1.2:Server)
    - [2.2:Failure-domain](#2.2:Failure-domain)
+      - [2.2.1:Storage-Failure-Analysis](#2.2.1:Storage-Failure-Analysis)
+      - [2.2.2:Network-Failure-Analysis](#2.2.2:Network-Failure-Analysis)
+      - [2.2.3:Motr-Hare-HA-Notification](#2.2.3:Motr-Hare-HA-Notification)
+  
+# Acronyms
+| **Abbreviation** | **Description** |
+| ----------- | ----------- | 
+| DG | Disk Group : Set of disk associated with single controller |
+| SS | Storage Set : Set of node on which data units are stripped. Note for R1 data are not stripped across SS  |
 
 # 1:Overview
 This document will be describe LDR R2 motr architecture and design
@@ -80,44 +89,55 @@ Note that following new fields needs to be added to existing S3 metadata:
 ** NOTE: Work In Progress **
 
 ## 2.2:Failure-domain
-This section will analyze failure domain and its impact on data/metadata consistency.
-With respect of motr following category of failure can occur:
+This section will analyze failure domain and its impact on data/metadata consistency. Motr failure will be mainly related to error in accessing storage or network. Sections below describes these failures.
 
-| Failure  | Failure Component | Description | Motr Failure Domain Mapping | 
-| ----------- | ----------- | ----------- | ----------- | 
-| Storage | Disk Group | Single/Dual Disk Group Failure | DG Failure |
-|  | Controller | Single Controller Failure | No Impact (User notification) |
-|  |  | Both Controller Failure | Dual DG Failure / Node Failure |
-|  | SAS HBA  | Both DG unaccessible | Dual DG Failure / Node Failure |
-|  | Enclosure | Both DG unaccessible | Dual DG Failure / Node Failure |
+## 2.2.1:Storage-Failure-Analysis
+With respect of motr following category of storage failure can occur:
 
-Network 
+| **Failure Component** | **Description** | **Motr Failure Domain Mapping** | 
+| ----------- | ----------- | ----------- | 
+| DG Failure | More than acceptable number of drive failure in Enclosure | Disk Group Failure |
+| Controller | Single Controller Failure | No Impact (User notification) |
+| Both Controller Failure | Node Failure / Both DG unaccessible | Node Failure / Dual DG Failure  |
+| SAS HBA  | Both DG unaccessible | Node Failure / Dual DG Failure  |
+| Enclosure | Both DG unaccessible | Node Failure / Dual DG Failure  |
+  
+All the failure handling maps to DG failure in Motr.
 
-| Failure  | Failure Component | Description | Desired Action | 
-| ----------- | ----------- | ----------- | ----------- | 
-| Network | Network Interface | Single Node getting isolated from others | Majority node which are part of storage set will make quorum and single node to be taken down by HA action  |
-|  | Controller | Single Controller Failure | No Impact (User notification) |
-|  |  | Both Controller Failure | Dual DG Failure / Node Failure |
-|  | SAS HBA  | Both DG unaccessible | Dual DG Failure / Node Failure |
-|  | Enclosure | Both DG unaccessible | Dual DG Failure / Node Failure |
+## 2.2.2:Network-Failure-Analysis
+With respect of motr following category of newtowork failure can occur:
 
+| **Failure Type** | **Motr  Motr Action** |
+| ----------- |  ----------- | 
+| Single Node Unreachable in SS | Node Failure in Storage Set* |    
+| Single Node Unreachable in other SS | Avoid metadata reads on those nodes |
+| Multiple Node Unreachable in SS 
+   - With partition such that node is still part of SS | Node Failure in Storage Set* |
+| Multiple Node Unreachable in SS
+   - With partition such that node is not a part of SS | Return Error for all IOs, HA Action - Stop IO service? |
+| Multiple Node Unreachable in other SS | Avoid metadata reads on those nodes |
 
-1. Network Unit : 
-   - NW Interface failure
-   - NW Partion
-   
-| Failure  | Failure Type   | Side Effect     | Desired Action | 
-| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-| Storage | Temporary | IOs will timeout for that DG/Volume | -Total IO timeout should be less than S3 timeout |
-|   |   |   | -Method to detect storage unit unavailiable to avoid sending IO request to it |
-|   |   |   | -Method to detect storage unit is available to allow sending IO request to it |
+  ***Node Failure in Storage Set**:
+- Mark volumes of node to be failed
+- Avoid write on the volumes, switch to different protection config
+- Degraded read for read IOs having data on the disk
 
-1. Storage Unavailable
-   a. Temporary Failure
-   b. Permanent Failure
-2. Network Unavailable
-   a. Temporary Failure
-   b. Permananet Failure
+### 2.2.3:Motr-Hare-HA-Notification
+Hare will notify motr when Disk Group or Node is available/unavailable.
+Motr
+
+| ** HA Notification**  | **Parameter** | **Description** | 
+| ----------- | ----------- | ----------- |
+| Disk Group Failure | Node ID, DG Number | Motr will mark the corresponding volume set as unavailable  |
+| Disk Group Available | Node ID, DG Number | Motr will mark the corresponding volume set as available  |
+| Node Failure | Node ID | Motr will mark the corresponding volume set as unavailable  |
+| Node Available | Node ID | Motr will mark the corresponding volume set as available  |
+**Note**: Assuming Node ID unique across cluster otherwise NodeID:StorageSet pair will be needed to identify failure at motr
+
+The figure below shows motr-hare interface for HA notification and DG failure related info.  
+![Enclosure Metadata Config](images/MotrHareInteraction.JPG)
+
+# **NOTE: WIP**
 
 ## Basic Assumptions
 Following are the basic assumptions for creating the sequence flow for various error scenarios
