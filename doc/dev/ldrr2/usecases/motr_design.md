@@ -126,16 +126,20 @@ With respect of motr following category of newtowork failure can occur:
 Hare will notify motr when Disk Group or Node is available/unavailable.
 Motr
 
-| ** HA Notification**  | **Parameter** | **Description** | 
+| **HA Notification**  | **Parameter** | 
 | ----------- | ----------- | ----------- |
-| Disk Group Failure | Node ID, DG Number | Motr will mark the corresponding volume set as unavailable  |
-| Disk Group Available | Node ID, DG Number | Motr will mark the corresponding volume set as available  |
-| Node Failure | Node ID | Motr will mark the corresponding volume set as unavailable  |
-| Node Available | Node ID | Motr will mark the corresponding volume set as available  |
+| Disk Group Failure | Node ID, DG Number | 
+| Disk Group Available | Node ID, DG Number | 
+| Node Failure | Node ID | 
+| Node Available | Node ID |  
+
+Motr will mark the corresponding volume set as unavailable/available based on the event.
 **Note**: Assuming Node ID unique across cluster otherwise NodeID:StorageSet pair will be needed to identify failure at motr
 
 The figure below shows motr-hare interface for HA notification and DG failure related info.  
 ![Enclosure Metadata Config](images/MotrHareInteraction.JPG)
+
+Motr will notify Hare regarding 
 
 # **NOTE: WIP**
 
