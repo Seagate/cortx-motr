@@ -312,7 +312,11 @@ struct m0_rm_resource {
 	 * List of remote owners (linked through m0_rm_remote::rem_res_linkage)
 	 * with which local owners of credits to this resource communicates.
 	 */
-	struct m0_tl                     r_remote;
+	struct m0_tl                     r_remotes;
+	/**
+	 * Used to protect r_remotes list from concurrent remote destruction.
+	 */
+	struct m0_mutex                  r_mutex;
 	/**
 	 * List of local owners (linked through m0_rm_owner::ro_owner_linkage)
 	 */
@@ -753,7 +757,7 @@ struct m0_rm_remote {
 	struct m0_chan          rem_signal;
 	/**
 	 * A linkage into the list of remotes for a given resource hanging off
-	 * m0_rm_resource::r_remote.
+	 * m0_rm_resource::r_remotes.
 	 */
 	struct m0_tlink         rem_res_linkage;
 	/**
@@ -762,6 +766,19 @@ struct m0_rm_remote {
 	 * resource manager service.
 	 */
 	struct m0_cookie        rem_cookie;
+	/**
+	 * Reference counter for remote debtor.
+	 * When the last loan is settled (paid back) and there are no more
+	 * pending incoming requests, the debtor instance can be freed.
+	 *
+	 * The m0_ref counter is atomic and does not need any protection,
+	 * but rm_remote_free() called by it needs to be protected against
+	 * m0_rm_remote_find(resource), so we use res->r_mutex for this.
+	 *
+	 * @note this should not be used for creditors whose life-cycle
+	 *       does not depend on the number of credited loans.
+	 */
+	struct m0_ref           rem_refcnt;
 	uint64_t                rem_id;
 	/** Used for subscriptions to HA notifications about remote failure. */
 	struct m0_rm_ha_tracker rem_tracker;
@@ -1456,6 +1473,8 @@ struct m0_rm_incoming {
 	m0_time_t                        rin_req_time;
 	/** Determines reserve priority of the request. */
 	struct m0_rm_reserve_prio        rin_reserve;
+	/** Pointer to the remote owner of wanted credit. */
+	struct m0_rm_remote             *rin_remote;
 	uint64_t                         rin_magix;
 };
 
@@ -1932,6 +1951,36 @@ M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote *rem,
 M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem);
 
 /**
+ * M0_RM_REMOTE_GET() increments remote's reference counter.
+ * Why macro? Because we want logs from the caller.
+ */
+#define M0_RM_REMOTE_GET(remote)                                        \
+({                                                                      \
+	struct m0_rm_remote *_r = (remote);                             \
+	int                  _c = m0_ref_read(&_r->rem_refcnt);         \
+	M0_LOG(M0_DEBUG, "rm_remote=%p ref: %d -> %d", _r, _c, _c + 1); \
+	m0_ref_get(&_r->rem_refcnt);                                    \
+})
+
+/**
+ * M0_RM_REMOTE_PUT() decrements remote's reference counter.
+ * rm_remote_free() is called if counter reaches zero, that's why
+ * resource->r_mutex is taken here.
+ * @see ->rem_refcnt for more info about it.
+ */
+#define M0_RM_REMOTE_PUT(remote)                                        \
+({                                                                      \
+	int                  _c;                                        \
+	struct m0_rm_remote *_r = (remote);                             \
+	struct m0_mutex     *_m = &_r->rem_resource->r_mutex;           \
+	m0_mutex_lock(_m);                                              \
+	_c = m0_ref_read(&_r->rem_refcnt);                              \
+	M0_LOG(M0_DEBUG, "rm_remote=%p ref: %d -> %d", _r, _c, _c - 1); \
+	m0_ref_put(&_r->rem_refcnt);                                    \
+	m0_mutex_unlock(_m);                                            \
+})
+
+/**
  * Starts a state machine for a resource usage credit request. Adds pins for
  * this request. Asynchronous operation - the credit will not generally be held
  * at exit.
@@ -1942,6 +1991,14 @@ M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem);
  *
  */
 M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in);
+
+/**
+ * Releases the credit pinned by struct m0_rm_incoming.
+ *
+ * @pre in->rin_state == RI_SUCCESS
+ * @post m0_tlist_empty(&in->rin_pins)
+ */
+M0_INTERNAL void m0_rm_credit_put(struct m0_rm_incoming *in);
 
 /**
  * Allocates suitably sized buffer and encode it into that buffer.
@@ -1955,13 +2012,6 @@ M0_INTERNAL int m0_rm_credit_encode(struct m0_rm_credit *credit,
 M0_INTERNAL int m0_rm_credit_decode(struct m0_rm_credit *credit,
 				   struct m0_buf *buf);
 
-/**
- * Releases the credit pinned by struct m0_rm_incoming.
- *
- * @pre in->rin_state == RI_SUCCESS
- * @post m0_tlist_empty(&in->rin_pins)
- */
-M0_INTERNAL void m0_rm_credit_put(struct m0_rm_incoming *in);
 
 /** @} */
 
