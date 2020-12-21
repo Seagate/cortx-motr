@@ -176,7 +176,7 @@ M0_INTERNAL void m0_be_group_format_reset(struct m0_be_group_format *gft)
 	if (gft->gft_fmt_group_decoded != NULL) {
 		m0_time_t time = m0_time_now();
 		m0_be_fmt_group_decoded_free(gft->gft_fmt_group_decoded);
-		M0_LOG(M0_DEBUG, "time=%lu",
+		M0_LOG(M0_DEBUG, "time=%"PRId64,
 		       (unsigned long)m0_time_now() - time);
 		gft->gft_fmt_group_decoded = NULL;
 	}
@@ -462,7 +462,8 @@ m0_be_group_format_log_use(struct m0_be_group_format *gft,
 	size_group  = m0_be_fmt_group_size(&gft->gft_fmt_group);
 	size_cblock = m0_be_fmt_cblock_size(&gft->gft_fmt_cblock);
 
-	M0_LOG(M0_DEBUG, "size_reserved=%lu size_group=%lu size_cblock=%lu",
+	M0_LOG(M0_DEBUG, "size_reserved=%"PRId64" size_group=%"PRId64" "
+	       "size_cblock=%"PRId64,
 	       size_reserved, size_group, size_cblock);
 
 	m0_be_log_record_io_size_set(record, GFT_GROUP_IO, size_group);

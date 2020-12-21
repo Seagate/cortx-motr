@@ -125,8 +125,8 @@ static void poolmach_set_op(struct m0_fom *fom)
 
 static void poolmach_query_op(struct m0_fom *fom)
 {
-	uint32_t                 idx;
-	int                      rc = 0;
+	uint32_t                 idx = 0;
+	int                      rc  = 0;
 	int                      i;
 	int                      j;
 	struct m0_fop           *req_fop = fom->fo_fop;

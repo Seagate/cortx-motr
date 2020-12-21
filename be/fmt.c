@@ -227,12 +227,9 @@ M0_INTERNAL int m0_be_fmt_type_trace(const struct m0_xcode_cursor *it)
 	ptr  = obj->xo_ptr;
 	size = obj->xo_type->xct_sizeof;
 
-	M0_LOG(M0_DEBUG, "name: %s, type:%d, depth:%d, ptr: %p, size: %lu",
-	       obj->xo_type->xct_name,
-	       obj->xo_type->xct_aggr,
-	       it->xcu_depth,
-	       ptr,
-	       size);
+	M0_LOG(M0_DEBUG, "name: %s, type:%d, depth:%d, ptr: %p, size: %"PRId64,
+	       obj->xo_type->xct_name, obj->xo_type->xct_aggr, it->xcu_depth,
+	       ptr, size);
 
 	return 0;
 }

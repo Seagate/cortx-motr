@@ -409,13 +409,13 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 		m0_cm_ag_id_copy(&in_interval.sw_hi,
 				 &cm->cm_sw_last_updated_hi);
 	m0_cm_ag_out_interval(cm, &out_interval);
-	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %lu"
-			 " pending updates: %u posted: %u state=%u"
+	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %"PRIu64
+			 " pending updates: %u posted: %"PRIu64" state=%u"
 			 " px_update_rc=%d px_send_final_update=%d",
 			 proxy->px_endpoint,
 			 cm->cm_aggr_grps_in_nr,
 			 proxy->px_updates_pending,
-			 (uint32_t)proxy->px_nr_updates_posted,
+			 proxy->px_nr_updates_posted,
 			 proxy->px_status,
 			 proxy->px_update_rc,
 			 !!proxy->px_send_final_update);
