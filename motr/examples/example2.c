@@ -42,7 +42,7 @@
  */
 
 #include "motr/client.h"
-#include "lib/trace.h"
+#include "lib/assert.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -52,29 +52,25 @@ enum {
 	KV_LEN   = 32,
 };
 
-static int index_launch_wait(struct m0_entity *e,
-			     struct m0_op    **ops,
-			     int               rc,
-			     int              *sm_rc)
+static int op_launch_wait_fini(struct m0_entity *e,
+			       struct m0_op    **ops,
+			       int              *sm_rc)
 {
-	if (rc == 0) {
-		m0_op_launch(ops, 1);
-		rc = m0_op_wait(ops[0],
-				    M0_BITS(M0_OS_FAILED,
-					    M0_OS_STABLE),
-				    M0_TIME_NEVER);
-		printf("operation rc: %i\n", ops[0]->op_rc);
-		if (sm_rc != NULL) {
-			/* Save retcodes. */
-			*sm_rc = ops[0]->op_rc;
-		}
-	} else
-		printf("operation rc: %i\n", rc);
+	int rc;
+
+	m0_op_launch(ops, 1);
+	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED, M0_OS_STABLE),
+			M0_TIME_NEVER);
+	printf("rc=%d op_rc=%d\n", rc, ops[0]->op_rc);
+	if (sm_rc != NULL) {
+		/* Save retcodes. */
+		*sm_rc = ops[0]->op_rc;
+	}
 	m0_op_fini(ops[0]);
 	m0_op_free(ops[0]);
 	ops[0] = NULL;
 	m0_entity_fini(e);
-	return M0_RC(rc);
+	return rc;
 }
 
 int index_create(struct m0_container *container, struct m0_uint128 *fid)
@@ -86,7 +82,8 @@ int index_create(struct m0_container *container, struct m0_uint128 *fid)
 	m0_idx_init(&idx, &container->co_realm, fid);
 
 	rc = m0_entity_create(NULL, &idx.in_entity, &ops[0]);
-	rc = index_launch_wait(&idx.in_entity, ops, rc, NULL);
+	if (rc == 0)
+		rc = op_launch_wait_fini(&idx.in_entity, ops, NULL);
 
 	printf("index create rc: %i\n", rc);
 	return rc;
@@ -96,13 +93,22 @@ int index_delete(struct m0_container *container, struct m0_uint128 *fid)
 {
 	struct m0_op   *ops[1] = { NULL };
 	struct m0_idx   idx;
-	int             rc = 0;
+	int             rc;
 
 	m0_idx_init(&idx, &container->co_realm, fid);
 
-	rc = m0_entity_open(&idx.in_entity, &ops[0]) ?:
-	     m0_entity_delete(&idx.in_entity, &ops[0]) ?:
-	     index_launch_wait(&idx.in_entity, ops, rc, NULL);
+	rc = m0_entity_open(&idx.in_entity, &ops[0]);
+	if (rc == 0) {
+		rc = m0_entity_delete(&idx.in_entity, &ops[0]);
+		if (rc == 0)
+			rc = op_launch_wait_fini(&idx.in_entity, ops, NULL);
+		else {
+			m0_op_fini(ops[0]);
+			m0_op_free(ops[0]);
+			ops[0] = NULL;
+			m0_entity_fini(&idx.in_entity);
+		}
+	}
 
 	printf("index delete rc: %i\n", rc);
 	return rc;
@@ -112,14 +118,17 @@ int index_put(struct m0_container *container, struct m0_uint128 *fid)
 {
 	struct m0_op    *ops[1] = { NULL };
 	struct m0_idx    idx;
-	int              rc = 0;
 	struct m0_bufvec keys;
 	struct m0_bufvec vals;
 	int              i;
 	int32_t          rcs[KV_COUNT];
+	int              rc;
 
-	m0_bufvec_alloc(&keys, KV_COUNT, KV_LEN);
-	m0_bufvec_alloc(&vals, KV_COUNT, KV_LEN);
+	rc = m0_bufvec_alloc(&keys, KV_COUNT, KV_LEN);
+	M0_ASSERT(rc == 0);
+
+	rc= m0_bufvec_alloc(&vals, KV_COUNT, KV_LEN);
+	M0_ASSERT(rc == 0);
 
 	for (i = 0; i < KV_COUNT; i++) {
 		memset(keys.ov_buf[i], 'A' + i, KV_LEN - 1);
@@ -128,8 +137,8 @@ int index_put(struct m0_container *container, struct m0_uint128 *fid)
 
 	m0_idx_init(&idx, &container->co_realm, fid);
 	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs, 0, &ops[0]);
-	rc = index_launch_wait(&idx.in_entity, ops, rc, NULL);
-	printf("index put rc: %i\n", rc);
+	if (rc == 0)
+		rc = op_launch_wait_fini(&idx.in_entity, ops, NULL);
 	for (i = 0; rc == 0 && i < KV_COUNT; i++) {
 		printf("PUT %d: key=%s val=%s\n",
 			i, (char*)keys.ov_buf[i], (char*)vals.ov_buf[i]);
@@ -137,6 +146,7 @@ int index_put(struct m0_container *container, struct m0_uint128 *fid)
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&vals);
 
+	printf("index put rc: %i\n", rc);
 	return rc;
 }
 
@@ -144,15 +154,17 @@ int index_get(struct m0_container *container, struct m0_uint128 *fid)
 {
 	struct m0_op    *ops[1] = { NULL };
 	struct m0_idx    idx;
-	int              rc = 0;
 	struct m0_bufvec keys;
 	struct m0_bufvec vals;
 	int              i;
 	int32_t          rcs[KV_COUNT];
+	int              rc;
 
-	m0_bufvec_alloc(&keys, KV_COUNT, KV_LEN);
+	rc = m0_bufvec_alloc(&keys, KV_COUNT, KV_LEN);
+	M0_ASSERT(rc == 0);
 	/* For GET operation, we don't alloc actual buf */
-	m0_bufvec_empty_alloc(&vals, KV_COUNT);
+	rc = m0_bufvec_empty_alloc(&vals, KV_COUNT);
+	M0_ASSERT(rc == 0);
 
 	for (i = 0; i < KV_COUNT; i++) {
 		memset(keys.ov_buf[i], 'A' + i, KV_LEN - 1);
@@ -160,8 +172,8 @@ int index_get(struct m0_container *container, struct m0_uint128 *fid)
 
 	m0_idx_init(&idx, &container->co_realm, fid);
 	rc = m0_idx_op(&idx, M0_IC_GET, &keys, &vals, rcs, 0, &ops[0]);
-	rc = index_launch_wait(&idx.in_entity, ops, rc, NULL);
-	printf("index get rc: %i\n", rc);
+	if (rc == 0)
+		rc = op_launch_wait_fini(&idx.in_entity, ops, NULL);
 	for (i = 0; rc == 0 && i < KV_COUNT; i++) {
 		printf("GOT %d: key=%s val=%s\n",
 			i, (char*)keys.ov_buf[i], (char*)vals.ov_buf[i]);
@@ -170,6 +182,7 @@ int index_get(struct m0_container *container, struct m0_uint128 *fid)
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&vals);
 
+	printf("index get rc: %i\n", rc);
 	return rc;
 }
 
@@ -219,16 +232,18 @@ int main(int argc, char *argv[])
 		printf("error in m0_container_init: %d\n", rc);
 		goto out;
 	}
+
+	/* index FID must be m0_dix_fid_type */
 	m0_fid_tassume((struct m0_fid*)&index_id, &m0_dix_fid_type);
 
 	rc = index_create(&motr_container, &index_id);
 	if (rc == 0) {
 		rc = index_put(&motr_container, &index_id);
 		if (rc == 0) {
-			printf("put succeeded\n");
+			printf("index put succeeded\n");
 			rc = index_get(&motr_container, &index_id);
 			if (rc == 0)
-				printf("get succeeded\n");
+				printf("index get succeeded\n");
 		}
 		rc = index_delete(&motr_container, &index_id);
 	}

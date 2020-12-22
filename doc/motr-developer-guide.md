@@ -209,8 +209,8 @@ as the last argument to this program. In this example, we will only use this id 
 64-bit of an object identification. This id should be larger than 0x100000ULL, that is 1048576 in decimal.
 
 ## A simple Cortx Motr application (index)
-Here we will create a simple Cortx Motr application to crate an index, put
-some key/value pairs to this index, read key/value pairs back from this index, and then delete it.
+Here we will create a simple Cortx Motr application to create an index, put
+some key/value pairs to this index, read them back, and then delete it.
 Source code is available at: [example2.c](/motr/examples/example2.c)
 
 Motr index FID is a special type of FID. It must be the m0_dix_fid_type.
