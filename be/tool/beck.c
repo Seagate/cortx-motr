@@ -494,10 +494,11 @@ static struct m0_be_tx_bulk_cfg default_tb_cfg = (struct m0_be_tx_bulk_cfg){
 	};
 #define FLOG(level, rc, s)						\
 	M0_LOG(level, " rc=%d  at offset: %"PRId64" errno: %s (%i), eof: %i", \
-	       (rc), ftell(s->s_file), strerror(errno), errno, feof(s->s_file))
+	       (rc), (uint64_t)ftell(s->s_file), strerror(errno),	\
+	       errno, feof(s->s_file))
 
 #define RLOG(level, prefix, s, r, tag)					\
-	M0_LOG(level, prefix " %li %s %hu:%hu:%u", s->s_off, recname(r), \
+	M0_LOG(level, prefix " %"PRIu64" %s %hu:%hu:%u", s->s_off, recname(r), \
 	       (tag)->ot_version, (tag)->ot_type, (tag)->ot_size)
 
 static void sig_handler(int num)
@@ -732,7 +733,7 @@ static void generation_id_print(uint64_t gen)
 	struct tm tm;
 
 	localtime_r(&ts, &tm);
-	printf("%04d-%02d-%02d-%02d:%02d:%02d.%09lu  (%"PRIu64")",
+	printf("%04d-%02d-%02d-%02d:%02d:%02d.%09"PRIu64"  (%"PRIu64")",
 	       tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 	       tm.tm_hour, tm.tm_min, tm.tm_sec,
 	       m0_time_nanoseconds(gen), gen);
@@ -2142,7 +2143,7 @@ static bool btree_kv_post_is_valid(struct scanner *s,
 
 static void btree_bad_kv_count_update(uint64_t type, int count)
 {
-	M0_LOG(M0_DEBUG, "Discarded kv = %d from btree = %lu", count, type);
+	M0_LOG(M0_DEBUG, "Discarded kv = %d from btree = %"PRIu64, count, type);
 	bt[type].b_stats.c_kv_bad += count;
 }
 

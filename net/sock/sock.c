@@ -3211,10 +3211,12 @@ static int pk_io(struct mover *m, struct sock *s, uint64_t flag,
 		rc = 0;
 	} else
 		rc = M0_ERR(-errno);
-	//printf("%s -> %s, %p: flag: %"PRIx64", tgt: %"PRIu64", nob %"PRIu64","
-	//" nr: %i, count: %i, rc: %i, sflags: %"PRIx64"\n",
-	//ma_src(ep_ma(s->s_ep))->e_ep.nep_addr, s->s_ep->e_ep.nep_addr,
-	//m, flag, tgt, m->m_nob, nr, count, rc, s->s_flags);
+	/*
+	 * printf("%s -> %s, %p: flag: %"PRIx64", tgt: %"PRIu64", nob %"PRIu64","
+	 * " nr: %i, count: %i, rc: %i, sflags: %"PRIx64"\n",
+	 * ma_src(ep_ma(s->s_ep))->e_ep.nep_addr, s->s_ep->e_ep.nep_addr,
+	 * m, flag, tgt, m->m_nob, nr, count, rc, s->s_flags);
+	 */
 	return rc;
 }
 

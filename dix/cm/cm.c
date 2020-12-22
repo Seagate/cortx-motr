@@ -550,7 +550,7 @@ M0_INTERNAL int m0_dix_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 	dcm->dcm_processed_nr++;
 
 	if (cm->cm_quiesce || cm->cm_abort) {
-		M0_LOG(M0_WARN, "%lu: Got %s cmd: returning -ENODATA",
+		M0_LOG(M0_WARN, "%"PRId64": Got %s cmd: returning -ENODATA",
 				 cm->cm_id,
 				 cm->cm_quiesce ? "QUIESCE" : "ABORT");
 		return M0_RC(-ENODATA);

@@ -87,7 +87,7 @@ int main(int argc, char **argv)
 		rc = m0_unlink(&container, ulink_params.cup_id,
 			       ulink_params.cup_take_locks);
 		if (rc != 0)
-			fprintf(stderr, "Failed to unlink obj id: %lu, "
+			fprintf(stderr, "Failed to unlink obj id: %"PRIu64", "
 				"rc: %d\n", ulink_params.cup_id.u_lo, rc);
 	}
 
