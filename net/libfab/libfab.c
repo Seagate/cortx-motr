@@ -52,7 +52,6 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
-
 #include "lib/trace.h"          /* M0_ENTRY() */
 #include "net/net.h"            /* struct m0_net_domain */
 #include "lib/memory.h"         /* M0_ALLOC_PTR()*/
@@ -690,6 +689,11 @@ static int libfab_ma_init(struct m0_net_transfer_mc *tm)
  */
 static int libfab_ma_start(struct m0_net_transfer_mc *net, const char *name)
 {
+	/*
+	* TODO:
+	* poller thread needs to be added to check completion queue, 
+	* refer nlx_xo_tm_start() LNet 
+	*/
 	return M0_RC(0);
 }
 
@@ -756,7 +760,7 @@ static void libfab_buf_deregister(struct m0_net_buffer *nb)
 }
 
 /**
- * Initialises a network buffer.
+ * Register a network buffer.
  *
  * Used as m0_net_xprt_ops::xo_buf_register().
  *
@@ -812,7 +816,6 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
  	* */
 	return M0_RC(result);
 }
-
 
 /**
  * Cancels a buffer operation..
