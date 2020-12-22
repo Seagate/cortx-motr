@@ -543,7 +543,7 @@ M0_INTERNAL int cs_conf_device_reopen(struct m0_poolmach *pm,
 	svc = M0_CONF_CAST(m0_conf_obj_grandparent(&sdev->sd_obj),
 			   m0_conf_service);
 	if (is_local_ios(&svc->cs_obj)) {
-		M0_LOG(M0_DEBUG, "sdev size:%ld path:%s FID:"FID_F,
+		M0_LOG(M0_DEBUG, "sdev size: %"PRId64" path: %s FID:"FID_F,
 		       sdev->sd_size, sdev->sd_filename,
 		       FID_P(&sdev->sd_obj.co_id));
 		m0_stob_id_make(0, dev_id, &stob->s_sdom->sd_id, &stob_id);

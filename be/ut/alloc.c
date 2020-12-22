@@ -202,7 +202,8 @@ static void be_ut_alloc_credit_log(struct m0_be_allocator  *a,
 	m0_be_allocator_credit(a, optype, size, shift, &cred);
 	M0_LOG(M0_INFO,
 	       "m0_be_allocator_credit(): "
-	       "optype = %d (%s), size = %lu, shift = %d, credit = "BETXCR_F,
+	       "optype = %d (%s), size = %"PRIi64", shift = %d, "
+	       "credit = "BETXCR_F,
 	       optype, optype_str, size, shift, BETXCR_P(&cred));
 }
 
