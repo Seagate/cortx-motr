@@ -130,7 +130,12 @@ def print_iem(usage_percentage):
 #   Keeping exiting logic as well (commented) as it may required in LDR-R2
 
     usage_percentage = int(usage_percentage)
-    log.error(f"IEC: AS0020020002: Lyve Rack system has reached {usage_percentage} % of the storage capacity and may run out of space soon. You may contact your account team to get additional capacity.");
+    if usage_percentage < 85:
+        sev_id="W"
+    else:
+        sev_id="A"
+
+    log.error(f"IEC: {sev_id}S0020020002: Lyve Rack system has reached {usage_percentage}% of the storage capacity and may run out of space soon. You may contact your account team to get additional capacity.");
 #    libmotr.m0_time_init()
 #    libmotr.m0_iem(ctypes.c_char_p(file_parm_b), function_parm, line_num,
 #                        sev_id, mod_id, evt_id, ctypes.c_char_p(msg_b))
