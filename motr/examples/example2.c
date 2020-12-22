@@ -52,6 +52,14 @@ enum {
 	KV_LEN   = 32,
 };
 
+static void op_entity_fini(struct m0_entity *e, struct m0_op **ops)
+{
+	m0_op_fini(ops[0]);
+	m0_op_free(ops[0]);
+	ops[0] = NULL;
+	m0_entity_fini(e);
+}
+
 static int op_launch_wait_fini(struct m0_entity *e,
 			       struct m0_op    **ops,
 			       int              *sm_rc)
@@ -66,10 +74,7 @@ static int op_launch_wait_fini(struct m0_entity *e,
 		/* Save retcodes. */
 		*sm_rc = ops[0]->op_rc;
 	}
-	m0_op_fini(ops[0]);
-	m0_op_free(ops[0]);
-	ops[0] = NULL;
-	m0_entity_fini(e);
+	op_entity_fini(e, ops);
 	return rc;
 }
 
@@ -102,12 +107,8 @@ int index_delete(struct m0_container *container, struct m0_uint128 *fid)
 		rc = m0_entity_delete(&idx.in_entity, &ops[0]);
 		if (rc == 0)
 			rc = op_launch_wait_fini(&idx.in_entity, ops, NULL);
-		else {
-			m0_op_fini(ops[0]);
-			m0_op_free(ops[0]);
-			ops[0] = NULL;
-			m0_entity_fini(&idx.in_entity);
-		}
+		else
+			op_entity_fini(&idx.in_entity, ops);
 	}
 
 	printf("index delete rc: %i\n", rc);
