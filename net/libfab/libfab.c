@@ -91,6 +91,28 @@ static int libfab_ep_param_free(struct m0_fab__ep *ep);
 static int libfab_ep_res_free(struct m0_fab__ep_res *ep_res);
 static void libfab_poller(struct m0_fab__tm *ma);
 
+/* libfab init and fini() : initialized in motr init */
+M0_INTERNAL int m0_net_libfab_init(void)
+{
+	int result = 0;
+
+	
+	/*  TODO: Uncomment it when all the changes are intergated
+	*  commnet to avoid compilation ERROR 
+	*  m0_net_xprt_register(&m0_net_libfab_xprt);
+	*  m0_net_xprt_default_set(&m0_net_libfab_xprt);
+	*/
+	return M0_RC(result);
+}
+
+M0_INTERNAL void m0_net_libfab_fini(void)
+{
+	/*  TODO: Uncomment it when all the changes are intergated
+	*  commnet to avoid compilation ERROR 
+	*	m0_net_xprt_deregister(&m0_net_libfab_xprt);
+	*/
+}
+
 /**
  * Used to poll for connection and completion events
  */

@@ -72,7 +72,7 @@
     regexp: '^options lnet networks='
     # In VMware eth0 (NAT) is always the interface for Motr's LNet:
     line:   'options lnet networks=tcp(eth0) config_on_load=1'
-  when: ansible_facts['facter_virtual'] == "vmware"
+  when: ansible_virtualization_type == "VMware"
   tags: lustre
 
 - name: write modprobe config for LNet module on other providers
@@ -83,7 +83,7 @@
     # eth1 (host-only) interface is used for LNet in this case.
     # (Note: VirtualBox won't inter-connect the nodes on NAT interfaces.)
     line:   'options lnet networks=tcp(eth1) config_on_load=1'
-  when: ansible_facts['facter_virtual'] != "vmware"
+  when: ansible_virtualization_type != "VMware"
   tags: lustre
 
 - name: fix empty /etc/lnet.conf
