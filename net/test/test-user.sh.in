@@ -20,13 +20,23 @@ if [ $# -ne 7 -a $# -ne 12 ]; then
 	echo "  *_cr		-" \
 	     "credentials to run test console/server/client (username@hostname)"
 	echo "  *_if		-" \
-	     "LNET interface for test console (e.g. 172.18.50.161@o2ib)"
+	     "Interface for test console (e.g. 172.18.50.161@o2ib)"
 	exit
 fi
 
 if [ $1 != "console" -a $1 != "server" -a $1 != "client" ]; then
 	echo "Invalid script role $1. Should be one of [console|server|client]"
 	exit
+fi
+
+echo "--------------------Test-user-script------------------------"
+echo -n "Enter (1)Lnet (2)libFab :"
+read NET_XTR
+if [ "$NET_XTR" = "1" ]
+then
+	echo "Net transport is LNet"
+else
+	echo "Net transport is Libfab"
 fi
 
 . @abs_top_srcdir@/m0t1fs/linux_kernel/st/common.sh
@@ -37,7 +47,10 @@ unload_all() {
 }
 trap unload_all EXIT
 
-modprobe_lnet
+if [ "$NET_XTR" = "1" ]
+then
+	modprobe_lnet
+fi
 modload_galois
 modload || exit $?
 
@@ -61,19 +74,36 @@ job_id_add() {
 	JOB_IDS="$JOB_IDS $!"
 }
 
-run_console() {
+run_libfab_console() {
+        echo "type : $TEST_TYPE msg_nr : $MSG_NR msg_size : $MSG_SIZE con-ser : $CONCUR_SERVER con-cli : $CONCUR_CLIENT"
+        @abs_top_srcdir@/net/test/user_space/m0nettest \
+                -t $TEST_TYPE \
+                -n $MSG_NR \
+                -s $MSG_SIZE \
+                -E $CONCUR_SERVER \
+                -e $CONCUR_CLIENT \
+                -A "$CONSOLE_IF:100" \
+                -a "$CONSOLE_IF:101" \
+                -C "$SERVER_IF:200" \
+                -c "$CLIENT_IF:300" \
+                -D "$SERVER_IF:236" \
+                -d "$CLIENT_IF:248" &
+        job_id_add
+}
+
+run_lnet_console() {
 	@abs_top_srcdir@/net/test/user_space/m0nettest \
 		-t $TEST_TYPE \
-		-n $MSG_NR \
-		-s $MSG_SIZE \
-		-g $CONCUR_SERVER \
-		-h $CONCUR_CLIENT \
-		-a "$CONSOLE_IF:$PID:$PORTAL:100" \
-		-b "$CONSOLE_IF:$PID:$PORTAL:101" \
-		-c "$SERVER_IF:$PID:$PORTAL:200" \
-		-d "$CLIENT_IF:$PID:$PORTAL:300" \
-		-e "$SERVER_IF:$PID:$PORTAL:201" \
-		-f "$CLIENT_IF:$PID:$PORTAL:301" &
+                -n $MSG_NR \
+                -s $MSG_SIZE \
+                -E $CONCUR_SERVER \
+                -e $CONCUR_CLIENT \
+                -A "$CONSOLE_IF:$PID:$PORTAL:100" \
+                -a "$CONSOLE_IF:$PID:$PORTAL:101" \
+                -C "$SERVER_IF:$PID:$PORTAL:200" \
+                -c "$CLIENT_IF:$PID:$PORTAL:300" \
+                -D "$SERVER_IF:$PID:$PORTAL:236" \
+                -d "$CLIENT_IF:$PID:$PORTAL:248" &
 	job_id_add
 }
 
@@ -122,7 +152,12 @@ if [ "$ROLE" = "console" ]; then
 	fi
 	# time to initialize nodes - magic number
 	sleep 3
-	run_console
+	if [ "$NET_XTR" = "1" ]
+	then
+		run_lnet_console
+	else
+		run_libfab_console
+	fi
 fi
 
 if [ "$ROLE" = "server" ]; then
