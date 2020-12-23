@@ -1,0 +1,77 @@
+A participant will notify HA about:
+
+DTM interaction with HA:
+		- As a part of our failure model we can distinguish between states of
+		the process which can be in the following states:
+			- OFFLINE
+			- RECOVERING
+			- ONLINE
+			- TRANSIENT [CRASHED]
+            - PERMANENT_FAILURE
+		- State Diagram:
+			   +--------+---------------+
+			   |  	    |				^
+			   V		V				|
+			ONLINE -> TRANSIENT -> RECOVERING
+			   |		  |				^
+			   V		  V				|
+			   +--??------+				|
+						  |				|
+						  V				|
+					  OFFLINE			|
+					      |				|
+						  +-------------+
+						  |
+						  V
+				  PERMANENT FAILURE
+		- Motr code does not define states of Motr processes.
+		- Notation and notification of the process state is defined by HA.
+
+		- During startup Motr receives entry point information from HA.
+		- When HA restarts the process
+		- When a process sends a message to HA
+
+Questions:
+Q1: Do we have any hard expectations in terms of time about how long the cluster can
+  take to get to ONLINE state?
+Q2: Does HA wait for all participants to be ONLINE before intimating the originator?
+
+Workflow:
+
+W1: During cluster startup after a clean shutdown.
+- HA sends a start message to all participants of cluster.
+  [list of participants, endpoint information of configuration manager, etc ..]
+- Participant will notify HA that it is READY.
+  [participant sends clock information to HA]
+  ## Clock information represents the last STABLE state information on the
+     participant.
+- HA starts originators and shares participants are ONLINE.
+  [list of participants, endpoint information of configuration manager, etc ..]
+
+  During cluster shutdown,
+  - HA will tell originator to stop sending requests.
+    [arguments unknown ??]
+  - HA will wait for a confirmation from originator that all requests that
+    were issued are reported to be persistent by all the participants.
+    [status, more return values ??]
+  - HA sends a shutdown message to all the participants and originator.
+    [arguments unknown ??]
+
+W2: During cluster startup after an unclean shutdown.
+- HA sends a start message to all participants of cluster.
+  [list of participants, endpoint information of configuration manager, etc ..]
+- Participant will notify HA that it is READY.
+  [participant sends clock information to HA]
+- HA directs participants to perform RECOVERY.
+  ## How do participants determine which records need to be
+     sent to recovering participants for REDO?
+- Participants notify HA after they have RECOVERED the persistent state.
+  [no arguments??]
+- HA starts originators and shares participants are ONLINE.
+
+W3: Monitoring workflows.
+- HA queries the completion or in-progress state of requests on originator/participants.
+  Or alternatively, originator/participant proactively notifies HA the progress of
+  requests completion.
+  [arguments??]
+
