@@ -42,6 +42,67 @@ redo_state.on_ha_event(RECOVERING self) {
 	redo_state = HA.get_online_dones().map(\n -> (n.fid, false));
 }
 
+(DTM|HETWORK).redo_fom_ver1(!ONLINE other){
+	// Find the last record to send
+	prev_record = NULL
+	last_record = NULL;
+	for record in DTM.log {
+		// Some magic with prev and current records
+		// .........
+		// may be omitted here.
+		if record.time > HA.recovery_start_time(other) {
+			last_record = prev_record;
+			break;
+		}
+	}
+
+	msg.src = self;
+	msg.tgt = other;
+
+	for record in DTM.log {
+		if (!record.has_pa(other) ||
+		    record.has_persistent_msg(other)) {
+			continue;
+		}
+		// Can use batching of records here
+		msg.dtx = record.dtx;
+		msg.is_last = record == last_record;
+		NETWORK.send(msg);
+		await NETWORK.recv(ack);
+		// Execution is synchrnonous but
+		// we still have to match acks.
+		assume: ack.dtx.tx_id == msg.dtx.tx_id.
+		if (record == last_record)
+			break;
+	}
+}
+
+(DTM|HETWORK).redo_fom_ver2(!ONLINE other){
+	msg.src = self;
+	msg.tgt = other;
+	for record in DTM.log {
+		if (record.time > HA.recovery_start_time(other))
+			break;
+
+		if (!record.has_pa(other) ||
+		    record.has_persistent_msg(other)) {
+			continue;
+		}
+
+		// Can use batching of records here
+		msg.dtx = record.dtx;
+		NETWORK.send(msg);
+		await NETWORK.recv(ack);
+		// Execution is synchrnonous but
+		// we still have to match acks.
+		assume: ack.dtx.tx_id == msg.dtx.tx_id.
+	}
+	DTX.redo_complete_msg.src = self;
+	DTX.redo_complete_msg.tgt = other;
+	NETWORK.send(DTX.redo_complete_msg);
+	await NETWORK.recv(ack);
+}
+
 // This function affects only NETWORK variable
 (NETWORK).on_ha_event(!ONLINE other) {
 	assume: self != other;
@@ -49,32 +110,14 @@ redo_state.on_ha_event(RECOVERING self) {
 		redo_state.remove(other.fid);
 		return;
 	}
-	// TODO: This branch should be moved
-	// outside of the "event handler"
-	// because it blocks the execution
-	// of the states until all the log
-	// records are processed.
-	// Because of that we must assume
-	// that the state of this node
-	// does not change, as well as
-	// the state of all the other nodes.
-	if (HA.is_online(self) && HA.is_recovering(other)) {
-		for record in DTM.log {
-			if !record.has_pa(other) {
-				contunue;
-			}
-			// see the TODO.
-			assume: HA@t = HA@t+1.
-			msg.src = self;
-			msg.tgt = other;
-			msg.dtx = record.dtx;
-			NETWORK.send(msg);
-			await NETWORK.recv(ack);
-			// Execution is synchrnonous but
-			// we still have to match acks.
-			assume: ack.dtx.tx_id == msg.dtx.tx_id.
-		}
-	}
+
+	if (HA.is_online(self) && HA.is_recovering(other))
+		if ((DTM|HETWORK).redo_fom_ver1)
+			// With "is_last" field inside of each packet
+			enque((DTM|HETWORK).redo_fom_ver1);
+		else
+			// With the separate completion packet
+			enque((DTM|HETWORK).redo_fom_ver2);
 }
 
 // This function affects DTM, NETWORK and HA variables
@@ -84,21 +127,31 @@ redo_state.on_ha_event(RECOVERING self) {
 	is processed; there is no way to execute the last record
 	before all the previous records are executed.
 	assume: HA.is_online(msg.src).
-	
+
 	DTM.apply(msg);
-	redo_state[msg.src].is_done = msg.is_last;
+	if (msg_with_is_last_field)
+		redo_state[msg.src].is_done = msg.is_last;
 	ack = { .dtx = msg.dtx, .reply = msg.reply };
 	await NETWORK.send(msg); // may include a reply, see DTM.apply
 
-	if redo_state[msg.src].is_done {
-		redo_state.remove(msg.src);
-	}
+	if (msg_with_is_last_field) {
+		if (redo_state[msg.src].is_done)
+			redo_state.remove(msg.src);
 
-	if redo_state.is_empty() {
-		// The node "self" has been fully recovered.
-		HA.consider_st_transition(self, ONLINE, now())
+		if (redo_state.is_empty())
+			// The node "self" has been fully recovered.
+			HA.consider_st_transition(self, ONLINE, now())
 	}
 }
+
+(NETWORK|DTM|HA).on_recv(REDO_COMPLETE msg) {
+	assume: The message was sent to us.
+
+	redo_state.remove(msg.src);
+
+	if (redo_state.is_empty())
+		// The node "self" has been fully recovered.
+		HA.consider_st_transition(self, ONLINE, now())
 
 // This function affect only the state of DTM variable
 DTM.apply(msg) {
