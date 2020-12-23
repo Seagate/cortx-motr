@@ -208,7 +208,8 @@ M0_INTERNAL struct be_alloc_chunk *m0_be_fl_pick(struct m0_be_fl *fl,
 		} m0_be_list_endfor;
 	}
 
-	M0_LOG(M0_DEBUG, "chunk=%p size=%lu bac_size=%lu index=%lu iterations=%u",
+	M0_LOG(M0_DEBUG, "chunk=%p size=%"PRIu64" bac_size=%"PRIu64" "
+	       "index=%lu iterations=%u",
 	       chunk, size, chunk ? chunk->bac_size : 0, index, i);
 	M0_POST(ergo(chunk != NULL, chunk->bac_size >= size));
 	return chunk;

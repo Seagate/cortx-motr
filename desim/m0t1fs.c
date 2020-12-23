@@ -86,7 +86,7 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 					    &fid);
 
 			sim_log(s, SLL_TRACE,
-				"%c [%3i:%3i] -> %4u@%3u "FID_F" %6lu\n",
+				"%c [%3i:%3i] -> %4u@%3u "FID_F" %6"PRId64"\n",
 				"DPS"[m0_pdclust_unit_classify(pl, idx)],
 				cl->cc_id, cth->cth_id, obj, srv,
 				FID_P(&fid), tgt.ta_frame);

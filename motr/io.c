@@ -93,7 +93,7 @@ ioo_to_poolmach(struct m0_op_io *ioo)
 static bool indexvec_segments_overlap(struct m0_indexvec *ivec)
 {
 	uint32_t seg;
-	bool     overlap;
+	bool     overlap = false;
 
 	for (seg = 0; seg < SEG_NR(ivec) - 1; ++seg) {
 		overlap = (INDEX(ivec, seg) + COUNT(ivec, seg)) >

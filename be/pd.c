@@ -205,7 +205,8 @@ static void be_pd_sync_run(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	now = m0_time_now();
 	pd->bpd_sync_runtime = now - pd->bpd_sync_runtime;
-	M0_LOG(M0_DEBUG, "runtime=%lu delay=%lu prev=%lu rc=%d",
+	M0_LOG(M0_DEBUG, "runtime=%"PRId64" delay=%"PRId64" "
+	       "prev=%"PRId64" rc=%d",
 	       pd->bpd_sync_runtime, pd->bpd_sync_delay, pd->bpd_sync_prev, rc);
 	pd->bpd_sync_prev        = now;
 	pd->bpd_sync_in_progress = false;
@@ -221,7 +222,7 @@ M0_INTERNAL void m0_be_pd_sync(struct m0_be_pd  *pd,
 	struct m0_be_io *bio;
 	int i;
 
-	M0_ENTRY("pd=%p pos=%lu nr=%d op=%p", pd, pos, nr, op);
+	M0_ENTRY("pd=%p pos=%"PRId64" nr=%d op=%p", pd, pos, nr, op);
 	M0_PRE(nr <= 2);
 	M0_PRE(!pd->bpd_sync_in_progress);
 

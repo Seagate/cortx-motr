@@ -168,7 +168,7 @@ static int m0hsm_write_file(struct m0_uint128 id, const char *path)
 		rc = m0hsm_pwrite(&obj, io_buff, read_nr, off);
 		if (rc) {
 			fprintf(stderr, "error on writting at %zu to "
-				"%#"PRIx64":%#"PRIx64": %d\n", off,
+				"%#"PRIx64":%#"PRIx64": %d\n", (size_t)off,
 				id.u_hi, id.u_lo, rc);
 			break;
 		}
@@ -179,7 +179,7 @@ static int m0hsm_write_file(struct m0_uint128 id, const char *path)
 
 	if (read_nr < 0) {
 		fprintf(stderr, "error after reading %zu bytes from '%s': %s\n",
-			off, path, strerror(errno));
+			(size_t)off, path, strerror(errno));
 		rc = -1;
 	}
 
