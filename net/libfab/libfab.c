@@ -121,8 +121,57 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 /**
  * Used to poll for connection and completion events
  */
-static void libfab_poller(struct m0_fab__tm *ma)
+static void libfab_poller(struct m0_fab__tm *tm)
 {
+	while (tm->ftm_shutdown == false) {
+		struct fi_cq_entry     comp;
+		struct fi_eq_cm_entry  entry;
+		uint32_t               event;
+		ssize_t                rd;
+		int                    wait_cnt;
+		int                    poll_cnt;
+		void                  *ctx[8];
+		int                    i;
+		int                    rc = 0;
+
+		memset(ctx, 0, sizeof(ctx));
+		wait_cnt = fi_wait(tm->ftm_waitset, -1);
+		
+		if (wait_cnt) {
+			poll_cnt = fi_poll(tm->ftm_pollset, ctx, sizeof(ctx));
+			for (i = 0; i < poll_cnt; i++) {
+				rc = fi_cq_read(ctx[i], &comp, 1);
+				if (rc > 0) {
+					/* TODO: Action after 
+					succesful completion */
+				} else if (rc < 0 && rc != -FI_EAGAIN) {
+					if (rc == -FI_EAVAIL) {
+						/* TODO: Decode error */
+					}
+					else {
+						/* TODO: Action if err code 
+						not available */
+					}
+				}
+			}
+
+			if (wait_cnt != poll_cnt) {
+				/* TODO: Check all event queues for FI_CONNREQ
+				events */
+				
+				rd = fi_eq_read(tm->ftm_pep->fep_ep_res.fer_eq,
+						&event, &entry, sizeof(entry), 
+						0);
+				if (rd != sizeof(entry)) {
+					/* TODO: Check for error */
+				}
+				if (event == FI_CONNREQ) {
+					/* TODO: Action on incoming connection
+					request */
+				}
+			}
+		}
+	}
 }
 
 /**
@@ -263,13 +312,13 @@ static int libfab_ep_res_init(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 	
 	cq_attr.size = ep->fep_fi->tx_attr->size;
 	rc = fi_cq_open(ep->fep_domain, &cq_attr, &ep->fep_ep_res.fer_tx_cq, 
-			NULL);
+			ep->fep_ep_res.fer_tx_cq);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 	
 	cq_attr.size = ep->fep_fi->rx_attr->size;
 	rc = fi_cq_open(ep->fep_domain, &cq_attr, &ep->fep_ep_res.fer_rx_cq, 
-			NULL);
+			ep->fep_ep_res.fer_rx_cq);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 	
