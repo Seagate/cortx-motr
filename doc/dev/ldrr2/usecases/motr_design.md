@@ -9,7 +9,8 @@
       - [2.2.1:Storage-Failure-Analysis](#2.2.1:Storage-Failure-Analysis)
       - [2.2.2:Network-Failure-Analysis](#2.2.2:Network-Failure-Analysis)
       - [2.2.3:Motr-Hare-HA-Notification](#2.2.3:Motr-Hare-HA-Notification)
-  
+- [2:Sequence-Flow-R2](#2:Sequence-Flow-R2)
+
 # Acronyms
 | **Abbreviation** | **Description** |
 | ----------- | ----------- | 
@@ -139,7 +140,25 @@ Motr will mark the corresponding volume set as unavailable/available based on th
 The figure below shows motr-hare interface for HA notification and DG failure related info.  
 ![Enclosure Metadata Config](images/MotrHareInteraction.JPG)
 
-Motr will notify Hare regarding 
+Motr will notify Hare when there is any error in accessing storage (STOB IO Error). Hare will not take any action on this error. Hare will take action on HA events related to storage hardware failure from SSPL.
+
+# 2:Sequence-Flow-R2
+This section will have sequence flow diagram for all the case in motr R2
+
+# 2:Simple-Object-Get
+Sequence flow for simple object get is shown in figure below
+1. S3 Client sends GET request with <bucket_name><object_name> and S3 Server will receive this request
+1. S3 Server will do first lookup using <bucket_name>
+   - Lookup will return <account_id> 
+1. S3 Server will do second lookup with <bucket_name><account_id> 
+   - Lookup will return <object_list_index> and details of corresponding SS <poll_ver>
+1. S3 Server will do third lookup with <object_list_index>
+   - Lookup will return <layout_id><pool_ver><object_ID>
+1. Based on the layout ID and SS info, S3 server will send Read request to motr server
+   - Read request will be routed to controller and data will be returned
+1. Once all data is returned, status 200 will be returned to user.
+
+![Simple Object Get](images/simple_object_get.png)
 
 # **NOTE: WIP**
 
