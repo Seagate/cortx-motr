@@ -629,6 +629,12 @@ MOTR_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
 	[uuid_generate cannot be found! Try to install libuuid and libuuid-devel.])
 AC_SUBST([UUID_LIBS])
 
+# check for isa library
+MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
+        [ec_encode_data cannot be found! Try to install libisal.]
+)
+AC_SUBST([ISAL_LIBS])
+
 
 #
 # Checking for required header files
@@ -636,7 +642,7 @@ AC_SUBST([UUID_LIBS])
 
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
                   netinet/in.h stddef.h stdint.h stdlib.h string.h sys/ioctl.h \
-                  sys/socket.h sys/time.h unistd.h])
+                  sys/socket.h sys/time.h unistd.h isa-l.h])
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 
@@ -1031,6 +1037,7 @@ echo "Gcc            :  \"$BUILD_GCC\""
 AS_IF([test x$with_lustre != xno],[
 echo "Linux kernel   :  \"$LINUX_OBJ\""
 echo "Lustre         :  \"$LUSTRE\""
+echo "ISAL_LIBS      :  \"$ISAL_LIBS\""
 ])
 echo ""
 

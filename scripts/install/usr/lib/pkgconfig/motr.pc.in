@@ -8,6 +8,6 @@ Description: Motr filesystem
 URL: seagate.com
 Version: @PACKAGE_VERSION@
 Requires:
-Libs.private: @M0_LDFLAGS@ -pthread -lgf_comlete @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@
+Libs.private: @M0_LDFLAGS@ -pthread -lgf_comlete @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ @ISAL_LIBS@
 Libs: -L@libdir@ -lmotr
 Cflags: -I@includedir@/motr @M0_CPPFLAGS_DIST@ @M0_CFLAGS@
