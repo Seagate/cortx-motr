@@ -138,7 +138,8 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		wait_cnt = fi_wait(tm->ftm_waitset, -1);
 		
 		if (wait_cnt) {
-			poll_cnt = fi_poll(tm->ftm_pollset, ctx, sizeof(ctx));
+			poll_cnt = fi_poll(tm->ftm_pollset, ctx, 
+					   ARRAY_SIZE(ctx));
 			for (i = 0; i < poll_cnt; i++) {
 				rc = fi_cq_read(ctx[i], &comp, 1);
 				if (rc > 0) {
