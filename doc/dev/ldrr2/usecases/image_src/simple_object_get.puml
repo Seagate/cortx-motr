@@ -1,0 +1,84 @@
+```plantuml
+@startuml
+participant "S3 Client" as client
+box StorageSet1 (SS1) #FEFEFE
+participant "S3 Server/N1" as N1
+participant "ctrl-A/CL-1" as CL_1
+participant "ctrl-B/CR-1" as CR_1
+participant "N2" as N2
+participant "CL-2" as CL_2
+participant "CR-2" as CR_2
+participant "N3" as N3
+participant "CL-3" as CL_3
+participant "CR-3" as CR_3
+end box
+box StorageSet2 (SS2) #EEEEEE
+participant "N4" as N4
+participant "CL-4" as CL_4
+participant "CR-4" as CR_4
+participant "N5" as N5
+participant "CL-5" as CL_5
+participant "CR-5" as CR_5
+participant "N6" as N6
+participant "CL-6" as CL_6
+participant "CR-6" as CR_6
+end box
+
+client -> N1: GET /bucket_name/object_name
+
+== Lookup 1 : Global Bucket Index (global) ==
+N1 -> N5: get_keyval(global_bucket_index,\n key = "bucket_name")
+N5 --> N1: value = account_id of bucket owner
+
+== Lookup 2 : Bucket List Index (global) ==
+N1 -> N3: get_keyval(global_bucket_md_index,\n key = "account_id/bucket_name")
+N3 --> N1: value = bucket metadata JSON
+
+note left
+   * Global lookup i.e Lookup 1 & 2 will have N replication 
+   * N is total node in the system 
+   * Lookup 2 will give info about the SS of Object List Index metadata
+   * __**Any error in global lookup will needs to be retried with other nodes**__
+end note
+
+== Lookup 3 : Object List Index (local)  ==
+N1 -> N6: get_keyval(BUCKET_nnn_obj_index,\n key = "object_name");
+note left
+   * KV in Local Storage Set will have minimum (1 + K) replication 
+   * Max replication value for this metadata will be M, where M is total node in SS
+   * __**Any error in local lookup will needs to be retried with other nodes in SS**__
+end note
+N6 --> N1: found
+note left
+This lookup returns following params which helps to identify SS of object
+- Layout ID 
+- Pool Version 
+- Object ID 
+
+**Note SS of object can be different from SS of this "Object List Index" Table**
+end note
+
+== Read Operation ==
+
+loop until all data is read
+  "N1" -> CL_1 : Read data 1
+  "N1" -> CR_1 : Read data 2
+
+  N1 -> "N3": Read data 3
+  "N3" -> CL_3
+  N1 -> "N3": Read data 4
+  "N3" -> CR_3
+  CR_3 --> N1 : Data 4
+  CR_1 --> N1 : Data 2
+  CL_3 --> N1 : Data 3
+  CL_1 --> N1 : Data 1
+end
+note left
+Storage set of Object : SS1
+Storage set of metadata Object List Index : SS2
+end note
+
+N1 --> client: 200 OK
+
+@enduml
+```
