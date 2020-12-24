@@ -30,6 +30,7 @@
 #include "lib/mutex.h"
 #ifndef __KERNEL__
 #  include "lib/string.h"  /* m0_streq */
+#include "net/sock/sock.h"
 #endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
