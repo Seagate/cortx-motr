@@ -181,8 +181,8 @@ static void libfab_poller(struct m0_fab__tm *tm)
 static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port)
 {
 	M0_PRE(ep_name != NULL);
-	node = def_node;
-	port = def_port;
+	strcpy(node, def_node);
+	strcpy(port, def_port);
 	return M0_RC(0);
 }
 
