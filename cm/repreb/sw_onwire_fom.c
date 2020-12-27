@@ -81,8 +81,9 @@ static int repreb_sw_fom_tick(struct m0_fom *fom)
 		cm = m0_cmsvc2cm(service);
 		if (cm == NULL)
 			return M0_ERR(-EINVAL);
-		M0_LOG(M0_DEBUG, "Rcvd from %s hi: [%lu] [%lu] [%lu] [%lu] "
-				 "[%lu] [%lu] [%lu]",
+		M0_LOG(M0_DEBUG, "Rcvd from %s hi: [%"PRId64"] [%"PRId64"] "
+		       "[%"PRId64"] [%"PRId64"] [%"PRId64"] "
+		       "[%"PRId64"] [%"PRId64"]",
 		       swo_fop->swo_cm_ep.ep,
 		       swo_fop->swo_in_interval.sw_hi.ai_hi.u_hi,
 		       swo_fop->swo_in_interval.sw_hi.ai_hi.u_lo,

@@ -229,10 +229,11 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	}
 	m0_cm_aggr_group_fini(ag);
 
-        if (m0_cm_aggr_group_tlists_are_empty(cm))
+	if (m0_cm_aggr_group_tlists_are_empty(cm))
 		m0_cm_complete_notify(cm);
 
-	M0_LOG(M0_DEBUG, "%lu: ["M0_AG_F"] in=[%lu] out=[%lu] rc: %d",
+	M0_LOG(M0_DEBUG, "%"PRId64": ["M0_AG_F"] "
+	       "in=[%"PRId64"] out=[%"PRId64"] rc: %d",
 	       cm->cm_id, M0_AG_P(&id), cm->cm_aggr_grps_in_nr,
 	       cm->cm_aggr_grps_out_nr, rc);
 
