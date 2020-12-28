@@ -1,0 +1,76 @@
+#+TITLE: Distributed transaction manager high level design
+#+AUTHOR: DTM Team, Anatoliy Bilenko
+#+DATE: 28-12-2020
+#+MACRO: color @@html:<font color="$1">$2</font>@@
+
+This document presents a high level design (HLD) of distributed
+transaction management component for Motr and HARE. The main purposes
+of this document are: (i) to be inspected by Motr and HARE architects
+and peer designers to ascertain that high level design is aligned with
+Motr and HARE architecture and other designs, and contains no defects,
+(ii) to be a source of material for Active Reviews of Intermediate
+Design (ARID) and detailed level design (DLD) of the same component,
+(iii) to serve as a design reference document.
+
+The intended audience of this document consists of Motr and HARE
+customers, architects, designers and developers.
+
+* Introduction
+{{{color(green,[This section succinctly introduces the subject matter of the design. 1--2 paragraphs.])}}}
+
+* Definitions
+{{{color(green,[Definitions of terms and concepts used by the design go here. The definitions must be as precise as possible. References to the Mero Glossary are permitted and encouraged. Agreed upon terminology should be incorporated in the glossary.])}}}
+
+* Requirements
+{{{color(green,[This section enumerates requirements collected and reviewed at the Requirements Analysis (RA) and Requirements Inspection (RI) phases of development. References to the appropriate RA and RI documents should go here. In addition this section lists architecture level requirements for the component from the Summary requirements table and appropriate architecture documentation.])}}}
+
+* Design highlights
+{{{color(green,[This section briefly summarises key design decisions that are important for understanding of the functional and logical specifications and enumerates topics that a reader is advised to pay special attention to.])}}}
+
+* Functional specification
+{{{color(green,[This section defines a functional structure of the designed component: the decomposition showing what the component does to address the requirements.])}}}
+
+* Logical specification
+{{{color(green,[This section defines a logical structure of the designed component: the decomposition showing how the functional specification is met. Subcomponents and diagrams of their interrelations should go in this section.])}}}
+** Conformance
+{{{color(green,[For every requirement in the Requirements section, this sub-section explicitly describes how the requirement is discharged by the design. This section is part of a requirements tracking mechanism, so it should be formatted in some way suitable for (semi-)automatic processing.])}}}
+** Dependencies
+{{{color(green,[This sub-section enumerates other system and external components the component depends on. For every dependency a type of the dependency (uses, generalizes, etc.) must be specified together with the particular properties (requirements, invariants) the design depends upon. This section is part of a requirements tracking mechanism.])}}}
+** Security model
+{{{color(green,[The security model, if any, is described here.])}}}
+** Refinement
+{{{color(green,[This sub-section enumerates design level requirements introduced by the design. These requirements are used as input requirements for the detailed level design of the component. This sub-section is part of a requirements tracking mechanism.])}}}
+* State
+{{{color(green,[This section describes the additions or modifications to the system state (persistent, volatile) introduced by the component. As much of component behavior from the logical specification should be described as state machines as possible. The following sub-sections are repeated for every state machine.])}}}
+
+** States, events, transitions
+{{{color(green,[This sub-section enumerates state machine states, input and output events and state transitions incurred by the events with a table or diagram of possible state transitions. UML state diagrams can be used here.])}}}
+** State invariants
+{{{color(green,[This sub-section describes relations between parts of the state invariant through the state modifications.])}}}
+** Concurrency control
+{{{color(green,[This sub-section describes what forms of concurrent access are possible and what forms on concurrency control (locking, queuing, etc.) are used to maintain consistency.])}}}
+* Use cases
+{{{color(green,[This section describes how the component interacts with rest of the system and with the outside world.])}}}
+** Scenarios
+{{{color(green,[This sub-section enumerates important use cases (to be later used as seed scenarios for ARID) and describes them in terms of logical specification.])}}}
+** Failures
+{{{color(green,[This sub-section defines relevant failures and reaction to them. Invariants maintained across the failures must be clearly stated. Reaction to Byzantine failures (i.e., failures where a compromised component acts to invalidate system integrity) is described here.])}}}
+* Analysis
+** Scalability
+{{{color(green,[This sub-section describes how the component reacts to the variation in input and configuration parameters: number of nodes, threads, requests, locks, utilization of resources (processor cycles, network and storage bandwidth, caches), etc. Configuration and work-load parameters affecting component behavior must be specified here.])}}}
+** Other
+{{{color(green,[As applicable, this sub-section analyses other aspects of the design, e.g., recoverability of a distributed state consistency, concurrency control issues.])}}}
+** Rationale
+{{{color(green,[This sub-section describes why particular design was selected; what alternatives (alternative designs and variations of the design) were considered and rejected.])}}}
+* Deployment
+** Compatibility
+{{{color(green,[Backward and forward compatibility issues are discussed here. Changes in system invariants (event ordering, failure modes, etc.)])}}}
+*** Network
+*** Persistent storage
+*** Core
+{{{color(green,[Interface changes. Changes to shared in-core data structures.])}}}
+** Installation
+{{{color(green,[How the component is delivered and installed.])}}}
+* References
+{{{color(green,[References to all external documents (specifications, architecture and requirements documents, etc.) are placed here. The rest of the document cites references from this section. Use Google Docs bookmarks to link to the references from the main text.])}}}
+

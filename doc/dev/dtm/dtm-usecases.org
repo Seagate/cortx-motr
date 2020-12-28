@@ -12,7 +12,20 @@ C-level interface
 Affected clovis calls
 ** HA callbacks
 ** DTM Log truncation
+** death of originator
 ** Dependency tracking (explicit and inexplicit)
 ** DTM message delivery diring failures
 deliver executed callback after persistent participant failure
 ** DTM transaction and record versions
+** clock synchronisation
+** clock desynchronization
+** failure model
+** ismask related
+** recovery: redo+put/del execution, ordering
+** how long with 3-way replication 3 participant can be in transient?
+** new originaotr after fail
+** how the states of participants are propagated the dtm logic (confd)
+** startup procedure (recovering startup)
+** Cluster shutdown usecase
+** Cluster start usecase after shutdown
+
