@@ -45,8 +45,11 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  * 
  */
 struct m0_fab__buf {
-	struct m0_net_buffer   *fbp_nb; /* Pointer back to the network buffer */
-	struct fid_mr          *fbp_mr; /* Libfab memory region */
+	uint64_t               fb_magic; /* Magic number */
+	struct m0_net_buffer  *fb_nb; /* Pointer back to the network buffer */
+	struct fid_mr         *fb_mr; /* Libfab memory region */
+	struct m0_tlink        fb_linkage; /* Linkage in list of completed buffers */
+	m0_bindex_t            fb_length; /*The total size of data expected to be received*/
 };
 
 struct m0_fab__ep_name {
@@ -82,6 +85,7 @@ struct m0_fab__tm {
 	struct fid_wait           *ftm_waitset;
 	struct m0_fab__ep         *ftm_pep;     /* Passive ep(listening mode) */
 	bool                       ftm_shutdown;/* tm Shutdown flag */
+	struct m0_tl               ftm_done;    /* List of completed buffers */
 };
 
 /** @} end of netlibfab group */
