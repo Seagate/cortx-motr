@@ -398,7 +398,7 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 		m0_cm_ag_id_copy(&in_interval.sw_hi,
 				 &cm->cm_sw_last_updated_hi);
 	m0_cm_ag_out_interval(cm, &out_interval);
-	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %lu"
+	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %"PRId64
 			 " pending updates: %u", proxy->px_endpoint,
 			 cm->cm_aggr_grps_in_nr, proxy->px_updates_pending);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);

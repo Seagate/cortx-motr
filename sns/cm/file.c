@@ -470,8 +470,8 @@ m0_sns_cm_fctx_get(struct m0_sns_cm *scm, const struct m0_cm_ag_id *id)
 	fctx = m0_sns_cm_fctx_locate(scm, fid);
 	M0_ASSERT(fctx != NULL);
 	M0_CNT_INC(fctx->sf_ag_nr);
-	M0_LOG(M0_DEBUG, "ag nr: %lu, FID :"FID_F, fctx->sf_ag_nr,
-			FID_P(fid));
+	M0_LOG(M0_DEBUG, "ag nr: %"PRId64", FID :"FID_F, fctx->sf_ag_nr,
+	       FID_P(fid));
 	m0_ref_get(&fctx->sf_ref);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 
@@ -495,8 +495,8 @@ M0_INTERNAL void m0_sns_cm_fctx_put(struct m0_sns_cm *scm,
 	fctx = m0_sns_cm_fctx_locate(scm, fid);
 	M0_ASSERT(fctx != NULL);
 	M0_CNT_DEC(fctx->sf_ag_nr);
-	M0_LOG(M0_DEBUG, "ag nr: %lu, FID : <%lx : %lx>", fctx->sf_ag_nr,
-			FID_P(fid));
+	M0_LOG(M0_DEBUG, "ag nr: %"PRId64", FID : "FID_F, fctx->sf_ag_nr,
+	       FID_P(fid));
 	m0_ref_put(&fctx->sf_ref);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 }
@@ -515,7 +515,7 @@ M0_INTERNAL void m0_sns_cm_file_unlock(struct m0_sns_cm *scm,
 
 	fctx = m0_sns_cm_fctx_locate(scm, fid);
 	M0_ASSERT(fctx != NULL);
-	M0_LOG(M0_DEBUG, "File with FID : "FID_F" has %lu AGs",
+	M0_LOG(M0_DEBUG, "File with FID : "FID_F" has %"PRId64" AGs",
 			FID_P(&fctx->sf_fid), fctx->sf_ag_nr);
 	__sns_cm_file_unlock(fctx);
 }

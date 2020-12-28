@@ -93,7 +93,7 @@ static void betool_st_data_check(struct m0_be_ut_backend *ut_be,
 		value = seg->bs_addr + pos;
 		tx_value = *value;
 		tx_values[pos / BETOOL_ST_TX_STEP] = tx_value;
-		M0_LOG(M0_ALWAYS, "tx_value=%lu", tx_value);
+		M0_LOG(M0_ALWAYS, "tx_value=%"PRIu64, tx_value);
 		for (i = 0; i < BETOOL_ST_TX_STEP;
 		     i += BETOOL_ST_CAPTURE_STEP) {
 			value = seg->bs_addr + pos + i;
@@ -102,7 +102,8 @@ static void betool_st_data_check(struct m0_be_ut_backend *ut_be,
 				if (value[j] != tx_value) {
 					M0_LOG(M0_ALWAYS, "step offset = %d "
 					       "capture block index = %d "
-					       "value[j]=%lu tx_value = %lu",
+					       "value[j]=%"PRIu64" "
+					       "tx_value = %"PRIu64,
 					       i, j, value[j], tx_value);
 					M0_IMPOSSIBLE("data mismatch");
 				}
@@ -128,7 +129,7 @@ static void betool_st_data_check(struct m0_be_ut_backend *ut_be,
 	M0_LOG(M0_ALWAYS, "tx_first=%d tx_last=%d", tx_first, tx_last);
 	for (i = tx_first; i <= tx_last; ++i) {
 		if (i > 0 && tx_values[i - 1] > tx_values[i]) {
-			M0_LOG(M0_ALWAYS, "jump from %lu to %lu",
+			M0_LOG(M0_ALWAYS, "jump from %"PRIu64" to %"PRIu64,
 			       *fill, tx_values[i]);
 				if (*fill != 0)
 					++jump_nr;
@@ -176,12 +177,13 @@ static void betool_st_event_time_print(m0_time_t  *time,
 	int    printed;
 	int    i;
 
-	printed = snprintf(buf, ARRAY_SIZE(buf), "%s fill: %lu", info, fill);
+	printed = snprintf(buf, ARRAY_SIZE(buf), "%s fill: %"PRIu64,
+			   info, fill);
 	for (i = 1; i < BETOOL_ST_TIME_NR; ++i) {
 		len -= printed;
 		idx += printed;
 		M0_ASSERT(buf[idx] == '\0');
-		printed = snprintf(&buf[idx], len, " %s: +%luus",
+		printed = snprintf(&buf[idx], len, " %s: +%"PRIu64"us",
 				   betool_st_event_descr[i],
 				   (time[i] - time[0]) / 1000);
 		M0_ASSERT(printed >= 0);
@@ -269,10 +271,10 @@ int m0_betool_st_run(void)
 	m0_be_ut_backend_init_cfg(&ut_be, &cfg, false);
 	M0_LOG(M0_ALWAYS, "recovered.");
 	seg = m0_be_domain_seg_first(&ut_be.but_dom);
-	M0_LOG(M0_ALWAYS, "segment with addr=%p and size=%lu found",
+	M0_LOG(M0_ALWAYS, "segment with addr=%p and size=%"PRIu64" found",
 	       seg->bs_addr, seg->bs_size);
 	M0_ASSERT_INFO(seg->bs_size == BETOOL_ST_SEG_SIZE,
-		       "seg->bs_size=%lu BETOOL_ST_SEG_SIZE=%d",
+		       "seg->bs_size=%"PRIu64" BETOOL_ST_SEG_SIZE=%d",
 		       seg->bs_size, BETOOL_ST_SEG_SIZE);
 	betool_st_data_check(&ut_be, seg, &fill_start);
 	betool_st_data_write(&ut_be, seg, fill_start, UINT64_MAX);

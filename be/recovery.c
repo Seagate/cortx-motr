@@ -297,7 +297,7 @@ m0_be_recovery_log_record_get(struct m0_be_recovery        *rvr,
 	m0_be_log_record_iter_copy(iter, next);
 	log_record_iter_tlink_fini(next);
 	be_recovery_log_record_iter_destroy(next);
-	M0_LOG(M0_DEBUG, "iter pos=%lu size=%lu discarded=%lu",
+	M0_LOG(M0_DEBUG, "iter pos=%"PRId64" size=%"PRId64" discarded=%"PRId64,
 	       iter->lri_header.lrh_pos,
 	       iter->lri_header.lrh_size,
 	       iter->lri_header.lrh_discarded);

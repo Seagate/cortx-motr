@@ -528,8 +528,8 @@ static void print_status_data_parsable(const char *prefix,
 {
 	printf("%s ", prefix);
 	print_status_data_implementation(sd, true);
-	printf("time_start = %lu ", sd->ntcsd_time_start);
-	printf("time_finish = %lu\n", sd->ntcsd_time_finish);
+	printf("time_start = %"PRIu64" ", sd->ntcsd_time_start);
+	printf("time_finish = %"PRIu64"\n", sd->ntcsd_time_finish);
 }
 
 static int console_run(struct m0_net_test_console_ctx *ctx)

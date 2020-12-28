@@ -324,7 +324,7 @@ __attribute__((unused)) static void it_print(const struct m0_xcode_cursor *it)
 	const struct m0_xcode_cursor_frame *f;
 
 	for (i = 0, f = &it->xcu_stack[0]; i < it->xcu_depth; ++i, ++f) {
-		printf(".%s[%lu]",
+		printf(".%s[%"PRId64"]",
 		       f->s_obj.xo_type->xct_child[f->s_fieldno].xf_name,
 		       f->s_elno);
 	}

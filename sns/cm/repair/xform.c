@@ -247,9 +247,10 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 		       "parity_algo=%d", (int)pm_algo);
 
 	m0_cm_ag_lock(ag);
-	M0_LOG(M0_DEBUG, "xform: id=["M0_AG_F"] local_cp_nr=[%lu]"
-	       " transformed_cp_nr=[%lu] global_cp_nr=[%lu] has_incoming=%d"
-	       " c_ag_cp_idx=[%lu]", M0_AG_P(&id), ag->cag_cp_local_nr,
+	M0_LOG(M0_DEBUG, "xform: id=["M0_AG_F"] local_cp_nr=[%"PRId64"]"
+	       " transformed_cp_nr=[%"PRId64"] global_cp_nr=[%"PRId64"] "
+	       "has_incoming=%d c_ag_cp_idx=[%"PRId64"]",
+	       M0_AG_P(&id), ag->cag_cp_local_nr,
 	       ag->cag_transformed_cp_nr, ag->cag_cp_global_nr,
 	       ag->cag_has_incoming, cp->c_ag_cp_idx);
 	/* Increment number of transformed copy packets in the accumulator. */
