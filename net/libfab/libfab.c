@@ -92,26 +92,57 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 	*/
 }
 
-static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port);
-
-/* Used to take the ip and port from the given end point */
-static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port)
+/**
+ * Used to take the ip and port from the given end point
+ * ep_name : endpoint address from domain
+ * node    : copy ip address from ep_name
+ * port    : copy port number from ep_name
+ * Example of ep_name IPV4 192.168.0.1:4235
+ *                    IPV6 [4002:db1::1]:4235
+ */
+static int libfab_ep_addr_decode(const char *ep_name, char *node,
+			  size_t nodeSize, char *port, size_t portSize)
 {
-	char     *cp = strchr(ep_name, ':');
-	size_t    n  = cp - ep_name;
+	char     *cp;
+	size_t    n;
 	int       rc = 0;
 
 	M0_PRE(ep_name != NULL);
 
-	if (cp == NULL || n == 0 )
-		return M0_ERR(-EINVAL);
-
 	M0_ENTRY("ep_name=%s", ep_name);
+
+	if( ep_name[0] == '[' ) {
+		/* IPV6 pattern */
+		cp = strchr(ep_name, ']');
+		if (cp == NULL)
+			return M0_ERR(-EINVAL);
+
+		ep_name++;
+		n = cp - ep_name;
+                if (n == 0 )
+                        return M0_ERR(-EINVAL);
+
+		cp+=2;
+	}
+	else {
+		/* IPV4 pattern */
+		cp = strchr(ep_name, ':');
+		if (cp == NULL)
+			return M0_ERR(-EINVAL);
+
+		n = cp - ep_name;
+		if (n == 0 )
+			return M0_ERR(-EINVAL);
+
+		++cp;
+	}
+
+	M0_PRE(nodeSize >= (n+1));
+	M0_PRE(portSize >= (strlen(cp)+1));
 
 	memcpy(node, ep_name, n);
 	node[n] = 0;
 
-	++cp;
 	n=strlen(cp);
 	memcpy(port, cp, n);
 	port[n] = 0;
@@ -125,7 +156,7 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	struct m0_fab__dom_param *fab_dom;
 	struct fi_info           *fab_hints;
 	int 			  rc;
-	char                      node[16];
+	char                      node[40];
 	char                      port[8];
 	char                      *ep_name = "127.0.0.1:42365"
 
@@ -150,7 +181,8 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	/* TODO - adding this decode API until actual args are
 	 * passsed from tm
 	 */
-	libfab_ep_addr_decode(ep_name, &node, &port);
+	libfab_ep_addr_decode(ep_name, node, ARRAY_SIZE(node), 
+			port,ARRAY_SIZE(port));
 
 	rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
 			NULL, NULL, 0, fab_hints,
