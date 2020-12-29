@@ -156,7 +156,7 @@ static void tm_event_post(struct m0_fab__tm *ftm, enum m0_net_tm_state state)
 
 /**
  * Finds queued buffers that timed out and completes them with a
- * prejudice^Werror.
+ * prejudice error.
  */
 static void tm_buf_timeout(struct m0_fab__tm *ftm)
 {
@@ -203,9 +203,36 @@ static void tm_buf_done(struct m0_fab__tm *ftm)
 }
 
 /**
- * Used to handle connection related events
+ * Used to monitor connected events
  */
-static void libfab_handle_events(struct m0_fab__tm *tm)
+static void libfab_handle_connected_events(struct m0_fab__tm *tm)
+{
+	struct m0_fab__ep       *ep;
+	struct m0_net_end_point *net;
+	int                      rc;
+	struct fi_eq_cm_entry    entry;
+	uint32_t                 event;
+
+	/* Check for FI_CONNECTED events in case of active endpoints */
+	m0_tl_for(m0_nep, &tm->ftm_net_ma->ntm_end_points, net) {
+		ep = libfab_ep_net(net);
+		rc = fi_eq_read(ep->fep_ep_res.fer_eq, &event,
+				&entry, sizeof(entry), 0);
+		if (rc == sizeof(entry)) {
+			if (event == FI_CONNECTED) {
+				M0_LOG(M0_INFO, "Received  FI_CONNECTED event");
+				M0_ASSERT(entry.fid ==
+					  &ep->fep_ep_res.fer_eq->fid);
+			}
+		}
+	} m0_tl_endfor;
+
+}
+
+/**
+ * Used to monitor connection request events
+ */
+static void libfab_handle_connection_request_events(struct m0_fab__tm *tm)
 {
 	struct m0_fab__ep       *ep = NULL;
 	struct m0_net_end_point *net;
@@ -216,9 +243,30 @@ static void libfab_handle_events(struct m0_fab__tm *tm)
 	uint32_t                 event;
 
 	eq = tm->ftm_pep->fep_ep_res.fer_eq;
-	rc = fi_eq_read(eq,&event, &entry,
-			sizeof(entry), 0);
-	if (rc != sizeof(entry)) {
+	rc = fi_eq_read(eq, &event, &entry, sizeof(entry), 0);
+	if (rc == sizeof(entry)) {
+		if (event == FI_CONNREQ) {
+			M0_ALLOC_PTR(ep);
+			if (ep != NULL) {
+				ep->fep_ep = NULL;
+				ep->fep_pep = NULL;
+				rc = libfab_active_ep_create(ep, tm, NULL);
+				if (rc == FI_SUCCESS) {
+					net = &ep->fep_nep;
+					net->nep_tm = tm->ftm_net_ma;
+					m0_nep_tlink_init_at_tail(net,
+					&tm->ftm_net_ma->ntm_end_points);
+				} else {
+					M0_LOG(M0_ERROR, "Failed to create "\
+					       "active endpoint = %d", rc);
+					libfab_ep_param_free(ep, tm);
+				}
+			}
+		} else {
+			M0_LOG(M0_ERROR, "Received unwanted event = %d",
+			       -FI_EOTHER);
+		}
+	} else {
 		memset(&eq_err, 0, sizeof(eq_err));
 		rc = fi_eq_readerr(eq, &eq_err, 0);
 		if (rc != sizeof(eq_err)) {
@@ -231,33 +279,6 @@ static void libfab_handle_events(struct m0_fab__tm *tm)
 					       eq_err.err_data, NULL, 0));
 		}
 		return;
-	}
-
-	switch(event) {
-		case FI_CONNREQ:
-		{
-			M0_ALLOC_PTR(ep);
-			if (ep != NULL) {
-				ep->fep_ep = NULL;
-				ep->fep_pep = NULL;
-				rc = libfab_active_ep_create(ep, tm, NULL);
-				if (rc != FI_SUCCESS) {
-					M0_LOG(M0_ERROR, "Failed to create "\
-					       "active endpoint = %d", rc);
-				} else {
-					net = &ep->fep_nep;
-					net->nep_tm = tm->ftm_net_ma;
-					m0_nep_tlink_init_at_tail(net,
-					&tm->ftm_net_ma->ntm_end_points);
-				}
-			}
-		}
-			break;
-		case FI_CONNECTED:
-			break;
-		default:
-			M0_LOG(M0_ERROR, "Received unwanted event = %d",
-			       -FI_EOTHER);
 	}
 }
 
@@ -292,7 +313,9 @@ static void libfab_poller(struct m0_fab__tm *tm)
 						rc = fi_cq_readerr(ctx[i],
 								   &cq_err, 0);
 						if ( rc >= 0) {
-							/* TODO Decode Error */
+							M0_LOG(M0_ERROR, 
+							"fi_cq_readerr err:%d",
+							cq_err.err);
 						}
 						buf_done(comp.op_context,
 							 -ECANCELED);
@@ -302,8 +325,11 @@ static void libfab_poller(struct m0_fab__tm *tm)
 			}
 
 			if (wait_cnt != poll_cnt) {
-				libfab_handle_events(tm);
+				/* Check for connection request events*/
+				libfab_handle_connection_request_events(tm);
 			}
+			/* Monitor connection established events*/
+			libfab_handle_connected_events(tm);
 		}
 
 		tm_buf_timeout(tm);
@@ -626,7 +652,7 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 		return M0_RC(rc);
 	}
 
-	if (fi == NULL) {
+	if (fi != NULL) {
 		rc = fi_accept(ep->fep_ep, NULL, 0);
 		if (rc != FI_SUCCESS) {
 			libfab_ep_param_free(ep, tm);

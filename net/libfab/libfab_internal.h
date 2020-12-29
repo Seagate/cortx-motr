@@ -45,11 +45,11 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  * 
  */
 struct m0_fab__buf {
-	uint64_t               fb_magic; /* Magic number */
-	struct m0_net_buffer  *fb_nb; /* Pointer back to the network buffer */
-	struct fid_mr         *fb_mr; /* Libfab memory region */
-	struct m0_tlink        fb_linkage; /* Linkage in list of completed buffers */
-	m0_bindex_t            fb_length; /*The total size of data expected to be received*/
+	uint64_t               fb_magic;  /* Magic number */
+	struct m0_net_buffer  *fb_nb;     /* Pointer back to network buffer*/
+	struct fid_mr         *fb_mr;     /* Libfab memory region */
+	struct m0_tlink        fb_linkage;/* Linkage in list of completed bufs*/
+	m0_bindex_t            fb_length; /* Total size of data to be received*/
 };
 
 struct m0_fab__ep_name {
@@ -72,9 +72,9 @@ struct m0_fab__ep {
 	struct fi_info          *fep_fi;       /* Fabric interface info */
 	struct fid_fabric       *fep_fabric;   /* Fabric fid */
 	struct fid_domain       *fep_domain;   /* Domain fid */
-	struct fid_ep           *fep_ep;       /* Endpoint */
+	struct fid_ep           *fep_ep;       /* Active Endpoint */
 	struct fid_pep          *fep_pep;      /* Passive endpoint */
-	struct m0_fab__ep_res    fep_ep_res;
+	struct m0_fab__ep_res    fep_ep_res;   /* Endpoint resources */
 };
 
 struct m0_fab__tm {
