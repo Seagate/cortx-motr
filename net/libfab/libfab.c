@@ -361,36 +361,23 @@ static int libfab_ma_confine(struct m0_net_transfer_mc *ma,
 
 static int libfab_bev_deliver_sync(struct m0_net_transfer_mc *ma)
 {
-	/*
- 	* TODO:
- 	* Check if it is required ?
- 	* */
 	return 0;
 }
 
 static void libfab_bev_deliver_all(struct m0_net_transfer_mc *ma)
 {
-	/*
- 	* TODO:
- 	* Check if it is required ?
- 	* */
+
 }
 
 static bool libfab_bev_pending(struct m0_net_transfer_mc *ma)
 {
-	/*
- 	* TODO:
- 	* Check if it is required ?
- 	* */
 	return false;
 }
 
-static void libfab_bev_notify(struct m0_net_transfer_mc *ma, struct m0_chan *chan)
+static void libfab_bev_notify(struct m0_net_transfer_mc *ma,
+			      struct m0_chan *chan)
 {
-	/*
- 	* TODO:
- 	* Check if it is required ?
- 	* */
+
 }
 
 /**
@@ -400,14 +387,8 @@ static void libfab_bev_notify(struct m0_net_transfer_mc *ma, struct m0_chan *cha
  *
  * @see m0_net_domain_get_max_buffer_size()
  */
-static m0_bcount_t libfab_get_max_buffer_size(const struct m0_net_domain *dom)
+static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
 {
-	/*
- 	* TODO:
- 	* Explore libfab code and return approriate value based on
- 	* underlying protocol used i.e. tcp/udp/verbs
- 	* Might have to add switch case based on protocol used 
- 	* */
 	return M0_BCOUNT_MAX / 2;
 }
 
@@ -418,13 +399,8 @@ static m0_bcount_t libfab_get_max_buffer_size(const struct m0_net_domain *dom)
  *
  * @see m0_net_domain_get_max_buffer_segment_size()
  */
-static m0_bcount_t libfab_get_max_buffer_segment_size(const struct m0_net_domain *dom)
+static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
 {
-	/*
- 	* TODO:
- 	* same as get_max_buffer_size()
-	* This is maximum size of buffer segment size
- 	* */
 	return M0_BCOUNT_MAX / 2;
 }
 
@@ -435,14 +411,9 @@ static m0_bcount_t libfab_get_max_buffer_segment_size(const struct m0_net_domain
  *
  * @see m0_net_domain_get_max_buffer_segments()
  */
-static int32_t libfab_get_max_buffer_segments(const struct m0_net_domain *dom)
+static int32_t libfab_get_max_buf_segments(const struct m0_net_domain *dom)
 {
-	/*
- 	* TODO:
- 	* same as libfab_get_max_buffer_size()
-	* This is maximum number of segments supported 
-	* */
-	return INT32_MAX / 2; /* Beat this, LNet! */
+	return INT32_MAX / 2;
 }
 
 /**
@@ -452,17 +423,10 @@ static int32_t libfab_get_max_buffer_segments(const struct m0_net_domain *dom)
  *
  * @see m0_net_domain_get_max_buffer_desc_size()
  */
-static m0_bcount_t libfab_get_max_buffer_desc_size(const struct m0_net_domain *dom)
+static m0_bcount_t libfab_get_max_buf_desc_size(const struct m0_net_domain *dom)
 {
-	/*
- 	* TODO:
- 	* same as libfab_get_max_buffer_size()
-	* This is size of buffer descriptor structure size, refer fi_mr_desc() 
-	* */
-	//return sizeof(struct bdesc);
-	return 0;
+	return sizeof(uint64_t);
 }
-
 
 static const struct m0_net_xprt_ops libfab_xprt_ops = {
 	.xo_dom_init                    = &libfab_dom_init,
@@ -481,10 +445,10 @@ static const struct m0_net_xprt_ops libfab_xprt_ops = {
 	.xo_bev_deliver_all             = &libfab_bev_deliver_all,
 	.xo_bev_pending                 = &libfab_bev_pending,
 	.xo_bev_notify                  = &libfab_bev_notify,
-	.xo_get_max_buffer_size         = &libfab_get_max_buffer_size,
-	.xo_get_max_buffer_segment_size = &libfab_get_max_buffer_segment_size,
-	.xo_get_max_buffer_segments     = &libfab_get_max_buffer_segments,
-	.xo_get_max_buffer_desc_size    = &libfab_get_max_buffer_desc_size
+	.xo_get_max_buffer_size         = &libfab_get_max_buf_size,
+	.xo_get_max_buffer_segment_size = &libfab_get_max_buf_seg_size,
+	.xo_get_max_buffer_segments     = &libfab_get_max_buf_segments,
+	.xo_get_max_buffer_desc_size    = &libfab_get_max_buf_desc_size
 };
 
 struct m0_net_xprt m0_net_libfab_xprt = {
