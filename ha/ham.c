@@ -677,7 +677,7 @@ int main(int argc, char **argv)
 		M0_ASSERT(m0_semaphore_value(&g_sem) == 0);
 	}
 	if (g_params.hp_mode == HM_LISTEN && g_params.hp_wait > 0) {
-		sleep(g_params.hp_wait);
+		m0_nanosleep(m0_time(g_params.hp_wait, 0), NULL);
 	}
 	ham_say("Finishing");
 	m0_ha_flush(&ha, hl);
