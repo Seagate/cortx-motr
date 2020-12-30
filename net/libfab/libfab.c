@@ -55,7 +55,8 @@
 #include "lib/trace.h"          /* M0_ENTRY() */
 #include "net/net.h"            /* struct m0_net_domain */
 #include "lib/memory.h"         /* M0_ALLOC_PTR()*/
-#include "libfab_internal.h"    /* struct m0_fab__dom_param */
+#include "libfab_internal.h"
+#include "net/net_internal.h"   /* m0_net__tm_cancel */
 
 #define LIBFAB_VERSION FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION)
 
@@ -95,6 +96,10 @@ static int libfab_ep_res_free(struct m0_fab__ep_res *ep_res,
 static void libfab_poller(struct m0_fab__tm *ma);
 static int libfab_waitset_init(struct m0_fab__tm *tm, struct m0_fab__ep *ep);
 static int libfab_pollset_init(struct m0_fab__tm *tm, struct m0_fab__ep *ep);
+static void libfab_tm_event_post(struct m0_fab__tm *tm, 
+				 enum m0_net_tm_state state);
+static void libfab_tm_lock(struct m0_fab__tm *tm);
+static void libfab_tm_unlock(struct m0_fab__tm *tm);
 
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
@@ -116,6 +121,39 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 	*  commnet to avoid compilation ERROR 
 	*	m0_net_xprt_deregister(&m0_net_libfab_xprt);
 	*/
+}
+
+static void libfab_tm_lock(struct m0_fab__tm *tm)
+{
+	m0_mutex_lock(&tm->ftm_net_ma->ntm_mutex);
+}
+
+static void libfab_tm_unlock(struct m0_fab__tm *tm)
+{
+	m0_mutex_unlock(&tm->ftm_net_ma->ntm_mutex);
+}
+
+/**
+ * Helper function that posts a tm state change event.
+ */
+static void libfab_tm_event_post(struct m0_fab__tm *tm,
+				 enum m0_net_tm_state state)
+{
+	struct m0_net_end_point *listen;
+
+	if (state == M0_NET_TM_STARTED) {
+		// Check for LISTENING Passive endpoint
+		listen = &tm->ftm_pep->fep_nep;
+		M0_ASSERT(listen != NULL);
+	} else
+		listen = NULL;
+	m0_net_tm_event_post(&(struct m0_net_tm_event) {
+			.nte_type       = M0_NET_TEV_STATE_CHANGE,
+			.nte_next_state = state,
+			.nte_time       = m0_time_now(),
+			.nte_ep         = listen,
+			.nte_tm         = tm->ftm_net_ma,
+	});
 }
 
 /**
@@ -232,7 +270,6 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 
 	m0_tl_for(m0_nep, &tm->ntm_end_points, net) {
 		xep = libfab_ep_net(net);
-		/* TODO: libfab_ep_eq() */
 		if (libfab_ep_eq(xep, &ep) == true) {
 			*epp = &xep->fep_nep;
 			found = true;
@@ -745,7 +782,7 @@ static int libfab_waitset_init(struct m0_fab__tm *tm, struct m0_fab__ep *ep)
 	int                 rc = 0;
 
 	M0_ENTRY();
-	if (tm->ftm_waitset == NULL)
+	if (tm->ftm_waitset != NULL)
 		return M0_RC(0);
 
 	memset(&wait_attr, 0, sizeof(wait_attr));
@@ -764,7 +801,7 @@ static int libfab_pollset_init(struct m0_fab__tm *tm, struct m0_fab__ep *ep)
 	int                 rc = 0;
 
 	M0_ENTRY();
-	if (tm->ftm_pollset == NULL)
+	if (tm->ftm_pollset != NULL)
 		return M0_RC(0);
 
 	memset(&poll_attr, 0, sizeof(poll_attr));
@@ -822,10 +859,6 @@ static int libfab_ma_init(struct m0_net_transfer_mc *tm)
 	struct m0_fab__tm *ma;
 	int                rc = 0;
 
-	/* TODO: open passive ep, start poller thread 
-	*  net->ntm_dom->nd_xprt_private = (m0_fab__ep *)ep
-	*/
-
 	M0_ASSERT(tm->ntm_xprt_private == NULL);
 	M0_ALLOC_PTR(ma);
 	if (ma != NULL) {
@@ -862,11 +895,10 @@ static int libfab_ma_init(struct m0_net_transfer_mc *tm)
  */
 static int libfab_ma_start(struct m0_net_transfer_mc *net, const char *name)
 {
-	/*
-	* TODO:
-	* poller thread needs to be added to check completion queue, 
-	* refer nlx_xo_tm_start() LNet 
-	*/
+	struct m0_fab__tm *tm = net->ntm_xprt_private;
+
+	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
+
 	return M0_RC(0);
 }
 
@@ -878,9 +910,18 @@ static int libfab_ma_start(struct m0_net_transfer_mc *net, const char *name)
  */
 static int libfab_ma_stop(struct m0_net_transfer_mc *net, bool cancel)
 {
-	/* TODO: fi_cancel () */
+	struct m0_fab__tm *tm = net->ntm_xprt_private;
 
-	return 0;
+	M0_PRE(net->ntm_state == M0_NET_TM_STOPPING);
+
+	if (cancel)
+		m0_net__tm_cancel(net);
+	
+	libfab_tm_unlock(tm);
+	libfab_tm_event_post(tm, M0_NET_TM_STOPPED);
+	libfab_tm_lock(tm);
+
+	return M0_RC(0);
 }
 
 /**
