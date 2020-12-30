@@ -327,15 +327,86 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
  */
 static int libfab_buf_add(struct m0_net_buffer *nb)
 {
-	int        result = 0;
-	/*
- 	* TODO:
- 	*   fi_send/fi_recv
- 	* */
-	return M0_RC(result);
+	struct m0_fab__buf	*fbp;
+	struct m0_fab__tm	*ma;
+	struct fid_mr		*mr;
+	struct m0_fab__ep	*ep;
+	struct m0_fab__bdesc	*peer;
+	int			 qt;
+	int			 ret = 0;
+	ssize_t			 cnt = 0;
+	
+	/* TODO : need to check buffer invariant */
+	M0_PRE(m0_mutex_is_locked(&nb->nb_tm->ntm_mutex));
+	M0_PRE(nb->nb_offset == 0); /* Do not support an offset during add. */
+	M0_PRE((nb->nb_flags & M0_NET_BUF_RETAIN) == 0);
+
+	fbp  = nb->nb_xprt_private;
+	ma   = libfab_buf_ma(fbp);
+	mr   = fbp->fbp_mr;
+	qt   = nb->nb_qtype;
+	ep   = libfab_buf_ep(nb->nb_ep);
+	peer = &fbp->fbp_peer;
+
+	switch (qt) {
+	case M0_NET_QT_MSG_RECV:
+		cnt = fi_recv(ep->fep_ep, nb->nb_buffer.ov_vec, nb->nb_length,
+			fi_mr_desc(mr), nb->nb_buffer.ov_vec[0], fbp);
+		if(cnt < 0)
+			ret = M0_ERR(-EIO);
+		break;
+	case M0_NET_QT_MSG_SEND: {
+		M0_ASSERT(nb->nb_length <= m0_vec_count(&nb->nb_buffer.ov_vec));
+
+		cnt = fi_send(ep->fep_ep, nb->nb_buffer.ov_vec, nb->nb_length,
+			fi_mr_desc(mr), nb->nb_buffer.ov_vec[0], fbp);
+		if(cnt < 0)
+			ret = M0_ERR(-EIO);
+		break;
+	}
+	case M0_NET_QT_PASSIVE_BULK_RECV: /* For passive buffers, generate */
+	case M0_NET_QT_PASSIVE_BULK_SEND: /* the buffer descriptor. */
+		m0_cookie_new(&fbp->fbp_cookie);
+		ret = m0_fab_bdesc_create(ep, fbp, &nb->nb_desc);
+		break;
+	/* For active buffers, decode the passive buffer descriptor */
+	case M0_NET_QT_ACTIVE_BULK_RECV:
+		ret = m0_fab_bdesc_decode(&nb->nb_desc, peer);
+		if (ret == 0) {
+			struct m0_fab__ep *epp; /* Passive peer end-point. */
+			ret = libfab_ep_create(ma, &peer->fbd_addr, NULL, &epp);
+			if (ret == 0) {
+				cnt = fi_send(ep->fep_ep, nb->nb_buffer.ov_vec,
+					nb->nb_length, fi_mr_desc(mr), 
+					nb->nb_buffer.ov_vec[0], fbp);
+				if(cnt < 0)
+					ret = M0_ERR(-EIO);
+			}
+		}
+		break;
+	case M0_NET_QT_ACTIVE_BULK_SEND:
+		ret = m0_fab_bdesc_decode(&nb->nb_desc, peer);
+		if (ret == 0) {
+			struct m0_fab__ep *epp; /* Passive peer end-point. */
+			ret = libfab_ep_create(ma, &peer->fbd_addr, NULL, &epp);
+			if (ret == 0) {
+				cnt = fi_recv(ep->fep_ep, nb->nb_buffer.ov_vec,
+					nb->nb_length, fi_mr_desc(mr), 
+					nb->nb_buffer.ov_vec[0], fbp);
+				if(cnt < 0)
+					ret = M0_ERR(-EIO);
+			}
+		}
+	break;
+	default:
+		M0_IMPOSSIBLE("invalid queue type: %x", qt);
+		break;
+	}
+	if (ret != 0)
+		libfab_buf_del(nb);
+
+	return M0_RC(ret);
 }
-
-
 
 /**
  * Cancels a buffer operation..
@@ -461,6 +532,48 @@ static m0_bcount_t libfab_get_max_buffer_desc_size(const struct m0_net_domain *d
 	* */
 	//return sizeof(struct bdesc);
 	return 0;
+}
+
+static struct m0_fab__tm  *libfab_buf_ma(struct m0_fab__buf  *buf)
+{
+	return buf->fbp_nb->nb_tm->ntm_xprt_private;
+}
+
+static struct m0_fab__ep  *libfab_buf_ep(struct m0_net_end_point *net)
+{
+	return container_of(net, struct m0_fab__ep, fep_ep);;
+}
+
+/** Creates the descriptor for a (passive) network buffer. */
+static int m0_fab_bdesc_create(struct m0_fab__ep_name *addr, 
+			struct m0_fab__buf *buf, struct m0_net_buf_desc *out)
+{
+	struct m0_fab__bdesc  bd = { .fbd_addr = *addr };
+
+	m0_cookie_init(&bd.fbd_cookie, &buf->fbp_cookie);
+	return m0_fab_bdesc_encode(&bd, out);
+}
+
+static int m0_fab_bdesc_encode(const struct m0_fab__bdesc *bd,
+			struct m0_net_buf_desc *out)
+{
+	m0_bcount_t len;
+	int         result;
+
+	/* Cannot pass &out->nbd_len below, as it is 32 bits. */
+	result = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(bdesc_xc, (void *)bd),
+					(void **)&out->nbd_data, &len);
+	if (result == 0)
+		out->nbd_len = len;
+	else
+		m0_free0(&out->nbd_data);
+	return M0_RC(result);
+}
+
+static int m0_fab_bdesc_decode(const struct m0_net_buf_desc *nbd, struct m0_fab__bdesc *out)
+{
+	return m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(bdesc_xc, out),
+					nbd->nbd_data, nbd->nbd_len);
 }
 
 

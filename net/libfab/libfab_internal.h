@@ -54,9 +54,24 @@ struct m0_fab__dom_param {
  * 
  */
 struct m0_fab__buf_params {
+	uint64_t                fbp_cookie; /* Cookie identifying the buffer */
         struct m0_net_buffer   *fbp_nb; /* Pointer back to the network buffer */
         struct fid_mr          *fbp_mr; /* Libfab memory region */
+	struct m0_fab__bdesc    fbp_peer; /* Other buffer descriptor in tm ops */
+	struct m0_fab__ep      *fbp_other_ep;
 };
+
+/**
+ * Buffer descriptor.
+ *
+ * This is put inside of generic m0_net_buf_desc. The descriptor uniquely
+ * identifies a buffer within a cluster.
+ *
+ */
+struct m0_fab__bdesc {
+        struct m0_fab__ep_name  fbd_addr;
+        struct m0_cookie 	fbd_cookie;
+}; 
 
 /** @} end of netlibfab group */
 #endif /* __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__ */
