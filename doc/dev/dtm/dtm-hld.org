@@ -1,7 +1,7 @@
 #+TITLE: Distributed transaction manager high level design (draft)
 #+AUTHOR: DTM Team, Anatoliy Bilenko
 #+DATE: 28-12-2020
-
+#+OPTIONS: toc:1
 
 
 This document presents a high level design (HLD) of distributed
@@ -373,6 +373,11 @@ basic scenarios:
  - happy path
  - P transient failures of any participants and recovery
  - Q permanent failures of any participants
+
+#+CAPTION: Component diagram
+#+NAME: fig:func-spec
+[[./func-spec.svg]]
+
 
 ** Conformance
 =[For every requirement in the Requirements section, this sub-section explicitly describes how the requirement is discharged by the design. This section is part of a requirements tracking mechanism, so it should be formatted in some way suitable for (semi-)automatic processing]=
