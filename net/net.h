@@ -1754,10 +1754,11 @@ M0_TL_DECLARE(m0_net_tm, M0_INTERNAL, struct m0_net_buffer);
 M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint);
 
 #endif
-void m0_net_xprt_default_set(struct m0_net_xprt *xprt);
+M0_INTERNAL void m0_net_xprt_default_set(struct m0_net_xprt *xprt);
+M0_INTERNAL void m0_net_xprt_register(struct m0_net_xprt *xprt);
+M0_INTERNAL void m0_net_xprt_deregister(struct m0_net_xprt *xprt);
+
 struct m0_net_xprt *m0_net_xprt_default_get(void);
-void m0_net_xprt_register(struct m0_net_xprt *xprt);
-void m0_net_xprt_deregister(struct m0_net_xprt *xprt);
 struct m0_net_xprt **m0_net_all_xprt_get(void);
 int m0_net_xprt_nr_get(void);
 /** @} end of networking group */

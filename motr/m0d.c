@@ -174,7 +174,7 @@ init_m0d:
 
 start_m0d:
 	M0_SET0(&motr_ctx);
-	rc = m0_cs_init(&motr_ctx, m0_net_all_xprt_get(), m0_net_xprt_nr_get(), 
+	rc = m0_cs_init(&motr_ctx, m0_net_all_xprt_get(), m0_net_xprt_nr_get(),
 			stderr, false);
 	if (rc != 0) {
 		warnx("\n Failed to initialise Motr \n");

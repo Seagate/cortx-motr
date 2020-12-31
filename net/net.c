@@ -149,7 +149,7 @@ M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint)
 }
 #endif /* !__KERNEL__ */
 
-void m0_net_xprt_default_set(struct m0_net_xprt *xprt)
+M0_INTERNAL void m0_net_xprt_default_set(struct m0_net_xprt *xprt)
 {
 	M0_ENTRY();
 	M0_LOG(M0_DEBUG, "setting default xprt to %p:%s", xprt, xprt->nx_name);
@@ -188,7 +188,7 @@ int m0_net_xprt_nr_get(void)
 }
 M0_EXPORTED(m0_net_xprt_nr_get);
 
-void m0_net_xprt_register(struct m0_net_xprt *xprt)
+M0_INTERNAL void m0_net_xprt_register(struct m0_net_xprt *xprt)
 {
 	int i;
 
@@ -204,7 +204,7 @@ void m0_net_xprt_register(struct m0_net_xprt *xprt)
 }
 M0_EXPORTED(m0_net_xprt_register);
 
-void m0_net_xprt_deregister(struct m0_net_xprt *xprt)
+M0_INTERNAL void m0_net_xprt_deregister(struct m0_net_xprt *xprt)
 {
 	int i;
 
