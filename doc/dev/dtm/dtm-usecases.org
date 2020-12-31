@@ -14,7 +14,7 @@ Affected clovis calls
 ** DTM Log truncation
 ** death of originator
 ** Dependency tracking (explicit and inexplicit)
-** DTM message delivery diring failures
+** DTM message delivery during failures
 deliver executed callback after persistent participant failure
 ** DTM transaction and record versions
 ** clock synchronisation
@@ -23,9 +23,34 @@ deliver executed callback after persistent participant failure
 ** ismask related
 ** recovery: redo+put/del execution, ordering
 ** how long with 3-way replication 3 participant can be in transient?
-** new originaotr after fail
+** new originator after fail
 ** how the states of participants are propagated the dtm logic (confd)
 ** startup procedure (recovering startup)
 ** Cluster shutdown usecase
 ** Cluster start usecase after shutdown
+** Metadata update
+** S3 interraction
 
+                 failure(transient)
+-------------------------------|------------------------------------------------>t
+
+S3req |-------------------------------------------------|
+DIX1(w)    |----|
+DIX2(w)      |----|
+DIX3(w)        |----|
+IO1(w)              |-------|
+IO2(w)                       |------|
+DIX4(w)                              |----|
+
+                fig. 1
+
+Questions to Nikita:
+0) Assume that IO2 will fail (fig. 1).
+1) What S3 server has to do after transient failure happend (fig. 1)?
+2) How long the transient failure is suppose to take?
+3) Availability implications (9s).
+Non-DTM related question:
+What to do with persistent failures:
+1) (long)  Are we going to have a code in motr which will handle the case of creation of another obj-id during persistent failure?
+2) (short) How to handle persisent failures? Describe the scenario.
+** long living tombstones and log records
