@@ -234,10 +234,11 @@ Motr doesn't treat failures types and relies on HARE.
 DTM0 algorithm treats transient failures only
 ** [A.rpc.timeout]
 Timeout is not a failure
-** [A.dtm0.permanent.failures]
-DTM0 supports handling of not more that K+1 permanent failures during
-the period of interest. In cases when previous failures are being
-repaired by DTM and new occurs, the previous one is treated as transient.
+** [A.dtm0.transient.failures]
+DTM0 supports handling of not more that N+K-1 transient failures
+during the period of interest. In cases when previous failures are
+being repaired by DTM and new occurs, the previous one is treated as
+transient.
 ** [A.rpc.magic-link]
 RPC resends messages untill it get stopped by HA message. see
 A.rpc.timeout.
@@ -300,17 +301,17 @@ were delivered to others.
 =[interface]= DTM0 component interracts with the user (clovis
 interface user, s3 server) by means of the asynchronous dtx interface
 integrated into clovis interface, interracts with other motr processes
-or so-called participants of dtx by means of trasmitting DTM0
-messages, interracts with HA by means of transmitting HA messages.
+or so-called participants of dtx by means of trasmitting [[*DTM0 messages][DTM0
+messages]], interracts with HA by means of transmitting [[*HA messages][HA messages]].
 
 =[input]= The user attaches txr to outgoing DTM0 message transmitted
 to the participants. Internally delivery, reply and other state changes
 related to DTM0 messages trigger dtx state change which might be
-observed during interraction with dtx interface. Error codes might be
+observed during interraction with [[*dtx interface][dtx interface]]. Error codes might be
 returned to the user via dtx attributes.
 
 =[output]= On the component level interraction can be seen as a flow
-of HA and DTM0 messages and persistent state changes.
+of HA and DTM0 messages and [[*Persistent state changes][persistent state changes]].
 
 ** dtx interface
 Provides a way to *open* a [[*dtx][dtx]], *add* an [[*operation][operation]] (PUT, DEL, etc) to
@@ -367,16 +368,90 @@ local BE transactional updates to DTM0 log and CAS service indexes.
 =[This section defines a logical structure of the designed component: the decomposition showing how the functional specification is met. Subcomponents and diagrams of their interrelations should go in this section]=
 #+END_QUOTE
 
-basic scenarios:
- - startup
- - shutdown
- - happy path
- - P transient failures of any participants and recovery
- - Q permanent failures of any participants
+This section describes "moving parts" of motr services and motr apps
+affected by DTM0 feature along with new components needed to satisfy
+requirements and functional specification, including their properties
+and implementation details. A very high-level message flow is
+presented for happy and recovery path. Detailed usecases, state
+analysis and intercomponent dependencies are presetend in
+corresponding sections.
 
-#+CAPTION: Component diagram
+** Components and their properties
 #+NAME: fig:func-spec
-[[./func-spec.svg]]
+[[./logical-spec.png]]
+
+The following list of components is in scope of DTM0 design:
+*** Clovis interface
+*** DTX state machine
+Described in [[* dtx interface][dtx interface]] section.
+*** DTX id generator
+*** Version generator
+*** DIX client
+*** CAS service
+*** DTM0 service
+*** HA messages
+Described in corresponding section of [[Functional specification][functional specification]].
+*** DTM0 messages
+Described in corresponding section of [[Functional specification][functional specification]].
+*** DTM0 FOM
+*** DTM0 log
+*** persistent structures (btree)
+*** persistent structures concurrency, versions, tombstones
+
+
+
+** Basic flow of happy path
+#+begin_src plantuml :file happy.png
+originator -> p1: txr
+originator -> p2: txr
+originator -> p3: txr
+
+p1 -> originator: EXECUTED
+p2 -> originator: EXECUTED
+p3 -> originator: EXECUTED
+
+activate p1
+p1 -> p2         : PERSISTENT
+p1 -> p3	 : PERSISTENT
+p1 -> originator : PERSISTENT
+deactivate p1
+
+activate p2
+p2 -> p1         : PERSISTENT
+p2 -> p3	 : PERSISTENT
+p2 -> originator : PERSISTENT
+deactivate p2
+
+activate p3
+p3 -> p2         : PERSISTENT
+p3 -> p1	 : PERSISTENT
+p3 -> originator : PERSISTENT
+deactivate p3
+
+#+end_src
+
+** Basic flow of recovery path
+ - HARE notifies participants about process state changes (messages
+   are not shown).
+ - ONLINE participants send REDO messages on recovering participant.
+ - Recovering participant executes REDO messages if needed.
+ - REDO messages can arrive out of order.
+
+#+begin_src plantuml :file recovery.png
+originator -> p1: txr
+originator -> p2: txr
+originator -> p3: txr
+
+p2 -> originator: EXECUTED
+p3 -> originator: EXECUTED
+destroy p1
+...some time latter, p1 restarted by HARE...
+
+p2 -> p1	 : REDO
+p1 -> originator : EXECUTED
+p3 -> p1	 : REDO
+originator -> p1 : REDO
+#+end_src
 
 
 ** Conformance
@@ -398,6 +473,39 @@ basic scenarios:
 =[This section describes how the component interacts with rest of the system and with the outside world]=
 ** Scenarios
 =[This sub-section enumerates important use cases (to be later used as seed scenarios for ARID) and describes them in terms of logical specification]=
+*** Happy path
+*** 1 transient failure of persistent participant and subsequent DTM recovery
+*** 1 transient failure of persistent participant and subsequent another 1 subsequent failure during recovery
+*** n transient failures of originators
+*** n transient failures of originators and k failures of persistent participants
+*** DTM recovery stop
+*** DTM during persistent failures
+*** DTM transaction abort (cancelation of clovis operation)
+*** Clovis interface w.r.t. distributed transactions
+C-level interface
+Affected clovis calls
+*** HA callbacks
+*** DTM Log truncation
+*** death of originator
+*** Dependency tracking (explicit and inexplicit)
+*** DTM message delivery during failures
+deliver executed callback after persistent participant failure
+*** DTM transaction and record versions
+*** clock synchronisation
+*** clock desynchronization
+*** failure model
+*** ismask related
+*** recovery: redo+put/del execution, ordering
+*** how long with 3-way replication 3 participant can be in transient?
+*** new originator after fail
+*** how the states of participants are propagated the dtm logic (confd)
+*** startup procedure (recovering startup)
+*** Cluster shutdown usecase
+*** Cluster start usecase after shutdown
+*** Metadata update
+*** S3 interraction
+*** long living tombstones and log records
+
 ** Failures
 =[This sub-section defines relevant failures and reaction to them. Invariants maintained across the failures must be clearly stated. Reaction to Byzantine failures (i.e., failures where a compromised component acts to invalidate system integrity) is described here]=
 * Analysis
