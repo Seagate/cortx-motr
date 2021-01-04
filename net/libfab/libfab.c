@@ -55,7 +55,7 @@
 #include "lib/trace.h"          /* M0_ENTRY() */
 #include "net/net.h"            /* struct m0_net_domain */
 #include "lib/memory.h"         /* M0_ALLOC_PTR()*/
-#include "libfab_internal.h"    /* struct m0_fab__dom_param */
+#include "libfab_internal.h"
 #include "net/net_internal.h"   /* m0_net__buffer_invariant() */
 
 #define LIBFAB_VERSION FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION)
@@ -102,6 +102,14 @@ static int libfab_ep_res_free(struct m0_fab__ep_res *ep_res,
 static void libfab_poller(struct m0_fab__tm *ma);
 static int libfab_waitset_init(struct m0_fab__tm *tm, struct m0_fab__ep *ep);
 static int libfab_pollset_init(struct m0_fab__tm *tm, struct m0_fab__ep *ep);
+static void libfab_tm_event_post(struct m0_fab__tm *tm, 
+				 enum m0_net_tm_state state);
+static void libfab_tm_lock(struct m0_fab__tm *tm);
+static void libfab_tm_unlock(struct m0_fab__tm *tm);
+static bool libfab_tm_is_locked(const struct m0_fab__tm *tm);
+static void libfab_buf_complete(struct m0_fab__buf *buf, int32_t status);
+static void libfab_buf_done(struct m0_fab__buf *buf, int rc);
+static bool libfab_tm_invariant(const struct m0_fab__tm *tm);
 
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
@@ -125,28 +133,41 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 	*/
 }
 
-static void libfab_buf_complete(struct m0_fab__buf *buf, int32_t status);
-static void libfab_buf_done(struct m0_fab__buf *buf, int rc);
-static bool libfab_tm_invariant(const struct m0_fab__tm *ftm);
-static bool libfab_tm_is_locked(const struct m0_fab__tm *ftm);
+static void libfab_tm_lock(struct m0_fab__tm *tm)
+{
+	m0_mutex_lock(&tm->ftm_net_ma->ntm_mutex);
+}
+
+static void libfab_tm_unlock(struct m0_fab__tm *tm)
+{
+	m0_mutex_unlock(&tm->ftm_net_ma->ntm_mutex);
+}
+
+static bool libfab_tm_is_locked(const struct m0_fab__tm *tm)
+{
+	return m0_mutex_is_locked(&tm->ftm_net_ma->ntm_mutex);
+}
 
 /**
  * Helper function that posts a tm state change event.
  */
-static void libfab_tm_event_post(struct m0_fab__tm *ftm,
+static void libfab_tm_event_post(struct m0_fab__tm *tm,
 				 enum m0_net_tm_state state)
 {
 	struct m0_net_end_point *listen = NULL;
 
-	if (state == M0_NET_TM_STARTED)
-		listen = &ftm->ftm_pep->fep_nep;
-
+	if (state == M0_NET_TM_STARTED) {
+		// Check for LISTENING Passive endpoint
+		listen = &tm->ftm_pep->fep_nep;
+		M0_ASSERT(listen != NULL);
+	}
+	
 	m0_net_tm_event_post(&(struct m0_net_tm_event) {
 			.nte_type       = M0_NET_TEV_STATE_CHANGE,
 			.nte_next_state = state,
 			.nte_time       = m0_time_now(),
 			.nte_ep         = listen,
-			.nte_tm         = ftm->ftm_net_ma,
+			.nte_tm         = tm->ftm_net_ma,
 	});
 }
 
@@ -347,8 +368,8 @@ static void libfab_poller(struct m0_fab__tm *tm)
 static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port)
 {
 	M0_PRE(ep_name != NULL);
-	node = def_node;
-	port = def_port;
+	strcpy(node, def_node);
+	strcpy(port, def_port);
 	return M0_RC(0);
 }
 
@@ -398,7 +419,6 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 
 	m0_tl_for(m0_nep, &tm->ntm_end_points, net) {
 		xep = libfab_ep_net(net);
-		/* TODO: libfab_ep_eq() */
 		if (libfab_ep_eq(xep, &ep) == true) {
 			*epp = &xep->fep_nep;
 			found = true;
@@ -914,8 +934,6 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 		m0_thread_fini(&tm->ftm_poller);
 	}
 
-	m0_free(tm);
-
 	return M0_RC(rc);
 }
 
@@ -929,7 +947,7 @@ static int libfab_waitset_init(struct m0_fab__tm *tm, struct m0_fab__ep *ep)
 
 	M0_ENTRY();
 	if (tm->ftm_waitset != NULL)
-		return M0_RC(0);
+		return M0_RC(rc);
 
 	memset(&wait_attr, 0, sizeof(wait_attr));
 	wait_attr.wait_obj = FI_WAIT_UNSPEC;
@@ -948,27 +966,12 @@ static int libfab_pollset_init(struct m0_fab__tm *tm, struct m0_fab__ep *ep)
 
 	M0_ENTRY();
 	if (tm->ftm_pollset != NULL)
-		return M0_RC(0);
+		return M0_RC(rc);
 
 	memset(&poll_attr, 0, sizeof(poll_attr));
 	rc = fi_poll_open(ep->fep_domain, &poll_attr, &tm->ftm_pollset);
 
 	return M0_RC(rc);
-}
-
-static void libfab_tm_lock(struct m0_fab__tm *ftm)
-{
-	m0_mutex_lock(&ftm->ftm_net_ma->ntm_mutex);
-}
-
-static void libfab_tm_unlock(struct m0_fab__tm *ftm)
-{
-	m0_mutex_unlock(&ftm->ftm_net_ma->ntm_mutex);
-}
-
-static bool libfab_tm_is_locked(const struct m0_fab__tm *ftm)
-{
-	return m0_mutex_is_locked(&ftm->ftm_net_ma->ntm_mutex);
 }
 
 static struct m0_fab__tm *libfab_buf_tm(struct m0_fab__buf *buf)
@@ -1098,12 +1101,17 @@ static void libfab_ma_fini(struct m0_net_transfer_mc *tm)
 
 	M0_ENTRY();
 
+	libfab_tm_lock(ma);
 	ma->ftm_shutdown = true;	
 	rc = libfab_tm_param_free(ma);
 	if (rc != FI_SUCCESS)
 		M0_LOG(M0_ERROR, "libfab_tm_param_free ret=%d",	rc);
 
 	tm->ntm_xprt_private = NULL;
+	libfab_tm_unlock(ma);
+
+	m0_free(ma);
+
 	M0_LEAVE();
 }
 
@@ -1155,7 +1163,9 @@ static int libfab_ma_init(struct m0_net_transfer_mc *tm)
 static int libfab_ma_start(struct m0_net_transfer_mc *net, const char *name)
 {
 	struct m0_fab__tm *tm = net->ntm_xprt_private;
+
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
+
 	return M0_RC(0);
 }
 
@@ -1167,9 +1177,18 @@ static int libfab_ma_start(struct m0_net_transfer_mc *net, const char *name)
  */
 static int libfab_ma_stop(struct m0_net_transfer_mc *net, bool cancel)
 {
-	/* TODO: fi_cancel () */
+	struct m0_fab__tm *tm = net->ntm_xprt_private;
 
-	return 0;
+	M0_PRE(net->ntm_state == M0_NET_TM_STOPPING);
+
+	if (cancel)
+		m0_net__tm_cancel(net);
+	
+	libfab_tm_unlock(tm);
+	libfab_tm_event_post(tm, M0_NET_TM_STOPPED);
+	libfab_tm_lock(tm);
+
+	return M0_RC(0);
 }
 
 /**
@@ -1306,36 +1325,23 @@ static void libfab_buf_del(struct m0_net_buffer *nb)
 
 static int libfab_bev_deliver_sync(struct m0_net_transfer_mc *ma)
 {
-	/*
- 	* TODO:
- 	* Check if it is required ?
- 	* */
 	return 0;
 }
 
 static void libfab_bev_deliver_all(struct m0_net_transfer_mc *ma)
 {
-	/*
- 	* TODO:
- 	* Check if it is required ?
- 	* */
+
 }
 
 static bool libfab_bev_pending(struct m0_net_transfer_mc *ma)
 {
-	/*
- 	* TODO:
- 	* Check if it is required ?
- 	* */
 	return false;
 }
 
-static void libfab_bev_notify(struct m0_net_transfer_mc *ma, struct m0_chan *chan)
+static void libfab_bev_notify(struct m0_net_transfer_mc *ma,
+			      struct m0_chan *chan)
 {
-	/*
- 	* TODO:
- 	* Check if it is required ?
- 	* */
+
 }
 
 /**
@@ -1345,14 +1351,8 @@ static void libfab_bev_notify(struct m0_net_transfer_mc *ma, struct m0_chan *cha
  *
  * @see m0_net_domain_get_max_buffer_size()
  */
-static m0_bcount_t libfab_get_max_buffer_size(const struct m0_net_domain *dom)
+static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
 {
-	/*
- 	* TODO:
- 	* Explore libfab code and return approriate value based on
- 	* underlying protocol used i.e. tcp/udp/verbs
- 	* Might have to add switch case based on protocol used 
- 	* */
 	return M0_BCOUNT_MAX / 2;
 }
 
@@ -1363,13 +1363,8 @@ static m0_bcount_t libfab_get_max_buffer_size(const struct m0_net_domain *dom)
  *
  * @see m0_net_domain_get_max_buffer_segment_size()
  */
-static m0_bcount_t libfab_get_max_buffer_segment_size(const struct m0_net_domain *dom)
+static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
 {
-	/*
- 	* TODO:
- 	* same as get_max_buffer_size()
-	* This is maximum size of buffer segment size
- 	* */
 	return M0_BCOUNT_MAX / 2;
 }
 
@@ -1380,14 +1375,9 @@ static m0_bcount_t libfab_get_max_buffer_segment_size(const struct m0_net_domain
  *
  * @see m0_net_domain_get_max_buffer_segments()
  */
-static int32_t libfab_get_max_buffer_segments(const struct m0_net_domain *dom)
+static int32_t libfab_get_max_buf_segments(const struct m0_net_domain *dom)
 {
-	/*
- 	* TODO:
- 	* same as libfab_get_max_buffer_size()
-	* This is maximum number of segments supported 
-	* */
-	return INT32_MAX / 2; /* Beat this, LNet! */
+	return INT32_MAX / 2;
 }
 
 /**
@@ -1397,15 +1387,9 @@ static int32_t libfab_get_max_buffer_segments(const struct m0_net_domain *dom)
  *
  * @see m0_net_domain_get_max_buffer_desc_size()
  */
-static m0_bcount_t libfab_get_max_buffer_desc_size(const struct m0_net_domain *dom)
+static m0_bcount_t libfab_get_max_buf_desc_size(const struct m0_net_domain *dom)
 {
-	/*
- 	* TODO:
- 	* same as libfab_get_max_buffer_size()
-	* This is size of buffer descriptor structure size, refer fi_mr_desc() 
-	* */
-	//return sizeof(struct bdesc);
-	return 0;
+	return sizeof(uint64_t);
 }
 
 static const struct m0_net_xprt_ops libfab_xprt_ops = {
@@ -1425,10 +1409,10 @@ static const struct m0_net_xprt_ops libfab_xprt_ops = {
 	.xo_bev_deliver_all             = &libfab_bev_deliver_all,
 	.xo_bev_pending                 = &libfab_bev_pending,
 	.xo_bev_notify                  = &libfab_bev_notify,
-	.xo_get_max_buffer_size         = &libfab_get_max_buffer_size,
-	.xo_get_max_buffer_segment_size = &libfab_get_max_buffer_segment_size,
-	.xo_get_max_buffer_segments     = &libfab_get_max_buffer_segments,
-	.xo_get_max_buffer_desc_size    = &libfab_get_max_buffer_desc_size
+	.xo_get_max_buffer_size         = &libfab_get_max_buf_size,
+	.xo_get_max_buffer_segment_size = &libfab_get_max_buf_seg_size,
+	.xo_get_max_buffer_segments     = &libfab_get_max_buf_segments,
+	.xo_get_max_buffer_desc_size    = &libfab_get_max_buf_desc_size
 };
 
 struct m0_net_xprt m0_net_libfab_xprt = {
