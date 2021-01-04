@@ -781,7 +781,7 @@ static int libfab_waitset_init(struct m0_fab__tm *tm, struct m0_fab__ep *ep)
 
 	M0_ENTRY();
 	if (tm->ftm_waitset != NULL)
-		return M0_RC(0);
+		return M0_RC(rc);
 
 	memset(&wait_attr, 0, sizeof(wait_attr));
 	wait_attr.wait_obj = FI_WAIT_UNSPEC;
@@ -800,7 +800,7 @@ static int libfab_pollset_init(struct m0_fab__tm *tm, struct m0_fab__ep *ep)
 
 	M0_ENTRY();
 	if (tm->ftm_pollset != NULL)
-		return M0_RC(0);
+		return M0_RC(rc);
 
 	memset(&poll_attr, 0, sizeof(poll_attr));
 	rc = fi_poll_open(ep->fep_domain, &poll_attr, &tm->ftm_pollset);
