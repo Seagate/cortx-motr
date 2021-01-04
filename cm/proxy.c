@@ -217,7 +217,8 @@ static bool epoch_check(struct m0_cm_proxy *pxy, m0_time_t px_epoch)
 static void proxy_done(struct m0_cm_proxy *proxy)
 {
 	struct m0_cm *cm = proxy->px_cm;
-	M0_ENTRY("pxy=%p, to %s", proxy, proxy->px_endpoint);
+	M0_ENTRY("pxy=%p id=%"PRIu64", to %s",
+		 proxy, proxy->px_id, proxy->px_endpoint);
 
 	if (!proxy->px_is_done) {
 		proxy->px_is_done = true;
@@ -254,7 +255,7 @@ static int px_ready(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 	struct m0_cm       *cm = p->px_cm;
 	struct m0_cm_ag_id  hi;
 	int                 rc = 0;
-	M0_ENTRY("pxy=%p, endpoint=%s", p, p->px_endpoint);
+	M0_ENTRY("pxy=%p id=%"PRIu64", to %s", p, p->px_id, p->px_endpoint);
 
 	if (p->px_epoch == 0 && m0_cm_state_get(cm) == M0_CMS_READY) {
 		p->px_epoch = px_epoch;
@@ -281,7 +282,7 @@ static int px_active(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 		     struct m0_cm_sw *out_interval, m0_time_t px_epoch,
 		     uint32_t px_status)
 {
-	M0_ENTRY("pxy=%p, endpoint=%s", p, p->px_endpoint);
+	M0_ENTRY("pxy=%p id=%"PRIu64", to %s", p, p->px_id, p->px_endpoint);
 	_sw_update(p, in_interval, out_interval, px_status);
 	/* TODO This is expensive during M0_CMS_CTIVE phase but needed to
 	 * handle cleanup in case of copy machine failures during active
@@ -295,7 +296,7 @@ static int px_complete(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 		       struct m0_cm_sw *out_interval, m0_time_t px_epoch,
 		       uint32_t px_status)
 {
-	M0_ENTRY("pxy=%p, endpoint=%s", p, p->px_endpoint);
+	M0_ENTRY("pxy=%p id=%"PRIu64", to %s", p, p->px_id, p->px_endpoint);
 	_sw_update(p, in_interval, out_interval, px_status);
 	m0_cm_frozen_ag_cleanup(p->px_cm, p);
 	return M0_RC(0);
@@ -305,7 +306,8 @@ static int px_stop_fail(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 			struct m0_cm_sw *out_interval, m0_time_t px_epoch,
 			uint32_t px_status)
 {
-	M0_ENTRY("pxy=%p, endpoint=%s state=%u", p, p->px_endpoint, px_status);
+	M0_ENTRY("pxy=%p id=%"PRIu64", to %s state=%u",
+		 p, p->px_id, p->px_endpoint, px_status);
 	_sw_update(p, in_interval, out_interval, px_status);
 	m0_cm_frozen_ag_cleanup(p->px_cm, p);
 	proxy_done(p);

@@ -1133,7 +1133,7 @@ M0_INTERNAL int m0_cm_complete(struct m0_cm *cm)
 M0_INTERNAL void m0_cm_complete_notify(struct m0_cm *cm)
 {
 	M0_ASSERT(m0_cm_is_locked(cm));
-	M0_ENTRY("Notifying cm %p", cm);
+	M0_ENTRY("Notifying cm %p id=%"PRIu64, cm, cm->cm_id);
 
 	m0_chan_signal(&cm->cm_complete);
 	M0_LEAVE();
