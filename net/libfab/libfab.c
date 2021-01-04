@@ -68,7 +68,7 @@ static char def_port[] = "1000";
 enum m0_fab__mr_params {
 	/** Fabric memory access. */
 	FAB_MR_ACCESS  = (FI_READ | FI_WRITE | FI_RECV | FI_SEND | \
-			FI_REMOTE_READ | FI_REMOTE_WRITE),
+			  FI_REMOTE_READ | FI_REMOTE_WRITE),
 	/** Fabric memory offset. */
 	FAB_MR_OFFSET  = 0,
 	/** Fabric memory flag. */
@@ -77,10 +77,10 @@ enum m0_fab__mr_params {
 	FAB_MR_KEY     = 0XABCD,
 };
 
-M0_TL_DESCR_DEFINE(buf, "libfab_buf",
+M0_TL_DESCR_DEFINE(fab_buf, "libfab_buf",
 		   static, struct m0_fab__buf, fb_linkage, fb_magic,
 		   M0_NET_LIBFAB_BUF_MAGIC, M0_NET_LIBFAB_BUF_HEAD_MAGIC);
-M0_TL_DEFINE(buf, static, struct m0_fab__buf);
+M0_TL_DEFINE(fab_buf, static, struct m0_fab__buf);
 
 static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port);
 static int libfab_ep_res_init(struct m0_fab__ep *ep, struct m0_fab__tm *tm);
@@ -209,8 +209,8 @@ static void libfab_tm_buf_done(struct m0_fab__tm *ftm)
 	int                 nr = 0;
 
 	M0_PRE(libfab_tm_is_locked(ftm) && libfab_tm_invariant(ftm));
-	m0_tl_for(buf, &ftm->ftm_done, buffer) {
-		buf_tlist_del(buffer);
+	m0_tl_for(fab_buf, &ftm->ftm_done, buffer) {
+		fab_buf_tlist_del(buffer);
 		libfab_buf_complete(buffer, 0);
 		nr++;
 	} m0_tl_endfor;
@@ -981,7 +981,7 @@ static struct m0_fab__tm *libfab_buf_tm(struct m0_fab__buf *buf)
 
 static void libfab_buf_fini(struct m0_fab__buf *buf)
 {
-	buf_tlink_fini(buf);
+	fab_buf_tlink_fini(buf);
 	buf->fb_length = 0;
 }
 
@@ -1060,14 +1060,14 @@ static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 	 * Multiple libfab_buf_done() calls on the same buffer are possible if
 	 * the buffer is cancelled.
 	 */
-	if (!buf_tlink_is_in(buf)) {
+	if (!fab_buf_tlink_is_in(buf)) {
 		/* Try to finalise. */
 		if (m0_thread_self() == &ma->ftm_poller)
 			libfab_buf_complete(buf, rc);
 		else
 			/* Otherwise, postpone finalisation to
 			* libfab_tm_buf_done(). */
-			buf_tlist_add_tail(&ma->ftm_done, buf);
+			fab_buf_tlist_add_tail(&ma->ftm_done, buf);
 	}
 }
 
@@ -1131,7 +1131,7 @@ static int libfab_ma_init(struct m0_net_transfer_mc *tm)
 		ma->ftm_shutdown = false;
 		tm->ntm_xprt_private = ma;
 		ma->ftm_net_ma = tm;
-		buf_tlist_init(&ma->ftm_done);
+		fab_buf_tlist_init(&ma->ftm_done);
 		M0_ALLOC_PTR(ma->ftm_pep);
 		if (ma->ftm_pep != NULL)
 			rc = libfab_passive_ep_create(ma->ftm_pep, ma);
@@ -1265,7 +1265,7 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 	if (fb == NULL)
 		return M0_ERR(-ENOMEM);
 
-	buf_tlink_init(fb);
+	fab_buf_tlink_init(fb);
 	nb->nb_xprt_private = fb;
 	fb->fb_nb = nb;
 	/* Registers buff that can be used for send/recv and local/remote RMA*/
