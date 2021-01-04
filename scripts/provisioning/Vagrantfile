@@ -620,6 +620,9 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
 
     v.vmx['numvcpus'] = cpu_nr
     v.vmx['memsize']  = mem_mb
+    # Default version 8 allows only 8 CPUs and 8GB RAM.
+    # Version 10 allows 16 CPUs and 64 GB RAM.
+    v.vmx['virtualhw.version'] = 10
 
     # re-use main VM disk as copy-on-write base image
     v.linked_clone = true
@@ -645,8 +648,8 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
     # disks
     vdiskmanager = 'C:\Program Files (x86)\VMware\VMware Workstation\vmware-vdiskmanager.exe'
     if RbConfig::CONFIG['host_os'] =~ /darwin/
-      # After some time when all developers upgrade their vmware plugin
-      # to vmware_desktop, vmware_fusion provider could be removed.
+      # After some time when all developers upgrade their vmware plugin to
+      # vmware_desktop, vmware_fusion provider code (above) could be removed.
       vdiskmanager = '/Applications/VMware Fusion.app/Contents/Library/vmware-vdiskmanager'
     end
     if PROVIDER == :vmware_desktop and File.exist?(vdiskmanager)
