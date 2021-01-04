@@ -680,13 +680,16 @@ include $(top_srcdir)/motr/m0kv/Makefile.sub
 # motr/examples ----------------------------------------- {{{2
 #
 bin_PROGRAMS                    += motr/examples/example1
-
 motr_examples_example1_CPPFLAGS = -DM0_TARGET='example1' $(AM_CPPFLAGS)
 motr_examples_example1_LDADD    = $(top_builddir)/motr/libmotr.la \
                                     @UUID_LIBS@
 
-include $(top_srcdir)/motr/examples/Makefile.sub
+bin_PROGRAMS                    += motr/examples/example2
+motr_examples_example2_CPPFLAGS = -DM0_TARGET='example2' $(AM_CPPFLAGS)
+motr_examples_example2_LDADD    = $(top_builddir)/motr/libmotr.la \
+                                    @UUID_LIBS@
 
+include $(top_srcdir)/motr/examples/Makefile.sub
 
 #
 # motr/crate ----------------------------------------- {{{2
