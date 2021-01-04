@@ -768,8 +768,6 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 		m0_thread_fini(&tm->ftm_poller);
 	}
 
-	m0_free(tm);
-
 	return M0_RC(rc);
 }
 
@@ -840,12 +838,17 @@ static void libfab_ma_fini(struct m0_net_transfer_mc *tm)
 
 	M0_ENTRY();
 
+	libfab_tm_lock(ma);
 	ma->ftm_shutdown = true;	
 	rc = libfab_tm_param_free(ma);
 	if (rc != FI_SUCCESS)
 		M0_LOG(M0_ERROR, "libfab_tm_param_free ret=%d",	rc);
 
 	tm->ntm_xprt_private = NULL;
+	libfab_tm_unlock(ma);
+
+	m0_free(ma);
+
 	M0_LEAVE();
 }
 
