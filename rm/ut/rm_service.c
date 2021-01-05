@@ -72,6 +72,7 @@ static void rm_svc_server(const int tid)
 {
 
 	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	rm_service_start(&sctx);
 
 	/* Signal client that server is now up and running */

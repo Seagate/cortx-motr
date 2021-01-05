@@ -1008,6 +1008,7 @@ static void test_item_cache(void)
 	int                       items_nr;
 	int                       n;
 	int                       i;
+
 	M0_ALLOC_ARR(items, M0_RPC_ITEM_CACHE_ITEMS_NR_MAX);
 	M0_UT_ASSERT(items != NULL);
 	for (i = 0; i < M0_RPC_ITEM_CACHE_ITEMS_NR_MAX; ++i) {

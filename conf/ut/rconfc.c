@@ -76,7 +76,7 @@ static struct m0_rpc_client_ctx cctx = {
 static int rconfc_ut_motr_start(struct m0_rpc_machine    *mach,
 				struct m0_rpc_server_ctx *rctx)
 {
-	int                 rc;
+	int rc;
 #define NAME(ext) "rconfc-ut" ext
 	char *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"),

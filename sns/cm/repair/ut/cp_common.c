@@ -168,7 +168,7 @@ struct m0_sns_cm *reqh2snscm(struct m0_reqh *reqh)
 static int cs_init_setup_env(struct m0_motr *sctx, int stob_type)
 {
 	int rc;
-	
+
 	M0_SET0(sctx);
 
 	lfile = fopen(log_file_name, "w+");

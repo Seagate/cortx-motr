@@ -46,7 +46,8 @@ char  *cm_ut_server_args[] = { "m0d", "-T", "LINUX",
 
 static void cm_ut_server_start(void)
 {
-	int                 rc;
+	int rc;
+
 	cm_ut_sctx.rsx_xprts         = m0_net_all_xprt_get();
 	cm_ut_sctx.rsx_xprts_nr      = m0_net_xprt_nr();
 	cm_ut_sctx.rsx_argv          = cm_ut_server_args;

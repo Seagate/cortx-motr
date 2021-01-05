@@ -379,8 +379,8 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 
 void bulkio_params_init(struct bulkio_params *bp)
 {
-	int                 i;
-	int                 rc;
+	int i;
+	int rc;
 
 	M0_ASSERT(bp != NULL);
 

@@ -84,6 +84,7 @@ static void rpc_client_and_server_start(void)
 {
 	int rc;
 	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 #if 0
@@ -108,6 +109,7 @@ static void rpc_client_and_server_stop(void)
 	rc = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(rc == 0);
 	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);
 }
