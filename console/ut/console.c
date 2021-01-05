@@ -446,7 +446,8 @@ static void cons_client_fini(struct m0_rpc_client_ctx *cctx)
 
 static void cons_server_init(struct m0_rpc_server_ctx *sctx)
 {
-	int                 result;
+	int result;
+
 	*sctx = (struct m0_rpc_server_ctx){
 		.rsx_xprts            = m0_net_all_xprt_get(),
 		.rsx_xprts_nr         = m0_net_xprt_nr(),

@@ -115,6 +115,7 @@ static void start_rpc_client_and_server(void)
 	M0_ASSERT(rc == 0);
 	M0_SET0(&sctx.rsx_motr_ctx);
 	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	rc = m0_rpc_server_start(&sctx);
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);
@@ -128,6 +129,7 @@ static void stop_rpc_client_and_server(void)
 	rc = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(rc == 0);
 	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);
 }

@@ -131,6 +131,7 @@ static void test_rpclib(void)
 	 * run within a single process, because in this case transport is
 	 * initialized by m0_rpc_server_start().
 	 */
+
 	sctx_reset();
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);

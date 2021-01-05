@@ -2951,11 +2951,13 @@ int m0_cs_init(struct m0_motr *cctx, struct m0_net_xprt **xprts,
 	       size_t xprts_nr, FILE *out, bool mkfs)
 {
 	int rc;
+
 	M0_ENTRY();
 	M0_PRE(xprts != NULL && xprts_nr > 0 && out != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
 		return M0_ERR(-EINVAL);
+
 	cctx->cc_xprts    = xprts;
 	cctx->cc_xprts_nr = xprts_nr;
 	cctx->cc_outfile  = out;

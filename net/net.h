@@ -1754,7 +1754,7 @@ M0_TL_DECLARE(m0_net_tm, M0_INTERNAL, struct m0_net_buffer);
 M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint);
 
 #endif
-/** Set default network transport as lnet. */
+/** Set the specified network transport as the default one. */
 M0_INTERNAL void m0_net_xprt_default_set(const struct m0_net_xprt *xprt);
 /** Register network transport. */
 M0_INTERNAL void m0_net_xprt_register(const struct m0_net_xprt *xprt);

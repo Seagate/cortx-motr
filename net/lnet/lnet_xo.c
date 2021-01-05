@@ -24,7 +24,7 @@
    @addtogroup LNetXODFS
    @{
  */
-#include "net/net.h"
+
 static bool nlx_dom_invariant(const struct m0_net_domain *dom)
 {
 	const struct nlx_xo_domain *dp = dom->nd_xprt_private;
@@ -106,6 +106,7 @@ static int nlx_xo_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	int rc;
 
 	M0_ENTRY();
+
 	M0_PRE(dom->nd_xprt_private == NULL);
 	M0_PRE(xprt == &m0_net_lnet_xprt);
 	NLX_ALLOC_ALIGNED_PTR(dp);

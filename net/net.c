@@ -40,7 +40,7 @@
 
 #define XPRT_MAX 4
 
-static struct m0_net_xprt *xprts[XPRT_MAX] = {NULL};
+static struct m0_net_xprt *xprts[XPRT_MAX] = { NULL };
 static struct m0_net_xprt *xprt_default = NULL;
 /**
    @addtogroup net

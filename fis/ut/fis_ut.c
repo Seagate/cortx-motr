@@ -45,7 +45,7 @@ static struct m0_rpc_client_ctx cctx = {
 
 static void fis_ut_motr_start(struct m0_rpc_server_ctx *rctx)
 {
-	int                 rc;
+	int rc;
 #define NAME(ext) "fis-ut" ext
 	char *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"), "-j" /* fis enabled */,
@@ -73,7 +73,7 @@ static void fis_ut_motr_stop(struct m0_rpc_server_ctx *rctx)
 
 static void fis_ut_client_start(void)
 {
-	int                      rc;
+	int rc;
 
 	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
