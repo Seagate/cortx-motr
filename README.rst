@@ -28,8 +28,8 @@ Following are the features of CORTX Motr:
 
 - Scalable:
 
-        - Horizontal scalability: grow your system by adding more nodes. The Motr submodule is designed for horizontal scalability with no meta-data hotspots, shared-nothing IO paths and extensions running on additional nodes.
-        - Vertical scalability: with more memory and CPU on the nodes.
+  - Horizontal scalability: grow your system by adding more nodes. The Motr submodule is designed for horizontal scalability with no meta-data hotspots, shared-nothing IO paths and extensions running on additional nodes.
+  - Vertical scalability: with more memory and CPU on the nodes.
 - Fault-tolerant: with flexible erasure coding that takes hardware and network topology into account.
 - Fast network raid repairs.
 - Observable: with built-in monitoring that collects detailed information about the system behavior.
