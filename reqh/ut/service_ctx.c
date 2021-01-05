@@ -53,7 +53,7 @@ static void reqh_service_ctx_ut_test_helper(char *ut_argv[], int ut_argc,
 	};
 
 	ut_sctx.rsx_xprts = m0_net_all_xprt_get();
-	ut_sctx.rsx_xprts_nr = m0_net_xprt_nr_get();
+	ut_sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	M0_UT_ASSERT(m0_rpc_server_start(&ut_sctx) == 0);
 	ut_body();
 	m0_rpc_server_stop(&ut_sctx);
@@ -64,9 +64,8 @@ static int reqh_service_ctx_ut__remote_rmach_init(void)
 	enum { NR_TMS = 1 };
 	int      rc;
 	uint32_t bufs_nr;
-	struct m0_net_xprt *ut_xprt = m0_net_xprt_default_get();
 
-	rc = m0_net_domain_init(&ut_client_net_dom, ut_xprt);
+	rc = m0_net_domain_init(&ut_client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 	bufs_nr = m0_rpc_bufs_nr(M0_NET_TM_RECV_QUEUE_DEF_LEN, NR_TMS);
 	rc = m0_rpc_net_buffer_pool_setup(&ut_client_net_dom, &ut_buf_pool,

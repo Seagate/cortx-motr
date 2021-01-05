@@ -155,8 +155,7 @@ server_fini:
 static int test_rpclib_init(void)
 {
 	int rc;
-	xprt = m0_net_xprt_default_get();
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 	return rc;
 }

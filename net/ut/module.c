@@ -30,6 +30,7 @@ static void test_net_modules(void)
 	struct m0_module *net;
 	struct m0_module *xprt;
 	int               rc;
+
 	M0_UT_ASSERT(inst->i_moddata[M0_MODULE_NET] == NULL);
 	net = m0_net_module_type.mt_create(inst);
 	M0_UT_ASSERT(net != NULL);

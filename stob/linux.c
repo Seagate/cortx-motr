@@ -267,6 +267,7 @@ static int stob_linux_domain_init(struct m0_stob_type *type,
 static void stob_linux_domain_fini(struct m0_stob_domain *dom)
 {
 	struct m0_stob_linux_domain *ldom = m0_stob_linux_domain_container(dom);
+
 	m0_stob_ioq_fini(&ldom->sld_ioq);
 	m0_free(ldom->sld_path);
 	m0_free(ldom);

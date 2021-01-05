@@ -83,9 +83,8 @@ extern struct m0_fop_type m0_fop_process_fopt;
 static void rpc_client_and_server_start(void)
 {
 	int rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
-	sctx.rsx_xprts = &xprt;
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	sctx.rsx_xprts = m0_net_all_xprt_get();
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 #if 0
 	/* Test case: memory error on service allocate */
@@ -105,11 +104,10 @@ static void rpc_client_and_server_start(void)
 static void rpc_client_and_server_stop(void)
 {
 	int rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	M0_LOG(M0_DEBUG, "stop");
 	rc = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(rc == 0);
-	sctx.rsx_xprts = &xprt;
+	sctx.rsx_xprts = m0_net_all_xprt_get();
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);
 }

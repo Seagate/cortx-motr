@@ -28,8 +28,6 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/mutex.h"
-#include "lib/assert.h"
-#include "net/lnet/lnet.h"
 #ifndef __KERNEL__
 #  include "lib/string.h"  /* m0_streq */
 #endif
@@ -42,7 +40,7 @@
 
 #define XPRT_MAX 4
 
-static struct m0_net_xprt *xprts[XPRT_MAX] = {0};
+static struct m0_net_xprt *xprts[XPRT_MAX] = {NULL};
 static struct m0_net_xprt *xprt_default = NULL;
 /**
    @addtogroup net
@@ -63,14 +61,6 @@ struct m0_mutex m0_net_mutex;
 
 M0_INTERNAL int m0_net_init(void)
 {
-	M0_ENTRY();
-	if (m0_net_xprt_default_get() == NULL) 
-		m0_net_xprt_default_set(&m0_net_lnet_xprt);
-/*
-#ifndef __KERNEL__
-	m0_net_xprt_default_set(&m0_net_sock_xprt);
-#endif
-*/
 	m0_mutex_init(&m0_net_mutex);
 	return 0;
 }
@@ -149,12 +139,11 @@ M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint)
 }
 #endif /* !__KERNEL__ */
 
-M0_INTERNAL void m0_net_xprt_default_set(struct m0_net_xprt *xprt)
+M0_INTERNAL void m0_net_xprt_default_set(const struct m0_net_xprt *xprt)
 {
 	M0_ENTRY();
 	M0_LOG(M0_DEBUG, "setting default xprt to %p:%s", xprt, xprt->nx_name);
-	xprt_default = xprt;
-	m0_net_xprt_register(xprt);
+	xprt_default = (struct m0_net_xprt *) xprt;
 }
 M0_EXPORTED(m0_net_xprt_default_set);
 
@@ -175,28 +164,28 @@ struct m0_net_xprt **m0_net_all_xprt_get(void)
 }
 M0_EXPORTED(m0_net_all_xprt_get);
 
-int m0_net_xprt_nr_get(void)
+int m0_net_xprt_nr(void)
 {
 	int i;
-	
+	int count = 0;
+
 	M0_ENTRY();
 	for (i = 0; i < ARRAY_SIZE(xprts); i++) {
-		if (xprts[i] == NULL)
-			return i;
+		if (xprts[i] != NULL)
+			count++;
 	}
-	return ARRAY_SIZE(xprts);
+	return count;
 }
-M0_EXPORTED(m0_net_xprt_nr_get);
+M0_EXPORTED(m0_net_xprt_nr);
 
-M0_INTERNAL void m0_net_xprt_register(struct m0_net_xprt *xprt)
+M0_INTERNAL void m0_net_xprt_register(const struct m0_net_xprt *xprt)
 {
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(xprts); ++i) {
-		if (xprts[i] == xprt) {
-			return;
-		} else if (xprts[i] == NULL) {
-			xprts[i] = xprt;
+		M0_ASSERT(xprts[i] != xprt);
+		if (xprts[i] == NULL) {
+			xprts[i] = (struct m0_net_xprt *) xprt;
 			return;
 		}
 	}
@@ -204,13 +193,15 @@ M0_INTERNAL void m0_net_xprt_register(struct m0_net_xprt *xprt)
 }
 M0_EXPORTED(m0_net_xprt_register);
 
-M0_INTERNAL void m0_net_xprt_deregister(struct m0_net_xprt *xprt)
+M0_INTERNAL void m0_net_xprt_deregister(const struct m0_net_xprt *xprt)
 {
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(xprts); ++i) {
 		if (xprts[i] == xprt) {
 			xprts[i] = NULL;
+			if (xprt == xprt_default)
+				xprt_default = NULL;
 			return;
 		}
 	}

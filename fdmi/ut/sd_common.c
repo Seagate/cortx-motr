@@ -79,7 +79,7 @@ void fdmi_serv_start_ut(const struct m0_filterc_ops *filterc_ops)
 	M0_UT_ASSERT(sd_ut_lfile != NULL);
 
 	rc = m0_cs_init(&g_sd_ut.motr, m0_net_all_xprt_get(), 
-			m0_net_xprt_nr_get(), sd_ut_lfile, false);
+			m0_net_xprt_nr(), sd_ut_lfile, false);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = M0_REQH_INIT(reqh,
@@ -175,13 +175,12 @@ void prepare_rpc_env(struct test_rpc_env         *env,
 {
 	enum { TEST_TM_NR = 1 }; /* Number of TMs. */
 	int                      rc;
-	struct m0_net_xprt      *xprt = m0_net_xprt_default_get();
 
 	M0_ENTRY();
 
 	M0_ASSERT(rpc_conn != NULL && rpc_session != NULL);
 
-	m0_net_domain_init(&env->tre_net_dom, xprt);
+	m0_net_domain_init(&env->tre_net_dom, m0_net_xprt_default_get());
 
 	rc = m0_rpc_net_buffer_pool_setup(
 		&env->tre_net_dom, &env->tre_buffer_pool,

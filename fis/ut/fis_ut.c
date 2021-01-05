@@ -46,7 +46,6 @@ static struct m0_rpc_client_ctx cctx = {
 static void fis_ut_motr_start(struct m0_rpc_server_ctx *rctx)
 {
 	int                 rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 #define NAME(ext) "fis-ut" ext
 	char *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"), "-j" /* fis enabled */,
@@ -56,8 +55,8 @@ static void fis_ut_motr_start(struct m0_rpc_server_ctx *rctx)
 		"-c", M0_SRC_PATH("fis/ut/fis.xc")
 	};
 	*rctx = (struct m0_rpc_server_ctx) {
-		.rsx_xprts         = &xprt,
-		.rsx_xprts_nr      = 1,
+		.rsx_xprts         = m0_net_all_xprt_get(),
+		.rsx_xprts_nr      = m0_net_xprt_nr(),
 		.rsx_argv          = argv,
 		.rsx_argc          = ARRAY_SIZE(argv),
 		.rsx_log_file_name = NAME(".log")
@@ -75,9 +74,8 @@ static void fis_ut_motr_stop(struct m0_rpc_server_ctx *rctx)
 static void fis_ut_client_start(void)
 {
 	int                      rc;
-	struct m0_net_xprt      *xprt = m0_net_xprt_default_get();
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(rc == 0);

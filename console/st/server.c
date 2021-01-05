@@ -91,7 +91,7 @@ int main(int argc, char **argv)
 		return M0_RC(-result);
 
 	sctx.rsx_xprts = m0_net_all_xprt_get();
-	sctx.rsx_xprts_nr = m0_net_xprt_nr_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 
 	m0_console_verbose = false;
 	result = M0_GETOPTS("server", argc, argv,

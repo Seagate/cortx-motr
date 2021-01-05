@@ -111,11 +111,10 @@ static void start_rpc_client_and_server(void)
 {
 	int                 rc;
 
-	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 	M0_SET0(&sctx.rsx_motr_ctx);
-	sctx.rsx_xprts = &xprt;
+	sctx.rsx_xprts = m0_net_all_xprt_get();
 	rc = m0_rpc_server_start(&sctx);
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);
@@ -125,11 +124,10 @@ static void start_rpc_client_and_server(void)
 static void stop_rpc_client_and_server(void)
 {
 	int                 rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 
 	rc = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(rc == 0);
-	sctx.rsx_xprts = &xprt; 
+	sctx.rsx_xprts = m0_net_all_xprt_get();
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);
 }

@@ -136,7 +136,7 @@ static void idx_dix_ut_init()
 
 	M0_SET0(&dix_ut_sctx.rsx_motr_ctx);
 	dix_ut_sctx.rsx_xprts = m0_net_all_xprt_get();
-	dix_ut_sctx.rsx_xprts_nr = m0_net_xprt_nr_get();
+	dix_ut_sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	rc = m0_rpc_server_start(&dix_ut_sctx);
 	M0_ASSERT(rc == 0);
 	dix_config_init();

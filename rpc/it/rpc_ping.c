@@ -291,7 +291,6 @@ static int run_client(void)
 	static struct m0_net_domain     client_net_dom;
 	static struct m0_rpc_client_ctx cctx;
 	static struct m0_fid            process_fid = M0_FID_TINIT('r', 0, 1);
-	struct m0_net_xprt             *xprt = m0_net_xprt_default_get();
 
 	m0_time_t start;
 	m0_time_t delta;
@@ -316,7 +315,7 @@ static int run_client(void)
 
 	m0_ping_fop_init();
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	if (rc != 0)
 		goto fop_fini;
 
@@ -382,7 +381,6 @@ static int run_server(void)
 	static char tm_len[STRING_LEN];
 	static char rpc_size[STRING_LEN];
 	int	    rc;
-	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	char       *argv[] = {
 		"rpclib_ut",
 		"-e", server_endpoint,
@@ -390,8 +388,8 @@ static int run_server(void)
 		"-q", tm_len, "-m", rpc_size,
 	};
 	struct m0_rpc_server_ctx sctx = {
-		.rsx_xprts            = &xprt,
-		.rsx_xprts_nr         = 1,
+		.rsx_xprts            = m0_net_all_xprt_get(),
+		.rsx_xprts_nr         = m0_net_xprt_nr(),
 		.rsx_argv             = argv,
 		.rsx_argc             = ARRAY_SIZE(argv),
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
