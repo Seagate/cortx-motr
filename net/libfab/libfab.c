@@ -53,6 +53,8 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
 #include "lib/trace.h"          /* M0_ENTRY() */
+#include <netinet/in.h>         /* INET_ADDRSTRLEN */
+#include <arpa/inet.h>          /* inet_pton, htons */
 #include "net/net.h"            /* struct m0_net_domain */
 #include "lib/memory.h"         /* M0_ALLOC_PTR()*/
 #include "libfab_internal.h"    /* struct m0_fab__dom_param */
@@ -93,6 +95,78 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 }
 
 /**
+ * Bitmap of used transfer machine identifiers.
+ *
+ * This is used to allocate unique transfer machine identifiers for LNet network
+ * addresses with wildcard transfer machine identifier (like
+ * "192.168.96.128@tcp1:12345:31:*").
+ *
+ */
+static char fab_autotm[1024] = {};
+
+static int libfab_ep_addr_decode_lnet(const char *name, char *node,
+			size_t nodeSize, char *port, size_t portSize)
+{
+	char               *at                  = strchr(name, '@');
+	int                 nr;
+	unsigned            pid;
+	unsigned            portal;
+	unsigned            portnum;
+	unsigned            tmid;
+	char		   *lp			= "127.0.0.1";
+
+	if (strncmp(name, "0@lo", 4) == 0) {
+		M0_PRE(nodeSize >= ((strlen(lp)+1)) );
+		memcpy(node, lp, (strlen(lp)+1));
+	} else {
+		if (at == NULL || at - name >= nodeSize)
+			return M0_ERR(-EPROTO);
+
+		M0_PRE(nodeSize >= (at-name)+1);
+		memcpy(node, name, at - name);
+	}
+	if ((at = strchr(at, ':')) == NULL) /* Skip 'tcp...:' bit. */
+		return M0_ERR(-EPROTO);
+	nr = sscanf(at + 1, "%u:%u:%u", &pid, &portal, &tmid);
+	if (nr != 3) {
+		nr = sscanf(at + 1, "%u:%u:*", &pid, &portal);
+		if (nr != 2)
+			return M0_ERR(-EPROTO);
+		for (nr = 0; nr < ARRAY_SIZE(fab_autotm); ++nr) {
+			if (fab_autotm[nr] == 0) {
+				tmid = nr;
+				break;
+			}
+		}
+		if (nr == ARRAY_SIZE(fab_autotm))
+			return M0_ERR(-EADDRNOTAVAIL);
+	}
+	/*
+	* Hard-code LUSTRE_SRV_LNET_PID to avoid dependencies on the Lustre
+	* headers.
+	*/
+	if (pid != 12345)
+		return M0_ERR(-EPROTO);
+	/*
+	* Deterministically combine portal and tmid into a unique 16-bit port
+	* number (greater than 1024). Tricky.
+	*
+	* Port number is, in binary: tttttttttt1ppppp, that is, 10 bits of tmid
+	* (which must be less than 1024), followed by a set bit (guaranteeing
+	* that the port is not reserved), followed by 5 bits of (portal - 30),
+	* so that portal must be in the range 30..61.
+	*/
+	if (tmid >= 1024 || (portal - 30) >= 32)
+		return M0_ERR_INFO(-EPROTO,
+			"portal: %u, tmid: %u", portal, tmid);
+	portnum  = htons(tmid | (1 << 10) | ((portal - 30) << 11));
+	sscanf(portnum,"%d",port);
+	fab_autotm[tmid] = 1;
+	return M0_RC(0);
+}
+
+
+/**
  * Used to take the ip and port from the given end point
  * ep_name : endpoint address from domain
  * node    : copy ip address from ep_name
@@ -100,7 +174,7 @@ M0_INTERNAL void m0_net_libfab_fini(void)
  * Example of ep_name IPV4 192.168.0.1:4235
  *                    IPV6 [4002:db1::1]:4235
  */
-static int libfab_ep_addr_decode(const char *ep_name, char *node,
+static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
 			  size_t nodeSize, char *port, size_t portSize)
 {
 	char     *cp;
@@ -119,10 +193,12 @@ static int libfab_ep_addr_decode(const char *ep_name, char *node,
 
 		ep_name++;
 		n = cp - ep_name;
-                if (n == 0 )
-                        return M0_ERR(-EINVAL);
-
-		cp+=2;
+		if (n == 0 )
+			return M0_ERR(-EINVAL);
+		cp++;
+		if (*cp != ':')
+		return M0_ERR(-EINVAL);
+		cp++;
 	}
 	else {
 		/* IPV4 pattern */
@@ -150,13 +226,48 @@ static int libfab_ep_addr_decode(const char *ep_name, char *node,
 	return M0_RC(rc);
 }
 
+/**
+ * Parses network address.
+ *
+ * The following address formats are supported:
+ *
+ *     - lnet compatible, see nlx_core_ep_addr_decode():
+ *
+ *           nid:pid:portal:tmid
+ *
+ *       for example: "10.0.2.15@tcp:12345:34:123" or
+ *       "192.168.96.128@tcp1:12345:31:*"
+ *
+ *     - libfab compatible format
+ *       for example IPV4 192.168.0.1:4235
+ *                   IPV6 [4002:db1::1]:4235
+ *
+ */
+static int libfab_ep_addr_decode(const char *name, char *node,
+			size_t nodeSize, char *port, size_t portSize)
+{
+	int result;
+
+	if (name[0] == 0)
+		result =  M0_ERR(-EPROTO);
+	else if (name[0] < '0' || name[0] > '9' || name[0] == '[')
+		result = libfab_ep_addr_decode_native(name, node,
+						nodeSize, port, portSize);
+	else
+	/* Lnet format. */
+	result = libfab_ep_addr_decode_lnet(name, node,
+						nodeSize, port, portSize);
+	return M0_RC(result);
+}
+
+
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
 	struct m0_fab__dom_param *fab_dom;
 	struct fi_info           *fab_hints;
 	int 			  rc;
-	char                      node[40];
+	char                      node[INET6_ADDRSTRLEN];
 	char                      port[8];
 	char                      *ep_name = "127.0.0.1:42365";
 
