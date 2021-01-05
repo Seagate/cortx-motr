@@ -368,7 +368,7 @@ static bool __has_incoming(struct m0_sns_cm *scm,
 	M0_PRE(scm != NULL && fctx != NULL);
 
 	m0_sns_cm_ag_agid_setup(&fctx->sf_fid, group, &agid);
-	M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
+	M0_LOG(M0_DEBUG, "agid [%"PRId64"] [%"PRId64"] [%"PRId64"] [%"PRId64"]",
 	       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
 	       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
 	return m0_sns_cm_ag_is_relevant(scm, fctx, &agid);
@@ -444,7 +444,8 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 		rc = cm->cm_ops->cmo_get_space_for(cm, &agid, &nr_bufs);
 		if (rc == 0)
 			m0_sns_cm_reserve_space(scm, nr_bufs);
-		M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
+		M0_LOG(M0_DEBUG, "agid [%"PRId64"] [%"PRId64"] "
+		       "[%"PRId64"] [%"PRId64"]",
 		       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
 		       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
 	}
@@ -774,8 +775,8 @@ M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 		if (cm->cm_quiesce || cm->cm_abort) {
 			if (M0_IN(iter_phase(it), (ITPH_FID_NEXT,
 						   ITPH_GROUP_NEXT))) {
-				M0_LOG(M0_DEBUG,
-				       "%lu: Got %s cmd: returning -ENODATA",
+				M0_LOG(M0_DEBUG, "%"PRId64": "
+				       "Got %s cmd: returning -ENODATA",
 					cm->cm_id,
 					cm->cm_quiesce ? "QUIESCE" : "ABORT");
 				if (iter_phase(it) == ITPH_GROUP_NEXT &&
