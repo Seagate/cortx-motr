@@ -45,9 +45,8 @@
  *
  * Resource management is split into two parts:
  *
- *     - generic functionality, implemented by the code in rm/ directory and
- *
- *     - resource type specific functionality.
+ *   -# generic functionality, implemented by the code in rm/ directory and
+ *   -# resource type specific functionality.
  *
  * These parts interact through the operation vectors (m0_rm_resource_ops,
  * m0_rm_resource_type_ops and m0_rm_credit_ops) provided by a resource type
@@ -62,22 +61,24 @@
  *
  * A resource (m0_rm_resource) is associated with various file system entities:
  *
- *     - file meta-data. Credits to use this resource can be thought of as locks
- *       on file attributes that allow them to be cached or modified locally;
+ *   - file meta-data. Credits to use this resource can be thought of as locks
+ *     on file attributes that allow them to be cached or modified locally;
  *
- *     - file data. Credits to use this resource are extents in the file plus
- *       access mode bits (read, write);
+ *   - file data. Credits to use this resource are extents in the file plus
+ *     access mode bits (read, write);
  *
- *     - free storage space on a server (a "grant" in Lustre
- *       terminology). Credit to use this resource is a reservation of a given
- *       number of bytes;
+ *   - free storage space on a server (a "grant" in Lustre
+ *     terminology). Credit to use this resource is a reservation of a given
+ *     number of bytes;
  *
- *     - quota;
+ *   - quota;
  *
- *     - many more, see the HLD for examples.
+ *   - many more, see the HLD for examples.
  *
  * A resource owner (m0_rm_owner) represents a collection of credits to use a
  * particular resource.
+ *
+ * \image html RM-data-structs.svg
  *
  * To use a resource, a user of the resource manager creates an incoming
  * resource request (m0_rm_incoming), that describes a wanted usage credit
@@ -118,7 +119,7 @@
  * the loan. When a credit is transferred in the other direction, the creditor
  * "revokes" and debtor "returns" the loan.
  *
- * A debtor can voluntary return a loan. This is called a "cancel" operation.
+ * A debtor can voluntarily return a loan. This is called a "cancel" operation.
  *
  * <b> Concurrency control. </b>
  *
@@ -127,37 +128,34 @@
  *
  * 3 types of locks protect all generic resource manager states:
  *
- *     - per domain m0_rm_domain::rd_lock. This lock serialises addition and
- *       removal of resource types. Typically, it won't be contended much after
- *       the system start-up;
+ *   - per domain m0_rm_domain::rd_lock. This lock serialises addition and
+ *     removal of resource types. Typically, it won't be contended much after
+ *     the system start-up;
  *
- *     - per resource type m0_rm_resource_type::rt_lock. This lock is taken
- *       whenever a resource or a resource owner is created or
- *       destroyed. Typically, that would be when a file system object is
- *       accessed which is not in the cache;
+ *   - per resource type m0_rm_resource_type::rt_lock. This lock is taken
+ *     whenever a resource or a resource owner is created or
+ *     destroyed. Typically, that would be when a file system object is
+ *     accessed which is not in the cache;
  *
- *     - per resource owner m0_rm_owner::ro_lock.
+ *   - per resource owner m0_rm_owner::ro_lock.
+ *     These locks protect a bulk of generic resource management state:
  *
- *       These locks protect a bulk of generic resource management state:
+ *       - lists of possessed, borrowed and sub-let usage credits;
+ *       - incoming requests and their state transitions;
+ *       - outgoing requests and their state transitions;
+ *       - pins (m0_rm_pin).
  *
- *           - lists of possessed, borrowed and sub-let usage credits;
- *
- *           - incoming requests and their state transitions;
- *
- *           - outgoing requests and their state transitions;
- *
- *           - pins (m0_rm_pin).
- *
- *       Owner lock is accessed (taken and released) at least once during
- *       processing of an incoming request. Main owner state machine logic
- *       (owner_balance()) is structured in a way that is easily adaptable to a
- *       finer grained logic.
+ *     Owner lock is accessed (taken and released) at least once during
+ *     processing of an incoming request. Main owner state machine logic
+ *     (owner_balance()) is structured in a way that is easily adaptable to a
+ *     finer grained logic.
  *
  * None of these locks are ever held while waiting for a network communication
  * to complete.
  *
- * Lock ordering: 1) m0_rm_owner::ro_lock
- *                2) m0_rm_resource_type::rt_lock
+ * Lock ordering:
+ *   -# m0_rm_owner::ro_lock
+ *   -# m0_rm_resource_type::rt_lock
  *
  * <b>A group of cooperating owners.</b>
  *
@@ -207,7 +205,7 @@
  *
  * <b> Network protocol. </b>
  *
- * @see https://docs.google.com/document/d/1WYw8MmItpp0KuBbYfuQQxJaw9UN8OuHKnlICszB8-Zs
+ * @see doc/PDF/HLD_of_RM_interfaces.pdf
  *
  * @{
  */
@@ -802,10 +800,8 @@ enum m0_rm_owner_state {
 	ROS_INITIAL = 1,
 	/**
 	 * Initial network setup state:
-	 *
-	 *     - registering with the resource data-base;
-	 *
-	 *     - &c.
+	 *   - registering with the resource data-base;
+	 *   - &c.
          */
 	ROS_INITIALISING,
 	/**
@@ -1181,19 +1177,19 @@ enum m0_rm_incoming_flags {
 	 * The interaction between the request and locally possessed credits is
 	 * the following:
 	 *
-	 *     - by default, locally possessed credits are ignored. This
-	 *       scenario is typical for a local request (M0_RIT_LOCAL),
-	 *       because local users resolve conflicts by some other means
-	 *       (usually some form of concurrency control, like locking);
+	 *   - by default, locally possessed credits are ignored. This
+	 *     scenario is typical for a local request (M0_RIT_LOCAL),
+	 *     because local users resolve conflicts by some other means
+	 *     (usually some form of concurrency control, like locking);
 	 *
-	 *     - if RIF_LOCAL_WAIT is set, the request will wait until
-	 *       there is no locally possessed credits conflicting with the
-	 *       wanted credit. This is typical for a remote request
-	 *       (M0_RIT_BORROW or M0_RIT_REVOKE);
+	 *   - if RIF_LOCAL_WAIT is set, the request will wait until
+	 *     there is no locally possessed credits conflicting with the
+	 *     wanted credit. This is typical for a remote request
+	 *     (M0_RIT_BORROW or M0_RIT_REVOKE);
 	 *
-	 *     - if RIF_LOCAL_TRY is set, the request will be immediately
-	 *       denied, if there are conflicting local credits. This allows to
-	 *       implement a "try-lock" like functionality.
+	 *   - if RIF_LOCAL_TRY is set, the request will be immediately
+	 *     denied, if there are conflicting local credits. This allows to
+	 *     implement a "try-lock" like functionality.
 	 *
 	 * RIF_LOCAL_WAIT and RIF_LOCAL_TRY flags are mutually exclusive.
 	 */
@@ -1221,13 +1217,13 @@ enum m0_rm_incoming_flags {
  * If there are several requests willing to reserve the same credit,
  * then following rules apply:
  *
- *     - request with smallest timestamp has highest priority;
+ *   - request with smallest timestamp has highest priority;
  *
- *     - if timestamps are equal, then request with smaller owner FID
- *       has higher priority.
+ *   - if timestamps are equal, then request with smaller owner FID
+ *     has higher priority.
  *
- *     - if timestamps and owner FIDs are equal, then request with smaller
- *       sequence number has higher priority.
+ *   - if timestamps and owner FIDs are equal, then request with smaller
+ *     sequence number has higher priority.
  *
  * @see m0_rm_incoming
  */
@@ -1441,14 +1437,14 @@ struct m0_rm_incoming {
 	 *
 	 * @invariant meaning of this list depends on the request state:
 	 *
-	 *     - RI_CHECK, RI_SUCCESS: a list of M0_RPF_PROTECT pins on credits
-	 *       in ->rin_want.cr_owner->ro_owned[];
+	 *   - RI_CHECK, RI_SUCCESS: a list of M0_RPF_PROTECT pins on credits
+	 *     in ->rin_want.cr_owner->ro_owned[];
 	 *
-	 *     - RI_WAIT: a list of M0_RPF_TRACK pins on outgoing requests
-	 *       (through m0_rm_outgoing::rog_want::rl_credit::cr_pins) and held
-	 *       credits in ->rin_want.cr_owner->ro_owned[OWOS_HELD];
+	 *   - RI_WAIT: a list of M0_RPF_TRACK pins on outgoing requests
+	 *     (through m0_rm_outgoing::rog_want::rl_credit::cr_pins) and held
+	 *     credits in ->rin_want.cr_owner->ro_owned[OWOS_HELD];
 	 *
-	 *     - other states: empty.
+	 *   - other states: empty.
 	 */
 	struct m0_tl                     rin_pins;
 	/**
@@ -1510,11 +1506,11 @@ enum m0_rm_outgoing_type {
  *
  * An outgoing request is created to:
  *
- *     - borrow a new credit from some remote owner (an "upward" request) or
+ *   - borrow a new credit from some remote owner (an "upward" request) or
  *
- *     - revoke a credit sublet to some remote owner (a "downward" request) or
+ *   - revoke a credit sublet to some remote owner (a "downward" request) or
  *
- *     - cancel this owner's credit and return it to an upward owner.
+ *   - cancel this owner's credit and return it to an upward owner.
  *
  * Before a new outgoing request is created, a list of already existing
  * outgoing requests (m0_rm_owner::ro_outgoing) is scanned. If an outgoing
@@ -1545,13 +1541,11 @@ enum m0_rm_pin_flags {
 };
 
 /**
- * A pin is used to
+ * A pin is used to:
  *
- *     - M0_RPF_TRACK: track when a credit changes its state;
- *
- *     - M0_RPF_PROTECT: to protect a credit from revocation;
- *
- *     - M0_RPF_BARRIER: to prohibit granting credit to another request.
+ *   - M0_RPF_TRACK: track when a credit changes its state;
+ *   - M0_RPF_PROTECT: to protect a credit from revocation;
+ *   - M0_RPF_BARRIER: to prohibit granting credit to another request.
  *
  * Fields of this struct are protected by the owner's lock.
  *
@@ -1574,13 +1568,13 @@ enum m0_rm_pin_flags {
  *
  * M0_RPF_TRACK pin is added from the incoming request to the credit when
  *
- *     - An incoming request with a RIF_LOCAL_WAIT flag need to wait until a
- *       conflicting pinned credit becomes unpinned;
+ *   - An incoming request with a RIF_LOCAL_WAIT flag need to wait until a
+ *     conflicting pinned credit becomes unpinned;
  *
- *     - An incoming request need to wait until reserved credit pinned
- *       with M0_RPF_BARRIER is unpinned;
+ *   - An incoming request need to wait until reserved credit pinned
+ *     with M0_RPF_BARRIER is unpinned;
  *
- *     - An incoming request need to wait for outgoing request completion.
+ *   - An incoming request need to wait for outgoing request completion.
  *
  * When the last M0_RPF_PROTECT pin is removed from a credit (credit becomes
  * "cached") or M0_RPF_BARRIER pin is removed, then the list of pins to the
@@ -1621,22 +1615,21 @@ enum m0_rm_pin_flags {
  *
  * @verbatim
  *
- *
- *      ->ro_owned[]--->R------>R        R<------R<----------+
- *                      |       |        |       |           |
- *>ro_incoming[]        |       |        |       |           |
- *      |               |       |        |       |           |
- *      |               |       |        |       |    ->ro_outgoing[]
- *      V               |       |        |       |
- *  INC[CHECK]----------T-------T--------T-------T
- *      |                       |                |
- *      |                       |                |
- *      V                       |                |
- *  INC[SUCCESS]----------------P                |
- *      |                                        |
- *      |                                        |
- *      V                                        |
- *  INC[CHECK]-----------------------------------T
+ *        ->ro_owned[]--->R----->R      R<-----R<----------+
+ *                        |      |      |      |           |
+ *   ->ro_incoming[]      |      |      |      |           |
+ *        |               |      |      |      |           |
+ *        |               |      |      |      |    ->ro_outgoing[]
+ *        V               |      |      |      |
+ *    INC[CHECK]----------T------T------T------T
+ *        |                      |             |
+ *        |                      |             |
+ *        V                      |             |
+ *    INC[SUCCESS]---------------P             |
+ *        |                                    |
+ *        |                                    |
+ *        V                                    |
+ *    INC[CHECK]-------------------------------T
  *
  * @endverbatim
  *

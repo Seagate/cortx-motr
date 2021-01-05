@@ -1617,29 +1617,29 @@ M0_EXPORTED(m0_rm_revoke_commit);
  *
  * This state machine reacts to the following external events:
  *
- *     - an incoming request from a local user;
+ *   - an incoming request from a local user;
  *
- *     - an incoming loan request from another domain;
+ *   - an incoming loan request from another domain;
  *
- *     - an incoming revocation request from another domain;
+ *   - an incoming revocation request from another domain;
  *
- *     - local user releases a pin on a credit (as a by-product of destroying an
- *       incoming request);
+ *   - local user releases a pin on a credit (as a by-product of destroying an
+ *     incoming request);
  *
- *     - completion of an outgoing request to another domain (including a
- *       timeout or a failure).
+ *   - completion of an outgoing request to another domain (including a
+ *     timeout or a failure).
  *
  * Any event is processed in a uniform manner:
  *
- *     - m0_rm_owner::ro_sm_grp Group lock is taken;
+ *   -# m0_rm_owner::ro_sm_grp Group lock is taken;
  *
- *     - m0_rm_owner lists are updated to reflect the event, see details
- *       below. This temporarily violates the owner_invariant();
+ *   -# m0_rm_owner lists are updated to reflect the event, see details
+ *      below. This temporarily violates the owner_invariant();
  *
- *     - owner_balance() is called to restore the invariant, this might create
- *       new imbalances and go through several iterations;
+ *   -# owner_balance() is called to restore the invariant, this might create
+ *      new imbalances and go through several iterations;
  *
- *     - m0_rm_owner::ro_sm_grp Group lock is released.
+ *   -# m0_rm_owner::ro_sm_grp Group lock is released.
  *
  * Event handling is serialised by the owner lock. It is not legal to wait for
  * networking or IO events under this lock.
