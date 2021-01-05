@@ -90,12 +90,11 @@ static struct m0_rpc_server_ctx sctx;
 static int cons_init(void)
 {
 	int                  result;
-	struct m0_net_xprt  *xprt = m0_net_xprt_default_get();
 	timeout = 10;
 	result = m0_console_fop_init();
 	M0_ASSERT(result == 0);
 
-	result = m0_net_domain_init(&client_net_dom, xprt);
+	result = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(result == 0);
 
 	m0_sm_group_init(&cons_mach.rm_sm_grp);
@@ -448,10 +447,9 @@ static void cons_client_fini(struct m0_rpc_client_ctx *cctx)
 static void cons_server_init(struct m0_rpc_server_ctx *sctx)
 {
 	int                 result;
-	struct m0_net_xprt *xprt = m0_net_xprt_default_get();
 	*sctx = (struct m0_rpc_server_ctx){
-		.rsx_xprts            = &xprt,
-		.rsx_xprts_nr         = 1,
+		.rsx_xprts            = m0_net_all_xprt_get(),
+		.rsx_xprts_nr         = m0_net_xprt_nr(),
 		.rsx_argv             = server_argv,
 		.rsx_argc             = ARRAY_SIZE(server_argv),
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME,

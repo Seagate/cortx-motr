@@ -125,10 +125,9 @@ void m0_net_test_u_lnet_info(void)
 	int		       rc;
 	char                 **nidstrs;
 	int		       i;
-	struct m0_net_xprt    *xprt = m0_net_xprt_default_get();
 
 	M0_SET0(&dom);
-	rc = m0_net_domain_init(&dom, xprt);
+	rc = m0_net_domain_init(&dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 
 	m0_net_test_u_printf(

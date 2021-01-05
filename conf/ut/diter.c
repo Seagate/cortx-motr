@@ -326,7 +326,6 @@ static void test_diter_net(void)
 {
 	struct m0_rpc_machine mach;
 	int                   rc;
-	struct m0_net_xprt   *xprt = m0_net_xprt_default_get();
 #define NAME(ext) "utconfd" ext
 	char *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
@@ -336,8 +335,8 @@ static void test_diter_net(void)
 		"-c", M0_UT_PATH("diter.xc")
 	};
 	struct m0_rpc_server_ctx confd = {
-		.rsx_xprts         = &xprt,
-		.rsx_xprts_nr      = 1,
+		.rsx_xprts         = m0_net_all_xprt_get(),
+		.rsx_xprts_nr      = m0_net_xprt_nr(),
 		.rsx_argv          = argv,
 		.rsx_argc          = ARRAY_SIZE(argv),
 		.rsx_log_file_name = NAME(".log")
@@ -348,7 +347,7 @@ static void test_diter_net(void)
 	rc = m0_rpc_server_start(&confd);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ut_rpc_machine_start(&mach, xprt,
+	rc = m0_ut_rpc_machine_start(&mach, m0_net_xprt_default_get(),
 				     CLIENT_ENDPOINT_ADDR);
 	M0_UT_ASSERT(rc == 0);
 

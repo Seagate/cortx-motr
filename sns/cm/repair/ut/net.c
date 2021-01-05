@@ -740,7 +740,6 @@ static void sender_init()
 	uint32_t              colours;
 	int                   nr_bufs;
 	int                   rc;
-	struct m0_net_xprt   *xprt = m0_net_xprt_default_get();
 
 	M0_SET0(&rmach_ctx);
 	M0_SET0(&sender_cm);
@@ -793,7 +792,7 @@ static void sender_init()
 
 	sender_cm.cm_sw_update.swu_is_complete = true;
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_rpc_client_start(&cctx);

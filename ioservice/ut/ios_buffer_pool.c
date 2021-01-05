@@ -95,7 +95,7 @@ static int check_buffer_pool_per_domain(char *cs_argv[], int cs_argc, int nbp)
 	};
 
 	sctx.rsx_xprts = m0_net_all_xprt_get();
-	sctx.rsx_xprts_nr = m0_net_xprt_nr_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);

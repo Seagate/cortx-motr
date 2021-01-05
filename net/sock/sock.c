@@ -3870,7 +3870,7 @@ static const struct m0_net_xprt_ops xprt_ops = {
 	.xo_get_max_buffer_desc_size    = &get_max_buffer_desc_size
 };
 
-struct m0_net_xprt m0_net_sock_xprt = {
+const struct m0_net_xprt m0_net_sock_xprt = {
 	.nx_name = "sock",
 	.nx_ops  = &xprt_ops
 };

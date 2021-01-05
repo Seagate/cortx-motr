@@ -290,7 +290,7 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	};
 
 	sctx.rsx_xprts = m0_net_all_xprt_get();
-	sctx.rsx_xprts_nr = m0_net_xprt_nr_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
@@ -323,7 +323,7 @@ static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 	};
 
 	sctx.rsx_xprts = m0_net_all_xprt_get();
-	sctx.rsx_xprts_nr = m0_net_xprt_nr_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc != 0);
@@ -441,7 +441,7 @@ static void test_cs_ut_lnet_multiple_if(void)
 	struct m0_motr motr_ctx = {};
 	int            rc;
 
-	rc = m0_cs_init(&motr_ctx, m0_net_all_xprt_get(), m0_net_xprt_nr_get(),
+	rc = m0_cs_init(&motr_ctx, m0_net_all_xprt_get(), m0_net_xprt_nr(),
 			stderr, true);
 	M0_UT_ASSERT(rc == 0);
 
@@ -463,7 +463,7 @@ static void test_cs_ut_lnet_ep_mixed_dup(void)
 
 	out = fopen("temp", "w");
 
-	rc = m0_cs_init(&motr_ctx, m0_net_all_xprt_get(), m0_net_xprt_nr_get(), 
+	rc = m0_cs_init(&motr_ctx, m0_net_all_xprt_get(), m0_net_xprt_nr(),
 			out, true);
 	M0_UT_ASSERT(rc == 0);
 
@@ -628,7 +628,7 @@ static void test_cs_ut_rconfc_fatal(void)
 	int                    rc;
 
 	sctx.rsx_xprts = m0_net_all_xprt_get();
-	sctx.rsx_xprts_nr = m0_net_xprt_nr_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);

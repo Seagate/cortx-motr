@@ -225,7 +225,7 @@ m0_net_domain_init
 m0_net_end_point_put
 m0_net_xprt_default_get
 m0_net_all_xprt_get
-m0_net_xprt_nr_get
+m0_net_xprt_nr
 m0_node_uuid_init
 m0_node_uuid_string_get
 m0_node_uuid_string_set

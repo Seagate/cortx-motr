@@ -68,7 +68,7 @@ static struct {
 #ifndef __KERNEL__
 	[M0_NET_XPRT_SOCK] = {
 		.name = "\"sock\" m0_net_xprt_module",
-		.xprt = &m0_net_sock_xprt
+		.xprt = (struct m0_net_xprt *)&m0_net_sock_xprt
 	}
 /*
 	[M0_NET_XPRT_LIBFABRIC] = {

@@ -174,7 +174,7 @@ static int cs_init_setup_env(struct m0_motr *sctx, int stob_type)
 	lfile = fopen(log_file_name, "w+");
 	M0_ASSERT(lfile != NULL);
 
-	rc = m0_cs_init(sctx, m0_net_all_xprt_get(), m0_net_xprt_nr_get(),
+	rc = m0_cs_init(sctx, m0_net_all_xprt_get(), m0_net_xprt_nr(),
 			lfile, true);
 	if (rc != 0)
 		return rc;
