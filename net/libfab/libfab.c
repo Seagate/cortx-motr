@@ -70,6 +70,13 @@ enum m0_fab__mr_params {
 	FAB_MR_KEY     = 0XABCD,
 };
 
+static struct m0_fab__tm  *libfab_buf_ma(struct m0_fab__buf__params  *);
+static struct m0_fab__ep  *libfab_buf_ep(struct m0_net_end_point *);
+static int m0_fab_bdesc_create(struct m0_fab__ep_name *,
+					struct m0_fab__buf *, struct m0_net_buf_desc *);
+static int libfab_ip_type(char *,int *);
+static int libfab_get_remote_addr(char *,fi_addr_t *);
+
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
 {
@@ -90,6 +97,19 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 	*  commnet to avoid compilation ERROR 
 	*	m0_net_xprt_deregister(&m0_net_libfab_xprt);
 	*/
+}
+
+static bool libfab_buf_invariant(const struct m0_fab__buf_params *buf)
+{
+	const struct m0_net_buffer *nb = buf->b_buf;
+	/* Either the buffer is only added to the domain (not associated with a
+	   transfer machine... */
+	return  (nb->nb_flags == M0_NET_BUF_REGISTERED &&
+		 nb->nb_tm == NULL) ^ /* or (exclusively) ... */
+		/* it is queued to a machine. */
+		(_0C(nb->nb_flags & (M0_NET_BUF_REGISTERED|M0_NET_BUF_QUEUED))&&
+		 _0C(nb->nb_tm != NULL) &&
+		 _0C(m0_net__buffer_invariant(nb)));
 }
 
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
@@ -327,17 +347,18 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
  */
 static int libfab_buf_add(struct m0_net_buffer *nb)
 {
-	struct m0_fab__buf	*fbp;
-	struct m0_fab__tm	*ma;
-	struct fid_mr		*mr;
-	struct m0_fab__ep	*ep;
-	struct m0_fab__bdesc	*peer;
-	int			 qt;
-	int			 ret = 0;
-	ssize_t			 cnt = 0;
-	
-	/* TODO : need to check buffer invariant */
+	struct m0_fab__buf_params	*fbp;
+	struct m0_fab__tm		*ma;
+	struct fid_mr			*mr;
+	struct m0_fab__ep		*ep;
+	struct m0_fab__bdesc		*peer;
+	fi_addr_t 			 remote_rx_addr;
+	int			  	 qt;
+	int				 ret = 0;
+	ssize_t				 cnt = 0;
+
 	M0_PRE(m0_mutex_is_locked(&nb->nb_tm->ntm_mutex));
+	M0_PRE(libfab_buf_invariant(nb->nb_xprt_private));
 	M0_PRE(nb->nb_offset == 0); /* Do not support an offset during add. */
 	M0_PRE((nb->nb_flags & M0_NET_BUF_RETAIN) == 0);
 
@@ -350,18 +371,24 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 
 	switch (qt) {
 	case M0_NET_QT_MSG_RECV:
-		cnt = fi_recv(ep->fep_ep, nb->nb_buffer.ov_vec, nb->nb_length,
-			fi_mr_desc(mr), nb->nb_buffer.ov_vec[0], fbp);
+		cnt = fi_recv(ep->fep_ep, nb->nb_buffer->ov_buf[0], nb->nb_length,
+					fi_mr_desc(mr), 0, fbp);
 		if(cnt < 0)
 			ret = M0_ERR(-EIO);
 		break;
 	case M0_NET_QT_MSG_SEND: {
 		M0_ASSERT(nb->nb_length <= m0_vec_count(&nb->nb_buffer.ov_vec));
 
-		cnt = fi_send(ep->fep_ep, nb->nb_buffer.ov_vec, nb->nb_length,
-			fi_mr_desc(mr), nb->nb_buffer.ov_vec[0], fbp);
+		/* getting the addr of the remote */
+		ret = libfab_get_remote_addr(nb->nb_ep->nep_addr,&remote_rx_addr);
+		if( ret != 0)
+			break;
+
+		cnt = fi_send(ep->fep_ep, nb->nb_buffer->ov_buf[0], nb->nb_length,
+					fi_mr_desc(mr), &remote_rx_addr, fbp);
 		if(cnt < 0)
 			ret = M0_ERR(-EIO);
+
 		break;
 	}
 	case M0_NET_QT_PASSIVE_BULK_RECV: /* For passive buffers, generate */
@@ -373,29 +400,25 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	case M0_NET_QT_ACTIVE_BULK_RECV:
 		ret = m0_fab_bdesc_decode(&nb->nb_desc, peer);
 		if (ret == 0) {
-			struct m0_fab__ep *epp; /* Passive peer end-point. */
-			ret = libfab_ep_create(ma, &peer->fbd_addr, NULL, &epp);
-			if (ret == 0) {
-				cnt = fi_send(ep->fep_ep, nb->nb_buffer.ov_vec,
-					nb->nb_length, fi_mr_desc(mr), 
-					nb->nb_buffer.ov_vec[0], fbp);
-				if(cnt < 0)
-					ret = M0_ERR(-EIO);
-			}
+			cnt = fi_recv(ep->fep_ep, nb->nb_buffer->ov_buf[0],
+						nb->nb_length, fi_mr_desc(mr), 0, fbp);
+			if(cnt < 0)
+				ret = M0_ERR(-EIO);
 		}
 		break;
 	case M0_NET_QT_ACTIVE_BULK_SEND:
 		ret = m0_fab_bdesc_decode(&nb->nb_desc, peer);
 		if (ret == 0) {
-			struct m0_fab__ep *epp; /* Passive peer end-point. */
-			ret = libfab_ep_create(ma, &peer->fbd_addr, NULL, &epp);
-			if (ret == 0) {
-				cnt = fi_recv(ep->fep_ep, nb->nb_buffer.ov_vec,
-					nb->nb_length, fi_mr_desc(mr), 
-					nb->nb_buffer.ov_vec[0], fbp);
-				if(cnt < 0)
-					ret = M0_ERR(-EIO);
-			}
+			/* getting the addr of the remote */
+			ret = libfab_get_remote_addr(nb->nb_ep->nep_addr,&remote_rx_addr);
+			if( ret != 0)
+				break;
+
+			cnt = fi_send(ep->fep_ep, nb->nb_buffer->ov_buf[0],
+						nb->nb_length, fi_mr_desc(mr), 
+						&remote_rx_addr, fbp);
+			if(cnt < 0)
+				ret = M0_ERR(-EIO);
 		}
 	break;
 	default:
@@ -542,6 +565,47 @@ static struct m0_fab__tm  *libfab_buf_ma(struct m0_fab__buf  *buf)
 static struct m0_fab__ep  *libfab_buf_ep(struct m0_net_end_point *net)
 {
 	return container_of(net, struct m0_fab__ep, fep_ep);;
+}
+
+/* Returns the IPV4 or IPV6 based on given ip string */
+static int libfab_ip_type(char *node,int *type)
+{
+	char	*cp;
+	int	 ret=0;
+	if( node != NULL ) {
+		cp = strchr(node, ':');
+		if( cp == NULL )
+			*type=AF_INET6;
+		else
+			*type=AF_INET;
+	}
+	else
+		ret=M0_ERR(-EFAULT);
+
+	return ret;
+}
+
+static int libfab_get_remote_addr(char *addr,fi_addr_t *remote_rx_addr) 
+{
+	int	ret = 0;
+	int	ip_family;
+	char	node[INET6_ADDRSTRLEN];
+	char	port[8];
+
+	if(addr == NULL )
+		return M0_ERR(-EFAULT);
+
+	/* getting the addr of the remote */
+	ret = libfab_ep_addr_decode(addr, &node, sizeof(node),
+							&port, sizeof(port));
+	if( ret == 0) {
+		ret = libfab_ip_type(node,&ip_family);
+		if( ret == 0) {
+			if( (inet_pton(ip_family, node, remote_rx_addr)) != 1)
+				ret = M0_ERR(-EIO);
+		}
+	}
+	return ret;
 }
 
 /** Creates the descriptor for a (passive) network buffer. */
