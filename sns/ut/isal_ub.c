@@ -24,24 +24,23 @@
 #include <string.h>
 #include <getopt.h>
 #include <isa-l.h>
-#include <sys/time.h>
 
 #include "lib/ub.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
 #include "lib/buf.h"
+#include "lib/time.h"
+#include "lib/arith.h"
 
 #define UB_ITER 1
 #define MMAX    255
 #define KMAX    255
 
+m0_time_t seed = 0;
 
 static int ub_init(const char *opts M0_UNUSED)
 {
-    time_t now;
-
-    time(&now);
-    srand(now);
+    seed = m0_time_now();
 
     return 0;
 }
@@ -55,7 +54,7 @@ static void unit_spoil( struct m0_buf *failed,
 
     i = 0;
     do {
-        err_id = rand() % data_count;
+        err_id = m0_rnd(data_count, &seed);
         found = false;
 
         for (j = 0; j < i; j++) {
@@ -70,21 +69,29 @@ static void unit_spoil( struct m0_buf *failed,
     } while ( i < failed->b_nob );
 }
 
-/*
- * Generate decode matrix from encode matrix and erasure list
- *
- */
-
-static int gen_decode_matrix(uint8_t *encode_matrix,
-                             uint8_t *decode_matrix,
-                             uint8_t *decode_index,
-                             struct m0_buf failed,
-                             int k, int m)
+static void encode_data(uint32_t k, uint32_t p, uint32_t len,
+                        uint8_t *encode_matrix, uint8_t *g_tbls,
+                        uint8_t **fragments)
 {
-    int i, j, p, r;
+    // Initialize g_tbls from encode matrix
+    ec_init_tables(k, p, &encode_matrix[k * k], g_tbls);
+
+    // Generate EC parity blocks from sources
+    ec_encode_data(len, k, p, g_tbls, fragments, &fragments[k]);
+}
+
+static int decode_data(uint32_t k, uint32_t p, uint32_t len,
+                       uint8_t *encode_matrix, uint8_t *g_tbls,
+                       uint8_t **fragments,
+                       struct m0_buf failed, uint8_t **recover_outp)
+{
+    uint32_t i, j, r;
+    uint32_t m = k+p;
     uint8_t s;
     uint8_t *temp_matrix = NULL;
     uint8_t *invert_matrix = NULL;
+    uint8_t *decode_matrix = NULL;
+    uint8_t *recover_srcs[KMAX] = {NULL};
     uint8_t *err_list = (uint8_t *)failed.b_addr;
     uint8_t frag_in_err[MMAX];
     int8_t ret = 0;
@@ -92,7 +99,9 @@ static int gen_decode_matrix(uint8_t *encode_matrix,
     // Allocate memory for matrices
     temp_matrix = m0_alloc(m * k);
     invert_matrix = m0_alloc(m * k);
-    if ((temp_matrix == NULL) || (invert_matrix == NULL)){
+    decode_matrix = m0_alloc(m * k);
+    if ((temp_matrix == NULL) || (invert_matrix == NULL) ||
+        (decode_matrix == NULL)){
         printf("Error with m0_alloc\n");
         ret = -1;
         goto exit;
@@ -112,7 +121,7 @@ static int gen_decode_matrix(uint8_t *encode_matrix,
             r++;
         for (j = 0; j < k; j++)
             temp_matrix[k * i + j] = encode_matrix[k * r + j];
-        decode_index[i] = r;
+        recover_srcs[i] = fragments[r];
     }
 
     // Invert matrix to get recovery matrix
@@ -120,6 +129,7 @@ static int gen_decode_matrix(uint8_t *encode_matrix,
     if ( ret != 0)
         goto exit;
 
+    // Create decode matrix
     for (p = 0; p < failed.b_nob; p++)
     {
         // Get decode matrix with only wanted recovery rows
@@ -144,9 +154,14 @@ static int gen_decode_matrix(uint8_t *encode_matrix,
         }
     }
 
+    // Recover data
+    ec_init_tables(k, failed.b_nob, decode_matrix, g_tbls);
+    ec_encode_data(len, k, failed.b_nob, g_tbls, recover_srcs, recover_outp);
+
 exit:
     m0_free(temp_matrix);
     m0_free(invert_matrix);
+    m0_free(decode_matrix);
 
     return ret;
 }
@@ -158,14 +173,12 @@ static int ub_test(uint32_t k, uint32_t p, uint32_t len)
 
     // Fragment buffer pointers
     uint8_t *frag_ptrs[MMAX] = {NULL};
-    uint8_t *recover_srcs[KMAX] = {NULL};
     uint8_t *recover_outp[KMAX] = {NULL};
     uint8_t *frag_err_list = NULL;
 
     // Coefficient matrices
-    uint8_t *encode_matrix, *decode_matrix;
+    uint8_t *encode_matrix;
     uint8_t *g_tbls;
-    uint8_t decode_index[MMAX];
 
     struct m0_buf fail_buf = {0};
 
@@ -173,10 +186,9 @@ static int ub_test(uint32_t k, uint32_t p, uint32_t len)
 
     // Allocate coding matrices
     encode_matrix = m0_alloc(m * k);
-    decode_matrix = m0_alloc(m * k);
     g_tbls = m0_alloc(k * p * 32);
 
-    if (encode_matrix == NULL || decode_matrix == NULL || g_tbls == NULL) {
+    if (encode_matrix == NULL || g_tbls == NULL) {
         printf("Test failure! Error with m0_alloc\n");
         result = -1;
         goto exit;
@@ -213,39 +225,25 @@ static int ub_test(uint32_t k, uint32_t p, uint32_t len)
     // Fill sources with random data
     for (i = 0; i < k; i++)
         for (j = 0; j < len; j++)
-            frag_ptrs[i][j] = rand();
+            frag_ptrs[i][j] = m0_rnd(255, &seed);
 
     gf_gen_cauchy1_matrix(encode_matrix, m, k);
 
-    // Initialize g_tbls from encode matrix
-    ec_init_tables(k, p, &encode_matrix[k * k], g_tbls);
-
-    // Generate EC parity blocks from sources
-    ec_encode_data(len, k, p, g_tbls, frag_ptrs, &frag_ptrs[k]);
+    // Generate parity
+    encode_data(k, p, len, encode_matrix, g_tbls, frag_ptrs);
 
     // Get list of failed fragments
     unit_spoil(&fail_buf, m);
 
-    // Find a decode matrix to regenerate all erasures from remaining frags
-    result = gen_decode_matrix(encode_matrix, decode_matrix,
-                               decode_index, fail_buf, k, m);
-    if ( result != 0 ) {
-            printf("Failed to generate decode matrix\n");
-            goto exit;
-    }
-
-    // Pack recovery array pointers as list of valid fragments
-    for (i = 0; i < k; i++)
-        recover_srcs[i] = frag_ptrs[decode_index[i]];
-
-    // Recover data
-    ec_init_tables(k, fail_buf.b_nob, decode_matrix, g_tbls);
-    ec_encode_data(len, k, fail_buf.b_nob, g_tbls, recover_srcs, recover_outp);
+    // Recover corrupted fragments in recover_outp
+    decode_data(k, p, len, encode_matrix, g_tbls, frag_ptrs,
+                fail_buf, recover_outp);
 
     // Check that recovered buffers are the same as original
     for (i = 0; i < fail_buf.b_nob; i++) {
         if (memcmp(recover_outp[i], frag_ptrs[frag_err_list[i]], len)) {
-            printf(" Fail erasure recovery %d, frag %d\n", i, frag_err_list[i]);
+            printf(" Fail erasure recovery %d, frag %d\n",
+                   i, frag_err_list[i]);
             result = -1;
             goto exit;
         }
@@ -253,7 +251,6 @@ static int ub_test(uint32_t k, uint32_t p, uint32_t len)
 
 exit:
     m0_free(encode_matrix);
-    m0_free(decode_matrix);
     m0_free(g_tbls);
     m0_free(frag_err_list);
     for (i = 0; i < m; i++) {
@@ -317,8 +314,8 @@ struct m0_ub_set ec_isa_ub = {
     .us_fini = NULL,
     .us_run  = {
             { .ub_name  = "s 10/05/ 4K",
-                .ub_iter  = UB_ITER,
-                .ub_round = ub_small_4096 },
+              .ub_iter  = UB_ITER,
+              .ub_round = ub_small_4096 },
 
             { .ub_name  = "m 20/06/ 4K",
               .ub_iter  = UB_ITER,
