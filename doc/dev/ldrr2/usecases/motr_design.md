@@ -9,7 +9,9 @@
       - [2.2.1:Storage-Failure-Analysis](#2.2.1:Storage-Failure-Analysis)
       - [2.2.2:Network-Failure-Analysis](#2.2.2:Network-Failure-Analysis)
       - [2.2.3:Motr-Hare-HA-Notification](#2.2.3:Motr-Hare-HA-Notification)
-- [2:Sequence-Flow-R2](#2:Sequence-Flow-R2)
+- [3:Sequence-Flow-R2](#2:Sequence-Flow-R2)
+   - [3.1:Simple-Object-Get](#3.1:Simple-Object-Get)
+   - [3.2:Simple-Object-Put](#3.2:Simple-Object-Put)
 
 # Acronyms
 | **Abbreviation** | **Description** |
@@ -142,23 +144,40 @@ The figure below shows motr-hare interface for HA notification and DG failure re
 
 Motr will notify Hare when there is any error in accessing storage (STOB IO Error). Hare will not take any action on this error. Hare will take action on HA events related to storage hardware failure from SSPL.
 
-# 2:Sequence-Flow-R2
+# 3:Sequence-Flow-R2
 This section will have sequence flow diagram for all the case in motr R2
 
-# 2:Simple-Object-Get
+# 3.1:Simple-Object-Get
 Sequence flow for simple object get is shown in figure below
 1. S3 Client sends GET request with <bucket_name><object_name> and S3 Server will receive this request
 1. S3 Server will do first lookup using <bucket_name>
    - Lookup will return <account_id> 
 1. S3 Server will do second lookup with <bucket_name><account_id> 
    - Lookup will return <object_list_index> and details of corresponding SS <poll_ver>
-1. S3 Server will do third lookup with <object_list_index>
+1. S3 Server will do third lookup with <object_list_index><object_name>
    - Lookup will return <layout_id><pool_ver><object_ID>
 1. Based on the layout ID and SS info, S3 server will send Read request to motr server
    - Read request will be routed to controller and data will be returned
-1. Once all data is returned, status 200 will be returned to user.
+1. Once all data is returned, status OK/200 will be returned to user.
 
 ![Simple Object Get](images/simple_object_get.png)
+
+# 3.2:Simple-Object-Put
+Sequence flow for simple object get is shown in figure below
+1. S3 Client sends PUT request with <bucket_name><object_name> and S3 Server will receive this request
+1. S3 Server will do first lookup using <bucket_name>
+   - Lookup will return <account_id> 
+1. S3 Server will do second lookup with <bucket_name><account_id> 
+   - Lookup will return <object_list_index> and details of corresponding SS <poll_ver>
+1. S3 Server will do third lookup with <object_list_index><object_name>
+   - Object should not be present as we are going to create it!
+1. K-Parity unit for N-data unit will be created
+   - N+K unit of data will be writen to volume distrubuted across DG
+1. Object metadata e.g. <layout_id><pool_ver><object_ID> will be written to <object_list_index>
+   - Metadata will be replicated across volumes of K DG
+1. Once all data is written, status OK/200 will be returned to user.
+
+![Simple Object Put](images/simple_object_put.png)
 
 # **NOTE: WIP**
 
