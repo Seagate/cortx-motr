@@ -1550,59 +1550,63 @@ enum m0_rm_pin_flags {
  * Fields of this struct are protected by the owner's lock.
  *
  * Abstractly speaking, pins allow N:M (many to many) relationships between
- * incoming requests and credits: an incoming request has a list of pins "from"
- * it and a credit has a list of pins "to" it. A typical use case is as follows:
+ * incoming requests and credits: an incoming request has a list of pins
+ * "from" it and a credit has a list of pins "to" it. A typical use case
+ * is as follows:
  *
- * @b Protection.
+ * @b Protection
  *
- * While a credit is actively used, it cannot be revoked. For example, while
- * file write is going on, the credit to write in the target file extent must be
- * held. A credit is held (or pinned) from the return from m0_rm_credit_get()
- * until the matching call to m0_rm_credit_put(). To mark the credit as pinned,
- * m0_rm_credit_get() adds a M0_RPF_PROTECT pin from the incoming request to the
- * returned credit (generally, more than one credit can be pinned as result on
- * m0_rm_credit_get()). This pin is removed by the call to
- * m0_rm_credit_put(). Multiple incoming requests can pin the same credit.
+ * While a credit is actively used, it cannot be revoked. For example,
+ * while file write is going on, the credit to write in the target file
+ * extent must be held. A credit is held (or pinned) from the return from
+ * m0_rm_credit_get() until the matching call to m0_rm_credit_put(). To
+ * mark the credit as pinned, m0_rm_credit_get() adds a M0_RPF_PROTECT
+ * pin from the incoming request to the returned credit (generally, more
+ * than one credit can be pinned as result on m0_rm_credit_get()). This
+ * pin is removed by the call to m0_rm_credit_put().
  *
- * @b Tracking.
+ * Multiple incoming requests can pin the same credit.
  *
- * M0_RPF_TRACK pin is added from the incoming request to the credit when
+ * @b Tracking
  *
- *   - An incoming request with a RIF_LOCAL_WAIT flag need to wait until a
+ * M0_RPF_TRACK pin is added from the incoming request to the credit when:
+ *
+ *   - An incoming request with a RIF_LOCAL_WAIT flag needs to wait until a
  *     conflicting pinned credit becomes unpinned;
  *
  *   - An incoming request need to wait until reserved credit pinned
  *     with M0_RPF_BARRIER is unpinned;
  *
- *   - An incoming request need to wait for outgoing request completion.
+ *   - An incoming request needs to wait for outgoing request completion.
  *
- * When the last M0_RPF_PROTECT pin is removed from a credit (credit becomes
- * "cached") or M0_RPF_BARRIER pin is removed, then the list of pins to the
- * credit is scanned. For each M0_RPF_TRACK pin on the list, its incoming
- * request is checked to see whether this was the last tracking pin the request
- * is waiting for.
+ * When the last M0_RPF_PROTECT pin is removed from a credit (credit
+ * becomes "cached") or M0_RPF_BARRIER pin is removed, then the list of
+ * pins to the credit is scanned. For each M0_RPF_TRACK pin on the list,
+ * its incoming request is checked to see whether this was the last
+ * tracking pin the request is waiting for.
  *
- * An incoming request might also issue an outgoing request to borrow or revoke
- * some credits, necessary to fulfill the request. An M0_RPF_TRACK pin is added
- * from the incoming request to the credit embedded in the outgoing request
- * (m0_rm_outgoing::rog_want::rl_credit). Multiple incoming requests can pin the
- * same outgoing request. When the outgoing request completes, the incoming
- * requests waiting for it are checked as above.
+ * An incoming request might also issue an outgoing request to borrow or
+ * revoke some credits, necessary to fulfill the request. An M0_RPF_TRACK
+ * pin is added from the incoming request to the credit embedded in the
+ * outgoing request (m0_rm_outgoing::rog_want::rl_credit). Multiple incoming
+ * requests can pin the same outgoing request. When the outgoing request
+ * completes, the incoming requests waiting for it are checked as above.
  *
- * @b Barrier.
+ * @b Barrier
  *
- * Barrier is necessary to avoid live-locks and guarantee progress
- * of incoming request processing by pinning the credits with a
- * M0_RPF_BARRIER pin. Only RIF_RESERVE requests pin credits with
- * a M0_RPF_BARRIER.
+ * Barrier is necessary to avoid live-locks and guarantee progress of
+ * incoming request processing by pinning the credits with a M0_RPF_BARRIER
+ * pin. Only RIF_RESERVE requests pin credits with a M0_RPF_BARRIER.
  *
- * Credit which is pinned with M0_RPF_BARRIER is called "reserved". Only
- * one incoming request can reserve the credit at any given time, others
+ * A credit pinned with M0_RPF_BARRIER is called "reserved". Only one
+ * incoming request can reserve the credit at any given time, others
  * should wait completion of this incoming request (by placing M0_RPF_TRACK
- * pin, as usual). It is possible that already reserved credit should be
- * reassigned to another incoming request with higher reserve priority
- * than the current one reserving the credit (@ref m0_rm_incoming). Such
- * situation is called "barrier overcome".
+ * pin, as usual).
+ *
+ * It is possible that already reserved credit should be reassigned to
+ * another incoming request with higher reserve priority than the current
+ * one reserving the credit (@ref m0_rm_incoming). Such situation is called
+ * "barrier overcome".
  *
  * M0_RPF_BARRIER pins are not set for outgoing requests, but they set on
  * outgoing requests replies in the following way. When the request is
@@ -1612,6 +1616,8 @@ enum m0_rm_pin_flags {
  * selected and the credit is pinned for it with M0_RPF_BARRIER. It is done
  * this way to add M0_RPF_BARRIER before any other waiting for the same
  * credit request could be excited and possibly grab the credit.
+ *
+ * @b Example
  *
  * @verbatim
  *
@@ -1633,20 +1639,19 @@ enum m0_rm_pin_flags {
  *
  * @endverbatim
  *
- * On this diagram, INC[S] is an incoming request in a state S, R is a credit, T
- * is an M0_RPF_TRACK pin and P is an M0_RPF_PROTECT pin.
+ * On this diagram, INC[S] is an incoming request in a state S, R is a
+ * credit, T is an M0_RPF_TRACK pin and P is an M0_RPF_PROTECT pin.
  *
- * The incoming request in the middle has been processed successfully and now
- * protects its credit.
+ * The incoming request in the middle has been processed successfully and
+ * now protects its credit.  The topmost incoming request waits for two
+ * possessed credits to become unpinned and also waiting for completion
+ * of two outgoing requests. The incoming request on the bottom waits
+ * for completion of the same outgoing request.
  *
- * The topmost incoming request waits for 2 possessed credits to become unpinned
- * and also waiting for completion of 2 outgoing requests. The incoming request
- * on the bottom waits for completion of the same outgoing request.
- *
- * m0_rm_credit_put() scans the request's pin list (horizontal direction) and
- * removes all pins. If the last pin was removed from a credit, credit's pin
- * list is scanned (vertical direction), checking incoming requests for possible
- * state transitions.
+ * m0_rm_credit_put() scans the request's pin list (horizontal direction)
+ * and removes all pins. If the last pin was removed from a credit,
+ * credit's pin list is scanned (vertical direction), checking incoming
+ * requests for possible state transitions.
  */
 struct m0_rm_pin {
 	uint32_t               rp_flags;
