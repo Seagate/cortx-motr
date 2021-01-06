@@ -164,7 +164,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 	int                 nr;
 	unsigned            pid;
 	unsigned            portal;
-	unsigned            portnum;
+	// unsigned            portnum;
 	unsigned            tmid;
 	char		   *lp       = "127.0.0.1";
 
@@ -213,8 +213,8 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 		return M0_ERR_INFO(-EPROTO,
 			"portal: %u, tmid: %u", portal, tmid);
 
-	portnum  = htons(tmid | (1 << 10) | ((portal - 30) << 11));
-	sscanf(portnum,"%d",port);
+	// portnum  = htons(tmid | (1 << 10) | ((portal - 30) << 11));
+	// sscanf(portnum,"%d",port);
 	fab_autotm[tmid] = 1;
 	return M0_RC(0);
 }
@@ -312,7 +312,7 @@ static int libfab_ep_addr_decode(const char *name, char *node,
 	else if((strncmp(name,"libfab",6))==0)
 		result = libfab_ep_addr_decode_native(name, node,
                                                       nodeSize, port, portSize);
-	else if (name[0] < '0' || name[0] > '9')
+	// else if (name[0] < '0' || name[0] > '9')
 		//result = libfab_ep_addr_decode_sock(name, node,
 		//				    nodeSize, port, portSize);
 	else
@@ -649,7 +649,7 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 	rc = libfab_ep_addr_decode(name, ep->fep_name.fen_addr,
 				   ARRAY_SIZE(ep->fep_name.fen_addr),
 				   ep->fep_name.fen_port,
-				   ARAY_SIZE(ep->fep_name.fen_port));
+				   ARRAY_SIZE(ep->fep_name.fen_port));
 	if (rc != FI_SUCCESS) {
 		libfab_ep_param_free(ep, ma);
 		return M0_RC(rc);
