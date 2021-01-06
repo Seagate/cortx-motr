@@ -236,8 +236,10 @@ static int ub_test(uint32_t k, uint32_t p, uint32_t len)
     unit_spoil(&fail_buf, m);
 
     // Recover corrupted fragments in recover_outp
-    decode_data(k, p, len, encode_matrix, g_tbls, frag_ptrs,
-                fail_buf, recover_outp);
+    result = decode_data(k, p, len, encode_matrix, g_tbls, frag_ptrs,
+                         fail_buf, recover_outp);
+    if ( result )
+        goto exit;
 
     // Check that recovered buffers are the same as original
     for (i = 0; i < fail_buf.b_nob; i++) {
