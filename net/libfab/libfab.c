@@ -1313,8 +1313,8 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
  */
 static int libfab_buf_add(struct m0_net_buffer *nb)
 {
-	struct m0_fab__buf      *fbp;
-	struct m0_fab__tm       *ma = libfab_buf_ma(fbp);
+	struct m0_fab__buf      *fbp = nb->nb_xprt_private;
+	struct m0_fab__tm       *ma  = libfab_buf_ma(fbp);
 	struct fid_mr           *mr;
 	struct m0_fab__ep       *ep;
 	struct m0_fab__bdesc    *peer;
@@ -1328,7 +1328,6 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	M0_PRE(nb->nb_offset == 0); /* Do not support an offset during add. */
 	M0_PRE((nb->nb_flags & M0_NET_BUF_RETAIN) == 0);
 
-	fbp  = nb->nb_xprt_private;
 	mr   = fbp->fb_mr;
 	qt   = nb->nb_qtype;
 	ep   = libfab_buf_ep(nb->nb_ep);
@@ -1407,7 +1406,7 @@ static void libfab_buf_del(struct m0_net_buffer *nb)
 {
 	struct m0_fab__buf *buf = nb->nb_xprt_private;
 	struct m0_fab__ep  *fep = nb->nb_dom->nd_xprt_private;
-	struct m0_fab__tm  *ma = libfab_buf_ma(fbp);
+	struct m0_fab__tm  *ma = libfab_buf_ma(buf);
 	int                 ret;
 
 	M0_PRE(libfab_tm_is_locked(ma) && libfab_tm_invariant(ma) &&
@@ -1544,14 +1543,18 @@ static int m0_fab_bdesc_create(struct m0_fab__ep_name *addr,
 			struct m0_fab__buf *buf, struct m0_net_buf_desc *out)
 {
 	struct m0_fab__bdesc  bd = { .fbd_addr = *addr };
+	return m0_fab_bdesc_encode(&bd, out);
+#if 0
 
 	m0_cookie_init(&bd.fbd_cookie, &buf->fbp_cookie);
 	return m0_fab_bdesc_encode(&bd, out);
+#endif
 }
 
 static int m0_fab_bdesc_encode(const struct m0_fab__bdesc *bd,
 			struct m0_net_buf_desc *out)
 {
+#if 0
 	m0_bcount_t len;
 	int         result;
 
@@ -1563,12 +1566,17 @@ static int m0_fab_bdesc_encode(const struct m0_fab__bdesc *bd,
 	else
 		m0_free0(&out->nbd_data);
 	return M0_RC(result);
+#endif 
+	return 0;
 }
 
 static int m0_fab_bdesc_decode(const struct m0_net_buf_desc *nbd, struct m0_fab__bdesc *out)
 {
+#if 0
 	return m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(m0_fab__bdesc_xc, out),
 					nbd->nbd_data, nbd->nbd_len);
+#endif
+	return 0;
 }
 
 static const struct m0_net_xprt_ops libfab_xprt_ops = {

@@ -27,21 +27,12 @@
 #include <netinet/in.h>                  /* INET_ADDRSTRLEN */
 #include <arpa/inet.h>                   /* inet_pton */  
 
-/* import */
-#include "lib/types.h"
-#include "lib/time.h"
-#include "lib/tlist.h"
-#include "lib/misc.h"               /* ARRAY_SIZE */
-#include "xcode/xcode_attr.h"
-
 #include "rdma/fabric.h"
 #include "rdma/fi_cm.h"
 #include "rdma/fi_domain.h"
 #include "rdma/fi_eq.h"
 #include "rdma/fi_endpoint.h"
 #include "lib/cookie.h"
-
-#include "net/libfab/libfab_xcode.h"
 
 extern struct m0_net_xprt m0_net_libfab_xprt;
 
@@ -97,7 +88,7 @@ struct m0_fab__tm {
 struct m0_fab__bdesc {
         struct m0_fab__ep_name  fbd_addr;
         struct m0_cookie 	fbd_cookie;
-}M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc); 
+};//M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc); 
 
 /**
  *    Private data pointed to by m0_net_buffer::nb_xprt_private.

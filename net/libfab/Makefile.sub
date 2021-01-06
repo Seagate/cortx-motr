@@ -2,8 +2,3 @@ nobase_motr_include_HEADERS += net/libfab/libfab_internal.h
 
 motr_libmotr_la_SOURCES  += \
 			    net/libfab/libfab.c
-
-nodist_motr_libmotr_la_SOURCES += net/libfab/libfab_internal_xc.c
-
-XC_FILES += \
-            net/libfab/libfab_internal_xc.h
