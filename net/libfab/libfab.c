@@ -131,10 +131,9 @@ M0_INTERNAL int m0_net_libfab_init(void)
 	int result = 0;
 
 	/*  TODO: Uncomment it when all the changes are intergated
-	*  commnet to avoid compilation ERROR 
-	*  m0_net_xprt_register(&m0_net_libfab_xprt);
-	*  m0_net_xprt_default_set(&m0_net_libfab_xprt);
-	*/
+	*  commnet to avoid compilation ERROR */ 
+	m0_net_xprt_register(&m0_net_libfab_xprt);
+	m0_net_xprt_default_set(&m0_net_libfab_xprt);
 	return M0_RC(result);
 }
 
@@ -144,6 +143,7 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 	*  commnet to avoid compilation ERROR 
 	*	m0_net_xprt_deregister(&m0_net_libfab_xprt);
 	*/
+	m0_net_xprt_deregister(&m0_net_libfab_xprt);
 }
 
 /**
