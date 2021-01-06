@@ -98,7 +98,7 @@ This section will analyze failure domain and its impact on data/metadata consist
 With respect of motr following category of storage failure can occur:
 
 | **Failure Component** | **Description** | **Motr Failure Domain Mapping** | 
-| ----------- | ----------- | ----------- | 
+| --------------------- | --------------- | ------------------------------- | 
 | DG Failure | More than acceptable number of drive failure in Enclosure | Disk Group Failure |
 | Controller | Single Controller Failure | No Impact (User notification) |
 | Both Controller Failure | Node Failure / Both DG unaccessible | Node Failure / Dual DG Failure  |
@@ -111,7 +111,7 @@ All the failure handling maps to DG failure in Motr.
 With respect of motr following category of newtowork failure can occur:
 
 | **Failure Type** | **Motr  Motr Action** |
-| ----------- |  ----------- | 
+| ---------------- | --------------------- | 
 | Single Node Unreachable in SS | Node Failure in Storage Set* |    
 | Single Node Unreachable in other SS | Avoid metadata reads on those nodes |
 | Multiple Node Unreachable in SS 
@@ -130,7 +130,7 @@ Hare will notify motr when Disk Group or Node is available/unavailable.
 Motr
 
 | **HA Notification**  | **Parameter** | 
-| ----------- | ----------- | ----------- |
+| -------------------- | ------------- | 
 | Disk Group Failure | Node ID, DG Number | 
 | Disk Group Available | Node ID, DG Number | 
 | Node Failure | Node ID | 
