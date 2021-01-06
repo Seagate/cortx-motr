@@ -53,6 +53,8 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
 #include "lib/trace.h"          /* M0_ENTRY() */
+#include <netinet/in.h>         /* INET_ADDRSTRLEN */
+#include <arpa/inet.h>          /* inet_pton, htons */
 #include "net/net.h"            /* struct m0_net_domain */
 #include "lib/memory.h"         /* M0_ALLOC_PTR()*/
 #include "libfab_internal.h"
@@ -61,9 +63,7 @@
 #define LIBFAB_VERSION FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION)
 
 static char *providers[] = { "verbs", "tcp", "sockets" };
-/* TODO: Remove after merging EOS-15552 */
-static char def_node[] = "127.0.0.1";
-static char def_port[] = "1000";
+
 /** Parameters required for libfabric configuration */
 enum m0_fab__mr_params {
 	/** Fabric memory access. */
@@ -82,7 +82,8 @@ M0_TL_DESCR_DEFINE(fab_buf, "libfab_buf",
 		   M0_NET_LIBFAB_BUF_MAGIC, M0_NET_LIBFAB_BUF_HEAD_MAGIC);
 M0_TL_DEFINE(fab_buf, static, struct m0_fab__buf);
 
-static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port);
+static int libfab_ep_addr_decode(const char *name, char *node,
+				 size_t nodeSize, char *port, size_t portSize);
 static int libfab_ep_res_init(struct m0_fab__ep *ep, struct m0_fab__tm *tm);
 static int libfab_pep_res_init(struct m0_fab__ep *ep, struct m0_fab__tm *tm);
 static struct m0_fab__ep *libfab_ep_net(struct m0_net_end_point *net);
@@ -132,6 +133,183 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 	*	m0_net_xprt_deregister(&m0_net_libfab_xprt);
 	*/
 }
+
+/**
+ * Bitmap of used transfer machine identifiers.
+ *
+ * This is used to allocate unique transfer machine identifiers for LNet network
+ * addresses with wildcard transfer machine identifier (like
+ * "192.168.96.128@tcp1:12345:31:*").
+ *
+ */
+static char fab_autotm[1024] = {};
+
+static int libfab_ep_addr_decode_lnet(const char *name, char *node,
+			              size_t nodeSize, char *port,
+                                      size_t portSize)
+{
+	char               *at       = strchr(name, '@');
+	int                 nr;
+	unsigned            pid;
+	unsigned            portal;
+	unsigned            portnum;
+	unsigned            tmid;
+	char		   *lp       = "127.0.0.1";
+
+	if (strncmp(name, "0@lo", 4) == 0) {
+		M0_PRE(nodeSize >= ((strlen(lp)+1)) );
+		memcpy(node, lp, (strlen(lp)+1));
+	} else {
+		if (at == NULL || at - name >= nodeSize)
+			return M0_ERR(-EPROTO);
+
+		M0_PRE(nodeSize >= (at-name)+1);
+		memcpy(node, name, at - name);
+	}
+	if ((at = strchr(at, ':')) == NULL) /* Skip 'tcp...:' bit. */
+		return M0_ERR(-EPROTO);
+	nr = sscanf(at + 1, "%u:%u:%u", &pid, &portal, &tmid);
+	if (nr != 3) {
+		nr = sscanf(at + 1, "%u:%u:*", &pid, &portal);
+		if (nr != 2)
+			return M0_ERR(-EPROTO);
+		for (nr = 0; nr < ARRAY_SIZE(fab_autotm); ++nr) {
+			if (fab_autotm[nr] == 0) {
+				tmid = nr;
+				break;
+			}
+		}
+		if (nr == ARRAY_SIZE(fab_autotm))
+			return M0_ERR(-EADDRNOTAVAIL);
+	}
+	/*
+	* Hard-code LUSTRE_SRV_LNET_PID to avoid dependencies on the Lustre
+	* headers.
+	*/
+	if (pid != 12345)
+		return M0_ERR(-EPROTO);
+	/*
+	* Deterministically combine portal and tmid into a unique 16-bit port
+	* number (greater than 1024). Tricky.
+	*
+	* Port number is, in binary: tttttttttt1ppppp, that is, 10 bits of tmid
+	* (which must be less than 1024), followed by a set bit (guaranteeing
+	* that the port is not reserved), followed by 5 bits of (portal - 30),
+	* so that portal must be in the range 30..61.
+	*/
+	if (tmid >= 1024 || (portal - 30) >= 32)
+		return M0_ERR_INFO(-EPROTO,
+			"portal: %u, tmid: %u", portal, tmid);
+
+	portnum  = htons(tmid | (1 << 10) | ((portal - 30) << 11));
+	sscanf(portnum,"%d",port);
+	fab_autotm[tmid] = 1;
+	return M0_RC(0);
+}
+
+
+/**
+ * Used to take the ip and port from the given end point
+ * ep_name : endpoint address from domain
+ * node    : copy ip address from ep_name
+ * port    : copy port number from ep_name
+ * Example of ep_name IPV4 192.168.0.1:4235
+ *                    IPV6 [4002:db1::1]:4235
+ */
+static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
+			                size_t nodeSize, char *port,
+                                        size_t portSize)
+{
+	char     *cp;
+	size_t    n;
+	int       rc = 0;
+
+	M0_PRE(ep_name != NULL);
+
+	M0_ENTRY("ep_name=%s", ep_name);
+
+	if( ep_name[0] == '[' ) {
+		/* IPV6 pattern */
+		cp = strchr(ep_name, ']');
+		if (cp == NULL)
+			return M0_ERR(-EINVAL);
+
+		ep_name++;
+		n = cp - ep_name;
+		if (n == 0 )
+			return M0_ERR(-EINVAL);
+		cp++;
+		if (*cp != ':')
+		return M0_ERR(-EINVAL);
+		cp++;
+	}
+	else {
+		/* IPV4 pattern */
+		cp = strchr(ep_name, ':');
+		if (cp == NULL)
+			return M0_ERR(-EINVAL);
+
+		n = cp - ep_name;
+		if (n == 0 )
+			return M0_ERR(-EINVAL);
+
+		++cp;
+	}
+
+	M0_PRE(nodeSize >= (n+1));
+	M0_PRE(portSize >= (strlen(cp)+1));
+
+	memcpy(node, ep_name, n);
+	node[n] = 0;
+
+	n=strlen(cp);
+	memcpy(port, cp, n);
+	port[n] = 0;
+
+	return M0_RC(rc);
+}
+
+/**
+ * Parses network address.
+ *
+ * The following address formats are supported:
+ *
+ *     - lnet compatible, see nlx_core_ep_addr_decode():
+ *
+ *           nid:pid:portal:tmid
+ *
+ *       for example: "10.0.2.15@tcp:12345:34:123" or
+ *       "192.168.96.128@tcp1:12345:31:*"
+ *
+ *     - sock format, see socket(2):
+ *           family:type:ipaddr[@port]
+ *
+ *
+ *     - libfab compatible format
+ *       for example IPV4 libfab:192.168.0.1:4235
+ *                   IPV6 libfab:[4002:db1::1]:4235
+ *
+ */
+static int libfab_ep_addr_decode(const char *name, char *node,
+				 size_t nodeSize, char *port, size_t portSize)
+{
+	int result;
+
+	if( name != NULL || name[0] == 0)
+		result =  M0_ERR(-EPROTO);
+	else if((strncmp(name,"libfab",6))==0)
+		result = libfab_ep_addr_decode_native(name, node,
+                                                      nodeSize, port, portSize);
+	else if (name[0] < '0' || name[0] > '9')
+		//result = libfab_ep_addr_decode_sock(name, node,
+		//				    nodeSize, port, portSize);
+	else
+		/* Lnet format. */
+		result = libfab_ep_addr_decode_lnet(name, node,
+						    nodeSize, port, portSize);
+	return M0_RC(result);
+}
+
 
 static void libfab_tm_lock(struct m0_fab__tm *tm)
 {
@@ -374,17 +552,6 @@ static void libfab_poller(struct m0_fab__tm *tm)
 	}
 }
 
-/**
- * This function will extract the ip addr and port from the given ep str
- */
-static int libfab_ep_addr_decode(const char *ep_name, char *node, char *port)
-{
-	M0_PRE(ep_name != NULL);
-	strcpy(node, def_node);
-	strcpy(port, def_port);
-	return M0_RC(0);
-}
-
 /** 
  * Converts generic end-point to its libfabric structure.
  */
@@ -425,7 +592,9 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 
 	M0_PRE(name != NULL);
 	rc = libfab_ep_addr_decode(name, ep.fep_name.fen_addr, 
-				   ep.fep_name.fen_port);
+				   ARRAY_SIZE(ep.fep_name.fen_addr), 
+				   ep.fep_name.fen_port, 
+				   ARRAY_SIZE(ep.fep_name.fen_port));
 	if (rc != FI_SUCCESS)
 		return M0_ERR(-EINVAL);
 
@@ -466,7 +635,9 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 	ep->fep_pep = NULL;
 
 	rc = libfab_ep_addr_decode(name, ep->fep_name.fen_addr,
-				   ep->fep_name.fen_port);
+				   ARRAY_SIZE(ep->fep_name.fen_addr),
+				   ep->fep_name.fen_port,
+				   ARAY_SIZE(ep->fep_name.fen_port));
 	if (rc != FI_SUCCESS) {
 		libfab_ep_param_free(ep, ma);
 		return M0_RC(rc);
