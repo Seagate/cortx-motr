@@ -105,15 +105,16 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 static char fab_autotm[1024] = {};
 
 static int libfab_ep_addr_decode_lnet(const char *name, char *node,
-			size_t nodeSize, char *port, size_t portSize)
+			              size_t nodeSize, char *port,
+                                      size_t portSize)
 {
-	char               *at                  = strchr(name, '@');
+	char               *at       = strchr(name, '@');
 	int                 nr;
 	unsigned            pid;
 	unsigned            portal;
 	unsigned            portnum;
 	unsigned            tmid;
-	char		   *lp			= "127.0.0.1";
+	char		   *lp       = "127.0.0.1";
 
 	if (strncmp(name, "0@lo", 4) == 0) {
 		M0_PRE(nodeSize >= ((strlen(lp)+1)) );
@@ -159,6 +160,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 	if (tmid >= 1024 || (portal - 30) >= 32)
 		return M0_ERR_INFO(-EPROTO,
 			"portal: %u, tmid: %u", portal, tmid);
+
 	portnum  = htons(tmid | (1 << 10) | ((portal - 30) << 11));
 	sscanf(portnum,"%d",port);
 	fab_autotm[tmid] = 1;
@@ -175,7 +177,8 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
  *                    IPV6 [4002:db1::1]:4235
  */
 static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
-			  size_t nodeSize, char *port, size_t portSize)
+			                size_t nodeSize, char *port,
+                                        size_t portSize)
 {
 	char     *cp;
 	size_t    n;
@@ -238,9 +241,13 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
  *       for example: "10.0.2.15@tcp:12345:34:123" or
  *       "192.168.96.128@tcp1:12345:31:*"
  *
+ *     - sock format, see socket(2):
+ *           family:type:ipaddr[@port]
+ *
+ *
  *     - libfab compatible format
- *       for example IPV4 192.168.0.1:4235
- *                   IPV6 [4002:db1::1]:4235
+ *       for example IPV4 libfab:192.168.0.1:4235
+ *                   IPV6 libfab:[4002:db1::1]:4235
  *
  */
 static int libfab_ep_addr_decode(const char *name, char *node,
@@ -248,15 +255,18 @@ static int libfab_ep_addr_decode(const char *name, char *node,
 {
 	int result;
 
-	if (name[0] == 0)
+	if( name != NULL || name[0] == 0)
 		result =  M0_ERR(-EPROTO);
-	else if (name[0] < '0' || name[0] > '9' || name[0] == '[')
+	else if((strncmp(name,"libfab",6))==0)
 		result = libfab_ep_addr_decode_native(name, node,
-						nodeSize, port, portSize);
+                                                      nodeSize, port, portSize);
+	else if (name[0] < '0' || name[0] > '9')
+		//result = libfab_ep_addr_decode_sock(name, node,
+		//				    nodeSize, port, portSize);
 	else
-	/* Lnet format. */
-	result = libfab_ep_addr_decode_lnet(name, node,
-						nodeSize, port, portSize);
+		/* Lnet format. */
+		result = libfab_ep_addr_decode_lnet(name, node,
+						    nodeSize, port, portSize);
 	return M0_RC(result);
 }
 
@@ -293,7 +303,7 @@ static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	 * passsed from tm
 	 */
 	libfab_ep_addr_decode(ep_name, node, ARRAY_SIZE(node), 
-			port,ARRAY_SIZE(port));
+			      port,ARRAY_SIZE(port));
 
 	rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
 			NULL, NULL, 0, fab_hints,
