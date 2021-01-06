@@ -320,6 +320,15 @@ static void libfab_poller(struct m0_fab__tm *tm)
 
 	while (tm->ftm_shutdown == false) {
 
+		while(1) {
+			if (m0_mutex_trylock(&tm->ftm_net_ma->ntm_mutex) != 0) {
+				libfab_tm_lock(tm);
+				libfab_tm_unlock(tm);
+			} else
+				break;
+		}
+		M0_ASSERT(libfab_tm_is_locked(tm) && libfab_tm_invariant(tm));
+
 		memset(ctx, 0, sizeof(ctx));
 		wait_cnt = fi_wait(tm->ftm_waitset, -1);
 		if (wait_cnt) {
@@ -342,7 +351,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 							cq_err.err);
 						}
 						libfab_buf_done(comp.op_context,
-							 -ECANCELED);
+								-ECANCELED);
 					}
 				}
 			}
@@ -359,6 +368,9 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		}
 		libfab_tm_buf_timeout(tm);
 		libfab_tm_buf_done(tm);
+
+		M0_ASSERT(libfab_tm_invariant(tm));
+		libfab_tm_unlock(tm);
 	}
 }
 
