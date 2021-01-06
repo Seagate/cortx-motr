@@ -473,7 +473,8 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 	if (net_dom->nd_xprt == &m0_net_lnet_xprt)
 		max_msgs_size = m0_rpc_max_msg_size(net_dom, msg_size);
 	else
-		max_msgs_size = 4096; //TODO should be confirm by Nikita
+		/* TODO should be confirm by Nikita. */
+		max_msgs_size = 0xffffffff;
 
 	rc = m0_net_tm_pool_attach(tm, pool, &rpc_buf_recv_cb,
 				   max_msgs_size,	
