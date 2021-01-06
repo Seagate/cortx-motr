@@ -47,6 +47,8 @@
 
  */
 
+#define M0_IS_ALIGNED(addr, size)   (((addr) & ((typeof(addr))(size) - 1)) == 0)
+
 enum m0_balloc_allocation_status {
 	M0_BALLOC_AC_FOUND    = 1,
 	M0_BALLOC_AC_CONTINUE = 2,
@@ -611,7 +613,7 @@ static int balloc_sb_write(struct m0_balloc            *bal,
 	sb->bsb_last_check_time	= sb->bsb_format_time;
 	sb->bsb_mnt_count	= 0;
 	sb->bsb_max_mnt_count	= 1024;
-	sb->bsb_stripe_size	= 0;
+	sb->bsb_stripe_size	= M0_BALLOC_SB_STRIPE_SIZE / req->bfr_blocksize;
 
 	rc = sb_update(bal, grp);
 	if (rc != 0)
@@ -783,6 +785,10 @@ static void balloc_zone_init(struct m0_balloc_zone_param *zone, uint64_t type,
 	zone->bzp_freeblocks = freeblocks;
 	zone->bzp_fragments = fragments;
 	zone->bzp_maxchunk = maxchunk;
+	M0_SET0(&zone->bzp_maxchunk_ext);
+	M0_SET0(&zone->bzp_curchunk_ext);
+	m0_ext_init(&zone->bzp_maxchunk_ext);
+	m0_ext_init(&zone->bzp_maxchunk_ext);
 	m0_list_init(&zone->bzp_extents);
 }
 
@@ -1266,6 +1272,8 @@ static void zone_params_update(struct m0_balloc_group_info *grp,
 		&grp->bgi_normal : &grp->bgi_spare;
 	zp->bzp_maxchunk = max_check(zp->bzp_maxchunk,
 				     m0_ext_length(ext));
+	if (zp->bzp_maxchunk <= m0_ext_length(ext))
+		zp->bzp_maxchunk_ext = *ext;
 	zp->bzp_freeblocks += m0_ext_length(ext);
 }
 
@@ -1535,25 +1543,33 @@ static void balloc_db_update_credit(const struct m0_balloc *bal, int nr,
  * @param[in]  tgt	  requested extent.
  * @param[in]  alloc_type allocation type.
  * @param[out] current    free extent in target group for requested extent.
+ * @param[out] current    next free extent if available
  * @return true if extent is free.
  *	   false if extent is already allocated.
  */
 static bool is_extent_free(struct m0_balloc_group_info *grp,
 			   const struct m0_ext *tgt, uint64_t alloc_type,
-			   struct m0_ext **current)
+			   struct m0_ext **current, struct m0_ext **next)
 {
 	struct m0_lext              *le;
 	struct m0_balloc_zone_param *zp;
 	m0_bcount_t                  frags = 0;
+	bool                         next_flag = false;
 
 	M0_ENTRY();
 
 	zp = is_spare(alloc_type) ? &grp->bgi_spare : &grp->bgi_normal;
 
 	m0_list_for_each_entry(&zp->bzp_extents, le, struct m0_lext, le_link) {
-		*current = &le->le_ext;
-		if (m0_ext_is_partof(*current, tgt))
+		if (next_flag) {
+			*next = &le->le_ext;
 			break;
+		}
+		if (m0_ext_is_partof(&le->le_ext, tgt)) {
+			*current = &le->le_ext;
+			next_flag = true;
+			continue;
+		}
 		++frags;
 	}
 	return frags < zp->bzp_fragments;
@@ -1562,13 +1578,15 @@ static bool is_extent_free(struct m0_balloc_group_info *grp,
 static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 				  struct m0_balloc_group_info *grp,
 				  struct m0_ext *tgt, uint64_t alloc_type,
-				  struct m0_ext *cur)
+				  struct m0_ext *cur, struct m0_ext *next_free)
 {
 	struct m0_be_btree          *db  = &motr->cb_db_group_extents;
 	struct m0_buf                key;
 	struct m0_buf                val;
 	struct m0_lext              *le;
 	struct m0_lext              *lcur;
+	struct m0_ext                maxchunk_ext;
+	struct m0_ext               *curchunk_ext = NULL;
 	struct m0_balloc_zone_param *zp;
 	int                          rc = 0;
 	m0_bcount_t                  maxchunk;
@@ -1584,6 +1602,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 
 	zp = is_spare(alloc_type) ? &grp->bgi_spare : &grp->bgi_normal;
 	maxchunk = zp->bzp_maxchunk;
+	maxchunk_ext = zp->bzp_maxchunk_ext;
 
 	balloc_debug_dump_extent("current=", cur);
 
@@ -1596,6 +1615,8 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 				continue;
 			maxchunk = max_check(maxchunk,
 					     m0_ext_length(&le->le_ext));
+			if (maxchunk <= m0_ext_length(&le->le_ext))
+				maxchunk_ext = le->le_ext;
 		}
 	}
 
@@ -1619,6 +1640,8 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(cur));
+			if (maxchunk <= m0_ext_length(cur))
+				maxchunk_ext = *cur;
 		} else {
 			le = container_of(cur, struct m0_lext, le_ext);
 			lext_del(le);
@@ -1637,6 +1660,9 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			return M0_RC(rc);
 
 		maxchunk = max_check(maxchunk, m0_ext_length(cur));
+		if (maxchunk == m0_ext_length(cur))
+			maxchunk_ext = *cur;
+		curchunk_ext = cur;
 
 		if (next.e_start < tgt->e_start) {
 			/* there is still a head */
@@ -1655,9 +1681,20 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			m0_list_add_before(&lcur->le_link, &le->le_link);
 			zp->bzp_fragments++;
 			maxchunk = max_check(maxchunk, m0_ext_length(&next));
+			if (maxchunk <= m0_ext_length(&next))
+				maxchunk_ext = next;
 		}
 	}
 	zp->bzp_maxchunk = maxchunk;
+	zp->bzp_maxchunk_ext = maxchunk_ext;
+	if (curchunk_ext != NULL)
+		zp->bzp_curchunk_ext = *curchunk_ext;
+	else {
+		if (next_free != NULL)
+			zp->bzp_curchunk_ext = *next_free;
+		else
+			M0_SET0(&zp->bzp_curchunk_ext);
+	}
 	zp->bzp_freeblocks -= m0_ext_length(tgt);
 
 	grp->bgi_state |= M0_BALLOC_GROUP_INFO_DIRTY;
@@ -2243,6 +2280,7 @@ static int balloc_try_best_found(struct balloc_allocation_context *bac,
 							     group);
 	struct m0_ext		    *ex;
 	struct m0_ext		    *cur = NULL;
+	struct m0_ext		    *next = NULL;
 	struct m0_lext		    *le;
 	struct m0_list              *list;
 	int			     rc = -ENOENT;
@@ -2283,9 +2321,9 @@ static int balloc_try_best_found(struct balloc_allocation_context *bac,
 
 		balloc_debug_dump_extent(__func__, &bac->bac_final);
 		M0_ASSERT(is_extent_free(grp, &bac->bac_final, alloc_flag,
-					 &cur));
+					 &cur, &next));
 		rc = balloc_alloc_db_update(bac->bac_ctxt, bac->bac_tx, grp,
-					    &bac->bac_final, alloc_flag, cur);
+					    &bac->bac_final, alloc_flag, cur, next);
 	}
 out:
 	m0_balloc_unlock_group(grp);
@@ -2463,30 +2501,71 @@ out:
 	return M0_RC(rc);
 }
 
+/** Align up by stripe size */
+static m0_bindex_t align_up(m0_bindex_t addr, m0_bcount_t size)
+{
+	size_t mask = size - 1;
+	return ((addr + mask) / size) * size;
+}
+
 static int allocate_blocks(int cr, struct balloc_allocation_context *bac,
 			   struct m0_balloc_group_info *grp, m0_bcount_t len,
 			   enum m0_balloc_allocation_flag alloc_type)
 {
-	int	       rc;
-	struct m0_ext *cur = NULL;
+	int	                     rc;
+	struct m0_ext               *cur = NULL;
+	struct m0_ext               *next = NULL;
+	struct m0_balloc_zone_param *zp;
 
 	M0_PRE(!is_any(alloc_type));
 	M0_PRE(is_spare(alloc_type) || is_normal(alloc_type));
 
-	if (cr == 0 ||
-	    (cr == 1 && len == bac->bac_ctxt->cb_sb.bsb_stripe_size))
-		rc = balloc_simple_scan_group(bac, grp, alloc_type);
-	else
-		rc = balloc_wild_scan_group(bac, grp, alloc_type);
+	zp = is_spare(alloc_type) ? &grp->bgi_spare : &grp->bgi_normal;
+	if (len <= m0_ext_length(&zp->bzp_curchunk_ext)) {
+		/* Allocation will start from last allocation end except
+		 * case when next free extent is not available in list
+		 */
+		bac->bac_best.e_start = zp->bzp_curchunk_ext.e_start;
+		bac->bac_best.e_end = zp->bzp_curchunk_ext.e_end;
+		bac->bac_final.e_start = bac->bac_best.e_start;
+		bac->bac_final.e_end = bac->bac_final.e_start +
+				min_check(m0_ext_length(&bac->bac_best), len);
+		bac->bac_status = M0_BALLOC_AC_FOUND;
+		rc = 0;
+		if (0)
+		M0_LOG(M0_ERROR, "<<< g_start:%"PRIu64"  b_start:%"PRIu64" f_start=:%"PRIu64" len=%"PRIu64" culen=%"PRIu64" mlen=%"PRIu64" mstart:%"PRIu64" gr=%"PRIu64"",  bac->bac_goal.e_start, bac->bac_best.e_start,  bac->bac_final.e_start, len, m0_ext_length(&zp->bzp_curchunk_ext), zp->bzp_maxchunk, zp->bzp_maxchunk_ext.e_start, grp->bgi_groupno);
+	} else {
+		if (len <= zp->bzp_maxchunk) {
+			bac->bac_best.e_start = zp->bzp_maxchunk_ext.e_start;
+			bac->bac_best.e_end = zp->bzp_maxchunk_ext.e_end;
+			if (M0_IS_ALIGNED(bac->bac_best.e_start,
+					  bac->bac_ctxt->cb_sb.bsb_stripe_size))
+				bac->bac_final.e_start = align_up(bac->bac_best.e_start,
+						bac->bac_ctxt->cb_sb.bsb_stripe_size);
+			else
+				bac->bac_final.e_start = bac->bac_best.e_start;
+			bac->bac_final.e_end = bac->bac_final.e_start +
+				min_check(m0_ext_length(&bac->bac_best), len);
+			bac->bac_status = M0_BALLOC_AC_FOUND;
+			rc = 0;
+		} else {
+			if (cr == 0 ||
+				(cr == 1 && len == bac->bac_ctxt->cb_sb.bsb_stripe_size))
+				rc = balloc_simple_scan_group(bac, grp, alloc_type);
+			else
+				rc = balloc_wild_scan_group(bac, grp, alloc_type);
+		}
+	}
+	//M0_LOG(M0_ERROR, "** best.e_start:%"PRIu64" bac->bac_final.e_start=:%"PRIu64" len=%"PRIu64"",  bac->bac_best.e_start,  bac->bac_final.e_start, len);
 
 	/* update db according to the allocation result */
 	if (rc == 0 && bac->bac_status == M0_BALLOC_AC_FOUND) {
 		if (len < m0_ext_length(&bac->bac_best))
 			balloc_new_preallocation(bac);
 		M0_ASSERT(is_extent_free(grp, &bac->bac_final, alloc_type,
-					 &cur));
+					 &cur, &next));
 		rc = balloc_alloc_db_update(bac->bac_ctxt, bac->bac_tx, grp,
-					    &bac->bac_final, alloc_type, cur);
+					    &bac->bac_final, alloc_type, cur, next);
 	}
 	return rc;
 }
@@ -2729,6 +2808,7 @@ static int balloc_reserve_extent(struct m0_ad_balloc *ballroom,
 	struct m0_balloc_group_info      *grp;
 	struct balloc_allocation_context  bac;
 	struct m0_ext	                 *cur = NULL;
+	struct m0_ext                    *next = NULL;
 	int                     	  rc;
 
 	M0_ENTRY("bal=%p extent="EXT_F, ctx, EXT_P(ext));
@@ -2771,12 +2851,12 @@ static int balloc_reserve_extent(struct m0_ad_balloc *ballroom,
 		goto out_unlock;
 	}
 
-	if (!is_extent_free(grp, ext, alloc_zone, &cur)) {
+	if (!is_extent_free(grp, ext, alloc_zone, &cur, &next)) {
 		rc = M0_ERR(-EEXIST);
 		goto out_unlock;
 	}
 
-	rc = balloc_alloc_db_update(ctx, tx, grp, ext, alloc_zone, cur);
+	rc = balloc_alloc_db_update(ctx, tx, grp, ext, alloc_zone, cur, next);
 
 out_unlock:
 	m0_balloc_unlock_group(grp);
