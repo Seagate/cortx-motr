@@ -4,14 +4,14 @@
    - [2.1:Storage-Set](#2.1:Storage-Set)
       - [2.1.1:Enclosure](#2.1.1:Enclosure)
          - [2.1.1.1:Enclosure-SSD-Config-For-Metadata](#2.1.1.1:Enclosure-SSD-Config-For-Metadata)
-      - [2.1.2:Server](#2.1.2:Server)
-   - [2.2:Failure-domain](#2.2:Failure-domain)
-      - [2.2.1:Storage-Failure-Analysis](#2.2.1:Storage-Failure-Analysis)
-      - [2.2.2:Network-Failure-Analysis](#2.2.2:Network-Failure-Analysis)
-      - [2.2.3:Motr-Hare-HA-Notification](#2.2.3:Motr-Hare-HA-Notification)
-- [3:Sequence-Flow-R2](#2:Sequence-Flow-R2)
-   - [3.1:Simple-Object-Get](#3.1:Simple-Object-Get)
-   - [3.2:Simple-Object-Put](#3.2:Simple-Object-Put)
+      - [2.1.2:Server-MD-Layout](#2.1.2:Server-MD-Layout)
+- [3:Failure-domain](#3:Failure-domain)
+   - [3.1:Storage-Failure-Analysis](#3.1:Storage-Failure-Analysis)
+   - [3.2:Network-Failure-Analysis](#3.2:Network-Failure-Analysis)
+   - [3.3:Motr-Hare-HA-Notification](#3.3:Motr-Hare-HA-Notification)
+- [4:Sequence-Flow-R2](#4:Sequence-Flow-R2)
+   - [4.1:Simple-Object-Get](#4.1:Simple-Object-Get)
+   - [4.2:Simple-Object-Put](#$.2:Simple-Object-Put)
 
 # Acronyms
 | **Abbreviation** | **Description** |
@@ -72,7 +72,7 @@ To improve the speed of metadata access SSDs can be used in following ways in en
 
 **TODO**: Analyze the impact of  multiple DG in a storage pool and it's failure handling
 
-### 2.1.2:Server
+### 2.1.2:Server-MD-Layout
 All the Servers in CORTX cluster are able to communicate with each other using network interface. As S3 request can arrive at any node in the cluster, S3 server (running on node) should be able to locate the storage set in which object info is located and then the further details about object can be retrieved. 
 **Note**: Object info and Object can reside on different storage set.
 ![Server MetaData Layout](images/ServerMetaDataLayout.JPG)
@@ -91,10 +91,10 @@ Note that following new fields needs to be added to existing S3 metadata:
 
 ** NOTE: Work In Progress **
 
-## 2.2:Failure-domain
+# 3:Failure-domain
 This section will analyze failure domain and its impact on data/metadata consistency. Motr failure will be mainly related to error in accessing storage or network. Sections below describes these failures.
 
-## 2.2.1:Storage-Failure-Analysis
+## 3.1:Storage-Failure-Analysis
 With respect of motr following category of storage failure can occur:
 
 | **Failure Component** | **Description** | **Motr Failure Domain Mapping** | 
@@ -107,7 +107,7 @@ With respect of motr following category of storage failure can occur:
   
 All the failure handling maps to DG failure in Motr.
 
-## 2.2.2:Network-Failure-Analysis
+## 3.2:Network-Failure-Analysis
 With respect of motr following category of newtowork failure can occur:
 
 | **Failure Type** | **Motr  Motr Action** |
@@ -125,7 +125,7 @@ With respect of motr following category of newtowork failure can occur:
 - Avoid write on the volumes, switch to different protection config
 - Degraded read for read IOs having data on the disk
 
-### 2.2.3:Motr-Hare-HA-Notification
+## 3.3:Motr-Hare-HA-Notification
 Hare will notify motr when Disk Group or Node is available/unavailable.
 Motr
 
@@ -144,10 +144,10 @@ The figure below shows motr-hare interface for HA notification and DG failure re
 
 Motr will notify Hare when there is any error in accessing storage (STOB IO Error). Hare will not take any action on this error. Hare will take action on HA events related to storage hardware failure from SSPL.
 
-# 3:Sequence-Flow-R2
+# 4:Sequence-Flow-R2
 This section will have sequence flow diagram for all the case in motr R2
 
-# 3.1:Simple-Object-Get
+## 4.1:Simple-Object-Get
 Sequence flow for simple object get is shown in figure below
 1. S3 Client sends GET request with <bucket_name><object_name> and S3 Server will receive this request
 1. S3 Server will do first lookup using <bucket_name>
@@ -162,7 +162,7 @@ Sequence flow for simple object get is shown in figure below
 
 ![Simple Object Get](images/simple_object_get.png)
 
-# 3.2:Simple-Object-Put
+## 4.2:Simple-Object-Put
 Sequence flow for simple object get is shown in figure below
 1. S3 Client sends PUT request with <bucket_name><object_name> and S3 Server will receive this request
 1. S3 Server will do first lookup using <bucket_name>
