@@ -1752,8 +1752,20 @@ M0_TL_DECLARE(m0_net_tm, M0_INTERNAL, struct m0_net_buffer);
  *     ipv4addr = 1*3DIGIT "." 1*3DIGIT "." 1*3DIGIT "." 1*3DIGIT ; 0..255
  */
 M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint);
-#endif
 
+#endif
+/** Set the specified network transport as the default one. */
+M0_INTERNAL void m0_net_xprt_default_set(const struct m0_net_xprt *xprt);
+/** Register network transport. */
+M0_INTERNAL void m0_net_xprt_register(const struct m0_net_xprt *xprt);
+/** Deregister network transport. */
+M0_INTERNAL void m0_net_xprt_deregister(const struct m0_net_xprt *xprt);
+/** Return the default network transport. */
+struct m0_net_xprt *m0_net_xprt_default_get(void);
+/** Get all network transport . */
+struct m0_net_xprt **m0_net_all_xprt_get(void);
+/** Returns number of network transport. */
+int m0_net_xprt_nr(void);
 /** @} end of networking group */
 #endif /* __MOTR_NET_NET_H__ */
 
