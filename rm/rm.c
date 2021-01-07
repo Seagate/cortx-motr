@@ -1342,6 +1342,7 @@ m0_rm_remote_find(struct m0_rm_remote_incoming *rem_in)
 
 	M0_PRE(cookie != NULL);
 	M0_PRE(res != NULL);
+	/* XXX is it scalable? */
 	return m0_tl_find(m0_remotes, other, &res->r_remote,
 			  m0_cookie_is_eq(&other->rem_cookie, cookie));
 }
@@ -2624,25 +2625,25 @@ M0_INTERNAL int m0_rm_owner_loan_debit(struct m0_rm_owner *owner,
 	m0_rm_ur_tlist_init(&retain_list);
 	m0_rm_ur_tlist_init(&remove_list);
 	m0_tl_for (m0_rm_ur, list, cr) {
-		if (!cr->cr_ops->cro_intersects(&paid_loan->rl_credit, cr))
-			m0_rm_ur_tlist_move(&retain_list, cr);
-		else {
+		if (cr->cr_ops->cro_intersects(&paid_loan->rl_credit, cr)) {
 			loan = bob_of(cr, struct m0_rm_loan,
 				      rl_credit, &loan_bob);
 			if (!m0_cookie_is_eq(&loan->rl_cookie,
-					     &paid_loan->rl_cookie)) {
-				m0_rm_ur_tlist_move(&retain_list, cr);
+					     &paid_loan->rl_cookie))
 				continue;
-			}
+
 			rc = remnant_loan_get(loan, &paid_loan->rl_credit,
 					      &remnant_loan);
-			if (rc == 0) {
-				if (credit_is_empty(&remnant_loan->rl_credit)) {
-					m0_rm_ur_tlist_move(&remove_list, cr);
-					m0_rm_ur_tlist_add(&remove_list,
-						&remnant_loan->rl_credit);
-				} else
-					m0_rm_ur_tlist_move(&retain_list, cr);
+			if (rc != 0)
+				break;
+
+			m0_rm_ur_tlist_move(&remove_list, cr);
+			if (credit_is_empty(&remnant_loan->rl_credit)) {
+				m0_rm_ur_tlist_add(&remove_list,
+						   &remnant_loan->rl_credit);
+			} else {
+				m0_rm_ur_tlist_add(&retain_list,
+						   &remnant_loan->rl_credit);
 			}
 		}
 	} m0_tl_endfor;
@@ -3232,7 +3233,7 @@ M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
 	struct m0_rm_credit *credit;
 	int		     rc = -ENOMEM;
 
-	M0_ENTRY();
+	M0_ENTRY("src=%p", src_credit);
 	M0_PRE(src_credit != NULL);
 
 	M0_ALLOC_PTR(credit);
