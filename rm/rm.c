@@ -2004,44 +2004,48 @@ static void incoming_check(struct m0_rm_incoming *in)
 
 	if (rc > 0) {
 		incoming_state_set(in, RI_WAIT);
-	} else {
-		/**
-		 * @todo
-		 * Here we introduce "thundering herd" problem, potentially
-		 * waking up all requests waiting for reserved credit.
-		 * It is necessary, because rio_conflict() won't be called for
-		 * 'in' if waiting requests are not woken up.
-		 */
-		barrier_pins_del(in);
-
-		if (rc == 0) {
-			M0_ASSERT(incoming_pin_nr(in, M0_RPF_TRACK) == 0);
-			incoming_policy_apply(in);
-			/*
-			 * Transfer the CACHED credits to HELD list. Later
-			 * it may be subsumed by policy functions (or
-			 * vice versa). Credits are held only for local
-			 * request. For remote requests, they are removed
-			 * and converted into loans.
-			 */
-			if (in->rin_type == M0_RIT_LOCAL)
-				rc = cached_credits_hold(in);
-		}
-		/*
-		 * Check if incoming request is complete. When there is
-		 * partial failure (with part of the request failing)
-		 * of incoming request, it's necessary to check that it's
-		 * complete (and there are no outstanding outgoing requests
-		 * pending against it). On partial failure put the request in
-		 * RI_WAIT state.
-		 */
-		if (incoming_is_complete(in))
-			incoming_complete(in, rc);
-		else {
-			in->rin_rc = rc;
-			incoming_state_set(in, RI_WAIT);
-		}
+		M0_LEAVE();
+		return;
 	}
+
+	/**
+	 * @todo
+	 * Here we introduce "thundering herd" problem, potentially
+	 * waking up all requests waiting for reserved credit.
+	 * It is necessary, because rio_conflict() won't be called for
+	 * 'in' if waiting requests are not woken up.
+	 */
+	barrier_pins_del(in);
+
+	if (rc == 0) {
+		M0_ASSERT(incoming_pin_nr(in, M0_RPF_TRACK) == 0);
+		incoming_policy_apply(in);
+		/*
+		 * Transfer the CACHED credits to HELD list. Later
+		 * it may be subsumed by policy functions (or
+		 * vice versa). Credits are held only for local
+		 * request. For remote requests, they are removed
+		 * and converted into loans.
+		 */
+		if (in->rin_type == M0_RIT_LOCAL)
+			rc = cached_credits_hold(in);
+	}
+
+	/*
+	 * Check if incoming request is complete. When there is
+	 * partial failure (with part of the request failing)
+	 * of incoming request, it's necessary to check that it's
+	 * complete (and there are no outstanding outgoing requests
+	 * pending against it). On partial failure put the request in
+	 * RI_WAIT state.
+	 */
+	if (incoming_is_complete(in)) {
+		incoming_complete(in, rc);
+	} else {
+		in->rin_rc = rc;
+		incoming_state_set(in, RI_WAIT);
+	}
+
 	M0_LEAVE();
 }
 
