@@ -59,6 +59,7 @@
       - "./configure"
       - "make"
       - "make install"
+      - "ldconfig"
 
 
 - name: install Motr build-time python3 dependencies
