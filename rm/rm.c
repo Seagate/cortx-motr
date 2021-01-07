@@ -2619,33 +2619,30 @@ M0_INTERNAL int m0_rm_owner_loan_debit(struct m0_rm_owner *owner,
 
 	M0_PRE(owner != NULL);
 	M0_PRE(paid_loan != NULL);
-	M0_ENTRY("credit: %llu",
+	M0_ENTRY("loan=%p credit: %llu", paid_loan,
 			(long long unsigned) paid_loan->rl_credit.cr_datum);
 
 	m0_rm_ur_tlist_init(&retain_list);
 	m0_rm_ur_tlist_init(&remove_list);
 	m0_tl_for (m0_rm_ur, list, cr) {
-		if (cr->cr_ops->cro_intersects(&paid_loan->rl_credit, cr)) {
-			loan = bob_of(cr, struct m0_rm_loan,
-				      rl_credit, &loan_bob);
-			if (!m0_cookie_is_eq(&loan->rl_cookie,
-					     &paid_loan->rl_cookie))
-				continue;
+	    if (cr->cr_ops->cro_intersects(&paid_loan->rl_credit, cr)) {
+		loan = bob_of(cr, struct m0_rm_loan, rl_credit, &loan_bob);
 
-			rc = remnant_loan_get(loan, &paid_loan->rl_credit,
-					      &remnant_loan);
-			if (rc != 0)
-				break;
+		if (!m0_cookie_is_eq(&loan->rl_cookie, &paid_loan->rl_cookie))
+			continue;
 
-			m0_rm_ur_tlist_move(&remove_list, cr);
-			if (credit_is_empty(&remnant_loan->rl_credit)) {
-				m0_rm_ur_tlist_add(&remove_list,
-						   &remnant_loan->rl_credit);
-			} else {
-				m0_rm_ur_tlist_add(&retain_list,
-						   &remnant_loan->rl_credit);
-			}
-		}
+		rc = remnant_loan_get(loan, &paid_loan->rl_credit,
+				      &remnant_loan);
+		if (rc != 0)
+			break;
+
+		if (credit_is_empty(&remnant_loan->rl_credit))
+		    m0_rm_ur_tlist_add(&remove_list, &remnant_loan->rl_credit);
+		else
+		    m0_rm_ur_tlist_add(&retain_list, &remnant_loan->rl_credit);
+
+		m0_rm_ur_tlist_move(&remove_list, cr);
+	    }
 	} m0_tl_endfor;
 	/*
 	 * On successful completion, remove the credits from the "remove-list"
