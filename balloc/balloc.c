@@ -2418,12 +2418,14 @@ repeat:
 			// m0_balloc_debug_dump_group("searching group ...",
 			//			 grp);
 
-			rc = m0_balloc_trylock_group(grp);
-			if (rc != 0) {
-				M0_LOG(M0_DEBUG, "grp=%d is busy", (int)group);
-				/* This group is under processing by others. */
+
+			/* quick check to skip empty groups */
+			if (is_free_space_unavailable(grp, bac->bac_flags)) {
+				M0_LOG(M0_DEBUG, "grp=%d is empty", (int)group);
 				continue;
 			}
+
+			m0_balloc_lock_group(grp);
 
 			/* quick check to skip empty groups */
 			if (is_free_space_unavailable(grp, bac->bac_flags)) {
