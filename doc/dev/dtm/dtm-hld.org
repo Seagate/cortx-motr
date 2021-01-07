@@ -401,7 +401,7 @@ Described in corresponding section of [[Functional specification][functional spe
 
 
 ** Basic flow of happy path
-#+begin_src plantuml :file happy.png
+#+begin_src plantuml :file happy.png :exports results
 originator -> p1: txr
 originator -> p2: txr
 originator -> p3: txr
@@ -430,6 +430,9 @@ deactivate p3
 
 #+end_src
 
+#+RESULTS:
+[[file:happy.png]]
+
 ** Basic flow of recovery path
  - HARE notifies participants about process state changes (messages
    are not shown).
@@ -437,7 +440,7 @@ deactivate p3
  - Recovering participant executes REDO messages if needed.
  - REDO messages can arrive out of order.
 
-#+begin_src plantuml :file recovery.png
+#+begin_src plantuml :file recovery.png :exports results
 originator -> p1: txr
 originator -> p2: txr
 originator -> p3: txr
@@ -453,6 +456,8 @@ p3 -> p1	 : REDO
 originator -> p1 : REDO
 #+end_src
 
+#+RESULTS:
+[[file:recovery.png]]
 
 ** Conformance
 =[For every requirement in the Requirements section, this sub-section explicitly describes how the requirement is discharged by the design. This section is part of a requirements tracking mechanism, so it should be formatted in some way suitable for (semi-)automatic processing]=
