@@ -124,6 +124,9 @@ static int libfab_ip_type(char *ep_name,int *type);
 static int libfab_get_remote_addr(const char  *ep_name, 
 				  fi_addr_t   *remote_addr);
 static void libfab_buf_del(struct m0_net_buffer *nb);
+static void libfab_ep_put(struct m0_fab__ep *ep);
+static void libfab_ep_get(struct m0_fab__ep *ep);
+static void libfab_ep_release(struct m0_ref *ref);
 
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
@@ -954,6 +957,13 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 		return M0_RC(rc);
 	}
 
+	rc = fi_domain(ep->fep_fabric, ep->fep_fi, &ep->fep_domain, NULL);
+	if (rc != FI_SUCCESS) {
+		M0_LOG(M0_ALWAYS," \n fi_domain = %d \n ", rc);
+		libfab_ep_param_free(ep, tm);
+		return M0_RC(rc);
+	}
+
 	return M0_RC(rc);
 }
 
@@ -1072,6 +1082,7 @@ static int libfab_ep_param_free(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 	}
 
 	memset(&ep->fep_name, 0, sizeof(ep->fep_name));
+	libfab_ep_put(ep);
 
 	m0_free(ep);
 
@@ -1260,6 +1271,28 @@ static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 	}
 }
 
+static void libfab_ep_put(struct m0_fab__ep *ep)
+{
+	m0_ref_put(&ep->fep_nep.nep_ref);
+}
+
+static void libfab_ep_get(struct m0_fab__ep *ep)
+{
+	m0_ref_get(&ep->fep_nep.nep_ref);
+}
+
+/**
+ * End-point finalisation call-back.
+ *
+ * Used as m0_net_end_point::nep_ref::release(). This call-back is called when
+ * end-point reference count drops to 0.
+ */
+static void libfab_ep_release(struct m0_ref *ref)
+{
+	/* TODO: */
+}
+
+
 /*============================================================================*/
 
 /** 
@@ -1311,8 +1344,9 @@ static void libfab_ma_fini(struct m0_net_transfer_mc *tm)
  */
 static int libfab_ma_init(struct m0_net_transfer_mc *tm)
 {
-	struct m0_fab__tm *ma;
-	int                rc = 0;
+	struct m0_fab__tm       *ma;
+	struct m0_net_end_point *net;
+	int                      rc = 0;
 
 	M0_ASSERT(tm->ntm_xprt_private == NULL);
 	M0_ALLOC_PTR(ma);
@@ -1324,7 +1358,16 @@ static int libfab_ma_init(struct m0_net_transfer_mc *tm)
 		M0_ALLOC_PTR(ma->ftm_pep);
 		if (ma->ftm_pep != NULL)
 			rc = libfab_passive_ep_create(ma->ftm_pep, ma);
+			m0_ref_init(&ma->ftm_pep->fep_nep.nep_ref, 1, 
+				    &libfab_ep_release);
+			libfab_ep_get(ma->ftm_pep);
 			tm->ntm_dom->nd_xprt_private = ma->ftm_pep;
+			net = &ma->ftm_pep->fep_nep;
+			net->nep_tm = tm;
+			net->nep_addr = (const char *)(&ma->ftm_pep->fep_name);
+			m0_nep_tlink_init_at_tail(net, &tm->ntm_end_points);
+
+
 			if (rc == FI_SUCCESS)
 				rc = M0_THREAD_INIT(&ma->ftm_poller,
 						    struct m0_fab__tm *, NULL,
@@ -1465,15 +1508,19 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 			FAB_MR_FLAG, &fb->fb_mr, NULL);
 	if (ret != FI_SUCCESS)
 	{
+		M0_LOG(M0_ALWAYS, "\n fi_mr_reg = %d \n",ret);
 		nb->nb_xprt_private = NULL;
 		m0_free(fb);
 		return M0_ERR(ret);
 	}
 	
+	#if 0
 	ret = fi_mr_enable(fb->fb_mr);
-	if (ret != FI_SUCCESS)
+	if (ret != FI_SUCCESS) {
+		M0_LOG(M0_ALWAYS, "\n fi_mr_enable = %d \n",ret);
 		libfab_buf_deregister(nb); /* Failed to enable memory region */
-
+	}
+	#endif /* #if 0 */
 	return M0_RC(ret);
 }
 
