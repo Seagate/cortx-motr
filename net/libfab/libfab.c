@@ -733,7 +733,7 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 	
 	for (i = 0; i < ARRAY_SIZE(providers); i++) {
 		hints->fabric_attr->prov_name = providers[i];
-		rc = fi_getinfo(LIBFAB_VERSION, NULL, NULL, FI_SOURCE, hints,
+		rc = fi_getinfo(LIBFAB_VERSION, NULL, NULL, 0, hints,
 				&ep->fep_fi);
 		if (rc == FI_SUCCESS)
 			break;
@@ -1176,7 +1176,9 @@ static int libfab_ma_start(struct m0_net_transfer_mc *net, const char *name)
 {
 	struct m0_fab__tm *tm = net->ntm_xprt_private;
 
+	libfab_tm_unlock(tm);
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
+	libfab_tm_lock(tm);
 
 	return M0_RC(0);
 }
