@@ -2750,23 +2750,24 @@ M0_INTERNAL int m0_rm_loan_settle(struct m0_rm_owner *owner,
 
 	rc = m0_rm_credit_dup(&loan->rl_credit, &cached) ?:
 	     granted_maybe_reserve(&loan->rl_credit, cached);
-	if (rc == 0) {
-		rc = m0_rm_owner_loan_debit(owner, loan, &owner->ro_sublet) ?:
-			loan_check(owner, &owner->ro_sublet, cached);
-		if (rc == 0 && !credit_is_empty(cached)) {
-			/* @todo */
-			cached->cr_group_id = m0_rm_no_group;
-			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
-					   cached);
-			M0_LOG(M0_INFO, "credit cached\n");
-		} else {
-			m0_free(cached);
-			if (rc != 0)
-				M0_LOG(M0_ERROR, "credit removal failed: "
-						 "rc [%d]\n", rc);
-		}
-	} else
-		M0_LOG(M0_ERROR, "credit allocation failed: rc [%d]\n", rc);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "credit allocation failed: rc=%d", rc);
+		return M0_RC(rc);
+	}
+
+	rc = m0_rm_owner_loan_debit(owner, loan, &owner->ro_sublet) ?:
+	     loan_check(owner, &owner->ro_sublet, cached);
+	if (rc != 0 || credit_is_empty(cached)) {
+		m0_free(cached);
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "credit removal failed: rc=%d", rc);
+		return M0_RC(rc);
+	}
+
+	/* @todo */
+	cached->cr_group_id = m0_rm_no_group;
+	m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED], cached);
+	M0_LOG(M0_INFO, "credit cached");
 
 	return M0_RC(rc);
 }
