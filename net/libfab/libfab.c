@@ -831,7 +831,6 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 				break;
 		}
 		M0_ASSERT(i < ARRAY_SIZE(providers));
-
 		fi_freeinfo(hints);
 
 		rc = fi_fabric(ep->fep_fi->fabric_attr, &ep->fep_fabric, NULL);
@@ -911,18 +910,18 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 	/* TODO: Set appropriate flags and hints
 	 * flags |= FI_SOURCE;
 	 * fab->hints->ep_attr->type = FI_EP_MSG;
-	 * fab->hints->caps = FI_MSG;
 	 */
+	hints->ep_attr->type = FI_EP_MSG;
 	
 	for (i = 0; i < ARRAY_SIZE(providers); i++) {
 		hints->fabric_attr->prov_name = providers[i];
-		rc = fi_getinfo(LIBFAB_VERSION, NULL, NULL, FI_SOURCE, hints,
+		rc = fi_getinfo(LIBFAB_VERSION, NULL, NULL, 0, hints,
 				&ep->fep_fi);
 		if (rc == FI_SUCCESS)
 			break;
 	}
 	M0_ASSERT(i < ARRAY_SIZE(providers));
-
+	hints->fabric_attr->prov_name = NULL;
 	fi_freeinfo(hints);
 	
 	rc = fi_fabric(ep->fep_fi->fabric_attr, &ep->fep_fabric, NULL);
@@ -967,9 +966,6 @@ static int libfab_ep_res_free(struct m0_fab__ep_res *ep_res,
 	int rc = 0;
 	
 	M0_ENTRY();
-
-	if (ep_res == NULL)
-		return M0_RC(0);
 
 	if (ep_res->fer_av != NULL){
 		rc = fi_close(&(ep_res->fer_av)->fid);
@@ -1024,8 +1020,6 @@ static int libfab_ep_res_free(struct m0_fab__ep_res *ep_res,
 			M0_LOG(M0_ERROR, "fer_rx_cntr fi_close ret=%d fid=%d",
 			       rc, (int)(ep_res->fer_rx_cntr)->fid.fclass);
 	}
-
-	m0_free(ep_res);
 
 	return M0_RC(rc);
 }
@@ -1359,7 +1353,9 @@ static int libfab_ma_start(struct m0_net_transfer_mc *net, const char *name)
 {
 	struct m0_fab__tm *tm = net->ntm_xprt_private;
 
+	libfab_tm_unlock(tm);
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
+	libfab_tm_lock(tm);
 
 	return M0_RC(0);
 }
