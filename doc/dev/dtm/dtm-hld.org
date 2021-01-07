@@ -245,7 +245,7 @@ A.rpc.timeout.
 ** [A.dix.no-vectored]
 Due to complexity of imask value distribution, DTM0 doesn't support
 vectored dix operations transmitting several keys and values to the
-counterpart.
+counterpart. S3Server can be touched here.
 
 ** [A.clock.sync]
 DTM0 relies on the synchronised 'physical' clock over all nodes and
@@ -353,7 +353,7 @@ algorithm assumes that the following will be introduced and
 implemented in HA:
 - *participant state change message*, is being sent from HA to participants
   (example: participant_1 goes to RECOVERING state)
-- *"participant is ready for the recovery"*, is being sent from the
+- *participant is ready for the recovery*, is being sent from the
   participant to HA when it's ready to accept REDO messages from other
   participants (example: participant gets connected to others).
 - *recovery DONE*, is being sent from the participant to HA when it
@@ -378,29 +378,61 @@ corresponding sections.
 
 ** Components and their properties
 #+NAME: fig:func-spec
-[[./logical-spec.png]]
+[[./logical-spec.svg]]
 
-The following list of components is in scope of DTM0 design:
+The following describes a list of components and expected changes
+which are in scope of DTM0 design:
 *** Clovis interface
+There're two options to integrate [[* dtx interface][dtx interface]]. Both have their pros and cons.
+ - Propagate dtx as a parameter of clovis interface. In this case user
+   has to rely on dtx state machine and wait for corresponding state
+   changes.
+ - Leave interface as is and hide dtx interface usage inside it. Pros:
+   a bit more easier integration. Cons: Will delay "DTM0+" interface
+   integration.
 *** DTX state machine
-Described in [[* dtx interface][dtx interface]] section.
-*** DTX id generator
+Described in [[* dtx interface][dtx interface]] and [[State][state]] sections.
 *** Version generator
+version generation is based on physical clock and has to be a process/participant-wide unique value.
+*** DTX id generator
+For each distributed transaction it's needed to generate a
+cluster-wide unique identifier.  It was decided to base this
+identifier on top of concatenation of version generator and participant
+identifier as a "lower nibble".
 *** DIX client
-*** CAS service
-*** DTM0 service
+DIX client request state machines may be changed w.r.t. dtx states
+handling and w.r.t. removal of not useful states used before
+(DEL_PHASE2). dtx state trasition may rely on return codes comming
+from dix/cas request processing framework.
+*** CAS service/FOM
+ - dtx part has to be executed in CAS FOM trasactional context.
+ - dtx part credits have to be calculated in corresponding CAS FOM callback.
+*** DTM0 service/FOM
+Additional FOM which is needed for processing REDO, PERSISTENT DTM0
+messages in the context of a local transaction. Updates DTM log and persistent structures.
 *** HA messages
 Described in corresponding section of [[Functional specification][functional specification]].
 *** DTM0 messages
 Described in corresponding section of [[Functional specification][functional specification]].
-*** DTM0 FOM
 *** DTM0 log
-*** persistent structures (btree)
-*** persistent structures concurrency, versions, tombstones
+Persistent structure storing partial states of execution of dtx seen
+on participant's side. Format of the log has to be defined in "DLD of
+DTM0 log", still basically this structure provides a store and
+iteraction interface over log records. Each log record contains at least the following information:
+ - dtx id
+ - payload (PUT/DEL key, value, version)
+ - list of participants
+ - dtx state seen on participants.
 
-
+*** Persistent structures (btree)
+Structure which is being used to store persistent effects introduced by the operation.
+*** Persistent structures concurrency, versions, tombstones
+Concurrency mechanism used to order conflicting incoming
+operations. Tombstones mark deleted records and garbage collected with
+a special algorithm based on version comparison.
 
 ** Basic flow of happy path
+Possible implementation of messages callbacks can be seen in an appropriate section.
 #+begin_src plantuml :file happy.png :exports results
 originator -> p1: txr
 originator -> p2: txr
@@ -459,14 +491,108 @@ originator -> p1 : REDO
 #+RESULTS:
 [[file:recovery.png]]
 
+** Basic callbacks
+ - on txr receipt
+#+BEGIN_SRC
+if (!already_executed(txr)) {
+	tx_open(be_tx);
+	result = execute(be_tx, txr);
+	txr.state[self] = EXECUTED;
+	log(be_tx, txr);
+	tx_close();
+}
+sender.send(EXECUTED, txr.id, result);
+#+END_SRC
+
+ - on commit (local transaction containing txr is logged):
+#+BEGIN_SRC
+for (process in txr.participants) { /* including self */
+	/* send with retries until reply or receiver failure. */
+	process.send(PERSISTENT, txr.id, self);
+}
+#+END_SRC
+
+ - on PERSISTENT(txid, process) receipt:
+#+BEGIN_SRC
+txr = log.find(txid);
+tx_open(be_tx);
+txr.state[process] = PERSISTENT;
+/* +1 to account for txr.state[self] */
+if (count(txr.state[], state == PERSISTENT) + 1 > K) {
+	wakeup(tx); /* tx is STABLE */
+} if (all(txr.state[], state == PERSISTENT || proc.state == FAILED)) {
+	log.prune(txid); /* tx is DONE */
+}
+tx_close(be_tx);
+#+END_SRC
+
+- on HA.state(process, ONLINE) receipt:
+#+BEGIN_SRC
+for (txr in log) {
+	if (process in txr.participants[] && txr.state[process] < PERSISTENT) {
+		process.send(REDO, txr);
+	}
+}
+#+END_SRC
+
+- on HA.state(process, FAILED) receipt:
+#+BEGIN_SRC
+for (txr in log) {
+	if (all(txr.state[], state == PERSISTENT || process.state == FAILED)) {
+		log.prune(txid); /* tx is DONE */
+	}
+}
+#+END_SRC
+
 ** Conformance
 =[For every requirement in the Requirements section, this sub-section explicitly describes how the requirement is discharged by the design. This section is part of a requirements tracking mechanism, so it should be formatted in some way suitable for (semi-)automatic processing]=
 ** Dependencies
+#+BEGIN_QUOTE
 =[This sub-section enumerates other system and external components the component depends on. For every dependency a type of the dependency (uses, generalizes, etc.) must be specified together with the particular properties (requirements, invariants) the design depends upon. This section is part of a requirements tracking mechanism]=
+#+END_QUOTE
+
+Obvious dependencies on DTM are clovis applications like S3Servers, m0crates, etc.
+Obvious DTM0 dependencies are related to HA messages described above.
 ** Refinement
 =[This sub-section enumerates design level requirements introduced by the design. These requirements are used as input requirements for the detailed level design of the component. This sub-section is part of a requirements tracking mechanism]=
 * State
+#+BEGIN_QUOTE
 =[This section describes the additions or modifications to the system state (persistent, volatile) introduced by the component. As much of component behavior from the logical specification should be described as state machines as possible. The following sub-sections are repeated for every state machine]=
+#+END_QUOTE
+
+** dtx state machine and triggers
+#+begin_src plantuml :file txr.png :exports results
+[*] --> EXECUTED	 : N executed messages received.
+EXECUTED --> PERSISTENT  : N persistent messages received.
+PERSISTENT --> STABLE    : N+K persistent messages received.
+STABLE --> DONE
+DONE --> [*]
+
+EXECUTED --> FAILED      : HA reports N participants failures
+PERSISTENT --> FAILED    : HA reports N participants failures
+STABLE --> [*]           : HA reports N participants failures
+FAILED --> [*]
+#+end_src
+
+#+RESULTS:
+[[file:txr.png]]
+
+** participants state machine controlled by HA and expected on motr side
+#+begin_src plantuml :file ha.png :exports results
+[*] --> RECOVERING
+RECOVERING --> ONLINE    : DTM0 log is fully replayed
+ONLINE --> TRANSIENT     : HA reported\nthe participant's transient failure
+TRANSIENT --> RECOVERING : HA reported\nthe participant restarted
+RECOVERING --> ONLINE    : DTM0 recovery completed,\nDTM0 log fully replayed
+
+ONLINE --> PERMANENT     : HA reported\nthe participant's permanent failure
+TRANSIENT --> PERMANENT  : HA reported\nthe participant's permanent failure
+
+PERMANENT --> [*]        : not in the scope of HLD
+#+end_src
+
+#+RESULTS:
+[[file:ha.png]]
 
 ** States, events, transitions
 =[This sub-section enumerates state machine states, input and output events and state transitions incurred by the events with a table or diagram of possible state transitions. UML state diagrams can be used here]=
@@ -479,11 +605,723 @@ originator -> p1 : REDO
 ** Scenarios
 =[This sub-section enumerates important use cases (to be later used as seed scenarios for ARID) and describes them in terms of logical specification]=
 *** Happy path
+#+begin_src plantuml :file happy-path.png :exports results
+' The diagram describes a use-case where
+' the participants did not experience
+' a failure (the so-called "happy-path").
+' The goal of the diagram is to show the interactions
+' between CAS client/service and DTM library/service.
+
+header DTM Happy-Path \n By Ivan A. 2020-14-12.
+footer Page %page% of %lastpage%
+
+title DTM Happy-Path
+
+' The types of processes used here:
+' 	- Originators (participants without peristent storage)
+' 	- Participants (participants with persistent storage).
+
+
+box "Client (0)"
+	participant "Motr Client" as user
+	participant "DIX0" as DIX0
+	participant "DTM0" as DTM0
+end box
+
+box "ServerLeft (1)"
+	participant "CAS1" as CAS1
+	participant "DTM1" as DTM1
+end box
+
+box "ServerMiddle (2)"
+	participant "CAS2" as CAS2
+	participant "DTM2" as DTM2
+end box
+
+box "ServerRight (3)"
+	participant "CAS3" as CAS3
+	participant "DTM3" as DTM3
+end box
+
+' Prepare op and start execution on (1) 2{{{
+
+activate user
+user -> DIX0: clnt_op = { op=PUT, records=k1-k16,v1-v6 }
+DIX0 -> CAS1: GET_LAYOUT_AND_PVER
+CAS1 -> DIX0: layout_info (pool version, layout id, etc.)
+DIX0 -> DIX0: layout = clnt_op.records.map(m0_dix_target_(layout_info, record))
+DIX0 -> DTM0: dtx_open(...) returns dtx { clock: now(), tx_id: new_id() }
+DIX0 -> DTM0: dtx.add_and_close(pa_p=layout, pa_v=DIX0.fid)
+DTM0 -> DTM0: dtx = { clock, tx_id, \npa_v=self.fid,\n pa_p=layout,\n states[1:3]=[FUTURE] }
+DIX0 -> DIX0: dix_req[1:3] = { dtx, layout, records, src: DIX0.fid, dst: CAS[i].fid }
+DIX0 -> DTM0: dtx_prepared(dtx, dix_req[])
+DTM0 -> DTM0: dtx.states = [PREPARED] * 3
+DTM0 -> DIX0: ok, ready
+DIX0 -> CAS1: send(dix_req[1]) "REQUEST"
+DIX0 -> DTM0: dtx_inprogress(dtx, dix_req[1])
+
+' 2}}}
+
+' Execute it on (1) 2{{{
+activate CAS1
+DIX0 -> CAS2: send(dix_req[2])
+DIX0 -> DTM0: dtx_inprogress(dtx, dix_req[2])
+activate CAS2
+DIX0 -> CAS3: send(dix_req[3])
+DIX0 -> DTM0: dtx_inprogress(dtx, dix_req[3])
+activate CAS3
+CAS1 -> DTM1: dtx_recv(fom.fop.request.dtx)
+DTM1 -> CAS1: returns (dtx, ready)
+CAS1 -> CAS1: FOM_TX_OPEN: fom.ltx = be_tx.open()
+CAS1 -> CAS1: FOM_CAS_LOOP: cas_reply = cas_exec(fom)
+CAS1 -> CAS1: FOM_SUCCESS: fom.fop.reply = cas_reply
+CAS1 -> DTM1: FOM_FOL_REC_ADD: dtm_log_add(fom)
+CAS1 -> CAS1: FOM_TX_COMMIT: fom.ltx.close()
+CAS1 -> CAS1: FOM_QUEUE_REPLY: rpc_post(fom.fop.reply)
+CAS1 -> DIX0: send reply "EXECUTED" {dtx, cas_reply}
+deactivate CAS1
+DIX0 -> DTM0: dtx_executed(reply.dtx)
+DIX0 -> user: lookup_op(reply.dtx).on_executed()
+deactivate user
+activate CAS1
+' }}}
+
+' CAS1 persistent 2{{{
+CAS1 -> DTM1: dtm_log_peristent(dtx, [pa=self])
+activate DTM1
+DTM1 -> DTM0: send(PERSISTENT, dtx)
+DTM0 -> DIX0: on_persistent(dtx)
+DIX0 -> user: lookup_op(dtx).on_persistent()
+activate user
+DTM1 -> DTM2: send(PERSISTENT, dtx)
+DTM1 -> DTM3: send(PERSISTENT, dtx)
+deactivate CAS1
+deactivate DTM1
+DTM0 -> DTM0: dtm_log_persistent(dtx, pa=CAS1)
+DTM2 -> DTM2: dtm_log_persistent(dtx, pa=CAS1)
+DTM3 -> DTM3: dtm_log_persistent(dtx, pa=CAS1)
+' }}}
+
+' CAS2 execution 2{{{
+CAS2 -> DTM2: dtx_recv
+CAS2 -> CAS2: execute ...
+CAS2 -> DTM2: dtm_log_add(fom)
+CAS2 -> DIX0: send reply "EXECUTED" {dtx, cas_reply}
+' 2}}}
+'
+' CAS2 persistent 2{{{
+CAS2 -> DTM2: dtm_log_persistent(dtx, [pa=self])
+DTM2 -> DTM0: send(PERSISTENT, dtx)
+DTM2 -> DTM1: send(PERSISTENT, dtx)
+DTM2 -> DTM3: send(PERSISTENT, dtx)
+' 2}}}
+
+' CAS2 mark persistent 2{{{
+DTM0 -> DTM0: dtm_log_persistent(dtx, pa=CAS2)
+DTM1 -> DTM1: dtm_log_persistent(dtx, pa=CAS2)
+DTM3 -> DTM3: dtm_log_persistent(dtx, pa=CAS2)
+' 2}}}
+
+' CAS3 execution 2{{{
+CAS3 -> DTM3: dtx_recv
+CAS3 -> CAS3: execute ...
+CAS3 -> DTM3: dtm_log_add(fom)
+CAS3 -> DIX0: send reply "EXECUTED" {dtx, cas_reply}
+' 2}}}
+
+' CAS3 persistent 2{{{
+CAS3 -> DTM3: dtm_log_persistent(dtx, [pa=self])
+DTM3 -> DTM0: send(PERSISTENT, dtx)
+DTM3 -> DTM1: send(PERSISTENT, dtx)
+DTM3 -> DTM2: send(PERSISTENT, dtx)
+DTM3 -> DTM3: dtm_log_stable(dtx)
+' 2}}}
+
+' CAS3 mark persistent 2{{{
+DTM0 -> DTM0: dtm_log_persistent(dtx, pa=CAS3)
+DTM0 -> DTM0: dtm_log_stable(dtx)
+DTM0 -> DIX0: on_stable(dtx)
+DIX0 -> user: lookup_op(dtx).on_stable()
+DTM1 -> DTM1: dtm_log_persistent(dtx, pa=CAS3)
+DTM1 -> DTM1: dtm_stable(dtx)
+DTM2 -> DTM2: dtm_log_persistent(dtx, pa=CAS3)
+DTM2 -> DTM2: dtm_stable(dtx)
+' 2}}}
+#+end_src
+
+#+RESULTS:
+[[file:happy-path.png]]
+
 *** 1 transient failure of persistent participant and subsequent DTM recovery
+#+BEGIN_SRC
+# Use-case description
+
+- 3 participants with persistent storage (p1, p2, p3);
+- 1 participant (originator) without persistent storage;
+- S3 client wants to create 3 objects with metadata;
+- S3 server and a part of the cluster gets rebooted;
+- S3 client time-out and sends a request to delete the objects.
+- DTM ensures consistency of data across the cluster.
+
+# Events and states
+
+Legend:
+	o1, p1, p2, p3 - file operation logs (persistent and volatile parts).
+	I,V,P - state of participants of a log entry (e.g, st=VVV means "assume it to be executed everywhere if no one failed").
+		I - InProgress (to-be-sent/to-be-executed);
+		V - Volatile (Executed);
+		P - Persistent (got-the-notice/got-comitted).
+	NETWORK,DISK,PROC - events in the system (RPC messages, HA messages, fsync notifications, process states).
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+NETWORK,DISK,PROC	User				o1				p1				p2				p3
+|			|				|				|				|				|
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@10-15:
+			{ [DIX PUT k1 @10] }
+			{ [DIX PUT k2 @11] }
+			{ [DIX PUT k3 @12] }
+
+						{
+						R1[CAS PUT k1 @10 st=III],
+						R2[CAS PUT k2 @11 st=III],
+						R3[CAS PUT k3 @12 st=III],
+						}
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@20:
+o1 -> p1: request o1.R1, request o1.R2, request o1.R3
+o1 -> p2: request o1.R1
+o1 -> p3: request o1.R1, request o1.R2, request o1.R3
+# The requests to p2 with o1.R1 and o1.R3 got stuck
+#  somewhere (for example, the RPC messages were not yet scheduled to be sent out).
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@25:
+p1: received o1.R1, o1.R2, o1.R3
+p2: received o1.R1
+p3: received o1.R1, O1.R2, o1.R3
+# Due to network re-ordering (or re-ordering in some request handler queue),
+# the request arrive in different order.
+						{					{				{				{
+						R1[CAS PUT k1 @10 st=III],		R1[CAS PUT k1 @10 st=III],	R1[CAS PUT k2 @11 st=III],	R1[CAS PUT k3 @12 st=III],
+						R2[CAS PUT k2 @11 st=III],		R2[CAS PUT k2 @11 st=III],					R2[CAS PUT k2 @11 st=III],
+						R3[CAS PUT k3 @12 st=III],		R3[CAS PUT k3 @12 st=III],					R3[CAS PUT k1 @10 st=III],
+						}					}				}				}
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@30-40:
+# The request are executed
+						{					{				{				{
+						R1[CAS PUT k1 @10 st=III],		R1[CAS PUT k1 @10 st=VVV],	R1[CAS PUT k2 @11 st=VVV],	R1[CAS PUT k3 @12 st=VVV],
+						R2[CAS PUT k2 @11 st=III],		R2[CAS PUT k2 @11 st=III],					R2[CAS PUT k2 @11 st=III],
+						R3[CAS PUT k3 @12 st=III],		R3[CAS PUT k3 @12 st=III],					R3[CAS PUT k1 @10 st=III],
+						}					}				}				}
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@50:
+p1 -> o1: reply p1.R1
+p2 -> o1: reply p1.R1
+p3 -> o1: reply p1.R1
+# Reply was sent for each executed request.
+						{					{				{				{
+						R1[CAS PUT k1 @10 st=VII],		R1[CAS PUT k1 @10 st=VVV],	R1[CAS PUT k2 @11 st=VVV],	R1[CAS PUT k3 @12 st=VVV],
+						R2[CAS PUT k2 @11 st=IVI],		R2[CAS PUT k2 @11 st=III],					R2[CAS PUT k2 @11 st=III],
+						R3[CAS PUT k3 @12 st=IIV],		R3[CAS PUT k3 @12 st=III],					R3[CAS PUT k1 @10 st=III],
+						}					}				}				}
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@60:
+p1disk -> p1: committed(R1)
+p2disk -> p2: committed(R1)
+p3disk -> p3: committed(R1)
+# As you see we have 3 different records to reach persistent states on 3 different nodes:
+						{					{				{				{
+						R1[CAS PUT k1 @10 st=VVV],		R1[CAS PUT k1 @10 st=PVV],	R1[CAS PUT k2 @11 st=VPV],	R1[CAS PUT k3 @12 st=VVP],
+						R2[CAS PUT k2 @11 st=VVV],		R2[CAS PUT k2 @11 st=VVV],					R2[CAS PUT k2 @11 st=VVV],
+						R3[CAS PUT k3 @12 st=VVV],		R3[CAS PUT k3 @12 st=VVV],					R3[CAS PUT k1 @10 st=VVV],
+						}					}				}				}
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@70:
+p1proc: reboot
+p3proc: reboot
+o1proc: reboot as o2
+# Assume: o1proc co-exists with p1proc
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@80-85:
+HA -> p1: CRASHED
+HA -> p3: CRASHED
+HA -> o2: INIT (?)
+p1 -> HA: ready to RECOVERING@80
+p3 -> HA: ready to RECOVERING@81
+o2 -> HA: ready to ONLINE@82
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@90:
+HA -> p2: p1 is RECOVERING@80
+HA -> p2: p3 is RECOVERING@81
+HA -> p2: o1 is OFFLINE@80
+HA -> p2: o2 is ONLINE@82
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+WARNING: The section below is not finished yet :WARNING
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+NETWORK,DISK,PROC	User				o2				p1				p2				p3
+|			|				|				|				|				|
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@100-105:
+# S3 client sends a DEL operation to remove the objects.
+# It leads to 3 calls to motr client which:
+			{ [DIX DEL k1] }
+			{ [DIX DEL k2] }
+			{ [DIX DEL k3] }
+						{					{				{				{
+						R1[CAS DEL k1 @100 st=III],		R1[CAS PUT k1 @10 st=PVV],	R1[CAS PUT k2 @11 st=VPV],	R1[CAS PUT k3 @12 st=VVP],
+						R2[CAS DEL k2 @101 st=III],
+						R3[CAS DEL k3 @102 st=III],
+						}					}				}				}
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@110:
+o2 -> p1: request o2.R1, request o2.R2, request o2.R3
+o2 -> p2: request o2.R1, request o2.R2, request o2.R3
+o2 -> p3: request o2.R1, request o2.R2, request o2.R3
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@115:
+p1: received o2.R1, received o2.R2, received o2.R3
+p2: received o2.R1, received o2.R2, received o2.R3
+p3: received o2.R1, received o2.R2, received o2.R3
+
+						{					{				{				{
+						R1[CAS DEL k1 @100 st=III],		R1[CAS PUT k1 @10  st=PVV],	R1[CAS PUT k2 @11  st=VPV],	R1[CAS PUT k3 @12  st=VVP],
+						R2[CAS DEL k2 @101 st=III],		R2[CAS DEL k1 @100 st=III],	R2[CAS DEL k1 @100 st=III],	R2[CAS DEL k1 @100 st=III],
+						R3[CAS DEL k3 @102 st=III],		R3[CAS DEL k2 @101 st=III],	R3[CAS DEL k2 @101 st=III],	R3[CAS DEL k2 @101 st=III],
+											R4[CAS DEL k3 @102 st=III],	R4[CAS DEL k3 @102 st=III],	R4[CAS DEL k3 @102 st=III],
+						}					}				}				}
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@120:
+## Here are the messages that have to be sent:
+# Recovering of o1 on p1
+p1 -> p2: REDO p1.R1
+p1 -> p3: REDO p1.R1
+# Recovering of p1
+p2 -> p1: REDO p2.R1
+# Recovering of o1 on p2
+p2 -> p1: REDO p2.R1
+p2 -> p3: REDO p2.R1
+# Recovering of p3
+p2 -> p3: REDO p2.R1
+# Recovering of o1 on p3
+p3 -> p1: REDO p3.R1
+p3 -> p2: REDO p3.R1
+## Here are the message that have to actually be sent (without duplicates):
+p1 -> p2: REDO p1.R1
+p1 -> p3: REDO p1.R1
+p2 -> p1: REDO p2.R1
+p2 -> p3: REDO p2.R1
+p3 -> p1: REDO p3.R1
+p3 -> p2: REDO p3.R1
+# Note: duplicates are ommitted in the FOLs.
+
+						{					{				{				{
+						R1[CAS DEL k1 @100 st=III],		R1[CAS PUT k1 @10  st=PVV],	R1[CAS PUT k2 @11  st=VPV],	R1[CAS PUT k3 @12  st=VVP],
+						R2[CAS DEL k2 @101 st=III],		R2[CAS DEL k1 @100 st=III],	R2[CAS DEL k1 @100 st=III],	R2[CAS DEL k1 @100 st=III],
+						R3[CAS DEL k3 @102 st=III],		R3[CAS DEL k2 @101 st=III],	R3[CAS DEL k2 @101 st=III],	R3[CAS DEL k2 @101 st=III],
+											R4[CAS DEL k3 @102 st=III],	R4[CAS DEL k3 @102 st=III],	R4[CAS DEL k3 @102 st=III],
+											R5[CAS PUT k2 @11  st=III],	R5[CAS PUT k1 @10  st=III],	R5[CAS PUT k1 @10  st=III],
+											R6[CAS PUT k3 @12  st=III],	R6[CAS PUT k3 @12  st=III],	R6[CAS PUT k2 @11  st=III],
+						}					}				}				}
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@130:
+# The requests are executed. The KVS on each node will have the following content if
+# p1 does not put tombstones:
+
+p1: kvs = <empty set>, tombstones = { k1@100, k2@101, k3@102 }
+p2: kvs = { k1@10, k3@12 }, tombstones = <empty set>
+p3: kvs = <empty set>, tombstones = { k1@100, k2@101, k3@102 }
+
+# However, if p1 was able to put tombstones then all the KVS would have had <empty set>,
+# which would be the expected behavior in this situation.
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#+END_SRC
 *** 1 transient failure of persistent participant and subsequent another 1 subsequent failure during recovery
-*** n transient failures of originators
-*** n transient failures of originators and k failures of persistent participants
+#+begin_src plantuml :file one-transient.png :exports results
+' The diagram describes a use-case where
+' the system experienced transient
+' a failure. One of the nodes lost its volatile
+' state, and leads to the DTM "recovering" procedures.
+' The goal of the diagram is to show the interactions
+' between CAS client/service and DTM library/service
+' and the HA.
+
+header DTM One Transient \n By Ivan A. 2020-14-12.
+footer Page %page% of %lastpage%
+
+title DTM One Transient
+
+' The types of processes used here:
+' 	- Originators (participants without peristent storage)
+' 	- Participants (participants with persistent storage).
+
+box "Client (0)" #00ffcc
+	participant "Motr Client" as user
+	participant "DIX0" as DIX0
+	participant "DTM0" as DTM0
+	participant "HA0" as HA0
+end box
+
+box "ServerLeft (1)" #b3daff
+	participant "CAS1" as CAS1
+	participant "DTM1" as DTM1
+	participant "HA1" as HA1
+end box
+
+box "ServerMiddle (2)"   #66b5ff
+	participant "CAS2" as CAS2
+	participant "DTM2" as DTM2
+	participant "HA2" as HA2
+end box
+
+box "ServerRight (3)"   #339cff
+	participant "CAS3" as CAS3
+	participant "DTM3" as DTM3
+	participant "HA3" as HA3
+end box
+
+' Prepare op and start execution on (1) 2{{{
+
+user -> DIX0: clnt_op = { op=PUT, records=k1-k16,v1-v6 }
+DIX0 -> CAS1: GET_LAYOUT_AND_PVER
+CAS1 -> DIX0: layout_info (pool version, layout id, etc.)
+DIX0 -> DIX0: layout = clnt_op.records.map(m0_dix_target_(layout_info, record))
+DIX0 -> DTM0: dtx_open(...) returns dtx { clock: now(), tx_id: new_id() }
+DIX0 -> DTM0: dtx.add_and_close(pa_p=layout, pa_v=DIX0.fid)
+DTM0 -> DTM0: dtx = { clock, tx_id, \npa_v=self.fid,\n pa_p=layout,\n states[1:3]=[FUTURE] }
+DIX0 -> DIX0: dix_req[1:3] = { dtx, layout, records, src: DIX0.fid, dst: CAS[i].fid }
+DIX0 -> DTM0: dtx_prepared(dtx, dix_req[])
+DTM0 -> DTM0: dtx.states = [PREPARED] * 3
+DTM0 -> DIX0: ok, ready
+' 2}}}
+
+group Sending requests
+	DIX0 -> CAS1: send(dix_req[1])
+	DIX0 -> DTM0: dtx_inprogress(dtx, dix_req[1])
+	DIX0 -> CAS2: send(dix_req[2])
+	DIX0 -> DTM0: dtx_inprogress(dtx, dix_req[2])
+	DIX0 -> CAS3: send(dix_req[3])
+	DIX0 -> DTM0: dtx_inprogress(dtx, dix_req[3])
+end
+
+group CAS1 execution
+	CAS1 -> DTM1: dtx_recv(fom.fop.request.dtx)
+	DTM1 -> CAS1: returns (dtx, ready)
+	CAS1 -> CAS1: FOM_TX_OPEN: fom.ltx = be_tx.open()
+	CAS1 -> CAS1: FOM_CAS_LOOP: cas_reply = cas_exec(fom)
+	CAS1 -> CAS1: FOM_SUCCESS: fom.fop.reply = cas_reply
+	CAS1 -> DTM1: FOM_FOL_REC_ADD: dtm_log_add(fom)
+	CAS1 -> CAS1: FOM_TX_COMMIT: fom.ltx.close()
+	CAS1 -> CAS1: FOM_QUEUE_REPLY: rpc_post(fom.fop.reply)
+	CAS1 -> DIX0: send reply "EXECUTED" {dtx, cas_reply}
+	DIX0 -> DTM0: dtx_executed(reply.dtx)
+	DIX0 -> user: lookup_op(reply.dtx).on_executed()
+end
+
+=== Server (1) powered off ===
+
+group  Server (1) got crached
+	CAS1 ->X HA1: No heartbeats
+	DTM1 ->X HA1: No heartbeats
+	CAS1 -> CAS1: Lost volatile state
+	DTM1 -> DTM1: Lost volatile state
+end
+
+group CAS2 execution
+	CAS2 -> DTM2: dtx_recv
+	CAS2 -> CAS2: execute ...
+	CAS2 -> DTM2: dtm_log_add(fom)
+	CAS2 -> DIX0: send reply "EXECUTED" {dtx, cas_reply}
+end
+
+group CAS2 persistent
+	CAS2 -> DTM2: dtm_log_persistent(dtx, [pa=self])
+	DTM2 -> DTM0: send(PERSISTENT, dtx)
+	DTM0 -> DIX0: on_persistent(dtx)
+	DIX0 -> user: lookup_op(dtx).on_persistent()
+	DTM2 ->X DTM1: send(PERSISTENT, dtx)
+	DTM2 -> DTM3: send(PERSISTENT, dtx)
+end
+
+group CAS3 execution
+	CAS3 -> DTM3: dtx_recv
+	CAS3 -> CAS3: execute ...
+	CAS3 -> DTM3: dtm_log_add(fom)
+	CAS3 -> DIX0: send reply "EXECUTED" {dtx, cas_reply}
+end
+
+group CAS3 persistent
+	CAS3 -> DTM3: dtm_log_persistent(dtx, [pa=self])
+	DTM3 -> DTM0: send(PERSISTENT, dtx)
+	DTM3 ->X DTM1: send(PERSISTENT, dtx)
+	DTM3 -> DTM2: send(PERSISTENT, dtx)
+end
+
+=== Server (1) powered on ===
+
+group Server(1) enters "recovering" of records until E
+	CAS1 -> DTM1: Ready for DTM redo @E
+	note right: @E is the point where CAS1 \nis ready to receive requests
+	DTM1 -> HA1: Ready for DTM redo @E
+	HA1 -> HA0: Server(1) is ready for redo @E
+	HA1 -> HA2: Server(1) is ready for redo @E
+	HA1 -> HA3: Server(1) is ready for redo @E
+end
+
+group REDO from Server(2)
+	HA2 -> DTM2: REDO Server(1)@E
+	loop forall dtx in log until dtx.clock < @E
+		DTM2 -> DTM1: send(REDO, dtx, seqid, max_seqid)
+		DTM1 -> DTM1: dtx_recv
+		DTM1 -> CAS1: execute ...
+		CAS1 -> DTM1: dtm_log_add(fom, persistent=dtx.state)
+	end
+	DTM1 -> HA1: done REDO from Server(2)@E
+end
+
+group REDO from Client (0)
+	HA0 -> DTM0: REDO Server(1)@E
+	loop forall dtx in log until dtx.clock < @E
+		DTM0 -> DTM1: send(REDO, dtx, seqid, max_seqid)
+		DTM1 -> DTM1: dtx_recv(dtx, ...)
+		DTM1 -> DTM1: dtm_log_lookup(dtx.tx_id) -> record\ndup detected
+		DTM1 -> CAS1: cas_reply = record.reply
+		CAS1 -> DIX0: send reply "EXECUTED" {dtx, cas_reply}
+		CAS1 -> DTM1: dtm_log_add(fom, persistent=dtx.state)
+	end
+	DTM1 -> HA1: done REDO from Client(0)@E
+end
+
+group REDO from Server(3)
+	HA2 -> DTM3: REDO Server(1)@E
+	loop forall dtx in log until dtx.clock < @E
+		DTM3 -> DTM1: send(REDO, dtx, seqid, max_seqid)
+		DTM1 -> DTM1: dtm_log_lookup(dtx.tx_id) -> record\ndup detected
+		DTM1 -> DTM1: dtm_log_add(fom, persistent=dtx.state)
+	end
+	DTM1 -> HA1: done REDO from Server(1)@E
+end
+
+group Presistent notices from the recovering server.\nThey can be sent at any moment\nduring recovery.
+	' Self
+	CAS1 -> DTM1: dtm_log_persistent(dtx, [pa=self])
+	DTM1 -> DTM1: on_stable(dtx)
+	' Client(0)
+	DTM1 -> DTM0: send(PERSISTENT, dtx)
+	DTM0 -> DTM0: dtm_log_persistent(dtx, pa=CAS1)
+	DTM0 -> DTM0: dtm_log_stable(dtx)
+	DTM0 -> DIX0: on_stable(dtx)
+	DIX0 -> user: lookup_op(dtx).on_stable()
+	' Server(2)
+	DTM1 -> DTM2: send(PERSISTENT, dtx)
+	DTM2 -> DTM2: dtm_log_persistent(dtx, pa=CAS1)
+	DTM2 -> DTM2: dtm_log_stable(dtx)
+	' Server(3)
+	DTM1 -> DTM3: send(PERSISTENT, dtx)
+	DTM3 -> DTM3: dtm_log_persistent(dtx, pa=CAS1)
+	DTM3 -> DTM3: dtm_log_stable(dtx)
+end
+
+=== Server (1) enters ONLINE ===
+
+group HA notifies about Online state for Server(1)
+	HA1 -> HA0: Server(1) is Online
+	HA1 -> HA2: Server(1) is Online
+	HA1 -> HA3: Server(1) is Online
+end
+#+end_src
+#+RESULTS:
+[[file:one-transient.png]]
+
+*** N transient failures of originators
+*** N transient failures of originators and k failures of persistent participants
 *** DTM recovery stop
+#+BEGIN_SRC
+
+/*
+Allowed transitions:
+        CRASHED -----------> RECOVERING -------------> ONLINE;
+	/|\                                              |
+         +-----------------------------------------------+
+
+Timelines and periods:
+
+st=ONLINE     st=CRASHED             st=RECOVERING          st=ONLINE
+|-------X-----|----------------------|----------------------|--------> t
+        |        ("boot" period)         ("grace" period)     ("normal" mode)
+        |
+     (actual crash)
+
+*/
+
+
+// Types -- verified by invariants or a type system (if there any).
+struct redo_state_item {
+	fid  node;
+	bool is_done;
+};
+
+// In-memory states (state machines)
+variable: redo_state, state space: any possible value of redo_state_item[N],
+	where N depends on @T and it is in the range 0..NR_NODES.
+variable: HA; // opaque object that generates HA events
+variable: NETWORK; // opaque object that sends/receives REDO messages
+variable: DTM; // opaque object that wraps around DTM log and CAS service
+
+/* TODO: redo_state has to be a part of separate array of variables
+	that represent volatile state of each participant
+*/
+
+// Transistions of in-memory states
+
+// This function affects redo_state variable
+redo_state.on_ha_event(RECOVERING self) {
+	assume: HA.prev_state() == CRASHED;
+
+	redo_state = HA.get_online_dones().map(\n -> (n.fid, false));
+}
+
+(DTM|HETWORK).redo_fom_ver1(!ONLINE other){
+	// Find the last record to send
+	prev_record = NULL
+	last_record = NULL;
+	for record in DTM.log {
+		// Some magic with prev and current records
+		// .........
+		// may be omitted here.
+		if record.time > HA.recovery_start_time(other) {
+			last_record = prev_record;
+			break;
+		}
+	}
+
+	msg.src = self;
+	msg.tgt = other;
+
+	for record in DTM.log {
+		if (!record.has_pa(other) ||
+		    record.has_persistent_msg(other)) {
+			continue;
+		}
+		// Can use batching of records here
+		msg.dtx = record.dtx;
+		msg.is_last = record == last_record;
+		NETWORK.send(msg);
+		await NETWORK.recv(ack);
+		// Execution is synchrnonous but
+		// we still have to match acks.
+		assume: ack.dtx.tx_id == msg.dtx.tx_id.
+		if (record == last_record)
+			break;
+	}
+}
+
+(DTM|HETWORK).redo_fom_ver2(!ONLINE other){
+	msg.src = self;
+	msg.tgt = other;
+	for record in DTM.log {
+		if (record.time > HA.recovery_start_time(other))
+			break;
+
+		if (!record.has_pa(other) ||
+		    record.has_persistent_msg(other)) {
+			continue;
+		}
+
+		// Can use batching of records here
+		msg.dtx = record.dtx;
+		NETWORK.send(msg);
+		await NETWORK.recv(ack);
+		// Execution is synchrnonous but
+		// we still have to match acks.
+		assume: ack.dtx.tx_id == msg.dtx.tx_id.
+	}
+	DTX.redo_complete_msg.src = self;
+	DTX.redo_complete_msg.tgt = other;
+	NETWORK.send(DTX.redo_complete_msg);
+	await NETWORK.recv(ack);
+}
+
+// This function affects only NETWORK variable
+(NETWORK).on_ha_event(!ONLINE other) {
+	assume: self != other;
+	if (HA.is_recovering(self)) {
+		redo_state.remove(other.fid);
+		return;
+	}
+
+	if (HA.is_online(self) && HA.is_recovering(other))
+		if ((DTM|HETWORK).redo_fom_ver1)
+			// With "is_last" field inside of each packet
+			enque((DTM|HETWORK).redo_fom_ver1);
+		else
+			// With the separate completion packet
+			enque((DTM|HETWORK).redo_fom_ver2);
+}
+
+// This function affects DTM, NETWORK and HA variables
+(NETWORK|DTM|HA).on_recv(REDO msg) {
+	assume: The message was sent to us.
+	assume: Execution is synchronous: acks sent only after a message
+	is processed; there is no way to execute the last record
+	before all the previous records are executed.
+	assume: HA.is_online(msg.src).
+
+	DTM.apply(msg);
+	if (msg_with_is_last_field)
+		redo_state[msg.src].is_done = msg.is_last;
+	ack = { .dtx = msg.dtx, .reply = msg.reply };
+	await NETWORK.send(msg); // may include a reply, see DTM.apply
+
+	if (msg_with_is_last_field) {
+		if (redo_state[msg.src].is_done)
+			redo_state.remove(msg.src);
+
+		if (redo_state.is_empty())
+			// The node "self" has been fully recovered.
+			HA.consider_st_transition(self, ONLINE, now())
+	}
+}
+
+(NETWORK|DTM|HA).on_recv(REDO_COMPLETE msg) {
+	assume: The message was sent to us.
+
+	redo_state.remove(msg.src);
+
+	if (redo_state.is_empty())
+		// The node "self" has been fully recovered.
+		HA.consider_st_transition(self, ONLINE, now())
+
+// This function affect only the state of DTM variable
+DTM.apply(msg) {
+	record = DTM.lookup(msg.tx_id())
+	if record.is_none() {
+		msg.reply = DTM.CAS.execute(msg);
+	} else {
+		if msg.src.is_reply_required() {
+			msg.reply = record.reply;
+		}
+	}
+	DTM.log_update_state(msg.tx_id(), msg.states());
+	async DTM.log_commit(msg.tx_id());
+}
+#+END_SRC
 *** DTM during persistent failures
 *** DTM transaction abort (cancelation of clovis operation)
 *** Clovis interface w.r.t. distributed transactions
@@ -499,7 +1337,7 @@ deliver executed callback after persistent participant failure
 *** clock synchronisation
 *** clock desynchronization
 *** failure model
-*** ismask related
+*** ismask handling
 *** recovery: redo+put/del execution, ordering
 *** how long with 3-way replication 3 participant can be in transient?
 *** new originator after fail
@@ -508,19 +1346,76 @@ deliver executed callback after persistent participant failure
 *** Cluster shutdown usecase
 *** Cluster start usecase after shutdown
 *** Metadata update
+TBD.
 *** S3 interraction
-*** long living tombstones and log records
+#+BEGIN_SRC
+                 failure(transient)
+-------------------------------|------------------------------------------------>t
 
+S3req |-------------------------------------------------|
+DIX1(w)    |----|
+DIX2(w)      |----|
+DIX3(w)        |----|
+IO1(w)              |-------|
+IO2(w)                       |------|
+DIX4(w)                              |----|
+#+END_SRC
+Questions:
+0) Assume that IO2 will fail (fig. 1).
+1) What S3 server has to do after transient failure happend (fig. 1)?
+2) How long the transient failure is suppose to take?
+3) Availability implications (9s).
+Non-DTM related question:
+What to do with persistent failures:
+1) (long)  Are we going to have a code in motr which will handle the case of creation of another obj-id during persistent failure?
+2) (short) How to handle persisent failures? Describe the scenario.
+
+*** long living tombstones and log records
+TBD.
 ** Failures
 =[This sub-section defines relevant failures and reaction to them. Invariants maintained across the failures must be clearly stated. Reaction to Byzantine failures (i.e., failures where a compromised component acts to invalidate system integrity) is described here]=
 * Analysis
 ** Scalability
+#+BEGIN_QUOTE
 =[This sub-section describes how the component reacts to the variation in input and configuration parameters: number of nodes, threads, requests, locks, utilization of resources (processor cycles, network and storage bandwidth, caches), etc. Configuration and work-load parameters affecting component behavior must be specified here]=
+#+END_QUOTE
+
+Possbile implications of DTM0 integration on performance:
+ - the number of transactions increased by 3 per each PUT/DEL key value operation.
+ - tombstones would require addidional lookup, which can cost a lock time for huge trees.
+ - tombstones management would require backgroud GC which would limit number of transactions in flight.
+
 ** Other
 =[As applicable, this sub-section analyses other aspects of the design, e.g., recoverability of a distributed state consistency, concurrency control issues]=
 ** Rationale
 =[This sub-section describes why particular design was selected; what alternatives (alternative designs and variations of the design) were considered and rejected]=
 * Deployment
+** Roadmap and execution
+#+BEGIN_QUOTE
+=[Intercomponent dependencies and execution plan w.r.t. HA and others.]=
+#+END_QUOTE
+
+Obviously implementation plan will have HA and S3 related
+activities. Possbile schedule of such plan can have the following
+micro milestones:
+ - DTM0 happy path scenario.
+ - DTM0 start/stop scenarios (depends on "HA messages").
+ - DTM0 recovery scenarios (depends on "HA messages").
+ - Basic S3 integration (depends on DTM0).
+ - DTM0 test.
+ - DTM0 basic deployment.
+ - (future work) Metadata update (depends on basic S3 integration).
+
+Possible execution plan:
+#+BEGIN_SRC
+motr: |----------- happy ---|---- recovery scenarios ----|                    |-- dtm0 test --|-- deploy --|
+                           /
+                          /<---(depends on)
+ha  : |-- ha messages --|
+
+s3  :                                                    |-- s3 integration --|
+#+END_SRC
+
 ** Compatibility
 =[Backward and forward compatibility issues are discussed here. Changes in system invariants (event ordering, failure modes, etc.)]=
 *** Network
