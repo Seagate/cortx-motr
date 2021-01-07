@@ -2684,11 +2684,9 @@ M0_INTERNAL int granted_maybe_reserve(struct m0_rm_credit *granted,
 	m0_tl_for(pr, &granted->cr_pins, pin) {
 		M0_ASSERT(m0_rm_pin_bob_check(pin));
 		curr = pin->rp_incoming;
-		if (curr->rin_flags & RIF_RESERVE) {
-			if (best == NULL ||
-			    has_reserve_priority(curr, best))
-				best = curr;
-		}
+		if ((curr->rin_flags & RIF_RESERVE) &&
+		    (best == NULL || has_reserve_priority(curr, best)))
+			best = curr;
 	} m0_tl_endfor;
 
 	if (best == NULL)
