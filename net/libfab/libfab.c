@@ -114,8 +114,7 @@ static bool libfab_tm_is_locked(const struct m0_fab__tm *tm);
 static void libfab_buf_complete(struct m0_fab__buf *buf, int32_t status);
 static void libfab_buf_done(struct m0_fab__buf *buf, int rc);
 static bool libfab_tm_invariant(const struct m0_fab__tm *tm);
-static struct m0_fab__tm  *libfab_buf_ma(struct m0_fab__buf  *buf);
-static struct m0_fab__ep  *libfab_buf_ep(struct m0_net_end_point *ep);
+static struct m0_fab__tm *libfab_buf_ma(struct m0_fab__buf  *buf);
 static int m0_fab_bdesc_create(struct m0_fab__ep_name *addr,
                                struct m0_fab__buf *buf, 
                                struct m0_net_buf_desc *out);
@@ -171,7 +170,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 	int                 nr;
 	unsigned            pid;
 	unsigned            portal;
-	// unsigned            portnum;
+	unsigned            portnum;
 	unsigned            tmid;
 	char		   *lp       = "127.0.0.1";
 
@@ -179,9 +178,6 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 	    (strncmp(name, "127.0.0.1", 9) == 0)) {
 		M0_PRE(nodeSize >= ((strlen(lp)+1)) );
 		memcpy(node, lp, (strlen(lp)+1));
-		/* TODO: Remove when port extraction logic is working */
-		memcpy(port, "47592", (strlen("47592")+1));
-		return M0_RC(0);
 	} else {
 		if (at == NULL || at - name >= nodeSize)
 			return M0_ERR(-EPROTO);
@@ -224,8 +220,8 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 		return M0_ERR_INFO(-EPROTO,
 			"portal: %u, tmid: %u", portal, tmid);
 
-	// portnum  = htons(tmid | (1 << 10) | ((portal - 30) << 11));
-	// sscanf(portnum,"%d",port);
+	portnum  = htons(tmid | (1 << 10) | ((portal - 30) << 11));
+	sprintf(port,"%d",portnum);
 	fab_autotm[tmid] = 1;
 	return M0_RC(0);
 }
@@ -686,6 +682,7 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 	m0_nep_tlink_init_at_tail(net, &tm->ntm_end_points);
 	net->nep_addr = (const char *)(&ep->fep_name);
 	*epp = &ep->fep_nep;
+	m0_ref_init(&ep->fep_nep.nep_ref, 1, &libfab_ep_release);
 	return M0_RC(rc);
 }
 
@@ -696,8 +693,10 @@ static int libfab_ep_res_init(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 {
 	struct fi_cq_attr   cq_attr;
 	struct fi_eq_attr   eq_attr;
+#if 0
 	struct fi_av_attr   av_attr;
 	struct fi_cntr_attr cntr_attr;
+#endif /* #if 0 */
 	int                 rc = 0;
 	
 	M0_ENTRY();
@@ -751,6 +750,7 @@ static int libfab_ep_res_init(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 
+#if 0
 	/* Initailise and bind address vector */
 	memset(&av_attr, 0, sizeof(av_attr));
 	av_attr.type = FI_AV_UNSPEC;
@@ -781,7 +781,7 @@ static int libfab_ep_res_init(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 	rc = fi_ep_bind(ep->fep_ep, &ep->fep_ep_res.fer_rx_cntr->fid, 0);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
-
+#endif /* #if 0 */
 	return M0_RC(rc);
 }
 
@@ -838,10 +838,10 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 		}
 
 		/* TODO: Set appropriate flags and hints
-		 * fab->hints->ep_attr->type = FI_EP_MSG;
 		 * fab->hints->caps = FI_MSG;
 		 */
 
+		hints->ep_attr->type = FI_EP_MSG;
 		for (i = 0; i < ARRAY_SIZE(providers); i++) {
 			hints->fabric_attr->prov_name = providers[i];
 			rc = fi_getinfo(LIBFAB_VERSION, ep->fep_name.fen_addr,
@@ -851,6 +851,7 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 				break;
 		}
 		M0_ASSERT(i < ARRAY_SIZE(providers));
+		hints->fabric_attr->prov_name = NULL;
 		fi_freeinfo(hints);
 
 		rc = fi_fabric(ep->fep_fi->fabric_attr, &ep->fep_fabric, NULL);
@@ -896,13 +897,13 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 			libfab_ep_param_free(ep, tm);
 			return M0_RC(rc);
 		}
-	} else {
-		/* Initiate outgoing connection request */
-		rc = fi_connect(ep->fep_ep, fi->dest_addr, NULL, 0);
-		if (rc != FI_SUCCESS) {
-			libfab_ep_param_free(ep, tm);
-			return M0_RC(rc);
-		}
+	// } else {
+	// 	/* Initiate outgoing connection request */
+	// 	rc = fi_connect(ep->fep_ep, ep->fep_fi->dest_addr, NULL, 0);
+	// 	if (rc != FI_SUCCESS) {
+	// 		libfab_ep_param_free(ep, tm);
+	// 		return M0_RC(rc);
+	// 	}
 	}
 
 	return M0_RC(rc);
@@ -1382,7 +1383,7 @@ static int libfab_ma_init(struct m0_net_transfer_mc *tm)
 			rc = libfab_passive_ep_create(ma->ftm_pep, ma);
 			m0_ref_init(&ma->ftm_pep->fep_nep.nep_ref, 1, 
 				    &libfab_ep_release);
-			libfab_ep_get(ma->ftm_pep);
+			libfab_ep_get(ma->ftm_pep); /* TODO: Remove */
 			tm->ntm_dom->nd_xprt_private = ma->ftm_pep;
 			net = &ma->ftm_pep->fep_nep;
 			net->nep_tm = tm;
@@ -1580,13 +1581,15 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 
 	mr   = fbp->fb_mr;
 	qt   = nb->nb_qtype;
-	ep   = libfab_buf_ep(nb->nb_ep);
+	ep   = libfab_ep_net(nb->nb_ep);
 	peer = &fbp->fb_peer;
 
 	switch (qt) {
 	case M0_NET_QT_MSG_RECV:
-		cnt = fi_recv(ep->fep_ep, nb->nb_buffer.ov_buf[0], nb->nb_length,
-					fi_mr_desc(mr), 0, fbp);
+		/* Create local active ep for recv and do fi_accept/fi_connect*/
+
+		cnt = fi_recv(ep->fep_ep, nb->nb_buffer.ov_buf[0],
+			      nb->nb_length, fi_mr_desc(mr), 0, fbp);
 		if(cnt < 0)
 			ret = M0_ERR(-EIO);
 		break;
@@ -1742,11 +1745,6 @@ static m0_bcount_t libfab_get_max_buf_desc_size(const struct m0_net_domain *dom)
 static struct m0_fab__tm  *libfab_buf_ma(struct m0_fab__buf  *buf)
 {
 	return buf->fb_nb->nb_tm->ntm_xprt_private;
-}
-
-static struct m0_fab__ep  *libfab_buf_ep(struct m0_net_end_point *net)
-{
-	return container_of(net, struct m0_fab__ep, fep_ep);;
 }
 
 /* Returns the IPV4 or IPV6 based on given ip string */
