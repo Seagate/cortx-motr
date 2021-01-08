@@ -32,7 +32,7 @@
 #include "lib/time.h"
 #include "lib/arith.h"
 
-#define UB_ITER 1
+#define UB_ITER 100
 #define MMAX    255
 #define KMAX    255
 
@@ -73,17 +73,17 @@ static void encode_data(uint32_t k, uint32_t p, uint32_t len,
                         uint8_t *encode_matrix, uint8_t *g_tbls,
                         uint8_t **fragments)
 {
-    // Initialize g_tbls from encode matrix
+    /* Initialize g_tbls from encode matrix */
     ec_init_tables(k, p, &encode_matrix[k * k], g_tbls);
 
-    // Generate EC parity blocks from sources
+    /* Generate EC parity blocks from sources */
     ec_encode_data(len, k, p, g_tbls, fragments, &fragments[k]);
 }
 
 static int decode_data(uint32_t k, uint32_t p, uint32_t len,
                        uint8_t *encode_matrix, uint8_t *g_tbls,
                        uint8_t **fragments,
-                       struct m0_buf failed, uint8_t **recover_outp)
+                       struct m0_buf *failed, uint8_t **recover_outp)
 {
     uint32_t i, j, r;
     uint32_t m = k+p;
@@ -92,11 +92,11 @@ static int decode_data(uint32_t k, uint32_t p, uint32_t len,
     uint8_t *invert_matrix = NULL;
     uint8_t *decode_matrix = NULL;
     uint8_t *recover_srcs[KMAX] = {NULL};
-    uint8_t *err_list = (uint8_t *)failed.b_addr;
+    uint8_t *err_list = (uint8_t *)failed->b_addr;
     uint8_t frag_in_err[MMAX];
     int8_t ret = 0;
 
-    // Allocate memory for matrices
+    /* Allocate memory for matrices */
     temp_matrix = m0_alloc(m * k);
     invert_matrix = m0_alloc(m * k);
     decode_matrix = m0_alloc(m * k);
@@ -109,13 +109,13 @@ static int decode_data(uint32_t k, uint32_t p, uint32_t len,
 
     memset(frag_in_err, 0, sizeof(frag_in_err));
 
-    // Order the fragments in erasure for easier sorting
-    for (i = 0; i < failed.b_nob; i++) {
+    /* Order the fragments in erasure for easier sorting */
+    for (i = 0; i < failed->b_nob; i++) {
         frag_in_err[err_list[i]] = 1;
     }
 
-    // Construct temp_matrix (matrix that encoded remaining frags)
-    // by removing erased rows
+    /* Construct temp_matrix (matrix that encoded remaining frags)
+       by removing erased rows */
     for (i = 0, r = 0; i < k; i++, r++) {
         while (frag_in_err[r])
             r++;
@@ -124,24 +124,24 @@ static int decode_data(uint32_t k, uint32_t p, uint32_t len,
         recover_srcs[i] = fragments[r];
     }
 
-    // Invert matrix to get recovery matrix
+    /* Invert matrix to get recovery matrix */
     ret = gf_invert_matrix(temp_matrix, invert_matrix, k);
     if ( ret != 0)
         goto exit;
 
-    // Create decode matrix
-    for (p = 0; p < failed.b_nob; p++)
+    /* Create decode matrix */
+    for (p = 0; p < failed->b_nob; p++)
     {
-        // Get decode matrix with only wanted recovery rows
-        if (err_list[p] < k)    // A src err
+        /* Get decode matrix with only wanted recovery rows */
+        if (err_list[p] < k)    /* A src err */
         {
             for (i = 0; i < k; i++)
                 decode_matrix[k * p + i] =
                     invert_matrix[k * err_list[p] + i];
         }
-        // For non-src (parity) erasures need to multiply
-        // encode matrix * invert
-        else // A parity err
+        /* For non-src (parity) erasures need to multiply
+           encode matrix * invert */
+        else /* A parity err */
         {
             for (i = 0; i < k; i++)
             {
@@ -154,9 +154,9 @@ static int decode_data(uint32_t k, uint32_t p, uint32_t len,
         }
     }
 
-    // Recover data
-    ec_init_tables(k, failed.b_nob, decode_matrix, g_tbls);
-    ec_encode_data(len, k, failed.b_nob, g_tbls, recover_srcs, recover_outp);
+    /* Recover data */
+    ec_init_tables(k, failed->b_nob, decode_matrix, g_tbls);
+    ec_encode_data(len, k, failed->b_nob, g_tbls, recover_srcs, recover_outp);
 
 exit:
     m0_free(temp_matrix);
@@ -171,12 +171,12 @@ static int ub_test(uint32_t k, uint32_t p, uint32_t len)
     int result = 0;
     uint32_t i, j, m;
 
-    // Fragment buffer pointers
+    /* Fragment buffer pointers */
     uint8_t *frag_ptrs[MMAX] = {NULL};
     uint8_t *recover_outp[KMAX] = {NULL};
     uint8_t *frag_err_list = NULL;
 
-    // Coefficient matrices
+    /* Coefficient matrices */
     uint8_t *encode_matrix;
     uint8_t *g_tbls;
 
@@ -184,7 +184,7 @@ static int ub_test(uint32_t k, uint32_t p, uint32_t len)
 
     m = k + p;
 
-    // Allocate coding matrices
+    /* Allocate coding matrices */
     encode_matrix = m0_alloc(m * k);
     g_tbls = m0_alloc(k * p * 32);
 
@@ -194,7 +194,7 @@ static int ub_test(uint32_t k, uint32_t p, uint32_t len)
         goto exit;
     }
 
-    // Allocate the src & parity buffers
+    /* Allocate the src & parity buffers */
     for (i = 0; i < m; i++) {
         if (NULL == (frag_ptrs[i] = m0_alloc(len))) {
             printf("alloc error: Fail\n");
@@ -203,7 +203,7 @@ static int ub_test(uint32_t k, uint32_t p, uint32_t len)
         }
     }
 
-    // Allocate buffers for recovered data
+    /* Allocate buffers for recovered data */
     for (i = 0; i < p; i++) {
         if (NULL == (recover_outp[i] = m0_alloc(len))) {
             printf("alloc error: Fail\n");
@@ -212,7 +212,7 @@ static int ub_test(uint32_t k, uint32_t p, uint32_t len)
         }
     }
 
-    // Allocate buffer for list of failed fragments
+    /* Allocate buffer for list of failed fragments */
     frag_err_list = m0_alloc(p);
     if (frag_err_list == NULL) {
         printf("alloc error: Fail\n");
@@ -222,26 +222,26 @@ static int ub_test(uint32_t k, uint32_t p, uint32_t len)
 
     m0_buf_init(&fail_buf, frag_err_list, p);
 
-    // Fill sources with random data
+    /* Fill sources with random data */
     for (i = 0; i < k; i++)
         for (j = 0; j < len; j++)
             frag_ptrs[i][j] = m0_rnd(255, &seed);
 
     gf_gen_cauchy1_matrix(encode_matrix, m, k);
 
-    // Generate parity
+    /* Generate parity */
     encode_data(k, p, len, encode_matrix, g_tbls, frag_ptrs);
 
-    // Get list of failed fragments
+    /* Get list of failed fragments */
     unit_spoil(&fail_buf, m);
 
-    // Recover corrupted fragments in recover_outp
+    /* Recover corrupted fragments in recover_outp */
     result = decode_data(k, p, len, encode_matrix, g_tbls, frag_ptrs,
-                         fail_buf, recover_outp);
+                         &fail_buf, recover_outp);
     if ( result )
         goto exit;
 
-    // Check that recovered buffers are the same as original
+    /* Check that recovered buffers are the same as original */
     for (i = 0; i < fail_buf.b_nob; i++) {
         if (memcmp(recover_outp[i], frag_ptrs[frag_err_list[i]], len)) {
             printf(" Fail erasure recovery %d, frag %d\n",
@@ -310,46 +310,97 @@ static void ub_large_1048576(int iter)
     ub_test(8, 4, 1048576);
 }
 
+static void ub_small_4_2_4K(int iter)
+{
+    ub_test(4, 1, 4096);
+}
+
+static void ub_small_4_2_256K(int iter)
+{
+    ub_test(4, 1, 262144);
+}
+
+static void ub_small_4_2_1M(int iter)
+{
+    ub_test(4, 1, 1048576);
+}
+
 struct m0_ub_set ec_isa_ub = {
     .us_name = "ec-isa-ub",
     .us_init = ub_init,
     .us_fini = NULL,
     .us_run  = {
-            { .ub_name  = "s 10/05/ 4K",
+            { .ub_name  = "s 10/05/4K",
               .ub_iter  = UB_ITER,
-              .ub_round = ub_small_4096 },
+              .ub_round = ub_small_4096,
+              .ub_block_size = 4096,
+              .ub_blocks_per_op = 15 },
 
-            { .ub_name  = "m 20/06/ 4K",
+            { .ub_name  = "m 20/06/4K",
               .ub_iter  = UB_ITER,
-              .ub_round = ub_medium_4096 },
+              .ub_round = ub_medium_4096,
+              .ub_block_size = 4096,
+              .ub_blocks_per_op = 26 },
 
-            { .ub_name  = "l 30/12/ 4K",
+            { .ub_name  = "l 30/12/4K",
               .ub_iter  = UB_ITER,
-              .ub_round = ub_large_4096 },
+              .ub_round = ub_large_4096,
+              .ub_block_size = 4096,
+              .ub_blocks_per_op = 42 },
 
             { .ub_name  = "s 10/05/32K",
               .ub_iter  = UB_ITER,
-              .ub_round = ub_small_32768 },
+              .ub_round = ub_small_32768,
+              .ub_block_size = 32768,
+              .ub_blocks_per_op = 15 },
 
             { .ub_name  = "m 20/06/32K",
               .ub_iter  = UB_ITER,
-              .ub_round = ub_medium_32768 },
+              .ub_round = ub_medium_32768,
+              .ub_block_size = 32768,
+              .ub_blocks_per_op = 26 },
 
             { .ub_name  = "l 30/12/32K",
               .ub_iter  = UB_ITER,
-              .ub_round = ub_large_32768 },
+              .ub_round = ub_large_32768,
+              .ub_block_size = 32768,
+              .ub_blocks_per_op = 42 },
 
-            { .ub_name  = "s 03/02/ 1M",
+            { .ub_name  = "s 03/02/1M",
               .ub_iter  = UB_ITER,
-              .ub_round = ub_small_1048576 },
+              .ub_round = ub_small_1048576,
+              .ub_block_size = 1048576,
+              .ub_blocks_per_op = 5 },
 
-            { .ub_name  = "m 06/03/ 1M",
+            { .ub_name  = "m 06/03/1M",
               .ub_iter  = UB_ITER,
-              .ub_round = ub_medium_1048576 },
+              .ub_round = ub_medium_1048576,
+              .ub_block_size = 1048576,
+              .ub_blocks_per_op = 9 },
 
-            { .ub_name  = "l 08/04/ 1M",
+            { .ub_name  = "l 08/04/1M",
               .ub_iter  = UB_ITER,
-              .ub_round = ub_large_1048576 },
+              .ub_round = ub_large_1048576,
+              .ub_block_size = 1048576,
+              .ub_blocks_per_op = 12 },
+
+            { .ub_name  = "s 04/02/4K",
+              .ub_iter  = UB_ITER,
+              .ub_round = ub_small_4_2_4K,
+              .ub_block_size = 4096,
+              .ub_blocks_per_op = 6 },
+
+            { .ub_name  = "m 04/02/256K",
+              .ub_iter  = UB_ITER,
+              .ub_round = ub_small_4_2_256K,
+              .ub_block_size = 262144,
+              .ub_blocks_per_op = 6 },
+
+            { .ub_name  = "l 04/02/1M",
+              .ub_iter  = UB_ITER,
+              .ub_round = ub_small_4_2_1M,
+              .ub_block_size = 1048576,
+              .ub_blocks_per_op = 6 },
 
            { .ub_name = NULL}
     }

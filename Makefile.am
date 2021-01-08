@@ -421,7 +421,7 @@ endif
 desim_ut_chs_test_CPPFLAGS  = -DM0_TARGET='chs_test' $(AM_CPPFLAGS)
 desim_ut_chs_test_LDADD     = $(top_builddir)/motr/libmotr.la \
                               $(top_builddir)/ut/libmotr-ut.la \
-                              @MATH_LIBS@ @ISAL_LIBS@
+                              @MATH_LIBS@
 
 if ENABLE_UNIT_TESTS
 noinst_PROGRAMS               += desim/ut/m0t1fs_test
@@ -753,7 +753,7 @@ utils/mkfs/m0mkfs.o: xcode/protocol_checksum.h
 sbin_PROGRAMS                  += utils/layout/m0layout
 utils_layout_m0layout_CPPFLAGS  = -DM0_TARGET='m0layout' $(AM_CPPFLAGS)
 utils_layout_m0layout_LDADD     = $(top_builddir)/motr/libmotr.la \
-                                  @MATH_LIBS@ @ISAL_LIBS@
+                                  @MATH_LIBS@
 
 #
 # utils ----------------------------------------------- {{{2
