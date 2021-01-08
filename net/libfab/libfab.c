@@ -333,7 +333,6 @@ static int libfab_ep_addr_decode(const char *name, char *node,
 	return M0_RC(result);
 }
 
-
 static void libfab_tm_lock(struct m0_fab__tm *tm)
 {
 	m0_mutex_lock(&tm->ftm_net_ma->ntm_mutex);
@@ -520,13 +519,23 @@ static void libfab_poller(struct m0_fab__tm *tm)
 	uint32_t                 cnt;
 
 	while (tm->ftm_shutdown == false) {
-		while(tm->ftm_shutdown == false) {
-			if (m0_mutex_trylock(&tm->ftm_net_ma->ntm_mutex) != 0) {
-				libfab_tm_lock(tm);
-				libfab_tm_unlock(tm);
+		while(1) {
+			m0_mutex_lock(&tm->ftm_endlock);
+			if (tm->ftm_shutdown == true)
+				break;
+			else if (m0_mutex_trylock(&tm->ftm_net_ma->ntm_mutex) != 0) {
+				m0_mutex_unlock(&tm->ftm_endlock);
+				// libfab_tm_lock(tm);
+				// libfab_tm_unlock(tm);
 			} else
 				break;
 		}
+		
+		m0_mutex_unlock(&tm->ftm_endlock);
+		
+		if (tm->ftm_shutdown == true)
+			break;
+		
 		M0_ASSERT(libfab_tm_is_locked(tm) && libfab_tm_invariant(tm));
 
 		memset(ctx, 0, sizeof(ctx));
@@ -1113,8 +1122,10 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 
 	m0_tl_for(m0_nep, &tm->ftm_net_ma->ntm_end_points, net) {
 		xep = libfab_ep_net(net);
+		m0_nep_tlist_del(net);
 		rc = libfab_ep_param_free(xep, tm);
 	} m0_tl_endfor;
+	M0_ASSERT(m0_nep_tlist_is_empty(&tm->ftm_net_ma->ntm_end_points));
 	
 	if (tm->ftm_waitset != NULL) {
 		rc = fi_close(&(tm->ftm_waitset)->fid);
@@ -1330,14 +1341,19 @@ static void libfab_ma_fini(struct m0_net_transfer_mc *tm)
 	M0_ENTRY();
 
 	libfab_tm_lock(ma);
-	ma->ftm_shutdown = true;
-	rc = libfab_tm_param_free(ma);
-	if (rc != FI_SUCCESS)
-		M0_LOG(M0_ERROR, "libfab_tm_param_free ret=%d",	rc);
+	if (!ma->ftm_shutdown) {
+		m0_mutex_lock(&ma->ftm_endlock);
+		ma->ftm_shutdown = true;
+		m0_mutex_unlock(&ma->ftm_endlock);
+		rc = libfab_tm_param_free(ma);
+		if (rc != FI_SUCCESS)
+			M0_LOG(M0_ERROR, "libfab_tm_param_free ret=%d",	rc);
 
-	tm->ntm_xprt_private = NULL;
+		tm->ntm_xprt_private = NULL;
+		m0_mutex_fini(&ma->ftm_endlock);
+	}
 	libfab_tm_unlock(ma);
-
+	
 	m0_free(ma);
 
 	M0_LEAVE();
@@ -1373,6 +1389,7 @@ static int libfab_ma_init(struct m0_net_transfer_mc *tm)
 			net->nep_addr = (const char *)(&ma->ftm_pep->fep_name);
 			m0_nep_tlink_init_at_tail(net, &tm->ntm_end_points);
 
+			m0_mutex_init(&ma->ftm_endlock);
 
 			if (rc == FI_SUCCESS)
 				rc = M0_THREAD_INIT(&ma->ftm_poller,

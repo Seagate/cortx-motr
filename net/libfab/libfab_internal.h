@@ -76,6 +76,7 @@ struct m0_fab__tm {
 	struct m0_fab__ep         *ftm_pep;     /* Passive ep(listening mode) */
 	bool                       ftm_shutdown;/* tm Shutdown flag */
 	struct m0_tl               ftm_done;    /* List of completed buffers */
+	struct m0_mutex            ftm_endlock; /* Used betn poller & tm_fini */
 };
 
 /**
