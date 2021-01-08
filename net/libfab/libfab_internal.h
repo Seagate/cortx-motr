@@ -97,6 +97,9 @@ struct m0_fab__bdesc {
 struct m0_fab__buf {
         uint64_t               fb_magic;    /* Magic number */
         uint64_t               fbp_cookie;  /* Cookie identifying the buffer */
+        uint64_t               fb_reg_key;  /* Memory registration key */
+        uint64_t               fb_mr_key;   /* mr key used for RDMA */
+        void                  *fb_mr_desc;  /* Buffer descriptor */
         struct m0_net_buffer  *fb_nb;       /* Pointer back to network buffer*/
         struct fid_mr         *fb_mr;       /* Libfab memory region */
         struct m0_fab__bdesc   fb_peer;     /* Other buffer descriptor in tm ops */
