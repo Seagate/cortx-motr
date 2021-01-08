@@ -62,7 +62,10 @@
 
 #define LIBFAB_VERSION FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION)
 
+#define LIBFAB_WAITSET_TIMEOUT  2 /* TODO: Tbd */
+
 static char *providers[] = { "verbs", "tcp", "sockets" };
+static uint64_t mr_key_idx = 0;
 
 /** Parameters required for libfabric configuration */
 enum m0_fab__mr_params {
@@ -127,6 +130,7 @@ static void libfab_buf_del(struct m0_net_buffer *nb);
 static void libfab_ep_put(struct m0_fab__ep *ep);
 static void libfab_ep_get(struct m0_fab__ep *ep);
 static void libfab_ep_release(struct m0_ref *ref);
+static uint64_t libfab_mr_keygen(void);
 
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
@@ -310,7 +314,7 @@ static int libfab_ep_addr_decode(const char *name, char *node,
 {
 	int result;
 
-	if( name != NULL || name[0] == 0)
+	if( name == NULL || name[0] == 0)
 		result =  M0_ERR(-EPROTO);
 	else if((strncmp(name,"libfab",6))==0)
 		result = libfab_ep_addr_decode_native(name, node,
@@ -523,10 +527,11 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		M0_ASSERT(libfab_tm_is_locked(tm) && libfab_tm_invariant(tm));
 
 		memset(ctx, 0, sizeof(ctx));
-		wait_cnt = fi_wait(tm->ftm_waitset, -1);
-		if (wait_cnt) {
-			poll_cnt = fi_poll(tm->ftm_pollset, ctx,
-					   ARRAY_SIZE(ctx));
+		wait_cnt = fi_wait(tm->ftm_waitset, LIBFAB_WAITSET_TIMEOUT);
+		if (wait_cnt > 0) {
+			poll_cnt = (tm->ftm_pollset == NULL) ? 0 : 
+					fi_poll(tm->ftm_pollset, ctx,
+						ARRAY_SIZE(ctx));
 			for (i = 0; i < poll_cnt; i++) {
 				rc = fi_cq_read(ctx[i], &comp, 1);
 				if (rc > 0)
@@ -1249,7 +1254,6 @@ static void libfab_buf_complete(struct m0_fab__buf *buf, int32_t status)
 	ma->ftm_net_ma->ntm_callback_counter--;
 }
 
-
 /** Completes the buffer operation. */
 static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 {
@@ -1292,6 +1296,12 @@ static void libfab_ep_release(struct m0_ref *ref)
 	/* TODO: */
 }
 
+static uint64_t libfab_mr_keygen(void)
+{
+	uint64_t key = FAB_MR_KEY + mr_key_idx;
+	mr_key_idx++;
+	return key;
+}
 
 /*============================================================================*/
 
@@ -1395,6 +1405,12 @@ static int libfab_ma_init(struct m0_net_transfer_mc *tm)
 static int libfab_ma_start(struct m0_net_transfer_mc *net, const char *name)
 {
 	struct m0_fab__tm *tm = net->ntm_xprt_private;
+
+	libfab_ep_addr_decode(name, tm->ftm_pep->fep_name.fen_addr, 
+			      ARRAY_SIZE(tm->ftm_pep->fep_name.fen_addr),
+			      tm->ftm_pep->fep_name.fen_port,
+			      ARRAY_SIZE(tm->ftm_pep->fep_name.fen_port));
+	tm->ftm_pep->fep_nep.nep_addr = tm->ftm_pep->fep_name.fen_addr;
 
 	libfab_tm_unlock(tm);
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
@@ -1504,7 +1520,7 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 	fb->fb_nb = nb;
 	/* Registers buff that can be used for send/recv and local/remote RMA*/
 	ret = fi_mr_reg(dp, nb->nb_buffer.ov_buf[0], nb->nb_length,
-			FAB_MR_ACCESS, FAB_MR_OFFSET, FAB_MR_KEY,
+			FAB_MR_ACCESS, FAB_MR_OFFSET, libfab_mr_keygen(),
 			FAB_MR_FLAG, &fb->fb_mr, NULL);
 	if (ret != FI_SUCCESS)
 	{
