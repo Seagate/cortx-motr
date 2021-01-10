@@ -336,7 +336,7 @@ func roundupPower2(x int) (power int) {
     return power
 }
 
-const maxM0BufSz = 128 * 1024 * 1024
+const maxM0BufSz = 512 * 1024 * 1024
 
 // Estimate the optimal (block, group) sizes for the I/O
 func (mio *Mio) getOptimalBlockSz(bufSz int) (bsz, gsz int) {
