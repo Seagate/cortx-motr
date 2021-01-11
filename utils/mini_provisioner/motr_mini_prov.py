@@ -136,8 +136,13 @@ class motr_prov:
     def config_lvm(self):
         node_name = self.conf_store.get(self.index, 'node_name', default_val=None)
         metadata_device = self.conf_store.get(self.index, 'metadata_device', default_val=None)
-        is_physical = self.conf_store.get(self.index, 'node_type', default_val=None) 
-        #TODO: get below config from KV store
+        is_physical = True if self.conf_store.get(self.index, 'node_type', default_val=None) == "physical" else False
+        
         print("In config_lvm node_name={} metadata_device={} is_physical={}".format(node_name, metadata_device, is_physical))
         self.create_lvm(node_name, metadata_device, is_physical)
+
+    def config_motr(self):
+        cmd = f"/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
+        print(f"Running {cmd}")
+        self.execute_command(cmd, 180)
 

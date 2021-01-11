@@ -29,7 +29,7 @@ from typing import Dict, List, NamedTuple, Set
 import re
 from datetime import datetime
 from collections import OrderedDict
-from motr_mini_prov_class import motr_prov 
+from motr_mini_prov import motr_prov 
 
 
 '''
@@ -73,6 +73,7 @@ class M0provision(motr_prov):
     def config_fn(self):
         print("In config url={}".format(self.url))
         super().config_lvm()
+        super().config_motr()
     def init_fn(self):
         print("In init url={}".format(self.url))
         super().configure_lnet_from_conf_store()
