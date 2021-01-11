@@ -1,0 +1,10 @@
+{
+  "motr": {
+    "lnet": {
+      "iface_type": "udp",
+      "iface": "eth1",
+      "config_on_load": 0,
+      "lnet_peer_discovery_disabled": 0
+    }
+  }
+}
