@@ -85,8 +85,7 @@ M0_TL_DESCR_DEFINE(fab_buf, "libfab_buf",
 		   M0_NET_LIBFAB_BUF_MAGIC, M0_NET_LIBFAB_BUF_HEAD_MAGIC);
 M0_TL_DEFINE(fab_buf, static, struct m0_fab__buf);
 
-static int libfab_ep_addr_decode(const char *name, char *node,
-				 size_t nodeSize, char *port, size_t portSize);
+static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name);
 static int libfab_ep_res_init(struct m0_fab__ep *ep, struct m0_fab__tm *tm);
 static int libfab_pep_res_init(struct m0_fab__ep *ep, struct m0_fab__tm *tm);
 static struct m0_fab__ep *libfab_ep_net(struct m0_net_end_point *net);
@@ -166,7 +165,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 			              size_t nodeSize, char *port,
                                       size_t portSize)
 {
-	char               *at       = strchr(name, '@');
+	char               *at = strchr(name, '@');
 	int                 nr;
 	unsigned            pid;
 	unsigned            portal;
@@ -174,8 +173,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 	unsigned            tmid;
 	char		   *lp       = "127.0.0.1";
 
-	if ((strncmp(name, "0@lo", 4) == 0) ||
-	    (strncmp(name, "127.0.0.1", 9) == 0)) {
+	if (strncmp(name, "0@lo", 4) == 0) {
 		M0_PRE(nodeSize >= ((strlen(lp)+1)) );
 		memcpy(node, lp, (strlen(lp)+1));
 	} else {
@@ -309,9 +307,12 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
  *                   IPV6 libfab:[4002:db1::1]:4235
  *
  */
-static int libfab_ep_addr_decode(const char *name, char *node,
-				 size_t nodeSize, char *port, size_t portSize)
+static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name)
 {
+	char *node = ep->fep_name.fen_addr;
+	char *port = ep->fep_name.fen_port;
+	size_t nodeSize = ARRAY_SIZE(ep->fep_name.fen_addr);
+	size_t portSize = ARRAY_SIZE(ep->fep_name.fen_port);
 	int result;
 
 	if( name == NULL || name[0] == 0)
@@ -326,6 +327,10 @@ static int libfab_ep_addr_decode(const char *name, char *node,
 		/* Lnet format. */
 		result = libfab_ep_addr_decode_lnet(name, node,
 						    nodeSize, port, portSize);
+
+	if (result == FI_SUCCESS)
+		strcpy(ep->fep_name.fen_str_addr, name);
+
 	return M0_RC(result);
 }
 
@@ -595,9 +600,8 @@ static bool libfab_ep_eq(struct m0_fab__ep *ep1, struct m0_fab__ep *ep2)
 {
 	bool ret = false;
 
-	if (strcmp(ep1->fep_name.fen_addr, ep2->fep_name.fen_addr) == 0 &&
-	    strcmp(ep1->fep_name.fen_port, ep2->fep_name.fen_port) == 0)
-	    	ret = true;
+	if (strcmp(ep1->fep_name.fen_str_addr, ep2->fep_name.fen_str_addr) == 0)
+		ret = true;
 
 	return ret;
 }
@@ -619,10 +623,7 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 	M0_ENTRY();
 
 	M0_PRE(name != NULL);
-	rc = libfab_ep_addr_decode(name, ep.fep_name.fen_addr, 
-				   ARRAY_SIZE(ep.fep_name.fen_addr), 
-				   ep.fep_name.fen_port, 
-				   ARRAY_SIZE(ep.fep_name.fen_port));
+	rc = libfab_ep_addr_decode(&ep, name);
 	if (rc != FI_SUCCESS)
 		return M0_ERR(-EINVAL);
 
@@ -662,10 +663,7 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 	ep->fep_ep = NULL;
 	ep->fep_pep = NULL;
 
-	rc = libfab_ep_addr_decode(name, ep->fep_name.fen_addr,
-				   ARRAY_SIZE(ep->fep_name.fen_addr),
-				   ep->fep_name.fen_port,
-				   ARRAY_SIZE(ep->fep_name.fen_port));
+	rc = libfab_ep_addr_decode(ep, name);
 	if (rc != FI_SUCCESS) {
 		libfab_ep_param_free(ep, ma);
 		return M0_RC(rc);
@@ -680,7 +678,7 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 	net = &ep->fep_nep;
 	net->nep_tm = tm;
 	m0_nep_tlink_init_at_tail(net, &tm->ntm_end_points);
-	net->nep_addr = (const char *)(&ep->fep_name);
+	net->nep_addr = (const char *)(&ep->fep_name.fen_str_addr);
 	*epp = &ep->fep_nep;
 	m0_ref_init(&ep->fep_nep.nep_ref, 1, &libfab_ep_release);
 	return M0_RC(rc);
@@ -1387,7 +1385,7 @@ static int libfab_ma_init(struct m0_net_transfer_mc *tm)
 			tm->ntm_dom->nd_xprt_private = ma->ftm_pep;
 			net = &ma->ftm_pep->fep_nep;
 			net->nep_tm = tm;
-			net->nep_addr = (const char *)(&ma->ftm_pep->fep_name);
+	
 			m0_nep_tlink_init_at_tail(net, &tm->ntm_end_points);
 
 			m0_mutex_init(&ma->ftm_endlock);
@@ -1420,11 +1418,8 @@ static int libfab_ma_start(struct m0_net_transfer_mc *net, const char *name)
 {
 	struct m0_fab__tm *tm = net->ntm_xprt_private;
 
-	libfab_ep_addr_decode(name, tm->ftm_pep->fep_name.fen_addr, 
-			      ARRAY_SIZE(tm->ftm_pep->fep_name.fen_addr),
-			      tm->ftm_pep->fep_name.fen_port,
-			      ARRAY_SIZE(tm->ftm_pep->fep_name.fen_port));
-	tm->ftm_pep->fep_nep.nep_addr = tm->ftm_pep->fep_name.fen_addr;
+	libfab_ep_addr_decode(tm->ftm_pep, name);
+	tm->ftm_pep->fep_nep.nep_addr = tm->ftm_pep->fep_name.fen_str_addr;
 
 	libfab_tm_unlock(tm);
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
@@ -1769,19 +1764,18 @@ static int libfab_get_remote_addr(const char *addr,fi_addr_t *remote_rx_addr)
 {
 	int	ret = 0;
 	int	ip_family;
-	char	node[INET6_ADDRSTRLEN];
-	char	port[8];
+	struct m0_fab__ep ep;
 
 	if(addr == NULL )
 		return M0_ERR(-EFAULT);
 
 	/* getting the addr of the remote */
-	ret = libfab_ep_addr_decode(addr, node, sizeof(node),
-				    port, sizeof(port));
+	ret = libfab_ep_addr_decode(&ep, addr);
 	if( ret == 0) {
-		ret = libfab_ip_type(node,&ip_family);
+		ret = libfab_ip_type(ep.fep_name.fen_addr,&ip_family);
 		if( ret == 0) {
-			if( (inet_pton(ip_family, node, remote_rx_addr)) != 1)
+			if( (inet_pton(ip_family, ep.fep_name.fen_addr,
+				       remote_rx_addr)) != 1)
 				ret = M0_ERR(-EIO);
 		}
 	}

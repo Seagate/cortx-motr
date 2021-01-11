@@ -45,6 +45,7 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
 struct m0_fab__ep_name {
 	char fen_addr[INET6_ADDRSTRLEN];       /*  */
 	char fen_port[6];                      /* Port range 0-65535 */
+	char fen_str_addr[INET6_ADDRSTRLEN+6+1];
 };
 
 struct m0_fab__ep_res {
