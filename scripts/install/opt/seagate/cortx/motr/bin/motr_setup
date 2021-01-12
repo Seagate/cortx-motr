@@ -88,7 +88,7 @@ class M0provision(motr_prov):
         pass
 
     def help_fn(self):
-        print(help_msg)
+        sys.stdout.write("{}\n".format(help_msg))
 
 if __name__ == "__main__":
     conf_store_obj = None
@@ -96,8 +96,8 @@ if __name__ == "__main__":
     if len(sys.argv) == 3:
         conf_store_obj = M0provision('motr_prov_conf', sys.argv[2])
     else:
-        print(f"Invalid arguments:")
-        print(help_msg)
+        sys.stdout.write(f"Invalid arguments:\n")
+        sys.stdout.write("{}\n".format(help_msg))
         sys.exit(1)
 
     if sys.argv[1] in conf_store_obj.opt_func:
@@ -105,7 +105,7 @@ if __name__ == "__main__":
         conf_store_obj.opt_func[sys.argv[1]]()
         sys.exit(0)
     else:
-        print(f"Invalid arguments:")
+        sys.stderr.write(f"Invalid arguments:\n")
         conf_store_obj.opt_func[sys.argv[1]]()
         sys.exit(1)
 
