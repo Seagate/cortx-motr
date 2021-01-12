@@ -6,7 +6,6 @@ import sys
 import getopt
 import json
 import time
-import netifaces
 from socket import gethostname
 from typing import Dict, List, NamedTuple, Set
 import re
@@ -19,7 +18,6 @@ from cortx.utils.schema.payload import Json
 from cortx.utils.conf_store import ConfStore
 
 conf_store = ConfStore()
-motr_url = 'json:///home/743120/mini_provisioner/motr_prov_conf.json'
 
 class motr_prov:
     def __init__(self, index, url):
@@ -27,7 +25,7 @@ class motr_prov:
         self.url = url
         self.index = index
         self.load_config(self.index, self.url)
-        print("Atul in motr_mini_prov_class.py on 30 self.url={} self.index={}".format(self.url, self.index))
+
     def configure_lnet_from_conf_store(self):
         '''
            Get iface and /etc/modprobe.d/lnet.conf params from
@@ -47,8 +45,12 @@ class motr_prov:
                               shell=True)
         stdout, stderr = ps.communicate(timeout=timeout_secs);
         stdout = str(stdout, 'utf-8')
-        if (ps.returncode != 0):
-            print("Failed cmd = {}\nret = {}\nout = %s\n".format(cmd, ps.returncode, stdout))
+        print(f"[CMD] {cmd}")
+        print(f"[OUT]\n{stdout}")
+        print(f"[RET] {ps.returncode}")
+        if ps.returncode != 0:
+            sys.exit(1)
+        return stdout
 
 
     def start_services(self, services):
@@ -68,6 +70,15 @@ class motr_prov:
         return self.conf_store
 
     def create_lvm(self, node_name, metadata_dev, is_physical):
+
+        self.validate_file(metadata_dev)
+
+        cmd = f"file {metadata_dev}"
+        op = self.execute_command(cmd, 180)
+        if op.find("block") == -1:
+            print(f"[ERR] {metadata_dev} is not a block device")
+            sys.exit(1)
+
         cmd = f"swapoff -a"
         self.execute_command(cmd, 180)
 
@@ -137,12 +148,26 @@ class motr_prov:
         node_name = self.conf_store.get(self.index, 'node_name', default_val=None)
         metadata_device = self.conf_store.get(self.index, 'metadata_device', default_val=None)
         is_physical = True if self.conf_store.get(self.index, 'node_type', default_val=None) == "physical" else False
-        
+
         print("In config_lvm node_name={} metadata_device={} is_physical={}".format(node_name, metadata_device, is_physical))
         self.create_lvm(node_name, metadata_device, is_physical)
 
     def config_motr(self):
         cmd = f"/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
-        print(f"Running {cmd}")
         self.execute_command(cmd, 180)
 
+    def test_motr(self):
+        cmd = f"uname -r"
+        op = self.execute_command(cmd, 180)
+        kernel_ver = op.replace('\n', '')
+
+        self.validate_file(f"/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko")
+
+        self.validate_file("/etc/sysconfig/motr")
+
+    def validate_file(self, file):
+        if not os.path.exists(file):
+            print(f"[ERR] {file} does not exist.")
+            sys.exit(1)
+        else:
+            print(f"[MSG] {file} exists.")

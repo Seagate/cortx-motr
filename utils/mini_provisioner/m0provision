@@ -23,13 +23,12 @@ import sys
 import getopt
 import json
 import time
-import netifaces
 from socket import gethostname
 from typing import Dict, List, NamedTuple, Set
 import re
 from datetime import datetime
 from collections import OrderedDict
-from motr_mini_prov import motr_prov 
+from motr_mini_prov import motr_prov
 
 
 '''
@@ -66,21 +65,51 @@ EOF
 
 class M0provision(motr_prov):
     def __init__(self, index, url):
-        self.opt_func = {"post_install":self.post_install_fn, "config":self.config_fn, "init":self.init_fn, "test" : self.test_fn}
-        super().__init__(index, url) 
+        self.opt_func = {"post_install":self.post_install_fn,
+                         "config"      :self.config_fn,
+                         "init"        :self.init_fn,
+                         "test"        :self.test_fn,
+                         "reset"       :self.reset_fn,
+                         "cleanup"     :self.cleanup_fn,
+                         "upgrade"     :self.upgrade_fn,
+                         "backup"      :self.backup_fn,
+                         "restore"     :self.restore_fn}
+        super().__init__(index, url)
+
+    def print_banner(self, name):
+        print('-'*80)
+        print('{:^80s}'.format(name))
+        print('-'*80)
+
     def post_install_fn(self):
         pass
+
     def config_fn(self):
         print("In config url={}".format(self.url))
-        super().config_lvm()
         super().config_motr()
+
     def init_fn(self):
         print("In init url={}".format(self.url))
+        super().config_lvm()
         super().configure_lnet_from_conf_store()
+
     def test_fn(self):
-        print("In test url={}".format(self.url))
+        super().test_motr()
 
+    def reset_fn(self):
+        pass
 
+    def cleanup_fn(self):
+        pass
+
+    def upgrade_fn(self):
+        pass
+
+    def backup_fn(self):
+        pass
+
+    def restore_fn(self):
+        pass
 
 if __name__ == "__main__":
     print("No of args = {}".format(len(sys.argv)))
@@ -89,7 +118,9 @@ if __name__ == "__main__":
         print("Invalid num of arguments.")
         print("Use m0provision [post_install | config | init | test | reset]")
         sys.exit(2)
-    conf_store_obj = M0provision('motr_prov_conf', 'json:///home/743120/mini_provisioner/motr_prov_conf.json')
-    print("conf_store_obj.url={}".format(conf_store_obj.url)) 
+    conf_store_obj = M0provision('motr_prov_conf', 'json:////home/702612/shared/mini_prov/cortx-motr/utils/mini_provisioner/motr_prov_conf.json')
+    print("conf_store_obj.url={}".format(conf_store_obj.url))
+    conf_store_obj.print_banner(f"m0provision {sys.argv[1]}")
     conf_store_obj.opt_func[sys.argv[1]]()
+    sys.exit(0)
 
