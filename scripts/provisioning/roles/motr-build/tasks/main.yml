@@ -231,7 +231,7 @@
   block:
     - name: download and install libfabric
       unarchive:
-        src: https://github.com/ofiwg/libfabric/releases/download/v1.11.0/libfabric-1.11.0.tar.bz2
+        src: https://github.com/ofiwg/libfabric/releases/download/v1.11.2/libfabric-1.11.2.tar.bz2
         dest: /usr/src/
         owner: root
         group: root
