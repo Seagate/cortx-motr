@@ -1472,55 +1472,55 @@ struct m0_ub_set m0_parity_math_ub = {
                   .ub_iter  = UB_ITER,
                   .ub_round = ub_small_4096,
                   .ub_block_size = 4096,
-				  .ub_blocks_per_op = 15 },
+                  .ub_blocks_per_op = 15 },
 
                 { .ub_name  = "m 20/06/4K",
                   .ub_iter  = UB_ITER,
                   .ub_round = ub_medium_4096,
                   .ub_block_size = 4096,
-				  .ub_blocks_per_op = 26 },
+                  .ub_blocks_per_op = 26 },
 
                 { .ub_name  = "l 30/12/4K",
                   .ub_iter  = UB_ITER,
                   .ub_round = ub_large_4096,
                   .ub_block_size = 4096,
-				  .ub_blocks_per_op = 42 },
+                  .ub_blocks_per_op = 42 },
 
                 { .ub_name  = "s 10/05/32K",
                   .ub_iter  = UB_ITER,
                   .ub_round = ub_small_32768,
                   .ub_block_size = 32768,
-				  .ub_blocks_per_op = 15 },
+                  .ub_blocks_per_op = 15 },
 
                 { .ub_name  = "m 20/06/32K",
                   .ub_iter  = UB_ITER,
                   .ub_round = ub_medium_32768,
                   .ub_block_size = 32768,
-				  .ub_blocks_per_op = 26 },
+                  .ub_blocks_per_op = 26 },
 
                 { .ub_name  = "l 30/12/32K",
                   .ub_iter  = UB_ITER,
                   .ub_round = ub_large_32768,
                   .ub_block_size = 32768,
-				  .ub_blocks_per_op = 42 },
+                  .ub_blocks_per_op = 42 },
 
                 { .ub_name  = "s 03/02/1M",
                   .ub_iter  = UB_ITER,
                   .ub_round = ub_small_1048576,
                   .ub_block_size = 1048576,
-				  .ub_blocks_per_op = 5 },
+                  .ub_blocks_per_op = 5 },
 
                 { .ub_name  = "m 06/03/1M",
                   .ub_iter  = UB_ITER,
                   .ub_round = ub_medium_1048576,
                   .ub_block_size = 1048576,
-				  .ub_blocks_per_op = 9 },
+                  .ub_blocks_per_op = 9 },
 
                 { .ub_name  = "l 08/04/1M",
                   .ub_iter  = UB_ITER,
                   .ub_round = ub_large_1048576,
                   .ub_block_size = 1048576,
-				  .ub_blocks_per_op = 12 },
+                  .ub_blocks_per_op = 12 },
 
                 { .ub_name  = "s 04/02/4K",
                   .ub_iter  = UB_ITER,
@@ -1540,8 +1540,8 @@ struct m0_ub_set m0_parity_math_ub = {
                   .ub_block_size = 1048576,
                   .ub_blocks_per_op = 6 },
 
-		{ .ub_name = NULL}
-	}
+        { .ub_name = NULL}
+    }
 };
 
 /*

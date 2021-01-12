@@ -45,8 +45,8 @@ static int ub_init(const char *opts M0_UNUSED)
     return 0;
 }
 
-static void unit_spoil( struct m0_buf *failed,
-                        const uint32_t data_count )
+static void unit_spoil(struct m0_buf *failed,
+                       const uint32_t data_count)
 {
     uint32_t err_id, i, j;
     bool found;
@@ -63,9 +63,8 @@ static void unit_spoil( struct m0_buf *failed,
                 break;
             }
         }
-        if (!found) {
+        if (!found)
             err_list[i++] = err_id;
-        }
     } while ( i < failed->b_nob );
 }
 
@@ -130,21 +129,17 @@ static int decode_data(uint32_t k, uint32_t p, uint32_t len,
         goto exit;
 
     /* Create decode matrix */
-    for (p = 0; p < failed->b_nob; p++)
-    {
+    for (p = 0; p < failed->b_nob; p++) {
         /* Get decode matrix with only wanted recovery rows */
-        if (err_list[p] < k)    /* A src err */
-        {
+        if (err_list[p] < k) {    /* A src err */
             for (i = 0; i < k; i++)
                 decode_matrix[k * p + i] =
                     invert_matrix[k * err_list[p] + i];
         }
         /* For non-src (parity) erasures need to multiply
            encode matrix * invert */
-        else /* A parity err */
-        {
-            for (i = 0; i < k; i++)
-            {
+        else { /* A parity err */
+            for (i = 0; i < k; i++) {
                 s = 0;
                 for (j = 0; j < k; j++)
                     s ^= gf_mul(invert_matrix[j * k + i],
@@ -312,17 +307,17 @@ static void ub_large_1048576(int iter)
 
 static void ub_small_4_2_4K(int iter)
 {
-    ub_test(4, 1, 4096);
+    ub_test(4, 2, 4096);
 }
 
 static void ub_small_4_2_256K(int iter)
 {
-    ub_test(4, 1, 262144);
+    ub_test(4, 2, 262144);
 }
 
 static void ub_small_4_2_1M(int iter)
 {
-    ub_test(4, 1, 1048576);
+    ub_test(4, 2, 1048576);
 }
 
 struct m0_ub_set ec_isa_ub = {
