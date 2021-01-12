@@ -72,6 +72,11 @@ enum m0_fab__mr_params {
 	FAB_MR_KEY     = 0XABCD,
 };
 
+#define PORTFAMILYMAX  3
+#define SOCKTYPEMAX    2
+static const char portf[PORTFAMILYMAX][10]  = { "unix", "inet", "inet6" };
+static const char socktype[SOCKTYPEMAX][10] = { "stream", "dgram" };
+
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
 {
@@ -162,9 +167,55 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 			"portal: %u, tmid: %u", portal, tmid);
 
 	portnum  = htons(tmid | (1 << 10) | ((portal - 30) << 11));
-	sscanf(portnum,"%d",port);
+	//sscanf(portnum,"%d",port);
+	sprintf(port,"%d",portnum);
 	fab_autotm[tmid] = 1;
 	return M0_RC(0);
+}
+
+static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
+                                      size_t nodeSize, char *port,
+                                      size_t portSize)
+{
+        int   shift;
+        int   f;
+        int   s;
+        char *at;
+
+        for (f = 0; f < PORTFAMILYMAX ; ++f) {
+                if (portf[f]!= NULL) {
+                        shift = strlen(portf[f]);
+                        if (strncmp(ep_name, portf[f], shift) == 0)
+                                break;
+                }
+        }
+        if (ep_name[shift] != ':')
+                return M0_ERR(-EINVAL);
+        ep_name += shift + 1;
+        for (s = 0; s < SOCKTYPEMAX; ++s) {
+                if (socktype[s] != NULL) {
+                        shift = strlen(socktype[s]);
+                        if (strncmp(ep_name, socktype[s], shift) == 0)
+                                break;
+                }
+        }
+        if (ep_name[shift] != ':')
+                return M0_ERR(-EINVAL);
+        ep_name += shift + 1;
+        at = strchr(ep_name, '@');
+        if (at == NULL) {
+                /* XXX @todo: default port? */
+                return M0_ERR(-EINVAL);
+        } else {
+                at++;
+	        if (at == NULL) 
+                        return M0_ERR(-EINVAL);
+	        M0_PRE(portSize >= (strlen(at)+1));
+                memcpy(port,at,(strlen(at)+1));
+        }
+	M0_PRE(nodeSize >= (at - ep_name));
+        memcpy(node, ep_name, ((at - ep_name)-1));
+        return 0;
 }
 
 
@@ -261,8 +312,9 @@ static int libfab_ep_addr_decode(const char *name, char *node,
 		result = libfab_ep_addr_decode_native(name, node,
                                                       nodeSize, port, portSize);
 	else if (name[0] < '0' || name[0] > '9')
-		//result = libfab_ep_addr_decode_sock(name, node,
-		//				    nodeSize, port, portSize);
+                /* sock format */
+		result = libfab_ep_addr_decode_sock(name, node,
+						    nodeSize, port, portSize);
 	else
 		/* Lnet format. */
 		result = libfab_ep_addr_decode_lnet(name, node,
