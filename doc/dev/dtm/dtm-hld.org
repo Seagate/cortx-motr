@@ -1343,6 +1343,57 @@ deliver executed callback after persistent participant failure
 *** new originator after fail
 *** how the states of participants are propagated the dtm logic (confd)
 *** startup procedure (recovering startup)
+#+begin_src plantuml :file startup.png :exports results
+participant originator
+participant p1
+participant p2
+participant p3
+participant hax
+
+=== p3 powered on ===
+...some time latter, p3 restarted by hare...
+
+hax -> p3: start p3 process
+p3 -> hax: entry point request
+hax -> p3: entry point reply [conf, profile]
+
+activate p3
+p3 -> p2: rpc session establish
+p3 -> p1: rpc session establish
+p3 -> originator: rpc session establish
+deactivate p3
+
+p3 -> hax: p3 is ready to accept new MD/IO traffic
+
+activate hax
+hax -> p3: start dtm0 recovery on p3
+hax -> p1: ha state, p3 is in recovering state
+hax -> p2: ha state, p3 is in recovering state
+hax -> originator: ha state, p3 is in recovering state
+deactivate hax
+...
+p2 -> p3: REDO [PUT kj, vj, verj]
+p1 -> p3: REDO [PUT kj, vj, verj]
+originator -> p3: REDO [PUT kj, vj, verj]
+...
+p2 -> p3: REDO [PUT kn, vn, vern]
+p1 -> p3: REDO [PUT kn, vn, vern]
+originator -> p3: REDO [PUT kn, vn, vern]
+...
+p3 -> hax: recovery DONE
+...
+
+hax -> p1: ha state, p1 is in online state
+hax -> p2: ha state, p1 is in online state
+hax -> p3: ha state, p1 is in online state
+hax -> originator: ha state, p1 is in online state
+
+
+#+end_src
+
+#+RESULTS:
+[[file:startup.png]]
+
 *** Cluster shutdown usecase
 *** Cluster start usecase after shutdown
 *** Metadata update
