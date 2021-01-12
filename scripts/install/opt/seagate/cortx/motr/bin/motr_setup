@@ -30,46 +30,15 @@ from datetime import datetime
 from collections import OrderedDict
 from motr_mini_prov import motr_prov
 
-
-'''
-workflow()
-{
-cat << EOF
-
-    The m0provision script will be called by the provisioner after the
-    installation of Motr RPM, for setting configurations and testing
-    sanity of the setup.
-
-EOF
-}
-
-help()
-{
-cat << EOF
-    *** CAUTION ***
-
-    The $0 script should be invoked only by the provisioner.
-    Should be invoked with sudo.
-
-    Usage:
-    sudo $0 [ACTION] ARGS
-        ACTION: post_install | init | config | test | reset
-            ARGS (post_install) : TOBE implemented.
-            ARGS (init)         : TOBE implemented.
-            ARGS (config)       : config
-            ARGS (test)         : test
-            ARGS (reset)        : TOBE implemented.
-EOF
-}
-'''
 help_msg = ("The motr_setup script should be invoked only by the provisioner.\n"
-                    "Should be invoked with sudo.\n"
-                    "\n"
-                    "Usage:\n"
-                    "      sudo motr_setup <cmd> <url>\n"
-                    "      where:\n"
-                    "            cmd   post_install, config, init, reset, test\n"
-                    "            url   Config URL\n")
+            "Should be invoked with sudo.\n"
+            "\n"
+            "Usage:\n"
+            "      sudo motr_setup <cmd> <url>\n"
+            "      where:\n"
+            "            cmd   post_install, config, init, test, reset, \n"
+            "                  cleanup, upgrade, backup, restore, help\n"
+            "            url   Config URL\n")
 
 class M0provision(motr_prov):
     def __init__(self, index, url):
@@ -91,19 +60,16 @@ class M0provision(motr_prov):
         print('-'*80)
 
     def post_install_fn(self):
-        pass
+        super().validate_motr_rpm()
 
     def config_fn(self):
-        print("In config url={}".format(self.url))
         super().config_motr()
 
     def init_fn(self):
-        print("In init url={}".format(self.url))
         super().config_lvm()
         super().configure_lnet_from_conf_store()
 
     def test_fn(self):
-        super().test_motr()
         super().test_lnet()
 
     def reset_fn(self):
@@ -126,7 +92,7 @@ class M0provision(motr_prov):
 
 if __name__ == "__main__":
     conf_store_obj = None
-    # TODO: How to validate URL file?
+
     if len(sys.argv) == 3:
         conf_store_obj = M0provision('motr_prov_conf', sys.argv[2])
     else:

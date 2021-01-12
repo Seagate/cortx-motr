@@ -1,14 +1,14 @@
 {
   "cluster":{
     "current":{
-      "server_id":"01"
+      "server_id":"00"
     },
     "server":[
       {
         "hostname": "srvnode-1.localhost",
         "storage":{
           "metadata_devices":[
-            "/dev/sde"
+            "/dev/sde1"
             ]
         },
         "network":{
