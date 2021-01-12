@@ -946,8 +946,14 @@ EXTRA_DIST += $(motr_cron_SCRIPTS)
     
 motr_confdir = $(motrdir)/conf
 motr_conf_DATA = scripts/install$(motr_confdir)/motr.conf \
-                    scripts/install$(motr_confdir)/setup.yaml
+                    scripts/install$(motr_confdir)/setup.yaml \
+                    scripts/install$(motr_confdir)/example/motr_prov_conf.json
 EXTRA_DIST += $(motr_conf_DATA)
+
+motr_bindir = $(motrdir)/bin
+motr_bin_DATA = scripts/install$(motr_bindir)/motr_setup \
+                    scripts/install$(motr_bindir)/motr_mini_prov.py
+EXTRA_DIST += $(motr_bin_DATA)
 
 motr_sanitydir = $(motrdir)/sanity
 motr_sanity_SCRIPTS = \

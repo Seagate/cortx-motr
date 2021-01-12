@@ -1,0 +1,26 @@
+{
+  "cluster":{
+    "current":{
+      "server_id":"01"
+    },
+    "server":[
+      {
+        "hostname": "srvnode-1.localhost",
+        "storage":{
+          "metadata_devices":[
+            "/dev/sde"
+            ]
+        },
+        "network":{
+          "motr_net":
+          {
+              "interface":"eth1",
+              "interface_type":"tcp",
+              "transport":"lnet"
+          }
+        },
+        "node_type":"VM"
+      }
+    ]
+  }
+}
