@@ -188,8 +188,10 @@ struct init_fini_call subsystem[] = {
 	/* addb2-net must be after rpc, because it initialises a fop type. */
 	{ &m0_addb2_net_module_init, &m0_addb2_net_module_fini, "addb2-net" },
 #ifndef __KERNEL__
-	{ &m0_net_sock_mod_init, &m0_net_sock_mod_fini, "net/sock" },
+#ifdef ENABLE_LIBFAB
 	{ &m0_net_libfab_init,   &m0_net_libfab_fini,   "net/libfab" },
+#endif /* ENABLE_LIBFAB */
+	{ &m0_net_sock_mod_init, &m0_net_sock_mod_fini, "net/sock" },
 #endif
 	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
