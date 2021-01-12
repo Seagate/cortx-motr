@@ -300,12 +300,30 @@
     - lustre-devel
     - lustre
 
-- name: install libfab
+- name: install libfabric
   block:
-    - name: install libfabric
-      yum:
-        name: libfabric-devel
-        state: latest
+    - name: download and install libfabric
+      unarchive:
+        src: https://github.com/ofiwg/libfabric/releases/download/v1.11.2/libfabric-1.11.2.tar.bz2
+        dest: /usr/src/
+        owner: root
+        group: root
+        remote_src: yes
+
+    - name: check Libfabric src dir
+      shell: ls -1rd /usr/src/libfabric-* | head -n 1
+      register: libfabric_src_dir
+      changed_when: false
+
+    - name: build libfabric sources
+      command: '{{ item }}'
+      args:
+        chdir: '{{ libfabric_src_dir.stdout }}'
+        creates: Module.symvers
+      with_items:
+        - ./configure
+        - make -j4
+        - make install
   when: ansible_os_family == 'RedHat'
   tags:
     - libfab

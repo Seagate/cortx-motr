@@ -464,7 +464,6 @@ AC_SUBST([BUILD_KERNEL])
 # Skip all checks in distribution mode
 AS_IF([test x$enable_dist_mode = xno],[
 
-
 #
 # Checking Lustre sources ------------------------------------------------- {{{1
 #
@@ -602,7 +601,6 @@ Red Hat based systems])
 #
 # Checking required libraries --------------------------------------------- {{{1
 #
-
 
 # sqrt() requires m library
 MOTR_SEARCH_LIBS([sqrt], [c m], [MATH_LIBS],
@@ -804,6 +802,12 @@ AS_IF([test x$with_lustre != xno],[
 # Checking libfabric library----------------------------------------------- {{{1
 #
 
+AC_ARG_ENABLE([libfab],
+        [AS_HELP_STRING([--enable-libfab],
+                        [Use libfabric transport])],
+        [],[enable_libfab=no]
+)
+
 AC_ARG_WITH([libfab],
         [AS_HELP_STRING([--with-libfab=path],
                         [set path to user installed libfabric headers and library])],
@@ -811,26 +815,27 @@ AC_ARG_WITH([libfab],
         [LIBFABRIC=""]
 )
 
-AC_DEFINE([ENABLE_LIBFAB])
-
-AS_IF([test x$with_libfab != xno && ! test -z "$with_libfab"],
+AS_IF([! test -z "$with_libfab"],
       [
         LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
         LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
         M0_CPPFLAGS="$M0_CPPFLAGS $LIB_FAB_INCLUDES"
-      ],[
+      ],
+)
+AS_IF([test x$enable_libfab = xyes],
+      [
 	MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
-                  [fi_fabric cannot be found! Try to install libfabric-devel package]
+                  [fi_fabric cannot be found! Try to install libfabric  package]
           )
 	AC_CHECK_HEADERS([rdma/fabric.h], [],
-		AC_MSG_ERROR([rdma/fabric.h is not found. Try to install libfabric-devel package])
+		AC_MSG_ERROR([rdma/fabric.h is not found. Try to install libfabric package])
           )
       ]
 )
 
 AC_SUBST([LIBFAB_LIBS])
 AM_CONDITIONAL([ENABLE_LIBFAB],
-               [test x$with_libfab != xno && ! test -z "$LIBFAB_LIBS"])
+               [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
 
 #
 # Checking Lustre --------------------------------------------------------- {{{1
