@@ -956,10 +956,10 @@ motr_examples_DATA = scripts/install$(motr_examplesdir)/motr_prov_conf.json
 EXTRA_DIST += $(motr_examples_DATA)
 
 motr_bindir = $(motrdir)/bin
-motr_bin_DATA = scripts/install$(motr_bindir)/motr_setup \
-                scripts/install$(motr_bindir)/motr_mini_prov.py
+motr_bin_SCRIPTS = scripts/install$(motr_bindir)/motr_setup \
+                   scripts/install$(motr_bindir)/motr_mini_prov.py
 
-EXTRA_DIST += $(motr_bin_DATA)
+EXTRA_DIST += $(motr_bin_SCRIPTS)
 
 motr_sanitydir = $(motrdir)/sanity
 motr_sanity_SCRIPTS = \
