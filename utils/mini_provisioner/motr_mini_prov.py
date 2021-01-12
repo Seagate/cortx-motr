@@ -171,3 +171,48 @@ class motr_prov:
             sys.exit(1)
         else:
             print(f"[MSG] {file} exists.")
+
+    def test_lnet(self):
+        missing_pkgs = []
+        LNET_CONF_FILE="/etc/modprobe.d/lnet.conf"
+        search_lnet_pkgs = ["kmod-lustre-client", "lustre-client"]
+
+        # Check missing luster packages
+        cmd = "rpm -qa | grep lustre"
+        temp =  self.execute_command(cmd, 180)
+        lustre_pkgs = list(filter(None, temp.split("\n")))
+        for pkg in search_lnet_pkgs:
+            found = False
+            for lustre_pkg in lustre_pkgs:
+                if pkg in lustre_pkg:
+                    found = True
+                    break;
+            if found == False:
+                missing_pkgs.append(pkg)
+        if missing_pkgs:
+            print("Missing pkgs ={}".format(missing_pkgs))
+
+        # Check for lnet config file
+        if os.path.exists(LNET_CONF_FILE):
+            with open(LNET_CONF_FILE) as fp:
+                line = fp.readline()
+                while line:
+                    tokens = line.split(' ') 
+                    # Get lnet iface
+                    cmd = 'echo \'{}\' | cut -d "(" -f2 | cut -d ")" -f1'.format(tokens[2])
+                    device = self.execute_command(cmd, 180)
+                    device = device.strip('\n')
+                    print("iface:{}".format(device))
+
+                    # Get ip of iface
+                    cmd = "ifconfig {} | awk \'/inet /\'".format(device)
+                    ipconfig_op = self.execute_command(cmd, 180)
+                    ip = list(ipconfig_op.split())[1]
+                    print("ip = {}".format(ip))
+
+                    # Ping ip
+                    cmd = "ping -c 3 {}".format(ip)
+                    op = self.execute_command(cmd, 180)
+                    print(op)
+                    line = fp.readline()
+            fp.close()
