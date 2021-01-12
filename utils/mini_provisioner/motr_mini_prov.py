@@ -25,16 +25,18 @@ class motr_prov:
         self.url = url
         self.index = index
         self.load_config(self.index, self.url)
+        self.server_id = int(self.conf_store.get(self.index, 'cluster>current>server_id', default_val=None))
+        self.server_id = self.server_id - 1
 
     def configure_lnet_from_conf_store(self):
         '''
            Get iface and /etc/modprobe.d/lnet.conf params from
            conf store. Configure lnet. Start lnet service
         '''
-        lnet_conf = self.conf_store.get(self.index, 'motr>lnet', default_val=None)
+        lnet_conf = self.conf_store.get(self.index, f'cluster>server[{self.server_id}]>network>motr_net', default_val=None)
         print("Atul in motr_mini_prov_class.py 37 lnet_conf={}".format(lnet_conf))
         fp = open("/etc/modprobe.d/lnet.conf", "w")
-        fp.write("options lnet networks=tcp({})  config_on_load=1  lnet_peer_discovery_disabled=1\n".format(lnet_conf["iface"], lnet_conf["config_on_load"], lnet_conf["lnet_peer_discovery_disabled"]))
+        fp.write(f"options lnet networks={lnet_conf['interface_type']}\({lnet_conf['interface']}\)  config_on_load=1  lnet_peer_discovery_disabled=1\n")
         fp.close()
         time.sleep(10)
         self.start_services(["lnet"])
@@ -73,32 +75,29 @@ class motr_prov:
 
         self.validate_file(metadata_dev)
 
-        cmd = f"file {metadata_dev}"
+        cmd = f"fdisk -l {metadata_dev}"
         op = self.execute_command(cmd, 180)
-        if op.find("block") == -1:
-            print(f"[ERR] {metadata_dev} is not a block device")
-            sys.exit(1)
 
         cmd = f"swapoff -a"
         self.execute_command(cmd, 180)
 
-        cmd = f"parted {metadata_dev} mklabel gpt"
-        self.execute_command(cmd, 180)
+        #cmd = f"parted {metadata_dev} mklabel gpt"
+        #self.execute_command(cmd, 180)
 
-        end = 10
-        if is_physical:
-             end = 1000
-        cmd = f"parted {metadata_dev} mkpart primary ext4 0% {end}GB"
-        self.execute_command(cmd, 180)
+        #end = 10
+        #if is_physical:
+        #     end = 1000
+        #cmd = f"parted {metadata_dev} mkpart primary ext4 0% {end}GB"
+        #self.execute_command(cmd, 180)
 
-        start = 11
-        if is_physical:
-            start = 1001
-        cmd = f"parted {metadata_dev} mkpart primary ext2 {start}GB 100%"
-        self.execute_command(cmd, 180)
+        #start = 11
+        #if is_physical:
+        #    start = 1001
+        #cmd = f"parted {metadata_dev} mkpart primary ext2 {start}GB 100%"
+        #self.execute_command(cmd, 180)
 
-        cmd = f"parted {metadata_dev} toggle 2 lvm"
-        self.execute_command(cmd, 180)
+        #cmd = f"parted {metadata_dev} toggle 2 lvm"
+        #self.execute_command(cmd, 180)
 
         cmd = f"pvcreate {metadata_dev}2"
         self.execute_command(cmd, 180)
@@ -145,12 +144,13 @@ class motr_prov:
         self.execute_command(cmd, 180)
 
     def config_lvm(self):
-        node_name = self.conf_store.get(self.index, 'node_name', default_val=None)
-        metadata_device = self.conf_store.get(self.index, 'metadata_device', default_val=None)
-        is_physical = True if self.conf_store.get(self.index, 'node_type', default_val=None) == "physical" else False
+        node_name = self.conf_store.get(self.index, f'cluster>server[{self.server_id}]>hostname', default_val=None)
+        node_name = node_name.split('.')[0]
+        metadata_device = self.conf_store.get(self.index,
+        f'cluster>server[{self.server_id}]>storage>metadata_devices', default_val=None)
+        is_physical = True if self.conf_store.get(self.index, f'cluster>server[{self.server_id}]>node_type', default_val=None) == "HW" else False
 
-        print("In config_lvm node_name={} metadata_device={} is_physical={}".format(node_name, metadata_device, is_physical))
-        self.create_lvm(node_name, metadata_device, is_physical)
+        self.create_lvm(node_name, metadata_device[0], is_physical)
 
     def config_motr(self):
         cmd = f"/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
@@ -197,7 +197,7 @@ class motr_prov:
             with open(LNET_CONF_FILE) as fp:
                 line = fp.readline()
                 while line:
-                    tokens = line.split(' ') 
+                    tokens = line.split(' ')
                     # Get lnet iface
                     cmd = 'echo \'{}\' | cut -d "(" -f2 | cut -d ")" -f1'.format(tokens[2])
                     device = self.execute_command(cmd, 180)

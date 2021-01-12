@@ -62,6 +62,14 @@ cat << EOF
 EOF
 }
 '''
+help_msg = ("The motr_setup script should be invoked only by the provisioner.\n"
+                    "Should be invoked with sudo.\n"
+                    "\n"
+                    "Usage:\n"
+                    "      sudo motr_setup <cmd> <url>\n"
+                    "      where:\n"
+                    "            cmd   post_install, config, init, reset, test\n"
+                    "            url   Config URL\n")
 
 class M0provision(motr_prov):
     def __init__(self, index, url):
@@ -73,7 +81,8 @@ class M0provision(motr_prov):
                          "cleanup"     :self.cleanup_fn,
                          "upgrade"     :self.upgrade_fn,
                          "backup"      :self.backup_fn,
-                         "restore"     :self.restore_fn}
+                         "restore"     :self.restore_fn,
+                         "help"        :self.help_fn}
         super().__init__(index, url)
 
     def print_banner(self, name):
@@ -112,16 +121,25 @@ class M0provision(motr_prov):
     def restore_fn(self):
         pass
 
+    def help_fn(self):
+        print(help_msg)
+
 if __name__ == "__main__":
-    print("No of args = {}".format(len(sys.argv)))
-    print("Args = {}".format(sys.argv))
-    if (len(sys.argv) != 3):
-        print("Invalid num of arguments.")
-        print("Use m0provision <post_install | config | init | test | reset> <url>")
-        sys.exit(2)
-    conf_store_obj = M0provision('motr_prov_conf', sys.argv[2])
-    print("conf_store_obj.url={}".format(conf_store_obj.url))
-    conf_store_obj.print_banner(f"m0provision {sys.argv[1]}")
-    conf_store_obj.opt_func[sys.argv[1]]()
-    sys.exit(0)
+    conf_store_obj = None
+    # TODO: How to validate URL file?
+    if len(sys.argv) == 3:
+        conf_store_obj = M0provision('motr_prov_conf', sys.argv[2])
+    else:
+        print(f"Invalid arguments:")
+        print(help_msg)
+        sys.exit(1)
+
+    if sys.argv[1] in conf_store_obj.opt_func:
+        conf_store_obj.print_banner(f"m0provision {sys.argv[1]}")
+        conf_store_obj.opt_func[sys.argv[1]]()
+        sys.exit(0)
+    else:
+        print(f"Invalid arguments:")
+        conf_store_obj.opt_func[sys.argv[1]]()
+        sys.exit(1)
 
