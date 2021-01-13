@@ -72,8 +72,11 @@ enum m0_fab__mr_params {
 	FAB_MR_KEY     = 0XABCD,
 };
 
-#define PORTFAMILYMAX  3
-#define SOCKTYPEMAX    2
+enum PORT_SOCK_TYPE {
+        PORTFAMILYMAX = 3,
+        SOCKTYPEMAX   = 2
+};
+
 static const char portf[PORTFAMILYMAX][10]  = { "unix", "inet", "inet6" };
 static const char socktype[SOCKTYPEMAX][10] = { "stream", "dgram" };
 
@@ -110,7 +113,7 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 static char fab_autotm[1024] = {};
 
 static int libfab_ep_addr_decode_lnet(const char *name, char *node,
-			              size_t nodeSize, char *port,
+                                      size_t nodeSize, char *port,
                                       size_t portSize)
 {
 	char               *at       = strchr(name, '@');
@@ -167,8 +170,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 			"portal: %u, tmid: %u", portal, tmid);
 
 	portnum  = htons(tmid | (1 << 10) | ((portal - 30) << 11));
-	//sscanf(portnum,"%d",port);
-	sprintf(port,"%d",portnum);
+	sprintf(port, "%d", portnum);
 	fab_autotm[tmid] = 1;
 	return M0_RC(0);
 }
@@ -208,12 +210,12 @@ static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
                 return M0_ERR(-EINVAL);
         } else {
                 at++;
-	        if (at == NULL) 
+                if (at == NULL)
                         return M0_ERR(-EINVAL);
-	        M0_PRE(portSize >= (strlen(at)+1));
+                M0_PRE(portSize >= (strlen(at)+1));
                 memcpy(port,at,(strlen(at)+1));
         }
-	M0_PRE(nodeSize >= (at - ep_name));
+        M0_PRE(nodeSize >= (at - ep_name));
         memcpy(node, ep_name, ((at - ep_name)-1));
         return 0;
 }
