@@ -1276,9 +1276,8 @@ static int dix_cas_rop_alloc(struct m0_dix_req *req, uint32_t sdev,
 	(*cas_rop)->crp_flags = req->dr_flags;
 	cas_rop_tlink_init_at(*cas_rop, &rop->dg_cas_reqs);
 
-	M0_LEAVE("dix req=%p rop=%p cas_rop=%p sdev=%u",
-		 req, rop, *cas_rop, sdev);
-	return 0;
+	return M0_RC_INFO(0, "dix req=%p rop=%p cas_rop=%p sdev=%u",
+			     req, rop, *cas_rop, sdev);
 }
 
 static void dix_cas_rop_fini(struct m0_dix_cas_rop *cas_rop)

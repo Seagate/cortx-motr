@@ -593,8 +593,8 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 		proxy->px_send_final_update = false;
 
 		/* This is the final update. No more SW update will be sent.
-		 * It must be set to STOP, so the proxy on remote node can
-		 * be finalized.
+		 * CM status must be set to STOP, so the proxy on remote node
+		 * can be finalized.
 		 */
 		swo = m0_fop_data(fop);
 		swo->swo_cm_status = M0_PX_STOP;
