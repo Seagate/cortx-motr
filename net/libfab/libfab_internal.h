@@ -105,7 +105,7 @@ struct m0_fab__buf {
         struct m0_net_buffer  *fb_nb;       /* Pointer back to network buffer*/
         struct fid_mr         *fb_mr;       /* Libfab memory region */
         struct m0_fab__bdesc   fb_peer;     /* Other buffer descriptor in tm ops */
-        struct m0_fab__ep     *fbp_other_ep;
+        struct m0_fab__ep     *fb_ev_ep;
         struct m0_tlink        fb_linkage;  /* Linkage in list of completed bufs*/
         m0_bindex_t            fb_length;   /* Total size of data to be received*/
 };
