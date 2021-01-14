@@ -109,8 +109,8 @@ conf_obj_types = {
     # Hardware:
     'site': ('S', '*racks=[objid] pvers=[objid]'),
     'rack': ('a', '*encls=[objid] pvers=[objid]'),
-    'enclosure': ('e', '*ctrls=[objid] pvers=[objid]'),
-    'controller': ('c', '!node=objid *drives=[objid] pvers=[objid]'),
+    'enclosure': ('e', '!node=objid *ctrls=[objid] pvers=[objid]'),
+    'controller': ('c', '*drives=[objid] pvers=[objid]'),
     'drive': ('k', '!dev=objid pvers=[objid]'),
 
     # Pools:

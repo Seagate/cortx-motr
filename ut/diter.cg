@@ -34,9 +34,8 @@
     flags=4 filename="/dev/sdev4")
 (site-2 racks=[rack-15] pvers=[pver-24, pver-25])
 (rack-15 encls=[enclosure-16] pvers=[pver-24])
-(enclosure-16 ctrls=[controller-17] pvers=[pver-24])
-(controller-17 node=node-2
-    drives=[drive-18, drive-19, drive-20, drive-21, drive-22]
+(enclosure-16 node=node-2 ctrls=[controller-17] pvers=[pver-24])
+(controller-17 drives=[drive-18, drive-19, drive-20, drive-21, drive-22]
     pvers=[pver-24])
 (drive-18 dev=sdev-10 pvers=[pver-24])
 (drive-19 dev=sdev-11 pvers=[pver-24])

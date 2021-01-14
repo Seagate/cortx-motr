@@ -970,10 +970,10 @@ m0_build_local_conf()
 
     local site="{0x53| (($siteid), [1: $rackid], [1: $pverid])}"
     local rack="{0x61| (($rackid), [1: $enclid], [1: $pverid])}"
-    local encl="{0x65| (($enclid), [1: $ctrlid], [1: $pverid])}"
+    local encl="{0x65| (($enclid), $node, [1: $ctrlid], [1: $pverid])}"
     local ctrl_pver_fids_str
     m0_cas_enabled && ctrl_pver_fids_str="[2: $pverid, $imetapverid]" || ctrl_pver_fids_str="[1: $pverid]"
-    local ctrl="{0x63| (($ctrlid), $node, $(_build_disk_fids_str 1 20 $pool_width $ipool_width), $ctrl_pver_fids_str)}"
+    local ctrl="{0x63| (($ctrlid), $(_build_disk_fids_str 1 20 $pool_width $ipool_width), $ctrl_pver_fids_str)}"
     local pool="{0x6f| (($poolid), 0, [1: $pverid])}"
     local pver="{0x76| (($pverid), {0| ($data_units, $parity_units, $pool_width, [5: 0, 0, 0, 0, $parity_units], [1: $sitevid])})}"
     local sitev="{0x6a| (($sitevid), $siteid, [1: $rackvid])}"

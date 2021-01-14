@@ -135,7 +135,8 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
 	struct m0_conf_obj        *root;
 	struct m0_conf_obj        *drive_obj;
 	struct m0_conf_obj        *ctrl_obj;
-	struct m0_conf_controller *ctrl;
+	struct m0_conf_obj        *encl_obj;
+	struct m0_conf_enclosure  *encl;
 	struct m0_conf_obj        *node_obj;
 	int                        rc;
 
@@ -167,9 +168,10 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
 					M0_CONF_CONTROLLER_DRIVES_FID, *drive);
 
 		if (rc == 0) {
-			ctrl = M0_CONF_CAST(ctrl_obj, m0_conf_controller);
+			encl_obj = m0_conf_obj_grandparent(ctrl_obj);
+			encl = M0_CONF_CAST(encl_obj, m0_conf_enclosure);
 			rc = m0_confc_open_by_fid_sync(confc,
-					       &ctrl->cc_node->cn_obj.co_id,
+					       &encl->ce_node->cn_obj.co_id,
 					       &node_obj);
 			if (rc == 0) {
 				spiel_node_process_endpoint_add(spc, node_obj,
