@@ -70,6 +70,8 @@ struct balloc_allocation_context {
 	uint32_t		       bac_scanned; /* groups scanned */
 	uint32_t		       bac_found;   /* count of found */
 	uint32_t		       bac_status;  /* allocation status */
+	struct m0_list_link            bac_link;  /* to add in group bac list */
+	struct m0_clink                bac_clink;
 };
 
 /** XXX @todo rewrite using M0_BE_OP_SYNC() */
@@ -403,6 +405,10 @@ static int balloc_group_info_init(struct m0_balloc_group_info *gi,
 static void balloc_group_info_fini(struct m0_balloc_group_info *gi)
 {
 	m0_mutex_fini(bgi_mutex(gi));
+	m0_mutex_fini(&gi->bgi_bac_mutex);
+	m0_list_fini(&gi->bgi_bac_head);
+	m0_chan_fini_lock(&gi->bgi_chan);
+	m0_mutex_fini(&gi->bgi_chan_mutex);
 	m0_list_fini(&gi->bgi_normal.bzp_extents);
 	m0_list_fini(&gi->bgi_spare.bzp_extents);
 }
@@ -417,6 +423,10 @@ static int balloc_group_info_load(struct m0_balloc *bal)
 	for (i = 0; i < bal->cb_sb.bsb_groupcount; ++i) {
 		gi = &bal->cb_group_info[i];
 		gi->bgi_groupno = i;
+		m0_list_init(&gi->bgi_bac_head);
+		m0_mutex_init(&gi->bgi_bac_mutex);
+		m0_mutex_init(&gi->bgi_chan_mutex);
+		m0_chan_init(&gi->bgi_chan, &gi->bgi_chan_mutex);
 		rc = balloc_group_info_init(gi, bal);
 		if (rc != 0)
 			break;
@@ -2367,6 +2377,8 @@ balloc_regular_allocator(struct balloc_allocation_context *bac)
 	m0_bcount_t len;
 	int         cr;
 	int         rc = 0;
+	bool        loop;
+	struct balloc_allocation_context *bac_first;
 
 	ngroups = bac->bac_ctxt->cb_sb.bsb_groupcount;
 	len = m0_ext_length(&bac->bac_goal);
@@ -2418,11 +2430,38 @@ repeat:
 			// m0_balloc_debug_dump_group("searching group ...",
 			//			 grp);
 
-			rc = m0_balloc_trylock_group(grp);
+			m0_mutex_lock(&grp->bgi_bac_mutex);
+			if (m0_list_is_empty(&grp->bgi_bac_head)) {
+				rc = m0_balloc_trylock_group(grp);
+			} else {
+				rc = 1;
+			}
+			if (rc != 0)
+				m0_list_add_tail(&grp->bgi_bac_head, &bac->bac_link);
+			m0_mutex_unlock(&grp->bgi_bac_mutex);
 			if (rc != 0) {
 				M0_LOG(M0_DEBUG, "grp=%d is busy", (int)group);
 				/* This group is under processing by others. */
-				continue;
+				loop = true;
+				while (loop) {
+					m0_clink_init(&bac->bac_clink, NULL);
+					m0_clink_add_lock(&grp->bgi_chan, &bac->bac_clink);
+
+					/** wait for broadcast after unlock grp lock */
+					m0_chan_wait(&bac->bac_clink);
+
+					m0_mutex_lock(&grp->bgi_bac_mutex);
+					bac_first = m0_list_entry((&grp->bgi_bac_head)->l_head,
+						    struct balloc_allocation_context, bac_link);
+					if (bac_first == bac) {
+						m0_balloc_lock_group(grp);
+						m0_list_del(&bac_first->bac_link);
+						loop = false;
+					}
+					m0_mutex_unlock(&grp->bgi_bac_mutex);
+					m0_clink_del_lock(&bac->bac_clink);
+					m0_clink_fini(&bac->bac_clink);
+				}
 			}
 
 			/* quick check to skip empty groups */
@@ -2455,6 +2494,7 @@ repeat:
 				rc = allocate_blocks(cr, bac, grp, len,
 						     M0_BALLOC_NORMAL_ZONE);
 			m0_balloc_unlock_group(grp);
+			m0_chan_broadcast_lock(&grp->bgi_chan);
 
 			if (bac->bac_status != M0_BALLOC_AC_CONTINUE)
 				break;

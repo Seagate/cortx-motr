@@ -161,6 +161,14 @@ struct m0_balloc_group_info {
 	struct m0_lext              *bgi_extents;
 	/** per-group lock */
 	struct m0_be_mutex           bgi_mutex;
+
+	/** balloc allocation context list head */
+	struct m0_list               bgi_bac_head;
+	struct m0_mutex              bgi_bac_mutex;
+
+	/** To sleep and wakeup on bac queue */
+	struct m0_mutex              bgi_chan_mutex;
+	struct m0_chan               bgi_chan;
 };
 
 enum m0_balloc_group_info_state {
