@@ -1365,11 +1365,14 @@ static struct m0_stob_ad_domain *emap_dom_find(const struct action *act,
 {
 	struct m0_stob_ad_domain *adom = NULL;
 	int			  i;
+	uint8_t			  ht_idx;
+
+	ht_idx = m0_stob_get_hash(emap_fid);
 
 	for (i = 0; i < act->a_builder->b_ad_dom_count; i++) {
 		adom = act->a_builder->b_ad_domain[i];
 		if (m0_fid_eq(emap_fid,
-	            &adom->sad_adata.em_mapping.bb_backlink.bli_fid)) {
+	            &adom->sad_adata_ht[ht_idx].sad_adata.em_mapping.bb_backlink.bli_fid)) {
 			break;
 		}
 	}
@@ -1468,10 +1471,15 @@ static int emap_entry_lookup(struct m0_stob_ad_domain  *adom,
 			     struct m0_be_emap_cursor  *it)
 {
 	int                       rc;
+	struct m0_fid             fid;
+	uint8_t                   ht_idx;
 
+	fid.f_container = prefix.u_hi;
+	fid.f_key = prefix.u_lo;
+	ht_idx = m0_stob_get_hash(&fid);
 	M0_LOG(M0_DEBUG, U128X_F, U128_P(&prefix));
 	rc = M0_BE_OP_SYNC_RET_WITH( &it->ec_op,
-				  m0_be_emap_lookup(&adom->sad_adata,
+				  m0_be_emap_lookup(&adom->sad_adata_ht[ht_idx].sad_adata,
 						    &prefix, offset, it),
 				  bo_u.u_emap.e_rc);
 	return rc == -ESRCH ? -ENOENT : rc;
@@ -1486,6 +1494,8 @@ static int emap_prep(struct action *act, struct m0_be_tx_credit *credit)
 	int 			  rc;
 	struct m0_be_emap_cursor  it = {};
 	int                       id;
+	struct m0_fid             fid;
+	uint8_t                   ht_idx;
 
 	adom = emap_dom_find(act, &emap_ac->emap_fid, &id);
 	if (adom == NULL || id < 0 || id >= AO_NR - AO_EMAP_FIRST) {
@@ -1500,13 +1510,17 @@ static int emap_prep(struct action *act, struct m0_be_tx_credit *credit)
 		adom->sad_ballroom->ab_ops->bo_alloc_credit(adom->sad_ballroom,
 							    1, credit);
 		emap_key = emap_ac->emap_key.b_addr;
+		fid.f_container = emap_key->ek_prefix.u_hi;
+		fid.f_key = emap_key->ek_prefix.u_lo;
+		ht_idx = m0_stob_get_hash(&fid);
+
 		rc = emap_entry_lookup(adom, emap_key->ek_prefix, 0, &it);
 		if (rc == 0)
 			m0_be_emap_close(&it);
 		else
-			m0_be_emap_credit(&adom->sad_adata,
+			m0_be_emap_credit(&adom->sad_adata_ht[ht_idx].sad_adata,
 					  M0_BEO_INSERT, 1, credit);
-		m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE,
+		m0_be_emap_credit(&adom->sad_adata_ht[ht_idx].sad_adata, M0_BEO_PASTE,
 				  BALLOC_FRAGS_MAX + 1, credit);
 	}
 	m0_mutex_unlock(&beck_builder.b_emaplock[id]);
@@ -1524,6 +1538,8 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 	struct m0_be_emap_cursor  it = {};
 	struct m0_ext             in_ext;
 	int                       id;
+	struct m0_fid             fid;
+	uint8_t			  ht_idx;
 
 	adom = emap_dom_find(act, &emap_ac->emap_fid, &id);
 	emap_val = emap_ac->emap_val.b_addr;
@@ -1551,8 +1567,12 @@ static void emap_act(struct action *act, struct m0_be_tx *tx)
 
 		rc = emap_entry_lookup(adom, emap_key->ek_prefix, 0, &it);
 		/* No emap entry found for current stob, insert hole */
+		fid.f_container = emap_key->ek_prefix.u_hi;
+		fid.f_key = emap_key->ek_prefix.u_lo;
+		ht_idx = m0_stob_get_hash(&fid);
+
 		rc = rc ? M0_BE_OP_SYNC_RET(op,
-				m0_be_emap_obj_insert(&adom->sad_adata,
+				m0_be_emap_obj_insert(&adom->sad_adata_ht[ht_idx].sad_adata,
 						      tx, &op,
 						      &emap_key->ek_prefix,
 						      AET_HOLE),
@@ -3025,6 +3045,8 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 	struct m0_be_emap_cursor  it = {};
 	struct m0_uint128         prefix;
 	int			  id;
+	struct m0_fid 		  fid;
+	uint8_t			  ht_idx;
 
 	m0_mutex_lock(&beck_builder.b_coblock);
 
@@ -3044,12 +3066,17 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 		adom = stob_ad_domain2ad(sdom);
 		prefix = M0_UINT128(stob_id.si_fid.f_container,
 				    stob_id.si_fid.f_key);
+
+		fid.f_container = stob_id.si_fid.f_container;
+		fid.f_key = stob_id.si_fid.f_key;
+		ht_idx = m0_stob_get_hash(&fid);
+
 		emap_dom_find(&ca->coa_act,
-			      &adom->sad_adata.em_mapping.bb_backlink.bli_fid,
+			      &adom->sad_adata_ht[ht_idx].sad_adata.em_mapping.bb_backlink.bli_fid,
 			      &id);
 		m0_mutex_lock(&beck_builder.b_emaplock[id]);
 		rc = M0_BE_OP_SYNC_RET_WITH(&it.ec_op,
-					    m0_be_emap_lookup(&adom->sad_adata,
+					    m0_be_emap_lookup(&adom->sad_adata_ht[ht_idx].sad_adata,
 							      &prefix, 0, &it),
 					    bo_u.u_emap.e_rc);
 		if (rc == 0)
@@ -3057,7 +3084,7 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 		else {
 			rc = M0_BE_OP_SYNC_RET(op,
 					       m0_be_emap_obj_insert(&adom->
-								     sad_adata,
+								     sad_adata_ht[ht_idx].sad_adata,
 								     tx, &op,
 								     &prefix,
 								     AET_HOLE),

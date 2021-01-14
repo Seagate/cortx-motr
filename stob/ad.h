@@ -107,6 +107,13 @@ struct m0_ad_balloc_ops {
 };
 
 enum { AD_PATHLEN = 4096 };
+// Defines hash table size for struct m0_be_emap. This size should be pow of 2,
+// and maximum allowed size is 65536.
+#define EMAP_HT_SIZE 256
+
+struct m0_perf_ht {
+	struct m0_be_emap       sad_adata;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_stob_ad_domain {
 	struct m0_format_header sad_header;
@@ -126,7 +133,7 @@ struct m0_stob_ad_domain {
 	 * m0_be_emap has it's own volatile-only fields, so it can't be placed
 	 * before the m0_format_footer, where only persistent fields allowed
 	 */
-	struct m0_be_emap       sad_adata;
+	struct m0_perf_ht 	sad_adata_ht[EMAP_HT_SIZE];
 	/*
 	 * volatile-only fields
 	 */
@@ -223,6 +230,10 @@ M0_INTERNAL int stob_ad_cursor(struct m0_stob_ad_domain *adom,
 			       struct m0_stob *obj,
 			       uint64_t offset,
 			       struct m0_be_emap_cursor *it);
+
+// Calculates uint16_t hash number for given m0_fid which
+// is in between 0 to EMAP_HT_SIZE
+M0_INTERNAL uint16_t m0_stob_get_hash(const struct m0_fid *fid);
 
 /**
  * Sets the flags associated with the balloc zones (spare/non-spare).

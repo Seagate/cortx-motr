@@ -109,6 +109,15 @@ M0_TL_DESCR_DEFINE(ad_domains, "ad stob domains", M0_INTERNAL,
 		   M0_AD_DOMAINS_MAGIC, M0_AD_DOMAINS_HEAD_MAGIC);
 M0_TL_DEFINE(ad_domains, M0_INTERNAL, struct ad_domain_map);
 
+M0_INTERNAL uint16_t m0_stob_get_hash(const struct m0_fid *fid)
+{
+        uint64_t prefix_hash;
+        uint16_t idx;
+        prefix_hash = m0_fid_hash(fid);
+        idx = (uint16_t)(prefix_hash % (uint64_t)(EMAP_HT_SIZE));
+        return idx;
+}
+
 static int stob_ad_0type_init(struct m0_be_domain *dom,
 			      const char *suffix,
 			      const struct m0_buf *data)
@@ -377,7 +386,7 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 	struct m0_ad_balloc       *ballroom;
 	bool                       balloc_inited;
 	int                        rc = 0;
-
+	int			   i = 0;
 	adom = stob_ad_domain_locate(location_data);
 	if (adom == NULL)
 		return M0_RC(-ENOENT);
@@ -400,8 +409,10 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 				    0, adom->sad_dom_key);
 	dom->sd_private = adom;
 	dom->sd_ops     = &stob_ad_domain_ops;
-	m0_be_emap_init(&adom->sad_adata, seg);
 
+	for (i = 0; i < EMAP_HT_SIZE; i++) {
+	        m0_be_emap_init(&adom->sad_adata_ht[i].sad_adata, seg);
+	}
 	ballroom = adom->sad_ballroom;
 	m0_balloc_init(b2m0(ballroom));
 	rc = ballroom->ab_ops->bo_init(ballroom, seg,
@@ -420,7 +431,10 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 	if (rc != 0) {
 		if (balloc_inited)
 			ballroom->ab_ops->bo_fini(ballroom);
-		m0_be_emap_fini(&adom->sad_adata);
+
+		for (i = 0; i < EMAP_HT_SIZE; i++) {
+			m0_be_emap_fini(&adom->sad_adata_ht[i].sad_adata);
+		}
 		m0_free(dom);
 	} else {
 		m0_stob_ad_domain_bob_init(adom);
@@ -442,9 +456,12 @@ static void stob_ad_domain_fini(struct m0_stob_domain *dom)
 {
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 	struct m0_ad_balloc      *ballroom = adom->sad_ballroom;
+	int			  i;
 
 	ballroom->ab_ops->bo_fini(ballroom);
-	m0_be_emap_fini(&adom->sad_adata);
+	for (i = 0; i < EMAP_HT_SIZE; i++) {
+		m0_be_emap_fini(&adom->sad_adata_ht[i].sad_adata);
+	}
 	m0_stob_put(adom->sad_bstore);
 	m0_stob_ad_domain_bob_fini(adom);
 	m0_free(dom);
@@ -459,7 +476,7 @@ static void stob_ad_domain_create_credit(struct m0_be_seg *seg,
 
 	M0_BE_ALLOC_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
 	m0_be_emap_init(&map, seg);
-	m0_be_emap_credit(&map, M0_BEO_CREATE, 1, accum);
+	m0_be_emap_credit(&map, M0_BEO_CREATE, EMAP_HT_SIZE, accum);
 	m0_be_emap_fini(&map);
 	m0_be_0type_add_credit(seg->bs_domain, &m0_stob_ad_0type,
 			       location_data, &data, accum);
@@ -473,7 +490,7 @@ static void stob_ad_domain_destroy_credit(struct m0_be_seg *seg,
 
 	M0_BE_FREE_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
 	m0_be_emap_init(&map, seg);
-	m0_be_emap_credit(&map, M0_BEO_DESTROY, 1, accum);
+	m0_be_emap_credit(&map, M0_BEO_DESTROY, EMAP_HT_SIZE, accum);
 	m0_be_emap_fini(&map);
 	m0_be_0type_del_credit(seg->bs_domain, &m0_stob_ad_0type,
 			       location_data, accum);
@@ -496,9 +513,11 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 	struct stob_ad_0type_rec  seg0_ad_rec;
 	struct m0_buf             seg0_data;
 	int                       rc;
+	int			  i;
 
 	M0_PRE(seg != NULL);
 	M0_PRE(strlen(location_data) < ARRAY_SIZE(adom->sad_path));
+	M0_PRE(m0_is_po2(EMAP_HT_SIZE));
 
 	adom = stob_ad_domain_locate(location_data);
 	if (adom != NULL)
@@ -538,14 +557,17 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 		adom->sad_overwrite        = false;
 		strcpy(adom->sad_path, location_data);
 		m0_format_footer_update(adom);
-		emap = &adom->sad_adata;
-		m0_be_emap_init(emap, seg);
-		rc = M0_BE_OP_SYNC_RET(
+
+		for (i = 0; i < EMAP_HT_SIZE; i++) {
+			emap = &adom->sad_adata_ht[i].sad_adata;
+			m0_be_emap_init(emap, seg);
+			rc = M0_BE_OP_SYNC_RET(
 			op,
 			m0_be_emap_create(emap, &tx, &op,
 					  &cfg->adg_id.si_fid),
 			bo_u.u_emap.e_rc);
-		m0_be_emap_fini(emap);
+			m0_be_emap_fini(emap);
+		}
 
 		seg0_ad_rec = (struct stob_ad_0type_rec){.sa0_ad_domain = adom}; /* XXX won't be a pointer */
 		m0_format_header_pack(&seg0_ad_rec.sa0_header, &(struct m0_format_tag){
@@ -580,11 +602,12 @@ static int stob_ad_domain_destroy(struct m0_stob_type *type,
 {
 	struct m0_stob_ad_domain *adom = stob_ad_domain_locate(location_data);
 	struct m0_sm_group       *grp  = stob_ad_sm_group();
-	struct m0_be_emap        *emap = &adom->sad_adata;
+	struct m0_be_emap        *emap;
 	struct m0_be_seg         *seg;
 	struct m0_be_tx           tx   = {};
 	struct m0_be_tx_credit    cred = M0_BE_TX_CREDIT(0, 0);
 	int                       rc;
+	int     		  i;
 
 	if (adom == NULL)
 		return 0;
@@ -596,13 +619,16 @@ static int stob_ad_domain_destroy(struct m0_stob_type *type,
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_exclusive_open_sync(&tx);
 	if (rc == 0) {
-		m0_be_emap_init(emap, seg);
-		rc = M0_BE_OP_SYNC_RET(op, m0_be_emap_destroy(emap, &tx, &op),
-				       bo_u.u_emap.e_rc);
-		rc = rc ?: m0_be_0type_del(&m0_stob_ad_0type, seg->bs_domain,
-					   &tx, location_data);
+		for (i = 0; i < EMAP_HT_SIZE; i++) {
+			emap = &adom->sad_adata_ht[i].sad_adata;
+			m0_be_emap_init(emap, seg);
+			rc = M0_BE_OP_SYNC_RET(op, m0_be_emap_destroy(emap, &tx, &op),
+						bo_u.u_emap.e_rc);
+			rc = rc ?: m0_be_0type_del(&m0_stob_ad_0type, seg->bs_domain,
+						&tx, location_data);
+		}
 		if (rc == 0)
-			M0_BE_FREE_PTR_SYNC(adom, seg, &tx);
+				M0_BE_FREE_PTR_SYNC(adom, seg, &tx);
 		m0_be_tx_close_sync(&tx);
 	}
 	m0_be_tx_fini(&tx);
@@ -646,13 +672,15 @@ static int stob_ad_init(struct m0_stob *stob,
 	struct m0_be_emap_cursor  it = {};
 	struct m0_uint128         prefix;
 	int                       rc;
+	uint16_t		  ht_idx;
 
 	prefix = M0_UINT128(stob_fid->f_container, stob_fid->f_key);
+	ht_idx = m0_stob_get_hash(stob_fid);
 	M0_LOG(M0_DEBUG, U128X_F, U128_P(&prefix));
 	stob->so_ops = &stob_ad_ops;
 	rc = M0_BE_OP_SYNC_RET_WITH(
 		&it.ec_op,
-		m0_be_emap_lookup(&adom->sad_adata, &prefix, 0, &it),
+		m0_be_emap_lookup(&adom->sad_adata_ht[ht_idx].sad_adata, &prefix, 0, &it),
 		bo_u.u_emap.e_rc);
 	if (rc == 0) {
 		m0_be_emap_close(&it);
@@ -668,7 +696,7 @@ static void stob_ad_create_credit(struct m0_stob_domain *dom,
 				  struct m0_be_tx_credit *accum)
 {
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
-	m0_be_emap_credit(&adom->sad_adata, M0_BEO_INSERT, 1, accum);
+	m0_be_emap_credit(&adom->sad_adata_ht[0].sad_adata, M0_BEO_INSERT, 1, accum);
 }
 
 static int stob_ad_create(struct m0_stob *stob,
@@ -679,12 +707,14 @@ static int stob_ad_create(struct m0_stob *stob,
 {
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 	struct m0_uint128         prefix;
+	uint16_t		  ht_idx;
 
 	M0_PRE(dtx != NULL);
 	prefix = M0_UINT128(stob_fid->f_container, stob_fid->f_key);
+	ht_idx = m0_stob_get_hash(stob_fid);
 	M0_LOG(M0_DEBUG, U128X_F, U128_P(&prefix));
 	return M0_BE_OP_SYNC_RET(op,
-				 m0_be_emap_obj_insert(&adom->sad_adata,
+				 m0_be_emap_obj_insert(&adom->sad_adata_ht[ht_idx].sad_adata,
 						       &dtx->tx_betx, &op,
 						       &prefix, AET_HOLE),
 				 bo_u.u_emap.e_rc);
@@ -726,7 +756,10 @@ static int stob_ad_punch_credit(struct m0_stob *stob,
 					.e_start = 0,
 					.e_end   = M0_BCOUNT_MAX
 				  };
+	const struct m0_fid      *fid = m0_stob_fid_get(stob);
+	uint16_t		  ht_idx;
 
+	ht_idx = m0_stob_get_hash(fid);
 	M0_ENTRY("stob:%p, want:%p", stob, want);
 	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
 	ballroom = adom->sad_ballroom;
@@ -752,7 +785,7 @@ static int stob_ad_punch_credit(struct m0_stob *stob,
 		M0_LOG(M0_DEBUG, "stob:%p todo:"EXT_F ", existing ext:"EXT_F,
 				stob, EXT_P(&todo), EXT_P(&seg->ee_ext));
 		M0_SET0(&cred);
-		m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, 1, &cred);
+		m0_be_emap_credit(&adom->sad_adata_ht[ht_idx].sad_adata, M0_BEO_PASTE, 1, &cred);
 		ballroom->ab_ops->bo_free_credit(ballroom, 3, &cred);
 		if (m0_be_should_break(eng, accum, &cred))
 			break;
@@ -859,9 +892,12 @@ static void stob_ad_destroy_credit(struct m0_stob *stob,
 				   struct m0_be_tx_credit *accum)
 {
 	struct m0_stob_ad_domain *adom;
+	const struct m0_fid      *fid = m0_stob_fid_get(stob);
+	uint16_t		  ht_idx;
 
+	ht_idx = m0_stob_get_hash(fid);
 	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
-	m0_be_emap_credit(&adom->sad_adata, M0_BEO_DELETE, 1, accum);
+	m0_be_emap_credit(&adom->sad_adata_ht[ht_idx].sad_adata, M0_BEO_DELETE, 1, accum);
 }
 
 static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
@@ -870,11 +906,13 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	struct m0_uint128         prefix;
 	int                       rc;
 	const struct m0_fid      *fid = m0_stob_fid_get(stob);
+	uint16_t		  ht_idx;
 
 	adom   = stob_ad_domain2ad(m0_stob_dom_get(stob));
 	prefix = M0_UINT128(fid->f_container, fid->f_key);
+	ht_idx = m0_stob_get_hash(fid);
 	rc = M0_BE_OP_SYNC_RET(op,
-			       m0_be_emap_obj_delete(&adom->sad_adata,
+			       m0_be_emap_obj_delete(&adom->sad_adata_ht[ht_idx].sad_adata,
 						     &tx->tx_betx, &op,
 						     &prefix),
 			       bo_u.u_emap.e_rc);
@@ -1059,13 +1097,15 @@ M0_INTERNAL int stob_ad_cursor(struct m0_stob_ad_domain *adom,
 	const struct m0_fid *fid = m0_stob_fid_get(obj);
 	struct m0_uint128    prefix;
 	int                  rc;
+	uint16_t             ht_idx;
 
 	prefix = M0_UINT128(fid->f_container, fid->f_key);
+	ht_idx = m0_stob_get_hash(fid);
 	M0_LOG(M0_DEBUG, FID_F, FID_P(fid));
 	M0_SET0(&it->ec_op);
 	rc = M0_BE_OP_SYNC_RET_WITH(
 		&it->ec_op,
-		m0_be_emap_lookup(&adom->sad_adata, &prefix, offset, it),
+		m0_be_emap_lookup(&adom->sad_adata_ht[ht_idx].sad_adata, &prefix, offset, it),
 		bo_u.u_emap.e_rc);
 	return M0_RC(rc);
 }
@@ -1126,7 +1166,7 @@ static void stob_ad_write_credit(const struct m0_stob_domain *dom,
 	 * emap credit (BETREE_DELETE epecially). Adding one more extra credit
 	 * of 'emap paste' (that is frags + 1) to verify this idea.
 	 */
-	m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, frags + 1, accum);
+	m0_be_emap_credit(&adom->sad_adata_ht[0].sad_adata, M0_BEO_PASTE, frags + 1, accum);
 
 	if (adom->sad_overwrite && ballroom->ab_ops->bo_free_credit != NULL) {
 		/* for each emap_paste() seg_free() could be called 3 times */
@@ -2018,7 +2058,7 @@ stob_ad_rec_frag_undo_redo_op_cred(const struct m0_fol_frag *frag,
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 
 	M0_PRE(dom != NULL);
-	m0_be_emap_credit(&adom->sad_adata, M0_BEO_UPDATE,
+	m0_be_emap_credit(&adom->sad_adata_ht[0].sad_adata, M0_BEO_UPDATE,
 			  arp->arp_seg.ps_segments, accum);
 }
 
@@ -2036,14 +2076,20 @@ static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
 	struct m0_be_emap_cursor  it;
 	int		          i;
 	int		          rc = 0;
+	struct m0_fid		  fid;
+	uint16_t		  ht_idx;
 
 	M0_PRE(dom != NULL);
 
 	for (i = 0; rc == 0 && i < arp->arp_seg.ps_segments; ++i) {
 		M0_SET0(&it.ec_op);
+
+		fid.f_container = old_data[i].ee_pre.u_hi;
+		fid.f_key = old_data[i].ee_pre.u_lo;
+		ht_idx = m0_stob_get_hash(&fid);
 		rc = M0_BE_OP_SYNC_RET_WITH(
 			&it.ec_op,
-			m0_be_emap_lookup(&adom->sad_adata,
+			m0_be_emap_lookup(&adom->sad_adata_ht[ht_idx].sad_adata,
 					  &old_data[i].ee_pre,
 					  old_data[i].ee_ext.e_start,
 					  &it),
