@@ -112,6 +112,11 @@ static inline int btree_delete_sync(struct m0_be_btree  *tree,
 }
 
 /* Conducts the basic sanity check on freeblocks and fragments. */
+static bool is_goal_statisfied_from_group(struct balloc_allocation_context *bac,
+					  struct m0_balloc_group_info *gi);
+static bool is_goal_satisfied(struct balloc_allocation_context *bac,
+			      m0_bcount_t maxchunk, m0_bcount_t free,
+			      m0_bcount_t fragments);
 static int is_group_good_enough(struct balloc_allocation_context *bac,
 				m0_bcount_t maxchunk, m0_bcount_t free,
 				m0_bcount_t fragments);
@@ -2008,6 +2013,68 @@ out:
 }
 #endif
 
+static m0_bcount_t balloc_get_next_good_group(struct balloc_allocation_context *bac,
+					      m0_bcount_t current_grp)
+{
+	m0_bcount_t  i;
+	m0_bcount_t  ngroups;
+	m0_bcount_t  group = current_grp;
+
+	ngroups = bac->bac_ctxt->cb_sb.bsb_groupcount;
+	for (i = 0; i < ngroups; group++, i++) {
+		struct m0_balloc_group_info *grp;
+
+		if (group >= ngroups)
+			group = 0;
+
+		grp = m0_balloc_gn2info(bac->bac_ctxt, group);
+		if (is_goal_statisfied_from_group(bac, grp))
+			return group;
+	}
+	return current_grp;
+}
+
+static bool is_goal_statisfied_from_group(struct balloc_allocation_context *bac,
+					  struct m0_balloc_group_info *gi)
+{
+	if (is_any(bac->bac_flags)) {
+		return is_goal_satisfied(bac, group_spare_maxchunk_get(gi),
+					 group_spare_freeblocks_get(gi),
+					 group_spare_fragments_get(gi)) ||
+			is_goal_satisfied(bac, group_maxchunk_get(gi),
+					  group_freeblocks_get(gi),
+					  group_fragments_get(gi));
+	} else if (is_spare(bac->bac_flags)) {
+		return is_goal_satisfied(bac, group_spare_maxchunk_get(gi),
+					 group_spare_freeblocks_get(gi),
+					 group_spare_fragments_get(gi));
+	} else if (is_normal(bac->bac_flags)) {
+		return is_goal_satisfied(bac, group_maxchunk_get(gi),
+					 group_freeblocks_get(gi),
+					 group_fragments_get(gi));
+	}
+	return false;
+}
+
+static bool is_goal_satisfied(struct balloc_allocation_context *bac,
+			      m0_bcount_t maxchunk, m0_bcount_t free,
+			      m0_bcount_t fragments)
+{
+	if (free == 0)
+		return false;
+
+	if (fragments == 0)
+		return false;
+
+	if ((free / fragments) < m0_ext_length(&bac->bac_goal))
+		return false;
+
+	if (maxchunk >= m0_ext_length(&bac->bac_goal))
+		return true;
+
+	return false;
+}
+
 /* group is locked */
 static int balloc_is_good_group(struct balloc_allocation_context *bac,
 				struct m0_balloc_group_info *gi)
@@ -2419,6 +2486,7 @@ repeat:
 		 * from the goal value specified
 		 */
 		group = balloc_bn2gn(bac->bac_goal.e_start, bac->bac_ctxt);
+		group = balloc_get_next_good_group(bac, group);
 
 		for (i = 0; i < ngroups; group++, i++) {
 			struct m0_balloc_group_info *grp;
