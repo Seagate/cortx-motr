@@ -76,15 +76,15 @@ package mio
 import "C"
 
 import (
-    "fmt"
-    "flag"
-    "log"
     "errors"
+    "flag"
+    "fmt"
     "io"
-    "reflect"
+    "log"
     "os"
-    "time"
+    "reflect"
     "sync"
+    "time"
     "unsafe"
 )
 
@@ -99,6 +99,7 @@ type Mio struct {
     obj    *C.struct_m0_obj
     objSz   uint64
     objLid  uint
+    objPool C.struct_m0_fid
     off     uint64
     buf     []C.struct_m0_bufvec
     ext     []C.struct_m0_indexvec
@@ -160,7 +161,7 @@ func Init() {
     }
 
     C.m0_container_init(&C.container, nil, &C.M0_UBER_REALM, C.instance)
-    rc = C.container.co_realm.re_entity.en_sm.sm_rc;
+    rc = C.container.co_realm.re_entity.en_sm.sm_rc
     if rc != 0 {
         log.Panicf("C.m0_container_init() failed: %v", rc)
     }
@@ -200,6 +201,29 @@ func (mio *Mio) finishOpen(sz uint64) {
     mio.objSz = sz
 }
 
+// GetPool returns the pool the object is located at.
+func (mio *Mio) GetPool() string {
+    if mio.obj == nil {
+        return ""
+    }
+    p := mio.objPool
+    return fmt.Sprintf("0x%x:0x%x", p.f_container, p.f_key)
+}
+
+// InPool checks whether the object is located at the pool.
+func (mio *Mio) InPool(pool string) bool {
+    if mio.obj == nil {
+        return false
+    }
+    id1, err := ScanID(pool)
+    if err != nil {
+        return false
+    }
+    p := mio.objPool
+    id2 := C.struct_m0_uint128{p.f_container, p.f_key}
+    return C.m0_uint128_cmp(&id1, &id2) == 0
+}
+
 // Open opens object for reading ant/or writing. The size
 // must be specified when openning object for reading. Otherwise,
 // nothing will be read. (Motr doesn't store objects metadata
@@ -214,7 +238,7 @@ func (mio *Mio) Open(id string, anySz ...uint64) (err error) {
     }
 
     C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, 1)
-    rc := C.m0_open_entity(&mio.obj.ob_entity);
+    rc := C.m0_open_entity(&mio.obj.ob_entity)
     if rc != 0 {
         mio.Close()
         return fmt.Errorf("failed to open object entity: %d", rc)
@@ -224,6 +248,14 @@ func (mio *Mio) Open(id string, anySz ...uint64) (err error) {
     for _, v := range anySz {
         sz = v
     }
+
+    pv := C.m0_pool_version_find(&C.instance.m0c_pools_common,
+                                 &mio.obj.ob_attr.oa_pver)
+    if pv == nil {
+        return fmt.Errorf("cannot find pool version")
+    }
+    mio.objPool = pv.pv_pool.po_id
+
     mio.finishOpen(sz)
 
     return nil
@@ -242,8 +274,8 @@ func (mio *Mio) Close() {
     for i := 0; i < len(mio.buf); i++ {
         if mio.buf[i].ov_buf == nil {
             C.m0_bufvec_free2(&mio.buf[i])
-                C.m0_bufvec_free(&mio.attr[i])
-                C.m0_indexvec_free(&mio.ext[i])
+            C.m0_bufvec_free(&mio.attr[i])
+            C.m0_indexvec_free(&mio.ext[i])
         }
     }
     if mio.minBuf != nil {
@@ -475,7 +507,7 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
         n := int(mio.off - offSaved)
         bw, units := getBW(n, elapsed)
         log.Printf("W: off=%v len=%v bs=%v gs=%v speed=%v (%v)",
-		   offSaved, n, bsSaved, gs, bw, units)
+                   offSaved, n, bsSaved, gs, bw, units)
     }
 
     return off, err
@@ -522,7 +554,7 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         n := int(mio.off - offSaved)
         bw, units := getBW(n, elapsed)
         log.Printf("R: off=%v len=%v bs=%v gs=%v speed=%v (%v)",
-		   offSaved, n, bsSaved, gs, bw, units)
+                   offSaved, n, bsSaved, gs, bw, units)
     }
 
     return off, err
