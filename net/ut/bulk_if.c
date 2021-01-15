@@ -62,7 +62,7 @@ static bool ut_get_max_buffer_segments_called = false;
 static bool ut_end_point_create_called = false;
 static bool ut_end_point_release_called = false;
 
-static int ut_dom_init(struct m0_net_xprt *xprt,
+static int ut_dom_init(const struct m0_net_xprt *xprt,
 		       struct m0_net_domain *dom)
 {
 	M0_ASSERT(m0_mutex_is_locked(&m0_net_mutex));

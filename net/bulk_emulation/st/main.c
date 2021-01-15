@@ -70,7 +70,7 @@ struct ping_xprt {
 
 struct ping_xprt xprts[1] = {
 	{
-		.px_xprt = &m0_net_bulk_mem_xprt,
+		.px_xprt = (struct m0_net_xprt *)&m0_net_bulk_mem_xprt,
 		.px_dual_only = true,
 		.px_3part_addr = false,
 		.px_client_port = MEM_CLIENT_BASE_PORT,

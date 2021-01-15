@@ -59,11 +59,11 @@ static struct {
 } net_xprt_mods[] = {
 	[M0_NET_XPRT_LNET] = {
 		.name = "\"lnet\" m0_net_xprt_module",
-		.xprt = &m0_net_lnet_xprt
+		.xprt = (struct m0_net_xprt *)&m0_net_lnet_xprt
 	},
 	[M0_NET_XPRT_BULKMEM] = {
 		.name = "\"bulk-mem\" m0_net_xprt_module",
-		.xprt = &m0_net_bulk_mem_xprt
+		.xprt = (struct m0_net_xprt *)&m0_net_bulk_mem_xprt
 	},
 #ifndef __KERNEL__
 	[M0_NET_XPRT_SOCK] = {

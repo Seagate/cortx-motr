@@ -127,7 +127,7 @@ struct m0_net_xprt_ops {
 	   initialise portals).
 	   Only the m0_net_mutex is held across this call.
 	 */
-	int  (*xo_dom_init)(struct m0_net_xprt *xprt,
+	int  (*xo_dom_init)(const struct m0_net_xprt *xprt,
 			    struct m0_net_domain *dom);
 	/**
 	   Finalises transport resources in a domain.
@@ -410,7 +410,8 @@ struct m0_net_domain {
    Initialises a domain.
    @pre dom->nd_xprt == NULL
  */
-int m0_net_domain_init(struct m0_net_domain *dom, struct m0_net_xprt *xprt);
+int m0_net_domain_init(struct m0_net_domain *dom,
+			const struct m0_net_xprt *xprt);
 
 /**
    Releases resources related to a domain.

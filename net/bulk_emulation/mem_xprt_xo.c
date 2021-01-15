@@ -196,7 +196,7 @@ static bool mem_tm_invariant(const struct m0_net_transfer_mc *tm)
    that the domain is not derived, and will then link the domain in a private
    list to facilitate in-memory data transfers between transfer machines.
  */
-static int mem_xo_dom_init(struct m0_net_xprt *xprt,
+static int mem_xo_dom_init(const struct m0_net_xprt *xprt,
 			   struct m0_net_domain *dom)
 {
 	struct m0_net_bulk_mem_domain_pvt *dp;
@@ -750,7 +750,7 @@ static const struct m0_net_xprt_ops mem_xo_xprt_ops = {
 	.xo_get_max_buffer_desc_size    = mem_xo_get_max_buffer_desc_size,
 };
 
-struct m0_net_xprt m0_net_bulk_mem_xprt = {
+const struct m0_net_xprt m0_net_bulk_mem_xprt = {
 	.nx_name = "bulk-mem",
 	.nx_ops  = &mem_xo_xprt_ops
 };
