@@ -92,6 +92,7 @@ static int swu_update(struct m0_cm_sw_update *swu)
 {
 	struct m0_cm *cm = cm_swu2cm(swu);
 	int           rc;
+	M0_ENTRY();
 
 	rc = m0_cm_sw_local_update(cm);
 	return M0_RC(rc);
@@ -111,17 +112,20 @@ static int cm_swu_fom_tick(struct m0_fom *fom)
 	struct m0_cm_sw_update *swu;
 	int                     phase = m0_fom_phase(fom);
 	int                     rc;
+	M0_ENTRY();
 
 	swu = cm_fom2swu(fom);
 	cm = cm_swu2cm(swu);
 	m0_cm_lock(cm);
 	rc = swu_action[phase](swu);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "SWU phase=%d rc=%d.", phase, rc);
 		m0_cm_sw_remote_update(cm);
+	}
 	if (rc < 0) {
 		if (rc != -ENOBUFS) {
 			M0_LOG(M0_DEBUG, "Sliding window update"
-			      " fom complete with rc: %d", rc);
+					 " fom complete with rc: %d", rc);
 			m0_cm_sw_update_complete(cm);
 			m0_cm_complete_notify(cm);
 			if (!M0_IN(rc, (-ENOBUFS, -ENODATA)))

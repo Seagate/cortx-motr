@@ -46,12 +46,12 @@
 struct m0_cm_cp;
 
 enum m0_proxy_state {
-	M0_PX_INIT,
-	M0_PX_READY,
-	M0_PX_ACTIVE,
-	M0_PX_COMPLETE,
-	M0_PX_STOP,
-	M0_PX_FAILED
+	M0_PX_INIT,     /* 0 */
+	M0_PX_READY,    /* 1 */
+	M0_PX_ACTIVE,   /* 2 */
+	M0_PX_COMPLETE, /* 3 */
+	M0_PX_STOP,     /* 4 */
+	M0_PX_FAILED    /* 5 */
 };
 
 /**
