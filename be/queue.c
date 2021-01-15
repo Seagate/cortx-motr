@@ -403,10 +403,12 @@ M0_INTERNAL void m0_be_queue_get(struct m0_be_queue *bq,
 	if (be_queue_is_empty(bq) && bq->bq_the_end) {
 		*successful = false;
 		m0_be_op_done(op);
+		M0_LEAVE();
 		return;
 	}
 	if (be_queue_is_empty(bq) || be_queue_op_get_is_waiting(bq)) {
 		be_queue_op_get(bq, op, data, successful);
+		M0_LEAVE();
 		return;
 	}
 	be_queue_q_get(bq, data, successful);
