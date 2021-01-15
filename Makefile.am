@@ -618,7 +618,6 @@ sbin_PROGRAMS += motr/st/utils/m0composite
 
 if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                   += motr/st/user_space/m0st
-noinst_PROGRAMS                   += motr/st/utils/m0client
 noinst_PROGRAMS                   += motr/st/utils/m0cc_cp_cat
 endif
 bin_PROGRAMS                      += motr/st/utils/m0touch
@@ -628,6 +627,7 @@ bin_PROGRAMS                      += motr/st/utils/m0cp
 bin_PROGRAMS                      += motr/st/utils/m0trunc
 bin_PROGRAMS                      += motr/st/mt/m0mt
 bin_PROGRAMS                      += motr/st/utils/m0cp_mt
+bin_PROGRAMS                      += motr/st/utils/m0client
 
 motr_st_user_space_m0st_CPPFLAGS = -DM0_TARGET='m0st' $(AM_CPPFLAGS)
 motr_st_user_space_m0st_LDADD    = $(top_builddir)/motr/libmotr.la
@@ -679,15 +679,13 @@ include $(top_srcdir)/motr/m0kv/Makefile.sub
 #
 # motr/examples ----------------------------------------- {{{2
 #
-bin_PROGRAMS                    += motr/examples/example1
-motr_examples_example1_CPPFLAGS = -DM0_TARGET='example1' $(AM_CPPFLAGS)
-motr_examples_example1_LDADD    = $(top_builddir)/motr/libmotr.la \
-                                    @UUID_LIBS@
+noinst_PROGRAMS                += motr/examples/example1
+noinst_PROGRAMS                += motr/examples/example2
 
-bin_PROGRAMS                    += motr/examples/example2
+motr_examples_example1_CPPFLAGS = -DM0_TARGET='example1' $(AM_CPPFLAGS)
+motr_examples_example1_LDADD    = $(top_builddir)/motr/libmotr.la
 motr_examples_example2_CPPFLAGS = -DM0_TARGET='example2' $(AM_CPPFLAGS)
-motr_examples_example2_LDADD    = $(top_builddir)/motr/libmotr.la \
-                                    @UUID_LIBS@
+motr_examples_example2_LDADD    = $(top_builddir)/motr/libmotr.la
 
 include $(top_srcdir)/motr/examples/Makefile.sub
 
@@ -974,13 +972,14 @@ ETC_SYSTEMD_DIR := $(DESTDIR)$(sysconfdir)/systemd/system
 
 install-exec-hook:
 	$(MKDIR_P) $(ETC_SYSTEMD_DIR)
-	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/motr-client.service
-	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/motr-mkfs.service
-	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/motr-server-confd.service
-	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/motr-server-ha.service
-	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/motr-server@.service
-	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/motr-singlenode.service
-	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/motr.service
+	$(LN_S) -f /dev/null $(ETC_SYSTEMD_DIR)/motr-client.service
+	$(LN_S) -f /dev/null $(ETC_SYSTEMD_DIR)/motr-mkfs.service
+	$(LN_S) -f /dev/null $(ETC_SYSTEMD_DIR)/motr-server-confd.service
+	$(LN_S) -f /dev/null $(ETC_SYSTEMD_DIR)/motr-server-ha.service
+	$(LN_S) -f /dev/null $(ETC_SYSTEMD_DIR)/motr-server@.service
+	$(LN_S) -f /dev/null $(ETC_SYSTEMD_DIR)/motr-singlenode.service
+	$(LN_S) -f /dev/null $(ETC_SYSTEMD_DIR)/motr.service
+
 
 dist_pkglibexec_SCRIPTS  = scripts/install/usr/libexec/cortx-motr/motr-service.functions \
                            scripts/install/usr/libexec/cortx-motr/motr \
@@ -1555,7 +1554,6 @@ clean-doc:
 # installation path
 
 install-kernel-modules:
-	@test -n "$$DESTDIR"
 	@$(MAKE) INSTALL_MOD_PATH=$(DESTDIR) \
 		 INSTALL_MOD_DIR=$${INSTALL_MOD_DIR:-kernel/fs/motr} \
 		 -C $(KDIR) M=$(abs_top_builddir) modules_install
