@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+# Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,14 +19,10 @@
 #
 import sys
 import errno
-import argparse
-import inspect
-import traceback
 import os
 import re
 import subprocess
 import time
-from cortx.utils.process import SimpleProcess
 from cortx.utils.conf_store import Conf
 
 MOTR_KERNEL_FILE = "/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
@@ -51,7 +47,7 @@ class MotrError(Exception):
 
 
 def execute_command(cmd, timeout_secs):
-        
+
     ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           shell=True)
@@ -73,9 +69,18 @@ def validate_file(file):
     if not os.path.exists(file):
         raise MotrError(errno.ENOENT, "{} not exist".format(file))
 
+def is_hw_node():
+    cmd = "systemd-detect-virt"
+    op  = execute_command(cmd, TIMEOUT_SECS)
+    op  = op[0].split('\n')[0]
+    if op == "none":
+        return True
+    else:
+        return False
+
 def validate_motr_rpm(self):
     try:
-        cmd = f"uname -r"
+        cmd = "uname -r"
         cmd_res = execute_command(cmd, TIMEOUT_SECS)
         op = cmd_res[0]
         kernel_ver = op.replace('\n', '')
@@ -88,47 +93,43 @@ def validate_motr_rpm(self):
         pass
 
 def motr_config(self):
-    server_id = int(Conf.get(self._index, 'cluster>current>server_id'))
-    node_type = Conf.get(self._index, f'cluster>server')[server_id]['node_type']
-    is_physical = True if node_type == "HW" else False
-    sys.stdout.write(f"[INFO] server_id={server_id} node_type={node_type} is_physical={is_physical}\n")
-    if is_physical:
+    is_hw = is_hw_node()
+    if is_hw:
         execute_command(MOTR_CONFIG_SCRIPT, TIMEOUT_SECS)
 
 def configure_net(self):
-     server_id = int(Conf.get(self._index, 'cluster>current>server_id'))
-     xport = Conf.get(self._index,
-                          f'cluster>server')[server_id]['network']['motr_net']['transport']
-     sys.stdout.write(f"[INFO] transport type = {xport}\n")
-     if (xport == "lnet"):
-        configure_lnet_from_conf_store(self)
+     '''Wrapper function to detect lnet/libfabric transport'''
+     configure_lnet_from_conf_store(self)
 
 def configure_lnet_from_conf_store(self):
     '''
        Get iface and /etc/modprobe.d/lnet.conf params from
        conf store. Configure lnet. Start lnet service
     '''
-    server_id = int(Conf.get(self._index, 'cluster>current>server_id'))
-    lnet_conf = Conf.get(self._index,
-                         f'cluster>server')[server_id]['network']['motr_net']
-    iface_type = lnet_conf['interface_type']
-    iface = lnet_conf['interface']
-    sys.stdout.write(f"[INFO] {iface_type}=({iface})") 
+    iface = Conf.get(self._index,
+         f'cluster>server')[self._server_id]['network']['data']['interfaces'][1]
+    hw_node = is_hw_node()
+    if hw_node:
+        iface_type = "o2ib"
+    else:
+        iface_type = "tcp"
+    sys.stdout.write(f"[INFO] {iface_type}=({iface})")
     sys.stdout.write(f"[INFO] Updating {LNET_CONF_FILE}")
     with open(LNET_CONF_FILE, "w") as fp:
-        fp.write(f"options lnet networks={iface_type}({iface}) config_on_load=1  lnet_peer_discovery_disabled=1\n")
+        fp.write(f"options lnet networks={iface_type}({iface}) "
+                 f"config_on_load=1  lnet_peer_discovery_disabled=1\n")
         time.sleep(SLEEP_SECS)
         start_services(["lnet"])
 
 
-def create_lvm(node_name, metadata_dev, is_physical):
+def create_lvm(node_name, metadata_dev):
     try:
         validate_file(metadata_dev)
 
         cmd = f"fdisk -l {metadata_dev}"
         execute_command(cmd, TIMEOUT_SECS)
 
-        cmd = f"swapoff -a"
+        cmd = "swapoff -a"
         execute_command(cmd, TIMEOUT_SECS)
 
         cmd = f"pvcreate {metadata_dev}"
@@ -140,7 +141,7 @@ def create_lvm(node_name, metadata_dev, is_physical):
         cmd = f"vgchange --addtag {node_name} vg_metadata_{node_name}"
         execute_command(cmd, TIMEOUT_SECS)
 
-        cmd = f"vgscan --cache"
+        cmd = "vgscan --cache"
         execute_command(cmd, TIMEOUT_SECS)
 
         cmd = f"lvcreate -n lv_main_swap vg_metadata_{node_name} -l 51%VG"
@@ -167,14 +168,14 @@ def create_lvm(node_name, metadata_dev, is_physical):
         pass
 
 def config_lvm(self):
-    server_id = int(Conf.get(self._index, 'cluster>current>server_id'))
-    node_name = Conf.get(self._index, f'cluster>server')[server_id]['hostname']
+    node_name = Conf.get(self._index,
+              f'cluster>server')[self._server_id]['hostname']
     node_name = node_name.split('.')[0]
-    metadata_device = Conf.get(self._index, f'cluster>server')[server_id]['storage']['metadata_devices']
-    node_type = Conf.get(self._index, f'cluster>server')[server_id]['node_type']
-    sys.stdout.write(f"[INFO] server_id={server_id} node_name={node_name} node_type={node_type} metadata_device={metadata_device}\n")
-    is_physical = True if node_type == "HW" else False
-    create_lvm(node_name, metadata_device[0], is_physical)
+    metadata_device = Conf.get(self._index,
+              f'cluster>server')[self._server_id]['storage']['metadata_devices']
+    sys.stdout.write(f"[INFO] server_id={self._server_id} node_name={node_name}"
+                     f" metadata_device={metadata_device[0]}\n")
+    create_lvm(node_name, metadata_device[0])
 
 def get_lnet_xface() -> str:
     lnet_xface = None
@@ -191,9 +192,11 @@ def get_lnet_xface() -> str:
         pass
 
     if lnet_xface == None:
-        raise MotrError(errno.EINVAL, "Cant obtain iface details from %s", LNET_CONF_FILE)
+        raise MotrError(errno.EINVAL, "Cant obtain iface details from %s"
+                        , LNET_CONF_FILE)
     if lnet_xface not in os.listdir(SYS_CLASS_NET_DIR):
-        raise MotrError(errno.EINVAL, "Invalid iface %s in lnet.conf", lnet_xface)
+        raise MotrError(errno.EINVAL, "Invalid iface %s in lnet.conf"
+                        , lnet_xface)
 
     return lnet_xface
 
@@ -222,7 +225,8 @@ def test_lnet(self):
         check_pkgs(search_lnet_pkgs, lustre_pkgs)
 
         lnet_xface = get_lnet_xface()
-        ip_addr = os.popen(f'ip addr show {lnet_xface}').read().split("inet ")[1].split("/")[0]
+        ip_addr = os.popen(f'ip addr show {lnet_xface}').read()
+        ip_addr = ip_addr.split("inet ")[1].split("/")[0]
         cmd = "ping -c 3 {}".format(ip_addr)
         cmd_res = execute_command(cmd, TIMEOUT_SECS)
         sys.stdout.write("{}\n".format(cmd_res[0]))

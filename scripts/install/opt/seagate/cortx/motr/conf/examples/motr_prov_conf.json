@@ -1,8 +1,5 @@
 {
   "cluster":{
-    "current":{
-      "server_id":"00"
-    },
     "server":[
       {
         "hostname": "srvnode-1.localhost",
@@ -12,14 +9,11 @@
             ]
         },
         "network":{
-          "motr_net":
+          "data":
           {
-              "interface":"eth1",
-              "interface_type":"tcp",
-              "transport":"lnet"
+              "interfaces":["eth0","eth1"]
           }
-        },
-        "node_type":"VM"
+        }
       }
     ]
   }

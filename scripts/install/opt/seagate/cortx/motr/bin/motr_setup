@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+# Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@ import traceback
 from cortx.utils.conf_store import Conf
 from motr_mini_prov import *
 
+CURRENT_NODE_ENV = "CORTX_NODE"
+
 class Cmd:
     """Setup Command"""
     _index = "conf"
@@ -35,6 +37,7 @@ class Cmd:
         self._url = args.url
         Conf.load(self._index, self._url)
         self._args = args.args
+        self._server_id = int(os.environ[CURRENT_NODE_ENV])
 
     @property
     def args(self) -> str:
@@ -47,11 +50,12 @@ class Cmd:
     @staticmethod
     def usage(prog: str):
         """Print usage instructions"""
-        
+
         sys.stderr.write(
-            f"usage: {prog} [-h] <cmd> <url> <args>...\n"
+            f"usage: {prog} [-h] <cmd> <url> <args>\n"
             f"where:\n"
-            f"cmd   post_install, config, init, reset, test\n"
+            f"cmd   postinstall, config, init, test, reset, cleanup, upgarde,"
+            f" backup, restore\n"
             f"url   Config URL\n")
 
     @staticmethod
@@ -76,8 +80,20 @@ class Cmd:
         parser1.add_argument('args', nargs='*', default=[], help='args')
         parser1.set_defaults(command=cls)
 
+
+class PostInstallCmd(Cmd):
+    """PostInstall Setup Cmd"""
+    name = "postinstall"
+
+    def __init__(self, args: dict):
+        super().__init__(args)
+
+    def process(self):
+        print("Processing %s %s %s" %(self.name, self.url, self._args))
+        validate_motr_rpm(self)
+
 class ConfigCmd(Cmd):
-    """Setup Config Cmd"""
+    """Config Setup Cmd"""
     name = "config"
 
     def __init__(self, args):
@@ -85,18 +101,7 @@ class ConfigCmd(Cmd):
 
     def process(self):
         print("Processing %s %s %s" %(self.name, self.url, self._args))
-        print("Config:{}".format(Conf.get_keys(self._index)))
-        server_id = int(Conf.get(self._index, 'cluster>current>server_id'))
-        node_type = Conf.get(self._index, f'cluster>server')[server_id]['node_type']
         motr_config(self)
-
-class PostInstallCmd(Cmd):
-    """PostInstall Setup Cmd"""
-    name = "postinstall"
-    def __init__(self, args: dict):
-        super().__init__(args)
-    def process(self):
-        validate_motr_rpm(self)
 
 class InitCmd(Cmd):
     """Init Setup Cmd"""
@@ -106,9 +111,9 @@ class InitCmd(Cmd):
         super().__init__(args)
 
     def process(self):
+        print("Processing %s %s %s" %(self.name, self.url, self._args))
         config_lvm(self)
         configure_net(self)
-        configure_lnet_from_conf_store(self)
 
 class TestCmd(Cmd):
     """Test Setup Cmd"""
@@ -118,7 +123,58 @@ class TestCmd(Cmd):
         super().__init__(args)
 
     def process(self):
+        print("Processing %s %s %s" %(self.name, self.url, self._args))
         test_lnet(self)
+
+class ResetCmd(Cmd):
+    """Reset Setup Cmd"""
+    name = "reset"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        pass
+
+class CleanupCmd(Cmd):
+    """Cleanup Setup Cmd"""
+    name = "cleanup"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        pass
+
+class UpgradeCmd(Cmd):
+    """Upgrade Setup Cmd"""
+    name = "upgrade"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        pass
+
+class BackupCmd(Cmd):
+    """Backup Setup Cmd"""
+    name = "backup"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        pass
+
+class RestoreCmd(Cmd):
+    """Restore Setup Cmd"""
+    name = "restore"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        pass
 
 def main(argv: dict):
     try:
