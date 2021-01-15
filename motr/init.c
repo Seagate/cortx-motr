@@ -33,7 +33,9 @@
 #include "net/bulk_emulation/mem_xprt.h"
 #include "net/lnet/lnet.h"
 #ifndef __KERNEL__
+#ifdef ENABLE_LIBFAB
 #  include "net/libfab/libfab.h"
+#endif /*ENABLE_LIBFAB */
 #endif
 #include "rpc/rpc.h"
 #include "addb2/addb2.h"
@@ -192,7 +194,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_net_libfab_init,   &m0_net_libfab_fini,   "net/libfab" },
 #endif /* ENABLE_LIBFAB */
 	{ &m0_net_sock_mod_init, &m0_net_sock_mod_fini, "net/sock" },
-	{ &m0_net_libfab_init,   &m0_net_libfab_fini,   "net/libfab" },
 #endif
 	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
