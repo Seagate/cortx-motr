@@ -1464,6 +1464,9 @@ static void dix_create_crow(void)
 
 static void dix_create_dgmode(void)
 {
+#ifdef DTM0
+	return;
+#endif
 	struct m0_dix indices[COUNT_INDEX];
 	uint32_t      indices_nr = ARRAY_SIZE(indices);
 	int           i;
@@ -1561,6 +1564,9 @@ static void dix_delete_crow(void)
 
 static void dix_delete_dgmode(void)
 {
+#ifdef DTM0
+	return;
+#endif
 	struct m0_dix indices[COUNT_INDEX];
 	uint32_t      indices_nr = ARRAY_SIZE(indices);
 	int           i;
@@ -1802,6 +1808,9 @@ static void dix_put_crow(void)
 
 static void dix_put_dgmode(void)
 {
+#ifdef DTM0
+	return;
+#endif
 	struct m0_dix      index;
 	struct m0_bufvec   keys;
 	struct m0_bufvec   vals;
@@ -1994,6 +2003,9 @@ static void dix_dgmode_disks_unprep(enum ut_pg_unit        unit1,
 
 static void dix_get_dgmode(void)
 {
+#ifdef DTM0
+	return;
+#endif
 	struct m0_dix         index;
 	struct m0_bufvec      keys;
 	struct m0_bufvec      vals;
@@ -2216,6 +2228,9 @@ static void dix_next_crow(void)
 
 static void dix_next_dgmode(void)
 {
+#ifdef DTM0
+	return;
+#endif
 	struct m0_dix      index;
 	struct m0_bufvec   keys;
 	struct m0_bufvec   start_key;
@@ -2323,6 +2338,9 @@ static void dix_records_restore(struct m0_dix *index, struct m0_bufvec *keys,
 
 static void dix_del_dgmode(void)
 {
+#ifdef DTM0
+	return;
+#endif
 	struct m0_dix      index;
 	struct m0_bufvec   keys;
 	struct m0_bufvec   vals;
