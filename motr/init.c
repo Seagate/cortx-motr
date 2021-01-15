@@ -33,7 +33,9 @@
 #include "net/bulk_emulation/mem_xprt.h"
 #include "net/lnet/lnet.h"
 #ifndef __KERNEL__
+#ifdef ENABLE_LIBFAB
 #  include "net/libfab/libfab.h"
+#endif /*ENABLE_LIBFAB */
 #endif
 #include "rpc/rpc.h"
 #include "addb2/addb2.h"
