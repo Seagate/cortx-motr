@@ -25,13 +25,13 @@
 #ifndef __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__
 #define __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__
 #include <netinet/in.h>                  /* INET_ADDRSTRLEN */
-#include <arpa/inet.h>                   /* inet_pton */  
 
 #include "rdma/fabric.h"
 #include "rdma/fi_cm.h"
 #include "rdma/fi_domain.h"
 #include "rdma/fi_eq.h"
 #include "rdma/fi_endpoint.h"
+#include "rdma/fi_rma.h"
 #include "lib/cookie.h"
 
 extern struct m0_net_xprt m0_net_libfab_xprt;
@@ -81,33 +81,19 @@ struct m0_fab__tm {
 };
 
 /**
- * Buffer descriptor.
- *
- * This is put inside of generic m0_net_buf_desc. The descriptor uniquely
- * identifies a buffer within a cluster.
- *
- */
-struct m0_fab__bdesc {
-        struct m0_fab__ep_name  fbd_addr;
-        struct m0_cookie 	fbd_cookie;
-};//M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc); 
-
-/**
  *    Private data pointed to by m0_net_buffer::nb_xprt_private.
  *
  */
 struct m0_fab__buf {
-        uint64_t               fb_magic;    /* Magic number */
-        uint64_t               fbp_cookie;  /* Cookie identifying the buffer */
-        uint64_t               fb_reg_key;  /* Memory registration key */
-        uint64_t               fb_mr_key;   /* mr key used for RDMA */
-        void                  *fb_mr_desc;  /* Buffer descriptor */
-        struct m0_net_buffer  *fb_nb;       /* Pointer back to network buffer*/
-        struct fid_mr         *fb_mr;       /* Libfab memory region */
-        struct m0_fab__bdesc   fb_peer;     /* Other buffer descriptor in tm ops */
-        struct m0_fab__ep     *fb_ev_ep;
-        struct m0_tlink        fb_linkage;  /* Linkage in list of completed bufs*/
-        m0_bindex_t            fb_length;   /* Total size of data to be received*/
+	uint64_t               fb_magic;    /* Magic number */
+	uint64_t               fbp_cookie;  /* Cookie identifying the buffer */
+	uint64_t               fb_mr_key;   /* Memory registration key */
+	void                  *fb_mr_desc;  /* Buffer descriptor */
+	struct m0_net_buffer  *fb_nb;       /* Pointer back to network buffer*/
+	struct fid_mr         *fb_mr;       /* Libfab memory region */
+	struct m0_fab__ep     *fb_ev_ep;
+	struct m0_tlink        fb_linkage;  /* Linkage in list of completed bufs*/
+	m0_bindex_t            fb_length;   /* Total size of data to be received*/
 };
 
 /** @} end of netlibfab group */

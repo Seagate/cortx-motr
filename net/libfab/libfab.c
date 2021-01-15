@@ -114,14 +114,9 @@ static void libfab_buf_complete(struct m0_fab__buf *buf, int32_t status);
 static void libfab_buf_done(struct m0_fab__buf *buf, int rc);
 static bool libfab_tm_invariant(const struct m0_fab__tm *tm);
 static struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf);
-static int m0_fab_bdesc_create(struct m0_fab__ep_name *addr,
-                               struct m0_fab__buf *buf, 
-                               struct m0_net_buf_desc *out);
-static int m0_fab_bdesc_decode(const struct m0_net_buf_desc *nbd);
-static int m0_fab_bdesc_encode(struct m0_net_buf_desc *out);
-static int libfab_ip_type(char *ep_name,int *type);
-static int libfab_get_remote_addr(const char  *ep_name, 
-				  fi_addr_t   *remote_addr);
+static int libfab_bdesc_encode(struct m0_fab__buf *buf);
+static void libfab_bdesc_decode(struct m0_net_buf_desc *nbd,
+				struct fi_rma_iov *rma_key);
 static void libfab_buf_del(struct m0_net_buffer *nb);
 static void libfab_ep_put(struct m0_fab__ep *ep);
 static void libfab_ep_get(struct m0_fab__ep *ep);
@@ -520,17 +515,23 @@ static void libfab_poller(struct m0_fab__tm *tm)
 			if (xep->fep_ep != NULL) {
 				rc = libfab_check_for_comp(
 					       xep->fep_ep_res.fer_tx_cq, &buf);
-				if (rc > 0)
-					libfab_buf_done(buf, 0);
-				else if (rc != -FI_EAGAIN)
-					libfab_buf_done(buf, -ECANCELED);
+				if (buf != NULL) {
+					if (rc > 0)
+						libfab_buf_done(buf, 0);
+					else if (rc != -FI_EAGAIN)
+						libfab_buf_done(buf,
+								-ECANCELED);
+				}
 				
 				rc = libfab_check_for_comp(
 					       xep->fep_ep_res.fer_rx_cq, &buf);
-				if (rc > 0)
-					libfab_buf_done(buf, 0);
-				else if (rc != -FI_EAGAIN)
-					libfab_buf_done(buf, -ECANCELED);
+				if (buf != NULL) {
+					if (rc > 0)
+						libfab_buf_done(buf, 0);
+					else if (rc != -FI_EAGAIN)
+						libfab_buf_done(buf,
+								-ECANCELED);
+				}
 			}
 		} m0_tl_endfor;
 
@@ -673,8 +674,10 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
  */
 static int libfab_ep_res_init(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 {
-	struct fi_cq_attr   cq_attr;
-	struct fi_eq_attr   eq_attr;
+	struct fi_cq_attr cq_attr;
+	struct fi_eq_attr eq_attr;
+	uint64_t          rd_flags = FI_RECV;
+	uint64_t          wr_flags = FI_TRANSMIT;
 #if 0
 	struct fi_av_attr   av_attr;
 	struct fi_cntr_attr cntr_attr;
@@ -688,10 +691,11 @@ static int libfab_ep_res_init(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 
 	memset(&cq_attr, 0, sizeof(cq_attr));
 	/* Initialise and bind completion queues for tx and rx */
-	cq_attr.format = FI_CQ_FORMAT_CONTEXT;
-	cq_attr.wait_obj = FI_WAIT_SET;
-	cq_attr.wait_cond = FI_CQ_COND_NONE;
-	cq_attr.wait_set = tm->ftm_waitset;
+	cq_attr.wait_obj = FI_WAIT_NONE;
+	// cq_attr.format = FI_CQ_FORMAT_CONTEXT;
+	// cq_attr.wait_obj = FI_WAIT_SET;
+	// cq_attr.wait_cond = FI_CQ_COND_NONE;
+	// cq_attr.wait_set = tm->ftm_waitset;
 	
 	cq_attr.size = ep->fep_fi->tx_attr->size;
 	rc = fi_cq_open(ep->fep_domain, &cq_attr, &ep->fep_ep_res.fer_tx_cq, 
@@ -705,19 +709,19 @@ static int libfab_ep_res_init(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 	
-	rc = fi_ep_bind(ep->fep_ep, &ep->fep_ep_res.fer_tx_cq->fid, FI_SEND);
+	rc = fi_ep_bind(ep->fep_ep, &ep->fep_ep_res.fer_tx_cq->fid, wr_flags);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
-	rc = fi_ep_bind(ep->fep_ep, &ep->fep_ep_res.fer_rx_cq->fid, FI_RECV);
+	rc = fi_ep_bind(ep->fep_ep, &ep->fep_ep_res.fer_rx_cq->fid, rd_flags);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 
-	rc = fi_poll_add(tm->ftm_pollset, &ep->fep_ep_res.fer_tx_cq->fid, 0);
-	if (rc != FI_SUCCESS)
-		return M0_RC(rc);
-	rc = fi_poll_add(tm->ftm_pollset, &ep->fep_ep_res.fer_rx_cq->fid, 0);
-	if (rc != FI_SUCCESS)
-		return M0_RC(rc);
+	// rc = fi_poll_add(tm->ftm_pollset, &ep->fep_ep_res.fer_tx_cq->fid, 0);
+	// if (rc != FI_SUCCESS)
+	// 	return M0_RC(rc);
+	// rc = fi_poll_add(tm->ftm_pollset, &ep->fep_ep_res.fer_rx_cq->fid, 0);
+	// if (rc != FI_SUCCESS)
+	// 	return M0_RC(rc);
 	
 
 	/* Initailise and bind event queue */
@@ -823,10 +827,10 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 		}
 
 		/* TODO: Set appropriate flags and hints
-		 * fab->hints->caps = FI_MSG;
 		 */
 
 		hints->ep_attr->type = FI_EP_MSG;
+		hints->caps = FI_MSG | FI_RMA;
 		for (i = 0; i < ARRAY_SIZE(providers); i++) {
 			hints->fabric_attr->prov_name = providers[i];
 			rc = fi_getinfo(LIBFAB_VERSION, ep->fep_name.fen_addr,
@@ -845,6 +849,7 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 			return M0_RC(rc);
 		}
 	}
+
 	rc = libfab_waitset_init(tm, ep);
 	if (rc != FI_SUCCESS) {
 		libfab_ep_param_free(ep, tm);
@@ -931,7 +936,8 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 	 * fab->hints->ep_attr->type = FI_EP_MSG;
 	 */
 	hints->ep_attr->type = FI_EP_MSG;
-	
+	hints->caps = FI_MSG | FI_RMA;
+		
 	for (i = 0; i < ARRAY_SIZE(providers); i++) {
 		hints->fabric_attr->prov_name = providers[i];
 		rc = fi_getinfo(LIBFAB_VERSION, NULL, port, FI_SOURCE, hints,
@@ -1009,7 +1015,7 @@ static int libfab_ep_res_free(struct m0_fab__ep_res *ep_res,
 
 	if (ep_res->fer_tx_cq != NULL){
 		M0_PRE(tm->ftm_pollset != NULL);
-		rc = fi_poll_del(tm->ftm_pollset, &ep_res->fer_tx_cq->fid, 0);
+		// rc = fi_poll_del(tm->ftm_pollset, &ep_res->fer_tx_cq->fid, 0);
 		if (rc != FI_SUCCESS)
 			M0_LOG(M0_ERROR, "fer_tx_cq fi_poll_del ret=%d fid=%d",
 			       rc, (int)(ep_res->fer_tx_cq)->fid.fclass);
@@ -1022,7 +1028,7 @@ static int libfab_ep_res_free(struct m0_fab__ep_res *ep_res,
 	
 	if (ep_res->fer_rx_cq != NULL){
 		M0_PRE(tm->ftm_pollset != NULL);
-		rc = fi_poll_del(tm->ftm_pollset, &ep_res->fer_rx_cq->fid, 0);
+		// rc = fi_poll_del(tm->ftm_pollset, &ep_res->fer_rx_cq->fid, 0);
 		if (rc != FI_SUCCESS)
 			M0_LOG(M0_ERROR, "fer_rx_cq fi_poll_del ret=%d fid=%d",
 			       rc, (int)(ep_res->fer_rx_cq)->fid.fclass);
@@ -1098,7 +1104,6 @@ static int libfab_ep_param_free(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 	}
 
 	memset(&ep->fep_name, 0, sizeof(ep->fep_name));
-	// libfab_ep_put(ep);
 
 	m0_free(ep);
 
@@ -1385,6 +1390,34 @@ static void libfab_tm_fini(struct m0_net_transfer_mc *tm)
 	M0_LEAVE();
 }
 
+/** Creates the descriptor for a (passive) network buffer. */
+static int libfab_bdesc_encode(struct m0_fab__buf *buf)
+{
+	struct fi_rma_iov *rma_iov;
+	struct m0_net_buf_desc *nbd = &buf->fb_nb->nb_desc;
+
+	nbd->nbd_len = sizeof(struct fi_rma_iov);
+	nbd->nbd_data = m0_alloc(nbd->nbd_len);
+	if (nbd->nbd_data == NULL)
+		return M0_RC(-ENOMEM);
+	
+	rma_iov = (struct fi_rma_iov *)nbd->nbd_data;
+	rma_iov->addr = (uint64_t)buf->fb_nb->nb_buffer.ov_buf[0];
+	rma_iov->len = sizeof(uint64_t);
+	rma_iov->key = buf->fb_mr_key;
+
+	// memcpy(nbd->nbd_data, &buf->fb_mr_key, sizeof(buf->fb_mr_key));
+
+	/* TODO: Cleanup nb->nbd_data */
+	return M0_RC(0);
+}
+
+static void libfab_bdesc_decode(struct m0_net_buf_desc *nbd,
+				struct fi_rma_iov *rma_key)
+{
+	*rma_key = *((struct fi_rma_iov *)nbd->nbd_data);
+}
+
 /*============================================================================*/
 
 /** 
@@ -1597,9 +1630,9 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 	nb->nb_xprt_private = fb;
 	fb->fb_nb = nb;
 	/* Registers buff that can be used for send/recv and local/remote RMA*/
-	fb->fb_reg_key = libfab_mr_keygen();
+	fb->fb_mr_key = libfab_mr_keygen();
 	ret = fi_mr_reg(dp, nb->nb_buffer.ov_buf[0], nb->nb_length,
-			FAB_MR_ACCESS, FAB_MR_OFFSET, fb->fb_reg_key,
+			FAB_MR_ACCESS, FAB_MR_OFFSET, fb->fb_mr_key,
 			FAB_MR_FLAG, &fb->fb_mr, NULL);
 	if (ret != FI_SUCCESS)
 	{
@@ -1608,6 +1641,8 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 		m0_free(fb);
 		return M0_ERR(ret);
 	}
+
+	fb->fb_mr_desc = fi_mr_desc(fb->fb_mr);
 	
 	return M0_RC(ret);
 }
@@ -1623,12 +1658,10 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 {
 	struct m0_fab__buf      *fbp = nb->nb_xprt_private;
 	struct m0_fab__tm       *ma  = libfab_buf_ma(nb);
-	struct m0_fab__ep       *ep = nb->nb_dom->nd_xprt_private;
 	struct m0_fab__ep       *op_ep = NULL;
 	struct m0_net_end_point *net;
-	fi_addr_t                remote_rx_addr;
+	struct fi_rma_iov        rma_iov;
 	int                      ret = 0;
-	ssize_t                  cnt = 0;
 
 	M0_PRE(libfab_tm_is_locked(ma) && libfab_tm_invariant(ma) &&
 	       libfab_buf_invariant(fbp));
@@ -1645,57 +1678,79 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 
 	switch (nb->nb_qtype) {
 	case M0_NET_QT_MSG_RECV: {
+		M0_LOG(M0_ALWAYS, "QT_MSG_RECV");
 		fbp->fb_ev_ep = op_ep;
 		fbp->fb_length = nb->nb_length;
-		fbp->fb_mr_desc = fi_mr_desc(fbp->fb_mr);
-		cnt = fi_recv(op_ep->fep_ep, nb->nb_buffer.ov_buf[0],
+		ret = fi_recv(op_ep->fep_ep, nb->nb_buffer.ov_buf[0],
 			      nb->nb_length, fbp->fb_mr_desc, 0, fbp);
-		if(cnt < 0)
-			ret = M0_ERR(-EIO);
 		break;
 	}
 	
 	case M0_NET_QT_MSG_SEND: {
+		M0_LOG(M0_ALWAYS, "QT_MSG_SEND");
 		M0_ASSERT(nb->nb_length <= m0_vec_count(&nb->nb_buffer.ov_vec));
-		fbp->fb_mr_desc = fi_mr_desc(fbp->fb_mr);
-		cnt = fi_send(op_ep->fep_ep, nb->nb_buffer.ov_buf[0],
+		ret = fi_send(op_ep->fep_ep, nb->nb_buffer.ov_buf[0],
 			      nb->nb_length, fbp->fb_mr_desc, 0, fbp);
-		if(cnt < 0)
-			ret = M0_ERR(-EIO);
-
 		break;
 	}
 
-	case M0_NET_QT_PASSIVE_BULK_RECV: /* For passive buffers, generate */
-	case M0_NET_QT_PASSIVE_BULK_SEND: /* the buffer descriptor. */
-		m0_cookie_new(&fbp->fbp_cookie);
-		ret = m0_fab_bdesc_create(&ep->fep_name, fbp, &nb->nb_desc);
-		break;
-	/* For active buffers, decode the passive buffer descriptor */
-	case M0_NET_QT_ACTIVE_BULK_RECV:
-		ret = m0_fab_bdesc_decode(&nb->nb_desc);
-		// if (ret == 0) {
-		// 	cnt = fi_recv(ep->fep_ep, nb->nb_buffer.ov_buf[0],
-		// 	              nb->nb_length, fi_mr_desc(mr), 0, fbp);
-		// 	if(cnt < 0)
-		// 		ret = M0_ERR(-EIO);
-		// }
-		break;
-	case M0_NET_QT_ACTIVE_BULK_SEND:
-		ret = m0_fab_bdesc_decode(&nb->nb_desc);
-		if (ret == 0) {
-			/* getting the addr of the remote */
-			ret = libfab_get_remote_addr(nb->nb_ep->nep_addr, &remote_rx_addr);
-			if( ret != 0)
-				break;
+	/*
+	*     - buffer A: passive-recv, buffer B: active-send: the descriptor is moved
+	*       from A to B, the data are moved from B to A;
+	*
+	*     - buffer A: passive-send, buffer B: active-recv: the descriptor is moved
+	*       from A to B, the data are moved from A to B;
+	*
+	*	buf_desc : 				data :
+	*	passive ---> active 		   send ---> receive
+	*	
 
-		// 	cnt = fi_send(ep->fep_ep, nb->nb_buffer.ov_buf[0],
-                //                       nb->nb_length, fi_mr_desc(mr),
-                //                       remote_rx_addr, fbp);
-		// 	if(cnt < 0)
-		// 		ret = M0_ERR(-EIO);
-		}
-	break;
+	1)	     A					B
+		fi_recv(nb->ov_buf)
+		fi_send(A_buf->desc)		  fi_recv(local_buf)
+
+						  fi_write(nb->ov_buf,local_buf)
+
+	2)	     A					B
+		fi_send(desc_A)			  fi_recv(desc_A)
+
+						  fi_read(data,desc_A)
+
+	*/
+	case M0_NET_QT_PASSIVE_BULK_RECV: { /* For passive buffers, generate */
+		M0_LOG(M0_ALWAYS, "QT_PASSIVE_BULK_RECV");
+		ret = libfab_bdesc_encode(fbp);
+		break;
+	}
+
+	case M0_NET_QT_PASSIVE_BULK_SEND: { /* the buffer descriptor. */
+		M0_LOG(M0_ALWAYS, "QT_PASSIVE_BULK_SEND");
+		ret = libfab_bdesc_encode(fbp);
+		break;
+	}
+
+	/* For active buffers, decode the passive buffer descriptor */
+	case M0_NET_QT_ACTIVE_BULK_RECV: {
+		M0_LOG(M0_ALWAYS, "QT_ACTIVE_BULK_RECV");
+		libfab_bdesc_decode(&nb->nb_desc, &rma_iov);
+		fbp->fb_length = nb->nb_length;
+
+		ret = fi_read(op_ep->fep_ep, nb->nb_buffer.ov_buf[0],
+			      nb->nb_length, fbp->fb_mr_desc, 0, rma_iov.addr,
+			      rma_iov.key, fbp);
+		break;
+	}
+
+	case M0_NET_QT_ACTIVE_BULK_SEND: {
+		M0_LOG(M0_ALWAYS, "QT_ACTIVE_BULK_SEND");
+		libfab_bdesc_decode(&nb->nb_desc, &rma_iov);
+		
+		ret = fi_write(op_ep->fep_ep, nb->nb_buffer.ov_buf[0],
+			       nb->nb_length, fbp->fb_mr_desc, 0, rma_iov.addr,
+			       rma_iov.key, fbp);
+		break;
+	}
+
 	default:
 		M0_IMPOSSIBLE("invalid queue type: %x", nb->nb_qtype);
 		break;
@@ -1805,6 +1860,7 @@ static struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf)
 	return buf->nb_tm->ntm_xprt_private;
 }
 
+#if 0
 /* Returns the IPV4 or IPV6 based on given ip string */
 static int libfab_ip_type(char *node,int *type)
 {
@@ -1844,44 +1900,7 @@ static int libfab_get_remote_addr(const char *addr,fi_addr_t *remote_rx_addr)
 	}
 	return ret;
 }
-
-/** Creates the descriptor for a (passive) network buffer. */
-static int m0_fab_bdesc_create(struct m0_fab__ep_name *addr, 
-			struct m0_fab__buf *buf, struct m0_net_buf_desc *out)
-{
-	buf->fb_mr_desc = fi_mr_desc(buf->fb_mr);
-	out->nbd_len = sizeof(uint64_t);
-	out->nbd_data = m0_alloc(out->nbd_len);
-	memcpy(out->nbd_data, buf->fb_mr_desc, out->nbd_len);
-	return m0_fab_bdesc_encode(out);
-}
-
-static int m0_fab_bdesc_encode(struct m0_net_buf_desc *out)
-{
-#if 0
-	m0_bcount_t len;
-	int         result;
-
-	/* Cannot pass &out->nbd_len below, as it is 32 bits. */
-	result = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_fab__bdesc_xc, (void *)bd),
-					(void **)&out->nbd_data, &len);
-	if (result == 0)
-		out->nbd_len = len;
-	else
-		m0_free0(&out->nbd_data);
-	return M0_RC(result);
-#endif 
-	return 0;
-}
-
-static int m0_fab_bdesc_decode(const struct m0_net_buf_desc *nbd)
-{
-#if 0
-	return m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(m0_fab__bdesc_xc, out),
-					nbd->nbd_data, nbd->nbd_len);
-#endif
-	return 0;
-}
+#endif /* #if 0 */
 
 static const struct m0_net_xprt_ops libfab_xprt_ops = {
 	.xo_dom_init                    = &libfab_dom_init,
