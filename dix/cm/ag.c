@@ -96,6 +96,8 @@ M0_INTERNAL int m0_dix_cm_ag_alloc(struct m0_cm *cm,
 	M0_PRE(cm != NULL && id != NULL && out != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
+	ID_INCOMING_LOG("ag alloc", id, has_incoming);
+
 	*out = NULL;
 
 	/* Allocate new aggregation group. */

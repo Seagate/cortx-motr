@@ -81,14 +81,10 @@ static int repreb_sw_fom_tick(struct m0_fom *fom)
 		cm = m0_cmsvc2cm(service);
 		if (cm == NULL)
 			return M0_ERR(-EINVAL);
-		M0_LOG(M0_DEBUG, "Rcvd from %s hi: [%"PRId64"] [%"PRId64"] "
-		       "[%"PRId64"] [%"PRId64"] [%"PRId64"] "
-		       "[%"PRId64"] [%"PRId64"]",
+		M0_LOG(M0_DEBUG, "Rcvd from %s hi: "M0_AG_F
+				 " [%"PRIu64"] [%"PRIu64"] [%"PRIu64"]",
 		       swo_fop->swo_cm_ep.ep,
-		       swo_fop->swo_in_interval.sw_hi.ai_hi.u_hi,
-		       swo_fop->swo_in_interval.sw_hi.ai_hi.u_lo,
-		       swo_fop->swo_in_interval.sw_hi.ai_lo.u_hi,
-		       swo_fop->swo_in_interval.sw_hi.ai_lo.u_lo,
+		       M0_AG_P(&swo_fop->swo_in_interval.sw_hi),
 		       cm->cm_aggr_grps_in_nr,
 		       cm->cm_aggr_grps_out_nr,
 		       cm->cm_proxy_nr);
