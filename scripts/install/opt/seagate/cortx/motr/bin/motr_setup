@@ -17,95 +17,122 @@
 # For any questions about this software or licensing,
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
-import subprocess
-import os
+
 import sys
-import getopt
-import json
-import time
-from socket import gethostname
-from typing import Dict, List, NamedTuple, Set
-import re
-from datetime import datetime
-from collections import OrderedDict
-from motr_mini_prov import motr_prov
+import errno
+import argparse
+import inspect
+import traceback
 
-help_msg = ("The motr_setup script should be invoked only by the provisioner.\n"
-            "Should be invoked with sudo.\n"
-            "\n"
-            "Usage:\n"
-            "      sudo motr_setup <cmd> <url>\n"
-            "      where:\n"
-            "            cmd   post_install, config, init, test, reset, \n"
-            "                  cleanup, upgrade, backup, restore, help\n"
-            "            url   Config URL\n")
+from cortx.utils.conf_store import Conf
+from motr_mini_prov import *
 
-class M0provision(motr_prov):
-    def __init__(self, index, url):
-        self.opt_func = {"post_install":self.post_install_fn,
-                         "config"      :self.config_fn,
-                         "init"        :self.init_fn,
-                         "test"        :self.test_fn,
-                         "reset"       :self.reset_fn,
-                         "cleanup"     :self.cleanup_fn,
-                         "upgrade"     :self.upgrade_fn,
-                         "backup"      :self.backup_fn,
-                         "restore"     :self.restore_fn,
-                         "help"        :self.help_fn}
-        super().__init__(index, url)
+class Cmd:
+    """Setup Command"""
+    _index = "conf"
 
-    def print_banner(self, name):
-        print('-'*80)
-        print('{:^80s}'.format(name))
-        print('-'*80)
+    def __init__(self, args: dict):
+        self._url = args.url
+        Conf.load(self._index, self._url)
+        self._args = args.args
 
-    def post_install_fn(self):
-        super().validate_motr_rpm()
+    @property
+    def args(self) -> str:
+        return self._args
 
-    def config_fn(self):
-        super().config_motr()
+    @property
+    def url(self) -> str:
+        return self._url
 
-    def init_fn(self):
-        super().config_lvm()
-        super().configure_lnet_from_conf_store()
+    @staticmethod
+    def usage(prog: str):
+        """Print usage instructions"""
+        
+        sys.stderr.write(
+            f"usage: {prog} [-h] <cmd> <url> <args>...\n"
+            f"where:\n"
+            f"cmd   post_install, config, init, reset, test\n"
+            f"url   Config URL\n")
 
-    def test_fn(self):
-        super().test_lnet()
+    @staticmethod
+    def get_command(desc: str, argv: dict):
+        """Return the Command after parsing the command line."""
+        parser = argparse.ArgumentParser(desc)
+        subparsers = parser.add_subparsers()
+        cmds = inspect.getmembers(sys.modules[__name__])
+        cmds = [(x, y) for x, y in cmds
+            if x.endswith("Cmd") and x != "Cmd"]
+        for name, cmd in cmds:
+            cmd.add_args(subparsers, cmd, name)
+        args = parser.parse_args(argv)
+        return args.command(args)
 
-    def reset_fn(self):
-        pass
+    @staticmethod
+    def add_args(parser: str, cls: str, name: str):
+        """Add Command args for parsing."""
 
-    def cleanup_fn(self):
-        pass
+        parser1 = parser.add_parser(cls.name, help='setup %s' % name)
+        parser1.add_argument('url', help='Config URL')
+        parser1.add_argument('args', nargs='*', default=[], help='args')
+        parser1.set_defaults(command=cls)
 
-    def upgrade_fn(self):
-        pass
+class ConfigCmd(Cmd):
+    """Setup Config Cmd"""
+    name = "config"
 
-    def backup_fn(self):
-        pass
+    def __init__(self, args):
+        super().__init__(args)
 
-    def restore_fn(self):
-        pass
+    def process(self):
+        print("Processing %s %s %s" %(self.name, self.url, self._args))
+        print("Config:{}".format(Conf.get_keys(self._index)))
+        server_id = int(Conf.get(self._index, 'cluster>current>server_id'))
+        node_type = Conf.get(self._index, f'cluster>server')[server_id]['node_type']
+        motr_config(self)
 
-    def help_fn(self):
-        sys.stdout.write("{}\n".format(help_msg))
+class PostInstallCmd(Cmd):
+    """PostInstall Setup Cmd"""
+    name = "postinstall"
+    def __init__(self, args: dict):
+        super().__init__(args)
+    def process(self):
+        validate_motr_rpm(self)
 
-if __name__ == "__main__":
-    conf_store_obj = None
+class InitCmd(Cmd):
+    """Init Setup Cmd"""
+    name = "init"
 
-    if len(sys.argv) == 3:
-        conf_store_obj = M0provision('motr_prov_conf', sys.argv[2])
-    else:
-        sys.stdout.write(f"Invalid arguments:\n")
-        sys.stdout.write("{}\n".format(help_msg))
-        sys.exit(1)
+    def __init__(self, args):
+        super().__init__(args)
 
-    if sys.argv[1] in conf_store_obj.opt_func:
-        conf_store_obj.print_banner(f"m0provision {sys.argv[1]}")
-        conf_store_obj.opt_func[sys.argv[1]]()
-        sys.exit(0)
-    else:
-        sys.stderr.write(f"Invalid arguments:\n")
-        conf_store_obj.opt_func[sys.argv[1]]()
-        sys.exit(1)
+    def process(self):
+        config_lvm(self)
+        configure_net(self)
+        configure_lnet_from_conf_store(self)
+
+class TestCmd(Cmd):
+    """Test Setup Cmd"""
+    name = "test"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        test_lnet(self)
+
+def main(argv: dict):
+    try:
+        desc = "Motr Setup command"
+        command = Cmd.get_command(desc, argv[1:])
+        command.process()
+
+    except Exception as e:
+        sys.stderr.write("error: %s\n\n" % str(e))
+        sys.stderr.write("%s\n" % traceback.format_exc())
+        Cmd.usage(argv[0])
+        return errno.EINVAL
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
+
 
