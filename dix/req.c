@@ -1364,7 +1364,12 @@ static void dix__rop(struct m0_dix_req *req, const struct m0_bufvec *keys,
 	M0_PRE(req->dr_indices_nr == 1);
 
 	keys_nr = keys->ov_vec.v_nr;
+#ifndef DTM0
 	M0_PRE(keys_nr != 0);
+#else
+	/* We support only one record per request in DTM0. */
+	M0_PRE(keys_nr == 1);
+#endif
 	M0_ALLOC_PTR(rop);
 	if (rop == NULL) {
 		dix_req_failure(req, M0_ERR(-ENOMEM));
@@ -1803,7 +1808,12 @@ static uint32_t dix_rop_tgt_iter_max(struct m0_dix_req    *req,
 		 */
 		return m0_dix_liter_P(iter);
 	else
+#ifndef DTM0
 		return m0_dix_liter_N(iter) + 2 * m0_dix_liter_K(iter);
+#else
+		/* Skip spares in DTM0 */
+		return m0_dix_liter_N(iter) + m0_dix_liter_K(iter);
+#endif
 }
 
 static void dix_rop_tgt_iter_next(const struct m0_dix_req *req,
@@ -2078,6 +2088,10 @@ static void dix_rop_units_set(struct m0_dix_req *req)
 			unit = &rec_op->dgp_units[j];
 			dix_rop_tgt_iter_next(req, rec_op, &tgt,
 					      &unit->dpu_is_spare);
+#ifdef DTM0
+			/* We do not operate with spares in DTM0. */
+			M0_ASSERT(!unit->dpu_is_spare);
+#endif
 			pd = m0_dix_tgt2sdev(&rec_op->dgp_iter.dit_linst, tgt);
 			dix_pg_unit_pd_assign(unit, pd);
 		}
@@ -2090,6 +2104,10 @@ static void dix_rop_units_set(struct m0_dix_req *req)
 	 */
 	if (pm->pm_pver->pv_is_dirty &&
 	    !pool_failed_devs_tlist_is_empty(&pool->po_failed_devices))
+#ifdef DTM0
+		M0_IMPOSSIBLE("DTM0 can not operate when permanently"
+			      " failed devices exist.");
+#endif
 		dix_rop_failures_analyse(req);
 
 	m0_rwlock_read_unlock(&pm->pm_lock);
