@@ -11,7 +11,8 @@ Developers are also assumed having a running Cortx Motr system: please refer to
 and [Quick Start Guide](/doc/Quick-Start-Guide.rst).  For debugging, ADDB can be
 very useful and is described in these [two](ADDB.rst) [documents](addb2-primer).
 
-Cortx Motr provides object based operations and index (a.k.a key/value) based operations.
+Cortx Motr provides object based operations and index (a.k.a key/value) based operations.  
+For architectural documents, please refer to our [reading list](reading-list.md).
 
 ## A simple Cortx Motr application (object)
 
