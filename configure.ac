@@ -457,7 +457,6 @@ AC_SUBST([BUILD_KERNEL])
 # Skip all checks in distribution mode
 AS_IF([test x$enable_dist_mode = xno],[
 
-
 #
 # Checking Lustre sources ------------------------------------------------- {{{1
 #
@@ -591,7 +590,6 @@ Red Hat based systems])
 #
 # Checking required libraries --------------------------------------------- {{{1
 #
-
 
 # sqrt() requires m library
 MOTR_SEARCH_LIBS([sqrt], [c m], [MATH_LIBS],
