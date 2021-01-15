@@ -686,6 +686,12 @@ enum m0_magic_satchel {
 	/* net/sock.c: buf list head (bad dada decaf) */
 	M0_NET_SOCK_BUF_HEAD_MAGIC = 0x33baddadadecaf77,
 
+	/* net/libfab.c: buf list element, buf::b_magix (fed ace dedcde) */
+	M0_NET_LIBFAB_BUF_MAGIC = 0x33fedacededcde77,
+
+	/* net/libfab.c: buf list head (bad dada dadaf) */
+	M0_NET_LIBFAB_BUF_HEAD_MAGIC = 0x33baddadadadaf77,
+
 	/* net/net.h: m0_nep list element, endpoint (obsessed loll) */
 	M0_NET_NEP_MAGIC = 0x330b5e55ed101177,
 
