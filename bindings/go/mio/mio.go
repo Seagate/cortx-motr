@@ -229,11 +229,9 @@ func (mio *Mio) Open(id string, anySz ...uint64) (err error) {
     return nil
 }
 
-// Close closes the object and releases all the resources that were
-// allocated while working with it.
-func (mio *Mio) Close() {
+func (mio *Mio) Close() error {
     if mio.obj == nil {
-        return
+        return errors.New("object is not opened")
     }
     C.m0_obj_fini(mio.obj)
     C.free(unsafe.Pointer(mio.obj))
@@ -250,6 +248,8 @@ func (mio *Mio) Close() {
         C.free(unsafe.Pointer(&mio.minBuf[0]))
         mio.minBuf = nil
     }
+
+    return nil
 }
 
 func bits(values ...C.ulong) (res C.ulong) {
