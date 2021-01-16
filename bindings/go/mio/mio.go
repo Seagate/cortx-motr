@@ -99,7 +99,7 @@ type Mio struct {
     obj    *C.struct_m0_obj
     objSz   uint64
     objLid  uint
-    off     uint64
+    off     int64
     buf     []C.struct_m0_bufvec
     ext     []C.struct_m0_indexvec
     attr    []C.struct_m0_bufvec
@@ -374,9 +374,9 @@ func pointer2slice(p unsafe.Pointer, n int) []byte {
     return res
 }
 
-func (mio *Mio) prepareBuf(p []byte, i, bs, gs, off int,
-                           offMio uint64) error {
-    buf := p[off:]
+func (mio *Mio) prepareBuf(p []byte, i, bs, gs, n int,
+                           off int64) error {
+    buf := p[n:]
     if rem := bs % gs; rem != 0 {
         bs += (gs - rem)
         // Must be zero-ed, so we always allocate it.
@@ -401,7 +401,7 @@ func (mio *Mio) prepareBuf(p []byte, i, bs, gs, off int,
     }
     *mio.buf[i].ov_buf = unsafe.Pointer(&buf[0])
     *mio.buf[i].ov_vec.v_count = C.ulong(bs)
-    *mio.ext[i].iv_index = C.ulong(offMio)
+    *mio.ext[i].iv_index = C.ulong(off)
     *mio.ext[i].iv_vec.v_count = C.ulong(bs)
     *mio.attr[i].ov_vec.v_count = 0
 
@@ -441,13 +441,14 @@ func getBW(n int, d time.Duration) (int, string) {
     return bw, "Bytes/sec"
 }
 
-func (mio *Mio) Write(p []byte) (n int, err error) {
+func (mio *Mio) write(p []byte, off *int64) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
     }
-    left, off := len(p), 0
+
+    left := len(p)
     bs, gs := mio.getOptimalBlockSz(left)
-    start, offSaved, bsSaved := time.Now(), mio.off, bs
+    start, offSaved, bsSaved := time.Now(), *off, bs
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
@@ -456,44 +457,55 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
         if slot.err != nil {
             break
         }
-        err = mio.prepareBuf(p, slot.idx, bs, gs, off, mio.off)
+        err = mio.prepareBuf(p, slot.idx, bs, gs, n, *off)
         if err != nil {
-            return off, err
+            return n, err
         }
-        if mio.minBuf != nil {
-            copy(mio.minBuf, p[off:])
+        if mio.minBuf != nil { // last block, not aligned
+            copy(mio.minBuf, p[n:])
         }
         mio.wg.Add(1)
         go mio.doIO(slot.idx, C.M0_OC_WRITE)
-        off += bs
-        mio.off += uint64(bs)
+        n += bs
+        *off += int64(bs)
     }
     mio.wg.Wait()
 
     if verbose {
         elapsed := time.Now().Sub(start)
-        n := int(mio.off - offSaved)
         bw, units := getBW(n, elapsed)
         log.Printf("W: off=%v len=%v bs=%v gs=%v speed=%v (%v)",
 		   offSaved, n, bsSaved, gs, bw, units)
     }
 
-    return off, err
+    return n, err
 }
 
-func (mio *Mio) Read(p []byte) (n int, err error) {
+func (mio *Mio) Write(p []byte) (n int, err error) {
+    return mio.write(p, &mio.off)
+}
+
+func (mio *Mio) WriteAt(p []byte, off int64) (n int, err error) {
+    if off < 0 {
+        return 0, errors.New("offset must be >= 0")
+    }
+    return mio.write(p, &off)
+}
+
+func (mio *Mio) read(p []byte, off *int64) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
     }
-    left, off := len(p), 0
-    if mio.off + uint64(left) > mio.objSz {
-        left = int(mio.objSz - mio.off)
+
+    left := len(p)
+    if uint64(*off) + uint64(left) > mio.objSz {
+        left = int(mio.objSz - uint64(*off))
         if left <= 0 {
             return 0, io.EOF
         }
     }
     bs, gs := mio.getOptimalBlockSz(left)
-    start, offSaved, bsSaved := time.Now(), mio.off, bs
+    start, offSaved, bsSaved := time.Now(), *off, bs
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
@@ -502,28 +514,40 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         if slot.err != nil {
             break
         }
-        err = mio.prepareBuf(p, slot.idx, bs, gs, off, mio.off)
+        err = mio.prepareBuf(p, slot.idx, bs, gs, n, *off)
         if err != nil {
-            return off, err
+            return n, err
         }
         mio.wg.Add(1)
         go mio.doIO(slot.idx, C.M0_OC_READ)
         if mio.minBuf != nil {
-            mio.wg.Wait() // last one anyway
-            copy(p[off:], mio.minBuf)
+            // We have to wait before copying what's read,
+            // but it's the last block anyway, so it's OK.
+            mio.wg.Wait()
+            copy(p[n:], mio.minBuf)
         }
-        off += bs
-        mio.off += uint64(bs)
+        n += bs
+        *off += int64(bs)
     }
     mio.wg.Wait()
 
     if verbose {
         elapsed := time.Now().Sub(start)
-        n := int(mio.off - offSaved)
         bw, units := getBW(n, elapsed)
         log.Printf("R: off=%v len=%v bs=%v gs=%v speed=%v (%v)",
 		   offSaved, n, bsSaved, gs, bw, units)
     }
 
-    return off, err
+    return n, err
+}
+
+func (mio *Mio) Read(p []byte) (n int, err error) {
+    return mio.read(p, &mio.off)
+}
+
+func (mio *Mio) ReadAt(p []byte, off int64) (n int, err error) {
+    if off < 0 {
+        return 0, errors.New("offset must be >= 0")
+    }
+    return mio.read(p, &off)
 }
