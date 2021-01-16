@@ -527,3 +527,30 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
 
     return off, err
 }
+
+// Seek implements io.Seeker interface
+func (mio *Mio) Seek(offset int64, whence int) (int64, error) {
+    if mio.obj == nil {
+        return 0, errors.New("object is not opened")
+    }
+
+    switch whence {
+    case io.SeekStart:
+        if offset < 0 {
+            return 0, errors.New("offset must be >= 0 for SeekStart")
+        }
+        mio.off = uint64(offset)
+    case io.SeekCurrent:
+        if int64(mio.off) + offset < 0 {
+            return 0, fmt.Errorf("curr+offset (%v+%v) must be >= 0",
+                                 mio.off, offset)
+        }
+        mio.off = uint64(int64(mio.off) + offset)
+    case io.SeekEnd:
+        return 0, errors.New("Motr object is size-less, its end is unknown")
+    default:
+        return 0, fmt.Errorf("Invalid / unknown whence argument: %v", whence)
+    }
+
+    return int64(mio.off), nil
+}
