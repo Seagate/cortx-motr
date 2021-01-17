@@ -43,6 +43,7 @@
 #include "dtm/dtm.h"
 #include "fol/fol.h"
 #include "dtm/dtm.h"
+#include "dtm0/service.h"
 #include "reqh/reqh.h"
 #include "lib/timer.h"
 #include "fid/fid.h"
@@ -235,7 +236,8 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fis_register,     &m0_fis_unregister,   FI_SERVICE_NAME },
 #ifndef __KERNEL__
 	{ &m0_fdmi_init,         &m0_fdmi_fini,         "fdmi" },
-	{ &m0_fol_fdmi_src_init, &m0_fol_fdmi_src_fini, "fol_fdmi_source" }
+	{ &m0_fol_fdmi_src_init, &m0_fol_fdmi_src_fini, "fol_fdmi_source" },
+	{ &m0_dtm0_stype_init,   &m0_dtm0_stype_fini,   "dtm0"},
 #endif
 };
 

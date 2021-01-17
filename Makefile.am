@@ -220,6 +220,7 @@ include $(top_srcdir)/dix/cm/Makefile.sub
 include $(top_srcdir)/dix/cm/repair/Makefile.sub
 include $(top_srcdir)/dix/cm/rebalance/Makefile.sub
 include $(top_srcdir)/dtm/Makefile.sub
+include $(top_srcdir)/dtm0/Makefile.sub
 include $(top_srcdir)/fd/Makefile.sub
 include $(top_srcdir)/fdmi/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
@@ -941,7 +942,7 @@ motr_cron_SCRIPTS = \
     scripts/install$(motrdir)/libexec/m0trace_logrotate.sh \
     scripts/install$(motrdir)/libexec/m0addb_logrotate.sh
 EXTRA_DIST += $(motr_cron_SCRIPTS)
-    
+
 motr_confdir = $(motrdir)/conf
 motr_conf_DATA = scripts/install$(motr_confdir)/motr.conf \
                  scripts/install$(motr_confdir)/setup.yaml
@@ -1054,6 +1055,7 @@ EXTRA_DIST += \
               dix/cm/Kbuild.sub \
               dtm/Kbuild.sub \
               dtm/ut/Kbuild.sub \
+              dtm0/Kbuild.sub \
               fd/Kbuild.sub \
               fd/ut/Kbuild.sub \
               fdmi/Kbuild.sub \
