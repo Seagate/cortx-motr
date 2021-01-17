@@ -57,7 +57,7 @@
     sdevs=[])
 (service-26 type=@M0_CST_DS1 endpoints=["0@lo:12345:34:1"] params=[]
     sdevs=[sdev-96, sdev-97])
-(service-28 type=@M0_CST_DS2 endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
+(service-28 type=@M0_CST_DTM0 endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
 (sdev-13 dev_idx=3 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev0")
 (sdev-14 dev_idx=0 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
