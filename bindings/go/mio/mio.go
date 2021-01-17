@@ -95,7 +95,7 @@ type Mio struct {
     objSz   uint64
     objLid  uint
     objPool C.struct_m0_fid
-    off     uint64
+    off     int64
 }
 
 type slot struct {
@@ -439,7 +439,7 @@ func (v *iov) free() {
     }
 }
 
-func (v *iov) prepareBuf(buf []byte, i, bs, gs int, off uint64) error {
+func (v *iov) prepareBuf(buf []byte, i, bs, gs int, off int64) error {
     if v.minBuf != nil {
         return errors.New("BUG IN THE CODE: minBuf must always be nil here")
     }
@@ -494,7 +494,7 @@ func getBW(n int, d time.Duration) (int, string) {
     return bw, "Bytes/sec"
 }
 
-func (mio *Mio) Write(p []byte) (n int, err error) {
+func (mio *Mio) write(p []byte, off *int64) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
     }
@@ -507,7 +507,7 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
 
     left := len(p)
     bs, gs := mio.getOptimalBlockSz(left)
-    start, offSaved, bsSaved := time.Now(), mio.off, bs
+    start, offSaved, bsSaved := time.Now(), *off, bs
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
@@ -516,7 +516,7 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
         if slot.err != nil {
             break
         }
-        err = v.prepareBuf(p[n:], slot.idx, bs, gs, mio.off)
+        err = v.prepareBuf(p[n:], slot.idx, bs, gs, *off)
         if err != nil {
             return n, err
         }
@@ -526,7 +526,7 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
         v.wg.Add(1)
         go v.doIO(mio.obj, slot.idx, C.M0_OC_WRITE)
         n += bs
-        mio.off += uint64(bs)
+        *off += int64(bs)
     }
     v.wg.Wait()
 
@@ -540,7 +540,16 @@ func (mio *Mio) Write(p []byte) (n int, err error) {
     return n, err
 }
 
-func (mio *Mio) Read(p []byte) (n int, err error) {
+func (mio *Mio) Write(p []byte) (n int, err error) {
+    return mio.write(p, &mio.off)
+}
+
+// WriteAt implements io.WriterAt interface
+func (mio *Mio) WriteAt(p []byte, off int64) (n int, err error) {
+    return mio.write(p, &off)
+}
+
+func (mio *Mio) read(p []byte, off *int64) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
     }
@@ -552,14 +561,14 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
     defer v.free()
 
     left := len(p)
-    if mio.off + uint64(left) > mio.objSz {
-        left = int(mio.objSz - mio.off)
+    if uint64(*off) + uint64(left) > mio.objSz {
+        left = int(mio.objSz - uint64(*off))
         if left <= 0 {
             return 0, io.EOF
         }
     }
     bs, gs := mio.getOptimalBlockSz(left)
-    start, offSaved, bsSaved := time.Now(), mio.off, bs
+    start, offSaved, bsSaved := time.Now(), *off, bs
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
@@ -568,7 +577,7 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
         if slot.err != nil {
             break
         }
-        err = v.prepareBuf(p[n:], slot.idx, bs, gs, mio.off)
+        err = v.prepareBuf(p[n:], slot.idx, bs, gs, *off)
         if err != nil {
             return n, err
         }
@@ -581,7 +590,7 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
             copy(p[n:], v.minBuf)
         }
         n += bs
-        mio.off += uint64(bs)
+        *off += int64(bs)
     }
     v.wg.Wait()
 
@@ -595,6 +604,15 @@ func (mio *Mio) Read(p []byte) (n int, err error) {
     return n, err
 }
 
+func (mio *Mio) Read(p []byte) (n int, err error) {
+    return mio.read(p, &mio.off)
+}
+
+// ReadAt implements io.ReaderAt interface
+func (mio *Mio) ReadAt(p []byte, off int64) (n int, err error) {
+    return mio.read(p, &off)
+}
+
 // Seek implements io.Seeker interface
 func (mio *Mio) Seek(offset int64, whence int) (int64, error) {
     if mio.obj == nil {
@@ -606,13 +624,13 @@ func (mio *Mio) Seek(offset int64, whence int) (int64, error) {
         if offset < 0 {
             return 0, errors.New("offset must be >= 0 for SeekStart")
         }
-        mio.off = uint64(offset)
+        mio.off = offset
     case io.SeekCurrent:
         if int64(mio.off) + offset < 0 {
             return 0, fmt.Errorf("curr+offset (%v+%v) must be >= 0",
                                  mio.off, offset)
         }
-        mio.off = uint64(int64(mio.off) + offset)
+        mio.off += offset
     case io.SeekEnd:
         return 0, errors.New("Motr object is size-less, its end is unknown")
     default:
