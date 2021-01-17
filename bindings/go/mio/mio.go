@@ -230,7 +230,7 @@ func (mio *Mio) open(sz uint64) error {
     return nil
 }
 
-// Open opens object for reading ant/or writing. The size
+// Open opens Mio object for reading ant/or writing. The size
 // must be specified when openning object for reading. Otherwise,
 // nothing will be read. (Motr doesn't store objects metadata
 // along with the objects.)
@@ -258,7 +258,7 @@ func (mio *Mio) Open(id string, anySz ...uint64) (err error) {
 }
 
 // Close closes Mio object and releases all the resources that were
-// allocated while working with it. Implements io.Closer interface.
+// allocated for it. Implements io.Closer interface.
 func (mio *Mio) Close() error {
     if mio.obj == nil {
         return errors.New("object is not opened")
