@@ -220,6 +220,7 @@ include $(top_srcdir)/dix/cm/Makefile.sub
 include $(top_srcdir)/dix/cm/repair/Makefile.sub
 include $(top_srcdir)/dix/cm/rebalance/Makefile.sub
 include $(top_srcdir)/dtm/Makefile.sub
+include $(top_srcdir)/dtm0/Makefile.sub
 include $(top_srcdir)/fd/Makefile.sub
 include $(top_srcdir)/fdmi/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
@@ -1061,6 +1062,7 @@ EXTRA_DIST += \
               dix/cm/Kbuild.sub \
               dtm/Kbuild.sub \
               dtm/ut/Kbuild.sub \
+              dtm0/Kbuild.sub \
               fd/Kbuild.sub \
               fd/ut/Kbuild.sub \
               fdmi/Kbuild.sub \
