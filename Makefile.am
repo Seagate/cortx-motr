@@ -364,6 +364,7 @@ include $(top_srcdir)/console/ut/Makefile.sub
 include $(top_srcdir)/dix/cm/ut/Makefile.sub
 include $(top_srcdir)/dix/ut/Makefile.sub
 include $(top_srcdir)/dtm/ut/Makefile.sub
+include $(top_srcdir)/dtm0/ut/Makefile.sub
 include $(top_srcdir)/fd/ut/Makefile.sub
 include $(top_srcdir)/fdmi/ut/Makefile.sub
 include $(top_srcdir)/file/ut/Makefile.sub
