@@ -1,0 +1,12 @@
+
+motr_libmotr_la_SOURCES += \
+			dtm0/fop.c \
+                       	dtm0/fop.h \
+                        dtm0/service.c \
+                        dtm0/service.h
+
+nodist_motr_libmotr_la_SOURCES += dtm0/fop_xc.c
+
+XC_FILES += dtm0/fop_xc.h
+
+CONFXC_FILES += dtm0/conf.xc
