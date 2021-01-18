@@ -671,6 +671,11 @@ static bool fom_wait_is_completed(const struct fom_wait_data *wd)
 static int fom_wait_rc(const struct fom_wait_data *wd)
 {
 	M0_ASSERT(fom_wait_is_completed(wd));
+	M0_LOG(M0_DEBUG, "conf=%s phase = %s",
+			 wd->wd_fom->fo_type->ft_conf.scf_name,
+			 m0_fom_phase_name(wd->wd_fom,
+					   m0_fom_phase(wd->wd_fom)));
+
 	return m0_fom_phase(wd->wd_fom) == M0_FOM_PHASE_FINISH ?
 			M0_ERR(-ESRCH) : 0;
 }
