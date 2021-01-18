@@ -819,7 +819,7 @@ AS_IF([! test -z "$with_libfab"],
       [
         LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
         LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
-        M0_CPPFLAGS="$M0_CPPFLAGS $LIB_FAB_INCLUDES"
+        M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS $LIB_FAB_INCLUDES"
       ],
 )
 AS_IF([test x$enable_libfab = xyes],
@@ -830,6 +830,7 @@ AS_IF([test x$enable_libfab = xyes],
 	AC_CHECK_HEADERS([rdma/fabric.h], [],
 		AC_MSG_ERROR([rdma/fabric.h is not found. Try to install libfabric package])
           )
+        M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
       ]
 )
 
