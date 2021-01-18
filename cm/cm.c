@@ -840,22 +840,27 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 M0_INTERNAL int m0_cm_proxies_fini(struct m0_cm *cm)
 {
 	struct m0_cm_proxy *pxy;
+	int                 rc = 0;
 
 	M0_ENTRY();
 	M0_PRE(m0_cm_is_locked(cm));
 
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
 		/* Check if proxy has completed. */
-		M0_LOG(M0_DEBUG, "pxy %p, is_done %d", pxy, (int)pxy->px_is_done);
-		if (!m0_cm_proxy_is_done(pxy))
-			return M0_RC(-EAGAIN);
+		M0_LOG(M0_DEBUG, "pxy %p (to %s), is_done %d",
+				  pxy, pxy->px_endpoint, !!pxy->px_is_done);
+		if (!m0_cm_proxy_is_done(pxy)) {
+			rc = -EAGAIN;
+			M0_LOG(M0_DEBUG, "pxy %p is still active", pxy);
+			continue;
+		}
 		M0_LOG(M0_DEBUG, "Stop proxy. cm %p, pxy %p",cm,  pxy);
 		m0_cm_proxy_del(cm, pxy);
 		m0_cm_proxy_fini(pxy);
 		m0_free(pxy);
 	} m0_tl_endfor;
 
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
@@ -1118,7 +1123,7 @@ M0_INTERNAL int m0_cm_complete(struct m0_cm *cm)
 	if (rc == -EAGAIN)
 		return M0_RC(rc);
 	if (!m0_cm_ag_store_is_complete(&cm->cm_ag_store))
-		return -EAGAIN;
+		return M0_RC(-EAGAIN);
 
 	m0_cm_notify(cm);
 
@@ -1128,8 +1133,10 @@ M0_INTERNAL int m0_cm_complete(struct m0_cm *cm)
 M0_INTERNAL void m0_cm_complete_notify(struct m0_cm *cm)
 {
 	M0_ASSERT(m0_cm_is_locked(cm));
+	M0_ENTRY("Notifying cm %p id=%"PRIu64, cm, cm->cm_id);
 
 	m0_chan_signal(&cm->cm_complete);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom)
@@ -1143,6 +1150,7 @@ M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm,
 {
 	struct m0_cm_aggr_group *ag = NULL;
 	bool                     cleanup;
+	M0_ENTRY();
 
 	M0_PRE(m0_cm_is_locked(cm));
 
@@ -1151,6 +1159,7 @@ M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm,
 		cleanup = ag->cag_ops->cago_is_frozen_on(ag, proxy) &&
 			  m0_cm_ag_can_fini(ag);
 		m0_cm_ag_unlock(ag);
+		ID_LOG("cm_aggr_grps_in", &ag->cag_id);
 		if (cleanup) {
 			M0_ASSERT(ag->cag_fini_ast.sa_next == NULL);
 			M0_LOG(M0_DEBUG, "finalizing frozen aggregation group ["M0_AG_F"]",

@@ -849,7 +849,6 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 			return M0_RC(rc);
 		}
 	}
-
 	rc = libfab_waitset_init(tm, ep);
 	if (rc != FI_SUCCESS) {
 		libfab_ep_param_free(ep, tm);

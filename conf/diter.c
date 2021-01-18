@@ -494,7 +494,7 @@ static int diter_lvl_read(struct m0_conf_diter *it)
 	switch (rc) {
 	case M0_CONF_DIREND:
 		if (it->di_lvl == 0) {
-			rc = -ENODATA;
+			rc = M0_RC(-ENODATA);
 		} else {
 			/*
 			 * We have read all the configuration objects at the

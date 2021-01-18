@@ -217,12 +217,15 @@ static bool epoch_check(struct m0_cm_proxy *pxy, m0_time_t px_epoch)
 static void proxy_done(struct m0_cm_proxy *proxy)
 {
 	struct m0_cm *cm = proxy->px_cm;
+	M0_ENTRY("pxy=%p id=%"PRIu64", to %s",
+		 proxy, proxy->px_id, proxy->px_endpoint);
 
 	if (!proxy->px_is_done) {
 		proxy->px_is_done = true;
 		m0_cm_notify(cm);
 	}
 	m0_cm_complete_notify(cm);
+	M0_LEAVE();
 }
 
 /**
@@ -252,6 +255,7 @@ static int px_ready(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 	struct m0_cm       *cm = p->px_cm;
 	struct m0_cm_ag_id  hi;
 	int                 rc = 0;
+	M0_ENTRY("pxy=%p id=%"PRIu64", to %s", p, p->px_id, p->px_endpoint);
 
 	if (p->px_epoch == 0 && m0_cm_state_get(cm) == M0_CMS_READY) {
 		p->px_epoch = px_epoch;
@@ -278,42 +282,46 @@ static int px_active(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 		     struct m0_cm_sw *out_interval, m0_time_t px_epoch,
 		     uint32_t px_status)
 {
+	M0_ENTRY("pxy=%p id=%"PRIu64", to %s", p, p->px_id, p->px_endpoint);
 	_sw_update(p, in_interval, out_interval, px_status);
 	/* TODO This is expensive during M0_CMS_CTIVE phase but needed to
 	 * handle cleanup in case of copy machine failures during active
 	 * phase. Try to find another alternative.
 	 */
 	m0_cm_frozen_ag_cleanup(p->px_cm, p);
-	return 0;
+	return M0_RC(0);
 }
 
 static int px_complete(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 		       struct m0_cm_sw *out_interval, m0_time_t px_epoch,
 		       uint32_t px_status)
 {
+	M0_ENTRY("pxy=%p id=%"PRIu64", to %s", p, p->px_id, p->px_endpoint);
 	_sw_update(p, in_interval, out_interval, px_status);
 	m0_cm_frozen_ag_cleanup(p->px_cm, p);
-	return 0;
+	return M0_RC(0);
 }
 
 static int px_stop_fail(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 			struct m0_cm_sw *out_interval, m0_time_t px_epoch,
 			uint32_t px_status)
 {
+	M0_ENTRY("pxy=%p id=%"PRIu64", to %s state=%u",
+		 p, p->px_id, p->px_endpoint, px_status);
 	_sw_update(p, in_interval, out_interval, px_status);
 	m0_cm_frozen_ag_cleanup(p->px_cm, p);
 	proxy_done(p);
-	return 0;
+	return M0_RC(0);
 }
 
 static int (*px_action[])(struct m0_cm_proxy *px, struct m0_cm_sw *in_interval,
 			  struct m0_cm_sw *out_interval, m0_time_t px_epoch,
 			  uint32_t px_status) = {
-	[M0_PX_READY] = px_ready,
-	[M0_PX_ACTIVE] = px_active,
+	[M0_PX_READY]    = px_ready,
+	[M0_PX_ACTIVE]   = px_active,
 	[M0_PX_COMPLETE] = px_complete,
-	[M0_PX_STOP] = px_stop_fail,
-	[M0_PX_FAILED] = px_stop_fail
+	[M0_PX_STOP]     = px_stop_fail,
+	[M0_PX_FAILED]   = px_stop_fail
 };
 
 M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
@@ -327,7 +335,6 @@ M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 
 	M0_ENTRY("proxy: %p ep: %s", pxy, pxy->px_endpoint);
 	M0_PRE(pxy != NULL && in_interval != NULL && out_interval != NULL);
-	M0_PRE(px_status >= pxy->px_status);
 
 	m0_cm_proxy_lock(pxy);
 	cm = pxy->px_cm;
@@ -336,9 +343,14 @@ M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 			 "nr_updates: %u", pxy->px_endpoint, px_status,
 			 pxy->px_status, (unsigned)cm->cm_nr_proxy_updated);
 
+	if (px_status < pxy->px_status) {
+		m0_cm_proxy_unlock(pxy);
+		return M0_RC(-EINVAL);
+	}
+
 	if (pxy->px_status != M0_PX_INIT && !epoch_check(pxy, px_epoch)) {
 		m0_cm_proxy_unlock(pxy);
-		return -EINVAL;
+		return M0_RC(-EINVAL);
 	}
 
 	if (px_status >= M0_PX_COMPLETE &&
@@ -390,6 +402,7 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	struct m0_cm       *cm = proxy->px_cm;
 	struct m0_cm_sw     in_interval;
 	struct m0_cm_sw     out_interval;
+	M0_ENTRY();
 
 	M0_ASSERT(cm_proxy_invariant(proxy));
 
@@ -398,9 +411,16 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 		m0_cm_ag_id_copy(&in_interval.sw_hi,
 				 &cm->cm_sw_last_updated_hi);
 	m0_cm_ag_out_interval(cm, &out_interval);
-	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %"PRId64
-			 " pending updates: %u", proxy->px_endpoint,
-			 cm->cm_aggr_grps_in_nr, proxy->px_updates_pending);
+	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %"PRIu64
+			 " pending updates: %u posted: %"PRIu64" state=%u"
+			 " px_update_rc=%d px_send_final_update=%d",
+			 proxy->px_endpoint,
+			 cm->cm_aggr_grps_in_nr,
+			 proxy->px_updates_pending,
+			 proxy->px_nr_updates_posted,
+			 proxy->px_status,
+			 proxy->px_update_rc,
+			 !!proxy->px_send_final_update);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
 	/*
@@ -457,6 +477,7 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 		/* Wake up anyone waiting to handle further process (cleanup/completion). */
 		m0_cm_complete_notify(cm);
 	}
+	M0_LEAVE();
 }
 
 static void proxy_sw_onwire_item_replied_cb(struct m0_rpc_item *req_item)
@@ -501,7 +522,8 @@ static void cm_proxy_sw_onwire_post(struct m0_cm_proxy *proxy,
 {
 	struct m0_rpc_item *item;
 
-	M0_ENTRY("fop: %p conn: %p", fop, conn);
+	M0_ENTRY("fop: %p conn: %p to pxy %p (%s)",
+		  fop, conn, proxy, proxy->px_endpoint);
 	M0_PRE(fop != NULL && conn != NULL);
 
 	item              = m0_fop_to_rpc_item(fop);
@@ -540,17 +562,15 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	const char                   *ep;
 	int                           rc;
 
-	M0_ENTRY("proxy: %p", proxy);
 	M0_PRE(proxy != NULL);
+	M0_ENTRY("proxy: %p (%s)", proxy, proxy->px_endpoint);
 	cm = proxy->px_cm;
 	M0_PRE(m0_cm_is_locked(cm));
 
 	if (proxy->px_nr_updates_posted > 0) {
 		M0_CNT_INC(proxy->px_updates_pending);
-		return 0;
+		return M0_RC(0);
 	}
-	if (proxy->px_send_final_update)
-		proxy->px_send_final_update = false;
 	M0_ALLOC_PTR(sw_fop);
 	if (sw_fop == NULL)
 		return M0_ERR(-ENOMEM);
@@ -567,6 +587,19 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 		m0_free(sw_fop);
 		return M0_ERR(rc);
 	}
+
+	if (proxy->px_send_final_update) {
+		struct m0_cm_sw_onwire *swo;
+		proxy->px_send_final_update = false;
+
+		/* This is the final update. No more SW update will be sent.
+		 * CM status must be set to STOP, so the proxy on remote node
+		 * can be finalized.
+		 */
+		swo = m0_fop_data(fop);
+		swo->swo_cm_status = M0_PX_STOP;
+	}
+
 	sw_fop->pso_proxy = proxy;
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
@@ -575,11 +608,18 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 
 	M0_LOG(M0_DEBUG, "Sending to %s hi: ["M0_AG_F"]",
 	       proxy->px_endpoint, M0_AG_P(&in_interval->sw_hi));
+
 	return M0_RC(0);
 }
 
 M0_INTERNAL bool m0_cm_proxy_is_done(const struct m0_cm_proxy *pxy)
 {
+	M0_LOG(M0_DEBUG, "proxy %p (to %s) state: is_done %d "
+			 "px_nr_updates_posted %"PRIu64" onwire_ast.sa_next %p",
+			 pxy, pxy->px_endpoint,
+			 pxy->px_is_done, pxy->px_nr_updates_posted,
+			 pxy->px_sw_onwire_ast.sa_next);
+
 	return pxy->px_is_done && pxy->px_nr_updates_posted == 0 &&
 	       pxy->px_sw_onwire_ast.sa_next == NULL;
 }
@@ -633,6 +673,7 @@ static void px_fail_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_cm_proxy *pxy = container_of(ast, struct m0_cm_proxy,
 					     px_fail_ast);
+	M0_ENTRY("pxy %p %s failed", pxy, pxy->px_endpoint);
 
 	m0_cm_proxy_lock(pxy);
 	pxy->px_status = M0_PX_FAILED;
@@ -644,6 +685,7 @@ static void px_fail_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	m0_cm_abort(pxy->px_cm, 0);
 	m0_cm_frozen_ag_cleanup(pxy->px_cm, pxy);
 	m0_cm_complete_notify(pxy->px_cm);
+	M0_LEAVE();
 }
 
 static void px_online_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
