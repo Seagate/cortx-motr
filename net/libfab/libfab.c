@@ -1677,7 +1677,6 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 
 	switch (nb->nb_qtype) {
 	case M0_NET_QT_MSG_RECV: {
-		M0_LOG(M0_ALWAYS, "QT_MSG_RECV");
 		fbp->fb_ev_ep = op_ep;
 		fbp->fb_length = nb->nb_length;
 		ret = fi_recv(op_ep->fep_ep, nb->nb_buffer.ov_buf[0],
@@ -1686,51 +1685,20 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	}
 	
 	case M0_NET_QT_MSG_SEND: {
-		M0_LOG(M0_ALWAYS, "QT_MSG_SEND");
 		M0_ASSERT(nb->nb_length <= m0_vec_count(&nb->nb_buffer.ov_vec));
 		ret = fi_send(op_ep->fep_ep, nb->nb_buffer.ov_buf[0],
 			      nb->nb_length, fbp->fb_mr_desc, 0, fbp);
 		break;
 	}
 
-	/*
-	*     - buffer A: passive-recv, buffer B: active-send: the descriptor is moved
-	*       from A to B, the data are moved from B to A;
-	*
-	*     - buffer A: passive-send, buffer B: active-recv: the descriptor is moved
-	*       from A to B, the data are moved from A to B;
-	*
-	*	buf_desc : 				data :
-	*	passive ---> active 		   send ---> receive
-	*	
-
-	1)	     A					B
-		fi_recv(nb->ov_buf)
-		fi_send(A_buf->desc)		  fi_recv(local_buf)
-
-						  fi_write(nb->ov_buf,local_buf)
-
-	2)	     A					B
-		fi_send(desc_A)			  fi_recv(desc_A)
-
-						  fi_read(data,desc_A)
-
-	*/
-	case M0_NET_QT_PASSIVE_BULK_RECV: { /* For passive buffers, generate */
-		M0_LOG(M0_ALWAYS, "QT_PASSIVE_BULK_RECV");
-		ret = libfab_bdesc_encode(fbp);
-		break;
-	}
-
+	case M0_NET_QT_PASSIVE_BULK_RECV:   /* For passive buffers, generate */
 	case M0_NET_QT_PASSIVE_BULK_SEND: { /* the buffer descriptor. */
-		M0_LOG(M0_ALWAYS, "QT_PASSIVE_BULK_SEND");
 		ret = libfab_bdesc_encode(fbp);
 		break;
 	}
 
 	/* For active buffers, decode the passive buffer descriptor */
 	case M0_NET_QT_ACTIVE_BULK_RECV: {
-		M0_LOG(M0_ALWAYS, "QT_ACTIVE_BULK_RECV");
 		libfab_bdesc_decode(&nb->nb_desc, &rma_iov);
 		fbp->fb_length = nb->nb_length;
 
@@ -1741,7 +1709,6 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	}
 
 	case M0_NET_QT_ACTIVE_BULK_SEND: {
-		M0_LOG(M0_ALWAYS, "QT_ACTIVE_BULK_SEND");
 		libfab_bdesc_decode(&nb->nb_desc, &rma_iov);
 		
 		ret = fi_write(op_ep->fep_ep, nb->nb_buffer.ov_buf[0],
