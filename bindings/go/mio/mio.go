@@ -336,30 +336,36 @@ func roundupPower2(x int) (power int) {
     return power
 }
 
-const maxM0BufSz = 128 * 1024 * 1024
+const maxM0BufSz = 512 * 1024 * 1024
 
 // Estimate the optimal (block, group) sizes for the I/O
 func (mio *Mio) getOptimalBlockSz(bufSz int) (bsz, gsz int) {
     if bufSz > maxM0BufSz {
-            bufSz = maxM0BufSz
+        bufSz = maxM0BufSz
     }
     pver := C.m0_pool_version_find(&C.instance.m0c_pools_common,
                                    &mio.obj.ob_attr.oa_pver)
     if pver == nil {
-            log.Panic("cannot find the object's pool version")
+        log.Panic("cannot find the object's pool version")
+    }
+    pa := &pver.pv_attr
+    if pa.pa_P < pa.pa_N + 2 * pa.pa_K {
+        log.Panic("pool width (%v) is less than the parity group size" +
+                  " (%v + 2 * %v == %v), check pool parity configuration",
+                  pa.pa_P, pa.pa_N, pa.pa_K, pa.pa_N + 2 * pa.pa_K)
     }
     usz := int(C.m0_obj_layout_id_to_unit_size(C.ulong(mio.objLid)))
-    pa := &pver.pv_attr
-    gsz = usz * int(pa.pa_N)
-    /* max 2-times pool-width deep, otherwise we may get -E2BIG */
+    gsz = usz * int(pa.pa_N) /* group size in data units only */
+    /* should be max 2-times pool-width deep, otherwise we may get -E2BIG */
     maxBs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
+    maxBs = ((maxBs - 1) / gsz + 1) * gsz /* multiple of group size */
 
     if bufSz >= maxBs {
-            return maxBs, gsz
+        return maxBs, gsz
     } else if bufSz <= gsz {
-            return gsz, gsz
+        return gsz, gsz
     } else {
-            return roundupPower2(bufSz), gsz
+        return roundupPower2(bufSz), gsz
     }
 }
 

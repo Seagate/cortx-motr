@@ -333,6 +333,7 @@ static void be_ut_tx_bulk_state_work_put(struct m0_be_tx_bulk *tb,
 
 	for (i = 0; i < tbs->bbs_nr_max; ++i) {
 		be_ut_tx_bulk_state_calc(tbs, true, &cred, &cred_payload);
+		M0_LOG(M0_DEBUG, "%d "BETXCR_F, (int)i, BETXCR_P(&cred));
 		M0_BE_OP_SYNC(op, put_successful =
 		              m0_be_tx_bulk_put(tb, &op, &cred, cred_payload, 0,
 		                                (void *)i));

@@ -198,7 +198,7 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 		    !m0_sns_cm_unit_is_spare(fctx, group, i))
 			M0_CNT_INC(nrlu);
 	}
-	M0_LEAVE("number of local units = %lu", nrlu);
+	M0_LEAVE("number of local units = %"PRId64, nrlu);
 
 	return nrlu;
 }

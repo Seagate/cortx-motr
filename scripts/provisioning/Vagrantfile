@@ -30,9 +30,11 @@ def guess_provider()
            : File.exists?(virtualbox)               ? :virtualbox
            :                                          nil
   when /mingw/i
+    vmware = 'C:\\Program Files (x86)\\VMware\\VMware Workstation\\'
     hyperv = 'C:\\Program Files\\Hyper-V\\'
     virtualbox = 'C:\\Program Files\\Oracle\\VirtualBox\\'
-    return Dir.exists?(hyperv)       ? :hyperv
+    return Dir.exists?(vmware)       ? :vmware_desktop
+           : Dir.exists?(hyperv)     ? :hyperv
            : Dir.exists?(virtualbox) ? :virtualbox
            :                           nil
   end
@@ -153,7 +155,13 @@ Vagrant.configure('2') do |config|
 
   # Create a private network, which allows host-only access to the machine(s)
   # and between machines, machine access to internet is performed via NAT.
-  config.vm.network :private_network, type: :dhcp
+  #
+  # It causes problems with NetworkManager startup on vmware_desktop on
+  # Windows hosts - so we don't add it there. On VMware nodes can see
+  # each other via NAT-network also - so it's not needed there also.
+  if PROVIDER != :vmware_desktop
+    config.vm.network :private_network, type: :dhcp
+  end
 
   # Shared folders -------------------------
 
@@ -173,6 +181,7 @@ Vagrant.configure('2') do |config|
   # Providers ------------------------------
 
   # providers priority order (from top to bottom)
+  config.vm.provider :vmware_desktop
   config.vm.provider :vmware_fusion
   config.vm.provider :libvirt
   config.vm.provider :hyperv
@@ -215,7 +224,8 @@ Vagrant.configure('2') do |config|
     if RbConfig::CONFIG['host_os'] =~ /mingw/i &&
        !provisioned?(cmu.vm.hostname) &&
        ENV['M0_VM_BOX_URL'].nil?
-      cmu.vm.synced_folder '.', '/vagrant', type: 'smb'
+      cmu.vm.synced_folder '.', '/vagrant', type: 'smb',
+        smb_username: ENV["SMB_USERNAME"], smb_password: ENV["SMB_PASSWORD"]
     end
 
     if !ENV['M0_VM_CMU_ENABLE_PUBLIC_NET'].nil? &&
@@ -598,6 +608,63 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
     end
   end
 
+  # VMware Desktop --------------------------
+  #
+
+  node.vm.provider :vmware_desktop do |v|
+    # visible machine name
+    v.vmx['displayName'] = vm_prefix + '_' + node.vm.vgname
+
+    # show VM's window
+    v.gui = enable_gui
+
+    v.vmx['numvcpus'] = cpu_nr
+    v.vmx['memsize']  = mem_mb
+    # Default version 8 allows only 8 CPUs and 8GB RAM.
+    # Version 10 allows 16 CPUs and 64 GB RAM.
+    v.vmx['virtualhw.version'] = 10
+
+    # re-use main VM disk as copy-on-write base image
+    v.linked_clone = true
+
+    # serial console file
+    v.vmx['serial0.fileType'] = 'file'
+    v.vmx['serial0.fileName'] = File.expand_path(console_log_dir).to_s +
+                                "/console_#{node.vm.vgname}.log"
+    v.vmx['serial0.present']  = 'TRUE'
+
+    # network
+    #   try to uncomment the following line to disable Vagrant's warning about
+    #   overwriting VMX settings (NOTE: VM's network may stop working after that)
+    v.whitelist_verified = true
+    # workaround incorrect IP address detection by vagrant-hostmanager plugin
+    v.ssh_info_public = true
+    # a workaround for VMware networking settings in newer Vagrant versions,
+    # try to uncomment the following lines if network doesn't work in your
+    # combination of VMware/Vagrant versions
+    #v.vmx['ethernet0.pcislotnumber'] = 32
+    #v.vmx['ethernet1.pcislotnumber'] = 33
+
+    # disks
+    vdiskmanager = 'C:\Program Files (x86)\VMware\VMware Workstation\vmware-vdiskmanager.exe'
+    if RbConfig::CONFIG['host_os'] =~ /darwin/
+      # After some time when all developers upgrade their vmware plugin to
+      # vmware_desktop, vmware_fusion provider code (above) could be removed.
+      vdiskmanager = '/Applications/VMware Fusion.app/Contents/Library/vmware-vdiskmanager'
+    end
+    if PROVIDER == :vmware_desktop and File.exist?(vdiskmanager)
+      (1..disk_nr).each do |i|
+        disk_file = File.expand_path(disks_dir).to_s + "/disk_#{node.vm.vgname}_#{i}.vmdk"
+        if !File.exists?(disk_file)
+          `"#{vdiskmanager}" -c -s #{disk_size}GB -a lsilogic -t 0 #{disk_file}`
+        end
+        v.vmx["scsi0:#{i}.filename"] = disk_file
+        v.vmx["scsi0:#{i}.present"]  = 'TRUE'
+        v.vmx["scsi0:#{i}.redo"]     = ''
+      end
+    end
+  end
+
   # Hyper-v -----------------------------
   #
 
@@ -705,6 +772,11 @@ def setup_shared_nfs_dir(config, src_path)
   end
 end
 
+def setup_shared_smb_dir(config, src_path)
+  config.vm.synced_folder src_path, '/data', type: 'smb',
+    smb_username: ENV["SMB_USERNAME"], smb_password: ENV["SMB_PASSWORD"]
+end
+
 # share a top-level project dir (one level up from motr src dir)
 def setup_shared_motr_src_dir(config)
   if ARGV[0] and ARGV[0].match(/^(?:up|provision|reload)$/)
@@ -712,8 +784,10 @@ def setup_shared_motr_src_dir(config)
     # it can be customized via M0_VM_SHARED_DIR environment variable
     path = !ENV['M0_VM_SHARED_DIR'].nil? ? File.expand_path(ENV['M0_VM_SHARED_DIR'])
          :                                 File.expand_path(MOTR_TOP_SRC_DIR + '/..')
-    type = ENV['M0_VM_SHARE_TYPE'] ||
-           RbConfig::CONFIG['host_os'] =~ /mingw/i ? 'provider' : 'nfs'
+    type = ENV['M0_VM_SHARE_TYPE']
+    if type.nil?
+      type = RbConfig::CONFIG['host_os'] =~ /mingw/i ? 'provider' : 'nfs'
+    end
 
     case type
     when 'provider'
@@ -722,6 +796,8 @@ def setup_shared_motr_src_dir(config)
       setup_shared_rsync_dir(config, path)
     when 'rsync-auto'
       setup_shared_rsync_dir(config, path, auto_sync: true)
+    when 'smb'
+      setup_shared_smb_dir(config, path)
     when 'none'
       puts "==> #{config.vm.vgname}: shared dir is disabled (M0_VM_SHARE_TYPE=none)"
     else # nfs is used by default

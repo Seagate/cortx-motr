@@ -76,6 +76,7 @@ m0_cm_repreb_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop_type *ft,
 {
 	struct m0_cm_sw_onwire *swo_fop;
 	int                     rc = 0;
+	M0_ENTRY("cm=%p proxy_id=%"PRIu64" local_ep=%s", cm, proxy_id, local_ep);
 
 	M0_PRE(cm != NULL && sw != NULL && local_ep != NULL);
 
