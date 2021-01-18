@@ -485,7 +485,9 @@ int main(int argc, char *argv[])
 		printf("\n");
 	}
 #endif /* XXX */
-	for (i = 0; rc == 0 && i < count; i++) {
+
+	rc = 0;
+	for (i = 1; rc == 0 && i <= count; i++) {
 		if (seed != -1) {
 			if (seed == 0) {
 				seed = time(NULL) ^ (getpid() << 17);
