@@ -3081,7 +3081,7 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
                                   m0_be_emap_lookup(&adom->sad_adata_ht[ht_idx].
 							   sad_adata,
 						    &prefix, 0, &it),
-			           bo_u.u_emap.e_rc);
+				  bo_u.u_emap.e_rc);
 		if (rc == 0)
 			m0_be_emap_close(&it);
 		else {
@@ -3092,7 +3092,7 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 		                                      tx, &op,
 						      &prefix,
 						      AET_HOLE),
-                               bo_u.u_emap.e_rc);
+				bo_u.u_emap.e_rc);
 		}
 		m0_mutex_unlock(&beck_builder.b_emaplock[id]);
 	}
