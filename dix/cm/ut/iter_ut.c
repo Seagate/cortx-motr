@@ -1124,6 +1124,9 @@ static void one_dev_fail(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void two_devs_fail(void)
@@ -1202,6 +1205,9 @@ static void two_devs_fail(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void outside_dev_fail(void)
@@ -1373,6 +1379,9 @@ static void outside_dev_fail(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void empty_spare_fail(void)
@@ -1565,6 +1574,9 @@ static void empty_spare_fail(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void filled_spare_fail(void)
@@ -1932,6 +1944,9 @@ static void filled_spare_fail(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void many_keys_rep(void)
@@ -2023,6 +2038,9 @@ static void many_keys_rep(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void user_concur_rep(void)
@@ -2250,6 +2268,9 @@ static void user_concur_rep(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 /*
@@ -2510,6 +2531,9 @@ static void one_dev_reb(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void reb_coordinator(void)
@@ -2677,6 +2701,9 @@ static void reb_coordinator(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void outside_dev_reb(void)
@@ -2848,6 +2875,9 @@ static void outside_dev_reb(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void reb_unused(void)
@@ -3061,6 +3091,9 @@ static void reb_unused(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void many_keys_reb(void)
@@ -3151,6 +3184,9 @@ static void many_keys_reb(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void user_concur_reb(void)
@@ -3322,10 +3358,13 @@ static void user_concur_reb(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
-struct m0_ut_suite dix_cm_iter_ut = {
-	.ts_name   = "dix-cm-iter",
+struct m0_ut_suite dix_cm_iter_ut_rep = {
+	.ts_name   = "dix-cm-iter-rep",
 	.ts_owners = "Egor",
 	.ts_init   = NULL,
 	.ts_fini   = NULL,
@@ -3346,6 +3385,15 @@ struct m0_ut_suite dix_cm_iter_ut = {
 		{ "user-concur-rep",     user_concur_rep,     "Sergey" },
 		{ "ctg-del-concur-rep1", ctg_del_concur_rep1, "Sergey" },
 		{ "ctg-del-concur-rep2", ctg_del_concur_rep2, "Sergey" },
+	}
+};
+
+struct m0_ut_suite dix_cm_iter_ut_reb = {
+	.ts_name   = "dix-cm-iter-reb",
+	.ts_owners = "Egor",
+	.ts_init   = NULL,
+	.ts_fini   = NULL,
+	.ts_tests  = {
 		{ "reb-coordinator",     reb_coordinator,     "Sergey" },
 		{ "one-dev-reb",         one_dev_reb,         "Sergey" },
 		{ "outside-dev-reb",     outside_dev_reb,     "Sergey" },
