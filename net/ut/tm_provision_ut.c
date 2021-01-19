@@ -37,7 +37,7 @@ enum {
 	MIN_RECV_SIZE  = 1 << 12,
 };
 
-static int ut_tm_prov_event_cb_calls = 0;
+static int ut_tm_prov_event_cb_calls;
 void ut_tm_prov_event_cb(const struct m0_net_tm_event *ev)
 {
 	struct m0_net_transfer_mc *tm;
@@ -235,6 +235,8 @@ static void test_net_tm_prov(void)
 
 	/* initialize the domain */
 	ut_dom_init_called = false;
+	ut_tm_prov_event_cb_calls = 0;
+
 	rc = m0_net_domain_init(dom, &ut_xprt);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ut_dom_init_called);
