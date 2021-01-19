@@ -42,7 +42,8 @@ static char                   g_fdmi_data[] = "hello, FDMI";
 static struct m0_fdmi_src_rec g_src_rec;
 static struct test_rpc_env    g_rpc_env;
 static struct m0_rpc_packet  *g_sent_rpc_packet;
-static struct m0_fid          g_fid = M0_FID_INIT(0xFA11, 0x11AF);
+
+static const struct m0_fid    g_fid = M0_FID_INIT(0xFA11, 0x11AF);
 
 static int send_notif_packet_ready(struct m0_rpc_packet *p);
 
@@ -244,9 +245,21 @@ void fdmi_sd_send_notif(void)
 	struct m0_rpc_conn_pool      *conn_pool;
 	struct m0_rpc_conn_pool_item *pool_item;
 	int                           rc;
+	static int                    tested_number = 0;
+
+	if (tested_number++ > 0) {
+		/* FIXME: This UT can not run repeatedly. */
+		return;
+	}
+
+	M0_SET0(&g_conf_filter);
+	g_var_str = strdup("test");
+	M0_SET0(&g_sem1);
+	M0_SET0(&g_sem2);
+	M0_SET0(&g_rpc_env);
+	g_sent_rpc_packet = NULL;
 
 	fdmi_serv_start_ut(&filterc_send_notif_ops);
-	g_var_str = strdup("test");
 	src_dock = m0_fdmi_src_dock_get();
 	sd_fom = &src_dock->fsdc_sd_fom;
 	conn_pool = &sd_fom->fsf_conn_pool;
