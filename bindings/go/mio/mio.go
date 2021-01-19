@@ -187,7 +187,7 @@ func (mio *Mio) objNew(id string) (err error) {
     return nil
 }
 
-func (mio *Mio) finishOpen(sz uint64) {
+func (mio *Mio) finishOpen(sz uint64) error {
     mio.buf = make([]C.struct_m0_bufvec, threadsN)
     mio.ext = make([]C.struct_m0_indexvec, threadsN)
     mio.attr = make([]C.struct_m0_bufvec, threadsN)
@@ -196,9 +196,19 @@ func (mio *Mio) finishOpen(sz uint64) {
     for i := 0; i < threadsN; i++ {
         mio.ch <- slot{i, nil}
     }
+
+    pv := C.m0_pool_version_find(&C.instance.m0c_pools_common,
+                                 &mio.obj.ob_attr.oa_pver)
+    if pv == nil {
+        return fmt.Errorf("cannot find pool version")
+    }
+    mio.objPool = pv.pv_pool.po_id
+
     mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
     mio.off = 0
     mio.objSz = sz
+
+    return nil
 }
 
 // GetPool returns the pool the object is located at.
@@ -249,16 +259,7 @@ func (mio *Mio) Open(id string, anySz ...uint64) (err error) {
         sz = v
     }
 
-    pv := C.m0_pool_version_find(&C.instance.m0c_pools_common,
-                                 &mio.obj.ob_attr.oa_pver)
-    if pv == nil {
-        return fmt.Errorf("cannot find pool version")
-    }
-    mio.objPool = pv.pv_pool.po_id
-
-    mio.finishOpen(sz)
-
-    return nil
+    return mio.finishOpen(sz)
 }
 
 // Close closes the object and releases all the resources that were
@@ -358,9 +359,8 @@ func (mio *Mio) Create(id string, sz uint64, anyPool ...string) error {
     if rc != 0 {
         return fmt.Errorf("create op failed: %d", rc)
     }
-    mio.finishOpen(sz)
 
-    return nil
+    return mio.finishOpen(sz)
 }
 
 func roundupPower2(x int) (power int) {
