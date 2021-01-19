@@ -720,8 +720,8 @@ static int stob_ad_create(struct m0_stob *stob,
 	return M0_BE_OP_SYNC_RET(op,
 			    m0_be_emap_obj_insert(&adom->sad_adata_ht[ht_idx].
 							 sad_adata,
-						   &dtx->tx_betx, &op,
-						   &prefix, AET_HOLE),
+						  &dtx->tx_betx, &op,
+						  &prefix, AET_HOLE),
 			    bo_u.u_emap.e_rc);
 }
 
