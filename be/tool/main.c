@@ -117,7 +117,7 @@ void track_ad_btrees(struct stob_ad_0type_rec *rec, bool print_btree)
 		for (i = 0; i < EMAP_HT_SIZE; i++) {
 			M0_LOG(M0_ALWAYS, "em_mapping %d",i);
 			btree_dbg_print(&rec->sa0_ad_domain->sad_adata_ht[i].
-                                             sad_adata.em_mapping);
+                                              sad_adata.em_mapping);
 		}
 		M0_LOG(M0_ALWAYS, "grp_exts");
 		btree_dbg_print(&m0balloc->cb_db_group_extents);
@@ -129,7 +129,7 @@ void track_ad_btrees(struct stob_ad_0type_rec *rec, bool print_btree)
 				"cb_db_group_extents btree= %p "
 				"cb_db_group_desc btree= %p",
 				&rec->sa0_ad_domain->sad_adata_ht[i].sad_adata.
-                                     em_mapping,
+                                      em_mapping,
 				&m0balloc->cb_db_group_extents,
 				&m0balloc->cb_db_group_desc);
                 }

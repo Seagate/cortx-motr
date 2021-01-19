@@ -411,7 +411,7 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 	dom->sd_ops     = &stob_ad_domain_ops;
 
 	for (i = 0; i < EMAP_HT_SIZE; i++)
-	        m0_be_emap_init(&adom->sad_adata_ht[i].sad_adata, seg);
+		m0_be_emap_init(&adom->sad_adata_ht[i].sad_adata, seg);
 
 	ballroom = adom->sad_ballroom;
 	m0_balloc_init(b2m0(ballroom));
@@ -623,14 +623,14 @@ static int stob_ad_domain_destroy(struct m0_stob_type *type,
 			emap = &adom->sad_adata_ht[i].sad_adata;
 			m0_be_emap_init(emap, seg);
 			rc = M0_BE_OP_SYNC_RET(op,
-                                              m0_be_emap_destroy(emap, &tx, &op),
+					       m0_be_emap_destroy(emap, &tx, &op),
 					       bo_u.u_emap.e_rc);
 			rc = rc ?: m0_be_0type_del(&m0_stob_ad_0type,
-                                                  seg->bs_domain,
-	                                           &tx, location_data);
+						   seg->bs_domain,
+						   &tx, location_data);
 		}
 		if (rc == 0)
-		        M0_BE_FREE_PTR_SYNC(adom, seg, &tx);
+			M0_BE_FREE_PTR_SYNC(adom, seg, &tx);
 		m0_be_tx_close_sync(&tx);
 	}
 	m0_be_tx_fini(&tx);
@@ -683,7 +683,7 @@ static int stob_ad_init(struct m0_stob *stob,
 	rc = M0_BE_OP_SYNC_RET_WITH(
 		&it.ec_op,
 		m0_be_emap_lookup(&adom->sad_adata_ht[ht_idx].sad_adata, &prefix,
-                                 0, &it),
+				  0, &it),
 		bo_u.u_emap.e_rc);
 	if (rc == 0) {
 		m0_be_emap_close(&it);
@@ -700,7 +700,7 @@ static void stob_ad_create_credit(struct m0_stob_domain *dom,
 {
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 	m0_be_emap_credit(&adom->sad_adata_ht[0].sad_adata, M0_BEO_INSERT, 1,
-                         accum);
+			  accum);
 }
 
 static int stob_ad_create(struct m0_stob *stob,
@@ -718,11 +718,11 @@ static int stob_ad_create(struct m0_stob *stob,
 	ht_idx = m0_stob_get_hash(stob_fid);
 	M0_LOG(M0_DEBUG, U128X_F, U128_P(&prefix));
 	return M0_BE_OP_SYNC_RET(op,
-                            m0_be_emap_obj_insert(&adom->sad_adata_ht[ht_idx].
-                                                         sad_adata,
+			    m0_be_emap_obj_insert(&adom->sad_adata_ht[ht_idx].
+							 sad_adata,
 						   &dtx->tx_betx, &op,
 						   &prefix, AET_HOLE),
-                            bo_u.u_emap.e_rc);
+			    bo_u.u_emap.e_rc);
 }
 
 /**
@@ -791,7 +791,7 @@ static int stob_ad_punch_credit(struct m0_stob *stob,
 				stob, EXT_P(&todo), EXT_P(&seg->ee_ext));
 		M0_SET0(&cred);
 		m0_be_emap_credit(&adom->sad_adata_ht[ht_idx].sad_adata,
-                                 M0_BEO_PASTE, 1, &cred);
+				  M0_BEO_PASTE, 1, &cred);
 		ballroom->ab_ops->bo_free_credit(ballroom, 3, &cred);
 		if (m0_be_should_break(eng, accum, &cred))
 			break;
@@ -904,7 +904,7 @@ static void stob_ad_destroy_credit(struct m0_stob *stob,
 	ht_idx = m0_stob_get_hash(fid);
 	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
 	m0_be_emap_credit(&adom->sad_adata_ht[ht_idx].sad_adata, M0_BEO_DELETE,
-                         1, accum);
+			  1, accum);
 }
 
 static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
@@ -920,7 +920,7 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	ht_idx = m0_stob_get_hash(fid);
 	rc = M0_BE_OP_SYNC_RET(op,
 			   m0_be_emap_obj_delete(&adom->sad_adata_ht[ht_idx].
-                                                       sad_adata,
+							sad_adata,
 						 &tx->tx_betx, &op,
 						 &prefix),
 			   bo_u.u_emap.e_rc);
@@ -1114,7 +1114,7 @@ M0_INTERNAL int stob_ad_cursor(struct m0_stob_ad_domain *adom,
 	rc = M0_BE_OP_SYNC_RET_WITH(
 		&it->ec_op,
 		m0_be_emap_lookup(&adom->sad_adata_ht[ht_idx].sad_adata,
-                                 &prefix, offset, it),
+				  &prefix, offset, it),
 		bo_u.u_emap.e_rc);
 	return M0_RC(rc);
 }
@@ -1176,7 +1176,7 @@ static void stob_ad_write_credit(const struct m0_stob_domain *dom,
 	 * of 'emap paste' (that is frags + 1) to verify this idea.
 	 */
 	m0_be_emap_credit(&adom->sad_adata_ht[0].sad_adata, M0_BEO_PASTE, 
-                         frags + 1, accum);
+			  frags + 1, accum);
 
 	if (adom->sad_overwrite && ballroom->ab_ops->bo_free_credit != NULL) {
 		/* for each emap_paste() seg_free() could be called 3 times */
