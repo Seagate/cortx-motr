@@ -2777,9 +2777,9 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 		m0_mutex_lock(&beck_builder.b_emaplock[id]);
 		rc = M0_BE_OP_SYNC_RET_WITH(&it.ec_op,
                                   m0_be_emap_lookup(&adom->sad_adata_ht[ht_idx].
-							   sad_adata,
-						    &prefix, 0, &it),
-				  bo_u.u_emap.e_rc);
+							     sad_adata,
+						      &prefix, 0, &it),
+				    bo_u.u_emap.e_rc);
 		if (rc == 0)
 			m0_be_emap_close(&it);
 		else {
