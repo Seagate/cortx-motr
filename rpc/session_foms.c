@@ -209,6 +209,7 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 		/* don't touch not our timer (from resend) */
 		m0_fom_timeout_fini(fom_timeout);
 		m0_free(fom_timeout);
+		fom_timeout = NULL;
 		m0_fi_disable(__func__, "free-timer");
 	}
 
