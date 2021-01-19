@@ -374,7 +374,7 @@ struct m0_net_domain {
 	void               *nd_xprt_private;
 
 	/** This domain's transport. */
-	struct m0_net_xprt *nd_xprt;
+	const struct m0_net_xprt *nd_xprt;
 
 	/** Linkage for invoking application. */
 	struct m0_tlink     nd_app_linkage;

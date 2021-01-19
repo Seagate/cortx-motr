@@ -697,7 +697,7 @@ static void test_ping(void)
 
 	static struct ping_ctx cctx = {
 		.pc_ops = &quiet_ops,
-		.pc_xprt = (struct m0_net_xprt *)&m0_net_bulk_mem_xprt,
+		.pc_xprt = &m0_net_bulk_mem_xprt,
 		.pc_nr_bufs = PING_NR_BUFS,
 		.pc_segments = PING_CLIENT_SEGMENTS,
 		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
@@ -707,7 +707,7 @@ static void test_ping(void)
 	};
 	static struct ping_ctx sctx = {
 		.pc_ops = &quiet_ops,
-		.pc_xprt = (struct m0_net_xprt *)&m0_net_bulk_mem_xprt,
+		.pc_xprt = &m0_net_bulk_mem_xprt,
 		.pc_nr_bufs = PING_NR_BUFS,
 		.pc_segments = PING_SERVER_SEGMENTS,
 		.pc_seg_size = PING_SERVER_SEGMENT_SIZE,

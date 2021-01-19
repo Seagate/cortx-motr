@@ -35,6 +35,7 @@ static void net_domain_fini(struct m0_net_domain *dom);
 
 int m0_net_domain_init(struct m0_net_domain *dom,
 		       const struct m0_net_xprt *xprt)
+{
 	int rc;
 
 	M0_ENTRY();
@@ -46,7 +47,7 @@ int m0_net_domain_init(struct m0_net_domain *dom,
 	m0_list_init(&dom->nd_tms);
 
 	dom->nd_xprt_private = NULL;
-	dom->nd_xprt = (struct m0_net_xprt *) xprt;
+	dom->nd_xprt = xprt;
 	rc = xprt->nx_ops->xo_dom_init(xprt, dom);
 	if (rc != 0) {
 		dom->nd_xprt = NULL; /* prevent call to xo_dom_fini */

@@ -612,7 +612,7 @@ static int mem_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 {
 	struct m0_net_bulk_mem_tm_pvt *tp;
 	struct m0_net_bulk_mem_work_item *wi_st_chg;
-	struct m0_net_xprt *xprt;
+	const struct m0_net_xprt *xprt;
 	int rc = 0;
 	int i;
 

@@ -302,7 +302,7 @@ static bool ut_tm_start_called = false;
 static int ut_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 {
 	int rc;
-	struct m0_net_xprt *xprt;
+	const struct m0_net_xprt *xprt;
 	struct m0_net_end_point *ep;
 
 	M0_UT_ASSERT(m0_mutex_is_locked(&tm->ntm_mutex));
