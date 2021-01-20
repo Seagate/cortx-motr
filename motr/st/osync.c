@@ -290,7 +290,7 @@ static void osync_by_sync_op(void)
 		stride *= 2;
 	}
 
-	/* Lauch and wait on sync op. */
+	/* Launch and wait on sync op. */
 	rc = m0_sync_op_init(&sync_op);
 	M0_ASSERT(rc == 0);
 	rc = m0_sync_entity_add(sync_op, &obj_to_sync->ob_entity);

@@ -482,6 +482,7 @@ static int ag_store_fom_tick(struct m0_fom *fom)
 	struct m0_cm_ag_store *store;
 	int                    phase = m0_fom_phase(fom);
 	int                    rc;
+	M0_ENTRY();
 
 	store = fom2store(fom);
 	rc = ag_store_action[phase](store);

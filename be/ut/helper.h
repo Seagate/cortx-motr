@@ -75,6 +75,10 @@ M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 					  const struct m0_be_domain_cfg *cfg,
 					  bool mkfs);
 
+M0_INTERNAL int
+m0_be_ut_backend_log_resize(struct m0_be_ut_backend *ut_be,
+			    const struct m0_be_domain_cfg *cfg);
+
 M0_INTERNAL void
 m0_be_ut_backend_seg_add2(struct m0_be_ut_backend	   *ut_be,
 			  m0_bcount_t			    size,

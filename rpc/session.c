@@ -252,6 +252,7 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 		M0_LOG(M0_ERROR, "Session %p initialisation failed: %d",
 		       session, rc);
 	m0_rpc_item_pending_cache_init(session);
+	m0_rpc_item_xid_list_init(session);
 
 	return M0_RC(rc);
 }
@@ -317,6 +318,7 @@ M0_INTERNAL void m0_rpc_session_fini_locked(struct m0_rpc_session *session)
 	m0_rpc_item_cache_fini(&session->s_reply_cache);
 	m0_rpc_item_cache_fini(&session->s_req_cache);
 	m0_rpc_item_pending_cache_fini(session);
+	m0_rpc_item_xid_list_fini(session);
 	if (rpc_session_tlink_is_in(session))
 		m0_rpc_conn_remove_session(session);
 	__session_fini(session);

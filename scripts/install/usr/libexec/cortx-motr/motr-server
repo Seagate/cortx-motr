@@ -35,6 +35,54 @@ ha_config="/etc/sysconfig/m0d-${1#m0d-}"
 kernel_config=/etc/sysconfig/motr-kernel
 service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 
+# BE log resize
+MD_DIR="/var/motr"
+M0BETOOL="m0betool"
+BE_REPLAY="be_recovery_run"
+BE_RESIZE="be_log_resize"
+
+service_fid=""
+
+be_log_resize() {
+   local new_be_log_size=""
+   local current_be_log_size=""
+
+   # Extract current BE log file size
+   new_be_log_size=$(grep -w MOTR_M0D_BELOG_SIZE $user_config | grep -v '#' | cut -d"=" -f2)
+   if [[ -z $new_be_log_size ]]; then
+      m0_log "BE log size is not configured"
+      return 0
+   fi
+   m0_log "Given BE log size: $new_be_log_size"
+
+   # Validate current BE LOG file size and New BE LOG file size
+   current_be_log_size=$(ls -l "$MD_DIR"/"$service_fid"/db-log/o/0:28 | awk '{ print $5 }')
+   if [[ $current_be_log_size == "" ]]; then
+      m0_log "Failed to get existing be log size"
+      return 1
+   fi
+
+   if [[ "$current_be_log_size" == "$new_be_log_size" ]]; then
+      m0_log "Current and New BE log sizes are equal"
+      return 0
+   fi
+   m0_log "Current BE log size:  $current_be_log_size"
+
+   # Replay exist BE log
+   if ! $($M0BETOOL $BE_REPLAY $MD_DIR/"$service_fid"/db); then
+      m0_log "m0d service $service_fid  log replay is failed"
+      return 0
+   fi
+   m0_log "Completed log_replay"
+
+   # Resizing BE log file size with new BE log size
+   if ! $($M0BETOOL $BE_RESIZE $MD_DIR/"$service_fid"/db $new_be_log_size); then
+      m0_log "m0d service $service_fid log resize is failed"
+      return 0
+   fi
+   m0_log "Completed log_resize with $new_be_log_size"
+}
+
 m0_server()
 {
     local service=$1
@@ -98,6 +146,7 @@ m0_server()
     local proc_fid="<$(m0_get_proc_fid_for $service)>"
     local be_seg0_path=
     local be_seg_path=
+    local be_seg_size=
 
     # @todo
     # These BE segment devices needs to pass through Motr configuration
@@ -109,6 +158,9 @@ m0_server()
 
     if [[ -n $MOTR_BE_SEG_PATH && -b $MOTR_BE_SEG_PATH ]]; then
         be_seg_path=" -B $MOTR_BE_SEG_PATH "
+        if [[ -n $MOTR_M0D_IOS_BESEG_SIZE ]]; then
+            be_seg_size=" -z $MOTR_M0D_IOS_BESEG_SIZE"
+        fi
     fi
 
     # mds and rms are expected to read local configuration until the
@@ -197,13 +249,23 @@ m0_server()
     }
 
     # show actual exec commands in log file
-    set -x
+    if [[ -n $MOTR_MOD_ADDB_RECORD_SIZE ]]; then
+       addb_opts=" -r ${MOTR_MOD_ADDB_RECORD_SIZE}"
+    fi
 
+    # m0d services log resize
+    if [[ "$2" != "m0mkfs" ]]; then
+       service_fid=$1
+       m0_log "Service FID: $service_fid"
+       be_log_resize
+    fi
+
+    set -x
     exec $binary -e $service_ep \
                     -A linuxstob:${addbstob_dir}addb-stobs \
                     -f $proc_fid $stob_type $stob_path $MOTR_M0D_OPTS \
-                       $be_seg0_path $be_seg_path \
-                       $stob_opts $cmd_opts $MOTR_M0D_EXTRA_OPTS
+                       $be_seg0_path $be_seg_path $be_seg_size \
+                       $stob_opts $cmd_opts $addb_opts $MOTR_M0D_EXTRA_OPTS
 }
 
 

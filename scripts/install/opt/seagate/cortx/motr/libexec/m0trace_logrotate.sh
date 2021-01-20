@@ -23,6 +23,8 @@
 # Default number of latest log files is 5
 # ./m0trace_logrotate.sh 5
 
+source "/opt/seagate/cortx/motr/common/cortx_util_funcs.sh"
+
 usage() { 
         echo "Usage: bash $(basename $0) [--help|-h]
                      [-n LogFileCount]
@@ -33,19 +35,6 @@ where:
               virtual  : Default count of log files is 2
 --help|-h     display this help and exit" 1>&2; 
         exit 1; 
-}
-
-get_platform() 
-{
-    plt=$(systemd-detect-virt)
- 
-    if [[ $plt = "none" ]]; then
-        plt="physical"
-    else
-        plt="virtual"
-    fi
-
-    echo "$plt"
 }
 
 check_param() 
@@ -70,6 +59,12 @@ log_files_max_count=5
 # have hard coded the log path, 
 # Need to get it from config file 
 motr_logdirs=`ls -d /var/motr*`
+M0TR_M0D_TRACE_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_TRACE_DIR" | cut -d '=' -f2)
+M0D_TRACE_DIR="${M0TR_M0D_TRACE_DIR%\'}"
+M0D_TRACE_DIR="${M0D_TRACE_DIR#\'}"
+if [ -n "$M0D_TRACE_DIR" ]; then
+    motr_logdirs="$motr_logdirs $M0D_TRACE_DIR"
+fi
 
 while getopts ":n:" option; do
     case "${option}" in

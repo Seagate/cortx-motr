@@ -1,0 +1,4 @@
+hsm_m0hsm_SOURCES = \
+	hsm/m0hsm.c \
+	hsm/m0hsm_api.c \
+	hsm/m0hsm_api.h

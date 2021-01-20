@@ -64,6 +64,7 @@ disk_pattern=
 linuxstob_mode=false
 client_apps=false
 use_m0t1fs=true
+loop_devsused=()
 
 #
 # Usage
@@ -319,17 +320,33 @@ setup_loop_devices()
     log "Setting up loop devices"
     for i in $(seq $imgs_cnt) ; do
         local img_file="$loop_img_dir/disk$i.img"
-        debug "/dev/loop$i => $img_file"
+        local free_loopdev=$(losetup -f)
+        loop_devsused[$i]=$free_loopdev
+        debug "$free_loopdev => $img_file"
         [[ -e $img_file ]] ||
             die "image file '$img_file' doesn't exist"
-        losetup /dev/loop$i "$img_file"
+        losetup $free_loopdev "$img_file"
     done
 }
 
 cleanup_loop_devices()
 {
+    local imgs_cnt=$pool_width
+
+    if $cas_enabled ; then
+        imgs_cnt=$((pool_width + ipool_width))
+    fi
+
     log "Removing loop devices"
-    losetup -D
+    for i in $(seq $imgs_cnt) ; do
+        local img_file="$loop_img_dir/disk$i.img"
+        if [[ -e $img_file ]] ; then
+            local loop_todel=$(losetup -j $img_file -O name | grep loop)
+            if [[ -n $loop_todel ]] ; then
+                losetup -d $loop_todel
+            fi
+        fi
+    done
 }
 
 cleanup_loop_images()
@@ -491,6 +508,7 @@ generate_disk_configs()
     local vopt=$( $verbose && echo '-v' )
     local disks_per_ios=$(( $pool_width / $ios_num ))
     local start_id=1
+    local pattern=""
 
     if [[ -n $disk_pattern ]] ; then
         local disks=( $(m0gendisks -l -d $pool_width -p "$disk_pattern") )
@@ -505,7 +523,9 @@ generate_disk_configs()
             $m0gendisks -d $disks_per_ios -S $start_id -o "$disks_conf" $vopt \
                         ${disks[@]:$((start_id - 1)):$disks_per_ios}
         else
-            local pattern="/dev/loop{${start_id}..$(( $start_id + $disks_per_ios - 1 ))}"
+            for j in $(seq $start_id $((disks_per_ios + start_id - 1)) ) ; do
+                pattern+="${loop_devsused[$j]} "
+            done
             debug "$disks_conf $pattern"
             $m0gendisks -d $disks_per_ios -S $start_id -p "$pattern" \
                         -o "$disks_conf" $vopt

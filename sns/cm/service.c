@@ -59,6 +59,7 @@ m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
 	cm = &sns_cm->sc_base;
 	*service = &cm->cm_service;
 	(*service)->rs_ops = svc_ops;
+	sns_cm->sc_magic = M0_SNS_CM_MAGIC;
 
 	rc = m0_cm_init(cm, container_of(stype, struct m0_cm_type, ct_stype),
 			cm_ops);

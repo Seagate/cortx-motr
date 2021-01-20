@@ -370,9 +370,9 @@ enum m0_fom_state {
 enum { M0_FOS_TRANS_NR = 8 };
 
 enum m0_fom_phase {
-	M0_FOM_PHASE_INIT,   /*< fom has been initialised. */
-	M0_FOM_PHASE_FINISH, /*< terminal phase. */
-	M0_FOM_PHASE_NR
+	M0_FOM_PHASE_INIT,   /*< 0 fom has been initialised. */
+	M0_FOM_PHASE_FINISH, /*< 1 terminal phase. */
+	M0_FOM_PHASE_NR      /*< 2 */
 };
 
 

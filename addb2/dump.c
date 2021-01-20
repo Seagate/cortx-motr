@@ -366,7 +366,7 @@ static void file_dump(struct m0_stob_domain *dom, const char *fname)
 	do {
 		result = m0_addb2_sit_init(&sit, stob, offset);
 		if (delay > 0 && result == -EPROTO) {
-			printf("Sleeping for %i seconds (%lx).\n",
+			printf("Sleeping for %i seconds (%"PRIx64").\n",
 			       delay, offset);
 			sleep(delay);
 			continue;
@@ -422,7 +422,7 @@ static void ptr(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 {
 	if (json_output)
 		/* JSON spec supports only decimal format (int and float) */
-		sprintf(buf, "{\"ptr\":%"PRId64"}", (long)*(void **)v);
+		sprintf(buf, "{\"ptr\":%"PRIu64"}", (uint64_t)*(void **)v);
 	else
 		sprintf(buf, "@%p", *(void **)v);
 }
@@ -468,13 +468,13 @@ static void _clock(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 	if (json_output) {
 		gmtime_r(&ts, &tm);
 		/* ISO8601 formating */
-		sprintf(buf, "\"%04d-%02d-%02dT%02d:%02d:%02d.%09luZ\"",
+		sprintf(buf, "\"%04d-%02d-%02dT%02d:%02d:%02d.%09"PRIu64"Z\"",
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 			tm.tm_hour, tm.tm_min, tm.tm_sec,
 			m0_time_nanoseconds(stamp));
 	}else {
 		localtime_r(&ts, &tm);
-		sprintf(buf, "%04d-%02d-%02d-%02d:%02d:%02d.%09lu",
+		sprintf(buf, "%04d-%02d-%02d-%02d:%02d:%02d.%09"PRIu64,
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 			tm.tm_hour, tm.tm_min, tm.tm_sec,
 			m0_time_nanoseconds(stamp));
@@ -653,9 +653,9 @@ static void sym(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 			buf += strlen(buf);
 		}
 		if (json_output)
-			sprintf(buf, "\"symbol\":{\"addr\":%"PRId64","
-				     "\"addr_ptr_wrap\":%"PRId64"}",
-				     (long)addr, v[0]);
+			sprintf(buf, "\"symbol\":{\"addr\":%"PRIu64","
+				     "\"addr_ptr_wrap\":%"PRIu64"}",
+				(uint64_t)addr, v[0]);
 		else
 			sprintf(buf, " @%p/%"PRIx64, addr, v[0]);
 	}
@@ -1170,11 +1170,11 @@ struct m0_addb2__id_intrp ids[] = {
 	{ M0_AVI_CLIENT_COB_REQ,      "cob-req-state", { &dec, &cob_req_state },
 	  { "cob_id", "cob_state" } },
 	{ M0_AVI_CLIENT_TO_COB_REQ,   "client-to-cob", { &dec, &dec },
-	  { "id", "cob_id" } },
+	  { "client_id", "cob_id" } },
 	{ M0_AVI_CLIENT_COB_REQ_TO_RPC, "cob-to-rpc",  { &dec, &dec },
 	  { "cob_id", "rpc_id" } },
 	{ M0_AVI_CLIENT_TO_IOO,       "client-to-ioo", { &dec, &dec },
-	  { "id", "ioo_id" } },
+	  { "client_id", "ioo_id" } },
 	{ M0_AVI_IOO_TO_RPC,   "ioo-to-rpc",    { &dec, &dec },
 	  { "ioo_id", "rpc_id" } },
 

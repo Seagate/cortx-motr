@@ -115,6 +115,7 @@ struct cgc_fom {
 	struct m0_long_lock_addb2  cg_dead_index_addb2;
 	struct m0_cas_ctg         *cg_ctg;
 	struct m0_ctg_op           cg_ctg_op;
+	bool                       cg_ctg_op_initialized;
 	struct m0_buf              cg_ctg_key;
 	struct m0_reqh            *cg_reqh;
 	m0_bcount_t                cg_del_limit;
@@ -218,6 +219,23 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
+		if (phase == M0_FOPH_FAILURE) {
+			struct m0_long_lock *ll;
+			ll = m0_ctg_lock(m0_ctg_dead_index());
+
+			M0_LOG(M0_DEBUG, "Cleanup CGC");
+			if (m0_long_is_write_locked(ll, fom0)) {
+				m0_long_unlock(ll, &fom->cg_dead_index);
+				M0_LOG(M0_DEBUG, "Lock released");
+			}
+
+			m0_ctg_fini(fom0, fom->cg_ctg);
+			if (fom->cg_ctg_op_initialized) {
+				m0_ctg_op_fini(ctg_op);
+				fom->cg_ctg_op_initialized = false;
+				M0_LOG(M0_DEBUG, "ctg op finalized");
+			}
+		}
 		result = m0_fom_tick_generic(fom0);
 		/*
 		 * Intercept generic fom control flow when starting transaction
@@ -226,8 +244,16 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		 * Seek for an index to drop and collect credits before
 		 * transaction initialized.
 		 */
-		if (phase == M0_FOPH_AUTHORISATION)
+		if (phase == M0_FOPH_AUTHORISATION) {
+			if (M0_FI_ENABLED("fail_in_cgc_generic_phase")) {
+				M0_LOG(M0_DEBUG, "Fail the FOM at TXN_INIT");
+				m0_fom_phase_move(fom0, -ENOMEM,
+						  M0_FOPH_FAILURE);
+				result = M0_FSO_AGAIN;
+				break;
+			}
 			m0_fom_phase_set(fom0, CGC_LOOKUP);
+		}
 		/*
 		 * Intercept generic fom control flow control after transaction
 		 * init but before its start complete: need to reserve credits.
@@ -244,6 +270,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		break;
 	case CGC_LOOKUP:
 		m0_ctg_op_init(ctg_op, fom0, 0);
+		fom->cg_ctg_op_initialized = true;
 		/*
 		 * Actually we need any value from the dead index. Min key value
 		 * is ok. Do not need to lock dead index here: btree logic uses
@@ -270,6 +297,13 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 					&fom->cg_dead_index,
 					M0_FOPH_TXN_INIT);
 			result = M0_FOM_LONG_LOCK_RETURN(result);
+
+			if (M0_FI_ENABLED("fail_after_index_found")) {
+				M0_LOG(M0_DEBUG, "Fail after CGC_INDEX_FOUND");
+				m0_fom_phase_move(fom0, -ENOMEM,
+						  M0_FOPH_FAILURE);
+				result = M0_FSO_AGAIN;
+			}
 		} else {
 			/*
 			 * -ENOENT is expected here meaning no entries in dead
@@ -287,6 +321,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 			m0_fom_phase_set(fom0, M0_FOPH_SUCCESS);
 		}
 		m0_ctg_op_fini(ctg_op);
+		fom->cg_ctg_op_initialized = false;
 		break;
 	case CGC_CREDITS:
 		/*
@@ -311,6 +346,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		 * all records from the tree but keep empty tree alive.
 		 */
 		m0_ctg_op_init(ctg_op, fom0, 0);
+		fom->cg_ctg_op_initialized = true;
 		result = m0_ctg_truncate(ctg_op, fom->cg_ctg,
 					 fom->cg_del_limit,
 					 CGC_TREE_DROP);
@@ -318,9 +354,11 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 	case CGC_TREE_DROP:
 		rc = m0_ctg_op_rc(ctg_op);
 		m0_ctg_op_fini(ctg_op);
+		fom->cg_ctg_op_initialized = false;
 		if (rc == 0 && m0_be_btree_is_empty(&fom->cg_ctg->cc_tree)) {
 			M0_LOG(M0_DEBUG, "tree cleaned, now drop it");
 			m0_ctg_op_init(ctg_op, fom0, 0);
+			fom->cg_ctg_op_initialized = true;
 			result = m0_ctg_drop(ctg_op, fom->cg_ctg,
 					     CGC_LOCK_DEAD_INDEX);
 		} else {
@@ -340,12 +378,15 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 	case CGC_LOCK_DEAD_INDEX:
 		m0_ctg_op_fini(ctg_op);
 		m0_ctg_op_init(ctg_op, fom0, 0);
-		result = m0_ctg_fini(ctg_op, fom->cg_ctg,
-				     CGC_RM_FROM_DEAD_INDEX);
+		fom->cg_ctg_op_initialized = true;
+		m0_ctg_fini(fom0, fom->cg_ctg);
+		m0_fom_phase_set(fom0, CGC_RM_FROM_DEAD_INDEX);
+		result = M0_FSO_AGAIN;
 		break;
 	case CGC_RM_FROM_DEAD_INDEX:
 		m0_ctg_op_fini(ctg_op);
 		m0_ctg_op_init(ctg_op, fom0, 0);
+		fom->cg_ctg_op_initialized = true;
 		/*
 		 * Now completely forget this ctg by deleting its descriptor
 		 * from "dead index" catalogue.
@@ -357,6 +398,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		m0_long_unlock(m0_ctg_lock(m0_ctg_dead_index()),
 			       &fom->cg_dead_index);
 		m0_ctg_op_fini(ctg_op);
+		fom->cg_ctg_op_initialized = false;
 		/*
 		 * Retry: maybe, have more trees to drop.
 		 */
@@ -446,9 +488,11 @@ static void cgc_start_fom(struct m0_fom *fom0, struct m0_fop *fop)
 	m0_fom_init(fom0, &fop->f_type->ft_fom_type,
 		    &cgc_fom_ops, fop, NULL, fom->cg_reqh);
 	fom0->fo_local = true;
+	fom->cg_ctg_op_initialized = false;
 	m0_long_lock_link_init(&fom->cg_dead_index, fom0,
 			       &fom->cg_dead_index_addb2);
 	m0_fom_queue(fom0);
+	M0_LOG(M0_DEBUG, "CGC fom enqueued");
 	M0_LEAVE();
 }
 
@@ -524,6 +568,7 @@ M0_INTERNAL void m0_cas_gc_start(struct m0_reqh_service *service)
 		/*
 		 * GC fom was not running, start it now.
 		 */
+		M0_LOG(M0_DEBUG, "Starting CGC fom");
 		M0_ALLOC_PTR(fom);
 		rc = m0_ctg_store_init(dom);
 		if (rc != 0 || fom == NULL) {

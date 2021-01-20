@@ -678,8 +678,8 @@ m0_be_log_record_io_prepare(struct m0_be_log_record *record,
 	struct m0_be_fmt_log_record_footer *footer;
 	struct m0_be_fmt_log_record_header *header;
 
-	M0_ENTRY("record=%p opcode=%d size_reserved=%lu",
-	         record, opcode, size_reserved);
+	M0_ENTRY("record=%p opcode=%d size_reserved=%"PRId64,
+		 record, opcode, size_reserved);
 
 	M0_PRE(m0_mutex_is_locked(log->lg_external_lock));
 	M0_PRE(m0_be_log__invariant(log));
@@ -874,7 +874,8 @@ M0_INTERNAL void m0_be_log_header__set(struct m0_be_fmt_log_header *hdr,
 				       m0_bindex_t                  lsn,
 				       m0_bcount_t                  size)
 {
-	M0_ENTRY("discarded=%lu lsn=%lu size=%lu", discarded, lsn, size);
+	M0_ENTRY("discarded=%"PRId64" lsn=%"PRId64" size=%"PRId64,
+		 discarded, lsn, size);
 
 	m0_be_fmt_log_header_reset(hdr);
 	hdr->flh_discarded  = discarded;

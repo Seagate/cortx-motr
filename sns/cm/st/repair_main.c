@@ -110,7 +110,7 @@ static void repair_reply_received(struct m0_rpc_item *item)
 		m0_rpc_item_remote_ep_addr(&rep_fop->f_item), req_op, trep->rc);
 	if (req_op == CM_OP_REPAIR_STATUS || req_op == CM_OP_REBALANCE_STATUS) {
 		srep = m0_fop_data(rep_fop);
-		printf(" status=%d progress=%lu\n", srep->ssr_state,
+		printf(" status=%d progress=%"PRIu64"\n", srep->ssr_state,
 		       srep->ssr_progress);
 	} else {
 		printf("\n");

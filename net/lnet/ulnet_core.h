@@ -44,12 +44,6 @@ struct nlx_ucore_domain {
 	m0_bcount_t                     ud_max_buffer_segment_size;
 	/** Cached maximum number of buffer segments. */
 	int32_t                         ud_max_buffer_segments;
-	/** Cached NID strings.  If LNet were to support dynamically configured
-	    NIDs, then this simple caching would have to be re-addressed.
-	 */
-        char                          **ud_nidstrs;
-	/** Number of references to the NID strings */
-	struct m0_atomic64              ud_nidstrs_refcount;
 	/** File descriptor to the kernel device. */
 	int                             ud_fd;
 };

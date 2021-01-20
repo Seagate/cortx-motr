@@ -167,6 +167,18 @@ enum m0_magic_satchel {
 	/* m0_be_active_record_domain_subsystem::rds_list (be glad blood) */
 	M0_BE_ACT_REC_DOM_SUB_MAGIC = 0x33be91adb100d77,
 
+	/* be_queue_item::bqi_magic (focoids based) */
+	M0_BE_QUEUE_Q_MAGIC = 0x33f0c01d5ba5ed77,
+
+	/* m0_be_queue::bq_q, m0_be_queue::bq_q_unused (scaffle ecoid) */
+	M0_BE_QUEUE_Q_HEAD_MAGIC = 0x335caff1eec01d77,
+
+	/* be_queue_wait_op::bwo_magic (discoid faced) */
+	M0_BE_QUEUE_OP_MAGIC = 0x33d15c01dfaced77,
+
+	/* m0_be_queue::bq_op_put*, m0_be_queue::bq_op_get* (coccoid slide) */
+	M0_BE_QUEUE_OP_HEAD_MAGIC = 0x33c0cc01d511de77,
+
 /* m0t1fs */
 	/* m0t1fs_sb::s_magic (cozie filesis) */
 	M0_T1FS_SUPER_MAGIC = 0x33c021ef11e51577,
@@ -820,6 +832,9 @@ enum m0_magic_satchel {
 	/* pending_item_tl::td_head_magic (doss doze dose) */
 	M0_RPC_ITEM_PENDING_CACHE_HEAD_MAGIC = 0x33D055D02ED05E77,
 
+	/* xidl_tl::td_head_magic (solid el cache) */
+	M0_RPC_ITEM_XID_LIST_HEAD_MAGIC = 0x335011de1cac4e77,
+
 	/* m0_rpc_item_source::ri_magic (ACCESSIBLE AC) */
 	M0_RPC_ITEM_SOURCE_MAGIC = 0x33ACCE551B1EAC77,
 
@@ -1082,6 +1097,8 @@ enum m0_magic_satchel {
 	M0_DIX_ROP_MAGIC       = 0x33ba51c0115eed77,
 	/** cas_rop_tlist head magic (basic offload) */
 	M0_DIX_ROP_HEAD_MAGIC  = 0x33ba51c0ff10ad77,
+	/** struct m0_dix_cm::dcm_magic (dixdixdixdix) */
+	M0_DIX_CM_MAGIC        = 0x33d18d18d18d1877,
 /* FDMI */
 	/* m0_reqh_fdmi_service::rfdms_magic (abide dazzled) */
 	M0_FDMS_REQH_SVC_MAGIC = 0x33ab1deda221ed77,

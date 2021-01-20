@@ -339,17 +339,20 @@ M0_INTERNAL int m0_reqhs_init(void)
 
 #ifndef __KERNEL__
 M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, const char *location,
-				   uint64_t key, bool mkfs, bool force)
+				   uint64_t key, bool mkfs, bool force,
+				   m0_bcount_t size)
 {
 	struct m0_addb2_sys *sys  = m0_fom_dom()->fd_addb2_sys;
 	struct m0_addb2_sys *gsys = m0_addb2_global_get();
 	int                  result;
 
+	if (size == 0)
+		size = DEFAULT_ADDB2_RECORD_SIZE;
 	/**
-	 * @todo replace size constant (10GB)  with a value from confc.
+	 * @todo replace size constant (size)  with a value from confc.
 	 */
 	result = m0_addb2_sys_stor_start(sys, location, key, mkfs, force,
-					 10ULL << 30);
+					 size);
 	if (result == 0) {
 		result = m0_addb2_sys_net_start(sys);
 		if (result == 0) {
@@ -364,7 +367,8 @@ M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, const char *location,
 
 #else /* !__KERNEL__ */
 M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, const char *location,
-				   uint64_t key, bool mkfs, bool force)
+				   uint64_t key, bool mkfs, bool force,
+				   m0_bcount_t size)
 {
 	struct m0_addb2_sys *sys = m0_fom_dom()->fd_addb2_sys;
 	int                  result;
@@ -437,7 +441,7 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	struct m0_reqh_service            *svc;
 	const struct m0_reqh_service_type *stype;
 
-	M0_ENTRY();
+	M0_ENTRY("fop:%p, reqh:%p", fop, reqh);
 	M0_PRE(reqh != NULL);
 	M0_PRE(fop != NULL && fop->f_type != NULL);
 
