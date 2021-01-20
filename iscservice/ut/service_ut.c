@@ -41,7 +41,6 @@
 static struct m0_reqh_service *iscs;
 static struct m0_rpc_server_ctx isc_ut_sctx;
 static struct m0_rpc_client_ctx isc_ut_cctx;
-static struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain isc_ut_client_ndom;
 static uint32_t cc_type;
 static const char *SERVER_LOGFILE = "isc_ut.log";
@@ -145,8 +144,8 @@ int isc_ut_server_start(void)
 	int rc = 0;
 
 	M0_SET0(&isc_ut_sctx);
-	isc_ut_sctx.rsx_xprts         = &xprt;
-	isc_ut_sctx.rsx_xprts_nr      = 1;
+	isc_ut_sctx.rsx_xprts         = m0_net_all_xprt_get();
+	isc_ut_sctx.rsx_xprts_nr      = m0_net_xprt_nr();
 	isc_ut_sctx.rsx_argv          = isc_ut_server_args;
 	isc_ut_sctx.rsx_argc          = ARRAY_SIZE(isc_ut_server_args);
 	isc_ut_sctx.rsx_log_file_name = SERVER_LOGFILE;
@@ -175,7 +174,7 @@ static void isc_ut_client_start(void)
 	int rc;
 
 	M0_SET0(&isc_ut_cctx);
-	rc = m0_net_domain_init(&isc_ut_client_ndom, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(&isc_ut_client_ndom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 	isc_ut_cctx.rcx_remote_addr = SERVER_ENDPOINT_ADDR;
 	isc_ut_cctx.rcx_max_rpcs_in_flight = 10;

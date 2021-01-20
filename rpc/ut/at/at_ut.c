@@ -30,7 +30,6 @@
 #include "reqh/reqh_service.h"
 #include "rpc/rpc_opcodes.h"
 #include "net/net.h"
-#include "net/lnet/lnet.h"      /* m0_net_lnet_xprt */
 #include "net/buffer_pool.h"
 #include "ut/ut.h"
 #include "rpc/rpc.h"
@@ -474,7 +473,7 @@ static void client_start(void)
 	struct m0_rpc_client_ctx *cl_rpc_ctx = &at_cctx.acl_rpc_ctx;
 	int                       rc;
 
-	rc = m0_net_domain_init(&at_cctx.acl_ndom, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(&at_cctx.acl_ndom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 
 	cl_rpc_ctx->rcx_net_dom            = &at_cctx.acl_ndom;
@@ -523,11 +522,10 @@ static void reqh_stop(void)
 
 static void reqh_init(void)
 {
-	struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
 	int                 rc;
 
 	M0_SET0(&atreqh);
-	rc = m0_net_domain_init(&atreqh.aur_net_dom, xprt);
+	rc = m0_net_domain_init(&atreqh.aur_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_net_buffer_pool_setup(&atreqh.aur_net_dom,
 					  &atreqh.aur_buf_pool,
