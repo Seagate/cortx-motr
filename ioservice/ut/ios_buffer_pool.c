@@ -21,7 +21,6 @@
 
 
 #include "ioservice/io_service.c"
-#include "net/bulk_mem.h"         /* m0_net_bulk_mem_xprt */
 #include "ut/misc.h"              /* M0_UT_PATH */
 #include "ut/ut.h"
 
@@ -69,12 +68,6 @@ static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
-/* Transports used in motr context. */
-static struct m0_net_xprt *cs_xprts[] = {
-	&m0_net_lnet_xprt,
-	&m0_net_bulk_mem_xprt
-};
-
 #define SERVER_LOG_FILE_NAME "cs_ut.errlog"
 
 static int get_ioservice_buffer_pool_count(struct m0_rpc_server_ctx *sctx)
@@ -96,13 +89,13 @@ static int check_buffer_pool_per_domain(char *cs_argv[], int cs_argc, int nbp)
 	int rc;
 	int bp_count;
 	struct m0_rpc_server_ctx sctx = {
-		.rsx_xprts            = cs_xprts,
-		.rsx_xprts_nr         = ARRAY_SIZE(cs_xprts),
 		.rsx_argv             = cs_argv,
 		.rsx_argc             = cs_argc,
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
 	};
 
+	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 

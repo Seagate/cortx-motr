@@ -42,8 +42,7 @@ static int rpc_mc_ut_init(void)
 	enum { NR_TMS = 1 };
 	int      rc;
 	uint32_t bufs_nr;
-
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 
 	bufs_nr = m0_rpc_bufs_nr(tm_recv_queue_min_len, NR_TMS);
