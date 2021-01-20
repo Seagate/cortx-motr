@@ -11,7 +11,10 @@
    - [3.3:Motr-Hare-HA-Notification](#3.3:Motr-Hare-HA-Notification)
 - [4:Sequence-Flow-R2](#4:Sequence-Flow-R2)
    - [4.1:Simple-Object-Get](#4.1:Simple-Object-Get)
-   - [4.2:Simple-Object-Put](#$.2:Simple-Object-Put)
+   - [4.2:Simple-Object-Put](#4.2:Simple-Object-Put)
+   - [4.3:Failed-Node-Scenario](#4.3:Failed-Node-Scenario)
+      - [4.3.1:Simple-Object-Get/Read](#4.3.1:Simple-Object-Get/Read)
+      - [4.3.2:Simple-Object-Put/Write](#4.3.2:Simple-Object-Put/Write)
 
 # Acronyms
 | **Abbreviation** | **Description** |
@@ -146,6 +149,18 @@ Motr will notify Hare when there is any error in accessing storage (STOB IO Erro
 
 # 4:Sequence-Flow-R2
 This section will have sequence flow diagram for all the case in motr R2
+Following is the configuration for the sequence flow diagram
+* Two Storage Set (SS) in cluster
+* Each storage set with 3 nodes
+* Single node failure in a SS is allowed
+* Global bucket is replicated across all nodes of cluster (N):
+   - This is small amount of global bucket data
+   - Frequency of creation of this bucket data is low
+   - Replication to all nodes allows each storage set to easily support one node failure and will also help with case of Storage Set addition.
+   - Full replication will help in performance as global metadata lookup can be done on local node/DG. 
+   - Mimimum replication for global metadata needed in a storage set is 1+K 
+* Similarly Local S3 metadata should be replicated across atleast 1+K nodes/DG
+* Data is striped across DG in 4+2 parity config (K=2)
 
 ## 4.1:Simple-Object-Get
 Sequence flow for simple object get is shown in figure below
@@ -179,33 +194,20 @@ Sequence flow for simple object get is shown in figure below
 
 ![Simple Object Put](images/simple_object_put.png)
 
-# **NOTE: WIP**
+## 4.3:Failed-Node-Scenario
+The sequence diagram below describes GET/PUT flow for the scenario where node is failed and failure is registered by CORTX stack.
 
-## Basic Assumptions
-Following are the basic assumptions for creating the sequence flow for various error scenarios
-- Global Bucket list is replicated across stroage set.
--- Lookup into global metadata will give Stroage Set where the bucket list and data reside
-- Bucket Object List Table is replcated within storage set
--- Bucket Object List Table if we make this global than size of global data inreases lot? So this should be within storage set, but objects can be part of different storage set but Object data does not span across storage set ?
+### 4.3.1:Simple-Object-Get/Read
+* Read path error handling avoids communicating with failed node for metadata and data operations.
+![Failed Node 1](images/simple_object_get_failed_node.png)
 
-## Initial Condition : 
-* Two Storage Set (SS) in cluster
-* Each storage set with 3 nodes
-* Single failure in a node is allowed
-* Global bucket is replicated across all nodes of cluster (N):
-   - This is small amount of global bucket data
-   - Frequency of creation of this bucket data is low
-   - Replication to all nodes allows each storage set to easily support one node failure and will also help with case of Storage Set addition.
-   -- Full replication will help in performance, mimimum replication needed in a storage set is #num_of_node_failure_in_storage_set + 1 
-* Local S3 metadata should be replicated across atleast 3 nodes of a storage set
-   - Replication of data across 3 nodes of storage set, will helps in node failure     
-* Data is striped in 4+2 parity config
+### 4.3.2:Simple-Object-Put/Write
+* Write path error handling avoids communicating with failed node for metadata and data operations.
+![Failed Node 2](images/simple_object_put_failed_node.png)
 
-## DTM Usage
-This section will analyze the DTM usage in various scenario with assumption that
+### 4.3.3:Registration-of-failed-node
 
-
-### Scenario
+# WIP
 Following scenario will be analyzed w.r.t. DTM role to restore storage system to consistent state w.r.t metadata and data.
 
 - IO Failure: Node or IO Service going down temporarily
@@ -246,12 +248,4 @@ But the DTM is mandatory for keeping the cluster distributed metadata in consist
 ## Error Scenario : 
 * One node from each storage set (SS) has failed.
 * Motr is aware of failure and Hare has notified to motr about the node failure
-
-## 1. Simple Object Get/Read
-* Read path error handling avoids communicating with failed node for metadata and data operations.
-![Failed Node 1](images/simple_object_get_failed_node.png)
-
-## 2. Simple Object Put/Write
-* Write path error handling avoids communicating with failed node for metadata and data operations.
-![Failed Node 2](images/simple_object_put_failed_node.png)
 
