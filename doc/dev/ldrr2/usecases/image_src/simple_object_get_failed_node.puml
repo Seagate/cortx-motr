@@ -26,7 +26,7 @@ end box
 
 client -> N1: GET /bucket_name/object_name
 
-== Lookup 1 : Global bucket ==
+== Lookup 1 : Global Bucket Index (global) ==
 N1 -> N5: get_keyval(global_bucket_index,\n key = "bucket_name")
 N5 --> N1: value = account_id of bucket owner
 
@@ -34,7 +34,7 @@ note left
    __** Communication with Node4 in SS2 is avoided **__
 end note
 
-== Lookup 2 : Global Bucket ==
+== Lookup 2 : Bucket List Index (global) ==
 N1 -> N3: get_keyval(global_bucket_md_index,\n key = "account_id/bucket_name")
 N3 --> N1: value = bucket metadata JSON
 
@@ -42,7 +42,7 @@ note left
    __** Communication with Node2 in SS1 is avoided **__
 end note
 
-== Lookup 3 : Local Storage Set  ==
+== Lookup 3 : Object List Index (local)  ==
 N1 -> N6: get_keyval(BUCKET_nnn_obj_index,\n key = "object_name");
 N6 --> N1: not found
 
@@ -64,6 +64,7 @@ loop until all data is read
 note left
    * Two of the Read Data is missing 1 & 2
    * __**Decode Data using P1 & P2, 3 & 4**__
+   * Storage Set of Object and Object List Index can be different
 end note
   "N1" -> N1 : Decode (Read 1 & 2)    
 end
