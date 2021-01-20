@@ -49,6 +49,9 @@
 enum m0_parity_cal_algo {
         M0_PARITY_CAL_ALGO_XOR,
         M0_PARITY_CAL_ALGO_REED_SOLOMON,
+#ifndef __KERNEL__
+	M0_PARITY_CAL_ALGO_ISAL,
+#endif /* __KERNEL__ */
 	M0_PARITY_CAL_ALGO_NR
 };
 
@@ -119,7 +122,17 @@ struct m0_parity_math {
 	struct m0_matvec	     pmi_sys_res;
 	struct m0_linsys	     pmi_sys;
 	/* Data recovery matrix that's inverse of pmi_sys_mat. */
-	struct m0_matrix             pmi_recov_mat;
+	struct m0_matrix	     pmi_recov_mat;
+
+#ifndef __KERNEL__
+	/* ISA-L: Data encode matrix. */
+	uint8_t 		    *encode_matrix;
+	/* ISA-L: Pointer to array of input tables generated
+	 * from encoding coefficients. it is needed for fast
+	 * encode or decode for erasure codes on blocks of data.
+	 * 32bytes are generated for eachinput coefficient.*/
+	uint8_t			    *g_tbls;
+#endif /* __KERNEL__ */
 };
 
 /* Holds information essential for incremental recovery. */
