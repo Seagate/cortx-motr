@@ -53,7 +53,6 @@ static void test_net_modules(void)
 
 	m0_free0(&inst->i_moddata[M0_MODULE_NET]);
 }
-
 struct m0_ut_suite m0_net_module_ut = {
 	.ts_name  = "net-module",
 	.ts_tests = {

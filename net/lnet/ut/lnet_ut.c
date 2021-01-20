@@ -414,9 +414,9 @@ static void ut_test_framework(ut_test_fw_body_t body,
 			      ut_test_fw_prestart_cb_t ps_cb,
 			      int dbg)
 {
-	struct ut_data *td;
-	int i;
-	int rc;
+	struct ut_data     *td;
+	int                 i;
+	int                 rc;
 
 	/*
 	  Setup.
