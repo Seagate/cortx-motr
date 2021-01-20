@@ -20,7 +20,8 @@
 ---
 Tests:
   - id       : 00userspace-tests
-    script   : 'm0run m0ut'
+    # Run repeatedly twice. I will remove it later
+    script   : 'm0run m0ut -- -n 2'
     dir      : src/utils/
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
