@@ -637,13 +637,11 @@ static const struct m0_net_xprt_ops nlx_xo_xprt_ops = {
    @{
  */
 
-#ifdef ENABLE_LUSTRE
 struct m0_net_xprt m0_net_lnet_xprt = {
 	.nx_name = "lnet",
 	.nx_ops  = &nlx_xo_xprt_ops
 };
 M0_EXPORTED(m0_net_lnet_xprt);
-#endif
 
 /**
    @}

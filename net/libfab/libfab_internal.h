@@ -24,13 +24,15 @@
 
 #ifndef __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__
 #define __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__
-#include <netinet/in.h>                    /* INET_ADDRSTRLEN */
+#include <netinet/in.h>                  /* INET_ADDRSTRLEN */
 
 #include "rdma/fabric.h"
 #include "rdma/fi_cm.h"
 #include "rdma/fi_domain.h"
 #include "rdma/fi_eq.h"
 #include "rdma/fi_endpoint.h"
+#include "rdma/fi_rma.h"
+#include "lib/cookie.h"
 
 extern struct m0_net_xprt m0_net_libfab_xprt;
 
@@ -40,21 +42,10 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  * @{
  */
 
-/**
- *    Private data pointed to by m0_net_buffer::nb_xprt_private.
- * 
- */
-struct m0_fab__buf {
-	uint64_t               fb_magic;  /* Magic number */
-	struct m0_net_buffer  *fb_nb;     /* Pointer back to network buffer*/
-	struct fid_mr         *fb_mr;     /* Libfab memory region */
-	struct m0_tlink        fb_linkage;/* Linkage in list of completed bufs*/
-	m0_bindex_t            fb_length; /* Total size of data to be received*/
-};
-
 struct m0_fab__ep_name {
 	char fen_addr[INET6_ADDRSTRLEN];       /*  */
 	char fen_port[6];                      /* Port range 0-65535 */
+	char fen_str_addr[INET6_ADDRSTRLEN+6+1];
 };
 
 struct m0_fab__ep_res {
@@ -86,6 +77,23 @@ struct m0_fab__tm {
 	struct m0_fab__ep         *ftm_pep;     /* Passive ep(listening mode) */
 	bool                       ftm_shutdown;/* tm Shutdown flag */
 	struct m0_tl               ftm_done;    /* List of completed buffers */
+	struct m0_mutex            ftm_endlock; /* Used betn poller & tm_fini */
+};
+
+/**
+ *    Private data pointed to by m0_net_buffer::nb_xprt_private.
+ *
+ */
+struct m0_fab__buf {
+	uint64_t               fb_magic;    /* Magic number */
+	uint64_t               fbp_cookie;  /* Cookie identifying the buffer */
+	uint64_t               fb_mr_key;   /* Memory registration key */
+	void                  *fb_mr_desc;  /* Buffer descriptor */
+	struct m0_net_buffer  *fb_nb;       /* Pointer back to network buffer*/
+	struct fid_mr         *fb_mr;       /* Libfab memory region */
+	struct m0_fab__ep     *fb_ev_ep;
+	struct m0_tlink        fb_linkage;  /* Linkage in list of completed bufs*/
+	m0_bindex_t            fb_length;   /* Total size of data to be received*/
 };
 
 /** @} end of netlibfab group */

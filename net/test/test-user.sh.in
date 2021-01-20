@@ -68,6 +68,13 @@ CONSOLE_IF=$5
 SERVER_IF=$6
 CLIENT_IF=$7
 COMMON_PARAMS="$2 $3 $4 $5 $6 $7"
+
+# Bulk parameters
+BD_BUF_NR_CLIENT=16
+BD_BUF_NR_SERVER=32
+BD_BUF_SIZE=4k
+BD_BUF_NR_MAX=8
+
 shift 7
 
 job_id_add() {
@@ -76,6 +83,13 @@ job_id_add() {
 
 run_libfab_console() {
         echo "type : $TEST_TYPE msg_nr : $MSG_NR msg_size : $MSG_SIZE con-ser : $CONCUR_SERVER con-cli : $CONCUR_CLIENT"
+        if [ "$TEST_TYPE" == "bulk" ]; then
+            BULK_PARAMETERS="-B $BD_BUF_NR_SERVER \
+                             -b $BD_BUF_NR_CLIENT \
+                             -f $BD_BUF_SIZE \
+                             -g $BD_BUF_NR_MAX"
+        fi
+
         @abs_top_srcdir@/net/test/user_space/m0nettest \
                 -t $TEST_TYPE \
                 -n $MSG_NR \
@@ -87,7 +101,8 @@ run_libfab_console() {
                 -C "$SERVER_IF:200" \
                 -c "$CLIENT_IF:300" \
                 -D "$SERVER_IF:236" \
-                -d "$CLIENT_IF:248" &
+                -d "$CLIENT_IF:248" \
+                $BULK_PARAMETERS &
         job_id_add
 }
 
@@ -127,7 +142,7 @@ run_ssh() {
 }
 
 if [ "$ROLE" = "console" ]; then
-	TEST_TYPE=$1
+	TEST_TYPE="ping"
 	MSG_NR=$2
 	MSG_SIZE=$3
 	CONCUR_SERVER=$4
@@ -154,6 +169,11 @@ if [ "$ROLE" = "console" ]; then
 	sleep 3
 	if [ "$NET_XTR" = "1" ]
 	then
+		echo "Running ping test"
+		run_lnet_console
+		sleep 3
+		echo "Running bulk test"
+		TEST_TYPE="bulk"
 		run_lnet_console
 	else
 		run_libfab_console
