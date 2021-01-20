@@ -28,7 +28,6 @@
 #include "motr/magic.h"	/* M0_NET_TEST_NETWORK_BD_MAGIC */
 
 #include "net/net.h"		/* m0_net_buffer */
-#include "net/lnet/lnet.h"	/* m0_net_lnet_xprt */
 
 #include "net/test/network.h"
 
@@ -284,7 +283,7 @@ static int net_test_network_ctx_initfini(struct m0_net_test_network_ctx *ctx,
 	if (ctx->ntc_ep == NULL)
 		goto free_buf_bulk;
 
-	rc = m0_net_domain_init(ctx->ntc_dom, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(ctx->ntc_dom, m0_net_xprt_default_get());
 	if (rc != 0)
 		goto free_ep;
 

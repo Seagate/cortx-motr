@@ -35,7 +35,6 @@
 
 #include "lib/types.h"          /* uint32_t */
 #include "fid/fid.h"            /* m0_fid */
-#include "net/lnet/lnet.h"      /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"         /* m0_rpc_client_connect */
 
 
@@ -48,7 +47,8 @@ M0_INTERNAL void m0_ha_ut_rpc_ctx_init(struct m0_ha_ut_rpc_ctx *ctx)
 	const char    *ep          = "0@lo:12345:42:100";
 	int            rc;
 
-	rc = m0_net_domain_init(&ctx->hurc_net_domain, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(&ctx->hurc_net_domain,
+				m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_net_buffer_pool_setup(&ctx->hurc_net_domain,
 					  &ctx->hurc_buffer_pool,
