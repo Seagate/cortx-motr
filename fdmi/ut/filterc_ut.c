@@ -151,9 +151,7 @@ static int ut_filterc_fco_start(struct m0_filterc_ctx *ctx,
 static void rpc_client_and_server_start(void)
 {
 	int rc;
-
 	M0_SET0(&sctx.rsx_motr_ctx);
-
 	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 	sctx.rsx_xprts = m0_net_all_xprt_get();
