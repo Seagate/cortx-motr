@@ -27,7 +27,7 @@ end box
 
 client -> N1: PUT /bucket_name/object_name
 
-== Lookup 1 : Global bucket ==
+== Lookup 1 : Global Bucket Index (global) ==
 N1 -> N5: get_keyval(global_bucket_index,\n key = "bucket_name")
 N5 --> N1: value = account_id of bucket owner
 
@@ -35,7 +35,7 @@ note left
    __** Communication with Node4 in SS2 is avoided **__
 end note
 
-== Lookup 2 : Global Bucket ==
+== Lookup 2 : Bucket List Index (global) ==
 N1 -> N3: get_keyval(global_bucket_md_index,\n key = "account_id/bucket_name")
 N3 --> N1: value = bucket metadata JSON
 
@@ -43,7 +43,7 @@ note left
    __** Communication with Node2 in SS1 is avoided **__
 end note
 
-== Lookup 3 : Local Storage Set  ==
+== Lookup 3 : Object List Index (local)  ==
 N1 -> N6: get_keyval(BUCKET_nnn_obj_index,\n key = "object_name");
 N6 --> N1: not found
 
@@ -52,35 +52,48 @@ N1 -> N1: create_object
 N1 --> N1: success (completed)
 
 loop until all data is written
-  N1 -> "N5": Write data 3
+  N1 -> "N5": Write data 1
 note left
    * Original Data Config: 4+2 parity
    * __**Due to failure of node, switching to pool with 2+2 parity in storage set**__
 end note
   "N5" -> CL_5
-  N1 -> "N5": Write data 4
+  N1 -> "N5": Write data 2
   "N5" -> CR_5
+
+group Parity Unit Write [ K = 2 ]  
   N1 -> "N6": Write data P1
   "N6" -> CL_6
   N1 -> "N6": Write data P2
   "N6" -> CR_6
+end  
 
-  N5 --> N1: Success (write 3 & 4)
+  N5 --> N1: Success (write 1 & 2)
   N6 --> N1: Success (write P1 & P2)
 end
 
 == Local SS metadata write ==
-
+group Meta Data Write [ Original ]
 N1 -> N5: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
 N5 --> N1: success (completed)
+end
 note left
    * Original Metadata Config: 1+2 replication
-   * __**Due to failure of node, switching to 1+1 replication in storage set**__
+   * __**Note: Due to failure of node, writing to both DG of a node to retain 1+2 format**__
 end note
 
+group Meta Data Replication [ K = 2]
 N1 -> N6: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
-N6 --> N1: success (completed)
-
+"N6" -> CL_6
+N1 -> N6: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
+"N6" -> CR_6
+CL_6 --> N1: success (Left)
+CR_6 --> N1: success (Right)
+end
 N1 --> client: 200 OK
+note left
+   * **Note: For Node-5, metadata can be written to any of the controller so not shown specific controller**
+end note
+
 @enduml
 ```
