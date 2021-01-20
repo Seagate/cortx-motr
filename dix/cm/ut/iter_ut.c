@@ -51,6 +51,8 @@ static struct m0_be_seg        *seg0;
 static struct m0_reqh_service  *repair_svc;
 static struct m0_reqh_service  *rebalance_svc;
 static struct m0_fom_type       ut_fom_type;
+static struct m0_fom_type       ut_fom_type_rep;
+static struct m0_fom_type       ut_fom_type_reb;
 
 static struct m0_pool         pool;
 static struct m0_pools_common pc;
@@ -656,12 +658,25 @@ static void iter_ut_init(struct m0_reqh_service      **svc,
 	m0_reqh_service_start(*svc);
 	m0_reqh_start(&reqh);
 	m0_ctg_store_init(&be.but_dom);
-	m0_fom_type_init(&ut_fom_type,
-			 stype == &dix_repair_cmt.ct_stype ?
-				M0_CM_DIX_REP_ITER_UT_OPCODE :
-				M0_CM_DIX_REB_ITER_UT_OPCODE,
-			 &iter_ut_fom_type_ops, stype,
-			 &iter_ut_fom_conf);
+
+	if (stype == &dix_repair_cmt.ct_stype) {
+		/* If a fom type called m0_fom_type_init() once,
+		 * it has already registered. And another call
+		 * won't change its type. So we have to use another
+		 * variable to switch between different fom types.
+		 */
+		m0_fom_type_init(&ut_fom_type_rep,
+				 M0_CM_DIX_REP_ITER_UT_OPCODE,
+				 &iter_ut_fom_type_ops, stype,
+				 &iter_ut_fom_conf);
+		ut_fom_type = ut_fom_type_rep;
+	} else {
+		m0_fom_type_init(&ut_fom_type_reb,
+				 M0_CM_DIX_REB_ITER_UT_OPCODE,
+				 &iter_ut_fom_type_ops, stype,
+				 &iter_ut_fom_conf);
+		ut_fom_type = ut_fom_type_reb;
+	}
 }
 
 static void iter_ut_pool_fini()
@@ -3363,8 +3378,8 @@ static void user_concur_reb(void)
 	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
-struct m0_ut_suite dix_cm_iter_ut_rep = {
-	.ts_name   = "dix-cm-iter-rep",
+struct m0_ut_suite dix_cm_iter_ut = {
+	.ts_name   = "dix-cm-iter",
 	.ts_owners = "Egor",
 	.ts_init   = NULL,
 	.ts_fini   = NULL,
@@ -3385,15 +3400,6 @@ struct m0_ut_suite dix_cm_iter_ut_rep = {
 		{ "user-concur-rep",     user_concur_rep,     "Sergey" },
 		{ "ctg-del-concur-rep1", ctg_del_concur_rep1, "Sergey" },
 		{ "ctg-del-concur-rep2", ctg_del_concur_rep2, "Sergey" },
-	}
-};
-
-struct m0_ut_suite dix_cm_iter_ut_reb = {
-	.ts_name   = "dix-cm-iter-reb",
-	.ts_owners = "Egor",
-	.ts_init   = NULL,
-	.ts_fini   = NULL,
-	.ts_tests  = {
 		{ "reb-coordinator",     reb_coordinator,     "Sergey" },
 		{ "one-dev-reb",         one_dev_reb,         "Sergey" },
 		{ "outside-dev-reb",     outside_dev_reb,     "Sergey" },
