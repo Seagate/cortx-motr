@@ -922,7 +922,7 @@ static int libfab_ep_rxres_init(struct m0_fab__active_ep *aep,
 	rc = fi_ep_bind(aep->aep_rxep, &tm->ftm_rctx->fid, 0);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
-
+#endif /* #if 0 */
 	return M0_RC(rc);
 }
 
@@ -1962,6 +1962,135 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 	return M0_RC(ret);
 }
 
+static void libfab_ep_put(struct m0_fab__ep *ep)
+{
+	m0_ref_put(&ep->fep_nep.nep_ref);
+}
+
+static void libfab_ep_get(struct m0_fab__ep *ep)
+{
+	m0_ref_get(&ep->fep_nep.nep_ref);
+}
+
+/**
+ * End-point finalisation call-back.
+ *
+ * Used as m0_net_end_point::nep_ref::release(). This call-back is called when
+ * end-point reference count drops to 0.
+ */
+static void libfab_ep_release(struct m0_ref *ref)
+{
+	struct m0_net_end_point *nep;
+	struct m0_fab__ep       *ep;
+	struct m0_fab__tm       *tm;
+
+	nep = container_of(ref, struct m0_net_end_point, nep_ref);
+	ep = libfab_ep_net(nep);
+	tm = nep->nep_tm->ntm_xprt_private;
+
+	m0_nep_tlist_del(nep);
+	libfab_ep_param_free(ep, tm);
+	
+}
+
+static uint64_t libfab_mr_keygen(void)
+{
+	uint64_t key = FAB_MR_KEY + mr_key_idx;
+	mr_key_idx++;
+	return key;
+}
+
+static int libfab_check_for_event(struct fid_eq *eq)
+{
+	struct fi_eq_cm_entry entry;
+	uint32_t              event = 0;
+	ssize_t               rd;
+
+	rd = fi_eq_sread(eq, &event, &entry, sizeof(entry),
+			 LIBFAB_WAITSET_TIMEOUT, 0);
+	if (rd == -FI_EAVAIL) {
+		struct fi_eq_err_entry err_entry;
+		fi_eq_readerr(eq, &err_entry, 0);
+		M0_LOG(M0_ALWAYS, "%s %s\n", fi_strerror(err_entry.err),
+			fi_eq_strerror(eq, err_entry.prov_errno,
+			err_entry.err_data,NULL, 0));
+		return rd;
+	}
+
+	return event;
+}
+
+static int libfab_check_for_comp(struct fid_cq *cq, struct m0_fab__buf **ctx)
+{
+	struct fi_cq_err_entry entry;
+	int                    ret;
+	
+	ret = fi_cq_read(cq, &entry, 1);
+	if (ret > 0) {
+		*ctx = (struct m0_fab__buf *)entry.op_context;
+	}
+	else if (ret != -FI_EAGAIN) {
+		struct fi_cq_err_entry err_entry;
+		fi_cq_readerr(cq, &err_entry, 0);
+		M0_LOG(M0_ALWAYS, "%s %s\n", fi_strerror(err_entry.err),
+			fi_cq_strerror(cq, err_entry.prov_errno,
+			err_entry.err_data,NULL, 0));
+	}
+
+	return ret;
+}
+
+static void libfab_tm_fini(struct m0_net_transfer_mc *tm)
+{
+	struct m0_fab__tm *ma = tm->ntm_xprt_private;
+	int                rc = 0;
+
+	M0_ENTRY();
+
+	if (!ma->ftm_shutdown) {
+		libfab_tm_lock(ma);
+		m0_mutex_lock(&ma->ftm_endlock);
+		ma->ftm_shutdown = true;
+		m0_mutex_unlock(&ma->ftm_endlock);
+		rc = libfab_tm_param_free(ma);
+		if (rc != FI_SUCCESS)
+			M0_LOG(M0_ERROR, "libfab_tm_param_free ret=%d",	rc);
+
+		m0_mutex_fini(&ma->ftm_endlock);
+		libfab_tm_unlock(ma);
+	}
+	
+	M0_LEAVE();
+}
+
+/** Creates the descriptor for a (passive) network buffer. */
+static int libfab_bdesc_encode(struct m0_fab__buf *buf)
+{
+	struct fi_rma_iov *rma_iov;
+	struct m0_net_buf_desc *nbd = &buf->fb_nb->nb_desc;
+
+	nbd->nbd_len = sizeof(struct fi_rma_iov);
+	nbd->nbd_data = m0_alloc(nbd->nbd_len);
+	if (nbd->nbd_data == NULL)
+		return M0_RC(-ENOMEM);
+	
+	rma_iov = (struct fi_rma_iov *)nbd->nbd_data;
+	rma_iov->addr = (uint64_t)buf->fb_nb->nb_buffer.ov_buf[0];
+	rma_iov->len = sizeof(uint64_t);
+	rma_iov->key = buf->fb_mr_key;
+
+	// memcpy(nbd->nbd_data, &buf->fb_mr_key, sizeof(buf->fb_mr_key));
+
+	/* TODO: Cleanup nb->nbd_data */
+	return M0_RC(0);
+}
+
+static void libfab_bdesc_decode(struct m0_net_buf_desc *nbd,
+				struct fi_rma_iov *rma_key)
+{
+	*rma_key = *((struct fi_rma_iov *)nbd->nbd_data);
+}
+
 /*============================================================================*/
 
 /** 
@@ -2235,6 +2364,8 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 	nb->nb_xprt_private = fb;
 	fb->fb_nb = nb;
 
+	fb->fb_mr_desc = fi_mr_desc(fb->fb_mr);
+	
 	return M0_RC(ret);
 }
 
@@ -2441,6 +2572,53 @@ static struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf)
 {
 	return buf->nb_tm->ntm_xprt_private;
 }
+
+static struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf)
+{
+	return buf->nb_tm->ntm_xprt_private;
+}
+
+#if 0
+/* Returns the IPV4 or IPV6 based on given ip string */
+static int libfab_ip_type(char *node,int *type)
+{
+	char	*cp;
+	int	 ret=0;
+	if( node != NULL ) {
+		cp = strchr(node, ':');
+		if( cp != NULL )
+			*type=AF_INET6;
+		else
+			*type=AF_INET;
+	}
+	else
+		ret=M0_ERR(-EFAULT);
+
+	return ret;
+}
+
+static int libfab_get_remote_addr(const char *addr,fi_addr_t *remote_rx_addr) 
+{
+	int	ret = 0;
+	int	ip_family;
+	struct m0_fab__ep ep;
+
+	if(addr == NULL )
+		return M0_ERR(-EFAULT);
+
+	/* getting the addr of the remote */
+	ret = libfab_ep_addr_decode(&ep, addr);
+	if( ret == 0) {
+		ret = libfab_ip_type(ep.fep_name.fen_addr,&ip_family);
+		if( ret == 0) {
+			if( (inet_pton(ip_family, ep.fep_name.fen_addr,
+				       remote_rx_addr)) != 1)
+				ret = M0_ERR(-EIO);
+		}
+	}
+	return ret;
+}
+#endif /* #if 0 */
 
 static const struct m0_net_xprt_ops libfab_xprt_ops = {
 	.xo_dom_init                    = &libfab_dom_init,
