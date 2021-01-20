@@ -70,11 +70,11 @@ static void rm_service_stop(struct m0_rpc_server_ctx *sctx)
 
 static void rm_svc_server(const int tid)
 {
+
 	M0_SET0(&sctx.rsx_motr_ctx);
 
 	sctx.rsx_xprts = m0_net_all_xprt_get();
 	sctx.rsx_xprts_nr = m0_net_xprt_nr();
-
 	rm_service_start(&sctx);
 
 	/* Signal client that server is now up and running */

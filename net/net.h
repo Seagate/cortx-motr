@@ -1794,6 +1794,19 @@ M0_INTERNAL uint32_t    default_xo_rpc_max_recv_msgs(struct m0_net_domain *ndom,
 					             m0_bcount_t rpc_size);
 
 
+#endif
+/** Set the specified network transport as the default one. */
+M0_INTERNAL void m0_net_xprt_default_set(const struct m0_net_xprt *xprt);
+/** Register network transport. */
+M0_INTERNAL void m0_net_xprt_register(const struct m0_net_xprt *xprt);
+/** Deregister network transport. */
+M0_INTERNAL void m0_net_xprt_deregister(const struct m0_net_xprt *xprt);
+/** Return the default network transport. */
+struct m0_net_xprt *m0_net_xprt_default_get(void);
+/** Get all network transport . */
+struct m0_net_xprt **m0_net_all_xprt_get(void);
+/** Returns number of network transport. */
+int m0_net_xprt_nr(void);
 /** @} end of networking group */
 #endif /* __MOTR_NET_NET_H__ */
 
