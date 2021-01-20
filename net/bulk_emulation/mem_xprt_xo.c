@@ -46,6 +46,9 @@ static const struct m0_net_bulk_mem_ops mem_xprt_methods;
 M0_INTERNAL int m0_mem_xprt_init(void)
 {
 	m0_list_init(&mem_domains);
+	m0_net_xprt_register(&m0_net_bulk_mem_xprt);
+	if (m0_net_xprt_default_get() == NULL)
+		m0_net_xprt_default_set(&m0_net_bulk_mem_xprt);
 	return 0;
 }
 
@@ -55,6 +58,7 @@ M0_INTERNAL int m0_mem_xprt_init(void)
 M0_INTERNAL void m0_mem_xprt_fini(void)
 {
 	m0_list_fini(&mem_domains);
+	m0_net_xprt_deregister(&m0_net_bulk_mem_xprt);
 }
 
 /* To reduce global symbols, yet make the code readable, we

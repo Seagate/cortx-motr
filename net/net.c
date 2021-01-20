@@ -36,7 +36,12 @@
 #include "lib/trace.h"
 
 #include "net/net_otw_types.h"
+#include "net/net.h"
 
+#define XPRT_MAX 4
+
+static struct m0_net_xprt *xprts[XPRT_MAX] = { NULL };
+static struct m0_net_xprt *xprt_default = NULL;
 /**
    @addtogroup net
    @{
@@ -134,6 +139,75 @@ M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint)
 }
 #endif /* !__KERNEL__ */
 
+M0_INTERNAL void m0_net_xprt_default_set(const struct m0_net_xprt *xprt)
+{
+	M0_ENTRY();
+	M0_LOG(M0_DEBUG, "setting default xprt to %p:%s", xprt, xprt->nx_name);
+	xprt_default = (struct m0_net_xprt *) xprt;
+}
+M0_EXPORTED(m0_net_xprt_default_set);
+
+struct m0_net_xprt *m0_net_xprt_default_get(void)
+{
+	M0_ENTRY();
+	M0_LOG(M0_DEBUG, "getting default xprt to %p:%s",
+			  xprt_default,
+			  xprt_default?xprt_default->nx_name:"NULL");
+	return xprt_default;
+}
+M0_EXPORTED(m0_net_xprt_default_get);
+
+struct m0_net_xprt **m0_net_all_xprt_get(void)
+{
+	M0_ENTRY();
+	return xprts;
+}
+M0_EXPORTED(m0_net_all_xprt_get);
+
+int m0_net_xprt_nr(void)
+{
+	int i;
+	int count = 0;
+
+	M0_ENTRY();
+	for (i = 0; i < ARRAY_SIZE(xprts); i++) {
+		if (xprts[i] != NULL)
+			count++;
+	}
+	return count;
+}
+M0_EXPORTED(m0_net_xprt_nr);
+
+M0_INTERNAL void m0_net_xprt_register(const struct m0_net_xprt *xprt)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(xprts); ++i) {
+		M0_ASSERT(xprts[i] != xprt);
+		if (xprts[i] == NULL) {
+			xprts[i] = (struct m0_net_xprt *) xprt;
+			return;
+		}
+	}
+	M0_IMPOSSIBLE("Too many xprts.");
+}
+M0_EXPORTED(m0_net_xprt_register);
+
+M0_INTERNAL void m0_net_xprt_deregister(const struct m0_net_xprt *xprt)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(xprts); ++i) {
+		if (xprts[i] == xprt) {
+			xprts[i] = NULL;
+			if (xprt == xprt_default)
+				xprt_default = NULL;
+			return;
+		}
+	}
+	M0_IMPOSSIBLE("Wrong xprt.");
+}
+M0_EXPORTED(m0_net_xprt_deregister);
 #undef M0_TRACE_SUBSYSTEM
 
 /*
