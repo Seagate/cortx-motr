@@ -26,7 +26,6 @@
 #include "motr/magic.h"
 #include "ioservice/io_fops.h"	/* m0_io_fop */
 #include "rpc/rpc.h"		/* m0_rpc_bulk, m0_rpc_bulk_buf */
-#include "net/lnet/lnet.h"
 #include "file/file.h"
 #include "lib/finject.h"
 
@@ -135,7 +134,6 @@ static void bulkclient_test(void)
 	struct m0_clink          s_clink;
 	struct m0_clink          c_clink;
 	struct m0_io_fop	*iofop;
-	struct m0_net_xprt	*xprt;
 	struct m0_rpc_bulk	*rbulk;
 	struct m0_rpc_bulk	*sbulk;
 	struct m0_fop_cob_rw	*rw;
@@ -168,8 +166,7 @@ static void bulkclient_test(void)
 	rc = m0_file_lock_type_register(rm_dom, &flock_rt);
 	M0_ASSERT(rc == 0);
 
-	xprt = &m0_net_lnet_xprt;
-	rc = m0_net_domain_init(&nd, xprt);
+	rc = m0_net_domain_init(&nd, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 
 	fid.f_container = 1;
