@@ -43,6 +43,10 @@ static struct m0_fdmi_src_rec g_src_rec;
 static struct test_rpc_env    g_rpc_env;
 static struct m0_rpc_packet  *g_sent_rpc_packet;
 
+static bool                   inc_ref_passed;
+static int                    dec_ref_count;
+static bool                   first_filter;
+
 static const struct m0_fid    g_fid = M0_FID_INIT(0xFA11, 0x11AF);
 
 static int send_notif_packet_ready(struct m0_rpc_packet *p);
@@ -98,7 +102,6 @@ static int filterc_send_notif_open(struct m0_filterc_ctx    *ctx,
 static int filterc_send_notif_get_next(struct m0_filterc_iter      *iter,
 				       struct m0_conf_fdmi_filter **out)
 {
-	static bool                 first_filter = true;
 	int                         rc;
 	struct m0_conf_fdmi_filter *conf_flt = &g_conf_filter;
 	struct m0_fdmi_filter      *flt = &conf_flt->ff_filter;
@@ -158,16 +161,12 @@ static int test_fs_encode(struct m0_fdmi_src_rec *src_rec,
 	return 0;
 }
 
-bool inc_ref_passed = false;
-
 static void test_fs_get(struct m0_fdmi_src_rec *src_rec)
 {
 	M0_UT_ASSERT(src_rec != NULL);
 	M0_UT_ASSERT(src_rec == &g_src_rec);
 	inc_ref_passed = true;
 }
-
-int dec_ref_count = 0;
 
 static void test_fs_put(struct m0_fdmi_src_rec *src_rec)
 {
@@ -245,12 +244,6 @@ void fdmi_sd_send_notif(void)
 	struct m0_rpc_conn_pool      *conn_pool;
 	struct m0_rpc_conn_pool_item *pool_item;
 	int                           rc;
-	static int                    tested_number = 0;
-
-	if (tested_number++ > 0) {
-		/* FIXME: This UT can not run repeatedly. */
-		return;
-	}
 
 	M0_SET0(&g_conf_filter);
 	g_var_str = strdup("test");
@@ -258,6 +251,9 @@ void fdmi_sd_send_notif(void)
 	M0_SET0(&g_sem2);
 	M0_SET0(&g_rpc_env);
 	g_sent_rpc_packet = NULL;
+	inc_ref_passed = false;
+	dec_ref_count = 0;
+	first_filter = true;
 
 	fdmi_serv_start_ut(&filterc_send_notif_ops);
 	src_dock = m0_fdmi_src_dock_get();
