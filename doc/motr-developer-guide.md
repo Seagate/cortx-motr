@@ -6,12 +6,14 @@ features.
 
 The first document developers should read is: [Motr Client API ](/motr/client.h).
 It explains basic notations, terminologies, and data structures in Cortx Motr.
+Example motr client applications can be found in our [m0client-sample-apps repo](https://github.com/Seagate/m0client-sample-apps).
 Developers are also assumed having a running Cortx Motr system: please refer to
 [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md)
 and [Quick Start Guide](/doc/Quick-Start-Guide.rst).  For debugging, ADDB can be
 very useful and is described in these [two](ADDB.rst) [documents](addb2-primer).
 
-Cortx Motr provides object based operations and index (a.k.a key/value) based operations.
+Cortx Motr provides object based operations and index (a.k.a key/value) based operations.  
+For architectural documents, please refer to our [reading list](reading-list.md).
 
 ## A simple Cortx Motr application (object)
 

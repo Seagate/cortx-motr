@@ -1097,6 +1097,8 @@ enum m0_magic_satchel {
 	M0_DIX_ROP_MAGIC       = 0x33ba51c0115eed77,
 	/** cas_rop_tlist head magic (basic offload) */
 	M0_DIX_ROP_HEAD_MAGIC  = 0x33ba51c0ff10ad77,
+	/** struct m0_dix_cm::dcm_magic (dixdixdixdix) */
+	M0_DIX_CM_MAGIC        = 0x33d18d18d18d1877,
 /* FDMI */
 	/* m0_reqh_fdmi_service::rfdms_magic (abide dazzled) */
 	M0_FDMS_REQH_SVC_MAGIC = 0x33ab1deda221ed77,

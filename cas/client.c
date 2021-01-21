@@ -393,6 +393,7 @@ static int creq_fop_create(struct m0_cas_req  *req,
 			   struct m0_cas_op   *op)
 {
 	struct m0_fop *fop;
+	M0_ENTRY();
 
 	M0_ALLOC_PTR(fop);
 	if (fop == NULL)
@@ -403,6 +404,7 @@ static int creq_fop_create(struct m0_cas_req  *req,
 	req->ccr_fop = fop;
 	req->ccr_ftype = ftype;
 
+	M0_LEAVE("cas_req=%p fop=%p", req, fop);
 	return 0;
 }
 
@@ -412,6 +414,7 @@ static int creq_fop_create_and_prepare(struct m0_cas_req     *req,
 				       enum m0_cas_req_state *next_state)
 {
 	int rc;
+	M0_ENTRY();
 
 	rc = creq_fop_create(req, ftype, op);
 	if (rc == 0) {
@@ -1609,6 +1612,7 @@ static int cas_req_prep(struct m0_cas_req       *req,
 {
 	struct m0_cas_recv *reply_recv;
 	int                 rc;
+	M0_ENTRY();
 
 	reply_recv = &req->ccr_reply.cgr_rep;
 	M0_ALLOC_ARR(reply_recv->cr_rec, max_replies_nr);

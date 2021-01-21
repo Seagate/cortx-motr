@@ -528,7 +528,7 @@ void m0_idx_init(struct m0_idx    *idx,
 	M0_PRE(parent != NULL);
 	M0_PRE(id != NULL);
 
-	/* Initalise the entity */
+	/* Initialise the entity */
 	m0_entity_init(&idx->in_entity, parent, id, M0_ET_IDX);
 
 	M0_LEAVE();
