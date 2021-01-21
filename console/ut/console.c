@@ -89,8 +89,7 @@ static struct m0_rpc_server_ctx sctx;
 
 static int cons_init(void)
 {
-	int result;
-
+	int                  result;
 	timeout = 10;
 	result = m0_console_fop_init();
 	M0_ASSERT(result == 0);
