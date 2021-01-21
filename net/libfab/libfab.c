@@ -167,7 +167,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
                                       size_t nodeSize, char *port,
                                       size_t portSize)
 {
-	char               *at = strchr(name, '@');
+	char               *at       = strchr(name, '@');
 	int                 nr;
 	unsigned            pid;
 	unsigned            portal;
@@ -1812,7 +1812,6 @@ static int libfab_bev_deliver_sync(struct m0_net_transfer_mc *ma)
 
 static void libfab_bev_deliver_all(struct m0_net_transfer_mc *ma)
 {
-
 }
 
 static bool libfab_bev_pending(struct m0_net_transfer_mc *ma)
