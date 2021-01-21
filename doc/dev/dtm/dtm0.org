@@ -1,0 +1,160 @@
+#+OPTIONS: num:nil toc:nil
+#+REVEAL_TRANS: linear
+#+REVEAL_THEME: black
+#+REVEAL_ROOT: file:///Users/anatoliy/Private/reveal.js
+#+Title: DTM0 FAQ
+#+Author: Anatoliy
+
+
+* org
+** flow of dtm0 work
+#+begin_src
+	     refinement	        refinement
+	         |	 (1)	    |     (4)
+ Problem        --->  Requirements  --->  Tasks ---> Tests ---> ?
+ definition     <---    Usecases    <---    |   <---   |
+ by Nikita             | ^   |              |          |
+   (2)                 V |   |              |          |
+  		       | |   |              |          V
+           refinement  | |   V              |          ?
+	         |     | |   |              V         (6)
+ Usecases   <----------+ |   |            Milestone
+ refinement ------>------+   |              plan
+ with HARE                   |              (5)
+  (3)                        V
+                          Inputs to S3
+                             |
+			     V
+			    DTM0
+			 Integration
+			   into S3
+#+end_src
+#+RESULTS:
+[[file:flow.png]]
+
+** artifacts & contacts
+#+begin_src
+artifacts:
+ 1) [Anatoliy]        DTM0 spec (HLD + DLD)
+ 2) [Nikita]          Signature on DTM0 spec
+ 3) [Mandar]          HARE spec
+ 4) [Anatoliy/Neerav] List of tasks
+ 5) [Neerav/Anatoliy] Milestone plan
+ 6) [?]		      Test plan
+ 7) [?]               Integration with S3
+
+contact points:
+Nikita: s3 integration, hare
+Anatoliy: s3 integration after happy-path milestone, hare
+#+end_src
+
+** execution plan
+#+begin_src
+Milestones:
+ - DTM0 happy path scenario;
+ - DTM0 start/stop scenarios (depends on “HA messages”);
+ - DTM0 recovery scenarios (depends on “HA messages”);
+ - Basic S3 integration (depends on DTM0);
+ - DTM0 test;
+ - DTM0 basic deployment;
+ - (future work) Metadata update (depends on basic S3 integration);
+ - (future work) DTM0 for IO.
+
+
+Possible execution plan:
+
+motr: |--- happy ----|---- recovery ----|              |-- test --|- deploy -|
+                     ^                   \             ^
+                    /<---(depends on)     \            /
+ha  : |-- ha msg --|                       \          /
+					    V        /
+s3  :                                       |-s3 int-|
+
+#+end_src
+
+** details
+[[http://gitlab.mero.colo.seagate.com/anatoliy.bilenko/dtm0/blob/master/backlog.org][tasks]]/[[https://github.com/Seagate/cortx-motr/blob/documentation/doc/dev/dtm/dtm-hld.org][spec]]
+
+* tech
+** why do we need dtm?
+- LDR R2 system shall continue its operation after any combination of
+  transient failures in the conditions of ongoing MD requests to the
+  system. By word "survive" we consider "maintaining consistency across
+  all N+K parts of the system";
+
+- To simplify the definition by "transient failure" term we consider
+  failures including the following and not excluding others:
+   - Network failure;
+   - Process crash/restart, node reboot;
+
+- Treating of failure types is performed by HA.
+** why do we have it only for md?
+- Metadata is a crucial part of the storage system, all workflows rely
+  on it therefore it has to be consistent in face of failures. IO part
+  can be handled easily and relying on some relaxed consistency
+  assumptions.
+** what about io path?
+- Not in the scope for today;
+- Will be handled with the help of layouts today;
+- Can be handled by DTM0 for metadata in the future.
+** what about non-transient failures?
+- Not in the scope, sorry.
+- Will be handled by SNS-repair/DIX-repair.
+- MRD says that non-transients are unrecoverable in P0.
+** give me one usecase.
+#+begin_src
+        s3client
+         /    \
+        /      \
+       V        V
+s3server1       s3server2
+|  \    \       /
+|   \    \     /
+|    \    \   /
+V     V    V V
+m0d1 m0d2 m0d3
+
+s3client: PUT K1, V1
+
+m0d1: stabilised K1,V1
+m0d2: stabilised K1,V1
+
+m0d1: transient
+m0d2: transient
+s3server1: failed
+
+s3client: DEL K1
+m0d3: return -ENOENT
+s3client: PUT K1,VX
+
+#+end_src
+** what is the interface? dependencies? guarantees?
+#+begin_src
+// === interface ===
+//Not a dtm0:
+tx = dtm_tx_open(...);
+rc = clovis_op(op1, CLOVIS_PUT, key1, value1, tx);
+rc = clovis_op(op2, CLOVIS_PUT, key2, value2, tx);
+dtm_tx_close(tx);
+dtm_tx_wait(tx, STABLE);
+
+//dtm0:
+rc = clovis_op(op1, CLOVIS_PUT, key1, value1, tx);
+rc = clovis_op(op2, CLOVIS_PUT, key2, value2, tx);
+clovis_op_wait(op1, STABLE);
+clovis_op_wait(op2, STABLE);
+
+// === dependencies ===
+tracked by the user by means of waiting for depended operation completed;
+
+// === guarantees(semantics) ===
+clovis op EXECUTED callback means we can start new depended transaction;
+clovis op STABLE callback means given operation got stabilised.
+#+end_src
+** what about the integration with s3, who is responsible for what? contact point?
+- [[org][org]] section answers this question.
+** what about the integration with hare?
+- HARE messages spec will be prepared;
+- DTM related part is ready and can be found in [[https://github.com/Seagate/cortx-motr/blob/documentation/doc/dev/dtm/dtm-hld.org][spec]];
+- HARE will need to implement corresponding logic.
+* questions?
