@@ -1812,6 +1812,7 @@ static int libfab_bev_deliver_sync(struct m0_net_transfer_mc *ma)
 
 static void libfab_bev_deliver_all(struct m0_net_transfer_mc *ma)
 {
+
 }
 
 static bool libfab_bev_pending(struct m0_net_transfer_mc *ma)
