@@ -623,7 +623,8 @@ Motr panic reason: signo: 11
 		struct m0_bufvec_cursor	cur_encoded;
 		bool                    reseted = false;
 
-		M0_LOG(M0_DEBUG, "test: %i, cfg:(%lu, %lu, %lu, %lu)", i,
+		M0_LOG(M0_DEBUG, "test: %i, cfg:"
+		       "(%"PRId64", %"PRId64", %"PRId64", %"PRId64")", i,
 		       test[i].cfg.fgc_tx_nr_max,
 		       test[i].cfg.fgc_reg_nr_max,
 		       test[i].cfg.fgc_reg_size_max,

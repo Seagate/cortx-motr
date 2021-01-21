@@ -168,6 +168,8 @@ sub main
 {
     process_cli_options();
 
+    local $File::Find::dont_use_nlink = 1;
+
     my @items;
     my @dump_files = File::Find::Rule->or(
                         File::Find::Rule->directory->name(qw/ut ub it/)->prune->discard,

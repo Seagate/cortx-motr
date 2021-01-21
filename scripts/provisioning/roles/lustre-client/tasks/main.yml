@@ -53,7 +53,8 @@
     - { version: 2.10.5, enabled: '{{ (redhat_release is version("7.5", "=")) | ternary("yes", "no") }}' }
     - { version: 2.10.8, enabled: '{{ (redhat_release is version("7.6", "=")) | ternary("yes", "no") }}' }
     - { version: 2.12.4, enabled: '{{ (redhat_release is version("7.7", "=")) | ternary("yes", "no") }}' }
-    - { version: 2.12.5, enabled: '{{ (redhat_release is version("7.8", ">=")) | ternary("yes", "no") }}' }
+    - { version: 2.12.5, enabled: '{{ (redhat_release is version("7.8", "=")) | ternary("yes", "no") }}' }
+    - { version: 2.12.6, enabled: '{{ (redhat_release is version("7.9", ">=")) | ternary("yes", "no") }}' }
   when: ansible_os_family == 'RedHat'
   tags:
     - lustre
@@ -64,12 +65,25 @@
   tags:
     - lustre
 
-- name: write modprobe config for LNet module
+- name: write modprobe config for LNet module on vmware_desktop provider
   lineinfile:
     path:   /etc/modprobe.d/lnet.conf
     create: yes
-    # we want eth1 interface to be used by default by Motr, so specify it first
-    line:   'options lnet networks=tcp(eth1),tcp1(eth0) config_on_load=1'
+    regexp: '^options lnet networks='
+    # In VMware eth0 (NAT) is always the interface for Motr's LNet:
+    line:   'options lnet networks=tcp(eth0) config_on_load=1'
+  when: ansible_virtualization_type == "VMware"
+  tags: lustre
+
+- name: write modprobe config for LNet module on other providers
+  lineinfile:
+    path:   /etc/modprobe.d/lnet.conf
+    create: yes
+    regexp: '^options lnet networks='
+    # eth1 (host-only) interface is used for LNet in this case.
+    # (Note: VirtualBox won't inter-connect the nodes on NAT interfaces.)
+    line:   'options lnet networks=tcp(eth1) config_on_load=1'
+  when: ansible_virtualization_type != "VMware"
   tags: lustre
 
 - name: fix empty /etc/lnet.conf

@@ -303,7 +303,7 @@ static void extents_release(struct m0_balloc_group_info *grp,
 		lext_del(le);
 		++frags;
 	}
-	M0_LOG(M0_DEBUG, "zone_type = %d, grp=%p grpno=%lu list_frags=%d"
+	M0_LOG(M0_DEBUG, "zone_type = %d, grp=%p grpno=%"PRIu64" list_frags=%d"
 	       "bzp_frags=%d", (int)zone_type, grp, grp->bgi_groupno,
 	       (int)frags, (int)zp->bzp_fragments);
 	M0_ASSERT(ergo(frags > 0, frags == zp->bzp_fragments));
@@ -988,7 +988,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 		goto out;
 	}
 
-	M0_LOG(M0_INFO, "Group Count = %lu", bal->cb_sb.bsb_groupcount);
+	M0_LOG(M0_INFO, "Group Count = %"PRIu64, bal->cb_sb.bsb_groupcount);
 
 	M0_ALLOC_ARR(bal->cb_group_info, bal->cb_sb.bsb_groupcount);
 	rc = bal->cb_group_info == NULL ? M0_ERR(-ENOMEM) : 0;
@@ -1420,7 +1420,8 @@ static int balloc_find_extent_buddy(struct balloc_allocation_context *bac,
 
 	zp = is_spare(alloc_flag) ? &grp->bgi_spare : &grp->bgi_normal;
 
-	M0_LOG(M0_DEBUG, "start=%lu len=%lu", zp->bzp_range.e_start, len);
+	M0_LOG(M0_DEBUG, "start=%"PRIu64" len=%"PRIu64,
+	       zp->bzp_range.e_start, len);
 
 	start = zp->bzp_range.e_start;
 	m0_list_for_each_entry(&zp->bzp_extents, le, struct m0_lext, le_link) {
@@ -2058,8 +2059,8 @@ static int is_group_good_enough(struct balloc_allocation_context *bac,
 	}
 
 	M0_LOG(M0_DEBUG, "bac=%p criteria=%d: no big enough chunk: "
-	       "goal=0x%08lx maxchunk=%08lx", bac, bac->bac_criteria,
-	       m0_ext_length(&bac->bac_goal), maxchunk);
+	       "goal=0x%08"PRIx64" maxchunk=0x%08"PRIx64,
+	       bac, bac->bac_criteria, m0_ext_length(&bac->bac_goal), maxchunk);
 
 	return 0;
 }
@@ -2182,7 +2183,7 @@ static int balloc_check_limits(struct balloc_allocation_context *bac,
 static int balloc_measure_extent(struct balloc_allocation_context *bac,
 				 struct m0_balloc_group_info *grp,
 				 enum m0_balloc_allocation_flag alloc_flag,
-				 struct m0_ext *ex)
+				 struct m0_ext *ex, int end_of_group)
 {
 	struct m0_ext *goal = &bac->bac_goal;
 	struct m0_ext *best = &bac->bac_best;
@@ -2221,7 +2222,7 @@ static int balloc_measure_extent(struct balloc_allocation_context *bac,
 	}
 
 	if (m0_ext_length(best) >= m0_ext_length(goal))
-		rc = balloc_check_limits(bac, grp, 0, alloc_flag);
+		rc = balloc_check_limits(bac, grp, end_of_group, alloc_flag);
 	M0_LEAVE();
 	return M0_RC(rc);
 }
@@ -2239,6 +2240,7 @@ static int balloc_wild_scan_group(struct balloc_allocation_context *bac,
 	struct m0_ext	*ex;
 	struct m0_lext	*le;
 	int		 rc;
+	int              end_of_group = 0;
 	M0_ENTRY();
 
 #ifdef __SPARE_SPACE__
@@ -2251,6 +2253,29 @@ static int balloc_wild_scan_group(struct balloc_allocation_context *bac,
 	list = &grp->bgi_normal.bzp_extents;
 #endif
 
+	/**
+	 * Check to detect the block allocation request which came earlier
+	 * for criteria 1 on same group and come again for criteria 2 with
+	 * already set best extent.
+	 * In criteria 1 bac_status not marked to M0_BALLOC_AC_FOUND
+	 * because bac_found < M0_BALLOC_DEFAULT_MIN_TO_SCAN
+	 * Now with criteria 2 on same group with already set best extent may
+	 * not part of extent in free extent list because another requests
+	 * may have updated extents in free list.
+	 * Reset best extent by detecting this case so that it
+	 * will find correct best extent, also set end_of_group flag so
+	 * balloc_check_limits() could call balloc_use_best_found() to set
+	 * final extent from best extent.
+	 */
+	if (bac->bac_found != 0) {
+		m0_bindex_t group = balloc_bn2gn(bac->bac_best.e_start,
+						 bac->bac_ctxt);
+		if (group == grp->bgi_groupno) {
+			end_of_group = 1;
+			M0_SET0(&bac->bac_best);
+			m0_ext_init(&bac->bac_best);
+		}
+	}
 
 	M0_LOG(M0_DEBUG, "Wild scanning at group %llu: freeblocks=%llu",
 		(unsigned long long)grp->bgi_groupno,
@@ -2266,7 +2291,7 @@ static int balloc_wild_scan_group(struct balloc_allocation_context *bac,
 				(unsigned long long)ex->e_end);
 			return M0_RC(-EINVAL);
 		}
-		balloc_measure_extent(bac, grp, alloc_flag, ex);
+		balloc_measure_extent(bac, grp, alloc_flag, ex, end_of_group);
 
 		free -= m0_ext_length(ex);
 		if (free == 0 || bac->bac_status != M0_BALLOC_AC_CONTINUE)

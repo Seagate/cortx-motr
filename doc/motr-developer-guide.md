@@ -6,12 +6,14 @@ features.
 
 The first document developers should read is: [Motr Client API ](/motr/client.h).
 It explains basic notations, terminologies, and data structures in Cortx Motr.
+Example motr client applications can be found in our [m0client-sample-apps repo](https://github.com/Seagate/m0client-sample-apps).
 Developers are also assumed having a running Cortx Motr system: please refer to
 [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md)
 and [Quick Start Guide](/doc/Quick-Start-Guide.rst).  For debugging, ADDB can be
 very useful and is described in these [two](ADDB.rst) [documents](addb2-primer).
 
-Cortx Motr provides object based operations and index (a.k.a key/value) based operations.
+Cortx Motr provides object based operations and index (a.k.a key/value) based operations.  
+For architectural documents, please refer to our [reading list](reading-list.md).
 
 ## A simple Cortx Motr application (object)
 
@@ -209,7 +211,67 @@ as the last argument to this program. In this example, we will only use this id 
 64-bit of an object identification. This id should be larger than 0x100000ULL, that is 1048576 in decimal.
 
 ## A simple Cortx Motr application (index)
-   * TODO
+Here we will create a simple Cortx Motr application to create an index, put
+some key/value pairs to this index, read them back, and then delete it.
+Source code is available at: [example2.c](/motr/examples/example2.c)
+
+Motr index FID is a special type of FID. It must be the m0_dix_fid_type.
+So, the index FID must be initialized with:
+```
+m0_fid_tassume((struct m0_fid*)&index_id, &m0_dix_fid_type);
+```
+
+ * The steps to create an index: function index_create().
+	- Init the m0_idx struct with m0_idx_init().
+	- Init the index create operation with m0_entity_create().
+          An ID is needed for this index. In this example, ID is configured from command line.
+          Developers are responsible to generate an unique ID for their indices.
+	- Launch the operation with m0_op_launch().
+	- Wait for the operation to be executed: stable or failed with m0_op_wait().
+	- Retrieve the result.
+	- Finalize and free the operation with m0_op_fini() and m0_op_free().
+	- Finalize the m0_idx struct with m0_entity_fini().
+
+	Please refer to function `index_create` in the example.
+
+  * The steps to put key/value pairs to an existing index: function index_put().
+    `struct m0_bufvec` is used to store in-memory keys and values.
+	- Allocate keys with proper number of vector and buffer length.
+	- Allocate values with proper number of vector and buffer length.
+	- Allocate an array to hold return value for every key/val pair.
+	- Fill the key/value pairs into keys and vals.
+	- Init the m0_idx struct with m0_idx_init().
+	- Init the put operation with m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, &rcs, ...).
+	- Launch the put operation with m0_op_launch().
+	- Wait for the operation to be executed: stable or failed with m0_op_wait().
+	- Retrieve the result.
+	- Free the keys and vals.
+	- Finalize and free the operation with m0_op_fini() and m0_op_free().
+
+  * The steps to get key/val pairs from an exiting index: function index_get().
+	- Allocate keys with proper number of vector and buffer length.
+	- Fill the keys with proper value;
+	- Allocate values with proper number of vector and empty buffer.
+	- Init the m0_idx struct with m0_idx_init().
+	- Init the put operation with m0_idx_op(&idx, M0_IC_GET, &keys, &vals, &rcs, ...).
+	- Launch the put operation with m0_op_launch().
+	- Wait for the operation to be executed: stable or failed with m0_op_wait().
+	- Retrieve the result, and use the returned key/val pairs.
+	- Free the keys and vals.
+	- Finalize and free the operation with m0_op_fini() and m0_op_free().
+
+
+  * The steps to delete an existing index: function index_delete().
+	- Init the m0_idx struct with m0_idx_init().
+	- Open the entity with m0_entity_open().
+	- Init the delete operation with m0_entity_delete().
+	- Launch the delete operation with m0_op_launch().
+	- Wait for the operation to be executed: stable or failed with m0_op_wait().
+	- Retrieve the result.
+	- Finalize and free the operation with m0_op_fini() and m0_op_free().
+
+  * The steps to compile, build and run this example.
+	- Please refer to the steps in object operation.
 
 ## More examples, utilities, and applications
   * More Cortx Motr examples (object) and utilities are:

@@ -352,7 +352,7 @@ M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
 		if ((cm->cm_quiesce || cm->cm_abort) && (M0_IN(ai_state(ai),
 							 (AIS_FID_LOCK,
 							  AIS_FID_NEXT, AIS_GROUP_NEXT)))) {
-			M0_LOG(M0_DEBUG, "%lu: Got %s cmd", cm->cm_id,
+			M0_LOG(M0_DEBUG, "%"PRId64": Got %s cmd", cm->cm_id,
 					 cm->cm_quiesce ? "QUIESCE" : "ABORT");
 			return M0_RC(-ENODATA);
 		}

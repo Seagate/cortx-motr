@@ -47,25 +47,25 @@ enum dix_cm_iter_phase {
 	DIX_ITER_INIT    = M0_FOM_PHASE_INIT,
 	DIX_ITER_FINAL   = M0_FOM_PHASE_FINISH,
 	DIX_ITER_STARTED = M0_FOM_PHASE_NR,
-	DIX_ITER_DEL_LOCK,
-	DIX_ITER_CTIDX_START,
-	DIX_ITER_CTIDX_REPOS,
-	DIX_ITER_CTIDX_NEXT,
-	DIX_ITER_NEXT_CCTG,
-	DIX_ITER_META_LOCK,
-	DIX_ITER_CCTG_LOOKUP,
-	DIX_ITER_CCTG_START,
-	DIX_ITER_CCTG_CONT,
-	DIX_ITER_CCTG_CUR_NEXT,
-	DIX_ITER_NEXT_KEY,
-	DIX_ITER_IDLE_START,
-	DIX_ITER_DEL_TX_OPENED,
-	DIX_ITER_DEL_TX_WAIT,
-	DIX_ITER_DEL_TX_DONE,
-	DIX_ITER_IDLE_FIN,
-	DIX_ITER_CCTG_CHECK,
-	DIX_ITER_EOF,
-	DIX_ITER_FAILURE,
+	DIX_ITER_DEL_LOCK,      /*  3 */
+	DIX_ITER_CTIDX_START,   /*  4 */
+	DIX_ITER_CTIDX_REPOS,   /*  5 */
+	DIX_ITER_CTIDX_NEXT,    /*  6 */
+	DIX_ITER_NEXT_CCTG,     /*  7 */
+	DIX_ITER_META_LOCK,     /*  8 */
+	DIX_ITER_CCTG_LOOKUP,   /*  9 */
+	DIX_ITER_CCTG_START,    /* 10 */
+	DIX_ITER_CCTG_CONT,     /* 11 */
+	DIX_ITER_CCTG_CUR_NEXT, /* 12 */
+	DIX_ITER_NEXT_KEY,      /* 13 */
+	DIX_ITER_IDLE_START,    /* 14 */
+	DIX_ITER_DEL_TX_OPENED, /* 15 */
+	DIX_ITER_DEL_TX_WAIT,   /* 16 */
+	DIX_ITER_DEL_TX_DONE,   /* 17 */
+	DIX_ITER_IDLE_FIN,      /* 18 */
+	DIX_ITER_CCTG_CHECK,    /* 19 */
+	DIX_ITER_EOF,           /* 20 */
+	DIX_ITER_FAILURE,       /* 21 */
 };
 
 static struct m0_sm_state_descr dix_cm_iter_phases[] = {
@@ -228,6 +228,7 @@ static void dix_cm_iter_init(struct m0_dix_cm_iter *iter)
 	iter->di_tgts = NULL;
 	iter->di_tgts_cur = 0;
 	iter->di_tgts_nr = 0;
+	iter->di_stop = false;
 
 	M0_SET0(&iter->di_key);
 	M0_SET0(&iter->di_val);
@@ -268,6 +269,8 @@ static void dix_cm_iter_tgts_fini(struct m0_dix_cm_iter *iter)
 
 static void dix_cm_iter_fini(struct m0_dix_cm_iter *iter)
 {
+	M0_ENTRY();
+
 	if (iter->di_cctg != NULL)
 		m0_long_unlock(m0_ctg_lock(iter->di_cctg), &iter->di_lock_link);
 	m0_long_unlock(m0_ctg_lock(m0_ctg_ctidx()), &iter->di_meta_lock_link);
@@ -284,6 +287,7 @@ static void dix_cm_iter_fini(struct m0_dix_cm_iter *iter)
 	m0_ctg_op_fini(&iter->di_ctidx_op);
 	m0_clink_del_lock(&iter->di_meta_clink);
 	m0_clink_fini(&iter->di_meta_clink);
+	M0_LEAVE();
 }
 
 static int dix_cm_iter_failure(struct m0_dix_cm_iter *iter, int rc)
@@ -1041,7 +1045,9 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 	struct m0_be_tx       *tx;
 	int                    rc;
 
-	M0_ENTRY("fom %p, dix_cm %p, phase %d", fom, dix_cm, phase);
+	M0_ENTRY("fom %p, dix_cm %p, phase %d(%s)",
+		 fom, dix_cm, phase, m0_fom_phase_name(fom, phase));
+
 	switch (phase) {
 	case DIX_ITER_INIT:
 		dix_cm_iter_init(iter);
@@ -1385,6 +1391,12 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 	}
 	if (result < 0)
 		result = dix_cm_iter_failure(iter, result);
+
+	if (result == M0_FSO_WAIT) {
+		M0_LOG(M0_DEBUG, "iter fom %p current state=%d(%s)",
+				 fom, m0_fom_phase(fom),
+				 m0_fom_phase_name(fom, m0_fom_phase(fom)));
+	}
 	return M0_RC(result);
 }
 
@@ -1490,7 +1502,7 @@ M0_INTERNAL int m0_dix_cm_iter_get(struct m0_dix_cm_iter *iter,
 			M0_CNT_INC(iter->di_tgts_cur);
 		}
 
-		return rc;
+		return M0_RC(rc);
 	}
 }
 
