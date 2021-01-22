@@ -103,12 +103,14 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 {
 	int           rc;
 	struct m0_fid key_fid;
+	uint16_t      ht_idx;
 
 	M0_PRE(ns_iter_invariant(iter));
 	M0_PRE(gfid != NULL);
 
 	key_fid = iter->cni_last_fid;
-	rc = m0_cob_ns_rec_of(&iter->cni_cdom->cd_namespace, &key_fid, gfid,
+	ht_idx = cob_get_hash(&key_fid);
+	rc = m0_cob_ns_rec_of(&iter->cni_cdom->cd_namespace[ht_idx], &key_fid, gfid,
 			      nsrec);
 	if (rc == 0) {
 		/* Container (f_container) value remains same, typically 0. */
