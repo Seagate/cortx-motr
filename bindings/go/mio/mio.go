@@ -73,6 +73,12 @@ package mio
 //
 //         return rc;
 // }
+//
+// uint64_t m0_obj_layout_id(uint64_t lid)
+// {
+//         return M0_OBJ_LAYOUT_ID(lid);
+// }
+//
 import "C"
 
 import (
@@ -93,7 +99,7 @@ type Mio struct {
     objID   C.struct_m0_uint128
     obj    *C.struct_m0_obj
     objSz   uint64
-    objLid  uint
+    objLid  C.ulong
     objPool C.struct_m0_fid
     off     int64
 }
@@ -224,7 +230,7 @@ func (mio *Mio) open(sz uint64) error {
     mio.objPool = pv.pv_pool.po_id
 
     mio.objSz = sz
-    mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
+    mio.objLid = C.m0_obj_layout_id(mio.obj.ob_attr.oa_layout_id)
     mio.off = 0
 
     return nil
@@ -371,7 +377,7 @@ func (mio *Mio) getOptimalBlockSz(bufSz int) (bsz, gsz int) {
                   " (%v + 2 * %v == %v), check pool parity configuration",
                   pa.pa_P, pa.pa_N, pa.pa_K, pa.pa_N + 2 * pa.pa_K)
     }
-    usz := int(C.m0_obj_layout_id_to_unit_size(C.ulong(mio.objLid)))
+    usz := int(C.m0_obj_layout_id_to_unit_size(mio.objLid))
     gsz = usz * int(pa.pa_N) /* group size in data units only */
     /* should be max 2-times pool-width deep, otherwise we may get -E2BIG */
     maxBs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
