@@ -39,7 +39,7 @@ struct nlx_ping_ops {
  */
 struct nlx_ping_ctx {
 	const struct nlx_ping_ops             *pc_ops;
-	struct m0_net_xprt                    *pc_xprt;
+	const struct m0_net_xprt              *pc_xprt;
 	struct m0_net_domain                   pc_dom;
 	const char                            *pc_network;/* "addr@interface" */
 	uint32_t                               pc_pid;

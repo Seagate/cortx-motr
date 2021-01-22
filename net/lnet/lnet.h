@@ -111,7 +111,7 @@
    The LNet transport is used by specifying this data structure to the
    m0_net_domain_init() subroutine.
  */
-extern struct m0_net_xprt m0_net_lnet_xprt;
+extern const struct m0_net_xprt m0_net_lnet_xprt;
 
 enum {
 	/**
