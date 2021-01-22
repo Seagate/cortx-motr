@@ -37,6 +37,7 @@
 #include <getopt.h>
 #include <stdarg.h>
 
+#include "lib/trace.h"
 #include "conf/obj.h"
 #include "fid/fid.h"
 #include "motr/idx.h"
@@ -1590,28 +1591,35 @@ int m0hsm_create(struct m0_uint128 id, struct m0_obj *obj,
 
 	/* allocate composite layout */
 	layout = m0_client_layout_alloc(M0_LT_COMPOSITE);
-	if (layout == NULL)
-		RETURN(-ENOMEM);
+	if (layout == NULL) {
+		rc = M0_ERR(-ENOMEM);
+		goto err;
+	}
 
 	/* make the subobject a single-level layout */
-	m0_composite_layer_add(layout, &subobj, hsm_prio(0, tier_idx));
+	rc = m0_composite_layer_add(layout, &subobj, hsm_prio(0, tier_idx));
+	if (rc != 0) {
+		rc = M0_ERR(rc);
+		goto err;
+	}
 
 	/* create an extent to enable write operations anywhere in this subobject */
 	rc = layer_extent_add(subobj.ob_entity.en_id, &EXT_FULLRANGE, true,
 			      false);
-	if (rc)
-		RETURN(rc);
+ err:
+	if (rc != 0 && layout != NULL) {
+		m0_composite_layer_del(layout, hsm_subobj_id(id, 0, tier_idx));
+		m0_client_layout_free(layout);
+	}
 
-	/* close it */
 	m0_entity_fini(&subobj.ob_entity);
 
 	/* then create the main objet */
-//#ifdef BATCH_CREATE_SET_LAYOUT
 	if (0) {
 		rc = create_obj_with_layout(id, obj, layout, false);
 		if (rc)
 			RETURN(rc);
-	} else {
+	} else if (rc == 0) {
 		rc = create_obj(id, obj, false, HSM_ANY_TIER);
 		if (rc)
 			RETURN(rc);
@@ -1620,13 +1628,14 @@ int m0hsm_create(struct m0_uint128 id, struct m0_obj *obj,
 		if (rc)
 			RETURN(rc);
 	}
-	if (!keep_open)
+	if (rc == 0 && !keep_open)
 		m0_entity_fini(&obj->ob_entity);
 
-	INFO("Composite object successfully created with "
-	     "id=%#"PRIx64":%#"PRIx64"\n", id.u_hi, id.u_lo);
+	if (rc == 0)
+		INFO("Composite object successfully created with "
+		     "id=%#"PRIx64":%#"PRIx64"\n", id.u_hi, id.u_lo);
 
-	RETURN(0);
+	RETURN(rc);
 }
 
 /** manage IO resources */
