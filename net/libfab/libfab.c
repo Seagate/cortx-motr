@@ -64,9 +64,6 @@
 
 #define LIBFAB_WAITSET_TIMEOUT  2 /* TODO: Tbd */
 
-static char *providers[] = { "verbs", "tcp", "sockets" };
-static uint64_t mr_key_idx = 0;
-
 /** Parameters required for libfabric configuration */
 enum m0_fab__mr_params {
 	/** Fabric memory access. */
@@ -79,6 +76,17 @@ enum m0_fab__mr_params {
 	/** Key used for memory registration. */
 	FAB_MR_KEY     = 0XABCD,
 };
+
+enum PORT_SOCK_TYPE {
+        PORTFAMILYMAX = 3,
+        SOCKTYPEMAX   = 2
+};
+
+static char     *providers[] = { "verbs", "tcp", "sockets" };
+static char     *portf[PORTFAMILYMAX]  = { "unix", "inet", "inet6" };
+static char     *socktype[SOCKTYPEMAX] = { "stream", "dgram" };
+static char      fab_autotm[1024] = {};
+static uint64_t  mr_key_idx = 0;
 
 M0_TL_DESCR_DEFINE(fab_buf, "libfab_buf",
 		   static, struct m0_fab__buf, fb_linkage, fb_magic,
@@ -154,19 +162,17 @@ M0_INTERNAL void m0_net_libfab_fini(void)
  * "192.168.96.128@tcp1:12345:31:*").
  *
  */
-static char fab_autotm[1024] = {};
-
 static int libfab_ep_addr_decode_lnet(const char *name, char *node,
-			              size_t nodeSize, char *port,
-                                      size_t portSize)
+				      size_t nodeSize, char *port,
+				      size_t portSize)
 {
-	char               *at = strchr(name, '@');
-	int                 nr;
-	unsigned            pid;
-	unsigned            portal;
-	unsigned            portnum;
-	unsigned            tmid;
-	char		   *lp       = "127.0.0.1";
+	char     *at = strchr(name, '@');
+	int       nr;
+	unsigned  pid;
+	unsigned  portal;
+	unsigned  portnum;
+	unsigned  tmid;
+	char      *lp = "127.0.0.1";
 
 	if (strncmp(name, "0@lo", 4) == 0) {
 		M0_PRE(nodeSize >= ((strlen(lp)+1)) );
@@ -214,9 +220,53 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 			"portal: %u, tmid: %u", portal, tmid);
 
 	portnum  = htons(tmid | (1 << 10) | ((portal - 30) << 11));
-	sprintf(port,"%d",portnum);
+	sprintf(port, "%d", portnum);
 	fab_autotm[tmid] = 1;
 	return M0_RC(0);
+}
+
+static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
+				      size_t nodeSize, char *port,
+				      size_t portSize)
+{
+	int   shift;
+	int   f;
+	int   s;
+	char *at;
+
+	for (f = 0; f < PORTFAMILYMAX ; ++f) {
+		if (portf[f]!= NULL) {
+			shift = strlen(portf[f]);
+			if (strncmp(ep_name, portf[f], shift) == 0)
+				break;
+		}
+	}
+	if (ep_name[shift] != ':')
+		return M0_ERR(-EINVAL);
+	ep_name += shift + 1;
+	for (s = 0; s < SOCKTYPEMAX; ++s) {
+		if (socktype[s] != NULL) {
+			shift = strlen(socktype[s]);
+			if (strncmp(ep_name, socktype[s], shift) == 0)
+				break;
+		}
+	}
+	if (ep_name[shift] != ':')
+		return M0_ERR(-EINVAL);
+	ep_name += shift + 1;
+	at = strchr(ep_name, '@');
+	if (at == NULL) {
+		return M0_ERR(-EINVAL);
+	} else {
+		at++;
+		if (at == NULL)
+			return M0_ERR(-EINVAL);
+		M0_PRE(portSize >= (strlen(at)+1));
+		memcpy(port,at,(strlen(at)+1));
+	}
+	M0_PRE(nodeSize >= (at - ep_name));
+	memcpy(node, ep_name, ((at - ep_name)-1));
+	return 0;
 }
 
 
@@ -229,8 +279,8 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
  *                    IPV6 [4002:db1::1]:4235
  */
 static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
-			                size_t nodeSize, char *port,
-                                        size_t portSize)
+					size_t nodeSize, char *port,
+					size_t portSize)
 {
 	char   *name;
 	char   *cp;
@@ -316,15 +366,16 @@ static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name)
 	if( name == NULL || name[0] == 0)
 		result =  M0_ERR(-EPROTO);
 	else if((strncmp(name,"libfab",6))==0)
-		result = libfab_ep_addr_decode_native(name, node,
-                                                      nodeSize, port, portSize);
-	// else if (name[0] < '0' || name[0] > '9')
-		//result = libfab_ep_addr_decode_sock(name, node,
-		//				    nodeSize, port, portSize);
+		result = libfab_ep_addr_decode_native(name, node, nodeSize, 
+						      port, portSize);
+	else if (name[0] < '0' || name[0] > '9')
+		/* sock format */
+		result = libfab_ep_addr_decode_sock(name, node, nodeSize, 
+						    port, portSize);
 	else
 		/* Lnet format. */
-		result = libfab_ep_addr_decode_lnet(name, node,
-						    nodeSize, port, portSize);
+		result = libfab_ep_addr_decode_lnet(name, node, nodeSize, 
+						    port, portSize);
 
 	if (result == FI_SUCCESS)
 		strcpy(ep->fep_name.fen_str_addr, name);
