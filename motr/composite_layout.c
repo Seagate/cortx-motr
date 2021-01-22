@@ -697,17 +697,17 @@ static m0_bindex_t get_next_off(struct m0_composite_extent *cexts[], int n)
 /* Advance each layer's extent cursor. */
 static void advance_layers_cursor(struct m0_tl *cext_tlists[],
 				  struct m0_composite_extent *cexts[], int n,
-				  m0_bindex_t next_off)
+				  m0_bindex_t off)
 {
 	int i;
 
 	for (i = 0; i < n; i++) {
 		if (cexts[i] == NULL ||
-		    cexts[i]->ce_off + cexts[i]->ce_len > next_off)
+		    cexts[i]->ce_off + cexts[i]->ce_len > off)
 			continue;
 		cexts[i] = cext_tlist_next(cext_tlists[i], cexts[i]);
 		while (cexts[i] != NULL &&
-		       cexts[i]->ce_off + cexts[i]->ce_len <= next_off)
+		       cexts[i]->ce_off + cexts[i]->ce_len <= off)
 			cexts[i] = cext_tlist_next(cext_tlists[i], cexts[i]);
 	}
 }
@@ -773,6 +773,14 @@ static int composite_io_divide(struct m0_client_composite_layout *clayout,
 
 	m0_ivec_cursor_init(&icursor, ext);
 	m0_bufvec_cursor_init(&bcursor, data);
+
+	/*
+	 * Skip the first few extents whose end is less than the offset
+	 * of IO range as they are certainly not in the range.
+	 */
+	off = m0_ivec_cursor_index(&icursor);
+	advance_layers_cursor(cext_tlists, cexts, valid_subobj_cnt, off);
+
 	while (!m0_ivec_cursor_move(&icursor, len) &&
 	       !m0_bufvec_cursor_move(&bcursor, len)) {
 		off = m0_ivec_cursor_index(&icursor);
