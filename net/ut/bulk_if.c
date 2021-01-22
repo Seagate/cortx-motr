@@ -111,7 +111,7 @@ static int net_bulk_if_init(void)
 	return 0;
 }
 
-static int ut_dom_init(struct m0_net_xprt *xprt,
+static int ut_dom_init(const struct m0_net_xprt *xprt,
 		       struct m0_net_domain *dom)
 {
 	M0_ASSERT(m0_mutex_is_locked(&m0_net_mutex));
@@ -344,7 +344,7 @@ static void ut_post_state_change_ev_thread(int n)
 static int ut_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 {
 	int rc;
-	struct m0_net_xprt *xprt;
+	const struct m0_net_xprt *xprt;
 	struct m0_net_end_point *ep;
 
 	M0_UT_ASSERT(m0_mutex_is_locked(&tm->ntm_mutex));
