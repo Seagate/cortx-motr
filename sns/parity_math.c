@@ -18,9 +18,6 @@
  *
  */
 
-#ifndef __KERNEL__
-#include <isa-l.h>
-#endif /* __KERNEL__ */
 
 #include "lib/arith.h"
 #include "lib/assert.h"
@@ -288,14 +285,6 @@ static int vandmat_norm(struct m0_matrix *m)
 
 M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math)
 {
-#ifndef __KERNEL__
-	if (math->pmi_parity_algo == M0_PARITY_CAL_ALGO_ISAL) {
-		vandmat_fini(&math->pmi_vandmat);
-		m0_matrix_fini(&math->pmi_vandmat_parity_slice);
-		m0_free(math->encode_matrix);
-		m0_free(math->g_tbls);
-	}
-#else
 	if (math->pmi_parity_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
 		vandmat_fini(&math->pmi_vandmat);
 		m0_matrix_fini(&math->pmi_vandmat_parity_slice);
@@ -308,16 +297,12 @@ M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math)
 		m0_matvec_fini(&math->pmi_sys_res);
 //		m0_parity_fini();
 	}
-#endif /* __KERNEL__ */
 }
 
 M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 				    uint32_t data_count, uint32_t parity_count)
 {
 	int ret;
-#ifndef __KERNEL__
-	uint32_t total_count;
-#endif /* __KERNEL__ */
 
 	M0_PRE(data_count >= 1);
 	M0_PRE(parity_count >= 1);
@@ -333,6 +318,8 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_XOR;
 		return 0;
 	} else {
+		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_REED_SOLOMON;
+
 		ret = vandmat_init(&math->pmi_vandmat, data_count,
 				   parity_count);
 		if (ret < 0)
@@ -350,38 +337,6 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 		m0_matrix_submatrix_get(&math->pmi_vandmat,
 				        &math->pmi_vandmat_parity_slice, 0,
 					data_count);
-
-#ifndef __KERNEL__
-		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_ISAL;
-
-		total_count = data_count + parity_count;
-
-		/* Allocate memory for encode matrix. It is of
-		 * size total_count * data_count */
-		M0_ALLOC_ARR(math->encode_matrix, (total_count * data_count));
-		if (math->encode_matrix == NULL) {
-			ret = M0_ERR(-ENOMEM);
-			goto handle_error;
-		}
-
-		/* Allocate memory for expanded tables. */
-		M0_ALLOC_ARR(math->g_tbls, (data_count * parity_count * 32));
-		if (math->g_tbls == NULL) {
-			ret = M0_ERR(-ENOMEM);
-			goto handle_error;
-		}
-
-		/* Generate a Cauchy matrix of coefficients to be used for
-		 * encoding. */
-		gf_gen_cauchy1_matrix(math->encode_matrix, total_count,
-				      data_count);
-
-		/* Initialize g_tbls from encode matrix */
-		ec_init_tables(data_count, parity_count,
-			       &math->encode_matrix[data_count * data_count],
-			       math->g_tbls);
-#else
-		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_REED_SOLOMON;
 
 		ret = m0_matvec_init(&math->pmi_data, data_count);
 		if (ret < 0)
@@ -403,7 +358,6 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 				     math->pmi_data.mv_size);
 		if (ret < 0)
 			goto handle_error;
-#endif /* __KERNEL__ */
 	}
 	return ret;
  handle_error:
