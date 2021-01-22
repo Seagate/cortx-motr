@@ -40,16 +40,18 @@ func usage() {
     flag.PrintDefaults()
 }
 
+var objOff  int64
 var objSize uint64
 var bufSize int
-var pool    *string
+var pool   *string
 
 func init() {
     log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 
     flag.Usage = usage
-    flag.IntVar(&bufSize, "bsz", 32, "I/O buffer `size` (in Mbytes)")
-    flag.Uint64Var(&objSize, "osz", 0, "object `size` (in Kbytes)")
+    flag.IntVar(&bufSize, "bsz", 32, "i/o buffer `size` (in MiB)")
+    flag.Int64Var(&objOff, "off", 0, "start object i/o at `offset` (in KiB)")
+    flag.Uint64Var(&objSize, "osz", 0, "object `size` (in KiB)")
     pool = flag.String("pool", "", "pool `fid` to create object at")
 }
 
@@ -59,6 +61,7 @@ func main() {
         usage()
         os.Exit(1)
     }
+    objOff  *= 1024
     objSize *= 1024
 
     src, dst := flag.Arg(0), flag.Arg(1)
@@ -71,6 +74,10 @@ func main() {
             log.Fatalf("failed to open object %v: %v", src, err)
         }
         defer mioR.Close()
+        if _, err := mioR.Seek(objOff, io.SeekStart); err != nil {
+            log.Fatalf("failed to set offset (%v) for object %v: %v",
+                       objOff, src, err)
+        }
         reader = &mioR
     } else if src == "-" {
         reader = os.Stdin
@@ -106,6 +113,10 @@ func main() {
         if *pool != "" && !mioW.InPool(*pool) {
             log.Fatalf("the object already exists in another pool: %v",
                        mioW.GetPool())
+        }
+        if _, err := mioW.Seek(objOff, io.SeekStart); err != nil {
+            log.Fatalf("failed to set offset (%v) for object %v: %v",
+                       objOff, src, err)
         }
         writer = &mioW
     } else if dst == "-" {
