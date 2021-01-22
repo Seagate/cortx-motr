@@ -83,14 +83,18 @@ extern void btree_dbg_print(struct m0_be_btree *tree);
 
 void track_cob_btrees(struct m0_cob_domain *cdom, bool print_btree)
 {
+	int i;
 	if (print_btree) {
-		M0_LOG(M0_ALWAYS, "cd_object_index ");
-		btree_dbg_print(&cdom->cd_object_index);
-		M0_LOG(M0_ALWAYS, "cd_namespace ");
-		btree_dbg_print(&cdom->cd_namespace);
-		M0_LOG(M0_ALWAYS, "cd_fileattr_basic ");
-		btree_dbg_print(&cdom->
-				cd_fileattr_basic);
+		for(i = 0;i < COB_HT_SIZE; i++)
+		{
+			M0_LOG(M0_ALWAYS, "cd_object_index ");
+			btree_dbg_print(&cdom->cd_object_index[i]);
+			M0_LOG(M0_ALWAYS, "cd_namespace ");
+			btree_dbg_print(&cdom->cd_namespace[i]);
+			M0_LOG(M0_ALWAYS, "cd_fileattr_basic ");
+			btree_dbg_print(&cdom->
+				cd_fileattr_basic[i]);
+		}
 	} else
 		M0_LOG(M0_ALWAYS,"M0_BE:COB "
 				"cd_object_index btree = %p "
@@ -98,11 +102,11 @@ void track_cob_btrees(struct m0_cob_domain *cdom, bool print_btree)
 				"cd_fileattr_basic btree = %p "
 				"cd_fileattr_omg btree = %p "
 				"cd_fileattr_ea btree = %p",
-				&cdom->cd_object_index,
-				&cdom->cd_namespace,
-				&cdom->cd_fileattr_basic,
+				&cdom->cd_object_index[0],
+				&cdom->cd_namespace[0],
+				&cdom->cd_fileattr_basic[0],
 				&cdom->cd_fileattr_omg,
-				&cdom->cd_fileattr_ea);
+				&cdom->cd_fileattr_ea[0]);
 }
 
 void track_ad_btrees(struct stob_ad_0type_rec *rec, bool print_btree)

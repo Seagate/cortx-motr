@@ -2979,9 +2979,9 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 	struct cob_action        *ca = container_of(act, struct cob_action,
 						    coa_act);
 	struct m0_be_btree       *ios_ns = &act->a_builder->b_ios_cdom->
-								cd_namespace;
+								cd_namespace[0];
 	struct m0_be_btree       *mds_ns = &act->a_builder->b_mds_cdom->
-								cd_namespace;
+								cd_namespace[0];
 	struct m0_cob             cob = {};
 	struct m0_cob_nskey      *nskey = ca->coa_key.b_addr;
 	struct m0_cob_nsrec      *nsrec = ca->coa_val.b_addr;

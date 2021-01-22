@@ -230,6 +230,8 @@ enum {
 	M0_IOS_COB_ID_START = 1000,
 };
 
+enum { COB_HT_SIZE = 16 };
+
 /**
    Unique cob domain identifier.
 
@@ -267,11 +269,11 @@ struct m0_cob_domain {
 	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
 	 * before the m0_format_footer, where only persistent fields allowed
 	 */
-	struct m0_be_btree      cd_object_index;
-	struct m0_be_btree      cd_namespace;
-	struct m0_be_btree      cd_fileattr_basic;
+	struct m0_be_btree      cd_object_index[COB_HT_SIZE];
+	struct m0_be_btree      cd_namespace[COB_HT_SIZE];
+	struct m0_be_btree      cd_fileattr_basic[COB_HT_SIZE];
 	struct m0_be_btree      cd_fileattr_omg;
-	struct m0_be_btree      cd_fileattr_ea;
+	struct m0_be_btree      cd_fileattr_ea[COB_HT_SIZE];
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_cob_domain_format_version {
@@ -970,6 +972,8 @@ M0_INTERNAL int m0_cob_mod_init(void);
    Module finalizer.
  */
 M0_INTERNAL void m0_cob_mod_fini(void);
+
+M0_INTERNAL uint16_t cob_get_hash(struct m0_fid * fid);
 
 extern const struct m0_fid_type m0_cob_fid_type;
 enum m0_cob_type {
