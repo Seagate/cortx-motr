@@ -100,7 +100,8 @@ static struct nlx_xo_interceptable_subs nlx_xo_iv = {
 #define NLX_tm_timeout_buffers(tm, now) \
 	(*nlx_xo_iv._nlx_tm_timeout_buffers)(tm, now)
 
-static int nlx_xo_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
+static int nlx_xo_dom_init(const struct m0_net_xprt *xprt,
+			   struct m0_net_domain *dom)
 {
 	struct nlx_xo_domain *dp;
 	int rc;
@@ -637,7 +638,7 @@ static const struct m0_net_xprt_ops nlx_xo_xprt_ops = {
    @{
  */
 
-struct m0_net_xprt m0_net_lnet_xprt = {
+const struct m0_net_xprt m0_net_lnet_xprt = {
 	.nx_name = "lnet",
 	.nx_ops  = &nlx_xo_xprt_ops
 };

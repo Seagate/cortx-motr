@@ -986,7 +986,7 @@ M0_TL_DESCR_DEFINE(b, "buffers",
 		   M0_NET_SOCK_BUF_MAGIC, M0_NET_SOCK_BUF_HEAD_MAGIC);
 M0_TL_DEFINE(b, static, struct buf);
 
-static int  dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom);
+static int  dom_init(const struct m0_net_xprt *xprt, struct m0_net_domain *dom);
 static void dom_fini(struct m0_net_domain *dom);
 static int  ma_init(struct m0_net_transfer_mc *ma);
 static int  ma_confine(struct m0_net_transfer_mc *ma,
@@ -1307,7 +1307,7 @@ static bool mover_invariant(const struct mover *m)
 }
 
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
-static int dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
+static int dom_init(const struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
 	M0_ENTRY();
 	return M0_RC(0);

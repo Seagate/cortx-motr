@@ -269,7 +269,6 @@ static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
 	return 0;
 }
 
-
 /**
  * Used to take the ip and port from the given end point
  * ep_name : endpoint address from domain
