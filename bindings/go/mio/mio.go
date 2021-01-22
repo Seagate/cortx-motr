@@ -467,11 +467,8 @@ func (v *iov) prepareBuf(buf []byte, i, bs, gs int, off int64) error {
     return nil
 }
 
-func (v *iov) doIO(obj *C.struct_m0_obj, i int, opcode uint32) {
+func (v *iov) doIO(i int, op *C.struct_m0_op) {
     defer v.wg.Done()
-    var op *C.struct_m0_op
-    C.m0_obj_op(obj, opcode,
-                &v.ext[i], &v.buf[i], &v.attr[i], 0, 0, &op)
     C.m0_op_launch(&op, 1)
     rc := C.m0_op_wait(op, bits(C.M0_OS_FAILED,
                                 C.M0_OS_STABLE), C.M0_TIME_NEVER)
@@ -482,7 +479,7 @@ func (v *iov) doIO(obj *C.struct_m0_obj, i int, opcode uint32) {
     C.m0_op_free(op)
     // put the slot back to the pool
     if rc != 0 {
-        v.ch <- slot{i, fmt.Errorf("io op (%d) failed: %d", opcode, rc)}
+        v.ch <- slot{i, fmt.Errorf("io op (%d) failed: %d", op.op_code, rc)}
     }
     v.ch <- slot{i, nil}
 }
@@ -520,17 +517,27 @@ func (mio *Mio) write(p []byte, off *int64) (n int, err error) {
         }
         slot := <-v.ch // get next available from the pool
         if slot.err != nil {
+            err = slot.err
             break
         }
         err = v.prepareBuf(p[n:], slot.idx, bs, gs, *off)
         if err != nil {
-            return n, err
+            break
         }
         if v.minBuf != nil { // last block, not aligned
             copy(v.minBuf, p[n:])
         }
+        var op *C.struct_m0_op
+        rc := C.m0_obj_op(mio.obj, C.M0_OC_WRITE,
+                          &v.ext[slot.idx],
+                          &v.buf[slot.idx],
+                          &v.attr[slot.idx], 0, 0, &op)
+        if rc != 0 {
+            err = fmt.Errorf("creating m0_op failed: rc=%v", rc)
+            break
+        }
         v.wg.Add(1)
-        go v.doIO(mio.obj, slot.idx, C.M0_OC_WRITE)
+        go v.doIO(slot.idx, op)
         n += bs
         *off += int64(bs)
     }
@@ -581,18 +588,26 @@ func (mio *Mio) read(p []byte, off *int64) (n int, err error) {
         }
         slot := <-v.ch // get next available
         if slot.err != nil {
+            err = slot.err
             break
         }
         err = v.prepareBuf(p[n:], slot.idx, bs, gs, *off)
         if err != nil {
-            return n, err
+            break
+        }
+        var op *C.struct_m0_op
+        rc := C.m0_obj_op(mio.obj, C.M0_OC_READ,
+                          &v.ext[slot.idx],
+                          &v.buf[slot.idx],
+                          &v.attr[slot.idx], 0, 0, &op)
+        if rc != 0 {
+            err = fmt.Errorf("creating m0_op failed: rc=%v", rc)
+            break
         }
         v.wg.Add(1)
-        go v.doIO(mio.obj, slot.idx, C.M0_OC_READ)
+        go v.doIO(slot.idx, op)
         if v.minBuf != nil {
-            // We have to wait before copying what's read,
-            // but it's the last block anyway, so it's OK.
-            v.wg.Wait()
+            v.wg.Wait() // last one anyway
             copy(p[n:], v.minBuf)
         }
         n += bs
