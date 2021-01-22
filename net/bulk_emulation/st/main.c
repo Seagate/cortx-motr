@@ -62,10 +62,10 @@ enum {
 };
 
 struct ping_xprt {
-	struct m0_net_xprt *px_xprt;
-	bool                px_dual_only;
-	bool                px_3part_addr;
-	short               px_client_port;
+	const struct m0_net_xprt *px_xprt;
+	bool                      px_dual_only;
+	bool                      px_3part_addr;
+	short                     px_client_port;
 };
 
 struct ping_xprt xprts[1] = {
