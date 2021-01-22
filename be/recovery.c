@@ -192,32 +192,42 @@ M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr)
 	m0_bindex_t                   next_pos = M0_BINDEX_MAX;
 	int                           rc;
 
+	M0_ENTRY("rvr = %p, log = %p", rvr, log);
+
 	/* TODO avoid reading of header from disk, log reads it during init */
 	rc = m0_be_fmt_log_header_init(&log_hdr, NULL);
 	M0_ASSERT(rc == 0);
 	rc = m0_be_log_header_read(log, &log_hdr);
 	M0_ASSERT(rc == 0);
 	log_discarded = log_hdr.flh_discarded;
+	M0_LOG(M0_DEBUG, "log_discarded=%"PRIu64, log_discarded);
 
 	rc = be_recovery_log_record_iter_new(&iter);
 	rc = rc ?: m0_be_log_record_initial(log, iter);
 	while (rc == 0) {
 		log_record_iter_tlink_init_at_tail(iter, &rvr->brec_iters);
 		prev = iter;
+		M0_LOG(M0_DEBUG, "Forward movement : prev header "
+				  BFLRH_F, BFLRH_P(&prev->lri_header));
 		rc = be_recovery_log_record_iter_new(&iter);
 		rc = rc ?: m0_be_log_record_next(log, prev, iter);
 	}
 	be_recovery_log_record_iter_destroy(iter);
-	if (!M0_IN(rc, (0, -ENOENT)))
+	if (!M0_IN(rc, (0, -ENOENT))){
+		M0_LOG(M0_ERROR, "Error: rc=%d", rc);
 		goto err;
-	if (rc == -ENOENT && prev == NULL)
+	}
+	if (rc == -ENOENT && prev == NULL){
+		M0_LOG(M0_DEBUG, "Empty");
 		goto empty;
+	}
 
 	last_discarded = max_check(prev->lri_header.lrh_discarded,
 				   log_discarded);
 	prev = log_record_iter_tlist_head(&rvr->brec_iters);
 	while (prev != NULL && prev->lri_header.lrh_pos < last_discarded) {
 		next_pos = prev->lri_header.lrh_pos + prev->lri_header.lrh_size;
+		M0_LOG(M0_DEBUG, "next_pos=%"PRIu64, next_pos);
 		log_record_iter_tlink_del_fini(prev);
 		be_recovery_log_record_iter_destroy(prev);
 		prev = log_record_iter_tlist_head(&rvr->brec_iters);
@@ -225,8 +235,10 @@ M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr)
 	M0_ASSERT(ergo(prev == NULL,
 		       last_discarded == log_discarded &&
 	               last_discarded == next_pos));
-	if (prev == NULL)
+	if (prev == NULL){
+		M0_LOG(M0_DEBUG, "Empty");
 		goto empty;
+	}
 
 	rc = 0;
 	while (rc == 0 && prev->lri_header.lrh_pos > last_discarded) {
@@ -235,13 +247,17 @@ M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr)
 		if (rc == 0) {
 			log_record_iter_tlink_init_at(iter, &rvr->brec_iters);
 			prev = iter;
+			M0_LOG(M0_DEBUG, "Backward movement : prev header "
+					  BFLRH_F, BFLRH_P(&(prev->lri_header)));
 		} else
 			be_recovery_log_record_iter_destroy(iter);
 	}
 	M0_ASSERT(ergo(rc == 0, prev->lri_header.lrh_pos == last_discarded));
 
-	if (rc != 0)
+	if (rc != 0){
+		M0_LOG(M0_ERROR, "Error: rc=%d", rc);
 		goto err;
+	}
 
 	iter = log_record_iter_tlist_tail(&rvr->brec_iters);
 
@@ -250,10 +266,19 @@ M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr)
 	rvr->brec_current          = rvr->brec_last_record_pos +
 				     rvr->brec_last_record_size;
 	rvr->brec_discarded        = prev->lri_header.lrh_pos;
+	M0_LOG(M0_DEBUG, "Recovery scan complete : last_record_pos=%"PRIu64
+			 " last_record_size=%"PRIu64
+			 " current position=%"PRIu64
+			 " discarded position=%"PRIu64,
+			 rvr->brec_last_record_pos,
+			 rvr->brec_last_record_size,
+			 rvr->brec_current,
+			 rvr->brec_discarded);
 
 	goto out;
 
 err:
+	M0_LOG(M0_ERROR, "Error during recovery scan. rc = %d", rc);
 	m0_tl_for(log_record_iter, &rvr->brec_iters, iter) {
 		log_record_iter_tlink_del_fini(iter);
 		be_recovery_log_record_iter_destroy(iter);
@@ -266,9 +291,18 @@ empty:
 	rvr->brec_last_record_size = log_hdr.flh_group_size;
 	rvr->brec_current          = log_discarded;
 	rvr->brec_discarded        = log_discarded;
+	M0_LOG(M0_DEBUG, "Empty Logs : last_record_pos=%"PRIu64
+			 " last_record_size=%"PRIu64
+			 " current position=%"PRIu64
+			 " discarded position=%"PRIu64,
+			 rvr->brec_last_record_pos,
+			 rvr->brec_last_record_size,
+			 rvr->brec_current,
+			 rvr->brec_discarded);
 	M0_POST(log_record_iter_tlist_is_empty(&rvr->brec_iters));
 out:
 	m0_be_fmt_log_header_fini(&log_hdr);
+	M0_LEAVE();
 	return rc;
 }
 

@@ -51,6 +51,7 @@ FAILOVER_MD_DIR=
 beck_only=false # Run only becktool in the script
 clean_snapshot=false # Removes MD_Snapshot if present and create lv_main_swap again
 ESEGV=134 # Error code for segment fault
+EOOM=137 # Out Of Memory Exit code
 RSTATE0=0 # We do not need to perform any actions before starting recovery
 RSTATE2=2 # We need to do only create snapshot before starting recovery
 RSTATE3=3 # We need to do all operations such as fsck, replay logs, create snapshot before starting recovery
@@ -842,10 +843,11 @@ run_becktool() {
 
         m0drlog "Running Becktool on local node"
         run_cmd_on_local_node "(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
-                               -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $LOCAL_SEG_GEN_ID;)"
+                               -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $LOCAL_SEG_GEN_ID \
+                               -r $MD_DIR/scan_offset;)"
         cmd_exit_status=$?
-        # restart the execution of command if exit code is ESEGV error
-        while [[ $cmd_exit_status == $ESEGV ]];
+        # restart the execution of command if exit code is ESEGV or OOM error
+        while [[ $cmd_exit_status == $ESEGV ]] || [[ $cmd_exit_status == $EOOM ]];
         do
             #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash( receiving SEGV signal ), to 2 each.
             core_m0beck_file_count=$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
@@ -868,7 +870,8 @@ run_becktool() {
 
             m0drlog "Restarting Becktool on local node"
             run_cmd_on_local_node "(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
-                                   -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $LOCAL_SEG_GEN_ID;)"
+                                   -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $LOCAL_SEG_GEN_ID \
+                                   -r $MD_DIR/scan_offset -R;)"
             cmd_exit_status=$?
         done
 
@@ -888,13 +891,18 @@ run_becktool() {
 
             m0drlog "Running Becktool on remote node"
             # Below statement is for logging purpose
-            echo "Running '(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $REMOTE_SEG_GEN_ID;)'" >> ${LOG_FILE}
+            echo "Running '(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                            -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
+                            -g $REMOTE_SEG_GEN_ID -r $MD_DIR/scan_offset;)'" \
+                            >> ${LOG_FILE}
             run_cmd_on_remote_node "bash -s" <<-EOF
-            (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $REMOTE_SEG_GEN_ID;)
+            (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+             -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
+             -g $REMOTE_SEG_GEN_ID -r $MD_DIR/scan_offset;)
 EOF
             cmd_exit_status=$?
-            # restart the execution of command if exit code is ESEGV error
-            while [[ $cmd_exit_status == $ESEGV ]];
+            # restart the execution of command if exit code is ESEGV or OOM error
+            while [[ $cmd_exit_status == $ESEGV ]] || [[ $cmd_exit_status == $EOOM ]];
             do
 
                 #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash ( receiving SEGV signal ), to 2 each.
@@ -930,7 +938,9 @@ EOF
 
                 m0drlog "Restarting Becktool on remote node"
                 run_cmd_on_remote_node "bash -s" <<-EOF
-                (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $REMOTE_SEG_GEN_ID;)
+                (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                 -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
+                 -g $REMOTE_SEG_GEN_ID -r $MD_DIR/scan_offset -R;)
 EOF
                 cmd_exit_status=$?
             done
@@ -945,12 +955,15 @@ EOF
 
             m0drlog "Running Becktool for remote node from local node"
             # Below statement is for logging purpose
-            echo "Running '(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $REMOTE_SEG_GEN_ID;)'" >> ${LOG_FILE}
+            echo "Running '(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                            -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
+                            -g $REMOTE_SEG_GEN_ID -r $FAILOVER_MD_DIR/scan_offset;)'" >> ${LOG_FILE}
             run_cmd_on_local_node "(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
-                                   -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $REMOTE_SEG_GEN_ID;)"
+                                    -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
+                                    -g $REMOTE_SEG_GEN_ID -r $FAILOVER_MD_DIR/scan_offset;)"
             cmd_exit_status=$?
-            # restart the execution of command if exit code is ESEGV error
-            while [[ $cmd_exit_status == $ESEGV ]];
+            # restart the execution of command if exit code is ESEGV or OOM error
+            while [[ $cmd_exit_status == $ESEGV ]] || [[ $cmd_exit_status == $EOOM ]];
             do
                 #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash ( receiving SEGV signal ), to 2 each.
                 core_m0beck_file_count=$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
@@ -973,7 +986,8 @@ EOF
 
                 m0drlog "Restarting Becktool for remote node from local node"
                 run_cmd_on_local_node "(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
-                                       -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $REMOTE_SEG_GEN_ID;)"
+                                        -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
+                                        -g $REMOTE_SEG_GEN_ID -r $FAILOVER_MD_DIR/scan_offset -R;)"
                 cmd_exit_status=$?
             done
 

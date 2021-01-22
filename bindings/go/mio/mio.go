@@ -76,22 +76,17 @@ package mio
 import "C"
 
 import (
-    "fmt"
-    "flag"
-    "log"
     "errors"
+    "flag"
+    "fmt"
     "io"
-    "reflect"
+    "log"
     "os"
-    "time"
+    "reflect"
     "sync"
+    "time"
     "unsafe"
 )
-
-type slot struct {
-    idx int
-    err error
-}
 
 // Mio implements io.Reader / io.Writer interfaces for Motr.
 type Mio struct {
@@ -99,7 +94,16 @@ type Mio struct {
     obj    *C.struct_m0_obj
     objSz   uint64
     objLid  uint
-    off     uint64
+    objPool C.struct_m0_fid
+    off     int64
+}
+
+type slot struct {
+    idx int
+    err error
+}
+
+type iov struct {
     buf     []C.struct_m0_bufvec
     ext     []C.struct_m0_indexvec
     attr    []C.struct_m0_bufvec
@@ -160,7 +164,7 @@ func Init() {
     }
 
     C.m0_container_init(&C.container, nil, &C.M0_UBER_REALM, C.instance)
-    rc = C.container.co_realm.re_entity.en_sm.sm_rc;
+    rc = C.container.co_realm.re_entity.en_sm.sm_rc
     if rc != 0 {
         log.Panicf("C.m0_container_init() failed: %v", rc)
     }
@@ -186,21 +190,47 @@ func (mio *Mio) objNew(id string) (err error) {
     return nil
 }
 
-func (mio *Mio) finishOpen(sz uint64) {
-    mio.buf = make([]C.struct_m0_bufvec, threadsN)
-    mio.ext = make([]C.struct_m0_indexvec, threadsN)
-    mio.attr = make([]C.struct_m0_bufvec, threadsN)
-    mio.ch = make(chan slot, threadsN)
-    // fill the pool with slots
-    for i := 0; i < threadsN; i++ {
-        mio.ch <- slot{i, nil}
+// GetPool returns the pool the object is located at.
+func (mio *Mio) GetPool() string {
+    if mio.obj == nil {
+        return ""
     }
-    mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
-    mio.off = 0
-    mio.objSz = sz
+    p := mio.objPool
+
+    return fmt.Sprintf("0x%x:0x%x", p.f_container, p.f_key)
 }
 
-// Open opens object for reading ant/or writing. The size
+// InPool checks whether the object is located at the pool.
+func (mio *Mio) InPool(pool string) bool {
+    if mio.obj == nil {
+        return false
+    }
+    id1, err := ScanID(pool)
+    if err != nil {
+        return false
+    }
+    p := mio.objPool
+    id2 := C.struct_m0_uint128{p.f_container, p.f_key}
+
+    return C.m0_uint128_cmp(&id1, &id2) == 0
+}
+
+func (mio *Mio) open(sz uint64) error {
+    pv := C.m0_pool_version_find(&C.instance.m0c_pools_common,
+                                 &mio.obj.ob_attr.oa_pver)
+    if pv == nil {
+        return fmt.Errorf("cannot find pool version")
+    }
+    mio.objPool = pv.pv_pool.po_id
+
+    mio.objSz = sz
+    mio.objLid = uint(mio.obj.ob_attr.oa_layout_id)
+    mio.off = 0
+
+    return nil
+}
+
+// Open opens Mio object for reading ant/or writing. The size
 // must be specified when openning object for reading. Otherwise,
 // nothing will be read. (Motr doesn't store objects metadata
 // along with the objects.)
@@ -214,42 +244,30 @@ func (mio *Mio) Open(id string, anySz ...uint64) (err error) {
     }
 
     C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, 1)
-    rc := C.m0_open_entity(&mio.obj.ob_entity);
+    rc := C.m0_open_entity(&mio.obj.ob_entity)
     if rc != 0 {
         mio.Close()
         return fmt.Errorf("failed to open object entity: %d", rc)
     }
 
-    sz := uint64(0)
     for _, v := range anySz {
-        sz = v
+        mio.objSz = v
     }
-    mio.finishOpen(sz)
 
-    return nil
+    return mio.open(mio.objSz)
 }
 
-// Close closes the object and releases all the resources that were
-// allocated while working with it.
-func (mio *Mio) Close() {
+// Close closes Mio object and releases all the resources that were
+// allocated for it. Implements io.Closer interface.
+func (mio *Mio) Close() error {
     if mio.obj == nil {
-        return
+        return errors.New("object is not opened")
     }
     C.m0_obj_fini(mio.obj)
     C.free(unsafe.Pointer(mio.obj))
     mio.obj = nil
 
-    for i := 0; i < len(mio.buf); i++ {
-        if mio.buf[i].ov_buf == nil {
-            C.m0_bufvec_free2(&mio.buf[i])
-                C.m0_bufvec_free(&mio.attr[i])
-                C.m0_indexvec_free(&mio.ext[i])
-        }
-    }
-    if mio.minBuf != nil {
-        C.free(unsafe.Pointer(&mio.minBuf[0]))
-        mio.minBuf = nil
-    }
+    return nil
 }
 
 func bits(values ...C.ulong) (res C.ulong) {
@@ -326,9 +344,8 @@ func (mio *Mio) Create(id string, sz uint64, anyPool ...string) error {
     if rc != 0 {
         return fmt.Errorf("create op failed: %d", rc)
     }
-    mio.finishOpen(sz)
 
-    return nil
+    return mio.open(sz)
 }
 
 func roundupPower2(x int) (power int) {
@@ -380,45 +397,75 @@ func pointer2slice(p unsafe.Pointer, n int) []byte {
     return res
 }
 
-func (mio *Mio) prepareBuf(p []byte, i, bs, gs, off int,
-                           offMio uint64) error {
-    buf := p[off:]
-    if rem := bs % gs; rem != 0 {
-        bs += (gs - rem)
-        // Must be zero-ed, so we always allocate it.
-        // gs does not divide bs only at the end of object
-        // so it should not happen very often.
-        mio.minBuf = pointer2slice(C.calloc(1, C.ulong(bs)), bs)
-        buf = mio.minBuf[:]
-    } else if mio.minBuf != nil {
-        C.free(unsafe.Pointer(&mio.minBuf[0]))
-        mio.minBuf = nil
+func (v *iov) freeVecs(n int) {
+    for i := 0; i < n; i++ {
+        C.m0_bufvec_free2(&v.buf[i])
+        C.m0_bufvec_free(&v.attr[i])
+        C.m0_indexvec_free(&v.ext[i])
     }
-    if mio.buf[i].ov_buf == nil {
-        if C.m0_bufvec_empty_alloc(&mio.buf[i], 1) != 0 {
-            return errors.New("mio.buf allocation failed")
+}
+func (v *iov) alloc() error {
+    v.buf = make([]C.struct_m0_bufvec, threadsN)
+    v.ext = make([]C.struct_m0_indexvec, threadsN)
+    v.attr = make([]C.struct_m0_bufvec, threadsN)
+    v.ch = make(chan slot, threadsN) // pool of free slots
+
+    var i int
+    for i = 0; i < threadsN; i++ {
+        v.ch <- slot{i, nil} // fill the pool in
+        if C.m0_bufvec_empty_alloc(&v.buf[i], 1) != 0 {
+            break
         }
-        if C.m0_bufvec_alloc(&mio.attr[i], 1, 1) != 0 {
-            return errors.New("mio.attr allocation failed")
+        if C.m0_bufvec_alloc(&v.attr[i], 1, 1) != 0 {
+            break
         }
-        if C.m0_indexvec_alloc(&mio.ext[i], 1) != 0 {
-            return errors.New("mio.ext allocation failed")
+        if C.m0_indexvec_alloc(&v.ext[i], 1) != 0 {
+            break
         }
     }
-    *mio.buf[i].ov_buf = unsafe.Pointer(&buf[0])
-    *mio.buf[i].ov_vec.v_count = C.ulong(bs)
-    *mio.ext[i].iv_index = C.ulong(offMio)
-    *mio.ext[i].iv_vec.v_count = C.ulong(bs)
-    *mio.attr[i].ov_vec.v_count = 0
+    if i < threadsN {
+        v.freeVecs(i)
+        return errors.New("vecs allocation failed")
+    }
 
     return nil
 }
 
-func (mio *Mio) doIO(i int, opcode uint32) {
-    defer mio.wg.Done()
+func (v *iov) free() {
+    v.freeVecs(len(v.buf))
+    if v.minBuf != nil {
+        C.free(unsafe.Pointer(&v.minBuf[0]))
+        v.minBuf = nil
+    }
+}
+
+func (v *iov) prepareBuf(buf []byte, i, bs, gs int, off int64) error {
+    if v.minBuf != nil {
+        return errors.New("BUG IN THE CODE: minBuf must always be nil here")
+    }
+    if rem := bs % gs; rem != 0 {
+        bs += (gs - rem)
+        // minBuf must be zero-ed, so we always allocate it.
+        // (That's apparently the easiest way to zero bufs in Go.)
+        // gs does not divide bs only at the end of object
+        // so it should not happen very often.
+        v.minBuf = pointer2slice(C.calloc(1, C.ulong(bs)), bs)
+        buf = v.minBuf[:]
+    }
+    *v.buf[i].ov_buf = unsafe.Pointer(&buf[0])
+    *v.buf[i].ov_vec.v_count = C.ulong(bs)
+    *v.ext[i].iv_index = C.ulong(off)
+    *v.ext[i].iv_vec.v_count = C.ulong(bs)
+    *v.attr[i].ov_vec.v_count = 0
+
+    return nil
+}
+
+func (v *iov) doIO(obj *C.struct_m0_obj, i int, opcode uint32) {
+    defer v.wg.Done()
     var op *C.struct_m0_op
-    C.m0_obj_op(mio.obj, opcode,
-                &mio.ext[i], &mio.buf[i], &mio.attr[i], 0, 0, &op)
+    C.m0_obj_op(obj, opcode,
+                &v.ext[i], &v.buf[i], &v.attr[i], 0, 0, &op)
     C.m0_op_launch(&op, 1)
     rc := C.m0_op_wait(op, bits(C.M0_OS_FAILED,
                                 C.M0_OS_STABLE), C.M0_TIME_NEVER)
@@ -429,9 +476,9 @@ func (mio *Mio) doIO(i int, opcode uint32) {
     C.m0_op_free(op)
     // put the slot back to the pool
     if rc != 0 {
-        mio.ch <- slot{i, fmt.Errorf("io op (%d) failed: %d", opcode, rc)}
+        v.ch <- slot{i, fmt.Errorf("io op (%d) failed: %d", opcode, rc)}
     }
-    mio.ch <- slot{i, nil}
+    v.ch <- slot{i, nil}
 }
 
 func getBW(n int, d time.Duration) (int, string) {
@@ -447,89 +494,148 @@ func getBW(n int, d time.Duration) (int, string) {
     return bw, "Bytes/sec"
 }
 
-func (mio *Mio) Write(p []byte) (n int, err error) {
+func (mio *Mio) write(p []byte, off *int64) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
     }
-    left, off := len(p), 0
+
+    var v iov
+    if err = v.alloc(); err != nil {
+        return 0, err
+    }
+    defer v.free()
+
+    left := len(p)
     bs, gs := mio.getOptimalBlockSz(left)
-    start, offSaved, bsSaved := time.Now(), mio.off, bs
+    start, offSaved, bsSaved := time.Now(), *off, bs
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
         }
-        slot := <-mio.ch // get next available from the pool
+        slot := <-v.ch // get next available from the pool
         if slot.err != nil {
             break
         }
-        err = mio.prepareBuf(p, slot.idx, bs, gs, off, mio.off)
+        err = v.prepareBuf(p[n:], slot.idx, bs, gs, *off)
         if err != nil {
-            return off, err
+            return n, err
         }
-        if mio.minBuf != nil {
-            copy(mio.minBuf, p[off:])
+        if v.minBuf != nil { // last block, not aligned
+            copy(v.minBuf, p[n:])
         }
-        mio.wg.Add(1)
-        go mio.doIO(slot.idx, C.M0_OC_WRITE)
-        off += bs
-        mio.off += uint64(bs)
+        v.wg.Add(1)
+        go v.doIO(mio.obj, slot.idx, C.M0_OC_WRITE)
+        n += bs
+        *off += int64(bs)
     }
-    mio.wg.Wait()
+    v.wg.Wait()
 
     if verbose {
         elapsed := time.Now().Sub(start)
-        n := int(mio.off - offSaved)
         bw, units := getBW(n, elapsed)
         log.Printf("W: off=%v len=%v bs=%v gs=%v speed=%v (%v)",
-		   offSaved, n, bsSaved, gs, bw, units)
+                   offSaved, n, bsSaved, gs, bw, units)
     }
 
-    return off, err
+    return n, err
 }
 
-func (mio *Mio) Read(p []byte) (n int, err error) {
+func (mio *Mio) Write(p []byte) (n int, err error) {
+    return mio.write(p, &mio.off)
+}
+
+// WriteAt implements io.WriterAt interface
+func (mio *Mio) WriteAt(p []byte, off int64) (n int, err error) {
+    return mio.write(p, &off)
+}
+
+func (mio *Mio) read(p []byte, off *int64) (n int, err error) {
     if mio.obj == nil {
         return 0, errors.New("object is not opened")
     }
-    left, off := len(p), 0
-    if mio.off + uint64(left) > mio.objSz {
-        left = int(mio.objSz - mio.off)
+
+    var v iov
+    if err = v.alloc(); err != nil {
+        return 0, err
+    }
+    defer v.free()
+
+    left := len(p)
+    if uint64(*off) + uint64(left) > mio.objSz {
+        left = int(mio.objSz - uint64(*off))
         if left <= 0 {
             return 0, io.EOF
         }
     }
     bs, gs := mio.getOptimalBlockSz(left)
-    start, offSaved, bsSaved := time.Now(), mio.off, bs
+    start, offSaved, bsSaved := time.Now(), *off, bs
     for ; left > 0; left -= bs {
         if left < bs {
             bs = left
         }
-        slot := <-mio.ch // get next available
+        slot := <-v.ch // get next available
         if slot.err != nil {
             break
         }
-        err = mio.prepareBuf(p, slot.idx, bs, gs, off, mio.off)
+        err = v.prepareBuf(p[n:], slot.idx, bs, gs, *off)
         if err != nil {
-            return off, err
+            return n, err
         }
-        mio.wg.Add(1)
-        go mio.doIO(slot.idx, C.M0_OC_READ)
-        if mio.minBuf != nil {
-            mio.wg.Wait() // last one anyway
-            copy(p[off:], mio.minBuf)
+        v.wg.Add(1)
+        go v.doIO(mio.obj, slot.idx, C.M0_OC_READ)
+        if v.minBuf != nil {
+            // We have to wait before copying what's read,
+            // but it's the last block anyway, so it's OK.
+            v.wg.Wait()
+            copy(p[n:], v.minBuf)
         }
-        off += bs
-        mio.off += uint64(bs)
+        n += bs
+        *off += int64(bs)
     }
-    mio.wg.Wait()
+    v.wg.Wait()
 
     if verbose {
         elapsed := time.Now().Sub(start)
-        n := int(mio.off - offSaved)
         bw, units := getBW(n, elapsed)
         log.Printf("R: off=%v len=%v bs=%v gs=%v speed=%v (%v)",
-		   offSaved, n, bsSaved, gs, bw, units)
+                   offSaved, n, bsSaved, gs, bw, units)
     }
 
-    return off, err
+    return n, err
+}
+
+func (mio *Mio) Read(p []byte) (n int, err error) {
+    return mio.read(p, &mio.off)
+}
+
+// ReadAt implements io.ReaderAt interface
+func (mio *Mio) ReadAt(p []byte, off int64) (n int, err error) {
+    return mio.read(p, &off)
+}
+
+// Seek implements io.Seeker interface
+func (mio *Mio) Seek(offset int64, whence int) (int64, error) {
+    if mio.obj == nil {
+        return 0, errors.New("object is not opened")
+    }
+
+    switch whence {
+    case io.SeekStart:
+        if offset < 0 {
+            return 0, errors.New("offset must be >= 0 for SeekStart")
+        }
+        mio.off = offset
+    case io.SeekCurrent:
+        if int64(mio.off) + offset < 0 {
+            return 0, fmt.Errorf("curr+offset (%v+%v) must be >= 0",
+                                 mio.off, offset)
+        }
+        mio.off += offset
+    case io.SeekEnd:
+        return 0, errors.New("Motr object is size-less, its end is unknown")
+    default:
+        return 0, fmt.Errorf("Invalid / unknown whence argument: %v", whence)
+    }
+
+    return int64(mio.off), nil
 }
