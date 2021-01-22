@@ -226,7 +226,7 @@ static void test_net_tm_prov(void)
 	m0_bcount_t		   buf_seg_size;
 	uint32_t		   buf_segs;
 	struct m0_clink		   tmwait;
-	static uint32_t		   tm_colours = 0;
+	uint32_t                   tm_colours = 0;
 	struct m0_net_buffer	  *nb_tm1;
 	struct m0_net_buffer	  *nb_tm2;
 	uint32_t		   shift = 12;
