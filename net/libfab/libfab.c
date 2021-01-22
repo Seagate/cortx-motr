@@ -1472,7 +1472,8 @@ static void libfab_bdesc_decode(struct m0_net_buf_desc *nbd,
 /** 
  * Used as m0_net_xprt_ops::xo_dom_init(). 
  */
-static int libfab_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
+static int libfab_dom_init(const struct m0_net_xprt *xprt,
+			   struct m0_net_domain *dom)
 {
 	M0_ENTRY();
 	return M0_RC(0);
