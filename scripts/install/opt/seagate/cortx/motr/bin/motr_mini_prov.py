@@ -30,6 +30,7 @@ MOTR_SYS_FILE = "/etc/sysconfig/motr"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
+MOTR_SYS_CFG = "/etc/sysconfig/motr"
 SLEEP_SECS = 2
 TIMEOUT_SECS = 120
 
@@ -58,8 +59,16 @@ def execute_command(cmd, timeout_secs):
     sys.stdout.write(f"[RET] {ps.returncode}\n")
     return stdout, ps.returncode
 
-def start_services(services):
+def get_current_node(self):
+    cmd = "cat /etc/machine-id"
+    machine_id = execute_command(cmd, TIMEOUT_SECS)
+    machine_id = machine_id[0].split('\n')[0]
+    return Conf.get(self._index, 'cluster>server_nodes')[machine_id]
+
+def restart_services(services):
     for service in services:
+        cmd = "service {} stop".format(service)
+        execute_command(cmd, TIMEOUT_SECS)
         cmd = "service {} start".format(service)
         execute_command(cmd, TIMEOUT_SECS)
         cmd = "service {} status".format(service)
@@ -99,7 +108,14 @@ def motr_config(self):
 
 def configure_net(self):
      '''Wrapper function to detect lnet/libfabric transport'''
-     configure_lnet_from_conf_store(self)
+     transport_type = Conf.get(self._index,
+       f'cluster>{self._server_id}')['network']['data']['transport_type']
+     if transport_type == "lnet":
+        configure_lnet_from_conf_store(self)
+     elif transport_type == "libfabric":
+        configure_libfabric(self)
+     else:
+        sys.stderr.write("[ERR] Unknown data transport type\n")
 
 def configure_lnet_from_conf_store(self):
     '''
@@ -107,20 +123,19 @@ def configure_lnet_from_conf_store(self):
        conf store. Configure lnet. Start lnet service
     '''
     iface = Conf.get(self._index,
-         f'cluster>server')[self._server_id]['network']['data']['interfaces'][1]
-    hw_node = is_hw_node()
-    if hw_node:
-        iface_type = "o2ib"
-    else:
-        iface_type = "tcp"
-    sys.stdout.write(f"[INFO] {iface_type}=({iface})")
-    sys.stdout.write(f"[INFO] Updating {LNET_CONF_FILE}")
+       f'cluster>{self._server_id}')['network']['data']['private_interfaces'][0]
+    iface_type = Conf.get(self._index,
+       f'cluster>{self._server_id}')['network']['data']['interface_type']
+    sys.stdout.write(f"[INFO] {iface_type}=({iface})\n")
+    sys.stdout.write(f"[INFO] Updating {LNET_CONF_FILE}\n")
     with open(LNET_CONF_FILE, "w") as fp:
         fp.write(f"options lnet networks={iface_type}({iface}) "
                  f"config_on_load=1  lnet_peer_discovery_disabled=1\n")
         time.sleep(SLEEP_SECS)
-        start_services(["lnet"])
+        restart_services(["lnet"])
 
+def configure_libfabric(self):
+    pass
 
 def create_lvm(node_name, metadata_dev):
     try:
@@ -168,14 +183,11 @@ def create_lvm(node_name, metadata_dev):
         pass
 
 def config_lvm(self):
-    node_name = Conf.get(self._index,
-              f'cluster>server')[self._server_id]['hostname']
-    node_name = node_name.split('.')[0]
     metadata_device = Conf.get(self._index,
-              f'cluster>server')[self._server_id]['storage']['metadata_devices']
-    sys.stdout.write(f"[INFO] server_id={self._server_id} node_name={node_name}"
+               f'cluster>{self._server_id}')['storage']['metadata_devices']
+    sys.stdout.write(f"[INFO] server_id={self._server_id} "
                      f" metadata_device={metadata_device[0]}\n")
-    create_lvm(node_name, metadata_device[0])
+    create_lvm(self._server_id, metadata_device[0])
 
 def get_lnet_xface() -> str:
     lnet_xface = None
@@ -218,7 +230,7 @@ def test_lnet(self):
 
     try:
         # Check missing luster packages
-        cmd = f'rpm -qa | grep lustre'
+        cmd = 'rpm -qa | grep lustre'
         cmd_res = execute_command(cmd, TIMEOUT_SECS)
         temp = cmd_res[0]
         lustre_pkgs = list(filter(None, temp.split("\n")))
@@ -232,3 +244,5 @@ def test_lnet(self):
         sys.stdout.write("{}\n".format(cmd_res[0]))
     except MotrError as e:
         pass
+
+

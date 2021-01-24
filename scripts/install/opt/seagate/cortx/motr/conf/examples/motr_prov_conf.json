@@ -1,20 +1,78 @@
 {
-  "cluster":{
-    "server":[
-      {
-        "hostname": "srvnode-1.localhost",
-        "storage":{
-          "metadata_devices":[
-            "/dev/sde1"
-            ]
-        },
-        "network":{
-          "data":
-          {
-              "interfaces":["eth0","eth1"]
-          }
+  "cluster": {
+    "server_nodes": {
+      "0a31807456be14965f31b49314f5664e": "srvnode_1",
+      "7c4fd75dfedd7662e6a39b0a53274923": "srvnode_2",
+      "7c4fd75dfedd7662e6a39b0a53274924": "srvnode_3",
+      "7c4fd75dfedd7662e6a39b0a53274925": "srvnode_4"
+    },
+    "srvnode_1": {
+      "hostname": "srvnode-1.localhost",
+      "storage": {
+        "metadata_devices": [
+          "/dev/sdi2"
+        ]
+      },
+      "network": {
+        "data": {
+          "private_interfaces": [
+            "eth1"
+          ],
+          "interface_type":"tcp",
+          "transport_type":"lnet"
         }
       }
-    ]
+    },
+    "srvnode_2": {
+      "hostname": "srvnode-2.localhost",
+      "storage": {
+        "metadata_devices": [
+          "/dev/sdm1"
+        ]
+      },
+      "network": {
+        "data": {
+          "private_interfaces": [
+            "eth1"
+          ],
+          "interface_type":"tcp",
+          "transport_type":"lnet"
+        }
+      }
+    },
+    "srvnode_3": {
+      "hostname": "srvnode-3.localhost",
+      "storage": {
+        "metadata_devices": [
+          "/dev/sdm1"
+        ]
+      },
+      "network": {
+        "data": {
+          "private_interfaces": [
+            "eth1"
+          ],
+          "interface_type":"tcp",
+          "transport_type":"lnet"
+        }
+      }
+    },
+    "srvnode_4": {
+      "hostname": "srvnode-4.localhost",
+      "storage": {
+        "metadata_devices": [
+          "/dev/sdm1"
+        ]
+      },
+      "network": {
+        "data": {
+          "private_interfaces": [
+            "eth1"
+          ],
+          "interface_type":"tcp",
+          "transport_type":"lnet"
+        }
+      }
+    }
   }
 }

@@ -27,8 +27,6 @@ import traceback
 from cortx.utils.conf_store import Conf
 from motr_mini_prov import *
 
-CURRENT_NODE_ENV = "CORTX_NODE"
-
 class Cmd:
     """Setup Command"""
     _index = "conf"
@@ -37,7 +35,7 @@ class Cmd:
         self._url = args.url
         Conf.load(self._index, self._url)
         self._args = args.args
-        self._server_id = int(os.environ[CURRENT_NODE_ENV])
+        self._server_id = get_current_node(self)
 
     @property
     def args(self) -> str:
@@ -54,7 +52,7 @@ class Cmd:
         sys.stderr.write(
             f"usage: {prog} [-h] <cmd> <url> <args>\n"
             f"where:\n"
-            f"cmd   postinstall, config, init, test, reset, cleanup, upgarde,"
+            f"cmd   post_install, config, init, test, reset, cleanup, upgarde,"
             f" backup, restore\n"
             f"url   Config URL\n")
 
@@ -83,7 +81,7 @@ class Cmd:
 
 class PostInstallCmd(Cmd):
     """PostInstall Setup Cmd"""
-    name = "postinstall"
+    name = "post_install"
 
     def __init__(self, args: dict):
         super().__init__(args)
