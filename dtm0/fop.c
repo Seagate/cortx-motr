@@ -99,6 +99,10 @@ void m0_dtm0_fop_fini(void)
 
 int m0_dtm0_fop_init(void)
 {
+	static int ccc = 0;
+	if (ccc++ > 0)
+		return 0;
+
 	m0_xc_dtm0_fop_init();
 	M0_FOP_TYPE_INIT(&dtm0_req_fop_fopt,
 			 .name      = "DTM0 request",
@@ -162,6 +166,34 @@ static size_t dtm0_fom_locality(const struct m0_fom *fom)
 	return locality++;
 }
 
+struct m0_rpc_link g_xxx_dtm0_link;
+static struct dtm0_rep_fop *reply(struct m0_rpc_item *reply)
+{
+	return m0_fop_data(m0_rpc_item_to_fop(reply));
+}
+
+void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
+{
+	int                    rc;
+        struct m0_fop         *fop;
+	struct dtm0_rep_fop   *rep;
+	struct dtm0_req_fop   *req;
+
+	M0_PRE(cl_rpc_session != NULL);
+
+	fop = m0_fop_alloc_at(cl_rpc_session,
+			      &dtm0_req_fop_fopt);
+	req = m0_fop_data(fop);
+	req->csr_value = 555;
+	rc = m0_rpc_post_sync(fop, cl_rpc_session,
+			      &dtm0_req_fop_rpc_item_ops,
+			      0 /* deadline */);
+	M0_ASSERT(rc == 0);
+	rep = reply(fop->f_item.ri_reply);
+	M0_ASSERT(rep->csr_rc == 555);
+	m0_fop_put_lock(fop);
+}
+
 static int dtm0_fom_tick(struct m0_fom *fom)
 {
 	int                  rc;
@@ -176,6 +208,9 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 		rep->csr_rc = req->csr_value;
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		rc = M0_FSO_AGAIN;
+
+		if (fom->fo_service->rs_service_fid.f_key == 0x1c)
+			dtm0_ut_send_fops(&g_xxx_dtm0_link.rlk_sess);
 	}
 
 	return rc;
