@@ -59,7 +59,6 @@ void m0_iem(const char* file, const char* function, int line,
 	    const enum m0_motr_iem_severity sev_id,
 	    const enum m0_motr_iem_module mod_id,
 	    const enum m0_motr_iem_event evt_id,
-	    const bool report_evt_count,
 	    const char *msg, ...)
 {
 	char     description[512] = {0x0};
