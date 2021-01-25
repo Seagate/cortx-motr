@@ -7,8 +7,9 @@ motr_libmotr_la_SOURCES += \
                         dtm0/clk_src.c \
                         dtm0/clk_src.h \
                         dtm0/tx_desc.c \
-                        dtm0/tx_desc.h
-
+                        dtm0/tx_desc.h \
+                        dtm0/helper.c \
+                        dtm0/helper.h
 
 nodist_motr_libmotr_la_SOURCES += \
                                   dtm0/fop_xc.c \
