@@ -641,9 +641,10 @@ AC_SUBST([ISAL_LIBS])
 
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
                   netinet/in.h stddef.h stdint.h stdlib.h string.h sys/ioctl.h \
-                  sys/socket.h sys/time.h unistd.h isa-l.h])
+                  sys/socket.h sys/time.h unistd.h])
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
+AC_CHECK_HEADERS([isa-l.h],   [], [AC_MSG_ERROR([isa-l.h cannot be found!])])
 
 
 AC_HEADER_STDBOOL
@@ -1031,12 +1032,12 @@ echo "PROFILER_LIBS  :  \"$PROFILER_LIBS\""
 echo "GALOIS_LIBS    :  \"$GALOIS_LIBS\""
 echo "YAML_LIBS      :  \"$YAML_LIBS\""
 echo "UUID_LIBS      :  \"$UUID_LIBS\""
+echo "ISAL_LIBS      :  \"$ISAL_LIBS\""
 echo ""
 echo "Gcc            :  \"$BUILD_GCC\""
 AS_IF([test x$with_lustre != xno],[
 echo "Linux kernel   :  \"$LINUX_OBJ\""
 echo "Lustre         :  \"$LUSTRE\""
-echo "ISAL_LIBS      :  \"$ISAL_LIBS\""
 ])
 echo ""
 
