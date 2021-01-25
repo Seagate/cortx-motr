@@ -87,7 +87,7 @@ class PostInstallCmd(Cmd):
         super().__init__(args)
 
     def process(self):
-        print("Processing %s %s %s" %(self.name, self.url, self._args))
+        sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
         validate_motr_rpm(self)
 
 class ConfigCmd(Cmd):
@@ -98,7 +98,7 @@ class ConfigCmd(Cmd):
         super().__init__(args)
 
     def process(self):
-        print("Processing %s %s %s" %(self.name, self.url, self._args))
+        sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
         motr_config(self)
 
 class InitCmd(Cmd):
@@ -109,7 +109,7 @@ class InitCmd(Cmd):
         super().__init__(args)
 
     def process(self):
-        print("Processing %s %s %s" %(self.name, self.url, self._args))
+        sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
         config_lvm(self)
         configure_net(self)
 
@@ -121,7 +121,7 @@ class TestCmd(Cmd):
         super().__init__(args)
 
     def process(self):
-        print("Processing %s %s %s" %(self.name, self.url, self._args))
+        sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
         test_lnet(self)
 
 class ResetCmd(Cmd):

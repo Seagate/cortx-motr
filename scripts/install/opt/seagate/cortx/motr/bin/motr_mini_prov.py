@@ -220,7 +220,7 @@ def check_pkgs(src_pkgs, dest_pkgs):
             if src_pkg in dest_pkg:
                 found = True
                 break
-        if found == False:
+        if not found:
             missing_pkgs.append(src_pkg)
     if missing_pkgs:
         raise MotrError(errno.ENOENT, f'Missing pkgs: {missing_pkgs}')
