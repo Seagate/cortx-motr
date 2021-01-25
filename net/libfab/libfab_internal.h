@@ -49,12 +49,10 @@ struct m0_fab__ep_name {
 };
 
 struct m0_fab__ep_res {
-	struct fid_av           *fer_av;       /* Address vector */
 	struct fid_eq           *fer_eq;       /* Event queue */
 	struct fid_cq           *fer_tx_cq;    /* Transmit Completion Queue */
 	struct fid_cq           *fer_rx_cq;    /* Recv Completion Queue */
-	struct fid_cntr         *fer_tx_cntr;  /* Transmit Counter */
-	struct fid_cntr         *fer_rx_cntr;  /* Recv Counter */
+	struct fid_cntr         *fer_rc_cntr;  /* Remote Completion Counter */
 };
 
 struct m0_fab__ep {
@@ -77,6 +75,7 @@ struct m0_fab__tm {
 	struct m0_fab__ep         *ftm_pep;     /* Passive ep(listening mode) */
 	bool                       ftm_shutdown;/* tm Shutdown flag */
 	struct m0_tl               ftm_done;    /* List of completed buffers */
+	struct m0_tl               ftm_rcomp;   /* List of remote comp to chk */
 	struct m0_mutex            ftm_endlock; /* Used betn poller & tm_fini */
 };
 
@@ -85,15 +84,24 @@ struct m0_fab__tm {
  *
  */
 struct m0_fab__buf {
-	uint64_t               fb_magic;    /* Magic number */
-	uint64_t               fbp_cookie;  /* Cookie identifying the buffer */
-	uint64_t               fb_mr_key;   /* Memory registration key */
-	void                  *fb_mr_desc;  /* Buffer descriptor */
-	struct m0_net_buffer  *fb_nb;       /* Pointer back to network buffer*/
-	struct fid_mr         *fb_mr;       /* Libfab memory region */
-	struct m0_fab__ep     *fb_ev_ep;
-	struct m0_tlink        fb_linkage;  /* Linkage in list of completed bufs*/
-	m0_bindex_t            fb_length;   /* Total size of data to be received*/
+	uint64_t              fb_magic;   /* Magic number */
+	uint64_t              fbp_cookie; /* Cookie identifying the buffer */
+	uint64_t              fb_mr_key;  /* Memory registration key */
+	void                 *fb_mr_desc; /* Buffer descriptor */
+	struct fid_domain    *fb_dp;      /* Domain to which the buf is reg */
+	struct m0_net_buffer *fb_nb;      /* Pointer back to network buffer*/
+	struct fid_mr        *fb_mr;      /* Libfab memory region */
+	struct m0_fab__ep    *fb_ev_ep;
+	struct m0_tlink       fb_linkage; /* Linkage in list of completed bufs*/
+	m0_bindex_t           fb_length;  /* Total size of data to be received*/
+};
+
+struct m0_fab__rcomp {
+	uint64_t         frc_magic;     /* Magic number */
+	uint32_t         frc_prv_cnt;   /* Previous counter value */
+	struct fid_cntr *frc_cntr;      /* Cntr to check for remote rma events*/
+	void            *frc_ctx;       /* Context used to signal completion */
+	struct m0_tlink  frc_linkage;   /* Linkage in list of remote comp*/
 };
 
 /** @} end of netlibfab group */
