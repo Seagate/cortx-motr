@@ -142,7 +142,9 @@ static void val_dump(struct m0_addb2__context *ctx, const char *prefix,
 static void context_fill(struct m0_addb2__context *ctx,
                          const struct m0_addb2_value *val);
 
-static void file_dump(struct m0_stob_domain *dom, const char *fname);
+static void file_dump(struct m0_stob_domain *dom, const char *fname, 
+		      const uint64_t start_time, const uint64_t stop_time);
+
 static int  plugin_load(struct plugin *plugin);
 static void plugin_unload(struct plugin *plugin);
 static int plugins_load(void);
@@ -193,6 +195,8 @@ int main(int argc, char **argv)
 	int                     result;
 	int                     i;
 	int                     rc;
+	uint64_t                start_time = 0;
+	uint64_t                stop_time  = (uint64_t)-1;
 
 	m0_node_uuid_string_set(NULL);
 	result = m0_init(&instance);
@@ -224,7 +228,11 @@ int main(int argc, char **argv)
 			M0_STRINGARG('J', "Embed extra JSON data into every record",
 				    LAMBDA(void, (const char *json_text) {
 					    json_extra_data = strdup(json_text);
-					}))
+					})),
+			M0_FORMATARG('s', "Capture start time in nanosecs since epoch",
+				     "%"PRIu64, &start_time),
+			M0_FORMATARG('e', "Capture finish time in nanosecs since epoch",
+				     "%"PRIu64, &stop_time)
 			);
 	if (result != 0)
 		err(EX_USAGE, "Wrong option: %d", result);
@@ -259,7 +267,7 @@ int main(int argc, char **argv)
 
 	id_init();
 	for (i = optind; i < argc; ++i)
-		file_dump(dom, argv[i]);
+		file_dump(dom, argv[i], start_time, stop_time);
 
 	plugins_unload();
 
@@ -338,7 +346,8 @@ static bool intrps_equal(const struct m0_addb2__id_intrp *intrp0,
     return memcmp(intrp0, intrp1, sizeof(struct m0_addb2__id_intrp)) == 0;
 }
 
-static void file_dump(struct m0_stob_domain *dom, const char *fname)
+static void file_dump(struct m0_stob_domain *dom, const char *fname, 
+		      const uint64_t start_time, const uint64_t stop_time)
 {
 	struct m0_stob         *stob;
 	struct m0_addb2_sit    *sit;
@@ -375,9 +384,12 @@ static void file_dump(struct m0_stob_domain *dom, const char *fname)
 			err(EX_DATAERR, "Cannot initialise iterator: %d",
 			    result);
 		while ((result = m0_addb2_sit_next(sit, &rec)) > 0) {
-			rec_dump(&(struct m0_addb2__context){}, rec);
-			if (rec->ar_val.va_id == M0_AVI_SIT)
-				offset = rec->ar_val.va_data[3];
+			if (start_time <= rec->ar_val.va_time &&
+			    rec->ar_val.va_time <= stop_time) {
+				rec_dump(&(struct m0_addb2__context){}, rec);
+				if (rec->ar_val.va_id == M0_AVI_SIT)
+					offset = rec->ar_val.va_data[3];
+			}
 		}
 		if (result != 0)
 			err(EX_DATAERR, "Iterator error: %d", result);

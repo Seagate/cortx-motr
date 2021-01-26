@@ -92,12 +92,21 @@ func main() {
 
     var writer io.Writer
     if _, err := mio.ScanID(dst); err == nil {
+        if *pool != "" {
+            if _, err := mio.ScanID(*pool); err != nil {
+                log.Fatalf("invalid pool specified: %v", *pool)
+            }
+        }
         if err = mioW.Open(dst); err != nil {
             if err = mioW.Create(dst, objSize, *pool); err != nil {
                 log.Fatalf("failed to create object %v: %v", dst, err)
             }
         }
         defer mioW.Close()
+        if *pool != "" && !mioW.InPool(*pool) {
+            log.Fatalf("the object already exists in another pool: %v",
+                       mioW.GetPool())
+        }
         writer = &mioW
     } else if dst == "-" {
         writer = os.Stdout
