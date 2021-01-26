@@ -24,13 +24,15 @@ Usage: mcp [options] src dst
  The other can be file path or '-' for stdin/stdout.
 
   -bsz size
-    	I/O buffer size (in Mbytes) (default 32)
+    	i/o buffer size (in MiB) (default 32)
   -ep endpoint
     	my endpoint address
   -hax endpoint
     	local hax endpoint address
+  -off offset
+    	start object i/o at offset (in KiB)
   -osz size
-    	object size (in Kbytes)
+    	object size (in KiB)
   -pool fid
     	pool fid to create object at
   -proc fid
