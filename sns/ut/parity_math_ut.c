@@ -29,6 +29,9 @@
 #include "ut/ut.h"
 #include "sns/parity_math.h"
 
+#define KB(x)	((x) * 1024)
+#define MB(x)	(KB(x) * 1024)
+
 enum {
 	MAX_NUM_ROWS = 20,
 };
@@ -37,7 +40,7 @@ enum {
 	DATA_UNIT_COUNT_MAX      = 30,
 	PARITY_UNIT_COUNT_MAX    = 12,
 	DATA_TO_PRTY_RATIO_MAX   = DATA_UNIT_COUNT_MAX / PARITY_UNIT_COUNT_MAX,
-	UNIT_BUFF_SIZE_MAX       = 1048576,
+	UNIT_BUFF_SIZE_MAX       = MB(1),
 	DATA_UNIT_COUNT          = 15,
 	PARITY_UNIT_COUNT        = 1,
 	RS_MAX_PARITY_UNIT_COUNT = DATA_UNIT_COUNT - 1,
@@ -1353,81 +1356,81 @@ void parity_math_tb(void)
 	}
 }
 
-static void ub_small_4096(int iter)
+static void ub_small_4K(int iter)
 {
-	UNIT_BUFF_SIZE = 4096;
+	UNIT_BUFF_SIZE = KB(4);
 	duc = 10;
 	puc = 5;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_medium_4096(int iter)
+static void ub_medium_4K(int iter)
 {
-	UNIT_BUFF_SIZE = 4096;
+	UNIT_BUFF_SIZE = KB(4);
 	duc = 20;
 	puc = 6;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_large_4096(int iter)
+static void ub_large_4K(int iter)
 {
-	UNIT_BUFF_SIZE = 4096;
+	UNIT_BUFF_SIZE = KB(4);
 	duc = 30;
 	puc = 12;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_small_1048576(int iter)
+static void ub_small_1M(int iter)
 {
-	UNIT_BUFF_SIZE = 1048576;
+	UNIT_BUFF_SIZE = MB(1);
 	duc = 3;
 	puc = 2;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_medium_1048576(int iter)
+static void ub_medium_1M(int iter)
 {
-	UNIT_BUFF_SIZE = 1048576;
+	UNIT_BUFF_SIZE = MB(1);
 	duc = 6;
 	puc = 3;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_large_1048576(int iter)
+static void ub_large_1M(int iter)
 {
-	UNIT_BUFF_SIZE = 1048576;
+	UNIT_BUFF_SIZE = MB(1);
 	duc = 8;
 	puc = 4;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_small_32768(int iter)
+static void ub_small_32K(int iter)
 {
-	UNIT_BUFF_SIZE = 32768;
+	UNIT_BUFF_SIZE = KB(32);
 	duc = 10;
 	puc = 5;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_medium_32768(int iter)
+static void ub_medium_32K(int iter)
 {
-	UNIT_BUFF_SIZE = 32768;
+	UNIT_BUFF_SIZE = KB(32);
 	duc = 20;
 	puc = 6;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_large_32768(int iter)
+static void ub_large_32K(int iter)
 {
-	UNIT_BUFF_SIZE = 32768;
+	UNIT_BUFF_SIZE = KB(32);
 	duc = 30;
 	puc = 12;
 	fuc = duc+puc;
@@ -1435,7 +1438,7 @@ static void ub_large_32768(int iter)
 }
 static void ub_small_4_2_4K(int iter)
 {
-	UNIT_BUFF_SIZE = 4096;
+	UNIT_BUFF_SIZE = KB(4);
 	duc = 4;
 	puc = 2;
 	fuc = duc+puc;
@@ -1444,7 +1447,7 @@ static void ub_small_4_2_4K(int iter)
 
 static void ub_small_4_2_256K(int iter)
 {
-	UNIT_BUFF_SIZE = 262144;
+	UNIT_BUFF_SIZE = KB(256);
 	duc = 4;
 	puc = 2;
 	fuc = duc+puc;
@@ -1453,7 +1456,7 @@ static void ub_small_4_2_256K(int iter)
 
 static void ub_small_4_2_1M(int iter)
 {
-	UNIT_BUFF_SIZE = 1048576;
+	UNIT_BUFF_SIZE = MB(1);
 	duc = 4;
 	puc = 2;
 	fuc = duc+puc;
@@ -1469,74 +1472,74 @@ struct m0_ub_set m0_parity_math_ub = {
 	.us_run  = {
 		{ .ub_name  = "s 10/05/ 4K",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_small_4096,
-		  .ub_block_size = 4096,
+		  .ub_round = ub_small_4K,
+		  .ub_block_size = KB(4),
 		  .ub_blocks_per_op = 15 },
 
 		{ .ub_name  = "m 20/06/ 4K",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_medium_4096,
-		  .ub_block_size = 4096,
+		  .ub_round = ub_medium_4K,
+		  .ub_block_size = KB(4),
 		  .ub_blocks_per_op = 26 },
 
 		{ .ub_name  = "l 30/12/ 4K",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_large_4096,
-		  .ub_block_size = 4096,
+		  .ub_round = ub_large_4K,
+		  .ub_block_size = KB(4),
 		  .ub_blocks_per_op = 42 },
 
 		{ .ub_name  = "s 10/05/32K",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_small_32768,
-		  .ub_block_size = 32768,
+		  .ub_round = ub_small_32K,
+		  .ub_block_size = KB(32),
 		  .ub_blocks_per_op = 15 },
 
 		{ .ub_name  = "m 20/06/32K",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_medium_32768,
-		  .ub_block_size = 32768,
+		  .ub_round = ub_medium_32K,
+		  .ub_block_size = KB(32),
 		  .ub_blocks_per_op = 26 },
 
 		{ .ub_name  = "l 30/12/32K",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_large_32768,
-		  .ub_block_size = 32768,
+		  .ub_round = ub_large_32K,
+		  .ub_block_size = KB(32),
 		  .ub_blocks_per_op = 42 },
 
 		{ .ub_name  = "s  03/02/ 1M",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_small_1048576,
-		  .ub_block_size = 1048576,
+		  .ub_round = ub_small_1M,
+		  .ub_block_size = MB(1),
 		  .ub_blocks_per_op = 5 },
 
 		{ .ub_name  = "m 06/03/ 1M",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_medium_1048576,
-		  .ub_block_size = 1048576,
+		  .ub_round = ub_medium_1M,
+		  .ub_block_size = MB(1),
 		  .ub_blocks_per_op = 9 },
 
 		{ .ub_name  = "l 08/04/ 1M",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_large_1048576,
-		  .ub_block_size = 1048576,
+		  .ub_round = ub_large_1M,
+		  .ub_block_size = MB(1),
 		  .ub_blocks_per_op = 12 },
 
 		{ .ub_name  = "s 04/02/4K",
 		  .ub_iter  = UB_ITER,
 		  .ub_round = ub_small_4_2_4K,
-		  .ub_block_size = 4096,
+		  .ub_block_size = KB(4),
 		  .ub_blocks_per_op = 6 },
 
 		{ .ub_name  = "m 04/02/256K",
 		  .ub_iter  = UB_ITER,
 		  .ub_round = ub_small_4_2_256K,
-		  .ub_block_size = 262144,
+		  .ub_block_size = KB(256),
 		  .ub_blocks_per_op = 6 },
 
 		{ .ub_name  = "l 04/02/1M",
 		  .ub_iter  = UB_ITER,
 		  .ub_round = ub_small_4_2_1M,
-		  .ub_block_size = 1048576,
+		  .ub_block_size = MB(1),
 		  .ub_blocks_per_op = 6 },
 
 		{ .ub_name = NULL}
