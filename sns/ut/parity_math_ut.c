@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,9 @@
 #include "ut/ut.h"
 #include "sns/parity_math.h"
 
+#define KB(x)	((x) * 1024)
+#define MB(x)	(KB(x) * 1024)
+
 enum {
 	MAX_NUM_ROWS = 20,
 };
@@ -37,7 +40,7 @@ enum {
 	DATA_UNIT_COUNT_MAX      = 30,
 	PARITY_UNIT_COUNT_MAX    = 12,
 	DATA_TO_PRTY_RATIO_MAX   = DATA_UNIT_COUNT_MAX / PARITY_UNIT_COUNT_MAX,
-	UNIT_BUFF_SIZE_MAX       = 1048576,
+	UNIT_BUFF_SIZE_MAX       = MB(1),
 	DATA_UNIT_COUNT          = 15,
 	PARITY_UNIT_COUNT        = 1,
 	RS_MAX_PARITY_UNIT_COUNT = DATA_UNIT_COUNT - 1,
@@ -260,6 +263,53 @@ static bool config_generate(uint32_t *data_count,
 	return true;
 }
 
+static bool rand_rs_config_generate(uint32_t *data_count,
+				    uint32_t *parity_count,
+				    uint32_t *buff_size)
+{
+	int32_t  i;
+	int32_t  j;
+	int32_t  puc_max = PARITY_UNIT_COUNT_MAX;
+	uint32_t failed_count = 0;
+
+	if (fuc <= 1) {
+		puc-=3;
+		if (puc <= 1) {
+			duc-=9;
+			puc = duc / DATA_TO_PRTY_RATIO_MAX;
+		}
+		fuc = puc+duc;
+	}
+
+	if (puc < 1)
+		return false;
+
+	memset(fail, 0, DATA_UNIT_COUNT_MAX + puc_max);
+
+	/* Fill random data and create back of the data */
+	for (i = 0; i < duc; ++i) {
+		for (j = 0; j < UNIT_BUFF_SIZE; ++j) {
+			data[i][j] = (uint8_t) m0_rnd64(&seed);
+			expected[i][j] = data[i][j];
+		}
+	}
+
+	/* Fill failure array for random indices for mixed failures */
+	failed_count = ((uint8_t)m0_rnd64(&seed) % puc) + 1;
+	for (i = 0; i < failed_count; i++) {
+		j = (uint8_t) m0_rnd64(&seed) % (duc + puc);
+		fail[j] = 1;
+	}
+
+	*data_count = duc;
+	*parity_count = puc;
+	*buff_size = UNIT_BUFF_SIZE;
+
+	fuc -= 3;
+
+	return true;
+}
+
 static void test_recovery(const enum m0_parity_cal_algo algo,
 			  const enum recovery_type rt)
 {
@@ -313,6 +363,49 @@ static void test_recovery(const enum m0_parity_cal_algo algo,
 static void test_rs_fv_recover(void)
 {
 	test_recovery(M0_PARITY_CAL_ALGO_REED_SOLOMON, FAIL_VECTOR);
+}
+
+static void test_rs_fv_rand_recover(void)
+{
+	uint32_t              i;
+	uint32_t              data_count;
+	uint32_t              parity_count;
+	uint32_t              buff_size;
+	uint32_t              fail_count;
+	struct m0_buf         data_buf[DATA_UNIT_COUNT_MAX];
+	struct m0_buf         parity_buf[DATA_UNIT_COUNT_MAX];
+	struct m0_buf         fail_buf;
+	struct m0_parity_math math;
+
+	duc = DATA_UNIT_COUNT_MAX;
+	puc = PARITY_UNIT_COUNT_MAX;
+	fuc = PARITY_UNIT_COUNT_MAX;
+
+	while (rand_rs_config_generate(&data_count, &parity_count, &buff_size)) {
+		fail_count = data_count + parity_count;
+
+		M0_UT_ASSERT(m0_parity_math_init(&math, data_count,
+					         parity_count) == 0);
+
+		for (i = 0; i < data_count; ++i) {
+			m0_buf_init(&data_buf[i], data[i], buff_size);
+			m0_buf_init(&parity_buf[i], parity[i], buff_size);
+		}
+
+		m0_buf_init(&fail_buf, fail, buff_size);
+
+		m0_parity_math_calculate(&math, data_buf, parity_buf);
+
+		unit_spoil(buff_size, fail_count, data_count);
+
+		m0_parity_math_recover(&math, data_buf, parity_buf,
+				       &fail_buf, 0);
+
+		m0_parity_math_fini(&math);
+
+		M0_ASSERT_INFO(expected_eq(data_count, buff_size),
+			       "Recovered data is unexpected");
+	}
 }
 
 static void test_xor_fv_recover(void)
@@ -719,11 +812,15 @@ static void direct_recover(struct m0_parity_math *math,  struct m0_bufvec *x,
 	ret = m0_sns_ir_mat_compute(&ir);
 	M0_UT_ASSERT(ret == 0);
 
+#if !ISAL_ENCODE_ENABLED
 	M0_UT_ASSERT(ergo(ir.si_failed_data_nr != 0,
 			  ir.si_data_recovery_mat.m_width ==
 			  ir.si_data_nr));
 
 	ret = m0_matvec_init(&r, ir.si_failed_data_nr);
+#else
+	ret = m0_matvec_init(&r, ir.si_failed_nr);
+#endif /* !ISAL_ENCODE_ENABLED */
 	M0_UT_ASSERT(ret == 0);
 
 	reconstruct(&ir, &b, &r);
@@ -802,6 +899,28 @@ static void rhs_prepare(const struct m0_sns_ir *ir, struct m0_matvec *des,
 static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
 			struct m0_matvec *r)
 {
+#if ISAL_ENCODE_ENABLED
+	uint8_t **src;
+	uint8_t **dest;
+	uint32_t i;
+
+	M0_ALLOC_ARR(src, b->mv_size);
+	M0_UT_ASSERT(src != NULL);
+
+	M0_ALLOC_ARR(dest, r->mv_size);
+	M0_UT_ASSERT(dest != NULL);
+
+	for (i = 0; i < b->mv_size; i++)
+		src[i] = (uint8_t *)&b->mv_vector[i];
+
+	for (i = 0; i < r->mv_size; i++)
+		dest[i] = (uint8_t *)&r->mv_vector[i];
+
+	ec_encode_data(1, b->mv_size, r->mv_size, ir->si_decode_tbls, src, dest);
+
+	m0_free(src);
+	m0_free(dest);
+#else
 	const struct m0_matrix *rm = &ir->si_data_recovery_mat;
 
 	if (ir->si_failed_data_nr != 0) {
@@ -809,6 +928,7 @@ static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
 		M0_UT_ASSERT(rm->m_height == ir->si_failed_data_nr);
 		m0_matrix_vec_multiply(rm, b, r, m0_parity_mul, m0_parity_add);
 	}
+#endif /* ISAL_ENCODE_ENABLED */
 }
 
 static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
@@ -817,6 +937,7 @@ static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
 	uint32_t i;
 	uint32_t j;
 
+#if !ISAL_ENCODE_ENABLED
 	for (i = 0, j = 0; j < ir->si_failed_data_nr && i <
 	     ir->si_data_nr; ++i) {
 		if (failed_arr[j] == i) {
@@ -826,6 +947,15 @@ static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
 			++j;
 		}
 	}
+#else
+	for (j = 0; j < ir->si_failed_nr; j++) {
+		i = failed_arr[j];
+		if (i < ir->si_data_nr)
+			if ((uint8_t)*m0_matvec_elem_get(r, j) !=
+				(((uint8_t **)x[i].ov_buf)[0])[0])
+				return false;
+	}
+#endif /* !ISAL_ENCODE_ENABLED */
 
 	return true;
 }
@@ -1289,14 +1419,15 @@ static inline uint32_t block_nr(const struct m0_sns_ir *ir)
 	return ir->si_data_nr + ir->si_parity_nr;
 }
 
-#define _TESTS								\
-	{ "reed_solomon_recover_with_fail_vec", test_rs_fv_recover },	\
-	{ "xor_recover_with_fail_vec", test_xor_fv_recover },		\
-	{ "xor_recover_with_fail_index", test_xor_fail_idx_recover },	\
-	{ "buffer_xor", test_buffer_xor },				\
-	{ "parity_math_diff_xor", test_parity_math_diff_xor },		\
-	{ "parity_math_diff_rs", test_parity_math_diff_rs },		\
-	{ "incr_recov_rs", test_incr_recov_rs },			\
+#define _TESTS									\
+	{ "reed_solomon_recover_with_fail_vec", test_rs_fv_recover },		\
+	{ "reed_solomon_recover_with_fail_vec_rand", test_rs_fv_rand_recover },	\
+	{ "xor_recover_with_fail_vec", test_xor_fv_recover },			\
+	{ "xor_recover_with_fail_index", test_xor_fail_idx_recover },		\
+	{ "buffer_xor", test_buffer_xor },					\
+	{ "parity_math_diff_xor", test_parity_math_diff_xor },			\
+	{ "parity_math_diff_rs", test_parity_math_diff_rs },			\
+	{ "incr_recov_rs", test_incr_recov_rs },				\
 	{ NULL, NULL }
 
 struct m0_ut_suite parity_math_ut = {
@@ -1363,81 +1494,81 @@ void parity_math_tb(void)
 	m0_free(math);
 }
 
-static void ub_small_4096(int iter)
+static void ub_small_4K(int iter)
 {
-	UNIT_BUFF_SIZE = 4096;
+	UNIT_BUFF_SIZE = KB(4);
 	duc = 10;
 	puc = 5;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_medium_4096(int iter)
+static void ub_medium_4K(int iter)
 {
-	UNIT_BUFF_SIZE = 4096;
+	UNIT_BUFF_SIZE = KB(4);
 	duc = 20;
 	puc = 6;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_large_4096(int iter)
+static void ub_large_4K(int iter)
 {
-	UNIT_BUFF_SIZE = 4096;
+	UNIT_BUFF_SIZE = KB(4);
 	duc = 30;
 	puc = 12;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_small_1048576(int iter)
+static void ub_small_1M(int iter)
 {
-	UNIT_BUFF_SIZE = 1048576;
+	UNIT_BUFF_SIZE = MB(1);
 	duc = 3;
 	puc = 2;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_medium_1048576(int iter)
+static void ub_medium_1M(int iter)
 {
-	UNIT_BUFF_SIZE = 1048576;
+	UNIT_BUFF_SIZE = MB(1);
 	duc = 6;
 	puc = 3;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_large_1048576(int iter)
+static void ub_large_1M(int iter)
 {
-	UNIT_BUFF_SIZE = 1048576;
+	UNIT_BUFF_SIZE = MB(1);
 	duc = 8;
 	puc = 4;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_small_32768(int iter)
+static void ub_small_32K(int iter)
 {
-	UNIT_BUFF_SIZE = 32768;
+	UNIT_BUFF_SIZE = KB(32);
 	duc = 10;
 	puc = 5;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_medium_32768(int iter)
+static void ub_medium_32K(int iter)
 {
-	UNIT_BUFF_SIZE = 32768;
+	UNIT_BUFF_SIZE = KB(32);
 	duc = 20;
 	puc = 6;
 	fuc = duc+puc;
 	parity_math_tb();
 }
 
-static void ub_large_32768(int iter)
+static void ub_large_32K(int iter)
 {
-	UNIT_BUFF_SIZE = 32768;
+	UNIT_BUFF_SIZE = KB(32);
 	duc = 30;
 	puc = 12;
 	fuc = duc+puc;
@@ -1445,7 +1576,7 @@ static void ub_large_32768(int iter)
 }
 static void ub_small_4_2_4K(int iter)
 {
-	UNIT_BUFF_SIZE = 4096;
+	UNIT_BUFF_SIZE = KB(4);
 	duc = 4;
 	puc = 2;
 	fuc = duc+puc;
@@ -1454,7 +1585,7 @@ static void ub_small_4_2_4K(int iter)
 
 static void ub_small_4_2_256K(int iter)
 {
-	UNIT_BUFF_SIZE = 262144;
+	UNIT_BUFF_SIZE = KB(256);
 	duc = 4;
 	puc = 2;
 	fuc = duc+puc;
@@ -1463,7 +1594,7 @@ static void ub_small_4_2_256K(int iter)
 
 static void ub_small_4_2_1M(int iter)
 {
-	UNIT_BUFF_SIZE = 1048576;
+	UNIT_BUFF_SIZE = MB(1);
 	duc = 4;
 	puc = 2;
 	fuc = duc+puc;
@@ -1477,76 +1608,76 @@ struct m0_ub_set m0_parity_math_ub = {
 	.us_init = ub_init,
 	.us_fini = NULL,
 	.us_run  = {
-		{ .ub_name  = "s 10/05/ 4K",
+		{ .ub_name  = "s 10/05/  4K",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_small_4096,
-		  .ub_block_size = 4096,
+		  .ub_round = ub_small_4K,
+		  .ub_block_size = KB(4),
 		  .ub_blocks_per_op = 15 },
 
-		{ .ub_name  = "m 20/06/ 4K",
+		{ .ub_name  = "m 20/06/  4K",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_medium_4096,
-		  .ub_block_size = 4096,
+		  .ub_round = ub_medium_4K,
+		  .ub_block_size = KB(4),
 		  .ub_blocks_per_op = 26 },
 
-		{ .ub_name  = "l 30/12/ 4K",
+		{ .ub_name  = "l 30/12/  4K",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_large_4096,
-		  .ub_block_size = 4096,
+		  .ub_round = ub_large_4K,
+		  .ub_block_size = KB(4),
 		  .ub_blocks_per_op = 42 },
 
-		{ .ub_name  = "s 10/05/32K",
+		{ .ub_name  = "s 10/05/ 32K",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_small_32768,
-		  .ub_block_size = 32768,
+		  .ub_round = ub_small_32K,
+		  .ub_block_size = KB(32),
 		  .ub_blocks_per_op = 15 },
 
-		{ .ub_name  = "m 20/06/32K",
+		{ .ub_name  = "m 20/06/ 32K",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_medium_32768,
-		  .ub_block_size = 32768,
+		  .ub_round = ub_medium_32K,
+		  .ub_block_size = KB(32),
 		  .ub_blocks_per_op = 26 },
 
-		{ .ub_name  = "l 30/12/32K",
+		{ .ub_name  = "l 30/12/ 32K",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_large_32768,
-		  .ub_block_size = 32768,
+		  .ub_round = ub_large_32K,
+		  .ub_block_size = KB(32),
 		  .ub_blocks_per_op = 42 },
 
-		{ .ub_name  = "s  03/02/ 1M",
+		{ .ub_name  = "s 03/02/  1M",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_small_1048576,
-		  .ub_block_size = 1048576,
+		  .ub_round = ub_small_1M,
+		  .ub_block_size = MB(1),
 		  .ub_blocks_per_op = 5 },
 
-		{ .ub_name  = "m 06/03/ 1M",
+		{ .ub_name  = "m 06/03/  1M",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_medium_1048576,
-		  .ub_block_size = 1048576,
+		  .ub_round = ub_medium_1M,
+		  .ub_block_size = MB(1),
 		  .ub_blocks_per_op = 9 },
 
-		{ .ub_name  = "l 08/04/ 1M",
+		{ .ub_name  = "l 08/04/  1M",
 		  .ub_iter  = UB_ITER,
-		  .ub_round = ub_large_1048576,
-		  .ub_block_size = 1048576,
+		  .ub_round = ub_large_1M,
+		  .ub_block_size = MB(1),
 		  .ub_blocks_per_op = 12 },
 
-		{ .ub_name  = "s 04/02/4K",
+		{ .ub_name  = "s 04/02/  4K",
 		  .ub_iter  = UB_ITER,
 		  .ub_round = ub_small_4_2_4K,
-		  .ub_block_size = 4096,
+		  .ub_block_size = KB(4),
 		  .ub_blocks_per_op = 6 },
 
 		{ .ub_name  = "m 04/02/256K",
 		  .ub_iter  = UB_ITER,
 		  .ub_round = ub_small_4_2_256K,
-		  .ub_block_size = 262144,
+		  .ub_block_size = KB(256),
 		  .ub_blocks_per_op = 6 },
 
-		{ .ub_name  = "l 04/02/1M",
+		{ .ub_name  = "l 04/02/  1M",
 		  .ub_iter  = UB_ITER,
 		  .ub_round = ub_small_4_2_1M,
-		  .ub_block_size = 1048576,
+		  .ub_block_size = MB(1),
 		  .ub_blocks_per_op = 6 },
 
 		{ .ub_name = NULL}
