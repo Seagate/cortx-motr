@@ -140,7 +140,7 @@ def configure_libfabric(self):
 
 def create_lvm(node_name, index, metadata_dev):
     index = index + 1
-    vg_name = f"vg_md_{node_name}_{index}"
+    vg_name = f"vg_{node_name}_md{index}"
     lv_swap_name = f"lv_main_swap{index}"
     lv_md_name = f"lv_raw_md{index}"
     try:
