@@ -145,6 +145,7 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 	uint64_t                  j;
 	uint64_t                  k;
 	int                       rc;
+	M0_ENTRY("tb = %p", tb);
 
 	M0_PRE(M0_IS0(tb));
 	M0_PRE(tb_cfg->tbc_partitions_nr > 0);
@@ -281,7 +282,7 @@ M0_INTERNAL int m0_be_tx_bulk_init(struct m0_be_tx_bulk     *tb,
 		worker = &tb->btb_worker[i];
 		worker->tbw_grp = m0_locality_get(worker->tbw_locality)->lo_grp;
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_tx_bulk_fini(struct m0_be_tx_bulk *tb)
@@ -356,7 +357,7 @@ static void be_tx_bulk_finish_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		for (i = 0; i < tb->btb_cfg.tbc_workers_nr; ++i)
 			tb->btb_rc = tb->btb_worker[i].tbw_rc ?: tb->btb_rc;
 		tb->btb_done = true;
-		M0_LOG(M0_DEBUG, "btb_done = true");
+		M0_LOG(M0_DEBUG, "setting tb=%p btb_done = true", tb);
 	}
 	be_tx_bulk_unlock(tb);
 	if (done) {
@@ -592,31 +593,27 @@ M0_INTERNAL bool m0_be_tx_bulk_put(struct m0_be_tx_bulk   *tb,
 		.bbd_payload_size = payload_credit,
 	};
 	bool                    put_fail;
-	bool                    done;
+	M0_ENTRY("tb=%p", tb);
 
 	M0_PRE(partition < tb->btb_cfg.tbc_partitions_nr);
 
 	be_tx_bulk_lock(tb);
 	put_fail = tb->btb_tx_open_failed;
-	done     = tb->btb_done;
-	be_tx_bulk_unlock(tb);
-	M0_ASSERT(!done);
 
 	if (put_fail) {
+		be_tx_bulk_unlock(tb);
 		m0_be_op_active(op);
 		m0_be_op_done(op);
-		return false;
+		return M0_RC(false);
 	}
 
 	m0_be_queue_lock(&tb->btb_q[partition]);
 	M0_BE_QUEUE_PUT(&tb->btb_q[partition], op, &data);
 	m0_be_queue_unlock(&tb->btb_q[partition]);
 
-	be_tx_bulk_lock(tb);
-	done = tb->btb_done;
 	be_tx_bulk_unlock(tb);
-	M0_ASSERT(!done);
-	return true;
+
+	return M0_RC(true);
 }
 
 M0_INTERNAL void m0_be_tx_bulk_end(struct m0_be_tx_bulk *tb)

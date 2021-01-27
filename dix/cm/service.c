@@ -68,6 +68,7 @@ m0_dix_cm_svc_allocate(struct m0_reqh_service **service,
 	cm = &dix_cm->dcm_base;
 	*service = &cm->cm_service;
 	(*service)->rs_ops = svc_ops;
+	dix_cm->dcm_magic = M0_DIX_CM_MAGIC;
 
 	rc = m0_cm_init(cm, container_of(stype, struct m0_cm_type, ct_stype),
 			cm_ops);

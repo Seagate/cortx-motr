@@ -84,11 +84,10 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 {
 	struct m0_rpc_session *session;
 	int                    error;
-
-	M0_LOG(M0_DEBUG, "%p[%s/%u]",
-	       item, item_kind(item), item->ri_type->rit_opcode);
-	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && item->ri_type != NULL);
+
+	M0_ENTRY("%p[%s/%u]",
+	       item, item_kind(item), item->ri_type->rit_opcode);
 	M0_PRE(m0_rpc_item_is_request(item));
 
 	session = item->ri_session;
