@@ -63,7 +63,7 @@ struct m0_dtm0_clk_src;
  *
  *  Every participant maintains the journal record(DTM0 Log record) that
  *  corresponds to each distributed transaction(dtx) and it can be described by
- *  "struct m0_dtm0_log_record" which will be stored in volatile/persistent
+ *  "struct m0_dtm0_log_rec" which will be stored in volatile/persistent
  *  storage. Basically this log record will maintain txr id, group of state of
  *  each individual participant and payload.
  *
@@ -190,24 +190,28 @@ enum m0_be_dtm0_log_credit_op {
 	M0_DTML_REDO
 };
 
-struct m0_dtm0_log_record {
+struct m0_dtm0_log_rec {
 	struct m0_dtm0_tx_desc dlr_txd;
 	struct m0_be_list_link dlr_link; /* link into m0_be_dtm0_log::list */
-	struct m0_list_link    dlr_tlink;
+	uint64_t               dlr_magic;
+	struct m0_tlink        dlr_tlink;
 	struct m0_buf          dlr_pyld;
 };
 
 struct m0_be_dtm0_log {
+	bool                    dl_ispstore;
 	struct m0_mutex         dl_lock;  /* volatile structure */
-	struct m0_dtm0_clk_src *dl_cs,
+	struct m0_dtm0_clk_src *dl_cs;
 	struct m0_be_list      *dl_list;  /* persistent structure */
-	struct m0_list         *dl_vlist; /* Volatile list */
+	struct m0_tl           *dl_tlist; /* Volatile list */
 };
 
 // init/fini (for volatile fields)
-M0_INTERNAL void m0_be_dtm0_log_init(struct m0_be_dtm0_log *log,
-                                     struct m0_dtm0_clk_src *cs);
-M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log *log);
+M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log **log,
+                                    struct m0_dtm0_clk_src *cs,
+                                    bool                    isvstore);
+M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log **log,
+                                     bool                    isvstore);
 
 // credit interface
 M0_INTERNAL void m0_be_dtm0_log_credit(enum m0_be_dtm0_log_credit_op op,
@@ -215,20 +219,37 @@ M0_INTERNAL void m0_be_dtm0_log_credit(enum m0_be_dtm0_log_credit_op op,
                                        struct m0_be_seg             *seg,
                                        struct m0_be_tx_credit       *accum);
 // create/destroy
-M0_INTERNAL void m0_be_dtm0_log_create(struct m0_be_tx        *tx,
-                                       struct m0_be_seg       *seg,
-                                       struct m0_be_dtm0_log **out);
+M0_INTERNAL int m0_be_dtm0_log_create(struct m0_be_tx        *tx,
+                                      struct m0_be_seg       *seg,
+                                      struct m0_be_dtm0_log **out);
 
-M0_INTERNAL void m0_be_dtm0_log_destroy(struct m0_be_dtm0_log **log,
-                                        struct m0_be_tx        *tx);
+M0_INTERNAL void m0_be_dtm0_log_destroy(struct m0_be_tx        *tx,
+                                        struct m0_be_dtm0_log **log);
 
 // operational interfaces
-M0_INTERNAL void m0_be_dtm0_log_update(struct m0_be_dtm0_log  *log,
-                                       struct m0_be_tx        *tx,
-                                       struct m0_dtm0_tx_desc *txd,
-                                       struct m0_buf          *pyld);
+M0_INTERNAL int m0_be_dtm0_log_update(struct m0_be_dtm0_log  *log,
+                                      struct m0_be_tx        *tx,
+                                      struct m0_dtm0_tx_desc *txd,
+                                      struct m0_buf          *pyld);
 
-M0_INTERNAL int m0_be_dtm0_log_find(struct m0_be_dtm0_log        *log,
-                                    const struct m0_dtm0_tid     *id,
-                                    struct m0_dtm0_log_record   **out);
+M0_INTERNAL
+struct m0_dtm0_log_rec *m0_be_dtm0_log_find(struct m0_be_dtm0_log    *log,
+                                            const struct m0_dtm0_tid *id);
+
+M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
+                                     struct m0_be_tx          *tx,
+                                     const struct m0_dtm0_tid *id);
 #endif /* __MOTR_BE_DTM0_LOG_H__ */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */

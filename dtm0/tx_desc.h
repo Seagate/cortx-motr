@@ -136,6 +136,10 @@ M0_INTERNAL int m0_dtm0_tid_cmp(struct m0_dtm0_clk_src   *cs,
 M0_INTERNAL bool m0_dtm0_tid__invariant(const struct m0_dtm0_tid *tid);
 M0_INTERNAL bool m0_dtm0_tx_desc__invariant(const struct m0_dtm0_tx_desc *td);
 
+M0_INTERNAL int m0_dtm0_txr_rec_is_set(struct m0_buf *pyld);
+M0_INTERNAL void m0_dtm0_update_pa_state(enum m0_dtm0_tx_pa_state *dst,
+                                         enum m0_dtm0_tx_pa_state *src);
+M0_INTERNAL bool m0_dtm0_is_rec_is_stable(struct m0_dtm0_tx_pa_group *pg);
 #endif /* __MOTR_DTM0_TX_DESC_H__ */
 
 /*
