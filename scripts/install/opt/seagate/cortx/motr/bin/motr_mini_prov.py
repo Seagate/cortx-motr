@@ -133,7 +133,7 @@ def configure_lnet_from_conf_store(self):
         fp.write(f"options lnet networks={iface_type}({iface}) "
                  f"config_on_load=1  lnet_peer_discovery_disabled=1\n")
         time.sleep(SLEEP_SECS)
-        restart_services(["lnet"])
+    restart_services(["lnet"])
 
 def configure_libfabric(self):
     pass
@@ -158,7 +158,7 @@ def create_lvm(node_name, index, metadata_dev):
         cmd = f"vgcreate {vg_name} {metadata_dev}"
         execute_command(cmd, TIMEOUT_SECS)
 
-        cmd = f"vgchange --addtag {node_name} vg_md_{node_name}_{index}"
+        cmd = f"vgchange --addtag {node_name} {vg_name}"
         execute_command(cmd, TIMEOUT_SECS)
 
         cmd = "vgscan --cache"
