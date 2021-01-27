@@ -1,6 +1,5 @@
-/* -*- C -*- */
 /*
- * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,45 +19,18 @@
  */
 
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNS
-#include "lib/trace.h"
-#include "lib/misc.h"
-#include "lib/memory.h"
-#include "lib/assert.h"
-#include "sns/parity_ops.h"
+#pragma once
 
-M0_INTERNAL void m0_parity_fini(void)
-{
-#if !ISAL_ENCODE_ENABLED
-	galois_calc_tables_release();
-#endif /* !ISAL_ENCODE_ENABLED */
-}
+#ifndef __MOTR_SNS_PARITY_DEFS_H__
+#define __MOTR_SNS_PARITY_DEFS_H__
 
-M0_INTERNAL int m0_parity_init(void)
-{
-#if !ISAL_ENCODE_ENABLED
-	int ret = galois_create_mult_tables(M0_PARITY_GALOIS_W);
-	M0_ASSERT(ret == 0);
-#endif /* !ISAL_ENCODE_ENABLED */
-	return 0;
-}
+/**
+ *  Define the condition here to use Intel ISA library.
+ */
+#define ISAL_ENCODE_ENABLED	(!defined(__KERNEL__) && defined(HAVE_ISAL))
 
-M0_INTERNAL m0_parity_elem_t m0_parity_pow(m0_parity_elem_t x,
-					   m0_parity_elem_t p)
-{
-	m0_parity_elem_t ret = x;
-	int i = 1;
-
-	if (p == 0)
-		return 1;
-
-	for (i = 1; i < p; ++i)
-		ret = m0_parity_mul(ret, x);
-
-	return ret;
-}
-
-#undef M0_TRACE_SUBSYSTEM
+/* __MOTR_SNS_PARITY_DEFS_H__ */
+#endif
 
 /*
  *  Local variables:

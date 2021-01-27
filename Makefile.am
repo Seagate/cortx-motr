@@ -184,8 +184,17 @@ lib_LTLIBRARIES          += motr/libmotr.la
 motr_libmotr_la_CPPFLAGS  = -DM0_TARGET='libmotr' $(AM_CPPFLAGS)
 motr_libmotr_la_LDFLAGS   = -version-info @LT_VERSION@ -pthread $(AM_LDFLAGS)
 motr_libmotr_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
-                            @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ @GALOIS_LIBS@ \
-                            @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@ @ISAL_LIBS@
+                            @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ \
+                            @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@
+
+if HAVE_ISAL
+motr_libmotr_la_LIBADD += @ISAL_LIBS@
+# override is needed to allow user to provide some additional options in
+# RPMBUILD_FLAGS variable in command line
+override RPMBUILD_FLAGS += --with isal
+else
+motr_libmotr_la_LIBADD += @GALOIS_LIBS@
+endif
 
 # install directory for public libmotr headers
 motr_includedir             = $(includedir)/motr
