@@ -20,9 +20,11 @@
  */
 
 
+#include "dtm0/clk_src.h"
 #include "dtm0/fop.h"
 #include "dtm0/helper.h"
 #include "dtm0/service.h"
+#include "dtm0/tx_desc.h"
 #include "net/net.h"
 #include "rpc/rpclib.h"
 #include "ut/ut.h"
@@ -69,18 +71,37 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 	struct dtm0_rep_fop   *rep;
 	struct dtm0_req_fop   *req;
 
+	struct m0_dtm0_tx_desc txr = {};
+	struct m0_dtm0_tid      reply_data;
+
+	struct m0_dtm0_clk_src dcs;
+	struct m0_dtm0_ts      now;
+
+
+	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
+	rc = m0_dtm0_clk_src_now(&dcs, &now);
+	M0_UT_ASSERT(rc == 0);
+
 	M0_PRE(cl_rpc_session != NULL);
 
+	txr.dtd_id = (struct m0_dtm0_tid) { .dti_ts = now, .dti_fid = g_process_fid};
 	fop = m0_fop_alloc_at(cl_rpc_session,
 			      &dtm0_req_fop_fopt);
 	req = m0_fop_data(fop);
-	req->csr_value = 555;
+	req->dtr_msg = DMT_EXECUTE;
+	req->dtr_txr = txr;
 	rc = m0_rpc_post_sync(fop, cl_rpc_session,
 			      &dtm0_req_fop_rpc_item_ops,
 			      M0_TIME_IMMEDIATELY);
 	M0_UT_ASSERT(rc == 0);
 	rep = reply(fop->f_item.ri_reply);
-	M0_UT_ASSERT(rep->csr_rc == 555);
+	reply_data = rep->dr_txr.dtd_id;
+
+	M0_ASSERT(m0_dtm0_ts__invariant(&reply_data.dti_ts));
+
+	M0_UT_ASSERT(m0_fid_cmp(&g_process_fid, &reply_data.dti_fid) == 0);
+	M0_UT_ASSERT(m0_dtm0_ts_cmp(&dcs, &now, &reply_data.dti_ts) == M0_DTS_EQ);
+
 	m0_fop_put_lock(fop);
 }
 

@@ -27,12 +27,24 @@
  * @{
  */
 
+#include "dtm0/clk_src.h"
+#include "lib/misc.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM
 #include "dtm0/tx_desc.h"
 #include "lib/assert.h" /* M0_PRE */
 #include "lib/memory.h" /* M0_ALLOC */
 #include "lib/errno.h"  /* ENOMEM */
 #include "lib/trace.h"  /* M0_ERR */
+
+M0_INTERNAL void m0_dtm0_tx_desc_init_none(struct m0_dtm0_tx_desc *td)
+{
+	M0_SET0(td);
+}
+
+M0_INTERNAL bool m0_dtm0_tx_desc_is_none(const struct m0_dtm0_tx_desc *td)
+{
+	return M0_IS0(td);
+}
 
 M0_INTERNAL bool m0_dtm0_tx_desc__invariant(const struct m0_dtm0_tx_desc *td)
 {
