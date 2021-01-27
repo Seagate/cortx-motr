@@ -78,6 +78,7 @@ static int dtm0_service_start(struct m0_reqh_service *service)
 {
         M0_PRE(service != NULL);
         return m0_dtm0_fop_init();
+	/* TODO: Open a dtm0 log and initialise it. */
 }
 
 static void dtm0_service_stop(struct m0_reqh_service *service)

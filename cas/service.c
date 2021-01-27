@@ -20,6 +20,10 @@
  */
 
 
+#include "be/op.h"
+#include "be/tx_credit.h"
+#include "dtm0/fop.h"
+#include "dtm0/fop_xc.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CAS
 
 #include "lib/trace.h"
@@ -277,7 +281,7 @@
  * - HLD of the catalogue service :
  * For documentation links, please refer to this file :
  * doc/motr-design-doc-list.rst
- * 
+ *
  * @{
  */
 
@@ -411,6 +415,8 @@ M0_BASSERT(M0_CAS_PUT_FOP_OPCODE == CO_PUT + M0_CAS_GET_FOP_OPCODE);
 M0_BASSERT(M0_CAS_DEL_FOP_OPCODE == CO_DEL + M0_CAS_GET_FOP_OPCODE);
 M0_BASSERT(M0_CAS_CUR_FOP_OPCODE == CO_CUR + M0_CAS_GET_FOP_OPCODE);
 M0_BASSERT(M0_CAS_REP_FOP_OPCODE == CO_REP + M0_CAS_GET_FOP_OPCODE);
+
+extern struct m0_reqh_service_type dtm0_service_type;
 
 #define LAYOUT_IMASK_PTR(l) (&(l)->u.dl_desc.ld_imask)
 #define CID_IMASK_PTR(cid)  LAYOUT_IMASK_PTR(&(cid)->ci_layout)
@@ -1326,6 +1332,23 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			m0_ctg_op_init(&fom->cf_ctg_op, fom0,
 				       cas_op(fom0)->cg_flags);
 		}
+
+		/* If cas request has a txr payload, this a dtm0 operation.
+		 * We need to calculate credits for creating a dtm0 log record.
+		 *
+		 */
+		if (cas_op(fom0)->txr) {
+			/*
+			struct m0_be_tx_credit dtm0logrec_cred;
+			struct m0_be_tx     *tx = m0_fom_tx(fom0);
+
+			m0_be_dtm0_log_credit(M0_DTML_ON_SENT,
+					      tx,
+					      m0_fom_reqh(fom0)->rh_beseg,
+					      &dtm0logrec_cred);
+					      */
+		}
+
 		m0_fom_phase_set(fom0, M0_FOPH_TXN_OPEN);
 		/*
 		 * @todo waiting for transaction open with btree (which can be

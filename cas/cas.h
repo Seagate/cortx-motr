@@ -293,7 +293,9 @@ struct m0_cas_op {
 	 *
 	 * Array should be non-empty.
 	 */
-	struct m0_cas_recv cg_rec;
+	struct m0_cas_recv  cg_rec;
+	/* dtm0 txr payload */
+	struct m0_dtm0_txr *txr;
 
 	/**
 	 * CAS operation flags.
