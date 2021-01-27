@@ -10,7 +10,8 @@
       "hostname": "srvnode-1.localhost",
       "storage": {
         "metadata_devices": [
-          "/dev/sdi2"
+          "/dev/sdh",
+          "/dev/sdi"
         ]
       },
       "network": {

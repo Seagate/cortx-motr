@@ -57,6 +57,8 @@ def execute_command(cmd, timeout_secs):
     sys.stdout.write(f"[CMD] {cmd}\n")
     sys.stdout.write(f"[OUT]\n{stdout}\n")
     sys.stdout.write(f"[RET] {ps.returncode}\n")
+    if ps.returncode != 0:
+        raise MotrError(ps.returncode, f"{cmd} command failed")
     return stdout, ps.returncode
 
 def get_current_node(self):
@@ -99,7 +101,8 @@ def validate_motr_rpm(self):
         sys.stdout.write(f"[INFO] Checking for {MOTR_SYS_FILE}\n")
         validate_file(MOTR_SYS_FILE)
     except MotrError as e:
-        pass
+        sys.stderr.write("Validate motr rpm failed\n")
+        sys.exit(e._rc)
 
 def motr_config(self):
     is_hw = is_hw_node()
@@ -137,45 +140,46 @@ def configure_lnet_from_conf_store(self):
 def configure_libfabric(self):
     pass
 
-def create_lvm(node_name, metadata_dev):
+def create_lvm(node_name, index, metadata_dev):
+    index = index + 1
+    vg_name = f"vg_md_{node_name}_{index}"
+    lv_swap_name = f"lv_main_swap{index}"
+    lv_md_name = f"lv_raw_md{index}"
     try:
         validate_file(metadata_dev)
 
         cmd = f"fdisk -l {metadata_dev}"
         execute_command(cmd, TIMEOUT_SECS)
 
-        cmd = "swapoff -a"
+        cmd = f"wipefs --all --force {metadata_dev}"
         execute_command(cmd, TIMEOUT_SECS)
 
         cmd = f"pvcreate {metadata_dev}"
         execute_command(cmd, TIMEOUT_SECS)
 
-        cmd = f"vgcreate  vg_metadata_{node_name} {metadata_dev}"
+        cmd = f"vgcreate {vg_name} {metadata_dev}"
         execute_command(cmd, TIMEOUT_SECS)
 
-        cmd = f"vgchange --addtag {node_name} vg_metadata_{node_name}"
+        cmd = f"vgchange --addtag {node_name} vg_md_{node_name}_{index}"
         execute_command(cmd, TIMEOUT_SECS)
 
         cmd = "vgscan --cache"
         execute_command(cmd, TIMEOUT_SECS)
 
-        cmd = f"lvcreate -n lv_main_swap vg_metadata_{node_name} -l 51%VG"
+        cmd = f"lvcreate -n {lv_swap_name} {vg_name} -l 51%VG"
         execute_command(cmd, TIMEOUT_SECS)
 
-        cmd = f"lvcreate -n lv_raw_metadata vg_metadata_{node_name} -l 100%FREE"
+        cmd = f"lvcreate -n {lv_md_name} {vg_name} -l 100%FREE"
         execute_command(cmd, TIMEOUT_SECS)
 
-        cmd = f"mkswap -f /dev/vg_metadata_{node_name}/lv_main_swap"
+        cmd = f"mkswap -f /dev/{vg_name}/{lv_swap_name}"
         execute_command(cmd, TIMEOUT_SECS)
 
-        cmd = f"test -e /dev/vg_metadata_{node_name}/lv_main_swap"
-        execute_command(cmd, TIMEOUT_SECS)
-
-        cmd = f"swapon /dev/vg_metadata_{node_name}/lv_main_swap"
+        cmd = f"test -e /dev/{vg_name}/{lv_swap_name}"
         execute_command(cmd, TIMEOUT_SECS)
 
         cmd = (
-           f"echo \"/dev/vg_metadata_{node_name}/lv_main_swap    swap    "
+           f"echo \"/dev/{vg_name}/{lv_swap_name}    swap    "
            f"swap    defaults        0 0\" >> /etc/fstab"
         )
         execute_command(cmd, TIMEOUT_SECS)
@@ -183,11 +187,19 @@ def create_lvm(node_name, metadata_dev):
         pass
 
 def config_lvm(self):
-    metadata_device = Conf.get(self._index,
+    metadata_devices = Conf.get(self._index,
                f'cluster>{self._server_id}')['storage']['metadata_devices']
     sys.stdout.write(f"[INFO] server_id={self._server_id} "
-                     f" metadata_device={metadata_device[0]}\n")
-    create_lvm(self._server_id, metadata_device[0])
+                     f" metadata_device={metadata_devices}\n")
+                     
+    cmd = "swapoff -a"
+    execute_command(cmd, TIMEOUT_SECS)
+
+    for device in metadata_devices:
+        create_lvm(self._server_id, metadata_devices.index(device), device)
+    
+    cmd = "swapon -a"
+    execute_command(cmd, TIMEOUT_SECS)
 
 def get_lnet_xface() -> str:
     lnet_xface = None
