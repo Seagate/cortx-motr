@@ -416,8 +416,6 @@ M0_BASSERT(M0_CAS_DEL_FOP_OPCODE == CO_DEL + M0_CAS_GET_FOP_OPCODE);
 M0_BASSERT(M0_CAS_CUR_FOP_OPCODE == CO_CUR + M0_CAS_GET_FOP_OPCODE);
 M0_BASSERT(M0_CAS_REP_FOP_OPCODE == CO_REP + M0_CAS_GET_FOP_OPCODE);
 
-extern struct m0_reqh_service_type dtm0_service_type;
-
 #define LAYOUT_IMASK_PTR(l) (&(l)->u.dl_desc.ld_imask)
 #define CID_IMASK_PTR(cid)  LAYOUT_IMASK_PTR(&(cid)->ci_layout)
 
