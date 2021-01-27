@@ -483,6 +483,12 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 	M0_PRE(dom != NULL);
 	M0_PRE(dom->cd_id.id != 0);
 
+	M0_LOG(M0_ERROR,"YB:Cob oikey size %"PRIu64"",sizeof(struct m0_cob_oikey));
+	M0_LOG(M0_ERROR,"YB:Cob nskey size %"PRIu64"",sizeof(struct m0_cob_nskey));
+	M0_LOG(M0_ERROR,"YB:Cob fabkey size %"PRIu64"",sizeof(struct m0_cob_fabkey));
+	M0_LOG(M0_ERROR,"YB:Cob omgkey size %"PRIu64"",sizeof(struct m0_cob_omgkey));
+	M0_LOG(M0_ERROR,"YB:Cob eakey size %"PRIu64"",sizeof(struct m0_cob_eakey));
+
 	m0_be_btree_init(&dom->cd_object_index,   seg, &cob_oi_ops);
 	m0_be_btree_init(&dom->cd_namespace,	  seg, &cob_ns_ops);
 	m0_be_btree_init(&dom->cd_fileattr_basic, seg, &cob_fab_ops);

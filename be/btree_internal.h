@@ -34,6 +34,7 @@
 #include "format/format.h" /* m0_format_header */
 #include "be/btree.h"      /* BTREE_FAN_OUT */
 #include "be/btree_xc.h"   /* m0_be_btree_backlink_xc */
+#include "lib/types.h"
 
 /* btree constants */
 enum {
@@ -41,6 +42,7 @@ enum {
 };
 
 struct be_btree_key_val  {
+	char inlkey[64];
 	void *btree_key;
 	void *btree_val;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);

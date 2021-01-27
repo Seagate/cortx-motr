@@ -957,12 +957,13 @@ static int balloc_init_internal(struct m0_balloc *bal,
 				m0_bcount_t spare_blocks_per_group)
 {
 	int rc;
-
 	M0_ENTRY();
 
 	bal->cb_be_seg = seg;
 	bal->cb_group_info = NULL;
 	m0_mutex_init(&bal->cb_sb_mutex.bm_u.mutex);
+	M0_LOG(M0_ERROR,"YB:Balloc key size 1:%"PRIu64"",gd_tree_key_size(NULL));
+	M0_LOG(M0_ERROR,"YB:Balloc key size 2:%"PRIu64"",ge_tree_kv_size(NULL));
 
 	m0_be_btree_init(&bal->cb_db_group_desc, seg, &gd_btree_ops);
 	m0_be_btree_init(&bal->cb_db_group_extents, seg, &ge_btree_ops);

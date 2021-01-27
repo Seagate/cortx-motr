@@ -242,6 +242,7 @@ m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db)
 	m0_buf_init(&map->em_val_buf, &map->em_rec, sizeof map->em_rec);
 	emap_key_init(&map->em_key);
 	emap_rec_init(&map->em_rec);
+	M0_LOG(M0_ERROR,"YB:Extmap key size %"PRIu64"",be_emap_ksize(NULL));
 	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops);
 	map->em_seg = db;
 	map->em_version = 0;
