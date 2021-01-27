@@ -184,8 +184,8 @@ lib_LTLIBRARIES          += motr/libmotr.la
 motr_libmotr_la_CPPFLAGS  = -DM0_TARGET='libmotr' $(AM_CPPFLAGS)
 motr_libmotr_la_LDFLAGS   = -version-info @LT_VERSION@ -pthread $(AM_LDFLAGS)
 motr_libmotr_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
-                            @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ @GALOIS_LIBS@ \
-                            @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@
+                            @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ @DL_LIBS@ \
+                            @CASSANDRA_LIBS@ @UV_LIBS@ @ISAL_LIBS@
 
 # install directory for public libmotr headers
 motr_includedir             = $(includedir)/motr
@@ -941,7 +941,7 @@ motr_cron_SCRIPTS = \
     scripts/install$(motrdir)/libexec/m0trace_logrotate.sh \
     scripts/install$(motrdir)/libexec/m0addb_logrotate.sh
 EXTRA_DIST += $(motr_cron_SCRIPTS)
-    
+
 motr_confdir = $(motrdir)/conf
 motr_conf_DATA = scripts/install$(motr_confdir)/motr.conf \
                  scripts/install$(motr_confdir)/setup.yaml

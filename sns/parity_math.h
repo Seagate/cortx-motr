@@ -47,8 +47,9 @@
  * Parity calculation type indicating various algorithms of parity calculation.
  */
 enum m0_parity_cal_algo {
-        M0_PARITY_CAL_ALGO_XOR,
-        M0_PARITY_CAL_ALGO_REED_SOLOMON,
+	M0_PARITY_CAL_ALGO_XOR,
+	M0_PARITY_CAL_ALGO_REED_SOLOMON,
+	M0_PARITY_CAL_ALGO_ISA,
 	M0_PARITY_CAL_ALGO_NR
 };
 
@@ -102,24 +103,33 @@ struct m0_sns_ir_block {
    data blocks and failure flags.
  */
 struct m0_parity_math {
-	enum m0_parity_cal_algo	     pmi_parity_algo;
+	enum m0_parity_cal_algo	pmi_parity_algo;
 
-	uint32_t		     pmi_data_count;
-	uint32_t		     pmi_parity_count;
+	uint32_t		pmi_data_count;
+	uint32_t		pmi_parity_count;
 	/* structures used for parity calculation and recovery */
-	struct m0_matvec	     pmi_data;
-	struct m0_matvec	     pmi_parity;
+	struct m0_matvec	pmi_data;
+	struct m0_matvec	pmi_parity;
 	/* Vandermonde matrix */
-	struct m0_matrix	     pmi_vandmat;
+	struct m0_matrix	pmi_vandmat;
 	/* Submatrix of Vandermonde matrix used to compute parity. */
-	struct m0_matrix	     pmi_vandmat_parity_slice;
+	struct m0_matrix	pmi_vandmat_parity_slice;
 	/* structures used for non-incremental recovery */
-	struct m0_matrix	     pmi_sys_mat;
-	struct m0_matvec	     pmi_sys_vec;
-	struct m0_matvec	     pmi_sys_res;
-	struct m0_linsys	     pmi_sys;
+	struct m0_matrix	pmi_sys_mat;
+	struct m0_matvec	pmi_sys_vec;
+	struct m0_matvec	pmi_sys_res;
+	struct m0_linsys	pmi_sys;
 	/* Data recovery matrix that's inverse of pmi_sys_mat. */
-	struct m0_matrix             pmi_recov_mat;
+	struct m0_matrix	pmi_recov_mat;
+#ifndef __KERNEL__
+	/* Pointer to sets of arrays of input coefficients used
+	 * to encode or decode data.*/
+	uint8_t		       *pmi_encode_matrix;
+	/* Pointer to concatenated output tables for encode */
+	uint8_t		       *pmi_encode_tbls;
+	/* Pointer to concatenated output tables for decode */
+	uint8_t		       *pmi_decode_tbls;
+#endif
 };
 
 /* Holds information essential for incremental recovery. */
