@@ -59,7 +59,7 @@ M0_INTERNAL void m0_buf_free(struct m0_buf *buf)
 }
 
 M0_INTERNAL int m0_buf_new_aligned(struct m0_buf *buf,
-				   void *data, uint32_t nob,
+				   const void *data, uint32_t nob,
 				   unsigned shift)
 {
 	M0_ALLOC_ARR_ALIGNED(buf->b_addr, nob, shift);
@@ -117,8 +117,8 @@ M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src)
 }
 
 M0_INTERNAL int m0_buf_copy_aligned(struct m0_buf *dst,
-				    struct m0_buf *src,
-				    unsigned       shift)
+				    const struct m0_buf *src,
+				    unsigned shift)
 {
 	M0_PRE(dst->b_nob == 0 && dst->b_addr == NULL);
 	return m0_buf_new_aligned(dst, src->b_addr, src->b_nob, shift);

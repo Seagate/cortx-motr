@@ -127,7 +127,7 @@ M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src);
  * into it.
  */
 M0_INTERNAL int m0_buf_new_aligned(struct m0_buf *buf,
-				   void *data, uint32_t nob,
+				   const void *data, uint32_t nob,
 				   unsigned shift);
 
 /**
@@ -137,8 +137,8 @@ M0_INTERNAL int m0_buf_new_aligned(struct m0_buf *buf,
  * @pre   dst->b_nob == 0 && dst->b_addr == NULL
  */
 M0_INTERNAL int m0_buf_copy_aligned(struct m0_buf *dst,
-				    struct m0_buf *src,
-				    unsigned       shift);
+				    const struct m0_buf *src,
+				    unsigned shift);
 
 /** Does the buffer point at anything? */
 M0_INTERNAL bool m0_buf_is_set(const struct m0_buf *buf);
