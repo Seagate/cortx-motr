@@ -8,6 +8,7 @@
     },
     "srvnode_1": {
       "hostname": "srvnode-1.localhost",
+      "node_type": "VM",
       "storage": {
         "metadata_devices": [
           "/dev/sdh",
@@ -26,6 +27,7 @@
     },
     "srvnode_2": {
       "hostname": "srvnode-2.localhost",
+      "node_type": "VM",
       "storage": {
         "metadata_devices": [
           "/dev/sdm1"
@@ -43,6 +45,7 @@
     },
     "srvnode_3": {
       "hostname": "srvnode-3.localhost",
+      "node_type": "VM",
       "storage": {
         "metadata_devices": [
           "/dev/sdm1"
@@ -60,6 +63,7 @@
     },
     "srvnode_4": {
       "hostname": "srvnode-4.localhost",
+      "node_type": "VM",
       "storage": {
         "metadata_devices": [
           "/dev/sdm1"

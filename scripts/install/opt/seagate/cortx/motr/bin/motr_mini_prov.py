@@ -80,11 +80,9 @@ def validate_file(file):
     if not os.path.exists(file):
         raise MotrError(errno.ENOENT, "{} not exist".format(file))
 
-def is_hw_node():
-    cmd = "systemd-detect-virt"
-    op  = execute_command(cmd, TIMEOUT_SECS)
-    op  = op[0].split('\n')[0]
-    if op == "none":
+def is_hw_node(self):
+    node_type = Conf.get(self._index, f'cluster>{self._server_id}')['node_type']
+    if node_type == "HW":
         return True
     else:
         return False
@@ -105,7 +103,7 @@ def validate_motr_rpm(self):
         sys.exit(e._rc)
 
 def motr_config(self):
-    is_hw = is_hw_node()
+    is_hw = is_hw_node(self)
     if is_hw:
         execute_command(MOTR_CONFIG_SCRIPT, TIMEOUT_SECS)
 
