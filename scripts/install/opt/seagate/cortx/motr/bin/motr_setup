@@ -32,7 +32,7 @@ class Cmd:
     _index = "conf"
 
     def __init__(self, args: dict):
-        self._url = args.url
+        self._url = args.config
         Conf.load(self._index, self._url)
         self._args = args.args
         self._server_id = get_current_node(self)
@@ -54,7 +54,7 @@ class Cmd:
             f"where:\n"
             f"cmd   post_install, config, init, test, reset, cleanup, upgarde,"
             f" backup, restore\n"
-            f"url   Config URL\n")
+            f"--config url  Config URL\n")
 
     @staticmethod
     def get_command(desc: str, argv: dict):
@@ -74,7 +74,7 @@ class Cmd:
         """Add Command args for parsing."""
 
         parser1 = parser.add_parser(cls.name, help='setup %s' % name)
-        parser1.add_argument('url', help='Config URL')
+        parser1.add_argument('--config', type=str, help="Config URL")
         parser1.add_argument('args', nargs='*', default=[], help='args')
         parser1.set_defaults(command=cls)
 
