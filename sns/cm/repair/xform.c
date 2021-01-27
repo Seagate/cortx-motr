@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -243,7 +243,7 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	M0_ASSERT_INFO(ergo(!m0_pdclust_is_replicated(pl), M0_IN(pm_algo,
 					(M0_PARITY_CAL_ALGO_XOR,
-					M0_PARITY_CAL_ALGO_REED_SOLOMON))),
+					M0_PARITY_CAL_ALGO_ISA))),
 		       "parity_algo=%d", (int)pm_algo);
 
 	m0_cm_ag_lock(ag);
@@ -271,7 +271,8 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 			  sns_ag->sag_fnr);
 
 	if (!m0_pdclust_is_replicated(pl) &&
-	    pm_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
+	    M0_IN(pm_algo, (M0_PARITY_CAL_ALGO_REED_SOLOMON,
+			    M0_PARITY_CAL_ALGO_ISA))) {
 		rc = m0_cm_cp_bufvec_merge(cp);
 		if (rc != 0)
 			goto out;
