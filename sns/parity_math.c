@@ -32,16 +32,35 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNS
 #include "lib/trace.h"
 
-#define ir_invalid_col_t UINT8_MAX
+enum {
+	IR_INVALID_COL = UINT8_MAX,
+};
+
+#if ISAL_ENCODE_ENABLED
+#define ALLOC_ARR_INFO(arr, nr, msg, ret) ({					\
+	M0_ALLOC_ARR(arr, nr);							\
+	if (arr == NULL) 							\
+		(ret) = M0_ERR_INFO(-ENOMEM,					\
+				    "failed to allocate memory for " msg);	\
+	else 									\
+		(ret) = M0_RC_INFO(0, "allocate memory for " msg);		\
+})
+#endif /* ISAL_ENCODE_ENABLED */
 
 /* Forward declarations */
 static void xor_calculate(struct m0_parity_math *math,
                           const struct m0_buf *data,
                           struct m0_buf *parity);
 
+#if ISAL_ENCODE_ENABLED
+static void isal_encode(struct m0_parity_math *math,
+                        const struct m0_buf *data,
+                        struct m0_buf *parity);
+#else
 static void reed_solomon_encode(struct m0_parity_math *math,
                                 const struct m0_buf *data,
                                 struct m0_buf *parity);
+#endif /* ISAL_ENCODE_ENABLED */
 
 static void xor_diff(struct m0_parity_math *math,
 		     struct m0_buf         *old,
@@ -49,11 +68,21 @@ static void xor_diff(struct m0_parity_math *math,
 		     struct m0_buf         *parity,
 		     uint32_t               index);
 
+#if ISAL_ENCODE_ENABLED
+static void isal_diff(struct m0_parity_math *math,
+		      struct m0_buf         *old,
+		      struct m0_buf         *new,
+		      struct m0_buf         *parity,
+		      uint32_t               index);
+
+static bool parity_math_invariant(const struct m0_parity_math *math);
+#else
 static void reed_solomon_diff(struct m0_parity_math *math,
 		              struct m0_buf         *old,
 		              struct m0_buf         *new,
 		              struct m0_buf         *parity,
 		              uint32_t               index);
+#endif /* ISAL_ENCODE_ENABLED */
 
 static void xor_recover(struct m0_parity_math *math,
                         struct m0_buf *data,
@@ -61,21 +90,108 @@ static void xor_recover(struct m0_parity_math *math,
                         struct m0_buf *fails,
 			enum m0_parity_linsys_algo algo);
 
+#if ISAL_ENCODE_ENABLED
+static void isal_recover(struct m0_parity_math *math,
+			 struct m0_buf *data,
+			 struct m0_buf *parity,
+			 struct m0_buf *fails,
+			 enum m0_parity_linsys_algo algo);
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+/**
+ * Inverts the encoding matrix and generates tables of recovery coefficient
+ * codes for lost data.
+ * @param data_count[in] - count of SNS data units used in system.
+ * @param parity_count[in] - count of SNS parity units used in system.
+ * @param failed_idx_buf[in] - array containing failed block indices, treated
+ *                             as uint8_t block with b_nob elements.
+ * @param alive_idx_buf[in] - array containing non-failed block indices,
+ *                            treated as uint8_t block with b_nob elements.
+ * @param encode_mat[in] - Pointer to sets of arrays of input coefficients used
+ *                         to encode or decode data.
+ * @param g_tbls[out] - Pointer to concatenated output tables for decode
+ * @retval     0      - success otherwise failure
+ */
+static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
+				    struct m0_buf *failed_idx_buf,
+				    struct m0_buf *alive_idx_buf,
+				    uint8_t *encode_mat, uint8_t *g_tbls);
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+/**
+ * Sort the data and parity buffers based on input fail buffer. If buffer is
+ * marked as failed, its pointer will be added in frags_out buffer array. If
+ * buffer is not marked as failed in fail buffer, its pointer will be added in
+ * frags_in buffer array. Buffer array frags_in will be used as source buffers
+ * for recovery. Buffer array frags_out will be used as buffers to be recovered.
+ * @param frags_in[out] - Array of buffer pointers containing pointers of
+ *                        buffers which are not failed.
+ * @param frags_out[out] - Array of buffer pointers containing pointers of
+ *                         failed buffers.
+ * @param unit_count[in] - Total count of buffers i.e. data_count + parity_count
+ * @param data_count[in] - count of SNS data units used in system.
+ * @param fail[in] - block with flags, treated as uint8_t block with
+ *                   b_nob elements, if element is '1' then data or parity
+ *                   block with given index is treated as broken.
+ * @param data[in] - data block, treated as uint8_t block with
+ *                   b_nob elements.
+ * @param parity[inout] - parity block, treated as uint8_t block with
+ *                        b_nob elements.
+ * @retval     true       on success
+ * @retval     false      on failure to sort buffers
+ */
+static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
+		    uint32_t unit_count, uint32_t data_count,
+		    uint8_t *fail, struct m0_buf *data,
+		    struct m0_buf *parity);
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+/**
+ * Sort the indices for failed and non-failed data and parity blocks.
+ * @param fail[in] - block with flags, if element is '1' then data or parity
+ *                   block with given index is treated as broken.
+ * @param unit_count[in] - Total length of fail buffer
+ * @param failed_idx[out] - block with failed indices, treated as uint8_t block
+ *                          with b_nob elements
+ * @param alive_idx[out] - block with non-failed (alive) indices, treated as
+ *                         uint8_t block with b_nob elements
+ * @retval     true       on success
+ * @retval     false      on failure to sort indices
+ */
+static bool fails_sort(uint8_t *fail, uint32_t unit_count,
+		       struct m0_buf *failed_idx, struct m0_buf *alive_idx);
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if RS_ENCODE_ENABLED
 static void reed_solomon_recover(struct m0_parity_math *math,
                                  struct m0_buf *data,
                                  struct m0_buf *parity,
                                  struct m0_buf *fails,
 				 enum m0_parity_linsys_algo algo);
+#endif /* RS_ENCODE_ENABLED */
 
 static void fail_idx_xor_recover(struct m0_parity_math *math,
 				 struct m0_buf *data,
 				 struct m0_buf *parity,
 				 const uint32_t failure_index);
 
+#if RS_ENCODE_ENABLED
 static void fail_idx_reed_solomon_recover(struct m0_parity_math *math,
 					  struct m0_buf *data,
 					  struct m0_buf *parity,
 					  const uint32_t failure_index);
+#endif /* RS_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+static void fail_idx_isal_recover(struct m0_parity_math *math,
+				  struct m0_buf *data,
+				  struct m0_buf *parity,
+				  const uint32_t failure_index);
+#endif /* ISAL_ENCODE_ENABLED */
+
 /**
  * Inverts the encoding matrix and generates a recovery matrix for lost data.
  * When all failed blocks are parity blocks this function plays no role.
@@ -163,7 +279,11 @@ static void (*calculate[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
 						const struct m0_buf *data,
 						struct m0_buf *parity) = {
 	[M0_PARITY_CAL_ALGO_XOR] = xor_calculate,
+#if ISAL_ENCODE_ENABLED
+	[M0_PARITY_CAL_ALGO_ISA] = isal_encode,
+#else
 	[M0_PARITY_CAL_ALGO_REED_SOLOMON] = reed_solomon_encode,
+#endif /* ISAL_ENCODE_ENABLED */
 };
 
 static void (*diff[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
@@ -172,7 +292,11 @@ static void (*diff[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
 					   struct m0_buf         *parity,
 					   uint32_t               index) = {
 	[M0_PARITY_CAL_ALGO_XOR]          = xor_diff,
+#if ISAL_ENCODE_ENABLED
+	[M0_PARITY_CAL_ALGO_ISA] = isal_diff,
+#else
 	[M0_PARITY_CAL_ALGO_REED_SOLOMON] = reed_solomon_diff,
+#endif /* ISAL_ENCODE_ENABLED */
 };
 
 static void (*recover[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
@@ -181,7 +305,11 @@ static void (*recover[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
 					      struct m0_buf *fails,
 					      enum m0_parity_linsys_algo algo) = {
 	[M0_PARITY_CAL_ALGO_XOR] = xor_recover,
+#if ISAL_ENCODE_ENABLED
+	[M0_PARITY_CAL_ALGO_ISA] = isal_recover,
+#else
 	[M0_PARITY_CAL_ALGO_REED_SOLOMON] = reed_solomon_recover,
+#endif /* ISAL_ENCODE_ENABLED */
 };
 
 static void (*fidx_recover[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
@@ -189,7 +317,11 @@ static void (*fidx_recover[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
 						   struct m0_buf *parity,
 						   const uint32_t fidx) = {
 	[M0_PARITY_CAL_ALGO_XOR] = fail_idx_xor_recover,
+#if ISAL_ENCODE_ENABLED
+	[M0_PARITY_CAL_ALGO_ISA] = fail_idx_isal_recover,
+#else
 	[M0_PARITY_CAL_ALGO_REED_SOLOMON] = fail_idx_reed_solomon_recover,
+#endif /* ISAL_ENCODE_ENABLED */
 };
 
 enum {
@@ -203,16 +335,19 @@ static int gadd(int x, int y)
 	return m0_parity_add(x, y);
 }
 
+#if RS_ENCODE_ENABLED
 static int gsub(int x, int y)
 {
 	return m0_parity_sub(x, y);
 }
+#endif /* RS_ENCODE_ENABLED */
 
 static int gmul(int x, int y)
 {
 	return m0_parity_mul(x, y);
 }
 
+#if RS_ENCODE_ENABLED
 static int gdiv(int x, int y)
 {
 	return m0_parity_div(x, y);
@@ -282,9 +417,28 @@ static int vandmat_norm(struct m0_matrix *m)
 
 	return 0;
 }
+#endif /* RS_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+static bool parity_math_invariant(const struct m0_parity_math *math)
+{
+	return  _0C(math != NULL) && _0C(math->pmi_data_count >= 1) &&
+		_0C(math->pmi_parity_count >= 1) &&
+		_0C(math->pmi_data_count >= math->pmi_parity_count) &&
+		_0C(math->pmi_data_count <= SNS_PARITY_MATH_DATA_BLOCKS_MAX);
+}
+#endif /* ISAL_ENCODE_ENABLED */
 
 M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math)
 {
+	M0_ENTRY();
+#if ISAL_ENCODE_ENABLED
+	if (math->pmi_parity_algo == M0_PARITY_CAL_ALGO_ISA) {
+		m0_free(math->pmi_encode_matrix);
+		m0_free(math->pmi_encode_tbls);
+		m0_free(math->pmi_decode_tbls);
+	}
+#else
 	if (math->pmi_parity_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
 		vandmat_fini(&math->pmi_vandmat);
 		m0_matrix_fini(&math->pmi_vandmat_parity_slice);
@@ -295,14 +449,15 @@ M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math)
 		m0_matrix_fini(&math->pmi_sys_mat);
 		m0_matvec_fini(&math->pmi_sys_vec);
 		m0_matvec_fini(&math->pmi_sys_res);
-//		m0_parity_fini();
 	}
+#endif /* ISAL_ENCODE_ENABLED */
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 				    uint32_t data_count, uint32_t parity_count)
 {
-	int ret;
+	int ret = 0;
 
 	M0_PRE(data_count >= 1);
 	M0_PRE(parity_count >= 1);
@@ -311,18 +466,49 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 
 	M0_SET0(math);
 
-	math->pmi_data_count	      = data_count;
-	math->pmi_parity_count	      = parity_count;
+	M0_ENTRY("data_count=%u parity_count=%u", data_count, parity_count);
 
-        if (parity_count == 1) {
+	math->pmi_data_count	= data_count;
+	math->pmi_parity_count	= parity_count;
+
+	if (parity_count == 1) {
 		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_XOR;
 		return 0;
+#if ISAL_ENCODE_ENABLED
+	} else {
+		uint32_t total_count = data_count + parity_count;
+
+		ALLOC_ARR_INFO(math->pmi_encode_matrix,
+			       (total_count * data_count),
+			       "encode matrix", ret);
+		if (math->pmi_encode_matrix == NULL)
+			goto handle_error;
+
+		ALLOC_ARR_INFO(math->pmi_encode_tbls,
+			       (data_count * parity_count * 32),
+			       "encode coefficient tables", ret);
+		if (math->pmi_encode_tbls == NULL)
+			goto handle_error;
+
+		ALLOC_ARR_INFO(math->pmi_decode_tbls,
+			       (data_count * parity_count * 32),
+			       "decode coefficient tables", ret);
+		if (math->pmi_decode_tbls == NULL)
+			goto handle_error;
+
+		/* Generate a matrix of coefficients to be used for encoding. */
+		gf_gen_rs_matrix(math->pmi_encode_matrix, total_count, data_count);
+
+		/* Initialize tables for fast Erasure Code encode. */
+		ec_init_tables(data_count, parity_count,
+			       &math->pmi_encode_matrix[data_count * data_count],
+			       math->pmi_encode_tbls);
+
+		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_ISA;
+	}
+#else
 	} else {
 		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_REED_SOLOMON;
-		/*
-                 * init galois, only first call makes initialisation,
-		 * no de-initialisation needed.
-		 */
 
 		ret = vandmat_init(&math->pmi_vandmat, data_count,
 				   parity_count);
@@ -363,9 +549,14 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 		if (ret < 0)
 			goto handle_error;
 	}
+#endif /* ISAL_ENCODE_ENABLED */
+	M0_LEAVE();
+
 	return ret;
  handle_error:
 	m0_parity_math_fini(math);
+
+	M0_LEAVE();
 	return ret;
 }
 
@@ -392,6 +583,77 @@ static void xor_calculate(struct m0_parity_math *math,
 
 }
 
+#if ISAL_ENCODE_ENABLED
+static void isal_diff(struct m0_parity_math *math,
+		      struct m0_buf         *old,
+		      struct m0_buf         *new,
+		      struct m0_buf         *parity,
+		      uint32_t               index)
+{
+	uint8_t	 *diff_data = NULL;
+	uint32_t  block_size;
+	uint32_t  alignment = sizeof(uint_fast32_t);
+	uint32_t  i;
+	int	  ret = 0;
+
+	M0_ENTRY();
+
+	M0_PRE(parity_math_invariant(math));
+	M0_PRE(old    != NULL);
+	M0_PRE(new    != NULL);
+	M0_PRE(parity != NULL);
+	M0_PRE(index  <  math->pmi_data_count);
+	M0_PRE(old[index].b_nob == new[index].b_nob);
+
+	uint8_t	 *parity_frags[math->pmi_parity_count];
+
+	block_size = new[index].b_nob;
+
+	/* It is assumed that the buffer size will always be a multiple of
+	 * 8-bytes (especially since block size currently is 4K) and this assert
+	 * is added with the hope that any deviation from this assumption is
+	 * caught during development instead of on the field.
+	 */
+	M0_ASSERT_INFO(m0_is_aligned(block_size, alignment),
+		       "block_size=%u is not %u-bytes aligned",
+		       block_size, alignment);
+
+	ALLOC_ARR_INFO(diff_data, block_size, "differential data block", ret);
+	if (diff_data == NULL)
+		goto fini;
+
+	/* Calculate differential data */
+	for (i = 0; i < (block_size / alignment); i++)
+		((uint_fast32_t *)diff_data)[i] =
+			((uint_fast32_t *)old[index].b_addr)[i] ^
+			((uint_fast32_t *)new[index].b_addr)[i];
+
+	for (i = 0; i < math->pmi_parity_count; ++i) {
+		if (block_size != parity[i].b_nob) {
+			ret = M0_ERR_INFO(-EINVAL, "parity block size mismatch. "
+					  "block_size = %u, parity[%u].b_nob=%u",
+					  block_size, i, (uint32_t)parity[i].b_nob);
+			goto fini;
+		}
+		parity_frags[i] = (uint8_t *)parity[i].b_addr;
+	}
+
+	/* Update differential parity */
+	ec_encode_data_update(block_size, math->pmi_data_count,
+			      math->pmi_parity_count, index,
+			      math->pmi_encode_tbls, diff_data, parity_frags);
+
+fini:
+	m0_free(diff_data);
+
+	/* TODO: Return error code instead of assert */
+	M0_ASSERT(ret == 0);
+
+	M0_LEAVE();
+}
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if RS_ENCODE_ENABLED
 static void reed_solomon_diff(struct m0_parity_math *math,
 			      struct m0_buf         *old,
 			      struct m0_buf         *new,
@@ -424,6 +686,7 @@ static void reed_solomon_diff(struct m0_parity_math *math,
 		}
 	}
 }
+#endif /* ISAL_ENCODE_ENABLED */
 
 static void xor_diff(struct m0_parity_math *math,
 		     struct m0_buf         *old,
@@ -448,6 +711,7 @@ static void xor_diff(struct m0_parity_math *math,
 	}
 }
 
+#if RS_ENCODE_ENABLED
 static void reed_solomon_encode(struct m0_parity_math *math,
 				const struct m0_buf *data,
 				struct m0_buf *parity)
@@ -504,12 +768,68 @@ static void reed_solomon_encode(struct m0_parity_math *math,
 
 #undef PARITY_MATH_REGION_ENABLE
 }
+#endif /* RS_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+static void isal_encode(struct m0_parity_math *math,
+			const struct m0_buf *data,
+			struct m0_buf *parity)
+{
+	uint32_t  i;
+	uint32_t  block_size;
+	int	  ret = 0;
+
+	M0_ENTRY();
+
+	M0_PRE(parity_math_invariant(math));
+	M0_PRE(data != NULL);
+	M0_PRE(parity != NULL);
+
+	uint8_t  *frags_in[math->pmi_data_count];
+	uint8_t  *frags_out[math->pmi_parity_count];
+
+	block_size = data[0].b_nob;
+
+	frags_in[0] = (uint8_t *)data[0].b_addr;
+	for (i = 1; i < math->pmi_data_count; ++i) {
+		if (block_size != data[i].b_nob) {
+			ret = M0_ERR_INFO(-EINVAL, "data block size mismatch. "
+					  "block_size = %u, data[%u].b_nob=%u",
+					  block_size, i, (uint32_t)data[i].b_nob);
+			goto fini;
+		}
+		frags_in[i] = (uint8_t *)data[i].b_addr;
+	}
+
+	for (i = 0; i < math->pmi_parity_count; ++i) {
+		if (block_size != parity[i].b_nob) {
+			ret = M0_ERR_INFO(-EINVAL, "parity block size mismatch. "
+					  "block_size = %u, parity[%u].b_nob=%u",
+					  block_size, i, (uint32_t)parity[i].b_nob);
+			goto fini;
+		}
+		frags_out[i] = (uint8_t *)parity[i].b_addr;
+	}
+
+	/* Generate erasure codes on given blocks of data. */
+	ec_encode_data(block_size, math->pmi_data_count, math->pmi_parity_count,
+		       math->pmi_encode_tbls, frags_in, frags_out);
+
+fini:
+	/* TODO: Return error code instead of assert */
+	M0_ASSERT(ret == 0);
+
+	M0_LEAVE();
+}
+#endif /* ISAL_ENCODE_ENABLED */
 
 M0_INTERNAL void m0_parity_math_calculate(struct m0_parity_math *math,
 					  struct m0_buf *data,
 					  struct m0_buf *parity)
 {
+	M0_ENTRY();
 	(*calculate[math->pmi_parity_algo])(math, data, parity);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_parity_math_diff(struct m0_parity_math *math,
@@ -517,7 +837,9 @@ M0_INTERNAL void m0_parity_math_diff(struct m0_parity_math *math,
 				     struct m0_buf *new,
 				     struct m0_buf *parity, uint32_t index)
 {
+	M0_ENTRY();
 	(*diff[math->pmi_parity_algo])(math, old, new, parity, index);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
@@ -525,8 +847,10 @@ M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
 				       struct m0_buf *parity,
 				       uint32_t data_ind_changed)
 {
+	M0_ENTRY();
 	/* for simplicity: */
 	m0_parity_math_calculate(math, data, parity);
+	M0_LEAVE();
 }
 
 /* Counts number of failed blocks. */
@@ -541,6 +865,7 @@ static uint32_t fails_count(uint8_t *fail, uint32_t unit_count)
 	return count;
 }
 
+#if RS_ENCODE_ENABLED
 /* Fills 'mat' and 'vec' with data passed to recovery algorithm. */
 static void recovery_vec_fill(struct m0_parity_math *math,
 			       uint8_t *fail, uint32_t unit_count, /* in. */
@@ -564,7 +889,9 @@ static void recovery_vec_fill(struct m0_parity_math *math,
 		}
 	}
 }
+#endif /* RS_ENCODE_ENABLED */
 
+#if RS_ENCODE_ENABLED
 /* Fills 'mat' with data passed to recovery algorithm. */
 static void recovery_mat_fill(struct m0_parity_math *math,
 			      uint8_t *fail, uint32_t unit_count, /* in. */
@@ -584,7 +911,9 @@ static void recovery_mat_fill(struct m0_parity_math *math,
 		}
 	}
 }
+#endif /* RS_ENCODE_ENABLED */
 
+#if RS_ENCODE_ENABLED
 /* Updates internal structures of 'math' with recovered data. */
 static void parity_math_recover(struct m0_parity_math *math,
 				uint8_t *fail, uint32_t unit_count,
@@ -609,7 +938,9 @@ static void parity_math_recover(struct m0_parity_math *math,
 		}
 	}
 }
+#endif /* RS_ENCODE_ENABLED */
 
+#if RS_ENCODE_ENABLED
 M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
 					uint8_t *fail)
 {
@@ -623,11 +954,14 @@ M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
 
 	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
 }
+#endif /* RS_ENCODE_ENABLED */
 
+#if RS_ENCODE_ENABLED
 M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math)
 {
 	m0_matrix_fini(&math->pmi_recov_mat);
 }
+#endif /* RS_ENCODE_ENABLED */
 
 static void xor_recover(struct m0_parity_math *math,
 			struct m0_buf *data,
@@ -674,6 +1008,286 @@ static void xor_recover(struct m0_parity_math *math,
         }
 }
 
+#if ISAL_ENCODE_ENABLED
+static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
+				    struct m0_buf *failed_idx_buf,
+				    struct m0_buf *alive_idx_buf,
+				    uint8_t *encode_mat, uint8_t *g_tbls)
+{
+	uint8_t  *decode_mat = NULL;
+	uint8_t  *temp_mat = NULL;
+	uint8_t  *invert_mat = NULL;
+	uint32_t  unit_count;
+	uint32_t  i;
+	uint32_t  j;
+	uint32_t  r;
+	uint8_t	  s;
+	uint8_t	  idx;
+	int	  ret = 0;
+
+	M0_ENTRY();
+
+	unit_count = data_count + parity_count;
+
+	ALLOC_ARR_INFO(decode_mat, (unit_count * data_count), "decode matrix", ret);
+	if (decode_mat == NULL)
+		goto fini;
+
+	ALLOC_ARR_INFO(temp_mat, (unit_count * data_count), "temp matrix", ret);
+	if (temp_mat == NULL)
+		goto fini;
+
+	ALLOC_ARR_INFO(invert_mat, (unit_count * data_count), "invert matrix", ret);
+	if (invert_mat == NULL)
+		goto fini;
+
+	/* Construct temp_mat (matrix that encoded remaining frags)
+	 * by removing erased rows
+	 */
+	for (i = 0; i < data_count; i++) {
+		idx = ((uint8_t *)alive_idx_buf->b_addr)[i];
+		for (j = 0; j < data_count; j++)
+			temp_mat[data_count * i + j] =
+				encode_mat[data_count * idx + j];
+	}
+
+	/* Invert matrix to get recovery matrix */
+	ret = gf_invert_matrix(temp_mat, invert_mat, data_count);
+	if (ret != 0) {
+		ret = M0_ERR_INFO(ret, "failed to construct an %u x %u inverse "
+				  "of the input matrix", data_count, data_count);
+		goto fini;
+	}
+
+	/* Create decode matrix */
+	for (r = 0; r < failed_idx_buf->b_nob; r++) {
+		idx = ((uint8_t *)failed_idx_buf->b_addr)[r];
+		/* Get decode matrix with only wanted recovery rows */
+		if (idx < data_count) {    /* A src err */
+			for (i = 0; i < data_count; i++)
+				decode_mat[data_count * r + i] =
+					invert_mat[data_count * idx + i];
+		}
+		/* For non-src (parity) erasures need to multiply
+		 * encode matrix * invert
+		 */
+		else { /* A parity err */
+			for (i = 0; i < data_count; i++) {
+				s = 0;
+				for (j = 0; j < data_count; j++)
+					s ^= gf_mul(invert_mat[j * data_count + i],
+						    encode_mat[data_count * idx + j]);
+				decode_mat[data_count * r + i] = s;
+			}
+		}
+	}
+
+	ec_init_tables(data_count, (uint32_t)failed_idx_buf->b_nob, decode_mat, g_tbls);
+
+fini:
+	m0_free(temp_mat);
+	m0_free(invert_mat);
+	m0_free(decode_mat);
+
+	M0_LEAVE();
+
+	return ret;
+}
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
+		     uint32_t unit_count, uint32_t data_count,
+		     uint8_t *fail, struct m0_buf *data,
+		     struct m0_buf *parity)
+{
+	uint32_t  i;
+	uint32_t  j;
+	uint32_t  k;
+	uint8_t  *addr;
+
+	M0_ENTRY();
+
+	if ((fail == NULL) || (frags_in == NULL) || (frags_out == NULL) ||
+	    (data == NULL) || (parity == NULL))
+		return false;
+
+
+	for (i = 0, j = 0, k = 0; i < unit_count; i++) {
+		if (i < data_count)
+			addr = (uint8_t *)data[i].b_addr;
+		else
+			addr = (uint8_t *)parity[i - data_count].b_addr;
+
+		if (fail[i] != 0)
+			frags_out[j++] = addr;
+		else if (k < data_count)
+			frags_in[k++] = addr;
+		else
+			continue;
+	}
+
+	M0_LEAVE();
+	return true;
+}
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+static bool fails_sort(uint8_t *fail, uint32_t unit_count,
+		       struct m0_buf *failed_idx, struct m0_buf *alive_idx)
+{
+	uint32_t  i;
+	uint8_t	 *failed_ids;
+	uint8_t	 *alive_ids;
+
+	M0_ENTRY();
+
+	if ((fail == NULL) || (failed_idx == NULL) || (alive_idx == NULL) ||
+	    (failed_idx->b_addr == NULL) || (alive_idx->b_addr == NULL))
+		return false;
+
+	failed_ids = (uint8_t *)failed_idx->b_addr;
+	alive_ids = (uint8_t *)alive_idx->b_addr;
+
+	failed_idx->b_nob = 0;
+	alive_idx->b_nob = 0;
+	for (i = 0; i < unit_count; i++) {
+		if (fail[i] != 0)
+			failed_ids[failed_idx->b_nob++] = i;
+		else
+			alive_ids[alive_idx->b_nob++] = i;
+	}
+
+	M0_LEAVE();
+	return true;
+}
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+static void isal_recover(struct m0_parity_math *math,
+			 struct m0_buf *data,
+			 struct m0_buf *parity,
+			 struct m0_buf *fails,
+			 enum m0_parity_linsys_algo algo)
+{
+	struct m0_buf failed_idx_buf = M0_BUF_INIT0;
+	struct m0_buf alive_idx_buf = M0_BUF_INIT0;
+	uint32_t      fail_count;
+	uint32_t      unit_count;
+	uint32_t      block_size;
+	uint32_t      i;
+	uint8_t	     *fail = NULL;
+	int	      ret = 0;
+
+	M0_ENTRY();
+
+	M0_PRE(parity_math_invariant(math));
+	M0_PRE(data != NULL);
+	M0_PRE(parity != NULL);
+	M0_PRE(fails != NULL);
+
+	uint8_t	     *frags_in[math->pmi_data_count];
+	uint8_t	     *frags_out[math->pmi_parity_count];
+
+	unit_count = math->pmi_data_count + math->pmi_parity_count;
+	block_size = data[0].b_nob;
+	fail = (uint8_t*) fails->b_addr;
+
+	fail_count = fails_count(fail, unit_count);
+
+	if ((fail_count == 0) || (fail_count > math->pmi_parity_count)) {
+		ret = M0_ERR_INFO(-EINVAL, "Invalid fail count value. "
+				  "fail_count = %u. Expected value "
+				  "0 < fail_count <= %u", fail_count,
+				  math->pmi_parity_count);
+		goto fini;
+	}
+
+	/* Validate block size for data buffers */
+	for (i = 1; i < math->pmi_data_count; ++i) {
+		if (block_size != data[i].b_nob) {
+			ret = M0_ERR_INFO(-EINVAL, "data block size mismatch. "
+					  "block_size = %u, data[%u].b_nob=%u",
+					  block_size, i, (uint32_t)data[i].b_nob);
+			goto fini;
+		}
+	}
+
+	/* Validate block size for parity buffers */
+	for (i = 0; i < math->pmi_parity_count; ++i) {
+		if (block_size != parity[i].b_nob) {
+			ret = M0_ERR_INFO(-EINVAL, "parity block size mismatch. "
+					  "block_size = %u, parity[%u].b_nob=%u",
+					  block_size, i, (uint32_t)parity[i].b_nob);
+			goto fini;
+		}
+	}
+
+	ret = m0_buf_alloc(&failed_idx_buf, math->pmi_parity_count);
+	if (ret != 0) {
+		ret = M0_ERR_INFO(ret, "failed to allocate memory for "
+				  "array of failed ids");
+		goto fini;
+	}
+
+	ret = m0_buf_alloc(&alive_idx_buf, unit_count);
+	if (ret != 0) {
+		ret = M0_ERR_INFO(ret, "failed to allocate memory for "
+				  "array of alive ids");
+		goto fini;
+	}
+
+	/* Sort failed buffer indices */
+	if (fails_sort(fail, unit_count, &failed_idx_buf,
+		       &alive_idx_buf) == false) {
+		ret = M0_ERR_INFO(-EINVAL, "failed to sort failed ids");
+		goto fini;
+	}
+
+	if (fail_count != failed_idx_buf.b_nob) {
+		ret = M0_ERR_INFO(-EINVAL, "failed count mismatch. "
+				  "fail_count=%d, failed_idx_buf.b_nob=%d",
+				  fail_count, (uint32_t)failed_idx_buf.b_nob);
+		goto fini;
+	}
+
+	/* Sort buffers which are to be recovered */
+	if (buf_sort(frags_in, frags_out, unit_count, math->pmi_data_count,
+		     fail, data, parity) == false) {
+		ret = M0_ERR_INFO(-EINVAL, "failed to sort buffers to be "
+				  "recovered");
+		goto fini;
+	}
+
+	/* Get encoding coefficient tables */
+	ret = isal_gen_recov_coeff_tbl(math->pmi_data_count,
+				       math->pmi_parity_count,
+				       &failed_idx_buf,
+				       &alive_idx_buf,
+				       math->pmi_encode_matrix,
+				       math->pmi_decode_tbls);
+	if (ret != 0) {
+		ret = M0_ERR_INFO(ret, "failed to generate recovery "
+				  "coefficient tables");
+		goto fini;
+	}
+
+	/* Recover data */
+	ec_encode_data(block_size, math->pmi_data_count, fail_count,
+		       math->pmi_decode_tbls, frags_in, frags_out);
+
+fini:
+	m0_buf_free(&failed_idx_buf);
+	m0_buf_free(&alive_idx_buf);
+
+	/* TODO: Return error code instead of assert */
+	M0_ASSERT(ret == 0);
+
+	M0_LEAVE();
+}
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if RS_ENCODE_ENABLED
 static void reed_solomon_recover(struct m0_parity_math *math,
 				 struct m0_buf *data,
 				 struct m0_buf *parity,
@@ -722,6 +1336,7 @@ static void reed_solomon_recover(struct m0_parity_math *math,
 		}
 	}
 }
+#endif /* RS_ENCODE_ENABLED */
 
 M0_INTERNAL void m0_parity_math_recover(struct m0_parity_math *math,
 					struct m0_buf *data,
@@ -729,7 +1344,9 @@ M0_INTERNAL void m0_parity_math_recover(struct m0_parity_math *math,
 					struct m0_buf *fails,
 					enum m0_parity_linsys_algo algo)
 {
+	M0_ENTRY();
 	(*recover[math->pmi_parity_algo])(math, data, parity, fails, algo);
+	M0_LEAVE();
 }
 
 static void fail_idx_xor_recover(struct m0_parity_math *math,
@@ -767,6 +1384,7 @@ static void fail_idx_xor_recover(struct m0_parity_math *math,
 
 }
 
+#if RS_ENCODE_ENABLED
 /** @todo Iterative reed-solomon decode to be implemented. */
 static void fail_idx_reed_solomon_recover(struct m0_parity_math *math,
 					  struct m0_buf *data,
@@ -774,13 +1392,28 @@ static void fail_idx_reed_solomon_recover(struct m0_parity_math *math,
 					  const uint32_t failure_index)
 {
 }
+#endif /* RS_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+static void fail_idx_isal_recover(struct m0_parity_math *math,
+				  struct m0_buf *data,
+				  struct m0_buf *parity,
+				  const uint32_t failure_index)
+{
+	M0_ERR_INFO(-ENOSYS, "Recover using failed index is not implemented "
+		    "for Intel ISA");
+	M0_ASSERT(0);
+}
+#endif /* ISAL_ENCODE_ENABLED */
 
 M0_INTERNAL void m0_parity_math_fail_index_recover(struct m0_parity_math *math,
 						   struct m0_buf *data,
 						   struct m0_buf *parity,
 						   const uint32_t fidx)
 {
+	M0_ENTRY();
 	(*fidx_recover[math->pmi_parity_algo])(math, data, parity, fidx);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
@@ -818,7 +1451,7 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 	for (i = 0; i < block_count(ir); ++i) {
 		ir->si_blocks[i].sib_idx = i;
 		ir->si_blocks[i].sib_status = M0_SI_BLOCK_ALIVE;
-		ir->si_blocks[i].sib_data_recov_mat_col = ir_invalid_col_t;
+		ir->si_blocks[i].sib_data_recov_mat_col = IR_INVALID_COL;
 		ret = m0_bitmap_init(&ir->si_blocks[i].sib_bitmap,
 				     block_count(ir));
 		if (ret != 0)
@@ -962,7 +1595,7 @@ static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
 			if (ir->si_blocks[i].sib_status != M0_SI_BLOCK_ALIVE)
 				continue;
 			if (ir->si_blocks[i].sib_data_recov_mat_col !=
-			    ir_invalid_col_t)
+			    IR_INVALID_COL)
 				m0_bitmap_set(&f_block->sib_bitmap,
 					      ir->si_blocks[i].sib_idx, true);
 		}
@@ -1244,7 +1877,7 @@ static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 		for (i = 0; i  < block_count(ir); ++i) {
 			if (ir->si_blocks[i].sib_status == M0_SI_BLOCK_ALIVE) {
 				if (ir->si_blocks[i].sib_data_recov_mat_col ==
-				    ir_invalid_col_t)
+				    IR_INVALID_COL)
 					return last_usable_bid;
 				last_usable_bid = i;
 			}
