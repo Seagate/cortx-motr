@@ -606,15 +606,6 @@ M0_INTERNAL int m0_dix_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 			dix_cp->dc_is_local      = true;
 			dcm->dcm_cp_in_progress  = true;
 
-			/* XXX The following is used to print key & val */
-			/*
-			M0_LOG(M0_DEBUG, "Found key=%.*s val=%.*s "
-					 "cfid="FID_F"dfid="FID_F,
-					 (int)key.b_nob, (char*)key.b_addr,
-					 (int)val.b_nob, (char*)val.b_addr,
-					 FID_P(&local_cctg_fid),
-					 FID_P(&dix_fid));
-			*/
 			rc = M0_FSO_AGAIN;
 		} else {
 			/*
