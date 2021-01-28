@@ -18,32 +18,42 @@
 #
 
 motr:
+
   post_install:
     cmd: motr_setup post_install
     args: --config $URL
+
   init:
     cmd: motr_setup init
     args: --config $URL
+
   config:
     cmd: motr_setup config
     args: --config $URL
+
   test:
     cmd: motr_setup test
     args: --config $URL
+
   reset:
     cmd: motr_setup reset
     args: --config $URL
+
   cleanup:
     cmd: motr_setup cleanup
     args: --config $URL
+
   backup:
     cmd: motr_setup backup
     args: --location $END-POINT
+
   restore:
     cmd: motr_setup restore
     args: --location $END-POINT
+
   upgrade:
     cmd: motr_setup upgrade
     args: --config $URL
+
 support_bundle:
     - /opt/seagate/cortx/motr/libexec/m0reportbug-bundler
