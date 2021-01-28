@@ -1,7 +1,9 @@
 =================
 Quick Start Guide
 =================
-This guide provides information to get Motr component ready.
+This guide provides information to get Motr component ready.  For your convenience to build and develop motr, 
+we offer a [CentOS-7.9-based Development VM](https://github.com/Seagate/cortx-motr/releases/tag/ova-centos79) 
+with all dependencies installed ready to build and start single-node Motr cluster.
 
 ************
 Prerequisite
