@@ -93,6 +93,7 @@ enum m0_dtm0_cs_types {
 
 /** A data type that represents a timestamp (see CS.TS).*/
 struct m0_dtm0_ts {
+	/* TODO: Think about adding enum cs_types here */
 	m0_time_t dts_phys;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
