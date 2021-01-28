@@ -27,6 +27,7 @@
 #include "lib/assert.h"
 #include "sns/parity_ops.h"
 
+#ifdef __KERNEL__
 M0_INTERNAL void m0_parity_fini(void)
 {
 	galois_calc_tables_release();
@@ -38,6 +39,7 @@ M0_INTERNAL int m0_parity_init(void)
 	M0_ASSERT(ret == 0);
 	return 0;
 }
+#endif /* __KERNEL__ */
 
 M0_INTERNAL m0_parity_elem_t m0_parity_pow(m0_parity_elem_t x,
 					   m0_parity_elem_t p)

@@ -226,7 +226,9 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fdms_register,    &m0_fdms_unregister,  "fdmi-service" },
 #endif /* __KERNEL__ */
 	{ &m0_cas_module_init,  &m0_cas_module_fini,  "cas" },
+#ifdef __KERNEL__
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
+#endif /* __KERNEL__ */
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" },
 	{ &m0_ha_mod_init,      &m0_ha_mod_fini,      "ha" },
 	{ &m0_client_global_init, &m0_client_global_fini, "client" },
