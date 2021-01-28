@@ -20,15 +20,14 @@
 ---
 Tests:
   - id       : 00userspace-tests
-    # Run repeatedly twice. I will remove it later
-    script   : 'm0run m0ut -- -n 2'
+    script   : 'm0run m0ut'
     dir      : src/utils/
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/m0ut
     groupname: 01motr-single-node
     polltime : 15
-    timeout  : 5400
+    timeout  : 1800
 
   - id       : 01kernel-tests
     script   : m0kut
