@@ -80,7 +80,7 @@ struct m0_fab__ep {
 	struct m0_fab__active_ep  *fep_send;
 	struct m0_fab__active_ep  *fep_recv;
 	struct m0_fab__passive_ep *fep_listen;
-	// bool                       fep_dst;
+	struct m0_tl               fep_sndbuf;  /* List of buffers to send */
 	bool                       fep_is_connected;
 };
 
@@ -105,6 +105,7 @@ struct m0_fab__tm {
 struct m0_fab__buf {
 	uint64_t              fb_magic;   /* Magic number */
 	uint64_t              fb_rcvmagic;/* Magic number */
+	uint64_t              fb_sndmagic;/* Magic number */
 	uint64_t              fbp_cookie; /* Cookie identifying the buffer */
 	uint64_t              fb_mr_key;  /* Memory registration key */
 	void                 *fb_mr_desc; /* Buffer descriptor */
@@ -114,6 +115,7 @@ struct m0_fab__buf {
 	struct m0_fab__ep    *fb_ev_ep;
 	struct m0_tlink       fb_linkage; /* Linkage in list of completed bufs*/
 	struct m0_tlink       fb_rcv_link;
+	struct m0_tlink       fb_snd_link;
 	m0_bindex_t           fb_length;  /* Total size of data to be received*/
 };
 

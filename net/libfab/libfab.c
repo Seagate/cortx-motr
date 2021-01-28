@@ -78,6 +78,11 @@ M0_TL_DESCR_DEFINE(fab_rcvbuf, "libfab_rcvbuf",
 		   M0_NET_LIBFAB_RCVBUF_MAGIC, M0_NET_LIBFAB_RCVBUF_HEAD_MAGIC);
 M0_TL_DEFINE(fab_rcvbuf, static, struct m0_fab__buf);
 
+M0_TL_DESCR_DEFINE(fab_sndbuf, "libfab_sndbuf",
+		   static, struct m0_fab__buf, fb_snd_link, fb_sndmagic,
+		   M0_NET_LIBFAB_SNDBUF_MAGIC, M0_NET_LIBFAB_SNDBUF_HEAD_MAGIC);
+M0_TL_DEFINE(fab_sndbuf, static, struct m0_fab__buf);
+
 static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name);
 static int libfab_ep_res_init(struct m0_fab__active_ep *aep,
 			      struct m0_fab__tm *tm);
@@ -127,6 +132,9 @@ static void libfab_tm_fini(struct m0_net_transfer_mc *tm);
 static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp);
 static int libfab_rcomp_list_add(struct m0_fab__tm *tm, struct m0_fab__ep *aep,
 				 void *ctx);
+static int libfab_destaddr_get(struct m0_fab__ep_name *epname,
+			       struct fi_info *hints, struct fi_info **out);
+static void libfab_pending_bufs_send(struct m0_fab__ep *ep);
 
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
@@ -551,6 +559,15 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		m0_tl_for(m0_nep, &tm->ftm_net_ma->ntm_end_points, net) {
 			xep = libfab_ep_net(net);
 			if (xep->fep_send != NULL) {
+				if (!xep->fep_is_connected) {
+					rc =libfab_check_for_event(
+					      xep->fep_send->aep_ep_res.fer_eq);
+					if (rc == FI_CONNECTED) {
+						libfab_pending_bufs_send(xep);
+						xep->fep_is_connected = true;
+					}
+				}
+
 				buf = NULL;
 				rc = libfab_check_for_comp(
 					    xep->fep_send->aep_ep_res.fer_tx_cq,
@@ -711,6 +728,7 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 		return M0_RC(rc);
 	}
 
+	fab_sndbuf_tlist_init(&ep->fep_sndbuf);
 	*epp = &ep->fep_nep;
 	return M0_RC(rc);
 }
@@ -918,6 +936,8 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 			return M0_RC(rc);
 		}
 
+		while (libfab_check_for_event(aep->aep_ep_res.fer_eq)
+							       != FI_CONNECTED);
 		ep->fep_is_connected = true;
 		m0_tl_for(fab_rcvbuf, &tm->ftm_rcvbuf, fbp) {
 			if (fbp != NULL) {
@@ -929,8 +949,6 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 				break;
 			}
 		} m0_tl_endfor;
-
-
 	} else {
 		net = &ep->fep_nep;
 		net->nep_tm = tm->ftm_net_ma;
@@ -1573,6 +1591,35 @@ static int libfab_rcomp_list_add(struct m0_fab__tm *tm, struct m0_fab__ep *ep,
 	return M0_RC(0);
 }
 
+static int libfab_destaddr_get(struct m0_fab__ep_name *epname,
+			       struct fi_info *hints, struct fi_info **out)
+{
+	int ret;
+
+	ret = fi_getinfo(LIBFAB_VERSION, epname->fen_addr, epname->fen_port, 0,
+			 hints, out);
+
+	return M0_RC(ret);
+}
+
+
+static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
+{
+	struct m0_fab__active_ep *aep = ep->fep_send;
+	struct m0_fab__buf       *fbp;
+	struct m0_net_buffer     *nb;
+	int                       ret;
+
+	m0_tl_for(fab_sndbuf, &ep->fep_sndbuf, fbp) {
+		nb = fbp->fb_nb;
+		ret = fi_send(aep->aep_ep, nb->nb_buffer.ov_buf[0],
+			      nb->nb_length, fbp->fb_mr_desc, 0, fbp);
+		if (ret == FI_SUCCESS) {
+			fab_sndbuf_tlist_del(fbp);
+		}
+	} m0_tl_endfor;
+}
+
 /*============================================================================*/
 
 /** 
@@ -1810,6 +1857,8 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	struct m0_fab__ep        *ep = NULL;
 	struct m0_fab__active_ep *aep;
 	struct m0_net_end_point  *net;
+	struct fi_info           *peer_fi;
+	struct m0_fab__ep         peer;
 	struct fi_rma_iov         rma_iov;
 	int                       ret = 0;
 
@@ -1858,23 +1907,40 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		M0_ASSERT(nb->nb_length <= m0_vec_count(&nb->nb_buffer.ov_vec));
 		aep = ep->fep_send;
 
+		ret = libfab_buf_dom_reg(nb, aep->aep_fab.fab_dom);
+		if (ret != FI_SUCCESS)
+			return M0_RC(ret);
+		
 		if (!ep->fep_is_connected) {
-			ret = fi_connect(aep->aep_ep,
-					 aep->aep_fab.fab_fi->dest_addr, NULL,
+			libfab_ep_addr_decode(&peer,nb->nb_ep->nep_addr);
+			ret = libfab_destaddr_get(&peer.fep_name,
+						aep->aep_fab.fab_fi, &peer_fi);
+				
+			ret = fi_connect(aep->aep_ep, peer_fi->dest_addr, NULL,
 					 0);
-			while (libfab_check_for_event(aep->aep_ep_res.fer_eq)
-							       != FI_CONNECTED);
-			ep->fep_is_connected = true;
+			fab_sndbuf_tlink_init(fbp);
+			fab_sndbuf_tlist_add_tail(&ep->fep_sndbuf, fbp);
+			// while (libfab_check_for_event(aep->aep_ep_res.fer_eq)
+			// 				       != FI_CONNECTED);
+			// ep->fep_is_connected = true;
+		} else {
+			ret = fi_send(aep->aep_ep, nb->nb_buffer.ov_buf[0],
+				      nb->nb_length, fbp->fb_mr_desc, 0, fbp);
 		}
-
-		ret = fi_send(aep->aep_ep, nb->nb_buffer.ov_buf[0],
-			      nb->nb_length, fbp->fb_mr_desc, 0, fbp);
 		break;
 	}
 
 	/* For passive buffers, generate the buffer descriptor. */
 	case M0_NET_QT_PASSIVE_BULK_RECV: {
+		aep = ep->fep_send;
 		fbp->fb_length = nb->nb_length;
+		
+		if (aep != NULL) {
+			ret = libfab_buf_dom_reg(nb, aep->aep_fab.fab_dom);
+			if (ret != FI_SUCCESS)
+				return M0_RC(ret);
+		}
+		
 		ret = libfab_rcomp_list_add(ma, ep, fbp);
 		if (ret == FI_SUCCESS)
 			ret = libfab_bdesc_encode(fbp);
@@ -1882,6 +1948,13 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	}
 
 	case M0_NET_QT_PASSIVE_BULK_SEND: { 
+		aep = ep->fep_send;
+		if (aep != NULL) {
+			ret = libfab_buf_dom_reg(nb, aep->aep_fab.fab_dom);
+			if (ret != FI_SUCCESS)
+				return M0_RC(ret);
+		}
+		
 		ret = libfab_rcomp_list_add(ma, ep, fbp);
 		if (ret == FI_SUCCESS)
 			ret = libfab_bdesc_encode(fbp);
@@ -1892,6 +1965,10 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	case M0_NET_QT_ACTIVE_BULK_RECV: {
 		M0_ASSERT(ep->fep_recv != NULL);
 		aep = ep->fep_recv;
+		ret = libfab_buf_dom_reg(nb, aep->aep_fab.fab_dom);
+		if (ret != FI_SUCCESS)
+			return M0_RC(ret);
+		
 		libfab_bdesc_decode(&nb->nb_desc, &rma_iov);
 		fbp->fb_length = nb->nb_length;
 
@@ -1904,6 +1981,10 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	case M0_NET_QT_ACTIVE_BULK_SEND: {
 		M0_ASSERT(ep->fep_recv != NULL);
 		aep = ep->fep_recv;
+		ret = libfab_buf_dom_reg(nb, aep->aep_fab.fab_dom);
+		if (ret != FI_SUCCESS)
+			return M0_RC(ret);
+		
 		libfab_bdesc_decode(&nb->nb_desc, &rma_iov);
 		
 		ret = fi_write(aep->aep_ep, nb->nb_buffer.ov_buf[0],
