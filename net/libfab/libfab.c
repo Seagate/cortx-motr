@@ -559,12 +559,13 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		m0_tl_for(m0_nep, &tm->ftm_net_ma->ntm_end_points, net) {
 			xep = libfab_ep_net(net);
 			if (xep->fep_send != NULL) {
-				if (!xep->fep_is_connected) {
+				if (!xep->fep_send->aep_is_connected) {
 					rc =libfab_check_for_event(
 					      xep->fep_send->aep_ep_res.fer_eq);
 					if (rc == FI_CONNECTED) {
 						libfab_pending_bufs_send(xep);
-						xep->fep_is_connected = true;
+						xep->fep_send->aep_is_connected
+									 = true;
 					}
 				}
 
@@ -938,7 +939,7 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 
 		while (libfab_check_for_event(aep->aep_ep_res.fer_eq)
 							       != FI_CONNECTED);
-		ep->fep_is_connected = true;
+		aep->aep_is_connected = true;
 		m0_tl_for(fab_rcvbuf, &tm->ftm_rcvbuf, fbp) {
 			if (fbp != NULL) {
 				nb = fbp->fb_nb;
@@ -1911,7 +1912,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		if (ret != FI_SUCCESS)
 			return M0_RC(ret);
 		
-		if (!ep->fep_is_connected) {
+		if (!aep->aep_is_connected) {
 			libfab_ep_addr_decode(&peer,nb->nb_ep->nep_addr);
 			ret = libfab_destaddr_get(&peer.fep_name,
 						aep->aep_fab.fab_fi, &peer_fi);
@@ -1920,6 +1921,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 					 0);
 			fab_sndbuf_tlink_init(fbp);
 			fab_sndbuf_tlist_add_tail(&ep->fep_sndbuf, fbp);
+			fi_freeinfo(peer_fi);
 			// while (libfab_check_for_event(aep->aep_ep_res.fer_eq)
 			// 				       != FI_CONNECTED);
 			// ep->fep_is_connected = true;

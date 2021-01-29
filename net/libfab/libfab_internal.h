@@ -66,6 +66,7 @@ struct m0_fab__active_ep {
 	struct fid_ep         *aep_ep;         /* Active Endpoint */
 	struct m0_fab__fab     aep_fab;        /* Fabric interface */
 	struct m0_fab__ep_res  aep_ep_res;     /* Endpoint resources */
+	bool                   aep_is_connected;
 };
 
 struct m0_fab__passive_ep {
@@ -81,7 +82,6 @@ struct m0_fab__ep {
 	struct m0_fab__active_ep  *fep_recv;
 	struct m0_fab__passive_ep *fep_listen;
 	struct m0_tl               fep_sndbuf;  /* List of buffers to send */
-	bool                       fep_is_connected;
 };
 
 struct m0_fab__tm {
