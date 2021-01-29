@@ -49,6 +49,7 @@
 enum m0_parity_cal_algo {
         M0_PARITY_CAL_ALGO_XOR,
         M0_PARITY_CAL_ALGO_REED_SOLOMON,
+	M0_PARITY_CAL_ALGO_ISA,
 	M0_PARITY_CAL_ALGO_NR
 };
 
@@ -119,7 +120,14 @@ struct m0_parity_math {
 	struct m0_matvec	     pmi_sys_res;
 	struct m0_linsys	     pmi_sys;
 	/* Data recovery matrix that's inverse of pmi_sys_mat. */
-	struct m0_matrix	     pmi_recov_mat;
+	struct m0_matrix             pmi_recov_mat;
+
+#ifndef __KERNEL__
+	uint8_t                     *encode_matrix;
+	uint8_t                     *g_tbls;
+	uint8_t                    **data_frags;
+	uint8_t                    **parity_frags;
+#endif
 };
 
 /* Holds information essential for incremental recovery. */
