@@ -56,6 +56,7 @@ else
     echo 'Build Hare rpms...'
     make rpm
     echo 'Install Hare from rpms...'
+    sudo rm -rf /opt/seagate/cortx/hare
     ls -t ~/rpmbuild/RPMS/x86_64/cortx-hare{,-debuginfo}-1* | head -2 |
         xargs sudo rpm -i
 fi
