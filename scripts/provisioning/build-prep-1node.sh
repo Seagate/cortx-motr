@@ -29,7 +29,7 @@ else
     echo 'Build Motr rpms...'
     make rpms-notests
     echo 'Install Motr from rpms...'
-    ls -t ~/rpmbuild/RPMS/cortx-motr{,-devel,-debuginfo}-1* | head -3 |
+    ls -t ~/rpmbuild/RPMS/x86_64/cortx-motr{,-devel,-debuginfo}-1* | head -3 |
         xargs sudo rpm -i
 fi
 cd -
@@ -56,7 +56,7 @@ else
     echo 'Build Hare rpms...'
     make rpm
     echo 'Install Hare from rpms...'
-    ls -t ~/rpmbuild/RPMS/cortx-hare{,-debuginfo}-1* | head -2 |
+    ls -t ~/rpmbuild/RPMS/x86_64/cortx-hare{,-debuginfo}-1* | head -2 |
         xargs sudo rpm -i
 fi
 cd -
