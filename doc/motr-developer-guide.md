@@ -12,12 +12,16 @@ Developers are also assumed having a running CORTX Motr system: please refer to
 and [Quick Start Guide](/doc/Quick-Start-Guide.rst).  For debugging, ADDB can be
 very useful and is described in these [two](ADDB.rst) [documents](addb2-primer).
 
+For your convenience to build and develop motr, we offer a 
+[CentOS-7.9-based Development VM](https://github.com/Seagate/cortx-motr/releases/tag/ova-centos79) 
+with all dependencies installed ready to build and start single-node Motr cluster.
+
 CORTX Motr provides object based operations and index (a.k.a key/value) based operations.  
 For architectural documents, please refer to our [reading list](reading-list.md).
 
 ## A simple Cortx Motr application (object)
 
-Here we will create a simple CORTX Motr application to crate an object, write
+Here we will create a simple CORTX Motr application to create an object, write
 some data to this object, read data back from this object, and then delete it.
 Source code is available at: [example1.c](/motr/examples/example1.c)
 
