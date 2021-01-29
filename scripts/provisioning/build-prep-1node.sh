@@ -30,7 +30,7 @@ else
     make rpms-notests
     echo 'Install Motr from rpms...'
     ls -t ~/rpmbuild/RPMS/x86_64/cortx-motr{,-devel,-debuginfo}-1* | head -3 |
-        xargs sudo rpm -i --replacepkgs
+        xargs sudo rpm -i --force
 fi
 cd -
 
@@ -58,7 +58,7 @@ else
     echo 'Install Hare from rpms...'
     sudo rm -rf /opt/seagate/cortx/hare
     ls -t ~/rpmbuild/RPMS/x86_64/cortx-hare{,-debuginfo}-1* | head -2 |
-        xargs sudo rpm -i --replacepkgs
+        xargs sudo rpm -i --force
 fi
 cd -
 
