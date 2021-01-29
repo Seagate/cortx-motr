@@ -1,24 +1,64 @@
 #!/bin/sh
 
 # Clone, build and prepare to start a single-node cluster.
+#
+# Usage: ./build-prep-1node.sh [-dev]
+#
+#   -dev  development mode, don't build and install rpms
+#
+set -e -o pipefail
 
-set -eu -o pipefail
+dev_mode=
 
-[[ -d cortx-motr ]] ||
+[[ $1 == "-dev" ]] && dev_mode='yes'
+
+[[ -d cortx-motr ]] || {
     git clone --recurse https://github.com/Seagate/cortx-motr.git &&
         ln -s cortx-motr motr
+}
 cd motr
-echo 'Building and installing Motr...'
-./autogen.sh && ./configure --disable-expensive-checks && make -j4 &&
+echo 'Configure Motr...'
+[[ -f configure ]] && git clean -dfx
+./autogen.sh && ./configure --disable-expensive-checks
+if [[ $dev_mode ]]; then
+    echo 'Build Motr...'
+    make -j4
+    echo 'Install Motr from sources...'
     sudo ./scripts/install-motr-service
+else
+    echo 'Build Motr rpms...'
+    make rpms-notests
+    echo 'Install Motr from rpms...'
+    ls -t ~/rpmbuild/RPMS/cortx-motr{,-devel,-debuginfo}-1* | head -3 |
+        xargs sudo rpm -i
+fi
 cd -
 
-[[ -d cortx-hare ]] ||
+rpm -q consul || {
+    echo 'Install Consul...'
+    sudo yum-config-manager --add-repo \
+        https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+    sudo yum install -y consul-1.7.12
+}
+
+[[ -d cortx-hare ]] || {
     git clone --recurse https://github.com/Seagate/cortx-hare.git &&
         ln -s cortx-hare hare
+}
 cd hare
-echo 'Building and installing Hare...'
-make && sudo make devinstall
+echo 'Build Hare...'
+[[ -d .mypy_cache ]] && git clean -dfx
+make
+if [[ $dev_mode ]]; then
+    echo 'Install Hare from sources...'
+    sudo make devinstall
+else
+    echo 'Build Hare rpms...'
+    make rpm
+    echo 'Install Hare from rpms...'
+    ls -t ~/rpmbuild/RPMS/cortx-hare{,-debuginfo}-1* | head -2 |
+        xargs sudo rpm -i
+fi
 cd -
 
 echo 'Creating block devices...'
