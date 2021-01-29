@@ -10,7 +10,7 @@ set -eu -o pipefail
 cd motr
 echo 'Building and installing Motr...'
 ./autogen.sh && ./configure --disable-expensive-checks && make -j4 &&
-    ./scripts/install-motr-service
+    sudo ./scripts/install-motr-service
 cd -
 
 [[ -d cortx-hare ]] ||
@@ -18,7 +18,7 @@ cd -
         ln -s cortx-hare hare
 cd hare
 echo 'Building and installing Hare...'
-make && make devinstall
+make && sudo make devinstall
 cd -
 
 echo 'Creating block devices...'
