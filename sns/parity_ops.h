@@ -46,10 +46,8 @@
 
 typedef int m0_parity_elem_t;
 
-#ifdef __KERNEL__
 M0_INTERNAL int m0_parity_init(void);
 M0_INTERNAL void m0_parity_fini(void);
-#endif /* __KERNEL__ */
 
 M0_INTERNAL m0_parity_elem_t m0_parity_pow(m0_parity_elem_t x,
 					   m0_parity_elem_t p);
