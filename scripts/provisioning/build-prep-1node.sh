@@ -71,7 +71,7 @@ done
 
 echo 'Preparing CDF (Cluster Description File)...'
 [[ -f singlenode.yaml ]] || cp hare/cfgen/examples/singlenode.yaml ./
-sed 's/localhost/cmu/' -i singlenode.yaml
+sed "s/localhost/$(hostname)/" -i singlenode.yaml
 sed 's/data_iface: eth./data_iface: eth0/' -i singlenode.yaml
 
 echo
