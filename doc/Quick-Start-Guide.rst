@@ -193,6 +193,8 @@ Troubleshooting
         
 Tested by:
 
+- Jan 27, 2021: Patrick Hession (patrick.hession@seagate.com) in CentOS 7.8.2003 on a Windows laptop running VMWare Workstation Pro 16
+
 - Jan 20, 2021: Mayur Gupta (mayur.gupta@seagate.com) on a Windows laptop running VMware Workstation Pro 16.
 
 - Dec 1, 2020: Huang Hua (hua.huang@seagate.com) in CentOS 7.7.1908
