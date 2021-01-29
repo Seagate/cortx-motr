@@ -38,7 +38,7 @@ rpm -q consul || {
     echo 'Install Consul...'
     sudo yum-config-manager --add-repo \
         https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
-    sudo yum install -y consul-1.7.12
+    sudo yum install -y consul-1.7.8
 }
 
 [[ -d cortx-hare ]] || {
