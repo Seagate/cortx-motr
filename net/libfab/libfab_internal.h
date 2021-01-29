@@ -45,7 +45,6 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
 struct m0_fab__fab {
 	struct fi_info        *fab_fi;         /* Fabric interface info */
 	struct fid_fabric     *fab_fab;        /* Fabric fid */
-	struct fid_domain     *fab_dom;        /* Domain fid */
 };
 
 struct m0_fab__ep_name {
@@ -64,14 +63,14 @@ struct m0_fab__ep_res {
 
 struct m0_fab__active_ep {
 	struct fid_ep         *aep_ep;         /* Active Endpoint */
-	struct m0_fab__fab     aep_fab;        /* Fabric interface */
+	struct fid_domain     *aep_dom;        /* Domain fid */
 	struct m0_fab__ep_res  aep_ep_res;     /* Endpoint resources */
 	bool                   aep_is_connected;
 };
 
 struct m0_fab__passive_ep {
 	struct fid_pep        *pep_pep;        /* Passive endpoint */
-	struct m0_fab__fab     pep_fab;        /* Fabric interface */
+	struct fid_domain     *pep_dom;        /* Domain fid */
 	struct m0_fab__ep_res  pep_ep_res;     /* Endpoint resources */
 };
 
@@ -90,6 +89,7 @@ struct m0_fab__tm {
 	int                        ftm_epollfd; /* epoll(2) file descriptor. */
 	struct fid_poll           *ftm_pollset;
 	struct fid_wait           *ftm_waitset;
+	struct m0_fab__fab         ftm_fab;
 	struct m0_fab__ep         *ftm_pep;     /* Passive ep(listening mode) */
 	bool                       ftm_shutdown;/* tm Shutdown flag */
 	struct m0_tl               ftm_rcvbuf;

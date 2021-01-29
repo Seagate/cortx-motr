@@ -94,8 +94,7 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 			  struct m0_net_end_point **epp);
 static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name, 
 			    struct m0_net_end_point **epp);
-static int libfab_active_ep_create(struct m0_fab__ep *ep,
-				   struct m0_fab__tm *tm,
+static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 				   struct fi_info *fi);
 static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 				    struct m0_fab__tm *tm);
@@ -107,7 +106,7 @@ static int libfab_ep_param_free(struct m0_fab__ep *ep, struct m0_fab__tm *tm);
 static int libfab_ep_res_free(struct m0_fab__ep_res *ep_res, 
 			      struct m0_fab__tm *tm);
 static void libfab_poller(struct m0_fab__tm *ma);
-static int libfab_waitset_init(struct m0_fab__tm *tm, struct fid_fabric *fab);
+static int libfab_waitset_init(struct m0_fab__tm *tm);
 static int libfab_pollset_init(struct m0_fab__tm *tm, struct fid_domain *dom);
 static void libfab_tm_event_post(struct m0_fab__tm *tm, 
 				 enum m0_net_tm_state state);
@@ -480,8 +479,9 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 	int                      rc;
 
 	eq = tm->ftm_pep->fep_listen->pep_ep_res.fer_eq;
-	rc = fi_eq_sread(eq, &event, &entry, sizeof(entry),
-			 LIBFAB_WAITSET_TIMEOUT, 0);
+	// rc = fi_eq_sread(eq, &event, &entry, sizeof(entry),
+	// 		 LIBFAB_WAITSET_TIMEOUT, 0);
+	rc = fi_eq_read(eq, &event, &entry, sizeof(entry), 0);
 	if (rc == sizeof(entry)) {
 		if (event == FI_CONNREQ) {
 			m0_tl_for(m0_nep, &tm->ftm_net_ma->ntm_end_points, ne) {
@@ -496,12 +496,10 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 			} m0_tl_endfor;
 			
 			ep->fep_recv->aep_ep = NULL;
-			ep->fep_recv->aep_fab.fab_fi = entry.info;
-			ep->fep_recv->aep_fab.fab_fab = 
-				      tm->ftm_pep->fep_listen->pep_fab.fab_fab;
 			rc = libfab_active_ep_create(ep, tm, entry.info);
 			if (rc == FI_SUCCESS) {
-				tm->ftm_net_ma->ntm_dom->nd_xprt_private = ep;
+				tm->ftm_net_ma->ntm_dom->nd_xprt_private =
+									     ep;
 			} else {
 				M0_LOG(M0_ERROR, "Failed to create "\
 					"active endpoint = %d", rc);
@@ -541,7 +539,8 @@ static void libfab_poller(struct m0_fab__tm *tm)
 			m0_mutex_lock(&tm->ftm_endlock);
 			if (tm->ftm_shutdown == true)
 				break;
-			else if (m0_mutex_trylock(&tm->ftm_net_ma->ntm_mutex) != 0) {
+			else if (m0_mutex_trylock(&tm->ftm_net_ma->ntm_mutex) 
+									 != 0) {
 				m0_mutex_unlock(&tm->ftm_endlock);
 			} else
 				break;
@@ -742,7 +741,6 @@ static int libfab_ep_res_init(struct m0_fab__active_ep *aep,
 {
 	struct fi_cq_attr   cq_attr;
 	struct fi_eq_attr   eq_attr;
-	struct fi_av_attr   av_attr;
 	struct fi_cntr_attr cntr_attr;
 	int                 rc = 0;
 
@@ -755,15 +753,15 @@ static int libfab_ep_res_init(struct m0_fab__active_ep *aep,
 	/* Initialise and bind completion queues for tx and rx */
 	cq_attr.wait_obj = FI_WAIT_NONE;
 	cq_attr.format = FI_CQ_FORMAT_CONTEXT;
-	cq_attr.size = aep->aep_fab.fab_fi->tx_attr->size;
-	rc = fi_cq_open(aep->aep_fab.fab_dom, &cq_attr,
-			&aep->aep_ep_res.fer_tx_cq, aep->aep_ep_res.fer_tx_cq);
+	cq_attr.size = tm->ftm_fab.fab_fi->tx_attr->size;
+	rc = fi_cq_open(aep->aep_dom, &cq_attr, &aep->aep_ep_res.fer_tx_cq,
+			aep->aep_ep_res.fer_tx_cq);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 	
-	cq_attr.size = aep->aep_fab.fab_fi->rx_attr->size;
-	rc = fi_cq_open(aep->aep_fab.fab_dom, &cq_attr,
-			&aep->aep_ep_res.fer_rx_cq, aep->aep_ep_res.fer_rx_cq);
+	cq_attr.size = tm->ftm_fab.fab_fi->rx_attr->size;
+	rc = fi_cq_open(aep->aep_dom, &cq_attr, &aep->aep_ep_res.fer_rx_cq,
+			aep->aep_ep_res.fer_rx_cq);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 	
@@ -778,8 +776,8 @@ static int libfab_ep_res_init(struct m0_fab__active_ep *aep,
 	/* Initialise and bind event queue */
 	memset(&eq_attr, 0, sizeof(eq_attr));
 	eq_attr.wait_obj = FI_WAIT_UNSPEC;
-	rc = fi_eq_open(aep->aep_fab.fab_fab, &eq_attr,
-			&aep->aep_ep_res.fer_eq, NULL);
+	rc = fi_eq_open(tm->ftm_fab.fab_fab, &eq_attr, &aep->aep_ep_res.fer_eq,
+			NULL);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 	
@@ -790,7 +788,7 @@ static int libfab_ep_res_init(struct m0_fab__active_ep *aep,
 	/* Initialise and bind counters */
 	memset(&cntr_attr, 0, sizeof(cntr_attr));
 	cntr_attr.wait_obj = FI_WAIT_UNSPEC;
-	rc = fi_cntr_open(aep->aep_fab.fab_dom, &cntr_attr,
+	rc = fi_cntr_open(aep->aep_dom, &cntr_attr,
 			  &aep->aep_ep_res.fer_rc_cntr, NULL);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
@@ -800,14 +798,6 @@ static int libfab_ep_res_init(struct m0_fab__active_ep *aep,
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 	
-	/* Initialise and bind address vectors */
-	memset(&av_attr, 0, sizeof(av_attr));
-	av_attr.type = FI_AV_UNSPEC;
-	av_attr.count = 1;
-	rc = fi_av_open(aep->aep_fab.fab_dom, &av_attr,
-			&aep->aep_ep_res.fer_av, NULL);
-	if (rc != FI_SUCCESS)
-		return M0_RC(rc);
 	return M0_RC(rc);
 }
 
@@ -827,8 +817,8 @@ static int libfab_pep_res_init(struct m0_fab__passive_ep *pep,
 	/* Initialise and bind event queue */
 	memset(&eq_attr, 0, sizeof(eq_attr));
 	eq_attr.wait_obj = FI_WAIT_UNSPEC;
-	rc = fi_eq_open(pep->pep_fab.fab_fab, &eq_attr,
-			&pep->pep_ep_res.fer_eq, NULL);
+	rc = fi_eq_open(tm->ftm_fab.fab_fab, &eq_attr, &pep->pep_ep_res.fer_eq,
+			NULL);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 	
@@ -836,7 +826,6 @@ static int libfab_pep_res_init(struct m0_fab__passive_ep *pep,
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 
-	pep->pep_ep_res.fer_av      = NULL;
 	pep->pep_ep_res.fer_rc_cntr = NULL;
 	pep->pep_ep_res.fer_tx_cq   = NULL;
 	pep->pep_ep_res.fer_rx_cq   = NULL;
@@ -848,70 +837,76 @@ static int libfab_pep_res_init(struct m0_fab__passive_ep *pep,
  * Used to create an active endpoint
  */
 static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
-				   struct fi_info *fi)
+				   struct fi_info *info)
 {
 	struct m0_net_end_point  *net;
 	struct m0_net_buffer     *nb;
 	struct m0_fab__active_ep *aep;
 	struct m0_fab__buf       *fbp;
-	struct fi_info           *hints;
-	int                       i;
+	struct fi_info           *fi;
+	// int                       i;
 	int                       rc;
 
 	M0_ENTRY();
 
-	aep = (fi == NULL) ? ep->fep_send : ep->fep_recv;
-	if (fi == NULL) {
-		hints = fi_allocinfo();
-		if (hints == NULL) {
-			libfab_aep_param_free(aep, tm);
-			return M0_ERR(-ENOMEM);
-		}
+	aep = (info == NULL) ? ep->fep_send : ep->fep_recv;
+	// if (fi == NULL && tm->ftm_fab.fab_fab == NULL) {
+	// 	// hints = fi_allocinfo();
+	// 	// if (hints == NULL) {
+	// 	// 	libfab_aep_param_free(aep, tm);
+	// 	// 	return M0_ERR(-ENOMEM);
+	// 	// }
 
-		hints->ep_attr->type = FI_EP_MSG;
-		hints->caps = FI_MSG | FI_RMA | FI_RMA_EVENT;
+	// 	// hints->ep_attr->type = FI_EP_MSG;
+	// 	// hints->caps = FI_MSG | FI_RMA | FI_RMA_EVENT;
 		
-		for (i = 0; i < ARRAY_SIZE(providers); i++) {
-			hints->fabric_attr->prov_name = providers[i];
-			rc = fi_getinfo(LIBFAB_VERSION, ep->fep_name.fen_addr,
-					ep->fep_name.fen_port, 0,
-					hints, &aep->aep_fab.fab_fi);
-			if (rc == FI_SUCCESS)
-				break;
-		}
-		M0_ASSERT(i < ARRAY_SIZE(providers));
-		hints->fabric_attr->prov_name = NULL;
-		fi_freeinfo(hints);
+	// 	// for (i = 0; i < ARRAY_SIZE(providers); i++) {
+	// 	// 	// hints->fabric_attr->prov_name = providers[i];
+	// 	// 	rc = fi_getinfo(LIBFAB_VERSION, ep->fep_name.fen_addr,
+	// 	// 			ep->fep_name.fen_port, 0,
+	// 	// 			hints, &aep->aep_fab.fab_fi);
+	// 	// 	if (rc == FI_SUCCESS)
+	// 	// 		break;
+	// 	// }
+	// 	// M0_ASSERT(i < ARRAY_SIZE(providers));
+	// 	// hints->fabric_attr->prov_name = NULL;
+	// 	// fi_freeinfo(hints);
 
-		rc = fi_fabric(aep->aep_fab.fab_fi->fabric_attr,
-			       &aep->aep_fab.fab_fab, NULL);
-		if (rc != FI_SUCCESS) {
-			libfab_aep_param_free(aep, tm);
-			return M0_RC(rc);
-		}
-		// aep->fep_dst = true;
+	// 	// rc = fi_fabric(aep->aep_fab.fab_fi->fabric_attr,
+	// 	// 	       &aep->aep_fab.fab_fab, NULL);
+	// 	// if (rc != FI_SUCCESS) {
+	// 	// 	libfab_aep_param_free(aep, tm);
+	// 	// 	return M0_RC(rc);
+	// 	// }
+	// 	// tm->ftm_fab.fab_fi = aep->aep_fab.fab_fi;
+	// 	// tm->ftm_fab.fab_fab = aep->aep_fab.fab_fab;
+	// 	// aep->fep_dst = true;
+	// } else if (fi == NULL) {
+	// 	aep->aep_fab.fab_fi = tm->ftm_fab.fab_fi;
+	// 	aep->aep_fab.fab_fab = tm->ftm_fab.fab_fab;
+	// }
+
+	fi = (info == NULL) ? tm->ftm_fab.fab_fi : info;
+	
+	// rc = libfab_waitset_init(tm, tm->ftm_fab.fab_fab);
+	// if (rc != FI_SUCCESS) {
+	// 	libfab_aep_param_free(aep, tm);
+	// 	return M0_RC(rc);
+	// }
+	
+	rc = fi_domain(tm->ftm_fab.fab_fab, fi, &aep->aep_dom, NULL);
+	if (rc != FI_SUCCESS) {
+		libfab_aep_param_free(aep, tm);
+		return M0_RC(rc);
 	}
-	rc = libfab_waitset_init(tm, aep->aep_fab.fab_fab);
+
+	rc = libfab_pollset_init(tm, aep->aep_dom);
 	if (rc != FI_SUCCESS) {
 		libfab_aep_param_free(aep, tm);
 		return M0_RC(rc);
 	}
 	
-	rc = fi_domain(aep->aep_fab.fab_fab, aep->aep_fab.fab_fi,
-		       &aep->aep_fab.fab_dom, NULL);
-	if (rc != FI_SUCCESS) {
-		libfab_aep_param_free(aep, tm);
-		return M0_RC(rc);
-	}
-
-	rc = libfab_pollset_init(tm, aep->aep_fab.fab_dom);
-	if (rc != FI_SUCCESS) {
-		libfab_aep_param_free(aep, tm);
-		return M0_RC(rc);
-	}
-	
-	rc = fi_endpoint(aep->aep_fab.fab_dom, aep->aep_fab.fab_fi,
-			 &aep->aep_ep, NULL);
+	rc = fi_endpoint(aep->aep_dom, fi, &aep->aep_ep, NULL);
 	if (rc != FI_SUCCESS) {
 		libfab_aep_param_free(aep, tm);
 		return M0_RC(rc);
@@ -929,7 +924,7 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 		return M0_RC(rc);
 	}
 
-	if (fi != NULL) {
+	if (info != NULL) {
 		/* Accept incoming request */
 		rc = fi_accept(aep->aep_ep, NULL, 0);
 		if (rc != FI_SUCCESS) {
@@ -1006,7 +1001,7 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 	for (i = 0; i < ARRAY_SIZE(providers); i++) {
 		hints->fabric_attr->prov_name = providers[i];
 		rc = fi_getinfo(LIBFAB_VERSION, NULL, port, FI_SOURCE, hints,
-				&pep->pep_fab.fab_fi);
+				&tm->ftm_fab.fab_fi);
 		if (rc == FI_SUCCESS)
 			break;
 	}
@@ -1015,20 +1010,20 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 	hints->fabric_attr->prov_name = NULL;
 	fi_freeinfo(hints);
 	
-	rc = fi_fabric(pep->pep_fab.fab_fi->fabric_attr,
-		       &pep->pep_fab.fab_fab, NULL);
+	rc = fi_fabric(tm->ftm_fab.fab_fi->fabric_attr, &tm->ftm_fab.fab_fab,
+		       NULL);
 	if (rc != FI_SUCCESS) {
 		libfab_pep_param_free(pep, tm);
 		return M0_RC(rc);
 	}
 
-	rc = libfab_waitset_init(tm, pep->pep_fab.fab_fab);
+	rc = libfab_waitset_init(tm);
 	if (rc != FI_SUCCESS) {
 		libfab_pep_param_free(pep, tm);
 		return M0_RC(rc);
 	}
 
-	rc = fi_passive_ep(pep->pep_fab.fab_fab, pep->pep_fab.fab_fi,
+	rc = fi_passive_ep(tm->ftm_fab.fab_fab, tm->ftm_fab.fab_fi,
 			   &pep->pep_pep, NULL);
 	if (rc != FI_SUCCESS) {
 		libfab_pep_param_free(pep, tm);
@@ -1047,8 +1042,8 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 		return M0_RC(rc);
 	}
 
-	rc = fi_domain(pep->pep_fab.fab_fab, pep->pep_fab.fab_fi,
-		       &pep->pep_fab.fab_dom, NULL);
+	rc = fi_domain(tm->ftm_fab.fab_fab, tm->ftm_fab.fab_fi, &pep->pep_dom,
+		       NULL);
 	if (rc != FI_SUCCESS) {
 		M0_LOG(M0_ALWAYS," \n fi_domain = %d \n ", rc);
 		libfab_pep_param_free(pep, tm);
@@ -1136,24 +1131,24 @@ static int libfab_aep_param_free(struct m0_fab__active_ep *aep,
 			       rc, (int)(aep->aep_ep)->fid.fclass);
 	}
 	
-	if (aep->aep_fab.fab_dom != NULL) {
-		rc = fi_close(&(aep->aep_fab.fab_dom)->fid);
+	if (aep->aep_dom != NULL) {
+		rc = fi_close(&(aep->aep_dom)->fid);
 		if (rc != FI_SUCCESS)
 			M0_LOG(M0_ERROR, "fep_domain fi_close ret=%d fid=%d",
-			       rc, (int)(aep->aep_fab.fab_dom)->fid.fclass);
+			       rc, (int)(aep->aep_dom)->fid.fclass);
 	}
 
-	if (aep->aep_fab.fab_fab != NULL) {
-		rc = fi_close(&(aep->aep_fab.fab_fab)->fid);
-		if (rc != FI_SUCCESS)
-			M0_LOG(M0_ERROR, "fep_fabric fi_close ret=%d fid=%d",
-			       rc, (int)(aep->aep_fab.fab_fab)->fid.fclass);
-	}
+	// if (aep->aep_fab.fab_fab != NULL) {
+	// 	rc = fi_close(&(aep->aep_fab.fab_fab)->fid);
+	// 	if (rc != FI_SUCCESS)
+	// 		M0_LOG(M0_ERROR, "fep_fabric fi_close ret=%d fid=%d",
+	// 		       rc, (int)(aep->aep_fab.fab_fab)->fid.fclass);
+	// }
 
-	if (aep->aep_fab.fab_fi != NULL) {
-		fi_freeinfo(aep->aep_fab.fab_fi);
-		aep->aep_fab.fab_fi = NULL;
-	}
+	// if (aep->aep_fab.fab_fi != NULL) {
+	// 	fi_freeinfo(aep->aep_fab.fab_fi);
+	// 	aep->aep_fab.fab_fi = NULL;
+	// }
 
 	m0_free(aep);
 
@@ -1182,24 +1177,24 @@ static int libfab_pep_param_free(struct m0_fab__passive_ep *pep,
 			       rc, (int)(pep->pep_pep)->fid.fclass);
 	}
 	
-	if (pep->pep_fab.fab_dom != NULL) {
-		rc = fi_close(&(pep->pep_fab.fab_dom)->fid);
+	if (pep->pep_dom != NULL) {
+		rc = fi_close(&(pep->pep_dom)->fid);
 		if (rc != FI_SUCCESS)
 			M0_LOG(M0_ERROR, "fep_domain fi_close ret=%d fid=%d",
-			       rc, (int)(pep->pep_fab.fab_dom)->fid.fclass);
+			       rc, (int)(pep->pep_dom)->fid.fclass);
 	}
 
-	if (pep->pep_fab.fab_fab != NULL) {
-		rc = fi_close(&(pep->pep_fab.fab_fab)->fid);
-		if (rc != FI_SUCCESS)
-			M0_LOG(M0_ERROR, "fep_fabric fi_close ret=%d fid=%d",
-			       rc, (int)(pep->pep_fab.fab_fab)->fid.fclass);
-	}
+	// if (pep->pep_fab.fab_fab != NULL) {
+	// 	rc = fi_close(&(pep->pep_fab.fab_fab)->fid);
+	// 	if (rc != FI_SUCCESS)
+	// 		M0_LOG(M0_ERROR, "fep_fabric fi_close ret=%d fid=%d",
+	// 		       rc, (int)(pep->pep_fab.fab_fab)->fid.fclass);
+	// }
 
-	if (pep->pep_fab.fab_fi != NULL) {
-		fi_freeinfo(pep->pep_fab.fab_fi);
-		pep->pep_fab.fab_fi = NULL;
-	}
+	// if (pep->pep_fab.fab_fi != NULL) {
+	// 	fi_freeinfo(pep->pep_fab.fab_fi);
+	// 	pep->pep_fab.fab_fi = NULL;
+	// }
 
 	m0_free(pep);
 
@@ -1268,6 +1263,18 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 			       rc, (int)(tm->ftm_pollset)->fid.fclass);
 	}
 
+	if (tm->ftm_fab.fab_fab != NULL) {
+		rc = fi_close(&(tm->ftm_fab.fab_fab)->fid);
+		if (rc != FI_SUCCESS)
+			M0_LOG(M0_ERROR, "fep_fabric fi_close ret=%d fid=%d",
+			       rc, (int)(tm->ftm_fab.fab_fab)->fid.fclass);
+	}
+
+	if (tm->ftm_fab.fab_fi != NULL) {
+		fi_freeinfo(tm->ftm_fab.fab_fi);
+		tm->ftm_fab.fab_fi = NULL;
+	}
+	
 	if (tm->ftm_poller.t_func != NULL) {
 		m0_thread_join(&tm->ftm_poller);
 		m0_thread_fini(&tm->ftm_poller);
@@ -1279,7 +1286,7 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 /**
  * Used to init the waitset for the transfer machine 
  */
-static int libfab_waitset_init(struct m0_fab__tm *tm, struct fid_fabric *fab)
+static int libfab_waitset_init(struct m0_fab__tm *tm)
 {
 	struct fi_wait_attr wait_attr;
 	int                 rc = 0;
@@ -1290,7 +1297,7 @@ static int libfab_waitset_init(struct m0_fab__tm *tm, struct fid_fabric *fab)
 
 	memset(&wait_attr, 0, sizeof(wait_attr));
 	wait_attr.wait_obj = FI_WAIT_UNSPEC;
-	rc = fi_wait_open(fab, &wait_attr, &tm->ftm_waitset);
+	rc = fi_wait_open(tm->ftm_fab.fab_fab, &wait_attr, &tm->ftm_waitset);
 
 	return M0_RC(rc);
 }
@@ -1455,8 +1462,9 @@ static int libfab_check_for_event(struct fid_eq *eq)
 	uint32_t              event = 0;
 	ssize_t               rd;
 
-	rd = fi_eq_sread(eq, &event, &entry, sizeof(entry),
-			 LIBFAB_WAITSET_TIMEOUT, 0);
+	// rd = fi_eq_sread(eq, &event, &entry, sizeof(entry),
+	// 		 LIBFAB_WAITSET_TIMEOUT, 0);
+	rd = fi_eq_read(eq, &event, &entry, sizeof(entry), 0);
 	if (rd == -FI_EAVAIL) {
 		struct fi_eq_err_entry err_entry;
 		fi_eq_readerr(eq, &err_entry, 0);
@@ -1763,7 +1771,7 @@ static int libfab_ma_stop(struct m0_net_transfer_mc *net, bool cancel)
  * Used as m0_net_xprt_ops::xo_ma_confine().
  */
 static int libfab_ma_confine(struct m0_net_transfer_mc *ma,
-		      const struct m0_bitmap *processors)
+			     const struct m0_bitmap *processors)
 {
 	return -ENOSYS;
 }
@@ -1892,7 +1900,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		aep = ep->fep_recv;
 
 		if (aep != NULL) {
-			ret = libfab_buf_dom_reg(nb, aep->aep_fab.fab_dom);
+			ret = libfab_buf_dom_reg(nb, aep->aep_dom);
 			if (ret != FI_SUCCESS)
 				return M0_RC(ret);
 			ret = fi_recv(aep->aep_ep, nb->nb_buffer.ov_buf[0],
@@ -1908,14 +1916,14 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		M0_ASSERT(nb->nb_length <= m0_vec_count(&nb->nb_buffer.ov_vec));
 		aep = ep->fep_send;
 
-		ret = libfab_buf_dom_reg(nb, aep->aep_fab.fab_dom);
+		ret = libfab_buf_dom_reg(nb, aep->aep_dom);
 		if (ret != FI_SUCCESS)
 			return M0_RC(ret);
 		
 		if (!aep->aep_is_connected) {
 			libfab_ep_addr_decode(&peer,nb->nb_ep->nep_addr);
 			ret = libfab_destaddr_get(&peer.fep_name,
-						aep->aep_fab.fab_fi, &peer_fi);
+						  ma->ftm_fab.fab_fi, &peer_fi);
 				
 			ret = fi_connect(aep->aep_ep, peer_fi->dest_addr, NULL,
 					 0);
@@ -1938,7 +1946,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		fbp->fb_length = nb->nb_length;
 		
 		if (aep != NULL) {
-			ret = libfab_buf_dom_reg(nb, aep->aep_fab.fab_dom);
+			ret = libfab_buf_dom_reg(nb, aep->aep_dom);
 			if (ret != FI_SUCCESS)
 				return M0_RC(ret);
 		}
@@ -1952,7 +1960,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	case M0_NET_QT_PASSIVE_BULK_SEND: { 
 		aep = ep->fep_send;
 		if (aep != NULL) {
-			ret = libfab_buf_dom_reg(nb, aep->aep_fab.fab_dom);
+			ret = libfab_buf_dom_reg(nb, aep->aep_dom);
 			if (ret != FI_SUCCESS)
 				return M0_RC(ret);
 		}
@@ -1967,7 +1975,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	case M0_NET_QT_ACTIVE_BULK_RECV: {
 		M0_ASSERT(ep->fep_recv != NULL);
 		aep = ep->fep_recv;
-		ret = libfab_buf_dom_reg(nb, aep->aep_fab.fab_dom);
+		ret = libfab_buf_dom_reg(nb, aep->aep_dom);
 		if (ret != FI_SUCCESS)
 			return M0_RC(ret);
 		
@@ -1983,7 +1991,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	case M0_NET_QT_ACTIVE_BULK_SEND: {
 		M0_ASSERT(ep->fep_recv != NULL);
 		aep = ep->fep_recv;
-		ret = libfab_buf_dom_reg(nb, aep->aep_fab.fab_dom);
+		ret = libfab_buf_dom_reg(nb, aep->aep_dom);
 		if (ret != FI_SUCCESS)
 			return M0_RC(ret);
 		
