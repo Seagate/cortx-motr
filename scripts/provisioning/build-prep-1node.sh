@@ -22,10 +22,10 @@ make && make devinstall
 cd -
 
 echo 'Creating block devices...'
-mkdir -p /var/motr
+sudo mkdir -p /var/motr
 for i in {0..9}; do
-    dd if=/dev/zero of=/var/motr/disk$i.img bs=1M seek=9999 count=1
-    losetup /dev/loop$i /var/motr/disk$i.img
+    sudo dd if=/dev/zero of=/var/motr/disk$i.img bs=1M seek=9999 count=1
+    sudo losetup /dev/loop$i /var/motr/disk$i.img
 done
 
 echo 'Preparing CDF (Cluster Description File)...'
