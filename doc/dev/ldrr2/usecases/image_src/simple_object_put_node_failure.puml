@@ -27,15 +27,17 @@ end box
 
 client -> N1: PUT /bucket_name/object_name
 
-== Lookup 1 : Global bucket ==
+== Lookup 1 : Global Bucket Index (global) ==
 N1 -> N2: get_keyval(global_bucket_index,\n key = "bucket_name")
 N2 --X N1: Error 
+N1 -> N1: Retry in cluster
 N1 -> N5: get_keyval(global_bucket_index,\n key = "bucket_name")
 N5 --> N1: value = account_id of bucket owner
 
-== Lookup 2 : Global Bucket ==
+== Lookup 2 : Bucket List Index (global) ==
 N1 -> N2: get_keyval(global_bucket_md_index,\n key = "account_id/bucket_name")
 N2 --X N1: Error 
+N1 -> N1: Retry in cluster
 N1 -> N3: get_keyval(global_bucket_md_index,\n key = "account_id/bucket_name")
 N3 --> N1: value = bucket metadata JSON
 
@@ -45,9 +47,10 @@ note left
    * __**Any error in global lookup will needs to be retried with other nodes**__
 end note
 
-== Lookup 3 : Local Storage Set  ==
+== Lookup 3 : Object List Index (local)  ==
 N1 -> N4: get_keyval(BUCKET_nnn_obj_index,\n key = "object_name");
 N4 --X N1 : Error
+N1 -> N1: Retry in storage set
 N1 -> N5: get_keyval(BUCKET_nnn_obj_index,\n key = "object_name");
 note left
    * KV in Local Storage Set will have 1 + M-1 replication 
@@ -81,23 +84,59 @@ end note
 
   N5 --> N1: Success (write 3 & 4)
   N6 --> N1: Success (write P1 & P2)
-  N4 --X N1: ERROR (write 1 & 2)
+  N4 --X N1: ERROR-Retryable (write 1 & 2)
 note left
    * Two of the Write Data Units returns error (Node 4)
-   * __**Return Success if Total-Error <= #Parity-Unit **__
+   * **For retryable error, S3 will create new object **
 end note
 
 end
 
-== Local SS metadata write ==
+N1 -> N1: If retryable error: **create_new_object**
+N1 --> N1: success (completed)
+
+loop New Object: Until all data is written
+  N1 -> "N5": Write data 1
+note left
+   * Original Data Config: 4+2 parity
+   * **Due to failure of node, switching to pool with 2+2
+       parity in storage set**
+end note
+  "N5" -> CL_5
+  N1 -> "N5": Write data 2
+  "N5" -> CR_5
+
+group Parity Unit Write [ K = 2 ]  
+  N1 -> "N6": Write data P1
+  "N6" -> CL_6
+  N1 -> "N6": Write data P2
+  "N6" -> CR_6
+end  
+
+  N5 --> N1: Success (write 1 & 2)
+  N6 --> N1: Success (write P1 & P2)
+end
+
+== Local SS metadata write: Object List Index ==
+
+group Meta Data Write [ Original ]
 N1 -> N4: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
 N4 --X N1: ERROR
+end
 
+note left
+   * Original Metadata Config: 1+2 replication
+   * __**Note: Due to failure of node, skip writing to DG of failed node**__
+   * New metadata replication is effectively 1+1 till DTM restores it to 1+2
+end note
+
+group Meta Data Replication [ K = 2]
 N1 -> N5: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
 N5 --> N1: success (completed)
 
 N1 -> N6: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
-N6 --> N1: success (completed)
+N6 --> N1: success (Left)
+end
 
 N1 --> client: 200 OK
 

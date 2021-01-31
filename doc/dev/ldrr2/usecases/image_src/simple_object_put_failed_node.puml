@@ -72,7 +72,7 @@ end
   N6 --> N1: Success (write P1 & P2)
 end
 
-== Local SS metadata write ==
+== Local SS metadata write: Object List Index  ==
 group Meta Data Write [ Original ]
 N1 -> N5: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
 N5 --> N1: success (completed)
@@ -86,7 +86,7 @@ end note
 group Meta Data Replication [ K = 2]
 N1 -> N6: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
 N1 -X N4: SKIP put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
-"N6" -> CR_6
+
 N6 --> N1: success (Left)
 end
 N1 --> client: 200 OK
