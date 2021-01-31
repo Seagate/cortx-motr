@@ -463,12 +463,13 @@ else
     if [ $# == 0 ]; then
         PCMD=$(ps -o args= $PPID)
         dbg "PCMD [$PCMD]"
-        if [[ "$PCMD" == *"m0provision config" ]]; then
-            do_m0provision_action
-        else
-            err "The m0provision may only call this script without any args."
-            err "PCMD [$PCMD]"
-        fi
+        do_m0provision_action
+        #if [[ "$PCMD" == *"m0provision config" ]]; then
+        #    do_m0provision_action
+        #else
+        #    err "The m0provision may only call this script without any args."
+        #    err "PCMD [$PCMD]"
+        #fi
     fi
 fi
 
