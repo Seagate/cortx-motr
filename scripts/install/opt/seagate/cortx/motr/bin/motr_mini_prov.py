@@ -44,14 +44,13 @@ class MotrError(Exception):
         return f"error[{self._rc}]: {self._desc}"
 
 
-def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS):
-
+def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
     ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           shell=True)
     stdout, stderr = ps.communicate(timeout=timeout_secs);
     stdout = str(stdout, 'utf-8')
-    if self._debug:
+    if self._debug or verbose:
         sys.stdout.write(f"[CMD] {cmd}\n")
         sys.stdout.write(f"[OUT]\n{stdout}\n")
         sys.stdout.write(f"[RET] {ps.returncode}\n")
@@ -65,6 +64,7 @@ def check_type(var, type, msg):
 
 
 def get_current_node(self):
+    """get current node name using machine-id"""
     cmd = "cat /etc/machine-id"
     machine_id = execute_command(self, cmd)
     machine_id = machine_id[0].split('\n')[0]
@@ -111,6 +111,10 @@ def is_hw_node(self):
         return False
 
 def validate_motr_rpm(self):
+    '''
+        1. check m0tr.ko exists in current kernel modules
+        2. check /etc/sysconfig/motr
+    '''
     cmd = "uname -r"
     cmd_res = execute_command(self, cmd)
     op = cmd_res[0]
@@ -129,7 +133,7 @@ def motr_config(self):
     is_hw = is_hw_node(self)
     if is_hw:
         sys.stdout.write(f"Executing {MOTR_CONFIG_SCRIPT}")
-        execute_command(self, MOTR_CONFIG_SCRIPT)
+        execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
 def configure_net(self):
     """Wrapper function to detect lnet/libfabric transport"""
@@ -187,6 +191,11 @@ def swap_off(self):
     execute_command(self, cmd)
 
 def add_swap_fstab(self, dev_name):
+    '''
+        1. check swap entry found in /etc/fstab
+        2. if found, do nothing
+        3. if not found, add swap entry in /etc/fstab
+    '''
     swap_entry = f"{dev_name}    swap    swap    defaults        0 0\n"
     swap_found = False
     swap_off(self)
@@ -310,6 +319,7 @@ def create_lvm(self, index, metadata_dev):
 
 
 def config_lvm(self):
+    "create volume group and lvm for swap and metadata"
     try:
         metadata_devices = Conf.get(self._index,
                 f'cluster>{self._server_id}')['storage']['metadata_devices']
@@ -323,6 +333,7 @@ def config_lvm(self):
 
 
 def get_lnet_xface() -> str:
+    """get lnet interface"""
     lnet_xface = None
     try:
         with open(LNET_CONF_FILE, 'r') as f:
@@ -345,6 +356,7 @@ def get_lnet_xface() -> str:
     return lnet_xface
 
 def check_pkgs(self, pkgs):
+    """check rpm packages"""
     for pkg in pkgs:
         ret = 1
         cmd = f"rpm -q {pkg}"
@@ -360,7 +372,55 @@ def check_pkgs(self, pkgs):
         else:
             raise MotrError(errno.ENOENT, f"Missing rpm: {pkg}")
 
+def get_nids(self, nodes):
+    """get lnet nids of all available nodes in cluster"""
+    nids = []
+
+    for node in nodes.values():
+        try:
+            hostname = Conf.get(self._index, f'cluster>{node}>hostname')
+        except:
+            raise MotrError(errno.EINVAL, f"{node} hostname not found")
+
+        check_type(hostname, str, "hostname")
+
+        if self._server_id == node:
+            cmd = f"lctl list_nids"
+        else:
+            cmd = (f"ssh  -o \"StrictHostKeyChecking=no\" {hostname}"
+                    " lctl list_nids")
+        op = execute_command(self, cmd)
+        nids.append(op[0].rstrip("\n"))
+
+    return nids
+
+def lnet_ping(self):
+    """lctl ping on all available nodes in cluster"""
+    try:
+        nodes = Conf.get(self._index, 'cluster>server_nodes')
+    except:
+        raise MotrError(errno.EINVAL, "Server nodes not found")
+
+    check_type(nodes, dict, "server_nodes")
+
+    nids = get_nids(self, nodes)
+
+    sys.stdout.write(f"lnet pinging on all nodes in cluster\n")
+    sys.stdout.write(f"motr_setup init MUST be performed on all nodes before "
+                      "executing this\n")
+    for nid in nids:
+       cmd = f"lctl ping {nid}"
+       sys.stdout.write(f"lctl ping on: {nid}\n")
+       execute_command(self, cmd)
+
 def test_lnet(self):
+    '''
+        1. check lustre rpm
+        2. validate lnet interface which was configured in init
+        3. ping on lnet interface
+        4. lctl ping on all nodes in cluster. motr_setup init MUST be performed
+           on all nodes before executing this step.
+    '''
     search_lnet_pkgs = ["kmod-lustre-client", "lustre-client"]
     check_pkgs(self, search_lnet_pkgs)
 
@@ -381,6 +441,4 @@ def test_lnet(self):
     cmd = f"ping -c 3 {ip_addr}"
     execute_command(self, cmd)
 
-
-
-
+    lnet_ping(self)
