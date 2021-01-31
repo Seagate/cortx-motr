@@ -29,6 +29,7 @@ MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
 MOTR_SYS_CFG = "/etc/sysconfig/motr"
+FSTAB = "/etc/fstab"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
 
@@ -127,6 +128,7 @@ def validate_motr_rpm(self):
 def motr_config(self):
     is_hw = is_hw_node(self)
     if is_hw:
+        sys.stdout.write(f"Executing {MOTR_CONFIG_SCRIPT}")
         execute_command(self, MOTR_CONFIG_SCRIPT)
 
 def configure_net(self):
@@ -175,51 +177,137 @@ def configure_lnet(self):
 def configure_libfabric(self):
     raise MotrError(errno.EINVAL, "libfabric not implemented\n")
 
-def create_lvm(node_name, index, metadata_dev):
+
+def swap_on(self):
+    cmd = "swapon -a"
+    execute_command(self, cmd)
+
+def swap_off(self):
+    cmd = "swapoff -a"
+    execute_command(self, cmd)
+
+def add_swap_fstab(self, dev_name):
+    swap_entry = f"{dev_name}    swap    swap    defaults        0 0\n"
+    swap_found = False
+    swap_off(self)
+    try:
+        with open(FSTAB, "r") as fp:
+            lines = fp.readlines()
+            for line in lines:
+                ret = line.find(dev_name)
+                if ret == 0:
+                    swap_found = True
+                    sys.stdout.write(f"Swap entry found: {swap_entry}\n")
+    except:
+        swap_on(self)
+        raise MotrError(errno.EINVAL, f"Cant read f{FSTAB}\n")
+
+
+    try:
+        if not swap_found:
+            with open(FSTAB, "a") as fp:
+                fp.write(swap_entry)
+            sys.stdout.write(f"Swap entry added: {swap_entry}\n")
+    except:
+        raise MotrError(errno.EINVAL, f"Cant append f{FSTAB}\n")
+    finally:
+        swap_on(self)
+
+def del_swap_fstab_by_vg_name(self, vg_name):
+
+    swap_off(self)
+
+    cmd = f"sed -i '/{vg_name}/d' {FSTAB}"
+    execute_command(self, cmd)
+
+    swap_on(self)
+
+def create_swap(self, swap_dev):
+
+    sys.stdout.write(f"Make swap of {swap_dev}\n")
+    cmd = f"mkswap -f {swap_dev}"
+    execute_command(self, cmd)
+
+    sys.stdout.write(f"Test {swap_dev} swap device\n")
+    cmd = f"test -e {swap_dev}"
+    execute_command(self, cmd)
+
+    sys.stdout.write(f"Adding {swap_dev} swap device to {FSTAB}\n")
+    add_swap_fstab(self, swap_dev)
+
+
+def create_lvm(self, index, metadata_dev):
+    '''
+        1. validate /etc/fstab
+        2. validate metadata device file
+        3. check requested volume group exist
+        4. if exist, remove volume group and swap related with it.
+           because if user request same volume group with different device.
+        5. If not exist, create volume group and lvm
+        6. create swap from lvm
+    '''
+
     index = index + 1
+    node_name = self._server_id
     vg_name = f"vg_{node_name}_md{index}"
     lv_swap_name = f"lv_main_swap{index}"
     lv_md_name = f"lv_raw_md{index}"
+    swap_dev = f"/dev/{vg_name}/{lv_swap_name}"
+
+    sys.stdout.write(f"metadata device: {metadata_dev}\n")
+
+    sys.stdout.write(f"Checking for {FSTAB}\n")
+    validate_file(FSTAB)
+
+    sys.stdout.write(f"Checking for {metadata_dev}\n")
+    validate_file(metadata_dev)
+
+    cmd = f"fdisk -l {metadata_dev}"
+    execute_command(self, cmd)
+
     try:
-        validate_file(metadata_dev)
-
-        cmd = f"fdisk -l {metadata_dev}"
-        execute_command(self, cmd)
-
-        cmd = f"wipefs --all --force {metadata_dev}"
-        execute_command(self, cmd)
-
-        cmd = f"pvcreate {metadata_dev}"
-        execute_command(self, cmd)
-
-        cmd = f"vgcreate {vg_name} {metadata_dev}"
-        execute_command(self, cmd)
-
-        cmd = f"vgchange --addtag {node_name} {vg_name}"
-        execute_command(self, cmd)
-
-        cmd = "vgscan --cache"
-        execute_command(self, cmd)
-
-        cmd = f"lvcreate -n {lv_swap_name} {vg_name} -l 51%VG"
-        execute_command(self, cmd)
-
-        cmd = f"lvcreate -n {lv_md_name} {vg_name} -l 100%FREE"
-        execute_command(self, cmd)
-
-        cmd = f"mkswap -f /dev/{vg_name}/{lv_swap_name}"
-        execute_command(self, cmd)
-
-        cmd = f"test -e /dev/{vg_name}/{lv_swap_name}"
-        execute_command(self, cmd)
-
-        cmd = (
-           f"echo \"/dev/{vg_name}/{lv_swap_name}    swap    "
-           f"swap    defaults        0 0\" >> /etc/fstab"
-        )
-        execute_command(self, cmd)
-    except:
+        cmd = f"vgs {vg_name}"
+        op = execute_command(self, cmd)
+        ret = op[1]
+    except MotrError:
         pass
+    else:
+        sys.stdout.write(f"Removing {vg_name} volume group\n")
+
+        del_swap_fstab_by_vg_name(self, vg_name)
+
+        cmd = f"vgchange -an {vg_name}"
+        op = execute_command(self, cmd)
+
+        cmd = f"vgremove {vg_name} -ff"
+        op = execute_command(self, cmd)
+
+    sys.stdout.write(f"Creating physical volume from {metadata_dev}\n")
+    cmd = f"pvcreate {metadata_dev} --yes"
+    execute_command(self, cmd)
+
+    sys.stdout.write(f"Creating {vg_name} volume group from {metadata_dev}\n")
+    cmd = f"vgcreate {vg_name} {metadata_dev}"
+    execute_command(self, cmd)
+
+    sys.stdout.write(f"Adding {node_name} tag to {vg_name} volume group\n")
+    cmd = f"vgchange --addtag {node_name} {vg_name}"
+    execute_command(self, cmd)
+
+    sys.stdout.write(f"Scanning volume group\n")
+    cmd = "vgscan --cache"
+    execute_command(self, cmd)
+
+    sys.stdout.write(f"Creating {lv_swap_name} lvm from {vg_name}\n")
+    cmd = f"lvcreate -n {lv_swap_name} {vg_name} -l 51%VG --yes"
+    execute_command(self, cmd)
+
+    sys.stdout.write(f"Creating {lv_md_name} lvm from {vg_name}\n")
+    cmd = f"lvcreate -n {lv_md_name} {vg_name} -l 100%FREE --yes"
+    execute_command(self, cmd)
+
+    create_swap(self, swap_dev)
+
 
 def config_lvm(self):
     try:
@@ -228,16 +316,11 @@ def config_lvm(self):
     except:
         raise MotrError(errno.EINVAL, "metadata_devices not found\n")
 
-    sys.stdout.write(f"lvm: metadata_devices={metadata_devices}\n")
-
-    cmd = "swapoff -a"
-    execute_command(self, cmd)
+    sys.stdout.write(f"\nlvm metadata_devices: {metadata_devices}\n\n")
 
     for device in metadata_devices:
-        create_lvm(self._server_id, metadata_devices.index(device), device)
+        create_lvm(self, metadata_devices.index(device), device)
 
-    cmd = "swapon -a"
-    execute_command(self, cmd)
 
 def get_lnet_xface() -> str:
     lnet_xface = None
@@ -263,9 +346,15 @@ def get_lnet_xface() -> str:
 
 def check_pkgs(self, pkgs):
     for pkg in pkgs:
+        ret = 1
         cmd = f"rpm -q {pkg}"
-        cmd_res = execute_command(self, cmd)
-        ret = cmd_res[1]
+
+        try:
+            cmd_res = execute_command(self, cmd)
+            ret = cmd_res[1]
+        except MotrError:
+            pass
+
         if ret == 0:
             sys.stdout.write(f"rpm found: {pkg}\n")
         else:
@@ -276,17 +365,22 @@ def test_lnet(self):
     check_pkgs(self, search_lnet_pkgs)
 
     lnet_xface = get_lnet_xface()
+    sys.stdout.write(f"lnet interface found: {lnet_xface}\n")
+
     cmd = f"ip addr show {lnet_xface}"
     cmd_res = execute_command(self, cmd)
     ip_addr = cmd_res[0]
 
     try:
         ip_addr = ip_addr.split("inet ")[1].split("/")[0]
+        sys.stdout.write(f"lnet interface ip: {ip_addr}\n")
     except:
         raise MotrError(errno.EINVAL, f"Cant parse {lnet_xface} ip addr")
 
+    sys.stdout.write(f"ping on: {ip_addr}\n")
     cmd = f"ping -c 3 {ip_addr}"
     execute_command(self, cmd)
+
 
 
 
