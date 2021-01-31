@@ -26,15 +26,17 @@ end box
 
 client -> N1: GET /bucket_name/object_name
 
-== Lookup 1 : Global bucket ==
+== Lookup 1 : Global Bucket Index (global) ==
 N1 -> N2: get_keyval(global_bucket_index,\n key = "bucket_name")
 N2 --X N1: Error 
+N1 -> N1: Retry in cluster
 N1 -> N5: get_keyval(global_bucket_index,\n key = "bucket_name")
 N5 --> N1: value = account_id of bucket owner
 
-== Lookup 2 : Global Bucket ==
+== Lookup 2 : Bucket List Index (global) ==
 N1 -> N2: get_keyval(global_bucket_md_index,\n key = "account_id/bucket_name")
 N2 --X N1: Error 
+N1 -> N1: Retry in cluster
 N1 -> N3: get_keyval(global_bucket_md_index,\n key = "account_id/bucket_name")
 N3 --> N1: value = bucket metadata JSON
 
@@ -44,9 +46,10 @@ note left
    * __**Any error in global lookup will needs to be retried with other nodes**__
 end note
 
-== Lookup 3 : Local Storage Set  ==
+== Lookup 3 : Object List Index (local)  ==
 N1 -> N4: get_keyval(BUCKET_nnn_obj_index,\n key = "object_name");
 N4 --X N1 : Error
+N1 -> N1: Retry in storage set
 N1 -> N5: get_keyval(BUCKET_nnn_obj_index,\n key = "object_name");
 note left
    * KV in Local Storage Set will have 1 + M-1 replication 
@@ -61,13 +64,13 @@ end note
 == Read Operation ==
 
 loop until all data is read
-  N1 -> "N4": Read data 1
+  N1 -X "N4": Read data 1
 note left
    Assuming 4+2 parity
 end note
-  "N4" -> CL_4
-  N1 -> "N4": Read data 2
-  "N4" -> CR_4
+  "N4" -X CL_4
+  N1 -X "N4": Read data 2
+  "N4" -X CR_4
 
   N1 -> "N5": Read data 3
   "N5" -> CL_5
