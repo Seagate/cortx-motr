@@ -79,20 +79,19 @@ N5 --> N1: success (completed)
 end
 note left
    * Original Metadata Config: 1+2 replication
-   * __**Note: Due to failure of node, writing to both DG of a node to retain 1+2 format**__
+   * __**Note: Due to failure of node, skip writing to DG of failed node**__
+   * New metadata replication is effectively 1+1 till DTM restores it to 1+2
 end note
 
 group Meta Data Replication [ K = 2]
 N1 -> N6: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
-"N6" -> CL_6
-N1 -> N6: put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
+N1 -X N4: SKIP put_keyval(BUCKET_nnn_obj_index,\n key = object_name, val = object_metadata)
 "N6" -> CR_6
-CL_6 --> N1: success (Left)
-CR_6 --> N1: success (Right)
+N6 --> N1: success (Left)
 end
 N1 --> client: 200 OK
 note left
-   * **Note: For Node-5, metadata can be written to any of the controller so not shown specific controller**
+   * **Note: For Node-5 & 6, metadata can be written to any of the controller so not shown specific controller**
 end note
 
 @enduml

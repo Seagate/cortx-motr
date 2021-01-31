@@ -15,6 +15,7 @@
    - [4.3:Failed-Node-Scenario](#4.3:Failed-Node-Scenario)
       - [4.3.1:Simple-Object-Get/Read](#4.3.1:Simple-Object-Get/Read)
       - [4.3.2:Simple-Object-Put/Write](#4.3.2:Simple-Object-Put/Write)
+         - [4.3.2.1:Switching-Layout](#4.3.2.1:Switching-Layout)
 
 # Acronyms
 | **Abbreviation** | **Description** |
@@ -111,7 +112,7 @@ With respect of motr following category of storage failure can occur:
 All the failure handling maps to DG failure in Motr.
 
 ## 3.2:Network-Failure-Analysis
-With respect of motr following category of newtowork failure can occur:
+With respect of motr following category of newtwork failure can occur:
 
 | **Failure Type** | **Motr  Motr Action** |
 | ---------------- | --------------------- | 
@@ -122,6 +123,9 @@ With respect of motr following category of newtowork failure can occur:
 | Multiple Node Unreachable in SS
    - With partition such that node is not a part of SS | Return Error for all IOs, HA Action - Stop IO service? |
 | Multiple Node Unreachable in other SS | Avoid metadata reads on those nodes |
+| All Nodes Unreachable in other SS | Avoid metadata reads on those nodes & return error for if Object List Index metadata is part of that SS |
+
+TODO: With the communication broken between two storage set how the two storage set continue to function with other distrubuted software e.g. Consul and how to sync data when they join back 
 
   ***Node Failure in Storage Set**:
 - Mark volumes of node to be failed
@@ -205,7 +209,21 @@ The sequence diagram below describes GET/PUT flow for the scenario where node is
 * Write path error handling avoids communicating with failed node for metadata and data operations.
 ![Failed Node 2](images/simple_object_put_failed_node.png)
 
+#### 4.3.2.1:Switching-Layout
+<TODO: Add details of switching of layout>
+
 ### 4.3.3:Registration-of-failed-node
+
+## 4.4:Failure-During-Operation
+The sequence diagram below describes GET/PUT flow for the scenario where node is failing and failure is not yet registered by CORTX stack.
+
+### 4.4.1:Simple-Object-Get/Read
+* Read path should detect error in retriving data and should use parity units to get missing data.
+![Node Failure 1](images/simple_object_get_node_failure.png)
+
+### 4.3.1:Simple-Object-Put/Write
+* Write path should detect error in writing data and should return success if the failed number of write unit is less than or equal to number of parity unit
+![Node Failure 2](images/simple_object_put_node_failure.png)
 
 # WIP
 Following scenario will be analyzed w.r.t. DTM role to restore storage system to consistent state w.r.t metadata and data.
@@ -234,15 +252,6 @@ But the DTM is mandatory for keeping the cluster distributed metadata in consist
 ## Error Scenario : 
 * One node from each storage set (SS) fails during IO.
 * Any error in reading metadata should be retried with metadata available with replicated node
-
-## 1. Simple Object Get/Read
-* Read path should detect error in retriving data and should use parity units to get missing data.
-![Node Failure 1](images/simple_object_get_node_failure.png)
-
-
-## 2. Simple Object Put/Write
-* Write path should detect error in writing data and should return success if the failed number of write unit is less than or equal to number of parity unit
-![Node Failure 2](images/simple_object_put_node_failure.png)
 
 # II. Detected Node failed Scenario
 ## Error Scenario : 
