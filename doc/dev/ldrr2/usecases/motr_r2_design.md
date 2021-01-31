@@ -16,6 +16,9 @@
       - [4.3.1:Simple-Object-Get/Read](#4.3.1:Simple-Object-Get/Read)
       - [4.3.2:Simple-Object-Put/Write](#4.3.2:Simple-Object-Put/Write)
          - [4.3.2.1:Switching-Layout](#4.3.2.1:Switching-Layout)
+   - [4.4:Failure-During-Operation](#4.4:Failure-During-Operation)
+      - [4.4.1:Simple-Object-Get/Read](#4.4.1:Simple-Object-Get/Read)
+      - [4.4.2:Simple-Object-Put/Write](#4.4.2:Simple-Object-Put/Write)
 
 # Acronyms
 | **Abbreviation** | **Description** |
@@ -213,6 +216,7 @@ The sequence diagram below describes GET/PUT flow for the scenario where node is
 <TODO: Add details of switching of layout>
 
 ### 4.3.3:Registration-of-failed-node
+<TODO: Add details of node failure registration>
 
 ## 4.4:Failure-During-Operation
 The sequence diagram below describes GET/PUT flow for the scenario where node is failing and failure is not yet registered by CORTX stack.
@@ -221,7 +225,7 @@ The sequence diagram below describes GET/PUT flow for the scenario where node is
 * Read path should detect error in retriving data and should use parity units to get missing data.
 ![Node Failure 1](images/simple_object_get_node_failure.png)
 
-### 4.3.1:Simple-Object-Put/Write
+### 4.4.1:Simple-Object-Put/Write
 * Write path should detect error in writing data and should return success if the failed number of write unit is less than or equal to number of parity unit
 ![Node Failure 2](images/simple_object_put_node_failure.png)
 
