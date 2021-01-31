@@ -22,17 +22,15 @@ import errno
 import os
 import re
 import subprocess
-import time
 from cortx.utils.conf_store import Conf
 
-MOTR_KERNEL_FILE = "/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
 MOTR_SYS_FILE = "/etc/sysconfig/motr"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
 MOTR_SYS_CFG = "/etc/sysconfig/motr"
-SLEEP_SECS = 2
 TIMEOUT_SECS = 120
+MACHINE_ID_LEN = 32
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -40,103 +38,142 @@ class MotrError(Exception):
     def __init__(self, rc, message, *args):
         self._rc = rc
         self._desc = message % (args)
-        sys.stderr.write("error(%d): %s\n" %(self._rc, self._desc))
 
     def __str__(self):
-        if self._rc == 0: return self._desc
-        return "error(%d): %s" %(self._rc, self._desc)
+        return f"error[{self._rc}]: {self._desc}"
 
 
-def execute_command(cmd, timeout_secs):
+def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS):
 
     ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           shell=True)
     stdout, stderr = ps.communicate(timeout=timeout_secs);
     stdout = str(stdout, 'utf-8')
-    sys.stdout.write(f"[CMD] {cmd}\n")
-    sys.stdout.write(f"[OUT]\n{stdout}\n")
-    sys.stdout.write(f"[RET] {ps.returncode}\n")
+    if self._debug:
+        sys.stdout.write(f"[CMD] {cmd}\n")
+        sys.stdout.write(f"[OUT]\n{stdout}\n")
+        sys.stdout.write(f"[RET] {ps.returncode}\n")
     if ps.returncode != 0:
-        raise MotrError(ps.returncode, f"{cmd} command failed")
+        raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
+
+def check_type(var, type, msg):
+    if not isinstance(var, type):
+        raise MotrError(errno.EINVAL, f"Invalid {msg} type. Expected: {type}")
+
 
 def get_current_node(self):
     cmd = "cat /etc/machine-id"
-    machine_id = execute_command(cmd, TIMEOUT_SECS)
+    machine_id = execute_command(self, cmd)
     machine_id = machine_id[0].split('\n')[0]
-    return Conf.get(self._index, 'cluster>server_nodes')[machine_id]
 
-def restart_services(services):
+    check_type(machine_id, str, "machine-id")
+    if len(machine_id) != MACHINE_ID_LEN:
+        raise MotrError(errno.EINVAL, "Invalid machine-id length."
+                        f" Expected: {MACHINE_ID_LEN}"
+                        f" Actual: {len(machine_id)}")
+
+    try:
+        current_node = Conf.get(self._index, 'cluster>server_nodes')[machine_id]
+    except:
+        raise MotrError(errno.EINVAL, "Current node not found")
+
+    check_type(current_node, str, "current node")
+    return current_node
+
+
+def restart_services(self, services):
     for service in services:
-        cmd = "service {} stop".format(service)
-        execute_command(cmd, TIMEOUT_SECS)
-        cmd = "service {} start".format(service)
-        execute_command(cmd, TIMEOUT_SECS)
-        cmd = "service {} status".format(service)
-        execute_command(cmd, TIMEOUT_SECS)
+        sys.stdout.write(f"Restarting {service} service\n")
+        cmd = f"systemctl stop {service}"
+        execute_command(self, cmd)
+        cmd = f"systemctl start {service}"
+        execute_command(self, cmd)
+        cmd = f"systemctl status {service}"
+        execute_command(self, cmd)
 
 def validate_file(file):
     if not os.path.exists(file):
         raise MotrError(errno.ENOENT, "{} not exist".format(file))
 
 def is_hw_node(self):
-    node_type = Conf.get(self._index, f'cluster>{self._server_id}')['node_type']
+    try:
+        node_type = Conf.get(self._index,
+                    f'cluster>{self._server_id}')['node_type']
+    except:
+        raise MotrError(errno.EINVAL, "node_type not found")
+    check_type(node_type, str, "node type")
     if node_type == "HW":
         return True
     else:
         return False
 
 def validate_motr_rpm(self):
-    try:
-        cmd = "uname -r"
-        cmd_res = execute_command(cmd, TIMEOUT_SECS)
-        op = cmd_res[0]
-        kernel_ver = op.replace('\n', '')
-        kernel_module = f"/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
-        sys.stdout.write(f"[INFO] Checking for {kernel_module}\n")
-        validate_file(kernel_module)
-        sys.stdout.write(f"[INFO] Checking for {MOTR_SYS_FILE}\n")
-        validate_file(MOTR_SYS_FILE)
-    except MotrError as e:
-        sys.stderr.write("Validate motr rpm failed\n")
-        sys.exit(e._rc)
+    cmd = "uname -r"
+    cmd_res = execute_command(self, cmd)
+    op = cmd_res[0]
+    kernel_ver = op.replace('\n', '')
+    check_type(kernel_ver, str, "kernel version")
+
+    kernel_module = f"/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
+    sys.stdout.write(f"Checking for {kernel_module}\n")
+    validate_file(kernel_module)
+
+    sys.stdout.write(f"Checking for {MOTR_SYS_FILE}\n")
+    validate_file(MOTR_SYS_FILE)
+
 
 def motr_config(self):
     is_hw = is_hw_node(self)
     if is_hw:
-        execute_command(MOTR_CONFIG_SCRIPT, TIMEOUT_SECS)
+        execute_command(self, MOTR_CONFIG_SCRIPT)
 
 def configure_net(self):
-     '''Wrapper function to detect lnet/libfabric transport'''
-     transport_type = Conf.get(self._index,
-       f'cluster>{self._server_id}')['network']['data']['transport_type']
-     if transport_type == "lnet":
-        configure_lnet_from_conf_store(self)
-     elif transport_type == "libfabric":
-        configure_libfabric(self)
-     else:
-        sys.stderr.write("[ERR] Unknown data transport type\n")
+    """Wrapper function to detect lnet/libfabric transport"""
+    try:
+        transport_type = Conf.get(self._index,
+            f'cluster>{self._server_id}')['network']['data']['transport_type']
+    except:
+        raise MotrError(errno.EINVAL, "transport_type not found")
+    check_type(transport_type, str, "transport_type")
 
-def configure_lnet_from_conf_store(self):
+    if transport_type == "lnet":
+        configure_lnet(self)
+    elif transport_type == "libfabric":
+        configure_libfabric(self)
+    else:
+        raise MotrError(errno.EINVAL, "Unknown data transport type\n")
+
+def configure_lnet(self):
     '''
        Get iface and /etc/modprobe.d/lnet.conf params from
        conf store. Configure lnet. Start lnet service
     '''
-    iface = Conf.get(self._index,
-       f'cluster>{self._server_id}')['network']['data']['private_interfaces'][0]
-    iface_type = Conf.get(self._index,
-       f'cluster>{self._server_id}')['network']['data']['interface_type']
-    sys.stdout.write(f"[INFO] {iface_type}=({iface})\n")
-    sys.stdout.write(f"[INFO] Updating {LNET_CONF_FILE}\n")
+    try:
+        iface = Conf.get(self._index,
+        f'cluster>{self._server_id}')['network']['data']['private_interfaces']
+        iface = iface[0]
+    except:
+        raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
+
+    try:
+        iface_type = Conf.get(self._index,
+            f'cluster>{self._server_id}')['network']['data']['interface_type']
+    except:
+        raise MotrError(errno.EINVAL, "interface_type not found\n")
+
+    lnet_config = (f"options lnet networks={iface_type}({iface}) "
+                  f"config_on_load=1  lnet_peer_discovery_disabled=1\n")
+    sys.stdout.write(f"lnet config: {lnet_config}")
+
     with open(LNET_CONF_FILE, "w") as fp:
-        fp.write(f"options lnet networks={iface_type}({iface}) "
-                 f"config_on_load=1  lnet_peer_discovery_disabled=1\n")
-        time.sleep(SLEEP_SECS)
-    restart_services(["lnet"])
+        fp.write(lnet_config)
+
+    restart_services(self, ["lnet"])
 
 def configure_libfabric(self):
-    pass
+    raise MotrError(errno.EINVAL, "libfabric not implemented\n")
 
 def create_lvm(node_name, index, metadata_dev):
     index = index + 1
@@ -147,57 +184,60 @@ def create_lvm(node_name, index, metadata_dev):
         validate_file(metadata_dev)
 
         cmd = f"fdisk -l {metadata_dev}"
-        execute_command(cmd, TIMEOUT_SECS)
+        execute_command(self, cmd)
 
         cmd = f"wipefs --all --force {metadata_dev}"
-        execute_command(cmd, TIMEOUT_SECS)
+        execute_command(self, cmd)
 
         cmd = f"pvcreate {metadata_dev}"
-        execute_command(cmd, TIMEOUT_SECS)
+        execute_command(self, cmd)
 
         cmd = f"vgcreate {vg_name} {metadata_dev}"
-        execute_command(cmd, TIMEOUT_SECS)
+        execute_command(self, cmd)
 
         cmd = f"vgchange --addtag {node_name} {vg_name}"
-        execute_command(cmd, TIMEOUT_SECS)
+        execute_command(self, cmd)
 
         cmd = "vgscan --cache"
-        execute_command(cmd, TIMEOUT_SECS)
+        execute_command(self, cmd)
 
         cmd = f"lvcreate -n {lv_swap_name} {vg_name} -l 51%VG"
-        execute_command(cmd, TIMEOUT_SECS)
+        execute_command(self, cmd)
 
         cmd = f"lvcreate -n {lv_md_name} {vg_name} -l 100%FREE"
-        execute_command(cmd, TIMEOUT_SECS)
+        execute_command(self, cmd)
 
         cmd = f"mkswap -f /dev/{vg_name}/{lv_swap_name}"
-        execute_command(cmd, TIMEOUT_SECS)
+        execute_command(self, cmd)
 
         cmd = f"test -e /dev/{vg_name}/{lv_swap_name}"
-        execute_command(cmd, TIMEOUT_SECS)
+        execute_command(self, cmd)
 
         cmd = (
            f"echo \"/dev/{vg_name}/{lv_swap_name}    swap    "
            f"swap    defaults        0 0\" >> /etc/fstab"
         )
-        execute_command(cmd, TIMEOUT_SECS)
+        execute_command(self, cmd)
     except:
         pass
 
 def config_lvm(self):
-    metadata_devices = Conf.get(self._index,
-               f'cluster>{self._server_id}')['storage']['metadata_devices']
-    sys.stdout.write(f"[INFO] server_id={self._server_id} "
-                     f" metadata_device={metadata_devices}\n")
-                     
+    try:
+        metadata_devices = Conf.get(self._index,
+                f'cluster>{self._server_id}')['storage']['metadata_devices']
+    except:
+        raise MotrError(errno.EINVAL, "metadata_devices not found\n")
+
+    sys.stdout.write(f"lvm: metadata_devices={metadata_devices}\n")
+
     cmd = "swapoff -a"
-    execute_command(cmd, TIMEOUT_SECS)
+    execute_command(self, cmd)
 
     for device in metadata_devices:
         create_lvm(self._server_id, metadata_devices.index(device), device)
-    
+
     cmd = "swapon -a"
-    execute_command(cmd, TIMEOUT_SECS)
+    execute_command(self, cmd)
 
 def get_lnet_xface() -> str:
     lnet_xface = None
@@ -211,48 +251,42 @@ def get_lnet_xface() -> str:
                     lnet_xface = tokens[4]
                     break
     except:
-        pass
+        raise MotrError(errno.EINVAL, f"Cant parse {LNET_CONF_FILE}")
 
     if lnet_xface == None:
-        raise MotrError(errno.EINVAL, "Cant obtain iface details from %s"
-                        , LNET_CONF_FILE)
+        raise MotrError(errno.EINVAL,
+                        f"Cant obtain iface details from {LNET_CONF_FILE}")
     if lnet_xface not in os.listdir(SYS_CLASS_NET_DIR):
-        raise MotrError(errno.EINVAL, "Invalid iface %s in lnet.conf"
-                        , lnet_xface)
-
+        raise MotrError(errno.EINVAL,
+                        f"Invalid iface {lnet_xface} in lnet.conf")
     return lnet_xface
 
-def check_pkgs(src_pkgs, dest_pkgs):
-    missing_pkgs = []
-    for src_pkg in src_pkgs:
-        found = False
-        for dest_pkg in dest_pkgs:
-            if src_pkg in dest_pkg:
-                found = True
-                break
-        if not found:
-            missing_pkgs.append(src_pkg)
-    if missing_pkgs:
-        raise MotrError(errno.ENOENT, f'Missing pkgs: {missing_pkgs}')
+def check_pkgs(self, pkgs):
+    for pkg in pkgs:
+        cmd = f"rpm -q {pkg}"
+        cmd_res = execute_command(self, cmd)
+        ret = cmd_res[1]
+        if ret == 0:
+            sys.stdout.write(f"rpm found: {pkg}\n")
+        else:
+            raise MotrError(errno.ENOENT, f"Missing rpm: {pkg}")
 
 def test_lnet(self):
     search_lnet_pkgs = ["kmod-lustre-client", "lustre-client"]
+    check_pkgs(self, search_lnet_pkgs)
+
+    lnet_xface = get_lnet_xface()
+    cmd = f"ip addr show {lnet_xface}"
+    cmd_res = execute_command(self, cmd)
+    ip_addr = cmd_res[0]
 
     try:
-        # Check missing luster packages
-        cmd = 'rpm -qa | grep lustre'
-        cmd_res = execute_command(cmd, TIMEOUT_SECS)
-        temp = cmd_res[0]
-        lustre_pkgs = list(filter(None, temp.split("\n")))
-        check_pkgs(search_lnet_pkgs, lustre_pkgs)
-
-        lnet_xface = get_lnet_xface()
-        ip_addr = os.popen(f'ip addr show {lnet_xface}').read()
         ip_addr = ip_addr.split("inet ")[1].split("/")[0]
-        cmd = "ping -c 3 {}".format(ip_addr)
-        cmd_res = execute_command(cmd, TIMEOUT_SECS)
-        sys.stdout.write("{}\n".format(cmd_res[0]))
-    except MotrError as e:
-        pass
+    except:
+        raise MotrError(errno.EINVAL, f"Cant parse {lnet_xface} ip addr")
+
+    cmd = f"ping -c 3 {ip_addr}"
+    execute_command(self, cmd)
+
 
 
