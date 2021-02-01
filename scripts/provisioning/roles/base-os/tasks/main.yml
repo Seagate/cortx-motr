@@ -228,7 +228,7 @@
         state: latest
   tags: c76-workarounds
 
-- name: enable persitent storage for journald
+- name: enable persistent storage for journald
   ini_file:
     path:    /etc/systemd/journald.conf
     section: Journal

@@ -543,13 +543,13 @@ static void cas_next_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
  *                    Distributed (DIX) indices routines                    *
  *--------------------------------------------------------------------------*/
 static void dix_build(const struct m0_op_idx *oi,
-		      struct m0_dix                 *out)
+		      struct m0_dix          *out)
 {
 	M0_SET0(out);
 	out->dd_fid = *OI_IFID(oi);
 }
 
-static void cas_req_init(struct dix_req          *req,
+static void cas_req_init(struct dix_req   *req,
 			 struct m0_op_idx *oi)
 {
 	struct m0_reqh_service_ctx *svc;
@@ -601,6 +601,7 @@ static int dix_req_create(struct m0_op_idx  *oi,
 {
 	struct dix_req *req;
 	int             rc = 0;
+	M0_ENTRY();
 
 	M0_ALLOC_PTR(req);
 	if (req != NULL) {
