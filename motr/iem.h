@@ -89,7 +89,6 @@ enum m0_motr_iem_event {
  * @param sev_id a valid value from enum m0_motr_iem_severity
  * @param mod_id a valid value from enum m0_motr_iem_module
  * @param evt_id a valid value from enum m0_motr_iem_event
- * @param report_count print event count if TRUE.
  * @param desc a string description with variable args. Can be NULL,
  *             max (512-1) bytes in length.
  */
