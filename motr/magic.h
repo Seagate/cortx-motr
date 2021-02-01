@@ -692,12 +692,6 @@ enum m0_magic_satchel {
 	/* net/libfab.c: buf list head (bad dada dadaf) */
 	M0_NET_LIBFAB_BUF_HEAD_MAGIC = 0x33baddadadadaf77,
 
-	/* net/libfab.c: rem_comp list, rem_comp::frc_magic (fed ace dedade) */
-	M0_NET_LIBFAB_RCMP_MAGIC = 0x33fedacededade77,
-
-	/* net/libfab.c: rem_comp list head (bad dada dadef) */
-	M0_NET_LIBFAB_RCMP_HEAD_MAGIC = 0x33baddadadadef77,
-
 	/* net/libfab.c: rcv_buf list, buf::fb_rcvmagic (fed ace dacade) */
 	M0_NET_LIBFAB_RCVBUF_MAGIC = 0x33fedacedacade77,
 
