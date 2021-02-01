@@ -78,7 +78,7 @@
 
    @{
  */
-
+ 
 enum {
 	STOB_TYPE_LINUX = 0x01,
 };

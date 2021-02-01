@@ -50,7 +50,7 @@
    @{
  */
 
-#ifndef CONFIG_X86_64
+#ifndef CONFIG_X86_64  
 #error "Only X86_64 platform is supported"
 #endif
 
@@ -258,6 +258,8 @@ static uint32_t processor_x86cache_leaves_get(m0_processor_nr_t id)
 
    @return id of L2 cache for the given x86 processor.
  */
+
+//extern struct cpuinfo_x86   cpu_data[5];
 static uint32_t processor_x86_cacheid_get(m0_processor_nr_t id,
 					  uint32_t cache_level,
 					  uint32_t cache_leaves)

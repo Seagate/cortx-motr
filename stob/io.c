@@ -19,7 +19,7 @@
  *
  */
 
-
+ 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
 #include "lib/errno.h"         /* ENOMEM */
 #include "lib/memory.h"

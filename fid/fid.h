@@ -112,7 +112,7 @@ m0_fid_type_getfid(const struct m0_fid *fid);
 M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name);
 M0_INTERNAL void m0_fid_tassume(struct m0_fid *fid,
 				const struct m0_fid_type *ft);
-M0_INTERNAL void m0_fid_tgenerate(struct m0_fid *fid,
+M0_INTERNAL void m0_fid_tgenerate(struct m0_fid *fid, 
 				  const uint8_t  tid);
 
 M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid);

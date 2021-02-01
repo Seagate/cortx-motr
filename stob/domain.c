@@ -171,7 +171,7 @@ static int stob_domain_init_create(const char *location,
 				       "destroy() failed: rc = %d, "
 				       "location = %s", rc1, location);
 			}
-			/* rc1 is lost here */
+			/* rc1 is lost here */ 
 		}
 	}
 	M0_ASSERT(ergo(rc == 0, *out != NULL));

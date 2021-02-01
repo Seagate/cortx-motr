@@ -217,7 +217,7 @@ struct m0_stob;
 struct m0_cob;
 struct m0_fid;
 struct m0_cob_id;
-struct m0_cob_domain;
+struct m0_cob_domain; 
 struct m0_cob_domain_id;
 
 /*

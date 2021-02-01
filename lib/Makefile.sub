@@ -153,7 +153,7 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/misc.h \
               lib/linux_kernel/mutex.c \
               lib/linux_kernel/mutex.h \
-              lib/linux_kernel/processor.c \
+            #  lib/linux_kernel/processor.c \
               lib/linux_kernel/rwlock.c \
               lib/linux_kernel/rwlock.h \
               lib/linux_kernel/semaphore.c \
