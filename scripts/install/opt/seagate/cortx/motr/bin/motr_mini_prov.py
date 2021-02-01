@@ -260,6 +260,7 @@ def create_lvm(self, index, metadata_dev):
         6. create swap from lvm
     '''
 
+    metadata_dev = f"{metadata_dev}2"
     index = index + 1
     node_name = self._server_id
     vg_name = f"vg_{node_name}_md{index}"
