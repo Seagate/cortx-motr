@@ -5,15 +5,20 @@ motr_libmotr_la_SOURCES += \
                         dtm0/service.c \
                         dtm0/service.h \
                         dtm0/clk_src.c \
-                        dtm0/clk_src.h
+                        dtm0/clk_src.h \
+                        dtm0/tx_desc.c \
+                        dtm0/tx_desc.h
+
 
 nodist_motr_libmotr_la_SOURCES += \
                                   dtm0/fop_xc.c \
-                                  dtm0/clk_src_xc.c
+                                  dtm0/clk_src_xc.c \
+                                  dtm0/tx_desc_xc.c
 
 
 XC_FILES += \
             dtm0/fop_xc.h \
-            dtm0/clk_src_xc.h
+            dtm0/clk_src_xc.h \
+            dtm0/tx_desc_xc.h
 
 CONFXC_FILES += dtm0/conf.xc
