@@ -49,8 +49,8 @@ Following are the hierarchy of Cortx Cluster
    - e.g In above figure Storage Set 1 and 2 are shown connected at network layer
 1. **IOs will be confined to Storage Set.**
    - Data will only be striped across nodes in a Storage Set.
-1. Any node in cluster can server S3 request for any storage set.
-   - e.g In above figure Node 1 from Storage Set 1 can server read request for object stored in Storage Set 2
+1. Any node in cluster can serve S3 request for any storage set.
+   - e.g In above figure Node 1 from Storage Set 1 can serve read request for object stored in Storage Set 2
 
 Note that any change in the above assumption will have implications on design.
 
@@ -92,7 +92,8 @@ As the size of this metadata is small, it will be beneficial to replicate this a
 
 Note that following new fields needs to be added to existing S3 metadata:
 - New field needs to be  added to the Bucket List Index metadata to locate storage set in  which 'Object List Table' is present. 
-- 'Object List Table' to storage 'Pool Version' and 'Layout ID' locate the Storage Set in which object is located.
+- 'Object List Table' to storage 'Pool Version' and 'Layout ID' locate the Storage Set in which object is located. 
+- **Note**: The objects can be in different storage set than 'Object List Table' and this will help to spread objects (in bucket) across storage set.
 
 **JIRA**: S3 metadata should have version field and reserved field to allow upgraded to metadata without any need for migration?
 
@@ -225,7 +226,7 @@ The sequence diagram below describes GET/PUT flow for the scenario where node is
 * Read path should detect error in retriving data and should use parity units to get missing data.
 ![Node Failure 1](images/simple_object_get_node_failure.png)
 
-### 4.4.1:Simple-Object-Put/Write
+### 4.4.2:Simple-Object-Put/Write
 * Write path should detect error in writing data and should return success if the failed number of write unit is less than or equal to number of parity unit
 ![Node Failure 2](images/simple_object_put_node_failure.png)
 
