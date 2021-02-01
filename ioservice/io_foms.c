@@ -912,7 +912,7 @@ M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
 	nsrec.cnr_pver  = *pver;
 	nsrec.cnr_lid   = lid;
 
-	rc = m0_cob_create(cob, nskey, &nsrec, NULL, NULL, tx);
+	rc = m0_cob_create(cob, nskey, &nsrec, NULL, tx);
 	if (rc != 0)
 		m0_free(nskey);
 	m0_cob_put(cob);

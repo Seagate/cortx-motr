@@ -468,7 +468,6 @@ static struct btype bt[] = {
 	_B(M0_BBT_COB_OBJECT_INDEX,     NULL),
 	_B(M0_BBT_COB_FILEATTR_BASIC,   NULL),
 	_B(M0_BBT_COB_FILEATTR_EA,      NULL),
-	_B(M0_BBT_COB_FILEATTR_OMG,     NULL),
 	_B(M0_BBT_CONFDB,               NULL),
 	_B(M0_BBT_UT_KV_OPS,            NULL),
 	[M0_BBT_NR] = {}
@@ -2978,10 +2977,11 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 {
 	struct cob_action        *ca = container_of(act, struct cob_action,
 						    coa_act);
+	uint16_t 		  ht_idx = cob_get_hash(&ca->coa_fid);
 	struct m0_be_btree       *ios_ns = &act->a_builder->b_ios_cdom->
-								cd_namespace[0];
+							cd_namespace[ht_idx];
 	struct m0_be_btree       *mds_ns = &act->a_builder->b_mds_cdom->
-								cd_namespace[0];
+							cd_namespace[ht_idx];
 	struct m0_cob             cob = {};
 	struct m0_cob_nskey      *nskey = ca->coa_key.b_addr;
 	struct m0_cob_nsrec      *nsrec = ca->coa_val.b_addr;

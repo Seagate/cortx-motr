@@ -71,7 +71,6 @@ digraph schema {
                                                          FIELD(cnr_nlink, uint32_t)
                                                          FIELD(cnr_cntr, uint32_t)
                                                          FIELD(cnr_pad, char[4])
-                                                         FIELD(cnr_omgid, uint64_t)
                                                          FIELD(cnr_size, uint64_t)
                                                          FIELD(cnr_blksize, uint64_t)
                                                          FIELD(cnr_blocks, uint64_t)
@@ -91,7 +90,6 @@ digraph schema {
 							      FIELD(cfb_layoutid, uint64_t)
 							      FIELD(cfb_linklen, uint32_t)
 							      FIELD(cfb_link, char[N]))))
-                           FIELD(cd_fileattr_omg)
                            FIELD(cd_fileattr_ea))>];
 
     ad_dom [label=<RECORD(TYPE(m0_stob_ad_domain, PORT="head")

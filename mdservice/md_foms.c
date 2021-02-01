@@ -1107,12 +1107,6 @@ static int m0_md_tick_readdir(struct m0_fom *fom)
 	if (rc != 0)
 		goto out;
 
-	if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
-		rc = -ENOTDIR;
-		m0_cob_put(cob);
-		goto out;
-	}
-
 	M0_SET0(&rdpg);
 	rdpg.r_pos = m0_alloc(M0_MD_MAX_NAME_LEN);
 	if (rdpg.r_pos == NULL) {

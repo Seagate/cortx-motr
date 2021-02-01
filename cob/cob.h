@@ -73,9 +73,6 @@ struct m0_stob;
    basically anything that is not needed during stat and readdir
    operations;
 
-   - One more table is needed for so called "omg" records
-   (owner/mode/group). They store mode/uid/gid file attributes.
-
    For traditional file systems' namespace we need two tables: name
    space and object index. These tables are used as following:
 
@@ -204,9 +201,6 @@ struct m0_stob;
    - metadata hierarchy root cob (what potentially metadata client
    can see) with fid M0_COB_ROOT_FID and name M0_COB_ROOT_NAME;
 
-   - omgid terminator record with id = ~0ULL. This is used for omgid
-   allocation during m0_cob_create();
-
    Mdstore based cobs cannot be used properly without mkfs done.
    All unit tests that access cob and also all modules using cobs
    should do m0_cob_domain_mkfs() on startup.
@@ -272,7 +266,6 @@ struct m0_cob_domain {
 	struct m0_be_btree      cd_object_index[COB_HT_SIZE];
 	struct m0_be_btree      cd_namespace[COB_HT_SIZE];
 	struct m0_be_btree      cd_fileattr_basic[COB_HT_SIZE];
-	struct m0_be_btree      cd_fileattr_omg;
 	struct m0_be_btree      cd_fileattr_ea[COB_HT_SIZE];
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
@@ -426,7 +419,6 @@ struct m0_cob_nsrec {
 	uint32_t                cnr_nlink;   /**< number of hard links */
 	uint32_t                cnr_cntr;    /**< linkno allocation counter */
 	char                    cnr_pad[4];
-	uint64_t                cnr_omgid;   /**< uid/gid/mode slot reference */
 	uint64_t                cnr_size;    /**< total size, in bytes */
 	uint64_t                cnr_blksize; /**< blocksize for filesystem I/O */
 	uint64_t                cnr_blocks;  /**< number of blocks allocated */
@@ -480,22 +472,6 @@ struct m0_cob_fabrec {
 	uint32_t          cfb_linklen;  /**< symlink len if any */
 	char              cfb_link[0];  /**< symlink body */
 	/* add ACL, Besides ACL, no further metadata is needed for stat(2). */
-} M0_XCA_RECORD M0_XCA_DOMAIN(be);
-
-/**
- * Omg (owner/mode/group) table key
- */
-struct m0_cob_omgkey {
-	uint64_t          cok_omgid;   /**< omg id ref */
-} M0_XCA_RECORD M0_XCA_DOMAIN(be);
-
-/**
- * Protection and access flags are stored in omg table.
- */
-struct m0_cob_omgrec {
-	uint32_t          cor_uid;     /**< user ID of owner */
-	uint32_t          cor_mode;    /**< protection */
-	uint32_t          cor_gid;     /**< group ID of owner */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /** Extended attributes table key */
@@ -576,7 +552,6 @@ struct m0_cob {
 	struct m0_cob_oikey    co_oikey;    /**< object fid, linkno */
 	struct m0_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
 	struct m0_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
-	struct m0_cob_omgrec   co_omgrec;   /**< permission data */
 };
 
 /**
@@ -624,8 +599,7 @@ enum m0_cob_flags {
 	M0_CA_NSKEY_FREE = (1 << 1),  /**< cob will dealloc the nskey */
 	M0_CA_NSREC      = (1 << 2),  /**< nsrec in cob is up-to-date */
 	M0_CA_FABREC     = (1 << 3),  /**< fabrec in cob is up-to-date */
-	M0_CA_OMGREC     = (1 << 4),  /**< omgrec in cob is up-to-date */
-	M0_CA_LAYOUT     = (1 << 5),  /**< layout in cob is up-to-date */
+	M0_CA_LAYOUT     = (1 << 4),  /**< layout in cob is up-to-date */
 };
 
 /**
@@ -633,7 +607,7 @@ enum m0_cob_flags {
  *
  * Allocate a new cob and populate it with the contents of the
  * namespace record; i.e. the stat data and fid. This function
- * also looks up fab and omg tables, depending on "need" flag.
+ * also looks up fab tables, depending on "need" flag.
  *
  * @param dom   cob domain to use
  * @param nskey name to lookup
@@ -653,7 +627,7 @@ M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
  *
  * Create a new cob and populate it with the contents of the
  * a record; i.e. the filename. This also lookups for all attributes,
- * that is, fab, omg, etc., according to @need flags.
+ * that is, fab, etc., according to @need flags.
  *
  * @param dom   cob domain to use
  * @param oikey oikey (fid) to lookup
@@ -678,19 +652,17 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
  * @param nskey  namespace key made with m0_cob_nskey_make()
  * @param nsrec  namespace record with all attributes set
  * @param fabrec basic attributes record
- * @param omgrec owner/mode/group record
  * @param tx     transaction handle
  */
 M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 			      struct m0_cob_nskey *nskey,
 			      struct m0_cob_nsrec *nsrec,
 			      struct m0_cob_fabrec *fabrec,
-			      struct m0_cob_omgrec *omgrec,
 			      struct m0_be_tx *tx);
 
 /**
  * Delete name with stat data, entry in object index and all file
- * attributes from fab, omg, etc., tables.
+ * attributes from fab, etc., tables.
  *
  * @param cob this cob will be deleted
  * @param tx db transaction to use
@@ -710,19 +682,16 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx);
 M0_INTERNAL int m0_cob_delete_put(struct m0_cob *cob, struct m0_be_tx *tx);
 
 /**
- * Update file attributes of passed cob with @nsrec, @fabrec
- * and @omgrec fields.
+ * Update file attributes of passed cob with @nsrec, @fabrec fields.
  *
  * @param cob    cob store updates to
  * @param nsrec  new nsrec to store to cob
  * @param fabrec fab record to store or null
- * @param omgrec omg record to store or null
  * @param tx     db transaction to be used
  */
 M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 			      struct m0_cob_nsrec *nsrec,
 			      struct m0_cob_fabrec *fabrec,
-			      struct m0_cob_omgrec *omgrec,
 			      struct m0_be_tx *tx);
 
 /**
@@ -914,12 +883,6 @@ M0_INTERNAL int m0_cob_setattr(struct m0_cob *cob,
 
 M0_INTERNAL int m0_cob_size_update(struct m0_cob *cob, uint64_t size,
 				   struct m0_be_tx *tx);
-/**
- * Try to allocate new omgid using omg table and terminator record. Save
- * allocated id in @omgid if not NULL.
- */
-/* XXX move tx to the end of the declaration */
-M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom,uint64_t * omgid);
 
 enum m0_cob_op {
 	M0_COB_OP_DOMAIN_MKFS,
