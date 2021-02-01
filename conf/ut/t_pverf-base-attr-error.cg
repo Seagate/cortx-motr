@@ -29,7 +29,7 @@
 
 (pool-1 pver_policy=0 pvers=[])
 (pool-0 pver_policy=0 pvers=[pver-0, pver_f-0])
-(pver-0 N=1 K=1 P=3 tolerance=[0, 0, 0, 0, 3] sitevs=[objv-5])
+(pver-0 N=1 K=1 S=1 P=3 tolerance=[0, 0, 0, 0, 3] sitevs=[objv-5])
 (pver_f-0 id=0 base=pver-0 allowance=[0, 0, 0, 0, 3])
 ## sites -------------------------------------------------------------
 (site-2 racks=[rack-0] pvers=[pver-0])

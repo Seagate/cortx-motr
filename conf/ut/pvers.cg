@@ -7,7 +7,7 @@
 (profile-0 pools=[pool-0])
 
 (pool-0 pver_policy=0 pvers=[pver-0, pver_f-0])
-(pver-0 N=2 K=2 P=10 tolerance=[0, 0, 0, 1, 2] sitevs=[objv-2:0])
+(pver-0 N=2 K=2 S=2 P=10 tolerance=[0, 0, 0, 1, 2] sitevs=[objv-2:0])
 (pver_f-0 id=0xfeed base=pver-0 allowance=[0, 0, 0, 1, 2])
 ## sitevs ------------------------------------------------------------
 (site-2 racks=[rack-0] pvers=[pver-0])

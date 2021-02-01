@@ -1791,7 +1791,9 @@ static uint32_t dix_rop_tgt_iter_max(struct m0_dix_req    *req,
 		 */
 		return m0_dix_liter_P(iter);
 	else
-		return m0_dix_liter_N(iter) + 2 * m0_dix_liter_K(iter);
+		return m0_dix_liter_N(iter) +
+		       m0_dix_liter_K(iter) +
+		       m0_dix_liter_S(iter);
 }
 
 static void dix_rop_tgt_iter_next(const struct m0_dix_req *req,

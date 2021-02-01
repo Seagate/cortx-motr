@@ -73,7 +73,7 @@
 (drive-103 dev=sdev-103 pvers=[pver-100])
 (drive-104 dev=sdev-104 pvers=[pver-100])
 (pool-4 pver_policy=0 pvers=[pver-8])
-(pver-8 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-5])
+(pver-8 N=3 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-5])
 (objv-5 real=site-2 children=[objv-12])
 (objv-12 real=rack-3 children=[objv-17])
 (objv-17 real=enclosure-7 children=[objv-18])
@@ -114,7 +114,7 @@
 (drive-90 dev=sdev-86 pvers=[pver-57])
 
 (pool-56 pver_policy=0 pvers=[pver-57])
-(pver-57 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:58])
+(pver-57 N=3 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:58])
 (objv-2:58 real=site-2 children=[objv-58])
 (objv-58 real=rack-52 children=[objv-59])
 (objv-59 real=enclosure-53 children=[objv-60])
@@ -128,7 +128,7 @@
 
 
 (pool-100 pver_policy=0 pvers=[pver-100])
-(pver-100 N=1 K=2 P=5 tolerance=[0, 0, 0, 0, 2] sitevs=[objv-2:100])
+(pver-100 N=1 K=2 S=2 P=5 tolerance=[0, 0, 0, 0, 2] sitevs=[objv-2:100])
 
 (objv-2:100 real=site-2 children=[objv-100])
 (objv-100 real=rack-3 children=[objv-101])

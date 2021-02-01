@@ -95,7 +95,8 @@ static const char local_conf_str[] = "[35:\
 struct m0_pdclust_attr pd_attr  = {
 	.pa_N         = la_N,
 	.pa_K         = la_K,
-	.pa_P         = la_N + 2 * la_K,
+	.pa_S         = la_S,
+	.pa_P         = la_N + la_K + la_S,
 	.pa_unit_size = 4096,
 	.pa_seed = {
 		.u_hi = 0,
@@ -311,7 +312,7 @@ static uint32_t parity_group_size(struct m0_pdclust_attr *la_attr)
 {
 	M0_UT_ASSERT(la_attr != NULL);
 
-	return la_attr->pa_N + 2 * la_attr->pa_K;
+	return la_attr->pa_N + la_attr->pa_K + la_attr->pa_S;
 
 }
 

@@ -335,7 +335,7 @@
 (drive-211 dev=sdev-118 pvers=[pver-123])
 (drive-212 dev=sdev-119 pvers=[pver-123])
 (pool-3 pver_policy=0 pvers=[pver-123])
-(pver-123 N=8 K=2 P=80 tolerance=[0, 0, 1, 1, 2] sitevs=[objv-2:213])
+(pver-123 N=8 K=2 S=2 P=80 tolerance=[0, 0, 1, 1, 2] sitevs=[objv-2:213])
 (objv-2:213 real=site-2 children=[objv-213, objv-214])
 (objv-213 real=rack-12 children=[objv-215, objv-216, objv-217])
 (objv-215 real=enclosure-120 children=[objv-218, objv-219])

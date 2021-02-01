@@ -222,6 +222,7 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 				 struct m0_pool_version *pver,
 				 uint32_t            nr_nodes,
 				 uint32_t            nr_devices,
+				 uint32_t            nr_spare,
 				 uint32_t            max_node_failures,
 				 uint32_t            max_device_failures);
 

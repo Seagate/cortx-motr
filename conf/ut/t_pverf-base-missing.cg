@@ -46,7 +46,7 @@
 (drive-78 dev=sdev-74 pvers=[pver-0])
 (pool-3 pver_policy=0 pvers=[])
 (pool-4 pver_policy=0 pvers=[pver-0, pver_f-1])
-(pver-0 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-5])
+(pver-0 N=3 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-5])
 (pver_f-1 id=0 base=pver-3 # no such pver
     allowance=[0, 0, 0, 0, 1])
 (objv-5 real=site-2 children=[objv-12])

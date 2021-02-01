@@ -225,13 +225,14 @@ uint64_t m0_sns_cm_ag_nr_parity_units(const struct m0_pdclust_layout *pl)
 M0_INTERNAL
 uint64_t m0_sns_cm_ag_nr_spare_units(const struct m0_pdclust_layout *pl)
 {
-	return m0_pdclust_K(pl);
+	return m0_pdclust_S(pl);
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_size(const struct m0_pdclust_layout *pl)
 {
-	return m0_sns_cm_ag_nr_data_units(pl) + 2 *
-		m0_sns_cm_ag_nr_parity_units(pl);
+	return m0_sns_cm_ag_nr_data_units(pl) +
+	       m0_sns_cm_ag_nr_parity_units(pl) +
+	       m0_sns_cm_ag_nr_spare_units(pl);
 }
 
 M0_INTERNAL bool m0_sns_cm_is_cob_repaired(struct m0_poolmach *pm,

@@ -526,22 +526,24 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 				     uint32_t pool_width,
 				     uint32_t nr_nodes,
 				     uint32_t nr_data,
-				     uint32_t nr_failures)
+				     uint32_t nr_failures,
+				     uint32_t nr_spare)
 {
 	int rc;
 
-	M0_ENTRY("pver id:"FID_F"N:%d K:%d P:%d", FID_P(id), nr_data,
-			nr_failures, pool_width);
+	M0_ENTRY("pver id:"FID_F"N:%d K:%d S:%d P:%d", FID_P(id), nr_data,
+			nr_failures, nr_spare, pool_width);
 	pv->pv_id = *id;
 	pv->pv_attr.pa_N = nr_data;
 	pv->pv_attr.pa_K = nr_failures;
+	pv->pv_attr.pa_S = nr_spare;
 	pv->pv_attr.pa_P = pool_width;
 	pv->pv_pool = pool;
 	pv->pv_nr_nodes = nr_nodes;
 
 	rc = m0_poolmach_init(&pv->pv_mach, pv, pv->pv_nr_nodes,
-			      pv->pv_attr.pa_P, pv->pv_nr_nodes,
-			      pv->pv_attr.pa_K);
+			      pv->pv_attr.pa_P, pv->pv_attr.pa_S,
+			      pv->pv_nr_nodes, pv->pv_attr.pa_K);
 	m0_pool_version_bob_init(pv);
 	pool_version_tlink_init(pv);
 	pv->pv_is_dirty = false;
@@ -720,7 +722,8 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 	rc = m0_pool_version_init(pv, &pver->pv_obj.co_id, pool,
 				  pver->pv_u.subtree.pvs_attr.pa_P, nodes,
 				  pver->pv_u.subtree.pvs_attr.pa_N,
-				  pver->pv_u.subtree.pvs_attr.pa_K) ?:
+				  pver->pv_u.subtree.pvs_attr.pa_K,
+				  pver->pv_u.subtree.pvs_attr.pa_S) ?:
 	     m0_pool_version_device_map_init(pv, pver, pc) ?:
 	     m0_poolmach_init_by_conf(&pv->pv_mach, pver) ?:
 	     m0_poolmach_spare_build(&pv->pv_mach, pool, pver->pv_kind);
