@@ -65,12 +65,19 @@ static void xor_diff(struct m0_parity_math *math,
 		     struct m0_buf         *new,
 		     struct m0_buf         *parity,
 		     uint32_t               index);
-
+#ifndef __KERNEL__
+static void isal_diff(struct m0_parity_math *math,
+		      struct m0_buf         *old,
+		      struct m0_buf         *new,
+		      struct m0_buf         *parity,
+		      uint32_t               index);
+#else
 static void reed_solomon_diff(struct m0_parity_math *math,
 		              struct m0_buf         *old,
 		              struct m0_buf         *new,
 		              struct m0_buf         *parity,
 		              uint32_t               index);
+#endif /* __KERNEL__ */
 
 static void xor_recover(struct m0_parity_math *math,
                         struct m0_buf *data,
@@ -201,7 +208,11 @@ static void (*diff[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
 					   struct m0_buf         *parity,
 					   uint32_t               index) = {
 	[M0_PARITY_CAL_ALGO_XOR]          = xor_diff,
+#ifndef __KERNEL__
+	[M0_PARITY_CAL_ALGO_ISA] = isal_diff,
+#else
 	[M0_PARITY_CAL_ALGO_REED_SOLOMON] = reed_solomon_diff,
+#endif /* __KERNEL__ */
 };
 
 static void (*recover[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
@@ -488,6 +499,45 @@ static void xor_calculate(struct m0_parity_math *math,
 
 }
 
+#ifndef __KERNEL__
+static void isal_diff(struct m0_parity_math *math,
+		      struct m0_buf         *old,
+		      struct m0_buf         *new,
+		      struct m0_buf         *parity,
+		      uint32_t               index)
+{
+	uint8_t *diff_data = NULL;
+	uint32_t block_size = new[index].b_nob;
+	uint32_t ei;
+	uint32_t pi;
+
+	M0_PRE(math   != NULL);
+	M0_PRE(old    != NULL);
+	M0_PRE(new    != NULL);
+	M0_PRE(parity != NULL);
+	M0_PRE(index  <  math->pmi_data_count);
+	M0_PRE(old[index].b_nob == block_size);
+	M0_PRE(m0_forall(i, math->pmi_parity_count,
+		         block_size == parity[i].b_nob));
+
+	M0_ALLOC_ARR(diff_data, block_size);
+	M0_ASSERT(diff_data != NULL);
+
+	for (ei = 0; ei < block_size; ei++) {
+		diff_data[ei] = ((uint8_t *)old[index].b_addr)[ei] ^
+				((uint8_t *)new[index].b_addr)[ei];
+	}
+
+	for (pi = 0; pi < math->pmi_parity_count; ++pi) {
+		M0_ASSERT(block_size == parity[pi].b_nob);
+		math->parity_frags[pi] = (uint8_t *)parity[pi].b_addr;
+	}
+
+	ec_encode_data_update(block_size, math->pmi_data_count,
+			      math->pmi_parity_count, index, math->g_tbls,
+			      diff_data, math->parity_frags);
+}
+#else
 static void reed_solomon_diff(struct m0_parity_math *math,
 			      struct m0_buf         *old,
 			      struct m0_buf         *new,
@@ -520,6 +570,7 @@ static void reed_solomon_diff(struct m0_parity_math *math,
 		}
 	}
 }
+#endif /* __KERNEL__ */
 
 static void xor_diff(struct m0_parity_math *math,
 		     struct m0_buf         *old,
