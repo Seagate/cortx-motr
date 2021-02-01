@@ -103,11 +103,6 @@ M0_INTERNAL int m0_mdstore_init(struct m0_mdstore *md,
 		m0_buf_init(&name, (char*)M0_COB_ROOT_NAME,
 				   strlen(M0_COB_ROOT_NAME));
 		rc = m0_mdstore_lookup(md, NULL, &name, &md->md_root);
-		if (rc == 0)
-			/*
-			 * Check if omgid can be allocated.
-			 */
-			rc = m0_cob_alloc_omgid(md->md_dom, NULL);
 	}
 	if (rc != 0)
 		m0_mdstore_fini(md);
@@ -191,7 +186,7 @@ M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
 	       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
 	       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name));
 	cob->co_nsrec.cnr_nlink += inc;
-	rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
+	rc = m0_cob_update(cob, &cob->co_nsrec, NULL, tx);
 	m0_cob_put(cob);
 out:
 	M0_LEAVE("rc: %d", rc);
@@ -216,7 +211,6 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 	struct m0_cob_nskey   *nskey = NULL;
 	struct m0_cob_nsrec    nsrec = {};
 	struct m0_cob_fabrec  *fabrec = NULL;
-	struct m0_cob_omgrec   omgrec = {};
 	int                    linklen;
 	int                    rc;
 
@@ -253,10 +247,6 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 	nsrec.cnr_lid   = attr->ca_lid;
 	nsrec.cnr_pver  = attr->ca_pver;
 
-	omgrec.cor_uid = attr->ca_uid;
-	omgrec.cor_gid = attr->ca_gid;
-	omgrec.cor_mode = attr->ca_mode;
-
 	linklen = attr->ca_link.b_addr ? attr->ca_link.b_nob : 0;
 	rc = m0_cob_fabrec_make(&fabrec, (char *)attr->ca_link.b_addr,
 				linklen);
@@ -266,7 +256,7 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 		goto out;
 	}
 
-	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
+	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, tx);
 	if (rc != 0) {
 		m0_cob_put(cob);
 		m0_free(nskey);
@@ -333,7 +323,7 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 		return M0_RC(rc);
 
 	cob->co_nsrec.cnr_cntr++;
-	rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
+	rc = m0_cob_update(cob, &cob->co_nsrec, NULL, tx);
 
 	return M0_RC(rc);
 }
@@ -391,9 +381,6 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 				  struct m0_buf         *name,
 				  struct m0_be_tx       *tx)
 {
-	struct m0_cob         *ncob;
-	struct m0_cob_nskey   *nskey = NULL;
-	struct m0_cob_oikey    oikey;
 	time_t                 now;
 	int                    rc;
 
@@ -424,99 +411,6 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 	M0_PRE(cob->co_nsrec.cnr_nlink > 0);
 
 	time(&now);
-
-	/*
-	 * Check for hardlinks.
-	 */
-	if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
-		/*
-		 * New stat data name should get updated nlink value.
-		 */
-		cob->co_nsrec.cnr_nlink--;
-
-		rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr,
-				       name->b_nob);
-		if (rc != 0) {
-			M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): nskey make "
-			       "failed with %d", rc);
-			goto out;
-		}
-
-		/*
-		 * Check if we're trying to kill stata data entry. We need to
-		 * move stat data to another name if so.
-		 */
-		if (cob->co_nsrec.cnr_nlink > 0) {
-			M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): more links exist");
-			if (m0_cob_nskey_cmp(nskey, cob->co_nskey) == 0) {
-				M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): unlink statdata "
-				       "name, find new statdata with %d or more nlinks",
-				       cob->co_nsrec.cnr_linkno + 1);
-
-				/*
-				 * Find another name (new stat data) in object index to
-				 * move old statdata to it.
-				 */
-				m0_cob_oikey_make(&oikey, m0_cob_fid(cob),
-						  cob->co_nsrec.cnr_linkno + 1);
-
-				rc = m0_cob_locate(md->md_dom, &oikey, 0, &ncob);
-				if (rc != 0) {
-					M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): locate "
-					       "failed with %d", rc);
-					m0_free(nskey);
-					goto out;
-				}
-				M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): locate found "
-				       "name with %d nlinks", ncob->co_oikey.cok_linkno);
-				cob->co_nsrec.cnr_linkno = ncob->co_oikey.cok_linkno;
-			} else {
-				M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): unlink hardlink "
-				       "name");
-				ncob = cob;
-			}
-
-			M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): update statdata on store");
-
-			/**
-			   Copy statdata (in case of killing old statdata) or update
-			   statdata with new nlink number.
-			 */
-			rc = m0_cob_update(ncob, &cob->co_nsrec, NULL, NULL, tx);
-			if (rc != 0) {
-				M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): new statdata "
-				       "update failed with %d", rc);
-				m0_free(nskey);
-				goto out;
-			}
-
-			/** Kill the name itself. */
-			rc = m0_cob_name_del(cob, nskey, tx);
-			if (rc != 0) {
-				M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): name del "
-				       "failed with %d", rc);
-				m0_free(nskey);
-				goto out;
-			}
-		} else {
-			/* Zero nlink reached, kill entire object. */
-			rc = m0_cob_delete(cob, tx);
-		}
-		m0_free(nskey);
-	} else {
-		/*
-		 * TODO: we must take some sort of a lock
-		 * when doing check-before-modify update to directory.
-		 */
-		rc = m0_mdstore_dir_empty_check(md, cob);
-		if (rc != 0)
-			goto out;
-		rc = m0_cob_delete(cob, tx);
-		if (rc != 0)
-			goto out;
-		/** Decrement cnr_nlink of parent directory. */
-		rc = m0_mdstore_dir_nlink_update(md, pfid, -1, tx);
-	}
 
 out:
 	return M0_RC(rc);
@@ -652,16 +546,6 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 	attr->ca_valid = 0;
 	attr->ca_tfid = cob->co_nsrec.cnr_fid;
 	attr->ca_pfid = cob->co_nskey->cnk_pfid;
-
-	/*
-	 * Copy permissions and owner info into rep.
-	 */
-	if (cob->co_flags & M0_CA_OMGREC) {
-		attr->ca_valid |= M0_COB_UID | M0_COB_GID | M0_COB_MODE;
-		attr->ca_uid = cob->co_omgrec.cor_uid;
-		attr->ca_gid = cob->co_omgrec.cor_gid;
-		attr->ca_mode = cob->co_omgrec.cor_mode;
-	}
 
 	/*
 	 * Copy nsrec fields into response.
@@ -829,7 +713,7 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 
 	if (flags == M0_MD_LOCATE_STORED) {
 		rc = m0_cob_locate(md->md_dom, &oikey,
-				   (M0_CA_FABREC | M0_CA_OMGREC), cob);
+				   (M0_CA_FABREC), cob);
 	} else {
 		/*
 		 * @todo: locate cob in opened cobs table.
@@ -887,7 +771,7 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 	        rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr, name->b_nob);
 	        if (rc != 0)
 		        goto out;
-	        flags = (M0_CA_NSKEY_FREE | M0_CA_FABREC | M0_CA_OMGREC);
+	        flags = (M0_CA_NSKEY_FREE | M0_CA_FABREC);
 		rc = m0_cob_lookup(md->md_dom, nskey, flags, cob);
 	}
 out:

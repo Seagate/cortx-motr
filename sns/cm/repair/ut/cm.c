@@ -187,13 +187,11 @@ M0_INTERNAL void cob_create(struct m0_reqh *reqh, struct m0_cob_domain *cdom,
 	struct m0_cob_nskey    *nskey;
 	struct m0_cob_nsrec     nsrec;
 	struct m0_cob_fabrec   *fabrec;
-	struct m0_cob_omgrec    omgrec;
         char                    nskey_bs[UINT32_STR_LEN];
         uint32_t                nskey_bs_len;
 	int                     rc;
 
 	M0_SET0(&nsrec);
-	M0_SET0(&omgrec);
 	rc = m0_cob_alloc(cdom, &cob);
 	M0_ASSERT(rc == 0 && cob != NULL);
 	m0_fid_convert_gob2cob(gfid, &cob_fid, cont);
@@ -220,7 +218,7 @@ M0_INTERNAL void cob_create(struct m0_reqh *reqh, struct m0_cob_domain *cdom,
 	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_CREATE, &tx.tx_betx_cred);
 	rc = m0_dtx_open_sync(&tx);
 	M0_ASSERT(rc == 0);
-	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, &tx.tx_betx);
+	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &tx.tx_betx);
 	M0_ASSERT(rc == 0);
 	m0_dtx_done_sync(&tx);
 	m0_dtx_fini(&tx);

@@ -146,14 +146,12 @@ static void test_create(void)
 	struct m0_cob_nskey    *key;
 	struct m0_cob_nsrec	nsrec;
 	struct m0_cob_fabrec  *fabrec;
-	struct m0_cob_omgrec	omgrec;
 	struct m0_fid		pfid;
 	struct m0_be_tx		tx_;
 	struct m0_be_tx	       *tx = &tx_;
 	int			rc;
 
 	M0_SET0(&nsrec);
-	M0_SET0(&omgrec);
 
 	/* pfid, filename */
 	m0_fid_set(&pfid, 0x123, 0x456);
@@ -172,13 +170,13 @@ static void test_create(void)
 	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_CREATE, &accum);
 	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_UPDATE, &accum);
 	ut_tx_open(tx, &accum);
-	rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, tx);
+	rc = m0_cob_create(cob, key, &nsrec, fabrec, tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, tx);
+	rc = m0_cob_create(cob, key, &nsrec, fabrec, tx);
 	M0_UT_ASSERT(rc == -EEXIST);
 
 	++nsrec.cnr_nlink;
-	rc = m0_cob_update(cob, &nsrec, NULL, NULL, tx);
+	rc = m0_cob_update(cob, &nsrec, NULL, tx);
 	M0_UT_ASSERT(rc == 0);
 	m0_cob_put(cob);
 

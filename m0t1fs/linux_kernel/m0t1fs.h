@@ -441,7 +441,7 @@
  *
  * These mdservices are share-nothing: each is completely independent from
  * others and manages its own isolated subset of global objects. Each mdservice
- * has a full set of md tables: namespace, object index, layout, omg, fab, etc.
+ * has a full set of md tables: namespace, object index, layout, fab, etc.
  * The only resource shared by mdservices is fid name space.
  * The same as current implementation, Motr client will continue to have all
  * its objects created in a single root directory. In Active-Archive product

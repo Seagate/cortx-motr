@@ -131,7 +131,7 @@ GMDList = ['BE_BTREE', 'BE_EMAP', 'BE_LIST', 'BE_SEG_HDR', 'BALLOC', 'STOB_AD_0T
 
 btreeType = {b'01': 'M0_BBT_INVALID', b'02': 'M0_BBT_BALLOC_GROUP_EXTENTS', b'03': 'M0_BBT_BALLOC_GROUP_DESC', b'04': 'M0_BBT_EMAP_EM_MAPPING',
              b'05': 'M0_BBT_CAS_CTG', b'06': 'M0_BBT_COB_NAMESPACE', b'07': 'M0_BBT_COB_OBJECT_INDEX', b'08': 'M0_BBT_COB_FILEATTR_BASIC',
-             b'09': 'M0_BBT_COB_FILEATTR_EA', b'0a': 'M0_BBT_COB_FILEATTR_OMG', b'0b': 'M0_BBT_CONFDB', b'0c': 'M0_BBT_UT_KV_OPS', b'0d': 'M0_BBT_NR'}
+             b'09': 'M0_BBT_COB_FILEATTR_EA', b'0a': 'M0_BBT_CONFDB', b'0b': 'M0_BBT_UT_KV_OPS', b'0c': 'M0_BBT_NR'}
 
 BeBnodeTypeKeys = {}
 

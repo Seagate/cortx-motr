@@ -78,7 +78,7 @@
 #10 0x00007fa7c4c1fbdf in m0_cob_name_add (cob=cob@entry=0x7fa7b4046d00, nskey=nskey@entry=0x7fa7b40442d0, nsrec=nsrec@entry=0x7fa7a3fd69a0,
     tx=tx@entry=0x7fa5e40a64e8) at cob/cob.c:1611
 #11 0x00007fa7c4c1fe6a in m0_cob_create (cob=0x7fa7b4046d00, nskey=0x7fa7b40442d0, nsrec=nsrec@entry=0x7fa7a3fd69a0, fabrec=fabrec@entry=0x0,
-    omgrec=omgrec@entry=0x0, tx=tx@entry=0x7fa5e40a64e8) at cob/cob.c:1401
+    tx=tx@entry=0x7fa5e40a64e8) at cob/cob.c:1401
 #12 0x00007fa7c4c90157 in m0_cc_cob_setup (cc=cc@entry=0x7fa5e40a6400, cdom=<optimized out>, attr=attr@entry=0x7fa7a3fd6ce0,
     ctx=ctx@entry=0x7fa5e40a64e8) at ioservice/cob_foms.c:1056
 #13 0x00007fa7c4c90335 in cc_cob_create (attr=0x7fa7a3fd6ce0, cc=0x7fa5e40a6400, fom=0x7fa5e40a6420) at ioservice/cob_foms.c:1014

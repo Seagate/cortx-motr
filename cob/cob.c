@@ -436,33 +436,6 @@ static const struct m0_be_btree_kv_ops cob_ea_ops = {
 	.ko_compare = ea_cmp
 };
 
-/**
-   Omg table definition.
-*/
-static int omg_cmp(const void *key0, const void *key1)
-{
-	const struct m0_cob_omgkey *cok0 = key0;
-	const struct m0_cob_omgkey *cok1 = key1;
-	return M0_3WAY(cok0->cok_omgid, cok1->cok_omgid);
-}
-
-static m0_bcount_t omg_ksize(const void *key)
-{
-	return sizeof(struct m0_cob_omgkey);
-}
-
-static m0_bcount_t omg_vsize(const void *val)
-{
-	return sizeof(struct m0_cob_omgrec);
-}
-
-static const struct m0_be_btree_kv_ops cob_omg_ops = {
-	.ko_type    = M0_BBT_COB_FILEATTR_OMG,
-	.ko_ksize   = omg_ksize,
-	.ko_vsize   = omg_vsize,
-	.ko_compare = omg_cmp
-};
-
 M0_UNUSED static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id *id,
 			     const char *prefix)
 {
@@ -486,11 +459,10 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 	for(i = 0; i < COB_HT_SIZE; i++)
 	{ 
 		m0_be_btree_init(&dom->cd_object_index[i],   seg, &cob_oi_ops);
-		m0_be_btree_init(&dom->cd_namespace[i],	  seg, &cob_ns_ops);
+		m0_be_btree_init(&dom->cd_namespace[i],	     seg, &cob_ns_ops);
 		m0_be_btree_init(&dom->cd_fileattr_basic[i], seg, &cob_fab_ops);
 		m0_be_btree_init(&dom->cd_fileattr_ea[i],    seg, &cob_ea_ops);
 	}
-	m0_be_btree_init(&dom->cd_fileattr_omg,   seg, &cob_omg_ops);
 	return M0_RC(0);
 }
 
@@ -504,7 +476,6 @@ void m0_cob_domain_fini(struct m0_cob_domain *dom)
 		m0_be_btree_fini(&dom->cd_object_index[i]);
 		m0_be_btree_fini(&dom->cd_namespace[i]);
 	}
-	m0_be_btree_fini(&dom->cd_fileattr_omg);
 }
 
 static void cob_domain_id2str(char **s, const struct m0_cob_domain_id *cdid)
@@ -592,11 +563,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 						       M0_BBT_COB_FILEATTR_EA,
 						       cdid->id)));
 	}
-	M0_BE_OP_SYNC(o,
-                      m0_be_btree_create(&dom->cd_fileattr_omg, tx, &o,
-                                         &M0_FID_TINIT('b',
-                                                       M0_BBT_COB_FILEATTR_OMG,
-                                                       cdid->id)));
+
 	data = M0_BUF_INIT_PTR(&dom);
 	rc = m0_be_0type_add(&m0_be_cob0, bedom, tx, cdid_str, &data);
 	M0_ASSERT(rc == 0);
@@ -671,7 +638,6 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 		m0_be_btree_destroy_credit(&dom->cd_fileattr_basic[i], &cred);
 		m0_be_btree_destroy_credit(&dom->cd_fileattr_ea[i],    &cred);
 	}
-	m0_be_btree_destroy_credit(&dom->cd_fileattr_omg,   &cred);
 
 	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, &cred);
@@ -689,7 +655,6 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 		M0_BE_OP_SYNC(o, m0_be_btree_destroy(&dom->cd_fileattr_basic[i], tx, &o));
 		M0_BE_OP_SYNC(o, m0_be_btree_destroy(&dom->cd_fileattr_ea[i],    tx, &o));
 	}
-	M0_BE_OP_SYNC(o, m0_be_btree_destroy(&dom->cd_fileattr_omg,   tx, &o));
 	m0_cob_domain_fini(dom);
 
 	dom->cd_id.id = 0;
@@ -768,22 +733,9 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 {
 	struct m0_cob_nskey  *nskey = NULL;
 	struct m0_cob_nsrec   nsrec = {};
-	struct m0_cob_omgkey  omgkey = {};
-	struct m0_cob_omgrec  omgrec = {};
 	struct m0_cob_fabrec *fabrec = NULL;
-	struct m0_buf         key;
-	struct m0_buf         rec;
 	struct m0_cob        *cob;
 	int                   rc;
-
-	/**
-	   Create terminator omgid record with id == ~0ULL.
-	 */
-	omgkey.cok_omgid = ~0ULL;
-
-	m0_buf_init(&key, &omgkey, sizeof omgkey);
-	m0_buf_init(&rec, &omgrec, sizeof omgrec);
-	cob_table_insert(&dom->cd_fileattr_omg, tx, &key, &rec);
 
 	/**
 	   Create root cob where all namespace is stored.
@@ -800,7 +752,6 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	}
 
 	m0_cob_nsrec_init(&nsrec);
-	nsrec.cnr_omgid = 0;
 	nsrec.cnr_fid = *rootfid;
 
 	nsrec.cnr_nlink = 2;
@@ -810,13 +761,6 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime =
 		m0_time_seconds(m0_time_now());
 
-	omgrec.cor_uid = 0;
-	omgrec.cor_gid = 0;
-	omgrec.cor_mode = S_IFDIR |
-			  S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
-			  S_IRGRP | S_IXGRP |           /* r-x for group */
-			  S_IROTH | S_IXOTH;            /* r-x for others */
-
 	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
 	if (rc != 0) {
 		m0_cob_put(cob);
@@ -824,7 +768,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 		return M0_RC(rc);
 	}
 
-	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
+	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, tx);
 	m0_cob_put(cob);
 	if (rc == -EEXIST)
 		rc = 0;
@@ -1042,37 +986,9 @@ static int cob_fab_lookup(struct m0_cob *cob)
 }
 
 /**
-   Search for a record in the fileattr_omg table.
-   @see cob_fab_lookup
+   Load fab records according with @need flags.
  */
-static int cob_omg_lookup(struct m0_cob *cob)
-{
-	struct m0_cob_omgkey omgkey;
-	struct m0_buf        key;
-	struct m0_buf        val;
-	int                  rc;
-
-	if (cob->co_flags & M0_CA_OMGREC)
-		return 0;
-
-	omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
-
-	m0_buf_init(&key, &omgkey, sizeof omgkey);
-	m0_buf_init(&val, &cob->co_omgrec, sizeof cob->co_omgrec);
-
-	rc = cob_table_lookup(&cob->co_dom->cd_fileattr_omg, &key, &val);
-	if (rc == 0)
-		cob->co_flags |= M0_CA_OMGREC;
-	else
-		cob->co_flags &= ~M0_CA_OMGREC;
-
-	return rc;
-}
-
-/**
-   Load fab and omg records according with @need flags.
- */
-static int cob_get_fabomg(struct m0_cob *cob, uint64_t flags)
+static int cob_get_fab(struct m0_cob *cob, uint64_t flags)
 {
 	int rc = 0;
 
@@ -1082,14 +998,6 @@ static int cob_get_fabomg(struct m0_cob *cob, uint64_t flags)
 			return M0_RC(rc);
 	}
 
-	/*
-	 * Get omg attributes as well if we need it.
-	 */
-	if (flags & M0_CA_OMGREC) {
-		rc = cob_omg_lookup(cob);
-		if (rc != 0)
-			return M0_RC(rc);
-	}
 	return M0_RC(rc);
 }
 
@@ -1119,7 +1027,7 @@ M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
 		return M0_RC(rc);
 	}
 
-	rc = cob_get_fabomg(cob, flags);
+	rc = cob_get_fab(cob, flags);
 	if (rc != 0) {
 		m0_cob_put(cob);
 		return M0_RC(rc);
@@ -1168,9 +1076,9 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 		return M0_RC(rc);
 	}
 
-	rc = cob_get_fabomg(cob, flags);
+	rc = cob_get_fab(cob, flags);
 	if (rc != 0) {
-		M0_LOG(M0_DEBUG, "cob_get_fabomg() failed with %d", rc);
+		M0_LOG(M0_DEBUG, "cob_get_fab() failed with %d", rc);
 		m0_cob_put(cob);
 		return M0_RC(rc);
 	}
@@ -1358,63 +1266,14 @@ static bool m0_cob_is_valid(struct m0_cob *cob)
 	return m0_fid_is_set(m0_cob_fid(cob));
 }
 
-M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
-{
-	struct m0_be_btree_cursor cursor;
-	struct m0_cob_omgkey      omgkey;
-	struct m0_buf             kbuf;
-	int                       rc;
-
-	M0_ENTRY();
-
-	m0_be_btree_cursor_init(&cursor, &dom->cd_fileattr_omg);
-
-	/*
-	 * Look for ~0ULL terminator record and do a step back to find last
-	 * allocated omgid. Terminator record should be prepared in storage
-	 * init time (mkfs or else).
-	 */
-	omgkey.cok_omgid = ~0ULL;
-	m0_buf_init(&kbuf, &omgkey, sizeof omgkey);
-	rc = m0_be_btree_cursor_get_sync(&cursor, &kbuf, true);
-
-	/*
-	 * In case of error, most probably due to no terminator record found,
-	 * one needs to run mkfs.
-	 */
-	if (rc == 0) {
-                rc = m0_be_btree_cursor_prev_sync(&cursor);
-		if (omgid != NULL) {
-			if (rc == 0) {
-				/* We found last allocated omgid.
-				 * Bump it by one. */
-				m0_be_btree_cursor_kv_get(&cursor, &kbuf, NULL);
-				omgkey = *(struct m0_cob_omgkey*)kbuf.b_addr;
-				*omgid = ++omgkey.cok_omgid;
-			} else {
-				/* No last allocated found, this alloc call is
-				 * the first one. */
-				*omgid = 0;
-			}
-		}
-		rc = 0;
-	}
-
-	m0_be_btree_cursor_fini(&cursor);
-	return M0_RC(rc);
-}
-
-
 M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 			      struct m0_cob_nskey *nskey,
 			      struct m0_cob_nsrec *nsrec,
 			      struct m0_cob_fabrec *fabrec,
-			      struct m0_cob_omgrec *omgrec,
 			      struct m0_be_tx *tx)
 {
 	struct m0_buf         key;
 	struct m0_buf         val;
-	struct m0_cob_omgkey  omgkey;
 	struct m0_cob_fabkey  fabkey;
 	int                   rc;
 	uint16_t              ht_idx;
@@ -1428,12 +1287,6 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	M0_ENTRY("nskey=("FID_F", '%s') nsrec=("FID_F", %d)",
 		 FID_P(&nskey->cnk_pfid), (char*)nskey->cnk_name.b_data,
 		 FID_P(&nsrec->cnr_fid), (int)nsrec->cnr_linkno);
-
-	if (omgrec != NULL) {
-		rc = m0_cob_alloc_omgid(cob->co_dom, &nsrec->cnr_omgid);
-		if (rc != 0)
-			goto out;
-	}
 
 	cob->co_nskey = nskey;
 	cob->co_flags |= M0_CA_NSKEY;
@@ -1484,33 +1337,6 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 		cob->co_flags |= M0_CA_FABREC;
 	}
 
-	if (omgrec != NULL) {
-		/*
-		 * Prepare omg key.
-		 */
-		omgkey.cok_omgid = nsrec->cnr_omgid;
-
-		/*
-		 * Now let's update omg attributes. Cache the omgrec.
-		 */
-		cob->co_omgrec = *omgrec;
-		cob->co_flags |= M0_CA_OMGREC;
-
-		/*
-		 * Add to fileattr-omg table.
-		 */
-		m0_buf_init(&key, &omgkey, sizeof omgkey);
-		m0_buf_init(&val, &cob->co_omgrec, sizeof cob->co_omgrec);
-		rc = cob_table_lookup(&cob->co_dom->cd_fileattr_omg, &key,
-		                                                     &val);
-		if (rc == -ENOENT)
-			cob_table_insert(&cob->co_dom->cd_fileattr_omg, tx,
-					 &key, &val);
-		else
-			M0_LOG(M0_DEBUG, "the same omgkey: %"PRIx64" is being "
-			       "added multiple times", omgkey.cok_omgid);
-		rc = 0;
-	}
 out:
 	return M0_RC(rc);
 }
@@ -1518,7 +1344,6 @@ out:
 M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)
 {
 	struct m0_cob_fabkey fabkey;
-	struct m0_cob_omgkey omgkey;
 	struct m0_cob_oikey  oikey;
 	struct m0_buf        key;
 	struct m0_cob       *sdcob;
@@ -1560,22 +1385,6 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)
 		 */
 		cob_table_delete(&cob->co_dom->cd_fileattr_basic[ht_idx], tx, &key);
 
-		/*
-		 * @todo: Omgrec may be shared between multiple objects.
-		 * Delete should take this into account as well as update.
-		 */
-		omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
-
-		/*
-		 * Remove from the fileattr_omg table.
-		 */
-		m0_buf_init(&key, &omgkey, sizeof omgkey);
-
-		/*
-		 * Ignore errors; it's a dangling table entry but causes
-		 * no harm.
-		 */
-		cob_table_delete(&cob->co_dom->cd_fileattr_omg, tx, &key);
 	}
 out:
 	return M0_RC(rc);
@@ -1591,10 +1400,8 @@ M0_INTERNAL int m0_cob_delete_put(struct m0_cob *cob, struct m0_be_tx *tx)
 M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 			      struct m0_cob_nsrec *nsrec,
 			      struct m0_cob_fabrec *fabrec,
-			      struct m0_cob_omgrec *omgrec,
 			      struct m0_be_tx *tx)
 {
-	struct m0_cob_omgkey  omgkey;
 	struct m0_cob_fabkey  fabkey;
 	struct m0_buf         key;
 	struct m0_buf         val;
@@ -1632,22 +1439,6 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 		m0_buf_init(&key, &fabkey, sizeof fabkey);
 		m0_buf_init(&val,cob->co_fabrec, m0_cob_fabrec_size(cob->co_fabrec));
 		rc = cob_table_update(&cob->co_dom->cd_fileattr_basic[ht_idx],
-				      tx, &key, &val);
-	}
-
-	if (rc == 0 && omgrec != NULL) {
-		/*
-		 * @todo: Omgrec may be shared between multiple objects.
-		 * We need to take this into account.
-		 */
-		omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
-
-		cob->co_omgrec = *omgrec;
-		cob->co_flags |= M0_CA_OMGREC;
-
-		m0_buf_init(&key, &omgkey, sizeof omgkey);
-		m0_buf_init(&val, &cob->co_omgrec, sizeof cob->co_omgrec);
-		rc = cob_table_update(&cob->co_dom->cd_fileattr_omg,
 				      tx, &key, &val);
 	}
 
@@ -1721,7 +1512,6 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
 	m0_buf_init(&key, nskey, m0_cob_nskey_size(nskey));
 	m0_buf_init(&val, &nsrec, sizeof nsrec);
 
-
 	rc = cob_table_lookup(&cob->co_dom->cd_namespace[ht_idx], &key, &val);
 	if (rc != 0)
 		goto out;
@@ -1751,33 +1541,32 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 	struct m0_buf        key;
 	struct m0_buf        val;
 	int                  rc;
-
-	uint16_t            ht_srcidx;
-	uint16_t            ht_tgtidx;
 	uint16_t            ht_idx;
+
 	M0_PRE(m0_cob_is_valid(cob));
 	M0_PRE(srckey != NULL && tgtkey != NULL);
 
 	/*
 	 * Insert new record with nsrec found with srckey.
 	 */
-	ht_srcidx = cob_get_hash(&srckey->cnk_pfid);
+	ht_idx = cob_get_hash(&srckey->cnk_pfid);
 	m0_buf_init(&key, srckey, m0_cob_nskey_size(srckey));
-	rc = cob_table_lookup(&cob->co_dom->cd_namespace[ht_srcidx], &key, &val);
+	rc = cob_table_lookup(&cob->co_dom->cd_namespace[ht_idx], &key, &val);
 	if (rc != 0)
 		goto out;
 
-	ht_tgtidx = cob_get_hash(&tgtkey->cnk_pfid);
+	ht_idx = cob_get_hash(&tgtkey->cnk_pfid);
 	m0_buf_init(&key, tgtkey, m0_cob_nskey_size(tgtkey));
 	/* here @val consists value to insert */
-	cob_table_insert(&cob->co_dom->cd_namespace[ht_tgtidx], tx, &key, &val);
+	cob_table_insert(&cob->co_dom->cd_namespace[ht_idx], tx, &key, &val);
 
 	/*
 	 * Kill old record. Error will be returned if
 	 * nothing found.
 	 */
+	ht_idx = cob_get_hash(&srckey->cnk_pfid);
 	m0_buf_init(&key, srckey, m0_cob_nskey_size(srckey));
-	rc = cob_table_delete(&cob->co_dom->cd_namespace[ht_srcidx], tx, &key);
+	rc = cob_table_delete(&cob->co_dom->cd_namespace[ht_idx], tx, &key);
 	if (rc != 0)
 		goto out;
 
@@ -1819,7 +1608,6 @@ M0_INTERNAL int m0_cob_setattr(struct m0_cob *cob, struct m0_cob_attr *attr,
 	struct m0_cob_nsrec   nsrec_prev;
 	struct m0_cob_nsrec  *nsrec = NULL;
 	struct m0_cob_fabrec *fabrec = NULL;
-	struct m0_cob_omgrec *omgrec = NULL;
 	int                   rc;
 
 	M0_ENTRY();
@@ -1864,25 +1652,12 @@ M0_INTERNAL int m0_cob_setattr(struct m0_cob *cob, struct m0_cob_attr *attr,
 	}
 
 	/*
-	 * Handle uid/gid/mode update.
-	 */
-	if (cob->co_flags & M0_CA_OMGREC) {
-		omgrec = &cob->co_omgrec;
-		if (attr->ca_valid & M0_COB_UID)
-			omgrec->cor_uid = attr->ca_uid;
-		if (attr->ca_valid & M0_COB_GID)
-			omgrec->cor_gid = attr->ca_gid;
-		if (attr->ca_valid & M0_COB_MODE)
-			omgrec->cor_mode = attr->ca_mode;
-	}
-
-	/*
 	 * @todo: update fabrec.
 	 */
 	if (cob->co_flags & M0_CA_FABREC)
 		fabrec = cob->co_fabrec;
 
-	rc = m0_cob_update(cob, nsrec, fabrec, omgrec, tx);
+	rc = m0_cob_update(cob, nsrec, fabrec, tx);
 out:
 	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);
@@ -1895,7 +1670,7 @@ M0_INTERNAL int m0_cob_size_update(struct m0_cob *cob, uint64_t size,
 	int rc;
 
 	cob->co_nsrec.cnr_size = size;
-	rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
+	rc = m0_cob_update(cob, &cob->co_nsrec, NULL, tx);
 
 	return rc != 0 ? M0_ERR(rc) : M0_RC(rc);
 }
@@ -1966,7 +1741,6 @@ enum cob_table_optype {
 };
 
 enum cob_table_kvtype {
-	COB_KVTYPE_OMG,
 	COB_KVTYPE_FAB,
 	COB_KVTYPE_FEA,
 	COB_KVTYPE_NS,
@@ -1982,10 +1756,6 @@ static void cob_table_tx_credit(struct m0_be_btree *tree,
 		m0_bcount_t s_key;
 		m0_bcount_t s_rec;
 	} kv_size[] = {
-		[COB_KVTYPE_OMG] = {
-			.s_key = sizeof(struct m0_cob_omgkey),
-			.s_rec = sizeof(struct m0_cob_omgrec),
-		},
 		[COB_KVTYPE_FAB] = {
 			.s_key = sizeof(struct m0_cob_fabkey),
 			.s_rec = m0_cob_max_fabrec_size(),
@@ -2007,7 +1777,7 @@ static void cob_table_tx_credit(struct m0_be_btree *tree,
 	m0_bcount_t ksize;
 	m0_bcount_t vsize;
 
-	M0_PRE(M0_IN(t_kvtype, (COB_KVTYPE_OMG, COB_KVTYPE_FAB, COB_KVTYPE_FEA,
+	M0_PRE(M0_IN(t_kvtype, (COB_KVTYPE_FAB, COB_KVTYPE_FEA,
 				COB_KVTYPE_NS, COB_KVTYPE_OI)));
 
 	ksize = kv_size[t_kvtype].s_key;
@@ -2040,7 +1810,6 @@ M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,
 
 	switch (optype) {
 	case M0_COB_OP_DOMAIN_MKFS:
-		TCREDIT(&dom->cd_fileattr_omg, INSERT, OMG, accum);
 		for (i = 0; i < 2; ++i)
 			m0_cob_tx_credit(dom, M0_COB_OP_CREATE, accum);
 		break;
@@ -2050,20 +1819,19 @@ M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,
 		break;
 	case M0_COB_OP_CREATE:
 		m0_cob_tx_credit(dom, M0_COB_OP_NAME_ADD, accum);
+		/** When calculating credit, we can just use the first element 
+		 * in array,as the result will be the same for any element. */
 		TCREDIT(&dom->cd_fileattr_basic[0], INSERT, FAB, accum);
-		TCREDIT(&dom->cd_fileattr_omg, INSERT, OMG, accum);
 		break;
 	case M0_COB_OP_DELETE:
 	case M0_COB_OP_DELETE_PUT:
 		m0_cob_tx_credit(dom, M0_COB_OP_LOCATE, accum);
 		m0_cob_tx_credit(dom, M0_COB_OP_NAME_DEL, accum);
 		TCREDIT(&dom->cd_fileattr_basic[0], DELETE, FAB, accum);
-		TCREDIT(&dom->cd_fileattr_omg, DELETE, FAB, accum);
 		break;
 	case M0_COB_OP_UPDATE:
 		TCREDIT(&dom->cd_namespace[0], UPDATE, NS, accum);
 		TCREDIT(&dom->cd_fileattr_basic[0], UPDATE, FAB, accum);
-		TCREDIT(&dom->cd_fileattr_omg, UPDATE, OMG, accum);
 		break;
 	case M0_COB_OP_FEA_SET:
 		TCREDIT(&dom->cd_fileattr_ea[0], DELETE, FEA, accum);

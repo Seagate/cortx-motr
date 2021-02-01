@@ -888,16 +888,6 @@ static int cob_attr_get(struct m0_cob        *cob,
 	attr->ca_pfid = cob->co_nskey->cnk_pfid;
 
 	/*
-	 * Copy permissions and owner info into rep.
-	 */
-	if (cob->co_flags & M0_CA_OMGREC) {
-		attr->ca_valid |= M0_COB_UID | M0_COB_GID | M0_COB_MODE;
-		attr->ca_uid  = cob->co_omgrec.cor_uid;
-		attr->ca_gid  = cob->co_omgrec.cor_gid;
-		attr->ca_mode = cob->co_omgrec.cor_mode;
-	}
-
-	/*
 	 * Copy nsrec fields into response.
 	 */
 	if (cob->co_flags & M0_CA_NSREC) {
@@ -1064,7 +1054,7 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op     *cc,
 	nsrec.cnr_lid     = attr->ca_lid;
 	nsrec.cnr_pver    = attr->ca_pver;
 
-	rc = m0_cob_create(cob, nskey, &nsrec, NULL, NULL, ctx);
+	rc = m0_cob_create(cob, nskey, &nsrec, NULL, ctx);
 	if (rc != 0) {
 	        /*
 	         * Cob does not free nskey and fab rec on errors. We need to do
