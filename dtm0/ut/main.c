@@ -64,18 +64,29 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 	struct dtm0_rep_fop   *rep;
 	struct dtm0_req_fop   *req;
 
+	struct m0_dtm0_txr *txr;
+	static char key[] = "555";
+	struct m0_buf *reply_data;
+
 	M0_PRE(cl_rpc_session != NULL);
 
+	M0_ALLOC_PTR(txr);
+	txr->dt_txr_payload = M0_BUF_INIT(sizeof key, key);
 	fop = m0_fop_alloc_at(cl_rpc_session,
 			      &dtm0_req_fop_fopt);
 	req = m0_fop_data(fop);
-	req->csr_value = 555;
+	req->dto_opcode = DT_REQ;
+	req->dto_opflags = 0;
+	req->dto_opmsg = DMT_EXECUTE_DTX;
+	req->dto_txr = txr;
 	rc = m0_rpc_post_sync(fop, cl_rpc_session,
 			      &dtm0_req_fop_rpc_item_ops,
 			      0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);
 	rep = reply(fop->f_item.ri_reply);
-	M0_UT_ASSERT(rep->csr_rc == 555);
+	reply_data = &rep->dr_txr->dt_txr_payload;
+
+	M0_UT_ASSERT(m0_buf_eq(reply_data, &txr->dt_txr_payload));
 	m0_fop_put_lock(fop);
 }
 

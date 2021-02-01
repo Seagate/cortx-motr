@@ -23,6 +23,9 @@
 #ifndef __MOTR_BE_DTM0_LOG_H__
 #define __MOTR_BE_DTM0_LOG_H__
 
+#include "fid/fid.h"
+#include "be/list.h"
+
 /**
  *  @page dtm0 log implementation
  *
@@ -217,7 +220,7 @@ M0_INTERNAL void m0_be_dtm0_log_credit(enum m0_be_dtm0_log_credit_op op,
                                        struct m0_be_seg             *seg,
                                        struct m0_be_tx_credit       *accum);
 // create/destroy
-M0_INTERNAL void m0_be_dtm0_log_create(struct m0_be_tx i      *tx,
+M0_INTERNAL void m0_be_dtm0_log_create(struct m0_be_tx        *tx,
                                        struct m0_be_seg       *seg,
                                        struct m0_be_dtm0_log **out);
 
