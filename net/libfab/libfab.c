@@ -1544,7 +1544,10 @@ static int libfab_ma_start(struct m0_net_transfer_mc *ntm, const char *name)
 	if (ftm->ftm_pep != NULL)
 		libfab_ep_addr_decode(ftm->ftm_pep, name);
 		
+		rc = libfab_passive_ep_create(ftm->ftm_pep, ftm);
 		if (rc != FI_SUCCESS)
+			return M0_RC(rc);
+
 		m0_ref_init(&ftm->ftm_pep->fep_nep.nep_ref, 1, 
 				&libfab_ep_release);
 		libfab_ep_get(ftm->ftm_pep); /* TODO: Remove */
