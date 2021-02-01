@@ -15,7 +15,8 @@ Read()/Write() request. (For example, see the source code of `mcp` utility and i
 option.)
 
 `mcp` (Motr cp) utility is a client application example written in pure Go which uses
-`go/mio` package and has only 97 lines of code (as of 30 Oct 2020):
+`go/mio` package and has only 97 lines of code (as of 30 Oct 2020). It allows to copy
+Motr objects to/from a file or between themselves:
 
 ```Text
 Usage: mcp [options] src dst
@@ -46,9 +47,17 @@ Usage: mcp [options] src dst
   -v	be more verbose
 ```
 
-In order to build, [build Motr](../../doc/Quick-Start-Guide.rst) first
-(or install motr-devel package). Then run:
+In order to build:
+
+1. [Build Motr](../../doc/Quick-Start-Guide.rst) first
+(or install pre-built motr-devel package).
+2. Install Go: `sudo yum install go`.
+
+Then run:
 
 ```sh
-cd motr/bindings/go/mcp && go build
+cd motr/bindings/go/mcp && go build && go install
 ```
+
+If the build is successful, the binary will be installed
+to your `GOBIN` directory (check with `go env GOBIN`).
