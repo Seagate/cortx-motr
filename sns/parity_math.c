@@ -507,7 +507,7 @@ static void isal_diff(struct m0_parity_math *math,
 		      uint32_t               index)
 {
 	uint8_t *diff_data = NULL;
-	uint32_t block_size = new[index].b_nob;
+	uint32_t block_size;
 	uint32_t ei;
 	uint32_t pi;
 
@@ -516,6 +516,9 @@ static void isal_diff(struct m0_parity_math *math,
 	M0_PRE(new    != NULL);
 	M0_PRE(parity != NULL);
 	M0_PRE(index  <  math->pmi_data_count);
+
+	block_size = new[index].b_nob;
+
 	M0_PRE(old[index].b_nob == block_size);
 	M0_PRE(m0_forall(i, math->pmi_parity_count,
 		         block_size == parity[i].b_nob));
