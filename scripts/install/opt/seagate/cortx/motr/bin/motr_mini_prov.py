@@ -328,7 +328,8 @@ def config_lvm(self):
                 f'cluster>{self._server_id}')['storage']['metadata_devices']
     except:
         raise MotrError(errno.EINVAL, "metadata_devices not found\n")
-
+    check_type(metadata_devices, list, "metadata_devices")
+    
     sys.stdout.write(f"\nlvm metadata_devices: {metadata_devices}\n\n")
 
     for device in metadata_devices:
