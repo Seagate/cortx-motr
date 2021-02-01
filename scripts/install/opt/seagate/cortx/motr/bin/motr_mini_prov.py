@@ -64,7 +64,7 @@ def check_type(var, vtype, msg):
 
 
 def get_current_node(self):
-    """get current node name using machine-id."""
+    """Get current node name using machine-id."""
     cmd = "cat /etc/machine-id"
     machine_id = execute_command(self, cmd)
     machine_id = machine_id[0].split('\n')[0]
@@ -162,6 +162,10 @@ def configure_lnet(self):
         iface = iface[0]
     except:
         raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
+
+    sys.stdout.write(f"Validate private_interfaces[0]: {iface}\n")
+    cmd = f"ip addr show {iface}"
+    execute_command(self, cmd)
 
     try:
         iface_type = Conf.get(self._index,
@@ -276,7 +280,7 @@ def create_lvm(self, index, metadata_dev):
 
     try:
         cmd = f"vgs {vg_name}"
-        op = execute_command(self, cmd)
+        execute_command(self, cmd)
     except MotrError:
         pass
     else:
@@ -285,10 +289,10 @@ def create_lvm(self, index, metadata_dev):
         del_swap_fstab_by_vg_name(self, vg_name)
 
         cmd = f"vgchange -an {vg_name}"
-        op = execute_command(self, cmd)
+        execute_command(self, cmd)
 
         cmd = f"vgremove {vg_name} -ff"
-        op = execute_command(self, cmd)
+        execute_command(self, cmd)
 
     sys.stdout.write(f"Creating physical volume from {metadata_dev}\n")
     cmd = f"pvcreate {metadata_dev} --yes"
@@ -318,7 +322,7 @@ def create_lvm(self, index, metadata_dev):
 
 
 def config_lvm(self):
-    """create volume group and lvm for swap and metadata."""
+    """Create volume group and lvm for swap and metadata."""
     try:
         metadata_devices = Conf.get(self._index,
                 f'cluster>{self._server_id}')['storage']['metadata_devices']
@@ -332,7 +336,7 @@ def config_lvm(self):
 
 
 def get_lnet_xface() -> str:
-    """get lnet interface."""
+    """Get lnet interface."""
     lnet_xface = None
     try:
         with open(LNET_CONF_FILE, 'r') as f:
@@ -355,7 +359,7 @@ def get_lnet_xface() -> str:
     return lnet_xface
 
 def check_pkgs(self, pkgs):
-    """check rpm packages."""
+    """Check rpm packages."""
     for pkg in pkgs:
         ret = 1
         cmd = f"rpm -q {pkg}"
@@ -372,7 +376,7 @@ def check_pkgs(self, pkgs):
             raise MotrError(errno.ENOENT, f"Missing rpm: {pkg}")
 
 def get_nids(self, nodes):
-    """get lnet nids of all available nodes in cluster."""
+    """Get lnet nids of all available nodes in cluster."""
     nids = []
 
     for node in nodes.values():
@@ -394,7 +398,7 @@ def get_nids(self, nodes):
     return nids
 
 def lnet_ping(self):
-    """lctl ping on all available nodes in cluster."""
+    """Lnet lctl ping on all available nodes in cluster."""
     try:
         nodes = Conf.get(self._index, 'cluster>server_nodes')
     except:
