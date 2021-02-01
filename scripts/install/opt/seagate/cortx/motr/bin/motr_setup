@@ -190,7 +190,7 @@ def main(argv: dict):
 
     except Exception as e:
         sys.stderr.write(f"\n{str(e)}\n\n")
-        sys.stderr.write( f"{traceback.format_exc()}\n")
+        sys.stderr.write(f"{traceback.format_exc()}\n")
         Cmd.usage(argv[0])
         return errno.EINVAL
 
