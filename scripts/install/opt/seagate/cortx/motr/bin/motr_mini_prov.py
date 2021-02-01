@@ -58,13 +58,13 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
 
-def check_type(var, type, msg):
-    if not isinstance(var, type):
-        raise MotrError(errno.EINVAL, f"Invalid {msg} type. Expected: {type}")
+def check_type(var, vtype, msg):
+    if not isinstance(var, vtype):
+        raise MotrError(errno.EINVAL, f"Invalid {msg} type. Expected: {vtype}")
 
 
 def get_current_node(self):
-    """get current node name using machine-id"""
+    """get current node name using machine-id."""
     cmd = "cat /etc/machine-id"
     machine_id = execute_command(self, cmd)
     machine_id = machine_id[0].split('\n')[0]
@@ -136,7 +136,7 @@ def motr_config(self):
         execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
 def configure_net(self):
-    """Wrapper function to detect lnet/libfabric transport"""
+    """Wrapper function to detect lnet/libfabric transport."""
     try:
         transport_type = Conf.get(self._index,
             f'cluster>{self._server_id}')['network']['data']['transport_type']
@@ -277,7 +277,6 @@ def create_lvm(self, index, metadata_dev):
     try:
         cmd = f"vgs {vg_name}"
         op = execute_command(self, cmd)
-        ret = op[1]
     except MotrError:
         pass
     else:
@@ -303,7 +302,7 @@ def create_lvm(self, index, metadata_dev):
     cmd = f"vgchange --addtag {node_name} {vg_name}"
     execute_command(self, cmd)
 
-    sys.stdout.write(f"Scanning volume group\n")
+    sys.stdout.write("Scanning volume group\n")
     cmd = "vgscan --cache"
     execute_command(self, cmd)
 
@@ -319,7 +318,7 @@ def create_lvm(self, index, metadata_dev):
 
 
 def config_lvm(self):
-    "create volume group and lvm for swap and metadata"
+    """create volume group and lvm for swap and metadata."""
     try:
         metadata_devices = Conf.get(self._index,
                 f'cluster>{self._server_id}')['storage']['metadata_devices']
@@ -333,7 +332,7 @@ def config_lvm(self):
 
 
 def get_lnet_xface() -> str:
-    """get lnet interface"""
+    """get lnet interface."""
     lnet_xface = None
     try:
         with open(LNET_CONF_FILE, 'r') as f:
@@ -356,7 +355,7 @@ def get_lnet_xface() -> str:
     return lnet_xface
 
 def check_pkgs(self, pkgs):
-    """check rpm packages"""
+    """check rpm packages."""
     for pkg in pkgs:
         ret = 1
         cmd = f"rpm -q {pkg}"
@@ -373,7 +372,7 @@ def check_pkgs(self, pkgs):
             raise MotrError(errno.ENOENT, f"Missing rpm: {pkg}")
 
 def get_nids(self, nodes):
-    """get lnet nids of all available nodes in cluster"""
+    """get lnet nids of all available nodes in cluster."""
     nids = []
 
     for node in nodes.values():
@@ -385,7 +384,7 @@ def get_nids(self, nodes):
         check_type(hostname, str, "hostname")
 
         if self._server_id == node:
-            cmd = f"lctl list_nids"
+            cmd = "lctl list_nids"
         else:
             cmd = (f"ssh  -o \"StrictHostKeyChecking=no\" {hostname}"
                     " lctl list_nids")
@@ -395,7 +394,7 @@ def get_nids(self, nodes):
     return nids
 
 def lnet_ping(self):
-    """lctl ping on all available nodes in cluster"""
+    """lctl ping on all available nodes in cluster."""
     try:
         nodes = Conf.get(self._index, 'cluster>server_nodes')
     except:
@@ -405,8 +404,8 @@ def lnet_ping(self):
 
     nids = get_nids(self, nodes)
 
-    sys.stdout.write(f"lnet pinging on all nodes in cluster\n")
-    sys.stdout.write(f"motr_setup init MUST be performed on all nodes before "
+    sys.stdout.write("lnet pinging on all nodes in cluster\n")
+    sys.stdout.write("motr_setup init MUST be performed on all nodes before "
                       "executing this\n")
     for nid in nids:
        cmd = f"lctl ping {nid}"
