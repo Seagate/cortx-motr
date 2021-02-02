@@ -781,15 +781,68 @@ struct m0_client* st_get_instance()
 	return ut_m0c;
 }
 
+#include "dtm0/helper.h"
+#include "dtm0/service.h"
+
+#define M0_FID(c_, k_)  { .f_container = c_, .f_key = k_ }
+static void st_one_dtm0_op_idx_create(void)
+{
+	struct m0_container realm;
+	struct m0_idx       idx;
+	struct m0_fid       ifid;
+	struct m0_op       *op = NULL;
+	int                 rc;
+
+	general_ifid_fill(&ifid, true);
+	m0_container_init(&realm, NULL, &M0_UBER_REALM, ut_m0c);
+	m0_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
+
+	/* Create index. */
+	rc = m0_entity_create(NULL, &idx.in_entity, &op);
+	M0_UT_ASSERT(rc == 0);
+	m0_op_launch(&op, 1);
+	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
+	M0_UT_ASSERT(rc == 0);
+	m0_op_fini(op);
+	m0_free0(&op);
+
+	m0_idx_fini(&idx);
+}
+
+static void st_one_dtm0_op(void)
+{
+	static struct m0_fid     cli_srv_fid  = M0_FID(0x7300000000000001, 0x1a);
+	static struct m0_fid     srv_dtm0_fid = M0_FID(0x7300000000000001, 0x1c);
+	static const char       *cl_ep_addr   = "0@lo:12345:34:1";
+	struct m0_reqh_service  *cli_srv;
+	struct m0_reqh_service  *srv_srv;
+	struct m0_reqh          *srv_reqh = &dix_ut_sctx.rsx_motr_ctx.cc_reqh_ctx.rc_reqh;
+	int rc;
+
+	cli_srv = m0_dtm__client_service_start(&ut_m0c->m0c_reqh, &cli_srv_fid);
+	M0_UT_ASSERT(cli_srv != NULL);
+	srv_srv = m0_reqh_service_lookup(srv_reqh, &srv_dtm0_fid);
+	rc = m0_dtm0_service_process_connect(srv_srv, &cli_srv_fid, cl_ep_addr);
+	M0_UT_ASSERT(rc == 0);
+
+	/* XXX: put logic here */
+	st_one_dtm0_op_idx_create();
+
+	rc = m0_dtm0_service_process_disconnect(srv_srv, &cli_srv_fid);
+	M0_UT_ASSERT(rc == 0);
+	m0_dtm__client_service_stop(cli_srv);
+}
+
 struct m0_ut_suite ut_suite_mt_idx_dix = {
 	.ts_name   = "idx-dix-mt",
 	.ts_owners = "Anatoliy",
 	.ts_init   = ut_suite_mt_idx_dix_init,
 	.ts_fini   = ut_suite_mt_idx_dix_fini,
 	.ts_tests  = {
-		{ "fom", st_mt,    "Anatoliy" },
-		{ "lsf", st_lsfid, "Anatoliy" },
-		{ "lsfc", st_lsfid_cancel, "Vikram" },
+		{ "fom",  st_mt,           "Anatoliy" },
+		{ "lsf",  st_lsfid,        "Anatoliy" },
+		{ "lsfc", st_lsfid_cancel, "Vikram"   },
+		{ "dtm0", st_one_dtm0_op,  "Anatoliy" },
 		{ NULL, NULL }
 	}
 };

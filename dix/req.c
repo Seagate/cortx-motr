@@ -1368,7 +1368,9 @@ static void dix__rop(struct m0_dix_req *req, const struct m0_bufvec *keys,
 	M0_PRE(keys_nr != 0);
 #else
 	/* We support only one record per request in DTM0. */
-	M0_PRE(keys_nr == 1);
+	M0_PRE(ergo(M0_IN(req->dr_type, (DIX_CREATE, DIX_DELETE,
+					 DIX_PUT, DIX_DEL)),
+		    keys_nr == 1));
 #endif
 	M0_ALLOC_PTR(rop);
 	if (rop == NULL) {

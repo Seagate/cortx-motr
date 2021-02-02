@@ -22,25 +22,26 @@
 
 #pragma once
 
-#ifndef __MOTR_DTM0_SERVICE_H__
-#define __MOTR_DTM0_SERVICE_H__
+#ifndef __MOTR_DTM0_HELPER_H__
+#define __MOTR_DTM0_HELPER_H__
 
-#include "reqh/reqh_service.h"
+struct m0_reqh_service;
+struct m0_reqh;
+struct m0_fid;
 
-extern struct m0_reqh_service_type dtm0_service_type;
+M0_INTERNAL struct m0_reqh_service *
+m0_dtm__client_service_start(struct m0_reqh *reqh, struct m0_fid *cli_srv_fid);
+M0_INTERNAL void m0_dtm__client_service_stop(struct m0_reqh_service *svc);
 
-int m0_dtm0_stype_init(void);
-void m0_dtm0_stype_fini(void);
+/* __MOTR_DTM0_HELPER_H__ */
+#endif
 
-
-M0_INTERNAL int m0_dtm0_service_process_connect(struct m0_reqh_service *s,
-						struct m0_fid *remote_srv,
-						const char    *remote_ep);
-M0_INTERNAL int m0_dtm0_service_process_disconnect(struct m0_reqh_service *s,
-						   struct m0_fid *remote_srv);
-M0_INTERNAL struct m0_rpc_session *
-m0_dtm0_service_process_session_get(struct m0_reqh_service *s,
-				    struct m0_fid *remote_srv);
-
-
-#endif /* __MOTR_DTM0_SERVICE_H__ */
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

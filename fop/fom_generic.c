@@ -96,9 +96,12 @@ int32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *reply)
 }
 M0_EXPORTED(m0_rpc_item_generic_reply_rc);
 
+#include "reqh/reqh_service.h"
 static bool fom_is_update(const struct m0_fom *fom)
 {
-	return m0_rpc_item_is_update(m0_fop_to_rpc_item(fom->fo_fop));
+	/* XXX: make dtm0 service happy on client side */
+	return fom->fo_service->rs_service_fid.f_key != 0x1a &&
+		m0_rpc_item_is_update(m0_fop_to_rpc_item(fom->fo_fop));
 }
 
 /**
