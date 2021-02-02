@@ -37,6 +37,7 @@
 
 #include "dtm0/fop.h"
 #include "dtm0/fop_xc.h"
+#include "dtm0/service.h"
 #include "rpc/rpc_opcodes.h"
 
 static void dtm0_rpc_item_reply_cb(struct m0_rpc_item *item);
@@ -99,6 +100,10 @@ void m0_dtm0_fop_fini(void)
 
 int m0_dtm0_fop_init(void)
 {
+	static int init_once = 0;
+	if (init_once++ > 0)
+		return 0;
+
 	m0_xc_dtm0_fop_init();
 	M0_FOP_TYPE_INIT(&dtm0_req_fop_fopt,
 			 .name      = "DTM0 request",
@@ -162,6 +167,31 @@ static size_t dtm0_fom_locality(const struct m0_fom *fom)
 	return locality++;
 }
 
+#define M0_FID(c_, k_)  { .f_container = c_, .f_key = k_ }
+static void dtm0_pong_back(struct m0_rpc_session *session)
+{
+        struct m0_fop         *fop;
+	struct dtm0_req_fop   *req;
+	struct m0_rpc_item    *item;
+	int                    rc;
+
+	M0_PRE(session != NULL);
+
+	fop = m0_fop_alloc_at(session, &dtm0_req_fop_fopt);
+	req = m0_fop_data(fop);
+	req->csr_value = 555;
+
+	item              = &fop->f_item;
+	item->ri_ops      = &dtm0_req_fop_rpc_item_ops;
+	item->ri_session  = session;
+	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline = M0_TIME_NEVER;
+
+	rc = m0_rpc_post(item);
+	M0_ASSERT(rc == 0);
+	m0_fop_put_lock(fop); // XXX: shall we lock here???
+}
+
 static int dtm0_fom_tick(struct m0_fom *fom)
 {
 	int                  rc;
@@ -176,6 +206,12 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 		rep->csr_rc = req->csr_value;
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		rc = M0_FSO_AGAIN;
+		if (fom->fo_service->rs_service_fid.f_key == 0x1c) {
+			struct m0_fid fid = M0_FID(0x7300000000000001, 0x1a);
+			dtm0_pong_back(
+				m0_dtm0_service_process_session_get(
+					fom->fo_service, &fid));
+		}
 	}
 
 	return rc;
