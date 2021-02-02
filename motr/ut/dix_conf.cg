@@ -26,8 +26,10 @@
 (service-25 type=@M0_CST_SNS_REB endpoints=["0@lo:12345:34:1"] params=[]
     sdevs=[])
 
-(service-26 type=@M0_CST_DTM0 endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
-(service-28 type=@M0_CST_DTM0 endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
+(service-26 type=@M0_CST_DTM0 endpoints=["0@lo:12345:34:1"]
+    params=["origin:in-volatile"] sdevs=[])
+(service-28 type=@M0_CST_DTM0 endpoints=["0@lo:12345:34:1"]
+    params=["origin:in-persistent"] sdevs=[])
 
 
 (service-126 type=@M0_CST_DIX_REP endpoints=["0@lo:12345:34:1"] params=[]
