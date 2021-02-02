@@ -1335,19 +1335,17 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 * We need to calculate credits for creating a dtm0 log record.
 		 *
 		 */
-		if (cas_op(fom0)->txr) {
-			/*
+		if (cas_op(fom0)->cg_txd) {
 			struct m0_be_tx_credit dtm0logrec_cred;
-			struct m0_be_tx     *tx = m0_fom_tx(fom0);
 
+			/*
 			m0_be_dtm0_log_credit(M0_DTML_EXECUTED,
 					      tx,
-					      txr,
+					      cas_op(fom0)->cg_txd,
 					      m0_fom_reqh(fom0)->rh_beseg,
 					      &dtm0logrec_cred);
-
-			m0_be_tx_credit_add(&tx->t_prepared, dtm0logrec_cred);
 					      */
+			m0_be_tx_credit_add(&fom0->fo_tx.tx_betx_cred, &dtm0logrec_cred);
 		}
 
 		m0_fom_phase_set(fom0, M0_FOPH_TXN_OPEN);

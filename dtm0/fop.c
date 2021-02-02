@@ -20,6 +20,7 @@
  */
 
 
+#include "dtm0/tx_desc.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -122,12 +123,10 @@ int m0_dtm0_fop_init(void)
   Allocates a fop.
  */
 
-int m0_dtm0_fop_create(struct m0_rpc_session	     *session,
-		       enum m0_dtm0s_opcode	      opcode,
-		       enum m0_dtm0s_msg	      opmsg,
-		       enum m0_dtm0s_op_flags	      opflags,
-		       struct m0_dtm0_txr	     *txr,
-		       struct m0_fop		    **out)
+int m0_dtm0_fop_create(struct m0_rpc_session	 *session,
+		       enum m0_dtm0s_msg	  opmsg,
+		       struct m0_dtm0_tx_desc	 *txr,
+		       struct m0_fop		**out)
 {
 	struct dtm0_req_fop  *op;
 	struct m0_fop	     *fop;
@@ -139,10 +138,8 @@ int m0_dtm0_fop_create(struct m0_rpc_session	     *session,
 	if (fop == NULL)
 		rc = -ENOMEM;
 	op = m0_fop_data(fop);
-	op->dto_opcode = opcode;
-	op->dto_opflags = opflags;
-	op->dto_opmsg = opmsg;
-	op->dto_txr = txr;
+	op->dtr_msg = opmsg;
+	op->dtr_txr = txr;
 	*out = fop;
 	return rc;
 }
@@ -204,8 +201,9 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 	} else {
 		req = m0_fop_data(fom->fo_fop);
 		rep = m0_fop_data(fom->fo_rep_fop);
+
 		//m0_buf_copy(&rep->dr_txr->dt_txr_payload, &req->dto_txr->dt_txr_payload);
-		rep->dr_txr = req->dto_txr;
+		rep->dr_txr = req->dtr_txr;
 		rep->dr_rc = 0;
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		rc = M0_FSO_AGAIN;

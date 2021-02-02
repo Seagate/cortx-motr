@@ -50,52 +50,24 @@ extern const struct m0_rpc_item_ops dtm0_req_fop_rpc_item_ops;
 int m0_dtm0_fop_init(void);
 void m0_dtm0_fop_fini(void);
 
-/**
- * DTM0S operation flags.
- */
-enum m0_dtm0s_op_flags {
-	/**
-	 * Define any operation flags
-	 */
-	DOF_NONE = 0,
-	/**
-	 * Delay reply until transaction is persisted.
-	 */
-	DOF_SYNC_WAIT = 1 << 0,
-} M0_XCA_ENUM;
-
-/**
-* DTM0S operation codes.
-*/
-
-enum m0_dtm0s_opcode{
-	DT_REQ,
-	DT_REDO,
-	DT_NR,
-} M0_XCA_ENUM;
-
 enum m0_dtm0s_msg {
-	DMT_EXECUTE_DTX,
+	DMT_EXECUTE,
 	DMT_EXECUTED,
-	DMT_PERSISTENT,
-	DMT_NR,
+	DTM_PERSISTENT,
+	DMT_REDO
 } M0_XCA_ENUM;
 
 struct dtm0_req_fop {
-	uint32_t		 dto_opcode M0_XCA_FENUM(
-	m0_dtm0s_opcode);
-	uint32_t		 dto_opmsg M0_XCA_FENUM(
+	uint32_t		dtr_msg M0_XCA_FENUM(
 	m0_dtm0s_msg);
-	uint32_t		 dto_opflags M0_XCA_FENUM(
-	m0_dtm0s_op_flags);
-	struct m0_dtm0_txr	*dto_txr;
+	struct m0_dtm0_tx_desc *dtr_txr;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct dtm0_rep_fop {
 	/** Status code of dtm operation. */
 	int32_t			 dr_rc;
 	/** operation results. */
-	struct m0_dtm0_txr	*dr_txr;
+	struct m0_dtm0_tx_desc	*dr_txr;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /* __MOTR_DTM0_FOP_FOMS_H__ */

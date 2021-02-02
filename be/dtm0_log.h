@@ -200,7 +200,7 @@ struct m0_dtm0_log_record {
 
 struct m0_be_dtm0_log {
 	struct m0_mutex         dl_lock;  /* volatile structure */
-	struct m0_dtm0_clk_src *dl_cs,
+	struct m0_dtm0_clk_src *dl_cs;
 	struct m0_be_list      *dl_list;  /* persistent structure */
 	struct m0_list         *dl_vlist; /* Volatile list */
 };

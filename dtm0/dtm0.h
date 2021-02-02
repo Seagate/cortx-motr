@@ -79,15 +79,9 @@
  *
  * @verbatim
  *
- * The primary datastructure that describes a user operation and all the
- * associated data for the request is dtms0_op. This structure has a member
- * field that carries an operation code. The operation code specifies what kind
- * of an operation this is. It can be one of:
- * - DT_REQ: for a dtm0 request, or
- * - DT_REDO: for a dtm0 redo-request operation
- * Each dtm0_op also carries a dtm_msg type which tells what kind of message it
+ * Each dtm0_req_fop also carries a dtm_msg type which tells what kind of message it
  * is carrying.  A dtms0_op containing a request must specify a message type of
- * either DMT_EXECUTE_DTX,indicating that this request contains an operation to
+ * either DMT_EXECUTE,indicating that this request contains an operation to
  * be executed, a m0_dtms0_op containing a reply operation should contain either
  * a DMT_EXECUTED or a DMT_PERSISTENT message.
  */

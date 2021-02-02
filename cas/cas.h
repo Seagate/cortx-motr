@@ -39,6 +39,7 @@
 #include "fop/fom_generic_xc.h" /* m0_fop_mod_rep */
 #include "dix/layout.h"
 #include "dix/layout_xc.h"
+#include "dtm0/tx_desc.h"
 
 /**
  * @page cas-fspec The catalogue service (CAS)
@@ -294,8 +295,8 @@ struct m0_cas_op {
 	 * Array should be non-empty.
 	 */
 	struct m0_cas_recv  cg_rec;
-	/* dtm0 txr payload */
-	struct m0_dtm0_txr *txr;
+	/* dtm0 txr descriptor */
+	struct m0_dtm0_tx_desc *cg_txd;
 
 	/**
 	 * CAS operation flags.
