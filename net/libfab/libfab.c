@@ -108,7 +108,6 @@ static void libfab_tm_lock(struct m0_fab__tm *tm);
 static void libfab_tm_unlock(struct m0_fab__tm *tm);
 static void libfab_tm_evpost_lock(struct m0_fab__tm *tm);
 static void libfab_tm_evpost_unlock(struct m0_fab__tm *tm);
-
 static bool libfab_tm_is_locked(const struct m0_fab__tm *tm);
 static void libfab_buf_complete(struct m0_fab__buf *buf, int32_t status);
 static void libfab_buf_done(struct m0_fab__buf *buf, int rc);
@@ -880,7 +879,7 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 			if (fbp != NULL) {
 				nb = fbp->fb_nb;
 				fbp->fb_ev_ep = ep;
-				libfab_ep_get(fbp->fb_ev_ep);
+				libfab_ep_get(ep);
 				fi_recv(aep->aep_ep, nb->nb_buffer.ov_buf[0],
 					nb->nb_length, fbp->fb_mr_desc, 0, fbp);
 				
@@ -1378,16 +1377,16 @@ static void libfab_tm_fini(struct m0_net_transfer_mc *tm)
 			} else
 				break;
 		}
-
+		m0_mutex_unlock(&ma->ftm_evpost);
 		m0_mutex_lock(&ma->ftm_endlock);
 		ma->ftm_shutdown = true;
 		m0_mutex_unlock(&ma->ftm_endlock);
+
 		rc = libfab_tm_param_free(ma);
 		if (rc != FI_SUCCESS)
 			M0_LOG(M0_ERROR, "libfab_tm_param_free ret=%d", rc);
 
 		m0_mutex_fini(&ma->ftm_endlock);
-		libfab_tm_evpost_unlock(ma);
 		m0_mutex_fini(&ma->ftm_evpost);
 		libfab_tm_unlock(ma);
 	}
@@ -1749,7 +1748,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 
 	switch (nb->nb_qtype) {
 	case M0_NET_QT_MSG_RECV: {
-		fbp->fb_ev_ep = ep->fep_listen == NULL ? ep: NULL;
+		fbp->fb_ev_ep = (ep->fep_listen == NULL) ? ep : NULL;
 		fbp->fb_length = nb->nb_length;
 		aep = ep->fep_recv;
 
@@ -1937,7 +1936,7 @@ static void libfab_bev_notify(struct m0_net_transfer_mc *ma,
 static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
 {
 	/*TODO: Get proper value from libfabric domain attribute */
-	return 1048576;
+	return M0_BCOUNT_MAX / 2;
 }
 
 /**
@@ -1950,7 +1949,7 @@ static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
 static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
 {
 	/*TODO: Get proper value from libfabric domain attribute */
-	return 4096;
+	return M0_BCOUNT_MAX / 2;
 }
 
 /**
@@ -1963,7 +1962,7 @@ static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
 static int32_t libfab_get_max_buf_segments(const struct m0_net_domain *dom)
 {
 	/*TODO: Get proper value from libfabric domain attribute */
-	return  256;
+	return  INT32_MAX / 2;
 }
 
 /**
