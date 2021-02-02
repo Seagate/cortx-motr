@@ -185,7 +185,7 @@ static void dtm0_pong_back(struct m0_rpc_session *session)
 	item->ri_ops      = &dtm0_req_fop_rpc_item_ops;
 	item->ri_session  = session;
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
-	item->ri_deadline = M0_TIME_NEVER;
+	item->ri_deadline = M0_TIME_IMMEDIATELY;
 
 	rc = m0_rpc_post(item);
 	M0_ASSERT(rc == 0);
@@ -206,7 +206,7 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 		rep->csr_rc = req->csr_value;
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		rc = M0_FSO_AGAIN;
-		if (fom->fo_service->rs_service_fid.f_key == 0x1c) {
+		if (m0_dtm0_is_a_persistent_dtm(fom->fo_service)) {
 			struct m0_fid fid = M0_FID(0x7300000000000001, 0x1a);
 			dtm0_pong_back(
 				m0_dtm0_service_process_session_get(
