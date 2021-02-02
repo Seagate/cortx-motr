@@ -40,6 +40,7 @@
 #include "fop/fom_generic_xc.h"
 #include "addb2/addb2.h"
 #include "addb2/identifier.h"
+#include "dtm0/service.h"	/* m0_dtm0_is_a_volatile_dtm */
 
 /**
    @addtogroup fom
@@ -96,11 +97,9 @@ int32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *reply)
 }
 M0_EXPORTED(m0_rpc_item_generic_reply_rc);
 
-#include "reqh/reqh_service.h"
 static bool fom_is_update(const struct m0_fom *fom)
 {
-	/* XXX: make dtm0 service happy on client side */
-	return fom->fo_service->rs_service_fid.f_key != 0x1a &&
+	return !m0_dtm0_is_a_volatile_dtm(fom->fo_service) &&
 		m0_rpc_item_is_update(m0_fop_to_rpc_item(fom->fo_fop));
 }
 

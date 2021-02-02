@@ -85,12 +85,19 @@ M0_TL_DESCR_DEFINE(dopr, "dtm0_process", static, struct dtm0_process, dop_link,
 		   dop_magic, 0x8888888888888888, 0x7777777777777777);
 M0_TL_DEFINE(dopr, static, struct dtm0_process);
 
+enum m0_dtm0_service_origin {
+	DTM0_UNKNOWN = 0,
+	DTM0_ON_VOLATILE,
+	DTM0_ON_PERSISTENT,
+};
+
 /**
  * DTM0 service structure
  */
 struct m0_dtm0_service {
-       struct m0_reqh_service dos_generic;
-       struct m0_tl           dos_processes;
+       struct m0_reqh_service       dos_generic;
+       struct m0_tl                 dos_processes;
+       enum m0_dtm0_service_origin  dos_origin;
 };
 
 static void dtm0_service__init(struct m0_dtm0_service *s)
@@ -191,8 +198,7 @@ static int dtm0_service__alloc(struct m0_reqh_service **service,
 	s->dos_generic.rs_ops  = ops;
 	*service = &s->dos_generic;
 	dtm0_service__init(s);
-
-	return 0;
+	return M0_RC(0);
 }
 
 static int dtm0_service_allocate(struct m0_reqh_service **service,
@@ -201,10 +207,49 @@ static int dtm0_service_allocate(struct m0_reqh_service **service,
 	return dtm0_service__alloc(service, stype, &dtm0_service_ops);
 }
 
+static int dtm_service__origin_fill(struct m0_reqh_service *service)
+{
+	struct m0_conf_service *service_obj;
+	struct m0_conf_obj     *obj;
+	struct m0_confc        *confc = m0_reqh2confc(service->rs_reqh);
+	const char            **param;
+	struct m0_dtm0_service *dtm0 = container_of(service,
+						    struct m0_dtm0_service,
+						    dos_generic);
+	M0_PRE(dtm0 != NULL);
+
+	/* W/A for UTs */
+	if (!m0_confc_is_inited(confc)) {
+		dtm0->dos_origin = DTM0_ON_VOLATILE;
+		return M0_RC(0);
+	}
+
+	obj = m0_conf_cache_lookup(&confc->cc_cache, &service->rs_service_fid);
+	if (obj == NULL)
+		return M0_RC(-ENOENT);
+
+	service_obj = M0_CONF_CAST(obj, m0_conf_service);
+
+	if (service_obj->cs_params == NULL) {
+		dtm0->dos_origin = DTM0_ON_VOLATILE;
+		M0_LOG(M0_WARN, "dtm0 is treated as volatile, no parameters given");
+		return M0_RC(0);
+	}
+
+	for (param = service_obj->cs_params; *param != NULL; ++param) {
+		if (m0_streq(*param, "origin:in-volatile"))
+			dtm0->dos_origin = DTM0_ON_VOLATILE;
+		else if (m0_streq(*param, "origin:in-persistent"))
+			dtm0->dos_origin = DTM0_ON_PERSISTENT;
+	}
+
+	return M0_RC(0);
+}
+
 static int dtm0_service_start(struct m0_reqh_service *service)
 {
         M0_PRE(service != NULL);
-        return m0_dtm0_fop_init();
+        return dtm_service__origin_fill(service) ?: m0_dtm0_fop_init();
 }
 
 static void dtm0_service_stop(struct m0_reqh_service *service)
@@ -223,14 +268,33 @@ static void dtm0_service_fini(struct m0_reqh_service *service)
         m0_free(service);
 }
 
-int m0_dtm0_stype_init(void)
+M0_INTERNAL int m0_dtm0_stype_init(void)
 {
 	return m0_reqh_service_type_register(&dtm0_service_type);
 }
 
-void m0_dtm0_stype_fini(void)
+M0_INTERNAL void m0_dtm0_stype_fini(void)
 {
 	m0_reqh_service_type_unregister(&dtm0_service_type);
+}
+
+static enum m0_dtm0_service_origin origin(struct m0_reqh_service *service)
+{
+	return container_of(service,
+			    struct m0_dtm0_service,
+			    dos_generic)->dos_origin;
+}
+
+M0_INTERNAL bool m0_dtm0_is_a_volatile_dtm(struct m0_reqh_service *service)
+{
+	return service->rs_type->rst_typecode == M0_CST_DTM0 &&
+		origin(service) == DTM0_ON_VOLATILE;
+}
+
+M0_INTERNAL bool m0_dtm0_is_a_persistent_dtm(struct m0_reqh_service *service)
+{
+	return service->rs_type->rst_typecode == M0_CST_DTM0 &&
+		origin(service) == DTM0_ON_PERSISTENT;
 }
 
 /*
