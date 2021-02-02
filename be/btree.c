@@ -262,39 +262,82 @@ static bool btree_backlink_invariant(const struct m0_be_btree_backlink *h,
 static bool btree_node_invariant(const struct m0_be_btree *btree,
 				 const struct m0_be_bnode *node, bool root)
 {
-	return
-		_0C(node->bt_header.hd_magic != 0) &&
-		_0C(m0_format_footer_verify(&node->bt_header, true) == 0) &&
-		_0C(btree_backlink_invariant(&node->bt_backlink, btree->bb_seg,
-					     &btree->bb_cookie_gen)) &&
-		_0C(node->bt_level <= BTREE_HEIGHT_MAX) &&
-		_0C(memcmp(&node->bt_backlink, &btree->bb_backlink,
-			   sizeof node->bt_backlink) == 0) &&
-		/* Expected occupancy. */
-		_0C(ergo(root, 0 <= node->bt_num_active_key &&
-			 node->bt_num_active_key <= KV_NR)) &&
-		_0C(ergo(!root, BTREE_FAN_OUT - 1 <= node->bt_num_active_key &&
-			 node->bt_num_active_key <= KV_NR)) &&
-		_0C(m0_forall(i, node->bt_num_active_key,
-			      node->bt_kv_arr[i].btree_key != NULL &&
-			      node->bt_kv_arr[i].btree_val != NULL &&
-			      m0_be_seg_contains(btree->bb_seg,
-						 node->bt_kv_arr[i].
-						 btree_key) &&
-			      m0_be_seg_contains(btree->bb_seg,
-						 node->bt_kv_arr[i].
-						 btree_val))) &&
-		_0C(ergo(!node->bt_isleaf,
-			 m0_forall(i, node->bt_num_active_key + 1,
-				   node->bt_child_arr[i] != NULL &&
-				   m0_be_seg_contains(btree->bb_seg,
-						      node->
-						      bt_child_arr[i])))) &&
-		/* Keys are in order. */
-		_0C(ergo(node->bt_num_active_key > 1,
-			 m0_forall(i, node->bt_num_active_key - 1,
-				   key_gt(btree, node->bt_kv_arr[i+1].btree_key,
-					  node->bt_kv_arr[i].btree_key))));
+	if(btree->bb_ops->ko_type == M0_BBT_CAS_CTG || btree->bb_ops->ko_type == M0_BBT_CONFDB 
+			|| btree->bb_ops->ko_type == M0_BBT_INVALID|| btree->bb_ops->ko_type == M0_BBT_UT_KV_OPS
+			|| btree->bb_ops->ko_type == M0_BBT_NR || btree->bb_ops->ko_type == M0_BBT_COB_FILEATTR_EA 
+			|| btree->bb_ops->ko_type == M0_BBT_COB_NAMESPACE || btree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS
+			|| btree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC || btree->bb_ops->ko_type == M0_BBT_EMAP_EM_MAPPING)
+	{
+		return
+			_0C(node->bt_header.hd_magic != 0) &&
+			_0C(m0_format_footer_verify(&node->bt_header, true) == 0) &&
+			_0C(btree_backlink_invariant(&node->bt_backlink, btree->bb_seg,
+							&btree->bb_cookie_gen)) &&
+			_0C(node->bt_level <= BTREE_HEIGHT_MAX) &&
+			_0C(memcmp(&node->bt_backlink, &btree->bb_backlink,
+				sizeof node->bt_backlink) == 0) &&
+			/* Expected occupancy. */
+			_0C(ergo(root, 0 <= node->bt_num_active_key &&
+				node->bt_num_active_key <= KV_NR)) &&
+			_0C(ergo(!root, BTREE_FAN_OUT - 1 <= node->bt_num_active_key &&
+				node->bt_num_active_key <= KV_NR)) &&
+			_0C(m0_forall(i, node->bt_num_active_key,
+					node->bt_kv_arr[i].btree_key != NULL &&
+					node->bt_kv_arr[i].btree_val != NULL &&
+					m0_be_seg_contains(btree->bb_seg,
+							node->bt_kv_arr[i].
+							btree_key) &&
+					m0_be_seg_contains(btree->bb_seg,
+							node->bt_kv_arr[i].
+							btree_val))) &&
+			_0C(ergo(!node->bt_isleaf,
+				m0_forall(i, node->bt_num_active_key + 1,
+					node->bt_child_arr[i] != NULL &&
+					m0_be_seg_contains(btree->bb_seg,
+								node->
+								bt_child_arr[i])))) &&
+			/* Keys are in order. */
+			_0C(ergo(node->bt_num_active_key > 1,
+				m0_forall(i, node->bt_num_active_key - 1,
+					key_gt(btree, node->bt_kv_arr[i+1].btree_key,
+						node->bt_kv_arr[i].btree_key))));
+	}
+	else
+	{
+		return
+			_0C(node->bt_header.hd_magic != 0) &&
+			_0C(m0_format_footer_verify(&node->bt_header, true) == 0) &&
+			_0C(btree_backlink_invariant(&node->bt_backlink, btree->bb_seg,
+							&btree->bb_cookie_gen)) &&
+			_0C(node->bt_level <= BTREE_HEIGHT_MAX) &&
+			_0C(memcmp(&node->bt_backlink, &btree->bb_backlink,
+				sizeof node->bt_backlink) == 0) &&
+			/* Expected occupancy. */
+			_0C(ergo(root, 0 <= node->bt_num_active_key &&
+				node->bt_num_active_key <= KV_NR)) &&
+			_0C(ergo(!root, BTREE_FAN_OUT - 1 <= node->bt_num_active_key &&
+				node->bt_num_active_key <= KV_NR)) &&
+			_0C(m0_forall(i, node->bt_num_active_key,
+					node->bt_kv_arr[i].btree_key != NULL &&
+					node->bt_kv_arr[i].btree_val != NULL &&
+					m0_be_seg_contains(btree->bb_seg,
+							node->bt_kv_arr[i].
+							btree_key) &&
+					m0_be_seg_contains(btree->bb_seg,
+							node->bt_kv_arr[i].
+							btree_val))) &&
+			_0C(ergo(!node->bt_isleaf,
+				m0_forall(i, node->bt_num_active_key + 1,
+					node->bt_child_arr[i] != NULL &&
+					m0_be_seg_contains(btree->bb_seg,
+								node->
+								bt_child_arr[i])))) &&
+			/* Keys are in order. */
+			_0C(ergo(node->bt_num_active_key > 1,
+				m0_forall(i, node->bt_num_active_key - 1,
+					strcmp(node->bt_kv_arr[i+1].inlkey,
+						node->bt_kv_arr[i].inlkey)>0)));	
+	}
 }
 
 /* ------------------------------------------------------------------
@@ -308,24 +351,52 @@ static bool btree_node_invariant(const struct m0_be_btree *btree,
 static bool btree_node_subtree_invariant(const struct m0_be_btree *btree,
 					 const struct m0_be_bnode *node)
 {
-	/* Kids are in order. */
-	return	_0C(ergo(node->bt_num_active_key > 0 && !node->bt_isleaf,
-			 m0_forall(i, node->bt_num_active_key,
-				   key_gt(btree, node->bt_kv_arr[i].btree_key,
-					  node->bt_child_arr[i]->
-					  bt_kv_arr[node->bt_child_arr[i]->
-					  bt_num_active_key - 1].btree_key) &&
-				   key_lt(btree, node->bt_kv_arr[i].btree_key,
-					  node->bt_child_arr[i+1]->
-					  bt_kv_arr[0].btree_key)) &&
-		         m0_forall(i, node->bt_num_active_key + 1,
-				   btree_node_invariant(btree,
-							node->bt_child_arr[i],
-						        false)) &&
-		         m0_forall(i, node->bt_num_active_key + 1,
-				   btree_node_subtree_invariant(btree,
-							node->bt_child_arr[i])))
-		  );
+	if(btree->bb_ops->ko_type == M0_BBT_CAS_CTG || btree->bb_ops->ko_type == M0_BBT_CONFDB 
+			|| btree->bb_ops->ko_type == M0_BBT_INVALID || btree->bb_ops->ko_type == M0_BBT_UT_KV_OPS
+			|| btree->bb_ops->ko_type == M0_BBT_NR || btree->bb_ops->ko_type == M0_BBT_COB_FILEATTR_EA 
+			|| btree->bb_ops->ko_type == M0_BBT_COB_NAMESPACE || btree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS
+			|| btree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC || btree->bb_ops->ko_type == M0_BBT_EMAP_EM_MAPPING)
+	{
+		/* Kids are in order. */
+		return	_0C(ergo(node->bt_num_active_key > 0 && !node->bt_isleaf,
+				m0_forall(i, node->bt_num_active_key,
+					key_gt(btree, node->bt_kv_arr[i].btree_key,
+						node->bt_child_arr[i]->
+						bt_kv_arr[node->bt_child_arr[i]->
+						bt_num_active_key - 1].btree_key) &&
+					key_lt(btree, node->bt_kv_arr[i].btree_key,
+						node->bt_child_arr[i+1]->
+						bt_kv_arr[0].btree_key)) &&
+					m0_forall(i, node->bt_num_active_key + 1,
+					btree_node_invariant(btree,
+								node->bt_child_arr[i],
+									false)) &&
+					m0_forall(i, node->bt_num_active_key + 1,
+					btree_node_subtree_invariant(btree,
+								node->bt_child_arr[i])))
+			);
+	}
+	else
+	{
+		/* Kids are in order. */
+		return	_0C(ergo(node->bt_num_active_key > 0 && !node->bt_isleaf,
+				m0_forall(i, node->bt_num_active_key,
+					strcmp(node->bt_kv_arr[i].inlkey,
+						node->bt_child_arr[i]->
+						bt_kv_arr[node->bt_child_arr[i]->
+						bt_num_active_key - 1].inlkey) > 0 &&
+					strcmp(node->bt_kv_arr[i].inlkey,
+						node->bt_child_arr[i+1]->
+						bt_kv_arr[0].inlkey) < 0) &&
+					m0_forall(i, node->bt_num_active_key + 1,
+					btree_node_invariant(btree,
+								node->bt_child_arr[i],
+									false)) &&
+					m0_forall(i, node->bt_num_active_key + 1,
+					btree_node_subtree_invariant(btree,
+								node->bt_child_arr[i])))
+			);
+	}
 }
 
 /**
@@ -535,7 +606,11 @@ static void be_btree_insert_into_nonfull(struct m0_be_btree      *btree,
 	char *tkey = kv->inlkey;
 	int i = node->bt_num_active_key - 1;
 
-	if(btree->bb_ops->ko_type == M0_BBT_CAS_CTG || btree->bb_ops->ko_type == M0_BBT_CONFDB ||btree->bb_ops->ko_type == M0_BBT_INVALID|| btree->bb_ops->ko_type == M0_BBT_UT_KV_OPS|| btree->bb_ops->ko_type == M0_BBT_NR || btree->bb_ops->ko_type == M0_BBT_COB_FILEATTR_EA || btree->bb_ops->ko_type == M0_BBT_COB_NAMESPACE)
+	if(btree->bb_ops->ko_type == M0_BBT_CAS_CTG || btree->bb_ops->ko_type == M0_BBT_CONFDB 
+		||btree->bb_ops->ko_type == M0_BBT_INVALID || btree->bb_ops->ko_type == M0_BBT_UT_KV_OPS
+		|| btree->bb_ops->ko_type == M0_BBT_NR || btree->bb_ops->ko_type == M0_BBT_COB_FILEATTR_EA
+		|| btree->bb_ops->ko_type == M0_BBT_COB_NAMESPACE||btree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS
+		|| btree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC || btree->bb_ops->ko_type == M0_BBT_EMAP_EM_MAPPING)
 	{
 		while (!node->bt_isleaf)
 		{
@@ -969,7 +1044,11 @@ static int be_btree_delete_key(struct m0_be_btree *tree,
 				break;
 			}
 
-			if(tree->bb_ops->ko_type == M0_BBT_CAS_CTG || tree->bb_ops->ko_type == M0_BBT_CONFDB ||tree->bb_ops->ko_type == M0_BBT_INVALID|| tree->bb_ops->ko_type == M0_BBT_UT_KV_OPS|| tree->bb_ops->ko_type == M0_BBT_NR || tree->bb_ops->ko_type == M0_BBT_COB_FILEATTR_EA || tree->bb_ops->ko_type == M0_BBT_COB_NAMESPACE)
+			if(tree->bb_ops->ko_type == M0_BBT_CAS_CTG || tree->bb_ops->ko_type == M0_BBT_CONFDB 
+			||tree->bb_ops->ko_type == M0_BBT_INVALID|| tree->bb_ops->ko_type == M0_BBT_UT_KV_OPS
+			|| tree->bb_ops->ko_type == M0_BBT_NR || tree->bb_ops->ko_type == M0_BBT_COB_FILEATTR_EA 
+			|| tree->bb_ops->ko_type == M0_BBT_COB_NAMESPACE ||tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS
+			|| tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC || tree->bb_ops->ko_type == M0_BBT_EMAP_EM_MAPPING)
 			{
 				/*  Retrieve index of the key equal to or greater than*/
 				/*  key being searched */
@@ -1158,7 +1237,11 @@ be_btree_get_btree_node(struct m0_be_btree_cursor *it, void *key, bool slant)
 	char *strkey = (char *)key;
 	it->bc_stack_pos = 0;
 	
-	if(tree->bb_ops->ko_type == M0_BBT_CAS_CTG || tree->bb_ops->ko_type == M0_BBT_CONFDB ||tree->bb_ops->ko_type == M0_BBT_INVALID|| tree->bb_ops->ko_type == M0_BBT_UT_KV_OPS|| tree->bb_ops->ko_type == M0_BBT_NR || tree->bb_ops->ko_type == M0_BBT_COB_FILEATTR_EA || tree->bb_ops->ko_type == M0_BBT_COB_NAMESPACE)
+	if(tree->bb_ops->ko_type == M0_BBT_CAS_CTG || tree->bb_ops->ko_type == M0_BBT_CONFDB 
+	||tree->bb_ops->ko_type == M0_BBT_INVALID|| tree->bb_ops->ko_type == M0_BBT_UT_KV_OPS
+	|| tree->bb_ops->ko_type == M0_BBT_NR || tree->bb_ops->ko_type == M0_BBT_COB_FILEATTR_EA
+	|| tree->bb_ops->ko_type == M0_BBT_COB_NAMESPACE||tree->bb_ops->ko_type==M0_BBT_BALLOC_GROUP_EXTENTS
+	|| tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC|| tree->bb_ops->ko_type == M0_BBT_EMAP_EM_MAPPING)
 	{
 		while (true) {
 			/*  Retrieve index of the key equal to or greater than */
