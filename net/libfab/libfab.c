@@ -1749,7 +1749,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 
 	switch (nb->nb_qtype) {
 	case M0_NET_QT_MSG_RECV: {
-		fbp->fb_ev_ep  = ep->fep_listen == NULL ? ep: NULL;
+		fbp->fb_ev_ep = ep->fep_listen == NULL ? ep: NULL;
 		fbp->fb_length = nb->nb_length;
 		aep = ep->fep_recv;
 
