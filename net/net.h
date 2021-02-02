@@ -1767,6 +1767,7 @@ struct m0_net_xprt *m0_net_xprt_default_get(void);
 struct m0_net_xprt **m0_net_all_xprt_get(void);
 /** Returns number of network transport. */
 int m0_net_xprt_nr(void);
+void print_xprt(void);
 /** @} end of networking group */
 #endif /* __MOTR_NET_NET_H__ */
 

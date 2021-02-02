@@ -31,6 +31,7 @@
 
 #include "net/test/node.h"		/* m0_net_test_node_ctx */
 #include "net/test/console.h"		/* m0_net_test_console_ctx */
+#include "net/bulk_emulation/mem_xprt.h"
 
 #define NET_TEST_MODULE_NAME ut_client_server
 #include "net/test/debug.h"
@@ -400,6 +401,20 @@ void m0_net_test_client_server_bulk_ut(void)
 			       2, 2, 2, 8,
 			       64, 0x100000,
 			       8, 16, 0x1000, 0x10000);
+}
+void m0_net_test_xprt_dymanic_reg_dereg_ut(void)
+{
+	print_xprt();
+	m0_mem_xprt_fini();
+	m0_mem_xprt_init();
+	print_xprt();
+
+	m0_net_lnet_fini();
+	m0_net_lnet_init();
+	print_xprt();
+
+//m0_net_sock_mod_init();
+//m0_net_sock_mod_fini();
 }
 
 #undef NET_TEST_MODULE_NAME
