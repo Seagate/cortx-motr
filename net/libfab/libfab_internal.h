@@ -91,6 +91,7 @@ struct m0_fab__tm {
 	struct m0_tl               ftm_rcvbuf;  /* List of recv buffers */
 	struct m0_tl               ftm_done;    /* List of completed buffers */
 	struct m0_mutex            ftm_endlock; /* Used betn poller & tm_fini */
+	struct m0_mutex            ftm_evpost;  /* Used betn poller & tm_fini */
 };
 
 /**
@@ -111,6 +112,7 @@ struct m0_fab__buf {
 	struct m0_tlink       fb_linkage; /* Linkage in list of completed bufs*/
 	struct m0_tlink       fb_rcv_link;
 	struct m0_tlink       fb_snd_link;
+	int32_t               fb_status;  /* Buffer completion status */
 	m0_bindex_t           fb_length;  /* Total size of data to be received*/
 };
 
