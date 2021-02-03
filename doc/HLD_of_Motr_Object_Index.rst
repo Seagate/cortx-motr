@@ -291,3 +291,28 @@ Response Measure:
 - attribute and attribute set sharing ratio
 
 Questions and issues:
+
+
+Scenario 4: QA.schema.simple
+
+Relevant quality attributes: re-usability, variability
+
+Stimulus:
+
+Stimulus source:
+
+Environment:
+
+Artifact:
+
+Response: Schema can be described and implemented in terms of a limited repertoire of standard operations: 
+
+- index lookup 
+
+- index modification
+
+- index iteration Assuming fairly standard transactional capabilities and usual locking primitives
+
+Response Measure:
+
+Questions and issues:
