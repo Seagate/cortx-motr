@@ -77,7 +77,7 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 	req->csr_value = 555;
 	rc = m0_rpc_post_sync(fop, cl_rpc_session,
 			      &dtm0_req_fop_rpc_item_ops,
-			      M0_TIME_NEVER);
+			      M0_TIME_IMMEDIATELY);
 	M0_UT_ASSERT(rc == 0);
 	rep = reply(fop->f_item.ri_reply);
 	M0_UT_ASSERT(rep->csr_rc == 555);
