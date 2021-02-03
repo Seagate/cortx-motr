@@ -89,13 +89,13 @@ Layout IO Engine
 
 Layout IO engine takes as an input layout and a fop (including operation parameters such as file offsets and user data pages). It creates sub-fops3 for individual updates using layout[67] for data[4] , based on pool objects[5]. Sub-fops corresponding to the parity units reference temporarily allocated pages[6], released (under no-cache policy) when processing completes.
 
-RPC
-====
+ RPC
+=====
 
 Trivial caching policy is used: fops are accumulated[7] in the staging area while IO operation is being processed by the request handler and IO layout engine. Once operation is processed, staged area is un-plugged[8] fops are converted into rpcs[9] and rpcs are transferred to their respective target servers. If IO operation extent is larger than parity group, multiple sibling updates on a given target server are batched together[10].
 
-Conformance
-============
+ Conformance
+=============
 
 - 1[u.FOP] ST
 
@@ -123,8 +123,8 @@ Conformance
 
 - [R.M0.IO.DIRECT]: no-caching and 0-copy for data together implement direct-io.
 
-Dependencies
-=============
+ Dependencies
+===============
 
 - layout:
 
@@ -162,12 +162,12 @@ Dependencies
  
   - [u.lib.allocate-page]: page allocation interface is present in the library
   
- Security Model
+  Security Model
  ================
  
  Security is outside of scope of the present design.
  
- Refinement
+  Refinement
  ============
  
  Detailed level design specification should address the following:
@@ -181,17 +181,17 @@ Dependencies
  - relationship between fop and its sub-fops: concurrency control, liveness, ownership
  
 ********
-State
+ State
 ********
 
 State diagrams are part of the detailed level design specification.
 
 ***********
-Use Cases
+ Use Cases
 ***********
 
-Scenarios
-==========
+ Scenarios
+===========
 
 Scenario 1: [usecase.sns-client-read]
 
@@ -231,44 +231,44 @@ Response measure: no data copying in the process
 Questions and Issues:
 
 **********
-Analysis
+ Analysis
 **********
 
-Scalability
-============
+ Scalability
+=============
 
 No scalability issues are expected in this component. Relatively little resources (processor cycles, memory) are consumed per byte of processed data. With large number of concurrent IO operation requests, scalability of layout, pool and fop data structures might become a bottleneck (in the case of small file IO initially).
 
 *************
-Deployment
+ Deployment
 *************
 
-Compatability
-==============
+ Compatability
+===============
 
-Network
---------
+ Network
+---------
 
 No issues at this point.
 
-Persistent storage
--------------------
+ Persistent storage
+--------------------
 
 The design is not concerned with persistent storage manipulation.
 
-Core
------
+ Core
+------
 
 No issues at this point. No additional external interfaces are introduced.
 
-Installation
+ Installation
 ================
 
 The SNS client module is a part of m0t1fs.ko kernel module and requires no additional installation. System testing scripts in m0t1fs/st must be updated.
 
-***********
-References
-***********
+************
+ References
+************
 
 - [0] Outline of M0 core conceptual design 
 
