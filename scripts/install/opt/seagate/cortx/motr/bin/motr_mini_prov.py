@@ -260,7 +260,25 @@ def create_lvm(self, index, metadata_dev):
         6. create swap from lvm
     '''
 
-    metadata_dev = f"{metadata_dev}2"
+    #TODO : Remove the below logic to validata metadata device after EOS-17127 is resolved
+    try:
+        cmd = f"fdisk -l {metadata_dev}2"
+        execute_command(self, cmd)
+    except MotrError:
+        pass
+    else:
+        metadata_dev = f"{metadata_dev}2"
+        
+    try:
+        cmd = f"pvdisplay {metadata_dev}"
+        out = execute_command(self, cmd)
+    except MotrError:
+        pass
+    else:
+        sys.stdout.write(f"Already volumes are created on {metadata_dev}\n {out[0]}")
+        sys.stdout.write("Proceeding without any volume creation as mentioned in EOS-17127\n")
+        return
+
     index = index + 1
     node_name = self._server_id
     vg_name = f"vg_{node_name}_md{index}"
