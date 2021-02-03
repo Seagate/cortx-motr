@@ -59,4 +59,60 @@ Definitions
   - a fol record can be found efficiently (i.e., without fol scanning) given its lsn, and
 
   - for any pair of conflicting updates recorded in the fol, the lsn of the pre-requisite is less than that of the dependent update (Note: clearly this property implies that lsn     data-type has infinite range and, hence, is unimplementable in practice. What is in fact required is that this property holds for any two conflicting updates sufficiently     close in logical time, where precise closeness condition is defined by the fol pruning algorithm. The same applies to object versions.);
+  
+Note: it would be nice to refine the terminology to distinguish between operation description (i.e., intent to carry it out) and its actual execution. This would make description of dependencies and recovery less obscure, at the expense of some additional complexity.
 
+
+***************
+Requirements
+***************
+
+- [r.fol.every-node]: every node where M0 core is deployed maintains fol;
+
+- [r.fol.local-txn]: a node fol is used to implement local transactional containers
+
+- [R.FOL]: A File Operations Log is maintained by M0;
+
+- [R.FOL.VARIABILITY]: FOL supports various system configurations. FOL is maintained by every M0 back-end. FOL stores enough information to efficiently find modifications to the file system state that has to be propagated through the caching graph, and to construct network-optimal messages carrying these updates. A FOL can be maintained in volatile or persistent transactional storage;
+
+- [R.FOL.LSN]: A FOL record is identified by an LSN. There is a compact identifier (LSN, Log Sequence Number) with which a log record can be identified and efficiently located;
+
+- [R.FOL.CONSISTENCY]: A FOL record describes a storage operation. A FOL record describes a complete storage operation, that is, a change to a storage system state that preserves state consistency;
+
+- [R.FOL.IDEMPOTENCY]: A FOL record application is idempotent. A FOL record contains enough information to detect that operation is already applied to the state, guaranteeing EOS (Exactly Once Semantics);
+
+- [R.FOL.ORDERING]: A FOL records are applied in order. A FOL record contains enough information to detect when all necessary pre-requisite state changes have been applied;
+
+- [R.FOL.DEPENDENCIES]: Operation dependencies can be discovered through FOL. FOL contains enough information to determine dependencies between operations;
+
+- [R.FOL.DIX]: FOL supports DIX;
+
+- [R.FOL.SNS]: FOL supports SNS;
+
+- [R.FOL.REINT]: FOL can be used for cache reintegration. FOL contains enough information to find out what has to be re-integrated;
+
+- [R.FOL.PRUNE]: FOL can be pruned. A mechanism exists to determine what portions of FOL can be re-claimed;
+
+- [R.FOL.REPLAY]: FOL records can be replayed;
+
+- [R.FOL.REDO]: FOL can be used for redo-only recovery;
+
+- [R.FOL.UNDO]: FOL can be used for undo-redo recovery;
+
+- [R.FOL.EPOCHS]: FOL records for a given epoch can be found efficiently;
+
+- [R.FOL.CONSUME.SYNC]: storage applications can process FOL records synchronously;
+
+- [R.FOL.CONSUME.ASYNC]: storage applications can process FOL records asynchronously;
+
+- [R.FOL.CONSUME.RESUME]: a storage application can be resumed after a failure;
+
+- [R.FOL.ADDB]: FOL is integrated with ADDB. ADDB records matching a given FOL record can be found efficiently;
+
+- [R.FOL.FILE]: FOL records pertaining to a given file(-set) can be found efficiently.
+
+******************
+Design Highlights
+******************
+
+A fol record is identified by its LSN. LSN are defined and selected as to be able to encode various partial orders imposed on fol records by the requirements.
