@@ -287,13 +287,13 @@ static enum m0_dtm0_service_origin origin(struct m0_reqh_service *service)
 
 M0_INTERNAL bool m0_dtm0_is_a_volatile_dtm(struct m0_reqh_service *service)
 {
-	return service->rs_type->rst_typecode == M0_CST_DTM0 &&
+	return m0_streq(service->rs_type->rst_name, "M0_CST_DTM0") &&
 		origin(service) == DTM0_ON_VOLATILE;
 }
 
 M0_INTERNAL bool m0_dtm0_is_a_persistent_dtm(struct m0_reqh_service *service)
 {
-	return service->rs_type->rst_typecode == M0_CST_DTM0 &&
+	return m0_streq(service->rs_type->rst_name, "M0_CST_DTM0") &&
 		origin(service) == DTM0_ON_PERSISTENT;
 }
 
