@@ -158,5 +158,84 @@ A m0_cob is an in-memory structure, instantiated by the method cob_find and popu
 };The *_rec members are pointers to the records from the database tables. These records may or may not be populated at various stages in cob life.
 
 The co_stob reference is also likely to remain unset, as metadata operations will not frequently affect the underlying storage object (and, indeed, the storage object is likely to live on a different node).
+
+Usage
+======
+
+m0_cob_domain methods locate the database tables associated with a container. These methods are called at container discovery/setup.
+
+m0_cob methods are used to create, find, and destroy in-memory and on-disk cobs. These might be:
+
+- cob_locate: find an object via a fid using the object_index table.
+
+- cob_lookup: find an object via a namespace lookup (namespace table).
+
+- cob_create: add a new cob to the cob_domain namespace
+
+- cob_remove: remove the object from the namespace
+
+- cob_get/put: take references on the cob. At last put cob may be destroyed.
         
+m0_cob_domain methods are limited to initial setup and cleanup functions, and are called during container setup/cleanup.
+
+Simple mapping functions from the fid to stob:so_id and to the cob_domain:cd_id are assumed to be available.
+
+Conformance
+============
+
+- [I.M0.BACK-END.OBJECT-INDEX]: object-index table facilitates lookup by fid
+
+- [I.M0.BACK-END.INDEXING]: new namespace entries are added to the db table
+
+- [I.M0.LAYOUT.BY-REFERENCE]: layouts are referenced by layout ID in fileattr_basic table.
+
+- [I.M0.BACK-END.FAST-STAT]: stat data is stored adjacent to namespace record in namespace table.
+
+- [I.M0.DIR.READDIR.ATTR]: namespace table contains attrs
+
+- [I.M0.FOL.UNDO]: versions and lsn's are stored with metadata for recovery
+
+- [I.M0.CACHE.MD]: m0_cob is refcounted and locked
+
+Dependencies
+==============
+
+- [R.M0.FID.UNIQUE]: uses; fids can be used to uniquely identify a stob
+
+- [R.M0.CONTAINER.FID]: uses; fids indentify the cob_domain via the container
+
+- [R.M0.LAYOUT.LAYID]: uses; reference stored in fileattr_basic table
+
+**********
+Use Cases
+**********
+
+Scenarios
+==========
+
+Scenario 1: QA.schema.op
+
+Relevant quality attributes: variability, re-usability, flexibility, modifiability
+
+Stimulus: a Request Handler invokes back-end as part of file system operation processing
+
+Stimulus source: a file system operation request originating from protocol translator, native C2 client or storage application
+
+Environment: normal operation
+
+Artifact: a series of Schema accesses
+
+Response: Meta-data back-end contains enough information to handle file system operation request. This information includes:
+
+          - standard file attributes as defined by POSIX, including access control related information; 
+          
+          - description of file system name-space, including directory structure, hard-links and symbolic links; 
+          
+          - references to remote parts of file-system namespace; 
+          
+          - file data allocation information
+
+Response Measure:
+
+Questions and issues:
 
