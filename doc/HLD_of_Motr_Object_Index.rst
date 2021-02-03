@@ -48,4 +48,68 @@ Requirements
 
 - [R.M0.CACHE.MD]: meta-data caching is supported
 
+******************
+Design Highlights
+******************
+
+- The file operation log will reference particular versions of cobs (or gobs). The version information enables undo and redo of file operations.
+
+- cob metadata will be stored in database tables.
+
+- The database tables will be stored persistently in a metadata container.
+
+- There may be multiple cob domains with distinct tables inside a single container.
+
+*************************
+Functional Specification
+*************************
+
+Cob code:
+
+- provides access to file metadata via fid lookup
+
+- provides access to file metadata via namespace lookup
+
+- organizes metadata for efficient filesystem usage (esp. stat() calls)
+
+- allows creation and destruction of component objects
+
+- facilitates metadata modification under a user-provided transaction
+
+************************
+Logical Specification
+************************
+
+Structures
+===========
+
+Three database tables are used to capture cob metadata:
+
+- object-index table
+
+  - key is {child_fid, link_index} pair
+
+  - record is {parent_fid, filename}
+
+- namespace table
+
+  - key is {parent_fid, filename}
+
+  - record is {child_fid, nlink, attrs}
+
+  - if nlink > 0, attrs = {size, mactime, omg_ref, nlink}; else attrs = {}
+
+  - multiple keys may point to the same record for hardlinks, if the database can support this. Otherwise, we store the attrs in one of the records only (link number 0). (This    leads to a long sequence of operations to delete a hardlink, but straightforward.)
+
+- fileattr_basic table
+
+  - key is {child_fid}
+
+  - record is {layout_ref, version, lsn, acl} (version and lsn are updated at every fop involving this fid)
+
+link_index is an ordinal number distinguishing between hardlinks of the same fid. E.g. file a/b with fid 3 has a hardlink c/d. In the object index table, the key {3,0} refers to a/b, and {3,1} refers to c/d.
+
+omg_ref and layout_ref refer to common owner/mode/group settings and layout definitions; these will frequently be cached in-memory and referenced by cobs in a many-to-one manner. Exact specification of these is beyond the scope of this document.
+
+References to the database tables are stored in a cob_domain in-memory structure. The database contents are stored persistently in a metadata container
 
