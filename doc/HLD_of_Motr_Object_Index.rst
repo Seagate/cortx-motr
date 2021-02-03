@@ -111,5 +111,27 @@ link_index is an ordinal number distinguishing between hardlinks of the same fid
 
 omg_ref and layout_ref refer to common owner/mode/group settings and layout definitions; these will frequently be cached in-memory and referenced by cobs in a many-to-one manner. Exact specification of these is beyond the scope of this document.
 
-References to the database tables are stored in a cob_domain in-memory structure. The database contents are stored persistently in a metadata container
+References to the database tables are stored in a cob_domain in-memory structure. The database contents are stored persistently in a metadata container.
+
+There may be multiple cob_domains within a metadata container, but the usual case will be 1 cob_domain per container. A cob_domain may be identified by an ordinal index inside a container. The list of domains will be created at container ingest.
+
+       struct m0_cob_domain {
+
+                 cob_domain_id cd_id /* domain identifier */
+
+                     m0_list_link cd_domain_linkage
+
+                     m0_dbenv *cd_dbenv
+
+                     m0_table *cd_obj_idx_table
+
+                     m0_table *cd_namespace_table
+
+                     m0_table *cd_file-attr-basic_table
+
+                     m0_addb_ctx cd_addb
+
+        }
+        
+        
 
