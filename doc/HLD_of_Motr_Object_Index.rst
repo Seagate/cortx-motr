@@ -316,3 +316,23 @@ Response: Schema can be described and implemented in terms of a limited repertoi
 Response Measure:
 
 Questions and issues:
+
+
+Scenario 5: QA.schema.index
+
+Relevant quality attributes: variability, extensibility, re-usability
+
+Stimulus: storage application wants to maintain additional meta-data index
+
+Stimulus source: storage application
+
+Environment: normal operation
+
+Artifact: index creation operation
+
+Response: schema allows dynamic index creation
+
+Response Measure:
+
+Questions and issues:
+
