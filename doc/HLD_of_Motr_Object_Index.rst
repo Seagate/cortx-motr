@@ -225,15 +225,15 @@ Environment: normal operation
 
 Artifact: a series of Schema accesses
 
-Response: Meta-data back-end contains enough information to handle file system operation request. This information includes:
+Response: Meta-data back-end contains enough information to handle file system operation request. This information includes the below mentioned aspects:
 
-          - standard file attributes as defined by POSIX, including access control related information; 
+- standard file attributes as defined by POSIX, including access control related information; 
           
-          - description of file system name-space, including directory structure, hard-links and symbolic links; 
+- description of file system name-space, including directory structure, hard-links and symbolic links; 
           
-          - references to remote parts of file-system namespace; 
+- references to remote parts of file-system namespace; 
           
-          - file data allocation information
+- file data allocation information
 
 Response Measure:
 
