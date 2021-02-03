@@ -263,3 +263,31 @@ Response Measure:
 
 Questions and issues:
 
+
+Scenario 3: QA.schema.duplicates
+
+Relevant quality attributes: usability
+
+Stimulus: a new file is created
+
+Stimulus source: protocol translator, native C2 client or storage application
+
+Environment: normal operation
+
+Artifact: a records, describing new file are inserted in various schema indices
+
+Response: records must be small. Schema must exploit the fact that in a typical file system, certain sets of file attributes have much fewer different values than combinatorially possible. Such sets of attributes are stored by reference, rather than by duplicating the same values in multiple records. Examples of such sets of attributes are: 
+
+- {file owner, file group, permission bits} 
+
+- {access control list} 
+
+- {file layout formula}
+
+Response Measure:
+
+- average size of data that is added to the indices as a result of file creation
+
+- attribute and attribute set sharing ratio
+
+Questions and issues:
