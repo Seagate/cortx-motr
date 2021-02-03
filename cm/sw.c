@@ -73,7 +73,8 @@ M0_INTERNAL void m0_cm_sw_copy(struct m0_cm_sw *dst,
 	m0_cm_ag_id_copy(&dst->sw_hi, &src->sw_hi);
 }
 
-M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *sw_onwire,
+M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm,
+				     struct m0_cm_sw_onwire *sw_onwire,
 				     uint64_t proxy_id, const char *ep,
 				     const struct m0_cm_sw *sw,
 				     const struct m0_cm_sw *out_interval)
@@ -106,7 +107,11 @@ M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *s
 	else
 		sw_onwire->swo_cm_status = M0_PX_STOP;
 
-	return 0;
+	M0_LOG(M0_DEBUG, "local ep=%s state=%u",
+			 sw_onwire->swo_cm_ep.ep,
+			 sw_onwire->swo_cm_status);
+
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm)
@@ -147,8 +152,9 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 	m0_cm_ag_out_interval(cm, &out_interval);
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
 		pxy->px_send_final_update = cm->cm_done;
-		ID_LOG("proxy last updated",
-				&pxy->px_last_sw_onwire_sent.sw_hi);
+		M0_LOG(M0_DEBUG, "proxy %p (%s) last updated"M0_AG_F,
+				 pxy, pxy->px_endpoint,
+				 M0_AG_P(&pxy->px_last_sw_onwire_sent.sw_hi));
 		if ((start || pxy->px_send_final_update || cm->cm_quiesce ||
 		    cm->cm_abort ||
 		    !m0_cm_proxy_is_updated(pxy, &in_interval)) &&
