@@ -163,12 +163,12 @@ Trivial caching policy is used: fops are accumulated[7] in the staging area whil
   - [u.lib.allocate-page]: page allocation interface is present in the library
   
   Security Model
- ================
+================
  
  Security is outside of scope of the present design.
  
-  Refinement
- ============
+ Refinement
+============
  
  Detailed level design specification should address the following:
  
