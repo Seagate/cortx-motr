@@ -133,5 +133,30 @@ There may be multiple cob_domains within a metadata container, but the usual cas
 
         }
         
+A m0_cob is an in-memory structure, instantiated by the method cob_find and populated as needed from the above database tables. The m0_cob may be cached and should be protected by a lock.
+
+      struct m0_cob {
+
+                    fid co_fid;
+
+                    m0_ref co_ref; /* refcounter for caching cobs */
+
+                    struct m0_stob *co_stob; /* underlying storage object */
+
+                    struct m0_rwlock co_guard; /* lock on cob manipulation */
+
+                    m0_fol_obj_ref co_lsn;
+
+                    u64 co_version
+
+                    struct namespace_rec *co_ns_rec;
+
+                         struct fileattr_basic_rec *co_fab_rec;
+
+                         struct object_index_rec *co_oi_rec; /* pfid, filename */
+
+       };The *_rec members are pointers to the records from the database tables. These records may or may not be populated at various stages in cob life.
+
+The co_stob reference is also likely to remain unset, as metadata operations will not frequently affect the underlying storage object (and, indeed, the storage object is likely to live on a different node).
         
 
