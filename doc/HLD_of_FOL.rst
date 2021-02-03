@@ -116,3 +116,175 @@ Design Highlights
 ******************
 
 A fol record is identified by its LSN. LSN are defined and selected as to be able to encode various partial orders imposed on fol records by the requirements.
+
+**************************
+Functional Specification
+**************************
+
+The fol manager exports two interfaces:
+
+- main interface used by the request handler. Through this interface fol records can be added to the fol and the fol can be forced (i.e., made persistent up to a certain record);
+
+- auxiliary interfaces, used for fol pruning and querying.
+
+***********************
+Logical Specification
+***********************
+
+Overview
+=========
+
+Fol is stored in a transactional container1 populated with records indexed2 by lsn. An lsn is used to refer to a point in fol from other meta-data tables (epochs table, object index, sessions table, etc.). To make such references more flexible, a fol, in addition to genuine records corresponding to updates, might contain pseudo-records marking points on interest in the fol to which other file system tables might want to refer to (for example, an epoch boundary, a snapshot origin, a new server secret key, etc.). By abuse of terminology, such pseudo-records will be called fol records too. Similarly, as part of redo-recovery implementation, DTM might populate a node fol with records describing updates to be performed on other nodes.
+
+Record Structure
+=================
+
+A fol record, added via the main fol interface, contains the following:
+
+1[R.BACK-END.TRANSACTIONAL] ST
+
+2[R.BACK-END.INDEXING] ST
+
+- an operation opcode, identifying the type of file system operation;
+
+- lsn;
+
+- information sufficient to undo and redo the update, described by the record, including:
+
+  - for each file system object affected by the update, its identity (a fid) and its object version identifying the state of the object in which the update can be applied;
+
+  - any additional operation type dependent information (file names, attributes, etc.) necessary to execute or roll-back the update;
+
+- information sufficient to identify other updates of the same operation (if any) and their state. For the purposes of the present design specification it's enough to posit that this can be done by means of some opaque identifier;
+
+- for each object modified by the update, a reference (in the form of lsn) to the record of the previous update to this object (null is the update is object creation). This reference is called prev-lsn reference;
+
+- distributed transaction management data, including an epoch this update and operation are parts of;
+
+- liveness state: a number of outstanding references to this record
+
+Liveness and Pruning
+=====================
+
+A node fol must be prunable if only to function correctly on a node without persistent storage. At the same time, a variety of sub-systems both from M0 core and outside of it, might want to refer to fol records. To make pruning possible and flexible, each fol record is augmented with a reference counter, counting all outstanding references to the record. A record can be pruned iff its reference counter drops to 0 together with reference counters of all earlier (in lsn sense) unpruned records in the fol.
+
+Conformance
+=============
+
+- [r.fol.every-node]: on nodes with persistent storage, M0 core runs in the user space and the fol is stored in a data-base table. On a node without persistent storage, M0 core runs in the kernel space and the fol is stored in memory-only index. Data-base and memory-only index provide the same external interface, making fol code portable;
+
+- [r.fol.local-txn]: request handler inserts a record into FOL table in the context of the same transaction where update is executed. This guarantees WAL property of fol;
+
+- [R.FOL]: vacuous;
+
+- [R.FOL.VARIABILITY]: fol records contain enough information to determine where to forward updates to;
+
+- [R.FOL.LSN]: explicitly by design;
+
+- [R.FOL.CONSISTENCY]: explicitly by design;
+
+- [R.FOL.IDEMPOTENCY]: object versions stored in every fol record are used to implement EOS;
+
+- [R.FOL.ORDERING]: object versions and lsn are used to implement ordering;
+
+- [R.FOL.DEPENDENCIES]: object versions and epoch numbers are used to track operation dependencies;
+
+- [R.FOL.DIX]: distinction between operation and update makes multi-server operations possible;
+
+- [R.FOL.SNS]: same as for r.fol.DIX;
+
+- [R.FOL.REINT]: cache pressure manager on a node keeps a reference to the last re-integrated record using auxiliary fol interface;
+
+- [R.FOL.PRUNE]: explicitly by design;
+
+- [R.FOL.REPLAY]: the same as r.fol.reint: a client keeps a reference to the earliest fol record that might require replay. Liveness rules guarantee that all later records are present in the fol;
+
+- [R.FOL.REDO]: by design fol record contains enough information for update redo. See DTM documentation for details;
+
+- [R.FOL.UNDO]: by design fol record contains enough information for update undo. See DTM documentation for details;
+
+- [R.FOL.EPOCHS]: an epoch table contains references (lsn) of fol (pseudo-)records marking epoch boundaries;
+
+- [R.FOL.CONSUME.SYNC]: request handler feed a fol record to registered synchronous consumers in the same local transaction context where the record is inserted and where the operation is executed;
+
+- [R.FOL.CONSUME.ASYNC]: asynchronous fol consumers receive batches of fol records from multiple nodes and consume them in the context of distributed transactions on which these records are parts of;
+
+- [R.FOL.CONSUME.RESUME]: the same mechanism is used for resumption of fol consumption as for re-integration and replay: a record to the last consumed fol records is updated transactionally with consumption;
+
+- [R.FOL.ADDB]: see ADDB documentation for details;
+
+- [R.FOL.FILE]: an object index table, enumerating all files and file-sets for the node contains references to the latest fol record for the file (or file-set). By following previous operation lsn references the history of modifications of a given file can be recovered.
+
+Dependencies
+============
+
+- back-end:
+
+  - [R.BACK-END.TRANSACTIONAL] ST: back-end supports local transactions so that fol could be populated atomically with other tables;
+
+  - [R.BACK-END.INDEXING] ST: back-end supports containers with records indexed by a key.
+  
+Security Model
+===============
+
+FOL manager by itself does not deal with security issues. It trusts its callers (request handler, DTM, etc.) to carry out necessary authentication and authorization checks before manipulating fol records. The fol stores some security information as part of its records.
+
+Refinement
+===========
+
+The fol is organized as a single indexed table containing records with lsn as a primary key. The structure of an individual record is outlined above. Detailed main fol interface is straightforward. Fol navigation and querying in the auxiliary interface are based on a fol cursor.
+
+*******
+State
+*******
+
+Fol introduces no extra state.
+
+**********
+Use Cases
+**********
+
+Scenarios
+==========
+
+FOL QAS list is included here by reference.
+
+Failures
+=========
+
+Failure of the underlying storage container in which fol is stored is treated as any storage failure. All other fol related failures are handled by DTM.
+
+***********
+Analysis
+***********
+
+Other
+======
+
+At alternative design is to store fol in a special data-structure, instead of a standard indexed container. For example, fol can be stored in an append-only flat file with starting offset of a record serving as its lsn. Perceived advantage of this solution is avoiding an overhead of a full-fledged indexing (b-tree). Indeed, general purpose indexing is not needed, because records with lsn less than the maximal one used in the past are never inserted into the fol (aren't they?).
+
+Yet another possible design is to use db4 extensible logging to store fol records directly in a db4 transactional log. The advantage of this is that forcing fol up to a specific record becomes possible (and easy to implement), and the overhead of indexing is again avoided. On the other hand, it is not clear how to deal with pruning.
+
+
+Rationale
+==========
+
+Simplest solution first.
+
+***********
+References
+***********
+
+- [0] FOL QAS 
+
+- [1] FOL architecture view packet 
+
+- [2] FOL overview 
+
+- [3] WAL 
+
+- [4] Summary requirements table 
+
+- [5] M0 glossary
+
+- [6] HLD of request handler
