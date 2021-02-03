@@ -276,8 +276,8 @@ def create_lvm(self, index, metadata_dev):
         pass
     else:
         sys.stdout.write(f"Already volumes are created on {metadata_dev}\n {out[0]}")
-        sys.stdout.write(f"Proceeding without any volume creation as mentioned in EOS-17127\n")
-        return 
+        sys.stdout.write("Proceeding without any volume creation as mentioned in EOS-17127\n")
+        return
 
     index = index + 1
     node_name = self._server_id
