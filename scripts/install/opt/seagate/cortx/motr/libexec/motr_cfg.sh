@@ -247,28 +247,15 @@ do_m0provision_action()
         fi
     fi 
    
-    #SALT_OPT=$(salt-call --local grains.get virtual)
-    #platform=$(get_platform)
-    #echo "Server type is $platform"
-    #
-    #ANY_ERR=$(echo $SALT_OPT | grep -i ERROR | wc -l)
-    #if [ "$ANY_ERR" != "0" ]; then
-    #    msg "Salt command failed or not available."
-    #    msg "[$SALT_OPT]"
-    #    #die $ERR_CFG_SALT_FAILED
-    #fi
-    #
-    #CLUSTER_TYPE=$(echo $SALT_OPT | grep physical | wc -l)
-    #echo $CLUSTER_TYPE
-    #if [[ "$CLUSTER_TYPE" != "1" ]] && [[ $platform != "physical" ]]; then
-    #    msg "CLUSTER_TYPE is [$CLUSTER_TYPE]. Config operation is not allowed."
-    #    msg "Only physical clusters will be configured here. "
-    #    msg "[$SALT_OPT]"
-    #    die $ERR_NOT_IMPLEMENTED
-    #fi
-    #
-    #dbg "[$SALT_OPT]"
-
+    platform=$(get_platform)
+    echo "Server type is $platform"
+    
+    if [[ $platform != "physical" ]]; then
+        msg "Server type is [$platform]. Config operation is not allowed."
+        msg "Only physical clusters will be configured here. "
+        die $ERR_NOT_IMPLEMENTED
+    fi
+    
     while IFS= read -r CFG_LINE
     do
         if [[ "$CFG_LINE" == "#"* ]]; then
