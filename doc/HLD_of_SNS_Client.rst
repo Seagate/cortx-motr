@@ -161,3 +161,123 @@ Dependencies
   - [u.io.sns] ST: server network striping is supported
  
   - [u.lib.allocate-page]: page allocation interface is present in the library
+  
+ Security Model
+ ================
+ 
+ Security is outside of scope of the present design.
+ 
+ Refinement
+ ============
+ 
+ Detailed level design specification should address the following:
+ 
+ - concurrency control and liveness rules for fops and layouts;
+
+ - data structures for mapping between layout and target objects in the pool;
+
+ - instantiation of a layout formula;
+
+ - relationship between fop and its sub-fops: concurrency control, liveness, ownership
+ 
+********
+State
+********
+
+State diagrams are part of the detailed level design specification.
+
+***********
+Use Cases
+***********
+
+Scenarios
+==========
+
+Scenario 1: [usecase.sns-client-read]
+
+Relevant quality attributes: usability
+
+Stimulus: an incoming read operation request from a user space operation
+
+Stimulus source: a user space application, potentially meditated by a loop-back device driver
+
+Environment: normal client operation
+
+Artifact: call to VFS ->read() entry point
+
+Response: a fop is created, network transmission of operation parameters to all involved data servers is started as specified by the file layout, servers place retrieved data directly in user buffers, once transmission completes, the fop is destroyed.
+
+Response measure: no data copying in the process
+
+Questions and issues:
+
+
+Scenario 2: [usecase.sns-client-write]
+
+Relevant quality attributes: usability
+
+Stimulus: an incoming write operation request from a user space operation
+
+Stimulus source: a user space application, potentially meditated by a loop-back device driver
+
+Environment: normal client operation
+
+Artifact: call to VFS ->write() entry point
+
+Response: a fop is created, network transmission of operation parameters to all involved data servers is started as specified by the file layout, servers place retrieved data directly in user buffers, once transmission completes, the fop is destroyed.
+
+Response measure: no data copying in the process
+
+Questions and Issues:
+
+**********
+Analysis
+**********
+
+Scalability
+============
+
+No scalability issues are expected in this component. Relatively little resources (processor cycles, memory) are consumed per byte of processed data. With large number of concurrent IO operation requests, scalability of layout, pool and fop data structures might become a bottleneck (in the case of small file IO initially).
+
+*************
+Deployment
+*************
+
+Compatability
+==============
+
+Network
+--------
+
+No issues at this point.
+
+Persistent storage
+-------------------
+
+The design is not concerned with persistent storage manipulation.
+
+Core
+-----
+
+No issues at this point. No additional external interfaces are introduced.
+
+Installation
+================
+
+The SNS client module is a part of m0t1fs.ko kernel module and requires no additional installation. System testing scripts in m0t1fs/st must be updated.
+
+***********
+References
+***********
+
+- [0] Outline of M0 core conceptual design 
+
+- [1] Summary requirements table 
+
+- [2] Request Handler HLD 
+
+- [3] Parity De-clustering Algorithm HLD 
+
+- [4] High level design inspection trail of SNS client 
+
+- [5] SNS server HLD
