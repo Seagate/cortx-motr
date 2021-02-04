@@ -155,9 +155,9 @@ A m0_cob is an in-memory structure, instantiated by the method cob_find and popu
 
                     struct namespace_rec *co_ns_rec;
 
-                         struct fileattr_basic_rec *co_fab_rec;
+                    struct fileattr_basic_rec *co_fab_rec;
 
-                         struct object_index_rec *co_oi_rec; /* pfid, filename */
+                    struct object_index_rec *co_oi_rec; /* pfid, filename */
 
     };
 
