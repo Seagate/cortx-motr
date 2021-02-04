@@ -49,6 +49,7 @@ static void cm_ut_server_start(void)
 {
 	int rc;
 
+	M0_SET0(&cm_ut_sctx);
 	cm_ut_sctx.rsx_xprts         = &xprt;
 	cm_ut_sctx.rsx_xprts_nr      = 1;
 	cm_ut_sctx.rsx_argv          = cm_ut_server_args;
