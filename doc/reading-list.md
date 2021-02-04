@@ -86,7 +86,7 @@ Function Shipping
 
 * Function shipping (In-storage-compute) usage in motr: [PDF](PDF/motr_function_shipping.pdf).
 
-  * The layout plan interface allow a generic and fault-tolerant implementation of function shipping: [layout plan](https://github.com/Seagate/cortx-motr/blob/main/layout/layout.h)
+  * The layout plan interface allows a generic and fault-tolerant implementation of function shipping: [layout plan](https://github.com/Seagate/cortx-motr/blob/main/layout/layout.h)
 
 
 Network
