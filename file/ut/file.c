@@ -459,6 +459,11 @@ static void flock_utinit(void)
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_init(&rm_ctxs[i], i);
 
+	M0_SET_ARR0(clnt_thr);
+	M0_SET_ARR0(srv_thr);
+	clnt_counter = 0;
+	srv_counter  = 0;
+
 	rm_ctxs_conf_init(rm_ctxs, test_servers_nr);
 	server_hier_config();
 	m0_mutex_init(&rm_ut_tests_chan_mutex);
