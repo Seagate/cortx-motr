@@ -412,13 +412,13 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 			goto handle_error;
 		}
 
-		M0_ALLOC_ARR(math->data_frags, (data_count * sizeof(uint8_t*)));
+		M0_ALLOC_ARR(math->data_frags, data_count);
 		if (math->data_frags == NULL) {
 			ret = M0_ERR(-ENOMEM);
 			goto handle_error;
 		}
 
-		M0_ALLOC_ARR(math->parity_frags, (parity_count * sizeof(uint8_t*)));
+		M0_ALLOC_ARR(math->parity_frags, parity_count);
 		if (math->parity_frags == NULL) {
 			ret = M0_ERR(-ENOMEM);
 			goto handle_error;
@@ -539,6 +539,8 @@ static void isal_diff(struct m0_parity_math *math,
 	ec_encode_data_update(block_size, math->pmi_data_count,
 			      math->pmi_parity_count, index, math->g_tbls,
 			      diff_data, math->parity_frags);
+
+	m0_free(diff_data);
 }
 #else
 static void reed_solomon_diff(struct m0_parity_math *math,
@@ -892,10 +894,10 @@ static void isal_recover(struct m0_parity_math *math,
 	M0_ALLOC_ARR(err_list, fail_count);
 	M0_ASSERT(err_list != NULL);
 
-	M0_ALLOC_ARR(data_in, (math->pmi_data_count * sizeof(uint8_t *)));
+	M0_ALLOC_ARR(data_in, math->pmi_data_count);
 	M0_ASSERT(data_in != NULL);
 
-	M0_ALLOC_ARR(data_out, (fail_count * sizeof(uint8_t *)));
+	M0_ALLOC_ARR(data_out, fail_count);
 	M0_ASSERT(data_out != NULL);
 
 #if DEBUG
