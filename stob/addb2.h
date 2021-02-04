@@ -48,6 +48,12 @@ enum m0_avi_stob_io_labels {
         M0_AVI_STOB_IO_ATTR_UVEC_NR,
         M0_AVI_STOB_IO_ATTR_UVEC_COUNT,
         M0_AVI_STOB_IO_ATTR_UVEC_BYTES,
+
+	M0_AVI_STOB_AD_TO_LINUX,
+	M0_AVI_STIO_TO_Q,
+	M0_AVI_STOB_IO_Q,
+	M0_AVI_STOB_IOQ_FRAG,
+	M0_AVI_STIO_IOQ,
 } M0_XCA_ENUM;
 
 enum m0_addb2_stio_req_labels {
@@ -63,6 +69,14 @@ enum m0_addb2_stio_req_labels {
 	M0_AVI_LIO_LAUNCH,
 	M0_AVI_LIO_ENDIO,
 } M0_XCA_ENUM;
+/*
+enum m0_stio_ioq_states {
+	M0_AVI_STIO_TO_Q,
+	M0_AVI_STOB_IO_Q,
+	M0_AVI_STOB_IOQ_FRAG,
+	M0_AVI_STIO_IOQ
+} M0_XCA_ENUM;
+*/
 
 /** @} end of stob group */
 #endif /* __MOTR_STOB_ADDB2_H__ */

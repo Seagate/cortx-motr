@@ -39,6 +39,7 @@
 #include "lib/locality.h" /* m0_locality0_get */
 #include "balloc.h"
 #include "motr/magic.h"
+#include "addb2/addb2.h"
 
 /**
    M0 Data Block Allocator.
@@ -2603,6 +2604,8 @@ int balloc_allocate_internal(struct m0_balloc *ctx,
 {
 	struct balloc_allocation_context bac;
 	int                              rc;
+	m0_time_t                        startime;
+	m0_time_t                        endtime;
 
 	M0_ENTRY();
 
@@ -2623,10 +2626,16 @@ int balloc_allocate_internal(struct m0_balloc *ctx,
 		balloc_normalize_request(&bac);
 
 		/* Step 2. Iterate over groups */
+		startime = m0_time_now();
 		rc = balloc_regular_allocator(&bac);
 		if (rc == 0 && bac.bac_status == M0_BALLOC_AC_FOUND) {
 			/* store the result in req and they will be returned */
 			req->bar_result = bac.bac_final;
+			endtime = m0_time_now();
+			M0_ADDB2_ADD(M0_BALLOC_ALLOC_T, tx->t_id,
+				     ctx->cb_container_id,
+				     req->bar_result.e_start,
+				     req->bar_len, endtime - startime);
 		}
 	}
 out:

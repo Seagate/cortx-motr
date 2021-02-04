@@ -34,6 +34,7 @@
 #include "format/format.h"
 #include "stob/ad.h"
 #include "stob/ad_xc.h"
+#include "addb2/identifier.h"
 
 /**
    @defgroup balloc data-block-allocator
@@ -167,6 +168,10 @@ enum m0_balloc_group_info_state {
 	/** dirty, need sync */
 	M0_BALLOC_GROUP_INFO_DIRTY = 1 << 1,
 };
+
+enum m0_addb_balloc_alloc {
+	M0_BALLOC_ALLOC_T = M0_AVI_BALLOC_RANGE_START,
+} M0_XCA_ENUM;
 
 /**
    On-disk and in-memory super block stored in db

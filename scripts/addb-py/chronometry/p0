@@ -27,7 +27,7 @@ PERF_DIR="${SCRIPT_PATH%/*}"
 . ${PERF_DIR}/common/common_funcs
 
 _get_cluster_params() {
-    local status=$(hctl motr status)
+    local status=$(hctl status)
     CLUSTER_PROFILE=`echo "$status" | grep profile | awk '{print $2}'`
     IOS_FID=`echo "$status" | grep "\[.*\].*ioservice" | grep ${NODE_IP} \
         | awk '{print $3}'`
@@ -42,7 +42,7 @@ _locals() {
         M0_SRC_DIR="${M0_SRC_DIR%/*/*/*/*}"
     fi
 
-    local status=$(hctl motr status)
+    local status=$(hctl status)
     local host=$(hostname -s)
     local addr="([0-9]+[.][0-9]+[.][0-9]+[.][0-9]+)"
     local addr_ext='.* ([0-9]+[.][0-9]+[.][0-9]+[.][0-9]+@.+:[0-9]{5}:[0-9]{2}:).*'
@@ -145,7 +145,7 @@ cmd_run() {
     set +e
     _check_is_cluster_online || {
         _err "Cluster is offline."
-        _err "hctl motr start/bootstrap to start."
+        _err "hctl  start/bootstrap to start."
         exit 1
     }
     set -e
@@ -177,7 +177,7 @@ cmd_run() {
 
             for cport in $MOTR_PORTS; do
                 MOTR_LOCAL_ADDR_EXT=${APP_IP_EXT}${cport}
-                PROCESS_FID=$(hctl motr status \
+                PROCESS_FID=$(hctl status \
                     | grep "\[\s*N/A].*motr-app" | grep $APP_IP_EXT \
                     | grep $cport | awk '{print $3}')
 
@@ -325,7 +325,7 @@ while [ $# -gt 0 ]; do
 done
 if [ -n "$CMD" ]; then
     _locals
-    _get_cluster_params
+    //_get_cluster_params
     _check_root
     _exec $CMD $OPTS
 else
