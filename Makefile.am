@@ -949,7 +949,7 @@ motr_conf_DATA = scripts/install$(motr_confdir)/motr.conf \
 EXTRA_DIST += $(motr_conf_DATA)
 
 motr_examplesdir = $(motr_confdir)/examples
-motr_examples_DATA = scripts/install$(motr_examplesdir)/motr_prov_conf.json
+motr_examples_DATA = scripts/install$(motr_examplesdir)/provisioner_cluster.json
 
 EXTRA_DIST += $(motr_examples_DATA)
 
