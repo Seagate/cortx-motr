@@ -476,6 +476,10 @@ static void be_btree_split_child(struct m0_be_btree *btree,
 	i = 0;
 	while (i < new_child->bt_num_active_key) {
 		new_child->bt_kv_arr[i] = child->bt_kv_arr[i + BTREE_FAN_OUT];
+		if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+		{
+			new_child->bt_kv_arr[i].btree_key = &new_child->bt_kv_arr[i].inlkey;
+		}
 		i++;
 	}
 
@@ -501,11 +505,19 @@ static void be_btree_split_child(struct m0_be_btree *btree,
 	for (i = parent->bt_num_active_key + 1; i > index + 1; i--) {
 		parent->bt_child_arr[i] = parent->bt_child_arr[i - 1];
 		parent->bt_kv_arr[i - 1] = parent->bt_kv_arr[i - 2];
+		if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+		{
+			parent->bt_kv_arr[i - 1].btree_key = &parent->bt_kv_arr[i - 1].inlkey;
+		}
 	}
 
 	/*  Update parent */
 	parent->bt_child_arr[index + 1] = new_child;
 	parent->bt_kv_arr[index] = child->bt_kv_arr[BTREE_FAN_OUT - 1];
+	if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+	{
+		parent->bt_kv_arr[index].btree_key = &parent->bt_kv_arr[index].inlkey;
+	}
 	parent->bt_num_active_key++;
 
 	/* re-calculate checksum after all fields has been updated */
@@ -660,13 +672,18 @@ static void be_btree_shift_key_vals(struct m0_be_bnode *dest,
 				    unsigned int        key_dest_offset,
 				    unsigned int        child_src_offset,
 				    unsigned int        child_dest_offset,
-				    unsigned int        stop_index)
+				    unsigned int        stop_index,
+					uint64_t 			ktype)
 {
 	unsigned int i = start_index;
 	while (i < stop_index)
 	{
 		dest->bt_kv_arr[i + key_dest_offset] =
 					src->bt_kv_arr[i + key_src_offset];
+		if(ktype != M0_BBT_CAS_CTG)
+		{
+			dest->bt_kv_arr[i + key_dest_offset].btree_key = &dest->bt_kv_arr[i + key_dest_offset].inlkey;
+		}
 		dest->bt_child_arr[i + child_dest_offset ] =
 				src->bt_child_arr[i + child_src_offset];
 		++i;
@@ -692,6 +709,7 @@ be_btree_merge_siblings(struct m0_be_tx    *tx,
 {
 	struct m0_be_bnode *node1;
 	struct m0_be_bnode *node2;
+	unsigned int tval;
 
 	M0_ENTRY("n=%p i=%d", parent, idx);
 
@@ -700,14 +718,18 @@ be_btree_merge_siblings(struct m0_be_tx    *tx,
 
 	node1 = parent->bt_child_arr[idx];
 	node2 = parent->bt_child_arr[idx + 1];
-
 	node1->bt_kv_arr[node1->bt_num_active_key++] = parent->bt_kv_arr[idx];
-
+	tval = node1->bt_num_active_key;
+	if(tree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+	{
+		node1->bt_kv_arr[tval].btree_key = &node1->bt_kv_arr[tval].inlkey;
+	}
 	M0_ASSERT(node1->bt_num_active_key + node2->bt_num_active_key <= KV_NR);
 
 	be_btree_shift_key_vals(node1, node2, 0, 0, node1->bt_num_active_key, 0,
 				node1->bt_num_active_key,
-				node2->bt_num_active_key);
+				node2->bt_num_active_key,
+				tree->bb_ops->ko_type);
 
 	node1->bt_child_arr[node2->bt_num_active_key+node1->bt_num_active_key] =
 				node2->bt_child_arr[node2->bt_num_active_key];
@@ -718,7 +740,7 @@ be_btree_merge_siblings(struct m0_be_tx    *tx,
 
 	/* update parent */
 	be_btree_shift_key_vals(parent, parent, idx, 1, 0, 2, 1,
-				parent->bt_num_active_key - 1);
+				parent->bt_num_active_key - 1, tree->bb_ops->ko_type);
 
 	parent->bt_num_active_key--;
 	/* re-calculate checksum after all fields has been updated */
@@ -745,22 +767,35 @@ be_btree_merge_siblings(struct m0_be_tx    *tx,
 static void be_btree_move_parent_key_to_right_child(struct m0_be_bnode *parent,
 						    struct m0_be_bnode *lch,
 						    struct m0_be_bnode *rch,
-						    unsigned int        idx)
+						    unsigned int        idx,
+							uint64_t ktype)
 {
 	unsigned int i = rch->bt_num_active_key;
 
 	while (i > 0) {
 		rch->bt_kv_arr[i] = rch->bt_kv_arr[i - 1];
+		if(ktype != M0_BBT_CAS_CTG)
+		{
+			rch->bt_kv_arr[i].btree_key = &rch->bt_kv_arr[i].inlkey;
+		}
 		rch->bt_child_arr[i + 1] = rch->bt_child_arr[i];
 		--i;
 	}
 	rch->bt_child_arr[1] = rch->bt_child_arr[0];
 	rch->bt_kv_arr[0] = parent->bt_kv_arr[idx];
+	if(ktype != M0_BBT_CAS_CTG)
+	{
+		rch->bt_kv_arr[0].btree_key = &rch->bt_kv_arr[0].inlkey;
+	}
 	rch->bt_child_arr[0] =
 			lch->bt_child_arr[lch->bt_num_active_key];
 	lch->bt_child_arr[lch->bt_num_active_key] = NULL;
 	parent->bt_kv_arr[idx] =
 			lch->bt_kv_arr[lch->bt_num_active_key-1];
+	if(ktype != M0_BBT_CAS_CTG)
+	{
+		parent->bt_kv_arr[idx].btree_key = &parent->bt_kv_arr[idx].inlkey;
+	}
 	lch->bt_num_active_key--;
 	rch->bt_num_active_key++;
 }
@@ -768,19 +803,33 @@ static void be_btree_move_parent_key_to_right_child(struct m0_be_bnode *parent,
 static void be_btree_move_parent_key_to_left_child(struct m0_be_bnode *parent,
 						   struct m0_be_bnode *lch,
 						   struct m0_be_bnode *rch,
-						   unsigned int        idx)
+						   unsigned int        idx,
+						   uint64_t ktype)
 {
 	unsigned int i;
 
 	lch->bt_kv_arr[lch->bt_num_active_key] =
 					parent->bt_kv_arr[idx];
+	if(ktype != M0_BBT_CAS_CTG)
+	{
+		lch->bt_kv_arr[lch->bt_num_active_key].btree_key = &lch->bt_kv_arr[lch->bt_num_active_key].inlkey;
+	}
+
 	lch->bt_child_arr[lch->bt_num_active_key + 1] =
 					rch->bt_child_arr[0];
 	lch->bt_num_active_key++;
 	parent->bt_kv_arr[idx] = rch->bt_kv_arr[0];
+	if(ktype != M0_BBT_CAS_CTG)
+	{
+		parent->bt_kv_arr[idx].btree_key = &parent->bt_kv_arr[idx].inlkey;
+	}
 	i = 0;
 	while (i < rch->bt_num_active_key - 1) {
 		rch->bt_kv_arr[i] = rch->bt_kv_arr[i + 1];
+		if(ktype != M0_BBT_CAS_CTG)
+		{
+			rch->bt_kv_arr[i].btree_key = &rch->bt_kv_arr[i].inlkey;
+		}
 		rch->bt_child_arr[i] = rch->bt_child_arr[i + 1];
 		++i;
 	}
@@ -818,9 +867,9 @@ static void be_btree_move_parent_key(struct m0_be_btree	  *tree,
 	rch = parent->bt_child_arr[idx + 1];
 
 	if (pos == P_LEFT)
-		be_btree_move_parent_key_to_left_child(parent, lch, rch, idx);
+		be_btree_move_parent_key_to_left_child(parent, lch, rch, idx, tree->bb_ops->ko_type);
 	else
-		be_btree_move_parent_key_to_right_child(parent, lch, rch, idx);
+		be_btree_move_parent_key_to_right_child(parent, lch, rch, idx, tree->bb_ops->ko_type);
 
 	/* re-calculate checksum after all fields has been updated */
 	m0_format_footer_update(lch);
@@ -858,6 +907,10 @@ void be_btree_delete_key_from_node(struct m0_be_btree	 *tree,
 
 		while (idx < bnode->bt_num_active_key - 1) {
 			bnode->bt_kv_arr[idx] = bnode->bt_kv_arr[idx+1];
+			if(tree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+			{
+				bnode->bt_kv_arr[idx].btree_key = &bnode->bt_kv_arr[idx].inlkey;
+			}
 			++idx;
 		}
 		/*
@@ -899,6 +952,11 @@ static void btree_node_child_delete(struct m0_be_btree    *btree,
 						  child->bnp_index);
 	M0_SWAP(child->bnp_node->bt_kv_arr[child->bnp_index],
 		node->bt_kv_arr[index]);
+	if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+	{
+		node->bt_kv_arr[index].btree_key = &node->bt_kv_arr[index].inlkey;
+		child->bnp_node->bt_kv_arr[child->bnp_index].btree_key = &child->bnp_node->bt_kv_arr[child->bnp_index].inlkey;
+	}
 	/*
 	 * Update checksum for parent, for child it will be updated
 	 * in delete_key_from_node().
@@ -1357,7 +1415,8 @@ static void *be_btree_get_min_key(struct m0_be_btree *tree)
 static void btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
 			       struct be_btree_key_val  *kv)
 {
-	mem_free(btree, tx, kv->btree_key);
+	if(btree->bb_ops->ko_type == M0_BBT_CAS_CTG)
+		mem_free(btree, tx, kv->btree_key);
 }
 
 /**
