@@ -36,6 +36,7 @@
 #include "motr/client.h"
 #include "motr/idx.h"
 
+
 /** Max number of blocks in concurrent IO per thread.
   * Currently Client can write at max 100 blocks in
   * a single request. This will change in future.
@@ -147,6 +148,9 @@ int m0_utility_args_init(int argc, char **argv,
 			 struct m0_idx_dix_config *dix_conf,
 			 struct m0_config *conf,
 			 void (*utility_usage) (FILE*, char*));
+void print_time(struct timeval tv1, struct timeval tv2);
+
+
 #endif /* __MOTR_ST_UTILS_HELPER_H__ */
 
 /*

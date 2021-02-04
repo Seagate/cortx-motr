@@ -56,7 +56,10 @@ die() { echo "$@" >&2; exit 1; }
 _make() {
     local TARGET=${1:-}
 
+    echo "Atul on 59....$@"
     if [ "${TARGET:-}" = rpms ]; then
+        echo "Atul on 60 MAKE="${MAKE_OPTS:-}""
+        echo "Atul on 61 TARGET="$TARGET""
         ## Tolerate warnings. rpms get built in spite of them.
         make ${MAKE_OPTS:-} $TARGET || exit $?
     else
@@ -104,6 +107,7 @@ cmd_configure() {
 cmd_make() {
     cd "$M0_SRC_DIR"
     if [ -f Makefile ]; then
+        echo "Atul on 109...$@...and M0_SRC_DIR=$M0_SRC_DIR"
         _make "$@"
     else
         build

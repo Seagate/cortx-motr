@@ -30,7 +30,7 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 . $M0_SRC_DIR/utils/functions # report_and_exit
 
 cd $M0_SRC_DIR
-
+echo "Atul on ./st/m0singlenode:33 $1"
 sudo ./scripts/install-motr-service -u
 sudo ./scripts/install-motr-service -l
 sudo ./utils/m0setup -M

@@ -41,6 +41,7 @@ readonly singlenonde_services='
     motr-singlenode
 '
 
+echo "Atul on ./utils/m0singlenode:44 $1"
 # variables
 verbose=false
 cli_args=

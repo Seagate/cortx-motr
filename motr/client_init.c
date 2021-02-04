@@ -18,8 +18,6 @@
  * please email opensource@seagate.com or cortx-questions@seagate.com.
  *
  */
-
-
 #include "lib/memory.h"               /* m0_alloc, m0_free */
 #include "lib/errno.h"                /* ENOMEM */
 #include "lib/uuid.h"                 /* m0_uuid_generate */
@@ -46,7 +44,6 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"                /* M0_LOG */
-
 /* BOB type for m0_ */
 static const struct m0_bob_type m0c_bobtype;
 M0_BOB_DEFINE(static, &m0c_bobtype,  m0_client);
@@ -282,6 +279,11 @@ struct m0_sm_conf initlift_conf = {
 	.scf_trans     = initlift_trans,
 	.scf_trans_nr  = ARRAY_SIZE(initlift_trans),
 };
+
+void print_time_1(uint64_t tv1, uint64_t tv2)
+{
+	M0_LOG(M0_ERROR, "Atul Consumed time : %llu secs\n", (long long unsigned int)(tv2-tv1)); 
+}
 
 /**
  * Checks a m0_client struct is correct.
@@ -1498,6 +1500,7 @@ int m0_client_init(struct m0_client **m0c_p,
 {
 	int               rc;
 	struct m0_client *m0c;
+        uint64_t  t1, t2;
 
 	M0_PRE(m0c_p != NULL);
 	M0_PRE(*m0c_p == NULL);
@@ -1512,10 +1515,14 @@ int m0_client_init(struct m0_client **m0c_p,
 	/* Initialise Motr if needed at the very beginning. */
 #ifndef __KERNEL__
 	if (init_m0) {
+                t1 = m0_time_seconds(m0_time_now());
 		M0_SET0(&m0_client_motr_instance);
 		rc = m0_init(&m0_client_motr_instance);
 		if (rc != 0)
 			return M0_RC(rc);
+		t2 = m0_time_seconds(m0_time_now());
+		M0_LOG(M0_ERROR, "Atul on line 1524...................\n");
+		print_time_1(t1, t2);
 	}
 #endif
 
@@ -1545,20 +1552,32 @@ int m0_client_init(struct m0_client **m0c_p,
 	/* Set motr instance. */
 	m0c->m0c_motr = &m0_client_motr_instance;
 
+	t1 = m0_time_seconds(m0_time_now());
 	/* Initialise configuration state lock */
 	m0_mutex_init(&m0c->m0c_confc_state.cus_lock);
 	m0_chan_init(&m0c->m0c_conf_ready_chan, &m0c->m0c_confc_state.cus_lock);
-
+	t2 = m0_time_seconds(m0_time_now());
+	M0_LOG(M0_ERROR, "Atul on line 1560..................\n");
+	print_time_1(t1, t2);
 	/*
 	 * Initialise those types specific to IO operations, this is needed
 	 * to get rootfid in the Client initlift trip.
 	 */
+	t1 = m0_time_seconds(m0_time_now());
 	m0_client_init_io_op();
+	t2 = m0_time_seconds(m0_time_now());
+	M0_LOG(M0_ERROR, "Atul on line 1569.........\n");
+	print_time_1(t1, t2);
 
 	/* Initialise state machine group */
+	t1 = m0_time_seconds(m0_time_now());
 	m0_sm_group_init(&m0c->m0c_sm_group);
 	m0_chan_init(&m0c->m0c_io_wait, &m0c->m0c_sm_group.s_lock);
+	t2 = m0_time_seconds(m0_time_now());
+	M0_LOG(M0_ERROR, "Atul on line 1577..........\n");
+	print_time_1(t1, t2);
 
+	t1 = m0_time_seconds(m0_time_now());
 	/* Move the initlift in its direction of travel */
 	m0_sm_group_lock(&m0c->m0c_sm_group);
 
@@ -1566,7 +1585,6 @@ int m0_client_init(struct m0_client **m0c_p,
 		   IL_UNINITIALISED, &m0c->m0c_sm_group);
 	m0c->m0c_initlift_direction = STARTUP;
 	initlift_move_next_floor(m0c);
-
 	/*
 	 * If Client initialisation successes, close the configuration fs
 	 * object(cached) now as it may become invalid at some point of time.
@@ -1583,6 +1601,7 @@ int m0_client_init(struct m0_client **m0c_p,
 		 * are completed successfully.
 		 */
 		ha_process_event(m0c, M0_CONF_HA_PROCESS_STARTED);
+		M0_LOG(M0_ERROR, "Atul on line 1604.......\n");
 	}
 
 	m0_sm_group_unlock(&m0c->m0c_sm_group);
@@ -1590,7 +1609,11 @@ int m0_client_init(struct m0_client **m0c_p,
 	/* Check the stashed first failure (may be 0) */
 	if (rc != 0)
 		goto err_exit;
+	t2 = m0_time_seconds(m0_time_now());;
+	M0_LOG(M0_ERROR, "Atul on line 1613........\n");
+	print_time_1(t1, t2);
 
+	t1 = m0_time_seconds(m0_time_now());;
 	/* Do post checks if all initialisation steps success. */
 	M0_POST(m0_sm_conf_is_initialized(&m0_op_conf));
 	M0_POST(m0_sm_conf_is_initialized(&entity_conf));
@@ -1621,6 +1644,9 @@ int m0_client_init(struct m0_client **m0c_p,
 	}
 	/* publish the allocated client instance */
 	*m0c_p = m0c;
+	t2 = m0_time_seconds(m0_time_now());;
+	M0_LOG(M0_ERROR, "Atul on line 1648......\n");
+	print_time_1(t1, t2);
 	return M0_RC(rc);
 
 err_exit:

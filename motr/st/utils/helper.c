@@ -39,6 +39,11 @@
 
 extern struct m0_addb_ctx m0_addb_ctx;
 
+void print_time(struct timeval tv1, struct timeval tv2)
+{
+	printf("Consumed time : %f secs\n", (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 + (double) (tv2.tv_sec - tv1.tv_sec)); 
+}
+
 static int noop_lock_init(struct m0_obj *obj)
 {
 	/* Do nothing */
@@ -171,6 +176,7 @@ int client_init(struct m0_config    *config,
 	 struct m0_client   **instance)
 {
 	int rc;
+        struct timeval  tv1, tv2;
 
 	if (config->mc_local_addr == NULL || config->mc_ha_addr == NULL ||
 	    config->mc_profile == NULL || config->mc_process_fid == NULL) {
@@ -179,7 +185,11 @@ int client_init(struct m0_config    *config,
 		goto err_exit;
 	}
 
+        gettimeofday(&tv1, NULL);
 	rc = m0_client_init(instance, config, true);
+        gettimeofday(&tv2, NULL);
+        printf("Atul on line......%s:%d\n", __FILE__, __LINE__);
+        print_time(tv1, tv2);
 	if (rc != 0)
 		goto err_exit;
 

@@ -85,9 +85,15 @@ int main(int argc, char **argv)
 {
 	struct m0_utility_param  cp_param;
 	int                      rc;
+        struct timeval  tv1, tv2;
 
+        gettimeofday(&tv1, NULL);
+        
 	m0_utility_args_init(argc, argv, &cp_param,
 			     &dix_conf, &conf, &copy_usage);
+        gettimeofday(&tv2, NULL);
+        printf("Atul on line......%s:%d\n", __FILE__, __LINE__);
+        print_time(tv1, tv2);
 
 	/* Read Verify is only for m0cat */
 	conf.mc_is_read_verify = false;
@@ -100,7 +106,12 @@ int main(int argc, char **argv)
 		return -EINVAL;
 	}
 
+        gettimeofday(&tv1, NULL);        
 	rc = client_init(&conf, &container, &m0_instance);
+        gettimeofday(&tv2, NULL);
+        printf("Atul on line......%s:%d\n", __FILE__, __LINE__);
+        print_time(tv1, tv2);
+
 	if (rc < 0) {
 		fprintf(stderr, "init failed! rc = %d\n", rc);
 		exit(EXIT_FAILURE);

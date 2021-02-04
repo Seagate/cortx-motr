@@ -51,7 +51,7 @@ start()
 
         service_dir=$(m0_get_m0d_data_dir_for $s)
         [ ! -d "$service_dir" ] && mkdir -p "$service_dir"
-
+		echo "Atul on ./scripts/install/usr/libexec/cortx-motr/motr:54 service_dir=$service_dir and t={$t} s={$s}"
         systemctl start motr-server${t}${s}.service
     done
 }
