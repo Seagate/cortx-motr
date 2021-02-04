@@ -252,27 +252,29 @@ Scenarios
 
 
 
-Scenario 2: QA.schema.stat
-
-Relevant quality attributes: usability
-
-Stimulus: a stat(2) request arrives to a Request Handler
-
-Stimulus source: a user application
-
-Environment: normal operation
-
-Artifact: a back-end query to locate the file and fetch its basic attributes
-
-Response: Schema must be structured so that stat(2) processing can be done quickly without extract index lookups and associated storage accesses
-
-Response Measure:
-
-- an average number of schema operations necessary to complete stat(2) processing; 
-
-- an average number of storage accesses during stat(2) processing
-
-Questions and issues:
+.. list-table::
+   :header-rows: 1
+   
+   * - Scenario 2
+     - QA.schema.stat
+   * - Relevant quality attributes
+     - usability
+   * - Stimulus
+     - a stat(2) request arrives to a Request Handler
+   * - Stimulus source
+     - a user application
+   * - Environment
+     - normal operation
+   * - Artifact
+     - a back-end query to locate the file and fetch its basic attributes
+   * - Response
+     - Schema must be structured so that stat(2) processing can be done quickly without extract index lookups and associated storage accesses
+   * - Response Measure
+     - 
+       - an average number of schema operations necessary to complete stat(2) processing; 
+       - an average number of storage accesses during stat(2) processing
+   * - Questions and issues
+     - 
 
 
 Scenario 3: QA.schema.duplicates
