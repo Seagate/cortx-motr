@@ -109,7 +109,7 @@ Requirements
 
 - [R.FOL.ADDB]: FOL is integrated with ADDB. ADDB records matching a given FOL record can be found efficiently;
 
-- [R.FOL.FILE]: FOL records pertaining to a given file(-set) can be found efficiently.
+- [R.FOL.FILE]: FOL records pertaining to a given file (-set) can be found efficiently.
 
 ******************
 Design Highlights
@@ -134,12 +134,12 @@ Logical Specification
 Overview
 =========
 
-Fol is stored in a transactional container1 populated with records indexed2 by lsn. An lsn is used to refer to a point in fol from other meta-data tables (epochs table, object index, sessions table, etc.). To make such references more flexible, a fol, in addition to genuine records corresponding to updates, might contain pseudo-records marking points on interest in the fol to which other file system tables might want to refer to (for example, an epoch boundary, a snapshot origin, a new server secret key, etc.). By abuse of terminology, such pseudo-records will be called fol records too. Similarly, as part of redo-recovery implementation, DTM might populate a node fol with records describing updates to be performed on other nodes.
+FOL is stored in a transactional container[1] populated with records indexed[2] by LSN. An LSN is used to refer to a point in FOL from other meta-data tables (epochs table, object index, sessions table, etc.). To make such references more flexible, a FOL, in addition to genuine records corresponding to updates, might contain pseudo-records marking points on interest in the FOL to which other file system tables might want to refer to (for example, an epoch boundary, a snapshot origin, a new server secret key, etc.). By abuse of terminology, such pseudo-records will be called FOL records too. Similarly, as part of redo-recovery implementation, DTM might populate a node FOL with records describing updates to be performed on other nodes.
 
 Record Structure
 =================
 
-A fol record, added via the main fol interface, contains the following:
+A FOL record, added via the main FOL interface, contains the following:
 
 [1][R.BACK-END.TRANSACTIONAL] ST
 
@@ -147,7 +147,7 @@ A fol record, added via the main fol interface, contains the following:
 
 - an operation opcode, identifying the type of file system operation;
 
-- lsn;
+- LSN;
 
 - information sufficient to undo and redo the update, described by the record, including:
 
@@ -166,54 +166,54 @@ A fol record, added via the main fol interface, contains the following:
 Liveness and Pruning
 =====================
 
-A node fol must be prunable if only to function correctly on a node without persistent storage. At the same time, a variety of sub-systems both from M0 core and outside of it, might want to refer to fol records. To make pruning possible and flexible, each fol record is augmented with a reference counter, counting all outstanding references to the record. A record can be pruned iff its reference counter drops to 0 together with reference counters of all earlier (in lsn sense) unpruned records in the fol.
+A node FOL must be prunable if only to function correctly on a node without persistent storage. At the same time, a variety of sub-systems both from M0 core and outside of it, might want to refer to FOL records. To make pruning possible and flexible, each FOL record is augmented with a reference counter, counting all outstanding references to the record. A record can be pruned if its reference counter drops to 0 together with reference counters of all earlier (in lsn sense) unpruned records in the fol.
 
 Conformance
 =============
 
-- [R.FOL.EVERY-NODE]: on nodes with persistent storage, M0 core runs in the user space and the fol is stored in a data-base table. On a node without persistent storage, M0 core runs in the kernel space and the fol is stored in memory-only index. Data-base and memory-only index provide the same external interface, making fol code portable;
+- [R.FOL.EVERY-NODE]: on nodes with persistent storage, M0 core runs in the user space and the FOL is stored in a data-base table. On a node without persistent storage, M0 core runs in the kernel space and the FOL is stored in memory-only index. Data-base and memory-only index provide the same external interface, making FOL code portable;
 
-- [R.FOL.LOCAL-TXN]: request handler inserts a record into FOL table in the context of the same transaction where update is executed. This guarantees WAL property of fol;
+- [R.FOL.LOCAL-TXN]: request handler inserts a record into FOL table in the context of the same transaction where update is executed. This guarantees WAL property of FOL;
 
 - [R.FOL]: vacuous;
 
-- [R.FOL.VARIABILITY]: fol records contain enough information to determine where to forward updates to;
+- [R.FOL.VARIABILITY]: FOL records contain enough information to determine where to forward updates to;
 
 - [R.FOL.LSN]: explicitly by design;
 
 - [R.FOL.CONSISTENCY]: explicitly by design;
 
-- [R.FOL.IDEMPOTENCY]: object versions stored in every fol record are used to implement EOS;
+- [R.FOL.IDEMPOTENCY]: object versions stored in every FOL record are used to implement EOS;
 
-- [R.FOL.ORDERING]: object versions and lsn are used to implement ordering;
+- [R.FOL.ORDERING]: object versions and LSN are used to implement ordering;
 
 - [R.FOL.DEPENDENCIES]: object versions and epoch numbers are used to track operation dependencies;
 
 - [R.FOL.DIX]: distinction between operation and update makes multi-server operations possible;
 
-- [R.FOL.SNS]: same as for r.fol.DIX;
+- [R.FOL.SNS]: same as for r.FOL.DIX;
 
-- [R.FOL.REINT]: cache pressure manager on a node keeps a reference to the last re-integrated record using auxiliary fol interface;
+- [R.FOL.REINT]: cache pressure manager on a node keeps a reference to the last re-integrated record using auxiliary FOL interface;
 
 - [R.FOL.PRUNE]: explicitly by design;
 
-- [R.FOL.REPLAY]: the same as r.fol.reint: a client keeps a reference to the earliest fol record that might require replay. Liveness rules guarantee that all later records are present in the fol;
+- [R.FOL.REPLAY]: the same as r.FOL.reint: a client keeps a reference to the earliest FOL record that might require replay. Liveness rules guarantee that all later records are present in the FOL;
 
-- [R.FOL.REDO]: by design fol record contains enough information for update redo. See DTM documentation for details;
+- [R.FOL.REDO]: by design FOL record contains enough information for update redo. See DTM documentation for details;
 
-- [R.FOL.UNDO]: by design fol record contains enough information for update undo. See DTM documentation for details;
+- [R.FOL.UNDO]: by design FOL record contains enough information for update undo. See DTM documentation for details;
 
-- [R.FOL.EPOCHS]: an epoch table contains references (lsn) of fol (pseudo-)records marking epoch boundaries;
+- [R.FOL.EPOCHS]: an epoch table contains references (LSN) of FOL (pseudo-)records marking epoch boundaries;
 
-- [R.FOL.CONSUME.SYNC]: request handler feed a fol record to registered synchronous consumers in the same local transaction context where the record is inserted and where the operation is executed;
+- [R.FOL.CONSUME.SYNC]: request handler feed a FOL record to registered synchronous consumers in the same local transaction context where the record is inserted and where the operation is executed;
 
-- [R.FOL.CONSUME.ASYNC]: asynchronous fol consumers receive batches of fol records from multiple nodes and consume them in the context of distributed transactions on which these records are parts of;
+- [R.FOL.CONSUME.ASYNC]: asynchronous FOL consumers receive batches of FOL records from multiple nodes and consume them in the context of distributed transactions on which these records are parts of;
 
-- [R.FOL.CONSUME.RESUME]: the same mechanism is used for resumption of fol consumption as for re-integration and replay: a record to the last consumed fol records is updated transactionally with consumption;
+- [R.FOL.CONSUME.RESUME]: the same mechanism is used for resumption of FOL consumption as for re-integration and replay: a record to the last consumed FOL records is updated transactionally with consumption;
 
 - [R.FOL.ADDB]: see ADDB documentation for details;
 
-- [R.FOL.FILE]: an object index table, enumerating all files and file-sets for the node contains references to the latest fol record for the file (or file-set). By following previous operation lsn references the history of modifications of a given file can be recovered.
+- [R.FOL.FILE]: an object index table, enumerating all files and file-sets for the node contains references to the latest FOL record for the file (or file-set). By following previous operation LSN references the history of modifications of a given file can be recovered.
 
 Dependencies
 ============
@@ -227,7 +227,7 @@ Dependencies
 Security Model
 ===============
 
-FOL manager by itself does not deal with security issues. It trusts its callers (request handler, DTM, etc.) to carry out necessary authentication and authorization checks before manipulating fol records. The fol stores some security information as part of its records.
+FOL manager by itself does not deal with security issues. It trusts its callers (request handler, DTM, etc.) to carry out necessary authentication and authorization checks before manipulating FOL records. The FOL stores some security information as part of its records.
 
 Refinement
 ===========
