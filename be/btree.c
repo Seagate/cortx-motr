@@ -553,9 +553,17 @@ static void be_btree_insert_into_nonfull(struct m0_be_btree      *btree,
 	while (i >= 0 &&
 	       key_lt(btree, key, node->bt_kv_arr[i].btree_key)) {
 		node->bt_kv_arr[i + 1] = node->bt_kv_arr[i];
+		if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+		{
+			node->bt_kv_arr[i+1].btree_key = &node->bt_kv_arr[i+1].inlkey;
+		}
 		i--;
 	}
 	node->bt_kv_arr[i + 1] = *kv;
+	if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+	{
+		node->bt_kv_arr[i+1].btree_key = &node->bt_kv_arr[i+1].inlkey;
+	}
 	node->bt_num_active_key++;
 
 	m0_format_footer_update(node);
@@ -1462,6 +1470,12 @@ static void btree_save(struct m0_be_btree        *tree,
 			} else {
 				mem_update(tree, tx, new_kv.btree_key, ksz);
 				anchor->ba_value.b_addr = new_kv.btree_val;
+			}
+
+			if(tree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+			{
+				memcpy(new_kv.inlkey, key->b_addr, key->b_nob);
+				M0_LOG(M0_ERROR,"YB:Inline key %s actual key %s",(char *)new_kv.inlkey,(char *)new_kv.btree_key);
 			}
 
 			be_btree_insert_newkey(tree, tx, &new_kv);

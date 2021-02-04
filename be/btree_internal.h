@@ -41,6 +41,7 @@ enum {
 };
 
 struct be_btree_key_val  {
+	char inlkey[128];
 	void *btree_key;
 	void *btree_val;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
