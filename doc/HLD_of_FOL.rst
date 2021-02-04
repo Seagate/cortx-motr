@@ -1,5 +1,5 @@
 ============================================
-High level design of a file operations log
+High level design of a File Operations Log
 ============================================
 
 This document presents a high level design (HLD) of a file operations log (a fol) of Motr M0 core. The main purposes of this document are: (i) to be inspected by M0 architects and peer designers to ascertain that high level design is aligned with M0 architecture and other designs, and contains no defects, (ii) to be a source of material for Active Reviews of Intermediate Design (ARID) and detailed level design (DLD) of the same component, (iii) to serve as a design reference document.
@@ -24,11 +24,11 @@ A fol is a central M0 data-structure, maintained by every node where M0 core is 
 
 - it is used by a cache pressure handler to determine what cached updates have to be re-integrated into upward caches;
 
-- it is used by FDML to feed file system updates to fol consumers asynchronously;
+- it is used by FDML to feed file system updates to FOL consumers asynchronously;
 
-- more generally, a fol is used by various components (snapshots, addb, etc.) to consistently reconstruct the system state as at a certain moment in the (logical) past.
+- more generally, a FOL is used by various components (snapshots, addb, etc.) to consistently reconstruct the system state as at a certain moment in the (logical) past.
 
-Roughly speaking, a fol is a partially ordered collection of fol records, each corresponding to (part of) a consistent modification of file system state. A fol record contains information determining durability of the modification (how many volatile and persistent copies it has and where, etc.) and dependencies between modifications, among other things. When a client node has to modify a file system state to serve a system call from a user, it places a record in its (possibly volatile) fol. The record keeps track of operation state: has it been re-integrated to servers, has it been committed on the servers, etc. A server, on receiving a request to execute an update on a client behalf, inserts a record, describing the request into its fol. Eventually, fol is purged to reclaim storage, culling some of the records.
+Roughly speaking, a FOL is a partially ordered collection of fol records, each corresponding to (part of) a consistent modification of file system state. A FOL record contains information determining durability of the modification (how many volatile and persistent copies it has and where, etc.) and dependencies between modifications, among other things. When a client node has to modify a file system state to serve a system call from a user, it places a record in its (possibly volatile) FOL. The record keeps track of operation state: has it been re-integrated to servers, has it been committed on the servers, etc. A server, on receiving a request to execute an update on a client behalf, inserts a record, describing the request into its fol. Eventually, fol is purged to reclaim storage, culling some of the records.
 
 *************
 Definitions
@@ -54,11 +54,11 @@ Definitions
 
 - a FOL of a node is a sequence of records, each describing an update carried out on the node, together with information identifying operations these updates are parts of, file system objects that were updated and their versions, and containing enough data to undo or redo the updates and to determine operation dependencies;
 
-- a record in a node fol is uniquely identified by a log sequence number (lsn). Log sequence numbers have two crucial properties:
+- a record in a node FOL is uniquely identified by a Log Sequence Number (LSN). Log sequence numbers have two crucial properties:
 
-  - a fol record can be found efficiently (i.e., without fol scanning) given its lsn, and
+  - a FOL record can be found efficiently (i.e., without FOL scanning) given its LSN, and
 
-  - for any pair of conflicting updates recorded in the fol, the lsn of the pre-requisite is less than that of the dependent update (Note: clearly this property implies that lsn     data-type has infinite range and, hence, is unimplementable in practice. What is in fact required is that this property holds for any two conflicting updates sufficiently     close in logical time, where precise closeness condition is defined by the fol pruning algorithm. The same applies to object versions.);
+  - for any pair of conflicting updates recorded in the FOL, the LSN of the pre-requisite is less than that of the dependent update (Note: clearly this property implies that lsn     data-type has infinite range and, hence, is unimplementable in practice. What is in fact required is that this property holds for any two conflicting updates sufficiently     close in logical time, where precise closeness condition is defined by the fol pruning algorithm. The same applies to object versions.);
   
 Note: it would be nice to refine the terminology to distinguish between operation description (i.e., intent to carry it out) and its actual execution. This would make description of dependencies and recovery less obscure, at the expense of some additional complexity.
 
@@ -67,9 +67,9 @@ Note: it would be nice to refine the terminology to distinguish between operatio
 Requirements
 ***************
 
-- [r.fol.every-node]: every node where M0 core is deployed maintains fol;
+- [R.FOL.EVERY-NODE]: every node where M0 core is deployed maintains FOL;
 
-- [r.fol.local-txn]: a node fol is used to implement local transactional containers
+- [R.FOL.LOCAL-TXN]: a node FOL is used to implement local transactional containers
 
 - [R.FOL]: A File Operations Log is maintained by M0;
 
@@ -115,17 +115,17 @@ Requirements
 Design Highlights
 ******************
 
-A fol record is identified by its LSN. LSN are defined and selected as to be able to encode various partial orders imposed on fol records by the requirements.
+A FOL record is identified by its LSN. LSN are defined and selected as to be able to encode various partial orders imposed on FOL records by the requirements.
 
 **************************
 Functional Specification
 **************************
 
-The fol manager exports two interfaces:
+The FOL manager exports two interfaces:
 
-- main interface used by the request handler. Through this interface fol records can be added to the fol and the fol can be forced (i.e., made persistent up to a certain record);
+- main interface used by the request handler. Through this interface FOL records can be added to the FOL and the FOL can be forced (i.e., made persistent up to a certain record);
 
-- auxiliary interfaces, used for fol pruning and querying.
+- auxiliary interfaces, used for FOL pruning and querying.
 
 ***********************
 Logical Specification
