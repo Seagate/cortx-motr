@@ -277,75 +277,95 @@ Scenarios
      - 
 
 
-Scenario 3: QA.schema.duplicates
 
-Relevant quality attributes: usability
+.. list-table::
+   :header-rows: 1
+   
+   * - Scenario 3
+     - QA.schema.duplicates
+   * - Relevant quality attributes
+     - usability
+   * - Stimulus
+     - a new file is created
+   * - Stimulus source
+     - protocol translator, native C2 client or storage application
+   * - Environment
+     - normal operation
+   * - Artifact
+     - a records, describing new file are inserted in various schema indices
+   * - Response
+     - records must be small. Schema must exploit the fact that in a typical file system, certain sets of file attributes 
+       have much fewer different values than combinatorially possible. Such sets of attributes are stored by reference, 
+       rather than by duplicating the same values in multiple records. Examples of such sets of attributes are: 
 
-Stimulus: a new file is created
+       - {file owner, file group, permission bits} 
 
-Stimulus source: protocol translator, native C2 client or storage application
+       - {access control list} 
 
-Environment: normal operation
+       - {file layout formula}
 
-Artifact: a records, describing new file are inserted in various schema indices
+   * - Response Measure
+     - 
 
-Response: records must be small. Schema must exploit the fact that in a typical file system, certain sets of file attributes have much fewer different values than combinatorially possible. Such sets of attributes are stored by reference, rather than by duplicating the same values in multiple records. Examples of such sets of attributes are: 
+        - average size of data that is added to the indices as a result of file creation
 
-- {file owner, file group, permission bits} 
-
-- {access control list} 
-
-- {file layout formula}
-
-Response Measure:
-
-- average size of data that is added to the indices as a result of file creation
-
-- attribute and attribute set sharing ratio
-
-Questions and issues:
-
-
-Scenario 4: QA.schema.simple
-
-Relevant quality attributes: re-usability, variability
-
-Stimulus:
-
-Stimulus source:
-
-Environment:
-
-Artifact:
-
-Response: Schema can be described and implemented in terms of a limited repertoire of standard operations: 
-
-- index lookup 
-
-- index modification
-
-- index iteration Assuming fairly standard transactional capabilities and usual locking primitives
-
-Response Measure:
-
-Questions and issues:
+        - attribute and attribute set sharing ratio
+   * - Questions and issues
+     - 
 
 
-Scenario 5: QA.schema.index
+.. list-table::
+   :header-rows: 1
+   
+   * - Scenario 4
+     - QA.schema.simple
+   * - Relevant quality attributes
+     - re-usability, variability
+   * - Stimulus
+     - a new file is created
+   * - Stimulus source
+     - protocol translator, native C2 client or storage application
+   * - Environment
+     - normal operation
+   * - Artifact
+     - a records, describing new file are inserted in various schema indices
+   * - Response
+     - Schema can be described and implemented in terms of a limited repertoire of standard operations: 
 
-Relevant quality attributes: variability, extensibility, re-usability
+       - index lookup 
 
-Stimulus: storage application wants to maintain additional meta-data index
+       - index modification
 
-Stimulus source: storage application
+      - index iteration Assuming fairly standard transactional capabilities and usual locking primitives
+      
+   * - Response Measure
+     - 
 
-Environment: normal operation
+        - average size of data that is added to the indices as a result of file creation
 
-Artifact: index creation operation
+        - attribute and attribute set sharing ratio
+   * - Questions and issues
+     - 
 
-Response: schema allows dynamic index creation
 
-Response Measure:
-
-Questions and issues:
-
+.. list-table::
+   :header-rows: 1
+   
+   * - Scenario 5
+     - QA.schema.index
+   * - Relevant quality attributes
+     - variability, extensibility, re-usability
+   * - Stimulus
+     - storage application wants to maintain additional meta-data index
+   * - Stimulus source
+     - storage application
+   * - Environment
+     - normal operation
+   * - Artifact
+     - index creation operation
+   * - Response
+     - schema allows dynamic index creation
+   * - Response Measure
+     - 
+   * - Questions and issues
+     - 
