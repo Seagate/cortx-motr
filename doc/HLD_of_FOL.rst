@@ -28,7 +28,7 @@ A fol is a central M0 data-structure, maintained by every node where M0 core is 
 
 - more generally, a fol is used by various components (snapshots, addb, etc.) to consistently reconstruct the system state as at a certain moment in the (logical) past.
 
-Roughly speaking, a fol is a partially ordered collection of fol records, each corresponding to (part of) a consistent modification of file system state. A fol record contains information determining durability of the modification (how many volatile and persistent copies it has and where, etc.) and dependencies between modifications, among other things. When a client node has to modify a file system state to serve a system call from a user, it places a record it its (possibly volatile) fol. The record keeps track of operation state: has it been re-integrated to servers, has it been committed on the servers, etc. A server, on receiving a request to execute an update on a client behalf, inserts a record, describing the request into its fol. Eventually, fol is purged to reclaim storage, culling some of the records.
+Roughly speaking, a fol is a partially ordered collection of fol records, each corresponding to (part of) a consistent modification of file system state. A fol record contains information determining durability of the modification (how many volatile and persistent copies it has and where, etc.) and dependencies between modifications, among other things. When a client node has to modify a file system state to serve a system call from a user, it places a record in its (possibly volatile) fol. The record keeps track of operation state: has it been re-integrated to servers, has it been committed on the servers, etc. A server, on receiving a request to execute an update on a client behalf, inserts a record, describing the request into its fol. Eventually, fol is purged to reclaim storage, culling some of the records.
 
 *************
 Definitions
@@ -141,9 +141,9 @@ Record Structure
 
 A fol record, added via the main fol interface, contains the following:
 
-1[R.BACK-END.TRANSACTIONAL] ST
+[1][R.BACK-END.TRANSACTIONAL] ST
 
-2[R.BACK-END.INDEXING] ST
+[2][R.BACK-END.INDEXING] ST
 
 - an operation opcode, identifying the type of file system operation;
 
@@ -171,9 +171,9 @@ A node fol must be prunable if only to function correctly on a node without pers
 Conformance
 =============
 
-- [r.fol.every-node]: on nodes with persistent storage, M0 core runs in the user space and the fol is stored in a data-base table. On a node without persistent storage, M0 core runs in the kernel space and the fol is stored in memory-only index. Data-base and memory-only index provide the same external interface, making fol code portable;
+- [R.FOL.EVERY-NODE]: on nodes with persistent storage, M0 core runs in the user space and the fol is stored in a data-base table. On a node without persistent storage, M0 core runs in the kernel space and the fol is stored in memory-only index. Data-base and memory-only index provide the same external interface, making fol code portable;
 
-- [r.fol.local-txn]: request handler inserts a record into FOL table in the context of the same transaction where update is executed. This guarantees WAL property of fol;
+- [R.FOL.LOCAL-TXN]: request handler inserts a record into FOL table in the context of the same transaction where update is executed. This guarantees WAL property of fol;
 
 - [R.FOL]: vacuous;
 
