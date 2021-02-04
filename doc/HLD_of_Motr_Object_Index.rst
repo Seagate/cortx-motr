@@ -219,31 +219,36 @@ Use Cases
 Scenarios
 ==========
 
-Scenario 1: QA.schema.op
-
-Relevant quality attributes: variability, re-usability, flexibility, modifiability
-
-Stimulus: a Request Handler invokes back-end as part of file system operation processing
-
-Stimulus source: a file system operation request originating from protocol translator, native M0 client or storage application
-
-Environment: normal operation
-
-Artifact: a series of Schema accesses
-
-Response: Meta-data back-end contains enough information to handle file system operation request. This information includes the below mentioned aspects:
-
-- standard file attributes as defined by POSIX, including access control related information; 
-          
-- description of file system name-space, including directory structure, hard-links and symbolic links; 
-          
-- references to remote parts of file-system namespace; 
-          
-- file data allocation information
-
-Response Measure:
-
-Questions and issues:
+.. list-table::
+   :header-rows: 1
+   
+   * - Scenario 1
+     - QA.schema.op
+   * - Relevant quality attributes
+     - variability, re-usability, flexibility, modifiability
+   * - Stimulus
+     - a Request Handler invokes back-end as part of file system operation processing
+   * - Stimulus source
+     - a file system operation request originating from protocol translator, native M0 client or storage application
+   * - Environment
+     - normal operation
+   * - Artifact
+     - a series of Schema accesses
+   * - Response
+     - Meta-data back-end contains enough information to handle file system operation request. This information includes the below mentioned aspects:
+     
+       - tandard file attributes as defined by POSIX, including access control related information; 
+       
+       - description of file system name-space, including directory structure, hard-links and symbolic links; 
+       
+       - references to remote parts of file-system namespace; 
+       
+       - file data allocation information
+       
+   * - Response Measure
+     - 
+   * - Questions and issues
+     - 
 
 
 
