@@ -80,15 +80,16 @@ void m0_iem(const char* file, const char* function, int line,
 		va_end(aptr);
 	}
 	if (mod_id == M0_MOTR_IEM_MODULE_IO &&
-	    evt_id == M0_MOTR_IEM_EVENT_MD_ERROR &&
-	    ++iem_re[evt_id].ir_niems < THRESHOLD) {
-		m0_console_printf("IEC: %c%c%03x%03x%04x: "
-				  "IO errors (%"PRIu64") encountered. %s\n",
-				  m0_motr_iem_severity[sev_id],
-				  M0_MOTR_IEM_SOURCE_ID,
-				  M0_MOTR_IEM_COMPONENT_ID_MOTR, mod_id,
-				  evt_id, iem_re[evt_id].ir_total,
-				  description);
+	    evt_id == M0_MOTR_IEM_EVENT_MD_ERROR) {
+	    	if (++iem_re[evt_id].ir_niems < THRESHOLD)
+			m0_console_printf("IEC: %c%c%03x%03x%04x: "
+				  	  "IO errors (%"PRIu64") encountered. "
+					  "%s\n",
+				  	  m0_motr_iem_severity[sev_id],
+				  	  M0_MOTR_IEM_SOURCE_ID,
+				  	  M0_MOTR_IEM_COMPONENT_ID_MOTR, mod_id,
+				  	  evt_id, iem_re[evt_id].ir_total,
+				  	  description);
 	} else
 		m0_console_printf("IEC: %c%c%03x%03x%04x: %s\n",
 				  m0_motr_iem_severity[sev_id],
