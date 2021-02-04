@@ -1767,10 +1767,14 @@ struct m0_net_xprt *m0_net_xprt_default_get(void);
 struct m0_net_xprt **m0_net_all_xprt_get(void);
 /** Returns number of network transport. */
 int m0_net_xprt_nr(void);
-/** Print the list of registered xprt */
+/** Print the list of registered xprt.
+ *  This function is only for UT.
+ */
 M0_INTERNAL void m0_net_print_xprt(void);
-/** Search xprt in arrey of availabe transport */
-M0_INTERNAL int m0_net_check_xprt(const struct m0_net_xprt *xprt);
+/** Search xprt in arrey of availabe transport.
+ *  This function is only for UT.
+ */
+M0_INTERNAL bool m0_net_check_xprt(const struct m0_net_xprt *xprt);
 /** @} end of networking group */
 #endif /* __MOTR_NET_NET_H__ */
 

@@ -215,25 +215,25 @@ M0_INTERNAL void m0_net_print_xprt(void)
 	int i;
 	for (i = 0; i < ARRAY_SIZE(xprts); ++i) {
 		if (xprts[i] != NULL)
-			M0_LOG(M0_ALWAYS, "xprt name:%s", xprts[i]->nx_name);
+			M0_LOG(M0_DEBUG, "xprt name:%s", xprts[i]->nx_name);
 	}
 }
 M0_EXPORTED(m0_net_print_xprt);
 
-M0_INTERNAL int m0_net_check_xprt(const struct m0_net_xprt *xprt)
+M0_INTERNAL bool m0_net_check_xprt(const struct m0_net_xprt *xprt)
 {
 	struct m0_net_xprt *d_xprt = NULL;
-	int                 found = 0;
+	bool                found = false;
 	int                 i;
 
 	for (i = 0; i < ARRAY_SIZE(xprts); ++i)
 	{
 		if (xprts[i] == xprt)
-			found = 1;
+			found = true;
 	}
 
 	d_xprt = m0_net_xprt_default_get();
-	if ((found == 1) && (d_xprt == xprt))
+	if ((found == false) && (d_xprt == xprt))
 		xprt_default = NULL;
 
 	return found;

@@ -404,26 +404,26 @@ void m0_net_test_client_server_bulk_ut(void)
 }
 void m0_net_test_xprt_dymanic_reg_dereg_ut(void)
 {
-	M0_LOG(M0_ALWAYS, "Before mem fini\n");
+	M0_LOG(M0_DEBUG, "Before mem fini\n");
 	m0_net_print_xprt();
 	M0_ASSERT(m0_net_check_xprt(&m0_net_bulk_mem_xprt) != 0);
 	m0_mem_xprt_fini();
 	M0_ASSERT(m0_net_check_xprt(&m0_net_bulk_mem_xprt) == 0);
-	M0_LOG(M0_ALWAYS, "After mem fini\n");
+	M0_LOG(M0_DEBUG, "After mem fini\n");
 	m0_net_print_xprt();
 	m0_mem_xprt_init();
 	M0_ASSERT(m0_net_check_xprt(&m0_net_bulk_mem_xprt) != 0);
-	M0_LOG(M0_ALWAYS, "After mem init\n");
+	M0_LOG(M0_DEBUG, "After mem init\n");
 	m0_net_print_xprt();
 
 	M0_ASSERT(m0_net_check_xprt(&m0_net_lnet_xprt) != 0);
 	m0_net_lnet_fini();
 	M0_ASSERT(m0_net_check_xprt(&m0_net_lnet_xprt) == 0);
-	M0_LOG(M0_ALWAYS, "After Lnet fini\n");
+	M0_LOG(M0_DEBUG, "After Lnet fini\n");
 	m0_net_print_xprt();
 	m0_net_lnet_init();
 	M0_ASSERT(m0_net_check_xprt(&m0_net_lnet_xprt) != 0);
-	M0_LOG(M0_ALWAYS, "After Lnet init\n");
+	M0_LOG(M0_DEBUG, "After Lnet init\n");
 	m0_net_print_xprt();
 
 }
