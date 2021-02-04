@@ -2,7 +2,7 @@
 High level design of a File Operations Log
 ============================================
 
-This document presents a high level design (HLD) of a file operations log (a fol) of Motr M0 core. The main purposes of this document are: (i) to be inspected by M0 architects and peer designers to ascertain that high level design is aligned with M0 architecture and other designs, and contains no defects, (ii) to be a source of material for Active Reviews of Intermediate Design (ARID) and detailed level design (DLD) of the same component, (iii) to serve as a design reference document.
+This document presents a high level design (HLD) of a file operations log (a FOL) of Motr M0 core. The main purposes of this document are: (i) to be inspected by M0 architects and peer designers to ascertain that high level design is aligned with M0 architecture and other designs, and contains no defects, (ii) to be a source of material for Active Reviews of Intermediate Design (ARID) and detailed level design (DLD) of the same component, (iii) to serve as a design reference document.
 
 The intended audience of this document consists of M0 customers, architects, designers and developers.
 
@@ -10,7 +10,7 @@ The intended audience of this document consists of M0 customers, architects, des
 Introduction
 *************
 
-A fol is a central M0 data-structure, maintained by every node where M0 core is deployed and serving multiple goals:
+A FOL is a central M0 data-structure, maintained by every node where M0 core is deployed and serving multiple goals:
 
 - it is used by a node data-base component to implement local transactions through WAL logging;
 
@@ -28,7 +28,7 @@ A fol is a central M0 data-structure, maintained by every node where M0 core is 
 
 - more generally, a FOL is used by various components (snapshots, addb, etc.) to consistently reconstruct the system state as at a certain moment in the (logical) past.
 
-Roughly speaking, a FOL is a partially ordered collection of fol records, each corresponding to (part of) a consistent modification of file system state. A FOL record contains information determining durability of the modification (how many volatile and persistent copies it has and where, etc.) and dependencies between modifications, among other things. When a client node has to modify a file system state to serve a system call from a user, it places a record in its (possibly volatile) FOL. The record keeps track of operation state: has it been re-integrated to servers, has it been committed on the servers, etc. A server, on receiving a request to execute an update on a client behalf, inserts a record, describing the request into its fol. Eventually, fol is purged to reclaim storage, culling some of the records.
+Roughly speaking, a FOL is a partially ordered collection of FOL records, each corresponding to (part of) a consistent modification of file system state. A FOL record contains information determining durability of the modification (how many volatile and persistent copies it has and where, etc.) and dependencies between modifications, among other things. When a client node has to modify a file system state to serve a system call from a user, it places a record in its (possibly volatile) FOL. The record keeps track of operation state: has it been re-integrated to servers, has it been committed on the servers, etc. A server, on receiving a request to execute an update on a client behalf, inserts a record, describing the request into its FOL. Eventually, FOL is purged to reclaim storage, culling some of the records.
 
 *************
 Definitions
@@ -232,13 +232,13 @@ FOL manager by itself does not deal with security issues. It trusts its callers 
 Refinement
 ===========
 
-The fol is organized as a single indexed table containing records with lsn as a primary key. The structure of an individual record is outlined above. Detailed main fol interface is straightforward. Fol navigation and querying in the auxiliary interface are based on a fol cursor.
+The FOL is organized as a single indexed table containing records with LSN as a primary key. The structure of an individual record is outlined above. Detailed main FOL interface is straightforward. FOL navigation and querying in the auxiliary interface are based on a FOL cursor.
 
 *******
 State
 *******
 
-Fol introduces no extra state.
+FOL introduces no extra state.
 
 **********
 Use Cases
@@ -252,7 +252,7 @@ FOL QAS list is included here by reference.
 Failures
 =========
 
-Failure of the underlying storage container in which fol is stored is treated as any storage failure. All other fol related failures are handled by DTM.
+Failure of the underlying storage container in which FOL is stored is treated as any storage failure. All other FOL related failures are handled by DTM.
 
 ***********
 Analysis
@@ -261,9 +261,9 @@ Analysis
 Other
 ======
 
-At alternative design is to store fol in a special data-structure, instead of a standard indexed container. For example, fol can be stored in an append-only flat file with starting offset of a record serving as its lsn. Perceived advantage of this solution is avoiding an overhead of a full-fledged indexing (b-tree). Indeed, general purpose indexing is not needed, because records with lsn less than the maximal one used in the past are never inserted into the fol (aren't they?).
+At alternative design is to store FOL in a special data-structure, instead of a standard indexed container. For example, FOL can be stored in an append-only flat file with starting offset of a record serving as its lsn. Perceived advantage of this solution is avoiding an overhead of a full-fledged indexing (b-tree). Indeed, general purpose indexing is not needed, because records with lsn less than the maximal one used in the past are never inserted into the FOL (aren't they?).
 
-Yet another possible design is to use db4 extensible logging to store fol records directly in a db4 transactional log. The advantage of this is that forcing fol up to a specific record becomes possible (and easy to implement), and the overhead of indexing is again avoided. On the other hand, it is not clear how to deal with pruning.
+Yet another possible design is to use db4 extensible logging to store FOL records directly in a db4 transactional log. The advantage of this is that forcing FOL up to a specific record becomes possible (and easy to implement), and the overhead of indexing is again avoided. On the other hand, it is not clear how to deal with pruning.
 
 
 Rationale
