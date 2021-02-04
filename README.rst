@@ -3,7 +3,7 @@
 Motr
 =====
 
-.. Slack Badge  - https://img.shields.io/badge/chat-on%20Slack-blu
+.. Slack Badge - https://img.shields.io/badge/chat-on%20Slack-blu
 
 .. image:: https://img.shields.io/badge/chat-on%20Slack-blue
         :target: https://join.slack.com/t/cortxcommunity/shared_invite/zt-femhm3zm-yiCs5V9NBxh89a_709FFXQ?
