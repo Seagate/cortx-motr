@@ -27,6 +27,19 @@
 
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
+#include "fop/fop.h"
+#include "fop/fom_generic.h"
+#include "fop/fom_long_lock.h"
+#include "be/op.h"
+#include "be/tx_credit.h"
+#include "lib/buf.h"
+#include "lib/buf_xc.h"
+#include "lib/types.h"
+#include "rpc/at.h"
+#include "xcode/xcode_attr.h"
+#include "format/format.h"
+#include "be/dtm0_log.h"
+
 
 extern struct m0_fop_type dtm0_req_fop_fopt;
 extern struct m0_fop_type dtm0_rep_fop_fopt;
@@ -37,12 +50,24 @@ extern const struct m0_rpc_item_ops dtm0_req_fop_rpc_item_ops;
 int m0_dtm0_fop_init(void);
 void m0_dtm0_fop_fini(void);
 
+enum m0_dtm0s_msg {
+	DMT_EXECUTE,
+	DMT_EXECUTED,
+	DTM_PERSISTENT,
+	DMT_REDO
+} M0_XCA_ENUM;
+
 struct dtm0_req_fop {
-	uint64_t csr_value;
+	uint32_t		dtr_msg M0_XCA_FENUM(
+	m0_dtm0s_msg);
+	struct m0_dtm0_tx_desc *dtr_txr;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct dtm0_rep_fop {
-	int32_t csr_rc;
+	/** Status code of dtm operation. */
+	int32_t			 dr_rc;
+	/** operation results. */
+	struct m0_dtm0_tx_desc	*dr_txr;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /* __MOTR_DTM0_FOP_FOMS_H__ */

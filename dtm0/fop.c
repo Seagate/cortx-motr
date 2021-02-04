@@ -20,6 +20,7 @@
  */
 
 
+#include "dtm0/tx_desc.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -39,6 +40,7 @@
 #include "dtm0/fop_xc.h"
 #include "dtm0/service.h"
 #include "rpc/rpc_opcodes.h"
+#include "rpc/session.h"
 
 static void dtm0_rpc_item_reply_cb(struct m0_rpc_item *item);
 
@@ -123,6 +125,32 @@ int m0_dtm0_fop_init(void)
 }
 
 /*
+  Allocates a fop.
+ */
+
+int m0_dtm0_fop_create(struct m0_rpc_session	 *session,
+		       enum m0_dtm0s_msg	  opmsg,
+		       struct m0_dtm0_tx_desc	 *txr,
+		       struct m0_fop		**out)
+{
+	struct dtm0_req_fop  *op;
+	struct m0_fop	     *fop;
+	int		      rc = 0;
+
+	*out = NULL;
+
+	fop = m0_fop_alloc_at(session, &dtm0_req_fop_fopt);
+	if (fop == NULL)
+		rc = -ENOMEM;
+	op = m0_fop_data(fop);
+	op->dtr_msg = opmsg;
+	op->dtr_txr = txr;
+	*out = fop;
+	return rc;
+}
+M0_EXPORTED(m0_dtm0_fop_create);
+
+/*
   Allocates and initialises a fom.
  */
 static int dtm0_req_fop_fom_create(struct m0_fop *fop,
@@ -175,11 +203,23 @@ static void dtm0_pong_back(struct m0_rpc_session *session)
 	struct m0_rpc_item    *item;
 	int                    rc;
 
+	struct m0_dtm0_tx_desc *txr;
+
+	struct m0_dtm0_clk_src dcs;
+	struct m0_dtm0_ts      now;
+	struct m0_fid fid = M0_FID(0x7300000000000001, 0x1a);
+
 	M0_PRE(session != NULL);
+	M0_ALLOC_PTR(txr);
+
+	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
+	rc = m0_dtm0_clk_src_now(&dcs, &now);
+
+	txr->dtd_id = (struct m0_dtm0_tid) { .dti_ts = now, .dti_fid = fid};
 
 	fop = m0_fop_alloc_at(session, &dtm0_req_fop_fopt);
 	req = m0_fop_data(fop);
-	req->csr_value = 555;
+	req->dtr_txr = txr;
 
 	item              = &fop->f_item;
 	item->ri_ops      = &dtm0_req_fop_rpc_item_ops;
@@ -203,7 +243,10 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 	} else {
 		req = m0_fop_data(fom->fo_fop);
 		rep = m0_fop_data(fom->fo_rep_fop);
-		rep->csr_rc = req->csr_value;
+
+		//m0_buf_copy(&rep->dr_txr->dt_txr_payload, &req->dto_txr->dt_txr_payload);
+		rep->dr_txr = req->dtr_txr;
+		rep->dr_rc = 0;
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		rc = M0_FSO_AGAIN;
 		if (m0_dtm0_is_a_persistent_dtm(fom->fo_service)) {
