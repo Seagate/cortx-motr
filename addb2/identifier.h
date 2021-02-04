@@ -117,6 +117,8 @@ enum m0_addb2_value_id {
 	M0_AVI_DIX_RANGE_START     = 0xe000,
 	M0_AVI_KEM_RANGE_START     = 0xf000,
 
+	M0_AVI_BALLOC_RANGE_START  = M0_AVI_KEM_RANGE_START + 0x100,
+
 	/**
 	 * Ranges reserved for using in external projects (S3, NFS)
 	 * and m0addb2dump plugins

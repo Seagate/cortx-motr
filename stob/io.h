@@ -255,6 +255,11 @@ enum m0_stob_io_state {
 	SIS_BUSY,
 };
 
+enum m0_stio_ioq_states {
+	STIO_QUEUE_ADD,
+	STIO_QUEUE_COMP,
+} M0_XCA_ENUM;
+
 /**
    Flags controlling the execution of IO operation.
  */

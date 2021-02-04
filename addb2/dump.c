@@ -92,6 +92,7 @@
 #include "scripts/systemtap/kem/kem_id.h"
 #include "addb2/addb2_internal.h"
 #include "lib/trace.h"
+#include "balloc/balloc.h"
 
 enum {
 	BUF_SIZE  = 4096,
@@ -1099,6 +1100,10 @@ struct m0_addb2__id_intrp ids[] = {
 						       &dec, &dec, &dec },
 	  { "fid", NULL, "duration", "rc", "count", "frag" } },
 	{ M0_AVI_STOB_IOQ,        "stob-ioq-thread", { &dec } },
+	{ M0_BALLOC_ALLOC_T,        "balloc-alloc-time",
+				    { &dec, &dec, &dec, &dec, &dec },
+                                    {"tx_id", "container_id", "ph_offset",
+				     "blocks", "balloc_time"} },
 	{ M0_AVI_STOB_IOQ_INFLIGHT, "stob-ioq-inflight", { HIST } },
 	{ M0_AVI_STOB_IOQ_QUEUED, "stob-ioq-queued", { HIST } },
 	{ M0_AVI_STOB_IOQ_GOT,    "stob-ioq-got",    { HIST } },
@@ -1184,6 +1189,12 @@ struct m0_addb2__id_intrp ids[] = {
 	  .ii_spec   = &ioo_state_counter },
 	{ M0_AVI_STOB_IO_REQ,    "stio-req-state", { &dec, &stob_io_req_state},
 	  { "stio_id", "stio_state" } },
+
+	{ M0_AVI_STIO_TO_Q, "stio-to-qev",
+	  { &dec, &dec, &dec, &dec, &dec, &dec},
+	  {"stio_id", "qev_id", "iq_nbytes", "fildes", "offset", "len" } },
+	{ M0_AVI_STOB_AD_TO_LINUX, "ad-to-linux", { &dec, &dec },
+	  {"ad_stob_id", "linux_stob_id" } },
 
 	{ M0_AVI_KEM_CPU, "kem-cpu", { &dec },
 	  { "cpu" } },

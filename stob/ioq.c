@@ -118,6 +118,7 @@ struct ioq_qev {
 	/** Linkage to a per-domain admission queue
 	    (linux_domain::ioq_queue). */
 	struct m0_queue_link  iq_linkage;
+	uint64_t              iq_id;
 	struct m0_stob_io    *iq_io;
 };
 
@@ -193,6 +194,20 @@ static void stob_linux_io_fini(struct m0_stob_io *io)
 	m0_free(lio);
 }
 
+static void stob_ioq_addb2_add_and_push(uint64_t id,
+					struct m0_stob_io *io,
+					uint64_t len,
+					uint64_t off) {
+	M0_ADDB2_ADD(id, io->si_id, len, off);
+}
+
+static void stob_ioq_queue_addb2(uint64_t        id,
+				 struct ioq_qev *qev,
+				 uint64_t        state)
+{
+	M0_ADDB2_ADD(id, qev->iq_id, state, qev->iq_iocb.u.v.nr,
+		     qev->iq_nbytes, qev->iq_offset);
+}
 /**
    Launch asynchronous IO.
 
@@ -298,6 +313,9 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 						m0_stob_ioq_bshift(ioq));
 			iov->iov_len  = frag_size << m0_stob_ioq_bshift(ioq);
 			chunk_size += frag_size;
+
+			stob_ioq_addb2_add_and_push(M0_AVI_STOB_IOQ_FRAG, io,
+						    iov->iov_len, off);
 
 			m0_vec_cursor_move(&src, frag_size);
 			m0_vec_cursor_move(&dst, frag_size);
@@ -407,6 +425,17 @@ static void ioq_queue_submit(struct m0_stob_ioq *ioq)
 		m0_atomic64_sub(&ioq->ioq_avail, got);
 		for (i = 0; i < got; ++i) {
 			qev[i] = ioq_queue_get(ioq);
+			qev[i]->iq_id = m0_dummy_id_generate();
+			M0_ADDB2_ADD(M0_AVI_STIO_TO_Q, qev[i]->iq_io->si_id,
+				     qev[i]->iq_nbytes,
+				     qev[i]->iq_id,
+				     qev[i]->iq_iocb.aio_fildes,
+				     qev[i]->iq_iocb.u.c.offset,
+				     qev[i]->iq_iocb.u.c.nbytes);
+			/*
+			stob_ioq_queue_addb2(M0_AVI_STOB_IO_Q, qev[i],
+					     STIO_QUEUE_ADD);
+			*/
 			evin[i] = &qev[i]->iq_iocb;
 		}
 		ioq_queue_unlock(ioq);
@@ -572,6 +601,8 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 	 * all threads must complete the above code until
 	 * some of them finds here out that all frags are done.
 	 */
+	stob_ioq_queue_addb2(M0_AVI_STOB_IO_Q, qev,
+			     STIO_QUEUE_COMP);
 	if (m0_atomic64_add_return(&lio->si_done, 1) == lio->si_nr) {
 		m0_bcount_t bdone = m0_atomic64_get(&lio->si_bdone);
 

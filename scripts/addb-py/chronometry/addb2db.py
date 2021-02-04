@@ -104,7 +104,7 @@ class fom_desc(BaseModel):
     time       = IntegerField()
     pid        = IntegerField()
     service    = TextField()
-    sender     = IntegerField()
+    sender     = TextField()
     req_opcode = TextField()
     rep_opcode = TextField()
     local      = TextField()
@@ -238,6 +238,25 @@ class stio_req(BaseModel):
     id     = IntegerField()
     state  = TextField()
 
+class stio_frag(BaseModel):
+    time   = IntegerField()
+    pid    = IntegerField()
+    id     = IntegerField()
+    qev_id = IntegerField()
+    devid  = IntegerField()
+    offset = IntegerField()
+    nbytes = IntegerField()
+
+class balloc_alloc_time(BaseModel):
+    time          = IntegerField()
+    pid           = IntegerField()
+    tx_id         = IntegerField()
+    container_id  = IntegerField()
+    ph_offset     = IntegerField()
+    blocks        = IntegerField()
+    balloc_time   = IntegerField()
+
+
 class attr(BaseModel):
     entity_id = IntegerField()
     pid       = IntegerField()
@@ -299,9 +318,10 @@ db_create_delete_tables = [client_to_dix, dix_to_mdix, dix_to_cas, cas_to_rpc,
                            sxid_to_rpc, fom_desc, fom_to_tx, fom_req, be_tx,
                            client_to_cob, cob_to_rpc, client_to_ioo, ioo_to_rpc,
                            cob_req, ioo_req, fom_req_state, queues, tx_to_gr,
-                           fom_to_stio, stio_req, attr, bulk_to_rpc,
-                           cas_fom_to_crow_fom, s3_request_to_client,
-                           s3_request_uid, s3_request_state, s3_measurement]
+                           fom_to_stio, stio_frag, balloc_alloc_time, stio_req,
+                           attr, bulk_to_rpc, cas_fom_to_crow_fom,
+                           s3_request_to_client, s3_request_uid,
+                           s3_request_state, s3_measurement]
 
 def db_create_tables():
     with DB:
@@ -358,6 +378,18 @@ class ADDB2PP:
         state  = measurement[-1]
         sm_id  = measurement[4]
         return((table, { 'time': ADDB2PP.to_unix(time), 'state': state, 'id': int(sm_id) }))
+
+    def p_balloc_time(measurement, labels, table):
+        time          = measurement[1]
+        ret1 = yaml.safe_load("{"+" ".join(measurement[3:])+"}")
+        ret = {}
+        ret['time']         = ADDB2PP.to_unix(time)
+        ret['tx_id']        = ret1['tx_id']
+        ret['container_id']        = ret1['container_id']
+        ret['ph_offset']       = ret1['ph_offset']
+        ret['blocks']       = ret1['blocks']
+        ret['balloc_time']  = ret1['balloc_time']
+        return((table, ret))
 
     # ['*', '2019-08-29-12:16:54.279414683',
     #  'client-to-dix', 'client_id:', '1170,', 'dix_id:', '1171']
@@ -461,6 +493,18 @@ class ADDB2PP:
         ret["name"] = msrm
         return((table, ret))
 
+    def p_stio_frag(measurement, labels, table):
+        time          = measurement[1]
+        ret1 = yaml.safe_load("{"+" ".join(measurement[3:])+"}")
+        ret = {}
+        ret['time']   = ADDB2PP.to_unix(time)
+        ret['id']     = ret1['stio_id']
+        ret['qev_id'] = ret1['qev_id']
+        ret['devid']  = ret1['fildes']
+        ret['offset'] = ret1['offset']
+        ret['nbytes'] = ret1['iq_nbytes']
+        return((table, ret))
+
     def __init__(self):
         self.parsers = {
             "runq"              : (ADDB2PP.p_queue,       "queues"),
@@ -498,6 +542,8 @@ class ADDB2PP:
             "cob-req-state"     : (partial(ADDB2PP.p_yaml_translate, {"id": "cob_id", "state": "cob_state"}), "cob_req"),
             "stio-req-state"    : (partial(ADDB2PP.p_yaml_translate, {"id": "stio_id", "state": "stio_state"}), "stio_req"),
             "fom-to-stio"       : (ADDB2PP.p_1_to_2,      "fom_to_stio"),
+            "stio-to-qev"       : (ADDB2PP.p_stio_frag,  "stio_frag"),
+            "balloc-alloc-time" : (ADDB2PP.p_balloc_time,      "balloc_alloc_time"),
             "attr"              : (ADDB2PP.p_attr,        "attr"),
             "bulk-to-rpc"       : (ADDB2PP.p_1_to_2,      "bulk_to_rpc"),
             "cas-fom-to-crow-fom" : (ADDB2PP.p_1_to_2,    "cas_fom_to_crow_fom"),
