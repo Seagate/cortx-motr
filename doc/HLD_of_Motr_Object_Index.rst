@@ -115,9 +115,11 @@ References to the database tables are stored in a cob_domain in-memory structure
 
 There may be multiple cob_domains within a metadata container, but the usual case will be 1 cob_domain per container. A cob_domain may be identified by an ordinal index inside a container. The list of domains will be created at container ingest.
 
-       struct m0_cob_domain {
+.. code-block:: C
 
-                 cob_domain_id cd_id /* domain identifier */
+    struct m0_cob_domain {
+
+                     cob_domain_id cd_id /* domain identifier */
 
                      m0_list_link cd_domain_linkage
 
@@ -131,11 +133,13 @@ There may be multiple cob_domains within a metadata container, but the usual cas
 
                      m0_addb_ctx cd_addb
 
-        }
+    }
         
 A m0_cob is an in-memory structure, instantiated by the method cob_find and populated as needed from the above database tables. The m0_cob may be cached and should be protected by a lock.
 
-      struct m0_cob {
+.. code-block:: C
+
+    struct m0_cob {
 
                     fid co_fid;
 
@@ -155,7 +159,9 @@ A m0_cob is an in-memory structure, instantiated by the method cob_find and popu
 
                          struct object_index_rec *co_oi_rec; /* pfid, filename */
 
-};The *_rec members are pointers to the records from the database tables. These records may or may not be populated at various stages in cob life.
+    };
+
+The `*_rec` members are pointers to the records from the database tables. These records may or may not be populated at various stages in cob life.
 
 The co_stob reference is also likely to remain unset, as metadata operations will not frequently affect the underlying storage object (and, indeed, the storage object is likely to live on a different node).
 
