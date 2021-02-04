@@ -37,12 +37,6 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNS
 #include "lib/trace.h"
 
-#if DEBUG
-#ifndef __KERNEL__
-#include <stdio.h>
-#endif /* __KERNEL__ */
-#endif /* DEBUG */
-
 #define ir_invalid_col_t UINT8_MAX
 
 /* Forward declarations */
@@ -885,7 +879,7 @@ static void isal_recover(struct m0_parity_math *math,
 	fail_count = fails_count(fail, unit_count);
 
 #if DEBUG
-	printf("\n fail_count: %d", fail_count);
+	m0_console_printf("\n fail_count: %d", fail_count);
 #endif
 
 	M0_ASSERT(fail_count > 0);
@@ -901,7 +895,7 @@ static void isal_recover(struct m0_parity_math *math,
 	M0_ASSERT(data_out != NULL);
 
 #if DEBUG
-	printf("\n err_list: ");
+	m0_console_printf("\n err_list: ");
 #endif
 	for (i = 0, j = 0, r = 0; i < unit_count; i++) {
 		if (fail[i]) {
@@ -913,7 +907,7 @@ static void isal_recover(struct m0_parity_math *math,
 				data_out[j] = math->parity_frags[i - math->pmi_data_count];
 
 #if DEBUG
-			printf(" %d", i);
+			m0_console_printf(" %d", i);
 #endif
 			j++;
 		} else {
@@ -942,18 +936,18 @@ static void isal_recover(struct m0_parity_math *math,
 	M0_ASSERT(decode_matrix != NULL);
 
 #if DEBUG
-	printf("\n data_frags:");
+	m0_console_printf("\n data_frags:");
 	for (i = 0; i < math->pmi_data_count; i++) {
 		if (i%8 == 0)
-			printf("\n");
-		printf("    %p", math->data_frags[i]);
+			m0_console_printf("\n");
+		m0_console_printf("    %p", math->data_frags[i]);
 	}
 
-	printf("\n parity_frags:");
+	m0_console_printf("\n parity_frags:");
 	for (i = 0; i < math->pmi_parity_count; i++) {
 		if (i%8 == 0)
-			printf("\n");
-		printf("    %p", math->parity_frags[i]);
+			m0_console_printf("\n");
+		m0_console_printf("    %p", math->parity_frags[i]);
 
 	}
 #endif
@@ -969,19 +963,19 @@ static void isal_recover(struct m0_parity_math *math,
 	}
 
 #if DEBUG
-	printf("\n Get Data In and Data Out:");
-	printf("\n Data In:");
+	m0_console_printf("\n Get Data In and Data Out:");
+	m0_console_printf("\n Data In:");
 	for (i = 0; i < math->pmi_data_count; i++) {
 		if (i%8 == 0)
-			printf("\n");
-		printf("    %p", data_in[i]);
+			m0_console_printf("\n");
+		m0_console_printf("    %p", data_in[i]);
 	}
 
-	printf("\n Data Out:");
+	m0_console_printf("\n Data Out:");
 	for (i = 0; i < fail_count; i++) {
 		if (i%8 == 0)
-			printf("\n");
-		printf("    %p", data_out[i]);
+			m0_console_printf("\n");
+		m0_console_printf("    %p", data_out[i]);
 	}
 #endif
 
