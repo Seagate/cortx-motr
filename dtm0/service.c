@@ -30,7 +30,7 @@
 #include "dtm0/fop.h"
 #include "lib/tlist.h"
 
-
+static struct m0_dtm0_service *to_dtm(struct m0_reqh_service *service);
 static int dtm0_service_start(struct m0_reqh_service *service);
 static void dtm0_service_stop(struct m0_reqh_service *service);
 static int dtm0_service_allocate(struct m0_reqh_service **service,
@@ -95,27 +95,50 @@ enum m0_dtm0_service_origin {
  * DTM0 service structure
  */
 struct m0_dtm0_service {
-       struct m0_reqh_service       dos_generic;
-       struct m0_tl                 dos_processes;
-       enum m0_dtm0_service_origin  dos_origin;
+	struct m0_reqh_service       dos_generic;
+	struct m0_tl                 dos_processes;
+	enum m0_dtm0_service_origin  dos_origin;
+	uint64_t                     dos_magix;
 };
 
+/**
+ * typed container_of
+ */
+enum { DTM0_SERVICE_MAGIX = 0x9999999999999999 };
+static const struct m0_bob_type dtm0_service_bob = {
+	.bt_name = "dtm0 service",
+	.bt_magix_offset = M0_MAGIX_OFFSET(struct m0_dtm0_service, dos_magix),
+	.bt_magix = DTM0_SERVICE_MAGIX,
+	.bt_check = NULL
+};
+M0_BOB_DEFINE(static, &dtm0_service_bob, m0_dtm0_service);
+
+static struct m0_dtm0_service *to_dtm(struct m0_reqh_service *service)
+{
+	return bob_of(service, struct m0_dtm0_service, dos_generic,
+		      &dtm0_service_bob);
+}
+
+/**
+ * Service part
+ */
 static void dtm0_service__init(struct m0_dtm0_service *s)
 {
        dopr_tlist_init(&s->dos_processes);
+       m0_dtm0_service_bob_init(s);
 }
 
 static void dtm0_service__fini(struct m0_dtm0_service *s)
 {
        dopr_tlist_fini(&s->dos_processes);
+       m0_dtm0_service_bob_fini(s);
 }
 
 M0_INTERNAL int m0_dtm0_service_process_connect(struct m0_reqh_service *s,
 						struct m0_fid *remote_srv,
 						const char    *remote_ep)
 {
-	struct m0_dtm0_service *service =
-		container_of(s, struct m0_dtm0_service, dos_generic);
+	struct m0_dtm0_service *service = to_dtm(s);
 	struct dtm0_process *process;
 	struct m0_rpc_machine *mach =
 		m0_reqh_rpc_mach_tlist_head(&s->rs_reqh->rh_rpc_machines);
@@ -144,8 +167,7 @@ M0_INTERNAL int m0_dtm0_service_process_disconnect(struct m0_reqh_service *s,
 						   struct m0_fid *remote_srv)
 {
 	int rc;
-	struct m0_dtm0_service *service =
-		container_of(s, struct m0_dtm0_service, dos_generic);
+	struct m0_dtm0_service *service = to_dtm(s);
 	struct dtm0_process *process = NULL;
 
 	m0_tl_for(dopr, &service->dos_processes, process) {
@@ -170,8 +192,7 @@ M0_INTERNAL struct m0_rpc_session *
 m0_dtm0_service_process_session_get(struct m0_reqh_service *s,
 				    struct m0_fid *remote_srv)
 {
-	struct m0_dtm0_service *service =
-		container_of(s, struct m0_dtm0_service, dos_generic);
+	struct m0_dtm0_service *service = to_dtm(s);
 	struct dtm0_process *process = NULL;
 
 	m0_tl_for(dopr, &service->dos_processes, process) {
@@ -213,10 +234,7 @@ static int dtm_service__origin_fill(struct m0_reqh_service *service)
 	struct m0_conf_obj     *obj;
 	struct m0_confc        *confc = m0_reqh2confc(service->rs_reqh);
 	const char            **param;
-	struct m0_dtm0_service *dtm0 = container_of(service,
-						    struct m0_dtm0_service,
-						    dos_generic);
-	M0_PRE(dtm0 != NULL);
+	struct m0_dtm0_service *dtm0 = to_dtm(service);
 
 	/* W/A for UTs */
 	if (!m0_confc_is_inited(confc)) {
@@ -262,9 +280,7 @@ static void dtm0_service_stop(struct m0_reqh_service *service)
 static void dtm0_service_fini(struct m0_reqh_service *service)
 {
 	M0_PRE(service != NULL);
-	dtm0_service__fini(container_of(service,
-					struct m0_dtm0_service,
-					dos_generic));
+	dtm0_service__fini(to_dtm(service));
         m0_free(service);
 }
 
@@ -278,23 +294,16 @@ M0_INTERNAL void m0_dtm0_stype_fini(void)
 	m0_reqh_service_type_unregister(&dtm0_service_type);
 }
 
-static enum m0_dtm0_service_origin origin(struct m0_reqh_service *service)
-{
-	return container_of(service,
-			    struct m0_dtm0_service,
-			    dos_generic)->dos_origin;
-}
-
 M0_INTERNAL bool m0_dtm0_is_a_volatile_dtm(struct m0_reqh_service *service)
 {
 	return m0_streq(service->rs_type->rst_name, "M0_CST_DTM0") &&
-		origin(service) == DTM0_ON_VOLATILE;
+		to_dtm(service)->dos_origin == DTM0_ON_VOLATILE;
 }
 
 M0_INTERNAL bool m0_dtm0_is_a_persistent_dtm(struct m0_reqh_service *service)
 {
 	return m0_streq(service->rs_type->rst_name, "M0_CST_DTM0") &&
-		origin(service) == DTM0_ON_PERSISTENT;
+		to_dtm(service)->dos_origin == DTM0_ON_PERSISTENT;
 }
 
 /*
