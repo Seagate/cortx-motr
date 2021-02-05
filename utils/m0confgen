@@ -1417,16 +1417,13 @@ class TestEncoding(unittest.TestCase):
     def test_html(self):
         self.assertEqual(Encoder_html.array_entries(
             ConfObj(Fid(('c', 1), 0),
-                    [('node', Fid(('n', 1), 0)),
-                     ('drives', [Fid(('k', 1), 0), Fid(('k', 1), 1)]),
+                    [('drives', [Fid(('k', 1), 0), Fid(('k', 1), 1)]),
                      ('pvers', [Fid(('v', 1), 13)])])),
                          ("""\
 {"id": "controller-0", "label": "controller-0", "group": "controller",\
- "_attrs": {"node": "node-0", "drives": "[drive-0, drive-1]",\
+ "_attrs": {"drives": "[drive-0, drive-1]",\
  "pvers": "[pver-13]"}}""",
-                          ['{"from": "controller-0", "to": "node-0",'
-                           ' "dashes": true}',
-                           '{"from": "controller-0", "to": "drive-0"}',
+                          ['{"from": "controller-0", "to": "drive-0"}',
                            '{"from": "controller-0", "to": "drive-1"}']))
 
     def test_dot(self):
