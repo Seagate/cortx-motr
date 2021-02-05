@@ -562,6 +562,12 @@ static void net_test_command_ut(size_t nr)
 	barrier_with_nodes();				/* barrier #6.7 */
 	M0_UT_ASSERT(is_flags_set(nr, true));
 	barrier_with_nodes();				/* barrier #6.8 */
+#ifdef ENABLE_LIBFAB
+	/* The ut posts 9 sends buffers and 10 recv buffers.
+	To get completion on the last receive buffer, an extra send buffer
+	was needed in case of libfabric*/
+	commands_ut_send_all(nr);
+#endif
 	/* stop all threads */
 	for (i = 0; i < nr; ++i) {
 		rc = m0_thread_join(&node[i].ntcn_thread);

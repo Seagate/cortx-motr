@@ -42,6 +42,30 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  * @{
  */
 
+/* #define LIBFAB_VERSION FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION) */
+#define LIBFAB_VERSION FI_VERSION(1,11)
+#define LIBFAB_WAITSET_TIMEOUT    2 /* in msec TODO: Tbd  */
+
+/** Parameters required for libfabric configuration */
+enum m0_fab__mr_params {
+	/** Fabric memory access. */
+	FAB_MR_ACCESS  = (FI_READ | FI_WRITE | FI_RECV | FI_SEND | \
+			  FI_REMOTE_READ | FI_REMOTE_WRITE),
+	/** Fabric memory offset. */
+	FAB_MR_OFFSET  = 0,
+	/** Fabric memory flag. */
+	FAB_MR_FLAG    = 0,
+	/** Key used for memory registration. */
+	FAB_MR_KEY     = 0XABCD,
+	/** Max number of IOV in send/recv/read/write command */
+	FAB_MR_IOV_MAX = 8,
+};
+
+enum PORT_SOCK_TYPE {
+	PORTFAMILYMAX = 3,
+	SOCKTYPEMAX   = 2
+};
+
 struct m0_fab__fab {
 	struct fi_info    *fab_fi;             /* Fabric interface info */
 	struct fid_fabric *fab_fab;            /* Fabric fid */
@@ -98,22 +122,27 @@ struct m0_fab__tm {
  *    Private data pointed to by m0_net_buffer::nb_xprt_private.
  *
  */
+
+struct m0_fab__buf_mr {
+	void          *bm_desc[FAB_MR_IOV_MAX]; /* Buffer descriptor */
+	struct fid_mr *bm_mr[FAB_MR_IOV_MAX];   /* Libfab memory region */
+	uint64_t       bm_key[FAB_MR_IOV_MAX];  /* Memory registration key */
+};
+
 struct m0_fab__buf {
-	uint64_t              fb_magic;   /* Magic number */
-	uint64_t              fb_rcvmagic;/* Magic number */
-	uint64_t              fb_sndmagic;/* Magic number */
-	uint64_t              fb_mr_key;  /* Memory registration key */
-	uint64_t              fb_rc_buf;  /* For remote completetions */
-	void                 *fb_mr_desc; /* Buffer descriptor */
-	struct fid_domain    *fb_dp;      /* Domain to which the buf is reg */
-	struct m0_net_buffer *fb_nb;      /* Pointer back to network buffer*/
-	struct fid_mr        *fb_mr;      /* Libfab memory region */
-	struct m0_fab__ep    *fb_ev_ep;
-	struct m0_tlink       fb_linkage; /* Linkage in list of completed bufs*/
-	struct m0_tlink       fb_rcv_link;
-	struct m0_tlink       fb_snd_link;
-	int32_t               fb_status;  /* Buffer completion status */
-	m0_bindex_t           fb_length;  /* Total size of data to be received*/
+	uint64_t               fb_magic;   /* Magic number */
+	uint64_t               fb_rcvmagic;/* Magic number */
+	uint64_t               fb_sndmagic;/* Magic number */
+	uint64_t               fb_rc_buf;  /* For remote completetions */
+	struct m0_fab__buf_mr  fb_mr;
+	struct fid_domain     *fb_dp;      /* Domain to which the buf is reg */
+	struct m0_net_buffer  *fb_nb;      /* Pointer back to network buffer*/
+	struct m0_fab__ep     *fb_ev_ep;
+	struct m0_tlink        fb_linkage; /* Link in list of completed bufs*/
+	struct m0_tlink        fb_rcv_link;
+	struct m0_tlink        fb_snd_link;
+	int32_t                fb_status;  /* Buffer completion status */
+	m0_bindex_t            fb_length;  /* Total size of data to be rcvd*/
 };
 
 /** @} end of netlibfab group */
