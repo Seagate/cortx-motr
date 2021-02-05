@@ -6,7 +6,7 @@ features.
 
 The first document developers should read is: [Motr Client API](/motr/client.h).
 It explains basic notations, terminologies, and data structures in CORTX Motr.
-Example motr client applications can be found in our [m0client-sample-apps repo](https://github.com/Seagate/m0client-sample-apps) 
+Example motr client applications can be found in our [m0client-sample-apps repo](https://github.com/Seagate/cortx-motr-apps) 
 and an alternaive higher-level interface to motr can be found in out [Maestro repo](https://github.com/Seagate/cortx-mio).
 Developers are also assumed having a running CORTX Motr system: please refer to
 [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md)
