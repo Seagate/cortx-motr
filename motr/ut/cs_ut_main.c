@@ -706,7 +706,7 @@ static void test_cs_ut_iem(void)
 
 	m0_iem(__FILE__, __FUNCTION__, __LINE__, \
 		       M0_MOTR_IEM_SEVERITY_N_NOTICE, M0_MOTR_IEM_MODULE_IO,
-		       M0_MOTR_IEM_EVENT_FREE_SPACE, false, 
+		       M0_MOTR_IEM_EVENT_FREE_SPACE, false,
 		       "Usable Storage is %d %% full, "
 		       "Total Usable storage: %d TB and "
 		       "Available Staorage: %d GB", 70, 216, 64);
