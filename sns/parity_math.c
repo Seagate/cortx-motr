@@ -353,9 +353,6 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 				    uint32_t data_count, uint32_t parity_count)
 {
 	int ret;
-#ifndef __KERNEL__
-	uint32_t total_count;
-#endif /* __KERNEL__ */
 
 	M0_PRE(data_count >= 1);
 	M0_PRE(parity_count >= 1);
@@ -372,6 +369,8 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 		return 0;
 #ifndef __KERNEL__
 	} else {
+		uint32_t total_count;
+
 		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_ISA;
 
 		ret = vandmat_init(&math->pmi_vandmat, data_count,
@@ -870,7 +869,7 @@ static void isal_recover(struct m0_parity_math *math,
 	uint8_t *decode_matrix = NULL;
 	uint8_t **data_in = NULL;
 	uint8_t **data_out = NULL;
-	uint32_t ui, i, j, r;
+	uint32_t i, j, r;
 	uint8_t *err_list = NULL;
 	uint8_t s;
 	int ret;
@@ -885,55 +884,16 @@ static void isal_recover(struct m0_parity_math *math,
 	M0_ASSERT(fail_count > 0);
 	M0_ASSERT(fail_count <= math->pmi_parity_count);
 
-	M0_ALLOC_ARR(err_list, fail_count);
-	M0_ASSERT(err_list != NULL);
-
-	M0_ALLOC_ARR(data_in, math->pmi_data_count);
-	M0_ASSERT(data_in != NULL);
-
-	M0_ALLOC_ARR(data_out, fail_count);
-	M0_ASSERT(data_out != NULL);
-
-#if DEBUG
-	m0_console_printf("\n err_list: ");
-#endif
-	for (i = 0, j = 0, r = 0; i < unit_count; i++) {
-		if (fail[i]) {
-			err_list[j] = i;
-
-			if (i < math->pmi_data_count)
-				data_out[j] = math->data_frags[i];
-			else
-				data_out[j] = math->parity_frags[i - math->pmi_data_count];
-
-#if DEBUG
-			m0_console_printf(" %d", i);
-#endif
-			j++;
-		} else {
-			if (i < math->pmi_data_count)
-				data_in[r] = math->data_frags[i];
-			else
-				data_in[r] = math->parity_frags[i - math->pmi_data_count];
-
-			r++;
-		}
+	math->data_frags[0] = (uint8_t *)data[0].b_addr;
+	for (i = 1; i < math->pmi_data_count; ++i) {
+		M0_ASSERT(block_size == data[i].b_nob);
+		math->data_frags[i] = (uint8_t *)data[i].b_addr;
 	}
 
-	for (ui = 1; ui < math->pmi_data_count; ++ui)
-		M0_ASSERT(block_size == data[ui].b_nob);
-
-	for (ui = 0; ui < math->pmi_parity_count; ++ui)
-		M0_ASSERT(block_size == parity[ui].b_nob);
-
-	M0_ALLOC_ARR(temp_matrix, (unit_count * math->pmi_data_count));
-	M0_ASSERT(temp_matrix != NULL);
-
-	M0_ALLOC_ARR(invert_matrix, (unit_count * math->pmi_data_count));
-	M0_ASSERT(invert_matrix != NULL);
-
-	M0_ALLOC_ARR(decode_matrix, (unit_count * math->pmi_data_count));
-	M0_ASSERT(decode_matrix != NULL);
+	for (i = 0; i < math->pmi_parity_count; ++i) {
+		M0_ASSERT(block_size == parity[i].b_nob);
+		math->parity_frags[i] = (uint8_t *)parity[i].b_addr;
+	}
 
 #if DEBUG
 	m0_console_printf("\n data_frags:");
@@ -952,14 +912,51 @@ static void isal_recover(struct m0_parity_math *math,
 	}
 #endif
 
+	M0_ALLOC_ARR(err_list, fail_count);
+	M0_ASSERT(err_list != NULL);
+
+	M0_ALLOC_ARR(data_in, math->pmi_data_count);
+	M0_ASSERT(data_in != NULL);
+
+	M0_ALLOC_ARR(data_out, fail_count);
+	M0_ASSERT(data_out != NULL);
+
+	M0_ALLOC_ARR(temp_matrix, (unit_count * math->pmi_data_count));
+	M0_ASSERT(temp_matrix != NULL);
+
+	M0_ALLOC_ARR(invert_matrix, (unit_count * math->pmi_data_count));
+	M0_ASSERT(invert_matrix != NULL);
+
+	M0_ALLOC_ARR(decode_matrix, (unit_count * math->pmi_data_count));
+	M0_ASSERT(decode_matrix != NULL);
+
 	/* Construct temp_matrix (matrix that encoded remaining frags)
 	by removing erased rows */
-	for (i = 0, r = 0; i < math->pmi_data_count; i++, r++) {
-		while (fail[r])
+#if DEBUG
+	m0_console_printf("\n err_list: ");
+#endif
+	for (i = 0, j = 0, r = 0; i < math->pmi_data_count; i++, r++) {
+		while (fail[r]) {
+			if (r < math->pmi_data_count)
+				data_out[j] = math->data_frags[r];
+			else
+				data_out[j] = math->parity_frags[r - math->pmi_data_count];
+
+			err_list[j] = r;
+#if DEBUG
+			m0_console_printf(" %d", r);
+#endif
+			j++;
 			r++;
+		}
 
 		for (j = 0; j < math->pmi_data_count; j++)
 			temp_matrix[math->pmi_data_count * i + j] = math->encode_matrix[math->pmi_data_count * r + j];
+
+		if (r < math->pmi_data_count)
+			data_in[i] = math->data_frags[r];
+		else
+			data_in[i] = math->parity_frags[r - math->pmi_data_count];
 	}
 
 #if DEBUG
@@ -1009,11 +1006,11 @@ static void isal_recover(struct m0_parity_math *math,
 	ec_encode_data(block_size, math->pmi_data_count, fail_count, math->g_tbls, data_in, data_out);
 
 	m0_free(err_list);
+	m0_free(data_in);
+	m0_free(data_out);
 	m0_free(temp_matrix);
 	m0_free(invert_matrix);
 	m0_free(decode_matrix);
-	m0_free(data_in);
-	m0_free(data_out);
 }
 #else
 static void reed_solomon_recover(struct m0_parity_math *math,
