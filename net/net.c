@@ -203,6 +203,7 @@ M0_INTERNAL void m0_net_xprt_deregister(const struct m0_net_xprt *xprt)
 				xprt_default = NULL;
 			for (j = i; j < ARRAY_SIZE(xprts) - 1; ++j)
 				xprts[j] = xprts[j + 1];
+			xprts[j] = NULL;
 			return;
 		}
 	}
@@ -231,11 +232,6 @@ M0_INTERNAL bool m0_net_check_xprt(const struct m0_net_xprt *xprt)
 		if (xprts[i] == xprt)
 			found = true;
 	}
-
-	d_xprt = m0_net_xprt_default_get();
-	if ((found == false) && (d_xprt == xprt))
-		xprt_default = NULL;
-
 	return found;
 }
 M0_EXPORTED(m0_net_check_xprt);
