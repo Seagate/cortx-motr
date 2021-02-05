@@ -136,14 +136,14 @@ Overview
 
 FOL is stored in a transactional container[1] populated with records indexed[2] by LSN. An LSN is used to refer to a point in FOL from other meta-data tables (epochs table, object index, sessions table, etc.). To make such references more flexible, a FOL, in addition to genuine records corresponding to updates, might contain pseudo-records marking points on interest in the FOL to which other file system tables might want to refer to (for example, an epoch boundary, a snapshot origin, a new server secret key, etc.). By abuse of terminology, such pseudo-records will be called FOL records too. Similarly, as part of redo-recovery implementation, DTM might populate a node FOL with records describing updates to be performed on other nodes.
 
+[1][R.BACK-END.TRANSACTIONAL] ST
+
+[2][R.BACK-END.INDEXING] ST
+
 Record Structure
 =================
 
 A FOL record, added via the main FOL interface, contains the following:
-
-[1][R.BACK-END.TRANSACTIONAL] ST
-
-[2][R.BACK-END.INDEXING] ST
 
 - an operation opcode, identifying the type of file system operation;
 
