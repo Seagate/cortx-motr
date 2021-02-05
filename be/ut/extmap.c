@@ -118,6 +118,9 @@ static void test_init(void)
 	/* Init BE */
 	/** XXX @todo break UT into small transactions */
 	M0_SET0(&cfg);
+	M0_SET0(&be_ut_emap_backend);
+	M0_SET0(&be_ut_emap_seg);
+
 	m0_be_ut_backend_cfg_default(&cfg);
 	cfg.bc_engine.bec_tx_size_max = M0_BE_TX_CREDIT(1 << 21, 1 << 26);
 	cfg.bc_engine.bec_group_cfg.tgc_size_max =

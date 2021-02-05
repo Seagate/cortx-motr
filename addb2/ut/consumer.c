@@ -247,6 +247,7 @@ static void sensor(void)
 	fired = 0;
 	seq = 0;
 	sensor_finalised = false;
+	M0_SET0(&sen);
 
 	source_get();
 	M0_ADDB2_PUSH(LABEL_ID + 0, 1, 1, 2, 3, 5);
