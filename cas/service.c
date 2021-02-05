@@ -1335,7 +1335,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 * We need to calculate credits for creating a dtm0 log record.
 		 *
 		 */
-		if (cas_op(fom0)->cg_txd) {
+		if (!m0_dtm0_tx_desc_is_none(&cas_op(fom0)->cg_txd)) {
 			struct m0_be_tx_credit dtm0logrec_cred;
 
 			/*

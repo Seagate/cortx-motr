@@ -133,6 +133,9 @@ M0_INTERNAL int m0_dtm0_tid_cmp(struct m0_dtm0_clk_src   *cs,
 				const struct m0_dtm0_tid *left,
 				const struct m0_dtm0_tid *right);
 
+M0_INTERNAL void m0_dtm0_tx_desc_init_none(struct m0_dtm0_tx_desc *td);
+M0_INTERNAL bool m0_dtm0_tx_desc_is_none(const struct m0_dtm0_tx_desc *td);
+
 M0_INTERNAL bool m0_dtm0_tid__invariant(const struct m0_dtm0_tid *tid);
 M0_INTERNAL bool m0_dtm0_tx_desc__invariant(const struct m0_dtm0_tx_desc *td);
 

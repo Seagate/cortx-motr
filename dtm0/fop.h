@@ -39,6 +39,8 @@
 #include "xcode/xcode_attr.h"
 #include "format/format.h"
 #include "be/dtm0_log.h"
+#include "dtm0/tx_desc.h"
+#include "dtm0/tx_desc_xc.h"
 
 
 extern struct m0_fop_type dtm0_req_fop_fopt;
@@ -60,14 +62,14 @@ enum m0_dtm0s_msg {
 struct dtm0_req_fop {
 	uint32_t		dtr_msg M0_XCA_FENUM(
 	m0_dtm0s_msg);
-	struct m0_dtm0_tx_desc *dtr_txr;
+	struct m0_dtm0_tx_desc dtr_txr;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct dtm0_rep_fop {
 	/** Status code of dtm operation. */
 	int32_t			 dr_rc;
 	/** operation results. */
-	struct m0_dtm0_tx_desc	*dr_txr;
+	struct m0_dtm0_tx_desc	dr_txr;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /* __MOTR_DTM0_FOP_FOMS_H__ */

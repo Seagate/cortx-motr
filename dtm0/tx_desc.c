@@ -27,12 +27,32 @@
  * @{
  */
 
+#include "dtm0/clk_src.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM
 #include "dtm0/tx_desc.h"
 #include "lib/assert.h" /* M0_PRE */
 #include "lib/memory.h" /* M0_ALLOC */
 #include "lib/errno.h"  /* ENOMEM */
 #include "lib/trace.h"  /* M0_ERR */
+
+M0_INTERNAL void m0_dtm0_tx_desc_init_none(struct m0_dtm0_tx_desc *td)
+{
+	td->dtd_id.dti_fid = M0_FID0;
+	td->dtd_id.dti_ts = M0_DTM0_TS_INIT;
+	td->dtd_pg.dtpg_nr = 0;
+	td->dtd_pg.dtpg_pa = NULL;
+}
+
+M0_INTERNAL bool m0_dtm0_tx_desc_is_none(const struct m0_dtm0_tx_desc *td)
+{
+	struct m0_dtm0_clk_src dcs;
+	struct m0_dtm0_ts now = M0_DTM0_TS_INIT;
+
+	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
+
+	return _0C(m0_dtm0_ts_cmp(&dcs, &td->dtd_id.dti_ts, &now)) &&
+		   _0C(!m0_fid_is_set(&td->dtd_id.dti_fid));
+}
 
 M0_INTERNAL bool m0_dtm0_tx_desc__invariant(const struct m0_dtm0_tx_desc *td)
 {

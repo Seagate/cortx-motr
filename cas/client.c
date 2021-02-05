@@ -176,6 +176,7 @@ static int creq_op_alloc(uint64_t           recs_nr,
 	} else {
 		op->cg_rec.cr_nr = recs_nr;
 		op->cg_rec.cr_rec = rec;
+		m0_dtm0_tx_desc_init_none(&op->cg_txd);
 		*out = op;
 	}
 	return M0_RC(0);

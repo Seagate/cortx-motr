@@ -21,12 +21,14 @@
 
 
 #include "dtm0/tx_desc.h"
+#include "dtm0/tx_desc_xc.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/chan.h"
 #include "lib/finject.h"
 #include "lib/time.h"
+#include "lib/trace.h"
 #include "lib/misc.h"           /* M0_IN() */
 #include "fop/fop.h"
 #include "fop/fom.h"
@@ -141,10 +143,10 @@ int m0_dtm0_fop_create(struct m0_rpc_session	 *session,
 
 	fop = m0_fop_alloc_at(session, &dtm0_req_fop_fopt);
 	if (fop == NULL)
-		rc = -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	op = m0_fop_data(fop);
 	op->dtr_msg = opmsg;
-	op->dtr_txr = txr;
+	op->dtr_txr = *txr;
 	*out = fop;
 	return rc;
 }
@@ -203,19 +205,18 @@ static void dtm0_pong_back(struct m0_rpc_session *session)
 	struct m0_rpc_item    *item;
 	int                    rc;
 
-	struct m0_dtm0_tx_desc *txr;
+	struct m0_dtm0_tx_desc txr;
 
 	struct m0_dtm0_clk_src dcs;
 	struct m0_dtm0_ts      now;
 	struct m0_fid fid = M0_FID(0x7300000000000001, 0x1a);
 
 	M0_PRE(session != NULL);
-	M0_ALLOC_PTR(txr);
 
 	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
 	rc = m0_dtm0_clk_src_now(&dcs, &now);
 
-	txr->dtd_id = (struct m0_dtm0_tid) { .dti_ts = now, .dti_fid = fid};
+	txr.dtd_id = (struct m0_dtm0_tid) { .dti_ts = now, .dti_fid = fid};
 
 	fop = m0_fop_alloc_at(session, &dtm0_req_fop_fopt);
 	req = m0_fop_data(fop);
