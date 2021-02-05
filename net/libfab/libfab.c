@@ -468,13 +468,14 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 	rc = fi_eq_sread(eq, &event, &entry, sizeof(entry),
 			 LIBFAB_WAITSET_TIMEOUT, 0);
 	*/
-	rc = fi_eq_read(eq, &event, &entry, sizeof(entry), 0);
-	if (rc == sizeof(entry)) {
+	rc = fi_eq_read(eq, &event, &entry, (sizeof(entry)+25), 0);
+	if (rc >= sizeof(entry)) {
 		if (event == FI_CONNREQ) {
 			m0_tl_for(m0_nep, &tm->ftm_net_ma->ntm_end_points, ne) {
 				ep = libfab_ep_net(ne);
-				if ((ep->fep_send != NULL) && 
-				    (ep->fep_recv == NULL)) {
+				if(strcmp(ep->fep_name.fen_str_addr,
+					  (const char *)entry.data) == 0) {
+					M0_ASSERT(ep->fep_recv == NULL);
 					M0_ALLOC_PTR(ep->fep_recv);
 					if(ep->fep_recv == NULL)
 						return M0_RC(-ENOMEM);
@@ -491,6 +492,7 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 					"active endpoint = %d", rc);
 				libfab_aep_param_free(ep->fep_recv, tm);
 			}
+			fi_freeinfo(entry.info);
 		} else
 			M0_LOG(M0_ERROR, "Received unwanted event = %d", event);
 	} else if (rc == -FI_EAVAIL) {
@@ -1811,6 +1813,14 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	
 	case M0_NET_QT_MSG_SEND: {
 		M0_ASSERT(nb->nb_length <= m0_vec_count(&nb->nb_buffer.ov_vec));
+		m0_tl_for(m0_nep, &nb->nb_tm->ntm_end_points, net) {
+			ep = libfab_ep_net(net);
+			if (strcmp(ep->fep_name.fen_str_addr,
+				   nb->nb_ep->nep_addr) == 0) {
+				libfab_ep_get(ep);
+				break;
+			}
+		} m0_tl_endfor;
 		aep = ep->fep_send;
 
 		ret = libfab_buf_dom_reg(nb, aep->aep_dom);
@@ -1822,8 +1832,9 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 			ret = libfab_destaddr_get(&peer.fep_name,
 						  ma->ftm_fab.fab_fi, &peer_fi);
 				
-			ret = fi_connect(aep->aep_ep, peer_fi->dest_addr, NULL,
-					 0);
+			ret = fi_connect(aep->aep_ep, peer_fi->dest_addr,
+					 ma->ftm_pep->fep_name.fen_str_addr,
+					 sizeof(ep->fep_name.fen_str_addr));
 			fab_sndbuf_tlink_init(fbp);
 			fab_sndbuf_tlist_add_tail(&ep->fep_sndbuf, fbp);
 			fi_freeinfo(peer_fi);
