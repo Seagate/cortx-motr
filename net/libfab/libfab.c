@@ -34,7 +34,7 @@
 #include "libfab_internal.h"
 #include "net/net_internal.h"   /* m0_net__buffer_invariant() */
 
-static char     *providers[] = { "verbs", /*"tcp",*/ "sockets" };
+static char     *providers[] = { "verbs", "tcp", "sockets" };
 static char     *portf[PORTFAMILYMAX]  = { "unix", "inet", "inet6" };
 static char     *socktype[SOCKTYPEMAX] = { "stream", "dgram" };
 static char      fab_autotm[1024] = {};
