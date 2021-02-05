@@ -40,8 +40,13 @@ char  *cm_ut_server_args[] = { "m0d", "-T", "LINUX",
 				"-f", M0_UT_CONF_PROCESS,
 				"-w", "10",
 				"-F",
+#ifdef ENABLE_LIBFAB
+				"-G", "libfab:0@lo:12345:34:1",
+				"-e", "libfab:0@lo:12345:34:1",
+#else
 				"-G", "lnet:0@lo:12345:34:1",
 				"-e", "lnet:0@lo:12345:34:1",
+#endif
 				"-c", M0_UT_PATH("conf.xc")};
 
 static void cm_ut_server_start(void)

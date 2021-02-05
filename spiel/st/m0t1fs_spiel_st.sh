@@ -191,7 +191,7 @@ EOF
 m0d_with_rms_start() {
     local path=$SANDBOX_DIR/confd
     local OPTS="-F -D $path/db -T AD -S $path/stobs\
-    -A linuxstob:$path/addb-stobs -e lnet:$M0D1_ENDPOINT\
+    -A linuxstob:$path/addb-stobs -e libfab:$M0D1_ENDPOINT\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
     -w 3 -f $PROC_FID -d $CONF_DRIVES"
     local FI_OPTS="m0_ha_msg_accept:invalid_confc:always"

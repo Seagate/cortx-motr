@@ -36,8 +36,13 @@ char      *sns_cm_ut_svc_ad[] = { "m0d", "-T", "AD",
                                   "-A", "linuxstob:sr_addb_stob",
 			          "-f", M0_UT_CONF_PROCESS,
 			          "-w", "10",
+#ifdef ENABLE_LIBFAB
+			          "-G", "libfab:0@lo:12345:34:1",
+                                  "-e", "libfab:0@lo:12345:34:1",
+#else
 			          "-G", "lnet:0@lo:12345:34:1",
                                   "-e", "lnet:0@lo:12345:34:1",
+#endif
                                   "-H", "0@lo:12345:34:1",
 			          "-c", M0_UT_PATH("conf.xc")};
 
@@ -46,8 +51,13 @@ char      *sns_cm_ut_svc_linux[] = { "m0d", "-T", "LINUX",
 				     "-A", "linuxstob:sr_addb_stob",
 				     "-f", M0_UT_CONF_PROCESS,
 				     "-w", "10",
+#ifdef ENABLE_LIBFAB
+				     "-G", "libfab:0@lo:12345:34:1",
+				     "-e", "libfab:0@lo:12345:34:1",
+#else
 				     "-G", "lnet:0@lo:12345:34:1",
 				     "-e", "lnet:0@lo:12345:34:1",
+#endif
 				     "-H", "0@lo:12345:34:1",
 				     "-c", M0_UT_PATH("conf.xc")};
 

@@ -37,7 +37,11 @@
 #define SERVER_ADDB_STOB_NAME "linuxstob:sss_ut_server.addb_stob"
 #define SERVER_LOG_NAME       "sss_ut_server.log"
 #define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
+#ifdef ENABLE_LIBFAB
+#define SERVER_ENDPOINT       "libfab:" SERVER_ENDPOINT_ADDR
+#else
 #define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
+#endif
 
 #define CLIENT_DB_NAME        "sss_ut_client.db"
 #define CLIENT_ENDPOINT_ADDR  "0@lo:12345:34:*"

@@ -47,7 +47,11 @@ static struct m0_reqh_service *ufc_fdmi_service;
  * ---------------------------------------------------------------- */
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
 #define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
+#ifdef ENABLE_LIBFAB
+#define SERVER_ENDPOINT       "libfab:" SERVER_ENDPOINT_ADDR
+#else
 #define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
+#endif
 
 #define SERVER_DB_NAME        "fdmi_filterc_ut.db"
 #define SERVER_STOB_NAME      "fdmi_filterc_ut.stob"
