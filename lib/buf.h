@@ -123,14 +123,22 @@ M0_INTERNAL void m0_buf_memcpy(struct m0_buf *dst, const struct m0_buf *src);
 M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src);
 
 /**
+ * Allocates 'buf' aligned on (2^shift)-byte boundary and copies 'data'
+ * into it.
+ */
+M0_INTERNAL int m0_buf_new_aligned(struct m0_buf *buf,
+				   const void *data, uint32_t nob,
+				   unsigned shift);
+
+/**
  * Allocates 'dst' buffer aligned on (2^shift)-byte boundary and copies 'src'
  * into it.
  *
  * @pre   dst->b_nob == 0 && dst->b_addr == NULL
  */
 M0_INTERNAL int m0_buf_copy_aligned(struct m0_buf *dst,
-				    struct m0_buf *src,
-				    unsigned       shift);
+				    const struct m0_buf *src,
+				    unsigned shift);
 
 /** Does the buffer point at anything? */
 M0_INTERNAL bool m0_buf_is_set(const struct m0_buf *buf);
