@@ -37,7 +37,7 @@ Following are the features of CORTX Motr:
 - Extension interface.
 - Flexible transactions.
 - Open source.
-- Portable: runs in user space on any version of Linux.
+- Portable: runs in user space and can be easily ported to any version of Linux.
 
 Get to know
 ===========

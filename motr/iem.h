@@ -25,6 +25,8 @@
 #ifndef __MOTR_IEM_H__
 #define __MOTR_IEM_H__
 
+#include "lib/types.h"
+
 enum m0_motr_iem_severity {
 	M0_MOTR_IEM_SEVERITY_TEST = 0,
 	M0_MOTR_IEM_SEVERITY_A_ALERT,

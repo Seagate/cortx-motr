@@ -283,9 +283,9 @@ func bits(values ...C.ulong) (res C.ulong) {
     return res
 }
 
-func getOptimalUnitSz(sz uint64) (C.ulong, error) {
+func getOptimalUnitSz(sz uint64, pool *C.struct_m0_fid) (C.ulong, error) {
     var pver *C.struct_m0_pool_version
-    rc := C.m0_pool_version_get(&C.instance.m0c_pools_common, nil, &pver)
+    rc := C.m0_pool_version_get(&C.instance.m0c_pools_common, pool, &pver)
     if rc != 0 {
         return 0, fmt.Errorf("m0_pool_version_get() failed: %v", rc)
     }
@@ -327,7 +327,7 @@ func (mio *Mio) Create(id string, sz uint64, anyPool ...string) error {
         return err
     }
 
-    lid, err := getOptimalUnitSz(sz)
+    lid, err := getOptimalUnitSz(sz, pool)
     if err != nil {
         return fmt.Errorf("failed to figure out object unit size: %v", err)
     }

@@ -156,6 +156,8 @@ static void rpc_client_and_server_start(void)
 {
 	int rc;
 
+	M0_SET0(&sctx.rsx_motr_ctx);
+
 	rc = m0_net_domain_init(&client_net_dom, m0_fdmi_ut_xprt);
 	M0_UT_ASSERT(rc == 0);
 
