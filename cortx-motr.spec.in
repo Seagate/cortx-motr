@@ -273,8 +273,6 @@ systemctl daemon-reload
 echo $(date) &> /var/log/motr-rpm-conf-update.log
 /usr/sbin/m0provision config &>> /var/log/motr-rpm-conf-update.log
 
-ln -sf /opt/seagate/cortx/motr/bin/motr_setup /usr/local/bin/motr_setup
-
 if [ x%%{?no_trace_logs} != x ] ; then
     /bin/sed -i -r -e "s/(MOTR_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/motr
     /bin/sed -i -r -e "s/(MOTR_TRACED_M0D=)yes/\1no/" /etc/sysconfig/motr
@@ -289,7 +287,6 @@ fi
 %postun
 /sbin/depmod -a
 systemctl daemon-reload
-rm -f /usr/local/bin/motr_setup
 
 %if %{with ut}
 

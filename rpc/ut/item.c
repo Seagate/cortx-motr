@@ -558,6 +558,7 @@ static void test_oneway_item(void)
 	bool                ok;
 	int                 rc;
 
+	arrow_sent_cb_called = false;
 	/* Test 1: Confirm one-way items reach receiver */
 	M0_LOG(M0_DEBUG, "TEST:6.1:START");
 	fop = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL, machine);
@@ -1100,6 +1101,7 @@ static void test_ha_cancel(void)
 	struct m0_conf_obj *obj;
 	int                 rc;
 
+	M0_SET0(&ha_thread);
 	rc = m0_rconfc_init(cl_rconfc, m0_reqh2profile(reqh),
 			    m0_locality0_get()->lo_grp, machine,
 			    NULL, NULL);
