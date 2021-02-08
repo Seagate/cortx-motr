@@ -85,6 +85,7 @@ M0_INTERNAL int m0_dtm0_tx_desc_init(struct m0_dtm0_tx_desc *td,
 	M0_ALLOC_ARR(td->dtd_pg.dtpg_pa, nr_pa);
 	if (td->dtd_pg.dtpg_pa == NULL)
 		return M0_ERR(-ENOMEM);
+	td->dtd_pg.dtpg_nr = nr_pa;
 	M0_POST(m0_dtm0_tx_desc__invariant(td));
 	return 0;
 }
@@ -101,6 +102,24 @@ M0_INTERNAL int m0_dtm0_tid_cmp(struct m0_dtm0_clk_src   *cs,
 {
 	return m0_dtm0_ts_cmp(cs, &left->dti_ts, &right->dti_ts) ?:
 		m0_fid_cmp(&left->dti_fid, &right->dti_fid);
+}
+
+M0_INTERNAL int m0_dtm0_txr_rec_is_set(struct m0_buf *pyld)
+{
+	return m0_buf_is_set(pyld);
+}
+
+M0_INTERNAL void m0_dtm0_update_pa_state(enum m0_dtm0_tx_pa_state *dst,
+                                         enum m0_dtm0_tx_pa_state *src)
+{
+	if (*dst < *src)
+		*dst = *src;
+}
+
+M0_INTERNAL bool m0_dtm0_is_rec_is_stable(struct m0_dtm0_tx_pa_group *pg)
+{
+	return m0_forall(i, pg->dtpg_nr,
+                         pg->dtpg_pa[i].pa_state == M0_DTPS_PERSISTENT);
 }
 
 #undef M0_TRACE_SUBSYSTEM
