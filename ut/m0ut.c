@@ -101,6 +101,7 @@ extern struct m0_ut_suite dtm_nucleus_ut;
 extern struct m0_ut_suite dtm_transmit_ut;
 extern struct m0_ut_suite dtm0_ut;
 extern struct m0_ut_suite dtm0_clk_src_ut;
+extern struct m0_ut_suite dtm0_log_ut;
 extern struct m0_ut_suite emap_ut;
 extern struct m0_ut_suite failure_domains_tree_ut;
 extern struct m0_ut_suite failure_domains_ut;
@@ -231,6 +232,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &dtm_dtx_ut, true);
 	m0_ut_add(m, &dtm0_ut, true);
 	m0_ut_add(m, &dtm0_clk_src_ut, true);
+	m0_ut_add(m, &dtm0_log_ut, true);
 	m0_ut_add(m, &failure_domains_tree_ut, true);
 	m0_ut_add(m, &failure_domains_ut, true);
 	m0_ut_add(m, &fis_ut, true);
