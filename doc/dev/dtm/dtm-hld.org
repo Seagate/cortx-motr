@@ -1450,12 +1450,60 @@ Obviously implementation plan will have HA and S3 related
 activities. Possbile schedule of such plan can have the following
 micro milestones:
  - DTM0 happy path scenario.
+   - Goals:
+     - To have a unit- and system- test sending clovis PUT/DEL requests
+       using DTM0 logic of including CAS PUT/DEL requests, PERSISENT
+       FOP, updating DTM0 log.
+   - Features:
+     - DTM0 log.
+     - DTM0 service and FOPs.
+     - DTX state machine embedded into clovis PUT/DEL operations.
+     - Integration: A glue around DTM0 service connections; Disable spares.
+       Can/Will be dirty implementation.
+     - Clock algorithm.
+   - Deliverable:
+     - Code and demo reviewed by Nikita and management.
+     - Recorded review results.
+
  - DTM0 start/stop scenarios (depends on "HA messages").
+   - Goals:
+     - Define the scope for HARE and Motr/DTM0 teams related to
+       integration of DTM0 and HARE. Produce a spec. Sign the spec by
+       architects.
+     - To have a system tests covering the following scenarios:
+       - basic start with DTM0 services reconnect.
+       - follow new HA messages protocol which would include NEW
+         recovering message state and recovering complete state
+         messages.
+       - failure scenarios: transitions from TRANSIENT to RECOVERING
+         states by means of service crash and restart.
+       - paranoid scenarios: quick reconnect/connect messages from HA,
+         duplicated state messages, etc.
+   - Deliverable:
+     - Code and demo reviewed by Nikita and management.
+     - Recorded review results.
  - DTM0 recovery scenarios (depends on "HA messages").
+   - Goals:
+     - To have a full-fledged DTM0 implementation including recovery
+       logic and system tests having a bunch of clients sending
+       parallel MD operations to servers.
+     - Processed failures: ordinary failures, failures during
+       recovery, failures during recovery transitting into PERMANENT
+       state.
+     - Prepare a set of *debugging tools* to be ready to address
+       problems on the real cluster.
  - Basic S3 integration (depends on DTM0).
+   - Goals:
+     - integrate DTM0 component with S3.
+     - participate in test plan defintion.
  - DTM0 test.
+   - TBD.
  - DTM0 basic deployment.
+   - TBD.
+ - DTM0 performance work (not in the scope of DTM0 work).
+   - TBD.
  - (future work) Metadata update (depends on basic S3 integration).
+   - TBD.
 
 Possible execution plan:
 #+BEGIN_SRC
