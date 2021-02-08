@@ -675,6 +675,43 @@ static void composite_sub_io_destroy(struct composite_sub_io *sio_arr,
 	m0_free(sio_arr);
 }
 
+/* Compute the step to advance. */
+static m0_bindex_t get_next_off(struct m0_composite_extent *cexts[], int n)
+{
+	int i;
+	m0_bindex_t next_off;
+
+	next_off = cexts[n]->ce_off + cexts[n]->ce_len;
+	for (i = n - 1; i >= 0; i--) {
+		if (cexts[i] == NULL)
+			continue;
+		if (cexts[i]->ce_off <= next_off )
+			break;
+	}
+	if (i >= 0)
+		next_off = cexts[i]->ce_off;
+
+	return next_off;
+}
+
+/* Advance each layer's extent cursor. */
+static void advance_layers_cursor(struct m0_tl *cext_tlists[],
+				  struct m0_composite_extent *cexts[], int n,
+				  m0_bindex_t off)
+{
+	int i;
+
+	for (i = 0; i < n; i++) {
+		if (cexts[i] == NULL ||
+		    cexts[i]->ce_off + cexts[i]->ce_len > off)
+			continue;
+		cexts[i] = cext_tlist_next(cext_tlists[i], cexts[i]);
+		while (cexts[i] != NULL &&
+		       cexts[i]->ce_off + cexts[i]->ce_len <= off)
+			cexts[i] = cext_tlist_next(cext_tlists[i], cexts[i]);
+	}
+}
+
 /*
  * Divide original IO index vector and buffers according to sub-objects.
  */
@@ -684,10 +721,8 @@ static int composite_io_divide(struct m0_client_composite_layout *clayout,
 			       struct composite_sub_io **out,
 			       int *out_nr_sios)
 {
-	int                                 rc;
+	int                                 rc = 0;
 	int                                 i;
-	int                                 j;
-	int                                 k;
 	int                                 nr_subobjs;
 	int                                 valid_subobj_cnt = 0;
 	m0_bindex_t                         off;
@@ -697,8 +732,8 @@ static int composite_io_divide(struct m0_client_composite_layout *clayout,
 	struct m0_bufvec_cursor             bcursor;
 	struct composite_sub_io            *sio_arr;
 	struct composite_sub_io_ext        *sio_ext;
-	struct m0_composite_layer   *layer = NULL;
-	struct m0_composite_extent **cexts;
+	struct m0_composite_layer          *layer = NULL;
+	struct m0_composite_extent        **cexts;
 	struct m0_tl                      **cext_tlists;
 	struct m0_tl                       *tl;
 
@@ -716,10 +751,9 @@ static int composite_io_divide(struct m0_client_composite_layout *clayout,
 	}
 
 	for (i = 0; i < nr_subobjs; i++) {
-		if (i == 0)
-			layer = clayer_tlist_head(&clayout->ccl_layers);
-		else
-			layer = clayer_tlist_next(&clayout->ccl_layers, layer);
+		layer = (i == 0) ?
+		     clayer_tlist_head(&clayout->ccl_layers) :
+		     clayer_tlist_next(&clayout->ccl_layers, layer);
 		tl = (opcode == M0_OC_READ)?
 		     &layer->ccr_rd_exts: &layer->ccr_wr_exts;
 
@@ -739,8 +773,16 @@ static int composite_io_divide(struct m0_client_composite_layout *clayout,
 
 	m0_ivec_cursor_init(&icursor, ext);
 	m0_bufvec_cursor_init(&bcursor, data);
-	for (i = 0; !m0_ivec_cursor_move(&icursor, len) &&
-		    !m0_bufvec_cursor_move(&bcursor, len); i++) {
+
+	/*
+	 * Skip the first few extents whose end is less than the offset
+	 * of IO range as they are certainly not in the range.
+	 */
+	off = m0_ivec_cursor_index(&icursor);
+	advance_layers_cursor(cext_tlists, cexts, valid_subobj_cnt, off);
+
+	while (!m0_ivec_cursor_move(&icursor, len) &&
+	       !m0_bufvec_cursor_move(&bcursor, len)) {
 		off = m0_ivec_cursor_index(&icursor);
 		len = m0_ivec_cursor_step(&icursor);
 
@@ -750,22 +792,12 @@ static int composite_io_divide(struct m0_client_composite_layout *clayout,
 		 * in offset order in a layer. It is considered an assert if
 		 * there is no sub-object covering the offset.
 		 */
-		for (j = 0; j < valid_subobj_cnt; j++)
-			if (cexts[j] != NULL && off >= cexts[j]->ce_off)
+		for (i = 0; i < valid_subobj_cnt; i++)
+			if (cexts[i] != NULL && off >= cexts[i]->ce_off)
 				break;
-		M0_ASSERT(j != valid_subobj_cnt);
+		M0_ASSERT(i < valid_subobj_cnt);
 
-		/* Compute the step to advance. */
-		next_off = cexts[j]->ce_off + cexts[j]->ce_len;
-		for (k = j - 1; k >= 0; k--) {
-			if (cexts[k] == NULL)
-				continue;
-			if (cexts[k]->ce_off <= next_off )
-				break;
-		}
-		if (k >= 0)
-			next_off = cexts[k]->ce_off;
-
+		next_off = get_next_off(cexts, i);
 		if (next_off > off + len)
 			next_off = off + len;
 		len = next_off - off;
@@ -774,32 +806,25 @@ static int composite_io_divide(struct m0_client_composite_layout *clayout,
 		M0_ALLOC_PTR(sio_ext);
 		if (sio_ext == NULL) {
 			rc = M0_ERR(-ENOMEM);
-			goto error;
+			goto err;
 		}
 		sio_ext->sie_off = off;
 		sio_ext->sie_len = len;
 		sio_ext->sie_buf = m0_bufvec_cursor_addr(&bcursor);
-		sio_arr[j].si_nr_exts++;
-		sio_ext_tlink_init_at(sio_ext, &sio_arr[j].si_exts);
+		sio_arr[i].si_nr_exts++;
+		sio_ext_tlink_init_at(sio_ext, &sio_arr[i].si_exts);
 
-		/* Advance each layer's extent cursor. */
-		for (j = 0; j < valid_subobj_cnt; j++) {
-			if (cexts[j] == NULL ||
-			    cexts[j]->ce_off + cexts[j]->ce_len > next_off)
-				continue;
-			cexts[j] = cext_tlist_next(cext_tlists[j], cexts[j]);
-			while (cexts[j] != NULL &&
-			       cexts[j]->ce_off + cexts[j]->ce_len <= next_off)
-				cexts[j] = cext_tlist_next(
-						cext_tlists[j], cexts[j]);
-		}
+		advance_layers_cursor(cext_tlists, cexts, valid_subobj_cnt,
+				      next_off);
 	}
 	*out = sio_arr;
 	*out_nr_sios = valid_subobj_cnt;
-	return M0_RC(0);
+ err:
+	m0_free(cext_tlists);
+	m0_free(cexts);
+	if (rc != 0)
+		composite_sub_io_destroy(sio_arr, nr_subobjs);
 
-error:
-	composite_sub_io_destroy(sio_arr, nr_subobjs);
 	return M0_RC(rc);
 }
 

@@ -1725,18 +1725,6 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 				  FID_P(&req->dr_indices[0].dd_fid),
 				  creq, FID_P(&cctg_id.ci_fid));
 
-		/* XXX The following section can be enabled to print keys */
-		/*
-		{
-			int i;
-			for (i = 0; i < cas_rop->crp_keys.ov_vec.v_nr; i++) {
-				M0_LOG(M0_DEBUG, "key=%.*s",
-				       (int)cas_rop->crp_keys.ov_vec.v_count[i],
-				       (char*)cas_rop->crp_keys.ov_buf[i]);
-			}
-		}
-		*/
-
 		switch (req->dr_type) {
 		case DIX_GET:
 			rc = m0_cas_get(creq, &cctg_id, &cas_rop->crp_keys);

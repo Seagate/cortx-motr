@@ -33,8 +33,15 @@
 static struct m0_sm_group G;
 static struct m0_sm       m;
 static struct m0_sm_ast   ast;
-static bool               more = true;
+static bool               more;
 static struct m0_thread   ath;
+
+enum { C_INIT, C_FLIP, C_HEAD, C_TAIL, C_DONE, C_OVER, C_WIN, C_LOSE, C_TIE,
+       C_NR };
+
+static int heads;
+static int tails;
+
 
 static void ast_thread(int __d)
 {
@@ -48,6 +55,13 @@ static void ast_thread(int __d)
 
 static int init(void) {
 	m0_sm_group_init(&G);
+	M0_SET0(&m);
+	M0_SET0(&ast);
+	more = true;
+	M0_SET0(&ath);
+	heads = 0;
+	tails = 0;
+
 	return 0;
 }
 
@@ -443,12 +457,6 @@ static void group(void)
 	m0_sm_fini(&s.cain);
 	m0_sm_group_unlock(&G);
 }
-
-enum { C_INIT, C_FLIP, C_HEAD, C_TAIL, C_DONE, C_OVER, C_WIN, C_LOSE, C_TIE,
-       C_NR };
-
-static int heads = 0;
-static int tails = 0;
 
 static int flip(struct m0_sm *mach)
 {
