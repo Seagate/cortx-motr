@@ -20,14 +20,16 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM0
+#include "dtm0/service.h"
 #include "lib/trace.h"
-#include "lib/string.h"
-#include "lib/errno.h"
-#include "lib/memory.h"
-#include "reqh/reqh_service.h"
+#include "lib/string.h"              /* streq */
+#include "lib/errno.h"               /* ENOMEM and so on */
+#include "lib/memory.h"              /* M0_ALLOC_PTR */
+#include "reqh/reqh_service.h"       /* m0_reqh_service */
 #include "reqh/reqh.h"               /* m0_reqh */
 #include "rpc/rpc_machine.h"         /* m0_rpc_machine */
-#include "dtm0/fop.h"
+#include "dtm0/fop.h"                /* dtm0_fop */
+#include "dtm0/dtx.h"                /* dtx_domain_init */
 #include "lib/tlist.h"
 
 static struct m0_dtm0_service *to_dtm(struct m0_reqh_service *service);
@@ -85,22 +87,6 @@ M0_TL_DESCR_DEFINE(dopr, "dtm0_process", static, struct dtm0_process, dop_link,
 		   dop_magic, 0x8888888888888888, 0x7777777777777777);
 M0_TL_DEFINE(dopr, static, struct dtm0_process);
 
-enum m0_dtm0_service_origin {
-	DTM0_UNKNOWN = 0,
-	DTM0_ON_VOLATILE,
-	DTM0_ON_PERSISTENT,
-};
-
-/**
- * DTM0 service structure
- */
-struct m0_dtm0_service {
-	struct m0_reqh_service       dos_generic;
-	struct m0_tl                 dos_processes;
-	enum m0_dtm0_service_origin  dos_origin;
-	uint64_t                     dos_magix;
-};
-
 /**
  * typed container_of
  */
@@ -122,16 +108,21 @@ static struct m0_dtm0_service *to_dtm(struct m0_reqh_service *service)
 /**
  * Service part
  */
-static void dtm0_service__init(struct m0_dtm0_service *s)
+static int dtm0_service__init(struct m0_dtm0_service *s)
 {
-       dopr_tlist_init(&s->dos_processes);
-       m0_dtm0_service_bob_init(s);
+	dopr_tlist_init(&s->dos_processes);
+	m0_dtm0_service_bob_init(s);
+	m0_dtm0_dtx_domain_init();
+
+	return m0_dtm0_clk_src_init(&s->dos_clk_src, M0_DTM0_CS_PHYS);
 }
 
 static void dtm0_service__fini(struct m0_dtm0_service *s)
 {
-       dopr_tlist_fini(&s->dos_processes);
-       m0_dtm0_service_bob_fini(s);
+	m0_dtm0_dtx_domain_fini();
+	m0_dtm0_clk_src_fini(&s->dos_clk_src);
+	dopr_tlist_fini(&s->dos_processes);
+	m0_dtm0_service_bob_fini(s);
 }
 
 M0_INTERNAL int m0_dtm0_service_process_connect(struct m0_reqh_service *s,
@@ -208,17 +199,21 @@ static int dtm0_service__alloc(struct m0_reqh_service **service,
 			       const struct m0_reqh_service_ops *ops)
 {
 	struct m0_dtm0_service *s;
+	int                     rc;
 
 	M0_PRE(stype != NULL && service != NULL && ops != NULL);
 
 	M0_ALLOC_PTR(s);
 	if (s == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	s->dos_generic.rs_type = stype;
 	s->dos_generic.rs_ops  = ops;
+	rc = dtm0_service__init(s);
+	if (rc != 0)
+		return rc;
+
 	*service = &s->dos_generic;
-	dtm0_service__init(s);
 	return M0_RC(0);
 }
 
@@ -304,6 +299,16 @@ M0_INTERNAL bool m0_dtm0_is_a_persistent_dtm(struct m0_reqh_service *service)
 {
 	return m0_streq(service->rs_type->rst_name, "M0_CST_DTM0") &&
 		to_dtm(service)->dos_origin == DTM0_ON_PERSISTENT;
+}
+
+M0_INTERNAL struct m0_dtm0_service *
+m0_dtm0_service_find(const struct m0_reqh *reqh)
+{
+	struct m0_reqh_service *rh_srv;
+
+	rh_srv = m0_reqh_service_find(&dtm0_service_type, reqh);
+
+	return rh_srv == NULL ? NULL : to_dtm(rh_srv);
 }
 
 /*

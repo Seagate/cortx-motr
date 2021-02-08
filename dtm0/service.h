@@ -26,6 +26,24 @@
 #define __MOTR_DTM0_SERVICE_H__
 
 #include "reqh/reqh_service.h"
+#include "dtm0/clk_src.h"
+
+enum m0_dtm0_service_origin {
+	DTM0_UNKNOWN = 0,
+	DTM0_ON_VOLATILE,
+	DTM0_ON_PERSISTENT,
+};
+
+/**
+ * DTM0 service structure
+ */
+struct m0_dtm0_service {
+	struct m0_reqh_service       dos_generic;
+	struct m0_tl                 dos_processes;
+	enum m0_dtm0_service_origin  dos_origin;
+	uint64_t                     dos_magix;
+	struct m0_dtm0_clk_src       dos_clk_src;
+};
 
 extern struct m0_reqh_service_type dtm0_service_type;
 
@@ -45,4 +63,6 @@ m0_dtm0_service_process_session_get(struct m0_reqh_service *s,
 M0_INTERNAL bool m0_dtm0_is_a_volatile_dtm(struct m0_reqh_service *service);
 M0_INTERNAL bool m0_dtm0_is_a_persistent_dtm(struct m0_reqh_service *service);
 
+M0_INTERNAL struct m0_dtm0_service *
+m0_dtm0_service_find(const struct m0_reqh *reqh);
 #endif /* __MOTR_DTM0_SERVICE_H__ */

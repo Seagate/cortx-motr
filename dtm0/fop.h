@@ -34,8 +34,8 @@ extern struct m0_fop_type dtm0_rep_fop_fopt;
 extern const struct m0_rpc_item_ops dtm0_req_fop_rpc_item_ops;
 
 
-int m0_dtm0_fop_init(void);
-void m0_dtm0_fop_fini(void);
+M0_INTERNAL int m0_dtm0_fop_init(void);
+M0_INTERNAL void m0_dtm0_fop_fini(void);
 
 struct dtm0_req_fop {
 	uint64_t csr_value;
