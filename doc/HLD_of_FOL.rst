@@ -48,7 +48,7 @@ Definitions
 
 - an operation is stable when it is guaranteed that the system state would be consistent with this operation having been executed. A stable operation is always durable. Additionally, M0 core guarantees that the recovery would never undo the operation. The system can renege stability guarantee only in the face of a catastrophe or a system failure;
 
-- updates U and V are conflicting or non-commutative if the final system state after U and W are executed depends on the relative order of their execution (note that system state includes information and result codes returned to the user applications); otherwise the updates are commutative. The later of two non-commutative updates depends on the earlier one. The earlier one is a pre-requisite of a later one (this ordering is well-defined due to serializability);
+- updates U and V are conflicting or non-commutative if the final system state after U and V are executed depends on the relative order of their execution (note that system state includes information and result codes returned to the user applications); otherwise the updates are commutative. The later of two non-commutative updates depends on the earlier one. The earlier one is a pre-requisite of a later one (this ordering is well-defined due to serializability);
 
 - to maintain operation serializability, all conflicting updates of a given file system object must be serialized. An object version is a number associated with a storage object with a property that for any two conflicting updates U (a pre-requisite) and V (a dependent update) modifying the object, the object version at the moment of U execution is less than at the moment of V execution;
 
@@ -134,7 +134,7 @@ Logical Specification
 Overview
 =========
 
-FOL is stored in a transactional container[1] populated with records indexed[2] by LSN. An LSN is used to refer to a point in FOL from other meta-data tables (epochs table, object index, sessions table, etc.). To make such references more flexible, a FOL, in addition to genuine records corresponding to updates, might contain pseudo-records marking points on interest in the FOL to which other file system tables might want to refer to (for example, an epoch boundary, a snapshot origin, a new server secret key, etc.). By abuse of terminology, such pseudo-records will be called FOL records too. Similarly, as part of redo-recovery implementation, DTM might populate a node FOL with records describing updates to be performed on other nodes.
+FOL is stored in a transactional container [1] populated with records indexed[2] by LSN. An LSN is used to refer to a point in FOL from other meta-data tables (epochs table, object index, sessions table, etc.). To make such references more flexible, a FOL, in addition to genuine records corresponding to updates, might contain pseudo-records marking points on interest in the FOL to which other file system tables might want to refer to (for example, an epoch boundary, a snapshot origin, a new server secret key, etc.). By abuse of terminology, such pseudo-records will be called FOL records too. Similarly, as part of redo-recovery implementation, DTM might populate a node FOL with records describing updates to be performed on other nodes.
 
 [1][R.BACK-END.TRANSACTIONAL] ST
 
