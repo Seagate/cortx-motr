@@ -498,7 +498,7 @@ M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,
 		return M0_ERR(-ENOMEM);
 	m0_be_0type_add_credit(bedom, &m0_be_cob0, cdid_str, &data, cred);
 	M0_BE_ALLOC_CREDIT_PTR(dom, seg, cred);
-	m0_be_btree_create_credit(&dummy, (4*COB_HT_SIZE + 1)/* XXX */, cred);
+	m0_be_btree_create_credit(&dummy, (4*COB_HT_SIZE)/* XXX */, cred);
 	m0_free(cdid_str);
 	return M0_RC(0);
 }
