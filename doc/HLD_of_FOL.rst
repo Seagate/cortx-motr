@@ -134,7 +134,7 @@ Logical Specification
 Overview
 =========
 
-FOL is stored in a transactional container [1] populated with records indexed[2] by LSN. An LSN is used to refer to a point in FOL from other meta-data tables (epochs table, object index, sessions table, etc.). To make such references more flexible, a FOL, in addition to genuine records corresponding to updates, might contain pseudo-records marking points on interest in the FOL to which other file system tables might want to refer to (for example, an epoch boundary, a snapshot origin, a new server secret key, etc.). By abuse of terminology, such pseudo-records will be called FOL records too. Similarly, as part of redo-recovery implementation, DTM might populate a node FOL with records describing updates to be performed on other nodes.
+FOL is stored in a transactional container [1] populated with records indexed [2] by LSN. An LSN is used to refer to a point in FOL from other meta-data tables (epochs table, object index, sessions table, etc.). To make such references more flexible, a FOL, in addition to genuine records corresponding to updates, might contain pseudo-records marking points on interest in the FOL to which other file system tables might want to refer to (for example, an epoch boundary, a snapshot origin, a new server secret key, etc.). By abuse of terminology, such pseudo-records will be called FOL records too. Similarly, as part of redo-recovery implementation, DTM might populate a node FOL with records describing updates to be performed on other nodes.
 
 [1][R.BACK-END.TRANSACTIONAL] ST
 
@@ -171,7 +171,7 @@ A node FOL must be prunable if only to function correctly on a node without pers
 Conformance
 =============
 
-- [R.FOL.EVERY-NODE]: on nodes with persistent storage, M0 core runs in the user space and the FOL is stored in a data-base table. On a node without persistent storage, M0 core runs in the kernel space and the FOL is stored in memory-only index. Data-base and memory-only index provide the same external interface, making FOL code portable;
+- [R.FOL.EVERY-NODE]: on nodes with persistent storage, M0 core runs in the user space and the FOL is stored in a data-base table. On a node without persistent storage, or M0 core runs in the kernel space, the fol is stored in memory-only index. Data-base and memory-only index provide the same external interface, making FOL code portable;
 
 - [R.FOL.LOCAL-TXN]: request handler inserts a record into FOL table in the context of the same transaction where update is executed. This guarantees WAL property of FOL;
 
