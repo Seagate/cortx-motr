@@ -1336,16 +1336,16 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 *
 		 */
 		if (!m0_dtm0_tx_desc_is_none(&cas_op(fom0)->cg_txd)) {
+			/*
 			struct m0_be_tx_credit dtm0logrec_cred;
 
-			/*
 			m0_be_dtm0_log_credit(M0_DTML_EXECUTED,
 					      tx,
 					      cas_op(fom0)->cg_txd,
 					      m0_fom_reqh(fom0)->rh_beseg,
 					      &dtm0logrec_cred);
-					      */
 			m0_be_tx_credit_add(&fom0->fo_tx.tx_betx_cred, &dtm0logrec_cred);
+					      */
 		}
 
 		m0_fom_phase_set(fom0, M0_FOPH_TXN_OPEN);
