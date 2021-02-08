@@ -130,6 +130,39 @@ void m0_obj_amap_index(struct m0_obj *obj,
  * way that a user can improve locality of reference by assigning colours to
  * processor cores. Colouring is optional and does not affect correctness.
  *
+ * Let's consider, for example, the i/o read operation. The user calls
+ * m0_layout_plan_build() passing m0_op as argument describing the operation.
+ * After this we can enter the "loop" traversing the graph. m0_layout_plan_get()
+ * is called and returns M0_LAT_READ plop. In this plop user gets cob fid
+ * (at m0_layout_plop::pl_ent) and m0_layout_io_plop::iop_ext describing where
+ * the unit to be read is located at the cob. Now, having this information the
+ * user is ready to send the fop the ioservice.
+ *
+ * After data is read, the user puts it at m0_layout_io_plop::iop_data and
+ * calls m0_layout_plop_done(). One iteration of the graph traversing loop is
+ * done now. If the object consists only of a single unit, the next call to
+ * m0_layout_plan_get() would return M0_LAT_DONE indicating that the i/o m0_op
+ * is done and the plan is finished. But most of the times objects consist
+ * many units and all of them should be read in parallel. Which means the user
+ * might call m0_layout_plan_get() many times before calling the first
+ * m0_layout_plop_done() on any of the returned plops.
+ *
+ * The picture becomes a bit more complicated when some disk is failed and
+ * we are doing the degraded read. Or we are working in the read-verify mode.
+ * In this situation the plan would ask the user to read the parity units in
+ * each parity group also. Having the parity data at hand, the implementation
+ * would ask user to run the function (by returning m0_layout_fun_plop).
+ * It would use this function to restore the data (or verify it) in the
+ * synchronous way. So the next plop might be M0_LAT_OUT_READ with the data
+ * at m0_layout_inout_plop::iob_data.
+ *
+ * In case of the read-verify mode the verification status is indicated by
+ * the return code from the m0_layout_fun_plop::fp_fun() call.
+ *
+ * The plan would return m0_layout_fun_plop periodically each time the parity
+ * group is read in the degraded mode and the data needs to be restored. Or
+ * on every parity group in read-verify mode.
+ *
  * @{
  */
 
