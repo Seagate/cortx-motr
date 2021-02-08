@@ -55,7 +55,8 @@ static struct m0_net_buffer r_buf;
 
 static struct m0_fid gob_fid;
 static struct m0_fid cob_fid;
-static const struct m0_fid      M0_SNS_CM_REPAIR_UT_PVER = M0_FID_TINIT('v', 1, 8);
+
+static const struct m0_fid M0_SNS_CM_REPAIR_UT_PVER = M0_FID_TINIT('v', 1, 8);
 
 /*
  * Copy packet will typically have a single segment with its size equal to
@@ -283,6 +284,25 @@ static void test_cp_write_read(void)
 {
 	struct m0_pdclust_layout *pdlay;
 	int                       rc;
+
+	scm = NULL;
+	reqh = NULL;
+	M0_SET0(&sem);
+	M0_SET0(&nbp);
+
+	/* Global structures for write copy packet. */
+	M0_SET0(&w_sag);
+	M0_SET0(&w_sns_cp);
+	M0_SET0(&w_buf);
+
+	/* Global structures for read copy packet. */
+	M0_SET0(&r_sag);
+	M0_SET0(&r_sns_cp);
+	M0_SET0(&r_buf);
+
+	M0_SET0(&gob_fid);
+	M0_SET0(&cob_fid);
+
 
 	rc = cs_init_with_ad_stob(&sctx);
 	M0_ASSERT(rc == 0);
