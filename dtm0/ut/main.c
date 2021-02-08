@@ -71,7 +71,7 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 	struct dtm0_rep_fop   *rep;
 	struct dtm0_req_fop   *req;
 
-	struct m0_dtm0_tx_desc txr;
+	struct m0_dtm0_tx_desc txr = {};
 	struct m0_dtm0_tid      reply_data;
 
 	struct m0_dtm0_clk_src dcs;
@@ -84,7 +84,6 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 
 	M0_PRE(cl_rpc_session != NULL);
 
-	M0_SET0(&txr);
 	txr.dtd_id = (struct m0_dtm0_tid) { .dti_ts = now, .dti_fid = g_process_fid};
 	fop = m0_fop_alloc_at(cl_rpc_session,
 			      &dtm0_req_fop_fopt);
