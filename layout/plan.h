@@ -339,11 +339,12 @@ struct m0_layout_io_plop {
 	 */
 	struct m0_indexvec    iop_ext;
 	/**
-	 * In case of write, this is the set of data buffers, provided by the
-	 * implementation, containing the data to be written.
+	 * Data buffers provided by the implementation.
 	 *
-	 * In case of read, this field is set by the user before calling
-	 * m0_layout_plop_done() and containing the buffers with read data.
+	 * In case of write, the buffers contain the data to be written.
+	 *
+	 * In case of read, the buffers should be populated with the data
+	 * read by the user before calling m0_layout_plop_done().
 	 */
 	struct m0_bufvec      iop_data;
 };
