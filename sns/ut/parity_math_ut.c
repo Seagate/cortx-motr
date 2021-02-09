@@ -1433,49 +1433,111 @@ static void ub_large_32768(int iter)
 	fuc = duc+puc;
 	parity_math_tb();
 }
+static void ub_small_4_2_4K(int iter)
+{
+	UNIT_BUFF_SIZE = 4096;
+	duc = 4;
+	puc = 2;
+	fuc = duc+puc;
+	parity_math_tb();
+}
 
-enum { UB_ITER = 1 };
+static void ub_small_4_2_256K(int iter)
+{
+	UNIT_BUFF_SIZE = 262144;
+	duc = 4;
+	puc = 2;
+	fuc = duc+puc;
+	parity_math_tb();
+}
+
+static void ub_small_4_2_1M(int iter)
+{
+	UNIT_BUFF_SIZE = 1048576;
+	duc = 4;
+	puc = 2;
+	fuc = duc+puc;
+	parity_math_tb();
+}
+
+enum { UB_ITER = 100 };
 
 struct m0_ub_set m0_parity_math_ub = {
-        .us_name = "parity-math-ub",
-        .us_init = ub_init,
-        .us_fini = NULL,
-        .us_run  = {
-                { .ub_name  = "s 10/05/ 4K",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_small_4096 },
+	.us_name = "parity-math-ub",
+	.us_init = ub_init,
+	.us_fini = NULL,
+	.us_run  = {
+		{ .ub_name  = "s 10/05/ 4K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small_4096,
+		  .ub_block_size = 4096,
+		  .ub_blocks_per_op = 15 },
 
-                { .ub_name  = "m 20/06/ 4K",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_medium_4096 },
+		{ .ub_name  = "m 20/06/ 4K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_medium_4096,
+		  .ub_block_size = 4096,
+		  .ub_blocks_per_op = 26 },
 
-                { .ub_name  = "l 30/12/ 4K",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_large_4096 },
+		{ .ub_name  = "l 30/12/ 4K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_large_4096,
+		  .ub_block_size = 4096,
+		  .ub_blocks_per_op = 42 },
 
-                { .ub_name  = "s 10/05/32K",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_small_32768 },
+		{ .ub_name  = "s 10/05/32K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small_32768,
+		  .ub_block_size = 32768,
+		  .ub_blocks_per_op = 15 },
 
-                { .ub_name  = "m 20/06/32K",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_medium_32768 },
+		{ .ub_name  = "m 20/06/32K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_medium_32768,
+		  .ub_block_size = 32768,
+		  .ub_blocks_per_op = 26 },
 
-                { .ub_name  = "l 30/12/32K",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_large_32768 },
+		{ .ub_name  = "l 30/12/32K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_large_32768,
+		  .ub_block_size = 32768,
+		  .ub_blocks_per_op = 42 },
 
-                { .ub_name  = "s  03/02/ 1M",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_small_1048576 },
+		{ .ub_name  = "s  03/02/ 1M",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small_1048576,
+		  .ub_block_size = 1048576,
+		  .ub_blocks_per_op = 5 },
 
-                { .ub_name  = "m 06/03/ 1M",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_medium_1048576 },
+		{ .ub_name  = "m 06/03/ 1M",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_medium_1048576,
+		  .ub_block_size = 1048576,
+		  .ub_blocks_per_op = 9 },
 
-                { .ub_name  = "l 08/04/ 1M",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_large_1048576 },
+		{ .ub_name  = "l 08/04/ 1M",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_large_1048576,
+		  .ub_block_size = 1048576,
+		  .ub_blocks_per_op = 12 },
+
+		{ .ub_name  = "s 04/02/4K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small_4_2_4K,
+		  .ub_block_size = 4096,
+		  .ub_blocks_per_op = 6 },
+
+		{ .ub_name  = "m 04/02/256K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small_4_2_256K,
+		  .ub_block_size = 262144,
+		  .ub_blocks_per_op = 6 },
+
+		{ .ub_name  = "l 04/02/1M",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small_4_2_1M,
+		  .ub_block_size = 1048576,
+		  .ub_blocks_per_op = 6 },
 
 		{ .ub_name = NULL}
 	}

@@ -162,9 +162,9 @@ static void results_print(uint32_t round)
 			bytes = bench->ub_block_size * bench->ub_blocks_per_op * bench->ub_iter;
 			if (bytes > 0) {
 				kib = bytes / 1024;
-				bw_kibps = bw(bytes, bench->ub_total_etime) /1024;
+				bw_kibps = bw(bytes, bench->ub_total_etime) / 1024;
 				kbs_per_op = bench->ub_block_size * bench->ub_blocks_per_op;
-				iops = (bw_kibps / kbs_per_op) * 1024;
+				iops = (bw_kibps * 1024) / kbs_per_op;
 			}
 
 			printf("\t%12.12s: [%7i] %6.2f %6.2f %6.2f %5.2f%%"
