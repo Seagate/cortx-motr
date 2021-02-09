@@ -132,7 +132,62 @@ Allocate and initialize new catalogue object and insert it in the meta-catalogue
 |DELETE                |cfid                              |rc                           |
 +----------------------+----------------------------------+-----------------------------+
 
-The problem with delete is that deletion of a catalogue with a large number of records might require more meta-data updates than can fit in a single transaction. Because of this a technique similar to handling of truncates for open-unlinked files in a POSIX file system is used. (Also see stob deletion code in io service.)
+The problem with delete is that deletion of a catalogue with a large number of records might require more meta-data updates than can fit in a single transaction. Because of this a technique similar to handling of truncates for open-unlinked files in a POSIX file system is used. (Also see stob deletion code in io service).
+
+::
+
+ bool deathrowed = false; 
+ 
+ tx_open(tx); 
+ 
+ cat = catalogue_get(req.cfid);
+ 
+ /* 
+ 
+  * First, remove all existing records. 
+  
+  * Scan the catalogue.
+  
+  */ 
+  
+ foreach key in cat { 
+ 
+         tree_del(cat.btree, key, tx);
+         
+         if (m0_be_tx_should_break(tx, deathrow_credit)) { 
+         
+             if (!deathrowed) { 
+             
+             // if the transaction is about to overflow, 
+             
+             // put the catalogue in a special “dead row” catalogue. 
+             
+             tree_insert(service.death_row, cfid, tx); 
+             
+             // do this only in the first transaction 
+             
+             deathrowed = true; 
+             
+           } 
+           
+           /* reopen the transaction, continue with deletions. */ 
+           
+           tx_close(tx); 
+           
+           tx_open(tx); 
+           
+         } 
+         
+       
+       } /* all records removed, delete the catalogue from the deathrow. */ 
+       
+       tree_delete(service.death_row, cfid, tx); 
+       
+       /* delete the empty catalogue from the meta-catalogue, etc. */ 
+       
+       … 
+       
+       tx_close(tx);
 
 
 
