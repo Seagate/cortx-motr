@@ -188,6 +188,26 @@ The problem with delete is that deletion of a catalogue with a large number of r
        … 
        
        tx_close(tx);
+       
+Deathrow catalogue contains all large catalogues which are in the process of being deleted. If the service crashes and restarts, it scans the deathrow and completes pending deletions. In other words, deathrow is used for logical logging of catalogue deletions.
+
++------------------+------------------------------+----------------------------------+
+|GET               |cfid, input: array of {key    |rc, output: array of {exists, val}|
++------------------+------------------------------+----------------------------------+
+
+::
+
+ cat = catalogue_get(req.cfid); 
+
+ foreach key in req.input { 
+
+         reply.output[i].val = tree_lookup(cat.btree, key); 
+
+}
+
++------------------+---------------------------------+----------------------------------+
+|PUT               |cfid, input: array of {key, val} |rc, count                         |
++------------------+---------------------------------+----------------------------------+
 
 
 
