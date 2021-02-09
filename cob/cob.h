@@ -224,7 +224,7 @@ enum {
 	M0_IOS_COB_ID_START = 1000,
 };
 
-enum { COB_HT_SIZE = 16 };
+enum { COB_HT_SIZE = 128 };
 
 /**
    Unique cob domain identifier.
