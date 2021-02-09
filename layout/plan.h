@@ -128,14 +128,14 @@
  * The user gets the data from ioservice, puts it at m0_layout_io_plop::iop_data
  * and calls m0_layout_plop_done(). The next m0_layout_plan_get() call might
  * return M0_LAT_OUT_READ indicating that the read data of the object is ready
- * to be used by the user. One iteration of the graph traversing loop is done.
+ * for the user. One iteration of the graph traversing loop is done.
  *
  * Now, if the object consists only of a single unit, the next call to
  * m0_layout_plan_get() would return M0_LAT_DONE indicating that the i/o m0_op
  * is done and the plan is finished. But usually objects consist of
  * many units and all of them should be read in parallel. Which means the user
  * might call m0_layout_plan_get() many times before calling the first
- * m0_layout_plop_done() on any of the returned plops when the data is read.
+ * m0_layout_plop_done().
  *
  * The picture becomes a bit more complicated when some disk is failed and
  * we are doing the degraded read. Or we are working in the read-verify mode.
