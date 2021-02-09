@@ -503,7 +503,7 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 	 * same as the total number of localities in the reqh fom domain.
 	 */
 	colours = m0_reqh_nr_localities(reqh);
-	ndom = m0_cs_net_domain_locate(m0_cs_ctx_get(reqh), //"lnet");
+	ndom = m0_cs_net_domain_locate(m0_cs_ctx_get(reqh),
 				       m0_net_xprt_default_get()->nx_name);
 	/*
 	 * XXX This should be fixed, buffer pool ops should be a parameter to
