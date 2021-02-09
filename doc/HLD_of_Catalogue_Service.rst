@@ -235,5 +235,88 @@ Deathrow catalogue contains all large catalogues which are in the process of bei
 |DEL             |cfid, input: array of {key}          |rc, count                 |
 +----------------+-------------------------------------+--------------------------+
 
+                
+
+       ::
+
+        count = 0; 
+
+        cat = catalogue_get(req.cfid);
+
+        tx_open(tx); 
+
+        foreach key in req.input { 
+
+                tree_del(cat.tree, key, tx); 
+
+                if (rc == 0) 
+
+                         reply.count++; 
+
+                else if (rc == -ENOENT) 
+
+                         ; /* Nothing. */ 
+
+                else 
+
+                         break; 
+
+             } 
+
+            tx_close(tx); 
+
+
++------+--------------------------------+---------------------------------------------------+
+|NEXT  |cfid, input: array of {key, nr} |rc, output: array of { rec: array of { key, val } }|
++------+--------------------------------+---------------------------------------------------+
+
+        ::
+
+         count = 0; 
+
+         cat = catalogue_get(req.cfid); 
+
+         foreach key, nr in req.input {
+
+                 cursor = tree_cursor_position(cat.tree, key); 
+
+                 for (i = 0; i < nr; ++i) {
+
+                         reply.output[count].rec[i] = tree_cursor_get(cursor); 
+
+                         tree_cursor_next(cursor);
+
+                  } 
+
+                  count++; 
+
+         }    
+
+
+To bulk or not to bulk?
+
+The detailed level design of the catalogue service should decide on use of rpc bulk mechanism. Possibilities include:
+
+- do not use bulk, pass all records in fop data. This imposes a limit on total records size in the operation;
+
+- use bulk all the time, do not pass records in fop data. This requires keys and data to be page aligned;
+
+- use fop data up to a certain limit, use bulk otherwise.
+
+Dependencies
+============
+
+- reqh service
+
+- fom, fom-long-term-lock
+
+- be (tx, btree)
+
+Security model
+===============
+
+None at the moment. Security model should be designed for all storage objects together.
+
+ 
 
 
