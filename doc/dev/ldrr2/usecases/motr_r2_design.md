@@ -227,7 +227,18 @@ The sequence diagram below describes GET/PUT flow for the scenario where node is
 ![Node Failure 1](images/simple_object_get_node_failure.png)
 
 ### 4.4.2:Simple-Object-Put/Write
-* Write path should detect error in writing data and should return success if the failed number of write unit is less than or equal to number of parity unit
+* Write path should detect error in writing data and should return retryable error to S3, so that it can mitigate this error by creating new object. 
+* New object can be written with different layout e.g 2+2 (switching from 4+2) or it can be written with storage set which is healthy.
+* So if a part of object is uploaded successfully and there is error in uploading next part, then S3 will create convert this simple object into a multipart object.
+* So in case of error a simple S3 object can get written as multiple motr object (max limited by number of nodes in SS).
+* This switching of layout helps to maintain data durablity for the following scenario
+   1. Node fails during IO (i.e. node failure is not yet registered)
+   1. Ongoing Write is done with 4+0
+   1. Node comes back
+   1. If another node fails permanently (not transient), then these write written with 4+0, will be impacted for read.
+
+* So in absence of data DTM, switching to write config of 2+2 or a new storage set, helps to avoid data durability issue for the scenario of transient failure followed by another (different node) permanent failure. 
+
 ![Node Failure 2](images/simple_object_put_node_failure.png)
 
 # WIP
