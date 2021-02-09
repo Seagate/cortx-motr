@@ -29,13 +29,17 @@
 
 M0_INTERNAL void m0_parity_fini(void)
 {
+#ifdef __KERNEL__
 	galois_calc_tables_release();
+#endif /* __KERNEL__ */
 }
 
 M0_INTERNAL int m0_parity_init(void)
 {
+#ifdef __KERNEL__
 	int ret = galois_create_mult_tables(M0_PARITY_GALOIS_W);
 	M0_ASSERT(ret == 0);
+#endif /* __KERNEL__ */
 	return 0;
 }
 
