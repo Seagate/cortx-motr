@@ -111,30 +111,47 @@
  * the unit to be read is located at the cob. Now, having this information the
  * user is ready to send the fop the ioservice.
  *
- * After data is read, the user puts it at m0_layout_io_plop::iop_data and
- * calls m0_layout_plop_done(). One iteration of the graph traversing loop is
- * done now. If the object consists only of a single unit, the next call to
+ * @verbatim
+ *  m0_layout_plan_build() ->
+ *    m0_layout_plan_get() -> M0_LAT_READ -> ... -> m0_layout_plop_done()
+ *    m0_layout_plan_get() -> M0_LAT_READ -> ... -> m0_layout_plop_done()
+ *    ...
+ *    m0_layout_plan_get() -> M0_LAT_OUT_READ -> ... -> m0_layout_plop_done()
+ *    m0_layout_plan_get() -> M0_LAT_READ -> ... -> m0_layout_plop_done()
+ *    m0_layout_plan_get() -> M0_LAT_FUN -> ... -> m0_layout_plop_done()
+ *    ...
+ *    m0_layout_plan_get() -> M0_LAT_OUT_READ -> ... -> m0_layout_plop_done()
+ *    m0_layout_plan_get() -> M0_LAT_DONE -> ... -> m0_layout_plop_done()
+ *  m0_layout_plan_fini()
+ * @endverbatim
+ *
+ * The user gets the data from ioservice, puts it at m0_layout_io_plop::iop_data
+ * and calls m0_layout_plop_done(). The next m0_layout_plan_get() call might
+ * return M0_LAT_OUT_READ indicating that the read data of the object is ready
+ * to be used by the user. One iteration of the graph traversing loop is done.
+ *
+ * Now, if the object consists only of a single unit, the next call to
  * m0_layout_plan_get() would return M0_LAT_DONE indicating that the i/o m0_op
- * is done and the plan is finished. But most of the times objects consist
+ * is done and the plan is finished. But usually objects consist of
  * many units and all of them should be read in parallel. Which means the user
  * might call m0_layout_plan_get() many times before calling the first
- * m0_layout_plop_done() on any of the returned plops.
+ * m0_layout_plop_done() on any of the returned plops when the data is read.
  *
  * The picture becomes a bit more complicated when some disk is failed and
  * we are doing the degraded read. Or we are working in the read-verify mode.
  * In this situation the plan would ask the user to read the parity units in
  * each parity group also. Having the parity data at hand, the implementation
- * would ask user to run the function (by returning m0_layout_fun_plop).
- * It would use this function to restore the data (or verify it) in the
- * synchronous way. So the next plop might be M0_LAT_OUT_READ with the data
- * at m0_layout_inout_plop::iob_data.
+ * would ask user to run the function (by returning M0_LAT_FUN plop).
+ * The function will restore the data (or verify it) in the synchronous way.
+ * When it's finished and m0_layout_plop_done() is called, the next
+ * m0_layout_plan_get() might return M0_LAT_OUT_READ.
  *
  * In case of the read-verify mode the verification status is indicated by
  * the return code from the m0_layout_fun_plop::fp_fun() call.
  *
  * The plan would return m0_layout_fun_plop periodically each time the parity
  * group is read in the degraded mode and the data needs to be restored. Or
- * on every parity group in read-verify mode.
+ * on every parity group in the read-verify mode.
  *
  * @{
  */
