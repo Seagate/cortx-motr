@@ -209,5 +209,31 @@ Deathrow catalogue contains all large catalogues which are in the process of bei
 |PUT               |cfid, input: array of {key, val} |rc, count                         |
 +------------------+---------------------------------+----------------------------------+
 
+::
+
+ reply.count = 0; 
+
+ cat = catalogue_get(req.cfid); 
+
+ tx_open(tx); 
+
+ foreach key, val in req.input { 
+
+ tree_insert(cat.tree, key, val, tx); 
+
+ if (rc in {0, -EEXIST}) 
+
+         reply.count++; 
+
+ else 
+
+         break; 
+
+} tx_close(tx);
+
++----------------+-------------------------------------+--------------------------+
+|DEL             |cfid, input: array of {key}          |rc, count                 |
++----------------+-------------------------------------+--------------------------+
+
 
 
