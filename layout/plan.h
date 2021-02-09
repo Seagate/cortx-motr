@@ -26,33 +26,6 @@
 #ifndef __MOTR_LAYOUT_PLAN_H__
 #define __MOTR_LAYOUT_PLAN_H__
 
-struct m0_layout {
-	struct m0_entity la_ent;
-};
-
-struct m0_composite_layout_layer {
-	uint32_t      cll_idx;
-	struct m0_fid cll_fid;
-};
-
-void m0_composite_layout_init(struct m0_composite_layout *layout,
-			      const struct m0_fid *fid);
-uint32_t m0_composite_layout_nr(const struct m0_composite_layout *layout);
-struct m0_composite_layout_layer *
-m0_composite_layout_at(const struct m0_composite_layout *layout, uint32_t idx);
-void m0_composite_layout_add(struct m0_composite_layout *layout, uint32_t idx);
-void m0_composite_layout_del(struct m0_composite_layout *layout, uint32_t idx);
-
-void m0_composite_layout_write(struct m0_composite_layout *layout,
-			       struct m0_dtx *dtx,
-			       struct m0_op **op);
-
-void m0_composite_layer_index(struct m0_composite_layout_layer *layer,
-			      bool write_mask, struct m0_idx *idx);
-
-void m0_obj_amap_index(struct m0_obj *obj,
-			      struct m0_idx *idx);
-
 /**
  * @defgroup layout
  *
