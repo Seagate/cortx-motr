@@ -196,18 +196,44 @@ M0_EXPORTED(m0_net_xprt_register);
 M0_INTERNAL void m0_net_xprt_deregister(const struct m0_net_xprt *xprt)
 {
 	int i;
-
+	int j;
 	for (i = 0; i < ARRAY_SIZE(xprts); ++i) {
 		if (xprts[i] == xprt) {
-			xprts[i] = NULL;
 			if (xprt == xprt_default)
 				xprt_default = NULL;
+			for (j = i; j < ARRAY_SIZE(xprts) - 1; ++j)
+				xprts[j] = xprts[j + 1];
+			xprts[j] = NULL;
 			return;
 		}
 	}
 	M0_IMPOSSIBLE("Wrong xprt.");
 }
 M0_EXPORTED(m0_net_xprt_deregister);
+
+M0_INTERNAL void m0_net_print_xprt(void)
+{
+	int i;
+	for (i = 0; i < ARRAY_SIZE(xprts); ++i) {
+		if (xprts[i] != NULL)
+			M0_LOG(M0_DEBUG, "xprt name:%s", xprts[i]->nx_name);
+	}
+}
+M0_EXPORTED(m0_net_print_xprt);
+
+M0_INTERNAL bool m0_net_check_xprt(const struct m0_net_xprt *xprt)
+{
+	bool                found = false;
+	int                 i;
+
+	for (i = 0; i < ARRAY_SIZE(xprts); ++i)
+	{
+		if (xprts[i] == xprt)
+			found = true;
+	}
+	return found;
+}
+M0_EXPORTED(m0_net_check_xprt);
 #undef M0_TRACE_SUBSYSTEM
 
 /*
