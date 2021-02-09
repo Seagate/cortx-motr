@@ -223,7 +223,6 @@ M0_EXPORTED(m0_net_print_xprt);
 
 M0_INTERNAL bool m0_net_check_xprt(const struct m0_net_xprt *xprt)
 {
-	struct m0_net_xprt *d_xprt = NULL;
 	bool                found = false;
 	int                 i;
 
