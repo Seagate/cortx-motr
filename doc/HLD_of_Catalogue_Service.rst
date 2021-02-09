@@ -60,3 +60,79 @@ Requirements
 - [r.cas.locality]: the implementation guarantees that spatial (in key order) together with temporal locality of accesses to the same catalogue is statistically optimal. That is, consecutive access to records with close keys is more efficient than random access;
 
 - [r.cas.cookies]: a service returns to the user an opaque cookie together with every returned record, plus a cookie for a newly inserted record. This cookie is optionally passed by the user (along with the key) to later access the same record. The cookie might speed up the access.
+
+*******************
+Design Highlights
+*******************
+
+A catalogue, exported by cas is local: records of the catalogue are stored in the meta-data back-end (BE) in the instance where cas is running. A catalogue is implemented as a BE b-tree. New fid type is registered for catalogue fids.
+
+*************************
+Functional Specification
+*************************
+
+Catalogue service introduces and accepts the following fop types:
+
+- CREATE: create a catalogue, given user-supplied fid and flags;
+
+- DELETE: delete a catalogue, given its fid. All records are deleted from the catalogue;
+
+In addition, there are fops for operations on catalogues, which all take catalogue fid as a parameter.
+
+- PUT: given a vector of records, insert each record in the catalogue, or update its value if the record with such key already exists;
+
+- GET: given a vector of keys, lookup and return the vector of matching values, together with indicators for the missing keys;
+
+- DEL: given a vector of keys, delete the matching records from the catalogue;
+
+- NEXT: given a vector of keys, lookup next N (in the ascending key order) records for each key and return them.
+
+**********************
+Logical Specification
+**********************
+
+Service
+========
+
+Catalogue service is implemented as a standard request handler service. Catalogue service instance startup is regulated by configuration.
+
+Each catalogue is assigned a locality, based on some hash of catalogue fid. cas foms, created to process operations on a catalogue, are executed in the locality assigned to this catalogue. Multiple foms operating on the same catalogue are synchronized by a fom-long-lock, associated with the catalogue.
+
+Meta-Catalogue
+===============
+
+Catalogue service instance maintains a meta-catalogue, where all catalogues (possibly including the meta-catalogue) are listed. The meta-catalogue is created when the storage is formatted for the service. The fid of the meta-catalogue is exported to the users together with formats of meta-catalogue keys and values, so that the users can query the meta-catalogue to find existing catalogues, subject to access control restrictions. Direct modifications of the meta-catalogue by the users are not allowed, the meta-catalogue is updated as a result of CREATE and DELETE operations. When a new catalogue is created, its cookie, which is the address of the root of the catalogue b-tree is passed to the client and can be used to bypass meta-catalogue lookup on the following operations on the catalogue.
+
+BE Interaction
+===============
+
+A catalogue (including the meta-catalogue) is implemented as a BE b-tree. Keys and values in the b-tree are supplied by the cas users. Keys are treated as bit-strings for the purpose of ordering. In other words, memcmp(3) can be used as key comparison function and variable length keys compare as if right-padded with zeroes. Operations in cas fops are vectored. In the first version of the implementation, operation in a fop is translated in a sequence of BE b-tree calls executed in the loop. In any case all operations from a given fop are executed in the same BE transaction.
+
+Cookies
+========
+
+When a cas instance looks up or creates a record on behalf of a user, it constructs a special cookie and returns it to the user. To operate on the same record (e.g., to delete it or update its value), the user passes this cookie back to the service along with the record key. The cookie is used to speed up access to the record. Similar cookies are used for catalogues, which are records in the meta-catalogue.
+
+The implementation and semantics of cookies are internal to the service. To a user, a cookie is an array of bytes. One possible implementation strategy for cookies is based on m0_cookie interface. The service might create m0_cookie for the b-tree leaf, in which the record resides. When this cookie is received from the user, it is dereferenced to reach the leaf node directly bypassing top-down tree traversal. The dereference might fail, because due to tree re-balancing the leaf node can be freed, or the record in question can be moved out of the node. In this case, the tree is traversed top-down.
+
+File operation packets
+=======================
+
+This sub-section describes details of cas fop execution. Cookies, described in the previous sub-section are omitted from fop parameters.
+
++--------------+--------------------------------------+---------------------------------+
+|fop type      |input parameters (request fop fields) |output parameters (reply fields) |
++--------------+--------------------------------------+---------------------------------+
+|CREATE        |cfid                                  |rc                               |
++--------------+--------------------------------------+---------------------------------+
+
+Allocate and initialize new catalogue object and insert it in the meta-catalogue, using cfid as the key. If a catalogue with such key already exists, return -EEXIST to the user. In either case return the cookie of the catalogue to the user.
+
++----------------------+----------------------------------+-----------------------------+
+|DELETE                |cfid                              |rc                           |
++----------------------+----------------------------------+-----------------------------+
+
+The problem with delete is that deletion of a catalogue with a large number of records might require more meta-data updates than can fit in a single transaction. Because of this a technique similar to handling of truncates for open-unlinked files in a POSIX file system is used. (Also see stob deletion code in io service.)
+
+
+
