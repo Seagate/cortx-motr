@@ -308,7 +308,7 @@ supported primitives is fairly standard:
 	  clink_del(&waiter);
 	  clink_fini(&waiter);
           item = q->item[q->consumed++ % N];
-          cond_signal(&q->notfull);
+          chan_signal(&q->notfull);
           unlock(&q->lock);
           return item;
   }
@@ -327,7 +327,7 @@ supported primitives is fairly standard:
 	  clink_del(&waiter);
 	  clink_fini(&waiter);
           q->item[q->produced++ % N] = item;
-          cond_signal(&q->notempty);
+          chan_signal(&q->notempty);
           unlock(&q->lock);
   }
 
