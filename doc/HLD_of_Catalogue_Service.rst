@@ -134,7 +134,7 @@ Allocate and initialize new catalogue object and insert it in the meta-catalogue
 
 The problem with delete is that deletion of a catalogue with a large number of records might require more meta-data updates than can fit in a single transaction. Because of this a technique similar to handling of truncates for open-unlinked files in a POSIX file system is used. (Also see stob deletion code in io service).
 
-::
+.. code-block:: C
 
  bool deathrowed = false; 
  
@@ -181,13 +181,13 @@ The problem with delete is that deletion of a catalogue with a large number of r
        
        } /* all records removed, delete the catalogue from the deathrow. */ 
        
-       tree_delete(service.death_row, cfid, tx); 
+ tree_delete(service.death_row, cfid, tx); 
+ 
+ /* delete the empty catalogue from the meta-catalogue, etc. */ 
        
-       /* delete the empty catalogue from the meta-catalogue, etc. */ 
+ … 
        
-       … 
-       
-       tx_close(tx);
+ tx_close(tx);
        
 Deathrow catalogue contains all large catalogues which are in the process of being deleted. If the service crashes and restarts, it scans the deathrow and completes pending deletions. In other words, deathrow is used for logical logging of catalogue deletions.
 
@@ -195,7 +195,7 @@ Deathrow catalogue contains all large catalogues which are in the process of bei
 |GET               |cfid, input: array of {key    |rc, output: array of {exists, val}|
 +------------------+------------------------------+----------------------------------+
 
-::
+.. code-block:: C
 
  cat = catalogue_get(req.cfid); 
 
@@ -203,13 +203,13 @@ Deathrow catalogue contains all large catalogues which are in the process of bei
 
          reply.output[i].val = tree_lookup(cat.btree, key); 
 
-}
+ }
 
 +------------------+---------------------------------+----------------------------------+
 |PUT               |cfid, input: array of {key, val} |rc, count                         |
 +------------------+---------------------------------+----------------------------------+
 
-::
+.. code-block:: C
 
  reply.count = 0; 
 
@@ -219,17 +219,19 @@ Deathrow catalogue contains all large catalogues which are in the process of bei
 
  foreach key, val in req.input { 
 
- tree_insert(cat.tree, key, val, tx); 
+         tree_insert(cat.tree, key, val, tx); 
 
- if (rc in {0, -EEXIST}) 
+         if (rc in {0, -EEXIST}) 
 
-         reply.count++; 
+                 reply.count++; 
 
- else 
+         else 
 
-         break; 
+                 break; 
 
-} tx_close(tx);
+ }
+ 
+ tx_close(tx);
 
 +----------------+-------------------------------------+--------------------------+
 |DEL             |cfid, input: array of {key}          |rc, count                 |
@@ -237,60 +239,60 @@ Deathrow catalogue contains all large catalogues which are in the process of bei
 
                 
 
-       ::
+.. code-block:: C
+ 
+  count = 0; 
 
-        count = 0; 
+  cat = catalogue_get(req.cfid);
 
-        cat = catalogue_get(req.cfid);
+  tx_open(tx); 
 
-        tx_open(tx); 
+  foreach key in req.input { 
 
-        foreach key in req.input { 
+          tree_del(cat.tree, key, tx); 
 
-                tree_del(cat.tree, key, tx); 
+          if (rc == 0) 
 
-                if (rc == 0) 
+                   reply.count++; 
 
-                         reply.count++; 
+          else if (rc == -ENOENT) 
 
-                else if (rc == -ENOENT) 
+                  ; /* Nothing. */ 
 
-                         ; /* Nothing. */ 
+          else 
 
-                else 
+                   break; 
 
-                         break; 
+  } 
 
-             } 
-
-            tx_close(tx); 
+  tx_close(tx); 
 
 
 +------+--------------------------------+---------------------------------------------------+
 |NEXT  |cfid, input: array of {key, nr} |rc, output: array of { rec: array of { key, val } }|
 +------+--------------------------------+---------------------------------------------------+
 
-        ::
+.. code-block:: C
+  
+   count = 0; 
 
-         count = 0; 
+   cat = catalogue_get(req.cfid); 
 
-         cat = catalogue_get(req.cfid); 
+   foreach key, nr in req.input {
 
-         foreach key, nr in req.input {
+           cursor = tree_cursor_position(cat.tree, key); 
 
-                 cursor = tree_cursor_position(cat.tree, key); 
+           for (i = 0; i < nr; ++i) {
 
-                 for (i = 0; i < nr; ++i) {
+                   reply.output[count].rec[i] = tree_cursor_get(cursor); 
 
-                         reply.output[count].rec[i] = tree_cursor_get(cursor); 
+                   tree_cursor_next(cursor);
 
-                         tree_cursor_next(cursor);
+            } 
 
-                  } 
+            count++; 
 
-                  count++; 
-
-         }    
+   }    
 
 
 To bulk or not to bulk?
