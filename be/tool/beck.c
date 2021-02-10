@@ -966,9 +966,10 @@ static int scan(struct scanner *s)
 	uint64_t lastdata = 0;
 	if (resume_scan && !dry_run) {
 		s->s_off = nv_scan_offset_get(s->s_size);
-		M0_LOG(M0_DEBUG, "Resuming Scan from Offset = %li", s->s_off);
-		printf("Resuming Scan from Offset = %li file %s",
-		       s->s_off, offset_file);
+		M0_LOG(M0_DEBUG, "Resuming Scan from Offset = %"PRIu64,
+		       (uint64_t)s->s_off);
+		printf("Resuming Scan from Offset = %"PRIu64" file %s",
+		       (uint64_t)s->s_off, offset_file);
 	}
 	lastoff	      = s->s_off;
 	lastnvsaveoff = s->s_off;
@@ -1764,8 +1765,9 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 			sinfo = &nv_off_info.noi_scanoff;
 			if(sinfo->soi_scanqempty && sinfo->soi_bnodeqempty) {
 				offset = sinfo->soi_offset;
-			        printf("partitions idle,scanner offset=%li\n",
-				       offset);
+				printf("partitions idle, "
+				       "scanner offset=%"PRIu64"\n",
+				       (uint64_t)offset);
 			} else
 				offset = max_offset;
 		}
