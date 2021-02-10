@@ -136,13 +136,13 @@ The problem with delete is that deletion of a catalogue with a large number of r
 
 .. code-block:: C
 
- bool deathrowed = false; 
+  bool deathrowed = false; 
  
- tx_open(tx); 
+  tx_open(tx); 
  
- cat = catalogue_get(req.cfid);
+  cat = catalogue_get(req.cfid);
  
- /* 
+  /* 
  
   * First, remove all existing records. 
   
@@ -150,44 +150,44 @@ The problem with delete is that deletion of a catalogue with a large number of r
   
   */ 
   
- foreach key in cat { 
+  foreach key in cat { 
  
-         tree_del(cat.btree, key, tx);
+          tree_del(cat.btree, key, tx);
          
-         if (m0_be_tx_should_break(tx, deathrow_credit)) { 
-         
-             if (!deathrowed) { 
+          if (m0_be_tx_should_break(tx, deathrow_credit)) { 
+          
+                  if (!deathrowed) { 
              
-             // if the transaction is about to overflow, 
+                          // if the transaction is about to overflow, 
              
-             // put the catalogue in a special “dead row” catalogue. 
+                          // put the catalogue in a special “dead row” catalogue. 
              
-             tree_insert(service.death_row, cfid, tx); 
+                          tree_insert(service.death_row, cfid, tx); 
              
-             // do this only in the first transaction 
+                          // do this only in the first transaction 
              
-             deathrowed = true; 
+                          deathrowed = true; 
              
-           } 
+                  } 
            
-           /* reopen the transaction, continue with deletions. */ 
+                  /* reopen the transaction, continue with deletions. */ 
            
-           tx_close(tx); 
+                  tx_close(tx); 
            
-           tx_open(tx); 
+                  tx_open(tx); 
            
-         } 
+          } 
          
        
-       } /* all records removed, delete the catalogue from the deathrow. */ 
+  } /* all records removed, delete the catalogue from the deathrow. */ 
        
- tree_delete(service.death_row, cfid, tx); 
+  tree_delete(service.death_row, cfid, tx); 
  
- /* delete the empty catalogue from the meta-catalogue, etc. */ 
+  /* delete the empty catalogue from the meta-catalogue, etc. */ 
        
- … 
+  … 
        
- tx_close(tx);
+  tx_close(tx);
        
 Deathrow catalogue contains all large catalogues which are in the process of being deleted. If the service crashes and restarts, it scans the deathrow and completes pending deletions. In other words, deathrow is used for logical logging of catalogue deletions.
 
