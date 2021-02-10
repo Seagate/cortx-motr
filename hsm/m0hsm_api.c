@@ -38,6 +38,7 @@
 #include <stdarg.h>
 
 #include "lib/trace.h"
+#include "lib/arith.h"             /* min64, max64 */
 #include "conf/obj.h"
 #include "fid/fid.h"
 #include "motr/idx.h"
@@ -1264,9 +1265,6 @@ enum ext_match_type {
 	EMT_MERGE,
 };
 
-#define MAX(_x, _y) ((_x) > (_y) ? (_x) : (_y))
-#define MIN(_x, _y) ((_x) < (_y) ? (_x) : (_y))
-
 static enum ext_match_code ext_match(struct m0_uint128 layer_id,
 				struct m0_tl *ext_list,
 				const struct extent *ext_in,
@@ -1289,7 +1287,7 @@ static enum ext_match_code ext_match(struct m0_uint128 layer_id,
 		if (ext_in->off >= ext->ce_off &&
 		    (ext_in->off + ext_in->len) <= ext->ce_off + ext->ce_len) {
 			if (mode == EMT_INTERSECT) {
-				/* match->off = max(in_offset, ext->ce_off)
+				/* match->off = max64(in_offset, ext->ce_off)
 				 * = in_offset */
 				*match = *ext_in;
 			} else { /* merge */
@@ -1308,8 +1306,8 @@ static enum ext_match_code ext_match(struct m0_uint128 layer_id,
 		    (ext_end >= ext_in->off && ext_end <= end)) {
 			off_t m_end;
 			if (mode == EMT_INTERSECT) {
-				match->off = MAX(ext_in->off, ext->ce_off);
-				m_end = MIN(ext_end, end);
+				match->off = max64(ext_in->off, ext->ce_off);
+				m_end = min64(ext_end, end);
 				match->len = (m_end - match->off) + 1;
 				return EM_PARTIAL;
 			} else { /* merge */
@@ -1318,9 +1316,10 @@ static enum ext_match_code ext_match(struct m0_uint128 layer_id,
 				/* If so, keep the value in match_off
 				 * (assuming extents are ordered by offset). */
 				if (!is_merged)
-					match->off = MIN(ext_in->off, ext->ce_off);
+					match->off = min64(ext_in->off,
+							   ext->ce_off);
 
-				m_end = MAX(ext_end, end);
+				m_end = max64(ext_end, end);
 				match->len = (m_end - match->off) + 1;
 
 				/* Drop merged extent. */
@@ -2561,7 +2560,7 @@ static int copy_cb(void *cb_arg, struct m0_client_layout *layout,
 	gen = hsm_prio2gen(src_layer->ccr_priority);
 	tgt_prio = hsm_prio(gen, ctx->tgt_tier);
 	/* Most prioritary of src and tgt (the lower value, the higher priority) */
-	w_prio = MIN(src_layer->ccr_priority, tgt_prio);
+	w_prio = min64(src_layer->ccr_priority, tgt_prio);
 
 	INFO("%s extent [%#" PRIx64 "-%#" PRIx64 "] (gen %u) from "
 		"tier %u to tier %u\n",
