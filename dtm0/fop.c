@@ -20,6 +20,7 @@
  */
 
 
+#include "be/dtm0_log.h"
 #include "dtm0/tx_desc.h"
 #include "dtm0/tx_desc_xc.h"
 #include "lib/errno.h"
@@ -217,29 +218,21 @@ static size_t dtm0_fom_locality(const struct m0_fom *fom)
 }
 
 #define M0_FID(c_, k_)  { .f_container = c_, .f_key = k_ }
-static void dtm0_pong_back(struct m0_fid *fid, struct m0_rpc_session *session)
+static void dtm0_pong_back(enum m0_be_dtm0_log_credit_op msgtype,
+			   struct m0_dtm0_tx_desc *txr,
+			   struct m0_rpc_session  *session)
 {
         struct m0_fop         *fop;
 	struct dtm0_req_fop   *req;
 	struct m0_rpc_item    *item;
 	int                    rc;
 
-	struct m0_dtm0_tx_desc txr;
-
-	struct m0_dtm0_clk_src dcs;
-	struct m0_dtm0_ts      now;
-	/* struct m0_fid fid = M0_FID(0x7300000000000001, 0x1a); */
-
 	M0_PRE(session != NULL);
 
-	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
-	rc = m0_dtm0_clk_src_now(&dcs, &now);
-
-	txr.dtd_id = (struct m0_dtm0_tid) { .dti_ts = now, .dti_fid = *fid};
-
-	fop = m0_fop_alloc_at(session, &dtm0_req_fop_fopt);
-	req = m0_fop_data(fop);
-	req->dtr_txr = txr;
+	fop               = m0_fop_alloc_at(session, &dtm0_req_fop_fopt);
+	req               = m0_fop_data(fop);
+	req->dtr_msg      = msgtype;
+	req->dtr_txr      = *txr;
 	item              = &fop->f_item;
 	item->ri_ops      = &dtm0_req_fop_rpc_item_ops;
 	item->ri_session  = session;
@@ -261,6 +254,14 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 		rc = m0_fom_tick_generic(fom);
 	} else {
 		req = m0_fop_data(fom->fo_fop);
+
+		if (req->dtr_msg == M0_DTML_EXECUTED && m0_dtm0_is_a_persistent_dtm(fom->fo_service)) {
+			struct m0_fid fid = M0_FID(0x7300000000000001, 0x1a);
+			dtm0_pong_back(M0_DTML_PERSISTENT, &req->dtr_txr,
+				m0_dtm0_service_process_session_get(
+					fom->fo_service, &fid));
+		}
+
 		rep = m0_fop_data(fom->fo_rep_fop);
 
 		//m0_buf_copy(&rep->dr_txr->dt_txr_payload, &req->dto_txr->dt_txr_payload);
@@ -268,12 +269,6 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 		rep->dr_rc = 0;
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		rc = M0_FSO_AGAIN;
-		if (m0_dtm0_is_a_persistent_dtm(fom->fo_service)) {
-			struct m0_fid fid = M0_FID(0x7300000000000001, 0x1a);
-			dtm0_pong_back(&fid,
-				m0_dtm0_service_process_session_get(
-					fom->fo_service, &fid));
-		}
 	}
 
 	return M0_RC(rc);
