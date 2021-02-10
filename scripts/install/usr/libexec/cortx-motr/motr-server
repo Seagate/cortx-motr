@@ -225,7 +225,7 @@ m0_server()
 
     local service_ep
     local motr_transport=$(m0_get_motr_transport)
-	m0_log "motr transport : $motr_transport"
+    m0_log "motr transport : $motr_transport"
     if [[ $service == ha ]]; then
         service_ep="$motr_transport:$ha_ep"
     else

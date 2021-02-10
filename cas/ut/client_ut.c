@@ -84,7 +84,7 @@ static char *cas_startup_cmd[] = { "m0d", "-T", "linux",
 #ifdef ENABLE_LIBFAB
                                 "-e", "libfab:0@lo:12345:34:1",
 #else
-                                "-e", "libfab:0@lo:12345:34:1",
+                                "-e", "lnet:0@lo:12345:34:1",
 #endif
                                 "-H", "0@lo:12345:34:1",
 				"-w", "10", "-F",
