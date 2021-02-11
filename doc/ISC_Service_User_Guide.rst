@@ -279,3 +279,58 @@ Let’s see how this fop is sent across to execute the required computation.
   }
 
 We now discuss the callee side code. Let’s assume that the function is registered as “greetings” with the service.
+
+
+  ::
+
+   void motr_lib_init(void)
+
+   {
+
+        rc = m0_isc_comp_register(greetings, “hello-world”,
+
+                                  string_to_fid6(“greetings”));
+
+        if (rc != 0)
+
+                                  error_handle(rc);
+
+   }
+
+   int greetings(struct m0_buf *in, struct m0_buf *out,
+
+                 struct m0_isc_comp_private *comp_data, int *rc)
+
+   {
+
+       char *out_str;
+
+       if (m0_buf_streq(in, “Hello”)) {
+
+             /*
+
+              * The string allocated here should not be freed by
+
+              * computation and Mero takes care of freeing it.
+
+              */
+
+             out_str = m0_strdup(“World”);
+
+             if (out_str != NULL) {
+
+                  m0_buf_init(out, out_str, strlen(out_str));
+
+             rc = 0;
+
+          } else
+
+                *rc = -ENOMEM;
+
+       } else
+
+               *rc = -EINVAL;
+
+       return M0_FSO_AGAIN;
+
+      }
