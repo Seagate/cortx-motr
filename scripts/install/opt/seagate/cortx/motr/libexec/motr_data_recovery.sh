@@ -433,7 +433,7 @@ replay_logs_and_get_gen_id_of_seg0() {
             run_cmd_on_remote_node "systemctl start motr-kernel.service"; exit_code=$?;
             [[ $exit_code == 0 ]] && break; (( cnt+=1 ));
         done
-        if ! run_cmd_on_remote_node "[[ `systemctl is-active motr-kernel.service` == 'active' ]]";then
+        if ! run_cmd_on_remote_node "[[ \`systemctl is-active motr-kernel.service\` == 'active' ]]";then
             die "motr-kernel service is not starting on remote node, cannot proceed recovery further."
         fi
     fi
@@ -804,7 +804,7 @@ run_becktool() {
             run_cmd_on_remote_node "systemctl start motr-kernel.service"; exit_code=$?;
             [[ $exit_code == 0 ]] && break; (( cnt+=1 ));
         done
-        if ! run_cmd_on_remote_node "[[ `systemctl is-active motr-kernel.service` == 'active' ]]";then
+        if ! run_cmd_on_remote_node "[[ \`systemctl is-active motr-kernel.service\` == 'active' ]]";then
         die "motr-kernel service is not starting on remote node, cannot proceed recovery further."
         fi
     fi
