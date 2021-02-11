@@ -91,14 +91,14 @@ static void dtm0_rpc_item_reply_cb(struct m0_rpc_item *item)
 	}
 }
 
-void m0_dtm0_fop_fini(void)
+M0_INTERNAL void m0_dtm0_fop_fini(void)
 {
 	m0_fop_type_fini(&dtm0_req_fop_fopt);
 	m0_fop_type_fini(&dtm0_rep_fop_fopt);
 	m0_xc_dtm0_fop_fini();
 }
 
-int m0_dtm0_fop_init(void)
+M0_INTERNAL int m0_dtm0_fop_init(void)
 {
 	static int init_once = 0;
 	if (init_once++ > 0)
