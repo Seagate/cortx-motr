@@ -334,3 +334,79 @@ We now discuss the callee side code. Let’s assume that the function is registe
        return M0_FSO_AGAIN;
 
       }
+      
+Min/Max
+=========
+
+Hello-World example sends across a string. In real applications the input can be a composition of multiple data types. It’s necessary to serialise a composite data type into a buffer. Motr provides a mechanism to do so using xcode/xcode.[ch]. Any other serialization mechanism that’s suitable and tested can also be used eg. Google’s Protocol buffers . But we have not tested any such external library for serialization and hence in this document would use Motr’s xcode APIs.
+
+In this example we will see how to send a composite data type to a registered function. A declaration of an object that needs to be serialised shall be tagged with one of the types identified by xcode. Every member of this structure shall also be representable using xcode type. Please refer xcode/ut/ for different examples.
+
+Suppose we have a collection of arrays of integers, each stored as a Motr object. Our aim 
+is to find out the min or max of the values stored across all arrays. The caller communicates the list of global fids(unique identification of stored object in Motr) with the registered computation for min/max. The computation then returns the min or max of locally (on relevant node) stored values. The caller then takes min or max of all the received values. The following structure can be used to communicate with registered computation.
+
+::
+
+ /* Arguments for getting min/max. */
+
+ struct arr_fids {
+
+       /* Number of arrays stored with Mero. */
+
+       uint32_t af_arr_nr;
+
+       /* An array holding unique identifiers of arrays. */
+
+       struct m0_fid *af_gfids
+
+ } M0_XCA_SEQUENCE7;
+
+Before sending the list of fids to identify the min/max it’s necessary to serialise it into a buffer, because it’s a requirement of ISC that all the computations take input in the form of a buffer. Following snippet illustrates the same.
+
+::
+
+ int arr_to_buff (struct arr_fids *in_array, struct m0_buf *out_buf)
+
+ {
+
+      int rc;
+
+      rc = m0_xcode_obj_enc_to_buf(XCODE_OBJ8(arr_fids),
+
+                                   &out_buf->b_addr,
+
+                                   &out_buf->b_nob);
+
+      if (rc != 0)
+
+           error_handle(rc);
+
+      return rc;
+
+  }
+
+The output buffer out_buf can now be used with RPC AT mechanism introduced in previous subsection. On the receiver side a computation can deserialize the buffer to convert into original structure. The following snippet demonstrates the same.
+
+::
+
+ int buff_to_arr(struct m0_buf *in_buf, struct arr_fids *out_arr)
+
+ {
+
+      int rc;
+
+      rc = m0_xcode_obj_dec_from_buf(XCODE_OBJ(arr_fids),
+
+                                     &in_buf->b_addr,
+
+                                     in_buf->b_nob);
+
+      if (rc != 0)
+
+            error_handle(rc);
+
+      return rc;
+
+  }
+
+Preparation and handling of a fop is similar to that in Hello-World example. Once a computation is invoked, it will read each object’s locally stored values, and find min/max of the same, eventually finding out min/max across all arrays stored locally. In the next example we shall see how a computation involving an IO can be designed.
