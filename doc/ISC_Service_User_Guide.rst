@@ -161,3 +161,121 @@ Consider a simple API that on reception of string “Hello” responds with “W
           m0_rpc_at_init(&isc_fop->fi_args);
 
           /* Add mero buffer to m0_rpc_at */
+          
+            ::
+
+   rc = m0_rpc_at_add(&isc_fop->fi_args, in_args, conn);
+
+   if (rc != 0)
+
+        return rc;
+
+   /* Initialise the return buffer. */
+
+   m0_rpc_at_init(&isc_fop->fi_ret);
+
+   rc = m0_rpc_at_recv(&isc_fop->fi_ret, conn, REPLY_SIZE4, false);
+
+   if (rc != 0)
+
+         return rc;
+
+   return 0;
+
+   }
+
+Let’s see how this fop is sent across to execute the required computation.
+
+::
+
+ #include “iscservice/isc.h”
+
+ #include “fop/fop.h”
+
+ #include “rpc/rpclib.h”
+
+ ::
+
+  int isc_fop_send_sync(struct m0_isc_fop *isc_fop,
+
+                        struct m0_rpc_session *session)
+
+  {
+
+      struct m0_fop fop;
+
+      struct m0_fop reply_fop5;
+
+      /* Holds the reply from a computation. */
+
+      struct m0_fop_isc_rep reply;
+
+      struct m0_buf *recv_buf;
+
+      struct m0_buf *send_buf;
+
+      int rc;
+
+      M0_SET0(&fop);
+
+      m0_fop_init(&fop, &m0_fop_isc_fopt, isc_fop, m0_fop_release);
+
+      /*
+
+      * A blocking call that comes out only when reply or error in
+
+      * sending is received.
+
+      */
+
+     rc = m0_rpc_post_sync(&fop, session, NULL, M0_TIME_IMMEDIATELY);
+
+     if (rc != 0)
+
+          return error_handle();
+
+      /* Capture the reply from computation. */
+
+      reply_fop = m0_rpc_item_to_fop(fop.f_item.ti_reply);
+
+      reply = *(struct m0_fop_isc_rep *)m0_fop_data(reply_fop);
+
+      /* Handle an error received during run-time. */
+
+      if (reply.fir_rc != 0)
+
+           return error_handle();
+
+       /* Obtain the result of computation. */
+
+       rc = m0_rpc_at_rep_get(isc_fop->fi_ret, reply.fir_ret, recv_buf);
+
+       if (rc != 0) {
+
+            comp_error_handle(rc, recv_buf);
+
+       }
+
+       if (!strcmp(fetch_reply(recv_buf), “World”)) {
+
+            comp_error_handle(rc, recv_buf);
+
+       } else {
+
+             /* Process the reply. */
+
+             reply_handle(recv_buf);
+
+             /* Finalize relevant structure. */
+
+             m0_rpc_at_fini(&isc_fop->fi_args);
+
+             m0_rpc_at_fini(&reply.fir_ret);
+
+    }
+
+    return 0
+
+  }
+
+We now discuss the callee side code. Let’s assume that the function is registered as “greetings” with the service.
