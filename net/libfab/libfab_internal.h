@@ -46,6 +46,10 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
 #define LIBFAB_VERSION FI_VERSION(1,11)
 #define LIBFAB_WAITSET_TIMEOUT    2 /* in msec TODO: Tbd  */
 
+#define LIBFAB_ADDR_LEN_MAX	INET6_ADDRSTRLEN
+#define LIBFAB_PORT_LEN_MAX	6
+#define LIBFAB_ADDR_STRLEN_MAX  (LIBFAB_ADDR_LEN_MAX + LIBFAB_PORT_LEN_MAX + 1)
+
 /** Parameters required for libfabric configuration */
 enum m0_fab__mr_params {
 	/** Fabric memory access. */
@@ -74,14 +78,13 @@ struct m0_fab__fab {
 };
 
 struct m0_fab__ep_name {
-	char fen_addr[INET6_ADDRSTRLEN];       /*  */
-	char fen_port[6];                      /* Port range 0-65535 */
-	char fen_str_addr[INET6_ADDRSTRLEN+6+1];
+	char fen_addr[LIBFAB_ADDR_LEN_MAX];    /*  */
+	char fen_port[LIBFAB_PORT_LEN_MAX];    /* Port range 0-65535 */
+	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
 };
 
 struct m0_fab__ep_res {
 	struct fid_eq *fer_eq;                 /* Event queue */
-	struct fid_cq *fer_tx_cq;              /* Transmit Completion Queue */
 	struct fid_cq *fer_rx_cq;              /* Recv Completion Queue */
 };
 
@@ -100,7 +103,6 @@ struct m0_fab__ep {
 	struct m0_net_end_point    fep_nep;     /* linked into a per-tm list */
 	struct m0_fab__ep_name     fep_name;    /* "addr:port" in str format */
 	struct m0_fab__active_ep  *fep_send;
-	// struct m0_fab__active_ep  *fep_recv;
 	struct m0_fab__passive_ep *fep_listen;
 	struct m0_tl               fep_sndbuf;  /* List of buffers to send */
 };
@@ -111,6 +113,7 @@ struct m0_fab__tm {
 	struct fid_wait           *ftm_waitset;
 	struct m0_fab__fab         ftm_fab;
 	struct m0_fab__ep         *ftm_pep;     /* Passive ep(listening mode) */
+	struct fid_cq             *ftm_tx_cq;   /* Transmit Completion Queue */
 	bool                       ftm_shutdown;/* tm Shutdown flag */
 	struct m0_tl               ftm_rcvbuf;  /* List of recv buffers */
 	struct m0_tl               ftm_done;    /* List of completed buffers */
@@ -137,6 +140,7 @@ struct m0_fab__buf {
 	struct fid_domain     *fb_dp;      /* Domain to which the buf is reg */
 	struct m0_net_buffer  *fb_nb;      /* Pointer back to network buffer*/
 	struct m0_fab__ep     *fb_ev_ep;
+	struct m0_fab__ep     *fb_txctx;
 	struct m0_tlink        fb_linkage; /* Link in list of completed bufs*/
 	struct m0_tlink        fb_snd_link;
 	int32_t                fb_status;  /* Buffer completion status */
