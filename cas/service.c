@@ -1116,6 +1116,15 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	is_index_drop = op_is_index_drop(opc, ct);
 	M0_PRE(ctidx != NULL);
 	M0_PRE(cas_fom_invariant(fom));
+#if defined(DTM0)
+	M0_PRE(ergo(!M0_IS0(&op->cg_txd),
+		    m0_dtm0_tx_desc__invariant(&op->cg_txd)));
+	if (!M0_IS0(&op->cg_txd) && phase == M0_FOPH_INIT) {
+		M0_LOG(DEBUG, "Got CAS with txid: " FID_F ", " M0_DTM0_TS_FMT,
+		       FID_P(&op->cg_txd.dtd_id.dti_fid),
+		       M0_DTM0_TS_P(&op->cg_txd.dtd_id.dti_ts));
+	}
+#endif
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
 

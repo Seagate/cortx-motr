@@ -45,6 +45,7 @@
 #include "dix/client_internal.h" /* m0_dix_pver */
 #include "dix/fid_convert.h"
 #include "dix/dix_addb.h"
+#include "dtm0/dtx.h"   /* m0_dtx0_* API */
 
 static struct m0_sm_state_descr dix_req_states[] = {
 	[DIXREQ_INIT] = {
@@ -2135,16 +2136,19 @@ static bool dix_pg_unit_skip(struct m0_dix_req     *req,
 
 static int dix_cas_rops_alloc(struct m0_dix_req *req)
 {
-	struct m0_dix_rop_ctx  *rop = req->dr_rop;
-	struct m0_dix_rec_op   *rec_op;
-	uint32_t                i;
-	uint32_t                j;
-	uint32_t                max_failures;
-	struct m0_dix_cas_rop **map = rop->dg_target_rop;
-	struct m0_dix_cas_rop  *cas_rop;
-	struct m0_dix_pg_unit  *unit;
-	bool                    del_lock;
-	int                     rc = 0;
+	struct m0_dix_rop_ctx      *rop = req->dr_rop;
+	struct m0_dtx              *dtx = req->dr_dtx;
+	struct m0_pools_common     *pc = req->dr_cli->dx_pc;
+	struct m0_reqh_service_ctx *cas_svc;
+	struct m0_dix_rec_op       *rec_op;
+	uint32_t                    i;
+	uint32_t                    j;
+	uint32_t                    max_failures;
+	struct m0_dix_cas_rop     **map = rop->dg_target_rop;
+	struct m0_dix_cas_rop      *cas_rop;
+	struct m0_dix_pg_unit      *unit;
+	bool                        del_lock;
+	int                         rc = 0;
 
 	M0_ENTRY("req %p %u", req, rop->dg_rec_ops_nr);
 	M0_ASSERT(rop->dg_rec_ops_nr > 0);
@@ -2185,7 +2189,25 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 	if (cas_rop_tlist_is_empty(&rop->dg_cas_reqs))
 		return M0_ERR(-EIO);
 
+	if (dtx) {
+		M0_ASSERT(!req->dr_is_meta);
+		M0_ASSERT(M0_IN(req->dr_type, (DIX_PUT, DIX_DEL)));
+
+		rc = m0_dtx0_open(dtx, cas_rop_tlist_length(&rop->dg_cas_reqs));
+		if (rc != 0)
+			goto end;
+
+		i = 0; /* reset it to enumerate dtx parcticipants */
+	}
+
 	m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
+		if (dtx) {
+			cas_svc = pc->pc_dev2svc[cas_rop->crp_sdev_idx].pds_ctx;
+			M0_ASSERT(cas_svc->sc_type == M0_CST_CAS);
+			rc = m0_dtx0_assign(dtx, i++, &cas_svc->sc_fid);
+			if (rc != 0)
+				goto end;
+		}
 		M0_ALLOC_ARR(cas_rop->crp_attrs, cas_rop->crp_keys_nr);
 		if (cas_rop->crp_attrs == NULL) {
 			rc = M0_ERR(-ENOMEM);
@@ -2204,6 +2226,8 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 		cas_rop->crp_cur_key = 0;
 	} m0_tl_endfor;
 
+	if (dtx)
+		rc = m0_dtx0_close(dtx);
 end:
 	if (rc != 0) {
 		dix_cas_rops_fini(&rop->dg_cas_reqs);

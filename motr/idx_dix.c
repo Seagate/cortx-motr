@@ -609,6 +609,7 @@ static int dix_req_create(struct m0_op_idx  *oi,
 			m0_dix_req_init(&req->idr_dreq, op_dixc(oi),
 					oi->oi_sm_grp);
 			to_dix_map(&oi->oi_oc.oc_op, &req->idr_dreq);
+			req->idr_dreq.dr_dtx = oi->oi_dtx;
 			m0_clink_init(&req->idr_clink, dixreq_clink_cb);
 
 			/* Store oi for dix callbacks to update SYNC records. */
@@ -952,7 +953,8 @@ static void dix_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		flags |= COF_OVERWRITE;
 	if (oi->oi_flags & M0_OIF_SYNC_WAIT)
 		flags |= COF_SYNC_WAIT;
-	rc = m0_dix_put(dreq, &dix, oi->oi_keys, oi->oi_vals, NULL, flags);
+	rc = m0_dix_put(dreq, &dix, oi->oi_keys, oi->oi_vals, oi->oi_dtx,
+			flags);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
@@ -987,7 +989,7 @@ static void dix_del_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	dix_dreq_prepare(dix_req, &dix, oi);
 	if (oi->oi_flags & M0_OIF_SYNC_WAIT)
 		flags |= COF_SYNC_WAIT;
-	rc = m0_dix_del(dreq, &dix, oi->oi_keys, NULL, flags);
+	rc = m0_dix_del(dreq, &dix, oi->oi_keys, oi->oi_dtx, flags);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
@@ -1256,6 +1258,8 @@ static int dix_client_init(struct dix_inst          *inst,
 			     &m0c->m0c_reqh.rh_ldom, &root_pver);
 	if (rc != 0)
 		return M0_ERR(rc);
+
+	dixc->dx_dtms = m0c->m0c_dtms;
 
 	if (config->kc_create_meta) {
 		m0_dix_cli_bootstrap_lock(dixc);
