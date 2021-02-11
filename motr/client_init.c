@@ -36,6 +36,8 @@
 #include "pool/pool.h"                /* m0_pool_init */
 #include "rm/rm_service.h"            /* m0_rms_type */
 #include "net/lnet/lnet_core_types.h" /* M0_NET_LNET_NIDSTR_SIZE */
+#include "net/lnet/lnet.h"            /* m0_net_lnet_xprt */
+#include "dtm0/service.h"              /* m0_dtm0_service_find */
 
 #include "motr/io.h"                /* io_sm_conf */
 #include "motr/client.h"
@@ -1602,6 +1604,8 @@ int m0_client_init(struct m0_client **m0c_p,
 
 	/* Init the hash-table for RM contexts */
 	rm_ctx_htable_init(&m0c->m0c_rm_ctxs, M0_RM_HBUCKET_NR);
+
+	m0c->m0c_dtms = m0_dtm0_service_find(&m0c->m0c_reqh);
 
 	if (conf->mc_is_addb_init) {
 		char buf[64];

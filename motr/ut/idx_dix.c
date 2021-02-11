@@ -784,18 +784,30 @@ struct m0_client* st_get_instance()
 #include "dtm0/helper.h"
 #include "dtm0/service.h"
 
-#define M0_FID(c_, k_)  { .f_container = c_, .f_key = k_ }
-static void st_one_dtm0_op_idx_create(void)
+static void st_put_one(void)
 {
 	struct m0_container realm;
 	struct m0_idx       idx;
 	struct m0_fid       ifid;
 	struct m0_op       *op = NULL;
 	int                 rc;
+	struct m0_bufvec    keys;
+	struct m0_bufvec    vals;
+	int                 rcs[1];
+	m0_bcount_t         len = 1;
+	char               *key;
+	char               *val;
+	int                 flags = 0;
+
+	key = m0_strdup("ItIsAKey");
+	val = m0_strdup("ItIsAValue");
+
+	keys = M0_BUFVEC_INIT_BUF((void **) &key, &len);
+	vals = M0_BUFVEC_INIT_BUF((void **) &val, &len);
 
 	general_ifid_fill(&ifid, true);
 	m0_container_init(&realm, NULL, &M0_UBER_REALM, ut_m0c);
-	m0_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
+	m0_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *) &ifid);
 
 	/* Create index. */
 	rc = m0_entity_create(NULL, &idx.in_entity, &op);
@@ -804,29 +816,47 @@ static void st_one_dtm0_op_idx_create(void)
 	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_fini(op);
-	m0_free0(&op);
+	m0_op_free(op);
+	op = NULL;
+
+	/* PUT one kv pair */
+	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs, flags, &op);
+	M0_UT_ASSERT(rc == 0);
+	m0_op_launch(&op, 1);
+	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(op->op_rc == 0);
+	m0_op_fini(op);
+	m0_op_free(op);
+	op = NULL;
 
 	m0_idx_fini(&idx);
+	m0_free(key);
+	m0_free(val);
 }
 
 static void st_one_dtm0_op(void)
 {
-	static struct m0_fid     cli_srv_fid  = M0_FID(0x7300000000000001, 0x1a);
-	static struct m0_fid     srv_dtm0_fid = M0_FID(0x7300000000000001, 0x1c);
+	static struct m0_fid     cli_srv_fid  = M0_FID_INIT(0x7300000000000001,
+							    0x1a);
+	static struct m0_fid     srv_dtm0_fid = M0_FID_INIT(0x7300000000000001,
+							    0x1c);
 	static const char       *cl_ep_addr   = "0@lo:12345:34:1";
 	struct m0_reqh_service  *cli_srv;
 	struct m0_reqh_service  *srv_srv;
-	struct m0_reqh          *srv_reqh = &dix_ut_sctx.rsx_motr_ctx.cc_reqh_ctx.rc_reqh;
-	int rc;
+	struct m0_reqh          *srv_reqh;
+	int                      rc;
 
+	srv_reqh = &dix_ut_sctx.rsx_motr_ctx.cc_reqh_ctx.rc_reqh;
 	cli_srv = m0_dtm__client_service_start(&ut_m0c->m0c_reqh, &cli_srv_fid);
 	M0_UT_ASSERT(cli_srv != NULL);
 	srv_srv = m0_reqh_service_lookup(srv_reqh, &srv_dtm0_fid);
 	rc = m0_dtm0_service_process_connect(srv_srv, &cli_srv_fid, cl_ep_addr);
 	M0_UT_ASSERT(rc == 0);
+	ut_m0c->m0c_dtms = m0_dtm0_service_find(srv_reqh);
+	M0_UT_ASSERT(ut_m0c->m0c_dtms != NULL);
 
-	/* XXX: put logic here */
-	st_one_dtm0_op_idx_create();
+	st_put_one();
 
 	rc = m0_dtm0_service_process_disconnect(srv_srv, &cli_srv_fid);
 	M0_UT_ASSERT(rc == 0);
