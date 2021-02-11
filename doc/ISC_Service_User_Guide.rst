@@ -410,3 +410,32 @@ The output buffer out_buf can now be used with RPC AT mechanism introduced in pr
   }
 
 Preparation and handling of a fop is similar to that in Hello-World example. Once a computation is invoked, it will read each object’s locally stored values, and find min/max of the same, eventually finding out min/max across all arrays stored locally. In the next example we shall see how a computation involving an IO can be designed.
+
+Histogram
+===============
+
+We now explore a complex example where a computation involves an IO, and hence needs to wait for the completion of IO. User stores an object with Motr. This object holds a sequence of values. The size of an object in terms of the number of values held is known. The aim is to generate a histogram of values stored. This is accomplished in two steps. In the first step user invokes a computation with remote Motr servers and each server generates a histogram of values stored with it. In the second step, these histograms are communicated with the user and it adds them cumulatively to generate the final histogram. The following structure describes a list of arguments that will be communicated by a caller with the ISC service for generating a histogram. ISC is associated only with the first part.
+
+::
+
+ /* Input for histogram generation. */
+
+ struct histo_args {
+
+      /** Number of bins for histogram. */
+
+      uint32_t ha_bins_nr;
+
+      /** Maximum value. */
+
+      uint64_t ha_max_val;
+
+      /** Minimum value. */
+
+      uint64_t ha_min_val;
+
+      /** Global fid of object stored with Mero. */
+
+      struct m0_fid ha_gob_fid;
+
+ } M0_XCA_RECORD;
