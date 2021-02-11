@@ -58,7 +58,7 @@ enum m0_fab__mr_params {
 	/** Key used for memory registration. */
 	FAB_MR_KEY     = 0XABCD,
 	/** Max number of IOV in send/recv/read/write command */
-	FAB_MR_IOV_MAX = 8,
+	FAB_MR_IOV_MAX = 256,
 };
 
 enum PORT_SOCK_TYPE {
@@ -69,6 +69,8 @@ enum PORT_SOCK_TYPE {
 struct m0_fab__fab {
 	struct fi_info    *fab_fi;             /* Fabric interface info */
 	struct fid_fabric *fab_fab;            /* Fabric fid */
+	struct fid_domain *fab_dom;            /* Domain fid */
+	struct fid_ep     *fab_rctx;           /* Shared recv context */
 };
 
 struct m0_fab__ep_name {
@@ -85,14 +87,12 @@ struct m0_fab__ep_res {
 
 struct m0_fab__active_ep {
 	struct fid_ep         *aep_ep;         /* Active Endpoint */
-	struct fid_domain     *aep_dom;        /* Domain fid */
 	struct m0_fab__ep_res  aep_ep_res;     /* Endpoint resources */
 	bool                   aep_is_conn;    /* Is ep in connected state */
 };
 
 struct m0_fab__passive_ep {
 	struct fid_pep        *pep_pep;        /* Passive endpoint */
-	struct fid_domain     *pep_dom;        /* Domain fid */
 	struct m0_fab__ep_res  pep_ep_res;     /* Endpoint resources */
 };
 
@@ -100,7 +100,7 @@ struct m0_fab__ep {
 	struct m0_net_end_point    fep_nep;     /* linked into a per-tm list */
 	struct m0_fab__ep_name     fep_name;    /* "addr:port" in str format */
 	struct m0_fab__active_ep  *fep_send;
-	struct m0_fab__active_ep  *fep_recv;
+	// struct m0_fab__active_ep  *fep_recv;
 	struct m0_fab__passive_ep *fep_listen;
 	struct m0_tl               fep_sndbuf;  /* List of buffers to send */
 };
@@ -131,7 +131,6 @@ struct m0_fab__buf_mr {
 
 struct m0_fab__buf {
 	uint64_t               fb_magic;   /* Magic number */
-	uint64_t               fb_rcvmagic;/* Magic number */
 	uint64_t               fb_sndmagic;/* Magic number */
 	uint64_t               fb_rc_buf;  /* For remote completetions */
 	struct m0_fab__buf_mr  fb_mr;
@@ -139,7 +138,6 @@ struct m0_fab__buf {
 	struct m0_net_buffer  *fb_nb;      /* Pointer back to network buffer*/
 	struct m0_fab__ep     *fb_ev_ep;
 	struct m0_tlink        fb_linkage; /* Link in list of completed bufs*/
-	struct m0_tlink        fb_rcv_link;
 	struct m0_tlink        fb_snd_link;
 	int32_t                fb_status;  /* Buffer completion status */
 	m0_bindex_t            fb_length;  /* Total size of data to be rcvd*/
