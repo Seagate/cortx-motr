@@ -21,6 +21,12 @@ Motr
         :target: https://github.com/pujamudaliar/cortx-motr/blob/main/LICENCE
         :alt: License Badge
 
+.. YouTube Badge - https://img.shields.io/badge/Video-YouTube-red.svg
+
+.. image:: https://img.shields.io/badge/Video-YouTube-red.svg
+        :target: https://cortx.link/videos
+        :alt: YouTube Badge
+
 At the core of `CORTX <https://github.com/Seagate/cortx>`_ lies Motr.  Motr is a distributed object storage system, targeting `mass capacity storage <https://www.seagate.com/products/storage/object-storage-software/>`_
 configurations. To ensure the most efficient storage utilization, Motr interacts directly with block devices (i.e. it does not _layer_ on a local file system).  The Motr design was heavily influenced by the Lustre file system, NFSv4 and database technology. It must be noted that traditional file system properties (hierarchical directory namespace, strong POSIX consistency guarantees, &c.) are no longer desirable or achievable at mass capacity. Instead, Motr is a more general storage system that provides an optional file system interface. This allows wider range of deployments, including cloud.
 
