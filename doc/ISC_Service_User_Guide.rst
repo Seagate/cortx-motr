@@ -439,3 +439,113 @@ We now explore a complex example where a computation involves an IO, and hence n
       struct m0_fid ha_gob_fid;
 
  } M0_XCA_RECORD;
+ 
+ The array of values stored with Motr will be identified using a global id represented here as ha_gob_fid. It has been assumed that maximum and minimum values over the array are known or are made available by previous calls to arr_max() and arr_min().
+
+Here we discuss the API for generating a histogram of values, local to a node. The caller side or client side shall be populating the struct histo_args and sending it across using m0_isc_fop.
+
+  ::
+
+   /*
+
+    * Structure of a computation is advisable to be similar to
+
+    * Motr foms. It returns M0_FSO_WAIT when it has to wait for
+
+    * an external event (n/w or disk I/O)else it returns
+
+    * M0_FSO_AGAIN. These two symbols are defined in Mero.
+
+    */
+
+   int histo_generate(struct m0_buf *in, struct m0_buf *out,
+
+                      struct m0_isc_comp_private *comp_data,
+
+                      int *ret
+
+  ::
+
+   {
+
+     struct *histo_args;
+
+     struct *histogram;
+
+     Struct *hist_partial;
+
+     uint32_t disk_id;
+
+     uint32_t nxt_disk;
+
+     int rc;
+
+     int phase;
+
+     phase = comp_phase_get(comp_data);
+
+     switch(phase) {
+
+     case COMP_INIT:
+
+          /*
+
+          * Deserializes input buffer into “struct histo_args”
+
+          * and stores the same in comp_data.
+
+          */
+
+        histo_args_fetch(in, out, comp_data);
+
+        rc = args_sanity_check(comp_data);
+
+        if (rc != 0) {
+
+            private_data_cleanup(comp_data);
+
+            *ret = rc;
+
+            return M0_FSO_AGAIN;
+
+        }
+
+   comp_phase_set(comp_data, COMP_IO);
+
+    case COMP_IO:
+
+      disk = disk_id_fetch(comp_data);
+
+       /**
+
+     This will make the fom (comp_data->icp_fom) wait
+
+     on a Motr channel which will be signalled on completion
+
+     of the IO event.
+
+    */
+
+    rc = m0_ios_read_launch(gfid, disk, buf, offset, len,
+
+    comp_data->icp_fom);
+
+    if (rc != 0) {
+
+    private_data_cleanup(comp_data);
+
+    /* Computation is complete, with an error. */
+
+    *ret = rc;
+
+    return M0_FSO_AGAIN;
+
+   }  
+ 
+     comp_phase_set(comp_data, COMP_EXEC);
+
+    /**
+
+  This is necessary for Motr instance to decide whether to retry.
+
+     
