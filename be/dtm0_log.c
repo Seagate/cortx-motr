@@ -249,7 +249,7 @@ static int m0_be_dtm0_log__set(struct m0_be_dtm0_log  *log,
                                         &dtpg_pa[pa_id].pa_state);
 	}
 
-	return rc;
+	return 0;
 }
 
 M0_INTERNAL int m0_be_dtm0_log_update(struct m0_be_dtm0_log  *log,
