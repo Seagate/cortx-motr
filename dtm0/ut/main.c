@@ -99,8 +99,7 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 
 	M0_ASSERT(m0_dtm0_ts__invariant(&reply_data.dti_ts));
 
-	M0_UT_ASSERT(m0_fid_cmp(&g_process_fid, &reply_data.dti_fid) == 0);
-	M0_UT_ASSERT(m0_dtm0_ts_cmp(&dcs, &now, &reply_data.dti_ts) == M0_DTS_EQ);
+	M0_UT_ASSERT(m0_dtm0_tid_cmp(&dcs, &txr.dtd_id, &reply_data) == M0_DTS_EQ);
 
 	m0_fop_put_lock(fop);
 }

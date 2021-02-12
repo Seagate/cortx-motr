@@ -127,20 +127,6 @@ M0_INTERNAL int m0_dtm0_fop_init(void)
 	return 0;
 }
 
-static bool dtm0_service_started(struct m0_fop  *fop,
-				struct m0_reqh *reqh)
-{
-	struct m0_reqh_service            *svc;
-	const struct m0_reqh_service_type *stype;
-
-	stype = fop->f_type->ft_fom_type.ft_rstype;
-	M0_ASSERT(stype != NULL);
-
-	svc = m0_reqh_service_find(stype, reqh);
-	M0_ASSERT(svc != NULL);
-
-	return m0_reqh_service_state_get(svc) == M0_RST_STARTED;
-}
 /*
   Allocates a fop.
  */
@@ -177,9 +163,6 @@ static int dtm0_fom_create(struct m0_fop *fop,
 	struct m0_fom     *fom0;
 	struct m0_fop     *repfop;
 	struct dtm0_rep_fop *reply;
-
-	if (!dtm0_service_started(fop, reqh))
-		return M0_ERR(-EAGAIN);
 
 	M0_ALLOC_PTR(fom);
 
