@@ -113,7 +113,9 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	struct m0_op_idx    *oi;
 	struct m0_entity    *entity;
 	struct m0_locality  *locality;
+#if defined(DTM0)
 	struct m0_client    *m0c;
+#endif
 
 	M0_ENTRY();
 
@@ -123,7 +125,6 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	/* Initialise the operation's generic part. */
 	entity = &idx->in_entity;
 	op->op_code = opcode;
-	m0c = entity->en_realm->re_instance;
 	rc = m0_op_init(op, &m0_op_conf, entity);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -156,6 +157,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 
 #if defined(DTM0)
 	if (M0_IN(op->op_code, (M0_IC_PUT, M0_IC_DEL))) {
+		m0c = entity->en_realm->re_instance;
 		M0_ASSERT(m0c->m0c_dtms != NULL);
 		oi->oi_dtx = m0_dtx0_alloc(m0c->m0c_dtms, oi->oi_sm_grp);
 		if (oi->oi_dtx == NULL)
