@@ -33,8 +33,12 @@ while getopts "hv:" arg; do
       echo RPM version: $version
       if [[ $version =~ $regex ]]
       then
-        sed -i "/m4_define(\[M0_VERSION],/c\m4_define([M0_VERSION],[$version])"\
-        configure.ac
+        MAJOR=$(echo $version | cut -d "." -f 1)
+        MINOR=$(echo $version | cut -d "." -f 2)
+        PATCH=$(echo $version | cut -d "." -f 3)
+        sed -i "/m4_define(\[M0_VERSION_MAJOR],/c\m4_define([M0_VERSION_MAJOR],[$MAJOR])" configure.ac
+        sed -i "/m4_define(\[M0_VERSION_MINOR],/c\m4_define([M0_VERSION_MINOR],[$MINOR])" configure.ac
+        sed -i "/m4_define(\[M0_VERSION_PATCH],/c\m4_define([M0_VERSION_PATCH],[$PATCH])" configure.ac
       else
         echo "RPM version must be numeric with two dot(.). Example: 1.3.20"
         exit 1
