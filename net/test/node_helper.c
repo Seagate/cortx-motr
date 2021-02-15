@@ -19,6 +19,8 @@
  *
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
+#include "lib/trace.h"          /* M0_ENTRY() */
 
 #include "lib/misc.h"			/* M0_IN */
 
@@ -154,6 +156,8 @@ void m0_net_test_nh_cmd_status(struct m0_net_test_nh *nh,
 	reply->ntc_type = M0_NET_TEST_CMD_STATUS_DATA;
 	m0_net_test_nh_sd_get_locked(nh, &reply->ntc_status_data);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /**
    @} end of NetTestNodeHelperInternals group
