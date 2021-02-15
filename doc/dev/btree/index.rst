@@ -242,10 +242,6 @@ High-level requirements from Clarification section are refined as following:
      - tree create operation is supported
      -
 
-   * - [**r.btree.op.create**]
-     - tree create operation is supported
-     - 
-    
    * - [**r.btree.op.destroy**]
      - operation to destroy an (empty) tree is supported
      - 
@@ -265,7 +261,6 @@ High-level requirements from Clarification section are refined as following:
    * - [**r.btree.op.lookup**]
      - key lookup operation is supported
      - 
-
     
    * - [**r.btree.op.lookup-slant**]
      - next key lookup operation is supported
