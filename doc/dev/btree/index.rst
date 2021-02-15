@@ -250,10 +250,6 @@ High-level requirements from Clarification section are refined as following:
      - key-value insert operation is supported
      - 
     
-   * - [**r.btree.op.insert-inplace**]
-     - insert in-place operation is supported
-     - [r.btree.memory]
-
    * - [**r.btree.op.insert-overwrite**]
      - overwrite operation is supported
      - 
@@ -345,7 +341,7 @@ High-level requirements from Clarification section are refined as following:
      - [r.btree.features], [r.btree.concurrency]
 
    * - [**r.btree.inplace-ops**]
-     - in-place insert operation is supported
+     - in-place insert and lookup operations is supported
      - [r.btree.memory]
 
    * - [**r.btree.page-cache-aware**]
