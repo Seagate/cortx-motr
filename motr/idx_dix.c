@@ -38,6 +38,7 @@
 #include "dix/req.h"
 #include "dix/client.h"
 #include "motr/addb.h"
+#include "dtm0/dtx.h"
 
 /**
  * @addtogroup index-dix
@@ -89,6 +90,7 @@ struct dix_req {
 };
 
 static bool dixreq_clink_cb(struct m0_clink *cl);
+static bool dixreq_clink_dtx_cb(struct m0_clink *cl);
 static bool dix_meta_req_clink_cb(struct m0_clink *cl);
 static void dix_req_immed_failure(struct dix_req *req, int rc);
 static void dixreq_completed_post(struct dix_req *req, int rc);
@@ -610,7 +612,9 @@ static int dix_req_create(struct m0_op_idx  *oi,
 					oi->oi_sm_grp);
 			to_dix_map(&oi->oi_oc.oc_op, &req->idr_dreq);
 			req->idr_dreq.dr_dtx = oi->oi_dtx;
-			m0_clink_init(&req->idr_clink, dixreq_clink_cb);
+			m0_clink_init(&req->idr_clink,
+				      oi->oi_dtx != NULL ?
+				      dixreq_clink_dtx_cb : dixreq_clink_cb);
 
 			/* Store oi for dix callbacks to update SYNC records. */
 			if (M0_IN(oi->oi_oc.oc_op.op_code,
@@ -656,6 +660,10 @@ static void dixreq_completed_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	oi->oi_ar.ar_ast.sa_cb = (rc == 0) ? idx_op_ast_complete :
 					     idx_op_ast_fail;
 	oi->oi_in_completion = true;
+	/* XXX: it looks like there is no need to set up an ast for that.
+	 * The groups are the same. We can just call the callback right here:
+	 *   oi->oi_ar.ar_ast.sa_cb(oi->oi_sm_grp, &oi->oi_ar.ar_ast)
+	 */
 	m0_sm_ast_post(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
 	dix_req_destroy(req);
 	M0_LEAVE();
@@ -771,6 +779,123 @@ static bool dix_meta_req_clink_cb(struct m0_clink *cl)
 			dix_list_reply_copy(mreq, oi->oi_rcs, oi->oi_keys) :
 			m0_dix_layout_rep_get(mreq, 0, NULL);
 	dixreq_completed_post(dix_req, rc);
+	return false;
+}
+
+static void dixreq_stable_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct dix_req          *req = ast->sa_datum;
+	struct m0_op_idx        *oi = req->idr_oi;
+	int                      rc = oi->oi_ar.ar_rc;
+
+	M0_ENTRY();
+	oi->oi_ar.ar_ast.sa_cb = (rc == 0) ? idx_op_ast_stable : NULL;
+	/* XXX: It is safe to reuse the ast object used by executed()
+	 * and completed() callbacks as long as a dtx state change does not
+	 * happen twice in the same dixreq ast callback. The change
+	 * is done under the group lock, therefore this ast callback
+	 * (the function you are looking at) will be executed when the
+	 * group lock is released. A new ast cannot be queued before this
+	 * ast is completed. Therefore, if there is another function
+	 * where the state is beign changed from Executed to Stable then
+	 * this "another" function can be called only after that.
+	 * Inversion of calls (Stable first, then Executed) should not
+	 * be possible if the stability detector is implemented in the right
+	 * way (nothing is stable until all CAS requests are executed and
+	 * got persistent).
+	 */
+	/* XXX: The callback is executed directly since the group
+	 * lock is the same. See the XXX comment in ::dixreq_completed_ast.
+	 */
+	idx_op_ast_stable(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
+	dix_req_destroy(req);
+	M0_LEAVE();
+}
+
+static void dixreq_stable_post(struct dix_req *req, int rc)
+{
+	struct m0_op_idx *oi = req->idr_oi;
+
+	M0_ENTRY();
+	oi->oi_ar.ar_rc = rc;
+	req->idr_ast.sa_cb = dixreq_stable_ast;
+	req->idr_ast.sa_datum = req;
+	m0_sm_ast_post(oi->oi_sm_grp, &req->idr_ast);
+	M0_LEAVE();
+}
+
+static void dixreq_executed_post(struct dix_req *req, int rc)
+{
+	struct m0_op_idx *oi = req->idr_oi;
+
+	M0_ENTRY();
+
+	M0_ASSERT_INFO(rc == 0, "TODO: Failures are not handled here.");
+	oi->oi_ar.ar_rc = rc;
+
+	/* XXX: DTX cannot be canceled (as per the current design),
+	 * so that once we got a reply, we prohibit any kind of cancelation.
+	 * The originator should m0_panic itself in case if something needs
+	 * to be canceled. It will be re-started and continue its execution.
+	 */
+	oi->oi_in_completion = true;
+	oi->oi_ar.ar_ast.sa_cb = idx_op_ast_executed;
+	m0_sm_ast_post(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
+	M0_LEAVE();
+}
+
+static bool dixreq_clink_dtx_cb(struct m0_clink *cl)
+{
+	struct dix_req          *dix_req = M0_AMB(dix_req, cl, idr_clink);
+	struct m0_op_idx        *oi = dix_req->idr_oi;
+	struct m0_sm            *req_sm = M0_AMB(req_sm, cl->cl_chan, sm_chan);
+	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
+	struct m0_dtx           *dtx = oi->oi_dtx;
+	enum m0_dtm0_dtx_state   state;
+	int                      i;
+
+	M0_PRE(M0_IN(oi->oi_oc.oc_op.op_code, (M0_IC_PUT, M0_IC_DEL)));
+	M0_PRE(dtx != NULL);
+
+	state = m0_dtx0_sm_state(dtx);
+
+	if (!M0_IN(state, (M0_DDS_EXECUTED, M0_DDS_STABLE, M0_DDS_FAILED)))
+		return false;
+
+	switch (state) {
+	case M0_DDS_EXECUTED:
+		/* TODO: we have a single kv pair; probably, it does not have
+		 * to be a loop.
+		 */
+		for (i = 0; i < m0_dix_req_nr(dreq); i++) {
+			oi->oi_rcs[i] = dreq->dr_items[i].dxi_rc;
+		}
+		/* XXX: We cannot use m0_dix_generic_rc here because the
+		 * precondition fails in this case. At this point error
+		 * handling is not covered here, and probably the error
+		 * code needs to be first propogated from DIX to DTX and
+		 * then it needs to be passed here as dtx.dd_sm.sm_rc.
+		 */
+		dixreq_executed_post(dix_req, dreq->dr_sm.sm_rc);
+		break;
+	case M0_DDS_STABLE:
+		M0_ASSERT_INFO(m0_dix_generic_rc(dreq) == 0,
+			       "TODO: DIX failures are not supported.");
+
+		M0_ASSERT_INFO(m0_forall(idx, m0_dix_req_nr(dreq),
+					 m0_dix_item_rc(dreq, idx) == 0),
+			       "TODO: failed executions of individual items "
+			       "are not supported yet.");
+
+		dixreq_stable_post(dix_req, m0_dix_generic_rc(dreq));
+		m0_clink_del(cl);
+		break;
+	case M0_DDS_FAILED:
+		M0_IMPOSSIBLE("DTX failures are not supported so far.");
+	default:
+		M0_IMPOSSIBLE("Only Executed and Stable are allowed so far.");
+	}
+
 	return false;
 }
 
@@ -935,7 +1060,9 @@ static void dix_dreq_prepare(struct dix_req   *req,
 			     struct m0_op_idx *oi)
 {
 	dix_build(oi, dix);
-	m0_clink_add(&req->idr_dreq.dr_sm.sm_chan, &req->idr_clink);
+	m0_clink_add(oi->oi_dtx != NULL ?
+		     &oi->oi_dtx->tx_dtx->dd_sm.sm_chan :
+		     &req->idr_dreq.dr_sm.sm_chan, &req->idr_clink);
 }
 
 static void dix_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
