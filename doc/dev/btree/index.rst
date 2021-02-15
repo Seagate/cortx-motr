@@ -115,27 +115,27 @@ Clarification (CLARIFY)
 The scope of b-tree development is defined by the following informal
 requirements (refined in Requirements section):
 
-  * [r.btree.clean] develop b-tree (b+tree) implementation from scratch;
+  * [**r.btree.clean**] develop b-tree (b+tree) implementation from scratch;
 
-  * [r.btree.r2p0] b-tree implementation has to be available in the first
-    release (ldrr2p0);
+  * [**r.btree.r2p0**] b-tree implementation has to be available in the first
+    release (ldrr2p0) and is fully integrated with the rest of the code-base;
 
-  * [r.btree.future-proof] after the first release, online conversion to the
+  * [**r.btree.future-proof**] after the first release, online conversion to the
     later versions should be possible. Future versions of b-tree can add more
     features;
 
-  * [r.btree.features] b-tree format and algorithms should be ready to support
+  * [**r.btree.features**] b-tree format and algorithms should be ready to support
     advanced features that will be necessary in the future;
 
-  * [r.btree.performance] performance properties of the implementation
+  * [**r.btree.performance**] performance properties of the implementation
     (throughput, operations per second, concurrency levels, memory and io
     footprints) should be sufficient for fulfilment of the overall product
     performance requirements;
 
-  * [r.btree.quality] the implementation should be of high quality. Quality
+  * [**r.btree.quality**] the implementation should be of high quality. Quality
     should be measured and attained by comprehensive testing and documentation;
 
-  * [r.btree.scale] the implementation should be sufficiently scalable to
+  * [**r.btree.scale**] the implementation should be sufficiently scalable to
     support the overall product scalability requirements.
 
 Analysis (ANALYSIS)
@@ -228,286 +228,261 @@ Requirements (REQS)
 
 High-level requirements from Clarification section are refined as following:
 
+**Basic operational requirements**
+
 .. list-table:: 
-   :widths: 10 70 10 10
+   :widths: 10 80 10
    :header-rows: 1
 
    * - label
      - description
      - source
-     - priority
-
-   * -
-     - *Basic operational requirements*
-     -
-     -
 
    * - [**r.btree.op.create**]
      - tree create operation is supported
-     -
      -
 
    * - [**r.btree.op.create**]
      - tree create operation is supported
      - 
-     -
-
     
    * - [**r.btree.op.destroy**]
      - operation to destroy an (empty) tree is supported
      - 
-     -
-
     
    * - [**r.btree.op.insert**]
      - key-value insert operation is supported
      - 
-     -
-
     
    * - [**r.btree.op.insert-inplace**]
      - insert in-place operation is supported
      - [r.btree.memory]
-     -
 
    * - [**r.btree.op.insert-overwrite**]
      - overwrite operation is supported
      - 
-     -
-
     
    * - [**r.btree.op.lookup**]
      - key lookup operation is supported
      - 
-     -
 
     
    * - [**r.btree.op.lookup-slant**]
      - next key lookup operation is supported
      - 
-     -
-
     
    * - [**r.btree.op.delete**]
      - key delete operation is supported
      - 
-     -
 
    * - [**r.btree.op.delete-all**]
      - high-level operation to delete all keys from a tree is supported
      - 
-     -
  
    * - [**r.btree.op.next**]
      - iteration operation is supported
      - 
-     -
 
    * - [**r.btree.op.next-upto**]
      - iteration up to a specific key operation is supported
      - 
-     -
 
    * - [**r.btree.variable-size-key**]
      - variable-sized keys are supported
      - [r.btree.features]
-     -
 
    * - [**r.btree.variable-size-val**]
      - variable-sized values are supported
      - [r.btree.features]
-     -
 
    * - [**r.btree.large-key**]
      - large keys (up to 1MB) are supported
      - [r.btree.features]
-     -
 
    * - [**r.btree.large-val**]
      - large values (up to tens of MBs) are supported
      - [r.btree.features]
-     -
-
-   * -
-     - *Performance-related requirements*
-     -
-     -
-
-   * - [**r.btree.variable-node-size**]
-     - nodes of different size within the same tree are supported
-     - [r.btree.performance], [r.btree.future-proof]
-     -
-
-   * - [**r.btree.throughput**]
-     -
-     - [r.btree.performance]
-     -
-    
-   * - [**r.btree.concurrency**]
-     -
-     - [r.btree.performance]
-     -
-    
-   * - [**r.btree.ops-per-second**]
-     -
-     - [r.btree.performance]
-     -
-    
-   * - [**r.btree.memory**]
-     -
-     - [r.btree.performance]
-     -
-    
-   * - [**r.btree.io**]
-     -
-     - [r.btree.performance]
-     -
-    
-   * - [**r.btree.capture**]
-     -
-     - [r.btree.performance]
-     -
-    
-   * - [**r.btree.lingua-franca**]
-     - features necessary for lingua franca can be supported in the future
-     - [r.btree.features], [r.btree.future-proof], [r.btree.r2p0]
-     -
-
-   * - [**r.btree.opt.key-chksum**]
-     - optional key check-sums are supported
-     - [r.btree.features], [r.btree.fsck]
-     -
-
-   * - [**r.btree.opt.val-chksum**]
-     - optional value check-sums are supported
-     - [r.btree.features], [r.btree.fsck]
-     -
-
-   * - [**r.btree.opt.node-chksum**]
-     - optional node check-sums are supported
-     - [r.btree.features], [r.btree.fsck]
-     -
-
-   * - [**r.btree.opt.merkle**]
-     - optional Merkle-hash of entire tree content is supported
-     - [r.btree.features], [r.btree.fsck]
-     -
-
-   * - [**r.btree.opt.prefix-compression**]
-     - optional key prefix compression is supported
-     - [r.btree.features], [r.btree.lingua-franca]
-     -
-
-   * - [**r.btree.opt.blink**]
-     - optional b-link is supported in the future
-     - [r.btree.features], [r.btree.concurrency]
-     -
-
-   * - [**r.btree.inplace-ops**]
-     - in-place insert operation is supported
-     - [r.btree.memory]
-     -
 
    * - [**r.btree.state-machine**]
      - b-tree operations are implemented as non-blocking state machines
      - [r.btree.r2p0]
-     -
 
-   * - [**r.btree.key-val-node-flags**]
-     - flags per node, key and value to indicate possible future extensions
-     - [r.btree.future-proof]
-     -
+**Performance related requirements**
+     
+.. list-table:: 
+   :widths: 10 80 10
+   :header-rows: 1
 
-   * - [**r.btree.node-version**]
-     - nodes with different versions can co-exist within the same tree
-     - [r.btree.future-proof]
+   * - label
+     - description
+     - source
+
+   * - [**r.btree.variable-node-size**]
+     - nodes of different size within the same tree are supported
+     - [r.btree.performance], [r.btree.future-proof]
+
+   * - [**r.btree.throughput**]
      -
+     - [r.btree.performance]
+    
+   * - [**r.btree.concurrency**]
+     -
+     - [r.btree.performance]
+    
+   * - [**r.btree.ops-per-second**]
+     -
+     - [r.btree.performance]
+    
+   * - [**r.btree.memory**]
+     -
+     - [r.btree.performance]
+    
+   * - [**r.btree.io**]
+     -
+     - [r.btree.performance]
+    
+   * - [**r.btree.capture**]
+     -
+     - [r.btree.performance]
+    
+   * - [**r.btree.opt.blink**]
+     - optional b-link is supported in the future
+     - [r.btree.features], [r.btree.concurrency]
+
+   * - [**r.btree.inplace-ops**]
+     - in-place insert operation is supported
+     - [r.btree.memory]
 
    * - [**r.btree.page-cache-aware**]
      - tree balancing algorithms use information about cached parts of the tree
      - [r.btree.performance]
-     -
 
    * - [**r.btree.page-daemon**]
      - the implementation interacts with BE page daemon module
      - [r.btree.r2p0], [r.btree.performance]
-     -
-
-   * - [**r.btree.no-volatile**]
-     - the implementation does not use deprecated 'volatile fields' BE mechanism
-     - [r.btree.future-proof]
-     -
 
    * - [**r.btree.capture-minimize**]
      - tree balancing algorithms minimise the amount of transactionally captured
        memory
      - [r.btree.memory]
-     -
-
-   * - [**r.btree.opt.per-node-locking**]
-     - tree format is designed to support per-node locking in the future
-     - [r.btree.concurrency], [r.btree.future-proof]
-     -
 
    * - [**r.btree.cookie-lookup**]
      - fast cookie-based lookup is supported
      - [r.btree.ops-per-second]
-     -
-
-   * - [**r.btree.fsck**]
-     - on-disk format and algorithms are designed to support fsck
-     - [r.btree.quality], [r.btree.future-proof]
-     -
 
    * - [**r.btree.addb**]
      - btree operations are instrumented with addb
      - [r.btree.performance]
-     -
-
-   * - [**r.btree.ri**]
-     - run-time instruments for b-tree are implemented
-     - [r.btree.future-proof]
-     -
-    
-   * - [**r.btree.tools**]
-     - command line tools for b-tree are implemented
-     - [r.btree.future-proof]
-     -
-    
-   * - [**r.btree.tools.save**]
-     - a tool to save b-tree contents in a file is provided
-     - [r.btree.tools]
-     -
-    
-   * - [**r.btree.tools.load**]
-     - a tool to load b-tree contents from a file is provided
-     - [r.btree.tools]
-     -
-    
-   * - [**r.btree.reflect**]
-     - b-tree contains certain amount of meta-data to make debugging easier
-     - [r.btree.future-proof]
-     -
-
-   * - [**r.btree.bg-check**]
-     - background check of b-tree consistency will be provided in the future
-     - [r.btree.future-proof]
-     -
-
-   * - [**r.btree.dynamic-adaptability**]
-     - b-tree algorithms dynamically adapt to work-load patterns
-     - [r.btree.performance]
-     -
 
    * - [**r.btree.b+tree**]
      - the implementation uses b+tree algorithm
      - [r.btree.performance]
-     -
 
-   
+**Fault-tolerance related requirements**
+
+.. list-table::
+   :widths: 10 80 10
+   :header-rows: 1
+
+   * - label
+     - description
+     - source
+
+   * - [**r.btree.fsck**]
+     - on-disk format and algorithms are designed to support fsck
+     - [r.btree.quality], [r.btree.future-proof]
+
+   * - [**r.btree.opt.key-chksum**]
+     - optional key check-sums are supported
+     - [r.btree.features], [r.btree.fsck]
+
+   * - [**r.btree.opt.val-chksum**]
+     - optional value check-sums are supported
+     - [r.btree.features], [r.btree.fsck]
+
+   * - [**r.btree.opt.node-chksum**]
+     - optional node check-sums are supported
+     - [r.btree.features], [r.btree.fsck]
+
+   * - [**r.btree.opt.merkle**]
+     - optional Merkle-hash of entire tree content is supported
+     - [r.btree.features], [r.btree.fsck]
+
+   * - [**r.btree.corruption.detection**]
+     - implementation detects corruptions when appropriate check-summing options
+       are enabled
+     - [r.btree.quality]
+
+   * - [**r.btree.corruption.resistance**]
+     - implementation degrades gracefully in case of b-tree
+       corruption. Specifically, no matter how badly a tree is corrupted,
+       operations should neither crash nor return incorrect data
+     - [r.btree.quality]
+
+   * - [**r.btree.bg-check**]
+     - background check of b-tree consistency will be provided in the future
+     - [r.btree.future-proof]
+
+   * - [**r.btree.ri**]
+     - run-time instruments for b-tree are implemented
+     - [r.btree.future-proof]
+    
+   * - [**r.btree.tools**]
+     - command line tools for b-tree are implemented
+     - [r.btree.future-proof]
+    
+   * - [**r.btree.tools.save**]
+     - a tool to save b-tree contents in a file is provided
+     - [r.btree.tools]
+    
+   * - [**r.btree.tools.load**]
+     - a tool to load b-tree contents from a file is provided
+     - [r.btree.tools]
+    
+   * - [**r.btree.reflect**]
+     - b-tree contains certain amount of meta-data to make debugging easier
+     - [r.btree.future-proof]
+
+**Forward compatibility related requirements**
+     
+.. list-table::
+   :widths: 10 80 10
+   :header-rows: 1
+
+   * - label
+     - description
+     - source
+
+   * - [**r.btree.lingua-franca**]
+     - features necessary for lingua franca can be supported in the future
+     - [r.btree.features], [r.btree.future-proof], [r.btree.r2p0]
+
+   * - [**r.btree.opt.prefix-compression**]
+     - optional key prefix compression is supported
+     - [r.btree.features], [r.btree.lingua-franca]
+
+   * - [**r.btree.key-val-node-flags**]
+     - flags per node, key and value to indicate possible future extensions
+     - [r.btree.future-proof]
+
+   * - [**r.btree.node-version**]
+     - nodes with different versions can co-exist within the same tree
+     - [r.btree.future-proof]
+
+   * - [**r.btree.no-volatile**]
+     - the implementation does not use deprecated 'volatile fields' BE mechanism
+     - [r.btree.future-proof]
+
+   * - [**r.btree.opt.per-node-locking**]
+     - tree format is designed to support per-node locking in the future
+     - [r.btree.concurrency], [r.btree.future-proof]
+
+   * - [**r.btree.dynamic-adaptability**]
+     - b-tree algorithms dynamically adapt to work-load patterns
+     - [r.btree.performance]
+
    * - [**r.btree.**]
      -
-     - 
      -
 
    
@@ -539,6 +514,10 @@ Architecture (ARCH)
      and as a "delta");
 
    * agreed modifications to the assumptions about external dependencies.
+
+New b-tree implementation (mostly) preserves the same interfaces with all other
+components. There are no major use case changes. B-tree development does not
+require any architectural changes.
 
 Planning (PLAN)
 ---------------
