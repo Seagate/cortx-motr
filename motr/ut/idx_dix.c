@@ -824,9 +824,14 @@ static void st_put_one(void)
 	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs, flags, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_launch(&op, 1);
-	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
+	rc = m0_op_wait(op, M0_BITS(M0_OS_EXECUTED), WAIT_TIMEOUT);
+	M0_LOG(DEBUG, "Got executed");
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(op->op_rc == 0);
+	M0_UT_ASSERT(rcs[0] == 0);
+	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
+	M0_LOG(DEBUG, "Got stable");
+	M0_UT_ASSERT(rc == 0);
 	m0_op_fini(op);
 	m0_op_free(op);
 	op = NULL;

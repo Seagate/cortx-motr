@@ -49,10 +49,10 @@ static struct m0_sm_state_descr dtx_states[] = {
 	},
 	[M0_DDS_EXECUTED] = {
 		.sd_name      = "executed",
-		.sd_allowed   = M0_BITS(M0_DDS_PERSISTENT),
+		.sd_allowed   = M0_BITS(M0_DDS_EXECUTED_ALL),
 	},
-	[M0_DDS_PERSISTENT] = {
-		.sd_name      = "persistent",
+	[M0_DDS_EXECUTED_ALL] = {
+		.sd_name      = "executed-all",
 		.sd_allowed   = M0_BITS(M0_DDS_STABLE),
 	},
 	[M0_DDS_STABLE] = {
@@ -70,12 +70,12 @@ static struct m0_sm_state_descr dtx_states[] = {
 };
 
 static struct m0_sm_trans_descr dtx_trans[] = {
-	{ "populated",  M0_DDS_INIT,       M0_DDS_INPROGRESS },
-	{ "executed",   M0_DDS_INPROGRESS, M0_DDS_EXECUTED   },
-	{ "exec-fail",  M0_DDS_INPROGRESS, M0_DDS_FAILED     },
-	{ "persistent", M0_DDS_EXECUTED,   M0_DDS_PERSISTENT },
-	{ "stable",     M0_DDS_PERSISTENT, M0_DDS_STABLE     },
-	{ "prune",      M0_DDS_STABLE,     M0_DDS_DONE       }
+	{ "populated",  M0_DDS_INIT,         M0_DDS_INPROGRESS   },
+	{ "executed",   M0_DDS_INPROGRESS,   M0_DDS_EXECUTED     },
+	{ "exec-all",   M0_DDS_EXECUTED,     M0_DDS_EXECUTED_ALL },
+	{ "exec-fail",  M0_DDS_INPROGRESS,   M0_DDS_FAILED       },
+	{ "stable",     M0_DDS_EXECUTED_ALL, M0_DDS_STABLE       },
+	{ "prune",      M0_DDS_STABLE,       M0_DDS_DONE         }
 };
 
 static struct m0_sm_conf dtx_sm_conf = {
@@ -212,6 +212,92 @@ static int m0_dtm0_dtx_close(struct m0_dtm0_dtx *dtx)
 	return 0;
 }
 
+/* TODO: move into tx_desc module */
+static bool m0_dtm0_tx_desc_state(const struct m0_dtm0_tx_desc *txd,
+				  enum m0_dtm0_tx_pa_state state)
+{
+	return m0_forall(i, txd->dtd_pg.dtpg_nr,
+			 txd->dtd_pg.dtpg_pa[i].pa_state == state);
+}
+
+static void m0_dtm0_dtx_persistent(struct m0_dtm0_dtx *dtx, uint32_t idx)
+{
+	struct m0_dtm0_tx_pa *pa;
+
+	M0_PRE(dtx != NULL);
+	M0_PRE(m0_sm_group_is_locked(dtx->dd_sm.sm_grp));
+
+	pa = &dtx->dd_txd.dtd_pg.dtpg_pa[idx];
+
+	/* Only I->P, E->P, P->P transitions are allowed here */
+	M0_ASSERT(pa->pa_state >= M0_DTPS_INPROGRESS &&
+		  pa->pa_state <= M0_DTPS_PERSISTENT);
+	pa->pa_state = M0_DTPS_PERSISTENT;
+
+	/* TODO: remove the log entry */
+}
+
+static void dtx_exec_all_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_dtm0_dtx *dtx = ast->sa_datum;
+	int                 i;
+
+	M0_ASSERT(dtx->dd_sm.sm_state == M0_DDS_EXECUTED_ALL);
+	M0_ASSERT(dtx->dd_nr_executed == dtx->dd_txd.dtd_pg.dtpg_nr);
+
+	/* XXX: This loop emulates synchronous arrival of DTM0 notices.
+	 * It should be removed once DTM0 service is able to send the notice.
+	 */
+	for (i = 0; i < dtx->dd_txd.dtd_pg.dtpg_nr; ++i) {
+		m0_dtm0_dtx_persistent(dtx, i);
+	}
+
+	if (m0_dtm0_tx_desc_state(&dtx->dd_txd, M0_DTPS_PERSISTENT)) {
+		m0_sm_state_set(&dtx->dd_sm, M0_DDS_STABLE);
+	}
+}
+
+static void m0_dtm0_dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
+{
+	struct m0_dtm0_tx_pa *pa;
+
+	M0_PRE(dtx != NULL);
+	M0_PRE(m0_sm_group_is_locked(dtx->dd_sm.sm_grp));
+
+	pa = &dtx->dd_txd.dtd_pg.dtpg_pa[idx];
+
+	M0_ASSERT(pa->pa_state >= M0_DTPS_INPROGRESS);
+
+	pa->pa_state = max_check(pa->pa_state, (uint32_t) M0_DTPS_EXECUTED);
+
+	dtx->dd_nr_executed++;
+
+	if (dtx->dd_sm.sm_state < M0_DDS_EXECUTED) {
+		M0_ASSERT(dtx->dd_sm.sm_state == M0_DDS_INPROGRESS);
+		m0_sm_state_set(&dtx->dd_sm, M0_DDS_EXECUTED);
+	}
+
+	if (dtx->dd_nr_executed == dtx->dd_txd.dtd_pg.dtpg_nr) {
+		M0_ASSERT(dtx->dd_sm.sm_state == M0_DDS_EXECUTED);
+		m0_sm_state_set(&dtx->dd_sm, M0_DDS_EXECUTED_ALL);
+
+		dtx->dd_exec_all_ast.sa_cb = dtx_exec_all_ast_cb;
+		dtx->dd_exec_all_ast.sa_datum = dtx;
+		/* TODO: This is a poor-man's async call to ensure that
+		 * EXECUTED and STABLE are processed in "separate" ticks of
+		 * this machine. Such situation might happen only if DTM0
+		 * service notices are emulated (see the XXX comment inside
+		 * ::dtx_exec_all_ast_cb). In real life, DTM0 service will
+		 * always post such an update as an ast, therefore the
+		 * state transition from the callback (::dtx_exec_all_ast_cb)
+		 * can be moved right in here.
+		 */
+		m0_sm_ast_post(dtx->dd_sm.sm_grp, &dtx->dd_exec_all_ast);
+	}
+
+	/* TODO: update the log entry */
+}
+
 M0_INTERNAL struct m0_dtx* m0_dtx0_alloc(struct m0_dtm0_service *svc,
 					 struct m0_sm_group     *group)
 {
@@ -256,6 +342,12 @@ M0_INTERNAL int m0_dtx0_close(struct m0_dtx *dtx)
 	return m0_dtm0_dtx_close(dtx->tx_dtx);
 }
 
+M0_INTERNAL void m0_dtx0_executed(struct m0_dtx *dtx, uint32_t pa_idx)
+{
+	M0_PRE(dtx != NULL);
+	m0_dtm0_dtx_executed(dtx->tx_dtx, pa_idx);
+}
+
 M0_INTERNAL int m0_dtx0_copy_txd(const struct m0_dtx    *dtx,
 				 struct m0_dtm0_tx_desc *dst)
 {
@@ -266,6 +358,12 @@ M0_INTERNAL int m0_dtx0_copy_txd(const struct m0_dtx    *dtx,
 	}
 
 	return m0_dtm0_tx_desc_copy(&dtx->tx_dtx->dd_txd, dst);
+}
+
+M0_INTERNAL enum m0_dtm0_dtx_state m0_dtx0_sm_state(const struct m0_dtx *dtx)
+{
+	M0_PRE(dtx != NULL);
+	return dtx->tx_dtx->dd_sm.sm_state;
 }
 
 
