@@ -1659,6 +1659,36 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 }
 
+static void dix_rop_one_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_dix_cas_rop *crop = ast->sa_datum;
+	struct m0_dix_req     *dreq = crop->crp_parent;
+	struct m0_dix_cas_rop *cas_rop;
+	struct m0_dix_rop_ctx *rop;
+	int                    idx  = 0;
+
+	M0_PRE(!dreq->dr_is_meta);
+	M0_PRE(M0_IN(dreq->dr_type, (DIX_PUT, DIX_DEL)));
+
+	rop = crop->crp_parent->dr_rop;
+	dix_cas_rop_rc_update(crop, 0);
+
+	/* TODO: enumerating cas rops or keeping a list of opaque
+	 * contexts inside DTX will help us avoid such loops. */
+	m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
+		if (cas_rop == crop) {
+			m0_dtx0_executed(dreq->dr_dtx, idx);
+			break;
+		}
+		idx++;
+	} m0_tl_endfor;
+
+	if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
+		ast->sa_datum = dreq;
+		dix_rop_completed(grp, ast);
+	}
+}
+
 static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 {
 	struct m0_dix_cas_rop  *crop = container_of(cl, struct m0_dix_cas_rop,
@@ -1686,11 +1716,22 @@ static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 		rop = crop->crp_parent->dr_rop;
 		rop->dg_completed_nr++;
 		M0_PRE(rop->dg_completed_nr <= rop->dg_cas_reqs_nr);
-		if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
-			rop->dg_ast.sa_cb = dix_rop_completed;
-			rop->dg_ast.sa_datum = dreq;
+
+		if (dreq->dr_dtx != NULL) {
+			rop->dg_ast.sa_cb = dix_rop_one_completed;
+			rop->dg_ast.sa_datum = crop;
+			M0_ASSERT(dix_req_smgrp(dreq) ==
+				  dreq->dr_dtx->tx_dtx->dd_sm.sm_grp);
 			m0_sm_ast_post(dix_req_smgrp(dreq), &rop->dg_ast);
+		} else {
+			if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
+				rop->dg_ast.sa_cb = dix_rop_completed;
+				rop->dg_ast.sa_datum = dreq;
+				m0_sm_ast_post(dix_req_smgrp(dreq),
+					       &rop->dg_ast);
+			}
 		}
+
 	}
 	return true;
 }
@@ -2180,7 +2221,6 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 	if (dtx) {
 		M0_ASSERT(!req->dr_is_meta);
 		M0_ASSERT(M0_IN(req->dr_type, (DIX_PUT, DIX_DEL)));
-
 		rc = m0_dtx0_open(dtx, cas_rop_tlist_length(&rop->dg_cas_reqs));
 		if (rc != 0)
 			goto end;

@@ -36,9 +36,9 @@ enum m0_dtm0_dtx_state {
 	M0_DDS_INPROGRESS,
 	/* dtx got one reply. */
 	M0_DDS_EXECUTED,
-	/* dtx got one PERSISTENT notice. */
-	M0_DDS_PERSISTENT,
-	/* dtx Got enough PERSISTENT notices. */
+	/* dtx got all replies. */
+	M0_DDS_EXECUTED_ALL,
+	/* dtx got enough PERSISTENT notices. */
 	M0_DDS_STABLE,
 	/* dtx can be released when this state reached. */
 	M0_DDS_DONE,
@@ -61,6 +61,8 @@ struct m0_dtm0_dtx {
 	struct m0_sm            dd_sm;
 	struct m0_dtm0_tx_desc  dd_txd;
 	struct m0_dtm0_service *dd_dtms;
+	uint32_t                dd_nr_executed;
+	struct m0_sm_ast        dd_exec_all_ast;
 };
 
 M0_INTERNAL void m0_dtm0_dtx_domain_init(void);
@@ -84,12 +86,16 @@ M0_INTERNAL int m0_dtx0_assign(struct m0_dtx       *dtx,
 			       const struct m0_fid *pa_fid);
 M0_INTERNAL int m0_dtx0_close(struct m0_dtx *dtx);
 
+M0_INTERNAL void m0_dtx0_executed(struct m0_dtx *dtx, uint32_t pa_idx);
+
 /* Puts a copy of dtx's transaction descriptor into "dst".
  * User is responsible for m0_dtm0_tx_desc_fini()lasing 'dst'.
  * If dtx is NULL then dst will be filled with the empty tx_desc.
  */
 M0_INTERNAL int m0_dtx0_copy_txd(const struct m0_dtx    *dtx,
 				 struct m0_dtm0_tx_desc *dst);
+
+M0_INTERNAL enum m0_dtm0_dtx_state m0_dtx0_sm_state(const struct m0_dtx *dtx);
 
 #endif /* __MOTR_DTM0_DTX_H__ */
 
