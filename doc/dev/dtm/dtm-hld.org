@@ -1515,6 +1515,75 @@ ha  : |-- ha messages --|
 s3  :                                                    |-- s3 integration --|
 #+END_SRC
 
+** Connections maintenance (all2all)
+
+As DTM assumes communication between all participants in a cluster
+we need to maintain all-to-all connections. These connections
+should be set up when nodes became online and gracefully finalized
+when nodes go down. All this schema is based on HA events.
+
+During start up phase a node subscribes on conf subsystem
+notifications. These notification allows to track changes
+of nodes states (ONLINE/OFFLINE). Events sequence:
+ - HA reports to conf subsystem about node state change
+ - Conf subsystem signals using channel to all subscribers
+   about conf state change
+ - Implemented clink callback (or AST callback) will do all
+   necessary staff according to new node state 
+
+#+begin_src plantuml :file conn-all-on-subscribe.png :exports results
+title Subscribe on process state changes
+== Initialization started ==
+m0d1 -> m0d1 : subscribe on conf subsystem, m0_clink_add(m0_conf_obj::co_ha_chan, onProcessState)
+#+end_src
+
+#+RESULTS:
+[[file:conn-all-on-subscribe.png]]
+
+#+begin_src plantuml :file conn-all-on-trig.png :exports results
+title m0tr services connection procedure (single-node version)
+== Initialization completed, all m0ds are up and running ==
+m0d1 -> m0d1 :  for_all service in conf and service state = NC_ONLINE
+m0d1 -> m0d1 :  fid,ep = get_from_conf(conf, service)
+m0d1 -> m0d1 :  m0_rpc_client_connect(conn, sess, mach, ep)
+#+end_src
+
+#+RESULTS:
+[[file:conn-all-on-trig.png]]
+
+#+begin_src plantuml :file conn-all-on-trig-online.png :exports results
+title process ONLINE state request hadling
+HAX -> m0d1  :  HANoteFOP(state=ONLINE, fid=m0d2_fid)
+m0d1 -> m0d1 :  onProcessState(state=ONLINE, fid=m0d2_fid)
+m0d1 -> m0d1 :  ep = ep_get_from_conf(fid)
+m0d1 -> m0d1 :  m0_rpc_client_connect(conn, sess, mach, ep)
+m0d1 -> m0d1 :  DTM0_IPCs.save*(conn, sess, ep, fid)
+#+end_src
+
+#+RESULTS:
+[[file:conn-all-on-trig-online.png]]
+
+#+begin_src plantuml :file conn-all-on-trig-offline.png :exports results
+title process OFFLINE state request hadling
+HAX -> m0d1  :  HANoteFOP(state=ONLINE, fid=m0d2_fid)
+m0d1 -> m0d1 :  onProcessState(state=ONLINE, fid=m0d2_fid)
+m0d1 -> m0d1 :  conn, sess = DTM0_IPCs.find_by_fid*(fid)
+m0d1 -> m0d1 :  rpc_session_destroy(sess)
+m0d1 -> m0d1 :  rpc_conn_destroy(conn)
+#+end_src
+
+#+RESULTS:
+[[file:conn-all-on-trig-offline.png]]
+
+*** Problems
+
+Possible problem may by a "blinking" node that frequently
+goes up and down. In this case conf (i.e. HA) event may come
+when the previous event handling is not completed. It leads
+to some mechanism that checks for current connection state
+before doing any actions and wait for connection completely
+opened or closed.
+
 ** Compatibility
 =[Backward and forward compatibility issues are discussed here. Changes in system invariants (event ordering, failure modes, etc.)]=
 *** Network
