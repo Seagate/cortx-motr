@@ -44,3 +44,60 @@ Server SNS component externally interacts with rpc sub-system and storage object
 
 Request handler issues asynchronous storage transfer request. On completion, reply fop is constructed and queued. In the current design, replies are immediately sent back to client.
 
+***********************
+Logical Specification
+***********************
+
+FOP Builder and NRS
+======================
+
+A fop [1], representing IO operation is de-serialized from an incoming RPC [2]. The fop [3] is then passed to the dummy NRS [4] , that immediately passes it down to the request handler. The request handler uses file meta-data to identify the layout and calls layout IO engine to proceed with IO operation.
+
+Request Handler
+=================
+
+Request handler uses a small pool of threads (e.g., a thread per processor) to handle incoming fops. A fop is not bound to a thread. Instead, fop executes on an available thread until it has to wait (e.g., to block waiting for storage transfer to complete). At that moment, fop places itself into a request handler supplied wait queue and de-schedules itself, freeing request handler thread for processing of another fop.
+
+When event for which the fop is waiting happens, request handler retrieves the fop from the waiting queue and schedules it on some of its threads again. Roughly speaking, the request handler implements a logic of a simple thread scheduler, using a small number of threads as processors to run fop execution on.
+
+RPC
+====
+
+Rpc uses rdma to transfer data pages. Trivial reply caching policy is used: a reply fop is immediately serialized into rpc [5] and sent to the client.
+
+Conformance
+============
+
+- [r.sns-server.0-copy]: use of rdma by rpc layer plus direct-io used by stob adieu provide 0-copy data path;
+
+- [r.sns-server.conceptual-design]: the code structure outlines in the functional and logical specifications above can be easily extended to include other conceptual design components: resource framework, FOL, memory pressure handler, etc.
+
+Dependencies
+==============
+
+- fop:
+
+  - [u.fop] ST: M0 uses File Operation Packets (FOPs)
+
+  - [u.fop.rpc.from]: a fop can be buil
+
+  - [u.fop.nrs] ST: FOPs can be used by NRS
+
+  - [u.fop.sns] ST: FOP supports SNS
+
+- NRS:
+
+  - [u.nrs] ST: Network Request Scheduler optimizes processing order globally
+
+Security Model
+===============
+
+Security is outside of scope of the present design.
+
+State
+======
+
+State diagrams are part of the detailed level design specification.
+
+
+
