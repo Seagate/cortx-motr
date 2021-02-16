@@ -6,6 +6,7 @@ B-tree
 :state: INIT
 :copyright: Seagate
 :distribution: unlimited
+:address: https://github.com/Seagate/cortx-motr/blob/documentation/doc/dev/btree/index.rst
 
 :abstract: This document describes new b-tree module for motr (née mero, née eos
 	 core, née colibri).
@@ -757,6 +758,7 @@ Tasks.
    * - TEST
      - Development testing phase.
 
+       - Unit test coverage is at least 0.9.
        - Compare performance with the old version.
        - Run all tests and benchmarks on the target hardware.
      -
