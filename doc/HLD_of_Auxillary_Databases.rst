@@ -45,5 +45,74 @@ Design Highlights
 
 - Interfaces to iterate through the contents of a device or generic container are provided. 
 
+***************************
+Functional Specification
+***************************
+
+Data Types
+===========
+
+The following data types are used in the interfaces but are not defined by the interfaces: 
+
+- Device identifier (uint64_t) 
+
+- File fid (global object fid) (struct m0_fid, 128 bit) 
+
+- Cob file identifier (struct m0_fid or stobid, both 128 bit) 
+
+- Container identifier (generalization of device identifier) (uint64_t)
+
+All these are globally unique integer data types of possibly varying lengths.  This specification does not address how these identifiers are created. The interface defines a structure to represent the cobfid map. In all cases the invoker of the interface supplies a database environment pointer.
+
+Interfaces
+============
+
+Initialization and termination interfaces 
+------------------------------------------
+
+- Create and/or prepare a named cobfid map for use.   
+
+- Properly finalize use of the cobfid map. 
+
+The same cobfid map can be used for both devices and general containers, though the invoker will have the ability to use separate databases if desired.
+
+Device content tracking 
+------------------------
+
+- Associate with a given device (device-id), contents identified by the 2-tuple (cob-fid-id, file-fid), in the cobfid map.  The 3-tuple of (device-id, cob-fid, file-fid) is defined to be unique. 
+
+- Lookup the cob-fid given the 2-tuple of (device-id, file-fid) 
+
+- Remove the 3-tuple (device-id, file-fid, cob-fid) from the cobfid map.  
+
+- Enumerate the cob-fids contained within a given device (identified by device-id) in the cobfid map, sorted by ascending order of the file-fid associated with each cob-fid.
+
+The interface should require a user specified buffer in which to return an array of cob-fids. The trade-offs here are: 
+
+- The time the database transaction lock protecting the cobfid map file is held while the contents are being enumerated 
+
+- The amount of space required to hold the results.
+
+An implementation could choose to return a unique error code and the actual number of entries in case the buffer is too small, or it could choose to balance both of the above trade-offs by returning data in batches, which each call continuing with next possible file-fid in sequence. 
+
+Logical container content tracking
+----------------------------------- 
+General container tracking will work with the same interface as a device is a special type of container.  A general container identifier, a 64 bit unsigned integer, can be provided wherever device-id is mentioned in this specification.
+
+- The implementation is free to use the more generic term container_id instead of device_id in the interface.
+
+If general container identifiers may clash with device identifiers, then the invoker has the ability to create separate cobfid maps  for each type of object.
+
+Recovery interfaces 
+-------------------------
+
+An implementation should provide interfaces to aid in the recovery of the map in case of corruption or loss. These interfaces will be required by [Dependency: r.container.recovery] and would possibly include
+
+- An interface to determine if the map is corrupt or otherwise irrecoverable 
+
+- An interface to initiate the periodic check-pointing of the map 
+
+- An interface to restore the map       
+
 
 
