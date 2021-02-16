@@ -315,6 +315,7 @@ int main(int argc, char *argv[])
 	bool  parse_trace          = false;
 	int   seed                 = -1;
 	int   count                = 1;
+	int   i;
 	const char *fault_point         = NULL;
 	const char *fp_file_name        = NULL;
 	const char *trace_mask          = NULL;
@@ -484,7 +485,9 @@ int main(int argc, char *argv[])
 		printf("\n");
 	}
 #endif /* XXX */
-	do {
+
+	rc = 0;
+	for (i = 1; rc == 0 && i <= count; i++) {
 		if (seed != -1) {
 			if (seed == 0) {
 				seed = time(NULL) ^ (getpid() << 17);
@@ -498,9 +501,16 @@ int main(int argc, char *argv[])
 			m0_ut_list(with_tests, yaml_output);
 		else if (list_owners)
 			m0_ut_list_owners();
-		else
+		else {
+			m0_console_printf("START Iteration: %d out of %d\n",
+					  i, count);
+			m0_console_flush();
 			rc = m0_ut_run();
-	} while (rc == 0 && --count > 0);
+			m0_console_printf("END   Iteration: %d out of %d\n\n",
+					  i, count);
+			m0_console_flush();
+		}
+	}
 	if (finject_stats_after) {
 		printf("\n");
 		m0_fi_print_info();

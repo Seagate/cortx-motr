@@ -39,11 +39,9 @@ To clone the source code, perform the following steps:
 
 Run the following commands:
 
-- **$ git clone --recursive git@github.com:Seagate/cortx-motr.git -b main**
+- **$ git clone --recursive https://github.com/Seagate/cortx-motr.git**
 
 - **$ cd cortx-motr**
-
-**Note**: To clone the source code, it is necessary to generate the SSH public key. To generate the key, refer `SSH Public Key <https://github.com/Seagate/cortx/blob/main/doc/SSH_Public_Key.rst>`_.
 
 
 Building the Source Code
@@ -193,12 +191,16 @@ Troubleshooting
         
 Tested by:
 
+- Jan 27, 2021: Patrick Hession (patrick.hession@seagate.com) in CentOS 7.8.2003 on a Windows laptop running VMWare Workstation Pro 16
+
+- Jan 20, 2021: Mayur Gupta (mayur.gupta@seagate.com) on a Windows laptop running VMware Workstation Pro 16.
+
 - Dec 1, 2020: Huang Hua (hua.huang@seagate.com) in CentOS 7.7.1908
 
 - Nov 25, 2020: Philippe Daniel (CEA) 
 
-- Oct 11, 2020: Saumya Sunder (saumya.sunder@seagate.com) on a Windows laptop running VMWare Fusion Pro 16
+- Oct 11, 2020: Saumya Sunder (saumya.sunder@seagate.com) on a Windows laptop running VMWare Workstation Pro 16
 
-- Oct 02, 2020: Venkataraman Padmanabhan (venkataraman.padmanabhan@seagate.com) on a Windows laptop running VMWare Fusion Pro 16
+- Oct 02, 2020: Venkataraman Padmanabhan (venkataraman.padmanabhan@seagate.com) on a Windows laptop running VMWare Workstation Pro 16
 
-- Aug 09, 2020: Venkataraman Padmanabhan (venkataraman.padmanabhan@seagate.com) on a Windows laptop running VMWare Fusion Pro 16
+- Aug 09, 2020: Venkataraman Padmanabhan (venkataraman.padmanabhan@seagate.com) on a Windows laptop running VMWare Workstation Pro 16

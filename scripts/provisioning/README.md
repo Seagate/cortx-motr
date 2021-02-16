@@ -7,6 +7,7 @@ Build and Test Environment for Motr
 * [Requirements](#requirements)
 * [DevVM provisioning](#devvm-provisioning)
 * [Building and running Motr](#building-and-running-motr)
+* [Try single-node Motr cluster](#try-single-node-motr-cluster)
 * [Vagrant basics](#vagrant-basics)
 * [Streamlining VMs creation and provisioning with snapshots](#streamlining-vms-creation-and-provisioning-with-snapshots)
 * [Managing multiple VM sets with workspaces](#managing-multiple-vm-sets-with-workspaces)
@@ -422,6 +423,51 @@ Resulting _rpm_ files will be available in `~/rpmbuild/RPMS/x86_64/` directory.
 To verify them they can be installed with:
 
     sudo yum install rpmbuild/RPMS/x86_64/*
+
+Try single-node Motr cluster
+----------------------------
+
+To bootstrap a single-node cluster [Hare](https://github.com/Seagate/cortx-hare)
+should be installed also. Here is the short script which can be run on the VM
+to prepare everything:
+
+```bash
+[[ -d cortx-motr ]] ||
+    git clone --recurse https://github.com/Seagate/cortx-motr.git &&
+        ln -s cortx-motr motr
+cd motr
+echo 'Building and installing Motr...'
+./autogen.sh && ./configure --disable-expensive-checks && make -j8 &&
+    ./scripts/install-motr-service
+cd -
+
+[[ -d cortx-hare ]] ||
+    git clone --recurse https://github.com/Seagate/cortx-hare.git &&
+        ln -s cortx-hare hare
+cd hare
+echo 'Building and installing Hare...'
+make && make devinstall
+cd -
+
+# Create block devices
+mkdir -p /var/motr
+for i in {0..9}; do
+    dd if=/dev/zero of=/var/motr/disk$i.img bs=1M seek=9999 count=1
+    losetup /dev/loop$i /var/motr/disk$i.img
+done
+
+# Prepare CDF (Cluster Description File)
+[[ -f singlenode.yaml ]] || cp hare/cfgen/examples/singlenode.yaml ./
+sed 's/localhost/cmu/' -i singlenode.yaml
+sed 's/data_iface: eth./data_iface: eth0/' -i singlenode.yaml
+```
+
+After all the above steps completed successfully, the single-node Motr
+cluster is ready for the 1st start:
+
+```bash
+hctl bootstrap --mkfs singlenode.yaml
+```
 
 Vagrant basics
 --------------
