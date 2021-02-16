@@ -3,7 +3,7 @@ B-tree
 ======
 
 :author: Nikita Danilov <nikita.danilov@seagate.com>
-:state: INIT
+:state: PLAN
 :copyright: Seagate
 :distribution: unlimited
 :address: https://github.com/Seagate/cortx-motr/blob/documentation/doc/dev/btree/index.rst
