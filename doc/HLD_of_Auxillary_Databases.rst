@@ -112,7 +112,62 @@ An implementation should provide interfaces to aid in the recovery of the map in
 
 - An interface to initiate the periodic check-pointing of the map 
 
-- An interface to restore the map       
+- An interface to restore the map 
+
+***********************
+Logical Specification
+***********************
+
+Schema
+=======
+
+M0 database tables are really key-value associations, each represented by a m0_db_pair structure.   A suitable key for device content tracking and the generalized logical container content tracking would contain two fields: (container-id, file-fid), where container-id is a 64 bit unsigned integer. The associated value would contain just one field, the cob-fid.  
+
+Persistent store
+=================
+
+The name of the database file containing the cobfid map is supplied during initialization.  The current M0 database interface creates files on disk for the tables, but future implementations may use different mechanisms.  The location of this disk file is not defined by this document, other than requiring it to be in a “standard” location for Motr servers.  [Dependency: r.container.enumerate.map-location 
+
+The invoker can chose to mix both device and container mappings in the same cobfid map, or use separately named maps for each type.   The latter would be necessary in case device identifiers could clash with generic container identifiers.
+
+The cobfid map contains information that is critical during repair; a mechanism is required to recover this map should it ever get corrupted or lost. [Dependency: r.cobfid-map.recovery] 
+
+Insert and delete operations
+=============================
+
+Insertion involves a m0_table_insert() operation or a m0_table_update() operation if the record already exists. It is assumed that a cob-fid will be used in a single mapping. [Dependency: r.cob-fid.usage.unique] 
+
+Deletion of a record involves a m0_table_delete() operation. The specific mapping of (device-id, file-fid) to cob-id will be deleted.
+
+Enumeration operation 
+===========================
+
+This will be implemented using the m0_db_cursor interfaces.  The sequence of operation is as follows:
+
+#. Create a cursor using m0_db_cursor_init(). 
+
+#. Create an initial positioning key value with the desired device-id and a file fid value of 0, and invoke m0_db_cursor_get() to set the initial position and get the first key/value record. This works because this subroutine sets the DB_SET_RANGE flag internally, which causes a greater-than-equal-to comparison of the key value when positioning the cursor. 
+
+  Note that this does not make 0 an invalid file-fid value. 
+
+#. Subsequent records are fetched using m0_db_cursor_next(). 
+
+#. Traversal ends if at any time the device-id component of the returned key changes from the desired device-id, or we’ve exhausted all records in the database (DB_NOTFOUND => -ENOENT).
+
+As a transaction must be held across the cursor use, the interface will require that the invoker supply a buffer (an array of cob-fid ids) to be filled in by the operation.  If the array is too small, the interface should return a distinct error code, and the count of the number of entries found, or return data in batches. If the latter mechanism is used, some contextual data structure should be returned to track the current position. 
+
+Recovery
+==========
+
+Recovery mechanisms are beyond the scope of this HLD at this time, but they are required by this HLD. [Dependency: r.cobfid-map.recovery]  
+
+Possible mechanisms could include (but are not limted to) 
+
+- Maintaining multiple copies of the map (directly or indirectly via file system level redundancy). 
+
+- Recreating the map from meta data stored with the layout manager. 
+
+- Periodically saving the map data in the configuration database, and recovering it upon failure. The map data is not expected to change often, relative to the rate of file data I/O.    
 
 
 
