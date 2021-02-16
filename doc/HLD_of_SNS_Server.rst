@@ -99,5 +99,79 @@ State
 
 State diagrams are part of the detailed level design specification.
 
+**********
+Use Cases
+**********
 
+Scenarios
+==========
+
+**Scenario 1**
+
++-----------------------------+--------------------------------------------------------+ 
+|Scenario                     |[usecase.sns-server-write]                              |
++-----------------------------+--------------------------------------------------------+
+|Relevant quality attributes  |usability                                               |
++-----------------------------+--------------------------------------------------------+
+|Stimulus                     |an incoming write rpc                                   |
++-----------------------------+--------------------------------------------------------+
+|Stimulus source              |an SNS client                                           |
++-----------------------------+--------------------------------------------------------+
+|Environment                  |normal file system operation                            |
++-----------------------------+--------------------------------------------------------+
+|Artifact                     |call to registered read rpc call-back                   |
++-----------------------------+--------------------------------------------------------+
+|Response                     |a fop is created, including write operation parameters, | 
+|                             |such as storage object id, offset and buffer size. User |
+|                             |data are placed directly into rpc allocated buffers by  |
+|                             |RDMA. The fop is passed to the request handler through  |
+|                             |nrs. Asynchronous storage transfer (write) is started.  |
+|                             |On transfer completion, reply fop is formed, serialized |
+|                             |to rpc and sent back to the originating client.         | 
++-----------------------------+--------------------------------------------------------+
+|Response measure             |no data copying in the process                          |
++-----------------------------+--------------------------------------------------------+
+
+**Scenario 2**
+
++-----------------------------+--------------------------------------------------------+ 
+|Scenario                     |[usecase.sns-server-read]                               |
++-----------------------------+--------------------------------------------------------+
+|Relevant quality attributes  |usability                                               |
++-----------------------------+--------------------------------------------------------+
+|Stimulus                     |an incoming read rpc                                    |
++-----------------------------+--------------------------------------------------------+
+|Stimulus source              |an SNS client                                           |
++-----------------------------+--------------------------------------------------------+
+|Environment                  |normal client operation                                 |
++-----------------------------+--------------------------------------------------------+
+|Artifact                     |call to registered write rpc call-back                  |
++-----------------------------+--------------------------------------------------------+
+|Response                     |a fop is created, including read operation parameters.  | 
+|                             |The fop os passed to the request handler through nrs.   |
+|                             |Pages to hold data are allocated and asynchronous read  |
+|                             |is started. On read completion, reply fop is allocated, |
+|                             |referencing the pages with data. The reply is serialized| 
+|                             |in an rpc. The rpc is sent to the originating client,   |
+|                             |using RDMA to transfer data pages.                      | 
++-----------------------------+--------------------------------------------------------+
+|Response measure             |no data copying in the process                          |
++-----------------------------+--------------------------------------------------------+
+
+
+***********
+References
+***********
+
+- [0] High level design inspection trail of SNS server 
+
+- [1] Summary requirements table 
+
+- [2] Request Handler HLD 
+
+- [3] Parity De-clustering Algorithm HLD 
+
+- [4] SNS client HLD 
+
+- [5] Outline of M0 core conceptual design
 
