@@ -13,12 +13,29 @@ B-tree
 Stakeholders
 ============
 
-+----------+----------------------+----------------------------+----------------+
-| alias    | full name            | email                      | rôle           |
-+==========+======================+============================+================+
-| nikita   | Nikita Danilov       | nikita.danilov@seagate.com | author,        |
-|          |                      |                            | architect      |
-+----------+----------------------+----------------------------+----------------+
+.. list-table:: 
+   :header-rows: 1
+
+   * - alias
+     - email
+     - rôle
+
+   * - nikita
+     - nikita.danilov@seagate.com
+     - author, motr architect
+
+   * - ujjwal
+     - ujjwal.lanjewar@seagate.com
+     - cortx architect
+
+   * - shankar
+     - shankar.more@seagate.com
+     - motr architect
+
+   * - anagha
+     - anagha.deshmukh@seagate.com
+     - engineering manager
+      
 
 ..
    Overview
@@ -407,7 +424,8 @@ High-level requirements from Clarification section are refined as following:
    * - [**r.btree.corruption.resistance**]
      - implementation degrades gracefully in case of b-tree
        corruption. Specifically, no matter how badly a tree is corrupted,
-       operations should neither crash nor return incorrect data
+       operations should neither crash nor return incorrect data, provided that
+       corruption is detectable.
      - [r.btree.quality]
 
    * - [**r.btree.bg-check**]
@@ -538,6 +556,274 @@ Planning (PLAN)
      managers,
    * an execution schedule
 
+Tasks.
+
+.. list-table::
+   :widths: 10 80 10
+   :header-rows: 1
+
+   * - phase
+     - description
+     - estimate
+
+   * - DLD0
+     - Detailed-level design phase, part 0. Because of complexity DLD creation
+       is split in 2 parts.
+
+       Inputs:
+
+       - requirements from this tracking document;
+
+       Outputs:
+
+       - DLD specification, part 0, including:
+
+	 - exported interface definition,
+	 - description of interfaces used by btree for:
+
+	   - synchronisation;
+	   - BE transactions;
+	   - BE space allocator;
+	   - BE pager,
+
+	 - design highlights,
+	 - description of state machines,
+	 - description of data-structures, including:
+
+	   - concurrency control, potential for deadlocks or starvation;
+	   - liveness and ownership,
+
+	 - description of on-storage formats,
+	 - description of telemetry instrumentation points.
+     - TBD
+   * - DLD1
+     - Detailed-level design phase, part 1.
+
+       Inputs:
+
+       - requirements from this tracking document,
+       - DLD0
+
+       Outputs:
+
+       - DLD specification including, in addition to DLD0:
+
+	 - logical and functional specification,
+	 - failure scenarios:
+
+	   - corruption;
+	   - IO error;
+	   - out-of-memory conditions,
+
+	 - test plan,
+	 - integration plan,
+	 - description of forward compatibility issues,
+	 - description of changes necessary in existing btree users.
+     - TBD
+   * - DLD2
+     - Detailed-level design phase, part 2.
+
+       Inputs:
+
+       - requirements from this tracking document,
+       - DLD0
+
+       Outputs:
+
+       - DLD specification including, in addition to DLD0:
+
+	 - description of existing btree use cases.
+     - TBD
+   * - DLDIR
+     - Intermediate review of the DLD specification by the development team.
+
+       Inputs:
+
+       - DLD specification
+
+       Outputs:
+
+       - comments, corrections, clarifications,
+       - check that DLD covers all requirements,
+       - check that DLD covers all use-cases.
+     - TBD
+   * - DLDINSP
+     - Formal DLD inspection.
+
+       Inputs:
+
+       - DLD specification
+
+       Outputs:
+
+       - comments, corrections, clarifications.
+     - TBD
+
+   * - CODE0
+     - Coding phase, part 0.
+       Inputs:
+
+       - DLD specification
+
+       Outputs:
+
+       - code, including:
+
+	 - main btree operations,
+	 - "smoke" unit tests,
+	 - default implementation of mocked interfaces (tx, be_alloc, pager)
+     -
+      
+   * - CODE1
+     - Coding phase, part 1.
+       Inputs:
+
+       - DLD specification,
+       - CODE0
+
+       Outputs:
+
+       - code, including:
+
+	 - the rest of unit tests,
+	 - test implementations of mocked interfaces
+     -
+      
+   * - CODE2
+     - Coding phase, part 2.
+       Inputs:
+
+       - DLD specification,
+       - CODE0
+
+       Outputs:
+
+       - code, including:
+
+	 - the rest of btree features (large keys, large values, check-sums)
+     -
+      
+   * - CODE3
+     - Coding phase, part 3.
+       Inputs:
+
+       - DLD specification,
+       - CODE0
+
+       Outputs:
+
+       - code, including:
+
+	 - command line tools (save, restore)
+	 - system tests
+	 - unit benchmarks
+     -
+      
+   * - CODE4
+     - Coding phase, part 4.
+       Inputs:
+
+       - DLD specification,
+       - CODE0
+
+       Outputs:
+
+       - code, including:
+
+	 - inline documentation for all functions and data-structures
+	 - telemetry instrumentation
+	 - forward-compatibility tests
+     -
+
+   * - CODE5
+     - Coding phase, part 5.
+       Inputs:
+
+       - DLD specification,
+       - CODE0
+
+       Outputs:
+
+       - code, including:
+
+	 - adaptation of the existing btree users to the new implementation
+	 - removal of the old btree implementation
+     -
+
+   * - CODEIR
+     - Intermediate code inspections by the development team.
+     -
+      
+   * - TEST
+     - Development testing phase.
+
+       - Compare performance with the old version.
+       - Run all tests and benchmarks on the target hardware.
+     -
+      
+   * - CODEINSP
+     - Formal code inspection.
+     -
+      
+   * - DOC
+     - Documentation package, including interface definitions, benchmark
+       results, *etc*.
+     -
+      
+   * - INT
+     - Integration phase.
+     - Probably nothing to do for btree.
+      
+   * - QA
+     - QA testing. Outputs:
+
+       - QA test plan agreed between QA and development teams,
+       - QA test results,
+       - fixes.
+     -
+      
+   * - PATENTS
+     - Prepare and file relevant patents.
+     -
+
+Task dependencies:
+
+.. graphviz::
+
+   digraph foo {
+       dld0;
+       dld1;
+       dldir;
+       dldinsp;
+       code0;
+       code1;
+       code2;
+       code3;
+       code4;
+       code5;
+       codeir;
+       test;
+       codeinsp;
+       doc;
+       int;
+       qa;
+       patents;
+
+       dld0     -> dldir;
+       dld0     -> dldinsp;
+       dld1     -> dldinsp;
+       dld2     -> dldinsp;
+       dldinsp  -> code0;
+       code0    -> {code1,code2,code3,code4,code5};
+       {code1,code2,code3,code4,code5} -> codeir;
+       codeir   -> test;
+       test     -> codeinsp;
+       codeinsp -> doc;
+       doc      -> int;
+       int      -> qa;
+       dld0     -> patents;
+   }
+      
 Execution (EXEC)
 ----------------
 
