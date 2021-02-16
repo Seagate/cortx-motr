@@ -1,0 +1,90 @@
+{
+  "cluster": {
+    "server_nodes": {
+      "0a31807456be14965f31b49314f5664e": "srvnode-1",
+      "0a31807456be14965f31b49314f5664f": "srvnode-2",
+      "0a31807456be14965f31b49314f56640": "srvnode-3"
+    },
+    "srvnode-1": {
+      "machine_id": "0a31807456be14965f31b49314f5664e",
+      "hostname": "ssc-vm-2004.colo.seagate.com",
+      "node_type": "VM",
+      "network": {
+        "data": {
+          "public_interfaces": [
+            "eth1",
+            "eth2"
+          ],
+          "private_interfaces": [
+            "eth3",
+            "eth4"
+          ],
+          "interface_type": "tcp",
+          "transport_type": "lnet"
+        }
+      },
+      "storage": {
+        "metadata_devices": [
+          "/dev/sdb"
+        ],
+        "data_devices": [
+          "/dev/sdc"
+        ]
+      }
+    },
+    "srvnode-2": {
+      "machine_id": "0a31807456be14965f31b49314f5664f",
+      "hostname": "ssc-vm-2005.colo.seagate.com",
+      "node_type": "VM",
+      "network": {
+        "data": {
+          "public_interfaces": [
+            "eth1",
+            "eth2"
+          ],
+          "private_interfaces": [
+            "eth3",
+            "eth4"
+          ],
+          "interface_type": "tcp",
+          "transport_type": "lnet"
+        }
+      },
+      "storage": {
+        "metadata_devices": [
+          "/dev/sdb"
+        ],
+        "data_devices": [
+          "/dev/sdc"
+        ]
+      }
+    },
+    "srvnode-3": {
+      "machine_id": "0a31807456be14965f31b49314f56640",
+      "hostname": "ssc-vm-2006.colo.seagate.com",
+      "node_type": "VM",
+      "network": {
+        "data": {
+          "public_interfaces": [
+            "eth1",
+            "eth2"
+          ],
+          "private_interfaces": [
+            "eth3",
+            "eth4"
+          ],
+          "interface_type": "tcp",
+          "transport_type": "lnet"
+        }
+      },
+      "storage": {
+        "metadata_devices": [
+          "/dev/sdb"
+        ],
+        "data_devices": [
+          "/dev/sdc"
+        ]
+      }
+    }
+  }
+}
