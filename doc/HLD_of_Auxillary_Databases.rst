@@ -167,7 +167,95 @@ Possible mechanisms could include (but are not limted to)
 
 - Recreating the map from meta data stored with the layout manager. 
 
-- Periodically saving the map data in the configuration database, and recovering it upon failure. The map data is not expected to change often, relative to the rate of file data I/O.    
+- Periodically saving the map data in the configuration database, and recovering it upon failure. The map data is not expected to change often, relative to the rate of file data I/O.
+
+Conformance
+============
+
+- [i.container.enumerate]: The design provides the means to iterate through the cobs stored in a device or container. 
+
+- [i.container.enumerate.order.fid]: The iteration would be ordered by file fid. 
+
+- [i.generic-container.enumerate.order.fid]: Interfaces are provided for generic containers identifiers too. 
+
+Dependencies
+=============
+
+- [r.cobfid-map.recovery]  There must be a mechanism to recover the cobfid map in case it gets corrupted or otherwise rendered inaccessible.  This may involve other Motr components, including those off-host to the IO service. 
+
+- [r.cob-fid.usage.unique] The mapping of (container-id, file-id) to cob-fid must be unique. This is the responsibility of external components that drive the ioservice in its use of the interfaces described in this document. 
+
+Security model
+===============
+
+No special concerns arise here. The mapping file must be protected like any other M0 database. 
+
+Refinement
+=============
+
+- [r.container.enumerate.map-location] The location of the database file(s) containing the cobfid map(s) remains to be defined by the implementation. 
+
+********
+State
+********
+
+Concurrency Control
+====================
+
+- The application is responsible for synchronization during creation and finalization of the map. 
+
+- The M0 database operations provide thread safe access to the database. 
+
+- Enumeration represents a case where an application may hold the database transaction for a relatively lengthy period of time.  It would be up to the application to minimize the impact by saving off the returned cob-fids for later processing out of this critical section. 
+
+***********
+Use Cases
+***********
+
+Scenarios
+==========
+
+- The ioservice creates the cobfid map upon start up, and finalizes it upon termination.  During normal operation, it inserts and/or deletes associations into this index as storage for files is allocated or deallocated. 
+
+- During SNS repair a storage-in agent would use this map to drive its operation. See the storage agent algorithm in  [2]. 
+
+Failures
+=========
+
+It is required that the map be recovered if corrupted or lost. [Dependency: r.cobfid-map.recovery]  
+
+*********
+Analysis
+*********
+
+Scalability
+=============
+
+Normal operation of the ioservice would involve inserting and deleting records when files are created, extended or shrunk and deleted, which is not very often, relative to normal data I/O access. The amount of contention depends upon how concurrent is the ioservice run-time, and the ability to scale depends upon the efficiency of the underlying database engine. 
+
+The storage-in agent would necessarily interfere with ongoing activity because it performs traversals. If, however, it minimizes the time spent holding the database lock, then the interference will not be significant.
+
+************
+Deployment
+************
+
+Compatibility
+==============
+
+Persistent storage
+--------------------
+
+The cobfid map is stored in a M0 database on disk.
+
+***********
+References  
+***********
+
+- [1] M0 Task Definitions 
+
+- [2] HLD of SNS Repair 
+
+- [3] HLD of Motr Object Index 
 
 
 
