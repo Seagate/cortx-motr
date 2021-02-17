@@ -85,6 +85,7 @@ struct m0_sns_ir_block {
 	 * blocks required for its recovery.
 	 */
 	struct m0_bitmap	     sib_bitmap;
+#ifdef __KERNEL__
 	/* Column associated with the block within
 	 * m0_parity_math::pmi_data_recovery_mat. This field is meaningful
 	 * when status of a block is M0_SI_BLOCK_ALIVE.
@@ -94,6 +95,7 @@ struct m0_sns_ir_block {
 	 * The field is meaningful when status of a block is M0_SI_BLOCK_FAILED.
 	 */
 	uint32_t		     sib_recov_mat_row;
+#endif
 	/* Indicates whether a block is available, failed or restored. */
 	enum m0_sns_ir_block_status  sib_status;
 };
@@ -103,30 +105,31 @@ struct m0_sns_ir_block {
    data blocks and failure flags.
  */
 struct m0_parity_math {
-	enum m0_parity_cal_algo	     pmi_parity_algo;
+	enum m0_parity_cal_algo	pmi_parity_algo;
 
-	uint32_t		     pmi_data_count;
-	uint32_t		     pmi_parity_count;
+	uint32_t		pmi_data_count;
+	uint32_t		pmi_parity_count;
 	/* structures used for parity calculation and recovery */
-	struct m0_matvec	     pmi_data;
-	struct m0_matvec	     pmi_parity;
+	struct m0_matvec	pmi_data;
+	struct m0_matvec	pmi_parity;
 	/* Vandermonde matrix */
-	struct m0_matrix	     pmi_vandmat;
+	struct m0_matrix	pmi_vandmat;
 	/* Submatrix of Vandermonde matrix used to compute parity. */
-	struct m0_matrix	     pmi_vandmat_parity_slice;
+	struct m0_matrix	pmi_vandmat_parity_slice;
 	/* structures used for non-incremental recovery */
-	struct m0_matrix	     pmi_sys_mat;
-	struct m0_matvec	     pmi_sys_vec;
-	struct m0_matvec	     pmi_sys_res;
-	struct m0_linsys	     pmi_sys;
+	struct m0_matrix	pmi_sys_mat;
+	struct m0_matvec	pmi_sys_vec;
+	struct m0_matvec	pmi_sys_res;
+	struct m0_linsys	pmi_sys;
 	/* Data recovery matrix that's inverse of pmi_sys_mat. */
-	struct m0_matrix             pmi_recov_mat;
+	struct m0_matrix	pmi_recov_mat;
 
 #ifndef __KERNEL__
-	uint8_t                     *encode_matrix;
-	uint8_t                     *g_tbls;
-	uint8_t                    **data_frags;
-	uint8_t                    **parity_frags;
+	/* Pointer to sets of arrays of input coefficients used
+	 * to encode or decode data.*/
+	uint8_t		       *encode_matrix;
+	/* Pointer to concatenated output tables */
+	uint8_t		       *g_tbls;
 #endif
 };
 
@@ -141,14 +144,30 @@ struct m0_sns_ir {
 	uint32_t		si_local_nr;
 	/* Array holding all blocks */
 	struct m0_sns_ir_block *si_blocks;
+#ifdef __KERNEL__
 	/* Vandermonde matrix used during RS encoding */
 	struct m0_matrix	si_vandmat;
 	/* Recovery matrix for failed data blocks */
 	struct m0_matrix	si_data_recovery_mat;
+#endif
 	/* Recovery matrix for failed parity blocks. This is same as
 	 * math::pmi_vandmat_parity_slice.
 	 */
 	struct m0_matrix	si_parity_recovery_mat;
+
+#ifndef __KERNEL__
+	/* Pointer to sets of arrays of input coefficients used
+	 * to encode or decode data.*/
+	uint8_t		       *encode_matrix;
+	/* Pointer to concatenated output tables */
+	uint8_t		       *g_tbls;
+	/* Number of failed blocks */
+	uint32_t		si_failed_nr;
+	/* Array holding indices of all failed blocks */
+	uint8_t		       *si_failed_idx;
+	/* Array holding indices of all alive blocks */
+	uint8_t		       *si_alive_idx;
+#endif
 };
 
 /**

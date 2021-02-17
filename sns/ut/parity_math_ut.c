@@ -714,9 +714,11 @@ static void direct_recover(struct m0_parity_math *math,  struct m0_bufvec *x,
 	ret = m0_sns_ir_mat_compute(&ir);
 	M0_UT_ASSERT(ret == 0);
 
+#ifdef __KERNEL__
 	M0_UT_ASSERT(ergo(ir.si_failed_data_nr != 0,
 			  ir.si_data_recovery_mat.m_width ==
 			  ir.si_data_nr));
+#endif
 
 	ret = m0_matvec_init(&r, ir.si_failed_data_nr);
 	M0_UT_ASSERT(ret == 0);
@@ -797,6 +799,28 @@ static void rhs_prepare(const struct m0_sns_ir *ir, struct m0_matvec *des,
 static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
 			struct m0_matvec *r)
 {
+#ifndef __KERNEL__
+	uint8_t **src;
+	uint8_t **dest;
+	uint32_t i;
+
+	M0_ALLOC_ARR(src, b->mv_size);
+	M0_UT_ASSERT(src != NULL);
+
+	M0_ALLOC_ARR(dest, r->mv_size);
+	M0_UT_ASSERT(dest != NULL);
+
+	for (i = 0; i < b->mv_size; i++)
+		src[i] = (uint8_t *)&b->mv_vector[i];
+
+	for (i = 0; i < r->mv_size; i++)
+		dest[i] = (uint8_t *)&r->mv_vector[i];
+
+	ec_encode_data(1, b->mv_size, r->mv_size, ir->g_tbls, src, dest);
+
+	m0_free(src);
+	m0_free(dest);
+#else
 	const struct m0_matrix *rm = &ir->si_data_recovery_mat;
 
 	if (ir->si_failed_data_nr != 0) {
@@ -804,6 +828,7 @@ static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
 		M0_UT_ASSERT(rm->m_height == ir->si_failed_data_nr);
 		m0_matrix_vec_multiply(rm, b, r, m0_parity_mul, m0_parity_add);
 	}
+#endif
 }
 
 static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
