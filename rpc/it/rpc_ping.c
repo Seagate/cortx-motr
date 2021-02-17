@@ -56,7 +56,11 @@
 #  include "module/instance.h"  /* m0 */
 #endif
 
+#ifdef ENABLE_LIBFAB
+#define TRANSPORT_NAME       "libfab"
+#else
 #define TRANSPORT_NAME       "lnet"
+#endif
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 #define SERVER_ENDPOINT      TRANSPORT_NAME ":" SERVER_ENDPOINT_ADDR
 
