@@ -7,7 +7,7 @@ State machine documentation
 :copyright: Seagate
 :distribution: unlimited
 
-:abstract: This document describes motr library.
+:abstract: This document describes how and why state machines are used by motr.
 
 Stakeholders
 ============
@@ -18,11 +18,6 @@ Stakeholders
 | nikita   | Nikita Danilov       | nikita.danilov@seagate.com | author,        |
 |          |                      |                            | architect      |
 +----------+----------------------+----------------------------+----------------+
-
-Overview
-========
-
-This document describes how and why state machines are used by motr.
 
 Introduction
 ============
@@ -256,12 +251,15 @@ Here is a simplified example of a fom phase transition diagram.
 
 .. image:: phase-diagram.png
 
-Here blue arrows are blocking phase transitions.
+The blue arrows are blocking phase transitions.
 
 Actual phase transition diagrams are much more complex. Take the diagram of cas
 fom as an example.
       
 .. image:: cas.png
+
+State machine programming
+=========================
 
 State machine module (`sm/ directory
 <https://github.com/Seagate/cortx-motr/tree/main/sm>`_) and fom (`fop/fom.h
@@ -270,6 +268,9 @@ for non-blocking fom implementation. Phase transition code is kept in a *tick
 function*. Return value of this function determines whether fom goes to the
 ready or wait list.
 
+
+
+===
 AST
 ===
 
@@ -337,6 +338,14 @@ lists that do not require locking. All together, fom wakeup looks like this:
 		    wait_not_empty(&loc->run_list);
 	    }
             unlock(&loc->l_lock);
+    }
+
+    /** Lockless list addition. */
+    void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast) {
+            do {
+                    ast->sa_next = grp->s_forkq;
+            } while (!compare_and_swap(&grp->s_forkq, ast->sa_next, ast));
+            m0_clink_signal(&grp->s_clink);
     }
 
 ..  LocalWords:   waitpid mutices
