@@ -1112,14 +1112,14 @@ Abandoned (ABANDON)
 Literature
 ==========
 
-The Evolution of Effective B-tree Page Organization and Techniques: A Personal Account
+`The Evolution of Effective B-tree Page Organization and Techniques: A Personal Account <https://www2.cs.duke.edu/courses/spring03/cps216/papers/lomet-2001.pdf>`_
 
-Efficient Locking for Concurrent Operations on B-Trees]]
+`Efficient Locking for Concurrent Operations on B-Trees <https://github.com/Seagate/cortx-motr/blob/documentation/doc/dev/btree/Efficient%20Locking%20for%20Concurrent%20Operations%20on%20B-Trees.pdf>`_
 
-Bmad-Tree: An Efficient Data Structure for Parallel Processing]]
+`Concurrent Operations on B*-Trees with Overtaking <https://core.ac.uk/download/pdf/82156908.pdf>`_
 
-"On-line Reorganization of
-                     	Sparsely-populated B^+-trees" by Chendong Zou and
-                     	Betty Salzberg (http://citeseer.nj.nec.com/zou96line.html):
+..
+   http://www.cs.cmu.edu/afs/cs.cmu.edu/academic/class/15712-s05/www/lectures/Lehman81lecture.pdf
 
+   https://pages.cs.wisc.edu/~zuyu/summaries/cs764/bLinkTree
 
