@@ -31,7 +31,11 @@
 #include "net/bulk_mem.h"     /* m0_net_bulk_mem_xprt */
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#ifdef ENABLE_LIBFAB
+#define SERVER_ENDPOINT      "libfab:" SERVER_ENDPOINT_ADDR
+#else
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
+#endif
 
 extern const struct m0_tl_descr ndoms_descr;
 

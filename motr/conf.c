@@ -70,7 +70,11 @@ static void option_add(struct cs_args *args, char *s)
 static char *
 strxdup(const char *addr)
 {
+#ifdef ENABLE_LIBFAB
+	static const char  xpt[] = "libfab:";
+#else
 	static const char  xpt[] = "lnet:";
+#endif
 	char		  *s;
 
 	s = m0_alloc(strlen(addr) + sizeof(xpt));

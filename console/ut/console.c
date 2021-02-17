@@ -53,7 +53,11 @@ static struct m0_rpc_machine cons_mach;
 #define CLIENT_ENDPOINT_ADDR       "0@lo:12345:34:2"
 
 #define SERVER_ENDPOINT_ADDR	   "0@lo:12345:34:1"
+#ifdef ENABLE_LIBFAB
+#define SERVER_ENDPOINT		   "libfab:" SERVER_ENDPOINT_ADDR
+#else
 #define SERVER_ENDPOINT		   "lnet:" SERVER_ENDPOINT_ADDR
+#endif
 #define SERVER_DB_FILE_NAME	   "cons_server_db"
 #define SERVER_STOB_FILE_NAME	   "cons_server_stob"
 #define SERVER_ADDB_STOB_FILE_NAME "linuxstob:cons_server_addb_stob"
