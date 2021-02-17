@@ -186,3 +186,17 @@ The following operations are defined for segments:
 - create a segment backed up by a remote storage object; 
 
 - destroy a segment, none of which pages are assigned to tables. 
+
+***************************
+Logical Specification
+***************************
+
+Internally, a lostore domain belongs to one of the following types:
+
+- a db5 domain, where tables are implemented as db5 databases and transactions as db5 transactions; 
+
+- an rvm domain, where tables are implemented as hash tables in the RVM segments and transactions as RVM transactions; 
+
+- a light domain, where tables are implemented as linked lists in memory and transactions calls are ignored.  
+
+
