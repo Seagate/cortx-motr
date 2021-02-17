@@ -108,4 +108,81 @@ lostore transaction provide very weak guarantees, compared with the typical ACID
 
 - no durability: lostore transactions are made durable asynchronously, see the Definitions section above.
 
-The requirement of non-blocking access to tables implies that access is implemented as a state machine, rather than a function call. The same state machine is used to iterate over tables.  
+The requirement of non-blocking access to tables implies that access is implemented as a state machine, rather than a function call. The same state machine is used to iterate over tables. 
+
+*************************
+Functional Specification
+*************************
+
+mdstore and iostore use lostore to access a data-base, where meta-data are kept. Meta-data are orgianised according to a meta-data schema, which is defined as a set of lostore tables referencing each other together with consistency constraints.
+
+lostore public interface consists of the following major types of entities: 
+
+- table type: defines common characteristics of all table of this type, including:
+
+  - structure of keys and records, 
+
+  - optional key ordering, 
+
+  - usage hints (e.g., how large is the table? Should it be implemented as a b-tree or a hash table?)  
+
+- table: defines table attributes, such as persistence, name; 
+
+- segment: segment attributes such as volatility or persistency. A segment can be local or remote; 
+
+- transaction: transaction object can be created (opened) and closed (committed or aborted). Persistence notification can be optionally delivered, when the transaction becomes persistent; 
+
+- table operation, table iterator: a state machine encoding the state of table operation; 
+
+- domain: a collection of tables sharing underlying data-base implementation. A transaction is confined to a single domain. 
+
+Tables
+========
+
+For a table type, a user has to define operations to encode and decode records and keys (unless the table is sack, in which case key encoding and decoding functions are provided automatically) and optional key comparison function. It's expected that encoding and decoding functions will often be generated automatically in a way similar to fop encoding and decoding functions. 
+
+Following functions are defined on tables:
+
+- create: create a new instance of a table type. The table created can be either persistent or volatile, as specified by the user. Backing segment can be optionally specified; 
+
+- open: open an existing table by name; 
+
+- destroy: destroy a table; 
+
+- insert: insert a pair into a table; 
+
+- lookup: find a pair given its key; 
+
+- delete: delete a pair with a given key; 
+
+- update: replace pair's record with a new value; 
+
+- next: move to the pair with the next key; 
+
+- follow: follow a pointer to a record.
+
+Transactions
+=============
+
+The following operations are defined for transactions:
+
+- open: start a new transaction. Transaction flags can be specified, e.g., whether the transaction can be aborted, whether persistence notification is needed. 
+
+- add: add an update to the transaction. This is internally called as part of any table update operation (insert, update, delete); 
+
+- commit: close the transaction; 
+
+- abort: close the transaction and roll it back; 
+
+- force: indicate that transaction should be made persistent as soon as possible.  
+
+Segments
+=============
+
+The following operations are defined for segments:
+
+- create a segment backed up by a storage object (note that because the meta-data describing the storage object are accessible through lostore, the boot-strapping issues have to be addressed); 
+
+- create a segment backed up by a remote storage object; 
+
+- destroy a segment, none of which pages are assigned to tables. 
