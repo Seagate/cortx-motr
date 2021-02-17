@@ -206,10 +206,11 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 	* (which must be less than 1024), followed by a set bit (guaranteeing
 	* that the port is not reserved), followed by 5 bits of (portal - 30),
 	* so that portal must be in the range 30..61.
-	*/
+	*
 	if (tmid >= 1024 || (portal - 30) >= 32)
 		return M0_ERR_INFO(-EPROTO,
 			"portal: %u, tmid: %u", portal, tmid);
+	*/
 
 	portnum  = htons(tmid | (1 << 10) | ((portal - 30) << 11));
 	sprintf(port, "%d", portnum);
@@ -221,7 +222,7 @@ static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
 				      size_t nodeSize, char *port,
 				      size_t portSize)
 {
-	int   shift;
+	int   shift = 0;
 	int   f;
 	int   s;
 	char *at;

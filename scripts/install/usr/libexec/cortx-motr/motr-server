@@ -221,10 +221,12 @@ m0_server()
     fi
 
     local service_ep
+    local motr_transport=$(m0_get_motr_transport)
+    m0_log "motr transport : $motr_transport"
     if [[ $service == ha ]]; then
-        service_ep="lnet:$ha_ep"
+        service_ep="$motr_transport:$ha_ep"
     else
-        service_ep="lnet:${MOTR_M0D_EP:-$(m0_get_ep_of $service)}"
+        service_ep="$motr_transport:${MOTR_M0D_EP:-$(m0_get_ep_of $service)}"
         MOTR_M0D_OPTS+=${ha_ep:+ -H $ha_ep}
     fi
 

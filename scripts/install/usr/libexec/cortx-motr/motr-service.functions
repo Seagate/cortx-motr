@@ -269,6 +269,22 @@ m0_get_lnet_nid()
     echo $lnid
 }
 
+# Return the default transport
+# If libfab is available, then that is chosen as the transport
+m0_get_motr_transport()
+{
+    local trans
+
+    trans=$(fi_info)
+    if [[ $? == 0 ]]; then
+        trans="libfab"
+    else
+        trans="lnet"
+    fi
+
+    echo $trans
+}
+
 # Return space-separated list of all services for particular node
 #   @param  $1  optional name of a node, for which the query is performed, if
 #               ommited, then value is returned for current node
