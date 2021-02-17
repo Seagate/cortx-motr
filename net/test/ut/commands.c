@@ -18,8 +18,6 @@
  * please email opensource@seagate.com or cortx-questions@seagate.com.
  *
  */
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
-#include "lib/trace.h"          /* M0_ENTRY() */
 
 
 #include "ut/ut.h"		/* M0_UT_ASSERT */
@@ -369,7 +367,6 @@ static void commands_node_thread(struct net_test_cmd_node *node)
 	barrier_with_main(node);	/* barrier #6.7 */
 	barrier_with_main(node);	/* barrier #6.8 */
 	m0_net_test_commands_fini(&node->ntcn_ctx);
-	// M0_LOG(M0_ALWAYS," node[%d] fini ", node->ntcn_index);
 }
 
 static void send_all(size_t nr, struct m0_net_test_cmd *cmd)
@@ -510,7 +507,6 @@ static void net_test_command_ut(size_t nr)
 	   commands, but other half of nodes send.
 	   Console receives commands from every node.
 	 */
-	// M0_LOG(M0_ALWAYS," 3 started ............... ");
 	flags_reset(nr);
 	commands_ut_recv_all(nr, timeout_get_abs());
 	M0_UT_ASSERT(is_flags_set_odd(nr));
@@ -566,7 +562,6 @@ static void net_test_command_ut(size_t nr)
 	barrier_with_nodes();				/* barrier #6.7 */
 	M0_UT_ASSERT(is_flags_set(nr, true));
 	barrier_with_nodes();				/* barrier #6.8 */
-
 	/* stop all threads */
 	for (i = 0; i < nr; ++i) {
 		rc = m0_thread_join(&node[i].ntcn_thread);
@@ -748,7 +743,6 @@ void m0_net_test_cmd_ut_multiple2(void)
 		barrier_fini(node);
 	}
 }
-#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
