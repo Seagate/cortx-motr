@@ -89,4 +89,45 @@ Logical Specification
 Index Layouts
 ===============
 
+Index layouts are based on N+K+S parity de-clustered layout algorithm, with the following modifications:
+
+- N = 1. The layout provides (K+1)-way replication;
+
+- parity de-clustered layouts for data objects come with unit size as a parameter. Unit size is used to calculate parity group number, which is an essential input to the parity de-clustered layout function. For indices there is no natural way to partition key-space into units, so the implementation should provide some flexibility to select suitable partitioning. One possible (but not mandated) design is calculate unit number by specifying an identity mask within a key:
+
+ - identity mask is a sequence of ranges of bit positions in index key (keys are considered as bit-strings): [S0, E0], [S1, E1], ..., [Sm, Em], here Si and Ei are bit-offsets counted from 0. The ranges can be empty, overlapping and are not necessarily monotone offset-wise;
+
+ - given a key bit-string X, calculate its seed as
+
+   - seed = X[S0, E0]::X[S1, E1]:: ... :: X[Sm, Em
+
+   where :: is bit-string concatenation
+
+ - if the layout is hashed (a Boolean parameter), then the key belongs to the parity group hash(seed), where hash is some fixed hash function, otherwise (not hashed), the parity group number equals seed, which must not exceed 64 bits;
+
+ - the intention is that if it is known that some parts of keys of a particular index have good statistical properties, e.g., are generated as a sequential counter, these parts of the key can be included in the identity mask of a non-hashed layout. In addition, some parts of a key can be omitted from the identity mask to improve locality of reference, so that "close" keys are stored in the same component catalogue, increasing the possibility of network aggregation. Note that a user can always use a hash function tailored for a particular index by appending arbitrary hash values to the keys.
+
+A few special cases require special mention:
+
+- redundant, but not striped layout is a layout with the empty identity mask. In an index with such layout, all records belong to the same parity group. As a result, the index is stored in (K+1) component catalogues. The location of the next record is known in advance and iteration through the index can be implemented without broadcasting all component catalogues. The layout provides fault-tolerance, but doesn't provide full scalability within a single index, specifically the total size of an index is bound by the size of the storage controlled by a single catalogue service. Note, however that different indices with the same layout will use different sets of services;
+
+- fully hashed layout is a layout with infinite identity mask [0, +∞] and with "hashed" attribute true. Records of an index with such layout are uniformly distributed across the entire pool. This layout is the default layout for "generic" indices;
+
+- fid index layout. It is expected that there will be many indices using fids as keys. The default hash function should work effectively in this case. Similarly for the case of an index, where a 64-bit unsigned integer is used as a key;
+
+- lingua franca layout is the layout type optimised for storing lingua franca namespace indices, by hashing filename part of the key and omitting attributes from the hash.
+
+Layout descriptor is the set of parameters necessary to do index operations. Layout descriptor consists of:
+
+- storage pool version fid. Component catalogues of an index using the layout are stored in the pool version. Pool version object is stored in confc and contains, among other attributes, N, K, and P;
+
+- identity mask, as described above;
+
+- hashed flag, as described above (or the identifier of a hash function to use for this layout, if multiple hash functions are supported);
+
+- for uniformity, layout descriptors are also defined for catalogues (i.e., non-distributed indices). A catalogue layout descriptor consists of the fid of the service hosting the catalogue.
+
+Typically a layout descriptor will be shared by a large number of indices. To reduce the amount of meta-data, a level of indirection is introduced, see the Internal meta-data sub-section below.
+
+In-memory representation of a clovis index includes index fid and index layout descriptor.
 
