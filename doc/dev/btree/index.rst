@@ -331,29 +331,39 @@ High-level requirements from Clarification section are refined as following:
      - [r.btree.performance], [r.btree.future-proof]
 
    * - [**r.btree.throughput**]
-     -
-     - [r.btree.performance]
+     - btree throughput (measures as total size of key and value processed per
+       second in a given workload) should be sufficient for ldrr2 requirements
+     - [r.btree.performance], [r.btree.r2p0]
     
    * - [**r.btree.concurrency**]
-     -
-     - [r.btree.performance]
+     - btree concurrency (measured as the number of operations per second at
+       which the maximal throughput is attained) should be sufficient for ldrr2
+       requirements
+     - [r.btree.performance], [r.btree.r2p0]
     
    * - [**r.btree.ops-per-second**]
-     -
-     - [r.btree.performance]
+     - btree concurrency (measured as number of operations per second completed
+       against a single tree) should be sufficient for ldrr2 requirements
+     - [r.btree.performance], [r.btree.r2p0]
     
    * - [**r.btree.memory**]
-     -
+     - memory footprint of btree implementation is reduced
      - [r.btree.performance]
     
    * - [**r.btree.io**]
-     -
+     - io footprint of btree implementation is reduced
      - [r.btree.performance]
     
    * - [**r.btree.capture**]
-     -
+     - transactional footprint (measured as amount of updated memory captured to
+       the transaction by a btree operation) is reduced
      - [r.btree.performance]
-    
+
+   * - [**r.btree.loads**]
+     - amount of segment page loads (*i.e.*, synchronous read operations) in a
+       btree operation should be minimised
+     - [r.btree.io]
+
    * - [**r.btree.opt.blink**]
      - optional b-link is supported in the future
      - [r.btree.features], [r.btree.concurrency]
@@ -568,8 +578,8 @@ Tasks.
      - estimate
 
    * - DLD0
-     - Detailed-level design phase, part 0. Because of complexity DLD creation
-       is split in 2 parts.
+     - Detailed-level design phase, part 0. Because of complexity, DLD creation
+       is split in multiple parts.
 
        Inputs:
 
