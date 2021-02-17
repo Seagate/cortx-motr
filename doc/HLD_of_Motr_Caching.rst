@@ -64,4 +64,33 @@ Confc's obtain configuration data from configuration server (confd); only the la
 
 Configuration consumer accesses configuration information, which is stored in the configuration cache. The cache is maintained by confc library. If the data needed by a consumer is not cached, confc will fetch this data from confd. 
 
-Confd has its own configuration cache. If the data requested by a confc is missing from this cache, confd gets the information from the configuration database. 
+Confd has its own configuration cache. If the data requested by a confc is missing from this cache, confd gets the information from the configuration database.
+
+Configuration Data Model
+==============================
+
+Configuration database consists of tables, each table being a set of {key, value} pairs. The schema of configuration database is documented in [2]. Confd and confc organize configuration data as a directed acyclic graph (DAG) with vertices being configuration objects and edges being relations between objects.
+
+Profile object is the root of configuration data provided by confc. To access other configuration objects, a consumer follows the links (relations), “descending” from the profile object. 
+
+ ::
+
+  profile 
+
+    \_ filesystem 
+
+        \_ service 
+
+           \  _ node 
+
+              \_ nic 
+
+                 \_ storage device 
+
+                    \_ partition 
+
+Relation is a pointer from one configuration object to another configuration object or to a collection of objects. In the former case it is one-to-one relation, in the latter case it is one-to-many. 
+
+Some relations are explicitly specified in corresponding records of the configuration database (e.g., a record of “profiles” table contains name of the filesystem associated with this profile).  Other relations are deduced by the confd (e.g., the list of services that belong given filesystem is obtained by scanning “services” table and selecting entries with particular value of ‘filesystem’ field).
+
+
