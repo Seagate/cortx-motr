@@ -131,3 +131,61 @@ Typically a layout descriptor will be shared by a large number of indices. To re
 
 In-memory representation of a clovis index includes index fid and index layout descriptor.
 
+Internal meta-data
+===================
+
+The root index is intended to be a small index containing some small number of rarely updated global meta-data. As the root index is small and rarely updated it can be stored in highly replicated default pool (specified in confd), that can remain unchanged as system configuration changes over time.
+
+Layout and layout-descr indices collectively provide layouts to indices. Separation between layout and layout-desc allows layout descriptors to be shared between indices. A record in the layout index can contain as value either a layout identifier (usual case) or full layout descriptor (special case). Because layout-descr and especially layout indices can grow very large, it is not possible to store them once and for all in the original default pool. Instead, the layout descriptors of the layout and layout-descr indices are stored in the root index. When system grows layout index can be migrated to a larger pool and its layout descriptor in the root index updated.
+
+A catalogue-index is a local (non-distributed) catalogue maintained by the index sub-system on each node in the pool. When a component catalogue is created for a distributed index, a record mapping the catalogue to the index is inserted in the catalogue-index. This record is used by the index repair and re-balance to find locations of other replicas.
+
+Client
+===========
+
+Initialisation
+
+- find default index pool in confc
+
+- construct root index layout descriptor
+
+- fetch layout and layout-descr layouts from the root index
+
+Index creation
+
+- construct layout descriptor
+
+- cas-client: send CREATE to all casses holding the component catalogues
+
+Index open
+
+- cas-client: look up in layout, given index fid, get layout-id or layout descriptor
+
+- if got identifier, lookup descriptor in layout-descr
+
+Index operation (get, put, next)
+
+- use layout descriptor to find component catalogues
+
+- cas-client: operate on the component catalogues
+
+Operation concurrent with repair or re-balance
+
+- use spare components;
+
+- for PUT, use overwrite flag (see below), when updating the spare;
+
+- for re-balance, update correct replicas, spares and re-balance target (use overwrite
+
+flag);
+
+- for DEL, delete from spares, re-balance target and correct replicas;
+
+- DEL is 2 phase:
+
+  - use cas-client to update correct replicas, get reply
+
+  - use cas-client to update spares and re-balance target
+
+This avoids a possible race, where repair send old value to the spares concurrently with a client update.
+
