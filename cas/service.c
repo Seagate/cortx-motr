@@ -20,6 +20,10 @@
  */
 
 
+#include "be/op.h"
+#include "be/tx_credit.h"
+#include "dtm0/fop.h"
+#include "dtm0/fop_xc.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CAS
 
 #include "lib/trace.h"
@@ -277,7 +281,7 @@
  * - HLD of the catalogue service :
  * For documentation links, please refer to this file :
  * doc/motr-design-doc-list.rst
- * 
+ *
  * @{
  */
 
@@ -1335,6 +1339,24 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			m0_ctg_op_init(&fom->cf_ctg_op, fom0,
 				       cas_op(fom0)->cg_flags);
 		}
+
+		/* If cas request has a txr payload, this a dtm0 operation.
+		 * We need to calculate credits for creating a dtm0 log record.
+		 *
+		 */
+		if (!m0_dtm0_tx_desc_is_none(&cas_op(fom0)->cg_txd)) {
+			/*
+			struct m0_be_tx_credit dtm0logrec_cred;
+
+			m0_be_dtm0_log_credit(M0_DTML_EXECUTED,
+					      tx,
+					      cas_op(fom0)->cg_txd,
+					      m0_fom_reqh(fom0)->rh_beseg,
+					      &dtm0logrec_cred);
+			m0_be_tx_credit_add(&fom0->fo_tx.tx_betx_cred, &dtm0logrec_cred);
+					      */
+		}
+
 		m0_fom_phase_set(fom0, M0_FOPH_TXN_OPEN);
 		/*
 		 * @todo waiting for transaction open with btree (which can be
