@@ -64,3 +64,29 @@ Relevant requirements from the Motr Summary Requirements table:
 
 - [r.m0.layout.meta-data]: layouts for meta-data are supported.
 
+******************
+Design Highlights
+******************
+
+An index is stored in a collection of catalogues, referred to as component catalogues (similarly to a component object, cob), distributed across the pool according to the index layout. Individual component catalogues are either created during explicit index creation operation or created lazily on the first access.
+
+To access the index record with a known key, the hash of the key is calculated and used as the data unit index input of parity de-clustered layout algorithm. The algorithm outputs the locations of N+K component catalogues, where the replicas of the record are located and S component catalogues that hold spare space for the record. Each component catalogue stores a subset of records of the index without any transformation of keys or values.
+
+Iteration through an index from a given starting key is implementing by querying all component catalogues about records following the key and merge-sorting the results. This requires updating catalogue service to correctly handle NEXT operation with a non-existent starting key.
+
+New fid type is registered for index fids.
+
+***************************
+Functional Specification
+***************************
+
+Indices are available through Clovis interface. Spiel and HA interfaces are extended to control repair and re-balance of indices.
+
+***************************
+Logical Specification
+***************************
+
+Index Layouts
+===============
+
+
