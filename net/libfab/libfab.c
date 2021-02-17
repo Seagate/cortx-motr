@@ -1937,8 +1937,7 @@ static void libfab_bev_notify(struct m0_net_transfer_mc *ma,
 static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
 {
 	/*TODO: Get proper value from libfabric domain attribute */
-//	return M0_BCOUNT_MAX / 16;
-	return 1048576;
+	return M0_BCOUNT_MAX / 2;
 }
 
 /**
@@ -1951,8 +1950,7 @@ static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
 static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
 {
 	/*TODO: Get proper value from libfabric domain attribute */
-//	return M0_BCOUNT_MAX / 16;
-	return 4096;	
+	return M0_BCOUNT_MAX / 2;
 }
 
 /**
@@ -1965,8 +1963,7 @@ static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
 static int32_t libfab_get_max_buf_segments(const struct m0_net_domain *dom)
 {
 	/*TODO: Get proper value from libfabric domain attribute */
-//	return  INT32_MAX / 16;
-        return 256;	
+	return  INT32_MAX / 2;
 }
 
 /**

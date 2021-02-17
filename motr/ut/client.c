@@ -273,6 +273,7 @@ M0_INTERNAL int ut_m0_client_init(struct m0_client **instance)
 	struct m0_pool_version *pv;
 	struct m0_pool_version *mdpv;
 
+	*instance = NULL;
 	m0_fi_enable_once("initlift_move_next_floor", "immediate_ret");
 	rc = INIT(instance);
 
@@ -381,6 +382,7 @@ M0_INTERNAL void ut_m0_client_fini(struct m0_client **instance)
 	m0_fi_disable("initlift_get_next_floor", "ut");
 
 	m0_client_fini(*instance, false);
+	*instance = NULL;
 }
 
 /* Don't use INIT after this point */

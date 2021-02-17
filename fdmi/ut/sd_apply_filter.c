@@ -179,8 +179,10 @@ static void fdmi_sd_apply_filter_internal(const struct m0_filterc_ops *ops)
 
 	M0_ENTRY();
 
-	fdmi_serv_start_ut(ops);
 	g_var_str = strdup("test");
+	M0_SET0(&g_conf_filter);
+
+	fdmi_serv_start_ut(ops);
 	m0_semaphore_init(&g_sem, 0);
 	rc = m0_fdmi_source_register(src);
 	M0_UT_ASSERT(rc == 0);
