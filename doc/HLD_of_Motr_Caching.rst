@@ -113,4 +113,120 @@ Some relations are explicitly specified in corresponding records of the configur
 
 Relation is a downlink if its destination is located further from the root of configuration DAG than the origin. Relation is an uplink if its destination is closer to the root than the origin. Configuration object is a stub if its status (.*_obj.co_status subfield) is not equal to M0_CS_READY. Stubs contain no meaningful configuration data apart from object’s type and key. Configuration object is pinned if its reference counter (.*_obj.co_nrefs subfield) is non-zero.  When a configuration consumer wants to use an object, it pins it in order protect existence of the object in the cache. Pinning of an object makes confc library request a corresponding distributed lock (resource) from the resource manager. 
 
+Path
+=====
+
+Imagine a sequence of downlinks and keys for which the following is true: 
+
+- the first element (if any) is a downlink; 
+
+- a one-to-many downlink is either followed by a key or is the last element; 
+
+- a key is preceded by a one-to-many downlink. 
+
+Such a sequence R and a configuration object X represent a path to configuration object Y if Y can be reached by starting at X and following all relations from R sequentially.  X object is called path origin, elements of R are path components. 
+
+Confc library uses m0_confc_path data structure to represent a path. The members of this structure are: 
+
+- p_origin --- path origin (struct m0_conf_obj*). NULL for absolute path; 
+
+- p_comps --- array of components. A component is either a downlink, represented by a type of target object (enum m0_conf_objtype), or a key. 
+
+Examples:
+
+- { NULL, [FILESYSTEM, SERVICE, “foo”, NODE, NIC, “bar”] } --- absolute path (origin = NULL) to the NIC with key “bar” of the node that hosts service “foo”; 
+
+- { node_obj, [SDEV, “baz”, PARTITION] } --- relative path to a list of partitions that belong “baz” storage device of a given node. 
+
+Subroutines
+==============
+
+- m0_confc_init() 
+
+  Initiates configuration client, creates the root configuration object. 
+
+  Arguments: 
+
+  - profile --- name of profile to be used by this confc; 
+
+  - confd_addr --- address of confd end point; 
+
+  - sm_group --- state machine group (struct m0_sm_group*) that will be associated with configuration cache.
+
+
+- m0_confc_open() 
+
+  Requests an asynchronous opening of a configuration object. Initiates retrieval of configuration data from the confd, if the data needed to fulfill this request is missing from configuration cache.  
+
+  Arguments:
+
+  - path --- path to configuration object. The caller must guarantee existence and immutability of path until the state machine, embedded in ctx argument, terminates or fails;
+
+  - ctx --- fetch context (struct m0_confc_fetchctx*) containing:
+
+     - state machine (struct m0_sm); 
+
+     - FOP (struct m0_fop); 
+
+     - asynchronous system trap (struct m0_sm_ast) that will be posted to confc’s state machine group when a response from confd arrives; 
+
+     - resulting pointer (void*) that will be set to the address of requested configuration object iff the state machine terminates successfully. Otherwise the value is NULL; 
+
+     - errno. 
+
+- m0_confc_open_sync() 
+
+  Synchronous variant of m0_confc_open(). Returns a pointer to requested configuration object or NULL in case of error. 
+
+  Argument: path --- path to configuration object. 
+
+- m0_confc_close() 
+
+  Closes a configuration object opened with m0_confc_open() or m0_confc_open_sync().
+
+- m0_confc_diropen() 
+
+  Requests an asynchronous opening of a collection of configuration objects. Initiates retrieval of configuration data from the confd, if the data needed to fulfill this request is missing from configuration cache. 
+
+  Arguments:
+
+  - path --- path to collection of configuration objects. The caller must guarantee existence and immutability of path until the state machine, embedded in ctx argument, terminates or fails; 
+
+  - ctx --- fetch context (the structure is described above). Its ‘resulting pointer’ member will be set to non-NULL opaque value iff the state machine terminates successfully. This value is an argument for m0_confc_dirnext() and m0_confc_dirclose() functions.
+
+- m0_confc_diropen_sync() 
+
+  Synchronous variant of m0_confc_diropen(). Returns an opaque pointer to be passed to m0_confc_dirnext(). Returns NULL in case of error. 
+
+- m0_confc_dirnext() 
+
+  Returns next element in a collection of configuration objects. 
+
+  Argument: dir --- opaque pointer obtained from a fetch context (see ctx argument of m0_confc_diropen()). 
+
+- m0_confc_dirclose() 
+
+  Closes a collection of configuration objects opened with m0_confc_diropen() or m0_confc_diropen_sync(). 
+
+  Argument: dir --- opaque pointer obtained from a fetch context. 
+    
+- m0_confc_fini() 
+
+  Terminating routine: destroys configuration cache, freeing allocated memory.
+
+FOP Types
+=================
+
+Confc requests configuration information by sending m0_conf_fetch FOP to confd.  This FOP contains the path to the requested configuration object/directory.  Note that the path in FOP may be shorter then the path originally specified in m0_confc_*open*() call: if some of the objects are already present in confc cache, there is no reason to re-fetch them from confd.
+
+Confd replies to m0_conf_fetch with m0_conf_fetch_resp FOP, containing: 
+
+- status of the retrieval operation (0 = success, -Exxx = failure); 
+
+- array (SEQUENCE in .ff terms) of configuration object descriptors.
+
+If the last past component, specified in m0_conf_fetch, denotes a directory (i.e., a collection of configuration objects), then confd’s reply must include descriptors of all the configuration objects of this directory.  For example, if a path targets a collection of partitions, then m0_conf_fetch_resp should describe every partition of the targeted collection.   
+
+Note that in the future, configuration data will be transferred from confd to confc using RPC bulk interfaces. Current implementation embeds configuration information in a response FOP and uses encoding and decoding functions generated by fop2c from .ff description. 
+
 
