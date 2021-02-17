@@ -155,7 +155,6 @@ void m0_net_test_nh_cmd_status(struct m0_net_test_nh *nh,
 	m0_net_test_nh_sd_get_locked(nh, &reply->ntc_status_data);
 }
 
-
 /**
    @} end of NetTestNodeHelperInternals group
  */
