@@ -382,6 +382,7 @@ static void run_test(const struct m0_ut *test, size_t max_name_len)
 		name_len += strlen(test->t_owner) + 2; /* 2 for [] */
 	} else
 		m0_console_printf(LOG_PREFIX "  %s  ", test->t_name);
+	m0_console_flush();
 	mem_before = m0_allocated_total();
 	start      = m0_time_now();
 
@@ -401,6 +402,7 @@ static void run_test(const struct m0_ut *test, size_t max_name_len)
 			  (int)pad_len, padding, m0_time_seconds(duration),
 			  m0_time_nanoseconds(duration) / M0_TIME_ONE_MSEC / 10,
 			  m0_bcount_with_suffix(mem, ARRAY_SIZE(mem), mem_used));
+	m0_console_flush();
 }
 
 static int run_suite(const struct m0_ut_suite *suite, int max_name_len)
@@ -420,9 +422,11 @@ static int run_suite(const struct m0_ut_suite *suite, int max_name_len)
 	int       rc = 0;
 
 	if (suite->ts_masked) {
-		if (suite->ts_enabled)
+		if (suite->ts_enabled) {
 			m0_console_printf("#\n# %s  <<<<<<<<<<<<   -=!!!  "
 					  "DISABLED  !!!=-\n#\n", suite->ts_name);
+			m0_console_flush();
+		}
 		return 0;
 	}
 
@@ -434,6 +438,7 @@ static int run_suite(const struct m0_ut_suite *suite, int max_name_len)
 				  suite->ts_name, suite->ts_owners);
 	else
 		m0_console_printf("%s \n", suite->ts_name);
+	m0_console_flush();
 
 	alloc_before = m0_allocated();
 	mem_before   = m0_allocated_total();
@@ -482,6 +487,7 @@ static int run_suite(const struct m0_ut_suite *suite, int max_name_len)
 							   mem_used)),
 			  skipspaces(m0_bcount_with_suffix(leak, ARRAY_SIZE(leak),
 						  alloc_after - alloc_before)));
+	m0_console_flush();
 	return rc;
 }
 
@@ -541,7 +547,7 @@ M0_INTERNAL int m0_ut_run(void)
 	mem_str     = skipspaces(m0_bcount_with_suffix(
 					 leak, ARRAY_SIZE(leak),
 					 alloc_after - alloc_before));
-	if (rc == 0)
+	if (rc == 0) {
 		m0_console_printf("\nTime: %" PRIu64 ".%02" PRIu64 " sec,"
 				  " Mem: %sB, Leaked: %sB, Asserts: %" PRIu64
 				  "\nUnit tests status: SUCCESS\n",
@@ -550,6 +556,8 @@ M0_INTERNAL int m0_ut_run(void)
 					M0_TIME_ONE_MSEC / 10,
 				  leak_str, mem_str,
 				  m0_atomic64_get(&m->ut_asserts));
+		m0_console_flush();
+	}
 	return rc;
 }
 M0_EXPORTED(m0_ut_run);

@@ -989,7 +989,6 @@ static int libfab_aep_param_free(struct m0_fab__active_ep *aep,
 
 	if (aep == NULL)
 		return M0_RC(0);
-
 	if (aep->aep_ep != NULL) {
 		rc = fi_close(&(aep->aep_ep)->fid);
 		if (rc != FI_SUCCESS)

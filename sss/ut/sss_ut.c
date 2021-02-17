@@ -83,6 +83,7 @@ extern struct m0_fop_type m0_fop_process_fopt;
 static void rpc_client_and_server_start(void)
 {
 	int rc;
+	M0_SET0(&sctx.rsx_motr_ctx);
 	sctx.rsx_xprts = m0_net_all_xprt_get();
 	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());

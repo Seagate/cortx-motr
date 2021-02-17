@@ -74,6 +74,8 @@ void fdmi_serv_start_ut(const struct m0_filterc_ops *filterc_ops)
 	M0_LOG(M0_DEBUG, ">> fdmi_serv_start_ut ");
 
 	memset(reqh, 0, sizeof(struct m0_reqh));
+	M0_SET0(&g_sd_ut);
+	M0_SET0(&md);
 
 	sd_ut_lfile = fopen(LOG_FILE_NAME, "w+");
 	M0_UT_ASSERT(sd_ut_lfile != NULL);

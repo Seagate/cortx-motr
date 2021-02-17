@@ -51,6 +51,8 @@ static struct m0_be_seg        *seg0;
 static struct m0_reqh_service  *repair_svc;
 static struct m0_reqh_service  *rebalance_svc;
 static struct m0_fom_type       ut_fom_type;
+static struct m0_fom_type       ut_fom_type_rep;
+static struct m0_fom_type       ut_fom_type_reb;
 
 static struct m0_pool         pool;
 static struct m0_pools_common pc;
@@ -656,12 +658,25 @@ static void iter_ut_init(struct m0_reqh_service      **svc,
 	m0_reqh_service_start(*svc);
 	m0_reqh_start(&reqh);
 	m0_ctg_store_init(&be.but_dom);
-	m0_fom_type_init(&ut_fom_type,
-			 stype == &dix_repair_cmt.ct_stype ?
-				M0_CM_DIX_REP_ITER_UT_OPCODE :
-				M0_CM_DIX_REB_ITER_UT_OPCODE,
-			 &iter_ut_fom_type_ops, stype,
-			 &iter_ut_fom_conf);
+
+	if (stype == &dix_repair_cmt.ct_stype) {
+		/* If a fom type called m0_fom_type_init() once,
+		 * it has already registered. And another call
+		 * won't change its type. So we have to use another
+		 * variable to switch between different fom types.
+		 */
+		m0_fom_type_init(&ut_fom_type_rep,
+				 M0_CM_DIX_REP_ITER_UT_OPCODE,
+				 &iter_ut_fom_type_ops, stype,
+				 &iter_ut_fom_conf);
+		ut_fom_type = ut_fom_type_rep;
+	} else {
+		m0_fom_type_init(&ut_fom_type_reb,
+				 M0_CM_DIX_REB_ITER_UT_OPCODE,
+				 &iter_ut_fom_type_ops, stype,
+				 &iter_ut_fom_conf);
+		ut_fom_type = ut_fom_type_reb;
+	}
 }
 
 static void iter_ut_pool_fini()
@@ -1124,6 +1139,9 @@ static void one_dev_fail(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void two_devs_fail(void)
@@ -1202,6 +1220,9 @@ static void two_devs_fail(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void outside_dev_fail(void)
@@ -1373,6 +1394,9 @@ static void outside_dev_fail(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void empty_spare_fail(void)
@@ -1565,6 +1589,9 @@ static void empty_spare_fail(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void filled_spare_fail(void)
@@ -1932,6 +1959,9 @@ static void filled_spare_fail(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void many_keys_rep(void)
@@ -2023,6 +2053,9 @@ static void many_keys_rep(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void user_concur_rep(void)
@@ -2250,6 +2283,9 @@ static void user_concur_rep(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 /*
@@ -2510,6 +2546,9 @@ static void one_dev_reb(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void reb_coordinator(void)
@@ -2677,6 +2716,9 @@ static void reb_coordinator(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void outside_dev_reb(void)
@@ -2848,6 +2890,9 @@ static void outside_dev_reb(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void reb_unused(void)
@@ -3061,6 +3106,9 @@ static void reb_unused(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void many_keys_reb(void)
@@ -3151,6 +3199,9 @@ static void many_keys_reb(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void user_concur_reb(void)
@@ -3322,6 +3373,9 @@ static void user_concur_reb(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 struct m0_ut_suite dix_cm_iter_ut = {

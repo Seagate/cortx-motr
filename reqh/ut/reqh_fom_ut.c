@@ -429,6 +429,17 @@ void test_reqh(void)
 
 	path = "reqh_ut_stob";
 
+	sdom = NULL;
+	M0_SET0(&srv_mdstore);
+	M0_SET0(&srv_cob_dom_id);
+	M0_SET0(&srv_rpc_mach);
+	M0_SET0(&ut_be);
+	M0_SET0(&ut_seg);
+	reqh_ut_service = NULL;
+	fdmi_ut_service = NULL;
+	M0_SET0(&reqh);
+
+
 	m0_stob_io_fop_init();
 
 	M0_UT_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
