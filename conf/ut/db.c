@@ -132,6 +132,10 @@ static void test_confdb(void)
 		{ &m0_ut_conf_fids[M0_UT_CONF_DISKV], &diskv_check   }
 	};
 
+	M0_SET0(&ut_be);
+	M0_SET0(&ut_seg);
+	seg = NULL;
+
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
 

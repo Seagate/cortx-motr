@@ -504,7 +504,8 @@ int cr_op_namei(struct m0_workload_io  *cwi, struct m0_task_io *cti,
 
 	cr_log(CLL_TRACE, TIME_F" t%02d: %s objects...\n",
 	       TIME_P(m0_time_now()), cti->cti_task_idx,
-	       op_code == CR_CREATE ? "Creating" : "Deleting");
+	       op_code == CR_CREATE ? "Creating" :
+	       op_code == CR_OPEN ? "Opening" : "Deleting");
 	m0_semaphore_init(&cti->cti_max_ops_sem, cwi->cwi_max_nr_ops);
 	stime = m0_time_now();
 
@@ -565,7 +566,8 @@ int cr_op_namei(struct m0_workload_io  *cwi, struct m0_task_io *cti,
 			m0_obj_fini(&cti->cti_objs[i]);
 	cr_log(CLL_TRACE, TIME_F" t%02d: %s done.\n",
 	       TIME_P(m0_time_now()), cti->cti_task_idx,
-	       op_code == CR_CREATE ? "Creation" : "Deletion");
+	       op_code == CR_CREATE ? "Creation" :
+	       op_code == CR_OPEN ? "Open" : "Deletion");
 
 	return rc;
 }
