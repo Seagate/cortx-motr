@@ -73,7 +73,7 @@ static struct {
 	},
 
 	[M0_NET_XPRT_LIBFABRIC] = {
-		.name = "\"libfabric\" m0_net_xprt_module",
+		.name = "\"libfab\" m0_net_xprt_module",
 		.xprt = (struct m0_net_xprt *)&m0_net_libfab_xprt
 	}
 #endif

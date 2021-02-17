@@ -45,7 +45,11 @@
    @{
  */
 
+#ifdef ENABLE_LIBFAB
+#define ENDPOINT  "libfab:" SERVER_ENDPOINT_ADDR
+#else
 #define ENDPOINT  "lnet:" SERVER_ENDPOINT_ADDR
+#endif
 #define NAME(ext) "console_st_srv" ext
 
 static int signaled = 0;

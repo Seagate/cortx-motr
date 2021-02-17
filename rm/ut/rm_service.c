@@ -27,7 +27,11 @@
 #include "ut/ut.h"
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#ifdef ENABLE_LIBFAB
+#define SERVER_ENDPOINT      "libfab:" SERVER_ENDPOINT_ADDR
+#else
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
+#endif
 #define SERVER_DB            "server_db"
 #define SERVER_STOB          "server_stob"
 #define SERVER_ADDB_STOB     "linuxstob:server_addb_stob"
