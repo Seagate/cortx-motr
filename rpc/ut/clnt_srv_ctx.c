@@ -33,7 +33,7 @@
 #define SERVER_ADDB_STOB_NAME "linuxstob:rpc_ut_server.addb_stob"
 #define SERVER_LOG_NAME       "rpc_ut_server.log"
 #define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
-#define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
+#define SERVER_ENDPOINT       "libfab:" SERVER_ENDPOINT_ADDR
 
 enum {
 	MAX_RPCS_IN_FLIGHT = 1,
