@@ -33,7 +33,11 @@
 #include <stdio.h>
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#ifdef ENABLE_LIBFAB
+#define SERVER_ENDPOINT      "libfab:" SERVER_ENDPOINT_ADDR
+#else
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
+#endif
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:2"
 #define F_CONT 0x12345
 #define BARRIER_CNT 2

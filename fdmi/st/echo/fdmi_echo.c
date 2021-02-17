@@ -50,7 +50,11 @@
 #include <unistd.h>		/* read */
 #include "module/instance.h"  /* m0 */
 
+#ifdef ENABLE_LIBFAB
+#define TRANSPORT_NAME  "libfab"
+#else
 #define TRANSPORT_NAME  "lnet"
+#endif
 
 #define SERVER_DB_FILE_NAME        "echo_plugin_server.db"
 #define SERVER_STOB_FILE_NAME      "echo_plugin_server.stob"
