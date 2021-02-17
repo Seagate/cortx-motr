@@ -1,0 +1,9 @@
+body {
+    font-family: -apple-system;
+}
+
+div.body p, div.body dd, div.body li {
+    line-height: 1.4em;
+    text-align: justify;
+}
+
