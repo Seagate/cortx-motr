@@ -281,3 +281,29 @@ State
 
 Confd and confc modules define state machines for asynchronous non-blocking processing of configuration requests.  State diagrams of such machines are shown below. 
 
+States, events, transitions
+============================
+
+While a confd state machine is in CHECK_SERIALIZE state, it keeps configuration cache locked. LOAD state unlocks the cache, fetches missing objects from the configuration database, and falls back to CHECK_SERIALIZE. After configuration object is successfully loaded from the database, its status is set to M0_CS_READY and its channel (m0_conf_obj::co_chan) is broadcasted. 
+
+Configuration cache is associated with a state machine group (m0_sm_group). While a confc state machine is in CHECK state, it keeps the state machine group locked. 
+
+GROW_CACHE state releases state machine lock and performs the following actions for every configuration descriptor decoded from confd’s response (m0_conf_fetch_resp): 
+
+- lock the state machine group; 
+
+- make sure that target object of every relation, mentioned by the descriptor, is present in cache (stubs are created for absent target objects); 
+
+- if an object with described identity (type and key) already exists in cache and its status is M0_CS_READY then compare existing object with the one received from confd, reporting inequality by means of ADDB API; 
+
+- if an object with described identify already exists and is a stub then fill it with the received configuration data, change its status to M0_CS_READY, and announce status update on object’s channel; 
+
+- unlock the state machine group. 
+
+State Variants
+================
+
+If a confc state machine in GROW_CACHE state, while trying to add an object, finds that the object with this key already exists, then either the existing object is a stub or new and existing objects are equal. 
+
+This invariant is also applicable to LOAD state of a confd state machine. 
+
