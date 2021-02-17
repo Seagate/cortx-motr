@@ -44,7 +44,11 @@
 #define SERVER_ADDB_STOB_NAME "linuxstob:ha_ut_confd_server.addb_stob"
 #define SERVER_LOG_NAME       "ha_ut_confd_server.log"
 #define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
+#ifdef ENABLE_LIBFAB
+#define SERVER_ENDPOINT       "libfab:" SERVER_ENDPOINT_ADDR
+#else
 #define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
+#endif
 
 static struct m0_net_domain   client_net_dom;
 struct m0_conf_root          *root;
