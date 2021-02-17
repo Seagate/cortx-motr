@@ -189,3 +189,118 @@ flag);
 
 This avoids a possible race, where repair send old value to the spares concurrently with a client update.
 
+Service
+========
+
+Catalogue service (cas) implementation is extended in the following ways:
+
+- a record is inserted in the meta-index, when a component catalogue is created. The key is the catalogue fid, the value is (tree, index-fid, pos, layout-descr), where
+
+  - tree is the b-tree as for a catalogue,
+
+  - index-fid is the fid of the index this catalogue is a component of,
+
+  - pos is the position of the catalogue within the index layout, from 0 to P;
+
+  - layout-descr is the layout descriptor of the index;
+
+- values in the meta-index can be distinguished by their size;
+
+- when a catalogue with the fid cat-fid is created as a component of an index with the fid idx-fid, the record (key: idx-fid, val: cat-fid) is inserted in the catalogue-index;
+
+- NEXT operation accepts a flag parameter (slant), which allows iteration to start with the smallest key following the start key;
+
+- PUT operation accepts a flag (create) instructing it to be a no-op if the record with the given key already exists;
+
+- PUT operation accepts a flag (overwrite) instructing it to silently overwrite existing record with the same key, if any;
+
+- before executing operations on component catalogues, cas checks that the index fid and layout descriptor, supplied in the fop match contents of the meta-index record.
+
+Repair
+=======
+
+Index repair service is started along with every cas, similarly to SNS repair service being started along with every ios.
+
+When index repair is activated (by Halon by using spiel), index repair service goes through catalogue-index catalogue in index fid order. For each index, repair fetches layout descriptor from the meta-index, uses it to calculate the spare space location and invokes cas-client to do the copy. The copy should be done with the create flag to preserve updates to spares made the clients.
+
+Re-balance
+===========
+
+Similar to repair.
+
+**************
+Dependencies
+**************
+
+- cas: add "flags" field to cas record structure, with the following bits:
+
+  - slant: allows NEXT operation to start with a non-existent key;
+
+  - overwrite: PUT operation discards existing value of the key;
+
+  - create: PUT operation is a successful no-op if the key already exists;
+
+- conf: assign devices to cas services (necessary to control repair and re-balance)
+
+- spiel: support for repair and re-balance of indices
+
+- halon: interact with catalogue services (similarly to io services)
+
+- halon: introduce "global mkfs" phase of cluster initialisation, use it to call a script to create global meta-data
+
+Security model
+===============
+
+None at the moment. Security model should be designed for all storage objects together.
+
+*********************
+Implementation plan
+*********************
+
+- implement basic pdclust math, hashing, identity mask;
+
+- implement layout descriptors in memory
+
+- implement subset of clovis sufficient to access the root index, i.e., without
+
+  - fetching layouts from network
+
+  - catalogue-index
+
+- add unit tests, working with the root index
+
+- implement layout index and layout-descr index
+
+- more UT
+
+- system tests?
+
+- implement catalogue-index
+
+- modify conf schema to record devices used by cas
+
+  - deployment?
+
+- implement index repair
+
+- implement index re-balance
+
+- halon controls for repair and re-balance
+
+- system tests with halon, repair and re-balance
+
+- implement concurrent repair, re-balance and index access
+
+- system tests (acceptance, S3)
+
+************
+References
+************
+
+- HLD of catalogue service
+
+- HLD of parity de-clustered algorithm 
+
+- HLD of SNS repair
+
+
