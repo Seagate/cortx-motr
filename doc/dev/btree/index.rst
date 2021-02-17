@@ -895,6 +895,10 @@ High-level design inspection (HLDINSP)
 Detailed-level design (DLD)
 +++++++++++++++++++++++++++
 
+The outline of the proposed b-tree on disk format is the following:
+
+.. image:: formats.png
+
 ..
    A detailed-level design is created as a set of skeleton source files with embedded
    documentation (for C, Doxygen-formatted comments are used).
