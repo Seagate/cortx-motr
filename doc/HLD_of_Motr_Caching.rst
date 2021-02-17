@@ -93,4 +93,24 @@ Relation is a pointer from one configuration object to another configuration obj
 
 Some relations are explicitly specified in corresponding records of the configuration database (e.g., a record of “profiles” table contains name of the filesystem associated with this profile).  Other relations are deduced by the confd (e.g., the list of services that belong given filesystem is obtained by scanning “services” table and selecting entries with particular value of ‘filesystem’ field).
 
++-----------------------------------+--------------------------------------------------+-----------------------------------------------+
+|Configuration object               |Relations specified in the DB record              |Relations deduced by scanning other DB tables  |
++===================================+==================================================+===============================================+
+|profile                            |.filesystem                                       |--                                             |
++-----------------------------------+--------------------------------------------------+-----------------------------------------------+
+|filesystem                         |--                                                |.services                                      |
++-----------------------------------+--------------------------------------------------+-----------------------------------------------+
+|service                            |.filesystem,  .node                               |--                                             |
++-----------------------------------+--------------------------------------------------+-----------------------------------------------+
+|node                               |--                                                |.services,  .nics,  .sdevs                     |
++-----------------------------------+--------------------------------------------------+-----------------------------------------------+
+|nic                                |.node                                             |--                                             |
++-----------------------------------+--------------------------------------------------+-----------------------------------------------+
+|storage device (sdev)              |.node                                             |.partitions                                    |
++-----------------------------------+--------------------------------------------------+-----------------------------------------------+
+|partition                          |.storage_device                                   |--                                             |
++-----------------------------------+--------------------------------------------------+-----------------------------------------------+
+
+Relation is a downlink if its destination is located further from the root of configuration DAG than the origin. Relation is an uplink if its destination is closer to the root than the origin. Configuration object is a stub if its status (.*_obj.co_status subfield) is not equal to M0_CS_READY. Stubs contain no meaningful configuration data apart from object’s type and key. Configuration object is pinned if its reference counter (.*_obj.co_nrefs subfield) is non-zero.  When a configuration consumer wants to use an object, it pins it in order protect existence of the object in the cache. Pinning of an object makes confc library request a corresponding distributed lock (resource) from the resource manager. 
+
 
