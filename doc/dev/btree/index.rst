@@ -258,43 +258,43 @@ High-level requirements from Clarification section are refined as following:
 
    * - [**r.btree.op.create**]
      - tree create operation is supported
-     -
+     - [r.btree.r2p0]
 
    * - [**r.btree.op.destroy**]
      - operation to destroy an (empty) tree is supported
-     - 
+     - [r.btree.r2p0]
     
    * - [**r.btree.op.insert**]
      - key-value insert operation is supported
-     - 
+     - [r.btree.r2p0]
     
    * - [**r.btree.op.insert-overwrite**]
      - overwrite operation is supported
-     - 
+     - [r.btree.r2p0]
     
    * - [**r.btree.op.lookup**]
      - key lookup operation is supported
-     - 
+     - [r.btree.r2p0]
     
    * - [**r.btree.op.lookup-slant**]
      - next key lookup operation is supported
-     - 
+     - [r.btree.r2p0]
     
    * - [**r.btree.op.delete**]
      - key delete operation is supported
-     - 
+     - [r.btree.r2p0]
 
    * - [**r.btree.op.delete-all**]
      - high-level operation to delete all keys from a tree is supported
-     - 
+     - [r.btree.r2p0]
  
    * - [**r.btree.op.next**]
      - iteration operation is supported
-     - 
+     - [r.btree.r2p0]
 
    * - [**r.btree.op.next-upto**]
      - iteration up to a specific key operation is supported
-     - 
+     - [r.btree.r2p0]
 
    * - [**r.btree.variable-size-key**]
      - variable-sized keys are supported
@@ -501,11 +501,6 @@ High-level requirements from Clarification section are refined as following:
      - b-tree algorithms dynamically adapt to work-load patterns
      - [r.btree.performance]
 
-   * - [**r.btree.**]
-     -
-     -
-
-   
 Architecture (ARCH)
 -------------------
 
