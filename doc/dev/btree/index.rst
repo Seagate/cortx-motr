@@ -94,8 +94,6 @@ Initiation (INIT)
 
 Existing motr b-tree implementation needs to be replaced for multiple reasons:
 
-  * legal. See details elsewhere;
-
   * compatibility. Existing `b-tree code
     <https://github.com/Seagate/cortx-motr/blob/main/be/btree.c>`_ was not
     designed to be forward compatible. All motr meta-data structured are
