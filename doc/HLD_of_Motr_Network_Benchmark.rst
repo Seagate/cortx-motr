@@ -109,4 +109,88 @@ Test console uses pdsh to load/unload kernel module and gather statistics from e
 test duration
 --------------
 
-End user should be able to specify how long a test should run, by loop. Test client checks command line parameters to determine the number of test messages. 
+End user should be able to specify how long a test should run, by loop. Test client checks command line parameters to determine the number of test messages.
+
+Test Message
+=============
+
+message structure
+------------------
+Every message contains timestamp and sequence number, which is set and checked on the test client and the test server and must be preserved on test server. Timestamp is used to measure latency and sequence number is used to identify messages loss. 
+
+message integrity
+------------------
+
+Currently, test message integrity are not checked either on the test client nor the test server. 
+
+measuring message latency
+-------------------------
+
+Every test message will include timestamp, which is set and tested on the test client. When test client receives test message reply, it will update round-trip time statistics: minimum, maximum, average, standard deviation. Lost messages aren’t included in these statistics.  
+
+Test client will keep statistics for all test servers with which communication was. 
+
+measuring messages bandwidth
+-----------------------------
+
+- messages bandwidth can be measured only in the bulk test. It is assumed that all messages in the ping test have zero size, and all messages in the bulk test have specified size; 
+
+- messages bandwidth statistics is kept separately for from node/to node directions on the test server and total bandwidth only is measured on the test client; 
+
+- messages bandwidth is the ratio of the total messages size (in corresponding direction) and time from the start time to the finish time in corresponding direction; 
+
+- on the test client start time is time just before sending network buffer descriptor to the test server (for first bulk transfer); 
+
+- on the test server start time in “to node” direction is time, when the first bulk transfer request was received from the test client, and in “from node” direction it is time just before bulk transfer request will be send to the test client for the first time; 
+
+- finish time is time when the last bulk transfer (in corresponding direction) is finished or it is considered that there was a message loss; 
+
+- ideally time in “from test client to test server” direction must be measured from Tc0 to Ts4, and time in “from test server to test client” direction must be measured from Ts5 to Tc8. But in the real world we can only measure time between Tc(i) and Tc(j) or between Ts(i) and Ts(j). Therefore always will be some error and difference between test client statistics and test server statistics; 
+
+- absolute value of the error is O(Ts1 - Tc0)(for the first message) + O(abs(Tc8 - Ts8))(for the last message);
+
+- with messages number increasing the relative error will tend to zero. 
+
+messages concurrency
+----------------------
+
+Messages concurrency looks like the test client has a semaphore, which have number of concurrent operations as it initial value. One thread will down this semaphore and send message to the test client in a loop, and other thread will up this semaphore when the reply message received or message considered lost. 
+
+messages loss
+--------------
+
+Messages loss are determined using timeouts. 
+
+message frequency
+------------------
+
+Measure how many messages can be actually sent in time interval.
+
+Bulk Test
+===========
+
+test client
+-------------
+
+Test client allocates a set of network buffers, used to receive replies from test servers. Then test client sends bulk data messages to all test servers (as an passive bulk sender) from the command line. After that, test client will wait for the bulk transfer (as an passive bulk receiver) from the test server. 
+Test client can perform more than one concurrent send/receive to the same server.
+
+test server
+-------------
+
+Test server allocates a set of network buffers and then waits for a messages from clients as a active bulk receiver. When the bulk data arrives, test server will send it back to the test client as an active bulk sender. 
+
+Ping test
+==========
+
+test server 
+------------
+
+Test server waits for incoming test messages and simply sends them back. 
+
+test client
+--------------
+
+Test client sends test messages to server and waits for reply messages. If reply message isn't received within a timeout, then it is considered that the message is lost.
+
+ 
