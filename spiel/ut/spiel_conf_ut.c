@@ -1190,11 +1190,6 @@ static void spiel_conf_create_fail(void)
 
 	/* Controller */
 	rc = m0_spiel_controller_add(&tx,
-				     &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER],
-				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_spiel_controller_add(&tx,
 				     &fake_fid,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
 	M0_UT_ASSERT(rc == -EINVAL);
@@ -1204,6 +1199,10 @@ static void spiel_conf_create_fail(void)
 				     &fake_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
 
+	rc = m0_spiel_controller_add(&tx,
+				     &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
+	M0_UT_ASSERT(rc == 0);
 
 	/* drive */
 	rc = m0_spiel_drive_add(&tx,
