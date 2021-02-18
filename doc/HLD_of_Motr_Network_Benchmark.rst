@@ -193,4 +193,30 @@ test client
 
 Test client sends test messages to server and waits for reply messages. If reply message isn't received within a timeout, then it is considered that the message is lost.
 
+Conformance
+============
+
+- [i.m0.net.self-test.statistics] statistics from the all nodes can be collected on the test console; 
+
+- [i.m0.net.self-test.statistics.live]: statistics from the all nodes can be collected on the test console at any time during the test; 
+
+- [i.m0.net.self-test.test.ping]: latency is automatically measured for all messages; 
+
+- [i.m0.net.self-test.test.bulk]: used messages with additional data; 
+
+- [i.m0.net.self-test.test.bulk.integrity.no-check]: bulk messages additional data isn't checked; 
+
+- [i.m0.net.self-test.test.duration.simple]: end user should be able to specify how long a test should run, by loop; 
+
+- [i.m0.net.self-test.kernel]: test client/server is implemented as a kernel module. 
+
+***********
+Use Cases
+***********
+
+Scenarios
+==========
+
+
+
  
