@@ -65,3 +65,48 @@ Design Highlights
 -Statistics collecting Kernel module creates file in /proc filesystem, which can be accessed from the user space. This file contains aggregate statistics for a node.
 
 - Live statistics collecting pdsh used for live statistics. 
+
+**************************
+Functional Specification
+**************************
+
+- [r.m0.net.self-test.test.ping] 
+
+  - Test client sends desired number of test messages to a test server with desired size, type, etc. Test client waits for replies (test messages) from the test server and collects statistics for send/received messages; 
+
+  - Test server waits for messages from a test client, then sends messages back to the test client. Test server collects messages statistics too; 
+
+  - Messages RTT need to be measured; 
+
+- [r.m0.net.self-test.test.bulk] 
+
+  - Test client is an passive bulk sender/receiver; 
+
+  - Test server is a active bulk sender/receiver; 
+
+  - Messages RTT and bandwidth from each test client to each corresponding test server in both directions need to be measured; 
+
+- Test console sends commands to load/unload the kernel module (implementation of m0_net_test test client/test server), obtains statistics from every node and generates aggregate statistics.
+
+***********************
+Logical specification
+***********************
+
+Kernel module specification
+============================
+
+start/finish
+--------------
+
+After the kernel module is loaded all statistics are reset. Then the module determines is it a test client or a test server and acts according to this. Test client starts sending test messages immediately. 
+All statistical data remain accessible until the kernel module is unloaded. 
+
+test console
+-------------
+
+Test console uses pdsh to load/unload kernel module and gather statistics from every node's procfs. pdsh can be configured to use different network if needed.
+
+test duration
+--------------
+
+End user should be able to specify how long a test should run, by loop. Test client checks command line parameters to determine the number of test messages. 
