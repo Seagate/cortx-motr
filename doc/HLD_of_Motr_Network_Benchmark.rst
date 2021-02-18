@@ -237,4 +237,52 @@ Scenario 1
 |Response measure            |statistics is consistent                                     |
 +----------------------------+-------------------------------------------------------------+
 
+Failures
+=========
+
+network failure
+-------------------
+
+Messages loss is determined by timeout. If the message wasn't expected and if it did come, it is rejected. 
+If some node isn't accessible from the console, it is assumed than all messages, associated with this node have been lost. 
+
+test node failure
+------------------
+
+If test node isn't accessible at the beginning of the test, it is assumed the network failure. Otherwise, test console will try to reach it every time it uses other nodes. 
+
+*********
+Analysis
+*********
+
+Scalability
+=================
+
+network buffer sharing
+-----------------------
+
+Single buffer (except timestamp/sequence number fields in the test message) can be shared between all bulk send/receive operations. 
+
+statistics gathering
+---------------------
+
+For a few tens of nodes pdsh can be used - scalability issues does not exists on this scale. 
+
+Rationale
+==========
+
+pdsh was chosen as an instrument for starting/stopping/gathering purposes because of a few tens of nodes in the test. At large scale something else must be used.
+
+***********
+References
+***********
+
+- [0] Motr Summary Requirements Table 
+
+- [1] HLD of Motr LNet Transport 
+
+- [2] Parallel Distributed Shell 
+
+- [3] Round-trip time (RTT) 
+
 
