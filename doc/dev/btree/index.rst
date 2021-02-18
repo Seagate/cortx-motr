@@ -391,6 +391,13 @@ High-level requirements from Clarification section are refined as following:
      - btree operations are instrumented with addb
      - [r.btree.performance]
 
+   * - [**r.btree.leveldb**]
+     - the implementation achieves at least 0.85 of performance (measured as
+       throughput or operations per second as appropriate) of leveldb on the
+       same workload (same mix of operations with the same concurrency and the
+       same operational environment)
+     - [r.btree.performance]
+
    * - [**r.btree.b+tree**]
      - the implementation uses b+tree algorithm
      - [r.btree.performance]
