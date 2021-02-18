@@ -36,17 +36,17 @@ The rpc formation algorithm is a subtle and critical part of an efficient IO sys
 
 - underlying network transport performs optimally when certain conditions are met. This includes: 
 
-   - a certain number of messages are in flight (between a pair of nodes). The algorithm tries to keep max-in-flight number of rpc to a given server in flight at any time. To see examples of this, search for cl_max_rpcs_in_flight in the Lustre sources; 
+  - a certain number of messages are in flight (between a pair of nodes). The algorithm tries to keep max-in-flight number of rpc to a given server in flight at any time. To see examples of this, search for cl_max_rpcs_in_flight in the Lustre sources; 
 
-   - messages should be large to amortise the message overhead (the overhead consists of  networking hardware setup to send the message, various interrupt-related overheads at the receiver, &c.). The algorithm should try to form messages as large as possible, but no larger than max-message-size parameter. To see examples of this search for cl_max_pages_per_rpc in the Lustre sources; 
+  - messages should be large to amortise the message overhead (the overhead consists of  networking hardware setup to send the message, various interrupt-related overheads at the receiver, &c.). The algorithm should try to form messages as large as possible, but no larger than max-message-size parameter. To see examples of this search for cl_max_pages_per_rpc in the Lustre sources; 
 
-   - rdma may impose restrictions on a total number of fragments in the message. That is, the message cannot contain more than max-message-fragments disjoint memory buffers. See comment about "fragmented" page array in osc_request.c:osc_send_oap_rpc() in Lustre; 
+  - rdma may impose restrictions on a total number of fragments in the message. That is, the message cannot contain more than max-message-fragments disjoint memory buffers. See comment about "fragmented" page array in osc_request.c:osc_send_oap_rpc() in Lustre; 
 
 - remote services perform optimally when certain conditions are met. For example: 
 
-   - a data service (handling data IO in a form of read and write fops) favours large rpcs for contiguous operations, with well-aligned starting position. See ending_offset and comments on it in osc_request.c:osc_send_oap_rpc() in Lustre; 
+  - a data service (handling data IO in a form of read and write fops) favours large rpcs for contiguous operations, with well-aligned starting position. See ending_offset and comments on it in osc_request.c:osc_send_oap_rpc() in Lustre; 
 
-   - meta-data service would benefit from an rpc where component fops are sorted by (say) fid of file, because this would result in a more sequential storage IO. No examples to look at, because Lustre doesn't have meta-data batching; 
+  - meta-data service would benefit from an rpc where component fops are sorted by (say) fid of file, because this would result in a more sequential storage IO. No examples to look at, because Lustre doesn't have meta-data batching; 
 
 - upper layers can specify priorities of items; 
 
