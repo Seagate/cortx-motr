@@ -887,7 +887,7 @@ static void debtor_death_acceptance_wait(enum rm_server dead,
 
 	res = wctx->rc_test_data.rd_res;
 	m0_cookie_init(&cookie, &sctx->rc_test_data.rd_owner->ro_id);
-	remote = m0_tl_find(m0_remotes, other, &res->r_remote,
+	remote = m0_tl_find(m0_remotes, other, &res->r_remotes,
 			  m0_cookie_is_eq(&other->rem_cookie, &cookie));
 	/* Busy loop to wait until remote->rem_dead flag is set */
 	do {
