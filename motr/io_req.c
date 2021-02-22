@@ -767,6 +767,10 @@ static void ioreq_iomaps_destroy(struct m0_op_io *ioo)
 	M0_LEAVE();
 }
 
+/**
+ * Calculate the exact number of parity groups spanned by the
+ * IO operation, put result at ioo->ioo_iomap_nr.
+ */
 static int ioreq_iomaps_parity_groups_cal(struct m0_op_io *ioo)
 {
 	uint64_t                  seg;
@@ -788,9 +792,9 @@ static int ioreq_iomaps_parity_groups_cal(struct m0_op_io *ioo)
 	M0_ALLOC_ARR(grparray, grparray_sz);
 	if (grparray == NULL)
 		return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory"
-			                    " for int array");
+			                    " for grparray");
 	/*
-	 * Finds out total number of parity groups spanned by
+	 * Finds out the total number of parity groups spanned by
 	 * m0_op_io::ioo_ext.
 	 */
 	for (seg = 0; seg < SEG_NR(&ioo->ioo_ext); ++seg) {
@@ -802,15 +806,14 @@ static int ioreq_iomaps_parity_groups_cal(struct m0_op_io *ioo)
 			/*
 			 * grparray is a temporary array to record found groups.
 			 * Scan this array for [grpstart, grpend].
-			 * If not found, record it in this array and
-			 * increase ir_iomap_nr.
+			 * If not found, we got a new grop, record it and
+			 * increase ioo_iomap_nr.
 			 */
 			for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
 				if (grparray[i] == grp)
 					break;
 			}
-			/* 'grp' is not found. Adding it to @grparray */
-			if (i == ioo->ioo_iomap_nr) {
+			if (i == ioo->ioo_iomap_nr) { /* new grp */
 				M0_ASSERT_INFO(i < grparray_sz,
 					"nr=%"PRIu64" size=%"PRIu64,
 					i , grparray_sz);
