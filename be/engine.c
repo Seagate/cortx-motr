@@ -42,6 +42,8 @@
  * @{
  */
 
+extern volatile bool M0_BE_TX_LOGIC_CHANGE_PHASE0;
+
 M0_TL_DESCR_DEFINE(etx, "m0_be_engine::eng_txs[]", M0_INTERNAL,
 		   struct m0_be_tx, t_engine_linkage, t_magic,
 		   M0_BE_TX_MAGIC, M0_BE_TX_ENGINE_MAGIC);
@@ -312,12 +314,16 @@ static void be_engine_got_tx_open(struct m0_be_engine *en,
 			       en->eng_cfg->bec_tx_payload_max);
 			be_engine_tx_state_post(en, tx, M0_BTS_FAILED);
 		} else {
-			tx->t_log_reserved_size =
-				m0_be_group_format_log_reserved_size(
-					&en->eng_log, &tx->t_prepared,
-					tx->t_payload_prepared);
-			rc = m0_be_log_reserve(&en->eng_log,
-					       tx->t_log_reserved_size);
+			if (M0_BE_TX_LOGIC_CHANGE_PHASE0) {
+				rc = 0;
+			} else {
+				tx->t_log_reserved_size =
+					m0_be_group_format_log_reserved_size(
+						&en->eng_log, &tx->t_prepared,
+						tx->t_payload_prepared);
+				rc = m0_be_log_reserve(&en->eng_log,
+						       tx->t_log_reserved_size);
+			}
 			if (rc == 0) {
 				tx->t_log_reserved = true;
 				be_engine_tx_state_post(en, tx, M0_BTS_GROUPING);
@@ -555,7 +561,8 @@ static void be_engine_got_tx_grouping(struct m0_be_engine *en)
 	M0_PRE(be_engine_is_locked(en));
 
 	/* Close recovering transactions */
-	while ((tx = be_engine_recovery_tx_find(en, M0_BTS_GROUPING)) != NULL) {
+	while (!M0_BE_TX_LOGIC_CHANGE_PHASE0 &&
+	       (tx = be_engine_recovery_tx_find(en, M0_BTS_GROUPING)) != NULL) {
 		/*
 		 * Group is already closed, we just need to add tx to the group.
 		 */
@@ -567,7 +574,13 @@ static void be_engine_got_tx_grouping(struct m0_be_engine *en)
 	}
 	/* Close regular transactions */
 	while ((tx = be_engine_tx_peek(en, M0_BTS_GROUPING)) != NULL) {
-		rc = be_engine_tx_trygroup(en, tx);
+		if (M0_BE_TX_LOGIC_CHANGE_PHASE0) {
+			tx->t_grouped = true;
+			be_engine_tx_state_post(en, tx, M0_BTS_ACTIVE);
+			rc = 0;
+		} else {
+			rc = be_engine_tx_trygroup(en, tx);
+		}
 		if (rc != 0)
 			break;
 		/*
@@ -584,11 +597,15 @@ static void be_engine_got_tx_closed(struct m0_be_engine *en,
 	struct m0_be_tx_group *gr = tx->t_group;
 
 	M0_PRE(be_engine_is_locked(en));
-
-	M0_CNT_DEC(gr->tg_nr_unclosed);
-	m0_be_tx_group_tx_closed(gr, tx);
-	be_engine_got_tx_grouping(en);
-	be_engine_group_tryclose(en, gr);
+	if (M0_BE_TX_LOGIC_CHANGE_PHASE0) {
+		be_engine_tx_state_post(en, tx, M0_BTS_PLACED);
+		be_engine_tx_state_post(en, tx, M0_BTS_LOGGED);
+	} else  {
+		M0_CNT_DEC(gr->tg_nr_unclosed);
+		m0_be_tx_group_tx_closed(gr, tx);
+		be_engine_got_tx_grouping(en);
+		be_engine_group_tryclose(en, gr);
+	}
 }
 
 static void be_engine_got_tx_done(struct m0_be_engine *en, struct m0_be_tx *tx)
@@ -597,9 +614,11 @@ static void be_engine_got_tx_done(struct m0_be_engine *en, struct m0_be_tx *tx)
 
 	M0_PRE(be_engine_is_locked(en));
 
-	M0_CNT_DEC(gr->tg_nr_unstable);
-	if (gr->tg_nr_unstable == 0)
-		m0_be_tx_group_stable(gr);
+	if (!M0_BE_TX_LOGIC_CHANGE_PHASE0) {
+		M0_CNT_DEC(gr->tg_nr_unstable);
+		if (gr->tg_nr_unstable == 0)
+			m0_be_tx_group_stable(gr);
+	}
 	tx->t_group = NULL;
 
 	if (m0_be_tx__is_exclusive(tx)) {
@@ -668,7 +687,7 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 		be_engine_got_tx_done(en, tx);
 		break;
 	case M0_BTS_FAILED:
-		if (tx->t_log_reserved)
+		if (!M0_BE_TX_LOGIC_CHANGE_PHASE0 && tx->t_log_reserved)
 			m0_be_log_unreserve(&en->eng_log,
 					    tx->t_log_reserved_size);
 		break;

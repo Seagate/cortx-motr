@@ -134,6 +134,8 @@ static int cs_wait_signal(void)
 	return gotsignal;
 }
 
+extern volatile bool M0_BE_TX_LOGIC_CHANGE_PHASE0;
+
 M0_INTERNAL int main(int argc, char **argv)
 {
 	static struct m0       instance;
@@ -217,7 +219,7 @@ start_m0d:
 		/* For st/m0d-signal-test.sh */
 		m0_console_printf("Started\n");
 		m0_console_flush();
-
+		M0_BE_TX_LOGIC_CHANGE_PHASE0 = true;
 #ifdef HAVE_SYSTEMD
 		/*
 	 	 * From the systemd's point of view, service can be considered as
@@ -243,6 +245,7 @@ start_m0d:
 		 * Note! A very common cause of failure restart is
 		 * non-finalize (non-clean) any subsystem
 		 */
+		M0_BE_TX_LOGIC_CHANGE_PHASE0 = false;
 		m0_cs_fini(&motr_ctx);
 restart_signal:
 		m0_quiesce();

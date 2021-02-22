@@ -3032,6 +3032,8 @@ M0_INTERNAL int m0_motr_stob_reopen(struct m0_reqh *reqh,
 	return M0_RC(rc);
 }
 
+volatile bool M0_BE_TX_LOGIC_CHANGE_PHASE0;
+
 /** @} endgroup m0d */
 #undef M0_TRACE_SUBSYSTEM
 
