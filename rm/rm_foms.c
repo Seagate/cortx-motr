@@ -371,6 +371,7 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 		M0_ASSERT(service != NULL);
 		remote->rem_session =
 			m0_rpc_service_reverse_session_lookup(service, item);
+		M0_LOG(M0_DEBUG, "rem_session=%p", remote->rem_session);
 		if (remote->rem_session == NULL) {
 			remote->rem_rev_sess_clink.cl_is_oneshot = true;
 			rc = m0_rpc_service_reverse_session_get(
@@ -500,7 +501,7 @@ static int remote_create(struct m0_rm_remote          **rem,
 		other->rem_cookie = *cookie;
 		/* @todo - Figure this out */
 		/* other->rem_id = 0; */
-		m0_remotes_tlist_add(&res->r_remote, other);
+		m0_remotes_tlist_add(&res->r_remotes, other);
 	} else
 		rc = M0_ERR(-ENOMEM);
 	*rem = other;
@@ -576,6 +577,7 @@ static int request_pre_process(struct m0_fom *fom,
 				m0_rm_incoming_fini(&rfom->rf_in.ri_incoming);
 				goto err;
 			}
+			M0_RM_REMOTE_GET(debtor);
 		} else if (debtor->rem_dead) {
 			/*
 			 * There is nobody to reply to, as request originator
@@ -585,6 +587,7 @@ static int request_pre_process(struct m0_fom *fom,
 			m0_rm_incoming_fini(&rfom->rf_in.ri_incoming);
 			goto err;
 		}
+		rfom->rf_in.ri_incoming.rin_remote = debtor;
 		/*
 		 * Subscribe debtor to HA notifications. If subscription
 		 * fails, proceed as usual to the next step.
@@ -692,8 +695,13 @@ static int debtor_subscription_check(struct m0_fom *fom)
 	if (M0_IN(rfom->rf_sbscr.rhs_sm.sm_state,
 		  (RM_HA_SBSCR_FINAL, RM_HA_SBSCR_FAILURE))) {
 		if (rfom->rf_sbscr.rhs_sm.sm_rc != 0) {
-			M0_LOG(M0_DEBUG, "Can't subscribe to debtor with ep %s",
-			   m0_rm_remote_find(&rfom->rf_in)->rem_tracker.rht_ep);
+			struct m0_rm_remote *rem;
+			rem = m0_rm_remote_find(&rfom->rf_in);
+			M0_ASSERT(rem != NULL);
+			M0_LOG(M0_DEBUG, "Can't subscribe to debtor with ep %s:"
+			       " rc=%d", rem->rem_tracker.rht_ep,
+			       rfom->rf_sbscr.rhs_sm.sm_rc);
+			M0_RM_REMOTE_PUT(rem);
 		}
 		m0_rm_ha_subscriber_fini(&rfom->rf_sbscr);
 		/* Ignore subscriber return code, procced to getting credit */
@@ -772,6 +780,7 @@ static int cancel_process(struct m0_fom *fom)
 	if (loan != NULL) {
 		M0_ASSERT(loan->rl_other != NULL);
 		M0_ASSERT(!loan->rl_other->rem_dead);
+		M0_LOG(M0_DEBUG, "loan=%p rl_other=%p", loan, loan->rl_other);
 		rc = m0_rm_loan_settle(owner, loan);
 	} else {
 		M0_LOG(M0_WARN, "loan %p is not found!",
