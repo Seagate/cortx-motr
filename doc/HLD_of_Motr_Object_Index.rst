@@ -16,7 +16,7 @@ The intended audience of this document consists of M0 customers, architects, des
 Introduction
 **************
 
-The object index performs the function of a metadata layer on top of M0 storage objects. A M0 storage object (stob) is a flat address space where one can read from or write to, with block size granularity. Stobs have no metadata associated with them. To be used as files (or components of files, aka stripes), additional metadata must be associated with the stobs.
+The Object Index performs the function of a metadata layer on top of the M0 storage objects. The M0 storage object (stob) is a flat address space where one can read or write with block size granularity. The stobs have no metadata associated with them. Additionally, metadata must be associated with the stobs to use as files or components of files, aka stripes.
 
 - namespace information: parent object id, name, links
 
