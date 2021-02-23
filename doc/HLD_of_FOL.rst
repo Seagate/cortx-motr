@@ -64,7 +64,7 @@ Definitions
 
   - a FOL record can be found efficiently (i.e., without FOL scanning) given its LSN, and
 
-  - for any pair of conflicting updates recorded in the FOL, the LSN of the pre-requisite is less than that of the dependent update (Note: clearly this property implies that lsn     data-type has infinite range and, hence, is unimplementable in practice. What is in fact required is that this property holds for any two conflicting updates sufficiently     close in logical time, where precise closeness condition is defined by the fol pruning algorithm. The same applies to object versions.);
+  - for any pair of conflicting updates recorded in the FOL, the LSN of the pre-requisite is less than that of the dependent update (Note: clearly this property implies that lsn     data-type has infinite range and, hence, is unimplementable in practice. What is in fact required is that this property holds for any two conflicting updates sufficiently     close in logical time, where precise closeness condition is defined by the FOL pruning algorithm. The same applies to object versions.);
   
 Note: it would be nice to refine the terminology to distinguish between operation description (i.e., intent to carry it out) and its actual execution. This would make description of dependencies and recovery less obscure, at the expense of some additional complexity.
 
@@ -172,12 +172,12 @@ A FOL record, added via the main FOL interface, contains the following:
 Liveness and Pruning
 =====================
 
-A node FOL must be prunable if only to function correctly on a node without persistent storage. At the same time, a variety of sub-systems both from M0 core and outside of it, might want to refer to FOL records. To make pruning possible and flexible, each FOL record is augmented with a reference counter, counting all outstanding references to the record. A record can be pruned if its reference counter drops to 0 together with reference counters of all earlier (in lsn sense) unpruned records in the fol.
+A node FOL must be prunable if only to function correctly on a node without persistent storage. At the same time, a variety of sub-systems both from M0 core and outside of it, might want to refer to FOL records. To make pruning possible and flexible, each FOL record is augmented with a reference counter, counting all outstanding references to the record. A record can be pruned if its reference counter drops to 0 together with reference counters of all earlier (in lsn sense) unpruned records in the FOL.
 
 Conformance
 =============
 
-- [R.FOL.EVERY-NODE]: on nodes with persistent storage, M0 core runs in the user space and the FOL is stored in a data-base table. On a node without persistent storage, or M0 core runs in the kernel space, the fol is stored in memory-only index. Data-base and memory-only index provide the same external interface, making FOL code portable;
+- [R.FOL.EVERY-NODE]: on nodes with persistent storage, M0 core runs in the user space and the FOL is stored in a data-base table. On a node without persistent storage, or M0 core runs in the kernel space, the FOL is stored in memory-only index. Data-base and memory-only index provide the same external interface, making FOL code portable;
 
 - [R.FOL.LOCAL-TXN]: request handler inserts a record into FOL table in the context of the same transaction where update is executed. This guarantees WAL property of FOL;
 
@@ -226,7 +226,7 @@ Dependencies
 
 - back-end:
 
-  - [R.BACK-END.TRANSACTIONAL] ST: back-end supports local transactions so that fol could be populated atomically with other tables;
+  - [R.BACK-END.TRANSACTIONAL] ST: back-end supports local transactions so that FOL could be populated atomically with other tables;
 
   - [R.BACK-END.INDEXING] ST: back-end supports containers with records indexed by a key.
   
