@@ -195,32 +195,10 @@ enum m0_layout_plop_type {
 	 * Read plop, m0_layout_io_plop.
 	 *
 	 * This plop instructs the user to read data from the specified object.
-	 * It does not require the user to put the actual data into iop_data,
-	 * which means that the operation can be delegated to run at the
-	 * server side (useful for ISC).
-	 *
-	 * @note there might be some M0_LAT_FUN-ctions in the plan to be
-	 * executed on the read data (like in case of checksum or compression
-	 * layouts), but none of them should require any other READs to be done
-	 * in order to get the resulting data for the M0_LAT_OUT_READ plop.
-	 * (Straight line dependency in the graph.) Which means ISC can
-	 * still do the server-side computations for such READs. The user data
-	 * for the computations can be obtained by using the same plan API
-	 * supplying the cob fid into m0_layout_plan_build().
 	 *
 	 * @see m0_layout_io_plop
 	 */
 	M0_LAT_READ,
-	/**
-	 * Read plop, m0_layout_io_plop.
-	 *
-	 * This plop instructs the user to read data from the specified object.
-	 * It does require the user to put the actual data into iop_data before
-	 * calling m0_layout_plop_done().
-	 *
-	 * @see m0_layout_io_plop
-	 */
-	M0_LAT_MUST_READ,
 	/**
 	 * Write plop, m0_layout_io_plop.
 	 *
@@ -325,23 +303,6 @@ struct m0_layout_plop {
  * related to the plop happens asynchronously.
  */
 struct m0_layout_plop_ops {
-	/**
-	 * The implementation invokes this for a still not complete plop, when
-	 * some of its attributes are changed. For example, when M0_LAT_READ
-	 * changes to M0_LAT_MUST_READ in the plan in case of an incidental
-	 * switch to the degraded read of a parity group due to some unit read
-	 * error.
-	 *
-	 * IO code can just ignore this callback (as it always reads the actual
-	 * data even on M0_LAT_READ). But ISC code must read the actual data
-	 * and put it at iop_data before calling m0_layout_plop_done().
-	 *
-	 * @note the implementation returns M0_LAT_OUT_READ plops with the
-	 * parity group granularity and the READ plop is not destroyed until
-	 * the resulting OUT_READ is ready. This guarantees that po_update()
-	 * can always be called when needed.
-	 */
-	void (*po_update)(struct m0_layout_plop *plop);
 	/**
 	 * The implementation invokes this for a still not complete plop, when
 	 * its processing is no longer necessary, for example, because the plan
