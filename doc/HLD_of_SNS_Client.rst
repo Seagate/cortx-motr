@@ -227,25 +227,31 @@ State diagrams are part of the detailed level design specification.
 +------------------------------+--------------------------------------------------+
 
 
++------------------------------+--------------------------------------------------+
+|Scenario                      |[usecase.sns-client-write]                        |
++------------------------------+--------------------------------------------------+
+|Relevant quality attributes   | usability                                        |
++------------------------------+--------------------------------------------------+
+|Stimulus                      |an incoming write operation request from a user   |
+|                              |space operation                                   |
++------------------------------+--------------------------------------------------+
+|Stimulus source               |a user space application, potentially meditated by| 
+|                              |a loop-back device driver                         |
++------------------------------+--------------------------------------------------+
+|Environment                   |normal client operation                           |
++------------------------------+--------------------------------------------------+
+|Artifact                      |call to VFS ->write() entry point                 |
++------------------------------+--------------------------------------------------+
+|Response                      |a fop is created, network transmission of         |
+|                              |operation parameters to all involved data servers |
+|                              |is started as specified by the file layout,       |
+|                              |servers place retrieved data directly in user     |
+|                              |buffers, once transmission completes, the fop is  |
+|                              |destroyed.                                        |
++------------------------------+--------------------------------------------------+
+|Response measure              |no data copying in the process                    |
++------------------------------+--------------------------------------------------+
 
-
-Scenario 2: [usecase.sns-client-write]
-
-Relevant quality attributes: usability
-
-Stimulus: an incoming write operation request from a user space operation
-
-Stimulus source: a user space application, potentially meditated by a loop-back device driver
-
-Environment: normal client operation
-
-Artifact: call to VFS ->write() entry point
-
-Response: a fop is created, network transmission of operation parameters to all involved data servers is started as specified by the file layout, servers place retrieved data directly in user buffers, once transmission completes, the fop is destroyed.
-
-Response measure: no data copying in the process
-
-Questions and Issues:
 
 **********
  Analysis
