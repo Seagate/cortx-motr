@@ -30,7 +30,7 @@ Definitions
 Requirements
 **************
 
-- [r.idx.entity]: an index is a Clovis entity with a fid. There is a fid type for distributed indices;
+- [r.idx.entity]: an index is a Motr entity with a fid. There is a fid type for distributed indices;
 
 - [r.idx.layout]: an index has a layout attribute, which determines how the index is stored in non-distributed catalogues;
 
@@ -80,7 +80,7 @@ New fid type is registered for index fids.
 Functional Specification
 ***************************
 
-Indices are available through Clovis interface. Spiel and HA interfaces are extended to control repair and re-balance of indices.
+Indices are available through Motr interface. Spiel and HA interfaces are extended to control repair and re-balance of indices.
 
 ***************************
 Logical Specification
@@ -129,7 +129,7 @@ Layout descriptor is the set of parameters necessary to do index operations. Lay
 
 Typically a layout descriptor will be shared by a large number of indices. To reduce the amount of meta-data, a level of indirection is introduced, see the Internal meta-data sub-section below.
 
-In-memory representation of a clovis index includes index fid and index layout descriptor.
+In-memory representation of a Motr index includes index fid and index layout descriptor.
 
 Internal meta-data
 ===================
@@ -261,7 +261,7 @@ Implementation plan
 
 - implement layout descriptors in memory
 
-- implement subset of clovis sufficient to access the root index, i.e., without
+- implement subset of motr sufficient to access the root index, i.e., without
 
   - fetching layouts from network
 
