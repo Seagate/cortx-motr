@@ -46,7 +46,7 @@ Requirements
 
 - [R.M0.FOL.UNDO]: FOL can be used for undo-redo recovery
 
-- [R.M0.CACHE.MD]: meta-data caching is supported
+- [R.M0.CACHE.MD]: metadata caching is supported
 
 ******************
 Design Highlights
@@ -356,7 +356,7 @@ Scenarios
    * - Relevant quality attributes
      - variability, extensibility, re-usability
    * - Stimulus
-     - storage application wants to maintain additional meta-data index
+     - storage application wants to maintain additional metadata index
    * - Stimulus source
      - storage application
    * - Environment
