@@ -553,6 +553,50 @@ static int xform_init(void)
 {
 	int rc;
 
+	M0_SET0(&gob_fid);
+	M0_SET0(&cob_fid);
+
+	reqh = NULL;
+	pdlay = NULL;
+	cm = NULL;
+	scm = NULL;
+	scm_service = NULL;
+	cdom = NULL;
+	M0_SET0(&sem);
+	M0_SET0(&nbp);
+
+	/* Global structures for testing bufvec xor correctness. */
+	M0_SET0(&src);
+	M0_SET0(&dst);
+	M0_SET0(&xor);
+
+	/* Global structures for single copy packet test. */
+	M0_SET0(&s_rag);
+	M0_SET_ARR0(s_fc);
+	M0_SET0(&s_cp);
+	M0_SET0(&s_buf);
+	M0_SET0(&s_acc_buf);
+
+	/*
+	 * Global structures for multiple copy packet test comprising of single
+	 * failure.
+	 */
+	M0_SET0(&m_rag);
+	M0_SET_ARR0(m_fc);
+	M0_SET_ARR0(m_cp);
+	M0_SET_ARR0(m_buf);
+	M0_SET_ARR0(m_acc_buf);
+
+	/*
+	 * Global structures for multiple copy packet test comprising of
+	 * multiple failures.
+	 */
+	M0_SET0(&n_rag);
+	M0_SET_ARR0(n_fc);
+	M0_SET_ARR0(n_cp);
+	M0_SET_ARR0(n_buf);
+	M0_SET_ARR0(n_acc_buf);
+
 	rc = cs_init(&sctx);
 	M0_ASSERT(rc == 0);
 

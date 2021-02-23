@@ -46,6 +46,12 @@ static int frm_ut_init(void)
 {
 	int rc;
 
+	frm = NULL;
+	M0_SET0(&constraints);
+	M0_SET0(&rmachine);
+	M0_SET0(&rchan);
+	M0_SET0(&session);
+
 	twoway_item_type.rit_incoming_conf = incoming_item_sm_conf;
 	twoway_item_type.rit_outgoing_conf = outgoing_item_sm_conf;
 	oneway_item_type.rit_incoming_conf = incoming_item_sm_conf;

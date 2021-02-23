@@ -49,6 +49,12 @@ M0_FOL_FRAG_TYPE_DECLARE(ut_frag, static, verify_frag_data, NULL,
 
 static void test_init(void)
 {
+	M0_SET0(&g_fol);
+	M0_SET0(&g_rec);
+	M0_SET0(&g_ut_be);
+	M0_SET0(&g_ut_seg);
+	M0_SET0(&g_tx);
+
 	m0_ut_backend_init(&g_ut_be, &g_ut_seg);
 
 	m0_ut_be_tx_begin2(&g_tx, &g_ut_be, &M0_BE_TX_CREDIT(0, 0),
