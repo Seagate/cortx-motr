@@ -18,21 +18,21 @@ Introduction
 
 A FOL is a central M0 data-structure, maintained by every node where M0 core is deployed and serving multiple goals:
 
-- it is used by a node data-base component to implement local transactions through WAL logging;
+- It is used by a node data-base component to implement local transactions through WAL logging;
 
-- it is used by DTM to implement distributed transactions. DTM uses FOL for multiple purposes internally:
+- It is used by DTM to implement distributed transactions. DTM uses FOL for multiple purposes internally:
 
-  - on a node where a transaction originates: for replay;
+  - On a node where a transaction originates: for replay;
 
-  - on a node where a transaction update is executed: for undo, redo and for replay (sending redo requests to recovering nodes);
+  - On a node where a transaction update is executed: for undo, redo and for replay (sending redo requests to recovering nodes);
 
-  - to determine when a transaction becomes stable;
+  - To determine when a transaction becomes stable;
 
-- it is used by a cache pressure handler to determine what cached updates have to be re-integrated into upward caches;
+- It is used by a cache pressure handler to determine what cached updates have to be re-integrated into upward caches;
 
-- it is used by FDML to feed file system updates to FOL consumers asynchronously;
+- It is used by FDML to feed file system updates to FOL consumers asynchronously;
 
-- more generally, a FOL is used by various components (snapshots, addb, etc.) to consistently reconstruct the system state as at a certain moment in the (logical) past.
+- More generally, a FOL is used by various components (snapshots, addb, etc.) to consistently reconstruct the system state as at a certain moment in the (logical) past.
 
 Roughly speaking, a FOL is a partially ordered collection of FOL records, each corresponding to (part of) a consistent modification of file system state. A FOL record contains information determining durability of the modification (how many volatile and persistent copies it has and where, etc.) and dependencies between modifications, among other things. When a client node has to modify a file system state to serve a system call from a user, it places a record in its (possibly volatile) FOL. The record keeps track of operation state: has it been re-integrated to servers, has it been committed on the servers, etc. A server, on receiving a request to execute an update on a client behalf, inserts a record, describing the request into its FOL. Eventually, FOL is purged to reclaim storage, culling some of the records.
 
