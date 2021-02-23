@@ -87,7 +87,7 @@ static bool libfab_tm_invariant(const struct m0_fab__tm *tm);
 static struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf);
 static int libfab_bdesc_encode(struct m0_fab__buf *buf);
 static void libfab_bdesc_decode(struct m0_net_buf_desc *nbd,
-				struct fi_rma_iov *rma_key);
+				struct fi_rma_iov *rma_key, char *dst);
 static void libfab_buf_del(struct m0_net_buffer *nb);
 static void libfab_ep_put(struct m0_fab__ep *ep);
 static void libfab_ep_get(struct m0_fab__ep *ep);
@@ -486,8 +486,7 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 
 			rc = libfab_active_ep_create(ep, tm, entry.info);
 			fi_freeinfo(entry.info);
-		} else
-			M0_LOG(M0_ERROR, "Received unwanted event = %d", event);
+		}
 	} else if (rc == -FI_EAVAIL) {
 		memset(&eq_err, 0, sizeof(eq_err));
 		rc = fi_eq_readerr(eq, &eq_err, 0);
@@ -550,7 +549,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 			xep = libfab_ep_net(net);
 			if (xep->fep_send != NULL) {
 				if (!xep->fep_send->aep_is_conn) {
-					rc =libfab_check_for_event(
+					rc = libfab_check_for_event(
 					      xep->fep_send->aep_ep_res.fer_eq);
 					if (rc == FI_CONNECTED) {
 						libfab_pending_bufs_send(xep);
@@ -1369,15 +1368,23 @@ static int libfab_bdesc_encode(struct m0_fab__buf *buf)
 	struct m0_net_buffer   *nb = buf->fb_nb;
 	int                     seg_nr = nb->nb_buffer.ov_vec.v_nr;
 	int                     i;
+	struct m0_fab__tm      *tm = libfab_buf_ma(nb);
+	char                   *ptr;
 
 	M0_PRE(seg_nr <= FAB_MR_IOV_MAX);
 
-	nbd->nbd_len = (sizeof(struct fi_rma_iov) * seg_nr);
+	nbd->nbd_len = (LIBFAB_ADDR_STRLEN_MAX + 
+			sizeof(struct fi_rma_iov) * seg_nr);
 	nbd->nbd_data = m0_alloc(nbd->nbd_len);
 	if (nbd->nbd_data == NULL)
 		return M0_RC(-ENOMEM);
+
+	/* TODO: Use inet_pton */
+	ptr = (char *)nbd->nbd_data;
+	strcpy(ptr, tm->ftm_pep->fep_name.fen_str_addr);
+	ptr = &ptr[LIBFAB_ADDR_STRLEN_MAX];
 	
-	rma_iov = (struct fi_rma_iov *)nbd->nbd_data;
+	rma_iov = (struct fi_rma_iov *)ptr;
 
 	for (i = 0; i < seg_nr; i++) {
 		rma_iov->addr = (uint64_t)nb->nb_buffer.ov_buf[i];
@@ -1390,9 +1397,12 @@ static int libfab_bdesc_encode(struct m0_fab__buf *buf)
 }
 
 static void libfab_bdesc_decode(struct m0_net_buf_desc *nbd,
-				struct fi_rma_iov *rma_key)
+				struct fi_rma_iov *rma_key, char *dst)
 {
-	*rma_key = *((struct fi_rma_iov *)nbd->nbd_data);
+	char *ptr = (char *)nbd->nbd_data;
+	strcpy(dst, ptr);
+	ptr = &ptr[LIBFAB_ADDR_STRLEN_MAX];
+	*rma_key = *((struct fi_rma_iov *)ptr);
 }
 
 /* Register the buffer with the appropriate access for the domain of the ep*/
@@ -1727,7 +1737,6 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 	M0_PRE(nb->nb_xprt_private == NULL);
 	M0_PRE(nb->nb_dom != NULL);
 
-	dp = ((struct m0_fab__fab *)nb->nb_dom->nd_xprt_private)->fab_dom;
 
 	M0_ALLOC_PTR(fb);
 	if (fb == NULL)
@@ -1737,7 +1746,11 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 	nb->nb_xprt_private = fb;
 	fb->fb_nb = nb;
 
-	ret = libfab_buf_dom_reg(nb, dp);
+	if (nb->nb_dom->nd_xprt_private != NULL) {
+		dp = ((struct m0_fab__fab *)nb->nb_dom->nd_xprt_private)->fab_dom;
+		ret = libfab_buf_dom_reg(nb, dp);
+		fb->fb_mr.bm_regdone = true;
+	}
 	
 	return M0_RC(ret);
 }
@@ -1762,6 +1775,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	struct iovec              iv[FAB_MR_IOV_MAX];
 	m0_bcount_t               cnt = 0;
 	int                       iv_cnt;
+	char                      dst[LIBFAB_ADDR_STRLEN_MAX];
 	int                       ret = 0;
 
 	M0_PRE(libfab_tm_is_locked(ma) && libfab_tm_invariant(ma) &&
@@ -1772,19 +1786,24 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	m0_tl_for(m0_nep, &nb->nb_tm->ntm_end_points, net) {
 		ep = libfab_ep_net(net);
 		if (ep->fep_listen == NULL) {
-			libfab_ep_get(ep);
 			break;
 		}
 	} m0_tl_endfor;
 
+	if (!fbp->fb_mr.bm_regdone) {
+		libfab_buf_dom_reg(nb, ma->ftm_fab.fab_dom);
+		fbp->fb_mr.bm_regdone = true;
+	}
+
 	switch (nb->nb_qtype) {
 	case M0_NET_QT_MSG_RECV: {
 		fbp->fb_length = nb->nb_length;
+
 		
-		iv_cnt = libfab_iov_prep(&nb->nb_buffer, iv,
-						ARRAY_SIZE(iv), &cnt);
-		ret = fi_recvv(ma->ftm_fab.fab_rctx, iv,
-				fbp->fb_mr.bm_desc, iv_cnt, 0, fbp);
+		iv_cnt = libfab_iov_prep(&nb->nb_buffer, iv, ARRAY_SIZE(iv),
+					 &cnt);
+		ret = fi_recvv(ma->ftm_fab.fab_rctx, iv, fbp->fb_mr.bm_desc,
+			       iv_cnt, 0, fbp);
 
 		break;
 	}
@@ -1834,7 +1853,6 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		
 		if (ret == FI_SUCCESS)
 			ret = libfab_bdesc_encode(fbp);
-		
 		break;
 	}
 
@@ -1844,6 +1862,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 			ret = fi_recv(ma->ftm_fab.fab_rctx, &fbp->fb_rc_buf,
 				      sizeof(fbp->fb_rc_buf), NULL, 0, fbp);
 		}
+
 		
 		if (ret == FI_SUCCESS)
 			ret = libfab_bdesc_encode(fbp);
@@ -1853,10 +1872,16 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 
 	/* For active buffers, decode the passive buffer descriptor */
 	case M0_NET_QT_ACTIVE_BULK_RECV: {
+		libfab_bdesc_decode(&nb->nb_desc, &rma_iov, dst);
+		m0_tl_for(m0_nep, &nb->nb_tm->ntm_end_points, net) {
+			ep = libfab_ep_net(net);
+			if (strcmp(ep->fep_name.fen_str_addr, dst) == 0) {
+				libfab_ep_get(ep);
+				break;
+			}
+		} m0_tl_endfor;
 		fbp->fb_txctx = ep;
 		aep = ep->fep_send;
-		
-		libfab_bdesc_decode(&nb->nb_desc, &rma_iov);
 		fbp->fb_length = nb->nb_length;
 
 		iv_cnt = libfab_iov_prep(&nb->nb_buffer, iv, ARRAY_SIZE(iv),
@@ -1867,10 +1892,17 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	}
 
 	case M0_NET_QT_ACTIVE_BULK_SEND: {
+		libfab_bdesc_decode(&nb->nb_desc, &rma_iov, dst);
+		m0_tl_for(m0_nep, &nb->nb_tm->ntm_end_points, net) {
+			ep = libfab_ep_net(net);
+			if (strcmp(ep->fep_name.fen_str_addr, dst) == 0) {
+				libfab_ep_get(ep);
+				break;
+			}
+		} m0_tl_endfor;
 		fbp->fb_txctx = ep;
 		aep = ep->fep_send;
 		
-		libfab_bdesc_decode(&nb->nb_desc, &rma_iov);
 		
 		iv_cnt = libfab_iov_prep(&nb->nb_buffer, iv, ARRAY_SIZE(iv),
 					 &cnt);
@@ -1883,8 +1915,6 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		M0_IMPOSSIBLE("invalid queue type: %x", nb->nb_qtype);
 		break;
 	}
-	if (ret != 0)
-		libfab_buf_del(nb);
 
 	return M0_RC(ret);
 }
@@ -1942,7 +1972,7 @@ static void libfab_bev_notify(struct m0_net_transfer_mc *ma,
 static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
 {
 	/*TODO: Get proper value from libfabric domain attribute */
-	return 1048576;
+	return M0_BCOUNT_MAX/2; /* 1048576; */
 }
 
 /**
@@ -1955,7 +1985,7 @@ static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
 static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
 {
 	/*TODO: Get proper value from libfabric domain attribute */
-	return 4096;
+	return M0_BCOUNT_MAX / 2; /* 4096; */
 }
 
 /**
@@ -1968,7 +1998,7 @@ static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
 static int32_t libfab_get_max_buf_segments(const struct m0_net_domain *dom)
 {
 	/*TODO: Get proper value from libfabric domain attribute */
-	return  256;
+	return  INT32_MAX/2; /*256; */
 }
 
 /**
@@ -1980,7 +2010,8 @@ static int32_t libfab_get_max_buf_segments(const struct m0_net_domain *dom)
  */
 static m0_bcount_t libfab_get_max_buf_desc_size(const struct m0_net_domain *dom)
 {
-	return sizeof(uint64_t);
+	// return sizeof(uint64_t);
+	return (sizeof(struct fi_rma_iov) /* FAB_MR_IOV_MAX*/);
 }
 
 static struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf)

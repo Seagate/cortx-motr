@@ -130,6 +130,7 @@ struct m0_fab__buf_mr {
 	void          *bm_desc[FAB_MR_IOV_MAX]; /* Buffer descriptor */
 	struct fid_mr *bm_mr[FAB_MR_IOV_MAX];   /* Libfab memory region */
 	uint64_t       bm_key[FAB_MR_IOV_MAX];  /* Memory registration key */
+	bool           bm_regdone;              /* Memory reg done */
 };
 
 struct m0_fab__buf {
