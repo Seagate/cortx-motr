@@ -143,7 +143,7 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
 			break;
 		case OBJ_RES:
 			m0_tl_teardown(m0_remotes,
-				       &data->rd_res->r_remote, other) {
+				       &data->rd_res->r_remotes, other) {
 				m0_rm_remote_fini(other);
 				m0_free(other);
 			}
@@ -245,6 +245,11 @@ void rm_ctx_server_start(enum rm_server srv_id)
 		creditor->rem_state = REM_SERVICE_LOCATED;
 		creditor->rem_session = &rm_ctxs[srv_id].rc_sess[cred_id];
 		owner->ro_creditor = creditor;
+		/*
+		 * Don't destroy creditors by loans ref-counter.
+		 * (It's only for debtors.)
+		 */
+		m0_ref_get(&creditor->rem_refcnt);
 	} else
 		rm_test_owner_capital_raise(owner, &data->rd_credit);
 
@@ -274,16 +279,13 @@ void rm_ctx_server_windup(enum rm_server srv_id)
 {
 	struct m0_rm_owner *owner = rm_ctxs[srv_id].rc_test_data.rd_owner;
 	enum rm_server      cred_id = rm_ctxs[srv_id].creditor_id;
-	struct m0_reqh     *reqh = &rm_ctxs[srv_id].rc_rmach_ctx.rmc_reqh;
 
-	m0_chan_lock(&reqh->rh_conf_cache_exp);
 	if (cred_id != SERVER_INVALID) {
 		M0_UT_ASSERT(owner->ro_creditor != NULL);
 		m0_rm_remote_fini(owner->ro_creditor);
 		m0_free0(&owner->ro_creditor);
 	}
 	rm_utdata_fini(&rm_ctxs[srv_id].rc_test_data, OBJ_OWNER);
-	m0_chan_unlock(&reqh->rh_conf_cache_exp);
 }
 
 void rm_ctx_server_stop(enum rm_server srv_id)
