@@ -70,6 +70,12 @@ enum PORT_SOCK_TYPE {
 	SOCKTYPEMAX   = 2
 };
 
+enum m0_fab__conn_status {
+	FAB_NOT_CONNECTED,
+	FAB_CONNECTING,
+	FAB_CONNECTED
+};
+
 struct m0_fab__list {
 	struct m0_tl fl_head;
 };
@@ -94,16 +100,16 @@ struct m0_fab__ep_res {
 };
 
 struct m0_fab__active_ep {
-	struct fid_ep         *aep_ep;         /* Active Endpoint */
-	struct m0_fab__ep_res  aep_ep_res;     /* Endpoint resources */
-	bool                   aep_is_conn;    /* Is ep in connected state */
+	struct fid_ep            *aep_ep;      /* Active Endpoint */
+	struct m0_fab__ep_res     aep_ep_res;  /* Endpoint resources */
+	enum m0_fab__conn_status  aep_state;   /* EP connection status */
 };
 
 struct m0_fab__passive_ep {
-	struct fid_pep           *pep_pep;        /* Passive endpoint */
+	struct fid_pep           *pep_pep;      /* Passive endpoint */
 	struct m0_fab__active_ep *pep_tx_ep;
 	struct m0_fab__active_ep *pep_rx_ep;
-	struct m0_fab__ep_res     pep_ep_res;     /* Endpoint resources */
+	struct m0_fab__ep_res     pep_ep_res;   /* Endpoint resources */
 };
 
 struct m0_fab__ep {
@@ -143,6 +149,7 @@ struct m0_fab__buf {
 	uint64_t               fb_magic;   /* Magic number */
 	uint64_t               fb_sndmagic;/* Magic number */
 	uint64_t               fb_rc_buf;  /* For remote completions */
+	uint64_t               fb_rem_key;
 	struct m0_fab__buf_mr  fb_mr;
 	struct fid_domain     *fb_dp;      /* Domain to which the buf is reg */
 	struct m0_net_buffer  *fb_nb;      /* Pointer back to network buffer*/
