@@ -20,7 +20,7 @@ A FOL is a central M0 data-structure, maintained by every node where M0 core is 
 
 - it is used by a node data-base component to implement local transactions through WAL logging;
 
-- it is used by DTM to implement distributed transactions. DTM uses fol for multiple purposes internally:
+- it is used by DTM to implement distributed transactions. DTM uses FOL for multiple purposes internally:
 
   - on a node where a transaction originates: for replay;
 
