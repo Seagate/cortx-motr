@@ -26,6 +26,18 @@ customers, architects, designers and developers.
 |   | Version | approving person | Signature, date |
 |---+---------+------------------+-----------------|
 |   |   0.0.1 |                  |                 |
+* Authors
+|   |                  |                                |
+|---+------------------+--------------------------------|
+|   | Anatoliy Bilenko | <anatoliy.bilenko@seagate.com> |
+|   | Nikita Danilov   | <nikita.danilov@seagate.com>   |
+|   | Ivan Alekhin     | <ivan.alekhin@seagate.com>     |
+|   | Mehul Joshi      | <mehul.joshi@seagate.com>      |
+|   | Sergey Shilov    | <sergey.shilov@seagate.com>    |
+|   | Anilkumar Sindhi | <anilkumar.sindhi@seagate.com> |
+|   | Max Medvied      | <max.medved@seagate.com>       |
+|   | Yuriy Umanets    | <yuriy.umanets@seagate.com>    |
+
 * Introduction
 #+BEGIN_QUOTE
 =[This section succinctly introduces the subject matter of the design. 1--2 paragraphs]=
