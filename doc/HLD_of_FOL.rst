@@ -81,7 +81,7 @@ Requirements
 
 - [R.FOL.VARIABILITY]: FOL supports various system configurations. FOL is maintained by every M0 back-end. FOL stores enough information to efficiently find modifications to the file system state that has to be propagated through the caching graph, and to construct network-optimal messages carrying these updates. A FOL can be maintained in volatile or persistent transactional storage;
 
-- [R.FOL.LSN]: A FOL record is identified by an LSN. There is a compact identifier (LSN, Log Sequence Number) with which a log record can be identified and efficiently located;
+- [R.FOL.LSN]: A FOL record is identified by an LSN. There is a compact identifier (LSN) with which a log record can be identified and efficiently located;
 
 - [R.FOL.CONSISTENCY]: A FOL record describes a storage operation. A FOL record describes a complete storage operation, that is, a change to a storage system state that preserves state consistency;
 
