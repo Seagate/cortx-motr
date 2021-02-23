@@ -133,21 +133,25 @@
  * Now, if the object consists only of a single unit, the next call to
  * m0_layout_plan_get() would return M0_LAT_DONE indicating that the i/o m0_op
  * is done and the plan is finished. But usually objects consist of
- * many units and all of them should be read in parallel. Which means the user
- * might call m0_layout_plan_get() many times before calling the first
- * m0_layout_plop_done().
+ * many units and all of them should be read in parallel. So the user
+ * might call m0_layout_plan_get() many times and getting a number of
+ * M0_LAT_READ plops before calling the first m0_layout_plop_done().
+ *
+ * @note M0_LAT_OUT_READ plop also can be returned by plan for the parity
+ * group even before any m0_layout_plop_done() is called for any of the
+ * M0_LAT_READ plops on the units of this parity group. It is responsibility
+ * of user to track the dependencies between plops, execute them and call
+ * m0_layout_plop_done()s on them in order (see m0_layout_plop::pl_deps).
  *
  * The picture becomes a bit more complicated when some disk is failed and
  * we are doing the degraded read. Or we are working in the read-verify mode.
- * In this situation the plan would ask the user to read the parity units in
- * each parity group also. Having the parity data at hand, the implementation
- * would ask user to run the function (by returning M0_LAT_FUN plop).
- * The function will restore the data (or verify it) in the synchronous way.
- * When it's finished and m0_layout_plop_done() is called, the next
- * m0_layout_plan_get() might return M0_LAT_OUT_READ.
+ * In this situation the plan would ask user to read the parity units in
+ * each parity group also. The implementation would ask user to run the parity
+ * calculation function (M0_LAT_FUN plop). The function would restore data
+ * (or verify it) in a synchronous way.
  *
- * In case of the read-verify mode the verification status is indicated by
- * the return code from the m0_layout_fun_plop::fp_fun() call.
+ * @note in case of the read-verify mode the verification status is indicated
+ * by the return code from the m0_layout_fun_plop::fp_fun() call.
  *
  * The plan would return m0_layout_fun_plop periodically each time the parity
  * group is read in the degraded mode and the data needs to be restored. Or
@@ -257,6 +261,15 @@ enum m0_layout_plop_type {
 };
 
 /**
+ * States of plops.
+ */
+enum m0_layout_plop_state {
+	M0_LPS_INIT,
+	M0_LPS_STARTED,
+	M0_LPS_DONE,
+};
+
+/**
  * Common plop structure, shared by all "sub-classes".
  *
  * A call to m0_layout_plop_get() returns a structure starting with
@@ -266,6 +279,8 @@ enum m0_layout_plop_type {
 struct m0_layout_plop {
 	/** Plop type. */
 	enum m0_layout_plop_type         pl_type;
+	/** Plop state. */
+	enum m0_layout_plop_state        pl_state;
 	/** Plan this plop is part of. */
 	struct m0_layout_plan           *pl_plan;
 	/**
@@ -280,7 +295,20 @@ struct m0_layout_plop {
 	/**
 	 * Linkage in the list of all plops in the plan.
 	 */
-	struct m0_tl                     pl_linkage;
+	struct m0_tlink                  pl_all_link;
+	/**
+	 * Linkage in the pl_deps list.
+	 */
+	struct m0_tlink                  pl_deps_link;
+	/**
+	 * List of plops we depend on.
+	 *
+	 * User can use this list to track the dependencies between plops
+	 * to execute and call m0_layout_plop_done() on them in the
+	 * correspondent order and also to check whether there are still
+	 * pending undone plops we depend on.
+	 */
+	struct m0_tl                     pl_deps;
 	/**
 	 * Fid of the entity this plop operates on. Meaning of this field
 	 * depends on plop type.
@@ -417,6 +445,15 @@ enum {
  */
 M0_EXTERN int m0_layout_plan_get(struct m0_layout_plan *plan, uint64_t colour,
 				 struct m0_layout_plop **out);
+
+/**
+ * Instructs the implementation that the user starts processing of the plop.
+ *
+ * @retval -EINVAL if the plop cannot be processed anymore for some reason.
+ *                 For example, if it was cancelled by the plan already.
+ */
+M0_EXTERN int m0_layout_plop_start(struct m0_layout_plop *plop);
+
 /**
  * Instructs the implementation that the user completed processing of the plop.
  *
