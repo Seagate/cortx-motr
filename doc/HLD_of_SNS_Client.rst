@@ -201,23 +201,32 @@ State diagrams are part of the detailed level design specification.
  Scenarios
 ===========
 
-Scenario 1: [usecase.sns-client-read]
++------------------------------+--------------------------------------------------+
+|Scenario                      |[usecase.sns-client-read]                         |
++------------------------------+--------------------------------------------------+
+|Relevant quality attributes   | usability                                        |
++------------------------------+--------------------------------------------------+
+|Stimulus                      |an incoming read operation request from a user    |
+|                              |space operation                                   |
++------------------------------+--------------------------------------------------+
+|Stimulus source               |a user space application, potentially meditated by| 
+|                              |a loop-back device driver                         |
++------------------------------+--------------------------------------------------+
+|Environment                   |normal client operation                           |
++------------------------------+--------------------------------------------------+
+|Artifact                      |call to VFS ->read() entry point                  |
++------------------------------+--------------------------------------------------+
+|Response                      |a fop is created, network transmission of         |
+|                              |operation parameters to all involved data servers |
+|                              |is started as specified by the file layout,       |
+|                              |servers place retrieved data directly in user     |
+|                              |buffers, once transmission completes, the fop is  |
+|                              |destroyed.                                        |
++------------------------------+--------------------------------------------------+
+|Response measure              |no data copying in the process                    |
++------------------------------+--------------------------------------------------+
 
-Relevant quality attributes: usability
 
-Stimulus: an incoming read operation request from a user space operation
-
-Stimulus source: a user space application, potentially meditated by a loop-back device driver
-
-Environment: normal client operation
-
-Artifact: call to VFS ->read() entry point
-
-Response: a fop is created, network transmission of operation parameters to all involved data servers is started as specified by the file layout, servers place retrieved data directly in user buffers, once transmission completes, the fop is destroyed.
-
-Response measure: no data copying in the process
-
-Questions and issues:
 
 
 Scenario 2: [usecase.sns-client-write]
