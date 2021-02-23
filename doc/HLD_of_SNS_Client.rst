@@ -105,15 +105,15 @@ Trivial caching policy is used: fops are accumulated[7] in the staging area whil
  Conformance
 =============
 
-- 1[u.FOP] ST
+- 1[u.fop] st
 
-- 2[u.LAYOUT.PARAMETRIZED] ST 
+- 2[u.layout.parametrized] st 
 
-- 3[u.FOP.SNS] ST 
+- 3[u.fop.sns] st 
 
-- 4[u.LAYOUT.DATA] ST 
+- 4[u.layout.data] st 
 
-- 5[u.LAYOUT.POOLS] ST 
+- 5[u.layout.pools] st 
 
 - 6[u.lib.allocate-page] 
 
@@ -123,26 +123,26 @@ Trivial caching policy is used: fops are accumulated[7] in the staging area whil
 
 - 9[u.fop.rpc.to] 
 
-- 10[u.FOP.BATCHING] ST
+- 10[u.fop.batching] st
 
 - [r.sns-client.nocache]: holds per caching policy described in the rpc sub-section.
 
 - [r.sns-client.norecovery]: holds obviously;
 
-- [R.M0.IO.DIRECT]: no-caching and 0-copy for data together implement direct-io.
+- [r.m0.io.direct]: no-caching and 0-copy for data together implement direct-io.
 
  Dependencies
 ===============
 
 - layout:
 
-  - [u.LAYOUT.SNS] ST: server network striping can be expressed as a layout
+  - [u.layout.sns] st: server network striping can be expressed as a layout
 
-  - [u.LAYOUT.DATA] ST: layouts for data are supported
+  - [u.layout.data] st: layouts for data are supported
 
-  - [u.LAYOUT.POOLS] ST: layouts use server and device pools for object allocation, location, and identification
+  - [u.layout.pools] st: layouts use server and device pools for object allocation, location, and identification
 
-  - [u.LAYOUT.PARAMETRIZED] ST: layouts have parameters that are substituted to perform actual mapping
+  - [u.layout.parametrized] st: layouts have parameters that are substituted to perform actual mapping
 
 - fop:
 
