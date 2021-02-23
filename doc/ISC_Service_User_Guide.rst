@@ -313,7 +313,7 @@ We now explore a complex example where a computation involves an IO, and hence n
 
   } M0_XCA_RECORD;
  
- The array of values stored with Motr will be identified using a global id represented here as ha_gob_fid. It has been assumed that maximum and minimum values over the array are known or are made available by previous calls to arr_max() and arr_min().
+The array of values stored with Motr will be identified using a global id represented here as ha_gob_fid. It has been assumed that maximum and minimum values over the array are known or are made available by previous calls to arr_max() and arr_min().
 
 Here we discuss the API for generating a histogram of values, local to a node. The caller side or client side shall be populating the struct histo_args and sending it across using m0_isc_fop.
 
@@ -381,4 +381,4 @@ Here we discuss the API for generating a histogram of values, local to a node. T
 
        This is necessary for Motr instance to decide whether to retry.
 
-     
+  }     
