@@ -99,7 +99,7 @@ Three database tables are used to capture cob metadata:
 
   - if nlink > 0, attrs = {size, mactime, omg_ref, nlink}; else attrs = {}
 
-  - multiple keys may point to the same record for hardlinks, if the database can support this. Otherwise, we store the attrs in one of the records only (link number 0). (This    leads to a long sequence of operations to delete a hardlink, but straightforward.)
+  - multiple keys may point to the same record for hardlinks, if the database can support this. Otherwise, we store the attrs in one of the records only (link number 0). This    leads to a long sequence of operations to delete a hardlink, but straightforward.
 
 - fileattr_basic table
 
