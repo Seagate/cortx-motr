@@ -105,7 +105,7 @@ static void fail_idx_reed_solomon_recover(struct m0_parity_math *math,
 					  const uint32_t failure_index);
 #ifndef __KERNEL__
 static int isal_ir_init(const struct m0_parity_math *math, struct m0_sns_ir *ir);
-static int ir_gen_decode_matrix(struct m0_sns_ir *ir);
+static int ir_gen_coeff_tbl(struct m0_sns_ir *ir);
 #else
 /**
  * Inverts the encoding matrix and generates a recovery matrix for lost data.
@@ -1337,7 +1337,7 @@ M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir)
 		}
 	}
 #else
-	ret = ir_gen_decode_matrix(ir);
+	ret = ir_gen_coeff_tbl(ir);
 	if (ret != 0)
 		return ret;
 
@@ -1354,7 +1354,7 @@ M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir)
 }
 
 #ifndef __KERNEL__
-static int ir_gen_decode_matrix(struct m0_sns_ir *ir)
+static int ir_gen_coeff_tbl(struct m0_sns_ir *ir)
 {
 	struct m0_buf err_buf = M0_BUF_INIT0;
 
