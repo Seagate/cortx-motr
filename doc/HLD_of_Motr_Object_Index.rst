@@ -163,7 +163,7 @@ A m0_cob is an in-memory structure, instantiated by the method cob_find and popu
 
 The `*_rec` members are pointers to the records from the database tables. These records may or may not be populated at various stages in cob life.
 
-The co_stob reference is also likely to remain unset, as metadata operations will not frequently affect the underlying storage object (and, indeed, the storage object is likely to live on a different node).
+The co_stob reference is also likely to remain unset, as metadata operations will not frequently affect the underlying storage object and, indeed, the storage object is likely to live on a different node.
 
 Usage
 ======
