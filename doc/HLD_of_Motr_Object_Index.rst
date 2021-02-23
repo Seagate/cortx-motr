@@ -36,7 +36,7 @@ Requirements
 
 - [R.M0.BACK-END.OBJECT-INDEX]: an object index allows back-end to locate an object by its fid
 
-- [R.M0.BACK-END.INDEXING]: back-end has mechanisms to build meta-data indices
+- [R.M0.BACK-END.INDEXING]: back-end has mechanisms to build metadata indices
 
 - [R.M0.LAYOUT.BY-REFERENCE]: file layouts are stored in file attributes by reference
 
@@ -235,7 +235,7 @@ Scenarios
    * - Artifact
      - a series of Schema accesses
    * - Response
-     - Meta-data back-end contains enough information to handle file system operation request. This information includes the below mentioned aspects:
+     - Metadata back-end contains enough information to handle file system operation request. This information includes the below mentioned aspects:
      
        - tandard file attributes as defined by POSIX, including access control related information; 
        
@@ -324,7 +324,7 @@ Scenarios
    * - Stimulus
      - a new file is created
    * - Stimulus source
-     - protocol translator, native C2 client or storage application
+     - protocol translator, native M0 client or storage application
    * - Environment
      - normal operation
    * - Artifact
