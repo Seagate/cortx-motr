@@ -62,3 +62,16 @@
     dest: '{{ ssh_jumphost_pub_key_file }}'
     flat: yes
   tags: ssh
+
+- name: set StrictHostKeyChecking=no step1 - uncomment 'Host *.local'
+  lineinfile:
+    path: /etc/ssh/ssh_config
+    regex: '^(#? *)?Host ..local'
+    line: 'Host *.local'
+
+- name: set StrictHostKeyChecking=no step2 - add after 'Host *.local'
+  lineinfile:
+    path: /etc/ssh/ssh_config
+    regex: '^(#? *)?StrictHostKeyChecking no'
+    insertafter: 'Host ..local'
+    line: 'StrictHostKeyChecking no'
