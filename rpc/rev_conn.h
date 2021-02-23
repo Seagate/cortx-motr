@@ -46,6 +46,7 @@ struct m0_reverse_connection {
 	struct m0_tlink     rcf_linkage;
 	/* signalled when connection is terminated */
 	struct m0_clink     rcf_disc_wait;
+	struct m0_sm_ast    rcf_free_ast;
 	uint64_t            rcf_magic;
 };
 

@@ -133,15 +133,13 @@ M0_INTERNAL int m0_format_footer_verify_generic(
 	M0_PRE(footer != NULL);
 
 	if (footer->ft_magic != M0_FORMAT_FOOTER_MAGIC) {
-		format_iem_post("Internal data appears to be inconsistent and "
-				"may result in data corruption or loss. "
+		format_iem_post("Observed data accessibility issue. "
 				"Contact Seagate support.", iem);
 		return M0_ERR(-EPROTO);
 	}
 	checksum = m0_hash_fnc_fnv1(buffer, size);
 	if (footer->ft_checksum != checksum) {
-		format_iem_post("Internal data appears to be inconsistent and "
-				"may result in data corruption or loss. "
+		format_iem_post("Observed data accessibility issue. "
 				"Contact Seagate support.", iem);
 		return M0_ERR(-EPROTO);
 	}
@@ -157,8 +155,7 @@ M0_INTERNAL int m0_format_footer_verify(const void *buffer, bool iem)
 	M0_ASSERT(buffer != NULL);
 	rc = get_footer_from_buf(buffer, &footer, &footer_offset);
 	if (rc != 0) {
-		format_iem_post("Internal data appears to be inconsistent and "
-				"may result in data corruption or loss. "
+		format_iem_post("Observed data accessibility issue. "
 				"Contact Seagate support.", iem);
 		return M0_ERR(rc);
 	}
