@@ -1,10 +1,14 @@
 ==================================================
-High level design of an SNS client module for M0
+High-Level Design of an SNS Client Module for M0
 ==================================================
 
-This document presents a high level design (HLD) of an SNS client module from M0. The main purposes of this document are: (i) to be inspected by M0 architects and peer designers to ascertain that high level design is aligned with M0 architecture and other designs, and contains no defects, (ii) to be a source of material for Active Reviews of Intermediate Design (ARID) and detailed level design (DLD) of the same component, (iii) to serve as a design reference document.
+This document provides a High-Level Design (HLD) of an SNS Client Module from M0. The main purposes of this document are:
 
-The intended audience of this document consists of M0 customers, architects, designers and developers.
+- To be inspected by M0 architects and peer designers to ensure that HLD is aligned with M0 architecture and other designs and contains no defects
+
+- To be a source of material for Active Reviews of Intermediate Design (ARID) and Detailed Level Design (DLD) of the same component
+
+- To be served as a design reference document
 
 **************
 Introductiom
@@ -28,7 +32,11 @@ The following terms are used to discuss and describe SNS client:
 Requirements
 *************
 
-- [r.sns-client.nocache]: Motr client does not cache data because (i) this simplifies its structure and implementation, (ii) Motr exports block device interface and block device users, including file systems, do caching internally;
+- [r.sns-client.nocache]: Motr client does not cache data because:
+
+  - This simplifies its structure and implementation
+  
+  - Motr exports block device interface and block device users, including file systems, do caching internally.
 
 - [r.sns-client.norecovery]: recovery from node or network failure is beyond the scope of the present design;
 
