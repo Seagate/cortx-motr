@@ -64,9 +64,11 @@ Definitions
 
   - a FOL record can be found efficiently (i.e., without FOL scanning) given its LSN, and
 
-  - for any pair of conflicting updates recorded in the FOL, the LSN of the pre-requisite is less than that of the dependent update (Note: clearly this property implies that lsn     data-type has infinite range and, hence, is unimplementable in practice. What is in fact required is that this property holds for any two conflicting updates sufficiently     close in logical time, where precise closeness condition is defined by the FOL pruning algorithm. The same applies to object versions.);
+  - for any pair of conflicting updates recorded in the FOL, the LSN of the pre-requisite is less than that of the dependent update
   
-Note: it would be nice to refine the terminology to distinguish between operation description (i.e., intent to carry it out) and its actual execution. This would make description of dependencies and recovery less obscure, at the expense of some additional complexity.
+    Note: This property implies that LSN data-type has infinite range and hence, is unimplementable in practice. This property holds for two conflicting updates sufficiently close in logical time, where precise closeness condition is defined by the FOL pruning algorithm. The same applies to object versions.
+  
+Note: It would be nice to refine the terminology to distinguish between operation description (i.e., intent to carry it out) and its actual execution. This would make description of dependencies and recovery less obscure, at the expense of some additional complexity.
 
 
 ***************
