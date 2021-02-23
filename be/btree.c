@@ -1515,18 +1515,27 @@ static void btree_save(struct m0_be_btree        *tree,
 		if (op_tree(op)->t_rc == 0 &&
 		    (cur_kv == NULL || val_overflow)) {
 			/* Avoid CPU alignment overhead on values. */
-			ksz = m0_align(key->b_nob, sizeof(void*));
+			if(tree->bb_ops->ko_type == M0_BBT_CAS_CTG)
+				ksz = m0_align(key->b_nob, sizeof(void*));
+			else
+				ksz = 0;
+			
 			new_kv.btree_key =
 				      mem_alloc(tree, tx, ksz + vsz, zonemask);
 			new_kv.btree_val = new_kv.btree_key + ksz;
-			memcpy(new_kv.btree_key, key->b_addr, key->b_nob);
-			memset(new_kv.btree_key + key->b_nob, 0,
-							ksz - key->b_nob);
+
+			if(tree->bb_ops->ko_type == M0_BBT_CAS_CTG)
+			{
+				memcpy(new_kv.btree_key, key->b_addr, key->b_nob);
+				memset(new_kv.btree_key + key->b_nob, 0,
+								ksz - key->b_nob);
+			}
 			if (val != NULL) {
 				memcpy(new_kv.btree_val, val->b_addr, vsz);
 				mem_update(tree, tx,
 						new_kv.btree_key, ksz + vsz);
 			} else {
+				//if(tree->bb_ops->ko_type == M0_BBT_CAS_CTG)
 				mem_update(tree, tx, new_kv.btree_key, ksz);
 				anchor->ba_value.b_addr = new_kv.btree_val;
 			}
@@ -1534,7 +1543,7 @@ static void btree_save(struct m0_be_btree        *tree,
 			if(tree->bb_ops->ko_type != M0_BBT_CAS_CTG)
 			{
 				memcpy(new_kv.inlkey, key->b_addr, key->b_nob);
-				M0_LOG(M0_ERROR,"YB:Inline key %s actual key %s",(char *)new_kv.inlkey,(char *)new_kv.btree_key);
+				new_kv.btree_key =&new_kv.inlkey;
 			}
 
 			be_btree_insert_newkey(tree, tx, &new_kv);
