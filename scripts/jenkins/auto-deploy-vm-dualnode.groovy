@@ -56,7 +56,7 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
                     }
                     when { expression { params.RESET_VM } }
                     steps {
-                        sh '''curl "https://raw.githubusercontent.com/Seagate/cortx-motr/EOS-14750/scripts/jenkins/vm-reset" -o vm-reset.sh
+                        sh '''curl "https://raw.githubusercontent.com/Seagate/cortx-motr/motr-jenkins/scripts/jenkins/vm-reset" -o vm-reset.sh
                         chmod a+x vm-reset.sh
                         VERBOSE=true ./vm-reset.sh
                         sleep 300
@@ -69,7 +69,7 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
                     }
                     when { expression { params.RESET_VM } }
                     steps {
-                        sh '''curl "https://raw.githubusercontent.com/Seagate/cortx-motr/EOS-14750/scripts/jenkins/vm-reset" -o vm-reset.sh
+                        sh '''curl "https://raw.githubusercontent.com/Seagate/cortx-motr/motr-jenkins/scripts/jenkins/vm-reset" -o vm-reset.sh
                         chmod a+x vm-reset.sh
                         VERBOSE=true ./vm-reset.sh
                         sleep 300
