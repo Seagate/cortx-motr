@@ -46,6 +46,7 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
         
         
         stage('Reset VM') {
+            when { expression { params.RESET_VM } }
             environment {
                 SSC_AUTH = credentials("${SSC_AUTH_ID}")
             }
@@ -54,7 +55,6 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
                     environment {
                         VM_FQDN = "${VM1_FQDN}"
                     }
-                    when { expression { params.RESET_VM } }
                     steps {
                         sh '''curl "https://raw.githubusercontent.com/Seagate/cortx-motr/motr-jenkins/scripts/jenkins/vm-reset" -o vm-reset.sh
                         chmod a+x vm-reset.sh
@@ -67,7 +67,6 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
                     environment {
                         VM_FQDN = "${VM2_FQDN}"
                     }
-                    when { expression { params.RESET_VM } }
                     steps {
                         sh '''curl "https://raw.githubusercontent.com/Seagate/cortx-motr/motr-jenkins/scripts/jenkins/vm-reset" -o vm-reset.sh
                         chmod a+x vm-reset.sh
