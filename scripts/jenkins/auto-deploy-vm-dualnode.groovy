@@ -1,6 +1,31 @@
 pipeline {
     agent any
+    parameters {
+        string(name: 'VM1_FQDN', defaultValue: '', description: 'FQDN of ssc-vm primary node (node-1). (user/password must be root/seagate)')
+        string(name: 'VM2_FQDN', defaultValue: '', description: 'FQDN of ssc-vm secondary node (node-2). (user/password must be root/seagate)')
+        string(name: 'REPO_URL', defaultValue: '', description: '''Target build URL 
+Example: http://cortx-storage.colo.seagate.com/releases/cortx_builds/centos-7.8.2003/589/ 
+This should contain directory structure like,
+../
+3rd_party/                                               24-Feb-2021 04:35                   -
+cortx_iso/                                                24-Feb-2021 04:34                   -
+iso/                                                          24-Feb-2021 04:34                   -
+python_deps/                                          31-Oct-2020 12:45                   -
+RELEASE.INFO                                         24-Feb-2021 04:35                1002
+THIRD_PARTY_RELEASE.INFO                  24-Feb-2021 04:35               26196
+''')
+        string(name: 'SSC_AUTH_ID', defaultValue: '', description: '''Add onetime RedHatCloudform credentials using below link and use ID in this param if RESET_VM is checked. 
+http://ssc-vm-c-0139.colo.seagate.com:8080/credentials/store/system/domain/_/newCredentials''')
 
+        booleanParam(name: 'RESET_VM', defaultValue: false, description: '''Revert ssc-vm to first snapshot. (First snapshot with root/seagate user/password)
+If vm reset fails, then perform manual reset using ssc-cloud.''')
+        booleanParam(name: 'PRE_REQ', defaultValue: true, description: 'Perform pre-req')
+        booleanParam(name: 'PRIMARY_SETUP', defaultValue: true, description: 'Setup Provisioner on primary node')
+        booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Deploy')
+        booleanParam(name: 'S3_INSTALL', defaultValue: false, description: 'Install S3 client and S3 bench')
+        booleanParam(name: 'S3_CREATE_AC', defaultValue: false, description: 'Create S3 "test" account')
+        booleanParam(name: 'S3_RUN_IO', defaultValue: false, description: 'Run S3 IO')
+    }
     options {
         timeout(120)  // abort the build after that many minutes
         disableConcurrentBuilds()
@@ -11,12 +36,12 @@ pipeline {
         
         stage('Build params') {
             steps {
-						sh '''
-						echo "Node 1: ${VM1_FQDN}"
-						echo "Node 2: ${VM2_FQDN}"
-						echo "Target: ${REPO_URL}"
-						'''
-			}
+                        sh '''
+                        echo "Node 1: ${VM1_FQDN}"
+                        echo "Node 2: ${VM2_FQDN}"
+                        echo "Target: ${REPO_URL}"
+                        '''
+            }
         }
         
         
@@ -24,34 +49,34 @@ pipeline {
             environment {
                 SSC_AUTH = credentials("${SSC_AUTH_ID}")
             }
-			parallel {
-				stage ('reset-vm-node1'){
-				    environment {
+            parallel {
+                stage ('reset-vm-node1'){
+                    environment {
                         VM_FQDN = "${VM1_FQDN}"
                     }
                     when { expression { params.RESET_VM } }
-					steps {
-						sh '''curl "https://raw.githubusercontent.com/Seagate/cortx-motr/EOS-14750/scripts/jenkins/vm-reset" -o vm-reset.sh
-						chmod a+x vm-reset.sh
-						VERBOSE=true ./vm-reset.sh
-						sleep 300
-						'''
-					}
-				}
-				stage ('reset-vm-node2'){
-				    environment {
+                    steps {
+                        sh '''curl "https://raw.githubusercontent.com/Seagate/cortx-motr/EOS-14750/scripts/jenkins/vm-reset" -o vm-reset.sh
+                        chmod a+x vm-reset.sh
+                        VERBOSE=true ./vm-reset.sh
+                        sleep 300
+                        '''
+                    }
+                }
+                stage ('reset-vm-node2'){
+                    environment {
                         VM_FQDN = "${VM2_FQDN}"
                     }
                     when { expression { params.RESET_VM } }
-					steps {
-						sh '''curl "https://raw.githubusercontent.com/Seagate/cortx-motr/EOS-14750/scripts/jenkins/vm-reset" -o vm-reset.sh
-						chmod a+x vm-reset.sh
-						VERBOSE=true ./vm-reset.sh
-						sleep 300
-						'''
-					}
-				}
-			}
+                    steps {
+                        sh '''curl "https://raw.githubusercontent.com/Seagate/cortx-motr/EOS-14750/scripts/jenkins/vm-reset" -o vm-reset.sh
+                        chmod a+x vm-reset.sh
+                        VERBOSE=true ./vm-reset.sh
+                        sleep 300
+                        '''
+                    }
+                }
+            }
         }
 
         stage('cortx-prereqs') {
@@ -63,9 +88,9 @@ pipeline {
                             def remote = getTestMachine(VM1_FQDN)
                             def commandResult = sshCommand remote: remote, command: """
                             curl https://raw.githubusercontent.com/Seagate/cortx-prvsnr/cortx-1.0/cli/src/cortx-prereqs.sh -o cortx-prereqs.sh
-							chmod a+x cortx-prereqs.sh
-							sh cortx-prereqs.sh --disable-sub-mgr
-							true
+                            chmod a+x cortx-prereqs.sh
+                            sh cortx-prereqs.sh --disable-sub-mgr
+                            true
                             """
                             echo "Result: " + commandResult
                         }
@@ -78,9 +103,9 @@ pipeline {
                             def remote = getTestMachine(VM2_FQDN)
                             def commandResult = sshCommand remote: remote, command: """
                             curl https://raw.githubusercontent.com/Seagate/cortx-prvsnr/cortx-1.0/cli/src/cortx-prereqs.sh -o cortx-prereqs.sh
-							chmod a+x cortx-prereqs.sh
-							sh cortx-prereqs.sh --disable-sub-mgr
-							true
+                            chmod a+x cortx-prereqs.sh
+                            sh cortx-prereqs.sh --disable-sub-mgr
+                            true
                             """
                             echo "Result: " + commandResult
                         }
@@ -97,11 +122,11 @@ pipeline {
                     def commandResult = sshCommand remote: remote, command: """
                         yum install git -y
                         yum install expect -y
-						yum install -y python3
-						python3 -m venv venv_cortx
-						source venv_cortx/bin/activate
-						pip3 install -U git+https://github.com/Seagate/cortx-prvsnr@cortx-1.0#subdirectory=api/python
-						provisioner --version
+                        yum install -y python3
+                        python3 -m venv venv_cortx
+                        source venv_cortx/bin/activate
+                        pip3 install -U git+https://github.com/Seagate/cortx-prvsnr@cortx-1.0#subdirectory=api/python
+                        provisioner --version
                         """
                     echo "Result: " + commandResult
                 }
@@ -114,7 +139,7 @@ pipeline {
                 script {
                     def remote = getTestMachine(VM1_FQDN)
                         def commandResult = sshCommand remote: remote, command: """
-						cat > ~/config.ini <<EOL
+                        cat > ~/config.ini <<EOL
 [storage_enclosure]
 type=other
 
@@ -145,7 +170,7 @@ EOL
             when { expression { params.DEPLOY } }
             steps {
                 script {
-						def remote = getTestMachine(VM1_FQDN)
+                        def remote = getTestMachine(VM1_FQDN)
                         def commandResult = sshCommand remote: remote, command: """
 cat > ~/deploy_spawn  <<EOL
 #!/bin/bash
