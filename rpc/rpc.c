@@ -285,8 +285,7 @@ M0_INTERNAL m0_bcount_t m0_rpc_max_seg_size(struct m0_net_domain *ndom)
 {
 	M0_PRE(ndom != NULL);
 
-	return min64u(m0_net_domain_get_max_buffer_segment_size(ndom),
-		      M0_SEG_SIZE);
+	return m0_net_domain_get_max_buffer_segment_size(ndom);
 }
 
 M0_INTERNAL uint32_t m0_rpc_max_segs_nr(struct m0_net_domain *ndom)
