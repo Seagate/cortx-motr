@@ -26,7 +26,7 @@
 #define __MOTR_SNS_PARITY_OPS_H__
 
 #ifndef __KERNEL__
-#include <isa-l/erasure_code.h>
+#include <isa-l.h>
 #else
 #include "galois/galois.h"
 #endif /* __KERNEL__ */
