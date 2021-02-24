@@ -489,7 +489,7 @@ static void ha_entrypoint_client_replied(struct m0_rpc_item *item)
 	}
 	/* XXX TODO Handle rpc errors. */
 	m0_fom_wakeup(&ecl->ecl_fom);
-	m0_rpc_item_put(item); /* XXX Bug if rc != 0 ? */
+	m0_rpc_item_put(item);
 
 	M0_LEAVE("rc=%d", rc);
 }
