@@ -78,7 +78,7 @@ M0_INTERNAL int m0_addb2_global_init(void)
 
 	result = m0_addb2_sys_init((struct m0_addb2_sys **)&SYS(),
 				   &(struct m0_addb2_config) {
-					       .co_queue_max = 1024 * 1024,
+					       .co_queue_max = 4 * 1024 * 1024,
 					       .co_pool_min  = 1024,
 					       .co_pool_max  = 1024 * 1024
 				   });
