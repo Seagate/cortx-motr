@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+
+set -eu -o pipefail
+export PS4='+ [${BASH_SOURCE[0]##*/}:${LINENO}${FUNCNAME[0]:+:${FUNCNAME[0]}}] '
+# set -x
+
+# ----------------------------------------------------------------------
+# The script requires VM_FQDN and SSC_AUTH environment variables to be set.
+#
+# Red Hat CloudForms REST API documentation:
+# https://access.redhat.com/documentation/en-us/red_hat_cloudforms/5.0/html-single/red_hat_cloudforms_rest_api/index
+# ----------------------------------------------------------------------
+
+: ${VM_FQDN:=}
+: ${SSC_AUTH:=}
+: ${VERBOSE:=false}
+: ${SSC_URL:=https://ssc-cloud.colo.seagate.com}
+: ${WAIT_TIMEOUT:=30}  # How many minutes to wait for a VM to start or stop.
+
+die() {
+    >&2 echo "[${BASH_LINENO[0]}:${FUNCNAME[1]}] $@"
+    exit 1
+}
+
+_curl() {
+    local url_suffix=${1#/}
+    shift
+
+    curl --silent \
+         --insecure \
+         --user "$SSC_AUTH" \
+         --header 'Accept: application/json' \
+         "$@" \
+         $SSC_URL/$url_suffix
+}
+
+validate_args() {
+    [[ -n $VM_FQDN ]] || die 'VM_FQDN is not set'
+    [[ -n $SSC_AUTH ]] || die 'SSC_AUTH is not set'
+
+    [[ $(_curl /api/product_info | jq -r '.name') == 'CFME' ]] ||
+        die 'Cannot communicate with CloudForms Management Engine'
+}
+
+wait_till() {
+    local vm_id=$1
+    local state=$2
+
+    local interval=5  # seconds
+    local nr_steps=$((WAIT_TIMEOUT*60 / interval))
+    while true; do
+        sleep $interval
+        echo -n '.'
+        ((--nr_steps > 0)) || die 'Timed out'
+
+        if [[ $(vm_power_state $vm_id) == $state ]]; then
+            echo  # add a newline after all those dots
+            return
+        fi
+    done
+}
+
+vm_power_state() {
+    local vm_id=$1
+    _curl /api/vms/$vm_id | jq -r '.power_state'
+}
+
+vm_power_state_set() {
+    local vm_id=$1
+    local state=$2
+
+    case "$state" in
+        off) local action='stop';;
+        on)  local action='start';;
+        *) die 'Invalid argument';;
+    esac
+
+    local current
+    current=$(vm_power_state $vm_id)
+    if $VERBOSE; then
+        >&2 echo "power_state=$current"
+    fi
+    if [[ $state == $current ]]; then
+        return
+    fi
+
+    local resp
+    resp=$(_curl /api/vms/$vm_id --data "{\"action\": \"$action\"}")
+    # {
+    #   "success": true,
+    #   "message": "VM id:1000000001907 name:'ssc-vm-0581' stopping",
+    #   "task_id": "1000000184149",
+    #   "task_href": "https://ssc-cloud.colo.seagate.com/api/tasks/1000000184149",
+    #   "href": "https://ssc-cloud.colo.seagate.com/api/vms/1000000001907"
+    # }
+    >&2 jq -r '.message' <<< "$resp"
+    [[ $(jq '.success' <<< "$resp") == true ]] ||
+        die 'VM $action request failed'
+
+    wait_till $vm_id $state
+}
+
+vm_snapshot_revert() {
+    local vm_id=$1
+    local snapshot_id=$2
+
+    local resp
+    resp=$(
+        _curl /api/vms/$vm_id/snapshots/$snapshot_id \
+              --data '{"action": "revert"}'
+          )
+    >&2 jq -r '.message' <<< "$resp"
+    [[ $(jq '.success' <<< "$resp") == true ]] || die 'Cannot revert snapshot'
+    sleep 120  # XXX Can we do better?
+    #wait_till $vm_id unknown
+    wait_till $vm_id off
+}
+
+main() {
+    validate_args
+
+    local vm_name="${VM_FQDN%%.*}"
+    local vm_info
+    vm_info=$(
+        _curl /api/vms --get \
+              --data-urlencode 'expand=resources' \
+              --data-urlencode 'attributes=name,vendor,snapshots' \
+              --data-urlencode "filter[]=name='$vm_name'"
+          )
+    [[ $(jq -r '.resources[0].name' <<< "$vm_info") == $vm_name ]] ||
+        die 'Impossible happened'
+
+    local vm_id
+    vm_id=$(jq -r '.resources[0].id' <<< "$vm_info")
+    local snapshot_id
+    snapshot_id=$(
+        jq -r '.resources[0].snapshots | sort_by(.created_on) | .[0].id' \
+           <<< "$vm_info"
+          )
+    if $VERBOSE; then
+        >&2 echo "vm_id=$vm_id"
+        >&2 echo "snapshot_id=$snapshot_id"
+    fi
+
+    vm_power_state_set $vm_id off
+    vm_snapshot_revert $vm_id $snapshot_id
+    vm_power_state_set $vm_id on
+
+    sleep 300
+}
+
+main
