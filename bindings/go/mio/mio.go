@@ -41,7 +41,7 @@ package mio
 // #cgo CFLAGS: -I../../.. -I../../../extra-libs/galois/include
 // #cgo CFLAGS: -DM0_EXTERN=extern -DM0_INTERNAL=
 // #cgo CFLAGS: -Wno-attributes
-// #cgo LDFLAGS: -L../../../motr/.libs -lmotr
+// #cgo LDFLAGS: -L../../../motr/.libs -Wl,-rpath=../../../motr/.libs -lmotr
 // #include <stdlib.h>
 // #include "lib/types.h"
 // #include "lib/trace.h"
