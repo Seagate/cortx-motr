@@ -1,4 +1,23 @@
 #!/usr/bin/env bash
+#
+# Copyright (c) 2020-2021 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
 # set -x
 SCRIPT_START_TIME="$(date +"%s")"
 PROG=${0##*/}
@@ -423,6 +442,7 @@ replay_logs_and_get_gen_id_of_seg0() {
             systemctl start motr-kernel.service; exit_code=$?;
             [[ $exit_code == 0 ]] && break; (( cnt+=1 ));
         done
+        sleep 10
         [[ `systemctl is-active motr-kernel.service` == "active" ]] || \
         die "motr-kernel service is not starting on local node, cannot proceed recovery further."
     fi
@@ -433,7 +453,8 @@ replay_logs_and_get_gen_id_of_seg0() {
             run_cmd_on_remote_node "systemctl start motr-kernel.service"; exit_code=$?;
             [[ $exit_code == 0 ]] && break; (( cnt+=1 ));
         done
-        if ! run_cmd_on_remote_node "[[ `systemctl is-active motr-kernel.service` == 'active' ]]";then
+        sleep 10
+        if ! run_cmd_on_remote_node "[[ \`systemctl is-active motr-kernel.service\` == 'active' ]]";then
             die "motr-kernel service is not starting on remote node, cannot proceed recovery further."
         fi
     fi
@@ -795,6 +816,7 @@ run_becktool() {
         systemctl start motr-kernel.service; exit_code=$?;
         [[ $exit_code == 0 ]] && break; (( cnt+=1 ));
     done
+    sleep 10
     [[ `systemctl is-active motr-kernel.service` == "active" ]] || \
     die "motr-kernel service is not starting on local node, cannot proceed recovery further."
 
@@ -804,7 +826,8 @@ run_becktool() {
             run_cmd_on_remote_node "systemctl start motr-kernel.service"; exit_code=$?;
             [[ $exit_code == 0 ]] && break; (( cnt+=1 ));
         done
-        if ! run_cmd_on_remote_node "[[ `systemctl is-active motr-kernel.service` == 'active' ]]";then
+        sleep 10
+        if ! run_cmd_on_remote_node "[[ \`systemctl is-active motr-kernel.service\` == 'active' ]]";then
         die "motr-kernel service is not starting on remote node, cannot proceed recovery further."
         fi
     fi

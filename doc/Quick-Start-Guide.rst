@@ -39,11 +39,9 @@ To clone the source code, perform the following steps:
 
 Run the following commands:
 
-- **$ git clone --recursive git@github.com:Seagate/cortx-motr.git -b main**
+- **$ git clone --recursive https://github.com/Seagate/cortx-motr.git**
 
 - **$ cd cortx-motr**
-
-**Note**: To clone the source code, it is necessary to generate the SSH public key. To generate the key, refer `SSH Public Key <https://github.com/Seagate/cortx/blob/main/doc/SSH_Public_Key.rst>`_.
 
 
 Building the Source Code
