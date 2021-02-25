@@ -564,6 +564,7 @@ static void isal_encode(struct m0_parity_math *math,
 	uint32_t  data_count;
 	uint32_t  parity_count;
 	uint32_t  block_size;
+	int	  ret = 0;
 
 	M0_PRE(math != NULL);
 	M0_PRE(data != NULL);
@@ -577,24 +578,24 @@ static void isal_encode(struct m0_parity_math *math,
 
 	M0_ALLOC_ARR(data_frags, data_count);
 	if (data_frags == NULL) {
-		M0_ERR_INFO(-ENOMEM, "failed to allocate memory for array of "
-			    "data fragments");
+		ret = M0_ERR_INFO(-ENOMEM, "failed to allocate memory for "
+				  "array of data fragments");
 		goto fini;
 	}
 
 	M0_ALLOC_ARR(parity_frags, parity_count);
 	if (parity_frags == NULL) {
-		M0_ERR_INFO(-ENOMEM, "failed to allocate memory for array of "
-			    "parity fragments");
+		ret = M0_ERR_INFO(-ENOMEM, "failed to allocate memory for "
+				  "array of parity fragments");
 		goto fini;
 	}
 
 	data_frags[0] = (uint8_t *)data[0].b_addr;
 	for (i = 1; i < data_count; ++i) {
 		if (block_size != data[i].b_nob) {
-			M0_ERR_INFO(-errno, "data block size mismatch. "
-				    "block_size = %u, data[%u].b_nob=%u",
-				    block_size, i, data[i].b_nob);
+			ret = M0_ERR_INFO(-EINVAL, "data block size mismatch. "
+					  "block_size = %u, data[%u].b_nob=%u",
+					  block_size, i, data[i].b_nob);
 			goto fini;
 		}
 		data_frags[i] = (uint8_t *)data[i].b_addr;
@@ -602,9 +603,9 @@ static void isal_encode(struct m0_parity_math *math,
 
 	for (i = 0; i < parity_count; ++i) {
 		if (block_size != parity[i].b_nob) {
-			M0_ERR_INFO(-errno, "parity block size mismatch. "
-				    "block_size = %u, parity[%u].b_nob=%u",
-				    block_size, i, parity[i].b_nob);
+			ret = M0_ERR_INFO(-EINVAL, "parity block size mismatch. "
+					  "block_size = %u, parity[%u].b_nob=%u",
+					  block_size, i, parity[i].b_nob);
 			goto fini;
 		}
 		parity_frags[i] = (uint8_t *)parity[i].b_addr;
@@ -622,6 +623,9 @@ static void isal_encode(struct m0_parity_math *math,
 fini:
 	m0_free(data_frags);
 	m0_free(parity_frags);
+
+	/* TODO: Return error code instead of assert */
+	M0_ASSERT(ret == 0);
 
 	M0_LEAVE();
 }
