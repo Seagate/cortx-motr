@@ -313,6 +313,10 @@ owner_grp(const struct m0_rm_owner *owner)
 
 /** @} end of RM lists. */
 
+/**
+ * m0_rm_remote_find() takes the reference on rm_remote,
+ * make sure to put it afterwards to avoid the leakage.
+ */
 M0_INTERNAL struct m0_rm_remote *
 m0_rm_remote_find(struct m0_rm_remote_incoming *rem_in);
 
