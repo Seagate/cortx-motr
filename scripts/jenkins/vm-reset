@@ -62,8 +62,9 @@ validate_args() {
 wait_till() {
     local vm_id=$1
     local state=$2
-
+    local doretry=$3
     local interval=5  # seconds
+    local retry=60 #5min
     local nr_steps=$((WAIT_TIMEOUT*60 / interval))
     while true; do
         sleep $interval
@@ -73,6 +74,14 @@ wait_till() {
         if [[ $(vm_power_state $vm_id) == $state ]]; then
             echo  # add a newline after all those dots
             return
+        fi
+        if [[ $doretry -eq 1 ]]; then
+            if [[ $retry -eq 0 ]]; then
+                vm_power_state_set $vm_id $state
+                ((retry=60))
+            else
+                ((--retry))
+            fi
         fi
     done
 }
@@ -113,8 +122,6 @@ vm_power_state_set() {
     >&2 jq -r '.message' <<< "$resp"
     [[ $(jq '.success' <<< "$resp") == true ]] ||
         die 'VM $action request failed'
-
-    wait_till $vm_id $state
 }
 
 vm_snapshot_revert() {
@@ -130,7 +137,6 @@ vm_snapshot_revert() {
     [[ $(jq '.success' <<< "$resp") == true ]] || die 'Cannot revert snapshot'
     sleep 120  # XXX Can we do better?
     #wait_till $vm_id unknown
-    wait_till $vm_id off
 }
 
 main() {
@@ -160,9 +166,11 @@ main() {
     fi
 
     vm_power_state_set $vm_id off
+    wait_till $vm_id off 1
     vm_snapshot_revert $vm_id $snapshot_id
+    wait_till $vm_id off 0
     vm_power_state_set $vm_id on
-
+    wait_till $vm_id on 1
     sleep 300
 }
 
