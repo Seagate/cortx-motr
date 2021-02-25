@@ -30,12 +30,12 @@ while getopts "hv:" arg; do
       ;;
     v)
       version=$OPTARG
-      echo RPM version: $version
-      if [[ $version =~ $regex ]]
+      echo RPM version: "$version"
+      if [[ "$version" =~ $regex ]]
       then
-        MAJOR=$(echo $version | cut -d "." -f 1)
-        MINOR=$(echo $version | cut -d "." -f 2)
-        PATCH=$(echo $version | cut -d "." -f 3)
+        MAJOR=$(echo "$version" | cut -d "." -f 1)
+        MINOR=$(echo "$version" | cut -d "." -f 2)
+        PATCH=$(echo "$version" | cut -d "." -f 3)
         sed -i "/m4_define(\[M0_VERSION_MAJOR],/c\m4_define([M0_VERSION_MAJOR],[$MAJOR])" configure.ac
         sed -i "/m4_define(\[M0_VERSION_MINOR],/c\m4_define([M0_VERSION_MINOR],[$MINOR])" configure.ac
         sed -i "/m4_define(\[M0_VERSION_PATCH],/c\m4_define([M0_VERSION_PATCH],[$PATCH])" configure.ac
