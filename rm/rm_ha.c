@@ -418,6 +418,7 @@ M0_INTERNAL void m0_rm_ha_unsubscribe(struct m0_rm_ha_tracker *tracker)
 
 	if (m0_clink_is_armed(&tracker->rht_conf_exp))
 		m0_clink_cleanup_locked(&tracker->rht_conf_exp);
+
 	if (m0_clink_is_armed(&tracker->rht_clink)) {
 		obj = M0_AMB(obj, tracker->rht_clink.cl_chan, co_ha_chan);
 		m0_clink_cleanup_locked(&tracker->rht_clink);
