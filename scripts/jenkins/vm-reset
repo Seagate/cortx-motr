@@ -76,7 +76,7 @@ wait_till() {
             return
         fi
         if [[ $doretry -eq 1 ]]; then
-            if [[ $retry -eq 0 ]]; then
+            if [[ $retry -eq 1 ]]; then
                 vm_power_state_set $vm_id $state
                 ((retry=60))
             else
