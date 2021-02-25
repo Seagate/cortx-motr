@@ -213,16 +213,19 @@ static int gadd(int x, int y)
 	return m0_parity_add(x, y);
 }
 
+#ifdef __KERNEL__
 static int gsub(int x, int y)
 {
 	return m0_parity_sub(x, y);
 }
+#endif /* __KERNEL__ */
 
 static int gmul(int x, int y)
 {
 	return m0_parity_mul(x, y);
 }
 
+#ifdef __KERNEL__
 static int gdiv(int x, int y)
 {
 	return m0_parity_div(x, y);
@@ -292,6 +295,7 @@ static int vandmat_norm(struct m0_matrix *m)
 
 	return 0;
 }
+#endif /* __KERNEL__ */
 
 M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math)
 {
@@ -320,7 +324,7 @@ M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math)
 M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 				    uint32_t data_count, uint32_t parity_count)
 {
-	int ret;
+	int ret = 0;
 
 	M0_PRE(data_count >= 1);
 	M0_PRE(parity_count >= 1);
@@ -595,7 +599,7 @@ static void isal_encode(struct m0_parity_math *math,
 		if (block_size != data[i].b_nob) {
 			ret = M0_ERR_INFO(-EINVAL, "data block size mismatch. "
 					  "block_size = %u, data[%u].b_nob=%u",
-					  block_size, i, data[i].b_nob);
+					  block_size, i, (uint32_t)data[i].b_nob);
 			goto fini;
 		}
 		data_frags[i] = (uint8_t *)data[i].b_addr;
@@ -605,7 +609,7 @@ static void isal_encode(struct m0_parity_math *math,
 		if (block_size != parity[i].b_nob) {
 			ret = M0_ERR_INFO(-EINVAL, "parity block size mismatch. "
 					  "block_size = %u, parity[%u].b_nob=%u",
-					  block_size, i, parity[i].b_nob);
+					  block_size, i, (uint32_t)parity[i].b_nob);
 			goto fini;
 		}
 		parity_frags[i] = (uint8_t *)parity[i].b_addr;
