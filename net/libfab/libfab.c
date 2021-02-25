@@ -1374,6 +1374,8 @@ static void libfab_tm_fini(struct m0_net_transfer_mc *tm)
 		ma->ftm_shutdown = true;
 		m0_mutex_unlock(&ma->ftm_endlock);
 
+		libfab_tm_buf_done(ma);
+
 		rc = libfab_tm_param_free(ma);
 		if (rc != FI_SUCCESS)
 			M0_LOG(M0_ERROR, "libfab_tm_param_free ret=%d", rc);
