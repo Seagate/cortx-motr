@@ -411,7 +411,7 @@ static void rvk_data_setup(enum test_type test)
 	m0_rm_remote_init(remote, rm_test_data.rd_owner->ro_resource);
 	remote->rem_state = REM_OWNER_LOCATED;
 	m0_cookie_init(&remote->rem_cookie, &rm_test_data.rd_owner->ro_id);
-	m0_remotes_tlist_add(&rm_test_data.rd_res->r_remote, remote);
+	m0_remotes_tlist_add(&rm_test_data.rd_res->r_remotes, remote);
 
 	m0_rm_loan_init(test_loan, credit, remote);
 	test_loan->rl_id = M0_RM_LOAN_SELF_ID + test;
@@ -477,7 +477,7 @@ static void rvk_test_cleanup(void)
 		m0_free(loan);
 	} m0_tl_endfor;
 
-	m0_tl_teardown(m0_remotes, &rm_test_data.rd_res->r_remote, remote) {
+	m0_tl_teardown(m0_remotes, &rm_test_data.rd_res->r_remotes, remote) {
 		m0_rm_remote_fini(remote);
 		m0_free(remote);
 	}
