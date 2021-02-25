@@ -29,8 +29,10 @@
 static const int ROUNDS_NR = 200;
 static const int THREAD_NR = 10;
 static const int QLINKS_NR = 10;
+
 static uint64_t test_counts = 0;
 static struct m0_atomic64 counts;
+
 struct tpool_test {
 	uint64_t        t_count;   /* payload */
 	int             t_rc;
@@ -167,6 +169,7 @@ void m0_ut_lib_thread_pool_test(void)
 	struct m0_parallel_pool small_pool = {};
 
 	m0_atomic64_set(&counts, 0);
+	test_counts = 0;
 
 	thread_pool_init(&pool);
 	simple_thread_pool_test(&pool);

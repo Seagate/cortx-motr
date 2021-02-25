@@ -70,7 +70,7 @@ static void rpc_service_stop(struct m0_reqh_service *service)
 	struct m0_rpc_service *svc;
 
 	svc = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
-	m0_rpc_service_reverse_session_put(service);
+	m0_rpc_service_reverse_sessions_cleanup(service);
 	rev_conn_tlist_fini(&svc->rps_rev_conns);
 }
 
@@ -192,8 +192,55 @@ m0_rpc_service_reverse_session_get(struct m0_reqh_service   *service,
 	return M0_RC(rc);
 }
 
+static void rev_conn_free(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_reverse_connection *revc = ast->sa_datum;
+
+	M0_ENTRY("revc=%p", revc);
+	m0_rpc_link_fini(&revc->rcf_rlink);
+	rev_conn_tlink_del_fini(revc);
+	m0_free(revc);
+	M0_LEAVE("revc=%p", revc);
+}
+
+static bool rev_conn_disconnected_cb(struct m0_clink *link)
+{
+	struct m0_reverse_connection *revc;
+
+	revc = container_of(link, struct m0_reverse_connection, rcf_disc_wait);
+	revc->rcf_free_ast = (struct m0_sm_ast){
+		.sa_cb    = &rev_conn_free,
+		.sa_datum = revc,
+	};
+	m0_sm_ast_post(m0_locality0_get()->lo_grp, &revc->rcf_free_ast);
+	return true;
+}
+
 M0_INTERNAL void
-m0_rpc_service_reverse_session_put(struct m0_reqh_service *service)
+m0_rpc_service_reverse_session_put(struct m0_rpc_session *sess)
+{
+	struct m0_rpc_link           *rlk;
+	struct m0_reverse_connection *revc;
+
+	M0_ENTRY();
+
+	rlk  = container_of(sess, struct m0_rpc_link, rlk_sess);
+	revc = container_of(rlk, struct m0_reverse_connection, rcf_rlink);
+
+	M0_SET0(&revc->rcf_disc_wait);
+	if (revc->rcf_rlink.rlk_connected) {
+		m0_clink_init(&revc->rcf_disc_wait, rev_conn_disconnected_cb);
+		revc->rcf_disc_wait.cl_is_oneshot = true;
+		m0_rpc_link_disconnect_async(&revc->rcf_rlink,
+				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
+				&revc->rcf_disc_wait);
+	}
+
+	M0_LEAVE();
+}
+
+M0_INTERNAL void
+m0_rpc_service_reverse_sessions_cleanup(struct m0_reqh_service *service)
 {
 	struct m0_rpc_service        *svc;
 	struct m0_reverse_connection *revc;
@@ -201,6 +248,11 @@ m0_rpc_service_reverse_session_put(struct m0_reqh_service *service)
 	M0_ENTRY();
 	M0_PRE(service->rs_type == &m0_rpc_service_type);
 
+	/*
+	 * We take the lock here on locality0 to avoid races with
+	 * rev_conn_free() AST which runs in locality0.
+	 */
+	m0_sm_group_lock(m0_locality0_get()->lo_grp);
 	svc = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
 	m0_tl_for(rev_conn, &svc->rps_rev_conns, revc) {
 		M0_SET0(&revc->rcf_disc_wait);
@@ -221,6 +273,7 @@ m0_rpc_service_reverse_session_put(struct m0_reqh_service *service)
 		rev_conn_tlink_fini(revc);
 		m0_free(revc);
 	}
+	m0_sm_group_unlock(m0_locality0_get()->lo_grp);
 
 	M0_LEAVE();
 }

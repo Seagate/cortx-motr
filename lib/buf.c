@@ -58,6 +58,18 @@ M0_INTERNAL void m0_buf_free(struct m0_buf *buf)
 	buf->b_nob = 0;
 }
 
+M0_INTERNAL int m0_buf_new_aligned(struct m0_buf *buf,
+				   const void *data, uint32_t nob,
+				   unsigned shift)
+{
+	M0_ALLOC_ARR_ALIGNED(buf->b_addr, nob, shift);
+	if (buf->b_addr == NULL)
+		return M0_ERR(-ENOMEM);
+	buf->b_nob = nob;
+	memcpy(buf->b_addr, data, nob);
+	return 0;
+}
+
 M0_INTERNAL int m0_buf_cmp(const struct m0_buf *x, const struct m0_buf *y)
 {
 	int rc;
@@ -105,17 +117,11 @@ M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src)
 }
 
 M0_INTERNAL int m0_buf_copy_aligned(struct m0_buf *dst,
-				    struct m0_buf *src,
-				    unsigned       shift)
+				    const struct m0_buf *src,
+				    unsigned shift)
 {
 	M0_PRE(dst->b_nob == 0 && dst->b_addr == NULL);
-
-	M0_ALLOC_ARR_ALIGNED(dst->b_addr, src->b_nob, shift);
-	if (dst->b_addr == NULL)
-		return M0_ERR(-ENOMEM);
-	dst->b_nob = src->b_nob;
-	memcpy(dst->b_addr, src->b_addr, src->b_nob);
-	return 0;
+	return m0_buf_new_aligned(dst, src->b_addr, src->b_nob, shift);
 }
 
 M0_INTERNAL bool m0_buf_is_set(const struct m0_buf *buf)
