@@ -16,7 +16,8 @@ RELEASE.INFO                                         24-Feb-2021 04:35          
 THIRD_PARTY_RELEASE.INFO                  24-Feb-2021 04:35               26196
 ''')
         string(name: 'SSC_AUTH_ID', defaultValue: '', description: '''Add onetime RedHatCloudform credentials using below link and use ID in this param if RESET_VM is checked. 
-http://ssc-vm-c-0139.colo.seagate.com:8080/credentials/store/system/domain/_/newCredentials''')
+To add new: http://ssc-vm-c-0139.colo.seagate.com:8080/credentials/store/system/domain/_/newCredentials
+To get existing: http://ssc-vm-c-0139.colo.seagate.com:8080/credentials/''')
 
         booleanParam(name: 'RESET_VM', defaultValue: false, description: '''Revert ssc-vm to first snapshot. (First snapshot with root/seagate user/password)
 If vm reset fails, then perform manual reset using ssc-cloud.''')
