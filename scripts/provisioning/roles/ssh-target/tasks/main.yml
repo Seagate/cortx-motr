@@ -24,9 +24,9 @@
 - name: copy SSH jumphost key to {{ inventory_hostname }} host
   copy:
     src: '{{ ssh_jumphost_key_file }}'
-    dest:  /home/{{ ansible_user }}/.ssh/id_rsa
-    owner: '{{ ansible_user }}'
-    group: '{{ ansible_user }}'
+    dest:  /home/vagrant/.ssh/id_rsa
+    owner: 'vagrant'
+    group: 'vagrant'
     mode: 0600
   # don't panic if key doesn't exist, ignore it
   ignore_errors: yes
@@ -35,9 +35,9 @@
 - name: copy SSH jumphost pub key to {{ inventory_hostname }} host
   copy:
     src: '{{ ssh_jumphost_pub_key_file }}'
-    dest:  /home/{{ ansible_user }}/.ssh/id_rsa.pub
-    owner: '{{ ansible_user }}'
-    group: '{{ ansible_user }}'
+    dest:  /home/vagrant/.ssh/id_rsa.pub
+    owner: 'vagrant'
+    group: 'vagrant'
   # don't panic if key doesn't exist, ignore it
   ignore_errors: yes
   tags: ssh
@@ -51,9 +51,9 @@
   ignore_errors: yes
   tags: ssh
 
-- name: authorize SSH jumphost pub key on {{ inventory_hostname }} host for ansible_user
+- name: authorize SSH jumphost pub key on {{ inventory_hostname }} host for vagrant
   authorized_key:
-    user:  '{{ ansible_user }}'
+    user:  'vagrant'
     state: present
     key:   '{{ lookup("file", ssh_jumphost_pub_key_file) }}'
   # don't panic if pub key doesn't exist, ignore it
@@ -62,7 +62,7 @@
 
 - name: use the same key for 'root'
   copy:
-    src:  /home/{{ ansible_user }}/.ssh
+    src:  /home/vagrant/.ssh
     dest: /root
     remote_src: yes
     mode: preserve
