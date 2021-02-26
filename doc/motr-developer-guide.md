@@ -334,7 +334,7 @@ The steps to compile, build and run this example.
 *   A Cortx Motr performance utility:
     *   m0crate: motr/m0crate/
 *   A Cortx Motr GO bindings:
-    *   bindings/go/mio/
+    *   [bindings/go/mio/](/bindings/go)
 *   A Cortx Motr HSM utility and application:
     *   hsm/
 *   A Cortx Motr Python wrapper:
