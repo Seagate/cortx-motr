@@ -297,11 +297,8 @@ struct m0_layout_plop {
 	 */
 	struct m0_tlink                  pl_all_link;
 	/**
-	 * Linkage in the pl_deps list.
-	 */
-	struct m0_tlink                  pl_deps_link;
-	/**
-	 * List of plops we depend on.
+	 * List of plops this plop depends on,
+	 * linked via m0_layout_plop_relation::plr_dep_link.
 	 *
 	 * User can use this list to track the dependencies between plops
 	 * to execute and call m0_layout_plop_done() on them in the
@@ -309,6 +306,11 @@ struct m0_layout_plop {
 	 * pending undone plops we depend on.
 	 */
 	struct m0_tl                     pl_deps;
+	/**
+	 * List of plops that depend on this plop (dependants),
+	 * linked via m0_layout_plop_relation::plr_rdep_link.
+	 */
+	struct m0_tl                     pl_rdeps;
 	/**
 	 * Fid of the entity this plop operates on. Meaning of this field
 	 * depends on plop type.
@@ -324,6 +326,20 @@ struct m0_layout_plop {
 	 * m0_layout_plop_done().
 	 */
 	const struct m0_layout_plop_ops *pl_ops;
+};
+
+/**
+ * Helper structure to implement m:n relations between plops.
+ */
+struct m0_layout_plop_relation {
+	/** Target dependency in this relation (see pl_deps list). */
+	struct m0_layout_plop *plr_dep;
+	/** Dependant plop in this relation (see pl_rdeps list). */
+	struct m0_layout_plop *plr_rdep;
+	/** pl_deps list link. */
+	struct m0_tlink        plr_dep_link;
+	/** pl_rdeps list link. */
+	struct m0_tlink        plr_rdep_link;
 };
 
 /**
