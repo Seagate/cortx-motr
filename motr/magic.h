@@ -794,6 +794,12 @@ enum m0_magic_satchel {
 	/* m0_sm_conf::scf_magic (falsie zodiac) */
 	M0_SM_CONF_MAGIC = 0x33FA151E20D1AC77,
 
+/* State machine operation */
+	/* m0_sm_op_exec::oe_op (alas adobe cod) */
+	M0_SM_OP_HEAD_MAGIC = 0x33a1a5ad0bec0d77,
+	/* m0_sm_op::o_magix (callable ebb 0) */
+	M0_SM_OP_MAGIC = 0x33ca11ab1eebb077,
+
 /* Resource Manager */
 	/* m0_rm_pin::rp_magix (bellicose bel) */
 	M0_RM_PIN_MAGIC = 0x33be111c05ebe177,
