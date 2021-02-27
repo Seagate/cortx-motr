@@ -1,1 +1,1 @@
-m0tr_objects += sm/sm.o
+m0tr_objects += sm/sm.o sm/op.o
