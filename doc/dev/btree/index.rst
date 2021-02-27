@@ -68,7 +68,7 @@ Stakeholders
    The overall development process structure is the following:
 
 Initiation (INIT)
------------------
+=================
 
 ..
    The modification is proposed. The origin of modification request can be:
@@ -119,7 +119,7 @@ Existing motr b-tree implementation needs to be replaced for multiple reasons:
     and improved concurrency.
    
 Clarification (CLARIFY)
------------------------
+=======================
 
 ..
    At this state, the scope and intent of the modification are clarified between
@@ -155,7 +155,7 @@ requirements (refined in Requirements section):
     support the overall product scalability requirements.
 
 Analysis (ANALYSIS)
--------------------
+===================
 
 ..
    The modification is analysed in terms of the Project software structure. An
@@ -233,7 +233,7 @@ b-tree interacts with the multiple motr modules:
     * synchronisation primitives from motr library
 
 Requirements (REQS)
--------------------
+===================
 
 ..
    The formal list of requirements is defined and recorded in the tracking
@@ -398,6 +398,10 @@ High-level requirements from Clarification section are refined as following:
        same operational environment)
      - [r.btree.performance]
 
+   * - [**r.btree.dynamic-adaptability**]
+     - b-tree algorithms dynamically adapt to work-load patterns
+     - [r.btree.performance]
+
    * - [**r.btree.b+tree**]
      - the implementation uses b+tree algorithm
      - [r.btree.performance]
@@ -502,12 +506,13 @@ High-level requirements from Clarification section are refined as following:
      - tree format is designed to support per-node locking in the future
      - [r.btree.concurrency], [r.btree.future-proof]
 
-   * - [**r.btree.dynamic-adaptability**]
-     - b-tree algorithms dynamically adapt to work-load patterns
-     - [r.btree.performance]
+   * - [**r.btree.user-upgrade**]
+     - b-tree provides functionality and interfaces to help its users with
+       upgrades of user contents in b-tree
+     - [r.btree.future-proof]
 
 Architecture (ARCH)
--------------------
+===================
 
 ..
    If the analysis (or any other) stage determines that changes to the Project
@@ -540,7 +545,7 @@ components. There are no major use case changes. B-tree development does not
 require any architectural changes.
 
 Planning (PLAN)
----------------
+===============
 
 ..
    During the planning phase, the development is sub-divided into a list of
@@ -835,9 +840,12 @@ Task dependencies:
        int      -> qa;
        dld0     -> patents;
    }
-      
+
+Estimation
+~~~~~~~~~~
+   
 Execution (EXEC)
-----------------
+================
 
 ..
    During execution phase, development tasks are executed concurrently, according
@@ -865,13 +873,13 @@ Execution (EXEC)
    Task execution process for a typical task is the following.
 
 Task requirements (TREQ)
-++++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 ..
    Task requirements are extracted from the development requirements and refined.
 
 High-level design (HLD)
-+++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~~
 
 ..
    A high-level design is created and recorded in doc/hld. A link to the HLD file
@@ -883,14 +891,14 @@ High-level design (HLD)
    doc/hld/hld-template.rst.in).
 
 High-level design intermediate review (HLDIR)
-+++++++++++++++++++++++++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ..
    Creation of a complex HLD can be periodically informally reviewed (**by ...**)
    to assure that it goes in the right direction.
 
 High-level design inspection (HLDINSP)
-++++++++++++++++++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ..
    An HLD is inspected. Inspection comments are recorded. The HLD authors discuss
@@ -898,7 +906,7 @@ High-level design inspection (HLDINSP)
    until all found issues are addressed.
 
 Detailed-level design (DLD)
-+++++++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The outline of the proposed b-tree on disk format is the following:
 
@@ -923,14 +931,14 @@ The outline of the proposed b-tree on disk format is the following:
    testing and integration plans from the HLD.
 
 Detailed-level design intermediate review (DLDIR)
-+++++++++++++++++++++++++++++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ..
    Creation of a complex DLD can be periodically informally reviewed (**by ...**)
    to assure that it goes in the right direction.
 
 Detailed-level design inspection (DLDINSP)
-++++++++++++++++++++++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ..
    A DLD is inspected. Inspection comments are recorded. The DLD authors discuss
@@ -946,7 +954,7 @@ Detailed-level design inspection (DLDINSP)
     comments and answers removed (but preserved in the repository history).
 
 Code (CODE)
-+++++++++++
+~~~~~~~~~~~
 
 ..
    Coding populates the set of skeleton source files, created at the DLD stage with
@@ -957,14 +965,14 @@ Code (CODE)
    satisfaction of the inspectors.
 
 Code intermediate review (CODEIR)
-+++++++++++++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ..
    A long code phase can be periodically informally reviewed (**by ...**) to assure
    that it goes in the right direction.
 
 Dev testing (TEST)
-++++++++++++++++++
+~~~~~~~~~~~~~~~~~~
 
 ..
    Developers execute tests, created as part of the code phase, and fix all the
@@ -974,7 +982,7 @@ Dev testing (TEST)
    directly or by reference to a testing platform (jenkins, ci, *etc*.)).
 
 Code inspection (CODEINSP)
-++++++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ..
    Code is inspected. Inspection comments are recorded. Code authors discuss and
@@ -982,14 +990,14 @@ Code inspection (CODEINSP)
    all found issues are addressed.
 
 Documentation (DOC)
-+++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~
 
 ..
    Necessary documentation is created, reviewed and inspected concurrently with the
    designs and code.
 
 Integration (INT)
-+++++++++++++++++
+~~~~~~~~~~~~~~~~~
 
 ..
    Integration happens according to the integration plan developed at the planning
@@ -1005,7 +1013,7 @@ Integration (INT)
    integration plan).
 
 QA testing (QA)
-+++++++++++++++
+~~~~~~~~~~~~~~~
 
 ..
    QA team tests the landed tasks according to the planned QA plan.
@@ -1014,7 +1022,7 @@ QA testing (QA)
    QA plan).
 
 Deployment (DEPLOY)
-+++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~
 
 ..
    Once the task has been tested by QA it can be deployed in the field (as part of
@@ -1026,14 +1034,14 @@ Deployment (DEPLOY)
    deployment plan).
 
 Patents (PATENTS)
-+++++++++++++++++
+~~~~~~~~~~~~~~~~~
 
 ..
    If any, IP disclosures are filed concurrently with the other task execution
    stages.
 
 Abandoned (ABANDON)
--------------------
+~~~~~~~~~~~~~~~~~~~
 
 ..
    A development can be retired when no longer needed. Its tracking file and
