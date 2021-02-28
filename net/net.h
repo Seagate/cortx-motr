@@ -349,6 +349,16 @@ struct m0_net_xprt_ops {
 	 */
 	m0_bcount_t (*xo_get_max_buffer_desc_size)(const struct m0_net_domain
 						   *dom);
+
+	m0_bcount_t (*xo_rpc_max_seg_size) (struct m0_net_domain *ndom);
+
+	uint32_t    (*xo_rpc_max_segs_nr)  (struct m0_net_domain *ndom);
+
+	m0_bcount_t (*xo_rpc_max_msg_size) (struct m0_net_domain *ndom,
+					    m0_bcount_t rpc_size);
+
+	uint32_t    (*xo_rpc_max_recv_msgs)(struct m0_net_domain *ndom,
+					    m0_bcount_t rpc_size);
 };
 
 /**
@@ -1775,6 +1785,15 @@ M0_INTERNAL void m0_net_print_xprt(void);
  *  This function is only for UT.
  */
 M0_INTERNAL bool m0_net_check_xprt(const struct m0_net_xprt *xprt);
+
+M0_INTERNAL m0_bcount_t default_xo_rpc_max_seg_size(struct m0_net_domain *ndom);
+M0_INTERNAL uint32_t    default_xo_rpc_max_segs_nr(struct m0_net_domain *ndom);
+M0_INTERNAL m0_bcount_t default_xo_rpc_max_msg_size(struct m0_net_domain *ndom,
+						    m0_bcount_t rpc_size);
+M0_INTERNAL uint32_t    default_xo_rpc_max_recv_msgs(struct m0_net_domain *ndom,
+					             m0_bcount_t rpc_size);
+
+
 /** @} end of networking group */
 #endif /* __MOTR_NET_NET_H__ */
 

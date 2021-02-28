@@ -37,6 +37,7 @@
 
 #include "net/net_otw_types.h"
 #include "net/net.h"
+#include "rpc/rpc_machine.h" /* M0_RPC_DEF_MAX_RPC_MSG_SIZE */
 
 #define XPRT_MAX 4
 
@@ -234,6 +235,45 @@ M0_INTERNAL bool m0_net_check_xprt(const struct m0_net_xprt *xprt)
 	return found;
 }
 M0_EXPORTED(m0_net_check_xprt);
+
+M0_INTERNAL m0_bcount_t default_xo_rpc_max_seg_size(struct m0_net_domain *ndom)
+{
+	M0_PRE(ndom != NULL);
+
+	return M0_RPC_DEF_MAX_RPC_MSG_SIZE;
+}
+M0_EXPORTED(default_xo_rpc_max_seg_size);
+
+M0_INTERNAL uint32_t default_xo_rpc_max_segs_nr(struct m0_net_domain *ndom)
+{
+	M0_PRE(ndom != NULL);
+
+	return 1;
+}
+M0_EXPORTED(default_xo_rpc_max_segs_nr);
+
+M0_INTERNAL m0_bcount_t default_xo_rpc_max_msg_size(struct m0_net_domain *ndom,
+						 m0_bcount_t rpc_size)
+{
+	m0_bcount_t mbs;
+
+	M0_PRE(ndom != NULL);
+
+	mbs = m0_net_domain_get_max_buffer_size(ndom);
+	return rpc_size != 0 ? m0_clip64u(M0_SEG_SIZE, mbs, rpc_size) : mbs;
+}
+M0_EXPORTED(default_xo_rpc_max_msg_size);
+
+M0_INTERNAL uint32_t default_xo_rpc_max_recv_msgs(struct m0_net_domain *ndom,
+					       m0_bcount_t rpc_size)
+{
+	M0_PRE(ndom != NULL);
+
+	return 1;
+}
+M0_EXPORTED(default_xo_rpc_max_recv_msgs);
+
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*

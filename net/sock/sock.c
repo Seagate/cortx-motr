@@ -3867,7 +3867,13 @@ static const struct m0_net_xprt_ops xprt_ops = {
 	.xo_get_max_buffer_size         = &get_max_buffer_size,
 	.xo_get_max_buffer_segment_size = &get_max_buffer_segment_size,
 	.xo_get_max_buffer_segments     = &get_max_buffer_segments,
-	.xo_get_max_buffer_desc_size    = &get_max_buffer_desc_size
+	.xo_get_max_buffer_desc_size    = &get_max_buffer_desc_size,
+
+	.xo_rpc_max_seg_size            = default_xo_rpc_max_seg_size,
+	.xo_rpc_max_segs_nr             = default_xo_rpc_max_segs_nr,
+	.xo_rpc_max_msg_size            = default_xo_rpc_max_msg_size,
+	.xo_rpc_max_recv_msgs           = default_xo_rpc_max_recv_msgs,
+
 };
 
 const struct m0_net_xprt m0_net_sock_xprt = {
