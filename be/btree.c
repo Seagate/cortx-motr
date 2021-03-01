@@ -489,8 +489,8 @@ static void be_btree_split_child(struct m0_be_btree *btree,
 	i = 0;
 	while (i < new_child->bt_num_active_key) {
 		new_child->bt_kv_arr[i] = child->bt_kv_arr[i + BTREE_FAN_OUT];
-		new_child->bt_ik[i] = child->bt_ik[i + BTREE_FAN_OUT];
-		new_child->allocated[i] = child->allocated[i + BTREE_FAN_OUT];
+		*new_child->bt_ik[i].inlkey = *((char *)child->bt_kv_arr[i + BTREE_FAN_OUT].btree_key);
+		new_child->allocated[i] = 1;
 		if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
 		{
 			new_child->bt_kv_arr[i].btree_key = &new_child->bt_ik[i].inlkey;
@@ -520,19 +520,19 @@ static void be_btree_split_child(struct m0_be_btree *btree,
 	for (i = parent->bt_num_active_key + 1; i > index + 1; i--) {
 		parent->bt_child_arr[i] = parent->bt_child_arr[i - 1];
 		parent->bt_kv_arr[i - 1] = parent->bt_kv_arr[i - 2];
-		parent->bt_ik[i - 1] = parent->bt_ik[i - 2];
-		parent->allocated[i - 1] = parent->allocated[i - 2];
-		if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
-		{
-			parent->bt_kv_arr[i - 1].btree_key = &parent->bt_ik[i - 1].inlkey;
-		}
+		// parent->bt_ik[i - 1] = parent->bt_ik[i - 2];
+		// parent->allocated[i - 1] = parent->allocated[i - 2];
+		// if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+		// {
+		// 	parent->bt_kv_arr[i - 1].btree_key = &parent->bt_kv_arr[i - 1].inlkey;
+		// }
 	}
 
 	/*  Update parent */
 	parent->bt_child_arr[index + 1] = new_child;
 	parent->bt_kv_arr[index] = child->bt_kv_arr[BTREE_FAN_OUT - 1];
-	parent->bt_ik[index] = child->bt_ik[BTREE_FAN_OUT - 1];
-	parent->allocated[index] = child->allocated[BTREE_FAN_OUT - 1];
+	*parent->bt_ik[index].inlkey = *((char *)child->bt_kv_arr[BTREE_FAN_OUT - 1].btree_key);
+	parent->allocated[index] = 1;
 	if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
 	{
 		parent->bt_kv_arr[index].btree_key = &parent->bt_ik[index].inlkey;
@@ -718,10 +718,9 @@ static void be_btree_shift_key_vals(struct m0_be_bnode *dest,
 	{
 		dest->bt_kv_arr[i + key_dest_offset] =
 					src->bt_kv_arr[i + key_src_offset];
-		dest->bt_ik[i + key_dest_offset] =
-					src->bt_ik[i + key_src_offset];
-		dest->allocated[i + key_dest_offset] =
-					src->allocated[i + key_src_offset];
+		*dest->bt_ik[i + key_dest_offset].inlkey =
+					*((char *)src->bt_kv_arr[i + key_src_offset].btree_key);
+		dest->allocated[i + key_dest_offset] = 1;
 		if(ktype != M0_BBT_CAS_CTG)
 		{
 			dest->bt_kv_arr[i + key_dest_offset].btree_key = &dest->bt_ik[i + key_dest_offset].inlkey;
@@ -762,6 +761,8 @@ be_btree_merge_siblings(struct m0_be_tx    *tx,
 	node2 = parent->bt_child_arr[idx + 1];
 	node1->bt_kv_arr[node1->bt_num_active_key++] = parent->bt_kv_arr[idx];
 	tval = node1->bt_num_active_key;
+	*node1->bt_ik[tval].inlkey = *((char *)parent->bt_kv_arr[idx].btree_key);
+	node1->allocated[tval] = 1;
 	if(tree->bb_ops->ko_type != M0_BBT_CAS_CTG)
 	{
 		node1->bt_kv_arr[tval].btree_key = &node1->bt_ik[tval].inlkey;
@@ -816,18 +817,17 @@ static void be_btree_move_parent_key_to_right_child(struct m0_be_bnode *parent,
 
 	while (i > 0) {
 		rch->bt_kv_arr[i] = rch->bt_kv_arr[i - 1];
-		rch->bt_ik[i] = rch->bt_ik[i - 1];
-		if(ktype != M0_BBT_CAS_CTG)
-		{
-			rch->bt_kv_arr[i].btree_key = &rch->bt_ik[i].inlkey;
-		}
+		// if(ktype != M0_BBT_CAS_CTG)
+		// {
+		// 	rch->bt_kv_arr[i].btree_key = &rch->bt_ik[i].inlkey;
+		// }
 		rch->bt_child_arr[i + 1] = rch->bt_child_arr[i];
 		--i;
 	}
 	rch->bt_child_arr[1] = rch->bt_child_arr[0];
 	rch->bt_kv_arr[0] = parent->bt_kv_arr[idx];
-	rch->bt_ik[0] = parent->bt_ik[idx];
-	rch->allocated[0] = parent->allocated[idx];
+	*rch->bt_ik[0].inlkey = *((char *)parent->bt_kv_arr[idx].btree_key);
+	rch->allocated[0] = 1;
 	if(ktype != M0_BBT_CAS_CTG)
 	{
 		rch->bt_kv_arr[0].btree_key = &rch->bt_ik[0].inlkey;
@@ -837,10 +837,9 @@ static void be_btree_move_parent_key_to_right_child(struct m0_be_bnode *parent,
 	lch->bt_child_arr[lch->bt_num_active_key] = NULL;
 	parent->bt_kv_arr[idx] =
 			lch->bt_kv_arr[lch->bt_num_active_key-1];
-	parent->bt_ik[idx] =
-			lch->bt_ik[lch->bt_num_active_key-1];
-	parent->allocated[idx] =
-			lch->allocated[lch->bt_num_active_key-1];
+	*parent->bt_ik[idx].inlkey =
+			*((char *)lch->bt_kv_arr[lch->bt_num_active_key-1].btree_key);
+	parent->allocated[idx] = 1;
 	if(ktype != M0_BBT_CAS_CTG)
 	{
 		parent->bt_kv_arr[idx].btree_key = &parent->bt_ik[idx].inlkey;
@@ -859,10 +858,9 @@ static void be_btree_move_parent_key_to_left_child(struct m0_be_bnode *parent,
 
 	lch->bt_kv_arr[lch->bt_num_active_key] =
 					parent->bt_kv_arr[idx];
-	lch->bt_ik[lch->bt_num_active_key] =
-					parent->bt_ik[idx];
-	lch->allocated[lch->bt_num_active_key] =
-					parent->allocated[idx];
+	*lch->bt_ik[lch->bt_num_active_key].inlkey =
+					*((char *)parent->bt_kv_arr[idx].btree_key);
+	lch->allocated[lch->bt_num_active_key] = 1;
 	if(ktype != M0_BBT_CAS_CTG)
 	{
 		lch->bt_kv_arr[lch->bt_num_active_key].btree_key = &lch->bt_ik[lch->bt_num_active_key].inlkey;
@@ -872,8 +870,8 @@ static void be_btree_move_parent_key_to_left_child(struct m0_be_bnode *parent,
 					rch->bt_child_arr[0];
 	lch->bt_num_active_key++;
 	parent->bt_kv_arr[idx] = rch->bt_kv_arr[0];
-	parent->bt_ik[idx] = rch->bt_ik[0];
-	parent->allocated[idx] = rch->allocated[0];
+	*parent->bt_ik[idx].inlkey = *((char *)rch->bt_kv_arr[0].btree_key);
+	parent->allocated[idx] = 1;
 	if(ktype != M0_BBT_CAS_CTG)
 	{
 		parent->bt_kv_arr[idx].btree_key = &parent->bt_ik[idx].inlkey;
@@ -881,8 +879,8 @@ static void be_btree_move_parent_key_to_left_child(struct m0_be_bnode *parent,
 	i = 0;
 	while (i < rch->bt_num_active_key - 1) {
 		rch->bt_kv_arr[i] = rch->bt_kv_arr[i + 1];
-		rch->bt_ik[i] = rch->bt_ik[i + 1];
-		rch->allocated[i] = rch->allocated[i + 1];
+		*rch->bt_ik[i].inlkey = *((char *)rch->bt_kv_arr[i + 1].btree_key);
+		rch->allocated[i] = 1;
 		if(ktype != M0_BBT_CAS_CTG)
 		{
 			rch->bt_kv_arr[i].btree_key = &rch->bt_ik[i].inlkey;
@@ -964,8 +962,8 @@ void be_btree_delete_key_from_node(struct m0_be_btree	 *tree,
 
 		while (idx < bnode->bt_num_active_key - 1) {
 			bnode->bt_kv_arr[idx] = bnode->bt_kv_arr[idx+1];
-			bnode->bt_ik[idx] = bnode->bt_ik[idx+1];
-			bnode->allocated[idx] = bnode->allocated[idx+1];
+			*bnode->bt_ik[idx].inlkey = *((char *)bnode->bt_kv_arr[idx+1].btree_key);
+			bnode->allocated[idx] = 1;
 			if(tree->bb_ops->ko_type != M0_BBT_CAS_CTG)
 			{
 				bnode->bt_kv_arr[idx].btree_key = &bnode->bt_ik[idx].inlkey;
