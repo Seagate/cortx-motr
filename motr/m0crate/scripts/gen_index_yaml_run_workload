@@ -1,0 +1,66 @@
+script_dir=`dirname $(readlink -f  $0)`
+M0CRATE=$script_dir/../m0crate
+
+if [ ! -f "$M0CRATE" ]; then
+	echo "$M0CRATE not exists."
+	exit
+fi
+
+keys=(64 128 256 512 1024)
+values=(1024 4096 8192 16384 32768)
+indexfid=0
+
+time_dir=workload_logs/`date +%d%m%y-%H%M%S`
+config_dir=$time_dir/configs
+output_dir=$time_dir/output
+mkdir -p $config_dir $output_dir
+
+log_csv_file=$output_dir/kv_run_output.csv
+test_logs=$output_dir/test_run.log
+
+function run_workload() {
+	klen=$1
+	vlen=$2
+	yaml_file=$3
+	$M0CRATE -S $yaml_file 2>&1 | tee temp.log
+	cat temp.log >> $test_logs
+	test_time=`awk '/result: total_s/{ print $3 $5 $11","} 
+			/result: put_s/{print $3 $5 $7","} 
+			/result: get_s/{print $3 $5 $7","} 
+			/result: del_s/{print $3 $5 $7","} 
+			/result: next_s/{print $3 $5 $7}' temp.log | tr '\n' ' '`
+
+	#test_time=`awk '/result/ { print $3 } /avg/{ print $5 }' temp.log | tr '\n' ','`
+	echo "$klen,$vlen,$test_time" >> $log_csv_file
+	rm -f temp.log
+}
+
+function generate_single_yaml_from_template() {
+	indexfid=$1
+	klen=$2
+	vlen=$3
+	template_file="$script_dir/m0crate-index.yaml.template"
+	yaml_file="$config_dir/m0crate-index-$klen-$vlen.yaml"
+	sed "s/INDEXFID/$indexfid/g;s/KEYSIZE/$klen/g;s/VALUESIZE/$vlen/g" $template_file > $yaml_file
+	#echo "run_workload $klen $vlen $yaml_file"
+	run_workload $klen $vlen $yaml_file
+}
+function  generate_yaml_files_and_run_worklod() {
+	for klen in ${keys[@]}
+	do 
+		for vlen in ${values[@]}
+		do
+			generate_single_yaml_from_template $indexfid $klen  $vlen
+			indexfid="$((indexfid+1))"	
+		done
+	done
+}
+function write_csv_header() {
+	echo  -e "KEY_SIZE,VALUE_SIZE,TOTAL_TIME_S,TIME_PER_OP_NS, TOTAL_OPS," \
+		"TOTAL_PUT_TIME_S, TIME_PER_PUT_OP_NS, PUT_OPS_CNT," \
+		"TOTAL_GET_TIME_S, TIME_PER_GET_OP_NS, GET_OPS_CNT," \
+		"TOTAL_DEL_TIME_S, TIME_PER_DEL_OP_NS, DEL_OPS_CNT," \
+		"TOTAL_NEXT_TIME_S, TIME_PER_NEXT_OP_NS, NEXT_OPS_CNT " >> $log_csv_file
+}
+write_csv_header
+generate_yaml_files_and_run_worklod 
