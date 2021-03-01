@@ -823,6 +823,7 @@ static void st_put_one(void)
 	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs, flags, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_launch(&op, 1);
+#if defined(DTM0)
 	rc = m0_op_wait(op, M0_BITS(M0_OS_EXECUTED), WAIT_TIMEOUT);
 	M0_LOG(DEBUG, "Got executed");
 	M0_UT_ASSERT(rc == 0);
@@ -831,6 +832,18 @@ static void st_put_one(void)
 	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
 	M0_LOG(DEBUG, "Got stable");
 	M0_UT_ASSERT(rc == 0);
+#else
+	/* When DTM0 is disabled, waiting on EXECUTED in a separate
+	 * op_wait call causes ESRCH (see ::m0_sm_timedwait).
+	 * Since EXECUTED -> STABLE transition happens without an external
+	 * event, waiting on EXECUTED in a separate call has no much sense
+	 * in non-DTM0 environment.
+	 */
+	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(op->op_rc == 0);
+	M0_UT_ASSERT(rcs[0] == 0);
+#endif
 	m0_op_fini(op);
 	m0_op_free(op);
 	op = NULL;
@@ -858,7 +871,7 @@ static void st_one_dtm0_op(void)
 	srv_srv = m0_reqh_service_lookup(srv_reqh, &srv_dtm0_fid);
 	rc = m0_dtm0_service_process_connect(srv_srv, &cli_srv_fid, cl_ep_addr);
 	M0_UT_ASSERT(rc == 0);
-	ut_m0c->m0c_dtms = m0_dtm0_service_find(srv_reqh);
+	ut_m0c->m0c_dtms = m0_dtm0_service_find(&ut_m0c->m0c_reqh);
 	M0_UT_ASSERT(ut_m0c->m0c_dtms != NULL);
 
 	st_put_one();

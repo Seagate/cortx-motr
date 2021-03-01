@@ -30,7 +30,8 @@
 #include "rpc/rpc_machine.h"         /* m0_rpc_machine */
 #include "dtm0/fop.h"                /* dtm0_fop */
 #include "dtm0/dtx.h"                /* dtx_domain_init */
-#include "lib/tlist.h"
+#include "lib/tlist.h"               /* tlist API */
+#include "be/dtm0_log.h"             /* DTM0 log API */
 
 static struct m0_dtm0_service *to_dtm(struct m0_reqh_service *service);
 static int dtm0_service_start(struct m0_reqh_service *service);
@@ -110,8 +111,8 @@ static struct m0_dtm0_service *to_dtm(struct m0_reqh_service *service)
  */
 static int dtm0_service__init(struct m0_dtm0_service *s)
 {
-	dopr_tlist_init(&s->dos_processes);
 	m0_dtm0_service_bob_init(s);
+	dopr_tlist_init(&s->dos_processes);
 	m0_dtm0_dtx_domain_init();
 
 	return m0_dtm0_clk_src_init(&s->dos_clk_src, M0_DTM0_CS_PHYS);
@@ -119,8 +120,8 @@ static int dtm0_service__init(struct m0_dtm0_service *s)
 
 static void dtm0_service__fini(struct m0_dtm0_service *s)
 {
-	m0_dtm0_dtx_domain_fini();
 	m0_dtm0_clk_src_fini(&s->dos_clk_src);
+	m0_dtm0_dtx_domain_fini();
 	dopr_tlist_fini(&s->dos_processes);
 	m0_dtm0_service_bob_fini(s);
 }
@@ -234,7 +235,7 @@ static int dtm_service__origin_fill(struct m0_reqh_service *service)
 	/* W/A for UTs */
 	if (!m0_confc_is_inited(confc)) {
 		dtm0->dos_origin = DTM0_ON_VOLATILE;
-		return M0_RC(0);
+		goto out;
 	}
 
 	obj = m0_conf_cache_lookup(&confc->cc_cache, &service->rs_service_fid);
@@ -246,7 +247,7 @@ static int dtm_service__origin_fill(struct m0_reqh_service *service)
 	if (service_obj->cs_params == NULL) {
 		dtm0->dos_origin = DTM0_ON_VOLATILE;
 		M0_LOG(M0_WARN, "dtm0 is treated as volatile, no parameters given");
-		return M0_RC(0);
+		goto out;
 	}
 
 	for (param = service_obj->cs_params; *param != NULL; ++param) {
@@ -256,7 +257,10 @@ static int dtm_service__origin_fill(struct m0_reqh_service *service)
 			dtm0->dos_origin = DTM0_ON_PERSISTENT;
 	}
 
-	return M0_RC(0);
+out:
+	return dtm0->dos_origin == DTM0_ON_VOLATILE ?
+		m0_be_dtm0_log_init(&dtm0->dos_log, &dtm0->dos_clk_src, true) :
+		0;
 }
 
 static int dtm0_service_start(struct m0_reqh_service *service)
@@ -267,9 +271,19 @@ static int dtm0_service_start(struct m0_reqh_service *service)
 
 static void dtm0_service_stop(struct m0_reqh_service *service)
 {
+	struct m0_dtm0_service *dtm0;
 
         M0_PRE(service != NULL);
+	dtm0 = to_dtm(service);
+
 	m0_dtm0_fop_fini();
+	/* It is safe to remove any remaining entries from the log
+	 * when a process with volatile log is going to die.
+	 */
+	if (dtm0->dos_origin == DTM0_ON_VOLATILE && dtm0->dos_log != NULL) {
+		m0_be_dtm0_log_clear(dtm0->dos_log);
+		m0_be_dtm0_log_fini(&dtm0->dos_log, true);
+	}
 }
 
 static void dtm0_service_fini(struct m0_reqh_service *service)

@@ -139,10 +139,32 @@ M0_INTERNAL bool m0_dtm0_tx_desc_is_none(const struct m0_dtm0_tx_desc *td);
 M0_INTERNAL bool m0_dtm0_tid__invariant(const struct m0_dtm0_tid *tid);
 M0_INTERNAL bool m0_dtm0_tx_desc__invariant(const struct m0_dtm0_tx_desc *td);
 
-M0_INTERNAL int m0_dtm0_txr_rec_is_set(struct m0_buf *pyld);
-M0_INTERNAL void m0_dtm0_update_pa_state(enum m0_dtm0_tx_pa_state *dst,
-                                         enum m0_dtm0_tx_pa_state *src);
-M0_INTERNAL bool m0_dtm0_is_rec_is_stable(struct m0_dtm0_tx_pa_group *pg);
+/** Returns "true" iif the state of each participant equals to the given
+ * "state" value.
+ */
+M0_INTERNAL bool m0_dtm0_tx_desc_state_eq(const struct m0_dtm0_tx_desc *txd,
+					  enum m0_dtm0_tx_pa_state      state);
+
+/** Applies an update onto the given target value.
+ * The state of the participants of the target modifed as per the following
+ * statement:
+ * @verbatim
+ *	target = max_state(target, update);
+ * @endverbatim
+ */
+M0_INTERNAL void m0_dtm0_tx_desc_apply(struct m0_dtm0_tx_desc *tgt,
+				       const struct m0_dtm0_tx_desc *upd);
+
+/* TODO: move them to a dtm0 internal header? */
+
+#define dtds_forall(__txd, __exp)                                    \
+	m0_forall(i, (__txd)->dtd_pg.dtpg_nr,                        \
+			 (__txd)->dtd_pg.dtpg_pa[i].pa_state __exp)
+
+#define dtds_exists(__txd, __exp) !dtds_forall(__txd, __exp)
+
+
+
 #endif /* __MOTR_DTM0_TX_DESC_H__ */
 
 /*

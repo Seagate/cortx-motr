@@ -661,7 +661,7 @@ static void dixreq_completed_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 					     idx_op_ast_fail;
 	oi->oi_in_completion = true;
 	/* XXX: it looks like there is no need to set up an ast for that.
-	 * The groups are the same. We can just call the callback right here:
+	 * The groups are the same. We can just call the callback right here?
 	 *   oi->oi_ar.ar_ast.sa_cb(oi->oi_sm_grp, &oi->oi_ar.ar_ast)
 	 */
 	m0_sm_ast_post(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
@@ -807,6 +807,7 @@ static void dixreq_stable_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	/* XXX: The callback is executed directly since the group
 	 * lock is the same. See the XXX comment in ::dixreq_completed_ast.
 	 */
+	M0_ASSERT(grp == oi->oi_sm_grp);
 	idx_op_ast_stable(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
 	dix_req_destroy(req);
 	M0_LEAVE();
@@ -820,6 +821,10 @@ static void dixreq_stable_post(struct dix_req *req, int rc)
 	oi->oi_ar.ar_rc = rc;
 	req->idr_ast.sa_cb = dixreq_stable_ast;
 	req->idr_ast.sa_datum = req;
+	M0_ASSERT_INFO(req->idr_ast.sa_next == NULL,
+		       "Stable() ast cannot be armed before Executed() "
+		       "is completed. Ensure EXECUTED_ALL -> STABLE transition"
+		       "does not happen within the same ast tick");
 	m0_sm_ast_post(oi->oi_sm_grp, &req->idr_ast);
 	M0_LEAVE();
 }
