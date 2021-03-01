@@ -116,22 +116,35 @@ M0_INTERNAL int m0_dtm0_tid_cmp(struct m0_dtm0_clk_src   *cs,
 		m0_fid_cmp(&left->dti_fid, &right->dti_fid);
 }
 
-M0_INTERNAL int m0_dtm0_txr_rec_is_set(struct m0_buf *pyld)
+M0_INTERNAL void m0_dtm0_tx_desc_apply(struct m0_dtm0_tx_desc *tgt,
+				       const struct m0_dtm0_tx_desc *upd)
 {
-	return m0_buf_is_set(pyld);
+	int                   i;
+	struct m0_dtm0_tx_pa *tgt_pa;
+	struct m0_dtm0_tx_pa *upd_pa;
+
+	M0_PRE(m0_dtm0_tx_desc__invariant(tgt));
+	M0_PRE(m0_dtm0_tx_desc__invariant(upd));
+	M0_PRE(memcmp(&tgt->dtd_id, &upd->dtd_id, sizeof(tgt->dtd_id)) == 0);
+	M0_PRE(upd->dtd_pg.dtpg_nr == tgt->dtd_pg.dtpg_nr);
+	M0_PRE(m0_forall(i, upd->dtd_pg.dtpg_nr,
+			 m0_fid_cmp(&tgt->dtd_pg.dtpg_pa[i].pa_fid,
+				    &upd->dtd_pg.dtpg_pa[i].pa_fid) == 0));
+
+	for (i = 0; i < upd->dtd_pg.dtpg_nr; ++i) {
+		tgt_pa = &tgt->dtd_pg.dtpg_pa[i];
+		upd_pa = &upd->dtd_pg.dtpg_pa[i];
+
+		tgt_pa->pa_state = max_check(tgt_pa->pa_state,
+					     upd_pa->pa_state);
+	}
 }
 
-M0_INTERNAL void m0_dtm0_update_pa_state(enum m0_dtm0_tx_pa_state *dst,
-                                         enum m0_dtm0_tx_pa_state *src)
+M0_INTERNAL bool m0_dtm0_tx_desc_state_eq(const struct m0_dtm0_tx_desc *txd,
+					  enum m0_dtm0_tx_pa_state      state)
 {
-	if (*dst < *src)
-		*dst = *src;
-}
-
-M0_INTERNAL bool m0_dtm0_is_rec_is_stable(struct m0_dtm0_tx_pa_group *pg)
-{
-	return m0_forall(i, pg->dtpg_nr,
-                         pg->dtpg_pa[i].pa_state == M0_DTPS_PERSISTENT);
+	return m0_forall(i, txd->dtd_pg.dtpg_nr,
+			 txd->dtd_pg.dtpg_pa[i].pa_state == state);
 }
 
 #undef M0_TRACE_SUBSYSTEM

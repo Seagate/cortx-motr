@@ -221,35 +221,27 @@ static int m0_be_dtm0_log__insert(struct m0_be_dtm0_log  *log,
 }
 
 
-static int m0_be_dtm0_log__set(struct m0_be_dtm0_log  *log,
-                               struct m0_be_tx        *tx,
-                               struct m0_dtm0_tx_desc *txd,
-                               struct m0_buf          *pyld,
-                               struct m0_dtm0_log_rec *rec)
+static int m0_be_dtm0_log__set(struct m0_be_dtm0_log        *log,
+                               struct m0_be_tx              *tx,
+                               const struct m0_dtm0_tx_desc *txd,
+                               struct m0_buf                *pyld,
+                               struct m0_dtm0_log_rec       *rec)
 {
 	int                     rc;
-	int                     pa_id;
-	struct m0_dtm0_tx_desc *ltxd     = &rec->dlr_txd;
 	struct m0_buf          *lpyld    = &rec->dlr_pyld;
-	struct m0_dtm0_tx_pa   *ldtpg_pa = ltxd->dtd_pg.dtpg_pa;
-	struct m0_dtm0_tx_pa   *dtpg_pa  = txd->dtd_pg.dtpg_pa;
-	uint32_t                num_pa   = ltxd->dtd_pg.dtpg_nr;
 
 	M0_PRE(m0_dtm0_log_rec__invariant(rec));
 
 	/* Attach payload to log if it is not attached */
-	if (!m0_dtm0_txr_rec_is_set(lpyld) && m0_dtm0_txr_rec_is_set(pyld)) {
+	if (!m0_buf_is_set(lpyld) && m0_buf_is_set(pyld)) {
 		rc = m0_buf_copy(lpyld, pyld);
 		if (rc != 0)
 			return rc;
 	}
 
-	for (pa_id = 0; pa_id < num_pa; ++pa_id) {
-		m0_dtm0_update_pa_state(&ldtpg_pa[pa_id].pa_state,
-                                        &dtpg_pa[pa_id].pa_state);
-	}
-
-	return rc;
+	m0_dtm0_tx_desc_apply(&rec->dlr_txd, txd);
+	M0_POST(m0_dtm0_log_rec__invariant(rec));
+	return 0;
 }
 
 M0_INTERNAL int m0_be_dtm0_log_update(struct m0_be_dtm0_log  *log,
@@ -283,7 +275,8 @@ M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
 	M0_PRE(m0_mutex_is_locked(&log->dl_lock));
 
 	m0_tl_for (lrec, log->dl_tlist, rec) {
-		if (!m0_dtm0_is_rec_is_stable(&rec->dlr_txd.dtd_pg))
+		if (!m0_dtm0_tx_desc_state_eq(&rec->dlr_txd,
+					      M0_DTPS_PERSISTENT))
 			return M0_ERR(-EPROTO);
 
 		rc = m0_dtm0_tid_cmp(log->dl_cs, &rec->dlr_txd.dtd_id, id);
@@ -301,6 +294,40 @@ M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
 
 	m0_be_dtm0_log_rec_fini(&currec, tx);
 	return rc;
+}
+
+M0_INTERNAL void m0_be_dtm0_log_clear(struct m0_be_dtm0_log *log)
+{
+	struct m0_dtm0_log_rec *rec;
+
+	/* TODO: Ensure the log is volatile */
+
+	m0_tl_teardown(lrec, log->dl_tlist, rec) {
+		M0_ASSERT(m0_dtm0_log_rec__invariant(rec));
+		m0_be_dtm0_log_rec_fini(&rec, NULL);
+	}
+	M0_POST(lrec_tlist_is_empty(log->dl_tlist));
+}
+
+M0_INTERNAL int m0_be_dtm0_log_insert_volatile(struct m0_be_dtm0_log *log,
+					       struct m0_dtm0_log_rec *rec)
+{
+	int rc;
+
+	/* TODO: dissolve dlr_txd and remove this code */
+	rc = m0_dtm0_tx_desc_copy(&rec->dlr_dtx.dd_txd, &rec->dlr_txd);
+	if (rc != 0)
+		return rc;
+
+	lrec_tlink_init_at_tail(rec, log->dl_tlist);
+	return 0;
+}
+
+M0_INTERNAL void m0_be_dtm0_log_update_volatile(struct m0_be_dtm0_log *log,
+						struct m0_dtm0_log_rec *rec)
+{
+	/* TODO: dissolve dlr_txd and remove this code */
+	m0_dtm0_tx_desc_apply(&rec->dlr_txd, &rec->dlr_dtx.dd_txd);
 }
 
 #undef M0_TRACE_SUBSYSTEM
