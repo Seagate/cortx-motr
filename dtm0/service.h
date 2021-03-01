@@ -28,6 +28,8 @@
 #include "reqh/reqh_service.h"
 #include "dtm0/clk_src.h"
 
+struct m0_be_dtm0_log;
+
 enum m0_dtm0_service_origin {
 	DTM0_UNKNOWN = 0,
 	DTM0_ON_VOLATILE,
@@ -43,6 +45,7 @@ struct m0_dtm0_service {
 	enum m0_dtm0_service_origin  dos_origin;
 	uint64_t                     dos_magix;
 	struct m0_dtm0_clk_src       dos_clk_src;
+	struct m0_be_dtm0_log       *dos_log;
 };
 
 extern struct m0_reqh_service_type dtm0_service_type;
