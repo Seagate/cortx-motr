@@ -88,6 +88,12 @@
  *     the plop has been executed. This might make more plops ready, so the
  *     loop repeats.
  *
+ * All plops should be executed and m0_layout_plop_done() should be called
+ * on them by user in the depencency order indicated by the
+ * m0_layout_plop::pl_deps list. Before starting the plop execution user should
+ * call m0_layout_plop_start() which would verify whether the dependencies are
+ * met and the plop is still actual (i.e. that it was not cancelled already).
+ *
  * A plop is not necessarily immediately destroyed by the implementation after
  * the user completes it. The implementation might keep plop alive for some
  * time, for example, data read from a cob might be needed for a future parity
@@ -113,14 +119,18 @@
  *
  * @verbatim
  *  m0_layout_plan_build() ->
- *    m0_layout_plan_get() -> M0_LAT_READ -> ... -> m0_layout_plop_done()
- *    m0_layout_plan_get() -> M0_LAT_READ -> ... -> m0_layout_plop_done()
+ *    u0: m0_layout_plan_get() -> M0_LAT_READ -> user may start reading...
+ *    u1: m0_layout_plan_get() -> M0_LAT_READ -> in parallel...
+ *    u3: m0_layout_plan_get() -> M0_LAT_READ -> ...
  *    ...
- *    m0_layout_plan_get() -> M0_LAT_OUT_READ -> ... -> m0_layout_plop_done()
- *    m0_layout_plan_get() -> M0_LAT_READ -> ... -> m0_layout_plop_done()
- *    m0_layout_plan_get() -> M0_LAT_FUN -> ... -> m0_layout_plop_done()
+ *    u0: m0_layout_plan_get() -> M0_LAT_OUT_READ  -> user should wait
+ *    u0: The data for M0_LAT_READ is ready        -> m0_layout_plop_done()
+ *    u0: Now the data in M0_LAT_OUT_READ is ready -> m0_layout_plop_done()
  *    ...
- *    m0_layout_plan_get() -> M0_LAT_OUT_READ -> ... -> m0_layout_plop_done()
+ *    m0_layout_plan_get() -> M0_LAT_FUN -> user must check pl_deps:
+ *        if all plops in the list are M0_LPS_DONE -> call the function and
+ *                                                 -> m0_layout_plop_done()
+ *    ...
  *    m0_layout_plan_get() -> M0_LAT_DONE -> ... -> m0_layout_plop_done()
  *  m0_layout_plan_fini()
  * @endverbatim
@@ -137,25 +147,80 @@
  * might call m0_layout_plan_get() many times and getting a number of
  * M0_LAT_READ plops before calling the first m0_layout_plop_done().
  *
- * @note M0_LAT_OUT_READ plop also can be returned by plan for the parity
- * group even before any m0_layout_plop_done() is called for any of the
- * M0_LAT_READ plops on the units of this parity group. It is responsibility
- * of user to track the dependencies between plops, execute them and call
- * m0_layout_plop_done()s on them in order (see m0_layout_plop::pl_deps).
+ * @note M0_LAT_OUT_READ plop can be returned by the plan for the unit
+ * even before m0_layout_plop_done() is called for its M0_LAT_READ plop.
+ * It is user's responsibility to track the dependencies between plops
+ * (see m0_layout_plop::pl_deps), execute and call m0_layout_plop_done()
+ * on them in order.
  *
  * The picture becomes a bit more complicated when some disk is failed and
  * we are doing the degraded read. Or we are working in the read-verify mode.
- * In this situation the plan would ask user to read the parity units in
- * each parity group also. The implementation would ask user to run the parity
- * calculation function (M0_LAT_FUN plop). The function would restore data
- * (or verify it) in a synchronous way.
+ * In this case the plan would involve reading of the parity units also,
+ * as well as running the parity calculation functions (M0_LAT_FUN plop)
+ * for degraded groups or for every group (in read-verify mode).
+ * The function would restore (or verify) data in a synchronous way.
  *
  * @note in case of the read-verify mode the verification status is indicated
  * by the return code from the m0_layout_fun_plop::fp_fun() call.
  *
- * The plan would return m0_layout_fun_plop periodically each time the parity
- * group is read in the degraded mode and the data needs to be restored. Or
- * on every parity group in the read-verify mode.
+ * The plan may change dynamically and adapt according to the situation. For
+ * example, let's consider the case when some data unit in a parity group
+ * cannot be read for some reason. The user should indicate the error to the
+ * implementation via pl_rc at plop_done() for the M0_LAT_READ plop. The
+ * implementation will change the plan and cancel all the plops that are no
+ * longer relevant (like M0_LAT_OUT_READ for the failed M0_LAT_READ in this
+ * case). On the next plan_get() calls the implementation will return
+ * M0_LAT_READ plop(s) for the group parity unit(s), followed by M0_LAT_FUN
+ * which would restore the failed data unit using the parity data, followed
+ * by the new M0_LAT_OUT_READ plop for this data unit. Here is the diagram:
+ *
+ * @dot
+ * digraph plopfail {
+ * 	subgraph cluster_0 {
+ * 		style=filled;
+ * 		color=lightgrey;
+ * 		start;
+ * 		getlayout [label="layout-index.GET(fid)"];
+ * 		getlayout -> start;
+ * 	}
+ * 	subgraph cluster_1 {
+ * 		style=filled;
+ * 		color=lightgrey;
+ * 		read0 [label="cob0.read(ext0)" color="red"];
+ * 		read1 [label="cob1.read(ext1)"];
+ * 		read2 [label="cob2.read(ext2)"];
+ * 		readout0 [label="buf0.ready" color="blue"];
+ * 		readout1 [label="buf1.ready"];
+ * 		readout2 [label="buf2.ready"];
+ * 		readout0 -> read0;
+ * 		readout1 -> read1;
+ * 		readout2 -> read2;
+ * 		read0 -> getlayout [style=invis];
+ * 		read1 -> getlayout [style=invis];
+ * 		read2 -> getlayout [style=invis];
+ * 	}
+ * 	subgraph cluster_degraded {
+ * 		style=filled;
+ * 		color=lightgrey;
+ * 		readparity [label="cob-parity.read(ext-parity)"];
+ * 		readparity -> read0 [style=invis];
+ * 		compute [label="erasure(buf1, buf2, buf-parity)"];
+ * 		readout0p [label="buf0.ready"];
+ * 		compute -> readparity;
+ * 		compute -> read1;
+ * 		compute -> read2;
+ * 		readout0p -> compute;
+ * 	}
+ * 	subgraph cluster_2 {
+ * 		style=filled;
+ * 		color=lightgrey;
+ * 		done
+ * 		done -> readout0p [style=invis];
+ * 		done -> readout1 [style=invis];
+ * 		done -> readout2 [style=invis];
+ * 	}
+ * }
+ * @enddot
  *
  * @{
  */
@@ -242,6 +307,12 @@ enum m0_layout_plop_type {
 	 * Output plop, m0_layout_inout_plop.
 	 *
 	 * This plop signals the user that a part of the read data is available.
+	 *
+	 * @note this plop can be returned by the plan for the unit even before
+	 * m0_layout_plop_done() is called for its M0_LAT_READ plop. It is user
+	 * responsibility to track the dependencies between plops
+	 * (see m0_layout_plop::pl_deps), execute and call m0_layout_plop_done()
+	 * on them in order.
 	 *
 	 * @see m0_layout_inout_plop
 	 */
