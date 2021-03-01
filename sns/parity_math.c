@@ -570,32 +570,26 @@ static void isal_encode(struct m0_parity_math *math,
 			struct m0_buf *parity)
 {
 	uint32_t  i;
-	uint32_t  data_count;
-	uint32_t  parity_count;
 	uint32_t  block_size;
 	int	  ret = 0;
 
 	M0_PRE(math != NULL);
 	M0_PRE(data != NULL);
 	M0_PRE(parity != NULL);
+	M0_PRE(math->pmi_data_count >= 1);
+	M0_PRE(math->pmi_parity_count >= 1);
+	M0_PRE(math->pmi_data_count >= math->pmi_parity_count);
+	M0_PRE(math->pmi_data_count <= SNS_PARITY_MATH_DATA_BLOCKS_MAX);
+
+	uint8_t  *frags_in[math->pmi_data_count];
+	uint8_t  *frags_out[math->pmi_parity_count];
 
 	M0_ENTRY();
-
-	data_count = math->pmi_data_count;
-	parity_count = math->pmi_parity_count;
-
-	M0_PRE(data_count >= 1);
-	M0_PRE(parity_count >= 1);
-	M0_PRE(data_count >= parity_count);
-	M0_PRE(data_count <= SNS_PARITY_MATH_DATA_BLOCKS_MAX);
-
-	uint8_t  *frags_in[data_count];
-	uint8_t  *frags_out[parity_count];
 
 	block_size = data[0].b_nob;
 
 	frags_in[0] = (uint8_t *)data[0].b_addr;
-	for (i = 1; i < data_count; ++i) {
+	for (i = 1; i < math->pmi_data_count; ++i) {
 		if (block_size != data[i].b_nob) {
 			ret = M0_ERR_INFO(-EINVAL, "data block size mismatch. "
 					  "block_size = %u, data[%u].b_nob=%u",
@@ -605,7 +599,7 @@ static void isal_encode(struct m0_parity_math *math,
 		frags_in[i] = (uint8_t *)data[i].b_addr;
 	}
 
-	for (i = 0; i < parity_count; ++i) {
+	for (i = 0; i < math->pmi_parity_count; ++i) {
 		if (block_size != parity[i].b_nob) {
 			ret = M0_ERR_INFO(-EINVAL, "parity block size mismatch. "
 					  "block_size = %u, parity[%u].b_nob=%u",
@@ -616,7 +610,7 @@ static void isal_encode(struct m0_parity_math *math,
 	}
 
 	M0_LOG(M0_DEBUG, "generate erasure codes on given blocks of data.");
-	ec_encode_data(block_size, data_count, parity_count,
+	ec_encode_data(block_size, math->pmi_data_count, math->pmi_parity_count,
 		       math->pmi_encode_tbls, frags_in, frags_out);
 
 fini:
