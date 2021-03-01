@@ -101,42 +101,6 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
                 }
             }
         }
-/*
-        stage('Exchange ssh keys') {
-            when { expression { params.PRE_REQ } }
-            steps {
-                script {
-                    def remote = getTestMachine(VM1_FQDN)
-                    def commandResult = sshCommand remote: remote, command: """
-cat > ~/deploy_spawn  <<EOL
-#!/bin/bash
-ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa <<<y 2>&1 >/dev/null
-ssh-copy-id -o "StrictHostKeyChecking=no" ${VM2_FQDN}
-ssh-copy-id -o "StrictHostKeyChecking=no" ${VM3_FQDN}
-EOL
-                    """
-                    commandResult = sshCommand remote: remote, command: """
-cat > ~/deploy_expect  <<EOL
-#!/usr/bin/expect -f
-set timeout 300
-spawn ./deploy_spawn
-expect "Password:"
-send -- "seagate\\n"
-expect "Password:"
-send -- "seagate\\n"
-interact
-EOL
-                    """
-                    commandResult = sshCommand remote: remote, command: """
-yum install -y expect
-chmod a+x deploy_spawn
-chmod a+x deploy_expect
-./deploy_expect
-                    """
-                }
-            }
-        }
-*/
         stage('Exchange ssh keys') {
             when { expression { params.PRE_REQ } }
             parallel {
@@ -657,7 +621,7 @@ pip3 install elasticsearch-dsl==6.4.0
 pip3 install python-consul==1.1.0
 pip3 install schematics==2.1.0
 pip3 install toml==0.10.0
-pip3 install cryptography==3.2
+pip3 install cryptography==2.8
 pip3 install PyYAML==5.1.2
 pip3 install configparser==4.0.2
 pip3 install networkx==2.4
