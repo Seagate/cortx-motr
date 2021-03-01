@@ -303,9 +303,7 @@ M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math)
 #ifndef __KERNEL__
 	if (math->pmi_parity_algo == M0_PARITY_CAL_ALGO_ISA) {
 		m0_free(math->pmi_encode_matrix);
-		m0_free(math->pmi_g_tbls);
-		m0_free(math->pmi_frags_in);
-		m0_free(math->pmi_frags_out);
+		m0_free(math->pmi_encode_tbls);
 	}
 #else
 	if (math->pmi_parity_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
@@ -358,30 +356,21 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 			goto handle_error;
 		}
 
-		M0_ALLOC_ARR(math->pmi_g_tbls, (data_count * parity_count * 32));
-		if (math->pmi_g_tbls == NULL) {
+		M0_ALLOC_ARR(math->pmi_encode_tbls, (data_count * parity_count * 32));
+		if (math->pmi_encode_tbls == NULL) {
 			ret = M0_ERR_INFO(-ENOMEM, "failed to allocate memory "
 					  "for coefficient tables");
-			goto handle_error;
-		}
-
-		M0_ALLOC_ARR(math->pmi_frags_in, data_count);
-		if (math->pmi_frags_in == NULL) {
-			ret = M0_ERR_INFO(-ENOMEM, "failed to allocate memory "
-					  "for array of source fragments");
-			goto handle_error;
-		}
-
-		M0_ALLOC_ARR(math->pmi_frags_out, parity_count);
-		if (math->pmi_frags_out == NULL) {
-			ret = M0_ERR_INFO(-ENOMEM, "failed to allocate memory "
-					  "for array of output fragments");
 			goto handle_error;
 		}
 
 		M0_LOG(M0_DEBUG, "generate a matrix of coefficients to be used "
 		       "for encoding.");
 		gf_gen_rs_matrix(math->pmi_encode_matrix, total_count, data_count);
+
+		M0_LOG(M0_DEBUG, "initialize tables for fast Erasure Code encode.");
+		ec_init_tables(data_count, parity_count,
+			       &math->pmi_encode_matrix[data_count * data_count],
+			       math->pmi_encode_tbls);
 	}
 #else
 	} else {
@@ -594,9 +583,18 @@ static void isal_encode(struct m0_parity_math *math,
 
 	data_count = math->pmi_data_count;
 	parity_count = math->pmi_parity_count;
+
+	M0_PRE(data_count >= 1);
+	M0_PRE(parity_count >= 1);
+	M0_PRE(data_count >= parity_count);
+	M0_PRE(data_count <= SNS_PARITY_MATH_DATA_BLOCKS_MAX);
+
+	uint8_t  *frags_in[data_count];
+	uint8_t  *frags_out[parity_count];
+
 	block_size = data[0].b_nob;
 
-	math->pmi_frags_in[0] = (uint8_t *)data[0].b_addr;
+	frags_in[0] = (uint8_t *)data[0].b_addr;
 	for (i = 1; i < data_count; ++i) {
 		if (block_size != data[i].b_nob) {
 			ret = M0_ERR_INFO(-EINVAL, "data block size mismatch. "
@@ -604,7 +602,7 @@ static void isal_encode(struct m0_parity_math *math,
 					  block_size, i, (uint32_t)data[i].b_nob);
 			goto fini;
 		}
-		math->pmi_frags_in[i] = (uint8_t *)data[i].b_addr;
+		frags_in[i] = (uint8_t *)data[i].b_addr;
 	}
 
 	for (i = 0; i < parity_count; ++i) {
@@ -614,17 +612,12 @@ static void isal_encode(struct m0_parity_math *math,
 					  block_size, i, (uint32_t)parity[i].b_nob);
 			goto fini;
 		}
-		math->pmi_frags_out[i] = (uint8_t *)parity[i].b_addr;
+		frags_out[i] = (uint8_t *)parity[i].b_addr;
 	}
 
-	M0_LOG(M0_DEBUG, "initialize tables for fast Erasure Code encode.");
-	ec_init_tables(data_count, parity_count,
-		       &math->pmi_encode_matrix[data_count * data_count],
-		       math->pmi_g_tbls);
-
 	M0_LOG(M0_DEBUG, "generate erasure codes on given blocks of data.");
-	ec_encode_data(block_size, data_count, parity_count, math->pmi_g_tbls,
-		       math->pmi_frags_in, math->pmi_frags_out);
+	ec_encode_data(block_size, data_count, parity_count,
+		       math->pmi_encode_tbls, frags_in, frags_out);
 
 fini:
 	/* TODO: Return error code instead of assert */
