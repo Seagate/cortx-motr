@@ -3,7 +3,7 @@ pipeline {
     parameters {
         booleanParam(name: 'Help', defaultValue: false, description: '''Unused param for description:
 This job is created for 3 node vm motr+s3+hare deployment using mini provisioner.
-Below wiki link have all detailed command usind in this job.
+Below wiki link have all detailed commands used in this job.
 https://github.com/Seagate/cortx-motr/wiki/Three-node-motr-s3-hare-deployment-on-vm-using-mini-provisioner
 If you found steps are changed then need to update below simple groovy script.
 https://github.com/Seagate/cortx-motr/blob/motr-jenkins/scripts/jenkins/three-node-mini-provisioner.groovy
