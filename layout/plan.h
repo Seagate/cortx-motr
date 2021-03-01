@@ -163,8 +163,8 @@
  * @note in case of the read-verify mode the verification status is indicated
  * by the return code from the m0_layout_fun_plop::fp_fun() call.
  *
- * The plan may change dynamically and adapt according to the situation. For
- * example, let's consider the case when some data unit in a parity group
+ * The plan may change and adapt according to the situation. For example,
+ * let's consider the case when some data unit in a parity group
  * cannot be read for some reason. The user should indicate the error to the
  * implementation via pl_rc at plop_done() for the M0_LAT_READ plop. The
  * implementation will change the plan and cancel all the plops that are no
@@ -221,6 +221,26 @@
  * 	}
  * }
  * @enddot
+ *
+ * ISC user should analyse the plops and their dependencies in oder to
+ * figure out whether the user data can be obtained at the server side.
+ * If so the computation can be delegated to the server. In some cases,
+ * the data may not be accessible at the server. For example, in degraded
+ * mode some data units in some parity groups are not available at the
+ * server and have to be recovered at the client side. In this case the
+ * computation on these units has to be done at the client side too.
+ *
+ * ISC should also be able to distinguish between reads of data units and
+ * reads of parity units. (Because the computation makes sense only on the
+ * data units.) To figure this out ISC have to analyse the dependencies
+ * between plops: if there is a resulting M0_LAT_OUT_READ plop and it depends
+ * only on the M0_LAT_READ (and possibly some FUNctions that can be called at
+ * the server side, like decompression or checksumming) - it means that the
+ * user data can be obtained at the server side independently from the other
+ * servers (there are no M0_LAT_READs or parity calculation FUN-plops in
+ * the dependencies). So the execution of such chain of plops can be
+ * delegated to the server side along with the ISC computation. In all
+ * other cases it should be done at the client side.
  *
  * @{
  */
