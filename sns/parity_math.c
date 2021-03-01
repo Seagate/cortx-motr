@@ -302,8 +302,10 @@ M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math)
 	M0_ENTRY();
 #ifndef __KERNEL__
 	if (math->pmi_parity_algo == M0_PARITY_CAL_ALGO_ISA) {
-		m0_free(math->encode_matrix);
-		m0_free(math->g_tbls);
+		m0_free(math->pmi_encode_matrix);
+		m0_free(math->pmi_g_tbls);
+		m0_free(math->pmi_frags_in);
+		m0_free(math->pmi_frags_out);
 	}
 #else
 	if (math->pmi_parity_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
@@ -349,21 +351,37 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 
 		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_ISA;
 
-		M0_ALLOC_ARR(math->encode_matrix, (total_count * data_count));
-		if (math->encode_matrix == NULL) {
-			ret = M0_ERR(-ENOMEM);
+		M0_ALLOC_ARR(math->pmi_encode_matrix, (total_count * data_count));
+		if (math->pmi_encode_matrix == NULL) {
+			ret = M0_ERR_INFO(-ENOMEM, "failed to allocate memory "
+					  "for encode matrix");
 			goto handle_error;
 		}
 
-		M0_ALLOC_ARR(math->g_tbls, (data_count * parity_count * 32));
-		if (math->g_tbls == NULL) {
-			ret = M0_ERR(-ENOMEM);
+		M0_ALLOC_ARR(math->pmi_g_tbls, (data_count * parity_count * 32));
+		if (math->pmi_g_tbls == NULL) {
+			ret = M0_ERR_INFO(-ENOMEM, "failed to allocate memory "
+					  "for coefficient tables");
+			goto handle_error;
+		}
+
+		M0_ALLOC_ARR(math->pmi_frags_in, data_count);
+		if (math->pmi_frags_in == NULL) {
+			ret = M0_ERR_INFO(-ENOMEM, "failed to allocate memory "
+					  "for array of source fragments");
+			goto handle_error;
+		}
+
+		M0_ALLOC_ARR(math->pmi_frags_out, parity_count);
+		if (math->pmi_frags_out == NULL) {
+			ret = M0_ERR_INFO(-ENOMEM, "failed to allocate memory "
+					  "for array of output fragments");
 			goto handle_error;
 		}
 
 		M0_LOG(M0_DEBUG, "generate a matrix of coefficients to be used "
 		       "for encoding.");
-		gf_gen_rs_matrix(math->encode_matrix, total_count, data_count);
+		gf_gen_rs_matrix(math->pmi_encode_matrix, total_count, data_count);
 	}
 #else
 	} else {
@@ -562,8 +580,6 @@ static void isal_encode(struct m0_parity_math *math,
 			const struct m0_buf *data,
 			struct m0_buf *parity)
 {
-	uint8_t **data_frags = NULL;
-	uint8_t **parity_frags = NULL;
 	uint32_t  i;
 	uint32_t  data_count;
 	uint32_t  parity_count;
@@ -580,21 +596,7 @@ static void isal_encode(struct m0_parity_math *math,
 	parity_count = math->pmi_parity_count;
 	block_size = data[0].b_nob;
 
-	M0_ALLOC_ARR(data_frags, data_count);
-	if (data_frags == NULL) {
-		ret = M0_ERR_INFO(-ENOMEM, "failed to allocate memory for "
-				  "array of data fragments");
-		goto fini;
-	}
-
-	M0_ALLOC_ARR(parity_frags, parity_count);
-	if (parity_frags == NULL) {
-		ret = M0_ERR_INFO(-ENOMEM, "failed to allocate memory for "
-				  "array of parity fragments");
-		goto fini;
-	}
-
-	data_frags[0] = (uint8_t *)data[0].b_addr;
+	math->pmi_frags_in[0] = (uint8_t *)data[0].b_addr;
 	for (i = 1; i < data_count; ++i) {
 		if (block_size != data[i].b_nob) {
 			ret = M0_ERR_INFO(-EINVAL, "data block size mismatch. "
@@ -602,7 +604,7 @@ static void isal_encode(struct m0_parity_math *math,
 					  block_size, i, (uint32_t)data[i].b_nob);
 			goto fini;
 		}
-		data_frags[i] = (uint8_t *)data[i].b_addr;
+		math->pmi_frags_in[i] = (uint8_t *)data[i].b_addr;
 	}
 
 	for (i = 0; i < parity_count; ++i) {
@@ -612,22 +614,19 @@ static void isal_encode(struct m0_parity_math *math,
 					  block_size, i, (uint32_t)parity[i].b_nob);
 			goto fini;
 		}
-		parity_frags[i] = (uint8_t *)parity[i].b_addr;
+		math->pmi_frags_out[i] = (uint8_t *)parity[i].b_addr;
 	}
 
 	M0_LOG(M0_DEBUG, "initialize tables for fast Erasure Code encode.");
 	ec_init_tables(data_count, parity_count,
-		       &math->encode_matrix[data_count * data_count],
-		       math->g_tbls);
+		       &math->pmi_encode_matrix[data_count * data_count],
+		       math->pmi_g_tbls);
 
 	M0_LOG(M0_DEBUG, "generate erasure codes on given blocks of data.");
-	ec_encode_data(block_size, data_count, parity_count,
-		       math->g_tbls, data_frags, parity_frags);
+	ec_encode_data(block_size, data_count, parity_count, math->pmi_g_tbls,
+		       math->pmi_frags_in, math->pmi_frags_out);
 
 fini:
-	m0_free(data_frags);
-	m0_free(parity_frags);
-
 	/* TODO: Return error code instead of assert */
 	M0_ASSERT(ret == 0);
 

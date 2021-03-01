@@ -124,9 +124,14 @@ struct m0_parity_math {
 #ifndef __KERNEL__
 	/* Pointer to sets of arrays of input coefficients used
 	 * to encode or decode data.*/
-	uint8_t		       *encode_matrix;
+	uint8_t		       *pmi_encode_matrix;
 	/* Pointer to concatenated output tables */
-	uint8_t		       *g_tbls;
+	uint8_t		       *pmi_g_tbls;
+	/* Array of pointers for incoming data and/or parity fragments */
+	uint8_t		      **pmi_frags_in;
+	/* Array of pointers for calculated or recovered data and/or parity
+	 * fragments */
+	uint8_t		      **pmi_frags_out;
 #endif
 };
 
