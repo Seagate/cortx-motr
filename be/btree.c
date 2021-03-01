@@ -488,12 +488,14 @@ static void be_btree_split_child(struct m0_be_btree *btree,
 	/* Copy the latter half keys from the current child to the new child */
 	i = 0;
 	while (i < new_child->bt_num_active_key) {
-		new_child->bt_kv_arr[i] = child->bt_kv_arr[i + BTREE_FAN_OUT];
-		*new_child->bt_ik[i].inlkey = *((char *)child->bt_kv_arr[i + BTREE_FAN_OUT].btree_key);
-		new_child->allocated[i] = 1;
+		new_child->bt_kv_arr[i] = child->bt_kv_arr[i + BTREE_FAN_OUT];		
 		if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
 		{
-			new_child->bt_kv_arr[i].btree_key = &new_child->bt_ik[i].inlkey;
+			int tindex = find_next_avaliable_index(new_child->allocated);
+			memcpy(new_child->bt_ik[tindex].inlkey,child->bt_kv_arr[i + BTREE_FAN_OUT].btree_key,64);
+			new_child->allocated[tindex] = 1;
+			new_child->bt_kv_arr[i].btree_key = &new_child->bt_ik[tindex].inlkey;
+			child->allocated[i + BTREE_FAN_OUT] = 0;
 		}
 		i++;
 	}
@@ -531,11 +533,15 @@ static void be_btree_split_child(struct m0_be_btree *btree,
 	/*  Update parent */
 	parent->bt_child_arr[index + 1] = new_child;
 	parent->bt_kv_arr[index] = child->bt_kv_arr[BTREE_FAN_OUT - 1];
-	*parent->bt_ik[index].inlkey = *((char *)child->bt_kv_arr[BTREE_FAN_OUT - 1].btree_key);
-	parent->allocated[index] = 1;
+	//*parent->bt_ik[index].inlkey = *((char *)child->bt_kv_arr[BTREE_FAN_OUT - 1].btree_key);
+	
 	if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
 	{
-		parent->bt_kv_arr[index].btree_key = &parent->bt_ik[index].inlkey;
+		int tindex = find_next_avaliable_index(parent->allocated);
+		memcpy(parent->bt_ik[tindex].inlkey,child->bt_kv_arr[BTREE_FAN_OUT - 1].btree_key,64);
+		parent->allocated[tindex] = 1;
+		parent->bt_kv_arr[index].btree_key = &parent->bt_ik[tindex].inlkey;
+		child->allocated[BTREE_FAN_OUT - 1] = 0;
 	}
 	parent->bt_num_active_key++;
 
@@ -585,31 +591,27 @@ static void be_btree_insert_into_nonfull(struct m0_be_btree      *btree,
 	while (i >= 0 &&
 	       key_lt(btree, key, node->bt_kv_arr[i].btree_key)) {
 		node->bt_kv_arr[i + 1] = node->bt_kv_arr[i];
-		if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
-		{
-			node->bt_kv_arr[i+1].btree_key = &node->bt_ik[i+1].inlkey;
-		}
+		// if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+		// {
+		// 	node->bt_kv_arr[i+1].btree_key = &node->bt_ik[i+1].inlkey;
+		// }
 		i--;
 	}
 	
 	node->bt_kv_arr[i + 1] = *kv;
-	if(node->allocated[i+1]==0)
+	if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
 	{
-		node->bt_ik[i + 1] = *tinl;
-		if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+		int temp;
+		if(node->allocated[i+1]==0)
 		{
-			node->bt_kv_arr[i+1].btree_key = &node->bt_ik[i+1].inlkey;
+			temp=i+1;
 		}
-		node->allocated[i + 1] = 1;
-	}
-	else
-	{
-		int temp = find_next_avaliable_index(node->allocated);
+		else
+		{
+			temp = find_next_avaliable_index(node->allocated);	
+		}
 		node->bt_ik[temp] =*tinl;
-		if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
-		{
-			node->bt_kv_arr[i+1].btree_key = &node->bt_ik[temp].inlkey;
-		}
+		node->bt_kv_arr[i+1].btree_key = &node->bt_ik[temp].inlkey;
 		node->allocated[temp] = 1;
 	}
 	
@@ -718,12 +720,16 @@ static void be_btree_shift_key_vals(struct m0_be_bnode *dest,
 	{
 		dest->bt_kv_arr[i + key_dest_offset] =
 					src->bt_kv_arr[i + key_src_offset];
-		*dest->bt_ik[i + key_dest_offset].inlkey =
-					*((char *)src->bt_kv_arr[i + key_src_offset].btree_key);
-		dest->allocated[i + key_dest_offset] = 1;
+		// *dest->bt_ik[i + key_dest_offset].inlkey =
+		// 			*((char *)src->bt_kv_arr[i + key_src_offset].btree_key);
+		
 		if(ktype != M0_BBT_CAS_CTG)
 		{
-			dest->bt_kv_arr[i + key_dest_offset].btree_key = &dest->bt_ik[i + key_dest_offset].inlkey;
+			int tindex = find_next_avaliable_index(dest->allocated);
+			memcpy(dest->bt_ik[tindex + key_dest_offset].inlkey,src->bt_kv_arr[i + key_src_offset].btree_key,64);
+			dest->allocated[tindex + key_dest_offset] = 1;
+			dest->bt_kv_arr[i + key_dest_offset].btree_key = &dest->bt_ik[tindex + key_dest_offset].inlkey;
+			src->allocated[i + key_src_offset] = 0;
 		}
 		dest->bt_child_arr[i + child_dest_offset ] =
 				src->bt_child_arr[i + child_src_offset];
@@ -761,11 +767,15 @@ be_btree_merge_siblings(struct m0_be_tx    *tx,
 	node2 = parent->bt_child_arr[idx + 1];
 	node1->bt_kv_arr[node1->bt_num_active_key++] = parent->bt_kv_arr[idx];
 	tval = node1->bt_num_active_key;
-	*node1->bt_ik[tval].inlkey = *((char *)parent->bt_kv_arr[idx].btree_key);
-	node1->allocated[tval] = 1;
+	//*node1->bt_ik[tval].inlkey = *((char *)parent->bt_kv_arr[idx].btree_key);
+	
 	if(tree->bb_ops->ko_type != M0_BBT_CAS_CTG)
 	{
-		node1->bt_kv_arr[tval].btree_key = &node1->bt_ik[tval].inlkey;
+		int tindex = find_next_avaliable_index(node1->allocated);
+		memcpy(node1->bt_ik[tindex].inlkey,parent->bt_kv_arr[idx].btree_key,64);
+		node1->allocated[tindex] = 1;
+		node1->bt_kv_arr[tval].btree_key = &node1->bt_ik[tindex].inlkey;
+		parent->allocated[idx] = 0;
 	}
 	M0_ASSERT(node1->bt_num_active_key + node2->bt_num_active_key <= KV_NR);
 
@@ -826,23 +836,31 @@ static void be_btree_move_parent_key_to_right_child(struct m0_be_bnode *parent,
 	}
 	rch->bt_child_arr[1] = rch->bt_child_arr[0];
 	rch->bt_kv_arr[0] = parent->bt_kv_arr[idx];
-	*rch->bt_ik[0].inlkey = *((char *)parent->bt_kv_arr[idx].btree_key);
-	rch->allocated[0] = 1;
+	//*rch->bt_ik[0].inlkey = *((char *)parent->bt_kv_arr[idx].btree_key);
+
 	if(ktype != M0_BBT_CAS_CTG)
 	{
-		rch->bt_kv_arr[0].btree_key = &rch->bt_ik[0].inlkey;
+		int tindex = find_next_avaliable_index(rch->allocated);
+		memcpy(rch->bt_ik[tindex].inlkey,parent->bt_kv_arr[idx].btree_key,64);
+		rch->allocated[tindex] = 1;
+		rch->bt_kv_arr[0].btree_key = &rch->bt_ik[tindex].inlkey;
+		parent->allocated[idx] = 0;
 	}
 	rch->bt_child_arr[0] =
 			lch->bt_child_arr[lch->bt_num_active_key];
 	lch->bt_child_arr[lch->bt_num_active_key] = NULL;
 	parent->bt_kv_arr[idx] =
 			lch->bt_kv_arr[lch->bt_num_active_key-1];
-	*parent->bt_ik[idx].inlkey =
-			*((char *)lch->bt_kv_arr[lch->bt_num_active_key-1].btree_key);
-	parent->allocated[idx] = 1;
+	// *parent->bt_ik[idx].inlkey =
+	// 		*((char *)lch->bt_kv_arr[lch->bt_num_active_key-1].btree_key);
+
 	if(ktype != M0_BBT_CAS_CTG)
 	{
-		parent->bt_kv_arr[idx].btree_key = &parent->bt_ik[idx].inlkey;
+		int tindex = find_next_avaliable_index(parent->allocated);
+		memcpy(parent->bt_ik[tindex].inlkey,lch->bt_kv_arr[lch->bt_num_active_key-1].btree_key,64);
+		parent->allocated[tindex] = 1;
+		parent->bt_kv_arr[idx].btree_key = &parent->bt_ik[tindex].inlkey;
+		lch->allocated[lch->bt_num_active_key-1] = 0;
 	}
 	lch->bt_num_active_key--;
 	rch->bt_num_active_key++;
@@ -858,33 +876,44 @@ static void be_btree_move_parent_key_to_left_child(struct m0_be_bnode *parent,
 
 	lch->bt_kv_arr[lch->bt_num_active_key] =
 					parent->bt_kv_arr[idx];
-	*lch->bt_ik[lch->bt_num_active_key].inlkey =
-					*((char *)parent->bt_kv_arr[idx].btree_key);
-	lch->allocated[lch->bt_num_active_key] = 1;
+	// *lch->bt_ik[lch->bt_num_active_key].inlkey =
+	// 				*((char *)parent->bt_kv_arr[idx].btree_key);
+	
 	if(ktype != M0_BBT_CAS_CTG)
 	{
-		lch->bt_kv_arr[lch->bt_num_active_key].btree_key = &lch->bt_ik[lch->bt_num_active_key].inlkey;
+		int tindex = find_next_avaliable_index(lch->allocated);
+		memcpy(lch->bt_ik[tindex].inlkey,parent->bt_kv_arr[idx].btree_key,64);
+		lch->allocated[tindex] = 1;
+		lch->bt_kv_arr[lch->bt_num_active_key].btree_key = &lch->bt_ik[tindex].inlkey;
+		parent->allocated[idx] = 0;
 	}
 
 	lch->bt_child_arr[lch->bt_num_active_key + 1] =
 					rch->bt_child_arr[0];
 	lch->bt_num_active_key++;
 	parent->bt_kv_arr[idx] = rch->bt_kv_arr[0];
-	*parent->bt_ik[idx].inlkey = *((char *)rch->bt_kv_arr[0].btree_key);
-	parent->allocated[idx] = 1;
+	// *parent->bt_ik[idx].inlkey = *((char *)rch->bt_kv_arr[0].btree_key);
+	// memcpy(parent->bt_ik[idx].inlkey,rch->bt_kv_arr[0].btree_key,64);
+	// parent->allocated[idx] = 1;
 	if(ktype != M0_BBT_CAS_CTG)
 	{
-		parent->bt_kv_arr[idx].btree_key = &parent->bt_ik[idx].inlkey;
+		int tindex = find_next_avaliable_index(parent->allocated);
+		memcpy(parent->bt_ik[tindex].inlkey,rch->bt_kv_arr[0].btree_key,64);
+		parent->allocated[tindex] = 1;
+		parent->bt_kv_arr[idx].btree_key = &parent->bt_ik[tindex].inlkey;
+		rch->allocated[0] = 0;
 	}
 	i = 0;
 	while (i < rch->bt_num_active_key - 1) {
 		rch->bt_kv_arr[i] = rch->bt_kv_arr[i + 1];
-		*rch->bt_ik[i].inlkey = *((char *)rch->bt_kv_arr[i + 1].btree_key);
-		rch->allocated[i] = 1;
-		if(ktype != M0_BBT_CAS_CTG)
-		{
-			rch->bt_kv_arr[i].btree_key = &rch->bt_ik[i].inlkey;
-		}
+		//*rch->bt_ik[i].inlkey = *((char *)rch->bt_kv_arr[i + 1].btree_key);
+		
+		// if(ktype != M0_BBT_CAS_CTG)
+		// {
+		// 	memcpy(rch->bt_ik[i].inlkey,rch->bt_kv_arr[i + 1].btree_key,64);
+		// 	rch->allocated[i] = 1;
+		// 	rch->bt_kv_arr[i].btree_key = &rch->bt_ik[i].inlkey;
+		// }
 		rch->bt_child_arr[i] = rch->bt_child_arr[i + 1];
 		++i;
 	}
@@ -962,12 +991,14 @@ void be_btree_delete_key_from_node(struct m0_be_btree	 *tree,
 
 		while (idx < bnode->bt_num_active_key - 1) {
 			bnode->bt_kv_arr[idx] = bnode->bt_kv_arr[idx+1];
-			*bnode->bt_ik[idx].inlkey = *((char *)bnode->bt_kv_arr[idx+1].btree_key);
-			bnode->allocated[idx] = 1;
-			if(tree->bb_ops->ko_type != M0_BBT_CAS_CTG)
-			{
-				bnode->bt_kv_arr[idx].btree_key = &bnode->bt_ik[idx].inlkey;
-			}
+			//*bnode->bt_ik[idx].inlkey = *((char *)bnode->bt_kv_arr[idx+1].btree_key);
+			
+			// if(tree->bb_ops->ko_type != M0_BBT_CAS_CTG)
+			// {
+			// 	memcpy(bnode->bt_ik[idx].inlkey,bnode->bt_kv_arr[idx+1].btree_key,64);
+			// 	bnode->allocated[idx] = 1;
+			// 	bnode->bt_kv_arr[idx].btree_key = &bnode->bt_ik[idx].inlkey;
+			// }
 			++idx;
 		}
 		/*
