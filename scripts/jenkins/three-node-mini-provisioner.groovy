@@ -1,6 +1,16 @@
 pipeline {
     agent any
     parameters {
+        booleanParam(name: 'Help', defaultValue: false, description: '''Unused param for description:
+This job is created for 3 node vm motr+s3+hare deployment using mini provisioner.
+Below wiki link have all detailed command usind in this job.
+https://github.com/Seagate/cortx-motr/wiki/Three-node-motr-s3-hare-deployment-on-vm-using-mini-provisioner
+If you found steps are changed then need to update below simple groovy script.
+https://github.com/Seagate/cortx-motr/blob/motr-jenkins/scripts/jenkins/three-node-mini-provisioner.groovy
+On successfull deployment, just check console log once to get clear understanding.
+If vm reset failed, then perfom manually remaining reset steps using ssc-cloudform.(steps: stop-revert_snapshot-start)
+If you get noting in failure console log, then check ssh connections on nodes. 
+''')
         string(name: 'VM1_FQDN', defaultValue: '', description: 'FQDN of ssc-vm primary node (node-1). (user/password must be root/seagate)')
         string(name: 'VM2_FQDN', defaultValue: '', description: 'FQDN of ssc-vm secondary node 1(node-2). (user/password must be root/seagate)')
         string(name: 'VM3_FQDN', defaultValue: '', description: 'FQDN of ssc-vm secondary node 2(node-3). (user/password must be root/seagate)')
