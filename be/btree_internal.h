@@ -39,9 +39,11 @@
 enum {
 	KV_NR = 2 * BTREE_FAN_OUT - 1,
 };
+struct be_btree_inlkey{
+	char inlkey[64];
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct be_btree_key_val  {
-	char inlkey[64];
 	void *btree_key;
 	void *btree_val;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
@@ -55,9 +57,12 @@ struct m0_be_bnode {
 	unsigned int                 bt_level;   /* Level of node in B-Tree */
 	bool                         bt_isleaf;  /* Is this Leaf node? */
 	char                         bt_pad[7];  /* Used to padd */
-	struct be_btree_key_val      bt_kv_arr[KV_NR]; /* Array of key-vals */
+	struct be_btree_key_val      bt_kv_arr[KV_NR]; /* Array of key-vals */	
+	struct be_btree_inlkey		 bt_ik[KV_NR]; /* Array of inline-keys */
+	char 						 allocated[KV_NR];
 	struct m0_be_bnode          *bt_child_arr[KV_NR + 1]; /* childnode array */
 	struct m0_format_footer      bt_footer;  /* Footer of node */
+
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 M0_BASSERT(sizeof(bool) == 1);
 
