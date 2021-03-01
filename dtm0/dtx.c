@@ -36,6 +36,7 @@
 #include "dtm0/service.h" /* m0_dtm0_service */
 #include "reqh/reqh.h" /* reqh2confc */
 #include "conf/helpers.h" /* proc2srv */
+#include "be/dtm0_log.h" /* dtm0_log API */
 
 static struct m0_sm_state_descr dtx_states[] = {
 	[M0_DDS_INIT] = {
@@ -98,21 +99,53 @@ M0_INTERNAL void m0_dtm0_dtx_domain_fini(void)
 		m0_sm_conf_fini(&dtx_sm_conf);
 }
 
+static void dtx_log_insert(struct m0_dtm0_dtx *dtx)
+{
+	struct m0_be_dtm0_log  *log;
+	struct m0_dtm0_log_rec *record = M0_AMB(record, dtx, dlr_dtx);
+	int                     rc;
+
+	M0_PRE(m0_dtm0_tx_desc_state_eq(&dtx->dd_txd, M0_DTPS_INPROGRESS));
+	M0_PRE(dtx->dd_dtms != NULL);
+	log = dtx->dd_dtms->dos_log;
+	M0_PRE(log != NULL);
+
+	m0_mutex_lock(&log->dl_lock);
+	rc = m0_be_dtm0_log_insert_volatile(log, record);
+	m0_mutex_unlock(&log->dl_lock);
+	M0_ASSERT(rc == 0);
+}
+
+static void dtx_log_update(struct m0_dtm0_dtx *dtx)
+{
+	struct m0_be_dtm0_log *log;
+	struct m0_dtm0_log_rec *record = M0_AMB(record, dtx, dlr_dtx);
+
+	M0_PRE(dtx->dd_dtms != NULL);
+	log = dtx->dd_dtms->dos_log;
+	M0_PRE(log != NULL);
+
+	m0_mutex_lock(&log->dl_lock);
+	m0_be_dtm0_log_update_volatile(log, record);
+	m0_mutex_unlock(&log->dl_lock);
+}
+
 static struct m0_dtm0_dtx *m0_dtm0_dtx_alloc(struct m0_dtm0_service *svc,
 					     struct m0_sm_group     *group)
 {
-	struct m0_dtm0_dtx *dtx;
+	struct m0_dtm0_log_rec *rec;
 
 	M0_PRE(svc != NULL);
 	M0_PRE(group != NULL);
 
-	M0_ALLOC_PTR(dtx);
-	if (dtx != NULL) {
-		dtx->dd_dtms = svc;
-		dtx->dd_ancient_dtx.tx_dtx = dtx;
-		m0_sm_init(&dtx->dd_sm, &dtx_sm_conf, M0_DDS_INIT, group);
+	M0_ALLOC_PTR(rec);
+	if (rec != NULL) {
+		rec->dlr_dtx.dd_dtms = svc;
+		rec->dlr_dtx.dd_ancient_dtx.tx_dtx = &rec->dlr_dtx;
+		m0_sm_init(&rec->dlr_dtx.dd_sm, &dtx_sm_conf, M0_DDS_INIT,
+			   group);
 	}
-	return dtx;
+	return &rec->dlr_dtx;
 }
 
 static void m0_dtm0_dtx_free(struct m0_dtm0_dtx *dtx)
@@ -125,7 +158,7 @@ static void m0_dtm0_dtx_free(struct m0_dtm0_dtx *dtx)
 
 static int m0_dtm0_dtx_prepare(struct m0_dtm0_dtx *dtx)
 {
-	int               rc;
+	int rc;
 
 	M0_PRE(dtx != NULL);
 	rc = m0_dtm0_clk_src_now(&dtx->dd_dtms->dos_clk_src,
@@ -145,9 +178,29 @@ static int m0_dtm0_dtx_open(struct m0_dtm0_dtx  *dtx,
 	return m0_dtm0_tx_desc_init(&dtx->dd_txd, nr);
 }
 
-static int m0_dtm0_dtx_assign(struct m0_dtm0_dtx  *dtx,
-			      uint32_t             pa_idx,
-			      const struct m0_fid *pa_fid)
+static void m0_dtm0_dtx_assign_fop(struct m0_dtm0_dtx  *dtx,
+				   uint32_t             pa_idx,
+				   const struct m0_fop *pa_fop)
+{
+	M0_PRE(dtx != NULL);
+	M0_PRE(pa_idx < dtx->dd_txd.dtd_pg.dtpg_nr);
+
+	(void) pa_idx;
+
+	/* TODO: On the DTM side we should enforce the requirement
+	 * described at m0_dtm0_dtx::dd_op.
+	 * At this moment we silently ignore this as well as anything
+	 * related directly to REDO use-cases.
+	 */
+	if (dtx->dd_fop == NULL) {
+		dtx->dd_fop = pa_fop;
+	}
+}
+
+
+static int m0_dtm0_dtx_assign_fid(struct m0_dtm0_dtx  *dtx,
+				  uint32_t             pa_idx,
+				  const struct m0_fid *pa_fid)
 {
 	struct m0_dtm0_tx_pa   *pa;
 	struct m0_reqh         *reqh;
@@ -205,19 +258,20 @@ static int m0_dtm0_dtx_close(struct m0_dtm0_dtx *dtx)
 	M0_PRE(dtx != NULL);
 	M0_PRE(m0_sm_group_is_locked(dtx->dd_sm.sm_grp));
 
+	/* TODO: We may want to capture the fop contents here.
+	 * See ::fol_record_pack and ::m0_fop_encdec for the details.
+	 * At this moment we do not do REDO, so that it is safe to
+	 * avoid any actions on the fop here.
+	 */
+
+	dtx_log_insert(dtx);
+
+	/* Once a dtx is closed, the FOP (or FOPs) has to be serialized
+	 * into the log, so that we should no longer hold any references to it.
+	 */
+	dtx->dd_fop = NULL;
 	m0_sm_state_set(&dtx->dd_sm, M0_DDS_INPROGRESS);
-
-	/* TODO: add a log entry */
-
 	return 0;
-}
-
-/* TODO: move into tx_desc module */
-static bool m0_dtm0_tx_desc_state(const struct m0_dtm0_tx_desc *txd,
-				  enum m0_dtm0_tx_pa_state state)
-{
-	return m0_forall(i, txd->dtd_pg.dtpg_nr,
-			 txd->dtd_pg.dtpg_pa[i].pa_state == state);
 }
 
 static void m0_dtm0_dtx_persistent(struct m0_dtm0_dtx *dtx, uint32_t idx)
@@ -233,8 +287,6 @@ static void m0_dtm0_dtx_persistent(struct m0_dtm0_dtx *dtx, uint32_t idx)
 	M0_ASSERT(pa->pa_state >= M0_DTPS_INPROGRESS &&
 		  pa->pa_state <= M0_DTPS_PERSISTENT);
 	pa->pa_state = M0_DTPS_PERSISTENT;
-
-	/* TODO: remove the log entry */
 }
 
 static void dtx_exec_all_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -245,21 +297,26 @@ static void dtx_exec_all_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ASSERT(dtx->dd_sm.sm_state == M0_DDS_EXECUTED_ALL);
 	M0_ASSERT(dtx->dd_nr_executed == dtx->dd_txd.dtd_pg.dtpg_nr);
 
-	/* XXX: This loop emulates synchronous arrival of DTM0 notices.
+	/* TODO: This loop emulates synchronous arrival of DTM0 notices.
 	 * It should be removed once DTM0 service is able to send the notice.
 	 */
 	for (i = 0; i < dtx->dd_txd.dtd_pg.dtpg_nr; ++i) {
 		m0_dtm0_dtx_persistent(dtx, i);
 	}
 
-	if (m0_dtm0_tx_desc_state(&dtx->dd_txd, M0_DTPS_PERSISTENT)) {
+	/* TODO: As similar transition should be added into the function that
+	 * will handle PERSISTENT notices:
+	 *	if (dtx_state == exec_all && all(txr, PERSISTENT))
+	 *		state_set(STABLE)
+	 */
+	if (m0_dtm0_tx_desc_state_eq(&dtx->dd_txd, M0_DTPS_PERSISTENT)) {
 		m0_sm_state_set(&dtx->dd_sm, M0_DDS_STABLE);
 	}
 }
 
 static void m0_dtm0_dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
 {
-	struct m0_dtm0_tx_pa *pa;
+	struct m0_dtm0_tx_pa  *pa;
 
 	M0_PRE(dtx != NULL);
 	M0_PRE(m0_sm_group_is_locked(dtx->dd_sm.sm_grp));
@@ -279,23 +336,20 @@ static void m0_dtm0_dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
 
 	if (dtx->dd_nr_executed == dtx->dd_txd.dtd_pg.dtpg_nr) {
 		M0_ASSERT(dtx->dd_sm.sm_state == M0_DDS_EXECUTED);
+		M0_ASSERT_INFO(dtds_forall(&dtx->dd_txd, >= M0_DTPS_EXECUTED),
+			       "Non-executed PAs should not exist "
+			       "at this point.");
 		m0_sm_state_set(&dtx->dd_sm, M0_DDS_EXECUTED_ALL);
 
 		dtx->dd_exec_all_ast.sa_cb = dtx_exec_all_ast_cb;
 		dtx->dd_exec_all_ast.sa_datum = dtx;
-		/* TODO: This is a poor-man's async call to ensure that
-		 * EXECUTED and STABLE are processed in "separate" ticks of
-		 * this machine. Such situation might happen only if DTM0
-		 * service notices are emulated (see the XXX comment inside
-		 * ::dtx_exec_all_ast_cb). In real life, DTM0 service will
-		 * always post such an update as an ast, therefore the
-		 * state transition from the callback (::dtx_exec_all_ast_cb)
-		 * can be moved right in here.
+		/* EXECUTED and STABLE should not be triggered within the
+		 * same ast tick. This ast helps us to enforce it.
 		 */
 		m0_sm_ast_post(dtx->dd_sm.sm_grp, &dtx->dd_exec_all_ast);
 	}
 
-	/* TODO: update the log entry */
+	dtx_log_update(dtx);
 }
 
 M0_INTERNAL struct m0_dtx* m0_dtx0_alloc(struct m0_dtm0_service *svc,
@@ -328,13 +382,22 @@ M0_INTERNAL int m0_dtx0_open(struct m0_dtx  *dtx, uint32_t nr)
 	return m0_dtm0_dtx_open(dtx->tx_dtx, nr);
 }
 
-M0_INTERNAL int m0_dtx0_assign(struct m0_dtx       *dtx,
-			       uint32_t             pa_idx,
-			       const struct m0_fid *pa_fid)
+M0_INTERNAL int m0_dtx0_assign_fid(struct m0_dtx       *dtx,
+				   uint32_t             pa_idx,
+				   const struct m0_fid *pa_fid)
 {
 	M0_PRE(dtx != NULL);
-	return m0_dtm0_dtx_assign(dtx->tx_dtx, pa_idx, pa_fid);
+	return m0_dtm0_dtx_assign_fid(dtx->tx_dtx, pa_idx, pa_fid);
 }
+
+M0_INTERNAL void m0_dtx0_assign_fop(struct m0_dtx       *dtx,
+				    uint32_t             pa_idx,
+				    const struct m0_fop *pa_fop)
+{
+	M0_PRE(dtx != NULL);
+	m0_dtm0_dtx_assign_fop(dtx->tx_dtx, pa_idx, pa_fop);
+}
+
 
 M0_INTERNAL int m0_dtx0_close(struct m0_dtx *dtx)
 {

@@ -1747,6 +1747,7 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 	struct m0_reqh_service_ctx *cas_svc;
 	struct m0_dix_layout       *layout = &req->dr_indices[0].dd_layout;
 	int                         rc;
+	uint32_t                    i = 0;
 	M0_ENTRY("req=%p", req);
 
 	M0_PRE(rop->dg_cas_reqs_nr == 0);
@@ -1816,14 +1817,26 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 			dix_cas_rop_fini(cas_rop);
 			m0_free(cas_rop);
 		} else {
+			if (req->dr_dtx) {
+				m0_dtx0_assign_fop(req->dr_dtx, i,
+						   creq->ccr_fop);
+			}
 			rop->dg_cas_reqs_nr++;
 		}
+		i++;
 	} m0_tl_endfor;
 
 	M0_LOG(M0_DEBUG, "Processing dix_req %p rop=%p: dg_cas_reqs_nr=%"PRIu64,
 				  req, rop, rop->dg_cas_reqs_nr);
 	if (rop->dg_cas_reqs_nr == 0)
 		return M0_ERR(-EFAULT);
+
+	if (req->dr_dtx) {
+		rc = m0_dtx0_close(req->dr_dtx);
+		if (rc != 0)
+			return M0_ERR(rc);
+	}
+
 	return M0_RC(0);
 }
 
@@ -2244,7 +2257,7 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 		if (dtx) {
 			cas_svc = pc->pc_dev2svc[cas_rop->crp_sdev_idx].pds_ctx;
 			M0_ASSERT(cas_svc->sc_type == M0_CST_CAS);
-			rc = m0_dtx0_assign(dtx, i++, &cas_svc->sc_fid);
+			rc = m0_dtx0_assign_fid(dtx, i++, &cas_svc->sc_fid);
 			if (rc != 0)
 				goto end;
 		}
@@ -2266,8 +2279,6 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 		cas_rop->crp_cur_key = 0;
 	} m0_tl_endfor;
 
-	if (dtx)
-		rc = m0_dtx0_close(dtx);
 end:
 	if (rc != 0) {
 		dix_cas_rops_fini(&rop->dg_cas_reqs);
