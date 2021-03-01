@@ -117,7 +117,7 @@ pip3 install elasticsearch-dsl==6.4.0
 pip3 install python-consul==1.1.0
 pip3 install schematics==2.1.0
 pip3 install toml==0.10.0
-pip3 install cryptography==3.2
+pip3 install cryptography==2.8
 pip3 install PyYAML==5.1.2
 pip3 install configparser==4.0.2
 pip3 install networkx==2.4
