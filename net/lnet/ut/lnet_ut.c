@@ -270,9 +270,9 @@ enum {
 	UT_BUFSEGS1  = 4,
 	UT_BUFS2     = 1,
 	UT_BUFSEGS2  = 2,
-	UT_MSG_SIZE  = 2048,
-	UT_BULK_SIZE = 2 * 4096,
-	UT_PAGE_SHIFT = 12
+	UT_MSG_SIZE  = PAGE_SIZE / 2,
+	UT_BULK_SIZE = 2 * PAGE_SIZE,
+	UT_PAGE_SHIFT = PAGE_SHIFT
 };
 struct ut_data {
 	int                            _debug_;

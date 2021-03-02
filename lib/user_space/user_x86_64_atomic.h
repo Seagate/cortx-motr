@@ -65,7 +65,7 @@ static inline void m0_atomic64_add(struct m0_atomic64 *v, int64_t num)
 	asm volatile("// atomic64_add \n"			\
 	"       prfm    pstl1strm, %2\n"			\
 	"1:     ldxr    %0, %2\n"				\
-	"       add     %0, %0, %3\n"				\	
+	"       add     %0, %0, %3\n"				\
 	"       stxr    %w1, %0, %2\n"                          \
 	"       cbnz    %w1, 1b"				\
         : "=&r" (result), "=&r" (tmp), "+Q" (v->a_value)	\
@@ -83,7 +83,7 @@ static inline void m0_atomic64_sub(struct m0_atomic64 *v, int64_t num)
 	asm volatile("// atomic64_sub \n"			\
 	"       prfm    pstl1strm, %2\n"			\
 	"1:     ldxr    %0, %2\n"				\
-	"       sub     %0, %0, %3\n"				\	
+	"       sub     %0, %0, %3\n"				\
 	"       stxr    %w1, %0, %2\n"                          \
 	"       cbnz    %w1, 1b"				\
         : "=&r" (result), "=&r" (tmp), "+Q" (v->a_value)	\
@@ -182,10 +182,10 @@ static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
 }
 
 
-static inline bool m0_atomic64_cas(volatile int64_t * ptr, int64_t old, int64_t newval)
+static inline bool m0_atomic64_cas(int64_t * ptr, int64_t old, int64_t newval)
 {									
-	unsigned long tmp, oldval;				\	
-								\	
+	unsigned long tmp, oldval;				\
+								\
 	asm volatile(						\
 	"	prfm	pstl1strm, %[v]\n"			\
 	"1:	ldxr\t%[oldval], %[v]\n"			\
@@ -198,8 +198,8 @@ static inline bool m0_atomic64_cas(volatile int64_t * ptr, int64_t old, int64_t 
 	: [tmp] "=&r" (tmp), [oldval] "=&r" (oldval),		\
 	  [v] "+Q" (*(unsigned long *)ptr)			\
 	: [old] "Lr" (old), [newval] "r" (newval)		\
-	:);							\								
-	return oldval;							
+	:);							\
+	return oldval;
 }
 #if 0
 									

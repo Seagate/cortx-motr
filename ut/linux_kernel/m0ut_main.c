@@ -34,7 +34,9 @@
  * marker is necessary to remove the warnings, keeping this blank to make
  * compiler happy.
  */
-MODULE_LICENSE();
+
+/* Added GPL per suggestions to avoid compilation error, may need to be reviewed */
+MODULE_LICENSE("GPL");
 
 static char *tests;
 module_param(tests, charp, S_IRUGO);

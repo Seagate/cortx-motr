@@ -17,7 +17,7 @@
                         )
 
 %define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
-%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.x86_64$//' )
+%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.aarch64$//' )
 
 # build number
 %define build_num  %( test -n "$build_number" && echo "$build_number" || echo 1 )
@@ -52,7 +52,7 @@ Summary:        CORTX Motr
 Group:          System Environment/Base
 License:        Seagate
 Source:         %{name}-%{version}.tar.gz
-BuildArch:      x86_64
+BuildArch:      aarch64
 ExcludeArch:    i686
 Provides:       %{name}-libs = %{version}-%{release}
 Provides:       %{name}-modules = %{version}-%{release}
@@ -60,7 +60,7 @@ Provides:       %{name}-modules = %{version}-%{release}
 Obsoletes:      mero
 Obsoletes:      eos-core
 Provides:       motr = %{version}-%{release}
-Provides:       motr(x86-64) = %{version}-%{release}
+Provides:       motr(aarch64) = %{version}-%{release}
 Provides:       motr-libs = %{version}-%{release}
 Provides:       motr-modules = %{version}-%{release}
 
@@ -70,7 +70,7 @@ BuildRequires:  libtool
 BuildRequires:  make
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
-BuildRequires:  gccxml
+#BuildRequires:  gccxml
 BuildRequires:  glibc-headers
 BuildRequires:  asciidoc
 BuildRequires:  libyaml-devel
@@ -158,7 +158,7 @@ CORTX Motr unit tests (for kernel and user space).
 %setup -q
 
 %build
-%configure %{with_linux} %{with_lustre} %{configure_opts}
+%configure %{with_linux} %{with_lustre} %{configure_opts} enable_castxml=yes
 make %{?_smp_mflags}
 
 %install
