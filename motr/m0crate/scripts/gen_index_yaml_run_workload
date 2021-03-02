@@ -1,24 +1,24 @@
-#	script: m0crate/scripts/gen_index_yaml_run_workload 
+#	script: m0crate/scripts/gen_index_yaml_run_workload
 #
-#	- script uses m0crate/scripts/m0crate-index.yaml.template as template 
+#	- script uses m0crate/scripts/m0crate-index.yaml.template as template
 #	  and runs m0crate kv workload.
-#	- Update scripts/m0crate-index.yaml.template according to your usage.	
+#	- Update scripts/m0crate-index.yaml.template according to your usage.
 # 	- you can specify multiple key_sizes and value_sizes based upon your requirement
 #		for example: keys=(16, 32, 64) and
 #			     values=(1024, 2192, 4096)
-#		(Note: sizes are in bytes)	
+#		(Note: sizes are in bytes)
 #	- also specify uniq start_of_indexfid for each kv test run, later this is used as counter.
-#	- if you have 3*3 key_size and value_size combination in this situation 
-#	  there will be 9 workloads to run, 
+#	- if you have 3*3 key_size and value_size combination in this situation
+#	  there will be 9 workloads to run,
 #	- script will generate uniq indexfids by increamenting start_of_indexfid. In above 3*3 scenario
 #	  consecutive 9 indexfids will get generated.
 #
 #	- input: set key_sizes, value_sizes and start_of_indexfid
 #	- output: create workload_logs in curr dir, then creates timestamp base dir in which
 #		  configs and output dir gets created.
-#		  configs will have all .yaml files created in the workload execution by 
+#		  configs will have all .yaml files created in the workload execution by
 #		  gen_index_yaml_run_workload script.
-#		  outout will have workload execution logs in .csv and text format. 
+#		  outout will have workload execution logs in .csv and text format.
 
 script_dir=`dirname $(readlink -f  $0)`
 M0CRATE=$script_dir/../m0crate
@@ -30,7 +30,7 @@ fi
 
 keys=(64 128 256 512 1024)
 values=(1024 4096 8192 16384 32768)
-start_of_indexfid=210
+start_of_indexfid=0
 
 time_dir=workload_logs/`date +%d%m%y-%H%M%S`
 config_dir=$time_dir/configs
@@ -48,9 +48,9 @@ function run_workload() {
 	$M0CRATE -S $yaml_file 2>&1 | tee temp.log
 	cat temp.log >> $test_logs
 	test_time=`awk '/result: total_s/{ print $3 $5 $11","}
-			/result: PUT/{print $4 $6 $8","} 
-			/result: GET/{print $4 $6 $8","} 
-			/result: NEXT/{print $4 $6 $8","} 
+			/result: PUT/{print $4 $6 $8","}
+			/result: GET/{print $4 $6 $8","}
+			/result: NEXT/{print $4 $6 $8","}
 			/result: DEL/{print $4 $6 $8""}' temp.log | tr '\n' ' '`
 
 	echo "$klen, $vlen, $test_time" >> $log_csv_file
@@ -70,11 +70,11 @@ function generate_single_yaml_from_template() {
 
 function  generate_yaml_files_and_run_worklod() {
 	for klen in ${keys[@]}
-	do 
+	do
 		for vlen in ${values[@]}
 		do
 			generate_single_yaml_from_template $start_of_indexfid $klen  $vlen
-			start_of_indexfid="$((start_of_indexfid+1))"	
+			start_of_indexfid="$((start_of_indexfid+1))"
 		done
 	done
 }
@@ -86,4 +86,4 @@ function write_csv_header() {
 		"TOTAL_DEL_TIME_S, TIME_PER_DEL_OP_NS, DEL_OPS_CNT" >> $log_csv_file
 }
 write_csv_header
-generate_yaml_files_and_run_worklod 
+generate_yaml_files_and_run_worklod

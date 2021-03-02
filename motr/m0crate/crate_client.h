@@ -101,7 +101,7 @@ struct m0_workload_index {
 	struct m0_fid		key_prefix;
 	int			keys_count;
 
-	/** Added to set key_size and value_size parameter from .yaml file. */	
+	/** Added to set key_size and value_size parameter from .yaml file. */
 	int			key_size;
 	int			value_size;
 	int			max_key_size;

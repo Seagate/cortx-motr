@@ -17,20 +17,20 @@ WORKLOAD_SPEC:                		     	# Workload specification section
         WORKLOAD_TYPE: 0      		     	# Index(0), IO(1)
         WORKLOAD_SEED: tstamp		     	# SEED to the random number generator
         NUM_KVP: 2      		     	# number of kv pair, which should be processed at a operation.
-        NXRECORDS: 2 			     	# number of next records, which should be processed at operation. 
+        NXRECORDS: 2 			     	# number of next records, which should be processed at operation.
         OP_COUNT: 32 			     	# int [units] or unlimited, total operations count.
         EXEC_TIME: unlimited 		     	# int (seconds) or unlimited
         WARMUP_PUT_CNT: 0  		     	# int (ops) or all
         WARMUP_DEL_RATIO: 0 		     	# int (ops / ratio)
         KEY_PREFIX: 0 			     	# int or random
         KEY_ORDER:  ordered 		     	# ordered or random
-        KEY_SIZE: KEYSIZE			# int or random 
+        KEY_SIZE: KEYSIZE			# int or random
         VALUE_SIZE: VALUESIZE			# int or random
         MAX_KEY_SIZE: 16384			# max KEY_SIZE
-        MAX_VALUE_SIZE: 32768  			# max VALUE_SIZE	
-        INDEX_FID: <7800000000000001:INDEXFID> 	# fid 
-        PUT:  50				# int (in percentage)
-        DEL:  50 				# int (in percentage)
-        GET:  0 				# int (in percentage)
-        NEXT: 0 				# int (in percentage)
+        MAX_VALUE_SIZE: 32768			# max VALUE_SIZE
+        INDEX_FID: <7800000000000001:INDEXFID>	# fid
+        PUT:  60				# int (in percentage)
+        DEL:  10 				# int (in percentage)
+        GET:  20 				# int (in percentage)
+        NEXT: 10				# int (in percentage)
         LOG_LEVEL: 2 				# err(0), warn(1), info(2), trace(3), debug(4)

@@ -73,7 +73,7 @@ enum config_key_val {
 	KEY_ORDER,
 	KEY_SIZE,
 	VALUE_SIZE,
-	MAX_KEY_SIZE,	
+	MAX_KEY_SIZE,
 	MAX_VALUE_SIZE,
 	INDEX_FID,
 	LOG_LEVEL,
