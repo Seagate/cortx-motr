@@ -1540,7 +1540,6 @@ static int zero_copy_initiate(struct m0_fom *fom)
 			segs_nr = 1;
 			(void)max_seg_size;
 		}
- 
 		M0_LOG(M0_DEBUG, "segs_nr %d", segs_nr);
 
 		/*
