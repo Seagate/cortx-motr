@@ -25,24 +25,15 @@
 #ifndef __MOTR_SNS_PARITY_OPS_H__
 #define __MOTR_SNS_PARITY_OPS_H__
 
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && defined(HAVE_ISAL)
 #include <isa-l.h>
 #else
 #include "galois/galois.h"
-#endif /* __KERNEL__ */
+#endif /* !__KERNEL__ && HAVE_ISAL */
 #include "lib/assert.h"
 
 #define M0_PARITY_ZERO (0)
-
-#ifdef __KERNEL__
 #define M0_PARITY_GALOIS_W (8)
-#endif
-
-#ifndef __KERNEL__
-#define M0_PARITY_W (8)
-#else
-#define M0_PARITY_W M0_PARITY_GALOIS_W
-#endif /* __KERNEL__ */
 
 typedef int m0_parity_elem_t;
 
@@ -64,22 +55,22 @@ static inline m0_parity_elem_t m0_parity_sub(m0_parity_elem_t x, m0_parity_elem_
 
 static inline m0_parity_elem_t m0_parity_mul(m0_parity_elem_t x, m0_parity_elem_t y)
 {
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && defined(HAVE_ISAL)
 	return gf_mul(x, y);
 #else
 	/* return galois_single_multiply(x, y, M0_PARITY_GALOIS_W); */
 	return galois_multtable_multiply(x, y, M0_PARITY_GALOIS_W);
-#endif /* __KERNEL__ */
+#endif /* !__KERNEL__ && HAVE_ISAL */
 }
 
 static inline m0_parity_elem_t m0_parity_div(m0_parity_elem_t x, m0_parity_elem_t y)
 {
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && defined(HAVE_ISAL)
 	return gf_mul(x, gf_inv(y));
 #else
 	/* return galois_single_divide(x, y, M0_PARITY_GALOIS_W); */
 	return galois_multtable_divide(x, y, M0_PARITY_GALOIS_W);
-#endif /* __KERNEL__ */
+#endif /* !__KERNEL__ && HAVE_ISAL */
 }
 
 static inline m0_parity_elem_t m0_parity_lt(m0_parity_elem_t x, m0_parity_elem_t y)

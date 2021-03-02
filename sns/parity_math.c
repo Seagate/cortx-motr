@@ -193,7 +193,7 @@ static void (*fidx_recover[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
 };
 
 enum {
-	SNS_PARITY_MATH_DATA_BLOCKS_MAX = 1 << (M0_PARITY_W - 1),
+	SNS_PARITY_MATH_DATA_BLOCKS_MAX = 1 << (M0_PARITY_GALOIS_W - 1),
 	BAD_FAIL_INDEX = -1
 };
 
