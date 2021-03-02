@@ -222,25 +222,38 @@
  * }
  * @enddot
  *
- * ISC user should analyse the plops and their dependencies in oder to
- * figure out whether the user data can be obtained at the server side.
- * If so the computation can be delegated to the server. In some cases,
+ * ISC user should analyse the plops and their dependencies in order to
+ * figure out whether the user data can be obtained at the server side so
+ * that the computation could be delegated there. In some cases, however,
  * the data may not be accessible at the server. For example, in degraded
- * mode some data units in some parity groups are not available at the
- * server and have to be recovered at the client side. In this case the
- * computation on these units has to be done at the client side too.
+ * mode some data units in some parity groups have to be recovered from
+ * other data and parity units which may be located on different servers.
+ * In this case the computation on the recovered units is better to do at
+ * the client side.
  *
- * ISC should also be able to distinguish between reads of data units and
- * reads of parity units. (Because the computation makes sense only on the
- * data units.) To figure this out ISC have to analyse the dependencies
- * between plops: if there is a resulting M0_LAT_OUT_READ plop and it depends
- * only on the M0_LAT_READ (and possibly some FUNctions that can be called at
- * the server side, like decompression or checksumming) - it means that the
- * user data can be obtained at the server side independently from the other
- * servers (there are no M0_LAT_READs or parity calculation FUN-plops in
- * the dependencies). So the execution of such chain of plops can be
- * delegated to the server side along with the ISC computation. In all
- * other cases it should be done at the client side.
+ * ISC code must do the following checks when analysing plops:
+ *
+ *   1) if there is a resulting M0_LAT_OUT_READ plop which
+ *   2) depends only on one M0_LAT_READ and
+ *   3) possibly some FUN plops after it, like decompression,
+        that can be called at the server side
+ *
+ * it means that the user data can be obtained at the server side
+ * independently from the other servers (i.e. there are no several
+ * M0_LAT_READs or parity calculation FUN-plops in the dependencies) and
+ * the execution of such chain of plops can be delegated to the server side
+ * along with the ISC computation.
+ *
+ * @verbatim
+ *
+ *   check (2)              check (3)                        check (1)
+ *
+ * M0_LAT_READ <-- [ M0_LAT_FUN <-- ... M0_LAT_FUN ] <-- M0_LAT_OUT_READ
+ *
+ * @endverbatim
+ *
+ * In all other cases the user data should be retrieved at the client side
+ * and the ISC computation on it should be done at the client side as well.
  *
  * @{
  */
