@@ -378,6 +378,10 @@ static void btree_node_update(struct m0_be_bnode       *node,
 		mem_update(btree, tx, node->bt_child_arr,
 			   sizeof(*node->bt_child_arr) *
 			   (node->bt_num_active_key + 1));
+		mem_update(btree, tx, node->allocated,
+			   sizeof(*node->allocated) * KV_NR);
+		mem_update(btree, tx, node->bt_ik,
+			   sizeof(*node->bt_ik) * KV_NR);
 	}
 
 	mem_update(btree, tx, &node->bt_footer, sizeof(node->bt_footer));
