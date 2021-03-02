@@ -147,6 +147,10 @@ dbus-uuidgen --ensure
 systemctl status network
 cat /etc/machine-id
 MACHINEID=`cat /etc/machine-id`
+
+#add patch here
+curl https://raw.githubusercontent.com/Seagate/cortx-utils/delim_fix/py-utils/src/utils/conf_store/conf_cli.py -o /usr/lib/python3.6/site-packages/cortx/utils/conf_store/conf_cli.py
+
 conf json:///root/provisioner_cluster.json set "cluster>server_nodes>\$MACHINEID=srvnode-1"
 conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>machine_id=\$MACHINEID"
 
@@ -196,8 +200,6 @@ conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>g
 conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>roaming_ip=127.0.0.1"
 conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>s3_instances=1"
 
-#add patch here
-curl https://raw.githubusercontent.com/Seagate/cortx-utils/split_issue/py-utils/src/utils/conf_store/conf_cli.py -o /usr/lib/python3.6/site-packages/cortx/utils/conf_store/conf_cli.py
 conf json:///root/provisioner_cluster.json set "openldap>root>secret=\$ENCPW"
 conf json:///root/provisioner_cluster.json set "openldap>sgiam>secret=\$ENCPW"
 conf json:///root/provisioner_cluster.json set "openldap>root>user=admin"
