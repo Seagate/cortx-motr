@@ -106,6 +106,7 @@ struct m0_workload_index {
 	int			value_size;
 	int			max_key_size;
 	int			max_value_size;
+	int			min_key_size;
 
 	bool			keys_ordered;
 

@@ -3,34 +3,34 @@ CrateConfig_Sections: [MOTR_CONFIG, WORKLOAD_SPEC]
 MOTR_CONFIG:
    MOTR_LOCAL_ADDR: 192.168.52.53@tcp:12345:4:1
    MOTR_HA_ADDR:    192.168.52.53@tcp:12345:1:1
-   PROF: <0x7000000000000001:0x3a>  # Profile fid
-   LAYOUT_ID: 1                      # Defines the UNIT_SIZE (9: 1MB)
-   IS_OOSTORE: 1                     # Is oostore-mode?
-   IS_READ_VERIFY: 0                 # Enable read-verify?
-   TM_RECV_QUEUE_MIN_LEN: 16  # Minimum length of the receive queue
-   MAX_RPC_MSG_SIZE: 262144    # Maximum rpc message size
+   PROF: <0x7000000000000001:0x3a>  	# Profile fid
+   LAYOUT_ID: 1                      	# Defines the UNIT_SIZE (9: 1MB)
+   IS_OOSTORE: 1                     	# Is oostore-mode?
+   IS_READ_VERIFY: 0                 	# Enable read-verify?
+   TM_RECV_QUEUE_MIN_LEN: 16  		# Minimum length of the receive queue
+   MAX_RPC_MSG_SIZE: 262144    		# Maximum rpc message size
    PROCESS_FID: <0x7200000000000001:0x1b>
    IDX_SERVICE_ID: 1
 
-WORKLOAD_SPEC:                # Workload specification section
-   WORKLOAD:                  # First Workload
-        WORKLOAD_TYPE: 0
-        WORKLOAD_SEED: tstamp
-        NUM_KVP: 2      #number of records, which should be processed at operation.
-        NXRECORDS: 2 # int or default
-        OP_COUNT: 32 # int [units] or unlimited = (2 ** 31 - 1) / (128 * NUM_KVP) total operations count.
-        EXEC_TIME: unlimited # int (seconds) or unlimited
-        WARMUP_PUT_CNT: 0  # int (ops) or all
-        WARMUP_DEL_RATIO: 0 # int (ops / ratio)
-        KEY_PREFIX: 0 # int or random
-        KEY_ORDER:  ordered # ordered or random
-        KEY_SIZE: KEYSIZE
-        VALUE_SIZE: VALUESIZE
-        MAX_KEY_SIZE: 16384
-        MAX_VALUE_SIZE: 32768  
-        INDEX_FID: <7800000000000001:INDEXFID> # fid
-        PUT: 60 # int
-        DEL: 5 # int
-        GET: 25 # int
-        NEXT: 10 # int
-        LOG_LEVEL: 2 # err(0), warn(1), info(2), trace(3), debug(4)
+WORKLOAD_SPEC:                		     	# Workload specification section
+   WORKLOAD:                  		     	# First Workload
+        WORKLOAD_TYPE: 0      		     	# Index(0), IO(1)
+        WORKLOAD_SEED: tstamp		     	# SEED to the random number generator
+        NUM_KVP: 2      		     	# number of kv pair, which should be processed at a operation.
+        NXRECORDS: 2 			     	# number of next records, which should be processed at operation. 
+        OP_COUNT: 32 			     	# int [units] or unlimited, total operations count.
+        EXEC_TIME: unlimited 		     	# int (seconds) or unlimited
+        WARMUP_PUT_CNT: 0  		     	# int (ops) or all
+        WARMUP_DEL_RATIO: 0 		     	# int (ops / ratio)
+        KEY_PREFIX: 0 			     	# int or random
+        KEY_ORDER:  ordered 		     	# ordered or random
+        KEY_SIZE: KEYSIZE			# int or random 
+        VALUE_SIZE: VALUESIZE			# int or random
+        MAX_KEY_SIZE: 16384			# max KEY_SIZE
+        MAX_VALUE_SIZE: 32768  			# max VALUE_SIZE	
+        INDEX_FID: <7800000000000001:INDEXFID> 	# fid 
+        PUT:  50				# int (in percentage)
+        DEL:  50 				# int (in percentage)
+        GET:  0 				# int (in percentage)
+        NEXT: 0 				# int (in percentage)
+        LOG_LEVEL: 2 				# err(0), warn(1), info(2), trace(3), debug(4)
