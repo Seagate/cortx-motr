@@ -277,6 +277,8 @@ conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>s3_instances=1
 curl https://raw.githubusercontent.com/Seagate/cortx-utils/split_issue/py-utils/src/utils/conf_store/conf_cli.py -o /usr/lib/python3.6/site-packages/cortx/utils/conf_store/conf_cli.py
 conf json:///root/provisioner_cluster.json set "openldap>root>secret=\$ENCPW"
 conf json:///root/provisioner_cluster.json set "openldap>sgiam>secret=\$ENCPW"
+conf json:///root/provisioner_cluster.json set "openldap>root>user=admin"
+conf json:///root/provisioner_cluster.json set "openldap>sgiam>user=sgiamadmin"
 
 ######node-2
 ssh -o "StrictHostKeyChecking=no" ${VM2_FQDN} 'rm -f /etc/machine-id /var/lib/dbus/machine-id'
