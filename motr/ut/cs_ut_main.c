@@ -22,6 +22,7 @@
 
 #include "motr/setup.c"
 
+#include "net/bulk_mem.h"  /* m0_net_bulk_mem_xprt */
 #include "ut/cs_fop.h"     /* CS_UT_SERVICE1 */
 #include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
@@ -287,14 +288,17 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	int rc;
 	int i;
 	int stype;
+	struct m0_net_xprt *xprts[] = { 
+		m0_net_xprt_default_get(),
+		(struct m0_net_xprt *)&m0_net_bulk_mem_xprt
+	};
 	struct m0_rpc_server_ctx sctx = {
+		.rsx_xprts         = xprts,
+		.rsx_xprts_nr      = ARRAY_SIZE(xprts),
 		.rsx_argv          = cs_argv,
 		.rsx_argc          = cs_argc,
 		.rsx_log_file_name = SERVER_LOG_FILE_NAME
 	};
-
-	sctx.rsx_xprts = m0_net_all_xprt_get();
-	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
@@ -320,15 +324,18 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 {
 	int rc;
+	struct m0_net_xprt *xprts[] = { 
+		m0_net_xprt_default_get(),
+		(struct m0_net_xprt *)&m0_net_bulk_mem_xprt
+	};
 	struct m0_rpc_server_ctx sctx = {
+		.rsx_xprts         = xprts,
+		.rsx_xprts_nr      = ARRAY_SIZE(xprts),
 		.rsx_argv          = cs_argv,
 		.rsx_argc          = cs_argc,
 		.rsx_log_file_name = SERVER_LOG_FILE_NAME
 	};
 
-	sctx.rsx_xprts = m0_net_all_xprt_get();
-	sctx.rsx_xprts_nr = m0_net_xprt_nr();
-	
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc != 0);
 

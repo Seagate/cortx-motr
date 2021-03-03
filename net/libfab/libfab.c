@@ -202,7 +202,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 			"portal: %u, tmid: %u", portal, tmid);
 	*/
 
-	portnum  = htons(tmid | (1 << 10) | ((portal - 30) << 11));
+	portnum  = tmid | (1 << 10) | ((portal - 30) << 11);
 	sprintf(port, "%d", portnum);
 	fab_autotm[tmid] = 1;
 	return M0_RC(0);
@@ -467,12 +467,12 @@ static void libfab_tm_buf_done(struct m0_fab__tm *ftm)
  */
 static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 {
-	struct m0_fab__ep       *ep = NULL;
-	struct fid_eq           *eq;
-	struct fi_eq_err_entry   eq_err;
-	struct fi_eq_cm_entry    entry;
-	uint32_t                 event;
-	int                      rc;
+	struct m0_fab__ep      *ep = NULL;
+	struct fid_eq          *eq;
+	struct fi_eq_err_entry  eq_err;
+	struct fi_eq_cm_entry   entry;
+	uint32_t                event;
+	int                     rc;
 
 	eq = tm->ftm_pep->fep_listen->pep_ep_res.fer_eq;
 	rc = fi_eq_read(eq, &event, &entry,
@@ -1598,6 +1598,9 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 				LIBFAB_ADDR_STRLEN_MAX);
 		if (ret == FI_SUCCESS)
 			aep->aep_state = FAB_CONNECTING;
+		else
+			M0_LOG(M0_ALWAYS, " Conn req failed dst=%"PRIx64,
+				*(uint64_t*)peer_fi->dest_addr);
 		fi_freeinfo(peer_fi);
 	}
 	fab_sndbuf_tlink_init_at_tail(fbp, &ep->fep_sndbuf);
@@ -1622,12 +1625,12 @@ static int libfab_fab_ep_find(struct m0_fab__tm *tm, struct m0_fab__ep_name *en,
 static void libfab_ep_pton(struct m0_fab__ep_name *name, uint64_t *out)
 {
 	uint32_t addr = 0;
-	uint64_t port = 0;
+	uint32_t port = 0;
 
 	inet_pton(AF_INET, name->fen_addr, &addr);
-	port = atoi(name->fen_port);
+	port = htonl(atoi(name->fen_port));
 
-	*out = (uint64_t)(addr | (port << 32));
+	*out = ((uint64_t)addr << 32) | port;
 }
 
 static void libfab_ep_ntop(uint64_t netaddr, struct m0_fab__ep_name *name)
@@ -1637,8 +1640,9 @@ static void libfab_ep_ntop(uint64_t netaddr, struct m0_fab__ep_name *name)
 		uint64_t net_addr;
 	} ap;
 	ap.net_addr = netaddr;
-	inet_ntop(AF_INET, &ap.ap[0], name->fen_addr, LIBFAB_ADDR_LEN_MAX);
-	sprintf(name->fen_port, "%d", ap.ap[1]);
+	inet_ntop(AF_INET, &ap.ap[1], name->fen_addr, LIBFAB_ADDR_LEN_MAX);
+	ap.ap[0] = ntohl(ap.ap[0]);
+	sprintf(name->fen_port, "%d", ap.ap[0]);
 }
 
 /*============================================================================*/
