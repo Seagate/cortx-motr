@@ -26,8 +26,8 @@ RELEASE.INFO                                         24-Feb-2021 04:35          
 THIRD_PARTY_RELEASE.INFO                  24-Feb-2021 04:35               26196
 ''')
         string(name: 'SSC_AUTH_ID', defaultValue: '', description: '''Add onetime RedHatCloudform credentials using below link and use ID in this param if RESET_VM is checked. 
-To add new: http://ssc-vm-c-0139.colo.seagate.com:8080/credentials/store/system/domain/_/newCredentials
-To get existing: http://ssc-vm-c-0139.colo.seagate.com:8080/credentials/''')
+To add new: http://ssc-vm-2590.colo.seagate.com:8080/credentials/store/system/domain/_/newCredentials
+To get existing: http://ssc-vm-2590.colo.seagate.com:8080/credentials/''')
 
         booleanParam(name: 'RESET_VM', defaultValue: false, description: '''Revert ssc-vm to first snapshot. (First snapshot with root/seagate user/password)
 If vm reset fails, then perform manual reset using ssc-cloud.''')
@@ -273,8 +273,6 @@ conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>g
 conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>roaming_ip=127.0.0.1"
 conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>s3_instances=1"
 
-#add patch here
-curl https://raw.githubusercontent.com/Seagate/cortx-utils/split_issue/py-utils/src/utils/conf_store/conf_cli.py -o /usr/lib/python3.6/site-packages/cortx/utils/conf_store/conf_cli.py
 conf json:///root/provisioner_cluster.json set "openldap>root>secret=\$ENCPW"
 conf json:///root/provisioner_cluster.json set "openldap>sgiam>secret=\$ENCPW"
 conf json:///root/provisioner_cluster.json set "openldap>root>user=admin"
