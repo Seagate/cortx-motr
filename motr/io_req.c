@@ -1306,6 +1306,7 @@ static int device_check(struct m0_op_io *ioo)
 		ti->ti_state = state;
 		if (ti->ti_rc == -ECANCELED) {
 			/* The case when a particular service is down. */
+			M0_ASSERT(0);
 			if (!is_session_marked(ioo, ti->ti_session)) {
 				M0_CNT_INC(fsvc_nr);
 			}

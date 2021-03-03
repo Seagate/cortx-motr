@@ -778,9 +778,12 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	M0_PRE(M0_IN(filter, (PA_DATA, PA_PARITY)));
 
 	rc = m0_rpc_session_validate(ti->ti_session);
+	
 	if (rc != 0 && rc != -ECANCELED)
+	{
+		M0_ASSERT(0);
 		return M0_ERR(rc);
-
+	}
 	xfer = ti->ti_nwxfer;
 	ioo = bob_of(xfer, struct m0_op_io, ioo_nwxfer, &ioo_bobtype);
 	M0_ASSERT(M0_IN(ioreq_sm_state(ioo),
