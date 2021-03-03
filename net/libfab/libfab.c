@@ -113,7 +113,8 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep);
 static int libfab_target_notify(struct m0_fab__buf *buf,
 				struct m0_fab__active_ep *ep);
 static m0_bcount_t libfab_iov_prep(struct m0_bufvec *bv, struct iovec *iv,
-				   int nr, m0_bcount_t *count);
+				   int nr, m0_bcount_t nblen,
+				   m0_bcount_t *count);
 static struct m0_fab__fab *libfab_newfab_init(struct m0_fab__list *fl);
 static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 			    struct m0_fab__buf *fbp, const char *name);
@@ -1504,7 +1505,7 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
 		nb = fbp->fb_nb;
 		fbp->fb_txctx = ep;
 		iv_cnt = libfab_iov_prep(&nb->nb_buffer, iv, ARRAY_SIZE(iv),
-					 &cnt);
+					 nb->nb_length, &cnt);
 		switch (nb->nb_qtype) {
 			case M0_NET_QT_MSG_SEND:
 				fi_sendv(aep->aep_ep, iv, fbp->fb_mr.bm_desc,
@@ -1549,17 +1550,21 @@ static int libfab_target_notify(struct m0_fab__buf *buf,
  * "bv" is a data buffer for payload.
  */
 static m0_bcount_t libfab_iov_prep(struct m0_bufvec *bv, struct iovec *iv,
-				   int nr, m0_bcount_t *count)
+				   int nr, m0_bcount_t nblen,
+				   m0_bcount_t *count)
 {
 	struct m0_bufvec_cursor cur;
+	m0_bcount_t             len;
 	int                     idx;
 
 	M0_PRE(nr > 0);
+	len = nblen ? nblen : (M0_BCOUNT_MAX / 2);
 	
 	m0_bufvec_cursor_init(&cur, bv);
 	for (idx = 0; idx < nr && !m0_bufvec_cursor_move(&cur, 0); ++idx) {
 		m0_bcount_t frag = m0_bufvec_cursor_step(&cur);
 
+		frag = min64u(frag, len - *count);
 		if (frag == 0)
 			break;
 		iv[idx].iov_base = m0_bufvec_cursor_addr(&cur);
@@ -1953,7 +1958,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	case M0_NET_QT_MSG_RECV: {
 		fbp->fb_length = nb->nb_length;
 		iv_cnt = libfab_iov_prep(&nb->nb_buffer, iv, ARRAY_SIZE(iv),
-					 &cnt);
+					 nb->nb_length, &cnt);
 		ret = fi_recvv(ma->ftm_rctx, iv, fbp->fb_mr.bm_desc, iv_cnt, 0,
 			       fbp);
 		break;
@@ -1971,7 +1976,8 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 			ret = libfab_conn_init(ep, ma, fbp, nb->nb_ep->nep_addr);
 		} else {
 			iv_cnt = libfab_iov_prep(&nb->nb_buffer, iv,
-						 ARRAY_SIZE(iv), &cnt);
+						 ARRAY_SIZE(iv), nb->nb_length,
+						 &cnt);
 			ret = fi_sendv(aep->aep_ep, iv, fbp->fb_mr.bm_desc,
 				       iv_cnt, 0, fbp);
 		}
@@ -2012,7 +2018,8 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		}
 		else {
 			iv_cnt = libfab_iov_prep(&nb->nb_buffer, iv,
-						 ARRAY_SIZE(iv), &cnt);
+						 ARRAY_SIZE(iv), nb->nb_length,
+						 &cnt);
 			ret = fi_readv(aep->aep_ep, iv, fbp->fb_mr.bm_desc,
 				       iv_cnt, 0, 0, fbp->fb_rem_key, fbp);
 		}
@@ -2032,7 +2039,8 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		}
 		else {
 			iv_cnt = libfab_iov_prep(&nb->nb_buffer, iv,
-						 ARRAY_SIZE(iv), &cnt);
+						 ARRAY_SIZE(iv), nb->nb_length,
+						 &cnt);
 			ret = fi_writev(aep->aep_ep, iv, fbp->fb_mr.bm_desc,
 					iv_cnt, 0, 0, fbp->fb_rem_key, fbp);
 		}
