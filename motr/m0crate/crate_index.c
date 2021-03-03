@@ -391,7 +391,7 @@ static void cr_time_capture_results(struct cr_time_measure_ctx *t,
 	ciw->ciw_results.ciwr_total_time_s = t->elapsed;
 	ciw->ciw_results.ciwr_total_time_m0 = m0_time_sub(t->ts_next, t->ts);
 	ciw->ciw_results.ciwr_time_per_op_ns =  m0_time_nanoseconds(
-			ciw->ciw_results.ciwr_total_time_m0) / ciw->nr_ops_total;
+			ciw->ciw_results.ciwr_total_time_m0 / ciw->nr_ops_total);
 
 	/** Calculate Results for each op (PUT, GET, NEXT and DEL) */
 	for (i=0; i < CRATE_OP_NR; i++) {
@@ -399,8 +399,8 @@ static void cr_time_capture_results(struct cr_time_measure_ctx *t,
 			op_results[i].cior_ops_total_time_s =
 				cr_time_in_seconds(op_results[i].cior_ops_total_time_m0);
 			op_results[i].cior_time_per_op_ns = m0_time_nanoseconds(
-				op_results[i].cior_ops_total_time_m0) /
-				op_results[i].cior_op_count;
+				op_results[i].cior_ops_total_time_m0 /
+				op_results[i].cior_op_count);
 		}
 	}
 
@@ -474,6 +474,7 @@ static int cr_idx_w_init(struct cr_idx_w *ciw,
 		ciw->ciw_results.ciwr_ops_result[i].cior_op_type = i;
 		ciw->ciw_results.ciwr_ops_result[i].cior_ops_total_time_s = 0;
 		ciw->ciw_results.ciwr_ops_result[i].cior_time_per_op_ns = 0;
+		ciw->ciw_results.ciwr_ops_result[i].cior_ops_total_time_m0 = 0;
 	}
 
 	/* XXX: If opcount is unlimited, then make it limited */
