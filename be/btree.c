@@ -1054,16 +1054,19 @@ static void btree_node_child_delete(struct m0_be_btree    *btree,
 				    struct btree_node_pos *child,
 				    bool		   left)
 {
-	struct be_btree_key_val *temp = NULL;
-	struct be_btree_key_val *temp1 = NULL;
+	struct be_btree_inlkey temp;
+	struct be_btree_inlkey temp1;
 	M0_ASSERT(child->bnp_node->bt_isleaf);
 	M0_LOG(M0_DEBUG, "swap%s with n=%p i=%d", left ? "L" : "R",
 						  child->bnp_node,
 						  child->bnp_index);
 
-	temp->btree_key = child->bnp_node->bt_kv_arr[child->bnp_index].btree_key;
-	temp1->btree_key = node->bt_kv_arr[index].btree_key;
-	
+	memcpy(temp.inlkey, child->bnp_node->bt_kv_arr[child->bnp_index].btree_key,INLINE_KEY_SIZE);
+	memcpy(temp1.inlkey, node->bt_kv_arr[index].btree_key,INLINE_KEY_SIZE);
+
+	node->allocated[find_matching_index(node,index)] = 0;
+	child->bnp_node->allocated[find_matching_index(child->bnp_node,child->bnp_index)] = 0;
+
 	M0_SWAP(child->bnp_node->bt_kv_arr[child->bnp_index],
 		node->bt_kv_arr[index]);
 	
@@ -1074,16 +1077,21 @@ static void btree_node_child_delete(struct m0_be_btree    *btree,
 	if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG)
 	{	
 		int tindex = find_next_avaliable_index(node->allocated);
-		memcpy(node->bt_ik[tindex].inlkey,temp->btree_key,INLINE_KEY_SIZE);
+		memcpy(node->bt_ik[tindex].inlkey,temp.inlkey,INLINE_KEY_SIZE);
 		node->bt_kv_arr[index].btree_key = &node->bt_ik[tindex].inlkey;
 		node->allocated[tindex] = 1;
-		node->allocated[find_matching_index(node,index)] = 0;
+		
 		
 		tindex = find_next_avaliable_index(child->bnp_node->allocated);
-		memcpy(child->bnp_node->bt_ik[tindex].inlkey,temp1->btree_key,INLINE_KEY_SIZE);
+		memcpy(child->bnp_node->bt_ik[tindex].inlkey,temp1.inlkey,INLINE_KEY_SIZE);
 		child->bnp_node->bt_kv_arr[child->bnp_index].btree_key = &child->bnp_node->bt_ik[tindex].inlkey;
 		child->bnp_node->allocated[tindex] = 1;
-		child->bnp_node->allocated[find_matching_index(child->bnp_node,child->bnp_index)] = 0;
+
+		mem_update(btree, tx, node->allocated,
+			sizeof(*node->allocated) * KV_NR);
+		mem_update(btree, tx, node->bt_ik,
+			sizeof(*node->bt_ik) * KV_NR);
+		
 	}
 	/*
 	 * Update checksum for parent, for child it will be updated
