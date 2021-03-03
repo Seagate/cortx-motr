@@ -28,6 +28,8 @@
 #include "motr/iem.h"
 #include "rm/st/wlock_helper.h"
 
+#include "net/bulk_mem.h"     /* m0_net_bulk_mem_xprt */
+
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
 
@@ -185,9 +187,11 @@ static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
-static const char *cdbnames[] = { "cdb1", "cdb2" };
-static const char *cl_ep_addrs[] = { "0@lo:12345:34:2", "127.0.0.1:34569" };
+static const char *cdbnames[]     = { "cdb1",               "cdb2" };
+static const char *cl_ep_addrs[]  = { "0@lo:12345:34:2",    "127.0.0.1:34569" };
 static const char *srv_ep_addrs[] = { SERVER_ENDPOINT_ADDR, "127.0.0.1:35678" };
+static const struct m0_net_xprt *xprts[] = { &m0_net_lnet_xprt,
+						&m0_net_bulk_mem_xprt};
 
 enum { MAX_RPCS_IN_FLIGHT = 10 };
 
@@ -195,7 +199,7 @@ enum { MAX_RPCS_IN_FLIGHT = 10 };
 
 static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 			     const char *srv_ep_addr, const char* dbname,
-			     struct m0_net_xprt *xprt)
+			     const struct m0_net_xprt *xprt)
 {
 	int                       rc;
 	struct m0_rpc_client_ctx *cl_ctx;
@@ -297,7 +301,7 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	for (i = 0; i < cctx_nr; ++i) {
 		rc = cs_ut_client_init(&cctx[i], cl_ep_addrs[i],
 					srv_ep_addrs[i], cdbnames[i],
-					sctx.rsx_xprts[i]);
+					xprts[i]);
 		M0_UT_ASSERT(rc == 0);
 	}
 

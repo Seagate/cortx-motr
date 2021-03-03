@@ -606,6 +606,39 @@ static m0_bcount_t nlx_xo_get_max_buffer_desc_size(const struct m0_net_domain
 	return sizeof(struct nlx_core_buf_desc);
 }
 
+static m0_bcount_t nlx_xo_rpc_max_seg_size(struct m0_net_domain *ndom)
+{
+	M0_PRE(ndom != NULL);
+
+	return min64u(m0_net_domain_get_max_buffer_segment_size(ndom),
+		      M0_SEG_SIZE);
+}
+
+static uint32_t nlx_xo_rpc_max_segs_nr(struct m0_net_domain *ndom)
+{
+	M0_PRE(ndom != NULL);
+
+	return m0_net_domain_get_max_buffer_size(ndom) /
+			nlx_xo_rpc_max_seg_size(ndom);
+}
+
+static m0_bcount_t nlx_xo_rpc_max_msg_size(struct m0_net_domain *ndom,
+					   m0_bcount_t rpc_size)
+{
+	M0_PRE(ndom != NULL);
+
+	return default_xo_rpc_max_msg_size(ndom, rpc_size);
+}
+
+static uint32_t nlx_xo_rpc_max_recv_msgs(struct m0_net_domain *ndom,
+					 m0_bcount_t rpc_size)
+{
+	M0_PRE(ndom != NULL);
+
+	return m0_net_domain_get_max_buffer_size(ndom) /
+			nlx_xo_rpc_max_msg_size(ndom, rpc_size);
+}
+
 static const struct m0_net_xprt_ops nlx_xo_xprt_ops = {
 	.xo_dom_init                    = nlx_xo_dom_init,
 	.xo_dom_fini                    = nlx_xo_dom_fini,
@@ -626,7 +659,11 @@ static const struct m0_net_xprt_ops nlx_xo_xprt_ops = {
 	.xo_bev_deliver_sync            = nlx_xo_bev_deliver_sync,
 	.xo_bev_pending                 = nlx_xo_bev_pending,
 	.xo_bev_notify                  = nlx_xo_bev_notify,
-	.xo_get_max_buffer_desc_size    = nlx_xo_get_max_buffer_desc_size
+	.xo_get_max_buffer_desc_size    = nlx_xo_get_max_buffer_desc_size,
+	.xo_rpc_max_seg_size            = nlx_xo_rpc_max_seg_size,
+	.xo_rpc_max_segs_nr             = nlx_xo_rpc_max_segs_nr,
+	.xo_rpc_max_msg_size            = nlx_xo_rpc_max_msg_size,
+	.xo_rpc_max_recv_msgs           = nlx_xo_rpc_max_recv_msgs,
 };
 
 /**
