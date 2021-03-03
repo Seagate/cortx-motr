@@ -22,6 +22,7 @@
 
 #include "motr/setup.c"
 
+#include "net/bulk_mem.h"  /* m0_net_bulk_mem_xprt */
 #include "ut/cs_fop.h"     /* CS_UT_SERVICE1 */
 #include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
