@@ -1199,7 +1199,8 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain **out)
 
 	result = m0_addb2_sys_init(&dom->fd_addb2_sys,
 				   &(struct m0_addb2_config) {
-					   .co_queue_max = 1024 * 1024,
+					   .co_queue_max = (cpu_nr + 1 ) / 2 *
+						   1024 * 1024,
 					   .co_pool_min  = cpu_nr,
 					   .co_pool_max  = cpu_nr
 				   });
