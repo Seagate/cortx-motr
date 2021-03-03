@@ -605,7 +605,7 @@ yum install -y rabbitmq-server
 yum install -y haproxy --nogpgcheck
 yum install -y openldap-servers openldap-clients
 yum install -y cortx-s3server --nogpgcheck
-yum install -y cortx-s3iamcli --nogpgcheck
+yum install -y cortx-s3iamcli --nogpgcheck || yum-config-manager --add-repo=`echo $REPO_URL|sed 's/prod/dev/'`; yum install -y cortx-s3iamcli --nogpgcheck
 yum install -y gcc
 yum install -y python3-devel
     """
