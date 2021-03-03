@@ -273,12 +273,132 @@ void test_volatile_dtm0_log(void)
 	m0_dtm0_clk_src_fini(&cs);
 }
 
+
+static struct m0_be_ut_backend *ut_be;
+static struct m0_be_ut_seg     *ut_seg;
+static struct m0_be_seg        *seg;
+
+
+static struct m0_be_dtm0_log *persistent_log_create(void)
+{
+	struct m0_be_tx_credit	cred = {};
+	struct m0_be_btree     *log;
+	struct m0_be_tx        *tx;
+	int                     rc;
+
+	M0_ENTRY();
+
+	//-------- Calculate credits
+	m0_be_dtm0_log_credit(M0_DTML_CREATE, NULL, NULL, &cred);
+	//--------
+
+	M0_ALLOC_PTR(tx);
+	M0_UT_ASSERT(tx != NULL);
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_UT_ASSERT(rc == 0);
+
+	//-------- Operate over the log
+	rc = m0_be_dtm0_log_create(tx, seg, log);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_dtm0_log_init(&log, CS, false);
+	//--------
+
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
+	m0_free(tx);
+	M0_LEAVE();
+	return log;
+}
+
+static struct m0_be_dtm0_log *persistent_log_create(void)
+{
+	struct m0_be_tx_credit	cred = {};
+	struct m0_be_btree     *log;
+	struct m0_be_tx        *tx;
+	int                     rc;
+
+	M0_ENTRY();
+
+	//-------- Calculate credits
+
+	//--------
+
+	M0_ALLOC_PTR(tx);
+	M0_UT_ASSERT(tx != NULL);
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_UT_ASSERT(rc == 0);
+
+	//-------- Operate over the log
+
+	//--------
+
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
+	m0_free(tx);
+	M0_LEAVE();
+	return log;
+}
+
+
+static void dtm0_log_check(const struct m0_be_dtm0_log *log)
+{
+}
+
+
+// seg0: { { "dtm0_log__id=10101", &dtm_log } ,
+//         { "cob_dom__id=20101", &cob_domain } }
+//
+// seg1: [ dtm0_log ] [ cob_domain ]
+//
+//
+
+void m0_be_ut_dtm0_log_test(void)
+{
+	struct m0_be_dtm0_log *log;
+
+	M0_ENTRY();
+	M0_ALLOC_PTR(ut_be);
+	M0_UT_ASSERT(ut_be != NULL);
+	M0_ALLOC_PTR(ut_seg);
+	M0_UT_ASSERT(ut_seg != NULL);
+	m0_be_ut_backend_init(ut_be);
+	m0_be_ut_seg_init(ut_seg, ut_be, 1ULL << 24);
+	seg = ut_seg->bus_seg;
+
+	// ##### dtm0 log operations started here
+
+	log = persistent_log_create();
+	m0_be_ut_seg_reload(ut_seg);
+	m0_be_dtm0_log_init(log, CS, false);
+	persistent_log_operate(log);
+	m0_be_ut_seg_reload(ut_seg);
+	m0_be_dtm0_log_init(log, CS, false);
+	dtm0_log_check(log);
+	persistent_log_desroy(log);
+
+	// destroy_log(log);
+	// ##### dtm0 log operations ended here
+
+	m0_be_ut_seg_reload(ut_seg);
+	m0_be_ut_seg_fini(ut_seg);
+	m0_be_ut_backend_fini(ut_be);
+	m0_free(ut_seg);
+	m0_free(ut_be);
+
+	M0_LEAVE();
+}
+
 struct m0_ut_suite dtm0_log_ut = {
 	.ts_name   = "dtm0-log-ut",
 	.ts_init   = NULL,
 	.ts_fini   = NULL,
 	.ts_tests  = {
-		{ "dtm0-log-list", test_volatile_dtm0_log},
+		{ "dtm0-log-list",       test_volatile_dtm0_log },
+		{ "dtm0-log-persistent", m0_be_ut_dtm0_log_test },
 		{ NULL, NULL }
 	}
 };

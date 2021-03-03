@@ -108,6 +108,13 @@ M0_INTERNAL void m0_be_dtm0_log_credit(enum m0_be_dtm0_log_credit_op op,
 	/*TODO:Complete implementation during persistent list implementation */
 	switch (op) {
 	case M0_DTML_CREATE:
+	{
+		struct m0_be_dtm0_log *log;
+		M0_BE_ALLOC_CREDIT_PTR(log, seg, accum);
+		M0_BE_ALLOC_CREDIT_PTR(log->dl_list, seg, accum);
+		dtm0_log_be_list_credit(M0_BLO_CREATE, 1, accum);
+		break;
+	}
 	case M0_DTML_SENT:
 	case M0_DTML_EXECUTED:
 	case M0_DTML_PERSISTENT:
@@ -123,15 +130,16 @@ M0_INTERNAL int m0_be_dtm0_log_create(struct m0_be_tx        *tx,
 {
 	//struct m0_be_dtm0_log *log;
 
-#if 0
-	M0_PRE(tx);
-	M0_PRE(seg);
-	M0_PRE(m0_be_tx__invariant(tx));
+#if 1
+	M0_PRE(tx != NULL);
+	M0_PRE(seg != NULL);
+	M0_PRE_EX(m0_be_tx__invariant(tx));
 
 	M0_BE_ALLOC_PTR_SYNC(log, seg, tx);
-	M0_ASSERT(log);
+	M0_ASSERT(log != NULL);
+
 	M0_BE_ALLOC_PTR_SYNC(log->dl_list, seg, tx);
-	M0_ASSERT(log->dl_list);
+	M0_ASSERT(log->dl_list != NULL);
 
 	dtm0_log_be_list_create(log->dl_list, tx);
 #endif
