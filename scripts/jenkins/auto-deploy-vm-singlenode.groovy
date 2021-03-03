@@ -14,7 +14,8 @@ RELEASE.INFO                                         24-Feb-2021 04:35          
 THIRD_PARTY_RELEASE.INFO                  24-Feb-2021 04:35               26196
 ''')
         string(name: 'SSC_AUTH_ID', defaultValue: '', description: '''Add onetime RedHatCloudform credentials using below link and use ID in this param if RESET_VM is checked. 
-http://ssc-vm-c-0139.colo.seagate.com:8080/credentials/store/system/domain/_/newCredentials''')
+To add new: http://ssc-vm-2590.colo.seagate.com:8080/credentials/store/system/domain/_/newCredentials
+To get existing: http://ssc-vm-2590.colo.seagate.com:8080/credentials/''')
 
         booleanParam(name: 'RESET_VM', defaultValue: false, description: '''Revert ssc-vm to first snapshot. (First snapshot with root/seagate user/password)
 If vm reset fails, then perform manual reset using ssc-cloud.''')
@@ -244,9 +245,9 @@ aws s3 mb s3://test-bucket
 acc_id=\$(cat ~/.aws/credentials | grep aws_access_key_id | cut -d= -f2)
 acc_key=\$(cat ~/.aws/credentials | grep aws_secret_access_key | cut -d= -f2)
 num_client=128
-num_size=16
-num_size_units=M
-num_samples=10000
+num_size=1
+num_size_units=K
+num_samples=1000
 bucket="test-bucket"
 
 case "\$num_size_units" in
