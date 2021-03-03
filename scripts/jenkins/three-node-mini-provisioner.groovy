@@ -689,8 +689,8 @@ cat /etc/hosts
 def miniHare(String host) {
     def remote = getTestMachine(host)
     def commandResult = sshCommand remote: remote, command: """
-/opt/seagate/cortx/hare/bin/hare_setup --post_install
-/opt/seagate/cortx/hare/bin/hare_setup --config json:///root/provisioner_cluster.json --filename '/var/lib/hare/cluster.yaml'
+/opt/seagate/cortx/hare/bin/hare_setup post_install
+/opt/seagate/cortx/hare/bin/hare_setup config --config json:///root/provisioner_cluster.json --file '/var/lib/hare/cluster.yaml'
     """
 }
 
