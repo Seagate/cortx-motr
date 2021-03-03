@@ -161,6 +161,11 @@ struct m0_fab__buf {
 	m0_bindex_t            fb_length;  /* Total size of data to be rcvd*/
 };
 
+struct m0_fab__conn_data {
+	uint64_t fcd_netaddr;
+	char     fcd_straddr[LIBFAB_ADDR_STRLEN_MAX];
+};
+
 /** @} end of netlibfab group */
 #endif /* __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__ */
 

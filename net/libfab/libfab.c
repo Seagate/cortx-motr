@@ -68,6 +68,7 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 			  struct m0_fab__ep_name *epn,
 			  struct m0_net_end_point **epp);
 static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name, 
+			    struct m0_fab__ep_name *epn,
 			    struct m0_net_end_point **epp);
 static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 				   struct fi_info *fi);
@@ -467,20 +468,24 @@ static void libfab_tm_buf_done(struct m0_fab__tm *ftm)
  */
 static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 {
-	struct m0_fab__ep      *ep = NULL;
-	struct fid_eq          *eq;
-	struct fi_eq_err_entry  eq_err;
-	struct fi_eq_cm_entry   entry;
-	uint32_t                event;
-	int                     rc;
+	struct m0_fab__ep        *ep = NULL;
+	struct m0_fab__conn_data *cd;
+	struct m0_fab__ep_name    en;
+	struct fid_eq            *eq;
+	struct fi_eq_err_entry    eq_err;
+	struct fi_eq_cm_entry     entry;
+	uint32_t                  event;
+	int                       rc;
 
 	eq = tm->ftm_pep->fep_listen->pep_ep_res.fer_eq;
 	rc = fi_eq_read(eq, &event, &entry,
 			(sizeof(entry) + LIBFAB_ADDR_STRLEN_MAX), 0);
 	if (rc >= sizeof(entry)) {
 		if (event == FI_CONNREQ) {
-			libfab_fab_ep_find(tm, NULL, (const char *)entry.data,
-					   &ep);
+			memset(&en, 0, sizeof(en));
+			cd = (struct m0_fab__conn_data*)entry.data;
+			libfab_ep_ntop(cd->fcd_netaddr, &en);
+			libfab_fab_ep_find(tm, &en, cd->fcd_straddr, &ep);
 			rc = libfab_active_ep_create(ep, tm, entry.info);
 			fi_freeinfo(entry.info);
 		}
@@ -651,10 +656,10 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 
 	if (found == false) {
 		if (name != NULL)
-			rc = libfab_ep_create(tm, name, epp);
+			rc = libfab_ep_create(tm, name, epn, epp);
 		else {
 			sprintf(ep, "libfab:%s:%s", epn->fen_addr, epn->fen_port);
-			rc = libfab_ep_create(tm, ep, epp);
+			rc = libfab_ep_create(tm, ep, epn, epp);
 		}
 	}
 
@@ -664,11 +669,13 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 /**
  * Used to create an endpoint
  */
-static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name, 
+static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
+			    struct m0_fab__ep_name *epn,
 			    struct m0_net_end_point **epp)
 {
 	struct m0_fab__tm *ma = tm->ntm_xprt_private;
 	struct m0_fab__ep *ep = NULL;
+	char              *wc;
 	int                rc;
 
 	M0_ENTRY();
@@ -688,6 +695,12 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 	if (rc != FI_SUCCESS) {
 		libfab_aep_param_free(ep->fep_send, ma);
 		return M0_RC(rc);
+	}
+
+	wc = strchr(name, '*');
+	if (epn != NULL && wc != NULL) {
+		strcpy(ep->fep_name.fen_addr, epn->fen_addr);
+		strcpy(ep->fep_name.fen_port, epn->fen_port);
 	}
 
 	rc = libfab_active_ep_create(ep, ma, NULL);
@@ -1391,19 +1404,16 @@ static void libfab_tm_fini(struct m0_net_transfer_mc *tm)
 /** Creates the descriptor for a (passive) network buffer. */
 static int libfab_bdesc_encode(struct m0_fab__buf *buf)
 {
-	struct fi_rma_iov      *rma_iov;
 	struct m0_net_buf_desc *nbd = &buf->fb_nb->nb_desc;
 	struct m0_net_buffer   *nb = buf->fb_nb;
 	int                     seg_nr = nb->nb_buffer.ov_vec.v_nr;
-	int                     i;
 	struct m0_fab__tm      *tm = libfab_buf_ma(nb);
 	uint64_t               *ptr;
 	uint64_t                netaddr;
 
 	M0_PRE(seg_nr <= FAB_MR_IOV_MAX);
 
-	nbd->nbd_len = ( sizeof(uint64_t) +
-			sizeof(struct fi_rma_iov) * seg_nr);
+	nbd->nbd_len = (sizeof(uint64_t) * 2);
 	nbd->nbd_data = m0_alloc(nbd->nbd_len);
 	if (nbd->nbd_data == NULL)
 		return M0_RC(-ENOMEM);
@@ -1413,15 +1423,7 @@ static int libfab_bdesc_encode(struct m0_fab__buf *buf)
 	libfab_ep_pton(&tm->ftm_pep->fep_name, &netaddr);
 	*ptr = netaddr;
 	ptr++;
-
-	rma_iov = (struct fi_rma_iov *)ptr;
-
-	for (i = 0; i < seg_nr; i++) {
-		rma_iov->addr = (uint64_t)nb->nb_buffer.ov_buf[i];
-		rma_iov->len = (uint64_t)nb->nb_buffer.ov_vec.v_count[i];
-		rma_iov->key = buf->fb_mr.bm_key[i];
-		rma_iov++;
-	}
+	*ptr = buf->fb_mr.bm_key[0];
 
 	return M0_RC(0);
 }
@@ -1435,7 +1437,7 @@ static void libfab_bdesc_decode(struct m0_net_buf_desc *nbd, uint64_t *rma_key,
 	netaddr = *ptr;
 	ptr++;
 	libfab_ep_ntop(netaddr, epname);
-	*rma_key = ((struct fi_rma_iov *)ptr)->key;
+	*rma_key = *ptr;
 }
 
 /* Register the buffer with the appropriate access for the domain of the ep*/
@@ -1586,6 +1588,7 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 {
 	struct m0_fab__active_ep *aep;
 	struct fi_info           *peer_fi;
+	struct m0_fab__conn_data  cd;
 	int                       ret = 0;
 
 	aep = (ep->fep_listen != NULL) ? ep->fep_listen->pep_tx_ep :
@@ -1593,9 +1596,10 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 	if (aep->aep_state == FAB_NOT_CONNECTED) {
 		ret = libfab_destaddr_get(&ep->fep_name, ma->ftm_fab->fab_fi,
 					  &peer_fi);
-		ret = fi_connect(aep->aep_ep, peer_fi->dest_addr,
-				ma->ftm_pep->fep_name.fen_str_addr, 
-				LIBFAB_ADDR_STRLEN_MAX);
+		strcpy(cd.fcd_straddr, ma->ftm_pep->fep_name.fen_str_addr);
+		libfab_ep_pton(&ma->ftm_pep->fep_name, &cd.fcd_netaddr);
+		ret = fi_connect(aep->aep_ep, peer_fi->dest_addr, &cd,
+				 sizeof(cd));
 		if (ret == FI_SUCCESS)
 			aep->aep_state = FAB_CONNECTING;
 		else
@@ -2143,8 +2147,7 @@ static int32_t libfab_get_max_buf_segments(const struct m0_net_domain *dom)
  */
 static m0_bcount_t libfab_get_max_buf_desc_size(const struct m0_net_domain *dom)
 {
-	// return sizeof(uint64_t);
-	return (sizeof(struct fi_rma_iov) /* FAB_MR_IOV_MAX*/);
+	return (sizeof(uint64_t) * 2);
 }
 
 static struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf)
