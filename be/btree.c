@@ -420,10 +420,12 @@ static void btree_node_update(struct m0_be_bnode       *node,
 		mem_update(btree, tx, node->bt_child_arr,
 			   sizeof(*node->bt_child_arr) *
 			   (node->bt_num_active_key + 1));
-		mem_update(btree, tx, node->allocated,
-			   sizeof(*node->allocated) * KV_NR);
-		mem_update(btree, tx, node->bt_ik,
-			   sizeof(*node->bt_ik) * KV_NR);
+		if (btree->bb_ops->ko_type != M0_BBT_CAS_CTG) {
+			mem_update(btree, tx, node->allocated,
+				   sizeof(*node->allocated) * KV_NR);
+			mem_update(btree, tx, node->bt_ik,
+				   sizeof(*node->bt_ik) * KV_NR);
+		}
 	}
 
 	mem_update(btree, tx, &node->bt_footer, sizeof(node->bt_footer));
@@ -568,11 +570,7 @@ static void be_btree_split_child(struct m0_be_btree *btree,
 		}
 	}
 
-	/* re-calculate checksum after all fields has been updated */
-	m0_format_footer_update(new_child);
-
 	child->bt_num_active_key = BTREE_FAN_OUT - 1;
-	m0_format_footer_update(child);
 
 	/* The index of the node to be split should be less than or equal to the
 	   number of active keys on the parent node */
@@ -606,6 +604,8 @@ static void be_btree_split_child(struct m0_be_btree *btree,
 	parent->bt_num_active_key++;
 
 	/* re-calculate checksum after all fields has been updated */
+	m0_format_footer_update(new_child);
+	m0_format_footer_update(child);
 	m0_format_footer_update(parent);
 
 	/* Update affected memory regions in tx: */
@@ -827,8 +827,8 @@ be_btree_merge_siblings(struct m0_be_tx    *tx,
 
 	node1 = parent->bt_child_arr[idx];
 	node2 = parent->bt_child_arr[idx + 1];
-	node1->bt_kv_arr[node1->bt_num_active_key++] = parent->bt_kv_arr[idx];
-	tval = node1->bt_num_active_key;
+	node1->bt_kv_arr[node1->bt_num_active_key] = parent->bt_kv_arr[idx];
+	tval = node1->bt_num_active_key++;
 	//*node1->bt_ik[tval].inlkey = *((char *)parent->bt_kv_arr[idx].btree_key);
 	
 	if(tree->bb_ops->ko_type != M0_BBT_CAS_CTG && tree->bb_ops->ko_type != M0_BBT_CONFDB )
@@ -1050,6 +1050,7 @@ void be_btree_delete_key_from_node(struct m0_be_btree	 *tree,
 		idx = bnode_pos->bnp_index;
 
 		btree_pair_release(tree, tx, &bnode->bt_kv_arr[idx]);
+		bnode->allocated[find_matching_index(bnode,idx)] = 0;
 
 		while (idx < bnode->bt_num_active_key - 1) {
 			bnode->bt_kv_arr[idx] = bnode->bt_kv_arr[idx+1];
@@ -1097,17 +1098,16 @@ static void btree_node_child_delete(struct m0_be_btree    *btree,
 				    bool		   left)
 {
 	struct be_btree_inlkey temp;
-	struct be_btree_inlkey temp1;
+	//struct be_btree_inlkey temp1;
 	M0_ASSERT(child->bnp_node->bt_isleaf);
 	M0_LOG(M0_DEBUG, "swap%s with n=%p i=%d", left ? "L" : "R",
 						  child->bnp_node,
 						  child->bnp_index);
 
-	memcpy(temp.inlkey, child->bnp_node->bt_kv_arr[child->bnp_index].btree_key,INLINE_KEY_SIZE);
-	memcpy(temp1.inlkey, node->bt_kv_arr[index].btree_key,INLINE_KEY_SIZE);
+	//memcpy(temp1.inlkey, node->bt_kv_arr[index].btree_key,INLINE_KEY_SIZE);
 
-	node->allocated[find_matching_index(node,index)] = 0;
-	child->bnp_node->allocated[find_matching_index(child->bnp_node,child->bnp_index)] = 0;
+	//node->allocated[find_matching_index(node,index)] = 0;
+	//child->bnp_node->allocated[find_matching_index(child->bnp_node,child->bnp_index)] = 0;
 
 	M0_SWAP(child->bnp_node->bt_kv_arr[child->bnp_index],
 		node->bt_kv_arr[index]);
@@ -1118,27 +1118,16 @@ static void btree_node_child_delete(struct m0_be_btree    *btree,
 	// node->allocated[index]);
 	if(btree->bb_ops->ko_type != M0_BBT_CAS_CTG && btree->bb_ops->ko_type != M0_BBT_CONFDB)
 	{	
-		int tindex = find_next_avaliable_index(node->allocated);
-		memcpy(node->bt_ik[tindex].inlkey,temp.inlkey,INLINE_KEY_SIZE);
-		node->bt_kv_arr[index].btree_key = &node->bt_ik[tindex].inlkey;
-		node->allocated[tindex] = 1;
-		
-		
-		tindex = find_next_avaliable_index(child->bnp_node->allocated);
-		memcpy(child->bnp_node->bt_ik[tindex].inlkey,temp1.inlkey,INLINE_KEY_SIZE);
-		child->bnp_node->bt_kv_arr[child->bnp_index].btree_key = &child->bnp_node->bt_ik[tindex].inlkey;
-		child->bnp_node->allocated[tindex] = 1;
-		
+		memcpy(temp.inlkey, child->bnp_node->bt_kv_arr[child->bnp_index].btree_key,INLINE_KEY_SIZE);
+		memcpy(child->bnp_node->bt_kv_arr[child->bnp_index].btree_key,node->bt_kv_arr[index].btree_key,INLINE_KEY_SIZE);
+		memcpy(node->bt_kv_arr[index].btree_key,temp.inlkey,INLINE_KEY_SIZE);
+
 		//m0_format_footer_update(node);
 		//m0_format_footer_update(child);
-		mem_update(btree, tx, node->allocated,
-			sizeof(*node->allocated) * KV_NR);
-		mem_update(btree, tx, node->bt_ik,
-			sizeof(*node->bt_ik) * KV_NR);
-		mem_update(btree, tx, child->bnp_node->allocated,
-			sizeof(*child->bnp_node->allocated) * KV_NR);
-		mem_update(btree, tx, child->bnp_node->bt_ik,
-			sizeof(*child->bnp_node->bt_ik) * KV_NR);
+		mem_update(btree, tx, node->bt_kv_arr[index].btree_key,
+			sizeof(*node->bt_ik));
+		mem_update(btree, tx, child->bnp_node->bt_kv_arr[child->bnp_index].btree_key,
+			sizeof(*child->bnp_node->bt_ik));
 		
 	}
 	/*
@@ -1602,6 +1591,8 @@ static void btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
 {
 	if(btree->bb_ops->ko_type == M0_BBT_CAS_CTG || btree->bb_ops->ko_type == M0_BBT_CONFDB)
 		mem_free(btree, tx, kv->btree_key);
+	else
+		mem_free(btree, tx, kv->btree_val);
 }
 
 /**
