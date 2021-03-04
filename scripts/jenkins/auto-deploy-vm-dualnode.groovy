@@ -216,11 +216,7 @@ hctl status
                 script {
                     def remote = getTestMachine(VM1_FQDN)
                     def commandResult = sshCommand remote: remote, command: """
-                        echo "**********************************************"
                         hctl status
-                        echo "**********************************************"
-                        cat /etc/hosts
-                        echo "**********************************************"
                         """
                 }
             }
