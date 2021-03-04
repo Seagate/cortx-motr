@@ -127,6 +127,8 @@ struct m0_parity_math {
 	uint8_t		       *pmi_encode_matrix;
 	/* Pointer to concatenated output tables for encode */
 	uint8_t		       *pmi_encode_tbls;
+	/* Pointer to concatenated output tables for decode */
+	uint8_t		       *pmi_decode_tbls;
 #endif
 };
 
