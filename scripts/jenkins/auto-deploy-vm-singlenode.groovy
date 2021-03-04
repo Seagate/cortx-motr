@@ -179,9 +179,7 @@ chmod a+x deploy_expect
                 script {
                     def remote = getTestMachine(VM1_FQDN)
                     def commandResult = sshCommand remote: remote, command: """
-echo "**********************************************"
 hctl status
-echo "**********************************************"
                         """
                 }
             }
