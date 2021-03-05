@@ -30,6 +30,7 @@
 #include <netinet/in.h>         /* INET_ADDRSTRLEN */
 #include <arpa/inet.h>          /* inet_pton, htons */
 #include <stdlib.h>             /* atoi */
+#include <unistd.h>             /* usleep */
 #include "net/net.h"            /* struct m0_net_domain */
 #include "lib/memory.h"         /* M0_ALLOC_PTR()*/
 #include "libfab_internal.h"
@@ -520,6 +521,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 	int                       rc = 0;
 
 	while (tm->ftm_shutdown == false) {
+		usleep(500);
 		while(1) {
 			m0_mutex_lock(&tm->ftm_endlock);
 			if (tm->ftm_shutdown == true)
