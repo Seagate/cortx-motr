@@ -380,7 +380,7 @@ static void workload_run(struct workload *w)
                w->cw_name, w->cw_type);
         cr_log(CLL_INFO, "random seed:           %u\n", w->cw_rstate);
         cr_log(CLL_INFO, "number of threads:     %u\n", w->cw_nr_thread);
-	/** Following params not applicable to IO and INDEX tests */
+	/* Following params not applicable to IO and INDEX tests */
 	if (CWT_IO != w->cw_type && CWT_INDEX != w->cw_type) {
 		cr_log(CLL_INFO, "average size:          %llu\n", w->cw_avg);
 		cr_log(CLL_INFO, "maximal size:          %llu\n", w->cw_max);

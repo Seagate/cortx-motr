@@ -393,8 +393,8 @@ static void cr_time_capture_results(struct cr_time_measure_ctx *t,
 	ciw->ciw_results.ciwr_time_per_op_ns =  m0_time_nanoseconds(
 			ciw->ciw_results.ciwr_total_time_m0 / ciw->nr_ops_total);
 
-	/** Calculate Results for each op (PUT, GET, NEXT and DEL) */
-	for (i=0; i < CRATE_OP_NR; i++) {
+	/* Calculate Results for each op (PUT, GET, NEXT and DEL) */
+	for (i = 0; i < CRATE_OP_NR; i++) {
 		if (op_results[i].cior_op_count) {
 			op_results[i].cior_ops_total_time_s =
 				cr_time_in_seconds(op_results[i].cior_ops_total_time_m0);
@@ -412,13 +412,13 @@ static void cr_time_measure_report(struct cr_time_measure_ctx *t,
 	int i			     	     = 0;
 	struct cr_idx_ops_result *op_results = w.ciw_results.ciwr_ops_result;
 
-	/** Results in parsable format */
+	/* Results in parsable format */
 	fprintf(stdout, "result: total_s, %f, avg_time_per_op_ns, %.1f,"
 		" key_size_bytes, %d, value_size_bytes, %d, ops, %d\n",
 		t->elapsed, w.ciw_results.ciwr_time_per_op_ns,
 		w.wit->key_size, w.wit->value_size, w.nr_ops_total);
 
-	for (i=0; i < CRATE_OP_NR; i++) {
+	for (i = 0; i < CRATE_OP_NR; i++) {
 		fprintf(stdout, "result: %s, total_time_s, %f, avg_time_per_op_ns, "
 			"%.1f, ops, %d\n",
 			op_results[i].cior_op_label,
@@ -427,14 +427,14 @@ static void cr_time_measure_report(struct cr_time_measure_ctx *t,
 			op_results[i].cior_op_count);
 	}
 
-	/** Results in m0crate format */
-        fprintf(stdout, "\nTotal: time="TIME_F" ("TIME_F" per op) ops=%d\n",
+	/* Results in m0crate format */
+	fprintf(stdout, "\nTotal: time="TIME_F" ("TIME_F" per op) ops=%d\n",
                        TIME_P(w.ciw_results.ciwr_total_time_m0),
                        TIME_P(w.ciw_results.ciwr_total_time_m0 /
 		       w.nr_ops_total),
 		       w.nr_ops_total);
 
-	for (i=0; i < CRATE_OP_NR; i++) {
+	for (i = 0; i < CRATE_OP_NR; i++) {
 		if (op_results[i].cior_op_count) {
 			fprintf(stdout, "%s: "TIME_F" ("TIME_F" per op) ops=%d\n",
 				op_results[i].cior_op_label,
@@ -464,10 +464,10 @@ static int cr_idx_w_init(struct cr_idx_w *ciw,
 	ciw->wit = wit;
 	ciw->nr_ops_total = 0;
 
-	/** Setting up min_key_size default to MIN_KEY_SIZE */
+	/* Setting up min_key_size default to MIN_KEY_SIZE */
 	ciw->wit->min_key_size = CR_MIN_KEY_SIZE;
 
-	/** Init crate index result */
+	/* Init crate index result */
 	for (i = 0; i < CRATE_OP_NR; i++) {
 		ciw->ciw_results.ciwr_ops_result[i].cior_op_label =
 			cr_idx_op_labels[i];
@@ -502,7 +502,7 @@ static int cr_idx_w_init(struct cr_idx_w *ciw,
 	ciw->nr_keys *= ciw->nr_kv_per_op;
 	ciw->ordered_keys = wit->keys_ordered;
 
-	/** If key size is random, generate it using rand(). */
+	/* If key size is random, generate it using rand(). */
 	if (ciw->wit->key_size < 0)
 		ciw->wit->key_size = ciw->wit->min_key_size +
 			cr_rand_pos_range(ciw->wit->max_key_size);
@@ -536,8 +536,8 @@ static int cr_idx_w_init(struct cr_idx_w *ciw,
 	* use round-robin selector to avoid cases when
 	* we perform GET/DEL/NEXT on empty index.
 	*/
-	if ((ciw->nr_ops[CRATE_OP_DEL].nr || ciw->nr_ops[CRATE_OP_GET].nr ||
-		ciw->nr_ops[CRATE_OP_NEXT].nr) && ciw->nr_ops[CRATE_OP_PUT].nr)
+	if ((ciw->nr_ops[CRATE_OP_DEL].nr != 0 || ciw->nr_ops[CRATE_OP_GET].nr != 0 ||
+		ciw->nr_ops[CRATE_OP_NEXT].nr != 0) && ciw->nr_ops[CRATE_OP_PUT].nr != 0)
 	{
 		ciw->op_selector = CR_OP_SEL_RR;
 	}
@@ -654,7 +654,7 @@ do_free:
 static size_t cr_idx_w_get_value_size(struct cr_idx_w *w)
 {
 	int vlen;
-	/** If value_size is random, generate it using rand() */
+	/* If value_size is random, generate it using rand() */
 	if (w->wit->value_size < 0)
 		vlen = w->wit->key_size +
 			cr_rand_pos_range(w->wit->max_value_size);
@@ -1059,7 +1059,7 @@ static int cr_idx_w_execute(struct cr_idx_w *w,
 	struct m0_fid		*keys = NULL;
 	struct kv_pair		 kv = {0};
 	int			 i;
-	/** key will contain <const value:random or sequential generated value> */
+	/* key will contain <const value:random or sequential generated value> */
 	int kpart_one_size 	    = w->wit->key_size - w->wit->min_key_size;
 	char kpart_one[kpart_one_size];
 	m0_time_t             op_start_time;
@@ -1099,7 +1099,7 @@ static int cr_idx_w_execute(struct cr_idx_w *w,
 		keys[i].f_container = w->key_prefix.f_container;
 	}
 
-	/** populating key prefix */
+	/* populating key prefix */
 	for(i = 0; i < kpart_one_size; i++) {
 		kpart_one[i] = 'A';
 	}
@@ -1109,7 +1109,7 @@ static int cr_idx_w_execute(struct cr_idx_w *w,
 		rc = M0_ERR(rc);
 		goto do_exit_kv;
 	}
-	/** accumulate time required by each op on opcode basis. */
+	/* accumulate time required by each op on opcode basis. */
 	op_start_time = m0_time_now();
 	rc = cr_execute_query(&w->wit->index_fid, &kv, opcode);
 	op_time = m0_time_sub(m0_time_now(), op_start_time);
