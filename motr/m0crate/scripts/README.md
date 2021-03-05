@@ -7,7 +7,6 @@ You can use m0crate client utility to run single kvs workload.  You can specify 
 There are kvs .yaml template files available in __motr/m0crate/tests__ .yaml file contains 2 parts MOTR_CONFIG and WORKLOAD_SPEC.
 
 *   MOTR_CONFIG contains motr cluster details, You would need to update these fields according to your cluster setup (see hctl status).
-
 *   WORKLOAD_SPEC contains workload details, You would need to update these fields according to your kvs workload requirement.
 
 ```shell
@@ -28,7 +27,6 @@ __gen_index_yaml_run_workload__ script can be used to generate and run workload 
 __m0crate-index.yaml.template__ is used by above script as template, so before starting executing it make sure you have updated all the fields in yaml template file based on your requirements.
 
 *   MOTR_LOCAL_ADDR, MOTR_HA_ADDR, PROF, PROCESS_FID these are the fields which are related to you motr cluster setup (see cmd: hctl status)
-
 *   You probably may need to update kvs workload spec fields too, NUM_KVP, NXRECORDS, OP_COUNT, KEY_ORDER etc.
 
 __Script execution steps__
