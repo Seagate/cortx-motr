@@ -32,7 +32,9 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNS
 #include "lib/trace.h"
 
-#define ir_invalid_col_t   UINT8_MAX
+enum {
+	IR_INVALID_COL = UINT8_MAX,
+};
 
 #ifndef __KERNEL__
 #define ALLOC_ARR_INFO(arr, nr, msg, ret) ({					\
@@ -85,14 +87,67 @@ static void isal_recover(struct m0_parity_math *math,
 			 struct m0_buf *fails,
 			 enum m0_parity_linsys_algo algo);
 
-/*
+/**
  * Inverts the encoding matrix and generates tables of recovery coefficient
  * codes for lost data.
+ * @param data_count[in] - count of SNS data units used in system.
+ * @param parity_count[in] - count of SNS parity units used in system.
+ * @param failed_idx_buf[in] - array containing failed block indices, treated
+ *                             as uint8_t block with b_nob elements.
+ * @param alive_idx_buf[in] - array containing non-failed block indices,
+ *                            treated as uint8_t block with b_nob elements.
+ * @param encode_mat[in] - Pointer to sets of arrays of input coefficients used
+ *                         to encode or decode data.
+ * @param g_tbls[out] - Pointer to concatenated output tables for decode
+ * @retval     0      - success otherwise failure
  */
 static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 				    struct m0_buf *failed_idx_buf,
 				    struct m0_buf *alive_idx_buf,
 				    uint8_t *encode_mat, uint8_t *g_tbls);
+
+/**
+ * Sort the data and parity buffers based on input fail buffer. If buffer is
+ * marked as failed, its pointer will be added in frags_out buffer array. If
+ * buffer is not marked as failed in fail buffer, its pointer will be added in
+ * frags_in buffer array. Buffer array frags_in will be used as source buffers
+ * for recovery. BUffer array frags_out will be used as buffers to be recovered.
+ * @param frags_in[out] - Array of buffer pointers containing pointers of
+ *                        buffers which are not failed.
+ * @param frags_out[out] - Array of buffer pointers containing pointers of
+ *                         failed buffers.
+ * @param unit_count[in] - Total count of buffers i.e. data_count + parity_count
+ * @param data_count[in] - count of SNS data units used in system.
+ * @param fail[in] - block with flags, treated as uint8_t block with
+ *                   b_nob elements, if element is '1' then data or parity
+ *                   block with given index is treated as broken.
+ * @param data[in] - data block, treated as uint8_t block with
+ *                   b_nob elements.
+ * @param parity[inout] - parity block, treated as uint8_t block with
+ *                        b_nob elements.
+ * @retval     true       on success
+ * @retval     false      on failure to sort buffers
+ */
+static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
+		    uint32_t unit_count, uint32_t data_count,
+		    uint8_t *fail, struct m0_buf *data,
+		    struct m0_buf *parity);
+
+/**
+ * Sort the indices for failed and non-failed data and parity blocks.
+ * @param fail[in] - block with flags, if element is '1' then data or parity
+ *                   block with given index is treated as broken.
+ * @param unit_count[in] - Total length of fail buffer
+ * @param failed_idx[out] - block with failed indices, treated as uint8_t block
+ *                          with b_nob elements
+ * @param failed_idx[out] - block with non-failed (alive) indices, treated as
+ *                          uint8_t block with b_nob elements
+ * @retval     true       on success
+ * @retval     false      on failure to sort indices
+ */
+static bool fails_sort(uint8_t *fail, uint32_t unit_count,
+		       struct m0_buf *failed_idx, struct m0_buf *alive_idx);
+
 #else
 static void reed_solomon_recover(struct m0_parity_math *math,
                                  struct m0_buf *data,
@@ -923,10 +978,10 @@ fini:
 	return ret;
 }
 
-static int sort_buffers(uint8_t **frags_in, uint8_t **frags_out,
-			 uint32_t unit_count, uint32_t data_count,
-			 uint8_t *fail, struct m0_buf *data,
-			 struct m0_buf *parity)
+static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
+		     uint32_t unit_count, uint32_t data_count,
+		     uint8_t *fail, struct m0_buf *data,
+		     struct m0_buf *parity)
 {
 	uint32_t  i;
 	uint32_t  j;
@@ -937,7 +992,7 @@ static int sort_buffers(uint8_t **frags_in, uint8_t **frags_out,
 
 	if ((fail == NULL) || (frags_in == NULL) || (frags_out == NULL) ||
 	    (data == NULL) || (parity == NULL))
-	    	return -1;
+		return false;
 
 
 	for (i = 0, j = 0, k = 0; i < unit_count; i++) {
@@ -946,7 +1001,7 @@ static int sort_buffers(uint8_t **frags_in, uint8_t **frags_out,
 		else
 			addr = (uint8_t *)parity[i - data_count].b_addr;
 
-		if (fail[i])
+		if (fail[i] != 0)
 			frags_out[j++] = addr;
 		else if (k < data_count)
 			frags_in[k++] = addr;
@@ -955,10 +1010,11 @@ static int sort_buffers(uint8_t **frags_in, uint8_t **frags_out,
 	}
 
 	M0_LEAVE();
-	return 0;
+	return true;
 }
 
-static int fails_sort(uint8_t *fail, uint32_t unit_count, struct m0_buf *failed_idx, struct m0_buf *alive_idx)
+static bool fails_sort(uint8_t *fail, uint32_t unit_count,
+		       struct m0_buf *failed_idx, struct m0_buf *alive_idx)
 {
 	uint32_t i;
 	uint8_t	     *failed_ids;
@@ -968,7 +1024,7 @@ static int fails_sort(uint8_t *fail, uint32_t unit_count, struct m0_buf *failed_
 
 	if ((fail == NULL) || (failed_idx == NULL) || (alive_idx == NULL) ||
 	    (failed_idx->b_addr == NULL) || (alive_idx->b_addr == NULL))
-	    	return -1;
+		return false;
 
 	failed_ids = (uint8_t *)failed_idx->b_addr;
 	alive_ids = (uint8_t *)alive_idx->b_addr;
@@ -984,7 +1040,7 @@ static int fails_sort(uint8_t *fail, uint32_t unit_count, struct m0_buf *failed_
 
 	M0_LEAVE();
 
-	return 0;
+	return true;
 }
 
 static void isal_recover(struct m0_parity_math *math,
@@ -1067,9 +1123,9 @@ static void isal_recover(struct m0_parity_math *math,
 	}
 
 	M0_LOG(M0_DEBUG, "sort failed buffer indices");
-	ret = fails_sort(fail, unit_count, &failed_idx_buf, &alive_idx_buf);
-	if (ret != 0) {
-		ret = M0_ERR_INFO(ret, "failed to sort failed ids");
+	if (fails_sort(fail, unit_count, &failed_idx_buf,
+		       &alive_idx_buf) == false) {
+		ret = M0_ERR_INFO(-EINVAL, "failed to sort failed ids");
 		goto fini;
 	}
 
@@ -1081,10 +1137,10 @@ static void isal_recover(struct m0_parity_math *math,
 	}
 
 	M0_LOG(M0_DEBUG, "sort buffers which are to be recovered");
-	ret = sort_buffers(frags_in, frags_out, unit_count, math->pmi_data_count,
-			   fail, data, parity);
-	if (ret != 0) {
-		ret = M0_ERR_INFO(ret, "failed to sort buffers to be recovered");
+	if (buf_sort(frags_in, frags_out, unit_count, math->pmi_data_count,
+		     fail, data, parity) == false) {
+		ret = M0_ERR_INFO(-EINVAL, "failed to sort buffers to be "
+				  "recovered");
 		goto fini;
 	}
 
@@ -1266,7 +1322,7 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 	for (i = 0; i < block_count(ir); ++i) {
 		ir->si_blocks[i].sib_idx = i;
 		ir->si_blocks[i].sib_status = M0_SI_BLOCK_ALIVE;
-		ir->si_blocks[i].sib_data_recov_mat_col = ir_invalid_col_t;
+		ir->si_blocks[i].sib_data_recov_mat_col = IR_INVALID_COL;
 		ret = m0_bitmap_init(&ir->si_blocks[i].sib_bitmap,
 				     block_count(ir));
 		if (ret != 0)
@@ -1410,7 +1466,7 @@ static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
 			if (ir->si_blocks[i].sib_status != M0_SI_BLOCK_ALIVE)
 				continue;
 			if (ir->si_blocks[i].sib_data_recov_mat_col !=
-			    ir_invalid_col_t)
+			    IR_INVALID_COL)
 				m0_bitmap_set(&f_block->sib_bitmap,
 					      ir->si_blocks[i].sib_idx, true);
 		}
@@ -1692,7 +1748,7 @@ static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 		for (i = 0; i  < block_count(ir); ++i) {
 			if (ir->si_blocks[i].sib_status == M0_SI_BLOCK_ALIVE) {
 				if (ir->si_blocks[i].sib_data_recov_mat_col ==
-				    ir_invalid_col_t)
+				    IR_INVALID_COL)
 					return last_usable_bid;
 				last_usable_bid = i;
 			}
