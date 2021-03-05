@@ -59,7 +59,10 @@ m0_rpc_service_reverse_session_get(struct m0_reqh_service   *service,
 				   struct m0_rpc_session   **session);
 
 M0_INTERNAL void
-m0_rpc_service_reverse_session_put(struct m0_reqh_service *service);
+m0_rpc_service_reverse_session_put(struct m0_rpc_session *session);
+
+M0_INTERNAL void
+m0_rpc_service_reverse_sessions_cleanup(struct m0_reqh_service *service);
 
 M0_INTERNAL int m0_rpc_session_status(struct m0_rpc_session *session);
 

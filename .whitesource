@@ -1,0 +1,12 @@
+{
+  "scanSettings": {
+    "configMode": "AUTO"
+  },
+  "checkRunSettings": {
+    "displayMode": "diff",
+    "vulnerableCheckRunConclusionLevel": "failure"
+  },
+  "issueSettings": {
+    "minSeverityLevel": "LOW"
+  }
+}
