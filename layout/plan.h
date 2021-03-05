@@ -67,9 +67,9 @@
  *
  * An access plan is represented by m0_layout_plan.
  *
- * The directed graph is not presented as a first-class entity. Instead, a plan
- * produces, via calls to m0_layout_plan_get(), plops as they become "ready",
- * in the sense that all their dependencies are satisfied.
+ * The directed graph is not presented as a static data structure. Instead,
+ * a plan produces, via calls to m0_layout_plan_get(), plops as they become
+ * "ready", in the sense that all their dependencies are satisfied.
  *
  * Interaction between the implementation and the user takes form of the loop
  * (which is, basically, a graph traversal):
@@ -88,11 +88,11 @@
  *     the plop has been executed. This might make more plops ready, so the
  *     loop repeats.
  *
- * All plops should be executed and m0_layout_plop_done() should be called
- * on them by user in the depencency order indicated by the
+ * All plops should be executed and m0_layout_plop_done() on them should be
+ * called by the user in the dependency order indicated by the
  * m0_layout_plop::pl_deps list. Before starting the plop execution user should
- * call m0_layout_plop_start() which would verify whether the dependencies are
- * met and the plop is still actual (i.e. that it was not cancelled already).
+ * call m0_layout_plop_start() which verifies whether the dependencies are
+ * met and the plop is still actual (i.e. that it was not cancelled).
  *
  * A plop is not necessarily immediately destroyed by the implementation after
  * the user completes it. The implementation might keep plop alive for some
@@ -109,56 +109,66 @@
  * way that a user can improve locality of reference by assigning colours to
  * processor cores. Colouring is optional and does not affect correctness.
  *
+ * Use cases
+ * ---------
+ *
  * Let's consider, for example, the i/o read operation. The user calls
  * m0_layout_plan_build() passing m0_op as argument describing the operation.
  * After this we can enter the "loop" traversing the graph. m0_layout_plan_get()
  * is called and returns M0_LAT_READ plop. In this plop user gets cob fid
- * (at m0_layout_plop::pl_ent) and m0_layout_io_plop::iop_ext describing where
- * the unit to be read is located at the cob. Now, having this information the
- * user is ready to send the fop the ioservice.
+ * (at m0_layout_plop::pl_ent) and m0_layout_io_plop::iop_ext indexvec
+ * describing where the unit to be read is located at the cob. Now, having this
+ * information the user is ready to send the io fop to the ioservice.
+ *
+ * On receiving the reply from ioservice, the user puts the received io data
+ * at m0_layout_io_plop::iop_data bufvec and calls m0_layout_plop_done(). The
+ * next m0_layout_plan_get() call might return M0_LAT_OUT_READ indicating that
+ * the object data is ready for the user. One iteration of the graph traversing
+ * loop is done.
+ *
+ * Now, if the object is small and the bufvec at m0_op operation specified
+ * by user spans only a single unit, the next call to m0_layout_plan_get()
+ * might return M0_LAT_DONE indicating that the plan is done. But usually
+ * objects consist of many units and a single m0_op might span many units
+ * which, preferrably, should be read from the ioservice(s) in parallel. So
+ * the user might call m0_layout_plan_get() many times and get a number of
+ * M0_LAT_READ plops before calling the first m0_layout_plop_done().
+ *
+ * Let's look at the calls flow example below where u0, u1, u2 are the units
+ * for which the plops are returned by the plan:
  *
  * @verbatim
  *  m0_layout_plan_build() ->
  *    u0: m0_layout_plan_get() -> M0_LAT_READ -> user may start reading...
  *    u1: m0_layout_plan_get() -> M0_LAT_READ -> in parallel...
- *    u3: m0_layout_plan_get() -> M0_LAT_READ -> ...
+ *    u2: m0_layout_plan_get() -> M0_LAT_READ -> ...
  *    ...
- *    u0: m0_layout_plan_get() -> M0_LAT_OUT_READ  -> user should wait
- *    u0: The data for M0_LAT_READ is ready        -> m0_layout_plop_done()
- *    u0: Now the data in M0_LAT_OUT_READ is ready -> m0_layout_plop_done()
+ *    u0: m0_layout_plan_get() -> M0_LAT_OUT_READ  -> wait for M0_LAT_READ...
+ *    u0: the data for M0_LAT_READ is ready        -> m0_layout_plop_done()
+ *    u0: now the data in M0_LAT_OUT_READ is ready -> m0_layout_plop_done()
  *    ...
  *    m0_layout_plan_get() -> M0_LAT_FUN -> user must check pl_deps:
  *        if all plops in the list are M0_LPS_DONE -> call the function and
  *                                                 -> m0_layout_plop_done()
  *    ...
+ *    m0_layout_plan_get() -> +1 -> there are no more plops do to yet,
+ *                                  user should complete some previous plops.
+ *    ...
  *    m0_layout_plan_get() -> M0_LAT_DONE -> ... -> m0_layout_plop_done()
  *  m0_layout_plan_fini()
  * @endverbatim
  *
- * The user gets the data from ioservice, puts it at m0_layout_io_plop::iop_data
- * and calls m0_layout_plop_done(). The next m0_layout_plan_get() call might
- * return M0_LAT_OUT_READ indicating that the read data of the object is ready
- * for the user. One iteration of the graph traversing loop is done.
- *
- * Now, if the object consists only of a single unit, the next call to
- * m0_layout_plan_get() would return M0_LAT_DONE indicating that the i/o m0_op
- * is done and the plan is finished. But usually objects consist of
- * many units and all of them should be read in parallel. So the user
- * might call m0_layout_plan_get() many times and getting a number of
- * M0_LAT_READ plops before calling the first m0_layout_plop_done().
- *
- * @note M0_LAT_OUT_READ plop can be returned by the plan for the unit
- * even before m0_layout_plop_done() is called for its M0_LAT_READ plop.
- * It is user's responsibility to track the dependencies between plops
- * (see m0_layout_plop::pl_deps), execute and call m0_layout_plop_done()
- * on them in order.
+ * @note M0_LAT_OUT_READ plop can be returned by the plan for the unit even
+ * before m0_layout_plop_done() is called for its M0_LAT_READ plop. It is
+ * user responsibility to track the dependencies between plops (via pl_deps),
+ * execute and call m0_layout_plop_done() on them in order.
  *
  * The picture becomes a bit more complicated when some disk is failed and
  * we are doing the degraded read. Or we are working in the read-verify mode.
- * In this case the plan would involve reading of the parity units also,
- * as well as running the parity calculation functions (M0_LAT_FUN plop)
- * for degraded groups or for every group (in read-verify mode).
- * The function would restore (or verify) data in a synchronous way.
+ * In this case the plan would involve reading of the parity units also, as
+ * well as running the parity calculation functions (M0_LAT_FUN plop) for
+ * degraded groups or for every group (in read-verify mode). The function
+ * would restore (or verify) data in a synchronous way.
  *
  * @note in case of the read-verify mode the verification status is indicated
  * by the return code from the m0_layout_fun_plop::fp_fun() call.
@@ -222,6 +232,9 @@
  * }
  * @enddot
  *
+ * ISC use case
+ * ------------
+ *
  * ISC user should analyse the plops and their dependencies in order to
  * figure out whether the user data can be obtained at the server side so
  * that the computation could be delegated there. In some cases, however,
@@ -231,26 +244,21 @@
  * In this case the computation on the recovered units is better to do at
  * the client side.
  *
- * ISC code must do the following checks when analysing plops:
- *
- *   1) if there is a resulting M0_LAT_OUT_READ plop which
- *   2) depends only on one M0_LAT_READ and
- *   3) possibly some FUN plops after it, like decompression,
-        that can be called at the server side
- *
- * it means that the user data can be obtained at the server side
- * independently from the other servers (i.e. there are no several
- * M0_LAT_READs or parity calculation FUN-plops in the dependencies) and
- * the execution of such chain of plops can be delegated to the server side
- * along with the ISC computation.
+ * If the graph dependency looks like a linear chain starting from M0_LAT_READ
+ * and finishing with M0_LAT_OUT_READ, this might be a good canditate for ISC:
  *
  * @verbatim
- *
- *   check (2)              check (3)                        check (1)
- *
- * M0_LAT_READ <-- [ M0_LAT_FUN <-- ... M0_LAT_FUN ] <-- M0_LAT_OUT_READ
- *
+ *     M0_LAT_READ <-- [ M0_LAT_FUN <-- ... ] <-- M0_LAT_OUT_READ
  * @endverbatim
+ *
+ * it means that the user data can be obtained at the server side
+ * independently from the other servers (i.e. there are no several M0_LAT_READ
+ * or parity calculation (M0_LAT_FUN) plops in the dependencies) and the
+ * execution of such a chain of plops can be delegated to the server side
+ * along with the ISC computation.
+ *
+ * ISC code should only make sure that the functions in between the chain
+ * can be run at the server side.
  *
  * In all other cases the user data should be retrieved at the client side
  * and the ISC computation on it should be done at the client side as well.
