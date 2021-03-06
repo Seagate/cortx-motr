@@ -120,7 +120,7 @@ pip3 install cryptography==2.8
 pip3 install PyYAML==5.1.2
 pip3 install configparser==4.0.2
 pip3 install networkx==2.4
-pip3 install numpy==1.19.5
+pip3 install numpy==1.19.2
 pip3 install matplotlib==3.1.3
 pip3 install argparse==1.4.0
 pip3 install confluent-kafka==1.5.0
