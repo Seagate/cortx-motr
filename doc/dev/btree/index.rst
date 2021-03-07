@@ -572,7 +572,7 @@ Planning (PLAN)
      managers,
    * an execution schedule
 
-Tasks.
+Tasks. Another copy is `here <https://seagatetechnology-my.sharepoint.com/:x:/r/personal/nikita_danilov_seagate_com/_layouts/15/Doc.aspx?sourcedoc=%7Bb8e60df5-2c32-4fb4-9ff8-885be75dc8bb%7D>`_
 
 .. list-table::
    :widths: 10 80 10
@@ -803,7 +803,8 @@ Tasks.
      - Prepare and file relevant patents.
      -
 
-Task dependencies:
+Task dependencies
+~~~~~~~~~~~~~~~~~
 
 .. graphviz::
 
@@ -843,7 +844,136 @@ Task dependencies:
 
 Estimation
 ~~~~~~~~~~
-   
+
+.. list-table::
+   :header-rows: 1
+
+   * - task
+     - subtask
+     - owners
+     - LOC/pages
+     - effort (PD)
+     - calendar (PD)
+
+   * - DLD0
+     -
+     - nikita
+     - 15
+     - 15
+     - 15     
+
+   * - DLD1
+     -
+     - nikita, shashank
+     - 3
+     - 3
+     - 2
+
+   * - DLD2
+     -
+     - nikita, nikhil
+     - 2
+     - 2
+     - 1
+
+   * - DLDIR
+     -
+     - 
+     - 
+     - 1
+     - 1
+
+   * - DLDINSP
+     -
+     - 
+     - 
+     - 8
+     - 8
+    
+   * - CODE0
+     -
+     - nikita, shashank, hua, jaydeep, YashB
+     - 2500
+     - 50
+     - 15
+     
+   * - CODE1
+     -
+     - 6
+     - 800
+     - 16
+     - 3
+     
+   * - CODE2
+     -
+     - nikita, shashank, hua
+     - 500
+     - 10
+     - 3
+     
+   * - CODE3
+     -
+     - jaydeep, YashB
+     - 1000
+     - 15
+     - 8
+     
+   * - CODE4
+     -
+     - nikita, shashank, hua, jaydeep, YashB
+     - 300
+     - 6
+     - 4
+     
+   * - CODE5
+     -
+     - nikita, shashank, hua, jaydeep, YashB
+     - 200
+     - 4
+     - 2
+
+   * - CODEIR
+     -
+     - 
+     - 
+     - 5
+     - 5
+
+   * - TEST
+     -
+     - 
+     - 
+     - 10
+     - 10
+
+   * - CODEINSP
+     -
+     - 
+     - 
+     - 10
+     - 10
+
+   * - DOC
+     -
+     - 
+     - 
+     - 5
+     - 1
+
+   * - QA
+     -
+     - 
+     - 
+     - 
+     - 
+
+   * - PATENTS       
+     -
+     - 
+     - 
+     - 10
+     - 10
+
 Execution (EXEC)
 ================
 
