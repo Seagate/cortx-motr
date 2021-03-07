@@ -26,7 +26,6 @@
 
 #include "lib/types.h"
 #include "lib/vec.h"
-#include "lib/cookie.h"
 #include "xcode/xcode_attr.h"
 #include "btree/internal.h"
 
@@ -47,8 +46,8 @@ struct m0_btree_cb;
 struct m0_btree_key;
 
 struct m0_btree_key {
-	struct m0_bufvec k_data;
-	struct m0_cookie k_cookie;
+	struct m0_bufvec  k_data;
+	struct m0_bcookie k_cookie;
 };
 
 struct m0_btree_rec {
