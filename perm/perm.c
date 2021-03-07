@@ -40,6 +40,128 @@
 
 /**
  * @addtogroup perm
+ *
+ * Overview
+ * --------
+ *
+ * perm is a simple simulation and model checker. It can be used to check
+ * correctness of distributed algorithms involving multiple processes (nodes)
+ * that crash, exchange messages and update per-process transactional store.
+ *
+ * A user specifies the system to be modelled as a collection of process state
+ * machines (see two phase commit, "tpc_*" symbols, in this file as an example)
+ * and invariants (tpc_invariant()). perm then executes the model by trying all
+ * possible permutations of events, subject to certain constraints (e.g., a
+ * message cannot be received before it was sent) and checking invariants at
+ * each step.
+ *
+ * A model is collectively specified by the following layers:
+ *
+ * - BASE: supports basic abstractions of processes, events, execution
+ *   histories, etc.
+ *
+ * - SYS: on top of BASE, provides motr-specific features: processes crashes and
+ *   restarts, local transactional key-value store, rpc, ha notifications.
+ *
+ * - MODEL: user model, built on top of SYS.
+ *
+ * Base
+ * ----
+ *
+ * Base provides basic perm abstractions: simulation (struct perm), simulation
+ * step (struct step), process (struct proc), event (struct event), invariant
+ * (struct invariant) and call-back (struct cb).
+ *
+ * Simulation develops as a sequence of steps. A step contains a list of pending
+ * events and a list of processes. Main simulation loop (perm_run()) tries all
+ * possible event permutations:
+ *
+ *     - in the current step, take some pending event;
+ *
+ *     - create next step, that contain the same pending events as the current
+ *       one, except for the one taken;
+ *
+ *     - now, the taken event "happens" (happen()): find all registered
+ *       call-backs that match the event and execute them. Execution of
+ *       call-backs can add new pending events and new call-backs. Call-back
+ *       execution can also examine and modify processes' state;
+ *
+ *     - check that invariants hold for the next step;
+ *
+ *     - set the next step as current and repeat.
+ *
+ *     - at some point, a step without pending events is produced. This means
+ *       that a complete execution history with particular permutation of events
+ *       has been simulated. Then, perm_run() back-tracks and returns to the
+ *       previous step (restoring the list of pending events and processes'
+ *       states) so that another event can be taken for execution;
+ *
+ *     - when, at a particular step, all events has been selected for execution,
+ *       perm_run() also back-tracks.
+ *
+ * Through this event selection and back-tracking procedure, all possible event
+ * permutations are examined. Note that event "happening" is atomic in the sense
+ * that permutations of different order of call-back executions are not
+ * simulated.
+ *
+ * To record relationship between events, processes and steps, pins (struct pin)
+ * are used:
+ *
+ * @verbatim
+ *
+ *              ev0     ev1     ev2     ev3   proc0   proc1   proc1
+ *               |       |       |       |      |       |       |
+ * s0            |       |       |       |      |       |       |
+ * |             |       |       |       |      |       |       |
+ * +->s_event----P-------P-------P       |      |       |       |
+ * |                     |       |       |      |       |       |
+ * +->s_proc-------------|-------|-------|------P-------P-------P
+ *                       |       |       |      |       |       |
+ * s1                    |       |       |      |       |       |
+ * |                     |       |       |      |       |       |
+ * +->s_event------------P-------P-------P      |       |       |
+ * |                                            |       |       |
+ * +->s_proc------------------------------------P-------P-------P
+ *
+ * @endverbatim
+ *
+ * In the diagram above, step s0 has 3 pending events ev0, ev1 and ev2. ev0
+ * happens on the transition to the next step s1 (and so is not included in s1
+ * events list). At the same time, new event ev3 is created (as a by-product of
+ * ev0 call-back execution). Both steps share the same list of processes. Each
+ * process pin has a pointer to (lazily created) process state that can be
+ * examined and updated by event call-backs. When simulation back-tracks (e.g.,
+ * from s1 to s0), pending list and process states are effectively restored to
+ * their original state.
+ *
+ * Sys
+ * ---
+ *
+ * Base does not by itself define any event types or call-backs. Sys provides a
+ * simple model including:
+ *
+ *     - processes that crash and restart. Process volatile state is lost on crash
+ *       (sys_crash());
+ *
+ *     - local transaction engine and key-value store. There is an interface to
+ *       open and close transactions (tx_open()), tx_close()). When a
+ *       transaction is open, key-value store can be manipulated by
+ *       tx_set(). Queries are done by tx_get(). Closed transactions are logged
+ *       in background. Once a transaction has been logged, a user-visible event
+ *       about this is delivered. Transactions are logged in order of respective
+ *       opens;
+ *
+ *     - HA. High-availability sub-system is modelled as a dedicated system
+ *       process ("fatum") that makes decisions about process state changes
+ *       (online, transient failure, permanent failure) and sends to other
+ *       processes notifications about these decisions. Note that HA decisions
+ *       are completely indepenent of node crahses and restarts.
+ *
+ *     - rpc sub-system includes ordered reliable request delivery
+ *       (req()). Requests between a pair of processes are delivered in order
+ *       and the sender re-sends the request until it gets a reply, crashes or
+ *       is notified by HA that the receiver failed.
+ *
  * @{
  */
 
