@@ -572,8 +572,8 @@ static void be_btree_split_child(struct m0_be_btree *btree,
 			new_child->allocated[tindex] = 1;
 			new_child->bt_kv_arr[i].btree_key = &new_child->bt_ik[tindex].inlkey;
 			child->allocated[rindex] = 0;
-			chidx_child[count_child] =rindex;
-			count_child++;
+			//chidx_child[count_child] =rindex;
+			//count_child++;
 			//child->allocated[find_matching_index( child, child->bt_kv_arr[i + BTREE_FAN_OUT].btree_key )] = 0;
 		}
 		i++;
@@ -619,8 +619,8 @@ static void be_btree_split_child(struct m0_be_btree *btree,
 		parent->allocated[tindex] = 1;
 		parent->bt_kv_arr[index].btree_key = &parent->bt_ik[tindex].inlkey;
 		child->allocated[rindex] = 0;
-		chidx_child[count_child] = rindex;
-		count_child++;
+		//chidx_child[count_child] = rindex;
+		//count_child++;
 	}
 	parent->bt_num_active_key++;
 
@@ -872,8 +872,8 @@ be_btree_merge_siblings(struct m0_be_tx    *tx,
 		node1->allocated[tindex] = 1;
 		node1->bt_kv_arr[tval].btree_key = &node1->bt_ik[tindex].inlkey;
 		parent->allocated[rindex] = 0;
-		chidx_parent[count_parent] = rindex;
-		count_parent++;
+		//chidx_parent[count_parent] = rindex;
+		//count_parent++;
 	}
 	M0_ASSERT(node1->bt_num_active_key + node2->bt_num_active_key <= KV_NR);
 
@@ -954,8 +954,8 @@ static void be_btree_move_parent_key_to_right_child(struct m0_be_bnode *parent,
 		(*count_rch)++;
 		rch->bt_kv_arr[0].btree_key = &rch->bt_ik[tindex].inlkey;
 		parent->allocated[rindex] = 0;
-		arr_parent[*count_parent] = rindex;
-		(*count_parent)++;
+		//arr_parent[*count_parent] = rindex;
+		//(*count_parent)++;
 	}
 	rch->bt_child_arr[0] =
 			lch->bt_child_arr[lch->bt_num_active_key];
@@ -975,8 +975,8 @@ static void be_btree_move_parent_key_to_right_child(struct m0_be_bnode *parent,
 		(*count_parent)++;
 		parent->bt_kv_arr[idx].btree_key = &parent->bt_ik[tindex].inlkey;
 		lch->allocated[rindex] = 0;
-		arr_lch[*count_lch] = rindex;
-		(*count_lch)++;
+		//arr_lch[*count_lch] = rindex;
+		//(*count_lch)++;
 	}
 	lch->bt_num_active_key--;
 	rch->bt_num_active_key++;
@@ -1011,8 +1011,8 @@ static void be_btree_move_parent_key_to_left_child(struct m0_be_bnode *parent,
 		(*count_lch)++;
 		lch->bt_kv_arr[lch->bt_num_active_key].btree_key = &lch->bt_ik[tindex].inlkey;
 		parent->allocated[rindex] = 0;
-		arr_parent[*count_parent] = rindex;
-		(*count_parent)++;
+		//arr_parent[*count_parent] = rindex;
+		//(*count_parent)++;
 	}
 
 	lch->bt_child_arr[lch->bt_num_active_key + 1] =
@@ -1032,8 +1032,8 @@ static void be_btree_move_parent_key_to_left_child(struct m0_be_bnode *parent,
 		(*count_parent)++;
 		parent->bt_kv_arr[idx].btree_key = &parent->bt_ik[tindex].inlkey;
 		rch->allocated[rindex] = 0;
-		arr_rch[*count_rch] = rindex;
-		(*count_rch)++;
+		//arr_rch[*count_rch] = rindex;
+		//(*count_rch)++;
 	}
 	i = 0;
 	while (i < rch->bt_num_active_key - 1) {

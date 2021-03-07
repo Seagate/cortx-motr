@@ -59,9 +59,9 @@ struct m0_be_bnode {
 	char                         bt_pad[7];  /* Used to padd */
 	struct be_btree_key_val      bt_kv_arr[KV_NR]; /* Array of key-vals */	
 	struct m0_be_bnode          *bt_child_arr[KV_NR + 1]; /* childnode array */
-	char 				 allocated[KV_NR];
-	struct be_btree_inlkey		 bt_ik[KV_NR]; /* Array of inline-keys */
+	char                         allocated[KV_NR];
 	struct m0_format_footer      bt_footer;  /* Footer of node */
+	struct be_btree_inlkey       bt_ik[KV_NR]; /* Array of inline-keys */
 
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 M0_BASSERT(sizeof(bool) == 1);
