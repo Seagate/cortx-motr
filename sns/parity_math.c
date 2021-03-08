@@ -111,7 +111,7 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
  * marked as failed, its pointer will be added in frags_out buffer array. If
  * buffer is not marked as failed in fail buffer, its pointer will be added in
  * frags_in buffer array. Buffer array frags_in will be used as source buffers
- * for recovery. BUffer array frags_out will be used as buffers to be recovered.
+ * for recovery. Buffer array frags_out will be used as buffers to be recovered.
  * @param frags_in[out] - Array of buffer pointers containing pointers of
  *                        buffers which are not failed.
  * @param frags_out[out] - Array of buffer pointers containing pointers of
@@ -140,8 +140,8 @@ static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
  * @param unit_count[in] - Total length of fail buffer
  * @param failed_idx[out] - block with failed indices, treated as uint8_t block
  *                          with b_nob elements
- * @param failed_idx[out] - block with non-failed (alive) indices, treated as
- *                          uint8_t block with b_nob elements
+ * @param alive_idx[out] - block with non-failed (alive) indices, treated as
+ *                         uint8_t block with b_nob elements
  * @retval     true       on success
  * @retval     false      on failure to sort indices
  */
@@ -1016,9 +1016,9 @@ static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
 static bool fails_sort(uint8_t *fail, uint32_t unit_count,
 		       struct m0_buf *failed_idx, struct m0_buf *alive_idx)
 {
-	uint32_t i;
-	uint8_t	     *failed_ids;
-	uint8_t	     *alive_ids;
+	uint32_t  i;
+	uint8_t	 *failed_ids;
+	uint8_t	 *alive_ids;
 
 	M0_ENTRY();
 
@@ -1032,7 +1032,7 @@ static bool fails_sort(uint8_t *fail, uint32_t unit_count,
 	failed_idx->b_nob = 0;
 	alive_idx->b_nob = 0;
 	for (i = 0; i < unit_count; i++) {
-		if (fail[i])
+		if (fail[i] != 0)
 			failed_ids[failed_idx->b_nob++] = i;
 		else
 			alive_ids[alive_idx->b_nob++] = i;
