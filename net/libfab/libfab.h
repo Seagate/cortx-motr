@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2019-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,21 +22,23 @@
 
 #pragma once
 
-#ifndef __MOTR_NET_SOCK_SOCK_H__
-#define __MOTR_NET_SOCK_SOCK_H__
+#ifndef __MOTR_NET_LIBFAB_LIBFAB_H__
+#define __MOTR_NET_LIBFAB_LIBFAB_H__
 
-#ifndef __KERNEL__
-extern const struct m0_net_xprt m0_net_sock_xprt;
-#endif
+
+extern struct m0_net_xprt m0_net_libfab_xprt;
+
+M0_INTERNAL int  m0_net_libfab_init(void);
+M0_INTERNAL void m0_net_libfab_fini(void);
+
 /**
- * @defgroup netsock
+ * @defgroup netlibfab
  *
  * @{
  */
 
-
-/** @} end of netsock group */
-#endif /* __MOTR_NET_SOCK_SOCK_H__ */
+/** @} end of netlibfab group */
+#endif /* __MOTR_NET_LIBFAB_LIBFAB_H__ */
 
 /*
  *  Local variables:
@@ -50,3 +52,4 @@ extern const struct m0_net_xprt m0_net_sock_xprt;
 /*
  * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */
+

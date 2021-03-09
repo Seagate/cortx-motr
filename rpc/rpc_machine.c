@@ -40,6 +40,7 @@
 #include "reqh/reqh.h"
 #include "rpc/addb2.h"
 #include "rpc/rpc_internal.h"
+#include "net/lnet/lnet.h"
 
 /* Forward declarations. */
 static void rpc_tm_cleanup(struct m0_rpc_machine *machine);
@@ -455,6 +456,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 {
 	struct m0_clink tmwait;
 	int             rc;
+	uint32_t max_msgs_size;
 
 	M0_ENTRY("tm: %p, net_dom: %p, ep_addr: %s", tm, net_dom,
 		 (char *)ep_addr);
@@ -468,12 +470,14 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 	if (rc < 0)
 		return M0_ERR_INFO(rc, "TM initialization");
 
-	rc = m0_net_tm_pool_attach(tm, pool, &rpc_buf_recv_cb,
-#ifdef ENABLE_LUSTRE
-				   m0_rpc_max_msg_size(net_dom, msg_size),
+#ifdef ENABLE_LIBFAB
+	max_msgs_size = 1;
 #else
-				   1,
+	max_msgs_size = m0_rpc_max_msg_size(net_dom, msg_size);
 #endif
+
+	rc = m0_net_tm_pool_attach(tm, pool, &rpc_buf_recv_cb,
+				   max_msgs_size,	
 				   m0_rpc_max_recv_msgs(net_dom, msg_size),
 				   qlen);
 	if (rc < 0) {

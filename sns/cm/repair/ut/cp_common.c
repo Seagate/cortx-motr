@@ -21,7 +21,6 @@
 
 
 #include "ioservice/io_service.h"        /* m0_ios_cdom_get */
-#include "net/lnet/lnet.h"               /* m0_net_lnet_xprt */
 #include "motr/setup.h"                  /* m0_motr */
 #include "sns/cm/repair/ut/cp_common.h"  /* cs_fini */
 #include "ut/misc.h"                     /* M0_UT_PATH */
@@ -37,24 +36,30 @@ char      *sns_cm_ut_svc_ad[] = { "m0d", "-T", "AD",
                                   "-A", "linuxstob:sr_addb_stob",
 			          "-f", M0_UT_CONF_PROCESS,
 			          "-w", "10",
+#ifdef ENABLE_LIBFAB
+			          "-G", "libfab:0@lo:12345:34:1",
+			          "-e", "libfab:0@lo:12345:34:1",
+#else
 			          "-G", "lnet:0@lo:12345:34:1",
-                                  "-e", "lnet:0@lo:12345:34:1",
-                                  "-H", "0@lo:12345:34:1",
+			          "-e", "lnet:0@lo:12345:34:1",
+#endif
+			          "-H", "0@lo:12345:34:1",
 			          "-c", M0_UT_PATH("conf.xc")};
 
 char      *sns_cm_ut_svc_linux[] = { "m0d", "-T", "LINUX",
-                                     "-D", "sr_db", "-S", "sr_stob",
+				     "-D", "sr_db", "-S", "sr_stob",
 				     "-A", "linuxstob:sr_addb_stob",
 				     "-f", M0_UT_CONF_PROCESS,
 				     "-w", "10",
+#ifdef ENABLE_LIBFAB
+				     "-G", "libfab:0@lo:12345:34:1",
+				     "-e", "libfab:0@lo:12345:34:1",
+#else
 				     "-G", "lnet:0@lo:12345:34:1",
 				     "-e", "lnet:0@lo:12345:34:1",
+#endif
 				     "-H", "0@lo:12345:34:1",
 				     "-c", M0_UT_PATH("conf.xc")};
-
-struct m0_net_xprt *sr_xprts[] = {
-        &m0_net_lnet_xprt,
-};
 
 FILE           *lfile;
 struct m0_motr  sctx;
@@ -179,7 +184,8 @@ static int cs_init_setup_env(struct m0_motr *sctx, int stob_type)
 	lfile = fopen(log_file_name, "w+");
 	M0_ASSERT(lfile != NULL);
 
-	rc = m0_cs_init(sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile, true);
+	rc = m0_cs_init(sctx, m0_net_all_xprt_get(), m0_net_xprt_nr(),
+			lfile, true);
 	if (rc != 0)
 		return rc;
 

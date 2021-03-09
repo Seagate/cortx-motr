@@ -27,7 +27,6 @@
 #include "fdmi/fdmi.h"
 #include "fdmi/ut/sd_common.h"  /* M0_FDMI_UT_PATH */
 
-#include "net/lnet/lnet.h"      /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
 #include "lib/string.h"         /* m0_strdup */
@@ -43,14 +42,16 @@ static struct m0_fdmi_src_rec  g_src_rec;
 static struct m0_filterc_ops  *ufc_fco;
 static struct m0_reqh_service *ufc_fdmi_service;
 
-static struct m0_net_xprt *m0_fdmi_ut_xprt = &m0_net_lnet_xprt;
-
 /* ----------------------------------------------------------------
  * Tests
  * ---------------------------------------------------------------- */
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
 #define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
+#ifdef ENABLE_LIBFAB
+#define SERVER_ENDPOINT       "libfab:" SERVER_ENDPOINT_ADDR
+#else
 #define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
+#endif
 
 #define SERVER_DB_NAME        "fdmi_filterc_ut.db"
 #define SERVER_STOB_NAME      "fdmi_filterc_ut.stob"
@@ -74,7 +75,6 @@ enum {
 };
 
 static struct m0_rpc_server_ctx sctx = {
-	.rsx_xprts         = &m0_fdmi_ut_xprt,
 	.rsx_xprts_nr      = 1,
 	.rsx_argv          = server_argv,
 	.rsx_argc          = ARRAY_SIZE(server_argv),
@@ -155,12 +155,11 @@ static int ut_filterc_fco_start(struct m0_filterc_ctx *ctx,
 static void rpc_client_and_server_start(void)
 {
 	int rc;
-
 	M0_SET0(&sctx.rsx_motr_ctx);
-
-	rc = m0_net_domain_init(&client_net_dom, m0_fdmi_ut_xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
-
+	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);
@@ -172,6 +171,8 @@ static void rpc_client_and_server_stop(void)
 	int rc;
 	rc = m0_rpc_client_stop(&cctx);
 	M0_UT_ASSERT(rc == 0);
+	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);
 }

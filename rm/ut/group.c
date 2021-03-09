@@ -285,7 +285,7 @@ void rm_group_test(void)
 	/* Wait till all RM servers are started */
 	for (i = 0; i < test_servers_nr; ++i) {
 		ok = m0_semaphore_timeddown(&startup_sem,
-				            m0_time_from_now(5, 0));
+				            m0_time_from_now(10, 0));
 		M0_UT_ASSERT(ok);
 	}
 

@@ -33,7 +33,6 @@
 #include "ut/ut.h"
 
 static struct m0_rpc_server_ctx cm_ut_sctx;
-static struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
 static const char *SERVER_LOGFILE = "cm_ut.log";
 char  *cm_ut_server_args[] = { "m0d", "-T", "LINUX",
 				"-D", "sr_db", "-S", "sr_stob",
@@ -41,8 +40,13 @@ char  *cm_ut_server_args[] = { "m0d", "-T", "LINUX",
 				"-f", M0_UT_CONF_PROCESS,
 				"-w", "10",
 				"-F",
+#ifdef ENABLE_LIBFAB
+				"-G", "libfab:0@lo:12345:34:1",
+				"-e", "libfab:0@lo:12345:34:1",
+#else
 				"-G", "lnet:0@lo:12345:34:1",
 				"-e", "lnet:0@lo:12345:34:1",
+#endif
 				"-c", M0_UT_PATH("conf.xc")};
 
 static void cm_ut_server_start(void)
@@ -50,8 +54,8 @@ static void cm_ut_server_start(void)
 	int rc;
 
 	M0_SET0(&cm_ut_sctx);
-	cm_ut_sctx.rsx_xprts         = &xprt;
-	cm_ut_sctx.rsx_xprts_nr      = 1;
+	cm_ut_sctx.rsx_xprts         = m0_net_all_xprt_get();
+	cm_ut_sctx.rsx_xprts_nr      = m0_net_xprt_nr();
 	cm_ut_sctx.rsx_argv          = cm_ut_server_args;
 	cm_ut_sctx.rsx_argc          = ARRAY_SIZE(cm_ut_server_args);
 	cm_ut_sctx.rsx_log_file_name = SERVER_LOGFILE;

@@ -30,7 +30,11 @@
 #include "rm/st/wlock_helper.h"
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#ifdef ENABLE_LIBFAB
+#define SERVER_ENDPOINT      "libfab:" SERVER_ENDPOINT_ADDR
+#else
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
+#endif
 
 extern const struct m0_tl_descr ndoms_descr;
 
@@ -190,14 +194,6 @@ static const char *cdbnames[] = { "cdb1", "cdb2" };
 static const char *cl_ep_addrs[] = { "0@lo:12345:34:2", "127.0.0.1:34569" };
 static const char *srv_ep_addrs[] = { SERVER_ENDPOINT_ADDR, "127.0.0.1:35678" };
 
-/*
-  Transports used in motr a context.
- */
-static struct m0_net_xprt *cs_xprts[] = {
-	&m0_net_lnet_xprt,
-	&m0_net_bulk_mem_xprt
-};
-
 enum { MAX_RPCS_IN_FLIGHT = 10 };
 
 #define SERVER_LOG_FILE_NAME "cs_ut.errlog"
@@ -292,20 +288,24 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	int rc;
 	int i;
 	int stype;
+	struct m0_net_xprt *xprts[] = { 
+		m0_net_xprt_default_get(),
+		(struct m0_net_xprt *)&m0_net_bulk_mem_xprt
+	};
 	struct m0_rpc_server_ctx sctx = {
-		.rsx_xprts         = cs_xprts,
-		.rsx_xprts_nr      = ARRAY_SIZE(cs_xprts),
+		.rsx_xprts         = xprts,
+		.rsx_xprts_nr      = ARRAY_SIZE(xprts),
 		.rsx_argv          = cs_argv,
 		.rsx_argc          = cs_argc,
 		.rsx_log_file_name = SERVER_LOG_FILE_NAME
 	};
-
+	
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < cctx_nr; ++i) {
 		rc = cs_ut_client_init(&cctx[i], cl_ep_addrs[i],
 					srv_ep_addrs[i], cdbnames[i],
-					cs_xprts[i]);
+					sctx.rsx_xprts[i]);
 		M0_UT_ASSERT(rc == 0);
 	}
 
@@ -324,14 +324,21 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 {
 	int rc;
+	struct m0_net_xprt *xprts[] = { 
+		m0_net_xprt_default_get(),
+		(struct m0_net_xprt *)&m0_net_bulk_mem_xprt
+	};
 	struct m0_rpc_server_ctx sctx = {
-		.rsx_xprts         = cs_xprts,
-		.rsx_xprts_nr      = ARRAY_SIZE(cs_xprts),
+		.rsx_xprts         = xprts,
+		.rsx_xprts_nr      = ARRAY_SIZE(xprts),
 		.rsx_argv          = cs_argv,
 		.rsx_argc          = cs_argc,
 		.rsx_log_file_name = SERVER_LOG_FILE_NAME
 	};
 
+	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
+	
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc != 0);
 
@@ -448,7 +455,8 @@ static void test_cs_ut_lnet_multiple_if(void)
 	struct m0_motr motr_ctx = {};
 	int            rc;
 
-	rc = m0_cs_init(&motr_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr, true);
+	rc = m0_cs_init(&motr_ctx, m0_net_all_xprt_get(), m0_net_xprt_nr(),
+			stderr, true);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = cs_args_parse(&motr_ctx, ARRAY_SIZE(cs_ut_lnet_mult_if_cmd),
@@ -469,7 +477,8 @@ static void test_cs_ut_lnet_ep_mixed_dup(void)
 
 	out = fopen("temp", "w");
 
-	rc = m0_cs_init(&motr_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), out, true);
+	rc = m0_cs_init(&motr_ctx, m0_net_all_xprt_get(), m0_net_xprt_nr(),
+			out, true);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = cs_args_parse(&motr_ctx, ARRAY_SIZE(cs_ut_ep_mixed_dup_cmd),
@@ -624,8 +633,6 @@ static void cs_ut_write_lock_trigger(struct m0_reqh *reqh)
 static void test_cs_ut_rconfc_fatal(void)
 {
 	struct m0_rpc_server_ctx sctx = {
-		.rsx_xprts         = cs_xprts,
-		.rsx_xprts_nr      = ARRAY_SIZE(cs_xprts),
 		.rsx_argv          = cs_ut_service_one_cmd,
 		.rsx_argc          = ARRAY_SIZE(cs_ut_service_one_cmd),
 		.rsx_log_file_name = SERVER_LOG_FILE_NAME
@@ -633,6 +640,9 @@ static void test_cs_ut_rconfc_fatal(void)
 	struct m0_reqh *reqh = &sctx.rsx_motr_ctx.cc_reqh_ctx.rc_reqh;
 	struct m0_rconfc       rconfc;
 	int                    rc;
+
+	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);

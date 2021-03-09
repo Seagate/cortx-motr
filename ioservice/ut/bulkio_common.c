@@ -57,7 +57,11 @@ static char **server_argv_alloc(const char *server_ep_addr, int *argc)
 		"-c", M0_UT_PATH("diter.xc")
 	};
 
+#ifdef ENABLE_LIBFAB
+	n = snprintf(ep, sizeof ep, "libfab:%s", server_ep_addr);
+#else
 	n = snprintf(ep, sizeof ep, "lnet:%s", server_ep_addr);
+#endif
 	M0_ASSERT(n < sizeof ep);
 
 	n = snprintf(tm_len, sizeof tm_len, "%d", M0_NET_TM_RECV_QUEUE_DEF_LEN);
@@ -411,7 +415,7 @@ void bulkio_params_init(struct bulkio_params *bp)
 
 	io_buffers_allocate(bp);
 
-	bp->bp_xprt = &m0_net_lnet_xprt;
+	bp->bp_xprt = m0_net_xprt_default_get();
 	rc = m0_net_domain_init(&bp->bp_cnetdom, bp->bp_xprt);
 	M0_ASSERT(rc == 0);
 

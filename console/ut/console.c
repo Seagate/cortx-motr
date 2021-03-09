@@ -25,7 +25,6 @@
 
 #define CONSOLE_UT
 #include "console/console.c"  /* timeout */
-#include "net/lnet/lnet.h"    /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"       /* m0_rpc_client_ctx */
 #include "rpc/rpc_opcodes.h"  /* M0_CONS_FOP_DEVICE_OPCODE */
 #include "ut/misc.h"          /* M0_UT_PATH */
@@ -54,7 +53,11 @@ static struct m0_rpc_machine cons_mach;
 #define CLIENT_ENDPOINT_ADDR       "0@lo:12345:34:2"
 
 #define SERVER_ENDPOINT_ADDR	   "0@lo:12345:34:1"
+#ifdef ENABLE_LIBFAB
+#define SERVER_ENDPOINT		   "libfab:" SERVER_ENDPOINT_ADDR
+#else
 #define SERVER_ENDPOINT		   "lnet:" SERVER_ENDPOINT_ADDR
+#endif
 #define SERVER_DB_FILE_NAME	   "cons_server_db"
 #define SERVER_STOB_FILE_NAME	   "cons_server_stob"
 #define SERVER_ADDB_STOB_FILE_NAME "linuxstob:cons_server_addb_stob"
@@ -68,7 +71,6 @@ enum {
 	MAX_RETRIES        = 5,
 };
 
-static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain  client_net_dom = { };
 
 static struct m0_rpc_client_ctx cctx = {
@@ -91,13 +93,12 @@ static struct m0_rpc_server_ctx sctx;
 
 static int cons_init(void)
 {
-	int result;
-
+	int                  result;
 	timeout = 10;
 	result = m0_console_fop_init();
 	M0_ASSERT(result == 0);
 
-	result = m0_net_domain_init(&client_net_dom, xprt);
+	result = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(result == 0);
 
 	m0_sm_group_init(&cons_mach.rm_sm_grp);
@@ -452,8 +453,8 @@ static void cons_server_init(struct m0_rpc_server_ctx *sctx)
 	int result;
 
 	*sctx = (struct m0_rpc_server_ctx){
-		.rsx_xprts            = &xprt,
-		.rsx_xprts_nr         = 1,
+		.rsx_xprts            = m0_net_all_xprt_get(),
+		.rsx_xprts_nr         = m0_net_xprt_nr(),
 		.rsx_argv             = server_argv,
 		.rsx_argc             = ARRAY_SIZE(server_argv),
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME,

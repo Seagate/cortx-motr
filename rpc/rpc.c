@@ -33,7 +33,7 @@
 #include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 #include "rpc/service.h"
-
+#include "net/lnet/lnet.h"
 /**
  * @addtogroup rpc
  * @{
@@ -285,23 +285,19 @@ M0_INTERNAL m0_bcount_t m0_rpc_max_seg_size(struct m0_net_domain *ndom)
 {
 	M0_PRE(ndom != NULL);
 
-#ifdef ENABLE_LUSTRE
 	return min64u(m0_net_domain_get_max_buffer_segment_size(ndom),
-		      M0_SEG_SIZE);
-#else
-	return M0_RPC_DEF_MAX_RPC_MSG_SIZE;
-#endif
+		      M0_RPC_DEF_MAX_RPC_MSG_SIZE);
 }
 
 M0_INTERNAL uint32_t m0_rpc_max_segs_nr(struct m0_net_domain *ndom)
 {
 	M0_PRE(ndom != NULL);
 
-#ifdef ENABLE_LUSTRE
+#ifdef ENABLE_LIBFAB
+	return 1;
+#else
 	return m0_net_domain_get_max_buffer_size(ndom) /
 	       m0_rpc_max_seg_size(ndom);
-#else
-	return 1;
 #endif
 }
 
@@ -321,11 +317,11 @@ M0_INTERNAL uint32_t m0_rpc_max_recv_msgs(struct m0_net_domain *ndom,
 {
 	M0_PRE(ndom != NULL);
 
-#ifdef ENABLE_LUSTRE
+#ifdef ENABLE_LIBFAB
+	return 1;
+#else
 	return m0_net_domain_get_max_buffer_size(ndom) /
 	       m0_rpc_max_msg_size(ndom, rpc_size);
-#else
-	return 1;
 #endif
 }
 

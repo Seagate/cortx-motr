@@ -82,7 +82,11 @@ static char COB_FOP_NR_STR[] = { '0' + COB_FOP_NR, '\0'};
 
 #define SERVER_EP_ADDR              "0@lo:12345:34:1"
 #define CLIENT_EP_ADDR              "0@lo:12345:34:*"
+#ifdef ENABLE_LIBFAB
+#define SERVER_ENDP                 "libfab:" SERVER_EP_ADDR
+#else
 #define SERVER_ENDP                 "lnet:" SERVER_EP_ADDR
+#endif
 static const char *SERVER_LOGFILE = "cobfoms_ut.log";
 
 struct cobfoms_ut {
@@ -126,7 +130,7 @@ static void cobfoms_utinit(void)
 	M0_ALLOC_PTR(cut);
 	M0_UT_ASSERT(cut != NULL);
 
-	cut->cu_xprt = &m0_net_lnet_xprt;
+	cut->cu_xprt = m0_net_xprt_default_get();
 
 	rc = m0_net_domain_init(&cut->cu_nd, cut->cu_xprt);
 	M0_UT_ASSERT(rc == 0);

@@ -142,17 +142,27 @@ enum {
 	MIN_RECV_QUEUE_LEN = 200
 };
 
+#ifdef ENABLE_LIBFAB
+#define TRANSPORT_NAME "libfab"
+#else
+#define TRANSPORT_NAME "lnet"
+#endif
+
 /* #define UB_USE_LNET_XPORT */
 #ifdef UB_USE_LNET_XPORT
 #  define CLIENT_ENDPOINT_FMT  "0@lo:12345:34:%d"
 #  define SERVER_ENDPOINT_ADDR "0@lo:12345:32:1"
-#  define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
+#  define SERVER_ENDPOINT      TRANSPORT_NAME ":" SERVER_ENDPOINT_ADDR
+#ifdef ENABLE_LIBFAB
+static struct m0_net_xprt *g_xprt = &m0_net_libfab_xprt;
+#else
 static struct m0_net_xprt *g_xprt = &m0_net_lnet_xprt;
+#endif
 #else
 #  define CLIENT_ENDPOINT_FMT  "127.0.0.1:%d"
 #  define SERVER_ENDPOINT_ADDR "127.0.0.1:1"
 #  define SERVER_ENDPOINT      "bulk-mem:" SERVER_ENDPOINT_ADDR
-static struct m0_net_xprt *g_xprt = &m0_net_bulk_mem_xprt;
+static struct m0_net_xprt *g_xprt = (struct m0_net_xprt *)&m0_net_bulk_mem_xprt;
 #endif
 
 struct ub_rpc_client {
