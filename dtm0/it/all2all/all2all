@@ -1,0 +1,237 @@
+#!/bin/bash
+#set -x
+set -e
+
+MOTR_ROOT=$(realpath ../../..)
+MOTR_ST_UTILS_DIR=${MOTR_ROOT}/motr/st/utils/
+MOTR_VAR_DIR=/var/motr
+TEST_ROOT=$MOTR_VAR_DIR/all2all_test
+CURRENT_CDF=$PWD/test.yaml
+LOOP_IMG_DIR=$TEST_ROOT
+
+M0D_DIR_COMMON=$MOTR_VAR_DIR/m0d-0x7200000000000001:0x
+M0D_ENDPOINTS=(c 1a 28)
+
+M0D_PIDS=()
+
+POOL_WIDTH=4
+IPOOL_WIDTH=2
+
+. ${MOTR_ROOT}/scripts/addb-py/chronometry/common/common_funcs
+
+
+function check_hare()
+{
+    local rc
+    set +e
+    which hctl >/dev/null 2>&1
+    rc=`echo $?`
+    if [ $rc -ne 0 ]
+    then
+        _err "Hare is not installed, install it and try again."
+        exit 1
+    fi
+    set -e
+}
+
+function stop_cluster()
+{
+    set +e
+    hctl shutdown || {
+        _warn "Cluster stop FAILED! Trying to go further."
+    }
+    
+    #systemctl reset-failed hare-hax
+    set -e
+}
+
+function bootstrap_cluster()
+{
+    hctl bootstrap --mkfs $CURRENT_CDF
+}
+
+#============= DEVICES SECTION =============#
+function init_loop_devices()
+{
+    fini_loop_devices()
+
+    if [[ ! -d $LOOP_IMG_DIR ]] ; then
+        _warn "'$LOOP_IMG_DIR' doesn't exist, creating.."
+        mkdir -p "$LOOP_IMG_DIR"
+    fi
+
+    create_loop_images
+    setup_loop_devices
+}
+
+function fini_loop_devices()
+{
+    cleanup_loop_devices
+    cleanup_loop_images
+}
+
+function create_loop_images()
+{
+    local imgs_cnt=$((POOL_WIDTH + IPOOL_WIDTH))
+
+    _info "Creating $imgs_cnt file images, 1GiB each, in '$LOOP_IMG_DIR'"
+    for i in $(seq $imgs_cnt) ; do
+        local img_file="$LOOP_IMG_DIR/disk$i.img"
+        dd if=/dev/zero of="$img_file" \
+           bs=1M seek=$(( 1 * 1024 - 1 )) count=1 &>/dev/null
+    done
+}
+
+function setup_loop_devices()
+{
+    local imgs_cnt=$((POOL_WIDTH + IPOOL_WIDTH))
+
+    _info "Setting up loop devices"
+    for i in $(seq $imgs_cnt) ; do
+        local img_file="$LOOP_IMG_DIR/disk$i.img"
+        local free_loopdev=$(losetup -f)
+        loop_devsused[$i]=$free_loopdev
+        _info "$free_loopdev => $img_file"
+        [[ -e $img_file ]] ||
+            die "image file '$img_file' doesn't exist"
+        losetup $free_loopdev "$img_file"
+    done
+}
+
+function cleanup_loop_devices()
+{
+    local imgs_cnt=$((POOL_WIDTH + IPOOL_WIDTH))
+
+    _info "Removing loop devices"
+    for i in $(seq $imgs_cnt) ; do
+        local img_file="$LOOP_IMG_DIR/disk$i.img"
+        if [[ -e $img_file ]] ; then
+            local loop_todel=$(losetup -j $img_file -O name | grep loop)
+            if [[ -n $loop_todel ]] ; then
+                losetup -d $loop_todel
+            fi
+        fi
+    done
+}
+
+function cleanup_loop_images()
+{
+    local imgs_cnt=$((POOL_WIDTH + IPOOL_WIDTH))
+
+    _info "Removing file images"
+    for i in $(seq $imgs_cnt) ; do
+        local img_file="$LOOP_IMG_DIR/disk$i.img"
+        rm -f "$img_file"
+    done
+}
+############################################
+
+function set_m0d_pids()
+{
+    local m0d_dir
+    local pids=""
+
+    for endp in ${M0D_ENDPOINTS[@]}
+    do
+        m0d_dir=${M0D_DIR_COMMON}${endp}
+        pid=`ls -l ${m0d_dir}/m0trace.* | awk '{ print $NF; }' | awk -F"." '{ print $2; }' | awk  'BEGIN { pid=0; } { if (pid < $0) pid = $0; } END { print pid; }'`
+        M0D_PIDS+=($pid)
+        pids+="$pid "
+    done
+
+    _info "m0d PIDs: $pids"
+}
+
+function ha_msg_send_transient()
+{
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:2" "^r|1:26" "transient"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:3" "^r|1:12" "transient"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:4" "^r|1:12" "transient"
+}
+
+function ha_msg_send_online()
+{
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:2" "^r|1:26" "online"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:2" "^r|1:40" "online"
+
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:3" "^r|1:12" "online"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:3" "^r|1:40" "online"
+
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:4" "^r|1:12" "online"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:4" "^r|1:26" "online"
+}
+
+function check_ne()
+{
+    CHECK=0
+    local pattern="$1"
+    local exp_cnt=$2
+    local m0d_dir
+    local cnt
+
+    for i in ${!M0D_PIDS[@]}
+    do
+        m0d_dir=${M0D_DIR_COMMON}${M0D_ENDPOINTS[i]}
+        cnt=`$MOTR_ROOT/utils/trace/m0trace -i "${m0d_dir}/m0trace.${M0D_PIDS[i]}" | grep "$pattern" | wc -l`
+        if [ $cnt -ne $exp_cnt ]
+        then
+            CHECK=1
+            break
+        fi
+    done
+}
+
+function fail()
+{
+    _err "$1"
+    stop_cluster
+    _err "TEST STATUS: FAIL"
+    exit 1
+}
+
+function main()
+{
+    check_hare
+    init_loop_devices
+
+    _info "Bootstrapping the cluster using Hare..."
+    bootstrap_cluster
+
+    set_m0d_pids
+
+    _info "Checking traces..."
+    check_ne "evented_proc_state" 0
+    if [ $CHECK -ne 0 ]
+    then
+        fail "HA event handled instead of to be skipped, exiting."
+    fi
+
+    # send HA TRANSIENT
+    _info "Sending TRANSIENT notifications to trigger HA messages handling..."
+    ha_msg_send_transient
+
+    _info "Checking traces..."
+    check_ne "TRANSIENT received" 1
+    if [ $CHECK -ne 0 ]
+    then
+        fail "Trigger message is not received, exiting."
+    fi
+
+    # send HA ONLINE
+    _info "Sending ONLINE notifications to trigger connections logic..."
+    ha_msg_send_online
+
+    _info "Checking traces..."
+    check_ne "DTM0 service: connected" 2
+    if [ $CHECK -ne 0 ]
+    then
+        fail "Process is not connected, exiting"
+    fi
+
+    stop_cluster
+    fini_loop_devices
+
+    _info "TEST STATUS: PASSED"
+}
+
+main
