@@ -484,4 +484,4 @@ def test_lnet(self):
     lnet_ping(self)
 def test_libfabric(self):
     search_libfabric_pkgs = ["libfabric"]
-    check_pkgs(self, search_lnet_pkgs)
+    check_pkgs(self, search_libfabric_pkgs)
