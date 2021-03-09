@@ -1274,7 +1274,7 @@ static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 	struct m0_fab__tm    *ma = libfab_buf_tm(buf);
 	struct m0_net_buffer *nb = buf->fb_nb;
 	struct m0_fab__buf   *pas_buf;
-	uint64_t             *tmp;
+	uint64_t             *ptr;
 
 	M0_PRE(libfab_tm_is_locked(ma));
 	/*
@@ -1285,10 +1285,10 @@ static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 		/* Try to finalise. */
 		if (m0_thread_self() == &ma->ftm_poller) {
 			if (buf->fb_length == (sizeof(uint64_t) * 2)) {
-				tmp = (uint64_t *)nb->nb_buffer.ov_buf[0];
-				if (*tmp == FAB_DUMMY_DATA) {
-					tmp++;
-					pas_buf = (struct m0_fab__buf *)(*tmp);
+				ptr = (uint64_t *)nb->nb_buffer.ov_buf[0];
+				if (*ptr == FAB_DUMMY_DATA) {
+					ptr++;
+					pas_buf = (struct m0_fab__buf *)(*ptr);
 					libfab_buf_complete(pas_buf, 0);
 				}
 			}
