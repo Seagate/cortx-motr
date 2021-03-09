@@ -63,6 +63,10 @@ enum m0_fab__mr_params {
 	FAB_MR_KEY     = 0XABCD,
 	/** Max number of IOV in send/recv/read/write command */
 	FAB_MR_IOV_MAX = 256,
+	/** Buffer descriptor size (netaddr + rma_key + buf ptr) */
+	FAB_BDESC_SIZE = (sizeof(uint64_t) * 3),
+	/** Dummy data used to notify remote end for rma op completions */
+	FAB_DUMMY_DATA = 0xFABC0DE,
 };
 
 enum PORT_SOCK_TYPE {
@@ -148,8 +152,9 @@ struct m0_fab__buf_mr {
 struct m0_fab__buf {
 	uint64_t               fb_magic;   /* Magic number */
 	uint64_t               fb_sndmagic;/* Magic number */
-	uint64_t               fb_rc_buf;  /* For remote completions */
+	uint64_t               fb_dummy[2];/* Dummy data + nb ptr */
 	uint64_t               fb_rem_key;
+	uint64_t               fb_rem_buf;
 	struct m0_fab__buf_mr  fb_mr;
 	struct fid_domain     *fb_dp;      /* Domain to which the buf is reg */
 	struct m0_net_buffer  *fb_nb;      /* Pointer back to network buffer*/
