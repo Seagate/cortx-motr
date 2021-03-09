@@ -698,6 +698,12 @@ enum m0_magic_satchel {
 	/* net/libfab.c: snd_buf list head (bad dada deeef) */
 	M0_NET_LIBFAB_SNDBUF_HEAD_MAGIC = 0x33baddadadeeef77,
 
+	/* net/libfab.c: fab_fabs list, fab::fab_magic (fed ace dedade) */
+	M0_NET_LIBFAB_FAB_MAGIC = 0x33fedacededade77,
+
+	/* net/libfab.c: fab_fabs list head (bad dada dedef) */
+	M0_NET_LIBFAB_FAB_HEAD_MAGIC = 0x33baddadadedef77,
+
 	/* net/net.h: m0_nep list element, endpoint (obsessed loll) */
 	M0_NET_NEP_MAGIC = 0x330b5e55ed101177,
 

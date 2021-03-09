@@ -22,6 +22,7 @@
 
 #include "motr/setup.c"
 
+#include "net/bulk_mem.h"  /* m0_net_bulk_mem_xprt */
 #include "ut/cs_fop.h"     /* CS_UT_SERVICE1 */
 #include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
@@ -300,7 +301,6 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 		.rsx_argc          = cs_argc,
 		.rsx_log_file_name = SERVER_LOG_FILE_NAME
 	};
-
 	
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
@@ -331,8 +331,8 @@ static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 		&m0_net_bulk_mem_xprt
 	};
 	struct m0_rpc_server_ctx sctx = {
-		.rsx_xprts         = xprts;
-		.rsx_xprts_nr      = ARRAY_SIZE(xprts);
+		.rsx_xprts         = xprts,
+		.rsx_xprts_nr      = ARRAY_SIZE(xprts),
 		.rsx_argv          = cs_argv,
 		.rsx_argc          = cs_argc,
 		.rsx_log_file_name = SERVER_LOG_FILE_NAME
