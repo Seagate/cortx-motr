@@ -505,7 +505,7 @@ static int cr_idx_w_init(struct cr_idx_w *ciw,
 	/* If key size is random, generate it using rand(). */
 	if (ciw->wit->key_size < 0)
 		ciw->wit->key_size = ciw->wit->min_key_size +
-			cr_rand_pos_range(ciw->wit->max_key_size);
+			cr_rand_pos_range(ciw->wit->max_key_size - ciw->wit->min_key_size);
 
 	if (wit->warmup_del_ratio > 0)
 		ciw->warmup_del_cnt =
@@ -657,7 +657,7 @@ static size_t cr_idx_w_get_value_size(struct cr_idx_w *w)
 	/* If value_size is random, generate it using rand() */
 	if (w->wit->value_size < 0)
 		vlen = w->wit->key_size +
-			cr_rand_pos_range(w->wit->max_value_size);
+			cr_rand_pos_range(w->wit->max_value_size - w->wit->key_size);
 	else
 		vlen = w->wit->value_size;
 
@@ -1100,9 +1100,7 @@ static int cr_idx_w_execute(struct cr_idx_w *w,
 	}
 
 	/* populating key prefix */
-	for(i = 0; i < kpart_one_size; i++) {
-		kpart_one[i] = 'A';
-	}
+	memset(kpart_one, 'A', kpart_one_size);
 
 	rc = op->fill_kv(w, keys, &kv, nr_keys, kpart_one_size, kpart_one);
 	if (rc != 0) {
