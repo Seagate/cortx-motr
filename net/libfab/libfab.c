@@ -1802,7 +1802,7 @@ static int libfab_ma_start(struct m0_net_transfer_mc *ntm, const char *name)
 	int                      rc = 0;
 
 	M0_ALLOC_PTR(ftm->ftm_pep);
-	if (ftm->ftm_pep != NULL)
+	if (ftm->ftm_pep != NULL) {
 		libfab_ep_addr_decode(ftm->ftm_pep, name);
 		
 		fl = ntm->ntm_dom->nd_xprt_private;
@@ -1829,7 +1829,7 @@ static int libfab_ma_start(struct m0_net_transfer_mc *ntm, const char *name)
 					    struct m0_fab__tm *, NULL,
 					    &libfab_poller, ftm,
 					    "libfab_tm");
-	else
+	} else
 		rc = M0_ERR(-ENOMEM);
 
 	libfab_tm_evpost_lock(ftm);
