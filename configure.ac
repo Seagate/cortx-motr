@@ -797,7 +797,7 @@ AS_IF([test x$with_lustre != xno],[
 AC_ARG_ENABLE([libfab],
         [AS_HELP_STRING([--enable-libfab],
                         [Use libfabric transport])],
-        [],[enable_libfab=no]
+        [],[enable_libfab=yes]
 )
 
 AC_ARG_WITH([libfab],

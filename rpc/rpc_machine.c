@@ -470,7 +470,11 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 	if (rc < 0)
 		return M0_ERR_INFO(rc, "TM initialization");
 
+#ifdef ENABLE_LIBFAB
+	max_msgs_size = 1;
+#else
 	max_msgs_size = m0_rpc_max_msg_size(net_dom, msg_size);
+#endif
 
 	rc = m0_net_tm_pool_attach(tm, pool, &rpc_buf_recv_cb,
 				   max_msgs_size,	
