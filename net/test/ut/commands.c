@@ -38,8 +38,8 @@ enum {
 	NTC_MULTIPLE_NODES    = 64,
 	NTC_MULTIPLE_COMMANDS = 32,
 	NTC_ADDR_LEN_MAX      = 0x100,
-	NTC_TIMEOUT_MS	      = 5000,
-	NTC_CMD_RECV_WAIT_NS  = 35000000,
+	NTC_TIMEOUT_MS	      = 1000,
+	NTC_CMD_RECV_WAIT_NS  = 25000000,
 };
 
 static const char   NTC_ADDR[]	   = "0@lo:12345:42:%d";
