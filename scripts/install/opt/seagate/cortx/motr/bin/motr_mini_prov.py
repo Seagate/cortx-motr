@@ -201,7 +201,7 @@ def configure_libfabric(self):
         raise MotrError(errno.EINVAL, "interface_type not found\n")
 
     sys.stdout.write(f"iface type: {iface_type}\n")
-    cmd = f"fi_info"
+    cmd = "fi_info"
     execute_command(self, cmd)
     sys.stdout.write(f"fi_info: {cmd}\n")
     os.system('fi_info')
