@@ -199,9 +199,12 @@ def configure_libfabric(self):
             f'cluster>{self._server_id}')['network']['data']['interface_type']
     except:
         raise MotrError(errno.EINVAL, "interface_type not found\n")
+
+    sys.stdout.write(f"iface type: {iface_type}\n")
     cmd = f"fi_info"
     execute_command(self, cmd)
-    sys.stdout.write(f"fi_info: {fi_info}\n")
+    sys.stdout.write(f"fi_info: {cmd}\n")
+    os.system('fi_info');
 
 def swap_on(self):
     cmd = "swapon -a"
