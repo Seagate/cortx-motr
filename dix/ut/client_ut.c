@@ -1134,7 +1134,7 @@ static void dixc_ut_init(struct m0_rpc_server_ctx *sctx,
 	M0_UT_ASSERT(rc == 0);
 	rc = dix_client_init(cctx, cl_ep_addrs[0],
 			     srv_ep_addrs[0], cdbnames[0],
-			     sctx->rsx_xprts[0]);
+			     m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 }
 
