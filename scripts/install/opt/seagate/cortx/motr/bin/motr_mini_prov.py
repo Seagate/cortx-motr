@@ -204,7 +204,7 @@ def configure_libfabric(self):
     cmd = f"fi_info"
     execute_command(self, cmd)
     sys.stdout.write(f"fi_info: {cmd}\n")
-    os.system('fi_info');
+    os.system('fi_info')
 
 def swap_on(self):
     cmd = "swapon -a"
@@ -485,6 +485,7 @@ def test_lnet(self):
     execute_command(self, cmd)
 
     lnet_ping(self)
+
 def test_libfabric(self):
     search_libfabric_pkgs = ["libfabric"]
     check_pkgs(self, search_libfabric_pkgs)
