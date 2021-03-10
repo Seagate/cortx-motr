@@ -3,7 +3,7 @@ B-tree
 ======
 
 :author: Nikita Danilov <nikita.danilov@seagate.com>
-:state: PLAN
+:state: EXEC:DLD
 :copyright: Seagate
 :distribution: unlimited
 :address: https://github.com/Seagate/cortx-motr/blob/documentation/doc/dev/btree/index.rst
@@ -1032,45 +1032,15 @@ Meetings
      - state machine of delete, state machine of iterate
      - recording: https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210310%200941-1.mp4?csf=1&web=1&e=JXgIXV
 
-Task requirements (TREQ)
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-..
-   Task requirements are extracted from the development requirements and refined.
-
-High-level design (HLD)
-~~~~~~~~~~~~~~~~~~~~~~~
-
-..
-   A high-level design is created and recorded in doc/hld. A link to the HLD file
-   is placed in the tracking file.
-
-   The resulting HLD should contain enough information to start the DLD. An HLD
-   contains, among other things, functional and logical specification of the task,
-   *testing*, *integration* and *deployment* plans (see
-   doc/hld/hld-template.rst.in).
-
-High-level design intermediate review (HLDIR)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-..
-   Creation of a complex HLD can be periodically informally reviewed (**by ...**)
-   to assure that it goes in the right direction.
-
-High-level design inspection (HLDINSP)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-..
-   An HLD is inspected. Inspection comments are recorded. The HLD authors discuss
-   and address the comments. The HLD is updated. The inspection process is repeated
-   until all found issues are addressed.
-
 Detailed-level design (DLD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The outline of the proposed b-tree on disk format is the following:
 
 .. image:: formats.png
+
+
+DLD is maintained in Doxygen format in `the source <https://github.com/Seagate/cortx-motr/blob/btree/btree/btree.c>`_.
 
 ..
    A detailed-level design is created as a set of skeleton source files with embedded
