@@ -473,8 +473,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	uint64_t                  rr_page_nr;
 	m0_bindex_t               grpstart;
 	m0_bindex_t               grpend;
-	m0_bindex_t               currindex;
-	m0_bindex_t               startindex;
+	m0_bindex_t               startindex = m0_ivec_cursor_index(cursor);
 	struct m0_pdclust_layout *play;
 	struct m0_op_io          *ioo;
 	struct m0_op             *op;
@@ -506,13 +505,12 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	 * zeroed?
 	 */
 	if (M0_IN(op->op_code, (M0_OC_FREE, M0_OC_WRITE))) {
+		m0_bindex_t idx;
 		for (seg = cursor->ic_cur.vc_seg; seg < SEG_NR(ivec) &&
 		     INDEX(ivec, seg) < grpend; ++seg) {
-			currindex = seg == cursor->ic_cur.vc_seg ?
-				    m0_ivec_cursor_index(cursor) :
-				    INDEX(ivec, seg);
-			size += min64u(seg_endpos(ivec, seg), grpend) -
-				currindex;
+			idx = seg == cursor->ic_cur.vc_seg ?
+				    startindex : INDEX(ivec, seg);
+			size += min64u(seg_endpos(ivec, seg), grpend) - idx;
 		}
 
 		if (size < grpsize)
@@ -521,28 +519,26 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	if (op->op_code == M0_OC_FREE && rmw)
 		map->pi_trunc_partial = true;
 
-	startindex = m0_ivec_cursor_index(cursor);
 	M0_LOG(M0_INFO, "Group id %"PRIu64" is %s", map->pi_grpid,
 	       rmw ? "rmw" : "aligned");
 
+	/* Populate pi_ivec. */
 	for (seg = 0; !m0_ivec_cursor_move(cursor, count) &&
-		      m0_ivec_cursor_index(cursor) < grpend;) {
+	               m0_ivec_cursor_index(cursor) < grpend;) {
 		/*
 		 * Skips the current segment if it is completely spanned by
-		 * rounding up/down of earlier segment.
+		 * rounding up/down of an earlier segment.
 		 */
 		if (map->pi_ops->pi_spans_seg(map,
-			m0_ivec_cursor_index(cursor),
-			m0_ivec_cursor_step(cursor)))
-		{
+					      m0_ivec_cursor_index(cursor),
+					      m0_ivec_cursor_step(cursor))) {
 			count = m0_ivec_cursor_step(cursor);
 			continue;
 		}
 
 		INDEX(&map->pi_ivec, seg) = m0_ivec_cursor_index(cursor);
-		endpos = min64u(grpend,
-				m0_ivec_cursor_index(cursor)
-				+ m0_ivec_cursor_step(cursor));
+		endpos = min64u(grpend, m0_ivec_cursor_index(cursor) +
+		                        m0_ivec_cursor_step(cursor));
 		segcount = seg_collate(map, cursor);
 		if (segcount > 0)
 			endpos = INDEX(&map->pi_ivec, seg) + segcount;
@@ -550,7 +546,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 
 		/*
 		* If current segment is _partially_ spanned by previous
-		* segment in pargrp_iomp::pi_ivec, start of segment is
+		* segment in pargrp_iomap::pi_ivec, start of segment is
 		* rounded up to move to next page.
 		*/
 		/*
@@ -561,13 +557,13 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 		 * EOS-5083 is created to handle this.
 		 */
 		if (seg > 0 && INDEX(&map->pi_ivec, seg) <
-			seg_endpos(&map->pi_ivec, seg - 1)) {
+		               seg_endpos(&map->pi_ivec, seg - 1)) {
 			m0_bindex_t newindex;
 
 			newindex = m0_round_up(INDEX(&map->pi_ivec, seg) + 1,
 					       pagesize);
-			COUNT(&map->pi_ivec, seg) -=
-				(newindex - INDEX(&map->pi_ivec, seg));
+			COUNT(&map->pi_ivec, seg) -= newindex -
+			                             INDEX(&map->pi_ivec, seg);
 			INDEX(&map->pi_ivec, seg)  = newindex;
 		}
 
@@ -790,7 +786,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	struct m0_op_io          *ioo;
 	struct m0_obj            *obj;
 	struct m0_op             *op;
-	m0_bindex_t               grp_size;
+	m0_bindex_t               grp_off;
 
 	M0_ENTRY("map %p, seg %"PRIu64", %s", map, seg,
 		 rmw ? "rmw" : "aligned");
@@ -801,7 +797,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	obj = ioo->ioo_obj;
 	play = pdlayout_get(ioo);
 	pagesize = m0__page_size(ioo);
-	grp_size = data_size(play) * map->pi_grpid;
+	grp_off = data_size(play) * map->pi_grpid;
 
 	m0_ivec_cursor_init(&cur, &map->pi_ivec);
 	ret = m0_ivec_cursor_move_to(&cur, INDEX(&map->pi_ivec, seg));
@@ -834,7 +830,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 			flags |= PA_READ;
 		}
 
-		page_pos_get(map, start, grp_size, &row, &col);
+		page_pos_get(map, start, grp_off, &row, &col);
 		M0_ASSERT(col <= map->pi_max_col);
 		M0_ASSERT(row <= map->pi_max_row);
 
