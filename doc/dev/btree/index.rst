@@ -1018,11 +1018,11 @@ Meetings
 
    * - 2021.03.09
      - sync up
-     - shashank, jaydeep, nikhil, nikita, shankar, yashb, huanghua, mukund
+     - shashank, jaydeep, nikhil, nikita
      - dld progress, lookup state machine
      - 
      - nikita: prepare state machine diagrams and description of insert
-     - recording: https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210309%201010-1.mp4?csf=1&web=1&e=JoOg2J
+     - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210309%201010-1.mp4?csf=1&web=1&e=JoOg2J>`_
 
    * - 2021.03.10
      - sync up
@@ -1030,7 +1030,7 @@ Meetings
      - dld progress, lookup state machine, insert state machine
      - 
      - state machine of delete, state machine of iterate
-     - recording: https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210310%200941-1.mp4?csf=1&web=1&e=JXgIXV
+     - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210310%200941-1.mp4?csf=1&web=1&e=JXgIXV>`_
 
 Detailed-level design (DLD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
