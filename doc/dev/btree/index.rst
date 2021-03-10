@@ -1022,7 +1022,7 @@ Meetings
      - dld progress, lookup state machine
      - 
      - nikita: prepare state machine diagrams and description of insert
-     - recodring: ?
+     - recording: https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210309%201010-1.mp4?csf=1&web=1&e=JoOg2J
 
    * - 2021.03.10
      - sync up
@@ -1030,7 +1030,7 @@ Meetings
      - dld progress, lookup state machine, insert state machine
      - 
      - state machine of delete, state machine of iterate
-     - recodring: ?
+     - recording: https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210310%200941-1.mp4?csf=1&web=1&e=JXgIXV
 
 Task requirements (TREQ)
 ~~~~~~~~~~~~~~~~~~~~~~~~
