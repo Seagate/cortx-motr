@@ -62,7 +62,7 @@ M0_INTERNAL int m0_dtm0_service_process_disconnect(struct m0_reqh_service *s,
 						   struct m0_fid *remote_srv);
 M0_INTERNAL struct m0_rpc_session *
 m0_dtm0_service_process_session_get(struct m0_reqh_service *s,
-				    struct m0_fid *remote_srv);
+				    const struct m0_fid *remote_srv);
 
 M0_INTERNAL bool m0_dtm0_is_a_volatile_dtm(struct m0_reqh_service *service);
 M0_INTERNAL bool m0_dtm0_is_a_persistent_dtm(struct m0_reqh_service *service);

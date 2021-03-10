@@ -19,7 +19,7 @@
  *
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM0
 #include "lib/trace.h"
 
 #include "dtm0/clk_src.h"

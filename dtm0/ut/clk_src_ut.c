@@ -35,7 +35,7 @@ static void ts_format(void)
 	struct m0_dtm0_ts ts = M0_DTM0_TS_MIN;
 	const char       *expected = "'@1'";
 
-	m0_asprintf(&str, "'" M0_DTM0_TS_FMT "'", M0_DTM0_TS_P(&ts));
+	m0_asprintf(&str, "'" DTS0_F "'", DTS0_P(&ts));
 	M0_UT_ASSERT(str);
 
 	M0_UT_ASSERT(m0_streq(expected, str));
