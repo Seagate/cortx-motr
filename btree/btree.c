@@ -118,8 +118,105 @@
  *
  * Otherwise, lookup performs a tree traversal.
  *
+ * @verbatim
+ *
+ *                         INIT───────►COOKIE───────────┐
+ *                           │           │              │
+ *                           └────┐ ┌────┘              │
+ *                                │ │                   │
+ *                                ▼ ▼                   │
+ *                      ┌────────SETUP◄────────────┐    │
+ *                      │          │               │    │
+ *                      │          ▼               │    │
+ *                      ├───────LOCKALL◄───────────┤    │
+ *                      │          │               │    │
+ *                      │          ▼               │    │
+ *                      ├────────DOWN◄─────────────┤    │
+ *                      │          │               │    │
+ *                      │          ▼               │    │
+ *                      │  ┌──►NEXTDOWN──►LOCK──►CHECK◄─┘
+ *                      │  │     │  │              │
+ *                      │  └─────┘  │              ▼
+ *                      │           │             ACT
+ *                      │           │              │
+ *                      │           │              ▼
+ *                      └───────────┴──────────►CLEANUP──►DONE
+ *
+ * @endverbatim
+ *
+ * (https://asciiflow.com/#/share/eJyrVspLzE1VslJydw1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVga68QoVQJZRuYGQFZJakUJkBOjpKCg4OnnGfJoyh4saNouZ39%2Fb09X7LKoKCYmTwEEgEwFBEDlQQSQVKIhbEK4dMONx1CEXeW0PWCMSyUenwW7hoQGPJreQkwoQB0DNxNPSCjgUYvhUHS1WJGPv7O3o48PkU4lw51YQg%2FmXip5AYhc%2FMP9iA9tegU4cnKdtsvPNSIE7E6YACjo4RxnD1cgD%2BYFJP0Ik3GkbDSLUDyJqQUz1DEUOTqHEFSDLUDIsS3UDxQK1LaOCggYIz6ujn7ATAzju%2Fj7ucYo1SrVAgDtHU%2Bx)
+ *
+ * @verbatim
+ *
+ *                                                  OP
+ *                         ┌─────────────────────────tree
+ *                         │
+ *                         │   ┌─────────────────────path[0]
+ *                         ▼   ▼
+ *                         ┌─┐ ┌─────────┐    ┌──────path[1]
+ *                         └─┘ └┼─┼─────┼┘    │
+ *                              │ │     │     │ ┌────path[2]
+ *                      ┌───────┘ │ ... └──┐  │ │
+ *                      │         │        │  │ │  ┌─path[3]
+ *                      ▼         ▼        ▼  │ │  │
+ *                                ┌─────┐     │ │  │ path[4] == NULL
+ *                                └──┼──┘◄────┘ │  │
+ *                                   │          │  │ ...
+ *                                   │          │  │
+ *                                   ▼          │  │ path[N] == NULL
+ *                                   ┌──────┐◄──┘  │
+ *                                   └────┼─┘      │
+ *                                        │        │
+ *                         ┌──────────────┘        │
+ *                         │                       │
+ *                         ▼                       │
+ *                         ┌─────┐◄────────────────┘
+ *                         └─────┘
+ *
+ * @endverbatim
+ *
+ * (https://asciiflow.com/#/share/eJytU70OwiAQfhVyc9NoNf49hLoLAwOJgxpTiWljTBwcHRya6sP4NH0SESsebakMkgt80Lvv7uPoATZ8LWACMuZ7Ee%2F4CgJY8VTE6uxAIaEwGY3GAYVUoWgwVEiKRKoNBdIyZnNKN2otsscfTcZCGF4D%2FpJmy%2BVy0WElaf54zxURCl2K7OS2K3EVo%2Fm7rE6YaXT6zNjUyZ1gsaTclaqJtTYljF4JW1TrwDAMrWBD944lODGGyCtHXl%2BsoSkXldVjSI%2Fjwmyt9hW4Gn47N%2BmrBdtakBpdXJ95Odecch8nVytQ5eTTFN9g87UaUC2%2ByKoP2tMwl76jKcN%2FX9P45sp%2Fu%2Fg108daCCkc4fgEE6VxEw%3D%3D)
+ *
  * Insertion (PUT)
  * ...............
+ *
+ * @verbatim
+ *
+ *                            INIT
+ *                              │
+ *                              ▼
+ *                            SETUP◄──────────────┐
+ *                              │                 │
+ *                              ▼                 │
+ *                           LOCKALL◄───────────┐ │
+ *                              │               │ │
+ *                              ▼               │ │
+ *                            DOWN◄───────────┐ │ │
+ *                      ┌────┐  │             │ │ │
+ *                      │    │  ▼             │ │ │
+ *                      └──►NEXTDOWN──►LOCK──►CHECK
+ *                           ▲   │              │
+ *                           │   │              ▼
+ *                           │   ▼      ┌───MAKESPACE◄─┐
+ *                           └─ALLOC    │       │      │
+ *                                      ▼       ▼      │
+ *                                     ACT──►NEXTUP────┘
+ *                                              │
+ *                                              ▼
+ *                                           CLEANUP──►DONE
+ *
+ * @endverbatim
+ *
+ * (https://asciiflow.com/#/share/eJyrVspLzE1VslIKCA1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVgY6cQoVQJZRuYgVklqRQmQE6OkAAaefp4hMTF5ClDwaMoeZN40BC%2FYNSQ04NH0FqAK4hGKyU0K6ADDNnwqfPydvR19fIh0ArrZGLZjUYNhP7oaF%2F9wPxLsh%2BrFIonhHgwdMEEMV%2BEye9ouP9eIELALpzSA0LRdoBCDc5w9XJ29YT55NG0TzHxUs5vgKsBymCoQKQKqAuY8ZP%2F5Onq7Bgc4OrvCAwtJExABo9HfWQHFfHiAoMYJZtwgW4ip0NE5BCU8gEkWZ4rEsAO%2F7DScss4%2Bro5%2BIJugQe3i7%2Bcao1SrVAsAfsRzyg%3D%3D)
+ *
+ * MAKESPACE provides sufficient free space in the current node. It handles
+ * multple cases:
+ *
+ *     - on the leaf level, provide space for the new record being inserted;
+ *
+ *     - on an internal level, provide space for the new child pointer;
+ *
+ *     - insert new root.
  *
  * Deletion (DEL)
  * ..............
@@ -138,37 +235,48 @@
  *
  * @verbatim
  *
- * +------------+----------+----------+--------+----------+-----+----------+
- * | tree descr | root hdr | child[0] | key[0] | child[1] | ... | child[N] |
- * +------------+----------+----+-----+--------+----+-----+-----+----+-----+
- *                              |                   |                |
- *  <---------------------------+                   |                +-------->
- *                                                  |
- * +------------------------------------------------+
- * |
- * v
- * +----------+----------+--------+----------+-----+----------+
- * | node hdr | child[0] | key[0] | child[1] | ... | child[N] |
- * +----------+----+-----+--------+----+-----+-----+----+-----+
- *                 |                   |                |
- *   <-------------+                   |                +---------->
- *                                     |
- * +-----------------------------------+
- * |
- * v
- * +----------+----------+--------+----------+-----+----------+
- * | node hdr | child[0] | key[0] | child[1] | ... | child[N] |
- * +----------+----+-----+--------+----+-----+-----+----+-----+
- *                 |                   |                |
- *   <-------------+                   .                +---------->
+ * ┌────────────┬──────────┬──────────┬────────┬──────────┬─────┬──────────┐
+ * │ tree descr │ root hdr │ child[0] │ key[0] │ child[1] │ ... │ child[N] │
+ * └────────────┴──────────┴────┬─────┴────────┴────┬─────┴─────┴────┬─────┘
+ *                              │                   │                │
+ *                              │                   │                │
+ *                              │                   │                │
+ *                              │                   │                │
+ *  ◄───────────────────────────┘                   │                └───────►
+ *                                                  │
+ *                                                  │
+ * ┌────────────────────────────────────────────────┘
+ * │
+ * │
+ * ▼
+ * ┌──────────┬──────────┬────────┬──────────┬─────┬──────────┐
+ * │ node hdr │ child[0] │ key[0] │ child[1] │ ... │ child[N] │
+ * └──────────┴────┬─────┴────────┴────┬─────┴─────┴────┬─────┘
+ *                 │                   │                │
+ *                 │                   │                │
+ *   ◄─────────────┘                   │                └──────────►
+ *                                     │
+ *                                     │
+ *                                     │
+ * ┌───────────────────────────────────┘
+ * │
+ * │
+ * ▼
+ * ┌──────────┬──────────┬────────┬──────────┬─────┬──────────┐
+ * │ node hdr │ child[0] │ key[0] │ child[1] │ ... │ child[N] │
+ * └──────────┴────┬─────┴────────┴────┬─────┴─────┴────┬─────┘
+ *                 │                   │                │
+ *                 │                   .                │
+ *   ◄─────────────┘                   .                └──────────►
  *                                     .
- *                                     .
- * +-------------------- ...
- * |
- * v
- * +----------+--------+--------+--------+--------+-----+--------+--------+
- * | leaf hdr | key[0] | val[0] | key[1] | val[1] | ... | key[N] | val[N] |
- * +----------+--------+--------+--------+--------+-----+--------+--------+
+ *
+ *
+ * ┌──────────────────── ...
+ * │
+ * ▼
+ * ┌──────────┬────────┬────────┬────────┬────────┬─────┬────────┬────────┐
+ * │ leaf hdr │ key[0]]│ val[0] │ key[1] │ val[1] │ ... │ key[N] │ val[N] │
+ * └──────────┴────────┴────────┴────────┴────────┴─────┴────────┴────────┘
  *
  * @endverbatim
  *
