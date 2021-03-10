@@ -513,3 +513,116 @@ A3: DTM0 service will take care of it. It will provide an API to properly
     lock the log (sm_group lock and/or DTM0 log locks).
 
 --------------------------------------------------------------------------------
+# Notes on DTX state transitions
+
+## Without DTM
+
+The following diagramm shows the sequence of state transitions
+of 3 CAS requests (CAS[i]), a DIX request (DIX) and a Motr client op (M0C).
+
+CAS[0] -- CAS_INPROGRESS -- CAS_FINAL
+CAS[1] -- CAS_INPROGRESS ---- CAS_FINAL
+CAS[2] -- CAS_INPROGRESS ------| CAS_FINAL
+DIX    -- DIX_INPROGRESS ------| <CLINK_CB -> AST> ----| DIX_FINAL
+IDX_DIX -----------------------------------------------| <CLINK_CB -> AST> ---|
+M0C    ------ LAUNCHED -------------------------------------------------------| EXECUTED&STABLE ----
+(Fig. 1)
+
+## With DTM and direct Exectued call
+
+The following diagramm shows the same scenario but with DTX states (DTX)
+and the states of DTX participants (DTX.pa[i]).
+
+CAS[0] -- CAS_INPROGRESS --| CAS_FINAL
+CAS[1] -- CAS_INPROGRESS ------------------------------------------| CAS_FINAL
+CAS[2] -- CAS_INPROGRESS ------------------------------------------| CAS_FINAL
+Persistent[i] --------------------------------------------------------------------------------------------------- PERSISTENT * 3
+DTX.pa[i] -----------------| <CLINK_CB -> AST> ---| [EII] ------|--| <CLINK_CB -> AST>[2] --| [EEE]        |-----| <AST>[3] | --| [PPP]
+DTX    -- INPROGRESS -----------------------------| EXECUTED ---|---------------------------| EXECUTED_ALL |--------------------| STABLE            |
+IDX_DIX ------------------------------------------| <CLINK_CB > |---------------------------------------------------------------| <CLINK_CB -> AST> |
+M0C    ------ LAUNCHED ---------------------------| EXECUTED    |--------------------------------------------------------------------------------------| STABLE
+M0C CB -------------------------------------------| Enter-Leave |--------------------------------------------------------------------------------------| STABLE
+(Fig. 2)
+
+## The Executed vs. Stable race condition for 1 PA when Executed called with AST
+
+When a DTX has only one participant and the P notice received before the reply,
+the transitions Executed -> ExecutedAll -> Stable might happen "instantly".
+In this case DTX must ensure that state_set(Stable) happens only after
+the user-provided callback have been called (and the client op has changed
+its state to Executed). Without such guarantee, the following situation
+may happen:
+
+DTX -- INPROGRESS -- <1 P notice> -- <1 Reply > ---| EXECUTED           -- EXEC_ALL                         |--| EXEC_ALL_CB        =>
+FORKQ  -[] ----------------------------------------| [IDX_DIX_EXECUTED] -- [EXEC_ALL_CB, IDX_DIX_EXECUTED ] |--| [IDX_DIX_EXECUTED] =>
+
+DTX     =>  EXEC_ALL ---------------- STABLE ---------------------------|-----------------------
+FORKQ   =>  [IDX_DIX_EXECUTED] ------[IDX_DIX_STABLE, IDX_DIX_EXECUTED] ------------------------
+IDX_DIX => |------------------------- <CLINK_CB -> AST_STABLE> ---------- IDX_DIX_STABLE -------
+M0C     => -------------------------------------------------------------- STABLE -> m0_panic ---
+(Fig. 3)
+
+--------------------------------------------------------------------------------
+
+                      <RPC reply>
+                       \|/
+CAS_SM: INIT ---> SENT ---> FINAL
+             \|/
+              <RPC sent>
+
+
+                            <DTX_SM.STABLE>
+                             \|/
+DIX_SM: INIT ---> INPROGRESS ---> FINAL
+             /|\
+             +----------------------+
+             | CAS_SM: INIT -> SENT |
+             | N times              |
+             +----------------------+
+
+
+DTX_SM:
+
+                INIT
+                 |
+                 | <- <CAS_SM: INIT -> SENT N times>
+                \|/
+                INPROGRESS
+                 |
+ [<P notice>] -> | <- <CAS_SM: SENT -> FINAL once>
+                \|/
+                EXECUTED
+                 |
+                 | -> M0C_SM: LAUNCHED -> EXECUTED
+ [<P notice>] -> | <- <CAS_SM: SENT -> FINAL N-1 times>
+                \|/
+                EXECUTED_ALL
+                 |
+ [<P notice>] -> |
+                 |
+               (is stable?)
+                 |
+                 |-------+
+                \|/      | -> M0C_SM: EXECUTED -> STABLE
+                STABLE ->+
+
+
+M0C_SM:
+        INIT
+         |
+         |
+        \|/
+        LAUNCHED <-+    +---------------------------+
+         |         | -> |DIX_SM: INIT -> INPROGRESS |
+         +---------+    |DTX_SM: INIT -> INPROGRESS |
+         |              +---------------------------+
+	 |
+         | <- DTX_SM: INPROGRESS -> EXECUTED
+        \|/
+        EXECUTED
+         |
+         | <- DTX_SM: EXECUTED_ALL -> STABLE
+        \|/
+        STABLE
+
+--------------------------------------------------------------------------------

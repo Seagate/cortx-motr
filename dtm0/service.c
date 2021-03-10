@@ -149,7 +149,7 @@ static void dtm0_service__fini(struct m0_dtm0_service *s)
 }
 
 static struct dtm0_process *dtm0_service_process__lookup(struct m0_reqh_service *reqh_dtm0_svc,
-							 struct m0_fid *remote_dtm0)
+							 const struct m0_fid *remote_dtm0)
 {
 	struct m0_dtm0_service *dtm0 =
 		container_of(reqh_dtm0_svc, struct m0_dtm0_service, dos_generic);
@@ -232,7 +232,7 @@ M0_INTERNAL int m0_dtm0_service_process_disconnect(struct m0_reqh_service *s,
 
 M0_INTERNAL struct m0_rpc_session *
 m0_dtm0_service_process_session_get(struct m0_reqh_service *s,
-				    struct m0_fid *remote_srv)
+				    const struct m0_fid *remote_srv)
 {
 	struct dtm0_process *process =
 		dtm0_service_process__lookup(s, remote_srv);
@@ -304,7 +304,7 @@ static int dtm_service__origin_fill(struct m0_reqh_service *service)
 
 out:
 	return dtm0->dos_origin == DTM0_ON_VOLATILE ?
-		m0_be_dtm0_log_init(&dtm0->dos_log, &dtm0->dos_clk_src, true) :
+		m0_be_dtm0_log_init(&dtm0->dos_log, &dtm0->dos_clk_src, false) :
 		0;
 }
 

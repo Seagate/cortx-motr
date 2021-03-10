@@ -824,27 +824,20 @@ static void st_put_one(void)
 	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs, flags, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_launch(&op, 1);
-#if defined(DTM0)
+
 	rc = m0_op_wait(op, M0_BITS(M0_OS_EXECUTED), WAIT_TIMEOUT);
-	M0_LOG(DEBUG, "Got executed");
+	M0_LOG(M0_DEBUG, "Got executed");
+	if (rc == -ESRCH) {
+		M0_UT_ASSERT(op->op_sm.sm_state == M0_OS_STABLE);
+		rc = 0;
+	} else {
+		rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
+		M0_LOG(M0_DEBUG, "Got stable");
+		M0_UT_ASSERT(rc == 0);
+	}
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(op->op_rc == 0);
 	M0_UT_ASSERT(rcs[0] == 0);
-	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
-	M0_LOG(DEBUG, "Got stable");
-	M0_UT_ASSERT(rc == 0);
-#else
-	/* When DTM0 is disabled, waiting on EXECUTED in a separate
-	 * op_wait call causes ESRCH (see ::m0_sm_timedwait).
-	 * Since EXECUTED -> STABLE transition happens without an external
-	 * event, waiting on EXECUTED in a separate call has no much sense
-	 * in non-DTM0 environment.
-	 */
-	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(op->op_rc == 0);
-	M0_UT_ASSERT(rcs[0] == 0);
-#endif
 	m0_op_fini(op);
 	m0_op_free(op);
 	op = NULL;
@@ -860,7 +853,7 @@ static void st_one_dtm0_op(void)
 							    0x1a);
 	static struct m0_fid     srv_dtm0_fid = M0_FID_INIT(0x7300000000000001,
 							    0x1c);
-	static const char       *cl_ep_addr   = "0@lo:12345:34:1";
+	static const char       *cl_ep_addr   = "0@lo:12345:34:2";
 	struct m0_reqh_service  *cli_srv;
 	struct m0_reqh_service  *srv_srv;
 	struct m0_reqh          *srv_reqh;

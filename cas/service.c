@@ -1124,9 +1124,8 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	M0_PRE(ergo(!M0_IS0(&op->cg_txd),
 		    m0_dtm0_tx_desc__invariant(&op->cg_txd)));
 	if (!M0_IS0(&op->cg_txd) && phase == M0_FOPH_INIT) {
-		M0_LOG(DEBUG, "Got CAS with txid: " FID_F ", " M0_DTM0_TS_FMT,
-		       FID_P(&op->cg_txd.dtd_id.dti_fid),
-		       M0_DTM0_TS_P(&op->cg_txd.dtd_id.dti_ts));
+		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
+		       DTID0_P(&op->cg_txd.dtd_id));
 	}
 #endif
 	switch (phase) {
@@ -1160,6 +1159,15 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		}
 		if (cas_in_ut() && m0_fom_phase(fom0) == M0_FOPH_QUEUE_REPLY) {
 			m0_fom_phase_set(fom0, M0_FOPH_TXN_COMMIT_WAIT);
+		}
+		if (m0_fom_phase(fom0) == M0_FOPH_FINISH) {
+			M0_ASSERT_INFO(phase == M0_FOPH_TXN_COMMIT_WAIT,
+				       "Persistent notice is sent after DTM0 "
+				       "log entry is committed.");
+			if (!m0_dtm0_tx_desc_is_none(&cas_op(fom0)->cg_txd)) {
+				m0_dtm0_on_committed(fom0->fo_service->rs_reqh,
+						     &cas_op(fom0)->cg_txd);
+			}
 		}
 		break;
 	case CAS_CHECK_PRE:
