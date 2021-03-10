@@ -75,7 +75,6 @@ class Cmd:
     @staticmethod
     def add_args(parser: str, cls: str, name: str):
         """Add Command args for parsing."""
-
         parser1 = parser.add_parser(cls.name, help=f'setup {name}')
         parser1.add_argument('--config', type=str, help="Config URL")
         parser1.add_argument('args', nargs='*', default=[], help='args')
@@ -131,6 +130,7 @@ class TestCmd(Cmd):
     def process(self):
         sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
         test_lnet(self)
+        test_libfabric(self)
         sys.stdout.write("SUCCESS\n")
 
 class ResetCmd(Cmd):
@@ -174,6 +174,7 @@ class BackupCmd(Cmd):
         pass
 
 class RestoreCmd(Cmd):
+
     """Restore Setup Cmd"""
     name = "restore"
 
