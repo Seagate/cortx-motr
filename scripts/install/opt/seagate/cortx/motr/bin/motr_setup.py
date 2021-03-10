@@ -131,7 +131,6 @@ class TestCmd(Cmd):
     def process(self):
         sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
         test_lnet(self)
-        test_libfabric(self)
         sys.stdout.write("SUCCESS\n")
 
 class ResetCmd(Cmd):
