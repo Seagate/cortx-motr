@@ -118,6 +118,8 @@ struct key_lookup_table lookuptable[] = {
 	{"OPS", NUM_OPS},
 	{"NUM_IDX", NUM_IDX},
 	{"NUM_KVP", NUM_KVP},
+	{"RECORD_SIZE", VALUE_SIZE},
+	{"MAX_RSIZE", MAX_VALUE_SIZE},
 	{"GET", GET},
 	{"PUT", PUT},
 	{"NEXT", NEXT},
@@ -436,7 +438,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case KEY_SIZE:
 			w = &load[*index];
 			ciw = workload_index(w);
-			if (!strcmp(value, "random"))
+			if (strcmp(value, "random") == 0)
 				ciw->key_size = -1;
 			else
 				ciw->key_size = parse_int(value, KEY_SIZE);
@@ -444,7 +446,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case VALUE_SIZE:
 			w = &load[*index];
 			ciw = workload_index(w);
-			if (!strcmp(value, "random"))
+			if (strcmp(value, "random") == 0)
 				ciw->value_size = -1;
 			else
 				ciw->value_size = parse_int(value, VALUE_SIZE);

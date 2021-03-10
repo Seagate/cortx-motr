@@ -224,6 +224,16 @@ int workload_init(struct workload *w, enum cr_workload_type wtype)
         w->cw_nr_dir    = cr_default_nr_dir;
         w->cw_read_frac = cr_default_read_frac;
 
+	/* set default values before yaml parsing */
+	if (wtype == CWT_INDEX)
+	{
+		struct m0_workload_index *wit 	= w->u.cw_index;
+		wit->key_size 			= -1;
+		wit->value_size			= -1;
+		wit->max_key_size		= -1;
+		wit->max_value_size		= -1;
+	}
+
 	return wop(w)->wto_init(w);
 }
 

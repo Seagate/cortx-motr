@@ -455,6 +455,18 @@ static int cr_idx_w_init(struct cr_idx_w *ciw,
 	int rc;
 	int i;
 
+	/* if max_key_size not set from yaml */
+	if (wit->max_key_size < 0)
+	{
+		wit->max_key_size = CR_MAX_OF_MAX_KEY_SIZE / 100;
+	}
+
+	/* if max_value_size not set from yaml */
+	if (wit->max_value_size < 0)
+	{
+		wit->max_value_size = CR_MAX_OF_MAX_VALUE_SIZE / 100;
+	}
+
 	M0_PRE(wit->max_key_size < CR_MAX_OF_MAX_KEY_SIZE);
 	M0_PRE(wit->max_value_size < CR_MAX_OF_MAX_VALUE_SIZE);
 	M0_PRE(wit->next_records < CR_MAX_NEXT_RECORDS);
