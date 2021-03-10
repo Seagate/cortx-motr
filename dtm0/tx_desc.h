@@ -95,6 +95,9 @@ struct m0_dtm0_tid {
 	struct m0_fid     dti_fid;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
 
+#define DTID0_F "{" DTS0_F "," FID_F "}"
+#define DTID0_P(__tid) DTS0_P(&(__tid)->dti_ts), FID_P(&(__tid)->dti_fid)
+
 enum m0_dtm0_tx_pa_state {
 	M0_DTPS_INIT,
 	M0_DTPS_INPROGRESS,
@@ -104,19 +107,19 @@ enum m0_dtm0_tx_pa_state {
 } M0_XCA_ENUM M0_XCA_DOMAIN(rpc|be);
 
 struct m0_dtm0_tx_pa {
-	struct m0_fid pa_fid;
-	uint32_t      pa_state M0_XCA_FENUM(m0_dtm0_tx_pa_state);
+	struct m0_fid p_fid;
+	uint32_t      p_state M0_XCA_FENUM(m0_dtm0_tx_pa_state);
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
 
 /** A list of participants (and their states) of a transaction. */
-struct m0_dtm0_tx_pa_group {
-	uint32_t              dtpg_nr;
-	struct m0_dtm0_tx_pa *dtpg_pa;
+struct m0_dtm0_tx_participants {
+	uint32_t              dtp_nr;
+	struct m0_dtm0_tx_pa *dtp_pa;
 } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc|be);
 
 struct m0_dtm0_tx_desc {
-	struct m0_dtm0_tid          dtd_id;
-	struct m0_dtm0_tx_pa_group  dtd_pg;
+	struct m0_dtm0_tid              dtd_id;
+	struct m0_dtm0_tx_participants  dtd_ps;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
 
 /** Writes a deep copy of "src" into "dst". */
@@ -158,8 +161,8 @@ M0_INTERNAL void m0_dtm0_tx_desc_apply(struct m0_dtm0_tx_desc *tgt,
 /* TODO: move them to a dtm0 internal header? */
 
 #define dtds_forall(__txd, __exp)                                    \
-	m0_forall(i, (__txd)->dtd_pg.dtpg_nr,                        \
-			 (__txd)->dtd_pg.dtpg_pa[i].pa_state __exp)
+	m0_forall(i, (__txd)->dtd_ps.dtp_nr,                        \
+			 (__txd)->dtd_ps.dtp_pa[i].p_state __exp)
 
 #define dtds_exists(__txd, __exp) !dtds_forall(__txd, __exp)
 

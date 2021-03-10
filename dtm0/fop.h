@@ -56,6 +56,7 @@ M0_INTERNAL void m0_dtm0_fop_fini(void);
 enum m0_dtm0s_msg {
 	DMT_EXECUTE,
 	DMT_EXECUTED,
+	/* XXX: Is it a typo? why do we have DMT everywhere except here? */
 	DTM_PERSISTENT,
 	DMT_REDO
 } M0_XCA_ENUM;
@@ -76,8 +77,11 @@ struct dtm0_rep_fop {
 /** Structure that describes dtm0 FOM. */
 struct dtm0_fom {
 	/** Caller FOM. */
-	struct m0_fom		     dtf_fom;
+	struct m0_fom dtf_fom;
 };
+
+M0_INTERNAL void m0_dtm0_on_committed(struct m0_reqh               *reqh,
+				      const struct m0_dtm0_tx_desc *txd);
 
 /* __MOTR_DTM0_FOP_H__ */
 #endif
