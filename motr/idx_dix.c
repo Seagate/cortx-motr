@@ -790,23 +790,6 @@ static void dixreq_stable_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_ENTRY();
 	oi->oi_ar.ar_ast.sa_cb = (rc == 0) ? idx_op_ast_stable : NULL;
-	/* XXX: It is safe to reuse the ast object used by executed()
-	 * and completed() callbacks as long as a dtx state change does not
-	 * happen twice in the same dixreq ast callback. The change
-	 * is done under the group lock, therefore this ast callback
-	 * (the function you are looking at) will be executed when the
-	 * group lock is released. A new ast cannot be queued before this
-	 * ast is completed. Therefore, if there is another function
-	 * where the state is beign changed from Executed to Stable then
-	 * this "another" function can be called only after that.
-	 * Inversion of calls (Stable first, then Executed) should not
-	 * be possible if the stability detector is implemented in the right
-	 * way (nothing is stable until all CAS requests are executed and
-	 * got persistent).
-	 */
-	/* XXX: The callback is executed directly since the group
-	 * lock is the same. See the XXX comment in ::dixreq_completed_ast.
-	 */
 	M0_ASSERT(grp == oi->oi_sm_grp);
 	idx_op_ast_stable(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
 	dix_req_destroy(req);
@@ -845,7 +828,9 @@ static void dixreq_executed_post(struct dix_req *req, int rc)
 	 */
 	oi->oi_in_completion = true;
 	oi->oi_ar.ar_ast.sa_cb = idx_op_ast_executed;
-	m0_sm_ast_post(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
+	M0_ASSERT(req->idr_dreq.dr_dtx->tx_dtx->dd_sm.sm_grp == oi->oi_sm_grp);
+	M0_ASSERT(m0_sm_group_is_locked(oi->oi_sm_grp));
+	idx_op_ast_executed(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
 	M0_LEAVE();
 }
 
