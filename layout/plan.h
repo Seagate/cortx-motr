@@ -58,6 +58,8 @@
  *   - IO code in client API, including key-value indices and data objects, and
  *   - in-storage compute (ISC, aka Function Shipping).
  *
+ * See also a quick introduction presentation at doc/PDF/layout-access-plan.pdf.
+ *
  * Interface
  * ---------
  *
