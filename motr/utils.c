@@ -249,7 +249,7 @@ M0_INTERNAL uint32_t io_seg_size(void)
 /** TODO: obj can be retrieved from map->pi_ioo */
 M0_INTERNAL void page_pos_get(struct pargrp_iomap  *map,
 			      m0_bindex_t           index,
-			      m0_bindex_t           grp_size,
+			      m0_bindex_t           grp_off,
 			      uint32_t             *row,
 			      uint32_t             *col)
 {
@@ -264,7 +264,7 @@ M0_INTERNAL void page_pos_get(struct pargrp_iomap  *map,
 	obj = map->pi_ioo->ioo_obj;
 	play = pdlayout_get(map->pi_ioo);
 
-	pg_id = page_id(index - grp_size, obj);
+	pg_id = page_id(index - grp_off, obj);
 	*row  = pg_id % data_row_nr(play, obj);
 	*col = play->pl_attr.pa_K == 0 ? 0 : pg_id / data_row_nr(play, obj);
 }
