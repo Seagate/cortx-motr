@@ -31,25 +31,25 @@ __m0crate-index.yaml.template__ is used by above script as template, so before s
 
 __Script execution steps__
 
-1.  /Edit __m0crate-index.yaml.template__ file, Update __MOTR_CONFIG__ and __WORKLOAD_SPEC__ fields in the template.
+1.  Edit __m0crate-index.yaml.template__ file, Update __MOTR_CONFIG__ and __WORKLOAD_SPEC__ fields in the template.
 
 ```shell
 vim m0crate-index.yaml.template
 ```
 
-2.  /Edit __gen_index_yaml_run_workload script__ file, Update __key_size__, __value_size__ and __start_of_indexfid__ values in the script.
+2.  Edit __gen_index_yaml_run_workload__ script file, Update __key_size__, __value_size__ and __start_of_indexfid__ values in the script.
 
 ```shell
 vim gen_index_yaml_run_workload
 ```
 
-3.  /Execute __gen_index_yaml_run_workload__ script
+3.  Execute __gen_index_yaml_run_workload__ script
 
 ```shell
 # ~/cortx-motr/motr/m0crate/scripts/gen_index_yaml_run_workload
 ```
 
-4.  /After successful execution check execution logs and generated .yaml conf file in __workload_logs__ dir. Directory __workload_logs__ will have timestamp based directories.
+4.  After successful execution check execution logs and generated .yaml conf file in __workload_logs__ dir. Directory __workload_logs__ will have timestamp based directories.
 
 ```shell
 [temp]# ls workload_logs/
