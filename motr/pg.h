@@ -319,10 +319,10 @@ struct nw_xfer_request {
 /**
  * Represents a map of io extents in a given parity group.
  * Struct m0_op_io contains as many pargrp_iomap structures
- * as the number of parity groups spanned by m0_op_io::ioo_ivec.
+ * as the number of parity groups spanned by m0_op_io::ioo_ext.
  * Typically, the segments from pargrp_iomap::pi_ivec are round_{up/down}
  * to nearest page boundary for respective segments from
- * m0_op_io::ioo_ivec.
+ * m0_op_io::ioo_ext.
  */
 struct pargrp_iomap {
 	uint64_t                        pi_magic;
@@ -334,7 +334,7 @@ struct pargrp_iomap {
 	enum pargrp_iomap_state         pi_state;
 
 	/**
-	 * Part of m0_op_io::ioo_ivec which falls in ::pi_grpid
+	 * Part of m0_op_io::ioo_ext which falls in ::pi_grpid
 	 * parity group.
 	 * All segments are in increasing order of file offset.
 	 * Segment counts in this index vector are multiple of PAGE_SIZE.
@@ -402,7 +402,7 @@ struct pargrp_iomap_ops {
 	 * pargrp_iomap::pi_rtype will be set to PIR_READOLD or
 	 * PIR_READREST accordingly.
 	 * @param ivec   Source index vector from which pargrp_iomap::pi_ivec
-	 * will be populated. Typically, this is m0_op_io::ioo_ivec.
+	 * will be populated. Typically, this is m0_op_io::ioo_ext.
 	 * @param cursor Index vector cursor associated with ivec.
 	 * @pre iomap != NULL && ivec != NULL &&
 	 * m0_vec_count(&ivec->iv_vec) > 0 && cursor != NULL &&
