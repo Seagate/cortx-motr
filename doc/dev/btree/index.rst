@@ -1002,6 +1002,36 @@ Execution (EXEC)
 
    Task execution process for a typical task is the following.
 
+Meetings
+~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+
+   * - date
+     - type
+     - participants
+     - agenda
+     - summary
+     - action items
+     - attachments
+
+   * - 2021.03.09
+     - sync up
+     - shashank, jaydeep, nikhil, nikita, shankar, yashb, huanghua, mukund
+     - dld progress, lookup state machine
+     - 
+     - nikita: prepare state machine diagrams and description of insert
+     - recodring: ?
+
+   * - 2021.03.10
+     - sync up
+     - shashank, jaydeep, nikhil, nikita, shankar, yashb, huanghua, mukund
+     - dld progress, lookup state machine, insert state machine
+     - 
+     - state machine of delete, state machine of iterate
+     - recodring: ?
+
 Task requirements (TREQ)
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
