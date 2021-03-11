@@ -742,6 +742,29 @@ M0_INTERNAL bool m0_ivec_cursor_move_to(struct m0_ivec_cursor *cur,
 	return ret;
 }
 
+M0_INTERNAL m0_bcount_t m0_ivec_cursor_step_to(const struct m0_ivec_cursor *cur,
+					       m0_bindex_t dest)
+{
+	uint32_t i;
+	m0_bindex_t idx;
+	m0_bindex_t seg_end;
+	m0_bcount_t size = 0;
+	struct m0_indexvec *ivec;
+
+	ivec = container_of(cur->ic_cur.vc_vec, struct m0_indexvec, iv_vec);
+
+	for (i = cur->ic_cur.vc_seg; i < ivec->iv_vec.v_nr &&
+	                             ivec->iv_index[i] < dest; i++) {
+		idx = ivec->iv_index[i];
+		if (i == cur->ic_cur.vc_seg)
+			idx += cur->ic_cur.vc_offset;
+		seg_end = ivec->iv_index[i] + ivec->iv_vec.v_count[i];
+		size += min64u(seg_end, dest) - idx;
+	}
+
+	return size;
+}
+
 M0_INTERNAL void m0_0vec_fini(struct m0_0vec *zvec)
 {
 	if (zvec != NULL) {

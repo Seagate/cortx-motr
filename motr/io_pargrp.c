@@ -452,14 +452,12 @@ static m0_bcount_t seg_collate(struct pargrp_iomap   *map,
  * @return 0 for sucess, -errno otherwise.
  */
 static int pargrp_iomap_populate(struct pargrp_iomap      *map,
-				 const struct m0_indexvec *ivec,
 				 struct m0_ivec_cursor    *cursor,
 				 struct m0_bufvec_cursor  *buf_cursor)
 {
 	int                       rc;
 	bool                      rmw = false;
 	uint64_t                  seg;
-	uint64_t                  size = 0;
 	uint64_t                  grpsize;
 	uint64_t                  pagesize;
 	m0_bcount_t               count = 0;
@@ -480,10 +478,9 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	struct m0_obj            *obj;
 	struct m0_client         *instance;
 
-	M0_ENTRY("map %p, indexvec %p", map, ivec);
+	M0_ENTRY("map %p, ivec %p", map, cursor->ic_cur.vc_vec);
 
 	M0_PRE(map  != NULL);
-	M0_PRE(ivec != NULL);
 
 	ioo = map->pi_ioo;
 	obj = ioo->ioo_obj;
@@ -504,18 +501,10 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	 * Does this cause any problem if returned 'read' pages are not
 	 * zeroed?
 	 */
-	if (M0_IN(op->op_code, (M0_OC_FREE, M0_OC_WRITE))) {
-		m0_bindex_t idx;
-		for (seg = cursor->ic_cur.vc_seg; seg < SEG_NR(ivec) &&
-		     INDEX(ivec, seg) < grpend; ++seg) {
-			idx = seg == cursor->ic_cur.vc_seg ?
-				    startindex : INDEX(ivec, seg);
-			size += min64u(seg_endpos(ivec, seg), grpend) - idx;
-		}
-
-		if (size < grpsize)
+	if (M0_IN(op->op_code, (M0_OC_FREE, M0_OC_WRITE)) &&
+	    m0_ivec_cursor_step_to(cursor, grpend) < grpsize)
 			rmw = true;
-	}
+
 	if (op->op_code == M0_OC_FREE && rmw)
 		map->pi_trunc_partial = true;
 

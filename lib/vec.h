@@ -92,7 +92,7 @@ struct m0_vec_cursor {
 	/** Segment that the cursor is currently in. */
 	uint32_t             vc_seg;
 	/** Offset within the segment that the cursor is positioned at. */
-	m0_bindex_t          vc_offset;
+	m0_bcount_t          vc_offset;
 };
 
 /**
@@ -483,6 +483,14 @@ M0_INTERNAL bool m0_ivec_cursor_move_to(struct m0_ivec_cursor *cursor,
 M0_INTERNAL m0_bcount_t m0_ivec_cursor_step(const struct m0_ivec_cursor *cur);
 
 /**
+ * Returns the number of bytes needed to move cursor to @dest.
+ * @param cur Index vector to be moved.
+ * @param dest Index uptil which cursor to be moved.
+ */
+M0_INTERNAL m0_bcount_t m0_ivec_cursor_step_to(const struct m0_ivec_cursor *cur,
+					       m0_bindex_t dest);
+
+/**
  * Returns index at current cursor position.
  * @param cur Given index vector cursor.
  * @ret   Index at current cursor position.
@@ -700,7 +708,7 @@ struct m0_ivec_varr_cursor {
 	/** Segment that the cursor is currently in. */
 	uint32_t             vc_seg;
 	/** Offset within the segment that the cursor is positioned at. */
-	m0_bindex_t          vc_offset;
+	m0_bcount_t          vc_offset;
 };
 
 /**
