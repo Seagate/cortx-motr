@@ -25,7 +25,8 @@ import inspect
 import traceback
 
 from cortx.utils.conf_store import Conf
-from motr_mini_prov import *
+from motr_mini_prov import get_current_node, validate_motr_rpm, motr_config
+from motr_mini_prov import config_lvm, configure_net, test_lnet, test_libfabric
 
 class Cmd:
     """Setup Command"""
@@ -158,6 +159,7 @@ class TestCmd(Cmd):
     def process(self):
         sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
         test_lnet(self)
+        test_libfabric(self)
         sys.stdout.write("SUCCESS\n")
 
 class ResetCmd(Cmd):
