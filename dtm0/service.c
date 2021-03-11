@@ -153,12 +153,11 @@ static struct dtm0_process *dtm0_service_process__lookup(struct m0_reqh_service 
 {
 	struct m0_dtm0_service *dtm0 =
 		container_of(reqh_dtm0_svc, struct m0_dtm0_service, dos_generic);
-	struct dtm0_process *process = NULL;
+	struct dtm0_process *process;
 
-	m0_tl_for(dopr, &dtm0->dos_processes, process) {
-		if (m0_fid_eq(&process->dop_rserv_fid, remote_dtm0))
-			break;
-	} m0_tl_endfor;
+	process = m0_tl_find(dopr, proc, &dtm0->dos_processes,
+			     m0_fid_eq(&proc->dop_rserv_fid, remote_dtm0));
+	M0_ASSERT(process != NULL);
 
 	return process;
 }
@@ -174,7 +173,6 @@ M0_INTERNAL int m0_dtm0_service_process_connect(struct m0_reqh_service *s,
 		m0_reqh_rpc_mach_tlist_head(&s->rs_reqh->rh_rpc_machines);
 	int rc;
 
-
 	process = dtm0_service_process__lookup(s, remote_srv);
 	if (process == NULL)
 		return M0_RC(-ENOENT);
@@ -187,22 +185,20 @@ M0_INTERNAL int m0_dtm0_service_process_connect(struct m0_reqh_service *s,
 	       " async=%d"
 	       " dtm0="FID_F
 	       " remote_srv="FID_F,
-	       !!((int)async),
+	       !!async,
 	       FID_P(&s->rs_service_fid),
 	       FID_P(remote_srv));
 	M0_LOG(M0_DEBUG, "rep=%s", remote_ep);
 
-	if (!async) {
+	if (!async)
 		rc = m0_rpc_link_connect_sync(&process->dop_rlink,
 					      M0_TIME_NEVER);
-		M0_ASSERT(rc == 0);
-	} else {
+	else
 		m0_rpc_link_connect_async(&process->dop_rlink,
 					  M0_TIME_NEVER,
 					  &process->dop_service_connect_clink);
-	}
 
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_dtm0_service_process_disconnect(struct m0_reqh_service *s,
@@ -377,6 +373,11 @@ m0_dtm0_service_find(const struct m0_reqh *reqh)
 	return rh_srv == NULL ? NULL : to_dtm(rh_srv);
 }
 
+M0_INTERNAL bool m0_dtm0_in_ut(void)
+{
+	return M0_FI_ENABLED("ut");
+}
+
 /* --------------------------------- EVENTS --------------------------------- */
 
 struct m0_semaphore g_test_wait;
@@ -385,8 +386,9 @@ static int ready_to_process_ha_msgs = 0;
 static bool service_connect_clink(struct m0_clink *link)
 {
 	M0_ENTRY();
-	M0_LOG(M0_DEBUG, "Connected");
-	m0_semaphore_up(&g_test_wait);
+	M0_LOG(M0_DEBUG, "DTM0 service: connected");
+	if (m0_dtm0_in_ut())
+		m0_semaphore_up(&g_test_wait);
 	M0_LEAVE();
 	return true;
 }
@@ -433,7 +435,7 @@ static bool process_clink_cb(struct m0_clink *clink)
 	 * trigger for handling HA messages in this case.
 	 */
 	if (evented_proc_state != M0_NC_TRANSIENT &&
-	    !ready_to_process_ha_msgs) {
+	    !ready_to_process_ha_msgs && !m0_dtm0_in_ut()) {
 		M0_LOG(M0_DEBUG, "Is not ready to process HA messages");
 		goto out;
 	}

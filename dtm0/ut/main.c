@@ -19,7 +19,6 @@
  *
  */
 
-
 #include "dtm0/clk_src.h"
 #include "dtm0/fop.h"
 #include "dtm0/helper.h"
@@ -155,6 +154,8 @@ static void dtm0_ut_service(void)
 	struct m0_reqh_service  *srv_srv;
 	struct m0_reqh          *srv_reqh = &sctx.rsx_motr_ctx.cc_reqh_ctx.rc_reqh;
 
+	m0_fi_enable("m0_dtm0_in_ut", "ut");
+
 	m0_semaphore_init(&g_test_wait, 0);
 
 	rc = m0_rpc_server_start(&sctx);
@@ -179,6 +180,7 @@ static void dtm0_ut_service(void)
 	m0_dtm__client_service_stop(cli_srv);
 	dtm0_ut_client_fini(&cctx);
 	/* m0_rpc_server_stop(&sctx); */
+	m0_fi_disable("m0_dtm0_in_ut", "ut");
 }
 
 struct m0_ut_suite dtm0_ut = {
