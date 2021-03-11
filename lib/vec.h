@@ -275,7 +275,7 @@ M0_INTERNAL void m0_bufvec_free_aligned(struct m0_bufvec *bufvec,
 M0_INTERNAL void m0_bufvec_free_aligned_packed(struct m0_bufvec *bufvec,
 					       unsigned shift);
 /**
- * Packs buffers vector by squashing its contiguous chunks.
+ * Packs buffers vector by squashing its contiguous or overlapping chunks.
  * @pre bufvec->ov_vec.v_nr > 0.
  * @return the number of squashed chunks.
  */
@@ -308,7 +308,7 @@ M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec, uint32_t len);
 M0_INTERNAL void m0_indexvec_free(struct m0_indexvec *ivec);
 
 /**
- * Packs index vector by squashing its contiguous chunks.
+ * Packs index vector by squashing its contiguous or overlapping chunks.
  * @pre ivec->iv_vec.v_nr > 0.
  * @return the number of squashed chunks.
  */
