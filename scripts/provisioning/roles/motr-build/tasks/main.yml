@@ -43,6 +43,11 @@
     register: isa_builddep_result
     changed_when: '"No uninstalled build requires" not in isa_builddep_result.stdout'
 
+  - name: Update spec file
+    replace:
+      path: roles/motr-build/tasks/isa-l.spec
+      regexp: "\r"
+
   - name: build isa-l rpms
     command: rpmbuild --define '_isa_l_version 2.30.0' -bb roles/motr-build/tasks/isa-l.spec
     args:

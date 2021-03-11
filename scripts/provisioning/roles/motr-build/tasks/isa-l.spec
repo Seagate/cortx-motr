@@ -6,7 +6,7 @@ Release:	1%{?dist}
 Summary:	Intel(R) Intelligent Storage Acceleration Library.
 
 Group:		Applications
-License:	GPL
+License:	BSD-3-Clause
 URL:		https://github.com/intel/isa-l/
 Source0:	https://github.com/intel/isa-l/archive/v%{_isa_l_version}.tar.gz
 
