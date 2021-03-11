@@ -969,7 +969,7 @@ motr_examples_DATA = scripts/install$(motr_examplesdir)/provisioner_cluster.json
 EXTRA_DIST += $(motr_examples_DATA)
 
 motr_bindir = $(motrdir)/bin
-motr_bin_SCRIPTS = scripts/install$(motr_bindir)/motr_setup \
+motr_bin_SCRIPTS = scripts/install$(motr_bindir)/motr_setup.py \
                    scripts/install$(motr_bindir)/motr_mini_prov.py
 
 EXTRA_DIST += $(motr_bin_SCRIPTS)
