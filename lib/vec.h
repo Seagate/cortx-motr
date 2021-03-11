@@ -487,7 +487,7 @@ M0_INTERNAL m0_bcount_t m0_ivec_cursor_step(const struct m0_ivec_cursor *cur);
  * @param cur Given index vector cursor.
  * @ret   Index at current cursor position.
  */
-M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(struct m0_ivec_cursor *cur);
+M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(const struct m0_ivec_cursor *cur);
 
 /**
    Zero vector is a full fledged IO vector containing IO extents
