@@ -188,6 +188,7 @@ enum m0_be_dtm0_log_credit_op {
 	M0_DTML_SENT,
 	M0_DTML_EXECUTED,
 	M0_DTML_PERSISTENT,
+	M0_DTML_PRUNE,
 	M0_DTML_REDO
 };
 
@@ -201,11 +202,12 @@ struct m0_dtm0_log_rec {
 };
 
 struct m0_be_dtm0_log {
-	bool                    dl_ispstore;
-	struct m0_mutex         dl_lock;  /* volatile structure */
-	struct m0_dtm0_clk_src *dl_cs;
-	struct m0_be_list      *dl_list;  /* persistent structure */
-	struct m0_tl           *dl_tlist; /* Volatile list */
+	bool                     dl_is_plog;
+	struct m0_mutex          dl_lock;  /* volatile structure */
+	struct m0_be_seg	*seg;
+	struct m0_dtm0_clk_src	*dl_cs;
+	struct m0_be_list	*dl_list;  /* persistent structure */
+	struct m0_tl		*dl_tlist; /* Volatile list */
 };
 
 // init/fini (for volatile fields)
@@ -217,8 +219,10 @@ M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log **log,
 
 // credit interface
 M0_INTERNAL void m0_be_dtm0_log_credit(enum m0_be_dtm0_log_credit_op op,
-                                       struct m0_be_tx              *tx,
+				       struct m0_dtm0_tx_desc	    *txd,
+				       struct m0_buf		    *pyld,
                                        struct m0_be_seg             *seg,
+				       struct m0_dtm0_log_rec	    *rec,
                                        struct m0_be_tx_credit       *accum);
 // create/destroy
 M0_INTERNAL int m0_be_dtm0_log_create(struct m0_be_tx        *tx,
@@ -239,6 +243,14 @@ struct m0_dtm0_log_rec *m0_be_dtm0_log_find(struct m0_be_dtm0_log    *log,
                                             const struct m0_dtm0_tid *id);
 
 M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
+                                     struct m0_be_tx          *tx,
+                                     const struct m0_dtm0_tid *id);
+
+M0_INTERNAL int m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log	    *log,
+					  const struct m0_dtm0_tid  *id,
+					  struct m0_be_tx_credit    *cred);
+
+M0_INTERNAL int m0_be_dtm0_plog_prune(struct m0_be_dtm0_log    *log,
                                      struct m0_be_tx          *tx,
                                      const struct m0_dtm0_tid *id);
 
