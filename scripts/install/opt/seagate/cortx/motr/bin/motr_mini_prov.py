@@ -181,8 +181,28 @@ def configure_lnet(self):
     restart_services(self, ["lnet"])
 
 def configure_libfabric(self):
-    raise MotrError(errno.EINVAL, "libfabric not implemented\n")
+    try:
+        iface = Conf.get(self._index,
+        f'cluster>{self._server_id}')['network']['data']['private_interfaces']
+        iface = iface[0]
+    except:
+        raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
 
+    sys.stdout.write(f"Validate private_interfaces[0]: {iface}\n")
+    cmd = f"ip addr show {iface}"
+    execute_command(self, cmd)
+
+    try:
+        iface_type = Conf.get(self._index,
+            f'cluster>{self._server_id}')['network']['data']['interface_type']
+    except:
+        raise MotrError(errno.EINVAL, "interface_type not found\n")
+
+    sys.stdout.write(f"iface type: {iface_type}\n")
+    cmd = "fi_info"
+    execute_command(self, cmd)
+    sys.stdout.write(f"fi_info: {cmd}\n")
+    os.system('fi_info')
 
 def swap_on(self):
     cmd = "swapon -a"
@@ -486,6 +506,10 @@ def test_lnet(self):
     execute_command(self, cmd)
 
     lnet_ping(self)
+
+def test_libfabric(self):
+    search_libfabric_pkgs = ["libfabric"]
+    check_pkgs(self, search_libfabric_pkgs)
 
 def get_metadata_disks_count(self):
     try:
