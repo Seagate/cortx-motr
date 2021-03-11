@@ -50,6 +50,7 @@ motr_build_deps_pkgs:
   - rpm-build
   - systemd-devel
   - libedit-devel
+  - yasm
 
 motr_build_deps_python3_pkgs:
   - python36
