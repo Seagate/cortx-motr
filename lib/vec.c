@@ -712,12 +712,12 @@ M0_INTERNAL m0_bcount_t m0_ivec_cursor_step(const struct m0_ivec_cursor *cur)
 	return m0_vec_cursor_step(&cur->ic_cur);
 }
 
-M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(struct m0_ivec_cursor *cur)
+M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(const struct m0_ivec_cursor *cur)
 {
 	struct m0_indexvec *ivec;
 
 	M0_PRE(cur != NULL);
-	M0_PRE(!m0_vec_cursor_move(&cur->ic_cur, 0));
+	M0_PRE(cur->ic_cur.vc_seg < cur->ic_cur.vc_vec->v_nr);
 
 	ivec = container_of(cur->ic_cur.vc_vec, struct m0_indexvec, iv_vec);
 	return ivec->iv_index[cur->ic_cur.vc_seg] + cur->ic_cur.vc_offset;
