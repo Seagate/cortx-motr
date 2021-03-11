@@ -74,6 +74,8 @@ static void isal_diff(struct m0_parity_math *math,
 		      struct m0_buf         *new,
 		      struct m0_buf         *parity,
 		      uint32_t               index);
+
+static bool parity_math_invariant(const struct m0_parity_math *math);
 #else
 static void reed_solomon_diff(struct m0_parity_math *math,
 		              struct m0_buf         *old,
@@ -404,15 +406,12 @@ static int vandmat_norm(struct m0_matrix *m)
 #endif /* RS_ENCODE_ENABLED */
 
 #if ISAL_ENCODE_ENABLED
-static inline void parity_math_validate(struct m0_parity_math *math)
+static bool parity_math_invariant(const struct m0_parity_math *math)
 {
-	M0_ENTRY();
-	M0_PRE(math != NULL);
-	M0_PRE(math->pmi_data_count >= 1);
-	M0_PRE(math->pmi_parity_count >= 1);
-	M0_PRE(math->pmi_data_count >= math->pmi_parity_count);
-	M0_PRE(math->pmi_data_count <= SNS_PARITY_MATH_DATA_BLOCKS_MAX);
-	M0_LEAVE();
+	return  _0C(math != NULL) && _0C(math->pmi_data_count >= 1) &&
+		_0C(math->pmi_parity_count >= 1) &&
+		_0C(math->pmi_data_count >= math->pmi_parity_count);
+		_0C(math->pmi_data_count <= SNS_PARITY_MATH_DATA_BLOCKS_MAX);
 }
 #endif /* ISAL_ENCODE_ENABLED */
 
@@ -587,8 +586,7 @@ static void isal_diff(struct m0_parity_math *math,
 
 	M0_ENTRY();
 
-	parity_math_validate(math);
-
+	M0_PRE(parity_math_invariant(math));
 	M0_PRE(old    != NULL);
 	M0_PRE(new    != NULL);
 	M0_PRE(parity != NULL);
@@ -762,8 +760,7 @@ static void isal_encode(struct m0_parity_math *math,
 
 	M0_ENTRY();
 
-	parity_math_validate(math);
-
+	M0_PRE(parity_math_invariant(math));
 	M0_PRE(data != NULL);
 	M0_PRE(parity != NULL);
 
@@ -1158,8 +1155,7 @@ static void isal_recover(struct m0_parity_math *math,
 
 	M0_ENTRY();
 
-	parity_math_validate(math);
-
+	M0_PRE(parity_math_invariant(math));
 	M0_PRE(data != NULL);
 	M0_PRE(parity != NULL);
 	M0_PRE(fails != NULL);
