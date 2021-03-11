@@ -410,7 +410,7 @@ static bool parity_math_invariant(const struct m0_parity_math *math)
 {
 	return  _0C(math != NULL) && _0C(math->pmi_data_count >= 1) &&
 		_0C(math->pmi_parity_count >= 1) &&
-		_0C(math->pmi_data_count >= math->pmi_parity_count);
+		_0C(math->pmi_data_count >= math->pmi_parity_count) &&
 		_0C(math->pmi_data_count <= SNS_PARITY_MATH_DATA_BLOCKS_MAX);
 }
 #endif /* ISAL_ENCODE_ENABLED */
