@@ -440,13 +440,16 @@ static uint32_t vec_pack(uint32_t nr, m0_bcount_t *cnt, m0_bindex_t *idx)
 {
 	uint32_t i = 0;
 	uint32_t j;
+	m0_bindex_t seg_end;
 
 	if (nr == 0)
 		return 0;
 
 	for (j = i + 1; j < nr; ++j) {
-		if (idx[i] + cnt[i] == idx[j]) {
-			cnt[i] += cnt[j];
+		seg_end = idx[i] + cnt[i];
+		if (idx[j] <= seg_end) {
+			if (cnt[j] > seg_end - idx[j])
+				cnt[i] += cnt[j] - (seg_end - idx[j]);
 		} else {
 			++i;
 			if (i != j) {
