@@ -29,12 +29,10 @@ from motr_mini_prov import get_current_node, validate_motr_rpm, motr_config
 from motr_mini_prov import config_lvm, configure_net, test_lnet, test_libfabric
 
 class Cmd:
-
     """Setup Command"""
     _index = "conf"
 
     def __init__(self, args: dict):
-        """Init"""
         self._url = args.config
         Conf.load(self._index, self._url)
         self._args = args.args
@@ -53,6 +51,7 @@ class Cmd:
     @staticmethod
     def usage(prog: str):
         """Print usage instructions"""
+
         sys.stderr.write(
             f"usage: {prog} [-h] <cmd> --config <url> <args>\n"
             f"where:\n"
@@ -76,6 +75,7 @@ class Cmd:
     @staticmethod
     def add_args(parser: str, cls: str, name: str):
         """Add Command args for parsing."""
+
         parser1 = parser.add_parser(cls.name, help=f'setup {name}')
         parser1.add_argument('--config', type=str, help="Config URL")
         parser1.add_argument('args', nargs='*', default=[], help='args')
@@ -85,7 +85,6 @@ class Cmd:
 
 
 class PostInstallCmd(Cmd):
-
     """PostInstall Setup Cmd"""
     name = "post_install"
 
@@ -98,7 +97,6 @@ class PostInstallCmd(Cmd):
         sys.stdout.write("SUCCESS\n")
 
 class ConfigCmd(Cmd):
-
     """Config Setup Cmd"""
     name = "config"
 
@@ -111,7 +109,6 @@ class ConfigCmd(Cmd):
         sys.stdout.write("SUCCESS\n")
 
 class InitCmd(Cmd):
-
     """Init Setup Cmd"""
     name = "init"
 
@@ -125,7 +122,6 @@ class InitCmd(Cmd):
         sys.stdout.write("SUCCESS\n")
 
 class TestCmd(Cmd):
-
     """Test Setup Cmd"""
     name = "test"
 
@@ -139,7 +135,6 @@ class TestCmd(Cmd):
         sys.stdout.write("SUCCESS\n")
 
 class ResetCmd(Cmd):
-
     """Reset Setup Cmd"""
     name = "reset"
 
@@ -150,7 +145,6 @@ class ResetCmd(Cmd):
         pass
 
 class CleanupCmd(Cmd):
-
     """Cleanup Setup Cmd"""
     name = "cleanup"
 
@@ -161,7 +155,6 @@ class CleanupCmd(Cmd):
         pass
 
 class UpgradeCmd(Cmd):
-
     """Upgrade Setup Cmd"""
     name = "upgrade"
 
@@ -172,7 +165,6 @@ class UpgradeCmd(Cmd):
         pass
 
 class BackupCmd(Cmd):
-
     """Backup Setup Cmd"""
     name = "backup"
 
@@ -183,7 +175,6 @@ class BackupCmd(Cmd):
         pass
 
 class RestoreCmd(Cmd):
-
     """Restore Setup Cmd"""
     name = "restore"
 
