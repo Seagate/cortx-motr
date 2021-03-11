@@ -102,10 +102,10 @@ M0_INTERNAL void m0_vec_cursor_init(struct m0_vec_cursor *cur,
 M0_INTERNAL bool m0_vec_cursor_move(struct m0_vec_cursor *cur,
 				    m0_bcount_t count)
 {
+	m0_bcount_t step;
+
 	M0_PRE(m0_vec_cursor_invariant(cur));
 	while (count > 0 && cur->vc_seg < cur->vc_vec->v_nr) {
-		m0_bcount_t step;
-
 		step = m0_vec_cursor_step(cur);
 		if (count >= step) {
 			cur->vc_seg++;
@@ -118,6 +118,7 @@ M0_INTERNAL bool m0_vec_cursor_move(struct m0_vec_cursor *cur,
 		m0_vec_cursor_normalize(cur);
 	}
 	M0_ASSERT(m0_vec_cursor_invariant(cur));
+
 	return cur->vc_seg == cur->vc_vec->v_nr;
 }
 
@@ -742,7 +743,35 @@ M0_INTERNAL bool m0_ivec_cursor_move_to(struct m0_ivec_cursor *cur,
 		if (ret)
 			break;
 	}
+
 	return ret;
+}
+
+M0_INTERNAL m0_bindex_t m0_ivec_cursor_conti(const struct m0_ivec_cursor *cur,
+					     m0_bindex_t dest)
+{
+	uint32_t            i;
+	m0_bindex_t         idx;
+	m0_bindex_t         max_seg_end;
+	struct m0_indexvec *ivec;
+
+	M0_PRE(cur  != NULL);
+	M0_PRE(dest >= m0_ivec_cursor_index(cur));
+
+	ivec = container_of(cur->ic_cur.vc_vec, struct m0_indexvec, iv_vec);
+
+	i = cur->ic_cur.vc_seg;
+	max_seg_end = ivec->iv_index[i] + ivec->iv_vec.v_count[i];
+
+	for (i += 1; i < ivec->iv_vec.v_nr &&
+	             (idx = ivec->iv_index[i]) < dest; i++) {
+		if (idx > max_seg_end) /* a hole */
+			break;
+		if (idx + ivec->iv_vec.v_count[i] > max_seg_end)
+			max_seg_end = idx + ivec->iv_vec.v_count[i];
+	}
+
+	return min64u(max_seg_end, dest);
 }
 
 M0_INTERNAL void m0_0vec_fini(struct m0_0vec *zvec)
