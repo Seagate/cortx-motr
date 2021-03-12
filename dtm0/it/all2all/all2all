@@ -7,15 +7,19 @@ MOTR_ST_UTILS_DIR=${MOTR_ROOT}/motr/st/utils/
 MOTR_VAR_DIR=/var/motr
 TEST_ROOT=$MOTR_VAR_DIR/all2all_test
 CURRENT_CDF=$PWD/test.yaml
+CONFD_XC=/var/lib/hare/confd.xc
 LOOP_IMG_DIR=$TEST_ROOT
 
 M0D_DIR_COMMON=$MOTR_VAR_DIR/m0d-0x7200000000000001:0x
-M0D_ENDPOINTS=(c 1a 28)
-
+M0D_IDS=(c 1a 28)
 M0D_PIDS=()
+
+M0D_ENDPOINTS=()
+M0D_SERV_FIDS=()
 
 POOL_WIDTH=4
 IPOOL_WIDTH=2
+IMGS_CNT=$((POOL_WIDTH + IPOOL_WIDTH))
 
 . ${MOTR_ROOT}/scripts/addb-py/chronometry/common/common_funcs
 
@@ -72,10 +76,8 @@ function fini_loop_devices()
 
 function create_loop_images()
 {
-    local imgs_cnt=$((POOL_WIDTH + IPOOL_WIDTH))
-
-    _info "Creating $imgs_cnt file images, 1GiB each, in '$LOOP_IMG_DIR'"
-    for i in $(seq $imgs_cnt) ; do
+    _info "Creating $IMGS_CNT file images, 1GiB each, in '$LOOP_IMG_DIR'"
+    for i in $(seq $IMGS_CNT) ; do
         local img_file="$LOOP_IMG_DIR/disk$i.img"
         dd if=/dev/zero of="$img_file" \
            bs=1M seek=$(( 1 * 1024 - 1 )) count=1 &>/dev/null
@@ -84,10 +86,8 @@ function create_loop_images()
 
 function setup_loop_devices()
 {
-    local imgs_cnt=$((POOL_WIDTH + IPOOL_WIDTH))
-
     _info "Setting up loop devices"
-    for i in $(seq $imgs_cnt) ; do
+    for i in $(seq $IMGS_CNT) ; do
         local img_file="$LOOP_IMG_DIR/disk$i.img"
         local free_loopdev=$(losetup -f)
         loop_devsused[$i]=$free_loopdev
@@ -100,10 +100,8 @@ function setup_loop_devices()
 
 function cleanup_loop_devices()
 {
-    local imgs_cnt=$((POOL_WIDTH + IPOOL_WIDTH))
-
     _info "Removing loop devices"
-    for i in $(seq $imgs_cnt) ; do
+    for i in $(seq $IMGS_CNT) ; do
         local img_file="$LOOP_IMG_DIR/disk$i.img"
         if [[ -e $img_file ]] ; then
             local loop_todel=$(losetup -j $img_file -O name | grep loop)
@@ -116,22 +114,20 @@ function cleanup_loop_devices()
 
 function cleanup_loop_images()
 {
-    local imgs_cnt=$((POOL_WIDTH + IPOOL_WIDTH))
-
     _info "Removing file images"
-    for i in $(seq $imgs_cnt) ; do
+    for i in $(seq $IMGS_CNT) ; do
         local img_file="$LOOP_IMG_DIR/disk$i.img"
         rm -f "$img_file"
     done
 }
 ############################################
 
-function set_m0d_pids()
+function get_m0d_pids()
 {
     local m0d_dir
     local pids=""
 
-    for endp in ${M0D_ENDPOINTS[@]}
+    for endp in ${M0D_IDS[@]}
     do
         m0d_dir=${M0D_DIR_COMMON}${endp}
         pid=`ls -l ${m0d_dir}/m0trace.* | awk '{ print $NF; }' | awk -F"." '{ print $2; }' | awk  'BEGIN { pid=0; } { if (pid < $0) pid = $0; } END { print pid; }'`
@@ -142,28 +138,40 @@ function set_m0d_pids()
     _info "m0d PIDs: $pids"
 }
 
+function get_params_for_ha_msgs()
+{
+    local line
+    local srvc_ids=(`cat $CONFD_XC | grep M0_CST_CAS | awk '{ print $2; }' | awk -F"^" '{ print substr($2, 1, length($2) - 2); }'`)
+
+    for i in `seq 0 2`
+    do
+        line=`cat $CONFD_XC | grep "${srvc_ids[$i]}" | grep "r"`
+        M0D_SERV_FIDS[$i]=`echo $line | awk '{ print $2; }' | awk '{ print substr($1, 3, length($1) - 4); }'`
+        M0D_ENDPOINTS[$i]=`echo $line | awk '{ print $12; }' | awk -F":" '{ printf("%s:%s:%s", $2, $3, substr($4, 0, length($4) - 2));}'`
+    done
+}
+
 function ha_msg_send_transient()
 {
-    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:2" "^r|1:26" "transient"
-    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:3" "^r|1:12" "transient"
-    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:4" "^r|1:12" "transient"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[0]}" "${M0D_SERV_FIDS[1]}" "transient"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[1]}" "${M0D_SERV_FIDS[0]}" "transient"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[2]}" "${M0D_SERV_FIDS[0]}" "transient"
 }
 
 function ha_msg_send_online()
 {
-    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:2" "^r|1:26" "online"
-    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:2" "^r|1:40" "online"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[0]}" "${M0D_SERV_FIDS[1]}" "online"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[0]}" "${M0D_SERV_FIDS[2]}" "online"
 
-    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:3" "^r|1:12" "online"
-    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:3" "^r|1:40" "online"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[1]}" "${M0D_SERV_FIDS[0]}" "online"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[1]}" "${M0D_SERV_FIDS[2]}" "online"
 
-    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:4" "^r|1:12" "online"
-    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "12345:2:4" "^r|1:26" "online"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[2]}" "${M0D_SERV_FIDS[0]}" "online"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[2]}" "${M0D_SERV_FIDS[1]}" "online"
 }
 
-function check_ne()
+function check_traces_ne()
 {
-    CHECK=0
     local pattern="$1"
     local exp_cnt=$2
     local m0d_dir
@@ -171,14 +179,15 @@ function check_ne()
 
     for i in ${!M0D_PIDS[@]}
     do
-        m0d_dir=${M0D_DIR_COMMON}${M0D_ENDPOINTS[i]}
+        m0d_dir=${M0D_DIR_COMMON}${M0D_IDS[i]}
         cnt=`$MOTR_ROOT/utils/trace/m0trace -i "${m0d_dir}/m0trace.${M0D_PIDS[i]}" | grep "$pattern" | wc -l`
         if [ $cnt -ne $exp_cnt ]
         then
-            CHECK=1
-            break
+            return 1
         fi
     done
+
+    return 0
 }
 
 function fail()
@@ -197,36 +206,29 @@ function main()
     _info "Bootstrapping the cluster using Hare..."
     bootstrap_cluster
 
-    set_m0d_pids
+    get_m0d_pids
+    get_params_for_ha_msgs
 
     _info "Checking traces..."
-    check_ne "evented_proc_state" 0
-    if [ $CHECK -ne 0 ]
-    then
+    check_traces_ne "evented_proc_state" 0 || {
         fail "HA event handled instead of to be skipped, exiting."
-    fi
+    }
 
-    # send HA TRANSIENT
     _info "Sending TRANSIENT notifications to trigger HA messages handling..."
     ha_msg_send_transient
 
     _info "Checking traces..."
-    check_ne "TRANSIENT received" 1
-    if [ $CHECK -ne 0 ]
-    then
+    check_traces_ne "TRANSIENT received" 1 || {
         fail "Trigger message is not received, exiting."
-    fi
+    }
 
-    # send HA ONLINE
     _info "Sending ONLINE notifications to trigger connections logic..."
     ha_msg_send_online
 
     _info "Checking traces..."
-    check_ne "DTM0 service: connected" 2
-    if [ $CHECK -ne 0 ]
-    then
+    check_traces_ne "DTM0 service: connected" 2 || {
         fail "Process is not connected, exiting"
-    fi
+    }
 
     stop_cluster
     fini_loop_devices
