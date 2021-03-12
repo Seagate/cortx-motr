@@ -56,7 +56,8 @@ M0_INTERNAL void m0_dtm0_stype_fini(void);
 
 M0_INTERNAL int m0_dtm0_service_process_connect(struct m0_reqh_service *s,
 						struct m0_fid *remote_srv,
-						const char    *remote_ep);
+						const char    *remote_ep,
+						bool async);
 M0_INTERNAL int m0_dtm0_service_process_disconnect(struct m0_reqh_service *s,
 						   struct m0_fid *remote_srv);
 M0_INTERNAL struct m0_rpc_session *
@@ -68,4 +69,7 @@ M0_INTERNAL bool m0_dtm0_is_a_persistent_dtm(struct m0_reqh_service *service);
 
 M0_INTERNAL struct m0_dtm0_service *
 m0_dtm0_service_find(const struct m0_reqh *reqh);
+
+M0_INTERNAL bool m0_dtm0_in_ut(void);
+
 #endif /* __MOTR_DTM0_SERVICE_H__ */
