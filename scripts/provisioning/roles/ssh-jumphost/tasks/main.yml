@@ -22,12 +22,12 @@
 #
 ---
 - name: generate user SSH key pair
-  user: name={{ ansible_user }} generate_ssh_key=yes
+  user: name=vagrant generate_ssh_key=yes
   tags: ssh
 
 - name: read the public key
   slurp:
-    src: /home/{{ ansible_user }}/.ssh/id_rsa.pub
+    src: /home/vagrant/.ssh/id_rsa.pub
   register: pub_key
   tags: ssh
 
@@ -36,14 +36,14 @@
 # on the same host
 - name: enable SSH self-login with the public key
   authorized_key:
-    user:  '{{ ansible_user }}'
+    user:  'vagrant'
     state: present
     key:   '{{ pub_key.content | b64decode }}'
   tags: ssh
 
 - name: use the same key for 'root'
   copy:
-    src:  /home/{{ ansible_user }}/.ssh
+    src:  /home/vagrant/.ssh
     dest: /root
     remote_src: yes
     mode: preserve
@@ -51,14 +51,27 @@
 
 - name: fetch SSH jumphost key file
   fetch:
-    src:  ~{{ ansible_user }}/.ssh/id_rsa
+    src:  ~vagrant/.ssh/id_rsa
     dest: '{{ ssh_jumphost_key_file }}'
     flat: yes
   tags: ssh
 
 - name: fetch SSH jumphost pub key file
   fetch:
-    src:  ~{{ ansible_user }}/.ssh/id_rsa.pub
+    src:  ~vagrant/.ssh/id_rsa.pub
     dest: '{{ ssh_jumphost_pub_key_file }}'
     flat: yes
   tags: ssh
+
+- name: set StrictHostKeyChecking=no step1 - uncomment 'Host *.local'
+  lineinfile:
+    path: /etc/ssh/ssh_config
+    regex: '^(#? *)?Host ..local'
+    line: 'Host *.local'
+
+- name: set StrictHostKeyChecking=no step2 - add after 'Host *.local'
+  lineinfile:
+    path: /etc/ssh/ssh_config
+    regex: '^(#? *)?StrictHostKeyChecking no'
+    insertafter: 'Host ..local'
+    line: 'StrictHostKeyChecking no'

@@ -58,7 +58,7 @@ AC_SUBST([LT_RELEASE], [$PACKAGE_VERSION])
 #
 # See also
 # https://www.gnu.org/software/libtool/manual/libtool.html#Libtool-versioning
-AC_SUBST([LT_VERSION], [M0_VERSION_MAJOR:M0_VERSION_MINOR:M0_VERSION_PATCH])
+AC_SUBST([LT_VERSION], [M0_VERSION_MAJOR:M0_VERSION_MINOR:0])
 
 # the following variables are only for internal use within this configure script
 # external scripts should use collection of variables, which is automatically

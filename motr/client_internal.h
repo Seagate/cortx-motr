@@ -272,7 +272,7 @@ struct m0_op_io {
 	/**
 	 * Array of struct pargrp_iomap pointers.
 	 * Each pargrp_iomap structure describes the part of parity group
-	 * spanned by segments from ::ir_ivec.
+	 * spanned by segments from ::ioo_ext.
 	 */
 	struct pargrp_iomap             **ioo_iomaps;
 

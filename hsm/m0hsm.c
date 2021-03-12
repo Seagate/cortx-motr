@@ -206,7 +206,7 @@ static int load_client_env()
 		return -1;
 	if (load_env(&ha_addr, "CLIENT_HA_ADDR"))
 		return -1;
-	if (load_env(&profile, "CLIENT_PROF_OPT"))
+	if (load_env(&profile, "CLIENT_PROFILE"))
 		return -1;
 	if (load_env(&proc_fid, "CLIENT_PROC_FID"))
 		return -1;
