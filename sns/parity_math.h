@@ -29,6 +29,7 @@
 #include "lib/tlist.h"
 #include "matvec.h"
 #include "ls_solve.h"
+#include "parity_defs.h"
 
 /**
    @defgroup parity_math Parity Math Component
@@ -42,12 +43,6 @@
    @li Provide algorithms for SNS repair (recovery) in case of failure.
    @{
 */
-
-/**
- *  Define the condition here to use Intel ISA library.
- */
-#define ISAL_ENCODE_ENABLED	(!defined(__KERNEL__))
-#define RS_ENCODE_ENABLED	(!ISAL_ENCODE_ENABLED)
 
 /**
  * Parity calculation type indicating various algorithms of parity calculation.
