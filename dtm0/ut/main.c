@@ -19,7 +19,6 @@
  *
  */
 
-
 #include "dtm0/clk_src.h"
 #include "dtm0/fop.h"
 #include "dtm0/helper.h"
@@ -72,7 +71,7 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 	struct dtm0_req_fop   *req;
 
 	struct m0_dtm0_tx_desc txr = {};
-	struct m0_dtm0_tid      reply_data;
+	struct m0_dtm0_tid     reply_data;
 
 	struct m0_dtm0_clk_src dcs;
 	struct m0_dtm0_ts      now;
@@ -105,7 +104,7 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 }
 
 static void dtm0_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
-			      const char *srv_ep_addr, struct m0_net_xprt *xprt)
+				const char *srv_ep_addr, struct m0_net_xprt *xprt)
 {
 	int                       rc;
 	struct m0_rpc_client_ctx *cl_ctx;
@@ -138,6 +137,7 @@ static void dtm0_ut_client_fini(struct cl_ctx *cctx)
 	m0_net_domain_fini(&cctx->cl_ndom);
 }
 
+extern struct m0_semaphore g_test_wait;
 static void dtm0_ut_service(void)
 {
 	int rc;
@@ -150,8 +150,13 @@ static void dtm0_ut_service(void)
 		.rsx_log_file_name = DTM0_UT_LOG,
 	};
 	struct m0_reqh_service  *cli_srv;
+	/* m0_time_t rem; */
 	struct m0_reqh_service  *srv_srv;
 	struct m0_reqh          *srv_reqh = &sctx.rsx_motr_ctx.cc_reqh_ctx.rc_reqh;
+
+	m0_fi_enable("m0_dtm0_in_ut", "ut");
+
+	m0_semaphore_init(&g_test_wait, 0);
 
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
@@ -160,16 +165,22 @@ static void dtm0_ut_service(void)
 	cli_srv = m0_dtm__client_service_start(&cctx.cl_ctx.rcx_reqh, &cli_srv_fid);
 	M0_UT_ASSERT(cli_srv != NULL);
 	srv_srv = m0_reqh_service_lookup(srv_reqh, &srv_dtm0_fid);
-	rc = m0_dtm0_service_process_connect(srv_srv, &cli_srv_fid, cl_ep_addr);
-	M0_UT_ASSERT(rc == 0);
+	/* rc = m0_dtm0_service_process_connect(srv_srv, &cli_srv_fid, cl_ep_addr, false); */
+	/* M0_UT_ASSERT(rc == 0); */
+
+	m0_semaphore_down(&g_test_wait);
 
 	dtm0_ut_send_fops(&cctx.cl_ctx.rcx_session);
 
-	rc = m0_dtm0_service_process_disconnect(srv_srv, &cli_srv_fid);
-	M0_UT_ASSERT(rc == 0);
+	/* rc = m0_dtm0_service_process_disconnect(srv_srv, &cli_srv_fid); */
+	/* M0_UT_ASSERT(rc == 0); */
+	(void)srv_srv;
+	m0_rpc_server_stop(&sctx);
+
 	m0_dtm__client_service_stop(cli_srv);
 	dtm0_ut_client_fini(&cctx);
-	m0_rpc_server_stop(&sctx);
+	/* m0_rpc_server_stop(&sctx); */
+	m0_fi_disable("m0_dtm0_in_ut", "ut");
 }
 
 struct m0_ut_suite dtm0_ut = {
