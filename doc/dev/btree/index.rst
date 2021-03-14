@@ -1265,6 +1265,12 @@ Literature
 
 `Concurrent Operations on B*-Trees with Overtaking <https://core.ac.uk/download/pdf/82156908.pdf>`_
 
+`Prefix B-Trees RUDOLF BAYER and KARL UNTERAUER <https://dl.acm.org/doi/pdf/10.1145/320521.320530>`_
+
+`Making B+-Trees Cache Conscious in Main Memory <http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.444.6716&rep=rep1&type=pdf>`_
+
+`Improving Index Performance through Prefetching <https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.305.626&rep=rep1&type=pdf>`_
+
 ..
    http://www.cs.cmu.edu/afs/cs.cmu.edu/academic/class/15712-s05/www/lectures/Lehman81lecture.pdf
 
