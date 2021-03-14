@@ -3,22 +3,18 @@ Quick Start Guide
 =================
 This guide provides information to get Motr component ready.
 
-************
-Prerequisite
-************
+*************
+Prerequisites
+*************
 The prerequisite that is necessary to install the Motr component is mentioned below.
 
-- Kernel Version - 3.10.0-1062.el7
-
-  - To know the version being used, type the following:
-
-    - **uname -r**
-
-  - Different kernel versions that come from Centos7.7 or RHEL7.7 are supported.
+- CentOS-7 for x86_64 platform (ARM64 platform support work is in progress).
 
 - **Ansible** is needed. 
 
-  - Please refer to `Install EPEP repo <https://github.com/Seagate/cortx/blob/main/doc/LocalVMSetup.md#4-you-may-need-to-add-epel-repo>`_.
+  - Install EPEL repo:
+  
+    **$ sudo yum install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm**
 
 **********
 Procedure
@@ -190,6 +186,8 @@ Troubleshooting
        
         
 Tested by:
+
+- Mar 12, 2021: Yanqing Fu (yanqing.f.fu@seagate.com) in Red Hat Enterprise Linux Server release 7.7 (Maipo)
 
 - Jan 27, 2021: Patrick Hession (patrick.hession@seagate.com) in CentOS 7.8.2003 on a Windows laptop running VMWare Workstation Pro 16
 
