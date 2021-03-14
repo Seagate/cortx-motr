@@ -148,7 +148,7 @@
  *
  * @endverbatim
  *
- * (https://asciiflow.com/#/share/eJyrVspLzE1VslJydw1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVga68QoVQJZRuYGQFZJakUJkBOjpKCg4OnnGfJoyh4saNouZ39%2Fb09X7LKoKCYmTwEEgEwFBEDlQQSQVKIhbEK4dMONx1CEXeW0PWCMSyUenwW7hoQGPJreQkwoQB0DNxNPSCjgUYvhUHS1WJGPv7O3o48PkU4lw51YQg%2FmXip5AYhc%2FMP9iA9tegU4cnKdtsvPNSIE7E6YACjo4RxnD1cgD%2BYFJP0Ik3GkbDSLUDyJqQUz1DEUOTqHEFSDLUDIsS3UDxQK1LaOCggYIz6ujn7ATAzju%2Fj7ucYo1SrVAgDtHU%2Bxhttps://asciiflow.com/#/share/eJyrVspLzE1VslJydw1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVga68QoVQJZRuYGQFZJakUJkBOjpKCg4OnnGfJoyh4saNouZ39%2Fb0%2FXmJg8BRAAiikgAIgHxEiSaAiHEEwDsiFwDqrktD1gjCSJ3aFgFOwaEhrwaHoLHiXICGIYqkuwsDCUTcOjDCvy8Xf2dvTxIdJldHMWELn4h%2FsRH2BUcdw0LMqQE5yfa0QI2FkwAVDoIZKjh6uzN5I2hNWoSROX%2BcgpEYuWaRgux1Dk6BxCUA22IMBjGxUQMGR8XB39gMkfxnfx93ONUapVqgUAYgr3kQ%3D%3D)
+ * (https://asciiflow.com/#/share/eJyrVspLzE1VslJydw1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVga68QoVQJZRuYGQFZJakUJkBOjpKCg4OnnGfJoyh4saNouZ39%2Fb0%2FXmJg8BRAAiikgAIgHxEiSaAiHEEwDsiFwDqrktD1gjCSJ3aFgFOwaEhrwaHoLHiXICGIYqkuwsDCUTcOjDCvy8Xf2dvTxIdJldHMWELn4h%2FsRH2BUcdw0LMqQE5yfa0QI2FkwAVDoIZKjh6uzN5I2hNWoSROX%2BcgpEYuWaRgux1Dk6BxCUA22IMBjGxUQMGR8XB39gMkfxnfx93ONUapVqgUAYgr3kQ%3D%3D)
  *
  * @verbatim
  *
@@ -218,7 +218,7 @@
  *
  * @endverbatim
  *
- * (https://asciiflow.com/#/share/eJyVUrEKwjAQ%2FZVws5OL4hZiQGlNC0Z0yFIkoKAdtIMigoifIPE%2FHMWv6ZeY1ja2TSt63HCXe7n3crkDhMFaQg%2F8CUfbKIgkWgfzxTKU0IJVsJcbXTsI2AnodbvtloC9jtqdJIrkLtKJAJTakA25ECHKLL4%2Bi5n6ZGPKJ358u2jE717qfEZVs9i%2BIVyPONh1f5RQ7W2x12As%2Fiqm703ZH%2FzZ3Zqipce6kR9aqpp6qwejM54qvJ4SV49kYiYhA0qc%2FCWxuuf9y73PBpHWrJEUNuLNq3%2FEI5%2F07SPs0LGPCTXDKoy5%2BJDK5zQAjQgT1QIx4aVZ6HVt3MYaMd%2BqqrFKXIpZwpSNue8xKuAIxxc9d2%2Bmhttps://asciiflow.com/#/share/eJyVUrFqwzAQ%2FRVxc4aQpSGbUAQ1diVDHNpBiymGFhoPjYeEECihY4cORu13dAz%2BGn9JZdeWJVsOqTnDnd6T7unpDpDGmwQWEK4jtM3iLEGb%2BPHpOU1gAi%2FxPnlV2EHATsBiPp9NBOxVNruZqixLdpkqBCCPeVGZvzlCngnnvkeFSBFCZX5C3VdVZV60UG7v%2FVRLH%2FbSd0c3Dji1hQXJov4H0IpG67D8eldr10evp04LI%2B01v8gJOPFxEFwpw3Hr%2FukOlkNDn7Xk9%2BwfGpq9DtChabBHY6Yy6eY2Ic%2BMPkS1ynaaKue60bqlxG9vU8of22%2FtlmbUmNFeizAYKtTLcNKVf3GHfboKMaHaMMPs4WuPjOXwdZxDqj9MIssLNbqjk%2BkQcwmVoygJKGZVp8bmJWdUwBGOv7OavB4%3D)
+ * (https://asciiflow.com/#/share/eJyVUrFqwzAQ%2FRVxc4aQpSGbUAQ1diVDHNpBiymGFhoPjYeEECihY4cORu13dAz%2BGn9JZdeWJVsOqTnDnd6T7unpDpDGmwQWEK4jtM3iLEGb%2BPHpOU1gAi%2FxPnlV2EHATsBiPp9NBOxVNruZqixLdpkqBCCPeVGZvzlCngnnvkeFSBFCZX5C3VdVZV60UG7v%2FVRLH%2FbSd0c3Dji1hQXJov4H0IpG67D8eldr10evp04LI%2B01v8gJOPFxEFwpw3Hr%2FukOlkNDn7Xk9%2BwfGpq9DtChabBHY6Yy6eY2Ic%2BMPkS1ynaaKue60bqlxG9vU8of22%2FtlmbUmNFeizAYKtTLcNKVf3GHfboKMaHaMMPs4WuPjOXwdZxDqj9MIssLNbqjk%2BkQcwmVoygJKGZVp8bmJWdUwBGOv7OavB4%3D)
  *
  * MAKESPACE provides sufficient free space in the current node. It handles
  * multple cases:
@@ -289,13 +289,13 @@
  * +-------------------- ...
  * |
  * v
- * +----------+-----------------+--------+--------+-----+--------+--------+
- * | leaf hdr | key[0]]Treel[0] | key[1] | val[1] | ... | key[N] | val[N] |
- * +----------+-----------------+--------+--------+-----+--------+--------+
+ * +----------+--------+--------+--------+--------+-----+--------+--------+
+ * | leaf hdr | key[0] | val[0] | key[1] | val[1] | ... | key[N] | val[N] |
+ * +----------+--------+--------+--------+--------+-----+--------+--------+
  *
  * @endverbatim
  *
- * (Source: https://asciiflow.com/#/share/eJyrVspLzE1VssorzcnRUcpJrEwtUrJSqo5RqohRsrIws9SJUaoEsozMDYGsktSKEiAnRunRlD3DFcXE5AFJhZKi1FSFlNTi5CIFELcoP79EISMFwknOyMxJiTaIBXOyUythTIi4IYSjp6eHJOgHFoSYPVwR0HcK%2BAAoNIgSHUFmPZq2ixZRQbQbiELTdhHyNo6gIF%2FbgCdmXCkchZw2eJ1KjEcU8vJTUkdsqYYlcT6irCQgWfuj6S3Eu5doowkgonMzdk9SQyX9Y%2FoRlmzb82hKA160hgIFZOglqGUC2NlNyNm2CTnbNiGybRNytm2CZtsm5GzbBDZsCiE7txBy4xbceomJHFKtm4E13zVhT2pYFBKtXQ%2BXZnCmxR9oCNcSZzChWCA6y%2BoB1UEQhVkGlGIgqY2UDEPvIpx6pUOTQk5qYho8U0HyUSwoIMoSc5ArRWg9CBJFqxJBsn4IWaS6kWAmG%2FhAICfclGqVagHq968y)
+ * (Source: https://asciiflow.com/#/share/eJzlVc1OwzAMfpUo56liHPjZQ%2BwFyA7RGthE1kqhmlZNk1DEkQOHqvAQHHeaeJo8CUkzaEBpk7ZjQ1tlVbFjO7bjL17CCM8IHMB4ThimFIRTfMfwDPYgxSlhcmeJ4ALBwdXFdQ%2FBVK7OL%2FtylZBFIhkERfZxrIRQJP8gYYSAkDyMGVAsi%2BMETELNjCdTGt6cjQrmnqRfSy3vayYIAkM4LITa97GSzA7UfaoaXtIT8iXyzV9chXcMXpRvXGlXlKK92cGbuarDf%2Fzz%2FxuqTyIgikNysq%2BapTlFt5egsbl4ffKP19u1g7zRbE9yF5r7v2lhge2zyB5r6b2DQgtbp8lLETY3YctN2PISttyELd%2FClpuw5YWzzHXm2hXjutrW53KaHvdmxR23t5pF0ds8qDIuQFtftDJaP8euW%2FCGbCD1NHWEjOoY3W1NALPvJ3x3rwMHlODbb1BpHI1UIeaYmkNxOweV9NdIVLvDcteYjU6QHb4IbeoGV3D1CXFHs6U%3Dhttps://asciiflow.com/#/share/eJzlVc1OwzAMfpUo56liHPjZQ%2BwFyA7RGthE1kqhmlZNk1DEkQOHqvAQHHeaeJo8CUkzaEBpk7ZjQ1tlVbFjO7bjL17CCM8IHMB4ThimFIRTfMfwDPYgxSlhcmeJ4ALBwdXFdQ%2FBVK7OL%2FtylZBFIhkERfZxrIRQJP8gYYSAkDyMGVAsi%2BMETELNjCdTGt6cjQrmnqRfSy3vayYIAkM4LITa97GSzA7UfaoaXtIT8iXyzV9chXcMXpRvXGlXlKK92cGbuarDf%2Fzz%2FxuqTyIgikNysq%2BapTlFt5egsbl4ffKP19u1g7zRbE9yF5r7v2lhge2zyB5r6b2DQgtbp8lLETY3YctN2PISttyELd%2FClpuw5YWzzHXm2hXjutrW53KaHvdmxR23t5pF0ds8qDIuQFtftDJaP8euW%2FCGbCD1NHWEjOoY3W1NALPvJ3x3rwMHlODbb1BpHI1UIeaYmkNxOweV9NdIVLvDcteYjU6QHb4IbeoGV3D1CXFHs6U%3Dhttps://asciiflow.com/#/share/eJzlVc1OwzAMfpUo56miHPjZQ%2BwFCIdoCWwia6VQTaumSSjiyIFDVXgIjjtNPE2ehLQBGlDapO3Y0FZZVezYju34i5cwwjMKhzCeU44ZA2SKbzmewQFkOKVc7SwRXCA4vDi7HCCYqtXpeahWCV0kikFQZu%2BHSghF6g8STikg9H7MQcHyOE7AhGhmPJkycnVyXTJ3NP1aanmomSAIDOGoFGrfh0oqO9D0FdXwkh6RL5lv%2FuIqvGPwonzjSrumFN3N9t7MdR3%2B45%2F%2F31B9EgFRTOjRvmqW5pT9XoLW5vLl0T9eb9cO8kazPcltaO7%2BpqUFtk8ye2iktx4KHWydJs9l2MKErTBhKyrYChO24hO2woStKJ1lrjPXrhjX9bY%2Bl9P2uFcr7oS91SyK3uZBnXEJ2uaiVdH6OXbdgjdkA6WnqSdkio7R3dYGMLt%2Bwrf3OgjAKL75BpUx%2FuaYmUMxrKS%2FRmKxO6p2jdnoBNn%2Bi9ClbnAFVx8r8LNo)
  *
  * Liveness and ownership
  * ----------------------
