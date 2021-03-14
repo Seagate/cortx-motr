@@ -187,6 +187,8 @@ Troubleshooting
         
 Tested by:
 
+- Mar 12, 2021: Yanqing Fu (yanqing.f.fu@seagate.com) in Red Hat Enterprise Linux Server release 7.7 (Maipo)
+
 - Jan 27, 2021: Patrick Hession (patrick.hession@seagate.com) in CentOS 7.8.2003 on a Windows laptop running VMWare Workstation Pro 16
 
 - Jan 20, 2021: Mayur Gupta (mayur.gupta@seagate.com) on a Windows laptop running VMware Workstation Pro 16.
