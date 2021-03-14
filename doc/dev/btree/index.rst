@@ -1026,11 +1026,19 @@ Meetings
 
    * - 2021.03.10
      - sync up
-     - shashank, jaydeep, nikhil, nikita, shankar, yashb, huanghua, mukund
+     - shashank, jaydeep, nikhil, nikita, shankar, yashb, huanghua, mukund, radha
      - dld progress, lookup state machine, insert state machine
      - 
      - state machine of delete, state machine of iterate
      - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210310%200941-1.mp4?csf=1&web=1&e=JXgIXV>`_
+
+   * - 2021.03.12
+     - sync up
+     - shashank, jaydeep, nikhil, nikita, shankar, yashb, huanghua, mukund, radha
+     - dld progress, delete state machine, iterator state machine
+     - 
+     - revise state machine of delete, state machine of iterate to avoid IOs during locks.
+     - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210312%200932-1.mp4?csf=1&web=1&e=MXeCYg>`_
 
 Detailed-level design (DLD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
