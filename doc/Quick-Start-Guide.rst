@@ -14,7 +14,7 @@ The prerequisite that is necessary to install the Motr component is mentioned be
 
   - Install EPEL repo:
   
-    **$ sudo yum install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm**
+    **$ sudo yum install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm -y**
 
 **********
 Procedure
