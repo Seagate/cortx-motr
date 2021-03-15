@@ -222,8 +222,10 @@ static void cs_xprts_list(FILE *out, struct m0_net_xprt **xprts,
 	M0_PRE(out != NULL && xprts != NULL);
 
 	fprintf(out, "\nSupported transports:\n");
-	for (i = 0; i < xprts_nr; ++i)
+	for (i = 0; i < xprts_nr; ++i) {
 		fprintf(out, " %s\n", xprts[i]->nx_name);
+		M0_LOG(M0_ALWYAS, "%s\n", xprts[i]->nx_name);
+        }
 }
 
 /** Lists supported stob types. */
