@@ -72,11 +72,11 @@
  * * WORKLOAD_TYPE - always 0 (idx operations).
  * * WORKLOAD_SEED - initial value for pseudo-random generator
  *	(int or "tstamp").
- * * KEY_SIZE   - size of the key; can be defined as number or "random", KEY_SIZE should be > 16
+ * * KEY_SIZE   - size of the key; can be defined as number or "random", KEY_SIZE should be >= 16
  * * VALUE_SIZE - size of the value; can be defined as number or "random"
- * * MAX_KEY_SIZE - max size of key; used in case, when KEY_SIZE="random".
+ * * MAX_KEY_SIZE - max size of key; used in case, when KEY_SIZE = "random".
  *	Also, see ::CR_MAX_OF_MAX_KEY_SIZE.
- * * MAX_VALUE_SIZE - max size of value; used in case, when VALUE_SIZE="random".
+ * * MAX_VALUE_SIZE - max size of value; used in case, when VALUE_SIZE = "random".
  *	Also, see ::CR_MAX_OF_MAX_VALUE_SIZE.
  * * OP_COUNT - total operations count; can be defined as number, number with
  *	units (1K), or "unlimited".
@@ -159,14 +159,14 @@
 
 /** Global constants for DIX workload */
 enum {
-	/** Upper limit for max_key_size parameter. i.e 16KB */
-	CR_MAX_OF_MAX_KEY_SIZE		= (1<<15),
+	/** Upper limit for max_key_size parameter. i.e 1MB */
+	CR_MAX_OF_MAX_KEY_SIZE	 = (1 << 20),
 	/** Lower limit for key_size parameter. i.e 16 Bytes */
-	CR_MIN_KEY_SIZE			= sizeof(struct m0_fid),
+	CR_MIN_KEY_SIZE		 = sizeof(struct m0_fid),
 	/** Upper limit for max_value_size parameter. i.e 1GB */
-	CR_MAX_OF_MAX_VALUE_SIZE	= (1<<30),
+	CR_MAX_OF_MAX_VALUE_SIZE = (1 << 30),
 	/** Upper limit for next_records parameter. ie 1GB */
-	CR_MAX_NEXT_RECORDS	= (1 << 30),
+	CR_MAX_NEXT_RECORDS	 = (1 << 30),
 };
 
 enum cr_op_selector {
@@ -267,7 +267,8 @@ struct cr_idx_w_results {
 	struct cr_idx_ops_result    ciwr_ops_result[CRATE_OP_NR];
 };
 
-static double cr_time_in_seconds(m0_time_t mtime) {
+static double cr_time_in_seconds(m0_time_t mtime)
+{
 	return (m0_time_seconds(mtime)) +
 		( m0_time_nanoseconds(mtime) / (double) M0_TIME_ONE_SECOND );
 }
@@ -455,18 +456,6 @@ static int cr_idx_w_init(struct cr_idx_w *ciw,
 	int rc;
 	int i;
 
-	/* if max_key_size not set from yaml */
-	if (wit->max_key_size < 0)
-	{
-		wit->max_key_size = CR_MAX_OF_MAX_KEY_SIZE / 100;
-	}
-
-	/* if max_value_size not set from yaml */
-	if (wit->max_value_size < 0)
-	{
-		wit->max_value_size = CR_MAX_OF_MAX_VALUE_SIZE / 100;
-	}
-
 	M0_PRE(wit->max_key_size < CR_MAX_OF_MAX_KEY_SIZE);
 	M0_PRE(wit->max_value_size < CR_MAX_OF_MAX_VALUE_SIZE);
 	M0_PRE(wit->next_records < CR_MAX_NEXT_RECORDS);
@@ -549,8 +538,7 @@ static int cr_idx_w_init(struct cr_idx_w *ciw,
 	* we perform GET/DEL/NEXT on empty index.
 	*/
 	if ((ciw->nr_ops[CRATE_OP_DEL].nr != 0 || ciw->nr_ops[CRATE_OP_GET].nr != 0 ||
-		ciw->nr_ops[CRATE_OP_NEXT].nr != 0) && ciw->nr_ops[CRATE_OP_PUT].nr != 0)
-	{
+		ciw->nr_ops[CRATE_OP_NEXT].nr != 0) && ciw->nr_ops[CRATE_OP_PUT].nr != 0) {
 		ciw->op_selector = CR_OP_SEL_RR;
 	}
 
@@ -1072,10 +1060,10 @@ static int cr_idx_w_execute(struct cr_idx_w *w,
 	struct kv_pair		 kv = {0};
 	int			 i;
 	/* key will contain <const value:random or sequential generated value> */
-	int kpart_one_size 	    = w->wit->key_size - w->wit->min_key_size;
-	char kpart_one[kpart_one_size];
-	m0_time_t             op_start_time;
-	m0_time_t             op_time;
+	int 			 kpart_one_size = w->wit->key_size - w->wit->min_key_size;
+	char 			 kpart_one[kpart_one_size];
+	m0_time_t 		 op_start_time;
+	m0_time_t 		 op_time;
 
 	M0_PRE(nr_keys > 0);
 
