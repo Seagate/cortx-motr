@@ -172,9 +172,6 @@ M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 	M0_PRE(obj->co_status != M0_CS_LOADING);
 
 	/* Finalise generic fields. */
-	/* XXX: spiel-conf-ut:create-fail fails here
-         * Motr panic: (!m0_list_link_is_in(link)) at m0_list_link_fini()
-         */
 	m0_conf_dir_tlink_fini(obj);
 	m0_conf_cache_tlink_fini(obj);
 	m0_chan_fini(&obj->co_ha_chan);
