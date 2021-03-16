@@ -1813,7 +1813,7 @@ static int libfab_ma_start(struct m0_net_transfer_mc *ntm, const char *name)
 
 		m0_ref_init(&ftm->ftm_pep->fep_nep.nep_ref, 1, 
 				&libfab_ep_release);
-		libfab_ep_get(ftm->ftm_pep); /* TODO: Remove */
+		libfab_ep_get(ftm->ftm_pep);
 		nep = &ftm->ftm_pep->fep_nep;
 		nep->nep_tm = ntm;
 
