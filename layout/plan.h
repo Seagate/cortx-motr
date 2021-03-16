@@ -122,11 +122,16 @@
  * describing where the unit to be read is located at the cob. Now, having this
  * information the user is ready to send the io fop to the ioservice.
  *
+ * \image html layout-plan-simple-read.svg "Simple read graph"
+ *
+ * The next m0_layout_plan_get() call might return M0_LAT_OUT_READ indicating
+ * the object data is ready for the user. But the data will be actually ready
+ * only after the M0_LAT_READ plop on which M0_LAT_OUT_READ depends on is done.
+ *
  * On receiving the reply from ioservice, the user puts the received io data
- * at m0_layout_io_plop::iop_data bufvec and calls m0_layout_plop_done(). The
- * next m0_layout_plan_get() call might return M0_LAT_OUT_READ indicating that
- * the object data is ready for the user. One iteration of the graph traversing
- * loop is done.
+ * at m0_layout_io_plop::iop_data bufvec and calls m0_layout_plop_done(). Now
+ * the user can access the data using M0_LAT_OUT_READ plop and call plop_done()
+ * on it. One iteration of the graph traversing loop is done.
  *
  * Now, if the object is small and the bufvec at m0_op operation specified
  * by user spans only a single unit, the next call to m0_layout_plan_get()
@@ -140,24 +145,24 @@
  * for which the plops are returned by the plan:
  *
  * @verbatim
- *  m0_layout_plan_build() ->
- *    u0: m0_layout_plan_get() -> M0_LAT_READ -> user may start reading...
- *    u1: m0_layout_plan_get() -> M0_LAT_READ -> in parallel...
- *    u2: m0_layout_plan_get() -> M0_LAT_READ -> ...
- *    ...
- *    u0: m0_layout_plan_get() -> M0_LAT_OUT_READ  -> wait for M0_LAT_READ...
- *    u0: the data for M0_LAT_READ is ready        -> m0_layout_plop_done()
- *    u0: now the data in M0_LAT_OUT_READ is ready -> m0_layout_plop_done()
- *    ...
- *    m0_layout_plan_get() -> M0_LAT_FUN -> user must check pl_deps:
- *        if all plops in the list are M0_LPS_DONE -> call the function and
- *                                                 -> m0_layout_plop_done()
- *    ...
- *    m0_layout_plan_get() -> +1 -> there are no more plops do to yet,
- *                                  user should complete some previous plops.
- *    ...
- *    m0_layout_plan_get() -> M0_LAT_DONE -> ... -> m0_layout_plop_done()
- *  m0_layout_plan_fini()
+    m0_layout_plan_build() ->
+      u0: m0_layout_plan_get() -> M0_LAT_READ -> user may start reading...
+      u1: m0_layout_plan_get() -> M0_LAT_READ -> in parallel...
+      u2: m0_layout_plan_get() -> M0_LAT_READ -> ...
+      ...
+      u0: m0_layout_plan_get() -> M0_LAT_OUT_READ  -> wait for M0_LAT_READ...
+      u0: the data for M0_LAT_READ is ready        -> m0_layout_plop_done()
+      u0: now the data in M0_LAT_OUT_READ is ready -> m0_layout_plop_done()
+      ...
+      m0_layout_plan_get() -> M0_LAT_FUN -> user must check pl_deps:
+          if all plops in the list are M0_LPS_DONE -> call the function and
+                                                   -> m0_layout_plop_done()
+      ...
+      m0_layout_plan_get() -> +1 -> there are no more plops do to yet,
+                                    user should complete some previous plops.
+      ...
+      m0_layout_plan_get() -> M0_LAT_DONE -> ... -> m0_layout_plop_done()
+    m0_layout_plan_fini()
  * @endverbatim
  *
  * @note M0_LAT_OUT_READ plop can be returned by the plan for the unit even
@@ -186,53 +191,7 @@
  * which would restore the failed data unit using the parity data, followed
  * by the new M0_LAT_OUT_READ plop for this data unit. Here is the diagram:
  *
- * @dot
- * digraph plopfail {
- * 	subgraph cluster_0 {
- * 		style=filled;
- * 		color=lightgrey;
- * 		start;
- * 		getlayout [label="layout-index.GET(fid)"];
- * 		getlayout -> start;
- * 	}
- * 	subgraph cluster_1 {
- * 		style=filled;
- * 		color=lightgrey;
- * 		read0 [label="cob0.read(ext0)" color="red"];
- * 		read1 [label="cob1.read(ext1)"];
- * 		read2 [label="cob2.read(ext2)"];
- * 		readout0 [label="buf0.ready" color="blue"];
- * 		readout1 [label="buf1.ready"];
- * 		readout2 [label="buf2.ready"];
- * 		readout0 -> read0;
- * 		readout1 -> read1;
- * 		readout2 -> read2;
- * 		read0 -> getlayout [style=invis];
- * 		read1 -> getlayout [style=invis];
- * 		read2 -> getlayout [style=invis];
- * 	}
- * 	subgraph cluster_degraded {
- * 		style=filled;
- * 		color=lightgrey;
- * 		readparity [label="cob-parity.read(ext-parity)"];
- * 		readparity -> read0 [style=invis];
- * 		compute [label="erasure(buf1, buf2, buf-parity)"];
- * 		readout0p [label="buf0.ready"];
- * 		compute -> readparity;
- * 		compute -> read1;
- * 		compute -> read2;
- * 		readout0p -> compute;
- * 	}
- * 	subgraph cluster_2 {
- * 		style=filled;
- * 		color=lightgrey;
- * 		done
- * 		done -> readout0p [style=invis];
- * 		done -> readout1 [style=invis];
- * 		done -> readout2 [style=invis];
- * 	}
- * }
- * @enddot
+ * \image html layout-plan-read-fail.svg "Read failure handling"
  *
  * ISC use case
  * ------------
@@ -246,11 +205,13 @@
  * In this case the computation on the recovered units is better to do at
  * the client side.
  *
+ * \image html layout-plan-isc-usage.svg "ISC usage example"
+ *
  * If the graph dependency looks like a linear chain starting from M0_LAT_READ
  * and finishing with M0_LAT_OUT_READ, this might be a good canditate for ISC:
  *
  * @verbatim
- *     M0_LAT_READ <-- [ M0_LAT_FUN <-- ... ] <-- M0_LAT_OUT_READ
+      M0_LAT_READ <-- [ M0_LAT_FUN <-- ... ] <-- M0_LAT_OUT_READ
  * @endverbatim
  *
  * it means that the user data can be obtained at the server side
@@ -259,8 +220,8 @@
  * execution of such a chain of plops can be delegated to the server side
  * along with the ISC computation.
  *
- * ISC code should only make sure that the functions in between the chain
- * can be run at the server side.
+ * ISC code should only make sure that the functions which may happen in
+ * between the chain links can be run at the server side.
  *
  * In all other cases the user data should be retrieved at the client side
  * and the ISC computation on it should be done at the client side as well.
