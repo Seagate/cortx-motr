@@ -3,6 +3,7 @@
 set -e
 
 MOTR_ROOT=$(realpath ../../..)
+MOTR_UTILS_DIR=${MOTR_ROOT}/utils
 MOTR_ST_UTILS_DIR=${MOTR_ROOT}/motr/st/utils/
 MOTR_VAR_DIR=/var/motr
 TEST_ROOT=$MOTR_VAR_DIR/all2all_test
@@ -19,7 +20,6 @@ M0D_PIDS=()
 
 POOL_WIDTH=4
 IPOOL_WIDTH=2
-IMGS_CNT=$((POOL_WIDTH + IPOOL_WIDTH))
 
 . ${MOTR_ROOT}/scripts/addb-py/chronometry/common/common_funcs
 
@@ -34,80 +34,12 @@ function bootstrap_cluster()
     hctl bootstrap --mkfs $CURRENT_CDF
 }
 
-#============= DEVICES SECTION =============#
-function init_loop_devices()
-{
-    fini_loop_devices()
-
-    if [[ ! -d $LOOP_IMG_DIR ]] ; then
-        _warn "'$LOOP_IMG_DIR' doesn't exist, creating.."
-        mkdir -p "$LOOP_IMG_DIR"
-    fi
-
-    create_loop_images
-    setup_loop_devices
-}
-
-function fini_loop_devices()
-{
-    cleanup_loop_devices
-    cleanup_loop_images
-}
-
-function create_loop_images()
-{
-    _info "Creating $IMGS_CNT file images, 10GiB each, in '$LOOP_IMG_DIR'"
-    for i in $(seq $IMGS_CNT) ; do
-        local img_file="$LOOP_IMG_DIR/disk$i.img"
-        dd if=/dev/zero of="$img_file" \
-           bs=1M seek=$(( 10 * 1024 - 1 )) count=1 &>/dev/null
-    done
-}
-
-function setup_loop_devices()
-{
-    _info "Setting up loop devices"
-    for i in $(seq $IMGS_CNT) ; do
-        local img_file="$LOOP_IMG_DIR/disk$i.img"
-        local free_loopdev=$(losetup -f)
-        loop_devsused[$i]=$free_loopdev
-        _info "$free_loopdev => $img_file"
-        [[ -e $img_file ]] ||
-            die "image file '$img_file' doesn't exist"
-        losetup $free_loopdev "$img_file"
-    done
-}
-
-function cleanup_loop_devices()
-{
-    _info "Removing loop devices"
-    for i in $(seq $IMGS_CNT) ; do
-        local img_file="$LOOP_IMG_DIR/disk$i.img"
-        if [[ -e $img_file ]] ; then
-            local loop_todel=$(losetup -j $img_file -O name | grep loop)
-            if [[ -n $loop_todel ]] ; then
-                losetup -d $loop_todel
-            fi
-        fi
-    done
-}
-
-function cleanup_loop_images()
-{
-    _info "Removing file images"
-    for i in $(seq $IMGS_CNT) ; do
-        local img_file="$LOOP_IMG_DIR/disk$i.img"
-        rm -f "$img_file"
-    done
-}
-############################################
-
 function get_m0d_pids()
 {
     local pids=""
     local pid
 
-    for fid in ${M0D_FIDS_HEX[@]}; do
+    for fid in ${M0D_FIDS_HEX[@]} ; do
         pid=$(ps ax | grep m0d | grep $fid | awk '{ print $1; }')
         M0D_PIDS+=($pid)
         pids+="$pid "
@@ -125,8 +57,8 @@ function get_params_for_ha_msgs()
 
 function ha_msg_send_transient()
 {
-    for i in `seq 0 $((${#M0D_ENDPOINTS[@]}-1))`; do
-        for j in `seq 0 $((${#M0D_FIDS_DEC[@]}-1))`; do
+    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
+        for j in $(seq 0 $((${#M0D_FIDS_DEC[@]}-1))) ; do
             if [[ $i -ne $j ]]; then
                 $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_FIDS_DEC[$j]}" "transient"
                 break
@@ -137,8 +69,8 @@ function ha_msg_send_transient()
 
 function ha_msg_send_online()
 {
-    for i in `seq 0 $((${#M0D_ENDPOINTS[@]}-1))`; do
-        for j in `seq 0 $((${#M0D_FIDS_DEC[@]}-1))`; do
+    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
+        for j in $(seq 0 $((${#M0D_FIDS_DEC[@]}-1))) ; do
             if [[ $i -ne $j ]]; then
                 $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_FIDS_DEC[$j]}" "online"
             fi
@@ -153,9 +85,9 @@ function expected_trace_lines_num()
     local m0d_dir
     local cnt
 
-    for i in ${!M0D_PIDS[@]}; do
+    for i in ${!M0D_PIDS[@]} ; do
         m0d_dir=${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}
-        cnt=`$MOTR_ROOT/utils/trace/m0trace -i "${m0d_dir}/m0trace.${M0D_PIDS[i]}" | grep "$pattern" | wc -l`
+        cnt=$($MOTR_ROOT/utils/trace/m0trace -i "${m0d_dir}/m0trace.${M0D_PIDS[i]}" | grep "$pattern" | wc -l)
         if [[ $cnt -ne $exp_cnt ]]; then
             return 1
         fi
@@ -174,7 +106,7 @@ function fail()
 
 function main()
 {
-    init_loop_devices
+    ${MOTR_UTILS_DIR}/m0setup --init-loop-only -d ${TEST_ROOT} --pool-width ${POOL_WIDTH} --ipool-width ${IPOOL_WIDTH}
 
     _info "Bootstrapping the cluster using Hare..."
     bootstrap_cluster
@@ -204,7 +136,6 @@ function main()
     }
 
     stop_cluster
-    fini_loop_devices
 
     _info "TEST STATUS: PASSED"
 }
