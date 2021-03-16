@@ -308,7 +308,8 @@ M0_INTERNAL m0_bcount_t m0_rpc_max_msg_size(struct m0_net_domain *ndom,
 
 	M0_PRE(ndom != NULL);
 
-	mbs = m0_net_domain_get_max_buffer_size(ndom);
+	mbs = min64u(m0_net_domain_get_max_buffer_size(ndom),
+		     M0_RPC_DEF_MAX_RPC_MSG_SIZE);
 	return rpc_size != 0 ? m0_clip64u(M0_SEG_SIZE, mbs, rpc_size) : mbs;
 }
 
