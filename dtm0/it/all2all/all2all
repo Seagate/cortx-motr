@@ -106,7 +106,7 @@ function fail()
 
 function main()
 {
-    ${MOTR_UTILS_DIR}/m0setup --init-loop-only -d ${TEST_ROOT} --pool-width ${POOL_WIDTH} --ipool-width ${IPOOL_WIDTH}
+    ${MOTR_UTILS_DIR}/m0setup --init-loop-only -s 1 -d ${TEST_ROOT} --pool-width ${POOL_WIDTH} --ipool-width ${IPOOL_WIDTH}
 
     _info "Bootstrapping the cluster using Hare..."
     bootstrap_cluster
@@ -131,7 +131,7 @@ function main()
     ha_msg_send_online
 
     _info "Checking traces..."
-    expected_trace_lines_num "DTM0 service: connected" 2 || {
+    expected_trace_lines_num "DTM0 service: connected" $((${#M0D_ENDPOINTS[@]}-1)) || {
         fail "Process is not connected, exiting"
     }
 

@@ -669,7 +669,7 @@ if [[ -n $disk_pattern ]] ; then
         $(path_of m0gendisks) -l -d $pool_width -p "$disk_pattern"
         exit 0
     fi
-elif ! $linuxstob_mode && ! $init_loop_only ; then
+elif ! $linuxstob_mode ; then
     init_loop_devices
 fi
 
