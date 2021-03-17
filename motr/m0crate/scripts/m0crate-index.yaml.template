@@ -26,13 +26,13 @@ CrateConfig_Sections: [MOTR_CONFIG, WORKLOAD_SPEC]
 MOTR_CONFIG:
    MOTR_LOCAL_ADDR: 192.168.52.53@tcp:12345:4:1
    MOTR_HA_ADDR:    192.168.52.53@tcp:12345:1:1
-   PROF: <0x7000000000000001:0x3a>  	# Profile fid
+   PROF: <0x7000000000000001:0x37>  	# Profile fid
    LAYOUT_ID: 1                      	# Defines the UNIT_SIZE (9: 1MB)
    IS_OOSTORE: 1                     	# Is oostore-mode?
    IS_READ_VERIFY: 0                 	# Enable read-verify?
    TM_RECV_QUEUE_MIN_LEN: 16  			# Minimum length of the receive queue
    M0_MAX_RPC_MSG_SIZE: 262144    		# Maximum rpc message size
-   PROCESS_FID: <0x7200000000000001:0x1b>
+   PROCESS_FID: <0x7200000000000001:0x19>
    IDX_SERVICE_ID: 1
 
 WORKLOAD_SPEC:                		     	# Workload specification section

@@ -19,22 +19,22 @@
 
 # Test case #3 - write speed (unordered keys)
 # Number of clients and server nodes - TBD. Layout with replication factor 1.
-# Record value size is fixed - 4 Mb.
+# Key size is fixed - 16 bytes
+# Value size is fixed - 16 bytes
 # Keys order: random.
-# Number of records 1 Tb/4 Mb/number of clients.
 # Only PUT requests.
 
 CrateConfig_Sections: [MOTR_CONFIG, WORKLOAD_SPEC]
 MOTR_CONFIG:
     MOTR_LOCAL_ADDR: 192.168.52.53@tcp:12345:4:1
     MOTR_HA_ADDR: 192.168.52.53@tcp:12345:1:1
-    PROF: <0x7000000000000001:0x3a>
+    PROF: <0x7000000000000001:0x37>
     LAYOUT_ID: 1
     IS_OOSTORE: 1
     IS_READ_VERIFY: 0
     TM_RECV_QUEUE_MIN_LEN: 2
     M0_MAX_RPC_MSG_SIZE: 131072
-    PROCESS_FID: <0x7200000000000001:0x1b>
+    PROCESS_FID: <0x7200000000000001:0x19>
     IDX_SERVICE_ID: 1
     CASS_CLUSTER_EP: "127.0.0.1"
     CASS_KEYSPACE: "motr_index_keyspace"
@@ -45,8 +45,10 @@ WORKLOAD_SPEC:
     WORKLOAD_SEED: tstamp
     NUM_KVP: 8
     NXRECORDS: default # int or default
-    RECORD_SIZE: 32 # int [units] or random
-    MAX_RSIZE: 1M # int [units]
+    KEY_SIZE: 16 # int [units] or random
+    VALUE_SIZE: 16 # int [units] or random
+    MAX_KEY_SIZE: 512K # int [units]
+    MAX_VALUE_SIZE: 512K # int [units]
     OP_COUNT: 32 # int [units] or unlimited = (2 ** 31 - 1) / (128 * NUM_KVP)
     EXEC_TIME: unlimited # int (seconds) or unlimited
     WARMUP_PUT_CNT: 0 # int (ops) or all

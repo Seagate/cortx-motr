@@ -448,8 +448,13 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			ciw = workload_index(w);
 			if (strcmp(value, "random") == 0)
 				ciw->value_size = -1;
-			else
+			else {
 				ciw->value_size = parse_int(value, VALUE_SIZE);
+				if (strcmp(key, "RECORD_SIZE") == 0) {
+					cr_log(CLL_WARN, "RECORD_SIZE is being deprecated, use KEY_SIZE and VALUE_SIZE.\n");
+					ciw->value_size = ciw->value_size - ciw->key_size;
+				}
+			}
 			break;
 		case MAX_KEY_SIZE:
 			w = &load[*index];
@@ -460,6 +465,10 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			w = &load[*index];
 			ciw = workload_index(w);
 			ciw->max_value_size = parse_int(value, MAX_VALUE_SIZE);
+			if (strcmp(key, "MAX_RSIZE") == 0) {
+				cr_log(CLL_WARN, "MAX_RSIZE is being deprecated, use MAX_KEY_SIZE and MAX_VALUE_SIZE.\n");
+				ciw->max_value_size = ciw->max_value_size - ciw->max_key_size;
+			}
 			break;
 		case INDEX_FID:
 			w = &load[*index];

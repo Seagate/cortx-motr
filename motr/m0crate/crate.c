@@ -65,6 +65,7 @@ const int    cr_default_nr_thread  = 1;
 const short  cr_default_read_frac  = 50;
 const bcnt_t cr_default_blocksize  = 16 * 1024;
 const bcnt_t cr_default_csum_size  = 16;
+const bcnt_t cr_default_key_size   = sizeof(struct m0_fid);
 const bcnt_t cr_default_max_ksize  = 1 << 10; /* default upper limit for key_size parameter. i.e 1KB */
 const bcnt_t cr_default_max_vsize  = 1 << 20; /* default upper limit for value_size parameter. i.e 1MB */
 
@@ -228,13 +229,12 @@ int workload_init(struct workload *w, enum cr_workload_type wtype)
 
 	/* set default values before yaml parsing */
 	if (wtype == CWT_INDEX) {
-		struct m0_workload_index *wit 	= w->u.cw_index;
-		/* default key_size is -1 i.e random */
-		wit->key_size 			= -1;
+		struct m0_workload_index *wit = w->u.cw_index;
+		wit->key_size 		      = cr_default_key_size;
 		/* default value_size is -1 i.e random */
-		wit->value_size			= -1;
-		wit->max_key_size		= cr_default_max_ksize;
-		wit->max_value_size		= cr_default_max_vsize;
+		wit->value_size		      = -1;
+		wit->max_key_size	      = cr_default_max_ksize;
+		wit->max_value_size	      = cr_default_max_vsize;
 	}
 
 	return wop(w)->wto_init(w);

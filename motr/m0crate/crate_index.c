@@ -245,15 +245,15 @@ struct cr_idx_ops_result {
 	/**  op label */
 	const char	*cior_op_label;
 	/** comes from cr_opcode::CRATE_OP_PUT */
-	int          	cior_op_type;
+	int          	 cior_op_type;
 	/** total ops count per op type */
-	int	     	cior_op_count;
+	int	     	 cior_op_count;
 	/** total op time in  m0_time_t */
-	m0_time_t    	cior_ops_total_time_m0;
+	m0_time_t    	 cior_ops_total_time_m0;
 	/** total op time in seconds */
-	double      	cior_ops_total_time_s;
+	double      	 cior_ops_total_time_s;
 	/** per op time in nanoseconds */
-	double       	cior_time_per_op_ns;
+	double       	 cior_time_per_op_ns;
 };
 
 struct cr_idx_w_results {
@@ -389,8 +389,8 @@ static void cr_time_capture_results(struct cr_time_measure_ctx *t,
 {
 	int i 			  	     = 0;
 	struct cr_idx_ops_result *op_results = ciw->ciw_results.ciwr_ops_result;
-	ciw->ciw_results.ciwr_total_time_s = t->elapsed;
-	ciw->ciw_results.ciwr_total_time_m0 = m0_time_sub(t->ts_next, t->ts);
+	ciw->ciw_results.ciwr_total_time_s   = t->elapsed;
+	ciw->ciw_results.ciwr_total_time_m0  = m0_time_sub(t->ts_next, t->ts);
 	ciw->ciw_results.ciwr_time_per_op_ns =  m0_time_nanoseconds(
 			ciw->ciw_results.ciwr_total_time_m0 / ciw->nr_ops_total);
 
@@ -399,7 +399,7 @@ static void cr_time_capture_results(struct cr_time_measure_ctx *t,
 		if (op_results[i].cior_op_count) {
 			op_results[i].cior_ops_total_time_s =
 				cr_time_in_seconds(op_results[i].cior_ops_total_time_m0);
-			op_results[i].cior_time_per_op_ns = m0_time_nanoseconds(
+			op_results[i].cior_time_per_op_ns   = m0_time_nanoseconds(
 				op_results[i].cior_ops_total_time_m0 /
 				op_results[i].cior_op_count);
 		}
@@ -725,7 +725,7 @@ static int fill_kv_next(struct cr_idx_w *w,
 	p->k->ov_buf[0] = m0_alloc(w->wit->key_size);
 	memcpy(p->k->ov_buf[0], (void*)kpart_one, kpart_one_size);
 	memcpy(p->k->ov_buf[0] + kpart_one_size, &k[0], sizeof(*k));
-	crlog(CLL_DEBUG, "Generated next k=%s:" FID_F, kpart_one,FID_P(&k[0]));
+	crlog(CLL_DEBUG, "Generated next k=%s:" FID_F, kpart_one, FID_P(&k[0]));
 
 	return M0_RC(0);
 }
