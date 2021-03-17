@@ -27,6 +27,8 @@
 #include "net/net.h"
 #include "rpc/rpclib.h"
 #include "ut/ut.h"
+#include "cas/cas.h"
+#include "cas/cas_xc.h"
 
 #define M0_FID(c_, k_)  { .f_container = c_, .f_key = k_ }
 #define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
@@ -183,10 +185,38 @@ static void dtm0_ut_service(void)
 	m0_fi_disable("m0_dtm0_in_ut", "ut");
 }
 
+
+static void cas_xcode_test(void)
+{
+	int         rc;
+	void       *buf;
+	m0_bcount_t len;
+	struct m0_cas_op op_out = {};
+	struct m0_cas_op op_in = {
+		.cg_txd = {
+			.dtd_ps = {
+				.dtp_nr = 1,
+				.dtp_pa = &(struct m0_dtm0_tx_pa) {
+					.p_state = 555,
+				},
+			},
+		},
+	};
+
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, &op_in),
+				     &buf, &len);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(m0_cas_op_xc, &op_out),
+				       buf, len);
+	M0_UT_ASSERT(rc == 0);
+}
+
 struct m0_ut_suite dtm0_ut = {
         .ts_name = "dtm0-ut",
         .ts_tests = {
-                { "service", dtm0_ut_service},
+                { "service", dtm0_ut_service },
+                { "xcode", cas_xcode_test },
 		{ NULL, NULL },
 	}
 };
