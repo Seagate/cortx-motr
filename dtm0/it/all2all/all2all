@@ -50,13 +50,18 @@ function get_m0d_pids()
 
 function get_params_for_ha_msgs()
 {
-    M0D_ENDPOINTS=($(hctl status --json | jq -r '.nodes[] | .svcs[] | select( .name | contains("ioservice")) | .ep' | sed -E 's/.*@tcp[:](.*)/\1/'))
-    M0D_FIDS_HEX=($(hctl status --json | jq -r '.nodes[] | .svcs[] | select( .name | contains("ioservice")) | .fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
-    M0D_FIDS_DEC=($(hctl status --json | jq -r '.nodes[] | .svcs[] | select( .name | contains("ioservice")) | .fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e'))
+    local json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[] | select( .name | contains("ioservice"))')
+    M0D_ENDPOINTS=($(echo $json_out | jq -r '.ep' | sed -E 's/.*@tcp[:](.*)/\1/'))
+    M0D_FIDS_HEX=($(echo $json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
+    M0D_FIDS_DEC=($(echo $json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e'))
 }
 
 function ha_msg_send_transient()
 {
+    # Here we send "TRANSIENT" messages to trigger start of
+    # HA messages handling on the m0d side as dtm0 doesn't
+    # handle them until "TRANSIENT" received due to incomplete
+    # implementation on the Hare side.
     for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
         for j in $(seq 0 $((${#M0D_FIDS_DEC[@]}-1))) ; do
             if [[ $i -ne $j ]]; then
@@ -69,6 +74,7 @@ function ha_msg_send_transient()
 
 function ha_msg_send_online()
 {
+    # Here we send "ONLINE" messages to trigger connections logic.
     for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
         for j in $(seq 0 $((${#M0D_FIDS_DEC[@]}-1))) ; do
             if [[ $i -ne $j ]]; then
@@ -82,12 +88,10 @@ function expected_trace_lines_num()
 {
     local pattern="$1"
     local exp_cnt=$2
-    local m0d_dir
     local cnt
 
     for i in ${!M0D_PIDS[@]} ; do
-        m0d_dir=${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}
-        cnt=$($MOTR_ROOT/utils/trace/m0trace -i "${m0d_dir}/m0trace.${M0D_PIDS[i]}" | grep "$pattern" | wc -l)
+        cnt=$($MOTR_ROOT/utils/trace/m0trace -i "${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/m0trace.${M0D_PIDS[i]}" | grep "$pattern" | wc -l)
         if [[ $cnt -ne $exp_cnt ]]; then
             return 1
         fi
