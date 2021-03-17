@@ -21,8 +21,13 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM0
 #include "lib/trace.h"
 #include "lib/assert.h"
+#include "lib/memory.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"               /* m0_reqh */
+#include "be/domain.h"
+#include "be/dtm0_log.h"
+#include "module/instance.h"         /* m0_get */
+
 
 M0_INTERNAL struct m0_reqh_service *
 m0_dtm__client_service_start(struct m0_reqh *reqh, struct m0_fid *cli_srv_fid)
@@ -51,6 +56,80 @@ M0_INTERNAL void m0_dtm__client_service_stop(struct m0_reqh_service *svc)
        m0_reqh_idle_wait_for(svc->rs_reqh, svc);
        m0_reqh_service_stop(svc);
        m0_reqh_service_fini(svc);
+}
+
+static int dtm0_log_init(struct m0_be_domain *dom, const char *suffix,
+			 const struct m0_buf *data)
+{
+	struct m0_be_dtm0_log *log0 = *(struct m0_be_dtm0_log**)data->b_addr;
+	struct m0_reqh        *reqh = dom->bd_cfg.bc_engine.bec_reqh;
+	unsigned               key = m0_get()->i_dtm0_log_key;
+
+	M0_ENTRY("suffix: %s, data: %p, log0: %p", suffix, data->b_addr, log0);
+
+	if (m0_reqh_lockers_get(reqh, key) == NULL)
+		m0_reqh_lockers_set(reqh, key, log0);
+
+	return M0_RC(0);
+}
+
+static void dtm0_log_fini(struct m0_be_domain *dom, const char *suffix,
+			  const struct m0_buf *data)
+{
+	M0_ENTRY();
+	M0_LEAVE();
+}
+
+struct m0_be_0type m0_be_dtm0 = {
+	.b0_name = "M0_BE:DTM_LOG",
+	.b0_init = dtm0_log_init,
+	.b0_fini = dtm0_log_fini,
+};
+
+M0_INTERNAL int m0_dtm0_log_create(struct m0_sm_group  *grp,
+				   struct m0_be_domain *bedom,
+				   struct m0_be_seg    *seg)
+{
+	static const char      *logid = "0001";
+	struct m0_be_tx_credit  cred = {};
+	struct m0_be_dtm0_log  *log;
+	struct m0_be_tx        *tx;
+	struct m0_buf           data = {};
+	int                     rc;
+
+	M0_ALLOC_PTR(tx);
+	if (tx == NULL)
+		return M0_ERR(-ENOMEM);
+
+	m0_be_0type_add_credit(bedom, &m0_be_dtm0, logid, &data, &cred);
+	M0_BE_ALLOC_CREDIT_PTR(log, seg, &cred);
+	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_PTR(log));
+
+	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_exclusive_open_sync(tx);
+	if (rc != 0)
+		goto tx_fini;
+
+	M0_BE_ALLOC_PTR_SYNC(log, seg, tx);
+	if (log == NULL)
+		goto tx_fini;
+
+	/* TODO: as a part of log-related patches add the following code:
+	        persistent_log_init(log);
+		M0_BE_TX_CAPTURE_PTR(log);
+	 */
+
+	data = M0_BUF_INIT_PTR(&log);
+	rc = m0_be_0type_add(&m0_be_dtm0, bedom, tx, logid, &data);
+	if (log == NULL)
+		goto tx_fini;
+
+	m0_be_tx_close_sync(tx);
+tx_fini:
+	m0_be_tx_fini(tx);
+	m0_free(tx);
+	return M0_RC(rc);
 }
 
 /*

@@ -66,6 +66,7 @@
 #include "ioservice/io_service.h"  /* m0_ios_net_buffer_pool_size_set */
 #include "stob/linux.h"
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
+#include "dtm0/helper.h"        /* m0_dtm0_log_create */
 
 /**
    @addtogroup m0d
@@ -1320,7 +1321,8 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx, bool erase)
 		rc = m0_mdstore_destroy(&rctx->rc_mdstore, grp, bedom);
 
 	rc = rc ?: m0_mdstore_create(&rctx->rc_mdstore, grp, &rctx->rc_cdom_id,
-				     bedom, rctx->rc_beseg);
+				     bedom, rctx->rc_beseg)
+		?: m0_dtm0_log_create(grp, bedom, rctx->rc_beseg);
 	if (rc != 0)
 		goto end;
 	dom = rctx->rc_mdstore.md_dom;
@@ -2244,10 +2246,10 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				})),
 			M0_STRINGARG('A', "ADDB storage domain location",
 				LAMBDA(void, (const char *s)
-				{    
+				{
                                         char tmp_buf[128];
                                         sprintf(tmp_buf, "%s-%d", s, (int)m0_pid());
-                                        rctx->rc_addb_stlocation = strdup(tmp_buf);	
+                                        rctx->rc_addb_stlocation = strdup(tmp_buf);
 				})),
 			M0_STRINGARG('d', "Device configuration file",
 				LAMBDA(void, (const char *s)

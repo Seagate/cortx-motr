@@ -33,6 +33,10 @@ M0_INTERNAL struct m0_reqh_service *
 m0_dtm__client_service_start(struct m0_reqh *reqh, struct m0_fid *cli_srv_fid);
 M0_INTERNAL void m0_dtm__client_service_stop(struct m0_reqh_service *svc);
 
+M0_INTERNAL int m0_dtm0_log_create(struct m0_sm_group  *grp,
+				   struct m0_be_domain *bedom,
+				   struct m0_be_seg    *seg);
+
 /* __MOTR_DTM0_HELPER_H__ */
 #endif
 
