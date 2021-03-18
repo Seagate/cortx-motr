@@ -36,7 +36,9 @@
 #define DTM0_UT_CONF_PROCESS    "<0x7200000000000001:5>"
 #define DTM0_UT_LOG             "dtm0_ut_server.log"
 
-enum { MAX_RPCS_IN_FLIGHT = 10 };
+enum { MAX_RPCS_IN_FLIGHT = 10,
+       NUM_CAS_RECS = 10,
+};
 
 static struct m0_fid cli_srv_fid = M0_FID(0x7300000000000001, 0x1a);
 static struct m0_fid srv_dtm0_fid = M0_FID(0x7300000000000001, 0x1c);
@@ -186,13 +188,29 @@ static void dtm0_ut_service(void)
 }
 
 
-static void cas_xcode_test(void)
+struct record
 {
-	int         rc;
+	uint64_t key;
+	uint64_t value;
+};
+
+static void cas_xcode_test()
+{
+	struct record recs[NUM_CAS_RECS];
+	struct m0_cas_rec cas_recs[NUM_CAS_RECS];
+	struct m0_fid fid = M0_FID_TINIT('i', 0, 0);
 	void       *buf;
 	m0_bcount_t len;
-	struct m0_cas_op op_out = {};
+	int rc;
+	int i;
+	struct m0_cas_op *op_out;
 	struct m0_cas_op op_in = {
+		.cg_id  = {
+			.ci_fid = fid
+		},
+		.cg_rec = {
+			.cr_rec = cas_recs
+		},
 		.cg_txd = {
 			.dtd_ps = {
 				.dtp_nr = 1,
@@ -203,13 +221,34 @@ static void cas_xcode_test(void)
 		},
 	};
 
-	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, &op_in),
-				     &buf, &len);
-	M0_UT_ASSERT(rc == 0);
+	/* Fill array with pair: [key, value]. */
+	m0_forall(i, NUM_CAS_RECS-1, (recs[i].key = i, recs[i].value = i * i, true));
 
-	rc = m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(m0_cas_op_xc, &op_out),
-				       buf, len);
+	for (i = 0; i < NUM_CAS_RECS - 1; i++) {
+		cas_recs[i] = (struct m0_cas_rec){
+			.cr_key = (struct m0_rpc_at_buf) {
+				.ab_type  = 1,
+				.u.ab_buf = M0_BUF_INIT(sizeof recs[i].key,
+							&recs[i].key)
+				},
+			.cr_val = (struct m0_rpc_at_buf) {
+				.ab_type  = 0,
+				.u.ab_buf = M0_BUF_INIT(0, NULL)
+				},
+			.cr_rc = 0 };
+	}
+	cas_recs[NUM_CAS_RECS - 1] = (struct m0_cas_rec) { .cr_rc = ~0ULL };
+	while (cas_recs[op_in.cg_rec.cr_nr].cr_rc != ~0ULL)
+		++ op_in.cg_rec.cr_nr;
+
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, &op_in), &buf, &len);
 	M0_UT_ASSERT(rc == 0);
+	M0_ALLOC_PTR(op_out);
+    M0_UT_ASSERT(op_out != NULL);
+    rc = m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(m0_cas_op_xc, op_out), buf, len);
+    M0_UT_ASSERT(rc == 0);
+
+    m0_xcode_free_obj(&M0_XCODE_OBJ(m0_cas_op_xc, op_out));
 }
 
 struct m0_ut_suite dtm0_ut = {

@@ -1091,6 +1091,30 @@ static int op_sync_wait(struct m0_fom *fom)
 	return M0_FSO_AGAIN;
 }
 
+M0_UNUSED static int cas_op_encode( const void *obj, struct m0_buf *buf)
+{
+	int rc;
+
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, (void*)obj),
+				      &buf->b_addr, &buf->b_nob);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	return rc;
+}
+
+M0_UNUSED static int cas_op_decode( void *obj, struct m0_buf *buf)
+{
+	int rc;
+
+	rc = m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(m0_cas_op_xc, (void*)obj),
+					buf->b_addr, buf->b_nob);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	return rc;
+}
+
 static int cas_fom_tick(struct m0_fom *fom0)
 {
 	uint64_t            i;
