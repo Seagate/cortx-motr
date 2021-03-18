@@ -84,6 +84,7 @@ M0_INTERNAL uint64_t layout_unit_size(struct m0_pdclust_layout *play)
 	return play->pl_attr.pa_unit_size;
 }
 
+/** Returns number of pages (rows) in the unit. */
 M0_INTERNAL uint32_t data_row_nr(struct m0_pdclust_layout *play,
 				 struct m0_obj *obj)
 {
