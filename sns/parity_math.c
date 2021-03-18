@@ -581,7 +581,7 @@ static void isal_diff(struct m0_parity_math *math,
 {
 	uint8_t	 *diff_data = NULL;
 	uint32_t  block_size;
-	uint32_t  alignment = sizeof(uint64_t);
+	uint32_t  alignment = sizeof(uint_fast32_t);
 	uint32_t  i;
 	int	  ret = 0;
 
@@ -598,15 +598,14 @@ static void isal_diff(struct m0_parity_math *math,
 
 	block_size = new[index].b_nob;
 
-	/* To calculate XOR for 64-bits of data at a time, first need to
-	 * ensure that the block-size is 64-bits i.e. 8 bytes aligned.
+	/* It is assumed that the buffer size will always be a multiple of
+	 * 8-bytes (especially since block size currently is 4K) and this assert
+	 * is added with the hope that any deviation from this assumption is
+	 * caught during development instead of on the field.
 	 */
-	if (m0_is_aligned(block_size, alignment) == 0) {
-		ret = M0_ERR_INFO(-EINVAL,
-				  "block_size=%u is not %u-bytes aligned",
-				  block_size, alignment);
-		goto fini;
-	}
+	M0_ASSERT_INFO(m0_is_aligned(block_size, alignment),
+		       "block_size=%u is not %u-bytes aligned",
+		       block_size, alignment);
 
 	ALLOC_ARR_INFO(diff_data, block_size, "differential data block", ret);
 	if (diff_data == NULL)
@@ -614,9 +613,9 @@ static void isal_diff(struct m0_parity_math *math,
 
 	M0_LOG(M0_DEBUG, "calculate differential data.");
 	for (i = 0; i < (block_size / alignment); i++)
-		((uint64_t *)diff_data)[i] =
-			((uint64_t *)old[index].b_addr)[i] ^
-			((uint64_t *)new[index].b_addr)[i];
+		((uint_fast32_t *)diff_data)[i] =
+			((uint_fast32_t *)old[index].b_addr)[i] ^
+			((uint_fast32_t *)new[index].b_addr)[i];
 
 	for (i = 0; i < math->pmi_parity_count; ++i) {
 		if (block_size != parity[i].b_nob) {
