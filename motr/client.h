@@ -700,7 +700,7 @@ struct m0_entity {
  * the implementation when an object is opened.
  */
 struct m0_obj_attr {
-	/** Binary logarithm (bit-shift) of object IO buffer size. */
+	/** Binary logarithm (bit-shift) of object minimal block size. */
 	m0_bcount_t   oa_bshift;
 
 	/** Layout ID for an object. */
