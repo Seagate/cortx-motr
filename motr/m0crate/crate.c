@@ -65,6 +65,9 @@ const int    cr_default_nr_thread  = 1;
 const short  cr_default_read_frac  = 50;
 const bcnt_t cr_default_blocksize  = 16 * 1024;
 const bcnt_t cr_default_csum_size  = 16;
+const bcnt_t cr_default_key_size   = sizeof(struct m0_fid);
+const bcnt_t cr_default_max_ksize  = 1 << 10; /* default upper limit for key_size parameter. i.e 1KB */
+const bcnt_t cr_default_max_vsize  = 1 << 20; /* default upper limit for value_size parameter. i.e 1MB */
 
 
 const char *cr_workload_name[CWT_NR] = {
@@ -224,6 +227,16 @@ int workload_init(struct workload *w, enum cr_workload_type wtype)
         w->cw_nr_dir    = cr_default_nr_dir;
         w->cw_read_frac = cr_default_read_frac;
 
+	/* set default values before yaml parsing */
+	if (wtype == CWT_INDEX) {
+		struct m0_workload_index *wit = w->u.cw_index;
+		wit->key_size 		      = cr_default_key_size;
+		/* default value_size is -1 i.e random */
+		wit->value_size		      = -1;
+		wit->max_key_size	      = cr_default_max_ksize;
+		wit->max_value_size	      = cr_default_max_vsize;
+	}
+
 	return wop(w)->wto_init(w);
 }
 
@@ -380,7 +393,8 @@ static void workload_run(struct workload *w)
                w->cw_name, w->cw_type);
         cr_log(CLL_INFO, "random seed:           %u\n", w->cw_rstate);
         cr_log(CLL_INFO, "number of threads:     %u\n", w->cw_nr_thread);
-	if (CWT_IO != w->cw_type) {
+	/* Following params not applicable to IO and INDEX tests */
+	if (CWT_IO != w->cw_type && CWT_INDEX != w->cw_type) {
 		cr_log(CLL_INFO, "average size:          %llu\n", w->cw_avg);
 		cr_log(CLL_INFO, "maximal size:          %llu\n", w->cw_max);
 		/*
