@@ -70,7 +70,7 @@ Perform the below mentioned procedure to build the source code.
 RPM Generation
 ===============
 
-You can build RPMs instead of building from source. Do not do this if you have followed the above steps for build from source.
+You can also build RPMs by running the following command.
 
 - **$ make rpms**
 
