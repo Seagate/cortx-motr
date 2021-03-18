@@ -464,8 +464,6 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 	} else {
 		uint32_t total_count = data_count + parity_count;
 
-		M0_LOG(M0_DEBUG, "use Intel ISA for parity calculation.");
-
 		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_ISA;
 
 		ALLOC_ARR_INFO(math->pmi_encode_matrix,
@@ -494,6 +492,8 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 		ec_init_tables(data_count, parity_count,
 			       &math->pmi_encode_matrix[data_count * data_count],
 			       math->pmi_encode_tbls);
+
+		M0_LOG(M0_DEBUG, "use Intel ISA for parity calculation.");
 	}
 #else
 	} else {
@@ -581,6 +581,7 @@ static void isal_diff(struct m0_parity_math *math,
 {
 	uint8_t	 *diff_data = NULL;
 	uint32_t  block_size;
+	uint32_t  alignment = sizeof(uint64_t);
 	uint32_t  i;
 	int	  ret = 0;
 
@@ -597,15 +598,25 @@ static void isal_diff(struct m0_parity_math *math,
 
 	block_size = new[index].b_nob;
 
+	/* To calculate XOR for 64-bits of data at a time, first need to
+	 * ensure that the block-size is 64-bits i.e. 8 bytes aligned.
+	 */
+	if (m0_is_aligned(block_size, alignment) == 0) {
+		ret = M0_ERR_INFO(-EINVAL,
+				  "block_size=%u is not %u-bytes aligned",
+				  block_size, alignment);
+		goto fini;
+	}
+
 	ALLOC_ARR_INFO(diff_data, block_size, "differential data block", ret);
 	if (diff_data == NULL)
 		goto fini;
 
 	M0_LOG(M0_DEBUG, "calculate differential data.");
-	for (i = 0; i < block_size; i++) {
-		diff_data[i] = ((uint8_t *)old[index].b_addr)[i] ^
-			       ((uint8_t *)new[index].b_addr)[i];
-	}
+	for (i = 0; i < (block_size / alignment); i++)
+		((uint64_t *)diff_data)[i] =
+			((uint64_t *)old[index].b_addr)[i] ^
+			((uint64_t *)new[index].b_addr)[i];
 
 	for (i = 0; i < math->pmi_parity_count; ++i) {
 		if (block_size != parity[i].b_nob) {
