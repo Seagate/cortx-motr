@@ -464,8 +464,6 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 	} else {
 		uint32_t total_count = data_count + parity_count;
 
-		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_ISA;
-
 		ALLOC_ARR_INFO(math->pmi_encode_matrix,
 			       (total_count * data_count),
 			       "encode matrix", ret);
@@ -494,6 +492,7 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 			       math->pmi_encode_tbls);
 
 		M0_LOG(M0_DEBUG, "use Intel ISA for parity calculation.");
+		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_ISA;
 	}
 #else
 	} else {
