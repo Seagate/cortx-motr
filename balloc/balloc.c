@@ -964,6 +964,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 
 	bal->cb_be_seg = seg;
 	bal->cb_group_info = NULL;
+	bal->cb_lfreegroup = 0;
 	m0_mutex_init(&bal->cb_sb_mutex.bm_u.mutex);
 
 	m0_be_btree_init(&bal->cb_db_group_desc, seg, &gd_btree_ops);
@@ -2398,6 +2399,7 @@ static bool is_free_space_unavailable(struct m0_balloc_group_info *grp,
 static int
 balloc_regular_allocator(struct balloc_allocation_context *bac)
 {
+	struct m0_balloc  *bal = bac->bac_ctxt;
 	m0_bcount_t ngroups;
 	m0_bcount_t group;
 	m0_bcount_t i;
@@ -2443,8 +2445,9 @@ repeat:
 		 * searching for the right group start
 		 * from the goal value specified
 		 */
-		group = balloc_bn2gn(bac->bac_goal.e_start, bac->bac_ctxt);
-
+		/* group = balloc_bn2gn(bac->bac_goal.e_start, bac->bac_ctxt);*/
+		/* MBK start with lowest group having  free space */
+		group = bal->cb_lfreegroup;
 		for (i = 0; i < ngroups; group++, i++) {
 			struct m0_balloc_group_info *grp;
 
@@ -2464,6 +2467,13 @@ repeat:
 
 			/* quick check to skip empty groups */
 			if (is_free_space_unavailable(grp, bac->bac_flags)) {
+				if (group == bal->cb_lfreegroup) {
+					/*  MBK lowest group no longer has free
+					 * space*/
+					bal->cb_lfreegroup++;
+					if (bal->cb_lfreegroup >= ngroups)
+						bal->cb_lfreegroup = 0;
+				}
 				M0_LOG(M0_DEBUG, "grp=%d is empty", (int)group);
 				m0_balloc_unlock_group(grp);
 				continue;

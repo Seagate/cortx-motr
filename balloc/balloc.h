@@ -232,6 +232,7 @@ struct m0_balloc {
 	struct m0_balloc_super_block cb_sb;
 
 	m0_bindex_t                  cb_last;
+        m0_bcount_t	             cb_lfreegroup; /**#MBK lowest group with free space */
 
 	struct m0_ad_balloc          cb_ballroom;
 	struct m0_format_footer      cb_footer;
