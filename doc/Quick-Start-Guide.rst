@@ -21,16 +21,20 @@ Procedure
 **********
 The below mentioned procedure must be followed to install the Motr component and to perform tests.
 
-1. Cloning the Source Code
+1. Clone the Source Code
 
-2. Building the Source Code
+2. Build the Source Code
 
-3. Running the Tests
+3. Generate RPMs
+
+4. Run the Tests
+
+5. Troubleshooting
 
 **Note**: The procedure mentioned above must be initiated in accordance with the order of listing.
 
-Cloning the Source Code
-=======================
+Clone the Source Code
+=====================
 To clone the source code, perform the following steps:
 
 Run the following commands:
@@ -40,8 +44,8 @@ Run the following commands:
 - **$ cd cortx-motr**
 
 
-Building the Source Code
-========================
+Build the Source Code
+=====================
 Perform the below mentioned procedure to build the source code.
 
 1. Build and install the necessary dependencies. Run the following command to install all the dependent packages.
@@ -67,9 +71,8 @@ Perform the below mentioned procedure to build the source code.
 
    **Note**: The **scripts/m0 rebuild** command includes some clean up.
    
-RPM Generation
-===============
-
+Generate RPMs
+=============
 If you want to make sure about generating RPMs, run the below mentioned command.
 
 - **$ make rpms**
@@ -86,7 +89,7 @@ The following RPMs are generated in the **/root/rpmbuild/RPMS/x86_64** directory
 
 Note : Switch to root user mode to check contents of **/root/rpmbuild/RPMS/x86_64** directory.
 
-Running Tests
+Run the Tests
 =============
 Unit Test
 ---------
