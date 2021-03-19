@@ -42,12 +42,12 @@
  *   memory outside of the segment. A btree is an instance of btree type, which
  *   specifies certain operational parameters.
  *
- *   btree persistent state is stored as a tree descriptor and a collection of
- *   btree nodes. The descriptor and nodes are allocated within a segment.
+ *   btree persistent state is stored as a tree header and a collection of btree
+ *   nodes. The header and nodes are allocated within a segment.
  *
- * - btree descriptor is a persistent data structure, describing the tree. The
- *   address of a tree is the address of its descriptor. The descriptor is
- *   read-only after the tree is created.
+ * - btree header is a persistent data structure, describing the tree. The
+ *   address of a tree is the address of its header. The header is read-only
+ *   after the tree is created.
  *
  * - btree node is a contiguous region of a segment allocated to hold tree
  *   state. The nodes of a tree can have different size subject to tree type
@@ -59,7 +59,7 @@
  *
  *   A tree always has at least a root node. The root node can be either leaf
  *   (if the tree is small) or internal. The root node is located right after
- *   the tree descriptor. All other nodes are allocated and freed dynamically.
+ *   the tree header. All other nodes are allocated and freed dynamically.
  *
  * - tree structure. An internal node has a set of children. A descendant of a
  *   node is either its child or a descendant of a child. The parent of a node
@@ -94,6 +94,9 @@
  *   key is rooted, is found. The child is loaded in memory, if necessary, and
  *   the process continues until a leaf is reached.
  *
+ * - smop. State machine operation (smop, m0_sm_op) is a type of state machine
+ *   (m0_sm) tailored for asynchronous non-blocking execution. See sm/op.h for
+ *   details.
  *
  * Functional specification
  * ------------------------
@@ -120,31 +123,32 @@
  *
  * @verbatim
  *
- *                         INIT------->COOKIE-----------+
- *                           |           |              |
- *                           +----+ +----+              |
- *                                | |                   |
- *                                v v                   |
- *                      +--------SETUP<------------+    |
- *                      |          |               |    |
- *                      |          v               |    |
- *                      +-------LOCKALL<-----------+    |
- *                      |          |               |    |
- *                      |          v               |    |
- *                      +--------DOWN<-------------+    |
- *                      |          |               |    |
- *                      |          v               |    |
- *                      |  +-->NEXTDOWN-->LOCK-->CHECK  |
- *                      |  |     |  |              |    |
- *                      |  +-----+  |              v    |
- *                      |           |             ACT<--+
+ *                         INIT------->COOKIE
+ *                           |           | |
+ *                           +----+ +----+ |
+ *                                | |      |
+ *                                v v      |
+ *                      +--------SETUP<------------+
+ *                      |          |       |       |
+ *                      |          v       |       |
+ *                      +-------LOCKALL<-----------+
+ *                      |          |       |       |
+ *                      |          v       |       |
+ *                      +--------DOWN<-------------+
+ *                      |          |       |       |
+ *                      |          v       v       |
+ *                      |  +-->NEXTDOWN-->LOCK-->CHECK
+ *                      |  |     |  |              |
+ *                      |  +-----+  |              v
+ *                      |           |             ACT
  *                      |           |              |
  *                      |           |              v
  *                      +-----------+---------->CLEANUP-->DONE
  *
+ *
  * @endverbatim
  *
- * (https://asciiflow.com/#/share/eJyrVspLzE1VslJydw1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVga68QoVQJZRuYGQFZJakUJkBOjpKCg4OnnGfJoyh4saNouZ39%2Fb09X7LKoKCYmTwEEgEwFBEDlQQSQVKIhbEK4dMONx1CEXeW0PWCMSyUenwW7hoQGPJreQkwoQB0DNxNPSCjgUYvhUHS1WJGPv7O3o48PkU4lw51YQg%2FmXip5AYhc%2FMP9iA9tegU4cnKdtsvPNSIE7E6YACjo4RxnD1cgD%2BYFJP0Ik3GkbDSLUDyJqQUz1DEUOTqHEFSDLUDIsS3UDxQK1LaOCggYIz6ujn7ATAzju%2Fj7ucYo1SrVAgDtHU%2Bx)
+ * (https://asciiflow.com/#/share/eJyrVspLzE1VslJydw1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVga68QoVQJZRuYGQFZJakUJkBOjpKCg4OnnGfJoyh4saNouZ39%2Fb0%2FXmJg8BRAAiikgAIgHxEiSaAiHEEwDsiFwDqrktD1gjCSJ3aFgFOwaEhrwaHoLHiXICGIYqkuwsDCUTcOjDCvy8Xf2dvTxIdJldHMWELn4h%2FsRH2BUcdw0LMqQE5yfa0QI2FkwAVDoIZKjh6uzN5I2hNWoSROX%2BcgpEYuWaRgux1Dk6BxCUA22IMBjGxUQMGR8XB39gMkfxnfx93ONUapVqgUAYgr3kQ%3D%3D)
  *
  * @verbatim
  *
@@ -155,7 +159,7 @@
  *                           |     +----------------------+[0]|
  *                           v     v                      +---+
  *                           +-----+---------+   +--------+[1]|
- *                           |DESCR|ROOT NODE|   |        +---+
+ *                           |HEADR|ROOT NODE|   |        +---+
  *                           +-----++-+--+---+   |  +-----+[2]|
  *                                  | |  |       |  |     +---+
  *                         <--------+ |  +->     |  |  +--+[3]|
@@ -187,23 +191,25 @@
  *
  * @verbatim
  *
- *                            INIT
- *                              |
- *                              v
+ *                       INIT------->COOKIE
+ *                         |           | |
+ *                         +----+ +----+ |
+ *                              | |      |
+ *                              v v      |
  *                            SETUP<--------------+
- *                              |                 |
- *                              v                 |
+ *                              |        |        |
+ *                              v        |        |
  *                           LOCKALL<-----------+ |
- *                              |               | |
- *                              v               | |
+ *                              |        |      | |
+ *                              v        |      | |
  *                            DOWN<-----------+ | |
- *                      +----+  |             | | |
- *                      |    |  v             | | |
+ *                      +----+  |        |    | | |
+ *                      |    |  v        v    | | |
  *                      +-->NEXTDOWN-->LOCK-->CHECK
  *                           ^   |              |
- *                           |   |              v
- *                           |   v      +---MAKESPACE<-+
- *                           +-ALLOC    |       |      |
+ *                           |   v              v
+ *                           +-ALLOC    +---MAKESPACE<-+
+ *                                      |       |      |
  *                                      v       v      |
  *                                     ACT-->NEXTUP----+
  *                                              |
@@ -212,7 +218,7 @@
  *
  * @endverbatim
  *
- * (https://asciiflow.com/#/share/eJyrVspLzE1VslIKCA1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVgY6cQoVQJZRuYgVklqRQmQE6OkAAaefp4hMTF5ClDwaMoeZN40BC%2FYNSQ04NH0FqAK4hGKyU0K6ADDNnwqfPydvR19fIh0ArrZGLZjUYNhP7oaF%2F9wPxLsh%2BrFIonhHgwdMEEMV%2BEye9ouP9eIELALpzSA0LRdoBCDc5w9XJ29YT55NG0TzHxUs5vgKsBymCoQKQKqAuY8ZP%2F5Onq7Bgc4OrvCAwtJExABo9HfWQHFfHiAoMYJZtwgW4ip0NE5BCU8gEkWZ4rEsAO%2F7DScss4%2Bro5%2BIJugQe3i7%2Bcao1SrVAsAfsRzyg%3D%3D)
+ * (https://asciiflow.com/#/share/eJyVUrFqwzAQ%2FRVxc4aQpSGbUAQ1diVDHNpBiymGFhoPjYeEECihY4cORu13dAz%2BGn9JZdeWJVsOqTnDnd6T7unpDpDGmwQWEK4jtM3iLEGb%2BPHpOU1gAi%2FxPnlV2EHATsBiPp9NBOxVNruZqixLdpkqBCCPeVGZvzlCngnnvkeFSBFCZX5C3VdVZV60UG7v%2FVRLH%2FbSd0c3Dji1hQXJov4H0IpG67D8eldr10evp04LI%2B01v8gJOPFxEFwpw3Hr%2FukOlkNDn7Xk9%2BwfGpq9DtChabBHY6Yy6eY2Ic%2BMPkS1ynaaKue60bqlxG9vU8of22%2FtlmbUmNFeizAYKtTLcNKVf3GHfboKMaHaMMPs4WuPjOXwdZxDqj9MIssLNbqjk%2BkQcwmVoygJKGZVp8bmJWdUwBGOv7OavB4%3D)
  *
  * MAKESPACE provides sufficient free space in the current node. It handles
  * multple cases:
@@ -222,6 +228,10 @@
  *     - on an internal level, provide space for the new child pointer;
  *
  *     - insert new root.
+ *
+ * For an insert operation, the cookie is usable only if it is not stale (the
+ * node is still here) and there is enough free space in the leaf node to
+ * complete insertion without going up through the tree.
  *
  * Deletion (DEL)
  * ..............
@@ -323,7 +333,7 @@
  * @verbatim
  *
  * +------------+----------+----------+--------+----------+-----+----------+
- * | tree descr | root hdr | child[0] | key[0] | child[1] | ... | child[N] |
+ * | tree headr | root hdr | child[0] | key[0] | child[1] | ... | child[N] |
  * +------------+----------+----+-----+--------+----+-----+-----+----+-----+
  *                              |                   |                |
  *                              |                   |                |
@@ -361,13 +371,13 @@
  * +-------------------- ...
  * |
  * v
- * +----------+-----------------+--------+--------+-----+--------+--------+
- * | leaf hdr | key[0]]Treel[0] | key[1] | val[1] | ... | key[N] | val[N] |
- * +----------+-----------------+--------+--------+-----+--------+--------+
+ * +----------+--------+--------+--------+--------+-----+--------+--------+
+ * | leaf hdr | key[0] | val[0] | key[1] | val[1] | ... | key[N] | val[N] |
+ * +----------+--------+--------+--------+--------+-----+--------+--------+
  *
  * @endverbatim
  *
- * (Source: https://asciiflow.com/#/share/eJyrVspLzE1VssorzcnRUcpJrEwtUrJSqo5RqohRsrIws9SJUaoEsozMDYGsktSKEiAnRunRlD3DFcXE5AFJhZKi1FSFlNTi5CIFELcoP79EISMFwknOyMxJiTaIBXOyUythTIi4IYSjp6eHJOgHFoSYPVwR0HcK%2BAAoNIgSHUFmPZq2ixZRQbQbiELTdhHyNo6gIF%2FbgCdmXCkchZw2eJ1KjEcU8vJTUkdsqYYlcT6irCQgWfuj6S3Eu5doowkgonMzdk9SQyX9Y%2FoRlmzb82hKA160hgIFZOglqGUC2NlNyNm2CTnbNiGybRNytm2CZtsm5GzbBDZsCiE7txBy4xbceomJHFKtm4E13zVhT2pYFBKtXQ%2BXZnCmxR9oCNcSZzChWCA6y%2BoB1UEQhVkGlGIgqY2UDEPvIpx6pUOTQk5qYho8U0HyUSwoIMoSc5ArRWg9CBJFqxJBsn4IWaS6kWAmG%2FhAICfclGqVagHq968y)
+ * (Source: https://asciiflow.com/#/share/eJzlVc1OwzAMfpUo56liHPjZQ%2BwFyA7RGthE1kqhmlZNk1DEkQOHqvAQHHeaeJo8CUkzaEBpk7ZjQ1tlVbFjO7bjL17CCM8IHMB4ThimFIRTfMfwDPYgxSlhcmeJ4ALBwdXFdQ%2FBVK7OL%2FtylZBFIhkERfZxrIRQJP8gYYSAkDyMGVAsi%2BMETELNjCdTGt6cjQrmnqRfSy3vayYIAkM4LITa97GSzA7UfaoaXtIT8iXyzV9chXcMXpRvXGlXlKK92cGbuarDf%2Fzz%2FxuqTyIgikNysq%2BapTlFt5egsbl4ffKP19u1g7zRbE9yF5r7v2lhge2zyB5r6b2DQgtbp8lLETY3YctN2PISttyELd%2FClpuw5YWzzHXm2hXjutrW53KaHvdmxR23t5pF0ds8qDIuQFtftDJaP8euW%2FCGbCD1NHWEjOoY3W1NALPvJ3x3rwMHlODbb1BpHI1UIeaYmkNxOweV9NdIVLvDcteYjU6QHb4IbeoGV3D1CXFHs6U%3Dhttps://asciiflow.com/#/share/eJzlVc1OwzAMfpUo56liHPjZQ%2BwFyA7RGthE1kqhmlZNk1DEkQOHqvAQHHeaeJo8CUkzaEBpk7ZjQ1tlVbFjO7bjL17CCM8IHMB4ThimFIRTfMfwDPYgxSlhcmeJ4ALBwdXFdQ%2FBVK7OL%2FtylZBFIhkERfZxrIRQJP8gYYSAkDyMGVAsi%2BMETELNjCdTGt6cjQrmnqRfSy3vayYIAkM4LITa97GSzA7UfaoaXtIT8iXyzV9chXcMXpRvXGlXlKK92cGbuarDf%2Fzz%2FxuqTyIgikNysq%2BapTlFt5egsbl4ffKP19u1g7zRbE9yF5r7v2lhge2zyB5r6b2DQgtbp8lLETY3YctN2PISttyELd%2FClpuw5YWzzHXm2hXjutrW53KaHvdmxR23t5pF0ds8qDIuQFtftDJaP8euW%2FCGbCD1NHWEjOoY3W1NALPvJ3x3rwMHlODbb1BpHI1UIeaYmkNxOweV9NdIVLvDcteYjU6QHb4IbeoGV3D1CXFHs6U%3Dhttps://asciiflow.com/#/share/eJzlVc1OwzAMfpUo56miHPjZQ%2BwFCIdoCWwia6VQTaumSSjiyIFDVXgIjjtNPE2ehLQBGlDapO3Y0FZZVezYju34i5cwwjMKhzCeU44ZA2SKbzmewQFkOKVc7SwRXCA4vDi7HCCYqtXpeahWCV0kikFQZu%2BHSghF6g8STikg9H7MQcHyOE7AhGhmPJkycnVyXTJ3NP1aanmomSAIDOGoFGrfh0oqO9D0FdXwkh6RL5lv%2FuIqvGPwonzjSrumFN3N9t7MdR3%2B45%2F%2F31B9EgFRTOjRvmqW5pT9XoLW5vLl0T9eb9cO8kazPcltaO7%2BpqUFtk8ye2iktx4KHWydJs9l2MKErTBhKyrYChO24hO2woStKJ1lrjPXrhjX9bY%2Bl9P2uFcr7oS91SyK3uZBnXEJ2uaiVdH6OXbdgjdkA6WnqSdkio7R3dYGMLt%2Bwrf3OgjAKL75BpUx%2FuaYmUMxrKS%2FRmKxO6p2jdnoBNn%2Bi9ClbnAFVx8r8LNo)
  *
  * Liveness and ownership
  * ----------------------
@@ -383,6 +393,52 @@
  *
  * Sub-modules
  * -----------
+ *
+ * Node
+ * ....
+ *
+ * Node sub-module provides interfaces that the rest of btree implementation
+ * uses to access nodes. This interface includes operations to:
+ *
+ *     - load an existing node to memory. This is an asynchronous operation
+ *       implemented as a smop. It uses BE pager interface to initiate read
+ *       operation;
+ *
+ *     - pin a node in memory, release pinned node;
+ *
+ *     - access node header;
+ *
+ *     - access keys, values and child pointers in the node;
+ *
+ *     - access auxiliary information, for example, flags, check-sums;
+ *
+ *     - allocate a new node or free an existing one. These smops use BE
+ *       allocator interface.
+ *
+ * Node code uses BE pager and allocator interfaces. It does not use BE
+ * transaction interface. Calls to m0_be_tx_capture() are done by the upper
+ * layers of btree implementation.
+ *
+ * Node itself exists in the segment (and the corresponding segment device). In
+ * addition, for each actively used node, an additional data-structure, called
+ * "node descriptor" (nd) is allocated in memory outside of the segment. The
+ * descriptor is used to track the state of its node.
+ *
+ * Node format is constrained by conflicting requirements:
+ *
+ *     - space efficiency: as many keys, values and pointers should fit in a
+ *       node as possible, to improve cache utilisation. This is especially
+ *       important for the leaf nodes, because they consitute the majority of
+ *       tree nodes.
+ *
+ *     - processor efficiency: key lookup be as cheap as possible (in terms of
+ *       processor cycles). This is especially important for the internal nodes,
+ *       because each tree traversal inspects multiple internal nodes before it
+ *       gets to the leaf.
+ *
+ * To satisfy both constraints, the format of leaves is different from the
+ * format of internal nodes.
+ *
  *
  * Interfaces
  * ----------
@@ -502,4 +558,7 @@ static int get_tick(struct m0_btree_op *bop) {
  */
 /*
  * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */
+
+/*  LocalWords:  btree allocator smop smops
  */
