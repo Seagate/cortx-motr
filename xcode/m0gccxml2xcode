@@ -78,6 +78,9 @@ BEGIN {
 use 5.010;
 use strict;
 use warnings;
+# suppress experimental warnings about 'given' and 'when'
+use feature qw( switch );
+no warnings qw( experimental::smartmatch );
 
 # core modules
 use Carp;
