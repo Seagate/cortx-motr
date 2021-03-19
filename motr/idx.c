@@ -200,8 +200,13 @@ static void idx_op_set_complete_state(struct m0_op_idx *oi,
 	if ((mask & M0_BITS(M0_OS_STABLE)) != 0) {
 		m0_sm_move(&op->op_sm, 0, M0_OS_STABLE);
 		m0_op_stable(op);
+		if (oi->oi_dtx) {
+			m0_dtx0_done(oi->oi_dtx);
+			oi->oi_dtx = NULL;
+		}
 	}
 	m0_sm_group_unlock(op_grp);
+
 	M0_LEAVE();
 }
 
