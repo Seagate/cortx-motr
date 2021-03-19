@@ -33,7 +33,7 @@
 #include "be/tx_credit.h"
 #include "format/format.h"
 #include "cas/cas.h"
-
+#include "fid/fid.h"
 /**
  * @defgroup cas-ctg-store
  *
@@ -88,7 +88,11 @@
  * Every user should take care about locking of CAS catalogues.
  */
 
-
+/** Defines hash table size for struct m0_cas_ctg defined inside
+ * struct m0_cas_state. This size should be pow of 2. M0_PRE(m0_is_po2(EMAP_HT_SIZE)); at proper place
+ */
+enum { CAS_META_HT_SIZE = 32 };
+// TODO: Add check for pow2(CAS_META_HT_SIZE)
 /** CAS catalogue. */
 struct m0_cas_ctg {
 	struct m0_format_header cc_head;
@@ -149,7 +153,7 @@ struct m0_cas_state {
 	 * allocated elsewhere. This pointer is there (not in m0_ctg_store)
 	 * because m0_cas_state is saved in seg_dict.
 	 */
-        struct m0_cas_ctg      *cs_meta;
+        struct m0_cas_ctg      *cs_meta[CAS_META_HT_SIZE];
         /**
 	 * Total number of records in all catalogues in catalogue store. It's
 	 * used by repair/re-balance services to report progress.
@@ -259,7 +263,10 @@ M0_INTERNAL int  m0_ctg_store_init(struct m0_be_domain *dom);
 M0_INTERNAL void m0_ctg_store_fini(void);
 
 /** Returns a pointer to meta catalogue context. */
-M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta(void);
+M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta(struct m0_fid *fid);
+
+/** TODO: Temporary */
+M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta_all(const struct m0_cas_ctg *ctg);
 
 /** Returns a pointer to "dead index" catalogue context. */
 M0_INTERNAL struct m0_cas_ctg *m0_ctg_dead_index(void);
@@ -761,6 +768,11 @@ M0_INTERNAL const struct m0_be_btree_kv_ops *m0_ctg_btree_ops(void);
 
 /** Update number of records and record size in cas state. */
 M0_INTERNAL void m0_ctg_state_inc_update(struct m0_be_tx *tx, uint64_t size);
+
+/** Calculates uint16_t hash number for given m0_fid which is in between
+ * 0 to CAS_META_HT_SIZE
+ */
+M0_INTERNAL uint16_t m0_cas_get_hash(const struct m0_fid *fid);
 
 /** @} end of cas-ctg-store group */
 #endif /* __MOTR_CAS_CTG_STORE_H__ */

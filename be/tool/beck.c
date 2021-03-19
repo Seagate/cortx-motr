@@ -2695,7 +2695,7 @@ static struct m0_cas_ctg *ctg_create_meta(struct ctg_action *ca,
 	m0_fid_tchange(&cfid, 'T');
 	rc = m0_ctg_create(ca->cta_act.a_builder->b_seg, tx, &cas_ctg, &cfid);
 	if (rc == 0) {
-		rc = m0_ctg__meta_insert(&m0_ctg_meta()->cc_tree, &cfid,
+		rc = m0_ctg__meta_insert(&m0_ctg_meta(&cfid)->cc_tree, &cfid,
 					 cas_ctg, tx)  ?:
 			m0_ctg_ctidx_insert_sync(&ca->cta_cid, tx);
 		if (rc != 0)
@@ -2716,7 +2716,7 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 
 	m0_mutex_lock(&beck_builder.b_ctglock);
 	if (ca->cta_slot->cs_tree == NULL) {
-		rc = m0_ctg_meta_find_ctg(m0_ctg_meta(),
+		rc = m0_ctg_meta_find_ctg(m0_ctg_meta(&ca->cta_fid),
 					  &M0_FID_TINIT('T',
 							ca->cta_fid.f_container,
 							ca->cta_fid.f_key),

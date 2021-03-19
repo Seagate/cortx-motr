@@ -231,7 +231,7 @@ M0_INTERNAL int m0_dix_cm_cp_fail(struct m0_cm_cp    *cp,
 				  struct m0_fop_type *ft)
 {
 	struct m0_dix_cm_cp *dix_cp = cp2dixcp(cp);
-	struct m0_cas_ctg   *meta   = m0_ctg_meta();
+	struct m0_cas_ctg   *meta   = m0_ctg_meta(&dix_cp->dc_ctg_fid);
 
 	M0_ENTRY("cp: %p, ft: %s", cp, ft->ft_name);
 	M0_PRE(m0_fom_phase(&cp->c_fom) == M0_CCP_FAIL);
@@ -371,7 +371,7 @@ M0_INTERNAL int m0_dix_cm_cp_write_pre(struct m0_cm_cp *cp)
 					   &dix_cp->dc_key,
 					   &dix_cp->dc_val);
 	if (rc == 0) {
-		struct m0_cas_ctg *meta = m0_ctg_meta();
+		struct m0_cas_ctg *meta = m0_ctg_meta(&dix_cp->dc_ctg_fid);
 
 		dix_cp->dc_ctg = m0_ctg_meta_lookup_result(ctg_op);
 		M0_ASSERT(dix_cp->dc_ctg != NULL);

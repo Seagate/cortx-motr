@@ -247,7 +247,7 @@ static void dix_cm_iter_init(struct m0_dix_cm_iter *iter)
 
 	/* Subscribe to meta catalogue modifications. */
 	m0_clink_init(&iter->di_meta_clink, dix_cm_iter_meta_clink_cb);
-	m0_clink_add_lock(&m0_ctg_meta()->cc_chan.bch_chan,
+	m0_clink_add_lock(&m0_ctg_meta(&iter->di_cctg_fid)->cc_chan.bch_chan,
 			  &iter->di_meta_clink);
 }
 
@@ -274,7 +274,7 @@ static void dix_cm_iter_fini(struct m0_dix_cm_iter *iter)
 	if (iter->di_cctg != NULL)
 		m0_long_unlock(m0_ctg_lock(iter->di_cctg), &iter->di_lock_link);
 	m0_long_unlock(m0_ctg_lock(m0_ctg_ctidx()), &iter->di_meta_lock_link);
-	m0_long_unlock(m0_ctg_lock(m0_ctg_meta()), &iter->di_meta_lock_link);
+	m0_long_unlock(m0_ctg_lock(m0_ctg_meta(&iter->di_cctg_fid)), &iter->di_meta_lock_link);
 	m0_long_unlock(m0_ctg_del_lock(), &iter->di_del_lock_link);
 	m0_buf_free(&iter->di_prev_key);
 	m0_buf_free(&iter->di_key);
@@ -1027,7 +1027,7 @@ static int dix_cm_iter_next_key(struct m0_dix_cm_iter *iter,
 static void dix_cm_iter_meta_unlock(struct m0_dix_cm_iter *iter)
 {
 	iter->di_meta_modified = false;
-	m0_long_read_unlock(m0_ctg_lock(m0_ctg_meta()),
+	m0_long_read_unlock(m0_ctg_lock(m0_ctg_meta(&iter->di_cctg_fid)),
 			    &iter->di_meta_lock_link);
 }
 
@@ -1099,7 +1099,7 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 				    &iter->di_meta_lock_link);
 		if (rc == 0) {
 			result = M0_FOM_LONG_LOCK_RETURN(m0_long_read_lock(
-						m0_ctg_lock(m0_ctg_meta()),
+						m0_ctg_lock(m0_ctg_meta(&iter->di_cctg_fid)),
 						&iter->di_meta_lock_link,
 						DIX_ITER_META_LOCK));
 		} else if (rc == -ENOENT) {

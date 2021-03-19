@@ -241,7 +241,7 @@ M0_INTERNAL int m0_dix_cm_cp_recv_wait(struct m0_cm_cp *cp)
 		dix_cp->dc_phase_transmit++;
 		m0_fom_phase_set(&cp->c_fom, M0_CCP_RECV_INIT);
 	} else {
-		struct m0_cas_ctg *meta = m0_ctg_meta();
+		struct m0_cas_ctg *meta = m0_ctg_meta(&dix_cp->dc_ctg_fid);
 
 		M0_ASSERT(meta != NULL);
 		/* Key and value are loaded, lock meta-catalogue. */

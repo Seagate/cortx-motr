@@ -343,7 +343,7 @@ static int iter_ut_fom_tick(struct m0_fom *fom0)
 		break;
 	case ITER_UT_FOM_META_LOCK:
 		result = M0_FOM_LONG_LOCK_RETURN(m0_long_write_lock(
-						 m0_ctg_lock(m0_ctg_meta()),
+						 m0_ctg_lock(m0_ctg_meta(&fom->iu_cctg_fid)),
 						 &fom->iu_lock_link,
 						 ITER_UT_FOM_EXEC));
 		break;
@@ -361,7 +361,7 @@ static int iter_ut_fom_tick(struct m0_fom *fom0)
 		} else if (fom->iu_op == ITER_UT_OP_META_DELETE) {
 			m0_long_write_unlock(m0_ctg_del_lock(),
 					     &fom->iu_del_lock_link);
-			m0_long_write_unlock(m0_ctg_lock(m0_ctg_meta()),
+			m0_long_write_unlock(m0_ctg_lock(m0_ctg_meta(&fom->iu_cctg_fid)),
 					     &fom->iu_lock_link);
 		}
 
