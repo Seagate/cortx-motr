@@ -132,31 +132,42 @@ static void dtx_log_update(struct m0_dtm0_dtx *dtx)
 	m0_mutex_unlock(&log->dl_lock);
 }
 
+static void m0_dtm0_dtx_init(struct m0_dtm0_dtx *dtx,
+			     struct m0_dtm0_service *svc,
+			     struct m0_sm_group *grp)
+{
+	dtx->dd_dtms = svc;
+	dtx->dd_ancient_dtx.tx_dtx = dtx;
+	m0_sm_init(&dtx->dd_sm, &dtx_sm_conf, M0_DDS_INIT, grp);
+}
+
 static struct m0_dtm0_dtx *m0_dtm0_dtx_alloc(struct m0_dtm0_service *svc,
-					     struct m0_sm_group     *group)
+					     struct m0_sm_group     *grp)
 {
 	struct m0_dtm0_log_rec *rec;
 
 	M0_PRE(svc != NULL);
-	M0_PRE(group != NULL);
+	M0_PRE(grp != NULL);
 
 	M0_ALLOC_PTR(rec);
-	if (rec != NULL) {
-		rec->dlr_dtx.dd_dtms = svc;
-		rec->dlr_dtx.dd_ancient_dtx.tx_dtx = &rec->dlr_dtx;
-		m0_sm_init(&rec->dlr_dtx.dd_sm, &dtx_sm_conf, M0_DDS_INIT,
-			   group);
-	}
+	if (rec == NULL)
+		return NULL;
+
+	m0_dtm0_dtx_init(&rec->dlr_dtx, svc, grp);
 	return &rec->dlr_dtx;
 }
 
-static void m0_dtm0_dtx_free(struct m0_dtm0_dtx *dtx)
+static void m0_dtm0_dtx_fini(struct m0_dtm0_dtx *dtx)
 {
+	struct m0_dtm0_log_rec *rec;
 	M0_PRE(dtx != NULL);
+	rec = M0_AMB(rec, dtx, dlr_dtx);
+	M0_ASSERT_INFO(ergo(dtx->dd_sm.sm_state >= M0_DDS_INPROGRESS,
+			    rec->dlr_magic != 0),
+		       "A DTX in INPROGRESS+ state must be a part of the log.");
 	m0_sm_fini(&dtx->dd_sm);
 	m0_dtm0_tx_desc_fini(&dtx->dd_txd);
-	m0_free(dtx);
-
+	M0_SET0(dtx);
 }
 
 static int m0_dtm0_dtx_prepare(struct m0_dtm0_dtx *dtx)
@@ -279,6 +290,17 @@ static int m0_dtm0_dtx_close(struct m0_dtm0_dtx *dtx)
 	return 0;
 }
 
+static void m0_dtm0_dtx_done(struct m0_dtm0_dtx *dtx)
+{
+	M0_ENTRY("dtx=%p", dtx);
+	M0_PRE(dtx != NULL);
+	M0_PRE(m0_sm_group_is_locked(dtx->dd_sm.sm_grp));
+	M0_PRE(dtx->dd_sm.sm_state == M0_DDS_STABLE);
+	m0_sm_state_set(&dtx->dd_sm, M0_DDS_DONE);
+	m0_dtm0_dtx_fini(dtx);
+	M0_LEAVE();
+}
+
 static void dtx_exec_all_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_dtm0_dtx *dtx = ast->sa_datum;
@@ -300,9 +322,9 @@ static void dtx_exec_all_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 static void dtx_persistent_ast_cb(struct m0_sm_group *grp,
 				  struct m0_sm_ast   *ast)
 {
-	struct m0_dtm0_pna           *pna = ast->sa_datum;
-	struct m0_dtm0_dtx           *dtx = pna->p_dtx;
-	struct m0_fop                *fop = pna->p_fop;
+	struct m0_dtm0_pmsg_ast      *pma = ast->sa_datum;
+	struct m0_dtm0_dtx           *dtx = pma->p_dtx;
+	struct m0_fop                *fop = pma->p_fop;
 	struct dtm0_req_fop          *req = m0_fop_data(fop);
 	const struct m0_dtm0_tx_desc *txd = &req->dtr_txr;
 
@@ -314,20 +336,20 @@ static void dtx_persistent_ast_cb(struct m0_sm_group *grp,
 	if (dtx->dd_sm.sm_state == M0_DDS_EXECUTED_ALL &&
 	    m0_dtm0_tx_desc_state_eq(&dtx->dd_txd, M0_DTPS_PERSISTENT)) {
 		M0_ASSERT(dtx->dd_nr_executed == dtx->dd_txd.dtd_ps.dtp_nr);
-		M0_LOG(M0_DEBUG, "dtx " DTID0_F "is stable (PNA)",
+		M0_LOG(M0_DEBUG, "dtx " DTID0_F "is stable (PMA)",
 		       DTID0_P(&dtx->dd_txd.dtd_id));
 		m0_sm_state_set(&dtx->dd_sm, M0_DDS_STABLE);
 	}
 
-	m0_free(pna);
-	m0_fop_put_lock(fop);
+	m0_free(pma);
+	m0_fop_put_lock(fop); /* it was taken in ::m0_dtm0_dtx_post_pmsg */
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_dtm0_dtx_post_pnotice(struct m0_dtm0_dtx *dtx,
-					  struct m0_fop      *fop)
+M0_INTERNAL void m0_dtm0_dtx_post_pmsg(struct m0_dtm0_dtx *dtx,
+				       struct m0_fop      *fop)
 {
-	struct m0_dtm0_pna *pna;
+	struct m0_dtm0_pmsg_ast *pma;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(fop->f_opaque != NULL);
@@ -339,18 +361,22 @@ M0_INTERNAL void m0_dtm0_dtx_post_pnotice(struct m0_dtm0_dtx *dtx,
 	 * side (rather than on the client side) to associate a FOP with
 	 * a user-defined datum. It helps to connect the lifetime of the
 	 * AST that handles the notice with the lifetime of the FOP that
-	 * delivered the notice.
+	 * has delivered the notice.
 	 */
-	pna = fop->f_opaque;
-	pna->p_dtx = dtx;
-	pna->p_ast.sa_cb = dtx_persistent_ast_cb;
-	pna->p_ast.sa_datum = pna;
-	pna->p_fop = fop;
-	m0_fop_get(fop); /* it will be put back by the AST callback */
-	m0_sm_ast_post(dtx->dd_sm.sm_grp, &pna->p_ast);
+	pma = fop->f_opaque;
+	M0_ASSERT_INFO(M0_IS0(pma), "PMA cannot be re-used");
+	*pma = (struct  m0_dtm0_pmsg_ast) {
+		.p_dtx = dtx,
+		.p_fop = fop,
+		.p_ast = {
+			.sa_cb = dtx_persistent_ast_cb,
+			.sa_datum = pma,
+		},
+	};
+	m0_fop_get(fop); /* it will be put back by ::dtx_persistent_ast_cb */
+	m0_sm_ast_post(dtx->dd_sm.sm_grp, &pma->p_ast);
 	M0_LEAVE();
 }
-
 
 static void m0_dtm0_dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
 {
@@ -413,12 +439,6 @@ M0_INTERNAL struct m0_dtx* m0_dtx0_alloc(struct m0_dtm0_service *svc,
 	return &dtx->dd_ancient_dtx;
 }
 
-M0_INTERNAL void m0_dtx0_free(struct m0_dtx *dtx)
-{
-	M0_PRE(dtx != NULL);
-	m0_dtm0_dtx_free(dtx->tx_dtx);
-}
-
 M0_INTERNAL int m0_dtx0_prepare(struct m0_dtx *dtx)
 {
 	M0_PRE(dtx != NULL);
@@ -458,6 +478,12 @@ M0_INTERNAL void m0_dtx0_executed(struct m0_dtx *dtx, uint32_t pa_idx)
 {
 	M0_PRE(dtx != NULL);
 	m0_dtm0_dtx_executed(dtx->tx_dtx, pa_idx);
+}
+
+M0_INTERNAL void m0_dtx0_done(struct m0_dtx *dtx)
+{
+	M0_PRE(dtx != NULL);
+	m0_dtm0_dtx_done(dtx->tx_dtx);
 }
 
 M0_INTERNAL int m0_dtx0_copy_txd(const struct m0_dtx    *dtx,

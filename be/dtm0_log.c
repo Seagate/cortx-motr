@@ -341,6 +341,8 @@ static void m0_be_dtm0_log_rec_fini(struct m0_dtm0_log_rec **rec,
 {
 	struct m0_dtm0_log_rec *lrec = *rec;
 
+	M0_ASSERT_INFO(M0_IS0(&lrec->dlr_dtx), "DTX should have been finalised "
+		       "already in m0_dtx0_done().");
 	m0_buf_free(&lrec->dlr_pyld);
 	m0_dtm0_tx_desc_fini(&lrec->dlr_txd);
 	m0_free(lrec);
@@ -567,8 +569,8 @@ M0_INTERNAL int m0_be_dtm0_plog_prune(struct m0_be_dtm0_log    *log,
 }
 
 M0_INTERNAL void
-m0_be_dtm0_log_post_pnotice(struct m0_be_dtm0_log *log,
-			    struct m0_fop         *fop)
+m0_be_dtm0_log_post_pmsg(struct m0_be_dtm0_log *log,
+			 struct m0_fop         *fop)
 {
 	struct m0_dtm0_log_rec       *rec;
 	struct dtm0_req_fop          *req = m0_fop_data(fop);
@@ -584,7 +586,7 @@ m0_be_dtm0_log_post_pnotice(struct m0_be_dtm0_log *log,
 
 	m0_mutex_lock(&log->dl_lock);
 	rec = m0_be_dtm0_log_find(log, &txd->dtd_id);
-	/* TODO: We do not handle the case where a P notice is received before
+	/* TODO: We do not handle the case where a P msg is received before
 	 * the corresponding DTX enters INPROGRESS state.
 	 */
 	M0_ASSERT_INFO(rec != NULL, "Log record must be inserted into the log "
@@ -601,7 +603,7 @@ m0_be_dtm0_log_post_pnotice(struct m0_be_dtm0_log *log,
 	 *    This point is not enforced.
 	 */
 	if (!is_stable)
-		m0_dtm0_dtx_post_pnotice(&rec->dlr_dtx, fop);
+		m0_dtm0_dtx_post_pmsg(&rec->dlr_dtx, fop);
 
 	M0_LEAVE();
 }

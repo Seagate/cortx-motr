@@ -263,12 +263,12 @@ M0_INTERNAL int m0_be_dtm0_log_insert_volatile(struct m0_be_dtm0_log *log,
 M0_INTERNAL void m0_be_dtm0_log_update_volatile(struct m0_be_dtm0_log *log,
 						struct m0_dtm0_log_rec *rec);
 
-/** Deliver a P notice to the log.
+/** Deliver a persistent message to the log.
  * TODO: Only volatile log is supported so far.
  */
 M0_INTERNAL void
-m0_be_dtm0_log_post_pnotice(struct m0_be_dtm0_log *log,
-			    struct m0_fop         *fop);
+m0_be_dtm0_log_post_pmsg(struct m0_be_dtm0_log *log,
+			 struct m0_fop         *fop);
 
 #endif /* __MOTR_BE_DTM0_LOG_H__ */
 

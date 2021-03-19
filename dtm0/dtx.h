@@ -38,7 +38,7 @@ enum m0_dtm0_dtx_state {
 	M0_DDS_EXECUTED,
 	/* dtx got all replies. */
 	M0_DDS_EXECUTED_ALL,
-	/* dtx got enough PERSISTENT notices. */
+	/* dtx got enough PERSISTENT messages. */
 	M0_DDS_STABLE,
 	/* dtx can be released when this state reached. */
 	M0_DDS_DONE,
@@ -71,13 +71,10 @@ struct m0_dtm0_dtx {
 	 * any lists here. But we will have to some time later.
 	 */
 	const struct m0_fop    *dd_fop;
-
-	/** List of ASTs for persistent notices. */
-	struct m0_tl            dd_pnl;
 };
 
-/** An AST object for persistent notices. */
-struct m0_dtm0_pna {
+/** An AST object for persistent message processing. */
+struct m0_dtm0_pmsg_ast {
 	/** AST where the update is applied */
 	struct m0_sm_ast       p_ast;
 	/** A FOP that contains a partial update to be applied. */
@@ -95,10 +92,9 @@ M0_INTERNAL void m0_dtm0_dtx_domain_fini(void);
  */
 
 M0_INTERNAL struct m0_dtx* m0_dtx0_alloc(struct m0_dtm0_service *svc,
-					 struct m0_sm_group     *group);
-M0_INTERNAL void m0_dtx0_free(struct m0_dtx *dtx);
+					 struct m0_sm_group     *grp);
 
-/** Assignsa a TID to the transaction. */
+/** Assigns a TID to the transaction. */
 M0_INTERNAL int m0_dtx0_prepare(struct m0_dtx *dtx);
 
 M0_INTERNAL int m0_dtx0_open(struct m0_dtx  *dtx, uint32_t nr);
@@ -116,8 +112,21 @@ M0_INTERNAL int m0_dtx0_close(struct m0_dtx *dtx);
 
 M0_INTERNAL void m0_dtx0_executed(struct m0_dtx *dtx, uint32_t pa_idx);
 
-M0_INTERNAL void m0_dtm0_dtx_post_pnotice(struct m0_dtm0_dtx *dtx,
-					  struct m0_fop      *fop);
+/** Marks a transaction as "no longer in-use".
+ * The user does not have exclusive ownership on a dtx after it has
+ * been closed (i.e., added to the log). This function ends this
+ * sharing, so that the log has exclusive ownership of the record.
+ * The user should not hold any pointers to this DTX after this call.
+ */
+M0_INTERNAL void m0_dtx0_done(struct m0_dtx *dtx);
+
+/** Launch asynchronous processing of a persistent message.
+ * @param dtx A DTX that is the context for the processing.
+ * @param fop An FOP with the P message.
+ */
+M0_INTERNAL void m0_dtm0_dtx_post_pmsg(struct m0_dtm0_dtx *dtx,
+				       struct m0_fop      *fop);
+
 
 /** Puts a copy of dtx's transaction descriptor into "dst".
  * User is responsible for m0_dtm0_tx_desc_fini()lasing of 'dst'.

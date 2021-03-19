@@ -161,26 +161,26 @@ M0_EXPORTED(m0_dtm0_fop_create);
   Allocates a fom.
  */
 static int dtm0_fom_create(struct m0_fop *fop,
-			  struct m0_fom **out, struct m0_reqh *reqh)
+			   struct m0_fom **out, struct m0_reqh *reqh)
 {
-	struct dtm0_fom        *fom;
-	struct m0_fop          *repfop = NULL;
-	struct dtm0_rep_fop    *reply;
-	struct m0_dtm0_pna     *pna = NULL;
+	struct dtm0_fom          *fom;
+	struct m0_fop            *repfop = NULL;
+	struct dtm0_rep_fop      *reply;
+	struct m0_dtm0_pmsg_ast  *pma = NULL;
 
 	M0_ENTRY("reqh=%p", reqh);
 
 	M0_ALLOC_PTR(fom);
-	M0_ALLOC_PTR(pna);
+	M0_ALLOC_PTR(pma);
 	repfop = m0_fop_reply_alloc(fop, &dtm0_rep_fop_fopt);
 
-	if (fom != NULL && repfop != NULL && pna != NULL) {
+	if (fom != NULL && repfop != NULL && pma != NULL) {
 		*out = &fom->dtf_fom;
 		/** TODO: calculate credits for the operation.
 		 */
 
 		/* see ::m0_dtm0_dtx_post_persistent for the details */
-		fop->f_opaque = pna;
+		fop->f_opaque = pma;
 		reply = m0_fop_data(repfop);
 		reply->dr_txr = (struct m0_dtm0_tx_desc) {};
 		reply->dr_rc = 0;
@@ -188,7 +188,7 @@ static int dtm0_fom_create(struct m0_fop *fop,
 			    &dtm0_req_fom_ops, fop, repfop, reqh);
 		return M0_RC_INFO(0, "fom=%p", &fom->dtf_fom);
 	} else {
-		m0_free(pna);
+		m0_free(pma);
 		m0_free(repfop);
 		m0_free(fom);
 		return M0_ERR(-ENOMEM);
@@ -210,10 +210,10 @@ static size_t dtm0_fom_locality(const struct m0_fom *fom)
 	return M0_RC_INFO(locality++, "fom=%p", fom);
 }
 
-static void m0_dtm0_send_notice(struct m0_dtm0_service *dtms,
-				enum m0_dtm0s_msg notice_type,
-				const struct m0_fid *tgt,
-				const struct m0_dtm0_tx_desc *txd)
+static void m0_dtm0_send_msg(struct m0_dtm0_service *dtms,
+			     enum m0_dtm0s_msg msg_type,
+			     const struct m0_fid *tgt,
+			     const struct m0_dtm0_tx_desc *txd)
 {
 	struct m0_fop          *fop;
 	struct m0_rpc_session  *session;
@@ -233,7 +233,7 @@ static void m0_dtm0_send_notice(struct m0_dtm0_service *dtms,
 	item->ri_deadline = M0_TIME_IMMEDIATELY;
 
 	req               = m0_fop_data(fop);
-	req->dtr_msg      = notice_type;
+	req->dtr_msg      = msg_type;
 	rc = m0_dtm0_tx_desc_copy(txd, &req->dtr_txr) ?: m0_rpc_post(item);
 	/* XXX: We could ignore this error in the real setup:
 	 * the caller's FOM should be in the FINISHED (terminal) state,
@@ -243,7 +243,7 @@ static void m0_dtm0_send_notice(struct m0_dtm0_service *dtms,
 	M0_ASSERT(rc == 0);
 	m0_fop_put_lock(fop);
 
-	M0_LEAVE("Sent %d notice " FID_F " -> " FID_F, notice_type,
+	M0_LEAVE("Sent %d msg " FID_F " -> " FID_F, msg_type,
 		 FID_P(&dtms->dos_generic.rs_service_fid), FID_P(tgt));
 }
 
@@ -287,9 +287,9 @@ M0_INTERNAL void m0_dtm0_on_committed(struct m0_reqh               *reqh,
 	}
 
 	/* Notify the originator */
-	m0_dtm0_send_notice(dtms, DTM_PERSISTENT, &msg.dtd_id.dti_fid, &msg);
+	m0_dtm0_send_msg(dtms, DTM_PERSISTENT, &msg.dtd_id.dti_fid, &msg);
 
-	/* TODO: Send notices to the rest of the participants. */
+	/* TODO: Send P msgs to the rest of the participants. */
 	m0_dtm0_tx_desc_fini(&msg);
 }
 
@@ -319,22 +319,21 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 
 		if (m0_dtm0_in_ut() && req->dtr_msg == DMT_EXECUTE &&
 		    m0_dtm0_is_a_persistent_dtm(fom->fo_service)) {
-			m0_dtm0_send_notice(svc, DMT_EXECUTED,
-					    &M0_FID_INIT(0x7300000000000001,
-							0x1a),
-					    &req->dtr_txr);
 			rc = m0_dtm0_tx_desc_copy(&req->dtr_txr,
 						  &rep->dr_txr);
 			M0_ASSERT(rc == 0);
+			m0_dtm0_send_msg(svc, DMT_EXECUTED,
+					 &M0_FID_INIT(0x7300000000000001,
+						      0x1a),
+					 &req->dtr_txr);
 		}
 
 		if (req->dtr_msg == DTM_PERSISTENT &&
 		    m0_dtm0_is_a_volatile_dtm(fom->fo_service)) {
-			/* TODO: Only client side so far.
+			/* TODO: Only the client side is here so far.
 			 * Remove the "is_volatile" part when plog is ready.
 			 */
-			m0_be_dtm0_log_post_pnotice(svc->dos_log,
-						    fom->fo_fop);
+			m0_be_dtm0_log_post_pmsg(svc->dos_log, fom->fo_fop);
 		}
 
 		rep->dr_rc = 0;
