@@ -230,10 +230,116 @@
  *
  * Deletion (DEL)
  * ..............
+ * There are basically 2 cases for deletion
+ * 1. No underflow after deletion
+ * 2. Underflow after deletion
+ *  a. Balance by borrowing key from sibling
+ *  b. Balance by merging with sibling
+ *    b.i. No underflow at internal node 
+ *    b.ii. Underflow at internal node
+ *      b.ii.A. Borrow key-pivot from sibling at internal node
+ *      b.ii.B. Merge with sibling at internal node
+ * @verbatim
  *
+ *                             INIT
+ *                               |
+ *                               v
+ *                             SETUP<----------------+ 
+ *                               |                   |
+ *                               v                   |
+ *                             LOCKALL<------------+ |
+ *                               |                 | |
+ *                               v                 | |
+ *                             DOWN<-------------+ | |
+ *                               |               | | |
+ *                               v               | | |
+ *                        +--->NEXTDOWN-->LOCK-->CHECK
+ *                        |     |                 |       +->MOVEUP
+ *                        |     |                 v       |      |
+ *                        +LOAD-+               ACT---->RESOLVE<-+
+ *                                               |              |
+ *                                               v              |
+ *                                             CLEANUP<----------+
+ *                                                |
+ *                                                v
+ *                                              DONE
+ * @endverbatim
+ *
+ * Phases Description: 
+ * step 1. NEXTDOWN: travese down by searching for given key till we reach leaf node 
+ * step 2. LOAD : load left , right sibling  only if there are chances of underflow at the node (i.e. number of keys == min)
+ * step 3. CHECK : check traversal path of node and right, left sibling
+ *         if traverse path is invalid and checks fails it will start traversing again  
+ *         else, check will call ACT 
+ * step 4. ACT: This state will be responsible for finding the key and delete it. 
+ *              If there is no underflow, move to CLEANUP, otherwise move to RESOLVE.
+ * step 5. RESOLVE: This state is involved with resolving underflow , 
+ *                  it will get sibling and perform merging and rebalancing with sibling. 
+ *                  Once the underflow is resolved at the node move to its parent node using MOVEUP.
+ * step 6. MOVEUP: This state is responsible with moving up to the parent node of the current node and 
+ *                 checking whether there is an underflow in that node. 
+ *                 If there is an underflow move to RESOLVE, else move to CLEANUP.
+ * 
+ * 
  * Iteration (NEXT)
  * ................
- *
+ * @verbatim
+ * 
+ *                       INIT
+ *                         |
+ *                         v
+ *                       SETUP <----------------+----------------+
+ *                         |                    |                |
+ *                         v                    |                |
+ *                      LOCKALL<----------------+                |
+ *                         |                    |                |
+ *                         v                    |                |
+ *                       DOWN  <----------------+                |
+ *                         |                    |              UNLOCK
+ *                         v                    |                |
+ *                   +->NEXTDOWN---->LOCK---->CHECK              |
+ *                   |   |   |   ^              | <--------+     |
+ *                   +---+   v   |              |          |     |
+ *                          LOAD-+              +-------+  |     |
+ *                                              |       v  |     |
+ *                                             ACT----->NEXTKEY  |
+ *                                              |        |   ^   |
+ *                                              v        |   |   |
+ *                                           CLEANUP     v   |   |
+ *                                              |       NEXTNODE-+
+ *                                              v
+ *                                            DONE
+ * 
+ * @endverbatim
+ * Iteration function will look for a key and read keys one-by-one, if returned key is last key in the node , we may need to fetch next node,
+ * To fetch keys in next node: first release the LOCK, call Iteration function and pass key=last fetched key and next_sibling_flag=1
+ * If next_sibling_flag == 1, we will also load next sibling and , we need to fetch key next to given key
+ * As we are releasing lock for finding next node, updates such as(insertion of new keys, merging due to deletion can happened), 
+ * so in such cases, we will load both earlier node and node next to it
+ * 
+ * Phases Description: 
+ * step 1. NEXTDOWN: while loading next node, it will traverse and load leftmost child, 
+ *                   else it will traverse and load nodes by searching for given key. 
+ * step 2. LOAD: this function will get called only when next_sibling_flag == 1, 
+ *               and functionality of this function is to load next node so, it will search and LOAD next sibling 
+ * step 3. CHECK: check function will check the traversal path for node with key and traversal path for node next node if it is also loaded
+ *                if any of the path is invalid and checks fails it will start traversing again  
+ *                else, if next_sibling_flag ==1, check will go to NEXTKEY to fetch next key, else to ACT for callback 
+ * step 4. ACT: ACT will provide an input as 0 or 1: where 0 ->done 1-> return nextkey 
+ * step 5. NEXTKEY: 
+ *         if next_sibling_flag ==1,
+ *             check last key in the current node.
+ *                 if it is <= given key, go for next node which was loaded at phase LOAD (step 2) and return first key 
+ *                 else return key next to last fetched key 
+ *            and call ACT for further input (1/0)
+ *         else
+ *             if no keys to return i.e., last returned key was last key in node.
+ *                 check if next node is loaded.
+ *                   if yes go to next node else and return first key from that node
+ *                   else call Iteration function and pass key=last fetched key and next_sibling_flag=1  
+ *             else return key == given key, or next to earlier retune key and call ACT for further input (1/0) 
+ * 
+ * 
  * Data structures
  * ---------------
  *
