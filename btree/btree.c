@@ -233,8 +233,6 @@
  * node is still here) and there is enough free space in the leaf node to
  * complete insertion without going up through the tree.
  *
- * Deletion (DEL)
- * ..............
  *
  * Deletion (DEL)
  * ..............
