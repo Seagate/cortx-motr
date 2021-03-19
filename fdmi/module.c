@@ -26,6 +26,7 @@
 #include "fdmi/module.h"
 #include "module/instance.h"
 
+#if 0 /* unused code */
 static int level_fdmi_enter(struct m0_module *module);
 static void level_fdmi_leave(struct m0_module *module);
 
@@ -45,6 +46,7 @@ static int level_fdmi_enter(struct m0_module *module)
 static void level_fdmi_leave(struct m0_module *module)
 {
 }
+#endif
 
 M0_INTERNAL struct m0_fdmi_module *m0_fdmi_module__get(void)
 {
