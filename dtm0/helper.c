@@ -122,7 +122,7 @@ M0_INTERNAL int m0_dtm0_log_create(struct m0_sm_group  *grp,
 
 	data = M0_BUF_INIT_PTR(&log);
 	rc = m0_be_0type_add(&m0_be_dtm0, bedom, tx, logid, &data);
-	if (rc == NULL)
+	if (rc != 0)
 		goto tx_fini;
 
 	m0_be_tx_close_sync(tx);
