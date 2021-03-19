@@ -36,7 +36,7 @@
 #include "m0hsm_api.h"
 #include "motr/idx.h"
 
-static const char *RCFILE = ".hsm/config";
+static const char RCFILE[] = ".hsm/config";
 
 /* Client parameters */
 static char *local_addr;
