@@ -20,12 +20,12 @@
  */
 
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CAS
 #include "be/op.h"
 #include "be/tx_credit.h"
 #include "dtm0/fop.h"
 #include "dtm0/fop_xc.h"
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CAS
-
+#include "dtm0/service.h"
 #include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
@@ -1377,16 +1377,23 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 *
 		 */
 		if (!m0_dtm0_tx_desc_is_none(&cas_op(fom0)->cg_txd)) {
-			/*
 			struct m0_be_tx_credit dtm0logrec_cred;
+			void       *buf = NULL;
+			m0_bcount_t len = 0;
+			int	    rc;
 
-			m0_be_dtm0_log_credit(M0_DTML_EXECUTED,
-					      tx,
-					      cas_op(fom0)->cg_txd,
+			rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
+						      &buf, &len);
+			M0_ASSERT(rc == 0);
+
+			m0_be_dtm0_log_credit(M0_DTML_PERSISTENT,
+					      &cas_op(fom0)->cg_txd,
+					      buf,
 					      m0_fom_reqh(fom0)->rh_beseg,
+					      NULL,
 					      &dtm0logrec_cred);
 			m0_be_tx_credit_add(&fom0->fo_tx.tx_betx_cred, &dtm0logrec_cred);
-					      */
+			m0_buf_free(buf);
 		}
 
 		m0_fom_phase_set(fom0, M0_FOPH_TXN_OPEN);
@@ -1424,9 +1431,30 @@ static int cas_fom_tick(struct m0_fom *fom0)
 				cas_fom_success(fom, opc);
 			addb2_add_kv_attrs(fom, STATS_KV_OUT);
 		} else {
+			/* log the dtm0 logrec before executing the cas op */
+			struct m0_dtm0_service *dtms = m0_dtm0_service_find(fom0->fo_service->rs_reqh);
+			struct m0_dtm0_tx_desc *msg = &cas_op(fom0)->cg_txd;
+			void		       *buf = NULL;
+			m0_bcount_t	        len = 0;
+			int                     i;
+			int			rc;
+
+			for (i = 0; i < msg->dtd_ps.dtp_nr; ++i) {
+				if (m0_fid_eq(&msg->dtd_ps.dtp_pa[i].p_fid,
+					      &dtms->dos_generic.rs_service_fid)) {
+					msg->dtd_ps.dtp_pa[i].p_state = (uint32_t) M0_DTPS_PERSISTENT;
+					break;
+				}
+			}
+			rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
+					&buf, &len);
+			M0_ASSERT(rc == 0);
+			m0_dtm0_update_logrec(dtms->dos_log, &fom0->fo_tx.tx_betx, msg, buf);
+			m0_buf_free(buf);
+
 			do_ctidx = cas_ctidx_op_needed(fom, opc, ct, ipos);
-			result = cas_exec(fom, opc, ct, ctg, ipos,
-					  is_index_drop ?
+			result = cas_exec(fom, opc, ct, ctg, ipos, is_index_drop
+					?
 					  CAS_INSERT_TO_DEAD :
 					  do_ctidx ? CAS_CTIDX :
 					  CAS_PREPARE_SEND);
@@ -2380,6 +2408,7 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 		}
 	} else
 		m0_ctg_op_fini(&fom->cf_ctg_op);
+	/* TODO: send out Persistent notices for dtm0 */
 
 	++fom->cf_ipos;
 	++fom->cf_opos;
