@@ -212,12 +212,13 @@ M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
 				       struct m0_buf *parity,
 				       uint32_t data_ind_changed);
 
-
+#if RS_ENCODE_ENABLED
 M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
 					uint8_t *fail);
 
 
 M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math);
+#endif /* RS_ENCODE_ENABLED */
 
 /**
    Recovers data units' data words from single or multiple errors.

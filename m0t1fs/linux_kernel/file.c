@@ -3113,6 +3113,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 		rc = -EIO;
 		goto end;
 	}
+#if RS_ENCODE_ENABLED
 	if (parity_math(map->pi_ioreq)->pmi_parity_algo ==
 	    M0_PARITY_CAL_ALGO_REED_SOLOMON) {
 		rc = m0_parity_recov_mat_gen(parity_math(map->pi_ioreq),
@@ -3120,6 +3121,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 		if (rc != 0)
 			goto end;
 	}
+#endif /* RS_ENCODE_ENABLED */
 	/* Populates data and failed buffers. */
 	for (row = 0; row < data_row_nr(play); ++row) {
 		for (col = 0; col < data_col_nr(play); ++col) {
@@ -3141,9 +3143,11 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 				       parity, &failed, M0_LA_INVERSE);
 	}
 
+#if RS_ENCODE_ENABLED
 	if (parity_math(map->pi_ioreq)->pmi_parity_algo ==
 	    M0_PARITY_CAL_ALGO_REED_SOLOMON)
 		m0_parity_recov_mat_destroy(parity_math(map->pi_ioreq));
+#endif /* RS_ENCODE_ENABLED */
 end:
 	m0_free(data);
 	m0_free(parity);
