@@ -1048,6 +1048,15 @@ Meetings
      - more revisions to state machine of iterate.
      - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210316%201005-1.mp4?csf=1&web=1&e=Gm6RdO>`_
 
+   * - 2021.03.19
+     - sync up
+     - shashank, jaydeep, nikhil, nikita, shankar, mukund, radha, madhav, yeshpal
+     - completed iterator state machine
+       discussed writing btree test code
+     - 
+     - identify and discuss current code using key lookup in slant mode.
+     - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210319%200940-1.mp4?csf=1&web=1&e=nsSM1U>`_
+
 Detailed-level design (DLD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
