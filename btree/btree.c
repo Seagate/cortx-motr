@@ -226,9 +226,91 @@
  * Deletion (DEL)
  * ..............
  *
+ * Deletion (DEL)
+ * ..............
+ *
+ * There are basically 2 cases for deletion
+ * 1. No underflow after deletion
+ * 2. Underflow after deletion
+ *  a. Balance by borrowing key from sibling
+ *  b. Balance by merging with sibling
+ *    b.i. No underflow at internal node 
+ *    b.ii. Underflow at internal node
+ *      b.ii.A. Borrow key-pivot from sibling at internal node
+ *      b.ii.B. Merge with sibling at internal node
+ * @verbatim
+ *
+ *                             INIT
+ *                               |
+ *                               v
+ *                             SETUP<----------------+ 
+ *                               |                   |
+ *                               v                   |
+ *                             LOCKALL<------------+ |
+ *                               |                 | |
+ *                               v                 | |
+ *                             DOWN<-------------+ | |
+ *                               |               | | |
+ *                               v               | | |
+ *                        +--->NEXTDOWN-->LOCK-->CHECK
+ *                        |     |                 |       +->MOVEUP
+ *                        |     |                 v       |      |
+ *                        +LOAD-+               ACT---->RESOLVE<-+
+ *                                               |              |
+ *                                               v              |
+ *                                             CLEANUP<----------+
+ *                                                |
+ *                                                v
+ *                                              DONE
+ * @endverbatim
+ *
+ * LOAD : load left , right sibling only if there are chances of underflow at the node (i.e. number of keys == min)
+ * CHECK : check traversal path of node and right, left sibling 
+ * ACT: This state will be responsible for finding the key and delete it. If there is no issue move to CLEANUP, otherwise move to RESOLVE.
+ * RESOLVE: This state is involved with resolving any issue of underflow , it will get sibling and performe merging and 
+ *           rebalancing with sibling. Once the issue is resolved at the node move to its parent node using MOVEUP.
+ * MOVEUP: This state is responsible with moving up to the parent node of the current node and 
+ *         checking whether there is an issue of underflow in that node. 
+ *          If there is an  underflow move to RESOLVE, else move to CLEANUP.
+ *
+ *
  * Iteration (NEXT)
  * ................
+ * @verbatim
+ * 
+ *                       INIT
+ *                         |
+ *                         v
+ *                       SETUP <----------------+----------------+
+ *                         |                    |                |
+ *                         v                    |                |
+ *                      LOCKALL<----------------+                |
+ *                         |                    |                |
+ *                         v                    |                |
+ *                       DOWN  <----------------+                |
+ *                         |                    |              UNLOCK
+ *                         v                    |                |
+ *                   +->NEXTDOWN---->LOCK---->CHECK              |
+ *                   |   |   |   ^              | <--------+     |
+ *                   +---+   v   |              |          |     |
+ *                          LOAD-+              +-------+  |     |
+ *                                              |       v  |     |
+ *                                             ACT----->NEXTKEY  |
+ *                                              |        |   ^   |
+ *                                              v        |   |   |
+ *                                           CLEANUP     v   |   |
+ *                                              |       NEXTNODE-+
+ *                                              v
+ *                                            DONE
+ * 
+ * @endverbatim
+ * Iteration function will look for a key and read keys one-by-one, if returned key is last key in the node , we may need to fetch next node,
+ * To fetch keys in next node: first release the LOCK, call Iteration function and pass key=last fetched key and next_sibling_flag=1
+ * If next_sibling_flag == 1, we will also load next sibling and , we need to fetch key next to given key
+ * As we are releasing lock for finding next node, updates such as(insertion of new keys, merging due to deletion can happened), 
+ * so in such cases, we will load both earlier node and node next to it
  *
+ *  
  * Data structures
  * ---------------
  *
