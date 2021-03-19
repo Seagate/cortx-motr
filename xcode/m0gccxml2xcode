@@ -78,6 +78,10 @@ BEGIN {
 use 5.010;
 use strict;
 use warnings;
+# suppress experimental warnings about 'given' and 'when'
+# on more recent Perl versions
+use feature qw( switch );
+no if $] >= 5.018, warnings => 'experimental::smartmatch';
 
 # core modules
 use Carp;
