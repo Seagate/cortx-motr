@@ -42,24 +42,19 @@
  *   memory outside of the segment. A btree is an instance of btree type, which
  *   specifies certain operational parameters.
  *
- *   btree persistent state is stored as a tree header and a collection of btree
- *   nodes. The header and nodes are allocated within a segment.
- *
- * - btree header is a persistent data structure, describing the tree. The
- *   address of a tree is the address of its header. The header is read-only
- *   after the tree is created.
- *
- * - btree node is a contiguous region of a segment allocated to hold tree
- *   state. The nodes of a tree can have different size subject to tree type
- *   constraints. There are 2 types of nodes:
+ *   btree persistent state is stored as a collection of btree nodes. The nodes
+ *   are allocated within a segment. A btree node is a contiguous region of a
+ *   segment allocated to hold tree state. The nodes of a tree can have
+ *   different size subject to tree type constraints. There are 2 types of
+ *   nodes:
  *
  *       -# internal nodes contain delimiting keys and pointers to child nodes;
  *
  *       -# leaf nodes contain key-value records.
  *
  *   A tree always has at least a root node. The root node can be either leaf
- *   (if the tree is small) or internal. The root node is located right after
- *   the tree header. All other nodes are allocated and freed dynamically.
+ *   (if the tree is small) or internal. Root node is allocated when the tree is
+ *   created. All other nodes are allocated and freed dynamically.
  *
  * - tree structure. An internal node has a set of children. A descendant of a
  *   node is either its child or a descendant of a child. The parent of a node
@@ -250,14 +245,15 @@
  *
  * @verbatim
  *
- * +------------+----------+----------+--------+----------+-----+----------+
- * | tree headr | root hdr | child[0] | key[0] | child[1] | ... | child[N] |
- * +------------+----------+----+-----+--------+----+-----+-----+----+-----+
+/*
+ *              +----------+----------+--------+----------+-----+----------+
+ *              | root hdr | child[0] | key[0] | child[1] | ... | child[N] |
+ *              +----------+----+-----+--------+----+-----+-----+----+-----+
  *                              |                   |                |
  *                              |                   |                |
  *                              |                   |                |
  *                              |                   |                |
- *  <---------------------------+                   |                +------>
+ *  <---------------------------+                   |                +-------->
  *                                                  |
  *                                                  |
  * +------------------------------------------------+
@@ -295,7 +291,7 @@
  *
  * @endverbatim
  *
- * (Source: https://asciiflow.com/#/share/eJzlVc1OwzAMfpUo56liHPjZQ%2BwFyA7RGthE1kqhmlZNk1DEkQOHqvAQHHeaeJo8CUkzaEBpk7ZjQ1tlVbFjO7bjL17CCM8IHMB4ThimFIRTfMfwDPYgxSlhcmeJ4ALBwdXFdQ%2FBVK7OL%2FtylZBFIhkERfZxrIRQJP8gYYSAkDyMGVAsi%2BMETELNjCdTGt6cjQrmnqRfSy3vayYIAkM4LITa97GSzA7UfaoaXtIT8iXyzV9chXcMXpRvXGlXlKK92cGbuarDf%2Fzz%2FxuqTyIgikNysq%2BapTlFt5egsbl4ffKP19u1g7zRbE9yF5r7v2lhge2zyB5r6b2DQgtbp8lLETY3YctN2PISttyELd%2FClpuw5YWzzHXm2hXjutrW53KaHvdmxR23t5pF0ds8qDIuQFtftDJaP8euW%2FCGbCD1NHWEjOoY3W1NALPvJ3x3rwMHlODbb1BpHI1UIeaYmkNxOweV9NdIVLvDcteYjU6QHb4IbeoGV3D1CXFHs6U%3Dhttps://asciiflow.com/#/share/eJzlVc1OwzAMfpUo56liHPjZQ%2BwFyA7RGthE1kqhmlZNk1DEkQOHqvAQHHeaeJo8CUkzaEBpk7ZjQ1tlVbFjO7bjL17CCM8IHMB4ThimFIRTfMfwDPYgxSlhcmeJ4ALBwdXFdQ%2FBVK7OL%2FtylZBFIhkERfZxrIRQJP8gYYSAkDyMGVAsi%2BMETELNjCdTGt6cjQrmnqRfSy3vayYIAkM4LITa97GSzA7UfaoaXtIT8iXyzV9chXcMXpRvXGlXlKK92cGbuarDf%2Fzz%2FxuqTyIgikNysq%2BapTlFt5egsbl4ffKP19u1g7zRbE9yF5r7v2lhge2zyB5r6b2DQgtbp8lLETY3YctN2PISttyELd%2FClpuw5YWzzHXm2hXjutrW53KaHvdmxR23t5pF0ds8qDIuQFtftDJaP8euW%2FCGbCD1NHWEjOoY3W1NALPvJ3x3rwMHlODbb1BpHI1UIeaYmkNxOweV9NdIVLvDcteYjU6QHb4IbeoGV3D1CXFHs6U%3Dhttps://asciiflow.com/#/share/eJzlVc1OwzAMfpUo56miHPjZQ%2BwFCIdoCWwia6VQTaumSSjiyIFDVXgIjjtNPE2ehLQBGlDapO3Y0FZZVezYju34i5cwwjMKhzCeU44ZA2SKbzmewQFkOKVc7SwRXCA4vDi7HCCYqtXpeahWCV0kikFQZu%2BHSghF6g8STikg9H7MQcHyOE7AhGhmPJkycnVyXTJ3NP1aanmomSAIDOGoFGrfh0oqO9D0FdXwkh6RL5lv%2FuIqvGPwonzjSrumFN3N9t7MdR3%2B45%2F%2F31B9EgFRTOjRvmqW5pT9XoLW5vLl0T9eb9cO8kazPcltaO7%2BpqUFtk8ye2iktx4KHWydJs9l2MKErTBhKyrYChO24hO2woStKJ1lrjPXrhjX9bY%2Bl9P2uFcr7oS91SyK3uZBnXEJ2uaiVdH6OXbdgjdkA6WnqSdkio7R3dYGMLt%2Bwrf3OgjAKL75BpUx%2FuaYmUMxrKS%2FRmKxO6p2jdnoBNn%2Bi9ClbnAFVx8r8LNo)
+ * (https://asciiflow.com/#/share/eJyrVspLzE1VslLKL0stSszJUUjJTEwvSsxV0lHKSaxMLQLKVMcoVcQoWVmYWerEKFUCWUbmhkBWSWpFCZATo6SADB5N2TPkUExMHrofFIry80sUMlKKwJzkjMyclGiDWDAnO7USxoSIG0I4enp6SIJ%2BYEEsJg85hO4HdADyM1GiI8isR9N20SIqiHYDUWjaLkLexhEU5Gsb8MSMK4WjkNMGr1OJ8YhCXn5KKlXKrgH3EHlhQEQewS5KJe2PprcQ716ijSaAiM7N2D1JDZX0j%2BlHWLJtz6MpDXjRGgoUkKGXoJYJYGc3IWfbJuRs24TItk3I2bYJmm2bkLNtE9iwKYTs3ELIjVtw6yUmcki1bgbWfNeEPalhUUi0dj1cmsGZFn%2BgIVxLnMGEYoHoLKsHVAdBFGYZUIqBpDZSMgy9i3DqlQ5NCjmpiWnwTIVU%2FZUl5iBXioYIUbQqESTrh5BFqhsJZrKBDwRywk2pVqkWAP5HeOE%3D))
  *
  * Liveness and ownership
  * ----------------------
@@ -345,18 +341,56 @@
  * Node format is constrained by conflicting requirements:
  *
  *     - space efficiency: as many keys, values and pointers should fit in a
- *       node as possible, to improve cache utilisation. This is especially
+ *       node as possible, to improve cache utilisation and reduce the number of
+ *       read operations necessary for tree traversal. This is especially
  *       important for the leaf nodes, because they consitute the majority of
- *       tree nodes.
+ *       tree nodes;
  *
  *     - processor efficiency: key lookup be as cheap as possible (in terms of
  *       processor cycles). This is especially important for the internal nodes,
  *       because each tree traversal inspects multiple internal nodes before it
- *       gets to the leaf.
+ *       gets to the leaf;
  *
- * To satisfy both constraints, the format of leaves is different from the
+ *     - fault-tolerance. It is highly desirable to be able to recover as much
+ *       as possible of btree contents in case of media corruption. Because
+ *       btree can be much larger than the primary memory, this means that each
+ *       btree node should be self-contained so that it can be recovered
+ *       individually.
+ *
+ * To satisfy all these constraints, the format of leaves is different from the
  * format of internal nodes.
  *
+ * @verbatim
+ *
+ *  node index
+ * +-----------+                                     segment
+ * |           |                                    +-----------------------+
+ * | . . .     |   +-------------+                  |                       |
+ * +-----------+   |             v                  |                       |
+ * | &root     +---+           +----+               |   +------+            |
+ * +-----------+      +--------+ nd +---------------+-->| root |            |
+ * | . . .     |      v        +----+               |   +----+-+            |
+ * |           |   +----+                           |        |              |
+ * |           |   | td |                           |        |              |
+ * |           |   +----+                           |        v              |
+ * |           |      ^        +----+               |        +------+       |
+ * |           |      +--------+ nd +---------------+------->| node |       |
+ * | . . .     |               +---++               |        +------+       |
+ * +-----------+                ^  |                |                       |
+ * | &node     +----------------+  +-----+          |                       |
+ * +-----------+                         v          |                       |
+ * | . . .     |                   +--------+       |                       |
+ * |           |                   | nodeop |       |                       |
+ * |           |                   +-----+--+       |                       |
+ * |           |                         |          |                       |
+ * +-----------+                         v          |                       |
+ *                                 +--------+       |                       |
+ *                                 | nodeop |       +-----------------------+
+ *                                 +--------+
+ *
+ * @endverbatim
+ *
+ * (https://asciiflow.com/#/share/eJzNVM1OwzAMfpXIB04TEhxg2kPwBLlMJEKTWDK1OXSaJqGdd%2BBQTTwHR8TT9Elow0Z%2FsBundGitD2li%2B%2Fv82c0GzHypYQYPVmmhdPqYLFbOJilM4Hm%2B1kl5tJGQSZhN76YTCetydXt%2FU66czlz5IUGYKnZhlM6kNEX%2ByTHBeVL9tNTGfWdt7DPjmVQ4dqRw7d%2BaQlQOlCBNPUrLbqbiMAxOXCXWOky9Xl1RII4OsXUGNRdG%2FaHvh48qhZeAIvprBtpqn0MbRjTR1xZLZAB6IYRTgT9tcOph7LszTUN47%2FfGHqcnhG8roh%2FyjJOJDqq%2FeDFyyIw26Y6uBsdEF6ZqELbPuaV85WHNaS4BigwSQ2puFB8H1tvRsA4RQCFap7mzKzF64v%2BpADm7qHaTWX689kX%2BQtjraCC7us27OnQsY1HI6TrfJGxh%2BwUTzJjQ))
  *
  * Interfaces
  * ----------
@@ -383,15 +417,14 @@ struct m0_btree {
 };
 
 struct level {
-	struct node *l_node;
-	uint64_t     l_seq;
-	unsigned     l_pos;
-	struct node *l_alloc;
+	struct nd *l_node;
+	uint64_t   l_seq;
+	unsigned   l_idx;
+	struct nd *l_alloc;
 };
 
 struct m0_btree_oimpl {
-	struct pg_op    i_pop;
-	struct alloc_op i_aop;
+	struct node_op  i_nop;
 	struct lock_op  i_lop;
 	unsigned        i_used;
 	struct level    i_level[0];
@@ -455,6 +488,141 @@ static int get_tick(struct m0_btree_op *bop) {
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.s_state);
 	};
 }
+
+/**
+ * "Address" of a node in a segment.
+ *
+ * Highest 8 bits are reserved and must be 0.
+ *
+ * Lowest 9 bits contains the node size, see below.
+ *
+ * Remaining 47 (9--55) bits contain the address in the segment, measured in 512
+ * byte units.
+ *
+ * @verbatim
+ *
+ *  6     5 5                                            0 0       0
+ *  3     6 5                                            9 8       0
+ * +-------+----------------------------------------------+--------+
+ * |   0   |                     ADDR                     |   X    |
+ * +-------+----------------------------------------------+--------+
+ *
+ * @endverbatim
+ *
+ * Node size is 2^(9+X) bytes (i.e., the smallest node is 512 bytes).
+ *
+ * Node address is ADDR << 9.
+ *
+ * This allows for 128T nodes (2^47) and total of 64PB (2^56) of meta-data per
+ * segment.
+ */
+struct segaddr {
+	uint64_t as_core;
+};
+
+/**
+ * B-tree node in a segment.
+ *
+ * This definition is private to the node sub-module.
+ */
+struct segnode;
+
+/**
+ * Tree descriptor.
+ *
+ * A tree descriptor is allocated for each b-tree actively used by the b-tree
+ * module.
+ */
+struct td {
+	struct nd                  *t_root;
+	const struct m0_btree_type *t_type;
+	int                         t_height;
+	struct m0_rwlock            t_lock;
+	int                         r_ref;
+};
+
+struct node_type {
+};
+
+/**
+ * Node descriptor.
+ *
+ * This structure is allocated (outside of the segment) for each node actively
+ * used by the b-tree module. Node descriptors are cached.
+ */
+struct nd {
+	struct segnode         *n_node;
+	struct td              *n_tree;
+	const struct node_type *n_type;
+	struct m0_rwlock        n_lock;
+	int                     n_ref;
+	uint64_t                n_seq;
+	struct node_op         *n_op;
+};
+
+enum node_opcode {
+	NOP_LOAD = 1,
+	NOP_ALLOC,
+	NOP_FREE
+};
+
+struct node_op {
+	enum node_opcode no_opc;
+	struct m0_sm_op  no_op;
+	struct td       *no_tree;
+	void            *no_addr;
+	struct nd       *no_node;
+	struct m0_be_tx *no_tx;
+	struct node_op  *no_next;
+};
+
+struct slot {
+	struct nd          *s_node;
+	int                 s_idx;
+	struct m0_btree_rec s_rec;
+};
+
+enum {
+	NR_EVEN = -1,
+	NR_MAX  = -2
+};
+
+enum dir {
+	D_LEFT,
+	D_RIGHT
+};
+
+int64_t tree_get   (struct node_op *op, struct segaddr *addr, int nxt);
+int64_t tree_create(struct node_op *op, int rootsize, struct tree_type *tt,
+		    struct m0_be_tx *tx, int nxt);
+int64_t tree_delete(struct node_op *op, struct td *tree, struct m0_be_tx *tx);
+void    tree_put   (struct td *tree);
+
+int64_t    node_get  (struct node_op *op, struct td *tree,
+		      struct segaddr *addr, int nxt);
+void       node_put  (struct nd *node);
+struct nd *node_try  (struct td *tree, struct segaddr *addr, void *addr);
+int64_t    node_alloc(struct node_op *op, struct td *tree, int size,
+		      struct node_type *nt, struct m0_be_tx *tx, int nxt);
+int64_t    node_free (struct node_op *op, struct nd *node, struct m0_be_tx *tx,
+		      int nxt);
+void node_op_fini(struct node_op *op);
+
+int  node_count(const struct nd *node);
+int  node_space(const struct nd *node);
+int  node_level(const struct nd *node);
+int  node_size (const struct nd *node);
+void node_rec  (struct slot *slot);
+void node_key  (struct slot *slot);
+void node_child(struct slot *slot, struct segaddr *addr);
+bool node_isfit(struct slot *slot);
+bool node_set  (struct slot *slot, struct m0_be_tx *tx);
+void node_make (struct slot *slot, struct m0_be_tx *tx);
+void node_find (struct slot *slot, struct m0_btree_key *key);
+int  node_cut  (const struct nd *node, int idx, int size, struct m0_be_tx *tx);
+int  node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
+void node_move (const struct nd *prev, const struct nd *next, enum dir dir,
+		int nr, struct m0_be_tx *tx);
 
 #undef M0_TRACE_SUBSYSTEM
 
