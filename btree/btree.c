@@ -329,9 +329,8 @@
  *     - allocate a new node or free an existing one. These smops use BE
  *       allocator interface.
  *
- * Node code uses BE pager and allocator interfaces. It does not use BE
- * transaction interface. Calls to m0_be_tx_capture() are done by the upper
- * layers of btree implementation.
+ * Node code uses BE pager and allocator interfaces and BE transaction interface
+ * (m0_be_tx_capture()).
  *
  * Node itself exists in the segment (and the corresponding segment device). In
  * addition, for each actively used node, an additional data-structure, called
