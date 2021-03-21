@@ -53,6 +53,7 @@ struct m0_btree_key {
 struct m0_btree_rec {
 	struct m0_btree_key r_key;
 	struct m0_bufvec    r_val;
+	uint32_t            r_flags;
 };
 
 struct m0_btree_cb {
