@@ -1015,8 +1015,38 @@ static void cas_fom_failure(struct cas_fom *fom, int rc, bool ctg_op_fini)
 	m0_fom_phase_move(&fom->cf_fom, rc, M0_FOPH_FAILURE);
 }
 
+static int cas_dtm0_logrec_add (struct m0_fom *fom0, struct m0_dtm0_tx_desc *txd,
+				enum m0_dtm0_tx_pa_state state) {
+	/* log the dtm0 logrec before completing the cas op */
+	struct m0_dtm0_service *dtms = m0_dtm0_service_find(fom0->fo_service->rs_reqh);
+	struct m0_dtm0_tx_desc *msg = &cas_op(fom0)->cg_txd;
+	void		       *buf = NULL;
+	m0_bcount_t	        len = 0;
+	int                     i;
+	int			rc;
+
+	for (i = 0; i < msg->dtd_ps.dtp_nr; ++i) {
+		if (m0_fid_eq(&msg->dtd_ps.dtp_pa[i].p_fid,
+					&dtms->dos_generic.rs_service_fid)) {
+			msg->dtd_ps.dtp_pa[i].p_state = (uint32_t) M0_DTPS_PERSISTENT;
+			break;
+		}
+	}
+	M0_ASSERT(i < msg->dtd_ps.dtp_nr);
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
+			&buf, &len);
+	M0_ASSERT(rc == 0);
+	m0_dtm0_update_logrec(dtms->dos_log, &fom0->fo_tx.tx_betx, msg, buf);
+	m0_buf_free(buf);
+
+	return rc;
+}
+
 static void cas_fom_success(struct cas_fom *fom, enum m0_cas_opcode opc)
 {
+	if (!m0_dtm0_tx_desc_is_none(&cas_op(&fom->cf_fom)->cg_txd)) {
+		cas_dtm0_logrec_add(&fom->cf_fom, &cas_op(&fom->cf_fom)->cg_txd, M0_DTPS_PERSISTENT);
+	}
 	cas_fom_cleanup(fom, opc == CO_CUR);
 	m0_fom_phase_set(&fom->cf_fom, M0_FOPH_SUCCESS);
 }
@@ -1111,34 +1141,6 @@ M0_UNUSED static int cas_op_decode( void *obj, struct m0_buf *buf)
 					buf->b_addr, buf->b_nob);
 	if (rc != 0)
 		return M0_ERR(rc);
-
-	return rc;
-}
-
-
-static int cas_dtm0_logrec_add (struct m0_fom *fom0, struct m0_dtm0_tx_desc *txd,
-				enum m0_dtm0_tx_pa_state state) {
-	/* log the dtm0 logrec before completing the cas op */
-	struct m0_dtm0_service *dtms = m0_dtm0_service_find(fom0->fo_service->rs_reqh);
-	struct m0_dtm0_tx_desc *msg = &cas_op(fom0)->cg_txd;
-	void		       *buf = NULL;
-	m0_bcount_t	        len = 0;
-	int                     i;
-	int			rc;
-
-	for (i = 0; i < msg->dtd_ps.dtp_nr; ++i) {
-		if (m0_fid_eq(&msg->dtd_ps.dtp_pa[i].p_fid,
-					&dtms->dos_generic.rs_service_fid)) {
-			msg->dtd_ps.dtp_pa[i].p_state = (uint32_t) M0_DTPS_PERSISTENT;
-			break;
-		}
-	}
-	M0_ASSERT(i < msg->dtd_ps.dtp_nr);
-	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
-			&buf, &len);
-	M0_ASSERT(rc == 0);
-	m0_dtm0_update_logrec(dtms->dos_log, &fom0->fo_tx.tx_betx, msg, buf);
-	m0_buf_free(buf);
 
 	return rc;
 }
@@ -2194,9 +2196,6 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		else
 			m0_ctg_cursor_next(ctg_op, next);
 		break;
-	}
-	if (!m0_dtm0_tx_desc_is_none(&cas_op(fom0)->cg_txd)) {
-		cas_dtm0_logrec_add(fom0, &cas_op(fom0)->cg_txd, M0_DTPS_PERSISTENT);
 	}
 
 	return ret;
