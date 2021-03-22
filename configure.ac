@@ -507,9 +507,10 @@ AC_PROG_SED
 AC_PROG_LN_S
 AC_PROG_INSTALL
 
+AC_CHECK_PROG(cxxxml_name, castxml, castxml, gccxml)
+
 AS_IF([test x$enable_castxml = xyes],
-      [cxxxml_name=castxml],
-      [cxxxml_name=gccxml]
+      [cxxxml_name=castxml]
 )
 
 # gccxml is required by xcode/m0gccxml2xcode script
