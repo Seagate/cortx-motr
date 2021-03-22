@@ -812,7 +812,7 @@ static int libfab_tm_res_init(struct m0_fab__tm *tm)
 	fab = tm->ftm_fab;
 	memset(&cq_attr, 0, sizeof(cq_attr));
 	/* Initialise completion queues for tx */
-	cq_attr.wait_obj = FI_WAIT_FD;//FI_WAIT_NONE;
+	cq_attr.wait_obj = FI_WAIT_FD;
 	cq_attr.format = FI_CQ_FORMAT_MSG;
 	cq_attr.size = fab->fab_fi->tx_attr->size;
 	rc = fi_cq_open(fab->fab_dom, &cq_attr, &tm->ftm_tx_cq, NULL);
@@ -1353,7 +1353,7 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 }
 
 /**
- * Used to init the waitset for the transfer machine 
+ * Used to init the waitfd for the transfer machine
  */
 static int libfab_waitfd_init(struct m0_fab__tm *tm)
 {
