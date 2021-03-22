@@ -1147,20 +1147,20 @@ ff2c_verbose_0 = @echo "  FF2C  " $<;
 # xcode/xcode.h and xcode/m0gccxml2xcode documentation.
 
 # set specific flags for particular CXXXML program
-if ENABLE_CASTXML
-cxxxml_tag = "CASTXML"
-cxxxml2xc_tag = "CASTXML2XC"
-# generate gccxml-like output with castxml
-CXXXML_FLAGS := --castxml-gccxml
-CXXXML_OUTPUT := -o # keep trailing blank-space after -o
-CXXXML2XC_FLAGS := --castxml
-else
+if ENABLE_GCCXML
 cxxxml_tag = "GCCXML"
 cxxxml2xc_tag = "GCCXML2XC"
 # set maximum supported gcc version by gccxml, currently it's 4.2
 CXXXML_FLAGS := -DGCC_VERSION=4002
 CXXXML_OUTPUT := -fxml=
 CXXXML2XC_FLAGS :=
+else
+cxxxml_tag = "CASTXML"
+cxxxml2xc_tag = "CASTXML2XC"
+# generate gccxml-like output with castxml
+CXXXML_FLAGS := --castxml-gccxml
+CXXXML_OUTPUT := -o # keep trailing blank-space after -o
+CXXXML2XC_FLAGS := --castxml
 endif
 
 # hide actual gccxml/m0gccxml2xcode build commands in silent make mode (V=0) and
