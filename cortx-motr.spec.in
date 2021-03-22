@@ -90,10 +90,18 @@ BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  %{lustre_devel}
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
+%if %{rhel} <= 7
 BuildRequires:  python36-ply
+%else
+BuildRequires:  python3-ply
+%endif
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
+%if %{rhel} <= 7
 BuildRequires:  python-devel
+%else
+BuildRequires:  python2-devel
+%endif
 BuildRequires:  libedit-devel
 %if %{with cassandra}
 BuildRequires:  libcassandra
