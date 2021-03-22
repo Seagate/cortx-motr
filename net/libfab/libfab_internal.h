@@ -124,32 +124,15 @@ struct m0_fab__ep_name {
 	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
 };
 
-/**
- * Libfab structure of passive endpoint resources
- */
 struct m0_fab__pep_res{
-
-	/** Event queue for pep*/
-	struct fid_eq *fpr_eq;
+	struct fid_eq *fpr_eq;                 /* Event queue for pep*/
 };
-/**
- * Libfab structure of tx endpoint resources
- */
 struct m0_fab__tx_res{
-
-	/** Event queue for txep*/
-	struct fid_eq *ftr_eq;
+	struct fid_eq *ftr_eq;                 /* Event queue for txep*/
 };
-/**
- * Libfab structure of rx endpoint resources
- */
 struct m0_fab__rx_res{
-
-	/** Event queue for rxep */
-	struct fid_eq *frr_eq;
-
-	/* Rx Completion Queue */
-	struct fid_cq *frr_cq;
+	struct fid_eq *frr_eq;                 /* Event queue for rxep*/
+	struct fid_cq *frr_cq;                 /* Rx Completion Queue */
 };
 
 /**
