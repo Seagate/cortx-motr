@@ -98,28 +98,36 @@ struct m0_fab__ep_name {
 	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
 };
 
-struct m0_fab__ep_res {
-	struct fid_eq *fer_eq;                 /* Event queue */
-	struct fid_cq *fer_rx_cq;              /* Recv Completion Queue */
+struct m0_fab__pep_res{
+	struct fid_eq *fpr_eq;                 /* Event queue for pep*/
+};
+struct m0_fab__tx_res{
+	struct fid_eq *ftr_eq;                 /* Event queue for txep*/
+};
+struct m0_fab__rx_res{
+	struct fid_eq *frr_eq;                 /* Event queue for rxep*/
+	struct fid_cq *frr_cq;                 /* Rx Completion Queue */
 };
 
 struct m0_fab__active_ep {
-	struct fid_ep            *aep_ep;      /* Active Endpoint */
-	struct m0_fab__ep_res     aep_ep_res;  /* Endpoint resources */
-	enum m0_fab__conn_status  aep_state;   /* EP connection status */
+	struct fid_ep            *aep_txep;      /* Active Endpoint */
+	struct fid_ep            *aep_rxep;      /* Active Endpoint */
+	struct m0_fab__tx_res     aep_tx_res;    /* tx ep resources */
+	struct m0_fab__rx_res     aep_rx_res;    /* rx ep resources */
+	enum m0_fab__conn_status  aep_tx_state;  /* EP connection status */
+	enum m0_fab__conn_status  aep_rx_state;  /* EP connection status */
 };
 
 struct m0_fab__passive_ep {
 	struct fid_pep           *pep_pep;      /* Passive endpoint */
-	struct m0_fab__active_ep *pep_tx_ep;
-	struct m0_fab__active_ep *pep_rx_ep;
-	struct m0_fab__ep_res     pep_ep_res;   /* Endpoint resources */
+	struct m0_fab__active_ep *pep_aep;
+	struct m0_fab__pep_res    pep_res;      /* Endpoint resources */
 };
 
 struct m0_fab__ep {
 	struct m0_net_end_point    fep_nep;     /* linked into a per-tm list */
 	struct m0_fab__ep_name     fep_name;    /* "addr:port" in str format */
-	struct m0_fab__active_ep  *fep_send;
+	struct m0_fab__active_ep  *fep_aep;
 	struct m0_fab__passive_ep *fep_listen;
 	struct m0_tl               fep_sndbuf;  /* List of buffers to send */
 };
