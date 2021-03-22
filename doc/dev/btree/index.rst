@@ -1057,6 +1057,15 @@ Meetings
      - identify and discuss current code using key lookup in slant mode.
      - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210319%200940-1.mp4?csf=1&web=1&e=nsSM1U>`_
 
+   * - 2021.03.22
+     - sync up
+     - shashank, jaydeep, nikhil, nikita, shankar, mukund, radha, madhav
+     - discussed an alternative to slant functionality
+       discussed new BTree Interface.
+     - 
+     - continue with BTree Interface discussion.
+     - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210322%201040-1.mp4?csf=1&web=1&e=GWP3Ld>`_
+
 Detailed-level design (DLD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
