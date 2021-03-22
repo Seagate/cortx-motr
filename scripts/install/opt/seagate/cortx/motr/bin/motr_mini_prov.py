@@ -32,7 +32,7 @@ MOTR_SYS_CFG = "/etc/sysconfig/motr"
 FSTAB = "/etc/fstab"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
-
+global machine_id
 class MotrError(Exception):
     """ Generic Exception with error code and output """
 
@@ -65,6 +65,7 @@ def check_type(var, vtype, msg):
 
 def get_current_node(self):
     """Get current node name using machine-id."""
+    global machine_id
     cmd = "cat /etc/machine-id"
     machine_id = execute_command(self, cmd)
     machine_id = machine_id[0].split('\n')[0]
@@ -76,7 +77,7 @@ def get_current_node(self):
                         f" Actual: {len(machine_id)}")
 
     try:
-        current_node = Conf.get(self._index, 'cluster>server_nodes')[machine_id]
+        current_node = Conf.get(self._index, 'server_node')[machine_id]['name']
     except:
         raise MotrError(errno.EINVAL, "Current node not found")
 
@@ -101,7 +102,7 @@ def validate_file(file):
 def is_hw_node(self):
     try:
         node_type = Conf.get(self._index,
-                    f'cluster>{self._server_id}')['node_type']
+                             f'server_node')[machine_id]['type']
     except:
         raise MotrError(errno.EINVAL, "node_type not found")
     check_type(node_type, str, "node type")
@@ -136,10 +137,11 @@ def motr_config(self):
         execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
 def configure_net(self):
+    global machine_id
     """Wrapper function to detect lnet/libfabric transport."""
     try:
         transport_type = Conf.get(self._index,
-            f'cluster>{self._server_id}')['network']['data']['transport_type']
+                                  f'server_node')[machine_id]['network']['data']['transport_type']
     except:
         raise MotrError(errno.EINVAL, "transport_type not found")
     check_type(transport_type, str, "transport_type")
@@ -152,13 +154,15 @@ def configure_net(self):
         raise MotrError(errno.EINVAL, "Unknown data transport type\n")
 
 def configure_lnet(self):
+    global machine_id
+
     '''
        Get iface and /etc/modprobe.d/lnet.conf params from
        conf store. Configure lnet. Start lnet service
     '''
     try:
         iface = Conf.get(self._index,
-        f'cluster>{self._server_id}')['network']['data']['private_interfaces']
+                         f'server_node')[machine_id]['network']['data']['private_interfaces']
         iface = iface[0]
     except:
         raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
@@ -169,7 +173,8 @@ def configure_lnet(self):
 
     try:
         iface_type = Conf.get(self._index,
-            f'cluster>{self._server_id}')['network']['data']['interface_type']
+            f'server_node')[machine_id]['network']['data']['interface_type']
+            #f'cluster>{self._server_id}')['network']['data']['interface_type']
     except:
         raise MotrError(errno.EINVAL, "interface_type not found\n")
 
@@ -203,6 +208,7 @@ def add_swap_fstab(self, dev_name):
     swap_entry = f"{dev_name}    swap    swap    defaults        0 0\n"
     swap_found = False
     swap_off(self)
+
     try:
         with open(FSTAB, "r") as fp:
             lines = fp.readlines()
@@ -214,7 +220,6 @@ def add_swap_fstab(self, dev_name):
     except:
         swap_on(self)
         raise MotrError(errno.EINVAL, f"Cant read f{FSTAB}\n")
-
 
     try:
         if not swap_found:
@@ -260,7 +265,6 @@ def create_lvm(self, index, metadata_dev):
         6. create swap from lvm
     '''
 
-    #TODO : Remove the below logic to validata metadata device after EOS-17127 is resolved
     try:
         cmd = f"fdisk -l {metadata_dev}2"
         execute_command(self, cmd)
@@ -268,7 +272,6 @@ def create_lvm(self, index, metadata_dev):
         pass
     else:
         metadata_dev = f"{metadata_dev}2"
-        
     try:
         cmd = f"pvdisplay {metadata_dev}"
         out = execute_command(self, cmd)
@@ -276,9 +279,7 @@ def create_lvm(self, index, metadata_dev):
         pass
     else:
         sys.stdout.write(f"Already volumes are created on {metadata_dev}\n {out[0]}")
-        sys.stdout.write("Proceeding without any volume creation as mentioned in EOS-17127\n")
         return
-
     index = index + 1
     node_name = self._server_id
     vg_name = f"vg_{node_name}_md{index}"
@@ -339,21 +340,41 @@ def create_lvm(self, index, metadata_dev):
 
     create_swap(self, swap_dev)
 
-
 def config_lvm(self):
-    """Create volume group and lvm for swap and metadata."""
+    global machine_id
     try:
-        metadata_devices = Conf.get(self._index,
-                f'cluster>{self._server_id}')['storage']['metadata_devices']
+        cvg_cnt = Conf.get(self._index,
+                       f'server_node')[machine_id]['storage']['cvg_count']
     except:
-        raise MotrError(errno.EINVAL, "metadata_devices not found\n")
-    check_type(metadata_devices, list, "metadata_devices")
-    
-    sys.stdout.write(f"\nlvm metadata_devices: {metadata_devices}\n\n")
+        raise MotrError(errno.EINVAL, "cvg_cnt not found\n")
 
-    for device in metadata_devices:
-        create_lvm(self, metadata_devices.index(device), device)
+    check_type(cvg_cnt, str, "cvg_count")
 
+
+    try:
+        cvg = Conf.get(self._index,
+                       f'server_node')[machine_id]['storage']['cvg']
+    except:
+        raise MotrError(errno.EINVAL, "cvg not found\n")
+
+    # Check if cvg type is list
+    check_type(cvg, list, "cvg")
+
+    # Check if cvg is non empty
+    if not cvg:
+        raise MotrError(errno.EINVAL, "cvg is empty\n")
+
+    for i in range(int(cvg_cnt)):
+        cvg_item = cvg[i]
+        try:
+            metadata_devices = cvg_item["metadata_devices"]
+        except:
+            raise MotrError(errno.EINVAL, "metadata devices not found\n")
+        check_type(metadata_devices, list, "metadata_devices")
+        sys.stdout.write(f"\nlvm metadata_devices: {metadata_devices}\n\n")
+
+        for device in metadata_devices:
+            create_lvm(self, i+metadata_devices.index(device), device)
 
 def get_lnet_xface() -> str:
     """Get lnet interface."""
@@ -398,36 +419,32 @@ def check_pkgs(self, pkgs):
 def get_nids(self, nodes):
     """Get lnet nids of all available nodes in cluster."""
     nids = []
+    myhostname = execute_command(self, "hostname")[0].rstrip('\n')
 
-    for node in nodes.values():
-        try:
-            hostname = Conf.get(self._index, f'cluster>{node}>hostname')
-        except:
-            raise MotrError(errno.EINVAL, f"{node} hostname not found")
-
-        check_type(hostname, str, "hostname")
-
-        if self._server_id == node:
+    for node in nodes:
+        if (myhostname == node):
             cmd = "lctl list_nids"
         else:
-            cmd = (f"ssh  -o \"StrictHostKeyChecking=no\" {hostname}"
+            cmd = (f"ssh  -o \"StrictHostKeyChecking=no\" {node}"
                     " lctl list_nids")
         op = execute_command(self, cmd)
         nids.append(op[0].rstrip("\n"))
 
     return nids
 
+def get_nodes(self):
+    nodes_info = Conf.get(self._index, f'server_node')
+    nodes= []
+    for value in nodes_info.values():
+        nodes.append(value["hostname"])
+    return nodes
+
 def lnet_ping(self):
     """Lnet lctl ping on all available nodes in cluster."""
-    try:
-        nodes = Conf.get(self._index, 'cluster>server_nodes')
-    except:
-        raise MotrError(errno.EINVAL, "Server nodes not found")
 
-    check_type(nodes, dict, "server_nodes")
-
+    nodes = get_nodes(self)
+    # nodes is a list of hostnames
     nids = get_nids(self, nodes)
-
     sys.stdout.write("lnet pinging on all nodes in cluster\n")
     sys.stdout.write("motr_setup init MUST be performed on all nodes before "
                       "executing this\n")
