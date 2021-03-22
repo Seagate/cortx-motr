@@ -1020,8 +1020,7 @@ static int cas_dtm0_logrec_add (struct m0_fom *fom0, struct m0_dtm0_tx_desc *txd
 	/* log the dtm0 logrec before completing the cas op */
 	struct m0_dtm0_service *dtms = m0_dtm0_service_find(fom0->fo_service->rs_reqh);
 	struct m0_dtm0_tx_desc *msg = &cas_op(fom0)->cg_txd;
-	void		       *buf = NULL;
-	m0_bcount_t	        len = 0;
+	struct m0_buf	        buf = {};
 	int                     i;
 	int			rc;
 
@@ -1034,10 +1033,10 @@ static int cas_dtm0_logrec_add (struct m0_fom *fom0, struct m0_dtm0_tx_desc *txd
 	}
 	M0_ASSERT(i < msg->dtd_ps.dtp_nr);
 	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
-			&buf, &len);
+				     &buf.b_addr, &buf.b_nob);
 	M0_ASSERT(rc == 0);
-	m0_dtm0_update_logrec(dtms->dos_log, &fom0->fo_tx.tx_betx, msg, buf);
-	m0_buf_free(buf);
+	m0_dtm0_logrec_update(dtms->dos_log, &fom0->fo_tx.tx_betx, msg, &buf);
+	m0_buf_free(&buf);
 
 	return rc;
 }
@@ -1408,8 +1407,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 */
 		if (!m0_dtm0_tx_desc_is_none(&cas_op(fom0)->cg_txd)) {
 			struct m0_be_tx_credit dtm0logrec_cred;
-			void       *buf = NULL;
-			m0_bcount_t len = 0;
+			struct m0_buf	       buf = {};
 			int	    rc;
 
 			/* TDB: while calculating the credits we need only the
@@ -1418,17 +1416,17 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			   actual payload. */
 
 			rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc,
-						      cas_op(fom0)), &buf, &len);
+						      cas_op(fom0)), &buf.b_addr, &buf.b_nob);
 			M0_ASSERT(rc == 0);
 
 			m0_be_dtm0_log_credit(M0_DTML_PERSISTENT,
 					      &cas_op(fom0)->cg_txd,
-					      buf,
+					      &buf,
 					      m0_fom_reqh(fom0)->rh_beseg,
 					      NULL,
 					      &dtm0logrec_cred);
 			m0_be_tx_credit_add(&fom0->fo_tx.tx_betx_cred, &dtm0logrec_cred);
-			m0_buf_free(buf);
+			m0_buf_free(&buf);
 		}
 
 		m0_fom_phase_set(fom0, M0_FOPH_TXN_OPEN);
