@@ -1031,7 +1031,6 @@ static int cas_dtm0_logrec_add (struct m0_fom *fom0, struct m0_dtm0_tx_desc *txd
 			break;
 		}
 	}
-	M0_ASSERT(i < msg->dtd_ps.dtp_nr);
 	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
 				     &buf.b_addr, &buf.b_nob);
 	M0_ASSERT(rc == 0);
