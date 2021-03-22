@@ -446,11 +446,13 @@ static void libfab_tm_buf_timeout(struct m0_fab__tm *ftm)
 	int                        i;
 	m0_time_t                  now = m0_time_now();
 
+	M0_PRE(libfab_tm_is_locked(ftm));
 	M0_PRE(libfab_tm_invariant(ftm));
+
 	for (i = 0; i < ARRAY_SIZE(net->ntm_q); ++i) {
 		struct m0_net_buffer *nb;
 
-		m0_tl_for(m0_net_tm, &ftm->ftm_ntm->ntm_q[i], nb) {
+		m0_tl_for(m0_net_tm, &net->ntm_q[i], nb) {
 			if (nb->nb_timeout < now) {
 				nb->nb_flags |= M0_NET_BUF_TIMED_OUT;
 				libfab_buf_done(nb->nb_xprt_private,
@@ -563,7 +565,7 @@ static void libfab_rxep_comp_read(struct fid_cq *cq, struct m0_fab__ep *ep)
 	if (cq != NULL) {
 		rc = libfab_check_for_comp(cq, buf, len);
 		if (rc > 0) {
-			for (i = 0; i < rc; i ++) {
+			for (i = 0; i < rc; i++) {
 				if (buf[i] != NULL) {
 					if (buf[i]->fb_length == 0)
 						buf[i]->fb_length = len[i];
@@ -590,7 +592,7 @@ static void libfab_txep_comp_read(struct fid_cq *cq)
 	memset(&buf, 0, sizeof(buf));
 	rc = libfab_check_for_comp(cq, buf, NULL);
 	if (rc > 0) {
-		for (i = 0; i < rc; i ++) {
+		for (i = 0; i < rc; i++) {
 			if (buf[i] != NULL) {
 				xep = buf[i]->fb_txctx;
 				aep = (xep->fep_listen == NULL) ? xep->fep_aep :
