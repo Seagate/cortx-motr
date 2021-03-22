@@ -29,7 +29,7 @@
 #include "ut/ut.h"
 #include "sns/parity_math.h"
 
-#define KB(x)	(x * 1024)
+#define KB(x)	((x) * 1024)
 #define MB(x)	(KB(x) * 1024)
 
 enum {
