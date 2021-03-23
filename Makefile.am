@@ -1176,7 +1176,7 @@ cxxxml2xcode_verbose_0 = @echo " ${cxxxml2xc_tag} " $@;
 
 # gccxml doesn't like -Werror and --coverage options so we need to remove them
 # from CFLAGS
-CXXXML_UNSUPPORTED_CFLAGS := -Werror -Wno-trampolines --coverage -pipe -Wp,-D_FORTIFY_SOURCE=2 --param=ssp-buffer-size=4 -grecord-gcc-switches -fstack-protector-strong
+CXXXML_UNSUPPORTED_CFLAGS := -Werror -Wno-trampolines --coverage -pipe -Wp,-D_FORTIFY_SOURCE=2 --param=ssp-buffer-size=4 -grecord-gcc-switches -fstack-protector-strong -fstack-clash-protection
 CXXXML_CFLAGS := $(filter-out $(CXXXML_UNSUPPORTED_CFLAGS), $(CPPFLAGS) $(CFLAGS) $(AM_CPPFLAGS) $(AM_CFLAGS))
 
 %_xc.h %_xc.c: %.h config.h
