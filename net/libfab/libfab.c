@@ -558,21 +558,19 @@ static void libfab_rxep_comp_read(struct fid_cq *cq, struct m0_fab__ep *ep)
 	struct m0_fab__buf *buf[FAB_MAX_COMP_READ];
 	m0_bindex_t         len[FAB_MAX_COMP_READ];
 	int                 i;
-	int                 rc;
+	int                 cnt;
 
 	memset(&buf, 0, sizeof(buf));
 	memset(&len, 0, sizeof(len));
 	if (cq != NULL) {
-		rc = libfab_check_for_comp(cq, buf, len);
-		if (rc > 0) {
-			for (i = 0; i < rc; i++) {
-				if (buf[i] != NULL) {
-					if (buf[i]->fb_length == 0)
-						buf[i]->fb_length = len[i];
-					buf[i]->fb_ev_ep = ep;
-					libfab_ep_get(ep);
-					libfab_buf_done(buf[i], 0);
-				}
+		cnt = libfab_check_for_comp(cq, buf, len);
+		for (i = 0; i < cnt; i++) {
+			if (buf[i] != NULL) {
+				if (buf[i]->fb_length == 0)
+					buf[i]->fb_length = len[i];
+				buf[i]->fb_ev_ep = ep;
+				libfab_ep_get(ep);
+				libfab_buf_done(buf[i], 0);
 			}
 		}
 	}
@@ -587,19 +585,17 @@ static void libfab_txep_comp_read(struct fid_cq *cq)
 	struct m0_fab__active_ep *aep;
 	struct m0_fab__buf       *buf[FAB_MAX_COMP_READ];
 	int                       i;
-	int                       rc;
+	int                       cnt;
 
 	memset(&buf, 0, sizeof(buf));
-	rc = libfab_check_for_comp(cq, buf, NULL);
-	if (rc > 0) {
-		for (i = 0; i < rc; i++) {
-			if (buf[i] != NULL) {
-				xep = buf[i]->fb_txctx;
-				aep = (xep->fep_listen == NULL) ? xep->fep_aep :
-					xep->fep_listen->pep_aep;
-				libfab_target_notify(buf[i], aep);
-				libfab_buf_done(buf[i], 0);
-			}
+	cnt = libfab_check_for_comp(cq, buf, NULL);
+	for (i = 0; i < cnt; i++) {
+		if (buf[i] != NULL) {
+			xep = buf[i]->fb_txctx;
+			aep = (xep->fep_listen == NULL) ? xep->fep_aep :
+				xep->fep_listen->pep_aep;
+			libfab_target_notify(buf[i], aep);
+			libfab_buf_done(buf[i], 0);
 		}
 	}
 }
@@ -1364,7 +1360,7 @@ static int libfab_waitfd_init(struct m0_fab__tm *tm)
 
 	tm->ftm_epfd = epoll_create(1);
 	if (tm->ftm_epfd < 0)
-		return -errno;
+		return M0_ERR(-errno);
 
 	return M0_RC(0);
 }
@@ -1914,7 +1910,7 @@ static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm)
 
 	rc = fi_control(fid, FI_GETWAIT, &fd);
 	if (rc != FI_SUCCESS)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	ev.events = EPOLLIN;
 	rc = epoll_ctl(tm->ftm_epfd, EPOLL_CTL_ADD, fd, &ev);

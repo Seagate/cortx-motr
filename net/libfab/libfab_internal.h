@@ -92,7 +92,6 @@ struct m0_fab__list {
  * Libfab structure of fabric params
  */
 struct m0_fab__fab {
-
 	/** Magic number */
 	uint64_t           fab_magic;
 
@@ -113,7 +112,6 @@ struct m0_fab__fab {
  * Libfab structure of endpoint name
  */
 struct m0_fab__ep_name {
-
 	/** IP address */
 	char fen_addr[LIBFAB_ADDR_LEN_MAX];
 
@@ -124,15 +122,31 @@ struct m0_fab__ep_name {
 	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
 };
 
+/**
+ * Libfab structure of resources associated to a passive endpoint
+ */
 struct m0_fab__pep_res{
-	struct fid_eq *fpr_eq;                 /* Event queue for pep*/
+	/* Event queue for pep*/
+	struct fid_eq *fpr_eq;
 };
+
+/**
+ * Libfab structure of resources associated to a active tx endpoint
+ */
 struct m0_fab__tx_res{
-	struct fid_eq *ftr_eq;                 /* Event queue for txep*/
+	/* Event queue for txep*/
+	struct fid_eq *ftr_eq;
 };
+
+/**
+ * Libfab structure of resources associated to a active rx endpoint
+ */
 struct m0_fab__rx_res{
-	struct fid_eq *frr_eq;                 /* Event queue for rxep*/
-	struct fid_cq *frr_cq;                 /* Rx Completion Queue */
+	/* Event queue for rxep*/
+	struct fid_eq *frr_eq;
+	
+	/* Rx Completion Queue */
+	struct fid_cq *frr_cq;
 };
 
 /**
@@ -162,7 +176,6 @@ struct m0_fab__active_ep {
  * Libfab structure of passive endpoint
  */
 struct m0_fab__passive_ep {
-	
 	/** Passive endpoint */
 	struct fid_pep           *pep_pep;
 	
@@ -177,7 +190,6 @@ struct m0_fab__passive_ep {
  * Libfab structure of endpoint
  */
 struct m0_fab__ep {
-
 	/** linked into a per-tm list */
 	struct m0_net_end_point    fep_nep;
 	
@@ -198,7 +210,6 @@ struct m0_fab__ep {
  * Libfab structure of transfer machine
  */
 struct m0_fab__tm {
-
 	/** Net transfer machine */
 	struct m0_net_transfer_mc *ftm_ntm;
 	
@@ -237,7 +248,6 @@ struct m0_fab__tm {
  * Libfab structure of buffer memory region params
  */
 struct m0_fab__buf_mr {
-
 	/** Buffer descriptor */
 	void          *bm_desc[FAB_MR_IOV_MAX];
 	
@@ -252,7 +262,6 @@ struct m0_fab__buf_mr {
  * Libfab structure of buffer params
  */
 struct m0_fab__buf {
-
 	/** Magic number for list of completed buffers */
 	uint64_t               fb_magic;
 	
@@ -300,7 +309,6 @@ struct m0_fab__buf {
  * Libfab structure of connection data
  */
 struct m0_fab__conn_data {
-	
 	/** address in network byte format */
 	uint64_t fcd_netaddr;
 	
