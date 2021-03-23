@@ -227,24 +227,32 @@ static int parse_int(const char *value, enum config_key_val tag)
 #define workload_index(t) (t->u.cw_index)
 #define workload_io(t) (t->u.cw_io)
 
+const char conf_section_name[] = "MOTR_CONFIG";
+
 int copy_value(struct workload *load, int max_workload, int *index,
 		char *key, char *value)
 {
+	int                       value_len = strlen(value);
 	struct workload          *w = NULL;
 	struct m0_fid            *obj_fid;
 	struct m0_workload_io    *cw;
 	struct m0_workload_index *ciw;
-	int                       value_len = strlen(value);
 
-	if (!strcmp(value, "MOTR_CONFIG")) {
+	if (m0_streq(value, conf_section_name)) {
 		if (conf != NULL) {
-			cr_log(CLL_ERROR, "YAML file error. More than one config sections");
+			cr_log(CLL_ERROR, "YAML file error: "
+			       "more than one config sections\n");
 			return -EINVAL;
 		}
 
 		conf = m0_alloc(sizeof(struct crate_conf));
 		if (conf == NULL)
 			return -ENOMEM;
+	}
+	if (conf == NULL) {
+		cr_log(CLL_ERROR, "YAML file error: %s section is missing\n",
+			conf_section_name);
+		return -EINVAL;
 	}
 	switch(get_index_from_key(key)) {
 		case LOCAL_ADDR:
