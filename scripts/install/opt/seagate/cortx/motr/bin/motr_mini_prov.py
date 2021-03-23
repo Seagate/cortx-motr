@@ -32,7 +32,6 @@ MOTR_SYS_CFG = "/etc/sysconfig/motr"
 FSTAB = "/etc/fstab"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
-global machine_id
 class MotrError(Exception):
     """ Generic Exception with error code and output """
 
@@ -62,28 +61,26 @@ def check_type(var, vtype, msg):
     if not isinstance(var, vtype):
         raise MotrError(errno.EINVAL, f"Invalid {msg} type. Expected: {vtype}")
 
-
-def get_current_node(self):
-    """Get current node name using machine-id."""
-    global machine_id
+def get_machine_id(self):
     cmd = "cat /etc/machine-id"
     machine_id = execute_command(self, cmd)
     machine_id = machine_id[0].split('\n')[0]
-
     check_type(machine_id, str, "machine-id")
     if len(machine_id) != MACHINE_ID_LEN:
         raise MotrError(errno.EINVAL, "Invalid machine-id length."
                         f" Expected: {MACHINE_ID_LEN}"
                         f" Actual: {len(machine_id)}")
+    return machine_id
 
+def get_server_node(self):
+    """Get current node name using machine-id."""
     try:
-        current_node = Conf.get(self._index, 'server_node')[machine_id]['name']
+        server_node = Conf.get(self._index, 'server_node')[self.machine_id]
     except:
         raise MotrError(errno.EINVAL, "Current node not found")
 
-    check_type(current_node, str, "current node")
-    return current_node
-
+    check_type(server_node, dict, "server_node")
+    return server_node
 
 def restart_services(self, services):
     for service in services:
@@ -101,10 +98,10 @@ def validate_file(file):
 
 def is_hw_node(self):
     try:
-        node_type = Conf.get(self._index,
-                             f'server_node')[machine_id]['type']
+        node_type = self.server_node['type']
     except:
         raise MotrError(errno.EINVAL, "node_type not found")
+
     check_type(node_type, str, "node type")
     if node_type == "HW":
         return True
@@ -137,13 +134,12 @@ def motr_config(self):
         execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
 def configure_net(self):
-    global machine_id
     """Wrapper function to detect lnet/libfabric transport."""
     try:
-        transport_type = Conf.get(self._index,
-                                  f'server_node')[machine_id]['network']['data']['transport_type']
+        transport_type = self.server_node['network']['data']['transport_type']
     except:
         raise MotrError(errno.EINVAL, "transport_type not found")
+
     check_type(transport_type, str, "transport_type")
 
     if transport_type == "lnet":
@@ -154,16 +150,12 @@ def configure_net(self):
         raise MotrError(errno.EINVAL, "Unknown data transport type\n")
 
 def configure_lnet(self):
-    global machine_id
-
     '''
        Get iface and /etc/modprobe.d/lnet.conf params from
        conf store. Configure lnet. Start lnet service
     '''
     try:
-        iface = Conf.get(self._index,
-                         f'server_node')[machine_id]['network']['data']['private_interfaces']
-        iface = iface[0]
+        iface = self.server_node['network']['data']['private_interfaces'][0]
     except:
         raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
 
@@ -172,9 +164,7 @@ def configure_lnet(self):
     execute_command(self, cmd)
 
     try:
-        iface_type = Conf.get(self._index,
-            f'server_node')[machine_id]['network']['data']['interface_type']
-            #f'cluster>{self._server_id}')['network']['data']['interface_type']
+        iface_type = self.server_node['network']['data']['interface_type']
     except:
         raise MotrError(errno.EINVAL, "interface_type not found\n")
 
@@ -281,7 +271,7 @@ def create_lvm(self, index, metadata_dev):
         sys.stdout.write(f"Already volumes are created on {metadata_dev}\n {out[0]}")
         return
     index = index + 1
-    node_name = self._server_id
+    node_name = self.server_node['name']
     vg_name = f"vg_{node_name}_md{index}"
     lv_swap_name = f"lv_main_swap{index}"
     lv_md_name = f"lv_raw_md{index}"
@@ -341,10 +331,8 @@ def create_lvm(self, index, metadata_dev):
     create_swap(self, swap_dev)
 
 def config_lvm(self):
-    global machine_id
     try:
-        cvg_cnt = Conf.get(self._index,
-                       f'server_node')[machine_id]['storage']['cvg_count']
+        cvg_cnt = self.server_node['storage']['cvg_count']
     except:
         raise MotrError(errno.EINVAL, "cvg_cnt not found\n")
 
@@ -352,8 +340,7 @@ def config_lvm(self):
 
 
     try:
-        cvg = Conf.get(self._index,
-                       f'server_node')[machine_id]['storage']['cvg']
+        cvg = self.server_node['storage']['cvg']
     except:
         raise MotrError(errno.EINVAL, "cvg not found\n")
 
@@ -433,7 +420,7 @@ def get_nids(self, nodes):
     return nids
 
 def get_nodes(self):
-    nodes_info = Conf.get(self._index, f'server_node')
+    nodes_info = Conf.get(self._index, 'server_node')
     nodes= []
     for value in nodes_info.values():
         nodes.append(value["hostname"])
