@@ -32,7 +32,6 @@
 #include "rdma/fi_eq.h"
 #include "rdma/fi_endpoint.h"
 #include "rdma/fi_rma.h"
-#include "lib/cookie.h"
 
 extern struct m0_net_xprt m0_net_libfab_xprt;
 
@@ -42,16 +41,16 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  * @{
  */
 
-/* #define LIBFAB_VERSION FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION) */
 #define LIBFAB_VERSION FI_VERSION(1,11)
-#define LIBFAB_WAITSET_TIMEOUT    2 /* in msec TODO: Tbd  */
 
 #define LIBFAB_ADDR_LEN_MAX	INET6_ADDRSTRLEN
 #define LIBFAB_PORT_LEN_MAX	6
 #define LIBFAB_ADDR_STRLEN_MAX  (LIBFAB_ADDR_LEN_MAX + LIBFAB_PORT_LEN_MAX + 1)
 
-/** Parameters required for libfabric configuration */
-enum m0_fab__mr_params {
+/**
+ * Parameters required for libfabric configuration
+ */
+enum m0_fab__libfab_params {
 	/** Fabric memory access. */
 	FAB_MR_ACCESS  = (FI_READ | FI_WRITE | FI_RECV | FI_SEND | \
 			  FI_REMOTE_READ | FI_REMOTE_WRITE),
@@ -67,115 +66,253 @@ enum m0_fab__mr_params {
 	FAB_BDESC_SIZE = (sizeof(uint64_t) * 3),
 	/** Dummy data used to notify remote end for rma op completions */
 	FAB_DUMMY_DATA = 0xFABC0DE,
+	/** Max number of completion events to read from a CQ */
+	FAB_MAX_COMP_READ = 16,
+	/** Max timeout for waiting on fd in epoll_wait */
+	FAB_WAIT_FD_TMOUT = 1000
 };
 
-enum PORT_SOCK_TYPE {
-	PORTFAMILYMAX = 3,
-	SOCKTYPEMAX   = 2
-};
-
+/**
+ * Represents the state of a libfab active endpoint
+ */
 enum m0_fab__conn_status {
 	FAB_NOT_CONNECTED,
 	FAB_CONNECTING,
 	FAB_CONNECTED
 };
 
+/**
+ * Libfab structure of list of fabric interfaces in a transfer machine
+ */
 struct m0_fab__list {
 	struct m0_tl fl_head;
 };
 
+/**
+ * Libfab structure of fabric params
+ */
 struct m0_fab__fab {
-	uint64_t           fab_magic;          /* Magic number */
-	struct fi_info    *fab_fi;             /* Fabric interface info */
-	struct fid_fabric *fab_fab;            /* Fabric fid */
-	struct fid_domain *fab_dom;            /* Domain fid */
-	struct m0_tlink    fab_link;           /* List of fabrics */
-};
+	/** Magic number */
+	uint64_t           fab_magic;
 
-struct m0_fab__ep_name {
-	char fen_addr[LIBFAB_ADDR_LEN_MAX];    /*  */
-	char fen_port[LIBFAB_PORT_LEN_MAX];    /* Port range 0-65535 */
-	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
-};
+	/** Fabric interface info */
+	struct fi_info    *fab_fi;
+	
+	/** Fabric fid */
+	struct fid_fabric *fab_fab;
 
-struct m0_fab__pep_res{
-	struct fid_eq *fpr_eq;                 /* Event queue for pep*/
-};
-struct m0_fab__tx_res{
-	struct fid_eq *ftr_eq;                 /* Event queue for txep*/
-};
-struct m0_fab__rx_res{
-	struct fid_eq *frr_eq;                 /* Event queue for rxep*/
-	struct fid_cq *frr_cq;                 /* Rx Completion Queue */
-};
+	/** Domain fid */
+	struct fid_domain *fab_dom;
 
-struct m0_fab__active_ep {
-	struct fid_ep            *aep_txep;      /* Active Endpoint */
-	struct fid_ep            *aep_rxep;      /* Active Endpoint */
-	struct m0_fab__tx_res     aep_tx_res;    /* tx ep resources */
-	struct m0_fab__rx_res     aep_rx_res;    /* rx ep resources */
-	enum m0_fab__conn_status  aep_tx_state;  /* EP connection status */
-	enum m0_fab__conn_status  aep_rx_state;  /* EP connection status */
-};
-
-struct m0_fab__passive_ep {
-	struct fid_pep           *pep_pep;      /* Passive endpoint */
-	struct m0_fab__active_ep *pep_aep;
-	struct m0_fab__pep_res    pep_res;      /* Endpoint resources */
-};
-
-struct m0_fab__ep {
-	struct m0_net_end_point    fep_nep;     /* linked into a per-tm list */
-	struct m0_fab__ep_name     fep_name;    /* "addr:port" in str format */
-	struct m0_fab__active_ep  *fep_aep;
-	struct m0_fab__passive_ep *fep_listen;
-	struct m0_tl               fep_sndbuf;  /* List of buffers to send */
-};
-
-struct m0_fab__tm {
-	struct m0_net_transfer_mc *ftm_net_ma;  /* Generic transfer machine */
-	struct m0_thread           ftm_poller;  /* Poller thread */
-	struct fid_wait           *ftm_waitset;
-	struct m0_fab__fab        *ftm_fab;
-	struct m0_fab__ep         *ftm_pep;     /* Passive ep(listening mode) */
-	struct fid_ep             *ftm_rctx;    /* Shared recv context */
-	struct fid_cq             *ftm_tx_cq;   /* Transmit Completion Queue */
-	bool                       ftm_shutdown;/* tm Shutdown flag */
-	struct m0_tl               ftm_done;    /* List of completed buffers */
-	struct m0_mutex            ftm_endlock; /* Used betn poller & tm_fini */
-	struct m0_mutex            ftm_evpost;  /* Used betn poller & tm_fini */
+	/** List of fabrics */
+	struct m0_tlink    fab_link;
 };
 
 /**
- *    Private data pointed to by m0_net_buffer::nb_xprt_private.
- *
+ * Libfab structure of endpoint name
  */
+struct m0_fab__ep_name {
+	/** IP address */
+	char fen_addr[LIBFAB_ADDR_LEN_MAX];
 
+	/** Port range 0-65535 */
+	char fen_port[LIBFAB_PORT_LEN_MAX];
+
+	/** address in string format as passed by the net layer */
+	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
+};
+
+/**
+ * Libfab structure of resources associated to a passive endpoint
+ */
+struct m0_fab__pep_res{
+	/* Event queue for pep*/
+	struct fid_eq *fpr_eq;
+};
+
+/**
+ * Libfab structure of resources associated to a active tx endpoint
+ */
+struct m0_fab__tx_res{
+	/* Event queue for txep*/
+	struct fid_eq *ftr_eq;
+};
+
+/**
+ * Libfab structure of resources associated to a active rx endpoint
+ */
+struct m0_fab__rx_res{
+	/* Event queue for rxep*/
+	struct fid_eq *frr_eq;
+	
+	/* Rx Completion Queue */
+	struct fid_cq *frr_cq;
+};
+
+/**
+ * Libfab structure of active endpoint
+ */
+struct m0_fab__active_ep {
+	/** tx endpoint */
+	struct fid_ep            *aep_txep;
+
+	/** rx endpoint */
+	struct fid_ep            *aep_rxep;
+
+	/** tx endpoint resources */
+	struct m0_fab__tx_res     aep_tx_res;
+
+	/** rx endpoint resources */
+	struct m0_fab__rx_res     aep_rx_res;
+	
+	/** connection status of tx ep */
+	enum m0_fab__conn_status  aep_tx_state;
+	
+	/* connection status of rx ep */
+	enum m0_fab__conn_status  aep_rx_state;
+};
+
+/**
+ * Libfab structure of passive endpoint
+ */
+struct m0_fab__passive_ep {
+	/** Passive endpoint */
+	struct fid_pep           *pep_pep;
+	
+	/** Active endpoint for structure used for loopback in a tm */
+	struct m0_fab__active_ep *pep_aep;
+	
+	/** Endpoint resources */
+	struct m0_fab__pep_res    pep_res;
+};
+
+/**
+ * Libfab structure of endpoint
+ */
+struct m0_fab__ep {
+	/** linked into a per-tm list */
+	struct m0_net_end_point    fep_nep;
+	
+	/** ipaddr, port and strname */
+	struct m0_fab__ep_name     fep_name;
+	
+	/** Active endpoint */
+	struct m0_fab__active_ep  *fep_aep;
+
+	/** Passive endpointt */
+	struct m0_fab__passive_ep *fep_listen;
+	
+	/** List of buffers to send */
+	struct m0_tl               fep_sndbuf;
+};
+
+/**
+ * Libfab structure of transfer machine
+ */
+struct m0_fab__tm {
+	/** Net transfer machine */
+	struct m0_net_transfer_mc *ftm_ntm;
+	
+	/** Poller thread */
+	struct m0_thread           ftm_poller;
+	
+	/** Epoll fd */
+	int                        ftm_epfd;
+	
+	/** Fabric params of a transfer machine */
+	struct m0_fab__fab        *ftm_fab;
+
+	/** Passive ep(listening mode) */
+	struct m0_fab__ep         *ftm_pep;
+	
+	/** Shared recv context */
+	struct fid_ep             *ftm_rctx;
+	
+	/** Transmit Completion Queue */
+	struct fid_cq             *ftm_tx_cq;
+	
+	/** tm Shutdown flag */
+	bool                       ftm_shutdown;
+
+	/** List of completed buffers */
+	struct m0_tl               ftm_done;
+	
+	/** Used betn poller & tm_fini */
+	struct m0_mutex            ftm_endlock;
+	
+	/** Used betn poller & tm_fini */
+	struct m0_mutex            ftm_evpost;
+};
+
+/**
+ * Libfab structure of buffer memory region params
+ */
 struct m0_fab__buf_mr {
-	void          *bm_desc[FAB_MR_IOV_MAX]; /* Buffer descriptor */
-	struct fid_mr *bm_mr[FAB_MR_IOV_MAX];   /* Libfab memory region */
-	uint64_t       bm_key[FAB_MR_IOV_MAX];  /* Memory registration key */
+	/** Buffer descriptor */
+	void          *bm_desc[FAB_MR_IOV_MAX];
+	
+	/** Libfab memory region */
+	struct fid_mr *bm_mr[FAB_MR_IOV_MAX];
+	
+	/** Memory registration key */
+	uint64_t       bm_key[FAB_MR_IOV_MAX];
 };
 
+/**
+ * Libfab structure of buffer params
+ */
 struct m0_fab__buf {
-	uint64_t               fb_magic;   /* Magic number */
-	uint64_t               fb_sndmagic;/* Magic number */
-	uint64_t               fb_dummy[2];/* Dummy data + nb ptr */
+	/** Magic number for list of completed buffers */
+	uint64_t               fb_magic;
+	
+	/** Magic number for list of send buffers */
+	uint64_t               fb_sndmagic;
+	
+	/** Dummy data + network buffer ptr */
+	uint64_t               fb_dummy[2];
+	
+	/** Remote key extracted from the buffer descriptor */
 	uint64_t               fb_rem_key;
+	
+	/** Address of remote network buffer used in rma ops */
 	uint64_t               fb_rem_buf;
+	
+	/** Buffer memory region params */
 	struct m0_fab__buf_mr  fb_mr;
-	struct fid_domain     *fb_dp;      /* Domain to which the buf is reg */
-	struct m0_net_buffer  *fb_nb;      /* Pointer back to network buffer*/
+	
+	/** Domain to which the buf is reg */
+	struct fid_domain     *fb_dp;
+	
+	/** Pointer back to network buffer*/
+	struct m0_net_buffer  *fb_nb;
+	
+	/** endpoint associated with recv buffer operation */
 	struct m0_fab__ep     *fb_ev_ep;
+	
+	/** Context to be returned in the buffer completion event for tx ops*/
 	struct m0_fab__ep     *fb_txctx;
-	struct m0_tlink        fb_linkage; /* Link in list of completed bufs*/
+	
+	/** Link in list of completed bufs*/
+	struct m0_tlink        fb_linkage;
+	
+	/** Link for list of send buffers */
 	struct m0_tlink        fb_snd_link;
-	int32_t                fb_status;  /* Buffer completion status */
-	m0_bindex_t            fb_length;  /* Total size of data to be rcvd*/
+
+	/** Buffer completion status */
+	int32_t                fb_status;
+	
+	/** Total size of data to be rcvd*/
+	m0_bindex_t            fb_length;
 };
 
+/**
+ * Libfab structure of connection data
+ */
 struct m0_fab__conn_data {
+	/** address in network byte format */
 	uint64_t fcd_netaddr;
+	
+	/** address in string format */
 	char     fcd_straddr[LIBFAB_ADDR_STRLEN_MAX];
 };
 
