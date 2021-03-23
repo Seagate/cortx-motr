@@ -364,21 +364,21 @@
  *  node index
  * +-----------+                                     segment
  * |           |                                    +-----------------------+
- * | . . .     |   +-------------+                  |                       |
+ * | . . . . . |   +-------------+                  |                       |
  * +-----------+   |             v                  |                       |
  * | &root     +---+           +----+               |   +------+            |
- * +-----------+      +--------+ nd +---------------+-->| root |            |
- * | . . .     |      v        +----+               |   +----+-+            |
+ * +-----------+      +--------| nd |---------------+-->| root |            |
+ * | . . . . . |      v        +----+               |   +----+-+            |
  * |           |   +----+                           |        |              |
  * |           |   | td |                           |        |              |
  * |           |   +----+                           |        v              |
  * |           |      ^        +----+               |        +------+       |
- * |           |      +--------+ nd +---------------+------->| node |       |
- * | . . .     |               +---++               |        +------+       |
+ * |           |      +--------| nd |---------------+------->| node |       |
+ * | . . . . . |               +---++               |        +------+       |
  * +-----------+                ^  |                |                       |
  * | &node     +----------------+  +-----+          |                       |
  * +-----------+                         v          |                       |
- * | . . .     |                   +--------+       |                       |
+ * | . . . . . |                   +--------+       |                       |
  * |           |                   | nodeop |       |                       |
  * |           |                   +-----+--+       |                       |
  * |           |                         |          |                       |
@@ -420,6 +420,8 @@ struct level {
 	uint64_t   l_seq;
 	unsigned   l_idx;
 	struct nd *l_alloc;
+	struct nd *l_prev;
+	struct nd *l_next;
 };
 
 struct m0_btree_oimpl {
@@ -438,51 +440,116 @@ enum base_phase {
 	P_CHECK,
 	P_ACT,
 	P_CLEANUP,
-	P_TRYCOOKIE,
+	P_COOKIE,
 	P_NR
 };
 
-static int get_tick(struct m0_btree_op *bop) {
+enum op_flags {
+	OF_PREV    = M0_BITS(0),
+	OF_NEXT    = M0_BITS(1),
+	OF_LOCKALL = M0_BITS(2),
+	OF_COOKIE  = M0_BITS(3)
+};
+
+static int fail(struct m0_btree_op *bop, int rc)
+{
+	bop->bo_op.o_sm.sm_rc = rc;
+	return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+}
+
+static int get_tick(struct m0_btree_op *bop)
+{
+	struct td             *tree  = (void *)bop->bo_arbor;
+	uint64_t               flags = bop->bo_flags;
+	struct m0_btree_oimpl *oi    = bop->bo_i;
+	struct level          *level = &oi->i_level[oi->i_used];
+
 	switch (bop->bo_op.o_sm.s_state) {
 	case P_INIT:
-		if (!m0_bcookie_is_null(&bop->bo_key.k_cookie))
-			return cookie_op(&bop->bo_op,
-					 &bop->bo_i->i_pop, P_TRYCOOKIE);
+		if ((flags & OF_COOKIE) && cookie_is_set(&bop->bo_key.k_cookie))
+			return P_COOKIE;
+		else
+			return P_SETUP;
+	case P_COOKIE:
+		if (cookie_is_valid(tree, &bop->bo_key.k_cookie))
+			return P_LOCK;
 		else
 			return P_SETUP;
 	case P_SETUP:
-		alloc(bop->bo_i);
-		if (ENOMEM)
-			return sub(P_CLEANUP, P_DONE);
+		alloc(bop->bo_i, tree->t_height);
+		if (bop->bo_i == NULL)
+			return fail(bop, M0_ERR(-ENOMEM));
+		return P_LOCKALL;
+	case P_LOCKALL:
+		if (bop->bo_flags & OF_LOCKALL)
+			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
 	case P_DOWN:
-		if (bop->bo_i->i_used < bop->bo_arbor->t_height) {
-			return pg_op_init(&bop->bo_op,
-					  &bop->bo_i->i_pop, P_DOWN);
-		} else
-			return P_LOCK;
+		oi->i_used = 0;
+		/* Load root node. */
+		return node_get(&oi->i_nop, tree, &tree->t_root, P_NEXTDOWN);
+	case P_NEXTDOWN:
+		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			struct slot    slot = {};
+			struct segaddr down;
+
+			level->l_node = slot.s_node = oi->i_nop.no_node;
+			node_op_fini(&oi->i_nop);
+			node_find(&slot, bop->bo_rec.r_key);
+			if (node_level(slot.s_node) > 0) {
+				level->l_idx = slot.s_idx;
+				node_child(&slot, &down);
+				oi->i_used++;
+				return node_get(&oi->i_nop, tree,
+						&down, P_NEXTDOWN);
+			} else
+				return P_LOCK;
+		} else {
+			node_op_fini(&oi->i_nop);
+			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+		}
 	case P_LOCK:
-		return lock_op_init(&bop->bo_op, &bop->bo_i->i_lop, P_CHECK);
+		if (!locked)
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_lop,
+					    P_CHECK);
+		else
+			return P_CHECK;
 	case P_CHECK:
 		if (used_cookie || check_path())
 			return P_ACT;
-		else if (height_increased) {
-			return sub(P_CLEANUP, P_INIT);
+		if (too_many_restarts) {
+			if (bop->bo_flags & OF_LOCKALL)
+				return fail(bop, -ETOOMANYREFS);
+			else
+				bop->bo_flags |= OF_LOCKALL;
+		}
+		if (height_increased) {
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_INIT);
 		} else {
-			bop->bo_i->i_used = 0;
+			oi->i_used = 0;
 			return P_DOWN;
 		}
-	case P_ACT:
-		bop->bo_cb->c_act(bop->bo_cb, ...);
+	case P_ACT: {
+		struct slot slot = {
+			.s_node = level->l_node;
+			.s_idx  = level->l_idx;
+		};
+		node_rec(&slot);
+		bop->bo_cb->c_act(&bop->bo_cb, &slot.s_rec);
 		lock_op_unlock(&bop->bo_i->i_lop);
-		return sub(P_CLEANUP, P_DONE);
-	case P_CLEANUP:
+		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+	}
+	case P_CLEANUP: {
+		int i;
+
+		for (i = 0; i < oi->i_used; ++i) {
+			if (oi->i_level[i].l_node != NULL) {
+				node_put(oi->i_level[i].l_node);
+				oi->i_level[i].l_node = NULL;
+			}
+		}
 		free(bop->bo_i);
-		return ret();
-	case P_TRYCOOKIE:
-		if (cookie_is_valid)
-			return P_LOCK;
-		else
-			return P_SETUP;
+		return m0_sm_op_ret(&bop->bo_op);
+	}
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.s_state);
 	};
@@ -491,24 +558,27 @@ static int get_tick(struct m0_btree_op *bop) {
 /**
  * "Address" of a node in a segment.
  *
- * Highest 8 bits are reserved and must be 0.
+ * Highest 8 bits (56--63) are reserved and must be 0.
  *
- * Lowest 9 bits contains the node size, see below.
+ * Lowest 4 bits (0--3) contains the node size, see below.
+ *
+ * Next 5 bits (4--8) are reserved and must be 0.
  *
  * Remaining 47 (9--55) bits contain the address in the segment, measured in 512
  * byte units.
  *
  * @verbatim
  *
- *  6     5 5                                            0 0       0
- *  3     6 5                                            9 8       0
- * +-------+----------------------------------------------+--------+
- * |   0   |                     ADDR                     |   X    |
- * +-------+----------------------------------------------+--------+
+ *  6      5 5                                            0 0   0 0  0
+ *  3      6 5                                            9 8   4 3  0
+ * +--------+----------------------------------------------+-----+----+
+ * |   0    |                     ADDR                     |  0  | X  |
+ * +--------+----------------------------------------------+-----+----+
  *
  * @endverbatim
  *
- * Node size is 2^(9+X) bytes (i.e., the smallest node is 512 bytes).
+ * Node size is 2^(9+X) bytes (i.e., the smallest node is 512 bytes and the
+ * largest node is 2^(9+15) == 16MB).
  *
  * Node address is ADDR << 9.
  *
@@ -533,10 +603,14 @@ struct segnode;
  * module.
  */
 struct td {
-	struct nd                  *t_root;
 	const struct m0_btree_type *t_type;
-	int                         t_height;
+	/**
+	 * The lock that protects the fields below. The fields above are
+	 * read-only after the tree root is loaded into memory.
+	 */
 	struct m0_rwlock            t_lock;
+	struct segaddr              t_root;
+	int                         t_height;
 	int                         r_ref;
 };
 
@@ -550,9 +624,13 @@ struct node_type {
  * used by the b-tree module. Node descriptors are cached.
  */
 struct nd {
-	struct segnode         *n_node;
+	struct segaddr         *n_addr;
 	struct td              *n_tree;
 	const struct node_type *n_type;
+	/**
+	 * The lock that protects the fields below. The fields above are
+	 * read-only after the node is loaded into memory.
+	 */
 	struct m0_rwlock        n_lock;
 	int                     n_ref;
 	uint64_t                n_seq;
@@ -565,29 +643,63 @@ enum node_opcode {
 	NOP_FREE
 };
 
+/**
+ * Node operation state-machine.
+ *
+ * This represents a state-machine used to execute a potentially blocking tree
+ * or node operation.
+ */
 struct node_op {
+	/** Operation to do. */
 	enum node_opcode no_opc;
 	struct m0_sm_op  no_op;
+	/** Which tree to operate on. */
 	struct td       *no_tree;
-	void            *no_addr;
+	/** Address of the node withing the segment. */
+	struct segaddr   no_addr;
+	/** The node to operate on. */
 	struct nd       *no_node;
+	/** Optional transaction. */
 	struct m0_be_tx *no_tx;
+	/** Next operation acting on the same node. */
 	struct node_op  *no_next;
 };
 
+/**
+ * Key-value record within a node.
+ *
+ * When the node is a leaf, ->s_rec means key and value. When the node is
+ * internal, ->s_rec means the key and the corresponding child pointer
+ * (potentially with some node-format specific data such as child checksum).
+ *
+ * Slot is used as a parameter of many node_*() functions. In some functions,
+ * all fields must be set by the caller. In others, only ->s_node and ->s_idx
+ * are set by the caller, and the function sets ->s_rec.
+ */
 struct slot {
 	struct nd          *s_node;
 	int                 s_idx;
 	struct m0_btree_rec s_rec;
 };
 
+/** Special values that can be passed to node_move() as 'nr' parameter. */
 enum {
+	/**
+	 * Move records so that both nodes has approximately the same amount of
+	 * free space.
+	 */
 	NR_EVEN = -1,
+	/**
+	 * Move as many records as possible without overflowing the target node.
+	 */
 	NR_MAX  = -2
 };
 
+/** Direction of move in node_move(). */
 enum dir {
+	/** Move (from right to) left. */
 	D_LEFT,
+	/** Move (from left to) right. */
 	D_RIGHT
 };
 
@@ -618,6 +730,7 @@ bool node_isfit(struct slot *slot);
 bool node_set  (struct slot *slot, struct m0_be_tx *tx);
 void node_make (struct slot *slot, struct m0_be_tx *tx);
 void node_find (struct slot *slot, struct m0_btree_key *key);
+void node_fix  (struct slot *slot, struct m0_be_tx *tx);
 int  node_cut  (const struct nd *node, int idx, int size, struct m0_be_tx *tx);
 int  node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
 void node_move (const struct nd *prev, const struct nd *next, enum dir dir,
