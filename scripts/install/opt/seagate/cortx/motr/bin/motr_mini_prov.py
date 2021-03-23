@@ -351,6 +351,7 @@ def config_lvm(self):
     if not cvg:
         raise MotrError(errno.EINVAL, "cvg is empty\n")
 
+    dev_count = 0
     for i in range(int(cvg_cnt)):
         cvg_item = cvg[i]
         try:
@@ -361,7 +362,8 @@ def config_lvm(self):
         sys.stdout.write(f"\nlvm metadata_devices: {metadata_devices}\n\n")
 
         for device in metadata_devices:
-            create_lvm(self, i+metadata_devices.index(device), device)
+            create_lvm(self, dev_count, device)
+            dev_count += 1
 
 def get_lnet_xface() -> str:
     """Get lnet interface."""

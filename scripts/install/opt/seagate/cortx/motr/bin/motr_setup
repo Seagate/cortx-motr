@@ -36,8 +36,8 @@ class Cmd:
         Conf.load(self._index, self._url)
         self._args = args.args
         self._debug = args.debug
-        self._server_id = get_current_node(self)
-        sys.stdout.write(f"Node name: {self._server_id}\n")
+        self.machine_id = get_machine_id(self)
+        self.server_node = get_server_node(self)
 
     @property
     def args(self) -> str:
