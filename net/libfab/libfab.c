@@ -31,7 +31,7 @@
 #include <arpa/inet.h>          /* inet_pton, htons */
 #include <stdlib.h>             /* atoi */
 #include <sys/epoll.h>          /* struct epoll_event */
-#include <unistd.h>             /* usleep */
+#include <unistd.h>             /* close */
 #include "net/buffer_pool.h"    /* struct m0_net_buffer_pool */
 #include "net/net.h"            /* struct m0_net_domain */
 #include "lib/errno.h"          /* errno */
@@ -617,7 +617,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 	int                       ev_cnt;
 
 	while (tm->ftm_shutdown == false) {
-		usleep(0);
+		m0_nanosleep(0,NULL);
 		ev_cnt = epoll_wait(tm->ftm_epfd, &ev, 1, FAB_WAIT_FD_TMOUT);
 
 		while(1) {
