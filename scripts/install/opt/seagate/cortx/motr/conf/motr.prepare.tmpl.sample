@@ -1,0 +1,8 @@
+server_node:
+  cbebb1cc492b719e95fd9b2b6059b719:
+    network:
+      data:
+        interface_type: tcp
+        private_interfaces:
+        - eth1
+        transport_type: lnet

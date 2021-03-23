@@ -1,0 +1,22 @@
+server_node:
+  cbebb1cc492b719e95fd9b2b6059b719:
+    hostname: ssc-vm-1981.colo.seagate.com
+    name: srvnode-1
+    storage:
+      cvg:
+      - data_devices:
+        - /dev/sdc
+        - /dev/sdd
+        - /dev/sde
+        - /dev/sdf
+        metadata_devices:
+        - /dev/sdb
+      - data_devices:
+        - /dev/sdh
+        - /dev/sdi
+        - /dev/sdj
+        - /dev/sdk
+        metadata_devices:
+        - /dev/sdg
+      cvg_count: '2'
+    type: VM
