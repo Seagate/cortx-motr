@@ -496,6 +496,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 	struct stob_ad_0type_rec  seg0_ad_rec;
 	struct m0_buf             seg0_data;
 	int                       rc;
+	int                       group_count;
 
 	M0_PRE(seg != NULL);
 	M0_PRE(strlen(location_data) < ARRAY_SIZE(adom->sad_path));
@@ -508,12 +509,15 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
 	stob_ad_domain_create_credit(seg, location_data, &cred);
 	m0_be_tx_prep(&tx, &cred);
+
+	group_count = cfg->adg_container_size / (1 << cfg->adg_bshift) /
+                                    cfg->adg_blocks_per_group;
 	/* m0_balloc_create() makes own local transaction thereby must be called
 	 * before openning of exclusive transaction. m0_balloc_destroy() is not
 	 * implemented, so balloc won't be cleaned up on a further fail.
 	 */
 	rc = m0_balloc_create(dom_key, seg, grp, &cb,
-			      &cfg->adg_id.si_fid);
+			      &cfg->adg_id.si_fid, group_count);
 	rc = rc ?: m0_be_tx_exclusive_open_sync(&tx);
 
 	M0_ASSERT(adom == NULL);

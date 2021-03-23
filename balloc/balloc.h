@@ -213,6 +213,23 @@ enum {
 	M0_BALLOC_BUDDY_LOOKUP_MAX = 10,
 };
 
+/*
+ * BALLOC_DEF_BLOCKS_PER_GROUP * (1 << BALLOC_DEF_BLOCK_SHIFT) = 128 MB -->
+ * which equals group size in ext4
+ */
+enum {
+	/** @todo should equal to size of HDD */
+	BALLOC_DEF_CONTAINER_SIZE	= 4096ULL * 32 * 1024 * 1000,
+	BALLOC_DEF_BLOCK_SHIFT		= 12,// 4K Blocks
+	/**
+	 * Approximate number of groups. Exact number of groups can differ
+	 * depending on group size restrictions.
+	 */
+	BALLOC_DEF_GROUPS_NR            = 64,
+	/** Used as minimal group size */
+	BALLOC_DEF_BLOCKS_PER_GROUP     = 524288,
+};
+
 /**
    BE-backed in-memory data structure for the balloc environment.
 
@@ -231,12 +248,13 @@ struct m0_balloc {
 	struct m0_ad_balloc          cb_ballroom;
 	struct m0_format_footer      cb_footer;
 
+	int                          group_count;
 	/*
 	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
 	 * before the m0_format_footer, where only persistent fields allowed
 	 */
 	/** db for free extent */
-	struct m0_be_btree           cb_db_group_extents;
+	struct m0_be_btree           *cb_db_group_extents;
 	/** db for group desc */
 	struct m0_be_btree           cb_db_group_desc;
 
@@ -320,23 +338,6 @@ struct m0_balloc_discard_req {
 	void           *bdr_prealloc; /*< User opaque prealloc result */
 };
 
-/*
- * BALLOC_DEF_BLOCKS_PER_GROUP * (1 << BALLOC_DEF_BLOCK_SHIFT) = 128 MB -->
- * which equals group size in ext4
- */
-enum {
-	/** @todo should equal to size of HDD */
-	BALLOC_DEF_CONTAINER_SIZE	= 4096ULL * 32 * 1024 * 1000,
-	BALLOC_DEF_BLOCK_SHIFT		= 12,// 4K Blocks
-	/**
-	 * Approximate number of groups. Exact number of groups can differ
-	 * depending on group size restrictions.
-	 */
-	BALLOC_DEF_GROUPS_NR            = 64,
-	/** Used as minimal group size */
-	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
-};
-
 /**
    Initialises volatile only fields in m0_balloc
  */
@@ -356,7 +357,8 @@ M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 				 struct m0_be_seg     *seg,
 				 struct m0_sm_group   *grp,
 				 struct m0_balloc    **out,
-				 const struct m0_fid  *fid);
+				 const struct m0_fid  *fid,
+				 int                   group_count);
 
 M0_INTERNAL void m0_balloc_group_desc_init(struct m0_balloc_group_desc *desc);
 
