@@ -83,6 +83,10 @@ struct dtm0_fom {
 M0_INTERNAL void m0_dtm0_on_committed(struct m0_reqh               *reqh,
 				      const struct m0_dtm0_tx_desc *txd);
 
+M0_INTERNAL void m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
+                                       struct m0_be_tx        *tx,
+                                       struct m0_dtm0_tx_desc *txd,
+                                       struct m0_buf          *pyld);
 /* __MOTR_DTM0_FOP_H__ */
 #endif
 

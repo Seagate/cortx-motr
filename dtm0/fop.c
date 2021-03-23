@@ -247,6 +247,18 @@ static void m0_dtm0_send_notice(struct m0_dtm0_service *dtms,
 		 FID_P(&dtms->dos_generic.rs_service_fid), FID_P(tgt));
 }
 
+M0_INTERNAL void m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
+                                       struct m0_be_tx        *tx,
+                                       struct m0_dtm0_tx_desc *txd,
+                                       struct m0_buf          *pyld)
+{
+	int rc;
+
+    m0_mutex_lock(&log->dl_lock);
+    rc = m0_be_dtm0_log_update(log, tx, txd, pyld);
+    m0_mutex_unlock(&log->dl_lock);
+    M0_ASSERT(rc == 0);
+}
 
 M0_INTERNAL void m0_dtm0_on_committed(struct m0_reqh               *reqh,
 				      const struct m0_dtm0_tx_desc *txd)

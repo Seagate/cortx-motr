@@ -20,12 +20,12 @@
  */
 
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CAS
 #include "be/op.h"
 #include "be/tx_credit.h"
 #include "dtm0/fop.h"
 #include "dtm0/fop_xc.h"
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CAS
-
+#include "dtm0/service.h"
 #include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
@@ -1015,8 +1015,36 @@ static void cas_fom_failure(struct cas_fom *fom, int rc, bool ctg_op_fini)
 	m0_fom_phase_move(&fom->cf_fom, rc, M0_FOPH_FAILURE);
 }
 
+static int cas_dtm0_logrec_add (struct m0_fom *fom0, struct m0_dtm0_tx_desc *txd,
+				enum m0_dtm0_tx_pa_state state) {
+	/* log the dtm0 logrec before completing the cas op */
+	struct m0_dtm0_service *dtms = m0_dtm0_service_find(fom0->fo_service->rs_reqh);
+	struct m0_dtm0_tx_desc *msg = &cas_op(fom0)->cg_txd;
+	struct m0_buf	        buf = {};
+	int                     i;
+	int			rc;
+
+	for (i = 0; i < msg->dtd_ps.dtp_nr; ++i) {
+		if (m0_fid_eq(&msg->dtd_ps.dtp_pa[i].p_fid,
+					&dtms->dos_generic.rs_service_fid)) {
+			msg->dtd_ps.dtp_pa[i].p_state = (uint32_t) M0_DTPS_PERSISTENT;
+			break;
+		}
+	}
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
+				     &buf.b_addr, &buf.b_nob);
+	M0_ASSERT(rc == 0);
+	m0_dtm0_logrec_update(dtms->dos_log, &fom0->fo_tx.tx_betx, msg, &buf);
+	m0_buf_free(&buf);
+
+	return rc;
+}
+
 static void cas_fom_success(struct cas_fom *fom, enum m0_cas_opcode opc)
 {
+	if (!m0_dtm0_tx_desc_is_none(&cas_op(&fom->cf_fom)->cg_txd)) {
+		cas_dtm0_logrec_add(&fom->cf_fom, &cas_op(&fom->cf_fom)->cg_txd, M0_DTPS_PERSISTENT);
+	}
 	cas_fom_cleanup(fom, opc == CO_CUR);
 	m0_fom_phase_set(&fom->cf_fom, M0_FOPH_SUCCESS);
 }
@@ -1089,6 +1117,30 @@ static int op_sync_wait(struct m0_fom *fom)
 		return M0_FSO_WAIT;
 	}
 	return M0_FSO_AGAIN;
+}
+
+M0_UNUSED static int cas_op_encode( const void *obj, struct m0_buf *buf)
+{
+	int rc;
+
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, (void*)obj),
+				      &buf->b_addr, &buf->b_nob);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	return rc;
+}
+
+M0_UNUSED static int cas_op_decode( void *obj, struct m0_buf *buf)
+{
+	int rc;
+
+	rc = m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(m0_cas_op_xc, (void*)obj),
+					buf->b_addr, buf->b_nob);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	return rc;
 }
 
 static int cas_fom_tick(struct m0_fom *fom0)
@@ -1353,16 +1405,27 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 *
 		 */
 		if (!m0_dtm0_tx_desc_is_none(&cas_op(fom0)->cg_txd)) {
-			/*
 			struct m0_be_tx_credit dtm0logrec_cred;
+			struct m0_buf	       buf = {};
+			int	    rc;
 
-			m0_be_dtm0_log_credit(M0_DTML_EXECUTED,
-					      tx,
-					      cas_op(fom0)->cg_txd,
+			/* TDB: while calculating the credits we need only the
+			   size of the payload. Check if m0_be_dtm0_log_credit
+			   needs to be updated to accept a size instead of the
+			   actual payload. */
+
+			rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc,
+						      cas_op(fom0)), &buf.b_addr, &buf.b_nob);
+			M0_ASSERT(rc == 0);
+
+			m0_be_dtm0_log_credit(M0_DTML_PERSISTENT,
+					      &cas_op(fom0)->cg_txd,
+					      &buf,
 					      m0_fom_reqh(fom0)->rh_beseg,
+					      NULL,
 					      &dtm0logrec_cred);
 			m0_be_tx_credit_add(&fom0->fo_tx.tx_betx_cred, &dtm0logrec_cred);
-					      */
+			m0_buf_free(&buf);
 		}
 
 		m0_fom_phase_set(fom0, M0_FOPH_TXN_OPEN);
@@ -1401,8 +1464,8 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			addb2_add_kv_attrs(fom, STATS_KV_OUT);
 		} else {
 			do_ctidx = cas_ctidx_op_needed(fom, opc, ct, ipos);
-			result = cas_exec(fom, opc, ct, ctg, ipos,
-					  is_index_drop ?
+			result = cas_exec(fom, opc, ct, ctg, ipos, is_index_drop
+					?
 					  CAS_INSERT_TO_DEAD :
 					  do_ctidx ? CAS_CTIDX :
 					  CAS_PREPARE_SEND);
@@ -2356,6 +2419,7 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 		}
 	} else
 		m0_ctg_op_fini(&fom->cf_ctg_op);
+	/* TODO: send out Persistent notices for dtm0 */
 
 	++fom->cf_ipos;
 	++fom->cf_opos;
