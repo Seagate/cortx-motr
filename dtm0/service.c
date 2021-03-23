@@ -32,6 +32,7 @@
 #include "dtm0/dtx.h"                /* dtx_domain_init */
 #include "lib/tlist.h"               /* tlist API */
 #include "be/dtm0_log.h"             /* DTM0 log API */
+#include "module/instance.h"         /* m0_get */
 
 #include "conf/confc.h"   /* m0_confc */
 #include "conf/diter.h"   /* m0_conf_diter */
@@ -302,10 +303,15 @@ static int dtm_service__origin_fill(struct m0_reqh_service *service)
 			dtm0->dos_origin = DTM0_ON_PERSISTENT;
 	}
 
+	if (dtm0->dos_origin == DTM0_ON_PERSISTENT) {
+		dtm0->dos_log = m0_reqh_lockers_get(service->rs_reqh,
+						    m0_get()->i_dtm0_log_key);
+		M0_ASSERT(dtm0->dos_log != NULL);
+	}
+
 out:
-	return dtm0->dos_origin == DTM0_ON_VOLATILE ?
-		m0_be_dtm0_log_init(&dtm0->dos_log, &dtm0->dos_clk_src, false) :
-		0;
+	return m0_be_dtm0_log_init(&dtm0->dos_log, &dtm0->dos_clk_src,
+				   dtm0->dos_origin == DTM0_ON_PERSISTENT);
 }
 
 static int dtm0_service_start(struct m0_reqh_service *service)
