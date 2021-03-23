@@ -102,8 +102,8 @@ M0_INTERNAL int m0_dtm0_log_create(struct m0_sm_group  *grp,
 		return M0_ERR(-ENOMEM);
 
 	m0_be_0type_add_credit(bedom, &m0_be_dtm0, logid, &data, &cred);
-	M0_BE_ALLOC_CREDIT_PTR(log, seg, &cred);
 	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_PTR(log));
+	m0_be_dtm0_log_credit(M0_DTML_CREATE, NULL, NULL, seg, NULL, &cred);
 
 	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, &cred);
@@ -111,14 +111,9 @@ M0_INTERNAL int m0_dtm0_log_create(struct m0_sm_group  *grp,
 	if (rc != 0)
 		goto tx_fini;
 
-	M0_BE_ALLOC_PTR_SYNC(log, seg, tx);
-	if (log == NULL)
+	rc = m0_be_dtm0_log_create(tx, seg, &log);
+	if (rc != 0)
 		goto tx_fini;
-
-	/* TODO: as a part of log-related patches add the following code:
-	        persistent_log_init(log);
-		M0_BE_TX_CAPTURE_PTR(log);
-	 */
 
 	data = M0_BUF_INIT_PTR(&log);
 	rc = m0_be_0type_add(&m0_be_dtm0, bedom, tx, logid, &data);
