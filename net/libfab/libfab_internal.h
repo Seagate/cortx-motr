@@ -61,9 +61,7 @@ enum m0_fab__libfab_params {
 	/** Key used for memory registration. */
 	FAB_MR_KEY     = 0XABCD,
 	/** Max number of IOV in send/recv/read/write command */
-	FAB_MR_IOV_MAX = 256,
-	/** Buffer descriptor size (netaddr + rma_key + buf ptr) */
-	FAB_BDESC_SIZE = (sizeof(uint64_t) * 3),
+	FAB_IOV_MAX = 64,
 	/** Dummy data used to notify remote end for rma op completions */
 	FAB_DUMMY_DATA = 0xFABC0DE,
 	/** Max number of completion events to read from a CQ */
@@ -249,13 +247,39 @@ struct m0_fab__tm {
  */
 struct m0_fab__buf_mr {
 	/** Buffer descriptor */
-	void          *bm_desc[FAB_MR_IOV_MAX];
+	void          *bm_desc[FAB_IOV_MAX];
 	
 	/** Libfab memory region */
-	struct fid_mr *bm_mr[FAB_MR_IOV_MAX];
+	struct fid_mr *bm_mr[FAB_IOV_MAX];
 	
 	/** Memory registration key */
-	uint64_t       bm_key[FAB_MR_IOV_MAX];
+	uint64_t       bm_key[FAB_IOV_MAX];
+};
+
+/**
+ * Libfab structure of rma iov
+ */
+struct m0_fab__rma_iov {
+	/** Remote segment key */
+	uint64_t fri_key;
+	
+	/** Remote segment length */
+	uint64_t fri_len;
+};
+
+/**
+ * Libfab structure of buffer descriptor 
+ * sent from the passive side to the active side
+ */
+struct m0_fab__bdesc {
+	/** Remote buffer iov cnt */
+	uint64_t fbd_iov_cnt;
+
+	/** Remote node addr */
+	uint64_t fbd_netaddr;
+	
+	/** Remote buffer addr */
+	uint64_t fbd_bufptr;
 };
 
 /**
@@ -263,46 +287,52 @@ struct m0_fab__buf_mr {
  */
 struct m0_fab__buf {
 	/** Magic number for list of completed buffers */
-	uint64_t               fb_magic;
+	uint64_t                fb_magic;
 	
 	/** Magic number for list of send buffers */
-	uint64_t               fb_sndmagic;
+	uint64_t                fb_sndmagic;
 	
 	/** Dummy data + network buffer ptr */
-	uint64_t               fb_dummy[2];
+	uint64_t                fb_dummy[2];
 	
-	/** Remote key extracted from the buffer descriptor */
-	uint64_t               fb_rem_key;
+	/** Buffer descriptor of the remote node */
+	struct m0_fab__bdesc   *fb_rbd;
 	
-	/** Address of remote network buffer used in rma ops */
-	uint64_t               fb_rem_buf;
+	/** Array of iov for remote node  */
+	struct m0_fab__rma_iov *fb_riov;
 	
 	/** Buffer memory region params */
-	struct m0_fab__buf_mr  fb_mr;
+	struct m0_fab__buf_mr   fb_mr;
 	
 	/** Domain to which the buf is reg */
-	struct fid_domain     *fb_dp;
+	struct fid_domain      *fb_dp;
 	
 	/** Pointer back to network buffer*/
-	struct m0_net_buffer  *fb_nb;
+	struct m0_net_buffer   *fb_nb;
 	
 	/** endpoint associated with recv buffer operation */
-	struct m0_fab__ep     *fb_ev_ep;
+	struct m0_fab__ep      *fb_ev_ep;
 	
 	/** Context to be returned in the buffer completion event for tx ops*/
-	struct m0_fab__ep     *fb_txctx;
+	struct m0_fab__ep      *fb_txctx;
 	
 	/** Link in list of completed bufs*/
-	struct m0_tlink        fb_linkage;
+	struct m0_tlink         fb_linkage;
 	
 	/** Link for list of send buffers */
-	struct m0_tlink        fb_snd_link;
+	struct m0_tlink         fb_snd_link;
 
 	/** Buffer completion status */
-	int32_t                fb_status;
+	int32_t                 fb_status;
 	
 	/** Total size of data to be rcvd*/
-	m0_bindex_t            fb_length;
+	m0_bindex_t             fb_length;
+	
+	/** Count of work request generated */
+	uint32_t                fb_wr_cnt;
+
+	/** Count of work request completions */
+	uint32_t                fb_wr_comp_cnt;
 };
 
 /**
