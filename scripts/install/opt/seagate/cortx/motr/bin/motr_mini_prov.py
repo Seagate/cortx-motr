@@ -91,7 +91,7 @@ def restart_services(self, services):
 
 def validate_file(file):
     if not os.path.exists(file):
-        raise MotrError(errno.ENOENT, f"{file} not exist")
+        raise MotrError(errno.ENOENT, f"{file} does not exist")
 
 def is_hw_node(self):
     try:
