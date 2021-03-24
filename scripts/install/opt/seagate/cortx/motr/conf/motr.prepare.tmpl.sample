@@ -6,3 +6,10 @@ server_node:
         private_interfaces:
         - eth1
         transport_type: lnet
+cluster:
+  5c427765-ecf5-4387-bfa4-d6d53494b159:
+    storage_set:
+    - durability:
+        data: '4'
+        parity: '2'
+        spare: '0'

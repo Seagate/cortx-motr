@@ -26,3 +26,10 @@ server_node:
         - TMPL_IFACE
         transport_type: TMPL_XPORT_TYPE
 
+cluster:
+  TMPL_CLUSTER_ID
+    storage_set:
+    - durability:
+        data: TMPL_POOL_DATA
+        parity: TMPL_POOL_PARITY
+        spare: TMPL_POOL_SPARE
