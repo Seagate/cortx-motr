@@ -1484,8 +1484,8 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 	M0_PRE(math != NULL);
 	M0_PRE(ir != NULL);
 #if ISAL_ENCODE_ENABLED
-	M0_PRE(math->pmi_encode_matrix);
-	M0_PRE(math->pmi_decode_tbls);
+	M0_PRE(math->pmi_encode_matrix != NULL);
+	M0_PRE(math->pmi_decode_tbls != NULL);
 #endif /* ISAL_ENCODE_ENABLED */
 
 	M0_SET0(ir);
@@ -1563,7 +1563,7 @@ M0_INTERNAL int m0_sns_ir_failure_register(struct m0_bufvec *recov_addr,
 	if (is_data(ir, failed_index))
 		M0_CNT_INC(ir->si_failed_data_nr);
 #endif /* ISAL_ENCODE_ENABLED */
-	return (ir->si_alive_nr < ir->si_data_nr) ? -EDQUOT : 0;
+	return (ir->si_alive_nr < ir->si_data_nr) ? M0_ERR(-EDQUOT) : 0;
 }
 
 M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir)
