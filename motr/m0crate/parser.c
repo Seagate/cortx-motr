@@ -52,7 +52,14 @@ enum config_key_val {
 	CASS_EP,
 	CASS_KEYSPACE,
 	CASS_COL_FAMILY,
-	WORKLOAD,
+	ADDB_INIT,
+	ADDB_SIZE,
+	LOG_LEVEL,
+	/*
+	 * All parameters below are workload-specific,
+	 * anything else should be added above this point.
+	 * The check for index at copy_value() relies on this.
+	 */
 	WORKLOAD_TYPE,
 	SEED,
 	NR_THREADS,
@@ -74,7 +81,6 @@ enum config_key_val {
 	KEY_PREFIX,
 	KEY_ORDER,
 	INDEX_FID,
-	LOG_LEVEL,
 	THREAD_OPS,
 	BLOCK_SIZE,
 	BLOCKS_PER_OP,
@@ -86,8 +92,6 @@ enum config_key_val {
 	MODE,
 	MAX_NR_OPS,
 	NR_ROUNDS,
-	ADDB_INIT,
-	ADDB_SIZE,
 };
 
 struct key_lookup_table {
@@ -109,7 +113,8 @@ struct key_lookup_table lookuptable[] = {
 	{"CASS_CLUSTER_EP", CASS_EP},
 	{"CASS_KEYSPACE", CASS_KEYSPACE},
 	{"CASS_MAX_COL_FAMILY_NUM", CASS_COL_FAMILY},
-	{"WORKLOAD", WORKLOAD},
+	{"ADDB_INIT", ADDB_INIT},
+	{"ADDB_SIZE", ADDB_SIZE},
 	{"WORKLOAD_TYPE", WORKLOAD_TYPE},
 	{"WORKLOAD_SEED", SEED},
 	{"NR_THREADS", NR_THREADS},
@@ -144,8 +149,6 @@ struct key_lookup_table lookuptable[] = {
 	{"MODE", MODE},
 	{"MAX_NR_OPS", MAX_NR_OPS},
 	{"NR_ROUNDS", NR_ROUNDS},
-	{"ADDB_INIT", ADDB_INIT},
-	{"ADDB_SIZE", ADDB_SIZE},
 };
 
 #define NKEYS (sizeof(lookuptable)/sizeof(struct key_lookup_table))
@@ -251,9 +254,16 @@ int copy_value(struct workload *load, int max_workload, int *index,
 	}
 	if (conf == NULL) {
 		cr_log(CLL_ERROR, "YAML file error: %s section is missing\n",
-			conf_section_name);
+		       conf_section_name);
 		return -EINVAL;
 	}
+
+	if (get_index_from_key(key) > WORKLOAD_TYPE && *index < 0) {
+		cr_log(CLL_ERROR, "YAML file error: WORKLOAD_TYPE is missing "
+		       "or is not going first in the workload section\n");
+		return -EINVAL;
+	}
+
 	switch(get_index_from_key(key)) {
 		case LOCAL_ADDR:
 			conf->local_addr = m0_alloc(value_len + 1);
@@ -313,7 +323,11 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case CASS_COL_FAMILY:
 			conf->col_family = atoi(value);
 			break;
-		case WORKLOAD:
+		case ADDB_INIT:
+			conf->is_addb_init = atoi(value);
+			break;
+		case ADDB_SIZE:
+			conf->addb_size = getnum(value, "addb size");
 			break;
 		case LOG_LEVEL:
 			conf->log_level = parse_int(value, LOG_LEVEL);
@@ -542,11 +556,6 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			cw = workload_io(w);
 			cw->cwi_rounds = atoi(value);
 			break;
-		case ADDB_INIT:
-			conf->is_addb_init = atoi(value);
-			break;
-		case ADDB_SIZE:
-			conf->addb_size = getnum(value, "addb size");
 		default:
 			break;
 	}
