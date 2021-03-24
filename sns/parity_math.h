@@ -156,6 +156,20 @@ struct m0_sns_ir {
 	 * math::pmi_vandmat_parity_slice.
 	 */
 	struct m0_matrix	si_parity_recovery_mat;
+
+#if ISAL_ENCODE_ENABLED
+	/* Pointer to sets of arrays of input coefficients used
+	 * to encode or decode data.*/
+	uint8_t		       *si_encode_matrix;
+	/* Pointer to concatenated output tables for decode */
+	uint8_t		       *si_decode_tbls;
+	/* Number of failed blocks */
+	uint32_t		si_failed_nr;
+	/* Array holding indices of all failed blocks */
+	uint8_t		       *si_failed_idx;
+	/* Array holding indices of all alive blocks */
+	uint8_t		       *si_alive_idx;
+#endif /* ISAL_ENCODE_ENABLED */
 };
 
 /**

@@ -36,7 +36,6 @@ enum {
 	IR_INVALID_COL = UINT8_MAX,
 };
 
-#if ISAL_ENCODE_ENABLED
 #define ALLOC_ARR_INFO(arr, nr, msg, ret) ({					\
 	M0_ALLOC_ARR(arr, nr);							\
 	if (arr == NULL) 							\
@@ -45,7 +44,6 @@ enum {
 	else 									\
 		(ret) = M0_RC_INFO(0, "allocate memory for " msg);		\
 })
-#endif /* ISAL_ENCODE_ENABLED */
 
 /* Forward declarations */
 static void xor_calculate(struct m0_parity_math *math,
@@ -274,6 +272,24 @@ static inline const struct m0_matrix* recovery_mat_get(const struct m0_sns_ir
 						       uint32_t failed_idx);
 
 static inline uint32_t block_count(const struct m0_sns_ir *ir);
+
+#if ISAL_ENCODE_ENABLED
+/**
+ * Initialize fields required for incremental recovery using Intel ISA.
+ * @param ir[in]  - Pointer to incremental recovery structure.
+ * @retval 0        Success
+ * @retval -ENOMEM  Failed to allocate memory
+ */
+static int isal_ir_init(struct m0_sns_ir *ir);
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+/**
+ * Free fields initialized for incremental recovery using Intel ISA.
+ * @param ir[in] - pointer to incremental recovery structure.
+ */
+static void isal_ir_fini(struct m0_sns_ir *ir);
+#endif /* ISAL_ENCODE_ENABLED */
 
 static void (*calculate[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
 						const struct m0_buf *data,
@@ -1426,14 +1442,51 @@ M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
 			(m0_parity_elem_t)((uint8_t*)src[0].b_addr)[ei];
 }
 
+#if ISAL_ENCODE_ENABLED
+static int isal_ir_init(struct m0_sns_ir *ir)
+{
+	int ret;
+
+	M0_PRE(ir != NULL);
+
+	/* Allocate memory to hold indices of alive blocks */
+	ALLOC_ARR_INFO(ir->si_alive_idx, ir->si_alive_nr,
+		       "alive index buffer", ret);
+	if (ir->si_alive_idx == NULL)
+		return ret;
+
+	/* Allocate memory to hold indices of failed blocks */
+	ALLOC_ARR_INFO(ir->si_failed_idx, ir->si_parity_nr,
+		       "failed index buffer", ret);
+	if (ir->si_failed_idx == NULL)
+		return ret;
+
+	ir->si_failed_nr = 0;
+
+	return ret;
+}
+
+static void isal_ir_fini(struct m0_sns_ir *ir)
+{
+	m0_free(ir->si_alive_idx);
+	m0_free(ir->si_failed_idx);
+}
+#endif /* ISAL_ENCODE_ENABLED */
+
 M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 			       uint32_t local_nr, struct m0_sns_ir *ir)
 {
-	uint32_t i;
+	uint32_t i = 0;
 	int	 ret = 0;
+
+	M0_ENTRY("local_nr=%u", local_nr);
 
 	M0_PRE(math != NULL);
 	M0_PRE(ir != NULL);
+#if ISAL_ENCODE_ENABLED
+	M0_PRE(math->pmi_encode_matrix);
+	M0_PRE(math->pmi_decode_tbls);
+#endif /* ISAL_ENCODE_ENABLED */
 
 	M0_SET0(ir);
 	ir->si_data_nr		   = math->pmi_data_count;
@@ -1444,9 +1497,24 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 	ir->si_failed_data_nr	   = 0;
 	ir->si_alive_nr		   = block_count(ir);
 
-	M0_ALLOC_ARR(ir->si_blocks, ir->si_alive_nr);
+#if ISAL_ENCODE_ENABLED
+	/* Get encode matrix */
+	ir->si_encode_matrix = math->pmi_encode_matrix;
+
+	/* Get decode table */
+	ir->si_decode_tbls = math->pmi_decode_tbls;
+
+	/* Initialize required buffers */
+	ret = isal_ir_init(ir);
+	if (ret != 0)
+		goto fini;
+
+#endif /* ISAL_ENCODE_ENABLED */
+
+	ALLOC_ARR_INFO(ir->si_blocks, ir->si_alive_nr,
+		       "blocks", ret);
 	if (ir->si_blocks == NULL)
-		return M0_ERR(-ENOMEM);
+		goto fini;
 
 	for (i = 0; i < block_count(ir); ++i) {
 		ir->si_blocks[i].sib_idx = i;
@@ -1454,13 +1522,19 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 		ir->si_blocks[i].sib_data_recov_mat_col = IR_INVALID_COL;
 		ret = m0_bitmap_init(&ir->si_blocks[i].sib_bitmap,
 				     block_count(ir));
-		if (ret != 0)
+		if (ret != 0){
+			ret = M0_ERR_INFO(ret, "failed to initialize bitmap for"
+			                  "ir->si_blocks[%u].sib_bitmap", i);
 			goto fini;
+		}
 	}
-	return ret;
+	goto end;
+
 fini:
-	while (--i > -1)
-		m0_bitmap_fini(&ir->si_blocks[i].sib_bitmap);
+	m0_sns_ir_fini(ir);
+
+end:
+	M0_LEAVE();
 	return ret;
 }
 
@@ -1482,9 +1556,13 @@ M0_INTERNAL int m0_sns_ir_failure_register(struct m0_bufvec *recov_addr,
 	block->sib_status = M0_SI_BLOCK_FAILED;
 
 	M0_CNT_DEC(ir->si_alive_nr);
+#if ISAL_ENCODE_ENABLED
+	/* Store failed index in buffer */
+	ir->si_failed_idx[ir->si_failed_nr++] = failed_index;
+#else
 	if (is_data(ir, failed_index))
 		M0_CNT_INC(ir->si_failed_data_nr);
-
+#endif /* ISAL_ENCODE_ENABLED */
 	return (ir->si_alive_nr < ir->si_data_nr) ? -EDQUOT : 0;
 }
 
@@ -1624,10 +1702,14 @@ M0_INTERNAL void m0_sns_ir_fini(struct m0_sns_ir *ir)
 	M0_PRE(ir != NULL);
 
 	for (j = 0; j < block_count(ir); ++j) {
-		m0_bitmap_fini(&ir->si_blocks[j].sib_bitmap);
+		if (ir->si_blocks[j].sib_bitmap.b_words != NULL)
+			m0_bitmap_fini(&ir->si_blocks[j].sib_bitmap);
 	}
 
 	m0_matrix_fini(&ir->si_data_recovery_mat);
+#if ISAL_ENCODE_ENABLED
+	isal_ir_fini(ir);
+#endif /* RS_ENCODE_ENABLED */
 	m0_free(ir->si_blocks);
 }
 
