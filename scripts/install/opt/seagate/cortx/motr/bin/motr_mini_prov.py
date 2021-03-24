@@ -66,18 +66,15 @@ def get_machine_id(self):
     machine_id = execute_command(self, cmd)
     machine_id = machine_id[0].split('\n')[0]
     check_type(machine_id, str, "machine-id")
-    if len(machine_id) != MACHINE_ID_LEN:
-        raise MotrError(errno.EINVAL, "Invalid machine-id length."
-                        f" Expected: {MACHINE_ID_LEN}"
-                        f" Actual: {len(machine_id)}")
     return machine_id
 
 def get_server_node(self):
     """Get current node name using machine-id."""
     try:
-        server_node = Conf.get(self._index, 'server_node')[self.machine_id]
+        machine_id = get_machine_id(self).strip('\n'); 
+        server_node = Conf.get(self._index, 'server_node')[machine_id]
     except:
-        raise MotrError(errno.EINVAL, "Current node not found")
+        raise MotrError(errno.EINVAL, f"MACHINE_ID {machine_id} does not exist in ConfStore")
 
     check_type(server_node, dict, "server_node")
     return server_node
@@ -408,7 +405,7 @@ def check_pkgs(self, pkgs):
 def get_nids(self, nodes):
     """Get lnet nids of all available nodes in cluster."""
     nids = []
-    myhostname = execute_command(self, "hostname")[0].rstrip('\n')
+    myhostname = self.server_node["hostname"]
 
     for node in nodes:
         if (myhostname == node):
@@ -427,6 +424,33 @@ def get_nodes(self):
     for value in nodes_info.values():
         nodes.append(value["hostname"])
     return nodes
+
+def get_data_disks_count(self):
+    nodes_info = Conf.get(self._index, 'server_node')
+    total_disks = 0
+    for node in nodes_info.values():
+        if 'storage' in node:
+            storage = node['storage']
+            cvg_count = storage['cvg_count']
+            for i in range(int(cvg_count)):
+                total_disks += len(storage["cvg"][i]["data_devices"])
+    return total_disks
+
+def check_data_disks_count(self):
+    total_disks = get_data_disks_count(self)
+    required_disks = get_data_parity_spare_count(self)
+    if (total_disks <= required_disks):
+        raise MotrError(errno.EINVAL, f"Total disks of all nodes({total_disks})"
+                        f" must be >= (data+parity+spare)({required_disks}) disks")    
+    sys.stdout.write(f"Total disks={total_disks} and Required disks={required_disks}")
+
+def get_data_parity_spare_count(self):
+    total_disks = 0
+    cluster = list(Conf.get(self._index, 'cluster').values())[0]
+    total_disks += int(cluster["storage_set"][0]["data"])
+    total_disks += int(cluster["storage_set"][0]["parity"])
+    total_disks += int(cluster["storage_set"][0]["spare"])
+    return total_disks
 
 def lnet_ping(self):
     """Lnet lctl ping on all available nodes in cluster."""
