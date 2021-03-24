@@ -447,9 +447,9 @@ def check_data_disks_count(self):
 def get_data_parity_spare_count(self):
     total_disks = 0
     cluster = list(Conf.get(self._index, 'cluster').values())[0]
-    total_disks += int(cluster["storage_set"][0]["data"])
-    total_disks += int(cluster["storage_set"][0]["parity"])
-    total_disks += int(cluster["storage_set"][0]["spare"])
+    total_disks += int(cluster["storage_set"][0]["durability"]["data"])
+    total_disks += int(cluster["storage_set"][0]["durability"]["parity"])
+    total_disks += int(cluster["storage_set"][0]["durability"]["spare"])
     return total_disks
 
 def lnet_ping(self):
