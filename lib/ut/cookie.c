@@ -177,18 +177,9 @@ void test_cookie(void)
 		void    *addr;
 		bool     sane;
 
-		word = (i & ~0xf) | (i << 16)
-		                  | (i << 32)
-		                  | ((i & ~0xf) << 48);
+		word = (i & ~0xf) | (i << 16) | (i << 32) | (i << 48);
 		addr = (void *)word;
 		sane = m0_addr_is_sane(addr);
-#ifndef __KERNEL__
-		/*
-		 * XXX: looks like addr is always bigger than sbrk(0)
-		 *      here, so what is it supposed to check?
-		 */
-		M0_UT_ASSERT(ergo(addr < sbrk(0), sane));
-#endif
 		if (!sane)
 			insane_cnt++;
 	}
