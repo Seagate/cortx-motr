@@ -368,7 +368,7 @@ static void ds_test(void)
 	struct m0_fid               cfid;
 	struct data_buf            *dbuf;
 	struct iovec                iovec_arr[IOVEC_NR];
-	struct m0_indexvec_varr     ivv;
+	struct m0_indexvec_varr    *ivv;
 	struct pargrp_iomap        *map;
 	struct m0_pdclust_instance *play_instance;
 	struct m0_pdclust_src_addr  src;
@@ -377,8 +377,11 @@ static void ds_test(void)
 	struct io_req_fop          *irfop;
 	struct m0_rpc_session       session;
 
+	M0_ALLOC_PTR(ivv);
+	M0_UT_ASSERT(ivv != NULL);
+
 	M0_SET0(&req);
-	rc = m0_indexvec_varr_alloc(&ivv, ARRAY_SIZE(iovec_arr));
+	rc = m0_indexvec_varr_alloc(ivv, ARRAY_SIZE(iovec_arr));
 	M0_UT_ASSERT(rc == 0);
 
 	M0_ALLOC_PTR(ti);
@@ -387,12 +390,12 @@ static void ds_test(void)
 		iovec_arr[cnt].iov_base = &rc;
 		iovec_arr[cnt].iov_len  = IOVEC_BUF_LEN;
 
-		V_INDEX(&ivv, cnt) = FILE_START_INDEX - cnt * IOVEC_BUF_LEN;
-		V_COUNT(&ivv, cnt) = IOVEC_BUF_LEN;
+		V_INDEX(ivv, cnt) = FILE_START_INDEX - cnt * IOVEC_BUF_LEN;
+		V_COUNT(ivv, cnt) = IOVEC_BUF_LEN;
 	}
 
 	/* io_request attributes test. */
-	rc = io_request_init(&req, &lfile, iovec_arr, &ivv, IRT_WRITE);
+	rc = io_request_init(&req, &lfile, iovec_arr, ivv, IRT_WRITE);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(req.ir_rc       == 0);
 	M0_UT_ASSERT(req.ir_file     == &lfile);
@@ -543,7 +546,8 @@ static void ds_test(void)
 	M0_UT_ASSERT(req.ir_nwxfer.nxr_ops == NULL);
 	M0_UT_ASSERT(req.ir_nwxfer.nxr_magic == 0);
 	m0_free(ti);
-	m0_indexvec_varr_free(&ivv);
+	m0_indexvec_varr_free(ivv);
+	m0_free(ivv);
 }
 
 static int dummy_readrest(struct pargrp_iomap *map)
@@ -560,23 +564,26 @@ static void pargrp_iomap_test(void)
 	uint64_t                nr;
 	m0_bindex_t             index;
 	struct iovec            iovec_arr[LAY_N * UNIT_SIZE / PAGE_SIZE];
-	struct m0_indexvec_varr ivv;
+	struct m0_indexvec_varr *ivv;
 	struct m0_ivec_varr_cursor   cur;
 	struct pargrp_iomap_ops piops;
 
-	rc = m0_indexvec_varr_alloc(&ivv, ARRAY_SIZE(iovec_arr));
+	M0_ALLOC_PTR(ivv);
+	M0_UT_ASSERT(ivv != NULL);
+
+	rc = m0_indexvec_varr_alloc(ivv, ARRAY_SIZE(iovec_arr));
 	M0_UT_ASSERT(rc == 0);
 
 	for (cnt = 0; cnt < ARRAY_SIZE(iovec_arr); ++cnt) {
 		iovec_arr[cnt].iov_base  = &rc;
 		iovec_arr[cnt].iov_len   = PAGE_SIZE;
 
-		V_INDEX(&ivv, cnt) = (m0_bindex_t)(cnt * PAGE_SIZE);
-		V_COUNT(&ivv, cnt) = PAGE_SIZE;
+		V_INDEX(ivv, cnt) = (m0_bindex_t)(cnt * PAGE_SIZE);
+		V_COUNT(ivv, cnt) = PAGE_SIZE;
 	}
 
 	M0_SET0(&req);
-	rc = io_request_init(&req, &lfile, iovec_arr, &ivv, IRT_WRITE);
+	rc = io_request_init(&req, &lfile, iovec_arr, ivv, IRT_WRITE);
 	M0_UT_ASSERT(rc == 0);
 
 	M0_SET0(&map);
@@ -651,13 +658,13 @@ static void pargrp_iomap_test(void)
 
 	/* pargrp_iomap_fini() deallocates all data_buf structures in it. */
 	pargrp_iomap_fini(&map);
-	m0_indexvec_varr_free(&ivv);
+	m0_indexvec_varr_free(ivv);
 	ioreq_sm_state_set(&req, IRS_REQ_COMPLETE);
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
 	req.ir_nwxfer.nxr_bytes = 1;
 	io_request_fini(&req);
 
-	rc = m0_indexvec_varr_alloc(&ivv, IOVEC_NR);
+	rc = m0_indexvec_varr_alloc(ivv, IOVEC_NR);
 	M0_UT_ASSERT(rc == 0);
 
 	index = INDEXPG;
@@ -669,13 +676,13 @@ static void pargrp_iomap_test(void)
 		iovec_arr[cnt].iov_base  = &rc;
 		iovec_arr[cnt].iov_len   = INDEXPG_STEP;
 
-		V_INDEX(&ivv, cnt) = index;
-		V_COUNT(&ivv, cnt) = INDEXPG_STEP;
-		index += V_COUNT(&ivv, cnt) + INDEXPG;
+		V_INDEX(ivv, cnt) = index;
+		V_COUNT(ivv, cnt) = INDEXPG_STEP;
+		index += V_COUNT(ivv, cnt) + INDEXPG;
 	}
 
 	M0_SET0(&req);
-	rc = io_request_init(&req, &lfile, iovec_arr, &ivv, IRT_WRITE);
+	rc = io_request_init(&req, &lfile, iovec_arr, ivv, IRT_WRITE);
 	M0_UT_ASSERT(rc == 0);
 
 	M0_SET0(&map);
@@ -734,6 +741,7 @@ static void pargrp_iomap_test(void)
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
 	req.ir_nwxfer.nxr_bytes = 1;
 	io_request_fini(&req);
+	m0_free(ivv);
 }
 
 static void helpers_test(void)
@@ -781,16 +789,19 @@ static void nw_xfer_ops_test(void)
 	m0_bindex_t                index;
 	struct iovec               iovec_arr[LAY_N * UNIT_SIZE >>
 					     PAGE_SHIFT];
-	struct m0_indexvec_varr    ivv;
+	struct m0_indexvec_varr   *ivv;
 	struct target_ioreq       *ti;
 	struct target_ioreq       *ti1;
 	struct m0_pdclust_src_addr src;
 	struct m0_pdclust_tgt_addr tgt;
 
+	M0_ALLOC_PTR(ivv);
+	M0_UT_ASSERT(ivv != NULL);
+
 	M0_SET0(&req);
 	M0_SET0(&src);
 	M0_SET0(&tgt);
-	rc = m0_indexvec_varr_alloc(&ivv, ARRAY_SIZE(iovec_arr));
+	rc = m0_indexvec_varr_alloc(ivv, ARRAY_SIZE(iovec_arr));
 	M0_UT_ASSERT(rc == 0);
 
 	index = 0;
@@ -798,13 +809,13 @@ static void nw_xfer_ops_test(void)
 		iovec_arr[cnt].iov_base  = &rc;
 		iovec_arr[cnt].iov_len   = PAGE_SIZE;
 
-		V_INDEX(&ivv, cnt) = index;
-		V_COUNT(&ivv, cnt) = PAGE_SIZE;
+		V_INDEX(ivv, cnt) = index;
+		V_COUNT(ivv, cnt) = PAGE_SIZE;
 		index += PAGE_SIZE;
 	}
 
 	M0_SET0(&req);
-	rc = io_request_init(&req, &lfile, iovec_arr, &ivv, IRT_WRITE);
+	rc = io_request_init(&req, &lfile, iovec_arr, ivv, IRT_WRITE);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = ioreq_iomaps_prepare(&req);
@@ -845,7 +856,8 @@ static void nw_xfer_ops_test(void)
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
 	req.ir_nwxfer.nxr_bytes = 1;
 	io_request_fini(&req);
-	m0_indexvec_varr_free(&ivv);
+	m0_indexvec_varr_free(ivv);
+	m0_free(ivv);
 }
 
 static void target_ioreq_test(void)
@@ -1029,11 +1041,11 @@ static void dgmode_readio_test(void)
 	uint32_t                    row;
 	uint32_t                    col;
 	uint64_t                    pgcur = 0;
-	struct iovec                iovec_arr[DGMODE_IOVEC_NR];
+	struct iovec               *iovec_arr;
 	struct m0_fop              *reply;
 	struct io_request          *req;
 	struct io_req_fop          *irfop;
-	struct m0_indexvec_varr     ivv;
+	struct m0_indexvec_varr    *ivv;
 	struct m0_rpc_bulk         *rbulk;
 	struct pargrp_iomap        *map;
 	struct target_ioreq        *ti;
@@ -1046,10 +1058,16 @@ static void dgmode_readio_test(void)
 	struct m0_fop_cob_rw_reply *rw_rep;
 	struct m0_fid               cfid;
 
+	M0_ALLOC_PTR(ivv);
+	M0_UT_ASSERT(ivv != NULL);
+
+	M0_ALLOC_ARR(iovec_arr, DGMODE_IOVEC_NR);
+	M0_UT_ASSERT(iovec_arr != NULL);
+
 	M0_ALLOC_PTR(req);
 	M0_UT_ASSERT(req != NULL);
 
-	rc = m0_indexvec_varr_alloc(&ivv, ARRAY_SIZE(iovec_arr));
+	rc = m0_indexvec_varr_alloc(ivv, DGMODE_IOVEC_NR);
 	M0_UT_ASSERT(rc == 0);
 
 	/* 8 segments covering a parity group each. */
@@ -1057,12 +1075,12 @@ static void dgmode_readio_test(void)
 		iovec_arr[cnt].iov_base = &rc;
 		iovec_arr[cnt].iov_len  = PAGE_SIZE;
 
-		V_INDEX(&ivv, cnt) = cnt * UNIT_SIZE * LAY_N;
-		V_COUNT(&ivv, cnt) = iovec_arr[cnt].iov_len;
+		V_INDEX(ivv, cnt) = cnt * UNIT_SIZE * LAY_N;
+		V_COUNT(ivv, cnt) = iovec_arr[cnt].iov_len;
 	}
 
 	ci.ci_inode.i_size = 2 * DATA_SIZE * DGMODE_IOVEC_NR;
-	rc = io_request_init(req, &lfile, iovec_arr, &ivv, IRT_READ);
+	rc = io_request_init(req, &lfile, iovec_arr, ivv, IRT_READ);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Creates all pargrp_iomap structures. */
@@ -1232,8 +1250,10 @@ static void dgmode_readio_test(void)
 	req->ir_ops->iro_iomaps_destroy(req);
 	nw_xfer_req_complete(&req->ir_nwxfer, false);
 	io_request_fini(req);
-	m0_indexvec_varr_free(&ivv);
+	m0_indexvec_varr_free(ivv);
 	m0_free(req);
+	m0_free(iovec_arr);
+	m0_free(ivv);
 }
 
 struct m0_ut_suite file_io_ut = {
