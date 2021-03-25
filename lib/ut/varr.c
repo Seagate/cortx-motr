@@ -294,16 +294,21 @@ static uint16_t int_summation(uint8_t n)
 
 void  test_ut_iterate(uint64_t buff_nr)
 {
-	struct m0_varr varr;
+	struct m0_varr *varr;
 	struct po2     obj_po2;
 	struct non_po2 obj_non_po2;
 	uint8_t        atomic8_obj;
 	uint64_t       atomic64_obj;
 
-	test_iterate(&varr, obj_po2,      DT_POWTWO,     buff_nr);
-	test_iterate(&varr, obj_non_po2,  DT_NON_POWTWO, buff_nr);
-	test_iterate(&varr, atomic8_obj,  DT_ATOMIC_8,   buff_nr);
-	test_iterate(&varr, atomic64_obj, DT_ATOMIC_64,  buff_nr);
+	M0_ALLOC_PTR(varr);
+	M0_UT_ASSERT(varr != NULL);
+
+	test_iterate(varr, obj_po2,      DT_POWTWO,     buff_nr);
+	test_iterate(varr, obj_non_po2,  DT_NON_POWTWO, buff_nr);
+	test_iterate(varr, atomic8_obj,  DT_ATOMIC_8,   buff_nr);
+	test_iterate(varr, atomic64_obj, DT_ATOMIC_64,  buff_nr);
+
+	m0_free(varr);
 }
 
 void test_ub_iterate(void)
