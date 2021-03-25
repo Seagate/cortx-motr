@@ -22,7 +22,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BALLOC
 #include "lib/trace.h"
-
+// test
 #include <stdio.h>        /* sprintf */
 #include <stdlib.h>
 #include <memory.h>
@@ -453,7 +453,7 @@ static void balloc_fini_internal(struct m0_balloc *bal)
 		m0_free0(&bal->cb_group_info);
 	}
 
-	for (i = 0; i < bal->group_count; i++) {
+	for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
 		m0_be_btree_fini(&bal->cb_db_group_extents[i]);
 	}
 	m0_be_btree_fini(&bal->cb_db_group_desc);
@@ -648,7 +648,7 @@ balloc_group_write_credit(struct m0_balloc               *bal,
 {
 	int i;
 
-	for (i = 0; i < bal->group_count; i++) {
+	for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
 		m0_be_btree_insert_credit(&bal->cb_db_group_extents[i], 2,
 			M0_MEMBER_SIZE(struct m0_ext, e_start),
 			M0_MEMBER_SIZE(struct m0_ext, e_end), credit);
@@ -708,7 +708,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	m0_bcount_t                     i = bgc->bgc_i;
 	m0_bcount_t                     spare_size;
 	int                             rc;
-	int                             it;
+	int                             index_no;
 
 	m0_be_op_active(op);
 
@@ -717,17 +717,18 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	spare_size = m0_stob_ad_spares_calc(sb->bsb_groupsize);
 	/* Insert non-spare extents. */
 	ext.e_start = i << sb->bsb_gsbits;
-	ext.e_end = ext.e_start + sb->bsb_groupsize - spare_size - 1;
+	ext.e_end = ext.e_start + sb->bsb_groupsize - spare_size;
 	m0_ext_init(&ext);
 	balloc_debug_dump_extent("create...", &ext);
 
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
-	it = ext.e_end / sb->bsb_groupsize;
+	index_no = (ext.e_end - 1) / sb->bsb_groupsize;
+	index_no %= BALLOC_DEF_INDEXES_NR;
 	M0_LOG(M0_INFO, "insert btree normal index: %d endoff: %llu start: %llu",
-		 it, (unsigned long long)ext.e_end,
+		 index_no, (unsigned long long)ext.e_end,
 		 (unsigned long long)ext.e_start);
-	rc = btree_insert_sync(&bal->cb_db_group_extents[it],
+	rc = btree_insert_sync(&bal->cb_db_group_extents[index_no],
 			       tx, &key, &val);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "insert extent failed: group=%llu "
@@ -738,13 +739,14 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	/* Insert extents reserved for spare. */
 	ext.e_start = (i << sb->bsb_gsbits) + sb->bsb_groupsize -
 		spare_size;
-	ext.e_end = ext.e_start + spare_size - 1;
+	ext.e_end = ext.e_start + spare_size;
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
-	it = ext.e_end / sb->bsb_groupsize;
+	index_no = (ext.e_end - 1) / sb->bsb_groupsize;
+	index_no %= BALLOC_DEF_INDEXES_NR;
 	M0_LOG(M0_INFO, "group write insert btree spare index: %d endoff: %llu",
-		 it, (unsigned long long)ext.e_end);
-	rc = btree_insert_sync(&bal->cb_db_group_extents[it], tx, &key, &val);
+		 index_no, (unsigned long long)ext.e_end);
+	rc = btree_insert_sync(&bal->cb_db_group_extents[index_no], tx, &key, &val);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "insert extent failed for spares: group=%llu "
 				 "rc=%d", (unsigned long long)i, rc);
@@ -1012,7 +1014,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 
  	M0_LOG(M0_INFO, "inited btree of count %llu",
                (unsigned long long)bal->cb_sb.bsb_groupcount);
-	for (i = 0; i < bal->group_count; i++) {
+	for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
 		m0_be_btree_init(&bal->cb_db_group_extents[i], seg, &ge_btree_ops);
 	}
 
@@ -1214,7 +1216,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	m0_bindex_t                next_key;
 	m0_bcount_t                i;
 	int			   rc = 0;
-	int                        it;
+	int                        index_no;
 
 	M0_ENTRY("grp=%d non-spare-frags=%d spare-frags=%d",
 		 (int)grp->bgi_groupno, (int)group_fragments_get(grp),
@@ -1242,13 +1244,14 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 
 	m0_ext_init(&spare_range);
 	normal_range.e_start = grp->bgi_groupno << cb->cb_sb.bsb_gsbits;
-	normal_range.e_end = spare_range.e_start - 1;
+	normal_range.e_end = spare_range.e_start;
 	m0_ext_init(&normal_range);
 
-	it = normal_range.e_end / cb->cb_sb.bsb_groupsize;
+	index_no = (normal_range.e_end - 1) / cb->cb_sb.bsb_groupsize;
+	index_no %= BALLOC_DEF_INDEXES_NR;
 	M0_LOG(M0_INFO, "load normal index: %d endoff: %llu",
-		 it, (unsigned long long)normal_range.e_end);
-	db_ext = cb->cb_db_group_extents[it];
+		 index_no, (unsigned long long)normal_range.e_end);
+	db_ext = cb->cb_db_group_extents[index_no];
 	m0_be_btree_cursor_init(&cursor, db_ext);
 
 	ex = grp->bgi_extents;
@@ -1316,7 +1319,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	m0_bcount_t                spare_frags;
 	m0_bindex_t                next_key;
 	int			   rc = 0;
-	int                        it;
+	int                        index_no;
 
 	M0_ENTRY("grp=%d non-spare-frags=%d spare-frags=%d",
 		 (int)grp->bgi_groupno, (int)group_fragments_get(grp),
@@ -1344,13 +1347,14 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	
 	m0_ext_init(&spare_range);
 	normal_range.e_start = grp->bgi_groupno << cb->cb_sb.bsb_gsbits;
-	normal_range.e_end = spare_range.e_start - 1;
+	normal_range.e_end = spare_range.e_start;
 	m0_ext_init(&normal_range);
 
-	it = normal_range.e_end / cb->cb_sb.bsb_groupsize;
-	db_ext = &cb->cb_db_group_extents[it];
+	index_no = (normal_range.e_end - 1)/ cb->cb_sb.bsb_groupsize;
+	index_no %= BALLOC_DEF_INDEXES_NR;
+	db_ext = &cb->cb_db_group_extents[index_no];
 	M0_LOG(M0_INFO, "load normal index: %d endoff: %llu",
-		 it, (unsigned long long)normal_range.e_end);
+		 index_no, (unsigned long long)normal_range.e_end);
 
 	ex = grp->bgi_extents;
 	next_key = (grp->bgi_groupno << cb->cb_sb.bsb_gsbits) + 1;
@@ -1606,6 +1610,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 	struct m0_balloc_zone_param *zp;
 	int                          rc = 0;
 	m0_bcount_t                  maxchunk;
+	int                          index_no;
 
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
@@ -1635,7 +1640,9 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 
 	M0_LOG(M0_DEBUG, "bzp_maxchunk=0x%"PRIx64" next_maxchunk=0x%"PRIx64,
 	       zp->bzp_maxchunk, maxchunk);
-	db = &motr->cb_db_group_extents[tgt->e_end / motr->cb_sb.bsb_groupsize];
+	index_no = (tgt->e_end  - 1) / motr->cb_sb.bsb_groupsize;
+	index_no %= BALLOC_DEF_INDEXES_NR;
+	db = &motr->cb_db_group_extents[index_no];
 	if (cur->e_end == tgt->e_end) {
 		key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 
@@ -1741,6 +1748,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 	m0_bcount_t                  maxchunk;
 	int                          rc = 0;
 	int                          found = 0;
+	int                          index_no;
 
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
@@ -1781,7 +1789,9 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 		return M0_RC(-EINVAL);
 	}
 
-	db = &motr->cb_db_group_extents[tgt->e_end / motr->cb_sb.bsb_groupsize];
+	index_no = (tgt->e_end - 1) / motr->cb_sb.bsb_groupsize;
+	index_no %= BALLOC_DEF_INDEXES_NR;
+	db = &motr->cb_db_group_extents[index_no];
 	lcur = container_of(cur, struct m0_lext, le_ext);
 
 	if (!found) {
@@ -3025,13 +3035,13 @@ static int balloc_trees_create(struct m0_balloc    *bal,
 	int i;
 	int k;
 
-	for (i = 0; i < bal->group_count; i++) {
+	for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
 		rc = M0_BE_OP_SYNC_RET(op,
 		       m0_be_btree_create(&bal->cb_db_group_extents[i], tx, &op,
 				  &M0_FID_TINIT('b',
 						M0_BBT_BALLOC_GROUP_EXTENTS,
 						fid->f_key)),
-					        bo_u.u_btree.t_rc);
+						bo_u.u_btree.t_rc);
 		if (rc != 0)
 			goto out;
 
@@ -3078,7 +3088,7 @@ M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
 		      grp, NULL, NULL, NULL, NULL);
 	M0_BE_ALLOC_CREDIT_PTR(cb, seg, &cred);
-	for (i = 0; i < group_count; i++) {
+	for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
 		m0_be_btree_init(&btree, seg, &ge_btree_ops);
 		m0_be_btree_create_credit(&btree, 1, &cred);
 		m0_be_btree_fini(&btree);
@@ -3097,14 +3107,14 @@ M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 			cb->cb_container_id = cid;
 			cb->group_count     = group_count;
 			M0_BE_ALLOC_CREDIT_ARR(cb->cb_db_group_extents,
-						cb->group_count, seg, &cred);
+						BALLOC_DEF_INDEXES_NR, seg, &cred);
 			M0_BE_ALLOC_ARR_SYNC(cb->cb_db_group_extents,
-						cb->group_count, seg, &tx);
+						BALLOC_DEF_INDEXES_NR, seg, &tx);
 			if(cb->cb_db_group_extents == NULL)
 				return M0_RC(-ENOMEM);
 
 			balloc_format_init(cb);
-			for (i = 0; i < cb->group_count; i++) {
+			for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
 				m0_be_btree_init(&cb->cb_db_group_extents[i], seg,
 						 &ge_btree_ops);
 			}
@@ -3115,8 +3125,8 @@ M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 				M0_BE_TX_CAPTURE_PTR(seg, &tx, cb);
 				*out = cb;
 			} else {
-				for (i = 0; i < cb->group_count; i++) {
-					m0_be_btree_fini(&cb->cb_db_group_extents[k]);
+				for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
+					m0_be_btree_fini(&cb->cb_db_group_extents[i]);
 				}
 			}
 		}

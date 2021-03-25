@@ -226,8 +226,9 @@ enum {
 	 * depending on group size restrictions.
 	 */
 	BALLOC_DEF_GROUPS_NR            = 64,
+	BALLOC_DEF_INDEXES_NR           = 64,
 	/** Used as minimal group size */
-	BALLOC_DEF_BLOCKS_PER_GROUP     = 524288,
+	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
 };
 
 /**
