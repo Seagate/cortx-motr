@@ -90,8 +90,13 @@ class PrepareCmd(Cmd):
 
     def process(self):
         sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
-        check_data_disks_count(self)
-        configure_net(self)
+
+        # If cluster is not up, go ahead. Otherwise, exit.
+        if not cluster_up(self):
+            check_data_disks_count(self)
+            configure_net(self)
+        else:
+            sys.stderr.write("Cluster is already up...Exiting.\n")
         sys.stdout.write("SUCCESS\n")
 
 class PostInstallCmd(Cmd):
@@ -106,10 +111,16 @@ class PostInstallCmd(Cmd):
         validate_motr_rpm(self)
         # Check if lvms are already created.
         # If not, create it. Otherwise, skip.
-        if not verify_lvm(self):
-            config_lvm(self)
+        # If cluster is not up, go ahead. Otherwise, exit.
+        if not cluster_up(self):
+            check_data_disks_count(self)
+            if not lvm_exist(self):
+                config_lvm(self)
+            else:
+                sys.stderr.write(f"lvm's already exist. "
+                                  "Skipping lvm creation.\n")
         else:
-            sys.stderr.write(f"lvm's already created. Skip lvm creation.\n")
+            sys.stderr.write("Cluster is already up...Exiting.\n")
         sys.stdout.write("SUCCESS\n")
 
 class ConfigCmd(Cmd):

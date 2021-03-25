@@ -531,7 +531,7 @@ def get_metadata_disks_count(self):
             dev_count += 1
     return dev_count
 
-def verify_lvm(self):
+def lvm_exist(self):
     metadata_disks_count = get_metadata_disks_count(self)
     node_name = self.server_node['name']
 
@@ -555,3 +555,11 @@ def verify_lvm(self):
             sys.stderr.write(f"{md_lv_path} does not exist. Need to create lvm\n")
             return False
     return True
+
+def cluster_up(self):
+    cmd = 'hctl status'
+    op = subprocess.run(["hctl", "status"])
+    if op.returncode == 0:
+        return True
+    else:
+        return False
