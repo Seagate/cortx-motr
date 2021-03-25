@@ -442,7 +442,7 @@ def check_data_disks_count(self):
     if (total_disks <= required_disks):
         raise MotrError(errno.EINVAL, f"Total disks of all nodes({total_disks})"
                         f" must be >= (data+parity+spare)({required_disks}) disks")    
-    sys.stdout.write(f"Total disks={total_disks} and Required disks={required_disks}")
+    sys.stdout.write(f"Total disks={total_disks} and Required disks={required_disks}\n")
 
 def get_data_parity_spare_count(self):
     total_disks = 0
@@ -495,3 +495,63 @@ def test_lnet(self):
     execute_command(self, cmd)
 
     lnet_ping(self)
+
+def get_metadata_disks_count(self):
+    try:
+        cvg_cnt = self.server_node['storage']['cvg_count']
+    except:
+        raise MotrError(errno.EINVAL, "cvg_cnt not found\n")
+
+    check_type(cvg_cnt, str, "cvg_count")
+
+
+    try:
+        cvg = self.server_node['storage']['cvg']
+    except:
+        raise MotrError(errno.EINVAL, "cvg not found\n")
+
+     # Check if cvg type is list
+    check_type(cvg, list, "cvg")
+
+    # Check if cvg is non empty
+    if not cvg:
+        raise MotrError(errno.EINVAL, "cvg is empty\n")
+
+    dev_count = 0
+    for i in range(int(cvg_cnt)):
+        cvg_item = cvg[i]
+        try:
+            metadata_devices = cvg_item["metadata_devices"]
+        except:
+            raise MotrError(errno.EINVAL, "metadata devices not found\n")
+        check_type(metadata_devices, list, "metadata_devices")
+        sys.stdout.write(f"\nlvm metadata_devices: {metadata_devices}\n\n")
+
+        for device in metadata_devices:
+            dev_count += 1
+    return dev_count
+
+def verify_lvm(self):
+    metadata_disks_count = get_metadata_disks_count(self)
+    node_name = self.server_node['name']
+
+    # Fetch lvm paths of existing lvm's e.g. /dev/vg_srvnode-1_md1/lv_raw_md1
+    lv_list = execute_command(self, "lvdisplay | grep \"LV Path\" | awk \'{ print $3 }\'")[0].split('\n')
+    lv_list = lv_list[0:len(lv_list)-1]
+
+    # Check if motr lvms are already created.
+    # If all are arleady created, return 
+    for i in range(1, metadata_disks_count+1):
+        md_lv_path = f'/dev/vg_{node_name}_md{i}/lv_raw_md{i}'
+        swap_lv_path = f'/dev/vg_{node_name}_md{i}/lv_main_swap{i}'
+
+        if md_lv_path in lv_list:
+            if swap_lv_path in lv_list:
+                continue
+            else:
+                sys.stderr.write(f"{swap_lv_path} does not exist. Need to create lvm\n")
+                return False
+        else:
+            sys.stderr.write(f"{md_lv_path} does not exist. Need to create lvm\n")
+            return False
+    return True

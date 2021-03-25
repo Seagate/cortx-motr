@@ -104,7 +104,12 @@ class PostInstallCmd(Cmd):
     def process(self):
         sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
         validate_motr_rpm(self)
-        config_lvm(self)
+        # Check if lvms are already created.
+        # If not, create it. Otherwise, skip.
+        if not verify_lvm(self):
+            config_lvm(self)
+        else:
+            sys.stderr.write(f"lvm's already created. Skip lvm creation.\n")
         sys.stdout.write("SUCCESS\n")
 
 class ConfigCmd(Cmd):
