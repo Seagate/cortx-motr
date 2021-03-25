@@ -1769,6 +1769,7 @@ static void bulkio_init(void)
 	 * for the tests in order to avoid crashes.
 	 */
 	m0_fi_enable("io_fop_di_prepare", "skip_di_for_ut");
+	m0_fi_enable("m0_file_init", "skip_di_for_ut");
 
 	M0_ALLOC_PTR(bp);
 	M0_ASSERT(bp != NULL);
@@ -1797,6 +1798,7 @@ static void bulkio_fini(void)
 	m0_free(bp);
 
 	m0_fi_disable("io_fop_di_prepare", "skip_di_for_ut");
+	m0_fi_disable("m0_file_init", "skip_di_for_ut");
 }
 
 /*
