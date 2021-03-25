@@ -563,8 +563,8 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_tx           *tx,
  * Used for cursor depth-first in-order traversing.
  */
 struct m0_be_btree_cursor_stack_entry {
-	struct m0_be_bnode *bs_node;
 	int                 bs_idx;
+	struct m0_be_bnode *bs_node;
 };
 
 /** Btree configuration constants. */
@@ -580,11 +580,11 @@ enum {
  * with m0_be_btree_cursor_next(), m0_be_btree_cursor_prev().
  */
 struct m0_be_btree_cursor {
-	struct m0_be_bnode                   *bc_node;
 	int                                   bc_pos;
-	struct m0_be_btree_cursor_stack_entry bc_stack[BTREE_HEIGHT_MAX];
 	int                                   bc_stack_pos;
 	struct m0_be_btree                   *bc_tree;
+	struct m0_be_bnode                   *bc_node;
+	struct m0_be_btree_cursor_stack_entry bc_stack[BTREE_HEIGHT_MAX];
 	struct m0_be_op                       bc_op; /* XXX DELETEME */
 };
 
