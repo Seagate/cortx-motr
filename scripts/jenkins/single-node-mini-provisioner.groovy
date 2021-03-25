@@ -73,6 +73,7 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
                 script {
                     def remote = getTestMachine(VM1_FQDN)
                     def commandResult = sshCommand remote: remote, command: """
+curl -s http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/rpm/install-cortx-prereq.sh | bash
 yum-config-manager --add-repo=${REPO_URL}/cortx_iso/
 yum-config-manager --add-repo=${REPO_URL}/3rd_party/
 yum-config-manager --add-repo=${REPO_URL}/3rd_party/lustre/custom/tcp/
@@ -87,19 +88,9 @@ yum-config-manager --add-repo=${REPO_URL}/3rd_party/lustre/custom/tcp/
                 script {
                     def remote = getTestMachine(VM1_FQDN)
                     def commandResult = sshCommand remote: remote, command: """
-yum install -y consul --nogpgcheck
-yum install -y cortx-motr --nogpgcheck
-yum install -y cortx-hare --nogpgcheck
-yum install -y cortx-py-utils --nogpgcheck
-yum localinstall -y https://bintray.com/rabbitmq-erlang/rpm/download_file?file_path=erlang%2F23%2Fel%2F7%2Fx86_64%2Ferlang-23.1.5-1.el7.x86_64.rpm
-curl -s https://packagecloud.io/install/repositories/rabbitmq/rabbitmq-server/script.rpm.sh | sudo bash
-yum install -y rabbitmq-server
-yum install -y haproxy --nogpgcheck
-yum install -y openldap-servers openldap-clients
-yum install -y cortx-s3server --nogpgcheck
-yum install -y cortx-s3iamcli --nogpgcheck || yum-config-manager --add-repo=`echo $REPO_URL|sed 's/prod/dev/'`; yum install -y cortx-s3iamcli --nogpgcheck
-yum install -y gcc
-yum install -y python3-devel
+yum install -y cortx-motr cortx-hare cortx-py-utils  --nogpgcheck
+curl -o /opt/seagate/cortx/motr/bin/motr_mini_prov.py https://raw.githubusercontent.com/Seagate/cortx-motr/motr_mini_provisioner_22March/scripts/install/opt/seagate/cortx/motr/bin/motr_mini_prov.py
+curl -o /opt/seagate/cortx/motr/bin/motr_setup https://raw.githubusercontent.com/Seagate/cortx-motr/motr_mini_provisioner_22March/scripts/install/opt/seagate/cortx/motr/bin/motr_setup
                     """
                 }
             }
@@ -111,24 +102,7 @@ yum install -y python3-devel
                 script {
                     def remote = getTestMachine(VM1_FQDN)
                     def commandResult = sshCommand remote: remote, command: """
-pip3 install aiohttp==3.6.1
-pip3 install elasticsearch-dsl==6.4.0
-pip3 install python-consul==1.1.0
-pip3 install schematics==2.1.0
-pip3 install toml==0.10.0
-pip3 install cryptography==2.8
-pip3 install PyYAML==5.1.2
-pip3 install configparser==4.0.2
-pip3 install networkx==2.4
-pip3 install numpy==1.19.2
-pip3 install matplotlib==3.1.3
-pip3 install argparse==1.4.0
-pip3 install confluent-kafka==1.5.0
-pip3 install python-crontab==2.5.1
-pip3 install elasticsearch==6.8.1
-pip3 install paramiko==2.7.1
-pip3 install pyldap
-true
+echo "do nothing"
                     """
                 }
             }
@@ -146,61 +120,28 @@ dbus-uuidgen --ensure=/etc/machine-id
 dbus-uuidgen --ensure
 systemctl status network
 cat /etc/machine-id
-MACHINEID=`cat /etc/machine-id`
+MACHINEID1=`cat /etc/machine-id`
 
-conf json:///root/provisioner_cluster.json set "cluster>server_nodes>\$MACHINEID=srvnode-1"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>machine_id=\$MACHINEID"
-
-HOSTNAME=`hostname`
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>hostname=\$HOSTNAME"
-
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>node_type=VM"
-
-#EDIT HERE
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>storage>metadata_devices[0]=/dev/sdb"
-
-#EDIT HERE
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>storage>data_devices[0]=/dev/sdc"
-#conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>storage>data_devices[1]=/dev/sdd"
-#EDIT HERE
-
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>public_interfaces[0]=eth1"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>public_interfaces[1]=eth2"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>private_interfaces[0]=eth3"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>private_interfaces[1]=eth4"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>interface_type=tcp"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>transport_type=lnet"
-
-GENERATEDKEY=`s3cipher generate_key --const_key openldap`
-echo \$GENERATEDKEY
-
-ENCPW=`s3cipher encrypt --data 'seagate' --key \$GENERATEDKEY`
-echo \$ENCPW
-
-CLUSTERID=`conf yaml:///opt/seagate/cortx/s3/s3backgrounddelete/s3_cluster.yaml get 'cluster_config>cluster_id'|cut -d '"' -f 2`
-echo \$CLUSTERID
-
-PBIP=`ip addr show eth1|grep "inet "|awk '{print \$2}'|cut -d '/' -f 1`
-echo \$PBIP
-
-PRIP=`ip addr show eth3|grep "inet "|awk '{print \$2}'|cut -d '/' -f 1`
-echo \$PRIP
-
-conf json:///root/provisioner_cluster.json set "cluster>cluster_id=\$CLUSTERID"
-conf json:///root/provisioner_cluster.json set "cluster>mgmt_vip=127.0.0.1"
-conf json:///root/provisioner_cluster.json set "cluster>cluster_ip=127.0.0.1"
-conf json:///root/provisioner_cluster.json set "cluster>dns_servers[0]=8.8.8.8"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>public_ip=\$PBIP"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>private_ip=\$PRIP"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>netmask=255.255.255.0"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>gateway=255.255.255.0"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>roaming_ip=127.0.0.1"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>s3_instances=1"
-
-conf json:///root/provisioner_cluster.json set "openldap>root>secret=\$ENCPW"
-conf json:///root/provisioner_cluster.json set "openldap>sgiam>secret=\$ENCPW"
-conf json:///root/provisioner_cluster.json set "openldap>root>user=admin"
-conf json:///root/provisioner_cluster.json set "openldap>sgiam>user=sgiamadmin"
+HOSTNAME1=`hostname`
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>name=srvnode-1"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>hostname=$HOSTNAME1"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>type=VM"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg_count=2"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[0]>metadata_devices[0]=/dev/sdb"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[0]>data_devices[0]=/dev/sdc"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[0]>data_devices[1]=/dev/sdd"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[1]>metadata_devices[0]=/dev/sde"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[1]>data_devices[0]=/dev/sdf"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[1]>data_devices[1]=/dev/sdg"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>network>data>private_interfaces[0]=eth1"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>network>data>transport_type=lnet"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>network>data>interface_type=tcp"
+CLUSTER_ID=5c427765-ecf5-4387-bfa4-d6d53494b159
+conf json:///root/provisioner_cluster.json set "cluster>$CLUSTER_ID>storage_set[0]>durability>data=1"
+conf json:///root/provisioner_cluster.json set "cluster>$CLUSTER_ID>storage_set[0]>durability>parity=0"
+conf json:///root/provisioner_cluster.json set "cluster>$CLUSTER_ID>storage_set[0]>durability>spare=0"
+curl -o /root/singlenode.yaml https://raw.githubusercontent.com/Seagate/cortx-motr/create_confstorekey/scripts/install/opt/seagate/cortx/motr/share/examples/singlenode.yaml
+sed -i "s/{HOSTNAME1}/$HOSTNAME1/" /root/singlenode.yaml
                     """
                 }
             }
@@ -213,6 +154,7 @@ conf json:///root/provisioner_cluster.json set "openldap>sgiam>user=sgiamadmin"
                     def remote = getTestMachine(VM1_FQDN)
                     def commandResult = sshCommand remote: remote, command: """
 /opt/seagate/cortx/motr/bin/motr_setup post_install --config json:///root/provisioner_cluster.json
+/opt/seagate/cortx/motr/bin/motr_setup prepare --config json:///root/provisioner_cluster.json
 /opt/seagate/cortx/motr/bin/motr_setup config --config json:///root/provisioner_cluster.json
 /opt/seagate/cortx/motr/bin/motr_setup init --config json:///root/provisioner_cluster.json
 /opt/seagate/cortx/motr/bin/motr_setup test --config json:///root/provisioner_cluster.json
@@ -266,16 +208,6 @@ cat /etc/hosts
                 script {
                     def remote = getTestMachine(VM1_FQDN)
                     def commandResult = sshCommand remote: remote, command: """
-/opt/seagate/cortx/hare/bin/hare_setup post_install
-/opt/seagate/cortx/hare/bin/hare_setup config --config json:///root/provisioner_cluster.json --file '/var/lib/hare/cluster.yaml'
-
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[0]>m0_servers[0]>io_disks>meta_data"
-conf yaml:///var/lib/hare/cluster.yaml set "nodes[0]>m0_servers[0]>io_disks>meta_data=/dev/vg_srvnode-1_md1/lv_raw_md1"
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[0]>m0_servers[0]>io_disks>meta_data"
-
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[0]>m0_servers[1]>io_disks>meta_data"
-conf yaml:///var/lib/hare/cluster.yaml set "nodes[0]>m0_servers[1]>io_disks>meta_data=/dev/vg_srvnode-1_md1/lv_raw_md1"
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[0]>m0_servers[1]>io_disks>meta_data"
                         """
                     echo "Result: " + commandResult
                 }
@@ -288,8 +220,11 @@ conf yaml:///var/lib/hare/cluster.yaml get "nodes[0]>m0_servers[1]>io_disks>meta
                 script {
                     def remote = getTestMachine(VM1_FQDN)
                     def commandResult = sshCommand remote: remote, command: """
-hctl bootstrap --mkfs /var/lib/hare/cluster.yaml
+hctl bootstrap --mkfs /root/singlenode.yaml
 hctl status
+dd if=/dev/urandom of=/tmp/128M bs=1M count=128
+/opt/seagate/cortx/hare/libexec/m0crate-io-conf > /tmp/m0crate-io.yaml
+m0crate -S /tmp/m0crate-io.yaml
                         """
                 }
             }
