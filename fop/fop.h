@@ -306,7 +306,12 @@ void m0_fop_type_init(struct m0_fop_type *ft,
  */
 #define M0_FOP_TYPE_INIT(ft, ...)                                        \
 	m0_fop_type_init((ft), &(const struct __m0_fop_type_init_args) { \
-			__VA_ARGS__ })
+			__VA_ARGS__ });
+
+#define M0_FOP_TYPE_INIT2_DECL struct __m0_fop_type_init_args __args
+#define M0_FOP_TYPE_INIT2(ft, ...) ({                                    \
+	__args = (struct __m0_fop_type_init_args) {__VA_ARGS__};         \
+	m0_fop_type_init((ft), &__args); })
 
 void m0_fop_type_fini(struct m0_fop_type *fopt);
 
