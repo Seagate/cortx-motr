@@ -380,7 +380,7 @@ struct m0_xcode_type_ops {
 			struct m0_xcode_obj *obj, const char *str);
 };
 
-enum { M0_XCODE_DEPTH_MAX = 10 };
+enum { M0_XCODE_DEPTH_MAX = 8 };
 
 /**
    @name iteration

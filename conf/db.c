@@ -223,11 +223,11 @@ static int confx_obj_dup(struct confx_allocator *alloc,
 			 struct m0_confx_obj **dest,
 			 struct m0_confx_obj *src)
 {
+	int                 rc = 0;
 	struct m0_xcode_obj src_obj;
 	struct m0_xcode_obj dest_obj;
-	struct confx_ctx    cctx;
 	struct m0_xcode_ctx sctx;
-	int                 rc = 0;
+	struct confx_ctx    cctx;
 
 	confx_to_xcode_obj(src, &dest_obj, false);
 	confx_to_xcode_obj(src, &src_obj, true);
@@ -393,20 +393,22 @@ M0_INTERNAL void m0_confdb_destroy_credit(struct m0_be_seg *seg,
 static int __confdb_free(struct m0_be_btree *btree, struct m0_be_seg *seg,
 			 struct m0_be_tx *tx)
 {
-	struct m0_be_btree_cursor  bcur;
+	int                        rc;
 	struct confx_allocator    *alloc = NULL;
 	struct confx_obj_ctx      *obj_ctx;
 	struct m0_buf              key;
 	struct m0_buf              val;
-	int                        rc;
+	struct m0_be_btree_cursor *bcur;
 
-	m0_be_btree_cursor_init(&bcur, btree);
-	rc = m0_be_btree_cursor_first_sync(&bcur);
-	if (rc != 0) {
-		m0_be_btree_cursor_fini(&bcur);
-		return M0_RC(rc);
-	}
-	m0_be_btree_cursor_kv_get(&bcur, &key, &val);
+	M0_ALLOC_PTR(bcur);
+	if (bcur == NULL)
+		return M0_ERR(-ENOMEM);
+
+	m0_be_btree_cursor_init(bcur, btree);
+	rc = m0_be_btree_cursor_first_sync(bcur);
+	if (rc != 0)
+		goto err;
+	m0_be_btree_cursor_kv_get(bcur, &key, &val);
 	/**
 	 * @todo check validity of key and record addresses and
 	 * sizes. Specifically, check that val.b_addr points to an
@@ -422,8 +424,10 @@ static int __confdb_free(struct m0_be_btree *btree, struct m0_be_seg *seg,
 	 * object. Release pre-allocated BE segment memory from the allocator.
 	 */
 	alloc = &obj_ctx->oc_alloc;
-	m0_be_btree_cursor_fini(&bcur);
 	M0_BE_FREE_PTR_SYNC(alloc->a_chunk, seg, tx);
+ err:
+	m0_be_btree_cursor_fini(bcur);
+	m0_free(bcur);
 
 	return M0_RC(rc);
 }
