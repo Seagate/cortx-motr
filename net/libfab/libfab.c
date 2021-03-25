@@ -592,11 +592,14 @@ static void libfab_txep_comp_read(struct fid_cq *cq)
 	cnt = libfab_check_for_comp(cq, buf, NULL);
 	for (i = 0; i < cnt; i++) {
 		if (buf[i] != NULL) {
-			xep = buf[i]->fb_txctx;
-			aep = (xep->fep_listen == NULL) ? xep->fep_aep :
-				xep->fep_listen->pep_aep;
-			libfab_target_notify(buf[i], aep);
-			libfab_buf_done(buf[i], 0);
+			buf[i]->fb_wr_comp_cnt++;
+			if (buf[i]->fb_wr_comp_cnt >= buf[i]->fb_wr_cnt) {
+				xep = buf[i]->fb_txctx;
+				aep = (xep->fep_listen == NULL) ? xep->fep_aep :
+					xep->fep_listen->pep_aep;
+				libfab_target_notify(buf[i], aep);
+				libfab_buf_done(buf[i], 0);
+			}
 		}
 	}
 }
@@ -1818,7 +1821,7 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 		if (ret == FI_SUCCESS)
 			aep->aep_tx_state = FAB_CONNECTING;
 		else
-			M0_LOG(M0_ALWAYS, " Conn req failed ret=%d dst=%"PRIx64,
+			M0_LOG(M0_ERROR, " Conn req failed ret=%d dst=%"PRIx64,
 			       ret, *(uint64_t*)peer_fi->dest_addr);
 		fi_freeinfo(peer_fi);
 	}
@@ -1939,7 +1942,6 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 	uint32_t                rem_soff = 0;
 	uint32_t                loc_slen;
 	uint32_t                rem_slen;
-	uint32_t                wreq_cnt = 0;
 	bool                    isread;
 	int                     ret;
 
@@ -1947,10 +1949,11 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 
 	r_iov = fb->fb_riov;
 	isread = (fb->fb_nb->nb_qtype == M0_NET_QT_ACTIVE_BULK_RECV);
+	fb->fb_wr_cnt = 0;
+	fb->fb_wr_comp_cnt = 0;
 	
 	while(xfer_len < fb->fb_nb->nb_length) {
 		M0_ASSERT(rem_sidx <= fb->fb_rbd->fbd_iov_cnt);
-		wreq_cnt++;
 		loc_slen = v_cnt[loc_sidx] - loc_soff;
 		rem_slen = r_iov[rem_sidx].fri_len - rem_soff;
 		
@@ -1982,11 +1985,9 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 				rem_soff = 0;
 			}
 		}
+		fb->fb_wr_cnt++;
 		xfer_len += iv.iov_len;
 	}
-	
-	fb->fb_wr_cnt = wreq_cnt;
-	fb->fb_wr_comp_cnt = 0;
 	
 	return M0_RC(ret);
 }

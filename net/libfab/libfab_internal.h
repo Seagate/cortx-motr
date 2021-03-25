@@ -52,18 +52,18 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  */
 enum m0_fab__libfab_params {
 	/** Fabric memory access. */
-	FAB_MR_ACCESS  = (FI_READ | FI_WRITE | FI_RECV | FI_SEND | \
-			  FI_REMOTE_READ | FI_REMOTE_WRITE),
+	FAB_MR_ACCESS     = (FI_READ | FI_WRITE | FI_RECV | FI_SEND | \
+			     FI_REMOTE_READ | FI_REMOTE_WRITE),
 	/** Fabric memory offset. */
-	FAB_MR_OFFSET  = 0,
+	FAB_MR_OFFSET     = 0,
 	/** Fabric memory flag. */
-	FAB_MR_FLAG    = 0,
+	FAB_MR_FLAG       = 0,
 	/** Key used for memory registration. */
-	FAB_MR_KEY     = 0XABCD,
+	FAB_MR_KEY        = 0XABCD,
 	/** Max number of IOV in send/recv/read/write command */
-	FAB_IOV_MAX = 64,
+	FAB_IOV_MAX       = 256,
 	/** Dummy data used to notify remote end for rma op completions */
-	FAB_DUMMY_DATA = 0xFABC0DE,
+	FAB_DUMMY_DATA    = 0xFABC0DE,
 	/** Max number of completion events to read from a CQ */
 	FAB_MAX_COMP_READ = 16,
 	/** Max timeout for waiting on fd in epoll_wait */
@@ -328,10 +328,10 @@ struct m0_fab__buf {
 	/** Total size of data to be rcvd*/
 	m0_bindex_t             fb_length;
 	
-	/** Count of work request generated */
+	/** Count of work request generated for bulk rma ops */
 	uint32_t                fb_wr_cnt;
 
-	/** Count of work request completions */
+	/** Count of work request completions for bulk rma ops */
 	uint32_t                fb_wr_comp_cnt;
 };
 
