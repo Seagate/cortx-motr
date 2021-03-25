@@ -113,7 +113,7 @@ echo "do nothing"
             steps {
                 script {
                     def remote = getTestMachine(VM1_FQDN)
-                    def commandResult = sshCommand remote: remote, command: """
+                    def commandResult = sshCommand remote: remote, command: '''
 rm -f /root/provisioner_cluster.json
 rm -f /etc/machine-id /var/lib/dbus/machine-id
 dbus-uuidgen --ensure=/etc/machine-id
@@ -142,7 +142,7 @@ conf json:///root/provisioner_cluster.json set "cluster>$CLUSTER_ID>storage_set[
 conf json:///root/provisioner_cluster.json set "cluster>$CLUSTER_ID>storage_set[0]>durability>spare=0"
 curl -o /root/singlenode.yaml https://raw.githubusercontent.com/Seagate/cortx-motr/create_confstorekey/scripts/install/opt/seagate/cortx/motr/share/examples/singlenode.yaml
 sed -i "s/{HOSTNAME1}/$HOSTNAME1/" /root/singlenode.yaml
-                    """
+                    '''
                 }
             }
         }
