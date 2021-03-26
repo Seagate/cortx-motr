@@ -1074,6 +1074,17 @@ Meetings
      - continue with BTree Interface discussion.
      - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210324%200936-1.mp4?csf=1&web=1&e=bRKziS>`_
 
+   * - 2021.03.26
+     - sync up
+     - nikhil, nikita, shashank, radha, hua, jaydeep, madhav
+     - code organisation, build support (makefile, etc.), benchmark of existing
+       btree
+     - 
+     - nikhil: benchmark of existing btree; radha: implement lookup; shashank:
+       fixed format node, nikhil: benchmark of new btree.
+     - 
+
+
 Detailed-level design (DLD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
