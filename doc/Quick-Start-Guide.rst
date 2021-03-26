@@ -21,7 +21,7 @@ Procedure
 **********
 The below mentioned procedure must be followed to install the Motr component and to perform tests.
 
-1. Cloning the Source Code
+1. Cloning the Source Code (Either Build from Source or RPM Generation)
 
 2. Building the Source Code
 
@@ -66,11 +66,11 @@ Perform the below mentioned procedure to build the source code.
    - **$ scripts/m0 rebuild**
 
    **Note**: The **scripts/m0 rebuild** command includes some clean up.
-   
+ 
 RPM Generation
 ===============
 
-If you want to make sure about generating RPMs, run the below mentioned command.
+You can also build RPMs by running the following command.
 
 - **$ make rpms**
 

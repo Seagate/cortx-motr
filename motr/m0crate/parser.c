@@ -60,8 +60,6 @@ enum config_key_val {
 	NR_OBJS,
 	NUM_IDX,
 	NUM_KVP,
-	RECORD_SIZE,
-	MAX_RSIZE,
 	PUT,
 	GET,
 	NEXT,
@@ -73,6 +71,10 @@ enum config_key_val {
 	WARMUP_DEL_RATIO,
 	KEY_PREFIX,
 	KEY_ORDER,
+	KEY_SIZE,
+	VALUE_SIZE,
+	MAX_KEY_SIZE,
+	MAX_VALUE_SIZE,
 	INDEX_FID,
 	LOG_LEVEL,
 	THREAD_OPS,
@@ -116,8 +118,8 @@ struct key_lookup_table lookuptable[] = {
 	{"OPS", NUM_OPS},
 	{"NUM_IDX", NUM_IDX},
 	{"NUM_KVP", NUM_KVP},
-	{"RECORD_SIZE", RECORD_SIZE},
-	{"MAX_RSIZE", MAX_RSIZE},
+	{"RECORD_SIZE", VALUE_SIZE},
+	{"MAX_RSIZE", MAX_VALUE_SIZE},
 	{"GET", GET},
 	{"PUT", PUT},
 	{"NEXT", NEXT},
@@ -129,6 +131,10 @@ struct key_lookup_table lookuptable[] = {
 	{"WARMUP_DEL_RATIO", WARMUP_DEL_RATIO},
 	{"KEY_PREFIX", KEY_PREFIX},
 	{"KEY_ORDER", KEY_ORDER},
+	{"KEY_SIZE", KEY_SIZE},
+	{"VALUE_SIZE", VALUE_SIZE},
+	{"MAX_KEY_SIZE", MAX_KEY_SIZE},
+	{"MAX_VALUE_SIZE", MAX_VALUE_SIZE},
 	{"INDEX_FID", INDEX_FID},
 	{"LOG_LEVEL", LOG_LEVEL},
 	{"NR_OBJS", NR_OBJS},
@@ -357,19 +363,6 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			ciw = workload_index(w);
 			ciw->num_kvs = atoi(value);
 			break;
-		case RECORD_SIZE:
-			w = &load[*index];
-			ciw = workload_index(w);
-			if (!strcmp(value, "random"))
-				ciw->record_size = -1;
-			else
-				ciw->record_size = parse_int_with_units(value, RECORD_SIZE);
-			break;
-		case MAX_RSIZE:
-			w = &load[*index];
-			ciw = workload_index(w);
-			ciw->max_record_size = parse_int_with_units(value, MAX_RSIZE);
-			break;
 		case PUT:
 			w = &load[*index];
 			ciw = workload_index(w);
@@ -441,6 +434,41 @@ int copy_value(struct workload *load, int max_workload, int *index,
 				ciw->keys_ordered = false;
 			else
 				parser_emit_error("Unkown key ordering: '%s'", value);
+			break;
+		case KEY_SIZE:
+			w = &load[*index];
+			ciw = workload_index(w);
+			if (strcmp(value, "random") == 0)
+				ciw->key_size = -1;
+			else
+				ciw->key_size = parse_int(value, KEY_SIZE);
+			break;
+		case VALUE_SIZE:
+			w = &load[*index];
+			ciw = workload_index(w);
+			if (strcmp(value, "random") == 0)
+				ciw->value_size = -1;
+			else {
+				ciw->value_size = parse_int(value, VALUE_SIZE);
+				if (strcmp(key, "RECORD_SIZE") == 0) {
+					cr_log(CLL_WARN, "RECORD_SIZE is being deprecated, use KEY_SIZE and VALUE_SIZE.\n");
+					ciw->value_size = ciw->value_size - ciw->key_size;
+				}
+			}
+			break;
+		case MAX_KEY_SIZE:
+			w = &load[*index];
+			ciw = workload_index(w);
+			ciw->max_key_size = parse_int(value, MAX_KEY_SIZE);
+			break;
+		case MAX_VALUE_SIZE:
+			w = &load[*index];
+			ciw = workload_index(w);
+			ciw->max_value_size = parse_int(value, MAX_VALUE_SIZE);
+			if (strcmp(key, "MAX_RSIZE") == 0) {
+				cr_log(CLL_WARN, "MAX_RSIZE is being deprecated, use MAX_KEY_SIZE and MAX_VALUE_SIZE.\n");
+				ciw->max_value_size = ciw->max_value_size - ciw->max_key_size;
+			}
 			break;
 		case INDEX_FID:
 			w = &load[*index];
