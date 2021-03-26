@@ -45,6 +45,9 @@
 #include "dtm0/service.h"
 #include "rpc/rpc_opcodes.h"
 
+#include "addb2/addb2.h"
+#include "addb2/identifier.h"
+
 static void dtm0_rpc_item_reply_cb(struct m0_rpc_item *item);
 
 /*
@@ -210,7 +213,8 @@ static size_t dtm0_fom_locality(const struct m0_fom *fom)
 	return M0_RC_INFO(locality++, "fom=%p", fom);
 }
 
-static void m0_dtm0_send_notice(struct m0_dtm0_service *dtms,
+static void m0_dtm0_send_notice(struct m0_fom *fom,
+				struct m0_dtm0_service *dtms,
 				enum m0_dtm0s_msg notice_type,
 				const struct m0_fid *tgt,
 				const struct m0_dtm0_tx_desc *txd)
@@ -220,6 +224,8 @@ static void m0_dtm0_send_notice(struct m0_dtm0_service *dtms,
 	struct m0_rpc_item     *item;
 	struct dtm0_req_fop    *req;
 	int                     rc;
+	uint64_t                phase_sm_id;
+	uint64_t                rpc_sm_id;
 
 	M0_ENTRY("reqh=%p", dtms->dos_generic.rs_reqh);
 
@@ -243,6 +249,9 @@ static void m0_dtm0_send_notice(struct m0_dtm0_service *dtms,
 	M0_ASSERT(rc == 0);
 	m0_fop_put_lock(fop);
 
+	phase_sm_id = m0_sm_id_get(&fom->fo_sm_phase);
+	rpc_sm_id   = m0_sm_id_get(&item->ri_sm);
+	M0_ADDB2_ADD(M0_AVI_FOM_TO_TX, phase_sm_id, rpc_sm_id);
 	M0_LEAVE("Sent %d notice " FID_F " -> " FID_F, notice_type,
 		 FID_P(&dtms->dos_generic.rs_service_fid), FID_P(tgt));
 }
@@ -260,7 +269,8 @@ M0_INTERNAL void m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
     M0_ASSERT(rc == 0);
 }
 
-M0_INTERNAL void m0_dtm0_on_committed(struct m0_reqh               *reqh,
+M0_INTERNAL void m0_dtm0_on_committed(struct m0_fom                *fom,
+		                      struct m0_reqh               *reqh,
 				      const struct m0_dtm0_tx_desc *txd)
 {
 	int                     rc;
@@ -287,7 +297,7 @@ M0_INTERNAL void m0_dtm0_on_committed(struct m0_reqh               *reqh,
 	}
 
 	/* Notify the originator */
-	m0_dtm0_send_notice(dtms, DTM_PERSISTENT, &msg.dtd_id.dti_fid, &msg);
+	m0_dtm0_send_notice(fom, dtms, DTM_PERSISTENT, &msg.dtd_id.dti_fid, &msg);
 
 	/* TODO: Send notices to the rest of the participants. */
 	m0_dtm0_tx_desc_fini(&msg);
@@ -322,7 +332,7 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 		 */
 		if (req->dtr_msg == DMT_EXECUTE &&
 		    m0_dtm0_is_a_persistent_dtm(fom->fo_service)) {
-			m0_dtm0_send_notice(svc, DTM_PERSISTENT,
+			m0_dtm0_send_notice(fom, svc, DTM_PERSISTENT,
 					    &M0_FID_INIT(0x7300000000000001,
 							0x1a),
 					    &req->dtr_txr);
