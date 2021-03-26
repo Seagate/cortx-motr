@@ -210,6 +210,9 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
         }
 
         stage('Create confstore json') {
+            environment {
+                        VM_FQDN = "${VM2_FQDN}"
+                    }
             when { expression { params.PRE_REQ } }
             steps {
                 script {
@@ -218,12 +221,24 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
 rm -f /root/provisioner_cluster.json
 
 ######node-1
-MACHINEID1=`cat /etc/machine-id`
-MACHINEID2=$(ssh ${VM2_FQDN} cat /etc/machine-id)
-MACHINEID3=$(ssh ${VM3_FQDN} cat /etc/machine-id)
+echo "Node test : $VM_FQDN"
+echo "Node 1: $VM1_FQDN"
+echo "Node 2: $VM2_FQDN"
+echo "Node 3: $VM3_FQDN"
+echo "Target: $REPO_URL"
+
 HOSTNAME1=`hostname`
-HOSTNAME2=$(ssh ${VM2_FQDN} hostname)
-HOSTNAME3=$(ssh ${VM3_FQDN} hostname)
+HOSTNAME2=`cat /tmp/hostname2`
+HOSTNAME3=`cat /tmp/hostname3`
+MACHINEID1=`cat /etc/machine-id`
+MACHINEID2=$(ssh $HOSTNAME2 cat /etc/machine-id)
+MACHINEID3=$(ssh $HOSTNAME3 cat /etc/machine-id)
+echo $HOSTNAME1 
+echo $HOSTNAME2 
+echo $HOSTNAME3
+echo $MACHINEID1
+echo $MACHINEID2
+echo $MACHINEID3
 conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>name=srvnode-1"
 conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>hostname=$HOSTNAME1"
 conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>type=VM"
@@ -478,6 +493,13 @@ curl -s http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/rp
 yum-config-manager --add-repo=${REPO_URL}/cortx_iso/
 yum-config-manager --add-repo=${REPO_URL}/3rd_party/
 yum-config-manager --add-repo=${REPO_URL}/3rd_party/lustre/custom/tcp/
+echo "Node 1: $VM1_FQDN"
+echo "Node 2: $VM2_FQDN"
+echo "Node 3: $VM3_FQDN"
+echo "Target: $REPO_URL"
+echo $VM1_FQDN > /tmp/hostname1
+echo $VM2_FQDN > /tmp/hostname2
+echo $VM3_FQDN > /tmp/hostname3
     """
 }
 def installRPM(String host) {
@@ -587,4 +609,5 @@ chmod a+x deploy_expect
                     """
     
 }
+
 
