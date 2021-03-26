@@ -459,8 +459,8 @@ def lnet_ping(self):
     # nodes is a list of hostnames
     nids = get_nids(self, nodes)
     sys.stdout.write("lnet pinging on all nodes in cluster\n")
-    sys.stdout.write("motr_setup init MUST be performed on all nodes before "
-                      "executing this\n")
+    sys.stdout.write("motr_setup post_install and prepare MUST be performed "
+                     "on all nodes before executing this\n")
     for nid in nids:
        cmd = f"lctl ping {nid}"
        sys.stdout.write(f"lctl ping on: {nid}\n")
@@ -471,8 +471,8 @@ def test_lnet(self):
         1. check lustre rpm
         2. validate lnet interface which was configured in init
         3. ping on lnet interface
-        4. lctl ping on all nodes in cluster. motr_setup init MUST be performed
-           on all nodes before executing this step.
+        4. lctl ping on all nodes in cluster. motr_setup post_install and prepare
+           MUST be performed on all nodes before executing this step.
     '''
     search_lnet_pkgs = ["kmod-lustre-client", "lustre-client"]
     check_pkgs(self, search_lnet_pkgs)
