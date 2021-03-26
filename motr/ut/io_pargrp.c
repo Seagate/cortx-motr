@@ -908,15 +908,12 @@ static void ut_test_pargrp_iomap_init(void)
 	M0_UT_ASSERT(map != NULL);
 
 	rc = pargrp_iomap_init(map, ioo, 1);
-	M0_UT_ASSERT(rc == 0 || rc == -ENOMEM);
-	if (rc == 0) {
-		M0_UT_ASSERT(map->pi_databufs != NULL);
-		for (i = 0; i < map->pi_max_row; i++) {
-			M0_UT_ASSERT(map->pi_databufs[i] != NULL);
-		}
-
-		ut_free_pargrp_iomap(map);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(map->pi_databufs != NULL);
+	for (i = 0; i < map->pi_max_row; i++) {
+		M0_UT_ASSERT(map->pi_databufs[i] != NULL);
 	}
+	ut_free_pargrp_iomap(map);
 	m0_free(map);
 
 	ut_dummy_ioo_delete(ioo, instance);
