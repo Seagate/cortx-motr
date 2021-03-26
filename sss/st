@@ -193,11 +193,11 @@ m0d_start() {
 	sleep 1
 	sss_check M0_CST_IOS M0_SERVICE_STATUS "$SVC_ID" ssr_state \
 		M0_RST_STARTED
-	killall -q -0 lt-m0d || die 'Failed to start m0d'
+	pkill -0 m0d || die 'Failed to start m0d'
 }
 
 m0d_stop() {
-	killall -q lt-m0d && wait 2>/dev/null || true
+	pkill m0d && wait 2>/dev/null || true
 }
 
 usage() {
