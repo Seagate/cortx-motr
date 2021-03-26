@@ -46,6 +46,14 @@ CONF_FILE=$SANDBOX_DIR/confd/conf.txt
 
 PROC_FID1="<0x7200000000000001:0>"
 
+cmd=$(whereis fi_info | cut -d ':' -f2)
+$cmd > /dev/null
+if [[ $? -eq 0 ]]; then
+    XPRT=libfab
+else
+    XPRT=lnet
+fi
+
 start() {
     sandbox_init
     _init
@@ -111,7 +119,7 @@ _mkfs() {
     local fid=$PROC_FID1
     local path=$SANDBOX_DIR/confd
     local OPTS="${1:-} -D $path/db -T AD -S $path/stobs\
-    -A linuxstob:$path/addb-stobs -e lnet:$ep\
+    -A linuxstob:$path/addb-stobs -e $XPRT:$ep\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
     -w 3 -f $fid"
 
