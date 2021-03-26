@@ -1082,8 +1082,7 @@ Meetings
      - 
      - nikhil: benchmark of existing btree; radha: implement lookup; shashank:
        fixed format node, nikhil: benchmark of new btree.
-     - 
-
+     - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210326%201002-1.mp4?csf=1&web=1&e=v4Daa6>`_
 
 Detailed-level design (DLD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
