@@ -59,7 +59,7 @@
  * - tree structure. An internal node has a set of children. A descendant of a
  *   node is either its child or a descendant of a child. The parent of a node
  *   is the (only) node (necessarily internal) of which the node is a child. An
- *   ancestor of a node is either its parent of the parent of an ancestor. The
+ *   ancestor of a node is either its parent or the parent of an ancestor. The
  *   sub-tree rooted at a node is the node together with all its descendants.
  *
  *   A node has a level, assigned when the node is allocated. Leaves are on the
@@ -111,7 +111,7 @@
  * Lookup takes a "cookie" as an additional optional parameter. A cookie
  * (returned by a previous tree operation) is a safe pointer to the leaf node. A
  * cookie can be tested to check whether it still points to a valid cached leaf
- * node containing the target key. In the check is successful, the lookup
+ * node containing the target key. If the check is successful, the lookup
  * completes.
  *
  * Otherwise, lookup performs a tree traversal.
@@ -230,10 +230,116 @@
  *
  * Deletion (DEL)
  * ..............
+ * There are basically 2 cases for deletion
+ * 1. No underflow after deletion
+ * 2. Underflow after deletion
+ *  a. Balance by borrowing key from sibling
+ *  b. Balance by merging with sibling
+ *    b.i. No underflow at parent node 
+ *    b.ii. Underflow at parent node
+ *      b.ii.A. Borrow key-pivot from sibling at parent node
+ *      b.ii.B. Merge with sibling at parent node
+ * @verbatim
  *
+ *                             INIT
+ *                               |
+ *                               v
+ *                             SETUP<----------------+ 
+ *                               |                   |
+ *                               v                   |
+ *                             LOCKALL<------------+ |
+ *                               |                 | |
+ *                               v                 | |
+ *                             DOWN<-------------+ | |
+ *                               |               | | |
+ *                               v               | | |
+ *                        +--->NEXTDOWN-->LOCK-->CHECK
+ *                        |     |                 |       +->MOVEUP
+ *                        |     |                 v       |      |
+ *                        +LOAD-+               ACT---->RESOLVE<-+
+ *                                               |              |
+ *                                               v              |
+ *                                             CLEANUP<----------+
+ *                                                |
+ *                                                v
+ *                                              DONE
+ * @endverbatim
+ *
+ * Phases Description: 
+ * step 1. NEXTDOWN: traverse down the tree searching for given key till we reach leaf node containing that key
+ * step 2. LOAD : load left and/or, right only if there are chances of underflow at the node (i.e. number of keys == min or any other conditions defined for underflow can be used)
+ * step 3. CHECK : check if any of the nodes referenced (or loaded) during the traversal have changed
+ *                 if the nodes have changed then repeat traversal again after UNLOCKING the tree
+ *                 if the nodes have not changed then check will call ACT
+ * step 4. ACT: This state will find the key and delete it. 
+ *              If there is no underflow, move to CLEANUP, otherwise move to RESOLVE.
+ * step 5. RESOLVE: This state will resolve underflow, 
+ *                  it will get sibling and perform merging or rebalancing with sibling. 
+ *                  Once the underflow is resolved at the node move to its parent node using MOVEUP.
+ * step 6. MOVEUP: This state moves to the parent node and checks if there is an underflow in the parent node
+ *                 If there is an underflow move to RESOLVE, else move to CLEANUP.
+ * 
+ * 
  * Iteration (NEXT)
  * ................
- *
+ * @verbatim
+ * 
+ *                       INIT
+ *                         |
+ *                         v
+ *                       SETUP <----------------+----------------+
+ *                         |                    |                |
+ *                         v                    |                |
+ *                      LOCKALL<----------------+                |
+ *                         |                    |                |
+ *                         v                    |                |
+ *                       DOWN  <----------------+                |
+ *                         |                    |              UNLOCK
+ *                         v                    |                |
+ *                   +->NEXTDOWN---->LOCK---->CHECK              |
+ *                   |   |   |   ^              | <--------+     |
+ *                   +---+   v   |              |          |     |
+ *                          LOAD-+              +-------+  |     |
+ *                                              |       v  |     |
+ *                                             ACT----->NEXTKEY  |
+ *                                              |        |   ^   |
+ *                                              v        |   |   |
+ *                                           CLEANUP     v   |   |
+ *                                              |       NEXTNODE-+
+ *                                              v
+ *                                            DONE
+ * 
+ * @endverbatim
+ * Iteration function will return the record for the search key and iteratively the record of subsequent keys as requested by the caller, 
+ * if returned key is last key in the node , we may need to fetch next node,
+ * To fetch keys in next node: first release the LOCK, call Iteration function and pass key='last fetched' key and next_sibling_flag= 'True'
+ * If next_sibling_flag == 'True' we will also load the right sibling node which is to the node containing the search key
+ * As we are releasing lock for finding next node, updates such as(insertion of new keys, merging due to deletion) can happen, 
+ * so to handle such cases, we load both earlier node and node to the right of it
+ * 
+ * Phases Description: 
+ * step 1. NEXTDOWN: this state will load nodes searching for the given key,
+ *                   but if next_sibling_flag == 'True' then this state will also load the leftmost child nodes during its downward traversal.
+ * step 2. LOAD: this function will get called only when next_sibling_flag == 'True', 
+ *               and functionality of this function is to load next node so, it will search and LOAD next sibling 
+ * step 3. CHECK: check function will check the traversal path for node with key and traversal path for next sibling node if it is also loaded
+ *                if traverse path of any of the node has changed, repeat traversal again after UNLOCKING the tree 
+ *                else, if next_sibling_flag == 'True', go to NEXTKEY to fetch next key, else to ACT for callback 
+ * step 4. ACT: ACT will provide an input as 0 or 1: where 0 ->done 1-> return nextkey 
+ * step 5. NEXTKEY: 
+ *         if next_sibling_flag == 'True',
+ *             check last key in the current node.
+ *                 if it is <= given key, go for next node which was loaded at phase LOAD (step 2) and return first key 
+ *                 else return key next to last fetched key 
+ *            and call ACT for further input (1/0)
+ *         else
+ *             if no keys to return i.e., last returned key was last key in node.
+ *                 check if next node is loaded.
+ *                   if yes go to next node else and return first key from that node
+ *                   else call Iteration function and pass key='last fetched key' and next_sibling_flag='True' 
+ *             else return key == given key, or next to earlier retune key and call ACT for further input (1/0) 
+ * 
+ * 
  * Data structures
  * ---------------
  *
