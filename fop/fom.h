@@ -481,6 +481,7 @@ struct m0_fom_callback {
 struct m0_fom {
 	/** Locality this fom belongs to */
 	struct m0_fom_locality   *fo_loc;
+	size_t                    fo_loc_idx;
 	const struct m0_fom_type *fo_type;
 	const struct m0_fom_ops  *fo_ops;
 	/** AST call-back to wake up the FOM */
