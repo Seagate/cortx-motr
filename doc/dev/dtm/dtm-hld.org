@@ -52,7 +52,7 @@ them.
 
 * Definitions
 #+BEGIN_QUOTE
-=[Definitions of terms and concepts used by the design go here. The definitions must be as precise as possible. References to the Mero Glossary are permitted and encouraged. Agreed upon terminology should be incorporated in the glossary]=
+=[Definitions of terms and concepts used by the design go here. The definitions must be as precise as possible. References to the Motr Glossary are permitted and encouraged. Agreed upon terminology should be incorporated in the glossary]=
 #+END_QUOTE
 
 ** process
@@ -148,7 +148,7 @@ to the process FOM.
 Operation is being performed in the context of local transaction.
 ** update
 
-Part of an operation that a remote Mero instance must execute is called an update.
+Part of an operation that a remote Motr instance must execute is called an update.
 ** local transaction
 
 a transaction is a collection of modifications of persistent state.
