@@ -40,7 +40,9 @@
 #include "net/lnet/lnet.h"            /* m0_net_lnet_xprt */
 #ifdef DTM0
 #include "dtm0/service.h"              /* m0_dtm0_service_find */
+#ifndef __KERNEL__
 #include "dtm0/helper.h"
+#endif
 #endif
 
 #include "motr/io.h"                /* io_sm_conf */
@@ -1618,12 +1620,14 @@ int m0_client_init(struct m0_client **m0c_p,
 					 M0_CST_DTM0, &cli_svc_fid);
 	M0_ASSERT(rc == 0);
 
+#ifndef __KERNEL__
 	(void) m0_dtm__client_service_start(&m0c->m0c_reqh, &cli_svc_fid);
-
+#endif
 	m0c->m0c_dtms = m0_dtm0_service_find(&m0c->m0c_reqh);
 	M0_ASSERT(m0c->m0c_dtms != NULL);
 
-	m0_nanosleep(m0_time(15, 0), NULL);
+	if (!m0_dtm0_in_ut())
+		m0_nanosleep(m0_time(15, 0), NULL);
 #endif
 	if (conf->mc_is_addb_init) {
 		char buf[64];
@@ -1663,7 +1667,7 @@ void m0_client_fini(struct m0_client *m0c, bool fini_m0)
 	M0_PRE(m0_sm_conf_is_initialized(&entity_conf));
 	M0_PRE(m0c != NULL);
 
-#ifdef DTM0
+#if defined(DTM0) && !defined(__KERNEL__)
 	if (m0c->m0c_dtms != NULL)
 		m0_dtm__client_service_stop(&m0c->m0c_dtms->dos_generic);
 #endif

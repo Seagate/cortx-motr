@@ -6,5 +6,4 @@ m0tr_objects += \
                   dtm0/tx_desc_xc.o \
                   dtm0/service.o \
                   dtm0/fop.o \
-                  dtm0/dtx.o \
-                  dtm0/helper.o
+                  dtm0/dtx.o
