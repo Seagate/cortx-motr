@@ -139,7 +139,13 @@ WORK_ARENA=${SANDBOX_DIR:-/var/motr}
 CONF_FILE=$WORK_ARENA/conf.xc
 
 # transport related variables
-XPT=lnet
+trans=$(whereis fi_info | cut -d ':' -f2)
+$trans > /dev/null
+if [ $? -eq 0 ] then
+	XPT=libfab
+else
+	XPT=lnet
+fi
 # m0d flags
 XPT_MEMSIZE=163840
 XPT_QUEUELEN=16

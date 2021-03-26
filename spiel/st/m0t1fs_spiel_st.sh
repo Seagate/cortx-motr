@@ -187,7 +187,8 @@ EOF
 m0_get_transport(){
     local trans;
 
-    trans = $(fi_info)
+    trans=$(whereis fi_info | cut -d ':' -f2)
+    $trans > /dev/null
     if [[ $? -eq 0 ]]; then
         trans="libfab"
     else
