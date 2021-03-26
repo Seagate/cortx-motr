@@ -182,27 +182,27 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
             }
         }
 
-        stage('Install py modules') {
+        stage('Update machine id') {
             when { expression { params.PRE_REQ } }
             parallel {
-                stage ('Install py modules node 1'){
+                stage ('Update machine id node 1'){
                     steps {
                         script {
-                            installPyModules(VM1_FQDN)
+                            updateMachineID(VM1_FQDN)
                         }
                     }
                 }
-                stage ('Install py modules node 2'){
+                stage ('Update machine id node 2'){
                     steps {
                         script {
-                            installPyModules(VM2_FQDN)
+                            updateMachineID(VM2_FQDN)
                         }
                     }
                 }
-                stage ('Install py modules node 3'){
+                stage ('Update machine id node 3'){
                     steps {
                         script {
-                            installPyModules(VM3_FQDN)
+                            updateMachineID(VM3_FQDN)
                         }
                     }
                 }
@@ -214,163 +214,70 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
             steps {
                 script {
                     def remote = getTestMachine(VM1_FQDN)
-                    def commandResult = sshCommand remote: remote, command: """
+                    def commandResult = sshCommand remote: remote, command: '''
 rm -f /root/provisioner_cluster.json
 
 ######node-1
-rm -f /etc/machine-id /var/lib/dbus/machine-id
-dbus-uuidgen --ensure=/etc/machine-id
-dbus-uuidgen --ensure
-systemctl status network
-cat /etc/machine-id
-MACHINEID=`cat /etc/machine-id`
-conf json:///root/provisioner_cluster.json set "cluster>server_nodes>\$MACHINEID=srvnode-1"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>machine_id=\$MACHINEID"
+MACHINEID1=`cat /etc/machine-id`
+MACHINEID2=$(ssh ${VM2_FQDN} cat /etc/machine-id)
+MACHINEID3=$(ssh ${VM3_FQDN} cat /etc/machine-id)
+HOSTNAME1=`hostname`
+HOSTNAME2=$(ssh ${VM2_FQDN} hostname)
+HOSTNAME3=$(ssh ${VM3_FQDN} hostname)
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>name=srvnode-1"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>hostname=$HOSTNAME1"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>type=VM"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg_count=2"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[0]>metadata_devices[0]=/dev/sdb"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[0]>data_devices[0]=/dev/sdc"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[0]>data_devices[1]=/dev/sdd"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[1]>metadata_devices[0]=/dev/sde"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[1]>data_devices[0]=/dev/sdf"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[1]>data_devices[1]=/dev/sdg"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>network>data>private_interfaces[0]=eth1"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>network>data>transport_type=lnet"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>network>data>interface_type=tcp"
 
-HOSTNAME=`hostname`
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>hostname=\$HOSTNAME"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>name=srvnode-2"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>hostname=$HOSTNAME2"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>type=VM"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg_count=2"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg[0]>metadata_devices[0]=/dev/sdb"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg[0]>data_devices[0]=/dev/sdc"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg[0]>data_devices[1]=/dev/sdd"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg[1]>metadata_devices[0]=/dev/sde"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg[1]>data_devices[0]=/dev/sdf"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg[1]>data_devices[1]=/dev/sdg"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>network>data>private_interfaces[0]=eth1"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>network>data>transport_type=lnet"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>network>data>interface_type=tcp"
 
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>node_type=VM"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>name=srvnode-3"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>hostname=$HOSTNAME3"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>type=VM"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg_count=2"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg[0]>metadata_devices[0]=/dev/sdb"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg[0]>data_devices[0]=/dev/sdc"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg[0]>data_devices[1]=/dev/sdd"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg[1]>metadata_devices[0]=/dev/sde"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg[1]>data_devices[0]=/dev/sdf"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg[1]>data_devices[1]=/dev/sdg"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>network>data>private_interfaces[0]=eth1"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>network>data>transport_type=lnet"
+conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>network>data>interface_type=tcp"
+CLUSTER_ID=5c427765-ecf5-4387-bfa4-d6d53494b159
+conf json:///root/provisioner_cluster.json set "cluster>$CLUSTER_ID>storage_set[0]>durability>data=1"
+conf json:///root/provisioner_cluster.json set "cluster>$CLUSTER_ID>storage_set[0]>durability>parity=0"
+conf json:///root/provisioner_cluster.json set "cluster>$CLUSTER_ID>storage_set[0]>durability>spare=0"
+curl -o /var/lib/hare/cluster.yaml https://raw.githubusercontent.com/Seagate/cortx-motr/create_confstorekey/scripts/install/opt/seagate/cortx/motr/share/examples/threenode.yaml
+sed -i "s/{HOSTNAME1}/$HOSTNAME1/" /var/lib/hare/cluster.yaml
+sed -i "s/{HOSTNAME2}/$HOSTNAME2/" /var/lib/hare/cluster.yaml
+sed -i "s/{HOSTNAME3}/$HOSTNAME3/" /var/lib/hare/cluster.yaml
 
-#EDIT HERE
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>storage>metadata_devices[0]=/dev/sdb"
-
-#EDIT HERE
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>storage>data_devices[0]=/dev/sdc"
-#conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>storage>data_devices[1]=/dev/sdd"
-#EDIT HERE
-
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>public_interfaces[0]=eth1"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>public_interfaces[1]=eth2"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>private_interfaces[0]=eth3"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>private_interfaces[1]=eth4"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>interface_type=tcp"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>transport_type=lnet"
-
-GENERATEDKEY=`s3cipher generate_key --const_key openldap`
-echo \$GENERATEDKEY
-
-ENCPW=`s3cipher encrypt --data 'seagate' --key \$GENERATEDKEY`
-echo \$ENCPW
-
-CLUSTERID=`conf yaml:///opt/seagate/cortx/s3/s3backgrounddelete/s3_cluster.yaml get 'cluster_config>cluster_id'|cut -d '"' -f 2`
-echo \$CLUSTERID
-
-PBIP=`ip addr show eth1|grep "inet "|awk '{print \$2}'|cut -d '/' -f 1`
-echo \$PBIP
-
-PRIP=`ip addr show eth3|grep "inet "|awk '{print \$2}'|cut -d '/' -f 1`
-echo \$PRIP
-
-conf json:///root/provisioner_cluster.json set "cluster>cluster_id=\$CLUSTERID"
-conf json:///root/provisioner_cluster.json set "cluster>mgmt_vip=127.0.0.1"
-conf json:///root/provisioner_cluster.json set "cluster>cluster_ip=127.0.0.1"
-conf json:///root/provisioner_cluster.json set "cluster>dns_servers[0]=8.8.8.8"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>public_ip=\$PBIP"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>private_ip=\$PRIP"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>netmask=255.255.255.0"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>gateway=255.255.255.0"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>network>data>roaming_ip=127.0.0.1"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-1>s3_instances=1"
-
-conf json:///root/provisioner_cluster.json set "openldap>root>secret=\$ENCPW"
-conf json:///root/provisioner_cluster.json set "openldap>sgiam>secret=\$ENCPW"
-conf json:///root/provisioner_cluster.json set "openldap>root>user=admin"
-conf json:///root/provisioner_cluster.json set "openldap>sgiam>user=sgiamadmin"
-
-######node-2
-ssh -o "StrictHostKeyChecking=no" ${VM2_FQDN} 'rm -f /etc/machine-id /var/lib/dbus/machine-id'
-ssh -o "StrictHostKeyChecking=no" ${VM2_FQDN} 'dbus-uuidgen --ensure=/etc/machine-id'
-ssh -o "StrictHostKeyChecking=no" ${VM2_FQDN} 'dbus-uuidgen --ensure'
-ssh -o "StrictHostKeyChecking=no" ${VM2_FQDN} 'systemctl status network'
-ssh -o "StrictHostKeyChecking=no" ${VM2_FQDN} 'cat /etc/machine-id'
-MACHINEID=`ssh -o "StrictHostKeyChecking=no" ${VM2_FQDN} 'cat /etc/machine-id'`
-conf json:///root/provisioner_cluster.json set "cluster>server_nodes>\$MACHINEID=srvnode-2"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>machine_id=\$MACHINEID"
-
-HOSTNAME=`ssh -o "StrictHostKeyChecking=no" ${VM2_FQDN} 'hostname'`
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>hostname=\$HOSTNAME"
-
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>node_type=VM"
-
-#EDIT HERE
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>storage>metadata_devices[0]=/dev/sdb"
-
-#EDIT HERE
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>storage>data_devices[0]=/dev/sdc"
-#conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>storage>data_devices[1]=/dev/sdd"
-#EDIT HERE
-
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>network>data>public_interfaces[0]=eth1"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>network>data>public_interfaces[1]=eth2"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>network>data>private_interfaces[0]=eth3"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>network>data>private_interfaces[1]=eth4"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>network>data>interface_type=tcp"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>network>data>transport_type=lnet"
-
-
-PBIP=`ssh -o "StrictHostKeyChecking=no" ${VM2_FQDN} ip addr show eth1|grep "inet "|awk '{print \$2}'|cut -d '/' -f 1`
-echo \$PBIP
-
-PRIP=`ssh -o "StrictHostKeyChecking=no" ${VM2_FQDN} ip addr show eth3|grep "inet "|awk '{print \$2}'|cut -d '/' -f 1`
-echo \$PRIP
-
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>network>data>public_ip=\$PBIP"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>network>data>private_ip=\$PRIP"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>network>data>netmask=255.255.255.0"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>network>data>gateway=255.255.255.0"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>network>data>roaming_ip=127.0.0.1"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-2>s3_instances=1"
-
-######node-3
-ssh -o "StrictHostKeyChecking=no" ${VM3_FQDN} 'rm -f /etc/machine-id /var/lib/dbus/machine-id'
-ssh -o "StrictHostKeyChecking=no" ${VM3_FQDN} 'dbus-uuidgen --ensure=/etc/machine-id'
-ssh -o "StrictHostKeyChecking=no" ${VM3_FQDN} 'dbus-uuidgen --ensure'
-ssh -o "StrictHostKeyChecking=no" ${VM3_FQDN} 'systemctl status network'
-ssh -o "StrictHostKeyChecking=no" ${VM3_FQDN} 'cat /etc/machine-id'
-MACHINEID=`ssh -o "StrictHostKeyChecking=no" ${VM3_FQDN} 'cat /etc/machine-id'`
-conf json:///root/provisioner_cluster.json set "cluster>server_nodes>\$MACHINEID=srvnode-3"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>machine_id=\$MACHINEID"
-
-HOSTNAME=`ssh -o "StrictHostKeyChecking=no" ${VM3_FQDN} 'hostname'`
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>hostname=\$HOSTNAME"
-
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>node_type=VM"
-
-#EDIT HERE
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>storage>metadata_devices[0]=/dev/sdb"
-
-#EDIT HERE
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>storage>data_devices[0]=/dev/sdc"
-#conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>storage>data_devices[1]=/dev/sdd"
-#EDIT HERE
-
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>network>data>public_interfaces[0]=eth1"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>network>data>public_interfaces[1]=eth2"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>network>data>private_interfaces[0]=eth3"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>network>data>private_interfaces[1]=eth4"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>network>data>interface_type=tcp"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>network>data>transport_type=lnet"
-
-
-PBIP=`ssh -o "StrictHostKeyChecking=no" ${VM3_FQDN} ip addr show eth1|grep "inet "|awk '{print \$2}'|cut -d '/' -f 1`
-echo \$PBIP
-
-PRIP=`ssh -o "StrictHostKeyChecking=no" ${VM3_FQDN} ip addr show eth3|grep "inet "|awk '{print \$2}'|cut -d '/' -f 1`
-echo \$PRIP
-
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>network>data>public_ip=\$PBIP"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>network>data>private_ip=\$PRIP"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>network>data>netmask=255.255.255.0"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>network>data>gateway=255.255.255.0"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>network>data>roaming_ip=127.0.0.1"
-conf json:///root/provisioner_cluster.json set "cluster>srvnode-3>s3_instances=1"
-
-scp /root/provisioner_cluster.json ${VM2_FQDN}:/root
-scp /root/provisioner_cluster.json ${VM3_FQDN}:/root
-                    """
-                    
-                    
+#cp /root/provisioner_cluster.json on all three nodes on same location.
+scp /root/provisioner_cluster.json $HOSTNAME2:/root/provisioner_cluster.json
+scp /root/provisioner_cluster.json $HOSTNAME3:/root/provisioner_cluster.json
+                    '''
                 }
             }
         }
@@ -489,31 +396,11 @@ scp /root/provisioner_cluster.json ${VM3_FQDN}:/root
                 script {
                     def remote = getTestMachine(VM1_FQDN)
                     def commandResult = sshCommand remote: remote, command: """
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[0]>m0_servers[0]>io_disks>meta_data"
-conf yaml:///var/lib/hare/cluster.yaml set "nodes[0]>m0_servers[0]>io_disks>meta_data=/dev/vg_srvnode-1_md1/lv_raw_md1"
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[0]>m0_servers[0]>io_disks>meta_data"
-
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[0]>m0_servers[1]>io_disks>meta_data"
-conf yaml:///var/lib/hare/cluster.yaml set "nodes[0]>m0_servers[1]>io_disks>meta_data=/dev/vg_srvnode-1_md1/lv_raw_md1"
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[0]>m0_servers[1]>io_disks>meta_data"
-
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[1]>m0_servers[0]>io_disks>meta_data"
-conf yaml:///var/lib/hare/cluster.yaml set "nodes[1]>m0_servers[0]>io_disks>meta_data=/dev/vg_srvnode-2_md1/lv_raw_md1"
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[1]>m0_servers[0]>io_disks>meta_data"
-
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[1]>m0_servers[1]>io_disks>meta_data"
-conf yaml:///var/lib/hare/cluster.yaml set "nodes[1]>m0_servers[1]>io_disks>meta_data=/dev/vg_srvnode-2_md1/lv_raw_md1"
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[1]>m0_servers[1]>io_disks>meta_data"
-
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[2]>m0_servers[0]>io_disks>meta_data"
-conf yaml:///var/lib/hare/cluster.yaml set "nodes[2]>m0_servers[0]>io_disks>meta_data=/dev/vg_srvnode-3_md1/lv_raw_md1"
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[2]>m0_servers[0]>io_disks>meta_data"
-
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[2]>m0_servers[1]>io_disks>meta_data"
-conf yaml:///var/lib/hare/cluster.yaml set "nodes[2]>m0_servers[1]>io_disks>meta_data=/dev/vg_srvnode-3_md1/lv_raw_md1"
-conf yaml:///var/lib/hare/cluster.yaml get "nodes[2]>m0_servers[1]>io_disks>meta_data"
 hctl bootstrap --mkfs /var/lib/hare/cluster.yaml
 hctl status
+dd if=/dev/urandom of=/tmp/128M bs=1M count=128
+/opt/seagate/cortx/hare/libexec/m0crate-io-conf > /tmp/m0crate-io.yaml
+m0crate -S /tmp/m0crate-io.yaml
                         """
                 }
             }
@@ -587,6 +474,7 @@ def getTestMachine(String host) {
 def addRepo(String host) {
     def remote = getTestMachine(host)
     def commandResult = sshCommand remote: remote, command: """
+curl -s http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/rpm/install-cortx-prereq.sh | bash
 yum-config-manager --add-repo=${REPO_URL}/cortx_iso/
 yum-config-manager --add-repo=${REPO_URL}/3rd_party/
 yum-config-manager --add-repo=${REPO_URL}/3rd_party/lustre/custom/tcp/
@@ -595,44 +483,18 @@ yum-config-manager --add-repo=${REPO_URL}/3rd_party/lustre/custom/tcp/
 def installRPM(String host) {
     def remote = getTestMachine(host)
     def commandResult = sshCommand remote: remote, command: """
-yum install -y consul --nogpgcheck
-yum install -y cortx-motr --nogpgcheck
-yum install -y cortx-hare --nogpgcheck
-yum install -y cortx-py-utils --nogpgcheck
-yum localinstall -y https://bintray.com/rabbitmq-erlang/rpm/download_file?file_path=erlang%2F23%2Fel%2F7%2Fx86_64%2Ferlang-23.1.5-1.el7.x86_64.rpm
-curl -s https://packagecloud.io/install/repositories/rabbitmq/rabbitmq-server/script.rpm.sh | sudo bash
-yum install -y rabbitmq-server
-yum install -y haproxy --nogpgcheck
-yum install -y openldap-servers openldap-clients
-yum install -y cortx-s3server --nogpgcheck
-yum install -y cortx-s3iamcli --nogpgcheck || yum-config-manager --add-repo=`echo $REPO_URL|sed 's/prod/dev/'`; yum install -y cortx-s3iamcli --nogpgcheck
-yum install -y gcc
-yum install -y python3-devel
+yum install -y cortx-motr cortx-hare cortx-py-utils  --nogpgcheck
     """
 }
 
-
-def installPyModules(String host) {
+def updateMachineID(String host) {
     def remote = getTestMachine(host)
     def commandResult = sshCommand remote: remote, command: """
-pip3 install aiohttp==3.6.1
-pip3 install elasticsearch-dsl==6.4.0
-pip3 install python-consul==1.1.0
-pip3 install schematics==2.1.0
-pip3 install toml==0.10.0
-pip3 install cryptography==2.8
-pip3 install PyYAML==5.1.2
-pip3 install configparser==4.0.2
-pip3 install networkx==2.4
-pip3 install numpy==1.19.2
-pip3 install matplotlib==3.1.3
-pip3 install argparse==1.4.0
-pip3 install confluent-kafka==1.5.0
-pip3 install python-crontab==2.5.1
-pip3 install elasticsearch==6.8.1
-pip3 install paramiko==2.7.1
-pip3 install pyldap
-true
+rm -f /etc/machine-id /var/lib/dbus/machine-id
+dbus-uuidgen --ensure=/etc/machine-id
+dbus-uuidgen --ensure
+systemctl status network
+cat /etc/machine-id
     """
 }
 
@@ -640,9 +502,10 @@ def miniMotr(String host) {
     def remote = getTestMachine(host)
     def commandResult = sshCommand remote: remote, command: """
 /opt/seagate/cortx/motr/bin/motr_setup post_install --config json:///root/provisioner_cluster.json
+/opt/seagate/cortx/motr/bin/motr_setup prepare --config json:///root/provisioner_cluster.json
 /opt/seagate/cortx/motr/bin/motr_setup config --config json:///root/provisioner_cluster.json
 /opt/seagate/cortx/motr/bin/motr_setup init --config json:///root/provisioner_cluster.json
-#/opt/seagate/cortx/motr/bin/motr_setup test --config json:///root/provisioner_cluster.json
+/opt/seagate/cortx/motr/bin/motr_setup test --config json:///root/provisioner_cluster.json
     """
 }
 
