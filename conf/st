@@ -161,7 +161,7 @@ services_start() {
         error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
 }
 
-services_stop() { killall -q lt-m0d && wait || true; }
+services_stop() { pkill m0d && wait || true; }
 
 _mount() {
     mount -t m0t1fs \
