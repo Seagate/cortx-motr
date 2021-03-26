@@ -22,7 +22,6 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BALLOC
 #include "lib/trace.h"
-
 #include <stdio.h>        /* sprintf */
 #include <stdlib.h>
 #include <memory.h>
