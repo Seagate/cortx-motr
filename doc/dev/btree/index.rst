@@ -1066,6 +1066,14 @@ Meetings
      - continue with BTree Interface discussion.
      - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210322%201040-1.mp4?csf=1&web=1&e=GWP3Ld>`_
 
+   * - 2021.03.24
+     - sync up
+     - shashank, jaydeep, nikhil, nikita, shankar, mukund, radha, madhav, hua
+     - discussed new BTree KV store possibilities.
+     - 
+     - continue with BTree Interface discussion.
+     - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210324%200936-1.mp4?csf=1&web=1&e=bRKziS>`_
+
 Detailed-level design (DLD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
