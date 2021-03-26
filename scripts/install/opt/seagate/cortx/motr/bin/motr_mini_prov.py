@@ -411,7 +411,7 @@ def get_nids(self, nodes):
         if (myhostname == node):
             cmd = "lctl list_nids"
         else:
-            cmd = (f"ssh  -o \"StrictHostKeyChecking=no\" {node}"
+            cmd = (f"ssh  {node}"
                     " lctl list_nids")
         op = execute_command(self, cmd)
         nids.append(op[0].rstrip("\n"))
