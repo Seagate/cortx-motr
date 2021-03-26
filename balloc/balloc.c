@@ -156,6 +156,15 @@ static bool is_spare(uint64_t alloc_flags);
 static bool is_normal(uint64_t alloc_flags);
 static bool is_any(uint64_t alloc_flag);
 
+static int index_hash(struct m0_balloc_super_block *sb,
+			m0_bcount_t block_offset)
+{
+	int grp_no;
+
+        grp_no = (block_offset - 1) / sb->bsb_groupsize;
+
+        return grp_no % BALLOC_DEF_INDEXES_NR;
+};
 
 static void balloc_debug_dump_extent(const char *tag, struct m0_ext *ex)
 {
@@ -723,8 +732,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
-	index_no = (ext.e_end - 1) / sb->bsb_groupsize;
-	index_no %= BALLOC_DEF_INDEXES_NR;
+	index_no = index_hash(sb, ext.e_end);
 	M0_LOG(M0_INFO, "insert btree normal index: %d endoff: %llu start: %llu",
 		 index_no, (unsigned long long)ext.e_end,
 		 (unsigned long long)ext.e_start);
@@ -742,8 +750,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	ext.e_end = ext.e_start + spare_size;
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
-	index_no = (ext.e_end - 1) / sb->bsb_groupsize;
-	index_no %= BALLOC_DEF_INDEXES_NR;
+	index_no = index_hash(sb, ext.e_end);
 	M0_LOG(M0_INFO, "group write insert btree spare index: %d endoff: %llu",
 		 index_no, (unsigned long long)ext.e_end);
 	rc = btree_insert_sync(&bal->cb_db_group_extents[index_no], tx, &key, &val);
@@ -1247,8 +1254,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	normal_range.e_end = spare_range.e_start;
 	m0_ext_init(&normal_range);
 
-	index_no = (normal_range.e_end - 1) / cb->cb_sb.bsb_groupsize;
-	index_no %= BALLOC_DEF_INDEXES_NR;
+	index_no = index_hash(&cb->cb_sb, normal_range.e_end);
 	M0_LOG(M0_INFO, "load normal index: %d endoff: %llu",
 		 index_no, (unsigned long long)normal_range.e_end);
 	db_ext = cb->cb_db_group_extents[index_no];
@@ -1350,8 +1356,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	normal_range.e_end = spare_range.e_start;
 	m0_ext_init(&normal_range);
 
-	index_no = (normal_range.e_end - 1)/ cb->cb_sb.bsb_groupsize;
-	index_no %= BALLOC_DEF_INDEXES_NR;
+	index_no = index_hash(&cb->cb_sb, normal_range.e_end);
 	db_ext = &cb->cb_db_group_extents[index_no];
 	M0_LOG(M0_INFO, "load normal index: %d endoff: %llu",
 		 index_no, (unsigned long long)normal_range.e_end);
@@ -1640,8 +1645,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 
 	M0_LOG(M0_DEBUG, "bzp_maxchunk=0x%"PRIx64" next_maxchunk=0x%"PRIx64,
 	       zp->bzp_maxchunk, maxchunk);
-	index_no = (tgt->e_end  - 1) / motr->cb_sb.bsb_groupsize;
-	index_no %= BALLOC_DEF_INDEXES_NR;
+	index_no = index_hash(&motr->cb_sb, tgt->e_end);
 	db = &motr->cb_db_group_extents[index_no];
 	if (cur->e_end == tgt->e_end) {
 		key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
@@ -1789,8 +1793,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 		return M0_RC(-EINVAL);
 	}
 
-	index_no = (tgt->e_end - 1) / motr->cb_sb.bsb_groupsize;
-	index_no %= BALLOC_DEF_INDEXES_NR;
+	index_no = index_hash(&motr->cb_sb, tgt->e_end);
 	db = &motr->cb_db_group_extents[index_no];
 	lcur = container_of(cur, struct m0_lext, le_ext);
 
