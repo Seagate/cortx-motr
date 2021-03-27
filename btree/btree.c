@@ -730,7 +730,7 @@ struct node_type {
  * used by the b-tree module. Node descriptors are cached.
  */
 struct nd {
-	struct segaddr         *n_addr;
+	struct segaddr          n_addr;
 	struct td              *n_tree;
 	const struct node_type *n_type;
 	/**
@@ -829,18 +829,31 @@ int  node_count(const struct nd *node);
 int  node_space(const struct nd *node);
 int  node_level(const struct nd *node);
 int  node_size (const struct nd *node);
+void node_fid  (const struct nd *node, struct m0_fid *fid);
 void node_rec  (struct slot *slot);
 void node_key  (struct slot *slot);
 void node_child(struct slot *slot, struct segaddr *addr);
 bool node_isfit(struct slot *slot);
-bool node_set  (struct slot *slot, struct m0_be_tx *tx);
+bool node_done (struct slot *slot, struct m0_be_tx *tx, bool modified);
 void node_make (struct slot *slot, struct m0_be_tx *tx);
 void node_find (struct slot *slot, struct m0_btree_key *key);
-void node_fix  (struct slot *slot, struct m0_be_tx *tx);
+void node_fix  (const struct nd *node, struct m0_be_tx *tx);
 int  node_cut  (const struct nd *node, int idx, int size, struct m0_be_tx *tx);
 int  node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
 void node_move (const struct nd *prev, const struct nd *next, enum dir dir,
 		int nr, struct m0_be_tx *tx);
+
+/**
+ * Common node header.
+ *
+ * This structure is located at the beginning of every node, right after
+ * m0_format_header. It is used by the segment operations (node_op) to identify
+ * node and tree types.
+ */
+struct node_header {
+	uint32_t h_node_type;
+	uint32_t h_tree_type;
+};
 
 #undef M0_TRACE_SUBSYSTEM
 
