@@ -46,9 +46,6 @@ struct m0_btree_op {
 	struct m0_btree_oimpl *bo_i;
 };
 
-struct m0_bcookie {
-};
-
 /** @} end of btree group */
 #endif /* __MOTR_BTREE_INTERNAL_H__ */
 
