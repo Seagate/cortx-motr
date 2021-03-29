@@ -1620,6 +1620,19 @@ int m0_client_init(struct m0_client **m0c_p,
 					 M0_CST_DTM0, &cli_svc_fid);
 	M0_ASSERT(rc == 0);
 
+	if (M0_FI_ENABLED("hardcoded-dtm0s-fid")) {
+		/* When in UT, m0c_reqh.rh_fid is the same as the
+		 * server process fid. It causes the client to use
+		 * the server-side service fid. Hard-coding of the client
+		 * service fid resolves this problem.
+		 * TODO: When in UT, walk over the list of processes in
+		 * the conf cache and get the service with "volatile"
+		 * property from there. It will help to get rid of the
+		 * hard-coded service fid.
+		 */
+		cli_svc_fid  = M0_FID_INIT(0x7300000000000001, 0x1a);
+	}
+
 #ifndef __KERNEL__
 	(void) m0_dtm__client_service_start(&m0c->m0c_reqh, &cli_svc_fid);
 #endif
