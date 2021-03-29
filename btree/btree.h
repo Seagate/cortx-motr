@@ -27,7 +27,6 @@
 #include "lib/types.h"
 #include "lib/vec.h"
 #include "xcode/xcode_attr.h"
-#include "btree/internal.h"
 
 /**
  * @defgroup btree
@@ -44,6 +43,13 @@ struct m0_btree_op;
 struct m0_btree_rec;
 struct m0_btree_cb;
 struct m0_btree_key;
+
+struct m0_btree_type {
+	uint32_t tt_id;
+};
+
+struct m0_bcookie {
+};
 
 struct m0_btree_key {
 	struct m0_bufvec  k_data;
@@ -105,6 +111,9 @@ void m0_btree_op_credit(const struct m0_btree_op *bt,
 			struct m0_be_tx_credit *cr);
 
 #include "btree/internal.h"
+
+int  m0_btree_mod_init(void);
+void m0_btree_mod_fini(void);
 
 /** @} end of btree group */
 #endif /* __MOTR_BTREE_BTREE_H__ */
