@@ -430,7 +430,8 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	grpend   = grpstart + grpsize;
 	pagesize = m0__page_size(ioo);
 
-	/* For a write, if this map does not span the whole parity group,
+	/*
+	 * For a write, if this map does not span the whole parity group,
 	 * it is a read-modify-write.
 	 *
 	 * Note (Sining): as Client objects don't have attribute SIZE,
