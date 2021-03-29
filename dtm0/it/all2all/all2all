@@ -8,6 +8,8 @@ MOTR_ST_UTILS_DIR=${MOTR_ROOT}/motr/st/utils/
 MOTR_VAR_DIR=/var/motr
 TEST_ROOT=$MOTR_VAR_DIR/all2all_test
 CURRENT_CDF=$PWD/cdf.yaml
+M0CRATE_CFG_IN=$PWD/m0crate.yaml.in
+M0CRATE_CFG=$PWD/m0crate.yaml
 CONFD_XC=/var/lib/hare/confd.xc
 LOOP_IMG_DIR=$TEST_ROOT
 
@@ -50,10 +52,30 @@ function get_m0d_pids()
     _info "m0d PIDs: $pids"
 }
 
+function create_m0crate_cfg()
+{
+    local hctl_json_out=$(hctl status --json)
+    local svcs_json_out=$(echo $hctl_json_out | jq -r '.nodes[] | .svcs[]')
+
+    local PROF=$(echo $hctl_json_out | jq -r '.profiles[] | .fid')
+    local MOTR_LOCAL_ADDR=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client")) | .ep')
+    local PROCESS_FID=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client")) | .fid')
+    local MOTR_HA_ADDR=$(echo $svcs_json_out | jq -r 'select( .name | contains("hax")) | .ep')
+
+    local M0CRATE_CFG_TMP=m0crate_cfg.tmp
+    cp $M0CRATE_CFG_IN $M0CRATE_CFG_TMP
+    sed -i "s/###__PROF__###/$PROF/g" $M0CRATE_CFG_TMP
+    sed -i "s/###__MOTR_LOCAL_ADDR__###/$MOTR_LOCAL_ADDR/g" $M0CRATE_CFG_TMP
+    sed -i "s/###__PROCESS_FID__###/$PROCESS_FID/g" $M0CRATE_CFG_TMP
+    sed -i "s/###__MOTR_HA_ADDR__###/$MOTR_HA_ADDR/g" $M0CRATE_CFG_TMP
+    mv $M0CRATE_CFG_TMP $M0CRATE_CFG
+}
+
 function get_params_for_ha_msgs()
 {
-    local svc_json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[] | select( .name | contains("ioservice"))')
-    local cli_json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[] | select( .name | contains("m0_client"))')
+    local svcs_json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[]')
+    local svc_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("ioservice"))')
+    local cli_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client"))')
     M0D_ENDPOINTS=($(echo $svc_json_out | jq -r '.ep' | sed -E 's/.*@tcp[:](.*)/\1/'))
     M0D_FIDS_HEX=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
     M0D_FIDS_DEC=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e'))
@@ -153,8 +175,11 @@ function main()
         fail "Process is not connected, exiting"
     }
 
+    _info "Create m0crate configuration..."
+    create_m0crate_cfg
+
     _info "Run the client..."
-    $MOTR_ROOT/motr/m0crate/m0crate -S m0crate.yaml &
+    $MOTR_ROOT/motr/m0crate/m0crate -S $M0CRATE_CFG &
     cli_pid=$!
     sleep 3
     _info "Sending client is ONLINE..."
