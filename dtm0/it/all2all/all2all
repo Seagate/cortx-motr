@@ -7,7 +7,7 @@ MOTR_UTILS_DIR=${MOTR_ROOT}/utils
 MOTR_ST_UTILS_DIR=${MOTR_ROOT}/motr/st/utils/
 MOTR_VAR_DIR=/var/motr
 TEST_ROOT=$MOTR_VAR_DIR/all2all_test
-CURRENT_CDF=$PWD/test.yaml
+CURRENT_CDF=$PWD/cdf.yaml
 CONFD_XC=/var/lib/hare/confd.xc
 LOOP_IMG_DIR=$TEST_ROOT
 
@@ -17,6 +17,8 @@ M0D_ENDPOINTS=()
 M0D_FIDS_DEC=()
 M0D_FIDS_HEX=()
 M0D_PIDS=()
+
+M0D_CLI_FID_DEC=
 
 POOL_WIDTH=4
 IPOOL_WIDTH=2
@@ -50,10 +52,12 @@ function get_m0d_pids()
 
 function get_params_for_ha_msgs()
 {
-    local json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[] | select( .name | contains("ioservice"))')
-    M0D_ENDPOINTS=($(echo $json_out | jq -r '.ep' | sed -E 's/.*@tcp[:](.*)/\1/'))
-    M0D_FIDS_HEX=($(echo $json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
-    M0D_FIDS_DEC=($(echo $json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e'))
+    local svc_json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[] | select( .name | contains("ioservice"))')
+    local cli_json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[] | select( .name | contains("m0_client"))')
+    M0D_ENDPOINTS=($(echo $svc_json_out | jq -r '.ep' | sed -E 's/.*@tcp[:](.*)/\1/'))
+    M0D_FIDS_HEX=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
+    M0D_FIDS_DEC=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e'))
+    M0D_CLI_FID_DEC=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e')
 }
 
 function ha_msg_send_transient()
@@ -84,6 +88,14 @@ function ha_msg_send_online()
     done
 }
 
+function ha_msg_send_cli_online()
+{
+    # Here we send "ONLINE" messages to connect servers to client.
+    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
+        $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_CLI_FID_DEC}" "online"
+    done
+}
+
 function expected_trace_lines_num()
 {
     local pattern="$1"
@@ -110,6 +122,8 @@ function fail()
 
 function main()
 {
+    local cli_pid
+
     ${MOTR_UTILS_DIR}/m0setup --init-loop-only -s 1 -d ${TEST_ROOT} --pool-width ${POOL_WIDTH} --ipool-width ${IPOOL_WIDTH}
 
     _info "Bootstrapping the cluster using Hare..."
@@ -138,6 +152,15 @@ function main()
     expected_trace_lines_num "DTM0 service: connected" $((${#M0D_ENDPOINTS[@]}-1)) || {
         fail "Process is not connected, exiting"
     }
+
+    _info "Run the client..."
+    $MOTR_ROOT/motr/m0crate/m0crate -S m0crate.yaml &
+    cli_pid=$!
+    sleep 3
+    _info "Sending client is ONLINE..."
+    ha_msg_send_cli_online
+    _info "Wait for client..."
+    wait $cli_pid
 
     stop_cluster
 

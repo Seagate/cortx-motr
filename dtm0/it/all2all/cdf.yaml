@@ -8,19 +8,19 @@ nodes:
           data: []
       - io_disks:
           data:
+            - /dev/loop0
             - /dev/loop1
+      - io_disks:
+          data:
             - /dev/loop2
-      - io_disks:
-          data:
             - /dev/loop3
-            - /dev/loop4
       - io_disks:
           data:
+            - /dev/loop4
             - /dev/loop5
-            - /dev/loop6
     m0_clients:
         s3: 0
-        other: 2
+        other: 1
 
 pools:
   - name: SNS pool
