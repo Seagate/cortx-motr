@@ -49,6 +49,7 @@ enum m0_module_id {
 	M0_MODULE_PROCESSOR,
 	M0_MODULE_POOL,
 	M0_MODULE_ISC,
+	M0_MODULE_BTREE,
 	/* XXX ... more to come ... */
 	M0_MODULE_NR
 };
