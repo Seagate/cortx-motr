@@ -149,30 +149,24 @@ static void test_indexvec_varr_cursor(void)
 {
 	struct m0_indexvec_varr ivv;
 	struct m0_ivec_varr_cursor ivc;
-	m0_bcount_t *v_count;
-	m0_bindex_t *v_index;
 	m0_bcount_t  c;
 	int          nr;
 	int          rc;
 
 	M0_SET0(&ivv);
-	rc = m0_indexvec_varr_alloc(&ivv, 3);
+	rc = m0_indexvec_varr_alloc(&ivv, 4);
 	M0_UT_ASSERT(rc == 0);
 
 	/* data initialization begins */
-	v_count = m0_varr_ele_get(&ivv.iv_count, 0);
-	*v_count = 2;
-	v_count = m0_varr_ele_get(&ivv.iv_count, 1);
-	*v_count = 2;
-	v_count = m0_varr_ele_get(&ivv.iv_count, 2);
-	*v_count = 4;
+	*(m0_bindex_t*)(m0_varr_ele_get(&ivv.iv_index, 0)) = 0;
+	*(m0_bindex_t*)(m0_varr_ele_get(&ivv.iv_index, 1)) = 1;
+	*(m0_bindex_t*)(m0_varr_ele_get(&ivv.iv_index, 2)) = 2;
+	*(m0_bindex_t*)(m0_varr_ele_get(&ivv.iv_index, 3)) = 8;
 
-	v_index = m0_varr_ele_get(&ivv.iv_index, 0);
-	*v_index = 0;
-	v_index = m0_varr_ele_get(&ivv.iv_index, 1);
-	*v_index = 2;
-	v_index = m0_varr_ele_get(&ivv.iv_index, 2);
-	*v_index = 8;
+	*(m0_bcount_t*)(m0_varr_ele_get(&ivv.iv_count, 0)) = 2;
+	*(m0_bcount_t*)(m0_varr_ele_get(&ivv.iv_count, 1)) = 3; /*overlapping*/
+	*(m0_bcount_t*)(m0_varr_ele_get(&ivv.iv_count, 2)) = 1; /*overlapping*/
+	*(m0_bcount_t*)(m0_varr_ele_get(&ivv.iv_count, 3)) = 4;
 	/* data initialization ends */
 
 	m0_varr_for(&ivv.iv_count, uint64_t *, i, countp) {
@@ -188,20 +182,46 @@ static void test_indexvec_varr_cursor(void)
 	M0_UT_ASSERT(ivc.vc_seg    == 0);
 	M0_UT_ASSERT(ivc.vc_offset == 0);
 
-	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 2);
 	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 0);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 2);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 0) == 0);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 1) == 1);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 2) == 2);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 3) == 3);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 4) == 4);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 5) == 4);
 
 	M0_UT_ASSERT(!m0_ivec_varr_cursor_move (&ivc, 1)  );
 	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 1);
 	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 1);
 
 	M0_UT_ASSERT(!m0_ivec_varr_cursor_move (&ivc, 1)  );
-	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 2);
-	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 2);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 1); /* seg[1] */
+	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 3);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 1) == 1);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 2) == 2);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 3) == 3);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 4) == 4);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 5) == 4);
 
 	M0_UT_ASSERT(!m0_ivec_varr_cursor_move (&ivc, 2)  );
-	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 8);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 3);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 1);
+
+	M0_UT_ASSERT(!m0_ivec_varr_cursor_move (&ivc, 1)  );
+	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 2); /* seg[2] */
+	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 1);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 2) == 2);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 3) == 3);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 4) == 3);
+
+	M0_UT_ASSERT(!m0_ivec_varr_cursor_move (&ivc, 1)  );
+	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 8); /* seg[3] */
 	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 4);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 8) == 8);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 9) == 9);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 12) == 12);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_conti(&ivc, 13) == 12);
 
 	M0_UT_ASSERT( m0_ivec_varr_cursor_move (&ivc, 4)  ); /* at the end*/
 
@@ -226,7 +246,7 @@ static void test_indexvec_varr_cursor(void)
 		c = m0_ivec_varr_cursor_step(&ivc);
 		++nr;
 	}
-	M0_UT_ASSERT(nr == 3);
+	M0_UT_ASSERT(nr == 4);
 
 	m0_indexvec_varr_free(&ivv);
 }
@@ -261,9 +281,11 @@ static void test_ivec_cursor(void)
 	M0_UT_ASSERT(m0_ivec_cursor_conti(&cur, 3) == 3);
 	M0_UT_ASSERT(m0_ivec_cursor_conti(&cur, 4) == 4);
 	M0_UT_ASSERT(m0_ivec_cursor_conti(&cur, 5) == 4);
+
 	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 1));
 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 1);
 	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 1);
+
 	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 1));
 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 1); /* seg[1] */
 	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 3);
@@ -272,14 +294,18 @@ static void test_ivec_cursor(void)
 	M0_UT_ASSERT(m0_ivec_cursor_conti(&cur, 3) == 3);
 	M0_UT_ASSERT(m0_ivec_cursor_conti(&cur, 4) == 4);
 	M0_UT_ASSERT(m0_ivec_cursor_conti(&cur, 5) == 4);
+
 	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 2));
 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 3);
+	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 1);
+
 	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 1));
 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 2); /* seg[2] */
 	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 1);
 	M0_UT_ASSERT(m0_ivec_cursor_conti(&cur, 2) == 2);
 	M0_UT_ASSERT(m0_ivec_cursor_conti(&cur, 3) == 3);
 	M0_UT_ASSERT(m0_ivec_cursor_conti(&cur, 4) == 3);
+
 	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 1));
 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 8); /* seg[3] */
 	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 4);
@@ -288,6 +314,20 @@ static void test_ivec_cursor(void)
 	M0_UT_ASSERT(m0_ivec_cursor_conti(&cur, 12) == 12);
 	M0_UT_ASSERT(m0_ivec_cursor_conti(&cur, 13) == 12);
 	M0_UT_ASSERT(m0_ivec_cursor_move(&cur, 4));
+
+	/* test move_to */
+	m0_ivec_cursor_init(&cur, &ivec);
+	M0_UT_ASSERT(!m0_ivec_cursor_move_to(&cur, 1));
+	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 1);
+	M0_UT_ASSERT(m0_ivec_cursor_step (&cur) == 1);
+
+	M0_UT_ASSERT(!m0_ivec_cursor_move_to(&cur, 3));
+	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 3);
+	M0_UT_ASSERT(m0_ivec_cursor_step (&cur) == 1);
+	M0_UT_ASSERT(!m0_ivec_cursor_move_to(&cur, 10));
+	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) ==10);
+	M0_UT_ASSERT(m0_ivec_cursor_step (&cur) == 2);
+	M0_UT_ASSERT(m0_ivec_cursor_move_to(&cur, 12)); /* at the end*/
 
 	m0_ivec_cursor_init(&cur, &ivec);
 	c = 0;

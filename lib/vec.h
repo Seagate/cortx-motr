@@ -488,12 +488,12 @@ M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(const struct m0_ivec_cursor *cur);
 
 /**
  * Returns the latest index through the contiguous segments up to @dest.
- * @pre   dest >= m0_ivec_cursor_index(cursor).
+ * @pre   dest >= m0_ivec_cursor_index(cur).
  * @param cur cursor to start from.
  * @param dest uptil where to check.
  */
-M0_INTERNAL m0_bindex_t m0_ivec_cursor_conti(const struct m0_ivec_cursor *cur,
-					     m0_bindex_t dest);
+M0_INTERNAL m0_bindex_t
+m0_ivec_cursor_conti(const struct m0_ivec_cursor *cur, m0_bindex_t dest);
 
 /**
    Zero vector is a full fledged IO vector containing IO extents
@@ -768,8 +768,17 @@ m0_ivec_varr_cursor_step(const struct m0_ivec_varr_cursor *cur);
  * @ret   Index at current cursor position.
  */
 M0_INTERNAL m0_bindex_t
-m0_ivec_varr_cursor_index(struct m0_ivec_varr_cursor *cur);
+m0_ivec_varr_cursor_index(const struct m0_ivec_varr_cursor *cur);
 
+/**
+ * Returns the latest index through the contiguous segments up to @dest.
+ * @pre   dest >= m0_ivec_varr_cursor_index(cur).
+ * @param cur cursor to start from.
+ * @param dest uptil where to check.
+ */
+M0_INTERNAL m0_bindex_t
+m0_ivec_varr_cursor_conti(const struct m0_ivec_varr_cursor *cur,
+			  m0_bindex_t dest);
 /** @} end of vec group */
 
 /* __MOTR_LIB_VEC_H__ */
