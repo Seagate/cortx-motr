@@ -579,7 +579,9 @@ static int dtm0_service__ha_unsubscribe(struct m0_reqh_service *reqh_service)
 {
 	struct dtm0_process *process;
 	struct m0_dtm0_service *service;
-	/* int rc; */
+#if 0
+	int rc;
+#endif
 
 	M0_PRE(reqh_service != NULL);
 	service = container_of(reqh_service, struct m0_dtm0_service, dos_generic);
@@ -587,11 +589,14 @@ static int dtm0_service__ha_unsubscribe(struct m0_reqh_service *reqh_service)
 	M0_ENTRY();
 
 	while ((process = dopr_tlist_pop(&service->dos_processes)) != NULL) {
-		/* if (process->dop_rserv_fid.f_key == 0x1a) { */
-		/* 	       rc = m0_dtm0_service_process_disconnect(reqh_service, */
-		/* 						       &process->dop_rserv_fid); */
-		/* 	       M0_ASSERT(rc == 0 || rc == -ENOENT); */
-		/* } */
+		/* FIXME: Explicit disconnect ends up with an endless loop. */
+#if 0
+		if (process->dop_rserv_fid.f_key == 0x1a) {
+			       rc = m0_dtm0_service_process_disconnect(reqh_service,
+								       &process->dop_rserv_fid);
+			       M0_ASSERT(rc == 0 || rc == -ENOENT);
+		}
+#endif
 		dtm0_process__ha_state_unsubscribe(process);
 		dopr_tlink_fini(process);
 		m0_free(process);

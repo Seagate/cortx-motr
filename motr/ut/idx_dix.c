@@ -788,7 +788,6 @@ struct m0_client* st_get_instance()
 struct dtm0_ut_ctx {
 	struct m0_fid           duc_cli_svc_fid;
 	struct m0_fid           duc_srv_svc_fid;
-	struct m0_reqh_service *duc_cli_svc;
 	struct m0_reqh_service *duc_srv_svc;
 	struct m0_idx           duc_idx;
 	struct m0_container     duc_realm;
@@ -804,34 +803,30 @@ static int duc_setup(void)
 							    0x1a);
 	struct m0_fid            srv_dtm0_fid = M0_FID_INIT(0x7300000000000001,
 							    0x1c);
-	struct m0_reqh_service  *cli_srv;
 	struct m0_reqh_service  *srv_srv;
 	struct m0_reqh          *srv_reqh;
 	int                      rc;
 	struct m0_container     *realm = &duc.duc_realm;
 
+	m0_fi_enable("m0_client_init", "hardcoded-dtm0s-fid");
 	rc = ut_suite_mt_idx_dix_init();
 	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(ut_m0c->m0c_dtms != NULL);
 
 	m0_container_init(realm, NULL, &M0_UBER_REALM, ut_m0c);
 
 	/* Connect to the server */
 	srv_reqh = &dix_ut_sctx.rsx_motr_ctx.cc_reqh_ctx.rc_reqh;
-	cli_srv = m0_dtm__client_service_start(&ut_m0c->m0c_reqh, &cli_srv_fid);
-	M0_UT_ASSERT(cli_srv != NULL);
 	srv_srv = m0_reqh_service_lookup(srv_reqh, &srv_dtm0_fid);
 	rc = m0_dtm0_service_process_connect(srv_srv, &cli_srv_fid, cl_ep_addr,
 					     false);
 	M0_UT_ASSERT(rc == 0);
-	ut_m0c->m0c_dtms = m0_dtm0_service_find(&ut_m0c->m0c_reqh);
-	M0_UT_ASSERT(ut_m0c->m0c_dtms != NULL);
 
 	general_ifid_fill(&duc.duc_ifid, true);
 
 	/* Save the context */
 	duc.duc_cli_svc_fid = cli_srv_fid;
 	duc.duc_srv_svc_fid = srv_dtm0_fid;
-	duc.duc_cli_svc = cli_srv;
 	duc.duc_srv_svc = srv_srv;
 
 	return 0;
@@ -879,7 +874,6 @@ static void idx_teardown(void)
 
 static int duc_teardown(void)
 {
-	struct m0_reqh_service  *cli_srv = duc.duc_cli_svc;
 	struct m0_reqh_service  *srv_srv = duc.duc_srv_svc;
 	struct m0_fid            cli_srv_fid  = duc.duc_cli_svc_fid;
 	int                      rc;
@@ -887,9 +881,10 @@ static int duc_teardown(void)
 	/* Disconnect from the server */
 	rc = m0_dtm0_service_process_disconnect(srv_srv, &cli_srv_fid);
 	M0_UT_ASSERT(rc == 0);
-	m0_dtm__client_service_stop(cli_srv);
 
-	return ut_suite_mt_idx_dix_fini();
+	rc = ut_suite_mt_idx_dix_fini();
+	m0_fi_disable("m0_client_init", "hardcoded-dtm0s-fid");
+	return rc;
 }
 
 /* Submits multiple M0 client (PUT|DEL) operations and then waits on EXECUTED,

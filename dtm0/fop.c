@@ -306,6 +306,8 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 	} else {
 		M0_ASSERT(m0_fom_phase(fom) == M0_FOPH_TYPE_SPECIFIC);
 		req = m0_fop_data(fom->fo_fop);
+		rep = m0_fop_data(fom->fo_rep_fop);
+		M0_SET0(&rep->dr_txr);
 		svc = m0_dtm0_service_find(fom->fo_service->rs_reqh);
 		M0_ASSERT(svc != NULL);
 
@@ -315,17 +317,15 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 		       FID_P(&fom->fo_service->rs_service_fid),
 		       fom->fo_service->rs_reqh);
 
-		/* XXX: This needs to be wrapped with something like "is_ut"
-		 * because in the real life DTM should not "execute" anything.
-		 * It can do "REDO" but cannot "EXECUTE".
-		 * Besides, there is a hardocoded fid.
-		 */
-		if (req->dtr_msg == DMT_EXECUTE &&
+		if (m0_dtm0_in_ut() && req->dtr_msg == DMT_EXECUTE &&
 		    m0_dtm0_is_a_persistent_dtm(fom->fo_service)) {
-			m0_dtm0_send_notice(svc, DTM_PERSISTENT,
+			m0_dtm0_send_notice(svc, DMT_EXECUTED,
 					    &M0_FID_INIT(0x7300000000000001,
 							0x1a),
 					    &req->dtr_txr);
+			rc = m0_dtm0_tx_desc_copy(&req->dtr_txr,
+						  &rep->dr_txr);
+			M0_ASSERT(rc == 0);
 		}
 
 		if (req->dtr_msg == DTM_PERSISTENT &&
@@ -337,9 +337,6 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 						    fom->fo_fop);
 		}
 
-		rep = m0_fop_data(fom->fo_rep_fop);
-
-		M0_SET0(&rep->dr_txr);
 		rep->dr_rc = 0;
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		rc = M0_FSO_AGAIN;
