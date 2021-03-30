@@ -944,7 +944,15 @@ EXTRA_DIST += $(motr_cron_SCRIPTS)
     
 motr_confdir = $(motrdir)/conf
 motr_conf_DATA = scripts/install$(motr_confdir)/motr.conf \
-                 scripts/install$(motr_confdir)/setup.yaml
+                 scripts/install$(motr_confdir)/setup.yaml \
+                 scripts/install$(motr_confdir)/motr.config.tmpl \
+                 scripts/install$(motr_confdir)/motr.config.tmpl.sample \
+                 scripts/install$(motr_confdir)/motr.post_install.tmpl \
+                 scripts/install$(motr_confdir)/motr.post_install.tmpl.sample \
+                 scripts/install$(motr_confdir)/motr.prepare.tmpl \
+                 scripts/install$(motr_confdir)/motr.prepare.tmpl.sample \
+                 scripts/install$(motr_confdir)/motr.test.tmpl  \
+                 scripts/install$(motr_confdir)/motr.test.tmpl.sample
 
 EXTRA_DIST += $(motr_conf_DATA)
 
