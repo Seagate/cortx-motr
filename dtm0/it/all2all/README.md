@@ -30,30 +30,3 @@ it needs to be patched by the hare.patch in current directory
 to make it able to generate clusted configuration that includes
 DTM0 service. After that it should be built and installed into
 the system (see README.md in the root of Hare repo).
-
-## m0crate configuration
-
-Before running the test the m0crate.yaml should be modified
-according to local machine settings (IPs, service endpoints
-and so on). To get the required information (and also to check
-that Hare is able to bootstrap) the part related to m0crate run
-and cluster shutdown can be commented, after that the test can
-be run just typing the following:
-
-$ sudo ./all2all
-
-It bootstraps the cluster, does required checks and leaves m0d
-processes running. Then the hctl status command can be run to
-get the information about IPs and endpoints:
-
-$ hctl status
-
-After m0crate config file modififcations are done the cluster
-can be stopped manually:
-
-$ sudo hctl shutdown
-
-Then uncomment the part related to m0crate and cluster shutdown.
-Now the test is ready to be run:
-
-$ sudo ./all2all
