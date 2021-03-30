@@ -148,7 +148,6 @@ static void dtm0_ut_client_fini(struct cl_ctx *cctx)
 	m0_net_domain_fini(&cctx->cl_ndom);
 }
 
-extern struct m0_semaphore g_test_wait;
 static void dtm0_ut_service(void)
 {
 	int rc;
@@ -167,8 +166,6 @@ static void dtm0_ut_service(void)
 
 	m0_fi_enable("m0_dtm0_in_ut", "ut");
 
-	m0_semaphore_init(&g_test_wait, 0);
-
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 
@@ -176,21 +173,18 @@ static void dtm0_ut_service(void)
 	cli_srv = m0_dtm__client_service_start(&cctx.cl_ctx.rcx_reqh, &cli_srv_fid);
 	M0_UT_ASSERT(cli_srv != NULL);
 	srv_srv = m0_reqh_service_lookup(srv_reqh, &srv_dtm0_fid);
-	/* rc = m0_dtm0_service_process_connect(srv_srv, &cli_srv_fid, cl_ep_addr, false); */
-	/* M0_UT_ASSERT(rc == 0); */
-
-	m0_semaphore_down(&g_test_wait);
+	rc = m0_dtm0_service_process_connect(srv_srv, &cli_srv_fid, cl_ep_addr, false);
+	M0_UT_ASSERT(rc == 0);
 
 	dtm0_ut_send_fops(&cctx.cl_ctx.rcx_session);
 
-	/* rc = m0_dtm0_service_process_disconnect(srv_srv, &cli_srv_fid); */
-	/* M0_UT_ASSERT(rc == 0); */
+	rc = m0_dtm0_service_process_disconnect(srv_srv, &cli_srv_fid);
+	M0_UT_ASSERT(rc == 0);
 	(void)srv_srv;
-	m0_rpc_server_stop(&sctx);
 
 	m0_dtm__client_service_stop(cli_srv);
 	dtm0_ut_client_fini(&cctx);
-	/* m0_rpc_server_stop(&sctx); */
+	m0_rpc_server_stop(&sctx);
 	m0_fi_disable("m0_dtm0_in_ut", "ut");
 }
 
