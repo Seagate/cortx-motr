@@ -337,8 +337,8 @@ static void test_pv2fd_conv(void)
 #ifndef __KERNEL__
 	char                *confstr = NULL;
 #endif
-	uint32_t             failure_level;
-	uint64_t             max_failures = 1;
+	uint32_t             failure_level = 0;
+	uint64_t             max_failures  = 1;
 	int                  i;
 	int                  rc;
 
