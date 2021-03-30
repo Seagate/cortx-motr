@@ -42,6 +42,10 @@
 #include "dtm0/service.h"              /* m0_dtm0_service_find */
 #ifndef __KERNEL__
 #include "dtm0/helper.h"
+#include <stdlib.h>
+#include <unistd.h>
+#else
+#include <linux/delay.h>
 #endif
 #endif
 
@@ -1620,7 +1624,7 @@ int m0_client_init(struct m0_client **m0c_p,
 					 M0_CST_DTM0, &cli_svc_fid);
 	M0_ASSERT(rc == 0);
 
-	if (M0_FI_ENABLED("hardcoded-dtm0s-fid")) {
+	if (m0_dtm0_in_ut()) {
 		/* When in UT, m0c_reqh.rh_fid is the same as the
 		 * server process fid. It causes the client to use
 		 * the server-side service fid. Hard-coding of the client
@@ -1639,8 +1643,14 @@ int m0_client_init(struct m0_client **m0c_p,
 	m0c->m0c_dtms = m0_dtm0_service_find(&m0c->m0c_reqh);
 	M0_ASSERT(m0c->m0c_dtms != NULL);
 
-	if (!m0_dtm0_in_ut())
-		m0_nanosleep(m0_time(15, 0), NULL);
+	if (!m0_dtm0_in_ut()) {
+#ifndef __KERNEL__
+		sleep(15);
+#else
+		msleep(15000);
+#endif
+
+	}
 #endif
 	if (conf->mc_is_addb_init) {
 		char buf[64];

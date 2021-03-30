@@ -807,7 +807,7 @@ static int duc_setup(void)
 	int                      rc;
 	struct m0_container     *realm = &duc.duc_realm;
 
-	m0_fi_enable("m0_client_init", "hardcoded-dtm0s-fid");
+	m0_fi_enable("m0_dtm0_in_ut", "ut");
 	rc = ut_suite_mt_idx_dix_init();
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ut_m0c->m0c_dtms != NULL);
@@ -882,7 +882,7 @@ static int duc_teardown(void)
 	M0_UT_ASSERT(rc == 0);
 
 	rc = ut_suite_mt_idx_dix_fini();
-	m0_fi_disable("m0_client_init", "hardcoded-dtm0s-fid");
+	m0_fi_disable("m0_dtm0_in_ut", "ut");
 	return rc;
 }
 
