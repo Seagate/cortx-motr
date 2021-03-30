@@ -386,15 +386,12 @@ M0_INTERNAL bool m0_dtm0_in_ut(void)
 
 /* --------------------------------- EVENTS --------------------------------- */
 
-struct m0_semaphore g_test_wait;
 static int ready_to_process_ha_msgs = 0;
 
 static bool service_connect_clink(struct m0_clink *link)
 {
 	M0_ENTRY();
 	M0_LOG(M0_DEBUG, "DTM0 service: connected");
-	if (m0_dtm0_in_ut())
-		m0_semaphore_up(&g_test_wait);
 	M0_LEAVE();
 	return true;
 }
@@ -433,6 +430,11 @@ static bool process_clink_cb(struct m0_clink *clink)
 	M0_PRE(m0_fid_eq(evented_proc_fid, &process->dop_rproc_fid));
 	M0_PRE(!m0_fid_eq(evented_proc_fid, &M0_FID0));
 	M0_PRE(!m0_fid_eq(evented_proc_fid, current_proc_fid));
+
+	if (m0_dtm0_in_ut()) {
+		M0_LOG(M0_DEBUG, "No HA handling in UT.");
+		goto out;
+	}
 
 	/**
 	 * A weird logic to make a workaround for current HA
