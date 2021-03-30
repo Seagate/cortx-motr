@@ -758,12 +758,12 @@ struct node_type {
 	bool (*nt_isfit)(struct slot *slot);
 	void (*nt_done) (struct slot *slot, struct m0_be_tx *tx, bool modified);
 	void (*nt_make) (struct slot *slot, struct m0_be_tx *tx);
-	void (*nt_find) (struct slot *slot, struct m0_btree_key *key);
+	void (*nt_find) (struct slot *slot, const struct m0_btree_key *key);
 	void (*nt_fix)  (const struct nd *node, struct m0_be_tx *tx);
 	void (*nt_cut)  (const struct nd *node, int idx, int size,
 			 struct m0_be_tx *tx);
 	void (*nt_del)  (const struct nd *node, int idx, struct m0_be_tx *tx);
-	void (*nt_move) (const struct nd *prev, const struct nd *next,
+	void (*nt_move) (struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 };
 
@@ -865,7 +865,7 @@ static void node_fix  (const struct nd *node, struct m0_be_tx *tx);
 static void node_cut  (const struct nd *node, int idx, int size,
 		       struct m0_be_tx *tx);
 static void node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
-static void node_move (const struct nd *prev, const struct nd *next,
+static void node_move (struct nd *src, struct nd *tgt,
 		       enum dir dir, int nr, struct m0_be_tx *tx);
 
 /**
@@ -973,10 +973,10 @@ static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	node->n_type->nt_del(node, idx, tx);
 }
 
-static void node_move(const struct nd *prev, const struct nd *next,
+static void node_move(struct nd *src, struct nd *tgt,
 		      enum dir dir, int nr, struct m0_be_tx *tx)
 {
-	prev->n_type->nt_move(prev, next, dir, nr, tx);
+	tgt->n_type->nt_move(src, tgt, dir, nr, tx);
 }
 
 static struct mod *mod_get(void)
@@ -1108,9 +1108,9 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 }
 
 static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
-			   struct m0_be_tx *tx, int nxt)
+			   int rootshift, struct m0_be_tx *tx, int nxt)
 {
-	return segops->so_tree_create(op, tt, tx, nxt);
+	return segops->so_tree_create(op, tt, rootshift, tx, nxt);
 }
 
 static int64_t tree_delete(struct node_op *op, struct td *tree,
@@ -1166,6 +1166,9 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
 			      struct node_type *nt, struct m0_be_tx *tx,
 			      int nxt);
+static int64_t mem_node_free(struct node_op *op, struct nd *node,
+			     struct m0_be_tx *tx, int nxt);
+
 static int64_t mem_tree_create(struct node_op *op, struct m0_btree_type *tt,
 			       int rootshift, struct m0_be_tx *tx, int nxt)
 {
@@ -1183,6 +1186,11 @@ static int64_t mem_tree_create(struct node_op *op, struct m0_btree_type *tt,
 static int64_t mem_tree_delete(struct node_op *op, struct td *tree,
 			       struct m0_be_tx *tx, int nxt)
 {
+	struct nd *root = segaddr_addr(&tree->t_root) +
+		(1ULL << segaddr_shift(&tree->t_root));
+	op->no_tree = tree;
+	op->no_node = root;
+	mem_node_free(op, root, tx, nxt);
 	return nxt;
 }
 
@@ -1232,8 +1240,9 @@ static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
 static int64_t mem_node_free(struct node_op *op, struct nd *node,
 			     struct m0_be_tx *tx, int nxt)
 {
-	int shift = nt->n_type->nt_shift(nd);
-	m0_free_aligned(((void *)node) - (1ULL << shift), shift);
+	int shift = node->n_type->nt_shift(node);
+	m0_free_aligned(((void *)node) - (1ULL << shift),
+			sizeof *node + (1ULL << shift), shift);
 	return nxt;
 }
 
@@ -1265,21 +1274,25 @@ struct ff_head {
 	struct m0_format_footer ff_foot;
 };
 
-static struct ff_header *ff_data(struct nd *node)
+static struct ff_head *ff_data(const struct nd *node)
 {
-	return segaddr_addr(node->n_addr);
+	return segaddr_addr(&node->n_addr);
 }
 
-static void *ff_key(struct ff_header *h, int idx)
+static void *ff_key(const struct nd *node, int idx)
 {
-	void *area = h + 1;
+	struct ff_head *h    = ff_data(node);
+	void           *area = h + 1;
+
 	M0_PRE(0 <= idx && idx < h->ff_used);
 	return area + (h->ff_ksize + h->ff_vsize) * idx;
 }
 
-static void *ff_val(struct ff_header *h, int idx)
+static void *ff_val(const struct nd *node, int idx)
 {
-	void *area = h + 1;
+	struct ff_head *h    = ff_data(node);
+	void           *area = h + 1;
+
 	M0_PRE(0 <= idx && idx < h->ff_used);
 	return area + (h->ff_ksize + h->ff_vsize) * idx + h->ff_ksize;
 }
@@ -1295,8 +1308,8 @@ static bool ff_rec_is_valid(const struct slot *slot)
 
 static bool ff_invariant(const struct nd *node)
 {
-	struct ff_head *h = ff_data(node);
-	return  _0C(h->ff_shift == segaddr_shift(node->n_addr)) &&
+	const struct ff_head *h = ff_data(node);
+	return  _0C(h->ff_shift == segaddr_shift(&node->n_addr)) &&
 		_0C(ergo(h->ff_level > 0, h->ff_used > 0));
 }
 
@@ -1304,7 +1317,7 @@ static int ff_count(const struct nd *node)
 {
 	int used = ff_data(node)->ff_used;
 	M0_PRE(ff_invariant(node));
-	if (h->ff_level > 0)
+	if (ff_data(node)->ff_level > 0)
 		used --;
 	return used;
 }
@@ -1313,7 +1326,7 @@ static int ff_space(const struct nd *node)
 {
 	struct ff_head *h = ff_data(node);
 	M0_PRE(ff_invariant(node));
-	return (1ULL << h->hh_shift) - sizeof *h -
+	return (1ULL << h->ff_shift) - sizeof *h -
 		(h->ff_ksize + h->ff_vsize) * h->ff_used;
 }
 
@@ -1331,49 +1344,50 @@ static int ff_shift(const struct nd *node)
 
 static void ff_fid(const struct nd *node, struct m0_fid *fid)
 {
-	static struct m0_fid dummy;
-	M0_PRE(ff_invariant(node));
-	return &dummy;
 }
+
+static void ff_node_key(struct slot *slot);
 
 static void ff_rec(struct slot *slot)
 {
-	struct ff_head *h = ff_data(node);
+	struct ff_head *h = ff_data(slot->s_node);
 
 	M0_PRE(ff_invariant(slot->s_node));
 	M0_PRE(slot->s_idx < h->ff_used);
 
 	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
 	slot->s_rec.r_key.k_data.ov_vec.v_count[0] = h->ff_ksize;
-	slot->s_rec.r_key.k_data.ov_buf[0] = ff_val(h, slot->s_idx);
-	ff_key(slot);
+	slot->s_rec.r_key.k_data.ov_buf[0] = ff_val(slot->s_node, slot->s_idx);
+	ff_node_key(slot);
 	M0_POST(ff_rec_is_valid(slot));
 }
 
-static void ff_key(struct slot *slot)
+static void ff_node_key(struct slot *slot)
 {
-	struct ff_head *h = ff_data(node);
+	struct nd      *node = slot->s_node;
+	struct ff_head *h    = ff_data(node);
 
-	M0_PRE(ff_invariant(slot->s_node));
+	M0_PRE(ff_invariant(node));
 	M0_PRE(slot->s_idx < h->ff_used);
 
 	slot->s_rec.r_val.ov_vec.v_nr = 1;
 	slot->s_rec.r_val.ov_vec.v_count[0] = h->ff_ksize;
-	slot->s_rec.r_val.ov_buf[0] = ff_key(h, slot->s_idx);
+	slot->s_rec.r_val.ov_buf[0] = ff_key(node, slot->s_idx);
 }
 
 static void ff_child(struct slot *slot, struct segaddr *addr)
 {
-	struct ff_head *h = ff_data(node);
+	struct nd      *node = slot->s_node;
+	struct ff_head *h    = ff_data(node);
 
-	M0_PRE(ff_invariant(slot->s_node));
+	M0_PRE(ff_invariant(node));
 	M0_PRE(slot->s_idx < h->ff_used);
-	*addr = *(struct segaddr *)ff_val(h, slot->s_idx);
+	*addr = *(struct segaddr *)ff_val(node, slot->s_idx);
 }
 
 static bool ff_isfit(struct slot *slot)
 {
-	struct ff_head *h = ff_data(node);
+	struct ff_head *h = ff_data(slot->s_node);
 
 	M0_PRE(ff_invariant(slot->s_node));
 	M0_PRE(ff_rec_is_valid(slot));
@@ -1387,11 +1401,12 @@ static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
 
 static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 {
-	struct ff_head *h     = ff_data(slot->s_node);
+	struct nd      *node  = slot->s_node;
+	struct ff_head *h     = ff_data(node);
 	int             rsize = h->ff_ksize + h->ff_vsize;
-	void           *start = ff_key(slot->s_node, slot->s_idx);
+	void           *start = ff_key(node, slot->s_idx);
 
-	M0_PRE(ff_invariant(slot->s_node));
+	M0_PRE(ff_invariant(node));
 	M0_PRE(ff_rec_is_valid(slot));
 	M0_PRE(ff_isfit(slot));
 	memmove(start + rsize, start, rsize * (h->ff_used - slot->s_idx));
@@ -1408,17 +1423,17 @@ static void ff_find(struct slot *slot, const struct m0_btree_key *key)
 	M0_PRE(key->k_data.ov_vec.v_nr == 1);
 
 	while (i + 1 < j) {
-		int h    = (i + j) / 2;
-		int diff = memcmp(ff_key(slot->s_node, h),
+		int m    = (i + j) / 2;
+		int diff = memcmp(ff_key(slot->s_node, m),
 				  key->k_data.ov_buf[0], h->ff_ksize);
-		M0_ASSERT(i < h && h < j);
+		M0_ASSERT(i < m && m < j);
 
 		if (diff < 0)
-			i = h;
+			i = m;
 		else if (diff > 0)
-			j = h;
+			j = m;
 		else {
-			i = h;
+			i = m;
 			break;
 		}
 	}
@@ -1445,53 +1460,47 @@ static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	M0_PRE(ff_invariant(node));
 	M0_PRE(idx < h->ff_used);
 	M0_PRE(h->ff_used > 0);
-	memmove(start, start + rsize, rsize * (h->ff_used - slot->s_idx - 1));
+	memmove(start, start + rsize, rsize * (h->ff_used - idx - 1));
 	h->ff_used--;
 }
 
-static void generic_move(const struct nd *prev, const struct nd *next,
+static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx)
 {
-	const struct nd *src;
-	const struct nd *tgt;
-
-	M0_PRE(prev != next);
-
-	if (dir == D_LEFT) {
-		tgt = next;
-		dst = prev;
-	} else {
-		tgt = prev;
-		dst = right;
-	}
+	M0_PRE(src != tgt);
 	while (true) {
 		struct slot rec;
 		struct slot tmp;
 		int         srcidx = dir == D_LEFT ? 0 : node_count(src) - 1;
-		int         tgtidx = dir == D_LEFT ? node_count(tgt) ? 0;
+		int         tgtidx = dir == D_LEFT ? node_count(tgt) : 0;
 
 		if (nr == 0 || (nr == NR_EVEN &&
 				(node_space(tgt) <= node_space(src))))
 			break;
 		rec.s_node = src;
 		rec.s_idx  = srcidx;
-		node_rec(rec);
+		node_rec(&rec);
 		rec.s_node = tgt;
 		rec.s_idx  = tgtidx;
-		if (!node_isfit(rec))
+		if (!node_isfit(&rec))
 			break;
-		node_make(rec);
+		node_make(&rec, tx);
 		tmp.s_node = tgt;
 		tmp.s_idx  = tgtidx;
-		node_rec(tmp);
-		m0_bufvec_copy(&tmp.r_key.k_data, &rec.r_key.k_data);
-		m0_bufvec_copy(&tmp.r_val, &rec.r_val);
+		node_rec(&tmp);
 		rec.s_node = src;
 		rec.s_idx  = srcidx;
-		node_del(rec);
+		m0_bufvec_copy(&tmp.s_rec.r_key.k_data,
+			       &rec.s_rec.r_key.k_data,
+			       m0_vec_count(&rec.s_rec.r_key.k_data.ov_vec));
+		m0_bufvec_copy(&tmp.s_rec.r_val, &rec.s_rec.r_val,
+			       m0_vec_count(&rec.s_rec.r_val.ov_vec));
+		node_del(src, srcidx, tx);
 		if (nr > 0)
 			nr--;
 	}
+	node_fix(src, tx);
+	node_fix(tgt, tx);
 }
 
 #undef M0_TRACE_SUBSYSTEM
