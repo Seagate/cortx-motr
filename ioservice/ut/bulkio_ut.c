@@ -1624,15 +1624,47 @@ static void bulkio_server_multiple_read_write(void)
 	m0_reqh_idle_wait(reqh);
 }
 
+static void add_buffer_bulk(struct m0_rpc_bulk *rbulk,
+			    enum M0_RPC_OPCODES op,
+			    int                 index)
+{
+	struct m0_rpc_bulk_buf *rbuf;
+	int                     rc;
+	int                     i;
+
+	/*
+	 * Adds a m0_rpc_bulk_buf structure to list of such structures
+	 * in m0_rpc_bulk.
+	 */
+	rc = m0_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, 0, &bp->bp_cnetdom,
+				 NULL, &rbuf);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rbuf != NULL);
+
+	/* Adds io buffers to m0_rpc_bulk_buf structure. */
+	for (i = 0; i < IO_SEGS_NR; ++i) {
+		rc = m0_rpc_bulk_buf_databuf_add(rbuf,
+			 bp->bp_iobuf[index]->nb_buffer.ov_buf[i],
+			 bp->bp_iobuf[index]->nb_buffer.ov_vec.v_count[i],
+			 bp->bp_offsets[0], &bp->bp_cnetdom);
+		M0_UT_ASSERT(rc == 0);
+		bp->bp_offsets[0] +=
+			bp->bp_iobuf[index]->nb_buffer.ov_vec.v_count[i];
+	}
+	bp->bp_offsets[0] += IO_SEG_SIZE;
+
+	rbuf->bb_nbuf->nb_qtype = (op == M0_IOSERVICE_WRITEV_OPCODE) ?
+		M0_NET_QT_PASSIVE_BULK_SEND :
+		M0_NET_QT_PASSIVE_BULK_RECV;
+}
+
 static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 {
 	struct m0_io_fop       **io_fops;
-	struct m0_rpc_bulk_buf	*rbuf;
 	struct m0_rpc_bulk	*rbulk;
 	struct m0_io_fop	*iofop;
 	struct m0_fop_cob_rw	*rw;
 	int                      i;
-	int			 j;
 	int			 rc;
 
 	if (op == M0_IOSERVICE_WRITEV_OPCODE) {
@@ -1663,36 +1695,9 @@ static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 	rw->crw_pver = CONF_PVER_FID;
 	bp->bp_offsets[0] = IO_SEG_START_OFFSET;
 
-	void add_buffer_bulk(int j)
-	{
-		/*
-		 * Adds a m0_rpc_bulk_buf structure to list of such structures
-		 * in m0_rpc_bulk.
-		 */
-		rc = m0_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, 0, &bp->bp_cnetdom,
-					 NULL, &rbuf);
-		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(rbuf != NULL);
 
-		/* Adds io buffers to m0_rpc_bulk_buf structure. */
-		for (i = 0; i < IO_SEGS_NR; ++i) {
-			rc = m0_rpc_bulk_buf_databuf_add(rbuf,
-				 bp->bp_iobuf[j]->nb_buffer.ov_buf[i],
-				 bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i],
-				 bp->bp_offsets[0], &bp->bp_cnetdom);
-			M0_UT_ASSERT(rc == 0);
-			bp->bp_offsets[0] +=
-				bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i];
-		}
-		bp->bp_offsets[0] += IO_SEG_SIZE;
-
-		rbuf->bb_nbuf->nb_qtype = (op == M0_IOSERVICE_WRITEV_OPCODE) ?
-			M0_NET_QT_PASSIVE_BULK_SEND :
-			M0_NET_QT_PASSIVE_BULK_RECV;
-	}
-
-	for (j = 0; j < buf_nr; ++j)
-		add_buffer_bulk(j);
+	for (i = 0; i < buf_nr; ++i)
+		add_buffer_bulk(rbulk, op, i);
 
 	/*
 	 * Allocates memory for array of net buf descriptors and array of
