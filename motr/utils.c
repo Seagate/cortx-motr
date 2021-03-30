@@ -84,38 +84,12 @@ M0_INTERNAL uint64_t layout_unit_size(struct m0_pdclust_layout *play)
 	return play->pl_attr.pa_unit_size;
 }
 
-/** Returns number of pages (rows) in the unit. */
-M0_INTERNAL uint32_t data_row_nr(struct m0_pdclust_layout *play,
-				 struct m0_obj *obj)
+M0_INTERNAL uint32_t rows_nr(struct m0_pdclust_layout *play, struct m0_obj *obj)
 {
 	M0_PRE(play != NULL);
 	M0_PRE(obj != NULL);
 
 	return page_nr(layout_unit_size(play), obj);
-}
-
-M0_INTERNAL uint32_t data_col_nr(struct m0_pdclust_layout *play)
-{
-	M0_PRE(play != NULL);
-
-	return layout_n(play);
-}
-
-M0_INTERNAL uint32_t parity_col_nr(struct m0_pdclust_layout *play)
-{
-	M0_PRE(play != NULL);
-
-	return layout_k(play);
-}
-
-/** TODO: This is clearly useless */
-M0_INTERNAL uint32_t parity_row_nr(struct m0_pdclust_layout *play,
-				   struct m0_obj *obj)
-{
-	M0_PRE(play != NULL);
-	M0_PRE(obj != NULL);
-
-	return data_row_nr(play, obj);
 }
 
 M0_INTERNAL uint64_t data_size(struct m0_pdclust_layout *play)
@@ -265,8 +239,8 @@ M0_INTERNAL void page_pos_get(struct pargrp_iomap  *map,
 	play = pdlayout_get(map->pi_ioo);
 
 	pg_id = page_id(index - grp_off, obj);
-	*row  = pg_id % data_row_nr(play, obj);
-	*col = play->pl_attr.pa_K == 0 ? 0 : pg_id / data_row_nr(play, obj);
+	*row = pg_id % rows_nr(play, obj);
+	*col = play->pl_attr.pa_K == 0 ? 0 : pg_id / rows_nr(play, obj);
 }
 
 M0_INTERNAL m0_bindex_t data_page_offset_get(struct pargrp_iomap *map,
@@ -282,8 +256,8 @@ M0_INTERNAL m0_bindex_t data_page_offset_get(struct pargrp_iomap *map,
 	ioo = map->pi_ioo;
 	play = pdlayout_get(ioo);
 
-	M0_PRE(row < data_row_nr(play, ioo->ioo_obj));
-	M0_PRE(col < data_col_nr(play));
+	M0_PRE(row < rows_nr(play, ioo->ioo_obj));
+	M0_PRE(col < layout_n(play));
 
 	out = data_size(play) * map->pi_grpid +
 	      col * layout_unit_size(play) + row * m0__page_size(ioo);

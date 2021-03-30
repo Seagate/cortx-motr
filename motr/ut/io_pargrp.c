@@ -872,7 +872,7 @@ static void ut_free_pargrp_iomap(struct pargrp_iomap *map)
 
 	if (map->pi_paritybufs != NULL) {
 		for (row = 0; row < map->pi_max_row; ++row) {
-			for (col = 0; col < parity_col_nr(play); ++col) {
+			for (col = 0; col < layout_k(play); ++col) {
 				if (map->pi_paritybufs[row][col] != NULL)
 					m0_free(map->pi_paritybufs[row][col]);
 			}
