@@ -256,7 +256,7 @@ enum fom_state_transition_tests {
 	TEST12
 };
 
-static int                        i = 0;
+static int                        nb_nr = 0;
 static struct m0_net_buffer      *nb_list[64];
 static struct m0_net_buffer_pool *buf_pool;
 static int                        next_write_test = TEST00;
@@ -264,26 +264,26 @@ static int                        next_read_test  = TEST00;
 
 static void empty_buffers_pool(uint32_t colour)
 {
-	i--;
+	nb_nr--;
 	m0_net_buffer_pool_lock(buf_pool);
 	do {
-		nb_list[++i] = m0_net_buffer_pool_get(buf_pool, colour);
-	} while (nb_list[i] != NULL);
+		nb_list[++nb_nr] = m0_net_buffer_pool_get(buf_pool, colour);
+	} while (nb_list[nb_nr] != NULL);
 	m0_net_buffer_pool_unlock(buf_pool);
 }
 
 static void release_one_buffer(uint32_t colour)
 {
 	m0_net_buffer_pool_lock(buf_pool);
-	m0_net_buffer_pool_put(buf_pool, nb_list[--i], colour);
+	m0_net_buffer_pool_put(buf_pool, nb_list[--nb_nr], colour);
 	m0_net_buffer_pool_unlock(buf_pool);
 }
 
 static void fill_buffers_pool(uint32_t colour)
 {
 	m0_net_buffer_pool_lock(buf_pool);
-	while (i > 0)
-		m0_net_buffer_pool_put(buf_pool, nb_list[--i], colour);
+	while (nb_nr > 0)
+		m0_net_buffer_pool_put(buf_pool, nb_list[--nb_nr], colour);
 	m0_net_buffer_pool_unlock(buf_pool);
 }
 
@@ -1762,7 +1762,7 @@ static void bulkio_init(void)
 	const char *caddr = "0@lo:12345:34:*";
 	const char *saddr = "0@lo:12345:34:1";
 
-	i = 0;
+	nb_nr = 0;
 	M0_SET0(&nb_list);
 	buf_pool = NULL;
 	next_write_test = TEST00;
@@ -1793,6 +1793,8 @@ static void bulkio_init(void)
 static void bulkio_fini(void)
 {
 	struct m0_reqh *reqh;
+	int             i;
+
 	for (i = 0; i < IO_FIDS_NR; ++i)
 		m0_file_fini(&bp->bp_file[i]);
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_motr_ctx);
