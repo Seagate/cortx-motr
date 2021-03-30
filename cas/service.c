@@ -1625,7 +1625,9 @@ static const struct m0_fid *cas_fid(const struct m0_fom *fom)
 
 static size_t cas_fom_home_locality(const struct m0_fom *fom)
 {
-	return m0_fid_hash(cas_fid(fom));
+	static uint64_t loc = 0;
+
+	return loc++;
 }
 
 static struct m0_cas_op *cas_op(const struct m0_fom *fom)

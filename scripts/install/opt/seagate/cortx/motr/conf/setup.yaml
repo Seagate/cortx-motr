@@ -23,6 +23,10 @@ motr:
     cmd: /opt/seagate/cortx/motr/bin/motr_setup post_install
     args: --config $URL
 
+  prepare:
+    cmd: /opt/seagate/cortx/motr/bin/motr_setup prepare
+    args: --config $URL
+
   init:
     cmd: /opt/seagate/cortx/motr/bin/motr_setup init
     args: --config $URL

@@ -2329,6 +2329,37 @@ static const struct pargrp_iomap_ops iomap_ops = {
 	.pi_replica_recover        = pargrp_iomap_replica_elect,
 };
 
+static void pargrp_iomap_bufs_free(struct data_buf ***bufs, int nr)
+{
+	if (bufs == NULL)
+		return;
+	while (nr > 0)
+		m0_free(bufs[--nr]);
+	m0_free(bufs);
+}
+
+static int pargrp_iomap_bufs_alloc(struct data_buf ****bufs_out,
+				   uint32_t row_nr, uint32_t col_nr)
+{
+	int row;
+	struct data_buf ***bufs;
+
+	M0_ALLOC_ARR(bufs, row_nr);
+	if (bufs == NULL)
+		return M0_ERR(-ENOMEM);
+
+	for (row = 0; row < row_nr; ++row) {
+		M0_ALLOC_ARR(bufs[row], col_nr);
+		if (bufs[row] == NULL) {
+			pargrp_iomap_bufs_free(bufs, row);
+			return M0_ERR(-ENOMEM);
+		}
+	}
+
+	*bufs_out = bufs;
+	return 0;
+}
+
 /**
  * This is heavily based on m0t1fs/linux_kernel/file.c::pargrp_iomap_init
  */
@@ -2337,7 +2368,6 @@ M0_INTERNAL int pargrp_iomap_init(struct pargrp_iomap  *map,
 				  uint64_t              grpid)
 {
 	int                       rc;
-	int                       row;
 	struct m0_pdclust_layout *play;
 	struct m0_client         *instance;
 	struct m0_op             *op;
@@ -2360,8 +2390,8 @@ M0_INTERNAL int pargrp_iomap_init(struct pargrp_iomap  *map,
 	map->pi_paritybufs    = NULL;
 	map->pi_trunc_partial = false;
 
-	rc = m0_indexvec_alloc(
-		&map->pi_ivec, page_nr(data_size(play), ioo->ioo_obj));
+	rc = m0_indexvec_alloc(&map->pi_ivec,
+			       page_nr(data_size(play), ioo->ioo_obj));
 	if (rc != 0)
 		goto fail;
 
@@ -2374,52 +2404,31 @@ M0_INTERNAL int pargrp_iomap_init(struct pargrp_iomap  *map,
 	map->pi_max_row = data_row_nr(play, ioo->ioo_obj);
 	map->pi_max_col = layout_n(play);
 
-	M0_ALLOC_ARR(map->pi_databufs, data_row_nr(play, ioo->ioo_obj));
-	if (map->pi_databufs == NULL)
+	rc = pargrp_iomap_bufs_alloc(&map->pi_databufs,
+				     data_row_nr(play, ioo->ioo_obj),
+				     layout_n(play));
+	if (rc != 0)
 		goto fail;
-
-	for (row = 0; row < data_row_nr(play, ioo->ioo_obj); ++row) {
-		M0_ALLOC_ARR(map->pi_databufs[row], layout_n(play));
-		if (map->pi_databufs[row] == NULL)
-			goto fail;
-	}
-
 	/*
 	 * Whether direct or indirect parity allocation, meta level buffers
 	 * are always allocated. Allocation of buffers holding actual parity
 	 * is governed by M0_PBUF_DIR/IND.
 	 */
-	if (M0_IN(ioo->ioo_pbuf_type,
-		  (M0_PBUF_DIR, M0_PBUF_IND))) {
-		M0_ALLOC_ARR(map->pi_paritybufs,
-			     parity_row_nr(play, ioo->ioo_obj));
-		if (map->pi_paritybufs == NULL)
+	if (M0_IN(ioo->ioo_pbuf_type, (M0_PBUF_DIR, M0_PBUF_IND))) {
+		rc = pargrp_iomap_bufs_alloc(&map->pi_paritybufs,
+					     parity_row_nr(play, ioo->ioo_obj),
+					     parity_col_nr(play));
+		if (rc != 0)
 			goto fail;
-
-		for (row = 0; row < parity_row_nr(play, ioo->ioo_obj); ++row) {
-			M0_ALLOC_ARR(map->pi_paritybufs[row],
-				     parity_col_nr(play));
-			if (map->pi_paritybufs[row] == NULL)
-				goto fail;
-		}
 	}
 
 	M0_POST_EX(pargrp_iomap_invariant(map));
 	return M0_RC(0);
 
 fail:
+	pargrp_iomap_bufs_free(map->pi_databufs,
+			       data_row_nr(play, ioo->ioo_obj));
 	m0_indexvec_free(&map->pi_ivec);
-
-	if (map->pi_databufs != NULL) {
-		for (row = 0; row < data_row_nr(play, ioo->ioo_obj); ++row)
-			m0_free(&map->pi_databufs[row]);
-		m0_free(map->pi_databufs);
-	}
-	if (map->pi_paritybufs != NULL) {
-		for (row = 0; row < parity_row_nr(play, ioo->ioo_obj); ++row)
-			m0_free(&map->pi_paritybufs[row]);
-		m0_free(map->pi_paritybufs);
-	}
 
 	return M0_ERR(-ENOMEM);
 }
