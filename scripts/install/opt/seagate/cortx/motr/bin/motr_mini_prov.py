@@ -459,8 +459,6 @@ def lnet_ping(self):
     # nodes is a list of hostnames
     nids = get_nids(self, nodes)
     sys.stdout.write("lnet pinging on all nodes in cluster\n")
-    sys.stdout.write("motr_setup post_install and prepare MUST be performed "
-                     "on all nodes before executing this\n")
     for nid in nids:
        cmd = f"lctl ping {nid}"
        sys.stdout.write(f"lctl ping on: {nid}\n")
@@ -474,6 +472,8 @@ def test_lnet(self):
         4. lctl ping on all nodes in cluster. motr_setup post_install and prepare
            MUST be performed on all nodes before executing this step.
     '''
+    sys.stdout.write("post_install and prepare phases MUST be performed "
+                     "on all nodes before executing test phase\n")
     search_lnet_pkgs = ["kmod-lustre-client", "lustre-client"]
     check_pkgs(self, search_lnet_pkgs)
 
@@ -558,8 +558,18 @@ def lvm_exist(self):
 
 def cluster_up(self):
     cmd = 'hctl status'
-    op = subprocess.run(["hctl", "status"])
+    op = subprocess.run(list(cmd.split(' ')))
     if op.returncode == 0:
         return True
     else:
+        return False
+
+def pkg_installed(self, pkg):
+    cmd = f'yum list installed {pkg}'
+    op = subprocess.run(list(cmd.split(' ')))
+    if op.returncode == 0:
+        sys.stdout.write(f"{pkg} is installed\n")
+        return True
+    else:
+        sys.stdout.write(f"{pkg} is not installed\n")
         return False
