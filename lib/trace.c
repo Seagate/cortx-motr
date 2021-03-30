@@ -214,7 +214,12 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 
 	struct m0_trace_rec_header *header;
 	struct m0_trace_buf_header *tbh = m0_logbuf_header;
+#ifdef __clang__
+	/* Approximation of the stack pointer for clang compiler. */
+	unsigned long               sp = (unsigned long)&tbh;
+#else
 	register unsigned long      sp asm("sp"); /* stack pointer */
+#endif /* __clang__ */
 
 #ifdef ENABLE_RESTRICTED_TRACE_MODE
 	/* discard records with verbosity level higher than allowed */
