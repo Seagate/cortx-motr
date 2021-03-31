@@ -45,13 +45,7 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 . $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
 
-cmd=$(whereis fi_info | cut -d ':' -f2)
-$cmd > /dev/null
-if [[ $? -eq 0 ]]; then
-    XPRT=libfab
-else
-    XPRT=lnet
-fi
+XPRT=$(m0_default_xpt)
 
 start() {
     set +e

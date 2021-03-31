@@ -119,13 +119,7 @@ MAX_RPC_MSG_SIZE=65536
 PVERID='^v|1:10'
 MDPVERID='^v|2:10'
 M0T1FS_PROC_ID='<0x7200000000000001:64>'
-trans=$(whereis fi_info | cut -d ':' -f2)
-$trans > /dev/null
-if [[ $? -eq 0 ]]; then
-	XPT=libfab
-else
-	XPT=lnet
-fi
+XPT=$(m0_default_xpt)
 # Single node configuration.
 SINGLE_NODE=0
 

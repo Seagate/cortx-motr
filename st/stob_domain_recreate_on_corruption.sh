@@ -46,13 +46,7 @@ CONF_FILE=$SANDBOX_DIR/confd/conf.txt
 
 PROC_FID1="<0x7200000000000001:0>"
 
-cmd=$(whereis fi_info | cut -d ':' -f2)
-$cmd > /dev/null
-if [[ $? -eq 0 ]]; then
-    XPRT=libfab
-else
-    XPRT=lnet
-fi
+XPRT=$(m0_default_xpt)
 
 start() {
     sandbox_init
