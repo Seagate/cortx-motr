@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -173,6 +173,7 @@ extern struct m0_ut_suite xcode_bufvec_fop_ut;
 extern struct m0_ut_suite xcode_ff2c_ut;
 extern struct m0_ut_suite xcode_ut;
 extern struct m0_ut_suite sns_flock_ut;
+extern struct m0_ut_suite btree_ut;
 
 static void tests_add(struct m0_ut_module *m)
 {
@@ -203,6 +204,7 @@ static void tests_add(struct m0_ut_module *m)
 	 */
 	m0_ut_add(m, &dtm0_ut, true);
 
+	m0_ut_add(m, &btree_ut, true);
 	m0_ut_add(m, &capa_ut, true);
 	m0_ut_add(m, &cas_client_ut, true);
 	m0_ut_add(m, &cas_service_ut, true);
