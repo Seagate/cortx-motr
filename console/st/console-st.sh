@@ -44,13 +44,7 @@ CONF_PROFILE='<0x7000000000000001:0>'
 NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91  # required by `common.sh'
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh  # modload_galois
 
-cmd=$(whereis fi_info | cut -d ':' -f2)
-$cmd > /dev/null
-if [[ $? -eq 0 ]]; then
-	XPRT=libfab
-else
-   	XPRT=lnet
-fi
+XPRT=$(m0_default_xpt)
 
 start_server()
 {

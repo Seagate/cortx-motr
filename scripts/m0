@@ -41,6 +41,26 @@ M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
 SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
 
+#choose the transport 
+_transport_select() {
+    local NET_XTR
+
+    echo 'Prese '2' to select 'lnet' or press Enter to continue' >&2
+    read NET_XTR
+
+    if [ "$NET_XTR" = "2" ]
+    then
+	NET_XTR="lnet"
+        echo 'Net transport is LNet' >&2
+    else
+        NET_XTR="libfab"
+        echo 'Net transport is Libfab' >&2
+    fi
+
+    touch $M0_SRC_DIR/scripts/st.d/net_xpt
+    echo $NET_XTR > $M0_SRC_DIR/scripts/st.d/net_xpt
+}
+
 # Increase the maximum number of memory map areas a process may have.
 # m0d process may allocate and madvise() at least 2,000,000 memory map areas.
 # See MOTR-2171 for more details.
@@ -136,6 +156,9 @@ cmd_run_st() {
     local pattern
     local f
     local list_p=0
+    local trans
+
+    trans=$(_transport_select)
 
     if [ "${1:-}" = '-l' ]; then
         list_p=1

@@ -57,13 +57,7 @@ if spiel.cmd_profile_set('$PROF_OPT'):
 if spiel.rconfc_start():
     sys.exit('cannot start rconfc')"
 
-cmd=$(whereis fi_info | cut -d ':' -f2)
-$cmd > /dev/null
-if [[ $? -eq 0 ]]; then
-    XPRT=libfab
-else
-    XPRT=lnet
-fi
+XPRT=$(m0_default_xpt)
 
 start() {
     # install "motr" Python module required by m0spiel tool
