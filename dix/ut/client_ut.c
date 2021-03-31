@@ -1464,13 +1464,13 @@ static void dix_create_crow(void)
 
 static void dix_create_dgmode(void)
 {
-#ifdef DTM0
-	return;
-#endif
 	struct m0_dix indices[COUNT_INDEX];
 	uint32_t      indices_nr = ARRAY_SIZE(indices);
 	int           i;
 	int           rc;
+
+	if (ENABLE_DTM0)
+		return;
 
 	ut_service_init();
 	for (i = 0; i < indices_nr; i++)
@@ -1564,13 +1564,13 @@ static void dix_delete_crow(void)
 
 static void dix_delete_dgmode(void)
 {
-#ifdef DTM0
-	return;
-#endif
 	struct m0_dix indices[COUNT_INDEX];
 	uint32_t      indices_nr = ARRAY_SIZE(indices);
 	int           i;
 	int           rc;
+
+	if (ENABLE_DTM0)
+		return;
 
 	ut_service_init();
 	for (i = 0; i < indices_nr; i++)
@@ -1808,15 +1808,15 @@ static void dix_put_crow(void)
 
 static void dix_put_dgmode(void)
 {
-#ifdef DTM0
-	return;
-#endif
 	struct m0_dix      index;
 	struct m0_bufvec   keys;
 	struct m0_bufvec   vals;
 	struct dix_rep_arr rep;
 	uint32_t           sdev_id;
 	int                rc;
+
+	if (ENABLE_DTM0)
+		return;
 
 	ut_service_init();
 	dix_predictable_index_init(&index, 1);
@@ -2003,9 +2003,6 @@ static void dix_dgmode_disks_unprep(enum ut_pg_unit        unit1,
 
 static void dix_get_dgmode(void)
 {
-#ifdef DTM0
-	return;
-#endif
 	struct m0_dix         index;
 	struct m0_bufvec      keys;
 	struct m0_bufvec      vals;
@@ -2015,6 +2012,9 @@ static void dix_get_dgmode(void)
 	enum m0_pool_nd_state s2;
 	struct dix_rep_arr    rep;
 	int                   rc;
+
+	if (ENABLE_DTM0)
+		return;
 
 	ut_service_init();
 	dix_predictable_index_init(&index, 1);
@@ -2228,9 +2228,6 @@ static void dix_next_crow(void)
 
 static void dix_next_dgmode(void)
 {
-#ifdef DTM0
-	return;
-#endif
 	struct m0_dix      index;
 	struct m0_bufvec   keys;
 	struct m0_bufvec   start_key;
@@ -2238,6 +2235,9 @@ static void dix_next_dgmode(void)
 	struct dix_rep_arr rep;
 	uint32_t           recs_nr = COUNT;
 	int                rc;
+
+	if (ENABLE_DTM0)
+		return;
 
 	ut_service_init();
 	dix_index_init(&index, 1);
@@ -2338,15 +2338,15 @@ static void dix_records_restore(struct m0_dix *index, struct m0_bufvec *keys,
 
 static void dix_del_dgmode(void)
 {
-#ifdef DTM0
-	return;
-#endif
 	struct m0_dix      index;
 	struct m0_bufvec   keys;
 	struct m0_bufvec   vals;
 	struct dix_rep_arr rep;
 	uint32_t           sdev_id;
 	int                rc;
+
+	if (ENABLE_DTM0)
+		return;
 
 	ut_service_init();
 	dix_predictable_index_init(&index, 1);

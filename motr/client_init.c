@@ -38,16 +38,11 @@
 #include "rm/rm_service.h"            /* m0_rms_type */
 #include "net/lnet/lnet_core_types.h" /* M0_NET_LNET_NIDSTR_SIZE */
 #include "net/lnet/lnet.h"            /* m0_net_lnet_xprt */
-#ifdef DTM0
-#include "dtm0/service.h"              /* m0_dtm0_service_find */
 #ifndef __KERNEL__
-#include "dtm0/helper.h"
-#include <stdlib.h>
-#include <unistd.h>
-#else
-#include <linux/delay.h>
-#endif
-#endif
+#include <unistd.h>                   /* sleep */
+#include "dtm0/service.h"             /* m0_dtm0_service_find */
+#include "dtm0/helper.h"              /* m0_dtm__client_service_start */
+#endif /* __KERNEL__ */
 
 #include "motr/io.h"                /* io_sm_conf */
 #include "motr/client.h"
@@ -1509,9 +1504,9 @@ int m0_client_init(struct m0_client **m0c_p,
 {
 	int               rc;
 	struct m0_client *m0c;
-#ifdef DTM0
+#ifndef __KERNEL__
 	struct m0_fid     cli_svc_fid;
-#endif
+#endif /* __KERNEL__ */
 
 	M0_PRE(m0c_p != NULL);
 	M0_PRE(*m0c_p == NULL);
@@ -1618,40 +1613,39 @@ int m0_client_init(struct m0_client **m0c_p,
 	/* Init the hash-table for RM contexts */
 	rm_ctx_htable_init(&m0c->m0c_rm_ctxs, M0_RM_HBUCKET_NR);
 
-#ifdef DTM0
-	rc = m0_conf_process2service_get(m0_reqh2confc(&m0c->m0c_reqh),
-					 &m0c->m0c_reqh.rh_fid,
-					 M0_CST_DTM0, &cli_svc_fid);
-	M0_ASSERT(rc == 0);
+#ifndef __KERNEL__
+	if (ENABLE_DTM0) {
+		rc = m0_conf_process2service_get(m0_reqh2confc(&m0c->m0c_reqh),
+						 &m0c->m0c_reqh.rh_fid,
+						 M0_CST_DTM0, &cli_svc_fid);
+		M0_ASSERT(rc == 0);
 
-	if (m0_dtm0_in_ut()) {
-		/* When in UT, m0c_reqh.rh_fid is the same as the
-		 * server process fid. It causes the client to use
-		 * the server-side service fid. Hard-coding of the client
-		 * service fid resolves this problem.
-		 * TODO: When in UT, walk over the list of processes in
-		 * the conf cache and get the service with "volatile"
-		 * property from there. It will help to get rid of the
-		 * hard-coded service fid.
+		if (m0_dtm0_in_ut()) {
+			/* When in UT, m0c_reqh.rh_fid is the same as the
+			 * server process fid. It causes the client to use
+			 * the server-side service fid. Hard-coding of the client
+			 * service fid resolves this problem.
+			 * TODO: When in UT, walk over the list of processes in
+			 * the conf cache and get the service with "volatile"
+			 * property from there. It will help to get rid of the
+			 * hard-coded service fid.
+			 */
+			cli_svc_fid  = M0_FID_INIT(0x7300000000000001, 0x1a);
+		}
+
+		(void) m0_dtm__client_service_start(&m0c->m0c_reqh, &cli_svc_fid);
+		m0c->m0c_dtms = m0_dtm0_service_find(&m0c->m0c_reqh);
+		M0_ASSERT(m0c->m0c_dtms != NULL);
+
+		/* When in non-UT, we should wait until all the servers
+		 * have established connections with this client.
+		 * TODO: remove this sleep() when a proper start/stop
+		 * procedure is implemented.
 		 */
-		cli_svc_fid  = M0_FID_INIT(0x7300000000000001, 0x1a);
+		if (!m0_dtm0_in_ut())
+			sleep(15);
 	}
-
-#ifndef __KERNEL__
-	(void) m0_dtm__client_service_start(&m0c->m0c_reqh, &cli_svc_fid);
-#endif
-	m0c->m0c_dtms = m0_dtm0_service_find(&m0c->m0c_reqh);
-	M0_ASSERT(m0c->m0c_dtms != NULL);
-
-	if (!m0_dtm0_in_ut()) {
-#ifndef __KERNEL__
-		sleep(15);
-#else
-		msleep(15000);
-#endif
-
-	}
-#endif
+#endif /* __KERNEL__ */
 	if (conf->mc_is_addb_init) {
 		char buf[64];
 		/* Default client addb record file size set to 128M */
@@ -1689,11 +1683,12 @@ void m0_client_fini(struct m0_client *m0c, bool fini_m0)
 	M0_PRE(m0_sm_conf_is_initialized(&m0_op_conf));
 	M0_PRE(m0_sm_conf_is_initialized(&entity_conf));
 	M0_PRE(m0c != NULL);
+	M0_PRE(ergo(ENABLE_DTM0, m0c->m0c_dtms != NULL));
 
-#if defined(DTM0) && !defined(__KERNEL__)
+#ifndef __KERNEL__
 	if (m0c->m0c_dtms != NULL)
 		m0_dtm__client_service_stop(&m0c->m0c_dtms->dos_generic);
-#endif
+#endif /* __KERNEL__ */
 
 	if (m0c->m0c_config->mc_is_addb_init) {
 		m0_addb2_force_all();

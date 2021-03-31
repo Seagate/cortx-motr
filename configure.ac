@@ -152,7 +152,7 @@ AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
 AH_TEMPLATE([ENABLE_FREE_POISON],     [Poison freed memory for debugging.])
 AH_TEMPLATE([ENABLE_DETAILED_BACKTRACE],[Enable detailed backtraces on crash using gdb.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
-AH_TEMPLATE([DTM0],                   [Enable DTM0 mode.])
+AH_TEMPLATE([ENABLE_DTM0],            [Enable DTM0 mode.])
 AH_TEMPLATE([M0_BE_SEGMENT_SIZE],     [BE segment size in MiB.])
 AH_TEMPLATE([M0_TRACE_KBUF_SIZE],     [Kernel space trace buffer size in MiB.])
 AH_TEMPLATE([M0_TRACE_UBUF_SIZE],     [User space trace buffer size in MiB.])
@@ -322,7 +322,8 @@ AC_ARG_ENABLE([dtm0],
         [], [enable_dtm0=no]
 )
 AS_IF([test x$enable_dtm0 = xyes],
-      AC_DEFINE([DTM0]))
+      AC_DEFINE([ENABLE_DTM0], [1]),
+      AC_DEFINE([ENABLE_DTM0], [0]))
 
 # expensive-checks {{{3
 AC_ARG_ENABLE([expensive_checks],

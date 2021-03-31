@@ -113,9 +113,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	struct m0_op_idx    *oi;
 	struct m0_entity    *entity;
 	struct m0_locality  *locality;
-#if defined(DTM0)
 	struct m0_client    *m0c;
-#endif
 	uint64_t cid;
 	uint64_t did;
 
@@ -126,6 +124,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 
 	/* Initialise the operation's generic part. */
 	entity = &idx->in_entity;
+	m0c = entity->en_realm->re_instance;
 	op->op_code = opcode;
 	rc = m0_op_init(op, &m0_op_conf, entity);
 	if (rc != 0)
@@ -157,9 +156,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	m0_op_idx_bob_init(oi);
 	m0_ast_rc_bob_init(&oi->oi_ar);
 
-#if defined(DTM0)
-	if (M0_IN(op->op_code, (M0_IC_PUT, M0_IC_DEL))) {
-		m0c = entity->en_realm->re_instance;
+	if (ENABLE_DTM0 && M0_IN(op->op_code, (M0_IC_PUT, M0_IC_DEL))) {
 		M0_ASSERT(m0c->m0c_dtms != NULL);
 		oi->oi_dtx = m0_dtx0_alloc(m0c->m0c_dtms, oi->oi_sm_grp);
 		if (oi->oi_dtx == NULL)
@@ -167,10 +164,8 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 		did = m0_sm_id_get(&oi->oi_dtx->tx_dtx->dd_sm);
 		cid = m0_sm_id_get(&op->op_sm);
 		M0_ADDB2_ADD(M0_AVI_CLIENT_TO_DIX, cid, did);
-	}
-#else
-	oi->oi_dtx = NULL;
-#endif
+	} else
+		oi->oi_dtx = NULL;
 
 	return M0_RC(0);
 }
