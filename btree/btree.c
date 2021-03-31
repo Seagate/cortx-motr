@@ -826,9 +826,9 @@ struct node_op {
  * are set by the caller, and the function sets ->s_rec.
  */
 struct slot {
-	struct nd          *s_node;
-	int                 s_idx;
-	struct m0_btree_rec s_rec;
+	const struct nd     *s_node;
+	int                  s_idx;
+	struct m0_btree_rec  s_rec;
 };
 
 static int64_t tree_get   (struct node_op *op, struct segaddr *addr, int nxt);
@@ -1222,13 +1222,14 @@ static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
 	struct segaddr addr;
 	int            size = 1ULL << shift;
 
+	M0_PRE(op->no_opc == NOP_ALLOC);
 	M0_PRE(node_shift_is_valid(shift));
 	area = m0_alloc_aligned(sizeof *node + size, shift);
 	M0_ASSERT(node != NULL);
 	node = area + size;
 	node->n_addr = segaddr_build(area, shift);
 	node->n_tree = tree;
-	node->n_type = &ff_node_type;
+	node->n_type = nt;
 	m0_rwlock_init(&node->n_lock);
 	op->no_node = node;
 	op->no_addr = addr;
@@ -1262,16 +1263,71 @@ static const struct seg_ops mem_seg_ops = {
 	.so_node_op_fini = &mem_node_op_fini
 };
 
+/**
+ *  Structure of the node in persistent store.
+ */
 struct ff_head {
-	struct m0_format_header ff_fmt;
-	struct node_header      ff_seg;
-	uint16_t                ff_used;
-	uint8_t                 ff_shift;
-	uint8_t                 ff_level;
-	uint16_t                ff_ksize;
-	uint16_t                ff_vsize;
-	struct m0_format_footer ff_foot;
+	struct m0_format_header ff_fmt;   /* Node Header */
+	struct node_header      ff_seg;   /* Node type */
+	uint16_t                ff_used;  /* Count of records */
+	uint8_t                 ff_shift; /* Defines node size*/
+	uint8_t                 ff_level; /* Level in Btree */
+	uint16_t                ff_ksize; /* Size of key in bytes */
+	uint16_t                ff_vsize; /* Size of value in bytes */
+	struct m0_format_footer ff_foot;  /* Node Footer */
+	/**
+	 *  This space is used to host the Keys and Values upto the size of the
+	 *  node
+	 */
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+
+
+static int ff_count(const struct nd *node);
+static int ff_space(const struct nd *node);
+static int ff_level(const struct nd *node);
+static int ff_shift(const struct nd *node);
+static void ff_fid(const struct nd *node, struct m0_fid *fid);
+static void ff_rec(struct slot *slot);
+static void ff_node_key(struct slot *slot);
+static void ff_child(struct slot *slot, struct segaddr *addr);
+static bool ff_isfit(struct slot *slot);
+static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified);
+static void ff_make(struct slot *slot, struct m0_be_tx *tx);
+static void ff_find(struct slot *slot, const struct m0_btree_key *key);
+static void ff_fix(const struct nd *node, struct m0_be_tx *tx);
+static void ff_cut(const struct nd *node, int idx, int size,
+		   struct m0_be_tx *tx);
+static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx);
+static void generic_move(struct nd *src, struct nd *tgt,
+			 enum dir dir, int nr, struct m0_be_tx *tx);
+
+/**
+ *  Implementation of node which supports fixed format/size for Keys and Values
+ *  contained in it.
+ */
+static const struct node_type fixed_format = {
+	//.nt_id,
+	.nt_name = "m0_bnode_fixed_format",
+	//.nt_tag,
+	.nt_count = ff_count,
+	.nt_space = ff_space,
+	.nt_level = ff_level,
+	.nt_shift = ff_shift,
+	.nt_fid   = ff_fid,
+	.nt_rec   = ff_rec,
+	.nt_key   = ff_node_key,
+	.nt_child = ff_child,
+	.nt_isfit = ff_isfit,
+	.nt_done  = ff_done,
+	.nt_make  = ff_make,
+	.nt_find  = ff_find,
+	.nt_fix   = ff_fix,
+	.nt_cut   = ff_cut,
+	.nt_del   = ff_del,
+	.nt_move  = generic_move,
 };
+
+
 
 static struct ff_head *ff_data(const struct nd *node)
 {
@@ -1314,7 +1370,8 @@ static bool ff_invariant(const struct nd *node)
 
 static int ff_count(const struct nd *node)
 {
-	int used = ff_data(node)->ff_used;
+	struct ff_head *h   = ff_data(node);
+	int             used = h->ff_used;
 	M0_PRE(ff_invariant(node));
 	if (ff_data(node)->ff_level > 0)
 		used --;
@@ -1363,8 +1420,8 @@ static void ff_rec(struct slot *slot)
 
 static void ff_node_key(struct slot *slot)
 {
-	struct nd      *node = slot->s_node;
-	struct ff_head *h    = ff_data(node);
+	const struct nd  *node = slot->s_node;
+	struct ff_head   *h    = ff_data(node);
 
 	M0_PRE(ff_invariant(node));
 	M0_PRE(slot->s_idx < h->ff_used);
@@ -1376,8 +1433,8 @@ static void ff_node_key(struct slot *slot)
 
 static void ff_child(struct slot *slot, struct segaddr *addr)
 {
-	struct nd      *node = slot->s_node;
-	struct ff_head *h    = ff_data(node);
+	const struct nd *node = slot->s_node;
+	struct ff_head  *h    = ff_data(node);
 
 	M0_PRE(ff_invariant(node));
 	M0_PRE(slot->s_idx < h->ff_used);
@@ -1400,10 +1457,10 @@ static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
 
 static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 {
-	struct nd      *node  = slot->s_node;
-	struct ff_head *h     = ff_data(node);
-	int             rsize = h->ff_ksize + h->ff_vsize;
-	void           *start = ff_key(node, slot->s_idx);
+	const struct nd *node  = slot->s_node;
+	struct ff_head  *h     = ff_data(node);
+	int              rsize = h->ff_ksize + h->ff_vsize;
+	void            *start = ff_key(node, slot->s_idx);
 
 	M0_PRE(ff_invariant(node));
 	M0_PRE(ff_rec_is_valid(slot));
@@ -1478,7 +1535,6 @@ static void generic_move(struct nd *src, struct nd *tgt,
 			break;
 		rec.s_node = src;
 		rec.s_idx  = srcidx;
-		node_rec(&rec);
 		rec.s_node = tgt;
 		rec.s_idx  = tgtidx;
 		if (!node_isfit(&rec))
@@ -1486,7 +1542,6 @@ static void generic_move(struct nd *src, struct nd *tgt,
 		node_make(&rec, tx);
 		tmp.s_node = tgt;
 		tmp.s_idx  = tgtidx;
-		node_rec(&tmp);
 		rec.s_node = src;
 		rec.s_idx  = srcidx;
 		m0_bufvec_copy(&tmp.s_rec.r_key.k_data,
