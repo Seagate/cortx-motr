@@ -635,11 +635,11 @@ if [ ${#tests_list[@]} -eq 0 ]; then
 	declare -a tests_list=(
 				lookup
 				insert
-				get_during,
-				drop_during,
-				put_during,
-				del_repair,
-				del_rebalance
+#				get_during
+#				drop_during
+#				put_during
+#				del_repair
+#				del_rebalance
 			)
 fi
 

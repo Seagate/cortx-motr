@@ -36,8 +36,7 @@ class Cmd:
         Conf.load(self._index, self._url)
         self._args = args.args
         self._debug = args.debug
-        self._server_id = get_current_node(self)
-        sys.stdout.write(f"Node name: {self._server_id}\n")
+        self.server_node = get_server_node(self)
 
     @property
     def args(self) -> str:
@@ -54,7 +53,7 @@ class Cmd:
         sys.stderr.write(
             f"usage: {prog} [-h] <cmd> --config <url> <args>\n"
             f"where:\n"
-            f"cmd           post_install, config, init, test, reset, cleanup,"
+            f"cmd           post_install, prepare, config, init, test, reset, cleanup,"
             f" upgarde, backup, restore\n"
             f"url           Config URL\n")
 
@@ -82,6 +81,23 @@ class Cmd:
                          action="store_true")
         parser1.set_defaults(command=cls)
 
+class PrepareCmd(Cmd):
+    """Prepare Setup Cmd"""
+    name = "prepare"
+
+    def __init__(self, args: dict):
+        super().__init__(args)
+
+    def process(self):
+        sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
+
+        # If cluster is not up, go ahead. Otherwise, exit.
+        if not cluster_up(self):
+            check_data_disks_count(self)
+            configure_net(self)
+        else:
+            sys.stderr.write("Cluster is already up...Exiting.\n")
+        sys.stdout.write("SUCCESS\n")
 
 class PostInstallCmd(Cmd):
     """PostInstall Setup Cmd"""
@@ -93,6 +109,18 @@ class PostInstallCmd(Cmd):
     def process(self):
         sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
         validate_motr_rpm(self)
+        # Check if lvms are already created.
+        # If not, create it. Otherwise, skip.
+        # If cluster is not up, go ahead. Otherwise, exit.
+        if not cluster_up(self):
+            check_data_disks_count(self)
+            if not lvm_exist(self):
+                config_lvm(self)
+            else:
+                sys.stderr.write(f"lvm's already exist. "
+                                  "Skipping lvm creation.\n")
+        else:
+            sys.stderr.write("Cluster is already up...Exiting.\n")
         sys.stdout.write("SUCCESS\n")
 
 class ConfigCmd(Cmd):
@@ -116,8 +144,6 @@ class InitCmd(Cmd):
 
     def process(self):
         sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
-        config_lvm(self)
-        configure_net(self)
         sys.stdout.write("SUCCESS\n")
 
 class TestCmd(Cmd):
