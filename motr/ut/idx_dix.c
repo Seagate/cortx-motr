@@ -803,7 +803,7 @@ static int duc_setup(void)
 							    0x1a);
 	struct m0_fid            srv_dtm0_fid = M0_FID_INIT(0x7300000000000001,
 							    0x1c);
-	struct m0_reqh_service  *srv_srv;
+	struct m0_reqh_service  *srv_srv = NULL;
 	struct m0_reqh          *srv_reqh;
 	int                      rc;
 	struct m0_container     *realm = &duc.duc_realm;
@@ -811,16 +811,18 @@ static int duc_setup(void)
 	m0_fi_enable("m0_dtm0_in_ut", "ut");
 	rc = ut_suite_mt_idx_dix_init();
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(ut_m0c->m0c_dtms != NULL);
 
 	m0_container_init(realm, NULL, &M0_UBER_REALM, ut_m0c);
 
-	/* Connect to the server */
-	srv_reqh = &dix_ut_sctx.rsx_motr_ctx.cc_reqh_ctx.rc_reqh;
-	srv_srv = m0_reqh_service_lookup(srv_reqh, &srv_dtm0_fid);
-	rc = m0_dtm0_service_process_connect(srv_srv, &cli_srv_fid, cl_ep_addr,
-					     false);
-	M0_UT_ASSERT(rc == 0);
+	if (ENABLE_DTM0) {
+		/* Connect to the server */
+		M0_UT_ASSERT(ut_m0c->m0c_dtms != NULL);
+		srv_reqh = &dix_ut_sctx.rsx_motr_ctx.cc_reqh_ctx.rc_reqh;
+		srv_srv = m0_reqh_service_lookup(srv_reqh, &srv_dtm0_fid);
+		rc = m0_dtm0_service_process_connect(srv_srv, &cli_srv_fid,
+						     cl_ep_addr, false);
+		M0_UT_ASSERT(rc == 0);
+	}
 
 	general_ifid_fill(&duc.duc_ifid, true);
 
@@ -878,9 +880,11 @@ static int duc_teardown(void)
 	struct m0_fid            cli_srv_fid  = duc.duc_cli_svc_fid;
 	int                      rc;
 
-	/* Disconnect from the server */
-	rc = m0_dtm0_service_process_disconnect(srv_srv, &cli_srv_fid);
-	M0_UT_ASSERT(rc == 0);
+	if (ENABLE_DTM0) {
+		/* Disconnect from the server */
+		rc = m0_dtm0_service_process_disconnect(srv_srv, &cli_srv_fid);
+		M0_UT_ASSERT(rc == 0);
+	}
 
 	rc = ut_suite_mt_idx_dix_fini();
 	m0_fi_disable("m0_dtm0_in_ut", "ut");
