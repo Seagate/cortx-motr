@@ -746,22 +746,54 @@ struct node_type {
 	uint32_t                   nt_id;
 	const char                *nt_name;
 	const struct m0_format_tag nt_tag;
+
+	/** Returns count of records in the node */
 	int  (*nt_count)(const struct nd *node);
+
+	/** Returns the space (inn bytes) available in the node */
 	int  (*nt_space)(const struct nd *node);
+
+	/** Returns level of this node in the btree */
 	int  (*nt_level)(const struct nd *node);
+
+	/** Returns size of the node (as a shift value) */
 	int  (*nt_shift)(const struct nd *node);
+
+	/** Returns unique FID for this node */
 	void (*nt_fid)  (const struct nd *node, struct m0_fid *fid);
+
+	/** Returns record (KV pair) for specific index */
 	void (*nt_rec)  (struct slot *slot);
+
+	/** Returns Key at a specifix index */
 	void (*nt_key)  (struct slot *slot);
+
+	/** Returns Child pointer (in segment) at specific index */
 	void (*nt_child)(struct slot *slot, struct segaddr *addr);
+
+	/** Returns TRUE if node has space to fit a new entry present in slot */
 	bool (*nt_isfit)(struct slot *slot);
+
+	/** TBD */
 	void (*nt_done) (struct slot *slot, struct m0_be_tx *tx, bool modified);
+
+	/** Make space in the node for inserting new entry at specific index */
 	void (*nt_make) (struct slot *slot, struct m0_be_tx *tx);
+
+	/** Returns index of the record containing the key in the node */
 	void (*nt_find) (struct slot *slot, const struct m0_btree_key *key);
+
+	/** TBD */
 	void (*nt_fix)  (const struct nd *node, struct m0_be_tx *tx);
+
+	/** TBD */
 	void (*nt_cut)  (const struct nd *node, int idx, int size,
 			 struct m0_be_tx *tx);
+
+	/** Deletes the record from the node at specific index */
 	void (*nt_del)  (const struct nd *node, int idx, struct m0_be_tx *tx);
+
+	/** Moves record(s) between nodes */
 	void (*nt_move) (struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 };
