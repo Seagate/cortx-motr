@@ -314,6 +314,9 @@ void __dummy_function(void);
 	((unsigned long)(idx)) < ARRAY_SIZE(array); \
 })
 
+#define ARRAY_SIZE_FOR_BITS(BITS_NEEDED,ARRAY_ELE_SIZE) \
+	(((BITS_NEEDED)+((ARRAY_ELE_SIZE)*8) - 1) / ((ARRAY_ELE_SIZE)*8))
+
 M0_INTERNAL bool m0_elems_are_unique(const void *array, unsigned nr_elems,
 				     size_t elem_size);
 
