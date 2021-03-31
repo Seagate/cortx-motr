@@ -1217,7 +1217,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 				       "Persistent notice is sent after DTM0 "
 				       "log entry is committed.");
 			if (!m0_dtm0_tx_desc_is_none(&cas_op(fom0)->cg_txd)) {
-				m0_dtm0_on_committed(fom0->fo_service->rs_reqh,
+				m0_dtm0_on_committed(fom0,
 						     &cas_op(fom0)->cg_txd);
 			}
 		}

@@ -20,8 +20,9 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM0
-#include "dtm0/service.h"
 #include "lib/trace.h"
+#include "dtm0/addb2.h"
+#include "dtm0/service.h"
 #include "lib/string.h"              /* streq */
 #include "lib/errno.h"               /* ENOMEM and so on */
 #include "lib/memory.h"              /* M0_ALLOC_PTR */
@@ -317,8 +318,8 @@ out:
 static int dtm0_service_start(struct m0_reqh_service *service)
 {
         M0_PRE(service != NULL);
-        return dtm_service__origin_fill(service) ?: m0_dtm0_fop_init()
-		?: dtm0_service__ha_subscribe(service);
+        return dtm_service__origin_fill(service) ?:
+		    dtm0_service__ha_subscribe(service);
 }
 
 static void dtm0_service_stop(struct m0_reqh_service *service)
@@ -349,7 +350,12 @@ static void dtm0_service_fini(struct m0_reqh_service *service)
 
 M0_INTERNAL int m0_dtm0_stype_init(void)
 {
-	return m0_reqh_service_type_register(&dtm0_service_type);
+	extern struct m0_sm_conf m0_dtx_sm_conf;
+
+	return m0_sm_addb2_init(&m0_dtx_sm_conf,
+				M0_AVI_DTX0_SM_STATE, M0_AVI_DTX0_SM_COUNTER) ?:
+            m0_dtm0_fop_init() ?:
+		    m0_reqh_service_type_register(&dtm0_service_type);
 }
 
 M0_INTERNAL void m0_dtm0_stype_fini(void)

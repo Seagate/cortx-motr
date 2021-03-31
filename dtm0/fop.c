@@ -20,7 +20,14 @@
  */
 
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM0
+#include "lib/trace.h"
+#include "addb2/addb2.h"
 #include "be/dtm0_log.h"
+#include "dtm0/addb2.h"
+#include "dtm0/fop.h"
+#include "dtm0/fop_xc.h"
+#include "dtm0/service.h"
 #include "dtm0/tx_desc.h"
 #include "dtm0/tx_desc_xc.h"
 #include "lib/errno.h"
@@ -29,21 +36,14 @@
 #include "lib/chan.h"
 #include "lib/finject.h"
 #include "lib/time.h"
-#include "lib/trace.h"
 #include "lib/misc.h"           /* M0_IN() */
 #include "fop/fop.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
-
-/* #include "lib/user_space/misc.h" */
+#include "fop/fop_item_type.h"
+#include "rpc/rpc_opcodes.h"
 #include "rpc/rpc.h"
 #include "rpc/rpclib.h"
-#include "fop/fop_item_type.h"
-
-#include "dtm0/fop.h"
-#include "dtm0/fop_xc.h"
-#include "dtm0/service.h"
-#include "rpc/rpc_opcodes.h"
 
 static void dtm0_rpc_item_reply_cb(struct m0_rpc_item *item);
 
@@ -107,11 +107,43 @@ M0_INTERNAL void m0_dtm0_fop_fini(void)
 	m0_xc_dtm0_fop_fini();
 }
 
+enum {
+	M0_FOPH_DTM0_LOGGING = M0_FOPH_TYPE_SPECIFIC,
+};
+
+struct m0_sm_state_descr dtm0_phases[] = {
+	[M0_FOPH_DTM0_LOGGING] = {
+		.sd_name      = "logging",
+		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS,
+					M0_FOPH_FAILURE)
+	},
+};
+
+struct m0_sm_trans_descr dtm0_phases_trans[] = {
+	[ARRAY_SIZE(m0_generic_phases_trans)] =
+	{"dtm0_1-fail", M0_FOPH_TYPE_SPECIFIC, M0_FOPH_FAILURE},
+	{"dtm0_1-success", M0_FOPH_TYPE_SPECIFIC, M0_FOPH_SUCCESS},
+};
+
+static struct m0_sm_conf dtm0_conf = {
+	.scf_name      = "dtm0-fom",
+	.scf_nr_states = ARRAY_SIZE(dtm0_phases),
+	.scf_state     = dtm0_phases,
+	.scf_trans_nr  = ARRAY_SIZE(dtm0_phases_trans),
+	.scf_trans     = dtm0_phases_trans,
+};
+
 M0_INTERNAL int m0_dtm0_fop_init(void)
 {
 	static int init_once = 0;
 	if (init_once++ > 0)
 		return 0;
+
+	m0_sm_conf_extend(m0_generic_conf.scf_state, dtm0_phases,
+			  m0_generic_conf.scf_nr_states);
+	m0_sm_conf_trans_extend(&m0_generic_conf, &dtm0_conf);
+	m0_sm_conf_init(&dtm0_conf);
+
 
 	m0_xc_dtm0_fop_init();
 	M0_FOP_TYPE_INIT(&dtm0_req_fop_fopt,
@@ -120,7 +152,7 @@ M0_INTERNAL int m0_dtm0_fop_init(void)
 			 .xt        = dtm0_req_fop_xc,
 			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fom_ops   = &dtm0_req_fom_type_ops,
-			 .sm        = &m0_generic_conf,
+			 .sm        = &dtm0_conf,
 			 .svc_type  = &dtm0_service_type);
 	M0_FOP_TYPE_INIT(&dtm0_rep_fop_fopt,
 			 .name      = "DTM0 reply",
@@ -128,7 +160,7 @@ M0_INTERNAL int m0_dtm0_fop_init(void)
 			 .xt        = dtm0_rep_fop_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .fom_ops   = &dtm0_req_fom_type_ops);
-	return 0;
+	return m0_fop_type_addb2_instrument(&dtm0_req_fop_fopt);
 }
 
 /*
@@ -210,16 +242,19 @@ static size_t dtm0_fom_locality(const struct m0_fom *fom)
 	return M0_RC_INFO(locality++, "fom=%p", fom);
 }
 
-static void m0_dtm0_send_msg(struct m0_dtm0_service *dtms,
-			     enum m0_dtm0s_msg msg_type,
-			     const struct m0_fid *tgt,
-			     const struct m0_dtm0_tx_desc *txd)
+static void m0_dtm0_send_msg(struct m0_fom                *fom,
+			                 enum m0_dtm0s_msg             msg_type,
+			                 const struct m0_fid          *tgt,
+			                 const struct m0_dtm0_tx_desc *txd)
 {
 	struct m0_fop          *fop;
 	struct m0_rpc_session  *session;
 	struct m0_rpc_item     *item;
 	struct dtm0_req_fop    *req;
+    uint64_t                phase_sm_id;
+    uint64_t                rpc_sm_id;
 	int                     rc;
+    struct m0_dtm0_service *dtms = m0_dtm0_service_find(fom->fo_service->rs_reqh);
 
 	M0_ENTRY("reqh=%p", dtms->dos_generic.rs_reqh);
 
@@ -235,6 +270,11 @@ static void m0_dtm0_send_msg(struct m0_dtm0_service *dtms,
 	req               = m0_fop_data(fop);
 	req->dtr_msg      = msg_type;
 	rc = m0_dtm0_tx_desc_copy(txd, &req->dtr_txr) ?: m0_rpc_post(item);
+
+	phase_sm_id = m0_sm_id_get(&fom->fo_sm_phase);
+	rpc_sm_id   = m0_sm_id_get(&item->ri_sm);
+	M0_ADDB2_ADD(M0_AVI_FOM_TO_TX, phase_sm_id, rpc_sm_id);
+
 	/* XXX: We could ignore this error in the real setup:
 	 * the caller's FOM should be in the FINISHED (terminal) state,
 	 * and there no much to do on their side to handle this error.
@@ -260,15 +300,13 @@ M0_INTERNAL void m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
     M0_ASSERT(rc == 0);
 }
 
-M0_INTERNAL void m0_dtm0_on_committed(struct m0_reqh               *reqh,
-				      const struct m0_dtm0_tx_desc *txd)
+M0_INTERNAL void m0_dtm0_on_committed(struct m0_fom                *fom,
+				                      const struct m0_dtm0_tx_desc *txd)
 {
-	int                     rc;
-	struct m0_dtm0_service *dtms;
+	struct m0_dtm0_service *dtms = m0_dtm0_service_find(fom->fo_service->rs_reqh);
 	struct m0_dtm0_tx_desc  msg = {};
+	int                     rc;
 	int                     i;
-
-	dtms = m0_dtm0_service_find(reqh);
 
 	rc = m0_dtm0_tx_desc_copy(txd, &msg);
 	M0_ASSERT(rc == 0);
@@ -287,7 +325,7 @@ M0_INTERNAL void m0_dtm0_on_committed(struct m0_reqh               *reqh,
 	}
 
 	/* Notify the originator */
-	m0_dtm0_send_msg(dtms, DTM_PERSISTENT, &msg.dtd_id.dti_fid, &msg);
+	m0_dtm0_send_msg(fom, DTM_PERSISTENT, &msg.dtd_id.dti_fid, &msg);
 
 	/* TODO: Send P msgs to the rest of the participants. */
 	m0_dtm0_tx_desc_fini(&msg);
@@ -322,9 +360,8 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 			rc = m0_dtm0_tx_desc_copy(&req->dtr_txr,
 						  &rep->dr_txr);
 			M0_ASSERT(rc == 0);
-			m0_dtm0_send_msg(svc, DMT_EXECUTED,
-					 &M0_FID_INIT(0x7300000000000001,
-						      0x1a),
+			m0_dtm0_send_msg(fom, DMT_EXECUTED,
+					 &M0_FID_INIT(0x7300000000000001, 0x1a),
 					 &req->dtr_txr);
 		}
 
