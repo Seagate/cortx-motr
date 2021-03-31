@@ -81,7 +81,7 @@ static struct m0_sm_trans_descr dtx_trans[] = {
 	{ "prune",      M0_DDS_STABLE,       M0_DDS_DONE         }
 };
 
-static struct m0_sm_conf dtx_sm_conf = {
+struct m0_sm_conf m0_dtx_sm_conf = {
 	.scf_name      = "dtm0dtx",
 	.scf_nr_states = ARRAY_SIZE(dtx_states),
 	.scf_state     = dtx_states,
@@ -91,14 +91,14 @@ static struct m0_sm_conf dtx_sm_conf = {
 
 M0_INTERNAL void m0_dtm0_dtx_domain_init(void)
 {
-	if (!m0_sm_conf_is_initialized(&dtx_sm_conf))
-		m0_sm_conf_init(&dtx_sm_conf);
+	if (!m0_sm_conf_is_initialized(&m0_dtx_sm_conf))
+		m0_sm_conf_init(&m0_dtx_sm_conf);
 }
 
 M0_INTERNAL void m0_dtm0_dtx_domain_fini(void)
 {
-	if (m0_sm_conf_is_initialized(&dtx_sm_conf))
-		m0_sm_conf_fini(&dtx_sm_conf);
+	if (m0_sm_conf_is_initialized(&m0_dtx_sm_conf))
+		m0_sm_conf_fini(&m0_dtx_sm_conf);
 }
 
 static void dtx_log_insert(struct m0_dtm0_dtx *dtx)
@@ -138,7 +138,8 @@ static void m0_dtm0_dtx_init(struct m0_dtm0_dtx *dtx,
 {
 	dtx->dd_dtms = svc;
 	dtx->dd_ancient_dtx.tx_dtx = dtx;
-	m0_sm_init(&dtx->dd_sm, &dtx_sm_conf, M0_DDS_INIT, grp);
+	m0_sm_init(&dtx->dd_sm, &m0_dtx_sm_conf, M0_DDS_INIT, grp);
+	m0_sm_addb2_counter_init(&dtx->dd_sm);
 }
 
 static struct m0_dtm0_dtx *m0_dtm0_dtx_alloc(struct m0_dtm0_service *svc,
