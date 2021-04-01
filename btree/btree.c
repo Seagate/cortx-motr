@@ -676,6 +676,174 @@ static int get_tick(struct m0_btree_op *bop)
 	};
 }
 #endif
+/*get_tick for insert operation*/
+static int get_tick(struct m0_btree_op *bop)
+{
+	struct td             *tree  = (void *)bop->bo_arbor;
+	uint64_t               flags = bop->bo_flags;
+	struct m0_btree_oimpl *oi    = bop->bo_i;
+	struct level          *level = &oi->i_level[oi->i_used];
+
+	switch (bop->bo_op.o_sm.s_state) {
+	case P_INIT:
+		if ((flags & OF_COOKIE) && cookie_is_set(&bop->bo_key.k_cookie))
+			return P_COOKIE;
+		else
+			return P_SETUP;
+	case P_COOKIE:
+		if (cookie_is_valid(tree, &bop->bo_key.k_cookie))
+			return P_LOCK;
+		else
+			return P_SETUP;
+	case P_SETUP:
+		alloc(bop->bo_i, tree->t_height);
+		if (bop->bo_i == NULL)
+			return fail(bop, M0_ERR(-ENOMEM));
+		return P_LOCKALL;
+	case P_LOCKALL:
+		if (bop->bo_flags & OF_LOCKALL)
+			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
+	case P_DOWN:
+		oi->i_used = 0;
+		/* Load root node. */
+		return node_get(&oi->i_nop, tree, &tree->t_root, P_NEXTDOWN);
+	case P_NEXTDOWN:
+		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			struct slot    slot = {};
+			struct segaddr down;
+			level->l_node = slot.s_node = oi->i_nop.no_node;
+			node_op_fini(&oi->i_nop);
+			node_find(&slot, bop->bo_rec.r_key);
+			level->l_idx = slot.s_idx;
+			if (node_level(slot.s_node) > 0) {
+				node_child(&slot, &down);
+				oi->i_used++;
+				return node_get(&oi->i_nop, tree,
+						&down, P_NEXTDOWN);
+			} else
+				return P_ALLOC;
+		} else {
+			node_op_fini(&oi->i_nop);
+			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+		}
+	case P_ALLOC:
+		static int level = oi->i_used;
+		if(level == -1) {
+			struct node_op node_op;
+			/* allocate extra node if root is going to get split */
+			node_op.no_node = extra_l_alloc;
+			return node_alloc(&node_op, tree, size,
+				oi->i_level[0].l_node->n_type, bop->bo_tx, P_LOCK);
+		}
+		if(node_space(oi->i_level[level].l_node) == about_to_OVERFLOW) {
+			struct node_op node_op;
+			node_op.no_node = oi->i_level[level].l_alloc;
+			level--;
+			return node_alloc(&node_op, tree, size,
+				oi->i_level[level].l_node->n_type, bop->bo_tx, P_ALLOC);
+		} else
+			return P_LOCK;
+	case P_LOCK:
+		if (!locked)
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_lop,
+					    P_CHECK);
+		else
+			return P_CHECK;
+	case P_CHECK:
+		if (used_cookie || check_path())
+			return P_MAKESPACE;
+		if (too_many_restarts) {
+			if (bop->bo_flags & OF_LOCKALL)
+				return fail(bop, -ETOOMANYREFS);
+			else
+				bop->bo_flags |= OF_LOCKALL;
+		}
+		if (height_increased) {
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_INIT);
+		} else {
+			oi->i_used = 0;
+			return P_DOWN;
+		}
+	case P_MAKESPACE:
+		if( oi->i_used == -1) {
+			//one level will get added and height will increase
+			//copy root content to extra_l_alloc
+			//use extra_l_alloc ,l_alloc as two child for root
+			node_move(level->l_node, extra_l_alloc, D_RIGHT, NR_MAX, bop->bo_tx);
+			//make extra_l_alloc , l_alloc at level:0 as a child of level[0]->l_node
+		}
+		else {
+			struct slot slot = {
+			.s_node = level->l_node;
+			.s_rec = bop->bo_rec;
+			};
+			node_find(&slot,bop->bo_rec.r_key);
+			level->l_idx = slot.idx;
+
+			if (node_isfit(&slot)) {
+				node_make (&slot, bop->bo_tx);
+				return ACT;
+			} else {
+				node_move(level->l_node, level->l_alloc, D_RIGHT, NR_EVEN, bop->bo_tx);
+				struct slot slot_ = {
+				.s_node = level->l_alloc;
+				.s_idx  = 0;
+				};
+				node_key(&slot_);
+				if(bop->bo_rec.key < slot_.s_rec.key) {
+					node_make (&slot, bop->bo_tx);
+					node_set(&slot, bop->bo_tx);
+				} else {
+					node_find(&slot_,bop->bo_rec.key);
+					slot_.s_rec = bop->bo_rec;
+					node_make (&slot_, bop->bo_tx);
+					node_set(&slot_, bop->bo_tx);
+				}
+				struct slot slot_ = {
+				.s_node = level->l_alloc;
+				.s_idx  = 0;
+				};
+				bop->bo_rec.r_key = node_key(&slot_);
+				bop->bo_rec.r_value = l_alloc; //update bo_rec.r_value
+				return P_NEXTUP;
+			}
+		}
+	case P_NEXTUP: {
+		if(l_alloc != NULL) {
+			oi->i_used--;
+			return P_MAKESPACE;
+			}
+		else {
+			lock_op_unlock(&bop->bo_i->i_lop);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+			}
+	}
+	case P_ACT: {
+		struct slot slot = {
+			.s_node = level->l_node;
+			.s_idx  = level->l_idx;
+			.s_rec = bop->bo_rec;
+		};
+		node_set(&slot, struct m0_be_tx *tx);
+		return NEXTUP;
+	}
+	case P_CLEANUP: {
+		int i;
+		for (i = 0; i < oi->i_used; ++i) {
+			if (oi->i_level[i].l_node != NULL) {
+				node_put(oi->i_level[i].l_node);
+				oi->i_level[i].l_node = NULL;
+			}
+		}
+		free(bop->bo_i);
+		return m0_sm_op_ret(&bop->bo_op);
+	}
+	default:
+		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.s_state);
+	};
+}
+
+
 
 
 /**
