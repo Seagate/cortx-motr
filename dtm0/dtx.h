@@ -99,13 +99,16 @@ M0_INTERNAL int m0_dtx0_prepare(struct m0_dtx *dtx);
 
 M0_INTERNAL int m0_dtx0_open(struct m0_dtx  *dtx, uint32_t nr);
 
-/** Fills in the FID of the given participant. */
-M0_INTERNAL int m0_dtx0_assign_fid(struct m0_dtx       *dtx,
+/** Fills in the FID of the given participant.
+ * @param pa_idx  A position in the participants list.
+ * @param pa_sfid The FID of a service that participates in the dtx.
+ */
+M0_INTERNAL int m0_dtx0_fid_assign(struct m0_dtx       *dtx,
 				   uint32_t             pa_idx,
-				   const struct m0_fid *p_fid);
+				   const struct m0_fid *pa_sfid);
 
 /** Fills in the FOP associated with the given participant. */
-M0_INTERNAL void m0_dtx0_assign_fop(struct m0_dtx       *dtx,
+M0_INTERNAL void m0_dtx0_fop_assign(struct m0_dtx       *dtx,
 				    uint32_t             pa_idx,
 				    const struct m0_fop *pa_fop);
 M0_INTERNAL int m0_dtx0_close(struct m0_dtx *dtx);
@@ -124,7 +127,7 @@ M0_INTERNAL void m0_dtx0_done(struct m0_dtx *dtx);
  * @param dtx A DTX that is the context for the processing.
  * @param fop An FOP with the P message.
  */
-M0_INTERNAL void m0_dtm0_dtx_post_pmsg(struct m0_dtm0_dtx *dtx,
+M0_INTERNAL void m0_dtm0_dtx_pmsg_post(struct m0_dtm0_dtx *dtx,
 				       struct m0_fop      *fop);
 
 
@@ -132,7 +135,7 @@ M0_INTERNAL void m0_dtm0_dtx_post_pmsg(struct m0_dtm0_dtx *dtx,
  * User is responsible for m0_dtm0_tx_desc_fini()lasing of 'dst'.
  * If dtx is NULL then dst will be filled with the empty tx_desc.
  */
-M0_INTERNAL int m0_dtx0_copy_txd(const struct m0_dtx    *dtx,
+M0_INTERNAL int m0_dtx0_txd_copy(const struct m0_dtx    *dtx,
 				 struct m0_dtm0_tx_desc *dst);
 
 M0_INTERNAL enum m0_dtm0_dtx_state m0_dtx0_sm_state(const struct m0_dtx *dtx);

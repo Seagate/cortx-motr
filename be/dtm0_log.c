@@ -603,7 +603,7 @@ m0_be_dtm0_log_post_pmsg(struct m0_be_dtm0_log *log,
 	 *    This point is not enforced.
 	 */
 	if (!is_stable)
-		m0_dtm0_dtx_post_pmsg(&rec->dlr_dtx, fop);
+		m0_dtm0_dtx_pmsg_post(&rec->dlr_dtx, fop);
 
 	M0_LEAVE();
 }

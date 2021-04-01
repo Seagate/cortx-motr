@@ -1366,7 +1366,7 @@ static void dix__rop(struct m0_dix_req *req, const struct m0_bufvec *keys,
 
 	keys_nr = keys->ov_vec.v_nr;
 	M0_PRE(keys_nr != 0);
-	/* We support only one record per request in DTM0. */
+	/* We support only one KV pair per request in DTM0. */
 	M0_PRE(ergo(req->dr_dtx != NULL, keys_nr == 1));
 	M0_ALLOC_PTR(rop);
 	if (rop == NULL) {
@@ -1658,28 +1658,26 @@ static void dix_rop_one_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast
 {
 	struct m0_dix_cas_rop *crop = ast->sa_datum;
 	struct m0_dix_req     *dreq = crop->crp_parent;
-	struct m0_dix_cas_rop *cas_rop;
 	struct m0_dix_rop_ctx *rop;
-	int                    idx  = 0;
 
 	M0_PRE(!dreq->dr_is_meta);
 	M0_PRE(M0_IN(dreq->dr_type, (DIX_PUT, DIX_DEL)));
+	M0_PRE(dreq->dr_dtx != NULL);
+	M0_PRE(dix_req_smgrp(dreq) == dreq->dr_dtx->tx_dtx->dd_sm.sm_grp);
 
 	rop = crop->crp_parent->dr_rop;
 	dix_cas_rop_rc_update(crop, 0);
 
-	/* TODO: enumerating cas rops or keeping a list of opaque
-	 * contexts inside DTX will help us avoid such loops. */
-	m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
-		if (cas_rop == crop) {
-			m0_dtx0_executed(dreq->dr_dtx, idx);
-			break;
-		}
-		idx++;
-	} m0_tl_endfor;
+	m0_dtx0_executed(dreq->dr_dtx, crop->crp_pa_idx);
 
 	if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
-		ast->sa_datum = dreq;
+		*ast = (struct m0_sm_ast) {
+			.sa_cb    =  dix_rop_completed,
+			.sa_datum = dreq,
+		};
+		/* Bypass the forkq because the dtx and dreq have
+		 * the same sm group.
+		 */
 		dix_rop_completed(grp, ast);
 	}
 }
@@ -1713,15 +1711,19 @@ static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 		M0_PRE(rop->dg_completed_nr <= rop->dg_cas_reqs_nr);
 
 		if (dreq->dr_dtx != NULL) {
-			rop->dg_ast.sa_cb = dix_rop_one_completed;
-			rop->dg_ast.sa_datum = crop;
+			rop->dg_ast = (struct m0_sm_ast) {
+				.sa_cb = dix_rop_one_completed,
+				.sa_datum = crop,
+			};
 			M0_ASSERT(dix_req_smgrp(dreq) ==
 				  dreq->dr_dtx->tx_dtx->dd_sm.sm_grp);
 			m0_sm_ast_post(dix_req_smgrp(dreq), &rop->dg_ast);
 		} else {
 			if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
-				rop->dg_ast.sa_cb = dix_rop_completed;
-				rop->dg_ast.sa_datum = dreq;
+				rop->dg_ast = (struct m0_sm_ast) {
+					.sa_cb = dix_rop_completed,
+					.sa_datum = dreq,
+				};
 				m0_sm_ast_post(dix_req_smgrp(dreq),
 					       &rop->dg_ast);
 			}
@@ -1742,7 +1744,6 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 	struct m0_reqh_service_ctx *cas_svc;
 	struct m0_dix_layout       *layout = &req->dr_indices[0].dd_layout;
 	int                         rc;
-	uint32_t                    i = 0;
 	M0_ENTRY("req=%p", req);
 
 	M0_PRE(rop->dg_cas_reqs_nr == 0);
@@ -1800,13 +1801,13 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 			dix_cas_rop_fini(cas_rop);
 			m0_free(cas_rop);
 		} else {
-			if (req->dr_dtx) {
-				m0_dtx0_assign_fop(req->dr_dtx, i,
+			if (req->dr_dtx != NULL) {
+				m0_dtx0_fop_assign(req->dr_dtx,
+						   cas_rop->crp_pa_idx,
 						   creq->ccr_fop);
 			}
 			rop->dg_cas_reqs_nr++;
 		}
-		i++;
 	} m0_tl_endfor;
 
 	M0_LOG(M0_DEBUG, "Processing dix_req %p rop=%p: dg_cas_reqs_nr=%"PRIu64,
@@ -1848,11 +1849,10 @@ static uint32_t dix_rop_tgt_iter_max(struct m0_dix_req    *req,
 		 */
 		return m0_dix_liter_P(iter);
 	else
-		/* Skip spares in ENABLE_DTM0 */
-		if (ENABLE_DTM0)
-			return m0_dix_liter_N(iter) + m0_dix_liter_K(iter);
-		else
-			return m0_dix_liter_N(iter) + 2 * m0_dix_liter_K(iter);
+		/* Skip spares when DTM0 is enabled */
+		return ENABLE_DTM0 ?
+			m0_dix_liter_N(iter) + m0_dix_liter_K(iter) :
+			m0_dix_liter_N(iter) + 2 * m0_dix_liter_K(iter);
 }
 
 static void dix_rop_tgt_iter_next(const struct m0_dix_req *req,
@@ -2224,7 +2224,7 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 	if (cas_rop_tlist_is_empty(&rop->dg_cas_reqs))
 		return M0_ERR(-EIO);
 
-	if (dtx) {
+	if (dtx != NULL) {
 		M0_ASSERT(!req->dr_is_meta);
 		M0_ASSERT(M0_IN(req->dr_type, (DIX_PUT, DIX_DEL)));
 		rc = m0_dtx0_open(dtx, cas_rop_tlist_length(&rop->dg_cas_reqs));
@@ -2235,10 +2235,12 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 	}
 
 	m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
-		if (dtx) {
+		if (dtx != NULL) {
+			cas_rop->crp_pa_idx = i++;
 			cas_svc = pc->pc_dev2svc[cas_rop->crp_sdev_idx].pds_ctx;
 			M0_ASSERT(cas_svc->sc_type == M0_CST_CAS);
-			rc = m0_dtx0_assign_fid(dtx, i++, &cas_svc->sc_fid);
+			rc = m0_dtx0_fid_assign(dtx, cas_rop->crp_pa_idx,
+						&cas_svc->sc_fid);
 			if (rc != 0)
 				goto end;
 		}
