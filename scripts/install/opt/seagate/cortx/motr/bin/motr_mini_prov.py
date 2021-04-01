@@ -71,7 +71,7 @@ def get_machine_id(self):
 def get_server_node(self):
     """Get current node name using machine-id."""
     try:
-        machine_id = get_machine_id(self).strip('\n'); 
+        machine_id = get_machine_id(self).strip('\n');
         server_node = Conf.get(self._index, 'server_node')[machine_id]
     except:
         raise MotrError(errno.EINVAL, f"MACHINE_ID {machine_id} does not exist in ConfStore")
@@ -325,7 +325,22 @@ def create_lvm(self, index, metadata_dev):
     cmd = f"lvcreate -n {lv_md_name} {vg_name} -l 100%FREE --yes"
     execute_command(self, cmd)
 
+    swap_lvm_size_cmd = f"lvs /dev/{vg_name}/{lv_swap_name} -o LV_SIZE --noheadings --units M --nosuffix"
+    swap_lvm_size_op = execute_command(self, swap_lvm_size_cmd)
+    swap_lvm_size = int(float(swap_lvm_size_op[0].strip(' \n')))
+    swap_check_cmd = "free -m | grep Swap | awk '{print $2}'"
+    free_swap_op = execute_command(self, swap_check_cmd)
+    free_swap_size = int(float(free_swap_op[0].strip(' \n')))
+    free_swap_size = free_swap_size + swap_lvm_size
+    execute_command(self, "sleep 10")
     create_swap(self, swap_dev)
+    execute_command(self, "sleep 10")
+    allocated_swap_op = execute_command(self, swap_check_cmd)
+    allocated_swap_size = int(float(allocated_swap_op[0].strip(' \n')))
+    if free_swap_size >= allocated_swap_size:
+        sys.stdout.write(f"allocated_swap_size={allocated_swap_size}M and total free_swap_size={free_swap_size}M\n")
+    else:
+        raise MotrError(errno.EINVAL, f"free swap={free_swap_size}M should be >= allocated swap size{after_swap_size}M\n")
 
 def config_lvm(self):
     try:
@@ -513,7 +528,7 @@ def lvm_exist(self):
     lv_list = lv_list[0:len(lv_list)-1]
 
     # Check if motr lvms are already created.
-    # If all are arleady created, return 
+    # If all are arleady created, return
     for i in range(1, metadata_disks_count+1):
         md_lv_path = f'/dev/vg_{node_name}_md{i}/lv_raw_md{i}'
         swap_lv_path = f'/dev/vg_{node_name}_md{i}/lv_main_swap{i}'
@@ -531,7 +546,7 @@ def lvm_exist(self):
 
 def cluster_up(self):
     cmd = 'hctl status'
-    op = subprocess.run(list(cmd.split(' ')))
+    op = subprocess.Popen(cmd, shell=True)
     if op.returncode == 0:
         return True
     else:
@@ -539,7 +554,8 @@ def cluster_up(self):
 
 def pkg_installed(self, pkg):
     cmd = f'yum list installed {pkg}'
-    op = subprocess.run(list(cmd.split(' ')))
+    op = subprocess.Popen(cmd, shell=True)
+    execute_command(self, "sleep 2")
     if op.returncode == 0:
         sys.stdout.write(f"{pkg} is installed\n")
         return True
