@@ -34,24 +34,20 @@
 #include "lib/memory.h" /* M0_ALLOC */
 #include "lib/trace.h"
 #include "dtm0/fop.h"  /* dtm0_req_fop */
+#include "motr/magic.h"
 
-enum {
-	M0_BE_DTM_LREC_MAGIX = 0xdeaddeaddeaddead,
-	M0_BE_DTM_LOG_MAGIX  = 0xbadbadbadbadbadb
-};
 
 M0_TL_DESCR_DEFINE(lrec, "DTM0 Log", static, struct m0_dtm0_log_rec,
-                   dlr_tlink, dlr_magic, M0_BE_DTM_LREC_MAGIX,
-                   M0_BE_DTM_LOG_MAGIX);
-
+                   dlr_tlink, dlr_magic, M0_BE_DTM0_LOG_REC_MAGIX,
+                   M0_BE_DTM0_LOG_MAGIX);
 M0_TL_DEFINE(lrec, static, struct m0_dtm0_log_rec);
 
 
 M0_BE_LIST_DESCR_DEFINE(lrec, "DTM0 PLog", static, struct m0_dtm0_log_rec,
-                   dlr_link, dlr_magic, M0_BE_DTM_LREC_MAGIX,
-                   M0_BE_DTM_LOG_MAGIX);
-
+			dlr_link, dlr_magic, M0_BE_DTM0_LOG_REC_MAGIX,
+			M0_BE_DTM0_LOG_MAGIX);
 M0_BE_LIST_DEFINE(lrec, static, struct m0_dtm0_log_rec);
+
 
 static bool m0_be_dtm0_log__invariant(const struct m0_be_dtm0_log *log)
 {
@@ -95,7 +91,7 @@ M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log **out,
 	}
 
 	m0_mutex_init(&log->dl_lock);
-	log->dl_is_plog = is_plog;
+	log->dl_is_persistent = is_plog;
 	log->dl_cs = cs;
 	return 0;
 }
@@ -122,34 +118,39 @@ M0_INTERNAL void dtm0_be_alloc_tx_desc_credit(struct m0_dtm0_tx_desc *txd,
 					      struct m0_be_tx_credit *accum)
 {
 	M0_BE_ALLOC_CREDIT_PTR(txd, seg, accum);
-	M0_BE_ALLOC_CREDIT_ARR(txd->dtd_ps.dtp_pa, txd->dtd_ps.dtp_nr, seg, accum);
+	M0_BE_ALLOC_CREDIT_ARR(txd->dtd_ps.dtp_pa,
+			       txd->dtd_ps.dtp_nr, seg, accum);
 }
 
 M0_INTERNAL void dtm0_be_alloc_log_rec_credit(struct m0_dtm0_tx_desc *txd,
-					      struct m0_buf	     *pyld,
+					      struct m0_buf	     *payload,
 					      struct m0_be_seg	     *seg,
 					      struct m0_be_tx_credit *accum)
 {
 	struct m0_dtm0_log_rec *rec;
 
 	M0_BE_ALLOC_CREDIT_PTR(rec, seg, accum);
-	M0_BE_ALLOC_CREDIT_BUF(pyld, seg, accum);
+	M0_BE_ALLOC_CREDIT_BUF(payload, seg, accum);
 	dtm0_be_alloc_tx_desc_credit(txd, seg, accum);
 	lrec_be_list_credit(M0_BLO_TLINK_CREATE, 1, accum);
 }
 
 M0_INTERNAL void dtm0_be_set_log_rec_credit(struct m0_dtm0_tx_desc *txd,
-					     struct m0_buf	    *pyld,
+					     struct m0_buf	    *payload,
 					     struct m0_be_seg	    *seg,
 					     struct m0_be_tx_credit *accum)
 {
 	struct m0_dtm0_log_rec *rec;
 
-	M0_BE_ALLOC_CREDIT_BUF(pyld, seg, accum);
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(*pyld));
+	M0_BE_ALLOC_CREDIT_BUF(payload, seg, accum);
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(*payload));
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(*txd));
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(txd->dtd_ps.dtp_nr, sizeof(struct m0_dtm0_tx_pa *)));
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(txd->dtd_ps.dtp_nr, sizeof(struct m0_dtm0_tx_pa)));
+	m0_be_tx_credit_add(accum,
+			    &M0_BE_TX_CREDIT(txd->dtd_ps.dtp_nr,
+					     sizeof(struct m0_dtm0_tx_pa *)));
+	m0_be_tx_credit_add(accum,
+			    &M0_BE_TX_CREDIT(txd->dtd_ps.dtp_nr,
+					     sizeof(struct m0_dtm0_tx_pa)));
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(*rec));
 }
 
@@ -158,8 +159,9 @@ M0_INTERNAL void dtm0_be_del_log_rec_credit(struct m0_be_seg       *seg,
 					    struct m0_be_tx_credit *accum)
 {
 	lrec_be_list_credit(M0_BLO_TLINK_DESTROY, 1, accum);
-	M0_BE_FREE_CREDIT_ARR(rec->dlr_txd.dtd_ps.dtp_pa, rec->dlr_txd.dtd_ps.dtp_nr, seg, accum);
-	M0_BE_FREE_CREDIT_PTR(rec->dlr_pyld.b_addr, seg, accum);
+	M0_BE_FREE_CREDIT_ARR(rec->dlr_txd.dtd_ps.dtp_pa,
+			      rec->dlr_txd.dtd_ps.dtp_nr, seg, accum);
+	M0_BE_FREE_CREDIT_PTR(rec->dlr_payload.b_addr, seg, accum);
 	M0_BE_FREE_CREDIT_PTR(rec, seg, accum);
 }
 
@@ -171,38 +173,32 @@ M0_INTERNAL void dtm0_be_log_destroy_credit(struct m0_be_seg       *seg,
 
 M0_INTERNAL void m0_be_dtm0_log_credit(enum m0_be_dtm0_log_credit_op op,
 				       struct m0_dtm0_tx_desc	    *txd,
-				       struct m0_buf		    *pyld,
+				       struct m0_buf		    *payload,
                                        struct m0_be_seg             *seg,
 				       struct m0_dtm0_log_rec	    *rec,
                                        struct m0_be_tx_credit       *accum)
 {
 	/*TODO:Complete implementation during persistent list implementation */
+	struct m0_be_dtm0_log *log;
+
 	switch (op) {
 	case M0_DTML_CREATE:
-	{
-		struct m0_be_dtm0_log *log;
-
 		M0_BE_ALLOC_CREDIT_PTR(log, seg, accum);
-		M0_BE_ALLOC_CREDIT_PTR(log->seg, seg, accum);
+		M0_BE_ALLOC_CREDIT_PTR(log->dl_seg, seg, accum);
 		M0_BE_ALLOC_CREDIT_PTR(log->dl_list, seg, accum);
 		lrec_be_list_credit(M0_BLO_CREATE, 1, accum);
 		m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_PTR(log));
 		break;
-	}
 	case M0_DTML_EXECUTED:
 	case M0_DTML_PERSISTENT:
-	{
-		dtm0_be_alloc_log_rec_credit(txd, pyld, seg, accum);
-		dtm0_be_set_log_rec_credit(txd, pyld, seg, accum);
+		dtm0_be_alloc_log_rec_credit(txd, payload, seg, accum);
+		dtm0_be_set_log_rec_credit(txd, payload, seg, accum);
 		m0_be_list_credit(M0_BLO_ADD, 1, accum);
 		break;
-	}
 	case M0_DTML_PRUNE:
-	{
 		dtm0_be_del_log_rec_credit(seg, rec, accum);
 		m0_be_list_credit(M0_BLO_DEL, 1, accum);
 		break;
-	}
 	case M0_DTML_REDO:
 	default:
 		M0_IMPOSSIBLE("");
@@ -224,7 +220,7 @@ M0_INTERNAL int m0_be_dtm0_log_create(struct m0_be_tx        *tx,
 	M0_BE_ALLOC_PTR_SYNC(log->dl_list, seg, tx);
 	M0_ASSERT(log->dl_list != NULL);
 
-	log->seg = seg;
+	log->dl_seg = seg;
 
 	lrec_be_list_create(log->dl_list, tx);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, log);
@@ -235,7 +231,7 @@ M0_INTERNAL int m0_be_dtm0_log_create(struct m0_be_tx        *tx,
 M0_INTERNAL void m0_be_dtm0_log_destroy(struct m0_be_tx        *tx,
                                         struct m0_be_dtm0_log **log)
 {
-#if 0
+#if 0 /* TODO: write down persistent implementation later */
 	struct m0_be_dtm0_log *plog = *log;
 
 	M0_PRE(plog != NULL);
@@ -253,7 +249,7 @@ struct m0_dtm0_log_rec *m0_be_dtm0_log_find(struct m0_be_dtm0_log    *log,
 	M0_PRE(m0_dtm0_tid__invariant(id));
 	M0_PRE(m0_mutex_is_locked(&log->dl_lock));
 
-	if (log->dl_is_plog) {
+	if (log->dl_is_persistent) {
 		struct m0_dtm0_log_rec *lrec;
 
 		m0_be_list_for(lrec, log->dl_list, lrec) {
@@ -270,10 +266,10 @@ struct m0_dtm0_log_rec *m0_be_dtm0_log_find(struct m0_be_dtm0_log    *log,
 	}
 }
 
-static int m0_be_dtm0_log_rec_init(struct m0_dtm0_log_rec **rec,
-                                   struct m0_be_tx         *tx,
-                                   struct m0_dtm0_tx_desc  *txd,
-                                   struct m0_buf           *pyld)
+static int be_dtm0_log_rec_init(struct m0_dtm0_log_rec **rec,
+				struct m0_be_tx         *tx,
+				struct m0_dtm0_tx_desc  *txd,
+				struct m0_buf           *payload)
 {
 	int                     rc;
 	struct m0_dtm0_log_rec *lrec;
@@ -288,7 +284,7 @@ static int m0_be_dtm0_log_rec_init(struct m0_dtm0_log_rec **rec,
 		return rc;
 	}
 
-	rc = m0_buf_copy(&lrec->dlr_pyld, pyld);
+	rc = m0_buf_copy(&lrec->dlr_payload, payload);
 	if (rc != 0) {
 		m0_dtm0_tx_desc_fini(&lrec->dlr_txd);
 		m0_free(lrec);
@@ -299,11 +295,11 @@ static int m0_be_dtm0_log_rec_init(struct m0_dtm0_log_rec **rec,
 	return 0;
 }
 
-static int m0_be_dtm0_plog_rec_init(struct m0_dtm0_log_rec **dl_rec,
-                                   struct m0_be_tx         *tx,
-				   struct  m0_be_seg	   *seg,
-                                   struct m0_dtm0_tx_desc  *txd,
-                                   struct m0_buf           *pyld)
+static int be_dtm0_plog_rec_init(struct m0_dtm0_log_rec **out,
+				 struct m0_be_tx         *tx,
+				 struct m0_be_seg        *seg,
+				 struct m0_dtm0_tx_desc  *txd,
+				 struct m0_buf           *payload)
 {
 	struct m0_dtm0_log_rec *rec;
 
@@ -312,74 +308,84 @@ static int m0_be_dtm0_plog_rec_init(struct m0_dtm0_log_rec **dl_rec,
 
 	rec->dlr_txd.dtd_id = txd->dtd_id;
 	rec->dlr_txd.dtd_ps.dtp_nr = txd->dtd_ps.dtp_nr;
-	M0_BE_ALLOC_ARR_SYNC(rec->dlr_txd.dtd_ps.dtp_pa, txd->dtd_ps.dtp_nr, seg, tx);
+	M0_BE_ALLOC_ARR_SYNC(rec->dlr_txd.dtd_ps.dtp_pa,
+			     txd->dtd_ps.dtp_nr, seg, tx);
 	M0_ASSERT(rec->dlr_txd.dtd_ps.dtp_pa != NULL);
 
 	memcpy(rec->dlr_txd.dtd_ps.dtp_pa, txd->dtd_ps.dtp_pa,
-		sizeof(rec->dlr_txd.dtd_ps.dtp_pa[0]) * rec->dlr_txd.dtd_ps.dtp_nr);
+	       sizeof(rec->dlr_txd.dtd_ps.dtp_pa[0]) * rec->dlr_txd.dtd_ps.dtp_nr);
 
-	if (pyld->b_nob > 0) {
-		rec->dlr_pyld.b_nob = pyld->b_nob;
-		M0_BE_ALLOC_BUF_SYNC(&rec->dlr_pyld, seg, tx);
-		M0_ASSERT(&rec->dlr_pyld.b_addr != NULL);
-		m0_buf_memcpy(&rec->dlr_pyld, pyld);
-		M0_BE_TX_CAPTURE_BUF(seg, tx, &rec->dlr_pyld);
+	if (payload->b_nob > 0) {
+		rec->dlr_payload.b_nob = payload->b_nob;
+		M0_BE_ALLOC_BUF_SYNC(&rec->dlr_payload, seg, tx);
+		M0_ASSERT(&rec->dlr_payload.b_addr != NULL); /* TODO: handle error */
+		m0_buf_memcpy(&rec->dlr_payload, payload);
 	} else {
-		rec->dlr_pyld.b_addr = NULL;
-		rec->dlr_pyld.b_nob = 0;
+		rec->dlr_payload.b_addr = NULL;
+		rec->dlr_payload.b_nob = 0;
 	}
 
-	M0_BE_TX_CAPTURE_ARR(seg, tx, rec->dlr_txd.dtd_ps.dtp_pa, rec->dlr_txd.dtd_ps.dtp_nr);
+	M0_BE_TX_CAPTURE_BUF(seg, tx, &rec->dlr_payload);
+	M0_BE_TX_CAPTURE_ARR(seg, tx,
+			     rec->dlr_txd.dtd_ps.dtp_pa,
+			     rec->dlr_txd.dtd_ps.dtp_nr);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, rec);
 
-	*dl_rec = rec;
+	*out = rec;
 	return 0;
 }
 
-static void m0_be_dtm0_log_rec_fini(struct m0_dtm0_log_rec **rec,
-                                    struct m0_be_tx        *tx)
+/* TODO: change convention of this function to:
+void be_dtm0_log_rec_fini(struct m0_dtm0_log_rec *rec, ..*tx)
+and allocate rec outside the function
+*/
+static void be_dtm0_log_rec_fini(struct m0_dtm0_log_rec **rec,
+				 struct m0_be_tx         *tx)
 {
 	struct m0_dtm0_log_rec *lrec = *rec;
 
 	M0_ASSERT_INFO(M0_IS0(&lrec->dlr_dtx), "DTX should have been finalised "
 		       "already in m0_dtx0_done().");
-	m0_buf_free(&lrec->dlr_pyld);
+	m0_buf_free(&lrec->dlr_payload);
 	m0_dtm0_tx_desc_fini(&lrec->dlr_txd);
 	m0_free(lrec);
 	*rec = NULL;
 }
 
-
-static void m0_be_dtm0_plog_rec_fini(struct m0_dtm0_log_rec **dl_lrec,
-				     struct m0_be_dtm0_log   *log,
-                                     struct m0_be_tx         *tx)
+/* TODO: change convention of this function to:
+void m0_be_dtm0_plog_rec_fini(struct m0_dtm0_log_rec *rec, ..*tx)
+and allocate rec outside the function
+*/
+static void be_dtm0_plog_rec_fini(struct m0_dtm0_log_rec **dl_lrec,
+				  struct m0_be_dtm0_log   *log,
+				  struct m0_be_tx         *tx)
 {
-	struct m0_be_seg       *seg = log->seg;
+	struct m0_be_seg       *seg = log->dl_seg;
 	struct m0_dtm0_log_rec *rec = *dl_lrec;
 
 	M0_BE_FREE_PTR_SYNC(rec->dlr_txd.dtd_ps.dtp_pa, seg, tx);
-	M0_BE_FREE_PTR_SYNC(rec->dlr_pyld.b_addr, seg, tx);
+	M0_BE_FREE_PTR_SYNC(rec->dlr_payload.b_addr, seg, tx);
 	M0_BE_FREE_PTR_SYNC(rec, seg, tx);
 }
 
 static int m0_be_dtm0_log__insert(struct m0_be_dtm0_log  *log,
-                                  struct m0_be_tx        *tx,
-                                  struct m0_dtm0_tx_desc *txd,
-                                  struct m0_buf          *pyld)
+				  struct m0_be_tx        *tx,
+				  struct m0_dtm0_tx_desc *txd,
+				  struct m0_buf          *payload)
 {
 	int                      rc;
 	struct m0_dtm0_log_rec	*rec;
-	struct m0_be_seg	*seg = log->seg;
+	struct m0_be_seg	*seg = log->dl_seg;
 
-	if (log->dl_is_plog) {
-		rc = m0_be_dtm0_plog_rec_init(&rec, tx, seg, txd, pyld);
-		if (rc !=  0)
+	if (log->dl_is_persistent) {
+		rc = be_dtm0_plog_rec_init(&rec, tx, seg, txd, payload);
+		if (rc != 0)
 			return rc;
 		lrec_be_tlink_create(rec, tx);
 		lrec_be_list_add_tail(log->dl_list, tx, rec);
 	} else {
-		rc = m0_be_dtm0_log_rec_init(&rec, tx, txd, pyld);
-		if (rc !=  0)
+		rc = be_dtm0_log_rec_init(&rec, tx, txd, payload);
+		if (rc != 0)
 			return rc;
 		lrec_tlink_init_at_tail(rec, log->dl_tlist);
 	}
@@ -387,34 +393,34 @@ static int m0_be_dtm0_log__insert(struct m0_be_dtm0_log  *log,
 	return rc;
 }
 
-static int m0_be_dtm0_log__set(struct m0_be_dtm0_log	    *log,
-                               struct m0_be_tx		    *tx,
-                               const struct m0_dtm0_tx_desc *txd,
-                               struct m0_buf		    *pyld,
-                               struct m0_dtm0_log_rec	    *rec)
+static int be_dtm0_log__set(struct m0_be_dtm0_log	 *log,
+			    struct m0_be_tx		 *tx,
+			    const struct m0_dtm0_tx_desc *txd,
+			    struct m0_buf		 *payload,
+			    struct m0_dtm0_log_rec	 *rec)
 {
-	struct m0_buf          *lpyld    = &rec->dlr_pyld;
-	struct m0_be_seg       *seg	 = log->seg;
-	bool			dl_is_plog = log->dl_is_plog;
+	bool		  is_persistent = log->dl_is_persistent;
+	struct m0_buf    *lpayload         = &rec->dlr_payload;
+	struct m0_be_seg *seg	           = log->dl_seg;
 
 	M0_PRE(m0_dtm0_log_rec__invariant(rec));
 
 	/* Attach payload to log if it is not attached */
-	if (!m0_buf_is_set(lpyld) && m0_buf_is_set(pyld)) {
-		if (dl_is_plog) {
-			lpyld->b_nob = pyld->b_nob;
-			M0_BE_ALLOC_BUF_SYNC(lpyld, seg, tx);
-			m0_buf_memcpy(lpyld, pyld);
-			M0_BE_TX_CAPTURE_BUF(seg, tx, lpyld);
-			M0_BE_TX_CAPTURE_PTR(seg, tx, lpyld);
+	if (!m0_buf_is_set(lpayload) && m0_buf_is_set(payload)) {
+		if (is_persistent) {
+			lpayload->b_nob = payload->b_nob;
+			M0_BE_ALLOC_BUF_SYNC(lpayload, seg, tx);
+			m0_buf_memcpy(lpayload, payload);
+			M0_BE_TX_CAPTURE_BUF(seg, tx, lpayload);
+			M0_BE_TX_CAPTURE_PTR(seg, tx, lpayload);
 		} else {
-			m0_buf_copy(lpyld, pyld);
+			m0_buf_copy(lpayload, payload);
 		}
 	}
 
 	m0_dtm0_tx_desc_apply(&rec->dlr_txd, txd);
 	M0_POST(m0_dtm0_log_rec__invariant(rec));
-	if (dl_is_plog) {
+	if (is_persistent) {
 		M0_BE_TX_CAPTURE_ARR(seg, tx, rec->dlr_txd.dtd_ps.dtp_pa,
 					      rec->dlr_txd.dtd_ps.dtp_nr);
 	}
@@ -425,18 +431,18 @@ static int m0_be_dtm0_log__set(struct m0_be_dtm0_log	    *log,
 M0_INTERNAL int m0_be_dtm0_log_update(struct m0_be_dtm0_log  *log,
                                       struct m0_be_tx        *tx,
                                       struct m0_dtm0_tx_desc *txd,
-                                      struct m0_buf          *pyld)
+                                      struct m0_buf          *payload)
 {
 	struct m0_dtm0_log_rec	*rec;
 
-	M0_PRE(pyld != NULL);
+	M0_PRE(payload != NULL);
 	M0_PRE(m0_be_dtm0_log__invariant(log));
 	M0_PRE(m0_dtm0_tx_desc__invariant(txd));
 	M0_PRE(m0_mutex_is_locked(&log->dl_lock));
 
 	return (rec = m0_be_dtm0_log_find(log, &txd->dtd_id)) ?
-                m0_be_dtm0_log__set(log, tx, txd, pyld, rec) :
-                m0_be_dtm0_log__insert(log, tx, txd, pyld);
+                be_dtm0_log__set(log, tx, txd, payload, rec) :
+                m0_be_dtm0_log__insert(log, tx, txd, payload);
 }
 
 M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
@@ -467,10 +473,10 @@ M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
 
 	while ((currec = lrec_tlist_pop(log->dl_tlist)) != rec) {
 		M0_ASSERT(m0_dtm0_log_rec__invariant(currec));
-		m0_be_dtm0_log_rec_fini(&currec, tx);
+		be_dtm0_log_rec_fini(&currec, tx);
 	}
 
-	m0_be_dtm0_log_rec_fini(&currec, tx);
+	be_dtm0_log_rec_fini(&currec, tx);
 	return rc;
 }
 
@@ -480,18 +486,18 @@ M0_INTERNAL void m0_be_dtm0_log_clear(struct m0_be_dtm0_log *log)
 
 	/* This function is expected to be called only on the client side where
 	   the log will always be a volatile log. */
-	M0_ASSERT(!log->dl_is_plog);
+	M0_ASSERT(!log->dl_is_persistent);
 
 	m0_tl_teardown(lrec, log->dl_tlist, rec) {
 		M0_ASSERT(m0_dtm0_log_rec__invariant(rec));
 		M0_ASSERT(m0_dtm0_tx_desc_state_eq(&rec->dlr_dtx.dd_txd,
 						   M0_DTPS_PERSISTENT));
-		m0_be_dtm0_log_rec_fini(&rec, NULL);
+		be_dtm0_log_rec_fini(&rec, NULL);
 	}
 	M0_POST(lrec_tlist_is_empty(log->dl_tlist));
 }
 
-M0_INTERNAL int m0_be_dtm0_log_insert_volatile(struct m0_be_dtm0_log *log,
+M0_INTERNAL int m0_be_dtm0_volatile_log_insert(struct m0_be_dtm0_log  *log,
 					       struct m0_dtm0_log_rec *rec)
 {
 	int rc;
@@ -505,7 +511,7 @@ M0_INTERNAL int m0_be_dtm0_log_insert_volatile(struct m0_be_dtm0_log *log,
 	return 0;
 }
 
-M0_INTERNAL void m0_be_dtm0_log_update_volatile(struct m0_be_dtm0_log *log,
+M0_INTERNAL void m0_be_dtm0_volatile_log_update(struct m0_be_dtm0_log  *log,
 						struct m0_dtm0_log_rec *rec)
 {
 	/* TODO: dissolve dlr_txd and remove this code */
@@ -531,7 +537,8 @@ M0_INTERNAL int m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log	    *log,
 			return M0_ERR(-EPROTO);
 
 		if (cred) {
-			m0_be_dtm0_log_credit(M0_DTML_PRUNE, NULL, NULL, log->seg, rec, cred);
+			m0_be_dtm0_log_credit(M0_DTML_PRUNE, NULL, NULL,
+					      log->dl_seg, rec, cred);
 		}
 		rc = m0_dtm0_tid_cmp(log->dl_cs, &rec->dlr_txd.dtd_id, id);
 		if (rc != M0_DTS_LT)
@@ -559,18 +566,16 @@ M0_INTERNAL int m0_be_dtm0_plog_prune(struct m0_be_dtm0_log    *log,
 
 		lrec_be_list_del(log->dl_list, tx, rec);
 		lrec_be_tlink_destroy(rec, tx);
-		m0_be_dtm0_plog_rec_fini(&rec, log, tx);
-		if (m0_dtm0_tid_cmp(log->dl_cs, &cur_id, id) == M0_DTS_EQ) {
+		be_dtm0_plog_rec_fini(&rec, log, tx);
+		if (m0_dtm0_tid_cmp(log->dl_cs, &cur_id, id) == M0_DTS_EQ)
 			break;
-		}
 	} m0_be_list_endfor;
 
 	return 0;
 }
 
-M0_INTERNAL void
-m0_be_dtm0_log_post_pmsg(struct m0_be_dtm0_log *log,
-			 struct m0_fop         *fop)
+M0_INTERNAL void m0_be_dtm0_log_pmsg_post(struct m0_be_dtm0_log *log,
+					  struct m0_fop         *fop)
 {
 	struct m0_dtm0_log_rec       *rec;
 	struct dtm0_req_fop          *req = m0_fop_data(fop);
@@ -578,7 +583,7 @@ m0_be_dtm0_log_post_pmsg(struct m0_be_dtm0_log *log,
 	bool                          is_stable;
 
 	M0_PRE(log != NULL);
-	M0_PRE(!log->dl_is_plog);
+	M0_PRE(!log->dl_is_persistent);
 	M0_PRE(fop->f_type == &dtm0_req_fop_fopt);
 	M0_PRE(m0_dtm0_tx_desc__invariant(txd));
 

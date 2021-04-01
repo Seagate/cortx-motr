@@ -370,7 +370,7 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 			/* TODO: Only the client side is here so far.
 			 * Remove the "is_volatile" part when plog is ready.
 			 */
-			m0_be_dtm0_log_post_pmsg(svc->dos_log, fom->fo_fop);
+			m0_be_dtm0_log_pmsg_post(svc->dos_log, fom->fo_fop);
 		}
 
 		rep->dr_rc = 0;

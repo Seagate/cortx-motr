@@ -113,7 +113,7 @@ static void dtx_log_insert(struct m0_dtm0_dtx *dtx)
 	M0_PRE(log != NULL);
 
 	m0_mutex_lock(&log->dl_lock);
-	rc = m0_be_dtm0_log_insert_volatile(log, record);
+	rc = m0_be_dtm0_volatile_log_insert(log, record);
 	m0_mutex_unlock(&log->dl_lock);
 	M0_ASSERT(rc == 0);
 }
@@ -128,7 +128,7 @@ static void dtx_log_update(struct m0_dtm0_dtx *dtx)
 	M0_PRE(log != NULL);
 
 	m0_mutex_lock(&log->dl_lock);
-	m0_be_dtm0_log_update_volatile(log, record);
+	m0_be_dtm0_volatile_log_update(log, record);
 	m0_mutex_unlock(&log->dl_lock);
 }
 
