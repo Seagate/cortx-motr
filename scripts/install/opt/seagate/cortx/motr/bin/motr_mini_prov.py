@@ -58,10 +58,10 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
     return stdout, ps.returncode
 
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
-    sys.stdout.write(f"Executing cmd : '{cmd}'\n") 
-    ps = subprocess.run(list(cmd.split(' ')), timeout=timeout_secs)
-    sys.stdout.write(f"ret={ps.returncode}\n")
-    return ps.returncode
+    sys.stdout.write(f"Executing cmd : '{cmd}'\n")
+    ret = subprocess.call(cmd, timeout=timeout_secs, shell=True)
+    sys.stdout.write(f"ret={ret}\n")
+    return ret
 
 def check_type(var, vtype, msg):
     if not isinstance(var, vtype):
