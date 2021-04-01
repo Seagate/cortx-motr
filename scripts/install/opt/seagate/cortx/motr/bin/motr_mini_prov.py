@@ -59,7 +59,8 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
 
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
     sys.stdout.write(f"Executing cmd : '{cmd}'\n")
-    ret = subprocess.call(list(cmd.split(' ')), timeout=timeout_secs)
+    cmd_list = list(cmd.split(' '))
+    ret = subprocess.call(cmd_list, timeout=timeout_secs)
     sys.stdout.write(f"ret={ret}\n")
     return ret
 
