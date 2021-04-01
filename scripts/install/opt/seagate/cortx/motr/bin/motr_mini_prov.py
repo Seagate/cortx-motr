@@ -57,6 +57,18 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
 
+def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
+    ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                          shell=True)
+    stdout, stderr = ps.communicate(timeout=timeout_secs);
+    stdout = str(stdout, 'utf-8')
+    if self._debug or verbose:
+        sys.stdout.write(f"[CMD] {cmd}\n")
+        sys.stdout.write(f"[OUT]\n{stdout}\n")
+        sys.stdout.write(f"[RET] {ps.returncode}\n")
+    return ps.returncode
+
 def check_type(var, vtype, msg):
     if not isinstance(var, vtype):
         raise MotrError(errno.EINVAL, f"Invalid {msg} type. Expected: {vtype}")
@@ -332,15 +344,15 @@ def create_lvm(self, index, metadata_dev):
     free_swap_op = execute_command(self, swap_check_cmd)
     free_swap_size = int(float(free_swap_op[0].strip(' \n')))
     free_swap_size = free_swap_size + swap_lvm_size
-    execute_command(self, "sleep 10")
+    execute_command(self, "sleep 30")
     create_swap(self, swap_dev)
-    execute_command(self, "sleep 10")
+    execute_command(self, "sleep 30")
     allocated_swap_op = execute_command(self, swap_check_cmd)
     allocated_swap_size = int(float(allocated_swap_op[0].strip(' \n')))
     if free_swap_size >= allocated_swap_size:
         sys.stdout.write(f"allocated_swap_size={allocated_swap_size}M and total free_swap_size={free_swap_size}M\n")
     else:
-        raise MotrError(errno.EINVAL, f"free swap={free_swap_size}M should be >= allocated swap size{after_swap_size}M\n")
+        raise MotrError(errno.EINVAL, f"free swap={free_swap_size}M should be >= allocated swap size{allocated_swap_size}M\n")
 
 def config_lvm(self):
     try:
@@ -546,17 +558,17 @@ def lvm_exist(self):
 
 def cluster_up(self):
     cmd = 'hctl status'
-    op = subprocess.Popen(cmd, shell=True)
-    if op.returncode == 0:
+    ret = execute_command_without_exception(self, cmd)
+    if ret == 0:
         return True
     else:
         return False
 
 def pkg_installed(self, pkg):
     cmd = f'yum list installed {pkg}'
-    op = subprocess.Popen(cmd, shell=True)
+    ret = execute_command_without_exception(self, cmd)
     execute_command(self, "sleep 2")
-    if op.returncode == 0:
+    if ret == 0:
         sys.stdout.write(f"{pkg} is installed\n")
         return True
     else:
