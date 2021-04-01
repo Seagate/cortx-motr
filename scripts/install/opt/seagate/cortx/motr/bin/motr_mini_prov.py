@@ -57,16 +57,10 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
 
-def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
-    ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                          shell=True)
-    stdout, stderr = ps.communicate(timeout=timeout_secs);
-    stdout = str(stdout, 'utf-8')
-    if self._debug or verbose:
-        sys.stdout.write(f"[CMD] {cmd}\n")
-        sys.stdout.write(f"[OUT]\n{stdout}\n")
-        sys.stdout.write(f"[RET] {ps.returncode}\n")
+def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
+    sys.stdout.write(f"Executing cmd : '{cmd}'\n") 
+    ps = subprocess.run(list(cmd.split(' ')), timeout=timeout_secs)
+    sys.stdout.write(f"ret={ps.returncode}\n")
     return ps.returncode
 
 def check_type(var, vtype, msg):
@@ -344,9 +338,7 @@ def create_lvm(self, index, metadata_dev):
     free_swap_op = execute_command(self, swap_check_cmd)
     free_swap_size = int(float(free_swap_op[0].strip(' \n')))
     free_swap_size = free_swap_size + swap_lvm_size
-    execute_command(self, "sleep 30")
     create_swap(self, swap_dev)
-    execute_command(self, "sleep 30")
     allocated_swap_op = execute_command(self, swap_check_cmd)
     allocated_swap_size = int(float(allocated_swap_op[0].strip(' \n')))
     if free_swap_size >= allocated_swap_size:
