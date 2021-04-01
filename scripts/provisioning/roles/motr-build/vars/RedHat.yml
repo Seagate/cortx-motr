@@ -50,7 +50,7 @@ motr_build_deps_pkgs:
   - rpm-build
   - systemd-devel
   - libedit-devel
-  - 'https://www.nasm.us/pub/nasm/releasebuilds/2.14/linux/nasm-2.14-0.fc27.x86_64.rpm'
+  - yasm
 
 motr_build_deps_python3_pkgs:
   - python36

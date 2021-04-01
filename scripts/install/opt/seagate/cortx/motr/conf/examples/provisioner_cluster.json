@@ -1,281 +1,86 @@
 {
-  "commons": {
-    "health-map": {
-      "path": "/opt/seagate/cortx_configs/healthmap/",
-      "file": "healthmap-schema.json"
-    },
-    "version": {
-      "consul": "1.7.8-1",
-      "elasticsearch-oss": "6.8.8-1",
-      "erlang": "latest",
-      "kibana-oss": "6.8.8-1",
-      "nodejs": "v12.13.0",
-      "rabbitmq": "latest",
-      "rsyslog": "8.40.0-1.el7",
-      "rsyslog-elasticsearch": "8.40.0-1.el7",
-      "rsyslog-mmjsonparse": "8.40.0-1.el7",
-      "kafka": "2.13-2.7.0"
-    }
+  "support": {
+    "user": "cortxub",
+    "password": "ZxHXI1PvK3Wt"
   },
-  "corosync-pacemaker": {
-    "cluster_name": "cortx_cluster",
-    "user": "hacluster",
-    "secret": "gAAAAABgE_lkCVA65qugohmtPpwYTnvpAKe8YRmHi5RODF58qNuZpwRolfDyqOIaspkeSQRsU2rr4AEQoe6YRajnM589RXRdunHXc_v0ZrDoZLvUrCVhDP0dCevI8eP_NtVoh9GMNgi1DLJyWHEhwxdLa5mEvHrNG8UXW_4zHg4ypcUREHiFSnWNcLtR7clgnEskSTtTqs2tiD9KH-npwPEdtyvGMDm1ap4DTQP8MjqolCq2xgy7AZKZY6l9RGH1I9wuXzXEECaMS8weZ1vLHDofFKLomuQ2tU5FVX3tdakrJOYfiLEDAJMFZq4ev-hvgpv4GiAlUqh1Qmbu-cECYJmGmbME8FAui6TJ5sbFRoUISefOrWuejd_OCdx2LfTDaImf1bGJxJMxvvAx7K5AGGNnQ3m9K3WfLoLzPcWXuou6p5GtRf2ZiDXqAtH2jwk4_UFHQQf23qNhbCgkr6PxNNCSFJL9PZj84BhpEV25EQ_Gy-pbFxTPWE5u9PhBg6JboJBWK11rho9yhlhy8WX042_LDLySGX7kTCBy5Qxm0Vfj1cZg5tdO-WKCRxkXT7yc6fL5FEJpkZ8hWNAmCxG-wiFS3Kc67uHLnQJcy-QT_3-HSoMiW9Fb3iZJooLv2gAq41t333RXTLGy_TVUGE-Sfn-Lcd-JIxaGjgKKWjkQE2FwORL4Ph3WNzr8ttPkHKH0WLG3LUq6T0Px1L-20Ol3Snkgq_GyYohCkkGPopq1WNhNIYP8pAv0_59z79QFKILdmZv-9PWDytzmo6edsxF5fn47gSM_-2n67jtRT59t3PkDqJuzjlDhW8XFd8A6yjgqD86vSyFZmzTBJtZucHtapbGXN7wx7YwpTuaGmSsAs40hpsnKe5j9gsNFru9lg3mPbQqn5uiPE56cOQ-OJQrpcGyd77pRUiFNT5jGBa8Futeb3-5nRP6e1jDGn_nZ4X0eLo0ma5gkRTzMqz0DmXGvXyuROhBKyo3IfOiguK8AqSHSayNbmz0MXTqAE5XNRMBvzo3Gs1f26G8CgpnjOP_jk_YCzXaFzvtu0vlPLGr1sFYR0ViP7Iu26y1DGmje-bZzQcnlER9Bwg83oOSKWuiT-qbyCFPK7E1oNq1fqtscvPmSI-D1V1iGliCH8DcKJSxIe8Ff0g0jYIDuaFMLUzvyXwnzYY1Aj9_D0aV0xdwEanNLkk8L8BgXEAT4lBtrai8tU6CyPjHFHs0zDZv4jm8Y5WGFN2QYMjQTikh58qhH4JXCtyqm7ly0S8kJ4wiqYlDWVZppHlqip3pH"
-  },
-  "elasticsearch": {
-    "cluster_name": "elasticsearch_cluster",
-    "network_host": "0.0.0.0",
-    "http_port": "9200"
-  },
-  "firewall": {
-    "data_public": {
-      "services": [
-        "ssh",
-        "high-availability"
-      ],
-      "ports": {
-        "consul": [
-          "8600/tcp",
-          "8600/udp",
-          "8500/tcp",
-          "8301/tcp",
-          "8301/udp",
-          "8302/tcp",
-          "8302/udp",
-          "8300/tcp"
-        ],
-        "dhclient": [
-          "68/udp"
-        ],
-        "dhserver": [
-          "67/udp"
-        ],
-        "hare": [
-          "8008/tcp"
-        ],
-        "nfs": [
-          "2049/tcp",
-          "2049/udp",
-          "32803/tcp",
-          "892/tcp",
-          "875/tcp"
-        ],
-        "uds": [
-          "5000/tcp",
-          "5125/udp"
-        ],
-        "www": [
-          "443/tcp"
-        ],
-        "s3": [
-          "7081/tcp",
-          "8081/tcp",
-          "8082/tcp",
-          "8083/tcp",
-          "8084/tcp",
-          "8085/tcp",
-          "8086/tcp",
-          "8087/tcp",
-          "8088/tcp",
-          "8089/tcp",
-          "8090/tcp",
-          "8091/tcp",
-          "8092/tcp",
-          "8093/tcp",
-          "8094/tcp",
-          "8095/tcp",
-          "8096/tcp",
-          "8097/tcp",
-          "8098/tcp",
-          "514/tcp",
-          "514/udp",
-          "8125/tcp",
-          "6379/tcp",
-          "9443/tcp",
-          "9086/tcp"
-        ]
-      }
-    },
-    "mgmt_public": {
-      "services": [
-        "ssh",
-        "high-availability",
-        "ftp"
-      ],
-      "ports": {
-        "consul": [
-          "8600/tcp",
-          "8600/udp",
-          "8500/tcp",
-          "8301/tcp",
-          "8301/udp",
-          "8302/tcp",
-          "8302/udp",
-          "8300/tcp"
-        ],
-        "csm": [
-          "28100/tcp",
-          "28101/tcp",
-          "28102/tcp",
-          "28103/tcp"
-        ],
-        "dhclient": [
-          "68/udp"
-        ],
-        "elasticsearch": [
-          "9200/tcp",
-          "9300/tcp"
-        ],
-        "ntpd": [
-          "123/udp"
-        ],
-        "openldap": [
-          "389/tcp"
-        ],
-        "smtp": [
-          "25/tcp"
-        ],
-        "saltmaster": [
-          "4505/tcp",
-          "4506/tcp"
-        ],
-        "uds": [
-          "5000/tcp",
-          "5125/udp"
-        ],
-        "www": [
-          "443/tcp"
-        ]
-      }
-    }
-  },
-  "haproxy": {
-    "backend": {
-      "s3authserver": {
-        "ssl_enabled": "False"
+  "cortx": {
+    "software": {
+      "csm": {
+        "user": "csm",
+        "secret": "gAAAAABgVIvovcf7C69fTmEw7MYBLQM-aWjo-g49hzzFGFa9KK5e8-nwohdbGyRtOE42GrVEg2uKIL9mf2D1suvBFhoe7DvNow=="
       },
-      "s3server": {
-        "ssl_enabled": "False"
-      }
-    },
-    "frontend": {
-      "s3authserver": {
-        "ssl_enabled": "True"
+      "openldap": {
+        "root": {
+          "user": "admin",
+          "secret": "gAAAAABgVIvpWDrxDqt5HV9deN6CneGO-bKQaGTzha31_WYla-BrhM-pNjNfzgqYWAnXdcwDPZlyrKpvTNkTpkKrw_X_dlFGMQ=="
+        },
+        "sgiam": {
+          "user": "sgiamadmin",
+          "secret": "gAAAAABgVIvp1oc8wt0vvwIs6U9_ghsx1GvJ3w9dFcvwqSW3T_7WjpeEfiC-Vx8qTMKRxDE9ODVxizH6VFXBZf9OvHiIpAraEg=="
+        }
       },
-      "s3server": {
-        "ssl_enabled": "True"
+      "corosync": {
+        "user": "hacluster",
+        "secret": "gAAAAABgVIvq6g8MN3HDW0fnQ8c9Jm4LvID1eBTiz81D6LipbH_bF02ZZ1AQ5RYw7HcZimovfw6ygIsvAJFvqQ2PTvUhI-AQUA=="
       }
     },
-    "nbproc": "12"
-  },
-  "openldap": {
-    "backend_db": "mdb",
-    "root": {
-      "user": "admin",
-      "secret": "gAAAAABgE_lkJSgTgy6MfNBpwBcny9Erhhjt50nK1MF6C33FFmje2zFaCjq7tuJ0SYCD52z-tHvMnGRk9naEYjPnVXFNr4FzuG_G_lfTrsjYma0AlnUmnZEzk4eXjXhMQmwyoY6ZLIH3wul4DByiRGEqkN2X3zNPOoa8bwPTPX7TXEaMh0Ace4KnlsORS8p2w-WjrkSRk-gD3JqUk_No8jYgxMwNkV2UBOm9yewWT6-EwOjhjYF0SN2LdSmwXX7XainlvqQmoSIEZW7SdGnZ1GZkkV-aIdFouRJpNXyjPgcjLDCADajByq3Znt92fnA-o0a7C6fnM4ADdVEUO-aVYJtNG76kF05iUc18q7uzAKe9nXW6Eaa5rypE-3A01WLHnwjOffC8Rk2hVkV2YujHXEJhp3BGDIcbPW3JKN7AYAVnq-JvKLD7GouryZbVkvr9SD6yWr9EKE6TCXJC9U69zjyRaeSnuqcdQgpt7xXAXNA80kcAeQuvOMz-jjJLzsi7Pf9XtdnnYU1b0xeaWlYaria3uDq_PLPwAFC3syco1p1cTBYmBIPGzenQZ3H5dD-fjsZ-mXWFZG3et2_QkJfhYf_mDDWkKUOCZfsOEH-AvE2bcDS9unasOML6_opP0kX3lC0xR80C9BXYHzgM9DdDpufbdAf2fsUZRh1Z65OnSw25UYiQbUl25G99pSgreJPSW8BS7NHNBakqX3HtBrbU41agtjZCnyuhFBJ0LjskaVgR_h_VQ4Zlq-7bsHgrBB0ym0eCphybUJEPxaeOsuF8zwymVQpQ4vjTNVwdUmI6elomf0mMcF_vqXgNO2RhTeDvdTzpe-Np_rwbHXQ8waPvzczjIre9vFyjzV3WfMxawQBLNtNLpBlsLHAYpx9oq3fsb7jWa45iy_NG1VDBPlpJ5XQkmdH93QqWPRlDfA3W_i4zWLhqWfzFLPNTt--i2Zn4F2bOPxD7dfgOlmphL9F3aIMkYiPbwgnjzsIFwAlLyZMfBX6b83NYnjUO3A09bWBGU-1LHHeRmuT5Uace4UQjuecXbfd1PsoWx9i3Hc7dcRocorqDKEd23P_XTd0zoWKRHBWq8xy4T7h_Zspp055bgV0M3P--WAZL5gHa1i7TsHZ7xWwMuRrP6jsMBwxIUnhrmvC_7GxkW_o5B56og02nN2wd0XHQ93QXH4qvrMzgTmPpM12DaLZnNS-HNYxaEsZXoU4-lFF0zbDiYtnQyvUv9kOnt--eKrScNlij4RfAnytiBbt4kSomTZgEU3c6uYRghgJ0aztrBpo9"
-    },
-    "sgiam": {
-      "user": "admin",
-      "secret": "gAAAAABgE_llKEbGe-k4daHpbG6k7fvNKIwhooQzFOfjNrekAoZtUE9NPlOf_MKlf9TPNX34bzUSp3LJXRRlTy7nPyvBjrVSz5MVhIhc7sz3Gg-4yrJ5ZJrFFJZgE4ieSlm1HEayGPHBjtqEIgb8bMTRPk0Me275tr2TLINjE1ZJdkdh29p7vu1YfFlbDnTafYjRHicRqVEZ97iTl_F0XNXK6fKVyUzfIwYU9D8i6L4oiBLbAFYS2fhAv_qJlQdjLd6vIb_A_X-TRV0j-ftA4OxyhiHKL3A_x-7WiLS7nTmiKl6_PtWDXciK98VS_d0Y_FXcTLC7FdrWXxKsCXwvdBEKOGPeIRIwCmig0SIbvIbNLwo6bsKY-yblGBXADZB4TBt5L4k2WW9dpQqKkKIvsk0ocKaKDnqsLUaMDaJvAMr5KJFwRnoH9YIMe9x1fh74BR69oqgh6TW-q5OY09OHRqRU5y5q633AXW1YrsV0SA3gG4pejy01yER9Eddg-gta55sCC3xQ82XRl2EzErs5Td2fSb5L_xEX-S3CddFb15wHzLJ76Yc5pSgXgIOK3L3Wt0tzxrSc47G8367JS2RUVjDJEl_QoiybJRZwDu6yZ_YOXubFViqChtPuESAoWkisNrn0-fEefEqRAXIRh59fhiq8m_WFY5p5af-vy2GLwdRb4h53rlF7tofXcmLwLpIK3S24Apxs9gbi3HYkh_-AKCfueCVjnLcqyFMmaCH1xbEezmBfvgzCOK-3zWM6UgBwCZENxDFcso2CAN7x5NZePkG0g2cCY1qm3RW_FUiKuBTVasBdT6YuP-ZOzbLlu_PHH59QGwXyusQSdcCixW-kj9TfI6lhGukOO-ofgZ3Jw9Uczv4BO8L797SIN3-mHxlq1NcUV_G8ioI960WgqSUue4ctdVyJ5yi0d1pbJFVlrwbrbUToVnCj6b-oIbJQY4RbGuVXswiHEayXGaKOzqiMfUBK0NmFBpFKwTCMskj7F7aDenEfOUmZBxdXtyz8tcFjTFCWNdHNqCXw6kU5AlPXjGG0aq9K9G1mH57oAhp75ykSCYmoLRQkngLjX2acfMnxqdMr20zuZwOeScWMyIqrNOOu944UmAdLTWsb-LwoAYDpaUk5JGaMPkPBn4DSLKWZnNtVCDVb3uQick5K9cj-S6YoO87_oyZ4VXTRIoWKbUvUiubRv4-Q7djg8uonI8y0-RGeWViUMtlb8An5cNo6rbKflzL_hZHWMX2wWXuF0E5iMn6rxDS7ANxisGctvXWJm0feiHRc5iIf"
-    }
-  },
-  "rabbitmq": {
-    "cluster_nodes": "localhost",
-    "erlang_cookie": "QLDZYPYEYGHECTHYQXFJ"
-  },
-  "release": {
-    "product": "LR2",
-    "setup": "cortx",
-    "type": "bundle",
-    "target_build": "http://cortx-storage.colo.seagate.com/releases/cortx/github/integration-custom-ci/release/centos-7.8.2003/custom-build-518/",
-    "update": {
-      "base_dir": "/opt/seagate/cortx/updates",
-      "repos": {}
-    },
-    "upgrade": {
-      "base_dir": "/opt/seagate/cortx/upgrades",
-      "repos": {}
-    }
-  },
-  "rsyslog": {
-    "host": "localhost",
-    "port": "514"
-  },
-  "storage": {
-    "enclosure-1": {
-      "type": "RBOD",
-      "controller": {
-        "type": "None",
-        "primary": {
-          "ip": "10.0.0.2",
-          "port": "80"
-        },
-        "secondary": {
-          "ip": "10.0.0.3",
-          "port": "80"
-        },
-        "user": "manage",
-        "secret": "gAAAAABgE_ll_yGA-8_CC9J0L3SxsCBdSrUa5oHHMA0_6T5qvlmb1TrpbiXvljX6QexRytTOYId7SsZRaC2tV54UD1eXeHziIEMYkV5eyrmkpZoNNOhqJ7WFD2X0uT-cAag7EkF0nWO7_hz8xQnDfLxdy3oXn810R7RTmQYyPZ_qm1sixrqlGbGeWfakUb5LwFzObPuvo5PKf4CUp1spUg59FqClL09JXY_C6SreCLCRG2VctrGBhU9bRCQnPCZkXlcqwD39P1aJFSYSnPZ0TEVqJhIMwJBTRvG_JjipJ49yrNQVZ-FKEMDKlGOJJbOxgEWoI-sLRLU7qfHf1gdnVpsywJgKfyg7W6fNCvJXPA7rXTs9moOTFqwQOWK7KVJ4vKmY6un58ldRQu6flT4gyuIQfTZPs6eTg45iUCTHpsdioHT35aBSCN-z5qeFrpg8kHSLuGXVklPbcWxRKzaPx7d47A6UzSPx5_fcv6Pze6U0jB2rt7jhEptVZV_HB_3oGfA5PBN8lvm4ucLG9mfz3X-vfZ6Ue2p9nbM2VClrtnRTXYRvX2aH0v5Um7k8T7tdbLtM_fbd5SFoV1sjqFWa9OMeLKP6QvAkFTTZ14JIJwnfhjEaSfZdO8SXTgi8pw2n-4HLqQiwYeLmb8ZcBnF0_IUOuA3yqqc9TEgUrLpNMajtQQu7ZiZKXoWmDBsX-9o0B9lTEVK31aWgX0ZNVBO0ZrvpgK4d8fltwGX-dubcLnA-SDRM1GVd3yCZOc4wJpVNSFLo_VHiIJBT66qKpcSDIyn7R29RCBBoO-X4cvbOER9_eDgAUi16oA2gaaBHNaiIHyEUjF--cQYwmW4ibejyTXn1EM7hlbC6sJF0tatH18DJcpZzpcofJSeQCtZF9T9EPJaEnZ-mcGiEimo_ND-Pzioh9R0v_aCVmmmHQpbCQOuKDWqf6hxQqWzVHg5FHJVIVFhgXqtblo6XfYnGdmuBTmUIGuUakbal8mWwdtH9kpO-IjwqIsUzAT3_JR3hfhNJnQIXklGFxOmmS0PtM7aX5hlIp6OuhAeZKWwQktQNFMXaKuR7QRTR3JcL6VJy1GWziiDNMgzF8WRtgxVLBRl5ruH-C_MWYUY2SgyqsFv3rt9Hd4I3KfHbqvstSeGfgi8URT_5Hgv8SxUlnlG8yeBH7gSZOrT2YCvgLwEhA4ZDMdElvBjJbpZucE17cc3cVFg_KCuEpFxI1TkbpZBrKS8tuha0T_qMFm0NCiHuGXzafCLBj3nmEhe6PR9taaKPj83grUGUvVYZVRTq"
-      }
-    }
-  },
-  "system": {
-    "ntp": {
-      "time_server": "time.seagate.com",
-      "time_zone": "UTC"
-    },
-    "service-user": {
-      "name": "cortxub",
-      "secret": "gAAAAABgE_lm9siNNHhkxEKDgj3-H7QwTxgyL0mNizUEkGAhCPbfHwblnLQaTRQqdTdZq852fFE84CQtwtmyT4Sn4n3Zi7SERA==",
-      "groups": [
-        "wheel"
-      ],
-      "shell": "/usr/bin/bash"
-    },
-    "cortx-user": {
-      "name": "cortxcli",
-      "secret": "gAAAAABgE_lm8es94spise0lr5ec3cDT2DKHdR6adqpItIx7ODzya9Re_1fbvNqkfFKhX5vfKqQlSClblhe0iX0Nk-nLWsSnZyOCpfzHI2pUTtUxHIzEtyIQbjzR_XbS0D2J2Kn8eL2jXU_1LPbolebRctK1CV03EwTQ9CoWVxKAfcyCPzLuV2cvLF-JfyPw8OdQTlHocLoHGV2SmwMShiy0VcDuzFfrjD5RoyFsa8_AQJCEbER8xSvfe32pD6pI5Hqwc9LUxWSuEVFOCaKqiy-DxWahp2bP3mFjoSLfjUvDEMsjlTx-VAxdm3txPm4o4EXQo7vYtUG2zQM4K10iXrocGRyIScosepVUP0ITHz_rtH3Xjn4Ee-SJ-4HAiFn_LQ7wUBDIOs00RCXV4LUAcboAdgMUkRI4fGnOglUgqzLEmgVp4UAQTPtE1F4jMCW7L5YzNzOLjrudaEgUUaFVt0LXmfvmid1ZV3jb_BdFiFwcmXE6V-Ae63QsnXt2_DYpShywUUhe8ytmNi5-ldKxFN_0LCmI0HVFj1CNGBw3yOcYTuwBtQOM1Zl7EOAIako1J87KEEbcChhe1j12WANTMduVJWVqw1wIcTuKvN9QG3yitHSx_luayd2Q_m2W867jNSvWzGLbmuPTQIUOIW4CQzoQRLiGKWiFk6Iq_Rw7JtQJFU1-9UBuCWFBw2LGAsIQDeGd7dlekCmevg27J123fixGtHvckxMeDtxjPkG3vzJOi89Jwj2aDRl4-tZ1_a9-ch6QVbc610y424IJ29FxcqvHBhezEgUQX94QT3vyBH16j64BeW0jT9ZMU6UezkK--o16J-1Gqj3lEwVdXKxiOmg1dMpWg9jqwIR3Exbtnu0EEiVv_wMW-h966V1MuTBFpZCf7QMudiE5ED2-cuSXVh7i6mS8Eg7CC5f6iG4QKtZ8f83g8pe7RbQAq4o6qqqY1h21ztdPF0efqlb3YAj8yUbLWmsIPC5JnJbPav-AhwCARQbiOoSjniwaPEAoZ391v2Mu7LMpiwEm7Y3MStt-Z1t08inzx7KuWHy55il3F94lSqL4G0aUieiou7y98yZCYN7d8TQQtww2ho5WW18l-zAxymZeaDj93u-VtVMB7RNypSbIY3uoCjHwGhqRoFldS8g6uECiJUcBcfb8vGrdqDS4KuGl0yNTver3Y2YZ4MBLCJSeldAwHnq67NZjwngs5vjDv47_Gz67JvzoPk5MkqZPySV0u8eo1c_kNyspAgzDAqJFJGjEPwGruG4Ot1sr8EZkqbZ4UsuC"
+    "release": {
+      "setup": "cortx",
+      "product": "LR2"
     }
   },
   "cluster": {
-    "cluster_id": "133d1045-b0d7-43d1-a6dd-097691dfae77",
-    "storage_sets": {
-      "storage-set-1": [
-        "srvnode-1"
-      ]
-    },
-    "search_domains": "None",
-    "dns_servers": "None",
-    "server_nodes": {
-      "7c4fd75dfedd7662e6a39b0a53274922": "srvnode-1"
-    },
-    "srvnode-1": {
-      "rack_id": "None",
-      "site_id": "None",
-      "storage_set_id": "storage-set-1",
-      "node_id": "None",
-      "machine_id": "7c4fd75dfedd7662e6a39b0a53274922",
-      "hostname": "ssc-vm-2184.colo.seagate.com",
-      "node_type": "VM",
-      "roles": [
-        "primary",
-        "openldap_server",
-        "kafka_server"
-      ],
-      "is_primary": "True",
-      "bmc": {
-        "ip": "None",
-        "user": "",
-        "secret": "gAAAAABgE_mB7i-7jPjpVqB9UyFHjE1jdwDQy3tLrbvBerI788qq9qXWPHoNbHV2lxtUYAq4eMnDaSZdgGpwRvchgt5NZF4T3A=="
+    "5c427765-ecf5-4387-bfa4-d6d53494b159": {
+      "name": "cortx_cluster",
+      "site_count": "1",
+      "site": {
+        "storage_set_count": "1"
       },
       "network": {
-        "mgmt": {
+        "management": {
+          "virtual_host": "None"
+        },
+        "search_domains": "None",
+        "dns_servers": "None"
+      },
+      "storage_set": [
+        {
+          "name": "storage-set-1",
+          "server_nodes": [
+            "7c4fd75dfedd7662e6a39b0a53274922"
+          ],
+          "storage_enclosures": [
+            "encla971a87aace34e05b4747bb3376d6661"
+          ],
+          "data": "4",
+          "parity": "2",
+          "spare": "0"
+        }
+      ]
+    }
+  },
+  "server_node": {
+    "7c4fd75dfedd7662e6a39b0a53274922": {
+      "name": "srvnode-1",
+      "hostname": "ssc-vm-2504.colo.seagate.com",
+      "roles": [
+        "primary",
+        "openldap_server"
+      ],
+      "type": "VM",
+      "bmc": {
+        "ip": "None",
+        "user": "None",
+        "secret": "gAAAAABgVIwTCdnbg4pLbISCt7nKFZ1aVzx31zJAxGJv7-JWrySDlEI8ioIaNV6YiFG-UdjbWFYRsVzMLt3TaqljqYt-BJtQ5A=="
+      },
+      "network": {
+        "management": {
           "interfaces": [
             "eth0"
           ],
-          "public_ip": "None",
+          "gateway": "None",
           "netmask": "None",
-          "gateway": "None"
+          "public_fqdn": "srvnode-1.mgmt.public"
         },
         "data": {
           "public_interfaces": [
@@ -286,24 +91,35 @@
             "eth3",
             "eth4"
           ],
-          "interface_type": "tcp",
-          "transport_type": "lnet",
-          "public_ip": "None",
-          "private_ip": "",
-          "netmask": "None",
           "gateway": "None",
-          "roaming_ip": "127.0.0.1"
+          "netmask": "None",
+          "public_fqdn": "srvnode-1.data.public",
+          "private_fqdn": "srvnode-1.data.private",
+          "roaming_ip": "None",
+          "interface_type": "tcp",
+          "transport_type": "lnet"
         }
       },
       "storage": {
-        "enclosure_id": "enclosure-1",
-        "metadata_devices": [
-          "/dev/sdb"
+        "cvg_count": "1",
+        "cvg": [
+          {
+            "metadata_devices": [
+              "/dev/sdb",
+              "/dev/sdd"
+            ],
+            "data_devices": [
+              "/dev/sdc"
+            ]
+          }
         ],
-        "data_devices": [
-          "/dev/sdc"
-        ]
+        "enclosure_id": "encla971a87aace34e05b4747bb3376d6661"
       },
+      "site_id": "1",
+      "rack_id": "1",
+      "node_id": "0",
+      "storage_set_id": "storage-set-1",
+      "cluster_id": "5c427765-ecf5-4387-bfa4-d6d53494b159",
       "s3_instances": "1"
     }
   }
