@@ -96,7 +96,6 @@ class PrepareCmd(Cmd):
             if cluster_up(self):
                 sys.stderr.write("Cluster is already up...Exiting.\n")
                 return
-        check_data_disks_count(self)
         configure_net(self)
         sys.stdout.write("SUCCESS\n")
 
@@ -118,7 +117,6 @@ class PostInstallCmd(Cmd):
             if cluster_up(self):
                 sys.stderr.write("Cluster is already up...Exiting.\n")
                 return
-        check_data_disks_count(self)
         if not lvm_exist(self):
             config_lvm(self)
         else:

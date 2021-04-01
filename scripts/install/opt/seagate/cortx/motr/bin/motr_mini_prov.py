@@ -425,33 +425,6 @@ def get_nodes(self):
         nodes.append(value["hostname"])
     return nodes
 
-def get_data_disks_count(self):
-    nodes_info = Conf.get(self._index, 'server_node')
-    total_disks = 0
-    for node in nodes_info.values():
-        if 'storage' in node:
-            storage = node['storage']
-            cvg_count = storage['cvg_count']
-            for i in range(int(cvg_count)):
-                total_disks += len(storage["cvg"][i]["data_devices"])
-    return total_disks
-
-def check_data_disks_count(self):
-    total_disks = get_data_disks_count(self)
-    required_disks = get_data_parity_spare_count(self)
-    if (total_disks <= required_disks):
-        raise MotrError(errno.EINVAL, f"Total disks of all nodes({total_disks})"
-                        f" must be >= (data+parity+spare)({required_disks}) disks")    
-    sys.stdout.write(f"Total disks={total_disks} and Required disks={required_disks}\n")
-
-def get_data_parity_spare_count(self):
-    total_disks = 0
-    cluster = list(Conf.get(self._index, 'cluster').values())[0]
-    total_disks += int(cluster["storage_set"][0]["durability"]["data"])
-    total_disks += int(cluster["storage_set"][0]["durability"]["parity"])
-    total_disks += int(cluster["storage_set"][0]["durability"]["spare"])
-    return total_disks
-
 def lnet_ping(self):
     """Lnet lctl ping on all available nodes in cluster."""
 
