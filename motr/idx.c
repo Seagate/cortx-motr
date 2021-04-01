@@ -170,15 +170,26 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	return M0_RC(0);
 }
 
-static void idx_op_set_complete_state(struct m0_op_idx *oi,
-				      uint64_t          mask)
+static struct m0_op_idx *ar_ast2oi(struct m0_sm_ast *ast)
 {
+	struct m0_ast_rc *ar;
+	ar = bob_of(ast,  struct m0_ast_rc, ar_ast, &ar_bobtype);
+	return bob_of(ar, struct m0_op_idx, oi_ar, &oi_bobtype);
+}
+
+static void idx_op_complete_state_set(struct m0_sm_group *grp,
+				      struct m0_sm_ast   *ast,
+				      uint64_t            mask)
+{
+	struct m0_op_idx    *oi = ar_ast2oi(ast);
 	struct m0_op        *op = &oi->oi_oc.oc_op;
 	struct m0_sm_group  *op_grp = &op->op_sm_group;
 	struct m0_sm_group  *en_grp = &op->op_entity->en_sm_group;
 
-	M0_ENTRY();
+	M0_ENTRY("oi=%p, mask=%" PRIu64, oi, mask);
 
+	M0_PRE(grp != NULL);
+	M0_PRE(m0_sm_group_is_locked(grp));
 	M0_PRE((mask & ~M0_BITS(M0_OS_EXECUTED, M0_OS_STABLE)) == 0);
 
 	oi->oi_in_completion = true;
@@ -200,7 +211,7 @@ static void idx_op_set_complete_state(struct m0_op_idx *oi,
 	if ((mask & M0_BITS(M0_OS_STABLE)) != 0) {
 		m0_sm_move(&op->op_sm, 0, M0_OS_STABLE);
 		m0_op_stable(op);
-		if (oi->oi_dtx) {
+		if (oi->oi_dtx != NULL) {
 			m0_dtx0_done(oi->oi_dtx);
 			oi->oi_dtx = NULL;
 		}
@@ -210,40 +221,16 @@ static void idx_op_set_complete_state(struct m0_op_idx *oi,
 	M0_LEAVE();
 }
 
-static struct m0_op_idx *ar_ast2oi(struct m0_sm_ast *ast)
-{
-	struct m0_ast_rc *ar;
-
-	ar = bob_of(ast,  struct m0_ast_rc, ar_ast, &ar_bobtype);
-	return bob_of(ar, struct m0_op_idx, oi_ar, &oi_bobtype);
-}
-
 M0_INTERNAL void idx_op_ast_stable(struct m0_sm_group *grp,
 				   struct m0_sm_ast *ast)
 {
-	M0_ENTRY();
-
-	M0_PRE(grp != NULL);
-	M0_PRE(ast != NULL);
-	M0_PRE(m0_sm_group_is_locked(grp));
-
-	idx_op_set_complete_state(ar_ast2oi(ast), M0_BITS(M0_OS_STABLE));
-
-	M0_LEAVE();
+	idx_op_complete_state_set(grp, ast, M0_BITS(M0_OS_STABLE));
 }
 
 M0_INTERNAL void idx_op_ast_executed(struct m0_sm_group *grp,
 				     struct m0_sm_ast *ast)
 {
-	M0_ENTRY();
-
-	M0_PRE(grp != NULL);
-	M0_PRE(ast != NULL);
-	M0_PRE(m0_sm_group_is_locked(grp));
-
-	idx_op_set_complete_state(ar_ast2oi(ast), M0_BITS(M0_OS_EXECUTED));
-
-	M0_LEAVE();
+	idx_op_complete_state_set(grp, ast, M0_BITS(M0_OS_EXECUTED));
 }
 
 /**
@@ -255,16 +242,8 @@ M0_INTERNAL void idx_op_ast_executed(struct m0_sm_group *grp,
 M0_INTERNAL void idx_op_ast_complete(struct m0_sm_group *grp,
 				     struct m0_sm_ast *ast)
 {
-	M0_ENTRY();
-
-	M0_PRE(grp != NULL);
-	M0_PRE(ast != NULL);
-	M0_PRE(m0_sm_group_is_locked(grp));
-
-	idx_op_set_complete_state(ar_ast2oi(ast),
+	idx_op_complete_state_set(grp, ast,
 				  M0_BITS(M0_OS_EXECUTED, M0_OS_STABLE));
-
-	M0_LEAVE();
 }
 
 /**

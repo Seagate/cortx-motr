@@ -120,7 +120,7 @@ static void dtx_log_insert(struct m0_dtm0_dtx *dtx)
 
 static void dtx_log_update(struct m0_dtm0_dtx *dtx)
 {
-	struct m0_be_dtm0_log *log;
+	struct m0_be_dtm0_log  *log;
 	struct m0_dtm0_log_rec *record = M0_AMB(record, dtx, dlr_dtx);
 
 	M0_PRE(dtx->dd_dtms != NULL);
@@ -132,9 +132,9 @@ static void dtx_log_update(struct m0_dtm0_dtx *dtx)
 	m0_mutex_unlock(&log->dl_lock);
 }
 
-static void m0_dtm0_dtx_init(struct m0_dtm0_dtx *dtx,
-			     struct m0_dtm0_service *svc,
-			     struct m0_sm_group *grp)
+static void dtx_init(struct m0_dtm0_dtx     *dtx,
+		     struct m0_dtm0_service *svc,
+		     struct m0_sm_group     *grp)
 {
 	dtx->dd_dtms = svc;
 	dtx->dd_ancient_dtx.tx_dtx = dtx;
@@ -142,8 +142,8 @@ static void m0_dtm0_dtx_init(struct m0_dtm0_dtx *dtx,
 	m0_sm_addb2_counter_init(&dtx->dd_sm);
 }
 
-static struct m0_dtm0_dtx *m0_dtm0_dtx_alloc(struct m0_dtm0_service *svc,
-					     struct m0_sm_group     *grp)
+static struct m0_dtm0_dtx *dtx_alloc(struct m0_dtm0_service *svc,
+				     struct m0_sm_group     *grp)
 {
 	struct m0_dtm0_log_rec *rec;
 
@@ -154,11 +154,11 @@ static struct m0_dtm0_dtx *m0_dtm0_dtx_alloc(struct m0_dtm0_service *svc,
 	if (rec == NULL)
 		return NULL;
 
-	m0_dtm0_dtx_init(&rec->dlr_dtx, svc, grp);
+	dtx_init(&rec->dlr_dtx, svc, grp);
 	return &rec->dlr_dtx;
 }
 
-static void m0_dtm0_dtx_fini(struct m0_dtm0_dtx *dtx)
+static void dtx_fini(struct m0_dtm0_dtx *dtx)
 {
 	struct m0_dtm0_log_rec *rec;
 	M0_PRE(dtx != NULL);
@@ -171,9 +171,11 @@ static void m0_dtm0_dtx_fini(struct m0_dtm0_dtx *dtx)
 	M0_SET0(dtx);
 }
 
-static int m0_dtm0_dtx_prepare(struct m0_dtm0_dtx *dtx)
+static int dtx_prepare(struct m0_dtm0_dtx *dtx)
 {
 	int rc;
+
+	M0_ENTRY("dtx=%p", dtx);
 
 	M0_PRE(dtx != NULL);
 	rc = m0_dtm0_clk_src_now(&dtx->dd_dtms->dos_clk_src,
@@ -183,26 +185,30 @@ static int m0_dtm0_dtx_prepare(struct m0_dtm0_dtx *dtx)
 
 	dtx->dd_txd.dtd_id.dti_fid = dtx->dd_dtms->dos_generic.rs_service_fid;
 	M0_POST(m0_dtm0_tid__invariant(&dtx->dd_txd.dtd_id));
-	return 0;
+	return M0_RC_INFO(rc, "prepared dtx wit tid " DTID0_F,
+			  DTID0_P(&dtx->dd_txd.dtd_id));
 }
 
-static int m0_dtm0_dtx_open(struct m0_dtm0_dtx  *dtx,
-			    uint32_t             nr)
+static int dtx_open(struct m0_dtm0_dtx  *dtx,
+		    uint32_t             nr)
 {
 	M0_PRE(dtx != NULL);
-	return m0_dtm0_tx_desc_init(&dtx->dd_txd, nr);
+	M0_ENTRY("dtx=%p", dtx);
+	return M0_RC(m0_dtm0_tx_desc_init(&dtx->dd_txd, nr));
 }
 
-static void m0_dtm0_dtx_assign_fop(struct m0_dtm0_dtx  *dtx,
-				   uint32_t             pa_idx,
-				   const struct m0_fop *pa_fop)
+static void dtx_fop_assign(struct m0_dtm0_dtx  *dtx,
+			   uint32_t             pa_idx,
+			   const struct m0_fop *pa_fop)
 {
 	M0_PRE(dtx != NULL);
 	M0_PRE(pa_idx < dtx->dd_txd.dtd_ps.dtp_nr);
 
+	M0_ENTRY("dtx=%p, pa=%" PRIu32 ", fop=%p", dtx, pa_idx, pa_fop);
+
 	(void) pa_idx;
 
-	/* TODO: On the DTM side we should enforce the requirement
+	/* TODO:REDO: On the DTM side we should enforce the requirement
 	 * described at m0_dtm0_dtx::dd_op.
 	 * At this moment we silently ignore this as well as anything
 	 * related directly to REDO use-cases.
@@ -210,12 +216,14 @@ static void m0_dtm0_dtx_assign_fop(struct m0_dtm0_dtx  *dtx,
 	if (dtx->dd_fop == NULL) {
 		dtx->dd_fop = pa_fop;
 	}
+
+	M0_LEAVE();
 }
 
 
-static int m0_dtm0_dtx_assign_fid(struct m0_dtm0_dtx  *dtx,
-				  uint32_t             pa_idx,
-				  const struct m0_fid *p_fid)
+static int dtx_fid_assign(struct m0_dtm0_dtx  *dtx,
+			  uint32_t             pa_idx,
+			  const struct m0_fid *pa_sfid)
 {
 	struct m0_dtm0_tx_pa   *pa;
 	struct m0_reqh         *reqh;
@@ -225,23 +233,26 @@ static int m0_dtm0_dtx_assign_fid(struct m0_dtm0_dtx  *dtx,
 	struct m0_fid           rdtms_fid;
 	int                     rc;
 
-	M0_ENTRY();
+	M0_ENTRY("dtx=%p", dtx);
 
 	M0_PRE(dtx != NULL);
 	M0_PRE(pa_idx < dtx->dd_txd.dtd_ps.dtp_nr);
-	M0_PRE(m0_fid_is_valid(p_fid));
+	M0_PRE(m0_fid_is_valid(pa_sfid));
 
-	/* TODO: Should we release any conf objects in the end? */
+	/* XXX: Should we lock or release any conf objects or the cache? */
 
 	reqh = dtx->dd_dtms->dos_generic.rs_reqh;
 	cache = &m0_reqh2confc(reqh)->cc_cache;
 
-	obj = m0_conf_cache_lookup(cache, p_fid);
-	M0_ASSERT_INFO(obj != NULL, "User service is not in the conf cache?");
+	obj = m0_conf_cache_lookup(cache, pa_sfid);
+	if (obj == NULL)
+		return M0_ERR_INFO(-ENOENT,
+				   "User service is not in the conf cache.");
 
 	obj = m0_conf_obj_grandparent(obj);
-	M0_ASSERT_INFO(obj != NULL, "Process the service belongs to "
-		       "is not a part of the conf cache?");
+	if (obj == NULL)
+		return M0_ERR_INFO(-ENOENT, "Process the service belongs to "
+		       "is not a part of the conf cache.");
 
 	proc = M0_CONF_CAST(obj, m0_conf_process);
 	M0_ASSERT_INFO(proc != NULL, "The grandparent is not a process?");
@@ -249,33 +260,32 @@ static int m0_dtm0_dtx_assign_fid(struct m0_dtm0_dtx  *dtx,
 	rc = m0_conf_process2service_get(&reqh->rh_rconfc.rc_confc,
 					 &proc->pc_obj.co_id, M0_CST_DTM0,
 					 &rdtms_fid);
-
-	M0_ASSERT_INFO(rc == 0, "Cannot find remote DTM service on the remote "
-		       "process that runs this user service?");
+	if (rc != 0)
+		return M0_ERR_INFO(rc, "Cannot find remote DTM service on"
+				   " the remote process that runs"
+				   " this user service.");
 
 	pa = &dtx->dd_txd.dtd_ps.dtp_pa[pa_idx];
-	M0_PRE(M0_IS0(pa));
+	M0_ASSERT_INFO(M0_IS0(pa), "FID cannot be re-assigned.");
+	M0_ASSERT(m0_fid_is_valid(&rdtms_fid));
 
 	pa->p_fid = rdtms_fid;
 	M0_ASSERT(pa->p_state == M0_DTPS_INIT);
 	pa->p_state = M0_DTPS_INPROGRESS;
 
-	M0_LEAVE("pa: " FID_F " (User) => " FID_F " (DTM) ",
-		 FID_P(p_fid), FID_P(&rdtms_fid));
-
-	/* TODO: All these M0_ASSERTs will be converted into IFs eventually
-	 * if we want to gracefully fail instead of m0_panic'ing in the case
-	 * where the config is not correct.
-	 */
-	return M0_RC(0);
+	return M0_RC_INFO(0, "pa %" PRIu32 ": "
+			  FID_F " (User svc) => " FID_F " (DTM svc) ",
+			  pa_idx, FID_P(pa_sfid), FID_P(&rdtms_fid));
 }
 
-static int m0_dtm0_dtx_close(struct m0_dtm0_dtx *dtx)
+static int dtx_close(struct m0_dtm0_dtx *dtx)
 {
+	M0_ENTRY("dtx=%p", dtx);
+
 	M0_PRE(dtx != NULL);
 	M0_PRE(m0_sm_group_is_locked(dtx->dd_sm.sm_grp));
 
-	/* TODO: We may want to capture the fop contents here.
+	/* TODO:REDO: We may want to capture the fop contents here.
 	 * See ::fol_record_pack and ::m0_fop_encdec for the details.
 	 * At this moment we do not do REDO, so that it is safe to
 	 * avoid any actions on the fop here.
@@ -288,17 +298,17 @@ static int m0_dtm0_dtx_close(struct m0_dtm0_dtx *dtx)
 	 */
 	dtx->dd_fop = NULL;
 	m0_sm_state_set(&dtx->dd_sm, M0_DDS_INPROGRESS);
-	return 0;
+	return M0_RC(0);
 }
 
-static void m0_dtm0_dtx_done(struct m0_dtm0_dtx *dtx)
+static void dtx_done(struct m0_dtm0_dtx *dtx)
 {
 	M0_ENTRY("dtx=%p", dtx);
 	M0_PRE(dtx != NULL);
 	M0_PRE(m0_sm_group_is_locked(dtx->dd_sm.sm_grp));
 	M0_PRE(dtx->dd_sm.sm_state == M0_DDS_STABLE);
 	m0_sm_state_set(&dtx->dd_sm, M0_DDS_DONE);
-	m0_dtm0_dtx_fini(dtx);
+	dtx_fini(dtx);
 	M0_LEAVE();
 }
 
@@ -347,7 +357,7 @@ static void dtx_persistent_ast_cb(struct m0_sm_group *grp,
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_dtm0_dtx_post_pmsg(struct m0_dtm0_dtx *dtx,
+M0_INTERNAL void m0_dtm0_dtx_pmsg_post(struct m0_dtm0_dtx *dtx,
 				       struct m0_fop      *fop)
 {
 	struct m0_dtm0_pmsg_ast *pma;
@@ -379,7 +389,7 @@ M0_INTERNAL void m0_dtm0_dtx_post_pmsg(struct m0_dtm0_dtx *dtx,
 	M0_LEAVE();
 }
 
-static void m0_dtm0_dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
+static void dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
 {
 	struct m0_dtm0_tx_pa  *pa;
 
@@ -408,8 +418,6 @@ static void m0_dtm0_dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
 			       "at this point.");
 		m0_sm_state_set(&dtx->dd_sm, M0_DDS_EXECUTED_ALL);
 
-		dtx->dd_exec_all_ast.sa_cb = dtx_exec_all_ast_cb;
-		dtx->dd_exec_all_ast.sa_datum = dtx;
 		/* EXECUTED and STABLE should not be triggered within the
 		 * same ast tick. This ast helps us to enforce it.
 		 * XXX: there is a catch22-like problem with DIX states:
@@ -421,6 +429,10 @@ static void m0_dtm0_dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
 		 * scheduling the transition EXEC_ALL -> STABLE in a separate
 		 * tick where DIX request reached FINAL.
 		 */
+		dtx->dd_exec_all_ast = (struct m0_sm_ast) {
+			.sa_cb = dtx_exec_all_ast_cb,
+			.sa_datum = dtx,
+		};
 		m0_sm_ast_post(dtx->dd_sm.sm_grp, &dtx->dd_exec_all_ast);
 	}
 
@@ -429,65 +441,60 @@ static void m0_dtm0_dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
 }
 
 M0_INTERNAL struct m0_dtx* m0_dtx0_alloc(struct m0_dtm0_service *svc,
-					 struct m0_sm_group     *group)
+					 struct m0_sm_group     *grp)
 {
-	struct m0_dtm0_dtx *dtx;
-
-	dtx = m0_dtm0_dtx_alloc(svc, group);
-	if (dtx == NULL)
-		return NULL;
-
-	return &dtx->dd_ancient_dtx;
+	struct m0_dtm0_dtx *dtx = dtx_alloc(svc, grp);
+	return dtx ? &dtx->dd_ancient_dtx : NULL;
 }
 
 M0_INTERNAL int m0_dtx0_prepare(struct m0_dtx *dtx)
 {
 	M0_PRE(dtx != NULL);
-	return m0_dtm0_dtx_prepare(dtx->tx_dtx);
+	return dtx_prepare(dtx->tx_dtx);
 }
 
 M0_INTERNAL int m0_dtx0_open(struct m0_dtx  *dtx, uint32_t nr)
 {
 	M0_PRE(dtx != NULL);
-	return m0_dtm0_dtx_open(dtx->tx_dtx, nr);
+	return dtx_open(dtx->tx_dtx, nr);
 }
 
-M0_INTERNAL int m0_dtx0_assign_fid(struct m0_dtx       *dtx,
+M0_INTERNAL int m0_dtx0_fid_assign(struct m0_dtx       *dtx,
 				   uint32_t             pa_idx,
-				   const struct m0_fid *p_fid)
+				   const struct m0_fid *pa_sfid)
 {
 	M0_PRE(dtx != NULL);
-	return m0_dtm0_dtx_assign_fid(dtx->tx_dtx, pa_idx, p_fid);
+	return dtx_fid_assign(dtx->tx_dtx, pa_idx, pa_sfid);
 }
 
-M0_INTERNAL void m0_dtx0_assign_fop(struct m0_dtx       *dtx,
+M0_INTERNAL void m0_dtx0_fop_assign(struct m0_dtx       *dtx,
 				    uint32_t             pa_idx,
 				    const struct m0_fop *pa_fop)
 {
 	M0_PRE(dtx != NULL);
-	m0_dtm0_dtx_assign_fop(dtx->tx_dtx, pa_idx, pa_fop);
+	dtx_fop_assign(dtx->tx_dtx, pa_idx, pa_fop);
 }
 
 
 M0_INTERNAL int m0_dtx0_close(struct m0_dtx *dtx)
 {
 	M0_PRE(dtx != NULL);
-	return m0_dtm0_dtx_close(dtx->tx_dtx);
+	return dtx_close(dtx->tx_dtx);
 }
 
 M0_INTERNAL void m0_dtx0_executed(struct m0_dtx *dtx, uint32_t pa_idx)
 {
 	M0_PRE(dtx != NULL);
-	m0_dtm0_dtx_executed(dtx->tx_dtx, pa_idx);
+	dtx_executed(dtx->tx_dtx, pa_idx);
 }
 
 M0_INTERNAL void m0_dtx0_done(struct m0_dtx *dtx)
 {
 	M0_PRE(dtx != NULL);
-	m0_dtm0_dtx_done(dtx->tx_dtx);
+	dtx_done(dtx->tx_dtx);
 }
 
-M0_INTERNAL int m0_dtx0_copy_txd(const struct m0_dtx    *dtx,
+M0_INTERNAL int m0_dtx0_txd_copy(const struct m0_dtx    *dtx,
 				 struct m0_dtm0_tx_desc *dst)
 {
 	if (dtx == NULL) {
