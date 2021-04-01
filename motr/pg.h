@@ -355,24 +355,30 @@ struct pargrp_iomap {
 	 * - number of columns = N.
 	 * Each element of matrix is worth PAGE_SIZE;
 	 * A unit size worth of data holds a contiguous chunk of file data.
-	 * The file offset grows vertically first and then to the next
-	 * data unit.
+	 * The file offset grows vertically first (by rows) and then to
+	 * the next data unit (by columns).
 	 */
 	struct data_buf              ***pi_databufs;
 
-	/** The maximum row value to use when accessing pi_databufs */
+	/**
+	 * The maximum row value to use when accessing pi_databufs.
+	 * This is essentially the unit size in pages.
+	 */
 	uint32_t                        pi_max_row;
 
-	/** The maximum col value to use when accessing pi_databufs */
+	/**
+	 * The maximum col value to use when accessing pi_databufs. This
+	 * is essentially the number of data units in parity group (N).
+	 */
 	uint32_t                        pi_max_col;
 
 	/**
 	 * Parity units in a parity group.
 	 * Unit size should be multiple of PAGE_SIZE.
-	 * This is a matrix with
+	 * Similar to pi_databufs, this is a matrix with
 	 * - number of rows    = Unit_size / PAGE_SIZE and
 	 * - number of columns = K.
-	 * Each element of matrix is worth PAGE_SIZE;
+	 * Each element of matrix is worth PAGE_SIZE.
 	 */
 	struct data_buf              ***pi_paritybufs;
 
