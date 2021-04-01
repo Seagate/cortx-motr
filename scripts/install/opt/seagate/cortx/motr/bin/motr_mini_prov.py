@@ -567,7 +567,6 @@ def cluster_up(self):
 def pkg_installed(self, pkg):
     cmd = f'yum list installed {pkg}'
     ret = execute_command_without_exception(self, cmd)
-    execute_command(self, "sleep 2")
     if ret == 0:
         sys.stdout.write(f"{pkg} is installed\n")
         return True
