@@ -29,7 +29,6 @@
 #include "lib/buf.h"		/* m0_buf */
 #include "dtm0/dtx.h"           /* struct m0_dtm0_dtx */
 
-/* import */
 struct m0_be_tx;
 struct m0_be_tx_credit;
 struct m0_dtm0_clk_src;
@@ -104,47 +103,9 @@ struct m0_dtm0_clk_src;
  *    participant state in group of state will be M0_DTPS_EXECUTED and for
  *    rest of the participant state will be logged as it is.
  *
- * @verbatime
- *    {
- *       struct m0_be_tx_credit  cred;
- *       struct m0_be_dtm0_log  *log;
- *       struct m0_be_tx        *tx;
- *       struct m0_dtm0_clk_src *cs;
- *       struct m0_dtm0_tx_desc *txd;
- *       struct m0_buf          *pyld;
- *       struct m0_be_seg       *seg;
- *
- *       m0_be_dtm0_log_credit(M0_DTML_EXECUTED, tx, seg, &cred);
- *       m0_be_tx_open(tx, cred);
- *
- *       ...
- *       m0_be_dtm0_log_update(log, tx, cs, txd, pyld);
- *       tx_close(tx);
- *    }
- * @endverbatim
- *
  * 3. When distributed transaction(dtx) become persistent on particular
  *    participant, the state of the distributed transaction(dtx) for this
  *    participant will be updated as M0_DTPS_PERSISTENT.
- *
- * @verbatime
- *    {
- *       struct m0_be_tx_credit  cred;
- *       struct m0_be_dtm0_log  *log;
- *       struct m0_be_tx        *tx;
- *       struct m0_dtm0_clk_src *cs;
- *       struct m0_dtm0_tx_desc *txd;
- *       struct m0_buf          *pyld;
- *       struct m0_be_seg       *seg;
- *
- *       m0_be_dtm0_log_credit(M0_DTPS_PERSISTENT, tx, seg, &cred);
- *       m0_be_tx_open(tx, cred);
- *
- *       ...
- *       m0_be_dtm0_log_update(log, tx, cs, txd, pyld);
- *       tx_close(tx);
- *    }
- * @endverbatim
  *
  * 4. When distributed transaction(dtx) become persistent on remote participant,
  *    the participant sends the persistent notice to rest of the participants
@@ -159,116 +120,104 @@ struct m0_dtm0_clk_src;
  *    log record: a log record with empty payload (NULL). The users of DTM0 log
  *    should be ready to encounter such a log entry, and treat it differently
  *    whenever it is required.
- *
- * @verbatim
- *    {
- *       struct m0_be_tx_credit  cred;
- *       struct m0_be_dtm0_log  *log;
- *       struct m0_be_tx        *tx;
- *       struct m0_dtm0_clk_src *cs;
- *       struct m0_dtm0_tx_desc *txd;
- *       struct m0_buf          *pyld;
- *       struct m0_be_seg       *seg;
- *
- *       m0_be_dtm0_log_credit(M0_DTML_PERSISTENT, tx, seg, &cred);
- *       m0_be_tx_prep(tx, &cred);
- *       m0_be_tx_open(tx);
- *
- *       ...
- *       m0_be_dtm0_log_update(log, tx, cs, txd, pyld);
- *       tx_close(tx);
- *    }
- * @endverbatim
- *
- *
  */
 
 enum m0_be_dtm0_log_credit_op {
-	M0_DTML_CREATE,
-	M0_DTML_SENT,
-	M0_DTML_EXECUTED,
-	M0_DTML_PERSISTENT,
-	M0_DTML_PRUNE,
-	M0_DTML_REDO
+	M0_DTML_CREATE,		/**< m0_be_dtm0_log_create() */
+	M0_DTML_SENT,		/**< m0_be_dtm0_log_update() */
+	M0_DTML_EXECUTED,	/**< m0_be_dtm0_log_update() */
+	M0_DTML_PERSISTENT,	/**< m0_be_dtm0_log_update() */
+	M0_DTML_PRUNE,		/**< m0_be_dtm0_log_prune()  */
+	M0_DTML_REDO            /**< m0_be_dtm0_log_update() */
 };
 
 struct m0_dtm0_log_rec {
 	struct m0_dtm0_dtx     dlr_dtx;
 	struct m0_dtm0_tx_desc dlr_txd;
-	struct m0_be_list_link dlr_link; /* link into m0_be_dtm0_log::list */
+	struct m0_be_list_link dlr_link;    /**< link into m0_be_dtm0_log::tlist */
 	uint64_t               dlr_magic;
 	struct m0_tlink        dlr_tlink;
-	struct m0_buf          dlr_pyld;
+	struct m0_buf          dlr_payload;
 };
 
 struct m0_be_dtm0_log {
-	bool                     dl_is_plog;
-	struct m0_mutex          dl_lock;  /* volatile structure */
-	struct m0_be_seg	*seg;
+	/** Indicates if the structure is a persistent or volatile */
+	bool                     dl_is_persistent;
+	/** DTM0 lock, volatile-field */
+	struct m0_mutex          dl_lock;
+	struct m0_be_seg	*dl_seg;
+	/** DTM0 clock source */
 	struct m0_dtm0_clk_src	*dl_cs;
-	struct m0_be_list	*dl_list;  /* persistent structure */
-	struct m0_tl		*dl_tlist; /* Volatile list */
+	/** Persistent list, used if dl_is_persistent */
+	struct m0_be_list	*dl_list;
+	/** Volatile list, used if !dl_is_persistent */
+	struct m0_tl		*dl_tlist;
 };
 
-// init/fini (for volatile fields)
+/**
+ * DTM log interface typical usecases:
+ * * Typical use cases:
+ * ** Initialisation/Finalisation for volatile fields of the log
+ * - m0_be_dtm0_log_init()
+ * ** Preparation phase
+ * - m0_be_dtm0_log_credit()
+ * ** Normal operation phase
+ * - m0_be_dtm0_log_update()
+ * - m0_be_dtm0_log_prune()
+ * - m0_be_dtm0_log_find()
+ */
+
 M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log **log,
                                     struct m0_dtm0_clk_src *cs,
                                     bool                    isvstore);
 M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log **log,
                                      bool                    isvstore);
-
-// credit interface
 M0_INTERNAL void m0_be_dtm0_log_credit(enum m0_be_dtm0_log_credit_op op,
 				       struct m0_dtm0_tx_desc	    *txd,
-				       struct m0_buf		    *pyld,
+				       struct m0_buf		    *payload,
                                        struct m0_be_seg             *seg,
 				       struct m0_dtm0_log_rec	    *rec,
                                        struct m0_be_tx_credit       *accum);
-// create/destroy
 M0_INTERNAL int m0_be_dtm0_log_create(struct m0_be_tx        *tx,
                                       struct m0_be_seg       *seg,
                                       struct m0_be_dtm0_log **out);
-
 M0_INTERNAL void m0_be_dtm0_log_destroy(struct m0_be_tx        *tx,
                                         struct m0_be_dtm0_log **log);
-
-// operational interfaces
 M0_INTERNAL int m0_be_dtm0_log_update(struct m0_be_dtm0_log  *log,
                                       struct m0_be_tx        *tx,
                                       struct m0_dtm0_tx_desc *txd,
-                                      struct m0_buf          *pyld);
-
+                                      struct m0_buf          *payload);
 M0_INTERNAL
 struct m0_dtm0_log_rec *m0_be_dtm0_log_find(struct m0_be_dtm0_log    *log,
                                             const struct m0_dtm0_tid *id);
-
 M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
                                      struct m0_be_tx          *tx,
                                      const struct m0_dtm0_tid *id);
-
 M0_INTERNAL int m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log	    *log,
 					  const struct m0_dtm0_tid  *id,
 					  struct m0_be_tx_credit    *cred);
-
 M0_INTERNAL int m0_be_dtm0_plog_prune(struct m0_be_dtm0_log    *log,
-                                     struct m0_be_tx          *tx,
-                                     const struct m0_dtm0_tid *id);
+                                     struct m0_be_tx           *tx,
+                                     const struct m0_dtm0_tid  *id);
 
-/** Removes all records from the volatile log. */
+/**
+ * TODO: rename this to indicate that it's used for volatile usecase only.
+ * TODO: remove later.
+ * Removes all records from the volatile log.
+ */
 M0_INTERNAL void m0_be_dtm0_log_clear(struct m0_be_dtm0_log *log);
-
-M0_INTERNAL int m0_be_dtm0_log_insert_volatile(struct m0_be_dtm0_log *log,
+M0_INTERNAL int m0_be_dtm0_volatile_log_insert(struct m0_be_dtm0_log  *log,
 					       struct m0_dtm0_log_rec *rec);
 
-M0_INTERNAL void m0_be_dtm0_log_update_volatile(struct m0_be_dtm0_log *log,
+M0_INTERNAL void m0_be_dtm0_volatile_log_update(struct m0_be_dtm0_log  *log,
 						struct m0_dtm0_log_rec *rec);
 
-/** Deliver a persistent message to the log.
+/**
+ * Deliver a persistent message to the log.
  * TODO: Only volatile log is supported so far.
  */
-M0_INTERNAL void
-m0_be_dtm0_log_post_pmsg(struct m0_be_dtm0_log *log,
-			 struct m0_fop         *fop);
+M0_INTERNAL void m0_be_dtm0_log_pmsg_post(struct m0_be_dtm0_log *log,
+					  struct m0_fop         *fop);
 
 #endif /* __MOTR_BE_DTM0_LOG_H__ */
 

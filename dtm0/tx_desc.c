@@ -75,7 +75,7 @@ M0_INTERNAL bool m0_dtm0_tid__invariant(const struct m0_dtm0_tid *tid)
 M0_INTERNAL int m0_dtm0_tx_desc_copy(const struct m0_dtm0_tx_desc *src,
 				     struct m0_dtm0_tx_desc       *dst)
 {
-	int      rc;
+	int rc;
 
 	M0_PRE(m0_dtm0_tx_desc__invariant(src));
 

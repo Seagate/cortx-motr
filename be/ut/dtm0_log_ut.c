@@ -33,47 +33,55 @@
 #include "lib/trace.h"		/* M0_ENTRY */
 #include "ut/ut.h"		/* M0_UT_ASSERT */
 
-#define UT_DTM0_LOG_MAX_PA            3
-#define UT_DTM0_LOG_MAX_LOG_REC      10
-#define UT_DTM0_LOG_BUF_SIZE        256
+enum {
+	UT_DTM0_LOG_MAX_PA      =   3,
+	UT_DTM0_LOG_BUF_SIZE    = 256,
+	UT_DTM0_LOG_MAX_LOG_REC =  10,
+};
 
-void ut_dl_set_p_state(struct m0_dtm0_tx_pa *pa, uint32_t state)
+/* p - participant, state_set, init, check */
+
+static void p_state_set(struct m0_dtm0_tx_pa *pa, uint32_t state)
 {
 	pa->p_state = state;
 }
 
-void ut_dl_init_pa(struct m0_dtm0_tx_pa *pa, int rand)
+static void p_init(struct m0_dtm0_tx_pa *pa, int rand)
 {
 	m0_fid_set(&pa->p_fid, rand + 1, rand + 1);
-	ut_dl_set_p_state(pa, M0_DTPS_INPROGRESS);
+	p_state_set(pa, M0_DTPS_INPROGRESS);
 }
 
-bool ut_dl_verify_pa(struct m0_dtm0_tx_pa *pa, int rand)
+static bool p_check(const struct m0_dtm0_tx_pa *pa, int rand)
 {
 	struct m0_fid temp_fid;
 	m0_fid_set(&temp_fid, rand + 1, rand + 1);
 
-	return (m0_fid_cmp(&pa->p_fid, &temp_fid) == 0) &&
-               pa->p_state >= 0                         &&
-               pa->p_state < M0_DTPS_NR;
+	return m0_fid_cmp(&pa->p_fid, &temp_fid) == 0 &&
+		pa->p_state < M0_DTPS_NR &&
+		pa->p_state >= 0;
 }
 
-void ut_dl_init_tid(struct m0_dtm0_tid *tid, int rand)
+/* tid - transaction id, init, check */
+
+static void tid_init(struct m0_dtm0_tid *tid, int rand)
 {
 	m0_fid_set(&tid->dti_fid, rand + 1, rand + 1);
 	tid->dti_ts.dts_phys = rand + 1;
 }
 
-bool ut_dl_verify_tid(struct m0_dtm0_tid *tid, int rand)
+static bool tid_check(const struct m0_dtm0_tid *tid, int rand)
 {
 	struct m0_fid temp_fid;
 	m0_fid_set(&temp_fid, rand + 1, rand + 1);
 
 	return (m0_fid_cmp(&tid->dti_fid, &temp_fid) == 0) &&
-               (tid->dti_ts.dts_phys == rand + 1);
+		(tid->dti_ts.dts_phys == rand + 1);
 }
 
-int ut_dl_init_txd(struct m0_dtm0_tx_desc *txd, int rand)
+/* txd - transaction desc, init, fini, check */
+
+static int txd_init(struct m0_dtm0_tx_desc *txd, int rand)
 {
 	int i;
 	int rc;
@@ -82,29 +90,28 @@ int ut_dl_init_txd(struct m0_dtm0_tx_desc *txd, int rand)
 	if (rc != 0)
 		return rc;
 
-	ut_dl_init_tid(&txd->dtd_id, rand);
+	tid_init(&txd->dtd_id, rand);
 
-	for (i = 0; i < txd->dtd_ps.dtp_nr; ++i) {
-		ut_dl_init_pa(&txd->dtd_ps.dtp_pa[i], rand);
-	}
+	for (i = 0; i < txd->dtd_ps.dtp_nr; ++i)
+		p_init(&txd->dtd_ps.dtp_pa[i], rand);
 
 	return rc;
 }
 
-void ut_dl_fini_txd(struct m0_dtm0_tx_desc *txd)
+static void txd_fini(struct m0_dtm0_tx_desc *txd)
 {
 	m0_dtm0_tx_desc_fini(txd);
 }
 
-bool ut_dl_verify_txd(struct m0_dtm0_tx_desc *txd, int rand)
+static bool txd_check(const struct m0_dtm0_tx_desc *txd, int rand)
 {
-	return ut_dl_verify_tid(&txd->dtd_id, rand)        &&
-               (txd->dtd_ps.dtp_nr == UT_DTM0_LOG_MAX_PA) &&
-	       m0_forall(i, txd->dtd_ps.dtp_nr,
-                         ut_dl_verify_pa(&txd->dtd_ps.dtp_pa[i], rand));
+	return tid_check(&txd->dtd_id, rand) &&
+		txd->dtd_ps.dtp_nr == UT_DTM0_LOG_MAX_PA &&
+		m0_forall(i, txd->dtd_ps.dtp_nr,
+			  p_check(&txd->dtd_ps.dtp_pa[i], rand));
 }
 
-int ut_dl_init_buf(struct m0_buf *buf, int rand)
+static int ut_dl_init_buf(struct m0_buf *buf, int rand)
 {
 	int rc;
 	rc = m0_buf_alloc(buf, UT_DTM0_LOG_BUF_SIZE);
@@ -114,32 +121,28 @@ int ut_dl_init_buf(struct m0_buf *buf, int rand)
 	return rc;
 }
 
-void ut_dl_fini_buf(struct m0_buf *buf)
+static void ut_dl_fini_buf(struct m0_buf *buf)
 {
 	m0_buf_free(buf);
 }
 
-bool ut_dl_verify_buf(struct m0_buf *buf, int rand)
+static bool ut_dl_verify_buf(struct m0_buf *buf, int rand)
 {
-	bool          rc       = true;
+	bool          rc;
 	struct m0_buf temp_buf = {};
 
-	if (buf->b_nob) {
-		ut_dl_init_buf(&temp_buf, rand);
-		rc = m0_buf_eq(&temp_buf, buf);
-		m0_buf_free(&temp_buf);
-	} else {
-		rc = (m0_buf_is_set(buf) == 0);
-	}
-
+	M0_ASSERT(buf->b_nob > 0);
+	ut_dl_init_buf(&temp_buf, rand);
+	rc = m0_buf_eq(&temp_buf, buf);
+	m0_buf_free(&temp_buf);
 	return rc;
 }
 
-int ut_dl_init(struct m0_dtm0_tx_desc *txd, struct m0_buf *buf, int rand)
+static int ut_dl_init(struct m0_dtm0_tx_desc *txd, struct m0_buf *buf, int rand)
 {
 	int rc;
 
-	rc = ut_dl_init_txd(txd, rand);
+	rc = txd_init(txd, rand);
 	if (rc != 0)
 		return rc;
 
@@ -150,16 +153,16 @@ int ut_dl_init(struct m0_dtm0_tx_desc *txd, struct m0_buf *buf, int rand)
 	return rc;
 }
 
-void ut_dl_fini(struct m0_dtm0_tx_desc *txd, struct m0_buf *buf)
+static void ut_dl_fini(struct m0_dtm0_tx_desc *txd, struct m0_buf *buf)
 {
-	ut_dl_fini_txd(txd);
+	txd_fini(txd);
 	ut_dl_fini_buf(buf);
 }
 
-bool ut_dl_verify_log_rec(struct m0_dtm0_log_rec *rec, int rand)
+static bool ut_dl_verify_log_rec(struct m0_dtm0_log_rec *rec, int rand)
 {
-	return ut_dl_verify_buf(&rec->dlr_pyld, rand) &&
-               ut_dl_verify_txd(&rec->dlr_txd, rand);
+	return ut_dl_verify_buf(&rec->dlr_payload, rand) &&
+		txd_check(&rec->dlr_txd, rand);
 }
 
 
@@ -169,9 +172,9 @@ void test_volatile_dtm0_log(void)
 	int                     rc;
 	struct m0_dtm0_clk_src  cs;
 	struct m0_dtm0_tx_desc  txd[UT_DTM0_LOG_MAX_LOG_REC];
+	struct m0_dtm0_log_rec *rec[UT_DTM0_LOG_MAX_LOG_REC] = {};
 	struct m0_buf           buf[UT_DTM0_LOG_MAX_LOG_REC] = {};
 	struct m0_buf           empty_buf                    = {};
-	struct m0_dtm0_log_rec *rec[UT_DTM0_LOG_MAX_LOG_REC] = {};
 	struct m0_be_dtm0_log  *log                          = NULL;
 
 	rc = m0_dtm0_clk_src_init(&cs, M0_DTM0_CS_PHYS);
@@ -186,7 +189,7 @@ void test_volatile_dtm0_log(void)
 	}
 
 	/* pa[0].st = EX pa[1].st = IP pa[2].st = IP, pyld = valid */
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_EXECUTED);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_EXECUTED);
 	m0_mutex_lock(&log->dl_lock);
 	rc = m0_be_dtm0_log_update(log, NULL, &txd[0], &buf[0]);
 	M0_UT_ASSERT(rc == 0);
@@ -195,8 +198,8 @@ void test_volatile_dtm0_log(void)
 	rc = ut_dl_verify_log_rec(rec[0], 0);
 	M0_UT_ASSERT(rc != 0);
 
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[1], M0_DTPS_PERSISTENT);
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[2], M0_DTPS_PERSISTENT);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[1], M0_DTPS_PERSISTENT);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[2], M0_DTPS_PERSISTENT);
 	rc = m0_be_dtm0_log_update(log, NULL, &txd[0], &buf[0]);
 	M0_UT_ASSERT(rc == 0);
 	rec[0] = m0_be_dtm0_log_find(log, &txd[0].dtd_id);
@@ -207,7 +210,7 @@ void test_volatile_dtm0_log(void)
 	rc = m0_be_dtm0_log_prune(log, NULL, &txd[0].dtd_id);
 	M0_UT_ASSERT(rc == -EPROTO);
 
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
 	rc = m0_be_dtm0_log_update(log, NULL, &txd[0], &buf[0]);
 	M0_UT_ASSERT(rc == 0);
 
@@ -220,18 +223,18 @@ void test_volatile_dtm0_log(void)
 	rc = m0_be_dtm0_log_prune(log, NULL, &txd[0].dtd_id);
 	M0_UT_ASSERT(rc == -ENOENT);
 
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_INPROGRESS);
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[1], M0_DTPS_INPROGRESS);
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[2], M0_DTPS_PERSISTENT);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_INPROGRESS);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[1], M0_DTPS_INPROGRESS);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[2], M0_DTPS_PERSISTENT);
 	rc = m0_be_dtm0_log_update(log, NULL, &txd[0], &empty_buf);
 	M0_UT_ASSERT(rc == 0);
 	rec[0] = m0_be_dtm0_log_find(log, &txd[0].dtd_id);
 	M0_UT_ASSERT(rec[0] != NULL);
-	rc = ut_dl_verify_log_rec(rec[0], 0);
-	M0_UT_ASSERT(rc != 0);
+	//rc = ut_dl_verify_log_rec(rec[0], 0);
+	//M0_UT_ASSERT(rc != 0);
 
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[1], M0_DTPS_PERSISTENT);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[1], M0_DTPS_PERSISTENT);
 	rc = m0_be_dtm0_log_update(log, NULL, &txd[0], &buf[0]);
 	M0_UT_ASSERT(rc == 0);
 	rec[0] = m0_be_dtm0_log_find(log, &txd[0].dtd_id);
@@ -243,11 +246,11 @@ void test_volatile_dtm0_log(void)
 	rec[0] = NULL;
 
 	for (i = 0; i < UT_DTM0_LOG_MAX_LOG_REC; ++i) {
-		ut_dl_set_p_state(&txd[i].dtd_ps.dtp_pa[0],
+		p_state_set(&txd[i].dtd_ps.dtp_pa[0],
                                    M0_DTPS_PERSISTENT);
-		ut_dl_set_p_state(&txd[i].dtd_ps.dtp_pa[1],
+		p_state_set(&txd[i].dtd_ps.dtp_pa[1],
                                    M0_DTPS_PERSISTENT);
-		ut_dl_set_p_state(&txd[i].dtd_ps.dtp_pa[2],
+		p_state_set(&txd[i].dtd_ps.dtp_pa[2],
                                    M0_DTPS_PERSISTENT);
 		rc = m0_be_dtm0_log_update(log, NULL, &txd[i], &buf[i]);
 		M0_UT_ASSERT(rc == 0);
@@ -298,9 +301,9 @@ static struct m0_be_dtm0_log *persistent_log_create(void)
 
 	M0_ENTRY();
 
-	//-------- Calculate credits
+	// Calculate credits
 	m0_be_dtm0_log_credit(M0_DTML_CREATE, NULL, NULL, seg, NULL, &cred);
-	//--------
+	//
 
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
@@ -309,12 +312,12 @@ static struct m0_be_dtm0_log *persistent_log_create(void)
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 
-	//-------- Create log and initialize it
+	// Create log and initialize it
 	rc = m0_be_dtm0_log_create(tx, seg, &log);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_be_dtm0_log_init(&log, &cs, true);
 	M0_UT_ASSERT(rc == 0);
-	//--------
+	//
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -327,14 +330,13 @@ static void persistent_log_destroy(struct m0_be_dtm0_log *log)
 {
 }
 
-static void persistent_log_operate (struct m0_be_dtm0_log *log)
+static void persistent_log_operate(struct m0_be_dtm0_log *log)
 {
  	struct m0_be_tx_credit	cred;
 	struct m0_be_tx	       *tx;
 
 	struct m0_dtm0_tx_desc  txd[UT_DTM0_LOG_MAX_LOG_REC];
 	struct m0_buf           buf[UT_DTM0_LOG_MAX_LOG_REC] = {};
-	struct m0_buf           empty_buf                    = {};
 	struct m0_dtm0_log_rec *rec[UT_DTM0_LOG_MAX_LOG_REC] = {};
  	int                     i;
  	int                     rc;
@@ -348,14 +350,15 @@ static void persistent_log_operate (struct m0_be_dtm0_log *log)
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
 
- 	//-------- Operate over the log
+ 	/* Operate over the log */
 
 	/* pa[0].st = EX pa[1].st = IP pa[2].st = IP, pyld = valid */
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_EXECUTED);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_EXECUTED);
 
 	M0_SET0(&cred);
 	m0_be_dtm0_log_credit(M0_DTML_EXECUTED, &txd[0], &buf[0], seg, NULL, &cred);
-	//-------- Update the tx descriptor, prepare the tx and open it
+
+	/* Update the tx descriptor, prepare the tx and open it */
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
 	rc = m0_be_tx_open_sync(tx);
@@ -374,12 +377,12 @@ static void persistent_log_operate (struct m0_be_dtm0_log *log)
 	rc = ut_dl_verify_log_rec(rec[0], 0);
 	M0_UT_ASSERT(rc != 0);
 
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[1], M0_DTPS_PERSISTENT);
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[2], M0_DTPS_PERSISTENT);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[1], M0_DTPS_PERSISTENT);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[2], M0_DTPS_PERSISTENT);
 
 	M0_SET0(&cred);
 	m0_be_dtm0_log_credit(M0_DTML_PERSISTENT, &txd[0], &buf[0], seg, NULL, &cred);
-	//-------- Update the tx descriptor, prepare the tx and open it
+
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
@@ -405,11 +408,13 @@ static void persistent_log_operate (struct m0_be_dtm0_log *log)
 	M0_UT_ASSERT(rc == -EPROTO);
 	m0_mutex_unlock(&log->dl_lock);
 
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
 
 	M0_SET0(&cred);
 	m0_be_dtm0_log_credit(M0_DTML_PERSISTENT, &txd[0], &buf[0], seg, NULL, &cred);
-	//-------- Update the tx descriptor, prepare the tx and open it
+
+
+	/* Update the tx descriptor, prepare the tx and open it */
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
 	rc = m0_be_tx_open_sync(tx);
@@ -446,30 +451,13 @@ static void persistent_log_operate (struct m0_be_dtm0_log *log)
 	M0_UT_ASSERT(rc == -ENOENT);
 	m0_mutex_unlock(&log->dl_lock);
 
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_INPROGRESS);
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[1], M0_DTPS_INPROGRESS);
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[2], M0_DTPS_PERSISTENT);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_INPROGRESS);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[1], M0_DTPS_INPROGRESS);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[2], M0_DTPS_PERSISTENT);
 
-	M0_SET0(&cred);
-	m0_be_dtm0_log_credit(M0_DTML_PERSISTENT, &txd[0], &buf[0], seg, NULL, &cred);
-	m0_be_ut_tx_init(tx, ut_be);
-	m0_be_tx_prep(tx, &cred);
-	rc = m0_be_tx_open_sync(tx);
-	M0_UT_ASSERT(rc == 0);
-	m0_mutex_lock(&log->dl_lock);
-	rc = m0_be_dtm0_log_update(log, tx, &txd[0], &empty_buf);
-	M0_UT_ASSERT(rc == 0);
-	m0_be_tx_close_sync(tx);
-	m0_be_tx_fini(tx);
 
-	rec[0] = m0_be_dtm0_log_find(log, &txd[0].dtd_id);
-	m0_mutex_unlock(&log->dl_lock);
-	M0_UT_ASSERT(rec[0] != NULL);
-	rc = ut_dl_verify_log_rec(rec[0], 0);
-	M0_UT_ASSERT(rc != 0);
-
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
-	ut_dl_set_p_state(&txd[0].dtd_ps.dtp_pa[1], M0_DTPS_PERSISTENT);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
+	p_state_set(&txd[0].dtd_ps.dtp_pa[1], M0_DTPS_PERSISTENT);
 
 	M0_SET0(&cred);
 	m0_be_dtm0_log_credit(M0_DTML_PERSISTENT, &txd[0], &buf[0], seg, NULL, &cred);
@@ -510,20 +498,20 @@ static void persistent_log_operate (struct m0_be_dtm0_log *log)
 	for (i = 0; i < UT_DTM0_LOG_MAX_LOG_REC; ++i) {
 		M0_SET0(&cred);
 		/* pa[0].st = EX pa[1].st = IP pa[2].st = IP, pyld = valid */
-		ut_dl_set_p_state(&txd[i].dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
-		ut_dl_set_p_state(&txd[i].dtd_ps.dtp_pa[1], M0_DTPS_PERSISTENT);
-		ut_dl_set_p_state(&txd[i].dtd_ps.dtp_pa[2], M0_DTPS_PERSISTENT);
+		p_state_set(&txd[i].dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
+		p_state_set(&txd[i].dtd_ps.dtp_pa[1], M0_DTPS_PERSISTENT);
+		p_state_set(&txd[i].dtd_ps.dtp_pa[2], M0_DTPS_PERSISTENT);
 
 		/* Insert/Update a persistent record in the log. --> */
-		//-------- Calculate credits for a M0_DTML_PERSISTENT record
+		/* Calculate credits for a M0_DTML_PERSISTENT record */
 		m0_be_dtm0_log_credit(M0_DTML_PERSISTENT, &txd[0], &buf[0], seg, NULL, &cred);
-		//-------- Update the tx descriptor, prepare the tx and open it
+		/* Update the tx descriptor, prepare the tx and open it */
 		m0_be_ut_tx_init(tx, ut_be);
 		m0_be_tx_prep(tx, &cred);
 		rc = m0_be_tx_open_sync(tx);
 		M0_UT_ASSERT(rc == 0);
 
-		// lock the log, update/insert the new record, close the log and unlock it.
+		/* lock the log, update/insert the new record, close the log and unlock it. */
 		m0_mutex_lock(&log->dl_lock);
 		rc = m0_be_dtm0_log_update(log, tx, &txd[i], &buf[i]);
 		m0_mutex_unlock(&log->dl_lock);
@@ -574,15 +562,7 @@ static void dtm0_log_check(const struct m0_be_dtm0_log *log)
 {
 }
 
-
-// seg0: { { "dtm0_log__id=10101", &dtm_log } ,
-//         { "cob_dom__id=20101", &cob_domain } }
-//
-// seg1: [ dtm0_log ] [ cob_domain ]
-//
-//
-
-void m0_be_ut_dtm0_log_test(void)
+static void m0_be_ut_dtm0_log_test(void)
 {
 	int                     rc;
 	struct m0_dtm0_clk_src  cs;
@@ -600,7 +580,6 @@ void m0_be_ut_dtm0_log_test(void)
 	rc = m0_dtm0_clk_src_init(&cs, M0_DTM0_CS_PHYS);
 	M0_UT_ASSERT(rc == 0);
 
-	// ##### dtm0 log operations started here
 
 	log = persistent_log_create();
 	M0_UT_ASSERT(log != NULL);
@@ -616,8 +595,7 @@ void m0_be_ut_dtm0_log_test(void)
 	dtm0_log_check(log);
 	persistent_log_destroy(log);
 
-	// destroy_log(log);
-	// ##### dtm0 log operations ended here
+	/* TODO: destroy_log(log); */
 
 	m0_be_ut_seg_reload(ut_seg);
 	m0_be_ut_seg_fini(ut_seg);

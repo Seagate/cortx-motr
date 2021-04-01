@@ -1138,6 +1138,11 @@ enum m0_magic_satchel {
 	M0_FDMI_SRC_DOCK_PENDING_FOP_MAGIC = 0xf1eece0ff1ce,
 	/* pending_fops list head magic (feosol obsess) */
 	M0_FDMI_SRC_DOCK_PENDING_FOP_HEAD_MAGIC = 0xfe05010b5e55,
+/* DTM0 */
+	/* be/dtm0_log.c::dlr_tlink (be fifo head) */
+	M0_BE_DTM0_LOG_MAGIX = 0x33d73010600077,
+	/* be/dtm0_log.c::dlr_link (dtm0 log rec) */
+	M0_BE_DTM0_LOG_REC_MAGIX = 0x33d73010673c77,
 };
 
 #endif /* __MOTR_MAGIC_H__ */
