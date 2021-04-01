@@ -1664,7 +1664,7 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 			  &op);
 	if (rc != 0)
 		return M0_ERR(rc);
-	rc = m0_dtx0_copy_txd(dtx, &op->cg_txd);
+	rc = m0_dtx0_txd_copy(dtx, &op->cg_txd);
 	if (rc != 0)
 		return M0_ERR(rc);
 	rc = creq_fop_create_and_prepare(req, &cas_put_fopt, op, &next_state);
@@ -1830,7 +1830,7 @@ M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 			  &op);
 	if (rc != 0)
 		return M0_ERR(rc);
-	rc = m0_dtx0_copy_txd(dtx, &op->cg_txd);
+	rc = m0_dtx0_txd_copy(dtx, &op->cg_txd);
 	if (rc != 0)
 		return M0_ERR(rc);
 	rc = creq_fop_create_and_prepare(req, &cas_del_fopt, op, &next_state);
