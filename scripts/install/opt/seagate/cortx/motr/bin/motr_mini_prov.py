@@ -57,8 +57,9 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
 
-def execute_command_without_exception(self, cmd_list, timeout_secs = TIMEOUT_SECS):
-    ps = subprocess.run(cmd_list, timeout=timeout_secs)
+def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
+    sys.stdout.write(f"Executing cmd : '{cmd}'\n")
+    ps = subprocess.run(list(cmd.split(' ')), timeout=timeout_secs)
     sys.stdout.write(f"ret={ps.returncode}\n")
     return ps.returncode
 
@@ -550,7 +551,7 @@ def lvm_exist(self):
 def cluster_up(self):
     cmd = '/usr/bin/hctl status'
     sys.stdout.write(f"Executing cmd : '{cmd}'\n")
-    ret = execute_command_without_exception(self, list(cmd.split(' ')))
+    ret = execute_command_without_exception(self, cmd)
     if ret == 0:
         return True
     else:
@@ -558,8 +559,7 @@ def cluster_up(self):
 
 def pkg_installed(self, pkg):
     cmd = f'/usr/bin/yum list installed {pkg}'
-    sys.stdout.write(f"Executing cmd : '{cmd}'\n")
-    ret = execute_command_without_exception(self, list(cmd.split(' ')))
+    ret = execute_command_without_exception(self, cmd)
     if ret == 0:
         sys.stdout.write(f"{pkg} is installed\n")
         return True
