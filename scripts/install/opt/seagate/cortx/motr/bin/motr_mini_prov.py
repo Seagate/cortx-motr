@@ -549,7 +549,7 @@ def lvm_exist(self):
     return True
 
 def cluster_up(self):
-    cmd = 'hctl status'
+    cmd = '/usr/bin/hctl status'
     ret = execute_command_without_exception(self, cmd)
     if ret == 0:
         return True
@@ -557,7 +557,7 @@ def cluster_up(self):
         return False
 
 def pkg_installed(self, pkg):
-    cmd = f'yum list installed {pkg}'
+    cmd = f'/usr/bin/yum list installed {pkg}'
     ret = execute_command_without_exception(self, cmd)
     if ret == 0:
         sys.stdout.write(f"{pkg} is installed\n")
