@@ -91,6 +91,7 @@ BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
 BuildRequires:  python-devel
 BuildRequires:  libedit-devel
+BuildRequires:  isa-l
 %if %{with cassandra}
 BuildRequires:  libcassandra
 BuildRequires:  libuv
@@ -118,6 +119,7 @@ Requires:       facter
 Requires:       rubygem-net-ssh
 Requires:       python36-ply
 Requires:       libedit
+Requires:       isa-l
 Requires(pre):  shadow-utils
 Requires(post): findutils
 
