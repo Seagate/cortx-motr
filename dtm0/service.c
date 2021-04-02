@@ -51,6 +51,10 @@ static int dtm0_service_allocate(struct m0_reqh_service **service,
 				 const struct m0_reqh_service_type *stype);
 static void dtm0_service_fini(struct m0_reqh_service *service);
 
+enum {
+	MAX_RPCS_IN_FLIGHT = 10,
+	DISCONNECT_TIMEOUT_SECS = 5
+};
 
 static const struct m0_reqh_service_type_ops dtm0_service_type_ops = {
 	.rsto_service_allocate = dtm0_service_allocate
@@ -109,17 +113,16 @@ struct dtm0_process {
 };
 
 M0_TL_DESCR_DEFINE(dopr, "dtm0_process", static, struct dtm0_process, dop_link,
-		   dop_magic, 0x8888888888888888, 0x7777777777777777);
+		   dop_magic, M0_DTM0_PROC_MAGIC, M0_DTM0_PROC_HEAD_MAGIC);
 M0_TL_DEFINE(dopr, static, struct dtm0_process);
 
 /**
  * typed container_of
  */
-enum { DTM0_SERVICE_MAGIX = 0x9999999999999999 };
 static const struct m0_bob_type dtm0_service_bob = {
 	.bt_name = "dtm0 service",
 	.bt_magix_offset = M0_MAGIX_OFFSET(struct m0_dtm0_service, dos_magix),
-	.bt_magix = DTM0_SERVICE_MAGIX,
+	.bt_magix = M0_DTM0_SVC_MAGIC,
 	.bt_check = NULL
 };
 M0_BOB_DEFINE(static, &dtm0_service_bob, m0_dtm0_service);
@@ -150,25 +153,50 @@ static void dtm0_service__fini(struct m0_dtm0_service *s)
 	m0_dtm0_service_bob_fini(s);
 }
 
-static struct dtm0_process *dtm0_service_process__lookup(struct m0_reqh_service *reqh_dtm0_svc,
-							 const struct m0_fid *remote_dtm0)
+M0_INTERNAL struct m0_reqh_service *
+m0_dtm__client_service_start(struct m0_reqh *reqh, struct m0_fid *cli_srv_fid)
 {
-	struct m0_dtm0_service *dtm0 =
-		container_of(reqh_dtm0_svc, struct m0_dtm0_service, dos_generic);
-	struct dtm0_process *process;
+       struct m0_reqh_service_type *svct;
+       struct m0_reqh_service      *reqh_svc;
+       int rc;
 
-	process = m0_tl_find(dopr, proc, &dtm0->dos_processes,
-			     m0_fid_eq(&proc->dop_rserv_fid, remote_dtm0));
-	M0_ASSERT(process != NULL);
+       svct = m0_reqh_service_type_find("M0_CST_DTM0");
+       M0_ASSERT(svct != NULL);
 
-	return process;
+       rc = m0_reqh_service_allocate(&reqh_svc, svct, NULL);
+       M0_ASSERT(rc == 0);
+
+       m0_reqh_service_init(reqh_svc, reqh, cli_srv_fid);
+
+       rc = m0_reqh_service_start(reqh_svc);
+       M0_ASSERT(rc == 0);
+
+       return reqh_svc;
+}
+
+M0_INTERNAL void m0_dtm__client_service_stop(struct m0_reqh_service *svc)
+{
+       m0_reqh_service_prepare_to_stop(svc);
+       m0_reqh_idle_wait_for(svc->rs_reqh, svc);
+       m0_reqh_service_stop(svc);
+       m0_reqh_service_fini(svc);
 }
 
 
-M0_INTERNAL int m0_dtm0_service_process_connect(struct m0_reqh_service *s,
-						struct m0_fid *remote_srv,
-						const char    *remote_ep,
-						bool async)
+static struct dtm0_process *
+dtm0_service_process__lookup(struct m0_reqh_service *reqh_dtm0_svc,
+			     const struct m0_fid    *remote_dtm0)
+{
+	return m0_tl_find(dopr, proc, &to_dtm(reqh_dtm0_svc)->dos_processes,
+			  m0_fid_eq(&proc->dop_rserv_fid, remote_dtm0));
+}
+
+
+M0_INTERNAL int
+m0_dtm0_service_process_connect(struct m0_reqh_service *s,
+				struct m0_fid          *remote_srv,
+				const char             *remote_ep,
+				bool                    async)
 {
 	struct dtm0_process *process;
 	struct m0_rpc_machine *mach =
@@ -180,17 +208,13 @@ M0_INTERNAL int m0_dtm0_service_process_connect(struct m0_reqh_service *s,
 		return M0_RC(-ENOENT);
 
 	rc = m0_rpc_link_init(&process->dop_rlink, mach, remote_srv,
-			      remote_ep, 10);
-	M0_ASSERT(rc == 0);
+			      remote_ep, MAX_RPCS_IN_FLIGHT);
+	if (rc != 0)
+		return M0_ERR(rc);
 
-	M0_LOG(M0_DEBUG,
-	       " async=%d"
-	       " dtm0="FID_F
-	       " remote_srv="FID_F,
-	       !!async,
-	       FID_P(&s->rs_service_fid),
-	       FID_P(remote_srv));
-	M0_LOG(M0_DEBUG, "rep=%s", remote_ep);
+	M0_LOG(M0_DEBUG, "async=%d, dtm0="FID_F", remote_srv="FID_F", rep=%s",
+	       !!async, FID_P(&s->rs_service_fid), FID_P(remote_srv),
+	       remote_ep);
 
 	if (!async)
 		rc = m0_rpc_link_connect_sync(&process->dop_rlink,
@@ -203,38 +227,36 @@ M0_INTERNAL int m0_dtm0_service_process_connect(struct m0_reqh_service *s,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_dtm0_service_process_disconnect(struct m0_reqh_service *s,
-						   struct m0_fid *remote_srv)
+M0_INTERNAL int
+m0_dtm0_service_process_disconnect(struct m0_reqh_service *s,
+				   struct m0_fid          *remote_srv)
 {
 	int rc;
 	struct dtm0_process *process = NULL;
 
-	M0_LOG(M0_DEBUG,
-	       " dtm0=%p"
-	       " remote_srv="FID_F,
-	       s,
-	       FID_P(remote_srv));
+	M0_LOG(M0_DEBUG, "dtm0=%p, remote_srv="FID_F, s, FID_P(remote_srv));
 
 	process = dtm0_service_process__lookup(s, remote_srv);
-
 	if (process == NULL)
-		return -ENOENT;
+		return M0_RC(-ENOENT);
 
-	rc = m0_rpc_link_disconnect_sync(&process->dop_rlink,
-					 m0_time_from_now(5, 0));
+	rc = m0_rpc_link_disconnect_sync(
+		&process->dop_rlink,
+		m0_time_from_now(DISCONNECT_TIMEOUT_SECS, 0));
 
-	M0_ASSERT(rc == 0 || rc == -ETIMEDOUT);
-	if (rc == -ETIMEDOUT)
+	if (rc == -ETIMEDOUT) {
 		M0_LOG(M0_WARN, "Disconnect timeout");
+		rc = 0;
+	}
 
 	m0_rpc_link_fini(&process->dop_rlink);
 
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL struct m0_rpc_session *
 m0_dtm0_service_process_session_get(struct m0_reqh_service *s,
-				    const struct m0_fid *remote_srv)
+				    const struct m0_fid    *remote_srv)
 {
 	struct dtm0_process *process =
 		dtm0_service_process__lookup(s, remote_srv);
@@ -242,9 +264,9 @@ m0_dtm0_service_process_session_get(struct m0_reqh_service *s,
 	return process == NULL ? NULL : &process->dop_rlink.rlk_sess;
 }
 
-static int dtm0_service__alloc(struct m0_reqh_service **service,
+static int dtm0_service__alloc(struct m0_reqh_service           **service,
 			       const struct m0_reqh_service_type *stype,
-			       const struct m0_reqh_service_ops *ops)
+			       const struct m0_reqh_service_ops  *ops)
 {
 	struct m0_dtm0_service *s;
 	int                     rc;
@@ -258,14 +280,13 @@ static int dtm0_service__alloc(struct m0_reqh_service **service,
 	s->dos_generic.rs_type = stype;
 	s->dos_generic.rs_ops  = ops;
 	rc = dtm0_service__init(s);
-	if (rc != 0)
-		return rc;
+	if (rc == 0)
+		*service = &s->dos_generic;
 
-	*service = &s->dos_generic;
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
-static int dtm0_service_allocate(struct m0_reqh_service **service,
+static int dtm0_service_allocate(struct m0_reqh_service           **service,
 				 const struct m0_reqh_service_type *stype)
 {
 	return dtm0_service__alloc(service, stype, &dtm0_service_ops);
@@ -319,20 +340,21 @@ static int dtm0_service_start(struct m0_reqh_service *service)
 {
         M0_PRE(service != NULL);
         return dtm_service__origin_fill(service) ?:
-		    dtm0_service__ha_subscribe(service);
+		dtm0_service__ha_subscribe(service);
 }
 
 static void dtm0_service_stop(struct m0_reqh_service *service)
 {
 	struct m0_dtm0_service *dtm0;
 
-        M0_PRE(service != NULL);
+	M0_PRE(service != NULL);
 	dtm0 = to_dtm(service);
 
 	dtm0_service__ha_unsubscribe(service);
 
 	m0_dtm0_fop_fini();
-	/* It is safe to remove any remaining entries from the log
+	/**
+	 * It is safe to remove any remaining entries from the log
 	 * when a process with volatile log is going to die.
 	 */
 	if (dtm0->dos_origin == DTM0_ON_VOLATILE && dtm0->dos_log != NULL) {
@@ -421,8 +443,9 @@ static void service_connect_ast(struct m0_sm_group *grp,
 
 static bool process_clink_cb(struct m0_clink *clink)
 {
-	struct dtm0_process *process    = M0_AMB(process, clink, dop_ha_link);
-	struct m0_conf_obj *process_obj = container_of(clink->cl_chan,
+	struct dtm0_process    *process    = M0_AMB(process, clink,
+						    dop_ha_link);
+	struct m0_conf_obj     *process_obj = container_of(clink->cl_chan,
 						       struct m0_conf_obj,
 						       co_ha_chan);
 	struct m0_reqh_service *dtm0 = process->dop_dtm0_service;
@@ -454,7 +477,6 @@ static bool process_clink_cb(struct m0_clink *clink)
 		goto out;
 	}
 
-	/* (M0_IN(obj->co_ha_state, (M0_NC_ONLINE, M0_NC_FAILED, M0_NC_TRANSIENT))) */
 	M0_LOG(M0_DEBUG,
 	       " evented_proc_state=%d"
 	       " evented_proc_fid="FID_F
@@ -585,7 +607,7 @@ static int dtm0_service__ha_subscribe(struct m0_reqh_service *service)
 
 static int dtm0_service__ha_unsubscribe(struct m0_reqh_service *reqh_service)
 {
-	struct dtm0_process *process;
+	struct dtm0_process    *process;
 	struct m0_dtm0_service *service;
 #if 0
 	int rc;

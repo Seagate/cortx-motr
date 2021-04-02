@@ -53,6 +53,9 @@ extern struct m0_reqh_service_type dtm0_service_type;
 M0_INTERNAL int m0_dtm0_stype_init(void);
 M0_INTERNAL void m0_dtm0_stype_fini(void);
 
+M0_INTERNAL struct m0_reqh_service *
+m0_dtm__client_service_start(struct m0_reqh *reqh, struct m0_fid *cli_srv_fid);
+M0_INTERNAL void m0_dtm__client_service_stop(struct m0_reqh_service *svc);
 
 M0_INTERNAL int m0_dtm0_service_process_connect(struct m0_reqh_service *s,
 						struct m0_fid *remote_srv,

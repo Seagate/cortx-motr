@@ -1099,6 +1099,13 @@ enum m0_magic_satchel {
 	M0_DIX_ROP_HEAD_MAGIC  = 0x33ba51c0ff10ad77,
 	/** struct m0_dix_cm::dcm_magic (dixdixdixdix) */
 	M0_DIX_CM_MAGIC        = 0x33d18d18d18d1877,
+/* DTM0 */
+	/** m0_bob_type::bt_magix (zodiacal bass) */
+	M0_DTM0_SVC_MAGIC       = 0x3320d1aca1ba5577,
+	/** dtm0_process:dop_magic (sellable self) */
+	M0_DTM0_PROC_MAGIC      = 0x335e1f5e11ab1e77,
+	/** dopr_tlist head magic (cocobolo flea) */
+	M0_DTM0_PROC_HEAD_MAGIC = 0x33c0c0b010f1ea77,
 /* FDMI */
 	/* m0_reqh_fdmi_service::rfdms_magic (abide dazzled) */
 	M0_FDMS_REQH_SVC_MAGIC = 0x33ab1deda221ed77,
