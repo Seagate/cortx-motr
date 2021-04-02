@@ -134,6 +134,21 @@ function expected_trace_lines_num()
     return 0
 }
 
+function processes_status_check()
+{
+    local rc=0
+
+    for fid in ${M0D_FIDS_HEX[@]} ; do
+        svc_name="m0d@0x720000000000000${fid}.service"
+        systemctl is-failed $svc_name > /dev/null && {
+            _err "Process $svc_name failed"
+            rc=1
+        }
+    done
+
+    return $rc
+}
+
 function fail()
 {
     _err "$1"
@@ -188,6 +203,12 @@ function main()
     wait $cli_pid
 
     stop_cluster
+    
+    _info "Checking processes exit status..."
+    processes_status_check || {
+        _err "TEST STATUS: FAIL"
+        exit 1
+    }
 
     _info "TEST STATUS: PASSED"
 }
