@@ -869,7 +869,6 @@ static void idx_teardown(void)
 	m0_op_fini(op);
 	m0_op_free(op);
 	m0_idx_fini(&duc.duc_idx);
-	op = NULL;
 	M0_SET0(&duc.duc_idx);
 }
 
@@ -891,14 +890,15 @@ static int duc_teardown(void)
 	return rc;
 }
 
-/* Submits multiple M0 client (PUT|DEL) operations and then waits on EXECUTED,
- * and then waits on STABLE.
+/* Submits multiple M0 client (PUT|DEL) operations and then waits on "phase1"
+ * states, and then waits on "phase2" states.
  */
-static void exec_then_stable(uint64_t nr, enum m0_idx_opcode opcode)
+static void run_m0ops(uint64_t nr, enum m0_idx_opcode opcode,
+		      uint64_t phase1wait,
+		      uint64_t phase2wait)
 {
 	struct m0_idx      *idx = &duc.duc_idx;
 	struct m0_op      **ops;
-	struct m0_op       *op = NULL;
 	int                *rcs;
 	struct m0_bufvec   *key_vecs;
 	char               *val = NULL;
@@ -934,107 +934,77 @@ static void exec_then_stable(uint64_t nr, enum m0_idx_opcode opcode)
 		M0_UT_ASSERT(rc == 0);
 		m0_op_launch(&ops[i], 1);
 
-		rc = m0_op_wait(ops[i], M0_BITS(M0_OS_EXECUTED), WAIT_TIMEOUT);
-		M0_LOG(M0_DEBUG, "Got executed %" PRIu64, i);
+		if (phase1wait != 0)
+			rc = m0_op_wait(ops[i], phase1wait, WAIT_TIMEOUT);
+		else
+			rc = 0;
+		M0_LOG(M0_DEBUG, "Got phase1 %" PRIu64, i);
 		if (rc == -ESRCH)
 			M0_UT_ASSERT(ops[i]->op_sm.sm_state == M0_OS_STABLE);
 	}
 
 	/* Wait until they get stable */
 	for (i = 0; i < nr; ++i) {
-		op = ops[i];
-		rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
-		M0_LOG(M0_DEBUG, "Got stable %" PRIu64,i);
+		if (phase2wait != 0)
+			rc = m0_op_wait(ops[i], phase2wait, WAIT_TIMEOUT);
+		else
+			rc = 0;
+		M0_LOG(M0_DEBUG, "Got phase2 %" PRIu64, i);
 		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(op->op_rc == 0);
+		M0_UT_ASSERT(ops[i]->op_rc == 0);
 		M0_UT_ASSERT(rcs[0] == 0);
-		m0_op_fini(op);
-		m0_op_free(op);
+		m0_op_fini(ops[i]);
+		m0_op_free(ops[i]);
 		ops[i] = NULL;
-		op = NULL;
 		m0_bufvec_free(&key_vecs[i]);
 	}
 
+	M0_UT_ASSERT(M0_IS0(ops));
 	m0_free(key_vecs);
 	m0_free(ops);
 	m0_free(val);
 }
 
-/* Submits multiple M0 client (PUT|DEL) operations and then waits on STABLE.
- * Note: there is no separate waiting on EXECUTED.
+/** Launch an operation, wait until it gets executed and launch another one.
+ * When all operations are executed, wait until all of them get stable.
  */
-static void exec_until_stable(uint64_t nr, enum m0_idx_opcode opcode)
+static void exec_then_stable(uint64_t nr, enum m0_idx_opcode opcode)
 {
-	struct m0_idx      *idx = &duc.duc_idx;
-	struct m0_op       *op = NULL;
-	int                 rc;
-	struct m0_bufvec    keys;
-	struct m0_bufvec    vals = {};
-	int                 rcs[1];
-	m0_bcount_t         len = 1;
-	void               *key;
-	char               *val = NULL;
-	int                 flags = 0;
-	uint64_t            i;
+	run_m0ops(nr, opcode, M0_BITS(M0_OS_EXECUTED), M0_BITS(M0_OS_STABLE));
+}
 
-	M0_PRE(M0_IN(opcode, (M0_IC_PUT, M0_IC_DEL)));
-	key = m0_alloc(sizeof(nr));
-	keys = M0_BUFVEC_INIT_BUF((void **) &key, &len);
+/** Launch an operation and wait until it gets stable. Then launch another one.
+ */
+static void exec_one_by_one(uint64_t nr, enum m0_idx_opcode opcode)
+{
+	run_m0ops(nr, opcode, M0_BITS(M0_OS_STABLE), 0);
+}
 
-	if (opcode == M0_IC_PUT) {
-		val = m0_strdup("ItIsAValue");
-		vals = M0_BUFVEC_INIT_BUF((void **) &val, &len);
-	}
-
-	/* Execute the ops */
-	for (i = 0; i < nr; ++i) {
-		memcpy(key, &i, sizeof(i));
-
-		rc = m0_idx_op(idx, opcode, &keys,
-			       opcode == M0_IC_DEL ? NULL : &vals,
-			       rcs, flags, &op);
-		M0_UT_ASSERT(rc == 0);
-		m0_op_launch(&op, 1);
-
-		rc = m0_op_wait(op, M0_BITS(M0_OS_EXECUTED), WAIT_TIMEOUT);
-		M0_LOG(M0_DEBUG, "Got executed %" PRIu64, i);
-		if (rc == -ESRCH) {
-			M0_UT_ASSERT(op->op_sm.sm_state == M0_OS_STABLE);
-			rc = 0;
-		} else {
-			rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
-			M0_LOG(M0_DEBUG, "Got stable %" PRIu64, i);
-			M0_UT_ASSERT(rc == 0);
-		}
-		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(op->op_rc == 0);
-		M0_UT_ASSERT(rcs[0] == 0);
-		m0_op_fini(op);
-		m0_op_free(op);
-		op = NULL;
-	}
-
-	m0_free(key);
-	m0_free(val);
+/** Launch an operation then launch another one. When all opearations are
+ * launched, wait until they get stable.
+ */
+static void exec_concurrent(uint64_t nr, enum m0_idx_opcode opcode)
+{
+	run_m0ops(nr, opcode, 0, M0_BITS(M0_OS_STABLE));
 }
 
 static void st_dtm0(void)
 {
 	idx_setup();
-	exec_until_stable(1, M0_IC_PUT);
+	exec_one_by_one(1, M0_IC_PUT);
 	idx_teardown();
 }
 
 static void st_dtm0_putdel(void)
 {
 	idx_setup();
-	exec_until_stable(1, M0_IC_PUT);
-	exec_until_stable(1, M0_IC_DEL);
+	exec_one_by_one(1, M0_IC_PUT);
+	exec_one_by_one(1, M0_IC_DEL);
 	idx_teardown();
 
 	idx_setup();
-	exec_until_stable(100, M0_IC_PUT);
-	exec_until_stable(100, M0_IC_DEL);
+	exec_one_by_one(100, M0_IC_PUT);
+	exec_one_by_one(100, M0_IC_DEL);
 	idx_teardown();
 }
 
@@ -1045,6 +1015,15 @@ static void st_dtm0_e_then_s(void)
 	exec_then_stable(100, M0_IC_DEL);
 	idx_teardown();
 }
+
+static void st_dtm0_c(void)
+{
+	idx_setup();
+	exec_concurrent(100, M0_IC_PUT);
+	exec_concurrent(100, M0_IC_DEL);
+	idx_teardown();
+}
+
 
 struct m0_ut_suite ut_suite_mt_idx_dix = {
 	.ts_name   = "idx-dix-mt",
@@ -1058,6 +1037,7 @@ struct m0_ut_suite ut_suite_mt_idx_dix = {
 		{ "dtm0",           st_dtm0,          "Anatoliy" },
 		{ "dtm0_putdel",    st_dtm0_putdel,   "Ivan"     },
 		{ "dtm0_e_then_s",  st_dtm0_e_then_s, "Ivan"     },
+		{ "dtm0_c",         st_dtm0_c,        "Ivan"     },
 		{ NULL, NULL }
 	}
 };
