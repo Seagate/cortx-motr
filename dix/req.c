@@ -1815,7 +1815,7 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 	if (rop->dg_cas_reqs_nr == 0)
 		return M0_ERR(-EFAULT);
 
-	if (req->dr_dtx) {
+	if (req->dr_dtx != NULL) {
 		rc = m0_dtx0_close(req->dr_dtx);
 		if (rc != 0)
 			return M0_ERR(rc);
