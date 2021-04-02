@@ -40,9 +40,11 @@
 #include "net/lnet/lnet.h"            /* m0_net_lnet_xprt */
 #ifndef __KERNEL__
 #include <unistd.h>                   /* sleep */
+#else
+#include <linux/delay.h>              /* msleep */
+#endif /* __KERNEL__ */
 #include "dtm0/service.h"             /* m0_dtm0_service_find */
 #include "dtm0/helper.h"              /* m0_dtm__client_service_start */
-#endif /* __KERNEL__ */
 
 #include "motr/io.h"                /* io_sm_conf */
 #include "motr/client.h"
@@ -1504,9 +1506,7 @@ int m0_client_init(struct m0_client **m0c_p,
 {
 	int               rc;
 	struct m0_client *m0c;
-#ifndef __KERNEL__
 	struct m0_fid     cli_svc_fid;
-#endif /* __KERNEL__ */
 
 	M0_PRE(m0c_p != NULL);
 	M0_PRE(*m0c_p == NULL);
@@ -1613,7 +1613,6 @@ int m0_client_init(struct m0_client **m0c_p,
 	/* Init the hash-table for RM contexts */
 	rm_ctx_htable_init(&m0c->m0c_rm_ctxs, M0_RM_HBUCKET_NR);
 
-#ifndef __KERNEL__
 	if (ENABLE_DTM0) {
 		rc = m0_conf_process2service_get(m0_reqh2confc(&m0c->m0c_reqh),
 						 &m0c->m0c_reqh.rh_fid,
@@ -1642,10 +1641,14 @@ int m0_client_init(struct m0_client **m0c_p,
 		 * TODO: remove this sleep() when a proper start/stop
 		 * procedure is implemented.
 		 */
-		if (!m0_dtm0_in_ut())
+		if (!m0_dtm0_in_ut()) {
+#ifndef __KERNEL__
 			sleep(15);
+#else
+			msleep(15000);
+#endif
+		}
 	}
-#endif /* __KERNEL__ */
 	if (conf->mc_is_addb_init) {
 		char buf[64];
 		/* Default client addb record file size set to 128M */
@@ -1685,10 +1688,8 @@ void m0_client_fini(struct m0_client *m0c, bool fini_m0)
 	M0_PRE(m0c != NULL);
 	M0_PRE(ergo(ENABLE_DTM0, m0c->m0c_dtms != NULL));
 
-#ifndef __KERNEL__
 	if (m0c->m0c_dtms != NULL)
 		m0_dtm__client_service_stop(&m0c->m0c_dtms->dos_generic);
-#endif /* __KERNEL__ */
 
 	if (m0c->m0c_config->mc_is_addb_init) {
 		m0_addb2_force_all();

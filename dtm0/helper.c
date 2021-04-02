@@ -29,35 +29,6 @@
 #include "module/instance.h"         /* m0_get */
 
 
-M0_INTERNAL struct m0_reqh_service *
-m0_dtm__client_service_start(struct m0_reqh *reqh, struct m0_fid *cli_srv_fid)
-{
-       struct m0_reqh_service_type *svct;
-       struct m0_reqh_service      *reqh_svc;
-       int rc;
-
-       svct = m0_reqh_service_type_find("M0_CST_DTM0");
-       M0_ASSERT(svct != NULL);
-
-       rc = m0_reqh_service_allocate(&reqh_svc, svct, NULL);
-       M0_ASSERT(rc == 0);
-
-       m0_reqh_service_init(reqh_svc, reqh, cli_srv_fid);
-
-       rc = m0_reqh_service_start(reqh_svc);
-       M0_ASSERT(rc == 0);
-
-       return reqh_svc;
-}
-
-M0_INTERNAL void m0_dtm__client_service_stop(struct m0_reqh_service *svc)
-{
-       m0_reqh_service_prepare_to_stop(svc);
-       m0_reqh_idle_wait_for(svc->rs_reqh, svc);
-       m0_reqh_service_stop(svc);
-       m0_reqh_service_fini(svc);
-}
-
 static int dtm0_log_init(struct m0_be_domain *dom, const char *suffix,
 			 const struct m0_buf *data)
 {
