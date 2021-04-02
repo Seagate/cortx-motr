@@ -51,9 +51,10 @@ static int dtm0_service_allocate(struct m0_reqh_service **service,
 				 const struct m0_reqh_service_type *stype);
 static void dtm0_service_fini(struct m0_reqh_service *service);
 
+/* Settings for RPC connections with DTM0 services. */
 enum {
-	MAX_RPCS_IN_FLIGHT = 10,
-	DISCONNECT_TIMEOUT_SECS = 5
+	DTM0_MAX_RPCS_IN_FLIGHT = 10,
+	DTM0_DISCONNECT_TIMEOUT_SECS = 5
 };
 
 static const struct m0_reqh_service_type_ops dtm0_service_type_ops = {
@@ -154,7 +155,7 @@ static void dtm0_service__fini(struct m0_dtm0_service *s)
 }
 
 M0_INTERNAL struct m0_reqh_service *
-m0_dtm__client_service_start(struct m0_reqh *reqh, struct m0_fid *cli_srv_fid)
+m0_dtm_client_service_start(struct m0_reqh *reqh, struct m0_fid *cli_srv_fid)
 {
        struct m0_reqh_service_type *svct;
        struct m0_reqh_service      *reqh_svc;
@@ -174,7 +175,7 @@ m0_dtm__client_service_start(struct m0_reqh *reqh, struct m0_fid *cli_srv_fid)
        return reqh_svc;
 }
 
-M0_INTERNAL void m0_dtm__client_service_stop(struct m0_reqh_service *svc)
+M0_INTERNAL void m0_dtm_client_service_stop(struct m0_reqh_service *svc)
 {
        m0_reqh_service_prepare_to_stop(svc);
        m0_reqh_idle_wait_for(svc->rs_reqh, svc);
@@ -208,7 +209,7 @@ m0_dtm0_service_process_connect(struct m0_reqh_service *s,
 		return M0_RC(-ENOENT);
 
 	rc = m0_rpc_link_init(&process->dop_rlink, mach, remote_srv,
-			      remote_ep, MAX_RPCS_IN_FLIGHT);
+			      remote_ep, DTM0_MAX_RPCS_IN_FLIGHT);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -242,7 +243,7 @@ m0_dtm0_service_process_disconnect(struct m0_reqh_service *s,
 
 	rc = m0_rpc_link_disconnect_sync(
 		&process->dop_rlink,
-		m0_time_from_now(DISCONNECT_TIMEOUT_SECS, 0));
+		m0_time_from_now(DTM0_DISCONNECT_TIMEOUT_SECS, 0));
 
 	if (rc == -ETIMEDOUT) {
 		M0_LOG(M0_WARN, "Disconnect timeout");
