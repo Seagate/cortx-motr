@@ -1557,7 +1557,7 @@ M0_INTERNAL int m0_sns_ir_failure_register(struct m0_bufvec *recov_addr,
 
 	M0_CNT_DEC(ir->si_alive_nr);
 #if ISAL_ENCODE_ENABLED
-	/* Store failed index in buffer */
+	/* Store failed index in buffer and increase the failure number */
 	ir->si_failed_idx[ir->si_failed_nr++] = failed_index;
 #else
 	if (is_data(ir, failed_index))
