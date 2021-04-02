@@ -44,7 +44,7 @@
 #include <linux/delay.h>              /* msleep */
 #endif /* __KERNEL__ */
 #include "dtm0/service.h"             /* m0_dtm0_service_find */
-#include "dtm0/helper.h"              /* m0_dtm__client_service_start */
+#include "dtm0/helper.h"              /* m0_dtm_client_service_start */
 
 #include "motr/io.h"                /* io_sm_conf */
 #include "motr/client.h"
@@ -1632,7 +1632,7 @@ int m0_client_init(struct m0_client **m0c_p,
 			cli_svc_fid  = M0_FID_INIT(0x7300000000000001, 0x1a);
 		}
 
-		(void) m0_dtm__client_service_start(&m0c->m0c_reqh, &cli_svc_fid);
+		(void) m0_dtm_client_service_start(&m0c->m0c_reqh, &cli_svc_fid);
 		m0c->m0c_dtms = m0_dtm0_service_find(&m0c->m0c_reqh);
 		M0_ASSERT(m0c->m0c_dtms != NULL);
 
@@ -1689,7 +1689,7 @@ void m0_client_fini(struct m0_client *m0c, bool fini_m0)
 	M0_PRE(ergo(ENABLE_DTM0, m0c->m0c_dtms != NULL));
 
 	if (m0c->m0c_dtms != NULL)
-		m0_dtm__client_service_stop(&m0c->m0c_dtms->dos_generic);
+		m0_dtm_client_service_stop(&m0c->m0c_dtms->dos_generic);
 
 	if (m0c->m0c_config->mc_is_addb_init) {
 		m0_addb2_force_all();
