@@ -331,20 +331,19 @@ def create_lvm(self, index, metadata_dev):
     cmd = f"lvcreate -n {lv_md_name} {vg_name} -l 100%FREE --yes"
     execute_command(self, cmd)
 
-    swap_lvm_size_cmd = f"lvs /dev/{vg_name}/{lv_swap_name} -o LV_SIZE --noheadings --units M --nosuffix"
-    swap_lvm_size_op = execute_command(self, swap_lvm_size_cmd)
-    swap_lvm_size = int(float(swap_lvm_size_op[0].strip(' \n')))
     swap_check_cmd = "free -m | grep Swap | awk '{print $2}'"
     free_swap_op = execute_command(self, swap_check_cmd)
-    free_swap_size = int(float(free_swap_op[0].strip(' \n')))
-    free_swap_size = free_swap_size + swap_lvm_size
+    allocated_swap_size_before = int(float(free_swap_op[0].strip(' \n')))
     create_swap(self, swap_dev)
     allocated_swap_op = execute_command(self, swap_check_cmd)
-    allocated_swap_size = int(float(allocated_swap_op[0].strip(' \n')))
-    if free_swap_size >= allocated_swap_size:
-        sys.stdout.write(f"allocated_swap_size={allocated_swap_size}M and total free_swap_size={free_swap_size}M\n")
+    allocated_swap_size_after = int(float(allocated_swap_op[0].strip(' \n')))
+    if allocated_swap_size_before >= allocated_swap_size_after:
+        raise MotrError(errno.EINVAL, f"swap sie before allocation"
+                        f"({allocated_swap_size_before}M) must be less than "
+                        f"swap size after allocation({allocated_swap_size_after}M)\n")
     else:
-        raise MotrError(errno.EINVAL, f"free swap={free_swap_size}M should be >= allocated swap size{allocated_swap_size}M\n")
+        sys.stdout.write(f"swap sie before allocation ={allocated_swap_size_before}M\n")
+        sys.stdout.write(f"swap_size after allocation ={allocated_swap_size_after}M\n")
 
 def config_lvm(self):
     try:
