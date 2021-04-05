@@ -338,11 +338,11 @@ def create_lvm(self, index, metadata_dev):
     allocated_swap_op = execute_command(self, swap_check_cmd)
     allocated_swap_size_after = int(float(allocated_swap_op[0].strip(' \n')))
     if allocated_swap_size_before >= allocated_swap_size_after:
-        raise MotrError(errno.EINVAL, f"swap sie before allocation"
+        raise MotrError(errno.EINVAL, f"swap size before allocation"
                         f"({allocated_swap_size_before}M) must be less than "
                         f"swap size after allocation({allocated_swap_size_after}M)\n")
     else:
-        sys.stdout.write(f"swap sie before allocation ={allocated_swap_size_before}M\n")
+        sys.stdout.write(f"swap size before allocation ={allocated_swap_size_before}M\n")
         sys.stdout.write(f"swap_size after allocation ={allocated_swap_size_after}M\n")
 
 def config_lvm(self):
