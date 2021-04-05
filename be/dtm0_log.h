@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,13 +68,13 @@ struct m0_dtm0_clk_src;
  *  each individual participant and payload.
  *
  *  When a distributed transaction(dtx) is executed by participant, participant
- *  modify its state in group of state as M0_DTPS_EXECUTED and will add/modify
+ *  modifies its state in group of state as M0_DTPS_EXECUTED and will add/modify
  *  DTM0 log record, for rest of the participant it will keep the state as it is
  *  in distributed transaction(dtx).
  *
- *  When a distributed transaction(dtx) become persistent on participant,
+ *  When a distributed transaction(dtx) becomes persistent on participant,
  *  participant will modify its state in group of state as M0_DTPS_PERSISTENT
- *  and will modify DTM0 log record, for rest of the participant it will keep
+ *  and will modify DTM0 log record. For rest of the participants it will keep
  *  the state as it is in DTM0 log record.
  *
  *  Originator also maintains the same distributed transaction(dtx) record in
@@ -103,11 +103,11 @@ struct m0_dtm0_clk_src;
  *    participant state in group of state will be M0_DTPS_EXECUTED and for
  *    rest of the participant state will be logged as it is.
  *
- * 3. When distributed transaction(dtx) become persistent on particular
+ * 3. When distributed transaction(dtx) becomes persistent on particular
  *    participant, the state of the distributed transaction(dtx) for this
  *    participant will be updated as M0_DTPS_PERSISTENT.
  *
- * 4. When distributed transaction(dtx) become persistent on remote participant,
+ * 4. When distributed transaction(dtx) becomes persistent on remote participant,
  *    the participant sends the persistent notice to rest of the participants
  *    and originator stating that distributed transaction(dtx) is persistent on
  *    its store. Upon receiving persistent notice each of the participants and
