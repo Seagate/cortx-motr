@@ -531,7 +531,7 @@ def lvm_exist(self):
     lv_list = lv_list[0:len(lv_list)-1]
 
     # Check if motr lvms are already created.
-    # If all are arleady created, return
+    # If all are already created, return
     for i in range(1, metadata_disks_count+1):
         md_lv_path = f'/dev/vg_{node_name}_md{i}/lv_raw_md{i}'
         swap_lv_path = f'/dev/vg_{node_name}_md{i}/lv_main_swap{i}'
