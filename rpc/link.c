@@ -108,7 +108,7 @@ static int rpc_link_conn_establish(struct m0_rpc_link *rlink)
 
 	rc = m0_rpc_conn_establish(&rlink->rlk_conn, rlink->rlk_timeout);
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Connection establish failed (rlink=%p)",
+		M0_LOG(M0_DEBUG, "Connection establish failed (rlink=%p)",
 		       rlink);
 	}
 	return rc == 0 ? M0_FSO_AGAIN : rc;
@@ -150,7 +150,7 @@ static int rpc_link_conn_terminate(struct m0_rpc_link *rlink)
 	if (rc == -ECANCELED)
 		return M0_FSO_AGAIN; /* no need to fail in the case */
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Connection termination failed (rlink=%p)",
+		M0_LOG(M0_DEBUG, "Connection termination failed (rlink=%p)",
 		       rlink);
 	}
 	return rc == 0 ? M0_FSO_AGAIN : rc;
@@ -172,7 +172,7 @@ static int rpc_link_sess_terminate(struct m0_rpc_link *rlink)
 	if (rc == -ECANCELED)
 		return M0_FSO_AGAIN; /* continue normal way */
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Session termination failed (rlink=%p, rc=%d)",
+		M0_LOG(M0_DEBUG, "Session termination failed (rlink=%p, rc=%d)",
 		       rlink, rc);
 	}
 	return rc == 0 ? M0_FSO_AGAIN : rc;

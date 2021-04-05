@@ -67,7 +67,15 @@ enum m0_fab__libfab_params {
 	/** Max number of completion events to read from a CQ */
 	FAB_MAX_COMP_READ = 16,
 	/** Max timeout for waiting on fd in epoll_wait */
-	FAB_WAIT_FD_TMOUT = 1000
+	FAB_WAIT_FD_TMOUT = 1000,
+	/** Max event entries for active endpoint EQ */
+	FAB_MAX_AEP_EQ_EV = 8,
+	/** Max event entries for passive endpoint EQ */
+	FAB_MAX_PEP_EQ_EV = 256,
+	/** Max entries in shared Tx CQ */
+	FAB_MAX_TX_CQ_EV = 1024,
+	/** Max entries in Rx CQ */
+	FAB_MAX_RX_CQ_EV = 32,
 };
 
 /**
