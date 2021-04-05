@@ -666,7 +666,8 @@ static int get_tick(struct m0_btree_op *bop)
 		else
 			return P_SETUP;
 	case P_COOKIE:
-		if (cookie_is_valid(tree, &bop->bo_key.k_cookie))
+		if (cookie_is_valid(tree, &bop->bo_key.k_cookie)
+		&& node_space(k_cookie.node)> about_to_OVERFLOW))
 			return P_LOCK;
 		else
 			return P_SETUP;
@@ -702,22 +703,27 @@ static int get_tick(struct m0_btree_op *bop)
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
 	case P_ALLOC:
-		static int level = oi->i_used;
-		if(level == -1) {
+		if(oi->i_used == -1) {
 			struct node_op node_op;
 			/* allocate extra node if root is going to get split */
 			node_op.no_node = extra_l_alloc;
-			return node_alloc(&node_op, tree, size,
-				oi->i_level[0].l_node->n_type, bop->bo_tx, P_LOCK);
+			oi->i_used = 0;
+		} else {
+			if(level.l_seq != level->l_node.n_seq) //validate l_node
+				return P_CHECK;
+			if(node_space(level.l_node) <= about_to_OVERFLOW) {
+				struct node_op node_op;
+				node_op.no_node = level.l_alloc;
+				oi->i_used--;
+				return node_alloc(&node_op, tree, size,
+				level.l_node->n_type, bop->bo_tx, P_ALLOC);
+			}
 		}
-		if(node_space(oi->i_level[level].l_node) == about_to_OVERFLOW) {
-			struct node_op node_op;
-			node_op.no_node = oi->i_level[level].l_alloc;
-			level--;
-			return node_alloc(&node_op, tree, size,
-				oi->i_level[level].l_node->n_type, bop->bo_tx, P_ALLOC);
-		} else
-			return P_LOCK;
+		//reset oi->i_used
+		while (node_level(oi->i_level[oi->i_used].l_node) >= 0) {
+			oi->i_used++;
+		}
+		return P_LOCK;	
 	case P_LOCK:
 		if (!locked)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_lop,
@@ -760,26 +766,23 @@ static int get_tick(struct m0_btree_op *bop)
 				return ACT;
 			} else {
 				node_move(level->l_node, level->l_alloc, D_RIGHT, NR_EVEN, bop->bo_tx);
-				struct slot slot_ = {
+				struct slot slot_for_right_node = {
 				.s_node = level->l_alloc;
 				.s_idx  = 0;
 				};
-				node_key(&slot_);
-				if(bop->bo_rec.key < slot_.s_rec.key) {
+				node_key(&slot_for_right_node);
+				if(bop->bo_rec.key < slot_for_right_node.s_rec.key) {
 					node_make (&slot, bop->bo_tx);
 					node_set(&slot, bop->bo_tx);
 				} else {
-					node_find(&slot_,bop->bo_rec.key);
+					node_find(&slot_for_right_node,bop->bo_rec.key);
 					slot_.s_rec = bop->bo_rec;
-					node_make (&slot_, bop->bo_tx);
-					node_set(&slot_, bop->bo_tx);
+					node_make (&slot_for_right_node, bop->bo_tx);
+					node_set(&slot_for_right_node, bop->bo_tx);
 				}
-				struct slot slot_ = {
-				.s_node = level->l_alloc;
-				.s_idx  = 0;
-				};
-				bop->bo_rec.r_key = node_key(&slot_);
-				bop->bo_rec.r_value = l_alloc; //update bo_rec.r_value
+				slot_for_right_node.s_idx = 0;
+				bop->bo_rec.r_key = node_key(&slot_for_right_node);
+				//update bo_rec.r_value : bop->bo_rec.r_value = level->l_alloc;
 				return P_NEXTUP;
 			}
 		}
