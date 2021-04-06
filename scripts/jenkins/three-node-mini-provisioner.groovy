@@ -218,9 +218,11 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
                 script {
                     def remote = getTestMachine(VM1_FQDN)
                     def commandResult = sshCommand remote: remote, command: '''
-rm -f /root/provisioner_cluster.json
+#rm -f /root/provisioner_cluster.json
 
 ######node-1
+curl -o /opt/seagate/cortx/motr/bin/motr_mini_prov.py https://raw.githubusercontent.com/Seagate/cortx-motr/motr_mini_provisioner_30March/scripts/install/opt/seagate/cortx/motr/bin/motr_mini_prov.py
+curl -o /opt/seagate/cortx/motr/bin/motr_setup https://raw.githubusercontent.com/Seagate/cortx-motr/motr_mini_provisioner_30March/scripts/install/opt/seagate/cortx/motr/bin/motr_setup
 echo "Node test : $VM_FQDN"
 echo "Node 1: $VM1_FQDN"
 echo "Node 2: $VM2_FQDN"
@@ -239,59 +241,157 @@ echo $HOSTNAME3
 echo $MACHINEID1
 echo $MACHINEID2
 echo $MACHINEID3
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>name=srvnode-1"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>hostname=$HOSTNAME1"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>type=VM"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg_count=2"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[0]>metadata_devices[0]=/dev/sdb"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[0]>data_devices[0]=/dev/sdc"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[0]>data_devices[1]=/dev/sdd"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[1]>metadata_devices[0]=/dev/sde"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[1]>data_devices[0]=/dev/sdf"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>storage>cvg[1]>data_devices[1]=/dev/sdg"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>network>data>private_interfaces[0]=eth1"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>network>data>transport_type=lnet"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID1>network>data>interface_type=tcp"
-
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>name=srvnode-2"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>hostname=$HOSTNAME2"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>type=VM"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg_count=2"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg[0]>metadata_devices[0]=/dev/sdb"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg[0]>data_devices[0]=/dev/sdc"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg[0]>data_devices[1]=/dev/sdd"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg[1]>metadata_devices[0]=/dev/sde"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg[1]>data_devices[0]=/dev/sdf"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>storage>cvg[1]>data_devices[1]=/dev/sdg"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>network>data>private_interfaces[0]=eth1"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>network>data>transport_type=lnet"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID2>network>data>interface_type=tcp"
-
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>name=srvnode-3"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>hostname=$HOSTNAME3"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>type=VM"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg_count=2"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg[0]>metadata_devices[0]=/dev/sdb"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg[0]>data_devices[0]=/dev/sdc"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg[0]>data_devices[1]=/dev/sdd"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg[1]>metadata_devices[0]=/dev/sde"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg[1]>data_devices[0]=/dev/sdf"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>storage>cvg[1]>data_devices[1]=/dev/sdg"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>network>data>private_interfaces[0]=eth1"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>network>data>transport_type=lnet"
-conf json:///root/provisioner_cluster.json set "server_node>$MACHINEID3>network>data>interface_type=tcp"
 CLUSTER_ID=5c427765-ecf5-4387-bfa4-d6d53494b159
-conf json:///root/provisioner_cluster.json set "cluster>$CLUSTER_ID>storage_set[0]>durability>data=1"
-conf json:///root/provisioner_cluster.json set "cluster>$CLUSTER_ID>storage_set[0]>durability>parity=0"
-conf json:///root/provisioner_cluster.json set "cluster>$CLUSTER_ID>storage_set[0]>durability>spare=0"
+nr_grp="2"
+data="4"
+parity="2"
+spare="0"
+
+cp /opt/seagate/cortx/motr/conf/motr.post_install.tmpl /opt/seagate/cortx/motr/conf/motr.post_install_bak.tmpl
+cp /opt/seagate/cortx/motr/conf/motr.prepare.tmpl /opt/seagate/cortx/motr/conf/motr.prepare_bak.tmpl
+cp /opt/seagate/cortx/motr/conf/motr.config.tmpl /opt/seagate/cortx/motr/conf/motr.config_bak.tmpl
+cp /opt/seagate/cortx/motr/conf/motr.test.tmpl /opt/seagate/cortx/motr/conf/motr.test_bak.tmpl
+
+cp /opt/seagate/cortx/motr/conf/motr.post_install.tmpl /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+cp /opt/seagate/cortx/motr/conf/motr.post_install.tmpl /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+
+cp /opt/seagate/cortx/motr/conf/motr.prepare.tmpl /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+cp /opt/seagate/cortx/motr/conf/motr.prepare.tmpl /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+
+cp /opt/seagate/cortx/motr/conf/motr.config.tmpl /opt/seagate/cortx/motr/conf/motr.config_node2.tmpl
+cp /opt/seagate/cortx/motr/conf/motr.config.tmpl /opt/seagate/cortx/motr/conf/motr.config_node3.tmpl
+
+cp /opt/seagate/cortx/motr/conf/motr.test.tmpl /opt/seagate/cortx/motr/conf/motr.test_node2.tmpl
+cp /opt/seagate/cortx/motr/conf/motr.test.tmpl /opt/seagate/cortx/motr/conf/motr.test_node3.tmpl
+
+
+
+sed -i "s#TMPL_MACHINE_ID#$MACHINEID1#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+sed -i "s#TMPL_NAME#srvnode-1#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+sed -i "s#TMPL_DATADEVICE_00#/dev/sdc#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+sed -i "s#TMPL_DATADEVICE_01#/dev/sdd#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+sed -i "s#TMPL_METADATADEVICE_00#/dev/sdb#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+sed -i "s#TMPL_DATADEVICE_10#/dev/sdf#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+sed -i "s#TMPL_DATADEVICE_11#/dev/sdg#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+sed -i "s#TMPL_METADATADEVICE_10#/dev/sde#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+sed -i "s#TMPL_CVG_NR_GROUP#'$nr_grp'#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+sed -i "s#TMPL_CLUSTER_ID#$CLUSTER_ID#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+sed -i "s#TMPL_POOL_DATA#$data#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+sed -i "s#TMPL_POOL_PARITY#$parity#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+sed -i "s#TMPL_POOL_SPARE#$spare#" /opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+
+sed -i "s#TMPL_MACHINE_ID#$MACHINEID2#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_NAME#srvnode-2#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_DATADEVICE_00#/dev/sdc#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_DATADEVICE_01#/dev/sdd#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_METADATADEVICE_00#/dev/sdb#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_DATADEVICE_10#/dev/sdf#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_DATADEVICE_11#/dev/sdg#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_METADATADEVICE_10#/dev/sde#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_CVG_NR_GROUP#'$nr_grp'#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_CLUSTER_ID#$CLUSTER_ID#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_POOL_DATA#$data#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_POOL_PARITY#$parity#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_POOL_SPARE#$spare#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+
+sed -i "s#TMPL_MACHINE_ID#$MACHINEID3#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_NAME#srvnode-3#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_DATADEVICE_00#/dev/sdc#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_DATADEVICE_01#/dev/sdd#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_METADATADEVICE_00#/dev/sdb#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_DATADEVICE_10#/dev/sdf#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_DATADEVICE_11#/dev/sdg#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_METADATADEVICE_10#/dev/sde#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_CVG_NR_GROUP#'$nr_grp'#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_CLUSTER_ID#$CLUSTER_ID#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_POOL_DATA#$data#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_POOL_PARITY#$parity#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_POOL_SPARE#$spare#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+
+
+sed -i "s#TMPL_MACHINE_ID#$MACHINEID1#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+sed -i "s#TMPL_DATADEVICE_00#/dev/sdc#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+sed -i "s#TMPL_DATADEVICE_01#/dev/sdd#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+sed -i "s#TMPL_DATADEVICE_10#/dev/sdf#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+sed -i "s#TMPL_DATADEVICE_11#/dev/sdg#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+sed -i "s#TMPL_CVG_NR_GROUP#'$nr_grp'#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+sed -i "s#TMPL_IFACE_TYPE#tcp#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+sed -i "s#TMPL_INTERFACE#eth1#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+sed -i "s#TMPL_XPORT_TYPE#lnet#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+sed -i "s#TMPL_CLUSTER_ID#$CLUSTER_ID#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+sed -i "s#TMPL_POOL_DATA#'$data'#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+sed -i "s#TMPL_POOL_PARITY#'$parity'#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+sed -i "s#TMPL_POOL_SPARE#'$spare'#" /opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+
+
+sed -i "s#TMPL_MACHINE_ID#$MACHINEID2#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_DATADEVICE_00#/dev/sdc#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_DATADEVICE_01#/dev/sdd#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_DATADEVICE_10#/dev/sdf#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_DATADEVICE_11#/dev/sdg#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_CVG_NR_GROUP#'$nr_grp'#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_IFACE_TYPE#tcp#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_INTERFACE#eth1#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_XPORT_TYPE#lnet#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_CLUSTER_ID#$CLUSTER_ID#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_POOL_DATA#'$data'#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_POOL_PARITY#'$parity'#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_POOL_SPARE#'$spare'#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+
+
+sed -i "s#TMPL_MACHINE_ID#$MACHINEID3#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_DATADEVICE_00#/dev/sdc#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_DATADEVICE_01#/dev/sdd#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_DATADEVICE_10#/dev/sdf#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_DATADEVICE_11#/dev/sdg#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_CVG_NR_GROUP#'$nr_grp'#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_IFACE_TYPE#tcp#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_INTERFACE#eth1#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_XPORT_TYPE#lnet#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_CLUSTER_ID#$CLUSTER_ID#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_POOL_DATA#'$data'#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_POOL_PARITY#'$parity'#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_POOL_SPARE#'$spare'#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+
+sed -i "s#TMPL_MACHINE_ID#$MACHINEID1#" /opt/seagate/cortx/motr/conf/motr.config.tmpl
+sed -i "s#TMPL_TYPE#VM#" /opt/seagate/cortx/motr/conf/motr.config.tmpl
+
+sed -i "s#TMPL_MACHINE_ID#$MACHINEID2#" /opt/seagate/cortx/motr/conf/motr.config_node2.tmpl
+sed -i "s#TMPL_TYPE#VM#" /opt/seagate/cortx/motr/conf/motr.config_node2.tmpl
+
+sed -i "s#TMPL_MACHINE_ID#$MACHINEID3#" /opt/seagate/cortx/motr/conf/motr.config_node3.tmpl
+sed -i "s#TMPL_TYPE#VM#" /opt/seagate/cortx/motr/conf/motr.config_node3.tmpl
+
+sed -i "s#TMPL_MACHINE_ID#$MACHINEID1#" /opt/seagate/cortx/motr/conf/motr.test.tmpl
+sed -i "s#TMPL_HOSTNAME#$HOSTNAME1#" /opt/seagate/cortx/motr/conf/motr.test.tmpl
+
+sed -i "s#TMPL_MACHINE_ID#$MACHINEID2#" /opt/seagate/cortx/motr/conf/motr.test_node2.tmpl
+sed -i "s#TMPL_HOSTNAME#$HOSTNAME2#" /opt/seagate/cortx/motr/conf/motr.test_node2.tmpl
+
+sed -i "s#TMPL_MACHINE_ID#$MACHINEID3#" /opt/seagate/cortx/motr/conf/motr.test_node3.tmpl
+sed -i "s#TMPL_HOSTNAME#$HOSTNAME3#" /opt/seagate/cortx/motr/conf/motr.test_node3.tmpl
+
+
 curl -o /var/lib/hare/cluster.yaml https://raw.githubusercontent.com/Seagate/cortx-motr/create_confstorekey/scripts/install/opt/seagate/cortx/motr/share/examples/threenode.yaml
 sed -i "s/{HOSTNAME1}/$HOSTNAME1/" /var/lib/hare/cluster.yaml
 sed -i "s/{HOSTNAME2}/$HOSTNAME2/" /var/lib/hare/cluster.yaml
 sed -i "s/{HOSTNAME3}/$HOSTNAME3/" /var/lib/hare/cluster.yaml
 
 #cp /root/provisioner_cluster.json on all three nodes on same location.
-scp /root/provisioner_cluster.json $HOSTNAME2:/root/provisioner_cluster.json
-scp /root/provisioner_cluster.json $HOSTNAME3:/root/provisioner_cluster.json
+#scp /root/provisioner_cluster.json $HOSTNAME2:/root/provisioner_cluster.json
+#scp /root/provisioner_cluster.json $HOSTNAME3:/root/provisioner_cluster.json
+
+scp /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl $HOSTNAME2:/opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+scp /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl $HOSTNAME3:/opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+
+scp /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl $HOSTNAME2:/opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+scp /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl $HOSTNAME3:/opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+
+scp /opt/seagate/cortx/motr/conf/motr.config_node2.tmpl $HOSTNAME2:/opt/seagate/cortx/motr/conf/motr.config.tmpl
+scp /opt/seagate/cortx/motr/conf/motr.config_node3.tmpl $HOSTNAME3:/opt/seagate/cortx/motr/conf/motr.config.tmpl
+
+scp /opt/seagate/cortx/motr/conf/motr.test_node2.tmpl $HOSTNAME2:/opt/seagate/cortx/motr/conf/motr.test.tmpl
+scp /opt/seagate/cortx/motr/conf/motr.test_node3.tmpl $HOSTNAME3:/opt/seagate/cortx/motr/conf/motr.test.tmpl
                     '''
                 }
             }
@@ -523,18 +623,16 @@ cat /etc/machine-id
 def miniMotr(String host) {
     def remote = getTestMachine(host)
     def commandResult = sshCommand remote: remote, command: """
-/opt/seagate/cortx/motr/bin/motr_setup post_install --config json:///root/provisioner_cluster.json
-/opt/seagate/cortx/motr/bin/motr_setup prepare --config json:///root/provisioner_cluster.json
-/opt/seagate/cortx/motr/bin/motr_setup config --config json:///root/provisioner_cluster.json
-/opt/seagate/cortx/motr/bin/motr_setup init --config json:///root/provisioner_cluster.json
-/opt/seagate/cortx/motr/bin/motr_setup test --config json:///root/provisioner_cluster.json
+/opt/seagate/cortx/motr/bin/motr_setup post_install --config yaml:///opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+/opt/seagate/cortx/motr/bin/motr_setup prepare --config yaml:///opt/seagate/cortx/motr/conf/motr.prepare.tmpl
+/opt/seagate/cortx/motr/bin/motr_setup config --config yaml:///opt/seagate/cortx/motr/conf/motr.config.tmpl
     """
 }
 
 def miniMotrtest(String host) {
     def remote = getTestMachine(host)
     def commandResult = sshCommand remote: remote, command: """
-/opt/seagate/cortx/motr/bin/motr_setup test --config json:///root/provisioner_cluster.json
+/opt/seagate/cortx/motr/bin/motr_setup test --config yaml:///opt/seagate/cortx/motr/conf/motr.test.tmpl
     """
 }
 
