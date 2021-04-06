@@ -1534,11 +1534,8 @@ static int zero_copy_initiate(struct m0_fom *fom)
 		used_size = rwfop->crw_desc.id_descs[fom_obj->
 						fcrw_curr_desc_index].bdd_used;
 
-		if (dom->nd_xprt == &m0_net_lnet_xprt) {
-			segs_nr = used_size / max_seg_size;
-		} else {
-			segs_nr = 1;
-		}
+		segs_nr = ((used_size / max_seg_size) + \
+			   ((used_size % max_seg_size) ? 1 : 0));
 
 		M0_LOG(M0_DEBUG, "segs_nr %d", segs_nr);
 
