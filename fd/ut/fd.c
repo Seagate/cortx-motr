@@ -79,7 +79,7 @@ static const char local_conf_str[] = "[35:\
    {0x6b| ((^k|1:21), ^d|1:13, [1: ^v|1:24])},\
    {0x6b| ((^k|1:22), ^d|1:14, [1: ^v|1:24])},\
    {0x6f| ((^o|1:23), 0, [1: ^v|1:24])},\
-   {0x76| ((^v|1:24), {0| (3, 1, 5, [5: 0,0,0,0,1], [1: ^j|3:25])})},\
+   {0x76| ((^v|1:24), {0| (3, 1, 1, 5, [5: 0,0,0,0,1], [1: ^j|3:25])})},\
    {0x6a| ((^j|3:25), ^S|2:15, [1: ^j|1:25])},\
    {0x6a| ((^j|1:25), ^a|1:15, [1: ^j|1:26])},\
    {0x6a| ((^j|1:26), ^e|1:16, [1: ^j|1:27])},\
@@ -95,7 +95,8 @@ static const char local_conf_str[] = "[35:\
 struct m0_pdclust_attr pd_attr  = {
 	.pa_N         = la_N,
 	.pa_K         = la_K,
-	.pa_P         = la_N + 2 * la_K,
+	.pa_S         = la_S,
+	.pa_P         = la_N + la_K + la_S,
 	.pa_unit_size = 4096,
 	.pa_seed = {
 		.u_hi = 0,
@@ -311,7 +312,7 @@ static uint32_t parity_group_size(struct m0_pdclust_attr *la_attr)
 {
 	M0_UT_ASSERT(la_attr != NULL);
 
-	return la_attr->pa_N + 2 * la_attr->pa_K;
+	return la_attr->pa_N + la_attr->pa_K + la_attr->pa_S;
 
 }
 
@@ -405,6 +406,7 @@ static void test_pv2fd_conv(void)
 	memcpy(pool_ver.pv_fd_tol_vec, pv->pv_u.subtree.pvs_tolerance,
 	       M0_CONF_PVER_HEIGHT * sizeof pool_ver.pv_fd_tol_vec[0]);
 	pv->pv_u.subtree.pvs_attr.pa_K = 0;
+	pv->pv_u.subtree.pvs_attr.pa_S = 0;
 	rc = m0_fd_tile_build(pv, &pool_ver, &failure_level);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pool_ver.pv_fd_tile.ft_depth == 1);

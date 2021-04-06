@@ -30,6 +30,7 @@
 
 N=3
 K=3
+S=3
 P=15
 stride=32
 # dd count used during random source file creation
@@ -718,7 +719,7 @@ fmio_motr_service_start()
 	then
 		local multiple_pools=0
 		echo "About to start Motr service"
-		motr_service start $multiple_pools $stride $N $K $P
+		motr_service start $multiple_pools $stride $N $K $S $P
 		if [ $? -ne 0 ]
 		then
 			echo "Failed to start Motr Service..."

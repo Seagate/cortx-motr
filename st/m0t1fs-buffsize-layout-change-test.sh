@@ -29,8 +29,8 @@ cd $M0_SRC_DIR
 echo "Installing Motr services"
 sudo scripts/install-motr-service -u
 sudo scripts/install-motr-service -l
-sudo utils/m0setup -v -P 12 -N 2 -K 1 -i 3 -d /var/motr/img -s 1 -c
-sudo utils/m0setup -v -P 12 -N 2 -K 1 -i 3 -d /var/motr/img -s 1
+sudo utils/m0setup -v -P 12 -N 2 -K 1 -S 1 -i 3 -d /var/motr/img -s 1 -c
+sudo utils/m0setup -v -P 12 -N 2 -K 1 -S 1 -i 3 -d /var/motr/img -s 1
 echo "Start Motr services"
 sudo systemctl start motr-mkfs
 sudo systemctl start motr-singlenode

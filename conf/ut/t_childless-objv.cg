@@ -28,7 +28,7 @@
     flags=4 filename="/dev/sdev3")
 
 (pool-0 pver_policy=0 pvers=[pver-0])
-(pver-0 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:10])
+(pver-0 N=3 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:10])
 ## sites -------------------------------------------------------------
 (site-2 racks=[rack-0] pvers=[pver-0])
 (objv-2:10 real=site-2 children=[objv-10])

@@ -88,6 +88,8 @@ struct m0_confx_pver_actual {
 	uint32_t          xva_N;
 	/* Number of parity units in a parity group. */
 	uint32_t          xva_K;
+	/* Number of spare units in a parity group. */
+	uint32_t          xva_S;
 	/* Pool width. */
 	uint32_t          xva_P;
 	/*

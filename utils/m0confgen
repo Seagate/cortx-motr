@@ -116,7 +116,7 @@ conf_obj_types = {
     # Pools:
     'pool': ('o', 'pver_policy=NUMBER *pvers=[objid]'),
     'pver': ('v:0',  # actual pver
-             'N=NUMBER K=NUMBER P=NUMBER tolerance=[NUMBER] *sitevs=[objid]'),
+             'N=NUMBER K=NUMBER S=NUMBER P=NUMBER tolerance=[NUMBER] *sitevs=[objid]'),
     'pver_f': ('v:1',  # formulaic pver
                'id=NUMBER !base=objid allowance=[NUMBER]'),
     'objv': ('j', '!real=objid *children=[objid]'),
@@ -1380,13 +1380,13 @@ class TestEncoding(unittest.TestCase):
  {"objid": "pool-1", "pver_policy": 0, "pvers": []}
 ]""")
         test([ConfObj(Fid(('v', 1), 8), [
-            ('N', 1), ('K', 1), ('P', 5), ('tolerance', [0, 0, 0, 0, 1]),
+            ('N', 1), ('K', 1), ('S', 1), ('P', 5), ('tolerance', [0, 0, 0, 0, 1]),
             ('sitevs', [Fid(('j', 1), 12)])])],
              """[1:
- {0x76| ((^v|1:8), {0| (1, 1, 5, [5: 0, 0, 0, 0, 1], [1: ^j|1:12])})}]""",
-             '(pver-8 N=1 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-12])',
+ {0x76| ((^v|1:8), {0| (1, 1, 1, 5, [5: 0, 0, 0, 0, 1], [1: ^j|1:12])})}]""",
+             '(pver-8 N=1 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-12])',
              """[
- {"objid": "pver-8", "N": 1, "K": 1, "P": 5, "tolerance": [0, 0, 0, 0, 1],\
+ {"objid": "pver-8", "N": 1, "K": 1, "S": 1, "P": 5, "tolerance": [0, 0, 0, 0, 1],\
  "sitevs": ["objv-12"]}
 ]""")
         test([ConfObj(Fid(0x7640000000000001, 9),
@@ -1489,9 +1489,9 @@ class TestDecoding(unittest.TestCase):
                          [ConfObj(Fid(('S', 1), 128), [
                              ('racks', [Fid(('a', 1), 0)]), ('pvers', [])])])
         self.assertEqual(decode(
-            '(pver-10 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2])'),
+            '(pver-10 N=2 K=1 S=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2])'),
                          [ConfObj(Fid(('v', 1), 10), [
-                             ('N', 2), ('K', 1), ('P', 4),
+                             ('N', 2), ('K', 1), ('S', 1), ('P', 4),
                              ('tolerance', [0, 0, 0, 0, 1]),
                              ('sitevs', [Fid(('j', 1), 2)])])])
         self.assertEqual(decode(

@@ -79,6 +79,7 @@ pver_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 			.pvs_attr = (struct m0_pdclust_attr){
 				.pa_N = s->xva_N,
 				.pa_K = s->xva_K,
+				.pa_S = s->xva_S,
 				.pa_P = s->xva_P
 			}
 		};
@@ -126,6 +127,7 @@ pver_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 		*d = (struct m0_confx_pver_actual) {
 			.xva_N = s->pvs_attr.pa_N,
 			.xva_K = s->pvs_attr.pa_K,
+			.xva_S = s->pvs_attr.pa_S,
 			.xva_P = s->pvs_attr.pa_P
 		};
 		rc = u32arr_encode(&d->xva_tolerance, s->pvs_tolerance,
@@ -186,6 +188,7 @@ pver_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 
 			c->pvs_attr.pa_N == x->xva_N &&
 			c->pvs_attr.pa_K == x->xva_K &&
+			c->pvs_attr.pa_S == x->xva_S &&
 			c->pvs_attr.pa_P == x->xva_P &&
 			u32arr_cmp(&x->xva_tolerance, c->pvs_tolerance,
 				   ARRAY_SIZE(c->pvs_tolerance)) &&
