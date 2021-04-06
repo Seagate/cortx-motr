@@ -465,7 +465,8 @@ M0_INTERNAL uint32_t m0_be_log_bshift(struct m0_be_log *log);
 M0_INTERNAL void m0_be_log_header__set(struct m0_be_fmt_log_header *hdr,
 				       m0_bindex_t                  discarded,
 				       m0_bindex_t                  lsn,
-				       m0_bcount_t                  size);
+				       m0_bcount_t                  size,
+				       uint64_t                     serial_num);
 M0_INTERNAL bool m0_be_log_header__is_eq(struct m0_be_fmt_log_header *hdr1,
 					 struct m0_be_fmt_log_header *hdr2);
 M0_INTERNAL bool m0_be_log_header__repair(struct m0_be_fmt_log_header **hdrs,
@@ -510,6 +511,9 @@ m0_be_log_recovery_discarded(struct m0_be_log *log);
 
 M0_INTERNAL bool m0_be_log_contains_stob(struct m0_be_log        *log,
                                          const struct m0_stob_id *stob_id);
+
+M0_INTERNAL int be_log_header_inc_generation(struct m0_be_log            *log,
+					     struct m0_be_fmt_log_header *log_hdr);
 /** @} end of be group */
 
 #endif /* __MOTR_BE_LOG_H__ */

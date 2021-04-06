@@ -397,7 +397,8 @@ static void be_ut_log_header_repair_test(int header_nr,
 					 m0_bcount_t size_old,
 					 m0_bindex_t lsn_new,
 					 m0_bcount_t size_new,
-					 int valid_index)
+					 int valid_index,
+					 uint64_t serial_num)
 {
 	struct m0_be_fmt_log_header **hdrs;
 	struct m0_be_fmt_log_header   valid = {};
@@ -416,9 +417,9 @@ static void be_ut_log_header_repair_test(int header_nr,
 		rc = m0_be_fmt_log_header_init(hdrs[i], NULL);
 		M0_UT_ASSERT(rc == 0);
 		if (i < new_nr)
-			m0_be_log_header__set(hdrs[i], 0, lsn_new, size_new);
+			m0_be_log_header__set(hdrs[i], 0, lsn_new, size_new, serial_num);
 		else
-			m0_be_log_header__set(hdrs[i], 0, lsn_old, size_old);
+			m0_be_log_header__set(hdrs[i], 0, lsn_old, size_old, serial_num);
 	}
 	rc = m0_be_fmt_log_header_init(&valid, NULL);
 	M0_UT_ASSERT(rc == 0);
@@ -582,6 +583,7 @@ void m0_be_ut_log_header(void)
 	m0_bcount_t                 size;
 	int                         i;
 	int                         rc;
+	uint64_t                    serial_num;
 
 	m0_mutex_init(&lock);
 	be_ut_log_init(&log, &lock);
@@ -594,6 +596,7 @@ void m0_be_ut_log_header(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(header.flh_group_lsn  == 0 &&
 		     header.flh_group_size == 0);
+	serial_num = header.flh_serial_num; 
 
 	for (i = 0; i < BE_UT_LOG_THREAD_NR; ++i) {
 		be_ut_log_record_write_sync(&log, &lock, &index, &size);
@@ -621,13 +624,13 @@ void m0_be_ut_log_header(void)
 	/* m0_be_log_header__repair() check */
 
 	be_ut_log_header_repair_test(3, 0, index + 4096, size + 4096,
-				     index, size, 0);
+				     index, size, 0, serial_num);
 	be_ut_log_header_repair_test(3, 3, index + 4096, size + 4096,
-				     index, size, 0);
+				     index, size, 0, serial_num);
 	be_ut_log_header_repair_test(3, 1, index + 4096, size + 4096,
-				     index, size, 2);
+				     index, size, 2, serial_num);
 	be_ut_log_header_repair_test(3, 2, index + 4096, size + 4096,
-				     index, size, 0);
+				     index, size, 0, serial_num);
 
 	m0_be_fmt_log_header_fini(&header);
 	be_ut_log_fini(&log);

@@ -200,7 +200,7 @@ struct m0_be_fmt_log_store_header {
 struct m0_be_fmt_group_cfg;
 
 struct m0_be_fmt_log_header {
-	uint64_t    flh_serial;
+	uint64_t    flh_serial_num;
 	m0_bindex_t flh_discarded;
 	m0_bindex_t flh_group_lsn;
 	m0_bcount_t flh_group_size;
@@ -208,7 +208,7 @@ struct m0_be_fmt_log_header {
 
 #define BFLH_F "(flh_serial=%"PRIu64" flh_discarded=%"PRIu64" " \
 		"flh_group_lsn=%"PRIu64" flh_group_size=%"PRIu64")"
-#define BFLH_P(log_hdr) (log_hdr)->flh_serial, (log_hdr)->flh_discarded, \
+#define BFLH_P(log_hdr) (log_hdr)->flh_serial_num, (log_hdr)->flh_discarded, \
 			(log_hdr)->flh_group_lsn, (log_hdr)->flh_group_size
 
 struct m0_be_fmt_group {
@@ -262,6 +262,7 @@ struct m0_be_fmt_log_record_header {
 	m0_bindex_t                            lrh_prev_pos;
 	m0_bindex_t                            lrh_prev_size;
 	uint64_t                               lrh_io_nr_max;
+	uint64_t			       lrh_serial_num;
 	struct m0_be_fmt_log_record_header_io_size lrh_io_size;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 

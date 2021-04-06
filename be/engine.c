@@ -814,6 +814,10 @@ M0_INTERNAL int m0_be_engine_start(struct m0_be_engine *en)
 	if (rc != 0)
 		return M0_ERR(rc);
 
+	rc = be_log_header_inc_generation(&(en->eng_log), &(en->eng_log.lg_header));
+	if (rc != 0)
+		return M0_ERR(rc);
+
 	recovery_time = m0_time_now();
 	be_engine_try_recovery(en);
 

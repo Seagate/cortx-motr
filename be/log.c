@@ -108,7 +108,7 @@ static int be_log_level_enter(struct m0_module *module)
 		return m0_be_fmt_log_header_init(&log->lg_header, NULL);
 	case M0_BE_LOG_LEVEL_HEADER:
 		if (log->lg_create_mode) {
-			m0_be_log_header__set(&log->lg_header, 0, 0, 0);
+			m0_be_log_header__set(&log->lg_header, 0, 0, 0, 0);
 			rc = be_log_header_write(log, &log->lg_header);
 		} else {
 			rc = m0_be_log_header_read(log, &log->lg_header);
@@ -663,6 +663,7 @@ m0_be_log_record_io_prepare(struct m0_be_log_record *record,
 	struct m0_bufvec         bvec;
 	struct m0_be_log_io     *lio;
 	struct m0_be_log        *log    = record->lgr_log;
+	struct m0_be_fmt_log_header *lg_header = &log->lg_header;
 	struct m0_buf           *buf;
 	m0_bcount_t              size   = 0;
 	m0_bcount_t              size_lio;
@@ -744,6 +745,7 @@ m0_be_log_record_io_prepare(struct m0_be_log_record *record,
 		header->lrh_discarded = record->lgr_last_discarded;
 		header->lrh_prev_pos  = record->lgr_prev_pos;
 		header->lrh_prev_size = record->lgr_prev_size;
+		header->lrh_serial_num = lg_header->flh_serial_num;
 		size_fmt = m0_be_fmt_log_record_header_size(header);
 		bvec     = M0_BUFVEC_INIT_BUF(&lio->lio_buf.b_addr, &size_fmt);
 		m0_bufvec_cursor_init(&cur, &bvec);
@@ -872,15 +874,17 @@ M0_INTERNAL uint32_t m0_be_log_bshift(struct m0_be_log *log)
 M0_INTERNAL void m0_be_log_header__set(struct m0_be_fmt_log_header *hdr,
 				       m0_bindex_t                  discarded,
 				       m0_bindex_t                  lsn,
-				       m0_bcount_t                  size)
+				       m0_bcount_t                  size,
+				       uint64_t                     serial_num)
 {
-	M0_ENTRY("discarded=%"PRId64" lsn=%"PRId64" size=%"PRId64,
-		 discarded, lsn, size);
+	M0_ENTRY("discarded=%"PRId64" lsn=%"PRId64" size=%"PRId64
+		 " serial_num=%"PRId64, discarded, lsn, size, serial_num);
 
 	m0_be_fmt_log_header_reset(hdr);
 	hdr->flh_discarded  = discarded;
 	hdr->flh_group_lsn  = lsn;
 	hdr->flh_group_size = size;
+	hdr->flh_serial_num = serial_num;
 }
 
 M0_INTERNAL bool m0_be_log_header__is_eq(struct m0_be_fmt_log_header *hdr1,
@@ -888,7 +892,8 @@ M0_INTERNAL bool m0_be_log_header__is_eq(struct m0_be_fmt_log_header *hdr1,
 {
 	return hdr1->flh_discarded  == hdr2->flh_discarded &&
 	       hdr1->flh_group_lsn  == hdr2->flh_group_lsn &&
-	       hdr1->flh_group_size == hdr2->flh_group_size;
+	       hdr1->flh_group_size == hdr2->flh_group_size &&
+	       hdr1->flh_serial_num == hdr2->flh_serial_num;
 }
 
 static void be_log_header_update(struct m0_be_log *log)
@@ -916,7 +921,8 @@ static void be_log_header_update(struct m0_be_log *log)
 		index = log->lg_unplaced_pos;
 		size  = log->lg_unplaced_size;
 	}
-	m0_be_log_header__set(&log->lg_header, log->lg_discarded, index, size);
+	m0_be_log_header__set(&log->lg_header, log->lg_discarded, index,
+			      size, log->lg_header.flh_serial_num);
 }
 
 static int be_log_header_write(struct m0_be_log            *log,
@@ -931,6 +937,17 @@ static int be_log_header_write(struct m0_be_log            *log,
 	rc  = m0_be_fmt_log_header_encode_buf(log_hdr, buf);
 	if (rc == 0)
 		be_log_header_io_sync(log, M0_BE_LOG_STORE_IO_WRITE);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int be_log_header_inc_generation(struct m0_be_log            *log,
+					     struct m0_be_fmt_log_header *log_hdr)
+{
+	M0_ENTRY("be_log_header_inc_generation=%"PRId64, log_hdr->flh_serial_num);
+	m0_be_log_header__set(log_hdr, log_hdr->flh_discarded, log_hdr->flh_group_lsn,
+			      log_hdr->flh_group_size, log_hdr->flh_serial_num + 1);
+	int rc = be_log_header_write(log, log_hdr);
+	M0_LEAVE("be_log_header_inc_generation=%"PRId64, log_hdr->flh_serial_num);
 	return M0_RC(rc);
 }
 
@@ -949,7 +966,8 @@ M0_INTERNAL bool m0_be_log_header__repair(struct m0_be_fmt_log_header **hdrs,
 	}
 	m0_be_log_header__set(out, hdrs[i]->flh_discarded,
 				   hdrs[i]->flh_group_lsn,
-				   hdrs[i]->flh_group_size);
+				   hdrs[i]->flh_group_size,
+				   hdrs[i]->flh_serial_num);
 
 	return need_repair || !m0_be_log_header__is_eq(hdrs[0], hdrs[2]);
 }
@@ -1065,6 +1083,7 @@ static void be_log_record_header_copy(struct m0_be_fmt_log_record_header *dest,
 	dest->lrh_discarded = src->lrh_discarded;
 	dest->lrh_prev_pos  = src->lrh_prev_pos;
 	dest->lrh_prev_size = src->lrh_prev_size;
+	dest->lrh_serial_num = src->lrh_serial_num;
 	for (i = 0; i < src->lrh_io_size.lrhs_nr; ++i)
 		dest->lrh_io_size.lrhs_size[i] = src->lrh_io_size.lrhs_size[i];
 	dest->lrh_io_size.lrhs_nr = src->lrh_io_size.lrhs_nr;
