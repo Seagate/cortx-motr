@@ -995,8 +995,7 @@ skip:
 	M0_UT_ASSERT(PA(&ti->ti_pageattrs, 1) & PA_DATA);
 
 	/* Addition of parity buffer */
-	buf = map->pi_paritybufs[page_id(0)]
-		[LAY_N % layout_n(pdlay)];
+	buf = map->pi_paritybufs[page_id(0)][LAY_N % layout_n(pdlay)];
 
 	src.sa_unit  = LAY_N;
 	target_ioreq_seg_add(ti, &src, &tgt, 0, PAGE_SIZE, map);

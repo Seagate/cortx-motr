@@ -356,7 +356,14 @@ struct pargrp_iomap {
 	 * Each element of matrix is worth PAGE_SIZE;
 	 * A unit size worth of data holds a contiguous chunk of file data.
 	 * The file offset grows vertically first (by rows) and then to
-	 * the next data unit (by columns).
+	 * the next data unit (by columns). For example, if the PAGE_SIZE is
+	 * 4K, and unit size is 16K, for a file/object of 112K length,
+	 * there will be following bufs, with corresponding offsets:
+	 *
+	 * [0k   ][16k  ][32k  ][48k  ][64k  ][80k  ][96k   ]
+	 * [4k   ][20k  ][36k  ][52k  ][68k  ][84k  ][100k  ]
+	 * [8k   ][24k  ][40k  ][56k  ][72k  ][88k  ][104k  ]
+	 * [12k  ][28k  ][44k  ][60k  ][76k  ][92k  ][108k  ]
 	 */
 	struct data_buf              ***pi_databufs;
 

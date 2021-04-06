@@ -1675,14 +1675,12 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	 * since they are needed for recovering lost data.
 	 */
 	if (map->pi_paritybufs == NULL) {
-		M0_ALLOC_ARR(map->pi_paritybufs,
-			     rows_nr(play, ioo->ioo_obj));
+		M0_ALLOC_ARR(map->pi_paritybufs, rows_nr(play, ioo->ioo_obj));
 		if (map->pi_paritybufs == NULL)
 			return M0_ERR(-ENOMEM);
 
 		for (row = 0; row < rows_nr(play, ioo->ioo_obj); ++row) {
-			M0_ALLOC_ARR(map->pi_paritybufs[row],
-				     layout_k(play));
+			M0_ALLOC_ARR(map->pi_paritybufs[row], layout_k(play));
 			if (map->pi_paritybufs[row] == NULL) {
 				rc = -ENOMEM;
 				goto par_fail;
@@ -2347,8 +2345,7 @@ M0_INTERNAL int pargrp_iomap_init(struct pargrp_iomap  *map,
 	return M0_RC(0);
 
 fail:
-	pargrp_iomap_bufs_free(map->pi_databufs,
-			       rows_nr(play, ioo->ioo_obj));
+	pargrp_iomap_bufs_free(map->pi_databufs, rows_nr(play, ioo->ioo_obj));
 	m0_indexvec_free(&map->pi_ivec);
 
 	return M0_ERR(-ENOMEM);
