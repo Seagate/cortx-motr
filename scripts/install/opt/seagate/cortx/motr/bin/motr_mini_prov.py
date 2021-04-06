@@ -57,6 +57,12 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
 
+def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
+    sys.stdout.write(f"Executing cmd : '{cmd}'\n")
+    ps = subprocess.run(list(cmd.split(' ')), timeout=timeout_secs)
+    sys.stdout.write(f"ret={ps.returncode}\n")
+    return ps.returncode
+
 def check_type(var, vtype, msg):
     if not isinstance(var, vtype):
         raise MotrError(errno.EINVAL, f"Invalid {msg} type. Expected: {vtype}")
@@ -71,7 +77,7 @@ def get_machine_id(self):
 def get_server_node(self):
     """Get current node name using machine-id."""
     try:
-        machine_id = get_machine_id(self).strip('\n'); 
+        machine_id = get_machine_id(self).strip('\n');
         server_node = Conf.get(self._index, 'server_node')[machine_id]
     except:
         raise MotrError(errno.EINVAL, f"MACHINE_ID {machine_id} does not exist in ConfStore")
@@ -325,7 +331,19 @@ def create_lvm(self, index, metadata_dev):
     cmd = f"lvcreate -n {lv_md_name} {vg_name} -l 100%FREE --yes"
     execute_command(self, cmd)
 
+    swap_check_cmd = "free -m | grep Swap | awk '{print $2}'"
+    free_swap_op = execute_command(self, swap_check_cmd)
+    allocated_swap_size_before = int(float(free_swap_op[0].strip(' \n')))
     create_swap(self, swap_dev)
+    allocated_swap_op = execute_command(self, swap_check_cmd)
+    allocated_swap_size_after = int(float(allocated_swap_op[0].strip(' \n')))
+    if allocated_swap_size_before >= allocated_swap_size_after:
+        raise MotrError(errno.EINVAL, f"swap size before allocation"
+                        f"({allocated_swap_size_before}M) must be less than "
+                        f"swap size after allocation({allocated_swap_size_after}M)\n")
+    else:
+        sys.stdout.write(f"swap size before allocation ={allocated_swap_size_before}M\n")
+        sys.stdout.write(f"swap_size after allocation ={allocated_swap_size_after}M\n")
 
 def config_lvm(self):
     try:
@@ -425,33 +443,6 @@ def get_nodes(self):
         nodes.append(value["hostname"])
     return nodes
 
-def get_data_disks_count(self):
-    nodes_info = Conf.get(self._index, 'server_node')
-    total_disks = 0
-    for node in nodes_info.values():
-        if 'storage' in node:
-            storage = node['storage']
-            cvg_count = storage['cvg_count']
-            for i in range(int(cvg_count)):
-                total_disks += len(storage["cvg"][i]["data_devices"])
-    return total_disks
-
-def check_data_disks_count(self):
-    total_disks = get_data_disks_count(self)
-    required_disks = get_data_parity_spare_count(self)
-    if (total_disks <= required_disks):
-        raise MotrError(errno.EINVAL, f"Total disks of all nodes({total_disks})"
-                        f" must be >= (data+parity+spare)({required_disks}) disks")    
-    sys.stdout.write(f"Total disks={total_disks} and Required disks={required_disks}\n")
-
-def get_data_parity_spare_count(self):
-    total_disks = 0
-    cluster = list(Conf.get(self._index, 'cluster').values())[0]
-    total_disks += int(cluster["storage_set"][0]["durability"]["data"])
-    total_disks += int(cluster["storage_set"][0]["durability"]["parity"])
-    total_disks += int(cluster["storage_set"][0]["durability"]["spare"])
-    return total_disks
-
 def lnet_ping(self):
     """Lnet lctl ping on all available nodes in cluster."""
 
@@ -459,8 +450,6 @@ def lnet_ping(self):
     # nodes is a list of hostnames
     nids = get_nids(self, nodes)
     sys.stdout.write("lnet pinging on all nodes in cluster\n")
-    sys.stdout.write("motr_setup post_install and prepare MUST be performed "
-                     "on all nodes before executing this\n")
     for nid in nids:
        cmd = f"lctl ping {nid}"
        sys.stdout.write(f"lctl ping on: {nid}\n")
@@ -474,6 +463,8 @@ def test_lnet(self):
         4. lctl ping on all nodes in cluster. motr_setup post_install and prepare
            MUST be performed on all nodes before executing this step.
     '''
+    sys.stdout.write("post_install and prepare phases MUST be performed "
+                     "on all nodes before executing test phase\n")
     search_lnet_pkgs = ["kmod-lustre-client", "lustre-client"]
     check_pkgs(self, search_lnet_pkgs)
 
@@ -540,7 +531,7 @@ def lvm_exist(self):
     lv_list = lv_list[0:len(lv_list)-1]
 
     # Check if motr lvms are already created.
-    # If all are arleady created, return 
+    # If all are already created, return
     for i in range(1, metadata_disks_count+1):
         md_lv_path = f'/dev/vg_{node_name}_md{i}/lv_raw_md{i}'
         swap_lv_path = f'/dev/vg_{node_name}_md{i}/lv_main_swap{i}'
@@ -557,9 +548,20 @@ def lvm_exist(self):
     return True
 
 def cluster_up(self):
-    cmd = 'hctl status'
-    op = subprocess.run(["hctl", "status"])
-    if op.returncode == 0:
+    cmd = '/usr/bin/hctl status'
+    sys.stdout.write(f"Executing cmd : '{cmd}'\n")
+    ret = execute_command_without_exception(self, cmd)
+    if ret == 0:
         return True
     else:
+        return False
+
+def pkg_installed(self, pkg):
+    cmd = f'/usr/bin/yum list installed {pkg}'
+    ret = execute_command_without_exception(self, cmd)
+    if ret == 0:
+        sys.stdout.write(f"{pkg} is installed\n")
+        return True
+    else:
+        sys.stdout.write(f"{pkg} is not installed\n")
         return False
