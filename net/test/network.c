@@ -128,7 +128,8 @@ static struct m0_net_buffer_callbacks net_test_network_buf_cb = {
  */
 static int net_test_buf_init(struct m0_net_buffer *buf,
 			     m0_bcount_t size,
-			     struct m0_net_test_network_ctx *ctx)
+			     struct m0_net_test_network_ctx *ctx,
+			     bool is_pingbuf)
 {
 	int		      rc;
 	m0_bcount_t	      seg_size;
@@ -148,7 +149,10 @@ static int net_test_buf_init(struct m0_net_buffer *buf,
 	if (size > buf_size_max)
 		return -E2BIG;
 
-	seg_size_max = m0_net_domain_get_max_buffer_segment_size(dom);
+	if (is_pingbuf)
+		seg_size_max = buf_size_max;
+	else
+		seg_size_max = m0_net_domain_get_max_buffer_segment_size(dom);
 
 	M0_ASSERT(seg_size_max > 0);
 
@@ -208,9 +212,10 @@ static int net_test_bufs_init(struct m0_net_buffer *buf,
 	int		      i;
 	int		      rc = 0;
 	struct m0_net_domain *dom = ctx->ntc_dom;
+	bool		      is_pingbuf = (buf == ctx->ntc_buf_ping);
 
 	for (i = 0; i < buf_nr; ++i) {
-		rc = net_test_buf_init(&buf[i], size, ctx);
+		rc = net_test_buf_init(&buf[i], size, ctx, is_pingbuf);
 		if (rc != 0)
 			break;
 		M0_ASSERT(buf[i].nb_dom == dom);
@@ -745,7 +750,7 @@ int m0_net_test_network_buf_resize(struct m0_net_test_network_ctx *ctx,
 	M0_ASSERT(buf != NULL);
 
 	net_test_buf_fini(buf, ctx->ntc_dom);
-	return net_test_buf_init(buf, new_size, ctx);
+	return net_test_buf_init(buf, new_size, ctx, true);
 }
 
 void m0_net_test_network_buf_fill(struct m0_net_test_network_ctx *ctx,
