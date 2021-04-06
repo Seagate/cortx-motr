@@ -122,9 +122,6 @@ static int libfab_destaddr_get(struct m0_fab__ep_name *epname,
 static void libfab_pending_bufs_send(struct m0_fab__ep *ep);
 static int libfab_target_notify(struct m0_fab__buf *buf,
 				struct m0_fab__active_ep *ep);
-static m0_bcount_t libfab_iov_prep(struct m0_bufvec *bv, struct iovec *iv,
-				   int nr, m0_bcount_t nblen,
-				   m0_bcount_t *count);
 static struct m0_fab__fab *libfab_newfab_init(struct m0_fab__list *fl);
 static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 			    struct m0_fab__buf *fbp, const char *name);
@@ -1717,21 +1714,18 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
 	struct m0_fab__active_ep *aep;
 	struct m0_fab__buf       *fbp;
 	struct m0_net_buffer     *nb;
-	struct iovec              iv[FAB_IOV_MAX];
-	m0_bcount_t               cnt = 0;
-	int                       iv_cnt;
+	struct iovec              iv;
 
 	aep = libfab_aep_get(ep);
 	m0_tl_for(fab_sndbuf, &ep->fep_sndbuf, fbp) {
-		cnt = 0;
 		nb = fbp->fb_nb;
 		fbp->fb_txctx = ep;
-		iv_cnt = libfab_iov_prep(&nb->nb_buffer, iv, ARRAY_SIZE(iv),
-					 nb->nb_length, &cnt);
+		iv.iov_base = nb->nb_buffer.ov_buf[0];
+		iv.iov_len = nb->nb_buffer.ov_vec.v_count[0];
 		switch (nb->nb_qtype) {
 			case M0_NET_QT_MSG_SEND:
-				fi_sendv(aep->aep_txep, iv, fbp->fb_mr.bm_desc,
-					 iv_cnt, 0, fbp);
+				fi_sendv(aep->aep_txep, &iv, fbp->fb_mr.bm_desc,
+					 1, 0, fbp);
 				break;
 			case M0_NET_QT_ACTIVE_BULK_RECV:
 			case M0_NET_QT_ACTIVE_BULK_SEND:
@@ -1760,40 +1754,6 @@ static int libfab_target_notify(struct m0_fab__buf *buf,
 	}
 
 	return M0_RC(ret);
-}
-
-/**
- * Prepares iovec.
- * Fills a supplied iovec "iv", with "nr" elements, to launch vectorised io.
- * Returns the number of elements filled. Returns in *count the total number of
- * bytes to be ioed.
- * "bv" is a data buffer for payload.
- */
-static m0_bcount_t libfab_iov_prep(struct m0_bufvec *bv, struct iovec *iv,
-				   int nr, m0_bcount_t nblen,
-				   m0_bcount_t *count)
-{
-	struct m0_bufvec_cursor cur;
-	m0_bcount_t             len;
-	int                     idx;
-
-	M0_PRE(nr > 0);
-	len = nblen ? nblen : (M0_BCOUNT_MAX / 2);
-	
-	m0_bufvec_cursor_init(&cur, bv);
-	for (idx = 0; idx < nr && !m0_bufvec_cursor_move(&cur, 0); ++idx) {
-		m0_bcount_t frag = m0_bufvec_cursor_step(&cur);
-
-		frag = min64u(frag, len - *count);
-		if (frag == 0)
-			break;
-		iv[idx].iov_base = m0_bufvec_cursor_addr(&cur);
-		*count += (iv[idx].iov_len = frag);
-		m0_bufvec_cursor_move(&cur, frag);
-	}
-	M0_POST(m0_reduce(i, idx, 0ULL, + iv[i].iov_len) == *count);
-	M0_POST(idx > 0); /* Check that there is some progress. */
-	return idx;
 }
 
 static struct m0_fab__fab *libfab_newfab_init(struct m0_fab__list *fl)
@@ -2291,9 +2251,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	struct m0_fab__tm        *ma  = libfab_buf_ma(nb);
 	struct m0_fab__ep        *ep = NULL;
 	struct m0_fab__active_ep *aep;
-	struct iovec              iv[FAB_IOV_MAX];
-	m0_bcount_t               cnt = 0;
-	int                       iv_cnt;
+	struct iovec              iv;
 	struct m0_fab__ep_name    epname;
 	int                       ret = 0;
 
@@ -2308,10 +2266,9 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	case M0_NET_QT_MSG_RECV: {
 		M0_ASSERT(nb->nb_buffer.ov_vec.v_nr == 1);
 		fbp->fb_length = nb->nb_length;
-		iv_cnt = libfab_iov_prep(&nb->nb_buffer, iv, ARRAY_SIZE(iv),
-					 nb->nb_length, &cnt);
-		ret = fi_recvv(ma->ftm_rctx, iv, fbp->fb_mr.bm_desc, iv_cnt, 0,
-			       fbp);
+		iv.iov_base = nb->nb_buffer.ov_buf[0];
+		iv.iov_len = nb->nb_buffer.ov_vec.v_count[0];
+		ret = fi_recvv(ma->ftm_rctx, &iv, fbp->fb_mr.bm_desc, 1, 0, fbp);
 		break;
 	}
 	
@@ -2326,11 +2283,10 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		if (aep->aep_tx_state != FAB_CONNECTED) {
 			ret = libfab_conn_init(ep, ma, fbp, nb->nb_ep->nep_addr);
 		} else {
-			iv_cnt = libfab_iov_prep(&nb->nb_buffer, iv,
-						 ARRAY_SIZE(iv), nb->nb_length,
-						 &cnt);
-			ret = fi_sendv(aep->aep_txep, iv, fbp->fb_mr.bm_desc,
-				       iv_cnt, 0, fbp);
+			iv.iov_base = nb->nb_buffer.ov_buf[0];
+			iv.iov_len = nb->nb_buffer.ov_vec.v_count[0];
+			ret = fi_sendv(aep->aep_txep, &iv, fbp->fb_mr.bm_desc,
+				       1, 0, fbp);
 		}
 		break;
 	}
