@@ -271,9 +271,9 @@ static void bufvec_geometry(struct m0_net_domain *ndom,
 
 	M0_ENTRY();
 
-	max_buf_size     = m0_net_domain_get_max_buffer_size(ndom);
-	max_segment_size = m0_net_domain_get_max_buffer_segment_size(ndom);
-	max_nr_segments  = m0_net_domain_get_max_buffer_segments(ndom);
+	max_buf_size     = m0_rpc_max_msg_size(ndom, 0);
+	max_segment_size = m0_rpc_max_seg_size(ndom);
+	max_nr_segments  = m0_rpc_max_segs_nr(ndom);
 
 	M0_LOG(M0_DEBUG,
 		"max_buf_size: %llu max_segment_size: %llu max_nr_seg: %d",
@@ -559,7 +559,7 @@ static void item_fail(struct m0_rpc_packet *p, struct m0_rpc_item *item, int rc)
 
         item->ri_error = rc;
         if (item->ri_error != 0) {
-                M0_LOG(M0_ERROR, "packet %p, item %p[%"PRIu32"] failed with"
+                M0_LOG(M0_DEBUG, "packet %p, item %p[%"PRIu32"] failed with"
                        " ri_error=%"PRIi32, p, item, item->ri_type->rit_opcode,
                        item->ri_error);
                 if (item->ri_sm.sm_state != M0_RPC_ITEM_FAILED)
