@@ -105,7 +105,7 @@ static void ub_add(const struct ub_args *args)
 	m0_ub_set_add(&m0_time_ub);
 	m0_ub_set_add(&m0_thread_ub);
 //	m0_ub_set_add(&m0_rpc_ub);
-//XXX_BE_DB	m0_ub_set_add(&m0_parity_math_ub);
+	m0_ub_set_add(&m0_parity_math_ub);
 	m0_ub_set_add(&m0_memory_ub);
 	m0_ub_set_add(&m0_list_ub);
 	m0_ub_set_add(&m0_fom_ub);
