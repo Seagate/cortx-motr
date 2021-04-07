@@ -518,6 +518,13 @@
 #include "module/instance.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
+#include "ut/ut.h"
+
+/**
+ *  --------------------------------------------
+ *  Section START - BTree Structure and Operations
+ *  --------------------------------------------
+ */
 
 struct m0_btree {
 	const struct m0_btree_type *t_type;
@@ -544,6 +551,13 @@ enum op_flags {
 	OF_NEXT    = M0_BITS(1),
 	OF_LOCKALL = M0_BITS(2),
 	OF_COOKIE  = M0_BITS(3)
+};
+
+enum btree_type {
+	BTT_FIXED_FORMAT                         = 0,
+	BTT_FIXED_KEYSIZE_VARIABLE_VALUESIZE     = 1,
+	BTT_VARIABLE_KEYSIZE_FIXED_VALUESIZE     = 2,
+	BTT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE  = 3,
 };
 
 #if 0
@@ -652,6 +666,21 @@ static int get_tick(struct m0_btree_op *bop)
 }
 #endif
 
+
+/**
+ *  --------------------------------------------
+ *  Section END - BTree Structure and Operations
+ *  --------------------------------------------
+ */
+
+
+/**
+ *  ---------------------------------------------------
+ *  Section START - BTree Node Structure and Operations
+ *  ---------------------------------------------------
+ */
+
+
 /**
  * "Address" of a node in a segment.
  *
@@ -742,6 +771,15 @@ enum dir {
 
 struct nd;
 struct slot;
+
+/**
+ *  Different types of btree node formats are supported. While the basic btree
+ *  operations remain the same, the differences are encapsulated in the nodes
+ *  contained in the btree.
+ *  Each supported node type provides the same interface to implement the btree
+ *  operations so that the node-specific changes are captured in the node
+ *  implementation.
+ */
 struct node_type {
 	uint32_t                   nt_id;
 	const char                *nt_name;
@@ -750,7 +788,7 @@ struct node_type {
 	/** Returns count of records in the node */
 	int  (*nt_count)(const struct nd *node);
 
-	/** Returns the space (inn bytes) available in the node */
+	/** Returns the space (in bytes) available in the node */
 	int  (*nt_space)(const struct nd *node);
 
 	/** Returns level of this node in the btree */
@@ -774,7 +812,8 @@ struct node_type {
 	/** Returns TRUE if node has space to fit a new entry present in slot */
 	bool (*nt_isfit)(struct slot *slot);
 
-	/** TBD */
+	/** Node changes related to last record have completed any post
+	 *  processing needs to be done in this function */
 	void (*nt_done) (struct slot *slot, struct m0_be_tx *tx, bool modified);
 
 	/** Make space in the node for inserting new entry at specific index */
@@ -783,10 +822,12 @@ struct node_type {
 	/** Returns index of the record containing the key in the node */
 	void (*nt_find) (struct slot *slot, const struct m0_btree_key *key);
 
-	/** TBD */
+	/** All the changes to the node have completed. Any post processing can
+	 *  be done here */
 	void (*nt_fix)  (const struct nd *node, struct m0_be_tx *tx);
 
-	/** TBD */
+	/** Change the size of the value (increase or decrease) for the
+	 *  specified key */
 	void (*nt_cut)  (const struct nd *node, int idx, int size,
 			 struct m0_be_tx *tx);
 
@@ -846,6 +887,7 @@ struct node_op {
 	struct node_op  *no_next;
 };
 
+
 /**
  * Key-value record within a node.
  *
@@ -863,41 +905,58 @@ struct slot {
 	struct m0_btree_rec  s_rec;
 };
 
+#if 0
 static int64_t tree_get   (struct node_op *op, struct segaddr *addr, int nxt);
+#endif
 static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
 			   int rootshift, struct m0_be_tx *tx, int nxt);
 static int64_t tree_delete(struct node_op *op, struct td *tree,
 			   struct m0_be_tx *tx, int nxt);
+#if 0
 static void    tree_put   (struct td *tree);
 
 static int64_t    node_get  (struct node_op *op, struct td *tree,
 			     struct segaddr *addr, int nxt);
 static void       node_put  (struct nd *node);
 static struct nd *node_try  (struct td *tree, struct segaddr *addr);
+#endif
 static int64_t    node_alloc(struct node_op *op, struct td *tree, int shift,
-			     struct node_type *nt, struct m0_be_tx *tx, int nxt);
+			     const struct node_type *nt, struct m0_be_tx *tx,
+			     int nxt);
 static int64_t    node_free (struct node_op *op, struct nd *node,
 			     struct m0_be_tx *tx, int nxt);
+#if 0
 static void node_op_fini(struct node_op *op);
+#endif
 
 static int  node_count(const struct nd *node);
 static int  node_space(const struct nd *node);
+#if 0
 static int  node_level(const struct nd *node);
 static int  node_shift(const struct nd *node);
 static void node_fid  (const struct nd *node, struct m0_fid *fid);
+#endif
 static void node_rec  (struct slot *slot);
+#if 0
 static void node_key  (struct slot *slot);
 static void node_child(struct slot *slot, struct segaddr *addr);
+#endif
 static bool node_isfit(struct slot *slot);
 static void node_done (struct slot *slot, struct m0_be_tx *tx, bool modified);
 static void node_make (struct slot *slot, struct m0_be_tx *tx);
+#if 0
 static void node_find (struct slot *slot, const struct m0_btree_key *key);
+#endif
 static void node_fix  (const struct nd *node, struct m0_be_tx *tx);
+#if 0
 static void node_cut  (const struct nd *node, int idx, int size,
 		       struct m0_be_tx *tx);
+#endif
 static void node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
+#if 0
 static void node_move (struct nd *src, struct nd *tgt,
 		       enum dir dir, int nr, struct m0_be_tx *tx);
+#endif
 
 /**
  * Common node header.
@@ -938,6 +997,7 @@ static int node_space(const struct nd *node)
 	return node->n_type->nt_space(node);
 }
 
+#if 0
 static int node_level(const struct nd *node)
 {
 	return node->n_type->nt_level(node);
@@ -952,12 +1012,14 @@ static void node_fid(const struct nd *node, struct m0_fid *fid)
 {
 	node->n_type->nt_fid(node, fid);
 }
+#endif
 
 static void node_rec(struct slot *slot)
 {
 	slot->s_node->n_type->nt_rec(slot);
 }
 
+#if 0
 static void node_key(struct slot *slot)
 {
 	slot->s_node->n_type->nt_key(slot);
@@ -967,6 +1029,7 @@ static void node_child(struct slot *slot, struct segaddr *addr)
 {
 	slot->s_node->n_type->nt_child(slot, addr);
 }
+#endif
 
 static bool node_isfit(struct slot *slot)
 {
@@ -983,32 +1046,38 @@ static void node_make(struct slot *slot, struct m0_be_tx *tx)
 	slot->s_node->n_type->nt_make(slot, tx);
 }
 
+#if 0
 static void node_find(struct slot *slot, const struct m0_btree_key *key)
 {
 	slot->s_node->n_type->nt_find(slot, key);
 }
+#endif
 
 static void node_fix(const struct nd *node, struct m0_be_tx *tx)
 {
 	node->n_type->nt_fix(node, tx);
 }
 
+#if 0
 static void node_cut(const struct nd *node, int idx, int size,
 		    struct m0_be_tx *tx)
 {
 	node->n_type->nt_cut(node, idx, size, tx);
 }
+#endif
 
 static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 {
 	node->n_type->nt_del(node, idx, tx);
 }
 
+#if 0
 static void node_move(struct nd *src, struct nd *tgt,
 		      enum dir dir, int nr, struct m0_be_tx *tx)
 {
 	tgt->n_type->nt_move(src, tgt, dir, nr, tx);
 }
+#endif
 
 static struct mod *mod_get(void)
 {
@@ -1047,34 +1116,51 @@ static bool node_shift_is_valid(int shift)
 	return shift >= NODE_SHIFT_MIN && shift < NODE_SHIFT_MIN + 0x10;
 }
 
-static bool segaddr_is_valid(const struct segaddr *addr)
+/**
+ * This function should be called right after the allocation to make sure that
+ * the allocated memory starts at a properly aligned address.
+ *
+ * @author 530902 (06-Apr-21)
+ *
+ * @param addr - Start address of the allocated space provided by the allocator.
+ *
+ * @return bool - True if the input address is properly aligned.
+ */
+static bool addr_is_aligned(const void *addr)
 {
-	return (0xff000000000001f0ull & addr->as_core) == 0;
+	return (((size_t)addr & ((1 << NODE_SHIFT_MIN) - 1)) == 0);
+}
+
+static bool segaddr_is_valid(const struct segaddr *seg_addr)
+{
+	return (0xff000000000001f0ull & seg_addr->as_core) == 0;
 }
 
 static struct segaddr segaddr_build(const void *addr, int shift)
 {
 	struct segaddr sa;
 	M0_PRE(node_shift_is_valid(shift));
-	sa.as_core = ((uint64_t)addr) << 9 | (shift - NODE_SHIFT_MIN);
-	M0_POST(segaddr_is_valid(addr));
-	M0_POST(segaddr_addr(addr) == addr);
-	M0_POST(segaddr_shift(addr) == shift);
+	M0_PRE(addr_is_aligned(addr));
+	sa.as_core = ((uint64_t)addr) | (shift - NODE_SHIFT_MIN);
+	M0_POST(segaddr_is_valid(&sa));
+	M0_POST(segaddr_addr(&sa) == addr);
+	M0_POST(segaddr_shift(&sa) == shift);
 	return sa;
 }
 
-static void *segaddr_addr(const struct segaddr *addr)
+static void *segaddr_addr(const struct segaddr *seg_addr)
 {
-	M0_PRE(segaddr_is_valid(addr));
-	return (void *)(addr->as_core >> 9);
+	M0_PRE(segaddr_is_valid(seg_addr));
+	return (void *)(seg_addr->as_core & ~((1 << NODE_SHIFT_MIN) - 1));
 }
 
 static int segaddr_shift(const struct segaddr *addr)
 {
 	M0_PRE(segaddr_is_valid(addr));
-	return addr->as_core & 0xf;
+	return ((addr->as_core & 0xf) + NODE_SHIFT_MIN);
 }
 
+#if 0
 static void node_type_register(const struct node_type *nt)
 {
 	struct mod *m = mod_get();
@@ -1110,6 +1196,7 @@ static void tree_type_unregister(const struct m0_btree_type *tt)
 	M0_PRE(m->m_ttype[tt->tt_id] == tt);
 	m->m_ttype[tt->tt_id] = NULL;
 }
+#endif
 
 struct seg_ops {
 	int64_t (*so_tree_get)(struct node_op *op,
@@ -1124,7 +1211,7 @@ struct seg_ops {
 	void       (*so_node_put)(struct nd *node);
 	struct nd *(*so_node_try)(struct td *tree, struct segaddr *addr);
 	int64_t    (*so_node_alloc)(struct node_op *op, struct td *tree,
-				    int shift, struct node_type *nt,
+				    int shift, const struct node_type *nt,
 				    struct m0_be_tx *tx, int nxt);
 	int64_t    (*so_node_free)(struct node_op *op, struct nd *node,
 				   struct m0_be_tx *tx, int nxt);
@@ -1133,28 +1220,72 @@ struct seg_ops {
 
 static struct seg_ops *segops;
 
+#if 0
 static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 {
-	return segops->so_tree_get(op, addr, nxt);
+	struct td *tree;
+	int        nxt_state;
+
+	/**
+	 * Allocate space for in-memory tree.
+	 * The tree was created previously and the root node in the segment is
+	 *   pointed by addr
+	 * Initialize the in-memory tree with the root node information
+	 */
+	M0_ALLOC_PTR(tree);
+	M0_ASSERT(tree != NULL);
+
+	op->no_tree = tree;
+	nxt_state = segops->so_tree_get(op, addr, nxt);
+	m0_rwlock_init(&tree->t_lock);
+	tree->t_root = op->no_addr;
+
+	return nxt_state;
 }
+#endif
 
 static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
 			   int rootshift, struct m0_be_tx *tx, int nxt)
 {
-	return segops->so_tree_create(op, tt, rootshift, tx, nxt);
+	struct td *tree;
+	int        nxt_state;
+
+	/**
+	 * Allocate space for in-memory tree.
+	 * Call tree-create which creates a root node in segment space.
+	 * Initialize the in-memory tree with the root node information
+	 */
+	M0_ALLOC_PTR(tree);
+	M0_ASSERT(tree != NULL);
+
+	op->no_tree = tree;
+	nxt_state = segops->so_tree_create(op, tt, rootshift, tx, nxt);
+	m0_rwlock_init(&tree->t_lock);
+	tree->t_root = op->no_addr;
+	tree->t_type = tt;
+
+	return nxt_state;
 }
 
 static int64_t tree_delete(struct node_op *op, struct td *tree,
 			   struct m0_be_tx *tx, int nxt)
 {
-	return segops->so_tree_delete(op, tree, tx, nxt);
+	int nxt_state;
+
+	M0_PRE(node_count(op->no_node) == 0);
+
+	nxt_state = segops->so_tree_delete(op, tree, tx, nxt);
+
+	m0_free(tree);
+
+	return nxt_state;
 }
 
+#if 0
 static void tree_put(struct td *tree)
 {
 	segops->so_tree_put(tree);
 }
-
 
 static int64_t node_get(struct node_op *op, struct td *tree,
 			struct segaddr *addr, int nxt)
@@ -1171,9 +1302,11 @@ static struct nd *node_try(struct td *tree, struct segaddr *addr)
 {
 	return segops->so_node_try(tree, addr);
 }
+#endif
 
 static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
-			  struct node_type *nt, struct m0_be_tx *tx, int nxt)
+			  const struct node_type *nt, struct m0_be_tx *tx,
+			  int nxt)
 {
 	return segops->so_node_alloc(op, tree, size, nt, tx, nxt);
 }
@@ -1184,10 +1317,12 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	return segops->so_node_free(op, node, tx, nxt);
 }
 
+#if 0
 static void node_op_fini(struct node_op *op)
 {
 	segops->so_node_op_fini(op);
 }
+#endif
 
 static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 {
@@ -1195,7 +1330,7 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 }
 
 static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
-			      struct node_type *nt, struct m0_be_tx *tx,
+			      const struct node_type *nt, struct m0_be_tx *tx,
 			      int nxt);
 static int64_t mem_node_free(struct node_op *op, struct nd *node,
 			     struct m0_be_tx *tx, int nxt);
@@ -1203,14 +1338,14 @@ static int64_t mem_node_free(struct node_op *op, struct nd *node,
 static int64_t mem_tree_create(struct node_op *op, struct m0_btree_type *tt,
 			       int rootshift, struct m0_be_tx *tx, int nxt)
 {
-	struct td *tree;
+	/**
+	 * Creates root node for the tree. No tree structure is created in the
+	 * persistent space. It is the responsibility of the caller to save the
+	 * segment address of the root node so that the tree can be accessed
+	 * after cluster restart.
+	 */
+	mem_node_alloc(op, op->no_tree, rootshift, NULL, NULL, nxt);
 
-	M0_ALLOC_PTR(tree);
-	M0_ASSERT(tree != NULL);
-	mem_node_alloc(op, tree, rootshift, NULL, NULL, nxt);
-	m0_rwlock_init(&tree->t_lock);
-	tree->t_root = op->no_addr;
-	tree->t_type = tt;
 	return nxt;
 }
 
@@ -1246,25 +1381,24 @@ static struct nd *mem_node_try(struct td *tree, struct segaddr *addr)
 }
 
 static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
-			      struct node_type *nt, struct m0_be_tx *tx,
+			      const struct node_type *nt, struct m0_be_tx *tx,
 			      int nxt)
 {
 	void          *area;
 	struct nd     *node;
-	struct segaddr addr;
 	int            size = 1ULL << shift;
 
 	M0_PRE(op->no_opc == NOP_ALLOC);
 	M0_PRE(node_shift_is_valid(shift));
 	area = m0_alloc_aligned(sizeof *node + size, shift);
-	M0_ASSERT(node != NULL);
+	M0_ASSERT(area != NULL);
 	node = area + size;
 	node->n_addr = segaddr_build(area, shift);
 	node->n_tree = tree;
 	node->n_type = nt;
 	m0_rwlock_init(&node->n_lock);
 	op->no_node = node;
-	op->no_addr = addr;
+	op->no_addr = node->n_addr;
 	op->no_tree = tree;
 	return nxt;
 }
@@ -1443,9 +1577,9 @@ static void ff_rec(struct slot *slot)
 	M0_PRE(ff_invariant(slot->s_node));
 	M0_PRE(slot->s_idx < h->ff_used);
 
-	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
-	slot->s_rec.r_key.k_data.ov_vec.v_count[0] = h->ff_ksize;
-	slot->s_rec.r_key.k_data.ov_buf[0] = ff_val(slot->s_node, slot->s_idx);
+	slot->s_rec.r_val.ov_vec.v_nr = 1;
+	slot->s_rec.r_val.ov_vec.v_count[0] = h->ff_vsize;
+	slot->s_rec.r_val.ov_buf[0] = ff_val(slot->s_node, slot->s_idx);
 	ff_node_key(slot);
 	M0_POST(ff_rec_is_valid(slot));
 }
@@ -1458,9 +1592,9 @@ static void ff_node_key(struct slot *slot)
 	M0_PRE(ff_invariant(node));
 	M0_PRE(slot->s_idx < h->ff_used);
 
-	slot->s_rec.r_val.ov_vec.v_nr = 1;
-	slot->s_rec.r_val.ov_vec.v_count[0] = h->ff_ksize;
-	slot->s_rec.r_val.ov_buf[0] = ff_key(node, slot->s_idx);
+	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
+	slot->s_rec.r_key.k_data.ov_vec.v_count[0] = h->ff_ksize;
+	slot->s_rec.r_key.k_data.ov_buf[0] = ff_key(slot->s_node, slot->s_idx);
 }
 
 static void ff_child(struct slot *slot, struct segaddr *addr)
@@ -1565,31 +1699,199 @@ static void generic_move(struct nd *src, struct nd *tgt,
 		if (nr == 0 || (nr == NR_EVEN &&
 				(node_space(tgt) <= node_space(src))))
 			break;
+
+		/** Get the record at src index in rec. */
 		rec.s_node = src;
 		rec.s_idx  = srcidx;
+		node_rec(&rec);
+
+		/**
+		 *  With record from src in rec; check if that record can fit in
+		 *  the target node. If yes then make space to host this record
+		 *  in target node.
+		 */
 		rec.s_node = tgt;
 		rec.s_idx  = tgtidx;
 		if (!node_isfit(&rec))
 			break;
 		node_make(&rec, tx);
+
+		/** Get the location in the target node where the record from
+		 *  the source node will be copied later
+		 */
 		tmp.s_node = tgt;
 		tmp.s_idx  = tgtidx;
+		node_rec(&tmp);
+
 		rec.s_node = src;
 		rec.s_idx  = srcidx;
-		m0_bufvec_copy(&tmp.s_rec.r_key.k_data,
-			       &rec.s_rec.r_key.k_data,
+		m0_bufvec_copy(&tmp.s_rec.r_key.k_data, &rec.s_rec.r_key.k_data,
 			       m0_vec_count(&rec.s_rec.r_key.k_data.ov_vec));
 		m0_bufvec_copy(&tmp.s_rec.r_val, &rec.s_rec.r_val,
 			       m0_vec_count(&rec.s_rec.r_val.ov_vec));
 		node_del(src, srcidx, tx);
 		if (nr > 0)
 			nr--;
+		node_done(&tmp, tx, true);
 	}
 	node_fix(src, tx);
 	node_fix(tgt, tx);
 }
 
+
+static void m0_btree_ut_node_create_delete(void);
+static void m0_btree_ut_node_add_del_rec(void);
+
+
+/**
+ * btree_ut test suite.
+ *
+ * @author 530902 (05-Apr-21)
+ */
+struct m0_ut_suite btree_ut = {
+	.ts_name = "btree-ut",
+	.ts_yaml_config_string = "{ valgrind: { timeout: 3600 },"
+	"  helgrind: { timeout: 3600 },"
+	"  exclude:  ["
+	"   "
+	"  ] }",
+	.ts_init = NULL,
+	.ts_fini = NULL,
+	.ts_tests = {
+		{"node_create_delete",          m0_btree_ut_node_create_delete},
+		{"node_add_del_rec",            m0_btree_ut_node_add_del_rec},
+		{NULL, NULL}
+	}
+};
+
+static bool btree_ut_initialised = false;
+static void btree_ut_init(void)
+{
+
+	if (!btree_ut_initialised) {
+		segops = (struct seg_ops *)&mem_seg_ops;
+		btree_ut_initialised = true;
+	}
+}
+
+static void btree_ut_fini(void)
+{
+	segops = NULL;
+	btree_ut_initialised = false;
+}
+
+/**
+ * This test will create a few nodes and then delete them before exiting. The
+ * main intent of this test is to debug the create and delete nodes functions.
+ *
+ * @author 530902 (04-Apr-21)
+ */
+static void m0_btree_ut_node_create_delete(void)
+{
+	struct node_op          op;
+	struct m0_btree_type    tt;
+	struct td              *tree;
+	struct nd              *node1;
+	struct nd              *node2;
+	const struct node_type *nt    = &fixed_format;
+
+	M0_ENTRY();
+
+	btree_ut_init();
+
+	M0_SET0(&op);
+
+	// Create a Fixed-Format tree.
+	op.no_opc = NOP_ALLOC;
+	tt.tt_id = BTT_FIXED_KEYSIZE_VARIABLE_VALUESIZE;
+	tree_create(&op, &tt, 10, NULL, 0);
+
+	tree = op.no_tree;
+
+	// Add a few nodes to the created tree.
+	op.no_opc = NOP_ALLOC;
+	node_alloc(&op,  tree, 10, nt, NULL, 0);
+	node1 = op.no_node;
+
+	op.no_opc = NOP_ALLOC;
+	node_alloc(&op,  tree, 10, nt, NULL, 0);
+	node2 = op.no_node;
+
+	op.no_opc = NOP_FREE;
+	node_free(&op, node1, NULL, 0);
+
+	op.no_opc = NOP_FREE;
+	node_free(&op, node2, NULL, 0);
+
+
+	// Done playing with the tree - delete it.
+	op.no_opc = NOP_FREE;
+	tree_delete(&op, tree, NULL, 0);
+
+	btree_ut_fini();
+	M0_LEAVE();
+}
+
+
+/**
+ * This test will create a tree, add a few nodes and then populate the nodes
+ * with some records.
+ *
+ * @author 530902 (05-Apr-21)
+ */
+void m0_btree_ut_node_add_del_rec(void)
+{
+	struct node_op          op;
+	struct m0_btree_type    tt;
+	struct td              *tree;
+	struct nd              *node1;
+	struct nd              *node2;
+	const struct node_type *nt    = &fixed_format;
+
+	M0_ENTRY();
+
+	btree_ut_init();
+
+	M0_SET0(&op);
+
+	// Create a Fixed-Format tree.
+	op.no_opc = NOP_ALLOC;
+	tt.tt_id = BTT_FIXED_KEYSIZE_VARIABLE_VALUESIZE;
+	tree_create(&op, &tt, 10, NULL, 0);
+
+	tree = op.no_tree;
+
+	// Add a few nodes to the created tree.
+	op.no_opc = NOP_ALLOC;
+	node_alloc(&op,  tree, 10, nt, NULL, 0);
+	node1 = op.no_node;
+
+	op.no_opc = NOP_ALLOC;
+	node_alloc(&op,  tree, 10, nt, NULL, 0);
+	node2 = op.no_node;
+
+	// Add records/ check counts
+	// Check if keys stay in-order. Lookups
+
+	op.no_opc = NOP_FREE;
+	node_free(&op, node1, NULL, 0);
+
+	op.no_opc = NOP_FREE;
+	node_free(&op, node2, NULL, 0);
+
+
+	// Done playing with the tree - delete it.
+	op.no_opc = NOP_FREE;
+	tree_delete(&op, tree, NULL, 0);
+
+	btree_ut_fini();
+
+	M0_LEAVE();
+}
+
+
 #undef M0_TRACE_SUBSYSTEM
+
 
 /*
  * Test plan:
