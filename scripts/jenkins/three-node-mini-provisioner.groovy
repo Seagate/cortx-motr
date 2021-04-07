@@ -222,6 +222,8 @@ If vm reset fails, then perform manual reset using ssc-cloud.''')
 ######node-1
 #curl -o /opt/seagate/cortx/motr/bin/motr_mini_prov.py https://raw.githubusercontent.com/Seagate/cortx-motr/motr_mini_provisioner_30March/scripts/install/opt/seagate/cortx/motr/bin/motr_mini_prov.py
 #curl -o /opt/seagate/cortx/motr/bin/motr_setup https://raw.githubusercontent.com/Seagate/cortx-motr/motr_mini_provisioner_30March/scripts/install/opt/seagate/cortx/motr/bin/motr_setup
+#curl -o /opt/seagate/cortx/motr/conf/motr.post_install.tmpl https://raw.githubusercontent.com/Seagate/cortx-motr/motr_mini_provisioner_7April/scripts/install/opt/seagate/cortx/motr/conf/motr.post_install.tmpl
+#curl -o /opt/seagate/cortx/motr/conf/motr.prepare.tmpl https://raw.githubusercontent.com/Seagate/cortx-motr/motr_mini_provisioner_7April/scripts/install/opt/seagate/cortx/motr/conf/motr.prepare.tmpl
 echo "Node test : $VM_FQDN"
 echo "Node 1: $VM1_FQDN"
 echo "Node 2: $VM2_FQDN"
@@ -245,6 +247,7 @@ nr_grp="2"
 data="4"
 parity="2"
 spare="0"
+POOL_TYPE="sns"
 
 cp /opt/seagate/cortx/motr/conf/motr.post_install.tmpl /opt/seagate/cortx/motr/conf/motr.post_install_bak.tmpl
 cp /opt/seagate/cortx/motr/conf/motr.prepare.tmpl /opt/seagate/cortx/motr/conf/motr.prepare_bak.tmpl
@@ -279,6 +282,7 @@ sed -i "s#TMPL_DATADEVICE_11#/dev/sdg#" /opt/seagate/cortx/motr/conf/motr.post_i
 sed -i "s#TMPL_METADATADEVICE_10#/dev/sde#" /opt/seagate/cortx/motr/conf/motr.post_install_node1.tmpl
 sed -i "s#TMPL_CVG_NR_GROUP#'$nr_grp'#" /opt/seagate/cortx/motr/conf/motr.post_install_node1.tmpl
 sed -i "s#TMPL_CLUSTER_ID#$CLUSTER_ID#" /opt/seagate/cortx/motr/conf/motr.post_install_node1.tmpl
+sed -i "s#TMPL_POOL_TYPE#$POOL_TYPE#" /opt/seagate/cortx/motr/conf/motr.post_install_node1.tmpl
 sed -i "s#TMPL_POOL_DATA#$data#" /opt/seagate/cortx/motr/conf/motr.post_install_node1.tmpl
 sed -i "s#TMPL_POOL_PARITY#$parity#" /opt/seagate/cortx/motr/conf/motr.post_install_node1.tmpl
 sed -i "s#TMPL_POOL_SPARE#$spare#" /opt/seagate/cortx/motr/conf/motr.post_install_node1.tmpl
@@ -293,6 +297,7 @@ sed -i "s#TMPL_DATADEVICE_11#/dev/sdg#" /opt/seagate/cortx/motr/conf/motr.post_i
 sed -i "s#TMPL_METADATADEVICE_10#/dev/sde#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
 sed -i "s#TMPL_CVG_NR_GROUP#'$nr_grp'#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
 sed -i "s#TMPL_CLUSTER_ID#$CLUSTER_ID#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
+sed -i "s#TMPL_POOL_TYPE#$POOL_TYPE#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
 sed -i "s#TMPL_POOL_DATA#$data#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
 sed -i "s#TMPL_POOL_PARITY#$parity#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
 sed -i "s#TMPL_POOL_SPARE#$spare#" /opt/seagate/cortx/motr/conf/motr.post_install_node2.tmpl
@@ -307,6 +312,7 @@ sed -i "s#TMPL_DATADEVICE_11#/dev/sdg#" /opt/seagate/cortx/motr/conf/motr.post_i
 sed -i "s#TMPL_METADATADEVICE_10#/dev/sde#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
 sed -i "s#TMPL_CVG_NR_GROUP#'$nr_grp'#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
 sed -i "s#TMPL_CLUSTER_ID#$CLUSTER_ID#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
+sed -i "s#TMPL_POOL_TYPE#$POOL_TYPE#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
 sed -i "s#TMPL_POOL_DATA#$data#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
 sed -i "s#TMPL_POOL_PARITY#$parity#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
 sed -i "s#TMPL_POOL_SPARE#$spare#" /opt/seagate/cortx/motr/conf/motr.post_install_node3.tmpl
@@ -322,6 +328,7 @@ sed -i "s#TMPL_IFACE_TYPE#tcp#" /opt/seagate/cortx/motr/conf/motr.prepare_node1.
 sed -i "s#TMPL_INTERFACE#eth1#" /opt/seagate/cortx/motr/conf/motr.prepare_node1.tmpl
 sed -i "s#TMPL_XPORT_TYPE#lnet#" /opt/seagate/cortx/motr/conf/motr.prepare_node1.tmpl
 sed -i "s#TMPL_CLUSTER_ID#$CLUSTER_ID#" /opt/seagate/cortx/motr/conf/motr.prepare_node1.tmpl
+sed -i "s#TMPL_POOL_TYPE#$POOL_TYPE#" /opt/seagate/cortx/motr/conf/motr.prepare_node1.tmpl
 sed -i "s#TMPL_POOL_DATA#'$data'#" /opt/seagate/cortx/motr/conf/motr.prepare_node1.tmpl
 sed -i "s#TMPL_POOL_PARITY#'$parity'#" /opt/seagate/cortx/motr/conf/motr.prepare_node1.tmpl
 sed -i "s#TMPL_POOL_SPARE#'$spare'#" /opt/seagate/cortx/motr/conf/motr.prepare_node1.tmpl
@@ -337,6 +344,7 @@ sed -i "s#TMPL_IFACE_TYPE#tcp#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.
 sed -i "s#TMPL_INTERFACE#eth1#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
 sed -i "s#TMPL_XPORT_TYPE#lnet#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
 sed -i "s#TMPL_CLUSTER_ID#$CLUSTER_ID#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
+sed -i "s#TMPL_POOL_TYPE#$POOL_TYPE#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
 sed -i "s#TMPL_POOL_DATA#'$data'#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
 sed -i "s#TMPL_POOL_PARITY#'$parity'#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
 sed -i "s#TMPL_POOL_SPARE#'$spare'#" /opt/seagate/cortx/motr/conf/motr.prepare_node2.tmpl
@@ -352,6 +360,7 @@ sed -i "s#TMPL_IFACE_TYPE#tcp#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.
 sed -i "s#TMPL_INTERFACE#eth1#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
 sed -i "s#TMPL_XPORT_TYPE#lnet#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
 sed -i "s#TMPL_CLUSTER_ID#$CLUSTER_ID#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
+sed -i "s#TMPL_POOL_TYPE#$POOL_TYPE#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
 sed -i "s#TMPL_POOL_DATA#'$data'#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
 sed -i "s#TMPL_POOL_PARITY#'$parity'#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
 sed -i "s#TMPL_POOL_SPARE#'$spare'#" /opt/seagate/cortx/motr/conf/motr.prepare_node3.tmpl
