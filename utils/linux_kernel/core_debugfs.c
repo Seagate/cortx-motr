@@ -19,8 +19,6 @@
  *
  */
 
-#if 0
-
 #include <linux/kernel.h>    /* pr_info */
 #include <linux/debugfs.h>   /* debugfs_create_dir */
 #include <linux/module.h>    /* THIS_MODULE */
@@ -97,7 +95,6 @@ void core_dfs_cleanup(void)
 }
 
 /** @} end of m0ctl group */
-#endif
 
 /*
  *  Local variables:
