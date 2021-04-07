@@ -213,6 +213,12 @@ is a special metadata record indicating that normal key and value
 record were deleted some time ago and can be interpreted during DTM0
 recovery and other modes.
 
+** client
+   volatile participant.
+** m0d, server
+   persistent participant.
+
+
 * Requirements & assumptions
 #+BEGIN_QUOTE
 =[This section enumerates requirements collected and reviewed at the Requirements Analysis (RA) and Requirements Inspection (RI) phases of development. References to the appropriate RA and RI documents should go here. In addition this section lists architecture level requirements for the component from the Summary requirements table and appropriate architecture documentation]=
@@ -1354,57 +1360,148 @@ deliver executed callback after persistent participant failure
 *** how long with 3-way replication 3 participant can be in transient?
 *** new originator after fail
 *** how the states of participants are propagated the dtm logic (confd)
-*** startup procedure (recovering startup)
-#+begin_src plantuml :file startup.png :exports results
-participant originator
+*** clean startup
+#+begin_src plantuml :file startup-clean.png :exports results
 participant p1
 participant p2
 participant p3
 participant hax
 
-=== p3 powered on ===
-...some time latter, p3 restarted by hare...
-
+...p3 restarted by hare...
 hax -> p3: start p3 process
+
+hax -> p3: rpc session establish
+p3 -> hax: rpc session establish
+
 p3 -> hax: entry point request
 hax -> p3: entry point reply [conf, profile]
-
-activate p3
-p3 -> p2: rpc session establish
-p3 -> p1: rpc session establish
-p3 -> originator: rpc session establish
-deactivate p3
-
-p3 -> hax: p3 is ready to accept new MD/IO traffic
-
+p3 -> hax: **M0_CONF_HA_PROCESS_STARTING**
 activate hax
 hax -> p3: start dtm0 recovery on p3
-hax -> p1: ha state, p3 is in recovering state
-hax -> p2: ha state, p3 is in recovering state
-hax -> originator: ha state, p3 is in recovering state
+hax -> p1: ha state, p3 is in **RECOVERING** state
+activate p1
+p3 -> p1: rpc session establish
+deactivate p1
+hax -> p2: ha state, p3 is in **RECOVERING** state
+activate p2
+p3 -> p2: rpc session establish
+deactivate p2
 deactivate hax
+...barrier **B1** is [ ∀ pi ∈ P | pi.state == RECOVERING ∧ \n∀ pi,pj ∈ P | pi ≠ pj ∧ pi.connected(pj) ]...
+p1 -> p1: wait B1
+p2 -> p2: wait B1
+p3 -> p3: wait B1
 ...
-p2 -> p3: REDO [PUT kj, vj, verj]
-p1 -> p3: REDO [PUT kj, vj, verj]
-originator -> p3: REDO [PUT kj, vj, verj]
+p3 -> hax: **M0_CONF_HA_PROCESS_STARTED**
+... no redo will happen today, start the process ...
+p3 -> hax: **M0_CONF_HA_PROCESS_RECOVERED**
 ...
-p2 -> p3: REDO [PUT kn, vn, vern]
-p1 -> p3: REDO [PUT kn, vn, vern]
-originator -> p3: REDO [PUT kn, vn, vern]
-...
-p3 -> hax: recovery DONE
-...
-
-hax -> p1: ha state, p1 is in online state
-hax -> p2: ha state, p1 is in online state
-hax -> p3: ha state, p1 is in online state
-hax -> originator: ha state, p1 is in online state
-
-
+hax -> p1: ha state, p3 is in **ONLINE** state
+hax -> p2: ha state, p3 is in **ONLINE** state
+hax -> p3: ha state, p3 is in **ONLINE** state
+... hax starts originators, startup is the same as p3 has except pi.state >= RECOVERING...
 #+end_src
 
-#+RESULTS:
-[[file:startup.png]]
+**** Assumptions
+- Written w.r.t. failures which are not reflected on the diagrams yet;
+- Volatile participants synchronize it's start with connection
+  requests issued by servers and reuses existing persistent
+  participants logic;
+- Volatile participants started after persistent participants start;
+- Volatile participants stopped before persistent participants shutdown;
+- [ha.EOS] during process operation, including start-up/shut-down
+  procedures, process expects to that any event that hasn't been seen
+  yet by the given process related to the process state in the cluster
+  will be delivered to it in a "specific order" even in such process
+  was offline/transient, wasn't able to receive messages etc.
+  "Specific order" here *might* mean that events can be ordered by the
+  arrival time seen on local hax side;
+- After ~M0_CONF_HA_PROCESS_STARTING~ message is delivered to the
+  local hax, it can start delivering ha (state change) messages to the
+  participant in the cluster;
+- Except given exceptions semantics of ~M0_CONF_HA_PROCESS_STARTING~
+  and ~M0_CONF_HA_PROCESS_STARTED~ remains the same;
+- Introduce ~M0_CONF_HA_PROCESS_RECOVERED~ message issued when the
+  recovery is completed and indicating for hare side that ONLINE state
+  can be broadcasted and then hare can start starting volatile
+  participants;
+- Shutdown procedure for persistent participants remains the same
+  taking into account the whole cluster shutdown order defined above.
+
+**** Highlights
+The main goal of the startup/shutdown procedure definition is to
+separate and synchronize service-, data flows- and system process
+starts/stops related to DTM0 recovery and to address failure-related
+scenarios in the future. Service flows are related to ha state changes
+broadcasted to the whole cluster and establishment of rpc connections
+needed for service and recovery traffic. Data flows cover REDO
+messages logic and condition when the participant can start servicing
+DIX GET requests.
+
+As it can be seen from the diagram above service flow is bracketed by
+the ~M0_CONF_HA_PROCESS_*~ messages inside intervals
+~[M0_CONF_HA_PROCESS_STARTING, M0_CONF_HA_PROCESS_STARTED]~ and
+~[M0_CONF_HA_PROCESS_RECOVERED..)~. Data traffic expected inside
+~[M0_CONF_HA_PROCESS_STARTED, M0_CONF_HA_PROCESS_RECOVERED]~ interval.
+
+The notion of barrier ~B1~ is introduced to synchronize all persistent
+participants to the state when all of them have been established
+connections to each other which is an indication that recovery or the
+next processing phase can be started. Volatile participants here might
+have a relaxed version of ~B1~ waiting for all participants to be in
+~RECOVERING~ or next states.
+
+*** recovering startup
+  #+begin_src plantuml :file startup.png :exports results
+  participant originator
+  participant p1
+  participant p2
+  participant p3
+  participant hax
+
+  === p3 powered on ===
+  ...some time latter, p3 restarted by hare...
+
+  hax -> p3: start p3 process
+  p3 -> hax: entry point request
+  hax -> p3: entry point reply [conf, profile]
+
+  activate p3
+  p3 -> p2: rpc session establish
+  p3 -> p1: rpc session establish
+  p3 -> originator: rpc session establish
+  deactivate p3
+
+  p3 -> hax: p3 is ready to accept new MD/IO traffic
+
+  activate hax
+  hax -> p3: start dtm0 recovery on p3
+  hax -> p1: ha state, p3 is in recovering state
+  hax -> p2: ha state, p3 is in recovering state
+  hax -> originator: ha state, p3 is in recovering state
+  deactivate hax
+  ...
+  p2 -> p3: REDO [PUT kj, vj, verj]
+  p1 -> p3: REDO [PUT kj, vj, verj]
+  originator -> p3: REDO [PUT kj, vj, verj]
+  ...
+  p2 -> p3: REDO [PUT kn, vn, vern]
+  p1 -> p3: REDO [PUT kn, vn, vern]
+  originator -> p3: REDO [PUT kn, vn, vern]
+  ...
+  p3 -> hax: recovery DONE
+  ...
+
+  hax -> p1: ha state, p1 is in online state
+  hax -> p2: ha state, p1 is in online state
+  hax -> p3: ha state, p1 is in online state
+  hax -> originator: ha state, p1 is in online state
+
+
+  #+end_src
+
+  #+RESULTS:
+  [[file:startup.png]]
 
 *** Cluster shutdown usecase
 *** Cluster start usecase after shutdown
