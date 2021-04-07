@@ -2478,27 +2478,27 @@ M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,0)
 const struct xattr_handler m0t1fs_xattr_lid = {
-	.prefix = "lid",
+	.name   = "lid",
 	.flags  = 0,
 	.get    = m0t1fs_getxattr,
 	.set    = m0t1fs_setxattr,
 };
 
 const struct xattr_handler m0t1fs_xattr_writesize = {
-	.prefix = "writesize",
+	.name   = "writesize",
 	.flags  = 0,
 	.get    = m0t1fs_getxattr,
 	.set    = m0t1fs_setxattr,
 };
 static const struct xattr_handler m0t1fs_xattr_fid_lid = {
-	.prefix = "fid_lid",
+	.name   = "fid_lid",
 	.flags  = 0,
 	.get    = m0t1fs_fid_getxattr,
 	.set    = m0t1fs_fid_setxattr,
 };
 
 static const struct xattr_handler m0t1fs_xattr_fid_writesize = {
-	.prefix = "fid_writesize",
+	.name   = "fid_writesize",
 	.flags  = 0,
 	.get    = m0t1fs_fid_getxattr,
 	.set    = m0t1fs_fid_setxattr,
