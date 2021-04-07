@@ -401,9 +401,9 @@ struct pargrp_iomap_ops {
 	 * read-old approach or read-rest approach.
 	 * pargrp_iomap::pi_rtype will be set to PIR_READOLD or
 	 * PIR_READREST accordingly.
-	 * @param ivec   Source index vector from which pargrp_iomap::pi_ivec
-	 * will be populated. Typically, this is m0_op_io::ioo_ext.
-	 * @param cursor Index vector cursor associated with ivec.
+	 * @param cursor Source index vector cursor from which
+	 *               pargrp_iomap::pi_ivec will be populated.
+	 *               Typically, this is m0_op_io::ioo_ext.
 	 * @pre iomap != NULL && ivec != NULL &&
 	 * m0_vec_count(&ivec->iv_vec) > 0 && cursor != NULL &&
 	 * m0_vec_count(&iomap->iv_vec) == 0
@@ -411,7 +411,6 @@ struct pargrp_iomap_ops {
 	 * iomap->pi_databufs != NULL.
 	 */
 	int (*pi_populate)  (struct pargrp_iomap      *iomap,
-			     const struct m0_indexvec *ivec,
 			     struct m0_ivec_cursor    *cursor,
 			     struct m0_bufvec_cursor  *buf_cursor);
 

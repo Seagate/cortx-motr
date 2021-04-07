@@ -891,7 +891,7 @@ static int ioreq_iomaps_prepare(struct m0_op_io *ioo)
 
 		/* @cursor is advanced in the following function */
 		rc = ioo->ioo_iomaps[map]->pi_ops->
-		     pi_populate(ioo->ioo_iomaps[map], &ioo->ioo_ext, &cursor,
+		     pi_populate(ioo->ioo_iomaps[map], &cursor,
 				 bufvec ? &buf_cursor : NULL);
 		if (rc != 0)
 			goto failed;

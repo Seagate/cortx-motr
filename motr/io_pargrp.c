@@ -380,68 +380,6 @@ static struct data_buf *data_buf_replicate_init(struct pargrp_iomap *map,
 }
 
 /**
- * Counts the number of bytes in this vector needed to reach the next parity
- * group boundary.
- * This is heavily based on m0t1fs/linux_kernel/file.c::seg_collate
- *
- * @param map The Parity Group map.
- * @param cursor Where in the object we are currently.
- * @return The number of bytes to reach the next parity group boundary.
- */
-static m0_bcount_t seg_collate(struct pargrp_iomap   *map,
-			       struct m0_ivec_cursor *cursor)
-{
-	uint32_t                  seg;
-	uint32_t                  cnt;
-	m0_bindex_t               start;
-	m0_bindex_t               grpend;
-	m0_bcount_t               segcount;
-	struct m0_pdclust_layout *play;
-
-	M0_ENTRY();
-
-	M0_PRE(cursor != NULL);
-	M0_PRE_EX(pargrp_iomap_invariant(map));
-
-	cnt    = 0;
-	play   = pdlayout_get(map->pi_ioo);
-	grpend = map->pi_grpid * data_size(play) + data_size(play);
-	start  = m0_ivec_cursor_index(cursor);
-
-	for (seg = cursor->ic_cur.vc_seg; start < grpend &&
-	     seg < cursor->ic_cur.vc_vec->v_nr - 1; ++seg) {
-		segcount = seg == cursor->ic_cur.vc_seg ?
-			   m0_ivec_cursor_step(cursor) :
-			   cursor->ic_cur.vc_vec->v_count[seg];
-
-		if (start + segcount == map->pi_ioo->ioo_ext.iv_index[seg + 1]) {
-			if (start + segcount >= grpend) {
-				start = grpend;
-				break;
-			}
-			start += segcount;
-		} else
-			break;
-
-		++cnt;
-	}
-
-	if (cnt == 0)
-		return 0;
-
-	/* If this was last segment in vector, add its count too. */
-	if (seg == cursor->ic_cur.vc_vec->v_nr - 1) {
-		if (start + cursor->ic_cur.vc_vec->v_count[seg] >= grpend)
-			start = grpend;
-		else
-			start += cursor->ic_cur.vc_vec->v_count[seg];
-	}
-
-	M0_LEAVE();
-	return start - m0_ivec_cursor_index(cursor);
-}
-
-/**
  * Builds the iomap structure of row/columns for data/parity, one segment at
  * a time.
  * This is heavily based on m0t1fs/linux_kernel/file.c::pargrp_iomap_populate
@@ -452,19 +390,16 @@ static m0_bcount_t seg_collate(struct pargrp_iomap   *map,
  * @return 0 for sucess, -errno otherwise.
  */
 static int pargrp_iomap_populate(struct pargrp_iomap      *map,
-				 const struct m0_indexvec *ivec,
 				 struct m0_ivec_cursor    *cursor,
 				 struct m0_bufvec_cursor  *buf_cursor)
 {
 	int                       rc;
 	bool                      rmw = false;
 	uint64_t                  seg;
-	uint64_t                  size = 0;
 	uint64_t                  grpsize;
 	uint64_t                  pagesize;
 	m0_bcount_t               count = 0;
 	m0_bindex_t               endpos = 0;
-	m0_bcount_t               segcount = 0;
 	/* Number of pages _completely_ spanned by incoming io vector. */
 	uint64_t                  nr = 0;
 	/* Number of pages to be read + written for read-old approach. */
@@ -473,18 +408,16 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	uint64_t                  rr_page_nr;
 	m0_bindex_t               grpstart;
 	m0_bindex_t               grpend;
-	m0_bindex_t               currindex;
-	m0_bindex_t               startindex;
+	m0_bindex_t               startindex = m0_ivec_cursor_index(cursor);
 	struct m0_pdclust_layout *play;
 	struct m0_op_io          *ioo;
 	struct m0_op             *op;
 	struct m0_obj            *obj;
 	struct m0_client         *instance;
 
-	M0_ENTRY("map %p, indexvec %p", map, ivec);
+	M0_ENTRY("map %p, ivec %p", map, cursor->ic_cur.vc_vec);
 
 	M0_PRE(map  != NULL);
-	M0_PRE(ivec != NULL);
 
 	ioo = map->pi_ioo;
 	obj = ioo->ioo_obj;
@@ -497,60 +430,47 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	grpend   = grpstart + grpsize;
 	pagesize = m0__page_size(ioo);
 
-	/* For a write, if size of this map is less
-	 * than parity group size, it is a read-modify-write.
+	/*
+	 * For a write, if this map does not span the whole parity group,
+	 * it is a read-modify-write.
 	 *
 	 * Note (Sining): as Client objects don't have attribute SIZE,
 	 * rmw is true even when grpstart is larger than current object end.
 	 * Does this cause any problem if returned 'read' pages are not
 	 * zeroed?
 	 */
-	if (M0_IN(op->op_code, (M0_OC_FREE, M0_OC_WRITE))) {
-		for (seg = cursor->ic_cur.vc_seg; seg < SEG_NR(ivec) &&
-		     INDEX(ivec, seg) < grpend; ++seg) {
-			currindex = seg == cursor->ic_cur.vc_seg ?
-				    m0_ivec_cursor_index(cursor) :
-				    INDEX(ivec, seg);
-			size += min64u(seg_endpos(ivec, seg), grpend) -
-				currindex;
-		}
-
-		if (size < grpsize)
+	if (M0_IN(op->op_code, (M0_OC_FREE, M0_OC_WRITE)) &&
+	    (m0_ivec_cursor_index(cursor) > grpstart ||
+	     m0_ivec_cursor_conti(cursor, grpend) < grpend))
 			rmw = true;
-	}
+
 	if (op->op_code == M0_OC_FREE && rmw)
 		map->pi_trunc_partial = true;
 
-	startindex = m0_ivec_cursor_index(cursor);
 	M0_LOG(M0_INFO, "Group id %"PRIu64" is %s", map->pi_grpid,
 	       rmw ? "rmw" : "aligned");
 
+	/* Populate pi_ivec. */
 	for (seg = 0; !m0_ivec_cursor_move(cursor, count) &&
-		      m0_ivec_cursor_index(cursor) < grpend;) {
+	               m0_ivec_cursor_index(cursor) < grpend;) {
 		/*
 		 * Skips the current segment if it is completely spanned by
-		 * rounding up/down of earlier segment.
+		 * rounding up/down of an earlier segment.
 		 */
 		if (map->pi_ops->pi_spans_seg(map,
-			m0_ivec_cursor_index(cursor),
-			m0_ivec_cursor_step(cursor)))
-		{
+					      m0_ivec_cursor_index(cursor),
+					      m0_ivec_cursor_step(cursor))) {
 			count = m0_ivec_cursor_step(cursor);
 			continue;
 		}
 
 		INDEX(&map->pi_ivec, seg) = m0_ivec_cursor_index(cursor);
-		endpos = min64u(grpend,
-				m0_ivec_cursor_index(cursor)
-				+ m0_ivec_cursor_step(cursor));
-		segcount = seg_collate(map, cursor);
-		if (segcount > 0)
-			endpos = INDEX(&map->pi_ivec, seg) + segcount;
+		endpos = m0_ivec_cursor_conti(cursor, grpend);
 		COUNT(&map->pi_ivec, seg) = endpos - INDEX(&map->pi_ivec, seg);
 
 		/*
 		* If current segment is _partially_ spanned by previous
-		* segment in pargrp_iomp::pi_ivec, start of segment is
+		* segment in pargrp_iomap::pi_ivec, start of segment is
 		* rounded up to move to next page.
 		*/
 		/*
@@ -561,13 +481,13 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 		 * EOS-5083 is created to handle this.
 		 */
 		if (seg > 0 && INDEX(&map->pi_ivec, seg) <
-			seg_endpos(&map->pi_ivec, seg - 1)) {
+		               seg_endpos(&map->pi_ivec, seg - 1)) {
 			m0_bindex_t newindex;
 
 			newindex = m0_round_up(INDEX(&map->pi_ivec, seg) + 1,
 					       pagesize);
-			COUNT(&map->pi_ivec, seg) -=
-				(newindex - INDEX(&map->pi_ivec, seg));
+			COUNT(&map->pi_ivec, seg) -= newindex -
+			                             INDEX(&map->pi_ivec, seg);
 			INDEX(&map->pi_ivec, seg)  = newindex;
 		}
 
@@ -578,19 +498,20 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 				 INDEX(&map->pi_ivec, seg),
 				 COUNT(&map->pi_ivec, seg));
 
-		if (!(op->op_code == M0_OC_READ &&
-		      instance->m0c_config->mc_is_read_verify)) {
-			/* if not in 'verify mode', ... */
+		if (op->op_code != M0_OC_READ ||
+		    !instance->m0c_config->mc_is_read_verify) {
+			/* not in 'verify mode' */
 			rc = map->pi_ops->pi_seg_process(map, seg, rmw,
 					                 0, buf_cursor);
 			if (rc != 0)
 				return M0_ERR_INFO(rc, "seg_process failed");
 		}
 
-		INDEX(&map->pi_ivec, seg) =
-			round_down(INDEX(&map->pi_ivec, seg), pagesize);
+		/* make segment pagesize-aligned */
+		INDEX(&map->pi_ivec, seg) = round_down(INDEX(&map->pi_ivec,
+							     seg), pagesize);
 		COUNT(&map->pi_ivec, seg) = round_up(endpos, pagesize) -
-				 INDEX(&map->pi_ivec, seg);
+		                            INDEX(&map->pi_ivec, seg);
 		M0_LOG(M0_DEBUG, "post grpid = %"PRIu64" seg %"PRIu64
 				 " = [%"PRIu64", +%"PRIu64")",
 				 map->pi_grpid, seg,
@@ -790,7 +711,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	struct m0_op_io          *ioo;
 	struct m0_obj            *obj;
 	struct m0_op             *op;
-	m0_bindex_t               grp_size;
+	m0_bindex_t               grp_off;
 
 	M0_ENTRY("map %p, seg %"PRIu64", %s", map, seg,
 		 rmw ? "rmw" : "aligned");
@@ -801,7 +722,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	obj = ioo->ioo_obj;
 	play = pdlayout_get(ioo);
 	pagesize = m0__page_size(ioo);
-	grp_size = data_size(play) * map->pi_grpid;
+	grp_off = data_size(play) * map->pi_grpid;
 
 	m0_ivec_cursor_init(&cur, &map->pi_ivec);
 	ret = m0_ivec_cursor_move_to(&cur, INDEX(&map->pi_ivec, seg));
@@ -834,7 +755,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 			flags |= PA_READ;
 		}
 
-		page_pos_get(map, start, grp_size, &row, &col);
+		page_pos_get(map, start, grp_off, &row, &col);
 		M0_ASSERT(col <= map->pi_max_col);
 		M0_ASSERT(row <= map->pi_max_row);
 
