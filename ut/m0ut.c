@@ -169,6 +169,7 @@ extern struct m0_ut_suite xcode_bufvec_fop_ut;
 extern struct m0_ut_suite xcode_ff2c_ut;
 extern struct m0_ut_suite xcode_ut;
 extern struct m0_ut_suite sns_flock_ut;
+extern struct m0_ut_suite btree_ut;
 
 static void tests_add(struct m0_ut_module *m)
 {
@@ -191,6 +192,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &buffer_pool_ut, true);
 	m0_ut_add(m, &bulkio_client_ut, true);
 	m0_ut_add(m, &bulkio_server_ut, true);
+	m0_ut_add(m, &btree_ut, true);
 	m0_ut_add(m, &capa_ut, true);
 	m0_ut_add(m, &cas_client_ut, true);
 	m0_ut_add(m, &cas_service_ut, true);
