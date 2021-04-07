@@ -1402,6 +1402,9 @@ hax -> p3: ha state, p3 is in **ONLINE** state
 ... hax starts originators, startup is the same as p3 has except pi.state >= RECOVERING...
 #+end_src
 
+#+RESULTS:
+[[file:startup-clean.png]]
+
 **** Assumptions
 - Written w.r.t. failures which are not reflected on the diagrams yet;
 - Volatile participants synchronize it's start with connection
