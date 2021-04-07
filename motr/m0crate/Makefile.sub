@@ -12,4 +12,5 @@ motr_m0crate_m0crate_SOURCES = \
 	motr/m0crate/parser.c \
 	motr/m0crate/parser.h \
 	motr/m0crate/sha256.c \
+	motr/m0crate/btree_without_tx_seg.c \
 	motr/m0crate/workload.h
