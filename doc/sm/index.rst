@@ -268,8 +268,6 @@ for non-blocking fom implementation. Phase transition code is kept in a *tick
 function*. Return value of this function determines whether fom goes to the
 ready or wait list.
 
-
-
 ===
 AST
 ===
@@ -320,12 +318,12 @@ lists that do not require locking. All together, fom wakeup looks like this:
 	    run_list_add(fom);
     }
 
-    int handler(struct locality *loc) {
+    void handler(struct locality *loc) {
             lock(&loc->l_lock);
 	    while (true) {
 	            while (!empty(&loc->run_list)) {
 		            fom = head(&loc->run_list);
-			    exec(fom);
+			    fom_exec(fom);
 			    if (blocked(fom))
 			            add_tail(&loc->wait_list, fom);
 		            else
@@ -347,5 +345,299 @@ lists that do not require locking. All together, fom wakeup looks like this:
             } while (!compare_and_swap(&grp->s_forkq, ast->sa_next, ast));
             m0_clink_signal(&grp->s_clink);
     }
+
+======================
+State machine practice
+======================
+
+State machine transition function is called *tick* function. Locality handler
+thread calls fom tick function, when the fom is ready.
+
+.. highlight:: C
+.. code-block:: C
+
+    void fom_exec(struct m0_fom *fom) {
+        ...
+        rc = fom->fo_ops->fo_tick(fom);
+        ...
+    }
+
+Fom tick function typically looks like
+
+.. highlight:: C
+.. code-block:: C
+
+    void bar_tick(struct m0_fom *fom) {
+        ...
+        switch (fom_phase(fom)) {
+        case BAR_PHASE_1:
+            do_domething(fom);
+	    m0_fom_phase_set(fom, BAR_PHASE_2);
+            return M0_FSO_AGAIN;
+        case BAR_PHASE_2:
+            do_domething_else(fom);
+	    m0_fom_phase_set(fom, BAR_PHASE_3);
+	    m0_fom_wait_on(fom, chan, &fom->fo_cb);
+            return M0_FSO_WAIT;
+        }
+        ...
+    }
+
+Interaction between the fom and locality like the following:
+
+.. image:: fom-tick.png
+
+Next, suppose that bar fom has to interact with some other module, baz, which
+performs blocking operations itself (for example, stob or rpc).
+
+.. highlight:: C
+.. code-block:: C
+
+    void bar_tick(struct m0_fom *fom) {
+        ...
+        switch (fom_phase(fom)) {
+        ...
+        case BAR_PHASE_3:
+            f(...);
+            baz_something(fom);
+            g(...);
+            ...
+        }
+        ...
+    }
+
+This won't work if ``baz_something()`` needs to block. All other modules must be
+non-blocking too.
+
+.. highlight:: C
+.. code-block:: C
+
+    void bar_tick(struct m0_fom *fom) {
+        ...
+        switch (fom_phase(fom)) {
+        ...
+        case BAR_PHASE_3:
+            f(...);
+	    m0_fom_phase_set(fom, BAR_PHASE_4);
+            return baz_something(fom);
+        case BAR_PHASE_4:
+            g(...);
+            ...
+        }
+        ...
+    }
+
+    void baz_something(struct m0_fom *fom, int nextstate) {
+            ...
+	    m0_fom_wait_on(fom, chan, &fom->fo_cb);
+	    return M0_FSO_WAIT;
+    }
+
+But suppose ``baz_something()`` has to block multiple times. For example, stob
+read has to load meta-data (first blocking operation) and then fetch the data
+(second blocking operation).
+
+.. highlight:: C
+.. code-block:: C
+
+    void bar_tick(struct m0_fom *fom) {
+        ...
+        switch (fom_phase(fom)) {
+        ...
+        case BAR_PHASE_3:
+            f(...);
+	    m0_fom_phase_set(fom, BAR_PHASE_4);
+            return baz_something(fom);
+        case BAR_PHASE_4:
+	    m0_fom_phase_set(fom, BAR_PHASE_5);
+            return baz_continue(fom);
+        case BAR_PHASE_5:
+            g(...);
+            ...
+        }
+        ...
+    }
+
+    void baz_something(struct m0_fom *fom) {
+            ...
+	    m0_fom_wait_on(fom, chan0, &fom->fo_cb);
+	    return M0_FSO_WAIT;
+    }
+
+    void baz_continue(struct m0_fom *fom) {
+            ...
+	    m0_fom_wait_on(fom, chan1, &fom->fo_cb);
+	    return M0_FSO_WAIT;
+    }
+
+Module boundaries are broken. Internal implementation details of baz leak to all
+its users. Moreover, the code structure is fragile: a change in baz (addition or
+removal of a blocking operation) requires changing all its users. And baz might
+use another module, quux, which can have its own blocking points. All possible
+blocking points in the entire stack must be explicitly propagated to the top
+level. This is very counter-intuitive, complex and difficult to maintain.
+
+Take b-tree module as an example. Its entry points (tree lookup, insert, delete,
+*etc*.) have multiple internal blocking points: loading a node, allocating a new
+node, taking a lock on a tree, *etc*. These blocking points are implemented by
+separate modules (like meta-data back-end page daemon) and can have multiple
+internal blocking points. Explicitly exporting the resulting sequence of
+blocking points to b-tree users would result in an interface of unmanageable
+complexity.
+
+There are a few ways to deal with these issues:
+
+    - implement each module as a separate fom. The "parent" fom would create
+      "children" foms for sub-operations and wait for their completion. This
+      introduces additional overhead of fom allocation, queuing, wakeup and
+      termination for each operation;
+
+    - implement for each module a "service" fom. For example, create a global
+      b-tree fom (or a b-tree fom for each locality). To execute a b-tree
+      operation, queue a request to the b-tree service fom;
+
+    - implement co-routines to hide all blocking complexity, see
+      `lib/coroutine.h
+      <https://github.com/Seagate/cortx-motr/blob/main/lib/coroutine.h>`_;
+
+    - provide support within state-machine module to eliminate or reduce
+      complexity of nested blocking operations.
+
+State machine operations
+------------------------
+
+State machine operation (sm operation, smop, ``m0_sm_op``) is a sub-type of motr
+state machine that has support for nested operations, see `sm/op.h
+<https://github.com/Seagate/cortx-motr/blob/smop/sm/op.h>`_. It provides (among
+other things) support for nested state machine invocations, hiding blocking
+complexity from the upper layers.
+
+Let us look at an example. Suppose there are 3 modules: A, B and C, where A
+invokes B and B invokes C. For example, A can be ad-stob, B can be b-tree and C
+can be BE page daemon.
+
+Each module has its tick function and a data structure, representing execution
+of the module operation.
+
+.. highlight:: C
+.. code-block:: C
+
+    int64_t A_tick(struct m0_sm_op *op);
+    int64_t B_tick(struct m0_sm_op *op);
+    int64_t C_tick(struct m0_sm_op *op);
+
+    struct A_op {
+        struct m0_sm_op a_op;
+        ...
+    };
+
+    struct B_op {
+        struct m0_sm_op b_op;
+        ...
+    };
+
+    struct C_op {
+        struct m0_sm_op c_op;
+        ...
+    };
+
+In our example, ``A_op`` has fields to track execution of ad-stob read-write,
+``B_op`` is ``struct m0_btree_op`` (`see
+<https://github.com/Seagate/cortx-motr/blob/btree/btree/internal.h>`_) and
+``C_op`` tracks execution of page daemon operation. Each ``X_op`` starts with
+``struct m0_sm_op`` field.
+
+If A operation executes B operation, ``B_op`` should be added (or allocated
+dynamically) to ``A_op``.
+
+.. highlight:: C
+.. code-block:: C
+
+    struct A_op {
+        struct m0_sm_op a_op;
+        struct B_op     a_bop;
+        ...
+    };
+
+A-tick function should initialise ``B_op``, link it to the parent ``A_op`` and
+invoke. All this will be typically done by a helper function, provided by B:
+
+.. highlight:: C
+.. code-block:: C
+
+    int64_t A_tick(struct m0_sm_op *op) {
+        struct A_op *aop = M0_AMB(aop, struct A_op, a_op);
+        switch (op->o_sm.sm_state) {
+        ...
+        case A_STATE_SOME:
+            return b_do_op(op, &aop->a_bop, params..., A_STATE_NEXT);
+        case A_STATE_NEXT:
+	    /* B-op completed. */
+        ...
+        }
+    }
+
+    int64_t b_do_op(struct m0_sm_op *parent, struct B_op *bop, ..., int nextstate) {
+        m0_sm_op_init_sub(&bop->b_op, &B_tick, parent, &B_sm_conf);
+	bop->b_params = ...;
+        return m0_sm_op_subo(parent, &bop->b_op, nextstate, true);
+    }
+
+To execute a C operation from a B operation, do the same:
+
+.. highlight:: C
+.. code-block:: C
+
+    struct B_op {
+        struct m0_sm_op b_op;
+        struct C_op     b_cop;
+        ...
+    };
+
+    int64_t B_tick(struct m0_sm_op *op) {
+        struct B_op *bop = M0_AMB(bop, struct B_op, b_op);
+        switch (op->o_sm.sm_state) {
+        ...
+        case B_STATE_SOME:
+            return c_do_op(op, &bop->a_cop, params..., B_STATE_NEXT);
+        case B_STATE_NEXT:
+	    /* C-op completed. */
+        ...
+        }
+    }
+
+    int64_t c_do_op(struct m0_sm_op *parent, struct C_op *cop, ..., int nextstate) {
+    	m0_sm_op_init_sub(&cop->c_op, &C_tick, parent, &C_sm_conf);
+        cop->c_params = ...;
+        return m0_sm_op_subo(parent, &cop->c_op, nextstate, true);
+    }
+
+If ``b_tick()`` or ``c_tick()`` need to block, they call ``m0_sm_op_prep()``
+function to specify on which channel the wake-up will be served.
+
+.. highlight:: C
+.. code-block:: C
+
+    int64_t C_tick(struct m0_sm_op *op) {
+        switch (op->o_sm.sm_state) {
+        ...
+        case C_STATE_SOME:
+            ...
+            if (need_block)
+	        return m0_sm_op_prep(op, C_STATE_NEXT, chan)
+	    else
+                return C_STATE_NEXT;
+        case C_STATE_NEXT:
+        ...
+        }
+    }
+
+This looks superficially similar to the previous approach, but complexity of
+multiple blocking points within B-op and interaction between B-op and C-op are
+hidden from A-tick.
+
+How does this work?
+
+.. image:: ABC.png
 
 ..  LocalWords:   waitpid mutices
