@@ -248,17 +248,15 @@ M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr)
 			if (iter->lri_header.lrh_serial_num == log_hdr.flh_serial_num) {
 				log_record_iter_tlink_init_at(iter, &rvr->brec_iters);
 				prev = iter;
-				M0_LOG(M0_ERROR, "record header=%"PRIu64"log header=%"PRIu64,
-				       prev->lri_header.lrh_serial_num, log_hdr.flh_serial_num);
 				M0_LOG(M0_DEBUG, "Backward movement : prev header "
 						 BFLRH_F, BFLRH_P(&(prev->lri_header)));
 			}
 			else {
-				M0_LOG(M0_ERROR, "log header and record header serial num do not match"
-						 "record header=%"PRIu64"log header=%"PRIu64,
-						 prev->lri_header.lrh_serial_num, log_hdr.flh_serial_num);
-				rc = -EINVAL;
-				break;
+				M0_LOG(M0_ERROR, "serial num do not match"
+						 "record header=%"PRIu64
+						 "log header=%"PRIu64,
+						 prev->lri_header.lrh_serial_num,
+						 log_hdr.flh_serial_num);
 			}
 		} else
 			be_recovery_log_record_iter_destroy(iter);

@@ -814,7 +814,7 @@ M0_INTERNAL int m0_be_engine_start(struct m0_be_engine *en)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = be_log_header_inc_generation(&(en->eng_log), &(en->eng_log.lg_header));
+	rc = be_log_header_generation_inc(&(en->eng_log), &(en->eng_log.lg_header));
 	if (rc != 0)
 		return M0_ERR(rc);
 

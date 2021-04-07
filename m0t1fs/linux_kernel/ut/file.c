@@ -695,7 +695,7 @@ static void pargrp_iomap_test(void)
 	};
 	m0_ivec_varr_cursor_init(&cur, &req.ir_ivv);
 	map.pi_ops = &piops;
-	rc = pargrp_iomap_populate(&map, &req.ir_ivv, &cur);
+	rc = pargrp_iomap_populate(&map, &cur);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(map.pi_databufs != NULL);
 	M0_UT_ASSERT(indexvec_varr_count(&map.pi_ivv) > 0);

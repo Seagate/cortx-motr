@@ -512,7 +512,7 @@ m0_be_log_recovery_discarded(struct m0_be_log *log);
 M0_INTERNAL bool m0_be_log_contains_stob(struct m0_be_log        *log,
                                          const struct m0_stob_id *stob_id);
 
-M0_INTERNAL int be_log_header_inc_generation(struct m0_be_log            *log,
+M0_INTERNAL int be_log_header_generation_inc(struct m0_be_log            *log,
 					     struct m0_be_fmt_log_header *log_hdr);
 /** @} end of be group */
 

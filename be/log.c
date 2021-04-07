@@ -940,7 +940,7 @@ static int be_log_header_write(struct m0_be_log            *log,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int be_log_header_inc_generation(struct m0_be_log            *log,
+M0_INTERNAL int be_log_header_generation_inc(struct m0_be_log            *log,
 					     struct m0_be_fmt_log_header *log_hdr)
 {
 	M0_ENTRY("be_log_header_inc_generation=%"PRId64, log_hdr->flh_serial_num);

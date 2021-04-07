@@ -200,6 +200,9 @@ struct m0_be_fmt_log_store_header {
 struct m0_be_fmt_group_cfg;
 
 struct m0_be_fmt_log_header {
+	/* flh_serial_num is a incarnation number in log header.
+	 * This number is incremented after every engine restart
+	 */
 	uint64_t    flh_serial_num;
 	m0_bindex_t flh_discarded;
 	m0_bindex_t flh_group_lsn;
@@ -262,6 +265,10 @@ struct m0_be_fmt_log_record_header {
 	m0_bindex_t                            lrh_prev_pos;
 	m0_bindex_t                            lrh_prev_size;
 	uint64_t                               lrh_io_nr_max;
+	/* lrh_serial_num is populated with flh_serial_num of log header.
+	 * These two fields are compared at the time of recovery
+	 * to check the validity of record.
+	 */
 	uint64_t			       lrh_serial_num;
 	struct m0_be_fmt_log_record_header_io_size lrh_io_size;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);

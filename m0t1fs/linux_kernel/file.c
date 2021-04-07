@@ -857,7 +857,6 @@ static const struct nw_xfer_ops xfer_ops = {
 };
 
 static int  pargrp_iomap_populate     (struct pargrp_iomap        *map,
-				       struct m0_indexvec_varr    *ivec,
 				       struct m0_ivec_varr_cursor *cursor);
 
 static bool pargrp_iomap_spans_seg    (struct pargrp_iomap *map,
@@ -2333,60 +2332,7 @@ err:
 			   "data_buf.", map->pi_ioreq);
 }
 
-static m0_bcount_t seg_collate(struct pargrp_iomap        *map,
-			       struct m0_ivec_varr_cursor *cursor)
-{
-	uint32_t                  seg;
-	uint32_t                  cnt;
-	m0_bindex_t               start;
-	m0_bindex_t               grpend;
-	m0_bcount_t               segcount;
-	struct m0_pdclust_layout *play;
-
-	M0_PRE(map    != NULL);
-	M0_PRE(cursor != NULL);
-
-	cnt    = 0;
-	play   = pdlayout_get(map->pi_ioreq);
-	grpend = map->pi_grpid * data_size(play) + data_size(play);
-	start  = m0_ivec_varr_cursor_index(cursor);
-
-	for (seg = cursor->vc_seg; start < grpend &&
-	     seg < V_SEG_NR(cursor->vc_ivv) - 1; ++seg) {
-
-		segcount = seg == cursor->vc_seg ?
-			 m0_ivec_varr_cursor_step(cursor) :
-			 V_COUNT(cursor->vc_ivv, seg);
-
-		if (start + segcount ==
-		    V_INDEX(&map->pi_ioreq->ir_ivv, seg + 1)) {
-
-			if (start + segcount >= grpend) {
-				start = grpend;
-				break;
-			}
-			start += segcount;
-		} else
-			break;
-		++cnt;
-	}
-
-	if (cnt == 0)
-		return 0;
-
-	/* If this was last segment in vector, add its count too. */
-	if (seg == V_SEG_NR(cursor->vc_ivv) - 1) {
-		if (start + V_COUNT(cursor->vc_ivv, seg) >= grpend)
-			start = grpend;
-		else
-			start += V_COUNT(cursor->vc_ivv, seg);
-	}
-
-	return start - m0_ivec_varr_cursor_index(cursor);
-}
-
 static int pargrp_iomap_populate(struct pargrp_iomap        *map,
-				 struct m0_indexvec_varr    *ivv,
 				 struct m0_ivec_varr_cursor *cursor)
 {
 	int                       rc;
@@ -2396,7 +2342,6 @@ static int pargrp_iomap_populate(struct pargrp_iomap        *map,
 	uint64_t                  grpsize;
 	m0_bcount_t               count = 0;
 	m0_bindex_t               endpos = 0;
-	m0_bcount_t               segcount = 0;
 	/* Number of pages _completely_ spanned by incoming io vector. */
 	uint64_t                  nr = 0;
 	/* Number of pages to be read + written for read-old approach. */
@@ -2405,15 +2350,14 @@ static int pargrp_iomap_populate(struct pargrp_iomap        *map,
 	uint64_t                  rr_page_nr;
 	m0_bindex_t               grpstart;
 	m0_bindex_t               grpend;
-	m0_bindex_t               currindex;
 	struct m0_pdclust_layout *play;
 	struct inode             *inode;
 	struct m0t1fs_sb         *csb;
 	struct io_request        *req = map->pi_ioreq;
 
-	M0_ENTRY("[%p] map %p, indexvec %p", req, map, ivv);
+	M0_ENTRY("[%p] map %p, indexvec %p", req, map, cursor->vc_ivv);
 	M0_PRE(map != NULL);
-	M0_PRE(ivv != NULL);
+	M0_PRE(cursor->vc_ivv != NULL);
 
 	play     = pdlayout_get(map->pi_ioreq);
 	grpsize  = data_size(play);
@@ -2422,21 +2366,15 @@ static int pargrp_iomap_populate(struct pargrp_iomap        *map,
 	inode = iomap_to_inode(map);
 	csb = M0T1FS_SB(inode->i_sb);
 
-	/* For a write in existing region, if size of this map is less
-	 * than parity group size, it is a read-modify-write.
+	/*
+	 * For a write, if this map does not span the whole parity group,
+         * it is a read-modify-write.
 	 */
-	if (map->pi_ioreq->ir_type == IRT_WRITE && grpstart < inode->i_size) {
-		for (seg = cursor->vc_seg; seg < V_SEG_NR(ivv) &&
-			V_INDEX(ivv, seg) < grpend; ++seg) {
-			currindex = seg == cursor->vc_seg ?
-				    m0_ivec_varr_cursor_index(cursor) :
-				    V_INDEX(ivv, seg);
-			size += min64u(v_seg_endpos(ivv, seg), grpend) -
-				currindex;
-		}
-		if (size < grpsize)
-			rmw = true;
-	}
+	if (map->pi_ioreq->ir_type == IRT_WRITE && grpstart < inode->i_size &&
+	    (m0_ivec_varr_cursor_index(cursor) > grpstart ||
+	     m0_ivec_varr_cursor_conti(cursor, grpend) < grpend))
+		rmw = true;
+
 	M0_LOG(M0_INFO, "[%p] Group id %llu is %s", req,
 	       map->pi_grpid, rmw ? "rmw" : "aligned");
 
@@ -2455,15 +2393,9 @@ static int pargrp_iomap_populate(struct pargrp_iomap        *map,
 		}
 
 		V_INDEX(&map->pi_ivv, seg) = m0_ivec_varr_cursor_index(cursor);
-		endpos = min64u(grpend, m0_ivec_varr_cursor_index(cursor) +
-				m0_ivec_varr_cursor_step(cursor));
-
-		segcount = seg_collate(map, cursor);
-		if (segcount > 0)
-			endpos = V_INDEX(&map->pi_ivv, seg) + segcount;
-
+		endpos = m0_ivec_varr_cursor_conti(cursor, grpend);
 		V_COUNT(&map->pi_ivv, seg) = endpos -
-					V_INDEX(&map->pi_ivv, seg);
+		                             V_INDEX(&map->pi_ivv, seg);
 
 		/* For read IO request, IO should not go beyond EOF. */
 		if (map->pi_ioreq->ir_type == IRT_READ &&
@@ -3267,7 +3199,7 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 
 		/* @cursor is advanced in the following function */
 		rc = req->ir_iomaps[map]->pi_ops->pi_populate(req->
-				ir_iomaps[map], &req->ir_ivv, &cursor);
+				ir_iomaps[map], &cursor);
 		if (rc != 0)
 			goto failed;
 		M0_LOG(M0_INFO, "[%p] pargrp_iomap id : %llu populated",
