@@ -1104,6 +1104,15 @@ Meetings
        nikita: state machine design for btree
      - no recording 
 
+   * - 2021.04.07
+     - sync up
+     - nikhil, nikita, shashank, radha, hua, jaydeep, shankar, yash
+     - ideas to implement btree functions using state machine
+     - 
+     - nikhil: benchmark of new and existing btree; radha/yash: implement lookup, insert, delete;
+       shashank: ut writing.
+     - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210407%201007-1.mp4?csf=1&web=1&e=gtLkrU>`_
+
 Detailed-level design (DLD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
