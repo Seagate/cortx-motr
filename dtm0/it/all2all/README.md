@@ -2,7 +2,7 @@
 
 ## Prerequisit
 lnet service should be running check with following command
-```
+```sh
 sudo systemctl status lnet.service
 ```
 
@@ -32,8 +32,8 @@ What the test does:
  - waits for m0crate completion
 
 ## Command to run this test
-```
-sudo sh ./all2all
+```sh
+sudo ./all2all
 ```
 
 ## Hare usage
