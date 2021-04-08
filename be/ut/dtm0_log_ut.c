@@ -278,7 +278,7 @@ void test_volatile_dtm0_log(void)
 	}
 
 	m0_mutex_unlock(&log->dl_lock);
-	m0_be_dtm0_log_fini(&log, true);
+	m0_be_dtm0_log_fini(&log);
 	m0_dtm0_clk_src_fini(&cs);
 }
 
