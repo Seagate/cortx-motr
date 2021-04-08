@@ -42,7 +42,7 @@ enum {
 		(ret) = M0_ERR_INFO(-ENOMEM,					\
 				    "failed to allocate memory for " msg);	\
 	else 									\
-		(ret) = M0_RC_INFO(0, "allocate memory for " msg);		\
+		(ret) = M0_RC_INFO(0, "allocated memory for " msg);		\
 })
 
 /* Forward declarations */
@@ -190,6 +190,16 @@ static void fail_idx_isal_recover(struct m0_parity_math *math,
 				  const uint32_t failure_index);
 #endif /* ISAL_ENCODE_ENABLED */
 
+#if ISAL_ENCODE_ENABLED
+/**
+ * Generate decode matrix for incremental recovery using Intel ISA.
+ * @param ir[in]  - Pointer to incremental recovery structure.
+ * @retval     0  - success otherwise failure
+ */
+static int ir_gen_decode_matrix(struct m0_sns_ir *ir);
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if RS_ENCODE_ENABLED
 /**
  * Inverts the encoding matrix and generates a recovery matrix for lost data.
  * When all failed blocks are parity blocks this function plays no role.
@@ -206,6 +216,8 @@ static void submatrix_construct(struct m0_matrix *in_mat,
 				struct m0_sns_ir_block *blocks,
 				enum m0_sns_ir_block_status status,
 				struct m0_matrix *out_mat);
+#endif /* RS_ENCODE_ENABLED */
+
 /**
  * Recovery of each failed block depends upon subset of alive blocks.
  * This routine prepares a bitmap indicating this dependency. If a bit at
@@ -215,9 +227,34 @@ static void submatrix_construct(struct m0_matrix *in_mat,
 static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
 				      struct m0_sns_ir *ir);
 
+#if ISAL_ENCODE_ENABLED
+/**
+ * Converts m0_bufvec to m0_buf and vice versa.
+ * @param bvec  - Pointer to buffer vector.
+ * @param buf   - Pointer to buffer.
+ * @param count - Number of buffers to copy
+ * @param dir   - Decides direction of conversion.
+ *                True  - Copy data from buffer vector to buffer
+ *                False - Copy data from buffer to buffer vector
+ */
+static void bufvec_buf(struct m0_bufvec *bvec, struct m0_buf *buf,
+		       uint32_t count, bool dir);
+
+/**
+ * Core routine to recover failed_block based on available_block using
+ * Intel ISA library.
+ * @param ir[in]  - Pointer to incremental recovery structure.
+ * @param alive_block[in]  - Pointer to the alive block.
+ * @retval     0  - success otherwise failure
+ */
+static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block);
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if RS_ENCODE_ENABLED
 static inline uint32_t recov_mat_col(const struct m0_sns_ir_block *alive_block,
 				     const struct m0_sns_ir_block *failed_block,
 				     const struct m0_sns_ir *ir);
+
 /**
  * Updates the dependency-bitmap for a failed block once contribution
  * by available block is computed.
@@ -231,6 +268,7 @@ static void dependency_bitmap_update(struct m0_sns_ir_block *f_block,
 static void incr_recover(struct m0_sns_ir_block *failed_block,
 			 const struct m0_sns_ir_block *available_block,
 			 struct m0_sns_ir *ir);
+#endif /* RS_ENCODE_ENABLED */
 
 /**
  * Constant times x plus y, over galois field. Naming convention for this
@@ -239,6 +277,7 @@ static void incr_recover(struct m0_sns_ir_block *failed_block,
 static void gfaxpy(struct m0_bufvec *y, struct m0_bufvec *x,
 		   m0_parity_elem_t alpha);
 
+#if RS_ENCODE_ENABLED
 /**
  * Adds correction for a remote block that is received before all blocks
  * local to a node are transformed. This correction is needed only when
@@ -253,11 +292,13 @@ static void forward_rectification(struct m0_sns_ir *ir,
  * for computing failed parity.
  */
 static void failed_data_blocks_xform(struct m0_sns_ir *ir);
+#endif /* RS_ENCODE_ENABLED */
 static inline bool is_valid_block_idx(const  struct m0_sns_ir *ir,
 				      uint32_t block_idx);
 
+#if RS_ENCODE_ENABLED
 static bool is_data(const struct m0_sns_ir *ir, uint32_t index);
-
+#endif /* RS_ENCODE_ENABLED */
 
 static bool is_usable(const struct m0_sns_ir *ir,
 		      const struct m0_bitmap *in_bmap,
@@ -265,11 +306,14 @@ static bool is_usable(const struct m0_sns_ir *ir,
 
 static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 				     uint32_t block_idx);
+
+#if RS_ENCODE_ENABLED
 static inline  bool are_failures_mixed(const struct m0_sns_ir *ir);
 
 static inline const struct m0_matrix* recovery_mat_get(const struct m0_sns_ir
 						       *ir,
 						       uint32_t failed_idx);
+#endif /* RS_ENCODE_ENABLED */
 
 static inline uint32_t block_count(const struct m0_sns_ir *ir);
 
@@ -489,7 +533,7 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 
 	if (parity_count == 1) {
 		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_XOR;
-		return 0;
+		return M0_RC(ret);
 #if ISAL_ENCODE_ENABLED
 	} else {
 		uint32_t total_count = data_count + parity_count;
@@ -566,14 +610,12 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 			goto handle_error;
 	}
 #endif /* ISAL_ENCODE_ENABLED */
-	M0_LEAVE();
 
-	return ret;
+	return M0_RC(ret);
  handle_error:
 	m0_parity_math_fini(math);
 
-	M0_LEAVE();
-	return ret;
+	return M0_RC(ret);
 }
 
 static void xor_calculate(struct m0_parity_math *math,
@@ -1041,19 +1083,25 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 	uint8_t	  idx;
 	int	  ret = 0;
 
-	M0_ENTRY();
+	M0_ENTRY("data_count=%u, parity_count=%u, failed_idx_buf=%p, "
+		 "alive_idx_buf=%p, encode_mat=%p, g_tbls=%p",
+		 data_count, parity_count, failed_idx_buf, alive_idx_buf,
+		 encode_mat, g_tbls);
 
 	unit_count = data_count + parity_count;
 
-	ALLOC_ARR_INFO(decode_mat, (unit_count * data_count), "decode matrix", ret);
+	ALLOC_ARR_INFO(decode_mat, (unit_count * data_count),
+		       "decode matrix", ret);
 	if (decode_mat == NULL)
 		goto fini;
 
-	ALLOC_ARR_INFO(temp_mat, (unit_count * data_count), "temp matrix", ret);
+	ALLOC_ARR_INFO(temp_mat, (unit_count * data_count),
+		       "temp matrix", ret);
 	if (temp_mat == NULL)
 		goto fini;
 
-	ALLOC_ARR_INFO(invert_mat, (unit_count * data_count), "invert matrix", ret);
+	ALLOC_ARR_INFO(invert_mat, (unit_count * data_count),
+		       "invert matrix", ret);
 	if (invert_mat == NULL)
 		goto fini;
 
@@ -1070,8 +1118,9 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 	/* Invert matrix to get recovery matrix */
 	ret = gf_invert_matrix(temp_mat, invert_mat, data_count);
 	if (ret != 0) {
-		ret = M0_ERR_INFO(ret, "failed to construct an %u x %u inverse "
-				  "of the input matrix", data_count, data_count);
+		ret = M0_ERR_INFO(ret, "failed to construct an %u x %u "
+				  "inverse of the input matrix",
+				  data_count, data_count);
 		goto fini;
 	}
 
@@ -1105,9 +1154,7 @@ fini:
 	m0_free(invert_mat);
 	m0_free(decode_mat);
 
-	M0_LEAVE();
-
-	return ret;
+	return M0_RC(ret);
 }
 #endif /* ISAL_ENCODE_ENABLED */
 
@@ -1126,8 +1173,7 @@ static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
 
 	if ((fail == NULL) || (frags_in == NULL) || (frags_out == NULL) ||
 	    (data == NULL) || (parity == NULL))
-		return false;
-
+		return M0_RC(false);
 
 	for (i = 0, j = 0, k = 0; i < unit_count; i++) {
 		if (i < data_count)
@@ -1143,8 +1189,7 @@ static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
 			continue;
 	}
 
-	M0_LEAVE();
-	return true;
+	return M0_RC(true);
 }
 #endif /* ISAL_ENCODE_ENABLED */
 
@@ -1160,7 +1205,7 @@ static bool fails_sort(uint8_t *fail, uint32_t unit_count,
 
 	if ((fail == NULL) || (failed_idx == NULL) || (alive_idx == NULL) ||
 	    (failed_idx->b_addr == NULL) || (alive_idx->b_addr == NULL))
-		return false;
+		return M0_RC(false);
 
 	failed_ids = (uint8_t *)failed_idx->b_addr;
 	alive_ids = (uint8_t *)alive_idx->b_addr;
@@ -1174,8 +1219,7 @@ static bool fails_sort(uint8_t *fail, uint32_t unit_count,
 			alive_ids[alive_idx->b_nob++] = i;
 	}
 
-	M0_LEAVE();
-	return true;
+	return M0_RC(true);
 }
 #endif /* ISAL_ENCODE_ENABLED */
 
@@ -1447,23 +1491,24 @@ static int isal_ir_init(struct m0_sns_ir *ir)
 {
 	int ret;
 
+	M0_ENTRY("ir=%p", ir);
 	M0_PRE(ir != NULL);
 
 	/* Allocate memory to hold indices of alive blocks */
 	ALLOC_ARR_INFO(ir->si_alive_idx, ir->si_alive_nr,
 		       "alive index buffer", ret);
 	if (ir->si_alive_idx == NULL)
-		return ret;
+		return M0_RC(ret);
 
 	/* Allocate memory to hold indices of failed blocks */
 	ALLOC_ARR_INFO(ir->si_failed_idx, ir->si_parity_nr,
 		       "failed index buffer", ret);
 	if (ir->si_failed_idx == NULL)
-		return ret;
+		return M0_RC(ret);
 
 	ir->si_failed_nr = 0;
 
-	return ret;
+	return M0_RC(ret);
 }
 
 static void isal_ir_fini(struct m0_sns_ir *ir)
@@ -1479,7 +1524,7 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 	uint32_t i = 0;
 	int	 ret = 0;
 
-	M0_ENTRY("local_nr=%u", local_nr);
+	M0_ENTRY("math=%p, local_nr=%u, ir=%p", math, local_nr, ir);
 
 	M0_PRE(math != NULL);
 	M0_PRE(ir != NULL);
@@ -1492,9 +1537,11 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 	ir->si_data_nr		   = math->pmi_data_count;
 	ir->si_parity_nr	   = math->pmi_parity_count;
 	ir->si_local_nr		   = local_nr;
+#if RS_ENCODE_ENABLED
 	ir->si_vandmat		   = math->pmi_vandmat;
 	ir->si_parity_recovery_mat = math->pmi_vandmat_parity_slice;
 	ir->si_failed_data_nr	   = 0;
+#endif /* RS_ENCODE_ENABLED */
 	ir->si_alive_nr		   = block_count(ir);
 
 #if ISAL_ENCODE_ENABLED
@@ -1519,7 +1566,9 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 	for (i = 0; i < block_count(ir); ++i) {
 		ir->si_blocks[i].sib_idx = i;
 		ir->si_blocks[i].sib_status = M0_SI_BLOCK_ALIVE;
+#if RS_ENCODE_ENABLED
 		ir->si_blocks[i].sib_data_recov_mat_col = IR_INVALID_COL;
+#endif /* RS_ENCODE_ENABLED */
 		ret = m0_bitmap_init(&ir->si_blocks[i].sib_bitmap,
 				     block_count(ir));
 		if (ret != 0){
@@ -1534,8 +1583,7 @@ fini:
 	m0_sns_ir_fini(ir);
 
 end:
-	M0_LEAVE();
-	return ret;
+	return M0_RC(ret);
 }
 
 M0_INTERNAL int m0_sns_ir_failure_register(struct m0_bufvec *recov_addr,
@@ -1543,6 +1591,9 @@ M0_INTERNAL int m0_sns_ir_failure_register(struct m0_bufvec *recov_addr,
 					   struct m0_sns_ir *ir)
 {
 	struct m0_sns_ir_block *block;
+
+	M0_ENTRY("recov_addr=%p, failed_index=%u, ir=%p",
+		 recov_addr, failed_index, ir);
 
 	M0_PRE(ir != NULL);
 	M0_PRE(ir->si_blocks != NULL);
@@ -1563,7 +1614,8 @@ M0_INTERNAL int m0_sns_ir_failure_register(struct m0_bufvec *recov_addr,
 	if (is_data(ir, failed_index))
 		M0_CNT_INC(ir->si_failed_data_nr);
 #endif /* ISAL_ENCODE_ENABLED */
-	return (ir->si_alive_nr < ir->si_data_nr) ? M0_ERR(-EDQUOT) : 0;
+
+	return (ir->si_alive_nr < ir->si_data_nr) ? M0_ERR(-EDQUOT) : M0_RC(0);
 }
 
 M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir)
@@ -1571,13 +1623,18 @@ M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir)
 	int			ret = 0;
 	uint32_t		i;
 	uint32_t		j;
+	uint32_t		unit_count;
 	struct m0_sns_ir_block *blocks;
 
+	M0_ENTRY("ir=%p", ir);
 	M0_PRE(ir != NULL);
 
 	blocks = ir->si_blocks;
+	unit_count = block_count(ir);
+
+#if RS_ENCODE_ENABLED
 	if (ir->si_failed_data_nr != 0) {
-		for (j = 0, i = 0; j < block_count(ir) && i < ir->si_data_nr;
+		for (j = 0, i = 0; j < unit_count && i < ir->si_data_nr;
 		     ++j) {
 			if (blocks[j].sib_status == M0_SI_BLOCK_ALIVE) {
 				blocks[j].sib_data_recov_mat_col = i;
@@ -1589,7 +1646,7 @@ M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir)
 			return ret;
 	}
 
-	for (j = 0, i = 0; j < block_count(ir); ++j) {
+	for (j = 0, i = 0; j < unit_count; ++j) {
 		if (blocks[j].sib_status == M0_SI_BLOCK_FAILED) {
 			blocks[j].sib_recov_mat_row = is_data(ir, j) ? i :
 				j - ir->si_data_nr;
@@ -1597,9 +1654,52 @@ M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir)
 			++i;
 		}
 	}
-	return ret;
+#else
+	for (i = 0, j = 0; i < unit_count; i++)
+		if (blocks[i].sib_status == M0_SI_BLOCK_ALIVE)
+			ir->si_alive_idx[j++] = blocks[i].sib_idx;
+
+	ret = ir_gen_decode_matrix(ir);
+	if (ret != 0)
+		return M0_RC(ret);
+
+	for (i = 0; i < ir->si_failed_nr; i++) {
+		dependency_bitmap_prepare(&blocks[ir->si_failed_idx[i]], ir);
+	}
+#endif /* RS_ENCODE_ENABLED */
+	return M0_RC(ret);
 }
 
+#if ISAL_ENCODE_ENABLED
+static int ir_gen_decode_matrix(struct m0_sns_ir *ir)
+{
+	struct m0_buf failed_idx_buf = M0_BUF_INIT0;
+	struct m0_buf alive_idx_buf = M0_BUF_INIT0;
+	int 	      ret;
+
+	M0_ENTRY("ir=%p", ir);
+	M0_PRE(ir != NULL);
+
+	m0_buf_init(&failed_idx_buf, ir->si_failed_idx, ir->si_failed_nr);
+	m0_buf_init(&alive_idx_buf, ir->si_alive_idx, ir->si_alive_nr);
+
+	/* Get encoding coefficient tables */
+	ret = isal_gen_recov_coeff_tbl(ir->si_data_nr,
+				       ir->si_parity_nr,
+				       &failed_idx_buf,
+				       &alive_idx_buf,
+				       ir->si_encode_matrix,
+				       ir->si_decode_tbls);
+	if (ret != 0) {
+		ret = M0_ERR_INFO(ret, "failed to generate recovery "
+				  "coefficient tables");
+	}
+
+	return M0_RC(ret);
+}
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if RS_ENCODE_ENABLED
 static int data_recov_mat_construct(struct m0_sns_ir *ir)
 {
 	int		 ret = 0;
@@ -1659,12 +1759,14 @@ static void submatrix_construct(struct m0_matrix *in_mat,
 		}
 	}
 }
+#endif /* RS_ENCODE_ENABLED */
 
 static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
 				      struct m0_sns_ir *ir)
 {
 	uint32_t i;
 
+#if RS_ENCODE_ENABLED
 	M0_PRE(f_block != NULL && ir != NULL);
 	M0_PRE(f_block->sib_status == M0_SI_BLOCK_FAILED);
 
@@ -1683,8 +1785,13 @@ static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
 				      ir->si_blocks[i].sib_idx, true);
 		}
 	}
+#else /* ISAL_ENCODE_ENABLED */
+	for (i = 0; i < ir->si_data_nr; ++i)
+		m0_bitmap_set(&f_block->sib_bitmap, ir->si_alive_idx[i], true);
+#endif /* ISAL_ENCODE_ENABLED */
 }
 
+#if RS_ENCODE_ENABLED
 static inline uint32_t recov_mat_col(const struct m0_sns_ir_block *alive_block,
 				     const struct m0_sns_ir_block *failed_block,
 				     const struct m0_sns_ir *ir)
@@ -1694,11 +1801,13 @@ static inline uint32_t recov_mat_col(const struct m0_sns_ir_block *alive_block,
 	return is_data(ir, failed_block->sib_idx) ?
 		alive_block->sib_data_recov_mat_col : alive_block->sib_idx;
 }
+#endif /* RS_ENCODE_ENABLED */
 
 M0_INTERNAL void m0_sns_ir_fini(struct m0_sns_ir *ir)
 {
 	uint32_t j;
 
+	M0_ENTRY("ir=%p", ir);
 	M0_PRE(ir != NULL);
 
 	for (j = 0; j < block_count(ir); ++j) {
@@ -1706,12 +1815,132 @@ M0_INTERNAL void m0_sns_ir_fini(struct m0_sns_ir *ir)
 			m0_bitmap_fini(&ir->si_blocks[j].sib_bitmap);
 	}
 
+#if RS_ENCODE_ENABLED
 	m0_matrix_fini(&ir->si_data_recovery_mat);
-#if ISAL_ENCODE_ENABLED
+#else /* ISAL_ENCODE_ENABLED */
 	isal_ir_fini(ir);
-#endif /* RS_ENCODE_ENABLED */
+#endif /* ISAL_ENCODE_ENABLED */
 	m0_free(ir->si_blocks);
+	M0_LEAVE();
 }
+
+#if ISAL_ENCODE_ENABLED
+static void bufvec_buf(struct m0_bufvec *bvec, struct m0_buf *buf,
+		       uint32_t count, bool dir)
+{
+	struct m0_bufvec_cursor cursor;
+	m0_bcount_t		step;
+	uint32_t		i;
+	uint32_t		j;
+	uint8_t		       *buf_data;
+	uint32_t		seg_size;
+
+	M0_ENTRY("bvec=%p, buf=%p, count=%u, dir=%s",
+		 bvec, buf, count, (dir?"TRUE":"FALSE"));
+
+	for (j = 0, i = 0; j < count; ++j, i = 0) {
+		m0_bufvec_cursor_init(&cursor, &bvec[j]);
+		buf_data = (uint8_t *)buf[j].b_addr;
+		do {
+			seg_size = bvec[j].ov_vec.v_count[i];
+			if (dir)
+				memcpy(&buf_data[i * seg_size],
+				       m0_bufvec_cursor_addr(&cursor),
+				       seg_size);
+			else
+				memcpy(m0_bufvec_cursor_addr(&cursor),
+				       &buf_data[i * seg_size],
+				       seg_size);
+			++i;
+			step = m0_bufvec_cursor_step(&cursor);
+		} while (!m0_bufvec_cursor_move(&cursor, step));
+	}
+
+	M0_LEAVE();
+}
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
+{
+	struct m0_sns_ir_block	*failed_block;
+	struct m0_bufvec       	*alive_bufvec;
+	struct m0_bufvec       	*failed_bufvec;
+	struct m0_buf 		 buf;
+	uint8_t			 curr_idx = UINT8_MAX;
+	uint32_t 		 i;
+	uint8_t		       **failed_bufs;
+	uint32_t		 length;
+	int			 ret = 0;
+
+	M0_ENTRY("ir=%p, alive_block=%p", ir, alive_block);
+
+	/* Check if given alive block is dependecy of any failed block */
+	for (i = 0; i < ir->si_failed_nr; i++) {
+		failed_block = &ir->si_blocks[ir->si_failed_idx[i]];
+		if (m0_bitmap_get(&failed_block->sib_bitmap, alive_block->sib_idx) == 0)
+			return M0_RC(ret);
+	}
+
+	alive_bufvec = alive_block->sib_addr;
+	length = alive_bufvec->ov_vec.v_count[0] * alive_bufvec->ov_vec.v_nr;
+
+	ALLOC_ARR_INFO(failed_bufs, ir->si_failed_nr,
+		       "failed buffer array", ret);
+	if (failed_bufs == NULL)
+		goto exit;
+
+	for (i = 0; i < ir->si_failed_nr; i++) {
+		ALLOC_ARR_INFO(failed_bufs[i], length,
+			       "failed buffer", ret);
+		if (failed_bufs[i] == NULL)
+			goto exit;
+
+		m0_buf_init(&buf, failed_bufs[i], length);
+
+		failed_bufvec = ir->si_blocks[ir->si_failed_idx[i]].sib_addr;
+		/* Get data from failed vector in buffer */
+		bufvec_buf(failed_bufvec, &buf, 1, true);
+	}
+
+	for (i = 0; i < ir->si_alive_nr; i++) {
+		if(ir->si_alive_idx[i] == alive_block->sib_idx) {
+			curr_idx = i;
+			break;
+		}
+	}
+
+	buf = M0_BUF_INIT0;
+	ret = m0_buf_alloc(&buf, length);
+	if (ret != 0){
+		ret = M0_ERR_INFO(ret, "Failed to allocate buffer of "
+				  "length = %u", length);
+		goto exit;
+	}
+
+	/* Get data from current vector in buffer */
+	bufvec_buf(alive_bufvec, &buf, 1, true);
+
+	ec_encode_data_update(buf.b_nob, ir->si_data_nr, ir->si_failed_nr, curr_idx,
+			      ir->si_decode_tbls, (uint8_t *)buf.b_addr, failed_bufs);
+	m0_buf_free(&buf);
+
+	/* Copy recovered data back to buffer vector. */
+	for (i = 0; i < ir->si_failed_nr; i++) {
+		m0_buf_init(&buf, failed_bufs[i], length);
+
+		failed_block = &ir->si_blocks[ir->si_failed_idx[i]];
+		bufvec_buf(failed_block->sib_addr, &buf, 1, false);
+	}
+
+exit:
+	for (i = 0; i < ir->si_failed_nr; i++)
+		m0_free(failed_bufs[i]);
+	m0_free(failed_bufs);
+
+	return M0_RC(ret);
+}
+#endif /* ISAL_ENCODE_ENABLED */
 
 M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 				   struct m0_bufvec *bufvec,
@@ -1719,12 +1948,16 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 				   uint32_t failed_index,
 				   enum m0_sns_ir_block_type block_type)
 {
+#if RS_ENCODE_ENABLED
 	uint32_t		j;
+#endif /* RS_ENCODE_ENABLED */
 	size_t			block_idx = 0;
 	size_t		        b_set_nr;
 	struct m0_sns_ir_block *blocks;
 	struct m0_sns_ir_block *alive_block;
 
+	M0_ENTRY("ir=%p, bufvec=%p, bitmap=%p, failed_index=%u, block_type=%u",
+		 ir, bufvec, bitmap, failed_index, block_type);
 	M0_PRE(ir != NULL && bufvec != NULL && bitmap != NULL);
 
 	b_set_nr = m0_bitmap_set_nr(bitmap);
@@ -1743,7 +1976,9 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 		}
 	}
 	M0_ASSERT(is_valid_block_idx(ir, block_idx));
+
 	blocks = ir->si_blocks;
+
 	switch (block_type) {
 	/* Input block is assumed to be an untransformed block, and is used for
 	 * recovering all failed blocks */
@@ -1752,6 +1987,9 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 		M0_CNT_DEC(ir->si_local_nr);
 		alive_block = &blocks[block_idx];
 		alive_block->sib_addr = bufvec;
+#if ISAL_ENCODE_ENABLED
+		M0_ASSERT(ir_recover(ir, alive_block) == 0);
+#else
 		for (j = 0; j < block_count(ir); ++j)
 			if (ir->si_blocks[j].sib_status == M0_SI_BLOCK_FAILED) {
 				incr_recover(&blocks[j], alive_block, ir);
@@ -1761,6 +1999,7 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 		if (ir->si_local_nr == 0 && are_failures_mixed(ir)) {
 			failed_data_blocks_xform(ir);
 		}
+#endif /* ISAL_ENCODE_ENABLED */
 		break;
 
 	/* Input block is assumed to be a transformed block, and is
@@ -1771,16 +2010,20 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 			break;
 		gfaxpy(blocks[failed_index].sib_addr, bufvec,
 		       1);
+#if RS_ENCODE_ENABLED
 		dependency_bitmap_update(&blocks[failed_index],
 					 bitmap);
 		if (is_data(ir, failed_index) && are_failures_mixed(ir) &&
 		    ir->si_local_nr != 0)
 			forward_rectification(ir, bufvec, failed_index);
-
+#endif /* RS_ENCODE_ENABLED */
 		break;
 	}
+
+	M0_LEAVE();
 }
 
+#if RS_ENCODE_ENABLED
 static void incr_recover(struct m0_sns_ir_block *failed_block,
 			 const struct m0_sns_ir_block *alive_block,
 			 struct m0_sns_ir *ir)
@@ -1805,6 +2048,7 @@ static void incr_recover(struct m0_sns_ir_block *failed_block,
 		       mat_elem);
 	}
 }
+#endif /* RS_ENCODE_ENABLED */
 
 static void gfaxpy(struct m0_bufvec *y, struct m0_bufvec *x,
 		   m0_parity_elem_t alpha)
@@ -1816,6 +2060,8 @@ static void gfaxpy(struct m0_bufvec *y, struct m0_bufvec *x,
 	m0_bcount_t		step;
 	struct m0_bufvec_cursor x_cursor;
 	struct m0_bufvec_cursor y_cursor;
+
+	M0_ENTRY("y=%p, x=%p, alpha=%u", y, x, (uint32_t)alpha);
 
 	M0_PRE(y != NULL && x != NULL);
 	M0_PRE(y->ov_vec.v_nr != 0);
@@ -1850,8 +2096,11 @@ static void gfaxpy(struct m0_bufvec *y, struct m0_bufvec *x,
 		step = m0_bufvec_cursor_step(&y_cursor);
 	} while (!m0_bufvec_cursor_move(&x_cursor, step) &&
 		 !m0_bufvec_cursor_move(&y_cursor, step));
+
+	M0_LEAVE();
 }
 
+#if RS_ENCODE_ENABLED
 static void dependency_bitmap_update(struct m0_sns_ir_block *block,
 				     const struct m0_bitmap *bitmap)
 {
@@ -1915,6 +2164,7 @@ static void failed_data_blocks_xform(struct m0_sns_ir *ir)
 			}
 	}
 }
+#endif /* RS_ENCODE_ENABLED */
 
 static inline bool is_valid_block_idx(const struct m0_sns_ir *ir,
 				      uint32_t block_idx)
@@ -1922,11 +2172,13 @@ static inline bool is_valid_block_idx(const struct m0_sns_ir *ir,
 	return block_idx < block_count(ir);
 }
 
+#if RS_ENCODE_ENABLED
 static bool is_data(const struct m0_sns_ir *ir, uint32_t index)
 {
 	M0_PRE(is_valid_block_idx(ir, index));
 	return index < ir->si_data_nr;
 }
+#endif /* RS_ENCODE_ENABLED */
 
 static bool is_usable(const struct m0_sns_ir *ir,
 		      const struct m0_bitmap *in_bmap,
@@ -1952,6 +2204,7 @@ static bool is_usable(const struct m0_sns_ir *ir,
 static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 				     uint32_t block_idx)
 {
+#if RS_ENCODE_ENABLED
 	uint32_t i;
 	uint32_t last_usable_bid = block_count(ir);
 
@@ -1967,8 +2220,12 @@ static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 	} else
 		return ir->si_data_nr - 1;
 	return last_usable_bid;
+#else
+	return ir->si_alive_idx[ir->si_data_nr - 1];
+#endif /* RS_ENCODE_ENABLED */
 }
 
+#if RS_ENCODE_ENABLED
 static inline const struct m0_matrix* recovery_mat_get(const struct m0_sns_ir
 						       *ir, uint32_t failed_idx)
 {
@@ -1981,6 +2238,7 @@ static inline  bool are_failures_mixed(const struct m0_sns_ir *ir)
 	return !!ir->si_failed_data_nr &&
 		block_count(ir) != ir->si_failed_data_nr + ir->si_alive_nr;
 }
+#endif /* RS_ENCODE_ENABLED */
 
 static inline uint32_t block_count(const struct m0_sns_ir *ir)
 {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -717,11 +717,15 @@ static void direct_recover(struct m0_parity_math *math,  struct m0_bufvec *x,
 	ret = m0_sns_ir_mat_compute(&ir);
 	M0_UT_ASSERT(ret == 0);
 
+#if RS_ENCODE_ENABLED
 	M0_UT_ASSERT(ergo(ir.si_failed_data_nr != 0,
 			  ir.si_data_recovery_mat.m_width ==
 			  ir.si_data_nr));
 
 	ret = m0_matvec_init(&r, ir.si_failed_data_nr);
+#else
+	ret = m0_matvec_init(&r, ir.si_failed_nr);
+#endif /* RS_ENCODE_ENABLED */
 	M0_UT_ASSERT(ret == 0);
 
 	reconstruct(&ir, &b, &r);
@@ -800,6 +804,28 @@ static void rhs_prepare(const struct m0_sns_ir *ir, struct m0_matvec *des,
 static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
 			struct m0_matvec *r)
 {
+#if ISAL_ENCODE_ENABLED
+	uint8_t **src;
+	uint8_t **dest;
+	uint32_t i;
+
+	M0_ALLOC_ARR(src, b->mv_size);
+	M0_UT_ASSERT(src != NULL);
+
+	M0_ALLOC_ARR(dest, r->mv_size);
+	M0_UT_ASSERT(dest != NULL);
+
+	for (i = 0; i < b->mv_size; i++)
+		src[i] = (uint8_t *)&b->mv_vector[i];
+
+	for (i = 0; i < r->mv_size; i++)
+		dest[i] = (uint8_t *)&r->mv_vector[i];
+
+	ec_encode_data(1, b->mv_size, r->mv_size, ir->si_decode_tbls, src, dest);
+
+	m0_free(src);
+	m0_free(dest);
+#else
 	const struct m0_matrix *rm = &ir->si_data_recovery_mat;
 
 	if (ir->si_failed_data_nr != 0) {
@@ -807,6 +833,7 @@ static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
 		M0_UT_ASSERT(rm->m_height == ir->si_failed_data_nr);
 		m0_matrix_vec_multiply(rm, b, r, m0_parity_mul, m0_parity_add);
 	}
+#endif /* ISAL_ENCODE_ENABLED */
 }
 
 static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
@@ -815,6 +842,7 @@ static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
 	uint32_t i;
 	uint32_t j;
 
+#if RS_ENCODE_ENABLED
 	for (i = 0, j = 0; j < ir->si_failed_data_nr && i <
 	     ir->si_data_nr; ++i) {
 		if (failed_arr[j] == i) {
@@ -824,6 +852,15 @@ static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
 			++j;
 		}
 	}
+#else
+	for (j = 0; j < ir->si_failed_nr; j++) {
+		i = failed_arr[j];
+		if (i < ir->si_data_nr)
+			if ((uint8_t)*m0_matvec_elem_get(r, j) !=
+				(((uint8_t **)x[i].ov_buf)[0])[0])
+				return false;
+	}
+#endif /* RS_ENCODE_ENABLED */
 
 	return true;
 }
