@@ -98,30 +98,46 @@ struct m0_dtm0_clk_src;
  * 1. There is a dedicated function m0_be_dtm0_log_create which will create
  *    m0_be_dtm0_log during mkfs procedure.
  *
- * 2. When distributed transaction(dtx) successfully executed on participant,
- *    DTM0 log record will be added by participant to persistent store and where
- *    participant state in group of state will be M0_DTPS_EXECUTED and for
- *    rest of the participant state will be logged as it is.
+ * 2. When a distributed transaction(dtx) is successfully executed on a participant,
+ *    the participant will add a new log record to DTM0 log. The state of the
+ *    participant will be set to M0_DTPS_EXECUTED in the record. The states of the
+ *    other participants will be set to M0_DTPS_INPROGRESS in the record.
  *
- * 3. When distributed transaction(dtx) becomes persistent on particular
+ * 3. When a distributed transaction(dtx) becomes persistent on a particular
  *    participant, the state of the distributed transaction(dtx) for this
- *    participant will be updated as M0_DTPS_PERSISTENT.
+ *    participant will be updated to M0_DTPS_PERSISTENT.
  *
- * 4. When distributed transaction(dtx) becomes persistent on remote participant,
- *    the participant sends the persistent notice to rest of the participants
- *    and originator stating that distributed transaction(dtx) is persistent on
- *    its store. Upon receiving persistent notice each of the participants and
- *    originator will update the state of distributed transaction(dtx) for
- *    remote participant as M0_DTPS_PERSISTENT in DTM0 log record.
+ * 4. When distributed transaction(dtx) becomes persistent on a participant,
+ *    this participant sends a persistent notice to rest of the participants
+ *    and to the originator indicating that the given distributed transaction(dtx)
+ *    is now persistent on its store. Upon receiving a persistent notice, the
+ *    recipient will update the state of the distributed transaction(dtx) for the
+ *    sender as M0_DTPS_PERSISTENT in its own DTM0 log.
  *
- *    There is one special case where a process got a persistent notice from
- *    another process but the corresponding request and reply were not
+ *    There is one special case where a participant gets a persistent notice from
+ *    another participant but the corresponding request and reply haven't been
  *    received/processed yet. In this case, the DTM service should add a special
  *    log record: a log record with empty payload (NULL). The users of DTM0 log
- *    should be ready to encounter such a log entry, and treat it differently
- *    whenever it is required.
+ *    should be ready to encounter such a log entry, and handle it appropriately.
  */
 
+/**
+ * @defgroup DTM0Internals DTM0 implementation Internals
+ * @ingroup DTM0
+ *
+ * @section This section describes the dtm0 log related enumerations and structures.
+ *
+ * @{
+ */
+
+/**
+ * @b  m0_be_dtm0_log_credit_op enum
+ *
+ * DTM0 persistent log is implemented on top of be modules and uses be_list for
+ * storing the log records. m0_be_dtm0_log_credit_op is an enumeration of the
+ * operation codes that can be specified to obtain credits for performing the
+ * corresponding operation related to dtm0_log.
+ */
 enum m0_be_dtm0_log_credit_op {
 	M0_DTML_CREATE,		/**< m0_be_dtm0_log_create() */
 	M0_DTML_SENT,		/**< m0_be_dtm0_log_update() */
@@ -131,6 +147,16 @@ enum m0_be_dtm0_log_credit_op {
 	M0_DTML_REDO            /**< m0_be_dtm0_log_update() */
 };
 
+/**
+ * @b  m0_be_dtm0_log_rec structure
+ *
+ * A DTM0 log record is represented by m0_dtm0_log_rec structure. The important
+ * fields in this structure are:
+ * - dlr_dtx: This stores dtx information related to dtm0 client.
+ * - dlr_txd: This stores the states of the participants.
+ * - dlr_payload: This stores the original cas_op (cas request).
+ */
+
 struct m0_dtm0_log_rec {
 	struct m0_dtm0_dtx     dlr_dtx;
 	struct m0_dtm0_tx_desc dlr_txd;
@@ -139,6 +165,17 @@ struct m0_dtm0_log_rec {
 	struct m0_tlink        dlr_tlink;
 	struct m0_buf          dlr_payload;
 };
+
+/**
+ * @b  m0_be_dtm0_log_rec structure
+ *
+ * A DTM0 log is represented by m0_be_dtm0_log structure. The important
+ * fields in this structure are:
+ * - dl_is_persistent: This is a flag to distinguish between a volatile
+ * (client-side) log and a persistent (server-side) log.
+ * - dl_cs: A pointer to the type of clock used to generate the timestamps
+ * for the log records.
+ */
 
 struct m0_be_dtm0_log {
 	/** Indicates if the structure is a persistent or volatile */
@@ -155,8 +192,8 @@ struct m0_be_dtm0_log {
 };
 
 /**
- * DTM log interface typical usecases:
- * * Typical use cases:
+ * @b Typical call flow for calling DTM0 log interface routines:
+ *
  * ** Initialisation/Finalisation for volatile fields of the log
  * - m0_be_dtm0_log_init()
  * ** Preparation phase
@@ -167,57 +204,275 @@ struct m0_be_dtm0_log {
  * - m0_be_dtm0_log_find()
  */
 
+/**
+ * Initialize a dtm0 log. We need to call this routine once before we can
+ * perform any operations on it.
+ *
+ * @pre out != NULL;
+ * @pre cs != NULL;
+ * @post *log is allocated and ready to be used
+ *
+ * @param log Pointer to a log. For persistent log, *log should be pointing
+ *        to a valid struct m0_be_dtm0_log. For volatile log the memory for
+ *        struct m0_be_dtm0_log will be allocated.
+ * @param cs Pointer to a clock source. This will be used for comparisons
+ *        involving log record timestamps.
+ * @param isvstore A flag to indicate whether the dtm0 log that we are trying
+ *        to init is a volatile of persistent store.
+ *
+ * @return 0 on success. Anything else is a failure.
+ */
 M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log **log,
                                     struct m0_dtm0_clk_src *cs,
                                     bool                    isvstore);
-M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log **log,
-                                     bool                    isvstore);
+
+/**
+ * Finalize a dtm0 log. We need to call this routine once after we have
+ * finished performing all operations on it.
+ *
+ * @pre m0_be_dtm0_log__invariant needs to be satisfied.
+ * @post All fields of *log are finalized. For volatile log the memory
+ *       allocated by m0_be_dtm0_log_init is freed.
+ *
+ * @param log Pointer to a valid log.
+ *
+ * @return None
+ */
+M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log **log);
+
+/**
+ * For performing an operation on a persistent log, we need to take the
+ * appropriate number of be transaction credit.
+ *
+ * @pre None
+ * @post None
+ *
+ * @param op Operation code for the type of dtm0 log operation that we want
+ *        to perform. @see @ref m0_be_dtm0_log_credit_op.
+ * @param txd A valid dtm0 tx descriptor that we want to store in the log
+ *        record.
+ * @param payload The payload is an opaque structure for dtm0 log to store
+ *        in the log record.
+ * @param seg The be segment on which the log resides.
+ * @param A pointer to a valid m0_dtm0_log_rec.
+ * @param accum This contains the number of credits required for performing
+ *        the operation.
+ * @return None
+ */
 M0_INTERNAL void m0_be_dtm0_log_credit(enum m0_be_dtm0_log_credit_op op,
 				       struct m0_dtm0_tx_desc	    *txd,
 				       struct m0_buf		    *payload,
                                        struct m0_be_seg             *seg,
 				       struct m0_dtm0_log_rec	    *rec,
                                        struct m0_be_tx_credit       *accum);
+
+/**
+ * This routine is used to create a dtm0 persistent log.
+ *
+ * @pre tx != NULL
+ * @pre seg != NULL
+ * @post None
+ *
+ * @param tx handle to an already opened transaction.
+ * @param seg be segment on which to create the log.
+ * @param out variable in which to store the pointer to the newly created
+ *        log.
+ * @return 0 on success, anything else is a failure.
+ */
 M0_INTERNAL int m0_be_dtm0_log_create(struct m0_be_tx        *tx,
                                       struct m0_be_seg       *seg,
                                       struct m0_be_dtm0_log **out);
+
+/**
+ * This routine is used to destroy a previously created persistent dtm0 log
+ *
+ * @pre tx != NULL
+ * @pre *log != NULL
+ * @post None
+ *
+ * @param tx handle to an already opened transaction.
+ * @param log Pointer to the dtm0 log which we wish to destroy
+ * @return None
+ */
 M0_INTERNAL void m0_be_dtm0_log_destroy(struct m0_be_tx        *tx,
                                         struct m0_be_dtm0_log **log);
+
+/**
+ * This routine is used to update a record in the dtm0 log. If the record
+ * does not exist it will be inserted.
+ *
+ * @pre payload != NULL
+ * @pre m0_be_dtm0_log__invariant(log)
+ * @pre m0_dtm0_tx_desc__invariant(txd)
+ * @pre m0_mutex_is_locked(&log->dl_lock)
+ * @post None
+ *
+ * @param log Pointer to the dtm0 log which we wish to destroy
+ * @param tx handle to an already opened transaction.
+ * @param txd A valid dtm0 tx descriptor that we want to store in the log
+ *        record.
+ * @param payload The payload is an opaque structure for dtm0 log to store
+ *        in the log record.
+ * @return None
+ */
 M0_INTERNAL int m0_be_dtm0_log_update(struct m0_be_dtm0_log  *log,
                                       struct m0_be_tx        *tx,
                                       struct m0_dtm0_tx_desc *txd,
                                       struct m0_buf          *payload);
+
+/**
+ * Given a pointer to a dtm0 transaction id, this routine searches the
+ * log for the log record matching this tx id and returns it.
+ *
+ * @pre m0_be_dtm0_log__invariant(log)
+ * @pre m0_dtm0_tid__invariant(id))
+ * @pre m0_mutex_is_locked(&log->dl_lock)
+ *
+ * @post None
+ *
+ * @param log Pointer to the dtm0 log which we wish to destroy
+ * @param tid Pointer to a dtm0 transaction id corresponding to the record
+ *        that we wish to fetch from the log.
+ * @return m0_dtm0_log_rec corresponding to the input tid or NULL if no
+ *        such record is found.
+ */
 M0_INTERNAL
 struct m0_dtm0_log_rec *m0_be_dtm0_log_find(struct m0_be_dtm0_log    *log,
                                             const struct m0_dtm0_tid *id);
+
+/**
+ * Given a pointer to a dtm0 transaction id, this routine searches the
+ * log for the log record matching this tx id and removes it from the log.
+ *
+ * @pre *log->dl_is_persistent == false
+ * @pre m0_be_dtm0_log__invariant(log)
+ * @pre m0_dtm0_tid__invariant(id)
+ * @pre m0_mutex_is_locked(&log->dl_lock)
+ * @post None
+ *
+ * @param log Pointer to the log from which we want to delete the record.
+ * @param tx  Pointer to an open be transaction.
+ * @param id  Pointer to a dtm0 transaction id corresponding to the record
+ *        that we wish to delete from the log.
+ * @return -ENOENT if no record exists for this id,
+ *         0       if the record is found and successfully deleted,
+ *         Anything else is considered a failure.
+ */
 M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
                                      struct m0_be_tx          *tx,
                                      const struct m0_dtm0_tid *id);
+
+/**
+ * Given a pointer to a dtm0 volatile log and a transaction id, this routine
+ * searches the log for the log record matching this tx id and removes all the
+ * log records preceeding this record that are stable.
+ *
+ * @pre m0_be_dtm0_log__invariant(log)
+ * @pre m0_dtm0_tid__invariant(id)
+ * @pre m0_mutex_is_locked(&log->dl_lock)
+ * @post None
+ *
+ * @param log Pointer to the log from which we want to delete the record.
+ * @param tx  Pointer to an open be transaction.
+ * @param id  Pointer to a dtm0 transaction id corresponding to the record
+ *        that we wish to delete from the log.
+ * @return -ENOENT if no record exists for this tid,
+ *         0       if the record is found and all previous records in the log
+ *                 including this record can be successfully deleted,
+ *         -EPROTO if the record is found but NOT all previous records in
+ *                 the log can be deleted,
+ *         Anything else is considered a failure.
+ */
 M0_INTERNAL int m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log	    *log,
 					  const struct m0_dtm0_tid  *id,
 					  struct m0_be_tx_credit    *cred);
-M0_INTERNAL int m0_be_dtm0_plog_prune(struct m0_be_dtm0_log    *log,
-                                     struct m0_be_tx           *tx,
-                                     const struct m0_dtm0_tid  *id);
 
 /**
+ * Given a pointer to a dtm0 persistent log and a transaction id, this routine
+ * searches the log for the log record matching this tx id and removes all the
+ * log records preceeding this record that are stable.
+ *
+ * @pre *log->dl_is_persistent == true
+ * @pre m0_be_dtm0_log__invariant(log)
+ * @pre m0_dtm0_tid__invariant(id)
+ * @pre m0_mutex_is_locked(&log->dl_lock)
+ * @post None
+ *
+ * @param log Pointer to the log from which we want to delete the record.
+ * @param tx  Pointer to an open be transaction.
+ * @param id  Pointer to a dtm0 transaction id corresponding to the record
+ *        that we wish to delete from the log.
+ * @return -ENOENT if no record exists for this id,
+ *          0      if the record is found and successfully deleted,
+ *          Anything else is considered a failure.
+ */
+M0_INTERNAL int m0_be_dtm0_plog_prune(struct m0_be_dtm0_log    *log,
+                                      struct m0_be_tx          *tx,
+                                      const struct m0_dtm0_tid *id);
+
+/**
+ * Given a pointer to a dtm0 volatile log clear the log and finalize it.
+ *
+ * @pre log is not a persistent log
+ * @pre m0_dtm0_tx_desc_state_eq == M0_DTPS_PERSISTENT for all records in the
+ *      log.
+ * @post None
+ *
+ * @param log Pointer to the volatile log that we want to clear.
+ * @return None.
+ *
  * TODO: rename this to indicate that it's used for volatile usecase only.
  * TODO: remove later.
  * Removes all records from the volatile log.
  */
 M0_INTERNAL void m0_be_dtm0_log_clear(struct m0_be_dtm0_log *log);
+
+/**
+ * Given a pointer to a dtm0 volatile log and a log record, insert the record
+ * in the log.
+ *
+ * @pre log is a volatile log
+ * @pre rec is initialized and valid
+ * @post None
+ *
+ * @param log Pointer to the volatile log into which that we want to insert the
+ *        record.
+ * @return None.
+ */
 M0_INTERNAL int m0_be_dtm0_volatile_log_insert(struct m0_be_dtm0_log  *log,
 					       struct m0_dtm0_log_rec *rec);
 
+/**
+ * This routine is used to update a record in a dtm0 volatile log.
+ *
+ * @pre log is a volatile log
+ * @pre rec is initialized and valid
+ * @post None
+ *
+ * @param log Pointer to the dtm0 log which we wish to destroy
+ * @param rec Pointer to a valid dtm0 log record that we want to update.
+ * @return None
+ */
 M0_INTERNAL void m0_be_dtm0_volatile_log_update(struct m0_be_dtm0_log  *log,
 						struct m0_dtm0_log_rec *rec);
 
 /**
  * Deliver a persistent message to the log.
+ *
+ * @pre log is a volatile log
+ * @pre fop->f_type == &dtm0_req_fop_fopt;
+ * @post None
+ *
+ * @param log Pointer to the dtm0 log which we wish to destroy
+ * @param fop This is a fop for the request carrying a PERSISTENT notice
+ * @return None
+ *
  * TODO: Only volatile log is supported so far.
  */
 M0_INTERNAL void m0_be_dtm0_log_pmsg_post(struct m0_be_dtm0_log *log,
 					  struct m0_fop         *fop);
+
+/** @} */ /* end DTM0Internals */
 
 #endif /* __MOTR_BE_DTM0_LOG_H__ */
 

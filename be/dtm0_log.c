@@ -96,17 +96,17 @@ M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log **out,
 	return 0;
 }
 
-M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log **log,
-                                     bool                    isvstore)
+M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log **log)
 {
 	struct m0_be_dtm0_log *plog = *log;
+	bool                   ispstore = plog->dl_is_persistent;
 
 	M0_PRE(m0_be_dtm0_log__invariant(plog));
 	m0_mutex_fini(&plog->dl_lock);
 	lrec_tlist_fini(plog->dl_tlist);
 	plog->dl_cs = NULL;
 
-	if (isvstore) {
+	if (!ispstore) {
 		m0_free(plog->dl_tlist);
 		m0_free(plog);
 		*log = NULL;
