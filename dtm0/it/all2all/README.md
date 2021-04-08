@@ -6,7 +6,7 @@ lnet service should be running check with following command
 sudo systemctl status lnet.service
 ```
 
-If not running, please refer troubleshooting section in [README.md](https://github.com/Seagate/cortx-hare/tree/3e97a0ae78340a1b17a84de1f99f84b0b8a349fe#readme)
+If not running, please refer troubleshooting section in [README.md](https://github.com/Seagate/cortx-hare/blob/main/README.md)
 
 ## About
 
@@ -42,4 +42,4 @@ Hare is used for cluster bootstrap and shutdown. Firstly
 it needs to be patched by the hare.patch in current directory
 to make it able to generate clusted configuration that includes
 DTM0 service. After that it should be built and installed into
-the system (see [README.md](https://github.com/Seagate/cortx-hare/tree/3e97a0ae78340a1b17a84de1f99f84b0b8a349fe#readme) in the root of Hare repo).
+the system (see [README.md](https://github.com/Seagate/cortx-hare/blob/main/README.md) in the root of Hare repo).
