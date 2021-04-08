@@ -41,24 +41,14 @@ M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
 SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
 
-#choose the transport 
+## By default libfab is used as transport
+## to change use NET_XPT=lnet along with m0 script
 _transport_select() {
-    local NET_XTR
 
-    echo 'Prese '2' to select 'lnet' or press Enter to continue' >&2
-    read NET_XTR
-
-    if [ "$NET_XTR" = "2" ]
-    then
-	NET_XTR="lnet"
-        echo 'Net transport is LNet' >&2
-    else
-        NET_XTR="libfab"
-        echo 'Net transport is Libfab' >&2
-    fi
-
+    NET_XPT=${NET_XPT:-libfab}
+    echo $NET_XPT
     touch $M0_SRC_DIR/scripts/st.d/net_xpt
-    echo $NET_XTR > $M0_SRC_DIR/scripts/st.d/net_xpt
+    echo $NET_XPT > $M0_SRC_DIR/scripts/st.d/net_xpt
 }
 
 # Increase the maximum number of memory map areas a process may have.
@@ -118,6 +108,7 @@ rundir_init() {
 cmd_configure() {
     cd "$M0_SRC_DIR"
     autoreconf -ifs
+    echo "$CONFIGURE_OPTS"
     ./configure ${CONFIGURE_OPTS:-}
 }
 
