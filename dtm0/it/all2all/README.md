@@ -3,7 +3,7 @@
 ## Prerequisit
 lnet service should be running check with following command
 ```
-systemctl status lnet.service
+sudo systemctl status lnet.service
 ```
 
 If not running, please refer troubleshooting section in [README.md](https://github.com/Seagate/cortx-hare/tree/3e97a0ae78340a1b17a84de1f99f84b0b8a349fe#readme)
@@ -32,7 +32,9 @@ What the test does:
  - waits for m0crate completion
 
 ## Command to run this test
-sudo ./all2all 
+```
+sudo sh ./all2all
+```
 
 ## Hare usage
 
