@@ -651,6 +651,7 @@ static int get_tick(struct m0_btree_op *bop)
 	};
 }
 #endif
+/* insert operation section start point: */
 /*get_tick for insert operation*/
 static int get_tick(struct m0_btree_op *bop)
 {
@@ -671,15 +672,16 @@ static int get_tick(struct m0_btree_op *bop)
 			return P_LOCK;
 		else
 			return P_SETUP;
-	case P_SETUP:
+	case P_SETUP: {
 		alloc(bop->bo_i, tree->t_height);
 		if (bop->bo_i == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
 		return P_LOCKALL;
+	}
 	case P_LOCKALL:
 		if (bop->bo_flags & OF_LOCKALL)
 			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
-	case P_DOWN:
+	case P_DOWN: 
 		oi->i_used = 0;
 		/* Load root node. */
 		return node_get(&oi->i_nop, tree, &tree->t_root, P_NEXTDOWN);
@@ -702,16 +704,16 @@ static int get_tick(struct m0_btree_op *bop)
 			node_op_fini(&oi->i_nop);
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
-	case P_ALLOC:
-		if(oi->i_used == -1) {
+	case P_ALLOC: {
+		if (oi->i_used == -1) {
 			struct node_op node_op;
 			/* allocate extra node if root is going to get split */
 			node_op.no_node = extra_l_alloc;
 			oi->i_used = 0;
 		} else {
-			if(level.l_seq != level->l_node.n_seq) //validate l_node
+			if (level.l_seq != level->l_node.n_seq) //validate l_node
 				return P_CHECK;
-			if(node_space(level.l_node) <= about_to_OVERFLOW) {
+			if (node_space(level.l_node) <= about_to_OVERFLOW) {
 				struct node_op node_op;
 				node_op.no_node = level.l_alloc;
 				oi->i_used--;
@@ -723,7 +725,8 @@ static int get_tick(struct m0_btree_op *bop)
 		while (node_level(oi->i_level[oi->i_used].l_node) >= 0) {
 			oi->i_used++;
 		}
-		return P_LOCK;	
+		return P_LOCK;
+	}
 	case P_LOCK:
 		if (!locked)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_lop,
@@ -746,7 +749,7 @@ static int get_tick(struct m0_btree_op *bop)
 			return P_DOWN;
 		}
 	case P_MAKESPACE:
-		if( oi->i_used == -1) {
+		if ( oi->i_used == -1) {
 			//one level will get added and height will increase
 			//copy root content to extra_l_alloc
 			//use extra_l_alloc ,l_alloc as two child for root
@@ -771,7 +774,7 @@ static int get_tick(struct m0_btree_op *bop)
 				.s_idx  = 0;
 				};
 				node_key(&slot_for_right_node);
-				if(bop->bo_rec.key < slot_for_right_node.s_rec.key) {
+				if (bop->bo_rec.key < slot_for_right_node.s_rec.key) {
 					node_make (&slot, bop->bo_tx);
 					node_set(&slot, bop->bo_tx);
 				} else {
@@ -787,14 +790,14 @@ static int get_tick(struct m0_btree_op *bop)
 			}
 		}
 	case P_NEXTUP: {
-		if(l_alloc != NULL) {
+		if (l_alloc != NULL) {
 			oi->i_used--;
 			return P_MAKESPACE;
-			}
+		}
 		else {
 			lock_op_unlock(&bop->bo_i->i_lop);
 			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
-			}
+		}
 	}
 	case P_ACT: {
 		struct slot slot = {
@@ -802,7 +805,7 @@ static int get_tick(struct m0_btree_op *bop)
 			.s_idx  = level->l_idx;
 			.s_rec = bop->bo_rec;
 		};
-		node_set(&slot, struct m0_be_tx *tx);
+		node_set(&slot, bop->bo_tx);
 		return NEXTUP;
 	}
 	case P_CLEANUP: {
@@ -820,8 +823,308 @@ static int get_tick(struct m0_btree_op *bop)
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.s_state);
 	};
 }
+/* insert operation section end point: */
 
 
+/* delete operation section start point: */
+void get_delimiter(struct m0_btree_oimpl *oi, enum dir dir, struct slot *slot_for_delimiter)
+{
+	if (dir == D_RIGHT) {
+		int lev = oi->i_used;
+		do {
+			lev--;
+		} while (lev >= 0 && oi->i_level[lev].l_idx == node_count(oi->i_level[lev].l_node));
+
+		if (lev >= 0) {
+			slot_for_delimiter.node = oi->i_level[lev].l_node;
+			slot_for_delimiter.idx =  oi->i_level[lev].l_idx;
+		}
+	} else {
+		int lev = oi->i_used;
+		do {
+			lev--;
+		} while (lev>=0 && oi->i_level[lev].l_idx == 0);
+
+		if (lev >= 0) {
+			slot_for_delimiter.node = oi->i_level[lev].l_node;
+			slot_for_delimiter.idx =  oi->i_level[lev].l_idx-1;
+		}
+	}
+}
+
+void delete_rebalance(enum dir dir, struct m0_btree_oimpl *oi)
+{
+	struct level *level = &oi->i_level[oi->i_used];
+	struct slot slot_for_delimiter = { };
+	if (dir == D_LEFT) {
+		get_delimiter(oi, D_LEFT, &slot_for_delimiter);
+		if (node_level(level->l_node) > 0) {
+			//add delimiter key to left node
+			node_key(&slot_for_delimiter);
+			struct slot slot_for_left_node = {
+				.s_node = level->l_prev;
+				.s_idx = node_count(level->l_prev);
+				.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
+			}
+			node_set(&slot_for_left_node);
+		}
+		node_move(level.l_prev, level.l_node, D_RIGHT, NR_EVEN, bop->bo_tx);
+		if (node_level(level->l_node) > 0) {
+			//set deliemeter key = last key of l_prev
+			slot_for_left_node.s_idx = node_count(level->l_prev);
+			node_key(&slot_for_left_node);
+			slot_for_delimiter.s_rec.r_key = slot_for_left_node.s_rec.r_key;
+			node_set(&slot_for_delimiter);
+			//make that last key  of l_node null/empty
+		} else {
+			struct slot slot_for_right_node = {
+						.s_node = level->l_node;
+						.s_idx = 0;
+					}
+			node_key(&slot_for_right_node);
+			slot_for_delimiter.s_rec.r_key = slot_for_right_node.s_rec.r_key;
+			node_set(&slot_for_delimiter);
+		}
+	} else {
+		get_delimiter(oi, D_RIGHT, &slot_for_delimiter);
+		if (node_level(level->l_node) > 0) {
+			//insert delimiter key at l_node
+			node_key(&slot_for_delimiter);
+			struct slot slot_for_left_node = {
+				.s_node = level->l_node;
+				.s_idx = node_count(level->l_node);
+				.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
+			}
+			node_set(&slot_for_left_node);
+		}
+		node_move(level.l_node,level.l_next, D_LEFT, NR_EVEN, bop->bo_tx);
+		if (node_level(level->l_node) > 0) {
+			//set deliemeter key = last key of l_node
+			slot_for_left_node.s_idx = node_count(level->l_node);
+			node_key(&slot_for_left_node);
+			slot_for_delimiter.s_rec.r_key = slot_for_left_node.s_rec.r_key;
+			node_set(&slot_for_delimiter);
+			//make that last key of l_node null 
+		} else {
+			//if leaf node :set deliemeter key = first key of l_next and 
+			struct slot slot_for_right_node = {
+					.s_node = level->l_next;
+					.s_idx = 0;
+				}
+			node_key(&slot_for_right_node);
+			slot_for_delimitert.s_rec.r_key = slot_for_right_node.s_rec.r_key;
+			node_set(&slot_for_delimiter);
+		}
+	}
+}
+
+void delete_merge(enum dir dir, struct m0_btree_oimpl *oi)
+{
+	struct level *level = &oi->i_level[oi->i_used];
+	struct slot slot_for_delimiter;
+	if (dir == D_RIGHT) {
+		get_delimiter(oi, D_RIGHT, &slot_for_delimiter);
+		//if intenal node:insert delimiter key to left node
+		if (node_level(level->l_node) > 0) {
+			struct slot slot_for_left_node = {
+			.s_node = level->l_node;
+			.s_idx  = node_count(level->l_node);
+			};
+			node_key(&slot_for_delimiter);
+			slot_for_left_node.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
+			node_set(slot_for_left_node);
+		}
+		node_move(level->l_node, level->l_next, D_RIGHT, NR_MAX,tx);
+		if (oi->i_level[oi->i_used-1].l_idx == node_count(oi->i_level[oi->i_used-1].l_node)) {
+			//i.e l_next belongs to different parent
+			//update delimiter key
+			struct slot slot_for_parent_node = {
+				.s_node = oi->i_level[oi->i_used-1].l_node;
+				.s_idx  = oi->i_level[oi->i_used-1].l_idx-1;
+			};
+			node_key(&slot_for_parent_node);
+			slot_for_delimiter.s_rec.r_key = slot_for_parent_node.s_rec.r_key;
+			node_set(&slot_for_delimiter);
+			//make key at l_idx-1 of parent as null
+		}
+		node_del(oi->i_level[oi->i_used-1].l_node, oi->i_level[oi->i_used-1].l_idx, bop->bo_tx);
+	} else {
+		get_delimiter(oi, D_LEFT, &slot_for_delimiter);
+		if (node_level(level->l_node) > 0) {
+		//if intenal node:insert delimiter key to left node
+			struct slot slot_for_left_node = {
+			.s_node = level->l_prev;
+			.s_idx  = node_count(level->l_prev);
+			};
+			node_key(&slot_for_delimiter);
+			slot_for_left_node.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
+			node_set(slot_for_left_node);
+		}
+		node_move(level->l_prev,level->l_node,D_LEFT, NR_MAX,tx);
+		//update delimiter key
+		struct slot_for_parent_node = {
+			.s_node = oi->i_level[oi->i_used-1].l_node;
+			.s_idx  = oi->i_level[oi->i_used-1].l_idx;
+		};
+		node_key(&slot_for_parent_node);
+		slot_for_delimiter.s_rec.r_key = slot_for_parent_node.s_rec.r_key;
+		node_set(&slot_for_delimiter);
+		node_del(oi->i_level[oi->i_used-1].l_node, oi->i_level[oi->i_used-1].l_idx, bop->bo_tx);
+	}
+}
+/* get_tick() for delete operation : */
+static int get_tick_delete(struct m0_btree_op *bop)
+{
+	struct td             *tree  = (void *)bop->bo_arbor;
+	uint64_t               flags = bop->bo_flags;
+	struct m0_btree_oimpl *oi    = bop->bo_i;
+	struct level          *level = &oi->i_level[oi->i_used];
+
+	switch (bop->bo_op.o_sm.s_state) {
+	case P_INIT:
+		if ((flags & OF_COOKIE) && cookie_is_set(&bop->bo_key.k_cookie))
+			return P_COOKIE;
+		else
+			return P_SETUP;
+	case P_COOKIE:
+		if (cookie_is_valid(tree, &bop->bo_key.k_cookie)
+		&& !possibility_of_UNDERFLOW at cookie_node)
+			return P_LOCK;
+		else
+			return P_SETUP;
+	case P_SETUP:
+		alloc(bop->bo_i, tree->t_height);
+		if (bop->bo_i == NULL)
+			return fail(bop, M0_ERR(-ENOMEM));
+		return P_LOCKALL;
+	case P_LOCKALL:
+		if (bop->bo_flags & OF_LOCKALL)
+			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
+	case P_DOWN:
+		oi->i_used = 0;
+		/* Load root node. */
+		return node_get(&oi->i_nop, tree, &tree->t_root, P_NEXTDOWN);
+	case P_NEXTDOWN:
+		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			struct slot    slot = {};
+			struct segaddr down;
+
+			level->l_node = slot.s_node = oi->i_nop.no_node;
+			node_op_fini(&oi->i_nop);
+			node_find(&slot, bop->bo_rec.r_key);
+			if (node_level(slot.s_node) > 0) {
+				level->l_idx = slot.s_idx;
+				node_child(&slot, &down);
+				oi->i_used++;
+				return node_get(&oi->i_nop, tree,
+						&down, P_NEXTDOWN);
+			} else
+				return P_LOAD;
+		} else {
+			node_op_fini(&oi->i_nop);
+			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+		}
+	case P_LOAD: {
+		if (oi->i_used > 0 and underflow at level->l_node) {
+			level->l_prev = get_left_sibling(oi);
+			level->l_next = get_right_sibling(oi);
+			oi->i_used--;
+			return P_LOAD;
+		}
+		//reset oi->i_used
+		while (node_level(oi->i_level[oi->i_used].l_node) >= 0) {
+			oi->i_used++;
+		}
+
+		return P_LOCK;
+	}	
+	case P_LOCK:
+		if (!locked)
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_lop,
+					    P_CHECK);
+		else
+			return P_CHECK;
+	case P_CHECK:
+		if (used_cookie || check_path())
+			return P_ACT;
+		if (too_many_restarts) {
+			if (bop->bo_flags & OF_LOCKALL)
+				return fail(bop, -ETOOMANYREFS);
+			else
+				bop->bo_flags |= OF_LOCKALL;
+		}
+		if (height_increased) {
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_INIT);
+		} else {
+			oi->i_used = 0;
+			return P_DOWN;
+		}
+	case P_ACT: {
+		struct slot slot = {
+			.s_node = level->l_node;
+			.s_idx  = level->l_idx;
+		};
+		node_del(level->l_node, level->l_idx, bop->bo_tx);
+		//if deleted key is first key ->update parent/or grandparent...
+		if (UNDERFLOW at level->l_node)
+			return P_RESOLVE;
+		//callback
+		lock_op_unlock(&bop->bo_i->i_lop);
+		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+	}
+	case P_RESOLVE:
+		if (oi->i_used == 0 ) {
+			/*handle underflow at root or root becomes empty node:
+			copy content from level after root and delete that level*/
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+		}
+		if (level.l_prev == NULL) {
+			if (!possibility_of_UNDERFLOW at level.l_next)
+				delete_rebalance(D_RIGHT, oi);
+			else
+				delete_merge(D_RIGHT,oi);
+		} else if (level.l_next == NULL) {
+			if (!possibility_of_UNDERFLOW at level.l_prev)
+				delete_rebalance(D_LEFT, oi);
+			else
+				delete_merge(D_LEFT,oi);
+		} else {
+			if (node_space(level.l_prev) < node_space(level.l_next)) {
+				if (!possibility_of_UNDERFLOW at level.l_prev) 
+					delete_rebalance(D_LEFT, oi);
+				else
+					delete_merge(D_RIGHT, oi);
+			} else {
+				if (!possibility_of_UNDERFLOW at level.l_next) 
+					delete_rebalance(D_RIGHT, oi);
+				else
+					delete_merge(D_LEFT,oi);
+			}
+		}
+		if (!UNDERFLOW at level[oi->i_used-1]->l_node) {
+			//callback
+			lock_op_unlock(&bop->bo_i->i_lop);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+		} else
+			return P_MOVEUP;
+	case P_MOVEUP:
+		oi->i_used--;
+	case P_CLEANUP: {
+		int i;
+		for (i = 0; i < oi->i_used; ++i) {
+			if (oi->i_level[i].l_node != NULL) {
+				node_put(oi->i_level[i].l_node);
+				oi->i_level[i].l_node = NULL;
+			}
+		}
+		free(bop->bo_i);
+		return m0_sm_op_ret(&bop->bo_op);
+	}
+	default:
+		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.s_state);
+	};
+}
+/* delete operation section end point */
 
 /**
  * "Address" of a node in a segment.
