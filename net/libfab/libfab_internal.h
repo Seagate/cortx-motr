@@ -255,7 +255,6 @@ struct m0_fab__tm {
  */
 struct m0_fab__buf_mr {
 	/** Buffer descriptor */
-<<<<<<< HEAD
 	void          *bm_desc[FAB_IOV_MAX];
 	
 	/** Libfab memory region */
@@ -289,15 +288,6 @@ struct m0_fab__bdesc {
 	
 	/** Remote buffer addr */
 	uint64_t fbd_bufptr;
-=======
-	void          *bm_desc[FAB_MR_IOV_MAX];
-	
-	/** Libfab memory region */
-	struct fid_mr *bm_mr[FAB_MR_IOV_MAX];
-	
-	/** Memory registration key */
-	uint64_t       bm_key[FAB_MR_IOV_MAX];
->>>>>>> 333bd9da3c04e640430cc07c07a467bea9d09e36
 };
 
 /**
@@ -305,7 +295,6 @@ struct m0_fab__bdesc {
  */
 struct m0_fab__buf {
 	/** Magic number for list of completed buffers */
-<<<<<<< HEAD
 	uint64_t                fb_magic;
 	
 	/** Magic number for list of send buffers */
@@ -352,48 +341,6 @@ struct m0_fab__buf {
 
 	/** Count of work request completions for bulk rma ops */
 	uint32_t                fb_wr_comp_cnt;
-=======
-	uint64_t               fb_magic;
-	
-	/** Magic number for list of send buffers */
-	uint64_t               fb_sndmagic;
-	
-	/** Dummy data + network buffer ptr */
-	uint64_t               fb_dummy[2];
-	
-	/** Remote key extracted from the buffer descriptor */
-	uint64_t               fb_rem_key;
-	
-	/** Address of remote network buffer used in rma ops */
-	uint64_t               fb_rem_buf;
-	
-	/** Buffer memory region params */
-	struct m0_fab__buf_mr  fb_mr;
-	
-	/** Domain to which the buf is reg */
-	struct fid_domain     *fb_dp;
-	
-	/** Pointer back to network buffer*/
-	struct m0_net_buffer  *fb_nb;
-	
-	/** endpoint associated with recv buffer operation */
-	struct m0_fab__ep     *fb_ev_ep;
-	
-	/** Context to be returned in the buffer completion event for tx ops*/
-	struct m0_fab__ep     *fb_txctx;
-	
-	/** Link in list of completed bufs*/
-	struct m0_tlink        fb_linkage;
-	
-	/** Link for list of send buffers */
-	struct m0_tlink        fb_snd_link;
-
-	/** Buffer completion status */
-	int32_t                fb_status;
-	
-	/** Total size of data to be rcvd*/
-	m0_bindex_t            fb_length;
->>>>>>> 333bd9da3c04e640430cc07c07a467bea9d09e36
 };
 
 /**

@@ -108,7 +108,6 @@ rundir_init() {
 cmd_configure() {
     cd "$M0_SRC_DIR"
     autoreconf -ifs
-    echo "$CONFIGURE_OPTS"
     ./configure ${CONFIGURE_OPTS:-}
 }
 

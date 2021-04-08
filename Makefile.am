@@ -191,14 +191,6 @@ if ENABLE_LIBFAB
 motr_libmotr_la_LIBADD += @LIBFAB_LIBS@
 endif
 
-if ENABLE_LIBFAB
-motr_libmotr_la_LIBADD += @LIBFAB_LIBS@
-endif
-
-if ENABLE_LIBFAB
-motr_libmotr_la_LIBADD += @LIBFAB_LIBS@
-endif
-
 # install directory for public libmotr headers
 motr_includedir             = $(includedir)/motr
 
