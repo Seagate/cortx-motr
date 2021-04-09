@@ -743,7 +743,7 @@ struct td {
 	 * read-only after the tree root is loaded into memory.
 	 */
 	struct m0_rwlock            t_lock;
-	struct segaddr              t_root;
+	struct nd                  *t_root;
 	int                         t_height;
 	int                         r_ref;
 };
@@ -784,6 +784,15 @@ struct node_type {
 	uint32_t                   nt_id;
 	const char                *nt_name;
 	const struct m0_format_tag nt_tag;
+
+	/** Initializes newly allocated node */
+	void (*nt_init)(const struct nd *node, int shift, int ksize, int vsize);
+
+	/** Cleanup of the node if any before deallocation */
+	void (*nt_fini)(const struct nd *node);
+
+	/** Add record in the node at the index specified in the slot. */
+	void (*nt_addrec)(struct slot *slot);
 
 	/** Returns count of records in the node */
 	int  (*nt_count)(const struct nd *node);
@@ -920,9 +929,9 @@ static int64_t    node_get  (struct node_op *op, struct td *tree,
 static void       node_put  (struct nd *node);
 static struct nd *node_try  (struct td *tree, struct segaddr *addr);
 #endif
-static int64_t    node_alloc(struct node_op *op, struct td *tree, int shift,
-			     const struct node_type *nt, struct m0_be_tx *tx,
-			     int nxt);
+static int64_t    node_alloc(struct node_op *op, struct td *tree, int size,
+			  const struct node_type *nt, int ksize, int vsize,
+			  struct m0_be_tx *tx, int nxt);
 static int64_t    node_free (struct node_op *op, struct nd *node,
 			     struct m0_be_tx *tx, int nxt);
 #if 0
@@ -1247,38 +1256,13 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
 			   int rootshift, struct m0_be_tx *tx, int nxt)
 {
-	struct td *tree;
-	int        nxt_state;
-
-	/**
-	 * Allocate space for in-memory tree.
-	 * Call tree-create which creates a root node in segment space.
-	 * Initialize the in-memory tree with the root node information
-	 */
-	M0_ALLOC_PTR(tree);
-	M0_ASSERT(tree != NULL);
-
-	op->no_tree = tree;
-	nxt_state = segops->so_tree_create(op, tt, rootshift, tx, nxt);
-	m0_rwlock_init(&tree->t_lock);
-	tree->t_root = op->no_addr;
-	tree->t_type = tt;
-
-	return nxt_state;
+	return segops->so_tree_create(op, tt, rootshift, tx, nxt);
 }
 
 static int64_t tree_delete(struct node_op *op, struct td *tree,
 			   struct m0_be_tx *tx, int nxt)
 {
-	int nxt_state;
-
-	M0_PRE(node_count(op->no_node) == 0);
-
-	nxt_state = segops->so_tree_delete(op, tree, tx, nxt);
-
-	m0_free(tree);
-
-	return nxt_state;
+	return segops->so_tree_delete(op, tree, tx, nxt);
 }
 
 #if 0
@@ -1305,15 +1289,27 @@ static struct nd *node_try(struct td *tree, struct segaddr *addr)
 #endif
 
 static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
-			  const struct node_type *nt, struct m0_be_tx *tx,
-			  int nxt)
+			  const struct node_type *nt, int ksize, int vsize,
+			  struct m0_be_tx *tx, int nxt)
 {
-	return segops->so_node_alloc(op, tree, size, nt, tx, nxt);
+	int  nxt_state;
+	/**
+	 * Allocate the node in segment.
+	 * Initialize the node header.
+	 * Allocate node descriptor in volatile memory.
+	 * Initialize the node descriptor.
+	 */
+	nxt_state = segops->so_node_alloc(op, tree, size, nt, tx, nxt);
+
+	nt->nt_init(op->no_node, size, ksize, vsize);
+
+	return nxt_state;
 }
 
 static int64_t node_free(struct node_op *op, struct nd *node,
 			 struct m0_be_tx *tx, int nxt)
 {
+	node->n_type->nt_fini(node);
 	return segops->so_node_free(op, node, tx, nxt);
 }
 
@@ -1334,26 +1330,38 @@ static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
 			      int nxt);
 static int64_t mem_node_free(struct node_op *op, struct nd *node,
 			     struct m0_be_tx *tx, int nxt);
+static const struct node_type fixed_format;
 
 static int64_t mem_tree_create(struct node_op *op, struct m0_btree_type *tt,
 			       int rootshift, struct m0_be_tx *tx, int nxt)
 {
+	struct td *tree;
+
+	/**
+	 *  Currently we only support Fixed Format. This will be relaxed later
+	 *  as code is added to support other formats.
+	 */
+	M0_ASSERT(tt->tt_id == BTT_FIXED_FORMAT);
+
 	/**
 	 * Creates root node for the tree. No tree structure is created in the
 	 * persistent space. It is the responsibility of the caller to save the
 	 * segment address of the root node so that the tree can be accessed
 	 * after cluster restart.
 	 */
-	mem_node_alloc(op, op->no_tree, rootshift, NULL, NULL, nxt);
-
+	M0_ALLOC_PTR(tree);
+	M0_ASSERT(tree != NULL);
+	node_alloc(op, tree, 10, &fixed_format, 8, 8, NULL, nxt);
+	m0_rwlock_init(&tree->t_lock);
+	tree->t_root = op->no_node;
+	tree->t_type = tt;
 	return nxt;
 }
 
 static int64_t mem_tree_delete(struct node_op *op, struct td *tree,
 			       struct m0_be_tx *tx, int nxt)
 {
-	struct nd *root = segaddr_addr(&tree->t_root) +
-		(1ULL << segaddr_shift(&tree->t_root));
+	struct nd *root = tree->t_root;
 	op->no_tree = tree;
 	op->no_node = root;
 	mem_node_free(op, root, tx, nxt);
@@ -1436,7 +1444,7 @@ struct ff_head {
 	struct m0_format_header ff_fmt;   /* Node Header */
 	struct node_header      ff_seg;   /* Node type */
 	uint16_t                ff_used;  /* Count of records */
-	uint8_t                 ff_shift; /* Defines node size*/
+	uint8_t                 ff_shift; /* node size as pow-of-2 */
 	uint8_t                 ff_level; /* Level in Btree */
 	uint16_t                ff_ksize; /* Size of key in bytes */
 	uint16_t                ff_vsize; /* Size of value in bytes */
@@ -1448,6 +1456,9 @@ struct ff_head {
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 
+static void ff_init(const struct nd *node, int shift, int ksize, int vsize);
+static void ff_fini(const struct nd *node);
+static void ff_addrec(struct slot *slot);
 static int ff_count(const struct nd *node);
 static int ff_space(const struct nd *node);
 static int ff_level(const struct nd *node);
@@ -1475,22 +1486,25 @@ static const struct node_type fixed_format = {
 	//.nt_id,
 	.nt_name = "m0_bnode_fixed_format",
 	//.nt_tag,
-	.nt_count = ff_count,
-	.nt_space = ff_space,
-	.nt_level = ff_level,
-	.nt_shift = ff_shift,
-	.nt_fid   = ff_fid,
-	.nt_rec   = ff_rec,
-	.nt_key   = ff_node_key,
-	.nt_child = ff_child,
-	.nt_isfit = ff_isfit,
-	.nt_done  = ff_done,
-	.nt_make  = ff_make,
-	.nt_find  = ff_find,
-	.nt_fix   = ff_fix,
-	.nt_cut   = ff_cut,
-	.nt_del   = ff_del,
-	.nt_move  = generic_move,
+	.nt_init   = ff_init,
+	.nt_fini   = ff_fini,
+	.nt_addrec = ff_addrec,
+	.nt_count  = ff_count,
+	.nt_space  = ff_space,
+	.nt_level  = ff_level,
+	.nt_shift  = ff_shift,
+	.nt_fid    = ff_fid,
+	.nt_rec    = ff_rec,
+	.nt_key    = ff_node_key,
+	.nt_child  = ff_child,
+	.nt_isfit  = ff_isfit,
+	.nt_done   = ff_done,
+	.nt_make   = ff_make,
+	.nt_find   = ff_find,
+	.nt_fix    = ff_fix,
+	.nt_cut    = ff_cut,
+	.nt_del    = ff_del,
+	.nt_move   = generic_move,
 };
 
 
@@ -1532,6 +1546,41 @@ static bool ff_invariant(const struct nd *node)
 	const struct ff_head *h = ff_data(node);
 	return  _0C(h->ff_shift == segaddr_shift(&node->n_addr)) &&
 		_0C(ergo(h->ff_level > 0, h->ff_used > 0));
+}
+
+static void ff_init(const struct nd *node, int shift, int ksize, int vsize)
+{
+	struct ff_head *h   = ff_data(node);
+
+	M0_PRE(ksize != 0);
+	M0_PRE(vsize != 0);
+	M0_SET0(h);
+
+	h->ff_shift = shift;
+	h->ff_ksize = ksize;
+	h->ff_vsize = vsize;
+}
+
+static void ff_fini(const struct nd *node)
+{
+	node = node;
+}
+
+static void ff_addrec(struct slot *slot)
+{
+	struct ff_head *h   = ff_data(slot->s_node);
+	void           *key;
+	void           *value;
+
+	M0_PRE(slot->s_rec.r_key.k_data.ov_vec.v_nr == 1);
+	M0_PRE(h->ff_ksize == slot->s_rec.r_key.k_data.ov_vec.v_count[0]);
+	M0_PRE(slot->s_rec.r_val.ov_vec.v_nr == 1);
+	M0_PRE(h->ff_vsize == slot->s_rec.r_val.ov_vec.v_count[0]);
+
+	key = ff_key(slot->s_node,  slot->s_idx);
+	value = ff_val(slot->s_node,  slot->s_idx);
+	memcpy(key, slot->s_rec.r_key.k_data.ov_buf[0], h->ff_ksize);
+	memcpy(value, slot->s_rec.r_val.ov_buf[0], h->ff_ksize);
 }
 
 static int ff_count(const struct nd *node)
@@ -1803,18 +1852,18 @@ static void m0_btree_ut_node_create_delete(void)
 
 	// Create a Fixed-Format tree.
 	op.no_opc = NOP_ALLOC;
-	tt.tt_id = BTT_FIXED_KEYSIZE_VARIABLE_VALUESIZE;
+	tt.tt_id = BTT_FIXED_FORMAT;
 	tree_create(&op, &tt, 10, NULL, 0);
 
 	tree = op.no_tree;
 
 	// Add a few nodes to the created tree.
 	op.no_opc = NOP_ALLOC;
-	node_alloc(&op,  tree, 10, nt, NULL, 0);
+	node_alloc(&op, tree, 10, nt, 8, 8, NULL, 0);
 	node1 = op.no_node;
 
 	op.no_opc = NOP_ALLOC;
-	node_alloc(&op,  tree, 10, nt, NULL, 0);
+	node_alloc(&op,  tree, 10, nt, 8, 8, NULL, 0);
 	node2 = op.no_node;
 
 	op.no_opc = NOP_FREE;
@@ -1856,18 +1905,18 @@ void m0_btree_ut_node_add_del_rec(void)
 
 	// Create a Fixed-Format tree.
 	op.no_opc = NOP_ALLOC;
-	tt.tt_id = BTT_FIXED_KEYSIZE_VARIABLE_VALUESIZE;
+	tt.tt_id = BTT_FIXED_FORMAT;
 	tree_create(&op, &tt, 10, NULL, 0);
 
 	tree = op.no_tree;
 
 	// Add a few nodes to the created tree.
 	op.no_opc = NOP_ALLOC;
-	node_alloc(&op,  tree, 10, nt, NULL, 0);
+	node_alloc(&op, tree, 10, nt, 8, 8, NULL, 0);
 	node1 = op.no_node;
 
 	op.no_opc = NOP_ALLOC;
-	node_alloc(&op,  tree, 10, nt, NULL, 0);
+	node_alloc(&op, tree, 10, nt, 8, 8, NULL, 0);
 	node2 = op.no_node;
 
 	// Add records/ check counts
