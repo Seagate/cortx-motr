@@ -2,9 +2,9 @@ High Level Design of SNS Repair
 ===============================
 
 
-This document provides a High-Level Design (HLD) of SNS repair for Motr M0. The main purposes of this document are:
+This document provides a High-Level Design (HLD) of SNS repair for Motr. The main purposes of this document are:
 
-- To be inspected by M0 architects and peer designers to make sure that HLD is aligned with M0 architecture and other designs, and contains no defects
+- To be inspected by Motr architects and peer designers to make sure that HLD is aligned with Motr architecture and other designs, and contains no defects
 - To be a source of material for Active Reviews of Intermediate Design (ARID) and Detailed Level Design (DLD) of the same component
 - To serve as a design reference document
 
