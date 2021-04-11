@@ -160,9 +160,11 @@ enum m0_be_dtm0_log_credit_op {
 struct m0_dtm0_log_rec {
 	struct m0_dtm0_dtx     dlr_dtx;
 	struct m0_dtm0_tx_desc dlr_txd;
-	struct m0_be_list_link dlr_link;    /**< link into m0_be_dtm0_log::tlist */
 	uint64_t               dlr_magic;
-	struct m0_tlink        dlr_tlink;
+	union  {
+		struct m0_be_list_link dlr_link;    /**< link into m0_be_dtm0_log::tlist */
+		struct m0_tlink        dlr_tlink;
+	} u;
 	struct m0_buf          dlr_payload;
 };
 
@@ -185,16 +187,20 @@ struct m0_be_dtm0_log {
 	struct m0_be_seg	*dl_seg;
 	/** DTM0 clock source */
 	struct m0_dtm0_clk_src	*dl_cs;
-	/** Persistent list, used if dl_is_persistent */
-	struct m0_be_list	*dl_list;
-	/** Volatile list, used if !dl_is_persistent */
-	struct m0_tl		*dl_tlist;
+	union {
+		/** Persistent list, used if dl_is_persistent */
+		struct m0_be_list	*dl_list;
+		/** Volatile list, used if !dl_is_persistent */
+		struct m0_tl		*dl_tlist;
+	} u;
 };
 
 /**
  * @b Typical call flow for calling DTM0 log interface routines:
  *
  * ** Initialisation/Finalisation for volatile fields of the log
+ * ** Create a persistent log or just allocate a volatile (in-memory) log
+ *   m0_be_dtm0_log_create / m0_be_dtm0_log_alloc
  * - m0_be_dtm0_log_init()
  * ** Preparation phase
  * - m0_be_dtm0_log_credit()
@@ -205,16 +211,28 @@ struct m0_be_dtm0_log {
  */
 
 /**
+ * Allocate an m0_be_dtm0_log. This call will allocate a dtm0 volatile log.
+ * We need to call this routine once before we can perform any operations on .
+ *
+ * @pre out != NULL.
+ * @post *log is allocated and ready to be initialized.
+ *
+ * @param log Pointer to variable in which to return the allocate memory
+ *        address.
+ *
+ * @return 0 on success. Anything else is a failure.
+ */
+M0_INTERNAL int m0_be_dtm0_log_alloc(struct m0_be_dtm0_log **log);
+
+/**
  * Initialize a dtm0 log. We need to call this routine once before we can
  * perform any operations on it.
  *
- * @pre out != NULL;
+ * @pre log != NULL;
  * @pre cs != NULL;
- * @post *log is allocated and ready to be used
+ * @post *log is initialized and ready to be used
  *
- * @param log Pointer to a log. For persistent log, *log should be pointing
- *        to a valid struct m0_be_dtm0_log. For volatile log the memory for
- *        struct m0_be_dtm0_log will be allocated.
+ * @param log Pointer to a m0_be_dtm0_log that has to be initialized.
  * @param cs Pointer to a clock source. This will be used for comparisons
  *        involving log record timestamps.
  * @param isvstore A flag to indicate whether the dtm0 log that we are trying
@@ -222,9 +240,9 @@ struct m0_be_dtm0_log {
  *
  * @return 0 on success. Anything else is a failure.
  */
-M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log **log,
+M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
                                     struct m0_dtm0_clk_src *cs,
-                                    bool                    isvstore);
+                                    bool                    is_plog);
 
 /**
  * Finalize a dtm0 log. We need to call this routine once after we have
@@ -232,7 +250,7 @@ M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log **log,
  *
  * @pre m0_be_dtm0_log__invariant needs to be satisfied.
  * @post All fields of *log are finalized. For volatile log the memory
- *       allocated by m0_be_dtm0_log_init is freed.
+ *       allocated by m0_be_dtm0_log_alloc is freed.
  *
  * @param log Pointer to a valid log.
  *
@@ -260,10 +278,10 @@ M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log **log);
  * @return None
  */
 M0_INTERNAL void m0_be_dtm0_log_credit(enum m0_be_dtm0_log_credit_op op,
-				       struct m0_dtm0_tx_desc	    *txd,
-				       struct m0_buf		    *payload,
+                                       struct m0_dtm0_tx_desc	    *txd,
+                                       struct m0_buf		    *payload,
                                        struct m0_be_seg             *seg,
-				       struct m0_dtm0_log_rec	    *rec,
+                                       struct m0_dtm0_log_rec	    *rec,
                                        struct m0_be_tx_credit       *accum);
 
 /**

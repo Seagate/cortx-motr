@@ -333,7 +333,10 @@ static int dtm_service__origin_fill(struct m0_reqh_service *service)
 	}
 
 out:
-	return m0_be_dtm0_log_init(&dtm0->dos_log, &dtm0->dos_clk_src,
+	if (dtm0->dos_origin == DTM0_ON_VOLATILE) {
+		m0_be_dtm0_log_alloc(&dtm0->dos_log);
+	}
+	return m0_be_dtm0_log_init(dtm0->dos_log, &dtm0->dos_clk_src,
 				   dtm0->dos_origin == DTM0_ON_PERSISTENT);
 }
 

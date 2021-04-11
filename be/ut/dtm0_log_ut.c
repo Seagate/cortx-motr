@@ -180,7 +180,10 @@ void test_volatile_dtm0_log(void)
 	rc = m0_dtm0_clk_src_init(&cs, M0_DTM0_CS_PHYS);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_be_dtm0_log_init(&log, &cs, false);
+	rc = m0_be_dtm0_log_alloc(&log);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_be_dtm0_log_init(log, &cs, false);
 	M0_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < UT_DTM0_LOG_MAX_LOG_REC; ++i) {
@@ -315,7 +318,8 @@ static struct m0_be_dtm0_log *persistent_log_create(void)
 	// Create log and initialize it
 	rc = m0_be_dtm0_log_create(tx, seg, &log);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_be_dtm0_log_init(&log, &cs, true);
+
+	rc = m0_be_dtm0_log_init(log, &cs, true);
 	M0_UT_ASSERT(rc == 0);
 	//
 
@@ -585,13 +589,14 @@ static void m0_be_ut_dtm0_log_test(void)
 	M0_UT_ASSERT(log != NULL);
 
 	m0_be_ut_seg_reload(ut_seg);
-	m0_be_dtm0_log_init(&log, &cs, true);
+	m0_be_dtm0_log_init(log, &cs, true);
 	M0_UT_ASSERT(rc == 0);
 
 	persistent_log_operate(log);
 	m0_be_ut_seg_reload(ut_seg);
-	m0_be_dtm0_log_init(&log, &cs, true);
+	m0_be_dtm0_log_init(log, &cs, true);
 	M0_UT_ASSERT(rc == 0);
+
 	dtm0_log_check(log);
 	persistent_log_destroy(log);
 
