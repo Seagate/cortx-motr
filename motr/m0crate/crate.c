@@ -75,6 +75,7 @@ const char *cr_workload_name[CWT_NR] = {
         [CWT_CSUM]  = "csum",
 	[CWT_IO]    = "io",
 	[CWT_INDEX] = "index",
+	[CWT_BTREE] = "btree",
 };
 
 static int hpcs_init  (struct workload *w);
@@ -94,6 +95,15 @@ static void csum_op_run(struct workload *w, struct workload_task *task,
 			const struct workload_op *op);
 static int  csum_parse (struct workload *w, char ch, const char *optarg);
 static void csum_check (struct workload *w);
+
+static int btree_init  (struct workload *w);
+static int btree_fini  (struct workload *w);
+static void btree_run   (struct workload *w, struct workload_task *task);
+static void btree_op_get(struct workload *w, struct workload_op *op);
+static void btree_op_run(struct workload *w, struct workload_task *task,
+			const struct workload_op *op);
+static int  btree_parse (struct workload *w, char ch, const char *optarg);
+static void btree_check (struct workload *w);
 
 static const struct workload_type_ops w_ops[CWT_NR] = {
         [CWT_HPCS] = {
@@ -133,6 +143,16 @@ static const struct workload_type_ops w_ops[CWT_NR] = {
                 .wto_op_run = m0_op_run_index,
 		.wto_parse  = NULL,
 		.wto_check  = check
+        },
+
+        [CWT_BTREE] = {
+                .wto_init   = btree_init,
+                .wto_fini   = btree_fini,
+                .wto_run    = btree_run,
+                .wto_op_get = btree_op_get,
+                .wto_op_run = btree_op_run,
+		.wto_parse  = btree_parse,
+		.wto_check  = btree_check
         },
 };
 
@@ -328,7 +348,8 @@ static void *worker_thread(void *datum)
 	 * Motr can launch multiple operations in a single go.
 	 * Single operation in a loop won't work for Motr.
 	 */
-	if (w->cw_type == CWT_IO || w->cw_type == CWT_INDEX)
+	if (w->cw_type == CWT_IO || w->cw_type == CWT_INDEX ||
+	    w->cw_type == CWT_BTREE)
 		wop(w)->wto_op_run(w, wt, NULL);
 	else {
 		while (workload_op_get(w, &op) == 0)
@@ -1152,6 +1173,67 @@ static void csum_check (struct workload *w)
 {
 }
 
+static int btree_init(struct workload *w)
+{
+	return 0;
+}
+static int btree_fini(struct workload *w)
+{
+	return 0;
+}
+static void btree_run(struct workload *w, struct workload_task *task)
+{
+	int                    i;
+	struct cr_workload_btree *cwb = w->u.cw_ib;
+	struct task_btree        *ctb;
+
+
+        gettimeofday(&cwb->cwb_start_time, NULL);
+
+	for (i = 0; i < w->cw_nr_thread; ++i) {
+		ctb = (struct task btree *)task[i].u.btree_task;
+		// TODO: add thread specific code
+		ctb->tb_wb = cwb;
+	}
+	workload_start(w, task);
+	workload_join(w, task);
+        gettimeofday(&cwb->cwb_finish_time, NULL);
+
+	//TODO: add statistics
+	cr_log(CLL_INFO, "BTREE workload is finished.\n");
+
+}
+static void btree_op_get(struct workload *w, struct workload_op *op)
+{
+}
+static void btree_op_run(struct workload *w, struct workload_task *task,
+			const struct workload_op *op)
+{
+	struct task_btree *ctb = task->u.btree_task;
+
+	switch (cwi->cwi_opcode) {
+		case BOT_CREATE:
+			cr_btree_create(ctb);
+			break;
+		case BOT_INSERT:
+			cr_btree_insert(ctb);
+			break;
+		case BOT_LOOKUP:
+			cr_btree_lookup(ctb);
+			break;
+		case BOT_DELETE:
+			cr_btree_delete(ctb);
+			break;
+		}
+}
+static int  btree_parse(struct workload *w, char ch, const char *optarg)
+{
+	return 0;
+}
+static void btree_check(struct workload *w)
+{
+}
+
 static void usage(void)
 {
         int i;
@@ -1250,6 +1332,8 @@ static void usage(void)
 "                      (with -D option) [0].\n"
 "-q                    Generate sequential offsets in workload.\n"
 "-T                    Parse trace log produced by crashed stob workload.\n"
+"-S <filename>         Read workload options from a yaml file.\n"
+"      \"btree operation\" workload specific options\n"
 "-S <filename>         Read workload options from a yaml file.\n"
 "\n"
 "Numerical values can be in decimal, octal and hexadecimal as understood\n"

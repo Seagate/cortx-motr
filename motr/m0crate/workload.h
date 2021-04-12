@@ -56,6 +56,7 @@ enum cr_workload_type {
         CWT_CSUM,   /* checksumming workload */
 	CWT_IO,
 	CWT_INDEX,
+	CWT_BTREE,  /* Btree Operations */
         CWT_NR
 };
 
@@ -97,6 +98,7 @@ struct workload {
         union {
 		void *cw_io;
 		void *cw_index;
+		void *cw_btree;
                 struct cr_hpcs {
                 } cw_hpcs;
                 struct cr_csum {
@@ -124,6 +126,42 @@ enum csum_op_type {
         COT_NR
 };
 
+enum btree_op_type {
+	BOT_CREATE,
+	BOT_INSERT,
+	BOT_LOOKUP,
+	BOT_DELETE,
+	BOT_OPS_NR
+};
+
+struct cr_workload_btree {
+	uint32_t       cwb_total_ops;
+	int	       cwb_key_type;
+	int	       cwb_key_size;
+	int	       cwb_value_type;
+	int	       cwb_value_size;
+	int32_t        cwb_ops_per_thread;
+	uint64_t       cwb_ops_done[BOT_OPS_NR];
+	int32_t	       cwb_opcode;
+	struct timeval cwb_start_time;
+	struct timeval cwb_finish_time;
+	struct timeval cwb_execution_time;
+	struct timeval cwb_time[BOT_OPS_NR];
+};
+
+struct task_btree {
+	struct cr_workload_btree  *tb_wb;
+	int                        tb_task_idx;
+	uint32_t		  *tb_op_status;
+	uint32_t		  *tb_op_rcs;
+	int32_t                    tb_progress;
+	uint64_t                   tb_start_key;
+	uint64_t                   tb_nr_ops;
+	uint64_t                   tb_nr_ops_done;
+	struct timeval            *tb_op_list_time;
+	struct timeval             tb_op_acc_time;
+};
+
 /* description of a single task (thread) executing workload */
 struct workload_task {
         struct workload *wt_load;
@@ -144,6 +182,7 @@ struct workload_task {
                         char            *tc_buf;
                 } wt_csum;
 		void *m0_task;
+		void *btree_task;
 		// void *index_task;
         } u;
 };
@@ -171,7 +210,8 @@ struct workload_type_ops {
 
         void (*wto_run)(struct workload *w, struct workload_task *task);
         void (*wto_op_get)(struct workload *w, struct workload_op *op);
-        void (*wto_op_run)(struct workload *w, struct workload_task *task, const struct workload_op *op);
+        void (*wto_op_run)(struct workload *w, struct workload_task *task,
+			   const struct workload_op *op);
         int  (*wto_parse)(struct workload *w, char ch, const char *optarg);
         void (*wto_check)(struct workload *w);
 };

@@ -1,0 +1,46 @@
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+CrateConfig_Sections: [MOTR_CONFIG, WORKLOAD_SPEC]
+
+
+MOTR_CONFIG:
+   MOTR_LOCAL_ADDR: 192.168.122.122@tcp:12345:33:302
+   MOTR_HA_ADDR:    192.168.122.122@tcp:12345:34:101
+   PROF: <0x7000000000000001:0x4d>  # Profile
+   LAYOUT_ID: 9                     # Defines the UNIT_SIZE (9: 1MB)
+   IS_OOSTORE: 1                    # Is oostore-mode?
+   IS_READ_VERIFY: 0                # Enable read-verify?
+   TM_RECV_QUEUE_MIN_LEN: 16 # Minimum length of the receive queue
+   MAX_RPC_MSG_SIZE: 65536   # Maximum rpc message size
+   PROCESS_FID: <0x7200000000000001:0x28>
+   IDX_SERVICE_ID: 1
+
+LOG_LEVEL: 4  # err(0), warn(1), info(2), trace(3), debug(4)
+
+WORKLOAD_SPEC:               # Workload specification section
+   WORKLOAD:                 # First Workload
+      WORKLOAD_TYPE: 2       # Index(0), IO(1) , BTREE(2)
+      OPCODE: 3              # Operation(s) to test: 2-INSERT, 3-INSERT+DELETE, 4-INSERT+LOOKUP
+      NR_THREADS: 4          # Number of threads to run in this workload
+      KEY_TYPE: 0            # Key type Fixed:0 Variable:1
+      BTREE_KEY_SIZE: 5k     # Key size if key type is fixed
+      VALUE_TYPE: 0          # Value type Fixed:0 Variable:1
+      BTREE_VAL_SIZE: 5k     # Value size if value type is fixed
+      TOTAL_OPS: 100         # Total number of operations

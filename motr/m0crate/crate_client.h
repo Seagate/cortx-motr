@@ -58,8 +58,9 @@ struct crate_conf {
 };
 
 enum m0_operation_type {
-	INDEX,
-	IO
+	OT_INDEX,
+	OT_IO,
+	OT_BTREE
 };
 
 enum cr_opcode {

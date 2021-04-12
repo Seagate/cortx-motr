@@ -90,6 +90,10 @@ enum config_key_val {
 	NR_ROUNDS,
 	ADDB_INIT,
 	ADDB_SIZE,
+	KEY_TYPE,
+	BTREE_KEY_SIZE,
+	VALUE_TYPE,
+	BTREE_VAL_SIZE,
 };
 
 struct key_lookup_table {
@@ -152,6 +156,10 @@ struct key_lookup_table lookuptable[] = {
 	{"NR_ROUNDS", NR_ROUNDS},
 	{"ADDB_INIT", ADDB_INIT},
 	{"ADDB_SIZE", ADDB_SIZE},
+	{"KEY_TYPE", KEY_TYPE},
+	{"BTREE_KEY_SIZE", BTREE_KEY_SIZE},
+	{"VALUE_TYPE", VALUE_TYPE},
+	{"BTREE_VAL_SIZE", BTREE_VAL_SIZE},
 };
 
 #define NKEYS (sizeof(lookuptable)/sizeof(struct key_lookup_table))
@@ -229,9 +237,11 @@ static int parse_int(const char *value, enum config_key_val tag)
 
 #define SIZEOF_CWIDX sizeof(struct m0_workload_index)
 #define SIZEOF_CWIO sizeof(struct m0_workload_io)
+#define SIZEOF_CWBTREE sizeof(struct cr_workload_btree)
 
 #define workload_index(t) (t->u.cw_index)
 #define workload_io(t) (t->u.cw_io)
+#define workload_btree(t) (t->u.cw_btree)
 
 int copy_value(struct workload *load, int max_workload, int *index,
 		char *key, char *value)
@@ -240,6 +250,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 	struct m0_fid            *obj_fid;
 	struct m0_workload_io    *cw;
 	struct m0_workload_index *ciw;
+	struct cr_workload_btree *cbw;
 	int                       value_len = strlen(value);
 
 	if (!strcmp(value, "MOTR_CONFIG")) {
@@ -319,15 +330,20 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case WORKLOAD_TYPE:
 			(*index)++;
 			w = &load[*index];
-			if (atoi(value) == INDEX) {
+			if (atoi(value) == OT_INDEX) {
 				w->cw_type = CWT_INDEX;
 				w->u.cw_index = m0_alloc(SIZEOF_CWIDX);
 				if (w->u.cw_io == NULL)
 					return -ENOMEM;
-			} else {
+			} else if (atoi(value) == OT_IO) {
 				w->cw_type = CWT_IO;
 				w->u.cw_io = m0_alloc(SIZEOF_CWIO);
 				if (w->u.cw_io == NULL)
+					return -ENOMEM;
+			} else {
+				w->cw_type = CWT_BTREE;
+				w->u.cw_btree = m0_alloc(SIZEOF_CWBTREE);
+				if (w->u.cw_btree == NULL)
 					return -ENOMEM;
 			}
                         return workload_init(w, w->cw_type);
@@ -533,13 +549,18 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case OPCODE:
 			w = &load[*index];
-			cw = workload_io(w);
-			cw->cwi_opcode = atoi(value);
-			if (conf->layout_id <= 0) {
-				cr_log(CLL_ERROR, "LAYOUT_ID is not set\n");
-				return -EINVAL;
+			if (w->cw_type == CWT_IO) {
+				cw = workload_io(w);
+				cw->cwi_opcode = atoi(value);
+				if (conf->layout_id <= 0) {
+					cr_log(CLL_ERROR, "LAYOUT_ID is not set\n");
+					return -EINVAL;
+				}
+				cw->cwi_layout_id = conf->layout_id;
+			} else {
+				cbw = workload_btree(w);
+				cbw->cwb_opcode = atoi(value);
 			}
-			cw->cwi_layout_id = conf->layout_id;
 			break;
 		case START_OBJ_ID:
 			w = &load[*index];
@@ -567,6 +588,32 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case ADDB_SIZE:
 			conf->addb_size = getnum(value, "addb size");
+			break;
+		case KEY_TYPE:
+			w = &load[*index];
+			cbw = workload_btree(w);
+			cbw->cwb_key_type = atoi(value);
+			break;
+		case BTREE_KEY_SIZE:
+			w = &load[*index];
+			cbw = workload_btree(w);
+			if (cbw->cwb_key_type == 0)
+				cbw->cwb_key_size = parse_int(value,
+							      BTREE_KEY_SIZE);
+			break;
+		case VALUE_TYPE:
+			w = &load[*index];
+			cbw = workload_btree(w);
+			cbw->cwb_value_type = atoi(value);
+			break;
+		case BTREE_VAL_SIZE:
+			w = &load[*index];
+			cbw = workload_btree(w);
+			if (cbw->cwb_value_type == 0)
+				cbw->cwb_value_size = parse_int(value,
+								BTREE_VAL_SIZE);
+			break;
+
 		default:
 			break;
 	}
