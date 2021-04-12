@@ -520,6 +520,11 @@
 #include "lib/assert.h"
 #include "ut/ut.h"
 
+#ifndef __KERNEL__
+#include <stdlib.h>
+#include <time.h>
+#endif
+
 /**
  *  --------------------------------------------
  *  Section START - BTree Structure and Operations
@@ -920,10 +925,12 @@ struct slot {
 #if 0
 static int64_t tree_get   (struct node_op *op, struct segaddr *addr, int nxt);
 #endif
+#ifndef __KERNEL__
 static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
 			   int rootshift, struct m0_be_tx *tx, int nxt);
 static int64_t tree_delete(struct node_op *op, struct td *tree,
 			   struct m0_be_tx *tx, int nxt);
+#endif
 #if 0
 static void    tree_put   (struct td *tree);
 
@@ -935,8 +942,10 @@ static struct nd *node_try  (struct td *tree, struct segaddr *addr);
 static int64_t    node_alloc(struct node_op *op, struct td *tree, int size,
 			  const struct node_type *nt, int ksize, int vsize,
 			  struct m0_be_tx *tx, int nxt);
-static int64_t    node_free (struct node_op *op, struct nd *node,
+#ifndef __KERNEL__
+static int64_t    node_free(struct node_op *op, struct nd *node,
 			     struct m0_be_tx *tx, int nxt);
+#endif
 #if 0
 static void node_op_fini(struct node_op *op);
 #endif
@@ -1058,7 +1067,7 @@ static void node_make(struct slot *slot, struct m0_be_tx *tx)
 	slot->s_node->n_type->nt_make(slot, tx);
 }
 
-#if 0
+#ifndef __KERNEL__
 static void node_find(struct slot *slot, const struct m0_btree_key *key)
 {
 	slot->s_node->n_type->nt_find(slot, key);
@@ -1256,6 +1265,7 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 }
 #endif
 
+#ifndef __KERNEL__
 static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
 			   int rootshift, struct m0_be_tx *tx, int nxt)
 {
@@ -1267,6 +1277,7 @@ static int64_t tree_delete(struct node_op *op, struct td *tree,
 {
 	return segops->so_tree_delete(op, tree, tx, nxt);
 }
+#endif
 
 #if 0
 static void tree_put(struct td *tree)
@@ -1309,12 +1320,14 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 	return nxt_state;
 }
 
+#ifndef __KERNEL__
 static int64_t node_free(struct node_op *op, struct nd *node,
 			 struct m0_be_tx *tx, int nxt)
 {
 	node->n_type->nt_fini(node);
 	return segops->so_node_free(op, node, tx, nxt);
 }
+#endif
 
 #if 0
 static void node_op_fini(struct node_op *op)
@@ -1523,7 +1536,7 @@ static void *ff_key(const struct nd *node, int idx)
 	void           *area = h + 1;
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
-		   (0 <= idx && idx < h->ff_used)));
+		   (0 <= idx && idx <= h->ff_used)));
 	return area + (h->ff_ksize + h->ff_vsize) * idx;
 }
 
@@ -1533,7 +1546,7 @@ static void *ff_val(const struct nd *node, int idx)
 	void           *area = h + 1;
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
-		    0 <= idx && idx < h->ff_used));
+		    0 <= idx && idx <= h->ff_used));
 	return area + (h->ff_ksize + h->ff_vsize) * idx + h->ff_ksize;
 }
 
@@ -1641,7 +1654,7 @@ static void ff_rec(struct slot *slot)
 
 	M0_PRE(ff_invariant(slot->s_node));
 	M0_PRE(ergo(!(h->ff_used == 0 && slot->s_idx == 0),
-		    slot->s_idx < h->ff_used));
+		    slot->s_idx <= h->ff_used));
 
 	slot->s_rec.r_val.ov_vec.v_nr = 1;
 	slot->s_rec.r_val.ov_vec.v_count[0] = h->ff_vsize;
@@ -1656,7 +1669,7 @@ static void ff_node_key(struct slot *slot)
 	struct ff_head   *h    = ff_data(node);
 
 	M0_PRE(ff_invariant(node));
-	M0_PRE(ergo(!(h->ff_used == 0 && slot->s_idx == 0),slot->s_idx < h->ff_used));
+	M0_PRE(ergo(!(h->ff_used == 0 && slot->s_idx == 0),slot->s_idx <= h->ff_used));
 
 	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
 	slot->s_rec.r_key.k_data.ov_vec.v_count[0] = h->ff_ksize;
@@ -1710,11 +1723,21 @@ static void ff_find(struct slot *slot, const struct m0_btree_key *key)
 	M0_PRE(key->k_data.ov_vec.v_count[0] == h->ff_ksize);
 	M0_PRE(key->k_data.ov_vec.v_nr == 1);
 
-	while (i < j) {
+	if (h->ff_used == 0 ||
+	    (memcmp(ff_key(slot->s_node, 0),
+		    key->k_data.ov_buf[0], h->ff_ksize) > 0)) {
+		slot->s_idx = 0;
+		return;
+	} else if (memcmp(ff_key(slot->s_node, (h->ff_used - 1)),
+			  key->k_data.ov_buf[0], h->ff_ksize) < 0) {
+		slot->s_idx = h->ff_used;
+		return;
+	}
+
+	do {
 		int m    = (i + j) / 2;
 		int diff = memcmp(ff_key(slot->s_node, m),
 				  key->k_data.ov_buf[0], h->ff_ksize);
-		M0_ASSERT(i < m && m < j);
 
 		if (diff < 0)
 			i = m;
@@ -1724,8 +1747,8 @@ static void ff_find(struct slot *slot, const struct m0_btree_key *key)
 			i = m;
 			break;
 		}
-	}
-	slot->s_idx = i;
+	} while (i + 1 < j);
+	slot->s_idx = j;
 }
 
 static void ff_fix(const struct nd *node, struct m0_be_tx *tx)
@@ -1805,6 +1828,15 @@ static void generic_move(struct nd *src, struct nd *tgt,
 }
 
 
+#ifndef __KERNEL__
+/**
+ * The code contained below is 'ut'. This is a little experiment to contain the
+ * ut code in the same file containing the functionality code. We are open to
+ * changes iff enough reasons are found that this model either does not work or
+ * is not intuitive or maintainable.
+ *
+ * @author 530902 (12-Apr-21)
+ */
 static void m0_btree_ut_node_create_delete(void);
 static void m0_btree_ut_node_add_del_rec(void);
 
@@ -1953,6 +1985,7 @@ static bool add_rec(struct nd *node,
 	return true;
 }
 
+#if 0
 static int rnd_ary[] = {302532081, 1112955930, 1923385897, 650767442, 956488317,
 	996467464, 1622532220, 27441186, 1704310090, 421525067, 1398729363,
 	595438039, 466534124, 152811297, 2063648297, 430374657, 1748223144,
@@ -1972,6 +2005,7 @@ static int rnd_ary[] = {302532081, 1112955930, 1923385897, 650767442, 956488317,
 	1635858466, 777865157, 2022252806, 1506228364, 233902206 };
 
 static int rnd_ary_off = 0;
+#endif
 
 static void get_next_rec_to_add(struct nd *node, uint64_t *key,  uint64_t *val)
 {
@@ -1989,8 +2023,7 @@ static void get_next_rec_to_add(struct nd *node, uint64_t *key,  uint64_t *val)
 	slot.s_node = node;
 
 	ksize = h->ff_ksize;
-	proposed_key = rnd_ary[rnd_ary_off % ARRAY_SIZE(rnd_ary)];
-	rnd_ary_off++;
+	proposed_key = rand();
 
 	find_key.k_data.ov_vec.v_nr    = 1;
 	find_key.k_data.ov_vec.v_count = &ksize;
@@ -2047,6 +2080,8 @@ void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
 	slot.s_rec.r_val.ov_vec.v_count = &vsize;
 	slot.s_rec.r_val.ov_buf = &p_val;
 
+	node_rec(&slot);
+
 	if (key != NULL)
 		*key = *(uint64_t *)p_key;
 
@@ -2072,10 +2107,14 @@ void m0_btree_ut_node_add_del_rec(void)
 	uint64_t                prev_key;
 	uint64_t                curr_key;
 	int                     i;
+	time_t                  curr_time;
 
 	M0_ENTRY();
 
-	rnd_ary_off = 0;
+	time(&curr_time);
+	srand(curr_time);
+
+//	rnd_ary_off = 0;
 
 	btree_ut_init();
 
@@ -2097,7 +2136,7 @@ void m0_btree_ut_node_add_del_rec(void)
 		get_next_rec_to_add(node1, &key, &val);
 		if (!add_rec(node1, key, val))
 			break;
-		M0_ASSERT(i == node_count(node1));
+		M0_ASSERT(i++ == node_count(node1));
 	}
 
 	// Confirm all the records are in ascending value of key.
@@ -2125,7 +2164,7 @@ void m0_btree_ut_node_add_del_rec(void)
 	M0_LEAVE();
 }
 
-
+#endif  /** KERNEL */
 #undef M0_TRACE_SUBSYSTEM
 
 
