@@ -956,7 +956,9 @@ static void node_child(struct slot *slot, struct segaddr *addr);
 static bool node_isfit(struct slot *slot);
 static void node_done (struct slot *slot, struct m0_be_tx *tx, bool modified);
 static void node_make (struct slot *slot, struct m0_be_tx *tx);
+#if 0
 static void node_find (struct slot *slot, const struct m0_btree_key *key);
+#endif
 static void node_fix  (const struct nd *node, struct m0_be_tx *tx);
 #if 0
 static void node_cut  (const struct nd *node, int idx, int size,
@@ -1056,10 +1058,12 @@ static void node_make(struct slot *slot, struct m0_be_tx *tx)
 	slot->s_node->n_type->nt_make(slot, tx);
 }
 
+#if 0
 static void node_find(struct slot *slot, const struct m0_btree_key *key)
 {
 	slot->s_node->n_type->nt_find(slot, key);
 }
+#endif
 
 static void node_fix(const struct nd *node, struct m0_be_tx *tx)
 {
