@@ -28,6 +28,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/thread.h"
+#include "lib/arith.h"	     /* m0_rnd64 */
 
 #include "lib/ub.h"
 #include "ut/ut.h"
@@ -35,6 +36,12 @@
 #include "sns/matvec.h"
 #include "sns/ls_solve.h"
 #include "sns/parity_math.h"
+
+#define MAX_NUM_THREADS 30
+#define KB(x)		((x) * 1024)
+#define MB(x)		(KB(x) * 1024)
+
+static uint64_t seed = 42;
 
 struct tb_cfg {
 	uint32_t  tc_data_count;
@@ -44,13 +51,13 @@ struct tb_cfg {
 	uint32_t  tc_block_size;
 
 	uint8_t **tc_data;
+	uint8_t **tc_backup;
 	uint8_t **tc_parity;
 	uint8_t  *tc_fail;
 };
 
 static int ub_init(const char *opts M0_UNUSED)
 {
-	srand(1285360231);
 	return 0;
 }
 
@@ -58,7 +65,7 @@ void tb_cfg_init(struct tb_cfg *cfg, uint32_t data_count, uint32_t parity_count,
 		 uint32_t block_size)
 {
 	uint32_t i;
-	uint32_t j;
+	uint32_t fail_count;
 
 	cfg->tc_data_count	= data_count;
 	cfg->tc_parity_count	= parity_count;
@@ -66,33 +73,40 @@ void tb_cfg_init(struct tb_cfg *cfg, uint32_t data_count, uint32_t parity_count,
 	cfg->tc_block_size      = block_size;
 
 
-	/* allocate and prepare data */
-	cfg->tc_data = m0_alloc(data_count * sizeof(uint8_t*));
+	/* allocate data */
+	M0_ALLOC_ARR(cfg->tc_data, data_count);
 	M0_ASSERT(cfg->tc_data != NULL);
 
 	for (i = 0; i < data_count; ++i) {
-		cfg->tc_data[i] = m0_alloc(block_size * sizeof(uint8_t));
+		M0_ALLOC_ARR(cfg->tc_data[i], block_size);
 		M0_ASSERT(cfg->tc_data[i] != NULL);
-
-		for (j = 0; j < block_size; ++j)
-			cfg->tc_data[i][j] = (uint8_t)rand();
 	}
 
 	/* allocate parity */
-	cfg->tc_parity = m0_alloc(parity_count * sizeof(uint8_t*));
+	M0_ALLOC_ARR(cfg->tc_parity, parity_count);
 	M0_ASSERT(cfg->tc_parity != NULL);
 
+	/* allocate memory for backup */
+	M0_ALLOC_ARR(cfg->tc_backup, parity_count);
+	M0_ASSERT(cfg->tc_backup != NULL);
+
 	for (i = 0; i < parity_count; ++i) {
-		cfg->tc_parity[i] = m0_alloc(block_size * sizeof(uint8_t));
-		M0_ASSERT(cfg->tc_data[i] != NULL);
+		M0_ALLOC_ARR(cfg->tc_parity[i], block_size);
+		M0_ASSERT(cfg->tc_parity[i] != NULL);
+
+		M0_ALLOC_ARR(cfg->tc_backup[i], block_size);
+		M0_ASSERT(cfg->tc_backup[i] != NULL);
 	}
 
 	/* allocate and set fail info */
-	cfg->tc_fail = m0_alloc(cfg->tc_fail_count * sizeof(uint8_t));
+	M0_ALLOC_ARR(cfg->tc_fail, cfg->tc_fail_count);
 	M0_ASSERT(cfg->tc_fail != NULL);
 
-	for (i = 0; i < parity_count; ++i)
-		cfg->tc_fail[i] = 1; /* maximal possible fails */
+	fail_count = (m0_rnd64(&seed) % parity_count) + 1;
+	for (i = 0; i < fail_count; ++i){
+		uint32_t idx = m0_rnd64(&seed) % cfg->tc_fail_count;
+		cfg->tc_fail[idx] = 1;
+	}
 }
 
 void tb_cfg_fini(struct tb_cfg *cfg)
@@ -103,11 +117,50 @@ void tb_cfg_fini(struct tb_cfg *cfg)
 		m0_free(cfg->tc_data[i]);
 	m0_free(cfg->tc_data);
 
-	for (i = 0; i < cfg->tc_parity_count; ++i)
+	for (i = 0; i < cfg->tc_parity_count; ++i){
 		m0_free(cfg->tc_parity[i]);
+		m0_free(cfg->tc_backup[i]);
+	}
 	m0_free(cfg->tc_parity);
+	m0_free(cfg->tc_backup);
 
 	m0_free(cfg->tc_fail);
+}
+
+static void unit_spoil(struct tb_cfg *cfg)
+{
+	uint32_t	i;
+	uint32_t	j;
+	uint8_t	       *addr;
+
+	for (i = 0, j = 0; i < cfg->tc_fail_count; i++) {
+		if (cfg->tc_fail[i]) {
+			if (i < cfg->tc_data_count)
+				addr = cfg->tc_data[i];
+			else
+				addr = cfg->tc_parity[i - cfg->tc_data_count];
+
+			memcpy(cfg->tc_backup[j++], addr, cfg->tc_block_size);
+			memset(addr, 0xFF, cfg->tc_block_size);
+		}
+	}
+}
+
+static void unit_compare(struct tb_cfg *cfg)
+{
+	uint32_t i, j;
+	uint8_t *addr;
+
+	for (i = 0, j = 0; i < cfg->tc_fail_count; i++) {
+		if (cfg->tc_fail[i]) {
+			if (i < cfg->tc_data_count)
+				addr = cfg->tc_data[i];
+			else
+				addr = cfg->tc_parity[i - cfg->tc_data_count];
+
+			M0_ASSERT(memcmp(cfg->tc_backup[j++], addr, cfg->tc_block_size) == 0);
+		}
+	}
 }
 
 void tb_thread(struct tb_cfg *cfg)
@@ -142,10 +195,14 @@ void tb_thread(struct tb_cfg *cfg)
 		m0_buf_init(&parity_buf[i], cfg->tc_parity[i], buff_size);
 
 
-	m0_buf_init(&fail_buf, cfg->tc_fail, fail_count);
 	m0_parity_math_calculate(&math, data_buf, parity_buf);
 
+	m0_buf_init(&fail_buf, cfg->tc_fail, fail_count);
+	unit_spoil(cfg);
+
 	m0_parity_math_recover(&math, data_buf, parity_buf, &fail_buf, 0);
+
+	unit_compare(cfg);
 
 	m0_parity_math_fini(&math);
 	m0_free(data_buf);
@@ -156,7 +213,7 @@ static void ub_mt_test(uint32_t data_count,
 		       uint32_t parity_count,
 		       uint32_t block_size)
 {
-	uint32_t num_threads = 30;
+	uint32_t num_threads = MAX_NUM_THREADS;
 	uint32_t i;
 	int result = 0;
 
@@ -187,85 +244,133 @@ static void ub_mt_test(uint32_t data_count,
 	m0_free(threads);
 }
 
-void ub_small_4096() {
-	ub_mt_test(10, 3, 4096);
+void ub_small_4K() {
+	ub_mt_test(10, 3, KB(4));
 }
 
-void ub_medium_4096() {
-	/* ub_mt_test(20, 6, 4096); */
+void ub_medium_4K() {
+	ub_mt_test(20, 6, KB(4));
 }
 
-void ub_large_4096() {
-	/* ub_mt_test(30, 8, 4096); */
+void ub_large_4K() {
+	ub_mt_test(30, 4, KB(4));
 }
 
-void ub_small_1048576() {
-	/* ub_mt_test(10, 3, 1048576); */
+void ub_small_1M() {
+	ub_mt_test(10, 3, MB(1));
 }
 
-void ub_medium_1048576() {
-	/* ub_mt_test(20, 6, 1048576); */
+void ub_medium_1M() {
+	ub_mt_test(20, 6, MB(1));
 }
 
-void ub_large_1048576() {
-	/* ub_mt_test(30, 8, 1048576); */
+void ub_large_1M() {
+	ub_mt_test(30, 4, MB(1));
 }
 
-void ub_small_32768() {
-	/* ub_mt_test(10, 3, 32768); */
+void ub_small_32K() {
+	ub_mt_test(10, 3, KB(32));
 }
 
-void ub_medium_32768() {
-	/* ub_mt_test(20, 6, 32768); */
+void ub_medium_32K() {
+	ub_mt_test(20, 6, KB(32));
 }
 
-void ub_large_32768() {
-	/* ub_mt_test(30, 8, 32768); */
+void ub_large_32K() {
+	ub_mt_test(30, 4, KB(32));
+}
+
+static void ub_small_4_2_4K(int iter) {
+	ub_mt_test(4, 2, KB(4));
+}
+
+static void ub_small_4_2_256K(int iter) {
+	ub_mt_test(4, 2, KB(256));
+}
+
+static void ub_small_4_2_1M(int iter) {
+	ub_mt_test(4, 2, MB(1));
 }
 
 enum { UB_ITER = 1 };
 
 struct m0_ub_set m0_parity_math_mt_ub = {
-        .us_name = "m0_parity_math-ub",
-        .us_init = ub_init,
-        .us_fini = NULL,
-        .us_run  = {
-		/*             parity_math-: */
-                { .ub_name  = "s 10/03/ 4K",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_small_4096 },
+	.us_name = "parity-math-mt-ub",
+	.us_init = ub_init,
+	.us_fini = NULL,
+	.us_run  = {
+		/*     parity_math-: */
+		{ .ub_name  = "s 10/03/  4K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small_4K,
+		  .ub_block_size = KB(4),
+		  .ub_blocks_per_op = 13 * MAX_NUM_THREADS },
 
-                { .ub_name  = "m 20/06/ 4K",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_medium_4096 },
+		{ .ub_name  = "m 20/06/  4K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_medium_4K,
+		  .ub_block_size = KB(4),
+		  .ub_blocks_per_op = 26 * MAX_NUM_THREADS },
 
-                { .ub_name  = "l 30/08/ 4K",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_large_4096 },
+		{ .ub_name  = "l 30/04/  4K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_large_4K,
+		  .ub_block_size = KB(4),
+		  .ub_blocks_per_op = 34 * MAX_NUM_THREADS },
 
-                { .ub_name  = "s 10/03/32K",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_small_32768 },
+		{ .ub_name  = "s 10/03/ 32K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small_32K,
+		  .ub_block_size = KB(32),
+		  .ub_blocks_per_op = 13 * MAX_NUM_THREADS },
 
-                { .ub_name  = "m 20/06/32K",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_medium_32768 },
+		{ .ub_name  = "m 20/06/ 32K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_medium_32K,
+		  .ub_block_size = KB(32),
+		  .ub_blocks_per_op = 26 * MAX_NUM_THREADS },
 
-                { .ub_name  = "l 30/08/32K",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_large_32768 },
+		{ .ub_name  = "l 30/04/ 32K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_large_32K,
+		  .ub_block_size = KB(32),
+		  .ub_blocks_per_op = 34 * MAX_NUM_THREADS },
 
-                { .ub_name  = "s 10/05/ 1M",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_small_1048576 },
+		{ .ub_name  = "s 10/05/  1M",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small_1M,
+		  .ub_block_size = MB(1),
+		  .ub_blocks_per_op = 15 * MAX_NUM_THREADS },
 
-                { .ub_name  = "m 20/06/ 1M",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_medium_1048576 },
+		{ .ub_name  = "m 20/06/  1M",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_medium_1M,
+		  .ub_block_size = MB(1),
+		  .ub_blocks_per_op = 26 * MAX_NUM_THREADS },
 
-                { .ub_name  = "l 30/08/ 1M",
-                  .ub_iter  = UB_ITER,
-                  .ub_round = ub_large_1048576 },
+		{ .ub_name  = "l 30/04/  1M",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_large_1M,
+		  .ub_block_size = MB(1),
+		  .ub_blocks_per_op = 34 * MAX_NUM_THREADS },
+
+		{ .ub_name  = "s 04/02/  4K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small_4_2_4K,
+		  .ub_block_size = 4096,
+		  .ub_blocks_per_op = 6 * MAX_NUM_THREADS },
+
+		{ .ub_name  = "m 04/02/256K",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small_4_2_256K,
+		  .ub_block_size = 262144,
+		  .ub_blocks_per_op = 6 * MAX_NUM_THREADS },
+
+		{ .ub_name  = "l 04/02/  1M",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small_4_2_1M,
+		  .ub_block_size = 1048576,
+		  .ub_blocks_per_op = 6 * MAX_NUM_THREADS },
 
 		{ .ub_name = NULL}
 	}
