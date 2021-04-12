@@ -407,6 +407,7 @@ enum cas_fom_phase {
 	CAS_IDROP_LOCK_LOOP,
 	CAS_IDROP_LOCKED,
 	CAS_IDROP_START_GC,
+	CAS_DTM0,
 	CAS_NR
 };
 
@@ -1015,10 +1016,44 @@ static void cas_fom_failure(struct cas_fom *fom, int rc, bool ctg_op_fini)
 	m0_fom_phase_move(&fom->cf_fom, rc, M0_FOPH_FAILURE);
 }
 
-static int cas_dtm0_logrec_add (struct m0_fom *fom0, struct m0_dtm0_tx_desc *txd,
-				enum m0_dtm0_tx_pa_state state) {
+static int cas_dtm0_logrec_credit_add(struct m0_fom *fom0)
+{
+	struct m0_be_tx_credit dtm0logrec_cred = {};
+	struct m0_buf          buf = {};
+	int	               rc;
+
+	M0_ENTRY();
+
+	/*
+	 * TBD: while calculating the credits we need only the
+	 * size of the payload. Check if m0_be_dtm0_log_credit
+	 * needs to be updated to accept a size instead of the
+	 * actual payload.
+	 */
+	rc = m0_xcode_obj_enc_to_buf(
+		&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
+		&buf.b_addr, &buf.b_nob);
+	if (rc == 0) {
+		m0_be_dtm0_log_credit(M0_DTML_PERSISTENT,
+				      &cas_op(fom0)->cg_txd,
+				      &buf,
+				      m0_fom_reqh(fom0)->rh_beseg,
+				      NULL,
+				      &dtm0logrec_cred);
+		m0_be_tx_credit_add(&fom0->fo_tx.tx_betx_cred,
+				    &dtm0logrec_cred);
+	}
+	m0_buf_free(&buf);
+
+	return M0_RC(rc);
+}
+
+static int cas_dtm0_logrec_add(struct m0_fom *fom0, struct m0_dtm0_tx_desc *txd,
+			       enum m0_dtm0_tx_pa_state state)
+{
 	/* log the dtm0 logrec before completing the cas op */
-	struct m0_dtm0_service *dtms = m0_dtm0_service_find(fom0->fo_service->rs_reqh);
+	struct m0_dtm0_service *dtms =
+		m0_dtm0_service_find(fom0->fo_service->rs_reqh);
 	struct m0_dtm0_tx_desc *msg = &cas_op(fom0)->cg_txd;
 	struct m0_buf	        buf = {};
 	int                     i;
@@ -1027,14 +1062,15 @@ static int cas_dtm0_logrec_add (struct m0_fom *fom0, struct m0_dtm0_tx_desc *txd
 	for (i = 0; i < msg->dtd_ps.dtp_nr; ++i) {
 		if (m0_fid_eq(&msg->dtd_ps.dtp_pa[i].p_fid,
 					&dtms->dos_generic.rs_service_fid)) {
-			msg->dtd_ps.dtp_pa[i].p_state = (uint32_t) M0_DTPS_PERSISTENT;
+			msg->dtd_ps.dtp_pa[i].p_state =
+				(uint32_t)M0_DTPS_PERSISTENT;
 			break;
 		}
 	}
 	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
-				     &buf.b_addr, &buf.b_nob);
-	M0_ASSERT(rc == 0);
-	m0_dtm0_logrec_update(dtms->dos_log, &fom0->fo_tx.tx_betx, msg, &buf);
+				     &buf.b_addr, &buf.b_nob) ?:
+		m0_dtm0_logrec_update(dtms->dos_log, &fom0->fo_tx.tx_betx, msg,
+				      &buf);
 	m0_buf_free(&buf);
 
 	return rc;
@@ -1042,9 +1078,6 @@ static int cas_dtm0_logrec_add (struct m0_fom *fom0, struct m0_dtm0_tx_desc *txd
 
 static void cas_fom_success(struct cas_fom *fom, enum m0_cas_opcode opc)
 {
-	if (!m0_dtm0_tx_desc_is_none(&cas_op(&fom->cf_fom)->cg_txd)) {
-		cas_dtm0_logrec_add(&fom->cf_fom, &cas_op(&fom->cf_fom)->cg_txd, M0_DTPS_PERSISTENT);
-	}
 	cas_fom_cleanup(fom, opc == CO_CUR);
 	m0_fom_phase_set(&fom->cf_fom, M0_FOPH_SUCCESS);
 }
@@ -1140,6 +1173,8 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	struct m0_cas_ctg  *meta    = m0_ctg_meta();
 	struct m0_cas_ctg  *ctidx   = m0_ctg_ctidx();
 	struct m0_cas_rec  *rec     = NULL;
+	bool                is_dtm0_used =
+		!m0_dtm0_tx_desc_is_none(&op->cg_txd);
 	bool                is_index_drop;
 	bool                do_ctidx;
 	int                 next_phase;
@@ -1186,14 +1221,14 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		if (cas_in_ut() && m0_fom_phase(fom0) == M0_FOPH_QUEUE_REPLY) {
 			m0_fom_phase_set(fom0, M0_FOPH_TXN_COMMIT_WAIT);
 		}
-		if (m0_fom_phase(fom0) == M0_FOPH_FINISH) {
-			M0_ASSERT_INFO(phase == M0_FOPH_TXN_COMMIT_WAIT,
-				       "Persistent notice is sent after DTM0 "
-				       "log entry is committed.");
-			if (!m0_dtm0_tx_desc_is_none(&cas_op(fom0)->cg_txd)) {
-				m0_dtm0_on_committed(fom0,
-						     &cas_op(fom0)->cg_txd);
-			}
+
+		/*
+		 * Once the transition TXN_COMMIT_WAIT->FINISH is completed,
+		 * we need to send out P-msg if DTM0 is in use.
+		 */
+		if (phase == M0_FOPH_TXN_COMMIT_WAIT &&
+		    m0_fom_phase(fom0) == M0_FOPH_FINISH && is_dtm0_used) {
+			m0_dtm0_on_committed(fom0, &cas_op(fom0)->cg_txd);
 		}
 		break;
 	case CAS_CHECK_PRE:
@@ -1374,32 +1409,16 @@ static int cas_fom_tick(struct m0_fom *fom0)
 				       cas_op(fom0)->cg_flags);
 		}
 
-		/* If cas request has a txr payload, this a dtm0 operation.
-		 * We need to calculate credits for creating a dtm0 log record.
-		 *
+		/*
+		 * If dtm0 is used we need to calculate credits for creating
+		 * a dtm0 log record.
 		 */
-		if (!m0_dtm0_tx_desc_is_none(&cas_op(fom0)->cg_txd)) {
-			struct m0_be_tx_credit dtm0logrec_cred;
-			struct m0_buf	       buf = {};
-			int	    rc;
-
-			/* TDB: while calculating the credits we need only the
-			   size of the payload. Check if m0_be_dtm0_log_credit
-			   needs to be updated to accept a size instead of the
-			   actual payload. */
-
-			rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc,
-						      cas_op(fom0)), &buf.b_addr, &buf.b_nob);
-			M0_ASSERT(rc == 0);
-
-			m0_be_dtm0_log_credit(M0_DTML_PERSISTENT,
-					      &cas_op(fom0)->cg_txd,
-					      &buf,
-					      m0_fom_reqh(fom0)->rh_beseg,
-					      NULL,
-					      &dtm0logrec_cred);
-			m0_be_tx_credit_add(&fom0->fo_tx.tx_betx_cred, &dtm0logrec_cred);
-			m0_buf_free(&buf);
+		if (is_dtm0_used) {
+			rc = cas_dtm0_logrec_credit_add(fom0);
+			if (rc != 0) {
+				cas_fom_failure(fom, M0_ERR(rc), false);
+				break;
+			}
 		}
 
 		m0_fom_phase_set(fom0, M0_FOPH_TXN_OPEN);
@@ -1433,13 +1452,17 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			if (cas_max_reply_payload_exceeded(fom))
 				cas_fom_failure(fom, M0_ERR(-E2BIG),
 						opc == CO_CUR);
-			else
-				cas_fom_success(fom, opc);
+			else {
+				if (is_dtm0_used)
+					m0_fom_phase_set(fom0, CAS_DTM0);
+				else
+					cas_fom_success(fom, opc);
+			}
 			addb2_add_kv_attrs(fom, STATS_KV_OUT);
 		} else {
 			do_ctidx = cas_ctidx_op_needed(fom, opc, ct, ipos);
-			result = cas_exec(fom, opc, ct, ctg, ipos, is_index_drop
-					?
+			result = cas_exec(fom, opc, ct, ctg, ipos,
+					  is_index_drop ?
 					  CAS_INSERT_TO_DEAD :
 					  do_ctidx ? CAS_CTIDX :
 					  CAS_PREPARE_SEND);
@@ -1658,6 +1681,15 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			m0_fom_phase_set(fom0, CAS_IDROP_LOCK_LOOP);
 		else
 			m0_fom_phase_set(fom0, CAS_LOOP);
+		break;
+	case CAS_DTM0:
+		rc = cas_dtm0_logrec_add(&fom->cf_fom,
+					 &cas_op(&fom->cf_fom)->cg_txd,
+					 M0_DTPS_PERSISTENT);
+		if (rc != 0)
+			cas_fom_failure(fom, M0_ERR(rc), opc == CO_CUR);
+		else
+			cas_fom_success(fom, opc);
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid phase");
@@ -2648,11 +2680,10 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 	},
 	[CAS_LOOP] = {
 		.sd_name      = "loop",
-		.sd_allowed   = M0_BITS(CAS_CTIDX, CAS_INSERT_TO_DEAD,
+		.sd_allowed   = M0_BITS(CAS_CTIDX, CAS_DTM0, CAS_INSERT_TO_DEAD,
 					CAS_PREPARE_SEND, M0_FOPH_SUCCESS,
 					M0_FOPH_FAILURE)
 	},
-
 
 
 	[CAS_CTIDX] = {
@@ -2738,7 +2769,11 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 	[CAS_IDROP_START_GC] = {
 		.sd_name      = "index-drop-start-gc",
 		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS)
-	}
+	},
+	[CAS_DTM0] = {
+		.sd_name      = "dtm0",
+		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE)
+	},
 };
 
 struct m0_sm_trans_descr cas_fom_trans[] = {
@@ -2778,6 +2813,7 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "reply-too_large",      CAS_LOOP,             M0_FOPH_FAILURE },
 	{ "do-ctidx-op",          CAS_LOOP,             CAS_CTIDX },
 	{ "op-launched",          CAS_LOOP,             CAS_PREPARE_SEND },
+	{ "do-dtm0-op",           CAS_LOOP,             CAS_DTM0 },
 	{ "ready-to-send",        CAS_PREPARE_SEND,     CAS_SEND_KEY },
 	{ "next-key",             CAS_PREPARE_SEND,     CAS_LOOP },
 	{ "prep-error",           CAS_PREPARE_SEND,     CAS_DONE },
@@ -2818,6 +2854,9 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "idx-drop-skip-lock",   CAS_IDROP_LOCK_LOOP,  CAS_LOOP },
 	{ "idx-dropped-ok",       CAS_IDROP_LOCKED,     CAS_PREPARE_SEND },
 	{ "idx-drop-all-done",    CAS_IDROP_START_GC,   M0_FOPH_SUCCESS },
+
+	{ "dtm0-op-done",         CAS_DTM0,             M0_FOPH_SUCCESS },
+	{ "dtm0-op-fail",         CAS_DTM0,             M0_FOPH_FAILURE },
 
 	{ "ut-short-cut",         M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_COMMIT_WAIT }
 };
