@@ -1006,6 +1006,7 @@ static int get_tick_delete(struct m0_btree_op *bop)
 		return node_get(&oi->i_nop, tree, &tree->t_root, P_NEXTDOWN);
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+<<<<<<< HEAD
 			struct slot    node_slot = {};
 			struct segaddr down;
 
@@ -1015,6 +1016,17 @@ static int get_tick_delete(struct m0_btree_op *bop)
 			if (node_level(node_slot.s_node) > 0) {
 				level->l_idx = node_slot.s_idx;
 				node_child(&node_slot, &down);
+=======
+			struct slot    slot = {};
+			struct segaddr down;
+
+			level->l_node = slot.s_node = oi->i_nop.no_node;
+			node_op_fini(&oi->i_nop);
+			node_find(&slot, bop->bo_rec.r_key);
+			if (node_level(slot.s_node) > 0) {
+				level->l_idx = slot.s_idx;
+				node_child(&slot, &down);
+>>>>>>> da7671e3dc2c085e4774762d81f372cbdcdf3443
 				oi->i_used++;
 				return node_get(&oi->i_nop, tree,
 						&down, P_NEXTDOWN);
