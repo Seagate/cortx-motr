@@ -2,9 +2,9 @@ High Level Design of SNS Repair
 ===============================
 
 
-This document provides a High-Level Design (HLD) of SNS repair for Motr. The main purposes of this document are:
+This document provides a High-Level Design (HLD) of SNS repair for Motr M0. The main purposes of this document are:
 
-- To be inspected by Motr architects and peer designers to make sure that HLD is aligned with Motr architecture and other designs, and contains no defects
+- To be inspected by M0 architects and peer designers to make sure that HLD is aligned with M0 architecture and other designs, and contains no defects
 - To be a source of material for Active Reviews of Intermediate Design (ARID) and Detailed Level Design (DLD) of the same component
 - To serve as a design reference document
 
@@ -14,7 +14,7 @@ The intended audience of this document consists of Motr customers, architects, d
 0. Introduction
 ---------------
 
-.. **Note:** This document has been revised to exclude the copy machine related information. The copy machine design has been included in a separate document `HLD of copy machine and agents <link=to-be-added> `__
+.. **Note:** This document has been revised to exclude the copy machine related information. The copy machine design has been included in a separate document HLD of copy machine and agents.
 
 Redundant striping is a proven technology to achieve higher throughput and data availability. The Server Network Striping (SNS) applies this technology to network devices and achieves similar goals as a local RAID.
 In the case of storage and/or server failure, the SNS repair reconstructs the lost data from survived data reliably and quickly, without major impact to the production systems. This document presents the HLD of SNS repair.
@@ -23,7 +23,7 @@ In the case of storage and/or server failure, the SNS repair reconstructs the lo
 1. Definitions
 --------------
 
-.. Definitions of terms and concepts used by the design go here. The definitions must be as precise as possible. References to the `Motr Glossary</doc/PDF/Glossary.pdf>`__ are permitted and encouraged. Agreed upon terminology should be incorporated in the glossary.
+.. Definitions of terms and concepts used by the design go here. The definitions must be as precise as possible. References to the `Motr Glossary<Link-to-be-added>`__ are permitted and encouraged. Agreed upon terminology should be incorporated in the glossary.
 
 Repair is a scalable mechanism to reconstruct data or meta-data in a redundant striping pool. Redundant striping stores a *cluster-wide object* in a collection of *components*, according to a particular *striping pattern*. 
 
@@ -155,7 +155,7 @@ Following topics deserve attention:
 
 -  Reclaim of a distributed spare space must be addressed (this is done in a separate Distributed Spare design documentation).
 
--  `locking optimizations. <#concurrency-control>`__
+-  `locking optimizations <#concurrency-control>`__.
 
 4. Functional specification
 ---------------------------
@@ -185,7 +185,7 @@ When a failure is detected, the system decides to do the SNS repair. The SNS rep
 
 -  The default configuration will always have K > 1 (and L > 1) to insure the system can tolerate multiple failure. 
 
--  More detailed discussion on this can be found at: `Reliability Calculations and Redundancy Level <correct-link-required>`__. and in the *Scalability analysis* section.
+-  More detailed discussion on this can be found at: `Reliability Calculations and Redundancy Level <Reliability-Calculations-and-Redundancy-Level>`__ and in the *Scalability analysis* section.
 
 4.3. Triggers of SNS repair
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -242,7 +242,7 @@ When a failure is detected, the system decides to do the SNS repair. The SNS rep
 4.9. Device-oriented repair
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Agent iterates components over the affected container or all the containers which have surviving data/parity unit in the need-to-reconstruct parity group. These data/parity unit will be read and sent to proper agent where spare space lives, and used to re-compute the lost data `HLD of Copy Machine and Agents <link-required>`__.
+Agent iterates components over the affected container or all the containers which have surviving data/parity unit in the need-to-reconstruct parity group. These data/parity unit will be read and sent to proper agent where spare space lives, and used to re-compute the lost data `HLD of Copy Machine and Agents <HLD-of-Copy-Machine-and-Agents>`__.
 
 4.10. SNS repair and layout
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -268,7 +268,7 @@ The SNS manager gets an input set configuration and output set configuration as 
 
 .. This section defines a logical structure of the designed component: the decomposition showing how the functional specification is met. Subcomponents and diagrams of their interrelations should go in this section.
 
-Please refer `HLD of copy machine and agents <Verify_The_Correct_Doc_And_Link_it>`__ for logical specifications of copy machine.
+Please refer `HLD of Copy Machine and Agents <HLD-of-Copy-Machine-and-Agents>`__ for logical specifications of copy machine.
 
 Concurrency control
 ~~~~~~~~~~~~~~~~~~~
@@ -281,7 +281,7 @@ Motr will support variety of concurrency control mechanisms selected dynamically
 
 -  "Component level locking" is achieved by taking lock on an extent of object data on the same server where these data are located.
 
--  Time-stamp based optimistic concurrency control (see `Scalable Concurrency Control and Recovery for Shared Storage <Link_Required>`__ ).
+-  Time-stamp based optimistic concurrency control. See `Scalable Concurrency Control and Recovery for Shared Storage <Scalable-Concurrency-Control-and-Recovery-for-Shared-Storage>`__.
 
 Independently of whether a cluster-wide object level locking model [1]_, where the data are protected by locks taken on cluster-wide object (these can be either extent locks taken in cluster-wide object byte offset name-space [2]_ or "whole-file" locks [3]_), or component level locking model, or time-stamping model is used, locks or time-stamps are served by a potentially replicated locking service running on a set of *lock servers* (a set that might be equal to the set of servers in the pool). The standard locking protocol as used by the file system clients would imply that all locks or time-stamps necessary for an aggregation group processing must be acquired before any processing can be done. This implies a high degree of synchronization between agents processing copy packets from the same aggregation group.
 
@@ -568,7 +568,7 @@ It is assumed that messages exchanged over the network are signed so that a mess
 
 The present design provides very little protection against a compromised server. While compromised storage-in or network agents can be detected by using striping redundancy information, there is no way to independently validate the output of a collecting agent or check that the storage-out agent wrote the right data to the storage. In general, this issue is unavoidable as long as the output set can be non-redundant.
 
-If we restrict ourselves to the situations where output set is always redundant, quorum based agreement can be used to deal with malicious servers in the spirit of [`Practical Byzantine Fault Tolerance`]. Replicated state machine design of a copy machine lends itself naturally to a quorum based solution.
+If we restrict ourselves to the situations where output set is always redundant, quorum based agreement can be used to deal with malicious servers in the spirit of Practical Byzantine Fault Tolerance. Replicated state machine design of a copy machine lends itself naturally to a quorum based solution.
 
 The deeper problem is due to servers collaborating in the distributed transactions. Given that the transaction identifiers used by the copy machine are generated by a known method. A server can check that the server-to-server requests it receives are from well-formed transactions and a malicious server cannot cause chaos by initiating malformed transactions. What is harder to counter is a server *not* sending requests that it must send according to the copying algorithm. We assume that the worst thing that can happen when a server delays or omits certain messages is that the corresponding transaction will eventually be aborted and undone. An unresponsive server is evicted from the cluster and the pool handles this as a server failure. This still doesn't guarantee progress, because the server might immediately re-join the cluster only to sabotage more transactions.
 
@@ -1373,36 +1373,46 @@ Every one of N\ :sub:`S` - F\ :sub:`S` survived servers has on average (N\ :sub:
 and from each of these data are read at the rate G\ :sub:`D`. Assuming that none of this data are for "internal consumption" (that is, assuming
 that no parity group has a spare space unit on a server where it has data or parity units),  servers sends out all these data, giving
 
-.. math:: G_{D}^{} \cdot \frac{N_{D}^{} - F_{D}^{}}{N_{S}^{} - F_{S}^{}} = G_{S}^{}
+.. .. math:: G_{D}^{} \cdot \frac{N_{D}^{} - F_{D}^{}}{N_{S}^{} - F_{S}^{}} = G_{S}^{}
+
+.. image:: Images/Formula-1.png
 
 Every server fans data out to every other survived server. Hence, every server receives data at the same G\ :sub:`S` rate. Received data (again
 assuming no "internal consumption") are processed at G\ :sub:`P` rate, giving
 
-.. math:: G_{S}^{} = G_{P}^{}
+G\ :sub:`S` = G\ :sub:`P`
 
 Redundancy codes calculation produces a byte of output for every N bytes of input. Finally, reconstructed data are uniformly distributed across all the devices of the server and written out, giving
 
-.. math:: G_{P}^{} \cdot \frac{1}{N} = G_{O}^{} \cdot \frac{N_{D}^{} - F_{D}^{}}{N_{S}^{} - F_{S}^{}}
+.. .. math:: G_{P}^{} \cdot \frac{1}{N} = G_{O}^{} \cdot \frac{N_{D}^{} - F_{D}^{}}{N_{S}^{} - F_{S}^{}}
+
+.. image:: Images/Formula-2.png
 
 Steady state rates are subject to the following constraints:
 
-.. math:: G_{D}^{} + G_{O}^{} \leq A_{D}^{} \cdot B_{D}^{}
+.. .. math:: G_{D}^{} + G_{O}^{} \leq A_{D}^{} \cdot B_{D}^{}
 
-.. math:: G_{S}^{} \leq A_{S}^{} \cdot B_{S}^{}
+.. .. math:: G_{S}^{} \leq A_{S}^{} \cdot B_{S}^{}
 
-.. math:: G_{P}^{} \leq A_{P}^{} \cdot B_{P}^{}
+.. .. math:: G_{P}^{} \leq A_{P}^{} \cdot B_{P}^{}
+
+.. image:: Images/Formula-3.png
 
 To reconstruct a failed unit in a parity group, N of its N + K - 1 units, scattered across N\ :sub:`D` - 1 devices have to be read, meaning that to reconstruct a device an N/(N\ :sub:`D` - 1) fraction of used space on every device in the pool has to be read, giving
 
-.. math:: \text{MTTR}_{D}^{} = \frac{U \cdot S_{D}^{}}{G_{D}^{}} \cdot \frac{N}{N_{D}^{} - \ 1}
+.. .. math:: \text{MTTR}_{D}^{} = \frac{U \cdot S_{D}^{}}{G_{D}^{}} \cdot \frac{N}{N_{D}^{} - \ 1}
+
+.. image:: Images/Formula-4.png
 
 As a mean time to repair a device. To minimize MTTR\ :sub:`D`, G\ :sub:`D` has to be maximized. From the equations and inequalities above, the maximal possible value of G\ :sub:`D` is obviously
 
-.. math:: G_{D}^{} = \min_{}\left( A_{S}^{} \cdot B_{S}^{} \cdot \chi,\ A_{P}^{} \cdot B_{P}^{} \cdot \chi,\ \frac{A_{D}^{} \cdot B_{D}^{}}{1\  + \ 1/N} \right)
+.. .. math:: G_{D}^{} = \min_{}\left( A_{S}^{} \cdot B_{S}^{} \cdot \chi,\ A_{P}^{} \cdot B_{P}^{} \cdot \chi,\ \frac{A_{D}^{} \cdot B_{D}^{}}{1\  + \ 1/N} \right)
 
-where :math:`\chi = \frac{N_{S}^{} - F_{S}^{}}{N_{D}^{} - F_{D}^{}}`.
+.. where :math:`\chi = \frac{N_{S}^{} - F_{S}^{}}{N_{D}^{} - F_{D}^{}}`
 
-Let's substitute vaguely reasonable data:
+.. image:: Images/Formula-5.png
+
+Let's substitute vaguely reasonable data: 
 
 +-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
 | Parameter   | Value  | Unit      | Explanation                                                                                              |
@@ -1413,9 +1423,9 @@ Let's substitute vaguely reasonable data:
 +-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
 | B\ :sub:`S` | 4.0e9  | bytes/sec | IB QDR                                                                                                   |
 +-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
-| B\ :sub:`P` | 8.0e9  | bytes/sec |                                                                                                          |
+| B\ :sub:`P` | 8.0e9  | bytes/sec | `check-sum throughput <check-sum-throughput>`__                                                          |
 +-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
-| B\ :sub:`D` | 7.0e7  | bytes/sec |                                                                                                          |
+| B\ :sub:`D` | 7.0e7  | bytes/sec | `ST31000640SS <ST31000640SS>`__                                                                          |
 +-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
 | A\ :sub:`S` | 1      |           |                                                                                                          |
 +-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
@@ -1423,6 +1433,7 @@ Let's substitute vaguely reasonable data:
 +-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
 | A\ :sub:`P` | 1      |           |                                                                                                          |
 +-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
+
 
 For a small configuration with N\ :sub:`S` = 1, N\ :sub:`D` = 48:
 
@@ -1438,8 +1449,7 @@ For a larger configuration with N\ :sub:`S` = 10, N\ :sub:`D` = 480:
 
 In all cases, storage IO is the bottleneck.
 
-8.2. Other
-~~~~~~~~~~
+.. 8.2. Other
 
 .. As applicable, this sub-section analyses other aspects of the design, *e.g.*, recoverability of a distributed state consistency, concurrency control issues.
 
@@ -1455,57 +1465,26 @@ In all cases, storage IO is the bottleneck.
 -  A dedicated lock(-ahead) agent can be split out of storage-in agent for uniformity.
 
  
-.. 
-9. Deployment
--------------
-.. 
-9.1. Compatibility
-~~~~~~~~~~~~~~~~~~
+.. 9. Deployment
+
+.. 9.1. Compatibility
 
 .. Backward and forward compatibility issues are discussed here. Changes in system invariants (event ordering, failure modes, *etc*.)
 
 .. _network-1:
-.. 
-9.1.1. Network
-^^^^^^^^^^^^^^
-.. 
-9.1.2. Persistent storage
-^^^^^^^^^^^^^^^^^^^^^^^^^
-..
-9.1.3. Core
-^^^^^^^^^^^
+
+.. 9.1.1. Network
+ 
+.. 9.1.2. Persistent storage
+
+.. 9.1.3. Core
 
 .. Interface changes. Changes to shared in-core data structures.
-.. 
-9.2. Installation
-~~~~~~~~~~~~~~~~~
+
+..  9.2. Installation
+
 
 .. How the component is delivered and installed.
-
-.. 10. References
---------------
-
-.. References to all external documents (specifications, architecture and requirements documents, *etc*.) are placed here. The rest of the document cites references from this section. Use Google Docs bookmarks to link to the references from the main text.
-
-.. 1. `SNS Repair Requirement Analysis <http://docs.google.com/Doc?docid=0Aa9lcGbR4emcZGhxY2hqdmdfNTY2d2o1ZmI5Z3M&hl=en>`__.
-
-.. 2. `Summary Requirement Table. <https://spreadsheets.google.com/a/horizontalscale.com/ccc?key=0Aq9lcGbR4emccjE5WVR0eVNuaUpkNFRiQWJQQ2lvaXc&hl=en>`__\ 
-
-.. 3 `On-Line Data Reconstruction In Redundant Disk Arrays <http://www.pdl.cmu.edu/PDL-FTP/Declustering/Thesis.ps>`__, Mark Holland, dissertation.
-
-.. 4 `On Layouts <http://docs.google.com/a/horizontalscale.com/View?docid=dhqchjvg_32fsjnrdgq>`__.
-
-.. 5] `State machine replication <http://en.wikipedia.org/wiki/State_machine_replication>`__, Wikipedia.
-
-.. 6] `traceability memo <http://docs.google.com/a/horizontalscale.com/View?docid=dhqchjvg_5hkffxtd2>`__.
-
-.. 7] `Practical Byzantine Fault Tolerance <http://www.pmg.lcs.mit.edu/%7Ecastro/osdi99_html/osdi99.html>`__, Miguel Castro, Barbara Liskov
-
-.. 8] `HLD Inspection Trail for SNS Repair <http://docs.google.com/a/horizontalscale.com/View?docid=dhqchjvg_599dg6p3xdc>`__.
-
-.. 9] *Scalable Concurrency Control and Recovery for Shared Storage Arrays*, Khalil Amiri, Garth A. Gibson, Richard Golding.
-
-.. 10] `HLD of copy machine and agents <https://docs.google.com/a/xyratex.com/document/d/1ZlkjayQoXVm-prMxTkzxb1XncB6HU19I19kwrV-8eQc/edit>`__
 
 
 9. Inspection process data
@@ -1641,5 +1620,3 @@ In all cases, storage IO is the bottleneck.
 
 .. [22]
    [u.rpc.streaming.bandwidth]
-
-
