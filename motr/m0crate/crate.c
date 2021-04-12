@@ -361,7 +361,8 @@ static void *worker_thread(void *datum)
 	 * Motr can launch multiple operations in a single go.
 	 * Single operation in a loop won't work for Motr.
 	 */
-	if (w->cw_type == CWT_IO || w->cw_type == CWT_INDEX)
+	if (w->cw_type == CWT_IO || w->cw_type == CWT_INDEX ||
+	    w->cw_type == CWT_BTREE)
 		wop(w)->wto_op_run(w, wt, NULL);
 	else {
 		while (workload_op_get(w, &op) == 0)
