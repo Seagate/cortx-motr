@@ -653,7 +653,7 @@ static int get_tick(struct m0_btree_op *bop)
 #endif
 /* insert operation section start point: */
 /*get_tick for insert operation*/
-static int get_tick(struct m0_btree_op *bop)
+static int get_tick_insert(struct m0_btree_op *bop)
 {
 	struct td             *tree  = (void *)bop->bo_arbor;
 	uint64_t               flags = bop->bo_flags;
@@ -687,14 +687,14 @@ static int get_tick(struct m0_btree_op *bop)
 		return node_get(&oi->i_nop, tree, &tree->t_root, P_NEXTDOWN);
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			struct slot    slot = {};
+			struct slot    node_slot = {};
 			struct segaddr down;
-			level->l_node = slot.s_node = oi->i_nop.no_node;
+			level->l_node = node_slot.s_node = oi->i_nop.no_node;
 			node_op_fini(&oi->i_nop);
-			node_find(&slot, bop->bo_rec.r_key);
-			level->l_idx = slot.s_idx;
-			if (node_level(slot.s_node) > 0) {
-				node_child(&slot, &down);
+			node_find(&node_slot, bop->bo_rec.r_key);
+			level->l_idx = node_slot.s_idx;
+			if (node_level(node_slot.s_node) > 0) {
+				node_child(&node_slot, &down);
 				oi->i_used++;
 				return node_get(&oi->i_nop, tree,
 						&down, P_NEXTDOWN);
@@ -748,50 +748,86 @@ static int get_tick(struct m0_btree_op *bop)
 			oi->i_used = 0;
 			return P_DOWN;
 		}
-	case P_MAKESPACE:
-		if ( oi->i_used == -1) {
-			//one level will get added and height will increase
-			//copy root content to extra_l_alloc
-			//use extra_l_alloc ,l_alloc as two child for root
-			node_move(level->l_node, extra_l_alloc, D_RIGHT, NR_MAX, bop->bo_tx);
-			//make extra_l_alloc , l_alloc at level:0 as a child of level[0]->l_node
-		}
-		else {
-			struct slot slot = {
-			.s_node = level->l_node;
-			.s_rec = bop->bo_rec;
-			};
-			node_find(&slot,bop->bo_rec.r_key);
-			level->l_idx = slot.idx;
+	case P_MAKESPACE: {
+		struct slot slot_for_left_node = {
+		.s_node = level->l_node;
+		.s_rec = bop->bo_rec;
+		};
+		node_find(&slot_for_left_node,bop->bo_rec.r_key);
 
-			if (node_isfit(&slot)) {
-				node_make (&slot, bop->bo_tx);
-				return ACT;
+		if (node_isfit(&slot_for_left_node)) {
+			node_make (&slot_for_left_node, bop->bo_tx);
+			return ACT;
+		} else {
+			node_move(level->l_node, level->l_alloc, D_RIGHT, NR_EVEN, bop->bo_tx);
+			struct slot slot_for_right_node = {
+			.s_node = level->l_alloc;
+			.s_idx  = 0;
+			};
+			struct slot *tgt;
+			node_key(&slot_for_right_node);
+			if (bop->bo_rec.r_key < slot_for_right_node.s_rec.key) {
+				node_make (&slot_for_left_node, bop->bo_tx);
+				tgt = &slot_for_left_node;
+				
 			} else {
-				node_move(level->l_node, level->l_alloc, D_RIGHT, NR_EVEN, bop->bo_tx);
-				struct slot slot_for_right_node = {
-				.s_node = level->l_alloc;
-				.s_idx  = 0;
-				};
-				node_key(&slot_for_right_node);
-				if (bop->bo_rec.key < slot_for_right_node.s_rec.key) {
-					node_make (&slot, bop->bo_tx);
-					node_set(&slot, bop->bo_tx);
-				} else {
-					node_find(&slot_for_right_node,bop->bo_rec.key);
-					slot_.s_rec = bop->bo_rec;
-					node_make (&slot_for_right_node, bop->bo_tx);
-					node_set(&slot_for_right_node, bop->bo_tx);
-				}
-				slot_for_right_node.s_idx = 0;
-				bop->bo_rec.r_key = node_key(&slot_for_right_node);
-				//update bo_rec.r_value : bop->bo_rec.r_value = level->l_alloc;
-				return P_NEXTUP;
+				node_find(&slot_for_right_node,bop->bo_rec.key);
+				slot_for_right_node.s_rec = bop->bo_rec;
+				node_make (&slot_for_right_node, bop->bo_tx);
+				tgt = &slot_for_right_node;
 			}
+			m0_bufvec_copy(&tgt.s_rec.r_key.k_data,
+				       &bop->bo_rec.r_key.k_data,
+				       m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
+			m0_bufvec_copy(&tgt.s_rec.r_val, &bop->bo_rec.r_val,
+				       m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+
+			node_done (tgt, bop->bo_tx, true);
+			node_fix(tgt, bop->bo_tx);
+
+			if(node_level(slot_for_left_node.s_node) > 0) {
+				slot_for_left_node.s_idx = node_count(slot_for_left_node)-1;
+				node_rec(&slot_for_left_node);
+				//update bop->bo_rec.r_key
+				bop->bo_rec.r_key = slot_for_left_node.s_rec.r_key;
+				//bop->bo_rec.r_value = l_alloc
+
+				//changing last key of slot_for_left_node.s_rec.r_key to null without changing value
+				struct m0_btree_rec new_bo_rec;
+				new_bo_rec.r_val = slot_for_left_node.s_rec.r_val;
+				node_del(&slot_for_left_node, slot_for_left_node.s_idx, bop->bo_tx);
+				//make slot_for_left_node.s_rec.r_key as empty 
+				slot_for_left_node.rec = new_bo_rec;
+				node_make(&slot_for_left_node, bop->bo_tx);
+				//copy new_bo_rec to slot_for_left_node
+				m0_bufvec_copy(&slot_for_left_node.s_rec.r_key.k_data,
+							&new_bo_rec.r_key.k_data,
+							m0_vec_count(&new_bo_rec.r_key.k_data.ov_vec));
+				m0_bufvec_copy(&slot_for_left_node.s_rec.r_val, &new_bo_rec.r_val,
+							m0_vec_count(&new_bo_rec.r_val.ov_vec));
+				node_done (slot_for_left_node, bop->bo_tx, true);
+				node_fix(slot_for_left_node, bop->bo_tx);
+			} else {
+				slot_for_right_node.s_idx = 0;
+				node_key(&slot_for_right_node);
+				bop->bo_rec.r_key = slot_for_right_node.s_rec.r_key;
+				//update bo_rec.r_value : bop->bo_rec.r_value = level->l_alloc;
+			}
+			return P_NEXTUP;
 		}
+	}
 	case P_NEXTUP: {
 		if (l_alloc != NULL) {
 			oi->i_used--;
+			if ( oi->i_used == -1) {
+				//one level will get added and height will increase
+				//copy root content to extra_l_alloc
+				//use extra_l_alloc ,l_alloc as two child for root
+				node_move(level->l_node, extra_l_alloc, D_RIGHT, NR_MAX, bop->bo_tx);
+				//make extra_l_alloc , l_alloc at level:0 as a child of level[0]->l_node
+				lock_op_unlock(&bop->bo_i->i_lop);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+			}
 			return P_MAKESPACE;
 		}
 		else {
@@ -800,12 +836,17 @@ static int get_tick(struct m0_btree_op *bop)
 		}
 	}
 	case P_ACT: {
-		struct slot slot = {
+		struct slot node_slot = {
 			.s_node = level->l_node;
 			.s_idx  = level->l_idx;
-			.s_rec = bop->bo_rec;
 		};
-		node_set(&slot, bop->bo_tx);
+		m0_bufvec_copy(&node_slot.s_rec.r_key.k_data,
+					&bop->bo_rec.r_key.k_data,
+					m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
+		m0_bufvec_copy(&node_slot.s_rec.r_val, &rec.s_rec.r_val,
+					m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+		node_done (node_slot, bop->bo_tx, true);
+		node_fix(node_slot, bop->bo_tx);
 		return NEXTUP;
 	}
 	case P_CLEANUP: {
@@ -1006,7 +1047,6 @@ static int get_tick_delete(struct m0_btree_op *bop)
 		return node_get(&oi->i_nop, tree, &tree->t_root, P_NEXTDOWN);
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-<<<<<<< HEAD
 			struct slot    node_slot = {};
 			struct segaddr down;
 
@@ -1016,17 +1056,6 @@ static int get_tick_delete(struct m0_btree_op *bop)
 			if (node_level(node_slot.s_node) > 0) {
 				level->l_idx = node_slot.s_idx;
 				node_child(&node_slot, &down);
-=======
-			struct slot    slot = {};
-			struct segaddr down;
-
-			level->l_node = slot.s_node = oi->i_nop.no_node;
-			node_op_fini(&oi->i_nop);
-			node_find(&slot, bop->bo_rec.r_key);
-			if (node_level(slot.s_node) > 0) {
-				level->l_idx = slot.s_idx;
-				node_child(&slot, &down);
->>>>>>> da7671e3dc2c085e4774762d81f372cbdcdf3443
 				oi->i_used++;
 				return node_get(&oi->i_nop, tree,
 						&down, P_NEXTDOWN);
