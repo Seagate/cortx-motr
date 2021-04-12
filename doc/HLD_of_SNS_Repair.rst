@@ -1375,7 +1375,7 @@ that no parity group has a spare space unit on a server where it has data or par
 
 .. .. math:: G_{D}^{} \cdot \frac{N_{D}^{} - F_{D}^{}}{N_{S}^{} - F_{S}^{}} = G_{S}^{}
 
-.. image:: Images/Formula-1.png
+.. image:: Images/Formula-1.PNG
 
 Every server fans data out to every other survived server. Hence, every server receives data at the same G\ :sub:`S` rate. Received data (again
 assuming no "internal consumption") are processed at G\ :sub:`P` rate, giving
@@ -1386,7 +1386,7 @@ Redundancy codes calculation produces a byte of output for every N bytes of inpu
 
 .. .. math:: G_{P}^{} \cdot \frac{1}{N} = G_{O}^{} \cdot \frac{N_{D}^{} - F_{D}^{}}{N_{S}^{} - F_{S}^{}}
 
-.. image:: Images/Formula-2.png
+.. image:: Images/Formula-2.PNG
 
 Steady state rates are subject to the following constraints:
 
@@ -1410,7 +1410,7 @@ As a mean time to repair a device. To minimize MTTR\ :sub:`D`, G\ :sub:`D` has t
 
 .. where :math:`\chi = \frac{N_{S}^{} - F_{S}^{}}{N_{D}^{} - F_{D}^{}}`
 
-.. image:: Images/Formula-5.png
+.. image:: Images/Formula-5.PNG
 
 Let's substitute vaguely reasonable data: 
 
