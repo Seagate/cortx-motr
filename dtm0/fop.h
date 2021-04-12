@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,12 +81,12 @@ struct dtm0_fom {
 };
 
 M0_INTERNAL void m0_dtm0_on_committed(struct m0_fom                *fom,
-				                      const struct m0_dtm0_tx_desc *txd);
+				      const struct m0_dtm0_tx_desc *txd);
 
-M0_INTERNAL void m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
-                                       struct m0_be_tx        *tx,
-                                       struct m0_dtm0_tx_desc *txd,
-                                       struct m0_buf          *pyld);
+M0_INTERNAL int m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
+				      struct m0_be_tx        *tx,
+				      struct m0_dtm0_tx_desc *txd,
+				      struct m0_buf          *pyld);
 /* __MOTR_DTM0_FOP_H__ */
 #endif
 

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -287,21 +287,24 @@ static void m0_dtm0_send_msg(struct m0_fom                *fom,
 		 FID_P(&dtms->dos_generic.rs_service_fid), FID_P(tgt));
 }
 
-M0_INTERNAL void m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
-                                       struct m0_be_tx        *tx,
-                                       struct m0_dtm0_tx_desc *txd,
-                                       struct m0_buf          *pyld)
+M0_INTERNAL int m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
+				      struct m0_be_tx        *tx,
+				      struct m0_dtm0_tx_desc *txd,
+				      struct m0_buf          *pyld)
 {
 	int rc;
 
-    m0_mutex_lock(&log->dl_lock);
-    rc = m0_be_dtm0_log_update(log, tx, txd, pyld);
-    m0_mutex_unlock(&log->dl_lock);
-    M0_ASSERT(rc == 0);
+	M0_ENTRY();
+
+	m0_mutex_lock(&log->dl_lock);
+	rc = m0_be_dtm0_log_update(log, tx, txd, pyld);
+	m0_mutex_unlock(&log->dl_lock);
+
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_dtm0_on_committed(struct m0_fom                *fom,
-				                      const struct m0_dtm0_tx_desc *txd)
+				      const struct m0_dtm0_tx_desc *txd)
 {
 	struct m0_dtm0_service *dtms = m0_dtm0_service_find(fom->fo_service->rs_reqh);
 	struct m0_dtm0_tx_desc  msg = {};

@@ -185,6 +185,7 @@ static int creq_op_alloc(uint64_t           recs_nr,
 static void creq_op_free(struct m0_cas_op *op)
 {
 	if (op != NULL) {
+		m0_dtm0_tx_desc_fini(&op->cg_txd);
 		m0_free(op->cg_rec.cr_rec);
 		m0_free(op);
 	}
