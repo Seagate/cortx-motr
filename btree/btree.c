@@ -809,7 +809,7 @@ struct node_type {
 	/** Returns unique FID for this node */
 	void (*nt_fid)  (const struct nd *node, struct m0_fid *fid);
 
-	/** Returns record (KV pair) for specific index */
+	/** Returns record (KV pair) for specific index. */
 	void (*nt_rec)  (struct slot *slot);
 
 	/** Returns Key at a specifix index */
@@ -818,7 +818,10 @@ struct node_type {
 	/** Returns Child pointer (in segment) at specific index */
 	void (*nt_child)(struct slot *slot, struct segaddr *addr);
 
-	/** Returns TRUE if node has space to fit a new entry present in slot */
+	/**
+	 *  Returns TRUE if node has space to fit a new entry whose key and
+	 *  value length is provided in slot.
+	 */
 	bool (*nt_isfit)(struct slot *slot);
 
 	/** Node changes related to last record have completed any post
@@ -953,9 +956,7 @@ static void node_child(struct slot *slot, struct segaddr *addr);
 static bool node_isfit(struct slot *slot);
 static void node_done (struct slot *slot, struct m0_be_tx *tx, bool modified);
 static void node_make (struct slot *slot, struct m0_be_tx *tx);
-#if 0
 static void node_find (struct slot *slot, const struct m0_btree_key *key);
-#endif
 static void node_fix  (const struct nd *node, struct m0_be_tx *tx);
 #if 0
 static void node_cut  (const struct nd *node, int idx, int size,
@@ -1055,12 +1056,10 @@ static void node_make(struct slot *slot, struct m0_be_tx *tx)
 	slot->s_node->n_type->nt_make(slot, tx);
 }
 
-#if 0
 static void node_find(struct slot *slot, const struct m0_btree_key *key)
 {
 	slot->s_node->n_type->nt_find(slot, key);
 }
-#endif
 
 static void node_fix(const struct nd *node, struct m0_be_tx *tx)
 {
@@ -1519,7 +1518,8 @@ static void *ff_key(const struct nd *node, int idx)
 	struct ff_head *h    = ff_data(node);
 	void           *area = h + 1;
 
-	M0_PRE(0 <= idx && idx < h->ff_used);
+	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
+		   (0 <= idx && idx < h->ff_used)));
 	return area + (h->ff_ksize + h->ff_vsize) * idx;
 }
 
@@ -1528,7 +1528,8 @@ static void *ff_val(const struct nd *node, int idx)
 	struct ff_head *h    = ff_data(node);
 	void           *area = h + 1;
 
-	M0_PRE(0 <= idx && idx < h->ff_used);
+	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
+		    0 <= idx && idx < h->ff_used));
 	return area + (h->ff_ksize + h->ff_vsize) * idx + h->ff_ksize;
 }
 
@@ -1571,6 +1572,8 @@ static void ff_addrec(struct slot *slot)
 	struct ff_head *h   = ff_data(slot->s_node);
 	void           *key;
 	void           *value;
+	struct segaddr *s_addr;
+	struct segaddr *d_addr;
 
 	M0_PRE(slot->s_rec.r_key.k_data.ov_vec.v_nr == 1);
 	M0_PRE(h->ff_ksize == slot->s_rec.r_key.k_data.ov_vec.v_count[0]);
@@ -1580,7 +1583,16 @@ static void ff_addrec(struct slot *slot)
 	key = ff_key(slot->s_node,  slot->s_idx);
 	value = ff_val(slot->s_node,  slot->s_idx);
 	memcpy(key, slot->s_rec.r_key.k_data.ov_buf[0], h->ff_ksize);
-	memcpy(value, slot->s_rec.r_val.ov_buf[0], h->ff_ksize);
+	if (slot->s_rec.r_flags == M0_BRT_CHILD) {
+		s_addr = (struct segaddr *)&slot->s_rec.r_val;
+		d_addr = value;
+
+		*d_addr = *s_addr;
+
+	}
+	else {
+		memcpy(value, slot->s_rec.r_val.ov_buf[0], h->ff_ksize);
+	}
 }
 
 static int ff_count(const struct nd *node)
@@ -1624,7 +1636,8 @@ static void ff_rec(struct slot *slot)
 	struct ff_head *h = ff_data(slot->s_node);
 
 	M0_PRE(ff_invariant(slot->s_node));
-	M0_PRE(slot->s_idx < h->ff_used);
+	M0_PRE(ergo(!(h->ff_used == 0 && slot->s_idx == 0),
+		    slot->s_idx < h->ff_used));
 
 	slot->s_rec.r_val.ov_vec.v_nr = 1;
 	slot->s_rec.r_val.ov_vec.v_count[0] = h->ff_vsize;
@@ -1639,7 +1652,7 @@ static void ff_node_key(struct slot *slot)
 	struct ff_head   *h    = ff_data(node);
 
 	M0_PRE(ff_invariant(node));
-	M0_PRE(slot->s_idx < h->ff_used);
+	M0_PRE(ergo(!(h->ff_used == 0 && slot->s_idx == 0),slot->s_idx < h->ff_used));
 
 	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
 	slot->s_rec.r_key.k_data.ov_vec.v_count[0] = h->ff_ksize;
@@ -1662,7 +1675,7 @@ static bool ff_isfit(struct slot *slot)
 
 	M0_PRE(ff_invariant(slot->s_node));
 	M0_PRE(ff_rec_is_valid(slot));
-	return h->ff_ksize + h->ff_vsize >= ff_space(slot->s_node);
+	return h->ff_ksize + h->ff_vsize <= ff_space(slot->s_node);
 }
 
 static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
@@ -1693,7 +1706,7 @@ static void ff_find(struct slot *slot, const struct m0_btree_key *key)
 	M0_PRE(key->k_data.ov_vec.v_count[0] == h->ff_ksize);
 	M0_PRE(key->k_data.ov_vec.v_nr == 1);
 
-	while (i + 1 < j) {
+	while (i < j) {
 		int m    = (i + j) / 2;
 		int diff = memcmp(ff_key(slot->s_node, m),
 				  key->k_data.ov_buf[0], h->ff_ksize);
@@ -1872,7 +1885,6 @@ static void m0_btree_ut_node_create_delete(void)
 	op.no_opc = NOP_FREE;
 	node_free(&op, node2, NULL, 0);
 
-
 	// Done playing with the tree - delete it.
 	op.no_opc = NOP_FREE;
 	tree_delete(&op, tree, NULL, 0);
@@ -1881,6 +1893,162 @@ static void m0_btree_ut_node_create_delete(void)
 	M0_LEAVE();
 }
 
+
+static bool add_rec(struct nd *node,
+		    uint64_t   key,
+		    uint64_t   val)
+{
+	struct ff_head      *h = ff_data(node);
+	struct slot          slot;
+	struct m0_btree_key  find_key;
+	m0_bcount_t          ksize;
+	void                *p_key;
+	m0_bcount_t          vsize;
+	void                *p_val;
+
+	/**
+	 * To add a record if space is available in the node to hold a new
+	 * record:
+	 * 1) Search index in the node where the new record is to be inserted.
+	 * 2) Get the location in the node where the key & value should be
+	 *    inserted.
+	 * 3) Insert the new record at the determined location.
+	 */
+
+	ksize = h->ff_ksize;
+	p_key = &key;
+	vsize = h->ff_vsize;
+	p_val = &val;
+
+	M0_SET0(&slot);
+	slot.s_node                            = node;
+	slot.s_rec.r_key.k_data.ov_vec.v_nr    = 1;
+	slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
+	slot.s_rec.r_val.ov_vec.v_nr           = 1;
+	slot.s_rec.r_val.ov_vec.v_count        = &vsize;
+
+	if (node_count(node) != 0) {
+		if (!node_isfit(&slot))
+			return false;
+		find_key.k_data.ov_vec.v_nr = 1;
+		find_key.k_data.ov_vec.v_count = &ksize;
+		find_key.k_data.ov_buf = &p_key;
+		node_find(&slot, &find_key);
+	}
+
+	node_make(&slot, NULL);
+
+	slot.s_rec.r_key.k_data.ov_buf = &p_key;
+	slot.s_rec.r_val.ov_buf = &p_val;
+
+	node_rec(&slot);
+
+	*((uint64_t *)p_key) = key;
+	*((uint64_t *)p_val) = val;
+
+	return true;
+}
+
+static int rnd_ary[] = {302532081, 1112955930, 1923385897, 650767442, 956488317,
+	996467464, 1622532220, 27441186, 1704310090, 421525067, 1398729363,
+	595438039, 466534124, 152811297, 2063648297, 430374657, 1748223144,
+	51393967, 1708537572, 672222002, 648531997, 569581927, 1450612538,
+	503549674, 1609729692, 466661538, 2039491943, 1209062799, 35475787,
+	381227123, 1775943366, 338007868, 1494183053, 1551845616, 988775310,
+	303187722, 400829432, 463823882, 330628909, 2105139522, 885348950,
+	1729358272, 553093913, 1351883074, 1882169570, 469258563, 1782257731,
+	1482909066, 520652530, 1343311655, 7647420, 1169184527, 1912893582,
+	1458259958, 1672734201, 1375139627, 1924921497, 1564742497, 436718778,
+	1960397284, 1945969620, 65178497, 150921504, 1292669025, 1617024113,
+	1139696815, 1595856748, 2017853545, 1603520697, 1926485657, 1975509420,
+	341385999, 1508360281, 381119685, 1693269073, 1243046203, 850378248,
+	1328043157, 578471621, 1371030779, 523871164, 586119042, 392731658,
+	289281099, 2044379000, 2065465860, 1664420726, 1821816849, 1482724709,
+	2101139504, 1634730485, 1281210681, 18834353, 1785651990, 426396058,
+	1635858466, 777865157, 2022252806, 1506228364, 233902206 };
+
+static int rnd_ary_off = 0;
+
+static void get_next_rec_to_add(struct nd *node, uint64_t *key,  uint64_t *val)
+{
+	struct slot          slot;
+	uint64_t             found_key;
+	uint64_t             proposed_key;
+	struct m0_btree_key  find_key;
+	m0_bcount_t          ksize;
+	void                *p_key;
+	m0_bcount_t          vsize;
+	void                *p_val;
+	struct ff_head      *h = ff_data(node);
+
+	M0_SET0(&slot);
+	slot.s_node = node;
+
+	ksize = h->ff_ksize;
+	proposed_key = rnd_ary[rnd_ary_off % ARRAY_SIZE(rnd_ary)];
+	rnd_ary_off++;
+
+	find_key.k_data.ov_vec.v_nr    = 1;
+	find_key.k_data.ov_vec.v_count = &ksize;
+	find_key.k_data.ov_buf         = &p_key;
+
+	slot.s_rec.r_key.k_data.ov_vec.v_nr = 1;
+	slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
+	slot.s_rec.r_key.k_data.ov_buf = &p_key;
+
+	slot.s_rec.r_val.ov_vec.v_nr = 1;
+	slot.s_rec.r_val.ov_vec.v_count = &vsize;
+	slot.s_rec.r_val.ov_buf = &p_val;
+	while (true) {
+		proposed_key %= 256;
+		p_key = &proposed_key;
+
+		if (node_count(node) == 0)
+			break;
+		node_find(&slot, &find_key);
+		node_rec(&slot);
+		found_key = *(uint64_t *)p_key;
+
+		if (slot.s_idx > node_count(node))
+			break;
+		else if (found_key == proposed_key)
+			proposed_key++;
+		else
+			break;
+	}
+
+	*key = proposed_key;
+	memset(val, *key, sizeof(*val));
+}
+
+void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
+{
+	struct slot          slot;
+	m0_bcount_t          ksize;
+	void                *p_key;
+	m0_bcount_t          vsize;
+	void                *p_val;
+
+	M0_SET0(&slot);
+	slot.s_node = node;
+	slot.s_idx  = idx;
+
+	M0_ASSERT(idx<node_count(node));
+
+	slot.s_rec.r_key.k_data.ov_vec.v_nr = 1;
+	slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
+	slot.s_rec.r_key.k_data.ov_buf = &p_key;
+
+	slot.s_rec.r_val.ov_vec.v_nr = 1;
+	slot.s_rec.r_val.ov_vec.v_count = &vsize;
+	slot.s_rec.r_val.ov_buf = &p_val;
+
+	if (key != NULL)
+		*key = *(uint64_t *)p_key;
+
+	if (val != NULL)
+		*val = *(uint64_t *)p_val;
+}
 
 /**
  * This test will create a tree, add a few nodes and then populate the nodes
@@ -1894,40 +2062,55 @@ void m0_btree_ut_node_add_del_rec(void)
 	struct m0_btree_type    tt;
 	struct td              *tree;
 	struct nd              *node1;
-	struct nd              *node2;
-	const struct node_type *nt    = &fixed_format;
+	const struct node_type *nt      = &fixed_format;
+	uint64_t                key;
+	uint64_t                val;
+	uint64_t                prev_key;
+	uint64_t                curr_key;
+	int                     i;
 
 	M0_ENTRY();
+
+	rnd_ary_off = 0;
 
 	btree_ut_init();
 
 	M0_SET0(&op);
 
-	// Create a Fixed-Format tree.
 	op.no_opc = NOP_ALLOC;
 	tt.tt_id = BTT_FIXED_FORMAT;
 	tree_create(&op, &tt, 10, NULL, 0);
 
 	tree = op.no_tree;
 
-	// Add a few nodes to the created tree.
 	op.no_opc = NOP_ALLOC;
 	node_alloc(&op, tree, 10, nt, 8, 8, NULL, 0);
 	node1 = op.no_node;
 
-	op.no_opc = NOP_ALLOC;
-	node_alloc(&op, tree, 10, nt, 8, 8, NULL, 0);
-	node2 = op.no_node;
-
 	// Add records/ check counts
-	// Check if keys stay in-order. Lookups
+	i = 1;
+	while (true) {
+		get_next_rec_to_add(node1, &key, &val);
+		if (!add_rec(node1, key, val))
+			break;
+		M0_ASSERT(i == node_count(node1));
+	}
+
+	// Confirm all the records are in ascending value of key.
+	get_rec_at_index(node1, 0, &prev_key, NULL);
+	for (i = 1; i < node_count(node1); i++) {
+		get_rec_at_index(node1, i, &curr_key, NULL);
+		M0_ASSERT(prev_key < curr_key);
+		prev_key = curr_key;
+	}
+
+	// Delete all the records from the node.
+	i = node_count(node1) - 1;
+	while (node_count( node1) != 0)
+		M0_ASSERT(i == node_count(node1));
 
 	op.no_opc = NOP_FREE;
 	node_free(&op, node1, NULL, 0);
-
-	op.no_opc = NOP_FREE;
-	node_free(&op, node2, NULL, 0);
-
 
 	// Done playing with the tree - delete it.
 	op.no_opc = NOP_FREE;

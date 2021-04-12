@@ -67,6 +67,11 @@ struct m0_btree_cb {
 	void *c_datum;
 };
 
+enum m0_btree_rec_type {
+	M0_BRT_VALUE = 1,
+	M0_BRT_CHILD = 2,
+};
+
 enum m0_btree_opcode {
 	M0_BO_CREATE = 1,
 	M0_BO_DESTROY,
