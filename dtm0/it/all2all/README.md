@@ -1,5 +1,13 @@
 # How to run the test
 
+## Prerequisit
+lnet service should be running check with following command
+```sh
+sudo systemctl status lnet.service
+```
+
+If not running, please refer troubleshooting section in [README.md](https://github.com/Seagate/cortx-hare/blob/main/README.md)
+
 ## About
 
 This integration test is used to check whether whole
@@ -23,10 +31,15 @@ What the test does:
    connections from m0d's to the client
  - waits for m0crate completion
 
+## Command to run this test
+```sh
+sudo ./all2all
+```
+
 ## Hare usage
 
 Hare is used for cluster bootstrap and shutdown. Firstly
 it needs to be patched by the hare.patch in current directory
 to make it able to generate clusted configuration that includes
 DTM0 service. After that it should be built and installed into
-the system (see README.md in the root of Hare repo).
+the system (see [README.md](https://github.com/Seagate/cortx-hare/blob/main/README.md) in the root of Hare repo).
