@@ -806,9 +806,9 @@ M0_INTERNAL void m0_layout_enum_type_unregister(struct m0_layout_domain *dom,
 	M0_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
 }
 
-M0_INTERNAL int m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
-					   struct m0_fid *pver,
-					   size_t buffsize)
+M0_INTERNAL int64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
+					       struct m0_fid *pver,
+					       size_t buffsize)
 {
 	struct m0_pdclust_attr *pa = NULL;
 	struct m0_layout *l = NULL;

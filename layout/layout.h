@@ -743,9 +743,9 @@ M0_INTERNAL struct m0_layout *m0_layout_find(struct m0_layout_domain *dom,
  *
  * Returns -EINVAL if cannot find the right layout.
  */
-M0_INTERNAL int m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
-					   struct m0_fid *pver,
-					   size_t buffsize);
+M0_INTERNAL int64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
+					       struct m0_fid *pver,
+					       size_t buffsize);
 /**
  * Acquires an additional reference on the layout object.
  * @see m0_layout_put()
