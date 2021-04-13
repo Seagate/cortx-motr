@@ -2230,10 +2230,9 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 		rc = m0_dtx0_open(dtx, cas_rop_tlist_length(&rop->dg_cas_reqs));
 		if (rc != 0)
 			goto end;
-
-		i = 0; /* reset it to enumerate dtx parcticipants */
 	}
 
+	i = 0;
 	m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
 		if (dtx != NULL) {
 			cas_rop->crp_pa_idx = i++;

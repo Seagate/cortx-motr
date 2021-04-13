@@ -19,8 +19,6 @@
  *
  */
 
-
-
 /**
  * @addtogroup dtm
  *
@@ -91,14 +89,18 @@ struct m0_sm_conf m0_dtx_sm_conf = {
 
 M0_INTERNAL void m0_dtm0_dtx_domain_init(void)
 {
+	M0_ENTRY();
 	if (!m0_sm_conf_is_initialized(&m0_dtx_sm_conf))
 		m0_sm_conf_init(&m0_dtx_sm_conf);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_dtm0_dtx_domain_fini(void)
 {
+	M0_ENTRY();
 	if (m0_sm_conf_is_initialized(&m0_dtx_sm_conf))
 		m0_sm_conf_fini(&m0_dtx_sm_conf);
+	M0_LEAVE();
 }
 
 static void dtx_log_insert(struct m0_dtm0_dtx *dtx)
@@ -190,11 +192,11 @@ static int dtx_prepare(struct m0_dtm0_dtx *dtx)
 }
 
 static int dtx_open(struct m0_dtm0_dtx  *dtx,
-		    uint32_t             nr)
+		    uint32_t             nr_pa)
 {
 	M0_PRE(dtx != NULL);
 	M0_ENTRY("dtx=%p", dtx);
-	return M0_RC(m0_dtm0_tx_desc_init(&dtx->dd_txd, nr));
+	return M0_RC(m0_dtm0_tx_desc_init(&dtx->dd_txd, nr_pa));
 }
 
 static void dtx_fop_assign(struct m0_dtm0_dtx  *dtx,
@@ -208,7 +210,8 @@ static void dtx_fop_assign(struct m0_dtm0_dtx  *dtx,
 
 	(void) pa_idx;
 
-	/* TODO:REDO: On the DTM side we should enforce the requirement
+	/*
+	 * TODO:REDO: On the DTM side we should enforce the requirement
 	 * described at m0_dtm0_dtx::dd_op.
 	 * At this moment we silently ignore this as well as anything
 	 * related directly to REDO use-cases.
@@ -285,7 +288,8 @@ static int dtx_close(struct m0_dtm0_dtx *dtx)
 	M0_PRE(dtx != NULL);
 	M0_PRE(m0_sm_group_is_locked(dtx->dd_sm.sm_grp));
 
-	/* TODO:REDO: We may want to capture the fop contents here.
+	/*
+	 * TODO:REDO: We may want to capture the fop contents here.
 	 * See ::fol_record_pack and ::m0_fop_encdec for the details.
 	 * At this moment we do not do REDO, so that it is safe to
 	 * avoid any actions on the fop here.
@@ -293,7 +297,8 @@ static int dtx_close(struct m0_dtm0_dtx *dtx)
 
 	dtx_log_insert(dtx);
 
-	/* Once a dtx is closed, the FOP (or FOPs) has to be serialized
+	/*
+	 * Once a dtx is closed, the FOP (or FOPs) has to be serialized
 	 * into the log, so that we should no longer hold any references to it.
 	 */
 	dtx->dd_fop = NULL;
@@ -368,7 +373,8 @@ M0_INTERNAL void m0_dtm0_dtx_pmsg_post(struct m0_dtm0_dtx *dtx,
 	M0_PRE(dtx->dd_sm.sm_grp != &fop->f_item.ri_rmachine->rm_sm_grp);
 
 	M0_ENTRY("dtx=%p, fop=%p", dtx, fop);
-	/* XXX: it is an uncommon case where f_opaque is used on the server
+	/*
+	 * XXX: it is an uncommon case where f_opaque is used on the server
 	 * side (rather than on the client side) to associate a FOP with
 	 * a user-defined datum. It helps to connect the lifetime of the
 	 * AST that handles the notice with the lifetime of the FOP that
@@ -393,7 +399,7 @@ static void dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
 {
 	struct m0_dtm0_tx_pa  *pa;
 
-	M0_ENTRY("dtx=%p, idx=%" PRIu32, dtx, idx);
+	M0_ENTRY("dtx=%p, idx=%"PRIu32, dtx, idx);
 
 	M0_PRE(dtx != NULL);
 	M0_PRE(m0_sm_group_is_locked(dtx->dd_sm.sm_grp));
@@ -402,7 +408,7 @@ static void dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
 
 	M0_ASSERT(pa->p_state >= M0_DTPS_INPROGRESS);
 
-	pa->p_state = max_check(pa->p_state, (uint32_t) M0_DTPS_EXECUTED);
+	pa->p_state = max_check(pa->p_state, (uint32_t)M0_DTPS_EXECUTED);
 
 	dtx->dd_nr_executed++;
 
@@ -418,7 +424,8 @@ static void dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
 			       "at this point.");
 		m0_sm_state_set(&dtx->dd_sm, M0_DDS_EXECUTED_ALL);
 
-		/* EXECUTED and STABLE should not be triggered within the
+		/*
+		 * EXECUTED and STABLE should not be triggered within the
 		 * same ast tick. This ast helps us to enforce it.
 		 * XXX: there is a catch22-like problem with DIX states:
 		 * DIX request should already be in "FINAL" state when
@@ -453,7 +460,7 @@ M0_INTERNAL int m0_dtx0_prepare(struct m0_dtx *dtx)
 	return dtx_prepare(dtx->tx_dtx);
 }
 
-M0_INTERNAL int m0_dtx0_open(struct m0_dtx  *dtx, uint32_t nr)
+M0_INTERNAL int m0_dtx0_open(struct m0_dtx *dtx, uint32_t nr)
 {
 	M0_PRE(dtx != NULL);
 	return dtx_open(dtx->tx_dtx, nr);

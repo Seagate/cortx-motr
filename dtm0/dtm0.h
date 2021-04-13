@@ -42,7 +42,7 @@
  * - EXECUTED FOP/FOM: when a cas fop is being executed, cas service will check
  *   for the existence of the dtm transaction information. If it is present, cas
  *   will log the tx descriptor locally on each of the dtm participants.  dtm0
- *   log will be updated inside cas fom (ad property of tx). The txr will be
+ *   log will be updated inside cas fom (as property of tx). The txr will be
  *   executed just before tx_close phase of the fom inside fom_fol_rec_add().
  * - REDO FOP/FOM: When a participant service restarts after a transient failure
  *   the other existing participants sends REDO requests to the recovering

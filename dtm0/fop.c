@@ -193,7 +193,8 @@ M0_EXPORTED(m0_dtm0_fop_create);
   Allocates a fom.
  */
 static int dtm0_fom_create(struct m0_fop *fop,
-			   struct m0_fom **out, struct m0_reqh *reqh)
+			   struct m0_fom **out,
+			   struct m0_reqh *reqh)
 {
 	struct dtm0_fom          *fom;
 	struct m0_fop            *repfop = NULL;
@@ -243,18 +244,19 @@ static size_t dtm0_fom_locality(const struct m0_fom *fom)
 }
 
 static void m0_dtm0_send_msg(struct m0_fom                *fom,
-			                 enum m0_dtm0s_msg             msg_type,
-			                 const struct m0_fid          *tgt,
-			                 const struct m0_dtm0_tx_desc *txd)
+			     enum m0_dtm0s_msg             msg_type,
+			     const struct m0_fid          *tgt,
+			     const struct m0_dtm0_tx_desc *txd)
 {
 	struct m0_fop          *fop;
 	struct m0_rpc_session  *session;
 	struct m0_rpc_item     *item;
 	struct dtm0_req_fop    *req;
-    uint64_t                phase_sm_id;
-    uint64_t                rpc_sm_id;
+	uint64_t                phase_sm_id;
+	uint64_t                rpc_sm_id;
 	int                     rc;
-    struct m0_dtm0_service *dtms = m0_dtm0_service_find(fom->fo_service->rs_reqh);
+	struct m0_dtm0_service *dtms = m0_dtm0_service_find(
+		fom->fo_service->rs_reqh);
 
 	M0_ENTRY("reqh=%p", dtms->dos_generic.rs_reqh);
 
@@ -306,7 +308,8 @@ M0_INTERNAL int m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
 M0_INTERNAL void m0_dtm0_on_committed(struct m0_fom                *fom,
 				      const struct m0_dtm0_tx_desc *txd)
 {
-	struct m0_dtm0_service *dtms = m0_dtm0_service_find(fom->fo_service->rs_reqh);
+	struct m0_dtm0_service *dtms = m0_dtm0_service_find(
+		fom->fo_service->rs_reqh);
 	struct m0_dtm0_tx_desc  msg = {};
 	int                     rc;
 	int                     i;
