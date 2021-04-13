@@ -1725,7 +1725,7 @@ static void ff_find(struct slot *slot, const struct m0_btree_key *key)
 
 	if (h->ff_used == 0 ||
 	    (memcmp(ff_key(slot->s_node, 0),
-		    key->k_data.ov_buf[0], h->ff_ksize) > 0)) {
+		    key->k_data.ov_buf[0], h->ff_ksize) >= 0)) {
 		slot->s_idx = 0;
 		return;
 	} else if (memcmp(ff_key(slot->s_node, (h->ff_used - 1)),
@@ -1744,7 +1744,7 @@ static void ff_find(struct slot *slot, const struct m0_btree_key *key)
 		else if (diff > 0)
 			j = m;
 		else {
-			i = m;
+			j = m;
 			break;
 		}
 	} while (i + 1 < j);
@@ -2112,7 +2112,9 @@ void m0_btree_ut_node_add_del_rec(void)
 	M0_ENTRY();
 
 	time(&curr_time);
+	printf("Using seed %lu\n", curr_time);
 	srand(curr_time);
+
 
 //	rnd_ary_off = 0;
 
@@ -2149,8 +2151,10 @@ void m0_btree_ut_node_add_del_rec(void)
 
 	// Delete all the records from the node.
 	i = node_count(node1) - 1;
-	while (node_count( node1) != 0)
-		M0_ASSERT(i == node_count(node1));
+	while (node_count(node1) != 0) {
+		node_del(node1, i, NULL);
+		M0_ASSERT(i-- == node_count(node1));
+	}
 
 	op.no_opc = NOP_FREE;
 	node_free(&op, node1, NULL, 0);
