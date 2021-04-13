@@ -19,7 +19,6 @@
  *
  */
 
-
 #pragma once
 
 #ifndef __MOTR_DTM0_DTX_H__
@@ -48,7 +47,8 @@ enum m0_dtm0_dtx_state {
 };
 
 struct m0_dtm0_dtx {
-	/** An imprint of the ancient version of dtx.
+	/**
+	 * An imprint of the ancient version of dtx.
 	 * This DTX was created at the beginning of the time, and it was
 	 * propagated all over the codebase. Since it is really hard to
 	 * remove it, we instead venerate it by providing the very first
@@ -64,7 +64,8 @@ struct m0_dtm0_dtx {
 	uint32_t                dd_nr_executed;
 	struct m0_sm_ast        dd_exec_all_ast;
 
-	/* XXX: The implementation is very simple and it relies on the idea
+	/*
+	 * XXX: The implementation is very simple and it relies on the idea
 	 * of fully replicated requests. Therefore, all FOP submitted
 	 * as a part of this DTX should to be identical (at least
 	 * from the REDO mechanism standpoint). So that we do not use
@@ -86,7 +87,8 @@ struct m0_dtm0_pmsg_ast {
 M0_INTERNAL void m0_dtm0_dtx_domain_init(void);
 M0_INTERNAL void m0_dtm0_dtx_domain_fini(void);
 
-/* The API below extends the existing m0_dtx API. Since it operates
+/*
+ * The API below extends the existing m0_dtx API. Since it operates
  * on m0_dtx structure in the "DTM0"-way, the naming convention here is
  * a bit different (m0_dtx + dtm0 => m0_dtx0).
  */
@@ -97,9 +99,15 @@ M0_INTERNAL struct m0_dtx* m0_dtx0_alloc(struct m0_dtm0_service *svc,
 /** Assigns a TID to the transaction. */
 M0_INTERNAL int m0_dtx0_prepare(struct m0_dtx *dtx);
 
-M0_INTERNAL int m0_dtx0_open(struct m0_dtx  *dtx, uint32_t nr);
+/**
+ * Initializes inner structures and allocates resources.
+ * @param dtx   A DTX structure to be initialized (must be allocated).
+ * @param nr_pa The number of participants.
+ */
+M0_INTERNAL int m0_dtx0_open(struct m0_dtx *dtx, uint32_t nr_pa);
 
-/** Fills in the FID of the given participant.
+/**
+ * Fills in the FID of the given participant.
  * @param pa_idx  A position in the participants list.
  * @param pa_sfid The FID of a service that participates in the dtx.
  */
@@ -111,11 +119,25 @@ M0_INTERNAL int m0_dtx0_fid_assign(struct m0_dtx       *dtx,
 M0_INTERNAL void m0_dtx0_fop_assign(struct m0_dtx       *dtx,
 				    uint32_t             pa_idx,
 				    const struct m0_fop *pa_fop);
+
+/**
+ * Forbids further modifications by user and shares DTX with DTM log.
+ * It shall be called when the user of DTM0 finished populating the
+ * information about the participants of the corresponding dtx.
+ * Once a dtx is closed, all the participants in the list will
+ * move to INPROGRESS state.
+ */
 M0_INTERNAL int m0_dtx0_close(struct m0_dtx *dtx);
 
+/**
+ * Notifies DTM0 that DTX is executed on the particular participant.
+ * @param dtx    A DTX that is executed on the particular participant.
+ * @param pa_idx Index of the participant.
+ */
 M0_INTERNAL void m0_dtx0_executed(struct m0_dtx *dtx, uint32_t pa_idx);
 
-/** Marks a transaction as "no longer in-use".
+/**
+ * Marks a transaction as "no longer in-use".
  * The user does not have exclusive ownership on a dtx after it has
  * been closed (i.e., added to the log). This function ends this
  * sharing, so that the log has exclusive ownership of the record.
@@ -123,16 +145,17 @@ M0_INTERNAL void m0_dtx0_executed(struct m0_dtx *dtx, uint32_t pa_idx);
  */
 M0_INTERNAL void m0_dtx0_done(struct m0_dtx *dtx);
 
-/** Launch asynchronous processing of a persistent message.
+/**
+ * Launches asynchronous processing of a persistent message.
  * @param dtx A DTX that is the context for the processing.
  * @param fop An FOP with the P message.
  */
 M0_INTERNAL void m0_dtm0_dtx_pmsg_post(struct m0_dtm0_dtx *dtx,
 				       struct m0_fop      *fop);
 
-
-/** Puts a copy of dtx's transaction descriptor into "dst".
- * User is responsible for m0_dtm0_tx_desc_fini()lasing of 'dst'.
+/**
+ * Puts a copy of dtx's transaction descriptor into "dst".
+ * User is responsible for m0_dtm0_tx_desc_fini() lasing of 'dst'.
  * If dtx is NULL then dst will be filled with the empty tx_desc.
  */
 M0_INTERNAL int m0_dtx0_txd_copy(const struct m0_dtx    *dtx,
