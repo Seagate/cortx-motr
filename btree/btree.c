@@ -1577,7 +1577,6 @@ static void ff_init(const struct nd *node, int shift, int ksize, int vsize)
 
 static void ff_fini(const struct nd *node)
 {
-	node = node;
 }
 
 static int ff_count(const struct nd *node)
@@ -1978,7 +1977,6 @@ static int rnd_ary_off = 0;
 static void get_next_rec_to_add(struct nd *node, uint64_t *key,  uint64_t *val)
 {
 	struct slot          slot;
-	uint64_t             found_key;
 	uint64_t             proposed_key;
 	struct m0_btree_key  find_key;
 	m0_bcount_t          ksize;
@@ -2005,6 +2003,8 @@ static void get_next_rec_to_add(struct nd *node, uint64_t *key,  uint64_t *val)
 	slot.s_rec.r_val.ov_vec.v_count = &vsize;
 	slot.s_rec.r_val.ov_buf = &p_val;
 	while (true) {
+		uint64_t found_key;
+
 		proposed_key %= 256;
 		p_key = &proposed_key;
 
@@ -2074,7 +2074,6 @@ void m0_btree_ut_node_add_del_rec(void)
 	uint64_t                val;
 	uint64_t                prev_key;
 	uint64_t                curr_key;
-	int                     i;
 	time_t                  curr_time;
 	int                     run_loop;
 
@@ -2097,6 +2096,7 @@ void m0_btree_ut_node_add_del_rec(void)
 	node1 = op.no_node;
 
 	while(run_loop--) {
+		int i;
 
 		/**
 		 *  Reset seed to have different key values to be used as
