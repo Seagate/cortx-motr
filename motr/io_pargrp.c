@@ -171,9 +171,9 @@ static bool data_buf_invariant_nr(const struct pargrp_iomap *map)
 	obj = map->pi_ioo->ioo_obj;
 	play = pdlayout_get(map->pi_ioo);
 
-	for (row = 0; row < data_row_nr(play, obj); ++row) {
+	for (row = 0; row < rows_nr(play, obj); ++row) {
 		M0_ASSERT(row < map->pi_max_row);
-		for (col = 0; col < data_col_nr(play); ++col) {
+		for (col = 0; col < layout_n(play); ++col) {
 			M0_ASSERT(col < map->pi_max_col);
 			if (map->pi_databufs[row][col] != NULL &&
 				!data_buf_invariant(map->pi_databufs[row][col]))
@@ -182,9 +182,9 @@ static bool data_buf_invariant_nr(const struct pargrp_iomap *map)
 	}
 
 	if (map->pi_paritybufs != NULL) {
-		for (row = 0; row < parity_row_nr(play, obj); ++row) {
+		for (row = 0; row < rows_nr(play, obj); ++row) {
 			M0_ASSERT(row < map->pi_max_row);
-			for (col = 0; col < parity_col_nr(play); ++col) {
+			for (col = 0; col < layout_k(play); ++col) {
 				M0_ASSERT(row < map->pi_max_row);
 				if (map->pi_paritybufs[row][col] != NULL &&
 					!data_buf_invariant(map->pi_paritybufs
@@ -380,68 +380,6 @@ static struct data_buf *data_buf_replicate_init(struct pargrp_iomap *map,
 }
 
 /**
- * Counts the number of bytes in this vector needed to reach the next parity
- * group boundary.
- * This is heavily based on m0t1fs/linux_kernel/file.c::seg_collate
- *
- * @param map The Parity Group map.
- * @param cursor Where in the object we are currently.
- * @return The number of bytes to reach the next parity group boundary.
- */
-static m0_bcount_t seg_collate(struct pargrp_iomap   *map,
-			       struct m0_ivec_cursor *cursor)
-{
-	uint32_t                  seg;
-	uint32_t                  cnt;
-	m0_bindex_t               start;
-	m0_bindex_t               grpend;
-	m0_bcount_t               segcount;
-	struct m0_pdclust_layout *play;
-
-	M0_ENTRY();
-
-	M0_PRE(cursor != NULL);
-	M0_PRE_EX(pargrp_iomap_invariant(map));
-
-	cnt    = 0;
-	play   = pdlayout_get(map->pi_ioo);
-	grpend = map->pi_grpid * data_size(play) + data_size(play);
-	start  = m0_ivec_cursor_index(cursor);
-
-	for (seg = cursor->ic_cur.vc_seg; start < grpend &&
-	     seg < cursor->ic_cur.vc_vec->v_nr - 1; ++seg) {
-		segcount = seg == cursor->ic_cur.vc_seg ?
-			   m0_ivec_cursor_step(cursor) :
-			   cursor->ic_cur.vc_vec->v_count[seg];
-
-		if (start + segcount == map->pi_ioo->ioo_ext.iv_index[seg + 1]) {
-			if (start + segcount >= grpend) {
-				start = grpend;
-				break;
-			}
-			start += segcount;
-		} else
-			break;
-
-		++cnt;
-	}
-
-	if (cnt == 0)
-		return 0;
-
-	/* If this was last segment in vector, add its count too. */
-	if (seg == cursor->ic_cur.vc_vec->v_nr - 1) {
-		if (start + cursor->ic_cur.vc_vec->v_count[seg] >= grpend)
-			start = grpend;
-		else
-			start += cursor->ic_cur.vc_vec->v_count[seg];
-	}
-
-	M0_LEAVE();
-	return start - m0_ivec_cursor_index(cursor);
-}
-
-/**
  * Builds the iomap structure of row/columns for data/parity, one segment at
  * a time.
  * This is heavily based on m0t1fs/linux_kernel/file.c::pargrp_iomap_populate
@@ -452,19 +390,16 @@ static m0_bcount_t seg_collate(struct pargrp_iomap   *map,
  * @return 0 for sucess, -errno otherwise.
  */
 static int pargrp_iomap_populate(struct pargrp_iomap      *map,
-				 const struct m0_indexvec *ivec,
 				 struct m0_ivec_cursor    *cursor,
 				 struct m0_bufvec_cursor  *buf_cursor)
 {
 	int                       rc;
 	bool                      rmw = false;
 	uint64_t                  seg;
-	uint64_t                  size = 0;
 	uint64_t                  grpsize;
 	uint64_t                  pagesize;
 	m0_bcount_t               count = 0;
 	m0_bindex_t               endpos = 0;
-	m0_bcount_t               segcount = 0;
 	/* Number of pages _completely_ spanned by incoming io vector. */
 	uint64_t                  nr = 0;
 	/* Number of pages to be read + written for read-old approach. */
@@ -473,18 +408,16 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	uint64_t                  rr_page_nr;
 	m0_bindex_t               grpstart;
 	m0_bindex_t               grpend;
-	m0_bindex_t               currindex;
-	m0_bindex_t               startindex;
+	m0_bindex_t               startindex = m0_ivec_cursor_index(cursor);
 	struct m0_pdclust_layout *play;
 	struct m0_op_io          *ioo;
 	struct m0_op             *op;
 	struct m0_obj            *obj;
 	struct m0_client         *instance;
 
-	M0_ENTRY("map %p, indexvec %p", map, ivec);
+	M0_ENTRY("map %p, ivec %p", map, cursor->ic_cur.vc_vec);
 
 	M0_PRE(map  != NULL);
-	M0_PRE(ivec != NULL);
 
 	ioo = map->pi_ioo;
 	obj = ioo->ioo_obj;
@@ -497,60 +430,47 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	grpend   = grpstart + grpsize;
 	pagesize = m0__page_size(ioo);
 
-	/* For a write, if size of this map is less
-	 * than parity group size, it is a read-modify-write.
+	/*
+	 * For a write, if this map does not span the whole parity group,
+	 * it is a read-modify-write.
 	 *
 	 * Note (Sining): as Client objects don't have attribute SIZE,
 	 * rmw is true even when grpstart is larger than current object end.
 	 * Does this cause any problem if returned 'read' pages are not
 	 * zeroed?
 	 */
-	if (M0_IN(op->op_code, (M0_OC_FREE, M0_OC_WRITE))) {
-		for (seg = cursor->ic_cur.vc_seg; seg < SEG_NR(ivec) &&
-		     INDEX(ivec, seg) < grpend; ++seg) {
-			currindex = seg == cursor->ic_cur.vc_seg ?
-				    m0_ivec_cursor_index(cursor) :
-				    INDEX(ivec, seg);
-			size += min64u(seg_endpos(ivec, seg), grpend) -
-				currindex;
-		}
-
-		if (size < grpsize)
+	if (M0_IN(op->op_code, (M0_OC_FREE, M0_OC_WRITE)) &&
+	    (m0_ivec_cursor_index(cursor) > grpstart ||
+	     m0_ivec_cursor_conti(cursor, grpend) < grpend))
 			rmw = true;
-	}
+
 	if (op->op_code == M0_OC_FREE && rmw)
 		map->pi_trunc_partial = true;
 
-	startindex = m0_ivec_cursor_index(cursor);
 	M0_LOG(M0_INFO, "Group id %"PRIu64" is %s", map->pi_grpid,
 	       rmw ? "rmw" : "aligned");
 
+	/* Populate pi_ivec. */
 	for (seg = 0; !m0_ivec_cursor_move(cursor, count) &&
-		      m0_ivec_cursor_index(cursor) < grpend;) {
+	               m0_ivec_cursor_index(cursor) < grpend;) {
 		/*
 		 * Skips the current segment if it is completely spanned by
-		 * rounding up/down of earlier segment.
+		 * rounding up/down of an earlier segment.
 		 */
 		if (map->pi_ops->pi_spans_seg(map,
-			m0_ivec_cursor_index(cursor),
-			m0_ivec_cursor_step(cursor)))
-		{
+					      m0_ivec_cursor_index(cursor),
+					      m0_ivec_cursor_step(cursor))) {
 			count = m0_ivec_cursor_step(cursor);
 			continue;
 		}
 
 		INDEX(&map->pi_ivec, seg) = m0_ivec_cursor_index(cursor);
-		endpos = min64u(grpend,
-				m0_ivec_cursor_index(cursor)
-				+ m0_ivec_cursor_step(cursor));
-		segcount = seg_collate(map, cursor);
-		if (segcount > 0)
-			endpos = INDEX(&map->pi_ivec, seg) + segcount;
+		endpos = m0_ivec_cursor_conti(cursor, grpend);
 		COUNT(&map->pi_ivec, seg) = endpos - INDEX(&map->pi_ivec, seg);
 
 		/*
 		* If current segment is _partially_ spanned by previous
-		* segment in pargrp_iomp::pi_ivec, start of segment is
+		* segment in pargrp_iomap::pi_ivec, start of segment is
 		* rounded up to move to next page.
 		*/
 		/*
@@ -561,13 +481,13 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 		 * EOS-5083 is created to handle this.
 		 */
 		if (seg > 0 && INDEX(&map->pi_ivec, seg) <
-			seg_endpos(&map->pi_ivec, seg - 1)) {
+		               seg_endpos(&map->pi_ivec, seg - 1)) {
 			m0_bindex_t newindex;
 
 			newindex = m0_round_up(INDEX(&map->pi_ivec, seg) + 1,
 					       pagesize);
-			COUNT(&map->pi_ivec, seg) -=
-				(newindex - INDEX(&map->pi_ivec, seg));
+			COUNT(&map->pi_ivec, seg) -= newindex -
+			                             INDEX(&map->pi_ivec, seg);
 			INDEX(&map->pi_ivec, seg)  = newindex;
 		}
 
@@ -578,19 +498,20 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 				 INDEX(&map->pi_ivec, seg),
 				 COUNT(&map->pi_ivec, seg));
 
-		if (!(op->op_code == M0_OC_READ &&
-		      instance->m0c_config->mc_is_read_verify)) {
-			/* if not in 'verify mode', ... */
+		if (op->op_code != M0_OC_READ ||
+		    !instance->m0c_config->mc_is_read_verify) {
+			/* not in 'verify mode' */
 			rc = map->pi_ops->pi_seg_process(map, seg, rmw,
 					                 0, buf_cursor);
 			if (rc != 0)
 				return M0_ERR_INFO(rc, "seg_process failed");
 		}
 
-		INDEX(&map->pi_ivec, seg) =
-			round_down(INDEX(&map->pi_ivec, seg), pagesize);
+		/* make segment pagesize-aligned */
+		INDEX(&map->pi_ivec, seg) = round_down(INDEX(&map->pi_ivec,
+							     seg), pagesize);
 		COUNT(&map->pi_ivec, seg) = round_up(endpos, pagesize) -
-				 INDEX(&map->pi_ivec, seg);
+		                            INDEX(&map->pi_ivec, seg);
 		M0_LOG(M0_DEBUG, "post grpid = %"PRIu64" seg %"PRIu64
 				 " = [%"PRIu64", +%"PRIu64")",
 				 map->pi_grpid, seg,
@@ -719,9 +640,9 @@ static uint64_t pargrp_iomap_fullpages_count(struct pargrp_iomap *map)
 
 	play = pdlayout_get(ioo);
 
-	for (row = 0; row < data_row_nr(play, obj); ++row) {
+	for (row = 0; row < rows_nr(play, obj); ++row) {
 		M0_ASSERT(row <= map->pi_max_row);
-		for (col = 0; col < data_col_nr(play); ++col) {
+		for (col = 0; col < layout_n(play); ++col) {
 			M0_ASSERT(col <= map->pi_max_col);
 			if (map->pi_databufs[row][col] &&
 			    map->pi_databufs[row][col]->db_flags &
@@ -790,7 +711,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	struct m0_op_io          *ioo;
 	struct m0_obj            *obj;
 	struct m0_op             *op;
-	m0_bindex_t               grp_size;
+	m0_bindex_t               grp_off;
 
 	M0_ENTRY("map %p, seg %"PRIu64", %s", map, seg,
 		 rmw ? "rmw" : "aligned");
@@ -801,7 +722,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	obj = ioo->ioo_obj;
 	play = pdlayout_get(ioo);
 	pagesize = m0__page_size(ioo);
-	grp_size = data_size(play) * map->pi_grpid;
+	grp_off = data_size(play) * map->pi_grpid;
 
 	m0_ivec_cursor_init(&cur, &map->pi_ivec);
 	ret = m0_ivec_cursor_move_to(&cur, INDEX(&map->pi_ivec, seg));
@@ -834,7 +755,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 			flags |= PA_READ;
 		}
 
-		page_pos_get(map, start, grp_size, &row, &col);
+		page_pos_get(map, start, grp_off, &row, &col);
 		M0_ASSERT(col <= map->pi_max_col);
 		M0_ASSERT(row <= map->pi_max_row);
 
@@ -871,8 +792,8 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 
 	return M0_RC(0);
 err:
-	for (row = 0; row < data_row_nr(play, obj); ++row) {
-		for (col = 0; col < data_col_nr(play); ++col) {
+	for (row = 0; row < rows_nr(play, obj); ++row) {
+		for (col = 0; col < layout_n(play); ++col) {
 			if (map->pi_databufs[row][col] != NULL) {
 				data_buf_dealloc_fini(
 						map->pi_databufs[row][col]);
@@ -1229,8 +1150,8 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 			goto last;
 		}
 
-		for (row = 0; row < data_row_nr(play, ioo->ioo_obj); ++row) {
-			for (col = 0; col < data_col_nr(play); ++col)
+		for (row = 0; row < rows_nr(play, ioo->ioo_obj); ++row) {
+			for (col = 0; col < layout_n(play); ++col)
 				if (map->pi_databufs[row][col] != NULL) {
 					dbufs[col] =
 					    map->pi_databufs[row][col]->db_buf;
@@ -1263,12 +1184,12 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 			goto last;
 		}
 
-		for (row = 0; row < data_row_nr(play, ioo->ioo_obj); ++row) {
+		for (row = 0; row < rows_nr(play, ioo->ioo_obj); ++row) {
 			for (col = 0; col < layout_k(play); ++col)
 				pbufs[col] = map->pi_paritybufs[row][col]->
 					db_buf;
 
-			for (col = 0; col < data_col_nr(play); ++col) {
+			for (col = 0; col < layout_n(play); ++col) {
 				/*
 				 * During rmw-IO request with read-old approach
 				 * we allocate primary and auxiliary buffers
@@ -1332,8 +1253,8 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 	op_code = op->op_code;
 
 	play = pdlayout_get(map->pi_ioo);
-	for (row = 0; row < parity_row_nr(play, obj); ++row) {
-		for (col = 0; col < parity_col_nr(play); ++col) {
+	for (row = 0; row < rows_nr(play, obj); ++row) {
+		for (col = 0; col < layout_k(play); ++col) {
 			map->pi_paritybufs[row][col] =
 				data_buf_alloc_init(obj, PA_NONE);
 			if (map->pi_paritybufs[row][col] == NULL)
@@ -1353,8 +1274,8 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 
 	return M0_RC(0);
 err:
-	for (row = 0; row < parity_row_nr(play, obj); ++row) {
-		for (col = 0; col < parity_col_nr(play); ++col)
+	for (row = 0; row < rows_nr(play, obj); ++row) {
+		for (col = 0; col < layout_k(play); ++col)
 			m0_free0(&map->pi_paritybufs[row][col]);
 	}
 
@@ -1380,8 +1301,8 @@ static int pargrp_iomap_databuf_replicate(struct pargrp_iomap *map)
 	M0_PRE(m0__is_update_op(op));
 
 	play = pdlayout_get(map->pi_ioo);
-	for (row = 0; row < parity_row_nr(play, obj); ++row) {
-		for (col = 0; col < parity_col_nr(play); ++col) {
+	for (row = 0; row < rows_nr(play, obj); ++row) {
+		for (col = 0; col < layout_k(play); ++col) {
 			if (map->pi_databufs[row][0] == NULL) {
 				map->pi_paritybufs[row][col] =
 					data_buf_alloc_init(obj, PA_NONE);
@@ -1406,7 +1327,7 @@ static int pargrp_iomap_databuf_replicate(struct pargrp_iomap *map)
 	return M0_RC(0);
 err:
 	for (; row > -1; --row) {
-		for (col = 0; col < parity_col_nr(play); ++col) {
+		for (col = 0; col < layout_k(play); ++col) {
 			if (map->pi_databufs[row][0] == NULL) {
 				data_buf_dealloc_fini(map->
 					pi_paritybufs[row][col]);
@@ -1452,12 +1373,12 @@ static int pargrp_iomap_pages_mark_as_failed(struct pargrp_iomap       *map,
 
 	if (type == M0_PUT_DATA) {
 		M0_ASSERT(map->pi_databufs != NULL);
-		row_nr = data_row_nr(play, ioo->ioo_obj);
-		col_nr = data_col_nr(play);
+		row_nr = rows_nr(play, ioo->ioo_obj);
+		col_nr = layout_n(play);
 		bufs   = map->pi_databufs;
 	} else {
-		row_nr = parity_row_nr(play, ioo->ioo_obj);
-		col_nr = parity_col_nr(play);
+		row_nr = rows_nr(play, ioo->ioo_obj);
+		col_nr = layout_k(play);
 		bufs   = map->pi_paritybufs;
 	}
 
@@ -1754,14 +1675,12 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	 * since they are needed for recovering lost data.
 	 */
 	if (map->pi_paritybufs == NULL) {
-		M0_ALLOC_ARR(map->pi_paritybufs,
-			     parity_row_nr(play, ioo->ioo_obj));
+		M0_ALLOC_ARR(map->pi_paritybufs, rows_nr(play, ioo->ioo_obj));
 		if (map->pi_paritybufs == NULL)
 			return M0_ERR(-ENOMEM);
 
-		for (row = 0; row < parity_row_nr(play, ioo->ioo_obj); ++row) {
-			M0_ALLOC_ARR(map->pi_paritybufs[row],
-				     parity_col_nr(play));
+		for (row = 0; row < rows_nr(play, ioo->ioo_obj); ++row) {
+			M0_ALLOC_ARR(map->pi_paritybufs[row], layout_k(play));
 			if (map->pi_paritybufs[row] == NULL) {
 				rc = -ENOMEM;
 				goto par_fail;
@@ -1773,7 +1692,7 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 
 par_fail:
 	M0_ASSERT(rc != 0);
-	for (row = 0; row < parity_row_nr(play, ioo->ioo_obj); ++row)
+	for (row = 0; row < rows_nr(play, ioo->ioo_obj); ++row)
 		m0_free0(&map->pi_paritybufs[row]);
 	m0_free0(&map->pi_paritybufs);
 
@@ -1824,8 +1743,8 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	 * increasing file offset.
 	 * This is necessary in order to generate correct index vector.
 	 */
-	for (col = 0; col < data_col_nr(play); ++col) {
-		for (row = 0; row < data_row_nr(play, obj); ++row) {
+	for (col = 0; col < layout_n(play); ++col) {
+		for (row = 0; row < rows_nr(play, obj); ++row) {
 
 			if (map->pi_databufs[row][col] != NULL &&
 			    map->pi_databufs[row][col]->db_flags &
@@ -1889,8 +1808,8 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	/*indexvec_dump(&map->pi_ivec);*/
 
 	/* parity matrix from parity group. */
-	for (row = 0; row < parity_row_nr(play, obj); ++row) {
-		for (col = 0; col < parity_col_nr(play); ++col) {
+	for (row = 0; row < rows_nr(play, obj); ++row) {
+		for (col = 0; col < layout_k(play); ++col) {
 
 			if (map->pi_paritybufs[row][col] == NULL) {
 				map->pi_paritybufs[row][col] =
@@ -1925,7 +1844,7 @@ static uint32_t iomap_dgmode_recov_prepare(struct pargrp_iomap *map,
 	uint32_t                  K = 0;
 
 	play = pdlayout_get(map->pi_ioo);
-	for (col = 0; col < data_col_nr(play); ++col) {
+	for (col = 0; col < layout_n(play); ++col) {
 		if (map->pi_databufs[0][col] != NULL &&
 		    map->pi_databufs[0][col]->db_flags &
 		    PA_READ_FAILED) {
@@ -1934,7 +1853,7 @@ static uint32_t iomap_dgmode_recov_prepare(struct pargrp_iomap *map,
 		}
 
 	}
-	for (col = 0; col < parity_col_nr(play); ++col) {
+	for (col = 0; col < layout_k(play); ++col) {
 		M0_ASSERT(map->pi_paritybufs[0][col] != NULL);
 		if (map->pi_paritybufs[0][col]->db_flags &
 		    PA_READ_FAILED) {
@@ -2021,8 +1940,8 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	}
 
 	/* Populates data and failed buffers. */
-	for (row = 0; row < data_row_nr(play, ioo->ioo_obj); ++row) {
-		for (col = 0; col < data_col_nr(play); ++col) {
+	for (row = 0; row < rows_nr(play, ioo->ioo_obj); ++row) {
+		for (col = 0; col < layout_n(play); ++col) {
 			data[col].b_nob = pagesize;
 
 			if (map->pi_databufs[row][col] == NULL) {
@@ -2033,7 +1952,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 					   db_buf.b_addr;
 		}
 
-		for (col = 0; col < parity_col_nr(play); ++col) {
+		for (col = 0; col < layout_k(play); ++col) {
 			M0_ASSERT(map->pi_paritybufs[row][col] != NULL);
 			parity[col].b_addr =
 			    map->pi_paritybufs[row][col]->db_buf.b_addr;
@@ -2145,7 +2064,7 @@ static int pargrp_iomap_replica_elect(struct pargrp_iomap *map)
 	 * CRC. The page corresponding to the value that holds majority in
 	 * a row shall be returned to user.
 	 */
-	for (row = 0, crc_idx = 0; row < data_row_nr(play, ioo->ioo_obj);
+	for (row = 0, crc_idx = 0; row < rows_nr(play, ioo->ioo_obj);
 	     ++row, crc_idx = 0) {
 		dbuf = map->pi_databufs[row][0];
 		/* Degraded pages won't contend the election. */
@@ -2257,9 +2176,9 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 		pbufs[col].b_nob = pagesize;
 	}
 
-	for (row = 0; row < data_row_nr(play, ioo->ioo_obj); ++row) {
+	for (row = 0; row < rows_nr(play, ioo->ioo_obj); ++row) {
 		/* data */
-		for (col = 0; col < data_col_nr(play); ++col) {
+		for (col = 0; col < layout_n(play); ++col) {
 			if (map->pi_databufs[row][col] != NULL)	{
 				dbufs[col] =
 					map->pi_databufs[row][col]->db_buf;
@@ -2401,11 +2320,11 @@ M0_INTERNAL int pargrp_iomap_init(struct pargrp_iomap  *map,
 	 */
 	map->pi_ivec.iv_vec.v_nr = 0;
 
-	map->pi_max_row = data_row_nr(play, ioo->ioo_obj);
+	map->pi_max_row = rows_nr(play, ioo->ioo_obj);
 	map->pi_max_col = layout_n(play);
 
 	rc = pargrp_iomap_bufs_alloc(&map->pi_databufs,
-				     data_row_nr(play, ioo->ioo_obj),
+				     rows_nr(play, ioo->ioo_obj),
 				     layout_n(play));
 	if (rc != 0)
 		goto fail;
@@ -2416,8 +2335,8 @@ M0_INTERNAL int pargrp_iomap_init(struct pargrp_iomap  *map,
 	 */
 	if (M0_IN(ioo->ioo_pbuf_type, (M0_PBUF_DIR, M0_PBUF_IND))) {
 		rc = pargrp_iomap_bufs_alloc(&map->pi_paritybufs,
-					     parity_row_nr(play, ioo->ioo_obj),
-					     parity_col_nr(play));
+					     rows_nr(play, ioo->ioo_obj),
+					     layout_k(play));
 		if (rc != 0)
 			goto fail;
 	}
@@ -2426,8 +2345,7 @@ M0_INTERNAL int pargrp_iomap_init(struct pargrp_iomap  *map,
 	return M0_RC(0);
 
 fail:
-	pargrp_iomap_bufs_free(map->pi_databufs,
-			       data_row_nr(play, ioo->ioo_obj));
+	pargrp_iomap_bufs_free(map->pi_databufs, rows_nr(play, ioo->ioo_obj));
 	m0_indexvec_free(&map->pi_ivec);
 
 	return M0_ERR(-ENOMEM);
@@ -2464,17 +2382,17 @@ M0_INTERNAL void pargrp_iomap_fini(struct pargrp_iomap *map,
 	pargrp_iomap_bob_fini(map);
 	m0_indexvec_free(&map->pi_ivec);
 
-	for (row = 0; row < data_row_nr(play, obj); ++row) {
+	for (row = 0; row < rows_nr(play, obj); ++row) {
 		if (map->pi_ioo->ioo_pbuf_type == M0_PBUF_IND &&
 		    map->pi_databufs[row][0] == NULL) {
-			for (col_r = 0; col_r < parity_col_nr(play); ++col_r) {
+			for (col_r = 0; col_r < layout_k(play); ++col_r) {
 				data_buf_dealloc_fini(map->
 					pi_paritybufs[row][col_r]);
 				map->pi_paritybufs[row][col_r] = NULL;
 			}
 		}
 
-		for (col = 0; col < data_col_nr(play); ++col) {
+		for (col = 0; col < layout_n(play); ++col) {
 			if (map->pi_databufs[row][col] != NULL) {
 				data_buf_dealloc_fini(map->
 					pi_databufs[row][col]);
@@ -2486,8 +2404,8 @@ M0_INTERNAL void pargrp_iomap_fini(struct pargrp_iomap *map,
 	}
 
 	if (map->pi_paritybufs != NULL) {
-		for (row = 0; row < parity_row_nr(play, obj); ++row) {
-			for (col = 0; col < parity_col_nr(play); ++col) {
+		for (row = 0; row < rows_nr(play, obj); ++row) {
+			for (col = 0; col < layout_k(play); ++col) {
 				buf = map->pi_paritybufs[row][col];
 				if (buf != NULL) {
 					if (are_pbufs_allocated(map->pi_ioo)) {

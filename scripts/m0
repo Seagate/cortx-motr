@@ -132,6 +132,11 @@ cmd_run_kut() {
     $SUDO "$M0_SRC_DIR/ut/m0kut" "$@"
 }
 
+cmd_run_ub() {
+    rundir_init
+    $SUDO "$M0_SRC_DIR/utils/m0run" m0ub -- "$@"
+}
+
 cmd_run_st() {
     local pattern
     local f
@@ -213,6 +218,9 @@ Commands:
 
     run-kut              Run kernel unit tests.
 
+    run-ub [OPTION]...   Run user-space unit benchmarking.
+                         OPTIONs are passed to 'ut/m0ub'.
+
     run-st [-l] [PATTERN]...
                          Run system tests or list ('-l') their names.
                          Optional arguments specify which tests to run:
@@ -256,7 +264,7 @@ OPTS=
 while [ $# -gt 0 ]; do
     case $1 in
         make|clean|rebuild|run-ut|run-kut|run-st|run-all|dist-check| \
-            check-everything|configure|help)
+            run-ub|check-everything|configure|help)
             [ -z "$CMD" ] || _exec $CMD $OPTS
             CMD=cmd_${1//-/_}
             OPTS=;;
