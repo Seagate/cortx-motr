@@ -137,13 +137,12 @@ static struct m0_dtm0_service *to_dtm(struct m0_reqh_service *service)
 /**
  * Service part
  */
-static int dtm0_service__init(struct m0_dtm0_service *s)
+static void dtm0_service__init(struct m0_dtm0_service *s)
 {
 	m0_dtm0_service_bob_init(s);
 	dopr_tlist_init(&s->dos_processes);
 	m0_dtm0_dtx_domain_init();
-
-	return m0_dtm0_clk_src_init(&s->dos_clk_src, M0_DTM0_CS_PHYS);
+	m0_dtm0_clk_src_init(&s->dos_clk_src, M0_DTM0_CS_PHYS);
 }
 
 static void dtm0_service__fini(struct m0_dtm0_service *s)
@@ -270,7 +269,6 @@ static int dtm0_service__alloc(struct m0_reqh_service           **service,
 			       const struct m0_reqh_service_ops  *ops)
 {
 	struct m0_dtm0_service *s;
-	int                     rc;
 
 	M0_PRE(stype != NULL && service != NULL && ops != NULL);
 
@@ -280,11 +278,10 @@ static int dtm0_service__alloc(struct m0_reqh_service           **service,
 
 	s->dos_generic.rs_type = stype;
 	s->dos_generic.rs_ops  = ops;
-	rc = dtm0_service__init(s);
-	if (rc == 0)
-		*service = &s->dos_generic;
+	dtm0_service__init(s);
+	*service = &s->dos_generic;
 
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 static int dtm0_service_allocate(struct m0_reqh_service           **service,

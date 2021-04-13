@@ -52,29 +52,34 @@ struct m0_dtm0_clk_src_ops {
 /* See M0_DTM0_CS_PHYS for details */
 static const struct m0_dtm0_clk_src_ops cs_phys_ops;
 
-M0_INTERNAL int m0_dtm0_clk_src_init(struct m0_dtm0_clk_src *cs,
-				    enum m0_dtm0_cs_types    type)
+M0_INTERNAL void m0_dtm0_clk_src_init(struct m0_dtm0_clk_src *cs,
+				      enum m0_dtm0_cs_types   type)
 {
+	M0_ENTRY();
 	M0_PRE(M0_IN(type, (M0_DTM0_CS_PHYS)));
 	m0_mutex_init(&cs->cs_phys_lock);
 	cs->cs_prev = M0_DTM0_TS_MIN;
 	cs->cs_ops = &cs_phys_ops;
-	return 0;
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_dtm0_clk_src_fini(struct m0_dtm0_clk_src *cs)
 {
+	M0_ENTRY();
 	M0_PRE(cs);
 	M0_PRE(M0_IN(cs->cs_ops, (&cs_phys_ops)));
 	m0_mutex_fini(&cs->cs_phys_lock);
 	cs->cs_prev = M0_DTM0_TS_INIT;
 	cs->cs_ops = NULL;
+	M0_LEAVE();
 }
 
-M0_INTERNAL enum m0_dtm0_ts_ord m0_dtm0_ts_cmp(const struct m0_dtm0_clk_src *cs,
-					       const struct m0_dtm0_ts *left,
-					       const struct m0_dtm0_ts *right)
+M0_INTERNAL
+enum m0_dtm0_ts_ord m0_dtm0_ts_cmp(const struct m0_dtm0_clk_src *cs,
+				   const struct m0_dtm0_ts      *left,
+				   const struct m0_dtm0_ts      *right)
 {
+	M0_PRE(cs);
 	M0_PRE(m0_dtm0_ts__invariant(left));
 	M0_PRE(m0_dtm0_ts__invariant(right));
 	return cs->cs_ops->cmp(left, right);
@@ -83,10 +88,15 @@ M0_INTERNAL enum m0_dtm0_ts_ord m0_dtm0_ts_cmp(const struct m0_dtm0_clk_src *cs,
 M0_INTERNAL int m0_dtm0_clk_src_now(struct m0_dtm0_clk_src *cs,
 				    struct m0_dtm0_ts      *ts)
 {
-	return cs->cs_ops->now(cs, ts);
+	int rc;
+
+	M0_PRE(cs);
+	rc = cs->cs_ops->now(cs, ts);
+	M0_POST(m0_dtm0_ts__invariant(ts));
+	return rc;
 }
 
-M0_INTERNAL int m0_dtm0_clk_src_observed(struct m0_dtm0_clk_src *cs,
+M0_INTERNAL int m0_dtm0_clk_src_observed(struct m0_dtm0_clk_src  *cs,
 					 const struct m0_dtm0_ts *other_ts)
 {
 	M0_PRE(m0_dtm0_ts__invariant(other_ts));
@@ -153,7 +163,7 @@ static int cs_phys_observed(struct m0_dtm0_clk_src  *cs,
 			    const struct m0_dtm0_ts *other_ts)
 {
 	struct m0_dtm0_ts now = M0_DTM0_TS_INIT;
-	int              rc;
+	int               rc;
 
 	M0_PRE(m0_dtm0_ts__invariant(other_ts));
 
@@ -161,22 +171,16 @@ static int cs_phys_observed(struct m0_dtm0_clk_src  *cs,
 	if (rc != 0)
 		return rc;
 
-	M0_ASSERT(m0_dtm0_ts__invariant(&now));
-
 	rc = m0_dtm0_ts_cmp(cs, &now, other_ts);
 
-	/* Assumption:
-	 *   It is possible to observe an even that happened in the past.
+	/*
+	 * Assumption:
+	 * It is possible to observe an even that happened in the past.
 	 * The other cases (present, future) are not allowed, and they
 	 * indicate a significant clock drift.
 	 */
-	if (rc == M0_DTS_GT) {
-		rc = 0;
-	} else {
-		rc = M0_ERR_INFO(-EINVAL, "Observed a future event");
-	}
-
-	return rc;
+	return rc == M0_DTS_GT ? 0 : M0_ERR_INFO(-EINVAL,
+						 "Observed a future event");
 }
 
 static const struct m0_dtm0_clk_src_ops cs_phys_ops = {

@@ -90,10 +90,10 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 	rc = m0_dtm0_tx_desc_init(&txr, 1);
 	M0_UT_ASSERT(rc == 0);
 
-	txr.dtd_ps.dtp_pa[0].p_fid = g_process_fid;
+	txr.dtd_ps.dtp_pa[0].p_fid = srv_dtm0_fid;
 	txr.dtd_id = (struct m0_dtm0_tid) {
 		.dti_ts = now,
-		.dti_fid = g_process_fid
+		.dti_fid = cli_srv_fid
 	};
 	fop = m0_fop_alloc_at(cl_rpc_session,
 			      &dtm0_req_fop_fopt);

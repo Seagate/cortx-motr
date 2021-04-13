@@ -187,7 +187,7 @@ static int dtx_prepare(struct m0_dtm0_dtx *dtx)
 
 	dtx->dd_txd.dtd_id.dti_fid = dtx->dd_dtms->dos_generic.rs_service_fid;
 	M0_POST(m0_dtm0_tid__invariant(&dtx->dd_txd.dtd_id));
-	return M0_RC_INFO(rc, "prepared dtx wit tid " DTID0_F,
+	return M0_RC_INFO(rc, "prepared dtx with tid "DTID0_F,
 			  DTID0_P(&dtx->dd_txd.dtd_id));
 }
 
