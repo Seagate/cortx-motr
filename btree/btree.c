@@ -523,6 +523,7 @@
 #ifndef __KERNEL__
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 #endif
 
 /**
@@ -795,9 +796,6 @@ struct node_type {
 
 	/** Cleanup of the node if any before deallocation */
 	void (*nt_fini)(const struct nd *node);
-
-	/** Add record in the node at the index specified in the slot. */
-	void (*nt_addrec)(struct slot *slot);
 
 	/** Returns count of records in the node */
 	int  (*nt_count)(const struct nd *node);
@@ -1474,7 +1472,6 @@ struct ff_head {
 
 static void ff_init(const struct nd *node, int shift, int ksize, int vsize);
 static void ff_fini(const struct nd *node);
-static void ff_addrec(struct slot *slot);
 static int ff_count(const struct nd *node);
 static int ff_space(const struct nd *node);
 static int ff_level(const struct nd *node);
@@ -1504,7 +1501,6 @@ static const struct node_type fixed_format = {
 	//.nt_tag,
 	.nt_init   = ff_init,
 	.nt_fini   = ff_fini,
-	.nt_addrec = ff_addrec,
 	.nt_count  = ff_count,
 	.nt_space  = ff_space,
 	.nt_level  = ff_level,
@@ -1582,34 +1578,6 @@ static void ff_init(const struct nd *node, int shift, int ksize, int vsize)
 static void ff_fini(const struct nd *node)
 {
 	node = node;
-}
-
-static void ff_addrec(struct slot *slot)
-{
-	struct ff_head *h   = ff_data(slot->s_node);
-	void           *key;
-	void           *value;
-	struct segaddr *s_addr;
-	struct segaddr *d_addr;
-
-	M0_PRE(slot->s_rec.r_key.k_data.ov_vec.v_nr == 1);
-	M0_PRE(h->ff_ksize == slot->s_rec.r_key.k_data.ov_vec.v_count[0]);
-	M0_PRE(slot->s_rec.r_val.ov_vec.v_nr == 1);
-	M0_PRE(h->ff_vsize == slot->s_rec.r_val.ov_vec.v_count[0]);
-
-	key = ff_key(slot->s_node,  slot->s_idx);
-	value = ff_val(slot->s_node,  slot->s_idx);
-	memcpy(key, slot->s_rec.r_key.k_data.ov_buf[0], h->ff_ksize);
-	if (slot->s_rec.r_flags == M0_BRT_CHILD) {
-		s_addr = (struct segaddr *)&slot->s_rec.r_val;
-		d_addr = value;
-
-		*d_addr = *s_addr;
-
-	}
-	else {
-		memcpy(value, slot->s_rec.r_val.ov_buf[0], h->ff_ksize);
-	}
 }
 
 static int ff_count(const struct nd *node)
@@ -2108,15 +2076,11 @@ void m0_btree_ut_node_add_del_rec(void)
 	uint64_t                curr_key;
 	int                     i;
 	time_t                  curr_time;
+	int                     run_loop;
 
 	M0_ENTRY();
 
-	time(&curr_time);
-	printf("Using seed %lu\n", curr_time);
-	srand(curr_time);
-
-
-//	rnd_ary_off = 0;
+	run_loop = 10;
 
 	btree_ut_init();
 
@@ -2132,30 +2096,43 @@ void m0_btree_ut_node_add_del_rec(void)
 	node_alloc(&op, tree, 10, nt, 8, 8, NULL, 0);
 	node1 = op.no_node;
 
-	// Add records/ check counts
-	i = 1;
-	while (true) {
-		get_next_rec_to_add(node1, &key, &val);
-		if (!add_rec(node1, key, val))
-			break;
-		M0_ASSERT(i++ == node_count(node1));
+	while(run_loop--) {
+
+		/**
+		 *  Reset seed to have different key values to be used as
+		 *  records.
+		 */
+		sleep(1);
+		time(&curr_time);
+		printf("\nUsing seed %lu", curr_time);
+		srand(curr_time);
+
+		/** Add records */
+		i = 0;
+		while (true) {
+			get_next_rec_to_add(node1, &key, &val);
+			if (!add_rec(node1, key, val))
+				break;
+			M0_ASSERT(++i == node_count(node1));
+		}
+
+		/** Confirm all the records are in ascending value of key. */
+		get_rec_at_index(node1, 0, &prev_key, NULL);
+		for (i = 1; i < node_count(node1); i++) {
+			get_rec_at_index(node1, i, &curr_key, NULL);
+			M0_ASSERT(prev_key < curr_key);
+			prev_key = curr_key;
+		}
+
+		/** Delete all the records from the node. */
+		i = node_count(node1) - 1;
+		while (node_count(node1) != 0) {
+			node_del(node1, i, NULL);
+			M0_ASSERT(i-- == node_count(node1));
+		}
 	}
 
-	// Confirm all the records are in ascending value of key.
-	get_rec_at_index(node1, 0, &prev_key, NULL);
-	for (i = 1; i < node_count(node1); i++) {
-		get_rec_at_index(node1, i, &curr_key, NULL);
-		M0_ASSERT(prev_key < curr_key);
-		prev_key = curr_key;
-	}
-
-	// Delete all the records from the node.
-	i = node_count(node1) - 1;
-	while (node_count(node1) != 0) {
-		node_del(node1, i, NULL);
-		M0_ASSERT(i-- == node_count(node1));
-	}
-
+	printf("\n");
 	op.no_opc = NOP_FREE;
 	node_free(&op, node1, NULL, 0);
 
