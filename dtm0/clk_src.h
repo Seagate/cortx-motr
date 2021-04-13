@@ -134,8 +134,8 @@ M0_INTERNAL enum m0_dtm0_ts_ord m0_dtm0_ts_cmp(const struct m0_dtm0_clk_src *cs,
 					       const struct m0_dtm0_ts *right);
 
 /** Initalises a clock source. See CS.INIT */
-M0_INTERNAL int m0_dtm0_clk_src_init(struct m0_dtm0_clk_src *cs,
-				     enum m0_dtm0_cs_types   type);
+M0_INTERNAL void m0_dtm0_clk_src_init(struct m0_dtm0_clk_src *cs,
+				      enum m0_dtm0_cs_types   type);
 
 /** Finalises a lock source. See CS.FINI */
 M0_INTERNAL void m0_dtm0_clk_src_fini(struct m0_dtm0_clk_src *cs);

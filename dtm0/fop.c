@@ -136,6 +136,7 @@ static struct m0_sm_conf dtm0_conf = {
 M0_INTERNAL int m0_dtm0_fop_init(void)
 {
 	static int init_once = 0;
+
 	if (init_once++ > 0)
 		return 0;
 
@@ -167,14 +168,13 @@ M0_INTERNAL int m0_dtm0_fop_init(void)
   Allocates a fop.
  */
 
-int m0_dtm0_fop_create(struct m0_rpc_session	 *session,
-		       enum m0_dtm0s_msg	  opmsg,
-		       struct m0_dtm0_tx_desc	 *txr,
-		       struct m0_fop		**out)
+int m0_dtm0_fop_create(struct m0_rpc_session  *session,
+		       enum m0_dtm0s_msg       opmsg,
+		       struct m0_dtm0_tx_desc *txr,
+		       struct m0_fop         **out)
 {
-	struct dtm0_req_fop  *op;
-	struct m0_fop	     *fop;
-	int                rc = 0;
+	struct dtm0_req_fop *op;
+	struct m0_fop	    *fop;
 
 	*out = NULL;
 
@@ -185,7 +185,7 @@ int m0_dtm0_fop_create(struct m0_rpc_session	 *session,
 	op->dtr_msg = opmsg;
 	op->dtr_txr = *txr;
 	*out = fop;
-	return rc;
+	return 0;
 }
 M0_EXPORTED(m0_dtm0_fop_create);
 
@@ -196,10 +196,10 @@ static int dtm0_fom_create(struct m0_fop *fop,
 			   struct m0_fom **out,
 			   struct m0_reqh *reqh)
 {
-	struct dtm0_fom          *fom;
-	struct m0_fop            *repfop = NULL;
-	struct dtm0_rep_fop      *reply;
-	struct m0_dtm0_pmsg_ast  *pma = NULL;
+	struct dtm0_fom         *fom;
+	struct m0_fop           *repfop;
+	struct dtm0_rep_fop     *reply;
+	struct m0_dtm0_pmsg_ast *pma;
 
 	M0_ENTRY("reqh=%p", reqh);
 
@@ -207,25 +207,25 @@ static int dtm0_fom_create(struct m0_fop *fop,
 	M0_ALLOC_PTR(pma);
 	repfop = m0_fop_reply_alloc(fop, &dtm0_rep_fop_fopt);
 
-	if (fom != NULL && repfop != NULL && pma != NULL) {
-		*out = &fom->dtf_fom;
-		/** TODO: calculate credits for the operation.
-		 */
-
-		/* see ::m0_dtm0_dtx_post_persistent for the details */
-		fop->f_opaque = pma;
-		reply = m0_fop_data(repfop);
-		reply->dr_txr = (struct m0_dtm0_tx_desc) {};
-		reply->dr_rc = 0;
-		m0_fom_init(&fom->dtf_fom, &fop->f_type->ft_fom_type,
-			    &dtm0_req_fom_ops, fop, repfop, reqh);
-		return M0_RC_INFO(0, "fom=%p", &fom->dtf_fom);
-	} else {
+	if (fom == NULL || repfop == NULL || pma == NULL) {
 		m0_free(pma);
 		m0_free(repfop);
 		m0_free(fom);
 		return M0_ERR(-ENOMEM);
 	}
+
+	*out = &fom->dtf_fom;
+
+	/* TODO: calculate credits for the operation. */
+
+	/* see ::m0_dtm0_dtx_post_persistent for the details */
+	fop->f_opaque = pma;
+	reply = m0_fop_data(repfop);
+	reply->dr_txr = (struct m0_dtm0_tx_desc) {};
+	reply->dr_rc = 0;
+	m0_fom_init(&fom->dtf_fom, &fop->f_type->ft_fom_type,
+		    &dtm0_req_fom_ops, fop, repfop, reqh);
+	return M0_RC_INFO(0, "fom=%p", &fom->dtf_fom);
 }
 
 static void dtm0_fom_fini(struct m0_fom *fom)
@@ -239,6 +239,7 @@ static void dtm0_fom_fini(struct m0_fom *fom)
 static size_t dtm0_fom_locality(const struct m0_fom *fom)
 {
 	static int locality = 0;
+
 	M0_PRE(fom != NULL);
 	return M0_RC_INFO(locality++, "fom=%p", fom);
 }
@@ -367,7 +368,7 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 						  &rep->dr_txr);
 			M0_ASSERT(rc == 0);
 			m0_dtm0_send_msg(fom, DMT_EXECUTED,
-					 &M0_FID_INIT(0x7300000000000001, 0x1a),
+					 &req->dtr_txr.dtd_id.dti_fid,
 					 &req->dtr_txr);
 		}
 
