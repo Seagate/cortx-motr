@@ -2428,7 +2428,6 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 		}
 	} else
 		m0_ctg_op_fini(&fom->cf_ctg_op);
-	/* TODO: send out Persistent notices for dtm0 */
 
 	++fom->cf_ipos;
 	++fom->cf_opos;

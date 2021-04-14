@@ -103,7 +103,7 @@ M0_INTERNAL void m0_dtm0_dtx_domain_fini(void)
 	M0_LEAVE();
 }
 
-static void dtx_log_insert(struct m0_dtm0_dtx *dtx)
+static int dtx_log_insert(struct m0_dtm0_dtx *dtx)
 {
 	struct m0_be_dtm0_log  *log;
 	struct m0_dtm0_log_rec *record = M0_AMB(record, dtx, dlr_dtx);
@@ -117,7 +117,7 @@ static void dtx_log_insert(struct m0_dtm0_dtx *dtx)
 	m0_mutex_lock(&log->dl_lock);
 	rc = m0_be_dtm0_volatile_log_insert(log, record);
 	m0_mutex_unlock(&log->dl_lock);
-	M0_ASSERT(rc == 0);
+	return rc;
 }
 
 static void dtx_log_update(struct m0_dtm0_dtx *dtx)
@@ -283,6 +283,8 @@ static int dtx_fid_assign(struct m0_dtm0_dtx  *dtx,
 
 static int dtx_close(struct m0_dtm0_dtx *dtx)
 {
+	int rc;
+
 	M0_ENTRY("dtx=%p", dtx);
 
 	M0_PRE(dtx != NULL);
@@ -295,7 +297,8 @@ static int dtx_close(struct m0_dtm0_dtx *dtx)
 	 * avoid any actions on the fop here.
 	 */
 
-	dtx_log_insert(dtx);
+	rc = dtx_log_insert(dtx);
+	M0_ASSERT(rc == 0);
 
 	/*
 	 * Once a dtx is closed, the FOP (or FOPs) has to be serialized
@@ -303,7 +306,7 @@ static int dtx_close(struct m0_dtm0_dtx *dtx)
 	 */
 	dtx->dd_fop = NULL;
 	m0_sm_state_set(&dtx->dd_sm, M0_DDS_INPROGRESS);
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 static void dtx_done(struct m0_dtm0_dtx *dtx)
