@@ -692,8 +692,8 @@ static int get_tick(struct m0_btree_op *bop)
 		else
 			return P_SETUP;
 	case P_COOKIE:
-		if (cookie_is_valid(tree, &bop->bo_key.k_cookie)
-		&& node_space(k_cookie.node)> about_to_OVERFLOW))
+		if (cookie_is_valid(tree, &bop->bo_key.k_cookie) &&
+		    node_space(k_cookie.node)> about_to_OVERFLOW))
 			return P_LOCK;
 		else
 			return P_SETUP;
@@ -877,113 +877,146 @@ void get_delimiter(struct m0_btree_oimpl *oi, enum dir dir, struct slot *slot_fo
 	}
 }
 
-void delete_rebalance(enum dir dir, struct m0_btree_oimpl *oi)
+/*
+* modify_key() will modify rec at node_slot.s_idx to node_slot->s_rec
+* if flag = true, update key to new key else, modify key as null
+*/
+void modify_key(struct slot *node_slot, bool flag, struct m0_be_tx *tx)
 {
-	struct level *level = &oi->i_level[oi->i_used];
-	struct slot slot_for_delimiter = { };
-	if (dir == D_LEFT) {
-		get_delimiter(oi, D_LEFT, &slot_for_delimiter);
-		if (node_level(level->l_node) > 0) {
-			//add delimiter key to left node
-			node_key(&slot_for_delimiter);
-			struct slot slot_for_left_node = {
-				.s_node = level->l_prev;
-				.s_idx = node_count(level->l_prev);
-				.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
-			}
-			node_set(&slot_for_left_node);
-		}
-		node_move(level.l_prev, level.l_node, D_RIGHT, NR_EVEN, bop->bo_tx);
-		if (node_level(level->l_node) > 0) {
-			//set deliemeter key = last key of l_prev
-			slot_for_left_node.s_idx = node_count(level->l_prev);
-			node_key(&slot_for_left_node);
-			slot_for_delimiter.s_rec.r_key = slot_for_left_node.s_rec.r_key;
-			node_set(&slot_for_delimiter);
-			//make that last key  of l_node null/empty
-		} else {
-			struct slot slot_for_right_node = {
-						.s_node = level->l_node;
-						.s_idx = 0;
-					}
-			node_key(&slot_for_right_node);
-			slot_for_delimiter.s_rec.r_key = slot_for_right_node.s_rec.r_key;
-			node_set(&slot_for_delimiter);
-		}
-	} else {
-		get_delimiter(oi, D_RIGHT, &slot_for_delimiter);
-		if (node_level(level->l_node) > 0) {
-			//insert delimiter key at l_node
-			node_key(&slot_for_delimiter);
-			struct slot slot_for_left_node = {
-				.s_node = level->l_node;
-				.s_idx = node_count(level->l_node);
-				.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
-			}
-			node_set(&slot_for_left_node);
-		}
-		node_move(level.l_node,level.l_next, D_LEFT, NR_EVEN, bop->bo_tx);
-		if (node_level(level->l_node) > 0) {
-			//set deliemeter key = last key of l_node
-			slot_for_left_node.s_idx = node_count(level->l_node);
-			node_key(&slot_for_left_node);
-			slot_for_delimiter.s_rec.r_key = slot_for_left_node.s_rec.r_key;
-			node_set(&slot_for_delimiter);
-			//make that last key of l_node null 
-		} else {
-			//if leaf node :set deliemeter key = first key of l_next and 
-			struct slot slot_for_right_node = {
-					.s_node = level->l_next;
-					.s_idx = 0;
-				}
-			node_key(&slot_for_right_node);
-			slot_for_delimitert.s_rec.r_key = slot_for_right_node.s_rec.r_key;
-			node_set(&slot_for_delimiter);
-		}
-	}
+	struct m0_btree_rec new_rec;
+	if(flag)
+		new_rec.r_key = node_slot->s_rec.r_key;
+	new_rec.r_val = node_slot->s_rec.r_val;
+	node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
+	node_make(node_slot);
+	m0_bufvec_copy(&node_slot->r_key.k_data, &new_rec.r_key.k_data,
+		       m0_vec_count(&new_rec.r_key.k_data.ov_vec));
+	m0_bufvec_copy(&node_slot->s_rec.r_val, &ew_rec.r_val,
+		       m0_vec_count(&new_rec.r_val.ov_vec));
+	node_done(node_slot, tx, true);
 }
 
-void delete_merge(enum dir dir, struct m0_btree_oimpl *oi)
+void delete_rebalance(enum dir dir, struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 {
 	struct level *level = &oi->i_level[oi->i_used];
-	struct slot slot_for_delimiter;
+	struct slot   slot_for_delimiter = { };
+	struct slot   slot_for_left_node = { };
+	struct slot   slot_for_right_node = { };
+	if (dir == D_LEFT) {
+		get_delimiter(oi, D_LEFT, &slot_for_delimiter);
+		node_rec(&slot_for_delimiter);
+	
+		slot_for_left_node.s_node = level->l_prev;
+		slot_for_left_node.s_idx = node_count(level->l_prev) - 1;
+		
+		slot_for_right_node.s_node = level->l_node;
+		slot_for_right_node.s_idx = 0;
+
+		if (node_level(level->l_node) > 0) {
+			node_rec(&slot_for_left_node);
+			//add delimiter key and value from left node to right node at idx=0
+			slot_for_right_node.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
+			slot_for_right_node.s_rec.r_val = slot_for_left_node.s_rec.r_val;
+			node_make(&slot_for_right_node, tx);
+			struct m0_btree_rec new_rec;
+			new_rec.r_key = slot_for_right_node.s_rec.r_key;
+			new_rec.r_val = slot_for_right_node.s_rec.r_val;
+			m0_bufvec_copy(&slot_for_right_nodes_rec.r_key.k_data,
+				       &new_rec.r_key.k_data,
+				       m0_vec_count(&new_rec.r_key.k_data.ov_vec));
+			m0_bufvec_copy(&slot_for_right_node.s_rec.r_val, &ew_rec.r_val,
+				       m0_vec_count(&new_rec.r_val.ov_vec));
+			node_done(&slot_for_right_node, tx, true);
+			//delete last key-val from left_node:
+			node_del(slot_for_left_node.s_node, slot_for_left_node.s_idx, tx);
+		}
+		node_move(level.l_prev, level.l_node, D_RIGHT, NR_EVEN, tx);
+		slot_for_left_node.s_idx = node_count(level->l_prev)-1;
+		
+	} else {
+		get_delimiter(oi, D_RIGHT, &slot_for_delimiter);
+		node_rec(&slot_for_delimiter);
+
+		slot_for_left_node.s_node = level->l_node;
+		slot_for_left_node.s_idx = node_count(level->l_node) - 1;
+		
+		slot_for_right_node.s_node = level->l_next;
+		slot_for_right_node.s_idx = 0;
+
+		if (node_level(level->l_node) > 0) {
+			//insert delimiter key at left_node
+			node_rec(&slot_for_left_node);
+			slot_for_left_node.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
+			modify_key(&slot_for_left_node, true, tx);
+		}
+		node_move(level.l_node,level.l_next, D_LEFT, NR_EVEN, tx);
+		slot_for_left_node.s_idx = node_count(level->l_node) - 1;
+	}
+
+	if (node_level(level->l_node) > 0) {
+		//set deliemeter key to last key of left_node
+		node_rec(&slot_for_left_node);
+		slot_for_delimiter.s_rec.r_key = slot_for_left_node.s_rec.r_key;
+		modify_key(&slot_for_delimiter, true, tx);
+		//make that last key  of left_node null/empty
+		modify_key(&slot_for_left_node, false, tx);
+	} else {
+		node_key(&slot_for_right_node);
+		slot_for_delimiter.s_rec.r_key = slot_for_right_node.s_rec.r_key;
+		modify_key(&slot_for_delimiter, true, tx);
+	}
+	node_fix(slot_for_left_node.s_node, tx);
+	node_fix(slot_for_right_node.s_node, tx);
+}
+
+void delete_merge(enum dir dir, struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
+{
+	struct level *level = &oi->i_level[oi->i_used];
+	struct slot   slot_for_delimiter;
 	if (dir == D_RIGHT) {
 		get_delimiter(oi, D_RIGHT, &slot_for_delimiter);
 		//if intenal node:insert delimiter key to left node
 		if (node_level(level->l_node) > 0) {
 			struct slot slot_for_left_node = {
-			.s_node = level->l_node;
-			.s_idx  = node_count(level->l_node);
+				.s_node = level->l_node;
+				.s_idx  = node_count(level->l_node) - 1;
 			};
 			node_key(&slot_for_delimiter);
+			node_rec(&slot_for_left_node);
 			slot_for_left_node.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
-			node_set(slot_for_left_node);
+			//node_set(&slot_for_left_node);
+			modify_key(&slot_for_left_node, true, tx);
 		}
-		node_move(level->l_node, level->l_next, D_RIGHT, NR_MAX,tx);
-		if (oi->i_level[oi->i_used-1].l_idx == node_count(oi->i_level[oi->i_used-1].l_node)) {
+		node_move(level->l_node, level->l_next, D_RIGHT, NR_MAX, tx);
+		if (oi->i_level[oi->i_used-1].l_idx == node_count(oi->i_level[oi->i_used-1].l_node) - 1) {
 			//i.e l_next belongs to different parent
 			//update delimiter key
 			struct slot slot_for_parent_node = {
 				.s_node = oi->i_level[oi->i_used-1].l_node;
-				.s_idx  = oi->i_level[oi->i_used-1].l_idx-1;
+				.s_idx  = oi->i_level[oi->i_used-1].l_idx - 1;
 			};
-			node_key(&slot_for_parent_node);
+			node_rec(&slot_for_parent_node);
+			node_rec(&slot_for_delimiter);
 			slot_for_delimiter.s_rec.r_key = slot_for_parent_node.s_rec.r_key;
-			node_set(&slot_for_delimiter);
+			modify_key(&slot_for_delimiter, true, tx);
 			//make key at l_idx-1 of parent as null
+			modify_key(&slot_for_parent_node, false, tx);
 		}
 		node_del(oi->i_level[oi->i_used-1].l_node, oi->i_level[oi->i_used-1].l_idx, bop->bo_tx);
+		node_fix(level->l_next, tx);
 	} else {
 		get_delimiter(oi, D_LEFT, &slot_for_delimiter);
 		if (node_level(level->l_node) > 0) {
-		//if intenal node:insert delimiter key to left node
+			//if intenal node:insert delimiter key to left node
 			struct slot slot_for_left_node = {
-			.s_node = level->l_prev;
-			.s_idx  = node_count(level->l_prev);
+				.s_node = level->l_prev;
+				.s_idx  = node_count(level->l_prev);
 			};
 			node_key(&slot_for_delimiter);
+			node_rec(&slot_for_left_node);
 			slot_for_left_node.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
-			node_set(slot_for_left_node);
+			//node_set(slot_for_left_node);
+			modify_key(&slot_for_left_node, true, tx);
 		}
 		node_move(level->l_prev,level->l_node,D_LEFT, NR_MAX,tx);
 		//update delimiter key
@@ -992,11 +1025,15 @@ void delete_merge(enum dir dir, struct m0_btree_oimpl *oi)
 			.s_idx  = oi->i_level[oi->i_used-1].l_idx;
 		};
 		node_key(&slot_for_parent_node);
+		node_rec(&slot_for_delimiter);
 		slot_for_delimiter.s_rec.r_key = slot_for_parent_node.s_rec.r_key;
-		node_set(&slot_for_delimiter);
+		modify_key(&slot_for_delimiter, true, tx);
+
 		node_del(oi->i_level[oi->i_used-1].l_node, oi->i_level[oi->i_used-1].l_idx, bop->bo_tx);
+		node_fix(level->l_prev, tx);
 	}
 }
+
 /* get_tick() for delete operation : */
 static int get_tick_delete(struct m0_btree_op *bop)
 {
@@ -1012,8 +1049,8 @@ static int get_tick_delete(struct m0_btree_op *bop)
 		else
 			return P_SETUP;
 	case P_COOKIE:
-		if (cookie_is_valid(tree, &bop->bo_key.k_cookie)
-		&& !possibility_of_UNDERFLOW at cookie_node)
+		if (cookie_is_valid(tree, &bop->bo_key.k_cookie) &&
+		    !possibility_of_UNDERFLOW at cookie_node)
 			return P_LOCK;
 		else
 			return P_SETUP;
@@ -1105,25 +1142,25 @@ static int get_tick_delete(struct m0_btree_op *bop)
 		}
 		if (level.l_prev == NULL) {
 			if (!possibility_of_UNDERFLOW at level.l_next)
-				delete_rebalance(D_RIGHT, oi);
+				delete_rebalance(D_RIGHT, oi, bop->bo_tx);
 			else
-				delete_merge(D_RIGHT,oi);
+				delete_merge(D_RIGHT, oi, bop->bo_tx);
 		} else if (level.l_next == NULL) {
 			if (!possibility_of_UNDERFLOW at level.l_prev)
-				delete_rebalance(D_LEFT, oi);
+				delete_rebalance(D_LEFT, oi, bop->bo_tx);
 			else
-				delete_merge(D_LEFT,oi);
+				delete_merge(D_LEFT, oi, bop->bo_tx);
 		} else {
 			if (node_space(level.l_prev) < node_space(level.l_next)) {
 				if (!possibility_of_UNDERFLOW at level.l_prev) 
-					delete_rebalance(D_LEFT, oi);
+					delete_rebalance(D_LEFT, oi, bop->bo_tx);
 				else
-					delete_merge(D_RIGHT, oi);
+					delete_merge(D_RIGHT, oi, bop->bo_tx);
 			} else {
 				if (!possibility_of_UNDERFLOW at level.l_next) 
-					delete_rebalance(D_RIGHT, oi);
+					delete_rebalance(D_RIGHT, oi, bop->bo_tx);
 				else
-					delete_merge(D_LEFT,oi);
+					delete_merge(D_LEFT, oi, bop->bo_tx);
 			}
 		}
 		if (!UNDERFLOW at level[oi->i_used-1]->l_node) {
