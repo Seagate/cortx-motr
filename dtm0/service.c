@@ -153,25 +153,31 @@ static void dtm0_service__fini(struct m0_dtm0_service *s)
 	m0_dtm0_service_bob_fini(s);
 }
 
-M0_INTERNAL struct m0_reqh_service *
-m0_dtm_client_service_start(struct m0_reqh *reqh, struct m0_fid *cli_srv_fid)
+M0_INTERNAL int
+m0_dtm_client_service_start(struct m0_reqh *reqh, struct m0_fid *cli_srv_fid,
+			    struct m0_reqh_service **out)
 {
-       struct m0_reqh_service_type *svct;
-       struct m0_reqh_service      *reqh_svc;
-       int rc;
+	struct m0_reqh_service_type *svct;
+	struct m0_reqh_service      *reqh_svc;
+	int                          rc;
 
-       svct = m0_reqh_service_type_find("M0_CST_DTM0");
-       M0_ASSERT(svct != NULL);
+	svct = m0_reqh_service_type_find("M0_CST_DTM0");
+	if (svct == NULL)
+		return M0_ERR(-ENOENT);
 
-       rc = m0_reqh_service_allocate(&reqh_svc, svct, NULL);
-       M0_ASSERT(rc == 0);
+	rc = m0_reqh_service_allocate(&reqh_svc, svct, NULL);
+	if (rc != 0)
+		return M0_ERR(rc);
 
-       m0_reqh_service_init(reqh_svc, reqh, cli_srv_fid);
+	m0_reqh_service_init(reqh_svc, reqh, cli_srv_fid);
 
-       rc = m0_reqh_service_start(reqh_svc);
-       M0_ASSERT(rc == 0);
+	rc = m0_reqh_service_start(reqh_svc);
+	if (rc != 0)
+		m0_reqh_service_fini(reqh_svc);
+	else
+		*out = reqh_svc;
 
-       return reqh_svc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_dtm_client_service_stop(struct m0_reqh_service *svc)
@@ -368,7 +374,7 @@ static void dtm0_service_fini(struct m0_reqh_service *service)
 {
 	M0_PRE(service != NULL);
 	dtm0_service__fini(to_dtm(service));
-        m0_free(service);
+	m0_free(service);
 }
 
 M0_INTERNAL int m0_dtm0_stype_init(void)

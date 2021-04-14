@@ -1614,6 +1614,8 @@ int m0_client_init(struct m0_client **m0c_p,
 	rm_ctx_htable_init(&m0c->m0c_rm_ctxs, M0_RM_HBUCKET_NR);
 
 	if (ENABLE_DTM0) {
+		struct m0_reqh_service *reqh_svc;
+
 		rc = m0_conf_process2service_get(m0_reqh2confc(&m0c->m0c_reqh),
 						 &m0c->m0c_reqh.rh_fid,
 						 M0_CST_DTM0, &cli_svc_fid);
@@ -1632,7 +1634,10 @@ int m0_client_init(struct m0_client **m0c_p,
 			cli_svc_fid  = M0_FID_INIT(0x7300000000000001, 0x1a);
 		}
 
-		(void) m0_dtm_client_service_start(&m0c->m0c_reqh, &cli_svc_fid);
+		rc = m0_dtm_client_service_start(&m0c->m0c_reqh, &cli_svc_fid,
+						 &reqh_svc);
+		M0_ASSERT(rc == 0);
+
 		m0c->m0c_dtms = m0_dtm0_service_find(&m0c->m0c_reqh);
 		M0_ASSERT(m0c->m0c_dtms != NULL);
 
