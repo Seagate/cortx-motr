@@ -171,9 +171,9 @@ static void dtm0_ut_service(void)
 	M0_UT_ASSERT(rc == 0);
 
 	dtm0_ut_client_init(&cctx, cl_ep_addr, srv_ep_addr, dtm0_xprts[0]);
-	cli_srv = m0_dtm_client_service_start(&cctx.cl_ctx.rcx_reqh,
-					      &cli_srv_fid);
-	M0_UT_ASSERT(cli_srv != NULL);
+	rc = m0_dtm_client_service_start(&cctx.cl_ctx.rcx_reqh,
+					 &cli_srv_fid, &cli_srv);
+	M0_UT_ASSERT(rc == 0);
 	srv_srv = m0_reqh_service_lookup(srv_reqh, &srv_dtm0_fid);
 	rc = m0_dtm0_service_process_connect(srv_srv, &cli_srv_fid, cl_ep_addr,
 					     false);

@@ -232,22 +232,22 @@ static void dtm0_fom_fini(struct m0_fom *fom)
 {
 	M0_PRE(fom != NULL);
 
-        m0_fom_fini(fom);
-        m0_free(fom);
+	m0_fom_fini(fom);
+	m0_free(fom);
 }
 
 static size_t dtm0_fom_locality(const struct m0_fom *fom)
 {
-	static int locality = 0;
+	static size_t locality = 0;
 
 	M0_PRE(fom != NULL);
-	return M0_RC_INFO(locality++, "fom=%p", fom);
+	return locality++;
 }
 
-static void m0_dtm0_send_msg(struct m0_fom                *fom,
-			     enum m0_dtm0s_msg             msg_type,
-			     const struct m0_fid          *tgt,
-			     const struct m0_dtm0_tx_desc *txd)
+static int m0_dtm0_send_msg(struct m0_fom                *fom,
+			    enum m0_dtm0s_msg             msg_type,
+			    const struct m0_fid          *tgt,
+			    const struct m0_dtm0_tx_desc *txd)
 {
 	struct m0_fop          *fop;
 	struct m0_rpc_session  *session;
@@ -262,8 +262,13 @@ static void m0_dtm0_send_msg(struct m0_fom                *fom,
 	M0_ENTRY("reqh=%p", dtms->dos_generic.rs_reqh);
 
 	session = m0_dtm0_service_process_session_get(&dtms->dos_generic, tgt);
+	if (session == NULL)
+		return M0_ERR(-ENOENT);
 
-	fop               = m0_fop_alloc_at(session, &dtm0_req_fop_fopt);
+	fop = m0_fop_alloc_at(session, &dtm0_req_fop_fopt);
+	if (fop == NULL)
+		return M0_ERR(-ENOMEM);
+
 	item              = &fop->f_item;
 	item->ri_ops      = &dtm0_req_fop_rpc_item_ops;
 	item->ri_session  = session;
@@ -273,21 +278,17 @@ static void m0_dtm0_send_msg(struct m0_fom                *fom,
 	req               = m0_fop_data(fop);
 	req->dtr_msg      = msg_type;
 	rc = m0_dtm0_tx_desc_copy(txd, &req->dtr_txr) ?: m0_rpc_post(item);
+	if (rc == 0) {
+		phase_sm_id = m0_sm_id_get(&fom->fo_sm_phase);
+		rpc_sm_id   = m0_sm_id_get(&item->ri_sm);
+		M0_ADDB2_ADD(M0_AVI_FOM_TO_TX, phase_sm_id, rpc_sm_id);
 
-	phase_sm_id = m0_sm_id_get(&fom->fo_sm_phase);
-	rpc_sm_id   = m0_sm_id_get(&item->ri_sm);
-	M0_ADDB2_ADD(M0_AVI_FOM_TO_TX, phase_sm_id, rpc_sm_id);
+		m0_fop_put_lock(fop);
 
-	/* XXX: We could ignore this error in the real setup:
-	 * the caller's FOM should be in the FINISHED (terminal) state,
-	 * and there no much to do on their side to handle this error.
-	 * Therefore, we can either assert or ignore it here.
-	 */
-	M0_ASSERT(rc == 0);
-	m0_fop_put_lock(fop);
-
-	M0_LEAVE("Sent %d msg " FID_F " -> " FID_F, msg_type,
-		 FID_P(&dtms->dos_generic.rs_service_fid), FID_P(tgt));
+		M0_LOG(M0_DEBUG, "Sent %d msg " FID_F " -> " FID_F, msg_type,
+		       FID_P(&dtms->dos_generic.rs_service_fid), FID_P(tgt));
+	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
@@ -306,8 +307,8 @@ M0_INTERNAL int m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL void m0_dtm0_on_committed(struct m0_fom                *fom,
-				      const struct m0_dtm0_tx_desc *txd)
+M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom                *fom,
+				     const struct m0_dtm0_tx_desc *txd)
 {
 	struct m0_dtm0_service *dtms = m0_dtm0_service_find(
 		fom->fo_service->rs_reqh);
@@ -316,9 +317,11 @@ M0_INTERNAL void m0_dtm0_on_committed(struct m0_fom                *fom,
 	int                     i;
 
 	rc = m0_dtm0_tx_desc_copy(txd, &msg);
-	M0_ASSERT(rc == 0);
+	if (rc != 0)
+		return M0_ERR(rc);
 
-	/* TODO: This change will be done by DTM0 log because
+	/*
+	 * TODO: This change will be done by DTM0 log because
 	 * it should log the entry "pa == self" with PERSISTENT state
 	 * set.
 	 */
@@ -332,10 +335,12 @@ M0_INTERNAL void m0_dtm0_on_committed(struct m0_fom                *fom,
 	}
 
 	/* Notify the originator */
-	m0_dtm0_send_msg(fom, DTM_PERSISTENT, &msg.dtd_id.dti_fid, &msg);
+	rc = m0_dtm0_send_msg(fom, DTM_PERSISTENT, &msg.dtd_id.dti_fid, &msg);
 
 	/* TODO: Send P msgs to the rest of the participants. */
 	m0_dtm0_tx_desc_fini(&msg);
+
+	return M0_RC(rc);
 }
 
 
@@ -367,9 +372,10 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 			rc = m0_dtm0_tx_desc_copy(&req->dtr_txr,
 						  &rep->dr_txr);
 			M0_ASSERT(rc == 0);
-			m0_dtm0_send_msg(fom, DMT_EXECUTED,
-					 &req->dtr_txr.dtd_id.dti_fid,
-					 &req->dtr_txr);
+			rc = m0_dtm0_send_msg(fom, DMT_EXECUTED,
+					      &req->dtr_txr.dtd_id.dti_fid,
+					      &req->dtr_txr);
+			M0_ASSERT(rc == 0);
 		}
 
 		if (req->dtr_msg == DTM_PERSISTENT &&
