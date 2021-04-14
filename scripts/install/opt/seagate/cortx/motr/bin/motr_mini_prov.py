@@ -85,6 +85,15 @@ def get_server_node(self):
     check_type(server_node, dict, "server_node")
     return server_node
 
+def check_services(self, services):
+    for service in services:
+        sys.stdout.write(f"Checking status of {service} service\n")
+        cmd = f"systemctl status {service}"
+        execute_command(self, cmd)
+        ret = execute_command_without_exception(self, cmd)
+        if ret != 0:
+            return False
+    return True
 def restart_services(self, services):
     for service in services:
         sys.stdout.write(f"Restarting {service} service\n")
@@ -129,8 +138,28 @@ def validate_motr_rpm(self):
     sys.stdout.write(f"Checking for {MOTR_SYS_FILE}\n")
     validate_file(MOTR_SYS_FILE)
 
+def verify_lnet(self):
+    sys.stdout.write(f"Doing ping to nids.\n")
+    ret = lnet_self_ping(self)
+    if not ret:
+        # Check if lent is up. If not, restart lnet and try ping nid.
+        # Else, ping nid after some delay since lnet is already up.
+        if not check_services(self, ["lnet"]):
+            sys.stdout.write(f"lnet is not up. Restaring lnet.\n")
+            restart_services(self, ["lnet"])
+            sys.stdout.write(f"Doing ping to nids after 5 seconds.\n")
+            execute_command_without_exception(self, "sleep 5")
+            ret = lnet_self_ping(self)
+        else:
+            sys.stdout.write(f"lnet is up. Doing ping to nids after 5 seconds.\n")
+            execute_command_without_exception(self, "sleep 5")
+            ret = lnet_self_ping(self)
+    return ret
 
 def motr_config(self):
+    # Just to check if lnet is working properly
+    if not verify_lnet(self):
+       raise MotrError(errno.EINVAL, f"lent is not up.")
     is_hw = is_hw_node(self)
     if is_hw:
         sys.stdout.write(f"Executing {MOTR_CONFIG_SCRIPT}")
@@ -179,6 +208,9 @@ def configure_lnet(self):
         fp.write(lnet_config)
 
     restart_services(self, ["lnet"])
+    # Ping to nid
+    sys.stdout.write(f"Doing ping to nids\n")
+    lnet_self_ping(self)
 
 def configure_libfabric(self):
     raise MotrError(errno.EINVAL, "libfabric not implemented\n")
@@ -454,6 +486,20 @@ def lnet_ping(self):
        cmd = f"lctl ping {nid}"
        sys.stdout.write(f"lctl ping on: {nid}\n")
        execute_command(self, cmd)
+
+def lnet_self_ping(self):
+    nids = []
+
+    op = execute_command(self, "lctl list_nids")
+    nids.append(op[0].rstrip("\n"))
+    sys.stdout.write(f"nids= {nids}\n")
+    for nid in nids:
+       cmd = f"lctl ping {nid}"
+       sys.stdout.write(f"lctl ping on: {nid}\n")
+       ret = execute_command_without_exception(self, cmd)
+       if ret != 0:
+            return False
+    return True
 
 def test_lnet(self):
     '''
