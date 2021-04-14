@@ -337,9 +337,9 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,0)
 	/*
-	 * XXX: this 'dirty hack' is for oostore objects whose xattr name
+	 * XXX: this is for oostore objects whose xattr name
 	 * is empty here (for some reason, I could not figure out why).
-	 * In normal (non-oostore) mode it works fine even without this.
+	 * Interesting that in normal (non-oostore) mode it works fine.
 	 */
 	name = handler->name;
 #endif
