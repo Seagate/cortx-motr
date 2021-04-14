@@ -1113,6 +1113,14 @@ Meetings
        shashank: ut writing.
      - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210407%201007-1.mp4?csf=1&web=1&e=gtLkrU>`_
 
+   * - 2021.04.14
+     - sync up
+     - nikhil, nikita, shashank, radha, hua, shankar, yash
+     - discussion on btree credit calculations.
+     - 
+     - radha: implement credit calculations for insert, delete operations
+     - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210414%201003-1.mp4?csf=1&web=1&e=ieZEv1>`_
+
 Detailed-level design (DLD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
