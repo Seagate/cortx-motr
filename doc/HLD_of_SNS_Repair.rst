@@ -2,9 +2,9 @@ High Level Design of SNS Repair
 ===============================
 
 
-This document provides a High-Level Design (HLD) of SNS repair for Motr M0. The main purposes of this document are:
+This document provides a High-Level Design (HLD) of SNS repair for Motr. The main purposes of this document are:
 
-- To be inspected by M0 architects and peer designers to make sure that HLD is aligned with M0 architecture and other designs, and contains no defects
+- To be inspected by Motr architects and peer designers to make sure that HLD is aligned with Motr architecture and other designs, and contains no defects
 - To be a source of material for Active Reviews of Intermediate Design (ARID) and Detailed Level Design (DLD) of the same component
 - To serve as a design reference document
 
@@ -23,7 +23,7 @@ In the case of storage and/or server failure, the SNS repair reconstructs the lo
 1. Definitions
 --------------
 
-.. Definitions of terms and concepts used by the design go here. The definitions must be as precise as possible. References to the `Motr Glossary<Link-to-be-added>`__ are permitted and encouraged. Agreed upon terminology should be incorporated in the glossary.
+.. Definitions of terms and concepts used by the design go here. The definitions must be as precise as possible. References to the `Motr Glossary</doc/PDF/Glossary.pdf>`__ are permitted and encouraged. Agreed upon terminology should be incorporated in the glossary.
 
 Repair is a scalable mechanism to reconstruct data or meta-data in a redundant striping pool. Redundant striping stores a *cluster-wide object* in a collection of *components*, according to a particular *striping pattern*. 
 
@@ -1414,25 +1414,25 @@ As a mean time to repair a device. To minimize MTTR\ :sub:`D`, G\ :sub:`D` has t
 
 Let's substitute vaguely reasonable data: 
 
-+-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
-| Parameter   | Value  | Unit      | Explanation                                                                                              |
-+-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
-| U           | 1.0    |           |                                                                                                          |
-+-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
-| S\ :sub:`D` | 2.0e12 | bytes     | 2TB drive                                                                                                |
-+-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
-| B\ :sub:`S` | 4.0e9  | bytes/sec | IB QDR                                                                                                   |
-+-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
-| B\ :sub:`P` | 8.0e9  | bytes/sec | `check-sum throughput <check-sum-throughput>`__                                                          |
-+-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
-| B\ :sub:`D` | 7.0e7  | bytes/sec | `ST31000640SS <ST31000640SS>`__                                                                          |
-+-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
-| A\ :sub:`S` | 1      |           |                                                                                                          |
-+-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
-| A\ :sub:`D` | 1      |           |                                                                                                          |
-+-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
-| A\ :sub:`P` | 1      |           |                                                                                                          |
-+-------------+--------+-----------+----------------------------------------------------------------------------------------------------------+
++-------------+--------+-----------+-----------------------------------------------------------+
+| Parameter   | Value  | Unit      | Explanation                                               |
++-------------+--------+-----------+-----------------------------------------------------------+
+| U           | 1.0    |           |                                                           |
++-------------+--------+-----------+-----------------------------------------------------------+
+| S\ :sub:`D` | 2.0e12 | bytes     | 2TB drive                                                 |
++-------------+--------+-----------+-----------------------------------------------------------+
+| B\ :sub:`S` | 4.0e9  | bytes/sec | IB QDR                                                    |
++-------------+--------+-----------+-----------------------------------------------------------+
+| B\ :sub:`P` | 8.0e9  | bytes/sec |                                                           |
++-------------+--------+-----------+-----------------------------------------------------------+
+| B\ :sub:`D` | 7.0e7  | bytes/sec |                                                           |
++-------------+--------+-----------+-----------------------------------------------------------+
+| A\ :sub:`S` | 1      |           |                                                           |
++-------------+--------+-----------+-----------------------------------------------------------+
+| A\ :sub:`D` | 1      |           |                                                           |
++-------------+--------+-----------+-----------------------------------------------------------+
+| A\ :sub:`P` | 1      |           |                                                           |
++-------------+--------+-----------+-----------------------------------------------------------+
 
 
 For a small configuration with N\ :sub:`S` = 1, N\ :sub:`D` = 48:
