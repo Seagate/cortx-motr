@@ -813,6 +813,7 @@ fids:'
 		yaml="$yaml
   - $fid"
 	done
+	echo "XPT is $XPT"
 
 	send_ha_msg_nvec "$yaml" "${remote_eps[*]}" "$local_ep"
 }

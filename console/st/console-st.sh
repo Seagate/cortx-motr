@@ -68,7 +68,7 @@ start_server()
 	##
 	$M0_SRC_DIR/utils/mkfs/m0mkfs -T AD -D console_st_srv.db \
 	    -S console_st_srv.stob -A linuxstob:console_st_srv-addb.stob \
-	    -w 10 -e $XPRT:$SERVER_EP_ADDR -H $SERVER_EP_ADDR \
+	    -w 10 -e "$XPRT:$SERVER_EP_ADDR" -H $SERVER_EP_ADDR \
 	    -q 2 -m $((1 << 17)) \
 	    -c $CONF_FILE_PATH  \
 	    &>$SANDBOX_DIR/mkfs.log || die 'm0mkfs failed'
