@@ -791,8 +791,8 @@ static void dixreq_stable_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ENTRY();
 	oi->oi_ar.ar_ast.sa_cb = (rc == 0) ? idx_op_ast_stable : NULL;
 	M0_ASSERT(grp == oi->oi_sm_grp);
-	idx_op_ast_stable(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
 	dix_req_destroy(req);
+	idx_op_ast_stable(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
 	M0_LEAVE();
 }
 
