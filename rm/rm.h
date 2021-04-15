@@ -518,7 +518,7 @@ struct m0_rm_credit {
 	 */
 	struct m0_tlink                cr_linkage;
 	/**
-	 * A list of pins, linked through m0_rm_pins::rp_credit, stuck into this
+	 * A list of pins, linked through m0_rm_pin::rp_credit, stuck into this
 	 * credit.
 	 */
 	struct m0_tl                   cr_pins;
