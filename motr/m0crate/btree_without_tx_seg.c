@@ -98,6 +98,12 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 	m0_be_free(a, tx, op, ptr);
 }
 
+M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg,
+				    const void *addr)
+{
+	return true;
+}
+
 static void btree_root_set(struct m0_be_btree *btree,
 			   struct m0_be_bnode *new_root)
 {
@@ -243,6 +249,119 @@ static void be_btree_get_min_key_pos(struct m0_be_bnode    *node,
 
 static int iter_prepare(struct m0_be_bnode *node, bool print);
 
+/**
+ * Btree backlink invariant implementation:
+ * - checks that cookie is valid.
+ * - btree type is valid.
+ * - btree generation factor is valid.
+ * @param h      link back to the btree.
+ * @param seg    backend segment.
+ * @param parent cookie of btree.
+ * @return true if cookie, btree type and generation factor are valid,
+ *         else false.
+ */
+static bool btree_backlink_invariant(const struct m0_be_btree_backlink *h,
+				     const struct m0_be_seg *seg,
+				     const uint64_t *parent)
+{
+	uint64_t *cookie;
+
+	return
+		_0C(m0_cookie_dereference(&h->bli_tree, &cookie) == 0) &&
+		_0C(m0_be_seg_contains(seg, cookie)) &&
+		_0C(parent == cookie) &&
+		_0C(M0_BBT_INVALID < h->bli_type && h->bli_type < M0_BBT_NR);
+}
+
+/**
+ * Btree node invariant implementation:
+ * - assuming that the tree is completely in memory.
+ * - checks that keys are in order.
+ * - node backlink to btree is valid.
+ * - nodes have expected occupancy: [1..2*order-1] for root and
+ *				    [order-1..2*order-1] for leafs.
+ */
+static bool btree_node_invariant(const struct m0_be_btree *btree,
+				 const struct m0_be_bnode *node, bool root)
+{
+	return
+		_0C(node->bt_header.hd_magic != 0) &&
+		_0C(m0_format_footer_verify(&node->bt_header, true) == 0) &&
+		_0C(btree_backlink_invariant(&node->bt_backlink, btree->bb_seg,
+					     &btree->bb_cookie_gen)) &&
+		_0C(node->bt_level <= BTREE_HEIGHT_MAX) &&
+		_0C(memcmp(&node->bt_backlink, &btree->bb_backlink,
+			   sizeof node->bt_backlink) == 0) &&
+		/* Expected occupancy. */
+		_0C(ergo(root, 0 <= node->bt_num_active_key &&
+			 node->bt_num_active_key <= KV_NR)) &&
+		_0C(ergo(!root, BTREE_FAN_OUT - 1 <= node->bt_num_active_key &&
+			 node->bt_num_active_key <= KV_NR)) &&
+		_0C(m0_forall(i, node->bt_num_active_key,
+			      node->bt_kv_arr[i].btree_key != NULL &&
+			      node->bt_kv_arr[i].btree_val != NULL &&
+			      m0_be_seg_contains(btree->bb_seg,
+						 node->bt_kv_arr[i].
+						 btree_key) &&
+			      m0_be_seg_contains(btree->bb_seg,
+						 node->bt_kv_arr[i].
+						 btree_val))) &&
+		_0C(ergo(!node->bt_isleaf,
+			 m0_forall(i, node->bt_num_active_key + 1,
+				   node->bt_child_arr[i] != NULL &&
+				   m0_be_seg_contains(btree->bb_seg,
+						      node->
+						      bt_child_arr[i])))) &&
+		/* Keys are in order. */
+		_0C(ergo(node->bt_num_active_key > 1,
+			 m0_forall(i, node->bt_num_active_key - 1,
+				   key_gt(btree, node->bt_kv_arr[i+1].btree_key,
+					  node->bt_kv_arr[i].btree_key))));
+}
+
+/* ------------------------------------------------------------------
+ * Node subtree invariant implementation:
+ * - assuming that the tree is completely in memory;
+ * - child nodes have keys matching parent;
+ *
+ * Note: as far as height of practical tree will be 10-15, invariant can be
+ * written in recusieve form.
+ * ------------------------------------------------------------------ */
+static bool btree_node_subtree_invariant(const struct m0_be_btree *btree,
+					 const struct m0_be_bnode *node)
+{
+	/* Kids are in order. */
+	return	_0C(ergo(node->bt_num_active_key > 0 && !node->bt_isleaf,
+			 m0_forall(i, node->bt_num_active_key,
+				   key_gt(btree, node->bt_kv_arr[i].btree_key,
+					  node->bt_child_arr[i]->
+					  bt_kv_arr[node->bt_child_arr[i]->
+					  bt_num_active_key - 1].btree_key) &&
+				   key_lt(btree, node->bt_kv_arr[i].btree_key,
+					  node->bt_child_arr[i+1]->
+					  bt_kv_arr[0].btree_key)) &&
+		         m0_forall(i, node->bt_num_active_key + 1,
+				   btree_node_invariant(btree,
+							node->bt_child_arr[i],
+						        false)) &&
+		         m0_forall(i, node->bt_num_active_key + 1,
+				   btree_node_subtree_invariant(btree,
+							node->bt_child_arr[i])))
+		  );
+}
+
+/**
+ * Btree invariant implementation:
+ * - assuming that the tree is completely in memory.
+ * - header and checksum are valid.
+ * - btree backlink is valid.
+ */
+static inline bool btree_invariant(const struct m0_be_btree *btree)
+{
+	return  _0C(m0_format_footer_verify(&btree->bb_header, true) == 0 &&
+		    btree_backlink_invariant(&btree->bb_backlink, btree->bb_seg,
+					     &btree->bb_cookie_gen));
+}
 
 static void btree_node_update(struct m0_be_bnode       *node,
 			      const struct m0_be_btree *btree,
@@ -286,7 +405,7 @@ static void btree_create(struct m0_be_btree  *btree,
 	});
 	m0_cookie_new(&btree->bb_cookie_gen);
 	m0_cookie_init(&btree->bb_backlink.bli_tree, &btree->bb_cookie_gen);
-	btree->bb_backlink.bli_gen = btree->bb_seg->bs_gen;
+	/* btree->bb_backlink.bli_gen = btree->bb_seg->bs_gen; */
 	btree->bb_backlink.bli_type = btree->bb_ops->ko_type;
 	btree->bb_backlink.bli_fid = *btree_fid;
 	btree_root_set(btree, be_btree_node_alloc(btree, tx));
@@ -480,6 +599,11 @@ static void be_btree_insert_newkey(struct m0_be_btree      *btree,
 	struct m0_be_bnode *old_root;
 	struct m0_be_bnode *new_root;
 
+	M0_PRE(btree_invariant(btree));
+	M0_PRE(btree_node_invariant(btree, btree->bb_root, true));
+	M0_PRE_EX(btree_node_subtree_invariant(btree, btree->bb_root));
+	M0_PRE_EX(be_btree_search(btree, kv->btree_key) == NULL);
+
 	old_root = btree->bb_root;
 	if (old_root->bt_num_active_key != KV_NR) {
 		be_btree_insert_into_nonfull(btree, tx, old_root, kv);
@@ -499,6 +623,10 @@ static void be_btree_insert_newkey(struct m0_be_btree      *btree,
 		/* Update tree structure itself */
 		mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 	}
+
+	M0_POST(btree_invariant(btree));
+	M0_POST(btree_node_invariant(btree, btree->bb_root, true));
+	M0_POST_EX(btree_node_subtree_invariant(btree, btree->bb_root));
 }
 
 /**
@@ -816,6 +944,10 @@ static int be_btree_delete_key(struct m0_be_btree *tree,
 	unsigned int		iter;
 	unsigned int		idx;
 
+	M0_PRE(btree_invariant(tree));
+	M0_PRE(btree_node_invariant(tree, tree->bb_root, true));
+	M0_PRE_EX(btree_node_subtree_invariant(tree, tree->bb_root));
+
 	M0_ENTRY("n=%p", bnode);
 
 	while (outerloop) {
@@ -945,6 +1077,9 @@ static int be_btree_delete_key(struct m0_be_btree *tree,
 		continue;
 	}
 
+	M0_POST(btree_invariant(tree));
+	M0_POST(btree_node_invariant(tree, tree->bb_root, true));
+	M0_POST_EX(btree_node_subtree_invariant(tree, tree->bb_root));
 	M0_LEAVE("rc=%d", rc);
 	return M0_RC(rc);
 }
@@ -1377,7 +1512,8 @@ M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
 M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree)
 {
 	M0_ENTRY("tree=%p", tree);
-	M0_PRE(tree->bb_root != NULL && tree->bb_header.hd_magic != 0);
+	M0_PRE(ergo(tree->bb_root != NULL && tree->bb_header.hd_magic != 0,
+		    btree_invariant(tree)));
 	m0_rwlock_fini(btree_rwlock(tree));
 	M0_LEAVE();
 }
@@ -1400,6 +1536,9 @@ M0_INTERNAL void m0_be_btree_create(struct m0_be_btree  *tree,
 	m0_rwlock_write_unlock(btree_rwlock(tree));
 	op_tree(op)->t_rc = 0;
 	m0_be_op_done(op);
+	M0_POST(btree_invariant(tree));
+	M0_POST(btree_node_invariant(tree, tree->bb_root, true));
+	M0_POST_EX(btree_node_subtree_invariant(tree, tree->bb_root));
 	M0_LEAVE();
 }
 
@@ -1412,6 +1551,9 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
 	 * destroy only empty trees. So ideally here would be
 	 * M0_PRE(m0_be_btree_is_empty(tree)); */
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
+	M0_PRE(btree_invariant(tree));
+	M0_PRE(btree_node_invariant(tree, tree->bb_root, true));
+	M0_PRE_EX(btree_node_subtree_invariant(tree, tree->bb_root));
 
 	btree_op_fill(op, tree, tx, M0_BBO_DESTROY, NULL);
 
