@@ -559,11 +559,11 @@ enum op_flags {
 	OF_COOKIE  = M0_BITS(3)
 };
 
-enum btree_type {
-	BTT_FIXED_FORMAT                         = 1,
-	BTT_FIXED_KEYSIZE_VARIABLE_VALUESIZE     = 2,
-	BTT_VARIABLE_KEYSIZE_FIXED_VALUESIZE     = 3,
-	BTT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE  = 4,
+enum btree_node_type {
+	BNT_FIXED_FORMAT                         = 1,
+	BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE     = 2,
+	BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE     = 3,
+	BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE  = 4,
 };
 
 #if 0
@@ -833,7 +833,7 @@ struct node_type {
 	 */
 	void (*nt_done) (struct slot *slot, struct m0_be_tx *tx, bool modified);
 
-	/** Make space in the node for inserting new entry at specific index */
+	/** Makes space in the node for inserting new entry at specific index */
 	void (*nt_make) (struct slot *slot, struct m0_be_tx *tx);
 
 	/** Returns index of the record containing the key in the node */
@@ -846,7 +846,7 @@ struct node_type {
 	void (*nt_fix)  (const struct nd *node, struct m0_be_tx *tx);
 
 	/**
-	 *  Change the size of the value (increase or decrease) for the
+	 *  Changes the size of the value (increase or decrease) for the
 	 *  specified key
 	 */
 	void (*nt_cut)  (const struct nd *node, int idx, int size,
@@ -1075,7 +1075,7 @@ static void node_child(struct slot *slot, struct segaddr *addr)
 static bool node_isfit(struct slot *slot)
 {
 	M0_PRE(node_invariant(slot->s_node));
-	return (slot->s_node->n_type->nt_isfit(slot));
+	return slot->s_node->n_type->nt_isfit(slot);
 }
 
 static void node_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
@@ -1177,7 +1177,7 @@ static bool node_shift_is_valid(int shift)
  */
 static bool addr_is_aligned(const void *addr)
 {
-	return (((size_t)addr & ((1ULL << NODE_SHIFT_MIN) - 1)) == 0);
+	return ((size_t)addr & ((1ULL << NODE_SHIFT_MIN) - 1)) == 0;
 }
 
 /**
@@ -1238,7 +1238,7 @@ static void* segaddr_addr(const struct segaddr *seg_addr)
 static int segaddr_shift(const struct segaddr *addr)
 {
 	M0_PRE(segaddr_is_valid(addr));
-	return ((addr->as_core & 0xf) + NODE_SHIFT_MIN);
+	return (addr->as_core & 0xf) + NODE_SHIFT_MIN;
 }
 
 #if 0
@@ -1409,12 +1409,6 @@ static int64_t mem_tree_create(struct node_op *op, struct m0_btree_type *tt,
 	struct td *tree;
 
 	/**
-	 *  Currently we only support Fixed Format. This will be relaxed later
-	 *  as code is added to support other formats.
-	 */
-	M0_ASSERT(tt->tt_id == BTT_FIXED_FORMAT);
-
-	/**
 	 * Creates root node for the tree. No tree structure is created in the
 	 * persistent space. It is the responsibility of the caller to save the
 	 * segment address of the root node so that the tree can be accessed
@@ -1554,7 +1548,7 @@ static bool ff_invariant(const struct nd *node);
  *  contained in it.
  */
 static const struct node_type fixed_format = {
-	//.nt_id,
+	.nt_id        = BNT_FIXED_FORMAT,
 	.nt_name      = "m0_bnode_fixed_format",
 	//.nt_tag,
 	.nt_init      = ff_init,
@@ -1907,7 +1901,6 @@ static void m0_btree_ut_node_create_delete(void)
 
 	// Create a Fixed-Format tree.
 	op.no_opc = NOP_ALLOC;
-	tt.tt_id = BTT_FIXED_FORMAT;
 	tree_create(&op, &tt, 10, NULL, 0);
 
 	tree = op.no_tree;
@@ -2129,7 +2122,6 @@ void m0_btree_ut_node_add_del_rec(void)
 	M0_SET0(&op);
 
 	op.no_opc = NOP_ALLOC;
-	tt.tt_id = BTT_FIXED_FORMAT;
 	tree_create(&op, &tt, 10, NULL, 0);
 
 	tree = op.no_tree;
