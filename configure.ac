@@ -168,6 +168,7 @@ AH_TEMPLATE([HAVE_MALLINFO],          [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
+AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
 
 # enable/disable options ------------------------------ {{{2
 
@@ -629,7 +630,6 @@ MOTR_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
 	[uuid_generate cannot be found! Try to install libuuid and libuuid-devel.])
 AC_SUBST([UUID_LIBS])
 
-
 #
 # Checking for required header files
 #
@@ -639,6 +639,25 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
                   sys/socket.h sys/time.h unistd.h])
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
+AC_CHECK_HEADERS([isa-l.h],   [
+				# check for isa library
+				MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
+						[ec_encode_data cannot be found! \
+						 Try to install Intel ISA library package.]
+				)
+				AC_SUBST([ISAL_LIBS])
+
+				# define MACROs
+				AC_DEFINE([HAVE_ISAL])
+				AM_CONDITIONAL([HAVE_ISAL], [true])
+				AC_MSG_NOTICE([INTEL ISA-L Headers Available])
+			      ],
+			      [
+				AM_CONDITIONAL([HAVE_ISAL], [false])
+				AC_MSG_NOTICE([No INTEL ISA-L Headers])
+			      ]
+		)
+
 
 
 AC_HEADER_STDBOOL
@@ -1026,6 +1045,7 @@ echo "PROFILER_LIBS  :  \"$PROFILER_LIBS\""
 echo "GALOIS_LIBS    :  \"$GALOIS_LIBS\""
 echo "YAML_LIBS      :  \"$YAML_LIBS\""
 echo "UUID_LIBS      :  \"$UUID_LIBS\""
+echo "ISAL_LIBS      :  \"$ISAL_LIBS\""
 echo ""
 echo "Gcc            :  \"$BUILD_GCC\""
 AS_IF([test x$with_lustre != xno],[

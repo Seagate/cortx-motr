@@ -19,44 +19,45 @@
 
 # Test case #3 - write speed (unordered keys)
 # Number of clients and server nodes - TBD. Layout with replication factor 1.
-# Record value size is fixed - 4 Mb.
+# Key size is fixed - 16 bytes
+# Value size is fixed - 16 bytes
 # Keys order: random.
-# Number of records 1 Tb/4 Mb/number of clients.
 # Only PUT requests.
 
 CrateConfig_Sections: [MOTR_CONFIG, WORKLOAD_SPEC]
 MOTR_CONFIG:
-  MOTR_LOCAL_ADDR: 10.0.2.15@tcp:12345:34:123
-  MOTR_HA_ADDR: 10.0.2.15@tcp:12345:34:101
-  PROF: <0x7000000000000001:1>
-  LAYOUT_ID: 1
-  BLOCK_SIZE: 1048576
-  IS_OOSTORE: 1
-  IS_READ_VERIFY: 0
-  TM_RECV_QUEUE_MIN_LEN: 2
-  MAX_RPC_MSG_SIZE: 131072
-  PROCESS_FID: <0x7200000000000000:0>
-  IDX_SERVICE_ID: 1
-  CASS_CLUSTER_EP: "127.0.0.1"
-  CASS_KEYSPACE: "motr_index_keyspace"
-  CASS_MAX_COL_FAMILY_NUM: 1
+    MOTR_LOCAL_ADDR: 192.168.52.53@tcp:12345:4:1
+    MOTR_HA_ADDR: 192.168.52.53@tcp:12345:1:1
+    PROF: <0x7000000000000001:0x37>
+    LAYOUT_ID: 1
+    IS_OOSTORE: 1
+    IS_READ_VERIFY: 0
+    TM_RECV_QUEUE_MIN_LEN: 2
+    M0_MAX_RPC_MSG_SIZE: 131072
+    PROCESS_FID: <0x7200000000000001:0x19>
+    IDX_SERVICE_ID: 1
+    CASS_CLUSTER_EP: "127.0.0.1"
+    CASS_KEYSPACE: "motr_index_keyspace"
+    CASS_MAX_COL_FAMILY_NUM: 1
 
 WORKLOAD_SPEC:
-  WORKLOAD_TYPE: 0
-  WORKLOAD_SEED: tstamp
-  NUM_KVP: 8
-  NXRECORDS: default # int or default
-  RECORD_SIZE: 32 # int [units] or random
-  MAX_RSIZE: 1M # int [units]
-  OP_COUNT: 32 # int [units] or unlimited = (2 ** 31 - 1) / (128 * NUM_KVP)
-  EXEC_TIME: unlimited # int (seconds) or unlimited
-  WARMUP_PUT_CNT: 0 # int (ops) or all
-  WARMUP_DEL_RATIO: 0 # int (ops / ratio)
-  KEY_PREFIX: random # int
-  KEY_ORDER: random # ordered or random
-  INDEX_FID: <7800000000000001:0> # fid
-  PUT: 100 # int
-  DEL: 0 # int
-  GET: 0 # int
-  NEXT: 0 # int
-  LOG_LEVEL: 4 # err(0), warn(1), info(2), trace(3), debug(4)
+    WORKLOAD_TYPE: 0
+    WORKLOAD_SEED: tstamp
+    NUM_KVP: 8
+    NXRECORDS: default # int or default
+    KEY_SIZE: 16 # int [units] or random
+    VALUE_SIZE: 16 # int [units] or random
+    MAX_KEY_SIZE: 512K # int [units]
+    MAX_VALUE_SIZE: 512K # int [units]
+    OP_COUNT: 32 # int [units] or unlimited = (2 ** 31 - 1) / (128 * NUM_KVP)
+    EXEC_TIME: unlimited # int (seconds) or unlimited
+    WARMUP_PUT_CNT: 0 # int (ops) or all
+    WARMUP_DEL_RATIO: 0 # int (ops / ratio)
+    KEY_PREFIX: random # int
+    KEY_ORDER: random # ordered or random
+    INDEX_FID: <7800000000000001:0> # fid
+    PUT: 100 # int
+    DEL: 0 # int
+    GET: 0 # int
+    NEXT: 0 # int
+    LOG_LEVEL: 4 # err(0), warn(1), info(2), trace(3), debug(4)

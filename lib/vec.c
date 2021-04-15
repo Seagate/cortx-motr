@@ -102,10 +102,10 @@ M0_INTERNAL void m0_vec_cursor_init(struct m0_vec_cursor *cur,
 M0_INTERNAL bool m0_vec_cursor_move(struct m0_vec_cursor *cur,
 				    m0_bcount_t count)
 {
+	m0_bcount_t step;
+
 	M0_PRE(m0_vec_cursor_invariant(cur));
 	while (count > 0 && cur->vc_seg < cur->vc_vec->v_nr) {
-		m0_bcount_t step;
-
 		step = m0_vec_cursor_step(cur);
 		if (count >= step) {
 			cur->vc_seg++;
@@ -118,6 +118,7 @@ M0_INTERNAL bool m0_vec_cursor_move(struct m0_vec_cursor *cur,
 		m0_vec_cursor_normalize(cur);
 	}
 	M0_ASSERT(m0_vec_cursor_invariant(cur));
+
 	return cur->vc_seg == cur->vc_vec->v_nr;
 }
 
@@ -440,13 +441,16 @@ static uint32_t vec_pack(uint32_t nr, m0_bcount_t *cnt, m0_bindex_t *idx)
 {
 	uint32_t i = 0;
 	uint32_t j;
+	m0_bindex_t seg_end;
 
 	if (nr == 0)
 		return 0;
 
 	for (j = i + 1; j < nr; ++j) {
-		if (idx[i] + cnt[i] == idx[j]) {
-			cnt[i] += cnt[j];
+		seg_end = idx[i] + cnt[i];
+		if (idx[j] <= seg_end) {
+			if (cnt[j] > seg_end - idx[j])
+				cnt[i] += cnt[j] - (seg_end - idx[j]);
 		} else {
 			++i;
 			if (i != j) {
@@ -712,19 +716,19 @@ M0_INTERNAL m0_bcount_t m0_ivec_cursor_step(const struct m0_ivec_cursor *cur)
 	return m0_vec_cursor_step(&cur->ic_cur);
 }
 
-M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(struct m0_ivec_cursor *cur)
+M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(const struct m0_ivec_cursor *cur)
 {
 	struct m0_indexvec *ivec;
 
 	M0_PRE(cur != NULL);
-	M0_PRE(!m0_vec_cursor_move(&cur->ic_cur, 0));
+	M0_PRE(cur->ic_cur.vc_seg < cur->ic_cur.vc_vec->v_nr);
 
 	ivec = container_of(cur->ic_cur.vc_vec, struct m0_indexvec, iv_vec);
 	return ivec->iv_index[cur->ic_cur.vc_seg] + cur->ic_cur.vc_offset;
 }
 
-M0_INTERNAL bool m0_ivec_cursor_move_to(struct m0_ivec_cursor *cur,
-					m0_bindex_t dest)
+M0_INTERNAL bool
+m0_ivec_cursor_move_to(struct m0_ivec_cursor *cur, m0_bindex_t dest)
 {
 	m0_bindex_t min;
 	bool        ret = false;
@@ -739,7 +743,38 @@ M0_INTERNAL bool m0_ivec_cursor_move_to(struct m0_ivec_cursor *cur,
 		if (ret)
 			break;
 	}
+
 	return ret;
+}
+
+M0_INTERNAL m0_bindex_t
+m0_ivec_cursor_conti(const struct m0_ivec_cursor *cur, m0_bindex_t dest)
+{
+	uint32_t            i;
+	m0_bindex_t         idx;
+	m0_bcount_t         cnt;
+	m0_bindex_t         max_seg_end;
+	struct m0_indexvec *ivec;
+
+	M0_PRE(cur  != NULL);
+	M0_PRE(dest >= m0_ivec_cursor_index(cur));
+
+	ivec = container_of(cur->ic_cur.vc_vec, struct m0_indexvec, iv_vec);
+
+	i = cur->ic_cur.vc_seg;
+	max_seg_end = ivec->iv_index[i] + ivec->iv_vec.v_count[i];
+
+	for (i += 1; i < ivec->iv_vec.v_nr; i++) {
+		idx = ivec->iv_index[i];
+		if (idx >= dest ||     /* the end */
+		    idx > max_seg_end) /* a hole */
+			break;
+		cnt = ivec->iv_vec.v_count[i];
+		if (idx + cnt > max_seg_end)
+			max_seg_end = idx + cnt;
+	}
+
+	return min64u(max_seg_end, dest);
 }
 
 M0_INTERNAL void m0_0vec_fini(struct m0_0vec *zvec)
@@ -1185,12 +1220,12 @@ m0_ivec_varr_cursor_step(const struct m0_ivec_varr_cursor *cur)
 M0_EXPORTED(m0_ivec_varr_cursor_step);
 
 M0_INTERNAL m0_bindex_t
-m0_ivec_varr_cursor_index(struct m0_ivec_varr_cursor *cur)
+m0_ivec_varr_cursor_index(const struct m0_ivec_varr_cursor *cur)
 {
 	m0_bindex_t *v_index;
 
 	M0_PRE(cur != NULL);
-	M0_PRE(!m0_ivec_varr_cursor_move(cur, 0));
+	M0_PRE(cur->vc_seg < cur->vc_ivv->iv_nr);
 
 	v_index = m0_varr_ele_get(&cur->vc_ivv->iv_index, cur->vc_seg);
 	return *v_index + cur->vc_offset;
@@ -1217,6 +1252,37 @@ m0_ivec_varr_cursor_move_to(struct m0_ivec_varr_cursor *cur, m0_bindex_t dest)
 	return ret;
 }
 M0_EXPORTED(m0_ivec_varr_cursor_move_to);
+
+M0_INTERNAL m0_bindex_t
+m0_ivec_varr_cursor_conti(const struct m0_ivec_varr_cursor *cur,
+			  m0_bindex_t dest)
+{
+	uint32_t i;
+	m0_bindex_t *idx;
+	m0_bcount_t *cnt;
+	m0_bindex_t max_seg_end;
+
+	M0_PRE(cur  != NULL);
+	M0_PRE(dest >= m0_ivec_varr_cursor_index(cur));
+
+	i = cur->vc_seg;
+	idx = m0_varr_ele_get(&cur->vc_ivv->iv_index, i);
+	cnt = m0_varr_ele_get(&cur->vc_ivv->iv_count, i);
+	max_seg_end = *idx + *cnt;
+
+	for (i += 1; i < cur->vc_ivv->iv_nr; i++) {
+		idx = m0_varr_ele_get(&cur->vc_ivv->iv_index, i);
+		if (*idx >= dest ||     /* the end */
+		    *idx > max_seg_end) /* a hole */
+			break;
+		cnt = m0_varr_ele_get(&cur->vc_ivv->iv_count, i);
+		if (*idx + *cnt > max_seg_end)
+			max_seg_end = *idx + *cnt;
+	}
+
+	return min64u(max_seg_end, dest);
+}
+M0_EXPORTED(m0_ivec_varr_cursor_conti);
 
 #undef M0_TRACE_SUBSYSTEM
 
