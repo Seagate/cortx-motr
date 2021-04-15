@@ -124,7 +124,7 @@ struct m0_dtm_clk_src_ops;
 /* Instance of a specific clock source. */
 struct m0_dtm0_clk_src {
 	const struct m0_dtm0_clk_src_ops *cs_ops;
-	struct m0_dtm0_ts                 cs_prev;
+	struct m0_dtm0_ts                 cs_last;
 	struct m0_mutex                   cs_phys_lock;
 };
 
@@ -141,8 +141,8 @@ M0_INTERNAL void m0_dtm0_clk_src_init(struct m0_dtm0_clk_src *cs,
 M0_INTERNAL void m0_dtm0_clk_src_fini(struct m0_dtm0_clk_src *cs);
 
 /** Returns the current clock source value. See CS.NOW */
-M0_INTERNAL int m0_dtm0_clk_src_now(struct m0_dtm0_clk_src *cs,
-				    struct m0_dtm0_ts      *ts);
+M0_INTERNAL void m0_dtm0_clk_src_now(struct m0_dtm0_clk_src *cs,
+				     struct m0_dtm0_ts      *now);
 
 /** Allows a clock source to observe another clock source. See CS.OBSERVED */
 M0_INTERNAL int m0_dtm0_clk_src_observed(struct m0_dtm0_clk_src  *cs,

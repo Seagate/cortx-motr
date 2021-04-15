@@ -26,30 +26,16 @@
 #include "lib/errno.h" /* EINVAL */
 #include "lib/assert.h" /* M0_ASSERT and so on */
 
-enum {
-	/* The hard limit in the now() busy loop.
-	 * The program should panic() if the physical
-	 * clock did not advance for too long (more than
-	 * MAX_RETRIES * ADV_NS nanoseconds).
-	 */
-	CS_PHYS_NOW_MAX_RETRIES = 16,
-
-	/* A soft limit in the now() busy loop.
-	 * This limit should be as small as possible but
-	 * big enough to make the clock advance.
-	 */
-	CS_PHYS_NOW_ADV_NS = 1,
-};
 
 struct m0_dtm0_clk_src_ops {
-	int (*cmp)(const struct m0_dtm0_ts *left,
-		   const struct m0_dtm0_ts *right);
-	int (*now)(struct m0_dtm0_clk_src *cs, struct m0_dtm0_ts *ts);
-	int (*observed)(struct m0_dtm0_clk_src  *cs,
-			const struct m0_dtm0_ts *other_ts);
+	int  (*cso_cmp)(const struct m0_dtm0_ts *left,
+			const struct m0_dtm0_ts *right);
+	void (*cso_now)(struct m0_dtm0_clk_src *cs, struct m0_dtm0_ts *ts);
+	int  (*cso_observed)(struct m0_dtm0_clk_src  *cs,
+			     const struct m0_dtm0_ts *other_ts);
 };
 
-/* See M0_DTM0_CS_PHYS for details */
+/** See M0_DTM0_CS_PHYS for details */
 static const struct m0_dtm0_clk_src_ops cs_phys_ops;
 
 M0_INTERNAL void m0_dtm0_clk_src_init(struct m0_dtm0_clk_src *cs,
@@ -58,7 +44,7 @@ M0_INTERNAL void m0_dtm0_clk_src_init(struct m0_dtm0_clk_src *cs,
 	M0_ENTRY();
 	M0_PRE(M0_IN(type, (M0_DTM0_CS_PHYS)));
 	m0_mutex_init(&cs->cs_phys_lock);
-	cs->cs_prev = M0_DTM0_TS_MIN;
+	cs->cs_last = M0_DTM0_TS_MIN;
 	cs->cs_ops = &cs_phys_ops;
 	M0_LEAVE();
 }
@@ -69,7 +55,7 @@ M0_INTERNAL void m0_dtm0_clk_src_fini(struct m0_dtm0_clk_src *cs)
 	M0_PRE(cs);
 	M0_PRE(M0_IN(cs->cs_ops, (&cs_phys_ops)));
 	m0_mutex_fini(&cs->cs_phys_lock);
-	cs->cs_prev = M0_DTM0_TS_INIT;
+	cs->cs_last = M0_DTM0_TS_INIT;
 	cs->cs_ops = NULL;
 	M0_LEAVE();
 }
@@ -82,25 +68,22 @@ enum m0_dtm0_ts_ord m0_dtm0_ts_cmp(const struct m0_dtm0_clk_src *cs,
 	M0_PRE(cs);
 	M0_PRE(m0_dtm0_ts__invariant(left));
 	M0_PRE(m0_dtm0_ts__invariant(right));
-	return cs->cs_ops->cmp(left, right);
+	return cs->cs_ops->cso_cmp(left, right);
 }
 
-M0_INTERNAL int m0_dtm0_clk_src_now(struct m0_dtm0_clk_src *cs,
-				    struct m0_dtm0_ts      *ts)
+M0_INTERNAL void m0_dtm0_clk_src_now(struct m0_dtm0_clk_src *cs,
+				     struct m0_dtm0_ts      *now)
 {
-	int rc;
-
 	M0_PRE(cs);
-	rc = cs->cs_ops->now(cs, ts);
-	M0_POST(m0_dtm0_ts__invariant(ts));
-	return rc;
+	cs->cs_ops->cso_now(cs, now);
+	M0_POST(m0_dtm0_ts__invariant(now));
 }
 
 M0_INTERNAL int m0_dtm0_clk_src_observed(struct m0_dtm0_clk_src  *cs,
 					 const struct m0_dtm0_ts *other_ts)
 {
 	M0_PRE(m0_dtm0_ts__invariant(other_ts));
-	return cs->cs_ops->observed(cs, other_ts);
+	return cs->cs_ops->cso_observed(cs, other_ts);
 }
 
 M0_INTERNAL bool m0_dtm0_ts__invariant(const struct m0_dtm0_ts *ts)
@@ -120,43 +103,22 @@ static enum m0_dtm0_ts_ord cs_phys_cmp(const struct m0_dtm0_ts *left,
 	return M0_3WAY(left->dts_phys, right->dts_phys);
 }
 
-static int cs_phys_now(struct m0_dtm0_clk_src *cs, struct m0_dtm0_ts *ts)
+static void cs_phys_now(struct m0_dtm0_clk_src *cs, struct m0_dtm0_ts *now)
 {
-	m0_time_t now = 0;
-	int       nr_retries = 0;
-
 	M0_PRE(cs);
 	M0_PRE(M0_IN(cs->cs_ops, (&cs_phys_ops)));
 
 	m0_mutex_lock(&cs->cs_phys_lock);
 
-	now = m0_time_now();
-
-	while (unlikely(now == cs->cs_prev.dts_phys)) {
-		/* Since the soft limit (ADV_NS) is relatively small,
-		 * we do not have to handle the case where nanosleep()
-		 * was interrupted.
-		 */
-		m0_nanosleep(CS_PHYS_NOW_ADV_NS, NULL);
-		nr_retries++;
-		now = m0_time_now();
-		/* Assumption: the clock should advance eventually. */
-		M0_ASSERT_INFO(nr_retries < CS_PHYS_NOW_MAX_RETRIES,
-			       "The time has been frozen for too long.");
+	now->dts_phys = m0_time_now();
+	if (now->dts_phys > cs->cs_last.dts_phys) {
+		cs->cs_last = *now;
+	} else {
+		cs->cs_last.dts_phys++;
+		*now = cs->cs_last;
 	}
 
-	/* Assumptions:
-	 * 1. cs_phys_now() never returns duplicates.
-	 * 2. nanosleep() moves the clock forward.
-	 */
-	M0_POST(cs->cs_prev.dts_phys < now);
-
-	ts->dts_phys = now;
-	cs->cs_prev = *ts;
-
 	m0_mutex_unlock(&cs->cs_phys_lock);
-	M0_POST(m0_dtm0_ts__invariant(ts));
-	return 0;
 }
 
 static int cs_phys_observed(struct m0_dtm0_clk_src  *cs,
@@ -167,9 +129,7 @@ static int cs_phys_observed(struct m0_dtm0_clk_src  *cs,
 
 	M0_PRE(m0_dtm0_ts__invariant(other_ts));
 
-	rc = m0_dtm0_clk_src_now(cs, &now);
-	if (rc != 0)
-		return rc;
+	m0_dtm0_clk_src_now(cs, &now);
 
 	rc = m0_dtm0_ts_cmp(cs, &now, other_ts);
 
@@ -184,9 +144,9 @@ static int cs_phys_observed(struct m0_dtm0_clk_src  *cs,
 }
 
 static const struct m0_dtm0_clk_src_ops cs_phys_ops = {
-	.cmp      = cs_phys_cmp,
-	.now      = cs_phys_now,
-	.observed = cs_phys_observed,
+	.cso_cmp      = cs_phys_cmp,
+	.cso_now      = cs_phys_now,
+	.cso_observed = cs_phys_observed,
 };
 
 #undef M0_TRACE_SUBSYSTEM
