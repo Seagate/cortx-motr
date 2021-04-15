@@ -97,7 +97,7 @@ M0_INTERNAL struct m0_dtx* m0_dtx0_alloc(struct m0_dtm0_service *svc,
 					 struct m0_sm_group     *grp);
 
 /** Assigns a TID to the transaction. */
-M0_INTERNAL int m0_dtx0_prepare(struct m0_dtx *dtx);
+M0_INTERNAL void m0_dtx0_prepare(struct m0_dtx *dtx);
 
 /**
  * Initializes inner structures and allocates resources.

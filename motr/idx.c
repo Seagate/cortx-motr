@@ -425,13 +425,8 @@ static void idx_op_cb_launch(struct m0_op_common *oc)
 	/* Move to a different state and call the control function. */
 	m0_sm_group_lock(&op->op_entity->en_sm_group);
 
-	if (oi->oi_dtx) {
-		rc = m0_dtx0_prepare(oi->oi_dtx);
-		if (rc != 0) {
-			m0_sm_group_unlock(&op->op_entity->en_sm_group);
-			goto out;
-		}
-	}
+	if (oi->oi_dtx)
+		m0_dtx0_prepare(oi->oi_dtx);
 
 	switch (op->op_code) {
 	case M0_EO_CREATE:
@@ -475,8 +470,6 @@ static void idx_op_cb_launch(struct m0_op_common *oc)
 	 *  = 1: the driver successes in launching the query asynchronously.
 	*/
 	rc = query(oi);
-
-out:
 	oi->oi_ar.ar_rc = rc;
 	if (rc < 0) {
 		oi->oi_ar.ar_ast.sa_cb = &idx_op_ast_fail;

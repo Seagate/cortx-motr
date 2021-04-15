@@ -173,22 +173,17 @@ static void dtx_fini(struct m0_dtm0_dtx *dtx)
 	M0_SET0(dtx);
 }
 
-static int dtx_prepare(struct m0_dtm0_dtx *dtx)
+static void dtx_prepare(struct m0_dtm0_dtx *dtx)
 {
-	int rc;
-
 	M0_ENTRY("dtx=%p", dtx);
 
 	M0_PRE(dtx != NULL);
-	rc = m0_dtm0_clk_src_now(&dtx->dd_dtms->dos_clk_src,
-				 &dtx->dd_txd.dtd_id.dti_ts);
-	if (rc != 0)
-		return M0_RC(rc);
+	m0_dtm0_clk_src_now(&dtx->dd_dtms->dos_clk_src,
+			    &dtx->dd_txd.dtd_id.dti_ts);
 
 	dtx->dd_txd.dtd_id.dti_fid = dtx->dd_dtms->dos_generic.rs_service_fid;
 	M0_POST(m0_dtm0_tid__invariant(&dtx->dd_txd.dtd_id));
-	return M0_RC_INFO(rc, "prepared dtx with tid "DTID0_F,
-			  DTID0_P(&dtx->dd_txd.dtd_id));
+	M0_LEAVE("prepared dtx with tid "DTID0_F, DTID0_P(&dtx->dd_txd.dtd_id));
 }
 
 static int dtx_open(struct m0_dtm0_dtx  *dtx,
@@ -457,10 +452,10 @@ M0_INTERNAL struct m0_dtx* m0_dtx0_alloc(struct m0_dtm0_service *svc,
 	return dtx ? &dtx->dd_ancient_dtx : NULL;
 }
 
-M0_INTERNAL int m0_dtx0_prepare(struct m0_dtx *dtx)
+M0_INTERNAL void m0_dtx0_prepare(struct m0_dtx *dtx)
 {
 	M0_PRE(dtx != NULL);
-	return dtx_prepare(dtx->tx_dtx);
+	dtx_prepare(dtx->tx_dtx);
 }
 
 M0_INTERNAL int m0_dtx0_open(struct m0_dtx *dtx, uint32_t nr)

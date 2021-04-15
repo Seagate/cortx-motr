@@ -82,8 +82,7 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 
 
 	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
-	rc = m0_dtm0_clk_src_now(&dcs, &now);
-	M0_UT_ASSERT(rc == 0);
+	m0_dtm0_clk_src_now(&dcs, &now);
 
 	M0_PRE(cl_rpc_session != NULL);
 

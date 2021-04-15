@@ -55,11 +55,9 @@ static void get_now(void)
 {
 	struct m0_dtm0_clk_src dcs;
 	struct m0_dtm0_ts      now;
-	int                    rc;
 
 	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
-	rc = m0_dtm0_clk_src_now(&dcs, &now);
-	M0_UT_ASSERT(rc == 0);
+	m0_dtm0_clk_src_now(&dcs, &now);
 	m0_dtm0_clk_src_fini(&dcs);
 }
 
@@ -70,11 +68,10 @@ static void now_min_max(void)
 	struct m0_dtm0_ts      now;
 	struct m0_dtm0_ts      past = M0_DTM0_TS_MIN;
 	struct m0_dtm0_ts      future = M0_DTM0_TS_MAX;
-	int                   rc;
+	int                    rc;
 
 	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
-	rc = m0_dtm0_clk_src_now(&dcs, &now);
-	M0_UT_ASSERT(rc == 0);
+	m0_dtm0_clk_src_now(&dcs, &now);
 
 	rc = m0_dtm0_ts_cmp(&dcs, &past, &now);
 	M0_UT_ASSERT(rc == M0_DTS_LT);
@@ -127,8 +124,7 @@ static void observe_now_then(void)
 
 	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
 
-	rc = m0_dtm0_clk_src_now(&dcs, &now);
-	M0_UT_ASSERT(rc == 0);
+	m0_dtm0_clk_src_now(&dcs, &now);
 
 	/* The clocks should tick at least once */
 	m0_nanosleep(1, NULL);
