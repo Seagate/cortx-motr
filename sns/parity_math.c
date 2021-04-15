@@ -45,6 +45,8 @@ enum {
 		(ret) = M0_RC_INFO(0, "allocated memory for " msg);		\
 })
 
+#define MIN(_x, _y) ((_x) < (_y) ? (_x) : (_y))
+
 /* Forward declarations */
 static void xor_calculate(struct m0_parity_math *math,
                           const struct m0_buf *data,
@@ -98,18 +100,39 @@ static void isal_recover(struct m0_parity_math *math,
 
 #if ISAL_ENCODE_ENABLED
 /**
+ * This is wrapper function for Intel ISA API ec_encode_data_update().
+ * @param[out] dest_buf - Array of pointers to coded output buffers
+ * @param[in]  src_buf  - Pointer to single input source used to update output
+ *                        parity.
+ * @param[in]  vec_idx  - The vector index corresponding to the single
+ *                        input source.
+ * @param[in]  g_tbls   - Pointer to array of input tables generated from
+ *                        coding coefficients in ec_init_tables().
+ *                        Must be of size 32*src_nr*dest_nr
+ * @param[in]  src_nr   - The number of vector sources for coding.
+ * @param[in]  dest_nr  - The number of output vectors to concurrently
+ *                        encode/decode.
+ * @retval     0        - success otherwise failure
+ */
+static int isal_encode_data_update(struct m0_buf *dest_buf, struct m0_buf *src_buf,
+				   uint32_t vec_idx, uint8_t *g_tbls,
+				   uint32_t src_nr, uint32_t dest_nr);
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+/**
  * Inverts the encoding matrix and generates tables of recovery coefficient
  * codes for lost data.
- * @param data_count[in] - count of SNS data units used in system.
- * @param parity_count[in] - count of SNS parity units used in system.
- * @param failed_idx_buf[in] - array containing failed block indices, treated
- *                             as uint8_t block with b_nob elements.
- * @param alive_idx_buf[in] - array containing non-failed block indices,
- *                            treated as uint8_t block with b_nob elements.
- * @param encode_mat[in] - Pointer to sets of arrays of input coefficients used
- *                         to encode or decode data.
- * @param g_tbls[out] - Pointer to concatenated output tables for decode
- * @retval     0      - success otherwise failure
+ * @param[in]  data_count     - count of SNS data units used in system.
+ * @param[in]  parity_count   - count of SNS parity units used in system.
+ * @param[in]  failed_idx_buf - array containing failed block indices, treated
+ *                              as uint8_t block with b_nob elements.
+ * @param[in]  alive_idx_buf  - array containing non-failed block indices,
+ *                              treated as uint8_t block with b_nob elements.
+ * @param[in]  encode_mat     - Pointer to sets of arrays of input coefficients used
+ *                              to encode or decode data.
+ * @param[out] g_tbls         - Pointer to concatenated output tables for decode
+ * @retval     0              - success otherwise failure
  */
 static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 				    struct m0_buf *failed_idx_buf,
@@ -124,21 +147,21 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
  * buffer is not marked as failed in fail buffer, its pointer will be added in
  * frags_in buffer array. Buffer array frags_in will be used as source buffers
  * for recovery. Buffer array frags_out will be used as buffers to be recovered.
- * @param frags_in[out] - Array of buffer pointers containing pointers of
- *                        buffers which are not failed.
- * @param frags_out[out] - Array of buffer pointers containing pointers of
- *                         failed buffers.
- * @param unit_count[in] - Total count of buffers i.e. data_count + parity_count
- * @param data_count[in] - count of SNS data units used in system.
- * @param fail[in] - block with flags, treated as uint8_t block with
- *                   b_nob elements, if element is '1' then data or parity
- *                   block with given index is treated as broken.
- * @param data[in] - data block, treated as uint8_t block with
- *                   b_nob elements.
- * @param parity[inout] - parity block, treated as uint8_t block with
- *                        b_nob elements.
- * @retval     true       on success
- * @retval     false      on failure to sort buffers
+ * @param[out] frags_in   - Array of buffer pointers containing pointers of
+ *                          buffers which are not failed.
+ * @param[out] frags_out  - Array of buffer pointers containing pointers of
+ *                          failed buffers.
+ * @param[in]  unit_count - Total count of buffers i.e. data_count + parity_count
+ * @param[in]  data_count - count of SNS data units used in system.
+ * @param[in]  fail       - block with flags, treated as uint8_t block with
+ *                          b_nob elements, if element is '1' then data or parity
+ *                          block with given index is treated as broken.
+ * @param[in]  data       - data block, treated as uint8_t block with
+ *                          b_nob elements.
+ * @param[in]  parity     - parity block, treated as uint8_t block with
+ *                          b_nob elements.
+ * @retval     true         on success
+ * @retval     false        on failure to sort buffers
  */
 static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
 		    uint32_t unit_count, uint32_t data_count,
@@ -149,15 +172,15 @@ static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
 #if ISAL_ENCODE_ENABLED
 /**
  * Sort the indices for failed and non-failed data and parity blocks.
- * @param fail[in] - block with flags, if element is '1' then data or parity
- *                   block with given index is treated as broken.
- * @param unit_count[in] - Total length of fail buffer
- * @param failed_idx[out] - block with failed indices, treated as uint8_t block
+ * @param[in]  fail       - block with flags, if element is '1' then data or parity
+ *                          block with given index is treated as broken.
+ * @param[in]  unit_count - Total length of fail buffer
+ * @param[out] failed_idx - block with failed indices, treated as uint8_t block
  *                          with b_nob elements
- * @param alive_idx[out] - block with non-failed (alive) indices, treated as
- *                         uint8_t block with b_nob elements
- * @retval     true       on success
- * @retval     false      on failure to sort indices
+ * @param[out] alive_idx  - block with non-failed (alive) indices, treated as
+ *                          uint8_t block with b_nob elements
+ * @retval     true         on success
+ * @retval     false        on failure to sort indices
  */
 static bool fails_sort(uint8_t *fail, uint32_t unit_count,
 		       struct m0_buf *failed_idx, struct m0_buf *alive_idx);
@@ -193,7 +216,7 @@ static void fail_idx_isal_recover(struct m0_parity_math *math,
 #if ISAL_ENCODE_ENABLED
 /**
  * Generate decode matrix for incremental recovery using Intel ISA.
- * @param ir[in]  - Pointer to incremental recovery structure.
+ * @param[in] ir  - Pointer to incremental recovery structure.
  * @retval     0  - success otherwise failure
  */
 static int ir_gen_decode_matrix(struct m0_sns_ir *ir);
@@ -229,29 +252,45 @@ static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
 
 #if ISAL_ENCODE_ENABLED
 /**
- * Converts m0_bufvec to m0_buf.
- * @param bvec[in]  - Pointer to buffer vector.
- * @param buf[out]  - Pointer to buffer.
- * @param count[in] - Number of buffers to copy
+ * Converts given number of m0_bufvec to m0_buf.
+ * @param[out] bufs  - Array of m0_buf.
+ * @param[in]  bvecs - Array of pointers to m0_bufvec.
+ * @param[in]  count - Number of buffers to copy
  */
-static void bufvec_to_buf_copy(struct m0_bufvec *bvec, struct m0_buf *buf,
+static void bufvec_to_buf_copy(struct m0_buf *bufs,
+			       struct m0_bufvec **bvecs,
 			       uint32_t count);
 
 /**
- * Converts m0_buf to m0_bufvec.
- * @param bvec[out] - Pointer to buffer vector.
- * @param buf[in]   - Pointer to buffer.
- * @param count[in] - Number of buffers to copy
+ * Converts a m0_bufvec to m0_buf.
+ * @param[out] buf  - Pointer to buffer m0_buf.
+ * @param[in]  bvec - Pointer to buffer vector m0_bufvec.
  */
-static void buf_to_bufvec_copy(struct m0_bufvec *bvec, struct m0_buf *buf,
+static void bufvec2buf(struct m0_buf *buf, const struct m0_bufvec *bvec);
+
+/**
+ * Converts given number of m0_buf to m0_bufvec.
+ * @param[out] bvecs - Array of pointers to m0_bufvec.
+ * @param[in]  bufs  - Array of m0_buf.
+ * @param[in]  count - Number of buffers to copy
+ */
+static void buf_to_bufvec_copy(struct m0_bufvec **bvecs,
+			       const struct m0_buf *bufs,
 			       uint32_t count);
+
+/**
+ * Converts a m0_buf to m0_bufvec.
+ * @param[out] bvec - Pointer to buffer vector m0_bufvec.
+ * @param[in]  buf  - Pointer to buffer m0_buf.
+ */
+static void buf2bufvec(struct m0_bufvec *bvec, const struct m0_buf *buf);
 
 /**
  * Core routine to recover failed_block based on available_block using
  * Intel ISA library.
- * @param ir[in]  - Pointer to incremental recovery structure.
- * @param alive_block[in]  - Pointer to the alive block.
- * @retval     0  - success otherwise failure
+ * @param[in] ir           - Pointer to incremental recovery structure.
+ * @param[in] alive_block  - Pointer to the alive block.
+ * @retval    0            - success otherwise failure
  */
 static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block);
 #endif /* ISAL_ENCODE_ENABLED */
@@ -326,9 +365,9 @@ static inline uint32_t ir_blocks_count(const struct m0_sns_ir *ir);
 #if ISAL_ENCODE_ENABLED
 /**
  * Initialize fields required for incremental recovery using Intel ISA.
- * @param ir[in]  - Pointer to incremental recovery structure.
- * @retval 0        Success
- * @retval -ENOMEM  Failed to allocate memory
+ * @param[in] ir       - Pointer to incremental recovery structure.
+ * @retval    0          Success
+ * @retval    -ENOMEM    Failed to allocate memory
  */
 static int isal_ir_init(struct m0_sns_ir *ir);
 #endif /* ISAL_ENCODE_ENABLED */
@@ -336,7 +375,7 @@ static int isal_ir_init(struct m0_sns_ir *ir);
 #if ISAL_ENCODE_ENABLED
 /**
  * Free fields initialized for incremental recovery using Intel ISA.
- * @param ir[in] - pointer to incremental recovery structure.
+ * @param[in] ir - pointer to incremental recovery structure.
  */
 static void isal_ir_fini(struct m0_sns_ir *ir);
 #endif /* ISAL_ENCODE_ENABLED */
@@ -492,6 +531,46 @@ static bool parity_math_invariant(const struct m0_parity_math *math)
 		_0C(math->pmi_parity_count >= 1) &&
 		_0C(math->pmi_data_count >= math->pmi_parity_count) &&
 		_0C(math->pmi_data_count <= SNS_PARITY_MATH_DATA_BLOCKS_MAX);
+}
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if ISAL_ENCODE_ENABLED
+static int isal_encode_data_update(struct m0_buf *dest_buf, struct m0_buf *src_buf,
+				   uint32_t vec_idx, uint8_t *g_tbls,
+				   uint32_t src_nr, uint32_t dest_nr)
+{
+	uint32_t i;
+	uint32_t block_size;
+	int	 ret = 0;
+
+	M0_ENTRY("dest_buf=%p, src_buf=%p, vec_idx=%u, "
+		 "g_tbls=%p, src_nr=%u, dest_nr=%u",
+		 dest_buf, src_buf, vec_idx, g_tbls, src_nr, dest_nr);
+
+	M0_PRE(dest_buf != NULL);
+	M0_PRE(src_buf != NULL);
+	M0_PRE(g_tbls != NULL);
+
+	uint8_t	 *dest_frags[dest_nr];
+
+	block_size = (uint32_t)src_buf->b_nob;
+
+	for (i = 0; i < dest_nr; ++i) {
+		if (block_size != dest_buf[i].b_nob) {
+			ret = M0_ERR_INFO(-EINVAL, "dest block size mismatch. "
+					  "block_size = %u, "
+					  "dest_buf[%u].b_nob=%u",
+					  block_size, i,
+					  (uint32_t)dest_buf[i].b_nob);
+			return M0_RC(ret);
+		}
+		dest_frags[i] = (uint8_t *)dest_buf[i].b_addr;
+	}
+
+	ec_encode_data_update(block_size, src_nr, dest_nr, vec_idx,
+			      g_tbls, (uint8_t *)src_buf->b_addr, dest_frags);
+
+	return M0_RC(ret);
 }
 #endif /* ISAL_ENCODE_ENABLED */
 
@@ -654,13 +733,15 @@ static void isal_diff(struct m0_parity_math *math,
 		      struct m0_buf         *parity,
 		      uint32_t               index)
 {
-	uint8_t	 *diff_data = NULL;
-	uint32_t  block_size;
-	uint32_t  alignment = sizeof(uint_fast32_t);
-	uint32_t  i;
-	int	  ret = 0;
+	struct m0_buf	diff_data_buf;
+	uint8_t	       *diff_data = NULL;
+	uint32_t	block_size;
+	uint32_t	alignment = sizeof(uint_fast32_t);
+	uint32_t	i;
+	int		ret = 0;
 
-	M0_ENTRY();
+	M0_ENTRY("math=%p, old=%p, new=%p, parity=%p, index=%u",
+		 math, old, new, parity, index);
 
 	M0_PRE(parity_math_invariant(math));
 	M0_PRE(old    != NULL);
@@ -668,8 +749,6 @@ static void isal_diff(struct m0_parity_math *math,
 	M0_PRE(parity != NULL);
 	M0_PRE(index  <  math->pmi_data_count);
 	M0_PRE(old[index].b_nob == new[index].b_nob);
-
-	uint8_t	 *parity_frags[math->pmi_parity_count];
 
 	block_size = new[index].b_nob;
 
@@ -686,26 +765,18 @@ static void isal_diff(struct m0_parity_math *math,
 	if (diff_data == NULL)
 		goto fini;
 
+	m0_buf_init(&diff_data_buf, diff_data, block_size);
+
 	/* Calculate differential data */
 	for (i = 0; i < (block_size / alignment); i++)
 		((uint_fast32_t *)diff_data)[i] =
 			((uint_fast32_t *)old[index].b_addr)[i] ^
 			((uint_fast32_t *)new[index].b_addr)[i];
 
-	for (i = 0; i < math->pmi_parity_count; ++i) {
-		if (block_size != parity[i].b_nob) {
-			ret = M0_ERR_INFO(-EINVAL, "parity block size mismatch. "
-					  "block_size = %u, parity[%u].b_nob=%u",
-					  block_size, i, (uint32_t)parity[i].b_nob);
-			goto fini;
-		}
-		parity_frags[i] = (uint8_t *)parity[i].b_addr;
-	}
-
 	/* Update differential parity */
-	ec_encode_data_update(block_size, math->pmi_data_count,
-			      math->pmi_parity_count, index,
-			      math->pmi_encode_tbls, diff_data, parity_frags);
+	isal_encode_data_update(parity, &diff_data_buf, index,
+				math->pmi_encode_tbls, math->pmi_data_count,
+				math->pmi_parity_count);
 
 fini:
 	m0_free(diff_data);
@@ -1831,59 +1902,106 @@ M0_INTERNAL void m0_sns_ir_fini(struct m0_sns_ir *ir)
 }
 
 #if ISAL_ENCODE_ENABLED
-static void bufvec_to_buf_copy(struct m0_bufvec *bvec, struct m0_buf *buf,
+static void bufvec_to_buf_copy(struct m0_buf *bufs,
+			       struct m0_bufvec **bvecs,
 			       uint32_t count)
 {
-	struct m0_bufvec_cursor cursor;
-	m0_bcount_t		step;
-	uint32_t		i;
-	uint32_t		j;
-	uint8_t		       *buf_data;
-	uint32_t		seg_size;
+	uint32_t j;
 
-	M0_ENTRY("bvec=%p, buf=%p, count=%u", bvec, buf, count);
+	M0_ENTRY("bufs=%p, bvecs=%p, count=%u", bufs, bvecs, count);
 
-	for (j = 0, i = 0; j < count; ++j, i = 0) {
-		m0_bufvec_cursor_init(&cursor, &bvec[j]);
-		buf_data = (uint8_t *)buf[j].b_addr;
-		do {
-			seg_size = bvec[j].ov_vec.v_count[i];
-			memcpy(&buf_data[i * seg_size],
-				m0_bufvec_cursor_addr(&cursor),
-				seg_size);
-			++i;
-			step = m0_bufvec_cursor_step(&cursor);
-		} while (!m0_bufvec_cursor_move(&cursor, step));
-	}
+	for (j = 0; j < count; ++j)
+		bufvec2buf(&bufs[j], bvecs[j]);
 
 	M0_LEAVE();
 }
 
-
-static void buf_to_bufvec_copy(struct m0_bufvec *bvec, struct m0_buf *buf,
-			       uint32_t count)
+static void bufvec2buf(struct m0_buf *buf, const struct m0_bufvec *bvec)
 {
 	struct m0_bufvec_cursor cursor;
 	m0_bcount_t		step;
 	uint32_t		i;
-	uint32_t		j;
+	uint32_t		idx;
+	uint32_t		copy_bytes;
 	uint8_t		       *buf_data;
+	uint32_t		free_bytes;
 	uint32_t		seg_size;
 
-	M0_ENTRY("bvec=%p, buf=%p, count=%u", bvec, buf, count);
+	M0_ENTRY("bvec=%p, buf=%p", bvec, buf);
 
-	for (j = 0, i = 0; j < count; ++j, i = 0) {
-		m0_bufvec_cursor_init(&cursor, &bvec[j]);
-		buf_data = (uint8_t *)buf[j].b_addr;
-		do {
-			seg_size = bvec[j].ov_vec.v_count[i];
-			memcpy(m0_bufvec_cursor_addr(&cursor),
-				&buf_data[i * seg_size],
-				seg_size);
-			++i;
-			step = m0_bufvec_cursor_step(&cursor);
-		} while (!m0_bufvec_cursor_move(&cursor, step));
-	}
+	m0_bufvec_cursor_init(&cursor, bvec);
+	buf_data = (uint8_t *)buf->b_addr;
+	free_bytes = (uint32_t)buf->b_nob;
+
+	i = 0;
+	idx = 0;
+	do {
+		seg_size = bvec->ov_vec.v_count[i++];
+
+		/* Get minimum bytes to copy */
+		copy_bytes = MIN(free_bytes, seg_size);
+
+		memcpy(&buf_data[idx],
+		       m0_bufvec_cursor_addr(&cursor),
+		       copy_bytes);
+
+		idx += copy_bytes;
+		free_bytes -= copy_bytes;
+
+		step = m0_bufvec_cursor_step(&cursor);
+	} while (!m0_bufvec_cursor_move(&cursor, step) && (free_bytes != 0));
+
+	M0_LEAVE();
+}
+
+static void buf_to_bufvec_copy(struct m0_bufvec **bvecs,
+			       const struct m0_buf *bufs,
+			       uint32_t count)
+{
+	uint32_t j;
+
+	M0_ENTRY("bvecs=%p, bufs=%p, count=%u", bvecs, bufs, count);
+
+	for (j = 0; j < count; ++j)
+		buf2bufvec(bvecs[j], &bufs[j]);
+
+	M0_LEAVE();
+}
+
+static void buf2bufvec(struct m0_bufvec *bvec, const struct m0_buf *buf)
+{
+	struct m0_bufvec_cursor cursor;
+	m0_bcount_t		step;
+	uint32_t		i;
+	uint32_t		idx;
+	uint32_t		copy_bytes;
+	uint8_t		       *buf_data;
+	uint32_t		free_bytes;
+	uint32_t		seg_size;
+
+	M0_ENTRY("bvec=%p, buf=%p", bvec, buf);
+
+	m0_bufvec_cursor_init(&cursor, bvec);
+	buf_data = (uint8_t *)buf->b_addr;
+	free_bytes = (uint32_t)buf->b_nob;
+
+	i = 0;
+	idx = 0;
+	do {
+		seg_size = bvec->ov_vec.v_count[i++];
+
+		/* Get minimum bytes to copy */
+		copy_bytes = MIN(free_bytes, seg_size);
+
+		memcpy(m0_bufvec_cursor_addr(&cursor),
+		       &buf_data[idx],
+		       copy_bytes);
+
+		idx += copy_bytes;
+		free_bytes -= copy_bytes;
+
+		step = m0_bufvec_cursor_step(&cursor);
+	} while (!m0_bufvec_cursor_move(&cursor, step) && (free_bytes != 0));
 
 	M0_LEAVE();
 }
@@ -1892,13 +2010,13 @@ static void buf_to_bufvec_copy(struct m0_bufvec *bvec, struct m0_buf *buf,
 #if ISAL_ENCODE_ENABLED
 static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 {
-	struct m0_sns_ir_block	*failed_block;
+	struct m0_bitmap	*failed_bitmap;
 	struct m0_bufvec       	*alive_bufvec;
-	struct m0_bufvec       	*failed_bufvec;
-	struct m0_buf 		 buf;
+	struct m0_bufvec	*failed_bufvecs[ir->si_failed_nr];
+	struct m0_buf 		 alive_buf = M0_BUF_INIT0;
+	struct m0_buf		 f_bufs[ir->si_failed_nr];
 	uint8_t			 curr_idx = UINT8_MAX;
 	uint32_t 		 i;
-	uint8_t		       **failed_bufs;
 	uint32_t		 length;
 	int			 ret = 0;
 
@@ -1906,31 +2024,29 @@ static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 
 	/* Check if given alive block is dependecy of any failed block */
 	for (i = 0; i < ir->si_failed_nr; i++) {
-		failed_block = &ir->si_blocks[ir->si_failed_idx[i]];
-		if (m0_bitmap_get(&failed_block->sib_bitmap, alive_block->sib_idx) == 0)
+		failed_bitmap = &ir->si_blocks[ir->si_failed_idx[i]].sib_bitmap;
+		if (m0_bitmap_get(failed_bitmap, alive_block->sib_idx) == 0)
 			return M0_RC(ret);
 	}
 
 	alive_bufvec = alive_block->sib_addr;
 	length = alive_bufvec->ov_vec.v_count[0] * alive_bufvec->ov_vec.v_nr;
 
-	ALLOC_ARR_INFO(failed_bufs, ir->si_failed_nr,
-		       "failed buffer array", ret);
-	if (failed_bufs == NULL)
-		return M0_RC(ret);
+	memset(f_bufs, 0x00, ir->si_failed_nr * sizeof(struct m0_buf));
 
 	for (i = 0; i < ir->si_failed_nr; i++) {
-		ALLOC_ARR_INFO(failed_bufs[i], length,
-			       "failed buffer", ret);
-		if (failed_bufs[i] == NULL)
+		ret = m0_buf_alloc(&f_bufs[i], length);
+		if (ret != 0){
+			ret = M0_ERR_INFO(ret, "Failed to allocate buffer %d "
+					"of length = %u", i, length);
 			goto exit;
-
-		m0_buf_init(&buf, failed_bufs[i], length);
-
-		failed_bufvec = ir->si_blocks[ir->si_failed_idx[i]].sib_addr;
-		/* Get data from failed vector in buffer */
-		bufvec_to_buf_copy(failed_bufvec, &buf, 1);
+		}
+		/* Save address of m0_bufvec for failed block */
+		failed_bufvecs[i] = ir->si_blocks[ir->si_failed_idx[i]].sib_addr;
 	}
+
+	/* Get data from failed vectors in buffers */
+	bufvec_to_buf_copy(f_bufs, failed_bufvecs, ir->si_failed_nr);
 
 	for (i = 0; i < ir->si_alive_nr; i++) {
 		if(ir->si_alive_idx[i] == alive_block->sib_idx) {
@@ -1939,8 +2055,15 @@ static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 		}
 	}
 
-	buf = M0_BUF_INIT0;
-	ret = m0_buf_alloc(&buf, length);
+	if (curr_idx == UINT8_MAX){
+		ret = M0_ERR_INFO(-EINVAL, "Failed to find alive block "
+				  "index %d in alive index array",
+				   alive_block->sib_idx);
+		goto exit;
+	}
+
+	/* Allocate buffer for alive block */
+	ret = m0_buf_alloc(&alive_buf, length);
 	if (ret != 0){
 		ret = M0_ERR_INFO(ret, "Failed to allocate buffer of "
 				  "length = %u", length);
@@ -1948,24 +2071,20 @@ static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 	}
 
 	/* Get data from current vector in buffer */
-	bufvec_to_buf_copy(alive_bufvec, &buf, 1);
+	bufvec2buf(&alive_buf, alive_bufvec);
 
-	ec_encode_data_update(buf.b_nob, ir->si_data_nr, ir->si_failed_nr, curr_idx,
-			      ir->si_decode_tbls, (uint8_t *)buf.b_addr, failed_bufs);
-	m0_buf_free(&buf);
+	isal_encode_data_update(f_bufs, &alive_buf, curr_idx,
+				ir->si_decode_tbls, ir->si_data_nr,
+				ir->si_failed_nr);
+
+	m0_buf_free(&alive_buf);
 
 	/* Copy recovered data back to buffer vector. */
-	for (i = 0; i < ir->si_failed_nr; i++) {
-		m0_buf_init(&buf, failed_bufs[i], length);
-
-		failed_block = &ir->si_blocks[ir->si_failed_idx[i]];
-		buf_to_bufvec_copy(failed_block->sib_addr, &buf, 1);
-	}
+	buf_to_bufvec_copy(failed_bufvecs, f_bufs, ir->si_failed_nr);
 
 exit:
 	for (i = 0; i < ir->si_failed_nr; i++)
-		m0_free(failed_bufs[i]);
-	m0_free(failed_bufs);
+		m0_buf_free(&f_bufs[i]);
 
 	return M0_RC(ret);
 }

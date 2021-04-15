@@ -220,12 +220,13 @@ M0_INTERNAL void m0_parity_math_diff(struct m0_parity_math *math,
 				     struct m0_buf *parity, uint32_t index);
 
 /**
-   Parity block refinement iff one data word of one data unit had changed.
-   @param data[in] - data block, treated as uint8_t block with b_nob elements.
-   @param parity[out] - parity block, treated as uint8_t block with
-                        b_nob elements.
-   @param data_ind_changed[in] - index of data unit recently changed.
-   @pre m0_parity_math_init() succeeded.
+ * Parity block refinement iff one data word of one data unit had changed.
+ * @param[in]  data             - data block, treated as uint8_t block with
+ *                                b_nob elements.
+ * @param[out] parity           - parity block, treated as uint8_t block with
+ *                                b_nob elements.
+ * @param[in]  data_ind_changed - index of data unit recently changed.
+ * @pre m0_parity_math_init() succeeded.
  */
 M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
 				       struct m0_buf *data,
@@ -241,19 +242,19 @@ M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math);
 #endif /* RS_ENCODE_ENABLED */
 
 /**
-   Recovers data units' data words from single or multiple errors.
-   If parity also needs to be recovered, user of the function needs
-   to place a separate call for m0_parity_math_calculate().
-   @param data[inout] - data block, treated as uint8_t block with
-			b_nob elements.
-   @param parity[inout] - parity block, treated as uint8_t block with
-                          b_nob elements.
-   @param fail[in] - block with flags, treated as uint8_t block with
-                     b_nob elements, if element is '1' then data or parity
-                     block with given index is treated as broken.
-   @param algo[in] - algorithm for recovery of data in case reed solomon
-                     encoding is used.
-   @pre m0_parity_math_init() succeded.
+ * Recovers data units' data words from single or multiple errors.
+ * If parity also needs to be recovered, user of the function needs
+ * to place a separate call for m0_parity_math_calculate().
+ * @param[in,out] data   - data block, treated as uint8_t block with
+ *                         b_nob elements.
+ * @param[in,out] parity - parity block, treated as uint8_t block with
+ *                         b_nob elements.
+ * @param[in]     fail   - block with flags, treated as uint8_t block with
+ *                         b_nob elements, if element is '1' then data or
+ *                         parityblock with given index is treated as broken.
+ * @param[in]     algo   - algorithm for recovery of data in case reed solomon
+ *                         encoding is used.
+ * @pre m0_parity_math_init() succeded.
  */
 M0_INTERNAL void m0_parity_math_recover(struct m0_parity_math *math,
 					struct m0_buf *data,
