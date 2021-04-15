@@ -1620,8 +1620,8 @@ static int ioreq_parity_verify(struct m0_op_io *ioo)
 	instance = m0__op_instance(op);
 	play = pdlayout_get(ioo);
 
-	if (!(op->op_code == M0_OC_READ &&
-	      instance->m0c_config->mc_is_read_verify))
+	if (op->op_code != M0_OC_READ ||
+	    !instance->m0c_config->mc_is_read_verify)
 		return M0_RC(0);
 
 	m0_semaphore_down(&cpus_sem);

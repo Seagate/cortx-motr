@@ -66,7 +66,7 @@ const struct m0_rpc_frm_ops m0_rpc_frm_default_ops = {
 	.fo_packet_ready = packet_ready,
 };
 
-enum { M0_RPC_TMO = 2 };
+enum { M0_RPC_TMO = 8 };
 
 /**
    RPC layer's wrapper on m0_net_buffer. rpc_buffer carries one packet at

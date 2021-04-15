@@ -1842,7 +1842,6 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 	char			*bp = NULL;
 	char                    *send_msg = NULL;
 	struct nlx_ping_ctx     *cctx;
-
 	M0_ALLOC_PTR(cctx);
 	if (cctx == NULL)
 		goto free_ctx;

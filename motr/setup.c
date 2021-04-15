@@ -296,7 +296,7 @@ static bool cs_endpoint_is_duplicate(const struct m0_reqh_context *rctx,
 static int cs_endpoint_validate(struct m0_motr *cctx, const char *ep,
 				const char *xprt_name)
 {
-	struct m0_net_xprt *xprt;
+	struct m0_net_xprt *xprt = NULL;
 
 	M0_ENTRY();
 	M0_PRE(cctx != NULL);
@@ -307,6 +307,8 @@ static int cs_endpoint_validate(struct m0_motr *cctx, const char *ep,
 	xprt = cs_xprt_lookup(xprt_name, cctx->cc_xprts, cctx->cc_xprts_nr);
 	if (xprt == NULL)
 		return M0_RC(-EINVAL);
+	if (m0_net_xprt_default_get() == NULL)
+		m0_net_xprt_default_set(xprt);
 
 	return M0_RC(cs_endpoint_is_duplicate(&cctx->cc_reqh_ctx, xprt, ep) ?
 		     -EADDRINUSE : 0);
