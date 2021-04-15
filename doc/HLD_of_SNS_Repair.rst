@@ -185,7 +185,7 @@ When a failure is detected, the system decides to do the SNS repair. The SNS rep
 
 -  The default configuration will always have K > 1 (and L > 1) to insure the system can tolerate multiple failure. 
 
--  More detailed discussion on this can be found at: `Reliability Calculations and Redundancy Level <Reliability-Calculations-and-Redundancy-Level>`__ and in the *Scalability analysis* section.
+-  More detailed discussion on this can be found at: "Reliability Calculations and Redundancy Level" and in the *Scalability analysis* section.
 
 4.3. Triggers of SNS repair
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -242,7 +242,7 @@ When a failure is detected, the system decides to do the SNS repair. The SNS rep
 4.9. Device-oriented repair
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Agent iterates components over the affected container or all the containers which have surviving data/parity unit in the need-to-reconstruct parity group. These data/parity unit will be read and sent to proper agent where spare space lives, and used to re-compute the lost data `HLD of Copy Machine and Agents <HLD-of-Copy-Machine-and-Agents>`__.
+Agent iterates components over the affected container or all the containers which have surviving data/parity unit in the need-to-reconstruct parity group. These data/parity unit will be read and sent to proper agent where spare space lives, and used to re-compute the lost data. Please refer to "HLD of Copy Machine and Agents".
 
 4.10. SNS repair and layout
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -268,7 +268,7 @@ The SNS manager gets an input set configuration and output set configuration as 
 
 .. This section defines a logical structure of the designed component: the decomposition showing how the functional specification is met. Subcomponents and diagrams of their interrelations should go in this section.
 
-Please refer `HLD of Copy Machine and Agents <HLD-of-Copy-Machine-and-Agents>`__ for logical specifications of copy machine.
+Please refer "HLD of Copy Machine and Agents" for logical specifications of copy machine.
 
 Concurrency control
 ~~~~~~~~~~~~~~~~~~~
@@ -281,7 +281,7 @@ Motr will support variety of concurrency control mechanisms selected dynamically
 
 -  "Component level locking" is achieved by taking lock on an extent of object data on the same server where these data are located.
 
--  Time-stamp based optimistic concurrency control. See `Scalable Concurrency Control and Recovery for Shared Storage <Scalable-Concurrency-Control-and-Recovery-for-Shared-Storage>`__.
+-  Time-stamp based optimistic concurrency control. See "Scalable Concurrency Control and Recovery for Shared Storage".
 
 Independently of whether a cluster-wide object level locking model [1]_, where the data are protected by locks taken on cluster-wide object (these can be either extent locks taken in cluster-wide object byte offset name-space [2]_ or "whole-file" locks [3]_), or component level locking model, or time-stamping model is used, locks or time-stamps are served by a potentially replicated locking service running on a set of *lock servers* (a set that might be equal to the set of servers in the pool). The standard locking protocol as used by the file system clients would imply that all locks or time-stamps necessary for an aggregation group processing must be acquired before any processing can be done. This implies a high degree of synchronization between agents processing copy packets from the same aggregation group.
 
@@ -1487,73 +1487,7 @@ In all cases, storage IO is the bottleneck.
 .. How the component is delivered and installed.
 
 
-9. Inspection process data
----------------------------
 
-.. The tables below are filled in by design inspectors and reviewers. Measurements and defects are transferred to the appropriate project data-bases as necessary.
-
-9.1. Logt
-~~~~~~~~~~
-
-+-------+----------+-----------+----------+----------+-------+-------+-------+
-|       | Task     | Phase     | Part     | Date     | Pl    | A     |       |
-|       |          |           |          |          | anned | ctual | Comme |
-|       |          |           |          |          | time  | time  | nts   |
-|       |          |           |          |          | (mi   | (mi   |       |
-|       |          |           |          |          | n.)   | n.)   |       |
-+-------+----------+-----------+----------+----------+-------+-------+-------+
-| Peter | SNS      | HL        | 1        |          | 180   |       |       |
-|       | repair   | DINSP     |          |          |       |       |       |
-|       |          |           |          |          |       |       |       |
-+-------+----------+-----------+----------+----------+-------+-------+-------+
-| Andy  | SNS      | HL        | 1        |          | 180   |       |       |
-|       | repair   | DINSP     |          |          |       |       |       |
-|       |          |           |          |          |       |       |       |
-+-------+----------+-----------+----------+----------+-------+-------+-------+
-
-9.2. Logd
-~~~~~~~~~~
-
-+---------+----------+----------+----------+----------+----------+
-| No.     |   Task   | Summary  |          | Date     | Comments |
-|         |          |          | Reported | reported |          |
-|         |          |          | by       |          |          |
-+---------+----------+----------+----------+----------+----------+
-| 1       | SNS      | use      | nikita   | 20       |          |
-|         | repair   | cases    |          | 10.03.18 |          |
-|         |          | must     |          |          |          |
-|         |          | show     |          |          |          |
-|         |          | *how*    |          |          |          |
-|         |          | the      |          |          |          |
-|         |          | design   |          |          |          |
-|         |          | deals    |          |          |          |
-|         |          | with the |          |          |          |
-|         |          | use case |          |          |          |
-+---------+----------+----------+----------+----------+----------+
-| 2       | SNS      |          |          |          |          |
-|         | repair   |          |          |          |          |
-+---------+----------+----------+----------+----------+----------+
-| 3       | SNS      |          |          |          |          |
-|         | repair   |          |          |          |          |
-+---------+----------+----------+----------+----------+----------+
-| 4       | SNS      |          |          |          |          |
-|         | repair   |          |          |          |          |
-+---------+----------+----------+----------+----------+----------+
-| 5       | SNS      |          |          |          |          |
-|         | repair   |          |          |          |          |
-+---------+----------+----------+----------+----------+----------+
-| 6       | SNS      |          |          |          |          |
-|         | repair   |          |          |          |          |
-+---------+----------+----------+----------+----------+----------+
-| 7       | SNS      |          |          |          |          |
-|         | repair   |          |          |          |          |
-+---------+----------+----------+----------+----------+----------+
-| 8       | SNS      |          |          |          |          |
-|         | repair   |          |          |          |          |
-+---------+----------+----------+----------+----------+----------+
-| 9       | SNS      |          |          |          |          |
-|         | repair   |          |          |          |          |
-+---------+----------+----------+----------+----------+----------+
 
 .. [1]
    [u.dlm.logical-locking]
