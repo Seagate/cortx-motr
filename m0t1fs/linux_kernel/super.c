@@ -572,7 +572,6 @@ int m0t1fs_rm_service_start(struct m0t1fs_sb *csb)
 
 int m0t1fs_net_init(struct m0t1fs_sb *csb, const char *ep)
 {
-	struct m0_net_xprt   *xprt;
 	struct m0_net_domain *ndom;
 	int                   rc;
 	char                 *laddr = NULL;
@@ -598,11 +597,10 @@ int m0t1fs_net_init(struct m0t1fs_sb *csb, const char *ep)
 		M0_LOG(M0_DEBUG, "local ep is %s", laddr);
 		csb->csb_laddr = laddr;
 	}
-	csb->csb_xprt  = &m0_net_lnet_xprt;
-	xprt           =  csb->csb_xprt;
+	csb->csb_xprt  = m0_net_xprt_default_get();
 	ndom           = &csb->csb_ndom;
 
-	rc = m0_net_domain_init(ndom, xprt);
+	rc = m0_net_domain_init(ndom, csb->csb_xprt);
 	if (rc != 0) {
 		csb->csb_laddr = NULL;
 		if (ep == NULL) {

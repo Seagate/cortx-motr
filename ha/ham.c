@@ -46,7 +46,6 @@
 #include "module/instance.h"  /* m0 */
 #include "motr/init.h"        /* m0_init */
 #include "net/net.h"          /* m0_net_domain */
-#include "net/lnet/lnet.h"    /* m0_net_lnet_xprt */
 #include "net/buffer_pool.h"  /* m0_net_buffer_pool */
 #include "reqh/reqh.h"        /* m0_reqh */
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine */
@@ -237,7 +236,7 @@ static void ham_rpc_ctx_init(struct ham_rpc_ctx *ctx,
 	M0_PRE(local_endpoint != NULL && *local_endpoint != '\0');
 	M0_PRE(m0_conf_fid_type(local_process) == &M0_CONF_PROCESS_TYPE);
 
-	rc = m0_net_domain_init(&ctx->mrc_net_dom, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(&ctx->mrc_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_net_buffer_pool_setup(
 		&ctx->mrc_net_dom,
