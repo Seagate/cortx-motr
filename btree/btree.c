@@ -2140,7 +2140,6 @@ void m0_btree_ut_node_add_del_rec(void)
 
 	while(run_loop--) {
 		int i;
-		int j;
 
 		/** Add records */
 		i = 0;
@@ -2162,7 +2161,7 @@ void m0_btree_ut_node_add_del_rec(void)
 		/** Delete all the records from the node. */
 		i = node_count(node1) - 1;
 		while (node_count(node1) != 0) {
-			j = rand() % node_count(node1);
+			int j = rand() % node_count(node1);
 			node_del(node1, j, NULL);
 			M0_ASSERT(i-- == node_count(node1));
 		}
