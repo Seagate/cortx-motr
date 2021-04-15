@@ -1640,8 +1640,7 @@ static void ff_fini(const struct nd *node)
 
 static int ff_count(const struct nd *node)
 {
-	struct ff_head *h    = ff_data(node);
-	int             used = h->ff_used;
+	int used = ff_data(node)->ff_used;
 	if (ff_data(node)->ff_level > 0)
 		used --;
 	return used;
