@@ -182,7 +182,9 @@ struct m0_dtm0_log_rec {
 struct m0_be_dtm0_log {
 	/** Indicates if the structure is a persistent or volatile */
 	bool                     dl_is_persistent;
-	/** DTM0 lock, volatile-field */
+	/** dl_lock protects access to the dl_list/dl_tlist. This lock
+	 *  should be held before performing any operations on the log
+	 *  involving a log record search or insert. */
 	struct m0_mutex          dl_lock;
 	struct m0_be_seg	*dl_seg;
 	/** DTM0 clock source */
@@ -257,6 +259,18 @@ M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
  * @return None
  */
 M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log **log);
+
+/**
+ * Free the memory allocated by m0_be_dtm0_log_alloc
+ *
+ * @pre m0_be_dtm0_log->dl_is_persistent needs to be false.
+ * @post *log is set to NULL.
+ *
+ * @param log Pointer to a log structure that has been previously allocated.
+ *
+ * @return None
+ */
+M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log **log);
 
 /**
  * For performing an operation on a persistent log, we need to take the
@@ -401,9 +415,9 @@ M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
  *                 the log can be deleted,
  *         Anything else is considered a failure.
  */
-M0_INTERNAL int m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log	    *log,
-					  const struct m0_dtm0_tid  *id,
-					  struct m0_be_tx_credit    *cred);
+M0_INTERNAL bool m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log    *log,
+					   const struct m0_dtm0_tid *id,
+					   struct m0_be_tx_credit   *cred);
 
 /**
  * Given a pointer to a dtm0 persistent log and a transaction id, this routine

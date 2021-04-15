@@ -77,7 +77,6 @@ M0_INTERNAL int m0_be_dtm0_log_alloc(struct m0_be_dtm0_log **out)
 	if (log == NULL)
 		return M0_ERR(-ENOMEM);
 
-	M0_SET0(log);
 	M0_ALLOC_PTR(log->u.dl_tlist);
 	if (log->u.dl_tlist == NULL) {
 		m0_free(log);
@@ -103,21 +102,26 @@ M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
 	return 0;
 }
 
-M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log **log)
+M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log **in_log)
 {
-	struct m0_be_dtm0_log *plog = *log;
-	bool                   ispstore = plog->dl_is_persistent;
+	struct m0_be_dtm0_log *log = *in_log;
 
-	M0_PRE(m0_be_dtm0_log__invariant(plog));
-	m0_mutex_fini(&plog->dl_lock);
-	lrec_tlist_fini(plog->u.dl_tlist);
-	plog->dl_cs = NULL;
+	M0_PRE(m0_be_dtm0_log__invariant(log));
+	m0_mutex_fini(&log->dl_lock);
+	lrec_tlist_fini(log->u.dl_tlist);
+	log->dl_cs = NULL;
+}
 
-	if (!ispstore) {
-		m0_free(plog->u.dl_tlist);
-		m0_free(plog);
-		*log = NULL;
-	}
+M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log **in_log)
+{
+	struct m0_be_dtm0_log *log = *in_log;
+	bool                   ispstore = log->dl_is_persistent;
+
+	M0_PRE(!ispstore);
+
+	m0_free(log->u.dl_tlist);
+	m0_free(log);
+	*in_log = NULL;
 }
 
 M0_INTERNAL void dtm0_be_alloc_tx_desc_credit(struct m0_dtm0_tx_desc *txd,
@@ -147,8 +151,6 @@ M0_INTERNAL void dtm0_be_set_log_rec_credit(struct m0_dtm0_tx_desc *txd,
 					     struct m0_be_seg	    *seg,
 					     struct m0_be_tx_credit *accum)
 {
-	struct m0_dtm0_log_rec *rec;
-
 	M0_BE_ALLOC_CREDIT_BUF(payload, seg, accum);
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(*payload));
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(*txd));
@@ -158,7 +160,7 @@ M0_INTERNAL void dtm0_be_set_log_rec_credit(struct m0_dtm0_tx_desc *txd,
 	m0_be_tx_credit_add(accum,
 			    &M0_BE_TX_CREDIT(txd->dtd_ps.dtp_nr,
 					     sizeof(struct m0_dtm0_tx_pa)));
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(*rec));
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(struct m0_dtm0_log_rec));
 }
 
 M0_INTERNAL void dtm0_be_del_log_rec_credit(struct m0_be_seg       *seg,
@@ -181,9 +183,9 @@ M0_INTERNAL void dtm0_be_log_destroy_credit(struct m0_be_seg       *seg,
 M0_INTERNAL void m0_be_dtm0_log_credit(enum m0_be_dtm0_log_credit_op op,
 				       struct m0_dtm0_tx_desc	    *txd,
 				       struct m0_buf		    *payload,
-                                       struct m0_be_seg             *seg,
+				       struct m0_be_seg             *seg,
 				       struct m0_dtm0_log_rec	    *rec,
-                                       struct m0_be_tx_credit       *accum)
+				       struct m0_be_tx_credit       *accum)
 {
 	/*TODO:Complete implementation during persistent list implementation */
 	struct m0_be_dtm0_log *log;
@@ -373,6 +375,7 @@ static void be_dtm0_plog_rec_fini(struct m0_dtm0_log_rec **dl_lrec,
 	M0_BE_FREE_PTR_SYNC(rec->dlr_txd.dtd_ps.dtp_pa, seg, tx);
 	M0_BE_FREE_PTR_SYNC(rec->dlr_payload.b_addr, seg, tx);
 	M0_BE_FREE_PTR_SYNC(rec, seg, tx);
+	*dl_lrec = NULL;
 }
 
 static int m0_be_dtm0_log__insert(struct m0_be_dtm0_log  *log,
@@ -403,7 +406,7 @@ static int m0_be_dtm0_log__insert(struct m0_be_dtm0_log  *log,
 static int be_dtm0_log__set(struct m0_be_dtm0_log	 *log,
 			    struct m0_be_tx		 *tx,
 			    const struct m0_dtm0_tx_desc *txd,
-			    struct m0_buf		 *payload,
+			    const struct m0_buf		 *payload,
 			    struct m0_dtm0_log_rec	 *rec)
 {
 	bool		  is_persistent = log->dl_is_persistent;
@@ -465,6 +468,12 @@ M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
 	M0_PRE(m0_dtm0_tid__invariant(id));
 	M0_PRE(m0_mutex_is_locked(&log->dl_lock));
 
+	/**
+	 * Iterate over the log records from the begining and check whether all
+	 * the records preceeding this are persistent. If not, we cannot prune
+	 * the record with the given id.
+	 */
+
 	m0_tl_for (lrec, log->u.dl_tlist, rec) {
 		if (!m0_dtm0_tx_desc_state_eq(&rec->dlr_txd,
 					      M0_DTPS_PERSISTENT))
@@ -478,12 +487,14 @@ M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
 	if (rc != M0_DTS_EQ)
 		return -ENOENT;
 
+	/* rec is a pointer to the record matching the input id. Delete all the
+	 * previous records and then this record. */
 	while ((currec = lrec_tlist_pop(log->u.dl_tlist)) != rec) {
 		M0_ASSERT(m0_dtm0_log_rec__invariant(currec));
 		be_dtm0_log_rec_fini(&currec, tx);
 	}
 
-	be_dtm0_log_rec_fini(&currec, tx);
+	be_dtm0_log_rec_fini(&rec, tx);
 	return rc;
 }
 
@@ -492,7 +503,10 @@ M0_INTERNAL void m0_be_dtm0_log_clear(struct m0_be_dtm0_log *log)
 	struct m0_dtm0_log_rec *rec;
 
 	/* This function is expected to be called only on the client side where
-	   the log will always be a volatile log. */
+	 * the log will always be a volatile log.
+	 * TBD: can we change the name of dl_is_persistent to something more
+	 * intutive.
+	 */
 	M0_ASSERT(!log->dl_is_persistent);
 
 	m0_tl_teardown(lrec, log->u.dl_tlist, rec) {
@@ -509,13 +523,14 @@ M0_INTERNAL int m0_be_dtm0_volatile_log_insert(struct m0_be_dtm0_log  *log,
 {
 	int rc;
 
+	M0_ENTRY();
 	/* TODO: dissolve dlr_txd and remove this code */
 	rc = m0_dtm0_tx_desc_copy(&rec->dlr_dtx.dd_txd, &rec->dlr_txd);
 	if (rc != 0)
-		return rc;
+		return M0_ERR(rc);
 
 	lrec_tlink_init_at_tail(rec, log->u.dl_tlist);
-	return 0;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_dtm0_volatile_log_update(struct m0_be_dtm0_log  *log,
@@ -525,27 +540,26 @@ M0_INTERNAL void m0_be_dtm0_volatile_log_update(struct m0_be_dtm0_log  *log,
 	m0_dtm0_tx_desc_apply(&rec->dlr_txd, &rec->dlr_dtx.dd_txd);
 }
 
-M0_INTERNAL int m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log	    *log,
-					  const struct m0_dtm0_tid  *id,
-					  struct m0_be_tx_credit    *cred)
+M0_INTERNAL bool m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log    *log,
+					   const struct m0_dtm0_tid *id,
+					   struct m0_be_tx_credit   *accum)
 {
 	/* This assignment is meaningful as it covers the empty log case */
 	int                     rc = M0_DTS_LT;
 	struct m0_dtm0_log_rec *rec;
 	struct m0_be_list      *dl_list = log->u.dl_list;
+	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT(0, 0);
 
 	M0_PRE(m0_be_dtm0_log__invariant(log));
 	M0_PRE(m0_dtm0_tid__invariant(id));
 	M0_PRE(m0_mutex_is_locked(&log->dl_lock));
 
 	m0_be_list_for(lrec, dl_list, rec) {
-		if (!m0_dtm0_tx_desc_state_eq(&rec->dlr_txd,
-					      M0_DTPS_PERSISTENT))
-			return M0_ERR(-EPROTO);
+		if (!m0_dtm0_tx_desc_state_eq(&rec->dlr_txd, M0_DTPS_PERSISTENT))
+			return false;
 
-		if (cred) {
-			m0_be_dtm0_log_credit(M0_DTML_PRUNE, NULL, NULL,
-					      log->dl_seg, rec, cred);
+		if (accum != NULL) {
+			m0_be_dtm0_log_credit(M0_DTML_PRUNE, NULL, NULL, log->dl_seg, rec, &cred);
 		}
 		rc = m0_dtm0_tid_cmp(log->dl_cs, &rec->dlr_txd.dtd_id, id);
 		if (rc != M0_DTS_LT)
@@ -553,8 +567,12 @@ M0_INTERNAL int m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log	    *log,
 	} m0_be_list_endfor;
 
 	if (rc != M0_DTS_EQ)
-		return -ENOENT;
-	return 0;
+		return false;
+	if (accum != NULL) {
+		m0_be_tx_credit_add(accum, &cred);
+	}
+
+	return true;
 }
 
 M0_INTERNAL int m0_be_dtm0_plog_prune(struct m0_be_dtm0_log    *log,
@@ -578,6 +596,8 @@ M0_INTERNAL int m0_be_dtm0_plog_prune(struct m0_be_dtm0_log    *log,
 			break;
 	} m0_be_list_endfor;
 
+	/* TODO: change the function signature to void if we are always going to
+	 * returning 0. */
 	return 0;
 }
 
@@ -587,7 +607,7 @@ M0_INTERNAL void m0_be_dtm0_log_pmsg_post(struct m0_be_dtm0_log *log,
 	struct m0_dtm0_log_rec       *rec;
 	struct dtm0_req_fop          *req = m0_fop_data(fop);
 	const struct m0_dtm0_tx_desc *txd = &req->dtr_txr;
-	bool                          is_stable;
+	bool                          is_persistent;
 
 	M0_PRE(log != NULL);
 	M0_PRE(!log->dl_is_persistent);
@@ -603,8 +623,8 @@ M0_INTERNAL void m0_be_dtm0_log_pmsg_post(struct m0_be_dtm0_log *log,
 	 */
 	M0_ASSERT_INFO(rec != NULL, "Log record must be inserted into the log "
 		       "in m0_dtx0_close().");
-	is_stable = m0_dtm0_tx_desc_state_eq(&rec->dlr_txd,
-					     M0_DTPS_PERSISTENT);
+	is_persistent = m0_dtm0_tx_desc_state_eq(&rec->dlr_txd,
+						 M0_DTPS_PERSISTENT);
 	m0_mutex_unlock(&log->dl_lock);
 	/* NOTE: we do not need to hold the global mutex any longer
 	 * because of the following assumptions:
@@ -614,7 +634,7 @@ M0_INTERNAL void m0_be_dtm0_log_pmsg_post(struct m0_be_dtm0_log *log,
 	 *    i.e. it should not try to remove or insert records.
 	 *    This point is not enforced.
 	 */
-	if (!is_stable)
+	if (!is_persistent)
 		m0_dtm0_dtx_pmsg_post(&rec->dlr_dtx, fop);
 
 	M0_LEAVE();

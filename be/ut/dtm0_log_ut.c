@@ -281,6 +281,7 @@ void test_volatile_dtm0_log(void)
 
 	m0_mutex_unlock(&log->dl_lock);
 	m0_be_dtm0_log_fini(&log);
+	m0_be_dtm0_log_free(&log);
 	m0_dtm0_clk_src_fini(&cs);
 }
 
@@ -342,6 +343,7 @@ static void persistent_log_operate(struct m0_be_dtm0_log *log)
 	struct m0_dtm0_log_rec *rec[UT_DTM0_LOG_MAX_LOG_REC] = {};
  	int                     i;
  	int                     rc;
+	bool			can_prune;
 
 	for (i = 0; i < UT_DTM0_LOG_MAX_LOG_REC; ++i) {
 		rc = ut_dl_init(&txd[i], &buf[i], i);
@@ -406,8 +408,8 @@ static void persistent_log_operate(struct m0_be_dtm0_log *log)
 	M0_UT_ASSERT(rc != 0);
 
 	m0_mutex_lock(&log->dl_lock);
-	rc = m0_be_dtm0_plog_can_prune(log, &txd[0].dtd_id, &cred);
-	M0_UT_ASSERT(rc == -EPROTO);
+	can_prune = m0_be_dtm0_plog_can_prune(log, &txd[0].dtd_id, &cred);
+	M0_UT_ASSERT(!can_prune);
 	m0_mutex_unlock(&log->dl_lock);
 
 	p_state_set(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
@@ -431,8 +433,8 @@ static void persistent_log_operate(struct m0_be_dtm0_log *log)
 
 	m0_mutex_lock(&log->dl_lock);
 	M0_SET0(&cred);
-	rc = m0_be_dtm0_plog_can_prune(log, &txd[0].dtd_id, &cred);
-	M0_UT_ASSERT(rc == 0);
+	can_prune = m0_be_dtm0_plog_can_prune(log, &txd[0].dtd_id, &cred);
+	M0_UT_ASSERT(can_prune);
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
 	rc = m0_be_tx_open_sync(tx);
@@ -449,8 +451,8 @@ static void persistent_log_operate(struct m0_be_dtm0_log *log)
 	m0_mutex_unlock(&log->dl_lock);
 
 	m0_mutex_lock(&log->dl_lock);
-	rc = m0_be_dtm0_plog_can_prune(log, &txd[0].dtd_id, &cred);
-	M0_UT_ASSERT(rc == -ENOENT);
+	can_prune = m0_be_dtm0_plog_can_prune(log, &txd[0].dtd_id, &cred);
+	M0_UT_ASSERT(!can_prune);
 	m0_mutex_unlock(&log->dl_lock);
 
 	p_state_set(&txd[0].dtd_ps.dtp_pa[0], M0_DTPS_INPROGRESS);
@@ -483,8 +485,8 @@ static void persistent_log_operate(struct m0_be_dtm0_log *log)
 
 	M0_SET0(&cred);
 	m0_mutex_lock(&log->dl_lock);
-	rc = m0_be_dtm0_plog_can_prune(log, &txd[0].dtd_id, &cred);
-	M0_UT_ASSERT(rc == 0);
+	can_prune = m0_be_dtm0_plog_can_prune(log, &txd[0].dtd_id, &cred);
+	M0_UT_ASSERT(can_prune);
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
 	rc = m0_be_tx_open_sync(tx);
@@ -536,8 +538,8 @@ static void persistent_log_operate(struct m0_be_dtm0_log *log)
 	i--;
 	M0_SET0(&cred);
 	m0_mutex_lock(&log->dl_lock);
-	rc = m0_be_dtm0_plog_can_prune(log, &txd[i].dtd_id, &cred);
-	M0_UT_ASSERT(rc == 0);
+	can_prune = m0_be_dtm0_plog_can_prune(log, &txd[i].dtd_id, &cred);
+	M0_UT_ASSERT(can_prune);
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
 	rc = m0_be_tx_open_sync(tx);
