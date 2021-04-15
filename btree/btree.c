@@ -770,7 +770,7 @@ enum {
 /** Direction of move in node_move(). */
 enum dir {
 	/** Move (from right to) left. */
-	D_LEFT,
+	D_LEFT = 1,
 	/** Move (from left to) right. */
 	D_RIGHT
 };
@@ -858,6 +858,9 @@ struct node_type {
 	/** Moves record(s) between nodes */
 	void (*nt_move) (struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
+
+	/** Validates node composition */
+	bool (*nt_invariant)(const struct nd *node);
 };
 
 /**
@@ -1012,87 +1015,107 @@ struct m0_btree_oimpl {
 	struct level    i_level[0];
 };
 
+static bool node_invariant(const struct nd *node)
+{
+	return node->n_type->nt_invariant(node);
+}
+
 static int node_count(const struct nd *node)
 {
+	M0_PRE(node_invariant(node));
 	return node->n_type->nt_count(node);
 }
 
 static int node_space(const struct nd *node)
 {
+	M0_PRE(node_invariant(node));
 	return node->n_type->nt_space(node);
 }
 
 #if 0
 static int node_level(const struct nd *node)
 {
-	return node->n_type->nt_level(node);
+	M0_PRE(node_invariant(node));
+	return (node->n_type->nt_level(node));
 }
 
 static int node_shift(const struct nd *node)
 {
-	return node->n_type->nt_shift(node);
+	M0_PRE(node_invariant(node));
+	return (node->n_type->nt_shift(node));
 }
 
 static void node_fid(const struct nd *node, struct m0_fid *fid)
 {
+	M0_PRE(node_invariant(node));
 	node->n_type->nt_fid(node, fid);
 }
 #endif
 
 static void node_rec(struct slot *slot)
 {
+	M0_PRE(node_invariant(slot->s_node));
 	slot->s_node->n_type->nt_rec(slot);
 }
 
 #if 0
 static void node_key(struct slot *slot)
 {
+	M0_PRE(node_invariant(slot->node));
 	slot->s_node->n_type->nt_key(slot);
 }
 
 static void node_child(struct slot *slot, struct segaddr *addr)
 {
+	M0_PRE(node_invariant(slot->node));
 	slot->s_node->n_type->nt_child(slot, addr);
 }
 #endif
 
 static bool node_isfit(struct slot *slot)
 {
-	return slot->s_node->n_type->nt_isfit(slot);
+	M0_PRE(node_invariant(slot->s_node));
+	return (slot->s_node->n_type->nt_isfit(slot));
 }
 
 static void node_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
 {
+	M0_PRE(node_invariant(slot->s_node));
 	slot->s_node->n_type->nt_done(slot, tx, modified);
 }
 
 static void node_make(struct slot *slot, struct m0_be_tx *tx)
 {
+	M0_PRE(node_invariant(slot->s_node));
 	slot->s_node->n_type->nt_make(slot, tx);
 }
 
 #ifndef __KERNEL__
 static void node_find(struct slot *slot, const struct m0_btree_key *key)
 {
+	M0_PRE(node_invariant(slot->s_node));
 	slot->s_node->n_type->nt_find(slot, key);
 }
 #endif
 
 static void node_fix(const struct nd *node, struct m0_be_tx *tx)
 {
+	M0_PRE(node_invariant(node));
 	node->n_type->nt_fix(node, tx);
 }
 
 #if 0
 static void node_cut(const struct nd *node, int idx, int size,
-		    struct m0_be_tx *tx)
+		     struct m0_be_tx *tx)
 {
+	M0_PRE(node_invariant(node));
 	node->n_type->nt_cut(node, idx, size, tx);
 }
 #endif
 
 static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 {
+	M0_PRE(node_invariant(node));
 	node->n_type->nt_del(node, idx, tx);
 }
 
@@ -1100,6 +1123,9 @@ static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 static void node_move(struct nd *src, struct nd *tgt,
 		      enum dir dir, int nr, struct m0_be_tx *tx)
 {
+	M0_PRE(node_invariant(src));
+	M0_PRE(node_invariant(dst));
+	M0_IN(dir,(D_LEFT, D_RIGHT));
 	tgt->n_type->nt_move(src, tgt, dir, nr, tx);
 }
 #endif
@@ -1154,11 +1180,27 @@ static bool addr_is_aligned(const void *addr)
 	return (((size_t)addr & ((1ULL << NODE_SHIFT_MIN) - 1)) == 0);
 }
 
+/**
+ * This function validates the segment address (of node).
+ *
+ * @param seg_addr - Start address (of the node) in the segment.
+ *
+ * @return bool - True if seg_addr is VALID according to the segment
+ *                address semantics.
+ */
 static bool segaddr_is_valid(const struct segaddr *seg_addr)
 {
 	return (0xff000000000001f0ull & seg_addr->as_core) == 0;
 }
 
+/**
+ * This function builds the segment address as validates the segment address (of node).
+ *
+ * @param addr  - Start address (of the node) in the segment.
+ *        shift - Size of the node as pow-of-2.
+ *
+ * @return segaddr - Properly formatted Segment address.
+ */
 static struct segaddr segaddr_build(const void *addr, int shift)
 {
 	struct segaddr sa;
@@ -1171,12 +1213,28 @@ static struct segaddr segaddr_build(const void *addr, int shift)
 	return sa;
 }
 
-static void *segaddr_addr(const struct segaddr *seg_addr)
+/**
+ * This function returns the CPU addressable pointer out of the formatted
+ * segment address.
+ *
+ * @param seg_addr - Formatted segment address.
+ *
+ * @return addr - CPU addressable value.
+ */
+static void* segaddr_addr(const struct segaddr *seg_addr)
 {
 	M0_PRE(segaddr_is_valid(seg_addr));
 	return (void *)(seg_addr->as_core & ~((1ULL << NODE_SHIFT_MIN) - 1));
 }
 
+/**
+ * This function returns the size (pow-of-2) of the node extracted out of the
+ * segment address.
+ *
+ * @param seg_addr - Formatted segment address.
+ *
+ * @return shift value - Size of the node.
+ */
 static int segaddr_shift(const struct segaddr *addr)
 {
 	M0_PRE(segaddr_is_valid(addr));
@@ -1489,6 +1547,7 @@ static void ff_cut(const struct nd *node, int idx, int size,
 static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx);
 static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
+static bool ff_invariant(const struct nd *node);
 
 /**
  *  Implementation of node which supports fixed format/size for Keys and Values
@@ -1496,26 +1555,27 @@ static void generic_move(struct nd *src, struct nd *tgt,
  */
 static const struct node_type fixed_format = {
 	//.nt_id,
-	.nt_name = "m0_bnode_fixed_format",
+	.nt_name      = "m0_bnode_fixed_format",
 	//.nt_tag,
-	.nt_init   = ff_init,
-	.nt_fini   = ff_fini,
-	.nt_count  = ff_count,
-	.nt_space  = ff_space,
-	.nt_level  = ff_level,
-	.nt_shift  = ff_shift,
-	.nt_fid    = ff_fid,
-	.nt_rec    = ff_rec,
-	.nt_key    = ff_node_key,
-	.nt_child  = ff_child,
-	.nt_isfit  = ff_isfit,
-	.nt_done   = ff_done,
-	.nt_make   = ff_make,
-	.nt_find   = ff_find,
-	.nt_fix    = ff_fix,
-	.nt_cut    = ff_cut,
-	.nt_del    = ff_del,
-	.nt_move   = generic_move,
+	.nt_init      = ff_init,
+	.nt_fini      = ff_fini,
+	.nt_count     = ff_count,
+	.nt_space     = ff_space,
+	.nt_level     = ff_level,
+	.nt_shift     = ff_shift,
+	.nt_fid       = ff_fid,
+	.nt_rec       = ff_rec,
+	.nt_key       = ff_node_key,
+	.nt_child     = ff_child,
+	.nt_isfit     = ff_isfit,
+	.nt_done      = ff_done,
+	.nt_make      = ff_make,
+	.nt_find      = ff_find,
+	.nt_fix       = ff_fix,
+	.nt_cut       = ff_cut,
+	.nt_del       = ff_del,
+	.nt_move      = generic_move,
+	.nt_invariant = ff_invariant,
 };
 
 
@@ -1582,7 +1642,6 @@ static int ff_count(const struct nd *node)
 {
 	struct ff_head *h    = ff_data(node);
 	int             used = h->ff_used;
-	M0_PRE(ff_invariant(node));
 	if (ff_data(node)->ff_level > 0)
 		used --;
 	return used;
@@ -1591,20 +1650,17 @@ static int ff_count(const struct nd *node)
 static int ff_space(const struct nd *node)
 {
 	struct ff_head *h = ff_data(node);
-	M0_PRE(ff_invariant(node));
 	return (1ULL << h->ff_shift) - sizeof *h -
 		(h->ff_ksize + h->ff_vsize) * h->ff_used;
 }
 
 static int ff_level(const struct nd *node)
 {
-	M0_PRE(ff_invariant(node));
 	return ff_data(node)->ff_level;
 }
 
 static int ff_shift(const struct nd *node)
 {
-	M0_PRE(ff_invariant(node));
 	return ff_data(node)->ff_shift;
 }
 
@@ -1618,7 +1674,6 @@ static void ff_rec(struct slot *slot)
 {
 	struct ff_head *h = ff_data(slot->s_node);
 
-	M0_PRE(ff_invariant(slot->s_node));
 	M0_PRE(ergo(!(h->ff_used == 0 && slot->s_idx == 0),
 		    slot->s_idx <= h->ff_used));
 
@@ -1634,7 +1689,6 @@ static void ff_node_key(struct slot *slot)
 	const struct nd  *node = slot->s_node;
 	struct ff_head   *h    = ff_data(node);
 
-	M0_PRE(ff_invariant(node));
 	M0_PRE(ergo(!(h->ff_used == 0 && slot->s_idx == 0),slot->s_idx <= h->ff_used));
 
 	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
@@ -1647,7 +1701,6 @@ static void ff_child(struct slot *slot, struct segaddr *addr)
 	const struct nd *node = slot->s_node;
 	struct ff_head  *h    = ff_data(node);
 
-	M0_PRE(ff_invariant(node));
 	M0_PRE(slot->s_idx < h->ff_used);
 	*addr = *(struct segaddr *)ff_val(node, slot->s_idx);
 }
@@ -1656,14 +1709,12 @@ static bool ff_isfit(struct slot *slot)
 {
 	struct ff_head *h = ff_data(slot->s_node);
 
-	M0_PRE(ff_invariant(slot->s_node));
 	M0_PRE(ff_rec_is_valid(slot));
 	return h->ff_ksize + h->ff_vsize <= ff_space(slot->s_node);
 }
 
 static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
 {
-	M0_PRE(ff_invariant(slot->s_node));
 }
 
 static void ff_make(struct slot *slot, struct m0_be_tx *tx)
@@ -1673,7 +1724,6 @@ static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 	int              rsize = h->ff_ksize + h->ff_vsize;
 	void            *start = ff_key(node, slot->s_idx);
 
-	M0_PRE(ff_invariant(node));
 	M0_PRE(ff_rec_is_valid(slot));
 	M0_PRE(ff_isfit(slot));
 	memmove(start + rsize, start, rsize * (h->ff_used - slot->s_idx));
@@ -1686,7 +1736,6 @@ static void ff_find(struct slot *slot, const struct m0_btree_key *key)
 	int             i = 0;
 	int             j = h->ff_used;
 	bool            repeat_search = false;
-	M0_PRE(ff_invariant(slot->s_node));
 	M0_PRE(key->k_data.ov_vec.v_count[0] == h->ff_ksize);
 	M0_PRE(key->k_data.ov_vec.v_nr == 1);
 
@@ -1724,7 +1773,6 @@ static void ff_fix(const struct nd *node, struct m0_be_tx *tx)
 static void ff_cut(const struct nd *node, int idx, int size,
 		   struct m0_be_tx *tx)
 {
-	M0_PRE(ff_invariant(node));
 	M0_PRE(size == ff_data(node)->ff_vsize);
 }
 
@@ -1734,7 +1782,6 @@ static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	int             rsize = h->ff_ksize + h->ff_vsize;
 	void           *start = ff_key(node, idx);
 
-	M0_PRE(ff_invariant(node));
 	M0_PRE(idx < h->ff_used);
 	M0_PRE(h->ff_used > 0);
 	memmove(start, start + rsize, rsize * (h->ff_used - idx - 1));
