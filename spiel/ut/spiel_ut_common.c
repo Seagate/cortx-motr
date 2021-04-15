@@ -44,12 +44,12 @@ static int m0_spiel__ut_rms_start(struct m0_reqh *reqh)
 M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 		                       const char              *ep_addr)
 {
-	struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
 	enum { NR_TMS = 1 };
 	int rc;
 
 	M0_SET0(spl_reqh);
-	rc = m0_net_domain_init(&spl_reqh->sur_net_dom, xprt);
+	rc = m0_net_domain_init(&spl_reqh->sur_net_dom,
+				 m0_net_xprt_default_get());
 	if (rc != 0)
 		return rc;
 
@@ -116,7 +116,6 @@ M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
 	char                log_name[LOG_NAME_MAX_LEN];
 	char                full_ep[EP_MAX_LEN];
 	char                max_rpc_size[RPC_SIZE_MAX_LEN];
-	struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
 
 	snprintf(full_ep, EP_MAX_LEN, "lnet:%s", ha_ep);
 	snprintf(max_rpc_size, RPC_SIZE_MAX_LEN,
@@ -134,8 +133,8 @@ M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
 
 	M0_SET0(rpc_srv);
 
-	rpc_srv->rsx_xprts    = &xprt;
-	rpc_srv->rsx_xprts_nr = 1;
+	rpc_srv->rsx_xprts    = m0_net_all_xprt_get();
+	rpc_srv->rsx_xprts_nr = m0_net_xprt_nr();
 	rpc_srv->rsx_argv     = argv;
 	/* if !run_io_srv then remove last row of argv array */
 	rpc_srv->rsx_argc     = ARRAY_SIZE(argv);

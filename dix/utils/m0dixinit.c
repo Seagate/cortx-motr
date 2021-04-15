@@ -42,7 +42,6 @@
 #include "conf/confc.h"      /* m0_confc_close */
 #include "conf/ha.h"         /* m0_conf_ha_process_event_post */
 #include "conf/helpers.h"    /* m0_confc_args */
-#include "net/lnet/lnet.h"   /* m0_net_lnet_xprt */
 #include "motr/ha.h"
 #include "rpc/rpc_machine.h" /* m0_rpc_machine */
 #include "rpc/rpc.h"         /* m0_rpc_bufs_nr */
@@ -122,7 +121,8 @@ static int dix_net_init(struct dix_ctx *ctx, const char *local_addr)
 {
 	M0_LOG(M0_DEBUG, "local ep is %s", local_addr);
 	ctx->dc_laddr = local_addr;
-	return M0_RC(m0_net_domain_init(&ctx->dc_ndom, &m0_net_lnet_xprt));
+	return M0_RC(m0_net_domain_init(&ctx->dc_ndom,
+		     m0_net_xprt_default_get()));
 }
 
 static int dix_rpc_init(struct dix_ctx *ctx)

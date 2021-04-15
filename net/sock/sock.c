@@ -986,7 +986,7 @@ M0_TL_DESCR_DEFINE(b, "buffers",
 		   M0_NET_SOCK_BUF_MAGIC, M0_NET_SOCK_BUF_HEAD_MAGIC);
 M0_TL_DEFINE(b, static, struct buf);
 
-static int  dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom);
+static int  dom_init(const struct m0_net_xprt *xprt, struct m0_net_domain *dom);
 static void dom_fini(struct m0_net_domain *dom);
 static int  ma_init(struct m0_net_transfer_mc *ma);
 static int  ma_confine(struct m0_net_transfer_mc *ma,
@@ -1307,7 +1307,7 @@ static bool mover_invariant(const struct mover *m)
 }
 
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
-static int dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
+static int dom_init(const struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
 	M0_ENTRY();
 	return M0_RC(0);
@@ -3867,30 +3867,28 @@ static const struct m0_net_xprt_ops xprt_ops = {
 	.xo_get_max_buffer_size         = &get_max_buffer_size,
 	.xo_get_max_buffer_segment_size = &get_max_buffer_segment_size,
 	.xo_get_max_buffer_segments     = &get_max_buffer_segments,
-	.xo_get_max_buffer_desc_size    = &get_max_buffer_desc_size
+	.xo_get_max_buffer_desc_size    = &get_max_buffer_desc_size,
+
+	.xo_rpc_max_seg_size            = default_xo_rpc_max_seg_size,
+	.xo_rpc_max_segs_nr             = default_xo_rpc_max_segs_nr,
+	.xo_rpc_max_msg_size            = default_xo_rpc_max_msg_size,
+	.xo_rpc_max_recv_msgs           = default_xo_rpc_max_recv_msgs,
+
 };
 
 const struct m0_net_xprt m0_net_sock_xprt = {
 	.nx_name = "sock",
 	.nx_ops  = &xprt_ops
 };
-
-/*
- * TODO: This is a temporary workaround. It's needed because "lnet" xprt object
- *       is hardcoded in many places. When a proper build and/or run time
- *       selection of the net transport is implement for all m0_net users, this
- *       object declaration, which disguises "sock" as "lnet", can be removed.
- */
-#if !defined(ENABLE_LUSTRE)
-struct m0_net_xprt m0_net_lnet_xprt = {
-	.nx_name = "lnet",
-	.nx_ops  = &xprt_ops
-};
-#endif
+M0_EXPORTED(m0_net_sock_xprt);
 
 M0_INTERNAL int m0_net_sock_mod_init(void)
 {
 	int result;
+
+	m0_net_xprt_register(&m0_net_sock_xprt);
+	if (m0_net_xprt_default_get() == NULL)
+		m0_net_xprt_default_set(&m0_net_sock_xprt);
 	/*
 	 * Ignore SIGPIPE that a write to socket gets when RST is received.
 	 *
@@ -3904,6 +3902,7 @@ M0_INTERNAL int m0_net_sock_mod_init(void)
 
 M0_INTERNAL void m0_net_sock_mod_fini(void)
 {
+	m0_net_xprt_deregister(&m0_net_sock_xprt);
 }
 
 M0_INTERNAL void mover__print(const struct mover *m)
