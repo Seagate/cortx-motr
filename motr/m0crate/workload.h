@@ -135,18 +135,21 @@ enum btree_op_type {
 };
 
 struct cr_workload_btree {
-	uint32_t       cwb_total_ops;
-	int	       cwb_key_type;
-	int	       cwb_key_size;
-	int	       cwb_value_type;
-	int	       cwb_value_size;
-	int32_t        cwb_ops_per_thread;
-	uint64_t       cwb_ops_done[BOT_OPS_NR];
-	int32_t	       cwb_opcode;
-	struct timeval cwb_start_time;
-	struct timeval cwb_finish_time;
-	struct timeval cwb_execution_time;
-	struct timeval cwb_time[BOT_OPS_NR];
+	int	        cwb_key_size;
+	int	        cwb_value_size;
+	int	        cwb_max_key_size;
+	int             cwb_max_value_size;
+	int	        cwb_min_key_size;
+	int	        cwb_num_kvs;
+	bool	        cwb_keys_ordered;
+	char	       *cwb_pattern;
+	int32_t         cwb_ops_per_thread;// Nikhil Check if needed
+	uint64_t        cwb_ops_done[BOT_OPS_NR];// Nikhil Check if needed
+	int	        cwb_opcode_prcnt[BOT_OPS_NR];
+	struct timeval  cwb_start_time;
+	struct timeval  cwb_finish_time;
+	struct timeval  cwb_execution_time;
+	struct timeval  cwb_time[BOT_OPS_NR];
 };
 
 struct task_btree {

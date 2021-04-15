@@ -104,6 +104,7 @@ static void btree_op_run(struct workload *w, struct workload_task *task,
 			const struct workload_op *op);
 static int  btree_parse (struct workload *w, char ch, const char *optarg);
 static void btree_check (struct workload *w);
+static void cr_btree_create(void);
 
 static const struct workload_type_ops w_ops[CWT_NR] = {
         [CWT_HPCS] = {
@@ -415,7 +416,8 @@ static void workload_run(struct workload *w)
         cr_log(CLL_INFO, "random seed:           %u\n", w->cw_rstate);
         cr_log(CLL_INFO, "number of threads:     %u\n", w->cw_nr_thread);
 	/* Following params not applicable to IO and INDEX tests */
-	if (CWT_IO != w->cw_type && CWT_INDEX != w->cw_type) {
+	if (CWT_IO != w->cw_type && CWT_INDEX != w->cw_type &&
+	    CWT_BTREE != w->cw_type) {
 		cr_log(CLL_INFO, "average size:          %llu\n", w->cw_avg);
 		cr_log(CLL_INFO, "maximal size:          %llu\n", w->cw_max);
 		/*
@@ -1173,25 +1175,43 @@ static void csum_check (struct workload *w)
 {
 }
 
+static void cr_btree_create(void)
+{
+
+}
+
 static int btree_init(struct workload *w)
 {
 	return 0;
 }
+
 static int btree_fini(struct workload *w)
 {
 	return 0;
 }
+
 static void btree_run(struct workload *w, struct workload_task *task)
 {
 	int                    i;
-	struct cr_workload_btree *cwb = w->u.cw_ib;
+	struct cr_workload_btree *cwb = w->u.cw_btree;
 	struct task_btree        *ctb;
 
+	cr_log(CLL_INFO, "key size:              %i\n", cwb->cwb_key_size);
+	cr_log(CLL_INFO, "value size:            %i\n", cwb->cwb_value_size);
+	cr_log(CLL_INFO, "max key size:          %i\n", cwb->cwb_max_key_size);
+	cr_log(CLL_INFO, "max value size:        %i\n", cwb->cwb_max_value_size);
+	cr_log(CLL_INFO, "keys order:            %i\n", cwb->cwb_keys_ordered);
+	cr_log(CLL_INFO, "kv pair per op:        %i\n", cwb->cwb_num_kvs);
+	cr_log(CLL_INFO, "key pattern:           %s\n", cwb->cwb_pattern);
 
         gettimeofday(&cwb->cwb_start_time, NULL);
-
+	// Create btree
+	cr_btree_create(void);
 	for (i = 0; i < w->cw_nr_thread; ++i) {
-		ctb = (struct task btree *)task[i].u.btree_task;
+		ctb = (struct task_btree *)task[i].u.btree_task;
+		if (M0_ALLOC_PTR(ctb) == NULL)
+			return;
+
 		// TODO: add thread specific code
 		ctb->tb_wb = cwb;
 	}
@@ -1203,33 +1223,46 @@ static void btree_run(struct workload *w, struct workload_task *task)
 	cr_log(CLL_INFO, "BTREE workload is finished.\n");
 
 }
-static void btree_op_get(struct workload *w, struct workload_op *op)
+
+static int btree_op_get(struct workload *w, struct workload_op *op)
 {
+        unsigned long long percentage;
+	struct cr_workload_btree *cwb = w->u.cw_btree;
+
+        percentage = getrnd(0, 99);
+
+	if (percentage < cwb->cwb_opcode_prcnt[BOT_INSERT])
+		return BOT_INSERT;
+	else if (percentage < cwb->cwb_opcode_prcnt[BOT_INSERT] +
+				cwb->cwb_opcode_prcnt[BOT_LOOKUP])
+		return BOT_LOOKUP;
+	else
+		return BOT_DELETE;
 }
+
 static void btree_op_run(struct workload *w, struct workload_task *task,
 			const struct workload_op *op)
 {
-	struct task_btree *ctb = task->u.btree_task;
+	/* struct task_btree *ctb = task->u.btree_task; */
 
-	switch (cwi->cwi_opcode) {
-		case BOT_CREATE:
-			cr_btree_create(ctb);
-			break;
-		case BOT_INSERT:
-			cr_btree_insert(ctb);
-			break;
-		case BOT_LOOKUP:
-			cr_btree_lookup(ctb);
-			break;
-		case BOT_DELETE:
-			cr_btree_delete(ctb);
-			break;
-		}
+	/* switch (cwi->cwi_opcode) {
+	 *         case BOT_INSERT:
+	 *                 cr_btree_insert(ctb);
+	 *                 break;
+	 *         case BOT_LOOKUP:
+	 *                 cr_btree_lookup(ctb);
+	 *                 break;
+	 *         case BOT_DELETE:
+	 *                 cr_btree_delete(ctb);
+	 *                 break;
+	 *         } */
 }
+
 static int  btree_parse(struct workload *w, char ch, const char *optarg)
 {
 	return 0;
 }
+
 static void btree_check(struct workload *w)
 {
 }

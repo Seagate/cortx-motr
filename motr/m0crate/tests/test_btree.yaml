@@ -32,15 +32,22 @@ MOTR_CONFIG:
    PROCESS_FID: <0x7200000000000001:0x28>
    IDX_SERVICE_ID: 1
 
-LOG_LEVEL: 4  # err(0), warn(1), info(2), trace(3), debug(4)
 
 WORKLOAD_SPEC:               # Workload specification section
    WORKLOAD:                 # First Workload
       WORKLOAD_TYPE: 2       # Index(0), IO(1) , BTREE(2)
-      OPCODE: 3              # Operation(s) to test: 2-INSERT, 3-INSERT+DELETE, 4-INSERT+LOOKUP
-      NR_THREADS: 4          # Number of threads to run in this workload
-      KEY_TYPE: 0            # Key type Fixed:0 Variable:1
-      BTREE_KEY_SIZE: 5k     # Key size if key type is fixed
-      VALUE_TYPE: 0          # Value type Fixed:0 Variable:1
-      BTREE_VAL_SIZE: 5k     # Value size if value type is fixed
-      TOTAL_OPS: 100         # Total number of operations
+      WORKLOAD_SEED: tstamp  # Seed for random number generator
+#      OPCODE: 3              # Operation(s) to test: 2-INSERT, 3-INSERT+DELETE, 4-INSERT+LOOKUP
+      OPS: 100         # Total number of operations
+      NUM_KVP: 1             # Nume key value pair per operation. Currently only one is supported.
+      NR_THREADS: 1          # Number of threads to run in this workload
+      KEY_SIZE: 15              # Key size variable: random else fixed
+      VALUE_SIZE: 5            # Value size variable: random else fixed
+      MAX_KEY_SIZE: 512K     # int [units]
+      MAX_VALUE_SIZE: 512K   # int [units]
+      KEY_ORDER: ordered     # ordered(sequential) or random
+      PATTERN: random        # pattern(for eg. 'AB') or random
+      INSERT: 100            # percentage of insert operation
+      LOOKUP: 0              # percentage of lookup operation
+      DELETE: 0              # percentage of delete operation
+      LOG_LEVEL: 4           # err(0), warn(1), info(2), trace(3), debug(4)

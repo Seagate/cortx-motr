@@ -90,10 +90,10 @@ enum config_key_val {
 	NR_ROUNDS,
 	ADDB_INIT,
 	ADDB_SIZE,
-	KEY_TYPE,
-	BTREE_KEY_SIZE,
-	VALUE_TYPE,
-	BTREE_VAL_SIZE,
+	PATTERN,
+	INSERT,
+	LOOKUP,
+	DELETE,
 };
 
 struct key_lookup_table {
@@ -156,10 +156,10 @@ struct key_lookup_table lookuptable[] = {
 	{"NR_ROUNDS", NR_ROUNDS},
 	{"ADDB_INIT", ADDB_INIT},
 	{"ADDB_SIZE", ADDB_SIZE},
-	{"KEY_TYPE", KEY_TYPE},
-	{"BTREE_KEY_SIZE", BTREE_KEY_SIZE},
-	{"VALUE_TYPE", VALUE_TYPE},
-	{"BTREE_VAL_SIZE", BTREE_VAL_SIZE},
+	{"PATTERN", PATTERN},
+	{"INSERT", INSERT},
+	{"LOOKUP", LOOKUP},
+	{"DELETE", DELETE}
 };
 
 #define NKEYS (sizeof(lookuptable)/sizeof(struct key_lookup_table))
@@ -251,6 +251,8 @@ int copy_value(struct workload *load, int max_workload, int *index,
 	struct m0_workload_io    *cw;
 	struct m0_workload_index *ciw;
 	struct cr_workload_btree *cbw;
+	int			 *key_size;
+	int			 *val_size;
 	int                       value_len = strlen(value);
 
 	if (!strcmp(value, "MOTR_CONFIG")) {
@@ -349,8 +351,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
                         return workload_init(w, w->cw_type);
 		case SEED:
 			w = &load[*index];
-			if (w->cw_type == CWT_IO) {
-				cw = workload_io(w);
+			if (w->cw_type == CWT_IO || w->cw_type == CWT_BTREE) {
 				if (strcmp(value, "tstamp"))
 					w->cw_rstate = atoi(value);
 			} else {
@@ -376,8 +377,13 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case NUM_KVP:
 			w = &load[*index];
-			ciw = workload_index(w);
-			ciw->num_kvs = atoi(value);
+			if (w->cw_type == CWT_INDEX) {
+				ciw = workload_index(w);
+				ciw->num_kvs = atoi(value);
+			} else {
+				cbw = workload_btree(w);
+				cbw->cwb_num_kvs = atoi(value);
+			}
 			break;
 		case PUT:
 			w = &load[*index];
@@ -443,47 +449,87 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case KEY_ORDER:
 			w = &load[*index];
-			ciw = workload_index(w);
-			if (!strcmp(value, "ordered"))
-				ciw->keys_ordered = true;
-			else if (!strcmp(value, "random"))
-				ciw->keys_ordered = false;
-			else
-				parser_emit_error("Unkown key ordering: '%s'", value);
+			if (w->cw_type == CWT_INDEX) {
+				ciw = workload_index(w);
+				if (!strcmp(value, "ordered"))
+					ciw->keys_ordered = true;
+				else if (!strcmp(value, "random"))
+					ciw->keys_ordered = false;
+				else
+					parser_emit_error("Unkown key ordering:"
+							  "'%s'", value);
+			} else {
+				cbw = workload_btree(w);
+				if (!strcmp(value, "ordered"))
+					cbw->cwb_keys_ordered = true;
+				else if (!strcmp(value, "random"))
+					cbw->cwb_keys_ordered = false;
+				else
+					parser_emit_error("Unkown key ordering:"
+							  "'%s'", value);
+			}
 			break;
 		case KEY_SIZE:
 			w = &load[*index];
-			ciw = workload_index(w);
+			if (w->cw_type == CWT_INDEX) {
+				ciw = workload_index(w);
+				key_size = &ciw->key_size;
+			} else {
+				cbw = workload_btree(w);
+				key_size = &cbw->cwb_key_size;
+			}
 			if (strcmp(value, "random") == 0)
-				ciw->key_size = -1;
+				*key_size = -1;
 			else
-				ciw->key_size = parse_int(value, KEY_SIZE);
+				*key_size = parse_int(value, KEY_SIZE);
 			break;
 		case VALUE_SIZE:
 			w = &load[*index];
-			ciw = workload_index(w);
+			if (w->cw_type == CWT_INDEX) {
+				ciw = workload_index(w);
+				val_size = &ciw->value_size;
+				key_size = &ciw->key_size;
+			} else {
+				cbw = workload_btree(w);
+				val_size = &cbw->cwb_value_size;
+				key_size = &cbw->cwb_key_size;
+			}
 			if (strcmp(value, "random") == 0)
-				ciw->value_size = -1;
+				*val_size = -1;
 			else {
-				ciw->value_size = parse_int(value, VALUE_SIZE);
+				*val_size = parse_int(value, VALUE_SIZE);
 				if (strcmp(key, "RECORD_SIZE") == 0) {
 					cr_log(CLL_WARN, "RECORD_SIZE is being deprecated, use KEY_SIZE and VALUE_SIZE.\n");
-					ciw->value_size = ciw->value_size - ciw->key_size;
+					*val_size = *val_size - *key_size;
 				}
 			}
 			break;
 		case MAX_KEY_SIZE:
 			w = &load[*index];
-			ciw = workload_index(w);
-			ciw->max_key_size = parse_int(value, MAX_KEY_SIZE);
+			if (w->cw_type == CWT_INDEX) {
+				ciw = workload_index(w);
+				ciw->max_key_size = parse_int(value,
+							      MAX_KEY_SIZE);
+			} else {
+				cbw = workload_btree(w);
+				cbw->cwb_max_key_size = parse_int(value,
+								  MAX_KEY_SIZE);
+			}
 			break;
 		case MAX_VALUE_SIZE:
 			w = &load[*index];
-			ciw = workload_index(w);
-			ciw->max_value_size = parse_int(value, MAX_VALUE_SIZE);
-			if (strcmp(key, "MAX_RSIZE") == 0) {
-				cr_log(CLL_WARN, "MAX_RSIZE is being deprecated, use MAX_KEY_SIZE and MAX_VALUE_SIZE.\n");
-				ciw->max_value_size = ciw->max_value_size - ciw->max_key_size;
+			if (w->cw_type == CWT_INDEX) {
+				ciw = workload_index(w);
+				ciw->max_value_size = parse_int(value,
+								MAX_VALUE_SIZE);
+				if (strcmp(key, "MAX_RSIZE") == 0) {
+					cr_log(CLL_WARN, "MAX_RSIZE is being deprecated, use MAX_KEY_SIZE and MAX_VALUE_SIZE.\n");
+					ciw->max_value_size = ciw->max_value_size - ciw->max_key_size;
+				}
+			} else {
+				cbw = workload_btree(w);
+				cbw->cwb_max_value_size = parse_int(value,
+								    MAX_VALUE_SIZE);
 			}
 			break;
 		case INDEX_FID:
@@ -549,18 +595,13 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case OPCODE:
 			w = &load[*index];
-			if (w->cw_type == CWT_IO) {
-				cw = workload_io(w);
-				cw->cwi_opcode = atoi(value);
-				if (conf->layout_id <= 0) {
-					cr_log(CLL_ERROR, "LAYOUT_ID is not set\n");
-					return -EINVAL;
-				}
-				cw->cwi_layout_id = conf->layout_id;
-			} else {
-				cbw = workload_btree(w);
-				cbw->cwb_opcode = atoi(value);
+			cw = workload_io(w);
+			cw->cwi_opcode = atoi(value);
+			if (conf->layout_id <= 0) {
+				cr_log(CLL_ERROR, "LAYOUT_ID is not set\n");
+				return -EINVAL;
 			}
+			cw->cwi_layout_id = conf->layout_id;
 			break;
 		case START_OBJ_ID:
 			w = &load[*index];
@@ -589,29 +630,31 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case ADDB_SIZE:
 			conf->addb_size = getnum(value, "addb size");
 			break;
-		case KEY_TYPE:
+		case PATTERN:
 			w = &load[*index];
 			cbw = workload_btree(w);
-			cbw->cwb_key_type = atoi(value);
+			cbw->cwb_pattern = m0_alloc(value_len + 1);
+			if (cbw->cwb_pattern == NULL)
+				return -ENOMEM;
+			strcpy(cbw->cwb_pattern, value);
 			break;
-		case BTREE_KEY_SIZE:
+		case INSERT:
 			w = &load[*index];
 			cbw = workload_btree(w);
-			if (cbw->cwb_key_type == 0)
-				cbw->cwb_key_size = parse_int(value,
-							      BTREE_KEY_SIZE);
+			cbw->cwb_opcode_prcnt[BOT_INSERT] = parse_int(value,
+								      INSERT);
 			break;
-		case VALUE_TYPE:
+		case LOOKUP:
 			w = &load[*index];
 			cbw = workload_btree(w);
-			cbw->cwb_value_type = atoi(value);
+			cbw->cwb_opcode_prcnt[BOT_LOOKUP] = parse_int(value,
+								      LOOKUP);
 			break;
-		case BTREE_VAL_SIZE:
+		case DELETE:
 			w = &load[*index];
 			cbw = workload_btree(w);
-			if (cbw->cwb_value_type == 0)
-				cbw->cwb_value_size = parse_int(value,
-								BTREE_VAL_SIZE);
+			cbw->cwb_opcode_prcnt[BOT_DELETE] = parse_int(value,
+								      DELETE);
 			break;
 
 		default:
