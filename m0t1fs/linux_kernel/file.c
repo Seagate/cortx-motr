@@ -2356,7 +2356,10 @@ static void seg_align(struct pargrp_iomap *map, uint32_t seg,
 	V_COUNT(&map->pi_ivv, seg) = round_up(end, sz) - idx;
 }
 
-/** Populate parity group pi_ivv from user ivec at cursor. */
+/**
+ * Populate parity group pi_ivv from user ivec at cursor and
+ * allocate pi_databufs structures correspondingly.
+ */
 static int pargrp_iomap_populate_pi_ivec(struct pargrp_iomap        *map,
 					 struct m0_ivec_varr_cursor *cursor,
 					 bool                        rmw)
