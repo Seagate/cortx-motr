@@ -1,0 +1,213 @@
+#+OPTIONS: num:nil toc:nil
+#+REVEAL_TRANS: linear
+#+REVEAL_THEME: solarized
+#+REVEAL_ROOT: file:///Users/anatoliy/Private/reveal.js
+#+Title: DTM0 happy path demo
+#+Author: DTM0 Team, Anatoliy
+
+
+* Roadmap
+#+REVEAL_HTML: <div style="font-size: 90%;">
+#+begin_src
+Milestones:
+
+ - [DONE] [happy]    DTM0 happy path scenario;
+ - [TODO] [ststp]    DTM0 start/stop scenarios (depends on “HA messages”);
+ - [TODO] [recovery] DTM0 recovery scenarios (depends on “HA messages”);
+ - [TODO] [s3-int]   Basic S3 integration (depends on DTM0);
+ - [TODO] [test]     DTM0 test;
+ - [TODO] [deploy]   DTM0 basic deployment;
+ - [TODO] (future)   Metadata update (depends on basic S3 integration);
+ - [TODO] (future)   DTM0 for IO.
+#+end_src
+
+#+BEGIN_SRC python :exports none
+import wavedrom
+svg = wavedrom.render("""
+{"signal": [
+ { "name": "motr",  "wave": "5.==.xxxx=.=..", "data": "happy ststp recovery test deploy",
+                    "node": "...a.c...e" },
+ { "name": "hare",  "wave": "=.xxxxxxxxxxxx", "data": "ha-msg",
+                    "node": "..b..........." },
+ { "name": "  s3",  "wave": "xxxxxx=.xxxxxx", "data": "s3-int",
+                    "node": "......d.f....." }
+],
+ "edge": ["b-~>a", "c~->d", "f~->e"]
+}""")
+svg.saveas("demo1.svg")
+#+END_SRC
+
+#+ATTR_HTML: :width 90%
+[[./demo1.svg]]
+
+* Scope
+#+begin_src
+DTM0 happy path scenario.
+   - Goals:
+     - To have a unit- and system- test sending clovis PUT/DEL,
+       requests using DTM0 logic of including CAS PUT/DEL,
+       requests, PERSISENT FOP, updating DTM0 log;
+
+   - Features:
+     - DTM0 log;
+     - DTM0 service and FOPs;
+     - DTX state machine embedded into clovis PUT/DEL operations;
+     - Integration: A glue around DTM0 service connections;
+                    Disable spares;
+     - Clock algorithm;
+
+   - Deliverable:
+     - Code is landed and demo reviewed by Nikita and management;
+     - Recorded review results.
+#+end_src
+
+* Contributors
+#+REVEAL_HTML: <div style="font-size: 90%;">
+#+begin_src
+- Neerav:
+ - [Org] Coordination, resolving dependencies, team presentation.
+
+- Anatoliy:
+ - [Tech] Coordination, communication with other teams, design.
+
+- Ivan:
+ - Design and implementation of the clock source and DTX modules,
+ - Integration of DTX and adding of improvements
+   for the other DTM modules (log and service),
+ - Embedding of DTX into the existing Motr client code,
+ - Adding/extending of tests for these modules.
+
+- Sergey:
+ - Initial design, creating 3-nodes configuration,
+ - Disable DIX spare units, connections logic,
+ - Implementation of integration test,
+ - Merging code into main.
+
+- Mehul:
+ - Added dtm0 persistent log related functionality and implementation,
+ - Added ADDB2 instrumentation for dtm0,
+ - Added dtm0 fop request, reply structures,
+   operation and message types.
+
+#+end_src
+* What components added or updated?
+#+ATTR_HTML: :width 50% :align right
+[[./component-readiness.png]]
+#+begin_src
+- [70%]   DTX0 state machine;
+- [DONE]  DTM0 clock source;
+- [20%]   connection manager;
+- [50%]   DTM0 service;
+- [50%]   DTM0 fom;
+- [DONE]  CAS rework;
+- [DONE]  Clovis rework;
+- [DONE]  overall integration
+          effort for happy path;
+- [DONE]  integration test.
+
+NOTE: other components are not
+      listed here.
+#+end_src
+
+* What protocols added or updated?
+#+ATTR_HTML: :width 70% :align right
+[[./protocol-readiness.png]]
+#+begin_src
+Done
+====
+- DTM0 PERSISTENT;
+- CAS PUT;
+- CAS DEL;
+- m0ham mock;
+
+In progress
+===========
+- DTM0 REDO;
+- DTM0 TXR;
+- DTM0 EXECUTED;
+
+- HA state;
+- HA start;
+- HA ready;
+- HA done.
+#+end_src
+
+* Integration test
+#+REVEAL_HTML: <div style="font-size: 40%;">
+#+begin_src
+# fetch sources
+git checkout git@github.com:Seagate/cortx-motr.git
+cd cortx-motr
+# make
+time { MAKE_OPTS=-j64 CONFIGURE_OPTS=--enable-dtm0\ --disable-altogether-mode\ --enable-debug\ --with-trace-ubuf-size=32 ./scripts/m0 rebuild || echo FAIL; }
+cd dtm0/it/all2all
+# run the test
+./all2all
+--->  Removing loop devices
+--->  Removing file images
+m0setup: WARNING: '/var/motr/all2all_test' doesn't exist, creating..
+--->  Creating 6 file images, 1GiB each, in '/var/motr/all2all_test'
+--->  Setting up loop devices
+INFO: Bootstrapping the cluster using Hare...
+2021-04-01 12:22:12: Generating cluster configuration... OK
+...
+2021-04-01 12:22:26: Waiting for the RC Leader to get elected........... OK
+2021-04-01 12:22:34: Starting Motr (phase1, mkfs)... OK
+2021-04-01 12:22:41: Starting Motr (phase1, m0d)... OK
+2021-04-01 12:22:54: Starting Motr (phase2, mkfs)... OK
+2021-04-01 12:23:34: Starting Motr (phase2, m0d)... OK
+...
+lt-m0ham: Sent message #2.
+lt-m0ham: Finishing.
+lt-m0ham: Message #2 is delivered.
+...
+INFO: Wait for client...
+info: starting workload 0
+info: workload type          index/3
+info: done workload 0
+info: ---------------------------------------
+Stopping m0d@0x7200000000000001:0xc (ios) at localhost...
+Stopping m0d@0x7200000000000001:0x1a (ios) at localhost...
+Stopping m0d@0x7200000000000001:0x28 (ios) at localhost...
+Stopped m0d@0x7200000000000001:0x28 (ios) at localhost
+Stopped m0d@0x7200000000000001:0x1a (ios) at localhost
+Stopped m0d@0x7200000000000001:0xc (ios) at localhost
+Stopping m0d@0x7200000000000001:0x9 (confd) at localhost...
+Stopped m0d@0x7200000000000001:0x9 (confd) at localhost
+Stopping hare-hax at localhost...
+Stopped hare-hax at localhost
+Stopping hare-consul-agent at localhost...
+Stopped hare-consul-agent at localhost
+Shutting down RC Leader at localhost...
+INFO: TEST STATUS: PASSED
+...
+# dump addb samples
+./motr/utils/m0addb2dump -f -- /var/motr/m0d-0x7200000000000001\:0xc/addb-stobs/o/100000000000000\:2 >  dump_c.txt
+./motr/utils/m0addb2dump -f -- /var/motr/m0d-0x7200000000000001\:0x1a/addb-stobs/o/100000000000000\:2 > dump_1a.txt
+./motr/utils/m0addb2dump -f -- /var/motr/m0d-0x7200000000000001\:0x28/addb-stobs/o/100000000000000\:2 > dump_28.txt
+./motr/utils/m0addb2dump -f -- /var/motr/m0d-0x7200000000000001\:0x9/addb-stobs/o/100000000000000\:2 >  dump_9.txt
+./motr/utils/m0addb2dump -f -- clovis_addb_17730/o/100000000000000:2 > dumpc_26568.txt
+
+# generate the db
+git clone --recursive git@github.com:Seagate/seagate-tools.git
+ln -s seagate-tools/performance/PerfLine/roles/perfline_setup/files/chronometry_v2 chronometry_v2
+cp dump[cs]*.txt chronometry_v2 && cd chronometry_v2
+python3 addb2db.py --dumps dump[cs]_*.txt --db m0play.db.a2a
+
+# look at request diagrams
+python3 req_timelines.py -d m0play.db.a2a -p 26568 1777
+#+end_src
+* Analysis
+#+ATTR_HTML: :width 70%
+[[./analysis-dtm0.png]]
+* Questions?
+#+begin_src
+- [tech] Anatoliy <anatoliy.bilenko@seagate.com>
+- [org]  Neerav   <neerav.choudhari@seagate.com>
+#+end_src
+
+#+REVEAL_HTML: <div style="font-size: 63%;">
+#+begin_src
+- [ref#1] https://github.com/Seagate/cortx-motr/blob/documentation/doc/dev/dtm/dtm-hld.org
+- [ref#2] https://github.com/Seagate/cortx-motr/blob/documentation/doc/dev/dtm/dtm-demo-happy.path.org
+#+end_src
