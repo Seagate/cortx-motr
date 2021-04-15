@@ -560,10 +560,10 @@ enum op_flags {
 };
 
 enum btree_type {
-	BTT_FIXED_FORMAT                         = 0,
-	BTT_FIXED_KEYSIZE_VARIABLE_VALUESIZE     = 1,
-	BTT_VARIABLE_KEYSIZE_FIXED_VALUESIZE     = 2,
-	BTT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE  = 3,
+	BTT_FIXED_FORMAT                         = 1,
+	BTT_FIXED_KEYSIZE_VARIABLE_VALUESIZE     = 2,
+	BTT_VARIABLE_KEYSIZE_FIXED_VALUESIZE     = 3,
+	BTT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE  = 4,
 };
 
 #if 0
@@ -827,8 +827,10 @@ struct node_type {
 	 */
 	bool (*nt_isfit)(struct slot *slot);
 
-	/** Node changes related to last record have completed any post
-	 *  processing needs to be done in this function */
+	/**
+	 *  Node changes related to last record have completed; any post
+	 *  processing related to the record needs to be done in this function.
+	 */
 	void (*nt_done) (struct slot *slot, struct m0_be_tx *tx, bool modified);
 
 	/** Make space in the node for inserting new entry at specific index */
@@ -837,12 +839,16 @@ struct node_type {
 	/** Returns index of the record containing the key in the node */
 	void (*nt_find) (struct slot *slot, const struct m0_btree_key *key);
 
-	/** All the changes to the node have completed. Any post processing can
-	 *  be done here */
+	/**
+	 *  All the changes to the node have completed. Any post processing can
+	 *  be done here.
+	 */
 	void (*nt_fix)  (const struct nd *node, struct m0_be_tx *tx);
 
-	/** Change the size of the value (increase or decrease) for the
-	 *  specified key */
+	/**
+	 *  Change the size of the value (increase or decrease) for the
+	 *  specified key
+	 */
 	void (*nt_cut)  (const struct nd *node, int idx, int size,
 			 struct m0_be_tx *tx);
 
@@ -1139,15 +1145,13 @@ static bool node_shift_is_valid(int shift)
  * This function should be called right after the allocation to make sure that
  * the allocated memory starts at a properly aligned address.
  *
- * @author 530902 (06-Apr-21)
- *
  * @param addr - Start address of the allocated space provided by the allocator.
  *
  * @return bool - True if the input address is properly aligned.
  */
 static bool addr_is_aligned(const void *addr)
 {
-	return (((size_t)addr & ((1 << NODE_SHIFT_MIN) - 1)) == 0);
+	return (((size_t)addr & ((1ULL << NODE_SHIFT_MIN) - 1)) == 0);
 }
 
 static bool segaddr_is_valid(const struct segaddr *seg_addr)
@@ -1170,7 +1174,7 @@ static struct segaddr segaddr_build(const void *addr, int shift)
 static void *segaddr_addr(const struct segaddr *seg_addr)
 {
 	M0_PRE(segaddr_is_valid(seg_addr));
-	return (void *)(seg_addr->as_core & ~((1 << NODE_SHIFT_MIN) - 1));
+	return (void *)(seg_addr->as_core & ~((1ULL << NODE_SHIFT_MIN) - 1));
 }
 
 static int segaddr_shift(const struct segaddr *addr)
@@ -1305,12 +1309,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 			  struct m0_be_tx *tx, int nxt)
 {
 	int  nxt_state;
-	/**
-	 * Allocate the node in segment.
-	 * Initialize the node header.
-	 * Allocate node descriptor in volatile memory.
-	 * Initialize the node descriptor.
-	 */
+
 	nxt_state = segops->so_node_alloc(op, tree, size, nt, tx, nxt);
 
 	nt->nt_init(op->no_node, size, ksize, vsize);
@@ -1455,14 +1454,14 @@ static const struct seg_ops mem_seg_ops = {
  *  Structure of the node in persistent store.
  */
 struct ff_head {
-	struct m0_format_header ff_fmt;   /* Node Header */
-	struct node_header      ff_seg;   /* Node type */
-	uint16_t                ff_used;  /* Count of records */
-	uint8_t                 ff_shift; /* node size as pow-of-2 */
-	uint8_t                 ff_level; /* Level in Btree */
-	uint16_t                ff_ksize; /* Size of key in bytes */
-	uint16_t                ff_vsize; /* Size of value in bytes */
-	struct m0_format_footer ff_foot;  /* Node Footer */
+	struct m0_format_header ff_fmt;   /*< Node Header */
+	struct node_header      ff_seg;   /*< Node type information */
+	uint16_t                ff_used;  /*< Count of records */
+	uint8_t                 ff_shift; /*< Node size as pow-of-2 */
+	uint8_t                 ff_level; /*< Level in Btree */
+	uint16_t                ff_ksize; /*< Size of key in bytes */
+	uint16_t                ff_vsize; /*< Size of value in bytes */
+	struct m0_format_footer ff_foot;  /*< Node Footer */
 	/**
 	 *  This space is used to host the Keys and Values upto the size of the
 	 *  node
@@ -1581,7 +1580,7 @@ static void ff_fini(const struct nd *node)
 
 static int ff_count(const struct nd *node)
 {
-	struct ff_head *h   = ff_data(node);
+	struct ff_head *h    = ff_data(node);
 	int             used = h->ff_used;
 	M0_PRE(ff_invariant(node));
 	if (ff_data(node)->ff_level > 0)
@@ -1684,37 +1683,37 @@ static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 static void ff_find(struct slot *slot, const struct m0_btree_key *key)
 {
 	struct ff_head *h = ff_data(slot->s_node);
-	int i = 0;
-	int j = h->ff_used;
+	int             i = 0;
+	int             j = h->ff_used;
+	bool            repeat_search = false;
 	M0_PRE(ff_invariant(slot->s_node));
 	M0_PRE(key->k_data.ov_vec.v_count[0] == h->ff_ksize);
 	M0_PRE(key->k_data.ov_vec.v_nr == 1);
 
-	if (h->ff_used == 0 ||
-	    (memcmp(ff_key(slot->s_node, 0),
-		    key->k_data.ov_buf[0], h->ff_ksize) >= 0)) {
-		slot->s_idx = 0;
-		return;
-	} else if (memcmp(ff_key(slot->s_node, (h->ff_used - 1)),
-			  key->k_data.ov_buf[0], h->ff_ksize) < 0) {
-		slot->s_idx = h->ff_used;
-		return;
-	}
-
 	do {
-		int m    = (i + j) / 2;
-		int diff = memcmp(ff_key(slot->s_node, m),
-				  key->k_data.ov_buf[0], h->ff_ksize);
+		int  m    = (i + j) / 2;
+		int  diff = memcmp(ff_key(slot->s_node, m),
+				   key->k_data.ov_buf[0], h->ff_ksize);
+
+		repeat_search = false;
 
 		if (diff < 0)
 			i = m;
-		else if (diff > 0)
+		else if (diff > 0) {
 			j = m;
-		else {
-			j = m;
-			break;
+
+			/**
+			 * Handle cases where only 2 records are present in the
+			 * node and both of them need to be checked.
+			 */
+			if (i == 0 && i != j) {
+				repeat_search = true;
+			}
+		} else {
+			i = j = m;
 		}
-	} while (i + 1 < j);
+	} while (i + 1 < j || repeat_search);
+
 	slot->s_idx = j;
 }
 
@@ -1801,8 +1800,6 @@ static void generic_move(struct nd *src, struct nd *tgt,
  * ut code in the same file containing the functionality code. We are open to
  * changes iff enough reasons are found that this model either does not work or
  * is not intuitive or maintainable.
- *
- * @author 530902 (12-Apr-21)
  */
 static void m0_btree_ut_node_create_delete(void);
 static void m0_btree_ut_node_add_del_rec(void);
@@ -1810,8 +1807,6 @@ static void m0_btree_ut_node_add_del_rec(void);
 
 /**
  * btree_ut test suite.
- *
- * @author 530902 (05-Apr-21)
  */
 struct m0_ut_suite btree_ut = {
 	.ts_name = "btree-ut",
@@ -1848,8 +1843,6 @@ static void btree_ut_fini(void)
 /**
  * This test will create a few nodes and then delete them before exiting. The
  * main intent of this test is to debug the create and delete nodes functions.
- *
- * @author 530902 (04-Apr-21)
  */
 static void m0_btree_ut_node_create_delete(void)
 {
@@ -2012,11 +2005,13 @@ static void get_next_rec_to_add(struct nd *node, uint64_t *key,  uint64_t *val)
 			break;
 		node_find(&slot, &find_key);
 		node_rec(&slot);
+
+		if (slot.s_idx >= node_count(node))
+			break;
+
 		found_key = *(uint64_t *)p_key;
 
-		if (slot.s_idx > node_count(node))
-			break;
-		else if (found_key == proposed_key)
+		if (found_key == proposed_key)
 			proposed_key++;
 		else
 			break;
@@ -2058,10 +2053,8 @@ void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
 }
 
 /**
- * This test will create a tree, add a few nodes and then populate the nodes
- * with some records.
- *
- * @author 530902 (05-Apr-21)
+ * This test will create a tree, add a node and then populate the node with
+ * some records. It will also confirm the records are in ascending order of Key.
  */
 void m0_btree_ut_node_add_del_rec(void)
 {
@@ -2079,7 +2072,11 @@ void m0_btree_ut_node_add_del_rec(void)
 
 	M0_ENTRY();
 
-	run_loop = 10;
+	time(&curr_time);
+	printf("\nUsing seed %lu", curr_time);
+	srand(curr_time);
+
+	run_loop = 50000;
 
 	btree_ut_init();
 
@@ -2097,15 +2094,7 @@ void m0_btree_ut_node_add_del_rec(void)
 
 	while(run_loop--) {
 		int i;
-
-		/**
-		 *  Reset seed to have different key values to be used as
-		 *  records.
-		 */
-		sleep(1);
-		time(&curr_time);
-		printf("\nUsing seed %lu", curr_time);
-		srand(curr_time);
+		int j;
 
 		/** Add records */
 		i = 0;
@@ -2127,7 +2116,8 @@ void m0_btree_ut_node_add_del_rec(void)
 		/** Delete all the records from the node. */
 		i = node_count(node1) - 1;
 		while (node_count(node1) != 0) {
-			node_del(node1, i, NULL);
+			j = rand() % node_count(node1);
+			node_del(node1, j, NULL);
 			M0_ASSERT(i-- == node_count(node1));
 		}
 	}
