@@ -849,11 +849,11 @@ static bool dixreq_clink_dtx_cb(struct m0_clink *cl)
 
 	state = m0_dtx0_sm_state(dtx);
 
-	if (!M0_IN(state, (M0_DDS_EXECUTED, M0_DDS_STABLE, M0_DDS_FAILED)))
+	if (!M0_IN(state, (M0_DDS_EXECUTED_ALL, M0_DDS_STABLE, M0_DDS_FAILED)))
 		return false;
 
 	switch (state) {
-	case M0_DDS_EXECUTED:
+	case M0_DDS_EXECUTED_ALL:
 		/* TODO: we have a single kv pair; probably, it does not have
 		 * to be a loop.
 		 */
