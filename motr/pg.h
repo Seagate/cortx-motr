@@ -471,7 +471,7 @@ struct pargrp_iomap_ops {
 	 *
 	 */
 	int (*pi_seg_process)    (struct pargrp_iomap *map,
-				  uint64_t             segid,
+				  uint32_t             segid,
 				  bool                 rmw,
 				  uint64_t             start_buf_index,
 				  struct m0_bufvec_cursor *buf_cursor);

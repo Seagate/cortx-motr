@@ -2317,39 +2317,210 @@ err:
 			   "data_buf.", map->pi_ioreq);
 }
 
-static int pargrp_iomap_populate(struct pargrp_iomap        *map,
-				 struct m0_ivec_varr_cursor *cursor)
+/**
+ * Set segment by countiguous user ivec starting from cursor position
+ * at most to the parity group end. If the contiguous user ivec is less
+ * than the group end, the resulting segment will be only up to the end
+ * of that contiguous ivec.
+ *
+ * @see doc for m0_ivec_cursor_conti().
+ */
+static m0_bindex_t seg_set(struct pargrp_iomap *map, uint32_t seg,
+			   struct m0_ivec_varr_cursor *cur, m0_bindex_t grpend)
+{
+	m0_bindex_t end = m0_ivec_varr_cursor_conti(cur, grpend);
+
+	V_INDEX(&map->pi_ivv, seg) = m0_ivec_varr_cursor_index(cur);
+	V_COUNT(&map->pi_ivv, seg) = end - V_INDEX(&map->pi_ivv, seg);
+
+	return end;
+}
+
+/** Increase segment's index by sz-aligned value. */
+static void seg_idx_inc_round(struct pargrp_iomap *map, uint32_t seg,
+			      uint64_t sz)
+{
+	m0_bindex_t idx = m0_round_up(V_INDEX(&map->pi_ivv, seg) + 1, sz);
+
+	V_COUNT(&map->pi_ivv, seg) -= idx - V_INDEX(&map->pi_ivv, seg);
+	V_INDEX(&map->pi_ivv, seg)  = idx;
+}
+
+/** Make segment sz-aligned down and up. */
+static void seg_align(struct pargrp_iomap *map, uint32_t seg,
+		      m0_bindex_t end, uint64_t sz)
+{
+	m0_bindex_t idx = round_down(V_INDEX(&map->pi_ivv, seg), sz);
+
+	V_INDEX(&map->pi_ivv, seg) = idx;
+	V_COUNT(&map->pi_ivv, seg) = round_up(end, sz) - idx;
+}
+
+/** Populate parity group pi_ivv from user ivec at cursor. */
+static int pargrp_iomap_populate_pi_ivec(struct pargrp_iomap        *map,
+					 struct m0_ivec_varr_cursor *cursor,
+					 bool                        rmw)
 {
 	int                       rc;
-	bool                      rmw = false;
-	uint64_t                  seg;
-	uint64_t                  size = 0;
-	uint64_t                  grpsize;
+	uint32_t                  seg;
+	m0_bindex_t               seg_end = 0;
+	m0_bcount_t               grpsize;
 	m0_bcount_t               count = 0;
-	m0_bindex_t               endpos = 0;
-	/* Number of pages _completely_ spanned by incoming io vector. */
-	uint64_t                  nr = 0;
-	/* Number of pages to be read + written for read-old approach. */
-	uint64_t                  ro_page_nr;
-	/* Number of pages to be read + written for read-rest approach. */
-	uint64_t                  rr_page_nr;
 	m0_bindex_t               grpstart;
 	m0_bindex_t               grpend;
 	struct m0_pdclust_layout *play;
 	struct inode             *inode;
-	struct m0t1fs_sb         *csb;
-	struct io_request        *req = map->pi_ioreq;
 
-	M0_ENTRY("[%p] map %p, indexvec %p", req, map, cursor->vc_ivv);
 	M0_PRE(map != NULL);
-	M0_PRE(cursor->vc_ivv != NULL);
 
 	play     = pdlayout_get(map->pi_ioreq);
 	grpsize  = data_size(play);
 	grpstart = grpsize * map->pi_grpid;
 	grpend   = grpstart + grpsize;
-	inode = iomap_to_inode(map);
-	csb = M0T1FS_SB(inode->i_sb);
+	inode    = iomap_to_inode(map);
+
+	for (seg = 0; !m0_ivec_varr_cursor_move(cursor, count) &&
+	               m0_ivec_varr_cursor_index(cursor) < grpend;) {
+		/*
+		 * Skips the current segment if it is completely spanned by
+		 * rounding up/down of an earlier segment.
+		 */
+		if (map->pi_ops->pi_spans_seg(map,
+					    m0_ivec_varr_cursor_index(cursor),
+					    m0_ivec_varr_cursor_step(cursor))) {
+			count = m0_ivec_varr_cursor_step(cursor);
+			continue;
+		}
+
+		/* Make sure read IO does not go beyond EOF. */
+		if (map->pi_ioreq->ir_type == IRT_READ &&
+		    grpend > inode->i_size) {
+			if (V_INDEX(&map->pi_ivv, seg) >= inode->i_size) {
+				count = m0_ivec_varr_cursor_step(cursor);
+				continue;
+			}
+			seg_end = seg_set(map, seg, cursor, inode->i_size);
+		} else
+			seg_end = seg_set(map, seg, cursor, grpend);
+
+		/*
+		 * If current segment is _partially_ spanned by previous
+		 * segment in pargrp_iomap::pi_ivv, start of segment is
+		 * rounded up to move to next page.
+		 */
+		if (seg > 0 && V_INDEX(&map->pi_ivv, seg) <
+		               v_seg_endpos(&map->pi_ivv, seg - 1))
+			seg_idx_inc_round(map, seg, PAGE_SIZE);
+
+		++V_SEG_NR(&map->pi_ivv);
+
+		M0_LOG(M0_DEBUG, "[%p] pre grp_id=%"PRIu64" seg=%"PRIu32
+		       " =[%"PRIu64",+%"PRIu64")", map->pi_ioreq,
+		       map->pi_grpid,seg, V_INDEX(&map->pi_ivv, seg),
+				          V_COUNT(&map->pi_ivv, seg));
+
+		rc = map->pi_ops->pi_seg_process(map, seg, rmw);
+		if (rc != 0)
+			return M0_ERR(rc);
+
+		seg_align(map, seg, seg_end, PAGE_SIZE);
+
+		M0_LOG(M0_DEBUG, "[%p] post grp_id=%"PRIu64" seg=%"PRIu32
+		       " =[%"PRIu64",+%"PRIu64")", map->pi_ioreq,
+		       map->pi_grpid, seg, V_INDEX(&map->pi_ivv, seg),
+		                           V_COUNT(&map->pi_ivv, seg));
+
+		count = seg_end - m0_ivec_varr_cursor_index(cursor);
+		M0_LOG(M0_DEBUG, "[%p] cursor advance +%"PRIu64" from %"PRIu64,
+		       map->pi_ioreq, count, m0_ivec_varr_cursor_index(cursor));
+		++seg;
+	}
+
+	return M0_RC(0);
+}
+
+/*
+ * Decides whether to undertake read-old approach or read-rest for
+ * an RMW IO request based on the number of total pages to be read
+ * and written.
+ *
+ * In read-old approach the old data and parity units are read and
+ * the new parity is calculated incrementally based on the difference
+ * between old and new data and parity units.
+ *
+ * In read-rest approach the rest data units of the group are read
+ * and the new parity is calculated based on them and the new data
+ * units to be written.
+ *
+ * In both approaches the number of units to be written is the same
+ * (new data units and udpated parity units), so we compare only the
+ * number of units (pages) to be read.
+ *
+ * By default, the segments in index vector pargrp_iomap::pi_ivv
+ * are suitable for read-old approach. Hence the index vector is
+ * changed only if read-rest approach is selected.
+ */
+static int pargrp_iomap_select_ro_rr(struct pargrp_iomap *map,
+				     m0_bcount_t data_pages_nr,
+				     m0_bcount_t parity_pages_nr)
+{
+	int rc;
+	/*
+	 * In read-old the number of pages to be read is the same as
+	 * the number of pages to be written.
+	 *
+	 * TODO: Can use number of data_buf structures instead of using
+	 * indexvec_page_nr().
+	 */
+	uint64_t ro_pages_nr = iomap_page_nr(map) + parity_pages_nr;
+	/*
+	 * In read-rest the number of pages to be read is all data
+	 * pages which are not fully spanned by the io vector.
+	 */
+	uint64_t rr_pages_nr = data_pages_nr -
+	                       map->pi_ops->pi_fullpages_find(map);
+
+	if (rr_pages_nr < ro_pages_nr) {
+		M0_LOG(M0_DEBUG, "[%p] Read-rest selected", map->pi_ioreq);
+		map->pi_rtype = PIR_READREST;
+		rc = map->pi_ops->pi_readrest(map);
+		if (rc != 0)
+			return M0_ERR(rc);
+	} else {
+		M0_LOG(M0_DEBUG, "[%p] Read-old selected", map->pi_ioreq);
+		map->pi_rtype = PIR_READOLD;
+		rc = map->pi_ops->pi_readold_auxbuf_alloc(map);
+	}
+
+	return M0_RC(rc);
+}
+
+static int pargrp_iomap_populate(struct pargrp_iomap        *map,
+				 struct m0_ivec_varr_cursor *cursor)
+{
+	int                       rc;
+	bool                      rmw = false;
+	uint64_t                  grpsize;
+	m0_bcount_t               count = 0;
+	m0_bindex_t               grpstart;
+	m0_bindex_t               grpend;
+	struct m0_pdclust_layout *play;
+	struct inode             *inode;
+	struct m0t1fs_sb         *csb;
+	struct io_request        *req;
+
+	M0_PRE(map != NULL);
+	M0_PRE(cursor->vc_ivv != NULL);
+
+	req      = map->pi_ioreq;
+	play     = pdlayout_get(map->pi_ioreq);
+	grpsize  = data_size(play);
+	grpstart = grpsize * map->pi_grpid;
+	grpend   = grpstart + grpsize;
+	inode    = iomap_to_inode(map);
+	csb      = M0T1FS_SB(inode->i_sb);
+
+	M0_ENTRY("[%p] map=%p ivec=%p", req, map, cursor->vc_ivv);
 
 	/*
 	 * For a write, if this map does not span the whole parity group,
@@ -2360,148 +2531,30 @@ static int pargrp_iomap_populate(struct pargrp_iomap        *map,
 	     m0_ivec_varr_cursor_conti(cursor, grpend) < grpend))
 		rmw = true;
 
-	M0_LOG(M0_INFO, "[%p] Group id %llu is %s", req,
-	       map->pi_grpid, rmw ? "rmw" : "aligned");
-
-	size = inode->i_size;
-	for (seg = 0; !m0_ivec_varr_cursor_move(cursor, count) &&
-		      m0_ivec_varr_cursor_index(cursor) < grpend;) {
-		/*
-		 * Skips the current segment if it is completely spanned by
-		 * rounding up/down of earlier segment.
-		 */
-		if (map->pi_ops->pi_spans_seg(map,
-					    m0_ivec_varr_cursor_index(cursor),
-					    m0_ivec_varr_cursor_step(cursor))) {
-			count = m0_ivec_varr_cursor_step(cursor);
-			continue;
-		}
-
-		V_INDEX(&map->pi_ivv, seg) = m0_ivec_varr_cursor_index(cursor);
-		endpos = m0_ivec_varr_cursor_conti(cursor, grpend);
-		V_COUNT(&map->pi_ivv, seg) = endpos -
-		                             V_INDEX(&map->pi_ivv, seg);
-
-		/* For read IO request, IO should not go beyond EOF. */
-		if (map->pi_ioreq->ir_type == IRT_READ &&
-		    v_seg_endpos(&map->pi_ivv, seg) > size) {
-			if (V_INDEX(&map->pi_ivv, seg) + 1 < size)
-				V_COUNT(&map->pi_ivv, seg) = size -
-					V_INDEX(&map->pi_ivv, seg);
-			else
-				V_COUNT(&map->pi_ivv, seg) = 0;
-			if (V_COUNT(&map->pi_ivv, seg) == 0) {
-				count = m0_ivec_varr_cursor_step(cursor);
-				continue;
-			}
-		}
-
-		/*
-		 * If current segment is _partially_ spanned by previous
-		 * segment in pargrp_iomp::pi_ivv, start of segment is
-		 * rounded up to move to next page.
-		 */
-		if (seg > 0 && V_INDEX(&map->pi_ivv, seg) <
-		    v_seg_endpos(&map->pi_ivv, seg - 1)) {
-			m0_bindex_t newindex;
-
-			newindex = m0_round_up(
-					V_INDEX(&map->pi_ivv, seg) + 1,
-					PAGE_SIZE);
-			V_COUNT(&map->pi_ivv, seg) -= (newindex -
-					V_INDEX(&map->pi_ivv, seg));
-
-			V_INDEX(&map->pi_ivv, seg)  = newindex;
-		}
-
-		++ V_SEG_NR(&map->pi_ivv);
-		M0_LOG(M0_DEBUG, "[%p] pre  grpid = %llu "
-		       "seg %llu = [%llu, +%llu)",
-		       req, map->pi_grpid, seg,
-		       V_INDEX(&map->pi_ivv, seg),
-		       V_COUNT(&map->pi_ivv, seg));
-
-		if (!(map->pi_ioreq->ir_type == IRT_READ && csb->csb_verify)) {
-			/* if not in 'verify mode', ... */
-			rc = map->pi_ops->pi_seg_process(map, seg, rmw);
-			if (rc != 0)
-				return M0_ERR_INFO(rc, "[%p] seg_process "
-						   "failed", req);
-		}
-
-		V_INDEX(&map->pi_ivv, seg) =
-			round_down(V_INDEX(&map->pi_ivv, seg), PAGE_SIZE);
-
-		V_COUNT(&map->pi_ivv, seg) =
-			round_up(endpos, PAGE_SIZE) -
-			V_INDEX(&map->pi_ivv, seg);
-
-		M0_LOG(M0_DEBUG, "[%p] post grpid = %llu "
-		       "seg %llu = [%llu, +%llu)",
-		       req, map->pi_grpid, seg,
-		       V_INDEX(&map->pi_ivv, seg),
-		       V_COUNT(&map->pi_ivv, seg));
-
-		count = endpos - m0_ivec_varr_cursor_index(cursor);
-		M0_LOG(M0_DEBUG, "[%p] cursor will advance +%llu from %llu",
-		       req, count, m0_ivec_varr_cursor_index(cursor));
-		++seg;
-	}
+	M0_LOG(M0_INFO, "[%p] grp_id=%llu: %s", req, map->pi_grpid,
+	                                        rmw ? "rmw" : "aligned");
 
 	/* In 'verify mode', read all data units in this parity group */
 	if (map->pi_ioreq->ir_type == IRT_READ && csb->csb_verify) {
 		indexvec_varr_dump(&map->pi_ivv);
-		M0_LOG(M0_DEBUG, "[%p] change ivec to [%llu, +%llu) "
-		       "for group id %llu",
-		       req, grpstart, grpsize, map->pi_grpid);
+		M0_LOG(M0_DEBUG, "[%p] ivec=[%llu, +%llu)", req,
+		                         grpstart, grpsize);
 		V_SEG_NR(&map->pi_ivv)   = 1;
 		V_INDEX(&map->pi_ivv, 0) = grpstart;
-		/* full parity group, but limit to file size. */
+		/* limit to file size. */
 		count = min64u(grpend, inode->i_size) - grpstart;
-		/* and then round to page size */
 		V_COUNT(&map->pi_ivv, 0) = round_up(count, PAGE_SIZE);
-
 		rc = map->pi_ops->pi_seg_process(map, 0, rmw);
-		if (rc != 0)
-			return M0_ERR_INFO(rc, "[%p] seg_process failed", req);
-	}
-	/*
-	 * Decides whether to undertake read-old approach or read-rest for
-	 * an rmw IO request.
-	 * By default, the segments in index vector pargrp_iomap::pi_ivv
-	 * are suitable for read-old approach.
-	 * Hence the index vector is changed only if read-rest approach
-	 * is selected.
-	 */
+		m0_ivec_varr_cursor_move_to(cursor, grpend);
+	} else
+		rc = pargrp_iomap_populate_pi_ivec(map, cursor, rmw);
+
+	if (rc != 0)
+		return M0_ERR_INFO(rc, "[%p] failed", req);
+
 	if (rmw) {
-		nr = map->pi_ops->pi_fullpages_find(map);
-
-		/*
-		 * Can use number of data_buf structures instead of using
-		 * indexvec_page_nr().
-		 */
-		ro_page_nr = /* Number of pages to be read. */
-			     iomap_page_nr(map) +
-			     parity_units_page_nr(play) +
-			     /* Number of pages to be written. */
-			     iomap_page_nr(map) +
-			     parity_units_page_nr(play);
-
-		rr_page_nr = /* Number of pages to be read. */
-			     page_nr(grpend - grpstart) - nr +
-			     /* Number of pages to be written. */
-			     iomap_page_nr(map) +
-			     parity_units_page_nr(play);
-
-		if (rr_page_nr < ro_page_nr) {
-			M0_LOG(M0_DEBUG, "[%p] RR approach selected", req);
-			map->pi_rtype = PIR_READREST;
-			rc = map->pi_ops->pi_readrest(map);
-		} else {
-			M0_LOG(M0_DEBUG, "[%p] RO approach selected", req);
-			map->pi_rtype = PIR_READOLD;
-			rc = map->pi_ops->pi_readold_auxbuf_alloc(map);
-		}
+		rc = pargrp_iomap_select_ro_rr(map, page_nr(grpsize),
+					       parity_units_page_nr(play));
 		if (rc != 0)
 			return M0_ERR_INFO(rc, "[%p] failed", req);
 	}
