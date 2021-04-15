@@ -63,6 +63,10 @@ static struct m0_rwlock *btree_rwlock(struct m0_be_btree *tree);
 
 static struct be_btree_key_val *be_btree_search(struct m0_be_btree *btree,
 						void *key);
+
+#define M0_BE_TX_CAPTURE_PTR(seg, tx, ptr)
+#define M0_BE_CREDIT_DEC(cr_user, tx)
+
 M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 				     struct m0_be_tx *tx,
 				     struct m0_be_op *op,
@@ -102,6 +106,11 @@ M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg,
 				    const void *addr)
 {
 	return true;
+}
+
+M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx *tx, 
+				  const struct m0_be_reg *reg)
+{
 }
 
 static void btree_root_set(struct m0_be_btree *btree,
@@ -149,6 +158,7 @@ static inline void mem_free(const struct m0_be_btree *btree,
 static inline void mem_update(const struct m0_be_btree *btree,
 			      struct m0_be_tx *tx, void *ptr, m0_bcount_t size)
 {
+	m0_be_tx_capture(tx, &M0_BE_REG(btree->bb_seg, size, ptr));
 }
 
 static inline void *mem_alloc(const struct m0_be_btree *btree,
@@ -270,7 +280,8 @@ static bool btree_backlink_invariant(const struct m0_be_btree_backlink *h,
 		_0C(m0_cookie_dereference(&h->bli_tree, &cookie) == 0) &&
 		_0C(m0_be_seg_contains(seg, cookie)) &&
 		_0C(parent == cookie) &&
-		_0C(M0_BBT_INVALID < h->bli_type && h->bli_type < M0_BBT_NR);
+		_0C(M0_BBT_INVALID < h->bli_type && h->bli_type < M0_BBT_NR) &&
+		_0C(h->bli_gen == seg->bs_gen);
 }
 
 /**
@@ -405,7 +416,7 @@ static void btree_create(struct m0_be_btree  *btree,
 	});
 	m0_cookie_new(&btree->bb_cookie_gen);
 	m0_cookie_init(&btree->bb_backlink.bli_tree, &btree->bb_cookie_gen);
-	/* btree->bb_backlink.bli_gen = btree->bb_seg->bs_gen; */
+	btree->bb_backlink.bli_gen = btree->bb_seg->bs_gen;
 	btree->bb_backlink.bli_type = btree->bb_ops->ko_type;
 	btree->bb_backlink.bli_fid = *btree_fid;
 	btree_root_set(btree, be_btree_node_alloc(btree, tx));
@@ -468,6 +479,7 @@ static void btree_node_free(struct m0_be_bnode       *node,
 {
 	/* invalidate header so that recovery tool can skip freed records */
 	node->bt_header.hd_magic = 0;
+	M0_BE_TX_CAPTURE_PTR(btree->bb_seg, tx, &node->bt_header.hd_magic);
 	mem_free(btree, tx, node);
 }
 
@@ -1403,6 +1415,19 @@ static void btree_save(struct m0_be_btree        *tree,
 
 	M0_PRE(M0_IN(optype, (BTREE_SAVE_INSERT, BTREE_SAVE_UPDATE,
 			      BTREE_SAVE_OVERWRITE)));
+
+	switch (optype) {
+		case BTREE_SAVE_OVERWRITE:
+			M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_DELETE, tx);
+			/* fallthrough */
+		case BTREE_SAVE_INSERT:
+			M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_INSERT, tx);
+			break;
+		case BTREE_SAVE_UPDATE:
+			M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_UPDATE, tx);
+			break;
+	}
+
 	btree_op_fill(op, tree, tx, optype == BTREE_SAVE_UPDATE ?
 		      M0_BBO_UPDATE : M0_BBO_INSERT, NULL);
 
@@ -1671,6 +1696,8 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 	M0_ENTRY("tree=%p", tree);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 
+	M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_DELETE, tx);
+
 	btree_op_fill(op, tree, tx, M0_BBO_DELETE, NULL);
 
 	m0_be_op_active(op);
@@ -1890,6 +1917,8 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_tx           *tx,
 	if (tree != NULL) {
 		if (anchor->ba_write) {
 			if (anchor->ba_value.b_addr != NULL) {
+				mem_update(tree, tx, anchor->ba_value.b_addr,
+					   anchor->ba_value.b_nob);
 				anchor->ba_value.b_addr = NULL;
 			}
 			m0_rwlock_write_unlock(btree_rwlock(tree));
