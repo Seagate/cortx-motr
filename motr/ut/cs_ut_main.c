@@ -338,9 +338,6 @@ static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 		.rsx_log_file_name = SERVER_LOG_FILE_NAME
 	};
 
-	sctx.rsx_xprts = m0_net_all_xprt_get();
-	sctx.rsx_xprts_nr = m0_net_xprt_nr();
-	
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc != 0);
 
