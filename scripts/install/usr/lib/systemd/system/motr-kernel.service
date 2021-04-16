@@ -27,6 +27,12 @@ PartOf=motr-server@.service m0d@.service motr-mkfs@.service motr-server-confd.se
 
 [Service]
 Type=oneshot
+# Re-configure lnet to bring up '--all' interfaces.
+# It works somehow on CentOS-7 even without this, but on CentOS-8
+# the --all flag is needed. Otherwise, lnet.service doesn't initialize
+# any networks, as it is mentioned in the lnetctl manual.
+ExecStart=/bin/bash -c '[[ `/usr/sbin/lctl list_nids` ]] || /usr/sbin/lnetctl lnet unconfigure'
+ExecStart=/usr/sbin/lnetctl lnet configure --all
 ExecStart=/usr/libexec/cortx-motr/motr-kernel start
 ExecStop=/usr/libexec/cortx-motr/motr-kernel stop
 RemainAfterExit=yes
