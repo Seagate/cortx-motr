@@ -65,7 +65,7 @@ enum m0_fab__libfab_params {
 	/** Dummy data used to notify remote end for rma op completions */
 	FAB_DUMMY_DATA    = 0xFABC0DE,
 	/** Max number of completion events to read from a CQ */
-	FAB_MAX_COMP_READ = 16,
+	FAB_MAX_COMP_READ = 256,
 	/** Max timeout for waiting on fd in epoll_wait */
 	FAB_WAIT_FD_TMOUT = 1000,
 	/** Max event entries for active endpoint EQ */

@@ -2443,6 +2443,35 @@ static struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf)
 	return buf->nb_tm->ntm_xprt_private;
 }
 
+static m0_bcount_t libfab_rpc_max_seg_size(struct m0_net_domain *ndom)
+{
+	M0_PRE(ndom != NULL);
+	return (1 << 20); /* 1MB */
+}
+
+static uint32_t libfab_rpc_max_segs_nr(struct m0_net_domain *ndom)
+{
+	M0_PRE(ndom != NULL);
+	return 1;
+}
+
+static m0_bcount_t libfab_rpc_max_msg_size(struct m0_net_domain *ndom,
+					   m0_bcount_t rpc_size)
+{
+	m0_bcount_t mbs;
+	M0_PRE(ndom != NULL);
+
+	mbs = libfab_rpc_max_seg_size(ndom) * libfab_rpc_max_segs_nr(ndom);
+	return rpc_size != 0 ? m0_clip64u(M0_SEG_SIZE, mbs, rpc_size) : mbs;
+}
+
+static uint32_t libfab_rpc_max_recv_msgs(struct m0_net_domain *ndom,
+					 m0_bcount_t rpc_size)
+{
+	M0_PRE(ndom != NULL);
+	return 1;
+}
+
 static const struct m0_net_xprt_ops libfab_xprt_ops = {
 	.xo_dom_init                    = &libfab_dom_init,
 	.xo_dom_fini                    = &libfab_dom_fini,
@@ -2463,7 +2492,11 @@ static const struct m0_net_xprt_ops libfab_xprt_ops = {
 	.xo_get_max_buffer_size         = &libfab_get_max_buf_size,
 	.xo_get_max_buffer_segment_size = &libfab_get_max_buf_seg_size,
 	.xo_get_max_buffer_segments     = &libfab_get_max_buf_segments,
-	.xo_get_max_buffer_desc_size    = &libfab_get_max_buf_desc_size
+	.xo_get_max_buffer_desc_size    = &libfab_get_max_buf_desc_size,
+	.xo_rpc_max_seg_size            = &libfab_rpc_max_seg_size,
+	.xo_rpc_max_segs_nr             = &libfab_rpc_max_segs_nr,
+	.xo_rpc_max_msg_size            = &libfab_rpc_max_msg_size,
+	.xo_rpc_max_recv_msgs           = &libfab_rpc_max_recv_msgs,
 };
 
 struct m0_net_xprt m0_net_libfab_xprt = {
