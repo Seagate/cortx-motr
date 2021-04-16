@@ -88,7 +88,7 @@ static void dtm0_rpc_item_reply_cb(struct m0_rpc_item *item)
 
 	M0_ENTRY("item=%p", item);
 
-        M0_PRE(item != NULL);
+	M0_PRE(item != NULL);
 	M0_PRE(M0_IN(m0_fop_opcode(m0_rpc_item_to_fop(item)),
 		     (M0_DTM0_REQ_OPCODE)));
 

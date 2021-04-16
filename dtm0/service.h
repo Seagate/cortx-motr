@@ -79,3 +79,16 @@ m0_dtm0_service_find(const struct m0_reqh *reqh);
 M0_INTERNAL bool m0_dtm0_in_ut(void);
 
 #endif /* __MOTR_DTM0_SERVICE_H__ */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */

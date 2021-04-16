@@ -187,8 +187,12 @@
  *                          |          |            +----------+ |        |
  * +----------------------->|          |            |          | |        |
  * |                        |          |            |          V |        |
- * |                        V          |            |   CAS_CTG_CROW_DONE |
- * |   SUCCESS<---------CAS_LOOP<----+ |            V                     |
+ * |      +-CAS_DTM0<-+     |          |            |   CAS_CTG_CROW_DONE |
+ * |      |           |     |          |            |                     |
+ * |      |           |dtm0 |          |            |                     |
+ * |      V           |     |          |            |                     |
+ * |   SUCCESS<-------+-CAS_LOOP<----+ |            |                     |
+ * |                        |        | |            V                     |
  * |            index drop  |        | |    +->CAS_LOAD_KEY<--------------+
  * |        +---------------+        | |    |       |
  * |        |               |        | |    |       V
@@ -1042,8 +1046,8 @@ static int cas_dtm0_logrec_credit_add(struct m0_fom *fom0)
 				      &dtm0logrec_cred);
 		m0_be_tx_credit_add(&fom0->fo_tx.tx_betx_cred,
 				    &dtm0logrec_cred);
+		m0_buf_free(&buf);
 	}
-	m0_buf_free(&buf);
 
 	return M0_RC(rc);
 }
