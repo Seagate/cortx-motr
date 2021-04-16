@@ -290,9 +290,9 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	int rc;
 	int i;
 	int stype;
-	static const struct m0_net_xprt *xprts[] = { 
-		m0_net_default_xprt_get(),
-		&m0_net_bulk_mem_xprt
+	struct m0_net_xprt *xprts[] = { 
+		m0_net_xprt_default_get(),
+		(struct m0_net_xprt *)&m0_net_bulk_mem_xprt
 	};
 	struct m0_rpc_server_ctx sctx = {
 		.rsx_xprts         = xprts,
@@ -326,9 +326,9 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 {
 	int rc;
-	static const struct m0_net_xprt *xprts[] = { 
-		m0_net_default_xprt_get(),
-		&m0_net_bulk_mem_xprt
+	struct m0_net_xprt *xprts[] = { 
+		m0_net_xprt_default_get(),
+		(struct m0_net_xprt *)&m0_net_bulk_mem_xprt
 	};
 	struct m0_rpc_server_ctx sctx = {
 		.rsx_xprts         = xprts,
