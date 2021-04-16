@@ -114,8 +114,8 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	struct m0_entity    *entity;
 	struct m0_locality  *locality;
 	struct m0_client    *m0c;
-	uint64_t cid;
-	uint64_t did;
+	uint64_t             cid;
+	uint64_t             did;
 
 	M0_ENTRY();
 

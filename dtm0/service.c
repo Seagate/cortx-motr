@@ -204,10 +204,10 @@ m0_dtm0_service_process_connect(struct m0_reqh_service *s,
 				const char             *remote_ep,
 				bool                    async)
 {
-	struct dtm0_process *process;
+	struct dtm0_process   *process;
 	struct m0_rpc_machine *mach =
 		m0_reqh_rpc_mach_tlist_head(&s->rs_reqh->rh_rpc_machines);
-	int rc;
+	int                    rc;
 
 	process = dtm0_service_process__lookup(s, remote_srv);
 	if (process == NULL)
@@ -237,8 +237,8 @@ M0_INTERNAL int
 m0_dtm0_service_process_disconnect(struct m0_reqh_service *s,
 				   struct m0_fid          *remote_srv)
 {
-	int rc;
 	struct dtm0_process *process = NULL;
+	int                  rc;
 
 	M0_LOG(M0_DEBUG, "dtm0=%p, remote_srv="FID_F, s, FID_P(remote_srv));
 
@@ -303,6 +303,7 @@ static int dtm_service__origin_fill(struct m0_reqh_service *service)
 	struct m0_confc        *confc = m0_reqh2confc(service->rs_reqh);
 	const char            **param;
 	struct m0_dtm0_service *dtm0 = to_dtm(service);
+	int                     rc;
 
 	/* W/A for UTs */
 	if (!m0_confc_is_inited(confc)) {
@@ -336,11 +337,19 @@ static int dtm_service__origin_fill(struct m0_reqh_service *service)
 	}
 
 out:
-	if (dtm0->dos_origin == DTM0_ON_VOLATILE) {
-		m0_be_dtm0_log_alloc(&dtm0->dos_log);
+	rc = 0;
+	if (dtm0->dos_origin == DTM0_ON_VOLATILE)
+		rc = m0_be_dtm0_log_alloc(&dtm0->dos_log);
+
+	if (rc == 0) {
+		rc = m0_be_dtm0_log_init(
+			dtm0->dos_log, &dtm0->dos_clk_src,
+			dtm0->dos_origin == DTM0_ON_PERSISTENT);
+		if (rc != 0)
+			m0_be_dtm0_log_free(&dtm0->dos_log);
 	}
-	return m0_be_dtm0_log_init(dtm0->dos_log, &dtm0->dos_clk_src,
-				   dtm0->dos_origin == DTM0_ON_PERSISTENT);
+
+	return M0_RC(rc);
 }
 
 static int dtm0_service_start(struct m0_reqh_service *service)
