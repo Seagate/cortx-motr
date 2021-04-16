@@ -84,16 +84,14 @@ M0_INTERNAL int m0_dtm0_log_create(struct m0_sm_group  *grp,
 
 	rc = m0_be_dtm0_log_create(tx, seg, &log);
 	if (rc != 0)
-		goto tx_fini;
+		goto tx_close;
 
 	data = M0_BUF_INIT_PTR(&log);
 	rc = m0_be_0type_add(&m0_be_dtm0, bedom, tx, logid, &data);
 	if (rc != 0)
-		goto log_fini;
-
+		m0_be_dtm0_log_destroy(tx, &log);
+tx_close:
 	m0_be_tx_close_sync(tx);
-log_fini:
-	m0_be_dtm0_log_destroy(tx, &log);
 tx_fini:
 	m0_be_tx_fini(tx);
 	m0_free(tx);
