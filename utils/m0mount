@@ -139,7 +139,7 @@ WORK_ARENA=${SANDBOX_DIR:-/var/motr}
 CONF_FILE=$WORK_ARENA/conf.xc
 
 # transport related variables
-XPT=lnet
+XPT=$(m0_default_xpt)
 # m0d flags
 XPT_MEMSIZE=163840
 XPT_QUEUELEN=16

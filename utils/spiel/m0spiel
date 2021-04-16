@@ -584,7 +584,7 @@ class SpielWrapper:
         self.motr.m0_net_xprt_default_get.restype = c_void_p
         xprt = self.motr.m0_net_xprt_default_get()
         if not xprt:
-            xprt = NetXprt.in_dll(self.motr, 'm0_net_lnet_xprt')
+            xprt = NetXprt.in_dll(self.motr, 'm0_net_libfab_xprt')
 
         self.motr.m0_net_domain_init.argtypes = [c_void_p, c_void_p]
         call(self.motr.m0_net_domain_init, domain, xprt)

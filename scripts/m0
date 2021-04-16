@@ -41,6 +41,16 @@ M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
 SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
 
+## By default libfab is used as transport
+## to change use NET_XPT=lnet along with m0 script
+_transport_select() {
+
+    NET_XPT=${NET_XPT:-libfab}
+    echo $NET_XPT
+    touch $M0_SRC_DIR/scripts/st.d/net_xpt
+    echo $NET_XPT > $M0_SRC_DIR/scripts/st.d/net_xpt
+}
+
 # Increase the maximum number of memory map areas a process may have.
 # m0d process may allocate and madvise() at least 2,000,000 memory map areas.
 # See MOTR-2171 for more details.
@@ -141,6 +151,9 @@ cmd_run_st() {
     local pattern
     local f
     local list_p=0
+    local trans
+
+    trans=$(_transport_select)
 
     if [ "${1:-}" = '-l' ]; then
         list_p=1

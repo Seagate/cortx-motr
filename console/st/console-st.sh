@@ -44,6 +44,8 @@ CONF_PROFILE='<0x7000000000000001:0>'
 NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91  # required by `common.sh'
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh  # modload_galois
 
+XPRT=$(m0_default_xpt)
+
 start_server()
 {
 	modprobe lnet
@@ -64,7 +66,7 @@ start_server()
 	##
 	$M0_SRC_DIR/utils/mkfs/m0mkfs -T AD -D console_st_srv.db \
 	    -S console_st_srv.stob -A linuxstob:console_st_srv-addb.stob \
-	    -w 10 -e lnet:$SERVER_EP_ADDR -H $SERVER_EP_ADDR \
+	    -w 10 -e "$XPRT:$SERVER_EP_ADDR" -H $SERVER_EP_ADDR \
 	    -q 2 -m $((1 << 17)) \
 	    -c $CONF_FILE_PATH  \
 	    &>$SANDBOX_DIR/mkfs.log || die 'm0mkfs failed'
