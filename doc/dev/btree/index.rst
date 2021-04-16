@@ -1121,6 +1121,14 @@ Meetings
      - radha: implement credit calculations for insert, delete operations
      - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210414%201003-1.mp4?csf=1&web=1&e=ieZEv1>`_
 
+   * - 2021.04.16
+     - sync up
+     - nikhil, nikita, shashank, radha, hua, shankar, yash, jaydeep
+     - discussion on implementation details of btree functions/benchmark tool.
+     - 
+     - shashank: implement the btree functions and update ut.
+     - `recording <https://seagatetechnology.sharepoint.com/:v:/r/sites/gteamdrv1/tdrive1224/Shared%20Documents/Architecture/bTree%20Design%20for%20R2/Nikita%27s%20session%20on%20new%20bTree%20-20210316%201005-1.mp4?csf=1&web=1&e=W3Fxo7>`_
+
 Detailed-level design (DLD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
