@@ -116,11 +116,10 @@ DIX_PVERID='^v|1:20'
 MAX_NR_FILES=20 # XXX temporary workaround for performance issues
 TM_MIN_RECV_QUEUE_LEN=16
 MAX_RPC_MSG_SIZE=65536
-XPT=libfab #lnet
 PVERID='^v|1:10'
 MDPVERID='^v|2:10'
 M0T1FS_PROC_ID='<0x7200000000000001:64>'
-
+XPT=$(m0_default_xpt)
 # Single node configuration.
 SINGLE_NODE=0
 
@@ -814,6 +813,7 @@ fids:'
 		yaml="$yaml
   - $fid"
 	done
+	echo "XPT is $XPT"
 
 	send_ha_msg_nvec "$yaml" "${remote_eps[*]}" "$local_ep"
 }
