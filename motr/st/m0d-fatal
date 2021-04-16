@@ -38,6 +38,8 @@ START_WAIT=${START_WAIT:-10}
 INTER_WAIT=${INTER_WAIT:-3}
 TEST_NAME='m0d-fatal'
 
+XPRT=$(m0_default_xpt)
+
 iosloopdevs() {
     cat > $CONF_DISKS << EOF
     Device:
@@ -160,7 +162,7 @@ EOF
 main_m0d_start() {
     local path=$SANDBOX_DIR/confd
     local OPTS="-F -D $path/db -T AD -S $path/stobs
-        -A linuxstob:$path/addb-stobs -e lnet:$M0D1_ENDPOINT
+        -A linuxstob:$path/addb-stobs -e $XPRT:$M0D1_ENDPOINT
         -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE
         -w 3 -f $PROC_FID -d $CONF_DISKS -j"
 
@@ -188,7 +190,7 @@ main_m0d_start() {
 sample_m0d_start() {
     local path=$SANDBOX_DIR/systest-$$
     local OPTS="-D $path/db -T AD -S $path/stobs
-        -A linuxstob:$path/addb-stobs -e lnet:$M0D2_ENDPOINT
+        -A linuxstob:$path/addb-stobs -e $XPRT:$M0D2_ENDPOINT
         -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3
         -f $PROC_FID2 -d $CONF_DISKS -H $M0D1_ENDPOINT"
 
