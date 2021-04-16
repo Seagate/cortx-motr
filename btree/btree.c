@@ -1501,6 +1501,137 @@ static void generic_move(struct nd *src, struct nd *tgt,
 	node_fix(tgt, tx);
 }
 
+
+/**
+ *  -------------------------------------------------------
+ *  Section START - Credit calculation for BTree Operations
+ *  -------------------------------------------------------
+ */
+
+static void btree_move_key_value_credit(m0_bcount_t             ksize,
+					m0_bcount_t             vsize,
+					int                     no_items,
+					struct m0_be_tx_credit *accum);
+static void btree_insert_key_value_credit(m0_bcount_t             ksize,
+					  m0_bcount_t             vsize,
+					  struct m0_be_tx_credit *accum);
+static void btree_delete_key_value_credit(m0_bcount_t             ksize,
+					  m0_bcount_t             vsize,
+					  struct m0_be_tx_credit *accum);
+
+m0_bcount_t internal_vsize; //for internal node value size is fix
+
+//in case of fix key,fix value max_ksize,max_vsize will be fix key, value size else estimate max sizes
+m0_bcount_t max_ksize; 
+m0_bcount_t max_vsize;
+m0_bcount_t max_node_size;
+
+enum threshold{
+	MAX_MOVE = 0.7,
+	MIN_MOVE = 0.3,
+	ALL_MOVE = 1
+};
+
+m0_bcount_t cal_no_items(m0_bcount_t ksize, m0_bcount_t vsize,
+			 m0_bcount_t node_size,e num threshold threshold)
+{
+	//i.e. threshold = 0.7, i.e. move 70% to new node
+	return threshold*(node_size/(ksize + vsize));
+}
+
+static void btree_insert_internal_node_credit(const struct m0_be_btree *tree,
+					      struct m0_be_tx_credit *accum)
+{
+	//credit for creating new node
+	m0_be_btree_create_credit(tree, 1, accum);
+	int no_items = cal_no_items(max_ksize, internal_vsize, max_node_size, MAX_MOVE);
+	btree_move_key_value_credit(max_ksize, internal_vsize, no_items, accum);
+	btree_insert_key_value_credit(max_ksize, fix_vsize, accum);
+}
+
+static void btree_insert_leaf_node_credit(const struct m0_be_btree *tree,
+					  m0_bcount_t               ksize,
+					  m0_bcount_t               vsize,
+					  struct m0_be_tx_credit   *accum)
+{
+	//credit for creating new node
+	m0_be_btree_create_credit(tree, 1, accum);
+	int no_items = cal_no_items(max_ksize, max_vsize, max_node_size, MAX_MOVE);
+	btree_move_key_value_credit(max_ksize, max_vsize, accum);
+	btree_insert_key_value_credit(ksize, vsize, accum);//todo:check if needed
+}
+
+static void new_root_credit(const struct m0_be_btree *tree, struct m0_be_tx_credit *accum)
+{
+	m0_be_btree_create_credit(tree, 1, accum);
+	btree_insert_key_value_credit(max_ksize, fix_vsize, accum);
+	btree_insert_key_value_credit(max_ksize, fix_vsize, accum);
+}
+
+static void insert_credit(const struct m0_be_btree *tree,
+			  m0_bcount_t               nr,
+			  m0_bcount_t               ksize,
+			  m0_bcount_t               vsize,
+			  struct m0_be_tx_credit   *accum,
+			  bool                      use_current_height)
+{
+	uint32_t height = BTREE_HEIGHT_MAX;
+	
+	btree_insert_leaf_node_credit(tree, ksize, vsize, accum);
+
+	btree_insert_internal_node_credit(tree, accum);
+	m0_be_tx_credit_mul(accum, height);
+
+	new_root_credit(tree, accum);
+}
+
+static void btree_delete_leaf_node_credit(const struct m0_be_btree *tree,
+					  m0_bcount_t               ksize, 
+					  m0_bcount_t               vsize, 
+					  struct m0_be_tx_credit   *accum)
+{
+	btree_delete_key_value_credit(ksize, vsize, accum);//todo:check if needed
+	int no_items = cal_no_items(max_ksize, max_vsize, max_node_size, MIN_MOVE);
+	btree_move_key_value_credit(max_ksize, max_vsize, accum);
+	m0_be_btree_destroy_credit(tree, 1, accum);
+}
+
+static void btree_delete_internal_node_credit(const struct m0_be_btree *tree, struct m0_be_tx_credit *accum)
+{
+	btree_delete_key_value_credit(max_ksize, fix_vsize, accum);//todo:check if needed
+	int no_items = cal_no_items(max_ksize, fix_vsize, max_node_size, MIN_MOVE);
+	btree_move_key_value_credit(max_ksize, fix_vsize, accum);
+	m0_be_btree_destroy_credit(tree, 1, accum);
+
+}
+
+static void delete_root_credit(const struct m0_be_btree *tree, struct m0_be_tx_credit *accum)
+{
+	btree_delete_key_value_credit(max_ksize, fix_vsize, accum);
+	int no_items = cal_no_items(max_ksize, fix_vsize, max_node_size, ALL_MOVE);
+	btree_move_key_value_credit(max_ksize, fix_vsize, accum);
+	m0_be_btree_destroy_credit(tree, 1, accum);
+}
+
+static void delete_credit(const struct m0_be_btree *tree,
+			  m0_bcount_t               nr,
+			  m0_bcount_t               ksize,
+			  m0_bcount_t               vsize,
+			  struct m0_be_tx_credit   *accum,
+			  bool                      use_current_height)
+{
+	uint32_t height = BTREE_HEIGHT_MAX;
+	
+	btree_delete_leaf_node_credit(tree, ksize, vsize, accum);
+
+	btree_delete_internal_node_credit(tree, accum);
+	m0_be_tx_credit_mul(accum, height-2);
+
+	delete_root_credit(tree, accum);
+}
+
+
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*
