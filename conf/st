@@ -53,6 +53,8 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 M0CONFGEN=$M0_SRC_DIR/utils/m0confgen
 
+XPRT=$(m0_default_xpt)
+	
 start() {
    _init
    services_start
@@ -147,7 +149,7 @@ services_start() {
     local CONF_FILE=conf.xc
     local OPTS="-f $PROCESS_M0D -H $M0D1_ENDPOINT
 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -F -D db -T AD -S stobs
--A linuxstob:addb-stobs -e lnet:$M0D1_ENDPOINT -c $CONF_FILE -w 3"
+-A linuxstob:addb-stobs -e $XPRT:$M0D1_ENDPOINT -c $CONF_FILE -w 3"
 
     confdb | $M0CONFGEN >$CONF_FILE || error 'm0confgen failed'
 

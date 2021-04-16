@@ -46,6 +46,8 @@ CONF_FILE=$SANDBOX_DIR/confd/conf.txt
 
 PROC_FID1="<0x7200000000000001:0>"
 
+XPRT=$(m0_default_xpt)
+
 start() {
     sandbox_init
     _init
@@ -111,7 +113,7 @@ _mkfs() {
     local fid=$PROC_FID1
     local path=$SANDBOX_DIR/confd
     local OPTS="${1:-} -D $path/db -T AD -S $path/stobs\
-    -A linuxstob:$path/addb-stobs -e lnet:$ep\
+    -A linuxstob:$path/addb-stobs -e $XPRT:$ep\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
     -w 3 -f $fid"
 

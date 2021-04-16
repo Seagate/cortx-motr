@@ -184,26 +184,13 @@ stub_confdb() {
 EOF
 }
 
-m0_get_transport(){
-    local trans;
-
-    trans = $(fi_info)
-    if [[ $? -eq 0 ]]; then
-        trans="libfab"
-    else
-        trans="lnet"
-    fi
-
-    echo $trans
-}
-
 ### m0_spiel_start requires endpoint of RM service. This function starts the
 ### first m0d instance with rmservice. All Spiel commands from command
 ### interface part will affect to second m0d instance. Spiel commands from
 ### configuration management part may affect to both m0d.
 m0d_with_rms_start() {
     local path=$SANDBOX_DIR/confd
-    local trans=$(m0_get_transport);
+    local trans=$(m0_default_xpt);
     local OPTS="-F -D $path/db -T AD -S $path/stobs\
     -A linuxstob:$path/addb-stobs -e $trans:$M0D1_ENDPOINT\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
@@ -230,7 +217,7 @@ m0d_with_rms_start() {
 
 test_m0mkfs() {
     local path=$SANDBOX_DIR/systest-$$
-    local trans=$(m0_get_transport);
+    local trans=$(m0_default_xpt);
     local OPTS="-D $path/db -T AD -S $path/stobs\
     -A linuxstob:$path/addb-stobs -e $trans:$M0D2_ENDPOINT -c $CONF_FILE\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 \
@@ -245,7 +232,7 @@ test_m0mkfs() {
 
 test_m0d_start() {
     local path=$SANDBOX_DIR/systest-$$
-    local trans=$(m0_get_transport);
+    local trans=$(m0_default_xpt);
     local OPTS="-D $path/db -T AD -S $path/stobs\
     -A linuxstob:$path/addb-stobs -e $trans:$M0D2_ENDPOINT -c $CONF_FILE\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 \
