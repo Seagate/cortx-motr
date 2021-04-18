@@ -182,7 +182,9 @@ spiel() {
     local files=$SANDBOX_DIR/installed-files
     case "$*" in
         init)
-            _spiel_setup -q install --home $SANDBOX_DIR --record $files;;
+            _spiel_setup -q install --home $SANDBOX_DIR \
+                         --install-lib $SANDBOX_DIR/lib64/python \
+                         --record $files;;
         run)
             PYTHONPATH=$SANDBOX_DIR/lib64/python \
                       $M0_SRC_DIR/utils/spiel/m0spiel \
