@@ -1323,7 +1323,7 @@ static void btree_op_get(struct workload *w, struct workload_op *op)
 }
 
 static void btree_op_run(struct workload *w, struct workload_task *task,
-			const struct workload_op *op)
+			 const struct workload_op *op)
 {
 	int			  i;
 	m0_time_t                 stime;
@@ -1334,15 +1334,16 @@ static void btree_op_run(struct workload *w, struct workload_task *task,
 	char			  k[cwb->cwb_max_key_size];
 	char			  v[cwb->cwb_max_value_size];
 
+	M0_ALLOC_PTR(key_val);
+	if (key_val == NULL)
+		return;
+
 	if (cwb->cwb_keys_ordered) {
 		pthread_mutex_lock(&w->cw_lock);
 		cwb->cwb_bo[ot].key = cwb->cwb_bo[ot].key + cwb->cwb_num_kvs >
 				      cwb->cwb_bo[ot].nr_ops ? 0 :
 				      cwb->cwb_bo[ot].key + 1;
 		pthread_mutex_unlock(&w->cw_lock);
-		M0_ALLOC_PTR(key_val);
-		if (key_val == NULL)
-			return;
 
 		for (i = 0; i < cwb->cwb_num_kvs; i++) {
 			m0_buf_init(&key_val[i].kv_key, k, cwb->cwb_key_size);
@@ -1381,6 +1382,7 @@ static void btree_op_run(struct workload *w, struct workload_task *task,
 	pthread_mutex_lock(&w->cw_lock);
 	cr_time_acc(&cwb->cwb_bo[ot].exec_time, etime);
 	pthread_mutex_unlock(&w->cw_lock);
+	m0_free(key_val);
 	return;
 }
 
