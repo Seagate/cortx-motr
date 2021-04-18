@@ -641,20 +641,20 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case INSERT:
 			w = &load[*index];
 			cbw = workload_btree(w);
-			cbw->cwb_opcode_prcnt[BOT_INSERT] = parse_int(value,
-								      INSERT);
+			cbw->cwb_bo[BOT_INSERT].prcnt = parse_int(value, 
+								  INSERT);
 			break;
 		case LOOKUP:
 			w = &load[*index];
 			cbw = workload_btree(w);
-			cbw->cwb_opcode_prcnt[BOT_LOOKUP] = parse_int(value,
-								      LOOKUP);
+			cbw->cwb_bo[BOT_LOOKUP].prcnt = parse_int(value, 
+								  LOOKUP);
 			break;
 		case DELETE:
 			w = &load[*index];
 			cbw = workload_btree(w);
-			cbw->cwb_opcode_prcnt[BOT_DELETE] = parse_int(value,
-								      DELETE);
+			cbw->cwb_bo[BOT_DELETE].prcnt = parse_int(value, 
+								  DELETE);
 			break;
 
 		default:

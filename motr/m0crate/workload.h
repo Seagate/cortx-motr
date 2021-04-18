@@ -33,6 +33,7 @@
 
 #include <sys/param.h>    /* MAXPATHLEN */
 #include "lib/memory.h"
+#include "lib/time.h"
 #include "motr/m0crate/crate_utils.h"
 
 /* used for both file offsets and file sizes. */
@@ -127,42 +128,32 @@ enum csum_op_type {
 };
 
 enum btree_op_type {
-	BOT_CREATE,
 	BOT_INSERT,
 	BOT_LOOKUP,
 	BOT_DELETE,
 	BOT_OPS_NR
 };
 
-struct cr_workload_btree {
-	int	        cwb_key_size;
-	int	        cwb_value_size;
-	int	        cwb_max_key_size;
-	int             cwb_max_value_size;
-	int	        cwb_min_key_size;
-	int	        cwb_num_kvs;
-	bool	        cwb_keys_ordered;
-	char	       *cwb_pattern;
-	int32_t         cwb_ops_per_thread;// Nikhil Check if needed
-	uint64_t        cwb_ops_done[BOT_OPS_NR];// Nikhil Check if needed
-	int	        cwb_opcode_prcnt[BOT_OPS_NR];
-	struct timeval  cwb_start_time;
-	struct timeval  cwb_finish_time;
-	struct timeval  cwb_execution_time;
-	struct timeval  cwb_time[BOT_OPS_NR];
+struct btree_ops {
+	const char *opname;
+	int	    prcnt;
+	int	    nr_ops;
+	int	    key;
+	m0_time_t   exec_time;
 };
 
-struct task_btree {
-	struct cr_workload_btree  *tb_wb;
-	int                        tb_task_idx;
-	uint32_t		  *tb_op_status;
-	uint32_t		  *tb_op_rcs;
-	int32_t                    tb_progress;
-	uint64_t                   tb_start_key;
-	uint64_t                   tb_nr_ops;
-	uint64_t                   tb_nr_ops_done;
-	struct timeval            *tb_op_list_time;
-	struct timeval             tb_op_acc_time;
+struct cr_workload_btree {
+	int	          cwb_key_size;
+	int	          cwb_value_size;
+	int	          cwb_max_key_size;
+	int               cwb_max_value_size;
+	int	          cwb_min_key_size;
+	int	          cwb_num_kvs; /* Number of kvs per op */
+	bool	          cwb_keys_ordered; /* Sequential or random workload */
+	char	         *cwb_pattern; /* Fixed pattern */
+	struct btree_ops  cwb_bo[BOT_OPS_NR];
+	m0_time_t         cwb_start_time;
+	m0_time_t         cwb_finish_time;
 };
 
 /* description of a single task (thread) executing workload */
@@ -185,7 +176,6 @@ struct workload_task {
                         char            *tc_buf;
                 } wt_csum;
 		void *m0_task;
-		void *btree_task;
 		// void *index_task;
         } u;
 };
@@ -204,6 +194,9 @@ struct workload_op {
                         enum csum_op_type  oc_type;
                         bcnt_t             oc_offset;
                 } wo_csum;
+                struct op_btree {
+                        enum btree_op_type  ob_type;
+                } wo_btree;
         } u;
 };
 

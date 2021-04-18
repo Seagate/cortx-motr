@@ -74,6 +74,16 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	*ptr = m0_alloc_aligned(size, shift);
 }
 
+M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
+			     struct m0_be_tx *tx,
+			     struct m0_be_op *op,
+			     void **ptr,
+			     m0_bcount_t size)
+{
+	*ptr = m0_alloc(size);
+}
+
+
 M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 					enum m0_be_allocator_op optype,
 					m0_bcount_t size,

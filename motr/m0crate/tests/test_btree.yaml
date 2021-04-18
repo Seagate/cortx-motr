@@ -46,7 +46,7 @@ WORKLOAD_SPEC:               # Workload specification section
       MAX_KEY_SIZE: 512K     # int [units]
       MAX_VALUE_SIZE: 512K   # int [units]
       KEY_ORDER: ordered     # ordered(sequential) or random
-      PATTERN: random        # pattern(for eg. 'AB') or random
+      PATTERN: random        # pattern(for eg. 'A') or random
       INSERT: 100            # percentage of insert operation
       LOOKUP: 0              # percentage of lookup operation
       DELETE: 0              # percentage of delete operation

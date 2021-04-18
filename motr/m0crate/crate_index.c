@@ -205,7 +205,7 @@ static bool cr_rand_bool()
 }
 
 /** Get random string */
-static void cr_get_random_string(char *dest, size_t length)
+void cr_get_random_string(char *dest, size_t length)
 {
 	char set[] = "0123456789"
 		"abcdefghijklmnopqrstuvwxyz"
