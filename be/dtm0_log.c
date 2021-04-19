@@ -144,9 +144,9 @@ M0_INTERNAL void dtm0_be_alloc_log_rec_credit(struct m0_dtm0_tx_desc *txd,
 }
 
 M0_INTERNAL void dtm0_be_set_log_rec_credit(struct m0_dtm0_tx_desc *txd,
-					     struct m0_buf          *payload,
-					     struct m0_be_seg       *seg,
-					     struct m0_be_tx_credit *accum)
+					    struct m0_buf          *payload,
+					    struct m0_be_seg       *seg,
+					    struct m0_be_tx_credit *accum)
 {
 	M0_BE_ALLOC_CREDIT_BUF(payload, seg, accum);
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(*payload));
@@ -256,9 +256,8 @@ struct m0_dtm0_log_rec *m0_be_dtm0_log_find(struct m0_be_dtm0_log    *log,
 
 		m0_be_list_for(lrec, log->u.dl_list, lrec) {
 			if (m0_dtm0_tid_cmp(log->dl_cs, &lrec->dlr_txd.dtd_id,
-					    id) == M0_DTS_EQ) {
+					    id) == M0_DTS_EQ)
 				break;
-			}
 		} m0_be_list_endfor;
 		return lrec;
 	} else {
