@@ -241,6 +241,10 @@ static int create_object(struct m0_entity *entity)
 	int                  rc;
 	struct m0_op        *ops[1] = {NULL};
 
+	struct m0_obj       *obj;
+	struct m0_op_common *oc;
+	struct m0_op_obj    *oo;
+
 	rc = m0_entity_create(NULL, entity, &ops[0]);
 	if (rc != 0)
 		goto cleanup;
@@ -250,6 +254,12 @@ static int create_object(struct m0_entity *entity)
 			       M0_BITS(M0_OS_FAILED,
 				       M0_OS_STABLE),
 				       M0_TIME_NEVER);
+	oc = M0_AMB(oc, *ops, oc_op);
+	oo = M0_AMB(oo, oc, oo_oc);
+	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
+	M0_LOG(M0_ALWAYS, "post create object, obj->ob_attr.oa_pver :"FID_F,
+	       FID_P(&obj->ob_attr.oa_pver));
+
 	if (rc == 0)
 		rc = ops[0]->op_rc;
 
@@ -535,6 +545,17 @@ int m0_read(struct m0_container *container,
 	rc = lock_ops->olo_read_lock_get_sync(&obj, &req);
 	if (rc != 0)
 		goto get_error;
+
+	/* Setting pver here to hardcode value, pool version set here is
+	 * as we received in create operation in obj->oa_attr.
+	 * This piece of code is only for verification purpose at
+	 * motr level, WILL BE REMOVED FROM FINAL PATCH  */
+
+        obj.ob_attr.oa_pver.f_container = 0x7600000000000001;
+	obj.ob_attr.oa_pver.f_key = 0x30;
+
+	M0_LOG(M0_ALWAYS, "m0_read: obj->ob_attr.oa_pver is set to:"FID_F" To predent that, it is received from s3",
+			FID_P(&obj.ob_attr.oa_pver));
 
 	rc = open_entity(&obj.ob_entity);
 	if (entity_sm_state(&obj) != M0_ES_OPEN || rc != 0)

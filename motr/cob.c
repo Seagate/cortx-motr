@@ -1808,6 +1808,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	struct cob_req         *cr;
 	struct m0_pool_version *pv;
 	struct m0_op           *op;
+	bool                    skip_lookup;
 
 	M0_ENTRY();
 	M0_PRE(oo != NULL);
@@ -1848,18 +1849,42 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	}
 	cr->cr_cob_attr = cob_attr;
 
+	/* Skip cob lookup if obj.ob_attr.oa_pver is not empty.
+	 * We are assuming here, if pver is not empty that means we
+	 * have received pver from s3 */
+	skip_lookup = false;
+	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
+	if ((cr->cr_opcode == M0_EO_GETATTR) && (obj->ob_attr.oa_pver.f_container != 0 &&
+	    obj->ob_attr.oa_pver.f_key != 0)) {
+		skip_lookup = true;
+		M0_LOG(M0_ALWAYS, "pver "FID_F" is valid, lookup can be skipped",
+		       FID_P(&obj->ob_attr.oa_pver));
+	}
+
 	/* Set layout id for CREATE op.*/
 	if (cr->cr_opcode == M0_EO_CREATE) {
-		obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
 		cr->cr_cob_attr->ca_lid = obj->ob_attr.oa_layout_id;
 	}
 
+	if (! skip_lookup ) {
 	/* Send requests to services. */
-	rc = cob_req_send(cr);
-	if (rc != 0) {
-		cr->cr_ar.ar_ast.sa_cb = &cob_ast_fail_cr;
-		cr->cr_ar.ar_rc = rc;
-		m0_sm_ast_post(cr->cr_op_sm_grp, &cr->cr_ar.ar_ast);
+		M0_LOG(M0_ALWAYS, "proceeding for lookup, cr_opcode: %d", cr->cr_opcode);
+		rc = cob_req_send(cr);
+		if (rc != 0) {
+			cr->cr_ar.ar_ast.sa_cb = &cob_ast_fail_cr;
+			cr->cr_ar.ar_rc = rc;
+			m0_sm_ast_post(cr->cr_op_sm_grp, &cr->cr_ar.ar_ast);
+		}
+	} else {
+		M0_LOG(M0_ALWAYS, "skipped lookup, obj pver is :"FID_F"", FID_P(&obj->ob_attr.oa_pver));
+		/* We are skipping cob lookup here as we have received pver
+		 * and LID from s3, and hence need to move op state 
+		 * LAUNCHED, EXECUTED and STABLE explicitly */
+		m0_sm_move(&cr->cr_op->op_sm, 0, M0_OS_LAUNCHED);
+		m0_sm_group_unlock(&cr->cr_op->op_sm_group);
+		cob_complete_op(cr->cr_op);
+		m0_sm_group_lock(&cr->cr_op->op_sm_group);
+		rc = 3;
 	}
 
 	return M0_RC(rc);
