@@ -45,8 +45,6 @@ enum {
 		(ret) = M0_RC_INFO(0, "allocated memory for " msg);		\
 })
 
-#define MIN(_x, _y) ((_x) < (_y) ? (_x) : (_y))
-
 /* Forward declarations */
 static void xor_calculate(struct m0_parity_math *math,
                           const struct m0_buf *data,
@@ -186,25 +184,25 @@ static bool fails_sort(uint8_t *fail, uint32_t unit_count,
 		       struct m0_buf *failed_idx, struct m0_buf *alive_idx);
 #endif /* ISAL_ENCODE_ENABLED */
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static void reed_solomon_recover(struct m0_parity_math *math,
                                  struct m0_buf *data,
                                  struct m0_buf *parity,
                                  struct m0_buf *fails,
 				 enum m0_parity_linsys_algo algo);
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 static void fail_idx_xor_recover(struct m0_parity_math *math,
 				 struct m0_buf *data,
 				 struct m0_buf *parity,
 				 const uint32_t failure_index);
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static void fail_idx_reed_solomon_recover(struct m0_parity_math *math,
 					  struct m0_buf *data,
 					  struct m0_buf *parity,
 					  const uint32_t failure_index);
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 #if ISAL_ENCODE_ENABLED
 static void fail_idx_isal_recover(struct m0_parity_math *math,
@@ -222,7 +220,7 @@ static void fail_idx_isal_recover(struct m0_parity_math *math,
 static int ir_gen_decode_matrix(struct m0_sns_ir *ir);
 #endif /* ISAL_ENCODE_ENABLED */
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 /**
  * Inverts the encoding matrix and generates a recovery matrix for lost data.
  * When all failed blocks are parity blocks this function plays no role.
@@ -239,7 +237,7 @@ static void submatrix_construct(struct m0_matrix *in_mat,
 				struct m0_sns_ir_block *blocks,
 				enum m0_sns_ir_block_status status,
 				struct m0_matrix *out_mat);
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 /**
  * Recovery of each failed block depends upon subset of alive blocks.
@@ -295,7 +293,7 @@ static void buf2bufvec(struct m0_bufvec *bvec, const struct m0_buf *buf);
 static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block);
 #endif /* ISAL_ENCODE_ENABLED */
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static inline uint32_t recov_mat_col(const struct m0_sns_ir_block *alive_block,
 				     const struct m0_sns_ir_block *failed_block,
 				     const struct m0_sns_ir *ir);
@@ -313,7 +311,7 @@ static void dependency_bitmap_update(struct m0_sns_ir_block *f_block,
 static void incr_recover(struct m0_sns_ir_block *failed_block,
 			 const struct m0_sns_ir_block *available_block,
 			 struct m0_sns_ir *ir);
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 /**
  * Constant times x plus y, over galois field. Naming convention for this
@@ -322,7 +320,7 @@ static void incr_recover(struct m0_sns_ir_block *failed_block,
 static void gfaxpy(struct m0_bufvec *y, struct m0_bufvec *x,
 		   m0_parity_elem_t alpha);
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 /**
  * Adds correction for a remote block that is received before all blocks
  * local to a node are transformed. This correction is needed only when
@@ -337,13 +335,13 @@ static void forward_rectification(struct m0_sns_ir *ir,
  * for computing failed parity.
  */
 static void failed_data_blocks_xform(struct m0_sns_ir *ir);
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 static inline bool is_valid_block_idx(const  struct m0_sns_ir *ir,
 				      uint32_t block_idx);
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static bool is_data(const struct m0_sns_ir *ir, uint32_t index);
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 static bool is_usable(const struct m0_sns_ir *ir,
 		      const struct m0_bitmap *in_bmap,
@@ -352,13 +350,13 @@ static bool is_usable(const struct m0_sns_ir *ir,
 static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 				     uint32_t block_idx);
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static inline  bool are_failures_mixed(const struct m0_sns_ir *ir);
 
 static inline const struct m0_matrix* recovery_mat_get(const struct m0_sns_ir
 						       *ir,
 						       uint32_t failed_idx);
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 static inline uint32_t ir_blocks_count(const struct m0_sns_ir *ir);
 
@@ -440,19 +438,19 @@ static int gadd(int x, int y)
 	return m0_parity_add(x, y);
 }
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static int gsub(int x, int y)
 {
 	return m0_parity_sub(x, y);
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 static int gmul(int x, int y)
 {
 	return m0_parity_mul(x, y);
 }
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static int gdiv(int x, int y)
 {
 	return m0_parity_div(x, y);
@@ -522,7 +520,7 @@ static int vandmat_norm(struct m0_matrix *m)
 
 	return 0;
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 #if ISAL_ENCODE_ENABLED
 static bool parity_math_invariant(const struct m0_parity_math *math)
@@ -788,7 +786,7 @@ fini:
 }
 #endif /* ISAL_ENCODE_ENABLED */
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static void reed_solomon_diff(struct m0_parity_math *math,
 			      struct m0_buf         *old,
 			      struct m0_buf         *new,
@@ -821,7 +819,7 @@ static void reed_solomon_diff(struct m0_parity_math *math,
 		}
 	}
 }
-#endif /* ISAL_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 static void xor_diff(struct m0_parity_math *math,
 		     struct m0_buf         *old,
@@ -846,7 +844,7 @@ static void xor_diff(struct m0_parity_math *math,
 	}
 }
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static void reed_solomon_encode(struct m0_parity_math *math,
 				const struct m0_buf *data,
 				struct m0_buf *parity)
@@ -903,7 +901,7 @@ static void reed_solomon_encode(struct m0_parity_math *math,
 
 #undef PARITY_MATH_REGION_ENABLE
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 #if ISAL_ENCODE_ENABLED
 static void isal_encode(struct m0_parity_math *math,
@@ -1000,7 +998,7 @@ static uint32_t fails_count(uint8_t *fail, uint32_t unit_count)
 	return count;
 }
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 /* Fills 'mat' and 'vec' with data passed to recovery algorithm. */
 static void recovery_vec_fill(struct m0_parity_math *math,
 			       uint8_t *fail, uint32_t unit_count, /* in. */
@@ -1024,9 +1022,9 @@ static void recovery_vec_fill(struct m0_parity_math *math,
 		}
 	}
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 /* Fills 'mat' with data passed to recovery algorithm. */
 static void recovery_mat_fill(struct m0_parity_math *math,
 			      uint8_t *fail, uint32_t unit_count, /* in. */
@@ -1046,9 +1044,9 @@ static void recovery_mat_fill(struct m0_parity_math *math,
 		}
 	}
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 /* Updates internal structures of 'math' with recovered data. */
 static void parity_math_recover(struct m0_parity_math *math,
 				uint8_t *fail, uint32_t unit_count,
@@ -1073,9 +1071,9 @@ static void parity_math_recover(struct m0_parity_math *math,
 		}
 	}
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
 					uint8_t *fail)
 {
@@ -1089,14 +1087,14 @@ M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
 
 	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math)
 {
 	m0_matrix_fini(&math->pmi_recov_mat);
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 static void xor_recover(struct m0_parity_math *math,
 			struct m0_buf *data,
@@ -1424,7 +1422,7 @@ fini:
 }
 #endif /* ISAL_ENCODE_ENABLED */
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static void reed_solomon_recover(struct m0_parity_math *math,
 				 struct m0_buf *data,
 				 struct m0_buf *parity,
@@ -1473,7 +1471,7 @@ static void reed_solomon_recover(struct m0_parity_math *math,
 		}
 	}
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 M0_INTERNAL void m0_parity_math_recover(struct m0_parity_math *math,
 					struct m0_buf *data,
@@ -1521,7 +1519,7 @@ static void fail_idx_xor_recover(struct m0_parity_math *math,
 
 }
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 /** @todo Iterative reed-solomon decode to be implemented. */
 static void fail_idx_reed_solomon_recover(struct m0_parity_math *math,
 					  struct m0_buf *data,
@@ -1529,7 +1527,7 @@ static void fail_idx_reed_solomon_recover(struct m0_parity_math *math,
 					  const uint32_t failure_index)
 {
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 #if ISAL_ENCODE_ENABLED
 static void fail_idx_isal_recover(struct m0_parity_math *math,
@@ -1614,11 +1612,11 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 	ir->si_data_nr		   = math->pmi_data_count;
 	ir->si_parity_nr	   = math->pmi_parity_count;
 	ir->si_local_nr		   = local_nr;
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	ir->si_vandmat		   = math->pmi_vandmat;
 	ir->si_parity_recovery_mat = math->pmi_vandmat_parity_slice;
 	ir->si_failed_data_nr	   = 0;
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 	ir->si_alive_nr		   = ir_blocks_count(ir);
 
 #if ISAL_ENCODE_ENABLED
@@ -1643,9 +1641,9 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 	for (i = 0; i < ir_blocks_count(ir); ++i) {
 		ir->si_blocks[i].sib_idx = i;
 		ir->si_blocks[i].sib_status = M0_SI_BLOCK_ALIVE;
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 		ir->si_blocks[i].sib_data_recov_mat_col = IR_INVALID_COL;
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 		ret = m0_bitmap_init(&ir->si_blocks[i].sib_bitmap,
 				     ir_blocks_count(ir));
 		if (ret != 0){
@@ -1709,7 +1707,7 @@ M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir)
 	blocks = ir->si_blocks;
 	total_blocks_nr = ir_blocks_count(ir);
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	if (ir->si_failed_data_nr != 0) {
 		for (j = 0, i = 0; j < total_blocks_nr && i < ir->si_data_nr;
 		     ++j) {
@@ -1743,7 +1741,7 @@ M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir)
 	for (i = 0; i < ir->si_failed_nr; i++) {
 		dependency_bitmap_prepare(&blocks[ir->si_failed_idx[i]], ir);
 	}
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 	return M0_RC(ret);
 }
 
@@ -1776,7 +1774,7 @@ static int ir_gen_decode_matrix(struct m0_sns_ir *ir)
 }
 #endif /* ISAL_ENCODE_ENABLED */
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static int data_recov_mat_construct(struct m0_sns_ir *ir)
 {
 	int		 ret = 0;
@@ -1836,14 +1834,14 @@ static void submatrix_construct(struct m0_matrix *in_mat,
 		}
 	}
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
 				      struct m0_sns_ir *ir)
 {
 	uint32_t i;
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	M0_PRE(f_block != NULL && ir != NULL);
 	M0_PRE(f_block->sib_status == M0_SI_BLOCK_FAILED);
 
@@ -1868,7 +1866,7 @@ static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
 #endif /* ISAL_ENCODE_ENABLED */
 }
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static inline uint32_t recov_mat_col(const struct m0_sns_ir_block *alive_block,
 				     const struct m0_sns_ir_block *failed_block,
 				     const struct m0_sns_ir *ir)
@@ -1878,7 +1876,7 @@ static inline uint32_t recov_mat_col(const struct m0_sns_ir_block *alive_block,
 	return is_data(ir, failed_block->sib_idx) ?
 		alive_block->sib_data_recov_mat_col : alive_block->sib_idx;
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 M0_INTERNAL void m0_sns_ir_fini(struct m0_sns_ir *ir)
 {
@@ -1892,7 +1890,7 @@ M0_INTERNAL void m0_sns_ir_fini(struct m0_sns_ir *ir)
 			m0_bitmap_fini(&ir->si_blocks[j].sib_bitmap);
 	}
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	m0_matrix_fini(&ir->si_data_recovery_mat);
 #else /* ISAL_ENCODE_ENABLED */
 	isal_ir_fini(ir);
@@ -1939,7 +1937,7 @@ static void bufvec2buf(struct m0_buf *buf, const struct m0_bufvec *bvec)
 		seg_size = bvec->ov_vec.v_count[i++];
 
 		/* Get minimum bytes to copy */
-		copy_bytes = MIN(free_bytes, seg_size);
+		copy_bytes = min_check(free_bytes, seg_size);
 
 		memcpy(&buf_data[idx],
 		       m0_bufvec_cursor_addr(&cursor),
@@ -1991,7 +1989,7 @@ static void buf2bufvec(struct m0_bufvec *bvec, const struct m0_buf *buf)
 		seg_size = bvec->ov_vec.v_count[i++];
 
 		/* Get minimum bytes to copy */
-		copy_bytes = MIN(free_bytes, seg_size);
+		copy_bytes = min_check(free_bytes, seg_size);
 
 		memcpy(m0_bufvec_cursor_addr(&cursor),
 		       &buf_data[idx],
@@ -2096,9 +2094,9 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 				   uint32_t failed_index,
 				   enum m0_sns_ir_block_type block_type)
 {
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	uint32_t		j;
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 	size_t			block_idx = 0;
 	size_t		        b_set_nr;
 	struct m0_sns_ir_block *blocks;
@@ -2158,20 +2156,20 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 			break;
 		gfaxpy(blocks[failed_index].sib_addr, bufvec,
 		       1);
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 		dependency_bitmap_update(&blocks[failed_index],
 					 bitmap);
 		if (is_data(ir, failed_index) && are_failures_mixed(ir) &&
 		    ir->si_local_nr != 0)
 			forward_rectification(ir, bufvec, failed_index);
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 		break;
 	}
 
 	M0_LEAVE();
 }
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static void incr_recover(struct m0_sns_ir_block *failed_block,
 			 const struct m0_sns_ir_block *alive_block,
 			 struct m0_sns_ir *ir)
@@ -2196,7 +2194,7 @@ static void incr_recover(struct m0_sns_ir_block *failed_block,
 		       mat_elem);
 	}
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 static void gfaxpy(struct m0_bufvec *y, struct m0_bufvec *x,
 		   m0_parity_elem_t alpha)
@@ -2248,7 +2246,7 @@ static void gfaxpy(struct m0_bufvec *y, struct m0_bufvec *x,
 	M0_LEAVE();
 }
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static void dependency_bitmap_update(struct m0_sns_ir_block *block,
 				     const struct m0_bitmap *bitmap)
 {
@@ -2312,7 +2310,7 @@ static void failed_data_blocks_xform(struct m0_sns_ir *ir)
 			}
 	}
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 static inline bool is_valid_block_idx(const struct m0_sns_ir *ir,
 				      uint32_t block_idx)
@@ -2320,13 +2318,13 @@ static inline bool is_valid_block_idx(const struct m0_sns_ir *ir,
 	return block_idx < ir_blocks_count(ir);
 }
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static bool is_data(const struct m0_sns_ir *ir, uint32_t index)
 {
 	M0_PRE(is_valid_block_idx(ir, index));
 	return index < ir->si_data_nr;
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 static bool is_usable(const struct m0_sns_ir *ir,
 		      const struct m0_bitmap *in_bmap,
@@ -2352,7 +2350,7 @@ static bool is_usable(const struct m0_sns_ir *ir,
 static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 				     uint32_t block_idx)
 {
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	uint32_t i;
 	uint32_t last_usable_bid = ir_blocks_count(ir);
 
@@ -2370,10 +2368,10 @@ static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 	return last_usable_bid;
 #else
 	return ir->si_alive_idx[ir->si_data_nr - 1];
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 }
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 static inline const struct m0_matrix* recovery_mat_get(const struct m0_sns_ir
 						       *ir, uint32_t failed_idx)
 {
@@ -2386,7 +2384,7 @@ static inline  bool are_failures_mixed(const struct m0_sns_ir *ir)
 	return !!ir->si_failed_data_nr &&
 		ir_blocks_count(ir) != ir->si_failed_data_nr + ir->si_alive_nr;
 }
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 static inline uint32_t ir_blocks_count(const struct m0_sns_ir *ir)
 {

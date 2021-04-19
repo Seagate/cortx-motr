@@ -86,7 +86,7 @@ struct m0_sns_ir_block {
 	 * blocks required for its recovery.
 	 */
 	struct m0_bitmap	     sib_bitmap;
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	/* Column associated with the block within
 	 * m0_parity_math::pmi_data_recovery_mat. This field is meaningful
 	 * when status of a block is M0_SI_BLOCK_ALIVE.
@@ -96,7 +96,7 @@ struct m0_sns_ir_block {
 	 * The field is meaningful when status of a block is M0_SI_BLOCK_FAILED.
 	 */
 	uint32_t		     sib_recov_mat_row;
-#endif
+#endif /* !ISAL_ENCODE_ENABLED */
 	/* Indicates whether a block is available, failed or restored. */
 	enum m0_sns_ir_block_status  sib_status;
 };
@@ -110,22 +110,22 @@ struct m0_parity_math {
 
 	uint32_t		pmi_data_count;
 	uint32_t		pmi_parity_count;
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	/* structures used for parity calculation and recovery */
 	struct m0_matvec	pmi_data;
 	struct m0_matvec	pmi_parity;
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 	/* Vandermonde matrix */
 	struct m0_matrix	pmi_vandmat;
 	/* Submatrix of Vandermonde matrix used to compute parity. */
 	struct m0_matrix	pmi_vandmat_parity_slice;
 	/* structures used for non-incremental recovery */
 	struct m0_matrix	pmi_sys_mat;
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	struct m0_matvec	pmi_sys_vec;
 	struct m0_matvec	pmi_sys_res;
 	struct m0_linsys	pmi_sys;
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 	/* Data recovery matrix that's inverse of pmi_sys_mat. */
 	struct m0_matrix	pmi_recov_mat;
 #if ISAL_ENCODE_ENABLED
@@ -143,9 +143,9 @@ struct m0_parity_math {
 struct m0_sns_ir {
 	uint32_t		si_data_nr;
 	uint32_t		si_parity_nr;
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	uint32_t		si_failed_data_nr;
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 	uint32_t		si_alive_nr;
 	/* Number of blocks from a parity group that are available locally
 	 * on a node. */
@@ -153,11 +153,11 @@ struct m0_sns_ir {
 	/* Array holding all blocks */
 	struct m0_sns_ir_block *si_blocks;
 	/* Vandermonde matrix used during RS encoding */
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	struct m0_matrix	si_vandmat;
 	/* Recovery matrix for failed data blocks */
 	struct m0_matrix	si_data_recovery_mat;
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 	/* Recovery matrix for failed parity blocks. This is same as
 	 * math::pmi_vandmat_parity_slice.
 	 */
@@ -233,13 +233,13 @@ M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
 				       struct m0_buf *parity,
 				       uint32_t data_ind_changed);
 
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
 					uint8_t *fail);
 
 
 M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math);
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 
 /**
  * Recovers data units' data words from single or multiple errors.

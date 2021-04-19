@@ -29,17 +29,17 @@
 
 M0_INTERNAL void m0_parity_fini(void)
 {
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	galois_calc_tables_release();
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 }
 
 M0_INTERNAL int m0_parity_init(void)
 {
-#if RS_ENCODE_ENABLED
+#if !ISAL_ENCODE_ENABLED
 	int ret = galois_create_mult_tables(M0_PARITY_GALOIS_W);
 	M0_ASSERT(ret == 0);
-#endif /* RS_ENCODE_ENABLED */
+#endif /* !ISAL_ENCODE_ENABLED */
 	return 0;
 }
 
