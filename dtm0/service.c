@@ -394,7 +394,7 @@ static void dtm0_service_stop(struct m0_reqh_service *service)
 	 */
 	if (dtm0->dos_origin == DTM0_ON_VOLATILE && dtm0->dos_log != NULL) {
 		m0_be_dtm0_log_clear(dtm0->dos_log);
-		m0_be_dtm0_log_fini(&dtm0->dos_log);
+		m0_be_dtm0_log_fini(dtm0->dos_log);
 		m0_be_dtm0_log_free(&dtm0->dos_log);
 	}
 }
