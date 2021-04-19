@@ -29,6 +29,8 @@
 #include "motr/iem.h"
 #include "rm/st/wlock_helper.h"
 
+#include "net/bulk_mem.h"     /* m0_net_bulk_mem_xprt */
+
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 #ifdef ENABLE_LIBFAB
 #define SERVER_ENDPOINT      "libfab:" SERVER_ENDPOINT_ADDR
@@ -190,8 +192,8 @@ static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
-static const char *cdbnames[] = { "cdb1", "cdb2" };
-static const char *cl_ep_addrs[] = { "0@lo:12345:34:2", "127.0.0.1:34569" };
+static const char *cdbnames[]     = { "cdb1",               "cdb2" };
+static const char *cl_ep_addrs[]  = { "0@lo:12345:34:2",    "127.0.0.1:34569" };
 static const char *srv_ep_addrs[] = { SERVER_ENDPOINT_ADDR, "127.0.0.1:35678" };
 
 enum { MAX_RPCS_IN_FLIGHT = 10 };
@@ -200,7 +202,7 @@ enum { MAX_RPCS_IN_FLIGHT = 10 };
 
 static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 			     const char *srv_ep_addr, const char* dbname,
-			     struct m0_net_xprt *xprt)
+			     const struct m0_net_xprt *xprt)
 {
 	int                       rc;
 	struct m0_rpc_client_ctx *cl_ctx;

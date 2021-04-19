@@ -1,0 +1,67 @@
+@startuml
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+
+participant "s3-client" as s3c
+box "s3 process"
+participant "s3-server" as s3
+participant "motr-client" as cl
+end box
+box "motr process 0"
+participant cas0
+participant "meta-device-0" as md0
+participant ios0
+participant "data-device-0" as dd0
+end box
+
+box "motr process 1"
+participant cas1
+participant "meta-device-1" as md1
+participant ios1
+participant "data-device-1" as dd1
+end box
+
+box "motr process 2"
+participant cas2
+participant "meta-device-2" as md2
+participant ios2
+participant "data-device-2" as dd2
+end box
+
+ios1  -> cl   ++ : RDMA-GET
+note right of ios1: request RDMA from client
+ios0  -> cl   ++ : RDMA-GET
+note right of ios0: request RDMA from client
+ios0 <-- cl      : RDMA-DATA
+ios1 <-- cl      : RDMA-DATA
+ios1 <-- cl   -- : RDMA-DONE
+ios1  -> dd1  ++ : WRITE(1MB)
+ios0 <-- cl   -- : RDMA-DONE
+ios1 <-- dd1  -- : DONE
+ios0  -> dd0  ++ : WRITE(1MB)
+ios0 <-- dd0  -- : DONE
+cl   <-- ios1 -- : RET
+cl   <-- ios2 -- : RET
+cl   <-- ios0 -- : RET
+s3   <-- cl   -- : RET
+
+s3c   -> s3   ++ : http/put [continue]
+
+s3    -> s3      : more chunks
+s3c  <-- s3   -- : RET
+
+ios0  -> md0  ++ : WRITE(tx, log)
+ios0 <-- md0  -- : RET
+ios0  -> md0  ++ : WRITE(tx, seg)
+ios0 <-- md0  -- : RET
+
+ios1  -> md1  ++ : WRITE(tx, log)
+ios1 <-- md1  -- : RET
+ios1  -> md1  ++ : WRITE(tx, seg)
+ios1 <-- md1  -- : RET
+
+ios2  -> md2  ++ : WRITE(tx, log)
+ios2 <-- md2  -- : RET
+ios2  -> md2  ++ : WRITE(tx, seg)
+ios2 <-- md2  -- : RET
+@enduml

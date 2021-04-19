@@ -748,6 +748,11 @@ static const struct m0_net_xprt_ops mem_xo_xprt_ops = {
 	.xo_tm_start                    = mem_xo_tm_start,
 	.xo_tm_stop                     = mem_xo_tm_stop,
 	.xo_get_max_buffer_desc_size    = mem_xo_get_max_buffer_desc_size,
+
+	.xo_rpc_max_seg_size            = default_xo_rpc_max_seg_size,
+	.xo_rpc_max_segs_nr             = default_xo_rpc_max_segs_nr,
+	.xo_rpc_max_msg_size            = default_xo_rpc_max_msg_size,
+	.xo_rpc_max_recv_msgs           = default_xo_rpc_max_recv_msgs,
 };
 
 const struct m0_net_xprt m0_net_bulk_mem_xprt = {

@@ -625,8 +625,8 @@ static void pargrp_iomap_test(void)
 	rc = pargrp_iomap_paritybufs_alloc(&map);
 	M0_UT_ASSERT(rc == 0);
 
-	for (row = 0; row < parity_row_nr(pdlay); ++row) {
-		for (col = 0; col < parity_col_nr(pdlay); ++col) {
+	for (row = 0; row < rows_nr(pdlay); ++row) {
+		for (col = 0; col < layout_k(pdlay); ++col) {
 			M0_UT_ASSERT(map.pi_paritybufs[row][col] != NULL);
 			M0_UT_ASSERT(map.pi_paritybufs[row][col]->db_flags &
 				     PA_WRITE);
@@ -642,8 +642,8 @@ static void pargrp_iomap_test(void)
 	rc = pargrp_iomap_readold_auxbuf_alloc(&map);
 	M0_UT_ASSERT(rc == 0);
 
-	for (row = 0; row < data_row_nr(pdlay); ++row) {
-		for (col = 0; col < data_col_nr(pdlay); ++col) {
+	for (row = 0; row < rows_nr(pdlay); ++row) {
+		for (col = 0; col < layout_n(pdlay); ++col) {
 			M0_UT_ASSERT(map.pi_databufs[row][col]->db_flags &
 				     ~PA_PARTPAGE_MODIFY);
 		}
@@ -695,7 +695,7 @@ static void pargrp_iomap_test(void)
 	};
 	m0_ivec_varr_cursor_init(&cur, &req.ir_ivv);
 	map.pi_ops = &piops;
-	rc = pargrp_iomap_populate(&map, &req.ir_ivv, &cur);
+	rc = pargrp_iomap_populate(&map, &cur);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(map.pi_databufs != NULL);
 	M0_UT_ASSERT(indexvec_varr_count(&map.pi_ivv) > 0);
@@ -747,9 +747,9 @@ static void helpers_test(void)
 	M0_UT_ASSERT(parity_units_page_nr(pdlay) ==
 			(UNIT_SIZE >> PAGE_SHIFT) * LAY_K);
 
-	M0_UT_ASSERT(data_row_nr(pdlay)   == UNIT_SIZE >> PAGE_SHIFT);
-	M0_UT_ASSERT(data_col_nr(pdlay)   == LAY_N);
-	M0_UT_ASSERT(parity_col_nr(pdlay) == LAY_K);
+	M0_UT_ASSERT(rows_nr(pdlay)  == UNIT_SIZE >> PAGE_SHIFT);
+	M0_UT_ASSERT(layout_n(pdlay) == LAY_N);
+	M0_UT_ASSERT(layout_k(pdlay) == LAY_K);
 
 	M0_UT_ASSERT(round_down(1000, 1024) == 0);
 	M0_UT_ASSERT(round_up(2000, 1024)   == 2048);
@@ -995,8 +995,7 @@ skip:
 	M0_UT_ASSERT(PA(&ti->ti_pageattrs, 1) & PA_DATA);
 
 	/* Addition of parity buffer */
-	buf = map->pi_paritybufs[page_id(0)]
-		[LAY_N % data_col_nr(pdlay)];
+	buf = map->pi_paritybufs[page_id(0)][LAY_N % layout_n(pdlay)];
 
 	src.sa_unit  = LAY_N;
 	target_ioreq_seg_add(ti, &src, &tgt, 0, PAGE_SIZE, map);
@@ -1156,7 +1155,7 @@ static void dgmode_readio_test(void)
 		 * Checks if all pages from given unit_id are marked
 		 * as failed.
 		 */
-		for (row = 0; row < data_row_nr(play); ++row)
+		for (row = 0; row < rows_nr(play); ++row)
 			M0_UT_ASSERT(map->pi_databufs[row][src.sa_unit]->
 				     db_flags & PA_READ_FAILED);
 
@@ -1168,8 +1167,8 @@ static void dgmode_readio_test(void)
 			continue;
 
 		/* Traversing unit by unit. */
-		for (col = 0; col < data_col_nr(play); ++col) {
-			for (row = 0; row < data_row_nr(play); ++row) {
+		for (col = 0; col < layout_n(play); ++col) {
+			for (row = 0; row < rows_nr(play); ++row) {
 				if (col == src.sa_unit)
 					M0_UT_ASSERT(map->pi_databufs
 						     [row][col]->db_flags &
@@ -1188,8 +1187,8 @@ static void dgmode_readio_test(void)
 		}
 
 		/* Parity units are needed for recovery. */
-		for (col = 0; col < parity_col_nr(play); ++col) {
-			for (row = 0; row < parity_row_nr(play); ++row) {
+		for (col = 0; col < layout_k(play); ++col) {
+			for (row = 0; row < rows_nr(play); ++row) {
 				M0_UT_ASSERT(map->pi_paritybufs[row][col]->
 					     db_flags & PA_DGMODE_READ);
 				memset(map->pi_paritybufs[row][col]->db_buf.
@@ -1204,7 +1203,7 @@ static void dgmode_readio_test(void)
 		M0_UT_ASSERT(rc == 0);
 
 		/* Validate the recovered data. */
-		for (row = 0; row < data_row_nr(play); ++row) {
+		for (row = 0; row < rows_nr(play); ++row) {
 			cont = (char *)map->pi_databufs[row][src.sa_unit]->
 				db_buf.b_addr;
 			for (col = 0; col < PAGE_SIZE; ++col, ++cont)

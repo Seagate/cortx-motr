@@ -891,7 +891,7 @@ static int ioreq_iomaps_prepare(struct m0_op_io *ioo)
 
 		/* @cursor is advanced in the following function */
 		rc = ioo->ioo_iomaps[map]->pi_ops->
-		     pi_populate(ioo->ioo_iomaps[map], &ioo->ioo_ext, &cursor,
+		     pi_populate(ioo->ioo_iomaps[map], &cursor,
 				 bufvec ? &buf_cursor : NULL);
 		if (rc != 0)
 			goto failed;
@@ -1620,8 +1620,8 @@ static int ioreq_parity_verify(struct m0_op_io *ioo)
 	instance = m0__op_instance(op);
 	play = pdlayout_get(ioo);
 
-	if (!(op->op_code == M0_OC_READ &&
-	      instance->m0c_config->mc_is_read_verify))
+	if (op->op_code != M0_OC_READ ||
+	    !instance->m0c_config->mc_is_read_verify)
 		return M0_RC(0);
 
 	m0_semaphore_down(&cpus_sem);

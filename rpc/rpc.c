@@ -284,49 +284,39 @@ M0_INTERNAL uint32_t m0_rpc_bufs_nr(uint32_t len, uint32_t tms_nr)
 M0_INTERNAL m0_bcount_t m0_rpc_max_seg_size(struct m0_net_domain *ndom)
 {
 	M0_PRE(ndom != NULL);
+	M0_PRE(ndom->nd_xprt != NULL);
+	M0_PRE(ndom->nd_xprt->nx_ops->xo_rpc_max_seg_size != NULL);
 
-#ifdef ENABLE_LIBFAB
-	return M0_RPC_MSG_SIZE_1MB;
-#else
-	return min64u(m0_net_domain_get_max_buffer_segment_size(ndom),
-		      M0_SEG_SIZE);
-#endif
+	return ndom->nd_xprt->nx_ops->xo_rpc_max_seg_size(ndom);
 }
 
 M0_INTERNAL uint32_t m0_rpc_max_segs_nr(struct m0_net_domain *ndom)
 {
 	M0_PRE(ndom != NULL);
+	M0_PRE(ndom->nd_xprt != NULL);
+	M0_PRE(ndom->nd_xprt->nx_ops->xo_rpc_max_segs_nr != NULL);
 
-#ifdef ENABLE_LIBFAB
-	return 1;
-#else
-	return m0_net_domain_get_max_buffer_size(ndom) /
-	       m0_rpc_max_seg_size(ndom);
-#endif
+	return ndom->nd_xprt->nx_ops->xo_rpc_max_segs_nr(ndom);
 }
 
 M0_INTERNAL m0_bcount_t m0_rpc_max_msg_size(struct m0_net_domain *ndom,
 					    m0_bcount_t rpc_size)
 {
-	m0_bcount_t mbs;
-
 	M0_PRE(ndom != NULL);
+	M0_PRE(ndom->nd_xprt != NULL);
+	M0_PRE(ndom->nd_xprt->nx_ops->xo_rpc_max_msg_size != NULL);
 
-	mbs = m0_net_domain_get_max_buffer_size(ndom);
-	return rpc_size != 0 ? m0_clip64u(M0_SEG_SIZE, mbs, rpc_size) : mbs;
+	return ndom->nd_xprt->nx_ops->xo_rpc_max_msg_size(ndom, rpc_size);
 }
 
 M0_INTERNAL uint32_t m0_rpc_max_recv_msgs(struct m0_net_domain *ndom,
 					  m0_bcount_t rpc_size)
 {
 	M0_PRE(ndom != NULL);
+	M0_PRE(ndom->nd_xprt != NULL);
+	M0_PRE(ndom->nd_xprt->nx_ops->xo_rpc_max_recv_msgs != NULL);
 
-#ifdef ENABLE_LIBFAB
-	return 1;
-#else
-	return m0_net_domain_get_max_buffer_size(ndom) /
-	       m0_rpc_max_msg_size(ndom, rpc_size);
-#endif
+	return ndom->nd_xprt->nx_ops->xo_rpc_max_recv_msgs(ndom, rpc_size);
 }
 
 M0_INTERNAL m0_time_t m0_rpc__down_timeout(void)
