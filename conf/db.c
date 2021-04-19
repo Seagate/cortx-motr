@@ -226,15 +226,13 @@ static int confx_obj_dup(struct confx_allocator *alloc,
 	int                 rc = 0;
 	struct m0_xcode_obj src_obj;
 	struct m0_xcode_obj dest_obj;
-	struct m0_xcode_ctx *sctx;
-	struct confx_ctx    *cctx;
+	struct m0_xcode_ctx *sctx = NULL;
+	struct confx_ctx    *cctx = NULL;
 
 	M0_ALLOC_PTR(sctx);
-	if (sctx == NULL)
-		return M0_ERR(-ENOMEM);
 	M0_ALLOC_PTR(cctx);
-	if (cctx == NULL)
-		return M0_ERR(-ENOMEM);
+	if (sctx == NULL || cctx == NULL)
+		goto out;
 
 	confx_to_xcode_obj(src, &dest_obj, false);
 	confx_to_xcode_obj(src, &src_obj, true);
@@ -248,7 +246,7 @@ static int confx_obj_dup(struct confx_allocator *alloc,
 		rc = m0_xcode_dup(&cctx->c_xctx, sctx);
 	}
 	*dest = cctx->c_xctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
-
+ out:
 	m0_free(cctx);
 	m0_free(sctx);
 	return M0_RC(rc);
