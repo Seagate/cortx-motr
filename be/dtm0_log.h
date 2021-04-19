@@ -23,10 +23,10 @@
 #ifndef __MOTR_BE_DTM0_LOG_H__
 #define __MOTR_BE_DTM0_LOG_H__
 
-#include "be/list.h"		/* m0_be_list */
-#include "dtm0/tx_desc.h"	/* m0_dtm0_tx_desc */
-#include "fid/fid.h"		/* m0_fid */
-#include "lib/buf.h"		/* m0_buf */
+#include "be/list.h"            /* m0_be_list */
+#include "dtm0/tx_desc.h"       /* m0_dtm0_tx_desc */
+#include "fid/fid.h"            /* m0_fid */
+#include "lib/buf.h"            /* m0_buf */
 #include "dtm0/dtx.h"           /* struct m0_dtm0_dtx */
 
 struct m0_be_tx;
@@ -139,11 +139,11 @@ struct m0_dtm0_clk_src;
  * corresponding operation related to dtm0_log.
  */
 enum m0_be_dtm0_log_credit_op {
-	M0_DTML_CREATE,		/**< m0_be_dtm0_log_create() */
-	M0_DTML_SENT,		/**< m0_be_dtm0_log_update() */
-	M0_DTML_EXECUTED,	/**< m0_be_dtm0_log_update() */
-	M0_DTML_PERSISTENT,	/**< m0_be_dtm0_log_update() */
-	M0_DTML_PRUNE,		/**< m0_be_dtm0_log_prune()  */
+	M0_DTML_CREATE,         /**< m0_be_dtm0_log_create() */
+	M0_DTML_SENT,           /**< m0_be_dtm0_log_update() */
+	M0_DTML_EXECUTED,       /**< m0_be_dtm0_log_update() */
+	M0_DTML_PERSISTENT,     /**< m0_be_dtm0_log_update() */
+	M0_DTML_PRUNE,          /**< m0_be_dtm0_log_prune()  */
 	M0_DTML_REDO            /**< m0_be_dtm0_log_update() */
 };
 
@@ -162,8 +162,18 @@ struct m0_dtm0_log_rec {
 	struct m0_dtm0_tx_desc dlr_txd;
 	uint64_t               dlr_magic;
 	union  {
-		struct m0_be_list_link dlr_link;    /**< link into m0_be_dtm0_log::tlist */
-		struct m0_tlink        dlr_tlink;
+		struct m0_be_list_link dlr_link;  /*
+						   * used when this record is
+						   * stored within a persistent
+						   * log that is going to stored
+						   * in BE.
+						   */
+		struct m0_tlink        dlr_tlink; /*
+						   * used when this record is
+						   * stored within a volatile
+						   * log that is going to stored
+						   * in memory.
+						   */
 	} u;
 	struct m0_buf          dlr_payload;
 };
@@ -186,14 +196,14 @@ struct m0_be_dtm0_log {
 	 *  should be held before performing any operations on the log
 	 *  involving a log record search or insert. */
 	struct m0_mutex          dl_lock;
-	struct m0_be_seg	*dl_seg;
+	struct m0_be_seg        *dl_seg;
 	/** DTM0 clock source */
-	struct m0_dtm0_clk_src	*dl_cs;
+	struct m0_dtm0_clk_src  *dl_cs;
 	union {
 		/** Persistent list, used if dl_is_persistent */
-		struct m0_be_list	*dl_list;
+		struct m0_be_list       *dl_list;
 		/** Volatile list, used if !dl_is_persistent */
-		struct m0_tl		*dl_tlist;
+		struct m0_tl            *dl_tlist;
 	} u;
 };
 
@@ -216,7 +226,7 @@ struct m0_be_dtm0_log {
  * Allocate an m0_be_dtm0_log. This call will allocate a dtm0 volatile log.
  * We need to call this routine once before we can perform any operations on .
  *
- * @pre out != NULL.
+ * @pre log != NULL.
  * @post *log is allocated and ready to be initialized.
  *
  * @param log Pointer to variable in which to return the allocate memory
@@ -237,14 +247,14 @@ M0_INTERNAL int m0_be_dtm0_log_alloc(struct m0_be_dtm0_log **log);
  * @param log Pointer to a m0_be_dtm0_log that has to be initialized.
  * @param cs Pointer to a clock source. This will be used for comparisons
  *        involving log record timestamps.
- * @param isvstore A flag to indicate whether the dtm0 log that we are trying
+ * @param is_plog A flag to indicate whether the dtm0 log that we are trying
  *        to init is a volatile of persistent store.
  *
  * @return 0 on success. Anything else is a failure.
  */
 M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
-                                    struct m0_dtm0_clk_src *cs,
-                                    bool                    is_plog);
+				    struct m0_dtm0_clk_src *cs,
+				    bool                    is_plog);
 
 /**
  * Finalize a dtm0 log. We need to call this routine once after we have
@@ -258,7 +268,7 @@ M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
  *
  * @return None
  */
-M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log **log);
+M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log *log);
 
 /**
  * Free the memory allocated by m0_be_dtm0_log_alloc
@@ -276,7 +286,9 @@ M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log **log);
  * For performing an operation on a persistent log, we need to take the
  * appropriate number of be transaction credit.
  *
- * @pre None
+ * @pre op in  enum m0_be_dtm0_log_credit_op
+ *      seg != NULL
+ *      accum != NULL
  * @post None
  *
  * @param op Operation code for the type of dtm0 log operation that we want
@@ -292,11 +304,11 @@ M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log **log);
  * @return None
  */
 M0_INTERNAL void m0_be_dtm0_log_credit(enum m0_be_dtm0_log_credit_op op,
-                                       struct m0_dtm0_tx_desc	    *txd,
-                                       struct m0_buf		    *payload,
-                                       struct m0_be_seg             *seg,
-                                       struct m0_dtm0_log_rec	    *rec,
-                                       struct m0_be_tx_credit       *accum);
+				       struct m0_dtm0_tx_desc       *txd,
+				       struct m0_buf                *payload,
+				       struct m0_be_seg             *seg,
+				       struct m0_dtm0_log_rec       *rec,
+				       struct m0_be_tx_credit       *accum);
 
 /**
  * This routine is used to create a dtm0 persistent log.
@@ -312,8 +324,8 @@ M0_INTERNAL void m0_be_dtm0_log_credit(enum m0_be_dtm0_log_credit_op op,
  * @return 0 on success, anything else is a failure.
  */
 M0_INTERNAL int m0_be_dtm0_log_create(struct m0_be_tx        *tx,
-                                      struct m0_be_seg       *seg,
-                                      struct m0_be_dtm0_log **out);
+				      struct m0_be_seg       *seg,
+				      struct m0_be_dtm0_log **out);
 
 /**
  * This routine is used to destroy a previously created persistent dtm0 log
@@ -327,7 +339,7 @@ M0_INTERNAL int m0_be_dtm0_log_create(struct m0_be_tx        *tx,
  * @return None
  */
 M0_INTERNAL void m0_be_dtm0_log_destroy(struct m0_be_tx        *tx,
-                                        struct m0_be_dtm0_log **log);
+					struct m0_be_dtm0_log **log);
 
 /**
  * This routine is used to update a record in the dtm0 log. If the record
@@ -339,18 +351,18 @@ M0_INTERNAL void m0_be_dtm0_log_destroy(struct m0_be_tx        *tx,
  * @pre m0_mutex_is_locked(&log->dl_lock)
  * @post None
  *
- * @param log Pointer to the dtm0 log which we wish to destroy
+ * @param log Pointer to the dtm0 log which we wish to update.
  * @param tx handle to an already opened transaction.
  * @param txd A valid dtm0 tx descriptor that we want to store in the log
  *        record.
  * @param payload The payload is an opaque structure for dtm0 log to store
  *        in the log record.
- * @return None
+ * @return 0 on success, anything else is a failure.
  */
 M0_INTERNAL int m0_be_dtm0_log_update(struct m0_be_dtm0_log  *log,
-                                      struct m0_be_tx        *tx,
-                                      struct m0_dtm0_tx_desc *txd,
-                                      struct m0_buf          *payload);
+				      struct m0_be_tx        *tx,
+				      struct m0_dtm0_tx_desc *txd,
+				      struct m0_buf          *payload);
 
 /**
  * Given a pointer to a dtm0 transaction id, this routine searches the
@@ -362,7 +374,7 @@ M0_INTERNAL int m0_be_dtm0_log_update(struct m0_be_dtm0_log  *log,
  *
  * @post None
  *
- * @param log Pointer to the dtm0 log which we wish to destroy
+ * @param log Pointer to the dtm0 log in which we wish to search.
  * @param tid Pointer to a dtm0 transaction id corresponding to the record
  *        that we wish to fetch from the log.
  * @return m0_dtm0_log_rec corresponding to the input tid or NULL if no
@@ -370,13 +382,14 @@ M0_INTERNAL int m0_be_dtm0_log_update(struct m0_be_dtm0_log  *log,
  */
 M0_INTERNAL
 struct m0_dtm0_log_rec *m0_be_dtm0_log_find(struct m0_be_dtm0_log    *log,
-                                            const struct m0_dtm0_tid *id);
+					    const struct m0_dtm0_tid *id);
 
 /**
  * Given a pointer to a dtm0 transaction id, this routine searches the
- * log for the log record matching this tx id and removes it from the log.
+ * log for the log record matching this tx id and removes all the records
+ * having id lower or equal to the specified id.
  *
- * @pre *log->dl_is_persistent == false
+ * @pre *log->dl_is_persistent == false (This is a volatile log)
  * @pre m0_be_dtm0_log__invariant(log)
  * @pre m0_dtm0_tid__invariant(id)
  * @pre m0_mutex_is_locked(&log->dl_lock)
@@ -391,13 +404,14 @@ struct m0_dtm0_log_rec *m0_be_dtm0_log_find(struct m0_be_dtm0_log    *log,
  *         Anything else is considered a failure.
  */
 M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
-                                     struct m0_be_tx          *tx,
-                                     const struct m0_dtm0_tid *id);
+				     struct m0_be_tx          *tx,
+				     const struct m0_dtm0_tid *id);
 
 /**
- * Given a pointer to a dtm0 volatile log and a transaction id, this routine
- * searches the log for the log record matching this tx id and removes all the
- * log records preceeding this record that are stable.
+ * Given a pointer to a dtm0 persistent log and a transaction id, this routine
+ * searches the log for the log record matching this tx id and checks whether
+ * all log records with id lower or equal to the specified id are persistent
+ * and if they can be pruned.
  *
  * @pre m0_be_dtm0_log__invariant(log)
  * @pre m0_dtm0_tid__invariant(id)
@@ -422,7 +436,7 @@ M0_INTERNAL bool m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log    *log,
 /**
  * Given a pointer to a dtm0 persistent log and a transaction id, this routine
  * searches the log for the log record matching this tx id and removes all the
- * log records preceeding this record that are stable.
+ * log records with id lower or equal to the specified id that are persistent.
  *
  * @pre *log->dl_is_persistent == true
  * @pre m0_be_dtm0_log__invariant(log)
@@ -439,8 +453,8 @@ M0_INTERNAL bool m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log    *log,
  *          Anything else is considered a failure.
  */
 M0_INTERNAL int m0_be_dtm0_plog_prune(struct m0_be_dtm0_log    *log,
-                                      struct m0_be_tx          *tx,
-                                      const struct m0_dtm0_tid *id);
+				      struct m0_be_tx          *tx,
+				      const struct m0_dtm0_tid *id);
 
 /**
  * Given a pointer to a dtm0 volatile log clear the log and finalize it.
