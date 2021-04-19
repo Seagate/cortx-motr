@@ -48,7 +48,7 @@ NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91  # required by `common.sh'
 start_server()
 {
 	modprobe lnet
-	modload_galois &>/dev/null
+	modload_galois
 	echo 8 >/proc/sys/kernel/printk
 	modload
 
@@ -142,7 +142,7 @@ check_reply()
 	expected="$1"
 	actual=`awk '/replied/ {print $5}' $OUTPUT_FILE`
 	[ -z "$actual" ] && die 'Reply not found'
-	[ $actual -eq $expected ] || die 'Invalid reply'
+	[ "$actual" -eq "$expected" ] || die 'Invalid reply'
 }
 
 test_fop()
@@ -153,7 +153,7 @@ test_fop()
 	local reply="$1"; shift
 
 	echo -n "$message: " >&2
-	$CLIENT -f $request -v "$@" &>$OUTPUT_FILE
+	$CLIENT -f $request -v "$@" | tee $OUTPUT_FILE
 	check_reply $reply
 	echo OK >&2
 }

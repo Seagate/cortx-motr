@@ -1,0 +1,128 @@
+@startuml
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+
+participant "s3-client" as s3c
+box "s3 process"
+participant "s3-server" as s3
+participant "motr-client" as cl
+end box
+box "motr process 0"
+participant cas0
+participant "meta-device-0" as md0
+participant ios0
+participant "data-device-0" as dd0
+end box
+
+box "motr process 1"
+participant cas1
+participant "meta-device-1" as md1
+participant ios1
+participant "data-device-1" as dd1
+end box
+
+box "motr process 2"
+participant cas2
+participant "meta-device-2" as md2
+participant ios2
+participant "data-device-2" as dd2
+end box
+
+s3c   -> s3   ++ : http/put(header+data)
+
+note left of s3: fetch global s3 meta-data
+s3    -> cl   ++ : clovis-get(index, key)
+cl    -> cas0 ++ : GET(key)
+note right of md0: lookup b-tree in meta-b-tree
+cas0  -> md0  ++ : READ(meta-b-tree-node) (if not cached)
+cas0 <-- md0  -- : RET(node)
+cas0  -> md0  ++ : READ(meta-b-tree-node)
+cas0 <-- md0  -- : RET(node)
+cas0  -> md0  ++ : READ(meta-b-tree-node)
+cas0 <-- md0  -- : RET(btree)
+cas0  -> md0  ++ : READ(b-tree-node) (if not cached)
+note right of md0: lookup in catalogue b-tree
+cas0 <-- md0  -- : RET(node)
+cas0  -> md0  ++ : READ(b-tree-node)
+cas0 <-- md0  -- : RET(node)
+cas0  -> md0  ++ : READ(b-tree-node)
+cas0 <-- md0  -- : RET(node)
+cl   <-- cas0 -- : RET(val)
+s3   <-- cl   -- : RET(val)
+
+note left of s3: fetch other s3 meta-data
+s3    -> cl   ++ : clovis-get(index, key)
+cl    -> cas0 ++ : GET(key)
+note right of md0: lookup b-tree in meta-b-tree
+cas0  -> md0  ++ : READ(meta-b-tree-node) (if not cached)
+cas0 <-- md0  -- : RET(node)
+cas0  -> md0  ++ : READ(meta-b-tree-node)
+cas0 <-- md0  -- : RET(node)
+cas0  -> md0  ++ : READ(meta-b-tree-node)
+cas0 <-- md0  -- : RET(btree)
+cas0  -> md0  ++ : READ(b-tree-node)
+note right of md0: lookup in catalogue b-tree
+cas0 <-- md0  -- : RET(node)
+cas0  -> md0  ++ : READ(b-tree-node)
+cas0 <-- md0  -- : RET(node)
+cas0  -> md0  ++ : READ(b-tree-node)
+cas0 <-- md0  -- : RET(node)
+cl   <-- cas0 -- : RET(val)
+s3   <-- cl   -- : RET(val)
+
+note left of s3: insert meta-data for the new object
+s3    -> cl   ++ : clovis-put(index, key, val)
+cl    -> cas0 ++ : PUT(key,val)
+cas0  -> cas0    : tx_open(tx)
+cl    -> cas1 ++ : PUT(key,val)
+cas1  -> cas1    : tx_open(tx)
+
+cas1  -> md1  ++ : READ(meta-b-tree-node) (if not cached)
+note right of md1: lookup b-tree in meta-b-tree
+cas0  -> md0  ++ : READ(meta-b-tree-node) (if not cached)
+note right of md0: lookup b-tree in meta-b-tree
+cas0 <-- md0  -- : RET(node)
+cas1 <-- md1  -- : RET(node)
+cas0  -> md0  ++ : READ(meta-b-tree-node)
+cas0 <-- md0  -- : RET(node)
+cas1  -> md1  ++ : READ(meta-b-tree-node)
+cas0  -> md0  ++ : READ(meta-b-tree-node)
+cas1 <-- md1  -- : RET(node)
+cas1  -> md1  ++ : READ(meta-b-tree-node)
+cas1 <-- md1  -- : RET(btree)
+cas0 <-- md0  -- : RET(btree)
+cas1  -> md1  ++ : READ(b-tree-node)
+note right of md1: lookup in catalogue b-tree
+cas0  -> md0  ++ : READ(b-tree-node)
+note right of md0: lookup in catalogue b-tree
+cas0 <-- md0  -- : RET(node)
+cas1 <-- md1  -- : RET(node)
+cas0  -> md0  ++ : READ(b-tree-node)
+cas1  -> md1  ++ : READ(b-tree-node)
+cas1 <-- md1  -- : RET(node)
+cas0 <-- md0  -- : RET(node)
+cas0  -> md0  ++ : READ(b-tree-node)
+cas1  -> md1  ++ : READ(b-tree-node)
+cas0 <-- md0  -- : RET(node)
+cas0  -> cas0    : UPDATE(tx, index, key, val)
+cas0  -> cas0    : tx_close(tx)
+cl   <-- cas0 -- : RET
+cas1 <-- md1  -- : RET(node)
+cas1  -> md1  ++ : READ(node-alloc)
+cas1 <-- md1  -- : RET(new-node)
+cas1  -> cas1    : UPDATE(tx, key, val)
+cas1  -> cas1    : tx_close(tx)
+cl   <-- cas1 -- : RET
+s3   <-- cl   -- : RET
+
+cas1  -> md1  ++ : WRITE(tx, log)
+note left of cas1: asynchronously commit transaction
+cas1 <-- md1  -- : RET
+cas1  -> md1  ++ : WRITE(tx, seg)
+cas0  -> md0  ++ : WRITE(tx, log)
+note left of cas1: asynchronously commit transaction
+cas0 <-- md0  -- : RET
+cas0  -> md0  ++ : WRITE(tx, seg)
+cas0 <-- md0  -- : RET
+cas1 <-- md1  -- : RET
+@enduml

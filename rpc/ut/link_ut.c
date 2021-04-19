@@ -51,7 +51,6 @@ static void rlut_init(struct m0_net_domain      *net_dom,
 {
 	const char               *client_ep = "0@lo:12345:34:1";
 	/* unreacheable remote EP */
-	struct m0_net_xprt       *xprt = &m0_net_lnet_xprt;
 	int                       rc;
 
 	enum {
@@ -63,7 +62,7 @@ static void rlut_init(struct m0_net_domain      *net_dom,
 	M0_SET0(reqh);
 	M0_SET0(rmachine);
 
-	rc = m0_net_domain_init(net_dom, xprt);
+	rc = m0_net_domain_init(net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_rpc_net_buffer_pool_setup(net_dom,

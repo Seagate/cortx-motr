@@ -25,7 +25,6 @@
 #include "conf/obj_ops.h"   /* m0_conf_obj_find_lock */
 #include "conf/helpers.h"   /* m0_conf_full_load */
 #include "rpc/rpclib.h"     /* m0_rpc_client_ctx */
-#include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
 
 #include "ha/note.c"
 
@@ -47,7 +46,6 @@
 #define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
 #define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
 
-static struct m0_net_xprt    *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain   client_net_dom;
 struct m0_conf_root          *root;
 
@@ -81,7 +79,6 @@ static char *server_argv[] = {
 };
 
 static struct m0_rpc_server_ctx sctx = {
-	.rsx_xprts         = &xprt,
 	.rsx_xprts_nr      = 1,
 	.rsx_argv          = server_argv,
 	.rsx_argc          = ARRAY_SIZE(server_argv),
@@ -114,9 +111,11 @@ static void start_rpc_client_and_server(void)
 {
 	int rc;
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 	M0_SET0(&sctx.rsx_motr_ctx);
+	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	rc = m0_rpc_server_start(&sctx);
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);
@@ -129,6 +128,8 @@ static void stop_rpc_client_and_server(void)
 
 	rc = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(rc == 0);
+	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);
 }

@@ -581,8 +581,13 @@ class SpielWrapper:
 
     def __net_domain_init(self):
         domain = self.__malloc(m0_net_domain__size())
-        xprt = NetXprt.in_dll(self.motr, 'm0_net_lnet_xprt')
-        call(self.motr.m0_net_domain_init, domain, pointer(xprt))
+        self.motr.m0_net_xprt_default_get.restype = c_void_p
+        xprt = self.motr.m0_net_xprt_default_get()
+        if not xprt:
+            xprt = NetXprt.in_dll(self.motr, 'm0_net_lnet_xprt')
+
+        self.motr.m0_net_domain_init.argtypes = [c_void_p, c_void_p]
+        call(self.motr.m0_net_domain_init, domain, xprt)
         self.domain = domain
 
     def __net_buffer_pool_setup(self):
