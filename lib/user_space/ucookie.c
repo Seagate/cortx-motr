@@ -63,9 +63,9 @@ M0_INTERNAL bool m0_arch_addr_is_sane(const void *addr)
 {
 	jmp_buf           buf;
 	jmp_buf         **tls = &m0_thread_tls()->tls_arch.tat_jmp;
-	volatile uint64_t dummy M0_UNUSED;
 	int               ret;
-	bool              result = false;
+	volatile uint64_t dummy M0_UNUSED;
+	volatile bool     result = false;
 
 	*tls = &buf;
 	ret = setjmp(buf);

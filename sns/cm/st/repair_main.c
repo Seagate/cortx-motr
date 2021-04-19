@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
 	m0_time_t              start;
 	m0_time_t              delta;
 	int                    rc;
-	uint32_t               type;
+	uint32_t               type = 0;
 	uint32_t               op;
 	int                    i;
 

@@ -1836,6 +1836,7 @@ static bool spiel_proc_item_rlink_cb(struct m0_clink *clink)
 	item->ri_ops            = &spiel_process_health_ops;
 	item->ri_session        = &proc->spi_rlink.rlk_sess;
 	item->ri_prio           = M0_RPC_ITEM_PRIO_MID;
+	item->ri_nr_sent_max    = 5;
 	m0_fop_get(fop);
 	rc = M0_FI_ENABLED("rpc_post") ? -ENOTCONN : m0_rpc_post(item);
 	if (rc != 0) {
