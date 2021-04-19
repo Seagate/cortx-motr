@@ -224,13 +224,13 @@ m0_dtm0_service_process_connect(struct m0_reqh_service *s,
 	       !!async, FID_P(&s->rs_service_fid), FID_P(remote_srv),
 	       remote_ep);
 
-	if (!async)
-		rc = m0_rpc_link_connect_sync(&process->dop_rlink,
-					      M0_TIME_NEVER);
-	else
+	if (async)
 		m0_rpc_link_connect_async(&process->dop_rlink,
 					  M0_TIME_NEVER,
 					  &process->dop_service_connect_clink);
+	else
+		rc = m0_rpc_link_connect_sync(&process->dop_rlink,
+					      M0_TIME_NEVER);
 
 	return M0_RC(rc);
 }
