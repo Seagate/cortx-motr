@@ -391,8 +391,10 @@ def config_lvm(self):
             if lvm_min_size is None:
                 lvm_min_size = lv_size
             lvm_min_size = min(lv_size, lvm_min_size)
-    if lvm_min_size: 	    
-        cmd = f'sed -i "s/^\(MOTR_M0D_IOS_BESEG_SIZE=*\).*/\1{lvm_min_size}/" {motr_config_file}'
+    if lvm_min_size:
+        lvm_min_size=lvm_min_size.strip()
+        sys.stdout.write(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}")
+        cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {motr_config_file}'
         execute_command(self, cmd)
 
 def get_lnet_xface() -> str:
