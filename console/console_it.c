@@ -82,7 +82,7 @@ static void byte_set(const struct m0_xcode_type *xct,
 
 	if (yaml_support) {
 		tmp_value = cons_yaml_get_unsafe(name);
-		strncpy(data, tmp_value, strlen(tmp_value));
+		strcpy(data, tmp_value);
 		if (m0_console_verbose)
 			printf("%s(%s) = %s\n", name, xct->xct_name,
 			       (char *)data);

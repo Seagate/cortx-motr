@@ -67,7 +67,7 @@ static void ping_print_qstats(struct nlx_ping_ctx *ctx,
 		"pRECV", "pSEND",
 		"aRECV", "aSEND",
 	};
-	char tbuf[16];
+	char tbuf[256];
 	const char *lfmt =
 "%5s %6lu %6lu %6lu %6lu %13s %18lu %9lu\n";
 	const char *hfmt =

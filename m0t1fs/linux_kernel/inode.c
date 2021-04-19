@@ -20,6 +20,10 @@
 
 
 #include <linux/slab.h>         /* kmem_cache */
+#include<linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#include <linux/cred.h>
+#endif
 
 #include "layout/pdclust.h"     /* m0_pdclust_build(), m0_pdl_to_layout(),
 				 * m0_pdclust_instance_build()           */

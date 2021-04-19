@@ -140,10 +140,10 @@ static void addr_sanity(const uint64_t *addr, bool sane, bool aligned)
 
 void test_cookie(void)
 {
+	int		   insane_cnt = 0;
 	uint64_t	   automatic;
 	uint64_t	  *dynamic;
 	uint64_t	   i;
-	bool		   insane;
 	struct m0_cookie   cookie_test;
 	struct obj_struct *obj_dynamic;
 	struct obj_struct  obj_automatic;
@@ -172,22 +172,20 @@ void test_cookie(void)
 	 * run through address space, checking that m0_addr_is_sane() doesn't
 	 * crash.
 	 */
-	for (i = 1, insane = false; i <= 0xffff; i++) {
+	for (i = 1; i <= 0xffff; i++) {
 		uint64_t word;
 		void    *addr;
 		bool     sane;
 
 		word = (i & ~0xf) | (i << 16) | (i << 32) | (i << 48);
-		addr = (uint64_t *)word;
+		addr = (void *)word;
 		sane = m0_addr_is_sane(addr);
-#ifndef __KERNEL__
-		M0_UT_ASSERT(ergo(addr < sbrk(0), sane));
-#endif
-		insane |= !sane;
+		if (!sane)
+			insane_cnt++;
 	}
 
 	/* check that at least one really invalid address was tested. */
-	M0_UT_ASSERT(insane);
+	M0_UT_ASSERT(insane_cnt > 0);
 
 	/*Testing cookie-APIs*/
 	M0_ALLOC_PTR(obj_dynamic);

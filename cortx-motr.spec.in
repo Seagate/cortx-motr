@@ -70,7 +70,11 @@ BuildRequires:  libtool
 BuildRequires:  make
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
+%if %{rhel} <= 7
 BuildRequires:  gccxml
+%else
+BuildRequires:  castxml
+%endif
 BuildRequires:  glibc-headers
 BuildRequires:  asciidoc
 BuildRequires:  libyaml-devel
@@ -86,10 +90,18 @@ BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  %{lustre_devel}
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
+%if %{rhel} <= 7
 BuildRequires:  python36-ply
+%else
+BuildRequires:  python3-ply
+%endif
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
+%if %{rhel} <= 7
 BuildRequires:  python-devel
+%else
+BuildRequires:  python2-devel
+%endif
 BuildRequires:  libedit-devel
 BuildRequires:  isa-l
 %if %{with cassandra}
@@ -299,12 +311,3 @@ systemctl daemon-reload
 /sbin/depmod -a
 
 %endif # with ut
-
-# Remove source code from debuginfo package.
-%if !%{with debuginfo_sources}
-%define __debug_install_post \
-  %{_rpmconfigdir}/find-debuginfo.sh %{?_missing_build_ids_terminate_build:--strict-build-id} %{?_find_debuginfo_opts} "%{_builddir}/%{?buildsubdir}"; \
-  rm -rf "${RPM_BUILD_ROOT}/usr/src/debug"; \
-  mkdir -p "${RPM_BUILD_ROOT}/usr/src/debug/%{name}-%{version}"; \
-%{nil}
-%endif # debuginfo_sources
