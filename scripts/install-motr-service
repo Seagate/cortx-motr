@@ -157,7 +157,7 @@ install_files()
         lnet_service='scripts/install/usr/lib/systemd/system/lnet.service'
     fi
 
-    dir='/usr/lib/systemd/system'
+    dir='/lib/systemd/system'
     if [[ -d $dir ]] ; then
         for file in 'scripts/install/usr/lib/systemd/system/motr-trace@.service' \
                     'scripts/install/usr/lib/systemd/system/motr-kernel.service' \
