@@ -62,7 +62,7 @@ static int ub_init(const char *opts M0_UNUSED)
 }
 
 void tb_cfg_init(struct tb_cfg *cfg, uint32_t data_count, uint32_t parity_count,
-		 uint32_t block_size)
+		 uint32_t block_size, uint32_t th_num)
 {
 	uint32_t i;
 	uint32_t fail_count;
@@ -75,37 +75,40 @@ void tb_cfg_init(struct tb_cfg *cfg, uint32_t data_count, uint32_t parity_count,
 
 	/* allocate data */
 	M0_ALLOC_ARR(cfg->tc_data, data_count);
-	M0_ASSERT(cfg->tc_data != NULL);
+	M0_UT_ASSERT(cfg->tc_data != NULL);
 
 	for (i = 0; i < data_count; ++i) {
 		M0_ALLOC_ARR(cfg->tc_data[i], block_size);
-		M0_ASSERT(cfg->tc_data[i] != NULL);
+		M0_UT_ASSERT(cfg->tc_data[i] != NULL);
 	}
 
 	/* allocate parity */
 	M0_ALLOC_ARR(cfg->tc_parity, parity_count);
-	M0_ASSERT(cfg->tc_parity != NULL);
+	M0_UT_ASSERT(cfg->tc_parity != NULL);
 
 	/* allocate memory for backup */
 	M0_ALLOC_ARR(cfg->tc_backup, parity_count);
-	M0_ASSERT(cfg->tc_backup != NULL);
+	M0_UT_ASSERT(cfg->tc_backup != NULL);
 
 	for (i = 0; i < parity_count; ++i) {
 		M0_ALLOC_ARR(cfg->tc_parity[i], block_size);
-		M0_ASSERT(cfg->tc_parity[i] != NULL);
+		M0_UT_ASSERT(cfg->tc_parity[i] != NULL);
 
 		M0_ALLOC_ARR(cfg->tc_backup[i], block_size);
-		M0_ASSERT(cfg->tc_backup[i] != NULL);
+		M0_UT_ASSERT(cfg->tc_backup[i] != NULL);
 	}
 
 	/* allocate and set fail info */
 	M0_ALLOC_ARR(cfg->tc_fail, cfg->tc_fail_count);
-	M0_ASSERT(cfg->tc_fail != NULL);
+	M0_UT_ASSERT(cfg->tc_fail != NULL);
 
-	fail_count = (m0_rnd64(&seed) % parity_count) + 1;
-	for (i = 0; i < fail_count; ++i){
+	fail_count = (th_num % parity_count) + 1;
+	for (i = 0; i < fail_count;) {
 		uint32_t idx = m0_rnd64(&seed) % cfg->tc_fail_count;
-		cfg->tc_fail[idx] = 1;
+		if (cfg->tc_fail[idx] == 0) {
+			cfg->tc_fail[idx] = 1;
+			i++;
+		}
 	}
 }
 
@@ -158,7 +161,7 @@ static void unit_compare(struct tb_cfg *cfg)
 			else
 				addr = cfg->tc_parity[i - cfg->tc_data_count];
 
-			M0_ASSERT(memcmp(cfg->tc_backup[j++], addr, cfg->tc_block_size) == 0);
+			M0_UT_ASSERT(memcmp(cfg->tc_backup[j++], addr, cfg->tc_block_size) == 0);
 		}
 	}
 }
@@ -179,14 +182,14 @@ void tb_thread(struct tb_cfg *cfg)
 	struct m0_buf fail_buf;
 
 	data_buf = m0_alloc(data_count * sizeof(struct m0_buf));
-	M0_ASSERT(data_buf);
+	M0_UT_ASSERT(data_buf);
 
 	parity_buf = m0_alloc(parity_count * sizeof(struct m0_buf));
-	M0_ASSERT(parity_buf);
+	M0_UT_ASSERT(parity_buf);
 
 
 	ret = m0_parity_math_init(&math, data_count, parity_count);
-	M0_ASSERT(ret == 0);
+	M0_UT_ASSERT(ret == 0);
 
 	for (i = 0; i < data_count; ++i)
 		m0_buf_init(&data_buf  [i], cfg->tc_data  [i], buff_size);
@@ -221,22 +224,22 @@ static void ub_mt_test(uint32_t data_count,
 	struct m0_thread *threads;
 
 	threads = m0_alloc(num_threads * sizeof(struct m0_thread));
-	M0_ASSERT(threads != NULL);
+	M0_UT_ASSERT(threads != NULL);
 
 	cfg = m0_alloc(num_threads * sizeof(struct tb_cfg));
-	M0_ASSERT(cfg != NULL);
+	M0_UT_ASSERT(cfg != NULL);
 
 	for (i = 0; i < num_threads; i++) {
-		tb_cfg_init(&cfg[i], data_count, parity_count, block_size);
+		tb_cfg_init(&cfg[i], data_count, parity_count, block_size, i);
 		result = M0_THREAD_INIT(&threads[i], struct tb_cfg*, NULL,
 					&tb_thread, &cfg[i],
 					"tb_thread%d", i);
-		M0_ASSERT(result == 0);
+		M0_UT_ASSERT(result == 0);
 	}
 
 	for (i = 0; i < num_threads; i++) {
 		result = m0_thread_join(&threads[i]);
-		M0_ASSERT(result == 0);
+		M0_UT_ASSERT(result == 0);
 		tb_cfg_fini(&cfg[i]);
 	}
 
@@ -249,7 +252,7 @@ void ub_small_4K() {
 }
 
 void ub_medium_4K() {
-	ub_mt_test(20, 6, KB(4));
+	ub_mt_test(20, 4, KB(4));
 }
 
 void ub_large_4K() {
@@ -261,7 +264,7 @@ void ub_small_1M() {
 }
 
 void ub_medium_1M() {
-	ub_mt_test(20, 6, MB(1));
+	ub_mt_test(20, 4, MB(1));
 }
 
 void ub_large_1M() {
@@ -273,7 +276,7 @@ void ub_small_32K() {
 }
 
 void ub_medium_32K() {
-	ub_mt_test(20, 6, KB(32));
+	ub_mt_test(20, 4, KB(32));
 }
 
 void ub_large_32K() {
@@ -306,11 +309,11 @@ struct m0_ub_set m0_parity_math_mt_ub = {
 		  .ub_block_size = KB(4),
 		  .ub_blocks_per_op = 13 * MAX_NUM_THREADS },
 
-		{ .ub_name  = "m 20/06/  4K",
+		{ .ub_name  = "m 20/04/  4K",
 		  .ub_iter  = UB_ITER,
 		  .ub_round = ub_medium_4K,
 		  .ub_block_size = KB(4),
-		  .ub_blocks_per_op = 26 * MAX_NUM_THREADS },
+		  .ub_blocks_per_op = 24 * MAX_NUM_THREADS },
 
 		{ .ub_name  = "l 30/04/  4K",
 		  .ub_iter  = UB_ITER,
@@ -324,11 +327,11 @@ struct m0_ub_set m0_parity_math_mt_ub = {
 		  .ub_block_size = KB(32),
 		  .ub_blocks_per_op = 13 * MAX_NUM_THREADS },
 
-		{ .ub_name  = "m 20/06/ 32K",
+		{ .ub_name  = "m 20/04/ 32K",
 		  .ub_iter  = UB_ITER,
 		  .ub_round = ub_medium_32K,
 		  .ub_block_size = KB(32),
-		  .ub_blocks_per_op = 26 * MAX_NUM_THREADS },
+		  .ub_blocks_per_op = 24 * MAX_NUM_THREADS },
 
 		{ .ub_name  = "l 30/04/ 32K",
 		  .ub_iter  = UB_ITER,
@@ -342,11 +345,11 @@ struct m0_ub_set m0_parity_math_mt_ub = {
 		  .ub_block_size = MB(1),
 		  .ub_blocks_per_op = 15 * MAX_NUM_THREADS },
 
-		{ .ub_name  = "m 20/06/  1M",
+		{ .ub_name  = "m 20/04/  1M",
 		  .ub_iter  = UB_ITER,
 		  .ub_round = ub_medium_1M,
 		  .ub_block_size = MB(1),
-		  .ub_blocks_per_op = 26 * MAX_NUM_THREADS },
+		  .ub_blocks_per_op = 24 * MAX_NUM_THREADS },
 
 		{ .ub_name  = "l 30/04/  1M",
 		  .ub_iter  = UB_ITER,
