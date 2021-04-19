@@ -343,19 +343,61 @@ M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom                *fom,
 	return M0_RC(rc);
 }
 
+/*
+ * Wait for the BE transaction to be persisted.
+ */
+static int op_sync_wait(struct m0_fom *fom)
+{
+    struct m0_be_tx     *tx;
+
+    tx = m0_fom_tx(fom);
+    if (m0_be_tx_state(tx) < M0_BTS_LOGGED) {
+	M0_LOG(M0_DEBUG, "fom wait for tx to be logged");
+	m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
+	return M0_FSO_WAIT;
+    }
+    return M0_FSO_AGAIN;
+}
 
 static int dtm0_fom_tick(struct m0_fom *fom)
 {
-	int                     rc;
-	struct dtm0_req_fop    *req;
-	struct dtm0_rep_fop    *rep;
-	struct m0_dtm0_service *svc;
+	int                       rc;
+	struct   m0_dtm0_service *svc;
+	struct   m0_buf           buf = {};
+	struct   dtm0_rep_fop    *rep;
+	struct   dtm0_req_fop    *req = m0_fop_data(fom->fo_fop);
+	struct   m0_rpc_item     *item = &fom->fo_fop->f_item;
+	int                       phase = m0_fom_phase(fom);
+	uint64_t                  phase_sm_id = m0_sm_id_get(&fom->fo_sm_phase);
+	uint64_t                  rpc_sm_id   = m0_sm_id_get(&item->ri_sm);
+
+	M0_ENTRY("fom %p phase %d", fom, phase);
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		rc = m0_fom_tick_generic(fom);
+		if (req->dtr_msg == DTM_PERSISTENT &&
+		    m0_dtm0_is_a_persistent_dtm(fom->fo_service)) {
+			if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
+				struct m0_be_tx_credit dtm0logrec_cred = {};
+				M0_ASSERT(phase == M0_FOPH_TXN_INIT);
+				/* get tx credits. */
+				m0_be_dtm0_log_credit(M0_DTML_PERSISTENT,
+						      &req->dtr_txr,
+						      &buf,
+						      m0_fom_reqh(fom)->rh_beseg,
+						      NULL,
+						      &dtm0logrec_cred);
+				m0_be_tx_credit_add(&fom->fo_tx.tx_betx_cred, &dtm0logrec_cred);
+			}
+			if (phase == M0_FOPH_TXN_COMMIT) {
+				rc = op_sync_wait(fom);
+			}
+			if (m0_dtm0_in_ut() && m0_fom_phase(fom) == M0_FOPH_QUEUE_REPLY) {
+				m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
+			}
+		}
 	} else {
 		M0_ASSERT(m0_fom_phase(fom) == M0_FOPH_TYPE_SPECIFIC);
-		req = m0_fop_data(fom->fo_fop);
 		rep = m0_fop_data(fom->fo_rep_fop);
 		M0_SET0(&rep->dr_txr);
 		svc = m0_dtm0_service_find(fom->fo_service->rs_reqh);
@@ -369,28 +411,29 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 
 		if (m0_dtm0_in_ut() && req->dtr_msg == DMT_EXECUTE &&
 		    m0_dtm0_is_a_persistent_dtm(fom->fo_service)) {
-			rc = m0_dtm0_tx_desc_copy(&req->dtr_txr,
-						  &rep->dr_txr);
-			M0_ASSERT(rc == 0);
+			rc = m0_dtm0_tx_desc_copy(&req->dtr_txr, &rep->dr_txr);
+			if (rc != 0)
+				m0_fom_phase_move(fom, M0_ERR(rc), M0_FOPH_FAILURE);
 			rc = m0_dtm0_send_msg(fom, DMT_EXECUTED,
 					      &req->dtr_txr.dtd_id.dti_fid,
 					      &req->dtr_txr);
-			M0_ASSERT(rc == 0);
-		}
-
-		if (req->dtr_msg == DTM_PERSISTENT &&
-		    m0_dtm0_is_a_volatile_dtm(fom->fo_service)) {
-			/* TODO: Only the client side is here so far.
-			 * Remove the "is_volatile" part when plog is ready.
-			 */
-			m0_be_dtm0_log_pmsg_post(svc->dos_log, fom->fo_fop);
+			if (rc != 0)
+				m0_fom_phase_move(fom, M0_ERR(rc), M0_FOPH_FAILURE);
+		} else if (req->dtr_msg == DTM_PERSISTENT) {
+			if (m0_dtm0_is_a_volatile_dtm(fom->fo_service)) {
+				m0_be_dtm0_log_pmsg_post(svc->dos_log, fom->fo_fop);
+			} else {
+				m0_mutex_lock(&svc->dos_log->dl_lock);
+				m0_dtm0_logrec_update(svc->dos_log, &fom->fo_tx.tx_betx, &req->dtr_txr, &buf);
+				m0_mutex_unlock(&svc->dos_log->dl_lock);
+			}
 		}
 
 		rep->dr_rc = 0;
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		rc = M0_FSO_AGAIN;
 	}
-
+	M0_ADDB2_ADD(M0_AVI_FOM_TO_TX, phase_sm_id, rpc_sm_id);
 	return M0_RC(rc);
 }
 
