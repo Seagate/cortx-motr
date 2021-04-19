@@ -192,7 +192,7 @@ servers_stop()
 					checkpid $pid && sleep $delay &&
 					checkpid $pid ; then
 				kill -KILL $pid &>/dev/null
-				usleep 100000
+				sleep 1
 			fi
 		fi
 	fi
