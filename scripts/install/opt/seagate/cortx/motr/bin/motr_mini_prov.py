@@ -367,6 +367,8 @@ def config_lvm(self):
         raise MotrError(errno.EINVAL, "cvg is empty\n")
 
     dev_count = 0
+    lvm_min_size = None
+    motr_config_file = '/etc/sysconfig/motr'
     for i in range(int(cvg_cnt)):
         cvg_item = cvg[i]
         try:
@@ -379,6 +381,19 @@ def config_lvm(self):
         for device in metadata_devices:
             create_lvm(self, dev_count, device)
             dev_count += 1
+            lv_md_name = f"lv_raw_md{dev_count}"
+            cmd = f"lvs -o lv_path | grep {lv_md_name}"
+            res = execute_command(self, cmd)
+            lv_path = res[0].rstrip("\n")
+            cmd = f"lvs {lv_path} -o LV_SIZE --noheadings --units b --nosuffix"
+            res = execute_command(self, cmd)
+            lv_size = res[0].rstrip("\n")
+            if lvm_min_size is None:
+                lvm_min_size = lv_size
+            lvm_min_size = min(lv_size, lvm_min_size)
+    if lvm_min_size: 	    
+        cmd = f'sed -i "s/^\(MOTR_M0D_IOS_BESEG_SIZE=*\).*/\1{lvm_min_size}/" {motr_config_file}'
+        execute_command(self, cmd)
 
 def get_lnet_xface() -> str:
     """Get lnet interface."""
