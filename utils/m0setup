@@ -35,7 +35,9 @@ readonly ETC_HALON_DIR='/etc/halon'
 readonly LINUXSTOB_MIN_IOS_NUM=3
 readonly DEFAULT_POOL_WIDTH=8
 readonly DEFAULT_IMETA_POOL_WIDTH=4
-readonly MOTR_SYSCONF='/etc/sysconfig/motr'
+SYSCONF_DIR=/etc/sysconfig
+[ -d $SYSCONF_DIR ] || SYSCONF_DIR=/etc/default
+readonly MOTR_SYSCONF="$SYSCONF_DIR/motr"
 
 # variables
 verbose=false
@@ -482,7 +484,7 @@ generate_halon_facts()
         ln $vopt -sf $motr_role_file $motr_role_file
     fi
 
-    local halond_conf=/etc/sysconfig/halond
+    local halond_conf=$SYSCONF_DIR/halond
 
     if [[ ! -e $halond_conf ]] ; then
         log "Generating $halond_conf"
