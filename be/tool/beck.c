@@ -975,8 +975,9 @@ static int scan(struct scanner *s)
 		/** save scanner offset if scanner and bnode queue's
 		 * are empty and scanner has progressed by delta bytes
 		 */
-		if( s->s_off - lastnvsaveoff >
-		    NV_OFFSET_SAVE_DELTA_IN_BYTES &&
+		if( !dry_run &&
+		    (s->s_off - lastnvsaveoff >
+		     NV_OFFSET_SAVE_DELTA_IN_BYTES) &&
 		    isqempty(&s->s_bnode_q)&&
 		    isqempty(s->s_q) ) {
 			lastnvsaveoff = s->s_off;
