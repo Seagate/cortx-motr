@@ -1043,7 +1043,7 @@ EXTRA_DIST += \
               balloc/Kbuild.sub \
               be/Kbuild.sub \
               be/ut/Kbuild.sub \
-	      btree/Kbuild.sub \
+              btree/Kbuild.sub \
               cas/Kbuild.sub \
               cob/Kbuild.sub \
               motr/Kbuild.sub\
