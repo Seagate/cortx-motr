@@ -99,22 +99,22 @@ static void isal_recover(struct m0_parity_math *math,
 #if ISAL_ENCODE_ENABLED
 /**
  * This is wrapper function for Intel ISA API ec_encode_data_update().
- * @param[out] dest_buf - Array of pointers to coded output buffers
- * @param[in]  src_buf  - Pointer to single input source used to update output
- *                        parity.
+ * @param[out] dest_buf - Array of coded output buffers i.e. struct m0_buf
+ * @param[in]  src_buf  - Pointer to single input source (struct m0_buf) used to
+ *                        update output parity.
  * @param[in]  vec_idx  - The vector index corresponding to the single
  *                        input source.
  * @param[in]  g_tbls   - Pointer to array of input tables generated from
  *                        coding coefficients in ec_init_tables().
- *                        Must be of size 32*src_nr*dest_nr
- * @param[in]  src_nr   - The number of vector sources for coding.
- * @param[in]  dest_nr  - The number of output vectors to concurrently
+ *                        Must be of size 32*data_nr*dest_nr
+ * @param[in]  data_nr  - The number of data blocks for coding.
+ * @param[in]  dest_nr  - The number of output blocks to concurrently
  *                        encode/decode.
  * @retval     0        - success otherwise failure
  */
 static int isal_encode_data_update(struct m0_buf *dest_buf, struct m0_buf *src_buf,
 				   uint32_t vec_idx, uint8_t *g_tbls,
-				   uint32_t src_nr, uint32_t dest_nr);
+				   uint32_t data_nr, uint32_t dest_nr);
 #endif /* ISAL_ENCODE_ENABLED */
 
 #if ISAL_ENCODE_ENABLED
@@ -535,15 +535,15 @@ static bool parity_math_invariant(const struct m0_parity_math *math)
 #if ISAL_ENCODE_ENABLED
 static int isal_encode_data_update(struct m0_buf *dest_buf, struct m0_buf *src_buf,
 				   uint32_t vec_idx, uint8_t *g_tbls,
-				   uint32_t src_nr, uint32_t dest_nr)
+				   uint32_t data_nr, uint32_t dest_nr)
 {
 	uint32_t i;
 	uint32_t block_size;
 	int	 ret = 0;
 
 	M0_ENTRY("dest_buf=%p, src_buf=%p, vec_idx=%u, "
-		 "g_tbls=%p, src_nr=%u, dest_nr=%u",
-		 dest_buf, src_buf, vec_idx, g_tbls, src_nr, dest_nr);
+		 "g_tbls=%p, data_nr=%u, dest_nr=%u",
+		 dest_buf, src_buf, vec_idx, g_tbls, data_nr, dest_nr);
 
 	M0_PRE(dest_buf != NULL);
 	M0_PRE(src_buf != NULL);
@@ -565,7 +565,7 @@ static int isal_encode_data_update(struct m0_buf *dest_buf, struct m0_buf *src_b
 		dest_frags[i] = (uint8_t *)dest_buf[i].b_addr;
 	}
 
-	ec_encode_data_update(block_size, src_nr, dest_nr, vec_idx,
+	ec_encode_data_update(block_size, data_nr, dest_nr, vec_idx,
 			      g_tbls, (uint8_t *)src_buf->b_addr, dest_frags);
 
 	return M0_RC(ret);
