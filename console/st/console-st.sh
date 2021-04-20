@@ -72,7 +72,7 @@ start_server()
 
 	$SERVER -v &>$SANDBOX_DIR/server.log &
 	sleep 1
-	pgrep $(basename $SERVER) >/dev/null || die 'Service failed to start'
+	pgrep $(basename "$SERVER") >/dev/null || die 'Service failed to start'
 	echo 'Service started' >&2
 }
 
@@ -130,7 +130,7 @@ EOF
 
 stop_server()
 {
-	pkill $(basename $SERVER) && wait || true
+	{ pkill $(basename "$SERVER") && wait; } || true
 	modunload
 	modunload_galois
 }
