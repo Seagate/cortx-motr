@@ -61,6 +61,7 @@ static void cat_usage(FILE *file, char *prog_name)
 				 "suffix b/k/m/g/K/M/G.\n%*c Ex: 1k=1024, "
 				 "1m=1024*1024, 1K=1000 1M=1000*1000.\n"
 "  -L, --layout-id      INT       Layout ID, Range: [1-14].\n"
+"  -v, --pver           FID       Pool version fid.\n"
 "  -e, --enable-locks             Enables acquiring and releasing RW locks "
 				 "before and after performing IO.\n"
 "  -b, --blocks-per-io  INT       Number of blocks per IO (>=0). \n%*c "
@@ -88,6 +89,8 @@ int main(int argc, char **argv)
 	m0_utility_args_init(argc, argv, &cat_param,
 			         &dix_conf, &conf, &cat_usage);
 
+	fprintf(stderr, "pver is : "FID_F "\n", FID_P(&cat_param.cup_pver));
+
 	rc = client_init(&conf, &container, &m0_instance);
 	if (rc < 0) {
 		fprintf(stderr, "init failed! rc = %d\n", rc);
@@ -101,7 +104,7 @@ int main(int argc, char **argv)
 		          cat_param.cup_block_size, cat_param.cup_block_count,
 			  cat_param.cup_offset,
 			  cat_param.cup_blks_per_io, cat_param.cup_take_locks,
-			  cat_param.flags);
+			  cat_param.flags, &cat_param.cup_pver);
 	if (rc < 0) {
 		fprintf(stderr, "m0_read failed! rc = %d\n", rc);
 	}
