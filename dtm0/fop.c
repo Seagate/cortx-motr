@@ -343,22 +343,6 @@ M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom                *fom,
 	return M0_RC(rc);
 }
 
-/*
- * Wait for the BE transaction to be persisted.
- */
-static int op_sync_wait(struct m0_fom *fom)
-{
-    struct m0_be_tx     *tx;
-
-    tx = m0_fom_tx(fom);
-    if (m0_be_tx_state(tx) < M0_BTS_LOGGED) {
-	M0_LOG(M0_DEBUG, "fom wait for tx to be logged");
-	m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
-	return M0_FSO_WAIT;
-    }
-    return M0_FSO_AGAIN;
-}
-
 static int dtm0_fom_tick(struct m0_fom *fom)
 {
 	int                       rc;
@@ -389,12 +373,9 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 						      &dtm0logrec_cred);
 				m0_be_tx_credit_add(&fom->fo_tx.tx_betx_cred, &dtm0logrec_cred);
 			}
-			if (phase == M0_FOPH_TXN_COMMIT) {
-				rc = op_sync_wait(fom);
-			}
-			if (m0_dtm0_in_ut() && m0_fom_phase(fom) == M0_FOPH_QUEUE_REPLY) {
-				m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
-			}
+			/*
+			 * XXX: Find out if we need to wait for the tx to be logged.
+			 */
 		}
 	} else {
 		M0_ASSERT(m0_fom_phase(fom) == M0_FOPH_TYPE_SPECIFIC);
@@ -423,13 +404,22 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 			if (m0_dtm0_is_a_volatile_dtm(fom->fo_service)) {
 				m0_be_dtm0_log_pmsg_post(svc->dos_log, fom->fo_fop);
 			} else {
-				m0_mutex_lock(&svc->dos_log->dl_lock);
+				/* m0_mutex_lock(&svc->dos_log->dl_lock); */
 				m0_dtm0_logrec_update(svc->dos_log, &fom->fo_tx.tx_betx, &req->dtr_txr, &buf);
-				m0_mutex_unlock(&svc->dos_log->dl_lock);
+				/* m0_mutex_unlock(&svc->dos_log->dl_lock); */
+				if (m0_dtm0_in_ut()) {
+					rc = m0_dtm0_tx_desc_copy(&req->dtr_txr, &rep->dr_txr);
+					if (rc != 0)
+						m0_fom_phase_move(fom, M0_ERR(rc), M0_FOPH_FAILURE);
+					rc = m0_dtm0_send_msg(fom, DTM_PERSISTENT,
+						&req->dtr_txr.dtd_id.dti_fid,
+						&req->dtr_txr);
+					if (rc != 0)
+					    m0_fom_phase_move(fom, M0_ERR(rc), M0_FOPH_FAILURE);
+				}
 			}
 		}
-
-		rep->dr_rc = 0;
+		rep->dr_rc = rc;
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		rc = M0_FSO_AGAIN;
 	}
