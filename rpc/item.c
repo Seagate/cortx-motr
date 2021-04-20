@@ -113,7 +113,7 @@ M0_INTERNAL int m0_rpc_item_module_init(void)
 	int                        h1_len;
 	int                        h2_len;
 	int                        f_len;
-	struct m0_rpc_item_header1 h;
+	void                      *dummy = NULL;
 	struct m0_xcode_ctx        h_xc;
 
 	M0_ENTRY();
@@ -121,11 +121,11 @@ M0_INTERNAL int m0_rpc_item_module_init(void)
 	m0_rwlock_init(&rpc_item_types_lock);
 	rit_tlist_init(&rpc_item_types_list);
 
-	m0_xcode_ctx_init(&h_xc, &HEADER1_XCODE_OBJ(&h));
+	m0_xcode_ctx_init(&h_xc, &HEADER1_XCODE_OBJ(dummy));
 	h1_len = m0_xcode_length(&h_xc);
-	m0_xcode_ctx_init(&h_xc, &HEADER2_XCODE_OBJ(&h));
+	m0_xcode_ctx_init(&h_xc, &HEADER2_XCODE_OBJ(dummy));
 	h2_len = m0_xcode_length(&h_xc);
-	m0_xcode_ctx_init(&h_xc, &FOOTER_XCODE_OBJ(&h));
+	m0_xcode_ctx_init(&h_xc, &FOOTER_XCODE_OBJ(dummy));
 	f_len = m0_xcode_length(&h_xc);
 
 	m0_rpc_item_onwire_header_size = h1_len + h2_len;
