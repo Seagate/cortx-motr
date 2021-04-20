@@ -404,9 +404,7 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 			if (m0_dtm0_is_a_volatile_dtm(fom->fo_service)) {
 				m0_be_dtm0_log_pmsg_post(svc->dos_log, fom->fo_fop);
 			} else {
-				/* m0_mutex_lock(&svc->dos_log->dl_lock); */
 				m0_dtm0_logrec_update(svc->dos_log, &fom->fo_tx.tx_betx, &req->dtr_txr, &buf);
-				/* m0_mutex_unlock(&svc->dos_log->dl_lock); */
 				if (m0_dtm0_in_ut()) {
 					rc = m0_dtm0_tx_desc_copy(&req->dtr_txr, &rep->dr_txr);
 					if (rc != 0)
