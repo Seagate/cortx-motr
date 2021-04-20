@@ -264,10 +264,10 @@ static void obj_namei_cb_launch(struct m0_op_common *oc)
 	if (rc == 0) {
 		m0_sm_move(&op->op_sm, 0, M0_OS_LAUNCHED);
 	} else if (rc == M0TR_COB_LOOKUP_SKIPPED) {
-		/* Here rc=3 means this is M0_EO_GETATTR and
-		 * op state is already moved to LAUNCHED -->
-		 * EXECUTED --> STABLE, so skipped mo_sm_move()
-		 * and resetting rc state to 0*/
+		/* This is M0_EO_GETATTR and op state is already
+		 * moved to LAUNCHED --> EXECUTED --> STABLE, so
+		 * skipped m0_sm_move() and resetting rc state to 0
+		 * */
 		rc = 0;
 	}
 
