@@ -223,6 +223,9 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 			"portal: %u, tmid: %u", portal, tmid);
 	*/
 
+	if ( portal < 30)
+		portal = 30 + portal;
+
 	portnum  = tmid | (1 << 10) | ((portal - 30) << 11);
 	sprintf(port, "%d", portnum);
 	fab_autotm[tmid] = 1;
