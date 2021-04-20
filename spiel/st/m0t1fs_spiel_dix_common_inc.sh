@@ -105,7 +105,7 @@ spiel_prepare()
 
 	# install "motr" Python module required by m0spiel tool
 	cd $M0_SRC_DIR/utils/spiel
-	python setup.py install --record $PYTHON_STUFF > /dev/null ||\
+	python2 setup.py install --record $PYTHON_STUFF > /dev/null ||\
 		die 'Cannot install Python "motr" module'
 	cd -
 }

@@ -19,8 +19,8 @@
 
 [Unit]
 Description=Motr server helper
-Requires=lnet.service
-After=lnet.service
+Requires=motr-kernel.service
+After=motr-kernel.service
 Before=motr-client.service
 PartOf=motr-singlenode.service
 
