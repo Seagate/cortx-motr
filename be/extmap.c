@@ -692,10 +692,9 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 	int                       rc = -ENOMEM;
 	struct m0_be_emap_cursor *it;
 
-	M0_ALLOC_PTR(it);
-
 	m0_be_op_active(op);
 
+	M0_ALLOC_PTR(it);
 	if (it == NULL)
 		goto err;
 
