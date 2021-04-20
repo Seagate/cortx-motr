@@ -321,12 +321,12 @@ static int be_dtm0_plog_rec_init(struct m0_dtm0_log_rec **out,
 		M0_BE_ALLOC_BUF_SYNC(&rec->dlr_payload, seg, tx);
 		M0_ASSERT(&rec->dlr_payload.b_addr != NULL); /* TODO: handle error */
 		m0_buf_memcpy(&rec->dlr_payload, payload);
+		M0_BE_TX_CAPTURE_BUF(seg, tx, &rec->dlr_payload);
 	} else {
 		rec->dlr_payload.b_addr = NULL;
 		rec->dlr_payload.b_nob = 0;
 	}
 
-	M0_BE_TX_CAPTURE_BUF(seg, tx, &rec->dlr_payload);
 	M0_BE_TX_CAPTURE_ARR(seg, tx,
 			     rec->dlr_txd.dtd_ps.dtp_pa,
 			     rec->dlr_txd.dtd_ps.dtp_nr);
