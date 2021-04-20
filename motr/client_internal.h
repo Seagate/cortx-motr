@@ -68,6 +68,8 @@ struct m0_idx_service_ctx;
 /**
  * Maximum length for an object's name.
  */
+
+#define M0TR_COB_LOOKUP_SKIPPED 3
 enum {
 	M0_OBJ_NAME_MAX_LEN = 64
 };
