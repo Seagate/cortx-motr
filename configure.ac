@@ -136,7 +136,7 @@ AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
-AH_TEMPLATE([ENABLE_CASTXML],         [Use CastXML instead of GCC-XML])
+AH_TEMPLATE([ENABLE_GCCXML],          [Use deprecated GCC-XML instead of CastXML])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
 AH_TEMPLATE([ENABLE_RELEASE],         [Enable release mode (this has the same effect as --disable-dev-mode).])
@@ -168,6 +168,7 @@ AH_TEMPLATE([HAVE_MALLINFO],          [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
+AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
 
 # enable/disable options ------------------------------ {{{2
 
@@ -354,16 +355,12 @@ AC_ARG_ENABLE([systemd],
         [], [enable_systemd=yes]
 )
 
-# CastXML {{{3
-AC_ARG_ENABLE([castxml],
-        [AS_HELP_STRING([--enable-castxml],
-                        [use CastXML instead of GCC-XML])],
-        [], [enable_castxml=no]
+# GCC-XML {{{3
+AC_ARG_ENABLE([gccxml],
+        [AS_HELP_STRING([--enable-gccxml],
+                        [use deprecated GCC-XML instead of CastXML])],
+        [], [enable_gccxml=no]
 )
-AS_IF([test x$enable_castxml = xyes],
-      AC_DEFINE([ENABLE_CASTXML]))
-AM_CONDITIONAL([ENABLE_CASTXML],
-               [test x$enable_castxml = xyes])
 
 # argument options ------------------------------------ {{{2
 
@@ -506,19 +503,23 @@ AC_PROG_SED
 AC_PROG_LN_S
 AC_PROG_INSTALL
 
-AS_IF([test x$enable_castxml = xyes],
-      [cxxxml_name=castxml],
+AC_CHECK_PROG(cxxxml_name, castxml, castxml, gccxml)
+AS_IF([test x$enable_gccxml = xyes],
       [cxxxml_name=gccxml]
 )
+AS_IF([test x$cxxxml_name = xgccxml],
+      AC_DEFINE([ENABLE_GCCXML]))
+AM_CONDITIONAL([ENABLE_GCCXML],
+               [test x$cxxxml_name = xgccxml])
 
-# gccxml is required by xcode/m0gccxml2xcode script
+# castxml is required by xcode/m0gccxml2xcode script
 AC_PATH_PROG(CXXXML, $cxxxml_name,, [/usr/bin$PATH_SEPARATOR$PATH])
 AS_IF([test -z $CXXXML],
-      AC_MSG_ERROR([$cxxxml_name is not found: it can be installed from gccxml \
+      AC_MSG_ERROR([$cxxxml_name is not found: it can be installed from $cxxxml_name \
 package on Red Hat based systems])
 )
 
-# c++ compiler is required by gccxml
+# c++ compiler is required by gccxml/castxml
 AC_CHECK_PROG(CXX, g++, g++)
 AS_IF([test -z $CXX],
       AC_MSG_ERROR([g++ is not found: it can be installed from gcc-c++ package \
@@ -629,7 +630,6 @@ MOTR_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
 	[uuid_generate cannot be found! Try to install libuuid and libuuid-devel.])
 AC_SUBST([UUID_LIBS])
 
-
 #
 # Checking for required header files
 #
@@ -639,6 +639,25 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
                   sys/socket.h sys/time.h unistd.h])
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
+AC_CHECK_HEADERS([isa-l.h],   [
+				# check for isa library
+				MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
+						[ec_encode_data cannot be found! \
+						 Try to install Intel ISA library package.]
+				)
+				AC_SUBST([ISAL_LIBS])
+
+				# define MACROs
+				AC_DEFINE([HAVE_ISAL])
+				AM_CONDITIONAL([HAVE_ISAL], [true])
+				AC_MSG_NOTICE([INTEL ISA-L Headers Available])
+			      ],
+			      [
+				AM_CONDITIONAL([HAVE_ISAL], [false])
+				AC_MSG_NOTICE([No INTEL ISA-L Headers])
+			      ]
+		)
+
 
 
 AC_HEADER_STDBOOL
@@ -1026,6 +1045,7 @@ echo "PROFILER_LIBS  :  \"$PROFILER_LIBS\""
 echo "GALOIS_LIBS    :  \"$GALOIS_LIBS\""
 echo "YAML_LIBS      :  \"$YAML_LIBS\""
 echo "UUID_LIBS      :  \"$UUID_LIBS\""
+echo "ISAL_LIBS      :  \"$ISAL_LIBS\""
 echo ""
 echo "Gcc            :  \"$BUILD_GCC\""
 AS_IF([test x$with_lustre != xno],[

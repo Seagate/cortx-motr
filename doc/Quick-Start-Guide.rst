@@ -21,7 +21,7 @@ Procedure
 **********
 The below mentioned procedure must be followed to install the Motr component and to perform tests.
 
-1. Cloning the Source Code
+1. Cloning the Source Code (Either Build from Source or RPM Generation)
 
 2. Building the Source Code
 
@@ -66,15 +66,15 @@ Perform the below mentioned procedure to build the source code.
    - **$ scripts/m0 rebuild**
 
    **Note**: The **scripts/m0 rebuild** command includes some clean up.
-   
+ 
 RPM Generation
 ===============
 
-If you want to make sure about generating RPMs, run the below mentioned command.
+You can also build RPMs by running the following command.
 
 - **$ make rpms**
 
-The following RPMs are generated in the **/root/rpmbuild/RPMS/x86_64** directory (if running with *root* user).
+The following RPMs are generated in the **$HOME/rpmbuild/RPMS/x86_64** directory.
 
 - cortx-motr-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
 
@@ -84,7 +84,7 @@ The following RPMs are generated in the **/root/rpmbuild/RPMS/x86_64** directory
  
 - cortx-motr-tests-ut-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
 
-Note : Switch to root user mode to check contents of **/root/rpmbuild/RPMS/x86_64** directory.
+Note : Check contents of **$HOME/rpmbuild/RPMS/x86_64** directory.
 
 Running Tests
 =============
@@ -186,6 +186,8 @@ Troubleshooting
        
         
 Tested by:
+
+- Mar 12, 2021: Yanqing Fu (yanqing.f.fu@seagate.com) in Red Hat Enterprise Linux Server release 7.7 (Maipo)
 
 - Jan 27, 2021: Patrick Hession (patrick.hession@seagate.com) in CentOS 7.8.2003 on a Windows laptop running VMWare Workstation Pro 16
 

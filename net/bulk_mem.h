@@ -50,7 +50,7 @@ enum {
 /**
    The bulk in-memory transport pointer to be used in m0_net_domain_init().
  */
-extern struct m0_net_xprt m0_net_bulk_mem_xprt;
+extern const struct m0_net_xprt m0_net_bulk_mem_xprt;
 
 /**
    Set the number of worker threads used by a bulk in-memory transfer machine.

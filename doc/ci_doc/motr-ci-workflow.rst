@@ -59,7 +59,7 @@ Test Config
 
 The test config can be found by navigating to the below link.
 
-- `.xperior/testds/motr-single_tests.yaml <https://github.com/Seagate/cortx-motr/blob/dev/.xperior/testds/motr-single_tests.yaml>`_
+- `.xperior/testds/motr-single_tests.yaml <https://github.com/Seagate/cortx-motr/blob/main/.xperior/testds/motr-single_tests.yaml>`_
 
 PR Build Accelerator
 ====================

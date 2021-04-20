@@ -228,7 +228,11 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 		  put_task_struct(p);
 		*/
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,18,0)
+		cpumask_copy(&p->cpus_mask, cpuset);
+#else
 		cpumask_copy(&p->cpus_allowed, cpuset);
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 		p->nr_cpus_allowed = nr_allowed;
 #else

@@ -27,10 +27,8 @@
 
 #define SERVER_LOG_FILE_NAME       "reqh_service_ctx.log"
 
-static struct m0_net_xprt       *ut_xprts[] = { &m0_net_lnet_xprt };
 static struct m0_rpc_server_ctx  ut_sctx;
 static struct m0_net_domain      ut_client_net_dom;
-static struct m0_net_xprt       *ut_xprt = &m0_net_lnet_xprt;
 static struct m0_rpc_machine     ut_rmach;
 static const char               *ut_ep_addr_remote = "0@lo:12345:34:999";
 static struct m0_net_buffer_pool ut_buf_pool;
@@ -49,12 +47,13 @@ static void reqh_service_ctx_ut_test_helper(char *ut_argv[], int ut_argc,
 					   void (*ut_body)(void))
 {
 	ut_sctx = (struct m0_rpc_server_ctx) {
-		.rsx_xprts            = ut_xprts,
-		.rsx_xprts_nr         = ARRAY_SIZE(ut_xprts),
 		.rsx_argv             = ut_argv,
 		.rsx_argc             = ut_argc,
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
 	};
+
+	ut_sctx.rsx_xprts = m0_net_all_xprt_get();
+	ut_sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	M0_UT_ASSERT(m0_rpc_server_start(&ut_sctx) == 0);
 	ut_body();
 	m0_rpc_server_stop(&ut_sctx);
@@ -66,7 +65,7 @@ static int reqh_service_ctx_ut__remote_rmach_init(void)
 	int      rc;
 	uint32_t bufs_nr;
 
-	rc = m0_net_domain_init(&ut_client_net_dom, ut_xprt);
+	rc = m0_net_domain_init(&ut_client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 	bufs_nr = m0_rpc_bufs_nr(M0_NET_TM_RECV_QUEUE_DEF_LEN, NR_TMS);
 	rc = m0_rpc_net_buffer_pool_setup(&ut_client_net_dom, &ut_buf_pool,

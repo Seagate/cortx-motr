@@ -90,12 +90,9 @@ static char *cas_startup_cmd[] = { "m0d", "-T", "linux",
 static const char         *cdbnames[] = { "cas1" };
 static const char      *cl_ep_addrs[] = { "0@lo:12345:34:2" };
 static const char     *srv_ep_addrs[] = { "0@lo:12345:34:1" };
-static struct m0_net_xprt *cs_xprts[] = { &m0_net_lnet_xprt };
 
 static struct cl_ctx            casc_ut_cctx;
 static struct m0_rpc_server_ctx casc_ut_sctx = {
-		.rsx_xprts            = cs_xprts,
-		.rsx_xprts_nr         = ARRAY_SIZE(cs_xprts),
 		.rsx_argv             = cas_startup_cmd,
 		.rsx_argc             = ARRAY_SIZE(cas_startup_cmd),
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
@@ -202,14 +199,15 @@ static void casc_ut_init(struct m0_rpc_server_ctx *sctx,
 			 struct cl_ctx            *cctx)
 {
 	int rc;
-
+	sctx->rsx_xprts = m0_net_all_xprt_get();
+	sctx->rsx_xprts_nr = m0_net_xprt_nr();
 	M0_SET0(&sctx->rsx_motr_ctx);
 	m0_fi_enable_once("m0_rpc_machine_init", "bulk_cutoff_4K");
 	rc = m0_rpc_server_start(sctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = cas_client_init(cctx, cl_ep_addrs[0],
-			      srv_ep_addrs[0], cdbnames[0],
-			      cs_xprts[0]);
+			     srv_ep_addrs[0], cdbnames[0],
+			     sctx->rsx_xprts[0]);
 	M0_UT_ASSERT(rc == 0);
 }
 

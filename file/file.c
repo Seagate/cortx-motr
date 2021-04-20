@@ -488,7 +488,10 @@ M0_INTERNAL void m0_file_init(struct m0_file      *file,
 	if (dom != NULL)
 		m0_rm_resource_add(dom->rd_types[M0_RM_FLOCK_RT],
 				   &file->fi_res);
-	file->fi_di_ops = m0_di_ops_get(di_type);
+	if (M0_FI_ENABLED("skip_di_for_ut"))
+		file->fi_di_ops = m0_di_ops_get(M0_DI_NONE);
+	else
+		file->fi_di_ops = m0_di_ops_get(di_type);
 }
 M0_EXPORTED(m0_file_init);
 

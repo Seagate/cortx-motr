@@ -36,7 +36,6 @@
 #include "pool/pool.h"                /* m0_pool_init */
 #include "rm/rm_service.h"            /* m0_rms_type */
 #include "net/lnet/lnet_core_types.h" /* M0_NET_LNET_NIDSTR_SIZE */
-#include "net/lnet/lnet.h"            /* m0_net_lnet_xprt */
 
 #include "motr/io.h"                /* io_sm_conf */
 #include "motr/client.h"
@@ -453,7 +452,7 @@ static int client_net_init(struct m0_client *m0c)
 	strncpy(laddr, m0c->m0c_config->mc_local_addr, laddr_len);
 	m0c->m0c_laddr = laddr;
 
-	m0c->m0c_xprt = &m0_net_lnet_xprt;
+	m0c->m0c_xprt = m0_net_xprt_default_get();
 	xprt =  m0c->m0c_xprt;
 	ndom = &m0c->m0c_ndom;
 
