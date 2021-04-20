@@ -298,7 +298,7 @@ static void test_failure(void)
 	M0_UT_ASSERT(d1tm1.ntm_state == M0_NET_TM_STARTED);
 	M0_UT_ASSERT(strcmp(d1tm1.ntm_ep->nep_addr, "127.0.0.1:10") == 0);
 	M0_SET0(&d1nb1);
-	M0_UT_ASSERT(!m0_bufvec_alloc(&d1nb1.nb_buffer, 4, 10));
+	M0_UT_ASSERT(!m0_bufvec_alloc(&d1nb1.nb_buffer, 1, 40));
 	M0_UT_ASSERT(!m0_net_buffer_register(&d1nb1, &dom1));
 	d1nb1.nb_callbacks = &buf_cbs1;
 	M0_SET0(&d1nb2);
@@ -320,7 +320,7 @@ static void test_failure(void)
 	M0_UT_ASSERT(strcmp(d2tm2.ntm_ep->nep_addr, "127.0.0.1:21") == 0);
 
 	M0_SET0(&d2nb1);
-	M0_UT_ASSERT(!m0_bufvec_alloc(&d2nb1.nb_buffer, 4, 10));
+	M0_UT_ASSERT(!m0_bufvec_alloc(&d2nb1.nb_buffer, 1, 40));
 	M0_UT_ASSERT(!m0_net_buffer_register(&d2nb1, &dom2));
 	d2nb1.nb_callbacks = &buf_cbs2;
 	M0_SET0(&d2nb2);
@@ -675,10 +675,10 @@ static void test_failure(void)
 }
 
 enum {
-	PING_CLIENT_SEGMENTS = 8,
-	PING_CLIENT_SEGMENT_SIZE = 512,
-	PING_SERVER_SEGMENTS = 4,
-	PING_SERVER_SEGMENT_SIZE = 1024,
+	PING_CLIENT_SEGMENTS = 1,
+	PING_CLIENT_SEGMENT_SIZE = 4096,
+	PING_SERVER_SEGMENTS = 1,
+	PING_SERVER_SEGMENT_SIZE = 4096,
 	PING_NR_BUFS = 20
 };
 static int quiet_printf(const char *fmt, ...)
