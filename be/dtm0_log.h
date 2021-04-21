@@ -34,64 +34,64 @@ struct m0_be_tx_credit;
 struct m0_dtm0_clk_src;
 
 /**
- *  @page dtm0 log implementation
+ * @page dtm0 log implementation
  *
- *  @section Overview
- *  DTM0 log module will be working on incoming message request, the goal of
- *  this module is to track journaling of incoming message either on persistent
- *  or volatile memory based on whether logging is happening on participant or
- *  on originator, so that in the phase failure consistency of failed
- *  participant can be restored by iterating over logged journal(DTM0 log
- *  record) to decide which of the logged record needs to be sent as a redo
- *  request.
+ * @section Overview
+ * DTM0 log module will be working on incoming message request, the goal of
+ * this module is to track journaling of incoming message either on persistent
+ * or volatile memory based on whether logging is happening on participant or
+ * on originator, so that in the phase failure consistency of failed
+ * participant can be restored by iterating over logged journal(DTM0 log
+ * record) to decide which of the logged record needs to be sent as a redo
+ * request.
  *
- *  A distributed transaction(dtx) has a group of states of each individual
- *  participant of the distributed transaction(dtx) (note: originator is not a
- *  part of this group). Each entry of such a group may have many different
- *  states, but this set of states must include the following states:
+ * A distributed transaction(dtx) has a group of states of each individual
+ * participant of the distributed transaction(dtx) (note: originator is not a
+ * part of this group). Each entry of such a group may have many different
+ * states, but this set of states must include the following states:
  *
- *	1) InProgress - the node (owner of the log) has a request.
- *	2) Executed - one or more operations have been executed in volatile
- *	              memory of the participant, the result of such execution
- *	              is known and returned to the dtx user.
- *	3) Persistent - locally persisted in transactional context.
- *	4) Stable - sufficient number of sent operations have been “persisted”
- *	            on the remote end which guarantees survivial of persistent
- *	            failures.
- *	5) DONE -  all sent operations have been “persisted” on sufficient
- *	           number of non-failed participants.
+ * 1) InProgress - the node (owner of the log) has a request.
+ * 2) Executed - one or more operations have been executed in volatile
+ *               memory of the participant, the result of such execution
+ *               is known and returned to the dtx user.
+ * 3) Persistent - locally persisted in transactional context.
+ * 4) Stable - sufficient number of sent operations have been “persisted”
+ *             on the remote end which guarantees survivial of persistent
+ *             failures.
+ * 5) DONE - all sent operations have been “persisted” on sufficient
+ *           number of non-failed participants.
  *
- *  Every participant maintains the journal record(DTM0 Log record) that
- *  corresponds to each distributed transaction(dtx) and it can be described by
- *  "struct m0_dtm0_log_rec" which will be stored in volatile/persistent
- *  storage. Basically this log record will maintain txr id, group of state of
- *  each individual participant and payload.
+ * Every participant maintains the journal record(DTM0 Log record) that
+ * corresponds to each distributed transaction(dtx) and it can be described by
+ * "struct m0_dtm0_log_rec" which will be stored in volatile/persistent
+ * storage. Basically this log record will maintain txr id, group of state of
+ * each individual participant and payload.
  *
- *  When a distributed transaction(dtx) is executed by participant, participant
- *  modifies its state in group of state as M0_DTPS_EXECUTED and will add/modify
- *  DTM0 log record, for rest of the participant it will keep the state as it is
- *  in distributed transaction(dtx).
+ * When a distributed transaction(dtx) is executed by participant, participant
+ * modifies its state in group of state as M0_DTPS_EXECUTED and will add/modify
+ * DTM0 log record, for rest of the participant it will keep the state as it is
+ * in distributed transaction(dtx).
  *
- *  When a distributed transaction(dtx) becomes persistent on participant,
- *  participant will modify its state in group of state as M0_DTPS_PERSISTENT
- *  and will modify DTM0 log record. For rest of the participants it will keep
- *  the state as it is in DTM0 log record.
+ * When a distributed transaction(dtx) becomes persistent on participant,
+ * participant will modify its state in group of state as M0_DTPS_PERSISTENT
+ * and will modify DTM0 log record. For rest of the participants it will keep
+ * the state as it is in DTM0 log record.
  *
- *  Originator also maintains the same distributed transaction(dtx) record in
- *  volatile memory. Originator is expecting to get replies from participant
- *  when distributed transaction(dtx) on participant is M0_DTPS_EXECUTED or
- *  M0_DTPS_PERSISTENT. On originator the state of the distributed transaction
- *  (dtx) can be M0_DTPS_INPROGRESS to M0_DTPS_PERSISTENT for each participant.
+ * Originator also maintains the same distributed transaction(dtx) record in
+ * volatile memory. Originator is expecting to get replies from participant
+ * when distributed transaction(dtx) on participant is M0_DTPS_EXECUTED or
+ * M0_DTPS_PERSISTENT. On originator the state of the distributed transaction
+ * (dtx) can be M0_DTPS_INPROGRESS to M0_DTPS_PERSISTENT for each participant.
  *
- *  During recovery operation of any of the participant, rest of the participant
- *  and originator will iterate over the logged journal and extract the state
- *  of each transation for participant under recovery from logged information
- *  and will send redo request for those distributed transaction(dtx) which  are
- *  not M0_DTPS_PERSISTENT on participant being recovered.
+ * During recovery operation of any of the participant, rest of the participant
+ * and originator will iterate over the logged journal and extract the state
+ * of each transation for participant under recovery from logged information
+ * and will send redo request for those distributed transaction(dtx) which  are
+ * not M0_DTPS_PERSISTENT on participant being recovered.
  *
- *  Upon receiving redo request participant under recovery will log the state
- *  of same distributed transaction(dtx) of remote participant in persistent
- *  store.
+ * Upon receiving redo request participant under recovery will log the state
+ * of same distributed transaction(dtx) of remote participant in persistent
+ * store.
  *
  * @section Usecases
  *
@@ -154,7 +154,7 @@ enum m0_be_dtm0_log_credit_op {
  * fields in this structure are:
  * - dlr_dtx: This stores dtx information related to dtm0 client.
  * - dlr_txd: This stores the states of the participants.
- * - dlr_payload: This stores the original cas_op (cas request).
+ * - dlr_payload: This stores the original request.
  */
 
 struct m0_dtm0_log_rec {
@@ -191,19 +191,19 @@ struct m0_dtm0_log_rec {
 
 struct m0_be_dtm0_log {
 	/** Indicates if the structure is a persistent or volatile */
-	bool                     dl_is_persistent;
+	bool                       dl_is_persistent;
 	/** dl_lock protects access to the dl_list/dl_tlist. This lock
 	 *  should be held before performing any operations on the log
 	 *  involving a log record search or insert. */
-	struct m0_mutex          dl_lock;
-	struct m0_be_seg        *dl_seg;
+	struct m0_mutex            dl_lock;
+	struct m0_be_seg          *dl_seg;
 	/** DTM0 clock source */
-	struct m0_dtm0_clk_src  *dl_cs;
+	struct m0_dtm0_clk_src    *dl_cs;
 	union {
 		/** Persistent list, used if dl_is_persistent */
-		struct m0_be_list       *dl_list;
+		struct m0_be_list *dl_plist;
 		/** Volatile list, used if !dl_is_persistent */
-		struct m0_tl            *dl_tlist;
+		struct m0_tl      *dl_vlist;
 	} u;
 };
 

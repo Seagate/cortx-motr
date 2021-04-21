@@ -104,7 +104,6 @@ enum m0_addb2_value_id {
 	/** Measurement: memory allocation. */
 	M0_AVI_ALLOC,
 
-	M0_AVI_DTM0_RANGE_START    = 0x3100,
 	M0_AVI_RM_RANGE_START      = 0x4000,
 	M0_AVI_M0T1FS_RANGE_START  = 0x5000,
 	M0_AVI_IOS_RANGE_START     = 0x6000,
@@ -117,6 +116,7 @@ enum m0_addb2_value_id {
 	M0_AVI_CLIENT_RANGE_START  = 0xd000,
 	M0_AVI_DIX_RANGE_START     = 0xe000,
 	M0_AVI_KEM_RANGE_START     = 0xf000,
+	M0_AVI_DTM0_RANGE_START    = 0xf200,
 
 	/**
 	 * Ranges reserved for using in external projects (S3, NFS)
