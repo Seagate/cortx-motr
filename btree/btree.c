@@ -1183,12 +1183,13 @@ static bool node_shift_is_valid(int shift)
 }
 
 /**
+ * Tells if the segment address is aligned to 512 bytes.
  * This function should be called right after the allocation to make sure that
  * the allocated memory starts at a properly aligned address.
  *
- * @param addr - Start address of the allocated space provided by the allocator.
+ * @param addr is the start address of the allocated space.
  *
- * @return bool - True if the input address is properly aligned.
+ * @return True if the input address is properly aligned.
  */
 static bool addr_is_aligned(const void *addr)
 {
@@ -1196,11 +1197,11 @@ static bool addr_is_aligned(const void *addr)
 }
 
 /**
- * This function validates the segment address (of node).
+ * Validates the segment address (of node).
  *
- * @param seg_addr - Start address (of the node) in the segment.
+ * @param seg_addr points to the start address (of the node) in the segment.
  *
- * @return bool - True if seg_addr is VALID according to the segment
+ * @return True if seg_addr is VALID according to the segment
  *                address semantics.
  */
 static bool segaddr_is_valid(const struct segaddr *seg_addr)
@@ -1211,10 +1212,10 @@ static bool segaddr_is_valid(const struct segaddr *seg_addr)
 /**
  * Returns a segaddr formatted segment address.
  *
- * @param addr  - Start address (of the node) in the segment.
- *        shift - Size of the node as pow-of-2.
+ * @param addr  is the start address (of the node) in the segment.
+ *        shift is the size of the node as pow-of-2 value.
  *
- * @return segaddr - Properly formatted Segment address.
+ * @return Formatted Segment address.
  */
 static struct segaddr segaddr_build(const void *addr, int shift)
 {
@@ -1231,9 +1232,9 @@ static struct segaddr segaddr_build(const void *addr, int shift)
 /**
  * Returns the CPU addressable pointer from the formatted segment address.
  *
- * @param seg_addr - Formatted segment address.
+ * @param seg_addr points to the formatted segment address.
  *
- * @return addr - CPU addressable value.
+ * @return CPU addressable value.
  */
 static void* segaddr_addr(const struct segaddr *seg_addr)
 {
@@ -1244,9 +1245,9 @@ static void* segaddr_addr(const struct segaddr *seg_addr)
 /**
  * Returns the size (pow-of-2) of the node extracted out of the segment address.
  *
- * @param seg_addr - Formatted segment address.
+ * @param seg_addr points to the formatted segment address.
  *
- * @return shift value - Size of the node.
+ * @return Size of the node as pow-of-2 value.
  */
 static int segaddr_shift(const struct segaddr *addr)
 {
@@ -1315,20 +1316,20 @@ struct seg_ops {
 static struct seg_ops *segops;
 
 /**
- * This fumction will locate a tree descriptor whose root node points to the
- * node at addr and return this tree to the caller.
- * If an existing tree descriptor pointing to this root node is not found then a
- * new tree descriptor is allocated from the free pool and the root node is
+ * Locates a tree descriptor whose root node points to the node at addr and
+ * return this tree to the caller.
+ * If an existing tree descriptor pointing to this root node is not found then
+ * a new tree descriptor is allocated from the free pool and the root node is
  * assigned to this new tree descriptor.
  * If root node pointer is not provided then this function will just allocate a
  * tree descriptor and return it to the caller. This functionality currently is
  * used by the create_tree function.
  *
- * @param op   - Operation to perform.
- * @param addr - Segment address of root node.
- * @param nxt  - Next state to be returned to the caller.
+ * @param op is used to exchange operation parameters and return values..
+ * @param addr is the segment address of root node.
+ * @param nxt is the next state to be returned to the caller.
  *
- * @return int64_t - Next state to return.
+ * @return Next state to proceed in.
  */
 static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 {
@@ -1340,12 +1341,34 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 }
 
 #ifndef __KERNEL__
+
+/**
+ * Creates a tree with an empty root node.
+ *
+ * @param op is used to exchange operation parameters and return values.
+ * @param tt is the btree type to be assiged to the newly created btree.
+ * @param rootshift is the size of the root node.
+ * @param tx captures the operation in a transaction.
+ * @param nxt is the next state to be returned to the caller.
+ *
+ * @return Next state to proceed in.
+ */
 static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
 			   int rootshift, struct m0_be_tx *tx, int nxt)
 {
 	return segops->so_tree_create(op, tt, rootshift, tx, nxt);
 }
 
+/**
+ * Deletes an existing tree.
+ *
+ * @param op is used to exchange operation parameters and return values..
+ * @param tree points to the tree to be deleted.
+ * @param tx captures the operation in a transaction.
+ * @param nxt is the next state to be returned to the caller.
+ *
+ * @return Next state to proceed in.
+ */
 static int64_t tree_delete(struct node_op *op, struct td *tree,
 			   struct m0_be_tx *tx, int nxt)
 {
@@ -1353,6 +1376,14 @@ static int64_t tree_delete(struct node_op *op, struct td *tree,
 	return segops->so_tree_delete(op, tree, tx, nxt);
 }
 
+/**
+ * Returns the tree to the free tree pool if the reference count for this tree
+ * reaches zero.
+ *
+ * @param tree points to the tree to be released.
+ *
+ * @return Next state to proceed in.
+ */
 static void tree_put(struct td *tree)
 {
 	segops->so_tree_put(tree);
@@ -1544,7 +1575,7 @@ static int64_t mem_tree_create(struct node_op *op, struct m0_btree_type *tt,
 
 	tree = op->no_tree;
 
-	node_alloc(op, tree, 10, &fixed_format, 8, 8, NULL, nxt);
+	node_alloc(op, tree, rootshift, &fixed_format, 8, 8, NULL, nxt);
 	tree->t_root = op->no_node;
 	tree->t_type = tt;
 	return nxt;
