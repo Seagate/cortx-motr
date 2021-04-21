@@ -1675,7 +1675,8 @@ static void dix_rop_one_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast
 			.sa_cb    =  dix_rop_completed,
 			.sa_datum = dreq,
 		};
-		/* Bypass the forkq because the dtx and dreq have
+		/*
+		 * Bypass the forkq because the dtx and dreq have
 		 * the same sm group.
 		 */
 		dix_rop_completed(grp, ast);

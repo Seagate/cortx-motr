@@ -192,7 +192,7 @@ struct m0_dix_cli {
 	struct m0_dix_ldesc      dx_root;
 	struct m0_dix_ldesc      dx_layout;
 	struct m0_dix_ldesc      dx_ldescr;
-	struct m0_dtm0_service   *dx_dtms;
+	struct m0_dtm0_service  *dx_dtms;
 
 	/**
 	 * The callback function is triggerred to update FSYNC records

@@ -104,7 +104,8 @@ struct m0_dix_cas_rop {
 	struct m0_dix_crop_attrs *crp_attrs;
 	struct m0_tlink           crp_linkage;
 	uint64_t                  crp_magix;
-	/** Position of this rop in the m0_dix_rop_ctx::dg_cas_reqs list.
+	/**
+	 * Position of this rop in the m0_dix_rop_ctx::dg_cas_reqs list.
 	 * Used by DTM0 as the way to enumerate participants of the
 	 * corresponding dtx.
 	 */

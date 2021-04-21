@@ -52,15 +52,15 @@ M0_BE_LIST_DEFINE(lrec, static, struct m0_dtm0_log_rec);
 static bool m0_be_dtm0_log__invariant(const struct m0_be_dtm0_log *log)
 {
 	return _0C(log != NULL) &&
-	       _0C(log->dl_cs != NULL); // &&
+	       _0C(log->dl_cs != NULL);
 	/* TODO: Add an invariant check against the volatile part */
-	       /* _0C(lrec_tlist_invariant(log->u.dl_tlist)); */
+	       /* _0C(lrec_tlist_invariant(log->u.dl_vlist)); */
 }
 
 static bool m0_dtm0_log_rec__invariant(const struct m0_dtm0_log_rec *rec)
 {
 	return _0C(rec != NULL) &&
-	       _0C(m0_dtm0_tx_desc__invariant(&rec->dlr_txd)); // &&
+	       _0C(m0_dtm0_tx_desc__invariant(&rec->dlr_txd));
 	       /* _0C(m0_tlink_invariant(&lrec_tl, rec)); */
 }
 
@@ -77,18 +77,20 @@ M0_INTERNAL int m0_be_dtm0_log_alloc(struct m0_be_dtm0_log **out)
 	if (log == NULL)
 		return M0_ERR(-ENOMEM);
 
-	M0_ALLOC_PTR(log->u.dl_tlist);
-	if (log->u.dl_tlist == NULL) {
+	M0_ALLOC_PTR(log->u.dl_vlist);
+	if (log->u.dl_vlist == NULL) {
 		m0_free(log);
 		return M0_ERR(-ENOMEM);
 	}
-	lrec_tlist_init(log->u.dl_tlist);
+	lrec_tlist_init(log->u.dl_vlist);
 	*out = log;
 	return 0;
 }
 
-/* Intialize a dtm0 log. log should point to a pre-allocated
- * dtm0_log structure. */
+/*
+ * Intialize a dtm0 log. log should point to a pre-allocated
+ * dtm0_log structure.
+ */
 M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
 				    struct m0_dtm0_clk_src *cs,
 				    bool                    is_plog)
@@ -106,7 +108,7 @@ M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log *log)
 {
 	M0_PRE(m0_be_dtm0_log__invariant(log));
 	m0_mutex_fini(&log->dl_lock);
-	lrec_tlist_fini(log->u.dl_tlist);
+	lrec_tlist_fini(log->u.dl_vlist);
 	log->dl_cs = NULL;
 }
 
@@ -116,7 +118,7 @@ M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log **in_log)
 
 	M0_PRE(!log->dl_is_persistent);
 
-	m0_free(log->u.dl_tlist);
+	m0_free(log->u.dl_vlist);
 	m0_free(log);
 	*in_log = NULL;
 }
@@ -223,12 +225,12 @@ M0_INTERNAL int m0_be_dtm0_log_create(struct m0_be_tx        *tx,
 	M0_BE_ALLOC_PTR_SYNC(log, seg, tx);
 	M0_ASSERT(log != NULL);
 
-	M0_BE_ALLOC_PTR_SYNC(log->u.dl_list, seg, tx);
-	M0_ASSERT(log->u.dl_list != NULL);
+	M0_BE_ALLOC_PTR_SYNC(log->u.dl_plist, seg, tx);
+	M0_ASSERT(log->u.dl_plist != NULL);
 
 	log->dl_seg = seg;
 
-	lrec_be_list_create(log->u.dl_list, tx);
+	lrec_be_list_create(log->u.dl_plist, tx);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, log);
 	*out = log;
 	return 0;
@@ -254,23 +256,23 @@ struct m0_dtm0_log_rec *m0_be_dtm0_log_find(struct m0_be_dtm0_log    *log,
 	if (log->dl_is_persistent) {
 		struct m0_dtm0_log_rec *lrec;
 
-		m0_be_list_for(lrec, log->u.dl_list, lrec) {
+		m0_be_list_for(lrec, log->u.dl_plist, lrec) {
 			if (m0_dtm0_tid_cmp(log->dl_cs, &lrec->dlr_txd.dtd_id,
 					    id) == M0_DTS_EQ)
 				break;
 		} m0_be_list_endfor;
 		return lrec;
 	} else {
-		return m0_tl_find(lrec, rec, log->u.dl_tlist,
+		return m0_tl_find(lrec, rec, log->u.dl_vlist,
 				  m0_dtm0_tid_cmp(log->dl_cs, &rec->dlr_txd.dtd_id,
 						  id) == M0_DTS_EQ);
 	}
 }
 
-static int be_dtm0_log_rec_init(struct m0_dtm0_log_rec **rec,
-				struct m0_be_tx         *tx,
-				struct m0_dtm0_tx_desc  *txd,
-				struct m0_buf           *payload)
+static int log_rec_init(struct m0_dtm0_log_rec **rec,
+			struct m0_be_tx         *tx,
+			struct m0_dtm0_tx_desc  *txd,
+			struct m0_buf           *payload)
 {
 	int                     rc;
 	struct m0_dtm0_log_rec *lrec;
@@ -296,11 +298,11 @@ static int be_dtm0_log_rec_init(struct m0_dtm0_log_rec **rec,
 	return 0;
 }
 
-static int be_dtm0_plog_rec_init(struct m0_dtm0_log_rec **out,
-				 struct m0_be_tx         *tx,
-				 struct m0_be_seg        *seg,
-				 struct m0_dtm0_tx_desc  *txd,
-				 struct m0_buf           *payload)
+static int plog_rec_init(struct m0_dtm0_log_rec **out,
+			 struct m0_be_tx         *tx,
+			 struct m0_be_seg        *seg,
+			 struct m0_dtm0_tx_desc  *txd,
+			 struct m0_buf           *payload)
 {
 	struct m0_dtm0_log_rec *rec;
 
@@ -336,12 +338,13 @@ static int be_dtm0_plog_rec_init(struct m0_dtm0_log_rec **out,
 	return 0;
 }
 
-/* TODO: change convention of this function to:
-void be_dtm0_log_rec_fini(struct m0_dtm0_log_rec *rec, ..*tx)
-and free rec outside the function
-*/
-static void be_dtm0_log_rec_fini(struct m0_dtm0_log_rec **rec,
-				 struct m0_be_tx         *tx)
+/*
+ * TODO: change convention of this function to:
+ * void log_rec_fini(struct m0_dtm0_log_rec *rec, ..*tx)
+ * and free rec outside the function
+ */
+static void log_rec_fini(struct m0_dtm0_log_rec **rec,
+			 struct m0_be_tx         *tx)
 {
 	struct m0_dtm0_log_rec *lrec = *rec;
 
@@ -353,13 +356,14 @@ static void be_dtm0_log_rec_fini(struct m0_dtm0_log_rec **rec,
 	*rec = NULL;
 }
 
-/* TODO: change convention of this function to:
-void m0_be_dtm0_plog_rec_fini(struct m0_dtm0_log_rec *rec, ..*tx)
-and allocate rec outside the function
-*/
-static void be_dtm0_plog_rec_fini(struct m0_dtm0_log_rec **dl_lrec,
-				  struct m0_be_dtm0_log   *log,
-				  struct m0_be_tx         *tx)
+/*
+ * TODO: change convention of this function to:
+ * void plog_rec_fini(struct m0_dtm0_log_rec *rec, ..*tx)
+ * and allocate rec outside the function
+ */
+static void plog_rec_fini(struct m0_dtm0_log_rec **dl_lrec,
+			  struct m0_be_dtm0_log   *log,
+			  struct m0_be_tx         *tx)
 {
 	struct m0_be_seg       *seg = log->dl_seg;
 	struct m0_dtm0_log_rec *rec = *dl_lrec;
@@ -370,36 +374,36 @@ static void be_dtm0_plog_rec_fini(struct m0_dtm0_log_rec **dl_lrec,
 	*dl_lrec = NULL;
 }
 
-static int m0_be_dtm0_log__insert(struct m0_be_dtm0_log  *log,
-				  struct m0_be_tx        *tx,
-				  struct m0_dtm0_tx_desc *txd,
-				  struct m0_buf          *payload)
+static int dtm0_log__insert(struct m0_be_dtm0_log  *log,
+			    struct m0_be_tx        *tx,
+			    struct m0_dtm0_tx_desc *txd,
+			    struct m0_buf          *payload)
 {
 	int                      rc;
 	struct m0_dtm0_log_rec	*rec;
 	struct m0_be_seg	*seg = log->dl_seg;
 
 	if (log->dl_is_persistent) {
-		rc = be_dtm0_plog_rec_init(&rec, tx, seg, txd, payload);
+		rc = plog_rec_init(&rec, tx, seg, txd, payload);
 		if (rc != 0)
 			return rc;
 		lrec_be_tlink_create(rec, tx);
-		lrec_be_list_add_tail(log->u.dl_list, tx, rec);
+		lrec_be_list_add_tail(log->u.dl_plist, tx, rec);
 	} else {
-		rc = be_dtm0_log_rec_init(&rec, tx, txd, payload);
+		rc = log_rec_init(&rec, tx, txd, payload);
 		if (rc != 0)
 			return rc;
-		lrec_tlink_init_at_tail(rec, log->u.dl_tlist);
+		lrec_tlink_init_at_tail(rec, log->u.dl_vlist);
 	}
 
 	return rc;
 }
 
-static int be_dtm0_log__set(struct m0_be_dtm0_log        *log,
-			    struct m0_be_tx              *tx,
-			    const struct m0_dtm0_tx_desc *txd,
-			    const struct m0_buf          *payload,
-			    struct m0_dtm0_log_rec       *rec)
+static int dtm0_log__set(struct m0_be_dtm0_log        *log,
+			 struct m0_be_tx              *tx,
+			 const struct m0_dtm0_tx_desc *txd,
+			 const struct m0_buf          *payload,
+			 struct m0_dtm0_log_rec       *rec)
 {
 	bool              is_persistent = log->dl_is_persistent;
 	struct m0_buf    *lpayload      = &rec->dlr_payload;
@@ -444,8 +448,8 @@ M0_INTERNAL int m0_be_dtm0_log_update(struct m0_be_dtm0_log  *log,
 	M0_PRE(m0_mutex_is_locked(&log->dl_lock));
 
 	return (rec = m0_be_dtm0_log_find(log, &txd->dtd_id)) ?
-		be_dtm0_log__set(log, tx, txd, payload, rec) :
-		m0_be_dtm0_log__insert(log, tx, txd, payload);
+		dtm0_log__set(log, tx, txd, payload, rec) :
+		dtm0_log__insert(log, tx, txd, payload);
 }
 
 M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
@@ -467,7 +471,7 @@ M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
 	 * the record with the given id.
 	 */
 
-	m0_tl_for (lrec, log->u.dl_tlist, rec) {
+	m0_tl_for (lrec, log->u.dl_vlist, rec) {
 		if (!m0_dtm0_tx_desc_state_eq(&rec->dlr_txd,
 					      M0_DTPS_PERSISTENT))
 			return M0_ERR(-EPROTO);
@@ -482,12 +486,12 @@ M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
 
 	/* rec is a pointer to the record matching the input id. Delete all the
 	 * previous records and then this record. */
-	while ((currec = lrec_tlist_pop(log->u.dl_tlist)) != rec) {
+	while ((currec = lrec_tlist_pop(log->u.dl_vlist)) != rec) {
 		M0_ASSERT(m0_dtm0_log_rec__invariant(currec));
-		be_dtm0_log_rec_fini(&currec, tx);
+		log_rec_fini(&currec, tx);
 	}
 
-	be_dtm0_log_rec_fini(&rec, tx);
+	log_rec_fini(&rec, tx);
 	return rc;
 }
 
@@ -502,13 +506,13 @@ M0_INTERNAL void m0_be_dtm0_log_clear(struct m0_be_dtm0_log *log)
 	 */
 	M0_ASSERT(!log->dl_is_persistent);
 
-	m0_tl_teardown(lrec, log->u.dl_tlist, rec) {
+	m0_tl_teardown(lrec, log->u.dl_vlist, rec) {
 		M0_ASSERT(m0_dtm0_log_rec__invariant(rec));
 		M0_ASSERT(m0_dtm0_tx_desc_state_eq(&rec->dlr_dtx.dd_txd,
 						   M0_DTPS_PERSISTENT));
-		be_dtm0_log_rec_fini(&rec, NULL);
+		log_rec_fini(&rec, NULL);
 	}
-	M0_POST(lrec_tlist_is_empty(log->u.dl_tlist));
+	M0_POST(lrec_tlist_is_empty(log->u.dl_vlist));
 }
 
 M0_INTERNAL int m0_be_dtm0_volatile_log_insert(struct m0_be_dtm0_log  *log,
@@ -522,7 +526,7 @@ M0_INTERNAL int m0_be_dtm0_volatile_log_insert(struct m0_be_dtm0_log  *log,
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	lrec_tlink_init_at_tail(rec, log->u.dl_tlist);
+	lrec_tlink_init_at_tail(rec, log->u.dl_vlist);
 	return M0_RC(rc);
 }
 
@@ -551,14 +555,14 @@ M0_INTERNAL bool m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log    *log,
 	/* This assignment is meaningful as it covers the empty log case */
 	int                     rc = M0_DTS_LT;
 	struct m0_dtm0_log_rec *rec;
-	struct m0_be_list      *dl_list = log->u.dl_list;
+	struct m0_be_list      *dl_plist = log->u.dl_plist;
 	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT(0, 0);
 
 	M0_PRE(m0_be_dtm0_log__invariant(log));
 	M0_PRE(m0_dtm0_tid__invariant(id));
 	M0_PRE(m0_mutex_is_locked(&log->dl_lock));
 
-	m0_be_list_for(lrec, dl_list, rec) {
+	m0_be_list_for(lrec, dl_plist, rec) {
 		if (!m0_dtm0_tx_desc_state_eq(&rec->dlr_txd, M0_DTPS_PERSISTENT))
 			return false;
 
@@ -590,18 +594,20 @@ M0_INTERNAL int m0_be_dtm0_plog_prune(struct m0_be_dtm0_log    *log,
 	M0_PRE(m0_dtm0_tid__invariant(id));
 	M0_PRE(m0_mutex_is_locked(&log->dl_lock));
 
-	m0_be_list_for (lrec, log->u.dl_list, rec) {
+	m0_be_list_for(lrec, log->u.dl_plist, rec) {
 		cur_id = rec->dlr_txd.dtd_id;
 
-		lrec_be_list_del(log->u.dl_list, tx, rec);
+		lrec_be_list_del(log->u.dl_plist, tx, rec);
 		lrec_be_tlink_destroy(rec, tx);
-		be_dtm0_plog_rec_fini(&rec, log, tx);
+		plog_rec_fini(&rec, log, tx);
 		if (m0_dtm0_tid_cmp(log->dl_cs, &cur_id, id) == M0_DTS_EQ)
 			break;
 	} m0_be_list_endfor;
 
-	/* TODO: change the function signature to void if we are always going to
-	 * returning 0. */
+	/*
+	 * TODO: change the function signature to void if we are always going to
+	 * returning 0.
+	 */
 	return 0;
 }
 
