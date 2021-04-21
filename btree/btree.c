@@ -1492,9 +1492,9 @@ static const struct node_type fixed_format;
 
 static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 {
-	struct td *tree     = NULL;
-	int       i         = 0;
-	int       offset    = 0;
+	struct td *tree = NULL;
+	int       i     = 0;
+	int       offset;
 
 	M0_ASSERT(trees_loaded <= ARRAY_SIZE(trees));
 
@@ -1530,15 +1530,14 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 			offset = __builtin_ffsl(t);
 			M0_ASSERT(offset != 0);
 			offset--;
-			trees_in_use[i] |= (1 << offset);
+			trees_in_use[i] |= (1ULL << offset);
 			offset += (i * sizeof trees_in_use[0]);
 			tree = &trees[offset];
 			break;
 		}
 	}
 
-	M0_ASSERT(tree != NULL);
-	M0_ASSERT(tree->r_ref == 0);
+	M0_ASSERT(tree != NULL && tree->r_ref == 0);
 
 	m0_rwlock_init(&tree->t_lock);
 
