@@ -111,44 +111,6 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 	m0_be_free(a, tx, op, ptr);
 }
 
-#define M0_BE_TX_CAPTURE_PTR(seg, tx, ptr)
-#define M0_BE_CREDIT_DEC(cr_user, tx)
-
-M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
-				     struct m0_be_tx *tx,
-				     struct m0_be_op *op,
-				     void **ptr,
-				     m0_bcount_t size,
-				     unsigned shift,
-				     uint64_t zonemask)
-{
-	*ptr = m0_alloc_aligned(size, shift);
-}
-
-M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
-					enum m0_be_allocator_op optype,
-					m0_bcount_t size,
-					unsigned shift,
-					struct m0_be_tx_credit *accum)
-{
-}
-
-M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
-			    struct m0_be_tx *tx,
-			    struct m0_be_op *op,
-			    void *ptr)
-{
-	m0_free(ptr);
-}
-
-M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
-				    struct m0_be_tx *tx,
-				    struct m0_be_op *op,
-				    void *ptr)
-{
-	m0_be_free(a, tx, op, ptr);
-}
-
 M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg,
 				    const void *addr)
 {
