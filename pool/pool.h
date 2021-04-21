@@ -98,7 +98,14 @@ struct m0_pool {
 };
 
 /**
- * Pool version is the subset of devices from the filesystem.
+ * Pool version is the subset of devices from the filesystem
+ * configuration: racks, controllers, disks, etc. If the whole
+ * cluster hardware configuration is represented as a tree, the
+ * pool version would be its sub-tree.
+ *
+ * Motr objects and indexes are assigned some pool version when
+ * they are created.
+ *
  * Pool version is associated with a pool machine and contains
  * a device to ioservice map.
  */
