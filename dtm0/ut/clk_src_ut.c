@@ -94,43 +94,27 @@ static void now_min_max(void)
 	m0_dtm0_clk_src_fini(&dcs);
 }
 
-/* test if observed() returns an error when an event happened in future */
-static void observe_min_max(void)
+/* test if clock is always advancing forward */
+static void now_and_then(void)
 {
 	struct m0_dtm0_clk_src dcs;
-	struct m0_dtm0_ts      past = M0_DTM0_TS_MIN;
-	struct m0_dtm0_ts      future = M0_DTM0_TS_MAX;
+	struct m0_dtm0_ts      first;
+	struct m0_dtm0_ts      second;
+	struct m0_dtm0_ts      third;
 	int                    rc;
 
 	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
 
-	rc = m0_dtm0_clk_src_observed(&dcs, &past);
-	M0_UT_ASSERT(rc == 0);
+	m0_dtm0_clk_src_now(&dcs, &first);
+	m0_dtm0_clk_src_now(&dcs, &second);
+	m0_dtm0_clk_src_now(&dcs, &third);
 
-	rc = m0_dtm0_clk_src_observed(&dcs, &future);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	m0_dtm0_clk_src_fini(&dcs);
-}
-
-/* test if observed() successfully works for two events separated by a single
- * nanosleep(1) call
- */
-static void observe_now_then(void)
-{
-	struct m0_dtm0_clk_src dcs;
-	struct m0_dtm0_ts      now;
-	int                    rc;
-
-	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
-
-	m0_dtm0_clk_src_now(&dcs, &now);
-
-	/* The clocks should tick at least once */
-	m0_nanosleep(1, NULL);
-
-	rc = m0_dtm0_clk_src_observed(&dcs, &now);
-	M0_UT_ASSERT(rc == 0);
+	rc = m0_dtm0_ts_cmp(&dcs, &first, &second);
+	M0_UT_ASSERT(rc == M0_DTS_LT);
+	rc = m0_dtm0_ts_cmp(&dcs, &second, &third);
+	M0_UT_ASSERT(rc == M0_DTS_LT);
+	rc = m0_dtm0_ts_cmp(&dcs, &first, &third);
+	M0_UT_ASSERT(rc == M0_DTS_LT);
 
 	m0_dtm0_clk_src_fini(&dcs);
 }
@@ -144,8 +128,7 @@ struct m0_ut_suite dtm0_clk_src_ut = {
 		{ "phys-init-fini",        init_fini        },
 		{ "phys-now",              get_now          },
 		{ "phys-now-min-max",      now_min_max      },
-		{ "phys-observe-min-max",  observe_min_max  },
-		{ "phys-observe-now-then", observe_now_then },
+		{ "phys-now-and-then",     now_and_then     },
 		{ NULL, NULL }
 	}
 };

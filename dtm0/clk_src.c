@@ -23,19 +23,16 @@
 #include "lib/trace.h"
 
 #include "dtm0/clk_src.h"
-#include "lib/errno.h" /* EINVAL */
-#include "lib/assert.h" /* M0_ASSERT and so on */
+#include "lib/assert.h" /* M0_PRE */
 
 
 struct m0_dtm0_clk_src_ops {
 	int  (*cso_cmp)(const struct m0_dtm0_ts *left,
 			const struct m0_dtm0_ts *right);
 	void (*cso_now)(struct m0_dtm0_clk_src *cs, struct m0_dtm0_ts *ts);
-	int  (*cso_observed)(struct m0_dtm0_clk_src  *cs,
-			     const struct m0_dtm0_ts *other_ts);
 };
 
-/** See M0_DTM0_CS_PHYS for details */
+/* See M0_DTM0_CS_PHYS for details */
 static const struct m0_dtm0_clk_src_ops cs_phys_ops;
 
 M0_INTERNAL void m0_dtm0_clk_src_init(struct m0_dtm0_clk_src *cs,
@@ -74,16 +71,9 @@ enum m0_dtm0_ts_ord m0_dtm0_ts_cmp(const struct m0_dtm0_clk_src *cs,
 M0_INTERNAL void m0_dtm0_clk_src_now(struct m0_dtm0_clk_src *cs,
 				     struct m0_dtm0_ts      *now)
 {
-	M0_PRE(cs);
+	M0_PRE(cs != NULL);
 	cs->cs_ops->cso_now(cs, now);
 	M0_POST(m0_dtm0_ts__invariant(now));
-}
-
-M0_INTERNAL int m0_dtm0_clk_src_observed(struct m0_dtm0_clk_src  *cs,
-					 const struct m0_dtm0_ts *other_ts)
-{
-	M0_PRE(m0_dtm0_ts__invariant(other_ts));
-	return cs->cs_ops->cso_observed(cs, other_ts);
 }
 
 M0_INTERNAL bool m0_dtm0_ts__invariant(const struct m0_dtm0_ts *ts)
@@ -105,7 +95,6 @@ static enum m0_dtm0_ts_ord cs_phys_cmp(const struct m0_dtm0_ts *left,
 
 static void cs_phys_now(struct m0_dtm0_clk_src *cs, struct m0_dtm0_ts *now)
 {
-	M0_PRE(cs);
 	M0_PRE(M0_IN(cs->cs_ops, (&cs_phys_ops)));
 
 	m0_mutex_lock(&cs->cs_phys_lock);
@@ -121,32 +110,9 @@ static void cs_phys_now(struct m0_dtm0_clk_src *cs, struct m0_dtm0_ts *now)
 	m0_mutex_unlock(&cs->cs_phys_lock);
 }
 
-static int cs_phys_observed(struct m0_dtm0_clk_src  *cs,
-			    const struct m0_dtm0_ts *other_ts)
-{
-	struct m0_dtm0_ts now = M0_DTM0_TS_INIT;
-	int               rc;
-
-	M0_PRE(m0_dtm0_ts__invariant(other_ts));
-
-	m0_dtm0_clk_src_now(cs, &now);
-
-	rc = m0_dtm0_ts_cmp(cs, &now, other_ts);
-
-	/*
-	 * Assumption:
-	 * It is possible to observe an even that happened in the past.
-	 * The other cases (present, future) are not allowed, and they
-	 * indicate a significant clock drift.
-	 */
-	return rc == M0_DTS_GT ? 0 : M0_ERR_INFO(-EINVAL,
-						 "Observed a future event");
-}
-
 static const struct m0_dtm0_clk_src_ops cs_phys_ops = {
 	.cso_cmp      = cs_phys_cmp,
 	.cso_now      = cs_phys_now,
-	.cso_observed = cs_phys_observed,
 };
 
 #undef M0_TRACE_SUBSYSTEM
