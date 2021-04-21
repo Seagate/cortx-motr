@@ -90,9 +90,10 @@ service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	}
 
 	rc = arrfid_from_dir(&d->xs_sdevs, s->cs_sdevs);
-	if (rc != 0)
+	if (rc != 0) {
 		m0_bufs_free(&d->xs_endpoints);
 		m0_bufs_free(&d->xs_params);
+	}
 	return M0_RC(rc);
 }
 
@@ -134,6 +135,7 @@ static void service_delete(struct m0_conf_obj *obj)
 	struct m0_conf_service *x = M0_CONF_CAST(obj, m0_conf_service);
 
 	m0_strings_free(x->cs_endpoints);
+	m0_strings_free(x->cs_params);
 	m0_conf_service_bob_fini(x);
 	m0_free(x);
 }

@@ -321,6 +321,8 @@ static int dtm_service__origin_fill(struct m0_reqh_service *service)
 	struct m0_dtm0_service *dtm0 = to_dtm(service);
 	int                     rc;
 
+	M0_ENTRY("rs_svc=%p", service);
+
 	/* W/A for UTs */
 	if (!m0_confc_is_inited(confc)) {
 		dtm0->dos_origin = DTM0_ON_VOLATILE;
@@ -329,13 +331,14 @@ static int dtm_service__origin_fill(struct m0_reqh_service *service)
 
 	obj = m0_conf_cache_lookup(&confc->cc_cache, &service->rs_service_fid);
 	if (obj == NULL)
-		return M0_RC(-ENOENT);
+		return M0_ERR(-ENOENT);
 
 	service_obj = M0_CONF_CAST(obj, m0_conf_service);
 
 	if (service_obj->cs_params == NULL) {
 		dtm0->dos_origin = DTM0_ON_VOLATILE;
-		M0_LOG(M0_WARN, "dtm0 is treated as volatile, no parameters given");
+		M0_LOG(M0_WARN, "dtm0 is treated as volatile,"
+		       " no parameters given");
 		goto out;
 	}
 
@@ -365,7 +368,7 @@ out:
 			m0_be_dtm0_log_free(&dtm0->dos_log);
 	}
 
-	return M0_RC(rc);
+	return M0_RC_INFO(rc, "origin=%d", dtm0->dos_origin);
 }
 
 static int dtm0_service_start(struct m0_reqh_service *service)
