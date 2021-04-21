@@ -566,6 +566,11 @@ enum btree_node_type {
 	BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE  = 4,
 };
 
+enum {
+	M0_TREE_COUNT = 20,
+	M0_NODE_COUNT = 100,
+};
+
 #if 0
 static int fail(struct m0_btree_op *bop, int rc)
 {
@@ -837,7 +842,7 @@ struct node_type {
 	void (*nt_make) (struct slot *slot, struct m0_be_tx *tx);
 
 	/** Returns index of the record containing the key in the node */
-	void (*nt_find) (struct slot *slot, const struct m0_btree_key *key);
+	bool (*nt_find) (struct slot *slot, const struct m0_btree_key *key);
 
 	/**
 	 *  All the changes to the node have completed. Any post processing can
@@ -1015,6 +1020,12 @@ struct m0_btree_oimpl {
 	struct level    i_level[0];
 };
 
+static struct td        trees[M0_TREE_COUNT];
+static uint64_t         trees_in_use[(M0_TREE_COUNT + sizeof(uint64_t) - 1) /
+			       sizeof(uint64_t)];
+static uint32_t         trees_loaded = 0;
+static struct m0_rwlock trees_lock;
+
 static bool node_invariant(const struct nd *node)
 {
 	return node->n_type->nt_invariant(node);
@@ -1149,6 +1160,11 @@ int m0_btree_mod_init(void)
 {
 	struct mod *m;
 
+	M0_SET_ARR0(trees);
+	M0_SET_ARR0(trees_in_use);
+	trees_loaded = 0;
+	m0_rwlock_init(&trees_lock);
+
 	M0_ALLOC_PTR(m);
 	if (m != NULL) {
 		m0_get()->i_moddata[M0_MODULE_BTREE] = m;
@@ -1159,6 +1175,7 @@ int m0_btree_mod_init(void)
 
 void m0_btree_mod_fini(void)
 {
+	m0_rwlock_fini(&trees_lock);
 	m0_free(mod_get());
 }
 
@@ -1194,7 +1211,7 @@ static bool segaddr_is_valid(const struct segaddr *seg_addr)
 }
 
 /**
- * This function builds the segment address as validates the segment address (of node).
+ * Returns a segaddr formatted segment address.
  *
  * @param addr  - Start address (of the node) in the segment.
  *        shift - Size of the node as pow-of-2.
@@ -1214,8 +1231,7 @@ static struct segaddr segaddr_build(const void *addr, int shift)
 }
 
 /**
- * This function returns the CPU addressable pointer out of the formatted
- * segment address.
+ * Returns the CPU addressable pointer from the formatted segment address.
  *
  * @param seg_addr - Formatted segment address.
  *
@@ -1228,8 +1244,7 @@ static void* segaddr_addr(const struct segaddr *seg_addr)
 }
 
 /**
- * This function returns the size (pow-of-2) of the node extracted out of the
- * segment address.
+ * Returns the size (pow-of-2) of the node extracted out of the segment address.
  *
  * @param seg_addr - Formatted segment address.
  *
@@ -1301,25 +1316,28 @@ struct seg_ops {
 
 static struct seg_ops *segops;
 
-#if 0
+#if 1
+/**
+ * This fumction will locate a tree descriptor whose root node points to the
+ * node at addr and return this tree to the caller.
+ * If an existing tree descriptor pointing to this root node is not found then a
+ * new tree descriptor is allocated from the free pool and the root node is
+ * assigned to this new tree descriptor.
+ * If root node pointer is not provided then this function will just allocate a
+ * tree descriptor and return it to the caller. This functionality currently is
+ * used by the create_tree function.
+ *
+ * @param op   - Operation to perform.
+ * @param addr - Segment address of root node.
+ * @param nxt  - Next state to be returned to the caller.
+ *
+ * @return int64_t - Next state to return.
+ */
 static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 {
-	struct td *tree;
 	int        nxt_state;
 
-	/**
-	 * Allocate space for in-memory tree.
-	 * The tree was created previously and the root node in the segment is
-	 *   pointed by addr
-	 * Initialize the in-memory tree with the root node information
-	 */
-	M0_ALLOC_PTR(tree);
-	M0_ASSERT(tree != NULL);
-
-	op->no_tree = tree;
 	nxt_state = segops->so_tree_get(op, addr, nxt);
-	m0_rwlock_init(&tree->t_lock);
-	tree->t_root = op->no_addr;
 
 	return nxt_state;
 }
@@ -1335,6 +1353,7 @@ static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
 static int64_t tree_delete(struct node_op *op, struct td *tree,
 			   struct m0_be_tx *tx, int nxt)
 {
+	M0_PRE(tree != NULL);
 	return segops->so_tree_delete(op, tree, tx, nxt);
 }
 #endif
@@ -1345,14 +1364,45 @@ static void tree_put(struct td *tree)
 	segops->so_tree_put(tree);
 }
 
+/**
+ * This function loads the node descriptor for the node at segaddr in memory.
+ * If a node descriptor pointing to this node is already loaded in memory then
+ * this function will increment the reference count in the node descriptor
+ * before returning it to the caller.
+ * If the parameter tree is NULL then the function assumes the node at segaddr
+ * to be the root node and will also load the tree descriptor in memory for
+ * this root node.
+ *
+ * @param op load operation to perform.
+ * @param tree pointer to tree whose node is to be loaded or NULL if tree has
+ *             not been loaded.
+ * @param addr node address in the segment.
+ * @param nxt state to return on successful completion
+ *
+ * @return next state
+ */
 static int64_t node_get(struct node_op *op, struct td *tree,
 			struct segaddr *addr, int nxt)
 {
 	return segops->so_node_get(op, tree, addr, nxt);
 }
 
+/**
+ * This function decrements the reference count for this node and if the
+ * reference count reaches '0' then the node is made available for future
+ * mode_get requests.
+ *
+ * @param op load operation to perform.
+ * @param tree pointer to tree whose node is to be loaded or NULL if tree has
+ *             not been loaded.
+ * @param addr node address in the segment.
+ * @param nxt state to return on successful completion
+ *
+ * @return next state
+ */
 static void node_put(struct nd *node)
 {
+	M0_PRE(node != NULL);
 	segops->so_node_put(node);
 }
 
@@ -1362,6 +1412,22 @@ static struct nd *node_try(struct td *tree, struct segaddr *addr)
 }
 #endif
 
+
+/**
+ * Allocates node in the segment and a node-descriptor if all the resources are
+ * available.
+ *
+ * @param op indicates node allocate operation.
+ * @param tree points to the tree this node will be a part-of.
+ * @param size is a power-of-2 size of this node.
+ * @param nt points to the node type
+ * @param ksize is the size of key (if constant) if not this contains '0'.
+ * @param vsize is the size of value (if constant) if not this contains '0'.
+ * @param tx points to the transaction which captures this operation.
+ * @param nxt tells the next state to return when operation completes
+ *
+ * @return int64_t
+ */
 static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 			  const struct node_type *nt, int ksize, int vsize,
 			  struct m0_be_tx *tx, int nxt)
@@ -1391,11 +1457,8 @@ static void node_op_fini(struct node_op *op)
 }
 #endif
 
-static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
-{
-	return nxt;
-}
-
+static int64_t mem_node_get(struct node_op *op, struct td *tree,
+			    struct segaddr *addr, int nxt);
 static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
 			      const struct node_type *nt, struct m0_be_tx *tx,
 			      int nxt);
@@ -1403,21 +1466,92 @@ static int64_t mem_node_free(struct node_op *op, struct nd *node,
 			     struct m0_be_tx *tx, int nxt);
 static const struct node_type fixed_format;
 
+static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
+{
+	struct td *tree     = NULL;
+	int       i         = 0;
+	int       offset    = 0;
+
+	M0_ASSERT(trees_loaded <= ARRAY_SIZE(trees));
+
+	m0_rwlock_write_lock(&trees_lock);
+
+	/**
+	 *  If existing allocated tree is found then return it after increasing
+	 *  the reference count.
+	 */
+	if (addr != NULL)
+		for (i = 0; i < ARRAY_SIZE(trees); i++) {
+			tree = &trees[i];
+			if (tree->r_ref != 0) {
+				M0_ASSERT(tree->t_root != NULL);
+				if (tree->t_root->n_addr.as_core ==
+				    addr->as_core) {
+					m0_rwlock_write_lock(&tree->t_lock);
+					tree->r_ref++;
+					m0_rwlock_write_unlock(&tree->t_lock);
+					op->no_node = tree->t_root;
+					op->no_tree = tree;
+					m0_rwlock_write_unlock(&trees_lock);
+					return nxt;
+				}
+			}
+		}
+
+	/** Assign a free tree descriptor  to this tree. */
+	for (i = 0; i < ARRAY_SIZE(trees_in_use); i++) {
+		uint64_t   t = ~trees_in_use[i];
+
+		if (t != 0) {
+			offset = __builtin_ffsl(t);
+			M0_ASSERT(offset != 0);
+			offset--;
+			trees_in_use[i] |= (1 << offset);
+			offset += (i * sizeof trees_in_use[0]);
+			tree = &trees[offset];
+			break;
+		}
+	}
+
+	M0_ASSERT(tree != NULL);
+	M0_ASSERT(tree->r_ref == 0);
+
+	m0_rwlock_init(&tree->t_lock);
+
+	m0_rwlock_write_lock(&tree->t_lock);
+	tree->r_ref++;
+
+	if (addr) {
+		mem_node_get(op, tree, addr, nxt);
+		tree->t_root = op->no_node;
+		//tree->t_height = tree_height_get(op->no_node);
+	}
+
+	op->no_node = tree->t_root;
+	op->no_tree = tree;
+
+	m0_rwlock_write_unlock(&tree->t_lock);
+
+	m0_rwlock_write_unlock(&trees_lock);
+
+	return nxt;
+}
+
 static int64_t mem_tree_create(struct node_op *op, struct m0_btree_type *tt,
 			       int rootshift, struct m0_be_tx *tx, int nxt)
 {
 	struct td *tree;
 
 	/**
-	 * Creates root node for the tree. No tree structure is created in the
-	 * persistent space. It is the responsibility of the caller to save the
-	 * segment address of the root node so that the tree can be accessed
-	 * after cluster restart.
+	 * Creates root node and then assigns a tree descriptor for this root
+	 * node.
 	 */
-	M0_ALLOC_PTR(tree);
-	M0_ASSERT(tree != NULL);
+
+	tree_get(op, NULL, nxt);
+
+	tree = op->no_tree;
+
 	node_alloc(op, tree, 10, &fixed_format, 8, 8, NULL, nxt);
-	m0_rwlock_init(&tree->t_lock);
 	tree->t_root = op->no_node;
 	tree->t_type = tt;
 	return nxt;
@@ -1440,12 +1574,33 @@ static void mem_tree_put(struct td *tree)
 static int64_t mem_node_get(struct node_op *op, struct td *tree,
 			    struct segaddr *addr, int nxt)
 {
+	int nxt_state = nxt;
+
+	/**
+	 *  In this implementation we assume to have the node descritors for
+	 *  ALL the nodes present in memory. If the tree pointer is NULL then
+	 *  we load the tree in memory before returning the node descriptor to
+	 * the caller.
+	 */
+
+	if (tree == NULL) {
+		nxt_state = mem_tree_get(op, addr, nxt);
+	}
+
 	op->no_node = segaddr_addr(addr) + (1ULL << segaddr_shift(addr));
-	return nxt;
+	op->no_node->n_ref++;
+	return nxt_state;
 }
 
 static void mem_node_put(struct nd *node)
 {
+	/**
+	 * This implementation does not perform any action, but the final one
+	 * should decrement the reference count of the node and if this
+	 * reference count goes to '0' then detach this node descriptor from the
+	 * existing node and make this node descriptor available for 'node_get'.
+	 */
+	node->n_ref--;
 }
 
 static struct nd *mem_node_try(struct td *tree, struct segaddr *addr)
@@ -1534,7 +1689,7 @@ static void ff_child(struct slot *slot, struct segaddr *addr);
 static bool ff_isfit(struct slot *slot);
 static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified);
 static void ff_make(struct slot *slot, struct m0_be_tx *tx);
-static void ff_find(struct slot *slot, const struct m0_btree_key *key);
+static bool ff_find(struct slot *slot, const struct m0_btree_key *key);
 static void ff_fix(const struct nd *node, struct m0_be_tx *tx);
 static void ff_cut(const struct nd *node, int idx, int size,
 		   struct m0_be_tx *tx);
@@ -1723,40 +1878,34 @@ static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 	h->ff_used++;
 }
 
-static void ff_find(struct slot *slot, const struct m0_btree_key *key)
+static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
 {
 	struct ff_head *h = ff_data(slot->s_node);
-	int             i = 0;
+	int             i = -1;
 	int             j = h->ff_used;
-	bool            repeat_search = false;
-	M0_PRE(key->k_data.ov_vec.v_count[0] == h->ff_ksize);
-	M0_PRE(key->k_data.ov_vec.v_nr == 1);
 
-	do {
-		int  m    = (i + j) / 2;
-		int  diff = memcmp(ff_key(slot->s_node, m),
-				   key->k_data.ov_buf[0], h->ff_ksize);
+	M0_PRE(find_key->k_data.ov_vec.v_count[0] == h->ff_ksize);
+	M0_PRE(find_key->k_data.ov_vec.v_nr == 1);
 
-		repeat_search = false;
+	while (i + 1 < j) {
+		int m    = (i + j) / 2;
+		int diff = memcmp(ff_key(slot->s_node, m),
+				  find_key->k_data.ov_buf[0], h->ff_ksize);
 
+		M0_ASSERT(i < m && m < j);
 		if (diff < 0)
 			i = m;
-		else if (diff > 0) {
+		else if (diff > 0)
 			j = m;
-
-			/**
-			 * Handle cases where only 2 records are present in the
-			 * node and both of them need to be checked.
-			 */
-			if (i == 0 && i != j) {
-				repeat_search = true;
-			}
-		} else {
+		else {
 			i = j = m;
+			break;
 		}
-	} while (i + 1 < j || repeat_search);
+	}
 
 	slot->s_idx = j;
+
+	return (i == j);
 }
 
 static void ff_fix(const struct nd *node, struct m0_be_tx *tx)
@@ -1870,6 +2019,7 @@ static void btree_ut_init(void)
 
 	if (!btree_ut_initialised) {
 		segops = (struct seg_ops *)&mem_seg_ops;
+		m0_rwlock_init(&trees_lock);
 		btree_ut_initialised = true;
 	}
 }
@@ -1877,6 +2027,7 @@ static void btree_ut_init(void)
 static void btree_ut_fini(void)
 {
 	segops = NULL;
+	m0_rwlock_fini(&trees_lock);
 	btree_ut_initialised = false;
 }
 
@@ -1983,28 +2134,6 @@ static bool add_rec(struct nd *node,
 
 	return true;
 }
-
-#if 0
-static int rnd_ary[] = {302532081, 1112955930, 1923385897, 650767442, 956488317,
-	996467464, 1622532220, 27441186, 1704310090, 421525067, 1398729363,
-	595438039, 466534124, 152811297, 2063648297, 430374657, 1748223144,
-	51393967, 1708537572, 672222002, 648531997, 569581927, 1450612538,
-	503549674, 1609729692, 466661538, 2039491943, 1209062799, 35475787,
-	381227123, 1775943366, 338007868, 1494183053, 1551845616, 988775310,
-	303187722, 400829432, 463823882, 330628909, 2105139522, 885348950,
-	1729358272, 553093913, 1351883074, 1882169570, 469258563, 1782257731,
-	1482909066, 520652530, 1343311655, 7647420, 1169184527, 1912893582,
-	1458259958, 1672734201, 1375139627, 1924921497, 1564742497, 436718778,
-	1960397284, 1945969620, 65178497, 150921504, 1292669025, 1617024113,
-	1139696815, 1595856748, 2017853545, 1603520697, 1926485657, 1975509420,
-	341385999, 1508360281, 381119685, 1693269073, 1243046203, 850378248,
-	1328043157, 578471621, 1371030779, 523871164, 586119042, 392731658,
-	289281099, 2044379000, 2065465860, 1664420726, 1821816849, 1482724709,
-	2101139504, 1634730485, 1281210681, 18834353, 1785651990, 426396058,
-	1635858466, 777865157, 2022252806, 1506228364, 233902206 };
-
-static int rnd_ary_off = 0;
-#endif
 
 static void get_next_rec_to_add(struct nd *node, uint64_t *key,  uint64_t *val)
 {
