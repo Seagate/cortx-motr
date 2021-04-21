@@ -112,8 +112,8 @@ static void btree_op_run(struct workload *w, struct workload_task *task,
 static int  btree_parse (struct workload *w, char ch, const char *optarg);
 static void btree_check (struct workload *w);
 static struct m0_be_btree *cr_btree_create(void);
-static void cr_btree_insert(struct m0_key_val *kv, int num);
-static void cr_btree_delete(struct m0_key_val *kv, int num);
+static void cr_btree_insert(struct m0_key_val *kv);
+static void cr_btree_delete(struct m0_key_val *kv);
 static void cr_btree_lookup(void);
 extern void btree_dbg_print(struct m0_be_btree *tree);
 M0_INTERNAL int m0_time_init(void);
@@ -1216,16 +1216,11 @@ static struct m0_be_btree *cr_btree_create(void)
 	return btree;
 }
 
-static void cr_btree_insert(struct m0_key_val *kv, int num)
+static void cr_btree_insert(struct m0_key_val *kv)
 {
-	int i;
-
-	for (i = 0; i < num; i++) 
-		M0_BE_OP_SYNC_RET(op, m0_be_btree_insert(tree, NULL, &op,
-							 &kv[i].kv_key, 
-							 &kv[i].kv_val),
-				  bo_u.u_btree.t_rc);
-	
+	M0_BE_OP_SYNC_RET(op, m0_be_btree_insert(tree, NULL, &op, &kv->kv_key,
+						 &kv->kv_val),
+			  bo_u.u_btree.t_rc);
 }
 
 static void cr_btree_lookup(void)
@@ -1233,14 +1228,10 @@ static void cr_btree_lookup(void)
 
 }
 
-static void cr_btree_delete(struct m0_key_val *kv, int num)
+static void cr_btree_delete(struct m0_key_val *kv)
 {
-	int i;
-
-	for (i = 0; i < num; i++)
-		M0_BE_OP_SYNC_RET(op, m0_be_btree_delete(tree, NULL, &op, 
-							 &kv[i].kv_key),
-				  bo_u.u_btree.t_rc);
+	M0_BE_OP_SYNC_RET(op, m0_be_btree_delete(tree, NULL, &op, &kv->kv_key),
+			  bo_u.u_btree.t_rc);
 }
 
 static int btree_init(struct workload *w)
@@ -1267,7 +1258,6 @@ static void btree_run(struct workload *w, struct workload_task *task)
 	cr_log(CLL_INFO, "max key size:          %i\n", cwb->cwb_max_key_size);
 	cr_log(CLL_INFO, "max value size:        %i\n", cwb->cwb_max_value_size);
 	cr_log(CLL_INFO, "keys order:            %i\n", cwb->cwb_keys_ordered);
-	cr_log(CLL_INFO, "kv pair per op:        %i\n", cwb->cwb_num_kvs);
 	cr_log(CLL_INFO, "key pattern:           %s\n", cwb->cwb_pattern);
 
 	if (cwb->cwb_keys_ordered && cwb->cwb_key_size == -1) {
@@ -1350,7 +1340,8 @@ static void btree_op_get(struct workload *w, struct workload_op *op)
 static void btree_op_run(struct workload *w, struct workload_task *task,
 			 const struct workload_op *op)
 {
-	int			  i;
+	int			  ksize;
+	int			  vsize;
 	m0_time_t                 stime;
 	m0_time_t                 etime;
 	struct m0_key_val        *kv;
@@ -1358,46 +1349,42 @@ static void btree_op_run(struct workload *w, struct workload_task *task,
         enum btree_op_type        ot = op->u.wo_btree.ob_type;
 	char			  k[cwb->cwb_max_key_size];
 	char			  v[cwb->cwb_max_value_size];
-	int			  skey;
+
+	pthread_mutex_lock(&w->cw_lock);
+	ksize = cwb->cwb_key_size != -1 ? cwb->cwb_key_size :
+			getrnd(1, cwb->cwb_max_key_size);
+	vsize = cwb->cwb_value_size != -1 ? cwb->cwb_value_size :
+			getrnd(1, cwb->cwb_max_value_size);
+	cr_log(CLL_TRACE,"keysize %d value size %d\n", ksize, vsize);
 
 	M0_ALLOC_PTR(kv);
-	if (kv == NULL)
-		return;
-
+	m0_buf_init(&kv->kv_key, k, ksize);
+	m0_buf_init(&kv->kv_val, v, vsize);
+	cr_get_random_string(v, vsize);
+	//TODO: Add code to append pattern cwb->cwb_pattern
 	if (cwb->cwb_keys_ordered) {
-		pthread_mutex_lock(&w->cw_lock);
-		skey = cwb->cwb_bo[ot].key + cwb->cwb_num_kvs >
-		       cwb->cwb_bo[ot].nr_ops ? 0 : cwb->cwb_bo[ot].key + 1;
-		cwb->cwb_bo[ot].key = cwb->cwb_bo[ot].key + cwb->cwb_num_kvs;
+		cwb->cwb_bo[ot].key = cwb->cwb_bo[ot].key + 1 >
+				      cwb->cwb_bo[ot].nr_ops ?
+				      0 : cwb->cwb_bo[ot].key + 1;
+		sprintf(k, "%0*d", ksize - 1, cwb->cwb_bo[ot].key);
 
-		for (i = 0; i < cwb->cwb_num_kvs; i++) {
-			m0_buf_init(&kv[i].kv_key, k, cwb->cwb_key_size);
+	} else
+		cr_get_random_string(k, ksize);
 
-			//TODO: Add code to append pattern cwb->cwb_pattern
-			sprintf(k, "%0*d", cwb->cwb_key_size - 1, skey++);
-			if (cwb->cwb_value_size == -1)
-				cwb->cwb_value_size = getrnd(1, cwb->cwb_max_value_size);
-			m0_buf_init(&kv[i].kv_val, v, cwb->cwb_value_size);
-			cr_get_random_string(v, cwb->cwb_value_size);
-			cr_log(CLL_TRACE, "key=%s value=%s\n", k, v);
-		}
-		pthread_mutex_unlock(&w->cw_lock);
-
-	} else {
-		//TODO: random workload
-	}
+	cr_log(CLL_TRACE, "key=%s value=%s\n", k, v);
+	pthread_mutex_unlock(&w->cw_lock);
 
 	stime = m0_time_now();
 
 	switch (ot) {
 		case BOT_INSERT:
-			cr_btree_insert(kv, cwb->cwb_num_kvs);
+			cr_btree_insert(kv);
 			break;
 		case BOT_LOOKUP:
 			cr_btree_lookup();
 			break;
 		case BOT_DELETE:
-			cr_btree_delete(kv, cwb->cwb_num_kvs);
+			cr_btree_delete(kv);
 			break;
 		default:
 			break;

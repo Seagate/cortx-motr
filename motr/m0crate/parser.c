@@ -377,13 +377,8 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case NUM_KVP:
 			w = &load[*index];
-			if (w->cw_type == CWT_INDEX) {
-				ciw = workload_index(w);
-				ciw->num_kvs = atoi(value);
-			} else {
-				cbw = workload_btree(w);
-				cbw->cwb_num_kvs = atoi(value);
-			}
+			ciw = workload_index(w);
+			ciw->num_kvs = atoi(value);
 			break;
 		case PUT:
 			w = &load[*index];
@@ -641,19 +636,19 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case INSERT:
 			w = &load[*index];
 			cbw = workload_btree(w);
-			cbw->cwb_bo[BOT_INSERT].prcnt = parse_int(value, 
+			cbw->cwb_bo[BOT_INSERT].prcnt = parse_int(value,
 								  INSERT);
 			break;
 		case LOOKUP:
 			w = &load[*index];
 			cbw = workload_btree(w);
-			cbw->cwb_bo[BOT_LOOKUP].prcnt = parse_int(value, 
+			cbw->cwb_bo[BOT_LOOKUP].prcnt = parse_int(value,
 								  LOOKUP);
 			break;
 		case DELETE:
 			w = &load[*index];
 			cbw = workload_btree(w);
-			cbw->cwb_bo[BOT_DELETE].prcnt = parse_int(value, 
+			cbw->cwb_bo[BOT_DELETE].prcnt = parse_int(value,
 								  DELETE);
 			break;
 

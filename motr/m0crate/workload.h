@@ -147,8 +147,6 @@ struct cr_workload_btree {
 	int	          cwb_value_size;
 	int	          cwb_max_key_size;
 	int               cwb_max_value_size;
-	int	          cwb_min_key_size;
-	int	          cwb_num_kvs; /* Number of kvs per op */
 	bool	          cwb_keys_ordered; /* Sequential or random workload */
 	char	         *cwb_pattern; /* Fixed pattern */
 	struct btree_ops  cwb_bo[BOT_OPS_NR];
