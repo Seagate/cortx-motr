@@ -1493,8 +1493,8 @@ static const struct node_type fixed_format;
 static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 {
 	struct td *tree = NULL;
-	int       i     = 0;
-	int       offset;
+	int        i     = 0;
+	uint32_t   offset;
 
 	M0_ASSERT(trees_loaded <= ARRAY_SIZE(trees));
 
