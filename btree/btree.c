@@ -241,28 +241,35 @@
  *      b.ii.B. Merge with sibling at parent node
  * @verbatim
  *
- *                             INIT
- *                               |
- *                               v
- *                             SETUP<----------------+
- *                               |                   |
- *                               v                   |
- *                             LOCKALL<------------+ |
- *                               |                 | |
- *                               v                 | |
- *                             DOWN<-------------+ | |
- *                               |               | | |
- *                               v               | | |
- *                        +--->NEXTDOWN-->LOCK-->CHECK
- *                        |     |                 |       +->MOVEUP
- *                        |     |                 v       |      |
- *                        +LOAD-+               ACT---->RESOLVE<-+
- *                                               |              |
- *                                               v              |
- *                                             CLEANUP<----------+
- *                                                |
- *                                                v
- *                                              DONE
+ *                       INIT-------->COOKIE
+ *                        |             | |
+ *                        +-----+ +-----+ |
+ *                              | |       |
+ *                              v v       |
+ *                             SETUP<-----+--------+
+ *                               |        |        |
+ *                               v        |        |
+ *                            LOCKALL<----+------+ |
+ *                               |        |      | |
+ *                               v        |      | |
+ *                             DOWN<------+----+ | |
+ *                       +----+  |        |    | | |
+ *                       |    |  v        |    | | |
+ *                       +-->NEXTDOWN     |    | | |
+ *                               |        |    | | |
+ *                               v        v    | | |
+ *                          +---LOAD--->LOCK-->CHECK     +--MOVEUP
+ *                          |     ^              |       |      |
+ *                          +-----+              v       v      |
+ *                                              ACT--->RESOLVE--+
+ *                                               |        |
+ *                                               v        |
+ *                                            CLEANUP<----+
+ *                                               |
+ *                                               v
+ *                                             DONE
+ *
+ *
  * @endverbatim
  *
  * Phases Description:
@@ -275,9 +282,8 @@
  *              If there is no underflow, move to CLEANUP, otherwise move to RESOLVE.
  * step 5. RESOLVE: This state will resolve underflow,
  *                  it will get sibling and perform merging or rebalancing with sibling.
- *                  Once the underflow is resolved at the node move to its parent node using MOVEUP.
- * step 6. MOVEUP: This state moves to the parent node and checks if there is an underflow in the parent node
- *                 If there is an underflow move to RESOLVE, else move to CLEANUP.
+ *                  Once the underflow is resolved at the node, if there is an underflow at parent node Move to MOVEUP , else move to CEANUP.
+ * step 6. MOVEUP: This state moves to the parent node
  *
  *
  * Iteration (NEXT)
@@ -1103,7 +1109,7 @@ static int get_tick_delete(struct m0_btree_op *bop)
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
 	case P_LOAD: {
-		if (oi->i_used > 0 and underflow at level->l_node) {
+		if (oi->i_used > 0 && underflow at level->l_node) {
 			level->l_prev = get_left_sibling(oi);
 			level->l_next = get_right_sibling(oi);
 			oi->i_used--;
@@ -1183,6 +1189,7 @@ static int get_tick_delete(struct m0_btree_op *bop)
 			return P_MOVEUP;
 	case P_MOVEUP:
 		oi->i_used--;
+		return P_RESOLVE;
 	case P_CLEANUP: {
 		int i;
 		for (i = 0; i < oi->i_used; ++i) {
