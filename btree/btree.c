@@ -1515,8 +1515,8 @@ m0_bcount_t max_vsize;
 m0_bcount_t max_node_size;
 m0_bcount_t internal_vsize; //for internal node, value size is fix
 
-/** threshold can be used in btree_move_key_value_credit() to 
- * identify what fraction of node needs to be move in case of overflow/underflow
+/** threshold can be used in btree_move_key_value_credit() to identify 
+ * what fraction of node needs to be move in case of overflow/underflow
  */
 enum threshold{
 	MAX_MOVE = 0.7,
@@ -1550,6 +1550,10 @@ static void btree_node_update_credit(struct m0_be_tx_credit *accum,
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
+/**
+ * Calculates the credit needed to create @nr nodes and adds this credit to
+ * @accum.
+ */
 static void m0_btree_create_node_credit(const struct m0_btree  *tree,
 					m0_bcount_t             nr,
 					struct m0_be_tx_credit *accum)
@@ -1610,6 +1614,12 @@ static void btree_insert_new_root_credit(const struct m0_btree  *tree,
 	m0_be_tx_credit_mac(accum, &cred, 2);	
 }
 
+/**
+ * Calculates total credits required to perform @nr insert operations
+ * @param nr     Number of insert operations.
+ * @param ksize  Key data size.
+ * @param vsize  Value data size.
+*/
 static void insert_credit(const struct m0_btree  *tree,
 			  m0_bcount_t             nr,
 			  m0_bcount_t             ksize,
@@ -1637,6 +1647,10 @@ static void btree_mem_free_credit(const struct m0_btree  *btree,
 			       M0_BAO_FREE_ALIGNED, 0, 0, accum);
 }
 
+/**
+ * Calculates the credit needed to free @nr nodes and adds this credit
+ * to @accum.
+ */
 static void m0_btree_free_node_credit(const struct m0_btree  *tree,
 				      m0_bcount_t             nr,
 				      struct m0_be_tx_credit *accum)
@@ -1690,6 +1704,12 @@ static void delete_root_credit(const struct m0_btree  *tree,
 	m0_btree_free_node_credit(tree, 1, accum);
 }
 
+/**
+ * Calculates total credits required to perform @nr delete operations
+ * @param nr     Number of delete operations.
+ * @param ksize  Key data size.
+ * @param vsize  Value data size.
+*/
 static void delete_credit(const struct m0_btree  *tree,
 			  m0_bcount_t             nr,
 			  m0_bcount_t             ksize,
