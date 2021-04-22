@@ -173,7 +173,7 @@ _spiel_setup() {
     local rc=0
 
     cd $M0_SRC_DIR/utils/spiel
-    python setup.py "$@" || rc=$?
+    python2 setup.py "$@" || rc=$?
     cd - >/dev/null
     return $rc
 }

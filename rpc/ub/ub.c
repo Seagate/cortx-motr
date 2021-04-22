@@ -152,7 +152,7 @@ static struct m0_net_xprt *g_xprt = &m0_net_lnet_xprt;
 #  define CLIENT_ENDPOINT_FMT  "127.0.0.1:%d"
 #  define SERVER_ENDPOINT_ADDR "127.0.0.1:1"
 #  define SERVER_ENDPOINT      "bulk-mem:" SERVER_ENDPOINT_ADDR
-static struct m0_net_xprt *g_xprt = &m0_net_bulk_mem_xprt;
+static struct m0_net_xprt *g_xprt = (struct m0_net_xprt *)&m0_net_bulk_mem_xprt;
 #endif
 
 struct ub_rpc_client {

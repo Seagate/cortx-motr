@@ -180,12 +180,14 @@ get_param_of()
 
 start_singlenode()
 {
-    log 'Starting LNet'
-    # in some situations 'lnet' service can be started but lnet modules may be
+    # In some situations 'lnet' service can be started but lnet modules may be
     # unloaded so systemd won't know it needs to load them them back, in such
     # condition other services that depend on lnet will fail on start; the
-    # workaround is to re-load lnet modules, which is done by 'restart'
-    systemctl restart lnet
+    # workaround is to re-load lnet modules, which is done by 'restart'.
+    # If lnet module is already loaded, there is no need to reload it,
+    # just make sure the lnet.service is started.
+    lsmod | grep -q lnet && systemctl start lnet || {
+        log 'Starting LNet'; systemctl restart lnet; }
 
     log 'Starting motr-singlenode services'
     systemctl start motr-singlenode &
