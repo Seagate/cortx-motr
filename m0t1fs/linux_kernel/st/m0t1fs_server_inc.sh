@@ -189,14 +189,14 @@ servers_stop()
 			else
 				sleep 5
 				if checkpid $pid && sleep 5 &&
-					checkpid $pid && sleep $delay &&
-					checkpid $pid ; then
-				kill -KILL $pid &>/dev/null
-				sleep 1
+				   checkpid $pid && sleep $delay &&
+				   checkpid $pid ; then
+					kill -KILL $pid &>/dev/null
+					sleep 1
+				fi
 			fi
 		fi
-	fi
-	echo "----- $pid stopped --------"
+		echo "----- $pid stopped --------"
 	done
 	return $rc
 }
