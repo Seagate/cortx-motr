@@ -2399,7 +2399,7 @@ static void libfab_bev_notify(struct m0_net_transfer_mc *ma,
 static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
 {
 	/*TODO: Get proper value from libfabric domain attribute */
-	return 1048576; //M0_BCOUNT_MAX/2; /* 1048576; */
+	return (4 * 1048576); //M0_BCOUNT_MAX/2; /* 1048576; */
 }
 
 /**
@@ -2412,7 +2412,7 @@ static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
 static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
 {
 	/*TODO: Get proper value from libfabric domain attribute */
-	return 4096; //M0_BCOUNT_MAX / 2; /* 4096; */
+	return 131072; //4096; //M0_BCOUNT_MAX / 2; /* 4096; */
 }
 
 /**

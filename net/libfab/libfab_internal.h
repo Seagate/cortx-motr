@@ -59,9 +59,9 @@ enum m0_fab__libfab_params {
 	/** Fabric memory flag. */
 	FAB_MR_FLAG       = 0,
 	/** Key used for memory registration. */
-	FAB_MR_KEY        = 0XABCD,
+	FAB_MR_KEY        = 0xABCD,
 	/** Max number of IOV in send/recv/read/write command */
-	FAB_IOV_MAX       = 256,
+	FAB_IOV_MAX       = 32, //256,
 	/** Dummy data used to notify remote end for rma op completions */
 	FAB_DUMMY_DATA    = 0xFABC0DE,
 	/** Max number of completion events to read from a CQ */
