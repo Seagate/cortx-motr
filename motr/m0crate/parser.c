@@ -590,18 +590,13 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case OPCODE:
 			w = &load[*index];
-			if (w->cw_type == CWT_IO) {
-				cw = workload_io(w);
-				cw->cwi_opcode = atoi(value);
-				if (conf->layout_id <= 0) {
-					cr_log(CLL_ERROR, "LAYOUT_ID is not set\n");
-					return -EINVAL;
-				}
-				cw->cwi_layout_id = conf->layout_id;
-			} else {
-				cbw = workload_btree(w);
-				cbw->cwb_opcode = atoi(value);
+			cw = workload_io(w);
+			cw->cwi_opcode = atoi(value);
+			if (conf->layout_id <= 0) {
+				cr_log(CLL_ERROR, "LAYOUT_ID is not set\n");
+				return -EINVAL;
 			}
+			cw->cwi_layout_id = conf->layout_id;
 			break;
 		case START_OBJ_ID:
 			w = &load[*index];
