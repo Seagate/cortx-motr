@@ -461,7 +461,7 @@ AC_ARG_WITH([lustre],
         [AS_HELP_STRING([--with-lustre=path],
                         [set path to lustre headers or built sources dir, default is /usr/src/lustre-*])],
         [LUSTRE=$with_lustre],
-        [LUSTRE=/usr/src/`ls /usr/src | grep lustre- | tail -1`]
+        [LUSTRE=`ls -td /usr/src/lustre-* 2>/dev/null | head -1`]
 )
 AS_IF([test -z "$LUSTRE" || test "x$with_lustre" != "xno" && ! test -d "$LUSTRE/"],
       [AC_MSG_ERROR([Lustre headers not found! Please, install lustre-devel \
