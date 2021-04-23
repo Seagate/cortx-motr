@@ -77,9 +77,9 @@ static char *addr_get(const char *nid, int tmid)
 		     "%s:%d:%d:%d", nid, NTCS_PID, NTCS_PORTAL, tmid);
 	M0_UT_ASSERT(rc < NTCS_NODE_ADDR_MAX);
 
-	result = m0_alloc(rc + 1);
+	result = m0_alloc(NTCS_NODE_ADDR_MAX);
 	M0_UT_ASSERT(result != NULL);
-	return strncpy(result, addr, rc + 1);
+	return strncpy(result, addr, NTCS_NODE_ADDR_MAX);
 }
 
 static void addr_free(char *addr)
@@ -123,9 +123,9 @@ static void node_cfg_fill(struct m0_net_test_node_cfg *ncfg,
 	};
 
 	strncat(addr_cmd_list, ncfg->ntnc_addr, NTCS_NODE_ADDR_MAX - 1);
-	strncat(addr_cmd_list, last_node ? "" : ",", 1);
+	strncat(addr_cmd_list, last_node ? "" : ",", 2);
 	strncat(addr_data_list, addr_data, NTCS_NODE_ADDR_MAX - 1);
-	strncat(addr_data_list, last_node ? "" : ",", 1);
+	strncat(addr_data_list, last_node ? "" : ",", 2);
 
 	addr_free(addr_data);
 }

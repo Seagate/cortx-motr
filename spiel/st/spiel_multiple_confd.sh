@@ -62,7 +62,7 @@ XPRT=$(m0_default_xpt)
 start() {
     # install "motr" Python module required by m0spiel tool
     cd $M0_SRC_DIR/utils/spiel
-    python setup.py install --record $INSTALLED_FILES > /dev/null ||
+    python2 setup.py install --record $INSTALLED_FILES > /dev/null ||
         die 'Cannot install Python "motr" module'
     sandbox_init
     _init
