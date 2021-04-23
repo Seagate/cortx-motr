@@ -1524,6 +1524,10 @@ enum threshold{
 	ALL_MOVE = 10
 };
 
+enum {
+	BTREE_ALLOC_SHIFT = 0,
+};
+
 static void btree_mem_alloc_credit(const struct m0_btree  *btree,
 				   m0_bcount_t             size,
 				   struct m0_be_tx_credit *accum)
@@ -1538,6 +1542,10 @@ static void btree_node_alloc_credit(const struct m0_btree  *tree,
 	btree_mem_alloc_credit(tree, max_node_size, accum);
 }
 
+/**
+ * Calculates the credit needed to update @nr nodes and adds this credit to
+ * @accum.
+ */
 static void btree_node_update_credit(struct m0_be_tx_credit *accum,
 				     m0_bcount_t             nr)
 {
@@ -1565,8 +1573,13 @@ static void m0_btree_create_node_credit(const struct m0_btree  *tree,
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
+/**
+ * Calculates the credit needed to move some records between two nodes and adds this credit to
+ * @accum.
+ */
 static void btree_move_key_value_credit(struct m0_be_tx_credit *accum, enum threshold threshold)
 {
+	/*depending on thershold, calculate fraction which we want to move other node*/
 	m0_bcount_t size = max_node_size * threshold/10;
 
 	m0_be_tx_credit_mac(accum, &M0_BE_TX_CREDIT(1, size), 1);
@@ -1640,18 +1653,11 @@ static void insert_credit(const struct m0_btree  *tree,
 	m0_be_tx_credit_mul(accum, nr);
 }
 
-static struct m0_be_allocator *tree_allocator(const struct m0_btree *btree)
-{
-	return m0_be_seg_allocator(btree->bb_seg);
-}
-
-
 static void btree_mem_free_credit(const struct m0_btree  *btree,
 				  m0_bcount_t             size,
 				  struct m0_be_tx_credit *accum)
 {
-	m0_be_allocator_credit(tree_allocator(btree),
-			       M0_BAO_FREE_ALIGNED, 0, 0, accum);
+	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, 0, 0, accum);
 }
 
 /**
@@ -1678,6 +1684,11 @@ static void btree_delete_key_value_credit(const struct m0_btree  *tree,
 			    &M0_BE_TX_CREDIT_TYPE(struct m0_btree_rec));
 }
 
+/**
+ * Calculates the credit needed to update particular record ,
+ * which requires deleting old record and inserting new record with modified key/value.
+ * As we might want to update delimiter key in delete operation, credits for record updates are needed
+ */
 static void btree_update_delimeter_key_credit(const struct m0_btree  *tree,
 					      struct m0_be_tx_credit *accum)
 {
