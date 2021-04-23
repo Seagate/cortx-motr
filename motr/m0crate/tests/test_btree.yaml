@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+# Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,12 +39,12 @@ WORKLOAD_SPEC:               # Workload specification section
       WORKLOAD_SEED: tstamp  # Seed for random number generator
       OPS: 10         # Total number of operations
       NR_THREADS: 1          # Number of threads to run in this workload
-      KEY_SIZE: 5              # Key size variable: random else fixed value
+      KEY_SIZE: 10              # Key size variable: random else fixed value
       VALUE_SIZE: 5            # Value size variable: random else fixed value
       MAX_KEY_SIZE: 10     # int [units]
       MAX_VALUE_SIZE: 10   # int [units]
       KEY_ORDER: ordered     # ordered(sequential) or random
-      PATTERN: random        # pattern(for eg. 'A') or random
+      PATTERN: 65        # pattern in ascii val (for eg. 65 for 'A')
       INSERT: 100            # percentage of insert operation
       LOOKUP: 0             # percentage of lookup operation
       DELETE: 0              # percentage of delete operation

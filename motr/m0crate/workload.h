@@ -34,6 +34,7 @@
 #include <sys/param.h>    /* MAXPATHLEN */
 #include "lib/memory.h"
 #include "lib/time.h"
+#include "lib/bitstring.h"
 #include "motr/m0crate/crate_utils.h"
 
 /* used for both file offsets and file sizes. */
@@ -134,6 +135,11 @@ enum btree_op_type {
 	BOT_OPS_NR
 };
 
+struct cr_btree_key {
+	struct m0_bitstring pattern;
+	uint64_t	    bkey;
+};
+
 struct btree_ops {
 	const char *opname;
 	int	    prcnt;
@@ -143,15 +149,15 @@ struct btree_ops {
 };
 
 struct cr_workload_btree {
-	int	          cwb_key_size;
-	int	          cwb_value_size;
-	int	          cwb_max_key_size;
-	int               cwb_max_value_size;
-	bool	          cwb_keys_ordered; /* Sequential or random workload */
-	char	         *cwb_pattern; /* Fixed pattern */
-	struct btree_ops  cwb_bo[BOT_OPS_NR];
-	m0_time_t         cwb_start_time;
-	m0_time_t         cwb_finish_time;
+	int	         cwb_key_size;
+	int	         cwb_value_size;
+	int	         cwb_max_key_size;
+	int		 cwb_max_value_size;
+	bool	         cwb_keys_ordered; /* Sequential or random workload */
+	char	         cwb_pattern; /* Fixed pattern */
+	struct btree_ops cwb_bo[BOT_OPS_NR];
+	m0_time_t        cwb_start_time;
+	m0_time_t        cwb_finish_time;
 };
 
 /* description of a single task (thread) executing workload */

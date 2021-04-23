@@ -628,10 +628,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case PATTERN:
 			w = &load[*index];
 			cbw = workload_btree(w);
-			cbw->cwb_pattern = m0_alloc(value_len + 1);
-			if (cbw->cwb_pattern == NULL)
-				return -ENOMEM;
-			strcpy(cbw->cwb_pattern, value);
+			cbw->cwb_pattern = parse_int(value, PATTERN);
 			break;
 		case INSERT:
 			w = &load[*index];
