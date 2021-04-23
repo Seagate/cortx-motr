@@ -1,4 +1,5 @@
-nobase_motr_include_HEADERS += net/libfab/libfab_internal.h
+nobase_motr_include_HEADERS += net/libfab/libfab.h
 
 motr_libmotr_la_SOURCES  += \
-			    net/libfab/libfab.c
+			    net/libfab/libfab.c \
+			    net/libfab/libfab_internal.h
