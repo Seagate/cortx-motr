@@ -150,9 +150,9 @@ struct btree_ops {
 
 struct cr_workload_btree {
 	int	         cwb_key_size;
-	int	         cwb_value_size;
+	int	         cwb_val_size;
 	int	         cwb_max_key_size;
-	int		 cwb_max_value_size;
+	int		 cwb_max_val_size;
 	bool	         cwb_keys_ordered; /* Sequential or random workload */
 	char	         cwb_pattern; /* Fixed pattern */
 	struct btree_ops cwb_bo[BOT_OPS_NR];

@@ -1274,9 +1274,9 @@ static void btree_run(struct workload *w, struct workload_task *task)
 
 	cr_log(CLL_INFO, "Total ops:             %u\n", w->cw_ops);
 	cr_log(CLL_INFO, "key size:              %i\n", cwb->cwb_key_size);
-	cr_log(CLL_INFO, "value size:            %i\n", cwb->cwb_value_size);
+	cr_log(CLL_INFO, "value size:            %i\n", cwb->cwb_val_size);
 	cr_log(CLL_INFO, "max key size:          %i\n", cwb->cwb_max_key_size);
-	cr_log(CLL_INFO, "max value size:        %i\n", cwb->cwb_max_value_size);
+	cr_log(CLL_INFO, "max value size:        %i\n", cwb->cwb_max_val_size);
 	cr_log(CLL_INFO, "keys order:            %s\n",
 	       cwb->cwb_keys_ordered ? "sequential" : "random");
 	cr_log(CLL_INFO, "key pattern:           %c\n", cwb->cwb_pattern);
@@ -1373,22 +1373,17 @@ static void btree_op_run(struct workload *w, struct workload_task *task,
 	struct m0_key_val         kv;
 	struct cr_workload_btree *cwb = w->u.cw_btree;
         enum btree_op_type        ot = op->u.wo_btree.ob_type;
-	char			  v[cwb->cwb_max_value_size];
+	char			  v[cwb->cwb_max_val_size];
 	int			  ksize;
-	int			  vsize = cwb->cwb_max_value_size;
+	int			  vsize = cwb->cwb_max_val_size;
 	struct cr_btree_key	  cbk;
 	char			  kpattern[cwb->cwb_max_key_size];
 
 	pthread_mutex_lock(&w->cw_lock);
 
+	/* Key consists of fixed pattern + random or sequential number. */
 	ksize = cwb->cwb_key_size != -1 ? cwb->cwb_key_size :
 			getrnd(sizeof cbk.bkey, cwb->cwb_max_key_size);
-
-	if (ot == BOT_INSERT) {
-		vsize = cwb->cwb_value_size != -1 ? cwb->cwb_value_size :
-			getrnd(1, cwb->cwb_max_value_size);
-		cr_get_random_string(v, vsize);
-	}
 
 	memset(kpattern, cwb->cwb_pattern, ksize - sizeof cbk.bkey);
 	m0_bitstring_copy(&cbk.pattern, kpattern, ksize - sizeof cbk.bkey);
@@ -1397,9 +1392,15 @@ static void btree_op_run(struct workload *w, struct workload_task *task,
 		cwb->cwb_bo[ot].key = cwb->cwb_bo[ot].key + 1 == INT_MAX ?
 				      0 : cwb->cwb_bo[ot].key + 1;
 		cbk.bkey = cwb->cwb_bo[ot].key;
-
 	} else
 		cbk.bkey = getrnd(0, INT_MAX - 1);
+
+	/* Value contains randomly generated string. */
+	if (ot == BOT_INSERT) {
+		vsize = cwb->cwb_val_size != -1 ? cwb->cwb_val_size :
+			getrnd(1, cwb->cwb_max_val_size);
+		cr_get_random_string(v, vsize);
+	}
 
 	m0_buf_init(&kv.kv_key, &cbk, btree_key_size(&cbk));
 	m0_buf_init(&kv.kv_val, v, vsize);
