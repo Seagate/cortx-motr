@@ -486,7 +486,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 				key_size = &ciw->key_size;
 			} else {
 				cbw = workload_btree(w);
-				val_size = &cbw->cwb_value_size;
+				val_size = &cbw->cwb_val_size;
 				key_size = &cbw->cwb_key_size;
 			}
 			if (strcmp(value, "random") == 0)
@@ -523,8 +523,8 @@ int copy_value(struct workload *load, int max_workload, int *index,
 				}
 			} else {
 				cbw = workload_btree(w);
-				cbw->cwb_max_value_size = parse_int(value,
-								    MAX_VALUE_SIZE);
+				cbw->cwb_max_val_size = parse_int(value,
+								  MAX_VALUE_SIZE);
 			}
 			break;
 		case INDEX_FID:
@@ -628,10 +628,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case PATTERN:
 			w = &load[*index];
 			cbw = workload_btree(w);
-			cbw->cwb_pattern = m0_alloc(value_len + 1);
-			if (cbw->cwb_pattern == NULL)
-				return -ENOMEM;
-			strcpy(cbw->cwb_pattern, value);
+			cbw->cwb_pattern = parse_int(value, PATTERN);
 			break;
 		case INSERT:
 			w = &load[*index];
