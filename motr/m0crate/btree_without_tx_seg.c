@@ -63,6 +63,40 @@ static struct m0_rwlock *btree_rwlock(struct m0_be_btree *tree);
 
 static struct be_btree_key_val *be_btree_search(struct m0_be_btree *btree,
 						void *key);
+M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
+				     struct m0_be_tx *tx,
+				     struct m0_be_op *op,
+				     void **ptr,
+				     m0_bcount_t size,
+				     unsigned shift,
+				     uint64_t zonemask)
+{
+	*ptr = m0_alloc_aligned(size, shift);
+}
+
+M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+					enum m0_be_allocator_op optype,
+					m0_bcount_t size,
+					unsigned shift,
+					struct m0_be_tx_credit *accum)
+{
+}
+
+M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
+			    struct m0_be_tx *tx,
+			    struct m0_be_op *op,
+			    void *ptr)
+{
+	m0_free(ptr);
+}
+
+M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
+				    struct m0_be_tx *tx,
+				    struct m0_be_op *op,
+				    void *ptr)
+{
+	m0_be_free(a, tx, op, ptr);
+}
 
 #define M0_BE_TX_CAPTURE_PTR(seg, tx, ptr)
 #define M0_BE_CREDIT_DEC(cr_user, tx)
