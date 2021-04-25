@@ -174,7 +174,6 @@ struct workload_task {
                         char            *tc_buf;
                 } wt_csum;
 		void *m0_task;
-		void *btree_task;
 		// void *index_task;
         } u;
 };
