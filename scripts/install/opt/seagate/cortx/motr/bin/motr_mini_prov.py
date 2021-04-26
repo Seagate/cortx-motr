@@ -268,7 +268,8 @@ def create_lvm(self, index, metadata_dev):
         pass
     else:
         sys.stdout.write(f"Already volumes are created on {metadata_dev}\n {out[0]}")
-        return
+        return False
+
     index = index + 1
     node_name = self.server_node['name']
     vg_name = f"vg_{node_name}_md{index}"
@@ -340,6 +341,7 @@ def create_lvm(self, index, metadata_dev):
     else:
         sys.stdout.write(f"swap size before allocation ={allocated_swap_size_before}M\n")
         sys.stdout.write(f"swap_size after allocation ={allocated_swap_size_after}M\n")
+    return True
 
 def calc_lvm_min_size(self, lv_path, lvm_min_size):
     cmd = f"lvs {lv_path} -o LV_SIZE --noheadings --units b --nosuffix"
@@ -418,7 +420,9 @@ def config_lvm(self):
         sys.stdout.write(f"\nlvm metadata_devices: {metadata_devices}\n\n")
 
         for device in metadata_devices:
-            create_lvm(self, dev_count, device)
+            ret = create_lvm(self, dev_count, device)
+            if ret == False:
+                continue
             dev_count += 1
             lv_md_name = f"lv_raw_md{dev_count}"
             cmd = f"lvs -o lv_path | grep {lv_md_name}"
