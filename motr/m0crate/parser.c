@@ -536,7 +536,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case WARMUP_PUT_CNT:
 			w = &load[*index];
-			if(w->cw_type ==CWT_INDEX) {
+			if(w->cw_type == CWT_INDEX) {
 				ciw = workload_index(w);
 				if (!strcmp(value, "all"))
 					ciw->warmup_put_cnt = -1;
@@ -544,7 +544,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 					ciw->warmup_put_cnt = parse_int(value, WARMUP_PUT_CNT);
 			} else {
 				cbw = workload_btree(w);
-				cbw->cwb_warmup_put_cnt = parse_int(value, WARMUP_PUT_CNT);
+				cbw->cwb_warmup_insert_count = parse_int(value, WARMUP_PUT_CNT);
 			}
 			break;
 		case WARMUP_DEL_RATIO:

@@ -1261,25 +1261,24 @@ static void cr_btree_warmup(struct cr_workload_btree *cwb)
 {
 	char 			v[cwb->cwb_max_val_size];
 	struct cr_btree_key 	cbk;
-
-	int i		= 0;
-	int count	= cwb->cwb_warmup_put_cnt;
-	int ksize	= cwb->cwb_key_size;
-	int vsize	= cwb->cwb_val_size != -1 ? cwb->cwb_val_size :
-			  getrnd(1, cwb->cwb_max_val_size);
-	int pattern	= cwb->cwb_pattern;
-	uint64_t k 	= cwb->cwb_bo[BOT_INSERT].key;
+	int i			= 0;
+	int count		= cwb->cwb_warmup_insert_count;
+	int ksize		= cwb->cwb_key_size != -1 ? cwb->cwb_key_size :
+				  getrnd(1, cwb->cwb_max_key_size);
+	int vsize		= cwb->cwb_val_size != -1 ? cwb->cwb_val_size :
+				  getrnd(1, cwb->cwb_max_val_size);
+	int pattern		= cwb->cwb_pattern;
 
 	for (i = 0; i < count ; i++)
 	{
 		struct m0_key_val dummy_kv;
 
-		cr_btree_key_make(ksize, k, pattern, &cbk);
+		cr_btree_key_make(ksize, cwb->cwb_bo[BOT_INSERT].key, pattern, &cbk);
 		cr_get_random_string(v, vsize);
 		m0_buf_init(&dummy_kv.kv_key, &cbk, btree_key_size(&cbk));
 		m0_buf_init(&dummy_kv.kv_val, v, vsize);
 		cr_btree_insert(&dummy_kv);
-		k++;
+		cwb->cwb_bo[BOT_INSERT].key++;
 	}
 }
 
