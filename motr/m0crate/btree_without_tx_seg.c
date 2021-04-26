@@ -33,9 +33,11 @@
 #include "lib/errno.h"
 #include "lib/finject.h"       /* M0_FI_ENABLED() */
 #include "lib/misc.h"          /* offsetof */
+#include "lib/bitstring.h"     /* m0_bitstring_len_get */
 #include "be/alloc.h"
 #include "be/btree.h"
 #include "be/btree_internal.h" /* m0_be_bnode */
+#include "motr/m0crate/workload.h" /* cr_btree_key */
 
 /* btree constants */
 enum {
@@ -1971,18 +1973,23 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_tx           *tx,
 static void print_single_node(struct m0_be_bnode *node)
 {
 	int i;
+	struct cr_btree_key *k;
 
 	printf("{\n");
 	for (i = 0; i < node->bt_num_active_key; ++i) {
-		void *key = node->bt_kv_arr[i].btree_key;
+		k = (struct cr_btree_key *)node->bt_kv_arr[i].btree_key;
 		void *val = node->bt_kv_arr[i].btree_val;
 
 		if (node->bt_isleaf)
-			printf("%02d: key=%s val=%s\n", i, (char *)key,
-			       (char *)val);
+			printf("%02d: key=%.*s%"PRIu64" val=%s\n", i,
+			        m0_bitstring_len_get(&k->pattern),
+				(char *)m0_bitstring_buf_get(&k->pattern),
+				k->bkey, (char *)val);
 		else
-			printf("%02d: key=%s val=%s child=%p\n", i, (char *)key,
-			       (char *)val, node->bt_child_arr[i]);
+			printf("%02d: key=%.*s%"PRIu64" val=%s child=%p\n", i,
+			        m0_bitstring_len_get(&k->pattern),
+				(char *)m0_bitstring_buf_get(&k->pattern),
+				k->bkey, (char *)val, node->bt_child_arr[i]);
 	}
 	if (!node->bt_isleaf)
 		printf("%02d: child=%p\n", i, node->bt_child_arr[i]);

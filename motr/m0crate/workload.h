@@ -144,7 +144,7 @@ struct btree_ops {
 	const char *opname;
 	int	    prcnt;
 	int	    nr_ops;
-	int	    key;
+	uint64_t    key;
 	m0_time_t   exec_time;
 };
 
