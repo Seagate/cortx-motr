@@ -368,7 +368,7 @@ struct m0_layout_plop {
 	 */
 	uint64_t                         pl_colour;
 	/**
-	 * Linkage in the list of all plops in the plan.
+	 * Linkage in the ::lp_plops list of all plops in the plan.
 	 */
 	struct m0_tlink                  pl_all_link;
 	/**
@@ -508,19 +508,17 @@ struct m0_layout_fun_plop {
 };
 
 /**
- * Constructs the plan describing how the given operation is to be executed for
- * the given layout.
+ * Constructs the plan describing how the given @op is to be executed.
  */
-M0_EXTERN struct m0_layout_plan *
-m0_layout_plan_build(struct m0_layout_instance *layout,
-		     struct m0_op *op);
+M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op);
+
 /**
  * Finalises the plan.
  *
  * This causes invocation of m0_layout_plop_ops::po_fini() for all still
  * existing plops.
  */
-M0_EXTERN void m0_layout_plan_fini(struct m0_layout_plan *plan);
+M0_INTERNAL void m0_layout_plan_fini(struct m0_layout_plan *plan);
 
 enum {
 	M0_LAYOUT_PLOT_ANYCOLOUR = ~0ULL
@@ -534,8 +532,8 @@ enum {
  * If colour is equal to M0_LAYOUT_PLOT_ANYCOLOUR, any ready plop is returned,
  * otherwise only a plop with the matching colour.
  */
-M0_EXTERN int m0_layout_plan_get(struct m0_layout_plan *plan, uint64_t colour,
-				 struct m0_layout_plop **out);
+M0_INTERNAL int m0_layout_plan_get(struct m0_layout_plan *plan, uint64_t colour,
+				   struct m0_layout_plop **out);
 
 /**
  * Instructs the implementation that the user starts processing of the plop.
@@ -543,7 +541,7 @@ M0_EXTERN int m0_layout_plan_get(struct m0_layout_plan *plan, uint64_t colour,
  * @retval -EINVAL if the plop cannot be processed anymore for some reason.
  *                 For example, if it was cancelled by the plan already.
  */
-M0_EXTERN int m0_layout_plop_start(struct m0_layout_plop *plop);
+M0_INTERNAL int m0_layout_plop_start(struct m0_layout_plop *plop);
 
 /**
  * Instructs the implementation that the user completed processing of the plop.
@@ -553,7 +551,7 @@ M0_EXTERN int m0_layout_plop_start(struct m0_layout_plop *plop);
  * If plop->pl_rc is non 0, the implementation might attempt to update the plan
  * to mask or correct the failure.
  */
-M0_EXTERN void m0_layout_plop_done(struct m0_layout_plop *plop);
+M0_INTERNAL void m0_layout_plop_done(struct m0_layout_plop *plop);
 
 /**
  * Signals the implementation that operation execution should be aborted.
@@ -561,7 +559,7 @@ M0_EXTERN void m0_layout_plop_done(struct m0_layout_plop *plop);
  * Operation abort might affect access plan. The user still has to drain the
  * plan and execute all received plops until a DONE plop is produced.
  */
-M0_EXTERN void m0_layout_plan_abort(struct m0_layout_plan *plan);
+M0_INTERNAL void m0_layout_plan_abort(struct m0_layout_plan *plan);
 
 /** @} end of layout group */
 #endif /* __MOTR_LAYOUT_PLAN_H__ */
