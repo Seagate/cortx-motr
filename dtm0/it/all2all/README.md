@@ -78,6 +78,6 @@ For building hare code use following command
 Now reload the daemon & stop the hare-consul-agent using following command
 
 ```sh
-[root@ssc-vm-c-1966 hare]# sudo sudo systemctl daemon-reload && sleep 5 && service hare-consul-agent stop 
+[root@ssc-vm-c-1966 hare]# sudo systemctl daemon-reload && sleep 5 && service hare-consul-agent stop 
 ```
 Try running the test again. Refer [this](https://github.com/Seagate/cortx-motr/blob/dtm0-main/dtm0/it/all2all/README.md#command-to-run-this-test)
