@@ -75,9 +75,9 @@ For building hare code use following command
 ```sh
 [root@ssc-vm-c-1966 hare]# sudo make uninstall && sudo make clean && make && sudo make install
 ```
-Now start the hare-consul-agent and reload the daemon using following command
+Now reload the daemon & stop the hare-consul-agent using following command
 
 ```sh
-[root@ssc-vm-c-1966 hare]# sudo service hare-consul-agent stop && sleep 5 && sudo systemctl daemon-reload
+[root@ssc-vm-c-1966 hare]# sudo sudo systemctl daemon-reload && sleep 5 && service hare-consul-agent stop 
 ```
 Try running the test again. Refer [this](https://github.com/Seagate/cortx-motr/blob/dtm0-main/dtm0/it/all2all/README.md#command-to-run-this-test)
