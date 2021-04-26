@@ -115,6 +115,7 @@ static struct m0_be_btree *cr_btree_create(void);
 static void cr_btree_insert(struct m0_key_val *kv);
 static void cr_btree_delete(struct m0_key_val *kv);
 static void cr_btree_lookup(struct m0_key_val *kv);
+static void cr_btree_warmup(int count, int max_ksize, int max_vsize);
 extern void btree_dbg_print(struct m0_be_btree *tree);
 M0_INTERNAL int m0_time_init(void);
 
@@ -1254,6 +1255,28 @@ static void cr_btree_delete(struct m0_key_val *kv)
 			  bo_u.u_btree.t_rc);
 }
 
+static void cr_btree_warmup(int count, int max_ksize, int max_vsize)
+{
+	int i = 0;
+
+	for (i = 0; i < count ; i++)
+	{
+		struct m0_key_val	dummy_kv;
+		int			ksize = getrnd(1, max_ksize);
+		int			vsize = getrnd(1, max_vsize);
+		char			k[max_ksize];
+		char			v[max_vsize];
+
+		m0_buf_init(&dummy_kv.kv_key, k, ksize);
+		m0_buf_init(&dummy_kv.kv_val, v, vsize);
+
+		sprintf(k, "%0*d", ksize - 1, i);
+		cr_get_random_string(v, vsize);
+
+		cr_btree_insert(&dummy_kv);
+	}
+}
+
 static int btree_init(struct workload *w)
 {
 	m0_time_init();
@@ -1310,6 +1333,8 @@ static void btree_run(struct workload *w, struct workload_task *task)
 	M0_ALLOC_PTR(seg);
 	seg->bs_gen = m0_time_now();
 	tree = cr_btree_create();
+	cr_btree_warmup(cwb->cwb_warmup_put_cnt, cwb->cwb_max_key_size,
+			cwb->cwb_max_val_size);
 
 	workload_start(w, task);
 	workload_join(w, task);

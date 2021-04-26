@@ -43,6 +43,7 @@ WORKLOAD_SPEC:               # Workload specification section
       VALUE_SIZE: 5            # Value size variable: random else fixed value
       MAX_KEY_SIZE: 10     # int [units]
       MAX_VALUE_SIZE: 10   # int [units]
+      WARMUP_PUT_CNT: 10 # int (ops) or all
       KEY_ORDER: ordered     # ordered(sequential) or random
       PATTERN: 65        # pattern in ascii val (for eg. 65 for 'A')
       INSERT: 100            # percentage of insert operation
