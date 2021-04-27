@@ -49,6 +49,7 @@ struct m0_btree_type {
 };
 
 struct m0_bcookie {
+	struct nd *node;
 };
 
 struct m0_btree_key {

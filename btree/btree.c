@@ -118,31 +118,32 @@
  *
  * @verbatim
  *
- *                        INIT------->COOKIE
- *                          |           | |
- *                          +----+ +----+ |
- *                               | |      |
- *                               v v      |
- *                     +--------SETUP<----+-------+
- *                     |          |       |       |
- *                     |          v       |       |
- *                     +-------LOCKALL<---+-------+
- *                     |          |       |       |
- *                     |          v       |       |
- *                     +--------DOWN<-----+-------+
- *                     |          |       |       |
- *                     |          v       v       |
- *                     |  +-->NEXTDOWN-->LOCK-->CHECK
- *                     |  |     |  |              |
- *                     |  +-----+  |              v
- *                     |           |             ACT
- *                     |           |              |
- *                     |           |              v
- *                     +-----------+---------->CLEANUP-->DONE
+ *                         INIT------->COOKIE
+ *                           |           | |
+ *                           +----+ +----+ |
+ *                                | |      |
+ *                                v v      |
+ *                      +--------SETUP<------------+
+ *                      |          |       |       |
+ *                      |          v       |       |
+ *                      +-------LOCKALL<-----------+
+ *                      |          |       |       |
+ *                      |          v       |       |
+ *                      +--------DOWN<-------------+
+ *                      |          |       |       |
+ *                      |          v       v       |
+ *                      |  +-->NEXTDOWN-->LOCK-->CHECK
+ *                      |  |     |  |              |
+ *                      |  +-----+  |              v
+ *                      |           |             ACT
+ *                      |           |              |
+ *                      |           |              v
+ *                      +-----------+---------->CLEANUP-->DONE
+ *
  *
  * @endverbatim
  *
- * (https://asciiflow.com/#/share/eJyrVspLzE1VslJydw1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVga68QoVQJZRuYGQFZJakUJkBOjpKCg4OnnGfJoyh4saNouZ39%2Fb0%2FXmJg8BRAAiikgAIgHxEiSaAiHEEwDsiFwDqrktD1gjCSJ3aFgFOwaEhrwaHoLHiXICGIYqkuwsDCUTcOjDCvy8Xf2dvTxIdJldHMWELn4h%2FsRH2BUcdw0LMqQE5yfa0QI2FkwAVDoIZKjh6uzN5I2hNWoSROX%2BcgpEYuWaRgux1Dk6BxCUA22IMBjGxUQMGR8XB39gMkfxnfx93ONUapVqgUAYgr3kQ%3D%3D))
+ * (https://asciiflow.com/#/share/eJyrVspLzE1VslJydw1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVga68QoVQJZRuYGQFZJakUJkBOjpKCg4OnnGfJoyh4saNouZ39%2Fb0%2FXmJg8BRAAiikgAIgHxEiSaAiHEEwDsiFwDqrktD1gjCSJ3aFgFOwaEhrwaHoLHiXICGIYqkuwsDCUTcOjDCvy8Xf2dvTxIdJldHMWELn4h%2FsRH2BUcdw0LMqQE5yfa0QI2FkwAVDoIZKjh6uzN5I2hNWoSROX%2BcgpEYuWaRgux1Dk6BxCUA22IMBjGxUQMGR8XB39gMkfxnfx93ONUapVqgUAYgr3kQ%3D%3D)
  *
  * @verbatim
  *
@@ -185,34 +186,34 @@
  *
  * @verbatim
  *
- *                      INIT------->COOKIE
- *                        |           | |
- *                        +----+ +----+ |
- *                             | |      |
- *                             v v      |
- *                           SETUP<-----+--------+
- *                             |        |        |
- *                             v        |        |
- *                          LOCKALL<----+------+ |
- *                             |        |      | |
- *                             v        |      | |
- *                           DOWN<------+----+ | |
- *                     +----+  |        |    | | |
- *                     |    |  v        v    | | |
- *                     +-->NEXTDOWN-->LOCK-->CHECK
- *                             |        ^      |
- *                             v        |      v
- *                        +--ALLOC------+ +---MAKESPACE<-+
- *                        |    ^          |       |      |
- *                        +----+          v       v      |
- *                                       ACT-->NEXTUP----+
- *                                                |
- *                                                v
- *                                             CLEANUP-->DONE
+ *                       INIT------->COOKIE
+ *                         |           | |
+ *                         +----+ +----+ |
+ *                              | |      |
+ *                              v v      |
+ *                            SETUP<--------------+
+ *                              |        |        |
+ *                              v        |        |
+ *                           LOCKALL<-----------+ |
+ *                              |        |      | |
+ *                              v        |      | |
+ *                            DOWN<-----------+ | |
+ *                      +----+  |        |    | | |
+ *                      |    |  v        v    | | |
+ *                      +-->NEXTDOWN-->LOCK-->CHECK
+ *                           ^   |              |
+ *                           |   v              v
+ *                           +-ALLOC    +---MAKESPACE<-+
+ *                                      |       |      |
+ *                                      v       v      |
+ *                                     ACT-->NEXTUP----+
+ *                                              |
+ *                                              v
+ *                                           CLEANUP-->DONE
  *
  * @endverbatim
  *
- * (https://asciiflow.com/#/share/eJyVUj1rwzAQ%2FSvi5gwlS0M2oQhq7EqGOLSDFlMELSQeWg8JIVBCxw4djNrf0TH41%2FiXVA62LNnKR8UZTrqnu%2Bent4UsXUmYQrxI0Fue5hKt0qfnl0zCCJbpRr7q2lbAWsB0MhmPBGx0Nr690Vku17neCEABC5KqePeEOhDOw4AKkSGEqmKPulXvqqJsS4V790sffbpHPx3carBvN05JlcdvUJrTZBFX3x%2F67ProzTRpaaW94WcxESchjqIraXj%2But%2Fdg%2FJw6KNm%2FIH9g0Nz11P0cBrcMTWbmfJjm1AHRh%2BTI8vWTbVynbXuKAkdZazOv0atS6ooY8FmsH4aTk7KYOIeh3QeY0KNhqaPQ8GlNjSsT9AhYa%2Bb7YVJ4uimbX7SxZ51GaDOAUhEMatHNm8z44wK2MHuDxf739Y%3D))
+ * (https://asciiflow.com/#/share/eJyVUrFqwzAQ%2FRVxc4aQpSGbUAQ1diVDHNpBiymGFhoPjYeEECihY4cORu13dAz%2BGn9JZdeWJVsOqTnDnd6T7unpDpDGmwQWEK4jtM3iLEGb%2BPHpOU1gAi%2FxPnlV2EHATsBiPp9NBOxVNruZqixLdpkqBCCPeVGZvzlCngnnvkeFSBFCZX5C3VdVZV60UG7v%2FVRLH%2FbSd0c3Dji1hQXJov4H0IpG67D8eldr10evp04LI%2B01v8gJOPFxEFwpw3Hr%2FukOlkNDn7Xk9%2BwfGpq9DtChabBHY6Yy6eY2Ic%2BMPkS1ynaaKue60bqlxG9vU8of22%2FtlmbUmNFeizAYKtTLcNKVf3GHfboKMaHaMMPs4WuPjOXwdZxDqj9MIssLNbqjk%2BkQcwmVoygJKGZVp8bmJWdUwBGOv7OavB4%3D)
  *
  * MAKESPACE provides sufficient free space in the current node. It handles
  * multple cases:
@@ -240,35 +241,28 @@
  *      b.ii.B. Merge with sibling at parent node
  * @verbatim
  *
- *                       INIT-------->COOKIE
- *                        |             | |
- *                        +-----+ +-----+ |
- *                              | |       |
- *                              v v       |
- *                             SETUP<-----+--------+
- *                               |        |        |
- *                               v        |        |
- *                            LOCKALL<----+------+ |
- *                               |        |      | |
- *                               v        |      | |
- *                             DOWN<------+----+ | |
- *                       +----+  |        |    | | |
- *                       |    |  v        |    | | |
- *                       +-->NEXTDOWN     |    | | |
- *                               |        |    | | |
- *                               v        v    | | |
- *                          +---LOAD--->LOCK-->CHECK     +--MOVEUP
- *                          |     ^              |       |      |
- *                          +-----+              v       v      |
- *                                              ACT--->RESOLVE--+
- *                                               |        |
- *                                               v        |
- *                                            CLEANUP<----+
- *                                               |
- *                                               v
- *                                             DONE
- *
- *
+ *                             INIT
+ *                               |
+ *                               v
+ *                             SETUP<----------------+
+ *                               |                   |
+ *                               v                   |
+ *                             LOCKALL<------------+ |
+ *                               |                 | |
+ *                               v                 | |
+ *                             DOWN<-------------+ | |
+ *                               |               | | |
+ *                               v               | | |
+ *                        +--->NEXTDOWN-->LOCK-->CHECK
+ *                        |     |                 |       +->MOVEUP
+ *                        |     |                 v       |      |
+ *                        +LOAD-+               ACT---->RESOLVE<-+
+ *                                               |              |
+ *                                               v              |
+ *                                             CLEANUP<----------+
+ *                                                |
+ *                                                v
+ *                                              DONE
  * @endverbatim
  *
  * Phases Description:
@@ -281,8 +275,9 @@
  *              If there is no underflow, move to CLEANUP, otherwise move to RESOLVE.
  * step 5. RESOLVE: This state will resolve underflow,
  *                  it will get sibling and perform merging or rebalancing with sibling.
- *                  Once the underflow is resolved at the node, if there is an underflow at parent node Move to MOVEUP , else move to CEANUP.
- * step 6. MOVEUP: This state moves to the parent node
+ *                  Once the underflow is resolved at the node move to its parent node using MOVEUP.
+ * step 6. MOVEUP: This state moves to the parent node and checks if there is an underflow in the parent node
+ *                 If there is an underflow move to RESOLVE, else move to CLEANUP.
  *
  *
  * Iteration (NEXT)
@@ -548,9 +543,14 @@ enum base_phase {
 	P_INIT = M0_SOS_INIT,
 	P_DONE = M0_SOS_DONE,
 	P_DOWN = M0_SOS_NR,
+	P_NEXTDOWN,
+	P_ALLOC,
 	P_SETUP,
+	P_LOCKALL,
 	P_LOCK,
 	P_CHECK,
+	P_MAKESPACE,
+	P_NEXTUP,
 	P_ACT,
 	P_CLEANUP,
 	P_COOKIE,
@@ -681,555 +681,6 @@ static int get_tick(struct m0_btree_op *bop)
 	};
 }
 #endif
-/* insert operation section start point: */
-/*get_tick for insert operation*/
-static int get_tick_insert(struct m0_btree_op *bop)
-{
-	struct td             *tree  = (void *)bop->bo_arbor;
-	uint64_t               flags = bop->bo_flags;
-	struct m0_btree_oimpl *oi    = bop->bo_i;
-	struct level          *level = &oi->i_level[oi->i_used];
-
-	switch (bop->bo_op.o_sm.s_state) {
-	case P_INIT:
-		if ((flags & OF_COOKIE) && cookie_is_set(&bop->bo_key.k_cookie))
-			return P_COOKIE;
-		else
-			return P_SETUP;
-	case P_COOKIE:
-		if (cookie_is_valid(tree, &bop->bo_key.k_cookie) &&
-		    node_space(k_cookie.node)> about_to_OVERFLOW))
-			return P_LOCK;
-		else
-			return P_SETUP;
-	case P_SETUP: {
-		alloc(bop->bo_i, tree->t_height);
-		if (bop->bo_i == NULL)
-			return fail(bop, M0_ERR(-ENOMEM));
-		return P_LOCKALL;
-	}
-	case P_LOCKALL:
-		if (bop->bo_flags & OF_LOCKALL)
-			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
-	case P_DOWN: 
-		oi->i_used = 0;
-		/* Load root node. */
-		return node_get(&oi->i_nop, tree, &tree->t_root, P_NEXTDOWN);
-	case P_NEXTDOWN:
-		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			struct slot    node_slot = {};
-			struct segaddr down;
-			level->l_node = node_slot.s_node = oi->i_nop.no_node;
-			node_op_fini(&oi->i_nop);
-			node_find(&node_slot, bop->bo_rec.r_key);
-			level->l_idx = node_slot.s_idx;
-			if (node_level(node_slot.s_node) > 0) {
-				node_child(&node_slot, &down);
-				oi->i_used++;
-				return node_get(&oi->i_nop, tree,
-						&down, P_NEXTDOWN);
-			} else
-				return P_ALLOC;
-		} else {
-			node_op_fini(&oi->i_nop);
-			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
-		}
-	case P_ALLOC: {
-		if (oi->i_used == -1) {
-			struct node_op node_op;
-			/* allocate extra node if root is going to get split */
-			node_op.no_node = extra_l_alloc;
-			oi->i_used = 0;
-		} else {
-			if (level.l_seq != level->l_node.n_seq) //validate l_node
-				return P_CHECK;
-			if (node_space(level.l_node) <= about_to_OVERFLOW) {
-				struct node_op node_op;
-				node_op.no_node = level.l_alloc;
-				oi->i_used--;
-				return node_alloc(&node_op, tree, size,
-				level.l_node->n_type, bop->bo_tx, P_ALLOC);
-			}
-		}
-		//reset oi->i_used
-		while (node_level(oi->i_level[oi->i_used].l_node) >= 0) {
-			oi->i_used++;
-		}
-		return P_LOCK;
-	}
-	case P_LOCK:
-		if (!locked)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_lop,
-					    P_CHECK);
-		else
-			return P_CHECK;
-	case P_CHECK:
-		if (used_cookie || check_path())
-			return P_MAKESPACE;
-		if (too_many_restarts) {
-			if (bop->bo_flags & OF_LOCKALL)
-				return fail(bop, -ETOOMANYREFS);
-			else
-				bop->bo_flags |= OF_LOCKALL;
-		}
-		if (height_increased) {
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_INIT);
-		} else {
-			oi->i_used = 0;
-			return P_DOWN;
-		}
-	case P_MAKESPACE: {
-		struct slot slot_for_left_node = {
-		.s_node = level->l_node;
-		.s_rec = bop->bo_rec;
-		};
-		node_find(&slot_for_left_node,bop->bo_rec.r_key);
-
-		if (node_isfit(&slot_for_left_node)) {
-			node_make (&slot_for_left_node, bop->bo_tx);
-			return ACT;
-		} else {
-			node_move(level->l_node, level->l_alloc, D_RIGHT, NR_EVEN, bop->bo_tx);
-			struct slot slot_for_right_node = {
-			.s_node = level->l_alloc;
-			.s_idx  = 0;
-			};
-			struct slot *tgt;
-			node_key(&slot_for_right_node);
-			if (bop->bo_rec.r_key < slot_for_right_node.s_rec.key) {
-				node_make (&slot_for_left_node, bop->bo_tx);
-				tgt = &slot_for_left_node;
-				
-			} else {
-				node_find(&slot_for_right_node,bop->bo_rec.key);
-				slot_for_right_node.s_rec = bop->bo_rec;
-				node_make (&slot_for_right_node, bop->bo_tx);
-				tgt = &slot_for_right_node;
-			}
-			m0_bufvec_copy(&tgt.s_rec.r_key.k_data,
-				       &bop->bo_rec.r_key.k_data,
-				       m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
-			m0_bufvec_copy(&tgt.s_rec.r_val, &bop->bo_rec.r_val,
-				       m0_vec_count(&bop->bo_rec.r_val.ov_vec));
-
-			node_done (tgt, bop->bo_tx, true);
-			node_fix(tgt, bop->bo_tx);
-
-			if(node_level(slot_for_left_node.s_node) > 0) {
-				slot_for_left_node.s_idx = node_count(slot_for_left_node)-1;
-				node_rec(&slot_for_left_node);
-				//update bop->bo_rec.r_key
-				bop->bo_rec.r_key = slot_for_left_node.s_rec.r_key;
-				//bop->bo_rec.r_value = l_alloc
-
-				//changing last key of slot_for_left_node.s_rec.r_key to null without changing value
-				struct m0_btree_rec new_bo_rec;
-				new_bo_rec.r_val = slot_for_left_node.s_rec.r_val;
-				node_del(&slot_for_left_node, slot_for_left_node.s_idx, bop->bo_tx);
-				//make slot_for_left_node.s_rec.r_key as empty 
-				slot_for_left_node.rec = new_bo_rec;
-				node_make(&slot_for_left_node, bop->bo_tx);
-				//copy new_bo_rec to slot_for_left_node
-				m0_bufvec_copy(&slot_for_left_node.s_rec.r_key.k_data,
-							&new_bo_rec.r_key.k_data,
-							m0_vec_count(&new_bo_rec.r_key.k_data.ov_vec));
-				m0_bufvec_copy(&slot_for_left_node.s_rec.r_val, &new_bo_rec.r_val,
-							m0_vec_count(&new_bo_rec.r_val.ov_vec));
-				node_done (slot_for_left_node, bop->bo_tx, true);
-				node_fix(slot_for_left_node, bop->bo_tx);
-			} else {
-				slot_for_right_node.s_idx = 0;
-				node_key(&slot_for_right_node);
-				bop->bo_rec.r_key = slot_for_right_node.s_rec.r_key;
-				//update bo_rec.r_value : bop->bo_rec.r_value = level->l_alloc;
-			}
-			return P_NEXTUP;
-		}
-	}
-	case P_NEXTUP: {
-		if (l_alloc != NULL) {
-			oi->i_used--;
-			if ( oi->i_used == -1) {
-				//one level will get added and height will increase
-				//copy root content to extra_l_alloc
-				//use extra_l_alloc ,l_alloc as two child for root
-				node_move(level->l_node, extra_l_alloc, D_RIGHT, NR_MAX, bop->bo_tx);
-				//make extra_l_alloc , l_alloc at level:0 as a child of level[0]->l_node
-				lock_op_unlock(&bop->bo_i->i_lop);
-				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
-			}
-			return P_MAKESPACE;
-		}
-		else {
-			lock_op_unlock(&bop->bo_i->i_lop);
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
-		}
-	}
-	case P_ACT: {
-		struct slot node_slot = {
-			.s_node = level->l_node;
-			.s_idx  = level->l_idx;
-		};
-		m0_bufvec_copy(&node_slot.s_rec.r_key.k_data,
-					&bop->bo_rec.r_key.k_data,
-					m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
-		m0_bufvec_copy(&node_slot.s_rec.r_val, &rec.s_rec.r_val,
-					m0_vec_count(&bop->bo_rec.r_val.ov_vec));
-		node_done (node_slot, bop->bo_tx, true);
-		node_fix(node_slot, bop->bo_tx);
-		return NEXTUP;
-	}
-	case P_CLEANUP: {
-		int i;
-		for (i = 0; i < oi->i_used; ++i) {
-			if (oi->i_level[i].l_node != NULL) {
-				node_put(oi->i_level[i].l_node);
-				oi->i_level[i].l_node = NULL;
-			}
-		}
-		free(bop->bo_i);
-		return m0_sm_op_ret(&bop->bo_op);
-	}
-	default:
-		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.s_state);
-	};
-}
-/* insert operation section end point: */
-
-
-/* delete operation section start point: */
-void get_delimiter(struct m0_btree_oimpl *oi, enum dir dir, struct slot *slot_for_delimiter)
-{
-	if (dir == D_RIGHT) {
-		int lev = oi->i_used;
-		do {
-			lev--;
-		} while (lev >= 0 && oi->i_level[lev].l_idx == node_count(oi->i_level[lev].l_node));
-
-		if (lev >= 0) {
-			slot_for_delimiter.node = oi->i_level[lev].l_node;
-			slot_for_delimiter.idx =  oi->i_level[lev].l_idx;
-		}
-	} else {
-		int lev = oi->i_used;
-		do {
-			lev--;
-		} while (lev>=0 && oi->i_level[lev].l_idx == 0);
-
-		if (lev >= 0) {
-			slot_for_delimiter.node = oi->i_level[lev].l_node;
-			slot_for_delimiter.idx =  oi->i_level[lev].l_idx-1;
-		}
-	}
-}
-
-/*
-* modify_key() will modify rec at node_slot.s_idx to node_slot->s_rec
-* if flag = true, update key to new key else, modify key as null
-*/
-void modify_key(struct slot *node_slot, bool flag, struct m0_be_tx *tx)
-{
-	struct m0_btree_rec new_rec;
-	if(flag)
-		new_rec.r_key = node_slot->s_rec.r_key;
-	new_rec.r_val = node_slot->s_rec.r_val;
-	node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
-	node_make(node_slot);
-	m0_bufvec_copy(&node_slot->r_key.k_data, &new_rec.r_key.k_data,
-		       m0_vec_count(&new_rec.r_key.k_data.ov_vec));
-	m0_bufvec_copy(&node_slot->s_rec.r_val, &ew_rec.r_val,
-		       m0_vec_count(&new_rec.r_val.ov_vec));
-	node_done(node_slot, tx, true);
-}
-
-void delete_rebalance(enum dir dir, struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
-{
-	struct level *level = &oi->i_level[oi->i_used];
-	struct slot   slot_for_delimiter = { };
-	struct slot   slot_for_left_node = { };
-	struct slot   slot_for_right_node = { };
-	if (dir == D_LEFT) {
-		get_delimiter(oi, D_LEFT, &slot_for_delimiter);
-		node_rec(&slot_for_delimiter);
-	
-		slot_for_left_node.s_node = level->l_prev;
-		slot_for_left_node.s_idx = node_count(level->l_prev) - 1;
-		
-		slot_for_right_node.s_node = level->l_node;
-		slot_for_right_node.s_idx = 0;
-
-		if (node_level(level->l_node) > 0) {
-			node_rec(&slot_for_left_node);
-			//add delimiter key and value from left node to right node at idx=0
-			slot_for_right_node.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
-			slot_for_right_node.s_rec.r_val = slot_for_left_node.s_rec.r_val;
-			node_make(&slot_for_right_node, tx);
-			struct m0_btree_rec new_rec;
-			new_rec.r_key = slot_for_right_node.s_rec.r_key;
-			new_rec.r_val = slot_for_right_node.s_rec.r_val;
-			m0_bufvec_copy(&slot_for_right_nodes_rec.r_key.k_data,
-				       &new_rec.r_key.k_data,
-				       m0_vec_count(&new_rec.r_key.k_data.ov_vec));
-			m0_bufvec_copy(&slot_for_right_node.s_rec.r_val, &ew_rec.r_val,
-				       m0_vec_count(&new_rec.r_val.ov_vec));
-			node_done(&slot_for_right_node, tx, true);
-			//delete last key-val from left_node:
-			node_del(slot_for_left_node.s_node, slot_for_left_node.s_idx, tx);
-		}
-		node_move(level.l_prev, level.l_node, D_RIGHT, NR_EVEN, tx);
-		slot_for_left_node.s_idx = node_count(level->l_prev)-1;
-		
-	} else {
-		get_delimiter(oi, D_RIGHT, &slot_for_delimiter);
-		node_rec(&slot_for_delimiter);
-
-		slot_for_left_node.s_node = level->l_node;
-		slot_for_left_node.s_idx = node_count(level->l_node) - 1;
-		
-		slot_for_right_node.s_node = level->l_next;
-		slot_for_right_node.s_idx = 0;
-
-		if (node_level(level->l_node) > 0) {
-			//insert delimiter key at left_node
-			node_rec(&slot_for_left_node);
-			slot_for_left_node.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
-			modify_key(&slot_for_left_node, true, tx);
-		}
-		node_move(level.l_node,level.l_next, D_LEFT, NR_EVEN, tx);
-		slot_for_left_node.s_idx = node_count(level->l_node) - 1;
-	}
-
-	if (node_level(level->l_node) > 0) {
-		//set deliemeter key to last key of left_node
-		node_rec(&slot_for_left_node);
-		slot_for_delimiter.s_rec.r_key = slot_for_left_node.s_rec.r_key;
-		modify_key(&slot_for_delimiter, true, tx);
-		//make that last key  of left_node null/empty
-		modify_key(&slot_for_left_node, false, tx);
-	} else {
-		node_key(&slot_for_right_node);
-		slot_for_delimiter.s_rec.r_key = slot_for_right_node.s_rec.r_key;
-		modify_key(&slot_for_delimiter, true, tx);
-	}
-	node_fix(slot_for_left_node.s_node, tx);
-	node_fix(slot_for_right_node.s_node, tx);
-}
-
-void delete_merge(enum dir dir, struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
-{
-	struct level *level = &oi->i_level[oi->i_used];
-	struct slot   slot_for_delimiter;
-	if (dir == D_RIGHT) {
-		get_delimiter(oi, D_RIGHT, &slot_for_delimiter);
-		//if intenal node:insert delimiter key to left node
-		if (node_level(level->l_node) > 0) {
-			struct slot slot_for_left_node = {
-				.s_node = level->l_node;
-				.s_idx  = node_count(level->l_node) - 1;
-			};
-			node_key(&slot_for_delimiter);
-			node_rec(&slot_for_left_node);
-			slot_for_left_node.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
-			//node_set(&slot_for_left_node);
-			modify_key(&slot_for_left_node, true, tx);
-		}
-		node_move(level->l_node, level->l_next, D_RIGHT, NR_MAX, tx);
-		if (oi->i_level[oi->i_used-1].l_idx == node_count(oi->i_level[oi->i_used-1].l_node) - 1) {
-			//i.e l_next belongs to different parent
-			//update delimiter key
-			struct slot slot_for_parent_node = {
-				.s_node = oi->i_level[oi->i_used-1].l_node;
-				.s_idx  = oi->i_level[oi->i_used-1].l_idx - 1;
-			};
-			node_rec(&slot_for_parent_node);
-			node_rec(&slot_for_delimiter);
-			slot_for_delimiter.s_rec.r_key = slot_for_parent_node.s_rec.r_key;
-			modify_key(&slot_for_delimiter, true, tx);
-			//make key at l_idx-1 of parent as null
-			modify_key(&slot_for_parent_node, false, tx);
-		}
-		node_del(oi->i_level[oi->i_used-1].l_node, oi->i_level[oi->i_used-1].l_idx, bop->bo_tx);
-		node_fix(level->l_next, tx);
-	} else {
-		get_delimiter(oi, D_LEFT, &slot_for_delimiter);
-		if (node_level(level->l_node) > 0) {
-			//if intenal node:insert delimiter key to left node
-			struct slot slot_for_left_node = {
-				.s_node = level->l_prev;
-				.s_idx  = node_count(level->l_prev);
-			};
-			node_key(&slot_for_delimiter);
-			node_rec(&slot_for_left_node);
-			slot_for_left_node.s_rec.r_key = slot_for_delimiter.s_rec.r_key;
-			//node_set(slot_for_left_node);
-			modify_key(&slot_for_left_node, true, tx);
-		}
-		node_move(level->l_prev,level->l_node,D_LEFT, NR_MAX,tx);
-		//update delimiter key
-		struct slot_for_parent_node = {
-			.s_node = oi->i_level[oi->i_used-1].l_node;
-			.s_idx  = oi->i_level[oi->i_used-1].l_idx;
-		};
-		node_key(&slot_for_parent_node);
-		node_rec(&slot_for_delimiter);
-		slot_for_delimiter.s_rec.r_key = slot_for_parent_node.s_rec.r_key;
-		modify_key(&slot_for_delimiter, true, tx);
-
-		node_del(oi->i_level[oi->i_used-1].l_node, oi->i_level[oi->i_used-1].l_idx, bop->bo_tx);
-		node_fix(level->l_prev, tx);
-	}
-}
-
-/* get_tick() for delete operation : */
-static int get_tick_delete(struct m0_btree_op *bop)
-{
-	struct td             *tree  = (void *)bop->bo_arbor;
-	uint64_t               flags = bop->bo_flags;
-	struct m0_btree_oimpl *oi    = bop->bo_i;
-	struct level          *level = &oi->i_level[oi->i_used];
-
-	switch (bop->bo_op.o_sm.s_state) {
-	case P_INIT:
-		if ((flags & OF_COOKIE) && cookie_is_set(&bop->bo_key.k_cookie))
-			return P_COOKIE;
-		else
-			return P_SETUP;
-	case P_COOKIE:
-		if (cookie_is_valid(tree, &bop->bo_key.k_cookie) &&
-		    !possibility_of_UNDERFLOW at cookie_node)
-			return P_LOCK;
-		else
-			return P_SETUP;
-	case P_SETUP:
-		alloc(bop->bo_i, tree->t_height);
-		if (bop->bo_i == NULL)
-			return fail(bop, M0_ERR(-ENOMEM));
-		return P_LOCKALL;
-	case P_LOCKALL:
-		if (bop->bo_flags & OF_LOCKALL)
-			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
-	case P_DOWN:
-		oi->i_used = 0;
-		/* Load root node. */
-		return node_get(&oi->i_nop, tree, &tree->t_root, P_NEXTDOWN);
-	case P_NEXTDOWN:
-		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			struct slot    node_slot = {};
-			struct segaddr down;
-
-			level->l_node = node_slot.s_node = oi->i_nop.no_node;
-			node_op_fini(&oi->i_nop);
-			node_find(&node_slot, bop->bo_rec.r_key);
-			if (node_level(node_slot.s_node) > 0) {
-				level->l_idx = node_slot.s_idx;
-				node_child(&node_slot, &down);
-				oi->i_used++;
-				return node_get(&oi->i_nop, tree,
-						&down, P_NEXTDOWN);
-			} else
-				return P_LOAD;
-		} else {
-			node_op_fini(&oi->i_nop);
-			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
-		}
-	case P_LOAD: {
-		if (oi->i_used > 0 && underflow at level->l_node) {
-			level->l_prev = get_left_sibling(oi);
-			level->l_next = get_right_sibling(oi);
-			oi->i_used--;
-			return P_LOAD;
-		}
-		//reset oi->i_used
-		while (node_level(oi->i_level[oi->i_used].l_node) >= 0) {
-			oi->i_used++;
-		}
-
-		return P_LOCK;
-	}	
-	case P_LOCK:
-		if (!locked)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_lop,
-					    P_CHECK);
-		else
-			return P_CHECK;
-	case P_CHECK:
-		if (used_cookie || check_path())
-			return P_ACT;
-		if (too_many_restarts) {
-			if (bop->bo_flags & OF_LOCKALL)
-				return fail(bop, -ETOOMANYREFS);
-			else
-				bop->bo_flags |= OF_LOCKALL;
-		}
-		if (height_increased) {
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_INIT);
-		} else {
-			oi->i_used = 0;
-			return P_DOWN;
-		}
-	case P_ACT: {
-		node_del(level->l_node, level->l_idx, bop->bo_tx);
-		//if deleted key is first key ->update parent/or grandparent...
-		if (UNDERFLOW at level->l_node)
-			return P_RESOLVE;
-		//callback
-		lock_op_unlock(&bop->bo_i->i_lop);
-		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
-	}
-	case P_RESOLVE:
-		if (oi->i_used == 0 ) {
-			/*handle underflow at root or root becomes empty node:
-			copy content from level after root and delete that level*/
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
-		}
-		if (level.l_prev == NULL) {
-			if (!possibility_of_UNDERFLOW at level.l_next)
-				delete_rebalance(D_RIGHT, oi, bop->bo_tx);
-			else
-				delete_merge(D_RIGHT, oi, bop->bo_tx);
-		} else if (level.l_next == NULL) {
-			if (!possibility_of_UNDERFLOW at level.l_prev)
-				delete_rebalance(D_LEFT, oi, bop->bo_tx);
-			else
-				delete_merge(D_LEFT, oi, bop->bo_tx);
-		} else {
-			if (node_space(level.l_prev) < node_space(level.l_next)) {
-				if (!possibility_of_UNDERFLOW at level.l_prev) 
-					delete_rebalance(D_LEFT, oi, bop->bo_tx);
-				else
-					delete_merge(D_RIGHT, oi, bop->bo_tx);
-			} else {
-				if (!possibility_of_UNDERFLOW at level.l_next) 
-					delete_rebalance(D_RIGHT, oi, bop->bo_tx);
-				else
-					delete_merge(D_LEFT, oi, bop->bo_tx);
-			}
-		}
-		if (!UNDERFLOW at level[oi->i_used-1]->l_node) {
-			//callback
-			lock_op_unlock(&bop->bo_i->i_lop);
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
-		} else
-			return P_MOVEUP;
-	case P_MOVEUP:
-		oi->i_used--;
-		return P_RESOLVE;
-	case P_CLEANUP: {
-		int i;
-		for (i = 0; i < oi->i_used; ++i) {
-			if (oi->i_level[i].l_node != NULL) {
-				node_put(oi->i_level[i].l_node);
-				oi->i_level[i].l_node = NULL;
-			}
-		}
-		free(bop->bo_i);
-		return m0_sm_op_ret(&bop->bo_op);
-	}
-	default:
-		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.s_state);
-	};
-}
-/* delete operation section end point */
 
 
 /**
@@ -1237,6 +688,7 @@ static int get_tick_delete(struct m0_btree_op *bop)
  *  Section END - BTree Structure and Operations
  *  --------------------------------------------
  */
+
 
 
 /**
@@ -1495,12 +947,13 @@ static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
 static int64_t tree_delete(struct node_op *op, struct td *tree,
 			   struct m0_be_tx *tx, int nxt);
 static void    tree_put   (struct td *tree);
-#endif
-
-#if 0
 static int64_t    node_get  (struct node_op *op, struct td *tree,
 			     struct segaddr *addr, int nxt);
-static void       node_put  (struct nd *node);
+			     static void       node_put  (struct nd *node);
+#endif
+
+
+#if 0
 static struct nd *node_try  (struct td *tree, struct segaddr *addr);
 #endif
 static int64_t    node_alloc(struct node_op *op, struct td *tree, int size,
@@ -1509,27 +962,29 @@ static int64_t    node_alloc(struct node_op *op, struct td *tree, int size,
 #ifndef __KERNEL__
 static int64_t    node_free(struct node_op *op, struct nd *node,
 			     struct m0_be_tx *tx, int nxt);
-#endif
-#if 0
 static void node_op_fini(struct node_op *op);
 #endif
 
+
 static int  node_count(const struct nd *node);
 static int  node_space(const struct nd *node);
-#if 0
+#ifndef __KERNEL__
 static int  node_level(const struct nd *node);
+#endif
+#if 0
 static int  node_shift(const struct nd *node);
 static void node_fid  (const struct nd *node, struct m0_fid *fid);
 #endif
+
 static void node_rec  (struct slot *slot);
-#if 0
+#ifndef __KERNEL__
 static void node_key  (struct slot *slot);
 static void node_child(struct slot *slot, struct segaddr *addr);
 #endif
 static bool node_isfit(struct slot *slot);
 static void node_done (struct slot *slot, struct m0_be_tx *tx, bool modified);
 static void node_make (struct slot *slot, struct m0_be_tx *tx);
-#if 0
+#ifndef __KERNEL__
 static void node_find (struct slot *slot, const struct m0_btree_key *key);
 #endif
 static void node_fix  (const struct nd *node, struct m0_be_tx *tx);
@@ -1538,10 +993,11 @@ static void node_cut  (const struct nd *node, int idx, int size,
 		       struct m0_be_tx *tx);
 #endif
 static void node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
-#if 0
+#ifndef __KERNEL__
 static void node_move (struct nd *src, struct nd *tgt,
 		       enum dir dir, int nr, struct m0_be_tx *tx);
 #endif
+
 
 /**
  * Common node header.
@@ -1570,6 +1026,7 @@ struct m0_btree_oimpl {
 	/* struct lock_op  i_lop; */
 	unsigned        i_used;
 	struct level    i_level[0];
+	struct nd      *extra_node;
 };
 
 static struct td        trees[M0_TREE_COUNT];
@@ -1595,19 +1052,21 @@ static int node_space(const struct nd *node)
 	return node->n_type->nt_space(node);
 }
 
-#if 0
+
 static int node_level(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
 	return (node->n_type->nt_level(node));
 }
 
+
+
+#if 0
 static int node_shift(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
 	return (node->n_type->nt_shift(node));
 }
-
 static void node_fid(const struct nd *node, struct m0_fid *fid)
 {
 	M0_PRE(node_invariant(node));
@@ -1621,19 +1080,19 @@ static void node_rec(struct slot *slot)
 	slot->s_node->n_type->nt_rec(slot);
 }
 
-#if 0
+
 static void node_key(struct slot *slot)
 {
-	M0_PRE(node_invariant(slot->node));
+	M0_PRE(node_invariant(slot->s_node));
 	slot->s_node->n_type->nt_key(slot);
 }
 
 static void node_child(struct slot *slot, struct segaddr *addr)
 {
-	M0_PRE(node_invariant(slot->node));
+	M0_PRE(node_invariant(slot->s_node));
 	slot->s_node->n_type->nt_child(slot, addr);
 }
-#endif
+
 
 static bool node_isfit(struct slot *slot)
 {
@@ -1653,13 +1112,13 @@ static void node_make(struct slot *slot, struct m0_be_tx *tx)
 	slot->s_node->n_type->nt_make(slot, tx);
 }
 
-#ifndef __KERNEL__
+
 static void node_find(struct slot *slot, const struct m0_btree_key *key)
 {
 	M0_PRE(node_invariant(slot->s_node));
 	slot->s_node->n_type->nt_find(slot, key);
 }
-#endif
+
 
 static void node_fix(const struct nd *node, struct m0_be_tx *tx)
 {
@@ -1682,16 +1141,15 @@ static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	node->n_type->nt_del(node, idx, tx);
 }
 
-#if 0
+
 static void node_move(struct nd *src, struct nd *tgt,
 		      enum dir dir, int nr, struct m0_be_tx *tx)
 {
 	M0_PRE(node_invariant(src));
-	M0_PRE(node_invariant(dst));
+	M0_PRE(node_invariant(tgt));
 	M0_IN(dir,(D_LEFT, D_RIGHT));
 	tgt->n_type->nt_move(src, tgt, dir, nr, tx);
 }
-#endif
 
 static struct mod *mod_get(void)
 {
@@ -1944,7 +1402,7 @@ static void tree_put(struct td *tree)
 }
 #endif
 
-#if 0
+
 /**
  * This function loads the node descriptor for the node at segaddr in memory.
  * If a node descriptor pointing to this node is already loaded in memory then
@@ -1985,10 +1443,12 @@ static void node_put(struct nd *node){
 	segops->so_node_put(node);
 }
 
+# if 0
 static struct nd *node_try(struct td *tree, struct segaddr *addr){
 	return segops->so_node_try(tree, addr);
 }
 #endif
+
 
 
 /**
@@ -2028,12 +1488,12 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 }
 #endif
 
-#if 0
+
 static void node_op_fini(struct node_op *op)
 {
 	segops->so_node_op_fini(op);
 }
-#endif
+
 
 static int64_t mem_node_get(struct node_op *op, struct td *tree,
 			    struct segaddr *addr, int nxt);
@@ -2580,6 +2040,333 @@ static void generic_move(struct nd *src, struct nd *tgt,
 }
 
 
+
+
+/* insert operation section start point: */
+enum {
+	MAX_NODE_SIZE,
+	MAX_KEY_SIZE,
+	MAX_VALUE_SIZE,
+	MIN_NODE_SIZE_UNDERFLOW,
+};
+
+#ifndef __KERNEL__
+static bool isOverflowPossible(const struct nd *node)
+{
+	return (node_space(node) < MAX_KEY_SIZE + MAX_VALUE_SIZE) ? true : false;
+}
+#endif
+
+#if 0
+static bool isUnderflowPossible(const struct nd *node)
+{
+	/* defination of this function can be modified 
+	as, MAX_NODE_SIZE can vary according to level*/
+	return node_space(node) +  MAX_KEY_SIZE + MAX_VALUE_SIZE < MIN_NODE_SIZE_UNDERFLOW ? true : false;
+}
+#endif
+
+#ifndef __KERNEL__
+static bool used_cookie(void)
+{
+	return false;
+}
+
+static bool too_many_restarts(void)
+{
+	return false;
+}
+
+static bool height_increased(void)
+{
+	return false;
+}
+
+static bool cookie_is_valid(struct td *tree, struct m0_btree_key r_key)
+{
+	return false;
+}
+static int fail(struct m0_btree_op *bop, int rc)
+{
+	bop->bo_op.o_sm.sm_rc = rc;
+	return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+}
+static bool check_path(void)
+{
+	/*int total_level = oi->i_used;
+	while(total_level >= 0) {
+		if(!segaddr_is_valid(&oi->i_level[total_level].l_node->n_addr) {
+			return false;
+		}
+		else if(oi->i_level[total_level].l_seq != oi->i_level[total_level].l_node->n_seq)) {
+			return false;
+		}
+		total_level--;
+	}
+	*/
+	return true;
+}
+
+static bool locked(void)
+{
+	return false;
+}
+
+static int64_t lock_op_init(struct m0_sm_op *bo_op, struct node_op *i_nop, int nxt)
+{
+	return nxt;
+}
+static bool cookie_is_set(struct m0_bcookie *k_cookie)
+{
+	return false;
+}
+/*
+* modify_key() will modify rec at node_slot.s_idx to node_slot->s_rec
+* if flag = true, update key to new key else, modify key as null
+*/
+static void modify_key(struct slot *node_slot, bool flag, struct m0_be_tx *tx)
+{
+	struct m0_btree_rec new_rec;
+	if(flag)
+		new_rec.r_key = node_slot->s_rec.r_key;
+	new_rec.r_val = node_slot->s_rec.r_val;
+	node_del(node_slot->s_node, node_slot->s_idx, tx);
+	node_make(node_slot, tx);
+	m0_bufvec_copy(&node_slot->s_rec.r_key.k_data, &new_rec.r_key.k_data,
+		       m0_vec_count(&new_rec.r_key.k_data.ov_vec));
+	m0_bufvec_copy(&node_slot->s_rec.r_val, &new_rec.r_val,
+		       m0_vec_count(&new_rec.r_val.ov_vec));
+	node_done(node_slot, tx, true);
+}
+
+/*get_tick for insert operation*/
+static int get_tick_insert(struct m0_btree_op *bop)
+{
+	struct td             *tree  = (void *)bop->bo_arbor;
+	uint64_t               flags = bop->bo_flags;
+	struct m0_btree_oimpl *oi    = bop->bo_i;
+	struct level          *level = &oi->i_level[oi->i_used];
+
+	switch (bop->bo_op.o_sm.sm_state) {
+	case P_INIT:
+		if ((flags & OF_COOKIE) && cookie_is_set(&bop->bo_rec.r_key.k_cookie))
+			return P_COOKIE;
+		else
+			return P_SETUP;
+	case P_COOKIE:
+		if (cookie_is_valid(tree, bop->bo_rec.r_key) &&
+		    !isOverflowPossible(bop->bo_rec.r_key.k_cookie.node))
+			return P_LOCK;
+		else
+			return P_SETUP;
+	case P_SETUP: {
+		//alloc(bop->bo_i, tree->t_height);
+		if (bop->bo_i == NULL)
+			return fail(bop, M0_ERR(-ENOMEM));
+		return P_LOCKALL;
+	}
+	case P_LOCKALL:
+		if (bop->bo_flags & OF_LOCKALL)
+			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
+	case P_DOWN: 
+		oi->i_used = 0;
+		/* Load root node. */
+		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr, P_NEXTDOWN);
+	case P_NEXTDOWN:
+		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			struct slot    node_slot = {};
+			struct segaddr down;
+			node_slot.s_node = oi->i_nop.no_node;
+			level->l_node = oi->i_nop.no_node;
+			node_op_fini(&oi->i_nop); //@todo ?
+			node_find(&node_slot, &bop->bo_rec.r_key);
+			level->l_idx = node_slot.s_idx;
+			if (node_level(node_slot.s_node) > 0) {
+				node_child(&node_slot, &down);
+				oi->i_used++;
+				return node_get(&oi->i_nop, tree,
+						&down, P_NEXTDOWN);
+			} else
+				return P_ALLOC;
+		} else {
+			node_op_fini(&oi->i_nop);
+			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+		}
+	case P_ALLOC: {
+		if (isOverflowPossible(level->l_node)) {
+			if (oi->i_used == 0) {
+				if (oi->extra_node == NULL) {
+					struct node_op node_op;
+					node_op.no_node = oi->extra_node;
+					/*@todo shift ? */
+					return node_alloc(&node_op, tree, MAX_NODE_SIZE,
+					level->l_node->n_type, 8, 8,bop->bo_tx, P_ALLOC);
+				} 
+			} else {
+				struct node_op node_op;
+				node_op.no_node = level->l_alloc;
+				if (oi->i_used > 0) 
+					oi->i_used--;
+				return node_alloc(&node_op, tree, MAX_NODE_SIZE,
+				level->l_node->n_type, 8, 8,bop->bo_tx, P_ALLOC);
+			}
+		}
+		//reset oi->i_used
+		while (node_level(oi->i_level[oi->i_used].l_node) > 0) {
+			oi->i_used++;
+		}
+		return P_LOCK;
+	}
+	case P_LOCK:
+		if (!locked())
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+					    P_CHECK);
+		else
+			return P_CHECK;
+	case P_CHECK:
+		if (used_cookie() || check_path())
+			return P_MAKESPACE;
+		if (too_many_restarts()) {
+			if (bop->bo_flags & OF_LOCKALL)
+				return fail(bop, -ETOOMANYREFS);
+			else
+				bop->bo_flags |= OF_LOCKALL;
+		}
+		if (height_increased()) {
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_INIT);
+		} else {
+			oi->i_used = 0;
+			return P_DOWN;
+		}
+	case P_MAKESPACE: {
+		struct slot slot_for_right_node = {
+			.s_node = level->l_node,
+			.s_rec = bop->bo_rec
+		};
+		node_find(&slot_for_right_node, &bop->bo_rec.r_key);
+
+		if (node_isfit(&slot_for_right_node)) {
+			node_make (&slot_for_right_node, bop->bo_tx);
+			return P_ACT;
+		} else {
+			struct slot slot_for_left_node = {
+				.s_node = level->l_alloc,
+				.s_idx  = 0
+			};
+			struct slot *tgt;
+			node_move(level->l_alloc, level->l_node, D_LEFT, NR_EVEN, bop->bo_tx);
+			slot_for_right_node.s_idx = 0;
+			node_key(&slot_for_right_node);
+			
+			if (*(bop->bo_rec.r_key.k_data.ov_buf) < *(slot_for_right_node.s_rec.r_key.k_data.ov_buf)) {
+				node_find(&slot_for_left_node, &bop->bo_rec.r_key);
+				slot_for_left_node.s_rec = bop->bo_rec;
+				node_make (&slot_for_left_node, bop->bo_tx);
+				tgt = &slot_for_left_node;
+			} else {
+				node_find(&slot_for_right_node, &bop->bo_rec.r_key);
+				slot_for_right_node.s_rec = bop->bo_rec;
+				node_make (&slot_for_right_node, bop->bo_tx);
+				tgt = &slot_for_right_node;
+			}
+			m0_bufvec_copy(&tgt->s_rec.r_key.k_data,
+				       &bop->bo_rec.r_key.k_data,
+				       m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
+			m0_bufvec_copy(&tgt->s_rec.r_val, &bop->bo_rec.r_val,
+				       m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+
+			node_done(tgt, bop->bo_tx, true);
+			node_fix(tgt->s_node, bop->bo_tx);
+
+			
+			if(node_level(slot_for_left_node.s_node) > 0) {
+				/*internal node : after moving rec from right to left, 
+				last key becomes new key of rec(which need to get inserted at parent 
+				and lst key of left node need to get empty)*/
+				slot_for_left_node.s_idx = node_count(level->l_node) - 1;
+				node_rec(&slot_for_left_node);
+				/* bop->bo_rec which needs to be added at parent */
+				bop->bo_rec.r_key = slot_for_left_node.s_rec.r_key;/*update bop->bo_rec.r_key to last key of left node*/
+				//bop->bo_rec.r_value = l_alloc /*@todo:update bop->bo_rec.r_key to l_alloc*/
+
+				/*update last key of left node to null/empty, as we move items to right node, last key won't be null*/
+				modify_key(&slot_for_left_node, false, bop->bo_tx);
+				node_done(tgt, bop->bo_tx, true);
+				node_fix(tgt->s_node, bop->bo_tx);
+			} else {
+				slot_for_right_node.s_idx = 0;
+				node_key(&slot_for_right_node);
+				/* bop->bo_rec which needs to be added at parent */
+				bop->bo_rec.r_key = slot_for_right_node.s_rec.r_key; /*update bop->bo_rec.r_key tofirst key of right node*/
+				//struct m0_bufvec in = M0_BUFVEC_INIT_BUF(&addr, &buf_count);
+				//*@todo:update bo_rec.r_value : bop->bo_rec.r_value = level->l_alloc;
+			}
+			return P_NEXTUP;
+		}
+	}
+	case P_NEXTUP: {
+		oi->i_used--;
+		if ( oi->i_used == -1) {
+			//one level will get added and height will increase
+			//copy root content to extra_l_alloc
+			//use extra_l_alloc ,l_alloc as two child for root
+			struct slot node_slot = {
+				.s_node = level->l_node,
+				.s_idx  = 0
+			};
+			node_move(level->l_node, oi->extra_node, D_RIGHT, NR_MAX, bop->bo_tx);
+			node_slot.s_rec.r_key = bop->bo_rec.r_key;
+			//node_slot.s_rec.r_val = extra allocated;
+			node_make(&node_slot, bop->bo_tx);
+			node_done(&node_slot, bop->bo_tx, true);
+			node_slot.s_idx  = 1;
+			//node_slot.s_rec.r_key = "";
+			node_slot.s_rec.r_val = bop->bo_rec.r_val;
+			node_make(&node_slot, bop->bo_tx);
+			node_done(&node_slot, bop->bo_tx, true);
+			node_fix(level->l_node, bop->bo_tx);
+			/*newrec1=>
+			key=given key value = extra allocated 
+			newrec2=>
+			key="" key value = given value*/
+			//make extra_l_alloc , l_alloc at level:0 as a child of level[0]->l_node
+			//lock_op_unlock(&bop->bo_i->i_nop);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+		}
+		return P_MAKESPACE;
+	}
+	case P_ACT: {
+		struct slot node_slot = {
+			.s_node = level->l_node,
+			.s_idx  = level->l_idx
+		};
+		m0_bufvec_copy(&node_slot.s_rec.r_key.k_data,
+					&bop->bo_rec.r_key.k_data,
+					m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
+		m0_bufvec_copy(&node_slot.s_rec.r_val, &bop->bo_rec.r_val,
+					m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+		node_done(&node_slot, bop->bo_tx, true);
+		node_fix(level->l_node, bop->bo_tx);
+		//lock_op_unlock(&bop->bo_i->i_nop);
+		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+	}
+	case P_CLEANUP: {
+		int i;
+		for (i = 0; i < oi->i_used; ++i) {
+			if (oi->i_level[i].l_node != NULL) {
+				node_put(oi->i_level[i].l_node);
+				oi->i_level[i].l_node = NULL;
+			}
+		}
+		//free(bop->bo_i);
+		return m0_sm_op_ret(&bop->bo_op);
+	}
+	default:
+		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
+	};
+}
+/* insert operation section end point: */
+#endif
 #ifndef __KERNEL__
 /**
  * The code contained below is 'ut'. This is a little experiment to contain the
@@ -2589,7 +2376,7 @@ static void generic_move(struct nd *src, struct nd *tgt,
  */
 static void m0_btree_ut_node_create_delete(void);
 static void m0_btree_ut_node_add_del_rec(void);
-
+static void m0_btree_ut_insert_record(void);
 
 /**
  * btree_ut test suite.
@@ -2606,6 +2393,7 @@ struct m0_ut_suite btree_ut = {
 	.ts_tests = {
 		{"node_create_delete",          m0_btree_ut_node_create_delete},
 		{"node_add_del_rec",            m0_btree_ut_node_add_del_rec},
+		{"insert_rec",                  m0_btree_ut_insert_record},
 		{NULL, NULL}
 	}
 };
@@ -2626,6 +2414,70 @@ static void btree_ut_fini(void)
 	segops = NULL;
 	m0_rwlock_fini(&trees_lock);
 	btree_ut_initialised = false;
+}
+
+/**
+ * This test will insert some records into the tree
+ */
+static void m0_btree_ut_insert_record(void)
+{
+	struct node_op          op;
+	struct m0_btree_type    tt;
+	struct td              *tree;
+	m0_bcount_t             ksize;
+	m0_bcount_t             vsize;
+	struct ff_head         *h;
+
+	M0_ENTRY();
+
+	btree_ut_init();
+
+	M0_SET0(&op);
+	
+	// Create a Fixed-Format tree.
+	op.no_opc = NOP_ALLOC;
+	
+	tree_create(&op, &tt, 10, NULL, 0);
+
+	tree = op.no_tree;
+
+	M0_ASSERT(tree->r_ref == 1);
+	M0_ASSERT(tree->t_root != NULL);
+	h = ff_data(tree->t_root);
+	ksize = h->ff_ksize;
+	vsize = h->ff_vsize;
+	//inintialized bop;
+	int total_record = 1500;
+	while(total_record) {
+		int                key;
+		int                val;
+		void              *p_key;
+		void              *p_val;
+		struct m0_btree_op bop;
+		p_key                                   = &key;
+		p_val                                   = &val;
+		bop.bo_rec.r_key.k_data.ov_vec.v_nr    = 1;
+		bop.bo_rec.r_key.k_data.ov_vec.v_count = &ksize;
+		bop.bo_rec.r_val.ov_vec.v_nr           = 1;
+		bop.bo_rec.r_val.ov_vec.v_count        = &vsize;
+		bop.bo_rec.r_key.k_data.ov_buf         = &p_key;
+		bop.bo_rec.r_val.ov_buf                = &p_val;
+		total_record--;
+
+		bop.bo_op.o_sm.sm_state = P_INIT;
+		int nxt;
+		while(1) {
+			nxt = get_tick_insert(&bop);
+			
+			if(nxt == P_DONE )
+			{
+				break;
+			}
+			bop.bo_op.o_sm.sm_state = nxt;
+		}
+
+
+	}
 }
 
 /**
