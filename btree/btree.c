@@ -1052,13 +1052,13 @@ static int node_space(const struct nd *node)
 	return node->n_type->nt_space(node);
 }
 
-
+#ifndef __KERNEL__
 static int node_level(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
 	return (node->n_type->nt_level(node));
 }
-
+#endif
 
 
 #if 0
@@ -1080,7 +1080,7 @@ static void node_rec(struct slot *slot)
 	slot->s_node->n_type->nt_rec(slot);
 }
 
-
+#ifndef __KERNEL__
 static void node_key(struct slot *slot)
 {
 	M0_PRE(node_invariant(slot->s_node));
@@ -1093,6 +1093,7 @@ static void node_child(struct slot *slot, struct segaddr *addr)
 	slot->s_node->n_type->nt_child(slot, addr);
 }
 
+#endif
 
 static bool node_isfit(struct slot *slot)
 {
@@ -1112,13 +1113,13 @@ static void node_make(struct slot *slot, struct m0_be_tx *tx)
 	slot->s_node->n_type->nt_make(slot, tx);
 }
 
-
+#ifndef __KERNEL__
 static void node_find(struct slot *slot, const struct m0_btree_key *key)
 {
 	M0_PRE(node_invariant(slot->s_node));
 	slot->s_node->n_type->nt_find(slot, key);
 }
-
+#endif
 
 static void node_fix(const struct nd *node, struct m0_be_tx *tx)
 {
@@ -1141,7 +1142,7 @@ static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	node->n_type->nt_del(node, idx, tx);
 }
 
-
+#ifndef __KERNEL__
 static void node_move(struct nd *src, struct nd *tgt,
 		      enum dir dir, int nr, struct m0_be_tx *tx)
 {
@@ -1150,6 +1151,7 @@ static void node_move(struct nd *src, struct nd *tgt,
 	M0_IN(dir,(D_LEFT, D_RIGHT));
 	tgt->n_type->nt_move(src, tgt, dir, nr, tx);
 }
+#endif 
 
 static struct mod *mod_get(void)
 {
@@ -1402,7 +1404,7 @@ static void tree_put(struct td *tree)
 }
 #endif
 
-
+#ifndef __KERNEL__
 /**
  * This function loads the node descriptor for the node at segaddr in memory.
  * If a node descriptor pointing to this node is already loaded in memory then
@@ -1425,6 +1427,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	return segops->so_node_get(op, tree, addr, nxt);
 }
 
+
 /**
  * This function decrements the reference count for this node and if the
  * reference count reaches '0' then the node is made available for future
@@ -1442,6 +1445,7 @@ static void node_put(struct nd *node){
 	M0_PRE(node != NULL);
 	segops->so_node_put(node);
 }
+#endif
 
 # if 0
 static struct nd *node_try(struct td *tree, struct segaddr *addr){
@@ -1486,14 +1490,13 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	node->n_type->nt_fini(node);
 	return segops->so_node_free(op, node, tx, nxt);
 }
-#endif
-
 
 static void node_op_fini(struct node_op *op)
 {
 	segops->so_node_op_fini(op);
 }
 
+#endif
 
 static int64_t mem_node_get(struct node_op *op, struct td *tree,
 			    struct segaddr *addr, int nxt);
