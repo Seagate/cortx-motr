@@ -108,8 +108,7 @@ static int libfab_bdesc_encode(struct m0_fab__buf *buf);
 static void libfab_bdesc_decode(struct m0_fab__buf *fb, 
 				struct m0_fab__ep_name *epname);
 static void libfab_buf_del(struct m0_net_buffer *nb);
-static void libfab_ep_put(struct m0_fab__ep *ep);
-static void libfab_ep_get(struct m0_fab__ep *ep);
+static inline void libfab_ep_get(struct m0_fab__ep *ep);
 static void libfab_ep_release(struct m0_ref *ref);
 static uint64_t libfab_mr_keygen(void);
 static int libfab_check_for_event(struct fid_eq *eq);
@@ -120,8 +119,8 @@ static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp);
 static int libfab_destaddr_get(struct m0_fab__ep_name *epname,
 			       struct fi_info *hints, struct fi_info **out);
 static void libfab_pending_bufs_send(struct m0_fab__ep *ep);
-static int libfab_target_notify(struct m0_fab__buf *buf,
-				struct m0_fab__active_ep *ep);
+static inline int libfab_target_notify(struct m0_fab__buf *buf,
+				       struct m0_fab__active_ep *ep);
 static struct m0_fab__fab *libfab_newfab_init(struct m0_fab__list *fl);
 static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 			    struct m0_fab__buf *fbp);
@@ -572,7 +571,6 @@ static void libfab_rxep_comp_read(struct fid_cq *cq, struct m0_fab__ep *ep)
 				if (buf[i]->fb_length == 0)
 					buf[i]->fb_length = len[i];
 				buf[i]->fb_ev_ep = ep;
-				libfab_ep_get(ep);
 				libfab_buf_done(buf[i], 0);
 			}
 			if (data[i])
@@ -723,6 +721,7 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 		if (libfab_ep_cmp(ep, name, epn)) {
 			*epp = &ep->fep_nep;
 			found = true;
+			libfab_ep_get(ep);
 			break;
 		}
 	} m0_tl_endfor;
@@ -1295,7 +1294,7 @@ static int libfab_ep_param_free(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 
 	memset(&ep->fep_name, 0, sizeof(ep->fep_name));
 
-	fab_sndbuf_tlist_fini(&ep->fep_sndbuf);
+	m0_free(ep);
 	return M0_RC(rc);
 }
 
@@ -1343,7 +1342,6 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 	
 	close(tm->ftm_epfd);
 
-	fab_buf_tlist_fini(&tm->ftm_done);
 	return M0_RC(rc);
 }
 
@@ -1369,10 +1367,8 @@ static struct m0_fab__tm *libfab_buf_tm(struct m0_fab__buf *buf)
 static void libfab_buf_fini(struct m0_fab__buf *buf)
 {
 	fab_buf_tlink_fini(buf);
-	if (buf->fb_ev_ep != NULL) {
-		libfab_ep_put(buf->fb_ev_ep);
+	if (buf->fb_ev_ep != NULL)
 		buf->fb_ev_ep = NULL;
-	}
 	buf->fb_length = 0;
 	buf->fb_all_seg_done = false;
 }
@@ -1482,12 +1478,7 @@ static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 	}
 }
 
-static void libfab_ep_put(struct m0_fab__ep *ep)
-{
-	m0_ref_put(&ep->fep_nep.nep_ref);
-}
-
-static void libfab_ep_get(struct m0_fab__ep *ep)
+static inline void libfab_ep_get(struct m0_fab__ep *ep)
 {
 	m0_ref_get(&ep->fep_nep.nep_ref);
 }
@@ -1737,8 +1728,8 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
 	M0_ASSERT(fab_sndbuf_tlist_is_empty(&ep->fep_sndbuf));
 }
 
-static int libfab_target_notify(struct m0_fab__buf *buf,
-				struct m0_fab__active_ep *aep)
+static inline int libfab_target_notify(struct m0_fab__buf *buf,
+				       struct m0_fab__active_ep *aep)
 {
 	uint64_t dummy[2]; /* Dummy data */
 	int      ret = 0;
@@ -1965,7 +1956,7 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 
 		if (ret != FI_SUCCESS) {
 			fb->fb_all_seg_done = true;
-			return M0_ERR(ret);
+			break;
 		}
 
 		if (loc_slen > rem_slen) {
@@ -2070,6 +2061,7 @@ static void libfab_ma_fini(struct m0_net_transfer_mc *tm)
 	libfab_tm_fini(tm);
 	
 	tm->ntm_xprt_private = NULL;
+	fab_buf_tlist_fini(&ma->ftm_done);
 	m0_free(ma);
 
 	M0_LEAVE();
@@ -2309,7 +2301,6 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		M0_ASSERT(nb->nb_length <= m0_vec_count(&nb->nb_buffer.ov_vec));
 		M0_ASSERT(nb->nb_buffer.ov_vec.v_nr == 1);
 		libfab_fab_ep_find(ma, NULL, nb->nb_ep->nep_addr, &ep);
-		libfab_ep_get(ep);
 		aep = libfab_aep_get(ep);
 		fbp->fb_txctx = ep;
 		
@@ -2352,7 +2343,6 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		memset(&epname, 0, sizeof(epname));
 		libfab_bdesc_decode(fbp, &epname);
 		libfab_fab_ep_find(ma, &epname, NULL, &ep);
-		libfab_ep_get(ep);
 		fbp->fb_txctx = ep;
 		aep = libfab_aep_get(ep);
 		if (aep->aep_tx_state != FAB_CONNECTED)
