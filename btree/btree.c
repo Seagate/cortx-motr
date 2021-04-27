@@ -576,6 +576,17 @@ enum {
 	M0_NODE_COUNT = 100,
 };
 
+enum {
+	MAX_NODE_SIZE = 10,
+	MAX_KEY_SIZE = 8,
+	MAX_VAL_SIZE = 8,
+	MIN_NODE_SIZE_UNDERFLOW,
+};
+
+enum {
+	MAX_TREE_HEIGHT = 6
+};
+
 #if 0
 static int fail(struct m0_btree_op *bop, int rc)
 {
@@ -808,7 +819,7 @@ struct node_type {
 	/** Cleanup of the node if any before deallocation */
 	void (*nt_fini)(const struct nd *node);
 
-	/** Returns count of records in the node */
+	/** Returns count of keys in the node */
 	int  (*nt_count)(const struct nd *node);
 
 	/** Returns the space (in bytes) available in the node */
@@ -865,6 +876,8 @@ struct node_type {
 
 	/** Deletes the record from the node at specific index */
 	void (*nt_del)  (const struct nd *node, int idx, struct m0_be_tx *tx);
+
+	void (*nt_set_level)  (const struct nd *node, uint8_t new_level);
 
 	/** Moves record(s) between nodes */
 	void (*nt_move) (struct nd *src, struct nd *tgt,
@@ -949,7 +962,7 @@ static int64_t tree_delete(struct node_op *op, struct td *tree,
 static void    tree_put   (struct td *tree);
 static int64_t    node_get  (struct node_op *op, struct td *tree,
 			     struct segaddr *addr, int nxt);
-			     static void       node_put  (struct nd *node);
+static void       node_put  (struct nd *node);
 #endif
 
 
@@ -992,8 +1005,11 @@ static void node_fix  (const struct nd *node, struct m0_be_tx *tx);
 static void node_cut  (const struct nd *node, int idx, int size,
 		       struct m0_be_tx *tx);
 #endif
+
 static void node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
+
 #ifndef __KERNEL__
+static void node_set_level  (const struct nd *node, uint8_t new_level);
 static void node_move (struct nd *src, struct nd *tgt,
 		       enum dir dir, int nr, struct m0_be_tx *tx);
 #endif
@@ -1025,7 +1041,7 @@ struct m0_btree_oimpl {
 	struct node_op  i_nop;
 	/* struct lock_op  i_lop; */
 	unsigned        i_used;
-	struct level    i_level[0];
+	struct level    i_level[MAX_TREE_HEIGHT];
 	struct nd      *extra_node;
 };
 
@@ -1143,6 +1159,12 @@ static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 }
 
 #ifndef __KERNEL__
+static void node_set_level(const struct nd *node, uint8_t new_level)
+{
+	M0_PRE(node_invariant(node));
+	node->n_type->nt_set_level(node, new_level);
+}
+
 static void node_move(struct nd *src, struct nd *tgt,
 		      enum dir dir, int nr, struct m0_be_tx *tx)
 {
@@ -1754,6 +1776,7 @@ static void ff_fix(const struct nd *node, struct m0_be_tx *tx);
 static void ff_cut(const struct nd *node, int idx, int size,
 		   struct m0_be_tx *tx);
 static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx);
+static void ff_set_level(const struct nd *node, uint8_t new_level);
 static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 static bool ff_invariant(const struct nd *node);
@@ -1783,11 +1806,10 @@ static const struct node_type fixed_format = {
 	.nt_fix       = ff_fix,
 	.nt_cut       = ff_cut,
 	.nt_del       = ff_del,
+	.nt_set_level = ff_set_level,
 	.nt_move      = generic_move,
 	.nt_invariant = ff_invariant,
 };
-
-
 
 static struct ff_head *ff_data(const struct nd *node)
 {
@@ -1942,7 +1964,9 @@ static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
 {
 	struct ff_head *h = ff_data(slot->s_node);
 	int             i = -1;
-	int             j = h->ff_used;
+	int             j = node_count(slot->s_node);
+
+	//j-1 if node.level<0
 
 	M0_PRE(find_key->k_data.ov_vec.v_count[0] == h->ff_ksize);
 	M0_PRE(find_key->k_data.ov_vec.v_nr == 1);
@@ -1990,21 +2014,49 @@ static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	h->ff_used--;
 }
 
+static void ff_set_level(const struct nd *node, uint8_t new_level)
+{
+	struct ff_head *h = ff_data(node);
+
+	h->ff_level = new_level;
+}
+
 static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx)
 {
 	M0_PRE(src != tgt);
 	while (true) {
+		
 		struct slot rec;
 		struct slot tmp;
+		m0_bcount_t rec_ksize;
+		m0_bcount_t rec_vsize;
+		m0_bcount_t temp_ksize;
+		m0_bcount_t temp_vsize;
+		void       *rec_p_key;
+		void       *rec_p_val;
+		void       *temp_p_key;
+		void       *temp_p_val;
+	
 		int         srcidx = dir == D_LEFT ? 0 : node_count(src) - 1;
 		int         tgtidx = dir == D_LEFT ? node_count(tgt) : 0;
 
-		if (nr == 0 || (nr == NR_EVEN &&
+		rec.s_rec.r_key.k_data.ov_vec.v_count = &rec_ksize;
+		rec.s_rec.r_key.k_data.ov_buf = &rec_p_key;
+		rec.s_rec.r_val.ov_vec.v_count = &rec_vsize;
+		rec.s_rec.r_val.ov_buf = &rec_p_val;
+
+		tmp.s_rec.r_key.k_data.ov_vec.v_count = &temp_ksize;
+		tmp.s_rec.r_key.k_data.ov_buf = &temp_p_key;
+		tmp.s_rec.r_val.ov_vec.v_count = &temp_vsize;
+		tmp.s_rec.r_val.ov_buf = &temp_p_val;
+
+		if (srcidx == -1 || nr == 0 || (nr == NR_EVEN &&
 				(node_space(tgt) <= node_space(src))))
 			break;
 
 		/** Get the record at src index in rec. */
+
 		rec.s_node = src;
 		rec.s_idx  = srcidx;
 		node_rec(&rec);
@@ -2042,21 +2094,12 @@ static void generic_move(struct nd *src, struct nd *tgt,
 	node_fix(tgt, tx);
 }
 
-
-
-
 /* insert operation section start point: */
-enum {
-	MAX_NODE_SIZE,
-	MAX_KEY_SIZE,
-	MAX_VALUE_SIZE,
-	MIN_NODE_SIZE_UNDERFLOW,
-};
 
 #ifndef __KERNEL__
 static bool isOverflowPossible(const struct nd *node)
 {
-	return (node_space(node) < MAX_KEY_SIZE + MAX_VALUE_SIZE) ? true : false;
+	return (node_space(node) < MAX_KEY_SIZE + MAX_VAL_SIZE) ? true : false;
 }
 #endif
 
@@ -2065,7 +2108,7 @@ static bool isUnderflowPossible(const struct nd *node)
 {
 	/* defination of this function can be modified 
 	as, MAX_NODE_SIZE can vary according to level*/
-	return node_space(node) +  MAX_KEY_SIZE + MAX_VALUE_SIZE < MIN_NODE_SIZE_UNDERFLOW ? true : false;
+	return node_space(node) +  MAX_KEY_SIZE + MAX_VAL_SIZE < MIN_NODE_SIZE_UNDERFLOW ? true : false;
 }
 #endif
 
@@ -2098,10 +2141,10 @@ static bool check_path(void)
 {
 	/*int total_level = oi->i_used;
 	while(total_level >= 0) {
-		if(!segaddr_is_valid(&oi->i_level[total_level].l_node->n_addr) {
+		if(!is_valid(l_node->n_addr)) {
 			return false;
 		}
-		else if(oi->i_level[total_level].l_seq != oi->i_level[total_level].l_node->n_seq)) {
+		if(oi->i_level[total_level].l_seq != oi->i_level[total_level].l_node->n_seq)) {
 			return false;
 		}
 		total_level--;
@@ -2119,28 +2162,49 @@ static int64_t lock_op_init(struct m0_sm_op *bo_op, struct node_op *i_nop, int n
 {
 	return nxt;
 }
+
+static void lock_op_unlock(struct node_op *i_nop)
+{
+
+}
+
 static bool cookie_is_set(struct m0_bcookie *k_cookie)
 {
 	return false;
 }
+
 /*
-* modify_key() will modify rec at node_slot.s_idx to node_slot->s_rec
-* if flag = true, update key to new key else, modify key as null
+* checks if given node is still exists
+*/
+static bool is_node_valid(const struct nd *node)
+{
+	return true;
+}
+#if 0
+/*
+* modify_key() will modify key present at node_slot.s_idx
+* if flag = true, update key to new key (node_slot->s_rec.r_key) else, modify key as empty
+* In case of fix key-size format, we can just overwrite existing key with new key,
+* but, for variable key-size format, we need to delete existing record first,
+* and insert new record with modified key as new key size can be different
 */
 static void modify_key(struct slot *node_slot, bool flag, struct m0_be_tx *tx)
 {
 	struct m0_btree_rec new_rec;
 	if(flag)
 		new_rec.r_key = node_slot->s_rec.r_key;
-	new_rec.r_val = node_slot->s_rec.r_val;
+	//memcpy instead new_rec.r_val = node_slot->s_rec.r_val;
+
 	node_del(node_slot->s_node, node_slot->s_idx, tx);
 	node_make(node_slot, tx);
+	//node_rec(node_slot);
 	m0_bufvec_copy(&node_slot->s_rec.r_key.k_data, &new_rec.r_key.k_data,
 		       m0_vec_count(&new_rec.r_key.k_data.ov_vec));
 	m0_bufvec_copy(&node_slot->s_rec.r_val, &new_rec.r_val,
 		       m0_vec_count(&new_rec.r_val.ov_vec));
 	node_done(node_slot, tx, true);
 }
+#endif
 
 /*get_tick for insert operation*/
 static int get_tick_insert(struct m0_btree_op *bop)
@@ -2179,12 +2243,18 @@ static int get_tick_insert(struct m0_btree_op *bop)
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
 			struct slot    node_slot = {};
 			struct segaddr down;
-			node_slot.s_node = oi->i_nop.no_node;
+
 			level->l_node = oi->i_nop.no_node;
+			node_slot.s_node = oi->i_nop.no_node;
+			 
 			node_op_fini(&oi->i_nop); //@todo ?
 			node_find(&node_slot, &bop->bo_rec.r_key);
 			level->l_idx = node_slot.s_idx;
 			if (node_level(node_slot.s_node) > 0) {
+				//validate node_slot.s_node(i.e. is it still exists or not)
+				if(!is_node_valid(node_slot.s_node))
+					return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+
 				node_child(&node_slot, &down);
 				oi->i_used++;
 				return node_get(&oi->i_nop, tree,
@@ -2196,26 +2266,62 @@ static int get_tick_insert(struct m0_btree_op *bop)
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
 	case P_ALLOC: {
+		//validate l.node
+		if(!is_node_valid(level->l_node))
+			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+		
 		if (isOverflowPossible(level->l_node)) {
-			if (oi->i_used == 0) {
-				if (oi->extra_node == NULL) {
+			if (oi->i_used == 0 ) {
+				if((oi->extra_node == NULL || level->l_alloc == NULL)) {
 					struct node_op node_op;
-					node_op.no_node = oi->extra_node;
-					/*@todo shift ? */
-					return node_alloc(&node_op, tree, MAX_NODE_SIZE,
-					level->l_node->n_type, 8, 8,bop->bo_tx, P_ALLOC);
-				} 
+					node_op.no_opc = NOP_ALLOC;
+					int nxt;
+					/*
+					if we reach root node and there is possibility of overflow at root,
+					allocate extra node, as root node may get split and extra node may required 
+					*/
+					if (oi->extra_node == NULL) {
+						nxt = node_alloc(&node_op, tree, MAX_NODE_SIZE,
+								 level->l_node->n_type, MAX_KEY_SIZE,
+								 MAX_VAL_SIZE,bop->bo_tx, P_ALLOC);
+						//@todo:handle if node_alloc fail
+						oi->extra_node = node_op.no_node;
+						
+					}		
+					else {
+						nxt = node_alloc(&node_op, tree, MAX_NODE_SIZE,
+								 level->l_node->n_type, MAX_KEY_SIZE,
+								 MAX_VAL_SIZE,bop->bo_tx, P_ALLOC);
+						//@todo:handle if node_alloc fail
+						level->l_alloc = node_op.no_node;
+					}
+					return nxt;
+				}
+				
 			} else {
 				struct node_op node_op;
-				node_op.no_node = level->l_alloc;
-				if (oi->i_used > 0) 
-					oi->i_used--;
-				return node_alloc(&node_op, tree, MAX_NODE_SIZE,
-				level->l_node->n_type, 8, 8,bop->bo_tx, P_ALLOC);
+				node_op.no_opc = NOP_ALLOC;
+				oi->i_used--;
+				int nxt = node_alloc(&node_op, tree, MAX_NODE_SIZE,
+						     level->l_node->n_type, MAX_KEY_SIZE,
+						     MAX_VAL_SIZE, bop->bo_tx, P_ALLOC);
+				//@todo:handle if node_alloc fail
+				level->l_alloc = node_op.no_node;
+				return nxt;
 			}
 		}
+
+		//assert l.node is still valid at each iteration
 		//reset oi->i_used
-		while (node_level(oi->i_level[oi->i_used].l_node) > 0) {
+		/*while (node_level(oi->i_level[oi->i_used].l_node) > 0) {
+			oi->i_used++;
+		}*/
+		while(1)
+		{
+			if(!is_node_valid(oi->i_level[oi->i_used].l_node))
+				return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+			if(node_level(oi->i_level[oi->i_used].l_node) == 0)
+				break;
 			oi->i_used++;
 		}
 		return P_LOCK;
@@ -2252,26 +2358,59 @@ static int get_tick_insert(struct m0_btree_op *bop)
 			node_make (&slot_for_right_node, bop->bo_tx);
 			return P_ACT;
 		} else {
+			/*
+			if record is not able to fit in the node, split the node
+			1) move some records from current node(l_node) to new node(l_alloc)
+			2) insert given record to appropriate node
+			3) modify key, value for record which needs to get inserted at parent
+			*/
 			struct slot slot_for_left_node = {
 				.s_node = level->l_alloc,
 				.s_idx  = 0
 			};
 			struct slot *tgt;
-			node_move(level->l_alloc, level->l_node, D_LEFT, NR_EVEN, bop->bo_tx);
+			/*1) move some records from current node(l_node) to new node(l_alloc)*/
+			node_move(level->l_node, level->l_alloc, D_LEFT, NR_EVEN, bop->bo_tx);
+
+			/*update level for newly allocated*/
+			node_set_level(level->l_alloc, node_level(level->l_node));
+			
+			/*
+			2) insert given record to appropriate node
+			get the first key from right node and compare with the key of given record
+			if given key is less than first key from right node, insert given record to
+			left node, else insert to the right node
+			*/
+			m0_bcount_t          ksize;
+			void                *p_key;
+			m0_bcount_t          vsize;
+			void                *p_val;
+			struct m0_btree_rec  temp_rec;
+
+			temp_rec.r_key.k_data.ov_vec.v_nr = 1;
+			temp_rec.r_key.k_data.ov_vec.v_count = &ksize;
+			temp_rec.r_key.k_data.ov_buf = &p_key;
+
+			temp_rec.r_val.ov_vec.v_nr = 1;
+			temp_rec.r_val.ov_vec.v_count = &vsize;
+			temp_rec.r_val.ov_buf = &p_val;
+
 			slot_for_right_node.s_idx = 0;
+			slot_for_right_node.s_rec = temp_rec;
 			node_key(&slot_for_right_node);
 			
-			if (*(bop->bo_rec.r_key.k_data.ov_buf) < *(slot_for_right_node.s_rec.r_key.k_data.ov_buf)) {
-				node_find(&slot_for_left_node, &bop->bo_rec.r_key);
-				slot_for_left_node.s_rec = bop->bo_rec;
-				node_make (&slot_for_left_node, bop->bo_tx);
-				tgt = &slot_for_left_node;
-			} else {
-				node_find(&slot_for_right_node, &bop->bo_rec.r_key);
-				slot_for_right_node.s_rec = bop->bo_rec;
-				node_make (&slot_for_right_node, bop->bo_tx);
-				tgt = &slot_for_right_node;
-			}
+			int diff = memcmp(bop->bo_rec.r_key.k_data.ov_buf[0],
+			                  slot_for_right_node.s_rec.r_key.k_data.ov_buf[0],
+					  slot_for_right_node.s_rec.r_key.k_data.ov_vec.v_count[0]);
+			
+			tgt = diff < 0 ? &slot_for_left_node : &slot_for_right_node;
+
+			node_find(tgt, &bop->bo_rec.r_key);
+			tgt->s_rec = bop->bo_rec;
+			node_make (tgt, bop->bo_tx);
+			tgt->s_rec = temp_rec;
+			node_rec(tgt);
+
 			m0_bufvec_copy(&tgt->s_rec.r_key.k_data,
 				       &bop->bo_rec.r_key.k_data,
 				       m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
@@ -2282,76 +2421,164 @@ static int get_tick_insert(struct m0_btree_op *bop)
 			node_fix(tgt->s_node, bop->bo_tx);
 
 			
-			if(node_level(slot_for_left_node.s_node) > 0) {
-				/*internal node : after moving rec from right to left, 
-				last key becomes new key of rec(which need to get inserted at parent 
-				and lst key of left node need to get empty)*/
-				slot_for_left_node.s_idx = node_count(level->l_node) - 1;
-				node_rec(&slot_for_left_node);
-				/* bop->bo_rec which needs to be added at parent */
-				bop->bo_rec.r_key = slot_for_left_node.s_rec.r_key;/*update bop->bo_rec.r_key to last key of left node*/
-				//bop->bo_rec.r_value = l_alloc /*@todo:update bop->bo_rec.r_key to l_alloc*/
+			if(node_level(slot_for_right_node.s_node) > 0) {
+				/*
+				At internal node: once we move records from right node(l_node) to left(l_alloc),
+				we need to update last key from left node and record(which needs to get inserted at parent)
+				1)update record which needs to get inserted at parent
+					i)key of rec will be last key from left node
+					ii)value of rec will be pointer to l_alloc
+				2)last key of left node needs to be set as empty(if required)
+				*/
+				slot_for_left_node.s_idx = node_count(level->l_node);
+				slot_for_left_node.s_rec = temp_rec;
+				node_key(&slot_for_left_node);
 
-				/*update last key of left node to null/empty, as we move items to right node, last key won't be null*/
-				modify_key(&slot_for_left_node, false, bop->bo_tx);
+				/*1)update bop->bo_rec which needs to be added at parent */
+				/*i)update bop->bo_rec.r_key to last key of left node */
+				m0_bufvec_copy(&bop->bo_rec.r_key.k_data,
+					       &slot_for_left_node.s_rec.r_key.k_data,
+					       m0_vec_count(&slot_for_left_node.s_rec.r_key.k_data.ov_vec));
+				/*ii)update bop->bo_rec.r_val to pointer to l_alloc */
+				temp_rec.r_val.ov_buf[0] =  &(level->l_alloc->n_addr);
+				m0_bufvec_copy(&bop->bo_rec.r_val,
+					       &temp_rec.r_val, 8); //@todo : replace 8 with internal node vsize
+				
+				/*2)update last key of left node to null/empty, as we move items to right node, last key won't be null*/
+				/*modify_key(&slot_for_left_node, false, bop->bo_tx);
 				node_done(tgt, bop->bo_tx, true);
-				node_fix(tgt->s_node, bop->bo_tx);
+				node_fix(tgt->s_node, bop->bo_tx);*/
 			} else {
+				/*
+				If we are at leaf node, update record which needs to get inserted at parent
+				1)key of new record will be first key from right node and
+				2)value of new record will be pointer to l_alloc;
+				*/
 				slot_for_right_node.s_idx = 0;
+				slot_for_right_node.s_rec = temp_rec;
 				node_key(&slot_for_right_node);
-				/* bop->bo_rec which needs to be added at parent */
-				bop->bo_rec.r_key = slot_for_right_node.s_rec.r_key; /*update bop->bo_rec.r_key tofirst key of right node*/
-				//struct m0_bufvec in = M0_BUFVEC_INIT_BUF(&addr, &buf_count);
-				//*@todo:update bo_rec.r_value : bop->bo_rec.r_value = level->l_alloc;
+				/* Update bop->bo_rec which needs to be added at parent */
+				m0_bufvec_copy(&bop->bo_rec.r_key.k_data,
+					       &slot_for_right_node.s_rec.r_key.k_data,
+					       m0_vec_count(&slot_for_right_node.s_rec.r_key.k_data.ov_vec));
+				temp_rec.r_val.ov_buf[0] =  &(level->l_alloc->n_addr);
+				m0_bufvec_copy(&bop->bo_rec.r_val,
+					       &temp_rec.r_val, 8); //@todo : replace 8 with internal node vsize
+						
 			}
 			return P_NEXTUP;
 		}
 	}
 	case P_NEXTUP: {
-		oi->i_used--;
-		if ( oi->i_used == -1) {
-			//one level will get added and height will increase
-			//copy root content to extra_l_alloc
-			//use extra_l_alloc ,l_alloc as two child for root
+		if (oi->i_used == 0) {
+			/*if oi->i_used == 0, we are at root level and splitting is done at root*/
+
+			m0_bcount_t          ksize;
+			void                *p_key;
+			m0_bcount_t          vsize;
+			void                *p_val;
+			struct m0_btree_rec  temp_rec;
+
+			temp_rec.r_key.k_data.ov_vec.v_nr = 1;
+			temp_rec.r_key.k_data.ov_vec.v_count = &ksize;
+			temp_rec.r_key.k_data.ov_buf = &p_key;
+
+			temp_rec.r_val.ov_vec.v_nr = 1;
+			temp_rec.r_val.ov_vec.v_count = &vsize;
+			temp_rec.r_val.ov_buf = &p_val;
+			/*
+			When splitting is done at root node, tree height needs to get increased by one
+			As, we do not want to change the pointer to the root node, we will copy all contents from root to extra_node
+			and make extra_node as one of the child of existing root
+			1) First copy all contents from root node to extra_node
+			2) add new 2 records at root node:
+				i.for first record, key = bop->bo_rec.r_key, value = bop->bo_rec.r_val
+				ii.for first record, key = null, value = segaddr(extra_node)
+			*/
+		
+			node_move(level->l_node, oi->extra_node, D_RIGHT, NR_MAX, bop->bo_tx);
+			//M0_ASSERT(node_count(level->l_node) == 0);
 			struct slot node_slot = {
 				.s_node = level->l_node,
 				.s_idx  = 0
 			};
-			node_move(level->l_node, oi->extra_node, D_RIGHT, NR_MAX, bop->bo_tx);
-			node_slot.s_rec.r_key = bop->bo_rec.r_key;
-			//node_slot.s_rec.r_val = extra allocated;
+			node_slot.s_rec = bop->bo_rec;
+			//M0_ASSERT(node_isfit(&node_slot))
 			node_make(&node_slot, bop->bo_tx);
+			node_slot.s_rec = temp_rec;
+			node_rec(&node_slot);
+			m0_bufvec_copy(&node_slot.s_rec.r_key.k_data, &bop->bo_rec.r_key.k_data,
+				       m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
+			m0_bufvec_copy(&node_slot.s_rec.r_val, &bop->bo_rec.r_val,
+				       m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+
+			int curr_max_level = node_level(level->l_node);
+			node_set_level(oi->extra_node, curr_max_level);
+			node_set_level(level->l_node, curr_max_level + 1);
+
 			node_done(&node_slot, bop->bo_tx, true);
+
+			struct m0_btree_rec  temp_rec_3;
+			m0_bcount_t          ksize_3;
+			void                *p_key_3;
+			m0_bcount_t          vsize_3;
+			void                *p_val_3;
+
+			temp_rec_3.r_key.k_data.ov_vec.v_nr = 1;
+			temp_rec_3.r_key.k_data.ov_vec.v_count = &ksize_3;
+			temp_rec_3.r_key.k_data.ov_buf = &p_key_3;
+
+			temp_rec_3.r_val.ov_vec.v_nr = 1;
+			temp_rec_3.r_val.ov_vec.v_count = &vsize_3;
+			temp_rec_3.r_val.ov_buf = &p_val_3;
+			
 			node_slot.s_idx  = 1;
-			//node_slot.s_rec.r_key = "";
-			node_slot.s_rec.r_val = bop->bo_rec.r_val;
+			node_slot.s_rec = temp_rec;
+			//M0_ASSERT(node_isfit(&node_slot))
 			node_make(&node_slot, bop->bo_tx);
+			node_slot.s_rec = temp_rec_3;
+			node_rec(&node_slot);
+			
+			temp_rec.r_val.ov_buf[0] = &(oi->extra_node->n_addr);
+			m0_bufvec_copy(&node_slot.s_rec.r_val, &temp_rec.r_val,
+					m0_vec_count(&temp_rec.r_val.ov_vec));
+			
 			node_done(&node_slot, bop->bo_tx, true);
+
 			node_fix(level->l_node, bop->bo_tx);
-			/*newrec1=>
-			key=given key value = extra allocated 
-			newrec2=>
-			key="" key value = given value*/
-			//make extra_l_alloc , l_alloc at level:0 as a child of level[0]->l_node
-			//lock_op_unlock(&bop->bo_i->i_nop);
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+			lock_op_unlock(&bop->bo_i->i_nop);
+			//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+			return P_CLEANUP;
 		}
+		oi->i_used--;
 		return P_MAKESPACE;
 	}
 	case P_ACT: {
+		m0_bcount_t          ksize;
+		void                *p_key;
+		m0_bcount_t          vsize;
+		void                *p_val;
 		struct slot node_slot = {
 			.s_node = level->l_node,
 			.s_idx  = level->l_idx
 		};
+		node_slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
+		node_slot.s_rec.r_key.k_data.ov_buf = &p_key;
+
+		node_slot.s_rec.r_val.ov_vec.v_count = &vsize;
+		node_slot.s_rec.r_val.ov_buf = &p_val;
+		
+		node_rec(&node_slot);
 		m0_bufvec_copy(&node_slot.s_rec.r_key.k_data,
-					&bop->bo_rec.r_key.k_data,
-					m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
+			       &bop->bo_rec.r_key.k_data,
+			       m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
 		m0_bufvec_copy(&node_slot.s_rec.r_val, &bop->bo_rec.r_val,
-					m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+			       m0_vec_count(&bop->bo_rec.r_val.ov_vec));
 		node_done(&node_slot, bop->bo_tx, true);
 		node_fix(level->l_node, bop->bo_tx);
-		//lock_op_unlock(&bop->bo_i->i_nop);
-		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+		lock_op_unlock(&bop->bo_i->i_nop);
+		return P_CLEANUP;
+		//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 	}
 	case P_CLEANUP: {
 		int i;
@@ -2360,9 +2587,17 @@ static int get_tick_insert(struct m0_btree_op *bop)
 				node_put(oi->i_level[i].l_node);
 				oi->i_level[i].l_node = NULL;
 			}
+			if (oi->i_level[i].l_alloc!= NULL) {
+				node_put(oi->i_level[i].l_alloc);
+				oi->i_level[i].l_alloc = NULL;
+			}
+		}
+		if(oi->extra_node != NULL) {
+			node_put(oi->extra_node);
 		}
 		//free(bop->bo_i);
-		return m0_sm_op_ret(&bop->bo_op);
+		return P_DONE;
+		//return m0_sm_op_ret(&bop->bo_op);
 	}
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
@@ -2419,69 +2654,7 @@ static void btree_ut_fini(void)
 	btree_ut_initialised = false;
 }
 
-/**
- * This test will insert some records into the tree
- */
-static void m0_btree_ut_insert_record(void)
-{
-	struct node_op          op;
-	struct m0_btree_type    tt;
-	struct td              *tree;
-	m0_bcount_t             ksize;
-	m0_bcount_t             vsize;
-	struct ff_head         *h;
 
-	M0_ENTRY();
-
-	btree_ut_init();
-
-	M0_SET0(&op);
-	
-	// Create a Fixed-Format tree.
-	op.no_opc = NOP_ALLOC;
-	
-	tree_create(&op, &tt, 10, NULL, 0);
-
-	tree = op.no_tree;
-
-	M0_ASSERT(tree->r_ref == 1);
-	M0_ASSERT(tree->t_root != NULL);
-	h = ff_data(tree->t_root);
-	ksize = h->ff_ksize;
-	vsize = h->ff_vsize;
-	//inintialized bop;
-	int total_record = 1500;
-	while(total_record) {
-		int                key;
-		int                val;
-		void              *p_key;
-		void              *p_val;
-		struct m0_btree_op bop;
-		p_key                                   = &key;
-		p_val                                   = &val;
-		bop.bo_rec.r_key.k_data.ov_vec.v_nr    = 1;
-		bop.bo_rec.r_key.k_data.ov_vec.v_count = &ksize;
-		bop.bo_rec.r_val.ov_vec.v_nr           = 1;
-		bop.bo_rec.r_val.ov_vec.v_count        = &vsize;
-		bop.bo_rec.r_key.k_data.ov_buf         = &p_key;
-		bop.bo_rec.r_val.ov_buf                = &p_val;
-		total_record--;
-
-		bop.bo_op.o_sm.sm_state = P_INIT;
-		int nxt;
-		while(1) {
-			nxt = get_tick_insert(&bop);
-			
-			if(nxt == P_DONE )
-			{
-				break;
-			}
-			bop.bo_op.o_sm.sm_state = nxt;
-		}
-
-
-	}
-}
 
 /**
  * This test will create a few nodes and then delete them before exiting. The
@@ -2683,6 +2856,28 @@ void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
 		*val = *(uint64_t *)p_val;
 }
 
+void get_key_at_index(struct nd *node, int idx, uint64_t *key)
+{
+	
+	struct slot          slot;
+	m0_bcount_t          ksize;
+	void                *p_key;
+
+	M0_SET0(&slot);
+	slot.s_node = node;
+	slot.s_idx  = idx;
+
+	M0_ASSERT(idx<node_count(node));
+
+	slot.s_rec.r_key.k_data.ov_vec.v_nr = 1;
+	slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
+	slot.s_rec.r_key.k_data.ov_buf = &p_key;
+
+	node_key(&slot);
+
+	if (key != NULL)
+		*key = *(uint64_t *)p_key;
+}
 /**
  * This test will create a tree, add a node and then populate the node with
  * some records. It will also confirm the records are in ascending order of Key.
@@ -2761,6 +2956,203 @@ void m0_btree_ut_node_add_del_rec(void)
 
 	btree_ut_fini();
 
+	M0_LEAVE();
+}
+
+static void m0_btree_ut_traversal(struct nd *root, struct td *tree)
+{
+	struct nd *queue[10000];
+	int front = 0, rear = 0;
+	queue[front] = root;
+
+	while(front != -1 && rear != -1)
+	{
+		//pop one elemet
+		struct nd* element = queue[front];
+		if(front == rear) {
+			front = -1;
+			rear = -1;
+		} else {
+			front++;
+		}
+		printf("\n");
+		int level = node_level(element);
+		if(level > 0)
+		{
+			printf("level : %d =>",level);
+			int total_count = node_count(element);
+			int j;
+			
+			for(j=0 ; j < total_count; j++)
+			{
+				/*m0_bcount_t          ksize;
+				void                *p_key;
+				struct slot temp_slot;
+				temp_slot.s_node = element;
+				temp_slot.s_idx = j;
+				temp_slot.s_rec.r_key.k_data.ov_vec.v_nr = 1;
+				temp_slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
+				temp_slot.s_rec.r_key.k_data.ov_buf = &p_key;
+				node_key(&temp_slot);
+				printf("%d\t", *(int *)temp_slot.s_rec.r_key.k_data.ov_buf[0]);
+				*/
+				
+				uint64_t key = 0;
+				get_key_at_index(element, j, &key);
+				printf("%"PRIu64"\t", key);
+
+				struct segaddr down;
+				struct slot    node_slot = {};
+				node_slot.s_node = element;
+
+				node_slot.s_idx = j;
+				node_child(&node_slot, &down);
+				struct node_op  i_nop;
+				i_nop.no_opc = NOP_LOAD;
+				node_get(&i_nop, tree, &down, P_NEXTDOWN);
+				if(front == -1) {
+					front = 0;
+				}
+				rear++;
+				if(rear == 9999)
+				{
+					printf("**************OVERFLOW*********************");
+					break;
+				}
+				queue[rear] = i_nop.no_node;
+		
+			}
+
+			//store last child:
+			struct segaddr down;
+			struct slot    node_slot = {};
+			node_slot.s_node = element;
+
+			node_slot.s_idx = j;
+			node_child(&node_slot, &down);
+			struct node_op  i_nop;
+			i_nop.no_opc = NOP_LOAD;
+			node_get(&i_nop, tree, &down, P_NEXTDOWN);
+			if(front == -1) {
+				front = 0;
+			}
+			rear++;
+			if(rear == 9999)
+			{
+				printf("**************OVERFLOW*********************");
+				break;
+			}
+			queue[rear] = i_nop.no_node;
+
+			printf("\n\n");	
+		} else {
+			printf("level : %d =>",level);
+			int total_count = node_count(element);
+			int j;
+			for(j=0 ; j < total_count; j++)
+			{
+				uint64_t key = 0;
+				uint64_t val = 0;
+				get_rec_at_index(element, j, &key, &val);
+				printf("%"PRIu64",%"PRIu64"\t", key, val);
+			}
+			printf("\n\n");
+
+		}
+
+	}
+}
+
+/**
+ * This test will create tree and insert records it into the created tree
+ * using insert function for btree(i.e.get_tick_insert())
+ */
+static void m0_btree_ut_insert_record(void)
+{
+	struct node_op          op;
+	struct m0_btree_type    tt;
+	struct td              *tree;
+	m0_bcount_t             ksize;
+	m0_bcount_t             vsize;
+	struct ff_head         *h;
+
+	M0_ENTRY();
+
+	btree_ut_init();
+
+	M0_SET0(&op);
+
+	// Create a Fixed-Format tree.
+	op.no_opc = NOP_ALLOC;
+	
+	tree_create(&op, &tt, 10, NULL, 0);
+
+	tree = op.no_tree;
+
+	M0_ASSERT(tree->r_ref == 1);
+	M0_ASSERT(tree->t_root != NULL);
+
+	h = ff_data(tree->t_root);
+	ksize = h->ff_ksize;
+	vsize = h->ff_vsize;
+
+	//inintialize bop;
+	uint64_t total_record = 255;
+
+	uint64_t temp = 255;
+
+	bool inc = false;
+
+	while(total_record) {
+		uint64_t               key;
+		uint64_t               val;
+		key = inc ? temp -total_record : total_record;
+		val = key + 1;
+		printf("%"PRIu64",",key);
+		void              *p_key;
+		void              *p_val;
+		struct m0_btree_op bop;
+		struct m0_btree_oimpl bo_i;
+		M0_SET0(&bo_i);
+		
+		bo_i.i_nop.no_opc = NOP_LOAD;
+
+		bop.bo_i = &bo_i;
+		p_key                                   = &key;
+		p_val                                   = &val;
+		bop.bo_rec.r_key.k_data.ov_vec.v_nr    = 1;
+		bop.bo_rec.r_key.k_data.ov_vec.v_count = &ksize;
+		bop.bo_rec.r_val.ov_vec.v_nr           = 1;
+		bop.bo_rec.r_val.ov_vec.v_count        = &vsize;
+		bop.bo_rec.r_key.k_data.ov_buf         = &p_key;
+		bop.bo_rec.r_val.ov_buf                = &p_val;
+		bop.bo_op.o_sm.sm_state = P_INIT;
+		bop.bo_arbor = tree;
+
+
+		int nxt;
+		while(1) {
+			nxt = get_tick_insert(&bop);
+			
+			if(nxt == P_DONE )
+			{
+				break;
+			}
+			bop.bo_op.o_sm.sm_state = nxt;
+		}
+		total_record--;
+		//printf("\n");
+		//m0_btree_ut_traversal(tree->t_root, tree);
+		
+	}
+	printf("\n");
+	m0_btree_ut_traversal(tree->t_root, tree);
+	// Done playing with the tree - delete it.
+
+	op.no_opc = NOP_FREE;
+	tree_delete(&op, tree, NULL, 0);
+
+	btree_ut_fini();
 	M0_LEAVE();
 }
 
