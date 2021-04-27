@@ -37,7 +37,6 @@
 #include "pool/pool.h"                /* m0_pool_init */
 #include "rm/rm_service.h"            /* m0_rms_type */
 #include "net/lnet/lnet_core_types.h" /* M0_NET_LNET_NIDSTR_SIZE */
-#include "net/lnet/lnet.h"            /* m0_net_lnet_xprt */
 #ifndef __KERNEL__
 #include <unistd.h>                   /* sleep */
 #else

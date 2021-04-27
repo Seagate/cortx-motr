@@ -58,10 +58,6 @@ struct cl_ctx {
 	struct m0_rpc_client_ctx cl_ctx;
 };
 
-static struct m0_net_xprt *dtm0_xprts[] = {
-	&m0_net_lnet_xprt,
-};
-
 static struct dtm0_rep_fop *reply(struct m0_rpc_item *reply)
 {
 	return m0_fop_data(m0_rpc_item_to_fop(reply));
@@ -152,8 +148,8 @@ static void dtm0_ut_service(void)
 	int rc;
 	struct cl_ctx            cctx = {};
 	struct m0_rpc_server_ctx sctx = {
-		.rsx_xprts         = dtm0_xprts,
-		.rsx_xprts_nr      = ARRAY_SIZE(dtm0_xprts),
+		.rsx_xprts         = m0_net_all_xprt_get(),
+		.rsx_xprts_nr      = m0_net_xprt_nr(),
 		.rsx_argv          = dtm0_ut_argv,
 		.rsx_argc          = ARRAY_SIZE(dtm0_ut_argv),
 		.rsx_log_file_name = DTM0_UT_LOG,
@@ -169,7 +165,8 @@ static void dtm0_ut_service(void)
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 
-	dtm0_ut_client_init(&cctx, cl_ep_addr, srv_ep_addr, dtm0_xprts[0]);
+	dtm0_ut_client_init(&cctx, cl_ep_addr, srv_ep_addr,
+			    m0_net_xprt_default_get());
 	rc = m0_dtm_client_service_start(&cctx.cl_ctx.rcx_reqh,
 					 &cli_srv_fid, &cli_srv);
 	M0_UT_ASSERT(rc == 0);
