@@ -201,9 +201,9 @@ struct m0_be_dtm0_log {
 	struct m0_dtm0_clk_src    *dl_cs;
 	union {
 		/** Persistent list, used if dl_is_persistent */
-		struct m0_be_list *dl_plist;
+		struct m0_be_list *dl_persist;
 		/** Volatile list, used if !dl_is_persistent */
-		struct m0_tl      *dl_vlist;
+		struct m0_tl      *dl_inmem;
 	} u;
 };
 

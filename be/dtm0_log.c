@@ -54,7 +54,7 @@ static bool m0_be_dtm0_log__invariant(const struct m0_be_dtm0_log *log)
 	return _0C(log != NULL) &&
 	       _0C(log->dl_cs != NULL);
 	/* TODO: Add an invariant check against the volatile part */
-	       /* _0C(lrec_tlist_invariant(log->u.dl_vlist)); */
+	       /* _0C(lrec_tlist_invariant(log->u.dl_inmem)); */
 }
 
 static bool m0_dtm0_log_rec__invariant(const struct m0_dtm0_log_rec *rec)
@@ -77,12 +77,12 @@ M0_INTERNAL int m0_be_dtm0_log_alloc(struct m0_be_dtm0_log **out)
 	if (log == NULL)
 		return M0_ERR(-ENOMEM);
 
-	M0_ALLOC_PTR(log->u.dl_vlist);
-	if (log->u.dl_vlist == NULL) {
+	M0_ALLOC_PTR(log->u.dl_inmem);
+	if (log->u.dl_inmem == NULL) {
 		m0_free(log);
 		return M0_ERR(-ENOMEM);
 	}
-	lrec_tlist_init(log->u.dl_vlist);
+	lrec_tlist_init(log->u.dl_inmem);
 	*out = log;
 	return 0;
 }
@@ -108,7 +108,7 @@ M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log *log)
 {
 	M0_PRE(m0_be_dtm0_log__invariant(log));
 	m0_mutex_fini(&log->dl_lock);
-	lrec_tlist_fini(log->u.dl_vlist);
+	lrec_tlist_fini(log->u.dl_inmem);
 	log->dl_cs = NULL;
 }
 
@@ -118,7 +118,7 @@ M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log **in_log)
 
 	M0_PRE(!log->dl_is_persistent);
 
-	m0_free(log->u.dl_vlist);
+	m0_free(log->u.dl_inmem);
 	m0_free(log);
 	*in_log = NULL;
 }
@@ -225,12 +225,12 @@ M0_INTERNAL int m0_be_dtm0_log_create(struct m0_be_tx        *tx,
 	M0_BE_ALLOC_PTR_SYNC(log, seg, tx);
 	M0_ASSERT(log != NULL);
 
-	M0_BE_ALLOC_PTR_SYNC(log->u.dl_plist, seg, tx);
-	M0_ASSERT(log->u.dl_plist != NULL);
+	M0_BE_ALLOC_PTR_SYNC(log->u.dl_persist, seg, tx);
+	M0_ASSERT(log->u.dl_persist != NULL);
 
 	log->dl_seg = seg;
 
-	lrec_be_list_create(log->u.dl_plist, tx);
+	lrec_be_list_create(log->u.dl_persist, tx);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, log);
 	*out = log;
 	return 0;
@@ -256,14 +256,14 @@ struct m0_dtm0_log_rec *m0_be_dtm0_log_find(struct m0_be_dtm0_log    *log,
 	if (log->dl_is_persistent) {
 		struct m0_dtm0_log_rec *lrec;
 
-		m0_be_list_for(lrec, log->u.dl_plist, lrec) {
+		m0_be_list_for(lrec, log->u.dl_persist, lrec) {
 			if (m0_dtm0_tid_cmp(log->dl_cs, &lrec->dlr_txd.dtd_id,
 					    id) == M0_DTS_EQ)
 				break;
 		} m0_be_list_endfor;
 		return lrec;
 	} else {
-		return m0_tl_find(lrec, rec, log->u.dl_vlist,
+		return m0_tl_find(lrec, rec, log->u.dl_inmem,
 				  m0_dtm0_tid_cmp(log->dl_cs, &rec->dlr_txd.dtd_id,
 						  id) == M0_DTS_EQ);
 	}
@@ -388,12 +388,12 @@ static int dtm0_log__insert(struct m0_be_dtm0_log  *log,
 		if (rc != 0)
 			return rc;
 		lrec_be_tlink_create(rec, tx);
-		lrec_be_list_add_tail(log->u.dl_plist, tx, rec);
+		lrec_be_list_add_tail(log->u.dl_persist, tx, rec);
 	} else {
 		rc = log_rec_init(&rec, tx, txd, payload);
 		if (rc != 0)
 			return rc;
-		lrec_tlink_init_at_tail(rec, log->u.dl_vlist);
+		lrec_tlink_init_at_tail(rec, log->u.dl_inmem);
 	}
 
 	return rc;
@@ -471,7 +471,7 @@ M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
 	 * the record with the given id.
 	 */
 
-	m0_tl_for (lrec, log->u.dl_vlist, rec) {
+	m0_tl_for (lrec, log->u.dl_inmem, rec) {
 		if (!m0_dtm0_tx_desc_state_eq(&rec->dlr_txd,
 					      M0_DTPS_PERSISTENT))
 			return M0_ERR(-EPROTO);
@@ -486,7 +486,7 @@ M0_INTERNAL int m0_be_dtm0_log_prune(struct m0_be_dtm0_log    *log,
 
 	/* rec is a pointer to the record matching the input id. Delete all the
 	 * previous records and then this record. */
-	while ((currec = lrec_tlist_pop(log->u.dl_vlist)) != rec) {
+	while ((currec = lrec_tlist_pop(log->u.dl_inmem)) != rec) {
 		M0_ASSERT(m0_dtm0_log_rec__invariant(currec));
 		log_rec_fini(&currec, tx);
 	}
@@ -506,13 +506,13 @@ M0_INTERNAL void m0_be_dtm0_log_clear(struct m0_be_dtm0_log *log)
 	 */
 	M0_ASSERT(!log->dl_is_persistent);
 
-	m0_tl_teardown(lrec, log->u.dl_vlist, rec) {
+	m0_tl_teardown(lrec, log->u.dl_inmem, rec) {
 		M0_ASSERT(m0_dtm0_log_rec__invariant(rec));
 		M0_ASSERT(m0_dtm0_tx_desc_state_eq(&rec->dlr_dtx.dd_txd,
 						   M0_DTPS_PERSISTENT));
 		log_rec_fini(&rec, NULL);
 	}
-	M0_POST(lrec_tlist_is_empty(log->u.dl_vlist));
+	M0_POST(lrec_tlist_is_empty(log->u.dl_inmem));
 }
 
 M0_INTERNAL int m0_be_dtm0_volatile_log_insert(struct m0_be_dtm0_log  *log,
@@ -526,7 +526,7 @@ M0_INTERNAL int m0_be_dtm0_volatile_log_insert(struct m0_be_dtm0_log  *log,
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	lrec_tlink_init_at_tail(rec, log->u.dl_vlist);
+	lrec_tlink_init_at_tail(rec, log->u.dl_inmem);
 	return M0_RC(rc);
 }
 
@@ -555,14 +555,14 @@ M0_INTERNAL bool m0_be_dtm0_plog_can_prune(struct m0_be_dtm0_log    *log,
 	/* This assignment is meaningful as it covers the empty log case */
 	int                     rc = M0_DTS_LT;
 	struct m0_dtm0_log_rec *rec;
-	struct m0_be_list      *dl_plist = log->u.dl_plist;
+	struct m0_be_list      *persist = log->u.dl_persist;
 	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT(0, 0);
 
 	M0_PRE(m0_be_dtm0_log__invariant(log));
 	M0_PRE(m0_dtm0_tid__invariant(id));
 	M0_PRE(m0_mutex_is_locked(&log->dl_lock));
 
-	m0_be_list_for(lrec, dl_plist, rec) {
+	m0_be_list_for(lrec, persist, rec) {
 		if (!m0_dtm0_tx_desc_state_eq(&rec->dlr_txd, M0_DTPS_PERSISTENT))
 			return false;
 
@@ -594,10 +594,10 @@ M0_INTERNAL int m0_be_dtm0_plog_prune(struct m0_be_dtm0_log    *log,
 	M0_PRE(m0_dtm0_tid__invariant(id));
 	M0_PRE(m0_mutex_is_locked(&log->dl_lock));
 
-	m0_be_list_for(lrec, log->u.dl_plist, rec) {
+	m0_be_list_for(lrec, log->u.dl_persist, rec) {
 		cur_id = rec->dlr_txd.dtd_id;
 
-		lrec_be_list_del(log->u.dl_plist, tx, rec);
+		lrec_be_list_del(log->u.dl_persist, tx, rec);
 		lrec_be_tlink_destroy(rec, tx);
 		plog_rec_fini(&rec, log, tx);
 		if (m0_dtm0_tid_cmp(log->dl_cs, &cur_id, id) == M0_DTS_EQ)
