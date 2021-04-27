@@ -1097,6 +1097,8 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	if (ti->ti_auxbufvec.ov_buf == NULL)
 		goto fail;
 
+	if (M0_FI_ENABLED("no-mem-err"))
+		goto fail;
 	M0_ALLOC_ARR(ti->ti_pageattrs, nr);
 	if (ti->ti_pageattrs == NULL)
 		goto fail;

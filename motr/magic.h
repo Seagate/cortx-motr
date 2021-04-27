@@ -568,6 +568,12 @@ enum m0_magic_satchel {
 	/* m0_layout_linear_enum::lla_magic (boldface blob) */
 	M0_LAYOUT_LINEAR_ENUM_MAGIC = 0x33b01dfaceb10b77,
 
+	/* m0_layout_plop::pl_magix (biblical flee) */
+	M0_LAYOUT_PLAN_PLOP_MAGIC = 0x33b1b11ca1f1ee77,
+
+	/* pplops_tlist::head_magic (biblical flea) */
+	M0_LAYOUT_PPLOPS_HMAGIC = 0x33b1b11ca1f1ea77,
+
 /* Net */
 	/* m0_net_domain::nd_magix (acidic access) */
 	M0_NET_DOMAIN_MAGIC = 0x33ac1d1cacce5577,

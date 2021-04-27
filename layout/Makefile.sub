@@ -1,12 +1,14 @@
 nobase_motr_include_HEADERS += layout/layout.h \
-                                  layout/pdclust.h \
-                                  layout/composite.h \
-                                  layout/linear_enum.h \
-                                  layout/layout_pver.h
+                               layout/pdclust.h \
+                               layout/composite.h \
+                               layout/linear_enum.h \
+                               layout/layout_pver.h \
+                               layout/plan.h
 
 motr_libmotr_la_SOURCES  += layout/layout.c \
-                                  layout/layout_internal.h \
-                                  layout/pdclust.c \
-                                  layout/composite.c \
-                                  layout/linear_enum.c \
-                                  layout/layout_pver.c
+                            layout/layout_internal.h \
+                            layout/pdclust.c \
+                            layout/composite.c \
+                            layout/linear_enum.c \
+                            layout/layout_pver.c \
+                            layout/plan.c

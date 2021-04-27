@@ -233,6 +233,7 @@
 #include "lib/tlist.h"
 #include "lib/vec.h"
 
+struct m0_op;
 struct m0_layout;
 struct m0_layout_plan;
 struct m0_layout_plop;
@@ -367,6 +368,8 @@ struct m0_layout_plop {
 	 * their colours.
 	 */
 	uint64_t                         pl_colour;
+	/** Plops list link magic. */
+	uint64_t                         pl_magix;
 	/**
 	 * Linkage in the ::lp_plops list of all plops in the plan.
 	 */
