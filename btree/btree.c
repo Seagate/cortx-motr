@@ -1559,13 +1559,24 @@ static int node_space(const struct nd *node)
 	return node->n_type->nt_space(node);
 }
 
+<<<<<<< HEAD
 #if 0
+=======
+#ifndef __KERNEL__
+>>>>>>> fixing compilation errors
 static int node_level(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
 	return (node->n_type->nt_level(node));
 }
+<<<<<<< HEAD
 
+=======
+#endif
+
+
+#if 0
+>>>>>>> fixing compilation errors
 static int node_shift(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
@@ -1585,7 +1596,11 @@ static void node_rec(struct slot *slot)
 	slot->s_node->n_type->nt_rec(slot);
 }
 
+<<<<<<< HEAD
 #if 0
+=======
+#ifndef __KERNEL__
+>>>>>>> fixing compilation errors
 static void node_key(struct slot *slot)
 {
 	M0_PRE(node_invariant(slot->node));
@@ -1597,6 +1612,10 @@ static void node_child(struct slot *slot, struct segaddr *addr)
 	M0_PRE(node_invariant(slot->node));
 	slot->s_node->n_type->nt_child(slot, addr);
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> fixing compilation errors
 #endif
 
 static bool node_isfit(struct slot *slot)
@@ -1646,7 +1665,11 @@ static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	node->n_type->nt_del(node, idx, tx);
 }
 
+<<<<<<< HEAD
 #if 0
+=======
+#ifndef __KERNEL__
+>>>>>>> fixing compilation errors
 static void node_move(struct nd *src, struct nd *tgt,
 		      enum dir dir, int nr, struct m0_be_tx *tx)
 {
@@ -1655,7 +1678,11 @@ static void node_move(struct nd *src, struct nd *tgt,
 	M0_IN(dir,(D_LEFT, D_RIGHT));
 	tgt->n_type->nt_move(src, tgt, dir, nr, tx);
 }
+<<<<<<< HEAD
 #endif
+=======
+#endif 
+>>>>>>> fixing compilation errors
 
 static struct mod *mod_get(void)
 {
@@ -1909,8 +1936,14 @@ static void tree_put(struct td *tree)
 {
 	segops->so_tree_put(tree);
 }
+<<<<<<< HEAD
 
 #if 0
+=======
+#endif
+
+#ifndef __KERNEL__
+>>>>>>> fixing compilation errors
 /**
  * This function loads the node descriptor for the node at segaddr in memory.
  * If a node descriptor pointing to this node is already loaded in memory then
@@ -1933,6 +1966,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	return segops->so_node_get(op, tree, addr, nxt);
 }
 
+
 /**
  * This function decrements the reference count for this node and if the
  * reference count reaches '0' then the node is made available for future
@@ -1950,6 +1984,7 @@ static void node_put(struct nd *node){
 	M0_PRE(node != NULL);
 	segops->so_node_put(node);
 }
+#endif
 
 static struct nd *node_try(struct td *tree, struct segaddr *addr){
 	return segops->so_node_try(tree, addr);
@@ -1992,13 +2027,21 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	node->n_type->nt_fini(node);
 	return segops->so_node_free(op, node, tx, nxt);
 }
+<<<<<<< HEAD
 #endif
 
 #if 0
+=======
+
+>>>>>>> fixing compilation errors
 static void node_op_fini(struct node_op *op)
 {
 	segops->so_node_op_fini(op);
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> fixing compilation errors
 #endif
 
 static int64_t mem_node_get(struct node_op *op, struct td *tree,
