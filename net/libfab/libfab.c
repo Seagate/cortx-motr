@@ -1910,7 +1910,7 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 	uint32_t                loc_slen;
 	uint32_t                rem_slen;
 	bool                    isread;
-	int                     ret;
+	int                     ret = 0;
 
 	M0_ENTRY("loc_buf=%p q=%d loc_seg=%d rem_buf=0x%"PRIx64" rem_seg=%d",
 		 fb, fb->fb_nb->nb_qtype, fb->fb_nb->nb_buffer.ov_vec.v_nr, 
