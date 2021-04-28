@@ -518,7 +518,8 @@
 #include "module/instance.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
-#include "ut/ut.h"
+#include "ut/ut.h"          /** struct m0_ut_suite */
+//#include "lib/user_space/misc.h" /** ARRAY_SIZE_FOR_BITS */
 
 #ifndef __KERNEL__
 #include <stdlib.h>
@@ -950,11 +951,11 @@ static void       node_put  (struct nd *node);
 static struct nd *node_try  (struct td *tree, struct segaddr *addr);
 #endif
 static int64_t    node_alloc(struct node_op *op, struct td *tree, int size,
-			  const struct node_type *nt, int ksize, int vsize,
-			  struct m0_be_tx *tx, int nxt);
+			     const struct node_type *nt, int ksize, int vsize,
+			     struct m0_be_tx *tx, int nxt);
 #ifndef __KERNEL__
 static int64_t    node_free(struct node_op *op, struct nd *node,
-			     struct m0_be_tx *tx, int nxt);
+			    struct m0_be_tx *tx, int nxt);
 #endif
 #if 0
 static void node_op_fini(struct node_op *op);
@@ -1019,8 +1020,8 @@ struct m0_btree_oimpl {
 };
 
 static struct td        trees[M0_TREE_COUNT];
-static uint64_t         trees_in_use[(M0_TREE_COUNT + sizeof(uint64_t) - 1) /
-			       sizeof(uint64_t)];
+static uint64_t         trees_in_use[ARRAY_SIZE_FOR_BITS(M0_TREE_COUNT,
+							 sizeof(uint64_t))];
 static uint32_t         trees_loaded = 0;
 static struct m0_rwlock trees_lock;
 
@@ -1375,6 +1376,7 @@ static int64_t tree_delete(struct node_op *op, struct td *tree,
 	M0_PRE(tree != NULL);
 	return segops->so_tree_delete(op, tree, tx, nxt);
 }
+#endif
 
 /**
  * Returns the tree to the free tree pool if the reference count for this tree
@@ -1388,7 +1390,6 @@ static void tree_put(struct td *tree)
 {
 	segops->so_tree_put(tree);
 }
-#endif
 
 #if 0
 /**
@@ -1496,9 +1497,9 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	int        i     = 0;
 	uint32_t   offset;
 
-	M0_ASSERT(trees_loaded <= ARRAY_SIZE(trees));
-
 	m0_rwlock_write_lock(&trees_lock);
+
+	M0_ASSERT(trees_loaded <= ARRAY_SIZE(trees));
 
 	/**
 	 *  If existing allocated tree is found then return it after increasing
@@ -1507,11 +1508,11 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	if (addr != NULL)
 		for (i = 0; i < ARRAY_SIZE(trees); i++) {
 			tree = &trees[i];
+			m0_rwlock_write_lock(&tree->t_lock);
 			if (tree->r_ref != 0) {
 				M0_ASSERT(tree->t_root != NULL);
 				if (tree->t_root->n_addr.as_core ==
-				    addr->as_core) {
-					m0_rwlock_write_lock(&tree->t_lock);
+					    addr->as_core) {
 					tree->r_ref++;
 					op->no_node = tree->t_root;
 					op->no_tree = tree;
@@ -1520,6 +1521,7 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 					return nxt;
 				}
 			}
+			m0_rwlock_write_unlock(&tree->t_lock);
 		}
 
 	/** Assign a free tree descriptor to this tree. */
@@ -1533,6 +1535,7 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 			trees_in_use[i] |= (1ULL << offset);
 			offset += (i * sizeof trees_in_use[0]);
 			tree = &trees[offset];
+			trees_loaded++;
 			break;
 		}
 	}
@@ -1573,10 +1576,13 @@ static int64_t mem_tree_create(struct node_op *op, struct m0_btree_type *tt,
 	tree_get(op, NULL, nxt);
 
 	tree = op->no_tree;
-
 	node_alloc(op, tree, rootshift, &fixed_format, 8, 8, NULL, nxt);
+
+	m0_rwlock_write_lock(&tree->t_lock);
 	tree->t_root = op->no_node;
 	tree->t_type = tt;
+	m0_rwlock_write_unlock(&tree->t_lock);
+
 	return nxt;
 }
 
@@ -1587,6 +1593,7 @@ static int64_t mem_tree_delete(struct node_op *op, struct td *tree,
 	op->no_tree = tree;
 	op->no_node = root;
 	mem_node_free(op, root, tx, nxt);
+	tree_put(tree);
 	return nxt;
 }
 
@@ -1605,13 +1612,17 @@ static void mem_tree_put(struct td *tree)
 		int bit_offset_in_array;
 
 		m0_rwlock_write_lock(&trees_lock);
+		M0_ASSERT(trees_loaded > 0);
 		i = tree - &trees[0];
 		array_offset = i / sizeof(trees_in_use[0]);
 		bit_offset_in_array = i % sizeof(trees_in_use[0]);
-		trees_in_use[array_offset] &= ~(1 << bit_offset_in_array);
+		trees_in_use[array_offset] &= ~(1ULL << bit_offset_in_array);
+		trees_loaded--;
+		m0_rwlock_write_unlock(&tree->t_lock);
 		m0_rwlock_fini(&tree->t_lock);
-		m0_rwlock_write_lock(&trees_lock);
+		m0_rwlock_write_unlock(&trees_lock);
 	}
+	m0_rwlock_write_unlock(&tree->t_lock);
 }
 
 static int64_t mem_node_get(struct node_op *op, struct td *tree,
@@ -1880,7 +1891,8 @@ static void ff_node_key(struct slot *slot)
 	const struct nd  *node = slot->s_node;
 	struct ff_head   *h    = ff_data(node);
 
-	M0_PRE(ergo(!(h->ff_used == 0 && slot->s_idx == 0),slot->s_idx <= h->ff_used));
+	M0_PRE(ergo(!(h->ff_used == 0 && slot->s_idx == 0),
+		    slot->s_idx <= h->ff_used));
 
 	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
 	slot->s_rec.r_key.k_data.ov_vec.v_count[0] = h->ff_ksize;
@@ -2094,6 +2106,8 @@ static void m0_btree_ut_node_create_delete(void)
 
 	M0_SET0(&op);
 
+	M0_ASSERT(trees_loaded == 0);
+
 	// Create a Fixed-Format tree.
 	op.no_opc = NOP_ALLOC;
 	tree_create(&op, &tt, 10, NULL, 0);
@@ -2102,6 +2116,7 @@ static void m0_btree_ut_node_create_delete(void)
 
 	M0_ASSERT(tree->r_ref == 1);
 	M0_ASSERT(tree->t_root != NULL);
+	M0_ASSERT(trees_loaded == 1);
 
 	// Add a few nodes to the created tree.
 	op.no_opc = NOP_ALLOC;
@@ -2123,11 +2138,16 @@ static void m0_btree_ut_node_create_delete(void)
 	tree_clone = op.no_tree;
 	M0_ASSERT(tree_clone->r_ref == 2);
 	M0_ASSERT(tree->t_root == tree_clone->t_root);
+	M0_ASSERT(trees_loaded == 1);
+
 
 	tree_put(tree_clone);
+	M0_ASSERT(trees_loaded == 1);
+
 	// Done playing with the tree - delete it.
 	op.no_opc = NOP_FREE;
 	tree_delete(&op, tree, NULL, 0);
+	M0_ASSERT(trees_loaded == 0);
 
 	btree_ut_fini();
 	M0_LEAVE();
@@ -2313,7 +2333,7 @@ void m0_btree_ut_node_add_del_rec(void)
 	node_alloc(&op, tree, 10, nt, 8, 8, NULL, 0);
 	node1 = op.no_node;
 
-	while(run_loop--) {
+	while (run_loop--) {
 		int i;
 
 		/** Add records */
