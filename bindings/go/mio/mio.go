@@ -45,6 +45,7 @@ package mio
 // #cgo CFLAGS: -Wno-attributes
 // #cgo LDFLAGS: -L../../../motr/.libs -Wl,-rpath=../../../motr/.libs -lmotr
 // #include <stdlib.h>
+// #include <errno.h> /* EEXIST */
 // #include "lib/types.h"
 // #include "lib/trace.h"
 // #include "motr/client.h"
@@ -253,7 +254,7 @@ func (mio *Mio) open(sz uint64) error {
 }
 
 // Mkv::Open opens Mkv index for key-value operations.
-func (mkv *Mkv) Open(id string) error {
+func (mkv *Mkv) Open(id string, create bool) error {
     if mkv.idx != nil {
         return errors.New("index is already opened")
     }
@@ -263,7 +264,28 @@ func (mkv *Mkv) Open(id string) error {
         return err
     }
 
-    C.m0_idx_init(mkv.idx, &C.container.co_realm, &mkv.idxID);
+    C.m0_idx_init(mkv.idx, &C.container.co_realm, &mkv.idxID)
+
+    if create { // Make sure it's created
+        var op *C.struct_m0_op
+        rc := C.m0_entity_create(nil, &mkv.idx.in_entity, &op)
+        if rc != 0 {
+            mkv.Close()
+            return fmt.Errorf("failed to set create op: %d", rc)
+        }
+        C.m0_op_launch(&op, 1)
+        rc = C.m0_op_wait(op, bits(C.M0_OS_FAILED,
+                                   C.M0_OS_STABLE), C.M0_TIME_NEVER)
+        if rc == 0 {
+            rc = C.m0_rc(op)
+        }
+        C.m0_op_fini(op)
+        C.m0_op_free(op)
+
+        if rc != 0 && rc != -C.EEXIST {
+            return fmt.Errorf("index create failed: %d", rc)
+        }
+    }
 
     return nil
 }
@@ -274,6 +296,7 @@ func (mkv *Mkv) Close() error {
     if mkv.idx == nil {
         return errors.New("index is not opened")
     }
+    C.m0_idx_fini(mkv.idx)
     C.free(unsafe.Pointer(mkv.idx))
     mkv.idx = nil
 

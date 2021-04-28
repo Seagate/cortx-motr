@@ -41,11 +41,13 @@ func usage() {
 }
 
 var valueSize uint64
+var createFlag bool
 
 func init() {
     log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
     flag.Usage = usage
     flag.Uint64Var(&valueSize, "vsz", 1, "value `size` (in KiB)")
+    flag.BoolVar(&createFlag, "c", false, "create index if not present")
 }
 
 func main() {
@@ -60,7 +62,7 @@ func main() {
     index_id := flag.Arg(0)
 
     var mkv mio.Mkv
-    if err := mkv.Open(index_id); err != nil {
+    if err := mkv.Open(index_id, createFlag); err != nil {
         log.Fatalf("failed to open index %v: %v", index_id, err)
     }
     defer mkv.Close()
