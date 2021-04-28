@@ -174,8 +174,11 @@ struct m0_fab__active_ep {
 	/** connection status of tx ep */
 	enum m0_fab__conn_status  aep_tx_state;
 	
-	/* connection status of rx ep */
+	/** connection status of rx ep */
 	enum m0_fab__conn_status  aep_rx_state;
+	
+	/** count of active bulk ops */
+	uint32_t                  aep_bulk_cnt;
 };
 
 /**
@@ -251,6 +254,9 @@ struct m0_fab__tm {
 
 	/** Used as lock during bulk op to enable only txcq reads */
 	volatile bool              ftm_txcq_only;
+
+	/** List of pending bulk ops */
+	struct m0_tl               ftm_bulk;
 };
 
 /**
@@ -336,6 +342,9 @@ struct m0_fab__buf {
 
 	/** Flag to denote that bulk op on all segments is done */
 	volatile bool          fb_all_seg_done;
+
+	/** Pointer to the bulk op structure */
+	void*                  fb_bulk_op;
 };
 
 /**
@@ -347,6 +356,20 @@ struct m0_fab__conn_data {
 	
 	/** address in string format */
 	char     fcd_straddr[LIBFAB_ADDR_STRLEN_MAX];
+};
+
+struct m0_fab__bulk_op {
+	/** Magic number for list of bulk buffers */
+	uint64_t                   fbl_magic;
+	
+	/** Bulk buf pointer */
+	struct m0_fab__buf        *fbl_buf;
+	
+	/** endpoint on which to send the bulk buf */
+	struct m0_fab__active_ep  *fbl_aep;
+	
+	/** Link for list of send buffers */
+	struct m0_tlink            fbl_link;
 };
 
 /** @} end of netlibfab group */
