@@ -16,6 +16,8 @@
  * For any questions about this software or licensing,
  * please email opensource@seagate.com or cortx-questions@seagate.com.
  *
+ * Original author: Andriy Tkachuk <andriy.tkachuk@seagate.com>
+ * Original creation date: 30-Oct-2020
  */
 
 // Package mio implements io.Reader/io.Writer interface over
@@ -97,7 +99,9 @@ import (
 // Mio implements io.Reader / io.Writer interfaces for Motr.
 type Mio struct {
     objID   C.struct_m0_uint128
+    idxID   C.struct_m0_uint128
     obj    *C.struct_m0_obj
+    idx    *C.struct_m0_idx
     objSz   uint64
     objLid  C.ulong
     objPool C.struct_m0_fid
@@ -196,6 +200,15 @@ func (mio *Mio) objNew(id string) (err error) {
     return nil
 }
 
+func (mio *Mio) idxNew(id string) (err error) {
+    mio.idxID, err = ScanID(id)
+    if err != nil {
+        return err
+    }
+    mio.idx = (*C.struct_m0_idx)(C.calloc(1, C.sizeof_struct_m0_idx))
+    return nil
+}
+
 // GetPool returns the pool the object is located at.
 func (mio *Mio) GetPool() string {
     if mio.obj == nil {
@@ -225,7 +238,7 @@ func (mio *Mio) open(sz uint64) error {
     pv := C.m0_pool_version_find(&C.instance.m0c_pools_common,
                                  &mio.obj.ob_attr.oa_pver)
     if pv == nil {
-        return fmt.Errorf("cannot find pool version")
+        return errors.New("cannot find pool version")
     }
     mio.objPool = pv.pv_pool.po_id
 
@@ -236,15 +249,88 @@ func (mio *Mio) open(sz uint64) error {
     return nil
 }
 
+// OpenIdx opens Mio index for key-value operations.
+func (mio *Mio) OpenIdx(id string) error {
+    if mio.idx != nil {
+        return errors.New("index is already opened")
+    }
+
+    err := mio.idxNew(id)
+    if err != nil {
+        return err
+    }
+
+    C.m0_idx_init(mio.idx, &C.container.co_realm, &mio.idxID);
+
+    return nil
+}
+
+func (mio *Mio) idxOp(name uint32, key []byte, value []byte) error {
+    if mio.idx != nil {
+        return errors.New("index is not opened")
+    }
+
+    var k, v C.struct_m0_bufvec
+    if C.m0_bufvec_empty_alloc(&k, 1) != 0 {
+        return errors.New("failed to allocate key bufvec")
+    }
+    defer C.m0_bufvec_free2(&k)
+    if C.m0_bufvec_empty_alloc(&v, 1) != 0 {
+        return errors.New("failed to allocate value bufvec")
+    }
+    defer C.m0_bufvec_free2(&v)
+    *k.ov_buf = unsafe.Pointer(&key[0])
+    *v.ov_buf = unsafe.Pointer(&value[0])
+    *k.ov_vec.v_count = C.ulong(len(key))
+    *v.ov_vec.v_count = C.ulong(len(value))
+    var op   *C.struct_m0_op
+    var rc_i  C.int32_t
+    rc := C.m0_idx_op(mio.idx, name, &k, &v, &rc_i, 0, &op)
+    if rc != 0 {
+        return fmt.Errorf("failed to init index op: %d", rc)
+    }
+
+    C.m0_op_launch(&op, 1)
+
+    rc = C.m0_op_wait(op, bits(C.M0_OS_FAILED,
+                               C.M0_OS_STABLE), C.M0_TIME_NEVER)
+    if rc == 0 {
+        rc = C.m0_rc(op)
+    }
+    C.m0_op_fini(op)
+    C.m0_op_free(op)
+
+    if rc != 0 {
+        return fmt.Errorf("op failed: %d", rc)
+    }
+    if rc_i != 0 {
+        return fmt.Errorf("index op failed: %d", rc_i)
+    }
+
+    return nil
+}
+
+// IdxPut puts key-value into the index.
+func (mio *Mio) IdxPut(key []byte, value []byte) error {
+    return mio.idxOp(C.M0_IC_PUT, key, value)
+}
+
+// IdxGet gets value from the index by key.
+func (mio *Mio) IdxGet(key []byte, sz uint64) ([]byte, error) {
+    value := make([]byte, sz)
+    err := mio.idxOp(C.M0_IC_GET, key, value)
+    return value, err
+}
+
 // Open opens Mio object for reading ant/or writing. The size
 // must be specified when openning object for reading. Otherwise,
 // nothing will be read. (Motr doesn't store objects metadata
 // along with the objects.)
-func (mio *Mio) Open(id string, anySz ...uint64) (err error) {
+func (mio *Mio) Open(id string, anySz ...uint64) error {
     if mio.obj != nil {
         return errors.New("object is already opened")
     }
-    err = mio.objNew(id)
+    err := mio.objNew(id)
     if err != nil {
         return err
     }
