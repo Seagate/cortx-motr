@@ -99,13 +99,16 @@ import (
 // Mio implements io.Reader / io.Writer interfaces for Motr.
 type Mio struct {
     objID   C.struct_m0_uint128
-    idxID   C.struct_m0_uint128
     obj    *C.struct_m0_obj
-    idx    *C.struct_m0_idx
     objSz   uint64
     objLid  C.ulong
     objPool C.struct_m0_fid
     off     int64
+}
+
+type Mkv struct {
+    idxID   C.struct_m0_uint128
+    idx    *C.struct_m0_idx
 }
 
 type slot struct {
@@ -200,12 +203,12 @@ func (mio *Mio) objNew(id string) (err error) {
     return nil
 }
 
-func (mio *Mio) idxNew(id string) (err error) {
-    mio.idxID, err = ScanID(id)
+func (mkv *Mkv) idxNew(id string) (err error) {
+    mkv.idxID, err = ScanID(id)
     if err != nil {
         return err
     }
-    mio.idx = (*C.struct_m0_idx)(C.calloc(1, C.sizeof_struct_m0_idx))
+    mkv.idx = (*C.struct_m0_idx)(C.calloc(1, C.sizeof_struct_m0_idx))
     return nil
 }
 
@@ -249,24 +252,36 @@ func (mio *Mio) open(sz uint64) error {
     return nil
 }
 
-// OpenIdx opens Mio index for key-value operations.
-func (mio *Mio) OpenIdx(id string) error {
-    if mio.idx != nil {
+// Mkv::Open opens Mkv index for key-value operations.
+func (mkv *Mkv) Open(id string) error {
+    if mkv.idx != nil {
         return errors.New("index is already opened")
     }
 
-    err := mio.idxNew(id)
+    err := mkv.idxNew(id)
     if err != nil {
         return err
     }
 
-    C.m0_idx_init(mio.idx, &C.container.co_realm, &mio.idxID);
+    C.m0_idx_init(mkv.idx, &C.container.co_realm, &mkv.idxID);
 
     return nil
 }
 
-func (mio *Mio) idxOp(name uint32, key []byte, value []byte) error {
-    if mio.idx != nil {
+// Mkv::Close closes Mkv index releasing all the resources
+// that were allocated for it.
+func (mkv *Mkv) Close() error {
+    if mkv.idx == nil {
+        return errors.New("index is not opened")
+    }
+    C.free(unsafe.Pointer(mkv.idx))
+    mkv.idx = nil
+
+    return nil
+}
+
+func (mkv *Mkv) idxOp(name uint32, key []byte, value []byte) error {
+    if mkv.idx != nil {
         return errors.New("index is not opened")
     }
 
@@ -285,7 +300,7 @@ func (mio *Mio) idxOp(name uint32, key []byte, value []byte) error {
     *v.ov_vec.v_count = C.ulong(len(value))
     var op   *C.struct_m0_op
     var rc_i  C.int32_t
-    rc := C.m0_idx_op(mio.idx, name, &k, &v, &rc_i, 0, &op)
+    rc := C.m0_idx_op(mkv.idx, name, &k, &v, &rc_i, 0, &op)
     if rc != 0 {
         return fmt.Errorf("failed to init index op: %d", rc)
     }
@@ -310,15 +325,15 @@ func (mio *Mio) idxOp(name uint32, key []byte, value []byte) error {
     return nil
 }
 
-// IdxPut puts key-value into the index.
-func (mio *Mio) IdxPut(key []byte, value []byte) error {
-    return mio.idxOp(C.M0_IC_PUT, key, value)
+// Put puts key-value into the index.
+func (mkv *Mkv) Put(key []byte, value []byte) error {
+    return mkv.idxOp(C.M0_IC_PUT, key, value)
 }
 
-// IdxGet gets value from the index by key.
-func (mio *Mio) IdxGet(key []byte, sz uint64) ([]byte, error) {
+// Get gets value from the index by key.
+func (mkv *Mkv) Get(key []byte, sz uint64) ([]byte, error) {
     value := make([]byte, sz)
-    err := mio.idxOp(C.M0_IC_GET, key, value)
+    err := mkv.idxOp(C.M0_IC_GET, key, value)
     return value, err
 }
 
