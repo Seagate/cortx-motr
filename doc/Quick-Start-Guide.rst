@@ -74,7 +74,7 @@ You can also build RPMs by running the following command.
 
 - **$ make rpms**
 
-The following RPMs are generated in the **$HOME/rpmbuild/RPMS/x86_64** directory.
+The following RPMs are generated in the **/root/rpmbuild/RPMS/x86_64** directory.
 
 - cortx-motr-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
 
@@ -84,7 +84,7 @@ The following RPMs are generated in the **$HOME/rpmbuild/RPMS/x86_64** directory
  
 - cortx-motr-tests-ut-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
 
-Note : Check contents of **$HOME/rpmbuild/RPMS/x86_64** directory.
+Note : Check contents of **/root/rpmbuild/RPMS/x86_64** directory.
 
 Running Tests
 =============
