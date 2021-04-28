@@ -40,10 +40,12 @@ func usage() {
     flag.PrintDefaults()
 }
 
+var valueSize uint64
+
 func init() {
     log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-
     flag.Usage = usage
+    flag.Uint64Var(&valueSize, "vsz", 1, "value `size` (in KiB)")
 }
 
 func main() {
@@ -52,6 +54,8 @@ func main() {
         usage()
         os.Exit(1)
     }
+
+    valueSize *= 1024
 
     index_id := flag.Arg(0)
 
@@ -67,7 +71,7 @@ func main() {
             log.Fatalf("failed to put: %v", err)
         }
     } else {
-        value, err := mkv.Get([]byte(flag.Arg(1)), 1024)
+        value, err := mkv.Get([]byte(flag.Arg(1)), valueSize)
         if err != nil {
             log.Fatalf("failed to get: %v", err)
         }
