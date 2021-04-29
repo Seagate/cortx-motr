@@ -653,23 +653,18 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		M0_ASSERT(libfab_tm_is_locked(tm) && libfab_tm_invariant(tm));
 
 		if (ev_cnt > 0) {
-			if (!tm->ftm_txcq_only)
-				libfab_handle_connect_request_events(tm);
+			libfab_handle_connect_request_events(tm);
 			libfab_txep_comp_read(tm->ftm_tx_cq);
 
-			if (!tm->ftm_txcq_only) {
-				m0_tl_for(m0_nep, &tm->ftm_ntm->ntm_end_points,
-									  net) {
-					xep = libfab_ep_net(net);
-					aep = libfab_aep_get(xep);
-					if (aep != NULL) {
-						libfab_txep_ev_check(xep, aep,
-								     tm);
-						cq = aep->aep_rx_res.frr_cq;
-						libfab_rxep_comp_read(cq, xep);
-					}
-				} m0_tl_endfor;
-			}
+			m0_tl_for(m0_nep, &tm->ftm_ntm->ntm_end_points, net) {
+				xep = libfab_ep_net(net);
+				aep = libfab_aep_get(xep);
+				if (aep != NULL) {
+					libfab_txep_ev_check(xep, aep, tm);
+					cq = aep->aep_rx_res.frr_cq;
+					libfab_rxep_comp_read(cq, xep);
+				}
+			} m0_tl_endfor;
 		}
 
 		libfab_bulk_buf_process(tm);
@@ -2012,7 +2007,6 @@ static void libfab_bulk_buf_process(struct m0_fab__tm *tm)
  */
 static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 {
-	struct m0_fab__tm      *tm = libfab_buf_ma(fb->fb_nb);
 	struct fi_msg_rma       op_msg;
 	struct fi_rma_iov      *r_iov;
 	m0_bcount_t            *v_cnt = fb->fb_nb->nb_buffer.ov_vec.v_count;
@@ -2038,9 +2032,6 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 	isread = (fb->fb_nb->nb_qtype == M0_NET_QT_ACTIVE_BULK_RECV);
 	fb->fb_wr_comp_cnt = 0;
 
-	tm->ftm_txcq_only = true;
-	libfab_tm_unlock(tm);
-	
 	while(xfer_len < fb->fb_nb->nb_length) {
 		M0_ASSERT(rem_sidx <= fb->fb_rbd->fbd_iov_cnt);
 		loc_slen = v_cnt[loc_sidx] - loc_soff;
@@ -2093,8 +2084,8 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 		xfer_len += iv.iov_len;
 	}
 	
-	libfab_tm_lock(tm);
-	tm->ftm_txcq_only = false;
+	if (ret == FI_SUCCESS)
+		M0_ASSERT(wr_cnt == fb->fb_wr_cnt);
 
 	return M0_RC(ret);
 }

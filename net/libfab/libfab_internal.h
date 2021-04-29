@@ -252,9 +252,6 @@ struct m0_fab__tm {
 	/** Used betn poller & tm_fini */
 	struct m0_mutex            ftm_evpost;
 
-	/** Used as lock during bulk op to enable only txcq reads */
-	volatile bool              ftm_txcq_only;
-
 	/** List of pending bulk ops */
 	struct m0_tl               ftm_bulk;
 };
