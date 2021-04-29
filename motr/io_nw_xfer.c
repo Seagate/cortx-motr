@@ -1201,7 +1201,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 {
 	int                         rc;
 	unsigned int                op_code;
-	uint64_t                    map;
+	uint64_t                    i;
 	uint64_t                    unit;
 	uint64_t                    unit_size;
 	uint64_t                    count;
@@ -1243,13 +1243,13 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	instance  = m0__op_instance(op);
 	rc = m0_bitmap_init(&units_spanned, m0_pdclust_size(play));
 
-	for (map = 0; map < ioo->ioo_iomap_nr; ++map) {
+	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
 		count        = 0;
-		iomap        = ioo->ioo_iomaps[map];
+		iomap        = ioo->ioo_iomaps[i];
 		pgstart      = data_size(play) * iomap->pi_grpid;
 		src.sa_group = iomap->pi_grpid;
 
-		M0_LOG(M0_DEBUG, "xfer %p map %p [grpid = %"PRIu64" state=%u]",
+		M0_LOG(M0_DEBUG, "xfer=%p map=%p [grpid=%"PRIu64" state=%u]",
 				 xfer, iomap, iomap->pi_grpid, iomap->pi_state);
 
 		/* Cursor for pargrp_iomap::pi_ivec. */

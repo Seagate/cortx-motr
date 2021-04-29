@@ -1034,7 +1034,7 @@ static struct dgmode_rwvec dgvec_tmp;
 static void dgmode_readio_test(void)
 {
 	int                         rc;
-	int                         cnt;
+	uint64_t                    i;
 	char                        content[LAY_P - 1] = {'b', 'c', 'd', 'e'};
 	char                       *cont;
 	uint32_t                    row;
@@ -1046,7 +1046,7 @@ static void dgmode_readio_test(void)
 	struct io_req_fop          *irfop;
 	struct m0_indexvec_varr    *ivv;
 	struct m0_rpc_bulk         *rbulk;
-	struct pargrp_iomap        *map;
+	struct pargrp_iomap        *iomap;
 	struct target_ioreq        *ti;
 	struct m0_rpc_session      *session;
 	struct m0_layout_enum      *le;
@@ -1070,12 +1070,12 @@ static void dgmode_readio_test(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* 8 segments covering a parity group each. */
-	for (cnt = 0; cnt < DGMODE_IOVEC_NR; ++cnt) {
-		iovec_arr[cnt].iov_base = &rc;
-		iovec_arr[cnt].iov_len  = PAGE_SIZE;
+	for (i = 0; i < DGMODE_IOVEC_NR; ++i) {
+		iovec_arr[i].iov_base = &rc;
+		iovec_arr[i].iov_len  = PAGE_SIZE;
 
-		V_INDEX(ivv, cnt) = cnt * UNIT_SIZE * LAY_N;
-		V_COUNT(ivv, cnt) = iovec_arr[cnt].iov_len;
+		V_INDEX(ivv, i) = i * UNIT_SIZE * LAY_N;
+		V_COUNT(ivv, i) = iovec_arr[i].iov_len;
 	}
 
 	ci.ci_inode.i_size = 2 * DATA_SIZE * DGMODE_IOVEC_NR;
@@ -1144,21 +1144,21 @@ static void dgmode_readio_test(void)
 	       ci_layout_instance);
 	M0_UT_ASSERT(le != NULL);
 
-	for (cnt = 0; cnt < req->ir_iomap_nr; ++cnt) {
-		if (req->ir_iomaps[cnt]->pi_state != PI_DEGRADED)
+	for (i = 0; i < req->ir_iomap_nr; ++i) {
+		iomap = req->ir_iomaps[i];
+		if (iomap->pi_state != PI_DEGRADED)
 			continue;
 
-		rc = req->ir_iomaps[cnt]->pi_ops->pi_dgmode_postprocess(req->
-				ir_iomaps[cnt]);
+		rc = iomap->pi_ops->pi_dgmode_postprocess(iomap);
 		M0_UT_ASSERT(rc == 0);
 	}
 
-	for (cnt = 0; cnt < rbuf->bb_zerovec.z_bvec.ov_vec.v_nr; ++cnt) {
-		m0_bindex_t z_index = rbuf->bb_zerovec.z_index[cnt];
+	for (i = 0; i < rbuf->bb_zerovec.z_bvec.ov_vec.v_nr; ++i) {
+		m0_bindex_t z_index = rbuf->bb_zerovec.z_index[i];
 		ioreq_pgiomap_find(req, pargrp_id_find(z_index, req, irfop),
-				   &pgcur, &map);
-		M0_UT_ASSERT(map != NULL);
-		M0_UT_ASSERT(map->pi_state == PI_DEGRADED);
+				   &pgcur, &iomap);
+		M0_UT_ASSERT(iomap != NULL);
+		M0_UT_ASSERT(iomap->pi_state == PI_DEGRADED);
 		pargrp_src_addr(z_index, req, ti, &src);
 
 		tgt.ta_frame = z_index / layout_unit_size(play);
@@ -1174,31 +1174,31 @@ static void dgmode_readio_test(void)
 		 * as failed.
 		 */
 		for (row = 0; row < rows_nr(play); ++row)
-			M0_UT_ASSERT(map->pi_databufs[row][src.sa_unit]->
+			M0_UT_ASSERT(iomap->pi_databufs[row][src.sa_unit]->
 				     db_flags & PA_READ_FAILED);
 
 	}
 
-	for (cnt = 0; cnt < req->ir_iomap_nr; ++cnt) {
-		map = req->ir_iomaps[cnt];
-		if (map->pi_state != PI_DEGRADED)
+	for (i = 0; i < req->ir_iomap_nr; ++i) {
+		iomap = req->ir_iomaps[i];
+		if (iomap->pi_state != PI_DEGRADED)
 			continue;
 
 		/* Traversing unit by unit. */
 		for (col = 0; col < layout_n(play); ++col) {
 			for (row = 0; row < rows_nr(play); ++row) {
 				if (col == src.sa_unit)
-					M0_UT_ASSERT(map->pi_databufs
+					M0_UT_ASSERT(iomap->pi_databufs
 						     [row][col]->db_flags &
 						     PA_READ_FAILED);
 				else {
-					M0_UT_ASSERT(map->pi_databufs
+					M0_UT_ASSERT(iomap->pi_databufs
 						     [row][col]->db_flags &
 						     PA_DGMODE_READ);
-					memset(map->pi_databufs[row][col]->
+					memset(iomap->pi_databufs[row][col]->
 					       db_buf.b_addr, content[col],
 					       PAGE_SIZE);
-					cont = (char *)map->pi_databufs
+					cont = (char *)iomap->pi_databufs
 						[row][col]->db_buf.b_addr;
 				}
 			}
@@ -1207,22 +1207,22 @@ static void dgmode_readio_test(void)
 		/* Parity units are needed for recovery. */
 		for (col = 0; col < layout_k(play); ++col) {
 			for (row = 0; row < rows_nr(play); ++row) {
-				M0_UT_ASSERT(map->pi_paritybufs[row][col]->
+				M0_UT_ASSERT(iomap->pi_paritybufs[row][col]->
 					     db_flags & PA_DGMODE_READ);
-				memset(map->pi_paritybufs[row][col]->db_buf.
+				memset(iomap->pi_paritybufs[row][col]->db_buf.
 				       b_addr, content[LAY_P - 2], PAGE_SIZE);
-				cont = (char *)map->pi_paritybufs[row][col]->
+				cont = (char *)iomap->pi_paritybufs[row][col]->
 					db_buf.b_addr;
 			}
 		}
 
 		/* Recovers lost data unit/s. */
-		rc = pargrp_iomap_dgmode_recover(map);
+		rc = pargrp_iomap_dgmode_recover(iomap);
 		M0_UT_ASSERT(rc == 0);
 
 		/* Validate the recovered data. */
 		for (row = 0; row < rows_nr(play); ++row) {
-			cont = (char *)map->pi_databufs[row][src.sa_unit]->
+			cont = (char *)iomap->pi_databufs[row][src.sa_unit]->
 				db_buf.b_addr;
 			for (col = 0; col < PAGE_SIZE; ++col, ++cont)
 				M0_UT_ASSERT(*cont == content[0]);
