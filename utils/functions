@@ -1,5 +1,8 @@
 # -*- sh -*-
 
+SYSCONFIG_DIR='/etc/sysconfig'
+[ -d $SYSCONFIG_DIR ] || SYSCONFIG_DIR='/etc/default'
+
 die() { echo "$@" >&2; exit 1; }
 
 sandbox_init() {

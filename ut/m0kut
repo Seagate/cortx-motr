@@ -201,7 +201,9 @@ eval set -- "$cli_args"
     die 'Please, run this script with "root" privileges.'
 
 sysctl -q -w kernel.printk=8
-tail -n 1 -F /var/log/messages &
+syslog='/var/log/messages'
+[ -f $syslog ] || syslog='/var/log/syslog'
+tail -n 1 -F $syslog &
 
 load_modules
 

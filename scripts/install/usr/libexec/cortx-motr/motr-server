@@ -30,9 +30,6 @@ MOTR_GENDERS_CONF=/etc/motr/genders
 MOTR_CONF_XC_DEFAULT=/etc/motr/conf.xc
 
 # service local variables
-user_config=/etc/sysconfig/motr
-ha_config="/etc/sysconfig/m0d-${1#m0d-}"
-kernel_config=/etc/sysconfig/motr-kernel
 service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 
 # BE log resize

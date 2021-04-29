@@ -355,6 +355,10 @@ struct m0_fab__conn_data {
 	char     fcd_straddr[LIBFAB_ADDR_STRLEN_MAX];
 };
 
+/**
+ * Libfab structure of bulk operation which is posted to the bulk list and
+ * processed in the poller thread.
+ */
 struct m0_fab__bulk_op {
 	/** Magic number for list of bulk buffers */
 	uint64_t                   fbl_magic;

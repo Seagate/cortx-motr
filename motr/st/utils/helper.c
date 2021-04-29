@@ -936,7 +936,7 @@ init_error:
 	return rc;
 }
 
-inline bool bsize_valid(uint64_t blk_size)
+static bool bsize_valid(uint64_t blk_size)
 {
 	return ((blk_size >= BLK_SIZE_4k && blk_size <= BLK_SIZE_32m) &&
 		 !(blk_size % BLK_SIZE_4k));
