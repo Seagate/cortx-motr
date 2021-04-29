@@ -601,10 +601,23 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	/*
 	 * For a write, if this map does not span the whole parity group,
 	 * it is a read-modify-write.
+	 *
+	 * In replicated layout (N == 1) we don't do "rmw". Even if the
+	 * incoming IO does not span the entire data unit, but spans it
+	 * partially (but in quantum of full pages) there is no need to
+	 * read parity pages for update. Because they map directly to
+	 * the respective data pages anyway (in replicated layout they
+	 * are shared to optimise the memory footprint).
+	 *
+	 * If partial page IO was allowed, reading the older copy (either
+	 * of data or parity) would become necessary in order to prepare
+	 * the new page in which incoming IO is merged with older values.
+	 * But partial page modifications are not currently supported.
 	 */
 	if (M0_IN(op->op_code, (M0_OC_FREE, M0_OC_WRITE)) &&
 	    (m0_ivec_cursor_index(cursor) > grpstart ||
-	     m0_ivec_cursor_conti(cursor, grpend) < grpend))
+	     m0_ivec_cursor_conti(cursor, grpend) < grpend) &&
+	    !m0_pdclust_is_replicated(play))
 		rmw = true;
 
 	if (op->op_code == M0_OC_FREE && rmw)
@@ -635,20 +648,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	if (rc != 0)
 		M0_ERR_INFO(rc, "[%p] failed", ioo);
 
-	/*
-	 * In replicated layout (N == 1) we don't do "rmw". Even if the
-	 * incoming IO does not span the entire data unit, but spans it
-	 * partially (but in quantum of full pages) there is no need to
-	 * read parity pages for update. Because they map directly to
-	 * the respective data pages anyway (in replicated layout they
-	 * are shared to optimise the memory footprint).
-	 *
-	 * If partial page IO was allowed, reading the older copy (either
-	 * of data or parity) would become necessary in order to prepare
-	 * the new page in which incoming IO is merged with older values.
-	 * But partial page modifications are not currently supported.
-	 */
-	if ((rmw || map->pi_trunc_partial) && !m0_pdclust_is_replicated(play)) {
+	if (rmw || map->pi_trunc_partial) {
 		rc = pargrp_iomap_select_ro_rr(map, page_nr(grpsize, obj),
 					       parity_units_page_nr(play, obj));
 		if (rc != 0)
@@ -658,8 +658,8 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	if (map->pi_ioo->ioo_pbuf_type == M0_PBUF_DIR)
 		rc = map->pi_ops->pi_paritybufs_alloc(map);
 	/*
-	 * In case of replicated layout write IO, whether it's a rmw or
-	 * otherwise, parity buffers share a pointer with data buffer.
+	 * In case of replicated layout write IO parity buffers
+	 * share a pointer with data buffer.
 	 */
 	else if (map->pi_ioo->ioo_pbuf_type == M0_PBUF_IND)
 		rc = map->pi_ops->pi_data_replicate(map);
