@@ -304,7 +304,7 @@ func (mkv *Mkv) Close() error {
 }
 
 func (mkv *Mkv) idxOp(name uint32, key []byte, value []byte) error {
-    if mkv.idx != nil {
+    if mkv.idx == nil {
         return errors.New("index is not opened")
     }
 

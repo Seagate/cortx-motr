@@ -52,7 +52,7 @@ func init() {
 
 func main() {
     mio.Init()
-    if flag.NArg() != 2 || flag.NArg() != 3 {
+    if flag.NArg() != 2 && flag.NArg() != 3 {
         usage()
         os.Exit(1)
     }
