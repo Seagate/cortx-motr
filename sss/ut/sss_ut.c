@@ -344,7 +344,7 @@ static void sss_process_lib_load_libc_test(void)
 	struct m0_fop *fop;
 
 	fop = ut_sss_process_create_req(M0_PROCESS_LIB_LOAD);
-	ut_sss_process_param_set(fop, "/lib64/libc.so.6"); /* OK, fragile. */
+	ut_sss_process_param_set(fop, "libc.so.6"); /* OK, fragile. */
 	ut_sss_process_req(fop, 0);
 }
 

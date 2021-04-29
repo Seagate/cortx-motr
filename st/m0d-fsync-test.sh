@@ -37,20 +37,20 @@ cd $M0_SRC_DIR
 echo "Installing Motr services"
 scripts/install-motr-service -u
 rm -rf /etc/motr
-rm -f  /etc/sysconfig/motr
+rm -f  "$SYSCONFIG_DIR/motr"
 scripts/install-motr-service -l
 utils/m0setup -v -P 12 -N 2 -K 1 -i 3 -d /var/motr/img -s 128 -c
 utils/m0setup -v -P 12 -N 2 -K 1 -i 3 -d /var/motr/img -s 128
 
 # update Motr configuration: turn on fdatasync with '-I' option
 sed -i "s/.*MOTR_M0D_EXTRA_OPTS.*/MOTR_M0D_EXTRA_OPTS='-I'/" \
-     /etc/sysconfig/motr
+     "$SYSCONFIG_DIR/motr"
 
 # update Motr configuration: set specific dir for test artifacts
 sed -i "s@.*MOTR_LOG_DIR.*@MOTR_LOG_DIR=${SANDBOX_DIR}/log@" \
-     /etc/sysconfig/motr
+     "$SYSCONFIG_DIR/motr"
 sed -i "s@.*MOTR_M0D_DATA_DIR.*@MOTR_M0D_DATA_DIR=${SANDBOX_DIR}/motr@" \
-     /etc/sysconfig/motr
+     "$SYSCONFIG_DIR/motr"
 
 echo "Start Motr services"
 systemctl start motr-mkfs

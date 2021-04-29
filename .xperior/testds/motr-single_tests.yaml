@@ -236,7 +236,7 @@ Tests:
     sandbox  : /var/motr/sandbox.20pool-version-test
     groupname: 02motr-single-node
     polltime : 30
-    timeout  : 660
+    timeout  : 900
 
   - id       : 21spiel-test
     script   : m0t1fs_spiel_st.sh
