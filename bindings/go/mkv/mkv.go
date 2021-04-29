@@ -34,10 +34,8 @@ func usage() {
     fmt.Fprintf(flag.CommandLine.Output(),
 `Usage: %s [options] idx_id key [value]
 
- With value argument present it will be PUT operation.
- Without value argument it will be GET operation.
-
- Options:
+ With value present it will be PUT operation.
+ Without value it will be GET operation.
 
 `, os.Args[0])
     flag.PrintDefaults()
