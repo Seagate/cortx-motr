@@ -271,12 +271,15 @@ static void test_recovery(const enum m0_parity_cal_algo algo,
 	struct m0_buf         data_buf[DATA_UNIT_COUNT_MAX];
 	struct m0_buf         parity_buf[DATA_UNIT_COUNT_MAX];
 	struct m0_buf         fail_buf;
-	struct m0_parity_math math;
+	struct m0_parity_math *math;
+
+	M0_ALLOC_PTR(math);
+	M0_UT_ASSERT(math != NULL);
 
 	while (config_generate(&data_count, &parity_count, &buff_size, algo)) {
 		fail_count = data_count + parity_count;
 
-		M0_UT_ASSERT(m0_parity_math_init(&math, data_count,
+		M0_UT_ASSERT(m0_parity_math_init(math, data_count,
 					         parity_count) == 0);
 
 		for (i = 0; i < data_count; ++i) {
@@ -286,23 +289,25 @@ static void test_recovery(const enum m0_parity_cal_algo algo,
 
 		m0_buf_init(&fail_buf, fail, buff_size);
 
-		m0_parity_math_calculate(&math, data_buf, parity_buf);
+		m0_parity_math_calculate(math, data_buf, parity_buf);
 
 		unit_spoil(buff_size, fail_count, data_count);
 
 		if (rt == FAIL_INDEX)
-			m0_parity_math_fail_index_recover(&math, data_buf,
+			m0_parity_math_fail_index_recover(math, data_buf,
 							  parity_buf,
 							  fail_index_xor);
 		else if (rt == FAIL_VECTOR)
-			m0_parity_math_recover(&math, data_buf, parity_buf,
+			m0_parity_math_recover(math, data_buf, parity_buf,
 					       &fail_buf, 0);
 
-		m0_parity_math_fini(&math);
+		m0_parity_math_fini(math);
 
 		M0_ASSERT_INFO(expected_eq(data_count, buff_size),
 			       "Recovered data is unexpected");
 	}
+
+	m0_free(math);
 }
 
 static void test_rs_fv_recover(void)
@@ -1319,7 +1324,7 @@ void parity_math_tb(void)
 {
 	int ret = 0;
 	uint32_t i = 0;
-	struct m0_parity_math math;
+	struct m0_parity_math *math;
 	uint32_t data_count = 0;
 	uint32_t parity_count = 0;
 	uint32_t buff_size = 0;
@@ -1328,12 +1333,15 @@ void parity_math_tb(void)
 	struct m0_buf parity_buf[DATA_UNIT_COUNT_MAX];
 	struct m0_buf fail_buf;
 
+	M0_ALLOC_PTR(math);
+	M0_UT_ASSERT(math != NULL);
+
 	config_generate(&data_count, &parity_count, &buff_size,
 			M0_PARITY_CAL_ALGO_REED_SOLOMON);
 	{
 		fail_count = data_count + parity_count;
 
-		ret = m0_parity_math_init(&math, data_count, parity_count);
+		ret = m0_parity_math_init(math, data_count, parity_count);
 		M0_ASSERT(ret == 0);
 
 		for (i = 0; i < data_count; ++i) {
@@ -1343,14 +1351,16 @@ void parity_math_tb(void)
 
 		m0_buf_init(&fail_buf, fail, buff_size);
 
-		m0_parity_math_calculate(&math, data_buf, parity_buf);
+		m0_parity_math_calculate(math, data_buf, parity_buf);
 
 		unit_spoil(buff_size, fail_count, data_count);
 
-		m0_parity_math_recover(&math, data_buf, parity_buf, &fail_buf, 0);
+		m0_parity_math_recover(math, data_buf, parity_buf, &fail_buf, 0);
 
-		m0_parity_math_fini(&math);
+		m0_parity_math_fini(math);
 	}
+
+	m0_free(math);
 }
 
 static void ub_small_4096(int iter)

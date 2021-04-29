@@ -110,24 +110,26 @@ M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_footer_size;
 
 M0_INTERNAL int m0_rpc_item_module_init(void)
 {
-	struct m0_rpc_item_header1 h1;
-	struct m0_xcode_ctx        h1_xc;
-	struct m0_rpc_item_header2 h2;
-	struct m0_xcode_ctx        h2_xc;
-	struct m0_rpc_item_footer  f;
-	struct m0_xcode_ctx        f_xc;
+	int                        h1_len;
+	int                        h2_len;
+	int                        f_len;
+	void                      *dummy = NULL;
+	struct m0_xcode_ctx        h_xc;
 
 	M0_ENTRY();
 
 	m0_rwlock_init(&rpc_item_types_lock);
 	rit_tlist_init(&rpc_item_types_list);
 
-	m0_xcode_ctx_init(&h1_xc, &HEADER1_XCODE_OBJ(&h1));
-	m0_xcode_ctx_init(&h2_xc, &HEADER2_XCODE_OBJ(&h2));
-	m0_xcode_ctx_init(&f_xc,  &FOOTER_XCODE_OBJ(&f));
-	m0_rpc_item_onwire_header_size = m0_xcode_length(&h1_xc) +
-					 m0_xcode_length(&h2_xc);
-	m0_rpc_item_onwire_footer_size = m0_xcode_length(&f_xc);
+	m0_xcode_ctx_init(&h_xc, &HEADER1_XCODE_OBJ(dummy));
+	h1_len = m0_xcode_length(&h_xc);
+	m0_xcode_ctx_init(&h_xc, &HEADER2_XCODE_OBJ(dummy));
+	h2_len = m0_xcode_length(&h_xc);
+	m0_xcode_ctx_init(&h_xc, &FOOTER_XCODE_OBJ(dummy));
+	f_len = m0_xcode_length(&h_xc);
+
+	m0_rpc_item_onwire_header_size = h1_len + h2_len;
+	m0_rpc_item_onwire_footer_size = f_len;
 
 	return M0_RC(0);
 }

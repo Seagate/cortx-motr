@@ -63,6 +63,7 @@ declare python2_path="/usr/bin/python2"
 consul_query_args="kv get -recurse m0conf"
 consul_query_cmd="$consul_path $consul_query_args"
 motr_conf_file="/etc/sysconfig/motr"
+[ -d /etc/sysconfig ] || motr_conf_file="/etc/default/motr"
 
 exit_with_error()
 {
