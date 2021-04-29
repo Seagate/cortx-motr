@@ -304,7 +304,8 @@ func (mkv *Mkv) Close() error {
     return nil
 }
 
-func (mkv *Mkv) doIdxOp(name uint32, key []byte, value []byte) ([]byte, error) {
+func (mkv *Mkv) doIdxOp(name uint32, key []byte, value []byte,
+                        update bool) ([]byte, error) {
     if mkv.idx == nil {
         return nil, errors.New("index is not opened")
     }
@@ -328,7 +329,11 @@ func (mkv *Mkv) doIdxOp(name uint32, key []byte, value []byte) ([]byte, error) {
 
     var op  *C.struct_m0_op
     var rcI  C.int32_t
-    rc := C.m0_idx_op(mkv.idx, name, &k, &v, &rcI, 0, &op)
+    flags := C.uint(0)
+    if name == C.M0_IC_PUT && update {
+        flags = C.M0_OIF_OVERWRITE
+    }
+    rc := C.m0_idx_op(mkv.idx, name, &k, &v, &rcI, flags, &op)
     if rc != 0 {
         return nil, fmt.Errorf("failed to init index op: %d", rc)
     }
@@ -357,14 +362,14 @@ func (mkv *Mkv) doIdxOp(name uint32, key []byte, value []byte) ([]byte, error) {
 }
 
 // Put puts key-value into the index.
-func (mkv *Mkv) Put(key []byte, value []byte) error {
-    _, err := mkv.doIdxOp(C.M0_IC_PUT, key, value)
+func (mkv *Mkv) Put(key []byte, value []byte, update bool) error {
+    _, err := mkv.doIdxOp(C.M0_IC_PUT, key, value, update)
     return err
 }
 
 // Get gets value from the index by key.
 func (mkv *Mkv) Get(key []byte) ([]byte, error) {
-    value, err := mkv.doIdxOp(C.M0_IC_GET, key, nil)
+    value, err := mkv.doIdxOp(C.M0_IC_GET, key, nil, false)
     return value, err
 }
 
@@ -510,10 +515,10 @@ func (mio *Mio) getOptimalBlockSz(bufSz int) (bsz, gsz int) {
                   pa.pa_P, pa.pa_N, pa.pa_K, pa.pa_N + 2 * pa.pa_K)
     }
     usz := int(C.m0_obj_layout_id_to_unit_size(mio.objLid))
-    gsz = usz * int(pa.pa_N) /* group size in data units only */
-    /* should be max 2-times pool-width deep, otherwise we may get -E2BIG */
+    gsz = usz * int(pa.pa_N) // group size in data units only
+    // should be max 2-times pool-width deep, otherwise we may get -E2BIG
     maxBs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
-    maxBs = ((maxBs - 1) / gsz + 1) * gsz /* multiple of group size */
+    maxBs = ((maxBs - 1) / gsz + 1) * gsz // multiple of group size
 
     if bufSz >= maxBs {
         return maxBs, gsz

@@ -42,11 +42,13 @@ func usage() {
 }
 
 var createFlag bool
+var updateFlag bool
 
 func init() {
     log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
     flag.Usage = usage
     flag.BoolVar(&createFlag, "c", false, "create index if not present")
+    flag.BoolVar(&updateFlag, "u", false, "update the existing key")
 }
 
 func main() {
@@ -65,7 +67,7 @@ func main() {
     defer mkv.Close()
 
     if flag.NArg() == 3 {
-        err := mkv.Put([]byte(flag.Arg(1)), []byte(flag.Arg(2)))
+        err := mkv.Put([]byte(flag.Arg(1)), []byte(flag.Arg(2)), updateFlag)
         if err != nil {
             log.Fatalf("failed to put: %v", err)
         }
