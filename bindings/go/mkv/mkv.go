@@ -56,11 +56,11 @@ func main() {
         os.Exit(1)
     }
 
-    indexId := flag.Arg(0)
+    indexID := flag.Arg(0)
 
     var mkv mio.Mkv
-    if err := mkv.Open(indexId, createFlag); err != nil {
-        log.Fatalf("failed to open index %v: %v", indexId, err)
+    if err := mkv.Open(indexID, createFlag); err != nil {
+        log.Fatalf("failed to open index %v: %v", indexID, err)
     }
     defer mkv.Close()
 
