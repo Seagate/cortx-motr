@@ -421,7 +421,9 @@ M0_INTERNAL int m0_dtm0_stype_init(void)
 
 M0_INTERNAL void m0_dtm0_stype_fini(void)
 {
+	extern struct m0_sm_conf m0_dtx_sm_conf;
 	m0_reqh_service_type_unregister(&dtm0_service_type);
+	m0_sm_addb2_fini(&m0_dtx_sm_conf);
 }
 
 M0_INTERNAL bool m0_dtm0_is_a_volatile_dtm(struct m0_reqh_service *service)
