@@ -49,8 +49,8 @@ int main(int argc, char **argv)
 	if (rc != 0)
 		return M0_ERR(rc);
 	memset(&domain,0,sizeof(struct m0_net_domain));
-        rc = M0_GETOPTS("m0rwlock", argc, argv,
-                            M0_STRINGARG('s',
+	rc = M0_GETOPTS("m0rwlock", argc, argv,
+			    M0_STRINGARG('s',
 				         "server endpoint (RM)",
                                        LAMBDA(void, (const char *string) {
                                                rm_ep = string; })),

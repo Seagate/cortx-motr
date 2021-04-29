@@ -53,8 +53,9 @@ if [[ "$trans" = "lnet" ]]; then
 	modprobe_lnet
 	lctl network up > /dev/null
 fi
-	modload_galois
-	modload || exit $?
+
+modload_galois
+modload || exit $?
 
 sandbox_init
 export TEST_RUN_TIME=5
