@@ -77,6 +77,6 @@ func main() {
         if err != nil {
             log.Fatalf("failed to get: %v", err)
         }
-        log.Printf("%s\n", value)
+        fmt.Printf("%s\n", value)
     }
 }

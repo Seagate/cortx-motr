@@ -303,29 +303,31 @@ func (mkv *Mkv) Close() error {
     return nil
 }
 
-func (mkv *Mkv) idxOp(name uint32, key []byte, value []byte) error {
+func (mkv *Mkv) idxOp(name uint32, key []byte, value []byte) ([]byte, error) {
     if mkv.idx == nil {
-        return errors.New("index is not opened")
+        return nil, errors.New("index is not opened")
     }
 
     var k, v C.struct_m0_bufvec
     if C.m0_bufvec_empty_alloc(&k, 1) != 0 {
-        return errors.New("failed to allocate key bufvec")
+        return nil, errors.New("failed to allocate key bufvec")
     }
     defer C.m0_bufvec_free2(&k)
     if C.m0_bufvec_empty_alloc(&v, 1) != 0 {
-        return errors.New("failed to allocate value bufvec")
+        return nil, errors.New("failed to allocate value bufvec")
     }
     defer C.m0_bufvec_free2(&v)
     *k.ov_buf = unsafe.Pointer(&key[0])
-    *v.ov_buf = unsafe.Pointer(&value[0])
     *k.ov_vec.v_count = C.ulong(len(key))
-    *v.ov_vec.v_count = C.ulong(len(value))
+    if name != C.M0_IC_GET {
+        *v.ov_buf = unsafe.Pointer(&value[0])
+        *v.ov_vec.v_count = C.ulong(len(value))
+    }
     var op   *C.struct_m0_op
     var rc_i  C.int32_t
     rc := C.m0_idx_op(mkv.idx, name, &k, &v, &rc_i, 0, &op)
     if rc != 0 {
-        return fmt.Errorf("failed to init index op: %d", rc)
+        return nil, fmt.Errorf("failed to init index op: %d", rc)
     }
 
     C.m0_op_launch(&op, 1)
@@ -339,24 +341,28 @@ func (mkv *Mkv) idxOp(name uint32, key []byte, value []byte) error {
     C.m0_op_free(op)
 
     if rc != 0 {
-        return fmt.Errorf("op failed: %d", rc)
+        return nil, fmt.Errorf("op failed: %d", rc)
     }
     if rc_i != 0 {
-        return fmt.Errorf("index op failed: %d", rc_i)
+        return nil, fmt.Errorf("index op failed: %d", rc_i)
     }
 
-    return nil
+    if name == C.M0_IC_GET {
+        value = pointer2slice(*v.ov_buf, int(*v.ov_vec.v_count))
+    }
+
+    return value, nil
 }
 
 // Put puts key-value into the index.
 func (mkv *Mkv) Put(key []byte, value []byte) error {
-    return mkv.idxOp(C.M0_IC_PUT, key, value)
+    _, err := mkv.idxOp(C.M0_IC_PUT, key, value)
+    return err
 }
 
 // Get gets value from the index by key.
 func (mkv *Mkv) Get(key []byte, sz uint64) ([]byte, error) {
-    value := make([]byte, sz)
-    err := mkv.idxOp(C.M0_IC_GET, key, value)
+    value, err := mkv.idxOp(C.M0_IC_GET, key, nil)
     return value, err
 }
 
