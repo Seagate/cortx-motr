@@ -639,13 +639,13 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	 * In replicated layout (N == 1) we don't do "rmw". Even if the
 	 * incoming IO does not span the entire data unit, but spans it
 	 * partially (but in quantum of full pages) there is no need to
-	 * read parity pages for update. Because these pages anyway map
-	 * directly to respective parity pages (as they are shared in
-	 * replicated layout to optimise the memory footprint).
+	 * read parity pages for update. Because they map directly to
+	 * the respective data pages anyway (in replicated layout they
+	 * are shared to optimise the memory footprint).
 	 *
-	 * If partial page IO was allowed, reading older copy (either of
-	 * data unit or parity) would become necessary in order to prepare
-	 * a new page in which incoming IO is merged with older values.
+	 * If partial page IO was allowed, reading the older copy (either
+	 * of data or parity) would become necessary in order to prepare
+	 * the new page in which incoming IO is merged with older values.
 	 * But partial page modifications are not currently supported.
 	 */
 	if ((rmw || map->pi_trunc_partial) && !m0_pdclust_is_replicated(play)) {
