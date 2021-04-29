@@ -32,7 +32,7 @@ import (
 
 func usage() {
     fmt.Fprintf(flag.CommandLine.Output(),
-`Usage: %s [options] idx_id key [value]
+`Usage: %s [options] index_id key [value]
 
  With value present it will be PUT operation.
  Without value it will be GET operation.
@@ -56,11 +56,11 @@ func main() {
         os.Exit(1)
     }
 
-    index_id := flag.Arg(0)
+    indexId := flag.Arg(0)
 
     var mkv mio.Mkv
-    if err := mkv.Open(index_id, createFlag); err != nil {
-        log.Fatalf("failed to open index %v: %v", index_id, err)
+    if err := mkv.Open(indexId, createFlag); err != nil {
+        log.Fatalf("failed to open index %v: %v", indexId, err)
     }
     defer mkv.Close()
 
