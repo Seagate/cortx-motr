@@ -188,16 +188,18 @@ main()
 
 	$motr_st_util_dir/m0cat $MOTR_PARAMS_2 -o $object_id -s $block_size \
                                  -c $block_count -e $dest_file'1' &
-
+	pid1=$!
 	$motr_st_util_dir/m0cat $MOTR_PARAMS_3 -o $object_id -s $block_size \
                                  -c $block_count -e $dest_file'2' &
-
-	sleep 1
+	pid2=$!
+	sleep 2
 
 	$motr_st_util_dir/m0cp $MOTR_PARAMS -o $object_id $src_file'1' \
                                 -s $block_size -c $block_count -e -u || {
 		motr_error_handling $? "Failed to update the object"
 	}
+
+	wait $pid1 $pid2
 
 	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id -e || {
 		motr_error_handling $? "Failed to delete object"
@@ -206,7 +208,7 @@ main()
 	diff $src_file $dest_file'1' || {
 		rc=$?
 		echo -n " Files differ, "
-		diff $src_file'1' $dest_file'1' || {
+		diff $src_file'1' $dest_file'1' && {
 			rc2=$?
 			echo "writer updated the file before it could be read"
 			motr_error_handling $rc2 ""
@@ -218,7 +220,7 @@ main()
 	diff $src_file $dest_file'2' || {
 		rc=$?
 		echo -n "Files differ, "
-		diff $src_file'1' $dest_file'2' || {
+		diff $src_file'1' $dest_file'2' && {
 			rc2=$?
 			echo "writer updated the file before it could be read"
 			motr_error_handling $rc2 ""
@@ -232,16 +234,19 @@ main()
 	echo "Test exclusivity among Writers"
 	$motr_st_util_dir/m0cp $MOTR_PARAMS -o $object_id $src_file \
                                 -s $block_size -c $block_count -e &
-	sleep 1
+	pid1=$!
+	sleep 2
 
 	$motr_st_util_dir/m0cp $MOTR_PARAMS_2 -o $object_id $src_file'1' \
                                 -s $block_size -c $block_count -e -u &
-	sleep 1
+	pid2=$!
+	sleep 2
 
 	$motr_st_util_dir/m0cat $MOTR_PARAMS_3 -o $object_id -s $block_size \
                                  -c $block_count -e $dest_file || {
 		motr_error_handling $? "Failed to read object"
 	}
+	wait $pid1 $pid2
 
 	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id -e || {
 		motr_error_handling $? "Failed to delete object"
@@ -250,7 +255,7 @@ main()
 	diff $src_file'1' $dest_file || {
 		rc=$?
 		echo -n "Files differ, "
-		diff $src_file $dest_file || {
+		diff $src_file $dest_file && {
 			rc2=$?
 			echo "read the object before it could be updated"
 			motr_error_handling $rc2 ""

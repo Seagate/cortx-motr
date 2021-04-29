@@ -59,9 +59,9 @@ for KERNEL_ROLE in "none" "client" "server"; do
 	echo -n "------ test client in $(role_space client), "
 	echo "test server in $(role_space server)"
 	echo "--- ping test (test message size is 4KiB)"
-	sh $CWD/st-ping.sh
+	$CWD/st-ping.sh
 	echo "--- bulk test (test message size is 1MiB)"
-	sh $CWD/st-bulk.sh
+	$CWD/st-bulk.sh
 done
 sandbox_fini
 report_and_exit net 0
