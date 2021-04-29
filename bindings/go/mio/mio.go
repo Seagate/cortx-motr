@@ -363,7 +363,7 @@ func (mkv *Mkv) Put(key []byte, value []byte) error {
 }
 
 // Get gets value from the index by key.
-func (mkv *Mkv) Get(key []byte, sz uint64) ([]byte, error) {
+func (mkv *Mkv) Get(key []byte) ([]byte, error) {
     value, err := mkv.doIdxOp(C.M0_IC_GET, key, nil)
     return value, err
 }

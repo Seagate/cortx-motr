@@ -36,17 +36,18 @@ func usage() {
 
  With value argument present it will be PUT operation.
  Without value argument it will be GET operation.
+
+ Options:
+
 `, os.Args[0])
     flag.PrintDefaults()
 }
 
-var valueSize uint64
 var createFlag bool
 
 func init() {
     log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
     flag.Usage = usage
-    flag.Uint64Var(&valueSize, "vsz", 1, "value `size` (in KiB)")
     flag.BoolVar(&createFlag, "c", false, "create index if not present")
 }
 
@@ -56,8 +57,6 @@ func main() {
         usage()
         os.Exit(1)
     }
-
-    valueSize *= 1024
 
     index_id := flag.Arg(0)
 
@@ -73,7 +72,7 @@ func main() {
             log.Fatalf("failed to put: %v", err)
         }
     } else {
-        value, err := mkv.Get([]byte(flag.Arg(1)), valueSize)
+        value, err := mkv.Get([]byte(flag.Arg(1)))
         if err != nil {
             log.Fatalf("failed to get: %v", err)
         }
