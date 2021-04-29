@@ -107,6 +107,7 @@ type Mio struct {
     off     int64
 }
 
+// Mkv provides key-value API to Motr
 type Mkv struct {
     idxID   C.struct_m0_uint128
     idx    *C.struct_m0_idx
@@ -253,7 +254,7 @@ func (mio *Mio) open(sz uint64) error {
     return nil
 }
 
-// Mkv::Open opens Mkv index for key-value operations.
+// Open opens Mkv index for key-value operations.
 func (mkv *Mkv) Open(id string, create bool) error {
     if mkv.idx != nil {
         return errors.New("index is already opened")
@@ -290,7 +291,7 @@ func (mkv *Mkv) Open(id string, create bool) error {
     return nil
 }
 
-// Mkv::Close closes Mkv index releasing all the resources
+// Close closes Mkv index releasing all the resources
 // that were allocated for it.
 func (mkv *Mkv) Close() error {
     if mkv.idx == nil {
@@ -324,8 +325,8 @@ func (mkv *Mkv) idxOp(name uint32, key []byte, value []byte) ([]byte, error) {
         *v.ov_vec.v_count = C.ulong(len(value))
     }
     var op   *C.struct_m0_op
-    var rc_i  C.int32_t
-    rc := C.m0_idx_op(mkv.idx, name, &k, &v, &rc_i, 0, &op)
+    var rcI  C.int32_t
+    rc := C.m0_idx_op(mkv.idx, name, &k, &v, &rcI, 0, &op)
     if rc != 0 {
         return nil, fmt.Errorf("failed to init index op: %d", rc)
     }
@@ -343,8 +344,8 @@ func (mkv *Mkv) idxOp(name uint32, key []byte, value []byte) ([]byte, error) {
     if rc != 0 {
         return nil, fmt.Errorf("op failed: %d", rc)
     }
-    if rc_i != 0 {
-        return nil, fmt.Errorf("index op failed: %d", rc_i)
+    if rcI != 0 {
+        return nil, fmt.Errorf("index op failed: %d", rcI)
     }
 
     if name == C.M0_IC_GET {
