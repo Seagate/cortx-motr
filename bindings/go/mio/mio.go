@@ -318,7 +318,12 @@ func (mkv *Mkv) doIdxOp(name uint32, key []byte, value []byte,
     if C.m0_bufvec_empty_alloc(&v, 1) != 0 {
         return nil, errors.New("failed to allocate value bufvec")
     }
-    defer C.m0_bufvec_free2(&v)
+    // we should cleanup the buffer allocated by GET op
+    if name == C.M0_IC_GET {
+        defer C.m0_bufvec_free(&v)
+    } else {
+        defer C.m0_bufvec_free2(&v)
+    }
 
     *k.ov_buf = unsafe.Pointer(&key[0])
     *k.ov_vec.v_count = C.ulong(len(key))
@@ -355,7 +360,8 @@ func (mkv *Mkv) doIdxOp(name uint32, key []byte, value []byte,
     }
 
     if name == C.M0_IC_GET {
-        value = pointer2slice(*v.ov_buf, int(*v.ov_vec.v_count))
+        value = make([]byte, *v.ov_vec.v_count)
+        copy(value, pointer2slice(*v.ov_buf, int(*v.ov_vec.v_count)))
     }
 
     return value, nil
