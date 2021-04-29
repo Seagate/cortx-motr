@@ -83,7 +83,7 @@ function motr_build() {
     git clean -dfx
     set -e
 
-    [[ -z $MOTR_GIT_COMMIT ]] || {
+    [[ -z "$MOTR_GIT_COMMIT" ]] || {
         git checkout .
         git submodule deinit -f .
         git checkout $MOTR_GIT_COMMIT
@@ -91,7 +91,7 @@ function motr_build() {
         git submodule update --init --recursive
     }
 
-    if [[ -n $NO_MOTR_TRACE ]]; then
+    if [[ -n "$NO_MOTR_TRACE" ]]; then
         git apply $SCRIPT_DIR/no_motr_trace.patch
     fi
 
@@ -163,17 +163,17 @@ function run_s3_workload() {
     local disable_addb_param=""
     local nodes_param=""
 
-    [[ -z $MOTR_CONF ]] || {
+    [[ -z "$MOTR_CONF" ]] || {
         echo "using motr conf params: $MOTR_CONF"
         motr_conf_param="-m \"${MOTR_CONF}\""
     }
 
-    [[ -z $S3_CONF ]] || {
+    [[ -z "$S3_CONF" ]] || {
         echo "using S3 conf params: $S3_CONF"
         s3_conf_param="-s \"${S3_CONF}\""
     }
 
-    [[ -z $SRV_CLI_MAP ]] || {
+    [[ -z "$SRV_CLI_MAP" ]] || {
         echo "srv-cli mapping: $SRV_CLI_MAP"
         nodes_param="-n \"${SRV_CLI_MAP}\""
     }
@@ -468,7 +468,7 @@ save_commits_ids
 
 if ! check_motr_version $MOTR_GIT_COMMIT "$MOTR_BUILD_OPTIONS"; then
     motr_build
-    if [[ -n $HARE_OPTION ]]; then
+    if [[ -n "$HARE_OPTION" ]]; then
 	hare_build
     else
 	halon_build

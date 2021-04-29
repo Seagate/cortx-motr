@@ -90,12 +90,12 @@ function motr_build()
     git clean -dfx
     set -e
 
-    [[ -z $MOTR_GIT_COMMIT ]] || {
+    [[ -z "$MOTR_GIT_COMMIT" ]] || {
         git checkout .
         git checkout $MOTR_GIT_COMMIT
     }
 
-    if [[ -n $NO_MOTR_TRACE ]]; then
+    if [[ -n "$NO_MOTR_TRACE" ]]; then
         git apply $SCRIPT_DIR/no_motr_trace.patch
     fi
 
@@ -117,12 +117,12 @@ function run_io_workload()
     local motr_conf_param=""
     local nodes_param=""
 
-    [[ -z $MOTR_CONF ]] || {
+    [[ -z "$MOTR_CONF" ]] || {
         echo "using motr conf params: $MOTR_CONF"
         motr_conf_param="-m \"${MOTR_CONF}\""
     }
 
-    [[ -z $SRV_CLI_MAP ]] || {
+    [[ -z "$SRV_CLI_MAP" ]] || {
         echo "srv-cli mapping: $SRV_CLI_MAP"
         nodes_param="-n \"${SRV_CLI_MAP}\""
     }
@@ -392,7 +392,7 @@ save_commits_ids
 if ! check_motr_version $MOTR_GIT_COMMIT "$MOTR_BUILD_OPTIONS"; then
     motr_build
 
-    if [[ -n $HARE_OPTION ]]; then
+    if [[ -n "$HARE_OPTION" ]]; then
         hare_build
     else
         halon_build
