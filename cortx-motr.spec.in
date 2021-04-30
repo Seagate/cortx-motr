@@ -102,6 +102,7 @@ BuildRequires:  python-devel
 %else
 BuildRequires:  python2-devel
 %endif
+BuildRequires:  libfabric-devel
 BuildRequires:  libedit-devel
 BuildRequires:  isa-l
 %if %{with cassandra}
