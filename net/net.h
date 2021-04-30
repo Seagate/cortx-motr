@@ -1793,7 +1793,6 @@ M0_INTERNAL m0_bcount_t default_xo_rpc_max_msg_size(struct m0_net_domain *ndom,
 M0_INTERNAL uint32_t    default_xo_rpc_max_recv_msgs(struct m0_net_domain *ndom,
 					             m0_bcount_t rpc_size);
 
-
 /** @} end of networking group */
 #endif /* __MOTR_NET_NET_H__ */
 

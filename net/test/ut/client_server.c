@@ -401,7 +401,6 @@ void m0_net_test_client_server_bulk_ut(void)
 			       2, 2, 2, 8,
 			       64, 0x100000,
 			       8, 16, 0x4000, 0x10000);
-<<<<<<< HEAD
 }
 void m0_net_test_xprt_dymanic_reg_dereg_ut(void)
 {
@@ -427,8 +426,6 @@ void m0_net_test_xprt_dymanic_reg_dereg_ut(void)
 	M0_LOG(M0_DEBUG, "After Lnet init\n");
 	m0_net_print_xprt();
 
-=======
->>>>>>> EOS-18060, EOS-18078, EOS-18082 - Update buffer pool config and fix ST-42 and ST-43 for libfabric (#563)
 }
 
 #undef NET_TEST_MODULE_NAME

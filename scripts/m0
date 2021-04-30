@@ -84,9 +84,9 @@ _libfab_st_list() {
     i=0
     while [ $i -lt ${#st_libfab_skip[@]} ]
     do
-	if [[ "${st_libfab_skip[$i]}" == "$st_name" ]]; then
-	     found_st=true
-             break
+        if [[ "${st_libfab_skip[$i]}" == "$st_name" ]]; then
+            found_st=true
+            break
         fi
 
         i=`expr $i + 1`
