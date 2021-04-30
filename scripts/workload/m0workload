@@ -32,6 +32,8 @@ import time
 import calendar
 import ast
 import re
+import json
+from pprint import pprint
 from datetime import datetime
 from collections import OrderedDict
 
@@ -426,9 +428,15 @@ class TestFramework(object):
         ret = 0
         cmd = '{}sudo hctl status --json'.format(
                '' if self.is_localhost(self.host) else f'ssh {self.host} ')
-        self.cluster_info = ast.literal_eval(self.execute_command_and_get_output(cmd))
+        op = self.execute_command_and_get_output(cmd)
+        self.cluster_info = json.loads(op)
+        #self.cluster_info = ast.literal_eval(self.execute_command_and_get_output(cmd))
+        #self.cluster_info = ast.parse(self.execute_command_and_get_output(cmd), mode='eval')
+        #print(f"Atul on 435 type = {type(op1)}")
+        pprint(self.cluster_info)
+        #exit(0)
         if (self.cluster_info != None):
-            self.profile_fid = self.cluster_info["profile"]
+            self.profile_fid = self.cluster_info["profiles"][0]['fid']
             nodes_data = self.cluster_info["nodes"]
             for node in nodes_data:
                 nodename = node["name"]

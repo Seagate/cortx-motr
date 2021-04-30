@@ -456,7 +456,7 @@ bin_PROGRAMS     += ut/m0ut
 bin_SCRIPTS      += ut/m0kut
 bin_SCRIPTS      += ut/m0ut-isolated
 bin_SCRIPTS      += scripts/xperior/m0gentestds
-bin_SCRIPTS      += scripts/workload/m0workload
+#bin_SCRIPTS      += scripts/workload/m0workload
 endif
 ut_m0ut_CPPFLAGS  = -DM0_TARGET='m0ut' $(AM_CPPFLAGS)
 ut_m0ut_LDADD     = $(top_builddir)/ut/libmotr-ut.la \
@@ -768,9 +768,13 @@ sbin_SCRIPTS  += utils/m0gendisks \
                  utils/m0iscorrupt \
                  utils/m0singlenode
 
-ivtdir = /usr/bin
+
+ivtdir = /usr/bin/workload
+include $(top_srcdir)/scripts/workload/Makefile.sub
 if ENABLE_IVT_TESTS
-ivt_SCRIPTS   += scripts/workload/m0workload
+ivt_SCRIPTS   += scripts/workload/m0workload \
+                 scripts/workload/create_workload_from_excel \
+                 scripts/workload/sample_workload_excel_test.xls
 endif
 
 #

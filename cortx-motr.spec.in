@@ -203,7 +203,9 @@ rm -rf %{buildroot}
 make DESTDIR=%{buildroot} install-ivt
 
 find %{buildroot} \
-        -name m0workload |
+        -name m0workload \
+        -o -name create_workload_from_excel \
+        -o -name sample_workload_excel_test.xls |
     sed -e 's#^%{buildroot}##' >> ivt.files
 
 sort -o ivt.files ivt.files
@@ -291,6 +293,7 @@ fi
 %exclude /lib/modules/*/kernel/fs/motr/m0net*
 %exclude /lib/modules/*/kernel/fs/motr/m0rpc*
 %exclude /lib/modules/*/kernel/fs/motr/m0ut*
+%exclude /usr/bin/workload*
 %endif # with ut
 
 %if %{with ivt}
