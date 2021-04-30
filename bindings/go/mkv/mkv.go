@@ -43,12 +43,14 @@ func usage() {
 
 var createFlag bool
 var updateFlag bool
+var deleteFlag bool
 
 func init() {
     log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
     flag.Usage = usage
     flag.BoolVar(&createFlag, "c", false, "create index if not present")
     flag.BoolVar(&updateFlag, "u", false, "update value at the existing key")
+    flag.BoolVar(&deleteFlag, "d", false, "delete the record by the key")
 }
 
 func main() {
@@ -67,15 +69,27 @@ func main() {
     defer mkv.Close()
 
     if flag.NArg() == 3 {
+        if deleteFlag {
+            log.Printf("cannot delete and put at the same time")
+            usage()
+            os.Exit(1)
+        }
         err := mkv.Put([]byte(flag.Arg(1)), []byte(flag.Arg(2)), updateFlag)
         if err != nil {
             log.Fatalf("failed to put: %v", err)
         }
     } else {
-        value, err := mkv.Get([]byte(flag.Arg(1)))
-        if err != nil {
-            log.Fatalf("failed to get: %v", err)
+        if deleteFlag {
+            err := mkv.Delete([]byte(flag.Arg(1)))
+            if err != nil {
+                log.Fatalf("failed to delete: %v", err)
+            }
+        } else {
+            value, err := mkv.Get([]byte(flag.Arg(1)))
+            if err != nil {
+                log.Fatalf("failed to get: %v", err)
+            }
+            fmt.Printf("%s\n", value)
         }
-        fmt.Printf("%s\n", value)
     }
 }

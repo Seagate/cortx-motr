@@ -115,30 +115,38 @@ func (mkv *Mkv) doIdxOp(name uint32, key []byte, value []byte,
         return nil, errors.New("failed to allocate key bufvec")
     }
     defer C.m0_bufvec_free2(&k)
-    if C.m0_bufvec_empty_alloc(&v, 1) != 0 {
-        return nil, errors.New("failed to allocate value bufvec")
-    }
-    // we should cleanup the buffer allocated by GET op
-    if name == C.M0_IC_GET {
-        defer C.m0_bufvec_free(&v)
-    } else {
-        defer C.m0_bufvec_free2(&v)
+
+    if name == C.M0_IC_PUT || name == C.M0_IC_GET {
+        if C.m0_bufvec_empty_alloc(&v, 1) != 0 {
+            return nil, errors.New("failed to allocate value bufvec")
+        }
+        if name == C.M0_IC_GET {
+            defer C.m0_bufvec_free(&v) // cleanup buffer after GET
+        } else {
+            defer C.m0_bufvec_free2(&v)
+        }
     }
 
     *k.ov_buf = unsafe.Pointer(&key[0])
     *k.ov_vec.v_count = C.ulong(len(key))
-    if name != C.M0_IC_GET {
+    if name == C.M0_IC_PUT {
         *v.ov_buf = unsafe.Pointer(&value[0])
         *v.ov_vec.v_count = C.ulong(len(value))
     }
 
-    var op  *C.struct_m0_op
-    var rcI  C.int32_t
+    vPtr := &v
+    if name == C.M0_IC_DEL {
+        vPtr = nil
+    }
+
     flags := C.uint(0)
     if name == C.M0_IC_PUT && update {
         flags = C.M0_OIF_OVERWRITE
     }
-    rc := C.m0_idx_op(mkv.idx, name, &k, &v, &rcI, flags, &op)
+
+    var rcI C.int32_t
+    var op *C.struct_m0_op
+    rc := C.m0_idx_op(mkv.idx, name, &k, vPtr, &rcI, flags, &op)
     if rc != 0 {
         return nil, fmt.Errorf("failed to init index op: %d", rc)
     }
@@ -177,4 +185,10 @@ func (mkv *Mkv) Put(key []byte, value []byte, update bool) error {
 func (mkv *Mkv) Get(key []byte) ([]byte, error) {
     value, err := mkv.doIdxOp(C.M0_IC_GET, key, nil, false)
     return value, err
+}
+
+// Delete deletes the record by key.
+func (mkv *Mkv) Delete(key []byte) error {
+    _, err := mkv.doIdxOp(C.M0_IC_DEL, key, nil, false)
+    return err
 }
