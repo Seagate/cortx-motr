@@ -93,7 +93,7 @@ bin_SCRIPTS        =
 sbin_PROGRAMS      =
 sbin_SCRIPTS       =
 lib_LTLIBRARIES    =
-
+ivt_SCRIPTS        =
 # non-installable/packageable stuff: build helpers, local tests, etc.
 noinst_PROGRAMS    =
 noinst_LTLIBRARIES =
@@ -456,6 +456,7 @@ bin_PROGRAMS     += ut/m0ut
 bin_SCRIPTS      += ut/m0kut
 bin_SCRIPTS      += ut/m0ut-isolated
 bin_SCRIPTS      += scripts/xperior/m0gentestds
+bin_SCRIPTS      += scripts/workload/m0workload
 endif
 ut_m0ut_CPPFLAGS  = -DM0_TARGET='m0ut' $(AM_CPPFLAGS)
 ut_m0ut_LDADD     = $(top_builddir)/ut/libmotr-ut.la \
@@ -767,6 +768,11 @@ sbin_SCRIPTS  += utils/m0gendisks \
                  utils/m0iscorrupt \
                  utils/m0singlenode
 
+ivtdir = /usr/bin
+if ENABLE_IVT_TESTS
+ivt_SCRIPTS   += scripts/workload/m0workload
+endif
+
 #
 # fdmi/st/echo_plugin
 #
@@ -963,6 +969,8 @@ EXTRA_DIST += $(motr_examples_DATA)
 motr_bindir = $(motrdir)/bin
 motr_bin_SCRIPTS = scripts/install$(motr_bindir)/motr_setup \
                    scripts/install$(motr_bindir)/motr_mini_prov.py
+                   #scripts/workload
+                   
 
 EXTRA_DIST += $(motr_bin_SCRIPTS)
 
@@ -1584,12 +1592,13 @@ KERNEL_MODULES_INSTALL =
 endif
 
 install-exec-local: $(KERNEL_MODULES_INSTALL)
-
 install-tests:
 	@$(MAKE) -C extra-libs/galois install
 	@$(MAKE) INSTALL_MOD_DIR=kernel/fs/motr/tests $(KERNEL_MODULES_INSTALL) \
 		 install-binPROGRAMS install-sbinPROGRAMS install-binSCRIPTS \
 		 install-sbinSCRIPTS
+install-ivt:
+	@$(MAKE) install-ivtSCRIPTS
 
 #
 # RPM targets ----------------------------------------- {{{2
@@ -1641,6 +1650,13 @@ __rpm_tests:
 		 --with ut \
 		 $(RPMBUILD_FLAGS)
 
+.PHONY: __rpm_ivt
+__rpm_ivt:
+	rpmbuild -bb $(RPM_SPEC_DIR)/cortx-motr.spec \
+		 --define "_topdir $(RPMBUILD_DIR)" \
+		 --with ivt \
+		 $(RPMBUILD_FLAGS)
+
 .PHONY: __rpm_mock
 __rpm_mock:
 	mock -r motr-mock.cfg --resultdir $(RPM_MOCK_DIR) --init
@@ -1658,6 +1674,7 @@ __rpm_mock:
 .PHONY: rpms
 rpms:
 	$(MAKE) __rpm_pre
+	$(MAKE) __rpm_ivt
 	$(MAKE) __rpm_tests
 	$(MAKE) __rpm
 	$(MAKE) __rpm_srpm
@@ -1673,6 +1690,12 @@ rpms-notests:
 rpms-tests:
 	$(MAKE) __rpm_pre
 	$(MAKE) __rpm_tests
+	$(MAKE) __rpm_post
+
+.PHONY: rpms-ivt
+rpms-ivt:
+	$(MAKE) __rpm_pre
+	$(MAKE) __rpm_ivt
 	$(MAKE) __rpm_post
 
 .PHONY: rpms-mock

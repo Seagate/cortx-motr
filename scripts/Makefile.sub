@@ -13,4 +13,5 @@ EXTRA_DIST += scripts/build/bloatmeter \
               scripts/git/branchmeter \
               scripts/git/restore-branch \
               scripts/m0 \
-              scripts/xperior/m0gentestds
+              scripts/xperior/m0gentestds \
+              scripts/workload/m0workload
