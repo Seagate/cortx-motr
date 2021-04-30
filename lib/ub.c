@@ -196,9 +196,9 @@ M0_INTERNAL int m0_ub_run(uint32_t rounds, const char *opts)
 	}
 
 	for (round = 1; round <= rounds; ++round) {
-		printf("-- round %"PRIu32, round);
+		printf("-- round %"PRIu32" --\n", round);
 		for (set = last; set != NULL; set = set->us_prev) {
-			printf("%s[", set->us_name);
+			printf("  %s[", set->us_name);
 			if (set->us_init != NULL) {
 				rc = set->us_init(opts);
 				if (rc != 0)
@@ -208,7 +208,7 @@ M0_INTERNAL int m0_ub_run(uint32_t rounds, const char *opts)
 				ub_run_one(set, bench);
 			if (set->us_fini != NULL)
 				set->us_fini();
-			printf("]");
+			printf("]\n");
 		}
 		printf("\n");
 		results_print(round);

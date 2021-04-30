@@ -32,7 +32,6 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
 CLIENT=$M0_SRC_DIR/console/m0console
 SERVER=$M0_SRC_DIR/console/st/server
-SERVER_EXEC=$M0_SRC_DIR/console/st/.libs/lt-server
 
 OUTPUT_FILE=$SANDBOX_DIR/client.log
 YAML_FILE9=$SANDBOX_DIR/req-9.yaml
@@ -53,7 +52,6 @@ start_server()
 	modload
 
 	_use_systemctl=0
-	source+eu /etc/rc.d/init.d/functions  # import `status' function
 
 	echo -n 'Running m0mkfs... ' >&2
 	##
@@ -74,7 +72,7 @@ start_server()
 
 	$SERVER -v &>$SANDBOX_DIR/server.log &
 	sleep 1
-	status $SERVER_EXEC || die 'Service failed to start'
+	pgrep $(basename "$SERVER") >/dev/null || die 'Service failed to start'
 	echo 'Service started' >&2
 }
 
@@ -132,7 +130,7 @@ EOF
 
 stop_server()
 {
-	killproc $SERVER_EXEC &>/dev/null && wait || true
+	{ pkill $(basename "$SERVER") && wait; } || true
 	modunload
 	modunload_galois
 }

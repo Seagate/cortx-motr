@@ -161,7 +161,7 @@ services_start() {
         error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
 }
 
-services_stop() { killall -q lt-m0d && wait || true; }
+services_stop() { pkill m0d && wait || true; }
 
 _mount() {
     mount -t m0t1fs \
@@ -173,7 +173,7 @@ _spiel_setup() {
     local rc=0
 
     cd $M0_SRC_DIR/utils/spiel
-    python setup.py "$@" || rc=$?
+    python2 setup.py "$@" || rc=$?
     cd - >/dev/null
     return $rc
 }
@@ -182,7 +182,9 @@ spiel() {
     local files=$SANDBOX_DIR/installed-files
     case "$*" in
         init)
-            _spiel_setup -q install --home $SANDBOX_DIR --record $files;;
+            _spiel_setup -q install --home $SANDBOX_DIR \
+                         --install-lib $SANDBOX_DIR/lib64/python \
+                         --record $files;;
         run)
             PYTHONPATH=$SANDBOX_DIR/lib64/python \
                       $M0_SRC_DIR/utils/spiel/m0spiel \
