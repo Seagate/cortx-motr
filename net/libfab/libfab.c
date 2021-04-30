@@ -121,8 +121,7 @@ static int libfab_check_for_comp(struct fid_cq *cq, struct m0_fab__buf **ctx,
 				 m0_bindex_t *len, uint64_t *rem_cq_data);
 static void libfab_tm_fini(struct m0_net_transfer_mc *tm);
 static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp);
-static int libfab_destaddr_get(struct m0_fab__ep_name *epname,
-			       struct fi_info *hints, struct fi_info **out);
+static inline uint64_t libfab_destaddr_get(struct m0_fab__ep_name *epname);
 static void libfab_pending_bufs_send(struct m0_fab__ep *ep);
 static inline int libfab_target_notify(struct m0_fab__buf *buf,
 				       struct m0_fab__active_ep *ep);
@@ -236,6 +235,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 		portal = 30 + portal;
 
 	portnum  = tmid | (1 << 10) | ((portal - 30) << 11);
+	M0_ASSERT(portnum < 65537);
 	sprintf(port, "%d", portnum);
 	fab_autotm[tmid] = 1;
 	return M0_RC(0);
@@ -508,17 +508,20 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 	struct fid_eq            *eq;
 	struct fi_eq_err_entry    eq_err;
 	struct fi_eq_cm_entry     entry;
+	uint64_t                  netaddr;
 	uint32_t                  event;
 	int                       rc;
 
 	eq = tm->ftm_pep->fep_listen->pep_res.fpr_eq;
 	rc = fi_eq_read(eq, &event, &entry,
-			(sizeof(entry) + LIBFAB_ADDR_STRLEN_MAX), 0);
-	if (rc >= sizeof(entry)) {
+			(sizeof(entry) + sizeof(struct m0_fab__conn_data)), 0);
+	if (rc > 0 && rc >= sizeof(entry)) {
 		if (event == FI_CONNREQ) {
 			memset(&en, 0, sizeof(en));
 			cd = (struct m0_fab__conn_data*)entry.data;
-			libfab_ep_ntop(cd->fcd_netaddr, &en);
+			netaddr = *(uint64_t*)entry.info->src_addr;
+			netaddr &= 0xFFFFFFFFFFFF0000;
+			libfab_ep_ntop(netaddr, &en);
 			libfab_fab_ep_find(tm, &en, cd->fcd_straddr, &ep);
 			rc = libfab_conn_accept(ep, tm, entry.info);
 			if (rc != FI_SUCCESS)
@@ -740,6 +743,8 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 			rc = libfab_ep_create(tm, name, epn, epp);
 		else {
 			M0_ASSERT(epn != NULL);
+			M0_ASSERT((strlen(epn->fen_addr) + strlen(epn->fen_port) 
+				  + 8) < LIBFAB_ADDR_STRLEN_MAX);
 			sprintf(ep_str, "libfab:%s:%s", epn->fen_addr,
 				epn->fen_port);
 			rc = libfab_ep_create(tm, ep_str, epn, epp);
@@ -1707,15 +1712,13 @@ static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp)
 	return M0_RC(ret);
 }
 
-static int libfab_destaddr_get(struct m0_fab__ep_name *epname,
-			       struct fi_info *hints, struct fi_info **out)
+static inline uint64_t libfab_destaddr_get(struct m0_fab__ep_name *epname)
 {
-	int ret;
+	uint64_t dst;
 
-	ret = fi_getinfo(LIBFAB_VERSION, epname->fen_addr, epname->fen_port, 0,
-			 hints, out);
-
-	return M0_RC(ret);
+	libfab_ep_pton(epname, &dst);
+	dst |= 0x02;	/* FI_SOCKADDR_IN */
+	return dst;
 }
 
 static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
@@ -1785,24 +1788,28 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 			    struct m0_fab__buf *fbp)
 {
 	struct m0_fab__active_ep *aep;
-	struct fi_info           *peer_fi;
+	uint64_t                  dst;
+	size_t                    cm_max_size = 0;
+	size_t                    opt_size = sizeof(size_t);
 	struct m0_fab__conn_data  cd;
 	int                       ret = 0;
 
 	aep = libfab_aep_get(ep);
 	if (aep->aep_tx_state == FAB_NOT_CONNECTED) {
-		libfab_destaddr_get(&ep->fep_name, ma->ftm_fab->fab_fi,
-				    &peer_fi);
+		dst = libfab_destaddr_get(&ep->fep_name);
 		strcpy(cd.fcd_straddr, ma->ftm_pep->fep_name.fen_str_addr);
-		libfab_ep_pton(&ma->ftm_pep->fep_name, &cd.fcd_netaddr);
-		ret = fi_connect(aep->aep_txep, peer_fi->dest_addr, &cd,
-				 sizeof(cd));
+
+		ret = fi_getopt(&aep->aep_txep->fid, FI_OPT_ENDPOINT,
+				FI_OPT_CM_DATA_SIZE,
+				&cm_max_size, &opt_size);
+		M0_ASSERT(sizeof(cd) < cm_max_size);
+
+		ret = fi_connect(aep->aep_txep, &dst, &cd, sizeof(cd));
 		if (ret == FI_SUCCESS)
 			aep->aep_tx_state = FAB_CONNECTING;
 		else
 			M0_LOG(M0_DEBUG, " Conn req failed ret=%d dst=%"PRIx64,
-			       ret, *(uint64_t*)peer_fi->dest_addr);
-		fi_freeinfo(peer_fi);
+			       ret, dst);
 	}
 	
 	if (ret == 0)
@@ -1845,6 +1852,7 @@ static void libfab_ep_ntop(uint64_t netaddr, struct m0_fab__ep_name *name)
 	ap.net_addr = netaddr;
 	inet_ntop(AF_INET, &ap.ap[1], name->fen_addr, LIBFAB_ADDR_LEN_MAX);
 	ap.ap[0] = ntohl(ap.ap[0]);
+	M0_ASSERT(ap.ap[0] < 65537);
 	sprintf(name->fen_port, "%d", ap.ap[0]);
 }
 

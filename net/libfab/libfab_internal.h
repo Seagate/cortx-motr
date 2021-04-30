@@ -348,9 +348,6 @@ struct m0_fab__buf {
  * Libfab structure of connection data
  */
 struct m0_fab__conn_data {
-	/** address in network byte format */
-	uint64_t fcd_netaddr;
-	
 	/** address in string format */
 	char     fcd_straddr[LIBFAB_ADDR_STRLEN_MAX];
 };
