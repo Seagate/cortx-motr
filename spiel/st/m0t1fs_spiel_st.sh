@@ -184,6 +184,19 @@ stub_confdb() {
 EOF
 }
 
+m0_get_transport(){
+    local trans;
+
+    trans = $(fi_info)
+    if [[ $? -eq 0 ]]; then
+        trans="libfab"
+    else
+        trans="lnet"
+    fi
+
+    echo $trans
+}
+
 ### m0_spiel_start requires endpoint of RM service. This function starts the
 ### first m0d instance with rmservice. All Spiel commands from command
 ### interface part will affect to second m0d instance. Spiel commands from
