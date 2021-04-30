@@ -275,7 +275,8 @@ m0_get_motr_transport()
 {
     local trans
 
-    trans=$(fi_info)
+    trans=$(whereis fi_info | cut -d ':' -f2)
+    $trans > /dev/null
     if [[ $? == 0 ]]; then
         trans="libfab"
     else
