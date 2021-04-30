@@ -48,7 +48,7 @@ func init() {
     log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
     flag.Usage = usage
     flag.BoolVar(&createFlag, "c", false, "create index if not present")
-    flag.BoolVar(&updateFlag, "u", false, "update the existing key")
+    flag.BoolVar(&updateFlag, "u", false, "update value at the existing key")
 }
 
 func main() {
