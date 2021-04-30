@@ -50,6 +50,7 @@ _transport_select() {
     touch $M0_SRC_DIR/scripts/st.d/net_xpt
     echo $NET_XPT > $M0_SRC_DIR/scripts/st.d/net_xpt
 }
+
 # libfab doesnot need kernel based ST
 _libfab_st_list() {
     st_name=$1
@@ -84,9 +85,9 @@ _libfab_st_list() {
     i=0
     while [ $i -lt ${#st_libfab_skip[@]} ]
     do
-        if [[ "${st_libfab_skip[$i]}" == "$st_name" ]]; then
-            found_st=true
-            break
+	if [[ "${st_libfab_skip[$i]}" == "$st_name" ]]; then
+	     found_st=true
+             break
         fi
 
         i=`expr $i + 1`
