@@ -120,7 +120,9 @@ def tabulate():
         S = 0;
         P = 7*6;
         r2md = md(16, 20, 1024, size);
-        print(size, r1md, r1md/size, r2md, r2md/size);
+        print "{0:10} {1:6} {2:.4} {3:6} {4:.4}".format(size, int(r1md),
+                                                      r1md/size, int(r2md),
+                                                      r2md/size);
 
 if __name__ == "__main__":
     tabulate()
