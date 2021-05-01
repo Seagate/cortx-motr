@@ -434,6 +434,7 @@ static int mem_xo_buf_add(struct m0_net_buffer *nb)
 		break;
 	case M0_NET_QT_PASSIVE_BULK_RECV:
 		nb->nb_length = 0;
+		/* fallthrough */
 	case M0_NET_QT_PASSIVE_BULK_SEND:
 		bp->xb_buf_id = ++dp->xd_buf_id_counter;
 		rc = mem_bmo_desc_create(&nb->nb_desc, tm,
@@ -443,6 +444,7 @@ static int mem_xo_buf_add(struct m0_net_buffer *nb)
 			return M0_RC(rc);
 		break;
 	case M0_NET_QT_ACTIVE_BULK_RECV:
+		/* fallthrough */
 	case M0_NET_QT_ACTIVE_BULK_SEND:
 		wi->xwi_op = M0_NET_XOP_ACTIVE_BULK;
 		break;
