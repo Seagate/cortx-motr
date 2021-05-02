@@ -337,9 +337,6 @@ struct m0_fab__buf {
 	/** Count of work request completions for bulk rma ops */
 	volatile uint32_t      fb_wr_comp_cnt;
 
-	/** Flag to denote that bulk op on all segments is done */
-	volatile bool          fb_all_seg_done;
-
 	/** Pointer to the bulk op structure */
 	void*                  fb_bulk_op;
 };
@@ -348,6 +345,9 @@ struct m0_fab__buf {
  * Libfab structure of connection data
  */
 struct m0_fab__conn_data {
+	/** address in network byte format */
+	uint64_t fcd_netaddr;
+	
 	/** address in string format */
 	char     fcd_straddr[LIBFAB_ADDR_STRLEN_MAX];
 };

@@ -378,6 +378,8 @@ static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name)
 	size_t portSize = ARRAY_SIZE(ep->fep_name.fen_port);
 	int result;
 
+	M0_ENTRY("name=%s", name);
+	
 	if( name == NULL || name[0] == 0)
 		result =  M0_ERR(-EPROTO);
 	else if((strncmp(name,"libfab",6))==0)
@@ -508,7 +510,6 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 	struct fid_eq            *eq;
 	struct fi_eq_err_entry    eq_err;
 	struct fi_eq_cm_entry     entry;
-	uint64_t                  netaddr;
 	uint32_t                  event;
 	int                       rc;
 
@@ -519,9 +520,7 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 		if (event == FI_CONNREQ) {
 			memset(&en, 0, sizeof(en));
 			cd = (struct m0_fab__conn_data*)entry.data;
-			netaddr = *(uint64_t*)entry.info->src_addr;
-			netaddr &= 0xFFFFFFFFFFFF0000;
-			libfab_ep_ntop(netaddr, &en);
+			libfab_ep_ntop(cd->fcd_netaddr, &en);
 			libfab_fab_ep_find(tm, &en, cd->fcd_straddr, &ep);
 			rc = libfab_conn_accept(ep, tm, entry.info);
 			if (rc != FI_SUCCESS)
@@ -612,8 +611,7 @@ static void libfab_txep_comp_read(struct fid_cq *cq)
 				   M0_NET_QT_ACTIVE_BULK_SEND)))
 				--aep->aep_bulk_cnt;
 			buf[i]->fb_wr_comp_cnt++;
-			if (buf[i]->fb_all_seg_done &&
-			    buf[i]->fb_wr_comp_cnt >= buf[i]->fb_wr_cnt) {
+			if (buf[i]->fb_wr_comp_cnt >= buf[i]->fb_wr_cnt) {
 				libfab_target_notify(buf[i], aep);
 				libfab_buf_done(buf[i], 0);
 			}
@@ -1084,7 +1082,7 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 
 	hints->ep_attr->type = FI_EP_MSG;
 	hints->caps = FI_MSG | FI_RMA;
-	hints->domain_attr->cq_data_size = sizeof(uint64_t);
+	hints->domain_attr->cq_data_size = 4;
 
 	for (i = 0; i < ARRAY_SIZE(providers); i++) {
 		hints->fabric_attr->prov_name = providers[i];
@@ -1397,7 +1395,6 @@ static void libfab_buf_fini(struct m0_fab__buf *buf)
 		buf->fb_bulk_op = NULL;
 	}
 	buf->fb_length = 0;
-	buf->fb_all_seg_done = false;
 }
 
 static bool libfab_dom_invariant(const struct m0_net_domain *dom)
@@ -1727,6 +1724,7 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
 	struct m0_fab__buf       *fbp;
 	struct m0_net_buffer     *nb;
 	struct iovec              iv;
+	int                       ret = 0;
 
 	aep = libfab_aep_get(ep);
 	m0_tl_for(fab_sndbuf, &ep->fep_sndbuf, fbp) {
@@ -1736,9 +1734,8 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
 		iv.iov_len = nb->nb_buffer.ov_vec.v_count[0];
 		switch (nb->nb_qtype) {
 			case M0_NET_QT_MSG_SEND:
-				fi_sendv(aep->aep_txep, &iv, fbp->fb_mr.bm_desc,
-					 1, 0, fbp);
-				fbp->fb_all_seg_done = true;
+				ret = fi_sendv(aep->aep_txep, &iv,
+					       fbp->fb_mr.bm_desc, 1, 0, fbp);
 				break;
 			case M0_NET_QT_ACTIVE_BULK_RECV:
 			case M0_NET_QT_ACTIVE_BULK_SEND:
@@ -1751,6 +1748,7 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
 				break;
 		}
 		fab_sndbuf_tlist_del(fbp);
+		M0_ASSERT(ret == FI_SUCCESS);
 	} m0_tl_endfor;
 	M0_ASSERT(fab_sndbuf_tlist_is_empty(&ep->fep_sndbuf));
 }
@@ -1798,6 +1796,7 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 	if (aep->aep_tx_state == FAB_NOT_CONNECTED) {
 		dst = libfab_destaddr_get(&ep->fep_name);
 		strcpy(cd.fcd_straddr, ma->ftm_pep->fep_name.fen_str_addr);
+		libfab_ep_pton(&ma->ftm_pep->fep_name, &cd.fcd_netaddr);
 
 		ret = fi_getopt(&aep->aep_txep->fid, FI_OPT_ENDPOINT,
 				FI_OPT_CM_DATA_SIZE,
@@ -2030,6 +2029,7 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 	uint32_t           wr_cnt = 0;
 	bool               isread;
 	int                ret = 0;
+	bool               last_seg = false;
 
 	M0_ENTRY("loc_buf=%p q=%d loc_seg=%d rem_buf=0x%"PRIx64" rem_seg=%d",
 		 fb, fb->fb_nb->nb_qtype, fb->fb_nb->nb_buffer.ov_vec.v_nr, 
@@ -2049,7 +2049,7 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 		iv.iov_len = min64u(loc_slen, rem_slen);
 
 		if (xfer_len + iv.iov_len >= fb->fb_nb->nb_length)
-			fb->fb_all_seg_done = true;
+			last_seg = true;
 		
 		op_msg.msg_iov       = &iv;
 		op_msg.desc          = &fb->fb_mr.bm_desc[loc_sidx];
@@ -2059,20 +2059,17 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 		op_msg.rma_iov_count = 1;
 		op_msg.context       = fb;
 		
-		op_msg.data = (isread || (!fb->fb_all_seg_done)) ? 0 :
+		op_msg.data = (isread || (!last_seg)) ? 0 :
 			      fb->fb_rbd->fbd_bufptr;
-		op_flag = (isread || (!fb->fb_all_seg_done)) ? 0 :
-			  FI_REMOTE_CQ_DATA;
+		op_flag = (isread || (!last_seg)) ? 0 : FI_REMOTE_CQ_DATA;
 		
 		if (isread)
 			ret = fi_readmsg(aep->aep_txep, &op_msg, op_flag);
 		else
 			ret = fi_writemsg(aep->aep_txep, &op_msg, op_flag);
 
-		if (ret != FI_SUCCESS) {
-			fb->fb_all_seg_done = true;
+		if (ret != FI_SUCCESS)
 			break;
-		}
 
 		if (loc_slen > rem_slen) {
 			rem_sidx++;
@@ -2430,7 +2427,6 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 			iv.iov_len = nb->nb_buffer.ov_vec.v_count[0];
 			ret = fi_sendv(aep->aep_txep, &iv, fbp->fb_mr.bm_desc,
 				       1, 0, fbp);
-			fbp->fb_all_seg_done = true;
 		}
 		break;
 	}
