@@ -23,6 +23,9 @@ with_lnet_service=false
 verbose=true
 m0spiel_pkg_file=/var/motr/m0spiel.pkg.files
 
+sysconfig_dir='/etc/sysconfig'
+[ -d $sysconfig_dir ] || sysconfig_dir='/etc/default'
+[ -d $sysconfig_dir ] || die 'Error: unknown Linux distribution'
 
 #
 # Usage
@@ -134,26 +137,27 @@ install_files()
     local cmd="cp -f ${v}"
     $link_files && cmd="ln -sf ${v}"
 
-    local dir='/etc/sysconfig'
     local file='scripts/install/etc/sysconfig/motr'
     # don't install LNet service by default, assume that we use Intel's Lustre
     # which provides it's own one
     local lnet_service=''
 
-    run "$cmd $M0_SRC_DIR/$file $dir"
+    run "$cmd $M0_SRC_DIR/$file $sysconfig_dir"
 
     local file='scripts/install/etc/sysconfig/motr-free-space-monitor'
-    run "$cmd $M0_SRC_DIR/$file $dir"
+    run "$cmd $M0_SRC_DIR/$file $sysconfig_dir"
 
     if ! $dry_run ; then
-        /bin/sed -i -e "s%#MOTR_DEVEL_WORKDIR_PATH=.*$%MOTR_DEVEL_WORKDIR_PATH=$M0_SRC_DIR%" /etc/sysconfig/motr
+        /bin/sed -i -e \
+          "s%#MOTR_DEVEL_WORKDIR_PATH=.*$%MOTR_DEVEL_WORKDIR_PATH=$M0_SRC_DIR%"\
+          $sysconfig_dir/motr
     fi
 
     if $with_lnet_service ; then
         lnet_service='scripts/install/usr/lib/systemd/system/lnet.service'
     fi
 
-    dir='/usr/lib/systemd/system'
+    dir='/lib/systemd/system'
     if [[ -d $dir ]] ; then
         for file in 'scripts/install/usr/lib/systemd/system/motr-trace@.service' \
                     'scripts/install/usr/lib/systemd/system/motr-kernel.service' \
@@ -233,8 +237,8 @@ uninstall_files()
     local v='-v'
     $verbose || v=''
 
-    file_list='/etc/sysconfig/motr
-               /etc/sysconfig/motr-free-space-monitor
+    file_list="$sysconfig_dir/motr
+               $sysconfig_dir/motr-free-space-monitor
                /etc/motr/disks-ios.conf
                /etc/motr/genders
                /usr/bin/m0dixinit
@@ -247,7 +251,7 @@ uninstall_files()
                /usr/libexec/cortx-motr/motr-dixinit
                /usr/libexec/cortx-motr/motr
                /usr/libexec/cortx-motr/motr-free-space-monitor
-               /usr/libexec/cortx-motr/motr-client '
+               /usr/libexec/cortx-motr/motr-client "
 
     if [[ -d /usr/lib/systemd/system ]] ; then
         file_list+='/usr/lib/systemd/system/motr-trace@.service
