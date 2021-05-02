@@ -78,7 +78,7 @@ static struct m0_semaphore *test_locality_lock;
 
 static struct m0_atomic64 callbacks_executed;
 
-static pid_t gettid()
+static pid_t _gettid()
 {
 	return syscall(SYS_gettid);
 }
@@ -175,7 +175,7 @@ static void test_timers(enum m0_timer_type timer_type, int nr_timers,
 
 static unsigned long locality_default_callback(unsigned long data)
 {
-	M0_UT_ASSERT(gettid() == loc_default_tid);
+	M0_UT_ASSERT(_gettid() == loc_default_tid);
 	m0_semaphore_up(&loc_default_lock);
 	return 0;
 }
@@ -194,7 +194,7 @@ static void timer_locality_default_test()
 
 	sem_init_zero(&loc_default_lock);
 
-	loc_default_tid = gettid();
+	loc_default_tid = _gettid();
 	m0_timer_start(&timer, make_time_abs(100));
 	m0_semaphore_down(&loc_default_lock);
 
@@ -207,7 +207,7 @@ static void timer_locality_default_test()
 static unsigned long locality_test_callback(unsigned long data)
 {
 	M0_ASSERT(data >= 0);
-	M0_ASSERT(test_locality_tid == gettid());
+	M0_ASSERT(test_locality_tid == _gettid());
 	m0_semaphore_up(&test_locality_lock[data]);
 	return 0;
 }
@@ -231,7 +231,7 @@ static void timer_locality_test(int nr_timers,
 	if (test_locality_lock == NULL)
 		goto free_timers;
 
-	test_locality_tid = gettid();
+	test_locality_tid = _gettid();
 	for (i = 0; i < nr_timers; ++i)
 		sem_init_zero(&test_locality_lock[i]);
 
@@ -277,7 +277,7 @@ static unsigned long test_timer_callback_mt(unsigned long data)
 {
 	struct tg_timer *tgt = (struct tg_timer *)data;
 	bool		 found = false;
-	pid_t		 tid = gettid();
+	pid_t		 tid = _gettid();
 	int		 i;
 
 	M0_ASSERT(tgt != NULL);
@@ -297,7 +297,7 @@ static void test_timer_worker_mt(struct tg_worker *worker)
 {
 	int rc;
 
-	worker->tgs_tid = gettid();
+	worker->tgs_tid = _gettid();
 	/* add worker thread to locality */
 	rc = m0_timer_thread_attach(&worker->tgs_group->tg_loc);
 	M0_UT_ASSERT(rc == 0);

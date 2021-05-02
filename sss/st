@@ -193,11 +193,11 @@ m0d_start() {
 	sleep 1
 	sss_check M0_CST_IOS M0_SERVICE_STATUS "$SVC_ID" ssr_state \
 		M0_RST_STARTED
-	killall -q -0 lt-m0d || die 'Failed to start m0d'
+	pkill -0 m0d || die 'Failed to start m0d'
 }
 
 m0d_stop() {
-	killall -q lt-m0d && wait 2>/dev/null || true
+	pkill m0d && wait 2>/dev/null || true
 }
 
 usage() {
@@ -234,7 +234,8 @@ sss_process_restart_check
 #
 # Load shared library.
 #
-sss_process_check M0_PROCESS_LIB_LOAD "$PROC_ID" '"/lib64/libc.so.6 "' sspr_rc OK
+LIBC=$(find /lib* -name 'libc.so*' | head -1)
+sss_process_check M0_PROCESS_LIB_LOAD "$PROC_ID" "\"$LIBC \"" sspr_rc OK
 sss_process_check M0_PROCESS_LIB_LOAD "$PROC_ID" '"bah.so "' sspr_rc _EINVAL
 
 sss_check M0_CST_IOS M0_SERVICE_STATUS "$SVC_ID" ssr_state M0_RST_STARTED
