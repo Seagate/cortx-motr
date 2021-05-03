@@ -123,6 +123,22 @@ System Tests
 - To perform all the system tests, run the following command:
 
   - **$ sudo ./scripts/m0 run-st**
+  
+Unit Benchmark
+---------
+- To perform unit benchmarks, run the following command:
+
+  - **$ sudo ./scripts/m0 run-ub**
+
+  Running Time (approximate) - 60 to 70 minutes
+
+- To list all available unit benchmarks, run the following command:
+
+  - **$ sudo ./scripts/m0 run-ub -l**
+
+- To run some unit benchmark(s), e.g. "ad-ub", run the following command:
+
+  - **$ sudo ./scripts/m0 run-ub -t ad-ub**
 
 Troubleshooting
 ================
@@ -186,6 +202,8 @@ Troubleshooting
        
         
 Tested by:
+
+- Apr 16, 2021: Jalen Kan (jalen.j.kan@seagate.com) in CentOS 7.9.2009 on a windows laptop running VMware Workstation Pro 16
 
 - Mar 12, 2021: Yanqing Fu (yanqing.f.fu@seagate.com) in Red Hat Enterprise Linux Server release 7.7 (Maipo)
 

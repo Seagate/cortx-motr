@@ -30,10 +30,7 @@ MOTR_GENDERS_CONF=/etc/motr/genders
 
 # service local variables
 motr_exec_dir=/usr/libexec/cortx-motr
-user_config=/etc/sysconfig/motr
-kernel_config=/etc/sysconfig/motr-kernel
 service_funcs=$motr_exec_dir/motr-service.functions
-ha_config="/etc/sysconfig/m0d-${1#m0d-}"
 
 
 m0_mkfs()

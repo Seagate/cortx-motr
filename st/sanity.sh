@@ -40,7 +40,7 @@ rm -f  /etc/sysconfig/motr
 scripts/install-motr-service -l
 
 PATH=$PATH:$M0_SRC_DIR/utils
-sh ./scripts/install/opt/seagate/cortx/motr/sanity/motr_sanity.sh
+scripts/install/opt/seagate/cortx/motr/sanity/motr_sanity.sh
 rc=$?
 
 scripts/install-motr-service -u
