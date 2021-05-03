@@ -743,7 +743,7 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 	struct m0_fab__ep        *ep;
 	struct m0_fab__active_ep *aep;
 	struct m0_fab__tm        *ma;
-	char                      ep_str[LIBFAB_ADDR_STRLEN_MAX] = {0};
+	char                      ep_str[LIBFAB_ADDR_STRLEN_MAX] = {'\0'};
 	char                     *wc = NULL;
 	bool                      found = false;
 	int                       rc = 0;
@@ -1891,7 +1891,7 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 		ret = fi_getopt(&aep->aep_txep->fid, FI_OPT_ENDPOINT,
 				FI_OPT_CM_DATA_SIZE,
 				&cm_max_size, &opt_size);
-		M0_ASSERT(sizeof(cd) < cm_max_size);
+		M0_ASSERT((ret == FI_SUCCESS) && (sizeof(cd) < cm_max_size));
 
 		ret = fi_connect(aep->aep_txep, &dst, &cd, sizeof(cd));
 		if (ret == FI_SUCCESS)
@@ -2063,7 +2063,7 @@ static uint32_t libfab_wr_cnt_get(struct m0_fab__buf *fb)
 	struct fi_rma_iov *r_iov;
 	m0_bcount_t       *v_cnt = fb->fb_nb->nb_buffer.ov_vec.v_count;
 	m0_bcount_t        xfer_len = 0;
-	m0_bcount_t        chunk = 0;
+	m0_bcount_t        chunk;
 	uint32_t           loc_sidx = 0;
 	uint32_t           rem_sidx = 0;
 	uint32_t           loc_soff = 0;
@@ -2138,7 +2138,7 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 	m0_bcount_t       *v_cnt = fb->fb_nb->nb_buffer.ov_vec.v_count;
 	m0_bcount_t        xfer_len = 0;
 	struct iovec       iv;
-	uint64_t           op_flag = 0;
+	uint64_t           op_flag;
 	uint32_t           loc_sidx = 0;
 	uint32_t           rem_sidx = 0;
 	uint32_t           loc_soff = 0;

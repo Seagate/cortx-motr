@@ -895,7 +895,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 						bufnext = auxbvec->ov_buf[seg+1];
 					else
 						bufnext = bvec->ov_buf[seg+1];
-					if (buf + xfer_len == bufnext)
+					if ((m0_bcount_t)buf + xfer_len == 
+					    (m0_bcount_t)bufnext)
 						xfer_len += COUNT(ivec, ++seg);
 					else
 						break;
