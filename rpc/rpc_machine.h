@@ -48,7 +48,6 @@ struct m0_dtm;
 enum {
 	/** Default Maximum RPC message size is taken as 128k */
 	M0_RPC_DEF_MAX_RPC_MSG_SIZE = 1 << 17,
-	M0_RPC_MSG_SIZE_1MB         = (1 << 20)
 };
 
 /** Collection of statistics per rpc machine */

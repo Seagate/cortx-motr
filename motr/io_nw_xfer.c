@@ -758,8 +758,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	enum page_attr              *pattr;
 	struct m0_bufvec            *bvec;
 	struct m0_bufvec            *auxbvec;
-	struct m0_op_io      *ioo;
-	struct m0_obj_attr   *io_attr;
+	struct m0_op_io             *ioo;
+	struct m0_obj_attr          *io_attr;
 	struct m0_indexvec          *ivec;
 	struct ioreq_fop            *irfop;
 	struct m0_net_domain        *ndom;
@@ -770,6 +770,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	/* Is it in the READ phase of WRITE request. */
 	bool                         read_in_write = false;
 	void                        *buf;
+	void                        *bufnext;
+	m0_bcount_t                  max_seg_size;
+	m0_bcount_t                  xfer_len;
+	m0_bindex_t                  offset;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -812,6 +816,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	     ioreq_sm_state(ioo) == IRS_DEGRADED_READING ? PA_DGMODE_READ :
 	     PA_READ;
 	maxsize = m0_rpc_session_get_max_item_payload_size(ti->ti_session);
+
+	max_seg_size = m0_net_domain_get_max_buffer_segment_size(ndom);
 
 	while (seg < SEG_NR(ivec)) {
 		delta  = 0;
@@ -873,9 +879,32 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				else
 					buf = bvec->ov_buf[seg];
 
-				rc = m0_rpc_bulk_buf_databuf_add(rbuf,
-					buf, COUNT(ivec, seg),
-					INDEX(ivec, seg), ndom);
+				xfer_len = COUNT(ivec, seg);
+				offset = INDEX(ivec, seg);
+				
+				/*
+				 * Accomodate multiple pages in a single 
+				 * net buffer segment if they are consecutive
+				 * pages
+				 */
+				while (seg < SEG_NR(ivec) && 
+				       xfer_len < max_seg_size) {
+					if (filter == PA_DATA && 
+					    read_in_write && auxbvec != NULL &&
+					    auxbvec->ov_buf[seg] != NULL)
+						bufnext = auxbvec->ov_buf[seg+1];
+					else
+						bufnext = bvec->ov_buf[seg+1];
+					if ((m0_bcount_t)buf + xfer_len == 
+					    (m0_bcount_t)bufnext)
+						xfer_len += COUNT(ivec, ++seg);
+					else
+						break;
+				}
+
+				rc = m0_rpc_bulk_buf_databuf_add(rbuf, buf,
+								 xfer_len,
+								 offset, ndom);
 
 				if (rc == -EMSGSIZE) {
 					/*

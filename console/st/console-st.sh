@@ -132,6 +132,7 @@ EOF
 
 stop_server()
 {
+	pkill $(basename "$SERVER")
 	{ pkill $(basename "$SERVER") && wait; } || true
 	modunload
 	modunload_galois

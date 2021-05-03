@@ -22,8 +22,12 @@
 #include "net/module.h"
 #include "module/instance.h"
 #include "net/lnet/lnet.h"     /* m0_net_lnet_xprt */
+#ifndef __KERNEL__
+#ifdef ENABLE_LIBFAB
 #include "net/libfab/libfab.h" /* m0_net_libfab_xprt */
+#endif /* ENABLE_LIBFAB */
 #include "net/sock/sock.h"
+#endif /* __KERNEL__ */
 #include "net/net.h"
 #include "net/bulk_mem.h"     /* m0_net_bulk_mem_xprt */
 #include "lib/memory.h"       /* M0_ALLOC_PTR */
@@ -72,11 +76,13 @@ static struct {
 		.xprt = (struct m0_net_xprt *)&m0_net_sock_xprt
 	},
 
+#ifdef ENABLE_LIBFAB
 	[M0_NET_XPRT_LIBFABRIC] = {
 		.name = "\"libfab\" m0_net_xprt_module",
 		.xprt = (struct m0_net_xprt *)&m0_net_libfab_xprt
 	}
-#endif
+#endif /* ENABLE_LIBFAB */
+#endif /* __KERNEL__ */
 };
 M0_BASSERT(ARRAY_SIZE(net_xprt_mods) ==
 	   ARRAY_SIZE(M0_FIELD_VALUE(struct m0_net_module, n_xprts)));
