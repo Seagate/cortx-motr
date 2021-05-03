@@ -1720,7 +1720,7 @@ static int libfab_bdesc_encode(struct m0_fab__buf *buf)
 
 	for (i = 0; i < seg_nr; i++) {
 		iov[i].addr = is_verbs ? (uint64_t)nb->nb_buffer.ov_buf[i] : 0;
-		iov[i].key  = buf->fb_mr.bm_key[i];
+		iov[i].key  = fi_mr_key(buf->fb_mr.bm_mr[i]);
 		iov[i].len  = nb->nb_buffer.ov_vec.v_count[i];
 	}
 
@@ -1749,6 +1749,7 @@ static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp)
 {
 	struct m0_fab__buf    *fbp = nb->nb_xprt_private;
 	struct m0_fab__buf_mr *mr = &fbp->fb_mr;
+	uint64_t               key;
 	int                    seg_nr = nb->nb_buffer.ov_vec.v_nr;
 	int                    i;
 	int                    ret = FI_SUCCESS;
@@ -1760,11 +1761,11 @@ static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp)
 		return M0_RC(ret);
 
 	for (i = 0; i < seg_nr; i++) {
-		mr->bm_key[i] = libfab_mr_keygen();
+		key = libfab_mr_keygen();
 		
 		ret = fi_mr_reg(dp, nb->nb_buffer.ov_buf[i], 
 				nb->nb_buffer.ov_vec.v_count[i],
-				FAB_MR_ACCESS, FAB_MR_OFFSET, mr->bm_key[i],
+				FAB_MR_ACCESS, FAB_MR_OFFSET, key,
 				FAB_MR_FLAG, &mr->bm_mr[i], NULL);
 
 		if (ret != FI_SUCCESS) {

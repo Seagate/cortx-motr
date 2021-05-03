@@ -278,9 +278,6 @@ struct m0_fab__buf_mr {
 	
 	/** Memory region registration */
 	struct fid_mr *bm_mr[FAB_IOV_MAX];
-	
-	/** Memory region registration key */
-	uint64_t       bm_key[FAB_IOV_MAX];
 };
 
 /**
