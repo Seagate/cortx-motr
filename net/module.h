@@ -37,8 +37,10 @@ enum m0_net_xprt_id {
 	M0_NET_XPRT_BULKMEM,
 #ifndef __KERNEL__
 	M0_NET_XPRT_SOCK,
+#ifdef ENABLE_LIBFAB
 	M0_NET_XPRT_LIBFABRIC,
-#endif
+#endif /* ENABLE_LIBFAB */
+#endif /* __KERNEL__ */
 	M0_NET_XPRT_NR
 };
 
