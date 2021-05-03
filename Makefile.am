@@ -973,8 +973,6 @@ EXTRA_DIST += $(motr_examples_DATA)
 motr_bindir = $(motrdir)/bin
 motr_bin_SCRIPTS = scripts/install$(motr_bindir)/motr_setup \
                    scripts/install$(motr_bindir)/motr_mini_prov.py
-                   #scripts/workload
-                   
 
 EXTRA_DIST += $(motr_bin_SCRIPTS)
 
@@ -1596,6 +1594,7 @@ KERNEL_MODULES_INSTALL =
 endif
 
 install-exec-local: $(KERNEL_MODULES_INSTALL)
+
 install-tests:
 	@$(MAKE) -C extra-libs/galois install
 	@$(MAKE) INSTALL_MOD_DIR=kernel/fs/motr/tests $(KERNEL_MODULES_INSTALL) \

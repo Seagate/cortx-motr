@@ -211,7 +211,6 @@ find %{buildroot} \
 sort -o ivt.files ivt.files
 find %{buildroot} -type f | sed -e 's#^%{buildroot}##' | sort |
     comm -13 ivt.files - | sed -e 's#^#%{buildroot}#' > ivt.exclude
-#xargs -a ivt.exclude rm -rv
 %else
 %if %{with ut}
 
@@ -236,7 +235,9 @@ sort -o tests-ut.files tests-ut.files
 find %{buildroot} -type f | sed -e 's#^%{buildroot}##' | sort |
     comm -13 tests-ut.files - | sed -e 's#^#%{buildroot}#' > tests-ut.exclude
 xargs -a tests-ut.exclude rm -rv
+
 %else
+
 make DESTDIR=%{buildroot} install
 find %{buildroot} -name 'm0ff2c' -o \
                   -name 'm0gccxml2xcode*' |

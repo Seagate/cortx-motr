@@ -567,7 +567,7 @@ def pkg_installed(self, pkg):
         return False
 
 def test_io(self):
-    if pkg_installed(self, "cortx-motr-ivt"): 
+    if pkg_installed(self, "cortx-motr-ivt"):
         create_wokrload_from_excel = "/usr/bin/workload/create_workload_from_excel"
         wokrload_in_excel = "/usr/bin/workload/sample_workload_excel_test.xls"
         cmd = f"{create_wokrload_from_excel} -t {wokrload_in_excel}"
