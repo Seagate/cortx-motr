@@ -565,3 +565,26 @@ def pkg_installed(self, pkg):
     else:
         sys.stdout.write(f"{pkg} is not installed\n")
         return False
+
+def test_io(self):
+    if pkg_installed(self, "cortx-motr-ivt"): 
+        create_wokrload_from_excel = "/usr/bin/workload/create_workload_from_excel"
+        wokrload_in_excel = "/usr/bin/workload/sample_workload_excel_test.xls"
+        cmd = f"{create_wokrload_from_excel} -t {wokrload_in_excel}"
+        op = execute_command(self, cmd)
+        op_list = op[0].split("\n")
+        serach_str = "Mixed workload file:  "
+        mix_workload_path = None
+        m0worklaod_path = "/usr/bin/workload/m0workload"
+        for item in op_list:
+            if serach_str in item:
+                mix_workload_path = item[len(serach_str):]
+                break
+        if mix_workload_path is not None:
+            sys.stdout.write(f"Mix workload file: {mix_workload_path}\n")
+            cmd = f"{m0worklaod_path} -t {mix_workload_path}"
+            execute_command(self, cmd)
+        else:
+            sys.stderr.write("No workload file found\n")
+    else:
+        sys.stderr.write("cortx-ivt not installed\n")

@@ -430,11 +430,7 @@ class TestFramework(object):
                '' if self.is_localhost(self.host) else f'ssh {self.host} ')
         op = self.execute_command_and_get_output(cmd)
         self.cluster_info = json.loads(op)
-        #self.cluster_info = ast.literal_eval(self.execute_command_and_get_output(cmd))
-        #self.cluster_info = ast.parse(self.execute_command_and_get_output(cmd), mode='eval')
-        #print(f"Atul on 435 type = {type(op1)}")
         pprint(self.cluster_info)
-        #exit(0)
         if (self.cluster_info != None):
             self.profile_fid = self.cluster_info["profiles"][0]['fid']
             nodes_data = self.cluster_info["nodes"]
