@@ -1753,6 +1753,7 @@ static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp)
 	int                    seg_nr = nb->nb_buffer.ov_vec.v_nr;
 	int                    i;
 	int                    ret = FI_SUCCESS;
+	uint32_t               retry_cnt;
 
 	M0_PRE(fbp != NULL && dp != NULL);
 	M0_PRE(seg_nr <= FAB_IOV_MAX);
@@ -1761,6 +1762,7 @@ static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp)
 		return M0_RC(ret);
 
 	for (i = 0; i < seg_nr; i++) {
+		retry_cnt = 20;
 		key = libfab_mr_keygen();
 		
 		ret = fi_mr_reg(dp, nb->nb_buffer.ov_buf[i], 
@@ -1769,8 +1771,19 @@ static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp)
 				FAB_MR_FLAG, &mr->bm_mr[i], NULL);
 
 		if (ret != FI_SUCCESS) {
-			M0_LOG(M0_ERROR, "\n fi_mr_reg = %d \n",ret);
-			return M0_ERR(ret);
+			M0_LOG(M0_ERROR, "fi_mr_reg = %d i =%d key = %"PRIu64,
+			       ret, i, key);
+			while(ret != FI_SUCCESS && retry_cnt > 0)
+			{
+				key = libfab_mr_keygen();
+				ret = fi_mr_reg(dp, nb->nb_buffer.ov_buf[i],
+						nb->nb_buffer.ov_vec.v_count[i],
+						FAB_MR_ACCESS, FAB_MR_OFFSET,
+						key, FAB_MR_FLAG, &mr->bm_mr[i],
+						NULL);
+				retry_cnt--;
+			}
+			M0_ASSERT(ret == FI_SUCCESS);
 		}
 
 		mr->bm_desc[i] = fi_mr_desc(mr->bm_mr[i]);
