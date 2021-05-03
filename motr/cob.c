@@ -512,10 +512,13 @@ static void cob_fail_op(struct m0_op *op, int rc)
 	case M0_ES_INIT:
 		break;
 	case M0_ES_OPENING:
+		/* fallthrough */
 	case M0_ES_CREATING:
 		m0_sm_move(&op->op_entity->en_sm, 0, M0_ES_OPEN);
+		/* fallthrough */
 	case M0_ES_OPEN:
 		m0_sm_move(&op->op_entity->en_sm, 0, M0_ES_CLOSING);
+		/* fallthrough */
 	default:
 		m0_sm_move(&op->op_entity->en_sm, 0, M0_ES_INIT);
 	}

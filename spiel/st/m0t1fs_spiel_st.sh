@@ -91,7 +91,7 @@ stop() {
     trap - EXIT
     if mount | grep -q m0t1fs; then umount $SANDBOX_DIR/mnt; fi
 
-    killall -q lt-m0d && wait || rc=$?
+    pkill m0d && wait || rc=$?
     _fini
     if [ $rc -eq 0 ]; then
         sandbox_fini

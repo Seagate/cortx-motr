@@ -71,7 +71,7 @@ stop() {
     local rc=${1:-$?}
 
     trap - EXIT
-    killall -q lt-m0d && wait || rc=$?
+    pkill m0d && wait || rc=$?
     _fini
     if [ $rc -eq 0 ]; then
         sandbox_fini
