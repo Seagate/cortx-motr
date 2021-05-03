@@ -142,18 +142,16 @@ def verify_lnet(self):
     sys.stdout.write(f"Doing ping to nids.\n")
     ret = lnet_self_ping(self)
     if not ret:
-        # Check if lent is up. If not, restart lnet and try ping nid's.
+        # Check if lnet is up. If not, restart lnet and try ping nid.
         # Else, ping nid after some delay since lnet is already up.
         if not check_services(self, ["lnet"]):
             sys.stdout.write(f"lnet is not up. Restaring lnet.\n")
             restart_services(self, ["lnet"])
             sys.stdout.write(f"Doing ping to nids after 5 seconds.\n")
-            execute_command_without_exception(self, "sleep 5")
-            ret = lnet_self_ping(self)
         else:
             sys.stdout.write(f"lnet is up. Doing ping to nids after 5 seconds.\n")
-            execute_command_without_exception(self, "sleep 5")
-            ret = lnet_self_ping(self)
+        execute_command_without_exception(self, "sleep 5")
+        ret = lnet_self_ping(self)
     return ret
 
 def motr_config(self):
@@ -210,7 +208,9 @@ def configure_lnet(self):
     restart_services(self, ["lnet"])
     # Ping to nid
     sys.stdout.write(f"Doing ping to nids\n")
-    lnet_self_ping(self)
+    ret = lnet_self_ping(self)
+    if not ret:
+       raise MotrError(errno.EINVAL, f"lent self ping failed\n")
 
 def configure_libfabric(self):
     raise MotrError(errno.EINVAL, "libfabric not implemented\n")
