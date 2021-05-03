@@ -42,8 +42,9 @@
 static char     *providers[] = { "verbs", "tcp", "sockets" };
 static char     *portf[]  = { "unix", "inet", "inet6" };
 static char     *socktype[] = { "stream", "dgram" };
-static char      fab_autotm[1024] = {};
 static uint64_t  mr_key_idx = 0;
+/* Bitmap of used transfer machine identifiers */
+static char      fab_autotm[1024] = {}; 
 
 M0_TL_DESCR_DEFINE(fab_buf, "libfab_buf",
 		   static, struct m0_fab__buf, fb_linkage, fb_magic,
@@ -100,15 +101,16 @@ static void libfab_poller(struct m0_fab__tm *ma);
 static int libfab_waitfd_init(struct m0_fab__tm *tm);
 static void libfab_tm_event_post(struct m0_fab__tm *tm, 
 				 enum m0_net_tm_state state);
-static void libfab_tm_lock(struct m0_fab__tm *tm);
-static void libfab_tm_unlock(struct m0_fab__tm *tm);
-static void libfab_tm_evpost_lock(struct m0_fab__tm *tm);
-static void libfab_tm_evpost_unlock(struct m0_fab__tm *tm);
-static bool libfab_tm_is_locked(const struct m0_fab__tm *tm);
+static inline void libfab_tm_lock(struct m0_fab__tm *tm);
+static inline void libfab_tm_unlock(struct m0_fab__tm *tm);
+static inline void libfab_tm_evpost_lock(struct m0_fab__tm *tm);
+static inline void libfab_tm_evpost_unlock(struct m0_fab__tm *tm);
+static inline bool libfab_tm_is_locked(const struct m0_fab__tm *tm);
 static void libfab_buf_complete(struct m0_fab__buf *buf, int32_t status);
 static void libfab_buf_done(struct m0_fab__buf *buf, int rc);
+static inline struct m0_fab__tm *libfab_buf_tm(struct m0_fab__buf *buf);
+static inline struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf);
 static bool libfab_tm_invariant(const struct m0_fab__tm *tm);
-static struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf);
 static int libfab_bdesc_encode(struct m0_fab__buf *buf);
 static void libfab_bdesc_decode(struct m0_fab__buf *fb, 
 				struct m0_fab__ep_name *epname);
@@ -166,12 +168,11 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 }
 
 /**
- * Bitmap of used transfer machine identifiers.
- *
- * This is used to allocate unique transfer machine identifiers for LNet network
- * addresses with wildcard transfer machine identifier (like
+ * This function decodes the lnet format address and extracts the ip address and
+ * port number from it.
+ * This is also used to allocate unique transfer machine identifiers for LNet
+ * network addresses with wildcard transfer machine identifier (like
  * "192.168.96.128@tcp1:12345:31:*").
- *
  */
 static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 				      size_t nodeSize, char *port,
@@ -241,6 +242,10 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 	return M0_RC(0);
 }
 
+/**
+ * This function decodes the socket format address and extracts the ip address
+ * and port number from it.
+ */
 static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
 				      size_t nodeSize, char *port,
 				      size_t portSize)
@@ -286,7 +291,7 @@ static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
 }
 
 /**
- * Used to take the ip and port from the given end point
+ * Used to decode the ip and port from the given end point
  * ep_name : endpoint address from domain
  * node    : copy ip address from ep_name
  * port    : copy port number from ep_name
@@ -364,7 +369,6 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
  *     - sock format, see socket(2):
  *           family:type:ipaddr[@port]
  *
- *
  *     - libfab compatible format
  *       for example IPV4 libfab:192.168.0.1:4235
  *                   IPV6 libfab:[4002:db1::1]:4235
@@ -400,27 +404,43 @@ static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name)
 	return M0_RC(result);
 }
 
-static void libfab_tm_lock(struct m0_fab__tm *tm)
+/**
+ * Used to lock the transfer machine mutex
+ */
+static inline void libfab_tm_lock(struct m0_fab__tm *tm)
 {
 	m0_mutex_lock(&tm->ftm_ntm->ntm_mutex);
 }
 
-static void libfab_tm_unlock(struct m0_fab__tm *tm)
+/**
+ * Used to unlock the transfer machine mutex
+ */
+static inline void libfab_tm_unlock(struct m0_fab__tm *tm)
 {
 	m0_mutex_unlock(&tm->ftm_ntm->ntm_mutex);
 }
 
-static void libfab_tm_evpost_lock(struct m0_fab__tm *tm)
+/**
+ * Used to lock the transfer machine event post mutex
+ */
+static inline void libfab_tm_evpost_lock(struct m0_fab__tm *tm)
 {
 	m0_mutex_lock(&tm->ftm_evpost);
 }
 
-static void libfab_tm_evpost_unlock(struct m0_fab__tm *tm)
+/**
+ * Used to unlock the transfer machine event post mutex
+ */
+static inline void libfab_tm_evpost_unlock(struct m0_fab__tm *tm)
 {
 	m0_mutex_unlock(&tm->ftm_evpost);
 }
 
-static bool libfab_tm_is_locked(const struct m0_fab__tm *tm)
+/**
+ * Used to check if the transfer machine mutex is locked.
+ * Returns true if locked, else false.
+ */
+static inline bool libfab_tm_is_locked(const struct m0_fab__tm *tm)
 {
 	return m0_mutex_is_locked(&tm->ftm_ntm->ntm_mutex);
 }
@@ -450,7 +470,7 @@ static void libfab_tm_event_post(struct m0_fab__tm *tm,
 
 /**
  * Finds queued buffers that timed out and completes them with a
- * prejudice error.
+ * ETIMEDOUT error.
  */
 static void libfab_tm_buf_timeout(struct m0_fab__tm *ftm)
 {
@@ -476,9 +496,9 @@ static void libfab_tm_buf_timeout(struct m0_fab__tm *ftm)
 }
 
 /**
- * Finds buffers pending completion and completes them.
+ * Finds pending buffers completions and completes them.
  *
- * A buffer is placed on ma::t_done queue when its operation is done, but the
+ * A buffer is placed on tm::ftm_done queue when its operation is done, but the
  * completion call-back cannot be immediately invoked, for example, because
  * completion happened in a synchronous context.
  */
@@ -500,7 +520,7 @@ static void libfab_tm_buf_done(struct m0_fab__tm *ftm)
 }
 
 /**
- * Used to monitor connection request events
+ * Used to handle incoming connection request events
  */
 static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 {
@@ -544,7 +564,7 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 }
 
 /**
- * Check connetion and shutdown events for tx ep 
+ * Check connetion established and shutdown events for transmit endpoint
  */
 static void libfab_txep_event_check(struct m0_fab__ep *txep,
 				    struct m0_fab__active_ep *aep,
@@ -563,7 +583,7 @@ static void libfab_txep_event_check(struct m0_fab__ep *txep,
 }
 
 /**
- * Check for completion events on the CQ for the rx ep
+ * Check for completion events on the completion queue for the receive endpoint
  */
 static void libfab_rxep_comp_read(struct fid_cq *cq, struct m0_fab__ep *ep)
 {
@@ -592,7 +612,7 @@ static void libfab_rxep_comp_read(struct fid_cq *cq, struct m0_fab__ep *ep)
 }
 
 /**
- * Check for completion events on the CQ for the tx ep
+ * Check for completion events on the completion queue for the transmit endpoint
  */
 static void libfab_txep_comp_read(struct fid_cq *cq)
 {
@@ -620,7 +640,8 @@ static void libfab_txep_comp_read(struct fid_cq *cq)
 }
 
 /**
- * Used to poll for connection and completion events
+ * Used to poll for connection events, completion events and process the queued
+ * bulk buffer operations.
  */
 static void libfab_poller(struct m0_fab__tm *tm)
 {
@@ -678,7 +699,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 }
 
 /** 
- * Converts generic end-point to its libfabric structure.
+ * Converts network end-point to its libfabric structure.
  */
 static struct m0_fab__ep *libfab_ep_net(struct m0_net_end_point *net)
 {
@@ -688,7 +709,9 @@ static struct m0_fab__ep *libfab_ep_net(struct m0_net_end_point *net)
 /**
  * Compares the endpoint name with the passed name string and
  * returns true if equal, or else returns false
-*/
+ * If name is null then the ipaddress and port fields are compared to check for
+ * a matching endpoint.
+ */
 static bool libfab_ep_cmp(struct m0_fab__ep *ep, const char *name,
 			  struct m0_fab__ep_name *epname)
 {
@@ -706,10 +729,10 @@ static bool libfab_ep_cmp(struct m0_fab__ep *ep, const char *name,
 }
 
 /**
- * Search for the ep in the existing ep list using one of the following - 
+ * Search for the ep in the existing ep list using one of the following -
  *   1) Name in str format      OR
  *   2) ipaddr and port 
- * If found then return the ep structure, or else create a new endpoint 
+ * If found then return the ep structure, or else create a new endpoint
  * with the name
  */
 static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
@@ -767,7 +790,7 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 }
 
 /**
- * Used to create an endpoint
+ * Used to create new active endpoint
  */
 static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 			    struct m0_fab__ep_name *epn,
@@ -847,7 +870,8 @@ static int libfab_tm_res_init(struct m0_fab__tm *tm)
 }
 
 /**
- * Init tx resources and bind it to the active tx endpoint.
+ * Initialize transmit endpoint resources and associate
+ * it to the active transmit endpoint.
  */
 static int libfab_ep_txres_init(struct m0_fab__active_ep *aep,
 				struct m0_fab__tm *tm)
@@ -882,7 +906,8 @@ static int libfab_ep_txres_init(struct m0_fab__active_ep *aep,
 }
 
 /**
- * Init rx resources and bind it to the active rx endpoint.
+ * Initialize receive endpoint resources and associate
+ * it to the active receive endpoint.
  */
 static int libfab_ep_rxres_init(struct m0_fab__active_ep *aep,
 				struct m0_fab__tm *tm)
@@ -940,7 +965,8 @@ static int libfab_ep_rxres_init(struct m0_fab__active_ep *aep,
 }
 
 /**
- * Init resources and bind it to the passive endpoint.
+ * Initialize passive endpoint resources and associate
+ * it to the passive endpoint.
  */
 static int libfab_pep_res_init(struct m0_fab__passive_ep *pep,
 			       struct m0_fab__tm *tm)
@@ -1046,8 +1072,8 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 }
 
 /**
- * Used to create a passive endpoint which will listen for incoming connection
- * requests
+ * Used to create a passive endpoint which will
+ * listen for incoming connection requests. (Server)
  */
 static int libfab_passive_ep_create(struct m0_fab__ep *ep, 
 				    struct m0_fab__tm *tm)
@@ -1152,7 +1178,7 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 }
 
 /**
- * Used to free the resources attached to an passive ep
+ * Used to free the resources attached to an passive endpoint
  */
 static int libfab_pep_res_free(struct m0_fab__pep_res *pep_res,
 			       struct m0_fab__tm *tm)
@@ -1171,7 +1197,7 @@ static int libfab_pep_res_free(struct m0_fab__pep_res *pep_res,
 }
 
 /**
- * Used to free the resources attached to an active txep
+ * Used to free the resources attached to an active transmit endpoint
  */
 static int libfab_ep_txres_free(struct m0_fab__tx_res *tx_res,
 				struct m0_fab__tm *tm)
@@ -1190,7 +1216,7 @@ static int libfab_ep_txres_free(struct m0_fab__tx_res *tx_res,
 }
 
 /**
- * Used to free the resources attached to an active rxep
+ * Used to free the resources attached to an active receive endpoint
  */
 static int libfab_ep_rxres_free(struct m0_fab__rx_res *rx_res,
 				struct m0_fab__tm *tm)
@@ -1217,7 +1243,7 @@ static int libfab_ep_rxres_free(struct m0_fab__rx_res *rx_res,
 }
 
 /**
- * Used to free the active ep
+ * Used to free the active endpoint
  */
 static int libfab_aep_param_free(struct m0_fab__active_ep *aep,
 				 struct m0_fab__tm *tm)
@@ -1257,7 +1283,7 @@ static int libfab_aep_param_free(struct m0_fab__active_ep *aep,
 }
 
 /**
- * Used to free the passive ep
+ * Used to free the passive endpoint resources.
  */
 static int libfab_pep_param_free(struct m0_fab__passive_ep *pep,
 				 struct m0_fab__tm *tm)
@@ -1289,6 +1315,9 @@ static int libfab_pep_param_free(struct m0_fab__passive_ep *pep,
 	return M0_RC(rc);
 }
 
+/**
+ * Used to free the endpoint and its resources.
+ */
 static int libfab_ep_param_free(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 {
 	int rc = 0;
@@ -1311,7 +1340,7 @@ static int libfab_ep_param_free(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 }
 
 /**
- * Used to free the transfer machine params
+ * Used to free the transfer machine parameters
  */
 static int libfab_tm_param_free(struct m0_fab__tm *tm)
 {
@@ -1366,7 +1395,8 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 }
 
 /**
- * Used to init the waitfd for the transfer machine
+ * Used to initialize the epoll file descriptor for the transfer machine
+ * This is the wait mechanism for the event and completion queues.
  */
 static int libfab_waitfd_init(struct m0_fab__tm *tm)
 {
@@ -1379,11 +1409,25 @@ static int libfab_waitfd_init(struct m0_fab__tm *tm)
 	return M0_RC(0);
 }
 
-static struct m0_fab__tm *libfab_buf_tm(struct m0_fab__buf *buf)
+/**
+ * Used to fetch the transfer machine associated with the buffer.
+ */
+static inline struct m0_fab__tm *libfab_buf_tm(struct m0_fab__buf *buf)
 {
 	return buf->fb_nb->nb_tm->ntm_xprt_private;
 }
 
+/**
+ * Used to fetch the transfer machine associated with the network buffer.
+ */
+static inline struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf)
+{
+	return buf->nb_tm->ntm_xprt_private;
+}
+
+/**
+ * Used to clean up the libfabric buffer structure.
+ */
 static void libfab_buf_fini(struct m0_fab__buf *buf)
 {
 	fab_buf_tlink_fini(buf);
@@ -1397,6 +1441,9 @@ static void libfab_buf_fini(struct m0_fab__buf *buf)
 	buf->fb_length = 0;
 }
 
+/**
+ * Check sanity of domain structure
+ */
 static bool libfab_dom_invariant(const struct m0_net_domain *dom)
 {
 	struct m0_fab__list *fl = dom->nd_xprt_private;
@@ -1404,6 +1451,9 @@ static bool libfab_dom_invariant(const struct m0_net_domain *dom)
 	       _0C(dom->nd_xprt == &m0_net_libfab_xprt);
 }
 
+/**
+ * Check sanity of transfer machine structure
+ */
 static bool libfab_tm_invariant(const struct m0_fab__tm *fab_tm)
 {
 	return fab_tm != NULL &&
@@ -1411,6 +1461,9 @@ static bool libfab_tm_invariant(const struct m0_fab__tm *fab_tm)
 	       libfab_dom_invariant(fab_tm->ftm_ntm->ntm_dom);
 }
 
+/**
+ * Check sanity of buffer structure
+ */
 static bool libfab_buf_invariant(const struct m0_fab__buf *buf)
 {
 	const struct m0_net_buffer *nb = buf->fb_nb;
@@ -1424,7 +1477,7 @@ static bool libfab_buf_invariant(const struct m0_fab__buf *buf)
 }
 
 /**
- * Invokes completion call-back (releasing tm lock). 
+ * Invokes completion call-back (releasing transfer-machine lock).
  */
 static void libfab_buf_complete(struct m0_fab__buf *buf, int32_t status)
 {
@@ -1465,7 +1518,7 @@ static void libfab_buf_complete(struct m0_fab__buf *buf, int32_t status)
 }
 
 /**
- * Completes the buffer operation. 
+ * Completes the buffer operation.
  */
 static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 {
@@ -1502,6 +1555,9 @@ static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 	}
 }
 
+/**
+ * Increments the ref count of the endpoint.
+ */
 static inline void libfab_ep_get(struct m0_fab__ep *ep)
 {
 	m0_ref_get(&ep->fep_nep.nep_ref);
@@ -1528,6 +1584,9 @@ static void libfab_ep_release(struct m0_ref *ref)
 	
 }
 
+/**
+ * Generate unique key for memory registration.
+ */
 static uint64_t libfab_mr_keygen(void)
 {
 	uint64_t key = FAB_MR_KEY + mr_key_idx;
@@ -1535,6 +1594,9 @@ static uint64_t libfab_mr_keygen(void)
 	return key;
 }
 
+/**
+ * Read single event from event queue.
+ */
 static int libfab_check_for_event(struct fid_eq *eq)
 {
 	struct fi_eq_cm_entry entry;
@@ -1589,6 +1651,12 @@ static int libfab_check_for_comp(struct fid_cq *cq, struct m0_fab__buf **ctx,
 	return ret;
 }
 
+/**
+ * Finalises the transfer machine.
+ *
+ * This is called from the normal finalisation path (ma_fini(), ma_stop()) and
+ * in error cleanup case during initialisation (tm_init()).
+ */
 static void libfab_tm_fini(struct m0_net_transfer_mc *tm)
 {
 	struct m0_fab__tm *ma = tm->ntm_xprt_private;
@@ -1622,7 +1690,7 @@ static void libfab_tm_fini(struct m0_net_transfer_mc *tm)
 }
 
 /**
- * Creates the descriptor for a (passive) network buffer. 
+ * Encodes the descriptor for a (passive) network buffer.
  */
 static int libfab_bdesc_encode(struct m0_fab__buf *buf)
 {
@@ -1659,6 +1727,9 @@ static int libfab_bdesc_encode(struct m0_fab__buf *buf)
 	return M0_RC(0);
 }
 
+/**
+ * Decodes the descriptor of a (passive) network buffer.
+ */
 static void libfab_bdesc_decode(struct m0_fab__buf *fb, 
 				struct m0_fab__ep_name *epname)
 {
@@ -1672,7 +1743,7 @@ static void libfab_bdesc_decode(struct m0_fab__buf *fb,
 }
 
 /**
- * Register the buffer with the appropriate access for the domain of the ep
+ * Register the buffer with the appropriate access to the domain
  */
 static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp)
 {
@@ -1709,6 +1780,9 @@ static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp)
 	return M0_RC(ret);
 }
 
+/**
+ * Get the destination address from the endpoint name
+ */
 static inline uint64_t libfab_destaddr_get(struct m0_fab__ep_name *epname)
 {
 	uint64_t dst;
@@ -1718,6 +1792,10 @@ static inline uint64_t libfab_destaddr_get(struct m0_fab__ep_name *epname)
 	return dst;
 }
 
+/**
+ * Buffers are queued before connection establishment, send those buffers
+ * after connection establishment
+ */
 static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
 {
 	struct m0_fab__active_ep *aep;
@@ -1753,6 +1831,10 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
 	M0_ASSERT(fab_sndbuf_tlist_is_empty(&ep->fep_sndbuf));
 }
 
+/**
+ * Notify target endpoint about RDMA read completion,
+ * so that buffer on remote endpoint shall be released.
+ */
 static inline int libfab_target_notify(struct m0_fab__buf *buf,
 				       struct m0_fab__active_ep *aep)
 {
@@ -1770,6 +1852,9 @@ static inline int libfab_target_notify(struct m0_fab__buf *buf,
 	return M0_RC(ret);
 }
 
+/**
+ * Allocate new fabric pointer and add it into list.
+ */
 static struct m0_fab__fab *libfab_newfab_init(struct m0_fab__list *fl)
 {
 	struct m0_fab__fab *fab = NULL;
@@ -1782,6 +1867,10 @@ static struct m0_fab__fab *libfab_newfab_init(struct m0_fab__list *fl)
 	return fab;
 }
 
+/**
+ * Send out a connection request to the destination of the network buffer
+ * and add given buffer into pending buffers list.
+ */
 static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 			    struct m0_fab__buf *fbp)
 {
@@ -1817,6 +1906,9 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 	return ret;
 }
 
+/**
+ * Find endpoint with given name from the transfer machine endpoint list.
+ */
 static int libfab_fab_ep_find(struct m0_fab__tm *tm, struct m0_fab__ep_name *en,
 			      const char *name, struct m0_fab__ep **ep)
 {
@@ -1831,6 +1923,9 @@ static int libfab_fab_ep_find(struct m0_fab__tm *tm, struct m0_fab__ep_name *en,
 	return M0_RC(0);
 }
 
+/**
+ * Convert the endpoint name from printable format to numeric format.
+ */
 static void libfab_ep_pton(struct m0_fab__ep_name *name, uint64_t *out)
 {
 	uint32_t addr = 0;
@@ -1842,6 +1937,9 @@ static void libfab_ep_pton(struct m0_fab__ep_name *name, uint64_t *out)
 	*out = ((uint64_t)addr << 32) | port;
 }
 
+/**
+ * Convert the endpoint name from numeric format to printable format.
+ */
 static void libfab_ep_ntop(uint64_t netaddr, struct m0_fab__ep_name *name)
 {
 	union adpo {
@@ -1855,6 +1953,13 @@ static void libfab_ep_ntop(uint64_t netaddr, struct m0_fab__ep_name *name)
 	sprintf(name->fen_port, "%d", ap.ap[0]);
 }
 
+/**
+ * Initialize transmit endpoint.
+ * 
+ * This function creates new transmit endpoint or
+ * reinitializes existing trasmit endpoint and also
+ * initialize associated resources and enables the endpoint.
+ */
 static int libfab_txep_init(struct m0_fab__active_ep *aep,
 			    struct m0_fab__tm *tm)
 {
@@ -1892,6 +1997,9 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 	return M0_RC(rc);
 }
 
+/**
+ * Associate the event queue or completion queue to the epollfd wait mechanism
+ */
 static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm)
 {
 	struct epoll_event ev;
@@ -1908,7 +2016,7 @@ static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm)
 	return M0_RC(rc);
 }
 
-/** 
+/**
  * Return the pointer to the active endpoint from the m0_fab__ep struct
  */
 static inline struct m0_fab__active_ep *libfab_aep_get(struct m0_fab__ep *ep)
@@ -1916,11 +2024,17 @@ static inline struct m0_fab__active_ep *libfab_aep_get(struct m0_fab__ep *ep)
 	return (ep->fep_listen == NULL) ? ep->fep_aep : ep->fep_listen->pep_aep;
 }
 
+/**
+ * Returns true if verbs provider is selected else false.
+ */
 static inline bool libfab_is_verbs(struct m0_fab__tm *tm)
 {
 	return (!strcmp(tm->ftm_fab->fab_fi->fabric_attr->prov_name, "verbs"));
 }
 
+/**
+ * Add bulk operation into transfer machine bulk operation list.
+ */
 static int libfab_bulklist_add(struct m0_fab__tm *tm, struct m0_fab__buf *fb,
 				struct m0_fab__active_ep *aep)
 {
@@ -1990,12 +2104,16 @@ static uint32_t libfab_wr_cnt_get(struct m0_fab__buf *fb)
 	return wr_cnt;
 }
 
+/**
+ * Process bulk operation from transfer machine bulk operation list.
+ */
 static void libfab_bulk_buf_process(struct m0_fab__tm *tm)
 {
 	struct m0_fab__bulk_op *op;
 	uint32_t                available;
 
 	m0_tl_for(fab_bulk, &tm->ftm_bulk, op) {
+		/* Keeping 64 entries on CQ for rpc messages */
 		available = (FAB_MAX_TX_CQ_EV - 64) - op->fbl_aep->aep_bulk_cnt;
 
 		if (op->fbl_buf->fb_wr_cnt <= available &&
@@ -2211,11 +2329,6 @@ static int libfab_ma_init(struct m0_net_transfer_mc *ntm)
 
 /**
  * Starts initialised ma.
- *
- * Initialises everything that libfab_ma_init() didn't. Note that ma is in
- * M0_NET_TM_STARTING state after this returns. Switch to M0_NET_TM_STARTED
- * happens when the poller thread posts special event.
- *
  * Used as m0_net_xprt_ops::xo_tm_start().
  */
 static int libfab_ma_start(struct m0_net_transfer_mc *ntm, const char *name)
@@ -2268,7 +2381,6 @@ static int libfab_ma_start(struct m0_net_transfer_mc *ntm, const char *name)
 
 /**
  * Stops a ma that has been started or is being started.
- *
  *
  * Used as m0_net_xprt_ops::xo_tm_stop().
  */
@@ -2364,7 +2476,6 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 	M0_PRE(nb->nb_xprt_private == NULL);
 	M0_PRE(nb->nb_dom != NULL);
 
-
 	M0_ALLOC_PTR(fb);
 	if (fb == NULL)
 		return M0_ERR(-ENOMEM);
@@ -2377,7 +2488,7 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 }
 
 /**
- * Adds a network buffer to a ma queue.
+ * Adds a network buffer to a transfer machine queue.
  *
  * Used as m0_net_xprt_ops::xo_buf_add().
  *
@@ -2478,7 +2589,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 }
 
 /**
- * Cancels a buffer operation..
+ * Cancels a buffer operation.
  *
  * Used as m0_net_xprt_ops::xo_buf_del().
  *
@@ -2506,21 +2617,41 @@ static void libfab_buf_del(struct m0_net_buffer *nb)
 	libfab_buf_done(buf, -ECANCELED);
 }
 
+/**
+ * Used as m0_net_xprt_ops::xo_bev_deliver_sync().
+ *
+ * @see m0_net_bev_deliver_sync().
+ */
 static int libfab_bev_deliver_sync(struct m0_net_transfer_mc *ma)
 {
 	return 0;
 }
 
+/**
+ * Used as m0_net_xprt_ops::xo_bev_deliver_all().
+ *
+ * @see m0_net_bev_deliver_all().
+ */
 static void libfab_bev_deliver_all(struct m0_net_transfer_mc *ma)
 {
 
 }
 
+/**
+ * Used as m0_net_xprt_ops::xo_bev_pending().
+ *
+ * @see m0_net_bev_pending().
+ */
 static bool libfab_bev_pending(struct m0_net_transfer_mc *ma)
 {
 	return false;
 }
 
+/**
+ * Used as m0_net_xprt_ops::xo_bev_notify().
+ *
+ * @see m0_net_bev_notify().
+ */
 static void libfab_bev_notify(struct m0_net_transfer_mc *ma,
 			      struct m0_chan *chan)
 {
@@ -2536,8 +2667,7 @@ static void libfab_bev_notify(struct m0_net_transfer_mc *ma,
  */
 static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
 {
-	/*TODO: Get proper value from libfabric domain attribute */
-	return 1048576; //M0_BCOUNT_MAX/2; /* 1048576; */
+	return FAB_MAX_BULK_BUFFER_SIZE;
 }
 
 /**
@@ -2549,8 +2679,7 @@ static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
  */
 static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
 {
-	/*TODO: Get proper value from libfabric domain attribute */
-	return 4096; //M0_BCOUNT_MAX / 2; /* 4096; */
+	return FAB_MAX_BULK_SEG_SIZE;
 }
 
 /**
@@ -2562,8 +2691,7 @@ static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
  */
 static int32_t libfab_get_max_buf_segments(const struct m0_net_domain *dom)
 {
-	/*TODO: Get proper value from libfabric domain attribute */
-	return FAB_IOV_MAX; //INT32_MAX/2; /*256; */
+	return FAB_IOV_MAX;
 }
 
 /**
@@ -2579,23 +2707,39 @@ static m0_bcount_t libfab_get_max_buf_desc_size(const struct m0_net_domain *dom)
 		(sizeof(struct fi_rma_iov) * FAB_IOV_MAX));
 }
 
-static struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf)
-{
-	return buf->nb_tm->ntm_xprt_private;
-}
-
+/**
+ * Maximal segment size for rpc buffer.
+ *
+ * Used as m0_net_xprt_ops::xo_rpc_max_seg_size()
+ *
+ * @see m0_net_domain_rpc_max_seg_size()
+ */
 static m0_bcount_t libfab_rpc_max_seg_size(struct m0_net_domain *ndom)
 {
 	M0_PRE(ndom != NULL);
-	return (1 << 20); /* 1MB */
+	return FAB_MAX_RPC_SEG_SIZE;
 }
 
+/**
+ * Maximal segment count for rpc buffer.
+ *
+ * Used as m0_net_xprt_ops::xo_rpc_max_segs_nr()
+ *
+ * @see m0_net_domain_rpc_max_segs_nr()
+ */
 static uint32_t libfab_rpc_max_segs_nr(struct m0_net_domain *ndom)
 {
 	M0_PRE(ndom != NULL);
-	return 1;
+	return FAB_MAX_RPC_SEG_NR;
 }
 
+/**
+ * Maximal message size for rpc buffer.
+ *
+ * Used as m0_net_xprt_ops::xo_rpc_max_msg_size()
+ *
+ * @see m0_net_domain_rpc_max_msg_size()
+ */
 static m0_bcount_t libfab_rpc_max_msg_size(struct m0_net_domain *ndom,
 					   m0_bcount_t rpc_size)
 {
@@ -2606,11 +2750,18 @@ static m0_bcount_t libfab_rpc_max_msg_size(struct m0_net_domain *ndom,
 	return rpc_size != 0 ? m0_clip64u(M0_SEG_SIZE, mbs, rpc_size) : mbs;
 }
 
+/**
+ * Maximal number of receive messages in a single rpc buffer.
+ *
+ * Used as m0_net_xprt_ops::xo_rpc_max_recv_msgs()
+ *
+ * @see m0_net_domain_rpc_max_recv_msgs()
+ */
 static uint32_t libfab_rpc_max_recv_msgs(struct m0_net_domain *ndom,
 					 m0_bcount_t rpc_size)
 {
 	M0_PRE(ndom != NULL);
-	return 1;
+	return FAB_MAX_RPC_RECV_MSG_NR;
 }
 
 static const struct m0_net_xprt_ops libfab_xprt_ops = {
