@@ -72,7 +72,7 @@ _check_is_hare_cluster_online() {
     local is_s3server_online=$(echo "$all_services" \
                            | grep "\s*\[\s*started\s*\].*s3server")
 
-    [[ -n "$is_ha_online" && -n"$is_ios_online" && -n "$is_confd_online" \
+    [[ -n "$is_ha_online" && -n "$is_ios_online" && -n "$is_confd_online" \
     && (-z "$has_s3server" || -n "$is_s3server_online") ]]
 }
 
