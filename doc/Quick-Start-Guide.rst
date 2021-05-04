@@ -8,6 +8,8 @@ Prerequisites
 *************
 The prerequisite that is necessary to install the Motr component is mentioned below.
 
+- If using CentOS version 7.8 or lower you will have to install the kernel dependencies by following this link: http://vault.centos.org/<CentOS version>/os/x86_64/Packages/` where <CentOS version is replaced with you version of CentOS, for example `wget https://vault.centos.org/centos/7.8.2003/os/x86_64/Packages/kernel-devel-3.10.0-1127.el7.x86_64.rpm` if you are using CentOS 7.8.2003. You will then have to install this kernel dependency `yum install kernel-devel-3.10.0-1127.el7.x86_64.rpm`
+
 - CentOS-7 for x86_64 platform (ARM64 platform support work is in progress).
 
 - **Ansible** is needed. 
