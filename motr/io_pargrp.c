@@ -596,8 +596,6 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	grpstart = grpsize * map->pi_grpid;
 	grpend   = grpstart + grpsize;
 
-	M0_ENTRY("[%p] map=%p ivec=%p", ioo, map, cursor->ic_cur.vc_vec);
-
 	/*
 	 * For a write, if this map does not span the whole parity group,
 	 * it is a read-modify-write.
@@ -607,16 +605,15 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	     m0_ivec_cursor_conti(cursor, grpend) < grpend))
 		rmw = true;
 
+	M0_ENTRY("[%p] map=%p grp=%"PRIu64" [%"PRIu64",+%"PRIu64") rmw=%d",
+		 ioo, map, map->pi_grpid, grpstart, grpsize, !!rmw);
+
 	if (op->op_code == M0_OC_FREE && rmw)
 		map->pi_trunc_partial = true;
 
-	M0_LOG(M0_INFO, "[%p] grp_id=%"PRIu64": %s", ioo, map->pi_grpid,
-	                                             rmw ? "rmw" : "aligned");
 	/* In 'verify mode', read all data units in this parity group */
 	if (op->op_code == M0_OC_READ &&
 	    instance->m0c_config->mc_is_read_verify) {
-		M0_LOG(M0_DEBUG, "[%p] ivec=[%"PRIu64",+%"PRIu64")", ioo,
-		                              grpstart, grpsize);
 		/*
 		 * Full parity group.
 		 * Note: object doesn't have size attribute.
@@ -633,7 +630,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 		rc = pargrp_iomap_populate_pi_ivec(map, cursor,
 						   buf_cursor, rmw);
 	if (rc != 0)
-		M0_ERR_INFO(rc, "[%p] failed", ioo);
+		return M0_ERR_INFO(rc, "[%p] failed", ioo);
 
 	/*
 	 * In replicated layout (N == 1) we don't do "rmw". Even if the
