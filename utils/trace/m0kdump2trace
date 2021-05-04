@@ -188,7 +188,7 @@ get_value_from_crash_log()
 {
     local log_entry=$1
 
-    if [[ -z $crash_log ]] ; then
+    if [[ -z "$crash_log" ]] ; then
         crash_log=$(run_crash_cmd 'log')
     fi
 
@@ -215,7 +215,7 @@ get_header_value_of()
 {
     local field=$1
 
-    [[ -n $field ]] ||
+    [[ -n "$field" ]] ||
         die "trace header field can't be empty in query"
 
     perl -MYAML::XS -e "
@@ -240,8 +240,8 @@ eval set -- "$cli_args"
 [[ -e $vmlinux ]] ||
     die "$vmlinux file doesn't exist, please install 'kernel-debuginfo' package!"
 
-[[ -z $1 ]] || infile=$1
-[[ -z $2 ]] || outfile=$2
+[[ -z "$1" ]] || infile=$1
+[[ -z "$2" ]] || outfile=$2
 
 if (! $force) && [[ $outfile != $stdout && -e $outfile ]] ; then
     echo -n 'Warning, '$outfile' already exists, overwrite? [y/N] '
@@ -249,16 +249,16 @@ if (! $force) && [[ $outfile != $stdout && -e $outfile ]] ; then
     [[ $answer =~ [yY] ]] || exit 0
 fi
 
-if $module_img && [[ -z $address && -n $size || -n $address && -z $size ]] ; then
+if $module_img && [[ -z "$address" && -n "$size" || -n "$address" && -z "$size" ]] ; then
     die "option -m requires that -a and -s options are either omitted or both provided"
 fi
 
 #
 # dump trace header
 
-if ! $module_img || [[ -z $address ]] ; then
+if ! $module_img || [[ -z "$address" ]] ; then
     log 'finding memory location of a trace header...'
-    [[ -n $address ]] ||
+    [[ -n "$address" ]] ||
         address=$(get_header_address)
     log "trace header address: $address"
 
@@ -278,11 +278,11 @@ if $module_img ; then
     # dump m0tr.ko image
 
     log 'finding memory location of m0tr.ko core image..'
-    [[ -n $address ]] ||
+    [[ -n "$address" ]] ||
         address=$(m0tracedump -H -i $trace_header | get_header_value_of 'mod_core_addr')
     log "m0tr.ko core address: $address"
 
-    [[ -n $size ]] ||
+    [[ -n "$size" ]] ||
         size=$(m0tracedump -H -i $trace_header | get_header_value_of 'mod_core_size')
     log "m0tr.ko core size: $size"
 

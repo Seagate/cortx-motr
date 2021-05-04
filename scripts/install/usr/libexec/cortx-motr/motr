@@ -65,7 +65,7 @@ stop()
         systemctl stop motr-server@${s}.service
     done
 
-    if [[ -n $(m0_get_running_servers | grep confd) ]] ; then
+    if [[ -n "$(m0_get_running_servers | grep confd)" ]] ; then
         systemctl stop motr-server-confd.service
     fi
 }
