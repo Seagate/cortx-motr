@@ -503,10 +503,10 @@ static int pargrp_iomap_populate_pi_ivec(struct pargrp_iomap     *map,
 	return M0_RC(0);
 }
 
-/*
+/**
  * Decides whether to undertake read-old approach or read-rest for
- * an RMW IO request based on the number of total pages to be read
- * and written.
+ * RMW IO request on the parity group, based on the number of total
+ * pages to be read and written.
  *
  * In read-old approach the old data and parity units are read and
  * the new parity is calculated incrementally based on the difference
@@ -523,6 +523,10 @@ static int pargrp_iomap_populate_pi_ivec(struct pargrp_iomap     *map,
  * By default, the segments in index vector pargrp_iomap::pi_ivec
  * are suitable for read-old approach. Hence the index vector is
  * changed only if read-rest approach is selected.
+ *
+ * @param map is the parity group iomap
+ * @param data_pages_nr is the number of data pages in group
+ * @param parity_pages_nr is the number of parity pages in group
  */
 static int pargrp_iomap_select_ro_rr(struct pargrp_iomap *map,
 				     m0_bcount_t data_pages_nr,
@@ -645,7 +649,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "[%p] failed", ioo);
 
-	if (rmw || map->pi_trunc_partial) {
+	if (rmw) {
 		rc = pargrp_iomap_select_ro_rr(map, page_nr(grpsize, obj),
 					       parity_units_page_nr(play, obj));
 		if (rc != 0)
