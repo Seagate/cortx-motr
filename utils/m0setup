@@ -224,7 +224,7 @@ parse_cli_options()
                                 shift 2 ;;
             -Z|--linuxstob-mode)
                                 linuxstob_mode=true
-                                [[ -n $2 ]] && motr_data_dir=$2
+                                [[ -n "$2" ]] && motr_data_dir=$2
                                 do_gendisk=false
                                 directio=false
                                 shift 2 ;;
@@ -344,7 +344,7 @@ cleanup_loop_devices()
         local img_file="$loop_img_dir/disk$i.img"
         if [[ -e $img_file ]] ; then
             local loop_todel=$(losetup -j $img_file -O name | grep loop)
-            if [[ -n $loop_todel ]] ; then
+            if [[ -n "$loop_todel" ]] ; then
                 losetup -d $loop_todel
             fi
         fi
@@ -436,7 +436,7 @@ GENDERS_END
 $hostname  m0_stob_mode=linux
 GENDERS_END
 
-        if [[ -n $linuxstob_stobs_dir ]] ; then
+        if [[ -n "$linuxstob_stobs_dir" ]] ; then
             cat <<GENDERS_END >> $genders_file
 $hostname  m0_stobdir=$linuxstob_stobs_dir
 GENDERS_END
@@ -465,7 +465,7 @@ generate_halon_facts()
     local net_if=$(ip -oneline -4 address show scope global up | grep -v docker |
                    tail -n 1 | awk '{print $2}')
 
-    [[ -n $disks ]] ||
+    [[ -n "$disks" ]] ||
         die "failed to find disks matching '$pattern' pattern"
 
     debug $disks
@@ -512,7 +512,7 @@ generate_disk_configs()
     local start_id=1
     local pattern=""
 
-    if [[ -n $disk_pattern ]] ; then
+    if [[ -n "$disk_pattern" ]] ; then
         local disks=( $(m0gendisks -l -d $pool_width -p "$disk_pattern") )
     fi
 
@@ -597,7 +597,7 @@ if $activate_singlenode ; then
     exit 0
 fi
 
-if $only_list_disks && [[ -z $disk_pattern ]] ; then
+if $only_list_disks && [[ -z "$disk_pattern" ]] ; then
     die "-l|--list-disks option requires the -p|--disk-pattern option"
 fi
 
@@ -606,7 +606,7 @@ fi
     mkdir -p "$motr_data_dir" ;
 }
 
-[[ -z $linuxstob_stobs_dir || -d $linuxstob_stobs_dir ]] ||
+[[ -z "$linuxstob_stobs_dir" || -d $linuxstob_stobs_dir ]] ||
     die "Path '$linuxstob_stobs_dir' doesn't exist"
 
 if $linuxstob_mode ; then
@@ -633,7 +633,7 @@ if $do_genfacts && ($do_mkfs || [[ $ios_num -gt 1 ]]) ; then
         "'-i|--ios-number' options"
 fi
 
-if [[ -n $disk_pattern ]] ; then
+if [[ -n "$disk_pattern" ]] ; then
     info_msg="disk pattern $disk_pattern"
 elif $linuxstob_mode ; then
     info_msg="${loop_img_size_gb}GiB linuxstobs in '${linuxstob_stobs_dir:-$motr_data_dir}'"
@@ -659,7 +659,7 @@ $only_list_disks ||
     mkdir -p "$ETC_HALON_DIR" ;
 }
 
-if [[ -n $disk_pattern ]] ; then
+if [[ -n "$disk_pattern" ]] ; then
     if $only_list_disks ; then
         $(path_of m0gendisks) -l -d $pool_width -p "$disk_pattern"
         exit 0

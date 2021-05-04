@@ -33,7 +33,7 @@ import json
 
 LIBMOTR_PATH = "/usr/lib64/libmotr.so"
 SYSCONF_DIR = "/etc/sysconfig"
-if not path.isdir(SYSCONF_DIR)
+if not os.path.isdir(SYSCONF_DIR):
     SYSCONF_DIR = "/etc/default"
 MOTR_CONFIG = SYSCONF_DIR + "/motr"
 TOTAL_SPACE = "fs_total_disk"
