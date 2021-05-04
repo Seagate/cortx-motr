@@ -611,32 +611,6 @@ M0_INTERNAL int m0_be_dtm0_plog_prune(struct m0_be_dtm0_log    *log,
 	return 0;
 }
 
-
-M0_INTERNAL bool m0_be_dtm0_logrec_is_persistent(struct m0_be_dtm0_log *log,
-						 struct m0_dtm0_tid    *tid)
-{
-	struct m0_dtm0_log_rec *rec;
-	bool                    is_persistent;
-
-	M0_ENTRY();
-
-	M0_PRE(log != NULL);
-	if (!log->dl_is_persistent)
-		return(false);
-
-	m0_mutex_lock(&log->dl_lock);
-	rec = m0_be_dtm0_log_find(log, tid);
-	if (rec == NULL)
-		return(false);
-	M0_ASSERT(m0_dtm0_tx_desc__invariant(&rec->dlr_txd));
-	is_persistent = m0_dtm0_tx_desc_state_eq(&rec->dlr_txd,
-						 M0_DTPS_PERSISTENT);
-	m0_mutex_unlock(&log->dl_lock);
-
-	M0_LEAVE();
-	return(is_persistent);
-}
-
 M0_INTERNAL void m0_be_dtm0_log_pmsg_post(struct m0_be_dtm0_log *log,
 					  struct m0_fop         *fop)
 {
