@@ -148,7 +148,7 @@ Performance requirements
 
 The performance of the in-storage compute facility should be dictated primarily on the one side by the performance of the offloaded functions themselves and on the other side by the performance of the IO subsystem as a whole.
 
-The overhead incurred by the in-storage compute infrastructure in itself should be minimal. This overhead should be inferior to the overhead of the `Flink <https://flink.apache.org>`__ [4] [TODO: which version] data-flow engine.
+The overhead incurred by the in-storage compute infrastructure in itself should be minimal. This overhead should be inferior to the overhead of the `Flink <https://flink.apache.org>`__ [4]_ [TODO: which version] data-flow engine.
 
 The measurement should be performed as follows:
 
