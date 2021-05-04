@@ -307,38 +307,46 @@ M0_INTERNAL int m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom                *fom,
-				     const struct m0_dtm0_tx_desc *txd)
+M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
+				     const struct m0_dtm0_tid *id)
 {
 	struct m0_dtm0_service *dtms = m0_dtm0_service_find(
-		fom->fo_service->rs_reqh);
-	struct m0_dtm0_tx_desc  msg = {};
+					fom->fo_service->rs_reqh);
+	struct m0_be_dtm0_log  *log = dtms->dos_log;
+	struct m0_dtm0_log_rec *rec;
 	int                     rc;
+	int                     rc2;
 	int                     i;
 
-	rc = m0_dtm0_tx_desc_copy(txd, &msg);
-	if (rc != 0)
-		return M0_ERR(rc);
 
-	/*
-	 * TODO: This change will be done by DTM0 log because
-	 * it should log the entry "pa == self" with PERSISTENT state
-	 * set.
-	 */
-	for (i = 0; i < msg.dtd_ps.dtp_nr; ++i) {
-		if (m0_fid_eq(&msg.dtd_ps.dtp_pa[i].p_fid,
-			      &dtms->dos_generic.rs_service_fid)) {
-			msg.dtd_ps.dtp_pa[i].p_state =
-				max_check(msg.dtd_ps.dtp_pa[i].p_state,
-					  (uint32_t) M0_DTPS_PERSISTENT);
-		}
-	}
+	M0_PRE(log != NULL);
+	M0_PRE(log->dl_is_persistent);
+
+	M0_ENTRY();
+
+	m0_mutex_lock(&log->dl_lock);
+	/* Get the latest state of the log record. */
+	rec = m0_be_dtm0_log_find(log, id);
+	m0_mutex_unlock(&log->dl_lock);
+	M0_ASSERT_INFO(rec != NULL, "Log record must be inserted into the log "
+		       "in cas_fom_tick().");
+	M0_ASSERT_INFO(m0_dtm0_tx_desc_state_eq(&rec->dlr_txd,
+		       M0_DTPS_PERSISTENT), "Log record not persistent");
 
 	/* Notify the originator */
-	rc = m0_dtm0_send_msg(fom, DTM_PERSISTENT, &msg.dtd_id.dti_fid, &msg);
+	rc = m0_dtm0_send_msg(fom, DTM_PERSISTENT, &rec->dlr_txd.dtd_id.dti_fid, &rec->dlr_txd);
 
-	/* TODO: Send P msgs to the rest of the participants. */
-	m0_dtm0_tx_desc_fini(&msg);
+	/* Send P msgs to the rest of the participants. */
+	for (i = 0; i < rec->dlr_txd.dtd_ps.dtp_nr; ++i) {
+		if (m0_fid_eq(&rec->dlr_txd.dtd_ps.dtp_pa[i].p_fid,
+			      &dtms->dos_generic.rs_service_fid))
+			continue;
+		rc2 = m0_dtm0_send_msg(fom, DTM_PERSISTENT, &rec->dlr_txd.dtd_ps.dtp_pa->p_fid, &rec->dlr_txd);
+		if (rc == 0 && rc2 != 0)
+			rc = M0_ERR_INFO(-rc2, "failed to send PERSISTENT msg " FID_F " -> " FID_F,
+					 FID_P(&dtms->dos_generic.rs_service_fid),
+					 FID_P(&rec->dlr_txd.dtd_ps.dtp_pa->p_fid));
+	}
 
 	return M0_RC(rc);
 }
@@ -404,9 +412,7 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 			if (m0_dtm0_is_a_volatile_dtm(fom->fo_service)) {
 				m0_be_dtm0_log_pmsg_post(svc->dos_log, fom->fo_fop);
 			} else {
-				/* m0_mutex_lock(&svc->dos_log->dl_lock); */
 				m0_dtm0_logrec_update(svc->dos_log, &fom->fo_tx.tx_betx, &req->dtr_txr, &buf);
-				/* m0_mutex_unlock(&svc->dos_log->dl_lock); */
 				if (m0_dtm0_in_ut()) {
 					rc = m0_dtm0_tx_desc_copy(&req->dtr_txr, &rep->dr_txr);
 					if (rc != 0)
