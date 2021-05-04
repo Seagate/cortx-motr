@@ -503,21 +503,6 @@ M0_INTERNAL void m0_be_dtm0_volatile_log_update(struct m0_be_dtm0_log  *log,
 						struct m0_dtm0_log_rec *rec);
 
 /**
- * This routine is used to query whether the record with the given tid is
- * persistent on all the dtm0 participants.
- *
- * @pre log is a persistent log
- * @post None
- *
- * @param log Pointer to the dtm0 log which we wish to query.
- * @param tid Pointer to a dtm0 log record tid.
- * @return bool value which true if the record is persistent on all the
- *	  participants else false.
- */
-M0_INTERNAL bool m0_be_dtm0_logrec_is_persistent(struct m0_be_dtm0_log *log,
-						 struct m0_dtm0_tid    *tid);
-
-/**
  * Deliver a persistent message to the log.
  *
  * @pre log is a volatile log

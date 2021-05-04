@@ -353,7 +353,7 @@ M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
 
 static int dtm0_fom_tick(struct m0_fom *fom)
 {
-	int                       rc;
+	int                       rc = 0;
 	struct   m0_dtm0_service *svc;
 	struct   m0_buf           buf = {};
 	struct   dtm0_rep_fop    *rep;
