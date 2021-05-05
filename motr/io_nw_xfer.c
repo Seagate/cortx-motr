@@ -774,6 +774,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	m0_bcount_t                  max_seg_size;
 	m0_bcount_t                  xfer_len;
 	m0_bindex_t                  offset;
+	uint32_t                     segnext;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -883,21 +884,25 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				offset = INDEX(ivec, seg);
 				
 				/*
-				 * Accomodate multiple pages in a single 
-				 * net buffer segment if they are consecutive
+				 * Accommodate multiple pages in a single
+				 * net buffer segment, if they are consecutive
 				 * pages
 				 */
-				while (seg < SEG_NR(ivec) && 
+				segnext = seg + 1;
+				while (segnext < SEG_NR(ivec) &&
 				       xfer_len < max_seg_size) {
 					if (filter == PA_DATA && 
 					    read_in_write && auxbvec != NULL &&
-					    auxbvec->ov_buf[seg] != NULL)
-						bufnext = auxbvec->ov_buf[seg+1];
+					    auxbvec->ov_buf[segnext] != NULL)
+						bufnext =
+						       auxbvec->ov_buf[segnext];
 					else
-						bufnext = bvec->ov_buf[seg+1];
+						bufnext = bvec->ov_buf[segnext];
 					if ((m0_bcount_t)buf + xfer_len == 
-					    (m0_bcount_t)bufnext)
+					    (m0_bcount_t)bufnext) {
 						xfer_len += COUNT(ivec, ++seg);
+						segnext = seg + 1;
+					}
 					else
 						break;
 				}

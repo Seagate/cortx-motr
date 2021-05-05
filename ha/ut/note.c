@@ -113,7 +113,7 @@ static struct {
 
 static void start_rpc_client_and_server(void)
 {
-	int                 rc;
+	int rc;
 
 	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
@@ -128,7 +128,7 @@ static void start_rpc_client_and_server(void)
 
 static void stop_rpc_client_and_server(void)
 {
-	int                 rc;
+	int rc;
 
 	rc = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(rc == 0);

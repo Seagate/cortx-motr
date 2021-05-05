@@ -48,7 +48,7 @@ int main(int argc, char **argv)
 	rc = m0_init(&instance);
 	if (rc != 0)
 		return M0_ERR(rc);
-	memset(&domain, 0, sizeof(struct m0_net_domain));
+	M0_SET0(&domain);
 	rc = M0_GETOPTS("m0rwlock", argc, argv,
 			    M0_STRINGARG('s',
 				         "server endpoint (RM)",

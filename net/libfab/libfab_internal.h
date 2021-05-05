@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,8 +52,8 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  */
 enum m0_fab__libfab_params {
 	/** Fabric memory registration access. */
-	FAB_MR_ACCESS            = (FI_READ | FI_WRITE | FI_RECV | FI_SEND | \
-			     FI_REMOTE_READ | FI_REMOTE_WRITE),
+	FAB_MR_ACCESS            = (FI_READ | FI_WRITE | FI_RECV | FI_SEND |
+				    FI_REMOTE_READ | FI_REMOTE_WRITE),
 	/** Fabric memory registration offset. */
 	FAB_MR_OFFSET            = 0,
 	/** Fabric memory registration flag. */

@@ -1028,7 +1028,7 @@ M0_INTERNAL uint32_t m0_io_fop_segs_nr(struct m0_fop *fop, uint32_t index)
 	used_size = rwfop->crw_desc.id_descs[index].bdd_used;
 	max_seg_size = m0_net_domain_get_max_buffer_segment_size(
 				m0_fop_domain_get(fop));
-	segs_nr = ((used_size / max_seg_size) + \
+	segs_nr = ((used_size / max_seg_size) +
 		   ((used_size % max_seg_size) ? 1 : 0));
 	M0_LOG(M0_DEBUG, "segs_nr %d", segs_nr);
 

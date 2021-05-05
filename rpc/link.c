@@ -108,7 +108,7 @@ static int rpc_link_conn_establish(struct m0_rpc_link *rlink)
 
 	rc = m0_rpc_conn_establish(&rlink->rlk_conn, rlink->rlk_timeout);
 	if (rc != 0) {
-		M0_LOG(M0_DEBUG, "Connection establish failed (rlink=%p)",
+		M0_LOG(M0_ERROR, "Connection establish failed (rlink=%p)",
 		       rlink);
 	}
 	return rc == 0 ? M0_FSO_AGAIN : rc;

@@ -807,7 +807,7 @@ AS_IF([test x$with_lustre != xno],[
 AC_ARG_ENABLE([libfab],
         [AS_HELP_STRING([--enable-libfab],
                         [Use libfabric transport])],
-        [],[enable_libfab=yes]
+        [],[enable_libfab=no]
 )
 
 AC_ARG_WITH([libfab],
@@ -827,7 +827,7 @@ AS_IF([! test -z "$with_libfab"],
 AS_IF([test x$enable_libfab = xyes],
       [
 	MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
-                  [fi_fabric cannot be found! Try to install libfabric  package]
+                  [fi_fabric cannot be found! Try to install libfabric package]
           )
 	AC_CHECK_HEADERS([rdma/fabric.h], [],
 		AC_MSG_ERROR([rdma/fabric.h is not found. Try to install libfabric package])
@@ -835,7 +835,24 @@ AS_IF([test x$enable_libfab = xyes],
         M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
       ]
 )
-
+AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
+      [
+	AC_CHECK_HEADERS([rdma/fabric.h],
+	      [
+		# Check for libfabric library
+		MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
+			  [fi_fabric cannot be found! Try to install libfabric package.]
+		)
+		AS_IF([! test -z LIBFAB_LIBS],
+		      [
+			M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
+			enable_libfab=yes
+		      ]
+		)
+	      ], []
+	)
+      ]
+)
 AC_SUBST([LIBFAB_LIBS])
 AM_CONDITIONAL([ENABLE_LIBFAB],
                [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
@@ -1027,7 +1044,6 @@ AC_SUBST([BUILD_CONFIGURE_OPTS],["$ac_configure_args"])
 AC_SUBST([BUILD_CFLAGS],["$M0_CPPFLAGS $M0_CFLAGS $CPPFLAGS $CFLAGS"])
 AC_SUBST([BUILD_KCFLAGS],["$M0_KCPPFLAGS $M0_KCFLAGS $KCFLAGS"])
 AC_SUBST([BUILD_LDFLAGS],["$M0_LDFLAGS"])
-AC_SUBST([BUILD_NET_XPT],["$ac_NET_XPT"])
 
 ],[
 AM_CONDITIONAL([HAVE_SYSTEMD], [true])

@@ -922,7 +922,9 @@ M0_BASSERT(M0_NET_LNET_PID == LUSTRE_SRV_LNET_PID);
 M0_INTERNAL int m0_net_lnet_init(void)
 {
 	m0_net_xprt_register(&m0_net_lnet_xprt);
-	/*m0_net_xprt_default_set(&m0_net_lnet_xprt);*/
+#ifndef ENABLE_LIBFAB
+	m0_net_xprt_default_set(&m0_net_lnet_xprt);
+#endif
 
 	return M0_RC(nlx_core_init());
 }

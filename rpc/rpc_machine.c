@@ -796,7 +796,7 @@ static void net_buf_received(struct m0_net_buffer    *nb,
 	m0_rpc_packet_init(&p, machine);
 	rc = m0_rpc_packet_decode(&p, &nb->nb_buffer, offset, length);
 	if (rc != 0)
-		M0_LOG(M0_DEBUG, "Packet decode error: %i.", rc);
+		M0_LOG(M0_ERROR, "Packet decode error: %i.", rc);
 	/* There might be items in packet p, which were successfully decoded
 	   before an error occurred. */
 	packet_received(&p, machine, from_ep);
