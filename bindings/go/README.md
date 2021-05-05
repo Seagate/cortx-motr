@@ -53,6 +53,8 @@ In order to build:
    (or install pre-built motr-devel package).
  2. Install Go: `sudo yum install go`.
 
+Note: Go version 1.16 or above is required, you could follow installation instruction from Go [site](https://golang.org/doc/install).
+
 Then run:
 
 ```sh
