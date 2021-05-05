@@ -271,7 +271,8 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 			  sns_ag->sag_fnr);
 
 	if (!m0_pdclust_is_replicated(pl) &&
-	    pm_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
+	    M0_IN(pm_algo, (M0_PARITY_CAL_ALGO_REED_SOLOMON,
+			    M0_PARITY_CAL_ALGO_ISA))) {
 		rc = m0_cm_cp_bufvec_merge(cp);
 		if (rc != 0)
 			goto out;
