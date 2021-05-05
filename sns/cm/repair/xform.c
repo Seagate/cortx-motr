@@ -135,12 +135,14 @@ static void cp_rs_recover(struct m0_cm_cp *src_cp, uint32_t failed_index)
 	struct m0_net_buffer       *nbuf_head;
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(src_cp->c_ag));
 	enum m0_sns_ir_block_type   bt;
+	int                         ret;
 
 	nbuf_head = cp_data_buf_tlist_head(&src_cp->c_buffers);
 	scp = cp2snscp(src_cp);
 	bt = scp->sc_is_local ? M0_SI_BLOCK_LOCAL : M0_SI_BLOCK_REMOTE;
-	m0_sns_ir_recover(&rag->rag_ir, &nbuf_head->nb_buffer,
-			  &src_cp->c_xform_cp_indices, failed_index, bt);
+	ret = m0_sns_ir_recover(&rag->rag_ir, &nbuf_head->nb_buffer,
+				&src_cp->c_xform_cp_indices, failed_index, bt);
+	M0_POST(ret == 0);
 }
 
 /** Merges the source bitmap to the destination bitmap. */

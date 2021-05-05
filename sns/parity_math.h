@@ -188,7 +188,7 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 				    uint32_t data_count, uint32_t parity_count);
 
 /**
-   Deinitializaton of parity math algorithms.
+   Deinitialization of parity math algorithms.
    Frees all memory blocks allocated by m0_parity_math_init().
  */
 M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math);
@@ -200,9 +200,9 @@ M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math);
                         b_nob elements.
    @pre m0_parity_math_init() succeeded.
  */
-M0_INTERNAL void m0_parity_math_calculate(struct m0_parity_math *math,
-					  struct m0_buf *data,
-					  struct m0_buf *parity);
+M0_INTERNAL int m0_parity_math_calculate(struct m0_parity_math *math,
+					 struct m0_buf *data,
+					 struct m0_buf *parity);
 
 /**
  * Calculates parity in a differential manner.
@@ -214,10 +214,10 @@ M0_INTERNAL void m0_parity_math_calculate(struct m0_parity_math *math,
  * @param index   Index of data unit in parity group for which old and new
  * versions are sent.
  */
-M0_INTERNAL void m0_parity_math_diff(struct m0_parity_math *math,
-				     struct m0_buf *old_ver,
-				     struct m0_buf *new_ver,
-				     struct m0_buf *parity, uint32_t index);
+M0_INTERNAL int m0_parity_math_diff(struct m0_parity_math *math,
+				    struct m0_buf *old_ver,
+				    struct m0_buf *new_ver,
+				    struct m0_buf *parity, uint32_t index);
 
 /**
  * Parity block refinement iff one data word of one data unit had changed.
@@ -228,10 +228,10 @@ M0_INTERNAL void m0_parity_math_diff(struct m0_parity_math *math,
  * @param[in]  data_ind_changed - index of data unit recently changed.
  * @pre m0_parity_math_init() succeeded.
  */
-M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
-				       struct m0_buf *data,
-				       struct m0_buf *parity,
-				       uint32_t data_ind_changed);
+M0_INTERNAL int m0_parity_math_refine(struct m0_parity_math *math,
+				      struct m0_buf *data,
+				      struct m0_buf *parity,
+				      uint32_t data_ind_changed);
 
 #if !ISAL_ENCODE_ENABLED
 M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
@@ -254,13 +254,13 @@ M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math);
  *                         parityblock with given index is treated as broken.
  * @param[in]     algo   - algorithm for recovery of data in case reed solomon
  *                         encoding is used.
- * @pre m0_parity_math_init() succeded.
+ * @pre m0_parity_math_init() succeeded.
  */
-M0_INTERNAL void m0_parity_math_recover(struct m0_parity_math *math,
-					struct m0_buf *data,
-					struct m0_buf *parity,
-					struct m0_buf *fail,
-					enum m0_parity_linsys_algo algo);
+M0_INTERNAL int m0_parity_math_recover(struct m0_parity_math *math,
+				       struct m0_buf *data,
+				       struct m0_buf *parity,
+				       struct m0_buf *fail,
+				       enum m0_parity_linsys_algo algo);
 
 /**
  * Recovers data or parity units partially or fully depending on the parity
@@ -269,13 +269,13 @@ M0_INTERNAL void m0_parity_math_recover(struct m0_parity_math *math,
  * @param data - data block, treated as uint8_t block with b_nob elements.
  * @param parity - parity block, treated as uint8_t block with b_nob elements.
  * @param failure_index - Index of the failed block.
-   @pre m0_parity_math_init() succeded.
+   @pre m0_parity_math_init() succeeded.
  */
-M0_INTERNAL void m0_parity_math_fail_index_recover(struct m0_parity_math *math,
-						   struct m0_buf *data,
-						   struct m0_buf *parity,
-						   const uint32_t
-						   failure_index);
+M0_INTERNAL int m0_parity_math_fail_index_recover(struct m0_parity_math *math,
+						  struct m0_buf *data,
+						  struct m0_buf *parity,
+						  const uint32_t
+						  failure_index);
 
 /**
  * XORs the source and destination buffers and stores the output in destination
@@ -562,16 +562,16 @@ M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir);
  *			    on a node or coming from a remote node. All remote
  *			    blocks are assumed to be transformed.
  */
-M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
-				   struct m0_bufvec *bufvec,
-				   const struct m0_bitmap *bitmap,
-				   uint32_t failed_indexi,
-				   enum m0_sns_ir_block_type block_type);
+M0_INTERNAL int m0_sns_ir_recover(struct m0_sns_ir *ir,
+				  struct m0_bufvec *bufvec,
+				  const struct m0_bitmap *bitmap,
+				  uint32_t failed_index,
+				  enum m0_sns_ir_block_type block_type);
 /**
  * When failures include both data and parity blocks, this function uses
  * local copy of recovered (partially or fully) data-block for recovering
  * failed parity block. On any node, this function can be triggered only once
- * per parity group. Subsequent triggers will result into a no-operaiton.
+ * per parity group. Subsequent triggers will result into a no-operation.
  * @param ir holds information relevant for recovery
  */
 //M0_INTERNAL void m0_sns_ir_local_xform(struct m0_sns_ir *ir);
