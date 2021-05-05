@@ -1189,6 +1189,57 @@ static void bitmap_reset(struct m0_bitmap *bitmap)
 	for (i = 0; i < bitmap->b_nr; ++i)
 		m0_bitmap_set(bitmap, i, false);
 }
+
+/**
+ * Sets @iomap databufs within a data unit @ext to the degraded write mode.
+ * The unit boundary is ensured by the calling code at nw_xfer_io_distribute().
+ */
+static void databufs_set_dgw_mode(struct pargrp_iomap *iomap,
+				  struct m0_pdclust_layout *play,
+				  struct m0_ext *ext)
+{
+	uint32_t         row_start;
+	uint32_t         row_end;
+	uint32_t         row;
+	uint32_t         col;
+	m0_bcount_t      grp_off;
+	struct data_buf *dbuf;
+
+	grp_off = data_size(play) * iomap->pi_grpid;
+	page_pos_get(iomap, ext->e_start, grp_off, &row_start, &col);
+	page_pos_get(iomap, ext->e_end - 1, grp_off, &row_end, &col);
+
+	for (row = row_start; row <= row_end; ++row) {
+		dbuf = iomap->pi_databufs[row][col];
+		if (dbuf->db_flags & PA_WRITE)
+			dbuf->db_flags |= PA_DGMODE_WRITE;
+	}
+}
+
+/**
+ * Sets @iomap paritybufs for the parity @unit to the degraded write mode.
+ */
+static void paritybufs_set_dgw_mode(struct pargrp_iomap *iomap,
+				    struct m0_op_io *ioo,
+				    uint64_t unit)
+{
+	uint32_t                  row;
+	uint32_t                  col;
+	struct data_buf          *dbuf;
+	struct m0_pdclust_layout *play = pdlayout_get(ioo);
+	uint64_t                  unit_size = layout_unit_size(play);
+
+	parity_page_pos_get(iomap, unit * unit_size, &row, &col);
+	for (; row < rows_nr(play, ioo->ioo_obj); ++row) {
+		dbuf = iomap->pi_paritybufs[row][col];
+		if (m0_pdclust_is_replicated(play) &&
+		    iomap->pi_databufs[row][0] == NULL)
+			continue;
+		if (dbuf->db_flags & PA_WRITE)
+			dbuf->db_flags |= PA_DGMODE_WRITE;
+	}
+}
+
 /**
  * Distributes file data into target_ioreq objects as required and populates
  * target_ioreq::ti_ivec and target_ioreq::ti_bufvec.
@@ -1221,21 +1272,14 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	struct m0_pdclust_src_addr  src;
 	struct m0_pdclust_tgt_addr  tgt;
 	struct m0_bitmap            units_spanned;
-	uint32_t                    row_start;
-	uint32_t                    row_end;
-	uint32_t                    row;
-	uint32_t                    col;
-	struct data_buf            *dbuf;
 	struct pargrp_iomap        *iomap;
 	struct m0_client           *instance;
-	m0_bcount_t                 grp_size;
 
 	M0_ENTRY("nw_xfer_request %p", xfer);
 
 	M0_PRE(nw_xfer_request_invariant(xfer));
 
-	ioo       = bob_of(xfer, struct m0_op_io, ioo_nwxfer,
-			   &ioo_bobtype);
+	ioo       = bob_of(xfer, struct m0_op_io, ioo_nwxfer, &ioo_bobtype);
 	op        = &ioo->ioo_oo.oo_oc.oc_op;
 	op_code   = op->op_code,
 	play      = pdlayout_get(ioo);
@@ -1252,69 +1296,49 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 		M0_LOG(M0_DEBUG, "xfer=%p map=%p [grpid=%"PRIu64" state=%u]",
 				 xfer, iomap, iomap->pi_grpid, iomap->pi_state);
 
-		/* Cursor for pargrp_iomap::pi_ivec. */
+		/* traverse parity group ivec by units */
 		m0_ivec_cursor_init(&cursor, &iomap->pi_ivec);
 		bitmap_reset(&units_spanned);
-		grp_size = data_size(play) * iomap->pi_grpid;
 		while (!m0_ivec_cursor_move(&cursor, count)) {
 			unit = (m0_ivec_cursor_index(&cursor) - pgstart) /
 				unit_size;
 
 			u_ext.e_start = pgstart + unit * unit_size;
 			u_ext.e_end   = u_ext.e_start + unit_size;
-			m0_ext_init(&u_ext);
 
 			v_ext.e_start  = m0_ivec_cursor_index(&cursor);
 			v_ext.e_end    = v_ext.e_start +
 				m0_ivec_cursor_step(&cursor);
-			m0_ext_init(&v_ext);
 
 			m0_ext_intersection(&u_ext, &v_ext, &r_ext);
-			if (!m0_ext_is_valid(&r_ext)) {
-				count = unit_size;
-				continue;
-			}
+			M0_ASSERT(m0_ext_is_valid(&r_ext));
+			count = m0_ext_length(&r_ext);
 
-			count     = m0_ext_length(&r_ext);
 			unit_type = m0_pdclust_unit_classify(play, unit);
-			if (unit_type == M0_PUT_SPARE ||
-				unit_type == M0_PUT_PARITY)
-				continue;
+			M0_ASSERT(unit_type == M0_PUT_DATA);
 
-			if (ioreq_sm_state(ioo) == IRS_DEGRADED_WRITING) {
-				page_pos_get(iomap, r_ext.e_start, grp_size,
-					     &row_start, &col);
-				page_pos_get(iomap, r_ext.e_end - 1, grp_size,
-					     &row_end, &col);
-				dbuf = iomap->pi_databufs[row_start][col];
-				M0_ASSERT(dbuf != NULL);
-				for (row = row_start; row <= row_end; ++row) {
-					dbuf = iomap->pi_databufs[row][col];
-					M0_ASSERT(dbuf != NULL);
-					if (dbuf->db_flags & PA_WRITE) {
-						dbuf->db_flags |=
-							PA_DGMODE_WRITE;
-						m0_bitmap_set(&units_spanned,
-							      unit, true);
-					}
-				}
-			}
+			if (ioreq_sm_state(ioo) == IRS_DEGRADED_WRITING)
+				databufs_set_dgw_mode(iomap, play, &r_ext);
+
 			src.sa_unit = unit;
 			rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src, &tgt,
 							   &ti);
 			if (rc != 0)
 				goto err;
 
+			if (op_code == M0_OC_WRITE)
+				m0_bitmap_set(&units_spanned, unit, true);
+
 			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
 						m0_ext_length(&r_ext),
 						iomap);
 		}
 
-		M0_ASSERT(ergo(M0_IN(op_code,
-				     (M0_OC_READ, M0_OC_WRITE)),
+		M0_ASSERT(ergo(M0_IN(op_code, (M0_OC_READ, M0_OC_WRITE)),
 			       m0_vec_count(&ioo->ioo_ext.iv_vec) ==
 			       m0_vec_count(&ioo->ioo_data.ov_vec)));
 
+		/* process parity units */
 		if (M0_IN(ioo->ioo_pbuf_type, (M0_PBUF_DIR,
 					       M0_PBUF_IND)) ||
 		    (ioreq_sm_state(ioo) == IRS_DEGRADED_READING &&
@@ -1330,30 +1354,14 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 				if (rc != 0)
 					goto err;
 
-				parity_page_pos_get(iomap, unit * unit_size,
-						    &row, &col);
+				if (ioreq_sm_state(ioo) == IRS_DEGRADED_WRITING)
+					paritybufs_set_dgw_mode(iomap, ioo,
+								unit);
 
-				for (; row < rows_nr(play, ioo->ioo_obj);
-				     ++row) {
-					dbuf = iomap->pi_paritybufs[row][col];
-					M0_ASSERT(dbuf != NULL);
-					if (m0_pdclust_is_replicated(play) &&
-					    iomap->pi_databufs[row][0] == NULL)
-						continue;
-					M0_ASSERT(ergo(op_code ==
-						       M0_OC_WRITE,
-						       dbuf->db_flags &
-						       PA_WRITE));
-					if (ioreq_sm_state(ioo) ==
-					    IRS_DEGRADED_WRITING &&
-					    dbuf->db_flags & PA_WRITE) {
-						dbuf->db_flags |=
-							PA_DGMODE_WRITE;
-						m0_bitmap_set(&units_spanned,
-							      src.sa_unit,
-							      true);
-					}
-				}
+				if (op_code == M0_OC_WRITE)
+					m0_bitmap_set(&units_spanned,
+						      src.sa_unit, true);
+
 				ti->ti_ops->tio_seg_add(ti, &src, &tgt, pgstart,
 							layout_unit_size(play),
 							iomap);
@@ -1362,9 +1370,8 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			 * Since CROW is not enabled in non-oostore mode cobs
 			 * are present across all nodes.
 			 */
-			if (!m0__is_oostore(instance) ||
-			    op_code == M0_OC_READ)
-				continue;
+			if (!m0__is_oostore(instance) || op_code == M0_OC_READ)
+				continue; /* to next iomap */
 			/*
 			 * Create cobs for those units not spanned by IO
 			 * request.
@@ -1840,7 +1847,6 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 				pm, gfid, play, play_instance, src->sa_group,
 				src->sa_unit, &spare_slot,
 				&spare_slot_prev);
-
 		if (rc != 0)
 			return M0_RC(rc);
 
@@ -1854,7 +1860,6 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 				&device_state_prev);
 			if (rc != 0)
 				return M0_RC(rc);
-
 		} else
 			device_state_prev = M0_PNDS_SNS_REPAIRED;
 
