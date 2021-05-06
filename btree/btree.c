@@ -793,9 +793,9 @@ struct slot;
  *  implementation.
  */
 struct node_type {
-	uint32_t                   nt_id;
-	const char                *nt_name;
-	const struct m0_format_tag nt_tag;
+	uint32_t                    nt_id;
+	const char                 *nt_name;
+	const struct m0_format_tag  nt_tag;
 
 	/** Initializes newly allocated node */
 	void (*nt_init)(const struct nd *node, int shift, int ksize, int vsize);
@@ -803,7 +803,7 @@ struct node_type {
 	/** Cleanup of the node if any before deallocation */
 	void (*nt_fini)(const struct nd *node);
 
-	/** Returns count of records in the node */
+	/** Returns count of Keys in the node */
 	int  (*nt_count)(const struct nd *node);
 
 	/** Returns the space (in bytes) available in the node */
@@ -1937,7 +1937,7 @@ static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
 {
 	struct ff_head *h = ff_data(slot->s_node);
 	int             i = -1;
-	int             j = h->ff_used;
+	int             j = node_count(slot->s_node);
 
 	M0_PRE(find_key->k_data.ov_vec.v_count[0] == h->ff_ksize);
 	M0_PRE(find_key->k_data.ov_vec.v_nr == 1);
