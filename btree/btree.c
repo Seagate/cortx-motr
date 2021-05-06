@@ -1295,15 +1295,17 @@ static void tree_type_unregister(const struct m0_btree_type *tt)
 #endif
 
 struct seg_ops {
-	int64_t (*so_tree_get)(struct node_op *op,
-			       struct segaddr *addr, int nxt);
-	int64_t (*so_tree_create)(struct node_op *op, struct m0_btree_type *tt,
-				  int rootshift, struct m0_be_tx *tx, int nxt);
-	int64_t (*so_tree_delete)(struct node_op *op, struct td *tree,
-				  struct m0_be_tx *tx, int nxt);
-	void    (*so_tree_put)(struct td *tree);
-	int64_t (*so_node_get)(struct node_op *op, struct td *tree,
-			       struct segaddr *addr, int nxt);
+	int64_t    (*so_tree_get)(struct node_op *op,
+			          struct segaddr *addr, int nxt);
+	int64_t    (*so_tree_create)(struct node_op *op,
+	                             struct m0_btree_type *tt,
+				     int rootshift, struct m0_be_tx *tx,
+				     int nxt);
+	int64_t    (*so_tree_delete)(struct node_op *op, struct td *tree,
+				     struct m0_be_tx *tx, int nxt);
+	void       (*so_tree_put)(struct td *tree);
+	int64_t    (*so_node_get)(struct node_op *op, struct td *tree,
+			          struct segaddr *addr, int nxt);
 	void       (*so_node_put)(struct nd *node);
 	struct nd *(*so_node_try)(struct td *tree, struct segaddr *addr);
 	int64_t    (*so_node_alloc)(struct node_op *op, struct td *tree,
@@ -1311,7 +1313,7 @@ struct seg_ops {
 				    struct m0_be_tx *tx, int nxt);
 	int64_t    (*so_node_free)(struct node_op *op, struct nd *node,
 				   struct m0_be_tx *tx, int nxt);
-	void (*so_node_op_fini)(struct node_op *op);
+	void       (*so_node_op_fini)(struct node_op *op);
 };
 
 static struct seg_ops *segops;
@@ -1732,10 +1734,10 @@ struct ff_head {
 
 static void ff_init(const struct nd *node, int shift, int ksize, int vsize);
 static void ff_fini(const struct nd *node);
-static int ff_count(const struct nd *node);
-static int ff_space(const struct nd *node);
-static int ff_level(const struct nd *node);
-static int ff_shift(const struct nd *node);
+static int  ff_count(const struct nd *node);
+static int  ff_space(const struct nd *node);
+static int  ff_level(const struct nd *node);
+static int  ff_shift(const struct nd *node);
 static void ff_fid(const struct nd *node, struct m0_fid *fid);
 static void ff_rec(struct slot *slot);
 static void ff_node_key(struct slot *slot);
