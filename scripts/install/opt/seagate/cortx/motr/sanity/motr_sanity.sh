@@ -76,7 +76,7 @@ check_sys_state()
 {
 	# check for presence of kernel modules
 	kernel_modules=$(lsmod | grep m0)
-	if [[ ! -z $kernel_modules ]]
+	if [[ ! -z "$kernel_modules" ]]
 	then
 		echo "[ERROR]: Motr kernel modules present even after cleanup"
 		echo -e "Kernel modules:\n$kernel_modules"
@@ -327,7 +327,7 @@ m0spiel_test()
 	local rc
 	echo "m0_filesystem_stats"
 	libmotr_sys_path="/usr/lib64/libmotr.so"
-	[[ -n $MOTR_DEVEL_WORKDIR_PATH ]] && \
+	[[ -n "$MOTR_DEVEL_WORKDIR_PATH" ]] && \
         	libmotr_path=$MOTR_DEVEL_WORKDIR_PATH/motr/.libs/libmotr.so
 	[[ ! -s $libmotr_path ]] && libmotr_path=$libmotr_sys_path
 	format_profile_fid=$(echo $profile_fid | sed 's/.*<\(.*\)>/\1/' | sed 's/:/,/')

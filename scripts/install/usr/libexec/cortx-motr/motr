@@ -29,7 +29,6 @@ readonly PROG_NAME=$(basename $0)
 MOTR_GENDERS_CONF=/etc/motr/genders
 
 # service local variables
-user_config=/etc/sysconfig/motr
 service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 
 
@@ -66,7 +65,7 @@ stop()
         systemctl stop motr-server@${s}.service
     done
 
-    if [[ -n $(m0_get_running_servers | grep confd) ]] ; then
+    if [[ -n "$(m0_get_running_servers | grep confd)" ]] ; then
         systemctl stop motr-server-confd.service
     fi
 }

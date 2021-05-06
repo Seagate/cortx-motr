@@ -253,7 +253,7 @@ eval set -- "$cli_args"
 check_dependencies
 cd $VAGRANT_DIR
 
-[[ -n $1 ]] || die 'A host argument is required, please check' \
+[[ -n "$1" ]] || die 'A host argument is required, please check' \
                    "\`$PROG_NAME --help\` for details."
 
 if [[ -f $1.inventory ]] ; then

@@ -174,7 +174,7 @@ cs_conf_to_args(struct cs_args *dest, struct m0_conf_root *root)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	option_add(dest, m0_strdup("lt-m0d")); /* XXX Does the value matter? */
+	option_add(dest, m0_strdup("m0d")); /* XXX Does the value matter? */
 	while ((rc = m0_conf_diter_next_sync(&it, service_and_node)) ==
 		M0_CONF_DIRNEXT) {
 		struct m0_conf_obj *obj = m0_conf_diter_result(&it);

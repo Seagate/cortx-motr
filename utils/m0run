@@ -137,7 +137,7 @@ parse_cli_options()
         case "$1" in
             -f)                 force_modules_reload=true; shift ;;
             -r|--rundir)        rundir=$2; shift 2 ;;
-            -d|--debugger)      [[ -n $2 ]] && debugger=$2 || debugger='gdb'; shift 2 ;;
+            -d|--debugger)      [[ -n "$2" ]] && debugger=$2 || debugger='gdb'; shift 2 ;;
             -l|--trace-level)   trace_level=$2; export M0_TRACE_LEVEL=$2; shift 2 ;;
             -m|--trace-mask)    trace_mask=$2; export M0_TRACE_MASK=$2; shift 2 ;;
             -c|--trace-ctx)     trace_ctx=$2; export M0_TRACE_PRINT_CONTEXT=$2; shift 2 ;;
@@ -172,7 +172,7 @@ srcdir_path_of()
 {
     local binary=$top_srcdir/utils/$1
 
-    if [[ -z $top_srcdir ]] ; then
+    if [[ -z "$top_srcdir" ]] ; then
         echo $1
     elif [[ -L $binary ]] ; then
         echo "$top_srcdir/$(readlink $binary | sed -e 's#^../##')"
@@ -282,7 +282,7 @@ run_valgrind()
 # not found.
 load_modules()
 {
-    if [[ -n $top_srcdir ]] ; then
+    if [[ -n "$top_srcdir" ]] ; then
         source $top_srcdir/utils/modload-all.sh
     else
         # don't try to load Motr modules if they already are
@@ -340,13 +340,13 @@ eval set -- "$cli_args"
     die 'Please, run this script with "root" privileges.'
 
 binary=$1
-[[ -n $binary ]] ||
+[[ -n "$binary" ]] ||
     die "Please, specify which binary to run as a first command-line argument."
 shift
 
-if [[ -n $top_srcdir &&
+if [[ -n "$top_srcdir" &&
       ! (-f $(srcdir_path_of $binary) && -x $(srcdir_path_of $binary)) ]] ||
-   [[ -z $top_srcdir ]] && ! which $binary &>/dev/null
+   [[ -z "$top_srcdir" ]] && ! which $binary &>/dev/null
 then
     die "'$binary' is not found or missing executable permissions."
 fi
@@ -375,12 +375,12 @@ ulimit -c unlimited
 # See MOTR-2171 for more details.
 sysctl -q -w vm.max_map_count=30000000
 
-if [[ -n $debugger ]] ; then
+if [[ -n "$debugger" ]] ; then
     # libmotr will attach debugger in case of panic, disable this as we already
     # going to run it under debugger
     unset M0_DEBUGGER
 
-    if [[ -n $top_srcdir ]] ; then
+    if [[ -n "$top_srcdir" ]] ; then
         # nasty libtool creates wrapper shell scripts for non-installed
         # binaries and links them on first run under '.libs/' directory with
         # 'lt-' prefix

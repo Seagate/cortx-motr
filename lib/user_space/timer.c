@@ -67,8 +67,8 @@ M0_TL_DEFINE(tid, static, struct m0_timer_tid);
    gettid(2) implementation.
    Thread-safe, async-signal-safe.
  */
-static pid_t gettid() {
-
+static pid_t _gettid()
+{
 	return syscall(SYS_gettid);
 }
 
@@ -132,7 +132,7 @@ M0_INTERNAL int m0_timer_thread_attach(struct m0_timer_locality *loc)
 
 	M0_PRE(loc != NULL);
 
-	tid = gettid();
+	tid = _gettid();
 	M0_ASSERT(locality_tid_find(loc, tid) == NULL);
 
 	M0_ALLOC_PTR(tt);
@@ -157,7 +157,7 @@ M0_INTERNAL void m0_timer_thread_detach(struct m0_timer_locality *loc)
 
 	M0_PRE(loc != NULL);
 
-	tid = gettid();
+	tid = _gettid();
 	tt = locality_tid_find(loc, tid);
 	M0_ASSERT(tt != NULL);
 
@@ -281,7 +281,7 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 	M0_PRE(signo == TIMER_SIGNO);
 
 	timer = si->si_value.sival_ptr;
-	M0_ASSERT_EX(ergo(timer->t_tid != 0, timer->t_tid == gettid()));
+	M0_ASSERT_EX(ergo(timer->t_tid != 0, timer->t_tid == _gettid()));
 	m0_timer_callback_execute(timer);
 	m0_semaphore_up(&timer->t_cb_sync_sem);
 }

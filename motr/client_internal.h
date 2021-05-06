@@ -272,7 +272,7 @@ struct m0_op_io {
 	struct m0_fid                     ioo_pver;
 
 	/** @todo: remove this */
-	uint32_t                          ioo_rc;
+	int32_t                           ioo_rc;
 
 	/**
 	 * Array of struct pargrp_iomap pointers.

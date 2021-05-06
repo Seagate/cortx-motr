@@ -907,7 +907,8 @@ static bool nlx_kcore_domain_invariant(const struct nlx_kcore_domain *kd)
  */
 static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb)
 {
-	return kcb != NULL && kcb->kb_magic == M0_NET_LNET_KCORE_BUF_MAGIC &&
+	return _0C(kcb != NULL) &&
+	       _0C(kcb->kb_magic == M0_NET_LNET_KCORE_BUF_MAGIC) &&
 	       nlx_core_kmem_loc_invariant(&kcb->kb_cb_loc);
 }
 
