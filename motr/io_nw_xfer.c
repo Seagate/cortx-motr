@@ -1250,7 +1250,8 @@ static void paritybufs_set_dgw_mode(struct pargrp_iomap *iomap,
  */
 static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 {
-	int                         rc;
+	bool                        do_cobs = true;
+	int                         rc = 0;
 	unsigned int                op_code;
 	uint64_t                    i;
 	uint64_t                    unit;
@@ -1285,7 +1286,23 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	play      = pdlayout_get(ioo);
 	unit_size = layout_unit_size(play);
 	instance  = m0__op_instance(op);
-	rc = m0_bitmap_init(&units_spanned, m0_pdclust_size(play));
+
+	/*
+	 * In non-oostore mode, all cobs are created on object creation.
+	 * In oostore mode, CROW is enabled and cobs are created automatically
+	 * at the server side on the 1st write request. But, because of SNS,
+	 * we need to create cobs for the spare units, and to make sure all cobs
+	 * are created for all units in the parity group touched by the update
+	 * request. See more below.
+	 */
+	if (!m0__is_oostore(instance) || op_code == M0_OC_READ)
+		do_cobs = false;
+
+	if (do_cobs) {
+		rc = m0_bitmap_init(&units_spanned, m0_pdclust_size(play));
+		if (rc != 0)
+			return M0_ERR(rc);
+	}
 
 	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
 		count        = 0;
@@ -1296,9 +1313,11 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 		M0_LOG(M0_DEBUG, "xfer=%p map=%p [grpid=%"PRIu64" state=%u]",
 				 xfer, iomap, iomap->pi_grpid, iomap->pi_state);
 
+		if (do_cobs)
+			m0_bitmap_reset(&units_spanned);
+
 		/* traverse parity group ivec by units */
 		m0_ivec_cursor_init(&cursor, &iomap->pi_ivec);
-		bitmap_reset(&units_spanned);
 		while (!m0_ivec_cursor_move(&cursor, count)) {
 			unit = (m0_ivec_cursor_index(&cursor) - pgstart) /
 				unit_size;
@@ -1326,12 +1345,11 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			if (rc != 0)
 				goto err;
 
-			if (op_code == M0_OC_WRITE)
+			if (op_code == M0_OC_WRITE && do_cobs)
 				m0_bitmap_set(&units_spanned, unit, true);
 
 			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
-						m0_ext_length(&r_ext),
-						iomap);
+						m0_ext_length(&r_ext), iomap);
 		}
 
 		M0_ASSERT(ergo(M0_IN(op_code, (M0_OC_READ, M0_OC_WRITE)),
@@ -1358,7 +1376,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 					paritybufs_set_dgw_mode(iomap, ioo,
 								unit);
 
-				if (op_code == M0_OC_WRITE)
+				if (op_code == M0_OC_WRITE && do_cobs)
 					m0_bitmap_set(&units_spanned,
 						      src.sa_unit, true);
 
@@ -1366,44 +1384,46 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 							layout_unit_size(play),
 							iomap);
 			}
-			/*
-			 * Since CROW is not enabled in non-oostore mode cobs
-			 * are present across all nodes.
-			 */
-			if (!m0__is_oostore(instance) || op_code == M0_OC_READ)
+
+			if (!do_cobs)
 				continue; /* to next iomap */
+
 			/*
-			 * Create cobs for those units not spanned by IO
-			 * request.
+			 * Create cobs for all units not spanned by the
+			 * IO request (data or spare units).
+			 *
+			 * If some data unit is not present in the group (hole
+			 * or not complete last group), we still need to create
+			 * cob for it. Otherwise, during SNS-repair the receiver
+			 * will wait forever for this unit without knowing that
+			 * its size is actually zero.
 			 */
 			for (unit = 0; unit < m0_pdclust_size(play); ++unit) {
 				if (m0_bitmap_get(&units_spanned, unit))
 					continue;
+
 				src.sa_unit = unit;
 				rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src,
 								   &tgt, &ti);
-				if (rc != 0) {
-					M0_LOG(M0_ERROR, "[%p] map %p,"
-					       "nxo_tioreq_map() failed, rc %d"
-						,ioo, iomap, rc);
-				}
+				if (rc != 0)
+					M0_LOG(M0_ERROR, "[%p] map=%p "
+					       "nxo_tioreq_map() failed: rc=%d",
+					       ioo, iomap, rc);
 				/*
 				 * Skip the case when some other parity group
-				 * has spanned the particular target.
+				 * has spanned the particular target already.
 				 */
-				if (ti->ti_req_type != TI_NONE) {
-					m0_bitmap_set(&units_spanned, unit,
-						      true);
+				if (ti->ti_req_type != TI_NONE)
 					continue;
-				}
+
 				ti->ti_req_type = TI_COB_CREATE;
-				m0_bitmap_set(&units_spanned, unit, true);
 			}
-			M0_ASSERT(m0_bitmap_set_nr(&units_spanned) ==
-				  m0_pdclust_size(play));
 		}
 	}
-	m0_bitmap_fini(&units_spanned);
+
+	if (do_cobs)
+		m0_bitmap_fini(&units_spanned);
+
 	M0_ASSERT(ergo(M0_IN(op_code, (M0_OC_READ, M0_OC_WRITE)),
 		       m0_vec_count(&ioo->ioo_ext.iv_vec) ==
 		       m0_vec_count(&ioo->ioo_data.ov_vec)));
