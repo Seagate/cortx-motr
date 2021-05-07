@@ -580,7 +580,7 @@ static bool conf_obj_is_process(const struct m0_conf_obj *obj)
 
 static int dtm0_service__ha_subscribe(struct m0_reqh_service *service)
 {
-	struct m0_confc        *confc = m0_reqh2confc(service->rs_reqh);
+	struct m0_confc        *confc;
 	struct m0_conf_root    *root;
 	struct m0_conf_diter    it;
 	struct m0_conf_obj     *obj;
@@ -589,13 +589,15 @@ static int dtm0_service__ha_subscribe(struct m0_reqh_service *service)
 	struct m0_dtm0_service *s;
 	struct m0_fid           rproc_fid;
 	struct m0_fid           rserv_fid;
-	struct m0_fid          *current_proc_fid = &service->rs_reqh->rh_fid;
-
-	int rc;
+	struct m0_fid          *current_proc_fid;
+	int                     rc;
 
 	M0_ENTRY();
 
 	M0_PRE(service != NULL);
+
+	confc = m0_reqh2confc(service->rs_reqh);
+	current_proc_fid = &service->rs_reqh->rh_fid;
 	s = container_of(service, struct m0_dtm0_service, dos_generic);
 
 	/** UT workaround */

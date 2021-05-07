@@ -14,7 +14,7 @@ m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
 proc_state_change()
 {
-    local lnet_nid=`sudo lctl list_nids | head -1`
+    local lnet_nid=$(sudo lctl list_nids | head -1)
     local c_endpoint="$lnet_nid:$M0HAM_CLI_EP"
     local s_endpoint="$lnet_nid:$1"
     local fid=$2

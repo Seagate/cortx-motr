@@ -16,20 +16,26 @@ works and client can write key/value pairs with DTX
 enabled.
 
 What the test does:
- - bootstraps the cluster of 3 m0d processes using Hare
- - checks that no any handling of HA messages is done by
-   DTM0 service
- - sends HA TRANSIENT messages to m0d's to trigger HA messages
-   handling by DTM0 services
- - checks that all DTM0 services are ready to handle HA
-   messages
- - sends HA ONLINE messages to m0d's to trigger connections
-   logic
- - checks that all m0d's are connected with each other
- - run the m0crate to write key/value pairs
- - sends HA client ONLINE messages to m0d's to trigger
-   connections from m0d's to the client
- - waits for m0crate completion
+-   bootstraps the cluster of 3 m0d processes using Hare
+
+-   checks that no any handling of HA messages is done by
+    DTM0 service
+
+-   sends HA TRANSIENT messages to m0d's to trigger HA messages
+    handling by DTM0 services
+
+-   checks that all DTM0 services are ready to handle HA messages
+
+-   sends HA ONLINE messages to m0d's to trigger connections logic
+
+-   checks that all m0d's are connected with each other
+
+-   run the m0crate to write key/value pairs
+
+-   sends HA client ONLINE messages to m0d's to trigger
+    connections from m0d's to the client
+
+-   waits for m0crate completion
 
 ## Command to run this test
 ```sh

@@ -924,6 +924,7 @@ static void run_m0ops(uint64_t nr, enum m0_idx_opcode opcode,
 	/* Execute the ops */
 	for (i = 0; i < nr; ++i) {
 		rc = m0_bufvec_alloc(&key_vecs[i], 1, sizeof(i));
+		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(key_vecs[i].ov_vec.v_count[0] == sizeof(i));
 		memcpy(key_vecs[i].ov_buf[0], &i, sizeof(i));
 
