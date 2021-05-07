@@ -1182,14 +1182,6 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 	return M0_RC(rc);
 }
 
-static void bitmap_reset(struct m0_bitmap *bitmap)
-{
-	int i;
-
-	for (i = 0; i < bitmap->b_nr; ++i)
-		m0_bitmap_set(bitmap, i, false);
-}
-
 /**
  * Sets @iomap databufs within a data unit @ext to the degraded write mode.
  * The unit boundary is ensured by the calling code at nw_xfer_io_distribute().
@@ -1296,6 +1288,12 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	 * request. See more below.
 	 */
 	if (!m0__is_oostore(instance) || op_code == M0_OC_READ)
+		do_cobs = false;
+	/*
+	 * In replicated layout (N == 1), all units in the parity group are
+	 * always spanned. And there are no spare units, so...
+	 */
+	if (ioo->ioo_pbuf_type == M0_PBUF_IND)
 		do_cobs = false;
 
 	if (do_cobs) {
