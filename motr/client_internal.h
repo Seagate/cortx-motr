@@ -63,6 +63,8 @@
 #include "fop/fop.h"
 
 struct m0_idx_service_ctx;
+struct m0_dtm0_service;
+struct m0_dtx;
 
 #ifdef CLIENT_FOR_M0T1FS
 /**
@@ -225,6 +227,9 @@ struct m0_op_idx {
 	struct dix_req     *oi_dix_req;
 	/** To know dix req in completion callback */
 	bool                oi_in_completion;
+
+	/** Distributed transaction associated with the operation */
+	struct m0_dtx      *oi_dtx;
 };
 
 /**
@@ -581,6 +586,8 @@ struct m0_client {
 #endif
 
 	struct m0_htable                        m0c_rm_ctxs;
+
+	struct m0_dtm0_service                 *m0c_dtms;
 };
 
 /** CPUs semaphore - to control CPUs usage by parity calcs. */

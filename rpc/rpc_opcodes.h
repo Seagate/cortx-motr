@@ -323,6 +323,9 @@ enum M0_RPC_OPCODES {
 	/* In-storage-compute service. */
 	M0_ISCSERVICE_REQ_OPCODE              = 350,
 	M0_ISCSERVICE_REP_OPCODE              = 351,
+	/** DTM0 service. */
+	M0_DTM0_REQ_OPCODE                    = 450,
+	M0_DTM0_REP_OPCODE                    = 451,
 	/*
 	 * Identifiers below are for fop-less foms, not fops.
 	 */

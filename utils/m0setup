@@ -44,6 +44,7 @@ verbose=false
 do_cleanup=false
 do_loop_cleanup=false
 use_existing_loop_imgs=false
+init_loop_only=false
 do_gendisk=true
 do_genfacts=false
 do_mkfs=false
@@ -191,7 +192,7 @@ parse_cli_options()
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
     TEMP=$( getopt --options hvclICEGHVAMP:N:K:i:d:m:s:p:z:Z:: \
-                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,client-apps,activate-singlenode-services,mkfs,list-disks,no-cas,no-m0t1fs,pool-width:,data-units:,parity-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,motr-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
+                   --longoptions help,verbose,cleanup,init-loop-only,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,client-apps,activate-singlenode-services,mkfs,list-disks,no-cas,no-m0t1fs,pool-width:,data-units:,parity-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,motr-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -206,6 +207,7 @@ parse_cli_options()
             -l|--list-disks)    only_list_disks=true; shift   ;;
             -I|--no-directio)   directio=false;       shift   ;;
             -C)                 do_cleanup=true;      shift   ;;
+            --init-loop-only)   init_loop_only=true;  shift   ;;
             -E|--use-existing-loop-imgs)
                                 use_existing_loop_imgs=true; shift ;;
             -M|--mkfs)          do_mkfs=true;         shift   ;;
@@ -231,7 +233,7 @@ parse_cli_options()
             -P|--pool-width)    pool_width=$2;        shift 2 ;;
             -N|--data-units)    data_units=$2;        shift 2 ;;
             -K|--parity-units)  parity_units=$2;      shift 2 ;;
-            --pool-width)       ipool_width=$2;       shift 2 ;;
+            --ipool-width)      ipool_width=$2;       shift 2 ;;
             --parity-units)     iparity_units=$2;     shift 2 ;;
             --no-cas)           cas_enabled=false;    shift   ;;
             -i|--ios-number)    ios_num=$2; ios_num_is_set=true; shift 2 ;;
@@ -570,6 +572,11 @@ parse_cli_options "$@"
 
 [[ $UID -eq 0 ]] ||
     die 'Please, run this script with "root" privileges.'
+
+if $init_loop_only ; then
+    init_loop_devices
+    exit 0
+fi
 
 if $use_m0t1fs ; then
     echo "Enabling m0t1fs in $MOTR_SYSCONF"

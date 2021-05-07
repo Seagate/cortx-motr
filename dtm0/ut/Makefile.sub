@@ -1,0 +1,3 @@
+ut_libmotr_ut_la_SOURCES += \
+                            dtm0/ut/main.c \
+                            dtm0/ut/clk_src_ut.c
