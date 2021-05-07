@@ -1998,7 +1998,8 @@ static void generic_move(struct nd *src, struct nd *tgt,
 		int         tgtidx = dir == D_LEFT ? node_count(tgt) : 0;
 
 		if (nr == 0 || (nr == NR_EVEN &&
-				(node_space(tgt) <= node_space(src))))
+				(node_space(tgt) <= node_space(src))) ||
+				(nr == NR_MAX && srcidx == -1))
 			break;
 
 		/** Get the record at src index in rec. */
