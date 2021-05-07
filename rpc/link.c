@@ -633,6 +633,7 @@ M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 
 M0_INTERNAL void m0_rpc_link_fini(struct m0_rpc_link *rlink)
 {
+	M0_ENTRY();
 	M0_PRE(!rlink->rlk_connected);
 	m0_chan_fini_lock(&rlink->rlk_wait);
 	m0_mutex_fini(&rlink->rlk_wait_mutex);
@@ -645,6 +646,7 @@ M0_INTERNAL void m0_rpc_link_fini(struct m0_rpc_link *rlink)
 		m0_rpc_session_fini(&rlink->rlk_sess);
 	if (conn_state(&rlink->rlk_conn) != M0_RPC_CONN_FINALISED)
 		m0_rpc_conn_fini(&rlink->rlk_conn);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_rpc_link_reset(struct m0_rpc_link *rlink)

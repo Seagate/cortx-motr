@@ -1016,7 +1016,8 @@ static struct m0_sm_state_descr inc_states[] = {
 	},
 	[RI_WAIT] = {
 		.sd_name      = "Wait",
-		.sd_allowed   = M0_BITS(RI_WAIT, RI_FAILURE, RI_CHECK)
+		.sd_allowed   = M0_BITS(RI_WAIT, RI_FAILURE, RI_CHECK,
+                                        RI_RELEASED)
 	},
 	[RI_RELEASED] = {
 		.sd_name      = "Released",

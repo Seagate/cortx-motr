@@ -64,6 +64,7 @@ M0_INTERNAL void m0_sm_group_init(struct m0_sm_group *grp)
 
 M0_INTERNAL void m0_sm_group_fini(struct m0_sm_group *grp)
 {
+	M0_ENTRY();
 	M0_PRE(grp->s_forkq == &eoq);
 
 	if (m0_clink_is_armed(&grp->s_clink))
@@ -71,6 +72,7 @@ M0_INTERNAL void m0_sm_group_fini(struct m0_sm_group *grp)
 	m0_clink_fini(&grp->s_clink);
 	m0_chan_fini_lock(&grp->s_chan);
 	m0_mutex_fini(&grp->s_lock);
+	M0_LEAVE();
 }
 
 static void _sm_group_lock(struct m0_sm_group *grp)
@@ -326,9 +328,11 @@ M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
 
 M0_INTERNAL void m0_sm_fini(struct m0_sm *mach)
 {
+	M0_ENTRY();
 	M0_ASSERT(sm_invariant0(mach));
 	M0_PRE(sm_state(mach)->sd_flags & (M0_SDF_TERMINAL | M0_SDF_FINAL));
 	m0_chan_fini(&mach->sm_chan);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void (*m0_sm__conf_init)(const struct m0_sm_conf *conf) = NULL;

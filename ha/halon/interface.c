@@ -809,6 +809,7 @@ static void halon_interface_level_leave(struct m0_module *module)
 		break;
 	case M0_HALON_INTERFACE_LEVEL_HA_INIT:
 		m0_ha_fini(&hii->hii_ha);
+		m0_get()->i_ha      = NULL;
 		break;
 	case M0_HALON_INTERFACE_LEVEL_DISPATCHER:
 		m0_ha_dispatcher_fini(&hii->hii_dispatcher);
@@ -823,7 +824,6 @@ static void halon_interface_level_leave(struct m0_module *module)
 	case M0_HALON_INTERFACE_LEVEL_INSTANCE_SET:
 		M0_ASSERT(m0_get()->i_ha      == &hii->hii_ha);
 		M0_ASSERT(m0_get()->i_ha_link ==  hii->hii_outgoing_link);
-		m0_get()->i_ha      = NULL;
 		m0_get()->i_ha_link = NULL;
 		break;
 	case M0_HALON_INTERFACE_LEVEL_EVENTS_STARTING:
