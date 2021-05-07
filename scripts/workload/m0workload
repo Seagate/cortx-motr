@@ -33,7 +33,6 @@ import calendar
 import ast
 import re
 import json
-from pprint import pprint
 from datetime import datetime
 from collections import OrderedDict
 
@@ -430,7 +429,6 @@ class TestFramework(object):
                '' if self.is_localhost(self.host) else f'ssh {self.host} ')
         op = self.execute_command_and_get_output(cmd)
         self.cluster_info = json.loads(op)
-        pprint(self.cluster_info)
         if (self.cluster_info != None):
             self.profile_fid = self.cluster_info["profiles"][0]['fid']
             nodes_data = self.cluster_info["nodes"]

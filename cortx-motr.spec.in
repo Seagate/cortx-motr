@@ -205,7 +205,9 @@ make DESTDIR=%{buildroot} install-ivt
 find %{buildroot} \
         -name m0workload \
         -o -name create_workload_from_excel \
-        -o -name sample_workload_excel_test.xls |
+        -o -name sample_workload_excel_test.xls \
+        -o -name mix_workload.yaml \
+        -o -name m0crate_workload_batch_1_file1.yaml |
     sed -e 's#^%{buildroot}##' >> ivt.files
 
 sort -o ivt.files ivt.files

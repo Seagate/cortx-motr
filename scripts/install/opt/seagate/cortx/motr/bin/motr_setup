@@ -157,7 +157,18 @@ class TestCmd(Cmd):
 
     def process(self):
         sys.stdout.write(f"Processing {self.name} {self.url} {self._args}\n")
-        test_io(self)
+        '''
+           If cortx-hare, cortx-motr-ivt is installed and
+           cluster is up, perform test IO. Else, skip.
+        '''
+        if (
+             pkg_installed(self, "cortx-hare") and
+             pkg_installed(self, "cortx-motr-ivt") and
+             cluster_up(self)
+            ):
+            test_io(self)
+        else:
+            sys.stderr.write("Skipping test IO.\n")
         sys.stdout.write("SUCCESS\n")
 
 class ResetCmd(Cmd):

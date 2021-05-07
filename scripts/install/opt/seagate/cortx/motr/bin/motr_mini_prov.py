@@ -32,6 +32,7 @@ MOTR_SYS_CFG = "/etc/sysconfig/motr"
 FSTAB = "/etc/fstab"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
+
 class MotrError(Exception):
     """ Generic Exception with error code and output """
 
@@ -44,6 +45,7 @@ class MotrError(Exception):
 
 
 def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
+    print(f"Atul on 53...timeout={timeout_secs}\n...\n...\n")
     ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           shell=True)
@@ -567,24 +569,17 @@ def pkg_installed(self, pkg):
         return False
 
 def test_io(self):
-    if pkg_installed(self, "cortx-motr-ivt"):
-        create_wokrload_from_excel = "/usr/bin/workload/create_workload_from_excel"
-        wokrload_in_excel = "/usr/bin/workload/sample_workload_excel_test.xls"
-        cmd = f"{create_wokrload_from_excel} -t {wokrload_in_excel}"
-        op = execute_command(self, cmd)
-        op_list = op[0].split("\n")
-        serach_str = "Mixed workload file:  "
-        mix_workload_path = None
-        m0worklaod_path = "/usr/bin/workload/m0workload"
-        for item in op_list:
-            if serach_str in item:
-                mix_workload_path = item[len(serach_str):]
-                break
-        if mix_workload_path is not None:
-            sys.stdout.write(f"Mix workload file: {mix_workload_path}\n")
-            cmd = f"{m0worklaod_path} -t {mix_workload_path}"
-            execute_command(self, cmd)
-        else:
-            sys.stderr.write("No workload file found\n")
+    mix_workload_path = "/usr/bin/workload/mix_workload.yaml"
+    m0worklaod_path = "/usr/bin/workload/m0workload"
+    m0crate_path = "/usr/bin/workload/m0crate_workload_batch_1_file1.yaml"
+    if (
+        os.path.isfile(m0worklaod_path) and
+        os.path.isfile(mix_workload_path) and
+        os.path.isfile(m0crate_path)
+       ):
+        cmd = f"{m0worklaod_path} -t {mix_workload_path}"
+        print(f"Atul on 578.............{cmd}")
+        out = execute_command(self, cmd, timeout_secs=1000)
+        print(f"Atul on 584.............\n\n{out[0]}\n\n")
     else:
-        sys.stderr.write("cortx-ivt not installed\n")
+        sys.stderr.write("workload files are missing\n")
