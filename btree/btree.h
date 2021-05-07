@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,6 +65,11 @@ struct m0_btree_rec {
 struct m0_btree_cb {
 	int (*c_act)(struct m0_btree_cb *cb, struct m0_btree_rec *rec);
 	void *c_datum;
+};
+
+enum m0_btree_rec_type {
+	M0_BRT_VALUE = 1,
+	M0_BRT_CHILD = 2,
 };
 
 enum m0_btree_opcode {
