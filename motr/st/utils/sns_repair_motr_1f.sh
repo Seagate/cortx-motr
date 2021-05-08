@@ -28,7 +28,6 @@ TOPDIR=`dirname $0`/../../../
 . ${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh
 . ${TOPDIR}/motr/st/utils/sns_repair_common_inc.sh
 
-
 export MOTR_CLIENT_ONLY=1
 
 sns_repair_motr_test()

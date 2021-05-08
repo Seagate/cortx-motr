@@ -45,18 +45,45 @@ file=(
 	10000:10000
 	10001:10001
 	10002:10002
-)
-
-file_size=(
-	50
-	70
-	30
+	10003:10003
+	10004:10004
+	10005:10005
+	10006:10006
+	10007:10007
+	10008:10008
+	10009:10009
+	10010:10010
+	10011:10011
 )
 
 unit_size=(
-	$stride
-	$stride
-	$stride
+	4
+	8
+	16
+	32
+	64
+	128
+	256
+	512
+	1024
+	2048
+	4096
+	8192
+)
+
+file_size=(
+	503
+	263
+	251
+	0
+	211
+	3
+	41
+	23
+	17
+	5
+	3
+	1
 )
 
 sns_repair_mount()
@@ -312,7 +339,8 @@ _dd()
 	local BS=$2
 	local COUNT=$3
 
-	dd if=$MOTR_M0T1FS_TEST_DIR/srcfile bs=$BS count=$COUNT \
+	dd if=$MOTR_M0T1FS_TEST_DIR/srcfile ibs=$BS count=$COUNT \
+	   obs=$((BS * 100)) \
 	   of=$MOTR_M0T1FS_MOUNT_DIR/$FILE &>> $MOTR_TEST_LOGFILE || {
 		echo "Failed: dd failed.."
 		unmount_and_clean &>> $MOTR_TEST_LOGFILE
@@ -366,13 +394,13 @@ read_and_verify()
 
 	dd if=$MOTR_M0T1FS_MOUNT_DIR/$FILE of=$MOTR_M0T1FS_TEST_DIR/$FILE \
 		bs=$BS count=$COUNT &>> $MOTR_TEST_LOGFILE || {
-                        echo "m0t1fs read failed"
+                        echo "m0t1fs read of $FILE failed"
                         unmount_and_clean &>> $MOTR_TEST_LOGFILE
                         return 1
         }
 
 	diff $MOTR_M0T1FS_TEST_DIR/file-$BS-$COUNT $MOTR_M0T1FS_TEST_DIR/$FILE &>> $MOTR_TEST_LOGFILE || {
-		echo "files differ"
+		echo "$FILE check failed - files differ"
 		unmount_and_clean &>>$MOTR_TEST_LOGFILE
 		return 1
 	}
