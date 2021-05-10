@@ -348,27 +348,29 @@ The binary interface for the distributable computation is the ABI of the distrib
 
 .. TODO: platform?]
 
-typedef u8\* env_t;
+.. code-block:: C
 
-typedef u8\* m_t; // intermediate (buffer) type
+  typedef u8\* env_t;
 
-typedef u8\* i_t; // input (buffer) type
+  typedef u8\* m_t; // intermediate (buffer) type
 
-typedef u8\* o_t; // output (buffer) type
+  typedef u8\* i_t; // input (buffer) type
 
-struct distributable {
+  typedef u8\* o_t; // output (buffer) type
 
-m_t (*unit) (env_t,index_t, i_t);
+  struct distributable {
 
-m_t (*combine) (env_t,m_t,m_t);
+    m_t (*unit) (env_t,index_t, i_t);
 
-m_t (*empty)(env_t);
+    m_t (*combine) (env_t,m_t,m_t);
 
-m_t (*local_extract)(env_t,o_t);
+    m_t (*empty)(env_t);
 
-void (*global_extract)(env_t,o_t);
+    m_t (*local_extract)(env_t,o_t);
 
-}
+    void (*global_extract)(env_t,o_t);
+
+  }
 
 //typedef struct distributable\* distributable_t (env_t*);
 
