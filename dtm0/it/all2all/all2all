@@ -1,0 +1,216 @@
+#!/bin/bash
+#set -x
+set -e
+
+MOTR_ROOT=$(realpath ../../..)
+MOTR_UTILS_DIR=${MOTR_ROOT}/utils
+MOTR_ST_UTILS_DIR=${MOTR_ROOT}/motr/st/utils/
+MOTR_VAR_DIR=/var/motr
+TEST_ROOT=$MOTR_VAR_DIR/all2all_test
+CURRENT_CDF=$PWD/cdf.yaml
+M0CRATE_CFG_IN=$PWD/m0crate.yaml.in
+M0CRATE_CFG=$PWD/m0crate.yaml
+CONFD_XC=/var/lib/hare/confd.xc
+LOOP_IMG_DIR=$TEST_ROOT
+
+M0D_DIR_COMMON=$MOTR_VAR_DIR/m0d-0x720000000000000
+
+M0D_ENDPOINTS=()
+M0D_FIDS_DEC=()
+M0D_FIDS_HEX=()
+M0D_PIDS=()
+
+M0D_CLI_FID_DEC=
+
+POOL_WIDTH=4
+IPOOL_WIDTH=2
+
+. ${MOTR_ROOT}/scripts/addb-py/chronometry/common/common_funcs
+
+
+function stop_cluster()
+{
+    hctl shutdown
+}
+
+function bootstrap_cluster()
+{
+    hctl bootstrap --mkfs $CURRENT_CDF
+}
+
+function get_m0d_pids()
+{
+    local pids=""
+    local pid
+
+    for fid in ${M0D_FIDS_HEX[@]} ; do
+        pid=$(ps ax | grep m0d | grep $fid | awk '{ print $1; }')
+        M0D_PIDS+=($pid)
+        pids+="$pid "
+    done
+
+    _info "m0d PIDs: $pids"
+}
+
+function create_m0crate_cfg()
+{
+    local hctl_json_out=$(hctl status --json)
+    local svcs_json_out=$(echo $hctl_json_out | jq -r '.nodes[] | .svcs[]')
+
+    local PROF=$(echo $hctl_json_out | jq -r '.profiles[] | .fid')
+    local MOTR_LOCAL_ADDR=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client")) | .ep')
+    local PROCESS_FID=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client")) | .fid')
+    local MOTR_HA_ADDR=$(echo $svcs_json_out | jq -r 'select( .name | contains("hax")) | .ep')
+
+    local M0CRATE_CFG_TMP=m0crate_cfg.tmp
+    cp $M0CRATE_CFG_IN $M0CRATE_CFG_TMP
+    sed -i "s/###__PROF__###/$PROF/g" $M0CRATE_CFG_TMP
+    sed -i "s/###__MOTR_LOCAL_ADDR__###/$MOTR_LOCAL_ADDR/g" $M0CRATE_CFG_TMP
+    sed -i "s/###__PROCESS_FID__###/$PROCESS_FID/g" $M0CRATE_CFG_TMP
+    sed -i "s/###__MOTR_HA_ADDR__###/$MOTR_HA_ADDR/g" $M0CRATE_CFG_TMP
+    mv $M0CRATE_CFG_TMP $M0CRATE_CFG
+}
+
+function get_params_for_ha_msgs()
+{
+    local svcs_json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[]')
+    local svc_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("ioservice"))')
+    local cli_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client"))')
+    M0D_ENDPOINTS=($(echo $svc_json_out | jq -r '.ep' | sed -E 's/.*@tcp[:](.*)/\1/'))
+    M0D_FIDS_HEX=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
+    M0D_FIDS_DEC=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e'))
+    M0D_CLI_FID_DEC=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e')
+}
+
+function ha_msg_send_transient()
+{
+    # Here we send "TRANSIENT" messages to trigger start of
+    # HA messages handling on the m0d side as dtm0 doesn't
+    # handle them until "TRANSIENT" received due to incomplete
+    # implementation on the Hare side.
+    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
+        for j in $(seq 0 $((${#M0D_FIDS_DEC[@]}-1))) ; do
+            if [[ $i -ne $j ]]; then
+                $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_FIDS_DEC[$j]}" "transient"
+                break
+            fi
+        done
+    done
+}
+
+function ha_msg_send_online()
+{
+    # Here we send "ONLINE" messages to trigger connections logic.
+    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
+        for j in $(seq 0 $((${#M0D_FIDS_DEC[@]}-1))) ; do
+            if [[ $i -ne $j ]]; then
+                $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_FIDS_DEC[$j]}" "online"
+            fi
+        done
+    done
+}
+
+function ha_msg_send_cli_online()
+{
+    # Here we send "ONLINE" messages to connect servers to client.
+    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
+        $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_CLI_FID_DEC}" "online"
+    done
+}
+
+function expected_trace_lines_num()
+{
+    local pattern="$1"
+    local exp_cnt=$2
+    local cnt
+
+    for i in ${!M0D_PIDS[@]} ; do
+        cnt=$($MOTR_ROOT/utils/trace/m0trace -i "${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/m0trace.${M0D_PIDS[i]}" | grep "$pattern" | wc -l)
+        if [[ $cnt -ne $exp_cnt ]]; then
+            return 1
+        fi
+    done
+
+    return 0
+}
+
+function processes_status_check()
+{
+    local rc=0
+
+    for fid in ${M0D_FIDS_HEX[@]} ; do
+        svc_name="m0d@0x720000000000000${fid}.service"
+        systemctl is-failed $svc_name > /dev/null && {
+            _err "Process $svc_name failed"
+            rc=1
+        }
+    done
+
+    return $rc
+}
+
+function fail()
+{
+    _err "$1"
+    stop_cluster
+    _err "TEST STATUS: FAIL"
+    exit 1
+}
+
+function main()
+{
+    local cli_pid
+
+    ${MOTR_UTILS_DIR}/m0setup --init-loop-only -s 1 -d ${TEST_ROOT} --pool-width ${POOL_WIDTH} --ipool-width ${IPOOL_WIDTH}
+
+    _info "Bootstrapping the cluster using Hare..."
+    bootstrap_cluster
+
+    get_params_for_ha_msgs
+    get_m0d_pids
+
+    _info "Checking traces..."
+    expected_trace_lines_num "evented_proc_state" 0 || {
+        fail "HA event handled instead of to be skipped, exiting."
+    }
+
+    _info "Sending TRANSIENT notifications to trigger HA messages handling..."
+    ha_msg_send_transient
+
+    _info "Checking traces..."
+    expected_trace_lines_num "TRANSIENT received" 1 || {
+        fail "Trigger message is not received, exiting."
+    }
+
+    _info "Sending ONLINE notifications to trigger connections logic..."
+    ha_msg_send_online
+
+    _info "Checking traces..."
+    expected_trace_lines_num "DTM0 service: connected" $((${#M0D_ENDPOINTS[@]}-1)) || {
+        fail "Process is not connected, exiting"
+    }
+
+    _info "Create m0crate configuration..."
+    create_m0crate_cfg
+
+    _info "Run the client..."
+    $MOTR_ROOT/motr/m0crate/m0crate -S $M0CRATE_CFG &
+    cli_pid=$!
+    sleep 3
+    _info "Sending client is ONLINE..."
+    ha_msg_send_cli_online
+    _info "Wait for client..."
+    wait $cli_pid
+
+    stop_cluster
+    
+    _info "Checking processes exit status..."
+    processes_status_check || {
+        _err "TEST STATUS: FAIL"
+        exit 1
+    }
+
+    _info "TEST STATUS: PASSED"
+}
+
+main

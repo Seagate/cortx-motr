@@ -19,8 +19,8 @@
 
 CrateConfig_Sections: [MOTR_CONFIG, WORKLOAD_SPEC]
 MOTR_CONFIG:
-   MOTR_LOCAL_ADDR: 192.168.8.57@tcp:12345:34:101
-   MOTR_HA_ADDR:    192.168.8.57@tcp:12345:34:1
+   MOTR_LOCAL_ADDR: 192.168.49.36@tcp:12345:34:101
+   MOTR_HA_ADDR:    192.168.49.36@tcp:12345:34:1
    PROF: 0x7000000000000001:0
    LAYOUT_ID: 4                            # Layout id defines the unit size.
    IS_OOSTORE: 1                           # Is oostore-mode?
@@ -47,7 +47,7 @@ WORKLOAD_SPEC:                   # Workload specification section
       THREAD_OPS: 0              # All threads write to the same object?
       NR_ROUNDS: 1               # Number of times this workload is run.
       EXEC_TIME: unlimited       # Execution time (secs or "unlimited").
-      SOURCE_FILE: /var/motr/systest-28224/m0crate_16MB
+      SOURCE_FILE: /var/motr/root/sandbox.st-43m0crate/m0crate_16MB
       LOG_LEVEL: 2               # err(0), warn(1), info(2), trace(3), debug(4)
 
    WORKLOAD:                     # Second Workload(Populate Cluster)
@@ -66,7 +66,7 @@ WORKLOAD_SPEC:                   # Workload specification section
       THREAD_OPS: 0              # All threads write to the same object?
       NR_ROUNDS: 2               # Number of times this workload is run.
       EXEC_TIME: unlimited       # Execution time (secs or "unlimited").
-      SOURCE_FILE: /var/motr/systest-28224/m0crate_16MB
+      SOURCE_FILE: /var/motr/root/sandbox.st-43m0crate/m0crate_16MB
       LOG_LEVEL: 2               # err(0), warn(1), info(2), trace(3), debug(4)
 
    WORKLOAD:                     # Third Workload(Cleanup Cluster)

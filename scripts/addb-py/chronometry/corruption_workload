@@ -241,7 +241,7 @@ function save_motr_artifacts()
     mv $IOS_RESTART_LOG ./
     mkdir -p $ios_m0trace_dir
     pushd $ios_m0trace_dir
-    if [[ -z $NO_M0TRACE_FILES ]]; then
+    if [[ -z "$NO_M0TRACE_FILES" ]]; then
         set +e
         local cur_dir=$(pwd)
         local cur_hostname=$(hostname)
@@ -255,13 +255,13 @@ function save_motr_artifacts()
         done
         set -e
 
-        if [[ -z $NO_M0TRACE_DUMPS ]]; then
+        if [[ -z "$NO_M0TRACE_DUMPS" ]]; then
             dump_m0traces
         fi
     fi
     popd # $ios_m0trace_dir
 
-    if [[ -z $NO_ADDB_STOBS ]] && [[ -z $NO_ADDB_DUMPS ]]; then
+    if [[ -z "$NO_ADDB_STOBS" ]] && [[ -z "$NO_ADDB_DUMPS" ]]; then
         # Dump servers
         local cur_dir=$(pwd)
         local cur_hostname=$(hostname)
@@ -321,7 +321,7 @@ function wait_for_motr_start()
 
 function override_app_conf()
 {
-    [[ -z $APPS_OVERRIDED ]] && {
+    [[ -z "$APPS_OVERRIDED" ]] && {
         _info "overriding workload applications"
         APPS=()
         APPS_OVERRIDED=1
@@ -331,7 +331,7 @@ function override_app_conf()
 
 function override_workload_conf()
 {
-    [[ -z $CONFS_OVERRIDED ]] && {
+    [[ -z "$CONFS_OVERRIDED" ]] && {
         _info "overriding workload configurations"
         CONFS=()
         CONFS_OVERRIDED=1

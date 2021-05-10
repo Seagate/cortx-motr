@@ -81,8 +81,11 @@ M0_INTERNAL int m0_mds_register(void)
 	int rc;
 
 	m0_get()->i_mds_cdom_key = m0_reqh_lockers_allot();
+
 	/* XXX: find better place */
 	m0_get()->i_actrec_dom_key = m0_reqh_lockers_allot();
+	m0_get()->i_dtm0_log_key = m0_reqh_lockers_allot();
+
 	m0_reqh_service_type_register(&m0_mds_type);
 
 	rc = m0_mdservice_fsync_fop_init(&m0_mds_type);
@@ -105,8 +108,10 @@ M0_INTERNAL void m0_mds_unregister(void)
 	m0_mdservice_fsync_fop_fini();
 
 	m0_reqh_lockers_free(m0_get()->i_mds_cdom_key);
+
 	/* XXX: find better place */
 	m0_reqh_lockers_free(m0_get()->i_actrec_dom_key);
+	m0_reqh_lockers_free(m0_get()->i_dtm0_log_key);
 }
 
 /**
@@ -192,8 +197,10 @@ static int mds_start(struct m0_reqh_service *service)
 static void mds_stop(struct m0_reqh_service *service)
 {
 	m0_reqh_lockers_clear(service->rs_reqh, m0_get()->i_mds_cdom_key);
+
 	/* XXX: find better place */
 	m0_reqh_lockers_clear(service->rs_reqh, m0_get()->i_actrec_dom_key);
+	m0_reqh_lockers_clear(service->rs_reqh, m0_get()->i_dtm0_log_key);
 }
 
 #undef M0_TRACE_SUBSYSTEM
