@@ -2451,8 +2451,8 @@ static int libfab_ma_start(struct m0_net_transfer_mc *ntm, const char *name)
 	libfab_tm_evpost_lock(ftm);
 	libfab_tm_unlock(ftm);
 	libfab_tm_event_post(ftm, M0_NET_TM_STARTED);
-	libfab_tm_lock(ftm);
 	libfab_tm_evpost_unlock(ftm);
+	libfab_tm_lock(ftm);
 
 	return M0_RC(0);
 }
