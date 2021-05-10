@@ -181,7 +181,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 				      size_t nodeSize, char *port,
 				      size_t portSize)
 {
-	char     *at;
+	char     *at = NULL;
 	int       nr;
 	int       i;
 	unsigned  pid;
