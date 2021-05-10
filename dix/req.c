@@ -45,6 +45,7 @@
 #include "dix/client_internal.h" /* m0_dix_pver */
 #include "dix/fid_convert.h"
 #include "dix/dix_addb.h"
+#include "dtm0/dtx.h"   /* m0_dtx0_* API */
 
 static struct m0_sm_state_descr dix_req_states[] = {
 	[DIXREQ_INIT] = {
@@ -1365,6 +1366,8 @@ static void dix__rop(struct m0_dix_req *req, const struct m0_bufvec *keys,
 
 	keys_nr = keys->ov_vec.v_nr;
 	M0_PRE(keys_nr != 0);
+	/* We support only one KV pair per request in DTM0. */
+	M0_PRE(ergo(req->dr_dtx != NULL, keys_nr == 1));
 	M0_ALLOC_PTR(rop);
 	if (rop == NULL) {
 		dix_req_failure(req, M0_ERR(-ENOMEM));
@@ -1651,6 +1654,35 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 }
 
+static void dix_rop_one_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_dix_cas_rop *crop = ast->sa_datum;
+	struct m0_dix_req     *dreq = crop->crp_parent;
+	struct m0_dix_rop_ctx *rop;
+
+	M0_PRE(!dreq->dr_is_meta);
+	M0_PRE(M0_IN(dreq->dr_type, (DIX_PUT, DIX_DEL)));
+	M0_PRE(dreq->dr_dtx != NULL);
+	M0_PRE(dix_req_smgrp(dreq) == dreq->dr_dtx->tx_dtx->dd_sm.sm_grp);
+
+	rop = crop->crp_parent->dr_rop;
+	dix_cas_rop_rc_update(crop, 0);
+
+	m0_dtx0_executed(dreq->dr_dtx, crop->crp_pa_idx);
+
+	if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
+		*ast = (struct m0_sm_ast) {
+			.sa_cb    =  dix_rop_completed,
+			.sa_datum = dreq,
+		};
+		/*
+		 * Bypass the forkq because the dtx and dreq have
+		 * the same sm group.
+		 */
+		dix_rop_completed(grp, ast);
+	}
+}
+
 static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 {
 	struct m0_dix_cas_rop  *crop = container_of(cl, struct m0_dix_cas_rop,
@@ -1678,11 +1710,26 @@ static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 		rop = crop->crp_parent->dr_rop;
 		rop->dg_completed_nr++;
 		M0_PRE(rop->dg_completed_nr <= rop->dg_cas_reqs_nr);
-		if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
-			rop->dg_ast.sa_cb = dix_rop_completed;
-			rop->dg_ast.sa_datum = dreq;
+
+		if (dreq->dr_dtx != NULL) {
+			rop->dg_ast = (struct m0_sm_ast) {
+				.sa_cb = dix_rop_one_completed,
+				.sa_datum = crop,
+			};
+			M0_ASSERT(dix_req_smgrp(dreq) ==
+				  dreq->dr_dtx->tx_dtx->dd_sm.sm_grp);
 			m0_sm_ast_post(dix_req_smgrp(dreq), &rop->dg_ast);
+		} else {
+			if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
+				rop->dg_ast = (struct m0_sm_ast) {
+					.sa_cb = dix_rop_completed,
+					.sa_datum = dreq,
+				};
+				m0_sm_ast_post(dix_req_smgrp(dreq),
+					       &rop->dg_ast);
+			}
 		}
+
 	}
 	return true;
 }
@@ -1755,6 +1802,11 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 			dix_cas_rop_fini(cas_rop);
 			m0_free(cas_rop);
 		} else {
+			if (req->dr_dtx != NULL) {
+				m0_dtx0_fop_assign(req->dr_dtx,
+						   cas_rop->crp_pa_idx,
+						   creq->ccr_fop);
+			}
 			rop->dg_cas_reqs_nr++;
 		}
 	} m0_tl_endfor;
@@ -1763,6 +1815,13 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 				  req, rop, rop->dg_cas_reqs_nr);
 	if (rop->dg_cas_reqs_nr == 0)
 		return M0_ERR(-EFAULT);
+
+	if (req->dr_dtx != NULL) {
+		rc = m0_dtx0_close(req->dr_dtx);
+		if (rc != 0)
+			return M0_ERR(rc);
+	}
+
 	return M0_RC(0);
 }
 
@@ -1791,7 +1850,10 @@ static uint32_t dix_rop_tgt_iter_max(struct m0_dix_req    *req,
 		 */
 		return m0_dix_liter_P(iter);
 	else
-		return m0_dix_liter_N(iter) + 2 * m0_dix_liter_K(iter);
+		/* Skip spares when DTM0 is enabled */
+		return ENABLE_DTM0 ?
+			m0_dix_liter_N(iter) + m0_dix_liter_K(iter) :
+			m0_dix_liter_N(iter) + 2 * m0_dix_liter_K(iter);
 }
 
 static void dix_rop_tgt_iter_next(const struct m0_dix_req *req,
@@ -2066,6 +2128,8 @@ static void dix_rop_units_set(struct m0_dix_req *req)
 			unit = &rec_op->dgp_units[j];
 			dix_rop_tgt_iter_next(req, rec_op, &tgt,
 					      &unit->dpu_is_spare);
+			M0_ASSERT_INFO(ergo(ENABLE_DTM0, !unit->dpu_is_spare),
+				       "We do not operate with spares in DTM0");
 			pd = m0_dix_tgt2sdev(&rec_op->dgp_iter.dit_linst, tgt);
 			dix_pg_unit_pd_assign(unit, pd);
 		}
@@ -2077,8 +2141,13 @@ static void dix_rop_units_set(struct m0_dix_req *req)
 	 * machine lock to get consistent results.
 	 */
 	if (pm->pm_pver->pv_is_dirty &&
-	    !pool_failed_devs_tlist_is_empty(&pool->po_failed_devices))
+	    !pool_failed_devs_tlist_is_empty(&pool->po_failed_devices)) {
+		if (ENABLE_DTM0)
+			M0_IMPOSSIBLE("DTM0 can not operate when permanently"
+				      " failed devices exist.");
+
 		dix_rop_failures_analyse(req);
+	}
 
 	m0_rwlock_read_unlock(&pm->pm_lock);
 
@@ -2103,16 +2172,19 @@ static bool dix_pg_unit_skip(struct m0_dix_req     *req,
 
 static int dix_cas_rops_alloc(struct m0_dix_req *req)
 {
-	struct m0_dix_rop_ctx  *rop = req->dr_rop;
-	struct m0_dix_rec_op   *rec_op;
-	uint32_t                i;
-	uint32_t                j;
-	uint32_t                max_failures;
-	struct m0_dix_cas_rop **map = rop->dg_target_rop;
-	struct m0_dix_cas_rop  *cas_rop;
-	struct m0_dix_pg_unit  *unit;
-	bool                    del_lock;
-	int                     rc = 0;
+	struct m0_dix_rop_ctx      *rop = req->dr_rop;
+	struct m0_dtx              *dtx = req->dr_dtx;
+	struct m0_pools_common     *pc = req->dr_cli->dx_pc;
+	struct m0_reqh_service_ctx *cas_svc;
+	struct m0_dix_rec_op       *rec_op;
+	uint32_t                    i;
+	uint32_t                    j;
+	uint32_t                    max_failures;
+	struct m0_dix_cas_rop     **map = rop->dg_target_rop;
+	struct m0_dix_cas_rop      *cas_rop;
+	struct m0_dix_pg_unit      *unit;
+	bool                        del_lock;
+	int                         rc = 0;
 
 	M0_ENTRY("req %p %u", req, rop->dg_rec_ops_nr);
 	M0_ASSERT(rop->dg_rec_ops_nr > 0);
@@ -2153,7 +2225,25 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 	if (cas_rop_tlist_is_empty(&rop->dg_cas_reqs))
 		return M0_ERR(-EIO);
 
+	if (dtx != NULL) {
+		M0_ASSERT(!req->dr_is_meta);
+		M0_ASSERT(M0_IN(req->dr_type, (DIX_PUT, DIX_DEL)));
+		rc = m0_dtx0_open(dtx, cas_rop_tlist_length(&rop->dg_cas_reqs));
+		if (rc != 0)
+			goto end;
+	}
+
+	i = 0;
 	m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
+		if (dtx != NULL) {
+			cas_rop->crp_pa_idx = i++;
+			cas_svc = pc->pc_dev2svc[cas_rop->crp_sdev_idx].pds_ctx;
+			M0_ASSERT(cas_svc->sc_type == M0_CST_CAS);
+			rc = m0_dtx0_fid_assign(dtx, cas_rop->crp_pa_idx,
+						&cas_svc->sc_fid);
+			if (rc != 0)
+				goto end;
+		}
 		M0_ALLOC_ARR(cas_rop->crp_attrs, cas_rop->crp_keys_nr);
 		if (cas_rop->crp_attrs == NULL) {
 			rc = M0_ERR(-ENOMEM);

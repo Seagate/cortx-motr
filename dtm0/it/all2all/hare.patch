@@ -1,0 +1,52 @@
+diff --git a/cfgen/cfgen b/cfgen/cfgen
+index b7ce8bd..85cfba9 100755
+--- a/cfgen/cfgen
++++ b/cfgen/cfgen
+@@ -787,6 +787,7 @@ class SvcT(Enum):
+     M0_CST_M0T1FS = auto()
+     M0_CST_CLIENT = auto()
+     M0_CST_ISCS = auto()
++    M0_CST_DTM0 = auto()
+ 
+     def to_dhall(self) -> str:
+         return f'types.{self}'
+@@ -798,6 +799,8 @@ def service_types(proc_t: ProcT,
+     if proc_t is ProcT.hax:
+         ts.append(SvcT.M0_CST_HA)
+     ts.append(SvcT.M0_CST_RMS)
++    if proc_t is ProcT.m0_client_other:
++        ts.append(SvcT.M0_CST_DTM0)
+     if proc_t is ProcT.m0_server:
+         assert proc_desc is not None
+         if proc_desc.get('runs_confd'):
+@@ -809,7 +812,8 @@ def service_types(proc_t: ProcT,
+                        SvcT.M0_CST_ADDB2,
+                        SvcT.M0_CST_CAS,
+                        SvcT.M0_CST_ISCS,
+-                       SvcT.M0_CST_FDMI])
++                       SvcT.M0_CST_FDMI,
++                       SvcT.M0_CST_DTM0])
+     return ts
+ 
+ 
+diff --git a/cfgen/dhall/render/SvcT.dhall b/cfgen/dhall/render/SvcT.dhall
+index 0ec5afb..3efcfe4 100644
+--- a/cfgen/dhall/render/SvcT.dhall
++++ b/cfgen/dhall/render/SvcT.dhall
+@@ -44,5 +44,6 @@ in
+     , M0_CST_M0T1FS  = "M0_CST_M0T1FS"
+     , M0_CST_CLIENT  = "M0_CST_CLIENT"
+     , M0_CST_ISCS    = "M0_CST_ISCS"
++    , M0_CST_DTM0    = "M0_CST_DTM0"
+     }
+     x
+diff --git a/cfgen/dhall/types/SvcT.dhall b/cfgen/dhall/types/SvcT.dhall
+index 604ad1b..f5c54af 100644
+--- a/cfgen/dhall/types/SvcT.dhall
++++ b/cfgen/dhall/types/SvcT.dhall
+@@ -40,4 +40,5 @@
+ | M0_CST_M0T1FS
+ | M0_CST_CLIENT
+ | M0_CST_ISCS
++| M0_CST_DTM0
+ >

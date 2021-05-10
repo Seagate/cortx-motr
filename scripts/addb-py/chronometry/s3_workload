@@ -293,10 +293,10 @@ function save_s3srv_artifacts() {
             scp -r $srv:/var/log/seagate/s3/$s3d ./$s3d/$log_dir
 
             # m0trace files
-            if [[ -z $NO_M0TRACE_FILES ]]; then
+            if [[ -z "$NO_M0TRACE_FILES" ]]; then
                 scp -r $srv:/var/motr/$s3d/m0trace* ./$s3d
 
-                if [[ -z $NO_M0TRACE_DUMPS ]]; then
+                if [[ -z "$NO_M0TRACE_DUMPS" ]]; then
                     pushd $s3d
                     dump_m0traces
                     popd
@@ -304,11 +304,11 @@ function save_s3srv_artifacts() {
             fi
 
             # ADDB stobs
-            if [[ -z $NO_ADDB_STOBS ]]; then
+            if [[ -z "$NO_ADDB_STOBS" ]]; then
                 scp -r $srv:/var/motr/$s3d/addb* ./$s3d
 
                 local dump="$(pwd)/$s3d/addb*/o/100000000000000:2"
-                if [[ -z $NO_ADDB_DUMPS ]]; then
+                if [[ -z "$NO_ADDB_DUMPS" ]]; then
                     dump="$(pwd)/$s3d/addb*/o/100000000000000:2"
                     for d in $dump; do
                         # local pid=$(echo $d | sed -E 's/.*addb_([0-9]+)[/].*/\1/')
@@ -378,7 +378,7 @@ function save_motr_artifacts() {
     mkdir -p $ios_m0trace_dir
 
     pushd $ios_m0trace_dir
-    if [[ -z $NO_M0TRACE_FILES ]]; then
+    if [[ -z "$NO_M0TRACE_FILES" ]]; then
         set +e
 
         if [[ "$HA_TYPE" == "halon" ]]; then
@@ -397,13 +397,13 @@ function save_motr_artifacts() {
 
         set -e
 
-        if [[ -z $NO_M0TRACE_DUMPS ]]; then
+        if [[ -z "$NO_M0TRACE_DUMPS" ]]; then
             dump_m0traces
         fi
     fi
     popd # $ios_motrace_dir
 
-    if [[ -z $NO_ADDB_STOBS ]] && [[ -z $NO_ADDB_DUMPS ]]; then
+    if [[ -z "$NO_ADDB_STOBS" ]] && [[ -z "$NO_ADDB_DUMPS" ]]; then
         # Dump servers
 
         if [[ "$HA_TYPE" == "halon" ]]; then
@@ -476,7 +476,7 @@ function save_srv_artifacts() {
     popd
 
     # Generate m0play.db
-    if [[ -z $NO_ADDB_STOBS ]] && [[ -z $NO_ADDB_DUMPS ]] && [[ -z $NO_M0PLAY_DB ]]; then
+    if [[ -z "$NO_ADDB_STOBS" ]] && [[ -z "$NO_ADDB_DUMPS" ]] && [[ -z "$NO_M0PLAY_DB" ]]; then
         python3 $SCRIPT_DIR/addb2db.py --dumps $motr_art_dir/dump* $s3srv_dir/*/s3server*/dump* #--app $s3srv_dir/*/auth/server/app*.log
     fi
 }
@@ -508,7 +508,7 @@ function wait_for_motr_start() {
 }
 
 function override_app_conf() {
-    [[ -z $APPS_OVERRIDED ]] && {
+    [[ -z "$APPS_OVERRIDED" ]] && {
         _info "overriding workload applications"
         APPS=()
         APPS_OVERRIDED=1
@@ -517,7 +517,7 @@ function override_app_conf() {
 }
 
 function override_workload_conf() {
-    [[ -z $CONFS_OVERRIDED ]] && {
+    [[ -z "$CONFS_OVERRIDED" ]] && {
         _info "overriding workload configurations"
         CONFS=()
         CONFS_OVERRIDED=1
@@ -625,7 +625,7 @@ function run_tests() {
         echo "conf: "$conf
 
         # In some cases conf may be empty
-        if [[ -z $app ]]; then
+        if [[ -z "$app" ]]; then
             continue
         fi
 

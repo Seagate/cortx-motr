@@ -206,7 +206,11 @@ M0_BOB_DECLARE(M0_INTERNAL, m0_op_idx);
 
 M0_INTERNAL bool m0__idx_op_invariant(struct m0_op_idx *oi);
 M0_INTERNAL void idx_op_ast_complete(struct m0_sm_group *grp,
-				     struct m0_sm_ast *ast);
+				     struct m0_sm_ast   *ast);
+M0_INTERNAL void idx_op_ast_executed(struct m0_sm_group *grp,
+				     struct m0_sm_ast   *ast);
+M0_INTERNAL void idx_op_ast_stable(struct m0_sm_group *grp,
+				   struct m0_sm_ast   *ast);
 M0_INTERNAL void idx_op_ast_fail(struct m0_sm_group *grp,
 				 struct m0_sm_ast *ast);
 

@@ -72,8 +72,8 @@ _check_is_hare_cluster_online() {
     local is_s3server_online=$(echo "$all_services" \
                            | grep "\s*\[\s*started\s*\].*s3server")
 
-    [[ -n $is_ha_online && -n $is_ios_online && -n $is_confd_online \
-    && (-z $has_s3server || -n $is_s3server_online) ]]
+    [[ -n "$is_ha_online" && -n "$is_ios_online" && -n "$is_confd_online" \
+    && (-z "$has_s3server" || -n "$is_s3server_online") ]]
 }
 
 _check_is_cluster_online() {
@@ -96,9 +96,9 @@ _check_is_cluster_online() {
     local is_s3server_online=$(echo "$all_services" \
                            | grep "\s*\[\s*online\s*\].*s3server")
 
-    [[ -n $is_ha_online && -n $is_ios_online && -n $is_confd_online \
-    && (-z $has_m0t1fs || -n $is_m0t1fs_online) \
-    && (-z $has_s3server || -n $is_s3server_online) ]]
+    [[ -n "$is_ha_online" && -n "$is_ios_online" && -n "$is_confd_online" \
+    && (-z "$has_m0t1fs" || -n "$is_m0t1fs_online") \
+    && (-z "$has_s3server" || -n "$is_s3server_online") ]]
 }
 
 _check_is_cluster_failed() {
@@ -121,8 +121,8 @@ _check_is_cluster_failed() {
     local is_s3server_failed=$(echo "$all_services" \
                            | grep "\s*\[\s*failed\s*\].*s3server")
 
-    [[ -n $is_ha_failed || -n $is_ios_failed || -n $is_confd_failed \
-        || (-n $has_m0t1fs && -n $is_m0t1fs_failed)
-        || (-n $has_s3server && -n $is_s3server_failed) ]]
+    [[ -n "$is_ha_failed" || -n "$is_ios_failed" || -n "$is_confd_failed" \
+        || (-n "$has_m0t1fs" && -n "$is_m0t1fs_failed")
+        || (-n "$has_s3server" && -n "$is_s3server_failed") ]]
 }
 
