@@ -29,6 +29,7 @@
 #include "lib/trace.h"          /* M0_ENTRY() */
 #include <netinet/in.h>         /* INET_ADDRSTRLEN */
 #include <arpa/inet.h>          /* inet_pton, htons */
+#include <sched.h>              /* sched_yield */
 #include <stdlib.h>             /* atoi */
 #include <sys/epoll.h>          /* struct epoll_event */
 #include <unistd.h>             /* close */
@@ -681,7 +682,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		while (tm->ftm_ntm->ntm_state < M0_NET_TM_STARTED)
 			/* No-op */;
 
-		m0_nanosleep(0, NULL);
+		sched_yield();
 		ev_cnt = epoll_wait(tm->ftm_epfd, &ev, 1, FAB_WAIT_FD_TMOUT);
 
 		while (1) {
