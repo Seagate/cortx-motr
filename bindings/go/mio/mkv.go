@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * please email opensource@seagate.com or cortx-questions@seagate.com.
  *
  * Original author: Andriy Tkachuk <andriy.tkachuk@seagate.com>
- * Original creation date: 29-Apr-2020
+ * Original creation date: 29-Apr-2021
  */
 
 package mio
@@ -104,7 +104,7 @@ func (mkv *Mkv) Close() error {
     return nil
 }
 
-func (mkv *Mkv) doIdxOp(name uint32, key []byte, value []byte,
+func (mkv *Mkv) doIdxOp(opcode uint32, key []byte, value []byte,
                         update bool) ([]byte, error) {
     if mkv.idx == nil {
         return nil, errors.New("index is not opened")
@@ -116,11 +116,11 @@ func (mkv *Mkv) doIdxOp(name uint32, key []byte, value []byte,
     }
     defer C.m0_bufvec_free2(&k)
 
-    if name == C.M0_IC_PUT || name == C.M0_IC_GET {
+    if opcode == C.M0_IC_PUT || opcode == C.M0_IC_GET {
         if C.m0_bufvec_empty_alloc(&v, 1) != 0 {
             return nil, errors.New("failed to allocate value bufvec")
         }
-        if name == C.M0_IC_GET {
+        if opcode == C.M0_IC_GET {
             defer C.m0_bufvec_free(&v) // cleanup buffer after GET
         } else {
             defer C.m0_bufvec_free2(&v)
@@ -129,24 +129,24 @@ func (mkv *Mkv) doIdxOp(name uint32, key []byte, value []byte,
 
     *k.ov_buf = unsafe.Pointer(&key[0])
     *k.ov_vec.v_count = C.ulong(len(key))
-    if name == C.M0_IC_PUT {
+    if opcode == C.M0_IC_PUT {
         *v.ov_buf = unsafe.Pointer(&value[0])
         *v.ov_vec.v_count = C.ulong(len(value))
     }
 
     vPtr := &v
-    if name == C.M0_IC_DEL {
+    if opcode == C.M0_IC_DEL {
         vPtr = nil
     }
 
     flags := C.uint(0)
-    if name == C.M0_IC_PUT && update {
+    if opcode == C.M0_IC_PUT && update {
         flags = C.M0_OIF_OVERWRITE
     }
 
     var rcI C.int32_t
     var op *C.struct_m0_op
-    rc := C.m0_idx_op(mkv.idx, name, &k, vPtr, &rcI, flags, &op)
+    rc := C.m0_idx_op(mkv.idx, opcode, &k, vPtr, &rcI, flags, &op)
     if rc != 0 {
         return nil, fmt.Errorf("failed to init index op: %d", rc)
     }
@@ -167,7 +167,7 @@ func (mkv *Mkv) doIdxOp(name uint32, key []byte, value []byte,
         return nil, fmt.Errorf("index op failed: %d", rcI)
     }
 
-    if name == C.M0_IC_GET {
+    if opcode == C.M0_IC_GET {
         value = make([]byte, *v.ov_vec.v_count)
         copy(value, pointer2slice(*v.ov_buf, int(*v.ov_vec.v_count)))
     }
