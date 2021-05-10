@@ -181,7 +181,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 				      size_t nodeSize, char *port,
 				      size_t portSize)
 {
-	char     *at = strchr(name, '@');
+	char     *at;
 	int       nr;
 	int       i;
 	unsigned  pid;
@@ -194,12 +194,14 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 		M0_PRE(nodeSize >= ((strlen(lp)+1)) );
 		memcpy(node, lp, (strlen(lp)+1));
 	} else {
+		at = strchr(name, '@');
 		if (at == NULL || at - name >= nodeSize)
 			return M0_ERR(-EPROTO);
 
 		M0_PRE(nodeSize >= (at-name)+1);
 		memcpy(node, name, at - name);
 	}
+	at = at == NULL ? (char *)name : at;
 	if ((at = strchr(at, ':')) == NULL) /* Skip 'tcp...:' bit. */
 		return M0_ERR(-EPROTO);
 	nr = sscanf(at + 1, "%u:%u:%u", &pid, &portal, &tmid);
@@ -530,6 +532,12 @@ static void libfab_tm_buf_done(struct m0_fab__tm *ftm)
 
 /**
  * Used to handle incoming connection request events
+ * 
+ * This function is called from the poller thread and there is no action
+ * on failure to accept an incoming request.
+ * Also, at the receiving side of the CONNREQ, there is no means to notify the
+ * application about the failure to accept the connection request.
+ * Hence the errors can be ignored and the function always returns success.
  */
 static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 {
@@ -545,7 +553,7 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 	eq = tm->ftm_pep->fep_listen->pep_res.fpr_eq;
 	rc = fi_eq_read(eq, &event, &entry,
 			(sizeof(entry) + sizeof(struct m0_fab__conn_data)), 0);
-	if (rc > 0 && rc >= sizeof(entry)) {
+	if (rc >= (int)sizeof(entry)) {
 		if (event == FI_CONNREQ) {
 			memset(&en, 0, sizeof(en));
 			cd = (struct m0_fab__conn_data*)entry.data;
@@ -572,6 +580,9 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 					       eq_err.err_data, NULL, 0));
 		}
 	}
+	/* For all other events, there is no error info available.
+	   Hence, all such events can be ignored.
+	*/
 	return 0;
 }
 
@@ -667,6 +678,9 @@ static void libfab_poller(struct m0_fab__tm *tm)
 	int                       ev_cnt;
 
 	while (!tm->ftm_shutdown) {
+		while (tm->ftm_ntm->ntm_state < M0_NET_TM_STARTED)
+			/* No-op */;
+
 		m0_nanosleep(0, NULL);
 		ev_cnt = epoll_wait(tm->ftm_epfd, &ev, 1, FAB_WAIT_FD_TMOUT);
 
@@ -767,21 +781,13 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 	struct m0_fab__tm        *ma;
 	char                      ep_str[LIBFAB_ADDR_STRLEN_MAX] = {'\0'};
 	char                     *wc = NULL;
-	bool                      found = false;
 	int                       rc = 0;
 
 	M0_ASSERT(libfab_tm_is_locked(tm->ntm_xprt_private));
-	m0_tl_for(m0_nep, &tm->ntm_end_points, net) {
-		ep = libfab_ep(net);
-		if (libfab_ep_cmp(ep, name, epn)) {
-			*epp = &ep->fep_nep;
-			found = true;
-			libfab_ep_get(ep);
-			break;
-		}
-	} m0_tl_endfor;
+	net = m0_tl_find(m0_nep, net, &tm->ntm_end_points,
+			 libfab_ep_cmp(libfab_ep(net), name, epn));
 
-	if (found == false) {
+	if (net == NULL) {
 		if (name != NULL)
 			rc = libfab_ep_create(tm, name, epn, epp);
 		else {
@@ -793,6 +799,8 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 			rc = libfab_ep_create(tm, ep_str, epn, epp);
 		}
 	} else {
+		ep = libfab_ep(net);
+		*epp = &ep->fep_nep;
 		if (name != NULL && epn != NULL) {
 			wc = strchr(name,'*');
 			if (wc != NULL && 
@@ -801,11 +809,13 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 				strcpy(ep->fep_name.fen_port, epn->fen_port);
 				aep = libfab_aep_get(ep);
 				ma = tm->ntm_xprt_private;
-				if (aep->aep_tx_state == FAB_CONNECTED) {
-					libfab_txep_init(aep, ma);
-				}
+				if (aep->aep_tx_state == FAB_CONNECTED)
+					rc = libfab_txep_init(aep, ma);
 			}
 		}
+		if (rc == FI_SUCCESS)
+			libfab_ep_get(ep);
+
 	}
 
 	return M0_RC(rc);
