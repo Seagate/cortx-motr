@@ -22,6 +22,7 @@ import errno
 import os
 import re
 import subprocess
+from decimal import Decimal
 from cortx.utils.conf_store import Conf
 
 MOTR_SYS_FILE = "/etc/sysconfig/motr"
@@ -32,6 +33,10 @@ MOTR_SYS_CFG = "/etc/sysconfig/motr"
 FSTAB = "/etc/fstab"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
+
+# Swap disk max size is 16T
+MAX_SWAP_DISK_SZ = 16
+
 class MotrError(Exception):
     """ Generic Exception with error code and output """
 
@@ -246,6 +251,44 @@ def create_swap(self, swap_dev):
     sys.stdout.write(f"Adding {swap_dev} swap device to {FSTAB}\n")
     add_swap_fstab(self, swap_dev)
 
+'''
+    Create swap disks of VG.
+    If swap size is more than 16T then
+    create more than one swap disks each of max 16T.
+'''
+def create_swap_disks(self, index, swap_sz, vg_name):
+    disk_count = 1
+    while(swap_sz > MAX_SWAP_DISK_SZ):
+        alloc_swap_sz = MAX_SWAP_DISK_SZ
+        swap_sz -= MAX_SWAP_DISK_SZ
+        lv_swap_name = f"lv_main_swap{index}_{disk_count}"
+        cmd = f"lvcreate -n {lv_swap_name} {vg_name} -L {alloc_swap_sz}T --yes"
+        execute_command(self, cmd)
+        disk_count += 1
+        swap_dev = f"/dev/{vg_name}/{lv_swap_name}"
+        create_swap_entries(self, swap_dev)
+    lv_swap_name = f"lv_main_swap{index}_{disk_count}"
+    swap_dev = f"/dev/{vg_name}/{lv_swap_name}"
+    swap_sz = round(swap_sz, 3)
+    cmd = f"lvcreate -n {lv_swap_name} {vg_name} -L {swap_sz}T --yes"
+    execute_command(self, cmd)
+    create_swap_entries(self, swap_dev)
+
+def create_swap_entries(self, swap_dev):
+    swap_check_cmd = "free -m | grep Swap | awk '{print $2}'"
+    free_swap_op = execute_command(self, swap_check_cmd)
+    allocated_swap_size_before = int(float(free_swap_op[0].strip(' \n')))
+    create_swap(self, swap_dev)
+    allocated_swap_op = execute_command(self, swap_check_cmd)
+    allocated_swap_size_after = int(float(allocated_swap_op[0].strip(' \n')))
+    if allocated_swap_size_before >= allocated_swap_size_after:
+        raise MotrError(errno.EINVAL, f"swap size before allocation"
+                        f"({allocated_swap_size_before}M) must be less than "
+                        f"swap size after allocation({allocated_swap_size_after}M)\n")
+    else:
+        sys.stdout.write(f"swap size before allocation ={allocated_swap_size_before}M\n")
+        sys.stdout.write(f"swap_size after allocation ={allocated_swap_size_after}M\n")
+
 
 def create_lvm(self, index, metadata_dev):
     '''
@@ -273,12 +316,9 @@ def create_lvm(self, index, metadata_dev):
     else:
         sys.stdout.write(f"Already volumes are created on {metadata_dev}\n {out[0]}")
         return
-    index = index + 1
     node_name = self.server_node['name']
     vg_name = f"vg_{node_name}_md{index}"
-    lv_swap_name = f"lv_main_swap{index}"
     lv_md_name = f"lv_raw_md{index}"
-    swap_dev = f"/dev/{vg_name}/{lv_swap_name}"
 
     sys.stdout.write(f"metadata device: {metadata_dev}\n")
 
@@ -323,27 +363,18 @@ def create_lvm(self, index, metadata_dev):
     cmd = "vgscan --cache"
     execute_command(self, cmd)
 
-    sys.stdout.write(f"Creating {lv_swap_name} lvm from {vg_name}\n")
-    cmd = f"lvcreate -n {lv_swap_name} {vg_name} -l 51%VG --yes"
-    execute_command(self, cmd)
+    '''
+      Get VG size in the units of terabytes
+      Swap size is 51% of VG size.
+      If swap size is greater than  16T. Divide it into swap disks of 16T.
+    '''
+    swap_sz = get_total_swap_size(self, vg_name)
+    create_swap_disks(self, index, swap_sz, vg_name)
 
     sys.stdout.write(f"Creating {lv_md_name} lvm from {vg_name}\n")
     cmd = f"lvcreate -n {lv_md_name} {vg_name} -l 100%FREE --yes"
     execute_command(self, cmd)
 
-    swap_check_cmd = "free -m | grep Swap | awk '{print $2}'"
-    free_swap_op = execute_command(self, swap_check_cmd)
-    allocated_swap_size_before = int(float(free_swap_op[0].strip(' \n')))
-    create_swap(self, swap_dev)
-    allocated_swap_op = execute_command(self, swap_check_cmd)
-    allocated_swap_size_after = int(float(allocated_swap_op[0].strip(' \n')))
-    if allocated_swap_size_before >= allocated_swap_size_after:
-        raise MotrError(errno.EINVAL, f"swap size before allocation"
-                        f"({allocated_swap_size_before}M) must be less than "
-                        f"swap size after allocation({allocated_swap_size_after}M)\n")
-    else:
-        sys.stdout.write(f"swap size before allocation ={allocated_swap_size_before}M\n")
-        sys.stdout.write(f"swap_size after allocation ={allocated_swap_size_after}M\n")
 
 def config_lvm(self):
     try:
@@ -366,7 +397,7 @@ def config_lvm(self):
     if not cvg:
         raise MotrError(errno.EINVAL, "cvg is empty\n")
 
-    dev_count = 0
+    dev_count = 1
     for i in range(int(cvg_cnt)):
         cvg_item = cvg[i]
         try:
@@ -521,29 +552,55 @@ def get_metadata_disks_count(self):
         for device in metadata_devices:
             dev_count += 1
     return dev_count
+'''
+   Calculate swap size of volume group.
+   It is 51% of VG size
+'''
+def get_total_swap_size(self, vg_name):
+    cmd = f"vgdisplay {vg_name} --units T | grep 'VG Size'"
+    op = execute_command(self, cmd)
+    vg_sz = float(re.findall("\d+\.\d+", op[0])[0])
+    swap_sz = vg_sz*51/100
+    return swap_sz
 
 def lvm_exist(self):
     metadata_disks_count = get_metadata_disks_count(self)
     node_name = self.server_node['name']
 
-    # Fetch lvm paths of existing lvm's e.g. /dev/vg_srvnode-1_md1/lv_raw_md1
+    # Fetch all lvm paths of existing lvm's e.g. /dev/vg_srvnode-1_md1/lv_raw_md1
     lv_list = execute_command(self, "lvdisplay | grep \"LV Path\" | awk \'{ print $3 }\'")[0].split('\n')
     lv_list = lv_list[0:len(lv_list)-1]
 
     # Check if motr lvms are already created.
-    # If all are already created, return
+    # If all are already created, return True.
     for i in range(1, metadata_disks_count+1):
-        md_lv_path = f'/dev/vg_{node_name}_md{i}/lv_raw_md{i}'
-        swap_lv_path = f'/dev/vg_{node_name}_md{i}/lv_main_swap{i}'
+        vg_name = f"vg_{node_name}_md{i}"
+        md_lv_path = f'/dev/{vg_name}/lv_raw_md{i}'
 
-        if md_lv_path in lv_list:
-            if swap_lv_path in lv_list:
-                continue
-            else:
-                sys.stderr.write(f"{swap_lv_path} does not exist. Need to create lvm\n")
-                return False
-        else:
+        if not md_lv_path in lv_list:
             sys.stderr.write(f"{md_lv_path} does not exist. Need to create lvm\n")
+            return False
+        # Get swap size of VG. Swap is 51% of VG size
+        total_swap_sz = get_total_swap_size(self, vg_name)
+
+        '''
+            Compute all swap disks paths and check if all swap disks paths
+            are already present in system. It already present then we don't
+            need to create swap disks again.
+            swap_lv_path contains all swap disks paths
+        '''
+        temp = total_swap_sz
+        swap_disks = 1
+        swap_lv_path = []
+        while temp > MAX_SWAP_DISK_SZ:
+            swap_lv_path.append(f'/dev/{vg_name}/lv_main_swap{i}_{swap_disks}')
+            swap_disks += 1
+            temp -= 16
+        swap_lv_path.append(f'/dev/{vg_name}/lv_main_swap{i}_{swap_disks}')
+        if not set(swap_lv_path).issubset(set(lv_list)):
+            sys.stderr.write(f"Not all swap disks corresponding "
+                             f"to vg ({vg}) are present. "
+                              "Need to create them\n")
             return False
     return True
 
