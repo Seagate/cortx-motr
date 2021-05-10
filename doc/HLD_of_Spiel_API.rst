@@ -183,16 +183,12 @@ The intended audience of this document consists of Motr customers, architects, d
 
    -  **[r.m0.conf.quorum]** The number of configuration servers running simultaneously in the cluster must meet the following requirement:
 
-..
 
-   N\ :sub:`confd` = Q + A
+      N\ :sub:`confd` = Q + A
 
-   where Q is a quorum number to be reached during version negotiation,
+      where Q is a quorum number to be reached during version negotiation, and A is a number meeting the condition: A < Q
 
-   and A is a number meeting the condition: A < Q
-
-   Note: The simplest case is A = Q -1, which gives N\ :sub:`confd` = 2Q
-   - 1
+         Note: The simplest case is A = Q -1, which gives N\ :sub:`confd` = 2Q - 1
 
 -  **[r.m0.conf.transaction]** Configuration database version needs to be distributed to all known confd servers in transactional manner. The Spiel client must be able to distribute the version in normal way, i.e. reaching quorum on the cluster, as well as forcible way, when the version is uploaded to as many confd servers as possible at the moment. In the latter case the forcible version upload must allow multiple attempts for the same transaction dataset.
 
