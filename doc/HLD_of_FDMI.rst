@@ -1,7 +1,7 @@
 **HLD of FDMI**
 ===============
 
-This document presents a High -Level Design (HLD) of Motr’s FDMI interface.
+This document presents a High-Level Design (HLD) of Motr’s FDMI interface.
 
 
 Introduction
