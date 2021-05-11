@@ -38,8 +38,7 @@ struct m0_btree_oimpl;
 struct m0_btree_op {
 	struct m0_sm_op        bo_op;
 	enum m0_btree_opcode   bo_opc;
-	struct m0_btree       *bo_arbor_;
-	struct td             *bo_arbor;
+	struct m0_btree       *bo_arbor;
 	struct m0_btree_rec    bo_rec;
 	struct m0_btree_cb     bo_cb;
 	struct m0_be_tx       *bo_tx;
