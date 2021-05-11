@@ -267,7 +267,7 @@ def create_lvm(self, index, metadata_dev):
     except MotrError:
         pass
     else:
-        sys.stdout.write(f"Already volumes are created on {metadata_dev}\n {out[0]}")
+        sys.stdout.write(f"Volumes are already created on {metadata_dev}\n{out[0]}\n")
         return False
 
     index = index + 1
@@ -379,7 +379,6 @@ def get_cvg_cnt_and_cvg(self):
 def update_bgsize(self):
     dev_count = 0
     lvm_min_size = None
-    lvm_min_size = None
 
     cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
     for i in range(int(cvg_cnt)):
@@ -395,8 +394,10 @@ def update_bgsize(self):
             vgname = (execute_command(self, cmd)[0]).split(sep=None)[1]
             cmd = "lvdisplay | grep \"LV Path\" | grep {} | grep -v swap".format(vgname)
             lv_list = (execute_command(self, cmd)[0]).replace("LV Path", '').split('\n')[0:-1]
-            for i in range(len(lv_list)):
-                lv_list[i] = "".join(lv_list[i].split())
+            len_lv_list = len(lv_list)
+            for i in range(len_lv_list):
+                # lv_list[i] contains initial spaces. So removing these spaces.
+                lv_list[i] = lv_list[i].strip()
                 lv_path = lv_list[i]
                 lvm_min_size = calc_lvm_min_size(self, lv_path, lvm_min_size)
     if lvm_min_size:
@@ -428,7 +429,7 @@ def config_lvm(self):
             cmd = f"lvs -o lv_path | grep {lv_md_name}"
             res = execute_command(self, cmd)
             lv_path = res[0].rstrip("\n")
-            lvm_min_size = calc_lvm_min_size(self, lv_path, lvm_min_size) 
+            lvm_min_size = calc_lvm_min_size(self, lv_path, lvm_min_size)
     if lvm_min_size:
         sys.stdout.write(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
         cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
