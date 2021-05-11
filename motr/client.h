@@ -520,6 +520,14 @@
  * @{
  */
 
+/*
+ * Macro calculates the size of padding required in a struct
+ * for byte alignment
+ * size - size of all structure members
+ * alignment - power of two, byte alignment
+ */
+#define M0_CALC_PAD(size, alignment) ( size%alignment ?(size/alignment + 1 ) * alignment - size : 0)
+
 /**
  * Operation codes for entity, object and index.
  */
@@ -894,6 +902,78 @@ struct m0_config {
  	 * ADDB size
  	 */
 	m0_bcount_t mc_addb_size;
+};
+
+/* Constants for protection info type, max types supported is 8 */
+enum
+{
+	M0_PI_TYPE_MD5,
+	M0_PI_TYPE_MD5_INC_DIGEST,
+	M0_PI_TYPE_CRC,
+	M0_PI_TYPE_MAX
+};
+
+enum m0_pi_calc_flag {
+
+	/* PI calculation for data unit 0 */
+	M0_PI_CALC_UNIT_ZERO = 1 << 0,
+	/* PI final value to be calculated */
+	M0_PI_CALC_FINAL = 1 << 1
+	
+};
+
+M0_BASSERT(M0_PI_TYPE_MAX <= 8);
+
+struct m0_pi_hdr {
+	/* type of protection algorithm being used */
+	uint8_t pi_type : 3;
+	/*size of PI Structure in multiple of  32 bytes*/
+	uint8_t pi_size : 5;
+};
+
+struct m0_md5_pi {
+
+#define PI_VALUE_LENGTH 16
+
+	/* header for protection info */
+	struct m0_pi_hdr hdr;
+	/* protection value computed for the current data*/
+	unsigned char pi_value[PI_VALUE_LENGTH];
+	/* structure should be 32 byte aligned */
+	char pad[M0_CALC_PAD(sizeof(struct m0_pi_hdr)+ PI_VALUE_LENGTH, 32)];
+};
+
+struct m0_md5_inc_digest_pi {
+
+#define PI_DIGEST_LENGTH 92
+#define PI_VALUE_LENGTH 16
+
+	/* header for protection info */
+	struct m0_pi_hdr hdr;
+	/*digest of previous data unit, required for checksum computation */
+	unsigned char prev_digest[PI_DIGEST_LENGTH];
+	/* protection value computed for the current data unit.
+	 * If seed is not provided then this checksum is
+	 * calculated without seed.
+	 */
+	unsigned char pi_value[PI_VALUE_LENGTH];
+	/* structure should be 32 byte aligned */
+	char pad[M0_CALC_PAD(sizeof(struct m0_pi_hdr)+PI_VALUE_LENGTH+
+			PI_VALUE_LENGTH, 32)];
+};
+
+struct m0_generic_pi {
+	/* header for protection info */
+	struct m0_pi_hdr hdr;
+	/*pointer to access specific pi structure fields*/
+	void *t_pi;
+};
+
+/* seed values for calculating checksum */
+struct m0_pi_seed {
+	struct m0_fid obj_id;
+	/* offset within motr object */
+	m0_bindex_t data_unit_offset;
 };
 
 /** The identifier of the root of realm hierarchy. */
@@ -1750,10 +1830,56 @@ int m0_client_layout_capture(struct m0_client_layout *layout,
 		      struct m0_obj *obj,
 		      struct m0_client_layout **out);
 
+
 /* Allocate/free in-memory layout data struct for an object. */
 struct m0_client_layout*
 m0_client_layout_alloc(enum m0_client_layout_type type);
 void m0_client_layout_free(struct m0_client_layout *layout);
+
+/**
+ * Calculate checksum/protection info for data/KV
+ *
+ * @param[IN/OUT] pi  Caller will pass Generic pi struct, which will be typecasted to
+ *                    specific PI type struct. API will calculate the checksum and set
+ *                    pi_value of PI type struct. In case of digest, caller will send
+ *                    data unit N-1 unit's digest via prev_digest field in PI type struct.
+ *                    This api will calculate unit N's digest and set value in curr_digest.
+ *                    IN values - pi_type, pi_size, prev_digest
+ *                    OUT values - pi_value, prev_digest for first data unit. 
+ * @param[IN] seed seed value (obj_id+data_unit_offset) required to calculate
+ *                 the checksum. If this pointer is NULL that means either 
+ *                 this checksum calculation is meant for KV or user does
+ *                 not want seeding.
+ *                 NOTE: seed is always NULL, non-null value sent at the last chunk of motr unit
+ * @param[IN] m0_bufvec Set of buffers for which checksum is computed. Normally
+ *                      this set of vectors will make one data unit.
+ * @param[IN] flag If flag is M0_PI_CALC_UNIT_ZERO, it means this api is called for 
+ *                 first data unit and init functionality should be invoked such as MD5_Init.
+ * @param[OUT] curr_digest digest of data unit N, will be required to calculate checksum for
+ *                         next data unit, N+1. This api will calculate and set value for this field.
+ *                         NOTE: curr_digest always have unseeded and non finalised digest value 
+ *                         and sending this parameter is mandatory.
+ * @param[OUT] pi_value_without_seed Caller may need checksum value without seed and with seed.
+ *                                   With seed checksum is set in pi_value of PI type struct.
+ *                                   Without seed checksum is set in this field.
+ *                                   Caller has to allocate memory for this filed.
+ */
+
+/*
+ * Following dummy values are sent to S3 right now
+ * curr_digest is set to '0 if flag M0_PI_CALC_UNIT_ZERO is on.
+ * pi_value is set to 'A'
+ * curr_digest is set to '1'
+ * pi_value_without_seed is set to 'B'
+ */
+
+
+int m0_client_calculate_pi(struct m0_generic_pi *pi,
+		struct m0_pi_seed *seed,
+		struct m0_bufvec *bvec,
+		enum m0_pi_calc_flag flag,
+		unsigned char *curr_digest,
+		unsigned char *pi_value_without_seed);
 
 //** @} end of client group */
 

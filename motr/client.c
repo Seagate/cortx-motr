@@ -830,6 +830,85 @@ M0_INTERNAL int m0_op_init(struct m0_op *op,
 	return M0_RC(0);
 }
 
+M0_INTERNAL int m0_calculate_md5_inc_digest(
+		struct m0_md5_inc_digest_pi *pi,
+		struct m0_pi_seed *seed,
+		struct m0_bufvec *bvec,
+		enum m0_pi_calc_flag flag,
+		unsigned char *curr_digest,
+		unsigned char *pi_value_without_seed)
+{
+	M0_ENTRY();
+
+	M0_PRE(pi != NULL);
+	M0_PRE(curr_digest != NULL);
+	M0_PRE(bvec != NULL);
+	M0_PRE(bvec->ov_vec.v_count != NULL);
+	M0_PRE(bvec->ov_buf != NULL);
+
+	/* Following code block should be removed */
+	/* sending dummy values to S3 */
+#if 1
+#define PI_DIGEST_LENGTH 92
+#define PI_VALUE_LENGTH 16
+	if (flag & M0_PI_CALC_UNIT_ZERO) {
+		 memset(&pi->prev_digest, '0', PI_DIGEST_LENGTH);
+	}
+	memset(&pi->pi_value, 'A', PI_VALUE_LENGTH);
+	memset(curr_digest, '1', PI_DIGEST_LENGTH);
+	if (pi_value_without_seed) {
+		memset(pi_value_without_seed, 'B', PI_VALUE_LENGTH);
+	}
+#endif
+
+	/* Uncomment following code once motr has integration for MD5 */
+#if 0
+
+	/* This call is for first data unit, need to initialize prev_digest*/
+	if (flag & M0_PI_CALC_UNIT_ZERO) {
+		MD5_Init(&pi->prev_digest);
+	}
+
+	/* memcpy, so that we do not change the prev_digest */
+	memcpy(curr_digest, &pi->prev_digest, sizeof(MD5_CTX));
+
+	/* get the curr digest i by updating it*/
+	for (i = 0; i < bvec->ov_vec.v_nr; i++) {
+		MD5_Update(curr_digest, bvec->ov_buf[i], bvec->ov_vec.v_count[i]);
+	}
+
+	/* if caller want checksum without seed and with seed, in this case
+	 * 'pi_value_without_seed' will be used to send wihout seed checksum.
+	 */
+	if (pi_value_without_seed && (flag & M0_PI_CALC_FINAL)) {
+		unsigned char digest[sizeof(MD5_CTX)];
+		memcpy(&digest, curr_digest, sizeof(MD5_CTX));
+
+		/* 
+		 * NOTE: MD5_final() changes the digest itself and curr_digest
+		 * should not be finalised, thus copy it and use it for MD5_final
+		 */
+
+		MD5_Final(pi_value_without_seed, digest);
+	}
+
+	/* if seed is passed, memcpy and update the digest calculated so far.
+	 * calculate checksum with seed, set the pi_value with seeded checksum.
+	 * NOTE: curr_digest will always have digest without seed.
+	 */
+	if (seed) {
+		unsigned char seed_digest[sizeof(MD5_CTX)];
+		memcpy(&seed_digest, curr_digest, sizeof(MD5_CTX));
+
+		MD5_Update(&seed_digest, &seed, sizeof(struct m0_pi_seed));
+		MD5_Final(pi->pi_value, &seed_digest);
+	}
+
+#endif
+
+	return  M0_RC(0);
+}
+
 void m0_op_fini(struct m0_op *op)
 {
 	struct m0_op_common        *oc;
@@ -927,6 +1006,31 @@ int32_t m0_rc(const struct m0_op *op)
 	return M0_RC(op->op_rc);
 }
 M0_EXPORTED(m0_rc);
+
+int m0_client_calculate_pi(struct m0_generic_pi *pi,
+		struct m0_pi_seed *seed,
+		struct m0_bufvec *bvec,
+		enum m0_pi_calc_flag flag,
+		unsigned char *curr_digest,
+		unsigned char *pi_value_without_seed)
+{
+	M0_ENTRY();
+
+	switch(pi->hdr.pi_type)
+	{
+		case M0_PI_TYPE_MD5_INC_DIGEST:
+		{
+			struct m0_md5_inc_digest_pi *md5_digest_pi = 
+				(struct m0_md5_inc_digest_pi *) pi;
+
+			m0_calculate_md5_inc_digest(md5_digest_pi, seed, bvec, flag,
+					curr_digest, pi_value_without_seed);
+		}
+	}
+	return M0_RC(0);
+}
+
+M0_EXPORTED(m0_client_calculate_pi);
 
 #undef M0_TRACE_SUBSYSTEM
 
