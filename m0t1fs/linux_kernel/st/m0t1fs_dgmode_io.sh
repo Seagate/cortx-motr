@@ -310,7 +310,7 @@ fmio_files_compare()
 fmio_pool_mach_set_failure()
 {
 	local device=$1
-	[ -n $device ] || {
+	[ -n "$device" ] || {
 		echo "parameter 'device' is required"
 		return 1
 	}
@@ -328,7 +328,7 @@ fmio_pool_mach_set_failure()
 fmio_sns_repair()
 {
 	local device=$1
-	[ -n $device ] || {
+	[ -n "$device" ] || {
 		echo "parameter 'device' is required"
 		return 1
 	}
@@ -361,7 +361,7 @@ fmio_sns_repair()
 fmio_sns_rebalance()
 {
 	local device=$1
-	[ -n $device ] || {
+	[ -n "$device" ] || {
 		echo "parameter 'device' is required"
 		return 1
 	}

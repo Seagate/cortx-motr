@@ -39,7 +39,8 @@ nobase_motr_include_HEADERS += \
 			       be/tx_internal.h     \
                                be/tx_regmap.h       \
                                be/tx_service.h	    \
-			       be/ut/helper.h
+			       be/ut/helper.h       \
+			       be/dtm0_log.h
 
 motr_libmotr_la_SOURCES += be/alloc.c           \
                            be/active_record.c   \
@@ -74,7 +75,8 @@ motr_libmotr_la_SOURCES += be/alloc.c           \
 			   be/tx_group_format.c \
 			   be/tx_regmap.c       \
 			   be/tx_service.c      \
-                           be/ut/helper.c
+			   be/ut/helper.c       \
+			   be/dtm0_log.c
 
 nodist_motr_libmotr_la_SOURCES  +=                 \
 			   be/addb2_xc.c           \

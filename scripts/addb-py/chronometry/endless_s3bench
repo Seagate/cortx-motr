@@ -38,7 +38,7 @@ function main()
 
     local iter=0
 
-    while [[ -z $TERMINATE_FLAG ]]; do
+    while [[ -z "$TERMINATE_FLAG" ]]; do
         sleep 20
         echo -e "============== start iteration $iter ($(date)) ================\n"
         set +e
@@ -57,7 +57,7 @@ function set_term_flag()
 
 function check_required_parameters()
 {
-    if [[ -z $SRV_CLI_MAP || -z $WORKLOAD ]]; then
+    if [[ -z "$SRV_CLI_MAP" || -z "$WORKLOAD" ]]; then
         echo "missed required parameter"
         echo "Usage: ./endless_s3bench $SRV_CLI_MAP $workload"
         exit 1

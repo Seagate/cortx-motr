@@ -52,7 +52,7 @@ function parse_s3_nodes_map() {
     CLI_NODES=""
     for mapping in $nodes_map; do
         local cli=$(echo $mapping | grep "$(hostname)" | awk -F '=' '{print $2}')
-        if [[ -z $CLI_NODES ]]; then
+        if [[ -z "$CLI_NODES" ]]; then
             CLI_NODES="$cli"
         else
             CLI_NODES="$CLI_NODES,$cli"

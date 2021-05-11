@@ -63,6 +63,7 @@ declare python2_path="/usr/bin/python2"
 consul_query_args="kv get -recurse m0conf"
 consul_query_cmd="$consul_path $consul_query_args"
 motr_conf_file="/etc/sysconfig/motr"
+[ -d /etc/sysconfig ] || motr_conf_file="/etc/default/motr"
 
 exit_with_error()
 {
@@ -193,22 +194,22 @@ main()
 	check_bin_path m0spiel
         if [ ! -s $libmotr_path ] ; then
 	    [[ -r $motr_conf_file ]] && source $motr_conf_file
-	    [[ -n $MOTR_DEVEL_WORKDIR_PATH ]] && \
+	    [[ -n "$MOTR_DEVEL_WORKDIR_PATH" ]] && \
                 libmotr_path=$MOTR_DEVEL_WORKDIR_PATH/motr/.libs/libmotr.so
 	    [[ ! -s $libmotr_path ]] && exit_with_error "libmotr Not Found" 1
         fi
 
-	if [ -z $server_addr ] ; then
+	if [ -z "$server_addr" ] ; then
 		consul_path=$(get_bin_path consul)
 		check_bin_path consul
 		server_addr=$(get_endpoints_of ha | tail -1)
 	fi
 
-	if [ -z $profile_addr ] ; then
+	if [ -z "$profile_addr" ] ; then
 		profile_addr=$($consul_query_cmd | grep profiles: | sed -n -e 's/^.*\(profiles:\)/\1/p'  | awk '{print $1}'| sed 's/^[^:]*://' | sed 's/:/,/')
 	fi
 
-	if [ -z $client_addr ] ; then
+	if [ -z "$client_addr" ] ; then
 		local cmd="tail -2"
 		[[  $systemd == 1 ]] && cmd="tail -1"
 		client_addr=$(get_endpoints_of m0_client_other | $cmd | head -1)
@@ -217,7 +218,7 @@ main()
 	M0_SPIEL_OPTS="-s $server_addr -l $libmotr_path --client=$client_addr"
 	M0_PROFILE_ID=$profile_addr
 
-	if [[ -z $server_addr || -z $libmotr_path || -z $client_addr || -z $profile_addr ]]; then
+	if [[ -z "$server_addr" || -z "$libmotr_path" || -z "$client_addr" || -z "$profile_addr" ]]; then
 		exit_with_error "Invalid Arguments" 1
 	fi
 

@@ -30,10 +30,7 @@ MOTR_GENDERS_CONF=/etc/motr/genders
 
 # service local variables
 motr_exec_dir=/usr/libexec/cortx-motr
-user_config=/etc/sysconfig/motr
-kernel_config=/etc/sysconfig/motr-kernel
 service_funcs=$motr_exec_dir/motr-service.functions
-
 
 source $service_funcs
 
@@ -78,17 +75,17 @@ if [[ -d $MOTR_LOG_DIR ]] ; then
     rm -vrf $MOTR_LOG_DIR/*
 fi
 
-if [[ -n $MOTR_M0D_ADDB_STOB_DIR && -d $MOTR_M0D_ADDB_STOB_DIR ]] ; then
+if [[ -n "$MOTR_M0D_ADDB_STOB_DIR" && -d $MOTR_M0D_ADDB_STOB_DIR ]] ; then
     m0_log "Cleaning up $MOTR_M0D_ADDB_STOB_DIR"
     rm -vrf $MOTR_M0D_ADDB_STOB_DIR/
 fi
 
-if [[ -n $MOTR_M0D_TRACE_DIR && -d $MOTR_M0D_TRACE_DIR ]] ; then
+if [[ -n "$MOTR_M0D_TRACE_DIR" && -d $MOTR_M0D_TRACE_DIR ]] ; then
     m0_log "Cleaning up $MOTR_M0D_TRACE_DIR"
     rm -vrf $MOTR_M0D_TRACE_DIR/
 fi
 
-m0_log "Cleaning up config files in /etc/sysconfig/ dir"
-rm -vf /etc/sysconfig/{motr-kernel,{m0d,m0t1fs,s3server}-*}
+m0_log "Cleaning up config files in $sysconfig_dir/"
+rm -vf ${sysconfig_dir}/{motr-kernel,{m0d,m0t1fs,s3server}-*}
 
 exit 0
