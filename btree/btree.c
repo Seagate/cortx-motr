@@ -1509,19 +1509,21 @@ static void generic_move(struct nd *src, struct nd *tgt,
  *  -------------------------------------------------------
  */
 
-//In case of fix key, fix value node format: max_ksize, max_vsize will be fix key, value size else estimate max sizes
+/*In case of fixed key, fixed value node format: max_ksize, max_vsize will be
+fixed key, value size else estimate max sizes */
 m0_bcount_t max_ksize; 
 m0_bcount_t max_vsize;
 m0_bcount_t max_node_size;
-m0_bcount_t internal_vsize; //for internal node, value size is fix
+m0_bcount_t internal_vsize; /*for internal node, value size is fix */
 
-/** threshold can be used in btree_move_key_value_credit() to identify 
- * what fraction of node needs to be move in case of overflow/underflow
+/**
+ * node threshold can be used in btree_move_key_value_credit() to identify
+ * what fraction of node needs to be moved in case of overflow/underflow
  */
-enum threshold{
-	MAX_MOVE = 7,
-	MIN_MOVE = 5,
-	ALL_MOVE = 10
+enum node_threshold {
+	MAX_MOVE = 70,
+	MIN_MOVE = 50,
+	ALL_MOVE = 100
 };
 
 enum {
@@ -1552,8 +1554,7 @@ static void btree_node_update_credit(struct m0_be_tx_credit *accum,
 	struct m0_be_tx_credit cred = {};
 
 	/* @todo: why multiplication with 2 is needed? */
-	m0_be_tx_credit_mac(&cred,
-			    &M0_BE_TX_CREDIT_TYPE(max_node_size), 2);
+	m0_be_tx_credit_mac(&cred, max_node_size, 2);
 
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
@@ -1569,18 +1570,21 @@ static void m0_btree_create_node_credit(const struct m0_btree  *tree,
 	struct m0_be_tx_credit cred = {};
 
 	btree_node_alloc_credit(tree, &cred);
-	btree_node_update_credit(&cred, 1);  /* @todo: is btree_node_update_credit needed? */
+	/* @todo: is btree_node_update_credit needed? */
+	btree_node_update_credit(&cred, 1);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
 /**
- * Calculates the credit needed to move some records between two nodes and adds this credit to
- * @accum.
+ * Calculates the credit needed to move some records between two nodes and
+ * adds this credit to @accum.
  */
-static void btree_move_key_value_credit(struct m0_be_tx_credit *accum, enum threshold threshold)
+static void btree_move_key_value_credit(struct m0_be_tx_credit *accum,
+					enum node_threshold th)
 {
-	/*depending on thershold, calculate fraction which we want to move other node*/
-	m0_bcount_t size = max_node_size * threshold/10;
+	/*depending on node_threshold, calculate fraction which needs to be
+	moved to other node*/
+	m0_bcount_t size = max_node_size*th/100;
 
 	m0_be_tx_credit_mac(accum, &M0_BE_TX_CREDIT(1, size), 1);
 	btree_node_update_credit(accum, 1);
@@ -1619,11 +1623,12 @@ static void btree_insert_internal_node_credit(const struct m0_btree  *tree,
 static void btree_insert_new_root_credit(const struct m0_btree  *tree,
 					 struct m0_be_tx_credit *accum)
 {
+	struct m0_be_tx_credit cred = {};
+
 	m0_btree_create_node_credit(tree, 1, accum);
 	btree_move_key_value_credit(accum, ALL_MOVE);
 
 	/*credit for inserting 2 key-value at root node*/
-	struct m0_be_tx_credit cred = {};
 	btree_insert_key_value_credit(tree, max_ksize, internal_vsize, &cred);
 	m0_be_tx_credit_mac(accum, &cred, 2);	
 }
@@ -1640,24 +1645,26 @@ static void insert_credit(const struct m0_btree  *tree,
 			  m0_bcount_t             vsize,
 			  struct m0_be_tx_credit *accum)
 {
-	uint32_t height = BTREE_HEIGHT_MAX;
+	struct m0_be_tx_credit accum_for_insert = {};
+	struct m0_be_tx_credit cred             = {};
+	uint32_t               height           = BTREE_HEIGHT_MAX;
 	
-	btree_insert_leaf_node_credit(tree, ksize, vsize, accum);
+	btree_insert_leaf_node_credit(tree, ksize, vsize, &accum_for_insert);
 
-	struct m0_be_tx_credit cred = {};
 	btree_insert_internal_node_credit(tree, &cred);
-	m0_be_tx_credit_mac(accum, &cred, height - 1);
+	m0_be_tx_credit_mac(&accum_for_insert, &cred, height - 1);
 
-	btree_insert_new_root_credit(tree, accum);
+	btree_insert_new_root_credit(tree, &accum_for_insert);
 
-	m0_be_tx_credit_mul(accum, nr);
+	m0_be_tx_credit_mac(accum, &accum_for_insert, nr);
 }
 
 static void btree_mem_free_credit(const struct m0_btree  *btree,
 				  m0_bcount_t             size,
 				  struct m0_be_tx_credit *accum)
 {
-	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, 0, 0, accum);
+	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, size,
+			       BTREE_ALLOC_SHIFT, accum);
 }
 
 /**
@@ -1685,9 +1692,10 @@ static void btree_delete_key_value_credit(const struct m0_btree  *tree,
 }
 
 /**
- * Calculates the credit needed to update particular record ,
- * which requires deleting old record and inserting new record with modified key/value.
- * As we might want to update delimiter key in delete operation, credits for record updates are needed
+ * Calculates the credit needed to update particular record ,which requires
+ * deleting old record and inserting new record with modified key/value.
+ * As we might want to update delimiter key in delete operation, credits for
+ * record updates are needed
  */
 static void btree_update_delimeter_key_credit(const struct m0_btree  *tree,
 					      struct m0_be_tx_credit *accum)
@@ -1704,7 +1712,8 @@ static void btree_delete_leaf_node_credit(const struct m0_btree  *tree,
 	btree_delete_key_value_credit(tree, ksize, vsize, accum);
 	btree_move_key_value_credit(accum, MIN_MOVE);
 	m0_btree_free_node_credit(tree, 1, accum);
-	btree_update_delimeter_key_credit(tree, accum); //credits to update delimeter key
+	/*credits to update delimeter key*/
+	btree_update_delimeter_key_credit(tree, accum);
 }
 
 static void btree_delete_internal_node_credit(const struct m0_btree  *tree,
@@ -1736,17 +1745,18 @@ static void delete_credit(const struct m0_btree  *tree,
 			  m0_bcount_t             vsize,
 			  struct m0_be_tx_credit *accum)
 {
-	uint32_t height = BTREE_HEIGHT_MAX;
+	struct m0_be_tx_credit accum_for_delete = {};
+	struct m0_be_tx_credit cred             = {};
+	uint32_t               height           = BTREE_HEIGHT_MAX;
 
-	btree_delete_leaf_node_credit(tree, ksize, vsize, accum);
+	btree_delete_leaf_node_credit(tree, ksize, vsize, &accum_for_delete);
 
-	struct m0_be_tx_credit cred = {};
 	btree_delete_internal_node_credit(tree, &cred);
-	m0_be_tx_credit_mac(accum, &cred, height - 2);
+	m0_be_tx_credit_mac(&accum_for_delete, &cred, height - 2);
 	
-	delete_root_credit(tree, accum);
+	delete_root_credit(tree, &accum_for_delete);
 
-	m0_be_tx_credit_mul(accum, nr);
+	m0_be_tx_credit_mac(accum, &accum_for_delete, nr);
 }
 
 #undef M0_TRACE_SUBSYSTEM
