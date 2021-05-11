@@ -983,6 +983,35 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 M0_INTERNAL struct m0_client *
 m0__idx_instance(const struct m0_idx *idx);
 
+/**
+ * Calculate checksum/protection info for data/KV
+ *
+ * @param pi  pi struct m0_md5_inc_digest_pi
+ *            This function will calculate the checksum and set
+ *            pi_value field of struct m0_md5_inc_digest_pi.
+ * @param seed seed value (obj_id+data_unit_offset) required to calculate
+ *             the checksum. If this pointer is NULL that means either
+ *             this checksum calculation is meant for KV or user does
+ *             not want seeding.
+ * @param m0_bufvec - Set of buffers for which checksum is computed.
+ * @param flag if flag is M0_PI_CALC_UNIT_ZERO, it means this api is called for
+ *             first data unit and MD5_Init should be invoked.
+ * @param[out] curr_digest digest of data unit N, will be required to calculate checksum for
+ *                         next data unit, N+1. Curre_digest is calculated and set in this func.
+ * @param[out] pi_value_without_seed - Caller may need checksum value without seed and with seed.
+ *                                     With seed checksum is set in pi_value of PI type struct.
+ *                                     Without seed checksum is set in this field.
+ */
+
+M0_INTERNAL int m0_calculate_md5_inc_digest(
+		struct m0_md5_inc_digest_pi *pi,
+		struct m0_pi_seed *seed,
+		struct m0_bufvec *bvec,
+		enum m0_pi_calc_flag flag,
+		unsigned char *curr_digest,
+		unsigned char *pi_value_without_seed);
+
+
 /** @} end of client group */
 
 #endif /* __MOTR_CLIENT_INTERNAL_H__ */

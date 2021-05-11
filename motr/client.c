@@ -843,116 +843,84 @@ M0_INTERNAL int m0_op_init(struct m0_op *op,
 	return M0_RC(0);
 }
 
-#ifndef __KERNEL__
-M0_INTERNAL int m0_calculate_md5_inc_context(
-		struct m0_md5_inc_context_pi *pi,
+M0_INTERNAL int m0_calculate_md5_inc_digest(
+		struct m0_md5_inc_digest_pi *pi,
 		struct m0_pi_seed *seed,
 		struct m0_bufvec *bvec,
 		enum m0_pi_calc_flag flag,
-		unsigned char *curr_context,
+		unsigned char *curr_digest,
 		unsigned char *pi_value_without_seed)
 {
-	MD5_CTX context;
-	int i, rc;
-
 	M0_ENTRY();
 
 	M0_PRE(pi != NULL);
-	M0_PRE(curr_context != NULL);
+	M0_PRE(curr_digest != NULL);
 	M0_PRE(bvec != NULL);
 	M0_PRE(bvec->ov_vec.v_count != NULL);
 	M0_PRE(bvec->ov_buf != NULL);
 
-	/* This call is for first data unit, need to initialize prev_context */
+	/* Following code block should be removed */
+	/* sending dummy values to S3 */
+#if 1
+#define PI_DIGEST_LENGTH 92
+#define PI_VALUE_LENGTH 16
 	if (flag & M0_PI_CALC_UNIT_ZERO) {
-		rc = MD5_Init((MD5_CTX *)&pi->prev_context);
-		if (rc != 1) {
-			return M0_ERR_INFO(rc, "MD5_Init failed.");
-		}
+		 memset(&pi->prev_digest, '0', PI_DIGEST_LENGTH);
+	}
+	memset(&pi->pi_value, 'A', PI_VALUE_LENGTH);
+	memset(curr_digest, '1', PI_DIGEST_LENGTH);
+	if (pi_value_without_seed) {
+		memset(pi_value_without_seed, 'B', PI_VALUE_LENGTH);
+	}
+#endif
+
+	/* Uncomment following code once motr has integration for MD5 */
+#if 0
+
+	/* This call is for first data unit, need to initialize prev_digest*/
+	if (flag & M0_PI_CALC_UNIT_ZERO) {
+		MD5_Init(&pi->prev_digest);
 	}
 
-	/* memcpy, so that we do not change the prev_context */
-	memcpy(curr_context, &pi->prev_context, sizeof(MD5_CTX));
+	/* memcpy, so that we do not change the prev_digest */
+	memcpy(curr_digest, &pi->prev_digest, sizeof(MD5_CTX));
 
-
-	/* get the curr context i by updating it*/
+	/* get the curr digest i by updating it*/
 	for (i = 0; i < bvec->ov_vec.v_nr; i++) {
-		rc = MD5_Update((MD5_CTX *)curr_context, bvec->ov_buf[i],
-				bvec->ov_vec.v_count[i]);
-		if (rc != 1) {
-			return M0_ERR_INFO(rc, "MD5_Update failed. curr_context=%p, "
-					"bvec->ov_buf[%d]=%p, bvec->ov_vec.v_count[%u]=%u",
-					curr_context, i, bvec->ov_buf[i], i,
-					(uint32_t)bvec->ov_vec.v_count[i]);
-		}
+		MD5_Update(curr_digest, bvec->ov_buf[i], bvec->ov_vec.v_count[i]);
 	}
 
-	/* If caller wants checksum without seed and with seed, caller needs to
-	 * pass 'pi_value_without_seed'. pi_value will be used to return with
-	 * seed checksum. 'pi_value_without_seed' will be used to return non
-	 * seeded checksum.
+	/* if caller want checksum without seed and with seed, in this case
+	 * 'pi_value_without_seed' will be used to send wihout seed checksum.
 	 */
-	if (pi_value_without_seed != NULL) {
+	if (pi_value_without_seed && (flag & M0_PI_CALC_FINAL)) {
+		unsigned char digest[sizeof(MD5_CTX)];
+		memcpy(&digest, curr_digest, sizeof(MD5_CTX));
+
 		/* 
-		 * NOTE: MD5_final() changes the context itself and curr_context
+		 * NOTE: MD5_final() changes the digest itself and curr_digest
 		 * should not be finalised, thus copy it and use it for MD5_final
 		 */
-		memcpy((void *)&context, (void *)curr_context, sizeof(MD5_CTX));
 
-		rc = MD5_Final(pi_value_without_seed, &context);
-		if (rc != 1) {
-			return M0_ERR_INFO(rc, "MD5_Final failed"
-					"pi_value_without_seed=%p"
-					"curr_context=%p",
-					pi_value_without_seed, curr_context);
-		}
+		MD5_Final(pi_value_without_seed, digest);
 	}
 
-	/* if seed is passed, memcpy and update the context calculated so far.
+	/* if seed is passed, memcpy and update the digest calculated so far.
 	 * calculate checksum with seed, set the pi_value with seeded checksum.
-	 * If seed is not passed than memcpy context and calculate checksum
-	 * without seed, set the pi_value with unseeded checksum.
-	 * NOTE: curr_context will always have context without seed.
+	 * NOTE: curr_digest will always have digest without seed.
 	 */
-	memcpy((void *)&context, (void *)curr_context, sizeof(MD5_CTX));
+	if (seed) {
+		unsigned char seed_digest[sizeof(MD5_CTX)];
+		memcpy(&seed_digest, curr_digest, sizeof(MD5_CTX));
 
-	if (seed != NULL) {
-
-		/*
-		 * seed_str have string represention for 3 uint64_t(8 bytes)
-		 * range for uint64_t is 0 to 18,446,744,073,709,551,615 at
-		 * max 20 chars per var, for three var it will be 3*20, +1 '\0'.
-		 * seed_str needs to be 61 bytes, round off and taking 64 bytes.
-		 */
-		char seed_str[64] = {'\0'};
-		snprintf(seed_str, sizeof(seed_str), "%"PRIx64"%"PRIx64"%"PRIx64,
-				seed->obj_id.f_container, seed->obj_id.f_key,
-				seed->data_unit_offset);
-		rc = MD5_Update(&context, (unsigned char *)seed_str,
-				sizeof(seed_str));
-		if (rc != 1) {
-
-			return M0_ERR_INFO(rc, "MD5_Update fail curr_context=%p"
-					"f_container %"PRIx64"f_key %"PRIx64
-					"data_unit_offset %"PRIx64"seed_str %s",
-					curr_context, seed->obj_id.f_container,
-					seed->obj_id.f_key,
-					seed->data_unit_offset,
-					(char *)seed_str);
-		}
+		MD5_Update(&seed_digest, &seed, sizeof(struct m0_pi_seed));
+		MD5_Final(pi->pi_value, &seed_digest);
 	}
 
-	if (!(flag & M0_PI_SKIP_CALC_FINAL)) {
-		rc = MD5_Final(pi->pi_value, &context);
-		if (rc != 1) {
-			return M0_ERR_INFO(rc, "MD5_Final fail curr_context=%p",
-					curr_context);
-		}
-	}
+#endif
 
 	return  M0_RC(0);
 }
-#endif
 
 void m0_op_fini(struct m0_op *op)
 {
