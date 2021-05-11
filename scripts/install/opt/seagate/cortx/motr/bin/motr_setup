@@ -120,7 +120,7 @@ class PostInstallCmd(Cmd):
         if not lvm_exist(self):
             config_lvm(self)
         else:
-            sys.stderr.write("lvm's already exist. "
+            sys.stderr.write("lvm already exists. "
                              "Skipping lvm creation.\n")
             sys.stderr.write("Updating bgsize.\n")
             update_bgsize(self)
