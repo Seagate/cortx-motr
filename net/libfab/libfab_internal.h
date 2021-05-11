@@ -101,6 +101,15 @@ enum m0_fab__conn_status {
 };
 
 /**
+ * Represents the state of a libfab transfer machine
+ */
+enum m0_fab__tm_state {
+	FAB_TM_INIT,
+	FAB_TM_STARTED,
+	FAB_TM_SHUTDOWN
+};
+
+/**
  * Libfab structure for list of fabric interfaces in a transfer machine
  */
 struct m0_fab__list {
@@ -233,40 +242,40 @@ struct m0_fab__ep {
  */
 struct m0_fab__tm {
 	/** Net transfer machine */
-	struct m0_net_transfer_mc *ftm_ntm;
+	struct m0_net_transfer_mc      *ftm_ntm;
 	
 	/** Poller thread */
-	struct m0_thread           ftm_poller;
+	struct m0_thread                ftm_poller;
 	
 	/** Epoll file descriptor */
-	int                        ftm_epfd;
+	int                             ftm_epfd;
 	
 	/** Fabric parameters of a transfer machine */
-	struct m0_fab__fab        *ftm_fab;
+	struct m0_fab__fab             *ftm_fab;
 
 	/** Passive endpoint (listening/server mode) */
-	struct m0_fab__ep         *ftm_pep;
+	struct m0_fab__ep              *ftm_pep;
 	
 	/** Shared receive context for shared buffer pools */
-	struct fid_ep             *ftm_rctx;
+	struct fid_ep                  *ftm_rctx;
 	
 	/** Transmit Completion Queue */
-	struct fid_cq             *ftm_tx_cq;
+	struct fid_cq                  *ftm_tx_cq;
 	
-	/** Shutdown flag */
-	bool                       ftm_shutdown;
+	/** State of the transfer machine */
+	volatile enum m0_fab__tm_state  ftm_state;
 
 	/** List of completed buffers */
-	struct m0_tl               ftm_done;
+	struct m0_tl                    ftm_done;
 	
 	/** Lock used betn poller & tm_fini during shutdown */
-	struct m0_mutex            ftm_endlock;
+	struct m0_mutex                 ftm_endlock;
 	
 	/** Lock used betn poller & tm_fini for posting event */
-	struct m0_mutex            ftm_evpost;
+	struct m0_mutex                 ftm_evpost;
 
 	/** List of pending bulk operations */
-	struct m0_tl               ftm_bulk;
+	struct m0_tl                    ftm_bulk;
 };
 
 /**

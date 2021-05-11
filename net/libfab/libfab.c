@@ -678,16 +678,17 @@ static void libfab_poller(struct m0_fab__tm *tm)
 	struct epoll_event        ev;
 	int                       ev_cnt;
 
-	while (!tm->ftm_shutdown) {
-		while (tm->ftm_ntm->ntm_state < M0_NET_TM_STARTED)
-			/* No-op */;
-
+	/* Wait for the transfer machine to get started */
+	while (tm->ftm_state != FAB_TM_STARTED)
+		/* No-op */;
+	
+	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
 		sched_yield();
 		ev_cnt = epoll_wait(tm->ftm_epfd, &ev, 1, FAB_WAIT_FD_TMOUT);
 
 		while (1) {
 			m0_mutex_lock(&tm->ftm_endlock);
-			if (tm->ftm_shutdown)
+			if (tm->ftm_state == FAB_TM_SHUTDOWN)
 				break;
 			
 			if (libfab_tm_trylock(tm) != 0) {
@@ -703,7 +704,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		
 		m0_mutex_unlock(&tm->ftm_endlock);
 		
-		if (tm->ftm_shutdown)
+		if (tm->ftm_state == FAB_TM_SHUTDOWN)
 			break;
 		
 		M0_ASSERT(libfab_tm_is_locked(tm) && libfab_tm_invariant(tm));
@@ -1724,7 +1725,7 @@ static void libfab_tm_fini(struct m0_net_transfer_mc *tm)
 	struct m0_fab__tm *ma = tm->ntm_xprt_private;
 	int                rc = 0;
 
-	if (!ma->ftm_shutdown) {
+	if (ma->ftm_state != FAB_TM_SHUTDOWN) {
 		while (1) {
 			libfab_tm_lock(ma);
 			if (m0_mutex_trylock(&ma->ftm_evpost) != 0) {
@@ -1734,7 +1735,7 @@ static void libfab_tm_fini(struct m0_net_transfer_mc *tm)
 		}
 		m0_mutex_unlock(&ma->ftm_evpost);
 		m0_mutex_lock(&ma->ftm_endlock);
-		ma->ftm_shutdown = true;
+		ma->ftm_state = FAB_TM_SHUTDOWN;
 		m0_mutex_unlock(&ma->ftm_endlock);
 
 		libfab_tm_buf_done(ma);
@@ -2392,7 +2393,7 @@ static int libfab_ma_init(struct m0_net_transfer_mc *ntm)
 	M0_ALLOC_PTR(ftm);
 	if (ftm != NULL) {
 		ftm->ftm_epfd = -1;
-		ftm->ftm_shutdown = false;
+		ftm->ftm_state = FAB_TM_INIT;
 		ntm->ntm_xprt_private = ftm;
 		ftm->ftm_ntm = ntm;
 		fab_buf_tlist_init(&ftm->ftm_done);
@@ -2453,6 +2454,7 @@ static int libfab_ma_start(struct m0_net_transfer_mc *ntm, const char *name)
 	libfab_tm_event_post(ftm, M0_NET_TM_STARTED);
 	libfab_tm_evpost_unlock(ftm);
 	libfab_tm_lock(ftm);
+	ftm->ftm_state = FAB_TM_STARTED;
 
 	return M0_RC(0);
 }
