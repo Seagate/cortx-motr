@@ -430,7 +430,7 @@ struct m0_sm_state_descr {
 	   be called before state machine with this configuration
 	   can be constructed.
 	 */
-	uint32_t    sd_trans[M0_SM_MAX_STATES];
+	int8_t      sd_trans[M0_SM_MAX_STATES];
 };
 
 /**

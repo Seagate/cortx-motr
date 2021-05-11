@@ -86,7 +86,7 @@ Design Highlights
 
 The following figure shows the components of the proposed design and usage relationships between it and other related components:
 
-.. image:: Images/revised.PNG
+.. image:: Images/LNET.PNG
 
 - The design provides an LNet based transport for the Motr Network Layer, that co-exists with the concurrent use of LNet by Lustre. In the figure, the transport is labelled m0_lnet_u in user space and m0_lnet_k in the kernel.
 

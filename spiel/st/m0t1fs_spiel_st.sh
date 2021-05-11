@@ -78,7 +78,7 @@ EOF
 start() {
     # install "motr" Python module required by m0spiel tool
     cd $M0_SRC_DIR/utils/spiel
-    python setup.py install --record $INSTALLED_FILES > /dev/null ||
+    python2 setup.py install --record $INSTALLED_FILES > /dev/null ||
         die 'Cannot install Python "motr" module'
     sandbox_init
     _init
@@ -91,7 +91,7 @@ stop() {
     trap - EXIT
     if mount | grep -q m0t1fs; then umount $SANDBOX_DIR/mnt; fi
 
-    killall -q lt-m0d && wait || rc=$?
+    pkill m0d && wait || rc=$?
     _fini
     if [ $rc -eq 0 ]; then
         sandbox_fini

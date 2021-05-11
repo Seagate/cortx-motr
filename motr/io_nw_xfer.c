@@ -134,8 +134,8 @@ static void parity_page_pos_get(struct pargrp_iomap *map,
 	play = pdlayout_get(map->pi_ioo);
 
 	pg_id = page_id(index, map->pi_ioo->ioo_obj);
-	*row  = pg_id % parity_row_nr(play, map->pi_ioo->ioo_obj);
-	*col  = pg_id / parity_row_nr(play, map->pi_ioo->ioo_obj);
+	*row  = pg_id % rows_nr(play, map->pi_ioo->ioo_obj);
+	*col  = pg_id / rows_nr(play, map->pi_ioo->ioo_obj);
 }
 
 /**
@@ -565,7 +565,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			M0_LOG(M0_DEBUG, "Data seg %u added", seg);
 		} else {
 			buf = map->pi_paritybufs[page_id(goff, ioo->ioo_obj)]
-			[unit - data_col_nr(play)];
+			[unit - layout_n(play)];
 			pattr[seg] |= PA_PARITY;
 			M0_LOG(M0_DEBUG, "Parity seg %u added", seg);
 		}
@@ -1201,7 +1201,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 {
 	int                         rc;
 	unsigned int                op_code;
-	uint64_t                    map;
+	uint64_t                    i;
 	uint64_t                    unit;
 	uint64_t                    unit_size;
 	uint64_t                    count;
@@ -1243,13 +1243,13 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	instance  = m0__op_instance(op);
 	rc = m0_bitmap_init(&units_spanned, m0_pdclust_size(play));
 
-	for (map = 0; map < ioo->ioo_iomap_nr; ++map) {
+	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
 		count        = 0;
-		iomap        = ioo->ioo_iomaps[map];
+		iomap        = ioo->ioo_iomaps[i];
 		pgstart      = data_size(play) * iomap->pi_grpid;
 		src.sa_group = iomap->pi_grpid;
 
-		M0_LOG(M0_DEBUG, "xfer %p map %p [grpid = %"PRIu64" state=%u]",
+		M0_LOG(M0_DEBUG, "xfer=%p map=%p [grpid=%"PRIu64" state=%u]",
 				 xfer, iomap, iomap->pi_grpid, iomap->pi_state);
 
 		/* Cursor for pargrp_iomap::pi_ivec. */
@@ -1333,7 +1333,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 				parity_page_pos_get(iomap, unit * unit_size,
 						    &row, &col);
 
-				for (; row < parity_row_nr(play, ioo->ioo_obj);
+				for (; row < rows_nr(play, ioo->ioo_obj);
 				     ++row) {
 					dbuf = iomap->pi_paritybufs[row][col];
 					M0_ASSERT(dbuf != NULL);

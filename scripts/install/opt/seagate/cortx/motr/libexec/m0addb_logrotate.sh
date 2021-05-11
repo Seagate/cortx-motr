@@ -38,7 +38,7 @@ check_param()
 {
     PARAM=$1
     echo "PARAM: $PARAM"
-    if [[ -n $PARAM ]]; then
+    if [[ -n "$PARAM" ]]; then
         retval="OK"
     else
         echo "PARAM is empty"
@@ -64,7 +64,7 @@ while getopts ":n:" option; do
     case "${option}" in
         n)
             log_dirs_max_count=${OPTARG}
-            if [[ -z ${log_dirs_max_count} ]]; then
+            if [[ -z "${log_dirs_max_count}" ]]; then
               usage
             fi
             ;;

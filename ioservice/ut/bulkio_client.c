@@ -26,7 +26,6 @@
 #include "motr/magic.h"
 #include "ioservice/io_fops.h"	/* m0_io_fop */
 #include "rpc/rpc.h"		/* m0_rpc_bulk, m0_rpc_bulk_buf */
-#include "net/lnet/lnet.h"
 #include "file/file.h"
 #include "lib/finject.h"
 
@@ -135,11 +134,10 @@ static void bulkclient_test(void)
 	struct m0_clink          s_clink;
 	struct m0_clink          c_clink;
 	struct m0_io_fop	*iofop;
-	struct m0_net_xprt	*xprt;
 	struct m0_rpc_bulk	*rbulk;
 	struct m0_rpc_bulk	*sbulk;
 	struct m0_fop_cob_rw	*rw;
-	struct m0_net_domain	 nd;
+	struct m0_net_domain	*nd;
 	struct m0_net_buffer	*nb;
 	struct m0_net_buffer   **nbufs;
 	struct m0_rpc_bulk_buf	*rbuf;
@@ -151,16 +149,21 @@ static void bulkclient_test(void)
 	struct bulkio_msg_tm    *ctm;
 	struct bulkio_msg_tm    *stm;
 	struct m0_rm_domain     *rm_dom;
-	struct m0_file           file;
+	struct m0_file          *file;
 
 	struct m0_rm_resource_type flock_rt = {
 		.rt_name = "File Lock Resource Type"
 	};
 
+	M0_ALLOC_PTR(nd);
+	M0_ASSERT(nd != NULL);
+	M0_SET0(nd);
 	M0_ALLOC_PTR(iofop);
 	M0_ASSERT(iofop != NULL);
 	M0_SET0(iofop);
-	M0_SET0(&nd);
+	M0_ALLOC_PTR(file);
+	M0_ASSERT(file != NULL);
+	M0_SET0(file);
 
 	M0_ALLOC_PTR(rm_dom);
 	M0_ASSERT(rm_dom != NULL);
@@ -168,14 +171,12 @@ static void bulkclient_test(void)
 	rc = m0_file_lock_type_register(rm_dom, &flock_rt);
 	M0_ASSERT(rc == 0);
 
-	xprt = &m0_net_lnet_xprt;
-	rc = m0_net_domain_init(&nd, xprt);
+	rc = m0_net_domain_init(nd, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 
 	fid.f_container = 1;
 	fid.f_key       = 4;
-	M0_SET0(&file);
-	m0_file_init(&file, &fid, rm_dom, M0_DI_NONE);
+	m0_file_init(file, &fid, rm_dom, M0_DI_NONE);
 
 	/* Test : m0_io_fop_init() */
 	rc = m0_io_fop_init(iofop, &fid, &m0_fop_cob_writev_fopt, NULL);
@@ -196,7 +197,7 @@ static void bulkclient_test(void)
 	M0_UT_ASSERT(rbulk == &iofop->if_rbulk);
 
 	/* Test : m0_rpc_bulk_buf_add() */
-	rc = m0_rpc_bulk_buf_add(rbulk, IO_SINGLE_BUFFER, 0, &nd, NULL, &rbuf);
+	rc = m0_rpc_bulk_buf_add(rbulk, IO_SINGLE_BUFFER, 0, nd, NULL, &rbuf);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rbuf != NULL);
 
@@ -214,15 +215,15 @@ static void bulkclient_test(void)
 	M0_UT_ASSERT(rbuf->bb_flags == M0_RPC_BULK_NETBUF_ALLOCATED);
 
 	/* Test : m0_rpc_bulk_buf_add() - Error case. */
-	max_segs = m0_net_domain_get_max_buffer_segments(&nd);
-	rc = m0_rpc_bulk_buf_add(rbulk, max_segs + 1, 0, &nd, NULL, &rbuf1);
+	max_segs = m0_net_domain_get_max_buffer_segments(nd);
+	rc = m0_rpc_bulk_buf_add(rbulk, max_segs + 1, 0, nd, NULL, &rbuf1);
 	M0_UT_ASSERT(rc == -EMSGSIZE);
 
 	/* Test : m0_rpc_bulk_buf_databuf_add(). */
 	sbuf = m0_alloc_aligned(M0_0VEC_ALIGN, M0_0VEC_SHIFT);
 	M0_UT_ASSERT(sbuf != NULL);
 	memset(sbuf, 'a', M0_0VEC_ALIGN);
-	rc = m0_rpc_bulk_buf_databuf_add(rbuf, sbuf, M0_0VEC_ALIGN, 0, &nd);
+	rc = m0_rpc_bulk_buf_databuf_add(rbuf, sbuf, M0_0VEC_ALIGN, 0, nd);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_vec_count(&rbuf->bb_zerovec.z_bvec.ov_vec) ==
 		     M0_0VEC_ALIGN);
@@ -230,13 +231,13 @@ static void bulkclient_test(void)
 		     m0_vec_count(&rbuf->bb_nbuf->nb_buffer.ov_vec));
 
 	/* Test : m0_rpc_bulk_buf_databuf_add() - Error case. */
-	max_seg_size = m0_net_domain_get_max_buffer_segment_size(&nd);
-	rc = m0_rpc_bulk_buf_databuf_add(rbuf, sbuf, max_seg_size + 1, 0, &nd);
+	max_seg_size = m0_net_domain_get_max_buffer_segment_size(nd);
+	rc = m0_rpc_bulk_buf_databuf_add(rbuf, sbuf, max_seg_size + 1, 0, nd);
 	/* Segment size bigger than permitted segment size. */
 	M0_UT_ASSERT(rc == -EMSGSIZE);
 
-	max_buf_size = m0_net_domain_get_max_buffer_size(&nd);
-	rc = m0_rpc_bulk_buf_databuf_add(rbuf, sbuf, max_buf_size + 1, 0, &nd);
+	max_buf_size = m0_net_domain_get_max_buffer_size(nd);
+	rc = m0_rpc_bulk_buf_databuf_add(rbuf, sbuf, max_buf_size + 1, 0, nd);
 	/* Max buffer size greater than permitted max buffer size. */
 	M0_UT_ASSERT(rc == -EMSGSIZE);
 
@@ -244,10 +245,10 @@ static void bulkclient_test(void)
 	m0_rpc_bulk_buflist_empty(rbulk);
 	M0_UT_ASSERT(m0_tlist_is_empty(&rpcbulk_tl, &rbulk->rb_buflist));
 
-	rc = m0_rpc_bulk_buf_add(rbulk, IO_SINGLE_BUFFER, 0, &nd, NULL, &rbuf);
+	rc = m0_rpc_bulk_buf_add(rbulk, IO_SINGLE_BUFFER, 0, nd, NULL, &rbuf);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rbuf != NULL);
-	rc = m0_rpc_bulk_buf_databuf_add(rbuf, sbuf, M0_0VEC_ALIGN, 0, &nd);
+	rc = m0_rpc_bulk_buf_databuf_add(rbuf, sbuf, M0_0VEC_ALIGN, 0, nd);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Test : m0_rpc_bulk_buf_add(nb != NULL)*/
@@ -259,7 +260,7 @@ static void bulkclient_test(void)
 	memset(nb->nb_buffer.ov_buf[IO_SINGLE_BUFFER - 1], 'a', M0_0VEC_ALIGN);
 
 	rc = m0_rpc_bulk_buf_add(rbulk, IO_SINGLE_BUFFER, 0,
-				 &nd, nb, &rbuf1);
+				 nd, nb, &rbuf1);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rbuf1 != NULL);
 	M0_UT_ASSERT(rbuf1->bb_nbuf == nb);
@@ -278,7 +279,7 @@ static void bulkclient_test(void)
 	M0_ALLOC_PTR(ctm);
 	M0_UT_ASSERT(ctm != NULL);
 	ctm->bmt_addr = caddr;
-	bulkio_msg_tm_init(ctm, &nd);
+	bulkio_msg_tm_init(ctm, nd);
 
 	rc = m0_rpc_bulk_store(rbulk, &ctm->bmt_conn, rw->crw_desc.id_descs,
 			       &m0_rpc__buf_bulk_cb);
@@ -313,7 +314,7 @@ static void bulkclient_test(void)
 	M0_ALLOC_PTR(stm);
 	M0_UT_ASSERT(stm != NULL);
 	stm->bmt_addr = saddr;
-	bulkio_msg_tm_init(stm, &nd);
+	bulkio_msg_tm_init(stm, nd);
 
 	/*
 	 * Bulk server (receiving side) typically uses m0_rpc_bulk structure
@@ -341,7 +342,7 @@ static void bulkclient_test(void)
 	}
 
 	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
-		rc = m0_rpc_bulk_buf_add(sbulk, 1, 0, &nd, nbufs[i],
+		rc = m0_rpc_bulk_buf_add(sbulk, 1, 0, nd, nbufs[i],
 					 &rbuf2);
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(rbuf2 != NULL);
@@ -399,7 +400,7 @@ static void bulkclient_test(void)
 
 	/* Rpc bulk op timeout */
 
-	rc = m0_rpc_bulk_buf_add(rbulk, IO_SINGLE_BUFFER, 0, &nd, nb, &rbuf1);
+	rc = m0_rpc_bulk_buf_add(rbulk, IO_SINGLE_BUFFER, 0, nd, nb, &rbuf1);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_bulk_store(rbulk, &ctm->bmt_conn, rw->crw_desc.id_descs,
 			       &m0_rpc__buf_bulk_cb);
@@ -419,7 +420,7 @@ static void bulkclient_test(void)
 
 	m0_rpc_bulk_init(sbulk);
 	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
-		rc = m0_rpc_bulk_buf_add(sbulk, 1, 0, &nd, nbufs[i], &rbuf2);
+		rc = m0_rpc_bulk_buf_add(sbulk, 1, 0, nd, nbufs[i], &rbuf2);
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(rbuf2 != NULL);
 	}
@@ -471,8 +472,10 @@ static void bulkclient_test(void)
 	m0_free_aligned(sbuf, M0_0VEC_ALIGN, M0_0VEC_SHIFT);
 	m0_io_fop_fini(iofop);
 	m0_free(iofop);
-	m0_net_domain_fini(&nd);
-	m0_file_fini(&file);
+	m0_net_domain_fini(nd);
+	m0_free(nd);
+	m0_file_fini(file);
+	m0_free(file);
 	m0_file_lock_type_deregister(&flock_rt);
 	m0_rm_domain_fini(rm_dom);
 	m0_free(rm_dom);

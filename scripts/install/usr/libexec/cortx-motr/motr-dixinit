@@ -29,8 +29,6 @@ readonly PROG_NAME=$(basename $0)
 MOTR_GENDERS_CONF=/etc/motr/genders
 
 # service local variables
-user_config=/etc/sysconfig/motr
-kernel_config=/etc/sysconfig/motr-kernel
 service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 
 m0_dixinit()
@@ -41,7 +39,7 @@ m0_dixinit()
     [[ -r $kernel_config ]] && source $kernel_config
     [[ -r $user_config ]]   && source $user_config
 
-    [[ -n $MOTR_M0D_DEBUGGER ]] && export M0_DEBUGGER=$MOTR_M0D_DEBUGGER
+    [[ -n "$MOTR_M0D_DEBUGGER" ]] && export M0_DEBUGGER=$MOTR_M0D_DEBUGGER
 
     m0_cas_enabled || {
         m0_log 'CAS service is not enabled, skipping m0dixinit'

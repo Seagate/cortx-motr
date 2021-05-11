@@ -32,7 +32,10 @@ import bisect
 import json
 
 LIBMOTR_PATH = "/usr/lib64/libmotr.so"
-MOTR_CONFIG = "/etc/sysconfig/motr"
+SYSCONF_DIR = "/etc/sysconfig"
+if not os.path.isdir(SYSCONF_DIR):
+    SYSCONF_DIR = "/etc/default"
+MOTR_CONFIG = SYSCONF_DIR + "/motr"
 TOTAL_SPACE = "fs_total_disk"
 FREE_SPACE = "fs_free_disk"
 USAGE_PERCENTAGE = "usedprct"
@@ -42,7 +45,7 @@ SIZE = "size"
 FS_SYSTEMD_FAILED = 1
 conf = {}
 
-with open("/etc/sysconfig/motr-free-space-monitor") as f:
+with open(SYSCONF_DIR + "/motr-free-space-monitor") as f:
     for config in f.read().splitlines():
         if config.startswith("#"):
             continue

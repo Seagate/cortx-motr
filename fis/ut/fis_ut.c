@@ -24,7 +24,7 @@
 #include "lib/trace.h"
 
 #include "lib/finject.h"
-#include "conf/ut/common.h"   /* m0_conf_ut_xprt */
+#include "conf/ut/common.h"   /* CLIENT_ENDPOINT_ADDR, SERVER_ENDPOINT_ADDR */
 #include "fis/fi_command.h"
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx, m0_rpc_client_ctx */
 #include "ut/misc.h"          /* M0_UT_CONF_PROCESS */
@@ -34,7 +34,6 @@ enum {
 	MAX_RPCS_IN_FLIGHT = 1,
 };
 
-static struct m0_net_xprt      *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain     client_net_dom;
 static struct m0_rpc_client_ctx cctx = {
         .rcx_net_dom            = &client_net_dom,
@@ -56,8 +55,8 @@ static void fis_ut_motr_start(struct m0_rpc_server_ctx *rctx)
 		"-c", M0_SRC_PATH("fis/ut/fis.xc")
 	};
 	*rctx = (struct m0_rpc_server_ctx) {
-		.rsx_xprts         = &m0_conf_ut_xprt,
-		.rsx_xprts_nr      = 1,
+		.rsx_xprts         = m0_net_all_xprt_get(),
+		.rsx_xprts_nr      = m0_net_xprt_nr(),
 		.rsx_argv          = argv,
 		.rsx_argc          = ARRAY_SIZE(argv),
 		.rsx_log_file_name = NAME(".log")
@@ -76,7 +75,7 @@ static void fis_ut_client_start(void)
 {
 	int rc;
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(rc == 0);

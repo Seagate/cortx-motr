@@ -158,12 +158,12 @@ parse_cli_options()
                            ;;
 
             env)           cmd=env-${2:-show}; shift
-                           [[ -z $1 ]] || shift
+                           [[ -z "$1" ]] || shift
                            break
                            ;;
 
             workspace|ws)  cmd=workspace-${2:-list}; shift
-                           [[ -z $1 ]] || shift
+                           [[ -z "$1" ]] || shift
                            break
                            ;;
 
@@ -290,7 +290,7 @@ show_env()
 
 add_env_var()
 {
-    if [[ -n $1 ]] ; then
+    if [[ -n "$1" ]] ; then
         for v in "$@" ; do
             echo "$v" >> "$VAGRANT_DEFAULT_ENV_FILE"
         done
@@ -351,7 +351,7 @@ add_workspace()
 {
     local ws_name=$1
 
-    [[ -n $ws_name ]] ||
+    [[ -n "$ws_name" ]] ||
         die "please, specify a workspace name, it cannot be empty"
 
     [[ $ws_name != default ]] ||
@@ -378,7 +378,7 @@ add_workspace()
 
 switch_to_workspace()
 {
-    [[ -n $1 ]] ||
+    [[ -n "$1" ]] ||
         die "please, specify the workspace name, it cannot be empty"
 
     if [[ $1 == default ]] ; then
@@ -410,7 +410,7 @@ parse_cli_options "$@"
 eval set -- "$cli_args"
 
 check_dependencies
-if [[ $(uname) =~ ^(Linux|Darwin)$ && -z $M0_VG_NO_SYMLINKS ]] ; then
+if [[ $(uname) =~ ^(Linux|Darwin)$ && -z "$M0_VG_NO_SYMLINKS" ]] ; then
     check_vagrant_dotdir
     check_vagrant_envfile
 fi
@@ -449,14 +449,14 @@ case $cmd in
 
     run)
         if [[ $1 == --vm ]] ; then
-            [[ -n $2 && $2 != -f ]] ||
+            [[ -n "$2" && $2 != -f ]] ||
                 die "'run --vm' command requires an argument"
             VM=$2
             shift 2
         fi
 
         if [[ $1 == -f ]] ; then
-            if [[ -n $2 ]] ; then
+            if [[ -n "$2" ]] ; then
                 # commands from file
                 exec vagrant ssh $VM -- -t "$(cd $OLDPWD; cat $2)"
             else

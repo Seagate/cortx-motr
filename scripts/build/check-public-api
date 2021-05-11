@@ -111,7 +111,7 @@ sed -e '/^#/d' -e '/^$/d' -e 's/^\*//' $pub_api | _sort > $pub_api_sorted
 
 ids_unexpected=$(_comm -13 $pub_api_sorted $func_list)
 ids_missing=$(_comm -23 $pub_api_sorted $func_list)
-if [[ -n $ids_missing ]]; then
+if [[ -n "$ids_missing" ]]; then
 	tolerated=$(mktemp)
 	sed -n 's/^\*//p' $pub_api | _sort > $tolerated
 	if [[ -s $tolerated ]]; then
@@ -119,14 +119,14 @@ if [[ -n $ids_missing ]]; then
 	fi
 fi
 
-[[ -n ${ids_unexpected}${ids_missing} ]] && echo FAIL || echo OK
+[[ -n "${ids_unexpected}${ids_missing}" ]] && echo FAIL || echo OK
 
 rc=0
-[[ -z $ids_unexpected ]] || {
+[[ -z "$ids_unexpected" ]] || {
 	echo "*ERROR* Not found in \`$pub_api':" $ids_unexpected
     rc=1
 }
-[[ -z $ids_missing ]] || {
+[[ -z "$ids_missing" ]] || {
 	echo "*ERROR* Present in \`$pub_api' but not defined:" $ids_missing
     rc=1
 }

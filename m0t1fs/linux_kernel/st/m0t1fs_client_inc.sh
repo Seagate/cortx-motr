@@ -118,7 +118,7 @@ unmount_and_clean()
 		rm -rf $MOTR_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
 	done
 
-        if [ ! -z $multiple_pools ] && [ $multiple_pools == 1 ]; then
+        if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
 		local ios_index=`expr $i + 1`
 		rm -rf $MOTR_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
         fi
@@ -794,26 +794,26 @@ m0t1fs_big_bs_io_test()
 # This test does large file creation and write with large block-size.
 # It also checks the disk space usage before and after the written,
 # and after file deletion. This check is to verify balloc alloc/free.
-# This test writes 8GB data. It requires at least 8GB disk space in test dir.
+# This test writes 4GB of data. It requires at least 7GB of disk space.
 m0t1fs_test_MOTR_2099()
 {
 	local rc=0
 	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR || rc=1
 
-	df $MOTR_M0T1FS_MOUNT_DIR -h
+	df $MOTR_M0T1FS_MOUNT_DIR
 	used_before=`df $MOTR_M0T1FS_MOUNT_DIR --output=used | tail -n 1`
-	for i in 0:00{0..9}{0..3}; do
-		# This is to create 40 files, 200MB for each, 8GB in total.
+	for i in 0:00{0..9}{0..1}; do
+		# This is to create 20 files, 200MB each, 8GB in total.
 		m0t1fs_file=$MOTR_M0T1FS_MOUNT_DIR/${i}
 		touch_file $m0t1fs_file 8192 && run "dd if=/dev/zero of=$m0t1fs_file bs=200M count=1" || rc=1
 	done
-	df $MOTR_M0T1FS_MOUNT_DIR -h
+	df $MOTR_M0T1FS_MOUNT_DIR
 	used_after=`df $MOTR_M0T1FS_MOUNT_DIR --output=used | tail -n 1`
-	for i in 0:00{0..9}{0..3}; do
+	for i in 0:00{0..9}{0..1}; do
 		m0t1fs_file=$MOTR_M0T1FS_MOUNT_DIR/${i}
 		rm -f $m0t1fs_file
 	done
-	df $MOTR_M0T1FS_MOUNT_DIR -h
+	df $MOTR_M0T1FS_MOUNT_DIR
 	used_delete=`df $MOTR_M0T1FS_MOUNT_DIR --output=used | tail -n 1`
 	echo "used_before used_after used_delete $used_before $used_after $used_delete"
 	if [ $used_before -ne $used_delete ] ; then
@@ -821,7 +821,7 @@ m0t1fs_test_MOTR_2099()
 		rc=1
 	fi
 
-	total_blocks=`expr 200 \* 40 \* 1024` #in 1K blocks
+	total_blocks=`expr 200 \* 20 \* 1024` #in 1K blocks
 	echo "total_blocks = $total_blocks"
 	if [ $used_after -le $total_blocks ] ; then
 		echo "Are you kidding? The used blocks are less than expected."

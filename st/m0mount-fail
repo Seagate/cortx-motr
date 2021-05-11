@@ -211,7 +211,7 @@ m0d_start() {
         error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
 }
 
-m0d_stop() { killall -q lt-m0d && wait || true; }
+m0d_stop() { pkill m0d && wait || true; }
 
 mount_fail() {
     local profile=$1

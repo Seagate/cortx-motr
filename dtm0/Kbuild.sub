@@ -1,0 +1,9 @@
+m0tr_objects += \
+                  dtm0/fop_xc.o \
+                  dtm0/clk_src.o \
+                  dtm0/clk_src_xc.o \
+                  dtm0/tx_desc.o \
+                  dtm0/tx_desc_xc.o \
+                  dtm0/service.o \
+                  dtm0/fop.o \
+                  dtm0/dtx.o

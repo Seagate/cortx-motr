@@ -91,9 +91,6 @@
    Represents various network transports supported
    by a particular node in a cluster.
  */
-static struct m0_net_xprt *cs_xprts[] = {
-	&m0_net_lnet_xprt
-};
 
 M0_INTERNAL int main(int argc, char **argv)
 {
@@ -131,7 +128,8 @@ M0_INTERNAL int main(int argc, char **argv)
 		goto out;
 	}
 
-	rc = m0_cs_init(&motr_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr, true);
+	rc = m0_cs_init(&motr_ctx, m0_net_all_xprt_get(), m0_net_xprt_nr(),
+			stderr, true);
 	if (rc != 0) {
 		fprintf(stderr, "\n Failed to initialise Motr \n");
 		goto cleanup;

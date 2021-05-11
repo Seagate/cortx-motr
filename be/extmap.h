@@ -199,10 +199,10 @@ struct m0_be_emap_seg {
 struct m0_be_emap_cursor {
 	/** Map this cursor is iterating through. */
 	struct m0_be_emap        *ec_map;
-	/** Segment currently reached. */
-	struct m0_be_emap_seg     ec_seg;
 	/** Emap current version. */
 	uint64_t                  ec_version;
+	/** Segment currently reached. */
+	struct m0_be_emap_seg     ec_seg;
 	/** Data-base cursor. */
 	struct m0_be_btree_cursor ec_cursor;
 	struct m0_be_emap_key     ec_key;
