@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2017-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2017-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,6 +54,9 @@ void timeval_sub(struct timeval *end, struct timeval *start);
 double tsec(const struct timeval *tval);
 double rate(bcnt_t items, const struct timeval *tval, int scale);
 unsigned long long genrand64_int64(void);
+void cr_get_random_string(char *dest, size_t length);
+void cr_time_acc(m0_time_t *t1, m0_time_t t2);
+
 
 /** @} end of crate_utils group */
 #endif /* __MOTR_M0CRATE_CRATE_UTILS_H__ */
