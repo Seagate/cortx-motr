@@ -1644,6 +1644,18 @@ int m0_entity_sync(struct m0_entity *ent);
  * @return 0 for success, anything else for an error.
  */
 int m0_sync(struct m0_client *m0c, bool wait);
+
+/**
+ * Returns optimal layout id according to the object size in the current
+ * pool version.
+ *
+ * @param inst     Motr instance used to get the layout domain and
+ *                 pool version.
+ * @param obj_size size of the object whose layout id is to be set.
+ * @return 1-14 for success, 0 on error getting pool version.
+ */
+int64_t m0_obj_size_to_layout_id(struct m0_client *inst, size_t obj_size);
+
 /**
  * Maps a unit size to a layout id defined in Motr.
  *
