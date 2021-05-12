@@ -101,10 +101,7 @@ static struct reqh_ut_balloc *getballoc(struct m0_ad_balloc *ballroom)
 
 static int reqh_ut_balloc_init(struct m0_ad_balloc *ballroom,
 			       struct m0_be_seg *db,
-			       uint32_t bshift,
-			       m0_bindex_t container_size,
-			       m0_bcount_t groupsize,
-			       m0_bcount_t spare_reserve)
+			       struct m0_ad_balloc_format_req *req)
 {
 	struct reqh_ut_balloc *rb = getballoc(ballroom);
 
@@ -228,7 +225,9 @@ static int server_init(const char             *stob_path,
 	/*
 	 * Create AD domain over backing store object.
 	 */
-	m0_stob_ad_cfg_make(&sdom_cfg, seg, m0_stob_id_get(bstore), 0);
+	m0_stob_ad_cfg_make(&sdom_cfg, seg, m0_stob_id_get(bstore), 0,
+			    BALLOC_DEF_BLOCKS_PER_GROUP,
+			    BALLOC_DEF_GROUPS_NR);
 	sdom_location = m0_alloc(0x1000);
 	snprintf(sdom_location, 0x1000, "adstob:seg=%p,1234", seg);
 	m0_stob_ad_init_cfg_make(&sdom_init_cfg, &ut_be.but_dom);

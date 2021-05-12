@@ -53,6 +53,8 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *dest, struct m0_conf_root *r);
 
 M0_INTERNAL int cs_conf_storage_init(struct cs_stobs        *stob,
 				     struct m0_storage_devs *devs,
+				     uint64_t                group_size,
+				     uint64_t                index_nr,
 				     bool                    force);
 
 M0_INTERNAL int cs_conf_device_reopen(struct m0_poolmach *pm,

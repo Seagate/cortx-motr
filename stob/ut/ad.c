@@ -113,10 +113,7 @@ static struct mock_balloc *b2mock(struct m0_ad_balloc *ballroom)
 
 static int mock_balloc_init(struct m0_ad_balloc *ballroom,
 			    struct m0_be_seg *seg,
-			    uint32_t bshift,
-			    m0_bindex_t container_size,
-			    m0_bcount_t groupsize,
-			    m0_bcount_t spare_reserve)
+			    struct m0_ad_balloc_format_req *req)
 {
 	return 0;
 }
@@ -210,7 +207,9 @@ static int test_ad_init(bool use_small_credits)
 	m0_stob_ut_ad_init(&ut_be, &ut_seg, use_small_credits);
 
 	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg,
-			    m0_stob_id_get(obj_back), 0);
+			    m0_stob_id_get(obj_back), 0,
+			    BALLOC_DEF_BLOCKS_PER_GROUP,
+			    BALLOC_DEF_INDEXES_NR);
 	M0_UT_ASSERT(dom_cfg != NULL);
 	m0_stob_ad_init_cfg_make(&dom_init_cfg, &ut_be.but_dom);
 	M0_UT_ASSERT(dom_init_cfg != NULL);

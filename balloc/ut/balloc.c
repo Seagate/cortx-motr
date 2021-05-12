@@ -112,19 +112,26 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg,
 	int                     rc;
 	time_t                  now;
 
+	struct m0_ad_balloc_format_req bcfg;
+
 	time(&now);
 	srand(now);
 
+
+	bcfg.bfr_fid                   = M0_FID_INIT(0, 1);
+	bcfg.bfr_totalsize             = BALLOC_DEF_CONTAINER_SIZE;
+	bcfg.bfr_blocksize             = (1 << BALLOC_DEF_BLOCK_SHIFT);
+	bcfg.bfr_groupsize             = BALLOC_DEF_BLOCKS_PER_GROUP;
+	bcfg.bfr_indexcount            = BALLOC_DEF_INDEXES_NR;
+	bcfg.bfr_spare_reserved_blocks = m0_stob_ad_spares_calc(
+						BALLOC_DEF_BLOCKS_PER_GROUP);
+
 	grp = m0_be_ut_backend_sm_group_lookup(ut_be);
-	rc = m0_balloc_create(0, seg, grp, &motr_balloc, &M0_FID_INIT(0, 1),
-			      GROUP_SIZE);
+	rc = m0_balloc_create(0, seg, grp, &bcfg, &motr_balloc);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = motr_balloc->cb_ballroom.ab_ops->bo_init
-		(&motr_balloc->cb_ballroom, seg, BALLOC_DEF_BLOCK_SHIFT,
-		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
-		 m0_stob_ad_spares_calc(BALLOC_DEF_BLOCKS_PER_GROUP));
-
+		(&motr_balloc->cb_ballroom, seg, &bcfg);
 	if (rc != 0)
 		goto out;
 

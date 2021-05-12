@@ -162,7 +162,7 @@ static int index_hash(struct m0_balloc_super_block *sb,
 
         grp_no = (block_offset - 1) / sb->bsb_groupsize;
 
-        return grp_no % BALLOC_DEF_INDEXES_NR;
+	return grp_no % sb->bsb_indexcount;
 };
 
 static void balloc_debug_dump_extent(const char *tag, struct m0_ext *ex)
@@ -461,7 +461,7 @@ static void balloc_fini_internal(struct m0_balloc *bal)
 		m0_free0(&bal->cb_group_info);
 	}
 
-	for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
+	for (i = 0; i < bal->cb_sb.bsb_indexcount; i++) {
 		m0_be_btree_fini(&bal->cb_db_group_extents[i]);
 	}
 	m0_be_btree_fini(&bal->cb_db_group_desc);
@@ -562,7 +562,7 @@ static int sb_update(struct m0_balloc *bal, struct m0_sm_group *grp)
 }
 
 static int balloc_sb_write(struct m0_balloc            *bal,
-			   struct m0_balloc_format_req *req,
+			   struct m0_ad_balloc_format_req *req,
 			   struct m0_sm_group          *grp)
 {
 	int				 rc;
@@ -609,6 +609,7 @@ static int balloc_sb_write(struct m0_balloc            *bal,
 	sb->bsb_bsbits		= ffs(req->bfr_blocksize) - 1;
 	sb->bsb_gsbits		= ffs(req->bfr_groupsize) - 1;
 	sb->bsb_groupcount	= number_of_groups;
+	sb->bsb_indexcount	= req->bfr_indexcount;
 #ifdef __SPARE_SPACE__
 				  /* should be power of 2*/
 	sb->bsb_sparesize       = req->bfr_spare_reserved_blocks;
@@ -656,7 +657,7 @@ balloc_group_write_credit(struct m0_balloc               *bal,
 {
 	int i;
 
-	for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
+	for (i = 0; i < bal->cb_sb.bsb_indexcount; i++) {
 		m0_be_btree_insert_credit(&bal->cb_db_group_extents[i], 2,
 			M0_MEMBER_SIZE(struct m0_ext, e_start),
 			M0_MEMBER_SIZE(struct m0_ext, e_end), credit);
@@ -892,7 +893,7 @@ static int balloc_groups_write(struct m0_balloc *bal)
    @return 0 means success. Otherwise, error number will be returned.
  */
 static int balloc_format(struct m0_balloc *bal,
-			 struct m0_balloc_format_req *req,
+			 struct m0_ad_balloc_format_req *req,
 			 struct m0_sm_group *grp)
 {
 	int rc;
@@ -982,10 +983,7 @@ static int sb_mount(struct m0_balloc *bal, struct m0_sm_group *grp)
 static int balloc_init_internal(struct m0_balloc *bal,
 				struct m0_be_seg *seg,
 				struct m0_sm_group *grp,
-				uint32_t bshift,
-				m0_bcount_t container_size,
-				m0_bcount_t blocks_per_group,
-				m0_bcount_t spare_blocks_per_group)
+				struct m0_ad_balloc_format_req *req)
 {
 	int rc;
 	int i;
@@ -999,28 +997,22 @@ static int balloc_init_internal(struct m0_balloc *bal,
 	m0_be_btree_init(&bal->cb_db_group_desc, seg, &gd_btree_ops);
 
 	if (bal->cb_sb.bsb_magic != M0_BALLOC_SB_MAGIC) {
-		struct m0_balloc_format_req req = { 0 };
-
 		/* let's format this container */
-		req.bfr_totalsize = container_size;
-		req.bfr_blocksize = 1 << bshift;
-		req.bfr_groupsize = blocks_per_group;
-		req.bfr_spare_reserved_blocks = spare_blocks_per_group;
-
-		rc = balloc_format(bal, &req, grp);
+		rc = balloc_format(bal, req, grp);
 		if (rc != 0)
 			balloc_fini_internal(bal);
 		return M0_RC(rc);
 	}
 
-	if (bal->cb_sb.bsb_blocksize != 1 << bshift) {
+	if (bal->cb_sb.bsb_blocksize != 1 << req->bfr_bshift) {
 		rc = -EINVAL;
 		goto out;
 	}
 
- 	M0_LOG(M0_INFO, "inited btree of count %llu",
-               (unsigned long long)bal->cb_sb.bsb_groupcount);
-	for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
+ 	M0_LOG(M0_INFO, "groupcount: %llu indexcount: %d blocks_per_group: %d",
+               (unsigned long long)bal->cb_sb.bsb_groupcount,
+	       (int)bal->cb_sb.bsb_indexcount, (int)req->bfr_blocksize);
+	for (i = 0; i < bal->cb_sb.bsb_indexcount; i++) {
 		m0_be_btree_init(&bal->cb_db_group_extents[i], seg, &ge_btree_ops);
 	}
 
@@ -2989,9 +2981,7 @@ static int balloc_free(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 }
 
 static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
-		       uint32_t bshift, m0_bcount_t container_size,
-		       m0_bcount_t blocks_per_group,
-		       m0_bcount_t spare_blocks_per_group)
+		       struct m0_ad_balloc_format_req *req)
 {
 	struct m0_balloc   *motr;
 	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;   /* XXX */
@@ -3001,8 +2991,7 @@ static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
 	motr = b2m0(ballroom);
 
 	m0_sm_group_lock(grp);
-	rc = balloc_init_internal(motr, db, grp, bshift, container_size,
-				  blocks_per_group, spare_blocks_per_group);
+	rc = balloc_init_internal(motr, db, grp, req);
 	m0_sm_group_unlock(grp);
 
 	return M0_RC(rc);
@@ -3031,13 +3020,14 @@ static const struct m0_ad_balloc_ops balloc_ops = {
 
 static int balloc_trees_create(struct m0_balloc    *bal,
 			       struct m0_be_tx     *tx,
-			       const struct m0_fid *fid)
+			       const struct m0_fid *fid,
+			       m0_bcount_t          indexcount)
 {
 	int rc;
 	int i;
 	int k;
 
-	for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
+	for (i = 0; i < indexcount; i++) {
 		rc = M0_BE_OP_SYNC_RET(op,
 		       m0_be_btree_create(&bal->cb_db_group_extents[i], tx, &op,
 				  &M0_FID_TINIT('b',
@@ -3073,9 +3063,8 @@ M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb)
 M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 				 struct m0_be_seg     *seg,
 				 struct m0_sm_group   *grp,
-				 struct m0_balloc    **out,
-				 const struct m0_fid  *fid,
-				 int                   group_count)
+				 struct m0_ad_balloc_format_req *bcfg,
+				 struct m0_balloc    **out)
 {
 	struct m0_balloc       *cb;
 	struct m0_be_btree      btree = {};
@@ -3083,14 +3072,16 @@ M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 	struct m0_be_tx_credit  cred  = {};
 	int                     rc;
 	int                     i;
+
 	M0_PRE(seg != NULL);
 	M0_PRE(out != NULL);
 
-	M0_LOG(M0_INFO, "inited btree of count %d", group_count);
+	M0_LOG(M0_INFO, "create group_extents btree of count %d",
+	       (int)bcfg->bfr_indexcount);
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
 		      grp, NULL, NULL, NULL, NULL);
 	M0_BE_ALLOC_CREDIT_PTR(cb, seg, &cred);
-	for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
+	for (i = 0; i < bcfg->bfr_indexcount; i++) {
 		m0_be_btree_init(&btree, seg, &ge_btree_ops);
 		m0_be_btree_create_credit(&btree, 1, &cred);
 		m0_be_btree_fini(&btree);
@@ -3107,27 +3098,27 @@ M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 			rc = -ENOMEM;
 		} else {
 			cb->cb_container_id = cid;
-			cb->group_count     = group_count;
 			M0_BE_ALLOC_CREDIT_ARR(cb->cb_db_group_extents,
-						BALLOC_DEF_INDEXES_NR, seg, &cred);
+					       bcfg->bfr_indexcount, seg, &cred);
 			M0_BE_ALLOC_ARR_SYNC(cb->cb_db_group_extents,
-						BALLOC_DEF_INDEXES_NR, seg, &tx);
+					     bcfg->bfr_indexcount, seg, &tx);
 			if(cb->cb_db_group_extents == NULL)
 				return M0_RC(-ENOMEM);
 
 			balloc_format_init(cb);
-			for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
+			for (i = 0; i < bcfg->bfr_indexcount; i++) {
 				m0_be_btree_init(&cb->cb_db_group_extents[i], seg,
 						 &ge_btree_ops);
 			}
 			m0_be_btree_init(&cb->cb_db_group_desc, seg,
 					 &gd_btree_ops);
-			rc = balloc_trees_create(cb, &tx, fid);
+			rc = balloc_trees_create(cb, &tx, &bcfg->bfr_fid,
+						 bcfg->bfr_indexcount);
 			if (rc == 0) {
 				M0_BE_TX_CAPTURE_PTR(seg, &tx, cb);
 				*out = cb;
 			} else {
-				for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
+				for (i = 0; i < bcfg->bfr_indexcount; i++) {
 					m0_be_btree_fini(&cb->cb_db_group_extents[i]);
 				}
 			}
