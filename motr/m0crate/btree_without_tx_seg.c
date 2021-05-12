@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,9 +33,11 @@
 #include "lib/errno.h"
 #include "lib/finject.h"       /* M0_FI_ENABLED() */
 #include "lib/misc.h"          /* offsetof */
+#include "lib/bitstring.h"     /* m0_bitstring_len_get */
 #include "be/alloc.h"
 #include "be/btree.h"
 #include "be/btree_internal.h" /* m0_be_bnode */
+#include "motr/m0crate/workload.h" /* cr_btree_key */
 
 /* btree constants */
 enum {
@@ -78,6 +80,15 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	*ptr = m0_alloc_aligned(size, shift);
 }
 
+M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
+			     struct m0_be_tx *tx,
+			     struct m0_be_op *op,
+			     void **ptr,
+			     m0_bcount_t size)
+{
+	*ptr = m0_alloc(size);
+}
+
 M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 					enum m0_be_allocator_op optype,
 					m0_bcount_t size,
@@ -108,9 +119,35 @@ M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg,
 	return true;
 }
 
-M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx *tx, 
+M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx *tx,
 				  const struct m0_be_reg *reg)
 {
+}
+
+M0_INTERNAL void m0_be_op_init(struct m0_be_op *op)
+{
+	op->bo_sm.sm_state = M0_BOS_INIT;
+}
+
+M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op)
+{
+}
+
+M0_INTERNAL void m0_be_op_wait(struct m0_be_op *op)
+{
+}
+
+M0_INTERNAL void m0_be_op_active(struct m0_be_op *op)
+{
+}
+
+M0_INTERNAL void m0_be_op_done(struct m0_be_op *op)
+{
+}
+
+M0_INTERNAL bool m0_be_op_is_done(struct m0_be_op *op)
+{
+	return true;
 }
 
 static void btree_root_set(struct m0_be_btree *btree,
@@ -1936,22 +1973,27 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_tx           *tx,
 static void print_single_node(struct m0_be_bnode *node)
 {
 	int i;
+	struct cr_btree_key *k;
 
-	M0_LOG(M0_DEBUG, "{");
+	printf("{\n");
 	for (i = 0; i < node->bt_num_active_key; ++i) {
-		void *key = node->bt_kv_arr[i].btree_key;
+		k = (struct cr_btree_key *)node->bt_kv_arr[i].btree_key;
 		void *val = node->bt_kv_arr[i].btree_val;
 
 		if (node->bt_isleaf)
-			M0_LOG(M0_DEBUG, "%02d: key=%s val=%s", i,
-			       (char *)key, (char *)val);
+			printf("%02d: key=%.*s%"PRIu64" val=%s\n", i,
+			        m0_bitstring_len_get(&k->pattern),
+				(char *)m0_bitstring_buf_get(&k->pattern),
+				k->bkey, (char *)val);
 		else
-			M0_LOG(M0_DEBUG, "%02d: key=%s val=%s child=%p", i,
-			       (char *)key, (char *)val, node->bt_child_arr[i]);
+			printf("%02d: key=%.*s%"PRIu64" val=%s child=%p\n", i,
+			        m0_bitstring_len_get(&k->pattern),
+				(char *)m0_bitstring_buf_get(&k->pattern),
+				k->bkey, (char *)val, node->bt_child_arr[i]);
 	}
 	if (!node->bt_isleaf)
-		M0_LOG(M0_DEBUG, "%02d: child=%p", i, node->bt_child_arr[i]);
-	M0_LOG(M0_DEBUG, "} (%p, %d)", node, node->bt_level);
+		printf("%02d: child=%p\n", i, node->bt_child_arr[i]);
+	printf("} (%p, %d)\n", node, node->bt_level);
 }
 
 static int iter_prepare(struct m0_be_bnode *node, bool print)
@@ -1966,7 +2008,7 @@ static int iter_prepare(struct m0_be_bnode *node, bool print)
 	struct m0_be_bnode *child = NULL;
 
 	if (print)
-		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");
+		printf("---8<---8<---8<---8<---8<---8<---\n");
 
 	if (node == NULL)
 		goto out;
@@ -1982,7 +2024,7 @@ static int iter_prepare(struct m0_be_bnode *node, bool print)
 		if (head->bt_level < current_level) {
 			current_level = head->bt_level;
 			if (print)
-				M0_LOG(M0_DEBUG, "***");
+				printf("***\n");
 		}
 		if (print)
 			print_single_node(head);
@@ -2002,7 +2044,7 @@ static int iter_prepare(struct m0_be_bnode *node, bool print)
 	}
 out:
 	if (print)
-		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");
+		printf("---8<---8<---8<---8<---8<---8<---\n");
 
 	return count;
 }
