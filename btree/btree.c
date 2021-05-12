@@ -532,10 +532,11 @@
  *  --------------------------------------------
  */
 
+struct td;
 struct m0_btree {
 	const struct m0_btree_type *t_type;
 	unsigned                    t_height;
-	struct tree                *t_addr;
+	struct td                  *t_addr;
 	struct m0_rwlock            t_lock;
 };
 
@@ -2041,34 +2042,30 @@ static void generic_move(struct nd *src, struct nd *tgt,
 
 
 #ifndef __KERNEL__
+
+
+/**
+ *  --------------------------
+ *  Section START - Unit Tests
+ *  --------------------------
+ */
+
 /**
  * The code contained below is 'ut'. This is a little experiment to contain the
  * ut code in the same file containing the functionality code. We are open to
  * changes iff enough reasons are found that this model either does not work or
  * is not intuitive or maintainable.
  */
-static void m0_btree_ut_node_create_delete(void);
-static void m0_btree_ut_node_add_del_rec(void);
 
+#define m0_be_tx_init(tx,tid,dom,sm_group,persistent,discarded,filler,datum) \
+	do {                                                                 \
+	                                                                     \
+	} while (0)
 
-/**
- * btree_ut test suite.
- */
-struct m0_ut_suite btree_ut = {
-	.ts_name = "btree-ut",
-	.ts_yaml_config_string = "{ valgrind: { timeout: 3600 },"
-	"  helgrind: { timeout: 3600 },"
-	"  exclude:  ["
-	"   "
-	"  ] }",
-	.ts_init = NULL,
-	.ts_fini = NULL,
-	.ts_tests = {
-		{"node_create_delete",          m0_btree_ut_node_create_delete},
-		{"node_add_del_rec",            m0_btree_ut_node_add_del_rec},
-		{NULL, NULL}
-	}
-};
+#define m0_be_tx_prep(tx,credit)                                             \
+	do {                                                                 \
+                                                                             \
+	} while (0)
 
 static bool btree_ut_initialised = false;
 static void btree_ut_init(void)
@@ -2300,7 +2297,7 @@ void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
  * This test will create a tree, add a node and then populate the node with
  * some records. It will also confirm the records are in ascending order of Key.
  */
-void m0_btree_ut_node_add_del_rec(void)
+static void m0_btree_ut_node_add_del_rec(void)
 {
 	struct node_op          op;
 	struct m0_btree_type    tt;
@@ -2376,6 +2373,102 @@ void m0_btree_ut_node_add_del_rec(void)
 
 	M0_LEAVE();
 }
+
+/**
+ * In this unit test we exercise a few tree operations in both valid and invalid
+ * conditions.
+ */
+static void m0_btree_ut_test_tree_operations(void)
+{
+	void                   *invalid_addr = (void *)0xbadbadbadbad;
+	struct m0_btree        *btree;
+	struct m0_btree_type    btree_type = {.tt_id = M0_BT_EMAP_EM_MAPPING };
+	struct m0_be_tx        *tx = NULL;
+	struct m0_btree_op      b_op;
+	void                   *temp_node;
+
+	/** Prepare transaction to capture tree operations. */
+	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
+	m0_be_tx_prep(tx, NULL);
+
+	/**
+	 *  Run a valid scenario which:
+	 *  1) Creates a btree
+	 *  2) Closes the btree
+	 *  3) Opens the btree
+	 *  4) Closes the btree
+	 *  5) Destroys the btree
+	 */
+
+	/** Create temp node space*/
+	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
+			      m0_btree_create(temp_node, 1024, &btree_type,
+					      tx, &b_op));
+
+	m0_btree_close(b_op.bo_arbor);
+
+	m0_btree_open(temp_node, 1024, &btree);
+
+	m0_btree_close(btree);
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op));
+
+	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
+
+	/** Now run some invalid cases */
+
+	/** Open a non-existent btree */
+	m0_btree_open(invalid_addr, 1024, &btree);
+
+	/** Close a non-existent btree */
+	m0_btree_close(btree);
+
+	/** Destroy a non-existent btree */
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op));
+
+	/** Create a new btree */
+	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
+			      m0_btree_create(temp_node, 1024, &btree_type,
+					      tx, &b_op));
+
+
+	/** Close it */
+	m0_btree_close(b_op.bo_arbor);
+
+	/** Try closing again */
+	m0_btree_close(b_op.bo_arbor);
+
+	/** Re-open it */
+	m0_btree_open(invalid_addr, 1024, &btree);
+
+	/** Open it again */
+	m0_btree_open(invalid_addr, 1024, &btree);
+
+	/** Destory it */
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op));
+
+	/** Attempt to reopen the destroyed tree */
+	m0_btree_open(invalid_addr, 1024, &btree);
+
+}
+
+struct m0_ut_suite btree_ut = {
+	.ts_name = "btree-ut",
+	.ts_yaml_config_string = "{ valgrind: { timeout: 3600 },"
+	"  helgrind: { timeout: 3600 },"
+	"  exclude:  ["
+	"   "
+	"  ] }",
+	.ts_init = NULL,
+	.ts_fini = NULL,
+	.ts_tests = {
+		{"node_create_delete",          m0_btree_ut_node_create_delete},
+		{"node_add_del_rec",            m0_btree_ut_node_add_del_rec},
+		{"tree_operations",             m0_btree_ut_test_tree_operations},
+		{NULL, NULL}
+	}
+};
 
 #endif  /** KERNEL */
 #undef M0_TRACE_SUBSYSTEM

@@ -44,9 +44,28 @@ struct m0_btree_rec;
 struct m0_btree_cb;
 struct m0_btree_key;
 
-struct m0_btree_type {
-	uint32_t tt_id;
+
+enum m0_btree_types {
+	M0_BT_INVALID = 1,
+	M0_BT_BALLOC_GROUP_EXTENTS,
+	M0_BT_BALLOC_GROUP_DESC,
+	M0_BT_EMAP_EM_MAPPING,
+	M0_BT_CAS_CTG,
+	M0_BT_COB_NAMESPACE,
+	M0_BT_COB_OBJECT_INDEX,
+	M0_BT_COB_FILEATTR_BASIC,
+	M0_BT_COB_FILEATTR_EA,
+	M0_BT_COB_FILEATTR_OMG,
+	M0_BT_CONFDB,
+	M0_BT_UT_KV_OPS,
+	M0_BT_NR
 };
+
+
+struct m0_btree_type {
+	enum m0_btree_types tt_id;
+};
+
 
 struct m0_bcookie {
 };
@@ -119,6 +138,18 @@ void m0_btree_op_credit(const struct m0_btree_op *bt,
 
 int  m0_btree_mod_init(void);
 void m0_btree_mod_fini(void);
+
+
+#define M0_BTREE_OP_SYNC_WITH(op, action)       \
+	({                                      \
+		struct m0_sm_op *__opp = (op);  \
+						\
+		action;                         \
+		m0_sm_op_tick(__opp);           \
+		m0_sm_op_fini(__opp);           \
+	})
+
+
 
 /** @} end of btree group */
 #endif /* __MOTR_BTREE_BTREE_H__ */
