@@ -188,6 +188,7 @@ struct m0_balloc_super_block {
 	uint32_t	bsb_bsbits;           /**< block size bits: power of 2*/
 	uint32_t	bsb_gsbits;           /**< group size bits: power of 2*/
         m0_bcount_t	bsb_groupcount;       /**< # of group */
+        m0_bcount_t	bsb_indexcount;       /**< # of group */
         m0_bcount_t	bsb_prealloc_count;   /**< nr of pre-alloc blocks */
 
 	uint64_t	bsb_format_time;
@@ -248,7 +249,6 @@ struct m0_balloc {
 	struct m0_ad_balloc          cb_ballroom;
 	struct m0_format_footer      cb_footer;
 
-	int                          group_count;
 	/*
 	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
 	 * before the m0_format_footer, where only persistent fields allowed
@@ -285,19 +285,12 @@ static inline struct m0_balloc *b2m0(const struct m0_ad_balloc *ballroom)
 	return container_of(ballroom, struct m0_balloc, cb_ballroom);
 }
 
-/**
-   Request to format a container.
- */
-struct m0_balloc_format_req {
-	/** Total size in bytes. */
-	m0_bcount_t	bfr_totalsize;
-	/** Block size in bytes. */
-	m0_bcount_t	bfr_blocksize;
-	/** Group size in blocks. */
-	m0_bcount_t	bfr_groupsize;
-	/** XXX Spare blocks per group. Should be a power of two. */
-	m0_bcount_t     bfr_spare_reserved_blocks;
-};
+static inline m0_bcount_t m0_balloc_group_count(const m0_bcount_t container_size,
+						const m0_bcount_t block_size,
+						const m0_bcount_t group_size)
+{
+        return container_size / block_size / group_size;
+}
 
 struct m0_balloc_free_extent {
         m0_bindex_t bfe_logical;       /*< logical offset within the object */
@@ -356,9 +349,8 @@ M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb);
 M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 				 struct m0_be_seg     *seg,
 				 struct m0_sm_group   *grp,
-				 struct m0_balloc    **out,
-				 const struct m0_fid  *fid,
-				 int                   group_count);
+				 struct m0_ad_balloc_format_req *cfg,
+				 struct m0_balloc    **out);
 
 M0_INTERNAL void m0_balloc_group_desc_init(struct m0_balloc_group_desc *desc);
 

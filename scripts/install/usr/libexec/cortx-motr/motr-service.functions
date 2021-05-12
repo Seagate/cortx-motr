@@ -554,6 +554,14 @@ m0_get_core_params()
         optional_params+=" -w $(m0_genders_value_of m0_pool_width)"
     fi
 
+    if [[ -n $MOTR_M0D_BALLOC_GROUP_SIZE ]]; then
+        optional_params+=" -O $MOTR_M0D_BALLOC_GROUP_SIZE"
+    fi
+
+    if [[ -n $MOTR_M0D_BALLOC_INDEX_COUNT ]]; then
+        optional_params+=" -X $MOTR_M0D_BALLOC_INDEX_COUNT"
+    fi
+
     local msg_size=${MOTR_M0D_MAX_RPC_MSG_SIZE:-$(m0_genders_value_of m0_max_rpc_msg_size)}
     local qlen=${MOTR_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}
     local directio=${MOTR_M0D_DIRECT_IO:-$(m0_genders_value_of m0_directio)}

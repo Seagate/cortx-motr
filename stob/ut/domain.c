@@ -32,6 +32,7 @@
 #include "stob/domain.h"
 #include "stob/stob.h"
 #include "stob/stob_internal.h"
+#include "balloc/balloc.h"     /* BALLOC_DEF_BLOCK_SHIFT */
 
 static void stob_ut_stob_domain(const char *location, const char *cfg,
 				const char *init_cfg)
@@ -114,7 +115,9 @@ void m0_stob_ut_stob_domain_ad(void)
 	m0_stob_ut_ad_init(&ut_be, &ut_seg);
 	stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(stob != NULL);
-	m0_stob_ad_cfg_make(&cfg, ut_seg.bus_seg, m0_stob_id_get(stob), 0);
+	m0_stob_ad_cfg_make(&cfg, ut_seg.bus_seg, m0_stob_id_get(stob), 0,
+			    BALLOC_DEF_BLOCKS_PER_GROUP,
+			    BALLOC_DEF_INDEXES_NR);
 	M0_UT_ASSERT(cfg != NULL);
 	m0_stob_ad_init_cfg_make(&init_cfg, &ut_be.but_dom);
 	M0_UT_ASSERT(init_cfg != NULL);
