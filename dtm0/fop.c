@@ -257,11 +257,13 @@ static int m0_dtm0_send_msg(struct m0_fom                *fom,
 	uint64_t                rpc_sm_id;
 	int                     rc;
 	struct m0_dtm0_service *dtms = m0_dtm0_service_find(
-		fom->fo_service->rs_reqh);
+					fom->fo_service->rs_reqh);
 
-	M0_ENTRY("reqh=%p", dtms->dos_generic.rs_reqh);
+	M0_ENTRY("reqh=%p, target service " FID_F, dtms->dos_generic.rs_reqh,
+		  FID_P(tgt));
 
 	session = m0_dtm0_service_process_session_get(&dtms->dos_generic, tgt);
+	M0_ASSERT(session != NULL);
 	if (session == NULL)
 		return M0_ERR(-ENOENT);
 
@@ -314,59 +316,69 @@ M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
 					fom->fo_service->rs_reqh);
 	struct m0_be_dtm0_log  *log = dtms->dos_log;
 	struct m0_dtm0_log_rec *rec;
+	struct m0_dtm0_tx_desc  txd;
 	int                     rc;
-	int                     rc2;
 	int                     i;
 
-
 	M0_PRE(log != NULL);
-	M0_PRE(log->dl_is_persistent);
+	/*
+	 * TODO: uncomment the following line after the connections code
+	 * is updated to detect and set volatile and persistent dtm0 service
+	 * instances. At present, the all2all test treats all connections as
+	 * volatile.
+	 * M0_PRE(log->dl_is_persistent);
+	 */
 
 	M0_ENTRY();
 
 	m0_mutex_lock(&log->dl_lock);
 	/* Get the latest state of the log record. */
 	rec = m0_be_dtm0_log_find(log, id);
-	m0_mutex_unlock(&log->dl_lock);
 	M0_ASSERT_INFO(rec != NULL, "Log record must be inserted into the log "
 		       "in cas_fom_tick().");
-	M0_ASSERT_INFO(m0_dtm0_tx_desc_state_eq(&rec->dlr_txd,
-		       M0_DTPS_PERSISTENT), "Log record not persistent");
+	m0_dtm0_tx_desc_copy(&rec->dlr_txd, &txd);
+	m0_mutex_unlock(&log->dl_lock);
 
 	/* Notify the originator */
-	rc = m0_dtm0_send_msg(fom, DTM_PERSISTENT, &rec->dlr_txd.dtd_id.dti_fid, &rec->dlr_txd);
+	rc = m0_dtm0_send_msg(fom, DTM_PERSISTENT, &txd.dtd_id.dti_fid, &txd);
 
+	if (rc != 0)
+		M0_ERR_INFO(rc, "failed to send PERSISTENT msg to originator "
+			    FID_F" -> " FID_F,
+			    FID_P(&dtms->dos_generic.rs_service_fid),
+			    FID_P(&txd.dtd_ps.dtp_pa->p_fid));
 	/* Send P msgs to the rest of the participants. */
-	for (i = 0; i < rec->dlr_txd.dtd_ps.dtp_nr; ++i) {
-		if (m0_fid_eq(&rec->dlr_txd.dtd_ps.dtp_pa[i].p_fid,
+	for (i = 0; i < txd.dtd_ps.dtp_nr; ++i) {
+		if (m0_fid_eq(&txd.dtd_ps.dtp_pa[i].p_fid,
 			      &dtms->dos_generic.rs_service_fid))
 			continue;
-		rc2 = m0_dtm0_send_msg(fom, DTM_PERSISTENT, &rec->dlr_txd.dtd_ps.dtp_pa->p_fid, &rec->dlr_txd);
-		if (rc == 0 && rc2 != 0)
-			rc = M0_ERR_INFO(-rc2, "failed to send PERSISTENT msg " FID_F " -> " FID_F,
-					 FID_P(&dtms->dos_generic.rs_service_fid),
-					 FID_P(&rec->dlr_txd.dtd_ps.dtp_pa->p_fid));
+		rc = m0_dtm0_send_msg(fom, DTM_PERSISTENT,
+				      &txd.dtd_ps.dtp_pa[i].p_fid, &txd);
+		if (rc != 0)
+			M0_ERR_INFO(rc, "failed to send PERSISTENT msg "
+				    FID_F " -> " FID_F,
+				    FID_P(&dtms->dos_generic.rs_service_fid),
+			FID_P(&txd.dtd_ps.dtp_pa[i].p_fid));
 	}
+	m0_dtm0_tx_desc_fini(&txd);
 
 	return M0_RC(rc);
 }
 
 static int dtm0_fom_tick(struct m0_fom *fom)
 {
-	int                       rc = 0;
+	int                       rc;
+	int                       result = M0_FSO_AGAIN;
 	struct   m0_dtm0_service *svc;
 	struct   m0_buf           buf = {};
 	struct   dtm0_rep_fop    *rep;
 	struct   dtm0_req_fop    *req = m0_fop_data(fom->fo_fop);
-	struct   m0_rpc_item     *item = &fom->fo_fop->f_item;
 	int                       phase = m0_fom_phase(fom);
-	uint64_t                  phase_sm_id = m0_sm_id_get(&fom->fo_sm_phase);
-	uint64_t                  rpc_sm_id   = m0_sm_id_get(&item->ri_sm);
 
 	M0_ENTRY("fom %p phase %d", fom, phase);
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
-		rc = m0_fom_tick_generic(fom);
+		result = m0_fom_tick_generic(fom);
 		if (req->dtr_msg == DTM_PERSISTENT &&
 		    m0_dtm0_is_a_persistent_dtm(fom->fo_service)) {
 			if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
@@ -401,36 +413,35 @@ static int dtm0_fom_tick(struct m0_fom *fom)
 		if (m0_dtm0_in_ut() && req->dtr_msg == DMT_EXECUTE &&
 		    m0_dtm0_is_a_persistent_dtm(fom->fo_service)) {
 			rc = m0_dtm0_tx_desc_copy(&req->dtr_txr, &rep->dr_txr);
-			if (rc != 0)
-				m0_fom_phase_move(fom, M0_ERR(rc), M0_FOPH_FAILURE);
+			M0_ASSERT(rc == 0);
+			m0_fom_phase_move(fom, M0_ERR(rc), M0_FOPH_FAILURE);
 			rc = m0_dtm0_send_msg(fom, DMT_EXECUTED,
 					      &req->dtr_txr.dtd_id.dti_fid,
 					      &req->dtr_txr);
-			if (rc != 0)
-				m0_fom_phase_move(fom, M0_ERR(rc), M0_FOPH_FAILURE);
+			M0_ASSERT(rc == 0);
+			m0_fom_phase_move(fom, M0_ERR(rc), M0_FOPH_FAILURE);
 		} else if (req->dtr_msg == DTM_PERSISTENT) {
 			if (m0_dtm0_is_a_volatile_dtm(fom->fo_service)) {
 				m0_be_dtm0_log_pmsg_post(svc->dos_log, fom->fo_fop);
 			} else {
-				m0_dtm0_logrec_update(svc->dos_log, &fom->fo_tx.tx_betx, &req->dtr_txr, &buf);
-				if (m0_dtm0_in_ut()) {
+				rc = m0_dtm0_logrec_update(svc->dos_log, &fom->fo_tx.tx_betx, &req->dtr_txr, &buf);
+				if (rc == 0 && m0_dtm0_in_ut()) {
 					rc = m0_dtm0_tx_desc_copy(&req->dtr_txr, &rep->dr_txr);
-					if (rc != 0)
-						m0_fom_phase_move(fom, M0_ERR(rc), M0_FOPH_FAILURE);
+					M0_ASSERT(rc == 0);
+					m0_fom_phase_move(fom, M0_ERR(rc), M0_FOPH_FAILURE);
 					rc = m0_dtm0_send_msg(fom, DTM_PERSISTENT,
 						&req->dtr_txr.dtd_id.dti_fid,
 						&req->dtr_txr);
-					if (rc != 0)
-					    m0_fom_phase_move(fom, M0_ERR(rc), M0_FOPH_FAILURE);
+					M0_ASSERT(rc == 0);
+					m0_fom_phase_move(fom, M0_ERR(rc), M0_FOPH_FAILURE);
 				}
 			}
 		}
 		rep->dr_rc = rc;
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
-		rc = M0_FSO_AGAIN;
+		result = M0_FSO_AGAIN;
 	}
-	M0_ADDB2_ADD(M0_AVI_FOM_TO_TX, phase_sm_id, rpc_sm_id);
-	return M0_RC(rc);
+	return M0_RC(result);
 }
 
 /*

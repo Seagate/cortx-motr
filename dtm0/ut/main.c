@@ -29,7 +29,6 @@
 #include "ut/ut.h"
 #include "cas/cas.h"
 #include "cas/cas_xc.h"
-#include "dtm0/service.h"             /* m0_dtm0_service_find */
 
 #define M0_FID(c_, k_)  { .f_container = c_, .f_key = k_ }
 #define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
@@ -114,15 +113,11 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 	M0_UT_ASSERT(m0_dtm0_tid_cmp(&dcs, &txr.dtd_id, &reply_data) == M0_DTS_EQ);
 	m0_fop_put_lock(fop);
 
-
 	/* Test PERSISTENT message */
-
 	rc = m0_dtm0_tx_desc_init(&txr, 1);
 	M0_UT_ASSERT(rc == 0);
 	txr.dtd_ps.dtp_pa[0].p_fid = srv_dtm0_fid;
-	txr.dtd_ps.dtp_pa[0].p_state = M0_DTPS_PERSISTENT;
-
-	txr.dtd_ps.dtp_pa[0].p_fid = srv_dtm0_fid;
+	txr.dtd_ps.dtp_pa[0].p_state = M0_DTPS_INPROGRESS;
 	txr.dtd_id = (struct m0_dtm0_tid) {
 		.dti_ts = now,
 		.dti_fid = cli_srv_fid

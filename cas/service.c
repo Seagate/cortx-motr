@@ -20,7 +20,6 @@
  */
 
 
-#include "dtm0/tx_desc.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CAS
 #include "be/op.h"
 #include "be/tx_credit.h"
@@ -1073,8 +1072,8 @@ static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 	}
 	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
 				     &buf.b_addr, &buf.b_nob) ?:
-	     m0_dtm0_logrec_update(dtms->dos_log, &fom0->fo_tx.tx_betx, msg,
-				   &buf);
+		m0_dtm0_logrec_update(dtms->dos_log, &fom0->fo_tx.tx_betx, msg,
+				      &buf);
 	m0_buf_free(&buf);
 
 	return rc;

@@ -92,6 +92,7 @@ M0_INTERNAL int m0_be_dtm0_log_alloc(struct m0_be_dtm0_log **out)
  * dtm0_log structure.
  */
 M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
+				    struct m0_be_seg       *seg,
 				    struct m0_dtm0_clk_src *cs,
 				    bool                    is_plog)
 {
@@ -101,6 +102,8 @@ M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
 	m0_mutex_init(&log->dl_lock);
 	log->dl_is_persistent = is_plog;
 	log->dl_cs = cs;
+	if (is_plog)
+		log->dl_seg = seg;
 	return 0;
 }
 
