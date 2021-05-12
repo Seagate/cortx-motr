@@ -481,11 +481,11 @@ struct m0_0vec {
 };
 
 enum {
-	M0_0VEC_SHIFT = 12,
+	M0_0VEC_SHIFT = 16,
 	M0_0VEC_ALIGN = (1 << M0_0VEC_SHIFT),
 	M0_0VEC_MASK = M0_0VEC_ALIGN - 1,
-	M0_SEG_SHIFT = 12,
-	M0_SEG_SIZE  = 4096,
+	M0_SEG_SHIFT = 16,
+	M0_SEG_SIZE  = 65536,
 };
 
 /**

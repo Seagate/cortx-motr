@@ -23,26 +23,26 @@
 #include "stob/module.h"
 #include "module/instance.h"
 
-static int level_stob_enter(struct m0_module *module);
-static void level_stob_leave(struct m0_module *module);
+//static int level_stob_enter(struct m0_module *module);
+//static void level_stob_leave(struct m0_module *module);
 
-static const struct m0_modlev levels_stob[] = {
+/* static const struct m0_modlev levels_stob[] = {  
 	[M0_LEVEL_STOB] = {
 		.ml_name = "stob is initialised",
 		.ml_enter = level_stob_enter,
 		.ml_leave = level_stob_leave,
 	}
-};
+}; */
 
-static int level_stob_enter(struct m0_module *module)
+/* static int level_stob_enter(struct m0_module *module)
 {
 	return m0_stob_types_init();
-}
+} */
 
-static void level_stob_leave(struct m0_module *module)
+/* static void level_stob_leave(struct m0_module *module)
 {
 	m0_stob_types_fini();
-}
+} */
 
 M0_INTERNAL struct m0_stob_module *m0_stob_module__get(void)
 {

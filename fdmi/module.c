@@ -26,30 +26,30 @@
 #include "fdmi/module.h"
 #include "module/instance.h"
 
-static int level_fdmi_enter(struct m0_module *module);
-static void level_fdmi_leave(struct m0_module *module);
+//static int level_fdmi_enter(struct m0_module *module);
+//static void level_fdmi_leave(struct m0_module *module);
 
-static const struct m0_modlev levels_fdmi[] = {
+/* static const struct m0_modlev levels_fdmi[] = {   
 	[M0_LEVEL_FDMI] = {
 		.ml_name = "fdmi is initialised",
 		.ml_enter = level_fdmi_enter,
 		.ml_leave = level_fdmi_leave,
 	}
-};
+}; */
 
-static int level_fdmi_enter(struct m0_module *module)
+/* static int level_fdmi_enter(struct m0_module *module)
 {
 	return 0;
 }
 
 static void level_fdmi_leave(struct m0_module *module)
 {
-}
+}*/
 
 M0_INTERNAL struct m0_fdmi_module *m0_fdmi_module__get(void)
 {
 	return &m0_get()->i_fdmi_module;
-}
+} 
 
 #undef M0_TRACE_SUBSYSTEM
 

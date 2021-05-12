@@ -154,12 +154,10 @@ M0_INTERNAL void m0_trace_fini(void)
  */
 static inline uint64_t m0_rdtsc(void)
 {
-	uint32_t count_hi=0;
-	uint32_t count_lo=0;
+	uint64_t cycle;
 
-	// __asm__ __volatile__("rdtsc" : "=a"(count_lo), "=d"(count_hi));
-
-	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
+	asm volatile("mrs %0, pmccntr_el0" : "=r"(cycle));
+	return cycle;
 }
 
 #define NULL_STRING_STUB  "(null)"

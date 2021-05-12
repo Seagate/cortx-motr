@@ -64,9 +64,9 @@ M0_INTERNAL void m0_composite_build(struct m0_layout_domain *dom,
 }
 
 /** Implementation of lo_fini for COMPOSITE layout type. */
-static void composite_fini(struct m0_ref *ref)
+/* static void composite_fini(struct m0_ref *ref)
 {
-}
+} */
 
 /* Implementation of lto_allocate for COMPOSITE layout type. */
 static int composite_allocate(struct m0_layout_domain *dom,
@@ -77,15 +77,15 @@ static int composite_allocate(struct m0_layout_domain *dom,
 }
 
 /** Implementation of lo_delete for COMPOSITE layout type. */
-static void composite_delete(struct m0_layout *l)
+/* static void composite_delete(struct m0_layout *l)
 {
-}
+} */
 
 /** Implementation of lo_recsize() for COMPOSITE layout type. */
-static m0_bcount_t composite_recsize(const struct m0_layout *l)
+/* static m0_bcount_t composite_recsize(const struct m0_layout *l)
 {
 	return 0;
-}
+} */
 
 /**
  * Implementation of lto_register for COMPOSITE layout type.
@@ -134,7 +134,7 @@ static m0_bcount_t composite_max_recsize(struct m0_layout_domain *dom)
 	return 0;
 }
 
-static const struct m0_layout_ops composite_ops;
+//static const struct m0_layout_ops composite_ops;
 
 /**
  * Implementation of lo_decode() for composite layout type.
@@ -147,13 +147,13 @@ static const struct m0_layout_ops composite_ops;
  * If it is BUFFER_OP, then the layout is decoded from its representation
  * received through the buffer.
  */
-static int composite_decode(struct m0_layout *l,
+/* static int composite_decode(struct m0_layout *l,
 			    struct m0_bufvec_cursor *cur,
 			    enum m0_layout_xcode_op op,
 			    struct m0_be_tx *tx,
 			    uint32_t user_count)
 {
-	/*
+	
 	@code
 	struct m0_composite_layout *cl;
 
@@ -176,10 +176,10 @@ static int composite_decode(struct m0_layout *l,
 
 	*out = &cl->cl_base;
 	@endcode
-	*/
+	
 
 	return 0;
-}
+} */
 
 /**
  * Implementation of lo_encode() for composite layout type.
@@ -192,12 +192,12 @@ static int composite_decode(struct m0_layout *l,
  * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored in the
  * buffer.
  */
-static int composite_encode(struct m0_layout *l,
+/* static int composite_encode(struct m0_layout *l,
 			    enum m0_layout_xcode_op op,
 			    struct m0_be_tx *tx,
 			    struct m0_bufvec_cursor *out)
 {
-	/*
+	
 	@code
 
 	M0_PRE(M0_IN(op, (M0_LXO_DB_ADD, M0_LXO_DB_UPDATE,
@@ -215,18 +215,18 @@ static int composite_encode(struct m0_layout *l,
 	}
 
 	@endcode
-	*/
+	
 
 	return 0;
-}
+} */
 
-static const struct m0_layout_ops composite_ops = {
+/* static const struct m0_layout_ops composite_ops = {  
 	.lo_fini    = composite_fini,
 	.lo_delete  = composite_delete,
 	.lo_recsize = composite_recsize,
 	.lo_decode  = composite_decode,
 	.lo_encode  = composite_encode
-};
+}; */
 
 static const struct m0_layout_type_ops composite_type_ops = {
 	.lto_register    = composite_register,

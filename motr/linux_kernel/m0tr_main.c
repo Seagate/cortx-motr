@@ -27,6 +27,7 @@
 
 #include "lib/list.h"
 #include "lib/thread.h"
+#include "lib/linux_ccnt/aarch64_cycle_counter.h"
 #include "motr/init.h"
 #include "motr/version.h"
 #include "motr/linux_kernel/module.h"
@@ -40,6 +41,7 @@ M0_INTERNAL int __init motr_init(void)
 	const struct module *m;
 	M0_THREAD_ENTER;
 
+	start_cycle_counter();  // start  reading the cycle counter
 	m = m0_motr_ko_get_module();
 	pr_info("motr: init\n");
 	m0_build_info_print();
@@ -54,6 +56,7 @@ M0_INTERNAL void __exit motr_exit(void)
 {
 	M0_THREAD_ENTER;
 	pr_info("motr: cleanup\n");
+	finish_cycle_counter();  // stop reading the cycle counter
 	m0_fini();
 }
 
@@ -66,6 +69,8 @@ module_exit(motr_exit);
  * marker is necessary to remove the warnings, keeping this blank to make
  * compiler happy.
  */
+
+/* Added GPL per suggestions to avoid compilation error, may need to be reviewed */
 MODULE_LICENSE("GPL");
 
 /*

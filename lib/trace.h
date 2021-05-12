@@ -36,7 +36,7 @@
 
 #ifndef __KERNEL__
 #include "lib/user_space/trace.h"
-#include <sys/user.h>    /* PAGE_SIZE */
+#include <sys/user.h>    /* PAGE_SIZE not available in aarch64 case*/
 #endif
 
 /**
