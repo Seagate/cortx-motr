@@ -182,9 +182,7 @@ def configure_lnet(self):
 
 def configure_libfabric(self):
     try:
-        iface = Conf.get(self._index,
-        f'cluster>{self._server_id}')['network']['data']['private_interfaces']
-        iface = iface[0]
+        iface = self.server_node['network']['data']['private_interfaces'][0]
     except:
         raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
 
@@ -193,8 +191,7 @@ def configure_libfabric(self):
     execute_command(self, cmd)
 
     try:
-        iface_type = Conf.get(self._index,
-            f'cluster>{self._server_id}')['network']['data']['interface_type']
+        iface_type = self.server_node['network']['data']['interface_type']
     except:
         raise MotrError(errno.EINVAL, "interface_type not found\n")
 

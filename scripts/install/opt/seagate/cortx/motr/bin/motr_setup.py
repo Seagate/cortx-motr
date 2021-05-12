@@ -25,8 +25,9 @@ import inspect
 import traceback
 
 from cortx.utils.conf_store import Conf
-from motr_mini_prov import get_current_node, validate_motr_rpm, motr_config
+from motr_mini_prov import validate_motr_rpm, motr_config
 from motr_mini_prov import config_lvm, configure_net, test_lnet, test_libfabric
+from motr_mini_prov import lvm_exist, get_server_node, pkg_installed, cluster_up
 
 class Cmd:
     """Setup Command"""
