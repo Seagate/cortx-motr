@@ -75,12 +75,12 @@ if [[ -d $MOTR_LOG_DIR ]] ; then
     rm -vrf $MOTR_LOG_DIR/*
 fi
 
-if [[ -n $MOTR_M0D_ADDB_STOB_DIR && -d $MOTR_M0D_ADDB_STOB_DIR ]] ; then
+if [[ -n "$MOTR_M0D_ADDB_STOB_DIR" && -d $MOTR_M0D_ADDB_STOB_DIR ]] ; then
     m0_log "Cleaning up $MOTR_M0D_ADDB_STOB_DIR"
     rm -vrf $MOTR_M0D_ADDB_STOB_DIR/
 fi
 
-if [[ -n $MOTR_M0D_TRACE_DIR && -d $MOTR_M0D_TRACE_DIR ]] ; then
+if [[ -n "$MOTR_M0D_TRACE_DIR" && -d $MOTR_M0D_TRACE_DIR ]] ; then
     m0_log "Cleaning up $MOTR_M0D_TRACE_DIR"
     rm -vrf $MOTR_M0D_TRACE_DIR/
 fi

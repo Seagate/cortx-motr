@@ -36,7 +36,7 @@ start()
     source $service_funcs
 
     local ha_config="$sysconfig_dir/m0t1fs-$2"
-    if [[ -n $proc_fid && ! -e $ha_config ]] ; then
+    if [[ -n "$proc_fid" && ! -e $ha_config ]] ; then
         m0_exit "service config file '$ha_config' doesn't exist"
     fi
 

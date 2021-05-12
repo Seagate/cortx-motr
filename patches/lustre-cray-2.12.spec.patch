@@ -1,0 +1,19 @@
+--- lustre.spec.orig	2021-04-22 21:21:57.902995426 +0000
++++ lustre.spec	2021-04-22 21:27:53.344648499 +0000
+@@ -592,6 +592,16 @@
+ fi
+ %endif
+ 
++%define lustre_src_dir %{_prefix}/src/%{lustre_name}-%{version}
++
++mkdir -p $RPM_BUILD_ROOT%{lustre_src_dir}
++cp Module.symvers config.h $RPM_BUILD_ROOT%{lustre_src_dir}
++rsync -a --exclude 'Makefile*' libcfs/include $RPM_BUILD_ROOT%{lustre_src_dir}/libcfs/
++rsync -a --exclude 'Makefile*' lnet/include   $RPM_BUILD_ROOT%{lustre_src_dir}/lnet/
++rsync -a --exclude 'Makefile*' lustre/include $RPM_BUILD_ROOT%{lustre_src_dir}/lustre/
++find $RPM_BUILD_ROOT -path "$RPM_BUILD_ROOT%{lustre_src_dir}/*" -type f \
++	-printf '/%%P\n' >> lustre-devel.files
++
+ %files devel -f lustre-devel.files
+ %defattr(-,root,root)
+ %{_libdir}/pkgconfig/lustre.pc

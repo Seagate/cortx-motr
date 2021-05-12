@@ -27,7 +27,7 @@ yumdownloader --source kernel-$rpm_kernel_release
 log "Installing kernel-${rpm_kernel_release}.src.rpm.."
 rpm -Uvh kernel-${rpm_kernel_release}.src.rpm
 
-if [[ -n $kernel_buildid ]] ; then
+if [[ -n "$kernel_buildid" ]] ; then
     log 'Editing kernel spec file..'
     sed -i "/define buildid/c\\%define buildid .$kernel_buildid" $rpm_kernel_spec
 fi
