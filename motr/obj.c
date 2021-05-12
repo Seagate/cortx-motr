@@ -797,6 +797,27 @@ int m0_entity_delete(struct m0_entity *entity,
 }
 M0_EXPORTED(m0_entity_delete);
 
+int64_t m0_obj_size_to_layout_id(struct m0_client *inst, size_t obj_size)
+{
+	int                      rc;
+	struct m0_layout_domain *ldom;
+	struct m0_pool_version  *pv;
+
+	M0_PRE(inst != NULL);
+	M0_PRE(obj_size != 0);
+
+	ldom = &inst->m0c_reqh.rh_ldom;
+	rc = m0_pool_version_get(&inst->m0c_pools_common, NULL, &pv);
+
+	if (rc == 0)
+		return m0_layout_find_by_buffsize(ldom, &pv->pv_id, obj_size);
+	else {
+		M0_ERR(rc);
+		return 0;
+	}
+}
+M0_EXPORTED(m0_obj_size_to_layout_id);
+
 uint64_t m0_obj_unit_size_to_layout_id(int unit_size)
 {
 	uint64_t i;

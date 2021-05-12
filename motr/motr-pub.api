@@ -114,6 +114,7 @@ m0_sync_op_init
 m0_sync_entity_add
 m0_sync_op_add
 m0_sync
+m0_obj_size_to_layout_id
 m0_obj_unit_size_to_layout_id
 m0_obj_layout_id_to_unit_size
 m0_composite_layer_add
