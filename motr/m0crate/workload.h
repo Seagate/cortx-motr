@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2017-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2017-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@
 
 #include <sys/param.h>    /* MAXPATHLEN */
 #include "lib/memory.h"
+#include "lib/time.h"
+#include "lib/bitstring.h"
 #include "motr/m0crate/crate_utils.h"
 
 /* used for both file offsets and file sizes. */
@@ -56,6 +58,7 @@ enum cr_workload_type {
         CWT_CSUM,   /* checksumming workload */
 	CWT_IO,
 	CWT_INDEX,
+	CWT_BTREE,  /* Btree Operations */
         CWT_NR
 };
 
@@ -97,6 +100,7 @@ struct workload {
         union {
 		void *cw_io;
 		void *cw_index;
+		void *cw_btree;
                 struct cr_hpcs {
                 } cw_hpcs;
                 struct cr_csum {
@@ -122,6 +126,38 @@ enum csum_op_type {
         COT_READ,
         COT_WRITE,
         COT_NR
+};
+
+enum btree_op_type {
+	BOT_INSERT,
+	BOT_LOOKUP,
+	BOT_DELETE,
+	BOT_OPS_NR
+};
+
+struct cr_btree_key {
+	struct m0_bitstring pattern;
+	uint64_t	    bkey;
+};
+
+struct btree_ops {
+	const char *opname;
+	int	    prcnt;
+	int	    nr_ops;
+	uint64_t    key;
+	m0_time_t   exec_time;
+};
+
+struct cr_workload_btree {
+	int	         cwb_key_size;
+	int	         cwb_val_size;
+	int	         cwb_max_key_size;
+	int		 cwb_max_val_size;
+	bool	         cwb_keys_ordered; /* Sequential or random workload */
+	char	         cwb_pattern; /* Fixed pattern */
+	struct btree_ops cwb_bo[BOT_OPS_NR];
+	m0_time_t        cwb_start_time;
+	m0_time_t        cwb_finish_time;
 };
 
 /* description of a single task (thread) executing workload */
@@ -162,6 +198,9 @@ struct workload_op {
                         enum csum_op_type  oc_type;
                         bcnt_t             oc_offset;
                 } wo_csum;
+                struct op_btree {
+                        enum btree_op_type  ob_type;
+                } wo_btree;
         } u;
 };
 
@@ -171,7 +210,8 @@ struct workload_type_ops {
 
         void (*wto_run)(struct workload *w, struct workload_task *task);
         void (*wto_op_get)(struct workload *w, struct workload_op *op);
-        void (*wto_op_run)(struct workload *w, struct workload_task *task, const struct workload_op *op);
+        void (*wto_op_run)(struct workload *w, struct workload_task *task,
+			   const struct workload_op *op);
         int  (*wto_parse)(struct workload *w, char ch, const char *optarg);
         void (*wto_check)(struct workload *w);
 };
