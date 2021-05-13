@@ -2041,6 +2041,24 @@ static void generic_move(struct nd *src, struct nd *tgt,
 }
 
 
+int  m0_btree_open(void *addr, int nob, struct m0_btree **out)
+{
+	return 0;
+}
+
+void m0_btree_close(struct m0_btree *arbor)
+{
+}
+
+void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
+		     struct m0_be_tx *tx, struct m0_btree_op *bop)
+{
+}
+
+void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
+{
+}
+
 #ifndef __KERNEL__
 
 
@@ -2431,7 +2449,6 @@ static void m0_btree_ut_test_tree_operations(void)
 	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
 			      m0_btree_create(temp_node, 1024, &btree_type,
 					      tx, &b_op));
-
 
 	/** Close it */
 	m0_btree_close(b_op.bo_arbor);
