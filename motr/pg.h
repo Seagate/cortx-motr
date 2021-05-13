@@ -247,18 +247,17 @@ struct nw_xfer_ops {
 
 	/**
 	 * Locates or creates a target_iroeq object which maps to the given
-	 * target address.
-	 * @param src  Source address comprising of parity group number
-	 * and unit number in parity group.
-	 * @param tgt  Target address comprising of frame number and
-	 * target object number.
-	 * @param out  Out parameter containing target_ioreq object.
+	 * source unit address.
+	 *
+	 * @param src       unit address in the parity group.
+	 * @param tgt[out]  unit address in target devices.
+	 * @param tio[out]  target_ioreq object.
 	 * @pre   nw_xfer_request_invariant(xfer).
 	 */
 	int  (*nxo_tioreq_map) (struct nw_xfer_request           *xfer,
 				const struct m0_pdclust_src_addr *src,
 				struct m0_pdclust_tgt_addr       *tgt,
-				struct target_ioreq             **out);
+				struct target_ioreq             **tio);
 };
 
 /**
