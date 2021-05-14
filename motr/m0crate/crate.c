@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2017-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2017-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1409,7 +1409,7 @@ static void btree_op_run(struct workload *w, struct workload_task *task,
 			 const struct workload_op *op)
 {
 	m0_time_t                 stime;
-	m0_time_t                 etime;
+	m0_time_t                 exec_time;
 	struct m0_key_val         kv;
 	struct cr_workload_btree *cwb = w->u.cw_btree;
         enum btree_op_type        ot = op->u.wo_btree.ob_type;
@@ -1457,14 +1457,16 @@ static void btree_op_run(struct workload *w, struct workload_task *task,
 			break;
 	        }
 
-	etime = m0_time_sub(m0_time_now(), stime);
-	pthread_mutex_lock(&w->cw_lock);
+	exec_time = m0_time_sub(m0_time_now(), stime);
+
 	cr_log(CLL_TRACE, "op:%s key=%.*s%"PRIu64" ksize=%d val=%s vsize=%d\n",
 	       cwb->cwb_bo[ot].opname, m0_bitstring_len_get(&cbk.pattern),
 	       (char *)m0_bitstring_buf_get(&cbk.pattern), cbk.bkey, ksize,
 	       v, vsize);
+
+	pthread_mutex_lock(&w->cw_lock);
 	cwb->cwb_bo[ot].nr_ops++;
-	cr_time_acc(&cwb->cwb_bo[ot].exec_time, etime);
+	cr_time_acc(&cwb->cwb_bo[ot].exec_time, exec_time);
 	pthread_mutex_unlock(&w->cw_lock);
 	return;
 }
