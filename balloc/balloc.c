@@ -159,9 +159,7 @@ static int index_hash(struct m0_balloc_super_block *sb,
 			m0_bcount_t block_offset)
 {
 	int grp_no;
-
         grp_no = (block_offset - 1) / sb->bsb_groupsize;
-
 	return grp_no % sb->bsb_indexcount;
 };
 
@@ -561,9 +559,9 @@ static int sb_update(struct m0_balloc *bal, struct m0_sm_group *grp)
 	return M0_RC(rc);
 }
 
-static int balloc_sb_write(struct m0_balloc            *bal,
+static int balloc_sb_write(struct m0_balloc               *bal,
 			   struct m0_ad_balloc_format_req *req,
-			   struct m0_sm_group          *grp)
+			   struct m0_sm_group             *grp)
 {
 	int				 rc;
 	struct timeval			 now;
@@ -733,10 +731,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
 	index_no = index_hash(sb, ext.e_end);
-	M0_LOG(M0_INFO, "insert btree normal index: %d endoff: %llu start: %llu",
-		 it, (unsigned long long)ext.e_end,
-		 (unsigned long long)ext.e_start);
-	rc = btree_insert_sync(&bal->cb_db_group_extents[it],
+	rc = btree_insert_sync(&bal->cb_db_group_extents[index_no],
 			       tx, &key, &val);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "insert extent failed: group=%llu "
@@ -751,9 +746,8 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
 	index_no = index_hash(sb, ext.e_end);
-	M0_LOG(M0_INFO, "group write insert btree spare index: %d endoff: %llu",
-		 it, (unsigned long long)ext.e_end);
-	rc = btree_insert_sync(&bal->cb_db_group_extents[it], tx, &key, &val);
+	rc = btree_insert_sync(&bal->cb_db_group_extents[index_no],
+			       tx, &key, &val);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "insert extent failed for spares: group=%llu "
 				 "rc=%d", (unsigned long long)i, rc);
@@ -892,9 +886,9 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	  by this parameter.
    @return 0 means success. Otherwise, error number will be returned.
  */
-static int balloc_format(struct m0_balloc *bal,
+static int balloc_format(struct m0_balloc               *bal,
 			 struct m0_ad_balloc_format_req *req,
-			 struct m0_sm_group *grp)
+			 struct m0_sm_group             *grp)
 {
 	int rc;
 
@@ -1246,9 +1240,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	m0_ext_init(&normal_range);
 
 	index_no = index_hash(&cb->cb_sb, normal_range.e_end);
-	M0_LOG(M0_INFO, "load normal index: %d endoff: %llu",
-		 it, (unsigned long long)normal_range.e_end);
-	db_ext = cb->cb_db_group_extents[it];
+	db_ext = cb->cb_db_group_extents[index_no];
 	m0_be_btree_cursor_init(&cursor, db_ext);
 
 	ex = grp->bgi_extents;
@@ -1349,9 +1341,6 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 
 	index_no = index_hash(&cb->cb_sb, normal_range.e_end);
 	db_ext = &cb->cb_db_group_extents[index_no];
-	M0_LOG(M0_INFO, "load normal index: %d endoff: %llu",
-		 it, (unsigned long long)normal_range.e_end);
-
 	ex = grp->bgi_extents;
 	next_key = (grp->bgi_groupno << cb->cb_sb.bsb_gsbits) + 1;
 	normal_frags = 0;

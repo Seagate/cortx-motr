@@ -96,9 +96,8 @@ MOTR_M0D_BESEG_SIZE=8589934592
 
 #BALLOC configuration parameters.
 #
-#BALLOC GROUP SIZE in form of No of blocks(must be power of 2).
-#default is 128Mb(32768 * 4K)
-MOTR_M0D_BALLOC_GROUP_SIZE=32768
+#BALLOC GROUP COUNT. default is 64
+MOTR_M0D_BALLOC_GROUP_COUNT=64
 
 #BALLOC No of indexes per device, default 64
 MOTR_M0D_BALLOC_INDEX_COUNT=64

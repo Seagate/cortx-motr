@@ -554,8 +554,8 @@ m0_get_core_params()
         optional_params+=" -w $(m0_genders_value_of m0_pool_width)"
     fi
 
-    if [[ -n $MOTR_M0D_BALLOC_GROUP_SIZE ]]; then
-        optional_params+=" -O $MOTR_M0D_BALLOC_GROUP_SIZE"
+    if [[ -n $MOTR_M0D_BALLOC_GROUP_COUNT ]]; then
+        optional_params+=" -O $MOTR_M0D_BALLOC_GROUP_COUNT"
     fi
 
     if [[ -n $MOTR_M0D_BALLOC_INDEX_COUNT ]]; then

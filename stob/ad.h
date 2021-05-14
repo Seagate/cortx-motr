@@ -237,7 +237,7 @@ M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
 				     const struct m0_be_seg *seg,
 				     const struct m0_stob_id *bstore_id,
 				     const m0_bcount_t size,
-				     const m0_bcount_t group_size,
+				     const m0_bcount_t group_nr,
 				     const m0_bcount_t index_nr);
 M0_INTERNAL int stob_ad_cursor(struct m0_stob_ad_domain *adom,
 			       struct m0_stob *obj,
