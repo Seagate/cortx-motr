@@ -36,7 +36,7 @@
 #include "stob/stob.h"              /* m0_stob_id_get */
 #include "ioservice/fid_convert.h"  /* m0_fid_validate_linuxstob */
 #include "ioservice/storage_dev.h"
-#include "motr/setup.h"
+#include "motr/setup.h"             /* m0_reqh_context */
 #include "reqh/reqh.h"              /* m0_reqh */
 #include <unistd.h>                 /* fdatasync */
 #include <sys/vfs.h>                /* fstatfs */
