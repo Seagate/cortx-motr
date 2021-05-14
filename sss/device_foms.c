@@ -635,7 +635,7 @@ static int sss_device_stob_attach(struct m0_fom *fom)
 	 */
 	m0_fom_block_enter(fom);
 	rc = m0_storage_dev_new_by_conf(devs, sdev,
-					BALLOC_DEF_BLOCKS_PER_GROUP,
+					BALLOC_DEF_GROUPS_NR,
 					BALLOC_DEF_INDEXES_NR,
 					false, &dev_new);
 	m0_fom_block_leave(fom);

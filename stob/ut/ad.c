@@ -208,7 +208,7 @@ static int test_ad_init(bool use_small_credits)
 
 	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg,
 			    m0_stob_id_get(obj_back), 0,
-			    BALLOC_DEF_BLOCKS_PER_GROUP,
+			    BALLOC_DEF_GROUPS_NR,
 			    BALLOC_DEF_INDEXES_NR);
 	M0_UT_ASSERT(dom_cfg != NULL);
 	m0_stob_ad_init_cfg_make(&dom_init_cfg, &ut_be.but_dom);

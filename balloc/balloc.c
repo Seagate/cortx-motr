@@ -3047,11 +3047,11 @@ M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb)
 	cb->cb_ballroom.ab_ops = &balloc_ops;
 }
 
-M0_INTERNAL int m0_balloc_create(uint64_t              cid,
-				 struct m0_be_seg     *seg,
-				 struct m0_sm_group   *grp,
-				 struct m0_ad_balloc_format_req *bcfg,
-				 struct m0_balloc    **out)
+M0_INTERNAL int m0_balloc_create(uint64_t                         cid,
+				 struct m0_be_seg                *seg,
+				 struct m0_sm_group              *grp,
+				 struct m0_ad_balloc_format_req  *bcfg,
+				 struct m0_balloc               **out)
 {
 	struct m0_balloc       *cb;
 	struct m0_be_btree      btree = {};
