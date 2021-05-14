@@ -94,7 +94,9 @@ Now reload the daemon & stop the hare-consul-agent using following command
 Try running the test again. Refer [this](https://github.com/Seagate/cortx-motr/blob/dtm0-main/dtm0/it/all2all/README.md#command-to-run-this-test)
 
 ## Known Issues
-### 1. all2all integration test performs all tests and at the end shows test status as FAIL because of m0d service failed.
+### 1. all2all integration test performs all tests and at the end shows test status as FAIL because of m0d service failed
+This issue is likely caused by a bug [EOS-19683](https://jts.seagate.com/browse/EOS-19683) that will be fixed in the upstream. Here is a patch for Hare where a similar issue is described: Refer [this](https://github.com/Seagate/cortx-hare/pull/1606)
+
 Example test log is as shown below:
 ```sh
 ERR: Process m0d@0x7200000000000001:0xc.service failed
@@ -104,9 +106,7 @@ ERR: TEST STATUS: FAIL
 ```
 In above case, in journalctl logs if we see the m0d services getting killed because of timed out like shown below, then it is not an issue with all2all test.
 ```sh
-m0d@0x7200000000000001:0x28.service stop-sigterm timed out. Killing
-```
-### 2. If message shown below appears multiple times in journalctl log, then it is not an issue with all2all or dtm0 code.
-```sh
-motr[08732]: 4b30 ERROR [rpc/conn.c:1062:m0_rpc_conn_terminate] <! rc=-125
+m0d@0x7200000000000001:0xc.service stop-sigterm timed out. Killing.
+m0d@0x7200000000000001:0x1a.service stop-sigterm timed out. Killing.
+m0d@0x7200000000000001:0x28.service stop-sigterm timed out. Killing.
 ```
