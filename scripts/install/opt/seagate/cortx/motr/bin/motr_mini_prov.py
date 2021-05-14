@@ -45,7 +45,6 @@ class MotrError(Exception):
 
 
 def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
-    print(f"Atul on 53...timeout={timeout_secs}\n...\n...\n")
     ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           shell=True)
@@ -578,8 +577,6 @@ def test_io(self):
         os.path.isfile(m0crate_path)
        ):
         cmd = f"{m0worklaod_path} -t {mix_workload_path}"
-        print(f"Atul on 578.............{cmd}")
         out = execute_command(self, cmd, timeout_secs=1000)
-        print(f"Atul on 584.............\n\n{out[0]}\n\n")
     else:
         sys.stderr.write("workload files are missing\n")
