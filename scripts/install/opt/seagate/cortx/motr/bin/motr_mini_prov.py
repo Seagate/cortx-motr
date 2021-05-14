@@ -142,7 +142,7 @@ def verify_lnet(self):
     sys.stdout.write("Doing ping to nids.\n")
     ret = lnet_self_ping(self)
     if not ret:
-        # Check if lnet is up. If not up, restart lnet and try ping nid.
+        # Check if lnet is up. If lnet is not up, restart lnet and try ping nid.
         # Else, ping nid after some delay since lnet is already up.
         if not check_services(self, ["lnet"]):
             sys.stdout.write("lnet is not up. Restaring lnet.\n")
