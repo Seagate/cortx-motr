@@ -285,7 +285,7 @@ struct m0_reqh_context {
 	m0_bcount_t                  rc_be_tx_payload_size_max;
 	m0_time_t                    rc_be_tx_group_freeze_timeout_min;
 	m0_time_t                    rc_be_tx_group_freeze_timeout_max;
-	m0_bcount_t                  rc_balloc_blocks_per_group;
+	m0_bcount_t                  rc_balloc_group_nr;
 	m0_bcount_t                  rc_balloc_index_nr;
 
 	/**

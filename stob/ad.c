@@ -68,6 +68,7 @@ struct ad_domain_cfg {
 	m0_bcount_t       adg_container_size;
 	uint32_t          adg_bshift;
 	m0_bcount_t       adg_blocks_per_group;
+	m0_bcount_t       adg_group_nr;
 	m0_bcount_t       adg_index_nr;
 	m0_bcount_t       adg_spare_blocks_per_group;
 };
@@ -258,7 +259,7 @@ M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
 				     const struct m0_be_seg *seg,
 				     const struct m0_stob_id *bstore_id,
 				     const m0_bcount_t size,
-				     const m0_bcount_t group_size,
+				     const m0_bcount_t group_nr,
 				     const m0_bcount_t index_nr)
 {
 	char buf[0x400];
@@ -267,7 +268,7 @@ M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
 		 seg,
 		 FID_P(&bstore_id->si_domain_fid),
 		 FID_P(&bstore_id->si_fid), size,
-		 group_size, index_nr);
+		 group_nr, index_nr);
 	*str = m0_strdup(buf);
 }
 
@@ -315,7 +316,7 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 			    FID_S(&cfg->adg_id.si_domain_fid),
 			    FID_S(&cfg->adg_id.si_fid),
 			    &cfg->adg_container_size,
-			    &cfg->adg_blocks_per_group,
+			    &cfg->adg_group_nr,
 			    &cfg->adg_index_nr);
 		rc = rc == 8 ? 0 : -EINVAL;
 	} else
@@ -330,11 +331,15 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 		 * group size is counted depending on BALLOC_DEF_GROUPS_NR.
 		 * Group size must be power of 2.
 		 */
-		//grp_blocks = (cfg->adg_container_size >> cfg->adg_bshift) /
-		//	     BALLOC_DEF_GROUPS_NR;
-		grp_blocks = 1 << m0_log2(cfg->adg_blocks_per_group);
-		//grp_blocks = max64u(grp_blocks, BALLOC_DEF_BLOCKS_PER_GROUP);
+		if (cfg->adg_group_nr <  1)
+			cfg->adg_group_nr = BALLOC_DEF_GROUPS_NR;
+		grp_blocks = (cfg->adg_container_size >> cfg->adg_bshift) /
+			      cfg->adg_group_nr;
+		grp_blocks = 1 << m0_log2(grp_blocks);
+		grp_blocks = max64u(grp_blocks, BALLOC_DEF_BLOCKS_PER_GROUP);
 		cfg->adg_blocks_per_group = grp_blocks;
+		if (cfg->adg_index_nr < 1)
+			cfg->adg_index_nr = BALLOC_DEF_INDEXES_NR;
 		cfg->adg_spare_blocks_per_group =
 			m0_stob_ad_spares_calc(grp_blocks);
 		M0_LOG(M0_DEBUG, "device size %"PRId64, cfg->adg_container_size);

@@ -64,7 +64,6 @@
 #include "ioservice/fid_convert.h" /* M0_AD_STOB_LINUX_DOM_KEY */
 #include "ioservice/storage_dev.h"
 #include "ioservice/io_service.h"  /* m0_ios_net_buffer_pool_size_set */
-#include "balloc/balloc.h"         /* BALLOC_DEF_BLOCK_SHIFT */
 #include "stob/linux.h"
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
 
@@ -886,7 +885,7 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 					 */
 					size = 1024ULL *1024 * 256;
 				rc = m0_storage_dev_new(devs, cid, f_path, size,
-							rctx->rc_balloc_blocks_per_group,
+							rctx->rc_balloc_group_nr,
 							rctx->rc_balloc_index_nr,
 							conf_sdev, force, &dev);
 				if (rc == 0) {
@@ -912,7 +911,7 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 	} else if (stob->s_ad_disks_init || M0_FI_ENABLED("init_via_conf")) {
 		M0_LOG(M0_DEBUG, "conf config");
 		rc = cs_conf_storage_init(stob, devs,
-					  rctx->rc_balloc_blocks_per_group,
+					  rctx->rc_balloc_group_nr,
 					  rctx->rc_balloc_index_nr, force);
 	} else {
 		/*
@@ -929,13 +928,13 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 			rc = m0_storage_dev_new(devs,
 						M0_AD_STOB_DOM_KEY_DEFAULT,
 						NULL, size,
-						rctx->rc_balloc_blocks_per_group,
+						rctx->rc_balloc_group_nr,
 						rctx->rc_balloc_index_nr,
 						NULL, force, &dev);
 		else
 			rc = m0_storage_dev_new(devs, M0_SDEV_CID_DEFAULT,
 						stob_path, size,
-						rctx->rc_balloc_blocks_per_group,
+						rctx->rc_balloc_group_nr,
 						rctx->rc_balloc_index_nr, NULL,
 						force, &dev);
 		if (rc == 0) {
@@ -1522,12 +1521,6 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 			rctx->rc_be_tx_group_freeze_timeout_min;
 		be->but_dom_cfg.bc_engine.bec_group_freeze_timeout_max =
 			rctx->rc_be_tx_group_freeze_timeout_max;
-	}
-	if (rctx->rc_balloc_blocks_per_group <= 0) {
-		rctx->rc_balloc_blocks_per_group = BALLOC_DEF_BLOCKS_PER_GROUP;
-	}
-	if (rctx->rc_balloc_index_nr <= 0) {
-		rctx->rc_balloc_index_nr = BALLOC_DEF_INDEXES_NR;
 	}
 	rc = cs_be_dom_cfg_zone_pcnt_fill(&rctx->rc_reqh, &be->but_dom_cfg);
 	if (rc != 0)
@@ -2243,10 +2236,10 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				{
 					rctx->rc_be_seg_preallocate = true;
 				})),
-			M0_NUMBERARG('O', "balloc no of blocks in a group",
+			M0_NUMBERARG('O', "balloc no of groups per ad stob",
 				LAMBDA(void, (int64_t nr)
 				{
-					rctx->rc_balloc_blocks_per_group = nr;
+					rctx->rc_balloc_group_nr = nr;
 				})),
 			M0_NUMBERARG('X', "BE balloc no of index in balloc db",
 				LAMBDA(void, (int64_t nr)

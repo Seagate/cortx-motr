@@ -277,7 +277,7 @@ static bool storage_devs_conf_expired_cb(struct m0_clink *clink)
 
 static int storage_dev_update_by_conf(struct m0_storage_dev  *dev,
 				      struct m0_conf_sdev    *sdev,
-				      uint64_t                group_size,
+				      uint64_t                group_nr,
 				      uint64_t                index_nr,
 				      struct m0_storage_devs *storage_devs)
 {
@@ -296,7 +296,7 @@ static int storage_dev_update_by_conf(struct m0_storage_dev  *dev,
 	M0_PRE(m0_ref_read(&dev->isd_ref) == 1);
 	m0_storage_dev_detach(dev);
 	rc = m0_storage_dev_new_by_conf(storage_devs, sdev,
-				        group_size, index_nr, false, &dev_new);
+				        group_nr, index_nr, false, &dev_new);
 	if (rc != 0)
 		return M0_ERR(rc);
 	M0_ASSERT(dev_new != NULL);
@@ -331,7 +331,7 @@ static void storage_devs_conf_refresh(struct m0_storage_devs *storage_devs,
 		conf_sdev = NULL;
 		rc = m0_conf_sdev_get(confc, &sdev_fid, &conf_sdev) ?:
 				      storage_dev_update_by_conf(dev, conf_sdev,
-				      rctx->rc_balloc_blocks_per_group,
+				      rctx->rc_balloc_group_nr,
 				      rctx->rc_balloc_index_nr,
 				      storage_devs);
 		if (rc != 0)
@@ -392,7 +392,7 @@ static bool storage_devs_conf_ready_async_cb(struct m0_clink *clink)
 static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
 				      struct m0_storage_devs *devs,
 				      m0_bcount_t             size,
-				      m0_bcount_t             group_size,
+				      m0_bcount_t             group_nr,
 				      m0_bcount_t             index_nr,
 				      bool                    force)
 {
@@ -429,7 +429,7 @@ static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
 		rc = snprintf(location, len + 1, "adstob:%llu", cid);
 		M0_ASSERT_INFO(rc == len, "rc=%d", rc);
 		m0_stob_ad_cfg_make(&cfg, devs->sds_be_seg,
-				    m0_stob_id_get(dev->isd_stob), size, group_size, index_nr);
+				    m0_stob_id_get(dev->isd_stob), size, group_nr, index_nr);
 		m0_stob_ad_init_cfg_make(&cfg_init, devs->sds_be_seg->bs_domain);
 		if (cfg == NULL || cfg_init == NULL) {
 			m0_free(location);
@@ -489,7 +489,7 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 			   bool                    fi_no_dev,
 			   const char             *path_orig,
 			   uint64_t                size,
-			   uint64_t                group_size,
+			   uint64_t                group_nr,
 			   uint64_t                index_nr,
 			   struct m0_conf_sdev    *conf_sdev,
 			   bool                    force,
@@ -544,7 +544,7 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 	}
 
 	rc = stob_domain_create_or_init(device, devs, size,
-					group_size, index_nr, force);
+					group_nr, index_nr, force);
 	M0_ASSERT(ergo(rc == 0, device->isd_domain != NULL));
 	if (rc == 0) {
 		if (M0_FI_ENABLED("ad_domain_locate_fail")) {
@@ -591,7 +591,7 @@ M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
 				   uint64_t                cid,
 				   const char             *path,
 				   uint64_t                size,
-				   uint64_t                group_size,
+				   uint64_t                group_nr,
 				   uint64_t                index_nr,
 				   struct m0_conf_sdev    *conf_sdev,
 				   bool                    force,
@@ -600,13 +600,13 @@ M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
 	M0_ENTRY();
 	return M0_RC(storage_dev_new(devs, cid,
 				     M0_FI_ENABLED("no_real_dev"), path,
-				     size, group_size, index_nr,
+				     size, group_nr, index_nr,
 				     conf_sdev, force, dev));
 }
 
 M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs *devs,
 					   struct m0_conf_sdev    *sdev,
-					   uint64_t                group_size,
+					   uint64_t                group_nr,
 					   uint64_t                index_nr,
 					   bool                    force,
 					   struct m0_storage_dev **dev)
@@ -615,7 +615,7 @@ M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs *devs,
 	return M0_RC(storage_dev_new(devs, sdev->sd_dev_idx,
 				     M0_FI_ENABLED("no_real_dev"),
 				     sdev->sd_filename, sdev->sd_size,
-				     group_size, index_nr,
+				     group_nr, index_nr,
 				     M0_FI_ENABLED("no-conf-dev") ? NULL : sdev,
 				     force, dev));
 }

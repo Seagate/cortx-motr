@@ -42,7 +42,7 @@
  #include "motr/setup.h"          /* m0_cs_storage_devs_get */
  #include "ioservice/storage_dev.h"
 #endif
-#include "balloc/balloc.h"        /* BALLOC_DEF_BLOCK_SHIFT */
+#include "balloc/balloc.h"        /* BALLOC_DEF_BLOCKS_PER_GROUP */
 
 
 extern struct m0_reqh_service_type m0_ios_type;
