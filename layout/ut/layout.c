@@ -99,36 +99,46 @@ static int test_fini(void)
 
 static void test_domain_init_fini(void)
 {
-	struct m0_layout_domain t_domain;
+	struct m0_layout_domain *dom;
 
 	M0_ENTRY();
 
+	M0_ALLOC_PTR(dom);
+	M0_UT_ASSERT(dom != NULL);
+
 	/* Initialise the domain. */
-	rc = m0_layout_domain_init(&t_domain);
+	rc = m0_layout_domain_init(dom);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Finalise the domain. */
-	m0_layout_domain_fini(&t_domain);
+	m0_layout_domain_fini(dom);
 
 	/* Should be able to initialise the domain again after finalising it. */
-	rc = m0_layout_domain_init(&t_domain);
+	rc = m0_layout_domain_init(dom);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Finalise the domain. */
-	m0_layout_domain_fini(&t_domain);
+	m0_layout_domain_fini(dom);
+
+	m0_free(dom);
 
 	M0_LEAVE();
 }
 
 static void test_domain_init_fini_failure(void)
 {
-	struct m0_layout_domain t_domain;
+	struct m0_layout_domain *dom;
 
 	M0_ENTRY();
 
+	M0_ALLOC_PTR(dom);
+	M0_UT_ASSERT(dom != NULL);
+
 	m0_fi_enable_once("m0_layout_domain_init", "table_init_err");
-	rc = m0_layout_domain_init(&t_domain);
+	rc = m0_layout_domain_init(dom);
 	M0_UT_ASSERT(rc == L_TABLE_INIT_ERR);
+
+	m0_free(dom);
 
 	M0_LEAVE();
 }
@@ -225,9 +235,12 @@ static void test_etype_reg_unreg(void)
 
 static void test_reg_unreg(void)
 {
-	struct m0_layout_domain t_domain;
+	struct m0_layout_domain *dom;
 
 	M0_ENTRY();
+
+	M0_ALLOC_PTR(dom);
+	M0_UT_ASSERT(dom != NULL);
 
 	/*
 	 * A layout type can be registered with only one domain at a time.
@@ -240,46 +253,46 @@ static void test_reg_unreg(void)
 	m0_layout_standard_types_unregister(&domain);
 
 	/* Initialise the domain. */
-	rc = m0_layout_domain_init(&t_domain);
+	rc = m0_layout_domain_init(dom);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Register all the available layout types and enum types. */
-	rc = m0_layout_standard_types_register(&t_domain);
+	rc = m0_layout_standard_types_register(dom);
 	M0_UT_ASSERT(rc == 0);
-/*	M0_UT_ASSERT(t_domain.ld_enum[m0_list_enum_type.let_id] ==
+/*	M0_UT_ASSERT(dom->ld_enum[m0_list_enum_type.let_id] ==
 		     &m0_list_enum_type);*/
-	M0_UT_ASSERT(t_domain.ld_enum[m0_linear_enum_type.let_id] ==
+	M0_UT_ASSERT(dom->ld_enum[m0_linear_enum_type.let_id] ==
 		     &m0_linear_enum_type);
-	M0_UT_ASSERT(t_domain.ld_type[m0_pdclust_layout_type.lt_id] ==
+	M0_UT_ASSERT(dom->ld_type[m0_pdclust_layout_type.lt_id] ==
 		     &m0_pdclust_layout_type);
 
 	/* Unregister all the registered layout and enum types. */
-	m0_layout_standard_types_unregister(&t_domain);
-	//M0_UT_ASSERT(t_domain.ld_enum[m0_list_enum_type.let_id] == NULL);
-	M0_UT_ASSERT(t_domain.ld_enum[m0_linear_enum_type.let_id] == NULL);
-	M0_UT_ASSERT(t_domain.ld_type[m0_pdclust_layout_type.lt_id] == NULL);
+	m0_layout_standard_types_unregister(dom);
+	//M0_UT_ASSERT(dom->ld_enum[m0_list_enum_type.let_id] == NULL);
+	M0_UT_ASSERT(dom->ld_enum[m0_linear_enum_type.let_id] == NULL);
+	M0_UT_ASSERT(dom->ld_type[m0_pdclust_layout_type.lt_id] == NULL);
 
 	/*
 	 * Should be able to register all the available layout types and enum
 	 * types, again after unregistering those.
 	 */
-	rc = m0_layout_standard_types_register(&t_domain);
+	rc = m0_layout_standard_types_register(dom);
 	M0_UT_ASSERT(rc == 0);
-	/*M0_UT_ASSERT(t_domain.ld_enum[m0_list_enum_type.let_id] ==
+	/*M0_UT_ASSERT(dom->ld_enum[m0_list_enum_type.let_id] ==
 		     &m0_list_enum_type);*/
-	M0_UT_ASSERT(t_domain.ld_enum[m0_linear_enum_type.let_id] ==
+	M0_UT_ASSERT(dom->ld_enum[m0_linear_enum_type.let_id] ==
 		     &m0_linear_enum_type);
-	M0_UT_ASSERT(t_domain.ld_type[m0_pdclust_layout_type.lt_id] ==
+	M0_UT_ASSERT(dom->ld_type[m0_pdclust_layout_type.lt_id] ==
 		     &m0_pdclust_layout_type);
 
 	/* Unregister all the registered layout and enum types. */
-	m0_layout_standard_types_unregister(&t_domain);
-	//M0_UT_ASSERT(t_domain.ld_enum[m0_list_enum_type.let_id] == NULL);
-	M0_UT_ASSERT(t_domain.ld_enum[m0_linear_enum_type.let_id] == NULL);
-	M0_UT_ASSERT(t_domain.ld_type[m0_pdclust_layout_type.lt_id] == NULL);
+	m0_layout_standard_types_unregister(dom);
+	//M0_UT_ASSERT(dom->ld_enum[m0_list_enum_type.let_id] == NULL);
+	M0_UT_ASSERT(dom->ld_enum[m0_linear_enum_type.let_id] == NULL);
+	M0_UT_ASSERT(dom->ld_type[m0_pdclust_layout_type.lt_id] == NULL);
 
 	/* Finalise the domain. */
-	m0_layout_domain_fini(&t_domain);
+	m0_layout_domain_fini(dom);
 
 	/*
 	 * Register back all the available layout types and enum types with
@@ -289,14 +302,19 @@ static void test_reg_unreg(void)
 	rc = m0_layout_standard_types_register(&domain);
 	M0_ASSERT(rc == 0);
 
+	m0_free(dom);
+
 	M0_LEAVE();
 }
 
 static void test_reg_unreg_failure(void)
 {
-	struct m0_layout_domain t_domain;
+	struct m0_layout_domain *dom;
 
 	M0_ENTRY();
+
+	M0_ALLOC_PTR(dom);
+	M0_UT_ASSERT(dom != NULL);
 
 	/*
 	 * A layout type can be registered with only one domain at a time.
@@ -309,7 +327,7 @@ static void test_reg_unreg_failure(void)
 	m0_layout_standard_types_unregister(&domain);
 
 	/* Initialise the domain. */
-	rc = m0_layout_domain_init(&t_domain);
+	rc = m0_layout_domain_init(dom);
 	M0_UT_ASSERT(rc == 0);
 
 	/*
@@ -317,23 +335,23 @@ static void test_reg_unreg_failure(void)
 	 * injecting errors.
 	 */
 	m0_fi_enable_once("m0_layout_type_register", "lto_reg_err");
-	rc = m0_layout_type_register(&t_domain, &m0_pdclust_layout_type);
+	rc = m0_layout_type_register(dom, &m0_pdclust_layout_type);
 	M0_UT_ASSERT(rc == LTO_REG_ERR);
 
 	/*m0_fi_enable_once("m0_layout_enum_type_register", "leto_reg_err");
-	rc = m0_layout_enum_type_register(&t_domain, &m0_list_enum_type);
+	rc = m0_layout_enum_type_register(dom, &m0_list_enum_type);
 	M0_UT_ASSERT(rc == LETO_REG_ERR);*/
 
 	m0_fi_enable_once("m0_layout_enum_type_register", "leto_reg_err");
-	rc = m0_layout_enum_type_register(&t_domain, &m0_linear_enum_type);
+	rc = m0_layout_enum_type_register(dom, &m0_linear_enum_type);
 	M0_UT_ASSERT(rc == LETO_REG_ERR);
 
 	/*m0_fi_enable_once("list_register", "mem_err");
-	rc = m0_layout_enum_type_register(&t_domain, &m0_list_enum_type);
+	rc = m0_layout_enum_type_register(dom, &m0_list_enum_type);
 	M0_UT_ASSERT(rc == -ENOMEM);*/
 
 	/*m0_fi_enable_once("list_register", "table_init_err");
-	rc = m0_layout_enum_type_register(&t_domain, &m0_list_enum_type);
+	rc = m0_layout_enum_type_register(dom, &m0_list_enum_type);
 	M0_UT_ASSERT(rc == -EEXIST);*/
 
 	/*
@@ -341,19 +359,19 @@ static void test_reg_unreg_failure(void)
 	 * m0_layout_standard_types_register().
 	 */
 	m0_fi_enable_once("m0_layout_type_register", "lto_reg_err");
-	rc = m0_layout_standard_types_register(&t_domain);
+	rc = m0_layout_standard_types_register(dom);
 	M0_UT_ASSERT(rc == LTO_REG_ERR);
 
 	m0_fi_enable_once("m0_layout_enum_type_register", "leto_reg_err");
-	rc = m0_layout_standard_types_register(&t_domain);
+	rc = m0_layout_standard_types_register(dom);
 	M0_UT_ASSERT(rc == LETO_REG_ERR);
 
 	m0_fi_enable_once("m0_layout_enum_type_register", "leto_reg_err");
-	rc = m0_layout_standard_types_register(&t_domain);
+	rc = m0_layout_standard_types_register(dom);
 	M0_UT_ASSERT(rc == LETO_REG_ERR);
 	m0_fi_disable("m0_layout_enum_type_register", "leto_reg_err");
 
-	m0_layout_domain_fini(&t_domain);
+	m0_layout_domain_fini(dom);
 
 	/*
 	 * Register back all the available layout types and enum types with
@@ -362,6 +380,8 @@ static void test_reg_unreg_failure(void)
 	 */
 	rc = m0_layout_standard_types_register(&domain);
 	M0_ASSERT(rc == 0);
+
+	m0_free(dom);
 
 	M0_LEAVE();
 }
@@ -2201,11 +2221,14 @@ static void test_enum_operations(void)
 /* Tests the API m0_layout_max_recsize(). */
 static void test_max_recsize(void)
 {
-	struct m0_layout_domain t_domain;
-	m0_bcount_t             max_size_from_api;
-	m0_bcount_t             max_size_calculated;
+	struct m0_layout_domain *dom;
+	m0_bcount_t              max_size_from_api;
+	m0_bcount_t              max_size_calculated;
 
 	M0_ENTRY();
+
+	M0_ALLOC_PTR(dom);
+	M0_UT_ASSERT(dom != NULL);
 
 	/*
 	 * A layout type can be registered with only one domain at a time.
@@ -2215,14 +2238,14 @@ static void test_max_recsize(void)
 	m0_layout_standard_types_unregister(&domain);
 
 	/* Initialise the domain. */
-	rc = m0_layout_domain_init(&t_domain);
+	rc = m0_layout_domain_init(dom);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Register pdclust layout type and verify m0_layout_max_recsize(). */
-	rc = m0_layout_type_register(&t_domain, &m0_pdclust_layout_type);
+	rc = m0_layout_type_register(dom, &m0_pdclust_layout_type);
 	M0_UT_ASSERT(rc == 0);
 
-	max_size_from_api = m0_layout_max_recsize(&t_domain);
+	max_size_from_api = m0_layout_max_recsize(dom);
 
 	max_size_calculated = sizeof(struct m0_layout_rec) +
 			      sizeof(struct m0_layout_pdclust_rec);
@@ -2230,10 +2253,10 @@ static void test_max_recsize(void)
 	M0_UT_ASSERT(max_size_from_api == max_size_calculated);
 
 	/* Register linear enum type and verify m0_layout_max_recsize(). */
-	rc = m0_layout_enum_type_register(&t_domain, &m0_linear_enum_type);
+	rc = m0_layout_enum_type_register(dom, &m0_linear_enum_type);
 	M0_UT_ASSERT(rc == 0);
 
-	max_size_from_api = m0_layout_max_recsize(&t_domain);
+	max_size_from_api = m0_layout_max_recsize(dom);
 
 	max_size_calculated = sizeof(struct m0_layout_rec) +
 			      sizeof(struct m0_layout_pdclust_rec) +
@@ -2243,10 +2266,10 @@ static void test_max_recsize(void)
 
 #if 0
 	/* Register list enum type and verify m0_layout_max_recsize(). */
-	rc = m0_layout_enum_type_register(&t_domain, &m0_list_enum_type);
+	rc = m0_layout_enum_type_register(dom, &m0_list_enum_type);
 	M0_UT_ASSERT(rc == 0);
 
-	max_size_from_api = m0_layout_max_recsize(&t_domain);
+	max_size_from_api = m0_layout_max_recsize(dom);
 
 	max_size_calculated = sizeof(struct m0_layout_rec) +
 			      sizeof(struct m0_layout_pdclust_rec) +
@@ -2257,9 +2280,9 @@ static void test_max_recsize(void)
 	M0_UT_ASSERT(max_size_from_api == max_size_calculated);
 
 	/* Unregister list enum type and verify m0_layout_max_recsize(). */
-	m0_layout_enum_type_unregister(&t_domain, &m0_list_enum_type);
+	m0_layout_enum_type_unregister(dom, &m0_list_enum_type);
 
-	max_size_from_api = m0_layout_max_recsize(&t_domain);
+	max_size_from_api = m0_layout_max_recsize(dom);
 
 	max_size_calculated = sizeof(struct m0_layout_rec) +
 			      sizeof(struct m0_layout_pdclust_rec) +
@@ -2269,9 +2292,9 @@ static void test_max_recsize(void)
 #endif
 
 	/* Unregister linear enum type and verify m0_layout_max_recsize(). */
-	m0_layout_enum_type_unregister(&t_domain, &m0_linear_enum_type);
+	m0_layout_enum_type_unregister(dom, &m0_linear_enum_type);
 
-	max_size_from_api = m0_layout_max_recsize(&t_domain);
+	max_size_from_api = m0_layout_max_recsize(dom);
 
 	max_size_calculated = sizeof(struct m0_layout_rec) +
 			      sizeof(struct m0_layout_pdclust_rec);
@@ -2279,16 +2302,16 @@ static void test_max_recsize(void)
 	M0_UT_ASSERT(max_size_from_api == max_size_calculated);
 
 	/* Unregister pdclust layout type and verify m0_layout_max_recsize(). */
-	m0_layout_type_unregister(&t_domain, &m0_pdclust_layout_type);
+	m0_layout_type_unregister(dom, &m0_pdclust_layout_type);
 
-	max_size_from_api = m0_layout_max_recsize(&t_domain);
+	max_size_from_api = m0_layout_max_recsize(dom);
 
 	max_size_calculated = sizeof(struct m0_layout_rec);
 
 	M0_UT_ASSERT(max_size_from_api == max_size_calculated);
 
 	/* Finalise the domain. */
-	m0_layout_domain_fini(&t_domain);
+	m0_layout_domain_fini(dom);
 
 	/*
 	 * Register back all the available layout types and enum types with
@@ -2297,6 +2320,8 @@ static void test_max_recsize(void)
 	 */
 	rc = m0_layout_standard_types_register(&domain);
 	M0_ASSERT(rc == 0);
+
+	m0_free(dom);
 
 	M0_LEAVE();
 }

@@ -1612,7 +1612,7 @@ last:
 static int ioreq_parity_verify(struct io_request *req)
 {
 	int                  rc = 0;
-	uint64_t             grp;
+	uint64_t             i;
 	struct pargrp_iomap *iomap;
 	struct inode        *inode;
 	struct m0t1fs_sb    *csb;
@@ -1628,8 +1628,8 @@ static int ioreq_parity_verify(struct io_request *req)
 
 	m0_semaphore_down(&m0t1fs_cpus_sem);
 
-	for (grp = 0; grp < req->ir_iomap_nr; ++grp) {
-		iomap = req->ir_iomaps[grp];
+	for (i = 0; i < req->ir_iomap_nr; ++i) {
+		iomap = req->ir_iomaps[i];
 		if (iomap->pi_state == PI_DEGRADED) {
 			/* data is recovered from existing data and parity.
 			 * It's meaningless to do parity verification */
@@ -1649,26 +1649,27 @@ static int ioreq_parity_verify(struct io_request *req)
 
 static int ioreq_parity_recalc(struct io_request *req)
 {
-	int      rc = 0;
-	uint64_t map;
+	int                  rc = 0;
+	uint64_t             i;
+	struct pargrp_iomap *iomap;
 
 	M0_ENTRY("[%p]", req);
 	M0_PRE_EX(io_request_invariant(req));
 
 	m0_semaphore_down(&m0t1fs_cpus_sem);
 
-	for (map = 0; map < req->ir_iomap_nr; ++map) {
-		rc = req->ir_iomaps[map]->pi_ops->pi_parity_recalc(req->
-				ir_iomaps[map]);
+	for (i = 0; i < req->ir_iomap_nr; ++i) {
+		iomap = req->ir_iomaps[i];
+		rc = iomap->pi_ops->pi_parity_recalc(iomap);
 		if (rc != 0)
 			break;
 	}
 
 	m0_semaphore_up(&m0t1fs_cpus_sem);
 
-	return rc != 0 ? M0_ERR_INFO(rc, "[%p] Parity recalc failed for "
-				"grpid=%llu", req,
-				req->ir_iomaps[map]->pi_grpid) : M0_RC(rc);
+	return rc == 0 ? M0_RC(rc) :
+		M0_ERR_INFO(rc, "Parity recalc failed for grpid=%3"PRIu64,
+				 iomap->pi_grpid);
 }
 
 /* Finds out pargrp_iomap from array of such structures in io_request. */
@@ -1677,23 +1678,24 @@ static void ioreq_pgiomap_find(struct io_request    *req,
 			       uint64_t             *cursor,
 			       struct pargrp_iomap **out)
 {
-	uint64_t id;
+	uint64_t i;
+
 	M0_PRE(req    != NULL);
 	M0_PRE(out    != NULL);
 	M0_PRE(cursor != NULL);
 	M0_PRE(*cursor < req->ir_iomap_nr);
-	M0_ENTRY("[%p] group_id = %llu, cursor = %llu", req, grpid, *cursor);
+	M0_ENTRY("[%p] group_id=%llu cursor=%llu", req, grpid, *cursor);
 
-	for (id = *cursor; id < req->ir_iomap_nr; ++id) {
-		if (req->ir_iomaps[id]->pi_grpid == grpid) {
-			*out = req->ir_iomaps[id];
-			*cursor = id;
+	for (i = *cursor; i < req->ir_iomap_nr; ++i) {
+		if (req->ir_iomaps[i]->pi_grpid == grpid) {
+			*out = req->ir_iomaps[i];
+			*cursor = i;
 			break;
 		}
 	}
 
-	M0_POST(id < req->ir_iomap_nr);
-	M0_LEAVE("[%p] result iomap = %llu", req, id);
+	M0_POST(i < req->ir_iomap_nr);
+	M0_LEAVE("[%p] result iomap=%llu", req, i);
 }
 
 static int ioreq_user_data_copy(struct io_request   *req,
@@ -1701,7 +1703,7 @@ static int ioreq_user_data_copy(struct io_request   *req,
 				enum page_attr       filter)
 {
 	int                        rc;
-	uint64_t                   map;
+	uint64_t                   i;
 	m0_bindex_t                grpstart;
 	m0_bindex_t                grpend;
 	m0_bindex_t                pgstart;
@@ -1710,7 +1712,7 @@ static int ioreq_user_data_copy(struct io_request   *req,
 	struct iov_iter            it;
 	struct m0_ivec_varr_cursor srccur;
 	struct m0_pdclust_layout  *play;
-	struct pargrp_iomap       *this_map;
+	struct pargrp_iomap       *iomap;
 
 	M0_ENTRY("[%p] %s user-space. filter = 0x%x",
 		 req, dir == CD_COPY_FROM_USER ? (char *)"from" : (char *)"to",
@@ -1728,12 +1730,12 @@ static int ioreq_user_data_copy(struct io_request   *req,
 	m0_ivec_varr_cursor_init(&srccur, &req->ir_ivv);
 	play = pdlayout_get(req);
 
-	for (map = 0; map < req->ir_iomap_nr; ++map) {
-		this_map = req->ir_iomaps[map];
-		M0_ASSERT_EX(pargrp_iomap_invariant(this_map));
+	for (i = 0; i < req->ir_iomap_nr; ++i) {
+		iomap = req->ir_iomaps[i];
+		M0_ASSERT_EX(pargrp_iomap_invariant(iomap));
 
 		count    = 0;
-		grpstart = data_size(play) * this_map->pi_grpid;
+		grpstart = data_size(play) * iomap->pi_grpid;
 		grpend   = grpstart + data_size(play);
 
 		while (!m0_ivec_varr_cursor_move(&srccur, count) &&
@@ -1749,7 +1751,7 @@ static int ioreq_user_data_copy(struct io_request   *req,
 			 * current pargrp_iomap structure from pgstart
 			 * and pgend.
 			 */
-			rc = user_data_copy(this_map, pgstart, pgend,
+			rc = user_data_copy(iomap, pgstart, pgend,
 					    &it, dir, filter);
 			if (rc != 0)
 				return M0_ERR_INFO(
@@ -3256,17 +3258,17 @@ failed:
 
 static void ioreq_iomaps_destroy(struct io_request *req)
 {
-	uint64_t id;
+	uint64_t i;
 
 	M0_ENTRY("[%p]", req);
 
 	M0_PRE(req != NULL);
 	M0_PRE(req->ir_iomaps != NULL);
 
-	for (id = 0; id < req->ir_iomap_nr; ++id) {
-		if (req->ir_iomaps[id] != NULL) {
-			pargrp_iomap_fini(req->ir_iomaps[id]);
-			m0_free(req->ir_iomaps[id]);
+	for (i = 0; i < req->ir_iomap_nr; ++i) {
+		if (req->ir_iomaps[i] != NULL) {
+			pargrp_iomap_fini(req->ir_iomaps[i]);
+			m0_free(req->ir_iomaps[i]);
 			++iommstats.d_pargrp_iomap_nr;
 		}
 	}
@@ -3353,7 +3355,7 @@ static void dgmode_rwvec_dealloc_fini(struct dgmode_rwvec *dg)
 static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 {
 	int                         rc;
-	uint64_t                    map;
+	uint64_t                    i;
 	uint64_t                    unit;
 	uint64_t                    unit_size;
 	uint64_t                    count;
@@ -3388,16 +3390,14 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	play      = pdlayout_get(req);
 	unit_size = layout_unit_size(play);
 
-	M0_LOG(M0_DEBUG, "[%p]", req);
-
-	for (map = 0; map < req->ir_iomap_nr; ++map) {
+	for (i = 0; i < req->ir_iomap_nr; ++i) {
 		count        = 0;
-		iomap        = req->ir_iomaps[map];
+		iomap        = req->ir_iomaps[i];
 		pgstart      = data_size(play) * iomap->pi_grpid;
 		pgend        = pgstart + data_size(play);
 		src.sa_group = iomap->pi_grpid;
 
-		M0_LOG(M0_DEBUG, "[%p] map %p [grpid = %llu state=%u]",
+		M0_LOG(M0_DEBUG, "[%p] iomap=%p [grpid=%llu state=%u]",
 		       req, iomap, iomap->pi_grpid, iomap->pi_state);
 
 		/* Cursor for pargrp_iomap::pi_ivv. */
@@ -3447,8 +3447,8 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src, &tgt,
 							   &ti);
 			if (rc != 0) {
-				M0_LOG(M0_DEBUG, "[%p] map %p, "
-				       "nxo_tioreq_map() failed, rc %d",
+				M0_LOG(M0_DEBUG, "[%p] iomap=%p "
+				       "nxo_tioreq_map() failed, rc=%d",
 				       req, iomap, rc);
 				goto err;
 			}
@@ -3478,8 +3478,8 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 				rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src,
 								   &tgt, &ti);
 				if (rc != 0) {
-					M0_LOG(M0_DEBUG, "[%p] map %p, "
-					       "nxo_tioreq_map() failed, rc %d",
+					M0_LOG(M0_DEBUG, "[%p] iomap=%p "
+					       "nxo_tioreq_map() failed, rc=%d",
 					       req, iomap, rc);
 					goto err;
 				}
@@ -3512,9 +3512,9 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 				rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src,
 								   &tgt, &ti);
 				if (rc != 0) {
-					M0_LOG(M0_ERROR, "[%p] map %p,"
-					       "nxo_tioreq_map() failed, rc %d"
-						,req, iomap, rc);
+					M0_LOG(M0_ERROR, "[%p] iomap=%p "
+					       "nxo_tioreq_map() failed, rc=%d",
+						req, iomap, rc);
 				}
 				if (target_ioreq_type_get(ti) != TI_NONE)
 					continue;
@@ -3563,17 +3563,18 @@ static inline int ioreq_sm_timedwait(struct io_request *req,
 
 static int ioreq_dgmode_recover(struct io_request *req)
 {
-	int      rc = 0;
-	uint64_t cnt;
+	int                  rc = 0;
+	uint64_t             i;
+	struct pargrp_iomap *iomap;
 
 	M0_ENTRY("[%p]", req);
 	M0_PRE_EX(io_request_invariant(req));
 	M0_PRE(ioreq_sm_state(req) == IRS_READ_COMPLETE);
 
-	for (cnt = 0; cnt < req->ir_iomap_nr; ++cnt) {
-		if (req->ir_iomaps[cnt]->pi_state == PI_DEGRADED) {
-			rc = req->ir_iomaps[cnt]->pi_ops->
-				pi_dgmode_recover(req->ir_iomaps[cnt]);
+	for (i = 0; i < req->ir_iomap_nr; ++i) {
+		iomap = req->ir_iomaps[i];
+		if (iomap->pi_state == PI_DEGRADED) {
+			rc = iomap->pi_ops->pi_dgmode_recover(iomap);
 			if (rc != 0)
 				return M0_ERR_INFO(rc, "[%p] Failed to recover"
 						   " data", req);
@@ -3800,20 +3801,21 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 {
 	int                      rc = 0;
-	uint64_t                 id;
+	uint64_t                 i;
 	struct io_req_fop       *irfop;
 	struct target_ioreq     *ti;
 	enum m0_pool_nd_state    state;
 	struct m0_poolmach      *pm;
 	struct nw_xfer_request  *xfer;
-	struct m0t1fs_sb       *csb;
+	struct pargrp_iomap     *iomap;
+	struct m0t1fs_sb        *csb;
 
 
 	M0_PRE_EX(io_request_invariant(req));
 
 	csb = M0T1FS_SB(m0t1fs_file_to_inode(req->ir_file)->i_sb);
 	xfer = &req->ir_nwxfer;
-	M0_ENTRY("[%p] xfer->nxr_rc %d", req, xfer->nxr_rc);
+	M0_ENTRY("[%p] xfer->nxr_rc=%d", req, xfer->nxr_rc);
 
 	/*
 	 * If all devices are ONLINE, all requests return success.
@@ -3892,9 +3894,9 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		if (ioreq_sm_state(req) == IRS_READ_COMPLETE)
 			ioreq_sm_state_set(req, IRS_DEGRADED_READING);
 
-		for (id = 0; id < req->ir_iomap_nr; ++id) {
-			rc = req->ir_iomaps[id]->pi_ops->
-				pi_dgmode_postprocess(req->ir_iomaps[id]);
+		for (i = 0; i < req->ir_iomap_nr; ++i) {
+			iomap = req->ir_iomaps[i];
+			rc = iomap->pi_ops->pi_dgmode_postprocess(iomap);
 			if (rc != 0)
 				break;
 		}
@@ -4011,7 +4013,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 {
 	int                     rc;
 	bool                    rmw;
-	uint64_t                map;
+	uint64_t                i;
 	struct inode           *inode;
 	struct target_ioreq    *ti;
 	struct nw_xfer_request *xfer;
@@ -4022,8 +4024,8 @@ static int ioreq_iosm_handle(struct io_request *req)
 	M0_ENTRY("[%p] sb %p", req, file_to_sb(req->ir_file));
 	csb = M0T1FS_SB(m0t1fs_file_to_inode(req->ir_file)->i_sb);
 
-	for (map = 0; map < req->ir_iomap_nr; ++map) {
-		if (M0_IN(req->ir_iomaps[map]->pi_rtype,
+	for (i = 0; i < req->ir_iomap_nr; ++i) {
+		if (M0_IN(req->ir_iomaps[i]->pi_rtype,
 			  (PIR_READOLD, PIR_READREST)))
 			break;
 	}
@@ -4044,8 +4046,8 @@ static int ioreq_iosm_handle(struct io_request *req)
 	 * for all parity groups.
 	 */
 	M0_LOG(M0_DEBUG, "[%p] map=%llu map_nr=%llu",
-	       req, map, req->ir_iomap_nr);
-	if (map == req->ir_iomap_nr) {
+	       req, i, req->ir_iomap_nr);
+	if (i == req->ir_iomap_nr) {
 		enum io_req_state state;
 
 		rmw = false;

@@ -285,7 +285,7 @@ purge_trace_files_for()
     local del_count=0
     local potential_del_count=0
 
-    if [[ -n $output ]] ; then
+    if [[ -n "$output" ]] ; then
         # sort from oldest to newest
         output=$(echo "$output" | grep -Pv '^\s*$' | sort -k2)
         show_progress
@@ -349,14 +349,14 @@ purge_trace_files_for()
             "total size after cleanup $((running_total_size / 1024**2))MiB"
     fi
 
-    if [[ -n $marked_output ]] ; then
+    if [[ -n "$marked_output" ]] ; then
         if $list_files ; then
             echo "$marked_output" | grep -Pv '^\s*$' | format_trace_info
         else
             local D_lines=$(echo "$marked_output" | grep -P '^(?:\x1b\[[0-9;]*m)?D' \
                             | format_trace_info)
 
-            if [[ -n $D_lines ]] ; then
+            if [[ -n "$D_lines" ]] ; then
                 local D_line
                 echo "$D_lines" | while read -r D_line
                 do
@@ -404,7 +404,7 @@ if [[ $1 =~ ^[[:digit:]]+[GM]?$ ]] ; then
 elif [[ $2 =~ ^[[:digit:]]+[GM]?$ ]] ; then
     service=$1
     max_space=$2
-elif [[ -n $2 && ! $2 =~ ^[[:digit:]]+[GM]?$ ]] ; then
+elif [[ -n "$2" && ! $2 =~ ^[[:digit:]]+[GM]?$ ]] ; then
     die "incorrect format of max-space argument ($2), should a number with" \
         "an optional M or G suffix"
 else
@@ -448,7 +448,7 @@ fi
 
 # do work
 #
-if [[ -n $service ]] ; then
+if [[ -n "$service" ]] ; then
     purge_trace_files_for $service
 else
     for dir in $(find $var_motr_dir -mindepth 1 -maxdepth 1 -type d) halon ; do

@@ -220,6 +220,7 @@ include $(top_srcdir)/dix/cm/Makefile.sub
 include $(top_srcdir)/dix/cm/repair/Makefile.sub
 include $(top_srcdir)/dix/cm/rebalance/Makefile.sub
 include $(top_srcdir)/dtm/Makefile.sub
+include $(top_srcdir)/dtm0/Makefile.sub
 include $(top_srcdir)/fd/Makefile.sub
 include $(top_srcdir)/fdmi/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
@@ -363,6 +364,7 @@ include $(top_srcdir)/console/ut/Makefile.sub
 include $(top_srcdir)/dix/cm/ut/Makefile.sub
 include $(top_srcdir)/dix/ut/Makefile.sub
 include $(top_srcdir)/dtm/ut/Makefile.sub
+include $(top_srcdir)/dtm0/ut/Makefile.sub
 include $(top_srcdir)/fd/ut/Makefile.sub
 include $(top_srcdir)/fdmi/ut/Makefile.sub
 include $(top_srcdir)/file/ut/Makefile.sub
@@ -877,7 +879,8 @@ be_tool_m0betool_LDADD     = $(top_builddir)/motr/libmotr.la
 
 sbin_PROGRAMS               += be/tool/m0beck
 be_tool_m0beck_CPPFLAGS      = -DM0_TARGET='m0beck' $(AM_CPPFLAGS)
-be_tool_m0beck_LDADD         = $(top_builddir)/motr/libmotr.la
+be_tool_m0beck_LDADD         = $(top_builddir)/motr/libmotr.la \
+                                @YAML_LIBS@
 
 #
 # scripts/systemtap/kem/m0kemc ----------------------------------- {{{2
@@ -1072,6 +1075,7 @@ EXTRA_DIST += \
               dix/cm/Kbuild.sub \
               dtm/Kbuild.sub \
               dtm/ut/Kbuild.sub \
+              dtm0/Kbuild.sub \
               fd/Kbuild.sub \
               fd/ut/Kbuild.sub \
               fdmi/Kbuild.sub \
@@ -1237,7 +1241,7 @@ pre-all: check-make-prebuild check-sources-prebuild
 check-make-prebuild:
 	@echo -n 'Checking make files... '
 	@XC=`echo "$(motr_libmotr_la_SOURCES)" | grep -Po '\S+_xc\.[ch]'` ; \
-		if [[ -n $$XC ]] ; then \
+		if [[ -n "$$XC" ]] ; then \
 			echo FAIL; \
 			echo "ERROR: xcode files in motr_libmotr_la_SOURCES makefile variable:"; \
 			echo "$$XC"; \
@@ -1245,7 +1249,7 @@ check-make-prebuild:
 			exit 1; \
 		fi
 	@XC=`echo "$(EXTRA_DIST)" | grep -Po '\S+_xc\.[ch]'` ; \
-		if [[ -n $$XC ]] ; then \
+		if [[ -n "$$XC" ]] ; then \
 			echo FAIL; \
 			echo "ERROR: xcode files found in EXTRA_DIST makefile variable:"; \
 			echo "$$XC"; \

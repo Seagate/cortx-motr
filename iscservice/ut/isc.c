@@ -86,11 +86,13 @@ static void fid_set(void *fid, int tid)
 
 static void test_register(void)
 {
-	int                    rc;
-	struct m0_fid          fid;
-	struct cnc_cntrl_block cc_block;
+	int                     rc;
+	struct m0_fid           fid;
+	struct cnc_cntrl_block *cc_block;
 
-	M0_SET0(&cc_block);
+	M0_ALLOC_PTR(cc_block);
+	M0_UT_ASSERT(cc_block != NULL);
+	M0_SET0(cc_block);
 	init();
 	m0_fid_set(&fid, 0x1234, 0x456);
 	/* Register a new computation. */
@@ -105,9 +107,10 @@ static void test_register(void)
 	m0_isc_comp_unregister(&fid);
 	rc = m0_isc_comp_state_probe(&fid);
 	M0_UT_ASSERT(rc == -ENOENT);
-	cc_block_init(&cc_block, sizeof (struct m0_fid), fid_set);
-	cc_block_launch(&cc_block, comp_register);
+	cc_block_init(cc_block, sizeof (struct m0_fid), fid_set);
+	cc_block_launch(cc_block, comp_register);
 	fini();
+	m0_free(cc_block);
 }
 
 static void test_init_fini(void)
