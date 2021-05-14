@@ -189,7 +189,7 @@ struct m0_balloc_super_block {
 	uint32_t	bsb_gsbits;           /**< group size bits: power of 2*/
 	m0_bcount_t	bsb_groupcount;       /**< # of group */
 	m0_bcount_t	bsb_indexcount;       /**< # of group */
-        m0_bcount_t	bsb_prealloc_count;   /**< nr of pre-alloc blocks */
+	m0_bcount_t	bsb_prealloc_count;   /**< nr of pre-alloc blocks */
 
 	uint64_t	bsb_format_time;
 	uint64_t	bsb_write_time;
@@ -349,11 +349,11 @@ M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb);
    @see         struct ad_balloc_ops
    @pre         out != NULL
  */
-M0_INTERNAL int m0_balloc_create(uint64_t                         cid,
-				 struct m0_be_seg                *seg,
-				 struct m0_sm_group              *grp,
+M0_INTERNAL int m0_balloc_create(uint64_t			  cid,
+				 struct m0_be_seg		 *seg,
+				 struct m0_sm_grou		 *grp,
 				 struct m0_ad_balloc_format_req  *cfg,
-				 struct m0_balloc               **out);
+				 struct m0_balloc		**out);
 
 M0_INTERNAL void m0_balloc_group_desc_init(struct m0_balloc_group_desc *desc);
 
