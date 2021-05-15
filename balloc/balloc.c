@@ -22,6 +22,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BALLOC
 #include "lib/trace.h"
+
 #include <stdio.h>        /* sprintf */
 #include <stdlib.h>
 #include <memory.h>
@@ -559,9 +560,9 @@ static int sb_update(struct m0_balloc *bal, struct m0_sm_group *grp)
 	return M0_RC(rc);
 }
 
-static int balloc_sb_write(struct m0_balloc               *bal,
+static int balloc_sb_write(struct m0_balloc		  *bal,
 			   struct m0_ad_balloc_format_req *req,
-			   struct m0_sm_group             *grp)
+			   struct m0_sm_group		  *grp)
 {
 	int				 rc;
 	struct timeval			 now;
@@ -3007,10 +3008,10 @@ static const struct m0_ad_balloc_ops balloc_ops = {
 	.bo_reserve_extent = balloc_reserve_extent,
 };
 
-static int balloc_trees_create(struct m0_balloc    *bal,
-			       struct m0_be_tx     *tx,
-			       const struct m0_fid *fid,
-			       m0_bcount_t          indexcount)
+static int balloc_trees_create(struct m0_balloc     *bal,
+				struct m0_be_tx     *tx,
+				const struct m0_fid *fid,
+				m0_bcount_t	     indexcount)
 {
 	int rc;
 	int i;
@@ -3049,11 +3050,11 @@ M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb)
 	cb->cb_ballroom.ab_ops = &balloc_ops;
 }
 
-M0_INTERNAL int m0_balloc_create(uint64_t                         cid,
-				 struct m0_be_seg                *seg,
-				 struct m0_sm_group              *grp,
-				 struct m0_ad_balloc_format_req  *bcfg,
-				 struct m0_balloc               **out)
+M0_INTERNAL int m0_balloc_create(uint64_t                        cid,
+				struct m0_be_seg                *seg,
+				struct m0_sm_group              *grp,
+				struct m0_ad_balloc_format_req  *bcfg,
+				struct m0_balloc               **out)
 {
 	struct m0_balloc       *cb;
 	struct m0_be_btree      btree = {};
