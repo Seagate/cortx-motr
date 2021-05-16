@@ -516,6 +516,7 @@
 #include "format/format.h"
 #include "module/instance.h"
 #include "lib/memory.h"
+#include "lib/misc.h"
 #include "lib/assert.h"
 #include "ut/ut.h"          /** struct m0_ut_suite */
 //#include "lib/user_space/misc.h" /** ARRAY_SIZE_FOR_BITS */
@@ -2039,7 +2040,6 @@ static void generic_move(struct nd *src, struct nd *tgt,
 	node_fix(src, tx);
 	node_fix(tgt, tx);
 }
-
 
 #ifndef __KERNEL__
 
