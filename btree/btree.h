@@ -140,6 +140,14 @@ int  m0_btree_mod_init(void);
 void m0_btree_mod_fini(void);
 
 
+/**
+ * This macro calls the 'action' function and follows it by calling
+ * m0_sm_op_tick() to execute the state machine.
+ *
+ * IMPORTANT: The 'action' routine should execute the call m0_sm_op_init() for
+ * setting the *_tick() function which is eventually be called by
+ * m0_sm_op_tick() function.
+ */
 #define M0_BTREE_OP_SYNC_WITH(op, action)       \
 	({                                      \
 		struct m0_sm_op *__opp = (op);  \
@@ -148,7 +156,6 @@ void m0_btree_mod_fini(void);
 		m0_sm_op_tick(__opp);           \
 		m0_sm_op_fini(__opp);           \
 	})
-
 
 
 /** @} end of btree group */
