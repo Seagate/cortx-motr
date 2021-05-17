@@ -349,11 +349,11 @@ M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb);
    @see         struct ad_balloc_ops
    @pre         out != NULL
  */
-M0_INTERNAL int m0_balloc_create(uint64_t                            cid,
-				 struct m0_be_seg                   *seg,
-				 struct m0_sm_group                 *grp,
-				 struct m0_ad_balloc_format_req     *cfg,
-				 struct m0_balloc                  **out);
+M0_INTERNAL int m0_balloc_create(uint64_t			 cid,
+				 struct m0_be_seg		*seg,
+				 struct m0_sm_group		*grp,
+				 struct m0_ad_balloc_format_req	*cfg,
+				 struct m0_balloc		**out);
 
 M0_INTERNAL void m0_balloc_group_desc_init(struct m0_balloc_group_desc *desc);
 
