@@ -188,7 +188,7 @@ struct m0_balloc_super_block {
 	uint32_t	bsb_bsbits;           /**< block size bits: power of 2*/
 	uint32_t	bsb_gsbits;           /**< group size bits: power of 2*/
 	m0_bcount_t	bsb_groupcount;       /**< # of group */
-	m0_bcount_t	bsb_indexcount;       /**< # of group */
+	m0_bcount_t	bsb_indexcount;       /**< # of db index */
 	m0_bcount_t	bsb_prealloc_count;   /**< nr of pre-alloc blocks */
 
 	uint64_t	bsb_format_time;
