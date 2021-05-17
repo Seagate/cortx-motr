@@ -271,16 +271,21 @@
  * @endverbatim
  *
  * Phases Description:
- * step 1. NEXTDOWN: traverse down the tree searching for given key till we reach leaf node containing that key
- * step 2. LOAD : load left and/or, right only if there are chances of underflow at the node (i.e. number of keys == min or any other conditions defined for underflow can be used)
- * step 3. CHECK : check if any of the nodes referenced (or loaded) during the traversal have changed
- *                 if the nodes have changed then repeat traversal again after UNLOCKING the tree
- *                 if the nodes have not changed then check will call ACT
- * step 4. ACT: This state will find the key and delete it.
- *              If there is no underflow, move to CLEANUP, otherwise move to RESOLVE.
- * step 5. RESOLVE: This state will resolve underflow,
- *                  it will get sibling and perform merging or rebalancing with sibling.
- *                  Once the underflow is resolved at the node, if there is an underflow at parent node Move to MOVEUP , else move to CEANUP.
+ * step 1. NEXTDOWN: traverse down the tree searching for given key till we
+ * 		      reach leaf node containing that key
+ * step 2. LOAD : load left and/or, right only if there are chances of underflow
+ * 		  at the node (i.e.number of keys == min or any other conditions
+ * 		  defined for underflow can be used)
+ * step 3. CHECK : check if any of the nodes referenced (or loaded) during the
+ * 		   traversal have changed if the nodes have changed then repeat
+ * 		   traversal again after UNLOCKING the tree if the nodes have
+ * 		   not changed then check will call ACT
+ * step 4. ACT: This state will find the key and delete it. If there is no
+ * 		underflow, move to CLEANUP, otherwise move to RESOLVE.
+ * step 5. RESOLVE: This state will resolve underflow, it will get sibling and
+ * 		    perform merging or rebalancing with sibling. Once the
+ * 		    underflow is resolved at the node, if there is an underflow
+ * 		    at parent node Move to MOVEUP , else move to CEANUP.
  * step 6. MOVEUP: This state moves to the parent node
  *
  *
@@ -314,34 +319,49 @@
  *                                            DONE
  *
  * @endverbatim
- * Iteration function will return the record for the search key and iteratively the record of subsequent keys as requested by the caller,
- * if returned key is last key in the node , we may need to fetch next node,
- * To fetch keys in next node: first release the LOCK, call Iteration function and pass key='last fetched' key and next_sibling_flag= 'True'
- * If next_sibling_flag == 'True' we will also load the right sibling node which is to the node containing the search key
- * As we are releasing lock for finding next node, updates such as(insertion of new keys, merging due to deletion) can happen,
- * so to handle such cases, we load both earlier node and node to the right of it
+ * Iteration function will return the record for the search key and iteratively
+ * the record of subsequent keys as requested by the caller, if returned key is
+ * last key in the node , we may need to fetch next node. To fetch keys in next
+ * node: first release the LOCK, call Iteration function and pass key as
+ * 'last fetched' key and next_sibling_flag= 'True'.
+ * If next_sibling_flag == 'True', we will also load the right sibling node
+ * which is to the node containing the search key. As we are releasing lock for
+ * finding next node, updates such as(insertion of new keys, merging due to
+ * deletion) can happen, so to handle such cases, we load both earlier node and
+ * node to the right of it
  *
  * Phases Description:
  * step 1. NEXTDOWN: this state will load nodes searching for the given key,
- *                   but if next_sibling_flag == 'True' then this state will also load the leftmost child nodes during its downward traversal.
- * step 2. LOAD: this function will get called only when next_sibling_flag == 'True',
- *               and functionality of this function is to load next node so, it will search and LOAD next sibling
- * step 3. CHECK: check function will check the traversal path for node with key and traversal path for next sibling node if it is also loaded
- *                if traverse path of any of the node has changed, repeat traversal again after UNLOCKING the tree
- *                else, if next_sibling_flag == 'True', go to NEXTKEY to fetch next key, else to ACT for callback
- * step 4. ACT: ACT will provide an input as 0 or 1: where 0 ->done 1-> return nextkey
+ *                   but if next_sibling_flag == 'True' then this state will
+ * 		     also load the leftmost child nodes during its downward
+ * 		     traversal.
+ * step 2. LOAD: this function will get called only when value of
+ * 		 next_sibling_flag is 'True'.Functionality of this function is
+ * 	         to load next node so, it will search and LOAD next sibling
+ * step 3. CHECK: check function will check the traversal path for node with key
+ * 		  and traversal path for next sibling node if it is also loaded
+ *                if traverse path of any of the node has changed, repeat
+ * 		  traversal again after UNLOCKING the tree else, if
+ * 		  next_sibling_flag == 'True', go to NEXTKEY to fetch next key,
+ * 	          else to ACT for callback
+ * step 4. ACT: ACT will provide an input as 0 or 1:
+ * 		where, 0 ->done 1-> return nextkey
  * step 5. NEXTKEY:
  *         if next_sibling_flag == 'True',
  *             check last key in the current node.
- *                 if it is <= given key, go for next node which was loaded at phase LOAD (step 2) and return first key
+ *                 if it is <= given key, go for next node which was loaded at
+ * 		      phase LOAD (step 2) and return first key
  *                 else return key next to last fetched key
  *            and call ACT for further input (1/0)
  *         else
- *             if no keys to return i.e., last returned key was last key in node.
+ *             if no keys to return i.e., last returned key was last key in node
  *                 check if next node is loaded.
- *                   if yes go to next node else and return first key from that node
- *                   else call Iteration function and pass key='last fetched key' and next_sibling_flag='True'
- *             else return key == given key, or next to earlier retune key and call ACT for further input (1/0)
+ *                  if yes go to next node else and return first key from that
+ * 		       node
+ *                  else call Iteration function and pass key='last fetched key'
+ * 		         and next_sibling_flag='True'
+ *             else return key == given key, or next to earlier retune key and
+ * 		    call ACT for further input (1/0)
  *
  *
  * Data structures
@@ -893,6 +913,7 @@ struct node_type {
 	/** Validates node composition */
 	bool (*nt_invariant)(const struct nd *node);
 
+	/** Validates node footer */
 	int (*nt_verify)(const struct nd *node);
 };
 
@@ -2093,10 +2114,31 @@ static void ff_set_level(const struct nd *node, uint8_t new_level)
 static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx)
 {
-	int srcidx;
-	int tgtidx;
-	int last_idx_src;
-	int last_idx_tgt;
+	struct slot rec;
+	struct slot tmp;
+	m0_bcount_t rec_ksize;
+	m0_bcount_t rec_vsize;
+	m0_bcount_t temp_ksize;
+	m0_bcount_t temp_vsize;
+	void       *rec_p_key;
+	void       *rec_p_val;
+	void       *temp_p_key;
+	void       *temp_p_val;
+	int         srcidx;
+	int         tgtidx;
+	int         last_idx_src;
+	int         last_idx_tgt;
+
+	rec.s_rec.r_key.k_data.ov_vec.v_count = &rec_ksize;
+	rec.s_rec.r_key.k_data.ov_buf = &rec_p_key;
+	rec.s_rec.r_val.ov_vec.v_count = &rec_vsize;
+	rec.s_rec.r_val.ov_buf = &rec_p_val;
+
+	tmp.s_rec.r_key.k_data.ov_vec.v_count = &temp_ksize;
+	tmp.s_rec.r_key.k_data.ov_buf = &temp_p_key;
+	tmp.s_rec.r_val.ov_vec.v_count = &temp_vsize;
+	tmp.s_rec.r_val.ov_buf = &temp_p_val;
+
 	M0_PRE(src != tgt);
 
 	last_idx_src = node_count_rec(src);
@@ -2106,33 +2148,9 @@ static void generic_move(struct nd *src, struct nd *tgt,
 	tgtidx = dir == D_LEFT ? last_idx_tgt : 0;
 
 	while (true) {
-		struct slot rec;
-		struct slot tmp;
-		m0_bcount_t rec_ksize;
-		m0_bcount_t rec_vsize;
-		m0_bcount_t temp_ksize;
-		m0_bcount_t temp_vsize;
-		void       *rec_p_key;
-		void       *rec_p_val;
-		void       *temp_p_key;
-		void       *temp_p_val;
-		
-	
-		//int         srcidx = dir == D_LEFT ? 0 : node_count(src) - 1;
-		//int         tgtidx = dir == D_LEFT ? node_count(tgt) : 0;
-		
-		rec.s_rec.r_key.k_data.ov_vec.v_count = &rec_ksize;
-		rec.s_rec.r_key.k_data.ov_buf = &rec_p_key;
-		rec.s_rec.r_val.ov_vec.v_count = &rec_vsize;
-		rec.s_rec.r_val.ov_buf = &rec_p_val;
-
-		tmp.s_rec.r_key.k_data.ov_vec.v_count = &temp_ksize;
-		tmp.s_rec.r_key.k_data.ov_buf = &temp_p_key;
-		tmp.s_rec.r_val.ov_vec.v_count = &temp_vsize;
-		tmp.s_rec.r_val.ov_buf = &temp_p_val;
-
-		if (srcidx == -1 || nr == 0 || (nr == NR_EVEN &&
-				(node_space(tgt) <= node_space(src))))
+		if (nr == 0 || (nr == NR_EVEN &&
+				(node_space(tgt) <= node_space(src))) ||
+				(nr == NR_MAX && srcidx == -1))
 			break;
 
 		/** Get the record at src index in rec. */
@@ -2224,10 +2242,11 @@ static int fail(struct m0_btree_op *bop, int rc)
 }
 
 /**
-* checks if given node is still exists
-*/
+ * checks if given node is still exists
+ */
 static int is_node_valid(const struct nd *node)
 {
+	/* function definition is yet to be implemented */
 	return 0;
 }
 
@@ -2305,7 +2324,9 @@ static void alloc(struct m0_btree_oimpl *oi, int height)
 	oi->i_level = m0_alloc(height * sizeof(struct level));
 }
 
-
+/**
+ * This is the callback function implemented for testing purpose.
+ */
 static int callback_temp(struct m0_btree_rec *rec, int64_t key, struct td *tree)
 {
 	struct m0_btree_rec temp_rec;
@@ -3232,6 +3253,10 @@ void m0_btree_ut_node_add_del_rec(void)
 	M0_LEAVE();
 }
 
+/**
+ * This function is for traversal of tree in breadth-first order and it will print
+ * level and key-value pair for each node.
+ */
 static void m0_btree_ut_traversal(struct nd *root, struct td *tree)
 {
 	struct nd *queue[10000];
