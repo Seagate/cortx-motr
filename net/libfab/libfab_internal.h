@@ -68,7 +68,7 @@ enum m0_fab__libfab_params {
 	 * Max buffer size = FAB_IOV_MAX x FAB_MAX_SEG_SIZE 
 	 * (1MB but can be increased)
 	*/
-	FAB_MAX_BULK_BUFFER_SIZE = (1 << 20),
+	FAB_MAX_BULK_BUFFER_SIZE = (FAB_IOV_MAX * FAB_MAX_BULK_SEG_SIZE),
 	/** Max segment size for rpc buffer ( 1MB but can be changed ) */
 	FAB_MAX_RPC_SEG_SIZE     = (1 << 20),
 	/** Max number of segments for rpc buffer */
@@ -107,6 +107,32 @@ enum m0_fab__tm_state {
 	FAB_TM_INIT,
 	FAB_TM_STARTED,
 	FAB_TM_SHUTDOWN
+};
+
+/**
+ * Represents the state of a libfab buffer
+ */
+enum m0_fab__buf_state {
+	FAB_BUF_INITIALIZED,
+	FAB_BUF_REGISTERED,
+	FAB_BUF_QUEUED,
+	FAB_BUF_DEREGISTERED
+};
+
+/**
+ * Represents the libfabric event type
+ */
+enum m0_fab__event_type {
+	FAB_COMMON_Q_EVENT,
+	FAB_PRIVATE_Q_EVENT
+};
+
+/**
+ * Libfab structure for event context to be returned in the epoll_wait events
+ */
+struct m0_fab__ev_ctx {
+	enum m0_fab__event_type  evctx_type;
+	void                    *evctx_ep;
 };
 
 /**
@@ -155,7 +181,10 @@ struct m0_fab__ep_name {
  */
 struct m0_fab__pep_res{
 	/** Event queue for passive endpoint */
-	struct fid_eq *fpr_eq;
+	struct fid_eq         *fpr_eq;
+	
+	/** Context to be returned in the epoll_wait event */
+	struct m0_fab__ev_ctx  fpr_ctx;
 };
 
 /**
@@ -163,7 +192,10 @@ struct m0_fab__pep_res{
  */
 struct m0_fab__tx_res{
 	/* Event queue for transmit endpoint */
-	struct fid_eq *ftr_eq;
+	struct fid_eq         *ftr_eq;
+	
+	/** Context to be returned in the epoll_wait event */
+	struct m0_fab__ev_ctx  ftr_ctx;
 };
 
 /**
@@ -171,10 +203,13 @@ struct m0_fab__tx_res{
  */
 struct m0_fab__rx_res{
 	/** Event queue for receive endpoint */
-	struct fid_eq *frr_eq;
+	struct fid_eq         *frr_eq;
 	
 	/** Completion Queue for receive operations */
-	struct fid_cq *frr_cq;
+	struct fid_cq         *frr_cq;
+
+	/** Context to be returned in the epoll_wait event */
+	struct m0_fab__ev_ctx  frr_ctx;
 };
 
 /**
@@ -261,6 +296,9 @@ struct m0_fab__tm {
 	
 	/** Transmit Completion Queue */
 	struct fid_cq                  *ftm_tx_cq;
+
+	/** Completion queue context to be returned in the epoll_wait event */
+	struct m0_fab__ev_ctx           ftm_txcq_ctx;
 	
 	/** State of the transfer machine */
 	volatile enum m0_fab__tm_state  ftm_state;
@@ -309,55 +347,58 @@ struct m0_fab__bdesc {
  */
 struct m0_fab__buf {
 	/** Magic number for list of completed buffers */
-	uint64_t               fb_magic;
+	uint64_t                         fb_magic;
 	
 	/** Magic number for list of send buffers */
-	uint64_t               fb_sndmagic;
+	uint64_t                         fb_sndmagic;
 	
 	/** Dummy data + network buffer ptr */
-	uint64_t               fb_dummy[2];
+	uint64_t                         fb_dummy[2];
 	
 	/** Buffer descriptor of the remote node */
-	struct m0_fab__bdesc  *fb_rbd;
+	struct m0_fab__bdesc            *fb_rbd;
 	
 	/** Array of iov for remote node  */
-	struct fi_rma_iov     *fb_riov;
+	struct fi_rma_iov               *fb_riov;
 	
 	/** Buffer memory region registration params */
-	struct m0_fab__buf_mr  fb_mr;
+	struct m0_fab__buf_mr            fb_mr;
 	
 	/** Domain to which the buffer is registered */
-	struct fid_domain     *fb_dp;
+	struct fid_domain               *fb_dp;
 	
 	/** Pointer network buffer structure */
-	struct m0_net_buffer  *fb_nb;
+	struct m0_net_buffer            *fb_nb;
 	
 	/** endpoint associated with receive operation */
-	struct m0_fab__ep     *fb_ev_ep;
+	struct m0_fab__ep               *fb_ev_ep;
 	
 	/** Transmit Context to be returned in the buffer completion event */
-	struct m0_fab__ep     *fb_txctx;
+	struct m0_fab__ep               *fb_txctx;
 	
 	/** Link in list of completed buffers */
-	struct m0_tlink        fb_linkage;
+	struct m0_tlink                  fb_linkage;
 	
 	/** Link in list of send buffers */
-	struct m0_tlink        fb_snd_link;
+	struct m0_tlink                  fb_snd_link;
 
 	/** Buffer completion status */
-	int32_t                fb_status;
+	int32_t                          fb_status;
 	
 	/** Total size of data to be received/sent/read/written */
-	m0_bindex_t            fb_length;
+	m0_bindex_t                      fb_length;
 	
 	/** Count of work request generated for bulk rma operation */
-	volatile uint32_t      fb_wr_cnt;
+	volatile uint32_t                fb_wr_cnt;
 
 	/** Count of work request completions for bulk rma operation */
-	volatile uint32_t      fb_wr_comp_cnt;
+	volatile uint32_t                fb_wr_comp_cnt;
 
 	/** Pointer to the m0_fab__bulk_op structure */
-	void*                  fb_bulk_op;
+	void*                            fb_bulk_op;
+
+	/** State of the buffer */
+	volatile enum m0_fab__buf_state  fb_state;
 };
 
 /**

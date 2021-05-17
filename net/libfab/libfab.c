@@ -72,11 +72,11 @@ M0_TL_DEFINE(fab_bulk, static, struct m0_fab__bulk_op);
 
 static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name);
 static int libfab_ep_txres_init(struct m0_fab__active_ep *aep,
-				struct m0_fab__tm *tm);
+				struct m0_fab__tm *tm, void *ctx);
 static int libfab_ep_rxres_init(struct m0_fab__active_ep *aep,
-				struct m0_fab__tm *tm);
+				struct m0_fab__tm *tm, void *ctx);
 static int libfab_pep_res_init(struct m0_fab__passive_ep *pep,
-			       struct m0_fab__tm *tm);
+			       struct m0_fab__tm *tm, void *ctx);
 static struct m0_fab__ep *libfab_ep(struct m0_net_end_point *net);
 static bool libfab_ep_cmp(struct m0_fab__ep *ep, const char *name,
 			  struct m0_fab__ep_name *epname);
@@ -146,8 +146,9 @@ static void libfab_txep_event_check(struct m0_fab__ep *txep,
 static void libfab_rxep_comp_read(struct fid_cq *cq, struct m0_fab__ep *ep);
 static void libfab_txep_comp_read(struct fid_cq *cq);
 static int libfab_txep_init(struct m0_fab__active_ep *aep,
-			    struct m0_fab__tm *tm);
-static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm);
+			    struct m0_fab__tm *tm, void *ctx);
+static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm,
+			      void *ctx);
 static inline struct m0_fab__active_ep *libfab_aep_get(struct m0_fab__ep *ep);
 static int libfab_bulk_op(struct m0_fab__active_ep *ep, struct m0_fab__buf *fb);
 static inline bool libfab_is_verbs(struct m0_fab__tm *tm);
@@ -603,7 +604,7 @@ static void libfab_txep_event_check(struct m0_fab__ep *txep,
 		aep->aep_tx_state = FAB_CONNECTED;
 	} else if (rc == FI_SHUTDOWN) {
 		/* Reset and reopen endpoint */
-		libfab_txep_init(aep, tm);
+		libfab_txep_init(aep, tm, txep);
 	}
 	/* All other types of events can be ignored */
 }
@@ -671,7 +672,7 @@ static void libfab_txep_comp_read(struct fid_cq *cq)
  */
 static void libfab_poller(struct m0_fab__tm *tm)
 {
-	struct m0_net_end_point  *net;
+	struct m0_fab__ev_ctx    *ctx;
 	struct m0_fab__ep        *xep;
 	struct m0_fab__active_ep *aep;
 	struct fid_cq            *cq;
@@ -710,18 +711,21 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		M0_ASSERT(libfab_tm_is_locked(tm) && libfab_tm_invariant(tm));
 
 		if (ev_cnt > 0) {
-			libfab_handle_connect_request_events(tm);
-			libfab_txep_comp_read(tm->ftm_tx_cq);
-
-			m0_tl_for(m0_nep, &tm->ftm_ntm->ntm_end_points, net) {
-				xep = libfab_ep(net);
+			ctx = ev.data.ptr;
+			if (ctx->evctx_type == FAB_COMMON_Q_EVENT) {
+				/* Check the common queue of the
+				   transfer machine for events */
+				libfab_handle_connect_request_events(tm);
+				libfab_txep_comp_read(tm->ftm_tx_cq);
+			} else {
+				/* Check the private queue of the
+				   endpoint for events */
+				xep = ctx->evctx_ep;
 				aep = libfab_aep_get(xep);
-				if (aep != NULL) {
-					libfab_txep_event_check(xep, aep, tm);
-					cq = aep->aep_rx_res.frr_cq;
-					libfab_rxep_comp_read(cq, xep);
-				}
-			} m0_tl_endfor;
+				libfab_txep_event_check(xep, aep, tm);
+				cq = aep->aep_rx_res.frr_cq;
+				libfab_rxep_comp_read(cq, xep);
+			}
 		}
 
 		libfab_bulk_buf_process(tm);
@@ -812,7 +816,7 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 				aep = libfab_aep_get(ep);
 				ma = tm->ntm_xprt_private;
 				if (aep->aep_tx_state == FAB_CONNECTED)
-					rc = libfab_txep_init(aep, ma);
+					rc = libfab_txep_init(aep, ma, ep);
 			}
 		}
 		if (rc == FI_SUCCESS)
@@ -898,11 +902,13 @@ static int libfab_tm_res_init(struct m0_fab__tm *tm)
 		return M0_ERR(rc);
 
 	/* Initialize and bind resources to tx ep */
-	rc = libfab_waitfd_bind(&tm->ftm_tx_cq->fid, tm);
+	tm->ftm_txcq_ctx.evctx_type = FAB_COMMON_Q_EVENT;
+	tm->ftm_txcq_ctx.evctx_ep = NULL;
+	rc = libfab_waitfd_bind(&tm->ftm_tx_cq->fid, tm, &tm->ftm_txcq_ctx);
 	if (rc != FI_SUCCESS)
 		return M0_ERR(rc);
 
-	rc = libfab_txep_init(pep->pep_aep, tm);
+	rc = libfab_txep_init(pep->pep_aep, tm, tm->ftm_pep);
 
 	return M0_RC(rc);
 }
@@ -912,7 +918,7 @@ static int libfab_tm_res_init(struct m0_fab__tm *tm)
  * it to the active transmit endpoint.
  */
 static int libfab_ep_txres_init(struct m0_fab__active_ep *aep,
-				struct m0_fab__tm *tm)
+				struct m0_fab__tm *tm, void *ctx)
 {
 	struct fi_eq_attr   eq_attr = { 0 };
 	struct m0_fab__fab *fab;
@@ -933,7 +939,10 @@ static int libfab_ep_txres_init(struct m0_fab__active_ep *aep,
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 
-	rc = libfab_waitfd_bind(&aep->aep_tx_res.ftr_eq->fid, tm);
+	aep->aep_tx_res.ftr_ctx.evctx_type = FAB_PRIVATE_Q_EVENT;
+	aep->aep_tx_res.ftr_ctx.evctx_ep = ctx;
+	rc = libfab_waitfd_bind(&aep->aep_tx_res.ftr_eq->fid, tm,
+				&aep->aep_tx_res.ftr_ctx);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 
@@ -947,7 +956,7 @@ static int libfab_ep_txres_init(struct m0_fab__active_ep *aep,
  * it to the active receive endpoint.
  */
 static int libfab_ep_rxres_init(struct m0_fab__active_ep *aep,
-				struct m0_fab__tm *tm)
+				struct m0_fab__tm *tm, void *ctx)
 {
 	struct fi_cq_attr   cq_attr = { 0 };
 	struct fi_eq_attr   eq_attr = { 0 };
@@ -965,7 +974,10 @@ static int libfab_ep_rxres_init(struct m0_fab__active_ep *aep,
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 
-	rc = libfab_waitfd_bind(&aep->aep_rx_res.frr_cq->fid, tm);
+	aep->aep_rx_res.frr_ctx.evctx_type = FAB_PRIVATE_Q_EVENT;
+	aep->aep_rx_res.frr_ctx.evctx_ep = ctx;
+	rc = libfab_waitfd_bind(&aep->aep_rx_res.frr_cq->fid, tm,
+				&aep->aep_rx_res.frr_ctx);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 	
@@ -983,7 +995,8 @@ static int libfab_ep_rxres_init(struct m0_fab__active_ep *aep,
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 
-	rc = libfab_waitfd_bind(&aep->aep_rx_res.frr_eq->fid, tm);
+	rc = libfab_waitfd_bind(&aep->aep_rx_res.frr_eq->fid, tm,
+				&aep->aep_rx_res.frr_ctx);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 
@@ -1004,7 +1017,7 @@ static int libfab_ep_rxres_init(struct m0_fab__active_ep *aep,
  * it to the passive endpoint.
  */
 static int libfab_pep_res_init(struct m0_fab__passive_ep *pep,
-			       struct m0_fab__tm *tm)
+			       struct m0_fab__tm *tm, void *ctx)
 {
 	struct fi_eq_attr eq_attr = { 0 };
 	int               rc = 0;
@@ -1017,7 +1030,10 @@ static int libfab_pep_res_init(struct m0_fab__passive_ep *pep,
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 	
-	rc = libfab_waitfd_bind(&pep->pep_res.fpr_eq->fid, tm);
+	pep->pep_res.fpr_ctx.evctx_type = FAB_COMMON_Q_EVENT;
+	pep->pep_res.fpr_ctx.evctx_ep = ctx;
+	rc = libfab_waitfd_bind(&pep->pep_res.fpr_eq->fid, tm,
+				&pep->pep_res.fpr_ctx);
 	if (rc != FI_SUCCESS)
 		return M0_RC(rc);
 
@@ -1054,7 +1070,7 @@ static int libfab_conn_accept(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 		return M0_RC(rc);
 	}
 
-	rc = libfab_ep_rxres_init(aep, tm);
+	rc = libfab_ep_rxres_init(aep, tm, ep);
 	if (rc != FI_SUCCESS) {
 		libfab_aep_param_free(aep, tm);
 		return M0_RC(rc);
@@ -1091,7 +1107,7 @@ static int libfab_active_ep_create(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 
 	M0_ASSERT(libfab_tm_is_locked(tm));
 	aep = ep->fep_aep;
-	rc = libfab_txep_init(aep, tm);
+	rc = libfab_txep_init(aep, tm, ep);
 	if (rc != FI_SUCCESS) {
 		libfab_aep_param_free(aep, tm);
 		return M0_RC(rc);
@@ -1183,7 +1199,7 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 		return M0_RC(rc);
 	}
 
-	rc = libfab_pep_res_init(pep, tm);
+	rc = libfab_pep_res_init(pep, tm, ep);
 	if (rc != FI_SUCCESS) {
 		libfab_pep_param_free(pep, tm);
 		return M0_RC(rc);
@@ -1476,6 +1492,7 @@ static inline struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf)
  */
 static void libfab_buf_fini(struct m0_fab__buf *buf)
 {
+	struct m0_fab__buf *fbp = NULL;
 	fab_buf_tlink_fini(buf);
 	if (buf->fb_ev_ep != NULL)
 		buf->fb_ev_ep = NULL;
@@ -1484,7 +1501,19 @@ static void libfab_buf_fini(struct m0_fab__buf *buf)
 		m0_free(buf->fb_bulk_op);
 		buf->fb_bulk_op = NULL;
 	}
+	if(buf->fb_txctx != NULL)
+	{
+		fbp = m0_tl_find(fab_sndbuf, fbp, &buf->fb_txctx->fep_sndbuf,
+				 fbp == buf);
+		if (fbp != NULL) {
+			fab_sndbuf_tlist_del(fbp);
+			M0_LOG(M0_DEBUG, "buf=%p tmout/del before queued", fbp);
+		}
+	}
+	buf->fb_status = 0;
 	buf->fb_length = 0;
+	buf->fb_state = FAB_BUF_REGISTERED;
+
 }
 
 /**
@@ -1527,8 +1556,10 @@ static bool libfab_buf_invariant(const struct m0_fab__buf *buf)
  */
 static void libfab_buf_complete(struct m0_fab__buf *buf, int32_t status)
 {
-	struct m0_fab__tm *ma  = libfab_buf_tm(buf);
+	struct m0_fab__tm    *ma = libfab_buf_tm(buf);
 	struct m0_net_buffer *nb = buf->fb_nb;
+	bool                  cb = buf->fb_state == FAB_BUF_QUEUED ? true :
+				   false;
 	struct m0_net_buffer_event ev = {
 		.nbe_buffer = nb,
 		.nbe_status = status,
@@ -1552,11 +1583,13 @@ static void libfab_buf_complete(struct m0_fab__buf *buf, int32_t status)
 
 	libfab_buf_fini(buf);
 	M0_ASSERT(libfab_tm_invariant(ma));
-	libfab_tm_evpost_lock(ma);
-	libfab_tm_unlock(ma);
-	m0_net_buffer_event_post(&ev);
-	libfab_tm_lock(ma);
-	libfab_tm_evpost_unlock(ma);
+	if (cb) {
+		libfab_tm_evpost_lock(ma);
+		libfab_tm_unlock(ma);
+		m0_net_buffer_event_post(&ev);
+		libfab_tm_lock(ma);
+		libfab_tm_evpost_unlock(ma);
+	}
 	M0_ASSERT(libfab_tm_invariant(ma));
 	M0_ASSERT(M0_IN(ma->ftm_ntm->ntm_state, (M0_NET_TM_STARTED,
 						 M0_NET_TM_STOPPING)));
@@ -1582,6 +1615,7 @@ static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 	 * the buffer is cancelled.
 	 */
 	if (!fab_buf_tlink_is_in(buf)) {
+		buf->fb_status = buf->fb_status == 0 ? rc : buf->fb_status;
 		/* Try to finalise. */
 		if (m0_thread_self() == &ma->ftm_poller) {
 			if (buf->fb_length == (sizeof(uint64_t) * 2)) {
@@ -1605,10 +1639,10 @@ static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 						       buf);
 					M0_ASSERT(ret == FI_SUCCESS);
 				} else
-					libfab_buf_complete(buf, rc);
+					libfab_buf_complete(buf, buf->fb_status);
 			}
 			else
-				libfab_buf_complete(buf, rc);
+				libfab_buf_complete(buf, buf->fb_status);
 		}
 		else {
 			/* Otherwise, postpone finalisation to
@@ -1670,7 +1704,7 @@ static uint32_t libfab_check_for_event(struct fid_eq *eq)
 	if (rd == -FI_EAVAIL) {
 		struct fi_eq_err_entry err_entry;
 		fi_eq_readerr(eq, &err_entry, 0);
-		M0_LOG(M0_ERROR, "%s %s\n", fi_strerror(err_entry.err),
+		M0_LOG(M0_DEBUG, "%s %s\n", fi_strerror(err_entry.err),
 		       fi_eq_strerror(eq, err_entry.prov_errno,
 				      err_entry.err_data,NULL, 0));
 		return rd;
@@ -1706,7 +1740,7 @@ static int libfab_check_for_comp(struct fid_cq *cq, struct m0_fab__buf **ctx,
 	}
 	else if (ret != -FI_EAGAIN) {
 		fi_cq_readerr(cq, &err_entry, 0);
-		M0_LOG(M0_ERROR, "%s %s\n", fi_strerror(err_entry.err),
+		M0_LOG(M0_DEBUG, "%s %s\n", fi_strerror(err_entry.err),
 		       fi_cq_strerror(cq, err_entry.prov_errno,
 				      err_entry.err_data, NULL, 0));
 	}
@@ -1824,6 +1858,9 @@ static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp)
 	if (fbp->fb_dp == dp)
 		return M0_RC(ret);
 
+	if (fbp->fb_state == FAB_BUF_REGISTERED)
+		M0_LOG(M0_ERROR,"Re-registeration of buffer");
+
 	for (i = 0; i < seg_nr; i++) {
 		retry_cnt = 20;
 		key = libfab_mr_keygen();
@@ -1852,6 +1889,7 @@ static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp)
 	}
 
 	fbp->fb_dp = dp;
+	fbp->fb_state = FAB_BUF_REGISTERED;
 
 	return M0_RC(ret);
 }
@@ -1896,6 +1934,7 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
 				fbp->fb_wr_cnt = libfab_wr_cnt_get(fbp);
 				ret = libfab_bulklist_add(libfab_buf_ma(nb),
 							  fbp, aep);
+				libfab_bulk_buf_process(libfab_buf_ma(nb));
 				break;
 			default:
 				M0_LOG(M0_ERROR, "Invalid qtype=%d",
@@ -2040,7 +2079,7 @@ static void libfab_ep_ntop(uint64_t netaddr, struct m0_fab__ep_name *name)
  * initialize associated resources and enables the endpoint.
  */
 static int libfab_txep_init(struct m0_fab__active_ep *aep,
-			    struct m0_fab__tm *tm)
+			    struct m0_fab__tm *tm, void *ctx)
 {
 	int rc;
 	
@@ -2061,7 +2100,7 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 		return M0_RC(rc);
 	}
 	
-	rc = libfab_ep_txres_init(aep, tm);
+	rc = libfab_ep_txres_init(aep, tm, ctx);
 	if (rc != FI_SUCCESS) {
 		M0_LOG(M0_ERROR,"ep_txres_init failed %d",rc);
 			return M0_RC(rc);
@@ -2079,7 +2118,7 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 /**
  * Associate the event queue or completion queue to the epollfd wait mechanism
  */
-static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm)
+static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm, void *ctx)
 {
 	struct epoll_event ev;
 	int                fd;
@@ -2090,6 +2129,7 @@ static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm)
 		return M0_ERR(rc);
 
 	ev.events = EPOLLIN;
+	ev.data.ptr = ctx;
 	rc = epoll_ctl(tm->ftm_epfd, EPOLL_CTL_ADD, fd, &ev);
 
 	return M0_RC(rc);
@@ -2537,6 +2577,7 @@ static void libfab_buf_deregister(struct m0_net_buffer *nb)
 	}
 
 	libfab_buf_fini(fb);
+	fb->fb_state = FAB_BUF_DEREGISTERED;
 	m0_free(fb);
 	nb->nb_xprt_private = NULL;
 }
@@ -2563,6 +2604,7 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 	fab_buf_tlink_init(fb);
 	nb->nb_xprt_private = fb;
 	fb->fb_nb = nb;
+	fb->fb_state = FAB_BUF_INITIALIZED;
 
 	return M0_RC(ret);
 }
@@ -2592,6 +2634,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	M0_PRE((nb->nb_flags & M0_NET_BUF_RETAIN) == 0);
 
 	libfab_buf_dom_reg(nb, ma->ftm_fab->fab_dom);
+	fbp->fb_status = 0;
 
 	switch (nb->nb_qtype) {
 	case M0_NET_QT_MSG_RECV: {
@@ -2660,6 +2703,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		else {
 			fbp->fb_wr_cnt = libfab_wr_cnt_get(fbp);
 			ret = libfab_bulklist_add(ma, fbp, aep);
+			libfab_bulk_buf_process(ma);
 		}
 		break;
 	}
@@ -2668,6 +2712,9 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		M0_IMPOSSIBLE("invalid queue type: %x", nb->nb_qtype);
 		break;
 	}
+
+	if (ret == FI_SUCCESS)
+		fbp->fb_state = FAB_BUF_QUEUED;
 
 	return M0_RC(ret);
 }
@@ -2683,22 +2730,20 @@ static void libfab_buf_del(struct m0_net_buffer *nb)
 {
 	struct m0_fab__buf *buf = nb->nb_xprt_private;
 	struct m0_fab__tm  *ma = libfab_buf_ma(nb);
-	int                 i;
-	int                 ret;
 
 	M0_PRE(libfab_tm_is_locked(ma) && libfab_tm_invariant(ma) &&
 	       libfab_buf_invariant(buf));
 	nb->nb_flags |= M0_NET_BUF_CANCELLED;
 
-	for (i = 0; i < FAB_IOV_MAX; i++) {
-		if (buf->fb_mr.bm_mr[i] != NULL) {
-			ret = fi_close(&buf->fb_mr.bm_mr[i]->fid);
-			M0_ASSERT(ret == FI_SUCCESS);
-			buf->fb_mr.bm_mr[i] = NULL;
-		}
-	}
+	if (buf->fb_state != FAB_BUF_QUEUED)
+		buf->fb_state = FAB_BUF_QUEUED;
 
-	libfab_buf_done(buf, -ECANCELED);
+	if (M0_IN(buf->fb_nb->nb_qtype, (M0_NET_QT_MSG_SEND,
+					 M0_NET_QT_ACTIVE_BULK_SEND,
+					 M0_NET_QT_ACTIVE_BULK_RECV)))
+		buf->fb_status = -ECANCELED;
+	else
+		libfab_buf_done(buf, -ECANCELED);
 }
 
 /**
