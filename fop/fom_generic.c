@@ -40,6 +40,7 @@
 #include "fop/fom_generic_xc.h"
 #include "addb2/addb2.h"
 #include "addb2/identifier.h"
+#include "dtm0/service.h"	/* m0_dtm0_is_a_volatile_dtm */
 
 /**
    @addtogroup fom
@@ -98,7 +99,9 @@ M0_EXPORTED(m0_rpc_item_generic_reply_rc);
 
 static bool fom_is_update(const struct m0_fom *fom)
 {
-	return m0_rpc_item_is_update(m0_fop_to_rpc_item(fom->fo_fop));
+	/* The rest of condition will always work for non-DTM0 services. */
+	return !m0_dtm0_is_a_volatile_dtm(fom->fo_service) &&
+		m0_rpc_item_is_update(m0_fop_to_rpc_item(fom->fo_fop));
 }
 
 /**

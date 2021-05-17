@@ -26,7 +26,7 @@ import (
     "fmt"
     "flag"
     "log"
-    "../mio"
+    "motr/mio"
 )
 
 func usage() {

@@ -39,6 +39,8 @@
 #include "fop/fom_generic_xc.h" /* m0_fop_mod_rep */
 #include "dix/layout.h"
 #include "dix/layout_xc.h"
+#include "dtm0/tx_desc.h"	/* tx_desc */
+#include "dtm0/tx_desc_xc.h"	/* xc for tx_desc */
 
 /**
  * @page cas-fspec The catalogue service (CAS)
@@ -283,7 +285,7 @@ enum m0_cas_type {
  */
 struct m0_cas_op {
 	/** Index to make operation in. */
-	struct m0_cas_id   cg_id;
+	struct m0_cas_id       cg_id;
 
 	/**
 	 * Array of input records.
@@ -293,14 +295,19 @@ struct m0_cas_op {
 	 *
 	 * Array should be non-empty.
 	 */
-	struct m0_cas_recv cg_rec;
+	struct m0_cas_recv     cg_rec;
 
 	/**
 	 * CAS operation flags.
 	 *
 	 * It's a bitmask of flags from m0_cas_op_flags enumeration.
 	 */
-	uint32_t           cg_flags;
+	uint32_t               cg_flags;
+
+	/**
+	 * Transaction descriptor associated with CAS operation.
+	 */
+	struct m0_dtm0_tx_desc cg_txd;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**

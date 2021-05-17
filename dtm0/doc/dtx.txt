@@ -1,0 +1,628 @@
+--------------------------------------------------------------------------------
+# Overview
+
+This document defines a DLD for the client-side
+state machines touched by DTM0. It has the following sections:
+
+* Component diagram - defines the scope.
+* With/Without DTM enabled - defines states and high-level view of 
+  the transitions.
+* Low-level details on events - a human-readable description of the
+  previous section.
+* DTX connections in psudo-code - describes what needs to be changed
+  in the existing code and how the changes are connected to DTM.
+* Q&A - a list of questions to clarify design decisions.
+
+--------------------------------------------------------------------------------
+# Component diagram
+
+      * Client-side SMs
+     \|/
++------------------+                       +-------------+
+| M0Client/DIX/CAS |                       | DTM Service |
++------------------+                       +-------------+
+        |                                       |
+        +---+-----------------------------------+ <-* "Interconnections" 
+            |
+           \|/
+        +----------+
+        | DTM0 log |
+        +----------+
+
+The scope of this document is limited by "Interconnections" and 
+"Client-side SMs".
+
+--------------------------------------------------------------------------------
+# Terms and definitions
+
+M0Client - Motr client;
+m0_op - Motr client operation;
+DIX-req - DIX request;
+CAS-req - CAS request;
+pa - participant;
+DTX - distributed transaction;
+DTX-pa - state of a participant inside a DTX.
+
+--------------------------------------------------------------------------------
+# Without DTM enabled
+
+This section is an overview of how Client-side SMs are defined
+right now.
+
+SM states:
+
+M0client-op: 
+	Init
+	Launched
+	Executed
+	Stable
+	Failed
+
+DIX-req:
+	Init 
+	 ... (discovery) ... 
+	InProgress(N)
+	Final
+	Failure
+
+CAS-req: Init, Sent, Final, Failure
+
+SM Events:
+
+launch(m0c):
+	m0c: Init -> Launched
+	dix: Init
+	cas: Init
+	ast: async call dix_send
+
+dix_send(dix):
+	dix: Init -> InProgress
+	cas: Init -> Sent
+	rpc: call cas_repl on reply
+
+cas_repl(cas[0]):
+	cas: Sent -> Final
+	dix: InProgress, nr_received++
+
+cas_repl(cas[N-1]):
+	cas: Sent -> Final
+	dix: InProgress -> Final
+	m0c: Launched -> Executed -> Stable
+
+--------------------------------------------------------------------------------
+# With DTM enabled
+
+This sections describes the proposed changes in the SMs.
+
+SM states:
+
+M0client-op: 
+	Init
+	Launched
+	Executed
+	Stable
+	Failed
+
+DIX-req:
+	Init 
+	 ... (discovery) ... 
+	InProgress(N)
+	Final
+	Failure
+
+CAS-req: Init, Sent, Final, Failure
+
+# State of a participant. A transaction has an array of states. Each element
+# of such array describes the state of a participant of the transaction.
+# For example, "dtx: [InProgress]" means that
+# the transaction has not been executed yet but the corresponding
+# requests have been prepared (and they may have been already sent).
+# "dtx: [InProgress, Executed, InProgress]" means that the inferred
+# transaction state is Executed, and the corresponding m0 client
+# operation needs to be put in Executed state.
+DTX-pa:
+	Init
+	Prepared    # a valid timestamp/id is set
+	InProgress  # has a valid request
+	Executed    # has a valid {request,reply} pair
+	Persistent  # got PERSISTENT notice from this participant
+	Failed      # "un-recoverable" error happened.
+
+# Inferred state of a transaction. It is inferred from DTX.pa states,
+# it is exposed as dtx.dt_sm.
+DTX:
+	Init
+	InProgress  # all requests have been sent
+	Executed    # got at least one reply
+	Stable      # got enough PERSISTENT notice
+	Done        # can be released
+	Failed      # "un-recoverable" error happened
+
+SM Events:
+
+launch(m0c):
+	m0c: Init -> Launched
+	dix: Init
+	cas: [Init]
+	dtx: [Init] -> [Prepared]
+	ast: async call dix_send
+
+dix_send(dix):
+	# dix_rop
+	dix: Init -> InProgress
+	cas: [Init] -> [Sent]
+	dtx: [Prepared] -> [InProgress]
+	rpc(out): sends requests
+	rpc: call cas_repl on reply
+
+# Cas got reply_cb called (by RPC).
+# Cas set AST with a callback.
+# The ast set_state(CAS_FINAL).
+# A channel in DIXREQ gets CAS_FINAL sm move.
+# dix checks the CAS state.
+
+cas_repl(cas[0]):
+	cas: Sent[0] -> Final[0]
+	dix: InProgress, nr_received++
+	dtx: InProgress[0] -> Executed[0]
+	m0c: Launched -> Executed
+
+cas_repl(cas[N-1]):
+	cas: Sent[N-1] -> Final[N-1]
+	dix: InProgress -> Final
+	dtx: InProgress[N-1] -> Executed[N-1]
+	m0c: Executed
+
+dtm_recv(Persistent[0]):
+	dtx: Executed[0] -> Persistent[0]
+
+dtm_recv(Persistent[N-1]):
+	dtx: Executed[N-1] -> Persistent[N-1]
+	dtx: [Persistent] -> [Stable]
+	m0c: Executed -> Stable
+
+--------------------------------------------------------------------------------
+# Triggers for DTX state and its participants states
+
+DTX-pa:
+Init -> Prepared: timestamp is set.
+Prepared -> InProgress: CAS request is about to enter SENT.
+InProgress -> Executed: CAS request is FINAL.
+InProgress -> Persistent: got PERSISTENT notice but CAS req is still SENT.
+Executed -> Persistent: got PERSISTENT notice and CAS req is FINAL.
+	
+DTX:
+Init -> InProgress: all CAS requests are SENT.
+InProgress -> Executed: at least one CAS request is FINAL.
+Executed -> Stable: got enough PERSISTENT and all CAS req are FINAl.
+Stable -> Done: user buffers can be released (TBD).
+
+--------------------------------------------------------------------------------
+# Low-level details on events
+
+## launch
+
+Launch event is series of calls initiated by the user of m0 client.
+This series moves the m0 client operation into LAUNCHED state,
+assigns the transaction version (moving it into PREPARED),
+and then posts an ast that is generates "dix_send" series of transitions.
+
+## dix_send
+
+This is a call that leads to posting of CAS-related RPC items.
+dix_rop posts them one by one. The state of each CAS request
+is being changed to SENT. Once such an even occur, it has to be
+delivered back to DTX immediately (through a callback), so that
+the state of the corresponding PA is moved to INPROGRESS.
+
+
+## cas_repl
+
+cas_repl is a group of the following calls:
+
+cas_req_replied_cb is called by RPC when it receives the reply.
+This sm transition is propagated to the upper DIXREQ through a clink connected
+to cas request SM.
+Then, DIXREQ propagates it up to DTX using the pointer to m0 client operation.
+DTX marks the corresponding PA state as "Executed", and updates
+the DTM0 log record.
+If any(dtx.pa == EXECUTED) then m0client calls op_executed callback
+and changes its state.
+
+## dtm_recv
+
+dtm_recv is a part of DTM service. The service should
+find the transaction (dtx) in the log and make a call.
+A dtx is linked with the corresponding m0 client op
+(container_of or parent-child pointers),
+so that DTX-related code should change the state of the operation
+once the condition all(dtx.pa == PERSISTENT) is satisfied.
+Also, it may move all dtx.pa[] into STABLE state.
+
+--------------------------------------------------------------------------------
+# DTX connections in psudo-code
+
+struct dtm_log {
+	struct record dl_records[];
+	struct rwlock dl_records_lock;
+};
+
+struct pa {
+	fid  pa_id; // DTM service id
+	bool pa_executed; // got reply
+	bool pa_persistent; // got PERSISTENT notice
+};
+
+struct txr {
+	struct pa t_pa[];
+	/// ... version, tx_id and so on
+};
+
+struct record {
+	struct txr    r_txr;
+	struct rwlock r_txr_lock;
+	struct dtx   *r_dtx;
+};
+
+/* dtx.d_sm states:
+	Init
+	Prepared
+	InProgress
+	Executed
+	Stable
+
+   dtx.d_sm transitions:
+	Init -> InProgress: all CAS requests are sent.
+	InProgress -> Executed: when got one reply (TBD).
+	Executed -> Stable: when txr is stable (TBD).
+*/
+
+struct dtx {
+	struct m0_sm        d_sm;
+	struct m0_sm_group *d_sm_group; // provided by M0 client
+	struct record      *d_record; // weak reference
+	struct m0_op       *d_op; // weak reference
+};
+
+dtx_invariant(dtx):
+	/* Assume: dtx and record are "cross-linked" */
+	ergo(dtx.d_record != NULL, dtx.d_record->d_dtx == dtx) AND
+	/* Assume: sm group is set when op is known */
+	ergo(dtx.d_op != NULL, dtx->d_sm_group != NULL)
+
+/* m0 Client operation */
+struct m0_op {
+	struct dix_req  op_dix_req;
+	// ...
+	struct dtx     *op_dtx;
+};
+
+m0op_invariant(op):
+	// Assume: when DTM0 flag is disabled,
+	//         op_dtx must be zeroed.
+	ergo(!DTM0, op->op_dtx == NULL)
+
+struct dix_req {
+	struct cas_req  dr_cas_req[];  {request,reply}
+	struct m0op    *dr_op;
+	struct dtx     *dr_dtx; // borrowed from op->op_dtx
+};
+
+
+dix_req_create(...) {
+	if (op->dtx == NULL) {
+		/* Preserve non-DTM logic */
+		clink_init(..., dix_req_clink_cb);
+	} else {
+		clink_init(..., dtx_clink_cb);
+	}
+}
+
+dix_req_prepare(...) {
+	if (op->dtx == NULL) {
+		/* Preserve non-DTM logic */
+		clink_add(dix_req->sm, dix_req_clink_cb);
+	} else {
+		clink_add(dtx->sm, dtx_clink_cb);
+	}
+}
+
+m0_op_launch_one(...) {
+	dtx_init(op->dtx); // Init
+	dtx_prepare(op->dtx); // Init -> Prepared(ts)
+}
+
+dix_rop(...) {
+	/* We need to insert a log entry into DTM0 log.
+	   It might be done under the group lock.
+	   Another option is just protect the log with a mutex/rwlock.
+	*/
+	sm_group_lock(dtx->service->sm_group);
+	m0_dtm_log_update(dtx->record);
+	sm_group_unlock(dtx->service->sm_group);
+
+	// Send out CAS requests.
+	// ...
+	// rpc_item_post(...);
+
+	/* After we sent out all the CAS requests */
+	dixreq_set_state(dixreq, InProgress);
+	/* Thread-safety: 
+	   If .dr_dtx->d_sm is a part of the sm group
+	   used by dixreq then it is safe to change
+	   the state here. Otherwise, a lock should be taken.
+	*/
+	dtx_set_state(dixreq->dr_dtx, InProgress);
+}
+
+ast_cb dix_cas_dtx_executed(...) {
+	struct cas_fop fop;
+
+	if (dixreq->dtx.state == InProgress) {
+		dtx_set_state(dixreq->dr_dtx, Executed);
+		/* m0 client op uses the same sm group */
+		/* set_state() causes a clink to be called, and it causes
+		   asts to be called where M0 client calls op_executed(),
+		   and changes the op state to Executed.
+		*/
+	}
+	
+	/* Thread-safety: we may need to lock() d_txr
+	if it might be modified by DTM0 service. */
+	dixreq->dr_dtx->d_txr.t_pa[fop.reply.source].pa_executed = true;
+}
+
+dix_cas_rop_clink_cb(...) {
+	struct dix_req *dix_req = ...;
+	dixreq->dr_nr_completed++;
+	
+	if (dixreq->dtx != NULL) {
+		post ast dix_cas_dtx_executed(...);
+	}
+
+	/* preserve the existing mechanism */
+	if (nr_completed == nr_requests) {
+		post ast dix_rop_completed(...);
+	}
+}
+
+struct dtm_service {
+	struct dtm_log   ds_log;
+	struct sm_group *ds_sm_group;
+};
+
+ast_cb client_dtx_stable(op,...) {
+	struct m0_op *op;
+	
+	op->op_stable();
+	set_state(op, Stable);
+}
+
+clink_cb m0_client_dtx_clink_cb(dtx, ...) {
+	post ast dtx->sm_group client_dtx_stable(dtx->op);
+}
+
+ast_cb ast_on_dtx_stable(dtx, ...) {
+	dtx_set_state(dtx, Stable);
+	/* Assume: a dedicated clink is subscribed to dtx->sm. */
+	// causes on_stable_clink_cb to be called
+}
+
+ast_cb process_persistent_notice(fop, ...) {
+	struct dtm_service service = fop->service;
+
+	// Take a read lock on the container of records.
+	rw_read_lock(service->ds_log);
+
+	record = service->ds_log->find(fop->data);
+
+	// Take a write lock on the log entry.
+	rw_write_lock(record);
+
+	record->txr[fop->source.id].persistent = true;
+	
+	// is_stable = forall(i=0..N-1, record.txr[i].persistent == true)
+	if (!is_stable(record)) {
+		goto out;
+	}
+
+	dtx_sm_group = record->dtx->d_sm_group;
+
+	// We cannot directly modify m0 client data
+	// because we are running within DTM service SM group.
+	// We need a bridge between DTM service SM group and
+	// M0 Client SM group. Moreover, we need to change
+	// the state of DTX first, and then change the state
+	// of M0 client operation (and also we should call op_stable).
+
+	// Ast(DTM Service) -> Ast(DTX): a bridge between SM groups
+	// Ast(DTX) -> Clink(Client) -> Ast(Client): a bridge between
+        //                                           the components 
+	//                                           (Client and DTX).
+	// It gives us the following sequence:
+	//	Ast1 -> Ast2 -> Clink -> Ast3.
+	
+	ast post dtx_sm_group ast_on_dtx_stable(...);
+
+out:
+	unlock(record);
+	unlock(service->ds_log);
+}
+
+// The function is called by RPC when it gets a PERSISTENT notice
+// from another node.
+fop_process_persistent_notice(...) {
+	post ast dtm_service.sm_group process_persistent_notice(fop);
+}
+
+
+--------------------------------------------------------------------------------
+# NOTES
+
+CS should check the previous timestamp, and it should wait until the value
+changes. It could be a busy loop.
+
+Various failures repored by HA, RPC, CAS (and so on) are not covered here yet.
+It needs to be addressed separately. The corresponding state machines should
+be extended to handle these failures.
+
+We need to preserve the existing logic (that is not "DTM-aware") by adding
+conditions to check a compile-time flag or a run-time context. For example:
+
+// compile-time check
+void init_op(...) {
+#ifdef DTM0
+	op->dtx = init_dtx(...);
+#else
+	op->dtx = NULL;
+#endif
+}
+
+// run-time check
+void on_dix_reply_cb(...) {
+	if (op->dtx == NULL) {
+		handle_reply(op);
+	} else {
+		handle_reply_with_dtx(op);
+	}
+}
+
+Such conditions are required because of the following reasons:
+
+* Read requests are not executed within DTX but they still may go through
+  a code path used by DTM-aware code.
+
+* Meta operations should not use DTX at all.
+
+* Having the ability to switch between these two modes (with/without DTM) helps
+  with testing and debugging. Also, it makes easier to propagate the changes
+  into the upstream.
+
+--------------------------------------------------------------------------------
+# Q&A
+
+Q1: Is M0Client "clinked" with dixreq? or is it clinked with dtx.sm?
+A1: it should be linked with dtx.
+Q1.1: Should we extend the set of states of dixreq instead of adding dtx.sm?
+A1.1: We keep using dtx; no need to change dixreq states.
+Q2: Is Executed == got-one-reply or Executed == got-all-replies?
+A2: We assume a dtx is Executed when we got at least one reply.
+Q3: How to protect DTM0 log from concurrent modifications by DTM service and
+    by the client-side?
+A3: DTM0 service will take care of it. It will provide an API to properly
+    lock the log (sm_group lock and/or DTM0 log locks).
+
+--------------------------------------------------------------------------------
+# Notes on DTX state transitions
+
+## Without DTM
+
+The following diagramm shows the sequence of state transitions
+of 3 CAS requests (CAS[i]), a DIX request (DIX) and a Motr client op (M0C).
+
+CAS[0] -- CAS_INPROGRESS -- CAS_FINAL
+CAS[1] -- CAS_INPROGRESS ---- CAS_FINAL
+CAS[2] -- CAS_INPROGRESS ------| CAS_FINAL
+DIX    -- DIX_INPROGRESS ------| <CLINK_CB -> AST> ----| DIX_FINAL
+IDX_DIX -----------------------------------------------| <CLINK_CB -> AST> ---|
+M0C    ------ LAUNCHED -------------------------------------------------------| EXECUTED&STABLE ----
+(Fig. 1)
+
+## With DTM and direct Exectued call
+
+The following diagramm shows the same scenario but with DTX states (DTX)
+and the states of DTX participants (DTX.pa[i]).
+
+CAS[0] -- CAS_INPROGRESS --| CAS_FINAL
+CAS[1] -- CAS_INPROGRESS ------------------------------------------| CAS_FINAL
+CAS[2] -- CAS_INPROGRESS ------------------------------------------| CAS_FINAL
+Persistent[i] --------------------------------------------------------------------------------------------------- PERSISTENT * 3
+DTX.pa[i] -----------------| <CLINK_CB -> AST> ---| [EII] ------|--| <CLINK_CB -> AST>[2] --| [EEE]        |-----| <AST>[3] | --| [PPP]
+DTX    -- INPROGRESS -----------------------------| EXECUTED ---|---------------------------| EXECUTED_ALL |--------------------| STABLE            |
+IDX_DIX ------------------------------------------| <CLINK_CB > |---------------------------------------------------------------| <CLINK_CB -> AST> |
+M0C    ------ LAUNCHED ---------------------------| EXECUTED    |--------------------------------------------------------------------------------------| STABLE
+M0C CB -------------------------------------------| Enter-Leave |--------------------------------------------------------------------------------------| STABLE
+(Fig. 2)
+
+## The Executed vs. Stable race condition for 1 PA when Executed called with AST
+
+When a DTX has only one participant and the P notice received before the reply,
+the transitions Executed -> ExecutedAll -> Stable might happen "instantly".
+In this case DTX must ensure that state_set(Stable) happens only after
+the user-provided callback have been called (and the client op has changed
+its state to Executed). Without such guarantee, the following situation
+may happen:
+
+DTX -- INPROGRESS -- <1 P notice> -- <1 Reply > ---| EXECUTED           -- EXEC_ALL                         |--| EXEC_ALL_CB        =>
+FORKQ  -[] ----------------------------------------| [IDX_DIX_EXECUTED] -- [EXEC_ALL_CB, IDX_DIX_EXECUTED ] |--| [IDX_DIX_EXECUTED] =>
+
+DTX     =>  EXEC_ALL ---------------- STABLE ---------------------------|-----------------------
+FORKQ   =>  [IDX_DIX_EXECUTED] ------[IDX_DIX_STABLE, IDX_DIX_EXECUTED] ------------------------
+IDX_DIX => |------------------------- <CLINK_CB -> AST_STABLE> ---------- IDX_DIX_STABLE -------
+M0C     => -------------------------------------------------------------- STABLE -> m0_panic ---
+(Fig. 3)
+
+--------------------------------------------------------------------------------
+
+                      <RPC reply>
+                       \|/
+CAS_SM: INIT ---> SENT ---> FINAL
+             \|/
+              <RPC sent>
+
+
+                            <DTX_SM.STABLE>
+                             \|/
+DIX_SM: INIT ---> INPROGRESS ---> FINAL
+             /|\
+             +----------------------+
+             | CAS_SM: INIT -> SENT |
+             | N times              |
+             +----------------------+
+
+
+DTX_SM:
+
+                INIT
+                 |
+                 | <- <CAS_SM: INIT -> SENT N times>
+                \|/
+                INPROGRESS
+                 |
+ [<P notice>] -> | <- <CAS_SM: SENT -> FINAL once>
+                \|/
+                EXECUTED
+                 |
+                 | -> M0C_SM: LAUNCHED -> EXECUTED
+ [<P notice>] -> | <- <CAS_SM: SENT -> FINAL N-1 times>
+                \|/
+                EXECUTED_ALL
+                 |
+ [<P notice>] -> |
+                 |
+               (is stable?)
+                 |
+                 |-------+
+                \|/      | -> M0C_SM: EXECUTED -> STABLE
+                STABLE ->+
+
+
+M0C_SM:
+        INIT
+         |
+         |
+        \|/
+        LAUNCHED <-+    +---------------------------+
+         |         | -> |DIX_SM: INIT -> INPROGRESS |
+         +---------+    |DTX_SM: INIT -> INPROGRESS |
+         |              +---------------------------+
+	 |
+         | <- DTX_SM: INPROGRESS -> EXECUTED
+        \|/
+        EXECUTED
+         |
+         | <- DTX_SM: EXECUTED_ALL -> STABLE
+        \|/
+        STABLE
+
+--------------------------------------------------------------------------------
