@@ -403,6 +403,12 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 				    struct m0_be_op *op,
 				    const struct m0_buf *key);
 
+M0_INTERNAL void m0_be_btree_kill(struct m0_be_btree *tree,
+				  struct m0_be_tx *tx,
+				  struct m0_be_op *op,
+				  const struct m0_buf *key,
+				  uint64_t ver);
+
 /**
  * Looks up for a @dest_value by the given @key in btree.
  * The result is copied into provided @dest_value buffer.
@@ -524,12 +530,19 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree *tree,
  * User has to allocate his own @value buffer and capture node buffer
  * in which @key is inserted.
  *
+ * The version (ver) argument enables verion-aware behavior when it is not 0.
+ * The old pairs are not updated (ver < stored version) in this case.
+ * Note, that the anchor value (ba_value) is zeroed in this case!
+ * Also, this function is the only place that is able to clear the
+ * tombstone flag so far.
+ *
  * @see m0_be_btree_update_inplace()
  */
 M0_INTERNAL void m0_be_btree_save_inplace(struct m0_be_btree        *tree,
 					  struct m0_be_tx           *tx,
 					  struct m0_be_op           *op,
 					  const struct m0_buf       *key,
+					  uint64_t                   ver,
 					  struct m0_be_btree_anchor *anchor,
 					  bool                       overwrite,
 					  uint64_t                   zonemask);
@@ -545,6 +558,17 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
 					    struct m0_be_op *op,
 					    const struct m0_buf *key,
 					    struct m0_be_btree_anchor *anchor);
+
+/**
+ * Tombstone-aware version of lookup_inplace().
+ * The function returns -ENOENT when the pair found has the tombstone flag set.
+ * Otherwise, it works in the same way as the original function.
+ */
+M0_INTERNAL
+void m0_be_btree_lookup_alive_inplace(struct m0_be_btree        *tree,
+				      struct m0_be_op           *op,
+				      const struct m0_buf       *key,
+				      struct m0_be_btree_anchor *anchor);
 
 /**
  * Completes m0_be_btree_*_inplace() operation by capturing all affected
@@ -626,6 +650,20 @@ M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *it);
 M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *it,
 					const struct m0_buf *key, bool slant);
 
+/**
+ * Tombstone-aware version of cursor_get().
+ * The function as as cursor_get but it does not show the user dead pairs
+ * (marked with tombstones):
+ *	Slant mode: returns an alive pair or the nearest alive pair,
+ *		and it returns ENOENT if the tree has no next alive pairs.
+ *	Non-slant mode: returns an alive record or ENOENT otherwise.
+ * (Note: "returns an alive pair" means "sets the cursor at the position pointed
+ * by "key" if the corresponding pair is alive").
+ */
+M0_INTERNAL void m0_be_btree_cursor_alive_get(struct m0_be_btree_cursor *cur,
+					      const struct m0_buf *key,
+					      bool slant);
+
 /** Synchronous version of m0_be_btree_cursor_get(). */
 M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *it,
 					    const struct m0_buf *key,
@@ -640,6 +678,13 @@ M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *it,
  * Note: @see m0_be_btree_cursor_get note.
  */
 M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *it);
+
+/**
+ * Tombstone-aware version of cursor_next().
+ * The function finds next position in the tree where the pair is alive.
+ * TODO: THis function is under construction!
+ */
+M0_INTERNAL void m0_be_btree_cursor_alive_next(struct m0_be_btree_cursor *cur);
 
 /** Synchronous version of m0_be_btree_cursor_next(). */
 M0_INTERNAL int m0_be_btree_cursor_next_sync(struct m0_be_btree_cursor *it);

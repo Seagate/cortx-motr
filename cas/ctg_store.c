@@ -1008,7 +1008,7 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 		anchor->ba_value.b_nob = M0_CAS_CTG_KV_HDR_SIZE +
 					 ctg_op->co_val.b_nob;
-		m0_be_btree_save_inplace(btree, tx, beop, key, anchor,
+		m0_be_btree_save_inplace(btree, tx, beop, key, 0, anchor,
 					 !!(ctg_op->co_flags & COF_OVERWRITE),
 					 zones);
 		break;

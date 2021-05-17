@@ -59,6 +59,104 @@ M0_INTERNAL const struct m0_fid_type m0_btree_fid_type = {
 	.ft_name = "btree fid",
 };
 
+struct btree_pair_ver {
+	uint64_t bpv_ver;
+};
+
+/*
+ * The key pointer is aligned with sizeof(void*). We add the version
+ * right before the key. This assertion helps us to ensure that this
+ * addition does not break this requirement for key alignment.
+ * See ::btree_save for details.
+ */
+M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct btree_pair_ver)));
+
+enum {
+	/* Tombstone flag: marks a dead kv pair. We use the MSB here. */
+	BPV_TBS = 1L << (sizeof(uint64_t) * CHAR_BIT - 1),
+
+	/*
+	 * n_inf/p_inf marks non-allowed values of the
+	 * btree_pair_ver::bpv_ver.
+	 */
+	BPV_VER_PINF = UINT64_MAX & ~BPV_TBS,
+	BPV_VER_NINF = 0,
+
+	/* The biggest possible value of a version */
+	BPV_VER_MAX = BPV_VER_PINF - 1,
+	/* The lowest possible value of a version */
+	BPV_VER_MIN = BPV_VER_NINF + 1,
+};
+
+#define VER_DATUM_SIZE (sizeof(struct btree_pair_ver))
+M0_BASSERT(VER_DATUM_SIZE == sizeof(void *));
+
+static inline bool bpv_tbs_is_set(const struct btree_pair_ver *bpv)
+{
+	return bpv->bpv_ver & BPV_TBS;
+}
+
+static inline void bpv_tbs_set(struct btree_pair_ver *bpv)
+{
+	bpv->bpv_ver |= BPV_TBS;
+}
+
+static inline void bpv_tbs_clear(struct btree_pair_ver *bpv)
+{
+	bpv->bpv_ver |= ~BPV_TBS;
+}
+
+static inline uint64_t bpv_ver_get(const struct btree_pair_ver *bpv)
+{
+	return bpv->bpv_ver & ~BPV_TBS;
+}
+
+static bool bpv_invariant(const struct btree_pair_ver *bpv)
+{
+	return (_0C(bpv_ver_get(bpv) <= BPV_VER_MAX) &&
+		_0C(bpv_ver_get(bpv) >= BPV_VER_MIN));
+}
+
+static inline void bpv_ver_set(struct btree_pair_ver *bpv, uint64_t ver)
+{
+	M0_PRE(ver >= BPV_VER_MIN);
+	M0_PRE(ver <= BPV_VER_MAX);
+	bpv->bpv_ver = (bpv->bpv_ver & BPV_TBS) | ver;
+	M0_POST(bpv_invariant(bpv));
+	M0_POST(bpv_ver_get(bpv) == ver);
+}
+
+static inline bool bpv_gt(struct btree_pair_ver *left,
+			  struct btree_pair_ver *right)
+{
+	return bpv_ver_get(left) > bpv_ver_get(right);
+}
+
+/*
+ * KV pair version is a part of every kv pair. However, sometimes we
+ * do not want to consider versions. In this case BPV_NONE could be
+ * used to disable the version-aware logic.
+ */
+#define BPV_NONE ((struct btree_pair_ver) { .bpv_ver = BPV_VER_NINF })
+
+/*
+ * Converts a pointer to the start of the key-value pair data into a pointer
+ * to the corresponding version datum.
+ * TODO: consider replacing with a function if "const" is not in used at
+ * the callers side.
+ * TODO: consider removing the cast to uint8_t -- pointer arithmetic on
+ * void ptrs (gcc extension) might handle that (check if it is enabled).
+ */
+#define PAIR2VER(__pair) \
+	((struct btree_pair_ver *) (((uint8_t *) __pair) - VER_DATUM_SIZE))
+
+/*
+ * Converts a pointer to a version datum into a pointer to the start
+ * of the corresponding key-value pair data.
+ */
+#define VER2PAIR(__ver) \
+	((void *) (((uint8_t *) __ver) + VER_DATUM_SIZE))
+
 static struct m0_be_op__btree *op_tree(struct m0_be_op *op);
 static struct m0_rwlock *btree_rwlock(struct m0_be_btree *tree);
 
@@ -1350,7 +1448,7 @@ static void *be_btree_get_min_key(struct m0_be_btree *tree)
 static void btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
 			       struct be_btree_key_val  *kv)
 {
-	mem_free(btree, tx, kv->btree_key);
+	mem_free(btree, tx, PAIR2VER(kv->btree_key));
 }
 
 /**
@@ -1359,6 +1457,7 @@ static void btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
  * @param tx The transaction
  * @param op The operation
  * @param key Key of the node to be searched
+ * @param ver Key version
  * @param value Value to be copied
  * @param optype Save operation type: insert, update or overwrite
  * @param zonemask Bitmask of allowed allocation zones for memory allocation
@@ -1368,15 +1467,17 @@ static void btree_save(struct m0_be_btree        *tree,
 		       struct m0_be_op           *op,
 		       const struct m0_buf       *key,
 		       const struct m0_buf       *val,
+		       struct btree_pair_ver     *new_ver,
 		       struct m0_be_btree_anchor *anchor,
 		       enum btree_save_optype     optype,
 		       uint64_t                   zonemask)
 {
-	m0_bcount_t        ksz;
-	m0_bcount_t        vsz;
+	m0_bcount_t               ksz;
+	m0_bcount_t               vsz;
 	struct be_btree_key_val   new_kv;
 	struct be_btree_key_val  *cur_kv;
-	bool               val_overflow = false;
+	bool                      val_overflow = false;
+	struct btree_pair_ver    *old_ver = NULL;
 
 	M0_ENTRY("tree=%p", tree);
 
@@ -1413,6 +1514,20 @@ static void btree_save(struct m0_be_btree        *tree,
 
 	op_tree(op)->t_rc = 0;
 	cur_kv = be_btree_search(tree, key->b_addr);
+	old_ver = cur_kv == NULL ? NULL : PAIR2VER(cur_kv->btree_key);
+	/* shortcut to the end if the new key is older */
+	if (old_ver != NULL && bpv_gt(old_ver, new_ver)) {
+		M0_LOG(M0_DEBUG, "Rejecting an old key %" PRIu64 " > %" PRIu64,
+		       bpv_ver_get(old_ver), bpv_ver_get(new_ver));
+		if (anchor != NULL) {
+			anchor->ba_write = false;
+			anchor->ba_tree = NULL;
+			m0_rwlock_write_unlock(btree_rwlock(tree));
+		}
+		goto out;
+	}
+
+
 	if ((cur_kv == NULL && optype != BTREE_SAVE_UPDATE) ||
 	    (cur_kv != NULL && optype == BTREE_SAVE_UPDATE) ||
 	    optype == BTREE_SAVE_OVERWRITE) {
@@ -1430,6 +1545,19 @@ static void btree_save(struct m0_be_btree        *tree,
 							 cur_kv->btree_key);
 				val_overflow = true;
 			} else {
+				/* Update the version */
+				*PAIR2VER(cur_kv->btree_key) = *new_ver;
+
+				/*
+				 * XXX:We could avoid that CAPTURE
+				 * if we the version was stored right after
+				 * the key:
+				 *	[ KEY ] [ VERSION ] [ VALUE ]
+				 * We need to evaluate the overhead here.
+				 */
+				mem_update(tree, tx, PAIR2VER(cur_kv->btree_key),
+					   sizeof(new_ver));
+
 				/*
 				 * The size of new value is less than or equal
 				 * to the size of old value, simply rewrite
@@ -1450,18 +1578,26 @@ static void btree_save(struct m0_be_btree        *tree,
 		    (cur_kv == NULL || val_overflow)) {
 			/* Avoid CPU alignment overhead on values. */
 			ksz = m0_align(key->b_nob, sizeof(void*));
-			new_kv.btree_key =
-				      mem_alloc(tree, tx, ksz + vsz, zonemask);
+			new_kv.btree_key = VER2PAIR(mem_alloc(tree, tx,
+							      VER_DATUM_SIZE +
+							      ksz + vsz,
+							      zonemask));
 			new_kv.btree_val = new_kv.btree_key + ksz;
 			memcpy(new_kv.btree_key, key->b_addr, key->b_nob);
 			memset(new_kv.btree_key + key->b_nob, 0,
 							ksz - key->b_nob);
+			memcpy(new_kv.btree_key - VER_DATUM_SIZE, new_ver,
+			       VER_DATUM_SIZE);
+			M0_CASSERT(sizeof(new_ver) == VER_DATUM_SIZE);
 			if (val != NULL) {
 				memcpy(new_kv.btree_val, val->b_addr, vsz);
 				mem_update(tree, tx,
-						new_kv.btree_key, ksz + vsz);
+					   new_kv.btree_key - VER_DATUM_SIZE,
+					   VER_DATUM_SIZE + ksz + vsz);
 			} else {
-				mem_update(tree, tx, new_kv.btree_key, ksz);
+				mem_update(tree, tx,
+					   new_kv.btree_key - VER_DATUM_SIZE,
+					   VER_DATUM_SIZE + ksz);
 				anchor->ba_value.b_addr = new_kv.btree_val;
 			}
 
@@ -1474,6 +1610,7 @@ fi_exist:
 			key->b_addr);
 	}
 
+out:
 	if (anchor == NULL)
 		m0_rwlock_write_unlock(btree_rwlock(tree));
 	m0_be_op_done(op);
@@ -1905,7 +2042,8 @@ static void be_btree_insert(struct m0_be_btree        *tree,
 	M0_PRE(ergo(anchor == NULL,
 		    val->b_nob == be_btree_vsize(tree, val->b_addr)));
 
-	btree_save(tree, tx, op, key, val, anchor, BTREE_SAVE_INSERT, zonemask);
+	btree_save(tree, tx, op, key, val, &BPV_NONE, anchor,
+		   BTREE_SAVE_INSERT, zonemask);
 
 	M0_LEAVE("tree=%p", tree);
 }
@@ -1923,7 +2061,7 @@ M0_INTERNAL void m0_be_btree_save(struct m0_be_btree  *tree,
 	M0_PRE(val->b_nob == be_btree_vsize(tree, val->b_addr));
 
 	/* We can't be here during DIX Repair, so never use repair zone. */
-	btree_save(tree, tx, op, key, val, NULL, overwrite ?
+	btree_save(tree, tx, op, key, val, &BPV_NONE, NULL, overwrite ?
 		   BTREE_SAVE_OVERWRITE : BTREE_SAVE_INSERT,
 		   M0_BITS(M0_BAP_NORMAL));
 
@@ -1950,7 +2088,7 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
 	M0_PRE(val->b_nob == be_btree_vsize(tree, val->b_addr));
 
-	btree_save(tree, tx, op, key, val, NULL, BTREE_SAVE_UPDATE,
+	btree_save(tree, tx, op, key, val, &BPV_NONE, NULL, BTREE_SAVE_UPDATE,
 		   M0_BITS(M0_BAP_NORMAL));
 
 	M0_LEAVE();
@@ -1965,6 +2103,7 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 
 	M0_ENTRY("tree=%p", tree);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
+	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
 
 	M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_DELETE, tx);
 
@@ -1980,6 +2119,35 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 
 	m0_rwlock_write_unlock(btree_rwlock(tree));
 	m0_be_op_done(op);
+	M0_LEAVE("tree=%p", tree);
+}
+
+M0_INTERNAL void m0_be_btree_kill(struct m0_be_btree *tree,
+				  struct m0_be_tx *tx,
+				  struct m0_be_op *op,
+				  const struct m0_buf *key,
+				  uint64_t ver)
+{
+	struct btree_pair_ver bpv = BPV_NONE;
+
+	M0_ENTRY("tree=%p, ver=%" PRIu64, tree, ver);
+	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
+	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
+
+	if (ver != 0) {
+		bpv_tbs_set(&bpv);
+		bpv_ver_set(&bpv, ver);
+		M0_ASSERT(bpv_invariant(&bpv));
+	}
+
+	/*
+	 * TODO: Is it fine to use BAP_NORMAL here?
+	 * It looks like there no harm to use it for insertion of a
+	 * tombstone but still we will need to clarify that.
+	 */
+	btree_save(tree, tx, op, key, &M0_BUF_INIT0, &bpv,
+		   NULL, BTREE_SAVE_OVERWRITE, M0_BITS(M0_BAP_NORMAL));
+
 	M0_LEAVE("tree=%p", tree);
 }
 
@@ -2138,29 +2306,44 @@ M0_INTERNAL void m0_be_btree_save_inplace(struct m0_be_btree        *tree,
 					  struct m0_be_tx           *tx,
 					  struct m0_be_op           *op,
 					  const struct m0_buf       *key,
+					  uint64_t                   ver,
 					  struct m0_be_btree_anchor *anchor,
 					  bool                       overwrite,
 					  uint64_t                   zonemask)
 {
+	struct btree_pair_ver bpv = BPV_NONE;
+
 	M0_ENTRY("tree=%p zonemask=%"PRIx64, tree, zonemask);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
 
-	btree_save(tree, tx, op, key, NULL, anchor, overwrite ?
+	if (ver != 0) {
+		bpv_tbs_clear(&bpv);
+		bpv_ver_set(&bpv, ver);
+		M0_ASSERT(bpv_invariant(&bpv));
+	}
+
+	btree_save(tree, tx, op, key, NULL, &bpv, anchor, overwrite ?
 		   BTREE_SAVE_OVERWRITE : BTREE_SAVE_INSERT, zonemask);
+
+	/*
+	 * TODO: mention in the doxy comment that anchor.b_value is set
+	 * to NULL if overwrite did not happen due to (new_ver < old_ver)
+	 */
 }
 
-M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *tree,
-					    struct m0_be_op           *op,
-					    const struct m0_buf       *key,
-					    struct m0_be_btree_anchor *anchor)
+static void m0_be_btree_lookup__inplace(struct m0_be_btree        *tree,
+					struct m0_be_op           *op,
+					const struct m0_buf       *key,
+					struct m0_be_btree_anchor *anchor,
+					bool                       alive_only)
 {
 	struct be_btree_key_val  *kv;
 
 	M0_ENTRY("tree=%p", tree);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 
-	btree_op_fill(op, tree, NULL, M0_BBO_INSERT, anchor);
+	btree_op_fill(op, tree, NULL, M0_BBO_LOOKUP, anchor);
 
 	m0_be_op_active(op);
 	m0_rwlock_read_lock(btree_rwlock(tree));
@@ -2168,7 +2351,8 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *tree,
 	anchor->ba_tree = tree;
 	anchor->ba_write = false;
 	kv = be_btree_search(tree, key->b_addr);
-	if (kv == NULL)
+	if (kv == NULL ||
+	    (alive_only && bpv_tbs_is_set(PAIR2VER(kv->btree_key))))
 		op_tree(op)->t_rc = -ENOENT;
 	else
 		m0_buf_init(&anchor->ba_value, kv->btree_val,
@@ -2177,6 +2361,24 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *tree,
 	m0_be_op_done(op);
 	M0_LEAVE();
 }
+
+M0_INTERNAL
+void m0_be_btree_lookup_alive_inplace(struct m0_be_btree        *tree,
+				      struct m0_be_op           *op,
+				      const struct m0_buf       *key,
+				      struct m0_be_btree_anchor *anchor)
+{
+	m0_be_btree_lookup__inplace(tree, op, key, anchor, true);
+}
+
+M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *tree,
+					    struct m0_be_op           *op,
+					    const struct m0_buf       *key,
+					    struct m0_be_btree_anchor *anchor)
+{
+	m0_be_btree_lookup__inplace(tree, op, key, anchor, false);
+}
+
 
 M0_INTERNAL void m0_be_btree_release(struct m0_be_tx           *tx,
 				     struct m0_be_btree_anchor *anchor)
@@ -2329,6 +2531,59 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
 	m0_be_op_done(op);
 }
 
+M0_INTERNAL void m0_be_btree_cursor_alive_get(struct m0_be_btree_cursor *cur,
+					      const struct m0_buf *key,
+					      bool slant)
+{
+	struct btree_pair_ver *ver;
+	struct m0_be_op       *op = &cur->bc_op;
+
+	m0_be_btree_cursor_get(cur, key, slant);
+
+	/* go out if nothing found */
+	if (op_tree(op)->t_rc == -ENOENT)
+		return;
+
+	/* go out if the pair is alive */
+	ver = PAIR2VER(op_tree(op)->t_out_key.b_addr);
+	if (!bpv_tbs_is_set(ver))
+		return;
+
+	/*
+	 * If slant flag is not set then it means the user just wants to
+	 * put the cursor at the exact position where the key is located.
+	 * If the pair is dead, the we report ENOENT in the same way
+	 * as if we have scanned the whole tree and could not find the key.
+	 */
+	if (!slant) {
+		M0_ASSERT(bpv_tbs_is_set(ver));
+		/*
+		 * XXX: this not a "page-daemon"-friendly approach because
+		 * this rc should be set inside cursor_get. However,
+		 * the page-daemon is not in use at the moment, so that
+		 * we are safe here.
+		 */
+		op_tree(op)->t_rc = -ENOENT;
+		return;
+	}
+
+	/*
+	 * With slant enabled, the user expects us to put the cursor
+	 * to the next alive pair. So that we fallback to cursor_next().
+	 */
+	/*
+	 *
+	 * XXX: another piece of code that may not play well with the
+	 * page-daemon. Ideally, cursor_get should do this within one
+	 * single operation.
+	 */
+	m0_be_op_wait(&cur->bc_op);
+	m0_be_op_fini(&cur->bc_op);
+	M0_SET0(&cur->bc_op);
+	m0_be_op_init(&cur->bc_op);
+	m0_be_btree_cursor_alive_next(cur);
+}
+
 M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *cur,
 					    const struct m0_buf *key,
 					    bool slant)
@@ -2354,6 +2609,34 @@ M0_INTERNAL int m0_be_btree_cursor_first_sync(struct m0_be_btree_cursor *cur)
 M0_INTERNAL int m0_be_btree_cursor_last_sync(struct m0_be_btree_cursor *cur)
 {
 	return btree_cursor_seek(cur, be_btree_get_max_key(cur->bc_tree));
+}
+
+M0_INTERNAL void m0_be_btree_cursor_alive_next(struct m0_be_btree_cursor *cur)
+{
+	struct btree_pair_ver *ver;
+	struct m0_be_op       *op = &cur->bc_op;
+
+	while (1) {
+		m0_be_btree_cursor_next(cur);
+
+		/* go out if nothing found */
+		if (op_tree(op)->t_rc == -ENOENT)
+			return;
+
+		/* go out if tombstone is not set */
+		ver = PAIR2VER(op_tree(op)->t_out_key.b_addr);
+		if (!bpv_tbs_is_set(ver))
+			return;
+
+		/*
+		 * XXX: this not a paged-friendly approach.
+		 * See the comment in ::m0_be_btree_cursor_alive_get.
+		 */
+		m0_be_op_wait(&cur->bc_op);
+		m0_be_op_fini(&cur->bc_op);
+		M0_SET0(&cur->bc_op);
+		m0_be_op_init(&cur->bc_op);
+	}
 }
 
 M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
