@@ -975,10 +975,10 @@ static int sb_mount(struct m0_balloc *bal, struct m0_sm_group *grp)
  * is used here.
  * The same reason for format().
  */
-static int balloc_init_internal(struct m0_balloc               *bal,
-				struct m0_be_seg               *seg,
-				struct m0_sm_group             *grp,
-				struct m0_ad_balloc_format_req *req)
+static int balloc_init_internal(struct m0_balloc		*bal,
+				struct m0_be_seg		*seg,
+				struct m0_sm_group		*grp,
+				struct m0_ad_balloc_format_req	*req)
 {
 	int rc;
 	int i;
@@ -3008,10 +3008,10 @@ static const struct m0_ad_balloc_ops balloc_ops = {
 	.bo_reserve_extent = balloc_reserve_extent,
 };
 
-static int balloc_trees_create(struct m0_balloc     *bal,
-				struct m0_be_tx     *tx,
-				const struct m0_fid *fid,
-				m0_bcount_t          indexcount)
+static int balloc_trees_create(struct m0_balloc		*bal,
+				struct m0_be_tx		*tx,
+				const struct m0_fid	*fid,
+				m0_bcount_t		indexcount)
 {
 	int rc;
 	int i;

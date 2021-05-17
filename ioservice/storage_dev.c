@@ -604,12 +604,13 @@ M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
 				     conf_sdev, force, dev));
 }
 
-M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs  *devs,
-					struct m0_conf_sdev        *sdev,
-					uint64_t                    group_nr,
-					uint64_  t                  index_nr,
-					bool                        force,
-					struct m0_storage_dev     **dev)
+M0_INTERNAL int m0_storage_dev_new_by_conf(
+				struct m0_storage_devs	 *devs,
+				struct m0_conf_sdev	 *sdev,
+				uint64_t		  group_nr,
+				uint64_t		  index_nr,
+				bool			  force,
+				struct m0_storage_dev	**dev)
 {
 	M0_ENTRY();
 	return M0_RC(storage_dev_new(devs, sdev->sd_dev_idx,
