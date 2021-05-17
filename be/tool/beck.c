@@ -2482,8 +2482,8 @@ static int ctg_pver_fid_get(struct m0_fid *fid)
 {
 	struct m0_buf key;
 	struct m0_buf val;
-	uint8_t       kdata[M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid)];
-	uint8_t       vdata[M0_CAS_CTG_KV_HDR_SIZE +
+	uint8_t       kdata[M0_CAS_CTG_KEY_HDR_SIZE + sizeof(struct m0_fid)];
+	uint8_t       vdata[M0_CAS_CTG_VAL_HDR_SIZE +
 		            sizeof(struct m0_dix_layout)];
 	uint64_t      i;
 	int	      rc;
@@ -2494,7 +2494,7 @@ static int ctg_pver_fid_get(struct m0_fid *fid)
 
 	M0_CASSERT(M0_DIX_FID_DEVICE_ID_BITS > 0);
 	for (i = 0; i < M0_DIX_FID_DEVICE_ID_BITS; i++) {
-		*((struct m0_fid *)(kdata + M0_CAS_CTG_KV_HDR_SIZE)) =
+		*((struct m0_fid *)(kdata + M0_CAS_CTG_KEY_HDR_SIZE)) =
 			M0_FID_TINIT('T', i << M0_DIX_FID_DEVICE_ID_OFFSET,
 				     0x02);
 		rc = M0_BE_OP_SYNC_RET(op,
@@ -2507,29 +2507,54 @@ static int ctg_pver_fid_get(struct m0_fid *fid)
 	}
 	if (rc == 0) {
 		*fid = ((struct m0_dix_layout *)
-			(vdata + M0_CAS_CTG_KV_HDR_SIZE))->u.dl_desc.ld_pver;
+			(vdata + M0_CAS_CTG_VAL_HDR_SIZE))->u.dl_desc.ld_pver;
 	} else
 		M0_LOG(M0_ERROR, "Failed to get pool version fid, rc = %d", rc);
 	return rc;
 }
 
-static int ctg_kv_get(struct scanner *s, const void *addr, struct m0_buf *kv)
+static int ctg_k_get(struct scanner *s, const void *addr, struct m0_buf *kv)
 {
 	uint64_t len;
 	int	 result;
 
-	M0_CASSERT(sizeof len == M0_CAS_CTG_KV_HDR_SIZE);
-	result = deref(s, addr, &len, M0_CAS_CTG_KV_HDR_SIZE);
+	M0_CASSERT(sizeof len == M0_CAS_CTG_KEY_HDR_SIZE);
+	result = deref(s, addr, &len, M0_CAS_CTG_KEY_HDR_SIZE);
 	if (result != 0)
 		return M0_ERR(result);
 	if (len > s->s_max_reg_size)
 		return M0_ERR(-EPERM);
-	result = m0_buf_alloc(kv, len + M0_CAS_CTG_KV_HDR_SIZE);
+	result = m0_buf_alloc(kv, len + M0_CAS_CTG_KEY_HDR_SIZE);
 	if (result != 0)
 		return M0_ERR(result);
 	*(uint64_t *)kv->b_addr = len;
-	result = deref(s, addr + M0_CAS_CTG_KV_HDR_SIZE,
-		       kv->b_addr + M0_CAS_CTG_KV_HDR_SIZE, len);
+	result = deref(s, addr + M0_CAS_CTG_KEY_HDR_SIZE,
+		       kv->b_addr + M0_CAS_CTG_KEY_HDR_SIZE, len);
+	if (result != 0)
+		m0_buf_free(kv);
+	return result;
+}
+
+static int ctg_v_get(struct scanner *s, const void *addr, struct m0_buf *kv)
+{
+	struct hdr {
+		uint64_t len;
+		uint64_t ver;
+	} hdr;
+	int	 result;
+
+	M0_CASSERT(sizeof(hdr) == M0_CAS_CTG_VAL_HDR_SIZE);
+	result = deref(s, addr, &hdr, M0_CAS_CTG_VAL_HDR_SIZE);
+	if (result != 0)
+		return M0_ERR(result);
+	if (hdr.len > s->s_max_reg_size)
+		return M0_ERR(-EPERM);
+	result = m0_buf_alloc(kv, hdr.len + M0_CAS_CTG_VAL_HDR_SIZE);
+	if (result != 0)
+		return M0_ERR(result);
+	*(struct hdr *)kv->b_addr = hdr;
+	result = deref(s, addr + M0_CAS_CTG_VAL_HDR_SIZE,
+		       kv->b_addr + M0_CAS_CTG_VAL_HDR_SIZE, hdr.len);
 	if (result != 0)
 		m0_buf_free(kv);
 	return result;
@@ -2540,7 +2565,7 @@ static int ctg_btree_fid_get(struct m0_buf *kbuf, struct m0_fid *fid)
 	if (*(uint64_t *)(kbuf->b_addr) != sizeof (struct m0_fid))
 		return -EINVAL;
 
-	*fid = *(struct m0_fid *)(kbuf->b_addr + M0_CAS_CTG_KV_HDR_SIZE);
+	*fid = *(struct m0_fid *)(kbuf->b_addr + M0_CAS_CTG_KEY_HDR_SIZE);
 	m0_fid_tchange(fid, 'b');
 	return 0;
 }
@@ -2566,14 +2591,14 @@ static int ctg_proc(struct scanner *s, struct btype *b,
 		return 0;
 	}
 	for (i = 0; i < node->bt_num_active_key; i++) {
-		if (ctg_kv_get(s, node->bt_kv_arr[i].btree_key,
-			       &kl[n.bt_num_active_key]) != 0) {
+		if (ctg_k_get(s, node->bt_kv_arr[i].btree_key,
+			      &kl[n.bt_num_active_key]) != 0) {
 			btree_bad_kv_count_update(bl->bli_type, 1);
 			continue;
 		}
 		if (btree_kv_is_valid(node, i, &kl[n.bt_num_active_key]) &&
-		    ctg_kv_get(s, node->bt_kv_arr[i].btree_val,
-			       &vl[n.bt_num_active_key]) == 0) {
+		    ctg_v_get(s, node->bt_kv_arr[i].btree_val,
+			      &vl[n.bt_num_active_key]) == 0) {
 
 			if (btree_kv_post_is_valid(s, &kl[n.bt_num_active_key],
 						   &vl[n.bt_num_active_key]) &&
@@ -2722,7 +2747,7 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 
 		if (rc == 0) {
 			m0_ctg_state_inc_update(tx, ca->cta_key.b_nob -
-						M0_CAS_CTG_KV_HDR_SIZE +
+						M0_CAS_CTG_KEY_HDR_SIZE +
 						ca->cta_val.b_nob);
 		} else
 			M0_LOG(M0_DEBUG, "Failed to insert record rc=%d", rc);

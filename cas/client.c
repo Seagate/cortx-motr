@@ -1658,7 +1658,8 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 	M0_PRE(!(flags & COF_CREATE) || !(flags & COF_OVERWRITE));
 	/* Only create, overwrite, crow and sync_wait flags are allowed. */
 	M0_PRE((flags &
-		~(COF_CREATE | COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT)) == 0);
+		~(COF_CREATE | COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT |
+		  COF_VERSIONED)) == 0);
 	M0_PRE(m0_cas_id_invariant(index));
 
 	rc = cas_req_prep(req, index, keys, values, keys->ov_vec.v_nr, flags,
@@ -1686,9 +1687,10 @@ M0_INTERNAL void m0_cas_put_rep(struct m0_cas_req       *req,
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
-			   struct m0_cas_id       *index,
-			   const struct m0_bufvec *keys)
+M0_INTERNAL int m0_cas__get(struct m0_cas_req      *req,
+			    struct m0_cas_id       *index,
+			    const struct m0_bufvec *keys,
+			    int                     flags)
 {
 	struct m0_cas_op      *op;
 	int                    rc;
@@ -1701,7 +1703,8 @@ M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_cas_id_invariant(index));
 
-	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, 0, &op);
+	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, flags,
+			  &op);
 	if (rc != 0)
 		return M0_ERR(rc);
 	for (i = 0; i < keys->ov_vec.v_nr; i++) {
@@ -1728,6 +1731,20 @@ M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 		}
 	}
 	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
+			   struct m0_cas_id       *index,
+			   const struct m0_bufvec *keys)
+{
+	return m0_cas__get(req, index, keys, 0);
+}
+
+M0_INTERNAL int m0_cas_versioned_get(struct m0_cas_req      *req,
+				     struct m0_cas_id       *index,
+				     const struct m0_bufvec *keys)
+{
+	return m0_cas__get(req, index, keys, COF_VERSIONED);
 }
 
 M0_INTERNAL void m0_cas_get_rep(const struct m0_cas_req *req,
@@ -1765,8 +1782,9 @@ M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 	M0_PRE(start_keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_cas_id_invariant(index));
-	/* Only slant and exclude start key flags are allowed. */
-	M0_PRE((flags & ~(COF_SLANT | COF_EXCLUDE_START_KEY)) == 0);
+	/* Only slant, exclude start key, and versioned flags are allowed. */
+	M0_PRE((flags & ~(COF_SLANT | COF_EXCLUDE_START_KEY |
+			  COF_VERSIONED)) == 0);
 
 	for (i = 0; i < start_keys->ov_vec.v_nr; i++)
 		max_replies_nr += recs_nr[i];
@@ -1825,7 +1843,12 @@ M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 	M0_PRE(keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_cas_id_invariant(index));
-	M0_PRE(M0_IN(flags, (0, COF_DEL_LOCK, COF_SYNC_WAIT)));
+	/*
+	 * FIXME: Are we sure it has to be "M0_IN"? In other words,
+	 * is it possibe to specify two flags?
+	 * We should probably use "any-of" rather than "only-one-of".
+	 */
+	M0_PRE(M0_IN(flags, (0, COF_DEL_LOCK, COF_SYNC_WAIT, COF_VERSIONED)));
 
 	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, flags,
 			  &op);
