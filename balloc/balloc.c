@@ -3069,11 +3069,9 @@ M0_INTERNAL int m0_balloc_create(uint64_t                        cid,
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
 		      grp, NULL, NULL, NULL, NULL);
 	M0_BE_ALLOC_CREDIT_PTR(cb, seg, &cred);
-	for (i = 0; i < bcfg->bfr_indexcount; i++) {
-		m0_be_btree_init(&btree, seg, &ge_btree_ops);
-		m0_be_btree_create_credit(&btree, 1, &cred);
-		m0_be_btree_fini(&btree);
-	}
+	m0_be_btree_init(&btree, seg, &ge_btree_ops);
+	m0_be_btree_create_credit(&btree, bcfg->bfr_indexcount, &cred);
+	m0_be_btree_fini(&btree);
 	m0_be_btree_init(&btree, seg, &gd_btree_ops);
 	m0_be_btree_create_credit(&btree, 1, &cred);
 	m0_be_btree_fini(&btree);
