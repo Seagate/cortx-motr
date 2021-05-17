@@ -389,12 +389,12 @@ static bool storage_devs_conf_ready_async_cb(struct m0_clink *clink)
 	return true;
 }
 
-static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
-				      struct m0_storage_devs *devs,
-				      m0_bcount_t             size,
-				      m0_bcount_t             group_nr,
-				      m0_bcount_t             index_nr,
-				      bool                    force)
+static int stob_domain_create_or_init(struct m0_storage_dev   *dev,
+				      struct m0_storage_devs  *devs,
+				      m0_bcount_t              size,
+				      m0_bcount_t              group_nr,
+				      m0_bcount_t              index_nr,
+				      bool                     force)
 {
 	enum m0_storage_dev_type  type     = dev->isd_type;
 	unsigned long long        cid      = (unsigned long long)dev->isd_cid;
@@ -604,12 +604,12 @@ M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
 				     conf_sdev, force, dev));
 }
 
-M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs *devs,
-					   struct m0_conf_sdev    *sdev,
-					   uint64_t                group_nr,
-					   uint64_t                index_nr,
-					   bool                    force,
-					   struct m0_storage_dev **dev)
+M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs    *devs,
+					   struct m0_conf_sdev       *sdev,
+					   uint64_t                   group_nr,
+					   uint64_  t                 index_nr,
+					   bool                       force,
+					   struct m0_storage_dev    **dev)
 {
 	M0_ENTRY();
 	return M0_RC(storage_dev_new(devs, sdev->sd_dev_idx,
