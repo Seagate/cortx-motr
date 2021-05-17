@@ -241,7 +241,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 		portal = 30 + portal;
 
 	portnum  = tmid | (1 << 10) | ((portal - 30) << 11);
-	M0_ASSERT(portnum < 65537);
+	M0_ASSERT(portnum < 65536);
 	sprintf(port, "%d", (int)portnum);
 	fab_autotm[tmid] = 1;
 	return M0_RC(0);
@@ -2067,7 +2067,9 @@ static void libfab_ep_pton(struct m0_fab__ep_name *name, uint64_t *out)
 	uint32_t port = 0;
 
 	inet_pton(AF_INET, name->fen_addr, &addr);
-	port = htonl((uint32_t)atoi(name->fen_port));
+	port = (uint32_t)atoi(name->fen_port);
+	M0_ASSERT(port < 65536);
+	port = htonl(port);
 
 	*out = ((uint64_t)addr << 32) | port;
 }
@@ -2084,7 +2086,7 @@ static void libfab_ep_ntop(uint64_t netaddr, struct m0_fab__ep_name *name)
 	ap.net_addr = netaddr;
 	inet_ntop(AF_INET, &ap.ap[1], name->fen_addr, LIBFAB_ADDR_LEN_MAX);
 	ap.ap[0] = ntohl(ap.ap[0]);
-	M0_ASSERT(ap.ap[0] < 65537);
+	M0_ASSERT(ap.ap[0] < 65536);
 	sprintf(name->fen_port, "%d", (int)ap.ap[0]);
 }
 
