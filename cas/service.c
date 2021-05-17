@@ -1185,15 +1185,19 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	int                 next_phase;
 
 	M0_ENTRY("fom %p phase %d", fom, phase);
-	is_index_drop = op_is_index_drop(opc, ct);
 	M0_PRE(ctidx != NULL);
 	M0_PRE(cas_fom_invariant(fom));
 	M0_PRE(ergo(ENABLE_DTM0 && !M0_IS0(&op->cg_txd),
 		    m0_dtm0_tx_desc__invariant(&op->cg_txd)));
-	if (!M0_IS0(&op->cg_txd) && phase == M0_FOPH_INIT) {
+
+	if (!M0_IS0(&op->cg_txd) && phase == M0_FOPH_INIT)
 		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
 		       DTID0_P(&op->cg_txd.dtd_id));
-	}
+
+	if (M0_FI_ENABLED("skip-dtm0-phases"))
+		is_dtm0_used = false;
+
+	is_index_drop = op_is_index_drop(opc, ct);
 
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:

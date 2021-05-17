@@ -115,12 +115,16 @@ struct m0_cas_ctg {
 enum m0_cas_ctg_format_version {
 	M0_CAS_CTG_FORMAT_VERSION_1 = 1,
 
-	/* future versions, uncomment and update M0_CAS_CTG_FORMAT_VERSION */
-	/*M0_CAS_CTG_FORMAT_VERSION_2,*/
+	/*
+	 * CAS with versioned key-value pair feature.
+	 * There is no backward compatibility with ver1 at the moment.
+	 */
+	M0_CAS_CTG_FORMAT_VERSION_2,
 	/*M0_CAS_CTG_FORMAT_VERSION_3,*/
+	/*M0_CAS_CTG_FORMAT_VERSION_4,*/
 
 	/** Current version, should point to the latest version present */
-	M0_CAS_CTG_FORMAT_VERSION = M0_CAS_CTG_FORMAT_VERSION_1,
+	M0_CAS_CTG_FORMAT_VERSION = M0_CAS_CTG_FORMAT_VERSION_2,
 };
 
 enum m0_cas_state_format_version {
@@ -136,10 +140,14 @@ enum m0_cas_state_format_version {
 
 enum {
 	/**
-	 * Every key and value is stored with an individual 64-bit header.
-	 * Currently header contains key/value length in bytes.
+	 * Every value has a header that holds its size.
 	 */
-	M0_CAS_CTG_KV_HDR_SIZE = sizeof(uint64_t),
+	M0_CAS_CTG_VAL_HDR_SIZE = sizeof(uint64_t) + sizeof(uint64_t),
+	/**
+	 * Every key has a header that holds the size of the key and
+	 * the version of the key-value pair.
+	 */
+	M0_CAS_CTG_KEY_HDR_SIZE = sizeof(uint64_t),
 };
 
 /** Catalogue store state persisted on a disk. */

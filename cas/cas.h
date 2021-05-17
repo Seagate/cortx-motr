@@ -258,6 +258,44 @@ enum m0_cas_op_flags {
 	 * skip layout update operation.
 	 */
 	COF_SKIP_LAYOUT = 1 << 8
+
+	/**
+	 * Enables version-aware behavior for PUT, DEL, GET, and NEXT requests.
+	 *
+	 * Overview
+	 * --------
+	 *   Versions are taken from m0_cas_op::cg_txd. When this flag is set,
+	 * the following change happens in the logic of the mentioned request
+	 * types:
+	 *     - PUT does not overwrite "newest" (version-wise) records.
+	 *       Requirements:
+	 *         x COF_OVERWRITE is set.
+	 *         x Transaction descriptor has a valid DTX ID.
+	 *     - DEL puts a tombstone instead of an actual removal. In this
+	 *       mode, DEL does not return -ENOENT in the same way as
+	 *       PUT-with-COF_OVERWRITE does not return -EEXIST.
+	 *       Requirements:
+	 *         x Transaction descriptor has a valid DTX ID.
+	 *     - GET returns only "alive" entries (without tombstones).
+	 *     - NEXT also skips entries with tombstones.
+	 *
+	 * How to enable/disable
+	 * ---------------------
+	 *   This operation mode is enabled only if all the requirements are
+	 * satisfied (the list above). For example, if m0_cas_op::cg_txd does
+	 * not have a valid transaction ID then the request is getting executed
+	 * in the usual manner, without version-aware behavior. Additional
+	 * restictions may be imposed later on, but at this moment it is as
+	 * flexible as possible.
+	 *
+	 * Relation with DTM0
+	 * ------------------
+	 *   The flag should always be enabled if DTM0 is enabled because it
+	 * enables CRDT-ness for catalogues. If DTM0 is not enabled then this
+	 * flag may or may not be enabled (for example, the version-related UTs
+	 * use the flag but they do not depend on enabled DTM0).
+	 */
+	COF_VERSIONED = 1 << 9,
 };
 
 enum m0_cas_opcode {

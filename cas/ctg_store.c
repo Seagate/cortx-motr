@@ -79,6 +79,54 @@ struct m0_ctg_store {
 	bool                 cs_initialised;
 };
 
+/* Data schema for CAS catalogues { */
+
+/** Generalised key: versioned counted opaque data. */
+struct generic_key {
+	uint64_t gk_length;
+	uint8_t  gk_data[0];
+};
+M0_BASSERT(sizeof(struct generic_key) == M0_CAS_CTG_KEY_HDR_SIZE);
+
+struct cas_rec_ver {
+	uint64_t  crv_encoded;
+};
+M0_BASSERT(sizeof(struct cas_rec_ver) == 8);
+
+/** Generalised value: counted opaque data. */
+struct generic_value {
+	uint64_t           gv_length;
+	struct cas_rec_ver gv_version;
+	uint8_t            gv_data[0];
+};
+M0_BASSERT(sizeof(struct generic_value) == M0_CAS_CTG_VAL_HDR_SIZE);
+
+/** The key type used in meta and ctidx catalogues. */
+struct fid_key {
+	struct generic_key fk_gkey;
+	struct m0_fid      fk_fid;
+};
+M0_BASSERT(sizeof(struct generic_key) + sizeof(struct m0_fid) ==
+	   sizeof(struct fid_key));
+
+/* The value type used in meta catalogue */
+struct meta_value {
+	struct generic_value mv_gval;
+	struct m0_cas_ctg   *mv_ctg;
+};
+M0_BASSERT(sizeof(struct generic_value) + sizeof(struct m0_cas_ctg *) ==
+	   sizeof(struct meta_value));
+
+/* The value type used in ctidx catalogue */
+struct layout_value {
+	struct generic_value lv_gval;
+	struct m0_dix_layout lv_layout;
+};
+M0_BASSERT(sizeof(struct generic_value) + sizeof(struct m0_dix_layout) ==
+	   sizeof(struct layout_value));
+
+/* } end of schema. */
+
 enum cursor_phase {
 	CPH_NONE = 0,
 	CPH_INIT,
@@ -88,11 +136,17 @@ enum cursor_phase {
 
 static struct m0_be_seg *cas_seg(struct m0_be_domain *dom);
 
+static bool ctg_op_is_versioned(const struct m0_ctg_op *op);
 static int  ctg_berc         (struct m0_ctg_op *ctg_op);
 static int  ctg_buf          (const struct m0_buf *val, struct m0_buf *buf);
 static int  ctg_buf_get      (struct m0_buf *dst, const struct m0_buf *src,
 			      bool enabled_fi);
 static void ctg_fid_key_fill (void *key, const struct m0_fid *fid);
+static int  ctg_vbuf_unpack  (struct m0_buf *buf, struct cas_rec_ver *crv);
+static int  ctg_vbuf_as_ctg  (const struct m0_buf *val,
+			      struct m0_cas_ctg **ctg);
+static int  ctg_kbuf_unpack  (struct m0_buf *buf);
+static int  ctg_kbuf_get     (struct m0_buf *dst, const struct m0_buf *src);
 static void ctg_init         (struct m0_cas_ctg *ctg, struct m0_be_seg *seg);
 static void ctg_fini         (struct m0_cas_ctg *ctg);
 static void ctg_destroy      (struct m0_cas_ctg *ctg, struct m0_be_tx *tx);
@@ -163,87 +217,265 @@ static int ctg_berc(struct m0_ctg_op *ctg_op)
 	return ctg_beop(ctg_op)->bo_u.u_btree.t_rc;
 }
 
-static void ctg_memcpy(void *dst, const void *src, uint64_t nob)
+void ctg_berc_set_sync(struct m0_ctg_op *ctg_op, int rc)
 {
-	*(uint64_t *)dst = nob;
-	memcpy(dst + M0_CAS_CTG_KV_HDR_SIZE, src, nob);
+	struct m0_be_op *beop   = ctg_beop(ctg_op);
+	m0_be_op_active(beop);
+	m0_be_op_rc_set(beop, rc);
+	/*ctg_beop(ctg_op)->bo_u.u_btree.t_rc = rc;*/
+	m0_be_op_done(beop);
 }
 
-static int ctg_buf_get(struct m0_buf *dst, const struct m0_buf *src,
-		       bool enabled_fi)
+static m0_bcount_t ctg_vbuf_packed_size(const struct m0_buf *value)
 {
-	m0_bcount_t nob = src->b_nob;
+	return sizeof(struct generic_value) + value->b_nob;
+}
+
+static void ctg_vbuf_pack(struct m0_buf            *dst,
+			  const struct m0_buf      *src,
+			  const struct cas_rec_ver *crv)
+{
+	struct generic_value *value = dst->b_addr;
+	M0_PRE(dst->b_nob >= ctg_vbuf_packed_size(src));
+	value->gv_length = src->b_nob;
+	value->gv_version = *crv;
+	memcpy(&value->gv_data, src->b_addr, src->b_nob);
+}
+
+static void ensure_ctg_is_versioned(const struct m0_cas_ctg *ctg)
+{
+	struct m0_format_tag tag = {};
+
+	M0_ENTRY();
+
+	m0_format_header_unpack(&tag, &ctg->cc_head);
+	if (tag.ot_version != M0_CAS_CTG_FORMAT_VERSION) {
+		if (tag.ot_version == M0_CAS_CTG_FORMAT_VERSION_1 &&
+		    M0_CAS_CTG_FORMAT_VERSION == M0_CAS_CTG_FORMAT_VERSION_2) {
+			M0_LOG(M0_FATAL, "Your KVS (CAS) requires key-value "
+			       "versioning feature, but your on-disk metadata "
+			       "has the old (1) format. Please upgrade on-disk "
+			       " metadata.");
+			M0_ASSERT_INFO(false, "Version mismatch (CAS format).");
+		}
+	}
+
+	M0_LEAVE();
+}
+
+/** Create a new m0_buf filled with CAS-specific data (length). */
+static int ctg_kbuf_get(struct m0_buf *dst, const struct m0_buf *src)
+{
+	struct generic_key *key;
+
+	M0_ENTRY();
 
 	if (enabled_fi && M0_FI_ENABLED("cas_alloc_fail"))
 		return M0_ERR(-ENOMEM);
-	dst->b_nob  = src->b_nob + M0_CAS_CTG_KV_HDR_SIZE;
-	dst->b_addr = m0_alloc(dst->b_nob);
-	if (dst->b_addr != NULL) {
-		ctg_memcpy(dst->b_addr, src->b_addr, nob);
+
+	key = m0_alloc(src->b_nob + sizeof(*key));
+	if (key != NULL) {
+		key->gk_length = src->b_nob;
+		memcpy(key->gk_data, src->b_addr, src->b_nob);
+		*dst = M0_BUF_INIT(src->b_nob + sizeof(*key), key);
 		return M0_RC(0);
 	} else
 		return M0_ERR(-ENOMEM);
 }
 
-/**
- * Allocate memory and unpack value having format length + data.
- *
- * @param val destination buffer
- * @param buf source buffer
- * @return 0 if ok else error code
- */
-static int ctg_buf(const struct m0_buf *val, struct m0_buf *buf)
-{
-	int result = -EPROTO;
+enum {
+	/* Tombstone flag: marks a dead kv pair. We use the MSB here. */
+	CRV_TBS = 1L << (sizeof(uint64_t) * CHAR_BIT - 1),
 
-	M0_CASSERT(sizeof buf->b_nob == 8);
-	if (val->b_nob >= 8) {
-		buf->b_nob = *(uint64_t *)val->b_addr;
-		if (val->b_nob == buf->b_nob + 8) {
-			buf->b_addr = ((char *)val->b_addr) + 8;
-			result = 0;
-		}
-	}
-	if (result != 0)
-		return M0_ERR_INFO(result, "Unexpected: %" PRIx64 "/%"PRIx64,
-				   val->b_nob, buf->b_nob);
-	else
-		return M0_RC(result);
+	/*
+	 * A special value that indicates the lack of version-aware behavior.
+	 * When such a version is provided, the functions transparently
+	 * ignore version comparison and tombstones in btree_save/delete.
+	 */
+	CRV_VER_NONE = 0,
+
+	/* The biggest possible value of a version. */
+	CRV_VER_MAX = (UINT64_MAX & ~CRV_TBS) - 1,
+	/* The lowest possible value of a version. */
+	CRV_VER_MIN = CRV_VER_NONE + 1,
+};
+
+
+static bool crv_tbs_is_set(const struct cas_rec_ver *crv)
+{
+	return crv->crv_encoded & CRV_TBS;
 }
 
-static void ctg_fid_key_fill(void *key, const struct m0_fid *fid)
+static void crv_tbs_set(struct cas_rec_ver *crv)
 {
-	ctg_memcpy(key, fid, sizeof(struct m0_fid));
+	crv->crv_encoded |= CRV_TBS;
+}
+
+
+static void crv_tbs_clear(struct cas_rec_ver *crv)
+{
+	crv->crv_encoded &= ~CRV_TBS;
+}
+
+static uint64_t crv_version_get(const struct cas_rec_ver *crv)
+{
+	return crv->crv_encoded & ~CRV_TBS;
+}
+
+static void crv_version_set(struct cas_rec_ver *crv, uint64_t ts)
+{
+	crv->crv_encoded = (crv->crv_encoded & CRV_TBS) | ts;
+}
+
+static void crv_init(struct cas_rec_ver *crv, uint64_t version, bool tbs)
+{
+	M0_PRE(version <= CRV_VER_MAX);
+	M0_PRE(version >= CRV_VER_MIN);
+
+	crv_version_set(crv, version);
+	(tbs ? crv_tbs_set : crv_tbs_clear)(crv);
+
+	M0_POST(equi(crv_tbs_is_set(crv), tbs));
+	M0_POST(crv_version_get(crv) == version);
+}
+
+#define CRV_INIT_NONE ((struct cas_rec_ver) { .crv_encoded = CRV_VER_NONE })
+
+static bool crv_gt(const struct cas_rec_ver *left,
+		   const struct cas_rec_ver *right)
+{
+	return crv_version_get(left) > crv_version_get(right);
+}
+
+static bool crv_is_none(const struct cas_rec_ver *crv)
+{
+	return memcmp(crv, &CRV_INIT_NONE, sizeof(*crv)) == 0;
+}
+
+/**
+ * Unpack an an on-disk value datum into an in-memory datum.
+ * The function makes "buf" to point to the user-specific data associated
+ * with the value (see ::generic_value::gv_data).
+ * @param[out] Optional storage for the version of the record.
+ * @return 0 or else -EPROTO if on-disk/on-wire buffer has invalid length.
+ */
+static int ctg_vbuf_unpack(struct m0_buf *buf, struct cas_rec_ver *crv)
+{
+	struct generic_value *value;
+
+	M0_ENTRY();
+
+	value = buf->b_addr;
+
+	if (buf->b_nob < sizeof(*value))
+		return M0_ERR_INFO(-EPROTO, "%" PRIu64 " < %" PRIu64,
+				   buf->b_nob, sizeof(*value));
+	if (value->gv_length != buf->b_nob - sizeof(*value))
+		return M0_ERR(-EPROTO);
+
+	if (crv != NULL)
+		*crv = value->gv_version;
+
+	buf->b_nob = value->gv_length;
+	buf->b_addr = &value->gv_data[0];
+
+	return M0_RC(0);
+}
+
+/**
+ * Get a m0_cas_ctg pointer from in-memory representation of a meta-index
+ * value.
+ */
+static int ctg_vbuf_as_ctg(const struct m0_buf *buf, struct m0_cas_ctg **ctg)
+{
+	struct meta_value *mv = buf->b_addr - sizeof(struct generic_value);
+
+	M0_ENTRY();
+
+	if (buf->b_nob == sizeof(struct m0_cas_ctg *)) {
+		*ctg = mv->mv_ctg;
+		return M0_RC(0);
+	} else
+		return M0_ERR(-EPROTO);
+}
+
+/**
+ * Convert a versioned variable length buffer (on-disk data) into user-specific
+ * data (see generic_key::gk_data).
+ */
+static int ctg_kbuf_unpack(struct m0_buf *buf)
+{
+	struct generic_key *key;
+
+	M0_ENTRY();
+
+	key = buf->b_addr;
+
+	if (buf->b_nob < sizeof(*key))
+		return M0_ERR(-EPROTO);
+	if (key->gk_length != buf->b_nob - sizeof(*key))
+		return M0_ERR(-EPROTO);
+
+	buf->b_nob = key->gk_length;
+	buf->b_addr = &key->gk_data[0];
+
+	return M0_RC(0);
+}
+
+#define FID_KEY_INIT(__fid) (struct fid_key) { \
+	.fk_gkey = { \
+		.gk_length = sizeof(*(__fid)), \
+	}, \
+	.fk_fid = *(__fid), \
+}
+
+#define GENERIC_VALUE_INIT(__size) (struct generic_value) { \
+	.gv_length = __size,                                \
+}
+
+#define META_VALUE_INIT(__ctg_ptr) (struct meta_value) {  \
+	.mv_gval = GENERIC_VALUE_INIT(sizeof(__ctg_ptr)), \
+	.mv_ctg    = (__ctg_ptr),                         \
+}
+
+#define LAYOUT_VALUE_INIT(__layout) (struct layout_value) { \
+	.lv_gval = GENERIC_VALUE_INIT(sizeof(*(__layout))), \
+	.lv_layout = *(__layout),                           \
 }
 
 static m0_bcount_t ctg_ksize(const void *key)
 {
+	/* TODO: use generic_key */
 	/* Size is stored in the header. */
-	return M0_CAS_CTG_KV_HDR_SIZE + *(const uint64_t *)key;
+	return M0_CAS_CTG_KEY_HDR_SIZE + *(const uint64_t *)key;
 }
 
 static m0_bcount_t ctg_vsize(const void *val)
 {
-	return ctg_ksize(val);
+	/* TODO: use generic_value */
+	return M0_CAS_CTG_VAL_HDR_SIZE + *(const uint64_t *)val;
 }
 
 static int ctg_cmp(const void *key0, const void *key1)
 {
-	m0_bcount_t knob0 = ctg_ksize(key0);
-	m0_bcount_t knob1 = ctg_ksize(key1);
+	m0_bcount_t       knob0   = ctg_ksize(key0);
+	m0_bcount_t       knob1   = ctg_ksize(key1);
+	const m0_bcount_t hdr_nob = M0_CAS_CTG_KEY_HDR_SIZE;
 	/**
 	 * @todo Cannot assert on on-disk data, but no interface to report
 	 * errors from here.
 	 */
-	M0_ASSERT(knob0 >= 8);
-	M0_ASSERT(knob1 >= 8);
+	M0_ASSERT(knob0 >= hdr_nob);
+	M0_ASSERT(knob1 >= hdr_nob);
 
-	return memcmp(key0 + 8, key1 + 8, min_check(knob0, knob1) - 8) ?:
+	return memcmp(key0 + hdr_nob, key1 + hdr_nob,
+		      min_check(knob0, knob1) - hdr_nob) ?:
 		M0_3WAY(knob0, knob1);
 }
 
 static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg)
 {
+	ensure_ctg_is_versioned(ctg);
 	m0_format_header_pack(&ctg->cc_head, &(struct m0_format_tag){
 		.ot_version = M0_CAS_CTG_FORMAT_VERSION,
 		.ot_type    = M0_FORMAT_TYPE_CAS_CTG,
@@ -334,78 +566,55 @@ M0_INTERNAL int m0_ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
 			             const struct m0_fid  *ctg_fid,
 			             struct m0_cas_ctg   **ctg)
 {
-	uint8_t                   key_data[M0_CAS_CTG_KV_HDR_SIZE +
-		                           sizeof(struct m0_fid)];
-	struct m0_buf             key;
+	struct fid_key            key_data = FID_KEY_INIT(ctg_fid);
+	struct m0_buf             key = M0_BUF_INIT(sizeof(key_data),
+						    &key_data);
 	struct m0_be_btree_anchor anchor;
 	int                       rc;
 
 	*ctg = NULL;
-
-	ctg_fid_key_fill((void *)&key_data, ctg_fid);
-	key = M0_BUF_INIT_PTR(&key_data);
 
 	rc = M0_BE_OP_SYNC_RET(op,
 			       m0_be_btree_lookup_inplace(&meta->cc_tree,
 							  &op,
 							  &key,
 							  &anchor),
-			       bo_u.u_btree.t_rc);
-	if (rc == 0) {
-		struct m0_buf buf = {};
+			       bo_u.u_btree.t_rc) ?:
+		ctg_vbuf_unpack(&anchor.ba_value, NULL) ?:
+		ctg_vbuf_as_ctg(&anchor.ba_value, ctg);
 
-		rc = ctg_buf(&anchor.ba_value, &buf);
-		if (rc == 0) {
-			if (buf.b_nob == sizeof(*ctg))
-				*ctg = *(struct m0_cas_ctg **)buf.b_addr;
-			else
-				rc = M0_ERR_INFO(-EPROTO, "Unexpected: %"PRIx64,
-						 buf.b_nob);
-		}
-	}
-
-	/*
-	 * Free read lock acquired in m0_be_btree_lookup_inplace().
-	 */
-		m0_be_btree_release(NULL, &anchor);
+	m0_be_btree_release(NULL, &anchor);
 	return M0_RC(rc);
 }
 
+/*
+ * NOTE:
+ * If passed catalogue is NULL then it is a stub for meta-catalogue
+ * inside itself, inserting records in it is prohibited. This stub
+ * is used to generalise listing catalogues operation.
+ * Insert real catalogue otherwise (catalogue is not NULL).
+ */
 M0_INTERNAL int m0_ctg__meta_insert(struct m0_be_btree  *meta,
 				    const struct m0_fid *fid,
 				    struct m0_cas_ctg   *ctg,
 				    struct m0_be_tx     *tx)
 {
-	uint8_t                    key_data[M0_CAS_CTG_KV_HDR_SIZE +
-					    sizeof(struct m0_fid)];
-	struct m0_buf              key;
+	struct fid_key             key_data = FID_KEY_INIT(fid);
+	struct meta_value          val_data = META_VALUE_INIT(ctg);
+	struct m0_buf              key = M0_BUF_INIT_PTR(&key_data);
+	struct m0_buf              value = M0_BUF_INIT_PTR(&val_data);
 	struct m0_be_btree_anchor  anchor = {};
-	void                      *val_data;
 	int                        rc;
 
-	ctg_fid_key_fill((void *)&key_data, fid);
-	key = M0_BUF_INIT_PTR(&key_data);
-	anchor.ba_value.b_nob = M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg);
+	anchor.ba_value.b_nob = value.b_nob;
 	rc = M0_BE_OP_SYNC_RET(op,
 		       m0_be_btree_insert_inplace(meta, tx, &op,
 						  &key, &anchor,
 						  M0_BITS(M0_BAP_NORMAL)),
 		       bo_u.u_btree.t_rc);
-	/*
-	 * If passed catalogue is NULL then it is a stub for meta-catalogue
-	 * inside itself, inserting records in it is prohibited. This stub
-	 * is used to generalise listing catalogues operation.
-	 * Insert real catalogue otherwise (catalogue is not NULL).
-	 */
-	if (rc == 0) {
-		val_data = anchor.ba_value.b_addr;
-		/*
-		 * Meta entry format: length + ptr to cas_ctg.
-		 * Memory for ctg allocated elsewhere and must be persistent.
-		 */
-		*(uint64_t *)val_data = sizeof(ctg);
-		*(struct m0_cas_ctg**)(val_data + M0_CAS_CTG_KV_HDR_SIZE) = ctg;
-	}
+	if (rc == 0)
+		m0_buf_memcpy(&anchor.ba_value, &value);
+
 	m0_be_btree_release(tx, &anchor);
 	return M0_RC(rc);
 }
@@ -420,12 +629,10 @@ static void ctg_meta_delete(struct m0_be_btree  *meta,
 			    const struct m0_fid *fid,
 			    struct m0_be_tx     *tx)
 {
-	uint8_t       key_data[M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid)];
-	struct m0_buf key;
+	struct fid_key             key_data = FID_KEY_INIT(fid);
+	struct m0_buf              key = M0_BUF_INIT_PTR(&key_data);
 
 	M0_ENTRY();
-	ctg_fid_key_fill((void *)&key_data, fid);
-	key = M0_BUF_INIT_PTR(&key_data);
 	M0_BE_OP_SYNC(op, m0_be_btree_delete(meta, tx, &op, &key));
 }
 
@@ -442,9 +649,8 @@ static void ctg_meta_insert_credit(struct m0_be_btree     *bt,
 	struct m0_cas_ctg *ctg;
 
 	m0_be_btree_insert_credit2(bt, nr,
-				   M0_CAS_CTG_KV_HDR_SIZE +
-				   sizeof(struct m0_fid),
-				   M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg),
+				   sizeof(struct fid_key),
+				   sizeof(struct meta_value),
 				   accum);
 	/*
 	 * Will allocate space for cas_ctg body then put ptr to it into btree.
@@ -460,9 +666,8 @@ static void ctg_meta_delete_credit(struct m0_be_btree     *bt,
 	struct m0_cas_ctg *ctg;
 
 	m0_be_btree_delete_credit(bt, nr,
-				  M0_CAS_CTG_KV_HDR_SIZE +
-				  sizeof(struct m0_fid),
-				  M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg),
+				   sizeof(struct fid_key),
+				   sizeof(struct meta_value),
 				  accum);
 	M0_BE_FREE_CREDIT_PTR(ctg, seg, accum);
 }
@@ -827,41 +1032,35 @@ static bool ctg_is_ordinary(const struct m0_cas_ctg *ctg)
 
 static bool ctg_op_cb(struct m0_clink *clink)
 {
-	struct m0_ctg_op *ctg_op   = M0_AMB(ctg_op, clink, co_clink);
-	struct m0_be_op  *op      = ctg_beop(ctg_op);
-	int               opc     = ctg_op->co_opcode;
-	int               ct      = ctg_op->co_ct;
-	struct m0_be_tx  *tx      = &ctg_op->co_fom->fo_tx.tx_betx;
-	void             *arena   = ctg_op->co_anchor.ba_value.b_addr;
-	struct m0_buf     cur_key = {};
-	struct m0_buf     cur_val = {};
-	struct m0_chan   *ctg_chan = &ctg_op->co_ctg->cc_chan.bch_chan;
-	struct m0_buf    *dst;
-	struct m0_buf    *src;
-	int               rc;
+	struct m0_ctg_op  *ctg_op   = M0_AMB(ctg_op, clink, co_clink);
+	struct m0_be_op   *op      = ctg_beop(ctg_op);
+	int                opc     = ctg_op->co_opcode;
+	int                ct      = ctg_op->co_ct;
+	struct m0_be_tx   *tx      = &ctg_op->co_fom->fo_tx.tx_betx;
+	struct m0_chan    *ctg_chan = &ctg_op->co_ctg->cc_chan.bch_chan;
+	int                rc;
+	struct m0_cas_ctg *ctg;
+	struct fid_key    *fk;
+	struct meta_value *mv;
 
 	if (op->bo_sm.sm_state != M0_BOS_DONE)
+		return true;
+
+	/* Versioned API is synchronous. */
+	if (ctg_op_is_versioned(ctg_op))
 		return true;
 
 	rc = ctg_berc(ctg_op);
 	if (rc == 0) {
 		switch (CTG_OP_COMBINE(opc, ct)) {
-		case CTG_OP_COMBINE(CO_GET, CT_BTREE):
 		case CTG_OP_COMBINE(CO_GET, CT_META):
-			rc = ctg_buf(&ctg_op->co_anchor.ba_value,
-				     &ctg_op->co_out_val);
-			/*
-			 * After get from meta we have struct m0_cas_ctg* in
-			 * ctg_op->co_out_val buffer.
-			 */
-			if (rc == 0 && ct == CT_META &&
-			    ctg_op->co_out_val.b_nob !=
-			    sizeof(struct m0_cas_ctg *))
-				rc = M0_ERR(-EFAULT);
-			if (rc == 0 && ct == CT_META) {
-				m0_ctg_try_init(*(struct m0_cas_ctg **)
-					     ctg_op->co_out_val.b_addr);
-			}
+		case CTG_OP_COMBINE(CO_GET, CT_BTREE):
+			ctg_op->co_out_val = ctg_op->co_anchor.ba_value;
+			rc = ctg_vbuf_unpack(&ctg_op->co_out_val, NULL);
+			if (rc == 0 && ct == CT_META)
+				rc = ctg_vbuf_as_ctg(&ctg_op->co_out_val, &ctg);
+			if (rc == 0 && ct == CT_META)
+				m0_ctg_try_init(ctg);
 			break;
 		case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
 			if (ctg_is_ordinary(ctg_op->co_ctg))
@@ -875,64 +1074,58 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			m0_chan_broadcast_lock(ctg_chan);
 			break;
 		case CTG_OP_COMBINE(CO_MIN, CT_BTREE):
-			ctg_buf(&ctg_op->co_out_key, &cur_key);
-			ctg_op->co_out_key = cur_key;
+			rc = ctg_kbuf_unpack(&ctg_op->co_out_key);
 			break;
 		case CTG_OP_COMBINE(CO_CUR, CT_META):
 		case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
 			m0_be_btree_cursor_kv_get(&ctg_op->co_cur,
-						  &cur_key,
-						  &cur_val);
-			rc = ctg_buf(&cur_key, &ctg_op->co_out_key);
-			if (rc == 0)
-				rc = ctg_buf(&cur_val, &ctg_op->co_out_val);
+						  &ctg_op->co_out_key,
+						  &ctg_op->co_out_val);
+			rc = ctg_kbuf_unpack(&ctg_op->co_out_key) ?:
+				ctg_vbuf_unpack(&ctg_op->co_out_val, NULL);
 			if (rc == 0 && ct == CT_META)
-				m0_ctg_try_init(*(struct m0_cas_ctg **)
-					     ctg_op->co_out_val.b_addr);
+				rc = ctg_vbuf_as_ctg(&ctg_op->co_out_val, &ctg);
+			if (rc == 0 && ct == CT_META)
+				m0_ctg_try_init(ctg);
 			break;
 		case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
-			ctg_memcpy(arena, ctg_op->co_val.b_addr,
-				   ctg_op->co_val.b_nob);
+			ctg_vbuf_pack(&ctg_op->co_anchor.ba_value,
+				      &ctg_op->co_val, &CRV_INIT_NONE);
 			if (ctg_is_ordinary(ctg_op->co_ctg))
 				m0_ctg_state_inc_update(tx,
 					ctg_op->co_key.b_nob -
-				       	M0_CAS_CTG_KV_HDR_SIZE +
+					sizeof(struct generic_key) +
 					ctg_op->co_val.b_nob);
-			m0_chan_broadcast_lock(ctg_chan);
+			else
+				m0_chan_broadcast_lock(ctg_chan);
 			break;
 		case CTG_OP_COMBINE(CO_PUT, CT_META):
-			*(uint64_t *)arena = sizeof(struct m0_cas_ctg *);
+			fk = ctg_op->co_key.b_addr;
+			mv = ctg_op->co_anchor.ba_value.b_addr;
 			/*
-			 * After successful insert inplace fill value of meta by
-			 * length & pointer to cas_ctg. m0_ctg_create() creates
-			 * cas_ctg, including memory alloc.
+			 * XXX: Why do we have a special CO_MEM_PLACE
+			 * that just allocates a datum for imask but
+			 * here we have an allocation (m0_cas_ctg object)
+			 * and tree creation (m0_cas_ctg::cc_tree) in
+			 * a single call that is called when PUT is almost
+			 * done? Shouldn't it be done beforehand?
 			 */
 			rc = m0_ctg_create(cas_seg(tx->t_engine->eng_domain),
-					tx,
-					arena + M0_CAS_CTG_KV_HDR_SIZE,
-					/*
-					 * Meta key have a fid of index/ctg
-					 * store.  It is located after KV
-					 * header.
-					 */
-					 ctg_op->co_key.b_addr +
-					 M0_CAS_CTG_KV_HDR_SIZE);
-			if (rc == 0)
+					   tx, &ctg, &fk->fk_fid);
+			if (rc == 0) {
+				*mv = META_VALUE_INIT(ctg);
 				m0_chan_broadcast_lock(ctg_chan);
+			}
 			break;
 		case CTG_OP_COMBINE(CO_MEM_PLACE, CT_MEM):
 			/*
 			 * Copy user provided buffer to the buffer allocated in
 			 * BE and capture it.
 			 */
-			src = &ctg_op->co_val;
-			dst = &ctg_op->co_mem_buf;
-			M0_ASSERT(src->b_nob == dst->b_nob);
-			memcpy(dst->b_addr, src->b_addr, src->b_nob);
-			m0_be_tx_capture(
-				&ctg_op->co_fom->fo_tx.tx_betx,
-				&M0_BE_REG(cas_seg(tx->t_engine->eng_domain),
-					   dst->b_nob, dst->b_addr));
+			m0_buf_memcpy(&ctg_op->co_mem_buf, &ctg_op->co_val);
+			M0_BE_TX_CAPTURE_BUF(cas_seg(tx->t_engine->eng_domain),
+					     &ctg_op->co_fom->fo_tx.tx_betx,
+					     &ctg_op->co_mem_buf);
 			break;
 		case CTG_OP_COMBINE(CO_MEM_FREE, CT_MEM):
 			/* Nothing to do. */
@@ -951,7 +1144,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 	    rc == -EEXIST)
 		rc = 0;
 
-	ctg_op->co_rc = rc;
+	ctg_op->co_rc = M0_RC(rc);
 	m0_chan_broadcast_lock(&ctg_op->co_channel);
 	/*
 	 * This callback may be called directly from ctg_op_tick_ret()
@@ -1001,7 +1194,17 @@ static int ctg_op_tick_ret(struct m0_ctg_op *ctg_op,
 	return ret;
 }
 
-static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
+/*
+ * Returns a bitmap of zones that could be used within the given operation.
+ * See ::m0_be_alloc_zone_type.
+ */
+static uint32_t ctg_op_zones(const struct m0_ctg_op *ctg_op)
+{
+	return M0_BITS(M0_BAP_NORMAL) |
+		((ctg_op->co_flags & COF_RESERVE) ? M0_BITS(M0_BAP_REPAIR) : 0);
+}
+
+static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 {
 	struct m0_buf             *key    = &ctg_op->co_key;
 	struct m0_be_btree        *btree  = &ctg_op->co_ctg->cc_tree;
@@ -1011,23 +1214,20 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 	struct m0_be_op           *beop   = ctg_beop(ctg_op);
 	int                        opc    = ctg_op->co_opcode;
 	int                        ct     = ctg_op->co_ct;
-	uint64_t                   zones;
-
-	zones = M0_BITS(M0_BAP_NORMAL) |
-		((ctg_op->co_flags & COF_RESERVE) ? M0_BITS(M0_BAP_REPAIR) : 0);
+	uint64_t                   zones = ctg_op_zones(ctg_op);
 
 	switch (CTG_OP_COMBINE(opc, ct)) {
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
-		anchor->ba_value.b_nob = M0_CAS_CTG_KV_HDR_SIZE +
+		anchor->ba_value.b_nob = sizeof(struct generic_value) +
 					 ctg_op->co_val.b_nob;
-		m0_be_btree_save_inplace(btree, tx, beop, key, anchor,
+		m0_be_btree_save_inplace(btree, tx, beop,
+					 key, anchor,
 					 !!(ctg_op->co_flags & COF_OVERWRITE),
 					 zones);
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_META):
 		M0_ASSERT(!(ctg_op->co_flags & COF_OVERWRITE));
-		anchor->ba_value.b_nob = M0_CAS_CTG_KV_HDR_SIZE +
-					 sizeof(struct m0_cas_ctg *);
+		anchor->ba_value.b_nob = sizeof(struct meta_value);
 		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor, zones);
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_DEAD_INDEX):
@@ -1036,7 +1236,7 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		 * there. Do not fill anything in the callback after
 		 * m0_be_btree_insert_inplace() have 0 there.
 		 */
-		anchor->ba_value.b_nob = 8;
+		anchor->ba_value.b_nob = sizeof(struct generic_value);
 		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor, zones);
 		break;
 	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
@@ -1053,6 +1253,8 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		m0_be_btree_destroy(btree, tx, beop);
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
+		m0_be_btree_delete(btree, tx, beop, key);
+		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
 		m0_be_btree_delete(btree, tx, beop, key);
 		break;
@@ -1061,8 +1263,7 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		break;
 	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
 	case CTG_OP_COMBINE(CO_CUR, CT_META):
-		M0_ASSERT(ctg_op->co_cur_phase == CPH_GET ||
-			  ctg_op->co_cur_phase == CPH_NEXT);
+		M0_ASSERT(M0_IN(ctg_op->co_cur_phase, (CPH_GET, CPH_NEXT)));
 		if (ctg_op->co_cur_phase == CPH_GET)
 			m0_be_btree_cursor_get(cur, key,
 				       !!(ctg_op->co_flags & COF_SLANT));
@@ -1072,6 +1273,81 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 	}
 
 	return ctg_op_tick_ret(ctg_op, next_phase);
+}
+
+static int versioned_record_put_sync(struct m0_ctg_op *ctg_op);
+static int alive_record_get_sync(struct m0_ctg_op *op);
+static int alive_cursor_next_sync(struct m0_ctg_op *op);
+static int alive_cursor_get_sync(struct m0_ctg_op *op);
+
+static int ctg_op_exec_versioned(struct m0_ctg_op *ctg_op, int next_phase)
+{
+	int                        rc;
+	int                        opc = ctg_op->co_opcode;
+	int                        ct  = ctg_op->co_ct;
+	struct m0_be_op           *beop = ctg_beop(ctg_op);
+
+	M0_PRE(ctg_is_ordinary(ctg_op->co_ctg));
+	M0_PRE(ct == CT_BTREE);
+	M0_PRE(ergo(opc == CO_CUR,
+		    M0_IN(ctg_op->co_cur_phase, (CPH_GET, CPH_NEXT))));
+
+	switch (CTG_OP_COMBINE(opc, ct)) {
+	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
+	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
+		rc = versioned_record_put_sync(ctg_op);
+		break;
+	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
+		rc = alive_record_get_sync(ctg_op);
+		break;
+	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
+		if (ctg_op->co_cur_phase == CPH_GET)
+			rc = alive_cursor_get_sync(ctg_op);
+		else
+			rc = alive_cursor_next_sync(ctg_op);
+		break;
+	default:
+		M0_IMPOSSIBLE("The other operations are not allowed here.");
+	}
+
+	ctg_op->co_rc = rc;
+
+	/* It is either untouched or DONE right away. */
+	M0_ASSERT(M0_IN(beop->bo_sm.sm_state, (M0_BOS_INIT, M0_BOS_DONE)));
+	/* Only cursor operation may reach DONE state. */
+	M0_ASSERT(ergo(beop->bo_sm.sm_state == M0_BOS_DONE, opc == CO_CUR));
+
+	if (opc == CO_CUR) {
+		/*
+		 * BE cursor has its own BE operation. It gets initialised
+		 * everytime in m0_ctg_cursor_* and m0_ctg_meta_cursor_*.
+		 * Since a ctg op may be re-used (for example, as a part
+		 * of GET+NEXT sequence of calls), we need to make it
+		 * ready to be initialised again.
+		 */
+		m0_be_op_fini(beop);
+		M0_SET0(beop);
+	} else {
+		/*
+		 * Non-CO_CUR operations are completely ignoring the BE op
+		 * embedded into ctg_op. They are operating in synchrnonous
+		 * manner on local ops. Thus, we need to advance the state
+		 * of the embedded op to let the other parts function
+		 * properly (for example, ::m0_ctg_lookup_result).
+		 */
+		m0_be_op_active(beop);
+		m0_be_op_done(beop);
+	}
+
+	m0_fom_phase_set(ctg_op->co_fom, next_phase);
+	return M0_FSO_AGAIN;
+}
+
+static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
+{
+	return ctg_op_is_versioned(ctg_op) ?
+		ctg_op_exec_versioned(ctg_op, next_phase) :
+		ctg_op_exec_normal(ctg_op, next_phase);
 }
 
 static int ctg_mem_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
@@ -1099,7 +1375,7 @@ static int ctg_meta_exec(struct m0_ctg_op    *ctg_op,
 			 const struct m0_fid *fid,
 			 int                  next_phase)
 {
-	int ret;
+	int            ret;
 
 	ctg_op->co_ctg = ctg_store.cs_state->cs_meta;
 	ctg_op->co_ct = CT_META;
@@ -1107,10 +1383,8 @@ static int ctg_meta_exec(struct m0_ctg_op    *ctg_op,
 	if (ctg_op->co_opcode != CO_GC &&
 	    (ctg_op->co_opcode != CO_CUR ||
 	     ctg_op->co_cur_phase != CPH_NEXT))
-		ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key,
-					    &M0_BUF_INIT_CONST(
-						    sizeof(struct m0_fid),
-						    fid), true);
+		ctg_op->co_rc = ctg_kbuf_get(&ctg_op->co_key,
+					     &M0_BUF_INIT_PTR_CONST(fid));
 	if (ctg_op->co_rc != 0) {
 		ret = M0_FSO_AGAIN;
 		m0_fom_phase_set(ctg_op->co_fom, next_phase);
@@ -1170,8 +1444,8 @@ struct m0_cas_ctg *m0_ctg_meta_lookup_result(struct m0_ctg_op *ctg_op)
 	M0_PRE(ctg_op->co_opcode == CO_GET);
 	M0_PRE(ctg_op->co_ct == CT_META);
 
-	if (ctg_op->co_rc == 0)
-		ctg = *(struct m0_cas_ctg **)ctg_op->co_out_val.b_addr;
+	ctg_op->co_rc = ctg_op->co_rc ?:
+		ctg_vbuf_as_ctg(&ctg_op->co_out_val, &ctg);
 
 	return ctg;
 }
@@ -1193,23 +1467,13 @@ M0_INTERNAL int m0_ctg_dead_index_insert(struct m0_ctg_op  *ctg_op,
 					 struct m0_cas_ctg *ctg,
 					 int                next_phase)
 {
-	int ret;
-
 	ctg_op->co_ctg = m0_ctg_dead_index();
 	ctg_op->co_ct = CT_DEAD_INDEX;
 	ctg_op->co_opcode = CO_PUT;
-	/*
-	 * Actually we need just a catalogue.
-	 * Put struct m0_cas_ctg* into dead_index as a key, keep value empty.
-	 */
-	ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key,
-				    &M0_BUF_INIT_CONST(sizeof(ctg), &ctg), true);
-	if (ctg_op->co_rc != 0) {
-		ret = M0_FSO_AGAIN;
-		m0_fom_phase_set(ctg_op->co_fom, next_phase);
-	} else
-		ret = ctg_op_exec(ctg_op, next_phase);
-	return ret;
+	/* Dead index value is empty */
+	ctg_op->co_val = M0_BUF_INIT0;
+	/* Dead index key is a pointer to a catalogue */
+	return ctg_exec(ctg_op, ctg, &M0_BUF_INIT_PTR(&ctg), next_phase);
 }
 
 static int ctg_exec(struct m0_ctg_op    *ctg_op,
@@ -1217,7 +1481,7 @@ static int ctg_exec(struct m0_ctg_op    *ctg_op,
 		    const struct m0_buf *key,
 		    int                  next_phase)
 {
-	int ret = M0_FSO_AGAIN;
+	int               ret     = M0_FSO_AGAIN;
 
 	ctg_op->co_ctg = ctg;
 	ctg_op->co_ct = CT_BTREE;
@@ -1225,7 +1489,8 @@ static int ctg_exec(struct m0_ctg_op    *ctg_op,
 	if (!M0_IN(ctg_op->co_opcode, (CO_MIN, CO_TRUNC, CO_DROP)) &&
 	    (ctg_op->co_opcode != CO_CUR ||
 	     ctg_op->co_cur_phase != CPH_NEXT))
-		ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key, key, true);
+		ctg_op->co_rc = ctg_kbuf_get(&ctg_op->co_key, key);
+
 
 	if (ctg_op->co_rc != 0)
 		m0_fom_phase_set(ctg_op->co_fom, next_phase);
@@ -1432,7 +1697,9 @@ M0_INTERNAL void m0_ctg_cursor_init(struct m0_ctg_op  *ctg_op,
 	ctg_op->co_cur_phase = CPH_INIT;
 	M0_SET0(&ctg_op->co_cur.bc_op);
 
-	m0_be_btree_cursor_init(&ctg_op->co_cur, &ctg_op->co_ctg->cc_tree);
+	m0_be_btree_cursor_init(&ctg_op->co_cur,
+				&ctg_op->co_ctg->cc_tree);
+
 	ctg_op->co_cur_initialised = true;
 }
 
@@ -1588,12 +1855,12 @@ M0_INTERNAL void m0_ctg_mark_deleted_credit(struct m0_be_tx_credit *accum)
 	struct m0_be_btree *mbtree = &m0_ctg_dead_index()->cc_tree;
 	struct m0_cas_ctg  *ctg;
 
-	knob = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid);
-	vnob = M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg);
+	knob = sizeof(struct fid_key);
+	vnob = sizeof(struct meta_value);
 	/* Delete from meta. */
 	m0_be_btree_delete_credit(btree, 1, knob, vnob, accum);
-	knob = M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg);
-	vnob = 8;
+	knob = sizeof(struct generic_key) + sizeof(ctg);
+	vnob = sizeof(struct generic_value);
 	/* Insert into dead index. */
 	m0_be_btree_insert_credit2(mbtree, 1, knob, vnob, accum);
 }
@@ -1607,8 +1874,8 @@ M0_INTERNAL void m0_ctg_create_credit(struct m0_be_tx_credit *accum)
 
 	m0_be_btree_create_credit(btree, 1, accum);
 
-	knob = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid);
-	vnob = M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg);
+	knob = sizeof(struct fid_key);
+	vnob = sizeof(struct meta_value);
 	m0_be_btree_insert_credit2(btree, 1, knob, vnob, accum);
 	/*
 	 * That are credits for cas_ctg body.
@@ -1671,8 +1938,8 @@ M0_INTERNAL void m0_ctg_dead_clean_credit(struct m0_be_tx_credit *accum)
 	/*
 	 * Define credits for delete from dead index.
 	 */
-	knob = M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg);
-	vnob = M0_CAS_CTG_KV_HDR_SIZE;
+	knob = sizeof(struct generic_key) + sizeof(ctg);
+	vnob = sizeof(struct generic_value);
 	m0_be_btree_delete_credit(btree, 1, knob, vnob, accum);
 	/*
 	 * Credits for ctg free.
@@ -1694,6 +1961,15 @@ M0_INTERNAL void m0_ctg_delete_credit(struct m0_cas_ctg      *ctg,
 				      struct m0_be_tx_credit *accum)
 {
 	m0_be_btree_delete_credit(&ctg->cc_tree, 1, knob, vnob, accum);
+
+	/* XXX: performance.
+	 * At this moment we do not know for sure if the CAS operation should
+	 * have version-aware behavior. So that we are doing a pessimistic
+	 * estimate here: reserving credits for both delete and insert.
+	 */
+	if (ctg_is_ordinary(ctg)) {
+		m0_be_btree_insert_credit2(&ctg->cc_tree, 1, knob, vnob, accum);
+	}
 }
 
 static void ctg_ctidx_op_credits(struct m0_cas_id       *cid,
@@ -1706,8 +1982,8 @@ static void ctg_ctidx_op_credits(struct m0_cas_id       *cid,
 	m0_bcount_t                knob;
 	m0_bcount_t                vnob;
 
-	knob = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid);
-	vnob = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_dix_layout);
+	knob = sizeof(struct fid_key);
+	vnob = sizeof(struct layout_value);
 	if (insert)
 		m0_be_btree_insert_credit2(btree, 1, knob, vnob, accum);
 	else
@@ -1749,21 +2025,18 @@ M0_INTERNAL void m0_ctg_ctidx_delete_credits(struct m0_cas_id       *cid,
 M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid  *fid,
 					 struct m0_dix_layout **layout)
 {
-	uint8_t                   key_data[M0_CAS_CTG_KV_HDR_SIZE +
-		                           sizeof(struct m0_fid)];
-	struct m0_buf             key;
+	struct fid_key            key_data = FID_KEY_INIT(fid);
+	struct m0_buf             key = M0_BUF_INIT_PTR(&key_data);
 	struct m0_be_btree_anchor anchor;
 	struct m0_cas_ctg        *ctidx = m0_ctg_ctidx();
 	int                       rc;
+	struct layout_value      *value_data;
 
 	M0_PRE(ctidx != NULL);
 	M0_PRE(fid != NULL);
 	M0_PRE(layout != NULL);
 
 	*layout = NULL;
-
-	ctg_fid_key_fill(&key_data, fid);
-	key = M0_BUF_INIT_PTR(&key_data);
 
 	/** @todo Make it asynchronous. */
 	rc = M0_BE_OP_SYNC_RET(op,
@@ -1773,17 +2046,13 @@ M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid  *fid,
 							  &anchor),
 			       bo_u.u_btree.t_rc);
 	if (rc == 0) {
-		struct m0_buf buf = {};
-
-		rc = ctg_buf(&anchor.ba_value, &buf);
-		if (rc == 0) {
-			if (buf.b_nob == sizeof(struct m0_dix_layout))
-				*layout = (struct m0_dix_layout *)buf.b_addr;
-			else
-				rc = M0_ERR_INFO(-EPROTO, "Unexpected: %"PRIx64,
-						 buf.b_nob);
-		}
+		value_data = anchor.ba_value.b_addr;
+		if (sizeof(value_data) == anchor.ba_value.b_nob) {
+			*layout = &value_data->lv_layout;
+		} else
+			rc = M0_ERR(-EPROTO);
 	}
+
 	m0_be_btree_release(NULL, &anchor);
 
 	return M0_RC(rc);
@@ -1792,30 +2061,28 @@ M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid  *fid,
 M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 					 struct m0_be_tx        *tx)
 {
-	uint8_t                    key_data[M0_CAS_CTG_KV_HDR_SIZE +
-					    sizeof(struct m0_fid)];
+	/* The key is a component catalogue FID. */
+	struct fid_key             key_data = FID_KEY_INIT(&cid->ci_fid);
+	struct m0_buf              key = M0_BUF_INIT_PTR(&key_data);
+	struct layout_value        value_data;
+	struct m0_buf              value = M0_BUF_INIT_PTR(&value_data);
 	struct m0_cas_ctg         *ctidx  = m0_ctg_ctidx();
 	struct m0_be_btree_anchor  anchor = {};
 	struct m0_dix_layout      *layout;
 	struct m0_ext             *im_range;
 	const struct m0_dix_imask *imask;
-	struct m0_buf              key;
 	m0_bcount_t                size;
 	int                        rc;
 
-	/* The key is a component catalogue FID. */
-	ctg_fid_key_fill((void *)&key_data, &cid->ci_fid);
-	key = M0_BUF_INIT_PTR(&key_data);
-	anchor.ba_value.b_nob = M0_CAS_CTG_KV_HDR_SIZE +
-		                sizeof(struct m0_dix_layout);
+	value_data = LAYOUT_VALUE_INIT(&cid->ci_layout);
+	anchor.ba_value.b_nob = value.b_nob;
 	/** @todo Make it asynchronous. */
 	rc = M0_BE_OP_SYNC_RET(op,
 		m0_be_btree_insert_inplace(&ctidx->cc_tree, tx, &op, &key,
 					   &anchor, M0_BITS(M0_BAP_NORMAL)),
 		bo_u.u_btree.t_rc);
 	if (rc == 0) {
-		ctg_memcpy(anchor.ba_value.b_addr, &cid->ci_layout,
-			   sizeof(cid->ci_layout));
+		m0_buf_memcpy(&anchor.ba_value, &value);
 		imask = &cid->ci_layout.u.dl_desc.ld_imask;
 		if (!m0_dix_imask_is_empty(imask)) {
 			/*
@@ -1832,9 +2099,8 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 					 cas_seg(tx->t_engine->eng_domain),
 					 size, im_range));
 			/* Assign newly allocated imask ranges. */
-			layout = (struct m0_dix_layout *)
-				 (anchor.ba_value.b_addr +
-				  M0_CAS_CTG_KV_HDR_SIZE);
+			layout = &((struct layout_value *)
+				   anchor.ba_value.b_addr)->lv_layout;
 			layout->u.dl_desc.ld_imask.im_range = im_range;
 		}
 		m0_chan_broadcast_lock(&ctidx->cc_chan.bch_chan);
@@ -1848,10 +2114,10 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 {
 	struct m0_dix_layout *layout;
 	struct m0_dix_imask  *imask;
-	uint8_t               key_data[M0_CAS_CTG_KV_HDR_SIZE +
-		                       sizeof(struct m0_fid)];
+	/* The key is a component catalogue FID. */
+	struct fid_key        key_data = FID_KEY_INIT(&cid->ci_fid);
 	struct m0_cas_ctg    *ctidx  = m0_ctg_ctidx();
-	struct m0_buf         key;
+	struct m0_buf         key = M0_BUF_INIT_PTR(&key_data);
 	int                   rc;
 
 	/* Firstly we should free buffer allocated for imask ranges array. */
@@ -1867,9 +2133,6 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 		imask->im_range = NULL;
 		imask->im_nr = 0;
 	}
-	/* The key is a component catalogue FID. */
-	ctg_fid_key_fill((void *)&key_data, &cid->ci_fid);
-	key = M0_BUF_INIT_PTR(&key_data);
 	/** @todo Make it asynchronous. */
 	M0_BE_OP_SYNC(op, m0_be_btree_delete(&ctidx->cc_tree, tx, &op, &key));
 	m0_chan_broadcast_lock(&ctidx->cc_chan.bch_chan);
@@ -2065,6 +2328,246 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	m0_be_btree_cursor_fini(&cursor);
 
 	return rc? : dumped? 0 : -ENOENT;
+}
+
+static bool ctg_op_is_versioned(const struct m0_ctg_op *ctg_op)
+{
+	const struct m0_cas_op       *cas_op;
+	bool                          has_txd;
+
+	/*
+	 * Since the versioned behavior is optional, it may get turned off
+	 * for a variety of resons. These reasons are listed here
+	 * as M0_RC_INFO messages to aid debugging of the cases
+	 * where the behavior should have not been turned off.
+	 */
+
+	M0_ENTRY("ctg_op=%p", ctg_op);
+
+	if (!ctg_is_ordinary(ctg_op->co_ctg))
+		return M0_RC_INFO(false, "Non-ordinary catalogue.");
+
+	if (ctg_op->co_fom == NULL)
+		return M0_RC_INFO(false, "No fom, no versions.");
+
+	cas_op = m0_fop_data(ctg_op->co_fom->fo_fop);
+	if (cas_op == NULL)
+		return M0_RC_INFO(false, "No cas op, no versions.");
+
+	if ((ctg_op->co_flags & COF_VERSIONED) == 0)
+		return M0_RC_INFO(false, "CAS request is not versioned.");
+
+	has_txd = !m0_dtm0_tx_desc_is_none(&cas_op->cg_txd);
+
+	switch (CTG_OP_COMBINE(ctg_op->co_opcode, ctg_op->co_ct)) {
+	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
+		if ((ctg_op->co_flags & COF_OVERWRITE) == 0)
+			return M0_RC_INFO(false,
+					  "PUT request without OVERWRITE is "
+					  "not versioned.");
+	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
+		if (has_txd)
+			return M0_RC(true);
+		else
+			return M0_RC_INFO(false,
+					  "%s request is has an empty txd.",
+					  ctg_op->co_opcode == CO_PUT ?
+					  "PUT" : "DEL");
+	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
+	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
+		return M0_RC(true);
+	default:
+		break;
+	}
+
+	return M0_RC_INFO(false, "Non-versioned operation.");
+}
+
+static void ctg_op_version_get(const struct m0_ctg_op *ctg_op,
+			       struct cas_rec_ver     *out)
+{
+	const struct m0_dtm0_tid     *tid;
+	const struct m0_cas_op       *cas_op;
+	uint64_t                      version;
+	bool                          tbs;
+
+	M0_ENTRY();
+	M0_PRE(ctg_op_is_versioned(ctg_op));
+
+	if (M0_IN(ctg_op->co_opcode, (CO_PUT, CO_DEL))) {
+		M0_ASSERT_INFO(ctg_op->co_fom != NULL,
+			       "Versioned op without FOM?");
+		cas_op = m0_fop_data(ctg_op->co_fom->fo_fop);
+		M0_ASSERT_INFO(cas_op != NULL, "Versioned op without cas_op?");
+		tbs = ctg_op->co_opcode == CO_DEL;
+		tid = &cas_op->cg_txd.dtd_id;
+		version = tid->dti_ts.dts_phys;
+		crv_init(out, version, tbs);
+
+		M0_LEAVE("ctg_op=%p, cas_op=%p, txid=" DTID0_F ", ver=%" PRIu64
+			 ", ver_enc=%" PRIu64, ctg_op,
+			 cas_op, DTID0_P(tid), version, out->crv_encoded);
+	} else {
+		*out = CRV_INIT_NONE;
+		M0_LEAVE("ctg_op=%p, no version", ctg_op);
+	}
+}
+
+static int versioned_record_put_sync(struct m0_ctg_op *ctg_op)
+{
+	struct m0_buf             *key    = &ctg_op->co_key;
+	struct m0_be_btree        *btree  = &ctg_op->co_ctg->cc_tree;
+	struct m0_be_btree_anchor *anchor = &ctg_op->co_anchor;
+	struct m0_be_tx           *tx     = &ctg_op->co_fom->fo_tx.tx_betx;
+	struct cas_rec_ver         new_version = CRV_INIT_NONE;
+	struct cas_rec_ver         old_version = CRV_INIT_NONE;
+	int                        rc;
+
+	M0_PRE(ctg_op_is_versioned(ctg_op));
+	M0_ENTRY();
+
+	ctg_op_version_get(ctg_op, &new_version);
+	M0_ASSERT_INFO(!crv_is_none(&new_version),
+		       "Versioned PUT or DEL without a valid version?");
+
+	/*
+	 * TODO: Performance.
+	 * This lookup call can be avoided if the version comparison
+	 * was shifted into btree. However, at this moment the cost of
+	 * such a lookup is much lower than the cost of re-working btree API.
+	 * See the be_btree_search() call inside ::btree_save. It is the
+	 * point where btree_save does its own "lookup". Versions could
+	 * be compared right in there. Alternatively, btree_save could
+	 * use btree_cursor as a "hint".
+	 */
+	rc = M0_BE_OP_SYNC_RET(op,
+			       m0_be_btree_lookup_inplace(btree,
+							  &op,
+							  key,
+							  anchor),
+			       bo_u.u_btree.t_rc) ?:
+		ctg_vbuf_unpack(&anchor->ba_value, &old_version);
+
+	/* The tree is long-locked anyway. */
+	m0_be_btree_release(NULL, anchor);
+
+	if (!M0_IN(rc, (0, -ENOENT))) {
+		 /* Trace unexpected errors. */
+		rc = M0_ERR(rc);
+		goto out;
+	}
+
+	/*
+	 * Skip PUT op if the existing record is "newer" (version-wise) than
+	 * the record to be PUT.
+	 */
+	if (!crv_is_none(&old_version) && crv_gt(&old_version, &new_version)) {
+		rc = M0_RC(0);
+		goto out;
+	}
+
+	M0_LOG(M0_DEBUG, "Overwriting %" PRIu64 ":%d with %" PRIu64 ":%d.",
+	       crv_version_get(&old_version), !!crv_tbs_is_set(&old_version),
+	       crv_version_get(&new_version), !!crv_tbs_is_set(&new_version));
+
+	anchor->ba_value.b_nob = ctg_vbuf_packed_size(&ctg_op->co_val);
+	rc = M0_BE_OP_SYNC_RET(op,
+			       m0_be_btree_save_inplace(btree, tx, &op,
+							key, anchor, true,
+							ctg_op_zones(ctg_op)),
+			       bo_u.u_btree.t_rc);
+
+	if (rc == 0) {
+		ctg_vbuf_pack(&ctg_op->co_anchor.ba_value,
+			      &ctg_op->co_val,
+			      &new_version);
+
+		/* TODO: it is too pessimistic. */
+		m0_ctg_state_inc_update(tx, key->b_nob + ctg_op->co_val.b_nob);
+	}
+out:
+	return M0_RC(rc);
+}
+
+static int alive_record_get_sync(struct m0_ctg_op *ctg_op)
+{
+	struct m0_be_btree        *btree  = &ctg_op->co_ctg->cc_tree;
+	struct m0_be_btree_anchor *anchor = &ctg_op->co_anchor;
+	struct cas_rec_ver         ver;
+	int                        rc;
+
+	M0_PRE(ctg_op_is_versioned(ctg_op));
+
+	rc = M0_BE_OP_SYNC_RET(op,
+			       m0_be_btree_lookup_inplace(btree, &op,
+							  &ctg_op->co_key,
+							  anchor),
+			       bo_u.u_btree.t_rc);
+	if (rc == 0) {
+		rc = ctg_vbuf_unpack(&anchor->ba_value, &ver) ?:
+			(crv_tbs_is_set(&ver) ?  -ENOENT : 0);
+		if (rc == 0)
+			ctg_op->co_out_val = anchor->ba_value;
+	}
+
+	return M0_RC(rc);
+}
+
+static int alive_cursor_next_sync(struct m0_ctg_op *ctg_op)
+{
+	struct m0_be_op           *beop   = ctg_beop(ctg_op);
+	struct cas_rec_ver         ver    = CRV_INIT_NONE;
+	int                        rc;
+
+	do {
+		m0_be_btree_cursor_next(&ctg_op->co_cur);
+
+		rc = ctg_berc(ctg_op);
+		if (rc != 0)
+			break;
+
+		m0_be_btree_cursor_kv_get(&ctg_op->co_cur,
+					  &ctg_op->co_out_key,
+					  &ctg_op->co_out_val);
+		rc = ctg_kbuf_unpack(&ctg_op->co_out_key) ?:
+			ctg_vbuf_unpack(&ctg_op->co_out_val, &ver);
+		if (rc != 0)
+			break;
+
+		m0_be_op_reset(beop);
+	} while (crv_tbs_is_set(&ver));
+
+	return M0_RC(rc);
+}
+
+static int alive_cursor_get_sync(struct m0_ctg_op *ctg_op)
+{
+	struct m0_be_op           *beop   = ctg_beop(ctg_op);
+	struct cas_rec_ver         ver    = CRV_INIT_NONE;
+	bool                       slant  = (ctg_op->co_flags & COF_SLANT) != 0;
+	int                        rc;
+
+	M0_PRE(ctg_op_is_versioned(ctg_op));
+
+	m0_be_btree_cursor_get(&ctg_op->co_cur, &ctg_op->co_key, slant);
+	rc = ctg_berc(ctg_op);
+
+	if (rc == 0) {
+		m0_be_btree_cursor_kv_get(&ctg_op->co_cur,
+					  &ctg_op->co_out_key,
+					  &ctg_op->co_out_val);
+		rc = ctg_kbuf_unpack(&ctg_op->co_out_key) ?:
+			ctg_vbuf_unpack(&ctg_op->co_out_val, &ver) ?:
+			!crv_tbs_is_set(&ver) ? 0 :
+			(slant ? -EAGAIN : -ENOENT);
+	}
+
+	m0_be_op_reset(beop);
+
+	if (rc == -EAGAIN)
+		rc = alive_cursor_next_sync(ctg_op);
+
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM
