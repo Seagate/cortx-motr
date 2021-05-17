@@ -237,6 +237,7 @@ m0_server()
 
     # enable core dumps
     ulimit -c unlimited
+    ulimit -n 65536
 
     # Increase vm.max_map_count. MOTR-2171 MOTR-2396
     sysctl -w vm.max_map_count=30000000

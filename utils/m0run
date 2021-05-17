@@ -369,6 +369,7 @@ load_modules
 
 # enable core dumps
 ulimit -c unlimited
+ulimit -n 65536
 
 # Increase the maximum number of memory map areas a process may have.
 # m0d process may allocate and madvise() at least 2,000,000 memory map areas.
