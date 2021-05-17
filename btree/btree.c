@@ -118,32 +118,31 @@
  *
  * @verbatim
  *
- *                         INIT------->COOKIE
- *                           |           | |
- *                           +----+ +----+ |
- *                                | |      |
- *                                v v      |
- *                      +--------SETUP<------------+
- *                      |          |       |       |
- *                      |          v       |       |
- *                      +-------LOCKALL<-----------+
- *                      |          |       |       |
- *                      |          v       |       |
- *                      +--------DOWN<-------------+
- *                      |          |       |       |
- *                      |          v       v       |
- *                      |  +-->NEXTDOWN-->LOCK-->CHECK
- *                      |  |     |  |              |
- *                      |  +-----+  |              v
- *                      |           |             ACT
- *                      |           |              |
- *                      |           |              v
- *                      +-----------+---------->CLEANUP-->DONE
- *
+ *                        INIT------->COOKIE
+ *                          |           | |
+ *                          +----+ +----+ |
+ *                               | |      |
+ *                               v v      |
+ *                     +--------SETUP<----+-------+
+ *                     |          |       |       |
+ *                     |          v       |       |
+ *                     +-------LOCKALL<---+-------+
+ *                     |          |       |       |
+ *                     |          v       |       |
+ *                     +--------DOWN<-----+-------+
+ *                     |          |       |       |
+ *                     |          v       v       |
+ *                     |  +-->NEXTDOWN-->LOCK-->CHECK
+ *                     |  |     |  |              |
+ *                     |  +-----+  |              v
+ *                     |           |             ACT
+ *                     |           |              |
+ *                     |           |              v
+ *                     +-----------+---------->CLEANUP-->DONE
  *
  * @endverbatim
  *
- * (https://asciiflow.com/#/share/eJyrVspLzE1VslJydw1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVga68QoVQJZRuYGQFZJakUJkBOjpKCg4OnnGfJoyh4saNouZ39%2Fb0%2FXmJg8BRAAiikgAIgHxEiSaAiHEEwDsiFwDqrktD1gjCSJ3aFgFOwaEhrwaHoLHiXICGIYqkuwsDCUTcOjDCvy8Xf2dvTxIdJldHMWELn4h%2FsRH2BUcdw0LMqQE5yfa0QI2FkwAVDoIZKjh6uzN5I2hNWoSROX%2BcgpEYuWaRgux1Dk6BxCUA22IMBjGxUQMGR8XB39gMkfxnfx93ONUapVqgUAYgr3kQ%3D%3D)
+ * (https://asciiflow.com/#/share/eJyrVspLzE1VslJydw1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVga68QoVQJZRuYGQFZJakUJkBOjpKCg4OnnGfJoyh4saNouZ39%2Fb0%2FXmJg8BRAAiikgAIgHxEiSaAiHEEwDsiFwDqrktD1gjCSJ3aFgFOwaEhrwaHoLHiXICGIYqkuwsDCUTcOjDCvy8Xf2dvTxIdJldHMWELn4h%2FsRH2BUcdw0LMqQE5yfa0QI2FkwAVDoIZKjh6uzN5I2hNWoSROX%2BcgpEYuWaRgux1Dk6BxCUA22IMBjGxUQMGR8XB39gMkfxnfx93ONUapVqgUAYgr3kQ%3D%3D))
  *
  * @verbatim
  *
@@ -186,30 +185,30 @@
  *
  * @verbatim
  *
- *                       INIT------->COOKIE
- *                         |           | |
- *                         +----+ +----+ |
- *                              | |      |
- *                              v v      |
- *                            SETUP<--------------+
- *                              |        |        |
- *                              v        |        |
- *                           LOCKALL<-----------+ |
- *                              |        |      | |
- *                              v        |      | |
- *                            DOWN<-----------+ | |
- *                      +----+  |        |    | | |
- *                      |    |  v        v    | | |
- *                      +-->NEXTDOWN-->LOCK-->CHECK
- *                           ^   |              |
- *                           |   v              v
- *                           +-ALLOC    +---MAKESPACE<-+
- *                                      |       |      |
- *                                      v       v      |
- *                                     ACT-->NEXTUP----+
- *                                              |
- *                                              v
- *                                           CLEANUP-->DONE
+ *                      INIT------->COOKIE
+ *                        |           | |
+ *                        +----+ +----+ |
+ *                             | |      |
+ *                             v v      |
+ *                           SETUP<-----+--------+
+ *                             |        |        |
+ *                             v        |        |
+ *                          LOCKALL<----+------+ |
+ *                             |        |      | |
+ *                             v        |      | |
+ *                           DOWN<------+----+ | |
+ *                     +----+  |        |    | | |
+ *                     |    |  v        v    | | |
+ *                     +-->NEXTDOWN-->LOCK-->CHECK
+ *                             |        ^      |
+ *                             v        |      v
+ *                        +--ALLOC------+ +---MAKESPACE<-+
+ *                        |    ^          |       |      |
+ *                        +----+          v       v      |
+ *                                       ACT-->NEXTUP----+
+ *                                                |
+ *                                                v
+ *                                             CLEANUP-->DONE
  *
  * @endverbatim
  *
@@ -814,9 +813,9 @@ struct slot;
  *  implementation.
  */
 struct node_type {
-	uint32_t                   nt_id;
-	const char                *nt_name;
-	const struct m0_format_tag nt_tag;
+	uint32_t                    nt_id;
+	const char                 *nt_name;
+	const struct m0_format_tag  nt_tag;
 
 	/** Initializes newly allocated node */
 	void (*nt_init)(const struct nd *node, int shift, int ksize, int vsize);
@@ -1056,7 +1055,7 @@ struct m0_btree_oimpl {
 	struct node_op  i_nop;
 	/* struct lock_op  i_lop; */
 	unsigned        i_used;
-	struct level    *i_level;
+	struct level   *i_level;
 	struct nd      *extra_node;
 };
 
@@ -1795,11 +1794,11 @@ struct ff_head {
 
 static void ff_init(const struct nd *node, int shift, int ksize, int vsize);
 static void ff_fini(const struct nd *node);
-static int ff_count(const struct nd *node);
-static int ff_count_rec(const struct nd *node);
-static int ff_space(const struct nd *node);
-static int ff_level(const struct nd *node);
-static int ff_shift(const struct nd *node);
+static int  ff_count(const struct nd *node);
+static int  ff_count_rec(const struct nd *node);
+static int  ff_space(const struct nd *node);
+static int  ff_level(const struct nd *node);
+static int  ff_shift(const struct nd *node);
 static void ff_fid(const struct nd *node, struct m0_fid *fid);
 static void ff_rec(struct slot *slot);
 static void ff_node_key(struct slot *slot);
@@ -2223,7 +2222,8 @@ static int fail(struct m0_btree_op *bop, int rc)
 	bop->bo_op.o_sm.sm_rc = rc;
 	return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 }
-/*
+
+/**
 * checks if given node is still exists
 */
 static int is_node_valid(const struct nd *node)
@@ -2241,6 +2241,8 @@ static bool check_path(struct m0_btree_oimpl *oi)
 		if (rc) {
 			node_op_fini(&oi->i_nop);
 			//return fail(bop, rc);
+			return false;
+
 		}
 		if (oi->i_level[total_level].l_seq != l_node->n_seq) {
 			return false;
@@ -2272,7 +2274,7 @@ static bool cookie_is_set(struct m0_bcookie *k_cookie)
 }
 
 #if 0
-/*
+/**
 * modify_key() will modify key present at node_slot.s_idx
 * if flag = true, update key to new key (node_slot->s_rec.r_key) else, modify key as empty
 * In case of fix key-size format, we can just overwrite existing key with new key,
@@ -2303,16 +2305,17 @@ static void alloc(struct m0_btree_oimpl *oi, int height)
 	oi->i_level = m0_alloc(height * sizeof(struct level));
 }
 
-# if 0
-static int callback_temp(struct m0_btree_rec *rec, int64_t key)
+
+static int callback_temp(struct m0_btree_rec *rec, int64_t key, struct td *tree)
 {
 	struct m0_btree_rec temp_rec;
 	int64_t val = key + 1;
-	void* p_key;
+	void *p_key;
 	void *p_val;
 
-	m0_bcount_t ksize = MAX_KEY_SIZE ;
-	m0_bcount_t vsize = MAX_VAL_SIZE ;
+	struct ff_head *h = ff_data(tree->t_root);
+	m0_bcount_t ksize = h->ff_ksize;
+	m0_bcount_t vsize = h->ff_vsize;
 	p_key = &key;
 	p_val = &val;
 
@@ -2329,9 +2332,10 @@ static int callback_temp(struct m0_btree_rec *rec, int64_t key)
 		       m0_vec_count(&temp_rec.r_key.k_data.ov_vec));
 	m0_bufvec_copy(&rec->r_val, &temp_rec.r_val,
 		       m0_vec_count(&temp_rec.r_val.ov_vec));
+
 	return 0;
 }
-#endif
+
 /*get_tick for insert operation*/
 static int64_t get_tick_insert(struct m0_sm_op *smop)
 {
@@ -2557,11 +2561,53 @@ static int64_t get_tick_insert(struct m0_sm_op *smop)
 			tgt->s_rec = temp_rec;
 			node_rec(tgt);
 
-			m0_bufvec_copy(&tgt->s_rec.r_key.k_data,
-				       &bop->bo_rec.r_key.k_data,
-				       m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
-			m0_bufvec_copy(&tgt->s_rec.r_val, &bop->bo_rec.r_val,
-				       m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+			if(node_level(slot_for_right_node.s_node) > 0) {
+				m0_bufvec_copy(&tgt->s_rec.r_key.k_data, &bop->bo_rec.r_key.k_data,
+				       	       m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
+				m0_bufvec_copy(&tgt->s_rec.r_val, &bop->bo_rec.r_val,
+					       m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+			} else {
+				/*
+				If we are at leaf node, and we have made the space for inserting a record,
+				callback will be called. callback will be provided with the record.It is user's
+				responsibility to fill the value as well as key in the given record.
+				if callback returns failed, we will revert back the changes made on btree
+
+				There can be two places we can consider for calling callback:
+				1st: the stage where we just reach leaf node and made the space for given record,
+				     we can call callback for enabling user to fill key, value at given record
+				2nd: we reach leaf node, made space, and perform all the required changes on
+				     ancenstor nodes such as splitting, etc. and just before unlocking, we can
+				     call the callback
+				But there are some major advantages for following 1st way for calling
+				callback(i.e. when we reach leaf node and we made space for record):
+				1. less changes needed if callback fails:
+				   if callback fails, we need to revert back the changes on btree
+				   If we call callback when we are at leaf node and made space for inserting record,
+				   and if callbac return nonzero value, we need to undo splitting of leaf node(if it is done)
+				   and node_make opeartion
+				   If we call callback after doing all the spliting operation and just before unlock,
+				   we need to undo all splitting(if it is done) and node_make operation from root to leaf node
+				2. calculation of checksum:
+				   if we follow 2nd way for calling callback, we need to store indformation about not only record,
+				   but also node, which contains that record, as we need to call node_done(), node_fix() once
+				   we are user is done with inserting the record
+				*/
+
+				/*callback :*/
+				//int rc = bop->bo_cb.c_act(&bop->bo_cb, &tgt->s_rec);
+				int64_t key = *(int64_t*)bop->bo_rec.r_key.k_data.ov_buf[0];
+				int rc = callback_temp(&tgt->s_rec, key, tree);
+				if(rc)
+				{
+					/* if callback failed undo make space ,splitted node */
+					node_del(tgt->s_node, tgt->s_idx, bop->bo_tx);
+					node_done(tgt, bop->bo_tx, true);
+					node_fix(level->l_node, bop->bo_tx);
+					node_move(level->l_alloc, level->l_node, D_RIGHT, NR_MAX, bop->bo_tx);
+					return fail(bop, rc);
+				}
+			}
 			node_done(tgt, bop->bo_tx, true);
 			node_fix(tgt->s_node, bop->bo_tx);
 
@@ -2727,11 +2773,31 @@ static int64_t get_tick_insert(struct m0_sm_op *smop)
 
 		node_rec(&node_slot);
 
-		m0_bufvec_copy(&node_slot.s_rec.r_key.k_data,
-			       &bop->bo_rec.r_key.k_data,
-			       m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
-		m0_bufvec_copy(&node_slot.s_rec.r_val, &bop->bo_rec.r_val,
-			       m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+		if (node_level(level->l_node) > 0) {
+			m0_bufvec_copy(&node_slot.s_rec.r_key.k_data,
+			       	       &bop->bo_rec.r_key.k_data,
+			               m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
+			m0_bufvec_copy(&node_slot.s_rec.r_val, &bop->bo_rec.r_val,
+				       m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+		} else {
+			/*
+			If we are at leaf node, and we have made the space for inserting a record,
+			callback will be called. callback will be provided with the record. It is user's
+			responsibility to fill the value as well as key in the given record.
+			if callback failed,we will revert back the changes made on btree detailed
+			explination is provided at P_MAKESPACE stage
+			*/
+			int64_t key = *(int64_t*)bop->bo_rec.r_key.k_data.ov_buf[0];
+			int rc = callback_temp(&node_slot.s_rec, key, tree);
+			//int rc = bop->bo_cb.c_act(&bop->bo_cb, &node_slot.s_rec);
+			if (rc){
+				/* handle if callback fail i.e undo make */
+				node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
+				node_done(&node_slot, bop->bo_tx, true);
+				node_fix(level->l_node, bop->bo_tx);
+				return fail(bop, rc);
+			}
+		}
 		node_done(&node_slot, bop->bo_tx, true);
 		node_fix(level->l_node, bop->bo_tx);
 
@@ -3192,18 +3258,6 @@ static void m0_btree_ut_traversal(struct nd *root, struct td *tree)
 			
 			for(j=0 ; j < total_count; j++)
 			{
-				/*m0_bcount_t          ksize;
-				void                *p_key;
-				struct slot temp_slot;
-				temp_slot.s_node = element;
-				temp_slot.s_idx = j;
-				temp_slot.s_rec.r_key.k_data.ov_vec.v_nr = 1;
-				temp_slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
-				temp_slot.s_rec.r_key.k_data.ov_buf = &p_key;
-				node_key(&temp_slot);
-				printf("%d\t", *(int *)temp_slot.s_rec.r_key.k_data.ov_buf[0]);
-				*/
-				
 				uint64_t key = 0;
 				get_key_at_index(element, j, &key);
 				printf("%"PRIu64"\t", key);
