@@ -3009,7 +3009,7 @@ static const struct m0_ad_balloc_ops balloc_ops = {
 static int balloc_trees_create(struct m0_balloc		*bal,
 				struct m0_be_tx		*tx,
 				const struct m0_fid	*fid,
-				m0_bcount_t		indexcount)
+				m0_bcount_t		 indexcount)
 {
 	int rc;
 	int i;
