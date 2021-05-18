@@ -36,6 +36,7 @@
 #include "stob/stob.h"              /* m0_stob_id_get */
 #include "ioservice/fid_convert.h"  /* m0_fid_validate_linuxstob */
 #include "ioservice/storage_dev.h"
+#include "motr/setup.h"             /* m0_reqh_context */
 #include "reqh/reqh.h"              /* m0_reqh */
 #include <unistd.h>                 /* fdatasync */
 #include <sys/vfs.h>                /* fstatfs */
@@ -276,6 +277,8 @@ static bool storage_devs_conf_expired_cb(struct m0_clink *clink)
 
 static int storage_dev_update_by_conf(struct m0_storage_dev  *dev,
 				      struct m0_conf_sdev    *sdev,
+				      uint64_t                group_nr,
+				      uint64_t                index_nr,
 				      struct m0_storage_devs *storage_devs)
 {
 	struct m0_storage_dev *dev_new;
@@ -292,7 +295,8 @@ static int storage_dev_update_by_conf(struct m0_storage_dev  *dev,
 
 	M0_PRE(m0_ref_read(&dev->isd_ref) == 1);
 	m0_storage_dev_detach(dev);
-	rc = m0_storage_dev_new_by_conf(storage_devs, sdev, false, &dev_new);
+	rc = m0_storage_dev_new_by_conf(storage_devs, sdev,
+				        group_nr, index_nr, false, &dev_new);
 	if (rc != 0)
 		return M0_ERR(rc);
 	M0_ASSERT(dev_new != NULL);
@@ -309,6 +313,10 @@ static void storage_devs_conf_refresh(struct m0_storage_devs *storage_devs,
 	struct m0_conf_sdev   *conf_sdev;
 	int                    rc;
 
+	struct m0_reqh_context *rctx;
+
+	rctx = m0_cs_reqh_context(reqh);
+
 	M0_ENTRY();
 	M0_PRE(storage_devs_is_locked(storage_devs));
 
@@ -322,8 +330,10 @@ static void storage_devs_conf_refresh(struct m0_storage_devs *storage_devs,
 			continue;
 		conf_sdev = NULL;
 		rc = m0_conf_sdev_get(confc, &sdev_fid, &conf_sdev) ?:
-			storage_dev_update_by_conf(dev, conf_sdev,
-						   storage_devs);
+				      storage_dev_update_by_conf(dev, conf_sdev,
+				      rctx->rc_balloc_group_nr,
+				      rctx->rc_balloc_index_nr,
+				      storage_devs);
 		if (rc != 0)
 			M0_ERR(rc);
 		if (conf_sdev != NULL)
@@ -379,10 +389,12 @@ static bool storage_devs_conf_ready_async_cb(struct m0_clink *clink)
 	return true;
 }
 
-static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
-				      struct m0_storage_devs *devs,
-				      m0_bcount_t             size,
-				      bool                    force)
+static int stob_domain_create_or_init(struct m0_storage_dev   *dev,
+				      struct m0_storage_devs  *devs,
+				      m0_bcount_t              size,
+				      m0_bcount_t              group_nr,
+				      m0_bcount_t              index_nr,
+				      bool                     force)
 {
 	enum m0_storage_dev_type  type     = dev->isd_type;
 	unsigned long long        cid      = (unsigned long long)dev->isd_cid;
@@ -417,9 +429,8 @@ static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
 		rc = snprintf(location, len + 1, "adstob:%llu", cid);
 		M0_ASSERT_INFO(rc == len, "rc=%d", rc);
 		m0_stob_ad_cfg_make(&cfg, devs->sds_be_seg,
-				    m0_stob_id_get(dev->isd_stob), size);
-		m0_stob_ad_init_cfg_make(&cfg_init,
-					 devs->sds_be_seg->bs_domain);
+				    m0_stob_id_get(dev->isd_stob), size, group_nr, index_nr);
+		m0_stob_ad_init_cfg_make(&cfg_init, devs->sds_be_seg->bs_domain);
 		if (cfg == NULL || cfg_init == NULL) {
 			m0_free(location);
 			m0_free(cfg_init);
@@ -478,6 +489,8 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 			   bool                    fi_no_dev,
 			   const char             *path_orig,
 			   uint64_t                size,
+			   uint64_t                group_nr,
+			   uint64_t                index_nr,
 			   struct m0_conf_sdev    *conf_sdev,
 			   bool                    force,
 			   struct m0_storage_dev **out)
@@ -530,7 +543,8 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 		device->isd_stob = stob;
 	}
 
-	rc = stob_domain_create_or_init(device, devs, size, force);
+	rc = stob_domain_create_or_init(device, devs, size,
+					group_nr, index_nr, force);
 	M0_ASSERT(ergo(rc == 0, device->isd_domain != NULL));
 	if (rc == 0) {
 		if (M0_FI_ENABLED("ad_domain_locate_fail")) {
@@ -577,6 +591,8 @@ M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
 				   uint64_t                cid,
 				   const char             *path,
 				   uint64_t                size,
+				   uint64_t                group_nr,
+				   uint64_t                index_nr,
 				   struct m0_conf_sdev    *conf_sdev,
 				   bool                    force,
 				   struct m0_storage_dev **dev)
@@ -584,18 +600,23 @@ M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
 	M0_ENTRY();
 	return M0_RC(storage_dev_new(devs, cid,
 				     M0_FI_ENABLED("no_real_dev"), path,
-				     size, conf_sdev, force, dev));
+				     size, group_nr, index_nr,
+				     conf_sdev, force, dev));
 }
 
-M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs *devs,
-					   struct m0_conf_sdev    *sdev,
-					   bool                    force,
-					   struct m0_storage_dev **dev)
+M0_INTERNAL int m0_storage_dev_new_by_conf(
+				struct m0_storage_devs	 *devs,
+				struct m0_conf_sdev	 *sdev,
+				uint64_t		  group_nr,
+				uint64_t		  index_nr,
+				bool			  force,
+				struct m0_storage_dev	**dev)
 {
 	M0_ENTRY();
 	return M0_RC(storage_dev_new(devs, sdev->sd_dev_idx,
 				     M0_FI_ENABLED("no_real_dev"),
 				     sdev->sd_filename, sdev->sd_size,
+				     group_nr, index_nr,
 				     M0_FI_ENABLED("no-conf-dev") ? NULL : sdev,
 				     force, dev));
 }

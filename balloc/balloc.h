@@ -187,8 +187,9 @@ struct m0_balloc_super_block {
         m0_bcount_t	bsb_groupsize;        /**< group size in blocks */
 	uint32_t	bsb_bsbits;           /**< block size bits: power of 2*/
 	uint32_t	bsb_gsbits;           /**< group size bits: power of 2*/
-        m0_bcount_t	bsb_groupcount;       /**< # of group */
-        m0_bcount_t	bsb_prealloc_count;   /**< nr of pre-alloc blocks */
+	m0_bcount_t	bsb_groupcount;       /**< # of group */
+	m0_bcount_t	bsb_indexcount;       /**< # of db index */
+	m0_bcount_t	bsb_prealloc_count;   /**< nr of pre-alloc blocks */
 
 	uint64_t	bsb_format_time;
 	uint64_t	bsb_write_time;
@@ -211,6 +212,26 @@ enum m0_balloc_super_block_version {
 
 enum {
 	M0_BALLOC_BUDDY_LOOKUP_MAX = 10,
+};
+
+/*
+ * BALLOC_DEF_BLOCKS_PER_GROUP * (1 << BALLOC_DEF_BLOCK_SHIFT) = 128 MB -->
+ * which equals group size in ext4
+ */
+enum {
+	/** @todo should equal to size of HDD */
+	BALLOC_DEF_CONTAINER_SIZE	= 4096ULL * 32 * 1024 * 1000,
+	/** 4K Blocks */
+	BALLOC_DEF_BLOCK_SHIFT		= 12,
+	/**
+	 * Approximate number of groups. Exact number of groups can differ
+	 * depending on group size restrictions.
+	 */
+	BALLOC_DEF_GROUPS_NR            = 64,
+	/** Default db index count */
+	BALLOC_DEF_INDEXES_NR           = 64,
+	/** Used as minimal group size */
+	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
 };
 
 /**
@@ -236,7 +257,7 @@ struct m0_balloc {
 	 * before the m0_format_footer, where only persistent fields allowed
 	 */
 	/** db for free extent */
-	struct m0_be_btree           cb_db_group_extents;
+	struct m0_be_btree           *cb_db_group_extents;
 	/** db for group desc */
 	struct m0_be_btree           cb_db_group_desc;
 
@@ -267,19 +288,12 @@ static inline struct m0_balloc *b2m0(const struct m0_ad_balloc *ballroom)
 	return container_of(ballroom, struct m0_balloc, cb_ballroom);
 }
 
-/**
-   Request to format a container.
- */
-struct m0_balloc_format_req {
-	/** Total size in bytes. */
-	m0_bcount_t	bfr_totalsize;
-	/** Block size in bytes. */
-	m0_bcount_t	bfr_blocksize;
-	/** Group size in blocks. */
-	m0_bcount_t	bfr_groupsize;
-	/** XXX Spare blocks per group. Should be a power of two. */
-	m0_bcount_t     bfr_spare_reserved_blocks;
-};
+static inline m0_bcount_t m0_balloc_group_count(const m0_bcount_t container_size,
+						const m0_bcount_t block_size,
+						const m0_bcount_t group_size)
+{
+        return container_size / block_size / group_size;
+}
 
 struct m0_balloc_free_extent {
         m0_bindex_t bfe_logical;       /*< logical offset within the object */
@@ -320,23 +334,6 @@ struct m0_balloc_discard_req {
 	void           *bdr_prealloc; /*< User opaque prealloc result */
 };
 
-/*
- * BALLOC_DEF_BLOCKS_PER_GROUP * (1 << BALLOC_DEF_BLOCK_SHIFT) = 128 MB -->
- * which equals group size in ext4
- */
-enum {
-	/** @todo should equal to size of HDD */
-	BALLOC_DEF_CONTAINER_SIZE	= 4096ULL * 32 * 1024 * 1000,
-	BALLOC_DEF_BLOCK_SHIFT		= 12,// 4K Blocks
-	/**
-	 * Approximate number of groups. Exact number of groups can differ
-	 * depending on group size restrictions.
-	 */
-	BALLOC_DEF_GROUPS_NR            = 64,
-	/** Used as minimal group size */
-	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
-};
-
 /**
    Initialises volatile only fields in m0_balloc
  */
@@ -352,11 +349,11 @@ M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb);
    @see         struct ad_balloc_ops
    @pre         out != NULL
  */
-M0_INTERNAL int m0_balloc_create(uint64_t              cid,
-				 struct m0_be_seg     *seg,
-				 struct m0_sm_group   *grp,
-				 struct m0_balloc    **out,
-				 const struct m0_fid  *fid);
+M0_INTERNAL int m0_balloc_create(uint64_t			 cid,
+				 struct m0_be_seg		*seg,
+				 struct m0_sm_group		*grp,
+				 struct m0_ad_balloc_format_req	*cfg,
+				 struct m0_balloc		**out);
 
 M0_INTERNAL void m0_balloc_group_desc_init(struct m0_balloc_group_desc *desc);
 

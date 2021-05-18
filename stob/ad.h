@@ -65,6 +65,25 @@ struct m0_ad_balloc {
 	const struct m0_ad_balloc_ops *ab_ops;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
+/**
+ *    Request to format a container.
+ */
+struct m0_ad_balloc_format_req {
+	/** stob id */
+	struct m0_fid   bfr_fid;
+	/** Total size in bytes. */
+	m0_bcount_t     bfr_totalsize;
+	/** Block shift. */
+	uint32_t        bfr_bshift;
+	/** Block size in bytes. */
+	m0_bcount_t     bfr_blocksize;
+	/** Group size in blocks. */
+	m0_bcount_t     bfr_groupsize;
+	m0_bcount_t     bfr_indexcount;
+	/** XXX Spare blocks per group. Should be a power of two. */
+	m0_bcount_t     bfr_spare_reserved_blocks;
+};
+
 struct m0_ad_balloc_ops {
 	/** Initialises this balloc instance, creating its persistent state, if
 	    necessary. This also destroys allocated struct m0_balloc instance
@@ -75,9 +94,7 @@ struct m0_ad_balloc_ops {
 	    @param  blocks_per_group # of blocks per group
 	 */
 	int  (*bo_init)(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
-			uint32_t bshift, m0_bcount_t container_size,
-			m0_bcount_t blocks_per_group,
-			m0_bcount_t spare_blocks_per_group);
+			struct m0_ad_balloc_format_req *req);
 	/** Finalises and destroys struct m0_balloc instance. */
 	void (*bo_fini)(struct m0_ad_balloc *ballroom);
 	/** Allocates count of blocks. On success, allocated extent, also
@@ -117,6 +134,7 @@ struct m0_stob_ad_domain {
 	uint32_t                sad_bshift;
 	int32_t                 sad_babshift;
 	m0_bcount_t             sad_blocks_per_group;
+	m0_bcount_t             sad_index_nr;
 	m0_bcount_t             sad_spare_blocks_per_group;
 	char                    sad_path[AD_PATHLEN];
 	bool                    sad_overwrite;
@@ -218,7 +236,9 @@ M0_INTERNAL void m0_stob_ad_init_cfg_make(char **str, struct m0_be_domain *dom);
 M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
 				     const struct m0_be_seg *seg,
 				     const struct m0_stob_id *bstore_id,
-				     const m0_bcount_t size);
+				     const m0_bcount_t size,
+				     const m0_bcount_t group_nr,
+				     const m0_bcount_t index_nr);
 M0_INTERNAL int stob_ad_cursor(struct m0_stob_ad_domain *adom,
 			       struct m0_stob *obj,
 			       uint64_t offset,
