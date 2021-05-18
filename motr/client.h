@@ -751,6 +751,20 @@ struct m0_client_layout {
 };
 
 /**
+ * Index attributes.
+ * 
+ * This is supplied by an application and return by the implementation
+ * when an index is created.
+ *
+ */
+struct m0_idx_attr {
+	/** DIX pool layout type. */
+	uint32_t      idx_layout_type;
+	/** DIX pool version type. */
+	struct m0_fid idx_pver;
+};
+
+/**
  * Index is an ordered key-value store.
  *
  * A record is a key-value pair. A new record can be inserted in an index,
@@ -768,7 +782,8 @@ struct m0_client_layout {
  *   m0_cas_index_fid_type type.
  */
 struct m0_idx {
-	struct m0_entity in_entity;
+	struct m0_entity   in_entity;
+	struct m0_idx_attr in_attr;
 };
 
 #define	M0_COMPOSITE_EXTENT_INF (0xffffffffffffffff)
