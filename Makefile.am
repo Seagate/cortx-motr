@@ -355,6 +355,7 @@ addb2_st_libaddb2dump_plugin_test_la_CPPFLAGS = -DM0_TARGET='libaddb2dump-plugin
 include $(top_srcdir)/addb2/ut/Makefile.sub
 include $(top_srcdir)/balloc/ut/Makefile.sub
 include $(top_srcdir)/be/ut/Makefile.sub
+include $(top_srcdir)/btree/ut/Makefile.sub
 include $(top_srcdir)/capa/ut/Makefile.sub
 include $(top_srcdir)/cas/ut/Makefile.sub
 include $(top_srcdir)/cm/ut/Makefile.sub

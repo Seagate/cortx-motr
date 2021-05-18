@@ -117,8 +117,8 @@ void m0_btree_op_credit(const struct m0_btree_op *bt,
 
 #include "btree/internal.h"
 
-int  m0_btree_mod_init(void);
-void m0_btree_mod_fini(void);
+M0_INTERNAL int  m0_btree_mod_init(void);
+M0_INTERNAL void m0_btree_mod_fini(void);
 
 /** @} end of btree group */
 #endif /* __MOTR_BTREE_BTREE_H__ */
