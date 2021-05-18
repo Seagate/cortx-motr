@@ -32,7 +32,6 @@ called *stack* or *thread* based.
 
 Any function call like
 
-.. highlight:: C
 .. code-block:: C
 
     int foo(...) {
@@ -157,7 +156,6 @@ Enter the *locality architecture*.
 The handler thread executes the following loop (more details will be filled
 later):
 
-.. highlight:: C
 .. code-block:: C
 
     int handler(struct locality *loc) {
@@ -304,7 +302,6 @@ all asts on it. This of course begs the question: how to place an ast on the
 fork queue list protected by the locality lock? Fortunately, there are lockless
 lists that do not require locking. All together, fom wakeup looks like this:
 
-.. highlight:: C
 .. code-block:: C
 
     void m0_fom_wakeup(struct m0_fom *fom) {
@@ -353,7 +350,6 @@ State machine practice
 State machine transition function is called *tick* function. Locality handler
 thread calls fom tick function, when the fom is ready.
 
-.. highlight:: C
 .. code-block:: C
 
     void fom_exec(struct m0_fom *fom) {
@@ -364,7 +360,6 @@ thread calls fom tick function, when the fom is ready.
 
 Fom tick function typically looks like
 
-.. highlight:: C
 .. code-block:: C
 
     void bar_tick(struct m0_fom *fom) {
@@ -390,7 +385,6 @@ Interaction between the fom and locality like the following:
 Next, suppose that bar fom has to interact with some other module, baz, which
 performs blocking operations itself (for example, stob or rpc).
 
-.. highlight:: C
 .. code-block:: C
 
     void bar_tick(struct m0_fom *fom) {
@@ -409,7 +403,6 @@ performs blocking operations itself (for example, stob or rpc).
 This won't work if ``baz_something()`` needs to block. All other modules must be
 non-blocking too.
 
-.. highlight:: C
 .. code-block:: C
 
     void bar_tick(struct m0_fom *fom) {
@@ -437,7 +430,6 @@ But suppose ``baz_something()`` has to block multiple times. For example, stob
 read has to load meta-data (first blocking operation) and then fetch the data
 (second blocking operation).
 
-.. highlight:: C
 .. code-block:: C
 
     void bar_tick(struct m0_fom *fom) {
@@ -504,7 +496,7 @@ There are a few ways to deal with these issues:
       complexity of nested blocking operations.
 
 State machine operations
-------------------------
+========================
 
 State machine operation (sm operation, smop, ``m0_sm_op``) is a sub-type of motr
 state machine that has support for nested operations, see `sm/op.h
@@ -519,7 +511,6 @@ can be BE page daemon.
 Each module has its tick function and a data structure, representing execution
 of the module operation.
 
-.. highlight:: C
 .. code-block:: C
 
     int64_t A_tick(struct m0_sm_op *op);
@@ -550,7 +541,6 @@ In our example, ``A_op`` has fields to track execution of ad-stob read-write,
 If A operation executes B operation, ``B_op`` should be added (or allocated
 dynamically) to ``A_op``.
 
-.. highlight:: C
 .. code-block:: C
 
     struct A_op {
@@ -562,7 +552,6 @@ dynamically) to ``A_op``.
 A-tick function should initialise ``B_op``, link it to the parent ``A_op`` and
 invoke. All this will be typically done by a helper function, provided by B:
 
-.. highlight:: C
 .. code-block:: C
 
     int64_t A_tick(struct m0_sm_op *op) {
@@ -585,7 +574,6 @@ invoke. All this will be typically done by a helper function, provided by B:
 
 To execute a C operation from a B operation, do the same:
 
-.. highlight:: C
 .. code-block:: C
 
     struct B_op {
@@ -615,7 +603,6 @@ To execute a C operation from a B operation, do the same:
 If ``b_tick()`` or ``c_tick()`` need to block, they call ``m0_sm_op_prep()``
 function to specify on which channel the wake-up will be served.
 
-.. highlight:: C
 .. code-block:: C
 
     int64_t C_tick(struct m0_sm_op *op) {
