@@ -547,8 +547,18 @@ static void cas_next_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 static void dix_build(const struct m0_op_idx *oi,
 		      struct m0_dix          *out)
 {
+	unsigned int   opcode = oi->oi_oc.oc_op.op_code;
+	struct m0_idx *idx = oi->oi_idx;
+
 	M0_SET0(out);
 	out->dd_fid = *OI_IFID(oi);
+	/* Pool version and layout type which are passed by consumers like S3 */
+	if ((opcode == M0_IC_GET) || (opcode == M0_IC_PUT) || (opcode == M0_IC_DEL)) {
+		if (idx->in_attr.idx_layout_type == DIX_LTYPE_DESCR) {
+			out->dd_layout.dl_type = DIX_LTYPE_DESCR;
+			out->dd_layout.u.dl_desc.ld_pver = idx->in_attr.idx_pver;
+		}
+	}
 }
 
 static void cas_req_init(struct dix_req   *req,

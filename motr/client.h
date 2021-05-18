@@ -767,8 +767,16 @@ struct m0_client_layout {
  * - non-distributed index, which is identified by well-formed motr fid having
  *   m0_cas_index_fid_type type.
  */
+
+/* Index attributes */
+struct m0_idx_attr {
+	uint32_t      idx_layout_type;
+	struct m0_fid idx_pver;
+};
+
 struct m0_idx {
-	struct m0_entity in_entity;
+	struct m0_entity   in_entity;
+	struct m0_idx_attr in_attr;
 };
 
 #define	M0_COMPOSITE_EXTENT_INF (0xffffffffffffffff)

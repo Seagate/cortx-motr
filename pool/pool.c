@@ -669,6 +669,40 @@ m0_pool_version_get(struct m0_pools_common  *pc,
 	return M0_RC(rc);
 }
 
+static int dix_pool_version_get_locked(struct m0_pools_common  *pc,
+                                       struct m0_pool_version **pv)
+{
+	struct m0_pool         *pool;
+
+	M0_ENTRY();
+	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
+
+	if (pv == NULL)
+		return M0_RC(-EINVAL);
+
+	m0_tl_for(pools, &pc->pc_pools, pool) {
+		if (is_dix_pool(pc, pool)) {
+			*pv = m0_pool_clean_pver_find(pool);
+			if (*pv != NULL)
+				return M0_RC(0);
+		}
+	} m0_tl_endfor;
+	return M0_RC(0);
+}
+
+M0_INTERNAL int
+m0_dix_pool_version_get(struct m0_pools_common  *pc,
+                        struct m0_pool_version **pv)
+{
+	int rc;
+
+	M0_ENTRY();
+	m0_mutex_lock(&pc->pc_mutex);
+	rc = dix_pool_version_get_locked(pc, pv);
+	m0_mutex_unlock(&pc->pc_mutex);
+	return M0_RC(rc);
+}
+
 static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 {
 	struct m0_conf_diter  it;

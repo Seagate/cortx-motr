@@ -368,6 +368,9 @@ m0_pools_common_service_ctx_find(const struct m0_pools_common *pc,
 M0_INTERNAL void
 m0_pools_common_service_ctx_connect_sync(struct m0_pools_common *pc);
 
+M0_INTERNAL int m0_dix_pool_version_get(struct m0_pools_common  *pc,
+					struct m0_pool_version **pv);
+
 /**
  * pool node. Data structure representing a node in a pool.
  *
