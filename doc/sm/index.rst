@@ -70,17 +70,17 @@ thread and select it to run instead of another blocked thread.
 Blocking can be voluntary or involuntary. A thread blocks voluntarily when it
 cannot proceed further without waiting for some event, for example:
 
-    - wait for completion of IO initiated by the thread,
+- wait for completion of IO initiated by the thread,
 
-    - wait until free memory is available,
+- wait until free memory is available,
 
-    - wait until other process terminates (waitpid(2) system call).
+- wait until other process terminates (waitpid(2) system call).
 
 Involuntary blocking happens, among other reasons, when:
 
-    - there is a higher-priority thread that can be ran on the processor,
+- there is a higher-priority thread that can be ran on the processor,
 
-    - the thread exhausted its processor time quantum.
+- the thread exhausted its processor time quantum.
 
 Thread-per-request
 ==================
@@ -376,7 +376,7 @@ Fom tick function typically looks like
         ...
     }
 
-Interaction between the fom and locality like the following:
+Interaction between the fom and locality looks like the following:
 
 .. image:: fom-tick.png
 
