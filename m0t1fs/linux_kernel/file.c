@@ -1089,14 +1089,12 @@ static bool io_request_invariant(struct io_request *req)
 
 static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 {
-	return
-	       _0C(nw_xfer_request_bob_check(xfer)) &&
+	return _0C(nw_xfer_request_bob_check(xfer)) &&
 	       _0C(xfer->nxr_state <= NXS_STATE_NR) &&
 
 	       _0C(ergo(xfer->nxr_state == NXS_INITIALIZED,
-		   xfer->nxr_rc == 0 &&
-		   xfer->nxr_bytes == 0 &&
-		    (m0_atomic64_get(&xfer->nxr_iofop_nr) == 0))) &&
+		   xfer->nxr_rc == 0 && xfer->nxr_bytes == 0 &&
+		   m0_atomic64_get(&xfer->nxr_iofop_nr) == 0)) &&
 
 	       _0C(ergo(xfer->nxr_state == NXS_INFLIGHT,
 		    !tioreqht_htable_is_empty(&xfer->nxr_tioreqs_hash))) &&
@@ -1106,7 +1104,7 @@ static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 		    m0_atomic64_get(&xfer->nxr_rdbulk_nr) == 0)) &&
 
 	       m0_htable_forall(tioreqht, tioreq, &xfer->nxr_tioreqs_hash,
-			       target_ioreq_invariant(tioreq));
+				target_ioreq_invariant(tioreq));
 }
 
 static bool data_buf_invariant(const struct data_buf *db)

@@ -337,20 +337,23 @@ static bool target_ioreq_invariant(const struct target_ioreq *ti)
  */
 M0_INTERNAL bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 {
-	return M0_RC(xfer != NULL &&
-		     _0C(nw_xfer_request_bob_check(xfer)) &&
-		     _0C(xfer->nxr_state < NXS_STATE_NR) &&
-		     _0C(ergo(xfer->nxr_state == NXS_INITIALIZED,
-			     (xfer->nxr_rc == xfer->nxr_bytes) ==
-			     (m0_atomic64_get(&xfer->nxr_iofop_nr) == 0))) &&
-		     _0C(ergo(xfer->nxr_state == NXS_INFLIGHT,
-			      !tioreqht_htable_is_empty(
-			      &xfer->nxr_tioreqs_hash)))&&
-		     _0C(ergo(xfer->nxr_state == NXS_COMPLETE,
-			      m0_atomic64_get(&xfer->nxr_iofop_nr) == 0 &&
-			      m0_atomic64_get(&xfer->nxr_rdbulk_nr) == 0)) &&
-		     m0_htable_forall(tioreqht, tioreq, &xfer->nxr_tioreqs_hash,
-				      target_ioreq_invariant(tioreq)));
+	return xfer != NULL &&
+	       _0C(nw_xfer_request_bob_check(xfer)) &&
+	       _0C(xfer->nxr_state < NXS_STATE_NR) &&
+
+	       _0C(ergo(xfer->nxr_state == NXS_INITIALIZED,
+			xfer->nxr_rc == 0 && xfer->nxr_bytes == 0 &&
+			m0_atomic64_get(&xfer->nxr_iofop_nr) == 0)) &&
+
+	       _0C(ergo(xfer->nxr_state == NXS_INFLIGHT,
+			!tioreqht_htable_is_empty(&xfer->nxr_tioreqs_hash))) &&
+
+	       _0C(ergo(xfer->nxr_state == NXS_COMPLETE,
+			m0_atomic64_get(&xfer->nxr_iofop_nr) == 0 &&
+			m0_atomic64_get(&xfer->nxr_rdbulk_nr) == 0)) &&
+
+	       m0_htable_forall(tioreqht, tioreq, &xfer->nxr_tioreqs_hash,
+				target_ioreq_invariant(tioreq));
 }
 
 /**
