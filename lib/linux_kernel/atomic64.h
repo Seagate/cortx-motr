@@ -83,7 +83,7 @@ m0_atomic64_sub_return(struct m0_atomic64 *a, int64_t delta)
 
 static inline bool m0_atomic64_inc_and_test(struct m0_atomic64 *a)
 {
-	return (&a->a_value);
+	return atomic64_inc_and_test(&a->a_value);
 }
 
 static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)

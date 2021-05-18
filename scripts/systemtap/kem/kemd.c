@@ -63,7 +63,8 @@ static struct file_operations kemd_fops = {
 	.read = kemd_read,
 	.write = kemd_write,
 	.open = kemd_open,
-	.release = kemd_release};
+	.release = kemd_release
+	};
 
 static void kemd_dev_destroy(int i)
 {
@@ -90,15 +91,13 @@ static int kemd_devs_create(void)
 	int err = 0;
 	int i;
 
-	for (i = 0; i < kemd_nr_cpus; i++)
-	{
+	for (i = 0; i < kemd_nr_cpus; i++) {
 		err = kemd_dev_create(i);
 		if (err < 0)
 			break;
 	}
 
-	if (err < 0)
-	{
+	if (err < 0) {
 		printk(KERN_WARNING "Can't create cdev for kemd%d.\n", i);
 		for (i -= 1; i > 0; i--)
 			kemd_dev_destroy(i);
@@ -111,8 +110,7 @@ static void kemd_devs_destroy(void)
 {
 	int i;
 
-	for (i = 0; i < kemd_nr_cpus; i++)
-	{
+	for (i = 0; i < kemd_nr_cpus; i++) {
 		kemd_dev_destroy(i);
 	}
 }
@@ -121,8 +119,7 @@ void kemd_rbs_free(struct kem_rb *rbs)
 {
 	int i;
 
-	for (i = 0; i < kemd_nr_cpus; i++)
-	{
+	for (i = 0; i < kemd_nr_cpus; i++) {
 		kfree(rbs[i].kr_buf);
 	}
 }
@@ -133,8 +130,7 @@ int kemd_rbs_init(struct kem_rb *rbs)
 	int i;
 	int j;
 
-	for (i = 0; i < kemd_nr_cpus; i++)
-	{
+	for (i = 0; i < kemd_nr_cpus; i++) {
 		ptr = kzalloc(KEMD_BUFFER_SIZE * sizeof(struct ke_msg),
 					  GFP_KERNEL);
 		if (ptr == NULL)
@@ -160,49 +156,40 @@ static int kemd_init_module(void)
 	printk(KERN_INFO "Number of CPUs: %d.\n", kemd_nr_cpus);
 
 	kemd_rbs = kzalloc(kemd_nr_cpus * sizeof(*kemd_rbs), GFP_KERNEL);
-	if (kemd_rbs == NULL)
-	{
+	if (kemd_rbs == NULL) {
 		printk(KERN_WARNING "Can't allocate kemd_rbs.\n");
 		return -ENOMEM;
 	}
 	err = kemd_rbs_init(kemd_rbs);
-	if (err != 0)
-	{
+	if (err != 0) {
 		printk(KERN_WARNING "Can't allocate kemd_rbs.\n");
 		goto out_rbs;
 	}
 	kemd_devices = kzalloc(kemd_nr_cpus * sizeof(*kemd_devices),
 						   GFP_KERNEL);
-	if (kemd_devices == NULL)
-	{
+	if (kemd_devices == NULL) {
 		printk(KERN_WARNING "Can't allocate mem for kemd_devices.\n");
 		goto out_rbs_inited;
 	}
 
-	if (kemd_major)
-	{
+	if (kemd_major) {
 		devno = MKDEV(kemd_major, kemd_minor);
-		err = register_chrdev_region(devno, kemd_nr_cpus,
-									 KEMD_DEV_NAME);
+		err = register_chrdev_region(devno, kemd_nr_cpus,KEMD_DEV_NAME);
 	}
-	else
-	{
-		err = alloc_chrdev_region(&devno, kemd_minor,
-								  kemd_nr_cpus, KEMD_DEV_NAME);
+	else{
+		err = alloc_chrdev_region(&devno, kemd_minor,kemd_nr_cpus, KEMD_DEV_NAME);
 		kemd_major = MAJOR(devno);
 	}
 
 	printk(KERN_INFO "Init devno: %d.\n", devno);
 
-	if (err < 0)
-	{
+	if (err < 0) {
 		printk(KERN_WARNING "Can't get major %d.\n", kemd_major);
 		goto out_devs;
 	}
 
 	err = kemd_devs_create();
-	if (err < 0)
-	{
+	if (err < 0) {
 		printk(KERN_WARNING "Can't init kemd chrdevs.\n");
 		goto out_chrdev;
 	}
@@ -298,12 +285,10 @@ static ssize_t kemd_read(struct file *filp, char *buf,
 	if (nr_ents > KEMD_READ_PORTION)
 		nr_ents = KEMD_READ_PORTION;
 
-	for (i = 0; i < nr_ents; i++)
-	{
+	for (i = 0; i < nr_ents; i++) {
 		ent = &rb->kr_buf[rb->kr_read_idx];
 		err = copy_to_user(buf, ent, sizeof(*ent));
-		if (err)
-		{
+		if (err) {
 			bytes_read = -EFAULT;
 			break;
 		}

@@ -199,7 +199,7 @@ static inline bool m0_atomic64_cas(int64_t * ptr, int64_t old, int64_t newval)
 	  [v] "+Q" (*(unsigned long *)ptr)			\
 	: [old] "Lr" (old), [newval] "r" (newval)		\
 	:);							\
-	return oldval;
+	return tmp == oldval;   //Need to be reviewed
 }
 #if 0
 									
