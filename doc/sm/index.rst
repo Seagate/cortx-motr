@@ -53,7 +53,7 @@ the registers associated with the target thread. At any moment in time, there
 are many threads, some running on available processors, some *blocked* (that is,
 not running anywhere). In addition to the usual call stack (which is actually *a
 user-space stack*), each thread also has *a kernel stack* that is used whenever
-execution enters code mode for whatever reason.
+execution enters kernel mode for whatever reason.
 
 .. image:: kernel-stack.png
 
@@ -64,7 +64,7 @@ space, but it is empty in this case.
 
 When a thread is running in kernel mode, the kernel might make a decision to
 block the thread. When a thread blocks, it stops running and another thread is
-selected to run on the processor. Later the kernel will *resume* the blocked
+selected to run on the processor. Later, the kernel will *resume* the blocked
 thread and select it to run instead of another blocked thread.
 
 Blocking can be voluntary or involuntary. A thread blocks voluntarily when it
@@ -147,11 +147,11 @@ Enter the *locality architecture*.
 
 *A locality* consists of:
 
-    - a thread, called locality *handler thread*,
+- a thread, called locality *handler thread*,
 
-    - a list of requests ready for execution (*run list*),
+- a list of requests ready for execution (*run list*),
 
-    - a list of requests waiting for some event to happen (*wait list*).
+- a list of requests waiting for some event to happen (*wait list*).
 
 The handler thread executes the following loop (more details will be filled
 later):
@@ -197,14 +197,14 @@ ready list.
 
 Few immediate comments:
 
-    - this loop is (of course) very similar to a prototypical kernel scheduling
-      loop: maintain a list of threads ready for execution and a list of blocked
-      threads; take a ready thread; execute it until it blocks. But instead of
-      threads, locality handler schedules requests;
+- this loop is (of course) very similar to a prototypical kernel scheduling
+  loop: maintain a list of threads ready for execution and a list of blocked
+  threads; take a ready thread; execute it until it blocks. But instead of
+  threads, locality handler schedules requests;
 
-    - all locality data-structures are protected by a single per-locality lock;
+- all locality data-structures are protected by a single per-locality lock;
 
-    - execution of requests within locality is serialised.
+- execution of requests within locality is serialised.
 
 motr creates a separate locality for each processor (cpu core) used by the motr
 process. Each locality has its own wait and ready lists. An incoming request is
@@ -215,16 +215,15 @@ allocated locally (NUMA-wise) to the request locality.
 
 This architecture addresses the issues mentioned above:
 
-    - it uses only a small number of operating system threads (1 thread per
-      core) and these threads are permanently bound to their cores. This
-      minimises the amount of guessing that the kernel scheduler has to do;
+- it uses only a small number of operating system threads (1 thread per
+  core) and these threads are permanently bound to their cores. This
+  minimises the amount of guessing that the kernel scheduler has to do;
+  
+- locality handler can inspect request objects and schedule them optimally;
 
-    - locality handler can inspect request objects and schedule them optimally;
+- memory can be allocated locally;
 
-    - memory can be allocated locally;
-
-    - programming model is simplified by avoiding any concurrency within a
-      locality.
+- programming model is simplified by avoiding any concurrency within a locality.
 
 It is clear that locality model can be efficient only if handler threads never
 block. Indeed, if a handler thread blocks, no request processing will be done by
@@ -274,15 +273,14 @@ The discussion above glossed over fom wakeups. Suppose a fom is parked on the
 locality wait list, waiting on some event. This event will typically happen
 asynchronously with the handler thread execution:
 
-    - if the event is timer expiration, timer call-back will be invoked as a
-      signal handler (maybe on the handler thread stack, maybe in some other
-      thread);
+- if the event is timer expiration, timer call-back will be invoked as a signal
+  handler (maybe on the handler thread stack, maybe in some other thread);
 
-    - if the event is storage IO completion, completion call-back will be
-      invoked by an IO thread;
+- if the event is storage IO completion, completion call-back will be invoked by
+  an IO thread;
 
-    - if the event is a network message receipts, notification will be invoked
-      on the stack of network management thread, and so on.
+- if the event is a network message receipts, notification will be invoked on
+  the stack of network management thread, and so on.
 
 In any case, the fom has to be moved from the wait list to the ready list. The
 problem is that because these lists are protected by the locality lock, which is
@@ -479,21 +477,21 @@ complexity.
 
 There are a few ways to deal with these issues:
 
-    - implement each module as a separate fom. The "parent" fom would create
-      "children" foms for sub-operations and wait for their completion. This
-      introduces additional overhead of fom allocation, queuing, wakeup and
-      termination for each operation;
+- implement each module as a separate fom. The "parent" fom would create
+  "children" foms for sub-operations and wait for their completion. This
+  introduces additional overhead of fom allocation, queuing, wakeup and
+  termination for each operation;
 
-    - implement for each module a "service" fom. For example, create a global
-      b-tree fom (or a b-tree fom for each locality). To execute a b-tree
-      operation, queue a request to the b-tree service fom;
+- implement for each module a "service" fom. For example, create a global
+  b-tree fom (or a b-tree fom for each locality). To execute a b-tree
+  operation, queue a request to the b-tree service fom;
 
-    - implement co-routines to hide all blocking complexity, see
-      `lib/coroutine.h
-      <https://github.com/Seagate/cortx-motr/blob/main/lib/coroutine.h>`_;
+- implement co-routines to hide all blocking complexity, see
+  `lib/coroutine.h
+  <https://github.com/Seagate/cortx-motr/blob/main/lib/coroutine.h>`_;
 
-    - provide support within state-machine module to eliminate or reduce
-      complexity of nested blocking operations.
+- provide support within state-machine module to eliminate or reduce the
+  complexity of nested blocking operations.
 
 State machine operations
 ========================
