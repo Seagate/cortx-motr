@@ -2038,6 +2038,56 @@ static void generic_move(struct nd *src, struct nd *tgt,
 	node_fix(tgt, tx);
 }
 
+M0_INTERNAL
+int  m0_btree_open(void *addr, int nob, struct m0_btree **out)
+{
+	return 0;
+}
+
+M0_INTERNAL
+void m0_btree_close(struct m0_btree *arbor)
+{
+}
+
+M0_INTERNAL
+void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
+                    struct m0_be_tx *tx, struct m0_btree_op *bop)
+{
+}
+
+M0_INTERNAL
+void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
+{
+}
+
+M0_INTERNAL
+void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop)
+{
+}
+
+M0_INTERNAL
+void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
+		  const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop)
+{
+}
+
+M0_INTERNAL
+void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop)
+{
+}
+
+M0_INTERNAL
+void m0_btree_nxt(struct m0_btree *arbor, const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop)
+{
+}
 
 #undef M0_TRACE_SUBSYSTEM
 

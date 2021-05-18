@@ -44,8 +44,25 @@ struct m0_btree_rec;
 struct m0_btree_cb;
 struct m0_btree_key;
 
+
+enum m0_btree_types {
+	M0_BT_INVALID = 1,
+	M0_BT_BALLOC_GROUP_EXTENTS,
+	M0_BT_BALLOC_GROUP_DESC,
+	M0_BT_EMAP_EM_MAPPING,
+	M0_BT_CAS_CTG,
+	M0_BT_COB_NAMESPACE,
+	M0_BT_COB_OBJECT_INDEX,
+	M0_BT_COB_FILEATTR_BASIC,
+	M0_BT_COB_FILEATTR_EA,
+	M0_BT_COB_FILEATTR_OMG,
+	M0_BT_CONFDB,
+	M0_BT_UT_KV_OPS,
+	M0_BT_NR
+};
+
 struct m0_btree_type {
-	uint32_t tt_id;
+	enum m0_btree_types tt_id;
 };
 
 struct m0_bcookie {
@@ -87,38 +104,57 @@ enum m0_btree_opflag {
 	M0_BOF_UNIQUE = 1 << 0
 };
 
-int  m0_btree_open(void *addr, int nob, struct m0_btree **out);
-void m0_btree_close(struct m0_btree *arbor);
-void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
-		     struct m0_be_tx *tx, struct m0_btree_op *bop);
-void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop);
-void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
-		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop);
-void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
-		  const struct m0_btree_key *key,
-		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop);
-void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
-		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop);
-void m0_btree_nxt(struct m0_btree *arbor, const struct m0_btree_key *key,
-		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop);
+M0_INTERNAL int  m0_btree_open(void *addr, int nob, struct m0_btree **out);
+M0_INTERNAL void m0_btree_close(struct m0_btree *arbor);
+M0_INTERNAL void m0_btree_create(void *addr, int nob,
+				 const struct m0_btree_type *bt,
+				 struct m0_be_tx *tx, struct m0_btree_op *bop);
+M0_INTERNAL void m0_btree_destroy(struct m0_btree *arbor,
+				  struct m0_btree_op *bop);
+M0_INTERNAL void m0_btree_get(struct m0_btree *arbor,
+			      const struct m0_btree_key *key,
+			      const struct m0_btree_cb *cb, uint64_t flags,
+			      struct m0_btree_op *bop);
+M0_INTERNAL void m0_btree_put(struct m0_btree *arbor,
+			      struct m0_be_tx *tx,
+			      const struct m0_btree_key *key,
+			      const struct m0_btree_cb *cb, uint64_t flags,
+			      struct m0_btree_op *bop);
+M0_INTERNAL void m0_btree_del(struct m0_btree *arbor,
+			      const struct m0_btree_key *key,
+			      const struct m0_btree_cb *cb, uint64_t flags,
+			      struct m0_btree_op *bop);
+M0_INTERNAL void m0_btree_nxt(struct m0_btree *arbor,
+			      const struct m0_btree_key *key,
+			      const struct m0_btree_cb *cb, uint64_t flags,
+			      struct m0_btree_op *bop);
 
-void m0_btree_op_init(struct m0_btree_op *bop, enum m0_btree_opcode *opc,
-		      struct m0_btree *arbor,
-		      struct m0_btree_key *key, const struct m0_btree_cb *cb,
-		      uint64_t flags, struct m0_be_tx *tx);
-void m0_btree_op_fini(struct m0_btree_op *bop);
+M0_INTERNAL void m0_btree_op_init(struct m0_btree_op *bop,
+				  enum m0_btree_opcode *opc,
+				  struct m0_btree *arbor,
+				  struct m0_btree_key *key,
+				  const struct m0_btree_cb *cb,
+				  uint64_t flags, struct m0_be_tx *tx);
+M0_INTERNAL void m0_btree_op_fini(struct m0_btree_op *bop);
 
-void m0_btree_op_credit(const struct m0_btree_op *bt,
-			struct m0_be_tx_credit *cr);
+M0_INTERNAL void m0_btree_op_credit(const struct m0_btree_op *bt,
+				    struct m0_be_tx_credit *cr);
 
 #include "btree/internal.h"
 
 M0_INTERNAL int  m0_btree_mod_init(void);
 M0_INTERNAL void m0_btree_mod_fini(void);
+
+
+#define M0_BTREE_OP_SYNC_WITH(op, action)       \
+        ({                                      \
+                struct m0_sm_op *__opp = (op);  \
+                                                \
+                action;                         \
+                m0_sm_op_tick(__opp);           \
+                m0_sm_op_fini(__opp);           \
+       })
+
 
 /** @} end of btree group */
 #endif /* __MOTR_BTREE_BTREE_H__ */
