@@ -189,6 +189,9 @@ motr_libmotr_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
 
 if HAVE_ISAL
 motr_libmotr_la_LIBADD += @ISAL_LIBS@
+# override is needed to allow user to provide some additional options in
+# RPMBUILD_FLAGS variable in command line
+override RPMBUILD_FLAGS += --with isal
 else
 motr_libmotr_la_LIBADD += @GALOIS_LIBS@
 endif

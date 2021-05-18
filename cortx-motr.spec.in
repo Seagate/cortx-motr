@@ -2,6 +2,7 @@
 %bcond_with ut
 %bcond_with debuginfo_sources
 %bcond_with cassandra
+%bcond_with isal
 
 # configure options
 %define with_linux  %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
@@ -103,7 +104,9 @@ BuildRequires:  python-devel
 BuildRequires:  python2-devel
 %endif
 BuildRequires:  libedit-devel
+%if %{with isal}
 BuildRequires:  isa-l
+%endif
 %if %{with cassandra}
 BuildRequires:  libcassandra
 BuildRequires:  libuv
@@ -131,7 +134,9 @@ Requires:       facter
 Requires:       rubygem-net-ssh
 Requires:       python36-ply
 Requires:       libedit
+%if %{with isal}
 Requires:       isa-l
+%endif
 Requires(pre):  shadow-utils
 Requires(post): findutils
 
