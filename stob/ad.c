@@ -336,7 +336,6 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 		grp_blocks = (cfg->adg_container_size >> cfg->adg_bshift) /
 			      cfg->adg_group_nr;
 		grp_blocks = 1 << m0_log2(grp_blocks);
-		grp_blocks = max64u(grp_blocks, BALLOC_DEF_BLOCKS_PER_GROUP);
 		cfg->adg_blocks_per_group = grp_blocks;
 		if (cfg->adg_index_nr < 1)
 			cfg->adg_index_nr = BALLOC_DEF_INDEXES_NR;
