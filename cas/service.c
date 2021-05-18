@@ -1052,22 +1052,21 @@ static int cas_dtm0_logrec_credit_add(struct m0_fom *fom0)
 	return M0_RC(rc);
 }
 
-static int cas_dtm0_logrec_add(struct m0_fom *fom0, struct m0_dtm0_tx_desc *txd,
+static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 			       enum m0_dtm0_tx_pa_state state)
 {
 	/* log the dtm0 logrec before completing the cas op */
 	struct m0_dtm0_service *dtms =
 		m0_dtm0_service_find(fom0->fo_service->rs_reqh);
 	struct m0_dtm0_tx_desc *msg = &cas_op(fom0)->cg_txd;
-	struct m0_buf	        buf = {};
+	struct m0_buf           buf = {};
 	int                     i;
-	int			rc;
+	int                     rc;
 
 	for (i = 0; i < msg->dtd_ps.dtp_nr; ++i) {
 		if (m0_fid_eq(&msg->dtd_ps.dtp_pa[i].p_fid,
-					&dtms->dos_generic.rs_service_fid)) {
-			msg->dtd_ps.dtp_pa[i].p_state =
-				(uint32_t)M0_DTPS_PERSISTENT;
+			      &dtms->dos_generic.rs_service_fid)) {
+			msg->dtd_ps.dtp_pa[i].p_state = state;
 			break;
 		}
 	}
@@ -1232,7 +1231,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 */
 		if (phase == M0_FOPH_TXN_COMMIT_WAIT &&
 		    m0_fom_phase(fom0) == M0_FOPH_FINISH && is_dtm0_used) {
-			rc = m0_dtm0_on_committed(fom0, &cas_op(fom0)->cg_txd);
+			rc = m0_dtm0_on_committed(fom0, &cas_op(fom0)->cg_txd.dtd_id);
 			if (rc != 0)
 				M0_LOG(M0_WARN, "Could not send PERSISTENT "
 				       "messages out");
@@ -1691,7 +1690,6 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		break;
 	case CAS_DTM0:
 		rc = cas_dtm0_logrec_add(&fom->cf_fom,
-					 &cas_op(&fom->cf_fom)->cg_txd,
 					 M0_DTPS_PERSISTENT);
 		if (rc != 0)
 			cas_fom_failure(fom, M0_ERR(rc), opc == CO_CUR);
