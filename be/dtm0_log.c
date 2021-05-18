@@ -92,6 +92,7 @@ M0_INTERNAL int m0_be_dtm0_log_alloc(struct m0_be_dtm0_log **out)
  * dtm0_log structure.
  */
 M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
+				    struct m0_be_seg       *seg,
 				    struct m0_dtm0_clk_src *cs,
 				    bool                    is_plog)
 {
@@ -101,6 +102,8 @@ M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
 	m0_mutex_init(&log->dl_lock);
 	log->dl_is_persistent = is_plog;
 	log->dl_cs = cs;
+	if (is_plog)
+		log->dl_seg = seg;
 	return 0;
 }
 
@@ -323,12 +326,12 @@ static int plog_rec_init(struct m0_dtm0_log_rec **out,
 		M0_BE_ALLOC_BUF_SYNC(&rec->dlr_payload, seg, tx);
 		M0_ASSERT(&rec->dlr_payload.b_addr != NULL); /* TODO: handle error */
 		m0_buf_memcpy(&rec->dlr_payload, payload);
+		M0_BE_TX_CAPTURE_BUF(seg, tx, &rec->dlr_payload);
 	} else {
 		rec->dlr_payload.b_addr = NULL;
 		rec->dlr_payload.b_nob = 0;
 	}
 
-	M0_BE_TX_CAPTURE_BUF(seg, tx, &rec->dlr_payload);
 	M0_BE_TX_CAPTURE_ARR(seg, tx,
 			     rec->dlr_txd.dtd_ps.dtp_pa,
 			     rec->dlr_txd.dtd_ps.dtp_nr);

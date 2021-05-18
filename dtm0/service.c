@@ -250,9 +250,11 @@ static int dtm0_process_disconnect(struct dtm0_process *process)
 	rc = m0_rpc_link_is_connected(&process->dop_rlink) ?
 		m0_rpc_link_disconnect_sync(&process->dop_rlink, timeout) : 0;
 
-	if (M0_IN(rc, (0, -ETIMEDOUT))) {
-		if (rc == -ETIMEDOUT) {
-			M0_LOG(M0_WARN, "Disconnect timeout (suppressed)");
+	if (M0_IN(rc, (0, -ETIMEDOUT, -ECANCELED))) {
+		/* TODO: Fix this. We are ignoring -ECANCELED for now.*/
+		if (rc == -ETIMEDOUT || rc == -ECANCELED) {
+			M0_LOG(M0_WARN, "Disconnect %s (suppressed)",
+			       rc == -ETIMEDOUT ? "timed out" : "cancelled");
 			rc = 0;
 		}
 
@@ -362,7 +364,9 @@ out:
 
 	if (rc == 0) {
 		rc = m0_be_dtm0_log_init(
-			dtm0->dos_log, &dtm0->dos_clk_src,
+			dtm0->dos_log,
+			service->rs_reqh->rh_beseg,
+			&dtm0->dos_clk_src,
 			dtm0->dos_origin == DTM0_ON_PERSISTENT);
 		if (rc != 0)
 			m0_be_dtm0_log_free(&dtm0->dos_log);
