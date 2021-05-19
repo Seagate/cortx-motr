@@ -159,9 +159,7 @@ static bool is_any(uint64_t alloc_flag);
 static int index_hash(struct m0_balloc_super_block *sb,
 			m0_bcount_t block_offset)
 {
-	int grp_no;
-        grp_no = (block_offset - 1) / sb->bsb_groupsize;
-	return grp_no % sb->bsb_indexcount;
+	return (block_offset - 1) / sb->bsb_groupsize % sb->bsb_indexcount;
 };
 
 static void balloc_debug_dump_extent(const char *tag, struct m0_ext *ex)
@@ -560,9 +558,9 @@ static int sb_update(struct m0_balloc *bal, struct m0_sm_group *grp)
 	return M0_RC(rc);
 }
 
-static int balloc_sb_write(struct m0_balloc		  *bal,
-			   struct m0_ad_balloc_format_req *req,
-			   struct m0_sm_group		  *grp)
+static int balloc_sb_write(struct m0_balloc            *bal,
+			struct m0_ad_balloc_format_req *req,
+			struct m0_sm_group             *grp)
 {
 	int				 rc;
 	struct timeval			 now;
@@ -574,8 +572,7 @@ static int balloc_sb_write(struct m0_balloc		  *bal,
 	M0_PRE(m0_is_po2(req->bfr_blocksize));
 	M0_PRE(m0_is_po2(req->bfr_groupsize));
 
-	number_of_groups = req->bfr_totalsize / req->bfr_blocksize /
-	                            req->bfr_groupsize;
+	number_of_groups = req->bfr_groupcount;
 	if (number_of_groups < 1)
 		number_of_groups = 1;
 
@@ -1006,7 +1003,7 @@ static int balloc_init_internal(struct m0_balloc		*bal,
 
  	M0_LOG(M0_INFO, "groupcount: %llu indexcount: %d blocks_per_group: %d",
                (unsigned long long)bal->cb_sb.bsb_groupcount,
-	       (int)bal->cb_sb.bsb_indexcount, (int)req->bfr_blocksize);
+	       (int)bal->cb_sb.bsb_indexcount, (int)req->bsb_groupsize);
 	for (i = 0; i < bal->cb_sb.bsb_indexcount; i++) {
 		m0_be_btree_init(&bal->cb_db_group_extents[i], seg, &ge_btree_ops);
 	}
@@ -3008,10 +3005,10 @@ static const struct m0_ad_balloc_ops balloc_ops = {
 	.bo_reserve_extent = balloc_reserve_extent,
 };
 
-static int balloc_trees_create(struct m0_balloc		*bal,
-				struct m0_be_tx		*tx,
-				const struct m0_fid	*fid,
-				m0_bcount_t		 indexcount)
+static int balloc_trees_create(struct m0_balloc     *bal,
+				struct m0_be_tx     *tx,
+				const struct m0_fid *fid,
+				m0_bcount_t          indexcount)
 {
 	int rc;
 	int i;
@@ -3019,20 +3016,18 @@ static int balloc_trees_create(struct m0_balloc		*bal,
 
 	for (i = 0; i < indexcount; i++) {
 		rc = M0_BE_OP_SYNC_RET(op,
-		       m0_be_btree_create(&bal->cb_db_group_extents[i], tx, &op,
-				  &M0_FID_TINIT('b',
-						M0_BBT_BALLOC_GROUP_EXTENTS,
+			m0_be_btree_create(&bal->cb_db_group_extents[i], tx, &op,
+				&M0_FID_TINIT('b', M0_BBT_BALLOC_GROUP_EXTENTS,
 						fid->f_key)),
-						bo_u.u_btree.t_rc);
+			bo_u.u_btree.t_rc);
 		if (rc != 0)
 			goto out;
 
 	}
 	rc = M0_BE_OP_SYNC_RET(op,
-	       m0_be_btree_create(&bal->cb_db_group_desc, tx, &op,
-			  &M0_FID_TINIT('b', M0_BBT_BALLOC_GROUP_DESC,
-					fid->f_key)),
-					bo_u.u_btree.t_rc);
+		m0_be_btree_create(&bal->cb_db_group_desc, tx, &op,
+			&M0_FID_TINIT('b', M0_BBT_BALLOC_GROUP_DESC, fid->f_key)),
+		bo_u.u_btree.t_rc);
 
 out:
 	if (rc != 0) {

@@ -177,14 +177,14 @@ struct m0_balloc_super_block {
 	uint64_t	bsb_version;
 	uint8_t		bsb_uuid[128];
 
-        m0_bcount_t	bsb_totalsize;        /**< total size in bytes */
-        m0_bcount_t	bsb_freeblocks;       /**< nr of free blocks */
+	m0_bcount_t	bsb_totalsize;        /**< total size in bytes */
+	m0_bcount_t	bsb_freeblocks;       /**< nr of free blocks */
 #ifdef __SPARE_SPACE__
 	m0_bcount_t     bsb_freespare;        /**< nr free spare blocks */
 	m0_bcount_t     bsb_sparesize;        /**< spare blocks per group */
 #endif
-        m0_bcount_t	bsb_blocksize;        /**< block size in bytes */
-        m0_bcount_t	bsb_groupsize;        /**< group size in blocks */
+	m0_bcount_t	bsb_blocksize;        /**< block size in bytes */
+	m0_bcount_t	bsb_groupsize;        /**< group size in blocks */
 	uint32_t	bsb_bsbits;           /**< block size bits: power of 2*/
 	uint32_t	bsb_gsbits;           /**< group size bits: power of 2*/
 	m0_bcount_t	bsb_groupcount;       /**< # of group */
@@ -349,11 +349,11 @@ M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb);
    @see         struct ad_balloc_ops
    @pre         out != NULL
  */
-M0_INTERNAL int m0_balloc_create(uint64_t			 cid,
-				 struct m0_be_seg		*seg,
-				 struct m0_sm_group		*grp,
-				 struct m0_ad_balloc_format_req	*cfg,
-				 struct m0_balloc		**out);
+M0_INTERNAL int m0_balloc_create(uint64_t                        cid,
+				struct m0_be_seg                *seg,
+				struct m0_sm_group              *grp,
+				struct m0_ad_balloc_format_req  *cfg,
+				struct m0_balloc               **out);
 
 M0_INTERNAL void m0_balloc_group_desc_init(struct m0_balloc_group_desc *desc);
 

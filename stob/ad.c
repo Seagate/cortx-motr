@@ -186,6 +186,7 @@ static void balloc_cfg_get_from_config(struct m0_ad_balloc_format_req *bcfg,
 	bcfg->bfr_bshift                = adom_cfg->adg_bshift;
 	bcfg->bfr_blocksize             = (1 << adom_cfg->adg_bshift);
 	bcfg->bfr_groupsize             = adom_cfg->adg_blocks_per_group;
+	bcfg->bfr_groupcount            = adom_cfg->adg_group_nr;
 	bcfg->bfr_indexcount            = adom_cfg->adg_index_nr;
 #ifdef __SPARE_SPACE__
 	bcfg->bfr_spare_reserved_blocks = adom_cfg->adg_spare_blocks_per_group;
@@ -205,6 +206,7 @@ static void balloc_cfg_get_from_adom(struct m0_ad_balloc_format_req *bcfg,
 	bcfg->bfr_bshift                = adom->sad_bshift;
 	bcfg->bfr_blocksize             = (1 << adom->sad_bshift);
 	bcfg->bfr_groupsize             = adom->sad_blocks_per_group;
+	bcfg->bfr_groupcount            = adom->sad_group_nr;
 	bcfg->bfr_indexcount            = adom->sad_index_nr;
 #ifdef __SPARE_SPACE__
 	bcfg->bfr_spare_reserved_blocks = adom->sad_spare_blocks_per_group;
@@ -333,15 +335,23 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 		 */
 		if (cfg->adg_group_nr <  1)
 			cfg->adg_group_nr = BALLOC_DEF_GROUPS_NR;
-		grp_blocks = (cfg->adg_container_size >> cfg->adg_bshift) /
-			      cfg->adg_group_nr;
+		grp_blocks = cfg->adg_container_size / (1 << cfg->adg_bshift) /
+				cfg->adg_group_nr;
 		grp_blocks = 1 << m0_log2(grp_blocks);
+		grp_blocks = max64u(grp_blocks, BALLOC_DEF_BLOCKS_PER_GROUP);
 		cfg->adg_blocks_per_group = grp_blocks;
+		/*
+ 		 * recalculate group_nr, as it can change during max64u(). 
+ 		 */ 
+		cfg->adg_group_nr = cfg->adg_container_size / (1 << cfg->adg_bshift) /
+				grp_blocks;
 		if (cfg->adg_index_nr < 1)
 			cfg->adg_index_nr = BALLOC_DEF_INDEXES_NR;
 		cfg->adg_spare_blocks_per_group =
 			m0_stob_ad_spares_calc(grp_blocks);
 		M0_LOG(M0_DEBUG, "device size %"PRId64, cfg->adg_container_size);
+		M0_LOG(M0_INFO, "device has %"PRId64" of group size %"PRId64,
+			cfg->adg_group_nr, cfg->adg_blocks_per_group);
 		*cfg_create = cfg;
 	}
 	return M0_RC(rc);
@@ -419,15 +429,14 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 			       void *cfg_init,
 			       struct m0_stob_domain **out)
 {
-	struct ad_domain_init_cfg *cfg = cfg_init;
-	struct m0_stob_ad_domain  *adom;
-	struct m0_stob_domain     *dom;
-	struct m0_be_seg          *seg;
-	struct m0_ad_balloc       *ballroom;
-	bool                       balloc_inited;
-	int                        rc = 0;
-
-	struct m0_ad_balloc_format_req bcfg;
+	struct ad_domain_init_cfg      *cfg = cfg_init;
+	struct m0_stob_ad_domain       *adom;
+	struct m0_stob_domain          *dom;
+	struct m0_be_seg               *seg;
+	struct m0_ad_balloc            *ballroom;
+	bool                            balloc_inited;
+	int                             rc = 0;
+	struct m0_ad_balloc_format_req  bcfg;
 
 	adom = stob_ad_domain_locate(location_data);
 	if (adom == NULL)
@@ -531,19 +540,18 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 				 uint64_t dom_key,
 				 void *cfg_create)
 {
-	struct ad_domain_cfg     *cfg = (struct ad_domain_cfg *)cfg_create;
-	struct m0_be_seg         *seg = cfg->adg_seg;
-	struct m0_sm_group       *grp = stob_ad_sm_group();
-	struct m0_stob_ad_domain *adom;
-	struct m0_be_emap        *emap;
-	struct m0_balloc         *cb = NULL;
-	struct m0_be_tx           tx = {};
-	struct m0_be_tx_credit    cred = M0_BE_TX_CREDIT(0, 0);
-	struct stob_ad_0type_rec  seg0_ad_rec;
-	struct m0_buf             seg0_data;
-	int                       rc;
-
-	struct m0_ad_balloc_format_req bcfg;
+	struct ad_domain_cfg           *cfg = (struct ad_domain_cfg *)cfg_create;
+	struct m0_be_seg               *seg = cfg->adg_seg;
+	struct m0_sm_group             *grp = stob_ad_sm_group();
+	struct m0_stob_ad_domain       *adom;
+	struct m0_be_emap              *emap;
+	struct m0_balloc               *cb = NULL;
+	struct m0_be_tx                 tx = {};
+	struct m0_be_tx_credit          cred = M0_BE_TX_CREDIT(0, 0);
+	struct stob_ad_0type_rec        seg0_ad_rec;
+	struct m0_buf                   seg0_data;
+	int                             rc;
+	struct m0_ad_balloc_format_req  bcfg;
 
 	M0_PRE(seg != NULL);
 	M0_PRE(strlen(location_data) < ARRAY_SIZE(adom->sad_path));
@@ -584,6 +592,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 		adom->sad_container_size   = cfg->adg_container_size;
 		adom->sad_bshift           = cfg->adg_bshift;
 		adom->sad_blocks_per_group = cfg->adg_blocks_per_group;
+		adom->sad_group_nr         = cfg->adg_group_nr;
 		adom->sad_index_nr         = cfg->adg_index_nr;
 #ifdef __SPARE_SPACE__
 		adom->sad_spare_blocks_per_group =
