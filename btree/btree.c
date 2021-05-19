@@ -573,7 +573,7 @@ enum {
 	M0_NODE_COUNT = 100,
 };
 
-static struct m0_sm_state_descr btree_states[16] = {
+static struct m0_sm_state_descr btree_states[9] = {
 	[P_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "P_INIT",
@@ -591,7 +591,7 @@ static struct m0_sm_state_descr btree_states[16] = {
 	},
 };
 
-static struct m0_sm_trans_descr btree_trans[256] = {
+static struct m0_sm_trans_descr btree_trans[2] = {
 	{ "init", P_INIT,  P_ACT  },
 	{ "act",  P_ACT,   P_DOWN },
 };
@@ -2108,22 +2108,20 @@ int calc_shift(int size)
 
 int64_t btree_create_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op *bop		= M0_AMB(bop,smop,bo_op);
-	struct m0_btree_oimpl *oi	= bop->bo_i;
-	struct m0_btree *curr_btree 	= bop->bo_arbor;
-	struct td *tree;
-	struct m0_btree_idata *data;
-	struct segaddr curr_addr;
+	struct m0_btree_op 	*bop = M0_AMB(bop,smop,bo_op);
+	struct m0_btree_oimpl 	*oi = bop->bo_i;
+	struct td		*tree;
+	struct m0_btree_idata 	*data;
+	struct segaddr 		 curr_addr;
 
 	switch(bop->bo_op.o_sm.sm_state) 
 	{
 		case P_INIT:
 			data = &bop->b_data;
 
-			oi = m0_alloc(sizeof(struct m0_btree_oimpl));
-			bop->bo_i = oi;
-			curr_btree = m0_alloc(sizeof(struct m0_btree));
-			bop->bo_arbor = curr_btree;
+			bop->bo_i = m0_alloc(sizeof(struct m0_btree_oimpl));
+			oi = bop->bo_i;
+			bop->bo_arbor = m0_alloc(sizeof(struct m0_btree));
 
 			curr_addr = segaddr_build(data->addr,calc_shift(data->num_bytes));
 			oi->i_nop.no_addr = curr_addr;
@@ -2143,7 +2141,7 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 			bop->bo_arbor->t_type = data->bt;
 			m0_rwlock_write_unlock(&bop->bo_arbor->t_lock);
 
-			//mem_update
+			//ToDo: mem_update
 			return P_DONE;
 
 		default:
