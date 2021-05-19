@@ -68,6 +68,8 @@ struct m0_btree_type {
 
 
 struct m0_bcookie {
+	void *segaddr;
+	uint64_t seq_no;
 };
 
 struct m0_btree_key {

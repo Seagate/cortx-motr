@@ -2059,6 +2059,25 @@ void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
 {
 }
 
+void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop)
+{
+}
+
+void m0_btree_nxt(struct m0_btree *arbor, const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop)
+{
+}
+
+void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
+		  const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop)
+{
+}
+
 #ifndef __KERNEL__
 
 
@@ -2565,7 +2584,7 @@ static void m0_btree_ut_basic_kv_operations(void)
 	 *  5) Destroy the btree
 	 */
 
-	/** Create temp node space*/
+	/** Create temp node space and use it as root node for btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
 			      m0_btree_create(temp_node, 1024, &btree_type,
