@@ -2076,9 +2076,14 @@ static void generic_move(struct nd *src, struct nd *tgt,
 }
 
 /**
- * for m0_btree_create
+ * calc_shift is used to calculate the shift value from the given size.
+ * Shift is the exponent of nearest power-of-2 value greater than or equal to
+ * size. 
  * 
+ * @param size It is the number of bytes
+ * @return int returns the shift value.
  */
+
 int calc_shift(int size)
 {
 	unsigned int sample = (unsigned int) size;
@@ -2093,6 +2098,14 @@ int calc_shift(int size)
 	return pow - 1;
 }
 
+/**
+ * btree_create_tick function is the main function used to create btree.
+ * It traverses through multiple states to perform its operation.
+ * 
+ * @param smop Represents the state machine operation
+ * @return int64_t It returns the next state to be executed.
+ */
+
 int64_t btree_create_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op *bop		= M0_AMB(bop,smop,bo_op);
@@ -2106,16 +2119,17 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 	{
 		case P_INIT:
 			data = &bop->b_data;
+
 			oi = m0_alloc(sizeof(struct m0_btree_oimpl));
 			bop->bo_i = oi;
 			curr_btree = m0_alloc(sizeof(struct m0_btree));
 			bop->bo_arbor = curr_btree;
-			
+
 			curr_addr = segaddr_build(data->addr,calc_shift(data->num_bytes));
 			oi->i_nop.no_addr = curr_addr;
 			tree_get(&oi->i_nop, &oi->i_nop.no_addr , 0);
 			return P_ACT;
-		
+
 		case P_ACT:
 			data = &bop->b_data;
 			tree = oi->i_nop.no_tree;
@@ -2128,7 +2142,7 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 			bop->bo_arbor->t_addr = tree;
 			bop->bo_arbor->t_type = data->bt;
 			m0_rwlock_write_unlock(&bop->bo_arbor->t_lock);
-			
+
 			//mem_update
 			return P_DONE;
 
@@ -2145,6 +2159,19 @@ int  m0_btree_open(void *addr, int nob, struct m0_btree **out)
 void m0_btree_close(struct m0_btree *arbor)
 {
 }
+
+/**
+ * m0_btree_create is the API which is used by motr to create btree.
+ * 
+ * @param addr It is the address of root node allocated by the caller of this
+ * function
+ * @param nob It is the size of root node. 
+ * @param bt It is the type of btree to be created.
+ * @param tx It represents the transaction of which the current operation is 
+ * part of.
+ * @param bop It represents the structure containing all the relevant details
+ * for carrying out btree operations.
+ */
 
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 		     struct m0_be_tx *tx, struct m0_btree_op *bop)

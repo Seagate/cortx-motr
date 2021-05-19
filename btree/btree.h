@@ -85,6 +85,10 @@ struct m0_btree_cb {
 	int (*c_act)(struct m0_btree_cb *cb, struct m0_btree_rec *rec);
 	void *c_datum;
 };
+
+/**
+ * This structure is used to hold the data that is passed to m0_tree_create.
+ */
 struct m0_btree_idata {
 	void 				*addr;
 	int				 num_bytes;
