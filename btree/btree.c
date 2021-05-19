@@ -2040,7 +2040,6 @@ static void generic_move(struct nd *src, struct nd *tgt,
 	node_fix(tgt, tx);
 }
 
-
 int  m0_btree_open(void *addr, int nob, struct m0_btree **out)
 {
 	return 0;
@@ -2262,17 +2261,12 @@ static void get_next_rec_to_add(struct nd *node, uint64_t *key,  uint64_t *val)
 	ksize = h->ff_ksize;
 	proposed_key = rand();
 
-	find_key.k_data.ov_vec.v_nr            = 1;
-	find_key.k_data.ov_vec.v_count         = &ksize;
-	find_key.k_data.ov_buf                 = &p_key;
+	find_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
 
-	slot.s_rec.r_key.k_data.ov_vec.v_nr    = 1;
-	slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
-	slot.s_rec.r_key.k_data.ov_buf         = &p_key;
+	slot.s_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
 
-	slot.s_rec.r_val.ov_vec.v_nr           = 1;
-	slot.s_rec.r_val.ov_vec.v_count        = &vsize;
-	slot.s_rec.r_val.ov_buf                = &p_val;
+	slot.s_rec.r_val = M0_BUFVEC_INIT_BUF(&p_val, &vsize);
+
 	while (true) {
 		uint64_t found_key;
 
@@ -2419,7 +2413,7 @@ static void m0_btree_ut_basic_tree_operations(void)
 {
 	void                   *invalid_addr = (void *)0xbadbadbadbad;
 	struct m0_btree        *btree;
-	struct m0_btree_type    btree_type = {.tt_id = M0_BT_EMAP_EM_MAPPING };
+	struct m0_btree_type    btree_type = {.tt_id = M0_BT_UT_KV_OPS};
 	struct m0_be_tx        *tx = NULL;
 	struct m0_btree_op      b_op;
 	void                   *temp_node;
@@ -2489,7 +2483,6 @@ static void m0_btree_ut_basic_tree_operations(void)
 
 }
 
-
 struct cb_data {
 	struct m0_btree_key *key;
 	struct m0_bufvec    *value;
@@ -2504,10 +2497,10 @@ static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	struct cb_data          *datum = cb->c_datum;
 
 	ksize = m0_vec_count(&datum->key->k_data.ov_vec);
-	M0_PRE(m0_vec_count(&rec->r_key.k_data.ov_vec) >= ksize);
+	M0_ASSERT(m0_vec_count(&rec->r_key.k_data.ov_vec) >= ksize);
 
 	vsize = m0_vec_count(&datum->value->ov_vec);
-	M0_PRE(m0_vec_count(&rec->r_val.ov_vec) >= vsize);
+	M0_ASSERT(m0_vec_count(&rec->r_val.ov_vec) >= vsize);
 
 	m0_bufvec_cursor_init(&scur, &datum->key->k_data);
 	m0_bufvec_cursor_init(&dcur, &rec->r_key.k_data);
@@ -2520,13 +2513,12 @@ static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	return 0;
 }
 
-
 static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
-	struct m0_bufvec_cursor scur;
-	struct m0_bufvec_cursor dcur;
-	m0_bcount_t             ksize;
-	m0_bcount_t             vsize;
+	struct m0_bufvec_cursor  scur;
+	struct m0_bufvec_cursor  dcur;
+	m0_bcount_t              ksize;
+	m0_bcount_t              vsize;
 	struct cb_data          *datum = cb->c_datum;
 
 	ksize = m0_vec_count(&datum->key->k_data.ov_vec);
@@ -2546,14 +2538,13 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	return 0;
 }
 
-
 /**
  * This unit test exercises the KV operations for both valid and invalid
  * conditions.
  */
 static void m0_btree_ut_basic_kv_operations(void)
 {
-	struct m0_btree_type  btree_type   = {.tt_id = M0_BT_EMAP_EM_MAPPING};
+	struct m0_btree_type  btree_type   = {.tt_id = M0_BT_UT_KV_OPS};
 	struct m0_be_tx      *tx           = NULL;
 	struct m0_btree_op    b_op;
 	void                 *temp_node;
@@ -2672,8 +2663,9 @@ static void m0_btree_ut_basic_kv_operations(void)
 	}
 
 	m0_btree_close(b_op.bo_arbor);
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
+			      m0_btree_destroy(b_op.bo_arbor, &b_op));
 }
-
 
 struct m0_ut_suite btree_ut = {
 	.ts_name = "btree-ut",
