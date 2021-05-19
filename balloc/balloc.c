@@ -558,7 +558,8 @@ static int sb_update(struct m0_balloc *bal, struct m0_sm_group *grp)
 	return M0_RC(rc);
 }
 
-static int balloc_sb_write(struct m0_balloc             *bal,
+static int balloc_sb_write(
+			struct m0_balloc             *bal,
 			struct m0_ad_balloc_format_req  *req,
 			struct m0_sm_group              *grp)
 {
@@ -884,9 +885,9 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	  by this parameter.
    @return 0 means success. Otherwise, error number will be returned.
  */
-static int balloc_format(struct m0_balloc       *bal,
-		 struct m0_ad_balloc_format_req *req,
-		 struct m0_sm_group             *grp)
+static int balloc_format(struct m0_balloc              *bal,
+			struct m0_ad_balloc_format_req *req,
+			struct m0_sm_group             *grp)
 {
 	int rc;
 
@@ -1003,7 +1004,7 @@ static int balloc_init_internal(struct m0_balloc		*bal,
 
  	M0_LOG(M0_INFO, "groupcount: %llu indexcount: %d blocks_per_group: %d",
                (unsigned long long)bal->cb_sb.bsb_groupcount,
-	       (int)bal->cb_sb.bsb_indexcount, (int)req->bsb_groupsize);
+	       (int)bal->cb_sb.bsb_indexcount, (int)req->bfr_groupsize);
 	for (i = 0; i < bal->cb_sb.bsb_indexcount; i++) {
 		m0_be_btree_init(&bal->cb_db_group_extents[i], seg, &ge_btree_ops);
 	}
@@ -3005,10 +3006,10 @@ static const struct m0_ad_balloc_ops balloc_ops = {
 	.bo_reserve_extent = balloc_reserve_extent,
 };
 
-static int balloc_trees_create(struct m0_balloc     *bal,
-			struct m0_be_tx     *tx,
-			const struct m0_fid *fid,
-			m0_bcount_t          indexcount)
+static int balloc_trees_create(struct m0_balloc *bal,
+			struct m0_be_tx         *tx,
+			const struct m0_fid     *fid,
+			m0_bcount_t              indexcount)
 {
 	int rc;
 	int i;
