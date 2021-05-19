@@ -207,26 +207,7 @@ M0_INTERNAL bool m0_op_io_invariant(const struct m0_op_io *ioo)
 		_0C(nw_xfer_request_invariant(nxr));
 }
 
-static bool is_parity_verify_mode(struct m0_client *instance)
-{
-	return instance->m0c_config->mc_is_read_verify;
-}
-
-static bool should_allocate_paritybuf(struct m0_op *op,
-				      struct m0_client *instance,
-				      struct m0_op_io *ioo)
-{
-
-	struct m0_pdclust_layout *play;
-
-	play = pdlayout_get(ioo);
-	return (m0__is_read_op(op)        &&
-		is_parity_verify_mode(instance)) ||
-		(m0__is_update_op(op) && !m0_pdclust_is_replicated(play));
-}
-
-static void addb2_add_ioo_attrs(const struct m0_op_io *ioo,
-				int rmw)
+static void addb2_add_ioo_attrs(const struct m0_op_io *ioo, int rmw)
 {
 	uint64_t ioid = m0_sm_id_get(&ioo->ioo_sm);
 
@@ -251,11 +232,8 @@ static void addb2_add_ioo_attrs(const struct m0_op_io *ioo,
 static void obj_io_cb_launch(struct m0_op_common *oc)
 {
 	int                       rc;
-	struct m0_client         *cinst;
-	struct m0_op             *op;
 	struct m0_op_obj         *oo;
 	struct m0_op_io          *ioo;
-	struct m0_pdclust_layout *play;
 
 	M0_ENTRY();
 
@@ -268,21 +246,10 @@ static void obj_io_cb_launch(struct m0_op_common *oc)
 			                 M0_OC_FREE)));
 	M0_PRE(oc->oc_op.op_size >= sizeof *ioo);
 
-	op = &oc->oc_op;
 	oo = bob_of(oc, struct m0_op_obj, oo_oc, &oo_bobtype);
 	ioo = bob_of(oo, struct m0_op_io, ioo_oo, &ioo_bobtype);
 	M0_PRE_EX(m0_op_io_invariant(ioo));
-	cinst = m0__op_instance(op);
-	M0_PRE(cinst!= NULL);
 
-	play = pdlayout_get(ioo);
-
-	if (should_allocate_paritybuf(op, cinst, ioo))
-		ioo->ioo_pbuf_type = M0_PBUF_DIR;
-	else if (m0__is_update_op(op) && m0_pdclust_is_replicated(play))
-		ioo->ioo_pbuf_type = M0_PBUF_IND;
-	else
-		ioo->ioo_pbuf_type = M0_PBUF_NONE;
 	rc = ioo->ioo_ops->iro_iomaps_prepare(ioo);
 	if (rc != 0) {
 		goto end;
@@ -408,9 +375,8 @@ static void obj_io_ast_fini(struct m0_sm_group *grp,
 	} m0_htable_endfor;
 
 	/* Free memory used for io maps and buffers */
-	if (ioo->ioo_iomaps != NULL) {
+	if (ioo->ioo_iomaps != NULL)
 		ioo->ioo_ops->iro_iomaps_destroy(ioo);
-	}
 
 	nw_xfer_request_fini(&ioo->ioo_nwxfer);
 	m0_layout_instance_fini(ioo->ioo_oo.oo_layout_instance);
