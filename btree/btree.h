@@ -43,7 +43,7 @@ struct m0_btree_op;
 struct m0_btree_rec;
 struct m0_btree_cb;
 struct m0_btree_key;
-
+struct m0_btree_idata;
 
 enum m0_btree_types {
 	M0_BT_INVALID = 1,
@@ -84,6 +84,11 @@ struct m0_btree_rec {
 struct m0_btree_cb {
 	int (*c_act)(struct m0_btree_cb *cb, struct m0_btree_rec *rec);
 	void *c_datum;
+};
+struct m0_btree_idata {
+	void 				*addr;
+	int				 num_bytes;
+	const struct m0_btree_type 	*bt;
 };
 
 enum m0_btree_rec_type {
