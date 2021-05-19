@@ -41,6 +41,7 @@ struct m0_uint128 {
 
 #define U128X_F "%"PRIx64":%"PRIx64
 #define U128D_F "%"PRId64":%"PRId64
+#define U128I_F "%"PRIi64":%"PRIi64
 #define U128_P(x) (x)->u_hi, (x)->u_lo
 #define U128_S(u) &(u)->u_hi, &(u)->u_lo
 

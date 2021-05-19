@@ -80,7 +80,6 @@ struct m0_workload_index {
 	int			num_kvs;
 	int			mode;
 	int			opcode;
-	int			record_size;
 	int			opcode_prcnt[CRATE_OP_TYPES];
 	int			next_records;
 
@@ -102,11 +101,17 @@ struct m0_workload_index {
 	struct m0_fid		key_prefix;
 	int			keys_count;
 
+	/** Added to set key_size and value_size parameter from .yaml file. */
+	int			key_size;
+	int			value_size;
+	int			max_key_size;
+	int			max_value_size;
+	int			min_key_size;
+
 	bool			keys_ordered;
 
 	struct m0_fid		index_fid;
 
-	int			max_record_size;
 	uint64_t		seed;
 };
 

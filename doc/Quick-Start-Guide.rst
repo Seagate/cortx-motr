@@ -8,6 +8,10 @@ Prerequisites
 *************
 The prerequisite that is necessary to install the Motr component is mentioned below.
 
+- If you are using CentOS version 7.8 or lower, you'll have to install the kernel dependencies by following this link: `http://vault.centos.org/centos/<CentOS-version>/os/x86_64/Packages/` where <CentOS-version> is replaced with you version of CentOS. For example, if you are using CentOS 7.8.2003, you'll have to install this kernel dependency:
+
+  **$ sodu yum install https://vault.centos.org/centos/7.8.2003/os/x86_64/Packages/kernel-devel-3.10.0-1127.el7.x86_64.rpm**
+
 - CentOS-7 for x86_64 platform (ARM64 platform support work is in progress).
 
 - **Ansible** is needed. 
@@ -21,7 +25,7 @@ Procedure
 **********
 The below mentioned procedure must be followed to install the Motr component and to perform tests.
 
-1. Cloning the Source Code
+1. Cloning the Source Code (Either Build from Source or RPM Generation)
 
 2. Building the Source Code
 
@@ -66,15 +70,15 @@ Perform the below mentioned procedure to build the source code.
    - **$ scripts/m0 rebuild**
 
    **Note**: The **scripts/m0 rebuild** command includes some clean up.
-   
+ 
 RPM Generation
 ===============
 
-If you want to make sure about generating RPMs, run the below mentioned command.
+You can also build RPMs by running the following command.
 
 - **$ make rpms**
 
-The following RPMs are generated in the **/root/rpmbuild/RPMS/x86_64** directory (if running with *root* user).
+The following RPMs are generated in the **$HOME/rpmbuild/RPMS/x86_64** directory.
 
 - cortx-motr-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
 
@@ -84,7 +88,7 @@ The following RPMs are generated in the **/root/rpmbuild/RPMS/x86_64** directory
  
 - cortx-motr-tests-ut-1.0.0-1_git*_3.10.0_1062.el7.x86_64.rpm
 
-Note : Switch to root user mode to check contents of **/root/rpmbuild/RPMS/x86_64** directory.
+Note : Check contents of **$HOME/rpmbuild/RPMS/x86_64** directory.
 
 Running Tests
 =============
@@ -123,6 +127,22 @@ System Tests
 - To perform all the system tests, run the following command:
 
   - **$ sudo ./scripts/m0 run-st**
+  
+Unit Benchmark
+---------
+- To perform unit benchmarks, run the following command:
+
+  - **$ sudo ./scripts/m0 run-ub**
+
+  Running Time (approximate) - 60 to 70 minutes
+
+- To list all available unit benchmarks, run the following command:
+
+  - **$ sudo ./scripts/m0 run-ub -l**
+
+- To run some unit benchmark(s), e.g. "ad-ub", run the following command:
+
+  - **$ sudo ./scripts/m0 run-ub -t ad-ub**
 
 Troubleshooting
 ================
@@ -186,6 +206,12 @@ Troubleshooting
        
         
 Tested by:
+
+- May 2, 2021: Christina Ku (christina.ku@seagate.com) in Red Hat Enterprise Linux Server release 7.7 (Maipo)
+
+- Apr 16, 2021: Jalen Kan (jalen.j.kan@seagate.com) in CentOS 7.9.2009 on a windows laptop running VMware Workstation Pro 16
+
+- Mar 12, 2021: Yanqing Fu (yanqing.f.fu@seagate.com) in Red Hat Enterprise Linux Server release 7.7 (Maipo)
 
 - Jan 27, 2021: Patrick Hession (patrick.hession@seagate.com) in CentOS 7.8.2003 on a Windows laptop running VMWare Workstation Pro 16
 

@@ -77,8 +77,6 @@ static struct m0_realm  *m0_uber_realm;
 			         __func__, __LINE__, (_rc)); \
 			 return (_rc); } while(0)
 
-#define ARRAY_SIZE(a) ((sizeof (a)) / (sizeof (a)[0]))
-
 /** internal type to handle extents */
 struct extent {
 	off_t off;

@@ -24,13 +24,28 @@
   @addtogroup cookie
   @{
  */
-#include <linux/uaccess.h> /* probe_kernel_address */
+#include <linux/uaccess.h>
+
+#define try_read(addr, dummy)			\
+({						\
+	long rc;				\
+	mm_segment_t save_fs = get_fs();	\
+						\
+	set_fs(KERNEL_DS);			\
+	pagefault_disable();			\
+	rc = __copy_from_user_inatomic(&(dummy), \
+		(__force typeof(dummy) __user *)(addr), \
+		sizeof(dummy));			\
+	pagefault_enable();			\
+	set_fs(save_fs);			\
+	rc;					\
+})
 
 M0_INTERNAL bool m0_arch_addr_is_sane(const uint64_t * addr)
 {
 	uint64_t dummy;
 
-	return probe_kernel_address(addr, dummy) == 0;
+	return try_read(addr, dummy) == 0;
 }
 
 M0_INTERNAL int m0_arch_cookie_global_init(void)

@@ -27,7 +27,7 @@
 
 AU_ALIAS([AC_PYTHON_MODULE], [AX_PYTHON_MODULE])
 AC_DEFUN([AX_PYTHON_MODULE],[
-    if test -z $PYTHON;
+    if test -z "$PYTHON";
     then
         if test -z "$3";
         then

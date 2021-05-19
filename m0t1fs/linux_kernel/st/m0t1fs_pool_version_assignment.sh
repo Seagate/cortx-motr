@@ -35,7 +35,7 @@ start_stop_m0d()
 	then
 		# Stop m0d
 		echo -n "Stopping m0d on controller ep $IOS_PVER2_EP "
-		m0d_pid=`pgrep -fn lt-m0d.+$IOS_PVER2_EP`
+		m0d_pid=`pgrep -fn m0d.+$IOS_PVER2_EP`
 		kill -TERM $m0d_pid >/dev/null 2>&1
 		# Wait util $m0d_pid is terminated
 		while ps -p $m0d_pid -o s= >/dev/null; do

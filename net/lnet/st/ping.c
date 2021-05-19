@@ -67,7 +67,7 @@ static void ping_print_qstats(struct nlx_ping_ctx *ctx,
 		"pRECV", "pSEND",
 		"aRECV", "aSEND",
 	};
-	char tbuf[16];
+	char tbuf[256];
 	const char *lfmt =
 "%5s %6lu %6lu %6lu %6lu %13s %18lu %9lu\n";
 	const char *hfmt =
@@ -1842,7 +1842,6 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 	char			*bp = NULL;
 	char                    *send_msg = NULL;
 	struct nlx_ping_ctx     *cctx;
-
 	M0_ALLOC_PTR(cctx);
 	if (cctx == NULL)
 		goto free_ctx;

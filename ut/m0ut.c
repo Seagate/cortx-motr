@@ -99,6 +99,9 @@ extern struct m0_ut_suite db_ut;
 extern struct m0_ut_suite dtm_dtx_ut;
 extern struct m0_ut_suite dtm_nucleus_ut;
 extern struct m0_ut_suite dtm_transmit_ut;
+extern struct m0_ut_suite dtm0_ut;
+extern struct m0_ut_suite dtm0_clk_src_ut;
+extern struct m0_ut_suite dtm0_log_ut;
 extern struct m0_ut_suite emap_ut;
 extern struct m0_ut_suite failure_domains_tree_ut;
 extern struct m0_ut_suite failure_domains_ut;
@@ -191,6 +194,14 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &buffer_pool_ut, true);
 	m0_ut_add(m, &bulkio_client_ut, true);
 	m0_ut_add(m, &bulkio_server_ut, true);
+
+	/*
+	 * ALARM/WARN/XXX: `dtm0_ut' added before mt_idx_dix, due to
+	 * finalisation order of internal structures inside dtm0_ut!
+	 * NEEDS to be addressed! (by Anatoliy)
+	 */
+	m0_ut_add(m, &dtm0_ut, true);
+
 	m0_ut_add(m, &capa_ut, true);
 	m0_ut_add(m, &cas_client_ut, true);
 	m0_ut_add(m, &cas_service_ut, true);
@@ -227,6 +238,8 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &dtm_nucleus_ut, true);
 	m0_ut_add(m, &dtm_transmit_ut, true);
 	m0_ut_add(m, &dtm_dtx_ut, true);
+	m0_ut_add(m, &dtm0_clk_src_ut, true);
+	m0_ut_add(m, &dtm0_log_ut, true);
 	m0_ut_add(m, &failure_domains_tree_ut, true);
 	m0_ut_add(m, &failure_domains_ut, true);
 	m0_ut_add(m, &fis_ut, true);

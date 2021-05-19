@@ -29,6 +29,5 @@ Type=notify
 TimeoutStopSec=5min
 Restart=no
 Environment=SHELL=/bin/bash
-EnvironmentFile=/etc/sysconfig/m0d-%i
 Group=motr
 ExecStart=/usr/libexec/cortx-motr/motr-server m0d-%i

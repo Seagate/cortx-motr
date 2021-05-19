@@ -162,9 +162,9 @@ static void results_print(uint32_t round)
 			bytes = bench->ub_block_size * bench->ub_blocks_per_op * bench->ub_iter;
 			if (bytes > 0) {
 				kib = bytes / 1024;
-				bw_kibps = bw(bytes, bench->ub_total_etime) /1024;
+				bw_kibps = bw(bytes, bench->ub_total_etime) / 1024;
 				kbs_per_op = bench->ub_block_size * bench->ub_blocks_per_op;
-				iops = (bw_kibps / kbs_per_op) * 1024;
+				iops = (bw_kibps * 1024) / kbs_per_op;
 			}
 
 			printf("\t%12.12s: [%7i] %6.2f %6.2f %6.2f %5.2f%%"
@@ -196,9 +196,9 @@ M0_INTERNAL int m0_ub_run(uint32_t rounds, const char *opts)
 	}
 
 	for (round = 1; round <= rounds; ++round) {
-		printf("-- round %"PRIu32, round);
+		printf("-- round %"PRIu32" --\n", round);
 		for (set = last; set != NULL; set = set->us_prev) {
-			printf("%s[", set->us_name);
+			printf("  %s[", set->us_name);
 			if (set->us_init != NULL) {
 				rc = set->us_init(opts);
 				if (rc != 0)
@@ -208,7 +208,7 @@ M0_INTERNAL int m0_ub_run(uint32_t rounds, const char *opts)
 				ub_run_one(set, bench);
 			if (set->us_fini != NULL)
 				set->us_fini();
-			printf("]");
+			printf("]\n");
 		}
 		printf("\n");
 		results_print(round);

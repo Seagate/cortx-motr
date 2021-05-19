@@ -1,0 +1,37 @@
+nodes:
+  - hostname: localhost
+    data_iface: eth0
+    data_iface_type: tcp
+    m0_servers:
+      - runs_confd: true
+        io_disks:
+          data: []
+      - io_disks:
+          data:
+            - /dev/loop0
+            - /dev/loop1
+      - io_disks:
+          data:
+            - /dev/loop2
+            - /dev/loop3
+      - io_disks:
+          data:
+            - /dev/loop4
+            - /dev/loop5
+    m0_clients:
+        s3: 0
+        other: 1
+
+pools:
+  - name: SNS pool
+    type: sns  # optional; supported values: "sns" (default), "dix", "md"
+    data_units: 1
+    parity_units: 1
+    allowed_failures: { site: 0, rack: 0, encl: 0, ctrl: 1, disk: 1 }
+
+  - name: DIX pool
+    type: dix  # optional; supported values: "sns" (default), "dix", "md"
+    data_units: 1
+    parity_units: 1
+    allowed_failures: { site: 0, rack: 0, encl: 0, ctrl: 1, disk: 1 }
+

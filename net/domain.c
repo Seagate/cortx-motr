@@ -33,7 +33,8 @@
 
 static void net_domain_fini(struct m0_net_domain *dom);
 
-int m0_net_domain_init(struct m0_net_domain *dom, struct m0_net_xprt *xprt)
+int m0_net_domain_init(struct m0_net_domain *dom,
+		       const struct m0_net_xprt *xprt)
 {
 	int rc;
 

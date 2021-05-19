@@ -50,7 +50,7 @@ M0_INTERNAL int m0_uint128_cmp(const struct m0_uint128 *u0,
 
 M0_INTERNAL int m0_uint128_sscanf(const char *s, struct m0_uint128 *u128)
 {
-	int rc = sscanf(s, U128X_F, U128_S(u128));
+	int rc = sscanf(s, U128I_F, U128_S(u128));
 	return rc == 2 ? 0 : -EINVAL;
 }
 

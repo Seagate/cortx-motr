@@ -1,0 +1,35 @@
+CrateConfig_Sections: [MOTR_CONFIG, WORKLOAD_SPEC]
+MOTR_CONFIG:
+   MOTR_LOCAL_ADDR:  ###__MOTR_LOCAL_ADDR__###
+   MOTR_HA_ADDR:    ###__MOTR_HA_ADDR__###
+   PROF: ###__PROF__###
+   LAYOUT_ID: 1                           # Layout id defines the unit size.
+   IS_OOSTORE: 1                           # Is oostore-mode?
+   IS_READ_VERIFY: 0                       # Enable read-verify?
+   TM_RECV_QUEUE_MIN_LEN: 2         # Minimum length of the receive queue, default is 2
+   MAX_RPC_MSG_SIZE: 131072         # Maximum rpc message size, default is 131072 (128k)
+   PROCESS_FID: ###__PROCESS_FID__###
+   IDX_SERVICE_ID: 1
+   ADDB_INIT: 1
+
+WORKLOAD_SPEC:
+  WORKLOAD:
+      WORKLOAD_TYPE: 0           # Index
+      WORKLOAD_SEED: tstamp
+      WARMUP_PUT_CNT: 0        # Number of PUT operations in warmup stage or
+                                 # as "all" meaning to fill all keys in the index
+      WARMUP_DEL_RATIO: 0        # Ration of keys to be deleted in warmup
+      NUM_KVP: 1                # Number of key/value records for index ops
+      RECORD_SIZE: 64            # Size of an key/value record (int [K, M] or random)
+      MAX_RSIZE: 1M              # Maximum record size (int [K, M])
+      OP_COUNT: 10               # Total operation count (int [K, M] or
+                                 # unlimited = (2 ** 31 - 1) / (128 * NUM_KVP)
+      EXEC_TIME: unlimited       # Execution time (secs or "unlimited").
+      KEY_PREFIX: random         # Prefix defined for keys (a number of "random")
+      KEY_ORDER: ordered         # ordered or random
+      INDEX_FID: <7800000000000001:0> # fid
+      PUT: 100                    # Percentages of PUT, DEL, GET and NEXT ops
+      DEL: 0
+      GET: 0
+      NEXT: 0
+      LOG_LEVEL: 4               # err(0), warn(1), info(2), trace(3), debug(4)

@@ -669,7 +669,7 @@ static void commands_node_thread2(struct net_test_cmd_node *node)
 		for (i = 1; i < ARRAY_SIZE(nodes); ++i) {
 			strncat(buf, nodes[i].ntcn_addr, NTC_ADDR_LEN_MAX - 1);
 			if (i != ARRAY_SIZE(nodes) - 1)
-				strncat(buf, ",", 1);
+				strncat(buf, ",", 2);
 		}
 		rc = m0_net_test_slist_init(&endpoints, buf, ',');
 		M0_UT_ASSERT(rc == 0);
