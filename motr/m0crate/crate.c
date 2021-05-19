@@ -1265,7 +1265,7 @@ static void cr_btree_warmup(struct cr_workload_btree *cwb)
 	int 	i	= 0;
 	int 	count	= cwb->cwb_warmup_insert_count;
 	int 	ksize	= cwb->cwb_key_size != -1 ? cwb->cwb_key_size :
-			  getrnd(1, cwb->cwb_max_key_size);
+			  getrnd(sizeof cbk.bkey, cwb->cwb_max_key_size);
 	int 	vsize	= cwb->cwb_val_size != -1 ? cwb->cwb_val_size :
 			  getrnd(1, cwb->cwb_max_val_size);
 	int 	pattern	= cwb->cwb_pattern;
