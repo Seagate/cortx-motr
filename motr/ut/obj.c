@@ -548,7 +548,7 @@ static void ut_test_obj_op_prepare(void)
 	/* base case */
 	instance->m0c_pools_common.pc_cur_pver->pv_attr.pa_P = 7;
 	m0_obj_init(&obj, &uber_realm.co_realm, &id,
-		    m0_client_layout_id(instance));
+		    m0_client_layout_id(instance), 0);
 
 	/* OP Allocation fails */
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
@@ -676,7 +676,7 @@ static void ut_test_m0_entity_create(void)
 
 	memset(&obj, 0, sizeof obj);
 	m0_obj_init(&obj, &realm, &ent.en_id,
-			   m0_client_layout_id(instance));
+			   m0_client_layout_id(instance), 0);
 
 	rc = m0_entity_create(NULL, &obj.ob_entity, &ops[0]);
 	M0_UT_ASSERT(rc = -ENOENT);
@@ -703,7 +703,7 @@ static void ut_test_m0_entity_delete(void)
 
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &realm, &ent.en_id,
-		    m0_client_layout_id(instance));
+		    m0_client_layout_id(instance), 0);
 
 	m0_fi_enable_once("obj_namei_op_init", "fake_msg_size");
 	rc = m0_entity_delete(&obj.ob_entity, &ops[0]);

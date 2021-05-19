@@ -556,6 +556,21 @@ error:
 }
 
 /**
+ * Finds and sets optimal layout id according to the object's size.
+ */
+static void obj_optimal_lid_set(struct m0_obj *obj,
+				struct m0_layout_domain *ldom)
+{
+	uint64_t                *lid;
+
+	lid = &obj->ob_attr.oa_layout_id;
+
+	if (obj->ob_attr.oa_layout_id <= 0)
+		*lid = m0_layout_find_by_buffsize(ldom, &obj->ob_attr.oa_pver,
+						  obj->ob_attr.oa_obj_size);
+}
+
+/**
  * Initialises a m0_op_obj (i.e. an operation on an object).
  *
  * @param oo object operation to be initialised.
@@ -563,11 +578,12 @@ error:
  */
 static int obj_op_obj_init(struct m0_op_obj *oo)
 {
-	int                     rc;
-	struct m0_locality     *locality;
-	struct m0_pool_version *pv;
-	struct m0_obj          *obj;
-	struct m0_client       *cinst;
+	int                      rc;
+	struct m0_locality      *locality;
+	struct m0_pool_version  *pv;
+	struct m0_obj           *obj;
+	struct m0_client        *cinst;
+	struct m0_layout_domain *ldom;
 
 	M0_ENTRY();
 	M0_PRE(oo != NULL);
@@ -575,13 +591,17 @@ static int obj_op_obj_init(struct m0_op_obj *oo)
 				       M0_EO_DELETE,
 				       M0_EO_OPEN)));
 
-	/** Get the object's pool version. */
+	/** Get the object's pool version and optimal layout id. */
 	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
+	cinst = m0__obj_instance(obj);
 	if (OP_OBJ2CODE(oo) == M0_EO_CREATE) {
 		rc = m0__obj_pool_version_get(obj, &pv);
 		if (rc != 0)
 			return M0_ERR(rc);
 		oo->oo_pver = pv->pv_id;
+
+		ldom = &cinst->m0c_reqh.rh_ldom;
+		obj_optimal_lid_set(obj, ldom);
 	} else if (OP_OBJ2CODE(oo) == M0_EO_OPEN) {
 		/*
 		 * XXX:Not required to assign pool version for operation other
@@ -590,7 +610,6 @@ static int obj_op_obj_init(struct m0_op_obj *oo)
 		 * and cache it to m0_obj::ob_layout::oa_pver
 		 * MOTR-2871 will fix and verify this issue separately.
 		 */
-			cinst = m0__obj_instance(obj);
 			pv = m0_pool_version_md_get(&cinst->m0c_pools_common);
 			M0_ASSERT(pv != NULL);
 			oo->oo_pver = pv->pv_id;
@@ -796,27 +815,6 @@ int m0_entity_delete(struct m0_entity *entity,
 	return M0_RC(entity_namei_op(entity, op, M0_EO_DELETE));
 }
 M0_EXPORTED(m0_entity_delete);
-
-int64_t m0_obj_size_to_layout_id(struct m0_client *inst, size_t obj_size)
-{
-	int                      rc;
-	struct m0_layout_domain *ldom;
-	struct m0_pool_version  *pv;
-
-	M0_PRE(inst != NULL);
-	M0_PRE(obj_size != 0);
-
-	ldom = &inst->m0c_reqh.rh_ldom;
-	rc = m0_pool_version_get(&inst->m0c_pools_common, NULL, &pv);
-
-	if (rc == 0)
-		return m0_layout_find_by_buffsize(ldom, &pv->pv_id, obj_size);
-	else {
-		M0_ERR(rc);
-		return 0;
-	}
-}
-M0_EXPORTED(m0_obj_size_to_layout_id);
 
 uint64_t m0_obj_unit_size_to_layout_id(int unit_size)
 {

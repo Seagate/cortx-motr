@@ -484,7 +484,7 @@ static void ut_test_m0_obj_init(void)
 	/* base case: no error */
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &uber_realm.co_realm, &id,
-			   m0_client_layout_id(instance));
+			   m0_client_layout_id(instance), 0);
 
 	/* check the initialisation */
 	M0_UT_ASSERT(obj.ob_entity.en_type == M0_ET_OBJ);
@@ -955,7 +955,7 @@ static void ut_test_m0_entity_fini(void)
 	id.u_lo++;
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &uber_realm.co_realm, &id,
-		    m0_client_layout_id(instance));
+		    m0_client_layout_id(instance), 0);
 	ent = &obj.ob_entity;
 
 	/* Base case: m0_entity_fini works */
@@ -964,7 +964,7 @@ static void ut_test_m0_entity_fini(void)
 	/* Re-initialise */
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &uber_realm.co_realm, &id,
-		    m0_client_layout_id(instance));
+		    m0_client_layout_id(instance), 0);
 
 	/* finalise client */
 	ut_m0_client_fini(&instance);
@@ -991,7 +991,7 @@ static void ut_test_m0_obj_fini(void)
 	id.u_lo++;
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &uber_realm.co_realm, &id,
-		    m0_client_layout_id(instance));
+		    m0_client_layout_id(instance), 0);
 
 	/* Base case: m0_obj_fini works */
 	m0_obj_fini(&obj);
@@ -999,7 +999,7 @@ static void ut_test_m0_obj_fini(void)
 	/* Re-initialise */
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &uber_realm.co_realm, &id,
-		    m0_client_layout_id(instance));
+		    m0_client_layout_id(instance), 0);
 
 	/* finalise client */
 	ut_m0_client_fini(&instance);

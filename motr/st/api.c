@@ -43,7 +43,7 @@ void st_obj_init(struct m0_obj *obj,
 		 struct m0_realm *parent,
 		 const struct m0_uint128 *id, uint64_t layout_id)
 {
-	m0_obj_init(obj, parent, id, layout_id);
+	m0_obj_init(obj, parent, id, layout_id, 0);
 	st_mark_entity(&obj->ob_entity);
 }
 

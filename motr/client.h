@@ -716,6 +716,9 @@ struct m0_obj_attr {
 
 	/** Pool version fid */
 	struct m0_fid oa_pver;
+
+	/** Size of the object */
+	size_t        oa_obj_size;
 };
 
 /**
@@ -1294,22 +1297,27 @@ void m0__dtx_init     (struct m0__dtx             *dtx,
  * read, write, alloc and free operations executed on it.
  *
  * The size of data and parity buffer (m0_obj::ob_attr::oa_bshift) is
- * set to default value 'M0_DEFAULT_BUF_SHIFT'. If layout_id == 0, this
- * object will be set with default layout id.
+ * set to default value 'M0_DEFAULT_BUF_SHIFT'.
+ *
+ * If layout_id == 0, this object will be set with optimal layout id according
+ * to the object size provided. If Object size is not set,
+ * then this object will be set with default layout id.
  *
  * @param obj The object to initialise.
  * @param parent The realm operations on this object will be part of.
  * @param id The identifier assigned by the application to this object.
  * @param layout_id The layout id assigned by the application to this object.
+ * @param obj_size size of the object.
  *
  * @pre obj != NULL
  * @pre parent != NULL
  * @pre id != NULL && m0_uint128_cmp(&M0_ID_APP, id) < 0
  */
-void m0_obj_init(struct m0_obj    *obj,
-			struct m0_realm  *parent,
-			const struct m0_uint128 *id,
-			uint64_t                 layout_id);
+void m0_obj_init(struct m0_obj           *obj,
+		 struct m0_realm         *parent,
+		 const struct m0_uint128 *id,
+		 uint64_t                 layout_id,
+		 size_t                   obj_size);
 /**
  * Finalises an obj, leading to finilise entity and to free any additiona
  *  memory allocated to represent it.
@@ -1644,17 +1652,6 @@ int m0_entity_sync(struct m0_entity *ent);
  * @return 0 for success, anything else for an error.
  */
 int m0_sync(struct m0_client *m0c, bool wait);
-
-/**
- * Returns optimal layout id according to the object size in the current
- * pool version.
- *
- * @param inst     Motr instance used to get the layout domain and
- *                 pool version.
- * @param obj_size size of the object whose layout id is to be set.
- * @return 1-14 for success, 0 on error getting pool version.
- */
-int64_t m0_obj_size_to_layout_id(struct m0_client *inst, size_t obj_size);
 
 /**
  * Maps a unit size to a layout id defined in Motr.

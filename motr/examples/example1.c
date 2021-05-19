@@ -63,7 +63,7 @@ static int object_create(struct m0_container *container)
 	M0_SET0(&obj);
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &obj_id,
-		    m0_client_layout_id(instance));
+		    m0_client_layout_id(instance), 0);
 
 	rc = m0_entity_create(NULL, &obj.ob_entity, &ops[0]);
 	if (rc != 0) {
@@ -227,7 +227,7 @@ static int object_write(struct m0_container *container)
 	M0_SET0(&obj);
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &obj_id,
-		    m0_client_layout_id(instance));
+		    m0_client_layout_id(instance), 0);
 
 	rc = object_open(&obj);
 	if (rc != 0) {
@@ -323,7 +323,7 @@ static int object_read(struct m0_container *container)
 	M0_SET0(&obj);
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &obj_id,
-		    m0_client_layout_id(instance));
+		    m0_client_layout_id(instance), 0);
 
 	rc = object_open(&obj);
 	if (rc != 0) {
@@ -366,7 +366,7 @@ static int object_delete(struct m0_container *container)
 	M0_SET0(&obj);
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &obj_id,
-		    m0_client_layout_id(instance));
+		    m0_client_layout_id(instance), 0);
 
 	rc = object_open(&obj);
 	if (rc != 0) {
