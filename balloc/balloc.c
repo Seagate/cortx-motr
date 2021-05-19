@@ -558,9 +558,9 @@ static int sb_update(struct m0_balloc *bal, struct m0_sm_group *grp)
 	return M0_RC(rc);
 }
 
-static int balloc_sb_write(struct m0_balloc            *bal,
-			struct m0_ad_balloc_format_req *req,
-			struct m0_sm_group             *grp)
+static int balloc_sb_write(struct m0_balloc             *bal,
+			struct m0_ad_balloc_format_req  *req,
+			struct m0_sm_group              *grp)
 {
 	int				 rc;
 	struct timeval			 now;
@@ -884,9 +884,9 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	  by this parameter.
    @return 0 means success. Otherwise, error number will be returned.
  */
-static int balloc_format(struct m0_balloc               *bal,
-			 struct m0_ad_balloc_format_req *req,
-			 struct m0_sm_group             *grp)
+static int balloc_format(struct m0_balloc       *bal,
+		 struct m0_ad_balloc_format_req *req,
+		 struct m0_sm_group             *grp)
 {
 	int rc;
 
@@ -3006,9 +3006,9 @@ static const struct m0_ad_balloc_ops balloc_ops = {
 };
 
 static int balloc_trees_create(struct m0_balloc     *bal,
-				struct m0_be_tx     *tx,
-				const struct m0_fid *fid,
-				m0_bcount_t          indexcount)
+			struct m0_be_tx     *tx,
+			const struct m0_fid *fid,
+			m0_bcount_t          indexcount)
 {
 	int rc;
 	int i;
