@@ -79,6 +79,9 @@ struct m0_ad_balloc_format_req {
 	m0_bcount_t     bfr_blocksize;
 	/** Group size in blocks. */
 	m0_bcount_t     bfr_groupsize;
+	/** no of Groups . */
+	m0_bcount_t     bfr_groupcount;
+	/** No of index per ad. */
 	m0_bcount_t     bfr_indexcount;
 	/** XXX Spare blocks per group. Should be a power of two. */
 	m0_bcount_t     bfr_spare_reserved_blocks;
@@ -134,6 +137,7 @@ struct m0_stob_ad_domain {
 	uint32_t                sad_bshift;
 	int32_t                 sad_babshift;
 	m0_bcount_t             sad_blocks_per_group;
+	m0_bcount_t             sad_group_nr;
 	m0_bcount_t             sad_index_nr;
 	m0_bcount_t             sad_spare_blocks_per_group;
 	char                    sad_path[AD_PATHLEN];
