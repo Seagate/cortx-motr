@@ -1157,8 +1157,7 @@ struct nw_xfer_ops {
 	 * @pre   nw_xfer_request_invariant(xfer).
 	 * @post  xfer->nxr_state == NXS_COMPLETE.
 	 */
-	void (*nxo_complete)   (struct nw_xfer_request  *xfer,
-				bool                     rmw);
+	void (*nxo_complete)   (struct nw_xfer_request  *xfer, bool rmw);
 
 	/**
 	 * Dispatches the IO fops created by all member target_ioreq objects
