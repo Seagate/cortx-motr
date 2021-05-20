@@ -105,7 +105,7 @@ static bool indexvec_segments_overlap(struct m0_indexvec *ivec)
 	return overlap;
 }
 
-static inline void indexvec_dump(struct m0_indexvec *ivec)
+M0_UNUSED static inline void indexvec_dump(struct m0_indexvec *ivec)
 {
 	uint32_t seg;
 
