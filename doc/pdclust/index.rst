@@ -42,7 +42,7 @@ data are stored *redundantly*, that is, the original data can still be recovered
 is some system component hosting some part of the data fails, and might come
 equipped with some fault-tolerance processes.
 
-The layout of a particular object is an instance of come *layout
+The layout of a particular object is an instance of some *layout
 type*. Currently motr has the only layout type fully implemented: pdclust, other
 layout types (compressed, encrypted, de-duplicated, composite, *etc*.) are
 planned.
