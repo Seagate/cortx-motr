@@ -875,6 +875,11 @@ M0_INTERNAL int m0_fom_addb2_init(struct m0_fom_type *type, uint64_t id);
  */
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
 
+/**
+ * Post FDMI record for this fom. FDMI record in this case contains FOL record.
+ */
+M0_INTERNAL void m0_fom_fdmi_record_post(struct m0_fom *fom);
+
 M0_INTERNAL struct m0_reqh *m0_fom2reqh(const struct m0_fom *fom);
 
 /**

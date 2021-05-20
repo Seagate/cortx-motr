@@ -520,7 +520,7 @@ M0_INTERNAL void m0_cas_svc_init(void)
 	cas_fom_phases[M0_FOPH_INIT].sd_allowed |= M0_BITS(CAS_CHECK_PRE);
 	cas_fom_phases[M0_FOPH_TXN_OPEN].sd_allowed |= M0_BITS(CAS_START);
 	cas_fom_phases[M0_FOPH_QUEUE_REPLY].sd_allowed |=
-		M0_BITS(M0_FOPH_TXN_DONE_WAIT);
+		M0_BITS(M0_FOPH_TXN_LOGGED_WAIT);
 	m0_sm_conf_init(&cas_sm_conf);
 	m0_reqh_service_type_register(&m0_cas_service_type);
 	m0_cas_gc_init();
@@ -1223,7 +1223,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 				result = op_sync_wait(fom0);
 		}
 		if (cas_in_ut() && m0_fom_phase(fom0) == M0_FOPH_QUEUE_REPLY) {
-			m0_fom_phase_set(fom0, M0_FOPH_TXN_DONE_WAIT);
+			m0_fom_phase_set(fom0, M0_FOPH_TXN_LOGGED_WAIT);
 		}
 
 		/*
@@ -2869,7 +2869,7 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "dtm0-op-done",         CAS_DTM0,             M0_FOPH_SUCCESS },
 	{ "dtm0-op-fail",         CAS_DTM0,             M0_FOPH_FAILURE },
 
-	{ "ut-short-cut",         M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_DONE_WAIT }
+	{ "ut-short-cut",         M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_LOGGED_WAIT }
 };
 
 static struct m0_sm_conf cas_sm_conf = {
