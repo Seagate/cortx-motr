@@ -533,10 +533,11 @@
  *  --------------------------------------------
  */
 
+struct td;
 struct m0_btree {
 	const struct m0_btree_type *t_type;
 	unsigned                    t_height;
-	struct tree                *t_addr;
+	struct td                  *t_addr;
 	struct m0_rwlock            t_lock;
 };
 
@@ -2040,36 +2041,68 @@ static void generic_move(struct nd *src, struct nd *tgt,
 	node_fix(tgt, tx);
 }
 
+int  m0_btree_open(void *addr, int nob, struct m0_btree **out)
+{
+	return 0;
+}
+
+void m0_btree_close(struct m0_btree *arbor)
+{
+}
+
+void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
+		     struct m0_be_tx *tx, struct m0_btree_op *bop)
+{
+}
+
+void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
+{
+}
+
+void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop)
+{
+}
+
+void m0_btree_nxt(struct m0_btree *arbor, const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop)
+{
+}
+
+void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
+		  const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop)
+{
+}
 
 #ifndef __KERNEL__
+
+
+/**
+ *  --------------------------
+ *  Section START - Unit Tests
+ *  --------------------------
+ */
+
 /**
  * The code contained below is 'ut'. This is a little experiment to contain the
  * ut code in the same file containing the functionality code. We are open to
  * changes iff enough reasons are found that this model either does not work or
  * is not intuitive or maintainable.
  */
-static void m0_btree_ut_node_create_delete(void);
-static void m0_btree_ut_node_add_del_rec(void);
 
+#define m0_be_tx_init(tx,tid,dom,sm_group,persistent,discarded,filler,datum) \
+	do {                                                                 \
+	                                                                     \
+	} while (0)
 
-/**
- * btree_ut test suite.
- */
-struct m0_ut_suite btree_ut = {
-	.ts_name = "btree-ut",
-	.ts_yaml_config_string = "{ valgrind: { timeout: 3600 },"
-	"  helgrind: { timeout: 3600 },"
-	"  exclude:  ["
-	"   "
-	"  ] }",
-	.ts_init = NULL,
-	.ts_fini = NULL,
-	.ts_tests = {
-		{"node_create_delete",          m0_btree_ut_node_create_delete},
-		{"node_add_del_rec",            m0_btree_ut_node_add_del_rec},
-		{NULL, NULL}
-	}
-};
+#define m0_be_tx_prep(tx,credit)                                             \
+	do {                                                                 \
+                                                                             \
+	} while (0)
 
 static bool btree_ut_initialised = false;
 static void btree_ut_init(void)
@@ -2229,17 +2262,12 @@ static void get_next_rec_to_add(struct nd *node, uint64_t *key,  uint64_t *val)
 	ksize = h->ff_ksize;
 	proposed_key = rand();
 
-	find_key.k_data.ov_vec.v_nr    = 1;
-	find_key.k_data.ov_vec.v_count = &ksize;
-	find_key.k_data.ov_buf         = &p_key;
+	find_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
 
-	slot.s_rec.r_key.k_data.ov_vec.v_nr = 1;
-	slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
-	slot.s_rec.r_key.k_data.ov_buf = &p_key;
+	slot.s_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
 
-	slot.s_rec.r_val.ov_vec.v_nr = 1;
-	slot.s_rec.r_val.ov_vec.v_count = &vsize;
-	slot.s_rec.r_val.ov_buf = &p_val;
+	slot.s_rec.r_val = M0_BUFVEC_INIT_BUF(&p_val, &vsize);
+
 	while (true) {
 		uint64_t found_key;
 
@@ -2298,10 +2326,10 @@ void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
 }
 
 /**
- * This test will create a tree, add a node and then populate the node with
+ * This unit test will create a tree, add a node and then populate the node with
  * some records. It will also confirm the records are in ascending order of Key.
  */
-void m0_btree_ut_node_add_del_rec(void)
+static void m0_btree_ut_node_add_del_rec(void)
 {
 	struct node_op          op;
 	struct m0_btree_type    tt;
@@ -2377,6 +2405,286 @@ void m0_btree_ut_node_add_del_rec(void)
 
 	M0_LEAVE();
 }
+
+/**
+ * This unit test exercises a few tree operations in both valid and invalid
+ * conditions.
+ */
+static void m0_btree_ut_basic_tree_operations(void)
+{
+	void                   *invalid_addr = (void *)0xbadbadbadbad;
+	struct m0_btree        *btree;
+	struct m0_btree_type    btree_type = {.tt_id = M0_BT_UT_KV_OPS};
+	struct m0_be_tx        *tx = NULL;
+	struct m0_btree_op      b_op;
+	void                   *temp_node;
+
+	/** Prepare transaction to capture tree operations. */
+	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
+	m0_be_tx_prep(tx, NULL);
+
+	/**
+	 *  Run a valid scenario:
+	 *  1) Create a btree
+	 *  2) Close the btree
+	 *  3) Open the btree
+	 *  4) Close the btree
+	 *  5) Destroy the btree
+	 */
+
+	/** Create temp node space*/
+	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
+			      m0_btree_create(temp_node, 1024, &btree_type,
+					      tx, &b_op));
+
+	m0_btree_close(b_op.bo_arbor);
+
+	m0_btree_open(temp_node, 1024, &btree);
+
+	m0_btree_close(btree);
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op));
+
+	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
+
+	/** Now run some invalid cases */
+
+	/** Open a non-existent btree */
+	m0_btree_open(invalid_addr, 1024, &btree);
+
+	/** Close a non-existent btree */
+	m0_btree_close(btree);
+
+	/** Destroy a non-existent btree */
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op));
+
+	/** Create a new btree */
+	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
+			      m0_btree_create(temp_node, 1024, &btree_type,
+					      tx, &b_op));
+
+	/** Close it */
+	m0_btree_close(b_op.bo_arbor);
+
+	/** Try closing again */
+	m0_btree_close(b_op.bo_arbor);
+
+	/** Re-open it */
+	m0_btree_open(invalid_addr, 1024, &btree);
+
+	/** Open it again */
+	m0_btree_open(invalid_addr, 1024, &btree);
+
+	/** Destory it */
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op));
+
+	/** Attempt to reopen the destroyed tree */
+	m0_btree_open(invalid_addr, 1024, &btree);
+
+}
+
+struct cb_data {
+	struct m0_btree_key *key;
+	struct m0_bufvec    *value;
+};
+
+static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+{
+        struct m0_bufvec_cursor  scur;
+	struct m0_bufvec_cursor  dcur;
+	m0_bcount_t              ksize;
+	m0_bcount_t              vsize;
+	struct cb_data          *datum = cb->c_datum;
+
+	ksize = m0_vec_count(&datum->key->k_data.ov_vec);
+	M0_ASSERT(m0_vec_count(&rec->r_key.k_data.ov_vec) >= ksize);
+
+	vsize = m0_vec_count(&datum->value->ov_vec);
+	M0_ASSERT(m0_vec_count(&rec->r_val.ov_vec) >= vsize);
+
+	m0_bufvec_cursor_init(&scur, &datum->key->k_data);
+	m0_bufvec_cursor_init(&dcur, &rec->r_key.k_data);
+	m0_bufvec_cursor_copy(&dcur, &scur, ksize);
+
+	m0_bufvec_cursor_init(&scur, datum->value);
+	m0_bufvec_cursor_init(&dcur, &rec->r_val);
+	m0_bufvec_cursor_copy(&dcur, &scur, vsize);
+
+	return 0;
+}
+
+static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+{
+	struct m0_bufvec_cursor  scur;
+	struct m0_bufvec_cursor  dcur;
+	m0_bcount_t              ksize;
+	m0_bcount_t              vsize;
+	struct cb_data          *datum = cb->c_datum;
+
+	ksize = m0_vec_count(&datum->key->k_data.ov_vec);
+	M0_PRE(m0_vec_count(&rec->r_key.k_data.ov_vec) <= ksize);
+
+	vsize = m0_vec_count(&datum->value->ov_vec);
+	M0_PRE(m0_vec_count(&rec->r_val.ov_vec) <= vsize);
+
+	m0_bufvec_cursor_init(&dcur, &datum->key->k_data);
+	m0_bufvec_cursor_init(&scur, &rec->r_key.k_data);
+	m0_bufvec_cursor_copy(&dcur, &scur, ksize);
+
+	m0_bufvec_cursor_init(&dcur, datum->value);
+	m0_bufvec_cursor_init(&scur, &rec->r_val);
+	m0_bufvec_cursor_copy(&dcur, &scur, vsize);
+
+	return 0;
+}
+
+/**
+ * This unit test exercises the KV operations for both valid and invalid
+ * conditions.
+ */
+static void m0_btree_ut_basic_kv_operations(void)
+{
+	struct m0_btree_type  btree_type   = {.tt_id = M0_BT_UT_KV_OPS};
+	struct m0_be_tx      *tx           = NULL;
+	struct m0_btree_op    b_op;
+	void                 *temp_node;
+	int                   i;
+	time_t                curr_time;
+	struct m0_btree_cb    ut_cb;
+	uint64_t              first_key;
+	bool                  first_key_initialized = false;
+	struct m0_btree_op    kv_op;
+
+	M0_ENTRY();
+
+	time(&curr_time);
+	printf("\nUsing seed %lu", curr_time);
+	srandom(curr_time);
+
+	/** Prepare transaction to capture tree operations. */
+	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
+	m0_be_tx_prep(tx, NULL);
+
+	/**
+	 *  Run valid scenario:
+	 *  1) Create a btree
+	 *  2) Adds a few records to the created tree.
+	 *  3) Confirms the records are present in the tree.
+	 *  4) Deletes all the records from the tree.
+	 *  4) Close the btree
+	 *  5) Destroy the btree
+	 */
+
+	/** Create temp node space and use it as root node for btree */
+	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
+			      m0_btree_create(temp_node, 1024, &btree_type,
+					      tx, &b_op));
+
+	for (i = 0; i < 2048; i++) {
+		uint64_t             key;
+		uint64_t             value;
+		struct cb_data       put_data;
+		struct m0_btree_key  put_key;
+		struct m0_bufvec     put_value;
+		m0_bcount_t          ksize  = sizeof key;
+		m0_bcount_t          vsize  = sizeof value;
+		void                *k_ptr  = &key;
+		void                *v_ptr  = &value;
+
+		/**
+		 *  There is a very low possibility of hitting the same key
+		 *  again. This is fine as it helps debug the code when insert
+		 *  is called with the same key instead of update function.
+		 */
+		key = value = random();
+
+		if (!first_key_initialized) {
+			first_key = key;
+			first_key_initialized = true;
+		}
+
+		put_key.k_data     = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+		put_value          = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+
+		put_data.key       = &put_key;
+		put_data.value     = &put_value;
+
+		ut_cb.c_act        = btree_kv_put_cb;
+		ut_cb.c_datum      = &put_data;
+
+		M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
+				      m0_btree_put(b_op.bo_arbor, tx,
+						   &put_key, &ut_cb, 0,
+						   &kv_op));
+	}
+
+	{
+		uint64_t             key;
+		uint64_t             value;
+		struct cb_data       get_data;
+		struct m0_btree_key  get_key;
+		struct m0_bufvec     get_value;
+		m0_bcount_t          ksize     = sizeof key;
+		m0_bcount_t          vsize     = sizeof value;
+		void                *k_ptr    = &key;
+		void                *v_ptr    = &value;
+		uint64_t             search_key;
+		void                *search_key_ptr = &search_key;
+		m0_bcount_t          search_key_size = sizeof search_key;
+		struct m0_btree_key  search_key_in_tree;
+
+		get_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+		get_value      = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+
+		get_data.key    = &get_key;
+		get_data.value  = &get_value;
+
+		ut_cb.c_act   = btree_kv_get_cb;
+		ut_cb.c_datum = &get_data;
+
+		search_key = first_key;
+
+		search_key_in_tree.k_data =
+			M0_BUFVEC_INIT_BUF(&search_key_ptr, &search_key_size);
+
+		M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
+				      m0_btree_get(b_op.bo_arbor,
+						   &search_key_in_tree,
+						   &ut_cb, 0, &kv_op));
+
+		for (i = 1; i < 2048; i++) {
+			search_key = key;
+			M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
+					      m0_btree_nxt(b_op.bo_arbor,
+							   &search_key_in_tree,
+							   &ut_cb, 0, &kv_op));
+		}
+	}
+
+	m0_btree_close(b_op.bo_arbor);
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
+			      m0_btree_destroy(b_op.bo_arbor, &b_op));
+}
+
+struct m0_ut_suite btree_ut = {
+	.ts_name = "btree-ut",
+	.ts_yaml_config_string = "{ valgrind: { timeout: 3600 },"
+	"  helgrind: { timeout: 3600 },"
+	"  exclude:  ["
+	"   "
+	"  ] }",
+	.ts_init = NULL,
+	.ts_fini = NULL,
+	.ts_tests = {
+		{"node_create_delete",    m0_btree_ut_node_create_delete},
+		{"node_add_del_rec",      m0_btree_ut_node_add_del_rec},
+		{"basic_tree_operations", m0_btree_ut_basic_tree_operations},
+		{"basic_kv_operations",   m0_btree_ut_basic_kv_operations},
+		{NULL, NULL}
+	}
+};
 
 #endif  /** KERNEL */
 #undef M0_TRACE_SUBSYSTEM
