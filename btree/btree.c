@@ -1586,6 +1586,7 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 		mem_node_get(op, tree, addr, nxt);
 		tree->t_root		=  op->no_node;
 		tree->t_root->n_addr 	= *addr;
+		tree->t_root->n_tree	=  tree;
 		//tree->t_height = tree_height_get(op->no_node);
 	}
 
@@ -2113,7 +2114,7 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 	struct td		*tree;
 	struct m0_btree_idata 	*data;
 	struct segaddr 		 curr_addr;
-
+	const struct node_type 	*nt;
 	switch(bop->bo_op.o_sm.sm_state) 
 	{
 		case P_INIT:
@@ -2134,10 +2135,11 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 
 		case P_ACT:
 			data = &bop->b_data;
+			oi->i_nop.no_node->n_type = data->nt;
 			tree = oi->i_nop.no_tree;
-			// node_alloc(&oi->i_nop, tree, nob, &fixed_format, 8, 
-			// 8, NULL, 0);
-			fixed_format.nt_init(oi->i_nop.no_node,segaddr_shift(
+			nt = oi->i_nop.no_node->n_type;
+
+			nt->nt_init(oi->i_nop.no_node,segaddr_shift(
 					     &oi->i_nop.no_addr),8,8);
 
 			m0_rwlock_write_lock(&bop->bo_arbor->t_lock);
@@ -2178,11 +2180,13 @@ void m0_btree_close(struct m0_btree *arbor)
  */
 
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
-		     struct m0_be_tx *tx, struct m0_btree_op *bop)
+		     const struct node_type *nt, struct m0_be_tx *tx, struct
+		     m0_btree_op *bop)
 {
 	bop->b_data.addr	= addr;
 	bop->b_data.num_bytes	= nob;
 	bop->b_data.bt		= bt;
+	bop->b_data.nt		= nt;
 
 	m0_sm_op_init(&bop->bo_op, &btree_create_tick, &bop->bo_op_exec, 
 		      &btree_conf, &G);
@@ -2537,7 +2541,8 @@ static void m0_btree_ut_test_tree_operations(void)
 	struct m0_be_tx        *tx = NULL;
 	struct m0_btree_op      b_op = {};
 	void                   *temp_node;
-
+	const struct node_type *nt      = &fixed_format;
+	
 	/** Prepare transaction to capture tree operations. */
 	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, NULL);
@@ -2554,7 +2559,7 @@ static void m0_btree_ut_test_tree_operations(void)
 	/** Create temp node space*/
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
-			      m0_btree_create(temp_node, 1024, &btree_type,
+			      m0_btree_create(temp_node, 1024, &btree_type, nt,
 					      tx, &b_op),
 			      &G, &b_op.bo_op_exec);
 
@@ -2582,7 +2587,7 @@ static void m0_btree_ut_test_tree_operations(void)
 	/** Create a new btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
-			      m0_btree_create(temp_node, 1024, &btree_type,
+			      m0_btree_create(temp_node, 1024, &btree_type, nt,
 					      tx, &b_op), &G, &b_op.bo_op_exec);
 
 	/** Close it */
