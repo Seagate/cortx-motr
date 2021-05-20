@@ -611,7 +611,7 @@ struct m0_op {
 	/** Operation state machine. */
 	struct m0_sm                   op_sm;
 	/** Application-supplied call-backs. */
-	const struct m0_op_ops *op_cbs;
+	const struct m0_op_ops        *op_cbs;
 	/** The entity this operation is on. */
 	struct m0_entity              *op_entity;
 	/** Caching dead-line. */
