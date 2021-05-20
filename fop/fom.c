@@ -1736,17 +1736,14 @@ M0_INTERNAL bool m0_fom_is_waiting(const struct m0_fom *fom)
 
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 {
-	int rc;
+	return M0_RC(m0_dtx_fol_add(&fom->fo_tx));
+}
 
-	M0_ENTRY();
-
-	rc = m0_dtx_fol_add(&fom->fo_tx);
-
+M0_INTERNAL void m0_fom_fdmi_record_post(struct m0_fom *fom)
+{
 #ifndef __KERNEL__
-	if (rc == 0)
-		m0_fol_fdmi_post_record(fom);
+	m0_fol_fdmi_post_record(fom);
 #endif
-	return M0_RC(rc);
 }
 
 M0_INTERNAL struct m0_reqh *m0_fom2reqh(const struct m0_fom *fom)
