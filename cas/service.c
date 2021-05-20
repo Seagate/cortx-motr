@@ -520,7 +520,7 @@ M0_INTERNAL void m0_cas_svc_init(void)
 	cas_fom_phases[M0_FOPH_INIT].sd_allowed |= M0_BITS(CAS_CHECK_PRE);
 	cas_fom_phases[M0_FOPH_TXN_OPEN].sd_allowed |= M0_BITS(CAS_START);
 	cas_fom_phases[M0_FOPH_QUEUE_REPLY].sd_allowed |=
-		M0_BITS(M0_FOPH_TXN_COMMIT_WAIT);
+		M0_BITS(M0_FOPH_TXN_DONE_WAIT);
 	m0_sm_conf_init(&cas_sm_conf);
 	m0_reqh_service_type_register(&m0_cas_service_type);
 	m0_cas_gc_init();
@@ -1223,14 +1223,14 @@ static int cas_fom_tick(struct m0_fom *fom0)
 				result = op_sync_wait(fom0);
 		}
 		if (cas_in_ut() && m0_fom_phase(fom0) == M0_FOPH_QUEUE_REPLY) {
-			m0_fom_phase_set(fom0, M0_FOPH_TXN_COMMIT_WAIT);
+			m0_fom_phase_set(fom0, M0_FOPH_TXN_DONE_WAIT);
 		}
 
 		/*
-		 * Once the transition TXN_COMMIT_WAIT->FINISH is completed,
+		 * Once the transition TXN_DONE_WAIT->FINISH is completed,
 		 * we need to send out P-msg if DTM0 is in use.
 		 */
-		if (phase == M0_FOPH_TXN_COMMIT_WAIT &&
+		if (phase == M0_FOPH_TXN_DONE_WAIT &&
 		    m0_fom_phase(fom0) == M0_FOPH_FINISH && is_dtm0_used) {
 			rc = m0_dtm0_on_committed(fom0, &cas_op(fom0)->cg_txd);
 			if (rc != 0)
@@ -2866,7 +2866,7 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "dtm0-op-done",         CAS_DTM0,             M0_FOPH_SUCCESS },
 	{ "dtm0-op-fail",         CAS_DTM0,             M0_FOPH_FAILURE },
 
-	{ "ut-short-cut",         M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_COMMIT_WAIT }
+	{ "ut-short-cut",         M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_DONE_WAIT }
 };
 
 static struct m0_sm_conf cas_sm_conf = {
