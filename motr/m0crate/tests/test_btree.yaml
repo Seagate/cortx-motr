@@ -37,15 +37,16 @@ WORKLOAD_SPEC:               # Workload specification section
    WORKLOAD:                 # First Workload
       WORKLOAD_TYPE: 2       # Index(0), IO(1) , BTREE(2)
       WORKLOAD_SEED: tstamp  # Seed for random number generator
-      OPS: 10         # Total number of operations
+      OPS: 10                # Total number of operations
       NR_THREADS: 1          # Number of threads to run in this workload
-      KEY_SIZE: 10              # Key size variable: random else fixed value
-      VALUE_SIZE: 5            # Value size variable: random else fixed value
-      MAX_KEY_SIZE: 10     # int [units]
-      MAX_VALUE_SIZE: 10   # int [units]
+      KEY_SIZE: 10           # Key size variable: random else fixed value
+      VALUE_SIZE: 5          # Value size variable: random else fixed value
+      MAX_KEY_SIZE: 10       # int [units]
+      MAX_VALUE_SIZE: 10     # int [units]
+      WARMUP_PUT_CNT: 10     # int (ops) or all, only for btree INSERT operation
       KEY_ORDER: ordered     # ordered(sequential) or random
-      PATTERN: 65        # pattern in ascii val (for eg. 65 for 'A')
+      PATTERN: 65            # pattern in ascii val (for eg. 65 for 'A')
       INSERT: 100            # percentage of insert operation
-      LOOKUP: 0             # percentage of lookup operation
+      LOOKUP: 0              # percentage of lookup operation
       DELETE: 0              # percentage of delete operation
       LOG_LEVEL: 3           # err(0), warn(1), info(2), trace(3), debug(4)
