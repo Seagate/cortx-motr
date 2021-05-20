@@ -91,8 +91,8 @@ a write overwrites only a part of the parity group, read-modify-write cycle is
 necessary. In case of failure, a *degraded write* is performed: up to K unit
 writes can fail, but the write is still successful.
 
-Pools
-=====
+Example
+=======
 
 Consider a very simple storage system. Ignore all the actual complexity of
 arranging hardware, cables, attaching devices to servers, racks, *etc*. At the
@@ -107,15 +107,93 @@ scattered over these devices. There are multiple factors:
       and parity) on a separate device. This way, if the device fails, at most
       one unit for each group is lost;
     - larger K gives better fault-tolerance,
-    - storage overhead is affected by K/N ratio,
-    - because full-group overwrites are most efficient, it's better to keep
-      unit size small,
+    - storage overhead is proportional to K/N ratio,
+    - because full-group overwrites are most efficient, it's better to keep unit
+      size small (then a larger fraction of writes will be full-group),
     - to utilise as many disc spindles as possible for each operation, it's
       better to keep unit size small,
     - to have efficient network transfers it's better to have large unit size,
     - to have efficient storage transfers it's better to have large unit size,
-    - cost of computing parity is O(K^2).
+    - cost of computing parity is O(K^2);
+    - to minimise amount and complexity of internal meta-data that system must
+      maintain, the map from object units to their locations should be
+      *computable* (*i.e.*, it should be possible to calculate the location of a
+      unit by certain function);
+    - to apply various storage and IO optimisations (copy-on-write, sequential
+      block allocation, *etc*.), the map from object units to their locations
+      should be constructed dynamically.
 
 .. image:: pool.png
 
+Failures
+========
 
+Again, consider a very simple storage system, with a certain number (P) of
+storage devices without any additional structure, and with striping pattern
+N+K. Suppose a very simple round-robin block allocation is used:
+
+.. image:: layout-rr.png
+
+A device fails:
+
+.. image:: layout-rr-failure.png
+
+At a conceptual level (without at this time considering the mechanisms used),
+let's understand what would be involved in the *repair* of this failure. To
+reconstruct units lost in the failure (again, ignoring for the moment details of
+when they are reconstructed and how the reconstructed data is used), one needs,
+by the definition of the parity group, to read all remaining units of all
+affected parity groups.
+
+.. image:: layout-rr-affected.png
+
+Suppose that the number of devices (P) is large (10^2--10^5) and the number of
+units is very large (10^15). Ponder for a minute: what's wrong with the picture
+above?
+
+The problem is that the number of units that must be read off a surviving device
+to repair is different for different devices. During a repair some devices will
+be bottlenecks and some will be idle. With a large P, most of the devices will
+idle and won't participate in the repair. As a result, the duration of repair
+(which is the interval of critical vulnerability in which the system has reduced
+fault-tolerance) does not reduce with P growing large. But the probability of a
+failure, does grow with P, so overall system reliability would decrease as P
+grows. One can do better.
+
+Uniformity
+==========
+
+To get better fault-tolerance, two more requirements should be added to our
+list:
+
+    - units of an object are uniformly distributed across all devices,
+    - fraction of parity groups shared by any 2 devices is the same.
+
+.. image:: layout-uniform.png
+
+A simple round-robin unit placement does not satisfy these uniformity
+requirements, but after a simple modification that does.
+
+Let's call a collection of N+K striped units that exactly cover some number of
+"rows" on a pool of P devices *a tile*.
+
+.. image:: tile.png
+
+For each tile permute its columns according to a certain permutation selected
+independently for each tile.
+
+.. image:: permutation.png
+
+This new layout of units satisfies the basic fault-tolerance requirement that no
+two units of the same parity group are on the same device (convince yourself).
+
+It also satisfies the uniformity requirement (at least statistically, for a
+large number of tiles).
+
+.. image:: permutation-uniform.png
+		      
+Uniformity has some very important consequences. All devices participate equally
+in the repair. But the total amount of data read during repair is fixed (it is
+(N+K-1)*device_size). Therefore, as P grows, each device reads smaller and
+smaller fraction of its size. Therefore, as system grows, repair completes
+quicker.
