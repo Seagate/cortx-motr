@@ -983,6 +983,7 @@ static int64_t    node_get  (struct node_op *op, struct td *tree,
 static void       node_put  (struct nd *node);
 static struct nd *node_try  (struct td *tree, struct segaddr *addr);
 #endif
+
 static int64_t    node_alloc(struct node_op *op, struct td *tree, int size,
 			     const struct node_type *nt, int ksize, int vsize,
 			     struct m0_be_tx *tx, int nxt);
@@ -993,7 +994,7 @@ static int64_t    node_free(struct node_op *op, struct nd *node,
 #if 0
 static void node_op_fini(struct node_op *op);
 #endif
-
+static void node_init(struct node_op *n_op, int ksize, int vsize);
 static int  node_count(const struct nd *node);
 static int  node_space(const struct nd *node);
 #if 0
@@ -1023,6 +1024,7 @@ static void node_move (struct nd *src, struct nd *tgt,
 		       enum dir dir, int nr, struct m0_be_tx *tx);
 #endif
 
+static void mem_update(void);
 /**
  * Common node header.
  *
@@ -1057,6 +1059,14 @@ static uint64_t         trees_in_use[ARRAY_SIZE_FOR_BITS(M0_TREE_COUNT,
 							 sizeof(uint64_t))];
 static uint32_t         trees_loaded = 0;
 static struct m0_rwlock trees_lock;
+
+static void node_init(struct node_op *n_op, int ksize, int vsize)
+{
+	const struct node_type *n_type = n_op->no_node->n_type;
+
+	n_type->nt_init(n_op->no_node,segaddr_shift(&n_op->no_addr), ksize,
+			vsize);
+}
 
 static bool node_invariant(const struct nd *node)
 {
@@ -1214,6 +1224,11 @@ void m0_btree_mod_fini(void)
 static bool node_shift_is_valid(int shift)
 {
 	return shift >= NODE_SHIFT_MIN && shift < NODE_SHIFT_MIN + 0x10;
+}
+
+static void mem_update(void)
+{
+	//ToDo: Memory update in segment
 }
 
 /**
@@ -2114,7 +2129,9 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 	struct td		*tree;
 	struct m0_btree_idata 	*data;
 	struct segaddr 		 curr_addr;
-	const struct node_type 	*nt;
+	int 			 k_size = 8;
+	int 			 v_size = 8;
+
 	switch(bop->bo_op.o_sm.sm_state) 
 	{
 		case P_INIT:
@@ -2137,19 +2154,15 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 			data = &bop->b_data;
 			oi->i_nop.no_node->n_type = data->nt;
 			tree = oi->i_nop.no_tree;
-			nt = oi->i_nop.no_node->n_type;
 
-			nt->nt_init(oi->i_nop.no_node,segaddr_shift(
-					     &oi->i_nop.no_addr),8,8);
+			node_init(&oi->i_nop, k_size, v_size);
 
 			m0_rwlock_write_lock(&bop->bo_arbor->t_lock);
-			// // tree->t_root = oi->i_nop.no_node;
-			// // tree->t_type = bop->bo_arbor->t_type;
 			bop->bo_arbor->t_addr = tree;
 			bop->bo_arbor->t_type = data->bt;
 			m0_rwlock_write_unlock(&bop->bo_arbor->t_lock);
 
-			//ToDo: mem_update
+			mem_update();
 			return P_DONE;
 
 		default:
