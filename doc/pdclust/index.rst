@@ -172,7 +172,7 @@ list:
 .. image:: layout-uniform.png
 
 A simple round-robin unit placement does not satisfy these uniformity
-requirements, but after a simple modification that does.
+requirements, but after a simple modification it does.
 
 Let's call a collection of N+K striped units that exactly cover some number of
 "rows" on a pool of P devices *a tile*.
