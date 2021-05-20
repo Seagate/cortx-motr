@@ -559,7 +559,7 @@ static int sb_update(struct m0_balloc *bal, struct m0_sm_group *grp)
 }
 
 static int balloc_sb_write(
-			struct m0_balloc             *bal,
+			struct m0_balloc                *bal,
 			struct m0_ad_balloc_format_req  *req,
 			struct m0_sm_group              *grp)
 {
@@ -885,9 +885,9 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	  by this parameter.
    @return 0 means success. Otherwise, error number will be returned.
  */
-static int balloc_format(struct m0_balloc              *bal,
-			struct m0_ad_balloc_format_req *req,
-			struct m0_sm_group             *grp)
+static int balloc_format(struct m0_balloc                *bal,
+			struct m0_ad_balloc_format_req   *req,
+			struct m0_sm_group               *grp)
 {
 	int rc;
 
