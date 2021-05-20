@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2017-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2017-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -205,7 +205,7 @@ static bool cr_rand_bool()
 }
 
 /** Get random string */
-static void cr_get_random_string(char *dest, size_t length)
+void cr_get_random_string(char *dest, size_t length)
 {
 	char set[] = "0123456789"
 		"abcdefghijklmnopqrstuvwxyz"
