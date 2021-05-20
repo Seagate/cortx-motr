@@ -291,6 +291,9 @@ func getOptimalUnitSz(sz uint64, pool *C.struct_m0_fid) (C.ulong, error) {
     }
     lid := C.m0_layout_find_by_buffsize(&C.instance.m0c_reqh.rh_ldom,
                                         &pver.pv_id, C.ulong(sz))
+    if lid <= 0 {
+        return 0, fmt.Errorf("could not find layout: rc=%v", lid)
+    }
     return lid, nil
 }
 

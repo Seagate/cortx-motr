@@ -207,7 +207,7 @@ static void status_data_add(struct m0_net_test_cmd_status_data *all_sd,
 	};
 	size_t i;
 
-	LOGD("sent=%lu recvd=%lu finished=%c",
+	LOGD("sent=%lu recvd=%lu finished=%d",
 	     cmd_sd->ntcsd_msg_nr_send.ntmn_total,
 	     cmd_sd->ntcsd_msg_nr_recv.ntmn_total,
 	     cmd_sd->ntcsd_finished);
