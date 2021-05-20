@@ -429,6 +429,26 @@ static int fom_tx_commit(struct m0_fom *fom)
  * Resumes fom execution after completing a blocking operation
  * in M0_FOPH_TXN_COMMIT phase.
  */
+M0_INTERNAL int m0_fom_tx_logged_wait(struct m0_fom *fom)
+{
+	struct m0_dtx   *dtx = &fom->fo_tx;
+	struct m0_be_tx *tx = m0_fom_tx(fom);
+
+	if (!fom_is_update(fom))
+		;
+	else if (dtx->tx_state == M0_DTX_DONE) {
+		if (m0_be_tx_state(tx) >= M0_BTS_LOGGED)
+			return M0_FSO_AGAIN;
+		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
+		return M0_FSO_WAIT;
+	}
+	return M0_FSO_AGAIN;
+}
+
+/**
+ * Resumes fom execution after completing a blocking operation
+ * in M0_FOPH_TXN_LOGGED_WAIT phase.
+ */
 M0_INTERNAL int m0_fom_tx_done_wait(struct m0_fom *fom)
 {
 	struct m0_dtx   *dtx = &fom->fo_tx;
@@ -444,7 +464,6 @@ M0_INTERNAL int m0_fom_tx_done_wait(struct m0_fom *fom)
 		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
 		return M0_FSO_WAIT;
 	}
-
 	return M0_FSO_AGAIN;
 }
 
@@ -561,9 +580,13 @@ static const struct fom_phase_desc fpd_table[] = {
 					M0_FOPH_QUEUE_REPLY_WAIT, "queue_reply",
 					M0_BITS(M0_FOPH_QUEUE_REPLY) },
 	[M0_FOPH_QUEUE_REPLY_WAIT] =  { &fom_queue_reply_wait,
-					M0_FOPH_TXN_DONE_WAIT,
+					M0_FOPH_TXN_LOGGED_WAIT,
 					"queue_reply_wait",
 					M0_BITS(M0_FOPH_QUEUE_REPLY_WAIT) },
+	[M0_FOPH_TXN_LOGGED_WAIT] =   { &m0_fom_tx_logged_wait,
+					M0_FOPH_TXN_DONE_WAIT,
+					"tx_logged_wait",
+					M0_BITS(M0_FOPH_TXN_LOGGED_WAIT) },
 	[M0_FOPH_TXN_DONE_WAIT] =     { &m0_fom_tx_done_wait, M0_FOPH_FINISH,
 					"tx_done_wait",
 					M0_BITS(M0_FOPH_TXN_DONE_WAIT) },
@@ -664,14 +687,18 @@ static struct m0_sm_state_descr generic_phases[] = {
 	},
 	[M0_FOPH_QUEUE_REPLY] = {
 		.sd_name      = "queue_reply",
-		.sd_allowed   = M0_BITS(M0_FOPH_TXN_DONE_WAIT,
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_LOGGED_WAIT,
 					M0_FOPH_QUEUE_REPLY_WAIT,
 					M0_FOPH_FINISH)
 	},
 	[M0_FOPH_QUEUE_REPLY_WAIT] = {
 		.sd_name      = "queue_reply_wait",
-		.sd_allowed   = M0_BITS(M0_FOPH_TXN_DONE_WAIT,
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_LOGGED_WAIT,
 					M0_FOPH_FINISH)
+	},
+	[M0_FOPH_TXN_LOGGED_WAIT] = {
+		.sd_name      = "tx_logged_wait",
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_DONE_WAIT)
 	},
 	[M0_FOPH_TXN_DONE_WAIT] = {
 		.sd_name      = "tx_done_wait",
@@ -755,11 +782,13 @@ struct m0_sm_trans_descr m0_generic_phases_trans[] = {
 	{"fol-record-added", M0_FOPH_FOL_REC_ADD, M0_FOPH_TXN_COMMIT},
 	{"tx-done-start", M0_FOPH_TXN_COMMIT, M0_FOPH_QUEUE_REPLY},
 	{"reply-queue-wait", M0_FOPH_QUEUE_REPLY, M0_FOPH_QUEUE_REPLY_WAIT},
-	{"tx-done-wait", M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_DONE_WAIT},
+	{"tx-logged-wait", M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_LOGGED_WAIT},
 	{"reply-complete", M0_FOPH_QUEUE_REPLY, M0_FOPH_FINISH},
 	{"reply-wait-finished",
-	 M0_FOPH_QUEUE_REPLY_WAIT, M0_FOPH_TXN_DONE_WAIT},
+	 M0_FOPH_QUEUE_REPLY_WAIT, M0_FOPH_TXN_LOGGED_WAIT},
 	{"reply-wait-finished", M0_FOPH_QUEUE_REPLY_WAIT, M0_FOPH_FINISH},
+	{"tx-logged-wait-complete", M0_FOPH_TXN_LOGGED_WAIT,
+	 M0_FOPH_TXN_DONE_WAIT},
 	{"next", M0_FOPH_TXN_DONE_WAIT, M0_FOPH_TXN_INIT},
 	{"tx-done-wait-complete", M0_FOPH_TXN_DONE_WAIT, M0_FOPH_FINISH},
 	{"timeout", M0_FOPH_TIMEOUT, M0_FOPH_FAILURE},

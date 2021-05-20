@@ -266,7 +266,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		 * not need.
 		 */
 		if (phase == M0_FOPH_TXN_COMMIT)
-			m0_fom_phase_set(fom0, M0_FOPH_TXN_DONE_WAIT);
+			m0_fom_phase_set(fom0, M0_FOPH_TXN_LOGGED_WAIT);
 		break;
 	case CGC_LOOKUP:
 		m0_ctg_op_init(ctg_op, fom0, 0);
