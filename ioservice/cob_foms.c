@@ -718,11 +718,11 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			 * into multiple trasactions.
 			 * As the the operation is incomplete, skip the sending
 			 * of reply and reinitialise the trasaction.
-			 * i.e move fom phase to M0_FOPH_TXN_DONE_WAIT and
+			 * i.e move fom phase to M0_FOPH_TXN_LOGGED_WAIT and
 			 * then to M0_FOPH_TXN_INIT.
 			 */
 			if (!cob_op->fco_is_done && m0_fom_rc(fom) == 0) {
-				m0_fom_phase_set(fom, M0_FOPH_TXN_DONE_WAIT);
+				m0_fom_phase_set(fom, M0_FOPH_TXN_LOGGED_WAIT);
 				return M0_FSO_AGAIN;
 			}
 
