@@ -2178,9 +2178,9 @@ void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 	bop->b_data.num_bytes	= nob;
 	bop->b_data.bt		= bt;
 
-	m0_sm_group_init(&G);
-	m0_sm_group_lock(&G);
-	m0_sm_op_exec_init(&bop->bo_op_exec);
+	// m0_sm_group_init(&G);
+	// m0_sm_group_lock(&G);
+	// m0_sm_op_exec_init(&bop->bo_op_exec);
 	m0_sm_op_init(&bop->bo_op, &btree_create_tick, &bop->bo_op_exec, &btree_conf, &G);
 }
 
@@ -2551,14 +2551,16 @@ static void m0_btree_ut_test_tree_operations(void)
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
 			      m0_btree_create(temp_node, 1024, &btree_type,
-					      tx, &b_op));
+					      tx, &b_op),
+			      &G, &b_op.bo_op_exec);
 
 	m0_btree_close(b_op.bo_arbor);
 
 	m0_btree_open(temp_node, 1024, &btree);
 
 	m0_btree_close(btree);
-	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op));
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G,
+	 &b_op.bo_op_exec);
 
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
@@ -2571,13 +2573,13 @@ static void m0_btree_ut_test_tree_operations(void)
 	m0_btree_close(btree);
 
 	/** Destroy a non-existent btree */
-	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op));
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G, &b_op.bo_op_exec);
 
 	/** Create a new btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
 			      m0_btree_create(temp_node, 1024, &btree_type,
-					      tx, &b_op));
+					      tx, &b_op), &G, &b_op.bo_op_exec);
 
 	/** Close it */
 	m0_btree_close(b_op.bo_arbor);
@@ -2592,7 +2594,7 @@ static void m0_btree_ut_test_tree_operations(void)
 	m0_btree_open(invalid_addr, 1024, &btree);
 
 	/** Destory it */
-	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op));
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G, &b_op.bo_op_exec);
 
 	/** Attempt to reopen the destroyed tree */
 	m0_btree_open(invalid_addr, 1024, &btree);

@@ -149,13 +149,21 @@ int  m0_btree_mod_init(void);
 void m0_btree_mod_fini(void);
 
 
-#define M0_BTREE_OP_SYNC_WITH(op, action)       \
+#define M0_BTREE_OP_SYNC_WITH(op, action, group, op_exec)       \
 	({                                      \
-		struct m0_sm_op *__opp = (op);  \
+		struct m0_sm_op *__opp = (op);	\
 						\
-		action;                         \
-		m0_sm_op_tick(__opp);           \
-		m0_sm_op_fini(__opp);           \
+		m0_sm_group_init(group);	\
+		m0_sm_group_lock(group);	\
+		m0_sm_op_exec_init(op_exec);	\
+						\
+		action;				\
+		m0_sm_op_tick(__opp);		\
+		m0_sm_op_fini(__opp);		\
+						\
+		m0_sm_op_exec_fini(op_exec);	\
+		m0_sm_group_unlock(group);	\
+		m0_sm_group_fini(group);	\
 	})
 
 
