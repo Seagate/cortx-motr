@@ -158,6 +158,7 @@ struct cr_workload_btree {
 	struct btree_ops cwb_bo[BOT_OPS_NR];
 	m0_time_t        cwb_start_time;
 	m0_time_t        cwb_finish_time;
+	int		 cwb_warmup_insert_count;
 };
 
 /* description of a single task (thread) executing workload */

@@ -115,6 +115,9 @@ static struct m0_be_btree *cr_btree_create(void);
 static void cr_btree_insert(struct m0_key_val *kv);
 static void cr_btree_delete(struct m0_key_val *kv);
 static void cr_btree_lookup(struct m0_key_val *kv);
+static void cr_btree_warmup(struct cr_workload_btree *cwb);
+static void cr_btree_key_make(int ksize, uint64_t key, int pattern,
+			      struct cr_btree_key *bk);
 extern void btree_dbg_print(struct m0_be_btree *tree);
 M0_INTERNAL int m0_time_init(void);
 
@@ -1254,6 +1257,33 @@ static void cr_btree_delete(struct m0_key_val *kv)
 			  bo_u.u_btree.t_rc);
 }
 
+static void cr_btree_warmup(struct cr_workload_btree *cwb)
+{
+	char 	v[cwb->cwb_max_val_size];
+	struct 	cr_btree_key cbk;
+
+	int 	i	= 0;
+	int 	count	= cwb->cwb_warmup_insert_count;
+	int 	ksize	= cwb->cwb_key_size != -1 ? cwb->cwb_key_size :
+			  getrnd(sizeof cbk.bkey, cwb->cwb_max_key_size);
+	int 	vsize	= cwb->cwb_val_size != -1 ? cwb->cwb_val_size :
+			  getrnd(1, cwb->cwb_max_val_size);
+	int 	pattern	= cwb->cwb_pattern;
+
+	for (i = 0; i < count ; i++)
+	{
+		struct m0_key_val dummy_kv;
+
+		cr_btree_key_make(ksize, cwb->cwb_bo[BOT_INSERT].key, pattern, 
+		&cbk);
+		cr_get_random_string(v, vsize);
+		m0_buf_init(&dummy_kv.kv_key, &cbk, btree_key_size(&cbk));
+		m0_buf_init(&dummy_kv.kv_val, v, vsize);
+		cr_btree_insert(&dummy_kv);
+		cwb->cwb_bo[BOT_INSERT].key++;
+	}
+}
+
 static int btree_init(struct workload *w)
 {
 	m0_time_init();
@@ -1310,6 +1340,7 @@ static void btree_run(struct workload *w, struct workload_task *task)
 	M0_ALLOC_PTR(seg);
 	seg->bs_gen = m0_time_now();
 	tree = cr_btree_create();
+	cr_btree_warmup(cwb);
 
 	workload_start(w, task);
 	workload_join(w, task);
@@ -1429,10 +1460,12 @@ static void btree_op_run(struct workload *w, struct workload_task *task,
 	        }
 
 	exec_time = m0_time_sub(m0_time_now(), stime);
+
 	cr_log(CLL_TRACE, "op:%s key=%.*s%"PRIu64" ksize=%d val=%s vsize=%d\n",
 	       cwb->cwb_bo[ot].opname, m0_bitstring_len_get(&cbk.pattern),
 	       (char *)m0_bitstring_buf_get(&cbk.pattern), cbk.bkey, ksize,
 	       v, vsize);
+
 	pthread_mutex_lock(&w->cw_lock);
 	cwb->cwb_bo[ot].nr_ops++;
 	cr_time_acc(&cwb->cwb_bo[ot].exec_time, exec_time);
