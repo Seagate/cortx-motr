@@ -1584,8 +1584,8 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 
 	if (addr) {
 		mem_node_get(op, tree, addr, nxt);
-		tree->t_root = op->no_node;
-		tree->t_root->n_addr = *addr;
+		tree->t_root		=  op->no_node;
+		tree->t_root->n_addr 	= *addr;
 		//tree->t_height = tree_height_get(op->no_node);
 	}
 
@@ -2076,18 +2076,18 @@ static void generic_move(struct nd *src, struct nd *tgt,
 }
 
 /**
- * calc_shift is used to calculate the shift value from the given size.
+ * calc_shift is used to calculate the shift for the given number of bytes.
  * Shift is the exponent of nearest power-of-2 value greater than or equal to
- * size. 
+ * number of bytes. 
  * 
- * @param size It is the number of bytes
+ * @param value It represents the number of bytes
  * @return int returns the shift value.
  */
 
-int calc_shift(int size)
+int calc_shift(int value)
 {
-	unsigned int sample = (unsigned int) size;
-	unsigned int pow = 0;
+	unsigned int sample 	= (unsigned int) value;
+	unsigned int pow 	= 0;
 
 	while (sample > 0)
 	{
@@ -2120,19 +2120,25 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 			data = &bop->b_data;
 
 			bop->bo_i = m0_alloc(sizeof(struct m0_btree_oimpl));
+			if(bop->bo_i == NULL)
+				return M0_ERR(-ENOMEM);
 			oi = bop->bo_i;
 			bop->bo_arbor = m0_alloc(sizeof(struct m0_btree));
+			if(bop->bo_arbor == NULL)
+				return M0_ERR(-ENOMEM);
 
-			curr_addr = segaddr_build(data->addr,calc_shift(data->num_bytes));
+			curr_addr = segaddr_build(data->addr,calc_shift(
+						  data->num_bytes));
 			oi->i_nop.no_addr = curr_addr;
-			tree_get(&oi->i_nop, &oi->i_nop.no_addr , 0);
-			return P_ACT;
+			return tree_get(&oi->i_nop, &oi->i_nop.no_addr , P_ACT);
 
 		case P_ACT:
 			data = &bop->b_data;
 			tree = oi->i_nop.no_tree;
-			// node_alloc(&oi->i_nop, tree, nob, &fixed_format, 8, 8, NULL, 0);//check
-			fixed_format.nt_init(oi->i_nop.no_node,segaddr_shift(&oi->i_nop.no_addr),8,8);
+			// node_alloc(&oi->i_nop, tree, nob, &fixed_format, 8, 
+			// 8, NULL, 0);
+			fixed_format.nt_init(oi->i_nop.no_node,segaddr_shift(
+					     &oi->i_nop.no_addr),8,8);
 
 			m0_rwlock_write_lock(&bop->bo_arbor->t_lock);
 			// // tree->t_root = oi->i_nop.no_node;
@@ -2178,10 +2184,8 @@ void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 	bop->b_data.num_bytes	= nob;
 	bop->b_data.bt		= bt;
 
-	// m0_sm_group_init(&G);
-	// m0_sm_group_lock(&G);
-	// m0_sm_op_exec_init(&bop->bo_op_exec);
-	m0_sm_op_init(&bop->bo_op, &btree_create_tick, &bop->bo_op_exec, &btree_conf, &G);
+	m0_sm_op_init(&bop->bo_op, &btree_create_tick, &bop->bo_op_exec, 
+		      &btree_conf, &G);
 }
 
 void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
