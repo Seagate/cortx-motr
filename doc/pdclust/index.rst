@@ -167,7 +167,9 @@ To get better fault-tolerance, two more requirements should be added to our
 list:
 
     - units of an object are uniformly distributed across all devices,
-    - fraction of parity groups shared by any 2 devices is the same.
+    - fraction of parity groups shared by any 2 devices is the same. This means
+      that when a device fails, each surviving device should read
+      (approximately) the same number of units during repair.
 
 .. image:: layout-uniform.png
 
