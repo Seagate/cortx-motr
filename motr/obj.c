@@ -398,8 +398,8 @@ m0__obj_layout_instance_build(struct m0_client *cinst,
 			      const struct m0_fid *fid,
 			      struct m0_layout_instance **linst)
 {
-	int                     rc = 0;
-	struct m0_layout       *layout;
+	int               rc = -EINVAL;
+	struct m0_layout *layout;
 
 	M0_PRE(cinst != NULL);
 	M0_PRE(linst != NULL);
@@ -410,17 +410,12 @@ m0__obj_layout_instance_build(struct m0_client *cinst,
 	 * to the list unless wrong layout_id is used.
 	 */
 	layout = m0_layout_find(&cinst->m0c_reqh.rh_ldom, layout_id);
-	if (layout == NULL) {
-		rc = -EINVAL;
-		goto out;
+	if (layout != NULL) {
+		*linst = NULL;
+		rc = m0_layout_instance_build(layout, fid, linst);
+		m0_layout_put(layout);
 	}
 
-	*linst = NULL;
-	rc = m0_layout_instance_build(layout, fid, linst);
-	m0_layout_put(layout);
-
-out:
-	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);
 }
 
