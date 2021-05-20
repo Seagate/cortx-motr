@@ -2,7 +2,7 @@
 %bcond_with ut
 %bcond_with debuginfo_sources
 %bcond_with cassandra
-%bcond_with isal
+%bcond_without isal
 
 # configure options
 %define with_linux  %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
