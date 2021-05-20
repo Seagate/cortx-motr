@@ -1070,11 +1070,11 @@ struct level {
 	uint64_t   l_seq;
 	/** index for required record from the node **/
 	unsigned   l_idx;
-	/** node descriptor for newly allocated node at the level **/
+	/** nd for newly allocated node at the level **/
 	struct nd *l_alloc;
-	/** node descriptor for left sibling of required node at current level **/
+	/** nd for left sibling of required node at current level **/
 	struct nd *l_prev;
-	/** node descriptor for right sibling of required node at current level **/
+	/** nd for right sibling of required node at current level **/
 	struct nd *l_next;
 };
 
@@ -1091,8 +1091,8 @@ struct m0_btree_oimpl {
 	unsigned        i_used;
 	/** array of levels for storing data about each level **/
 	struct level   *i_level;
-	/** when there will be requirement for new node in case of root splitting
-	 * i_extra_node will be used **/
+	/** when there will be requirement for new node in case of root
+	 * splitting i_extra_node will be used **/
 	struct nd      *i_extra_node;
 	/** track number of trials done to complete operation **/
 	unsigned        i_trial;
@@ -2346,10 +2346,364 @@ static struct m0_btree_oimpl *alloc(int height)
 /**
  * Checks if given segaddr is within segment boundaries.
 */
-static bool address_is_valid(struct segaddr addr)
+static int address_is_valid(struct segaddr addr)
 {
 	//TBD: function definition
-	return true;
+	return 0;
+}
+
+/**
+ * This function will be called when there is possiblity of overflow at required
+ * node present at particular level. TO handle the overflow this function will
+ * allocate new nodes. It will store of newly allocated node in l_alloc and
+ * i_extra_node(for root node).
+ *
+ * @param bop it structure for btree operation which contains all required data
+ * @return int it return state which needs to get executed next
+ */
+static int m0_btree_put_alloc_phase(struct m0_btree_op *bop)
+{
+	struct td             *tree       = bop->bo_arbor->t_desc;
+	struct m0_btree_oimpl *oi         = bop->bo_i;
+	struct level          *curr_level = &oi->i_level[oi->i_used];
+
+	if (oi->i_used == 0 ) {
+		if ((oi->i_extra_node == NULL || curr_level->l_alloc == NULL)) {
+			/*
+			if we reach root node and there is possibility of
+			overflow at root,allocate two nodes: l_alloc,
+			i_extra_node. i)l_alloc is required in case of splitting
+			operation of root ii)i_extra_node is required if
+			splitting is done at root node so to have pointers to
+			these splitted nodes at root level, there will be need
+			for new node.
+			*/
+			if (oi->i_nop.no_node == NULL) {
+				oi->i_nop.no_opc = NOP_ALLOC;
+				return node_alloc(&oi->i_nop, tree,
+						  MAX_NODE_SIZE,
+						  curr_level->l_node->n_type,
+						  MAX_KEY_SIZE, MAX_VAL_SIZE,
+						  bop->bo_tx, P_ALLOC);
+			}
+			if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+				if (oi->i_extra_node == NULL)
+					oi->i_extra_node = oi->i_nop.no_node;
+				else
+					curr_level->l_alloc = oi->i_nop.no_node;
+
+				oi->i_nop.no_node = NULL;
+
+				return P_ALLOC;
+			} else {
+				node_op_fini(&oi->i_nop);
+				return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+			}
+		}
+	} else {
+		if (oi->i_nop.no_node == NULL) {
+			oi->i_nop.no_opc = NOP_ALLOC;
+			return node_alloc(&oi->i_nop, tree, MAX_NODE_SIZE,
+					  curr_level->l_node->n_type,
+					  MAX_KEY_SIZE, MAX_VAL_SIZE,
+					  bop->bo_tx, P_ALLOC);
+		}
+		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			curr_level->l_alloc = oi->i_nop.no_node;
+			oi->i_nop.no_node = NULL;
+
+			oi->i_used--;
+			return P_ALLOC;
+		} else {
+			node_op_fini(&oi->i_nop);
+			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+		}
+	}
+	/* reset oi->i_used */
+	oi->i_used = bop->bo_arbor->t_height - 1;
+	return P_LOCK;
+}
+
+/**
+ * This function is responsible to handle the overflow at node at particular
+ * level. It will get called when given record is not able to fit in node. This
+ * function will split the node and update bop->bo_rec which needs to get added
+ * at parent node.
+ *
+ * @param bop it structure for btree operation which contains all required data
+ * @return int it return state which needs to get executed next
+ */
+static int m0_btree_put_makespace_phase(struct m0_btree_op *bop)
+{
+	struct m0_btree_oimpl *oi         = bop->bo_i;
+	struct level          *curr_level = &oi->i_level[oi->i_used];
+	m0_bcount_t            ksize;
+	void                  *p_key;
+	m0_bcount_t            vsize;
+	void                  *p_val;
+	struct m0_btree_rec    temp_rec;
+
+	/* slot for right node */
+	struct slot r_slot = {
+		.s_node = curr_level->l_node
+	};
+
+	/* slot for left node */
+	struct slot l_slot = {
+		.s_node = curr_level->l_alloc,
+		.s_idx  = 0
+	};
+	struct slot *tgt;
+
+	/*
+	if record is not able to fit in the node, split the node
+	1) move some records from current node(l_node) to new node(l_alloc)
+	2) insert given record to appropriate node
+	3) modify last key from left node(in case of internal node) and key,
+	   value for record which needs to get inserted at parent
+	*/
+
+	/*1) move some records from current node(l_node) to new node(l_alloc)*/
+	node_move(curr_level->l_node, curr_level->l_alloc, D_LEFT, NR_EVEN,
+		  bop->bo_tx);
+
+	/* update level for newly allocated */
+	node_set_level(curr_level->l_alloc, node_level(curr_level->l_node));
+
+	/*
+	2) insert given record to appropriate node
+	get the first key from right node and compare with the key of given
+	record if given key is less than first key from right node, insert given
+	record to left node, else insert to the right node
+	*/
+
+	temp_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
+	temp_rec.r_val        = M0_BUFVEC_INIT_BUF(&p_val, &vsize);
+
+	r_slot.s_idx = 0;
+	r_slot.s_rec = temp_rec;
+	node_key(&r_slot);
+
+	struct m0_bufvec_cursor cur_1;
+	struct m0_bufvec_cursor cur_2;
+	m0_bufvec_cursor_init(&cur_1, &bop->bo_rec.r_key.k_data);
+	m0_bufvec_cursor_init(&cur_2, &r_slot.s_rec.r_key.k_data);
+
+	int diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+	tgt = diff < 0 ? &l_slot : &r_slot;
+
+	node_find(tgt, &bop->bo_rec.r_key);
+	tgt->s_rec = bop->bo_rec;
+	node_make (tgt, bop->bo_tx);
+	tgt->s_rec = temp_rec;
+	node_rec(tgt);
+
+	if (node_level(r_slot.s_node) > 0) {
+		m0_bufvec_copy(&tgt->s_rec.r_key.k_data,
+			       &bop->bo_rec.r_key.k_data,
+			       m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
+		m0_bufvec_copy(&tgt->s_rec.r_val, &bop->bo_rec.r_val,
+				m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+	} else {
+		/*
+		If we are at leaf node, and we have made the space for inserting
+		a record, callback will be called. Callback will be provided
+		with the record. It is user's responsibility to fill the value
+		as well as key in the given record. If callback failed, we will
+		revert back the changes made on btree.
+
+		There can be two places we can consider for calling callback:
+		1st: the stage where we just reach leaf node and made the space
+		     for given record, we can call callback for enabling user to
+		     fill key, value at given record.
+		2nd: we reach leaf node, made space and perform all the required
+		     changes on ancenstor nodes such as splitting, etc. and
+		     just before unlocking, we can call the callback
+		But there are some major advantages for following 1st way for
+		calling callback :
+		1. less changes needed if callback fails:
+		   If callback fails, we need to revert back the changes on
+		   btree. If we call callback when we are at leaf node and made
+		   space for inserting record, and if callback return nonzero
+		   value, we need to undo splitting of leaf node(if it is done)
+		   and node_make opeartion.
+		   If we call callback after doing all the spliting operation
+		   and just before unlock, we need to undo all splitting
+		   operations and node_make operation from root to leaf node.
+		2. calculation of checksum:
+		   if we follow 2nd way for calling callback, we need to store
+		   information about not only record, but also node, which
+		   contains that record, as we need to call node_done(),
+		   node_fix() once user is done with inserting the record.
+		*/
+
+		/* callback */
+		int rc = bop->bo_cb.c_act(&bop->bo_cb, &tgt->s_rec);
+		if (rc) {
+			/* if callback failed undo make space ,splitted node */
+			node_del(tgt->s_node, tgt->s_idx, bop->bo_tx);
+			node_done(tgt, bop->bo_tx, true);
+			node_fix(curr_level->l_node, bop->bo_tx);
+			node_move(curr_level->l_alloc, curr_level->l_node,
+				  D_RIGHT, NR_MAX, bop->bo_tx);
+			return fail(bop, rc);
+		}
+	}
+	node_done(tgt, bop->bo_tx, true);
+	node_fix(tgt->s_node, bop->bo_tx);
+
+	/* 3) modify last key from left node(if required) and key, value for
+	      record which needs to get inserted at parent */
+	if (node_level(r_slot.s_node) > 0) {
+		/*
+		At internal node: once we moved records from right node(l_node)
+		to left node(l_alloc), we need to update record (which needs to
+		get inserted at parent) and last key from left node.
+		1)update record (bop->rec) which needs to get inserted at parent
+			i)key of rec will be last key from left node
+			ii)value of rec will be pointer to l_alloc
+		2)last key of left node needs to be set as empty(if required)
+		*/
+
+		/* 1)update bop->bo_rec which needs to be added at parent */
+		l_slot.s_idx = node_count(l_slot.s_node);
+		l_slot.s_rec = temp_rec;
+		node_key(&l_slot);
+
+		m0_bufvec_copy(&bop->bo_rec.r_key.k_data,
+			       &l_slot.s_rec.r_key.k_data,
+			       m0_vec_count(&l_slot.s_rec.r_key.k_data.ov_vec));
+		temp_rec.r_val.ov_buf[0] =  &(curr_level->l_alloc->n_addr);
+		m0_bufvec_copy(&bop->bo_rec.r_val,
+				&temp_rec.r_val, 8);
+		//@TBD:replace 8 with vsize for internal node
+
+		/*
+		2)update last key of left node to null/empty(optional)
+		(for internal node, if it is strictly required to make last key
+		as null, perform this step) as we move items to right node, last
+		key won't be null
+		*/
+		/*modify_key(&slot_for_left_node, false, bop->bo_tx);
+		node_done(tgt, bop->bo_tx, true);
+		node_fix(tgt->s_node, bop->bo_tx);
+		curr_level->l_alloc->n_seq++;*/
+	} else {
+		/*
+		If we are at leaf node, update record (bop->rec) which needs to
+		get inserted at parent.
+		1)key of new record will be first key from right node and
+		2)value of new record will be pointer to l_alloc;
+		*/
+		r_slot.s_idx = 0;
+		r_slot.s_rec = temp_rec;
+		node_key(&r_slot);
+
+		m0_bufvec_copy(&bop->bo_rec.r_key.k_data,
+			       &r_slot.s_rec.r_key.k_data,
+			       m0_vec_count(&r_slot.s_rec.r_key.k_data.ov_vec));
+		temp_rec.r_val.ov_buf[0] =  &(curr_level->l_alloc->n_addr);
+		m0_bufvec_copy(&bop->bo_rec.r_val,
+				&temp_rec.r_val, 8);
+		//@TBD:replace 8 with vsize for internal node
+	}
+	return P_NEXTUP;
+}
+
+/**
+ * This function gets called when splitting is done at root node. This function
+ * is responsible to handle this scanario and ultimately root will point out to
+ * the two splitted node.
+ * @param bop it structure for btree operation which contains all required data
+ * @return int it return state which needs to get executed next
+ */
+static int m0_btree_put_root_split_handle(struct m0_btree_op *bop)
+{
+	struct td              *tree       = bop->bo_arbor->t_desc;
+	struct m0_btree_oimpl  *oi         = bop->bo_i;
+	struct level           *curr_level = &oi->i_level[oi->i_used];
+	m0_bcount_t             ksize;
+	void                   *p_key;
+	m0_bcount_t             vsize;
+	void                   *p_val;
+	struct m0_btree_rec     temp_rec;
+
+	temp_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
+	temp_rec.r_val        = M0_BUFVEC_INIT_BUF(&p_val, &vsize);
+
+	/*
+	When splitting is done at root node, tree height needs to get increased
+	by one. As, we do not want to change the pointer to the root node, we
+	will copy all contents from root to i_extra_node and make i_extra_node
+	as one of the child of existing root
+	1) First copy all contents from root node to extra_node
+	2) add new 2 records at root node:
+		i.for first record, key = bop->bo_rec.r_key,
+		  value = bop->bo_rec.r_val
+		ii.for first record, key = null, value = segaddr(i_extra_node)
+	*/
+
+	/* store level of l_node and set it as 0 to make invarient successful */
+	int curr_max_level = node_level(curr_level->l_node);
+	node_set_level(curr_level->l_node, 0);
+
+	node_move(curr_level->l_node, oi->i_extra_node, D_RIGHT, NR_MAX,
+		  bop->bo_tx);
+	//M0_ASSERT(node_count(curr_level->l_node) == 0);
+
+	/* 2) add new 2 records at root node. */
+
+	/* add first rec at root */
+	struct slot node_slot = {
+		.s_node = curr_level->l_node,
+		.s_idx  = 0
+	};
+	node_slot.s_rec = bop->bo_rec;
+
+	//M0_ASSERT(node_isfit(&node_slot))
+	node_make(&node_slot, bop->bo_tx);
+	node_slot.s_rec = temp_rec;
+	node_rec(&node_slot);
+	m0_bufvec_copy(&node_slot.s_rec.r_key.k_data, &bop->bo_rec.r_key.k_data,
+			m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
+	m0_bufvec_copy(&node_slot.s_rec.r_val, &bop->bo_rec.r_val,
+			m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+
+	node_done(&node_slot, bop->bo_tx, true);
+
+	/* add second rec at root */
+	struct m0_btree_rec  temp_rec_2;
+	m0_bcount_t          ksize_2;
+	void                *p_key_2;
+	m0_bcount_t          vsize_2;
+	void                *p_val_2;
+
+	temp_rec_2.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key_2, &ksize_2);
+	temp_rec_2.r_val        = M0_BUFVEC_INIT_BUF(&p_val_2, &vsize_2);
+
+	node_slot.s_idx  = 1;
+	node_slot.s_rec = temp_rec;
+	//M0_ASSERT(node_isfit(&node_slot))
+	node_make(&node_slot, bop->bo_tx);
+	node_slot.s_rec = temp_rec_2;
+	node_rec(&node_slot);
+
+	temp_rec.r_val.ov_buf[0] = &(oi->i_extra_node->n_addr);
+	m0_bufvec_copy(&node_slot.s_rec.r_val, &temp_rec.r_val,
+			m0_vec_count(&temp_rec.r_val.ov_vec));
+
+	node_done(&node_slot, bop->bo_tx, true);
+	node_fix(curr_level->l_node, bop->bo_tx);
+
+	node_set_level(oi->i_extra_node, curr_max_level);
+	node_set_level(curr_level->l_node, curr_max_level + 1);
+
+	/* increase height by one */
+	tree->t_height++;
+
+	lock_op_unlock(tree);
+	//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+	return P_CLEANUP;
 }
 
 /*get_tick for insert operation*/
@@ -2371,12 +2725,14 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			return P_COOKIE;
 		else
 			return P_SETUP;
-	case P_COOKIE:
+	case P_COOKIE: {
+		void *cookie_segaddr = bop->bo_rec.r_key.k_cookie.segaddr;
 		if (cookie_is_valid(tree, bop->bo_rec.r_key) &&
-		    !cookie_overflow_is_possible(bop->bo_rec.r_key.k_cookie.segaddr))
+		    !cookie_overflow_is_possible(cookie_segaddr))
 			return P_LOCK;
 		else
 			return P_SETUP;
+	}
 	case P_SETUP: {
 		bop->bo_arbor->t_height = tree->t_height;
 		bop->bo_i = alloc(bop->bo_arbor->t_height);
@@ -2392,7 +2748,8 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 	case P_DOWN:
 		oi->i_used = 0;
 		/* Load root node. */
-		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr, P_NEXTDOWN);
+		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
+				P_NEXTDOWN);
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
 			struct slot    node_slot = {};
@@ -2414,11 +2771,12 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			curr_level->l_idx = node_slot.s_idx;
 			if (node_level(node_slot.s_node) > 0) {
 				node_child(&node_slot, &child_node_addr);
-				/* TBD: check the address of child node is within segaddr boundaries */
-				if (!address_is_valid(child_node_addr))
-				{
+				/* TBD: check the address of child node is
+				within segaddr boundaries */
+				int rc = address_is_valid(child_node_addr);
+				if (rc) {
 					node_op_fini(&oi->i_nop);
-					return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+					return fail(bop, rc);
 				}
 				oi->i_used++;
 				return node_get(&oi->i_nop, tree,
@@ -2430,62 +2788,15 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
 	case P_ALLOC: {
-		/* validate curr_level->l_node(i.e. is it still exists or not) */
+		/* validate curr_level->l_node(i.e.is it still exists or not) */
 		int rc = is_node_valid(curr_level->l_node);
 		if (rc) {
 			node_op_fini(&oi->i_nop);
 			return fail(bop, rc);
 		}
+		if (m0_btree_overflow_is_possible(curr_level->l_node))
+			return m0_btree_put_alloc_phase(bop);
 
-		if (m0_btree_overflow_is_possible(curr_level->l_node)) {
-			if (oi->i_used == 0 ) {
-				if ((oi->i_extra_node == NULL || curr_level->l_alloc == NULL)) {
-					/*
-					if we reach root node and there is possibility of overflow at root, allocate two
-					nodes: l_alloc, i_extra_node. i)l_alloc is required in case of splitting
-					operation of root ii)i_extra_node is required if splitting is done at root node
-					so to have pointers to these splitted nodes at root level, there will be need
-					for new node.
-					*/
-					if (oi->i_nop.no_node == NULL) {
-						oi->i_nop.no_opc = NOP_ALLOC;
-						return node_alloc(&oi->i_nop, tree, MAX_NODE_SIZE,
-								  curr_level->l_node->n_type, MAX_KEY_SIZE,
-								  MAX_VAL_SIZE,bop->bo_tx, P_ALLOC);
-					}
-					if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-						if (oi->i_extra_node == NULL)
-							oi->i_extra_node = oi->i_nop.no_node;
-						else
-							curr_level->l_alloc = oi->i_nop.no_node;
-
-						oi->i_nop.no_node = NULL;
-
-						return P_ALLOC;
-					} else {
-						node_op_fini(&oi->i_nop);
-						return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
-					}
-				}
-			} else {
-				if (oi->i_nop.no_node == NULL) {
-					oi->i_nop.no_opc = NOP_ALLOC;
-					return node_alloc(&oi->i_nop, tree, MAX_NODE_SIZE,
-							  curr_level->l_node->n_type, MAX_KEY_SIZE,
-							  MAX_VAL_SIZE,bop->bo_tx, P_ALLOC);
-				}
-				if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-					curr_level->l_alloc = oi->i_nop.no_node;
-					oi->i_nop.no_node = NULL;
-
-					oi->i_used--;
-					return P_ALLOC;
-				} else {
-					node_op_fini(&oi->i_nop);
-					return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
-				}
-			}
-		}
 		/* reset oi->i_used */
 		oi->i_used = bop->bo_arbor->t_height - 1;
 		return P_LOCK;
@@ -2507,7 +2818,8 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			}
 			if (bop->bo_arbor->t_height < tree->t_height) {
 				/* if height increased */
-				//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_INIT);
+				//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+				//                    P_INIT);
 				return P_CLEANUP;
 			} else {
 				/* if height decreased */
@@ -2527,246 +2839,16 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		if (node_isfit(&slot_for_right_node)) {
 			node_make (&slot_for_right_node, bop->bo_tx);
 			return P_ACT;
-		} else {
-			/*
-			if record is not able to fit in the node, split the node
-			1) move some records from current node(l_node) to new node(l_alloc)
-			2) insert given record to appropriate node
-			3) modify last key from left node(in case of internal node) and key, value
-			   for record which needs to get inserted at parent
-			*/
-
-			struct slot slot_for_left_node = {
-				.s_node = curr_level->l_alloc,
-				.s_idx  = 0
-			};
-			struct slot *tgt;
-			/*1) move some records from current node(l_node) to new node(l_alloc)*/
-			node_move(curr_level->l_node, curr_level->l_alloc, D_LEFT, NR_EVEN, bop->bo_tx);
-
-			/*update level for newly allocated*/
-			node_set_level(curr_level->l_alloc, node_level(curr_level->l_node));
-
-			/*
-			2) insert given record to appropriate node
-			get the first key from right node and compare with the key of given record
-			if given key is less than first key from right node, insert given record to
-			left node, else insert to the right node
-			*/
-			m0_bcount_t          ksize;
-			void                *p_key;
-			m0_bcount_t          vsize;
-			void                *p_val;
-			struct m0_btree_rec  temp_rec;
-
-			temp_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
-			temp_rec.r_val        = M0_BUFVEC_INIT_BUF(&p_val, &vsize);
-
-			slot_for_right_node.s_idx = 0;
-			slot_for_right_node.s_rec = temp_rec;
-			node_key(&slot_for_right_node);
-
-			struct m0_bufvec_cursor cur_1;
-			struct m0_bufvec_cursor cur_2;
-			m0_bufvec_cursor_init(&cur_1, &bop->bo_rec.r_key.k_data);
-			m0_bufvec_cursor_init(&cur_2, &slot_for_right_node.s_rec.r_key.k_data);
-
-			int diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
-			tgt = diff < 0 ? &slot_for_left_node : &slot_for_right_node;
-
-			node_find(tgt, &bop->bo_rec.r_key);
-			tgt->s_rec = bop->bo_rec;
-			node_make (tgt, bop->bo_tx);
-			tgt->s_rec = temp_rec;
-			node_rec(tgt);
-
-			if (node_level(slot_for_right_node.s_node) > 0) {
-				m0_bufvec_copy(&tgt->s_rec.r_key.k_data, &bop->bo_rec.r_key.k_data,
-				       	       m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
-				m0_bufvec_copy(&tgt->s_rec.r_val, &bop->bo_rec.r_val,
-					       m0_vec_count(&bop->bo_rec.r_val.ov_vec));
-			} else {
-				/*
-				If we are at leaf node, and we have made the space for inserting a record,
-				callback will be called. callback will be provided with the record.It is user's
-				responsibility to fill the value as well as key in the given record.
-				if callback returns failed, we will revert back the changes made on btree
-
-				There can be two places we can consider for calling callback:
-				1st: the stage where we just reach leaf node and made the space for given record
-				     , we can call callback for enabling user to fill key, value at given record
-				2nd: we reach leaf node, made space, and perform all the required changes on
-				     ancenstor nodes such as splitting, etc. and just before unlocking, we can
-				     call the callback
-				But there are some major advantages for following 1st way for calling
-				callback(i.e. when we reach leaf node and we made space for record):
-				1. less changes needed if callback fails:
-				   if callback fails, we need to revert back the changes on btree
-				   If we call callback when we are at leaf node and made space for inserting
-				   record, and if callback return nonzero value, we need to undo splitting of
-				   leaf node(if it is done) and node_make opeartion
-				   If we call callback after doing all the spliting operation and just before
-				   unlock,  we need to undo all splitting(if it is done) and node_make operation
-				   from root to leaf node.
-				2. calculation of checksum:
-				   if we follow 2nd way for calling callback, we need to store information
-				   about not only record, but also node, which contains that record, as we need
-				   to call node_done(), node_fix() once user is done with inserting the record
-				*/
-
-				/* callback */
-				int rc = bop->bo_cb.c_act(&bop->bo_cb, &tgt->s_rec);
-				if (rc) {
-					/* if callback failed undo make space ,splitted node */
-					node_del(tgt->s_node, tgt->s_idx, bop->bo_tx);
-					node_done(tgt, bop->bo_tx, true);
-					node_fix(curr_level->l_node, bop->bo_tx);
-					node_move(curr_level->l_alloc, curr_level->l_node, D_RIGHT, NR_MAX, bop->bo_tx);
-					return fail(bop, rc);
-				}
-			}
-			node_done(tgt, bop->bo_tx, true);
-			node_fix(tgt->s_node, bop->bo_tx);
-
-			/* 3) modify last key from left node(if required) and key, value for record
-			      which needs to get inserted at parent */
-			if (node_level(slot_for_right_node.s_node) > 0) {
-				/*
-				At internal node: once we moved records from right node(l_node) to left
-				node(l_alloc), we need to update record (which needs to get inserted at parent)
-				and last key from left node.
-				1)update record (bop->rec) which needs to get inserted at parent
-					i)key of rec will be last key from left node
-					ii)value of rec will be pointer to l_alloc
-				2)last key of left node needs to be set as empty(if required)
-				*/
-
-				/* 1)update bop->bo_rec which needs to be added at parent */
-				slot_for_left_node.s_idx = node_count(slot_for_left_node.s_node);
-				slot_for_left_node.s_rec = temp_rec;
-				node_key(&slot_for_left_node);
-
-				m0_bufvec_copy(&bop->bo_rec.r_key.k_data,
-					       &slot_for_left_node.s_rec.r_key.k_data,
-					       m0_vec_count(&slot_for_left_node.s_rec.r_key.k_data.ov_vec));
-				temp_rec.r_val.ov_buf[0] =  &(curr_level->l_alloc->n_addr);
-				m0_bufvec_copy(&bop->bo_rec.r_val,
-					       &temp_rec.r_val, 8);//@TBD:replace 8 with vsize for internal node
-
-				/*
-				2)update last key of left node to null/empty(optional)
-				(for internal node, if it is strictly required to make last key as null, perform
-				this step) as we move items to right node, last key won't be null
-				*/
-				/*modify_key(&slot_for_left_node, false, bop->bo_tx);
-				node_done(tgt, bop->bo_tx, true);
-				node_fix(tgt->s_node, bop->bo_tx);
-				curr_level->l_alloc->n_seq++;*/
-			} else {
-				/*
-				If we are at leaf node, update record (bop->rec) which needs to get inserted at
-				parent.
-				1)key of new record will be first key from right node and
-				2)value of new record will be pointer to l_alloc;
-				*/
-				slot_for_right_node.s_idx = 0;
-				slot_for_right_node.s_rec = temp_rec;
-				node_key(&slot_for_right_node);
-
-				m0_bufvec_copy(&bop->bo_rec.r_key.k_data,
-					       &slot_for_right_node.s_rec.r_key.k_data,
-					       m0_vec_count(&slot_for_right_node.s_rec.r_key.k_data.ov_vec));
-				temp_rec.r_val.ov_buf[0] =  &(curr_level->l_alloc->n_addr);
-				m0_bufvec_copy(&bop->bo_rec.r_val,
-					       &temp_rec.r_val, 8);//@TBD:replace 8 with vsize for internal node
-			}
-			return P_NEXTUP;
-		}
+		} else
+			return m0_btree_put_makespace_phase(bop);
 	}
 	case P_NEXTUP: {
-		if (oi->i_used == 0) {
-			/* if oi->i_used == 0, we are at root level and splitting is done at root */
-			m0_bcount_t          ksize;
-			void                *p_key;
-			m0_bcount_t          vsize;
-			void                *p_val;
-			struct m0_btree_rec  temp_rec;
-
-			temp_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
-			temp_rec.r_val        = M0_BUFVEC_INIT_BUF(&p_val, &vsize);
-
-			/*
-			When splitting is done at root node, tree height needs to get increased by one
-			As, we do not want to change the pointer to the root node, we will copy all
-			contents from root to i_extra_node and make i_extra_node as one of the child of
-			existing root
-			1) First copy all contents from root node to extra_node
-			2) add new 2 records at root node:
-				i.for first record, key = bop->bo_rec.r_key, value = bop->bo_rec.r_val
-				ii.for first record, key = null, value = segaddr(i_extra_node)
-			*/
-
-			/* store level of l_node and set it  as 0 to make invarient check successful*/
-			int curr_max_level = node_level(curr_level->l_node);
-			node_set_level(curr_level->l_node, 0);
-
-			node_move(curr_level->l_node, oi->i_extra_node, D_RIGHT, NR_MAX, bop->bo_tx);
-			//M0_ASSERT(node_count(curr_level->l_node) == 0);
-
-			/* 2) add new 2 records at root node. */
-
-			/* add first rec at root */
-			struct slot node_slot = {
-				.s_node = curr_level->l_node,
-				.s_idx  = 0
-			};
-			node_slot.s_rec = bop->bo_rec;
-
-			//M0_ASSERT(node_isfit(&node_slot))
-			node_make(&node_slot, bop->bo_tx);
-			node_slot.s_rec = temp_rec;
-			node_rec(&node_slot);
-			m0_bufvec_copy(&node_slot.s_rec.r_key.k_data, &bop->bo_rec.r_key.k_data,
-				       m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
-			m0_bufvec_copy(&node_slot.s_rec.r_val, &bop->bo_rec.r_val,
-				       m0_vec_count(&bop->bo_rec.r_val.ov_vec));
-
-			node_done(&node_slot, bop->bo_tx, true);
-
-			/* add second rec at root */
-			struct m0_btree_rec  temp_rec_2;
-			m0_bcount_t          ksize_2;
-			void                *p_key_2;
-			m0_bcount_t          vsize_2;
-			void                *p_val_2;
-
-			temp_rec_2.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key_2, &ksize_2);
-			temp_rec_2.r_val        = M0_BUFVEC_INIT_BUF(&p_val_2, &vsize_2);
-
-			node_slot.s_idx  = 1;
-			node_slot.s_rec = temp_rec;
-			//M0_ASSERT(node_isfit(&node_slot))
-			node_make(&node_slot, bop->bo_tx);
-			node_slot.s_rec = temp_rec_2;
-			node_rec(&node_slot);
-
-			temp_rec.r_val.ov_buf[0] = &(oi->i_extra_node->n_addr);
-			m0_bufvec_copy(&node_slot.s_rec.r_val, &temp_rec.r_val,
-					m0_vec_count(&temp_rec.r_val.ov_vec));
-
-			node_done(&node_slot, bop->bo_tx, true);
-			node_fix(curr_level->l_node, bop->bo_tx);
-
-			node_set_level(oi->i_extra_node, curr_max_level);
-			node_set_level(curr_level->l_node, curr_max_level + 1);
-
-			/* increase height by one */
-			tree->t_height++;
-
-			lock_op_unlock(tree);
-			//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
-			return P_CLEANUP;
-		}
+		/*
+		if oi->i_used == 0, we are at root level and splitting is done
+		at root
+		*/
+		if (oi->i_used == 0)
+			return m0_btree_put_root_split_handle(bop);
 		oi->i_used--;
 		return P_MAKESPACE;
 	}
@@ -2775,7 +2857,8 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		void                *p_key;
 		m0_bcount_t          vsize;
 		void                *p_val;
-		struct slot node_slot = {
+		struct m0_btree_rec *rec;
+		struct slot  node_slot = {
 			.s_node = curr_level->l_node,
 			.s_idx  = curr_level->l_idx
 		};
@@ -2788,24 +2871,28 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		node_rec(&node_slot);
 
 		if (node_level(curr_level->l_node) > 0) {
+			rec = &bop->bo_rec;
 			m0_bufvec_copy(&node_slot.s_rec.r_key.k_data,
 			       	       &bop->bo_rec.r_key.k_data,
-			               m0_vec_count(&bop->bo_rec.r_key.k_data.ov_vec));
-			m0_bufvec_copy(&node_slot.s_rec.r_val, &bop->bo_rec.r_val,
-				       m0_vec_count(&bop->bo_rec.r_val.ov_vec));
+			               m0_vec_count(&rec->r_key.k_data.ov_vec));
+			m0_bufvec_copy(&node_slot.s_rec.r_val, &rec->r_val,
+				       m0_vec_count(&rec->r_val.ov_vec));
 		} else {
 			/*
-			If we are at leaf node, and we have made the space for inserting a record,
-			callback will be called. callback will be provided with the record. It is user's
-			responsibility to fill the value as well as key in the given record.
-			if callback failed,we will revert back the changes made on btree detailed
-			explination is provided at P_MAKESPACE stage
+			If we are at leaf node, and we have made the space for
+			inserting a record, callback will be called. callback
+			will be provided with the record. It is user's
+			responsibility to fill the value as well as key in the
+			given record. if callback failed,we will revert back the
+			changes made on btree detailed explination is provided
+			at P_MAKESPACE stage.
 			*/
-
-			int rc = bop->bo_cb.c_act(&bop->bo_cb, &node_slot.s_rec);
+			rec = &node_slot.s_rec;
+			int rc = bop->bo_cb.c_act(&bop->bo_cb, rec);
 			if (rc) {
 				/* handle if callback fail i.e undo make */
-				node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
+				node_del(node_slot.s_node, node_slot.s_idx,
+					 bop->bo_tx);
 				node_done(&node_slot, bop->bo_tx, true);
 				node_fix(curr_level->l_node, bop->bo_tx);
 				return fail(bop, rc);
@@ -3658,13 +3745,14 @@ static void m0_btree_ut_traversal(struct nd *root, struct td *tree)
 				node_child(&node_slot, &child_node_addr);
 				struct node_op  i_nop;
 				i_nop.no_opc = NOP_LOAD;
-				node_get(&i_nop, tree, &child_node_addr, P_NEXTDOWN);
+				node_get(&i_nop, tree, &child_node_addr,
+					 P_NEXTDOWN);
 				if (front == -1) {
 					front = 0;
 				}
 				rear++;
 				if (rear == 9999) {
-					printf("**************OVERFLOW*********************");
+					printf("***********OVERFLW***********");
 					break;
 				}
 				queue[rear] = i_nop.no_node;
@@ -3684,7 +3772,7 @@ static void m0_btree_ut_traversal(struct nd *root, struct td *tree)
 			}
 			rear++;
 			if (rear == 9999) {
-				printf("**************OVERFLOW*********************");
+				printf("***********OVERFLW***********");
 				break;
 			}
 			queue[rear] = i_nop.no_node;
