@@ -592,8 +592,8 @@ static struct m0_sm_state_descr btree_states[] = {
 };
 
 static struct m0_sm_trans_descr btree_trans[2] = {
-	{ "init", P_INIT,  P_ACT  },
-	{ "act",  P_ACT,   P_DOWN },
+	{ "create-init", P_INIT,  P_ACT  },
+	{ "create-act",  P_ACT,   P_DOWN },
 };
 
 static struct m0_sm_conf btree_conf = {
