@@ -226,7 +226,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	} else
 		oi->oi_dtx = NULL;
 
-	if (opcode == M0_EO_CREATE) {
+	if ((opcode == M0_EO_CREATE) && (entity->en_type == M0_ET_IDX)) {
 		rc = idx_pool_version_get(oi);
 		if (rc == 0)
 			idx->in_attr.idx_layout_type = DIX_LTYPE_DESCR;
