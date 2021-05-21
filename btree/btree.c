@@ -240,7 +240,7 @@
  *      b.ii.B. Merge with sibling at parent node
  * @verbatim
  *
- *                             
+ *
  *                       INIT-------->COOKIE
  *                        |             | |
  *                        +-----+ +-----+ |
@@ -2168,7 +2168,7 @@ static void generic_move(struct nd *src, struct nd *tgt,
 
 	last_idx_src = node_count_rec(src);
 	last_idx_tgt = node_count_rec(tgt);
-	
+
 	srcidx = dir == D_LEFT ? 0 : last_idx_src - 1;
 	tgtidx = dir == D_LEFT ? last_idx_tgt : 0;
 
@@ -2967,7 +2967,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_LOCKALL] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_LOCKALL",
-		.sd_allowed = M0_BITS(P_LOCK),
+		.sd_allowed = M0_BITS(P_LOCK, P_DOWN, P_NEXTDOWN),
 	},
 	[P_DOWN] = {
 		.sd_flags   = 0,
@@ -2977,7 +2977,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_NEXTDOWN] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_NEXTDOWN",
-		.sd_allowed = M0_BITS(P_NEXTUP, P_ALLOC, P_CLEANUP),
+		.sd_allowed = M0_BITS(P_NEXTDOWN, P_ALLOC, P_CLEANUP),
 	},
 	[P_ALLOC] = {
 		.sd_flags   = 0,
@@ -2992,7 +2992,8 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_CHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CHECK",
-		.sd_allowed = M0_BITS(P_MAKESPACE, P_CLEANUP, P_DOWN),
+		.sd_allowed = M0_BITS(P_MAKESPACE, P_CLEANUP, P_DOWN, P_ACT,
+				      P_INIT, P_NEXTUP),
 	},
 	[P_MAKESPACE] = {
 		.sd_flags   = 0,
@@ -3021,7 +3022,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	},
 };
 
-static struct m0_sm_trans_descr btree_trans[30] = {
+static struct m0_sm_trans_descr btree_trans[256] = {
 	{ "create-init", P_INIT,  P_ACT  },
 	{ "create-act",  P_ACT,   P_DOWN },
 	{ "put-init-cookie", P_INIT, P_COOKIE },
@@ -3030,7 +3031,9 @@ static struct m0_sm_trans_descr btree_trans[30] = {
 	{ "put-cookie-invalid", P_COOKIE, P_SETUP },
 	{ "put-setup", P_SETUP, P_LOCKALL },
 	{ "put-setup-failed", P_SETUP, P_CLEANUP },
+	{ "put-lockall-lock", P_LOCKALL, P_LOCK },
 	{ "put-lockall", P_LOCKALL, P_DOWN },
+	{ "put-lockall-ft", P_LOCKALL, P_NEXTDOWN},
 	{ "put-down", P_DOWN, P_NEXTDOWN },
 	{ "put-nextdown-repeat", P_NEXTDOWN, P_NEXTDOWN },
 	{ "put-nextdown-next", P_NEXTDOWN, P_ALLOC },
@@ -3041,6 +3044,10 @@ static struct m0_sm_trans_descr btree_trans[30] = {
 	{ "put-lock", P_LOCK, P_CHECK },
 	{ "put-check-height-inc", P_CHECK, P_CLEANUP },
 	{ "put-check-height-decr", P_CHECK, P_DOWN },
+	{ "put-check-ft", P_CHECK, P_ACT },
+	{ "put-check-ft-makespace", P_CHECK, P_MAKESPACE },
+	{ "put-check-ft-resolve", P_CHECK, P_NEXTUP },
+	{ "put-check-init", P_CHECK, P_INIT },
 	{ "put-makespace", P_MAKESPACE, P_ACT },
 	{ "put-makespace-resolve", P_MAKESPACE, P_NEXTUP },
 	{ "put-nextup", P_NEXTUP, P_MAKESPACE },
@@ -3063,8 +3070,8 @@ static struct m0_sm_conf btree_conf = {
 /**
  * calc_shift is used to calculate the shift for the given number of bytes.
  * Shift is the exponent of nearest power-of-2 value greater than or equal to
- * number of bytes. 
- * 
+ * number of bytes.
+ *
  * @param value It represents the number of bytes
  * @return int returns the shift value.
  */
@@ -3086,7 +3093,7 @@ int calc_shift(int value)
 /**
  * btree_create_tick function is the main function used to create btree.
  * It traverses through multiple states to perform its operation.
- * 
+ *
  * @param smop Represents the state machine operation
  * @return int64_t It returns the next state to be executed.
  */
@@ -3105,7 +3112,7 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 					  BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE ?
 					  data->bt->vsize : -1);
 
-	switch(bop->bo_op.o_sm.sm_state) 
+	switch(bop->bo_op.o_sm.sm_state)
 	{
 		case P_INIT:
 			bop->bo_i = m0_alloc(sizeof *bop->bo_i);
@@ -3116,7 +3123,7 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 			if (bop->bo_arbor == NULL)
 				return M0_ERR(-ENOMEM);
 
-			oi->i_nop.no_addr = segaddr_build(data->addr, 
+			oi->i_nop.no_addr = segaddr_build(data->addr,
 							  calc_shift(
 							  data->num_bytes));
 			return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
@@ -3127,8 +3134,9 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 			node_init(&oi->i_nop, k_size, v_size);
 
 			m0_rwlock_write_lock(&bop->bo_arbor->t_lock);
-			bop->bo_arbor->t_desc = oi->i_nop.no_tree;
-			bop->bo_arbor->t_type = data->bt;
+			bop->bo_arbor->t_desc           = oi->i_nop.no_tree;
+			bop->bo_arbor->t_type           = data->bt;
+			bop->bo_arbor->t_desc->t_height = 1;
 			m0_rwlock_write_unlock(&bop->bo_arbor->t_lock);
 
 			m0_free(oi);
@@ -3144,7 +3152,41 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
 	//ToDo: Implement complete destroy tick function.
-	switch(bop->bo_op.o_sm.sm_state) 
+	switch(bop->bo_op.o_sm.sm_state)
+	{
+		case P_INIT:
+			return P_ACT;
+
+		case P_ACT:
+			return P_DONE;
+
+		default:
+			return 0;
+	}
+}
+
+int64_t btree_get_tick(struct m0_sm_op *smop)
+{
+	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
+	//ToDo: Implement complete destroy tick function.
+	switch(bop->bo_op.o_sm.sm_state)
+	{
+		case P_INIT:
+			return P_ACT;
+
+		case P_ACT:
+			return P_DONE;
+
+		default:
+			return 0;
+	}
+}
+
+int64_t btree_nxt_tick(struct m0_sm_op *smop)
+{
+	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
+	//ToDo: Implement complete destroy tick function.
+	switch(bop->bo_op.o_sm.sm_state)
 	{
 		case P_INIT:
 			return P_ACT;
@@ -3168,33 +3210,33 @@ void m0_btree_close(struct m0_btree *arbor)
 
 /**
  * m0_btree_create is the API which is used by motr to create btree.
- * 
+ *
  * @param addr It is the address of root node allocated by the caller of this
  * function
- * @param nob It is the size of root node. 
+ * @param nob It is the size of root node.
  * @param bt It is the type of btree to be created.
- * @param tx It represents the transaction of which the current operation is 
+ * @param tx It represents the transaction of which the current operation is
  * part of.
  * @param bop It represents the structure containing all the relevant details
  * for carrying out btree operations.
  */
 
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
-		     const struct node_type *nt, struct m0_be_tx *tx, 
+		     const struct node_type *nt, struct m0_be_tx *tx,
 		     struct m0_btree_op *bop)
-{	
+{
 	bop->b_data.addr	= addr;
 	bop->b_data.num_bytes	= nob;
 	bop->b_data.bt		= bt;
 	bop->b_data.nt		= nt;
 
-	m0_sm_op_init(&bop->bo_op, &btree_create_tick, &bop->bo_op_exec, 
+	m0_sm_op_init(&bop->bo_op, &btree_create_tick, &bop->bo_op_exec,
 		      &btree_conf, &G);
 }
 
 void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
 {
-	m0_sm_op_init(&bop->bo_op, &btree_destroy_tick, &bop->bo_op_exec, 
+	m0_sm_op_init(&bop->bo_op, &btree_destroy_tick, &bop->bo_op_exec,
 		      &btree_conf, &G);
 }
 
@@ -3202,16 +3244,37 @@ void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, uint64_t flags,
 		  struct m0_btree_op *bop)
 {
+	m0_sm_op_init(&bop->bo_op, &btree_get_tick, &bop->bo_op_exec,
+		      &btree_conf, &G);
 }
 
 void m0_btree_nxt(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, uint64_t flags,
 		  struct m0_btree_op *bop)
 {
+	m0_sm_op_init(&bop->bo_op, &btree_nxt_tick, &bop->bo_op_exec,
+		      &btree_conf, &G);
 }
 
+/**
+ * m0_btree_put is the API which is used by motr to put the given record into
+ * the btree.
+ *
+ * @param arbor It provides all the required data about the tree in which user
+ * wants to insert record.
+ * @param tx It represents the transaction of which the current operation is
+ * part of.
+ * @param rec It represents the record which needs to get inserted. Note that,
+ * user may or may not provide valid value but record should be provided with
+ * valid key, key size and value size as it is needed for operation.
+ * @param cb It represents callback which will get called by the operation to
+ * allow user to insert key and record at provided place.
+ * @param flags
+ * @param bop It represents the structure containing all the relevant details
+ * for carrying out btree operations.
+ */
 void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
-		  const struct m0_btree_key *key,
+		  const struct m0_btree_rec *rec,
 		  const struct m0_btree_cb *cb, uint64_t flags,
 		  struct m0_btree_op *bop)
 {
@@ -3219,16 +3282,15 @@ void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
 	/* initializing mo_btree_op */
 	bop->bo_opc = M0_BO_PUT;
 	bop->bo_arbor = arbor;
-	bop->bo_rec.r_key = *key;
+	//bop->bo_rec.r_key = *key;
+	//bop->bo_rec.r_val = *val;
+	bop->bo_rec = *rec;
 	bop->bo_cb = *cb;
 	bop->bo_tx = tx;
 	bop->bo_flags = flags;
 
-	m0_sm_group_init(&G);
-	m0_sm_group_lock(&G);
-	m0_sm_op_exec_init(&bop->bo_op_exec);
-	m0_sm_op_init(&bop->bo_op, &btree_put_tick,
-		      &bop->bo_op_exec, &btree_conf, &G);
+	m0_sm_op_init(&bop->bo_op, &btree_put_tick, &bop->bo_op_exec,
+		   &btree_conf, &G);
 }
 #endif
 
@@ -3479,7 +3541,6 @@ void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
 
 void get_key_at_index(struct nd *node, int idx, uint64_t *key)
 {
-	
 	struct slot          slot;
 	m0_bcount_t          ksize;
 	void                *p_key;
@@ -3661,6 +3722,7 @@ static void m0_btree_ut_basic_tree_operations(void)
 
 	/** Attempt to reopen the destroyed tree */
 	m0_btree_open(invalid_addr, 1024, &btree);
+	btree_ut_fini();
 
 }
 
@@ -3768,8 +3830,7 @@ static void m0_btree_ut_basic_kv_operations(void)
 		uint64_t             key;
 		uint64_t             value;
 		struct cb_data       put_data;
-		struct m0_btree_key  put_key;
-		struct m0_bufvec     put_value;
+		struct m0_btree_rec  rec;
 		m0_bcount_t          ksize  = sizeof key;
 		m0_bcount_t          vsize  = sizeof value;
 		void                *k_ptr  = &key;
@@ -3787,20 +3848,19 @@ static void m0_btree_ut_basic_kv_operations(void)
 			first_key_initialized = true;
 		}
 
-		put_key.k_data     = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
-		put_value          = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+		rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+		rec.r_val          = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
 
-		put_data.key       = &put_key;
-		put_data.value     = &put_value;
+		put_data.key       = &rec.r_key;
+		put_data.value     = &rec.r_val;
 
 		ut_cb.c_act        = btree_kv_put_cb;
 		ut_cb.c_datum      = &put_data;
 
 		M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
-				      m0_btree_put(b_op.bo_arbor, tx,
-						   &put_key, &ut_cb, 0,
-						   &kv_op), &G, 
-				      &b_op.bo_op_exec);
+				      m0_btree_put(b_op.bo_arbor, tx, &rec,
+				      		   &ut_cb, 0, &kv_op), &G,
+				      &kv_op.bo_op_exec);
 	}
 
 	{
@@ -3852,17 +3912,20 @@ static void m0_btree_ut_basic_kv_operations(void)
 	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
 			      m0_btree_destroy(b_op.bo_arbor, &b_op), &G,
 			      &b_op.bo_op_exec);
+	btree_ut_fini();
 }
 
 /**
  * This function is for traversal of tree in breadth-first order and it will
  * print level and key-value pair for each node.
  */
-static void m0_btree_ut_traversal(struct nd *root, struct td *tree)
+static void m0_btree_ut_traversal(struct td *tree)
 {
+	struct nd *root = tree->t_root;
 	struct nd *queue[10000];
 	int front = 0, rear = 0;
 	queue[front] = root;
+
 
 	while (front != -1 && rear != -1)
 	{
@@ -3976,7 +4039,6 @@ static void m0_btree_ut_insert_record(void)
 	ksize = h->ff_ksize;
 	vsize = h->ff_vsize;
 
-	//inintialize bop;
 	uint64_t total_record = 255;
 
 	uint64_t temp = 255;
@@ -4035,10 +4097,10 @@ static void m0_btree_ut_insert_record(void)
 		}
 		total_record--;
 		//printf("\n");
-		//m0_btree_ut_traversal(tree->t_root, tree);
+		//m0_btree_ut_traversal(tree);
 	}
 	printf("\n");
-	m0_btree_ut_traversal(tree->t_root, tree);
+	m0_btree_ut_traversal(tree);
 	// Done playing with the tree - delete it.
 
 	op.no_opc = NOP_FREE;
