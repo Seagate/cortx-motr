@@ -553,7 +553,7 @@ static void dix_build(const struct m0_op_idx *oi,
 	M0_SET0(out);
 	out->dd_fid = *OI_IFID(oi);
 	/* Pool version and layout type which are passed by consumers like S3 */
-	if ((opcode == M0_IC_GET) || (opcode == M0_IC_PUT) || (opcode == M0_IC_DEL)) {
+	if (M0_IN(opcode, (M0_IC_GET, M0_IC_PUT, M0_IC_DEL))) {
 		if (idx->in_attr.idx_layout_type == DIX_LTYPE_DESCR) {
 			out->dd_layout.dl_type = DIX_LTYPE_DESCR;
 			out->dd_layout.u.dl_desc.ld_pver = idx->in_attr.idx_pver;

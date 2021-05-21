@@ -687,7 +687,7 @@ static int dix_pool_version_get_locked(struct m0_pools_common  *pc,
 				return M0_RC(0);
 		}
 	} m0_tl_endfor;
-	return M0_RC(0);
+	return M0_RC(-ENOENT);
 }
 
 M0_INTERNAL int

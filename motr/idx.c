@@ -131,7 +131,7 @@ m0__idx_pool_version_get(struct m0_idx *idx,
  * @return 0 if the operation completes successfully or an error code
  * otherwise.
  */
-static int get_idx_pool_version(struct m0_op_idx *oi)
+static int idx_pool_version_get(struct m0_op_idx *oi)
 {
 	int                     rc;
 	struct m0_pool_version *pv;
@@ -227,7 +227,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 		oi->oi_dtx = NULL;
 
 	if (opcode == M0_EO_CREATE) {
-		rc = get_idx_pool_version(oi);
+		rc = idx_pool_version_get(oi);
 		if (rc == 0)
 			idx->in_attr.idx_layout_type = DIX_LTYPE_DESCR;
 		return M0_RC(rc);

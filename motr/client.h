@@ -768,7 +768,10 @@ struct m0_client_layout {
  *   m0_cas_index_fid_type type.
  */
 
-/* Index attributes */
+/* Index attributes 
+ * idx_layout_type - DIX pool layout type
+ * idx_ver - DIX pool verion
+ */
 struct m0_idx_attr {
 	uint32_t      idx_layout_type;
 	struct m0_fid idx_pver;
