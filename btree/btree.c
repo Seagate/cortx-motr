@@ -2577,7 +2577,7 @@ static void m0_btree_ut_basic_tree_operations(void)
 {
 	void                   *invalid_addr = (void *)0xbadbadbadbad;
 	struct m0_btree        *btree;
-	struct m0_btree_type    btree_type = {.tt_id = M0_BT_EMAP_EM_MAPPING };
+	struct m0_btree_type    btree_type = {.tt_id = M0_BT_UT_KV_OPS };
 	struct m0_be_tx        *tx = NULL;
 	struct m0_btree_op      b_op = {};
 	void                   *temp_node;
