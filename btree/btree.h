@@ -43,7 +43,7 @@ struct m0_btree_op;
 struct m0_btree_rec;
 struct m0_btree_cb;
 struct m0_btree_key;
-
+struct m0_btree_idata;
 
 enum m0_btree_types {
 	M0_BT_INVALID = 1,
@@ -64,6 +64,8 @@ enum m0_btree_types {
 
 struct m0_btree_type {
 	enum m0_btree_types tt_id;
+	int ksize;
+	int vsize;
 };
 
 
@@ -86,6 +88,18 @@ struct m0_btree_rec {
 struct m0_btree_cb {
 	int (*c_act)(struct m0_btree_cb *cb, struct m0_btree_rec *rec);
 	void *c_datum;
+};
+
+/**
+ * This structure is used to hold the data that is passed to m0_tree_create.
+ */
+struct m0_btree_idata {
+	void 				*addr;
+	int				 num_bytes;
+	const struct m0_btree_type 	*bt;
+	const struct node_type 		*nt;
+	int 				 ks;
+	int 				 vs;
 };
 
 enum m0_btree_rec_type {
@@ -111,7 +125,8 @@ enum m0_btree_opflag {
 int  m0_btree_open(void *addr, int nob, struct m0_btree **out);
 void m0_btree_close(struct m0_btree *arbor);
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
-		     struct m0_be_tx *tx, struct m0_btree_op *bop);
+		     const struct node_type *nt, struct m0_be_tx *tx,
+		     struct m0_btree_op *bop);
 void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop);
 void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, uint64_t flags,
@@ -142,22 +157,23 @@ int  m0_btree_mod_init(void);
 void m0_btree_mod_fini(void);
 
 
-/**
- * This macro calls the 'action' function and follows it by calling
- * m0_sm_op_tick() to execute the state machine.
- *
- * IMPORTANT: The 'action' routine should execute the call m0_sm_op_init() for
- * setting the *_tick() function which is eventually be called by
- * m0_sm_op_tick() function.
- */
-#define M0_BTREE_OP_SYNC_WITH(op, action)       \
+#define M0_BTREE_OP_SYNC_WITH(op, action, group, op_exec)       \
 	({                                      \
-		struct m0_sm_op *__opp = (op);  \
+		struct m0_sm_op *__opp = (op);	\
 						\
-		action;                         \
-		m0_sm_op_tick(__opp);           \
-		m0_sm_op_fini(__opp);           \
+		m0_sm_group_init(group);	\
+		m0_sm_group_lock(group);	\
+		m0_sm_op_exec_init(op_exec);	\
+						\
+		action;				\
+		m0_sm_op_tick(__opp);		\
+		m0_sm_op_fini(__opp);		\
+						\
+		m0_sm_op_exec_fini(op_exec);	\
+		m0_sm_group_unlock(group);	\
+		m0_sm_group_fini(group);	\
 	})
+
 
 
 /** @} end of btree group */
