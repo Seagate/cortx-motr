@@ -573,7 +573,7 @@ enum {
 	M0_NODE_COUNT = 100,
 };
 
-static struct m0_sm_state_descr btree_states[9] = {
+static struct m0_sm_state_descr btree_states[] = {
 	[P_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "P_INIT",
@@ -1064,7 +1064,7 @@ static void node_init(struct node_op *n_op, int ksize, int vsize)
 {
 	const struct node_type *n_type = n_op->no_node->n_type;
 
-	n_type->nt_init(n_op->no_node,segaddr_shift(&n_op->no_addr), ksize,
+	n_type->nt_init(n_op->no_node, segaddr_shift(&n_op->no_addr), ksize,
 			vsize);
 }
 
@@ -2124,45 +2124,56 @@ int calc_shift(int value)
 
 int64_t btree_create_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op 	*bop = M0_AMB(bop,smop,bo_op);
+	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
 	struct m0_btree_oimpl 	*oi = bop->bo_i;
-	struct td		*tree;
-	struct m0_btree_idata 	*data;
-	struct segaddr 		 curr_addr;
+	struct m0_btree_idata 	*data = &bop->b_data;
 	int 			 k_size = 8;
 	int 			 v_size = 8;
 
 	switch(bop->bo_op.o_sm.sm_state) 
 	{
 		case P_INIT:
-			data = &bop->b_data;
-
-			bop->bo_i = m0_alloc(sizeof(struct m0_btree_oimpl));
-			if(bop->bo_i == NULL)
+			bop->bo_i = m0_alloc(sizeof *bop->bo_i);
+			if (bop->bo_i == NULL)
 				return M0_ERR(-ENOMEM);
 			oi = bop->bo_i;
-			bop->bo_arbor = m0_alloc(sizeof(struct m0_btree));
-			if(bop->bo_arbor == NULL)
+			bop->bo_arbor = m0_alloc(sizeof *bop->bo_arbor);
+			if (bop->bo_arbor == NULL)
 				return M0_ERR(-ENOMEM);
 
-			curr_addr = segaddr_build(data->addr,calc_shift(
-						  data->num_bytes));
-			oi->i_nop.no_addr = curr_addr;
-			return tree_get(&oi->i_nop, &oi->i_nop.no_addr , P_ACT);
+			oi->i_nop.no_addr = segaddr_build(data->addr, 
+							  calc_shift(
+							  data->num_bytes));
+			return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
 
 		case P_ACT:
-			data = &bop->b_data;
 			oi->i_nop.no_node->n_type = data->nt;
-			tree = oi->i_nop.no_tree;
 
 			node_init(&oi->i_nop, k_size, v_size);
 
 			m0_rwlock_write_lock(&bop->bo_arbor->t_lock);
-			bop->bo_arbor->t_addr = tree;
+			bop->bo_arbor->t_addr = oi->i_nop.no_tree;
 			bop->bo_arbor->t_type = data->bt;
 			m0_rwlock_write_unlock(&bop->bo_arbor->t_lock);
 
 			mem_update();
+			return P_DONE;
+
+		default:
+			return 0;
+	}
+}
+
+int64_t btree_destroy_tick(struct m0_sm_op *smop)
+{
+	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
+	//ToDo: Implement complete destroy tick function.
+	switch(bop->bo_op.o_sm.sm_state) 
+	{
+		case P_INIT:
+			return P_ACT;
+
+		case P_ACT:
 			return P_DONE;
 
 		default:
@@ -2207,6 +2218,8 @@ void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 
 void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
 {
+	m0_sm_op_init(&bop->bo_op, &btree_destroy_tick, &bop->bo_op_exec, 
+		      &btree_conf, &G);
 }
 
 void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
