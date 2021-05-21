@@ -2223,13 +2223,22 @@ static bool m0_btree_underflow_is_possible(const struct nd *node)
 #endif
 
 #ifndef __KERNEL__
-static bool used_cookie(void)
+
+static bool cookie_is_set(struct m0_bcookie *k_cookie)
 {
+	/* TBD : function definition */
 	return false;
 }
 
-static bool cookie_is_valid(struct td *tree, struct m0_btree_key r_key)
+static bool used_cookie(void)
 {
+	/* TBD : function definition */
+	return false;
+}
+
+static bool cookie_is_valid(struct td *tree, struct m0_bcookie *k_cookie)
+{
+	/* TBD : function definition */
 	return false;
 }
 
@@ -2238,6 +2247,7 @@ static bool cookie_is_valid(struct td *tree, struct m0_btree_key r_key)
  */
 static bool cookie_overflow_is_possible(void *segaddr)
 {
+	/* TBD : function definition */
 	return false;
 }
 
@@ -2257,10 +2267,24 @@ static int is_node_valid(const struct nd *node)
 	return 0;
 }
 
-static bool path_check(struct m0_btree_oimpl *oi)
+/**
+ * This function will validate the cookie or path traversed by the operation and
+ * return result. If if cookie is used it will validate cookie else check for
+ * traversed path.
+ *
+ * @param oi which provide all information about traversed nodes
+ * @param tree needed in case of cookie validation
+ * @param cookie provided by the user which needs to get validate if used
+ * @return bool return true if validation succeed else false
+ */
+static bool path_check(struct m0_btree_oimpl *oi , struct td *tree,
+		       struct m0_bcookie *k_cookie)
 {
 	int        total_level = oi->i_used;
 	struct nd *l_node      = oi->i_level[total_level].l_node;
+
+	if (used_cookie())
+		return cookie_is_valid(tree, k_cookie);
 
 	while (total_level >= 0) {
 		int rc = is_node_valid(l_node);
@@ -2268,7 +2292,6 @@ static bool path_check(struct m0_btree_oimpl *oi)
 			node_op_fini(&oi->i_nop);
 			//return fail(bop, rc);
 			return false;
-
 		}
 		if (oi->i_level[total_level].l_seq != l_node->n_seq) {
 			return false;
@@ -2293,11 +2316,6 @@ static int64_t lock_op_init(struct m0_sm_op *bo_op,
 static void lock_op_unlock(struct td *tree)
 {
 	m0_rwlock_write_unlock(&tree->t_lock);
-}
-
-static bool cookie_is_set(struct m0_bcookie *k_cookie)
-{
-	return false;
 }
 
 #if 0
@@ -2727,7 +2745,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			return P_SETUP;
 	case P_COOKIE: {
 		void *cookie_segaddr = bop->bo_rec.r_key.k_cookie.segaddr;
-		if (cookie_is_valid(tree, bop->bo_rec.r_key) &&
+		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie) &&
 		    !cookie_overflow_is_possible(cookie_segaddr))
 			return P_LOCK;
 		else
@@ -2744,7 +2762,8 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		if (bop->bo_flags & OF_LOCKALL) {
 			//return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
 			m0_rwlock_write_lock(&tree->t_lock);
-		}/* Fall through to next stage */
+		}
+		/* Fall through to the next stage */
 	case P_DOWN:
 		oi->i_used = 0;
 		/* Load root node. */
@@ -2809,14 +2828,14 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			return P_CHECK;
 	case P_CHECK: {
 		oi->i_trial++;
-		if (!used_cookie() && !path_check(oi)) {
+		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
 			if (oi->i_trial == MAX_TRIALS) {
 				if (bop->bo_flags & OF_LOCKALL)
 					return fail(bop, -ETOOMANYREFS);
 				else
 					bop->bo_flags |= OF_LOCKALL;
 			}
-			if (bop->bo_arbor->t_height < tree->t_height) {
+			if (bop->bo_arbor->t_height <= tree->t_height) {
 				/* if height increased */
 				//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 				//                    P_INIT);
