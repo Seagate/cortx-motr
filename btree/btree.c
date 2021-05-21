@@ -2230,7 +2230,7 @@ static bool cookie_is_set(struct m0_bcookie *k_cookie)
 	return false;
 }
 
-static bool used_cookie(void)
+static bool cookie_is_used(void)
 {
 	/* TBD : function definition */
 	return false;
@@ -2261,7 +2261,7 @@ static int fail(struct m0_btree_op *bop, int rc)
 /**
  * checks if given node is still exists
  */
-static int is_node_valid(const struct nd *node)
+static int node_is_valid(const struct nd *node)
 {
 	/* function definition is yet to be implemented */
 	return 0;
@@ -2283,11 +2283,11 @@ static bool path_check(struct m0_btree_oimpl *oi , struct td *tree,
 	int        total_level = oi->i_used;
 	struct nd *l_node      = oi->i_level[total_level].l_node;
 
-	if (used_cookie())
+	if (cookie_is_used())
 		return cookie_is_valid(tree, k_cookie);
 
 	while (total_level >= 0) {
-		int rc = is_node_valid(l_node);
+		int rc = node_is_valid(l_node);
 		if (rc) {
 			node_op_fini(&oi->i_nop);
 			//return fail(bop, rc);
@@ -2808,7 +2808,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		}
 	case P_ALLOC: {
 		/* validate curr_level->l_node(i.e.is it still exists or not) */
-		int rc = is_node_valid(curr_level->l_node);
+		int rc = node_is_valid(curr_level->l_node);
 		if (rc) {
 			node_op_fini(&oi->i_nop);
 			return fail(bop, rc);
