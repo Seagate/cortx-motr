@@ -37,6 +37,7 @@ struct m0_btree_oimpl;
 
 struct m0_btree_op {
 	struct m0_sm_op        bo_op;
+	struct m0_sm_op_exec   bo_op_exec;
 	enum m0_btree_opcode   bo_opc;
 	struct m0_btree       *bo_arbor;
 	struct m0_btree_rec    bo_rec;
@@ -44,6 +45,7 @@ struct m0_btree_op {
 	struct m0_be_tx       *bo_tx;
 	uint64_t               bo_flags;
 	struct m0_btree_oimpl *bo_i;
+	struct m0_btree_idata  b_data;
 };
 
 /** @} end of btree group */

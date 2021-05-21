@@ -517,6 +517,7 @@
 #include "format/format.h"
 #include "module/instance.h"
 #include "lib/memory.h"
+#include "lib/misc.h"
 #include "lib/assert.h"
 #include "ut/ut.h"          /** struct m0_ut_suite */
 //#include "lib/user_space/misc.h" /** ARRAY_SIZE_FOR_BITS */
@@ -573,6 +574,38 @@ enum {
 	M0_NODE_COUNT = 100,
 };
 
+static struct m0_sm_state_descr btree_states[] = {
+	[P_INIT] = {
+		.sd_flags   = M0_SDF_INITIAL,
+		.sd_name    = "P_INIT",
+		.sd_allowed = M0_BITS(P_ACT),
+	},
+	[P_ACT] = {
+		.sd_flags   = 0,
+		.sd_name    = "P_ACT",
+		.sd_allowed = M0_BITS(P_DONE),
+	},
+	[P_DONE] = {
+		.sd_flags   = M0_SDF_TERMINAL,
+		.sd_name    = "P_DONE",
+		.sd_allowed = 0,
+	},
+};
+
+static struct m0_sm_trans_descr btree_trans[2] = {
+	{ "create-init", P_INIT,  P_ACT  },
+	{ "create-act",  P_ACT,   P_DOWN },
+};
+
+static struct m0_sm_conf btree_conf = {
+	.scf_name      = "btree-conf",
+	.scf_nr_states = ARRAY_SIZE(btree_states),
+	.scf_state     = btree_states,
+	.scf_trans_nr  = ARRAY_SIZE(btree_trans),
+	.scf_trans     = btree_trans
+};
+
+static struct m0_sm_group G;
 #if 0
 static int fail(struct m0_btree_op *bop, int rc)
 {
@@ -951,6 +984,7 @@ static int64_t    node_get  (struct node_op *op, struct td *tree,
 static void       node_put  (struct nd *node);
 static struct nd *node_try  (struct td *tree, struct segaddr *addr);
 #endif
+
 static int64_t    node_alloc(struct node_op *op, struct td *tree, int size,
 			     const struct node_type *nt, int ksize, int vsize,
 			     struct m0_be_tx *tx, int nxt);
@@ -961,7 +995,7 @@ static int64_t    node_free(struct node_op *op, struct nd *node,
 #if 0
 static void node_op_fini(struct node_op *op);
 #endif
-
+static void node_init(struct node_op *n_op, int ksize, int vsize);
 static int  node_count(const struct nd *node);
 static int  node_space(const struct nd *node);
 #if 0
@@ -991,6 +1025,7 @@ static void node_move (struct nd *src, struct nd *tgt,
 		       enum dir dir, int nr, struct m0_be_tx *tx);
 #endif
 
+static void mem_update(void);
 /**
  * Common node header.
  *
@@ -1025,6 +1060,14 @@ static uint64_t         trees_in_use[ARRAY_SIZE_FOR_BITS(M0_TREE_COUNT,
 							 sizeof(uint64_t))];
 static uint32_t         trees_loaded = 0;
 static struct m0_rwlock trees_lock;
+
+static void node_init(struct node_op *n_op, int ksize, int vsize)
+{
+	const struct node_type *n_type = n_op->no_node->n_type;
+
+	n_type->nt_init(n_op->no_node, segaddr_shift(&n_op->no_node->n_addr),
+			ksize, vsize);
+}
 
 static bool node_invariant(const struct nd *node)
 {
@@ -1182,6 +1225,11 @@ void m0_btree_mod_fini(void)
 static bool node_shift_is_valid(int shift)
 {
 	return shift >= NODE_SHIFT_MIN && shift < NODE_SHIFT_MIN + 0x10;
+}
+
+static void mem_update(void)
+{
+	//ToDo: Memory update in segment
 }
 
 /**
@@ -1552,12 +1600,15 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 
 	if (addr) {
 		mem_node_get(op, tree, addr, nxt);
-		tree->t_root = op->no_node;
+		tree->t_root		=  op->no_node;
+		tree->t_root->n_addr 	= *addr;
+		tree->t_root->n_tree	=  tree;
 		//tree->t_height = tree_height_get(op->no_node);
 	}
 
 	op->no_node = tree->t_root;
 	op->no_tree = tree;
+	//op->no_addr = tree->t_root->n_addr;
 
 	m0_rwlock_write_unlock(&tree->t_lock);
 
@@ -2041,6 +2092,103 @@ static void generic_move(struct nd *src, struct nd *tgt,
 	node_fix(tgt, tx);
 }
 
+/**
+ * calc_shift is used to calculate the shift for the given number of bytes.
+ * Shift is the exponent of nearest power-of-2 value greater than or equal to
+ * number of bytes. 
+ * 
+ * @param value It represents the number of bytes
+ * @return int returns the shift value.
+ */
+
+int calc_shift(int value)
+{
+	unsigned int sample 	= (unsigned int) value;
+	unsigned int pow 	= 0;
+
+	while (sample > 0)
+	{
+		sample >>=1;
+		pow += 1;
+	}
+
+	return pow - 1;
+}
+
+/**
+ * btree_create_tick function is the main function used to create btree.
+ * It traverses through multiple states to perform its operation.
+ * 
+ * @param smop Represents the state machine operation
+ * @return int64_t It returns the next state to be executed.
+ */
+
+int64_t btree_create_tick(struct m0_sm_op *smop)
+{
+	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
+	struct m0_btree_oimpl 	*oi = bop->bo_i;
+	struct m0_btree_idata 	*data = &bop->b_data;
+	int 			 k_size = data->nt->nt_id == BNT_FIXED_FORMAT ?
+					  data->bt->ksize : (data->nt->nt_id ==
+					  BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE ?
+					  data->bt->ksize : -1);
+	int 			 v_size = data->nt->nt_id == BNT_FIXED_FORMAT ?
+					  data->bt->vsize :(data->nt->nt_id ==
+					  BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE ?
+					  data->bt->vsize : -1);
+
+	switch(bop->bo_op.o_sm.sm_state) 
+	{
+		case P_INIT:
+			bop->bo_i = m0_alloc(sizeof *bop->bo_i);
+			if (bop->bo_i == NULL)
+				return M0_ERR(-ENOMEM);
+			oi = bop->bo_i;
+			bop->bo_arbor = m0_alloc(sizeof *bop->bo_arbor);
+			if (bop->bo_arbor == NULL)
+				return M0_ERR(-ENOMEM);
+
+			oi->i_nop.no_addr = segaddr_build(data->addr, 
+							  calc_shift(
+							  data->num_bytes));
+			return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
+
+		case P_ACT:
+			oi->i_nop.no_node->n_type = data->nt;
+
+			node_init(&oi->i_nop, k_size, v_size);
+
+			m0_rwlock_write_lock(&bop->bo_arbor->t_lock);
+			bop->bo_arbor->t_addr = oi->i_nop.no_tree;
+			bop->bo_arbor->t_type = data->bt;
+			m0_rwlock_write_unlock(&bop->bo_arbor->t_lock);
+
+			m0_free(oi);
+			mem_update();
+			return P_DONE;
+
+		default:
+			return 0;
+	}
+}
+
+int64_t btree_destroy_tick(struct m0_sm_op *smop)
+{
+	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
+	//ToDo: Implement complete destroy tick function.
+	switch(bop->bo_op.o_sm.sm_state) 
+	{
+		case P_INIT:
+			return P_ACT;
+
+		case P_ACT:
+			return P_DONE;
+
+		default:
+			return 0;
+	}
+}
+
 int  m0_btree_open(void *addr, int nob, struct m0_btree **out)
 {
 	return 0;
@@ -2050,13 +2198,36 @@ void m0_btree_close(struct m0_btree *arbor)
 {
 }
 
+/**
+ * m0_btree_create is the API which is used by motr to create btree.
+ * 
+ * @param addr It is the address of root node allocated by the caller of this
+ * function
+ * @param nob It is the size of root node. 
+ * @param bt It is the type of btree to be created.
+ * @param tx It represents the transaction of which the current operation is 
+ * part of.
+ * @param bop It represents the structure containing all the relevant details
+ * for carrying out btree operations.
+ */
+
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
-		     struct m0_be_tx *tx, struct m0_btree_op *bop)
-{
+		     const struct node_type *nt, struct m0_be_tx *tx, 
+		     struct m0_btree_op *bop)
+{	
+	bop->b_data.addr	= addr;
+	bop->b_data.num_bytes	= nob;
+	bop->b_data.bt		= bt;
+	bop->b_data.nt		= nt;
+
+	m0_sm_op_init(&bop->bo_op, &btree_create_tick, &bop->bo_op_exec, 
+		      &btree_conf, &G);
 }
 
 void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
 {
+	m0_sm_op_init(&bop->bo_op, &btree_destroy_tick, &bop->bo_op_exec, 
+		      &btree_conf, &G);
 }
 
 void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
@@ -2407,43 +2578,47 @@ static void m0_btree_ut_node_add_del_rec(void)
 }
 
 /**
- * This unit test exercises a few tree operations in both valid and invalid
+ * In this unit test we exercise a few tree operations in both valid and invalid
  * conditions.
  */
 static void m0_btree_ut_basic_tree_operations(void)
 {
 	void                   *invalid_addr = (void *)0xbadbadbadbad;
 	struct m0_btree        *btree;
-	struct m0_btree_type    btree_type = {.tt_id = M0_BT_UT_KV_OPS};
+	struct m0_btree_type    btree_type = {	.tt_id = M0_BT_UT_KV_OPS,
+						.ksize = 8,
+						.vsize = 8, };
 	struct m0_be_tx        *tx = NULL;
-	struct m0_btree_op      b_op;
+	struct m0_btree_op      b_op = {};
 	void                   *temp_node;
+	const struct node_type *nt = &fixed_format;
 
 	/** Prepare transaction to capture tree operations. */
 	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, NULL);
-
+	btree_ut_init();
 	/**
-	 *  Run a valid scenario:
-	 *  1) Create a btree
-	 *  2) Close the btree
-	 *  3) Open the btree
-	 *  4) Close the btree
-	 *  5) Destroy the btree
+	 *  Run a valid scenario which:
+	 *  1) Creates a btree
+	 *  2) Closes the btree
+	 *  3) Opens the btree
+	 *  4) Closes the btree
+	 *  5) Destroys the btree
 	 */
 
 	/** Create temp node space*/
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
-			      m0_btree_create(temp_node, 1024, &btree_type,
-					      tx, &b_op));
+			      m0_btree_create(temp_node, 1024, &btree_type, nt,
+			      tx, &b_op), &G, &b_op.bo_op_exec);
 
 	m0_btree_close(b_op.bo_arbor);
 
 	m0_btree_open(temp_node, 1024, &btree);
 
 	m0_btree_close(btree);
-	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op));
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G,
+			      &b_op.bo_op_exec);
 
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
@@ -2456,13 +2631,14 @@ static void m0_btree_ut_basic_tree_operations(void)
 	m0_btree_close(btree);
 
 	/** Destroy a non-existent btree */
-	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op));
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G,
+			      &b_op.bo_op_exec);
 
 	/** Create a new btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
-			      m0_btree_create(temp_node, 1024, &btree_type,
-					      tx, &b_op));
+			      m0_btree_create(temp_node, 1024, &btree_type, nt,
+					      tx, &b_op), &G, &b_op.bo_op_exec);
 
 	/** Close it */
 	m0_btree_close(b_op.bo_arbor);
@@ -2477,7 +2653,8 @@ static void m0_btree_ut_basic_tree_operations(void)
 	m0_btree_open(invalid_addr, 1024, &btree);
 
 	/** Destory it */
-	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op));
+	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G,
+			      &b_op.bo_op_exec);
 
 	/** Attempt to reopen the destroyed tree */
 	m0_btree_open(invalid_addr, 1024, &btree);
@@ -2545,9 +2722,11 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
  */
 static void m0_btree_ut_basic_kv_operations(void)
 {
-	struct m0_btree_type  btree_type   = {.tt_id = M0_BT_UT_KV_OPS};
+	struct m0_btree_type  btree_type = {	.tt_id = M0_BT_UT_KV_OPS,
+						.ksize = 8,
+						.vsize = 8, };
 	struct m0_be_tx      *tx           = NULL;
-	struct m0_btree_op    b_op;
+	struct m0_btree_op    b_op = {};
 	void                 *temp_node;
 	int                   i;
 	time_t                curr_time;
@@ -2555,7 +2734,7 @@ static void m0_btree_ut_basic_kv_operations(void)
 	uint64_t              first_key;
 	bool                  first_key_initialized = false;
 	struct m0_btree_op    kv_op;
-
+	const struct node_type *nt = &fixed_format;
 	M0_ENTRY();
 
 	time(&curr_time);
@@ -2565,7 +2744,7 @@ static void m0_btree_ut_basic_kv_operations(void)
 	/** Prepare transaction to capture tree operations. */
 	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, NULL);
-
+	btree_ut_init();
 	/**
 	 *  Run valid scenario:
 	 *  1) Create a btree
@@ -2579,8 +2758,8 @@ static void m0_btree_ut_basic_kv_operations(void)
 	/** Create temp node space and use it as root node for btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
-			      m0_btree_create(temp_node, 1024, &btree_type,
-					      tx, &b_op));
+			      m0_btree_create(temp_node, 1024, &btree_type, nt,
+					      tx, &b_op), &G, &b_op.bo_op_exec);
 
 	for (i = 0; i < 2048; i++) {
 		uint64_t             key;
@@ -2617,7 +2796,8 @@ static void m0_btree_ut_basic_kv_operations(void)
 		M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
 				      m0_btree_put(b_op.bo_arbor, tx,
 						   &put_key, &ut_cb, 0,
-						   &kv_op));
+						   &kv_op), &G, 
+				      &b_op.bo_op_exec);
 	}
 
 	{
@@ -2652,20 +2832,23 @@ static void m0_btree_ut_basic_kv_operations(void)
 		M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
 				      m0_btree_get(b_op.bo_arbor,
 						   &search_key_in_tree,
-						   &ut_cb, 0, &kv_op));
+						   &ut_cb, 0, &kv_op), &G,
+				      &b_op.bo_op_exec);
 
 		for (i = 1; i < 2048; i++) {
 			search_key = key;
 			M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
 					      m0_btree_nxt(b_op.bo_arbor,
 							   &search_key_in_tree,
-							   &ut_cb, 0, &kv_op));
+							   &ut_cb, 0, &kv_op),
+					      &G, &b_op.bo_op_exec);
 		}
 	}
 
 	m0_btree_close(b_op.bo_arbor);
 	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
-			      m0_btree_destroy(b_op.bo_arbor, &b_op));
+			      m0_btree_destroy(b_op.bo_arbor, &b_op), &G,
+			      &b_op.bo_op_exec);
 }
 
 struct m0_ut_suite btree_ut = {
