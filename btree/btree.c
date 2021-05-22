@@ -1622,7 +1622,7 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	 *  If existing allocated tree is found then return it after increasing
 	 *  the reference count.
 	 */
-	if (addr != NULL)
+	if (addr != NULL && trees_loaded)
 		for (i = 0; i < ARRAY_SIZE(trees); i++) {
 			tree = &trees[i];
 			m0_rwlock_write_lock(&tree->t_lock);
@@ -3321,10 +3321,9 @@ void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
 static bool btree_ut_initialised = false;
 static void btree_ut_init(void)
 {
-
 	if (!btree_ut_initialised) {
 		segops = (struct seg_ops *)&mem_seg_ops;
-		m0_rwlock_init(&trees_lock);
+		m0_btree_mod_init();
 		btree_ut_initialised = true;
 	}
 }
@@ -3332,7 +3331,7 @@ static void btree_ut_init(void)
 static void btree_ut_fini(void)
 {
 	segops = NULL;
-	m0_rwlock_fini(&trees_lock);
+	m0_btree_mod_fini();
 	btree_ut_initialised = false;
 }
 
