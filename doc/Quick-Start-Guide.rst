@@ -207,6 +207,8 @@ Troubleshooting
         
 Tested by:
 
+- May 23, 2021: Bo Wei (bo.b.wei@seagate.com) in CentOS 7.9.2009 on a Windows laptop running VirtualBox 6.1.
+
 - May 2, 2021: Christina Ku (christina.ku@seagate.com) in Red Hat Enterprise Linux Server release 7.7 (Maipo)
 
 - Apr 16, 2021: Jalen Kan (jalen.j.kan@seagate.com) in CentOS 7.9.2009 on a windows laptop running VMware Workstation Pro 16
