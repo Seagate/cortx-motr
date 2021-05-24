@@ -3152,13 +3152,20 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 int64_t btree_destroy_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
-	//ToDo: Implement complete destroy tick function.
+
 	switch(bop->bo_op.o_sm.sm_state)
 	{
 		case P_INIT:
+			M0_PRE(bop->bo_arbor != NULL);
+			M0_PRE(bop->bo_arbor->t_desc != NULL);
+
+			tree_put(bop->bo_arbor->t_desc);
 			return P_ACT;
 
 		case P_ACT:
+			m0_free(bop->bo_arbor);
+			bop->bo_arbor = NULL;
+			bop->bo_i = NULL;
 			return P_DONE;
 
 		default:
