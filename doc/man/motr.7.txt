@@ -10,19 +10,23 @@ motr - Motr object stor
 
 DESCRIPTION
 -----------
-Motr object stor ['...to be filled']
+This manpage briefly describes the major binaries and utilities available in
+Motr object stor.
 
 Motr utilities
 ~~~~~~~~~~~~~~
 
 *m0d*::
-  Motr file system service daemon.
+  Motr file system service daemon. This command initializes and starts
+  requested Motr file system service as a daemon process in user space.
 
 *m0console*::
-  Blah blah...
+  This is a standalone utility that can be used to connect to a Motr
+  service, send operation requests to it and wait for replies.
 
 *m0addb2dump*::
-  Blah blah...
+  m0addb2dump utility can be used to examine the diagnostic data collected by
+  the Addb (Analytic and Diagnostic Data-Base) sub-system of Motr.
 
 *m0tracedump*::
   Utility to convert binary trace logs to YAML format for further analysis by
@@ -45,7 +49,7 @@ See the Motr distribution AUTHORS file.
 
 BUGS
 ----
-All bugs are added by Motr Team ;)
+No known bugs.
 
 
 RESOURCES
