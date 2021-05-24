@@ -49,9 +49,10 @@ Following are the hierarchy of Cortx Cluster
    - e.g In above figure Storage Set 1 and 2 are shown connected at network layer
 1. **IOs will be confined to Storage Set.**
    - Data will only be striped across nodes in a Storage Set.
-   - Specifically, two motr pools will be created using all devices in the Storage Set.
+   - Specifically, at provision time, two motr pools will be created using all devices in the Storage Set.
     - One will be for data and will be configured as N+K+S and K will typically be 2.  For small numbers of total physical storage devices, S will be zero.
     - A second will be for metadata and will be configured as 1+2+0.  
+    - However, in failure cases when a disk (or disk group fails) and there are fewer than N+K surviving disks in the systems, then new pools may be created in the storage set using the smaller number of surviving disks.
 1. Any node in cluster can serve S3 request for any storage set.
    - e.g In above figure Node 1 from Storage Set 1 can serve read request for object stored in Storage Set 2
 
