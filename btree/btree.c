@@ -118,32 +118,32 @@
  *
  * @verbatim
  *
- *                         INIT------->COOKIE
- *                           |           | |
- *                           +----+ +----+ |
- *                                | |      |
- *                                v v      |
- *                      +--------SETUP<------------+
- *                      |          |       |       |
- *                      |          v       |       |
- *                      +-------LOCKALL<-----------+
- *                      |          |       |       |
- *                      |          v       |       |
- *                      +--------DOWN<-------------+
- *                      |          |       |       |
- *                      |          v       v       |
- *                      |  +-->NEXTDOWN-->LOCK-->CHECK
- *                      |  |     |  |              |
- *                      |  +-----+  |              v
- *                      |           |             ACT
- *                      |           |              |
- *                      |           |              v
- *                      +-----------+---------->CLEANUP-->DONE
+ *                        INIT------->COOKIE
+ *                          |           | |
+ *                          +----+ +----+ |
+ *                               | |      |
+ *                               v v      |
+ *                     +--------SETUP<----+-------+
+ *                     |          |       |       |
+ *                     |          v       |       |
+ *                     +-------LOCKALL<---+-------+
+ *                     |          |       |       |
+ *                     |          v       |       |
+ *                     +--------DOWN<-----+-------+
+ *                     |          |       |       |
+ *                     |          v       v       |
+ *                     |  +-->NEXTDOWN-->LOCK-->CHECK
+ *                     |  |     |  |              |
+ *                     |  +-----+  |              v
+ *                     |           |             ACT
+ *                     |           |              |
+ *                     |           |              v
+ *                     +-----------+---------->CLEANUP-->DONE
  *
  *
  * @endverbatim
  *
- * (https://asciiflow.com/#/share/eJyrVspLzE1VslJydw1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVga68QoVQJZRuYGQFZJakUJkBOjpKCg4OnnGfJoyh4saNouZ39%2Fb0%2FXmJg8BRAAiikgAIgHxEiSaAiHEEwDsiFwDqrktD1gjCSJ3aFgFOwaEhrwaHoLHiXICGIYqkuwsDCUTcOjDCvy8Xf2dvTxIdJldHMWELn4h%2FsRH2BUcdw0LMqQE5yfa0QI2FkwAVDoIZKjh6uzN5I2hNWoSROX%2BcgpEYuWaRgux1Dk6BxCUA22IMBjGxUQMGR8XB39gMkfxnfx93ONUapVqgUAYgr3kQ%3D%3D)
+ * (https://asciiflow.com/#/share/eJyrVspLzE1VslJydw1RKC5JLElVyE1MzsjMS1XSUcpJrEwtAspVxyhVxChZWVga68QoVQJZRuYGQFZJakUJkBOjpKCg4OnnGfJoyh4saNouZ39%2Fb0%2FXmJg8BRAAiikgAIgHxEiSaAiHEEwDsiFwDqrktD1gjCSJ3aFgFOwaEhrwaHoLHiXICGIYqkuwsDCUTcOjDCvy8Xf2dvTxIdJldHMWELn4h%2FsRH2BUcdw0LMqQE5yfa0QI2FkwAVDoIZKjh6uzN5I2hNWoSROX%2BcgpEYuWaRgux1Dk6BxCUA22IMBjGxUQMGR8XB39gMkfxnfx93ONUapVqgUAYgr3kQ%3D%3D))
  *
  * @verbatim
  *
@@ -186,34 +186,34 @@
  *
  * @verbatim
  *
- *                       INIT------->COOKIE
- *                         |           | |
- *                         +----+ +----+ |
- *                              | |      |
- *                              v v      |
- *                            SETUP<--------------+
- *                              |        |        |
- *                              v        |        |
- *                           LOCKALL<-----------+ |
- *                              |        |      | |
- *                              v        |      | |
- *                            DOWN<-----------+ | |
- *                      +----+  |        |    | | |
- *                      |    |  v        v    | | |
- *                      +-->NEXTDOWN-->LOCK-->CHECK
- *                           ^   |              |
- *                           |   v              v
- *                           +-ALLOC    +---MAKESPACE<-+
- *                                      |       |      |
- *                                      v       v      |
- *                                     ACT-->NEXTUP----+
- *                                              |
- *                                              v
- *                                           CLEANUP-->DONE
+ *                      INIT------->COOKIE
+ *                        |           | |
+ *                        +----+ +----+ |
+ *                             | |      |
+ *                             v v      |
+ *                           SETUP<-----+--------+
+ *                             |        |        |
+ *                             v        |        |
+ *                          LOCKALL<----+------+ |
+ *                             |        |      | |
+ *                             v        |      | |
+ *                           DOWN<------+----+ | |
+ *                     +----+  |        |    | | |
+ *                     |    |  v        v    | | |
+ *                     +-->NEXTDOWN-->LOCK-->CHECK
+ *                             |        ^      |
+ *                             v        |      v
+ *                        +--ALLOC------+ +---MAKESPACE<-+
+ *                        |    ^          |       |      |
+ *                        +----+          v       v      |
+ *                                       ACT-->NEXTUP----+
+ *                                                |
+ *                                                v
+ *                                             CLEANUP-->DONE
  *
  * @endverbatim
  *
- * (https://asciiflow.com/#/share/eJyVUrFqwzAQ%2FRVxc4aQpSGbUAQ1diVDHNpBiymGFhoPjYeEECihY4cORu13dAz%2BGn9JZdeWJVsOqTnDnd6T7unpDpDGmwQWEK4jtM3iLEGb%2BPHpOU1gAi%2FxPnlV2EHATsBiPp9NBOxVNruZqixLdpkqBCCPeVGZvzlCngnnvkeFSBFCZX5C3VdVZV60UG7v%2FVRLH%2FbSd0c3Dji1hQXJov4H0IpG67D8eldr10evp04LI%2B01v8gJOPFxEFwpw3Hr%2FukOlkNDn7Xk9%2BwfGpq9DtChabBHY6Yy6eY2Ic%2BMPkS1ynaaKue60bqlxG9vU8of22%2FtlmbUmNFeizAYKtTLcNKVf3GHfboKMaHaMMPs4WuPjOXwdZxDqj9MIssLNbqjk%2BkQcwmVoygJKGZVp8bmJWdUwBGOv7OavB4%3D)
+ * (https://asciiflow.com/#/share/eJyVUj1rwzAQ%2FSvi5gwlS0M2oQhq7EqGOLSDFlMELSQeWg8JIVBCxw4djNrf0TH41%2FiXVA62LNnKR8UZTrqnu%2Bent4UsXUmYQrxI0Fue5hKt0qfnl0zCCJbpRr7q2lbAWsB0MhmPBGx0Nr690Vku17neCEABC5KqePeEOhDOw4AKkSGEqmKPulXvqqJsS4V790sffbpHPx3carBvN05JlcdvUJrTZBFX3x%2F67ProzTRpaaW94WcxESchjqIraXj%2But%2Fdg%2FJw6KNm%2FIH9g0Nz11P0cBrcMTWbmfJjm1AHRh%2BTI8vWTbVynbXuKAkdZazOv0atS6ooY8FmsH4aTk7KYOIeh3QeY0KNhqaPQ8GlNjSsT9AhYa%2Bb7YVJ4uimbX7SxZ51GaDOAUhEMatHNm8z44wK2MHuDxf739Y%3D))
  *
  * MAKESPACE provides sufficient free space in the current node. It handles
  * multple cases:
