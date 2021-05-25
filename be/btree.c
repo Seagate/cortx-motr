@@ -1483,6 +1483,12 @@ static void btree_save(struct m0_be_btree        *tree,
 
 	M0_PRE(M0_IN(optype, (BTREE_SAVE_INSERT, BTREE_SAVE_UPDATE,
 			      BTREE_SAVE_OVERWRITE)));
+	/*
+	 * Assumption: do not allow empty values unless the user wants
+	 * to set tombstone on a pair.
+	 */
+	M0_PRE(equi(!bpv_tbs_is_set(new_ver),
+		    val == NULL || m0_buf_is_set(val)));
 
 	switch (optype) {
 		case BTREE_SAVE_OVERWRITE:
@@ -1564,10 +1570,26 @@ static void btree_save(struct m0_be_btree        *tree,
 				 * old value in this case.
 				 */
 				if (val != NULL) {
-					memcpy(cur_kv->btree_val, val->b_addr,
-					       val->b_nob);
-					mem_update(tree, tx, cur_kv->btree_val,
-						   val->b_nob);
+					if (m0_buf_is_set(val)) {
+						memcpy(cur_kv->btree_val,
+						       val->b_addr,
+						       val->b_nob);
+						mem_update(tree, tx,
+							   cur_kv->btree_val,
+							   val->b_nob);
+					} else {
+						/*
+						 * Empty value buffer means
+						 * that the user wants to
+						 * set a tombstone.
+						 * The original value should
+						 * be preserved in this case
+						 * (since we do not know
+						 * what is considered "empty"
+						 * from the user's
+						 * perspective).
+						 */
+					}
 				} else
 					anchor->ba_value.b_addr =
 							cur_kv->btree_val;
@@ -2133,12 +2155,11 @@ M0_INTERNAL void m0_be_btree_kill(struct m0_be_btree *tree,
 	M0_ENTRY("tree=%p, ver=%" PRIu64, tree, ver);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
+	M0_PRE(ver != 0);
 
-	if (ver != 0) {
-		bpv_tbs_set(&bpv);
-		bpv_ver_set(&bpv, ver);
-		M0_ASSERT(bpv_invariant(&bpv));
-	}
+	bpv_tbs_set(&bpv);
+	bpv_ver_set(&bpv, ver);
+	M0_ASSERT(bpv_invariant(&bpv));
 
 	/*
 	 * TODO: Is it fine to use BAP_NORMAL here?

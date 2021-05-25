@@ -300,7 +300,6 @@ static int btree_lookup_alive(struct m0_be_btree *tree,
 		bo_u.u_btree.t_rc);
 	if (rc == 0)
 		*val = anchor.ba_value;
-	/* yes, that's safe -- nobody else is reading it right now */
 	m0_be_btree_release(NULL, &anchor);
 	return rc;
 }
@@ -329,7 +328,7 @@ static int btree_save_ver(struct m0_be_btree *tree,
 	M0_UT_ASSERT(rc == 0);
 	rc = M0_BE_OP_SYNC_RET_WITH(&op,
 		m0_be_btree_save_inplace(tree, tx, &op, key, ver, &anchor,
-					 true, M0_BITS(M0_BAP_NORMAL)),
+					 overwrite, M0_BITS(M0_BAP_NORMAL)),
 		bo_u.u_btree.t_rc);
 	M0_UT_ASSERT(rc == 0);
 	if (anchor.ba_value.b_addr != NULL)
@@ -463,12 +462,6 @@ static void btree_delete_test(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	btree_insert(tree, &key, &val, 0);
 }
 
-enum {
-	YESTERDAY = 1,
-	TODAY = 2,
-	TOMORROW = 3,
-};
-
 /* Check if the cursor is pointing at a kv that has the expected data. */
 static void cursor_pos_verify(struct m0_be_btree_cursor *cur, int pos,
 			      bool verify_value)
@@ -504,9 +497,201 @@ static void cursor_pos_verify(struct m0_be_btree_cursor *cur, int pos,
 	}
 }
 
-/* Verifies a portion of use-case for tombstones and versions */
+/*
+ * XXX: These functions are not exported yet, so that
+ * we define them right here. Later on we may consider
+ * moving them into the public API.
+ */
+#if 1
+static uint64_t value2bpv(struct m0_buf *value, int key_size)
+{
+	uint64_t offset = m0_align(key_size, sizeof(void*)) + sizeof(uint64_t);
+	return *((uint64_t *) (value->b_addr - offset));
+}
+
+static uint64_t value2version(struct m0_buf *value, int key_size)
+{
+	return value2bpv(value, key_size) & ~(1L << 63);
+}
+
+static bool value2tbs(struct m0_buf *value, int key_size)
+{
+	return !!(value2bpv(value, key_size) & (1L << 63));
+}
+#endif
+
+static void btree_tbs_insert_delete(struct m0_be_btree *tree, int pos)
+{
+	enum value { PRESERVED, CHANGED, EMPTY };
+	enum op { PUT, DEL, NONE };
+	enum ver { PAST = 2, FUTURE = 3, };
+	enum tbs { ALIVE, DEAD };
+
+	struct tbs_case {
+		enum ver   v_before;
+		enum op    op_before;
+
+		enum op    op_after;
+		enum ver   v_after;
+
+		enum value o_value;
+		enum tbs   o_tbs;
+		enum ver   o_ver;
+		int        o_rc;
+	};
+
+#define BEFORE(_Op, _Ver) .v_before = _Ver, .op_before = _Op,
+#define AFTER(_Op, _Ver) .v_after = _Ver, .op_after = _Op,
+#define OUTCOME(_Rc, _Ver, _Tbs, _Val) .o_rc = _Rc, .o_tbs = _Tbs, \
+	.o_value = _Val, .o_ver = _Ver,
+
+	static const struct tbs_case cases[] = {
+		/* PUT@past + DEL@future => OK (remove) */
+		{ BEFORE(PUT, PAST) AFTER(DEL, FUTURE)
+			OUTCOME(0, FUTURE, DEAD, EMPTY) },
+
+		/* PUT@past + PUT@future => OK (overwrite) */
+		{ BEFORE(PUT, PAST) AFTER(PUT, FUTURE)
+			OUTCOME(0, FUTURE, ALIVE, CHANGED) },
+
+		/* PUT@future + PUT@past => OK (value@now = value@future) */
+		{ BEFORE(PUT, FUTURE) AFTER(PUT, PAST)
+			OUTCOME(0, FUTURE, ALIVE, PRESERVED) },
+
+		/* PUT@future + DEL@past => OK (value@now = value@future) */
+		{ BEFORE(PUT, FUTURE) AFTER(DEL, PAST)
+			OUTCOME(0, FUTURE, ALIVE, PRESERVED) },
+
+		/* DEL@future + DEL@past => OK (ensure tombstone is set) */
+		{ BEFORE(DEL, FUTURE) AFTER(DEL, PAST)
+			OUTCOME(0, FUTURE, DEAD, EMPTY) },
+
+		/* DEL@past + DEL@future => OK (ensure tombstone is set) */
+		{ BEFORE(DEL, PAST) AFTER(DEL, FUTURE)
+			OUTCOME(0, FUTURE, DEAD, EMPTY) },
+
+		/* DEL@future + DEL@past => OK (ensure tombstone is set) */
+		{ BEFORE(DEL, FUTURE) AFTER(DEL, PAST)
+			OUTCOME(0, FUTURE, DEAD, EMPTY) },
+
+		/* DEL@future + PUT@past => OK (value@now = value@future) */
+		{ BEFORE(DEL, FUTURE) AFTER(PUT, PAST)
+			OUTCOME(0, FUTURE, DEAD, EMPTY) },
+
+		/* DEL@past + PUT@future => OK (re-insert) */
+		{ BEFORE(DEL, PAST) AFTER(PUT, FUTURE)
+			OUTCOME(0, FUTURE, ALIVE, CHANGED) },
+
+		/* No key + DEL => OK (ensure tombstone is set)*/
+		{ BEFORE(NONE, PAST) AFTER(DEL, FUTURE)
+			OUTCOME(0, FUTURE, DEAD, EMPTY) },
+	};
+#undef BEFORE
+#undef AFTER
+#undef OUTCOME
+
+	const struct tbs_case    *tc;
+	int                       i;
+	int                       rc;
+	struct m0_buf             key;
+	struct m0_buf             old_val;
+	struct m0_buf             new_val;
+	struct m0_buf             actual_val;
+	bool                      is_dead;
+	uint64_t                  actual_ver;
+	char                      k[INSERT_KSIZE];
+	char                      newv[INSERT_VSIZE*2];
+	char                      oldv[INSERT_VSIZE*2];
+	struct m0_be_btree_anchor anchor;
+
+	for (i = 0; i < ARRAY_SIZE(cases); i++) {
+		tc = &cases[i];
+
+		rc = sprintf(k, "%0*d", INSERT_KSIZE-1, pos);
+		M0_ASSERT(rc > 0 && rc < sizeof(k) + 1);
+		m0_buf_init(&key, k, rc + 1);
+
+		rc = sprintf(oldv, "%0*d", INSERT_VSIZE*2 - 1, pos);
+		M0_ASSERT(rc > 0 && rc < sizeof(oldv) + 1);
+		m0_buf_init(&old_val, oldv, rc + 1);
+
+		rc = sprintf(newv, "%0*d", INSERT_VSIZE-1, pos);
+		M0_ASSERT(rc > 0 && rc < sizeof(newv) + 1);
+		m0_buf_init(&new_val, newv, rc + 1);
+
+		actual_val = M0_BUF_INIT0;
+
+		rc = btree_delete(tree, &key, 0);
+		M0_UT_ASSERT(M0_IN(rc, (0, -ENOENT)));
+
+		if (tc->op_before == PUT)
+			(void) btree_save_ver(tree, &key, &old_val, tc->v_before,
+					    true);
+		else if (tc->op_before == DEL)
+			btree_kill_one(tree, &key, tc->v_before);
+		else
+			M0_UT_ASSERT(tc->op_before == NONE);
+
+		if (tc->op_after == PUT)
+			(void) btree_save_ver(tree, &key, &new_val, tc->v_after,
+					    true);
+		else if (tc->op_after == DEL)
+			btree_kill_one(tree, &key, tc->v_after);
+		else
+			M0_IMPOSSIBLE();
+
+		/* We do not have any cases where errors are expected. */
+		M0_UT_ASSERT(tc->o_rc == 0);
+
+		rc = btree_lookup_alive(tree, &key, &actual_val);
+
+		M0_UT_ASSERT(ergo(tc->o_value == EMPTY, rc == -ENOENT));
+		M0_UT_ASSERT(ergo(tc->o_tbs == DEAD, rc == -ENOENT));
+		M0_UT_ASSERT(ergo(tc->o_tbs == ALIVE && tc->o_value != EMPTY,
+				  rc == 0));
+
+		M0_SET0(&anchor);
+
+		/* We should end up with something inserted either way. */
+		rc = M0_BE_OP_SYNC_RET(op,
+			m0_be_btree_lookup_inplace(tree, &op, &key, &anchor),
+			bo_u.u_btree.t_rc);
+
+		actual_val = anchor.ba_value;
+		actual_ver = value2version(&actual_val, key.b_nob);
+		is_dead = value2tbs(&actual_val, key.b_nob);
+
+		if (tc->o_value == PRESERVED)
+			M0_UT_ASSERT(m0_buf_eq(&actual_val, &old_val));
+		else if (tc->o_value == CHANGED)
+			M0_UT_ASSERT(m0_buf_eq(&actual_val, &new_val));
+		else if (tc->o_value == EMPTY) {
+			/*
+			 * XXX: The non-version-aware functions (for example,
+			 * lookup_inplace) do not know that the pair was
+			 * deleted, therefore it may return some old value
+			 * written by one of the previous PUTs.
+			 * Because of that we have nothing to do here.
+			 */
+		} else
+			M0_IMPOSSIBLE();
+
+		M0_UT_ASSERT(actual_ver == tc->o_ver);
+		M0_UT_ASSERT(equi(is_dead, tc->o_tbs == DEAD));
+
+		m0_be_btree_release(NULL, &anchor);
+	}
+}
+
+/*
+ * This test case does a small portion of sanity testing of
+ * kill(), lookup_alive(), save_inplace() and btree cursor.
+ * Additionally, it verifies a set of INSERT-DELETE tests
+ * with different combinations of operations and versions.
+ */
 static void btree_tbs_ver_test(struct m0_be_btree *tree)
 {
+
 	struct m0_buf             key;
 	struct m0_buf             val;
 	struct m0_buf             actual_val = {};
@@ -518,6 +703,8 @@ static void btree_tbs_ver_test(struct m0_be_btree *tree)
 	int                       rc;
 	int                       i;
 	struct m0_be_btree_cursor cursor = {};
+
+	enum { YESTERDAY = 1, TODAY = 2, TOMORROW = 3, };
 
 	m0_buf_init(&key, k, INSERT_KSIZE);
 	m0_buf_init(&val, v, INSERT_VSIZE);
@@ -686,6 +873,9 @@ static void btree_tbs_ver_test(struct m0_be_btree *tree)
 	M0_UT_ASSERT(rc == 0);
 	cursor_pos_verify(&cursor, 2, false);
 	M0_SET0(&cursor.bc_op);
+
+	/* Do a series of insert-delete tests. */
+	btree_tbs_insert_delete(tree, 1);
 
 	/* Restore the handful of records that we have deleted initialy. */
 	for (i = 1; i < 11; i++) {

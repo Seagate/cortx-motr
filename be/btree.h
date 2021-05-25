@@ -403,6 +403,18 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 				    struct m0_be_op *op,
 				    const struct m0_buf *key);
 
+/**
+ * Marks an key-value pair as "dead" (deleted).
+ * The call does not affect the value stored in the tree,
+ * it only updates the version and it sets the tombstone
+ * flag.
+ * Note, the user should calculate credits for "insertion" rather than
+ * for "deletion" of a key-value pair.
+ *
+ * @see ::m0_be_btree_lookup_alive_inplace()
+ * @see ::m0_be_btree_cursor_alive_get()
+ * @see ::m0_be_btree_save_inplace()
+ */
 M0_INTERNAL void m0_be_btree_kill(struct m0_be_btree *tree,
 				  struct m0_be_tx *tx,
 				  struct m0_be_op *op,
