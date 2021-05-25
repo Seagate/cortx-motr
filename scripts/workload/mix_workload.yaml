@@ -60,7 +60,7 @@ workloads:
       config_overrides: null
       timeout: 100
     - cmnd: m0crate
-      params: ' -S /usr/bin/workload/m0crate_workload_batch_1_file1.yaml'
+      params: ' -S /opt/seagate/cortx/motr/workload/m0crate_workload_batch_1_file1.yaml'
       config_overrides: null
       timeout: null
     runs: 2

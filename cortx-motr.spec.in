@@ -40,19 +40,15 @@
 %define  configure_cassandra_opts   --with-cassandra
 %endif
 
-%if %{with ivt}
-%define  configure_opts  %{configure_ut_opts} %{?configure_cassandra_opts}
-%else
-%if %{with ut}
+%if %{with ivt} || %{with ut}
 %define  configure_opts  %{configure_ut_opts} %{?configure_cassandra_opts}
 %else
 %define  configure_opts  %{configure_release_opts} %{?configure_cassandra_opts}
-%endif #with ut
-%endif #with ivt
+%endif
 
-Name:           cortx-motr
-Version:        2.0.0
-Release:        %{build_num}_git1725ba7_%{kernel_ver}%{?dist}
+Name:           @PACKAGE@
+Version:        @PACKAGE_VERSION@
+Release:        %{build_num}_@GIT_REV_ID_RPM@_%{kernel_ver}%{?dist}
 Summary:        CORTX Motr
 Group:          System Environment/Base
 License:        Seagate
@@ -189,11 +185,9 @@ CORTX Motr IVT.
 %setup -q
 
 %build
+%configure %{with_linux} %{with_lustre} %{configure_opts}
 %if !%{with ivt}
-%configure %{with_linux} %{with_lustre} %{configure_opts}
 make %{?_smp_mflags}
-%else
-%configure %{with_linux} %{with_lustre} %{configure_opts}
 %endif
 
 %install
