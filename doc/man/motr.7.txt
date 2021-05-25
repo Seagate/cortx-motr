@@ -25,8 +25,8 @@ Motr utilities
   service, send operation requests to it and wait for replies.
 
 *m0d*::
-  Motr file system service daemon. This command initializes and starts
-  requested Motr file system service as a daemon process in user space.
+  Motr service daemon. This command initializes and starts requested Motr
+  service as a daemon process in user space.
 
 *m0trace*::
   Utility to filter, analyze and print in human readable form trace logs in YAML

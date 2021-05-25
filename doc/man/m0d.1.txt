@@ -5,7 +5,7 @@ include::asciidoc.conf[]
 
 NAME
 ----
-m0d - Motr file system service daemon
+m0d - Motr service daemon
 
 
 SYNOPSIS
@@ -15,8 +15,8 @@ SYNOPSIS
 
 DESCRIPTION
 -----------
-The m0d(1) command initializes and starts requested Motr file system
-service as a daemon process in user space.
+The m0d(1) command initializes and starts requested Motr service as a daemon
+process in user space.
 
 
 OPTIONS
