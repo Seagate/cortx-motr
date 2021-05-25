@@ -24,8 +24,8 @@ OPTIONS
 
 Queries:
 
-*-x*::
-    List supported transports.
+*-h, --help*::
+    Display help screen and exit.
 
 *-l*::
     List supported services.
@@ -33,94 +33,88 @@ Queries:
 *-v*::
     Show version information and exit.
 
-*-h, --help*::
-    Display help screen and exit.
+*-x*::
+    List supported transports.
 
 Global options:
-
-*-F*::
-    Force mkfs to override found filesystem.
-
-*-Q* num::
-    Minimum length of TM receive queue.
-
-*-M* num::
-    Maximum RPC message size.
-
-*-H* addr::
-    Endpoint address of HA service.
-
-*-G* addr::
-    Endpoint address of MD service.
-
-*-R* addr::
-    Endpoint address of stats service.
-
-*-i* addr::
-    Add new entry to the list of IOS endpoint addresses.
-
-*-w* num::
-    Pool width.
-
-*-Z*::
-    Run as daemon.
 
 *-E* num::
     Number of net buffers used by IOS.
 
+*-F*::
+    Force mkfs to override found filesystem.
+
+*-G* addr::
+    Endpoint address of MD service.
+
+*-H* addr::
+    Endpoint address of HA service.
+
 *-J* num::
     Number of net buffers used by SNS.
 
-*-o* str::
-    Enable fault injection point with given name.
+*-M* num::
+    Maximum RPC message size.
+
+*-Q* num::
+    Minimum length of TM receive queue.
+
+*-R* addr::
+    Endpoint address of stats service.
+
+*-Z*::
+    Run as daemon.
 
 *-g*::
     Disable ADDB storage.
 
+*-i* addr::
+    Add new entry to the list of IOS endpoint addresses.
+
+*-o* str::
+    Enable fault injection point with given name.
+
+*-w* num::
+    Pool width.
+
 
 Request handler options:
 
-*-D* str::
-    BE stob domain file path (used by UT only).
-
-*-L* str::
-    BE log file path.
-
-*-b* str::
-    BE seg0 file path.
+*-A* str::
+    ADDB stob file path.
 
 *-B* str::
     BE primary segment file path.
 
-*-z* num::
-    BE primary segment size in bytes (used by m0mkfs only).
+*-C* num::
+    BE tx reg nr max.
 
-*-V* num::
-    BE log size.
+*-D* str::
+    BE stob domain file path (used by UT only).
 
-*-n* num::
-    BE tx group tx nr max.
-
-*-k* num::
-    BE tx group reg nr max.
+*-I*::
+    Disable direct I/O for data.
 
 *-K* num::
     BE tx group reg size max.
 
-*-p* num::
-    BE tx group payload size max.
-
-*-C* num::
-    BE tx reg nr max.
+*-L* str::
+    BE log file path.
 
 *-N* num::
     BE tx reg size max.
 
-*-s* num::
-    BE tx payload size max.
+*-S* str::
+    Stob file path.
 
-*-y* num::
-    BE tx group freeze timeout min, ms.
+*-T* str::
+    Type of storage. Supported types: linux, ad.
+
+*-U*::
+    Use confc API instead of `-d` to obtain device configuration.
+
+*-V* num::
+    BE log size.
 
 *-Y* num::
     BE tx group freeze timeout max, ms.
@@ -128,17 +122,11 @@ Request handler options:
 *-a*::
     Preallocate BE segment.
 
+*-b* str::
+    BE seg0 file path.
+
 *-c* str::
     [optional] Path to the configuration database. Mandatory for confd service.
-
-*-T* str::
-    Type of storage. Supported types: linux, ad.
-
-*-S* str::
-    Stob file path.
-
-*-A* str::
-    ADDB stob file path.
 
 *-d* str::
     [optional] Path to device configuration file.
@@ -148,17 +136,6 @@ Request handler options:
     E.g. id: 0,
          filename: /dev/sda
     Note that only AD type stob domain can be configured over device.
-
-*-U::
-    Use confc API instead of `-d` to obtain device configuration.
-
-*-q* num::
-    [optional] Minimum length of TM receive queue.
-    Defaults to the value set with '-Q' option.
-
-*-m* num::
-    [optional] Maximum RPC message size.
-    Defaults to the value set with '-M' option.
 
 *-e* addr::
     Network layer endpoint of a service.
@@ -175,12 +152,34 @@ Request handler options:
 *-f* fid::
     Process fid (mandatory for m0d).
 
-*-I*::
-    Disable direct I/O for data.
-
 *-j*::
     Enable fault injection service (FIS).
 
+*-k* num::
+    BE tx group reg nr max.
+
+*-m* num::
+    [optional] Maximum RPC message size.
+    Defaults to the value set with '-M' option.
+
+*-n* num::
+    BE tx group tx nr max.
+
+*-p* num::
+    BE tx group payload size max.
+
+*-q* num::
+    [optional] Minimum length of TM receive queue.
+    Defaults to the value set with '-Q' option.
+
+*-s* num::
+    BE tx payload size max.
+
+*-y* num::
+    BE tx group freeze timeout min, ms.
+
+*-z* num::
+    BE primary segment size in bytes (used by m0mkfs only).
 
 Example:
     m0d -Q 4 -M 4096 -T linux -D bepath -S stobfile
