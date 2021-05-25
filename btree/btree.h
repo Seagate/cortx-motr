@@ -118,6 +118,16 @@ enum m0_btree_opcode {
 	M0_BO_NR
 };
 
+/**
+ * These status codes are filled in m0_btree_rec.r_flags to provide the callback
+ * routine the status of the operatoin.
+ */
+enum m0_btree_status_codes {
+	M0_BSC_SUCCESS = 0,
+	M0_BSC_KEY_EXISTS,
+	M0_BSC_KEY_NOT_FOUND,
+};
+
 enum m0_btree_opflag {
 	M0_BOF_UNIQUE = 1 << 0
 };
