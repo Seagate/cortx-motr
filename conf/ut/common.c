@@ -26,12 +26,10 @@
 #include "conf/ut/common.h"
 #include "lib/fs.h"         /* m0_file_read */
 #include "rpc/rpclib.h"     /* m0_rpc_server_ctx */
-#include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
 #include "ut/ut.h"
 
 struct m0_conf_cache m0_conf_ut_cache;
 struct m0_sm_group   m0_conf_ut_grp;
-struct m0_net_xprt  *m0_conf_ut_xprt = &m0_net_lnet_xprt;
 
 /* Filters out intermediate state transitions of m0_confc_ctx::fc_mach. */
 static bool _filter(struct m0_clink *link)

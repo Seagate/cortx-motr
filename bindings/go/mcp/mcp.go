@@ -26,7 +26,7 @@ import (
     "fmt"
     "flag"
     "log"
-    "../mio"
+    "motr/mio"
 )
 
 func usage() {
@@ -122,7 +122,7 @@ func main() {
     } else if dst == "-" {
         writer = os.Stdout
     } else {
-        file, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE, 0655)
+        file, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE, 0644)
         if err != nil {
             log.Fatalf("failed to open file %v: %v", dst, err)
         }

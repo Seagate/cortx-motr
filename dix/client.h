@@ -167,6 +167,7 @@ struct m0_be_tx_remid;
 struct m0_dix_req;
 struct m0_pool_version;
 struct m0_fid;
+struct m0_dtm0_service;
 
 enum m0_dix_cli_state {
         DIXCLI_INVALID,
@@ -191,6 +192,7 @@ struct m0_dix_cli {
 	struct m0_dix_ldesc      dx_root;
 	struct m0_dix_ldesc      dx_layout;
 	struct m0_dix_ldesc      dx_ldescr;
+	struct m0_dtm0_service  *dx_dtms;
 
 	/**
 	 * The callback function is triggerred to update FSYNC records

@@ -236,7 +236,7 @@ Tests:
     sandbox  : /var/motr/sandbox.20pool-version-test
     groupname: 02motr-single-node
     polltime : 30
-    timeout  : 660
+    timeout  : 900
 
   - id       : 21spiel-test
     script   : m0t1fs_spiel_st.sh
@@ -628,7 +628,7 @@ Tests:
     script   : spiel_multiple_confd.sh
     dir      : src/spiel/st/
     executor : Xperior::Executor::MotrTest
-    sandbox  : /var/mero/sandbox.61spiel-multi-confd
+    sandbox  : /var/motr/sandbox.61spiel-multi-confd
     groupname: 03motr-single-node
     polltime : 30
     timeout  : 1800
@@ -637,7 +637,7 @@ Tests:
     script   : dix_repair_st.sh -v lookup insert
     dir      : src/dix/cm/st/
     executor : Xperior::Executor::MotrTest
-    sandbox  : /var/mero/sandbox.62dix-repair-st
+    sandbox  : /var/motr/sandbox.62dix-repair-st
     polltime : 30
     timeout  : 1800
 

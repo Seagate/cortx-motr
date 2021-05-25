@@ -127,7 +127,7 @@ static int stob_ad_0type_init(struct m0_be_domain *dom,
 	if (rc == 0) {
 		/* XXX won't be stored as pointer */
 		ad->adm_dom = rec->sa0_ad_domain;
-		strncpy(ad->adm_path, suffix, sizeof(ad->adm_path));
+		strncpy(ad->adm_path, suffix, sizeof(ad->adm_path) - 1);
 		m0_mutex_lock(&module->sam_lock);
 		ad_domains_tlink_init_at_tail(ad, &module->sam_domains);
 		m0_mutex_unlock(&module->sam_lock);

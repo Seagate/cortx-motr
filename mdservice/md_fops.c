@@ -83,7 +83,9 @@ struct m0_fop_type m0_fop_readdir_rep_fopt;
 
 M0_INTERNAL int m0_mdservice_fopts_init(void)
 {
-	M0_FOP_TYPE_INIT(&m0_fop_create_fopt,
+	M0_FOP_TYPE_INIT2_DECL;
+
+	M0_FOP_TYPE_INIT2(&m0_fop_create_fopt,
 			 .name      = "create",
 			 .opcode    = M0_MDSERVICE_CREATE_OPCODE,
 			 .xt        = m0_fop_create_xc,
@@ -94,7 +96,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_lookup_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_lookup_fopt,
 			 .name      = "lookup",
 			 .opcode    = M0_MDSERVICE_LOOKUP_OPCODE,
 			 .xt        = m0_fop_lookup_xc,
@@ -105,7 +107,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_link_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_link_fopt,
 			 .name      = "hardlink",
 			 .opcode    = M0_MDSERVICE_LINK_OPCODE,
 			 .xt        = m0_fop_link_xc,
@@ -116,7 +118,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_unlink_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_unlink_fopt,
 			 .name      = "unlink",
 			 .opcode    = M0_MDSERVICE_UNLINK_OPCODE,
 			 .xt        = m0_fop_unlink_xc,
@@ -127,7 +129,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_open_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_open_fopt,
 			 .name      = "open",
 			 .opcode    = M0_MDSERVICE_OPEN_OPCODE,
 			 .xt        = m0_fop_open_xc,
@@ -138,7 +140,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_close_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_close_fopt,
 			 .name      = "close",
 			 .opcode    = M0_MDSERVICE_CLOSE_OPCODE,
 			 .xt        = m0_fop_close_xc,
@@ -152,7 +154,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_setattr_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_setattr_fopt,
 			 .name      = "setattr",
 			 .opcode    = M0_MDSERVICE_SETATTR_OPCODE,
 			 .xt        = m0_fop_setattr_xc,
@@ -163,7 +165,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_getattr_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_getattr_fopt,
 			 .name      = "getattr",
 			 .opcode    = M0_MDSERVICE_GETATTR_OPCODE,
 			 .xt        = m0_fop_getattr_xc,
@@ -174,7 +176,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_setxattr_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_setxattr_fopt,
 			 .name      = "setxattr",
 			 .opcode    = M0_MDSERVICE_SETXATTR_OPCODE,
 			 .xt        = m0_fop_setxattr_xc,
@@ -185,7 +187,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_getxattr_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_getxattr_fopt,
 			 .name      = "getxattr",
 			 .opcode    = M0_MDSERVICE_GETXATTR_OPCODE,
 			 .xt        = m0_fop_getxattr_xc,
@@ -196,7 +198,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_delxattr_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_delxattr_fopt,
 			 .name      = "delxattr",
 			 .opcode    = M0_MDSERVICE_DELXATTR_OPCODE,
 			 .xt        = m0_fop_delxattr_xc,
@@ -207,7 +209,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_listxattr_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_listxattr_fopt,
 			 .name      = "listxattr",
 			 .opcode    = M0_MDSERVICE_LISTXATTR_OPCODE,
 			 .xt        = m0_fop_listxattr_xc,
@@ -218,7 +220,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_statfs_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_statfs_fopt,
 			 .name      = "statfs",
 			 .opcode    = M0_MDSERVICE_STATFS_OPCODE,
 			 .xt        = m0_fop_statfs_xc,
@@ -229,7 +231,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_rename_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_rename_fopt,
 			 .name      = "rename",
 			 .opcode    = M0_MDSERVICE_RENAME_OPCODE,
 			 .xt        = m0_fop_rename_xc,
@@ -240,7 +242,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_readdir_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_readdir_fopt,
 			 .name      = "readdir",
 			 .opcode    = M0_MDSERVICE_READDIR_OPCODE,
 			 .xt        = m0_fop_readdir_xc,
@@ -256,77 +258,79 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 
 M0_INTERNAL int m0_mdservice_rep_fopts_init(void)
 {
-	M0_FOP_TYPE_INIT(&m0_fop_create_rep_fopt,
+	M0_FOP_TYPE_INIT2_DECL;
+
+	M0_FOP_TYPE_INIT2(&m0_fop_create_rep_fopt,
 			 .name      = "create-reply",
 			 .opcode    = M0_MDSERVICE_CREATE_REP_OPCODE,
 			 .xt        = m0_fop_create_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_lookup_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_lookup_rep_fopt,
 			 .name      = "lookup-reply",
 			 .opcode    = M0_MDSERVICE_LOOKUP_REP_OPCODE,
 			 .xt        = m0_fop_lookup_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_link_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_link_rep_fopt,
 			 .name      = "hardlink-reply",
 			 .opcode    = M0_MDSERVICE_LINK_REP_OPCODE,
 			 .xt        = m0_fop_link_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_unlink_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_unlink_rep_fopt,
 			 .name      = "unlink-reply",
 			 .opcode    = M0_MDSERVICE_UNLINK_REP_OPCODE,
 			 .xt        = m0_fop_unlink_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_open_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_open_rep_fopt,
 			 .name      = "open-reply",
 			 .opcode    = M0_MDSERVICE_OPEN_REP_OPCODE,
 			 .xt        = m0_fop_open_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_close_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_close_rep_fopt,
 			 .name      = "close-reply",
 			 .opcode    = M0_MDSERVICE_CLOSE_REP_OPCODE,
 			 .xt        = m0_fop_close_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_setattr_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_setattr_rep_fopt,
 			 .name      = "setattr-reply",
 			 .opcode    = M0_MDSERVICE_SETATTR_REP_OPCODE,
 			 .xt        = m0_fop_setattr_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_getattr_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_getattr_rep_fopt,
 			 .name      = "getattr-reply",
 			 .opcode    = M0_MDSERVICE_GETATTR_REP_OPCODE,
 			 .xt        = m0_fop_getattr_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_setxattr_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_setxattr_rep_fopt,
 			 .name      = "setxattr-reply",
 			 .opcode    = M0_MDSERVICE_SETXATTR_REP_OPCODE,
 			 .xt        = m0_fop_setxattr_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_getxattr_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_getxattr_rep_fopt,
 			 .name      = "getxattr-reply",
 			 .opcode    = M0_MDSERVICE_GETXATTR_REP_OPCODE,
 			 .xt        = m0_fop_getxattr_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_delxattr_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_delxattr_rep_fopt,
 			 .name      = "delxattr-reply",
 			 .opcode    = M0_MDSERVICE_DELXATTR_REP_OPCODE,
 			 .xt        = m0_fop_delxattr_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_listxattr_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_listxattr_rep_fopt,
 			 .name      = "listxattr-reply",
 			 .opcode    = M0_MDSERVICE_LISTXATTR_REP_OPCODE,
 			 .xt        = m0_fop_listxattr_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_statfs_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_statfs_rep_fopt,
 			 .name      = "statfs-reply",
 			 .opcode    = M0_MDSERVICE_STATFS_REP_OPCODE,
 			 .xt        = m0_fop_statfs_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_rename_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_rename_rep_fopt,
 			 .name      = "rename-reply",
 			 .opcode    = M0_MDSERVICE_RENAME_REP_OPCODE,
 			 .xt        = m0_fop_rename_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_readdir_rep_fopt,
+	M0_FOP_TYPE_INIT2(&m0_fop_readdir_rep_fopt,
 			 .name      = "readdir-reply",
 			 .opcode    = M0_MDSERVICE_READDIR_REP_OPCODE,
 			 .xt        = m0_fop_readdir_rep_xc,

@@ -92,7 +92,7 @@ struct m0_vec_cursor {
 	/** Segment that the cursor is currently in. */
 	uint32_t             vc_seg;
 	/** Offset within the segment that the cursor is positioned at. */
-	m0_bindex_t          vc_offset;
+	m0_bcount_t          vc_offset;
 };
 
 /**
@@ -275,7 +275,7 @@ M0_INTERNAL void m0_bufvec_free_aligned(struct m0_bufvec *bufvec,
 M0_INTERNAL void m0_bufvec_free_aligned_packed(struct m0_bufvec *bufvec,
 					       unsigned shift);
 /**
- * Packs buffers vector by squashing its contiguous chunks.
+ * Packs buffers vector by squashing its contiguous or overlapping chunks.
  * @pre bufvec->ov_vec.v_nr > 0.
  * @return the number of squashed chunks.
  */
@@ -308,7 +308,7 @@ M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec, uint32_t len);
 M0_INTERNAL void m0_indexvec_free(struct m0_indexvec *ivec);
 
 /**
- * Packs index vector by squashing its contiguous chunks.
+ * Packs index vector by squashing its contiguous or overlapping chunks.
  * @pre ivec->iv_vec.v_nr > 0.
  * @return the number of squashed chunks.
  */
@@ -469,7 +469,6 @@ M0_INTERNAL bool m0_ivec_cursor_move(struct m0_ivec_cursor *cur,
  * @param dest Index uptil which cursor has to be moved.
  * @ret   true iff end of vector has been reached while
  *             moving cursor. Returns false otherwise.
- * @post  m0_ivec_cursor_index(cursor) == to.
 */
 M0_INTERNAL bool m0_ivec_cursor_move_to(struct m0_ivec_cursor *cursor,
 					m0_bindex_t dest);
@@ -478,16 +477,23 @@ M0_INTERNAL bool m0_ivec_cursor_move_to(struct m0_ivec_cursor *cursor,
  * Returns the number of bytes needed to move cursor to next segment in given
  * index vector.
  * @param cur Index vector to be moved.
- * @ret   Number of bytes needed to move the cursor to next segment.
  */
 M0_INTERNAL m0_bcount_t m0_ivec_cursor_step(const struct m0_ivec_cursor *cur);
 
 /**
  * Returns index at current cursor position.
  * @param cur Given index vector cursor.
- * @ret   Index at current cursor position.
  */
-M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(struct m0_ivec_cursor *cur);
+M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(const struct m0_ivec_cursor *cur);
+
+/**
+ * Returns the latest index through the contiguous segments up to @dest.
+ * @pre   dest >= m0_ivec_cursor_index(cur).
+ * @param cur cursor to start from.
+ * @param dest uptil where to check.
+ */
+M0_INTERNAL m0_bindex_t
+m0_ivec_cursor_conti(const struct m0_ivec_cursor *cur, m0_bindex_t dest);
 
 /**
    Zero vector is a full fledged IO vector containing IO extents
@@ -700,7 +706,7 @@ struct m0_ivec_varr_cursor {
 	/** Segment that the cursor is currently in. */
 	uint32_t             vc_seg;
 	/** Offset within the segment that the cursor is positioned at. */
-	m0_bindex_t          vc_offset;
+	m0_bcount_t          vc_offset;
 };
 
 /**
@@ -762,8 +768,17 @@ m0_ivec_varr_cursor_step(const struct m0_ivec_varr_cursor *cur);
  * @ret   Index at current cursor position.
  */
 M0_INTERNAL m0_bindex_t
-m0_ivec_varr_cursor_index(struct m0_ivec_varr_cursor *cur);
+m0_ivec_varr_cursor_index(const struct m0_ivec_varr_cursor *cur);
 
+/**
+ * Returns the latest index through the contiguous segments up to @dest.
+ * @pre   dest >= m0_ivec_varr_cursor_index(cur).
+ * @param cur cursor to start from.
+ * @param dest uptil where to check.
+ */
+M0_INTERNAL m0_bindex_t
+m0_ivec_varr_cursor_conti(const struct m0_ivec_varr_cursor *cur,
+			  m0_bindex_t dest);
 /** @} end of vec group */
 
 /* __MOTR_LIB_VEC_H__ */

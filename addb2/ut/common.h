@@ -56,7 +56,7 @@ int  fill_one(struct m0_addb2_mach *m);
 struct small_record {
 	struct m0_addb2_value ar_val;
 	unsigned              ar_label_nr;
-	struct m0_addb2_value ar_label[10];
+	struct m0_addb2_value ar_label[4];
 };
 
 #define VAL(id, ...) {							\

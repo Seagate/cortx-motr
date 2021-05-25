@@ -137,7 +137,6 @@ static void test_rpclib(void)
 	M0_UT_ASSERT(rc == 0);
 	if (rc != 0)
 		return;
-
 	rc = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(rc == 0);
 	if (rc != 0)
@@ -157,8 +156,7 @@ server_fini:
 static int test_rpclib_init(void)
 {
 	int rc;
-
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 	return rc;
 }

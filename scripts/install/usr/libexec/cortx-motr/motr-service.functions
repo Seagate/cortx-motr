@@ -14,6 +14,12 @@
 set -e
 set -E
 
+sysconfig_dir='/etc/sysconfig'
+[ -d /etc/sysconfig ] || sysconfig_dir='/etc/default'
+user_config=$sysconfig_dir/motr
+kernel_config=$sysconfig_dir/motr-kernel
+ha_config="$sysconfig_dir/m0d-${1#m0d-}"
+
 _error_handler()
 {
     kill -TERM $$
@@ -83,7 +89,7 @@ _trap_munge()
     local cmd=$1
     local signal=$2
 
-    [[ -n $cmd && -n $signal ]] || {
+    [[ -n "$cmd" && -n "$signal" ]] || {
         m0_exit "$FUNCNAME: not enough arguments provided"
     }
 
@@ -169,7 +175,7 @@ m0_load_modules()
         local qlen=${MOTR_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}
         local ep=$(m0_get_kmod_ep)
 
-        [[ -n $uuid ]] || m0_exit 'MOTR_NODE_UUID is missing, check /etc/sysconfig/motr-kernel file'
+        [[ -n "$uuid" ]] || m0_exit 'MOTR_NODE_UUID is missing, check /etc/sysconfig/motr-kernel file'
 
         m0tr_params="$m0tr_params node_uuid=$uuid"
         m0tr_params="$m0tr_params local_addr=$ep"
@@ -248,11 +254,11 @@ m0_get_lnet_nid()
 
     local lnid
     # if $node is empty, then query is for current node
-    if [[ -z $node || $node == $(hostname -s) ]] ; then
+    if [[ -z "$node" || $node == $(hostname -s) ]] ; then
         lnid=${MOTR_NODE_LNID:=$(m0_genders_value_of m0_lnet_nid)}
-        if [[ -z $lnid || $lnid == auto ]] ; then
+        if [[ -z "$lnid" || $lnid == auto ]] ; then
             lnid=$(lctl list_nids | head -n1)
-            [[ -z $lnid ]] && \
+            [[ -z "$lnid" ]] && \
                 m0_exit 'Failed to auto-detect Lnet NID, please check that' \
                         ' lnet service is running'
         fi
@@ -336,7 +342,7 @@ m0_get_ep_of()
     # services managed by Halong get their endpoints from the per-service config
     # file
     if [[ $service == m0d-* ]] ; then
-        [[ -n $MOTR_M0D_EP ]] ||
+        [[ -n "$MOTR_M0D_EP" ]] ||
             m0_exit "MOTR_M0D_EP isn't set for $service service"
         echo $MOTR_M0D_EP
         return
@@ -414,10 +420,10 @@ m0_get_proc_fid_for()
 
     nidx=$(_word_index "$(m0_get_nodes)" ${node:-$(hostname -s)})
 
-    if [[ -n $nidx ]] ; then
+    if [[ -n "$nidx" ]] ; then
         sidx=$(_word_index "$(m0_get_services)" $service)
 
-        if [[ -n $sidx ]] ; then
+        if [[ -n "$sidx" ]] ; then
             ((--sidx)) || true
             proc_fid=$(printf 0x%x:%d $((0x7200000000000000+$nidx)) $sidx)
         else
@@ -494,53 +500,53 @@ m0_get_core_params()
 
     if m0_genders_has_variable m0_be_tx_group_tx_nr_max ; then
         optional_params+=" -n $(m0_genders_value_of m0_be_tx_group_tx_nr_max)"
-    elif [[ -n $MOTR_M0D_BETXGR_TX_NR_MAX ]]; then
+    elif [[ -n "$MOTR_M0D_BETXGR_TX_NR_MAX" ]]; then
         optional_params+=" -n $MOTR_M0D_BETXGR_TX_NR_MAX"
     fi
 
     if m0_genders_has_variable m0_be_tx_group_reg_nr_max ; then
         optional_params+=" -k $(m0_genders_value_of m0_be_tx_group_reg_nr_max)"
-    elif [[ -n $MOTR_M0D_BETXGR_REG_NR_MAX ]]; then
+    elif [[ -n "$MOTR_M0D_BETXGR_REG_NR_MAX" ]]; then
         optional_params+=" -k $MOTR_M0D_BETXGR_REG_NR_MAX"
     fi
 
     if m0_genders_has_variable m0_be_tx_group_reg_size_max ; then
         optional_params+=" -K $(m0_genders_value_of m0_be_tx_group_reg_size_max)"
-    elif [[ -n $MOTR_M0D_BETXGR_REG_SIZE_MAX ]]; then
+    elif [[ -n "$MOTR_M0D_BETXGR_REG_SIZE_MAX" ]]; then
         optional_params+=" -K $MOTR_M0D_BETXGR_REG_SIZE_MAX"
     fi
 
     if m0_genders_has_variable m0_be_tx_group_payload_size_max ; then
         optional_params+=" -p $(m0_genders_value_of m0_be_tx_group_payload_size_max)"
-    elif [[ -n $MOTR_M0D_BETXGR_PAYLOAD_SIZE_MAX ]]; then
+    elif [[ -n "$MOTR_M0D_BETXGR_PAYLOAD_SIZE_MAX" ]]; then
         optional_params+=" -p $MOTR_M0D_BETXGR_PAYLOAD_SIZE_MAX"
     fi
 
-    if [[ -n $MOTR_M0D_BETX_REG_NR_MAX ]]; then
+    if [[ -n "$MOTR_M0D_BETX_REG_NR_MAX" ]]; then
         optional_params+=" -C $MOTR_M0D_BETX_REG_NR_MAX"
     fi
 
-    if [[ -n $MOTR_M0D_BETX_REG_SIZE_MAX ]]; then
+    if [[ -n "$MOTR_M0D_BETX_REG_SIZE_MAX" ]]; then
         optional_params+=" -N $MOTR_M0D_BETX_REG_SIZE_MAX"
     fi
 
-    if [[ -n $MOTR_M0D_BETX_PAYLOAD_SIZE_MAX ]]; then
+    if [[ -n "$MOTR_M0D_BETX_PAYLOAD_SIZE_MAX" ]]; then
         optional_params+=" -s $MOTR_M0D_BETX_PAYLOAD_SIZE_MAX"
     fi
 
-    if [[ -n $MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MIN ]]; then
+    if [[ -n "$MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MIN" ]]; then
         optional_params+=" -y $MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MIN"
     fi
 
-    if [[ -n $MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MAX ]]; then
+    if [[ -n "$MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MAX" ]]; then
         optional_params+=" -Y $MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MAX"
     fi
 
-    if [[ -n $MOTR_M0D_IOS_BUFFER_POOL_SIZE ]]; then
+    if [[ -n "$MOTR_M0D_IOS_BUFFER_POOL_SIZE" ]]; then
         optional_params+=" -E $MOTR_M0D_IOS_BUFFER_POOL_SIZE"
     fi
 
-    if [[ -n $MOTR_M0D_SNS_BUFFER_POOL_SIZE ]]; then
+    if [[ -n "$MOTR_M0D_SNS_BUFFER_POOL_SIZE" ]]; then
         optional_params+=" -J $MOTR_M0D_SNS_BUFFER_POOL_SIZE"
     fi
 
@@ -552,7 +558,7 @@ m0_get_core_params()
     local qlen=${MOTR_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}
     local directio=${MOTR_M0D_DIRECT_IO:-$(m0_genders_value_of m0_directio)}
 
-    if [[ -n $directio ]] && ! $directio ; then
+    if [[ -n "$directio" ]] && ! $directio ; then
         # disable direct-IO
         optional_params+=' -I'
     fi

@@ -20,7 +20,7 @@
 
 pids=$(ps aux | grep '/endless_m0crate' | grep bash | awk '{print $2}')
 
-if [[ -z $pids ]]; then
+if [[ -z "$pids" ]]; then
     echo "not found pids of endless_m0crate"
     exit 1
 fi

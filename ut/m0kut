@@ -136,9 +136,9 @@ log()
 run_lut_helper()
 {
     # run it only if lnet test will be executed
-    if [[ ( -z $tests || $tests =~ .*lnet.* ) && ! $exclude_tests =~ .*lnet.* ]] ; then
+    if [[ ( -z "$tests" || $tests =~ .*lnet.* ) && ! $exclude_tests =~ .*lnet.* ]] ; then
         log 'starting lnet KUT helper'
-        if [[ -n $top_srcdir ]] ; then
+        if [[ -n "$top_srcdir" ]] ; then
             $top_srcdir/net/lnet/ut/m0kut-helper
         else
             m0kut-helper
@@ -151,7 +151,7 @@ run_lut_helper()
 # tree is not found.
 load_modules()
 {
-    if [[ -n $top_srcdir ]] ; then
+    if [[ -n "$top_srcdir" ]] ; then
         NODE_UUID=$node_uuid
         source $top_srcdir/m0t1fs/linux_kernel/st/common.sh
         MODLIST="$top_srcdir/m0ut.ko"
@@ -201,7 +201,9 @@ eval set -- "$cli_args"
     die 'Please, run this script with "root" privileges.'
 
 sysctl -q -w kernel.printk=8
-tail -n 1 -F /var/log/messages &
+syslog='/var/log/messages'
+[ -f $syslog ] || syslog='/var/log/syslog'
+tail -n 1 -F $syslog &
 
 load_modules
 

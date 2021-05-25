@@ -40,7 +40,7 @@ struct ping_ops {
  */
 struct ping_ctx {
 	const struct ping_ops		     *pc_ops;
-	struct m0_net_xprt		     *pc_xprt;
+	const struct m0_net_xprt	     *pc_xprt;
 	struct m0_net_domain		      pc_dom;
 	const char		             *pc_hostname; /* dotted decimal */
 	short				      pc_port;

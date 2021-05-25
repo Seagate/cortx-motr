@@ -26,6 +26,7 @@
 #include "lib/finject.h"              /* M0_FI_ENABLED */
 #include "lib/arith.h"                /* M0_CNT_INC */
 #include "lib/mutex.h"                /* m0_mutex_lock */
+#include "lib/time.h"                 /* m0_nanosleep */
 #include "addb2/global.h"
 #include "addb2/sys.h"
 #include "fid/fid.h"                  /* m0_fid */
@@ -36,7 +37,13 @@
 #include "pool/pool.h"                /* m0_pool_init */
 #include "rm/rm_service.h"            /* m0_rms_type */
 #include "net/lnet/lnet_core_types.h" /* M0_NET_LNET_NIDSTR_SIZE */
-#include "net/lnet/lnet.h"            /* m0_net_lnet_xprt */
+#ifndef __KERNEL__
+#include <unistd.h>                   /* sleep */
+#else
+#include <linux/delay.h>              /* msleep */
+#endif /* __KERNEL__ */
+#include "dtm0/service.h"             /* m0_dtm0_service_find */
+#include "dtm0/helper.h"              /* m0_dtm_client_service_start */
 
 #include "motr/io.h"                /* io_sm_conf */
 #include "motr/client.h"
@@ -453,7 +460,7 @@ static int client_net_init(struct m0_client *m0c)
 	strncpy(laddr, m0c->m0c_config->mc_local_addr, laddr_len);
 	m0c->m0c_laddr = laddr;
 
-	m0c->m0c_xprt = &m0_net_lnet_xprt;
+	m0c->m0c_xprt = m0_net_xprt_default_get();
 	xprt =  m0c->m0c_xprt;
 	ndom = &m0c->m0c_ndom;
 
@@ -1498,6 +1505,7 @@ int m0_client_init(struct m0_client **m0c_p,
 {
 	int               rc;
 	struct m0_client *m0c;
+	struct m0_fid     cli_svc_fid;
 
 	M0_PRE(m0c_p != NULL);
 	M0_PRE(*m0c_p == NULL);
@@ -1604,6 +1612,47 @@ int m0_client_init(struct m0_client **m0c_p,
 	/* Init the hash-table for RM contexts */
 	rm_ctx_htable_init(&m0c->m0c_rm_ctxs, M0_RM_HBUCKET_NR);
 
+	if (ENABLE_DTM0) {
+		struct m0_reqh_service *reqh_svc;
+
+		rc = m0_conf_process2service_get(m0_reqh2confc(&m0c->m0c_reqh),
+						 &m0c->m0c_reqh.rh_fid,
+						 M0_CST_DTM0, &cli_svc_fid);
+		M0_ASSERT(rc == 0);
+
+		if (m0_dtm0_in_ut()) {
+			/* When in UT, m0c_reqh.rh_fid is the same as the
+			 * server process fid. It causes the client to use
+			 * the server-side service fid. Hard-coding of the client
+			 * service fid resolves this problem.
+			 * TODO: When in UT, walk over the list of processes in
+			 * the conf cache and get the service with "volatile"
+			 * property from there. It will help to get rid of the
+			 * hard-coded service fid.
+			 */
+			cli_svc_fid  = M0_FID_INIT(0x7300000000000001, 0x1a);
+		}
+
+		rc = m0_dtm_client_service_start(&m0c->m0c_reqh, &cli_svc_fid,
+						 &reqh_svc);
+		M0_ASSERT(rc == 0);
+
+		m0c->m0c_dtms = m0_dtm0_service_find(&m0c->m0c_reqh);
+		M0_ASSERT(m0c->m0c_dtms != NULL);
+
+		/* When in non-UT, we should wait until all the servers
+		 * have established connections with this client.
+		 * TODO: remove this sleep() when a proper start/stop
+		 * procedure is implemented.
+		 */
+		if (!m0_dtm0_in_ut()) {
+#ifndef __KERNEL__
+			sleep(15);
+#else
+			msleep(15000);
+#endif
+		}
+	}
 	if (conf->mc_is_addb_init) {
 		char buf[64];
 		/* Default client addb record file size set to 128M */
@@ -1641,6 +1690,10 @@ void m0_client_fini(struct m0_client *m0c, bool fini_m0)
 	M0_PRE(m0_sm_conf_is_initialized(&m0_op_conf));
 	M0_PRE(m0_sm_conf_is_initialized(&entity_conf));
 	M0_PRE(m0c != NULL);
+	M0_PRE(ergo(ENABLE_DTM0, m0c->m0c_dtms != NULL));
+
+	if (m0c->m0c_dtms != NULL)
+		m0_dtm_client_service_stop(&m0c->m0c_dtms->dos_generic);
 
 	if (m0c->m0c_config->mc_is_addb_init) {
 		m0_addb2_force_all();

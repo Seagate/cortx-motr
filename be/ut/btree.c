@@ -472,7 +472,7 @@ static void btree_save_test(struct m0_be_btree *tree)
 
 static struct m0_be_btree *create_tree(void)
 {
-	struct m0_be_tx_credit	cred = {};
+	struct m0_be_tx_credit *cred;
 	struct m0_be_btree     *tree;
 	struct m0_be_tx        *tx;
 	struct m0_buf           key;
@@ -480,23 +480,31 @@ static struct m0_be_btree *create_tree(void)
 	char                    k[INSERT_KSIZE];
 	char                    v[INSERT_VSIZE * 2];
 	char                    v2[INSERT_VSIZE * 3];
-	struct m0_be_op         op = {};
+	struct m0_be_op        *op;
 	int                     rc;
 	int                     i;
 
 	M0_ENTRY();
 
+	M0_ALLOC_PTR(cred);
+	M0_UT_ASSERT(cred != NULL);
+
 	{ /* XXX: should calculate these credits not for dummy tree,
 	   but for allocated below. This needs at least two transactions. */
-		struct m0_be_btree t = { .bb_seg = seg };
-		m0_be_btree_create_credit(&t, 1, &cred);
+		struct m0_be_btree *t = M0_ALLOC_PTR(t);
+		M0_UT_ASSERT(t != NULL);
+		*t = (struct m0_be_btree) { .bb_seg = seg };
+		m0_be_btree_create_credit(t, 1, cred);
+		m0_free(t);
 	}
-	M0_BE_ALLOC_CREDIT_PTR(tree, seg, &cred);
+	M0_BE_ALLOC_CREDIT_PTR(tree, seg, cred);
 
+	M0_ALLOC_PTR(op);
+	M0_UT_ASSERT(op != NULL);
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
 	m0_be_ut_tx_init(tx, ut_be);
-	m0_be_tx_prep(tx, &cred);
+	m0_be_tx_prep(tx, cred);
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 
@@ -504,21 +512,21 @@ static struct m0_be_btree *create_tree(void)
 	M0_BE_ALLOC_PTR_SYNC(tree, seg, tx);
 	m0_be_btree_init(tree, seg, &kv_ops);
 
-	M0_BE_OP_SYNC_WITH(&op,
-		   m0_be_btree_create(tree, tx, &op, &M0_FID_TINIT('b', 0, 1)));
+	M0_BE_OP_SYNC_WITH(op,
+		   m0_be_btree_create(tree, tx, op, &M0_FID_TINIT('b', 0, 1)));
 	M0_UT_ASSERT(m0_fid_eq(&tree->bb_backlink.bli_fid,
 			       &M0_FID_TINIT('b', 0, 1)));
 	M0_UT_ASSERT(m0_be_btree_is_empty(tree));
 	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);
 
-	M0_SET0(&op);
-	rc = M0_BE_OP_SYNC_RET_WITH(&op, m0_be_btree_minkey(tree, &op, &key),
+	M0_SET0(op);
+	rc = M0_BE_OP_SYNC_RET_WITH(op, m0_be_btree_minkey(tree, op, &key),
 	                            bo_u.u_btree.t_rc);
 	M0_UT_ASSERT(rc == -ENOENT && key.b_addr == NULL && key.b_nob == 0);
 
-	M0_SET0(&op);
-	rc = M0_BE_OP_SYNC_RET_WITH(&op, m0_be_btree_maxkey(tree, &op, &key),
+	M0_SET0(op);
+	rc = M0_BE_OP_SYNC_RET_WITH(op, m0_be_btree_maxkey(tree, op, &key),
 	                            bo_u.u_btree.t_rc);
 	M0_UT_ASSERT(rc == -ENOENT && key.b_addr == NULL && key.b_nob == 0);
 
@@ -550,17 +558,17 @@ static struct m0_be_btree *create_tree(void)
 	btree_save_test(tree);
 	M0_LOG(M0_INFO, "Updating...");
 	m0_be_ut_tx_init(tx, ut_be);
-	cred = M0_BE_TX_CREDIT(0, 0);
-	m0_be_btree_update_credit(tree, 1, INSERT_VSIZE, &cred);
-	m0_be_tx_prep(tx, &cred);
+	*cred = M0_BE_TX_CREDIT(0, 0);
+	m0_be_btree_update_credit(tree, 1, INSERT_VSIZE, cred);
+	m0_be_tx_prep(tx, cred);
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 
 	sprintf(k, "%0*d", INSERT_KSIZE-1, INSERT_COUNT - 1);
 	sprintf(v, "XYZ");
 	val.b_nob = 4;
-	M0_SET0(&op);
-	M0_BE_OP_SYNC_WITH(&op, m0_be_btree_update(tree, tx, &op, &key, &val));
+	M0_SET0(op);
+	M0_BE_OP_SYNC_WITH(op, m0_be_btree_update(tree, tx, op, &key, &val));
 
 	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);
@@ -569,22 +577,24 @@ static struct m0_be_btree *create_tree(void)
 
 	M0_LOG(M0_INFO, "Updating with longer value...");
 	m0_be_ut_tx_init(tx, ut_be);
-	cred = M0_BE_TX_CREDIT(0, 0);
+	*cred = M0_BE_TX_CREDIT(0, 0);
 	m0_be_btree_update_credit2(tree, 1, INSERT_KSIZE, INSERT_VSIZE * 3,
-				   &cred);
-	m0_be_tx_prep(tx, &cred);
+				   cred);
+	m0_be_tx_prep(tx, cred);
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 
 	sprintf(k, "%0*d", INSERT_KSIZE-1, INSERT_COUNT - 2);
 	snprintf(v2, sizeof v2, "%s", "ABCDEFGHI");
 	m0_buf_init(&val, v2, strlen(v2)+1);
-	M0_SET0(&op);
-	M0_BE_OP_SYNC_WITH(&op, m0_be_btree_update(tree, tx, &op, &key, &val));
+	M0_SET0(op);
+	M0_BE_OP_SYNC_WITH(op, m0_be_btree_update(tree, tx, op, &key, &val));
 
 	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);
 	m0_free(tx);
+	m0_free(op);
+	m0_free(cred);
 
 	btree_dbg_print(tree);
 

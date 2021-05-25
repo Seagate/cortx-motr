@@ -56,6 +56,8 @@ Get to know
 
 - `Provisioning Guide for Building and Testing Environment </scripts/provisioning/README.md>`_
 
+- `Motr Performance Tuning <https://github.com/Seagate/cortx-motr/wiki/Motr-Performance-Tuning>`_
+
 Surfing
 =======
 Refer to `Reading - list </doc/reading-list.md>`_ for complete information.

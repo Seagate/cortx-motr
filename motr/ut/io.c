@@ -216,9 +216,9 @@ static void ut_test_layout_unit_size(void)
 }
 
 /*
- * Helper function for ut_test_data_row_nr().
+ * Helper function for ut_test_rows_nr().
  */
-static void ut_helper_data_row_nr(uint64_t size, m0_bcount_t bshift,
+static void ut_helper_rows_nr(uint64_t size, m0_bcount_t bshift,
 				  uint64_t exp_row_nr)
 {
 	struct m0_pdclust_layout play;
@@ -227,14 +227,14 @@ static void ut_helper_data_row_nr(uint64_t size, m0_bcount_t bshift,
 
 	play.pl_attr.pa_unit_size = size;
 	obj.ob_attr.oa_bshift = bshift;
-	row_nr = data_row_nr(&play, &obj);
+	row_nr = rows_nr(&play, &obj);
 	M0_UT_ASSERT(row_nr == exp_row_nr);
 }
 
 /*
- * Tests data_row_nr().
+ * Tests rows_nr().
  */
-static void ut_test_data_row_nr(void)
+static void ut_test_rows_nr(void)
 {
 	struct m0_pdclust_layout play;
 	struct m0_obj             obj;
@@ -244,63 +244,12 @@ static void ut_test_data_row_nr(void)
 	M0_SET0(&play);
 
 	/* Base case. */
-	ut_helper_data_row_nr(511, M0_MIN_BUF_SHIFT, 0);
-	ut_helper_data_row_nr(512, M0_MIN_BUF_SHIFT, 1);
-	ut_helper_data_row_nr(513, M0_MIN_BUF_SHIFT, 1);
-	ut_helper_data_row_nr(777, M0_MIN_BUF_SHIFT, 1);
-	ut_helper_data_row_nr(1023, M0_MIN_BUF_SHIFT, 1);
-	ut_helper_data_row_nr(1024, M0_MIN_BUF_SHIFT, 2);
-}
-
-/*
- * Tests data_col_nr().
- */
-static void ut_test_data_col_nr(void)
-{
-	struct m0_pdclust_layout play;
-	uint32_t                  col_nr;
-
-	/* Base case. */
-	play.pl_attr.pa_N = 777;
-	col_nr = data_col_nr(&play);
-	M0_UT_ASSERT(col_nr == 777);
-	play.pl_attr.pa_N = 0;
-	col_nr = data_col_nr(&play);
-	M0_UT_ASSERT(col_nr == 0);
-}
-
-/*
- * Tests parity_col_nr().
- */
-static void ut_test_parity_col_nr(void)
-{
-	struct m0_pdclust_layout play;
-	uint32_t                 col_nr;
-
-	/* Base case. */
-	play.pl_attr.pa_K = 777;
-	col_nr = parity_col_nr(&play);
-	M0_UT_ASSERT(col_nr == 777);
-	play.pl_attr.pa_K = 0;
-	col_nr = parity_col_nr(&play);
-	M0_UT_ASSERT(col_nr == 0);
-}
-
-/**
- * Tests parity_row_nr().
- * @see ut_test_data_row_nr().
- */
-static void ut_test_parity_row_nr(void)
-{
-	struct m0_pdclust_layout play;
-	struct m0_obj             obj;
-	uint32_t                  row_nr;
-
-	/* Base case. */
-	play.pl_attr.pa_unit_size = 511;
-	obj.ob_attr.oa_bshift = M0_MIN_BUF_SHIFT;
-	row_nr = parity_row_nr(&play, &obj);
-	M0_UT_ASSERT(row_nr == 0);
+	ut_helper_rows_nr(511, M0_MIN_BUF_SHIFT, 0);
+	ut_helper_rows_nr(512, M0_MIN_BUF_SHIFT, 1);
+	ut_helper_rows_nr(513, M0_MIN_BUF_SHIFT, 1);
+	ut_helper_rows_nr(777, M0_MIN_BUF_SHIFT, 1);
+	ut_helper_rows_nr(1023, M0_MIN_BUF_SHIFT, 1);
+	ut_helper_rows_nr(1024, M0_MIN_BUF_SHIFT, 2);
 }
 
 /**
@@ -873,14 +822,8 @@ struct m0_ut_suite ut_suite_io = {
 				    &ut_test_page_id},
 		{ "layout_unit_size",
 				    &ut_test_layout_unit_size},
-		{ "data_row_nr",
-				    &ut_test_data_row_nr},
-		{ "data_col_nr",
-				    &ut_test_data_col_nr},
-		{ "parity_col_nr",
-				    &ut_test_parity_col_nr},
-		{ "parity_row_nr",
-				    &ut_test_parity_row_nr},
+		{ "rows_nr",
+				    &ut_test_rows_nr},
 		{ "data_size",
 				    &ut_test_data_size},
 		{ "pdlayout_instance",

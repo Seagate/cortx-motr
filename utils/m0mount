@@ -403,10 +403,11 @@ echo "Device:" > disks.conf
 devs=\`ls $DISKS_PATTERN | grep -v part\`
 
 for dev in \$devs; do
-	partitions=\$(partprobe -ds \$dev 2>/dev/null)
+	partitions=\$(partprobe -ds \$dev 2>/dev/null |
+                      sed -e 's/.*partitions//' -e '/^$/d')
 	# if \$dev is a valid block device (zero exit code of partprobe)
 	# and it doesn't contain any partition table (output of partprobe is empy)
-	if [[ \$? -eq 0 && -z \$partitions ]]; then
+	if [[ \$? -eq 0 && -z "\$partitions" ]]; then
 		if [ \$j -eq 0 ]; then
 			echo "Device:" > disks\$f.conf
 			echo "   - id: 0" >> disks\$f.conf
@@ -422,6 +423,7 @@ for dev in \$devs; do
 done
 exit 0
 EOF
+	chmod +x $SF
 	if [ $H != $THIS_HOST ]; then
 		l_do scp $SF $H:$DISKS_SH
 	else
@@ -432,7 +434,7 @@ EOF
 		return 1
 	fi
 
-	$RUN "(cd $WORK_ARENA && sh $DISKS_SH)"
+	$RUN "(cd $WORK_ARENA && $DISKS_SH)"
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to get disks list on $H
 		return 1

@@ -1717,7 +1717,7 @@ M0_INTERNAL void m0_ha_link_rpc_endpoint(struct m0_ha_link *hl,
                                          m0_bcount_t        buf_len)
 {
 	m0_mutex_lock(&hl->hln_lock);
-	strncpy(buf, hl->hln_conn_cfg.hlcc_rpc_endpoint, buf_len);
+	strncpy(buf, hl->hln_conn_cfg.hlcc_rpc_endpoint, buf_len - 1);
 	buf[buf_len - 1] = 0;
 	m0_mutex_unlock(&hl->hln_lock);
 }

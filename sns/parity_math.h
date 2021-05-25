@@ -119,7 +119,7 @@ struct m0_parity_math {
 	struct m0_matvec	     pmi_sys_res;
 	struct m0_linsys	     pmi_sys;
 	/* Data recovery matrix that's inverse of pmi_sys_mat. */
-	struct m0_matrix             pmi_recov_mat;
+	struct m0_matrix	     pmi_recov_mat;
 };
 
 /* Holds information essential for incremental recovery. */

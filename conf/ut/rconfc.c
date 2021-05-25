@@ -46,7 +46,6 @@ static struct m0_semaphore   g_fatal_sem;
 static struct m0_reqh       *ut_reqh;
 static struct m0_net_domain  client_net_dom;
 
-static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
 static struct m0_fid         profile = M0_FID_TINIT('p', 1, 0);
 static bool (*ha_clink_cb_orig)(struct m0_clink *clink);
 
@@ -88,8 +87,8 @@ static int rconfc_ut_motr_start(struct m0_rpc_machine    *mach,
 		"-c", M0_UT_PATH("diter.xc")
 	};
 	*rctx = (struct m0_rpc_server_ctx) {
-		.rsx_xprts         = &m0_conf_ut_xprt,
-		.rsx_xprts_nr      = 1,
+		.rsx_xprts         = m0_net_all_xprt_get(),
+		.rsx_xprts_nr      = m0_net_xprt_nr(),
 		.rsx_argv          = argv,
 		.rsx_argc          = ARRAY_SIZE(argv),
 		.rsx_log_file_name = NAME(".log")
@@ -100,7 +99,7 @@ static int rconfc_ut_motr_start(struct m0_rpc_machine    *mach,
 	rc = m0_rpc_server_start(rctx);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ut_rpc_machine_start(mach, m0_conf_ut_xprt,
+	rc = m0_ut_rpc_machine_start(mach, m0_net_xprt_default_get(),
 				     CLIENT_ENDPOINT_ADDR);
 	M0_UT_ASSERT(rc == 0);
 	ut_reqh = mach->rm_reqh;
@@ -1344,7 +1343,7 @@ static void test_drain(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_semaphore_init(&g_ready_sem, 0);
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(rc == 0);
