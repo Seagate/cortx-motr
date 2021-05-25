@@ -1036,7 +1036,7 @@ static void node_done (struct slot *slot, struct m0_be_tx *tx, bool modified);
 static void node_make (struct slot *slot, struct m0_be_tx *tx);
 
 #ifndef __KERNEL__
-static void node_find (struct slot *slot, const struct m0_btree_key *key);
+static bool node_find (struct slot *slot, const struct m0_btree_key *key);
 #endif
 static void node_fix  (const struct nd *node, struct m0_be_tx *tx);
 #if 0
@@ -1202,10 +1202,10 @@ static void node_make(struct slot *slot, struct m0_be_tx *tx)
 }
 
 #ifndef __KERNEL__
-static void node_find(struct slot *slot, const struct m0_btree_key *key)
+static bool node_find(struct slot *slot, const struct m0_btree_key *key)
 {
 	M0_PRE(node_invariant(slot->s_node));
-	slot->s_node->n_type->nt_find(slot, key);
+	return slot->s_node->n_type->nt_find(slot, key);
 }
 #endif
 static void node_fix(const struct nd *node, struct m0_be_tx *tx)
@@ -1799,7 +1799,8 @@ static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
 	node->n_addr = segaddr_build(area, shift);
 	node->n_tree = tree;
 	node->n_type = nt;
-	node->n_seq = 0;
+	node->n_seq  = 0;
+	node->n_ref  = 0;
 	m0_rwlock_init(&node->n_lock);
 	op->no_node = node;
 	op->no_addr = node->n_addr;
@@ -2342,7 +2343,7 @@ static void lock_op_unlock(struct td *tree)
 	m0_rwlock_write_unlock(&tree->t_lock);
 }
 
-static struct m0_btree_oimpl *alloc(int height)
+static struct m0_btree_oimpl *alloc_levels(int height)
 {
 	struct m0_btree_oimpl *oi;
 	oi = m0_alloc(sizeof *oi);
@@ -2359,7 +2360,7 @@ static struct m0_btree_oimpl *alloc(int height)
 /**
  * Checks if given segaddr is within segment boundaries.
 */
-static int address_is_valid(struct segaddr addr)
+static int address_in_segment(struct segaddr addr)
 {
 	//TBD: function definition
 	return 0;
@@ -2461,6 +2462,7 @@ static int m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 		.s_node = curr_level->l_node
 	};
 
+	curr_level->l_alloc->n_ref++;
 	/* slot for left node */
 	struct slot l_slot = {
 		.s_node = curr_level->l_alloc,
@@ -2552,6 +2554,7 @@ static int m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 		 */
 
 		/* callback */
+		tgt->s_rec.r_flags = M0_BSC_SUCCESS;
 		int rc = bop->bo_cb.c_act(&bop->bo_cb, &tgt->s_rec);
 		if (rc) {
 			/* If callback failed undo make space, splitted node */
@@ -2659,6 +2662,8 @@ static int m0_btree_put_root_split_handle(struct m0_btree_op *bop)
 	 */
 
 	/* store level of l_node and set it as 0 to make invarient successful */
+	curr_level->l_alloc->n_ref++;
+	oi->i_extra_node->n_ref++;
 	int curr_max_level = node_level(curr_level->l_node);
 	node_set_level(curr_level->l_node, 0);
 
@@ -2750,7 +2755,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 	}
 	case P_SETUP: {
 		bop->bo_arbor->t_height = tree->t_height;
-		bop->bo_i = alloc(bop->bo_arbor->t_height);
+		bop->bo_i = alloc_levels(bop->bo_arbor->t_height);
 		if (bop->bo_i == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
 		return P_LOCKALL;
@@ -2770,6 +2775,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
 			struct slot    node_slot = {};
 			struct segaddr child_node_addr;
+			bool           key_exists;
 
 			curr_level->l_node = oi->i_nop.no_node;
 			node_slot.s_node = oi->i_nop.no_node;
@@ -2783,11 +2789,15 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			}*/
 			oi->i_nop.no_node = NULL;
 
-			node_find(&node_slot, &bop->bo_rec.r_key);
+			key_exists = node_find(&node_slot, &bop->bo_rec.r_key);
 			curr_level->l_idx = node_slot.s_idx;
 			if (node_level(node_slot.s_node) > 0) {
+				if (key_exists) {
+					curr_level->l_idx++;
+					node_slot.s_idx++;
+				}
 				node_child(&node_slot, &child_node_addr);
-				int rc = address_is_valid(child_node_addr);
+				int rc = address_in_segment(child_node_addr);
 				if (rc) {
 					node_op_fini(&oi->i_nop);
 					return fail(bop, rc);
@@ -2795,8 +2805,19 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 				oi->i_used++;
 				return node_get(&oi->i_nop, tree,
 						&child_node_addr, P_NEXTDOWN);
-			} else
+			} else {
+				if (key_exists) {
+					struct m0_btree_rec rec;
+					rec.r_flags = M0_BSC_KEY_EXISTS;
+					int rc = bop->bo_cb.c_act(&bop->bo_cb,
+								  &rec);
+					if (rc) {
+						return fail(bop, rc);
+					}
+					return P_CLEANUP;
+				}
 				return P_ALLOC;
+			}
 		} else {
 			node_op_fini(&oi->i_nop);
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
@@ -2847,9 +2868,9 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 	case P_MAKESPACE: {
 		struct slot slot_for_right_node = {
 			.s_node = curr_level->l_node,
-			.s_rec = bop->bo_rec
+			.s_idx  = curr_level->l_idx,
+			.s_rec  = bop->bo_rec
 		};
-		node_find(&slot_for_right_node, &bop->bo_rec.r_key);
 
 		if (node_isfit(&slot_for_right_node)) {
 			node_make (&slot_for_right_node, bop->bo_tx);
@@ -2902,7 +2923,8 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			 * revert back the changes made on btree. Detailed
 			 * explination is provided at P_MAKESPACE stage.
 			 */
-			rec = &node_slot.s_rec;
+			rec          = &node_slot.s_rec;
+			rec->r_flags = M0_BSC_SUCCESS;
 			int rc = bop->bo_cb.c_act(&bop->bo_cb, rec);
 			if (rc) {
 				/* handle if callback fail i.e undo make */
@@ -3733,6 +3755,9 @@ struct cb_data {
 
 static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
+	if (rec->r_flags == M0_BSC_KEY_EXISTS) {
+		return 0;
+	}
         struct m0_bufvec_cursor  scur;
 	struct m0_bufvec_cursor  dcur;
 	m0_bcount_t              ksize;
