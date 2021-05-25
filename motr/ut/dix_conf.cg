@@ -61,7 +61,7 @@
 (enclosure-7 node=node-2
 ctrls=[controller-11] pvers=[pver-8, pver-100])
 (controller-11     drives=[drive-16, drive-75, drive-76, drive-77, drive-78,
-    drive-100, drive-101, drive-102] pvers=[pver-8, pver-100])
+    drive-100] pvers=[pver-8, pver-100])
 (drive-16 dev=sdev-15 pvers=[pver-8])
 (drive-75 dev=sdev-71 pvers=[pver-8])
 (drive-76 dev=sdev-72 pvers=[pver-8])
