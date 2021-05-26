@@ -18,7 +18,7 @@ mode:
   singlenode:
     config_file: /etc/motr/conf.xc
     base_port: 200
-sandbox_dir: /tmp/sandbox
+sandbox_dir: /var/log/seagate/motr/ivt
 timeout: 120
 workloads:
   1:

@@ -175,7 +175,6 @@ CORTX Motr unit tests (for kernel and user space).
 %package ivt
 Summary: CORTX Motr IVT
 Group: Development/Kernel
-Requires: %{name}
 
 %description ivt
 CORTX Motr IVT.
