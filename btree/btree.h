@@ -177,7 +177,7 @@ void m0_btree_mod_fini(void);
 								\
 		action;                                         \
 		m0_sm_op_tick(__opp);                           \
-		__op_rc = __opp->o_sm.sm_rc                     \
+		__op_rc = __opp->o_sm.sm_rc;                    \
 		m0_sm_op_fini(__opp);                           \
 								\
 		m0_sm_op_exec_fini(op_exec);                    \
