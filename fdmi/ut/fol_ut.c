@@ -102,27 +102,20 @@ static struct m0_sm_trans_descr ffs_ut_fom_trans[] = {
 /* Test details machine. */
 
 static bool                    dummy_post_called = false;
-static bool                    dummy_make_post_fail = false;
 static struct m0_fdmi_src_rec *dummy_rec_pointer;
 
-static int dummy_fdmi_post_record(struct m0_fdmi_src_rec *src_rec)
+static void dummy_fdmi_post_record(struct m0_fdmi_src_rec *src_rec)
 {
-	int rc = 0;
-
 	M0_ENTRY();
 
-	if (dummy_make_post_fail) {
-		rc = -ENOMEM;
-	} else {
-		/* Make sure this func is only called ONCE. */
-		M0_UT_ASSERT(!dummy_post_called);
-		dummy_post_called = true;
+	/* Make sure this func is only called ONCE. */
+	M0_UT_ASSERT(!dummy_post_called);
+	dummy_post_called = true;
 
-		M0_UT_ASSERT(src_rec->fsr_data == NULL);
-		dummy_rec_pointer = src_rec;
-	}
+	M0_UT_ASSERT(src_rec->fsr_data == NULL);
+	dummy_rec_pointer = src_rec;
 
-	return M0_RC(rc);
+	M0_LEAVE();
 }
 
 static void dummy_fol_rec_assert_eq(const struct m0_fol_rec *rec1,
@@ -174,7 +167,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	struct m0_fdmi_flt_operand  flt_operand = {};
 	struct m0_fdmi_src_rec      *src_rec    =
 	    &fom.fo_tx.tx_fol_rec.fr_fdmi_rec;
-	int (*saved_fs_record_post)(struct m0_fdmi_src_rec *src_rec);
+	void (*saved_fs_record_post)(struct m0_fdmi_src_rec *src_rec);
 
 	int rc;
 
@@ -231,17 +224,8 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	switch (test_op) {
 
 	case FFS_UT_OPS_TEST_BASIC_OPS:
-		/* post record failure #1 */
-		dummy_make_post_fail = true;
-		rc = m0_fol_fdmi_post_record(&fom);
-		dummy_make_post_fail = false;
-		M0_UT_ASSERT(rc == -ENOMEM);
-		M0_UT_ASSERT(!dummy_post_called);
-		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 1);
 		/* post record */
-		rc = m0_fol_fdmi_post_record(&fom);
-		M0_UT_ASSERT(rc == 0);
+		m0_fol_fdmi_post_record(&fom);
 		M0_UT_ASSERT(dummy_post_called);
 		m0_sm_asts_run(grp);
 		M0_UT_ASSERT(betx->t_ref == 2);
@@ -308,8 +292,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 
 		break;
 	case FFS_UT_OPS_TEST_SUDDEN_FINI:
-		rc = m0_fol_fdmi_post_record(&fom);
-		M0_UT_ASSERT(rc == 0);
+		m0_fol_fdmi_post_record(&fom);
 		M0_UT_ASSERT(dummy_post_called);
 		m0_sm_asts_run(grp);
 		M0_UT_ASSERT(betx->t_ref == 2);

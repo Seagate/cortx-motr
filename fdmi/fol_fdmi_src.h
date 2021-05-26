@@ -82,10 +82,8 @@ M0_INTERNAL void m0_fol_fdmi_src_fini(void);
  */
 M0_INTERNAL int m0_fol_fdmi_src_deinit(void);
 
-/**
- * Submit new FOL entry to FDMI.
- */
-M0_INTERNAL int m0_fol_fdmi_post_record(struct m0_fom *fom);
+/** Submit new FOL entry to FDMI. */
+M0_INTERNAL void m0_fol_fdmi_post_record(struct m0_fom *fom);
 
 /** @} group fdmi_fol_src */
 
