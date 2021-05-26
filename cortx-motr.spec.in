@@ -12,13 +12,18 @@
 %define raw_kernel_ver %(
                           if test -n "$kernel_src"; then
                               basename $(readlink -f "$kernel_src")
-                          else
+                         else
                               uname -r
                           fi
                         )
 
 %define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
+
+%if  "%{?CONFIG_X86_64}" == "x86_64"
+%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.x86_64$//' )
+%else
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.aarch64$//' )
+%endif
 
 # build number
 %define build_num  %( test -n "$build_number" && echo "$build_number" || echo 1 )
@@ -53,7 +58,11 @@ Summary:        CORTX Motr
 Group:          System Environment/Base
 License:        Seagate
 Source:         %{name}-%{version}.tar.gz
+%if  "%{?CONFIG_X86_64}"=="x86_64"
+BuildArch:      x86_64
+%else
 BuildArch:      aarch64
+%endif
 ExcludeArch:    i686
 Provides:       %{name}-libs = %{version}-%{release}
 Provides:       %{name}-modules = %{version}-%{release}
@@ -61,7 +70,11 @@ Provides:       %{name}-modules = %{version}-%{release}
 Obsoletes:      mero
 Obsoletes:      eos-core
 Provides:       motr = %{version}-%{release}
+%if  "%{?CONFIG_X86_64}"=="x86_64"
+Provides:       motr(x86_64) = %{version}-%{release}
+%else
 Provides:       motr(aarch64) = %{version}-%{release}
+%endif
 Provides:       motr-libs = %{version}-%{release}
 Provides:       motr-modules = %{version}-%{release}
 
@@ -71,7 +84,11 @@ BuildRequires:  libtool
 BuildRequires:  make
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
-#BuildRequires:  gccxml
+%if  "%{?CONFIG_X86_64}"=="x86_64"
+BuildRequires:  gccxml
+%else
+#BuildRequires:  castxml
+%endif
 BuildRequires:  glibc-headers
 BuildRequires:  asciidoc
 BuildRequires:  libyaml-devel
@@ -142,6 +159,7 @@ Requires: kernel-devel = %{kernel_ver_requires}
 Requires: %{lustre_devel}
 
 
+
 %description devel
 Header files that are required to link with CORTX Motr libraries.
 
@@ -159,7 +177,12 @@ CORTX Motr unit tests (for kernel and user space).
 %setup -q
 
 %build
-%configure %{with_linux} %{with_lustre} %{configure_opts} enable_castxml=yes
+#%echo "CONFIG_X86_64: %{CONFIG_X86_64}"
+%if  "%{CONFIG_X86_64}"=="x86_64"
+%configure %{with_linux} %{with_lustre} %{configure_opts} 
+%else
+%configure %{with_linux} %{with_lustre} %{configure_opts} enable_castxml=yes  
+%endif
 make %{?_smp_mflags}
 
 %install

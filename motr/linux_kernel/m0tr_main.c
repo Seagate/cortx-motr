@@ -41,7 +41,9 @@ M0_INTERNAL int __init motr_init(void)
 	const struct module *m;
 	M0_THREAD_ENTER;
 
+#ifndef CONFIG_X86_64
 	start_cycle_counter();  // start  reading the cycle counter
+#endif
 	m = m0_motr_ko_get_module();
 	pr_info("motr: init\n");
 	m0_build_info_print();
@@ -56,7 +58,9 @@ M0_INTERNAL void __exit motr_exit(void)
 {
 	M0_THREAD_ENTER;
 	pr_info("motr: cleanup\n");
+#ifndef CONFIG_X86_64
 	finish_cycle_counter();  // stop reading the cycle counter
+#endif
 	m0_fini();
 }
 

@@ -123,6 +123,26 @@ AS_CASE([$host_os],
         [AC_MSG_ERROR([Unsupported platform detected!])]
 )
 
+ARCH=
+
+AC_CANONICAL_HOST
+AS_CASE([$host_cpu],
+  [aarch64], [ARCH=aarch64],
+  [x86_64], [ARCH=x86_64],
+  [AC_MSG_ERROR("No other architecture supported other than x86_64 and aarch64")]
+)
+
+AS_IF([test x$ARCH = xx86_64 ],
+      [
+        AC_DEFINE([CONFIG_X86_64])
+#       ARCH=$arch    
+      ]                                
+)
+
+AC_SUBST([ARCH])
+
+
+
 #
 # Configuration options --------------------------------------------------- {{{1
 #
@@ -167,6 +187,7 @@ AH_TEMPLATE([HAVE_MALLINFO],          [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
+AH_TEMPLATE([CONFIG_X86_64],          [])
 
 # enable/disable options ------------------------------ {{{2
 
