@@ -1,4 +1,4 @@
-/* -*- C -*- */
+/sic* -*- C -*- */
 /*
  * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
@@ -3358,12 +3358,9 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 				node_put(oi->i_level[i].l_node);
 				oi->i_level[i].l_node = NULL;
 			}
-			if (oi->i_level[i].l_alloc != NULL) {
-				node_put(oi->i_level[i].l_alloc);
-				oi->i_level[i].l_alloc = NULL;
-			}
 		}
-		free(bop->bo_i->i_level);
+		m0_free(bop->bo_i->i_level);
+		m0_free(bop->bo_i);
 
 		return P_DONE;
 		//return m0_sm_op_ret(&bop->bo_op);
