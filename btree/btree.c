@@ -1,4 +1,4 @@
-/sic* -*- C -*- */
+/* -*- C -*- */
 /*
  * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
