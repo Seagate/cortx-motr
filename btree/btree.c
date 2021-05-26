@@ -2953,7 +2953,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "P_INIT",
-		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT),
+		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT, P_DONE),
 	},
 	[P_COOKIE] = {
 		.sd_flags   = 0,
@@ -3024,8 +3024,9 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 };
 
 static struct m0_sm_trans_descr btree_trans[256] = {
-	{ "create/destroy-init", P_INIT,  P_ACT  },
-	{ "create/destroy-act",  P_ACT,   P_DOWN },
+	{ "create-init", P_INIT,  P_ACT  },
+	{ "create-act",  P_ACT,   P_DOWN },
+	{ "destroy", P_INIT, P_DONE},
 	{ "put-init-cookie", P_INIT, P_COOKIE },
 	{ "put-init", P_INIT, P_SETUP },
 	{ "put-cookie-valid", P_COOKIE, P_LOCK },
@@ -3152,7 +3153,7 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 int64_t btree_destroy_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
-
+	struct m0_btree_oimpl	*oi = bop->bo_i;
 	switch(bop->bo_op.o_sm.sm_state)
 	{
 		case P_INIT:
@@ -3169,12 +3170,14 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 			 */
 			
 			M0_PRE(node_count(bop->bo_arbor->t_desc->t_root) == 0);
+			bop->bo_i = m0_alloc(sizeof *bop->bo_i);
+			oi = bop->bo_i;
 
-			tree_put(bop->bo_arbor->t_desc);
-			return P_ACT;
+			tree_delete(&oi->i_nop, bop->bo_arbor->t_desc,
+				    bop->bo_tx, P_ACT);
 
-		case P_ACT:
 			m0_free(bop->bo_arbor);
+			m0_free(bop->bo_i);
 			bop->bo_arbor = NULL;
 			bop->bo_i = NULL;
 			return P_DONE;
@@ -3255,6 +3258,9 @@ void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 
 void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
 {
+	bop->bo_arbor	= arbor;
+	bop->bo_tx	= NULL;
+
 	m0_sm_op_init(&bop->bo_op, &btree_destroy_tick, &bop->bo_op_exec,
 		      &btree_conf, &G);
 }
@@ -3699,10 +3705,17 @@ static void m0_btree_ut_basic_tree_operations(void)
 	m0_btree_open(temp_node, 1024, &btree);
 
 	m0_btree_close(btree);
+
+	btree = b_op.bo_arbor;
+
 	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G,
 			      &b_op.bo_op_exec);
 
-	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
+	/**
+	 * Commenting this line as btree destroy will take care of it.
+	 * 
+	 * m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10); 
+	 */
 
 	/** Now run some invalid cases */
 
@@ -3936,6 +3949,7 @@ static void m0_btree_ut_basic_kv_operations(void)
 	 * Commenting this code as the delete operation is not done here.
 	 * Due to this, the destroy operation will crash.
 	 *
+	 * 
 	 * M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
 	 *		      m0_btree_destroy(b_op.bo_arbor, &b_op), &G,
 	 *		      &b_op.bo_op_exec);
