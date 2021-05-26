@@ -3680,8 +3680,9 @@ static void m0_btree_ut_basic_tree_oper(void)
 	/** Create temp node space*/
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-			      m0_btree_create(temp_node, 1024, &btree_type, nt,
-			      tx, &b_op), &G, &b_op.bo_op_exec);
+				 m0_btree_create(temp_node, 1024, &btree_type,
+						 nt, tx, &b_op),
+				 &G, &b_op.bo_op_exec);
 
 	m0_btree_close(b_op.bo_arbor);
 
@@ -3708,8 +3709,9 @@ static void m0_btree_ut_basic_tree_oper(void)
 	/** Create a new btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-			      m0_btree_create(temp_node, 1024, &btree_type, nt,
-					      tx, &b_op), &G, &b_op.bo_op_exec);
+				 m0_btree_create(temp_node, 1024, &btree_type,
+						 nt, tx, &b_op),
+				 &G, &b_op.bo_op_exec);
 
 	/** Close it */
 	m0_btree_close(b_op.bo_arbor);
@@ -3862,8 +3864,9 @@ static void m0_btree_ut_basic_kv_oper(void)
 	/** Create temp node space and use it as root node for btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-			      m0_btree_create(temp_node, 1024, &btree_type, nt,
-					      tx, &b_op), &G, &b_op.bo_op_exec);
+				 m0_btree_create(temp_node, 1024, &btree_type,
+						 nt, tx, &b_op),
+				 &G, &b_op.bo_op_exec);
 
 	for (i = 0; i < 2048; i++) {
 		uint64_t             key;
@@ -3897,9 +3900,9 @@ static void m0_btree_ut_basic_kv_oper(void)
 		ut_cb.c_datum      = &put_data;
 
 		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-				      m0_btree_put(b_op.bo_arbor, tx, &rec,
-				      		   &ut_cb, 0, &kv_op), &G,
-				      &kv_op.bo_op_exec);
+					 m0_btree_put(b_op.bo_arbor, tx, &rec,
+						      &ut_cb, 0, &kv_op),
+					 &G, &kv_op.bo_op_exec);
 	}
 
 	{
@@ -3908,14 +3911,14 @@ static void m0_btree_ut_basic_kv_oper(void)
 		struct cb_data       get_data;
 		struct m0_btree_key  get_key;
 		struct m0_bufvec     get_value;
-		m0_bcount_t          ksize     = sizeof key;
-		m0_bcount_t          vsize     = sizeof value;
-		void                *k_ptr    = &key;
-		void                *v_ptr    = &value;
-		uint64_t             search_key;
-		void                *search_key_ptr = &search_key;
-		m0_bcount_t          search_key_size = sizeof search_key;
-		struct m0_btree_key  search_key_in_tree;
+		m0_bcount_t          ksize            = sizeof key;
+		m0_bcount_t          vsize            = sizeof value;
+		void                *k_ptr            = &key;
+		void                *v_ptr            = &value;
+		uint64_t             find_key;
+		void                *find_key_ptr     = &find_key;
+		m0_bcount_t          find_key_size    = sizeof find_key;
+		struct m0_btree_key  find_key_in_tree;
 
 		get_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		get_value      = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
@@ -3926,32 +3929,32 @@ static void m0_btree_ut_basic_kv_oper(void)
 		ut_cb.c_act   = btree_kv_get_cb;
 		ut_cb.c_datum = &get_data;
 
-		search_key = first_key;
+		find_key = first_key;
 
-		search_key_in_tree.k_data =
-			M0_BUFVEC_INIT_BUF(&search_key_ptr, &search_key_size);
+		find_key_in_tree.k_data =
+				M0_BUFVEC_INIT_BUF(&find_key_ptr, &find_key_size);
 
 		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-				      m0_btree_get(b_op.bo_arbor,
-						   &search_key_in_tree,
-						   &ut_cb, 0, &kv_op), &G,
-						   &b_op.bo_op_exec);
+					 m0_btree_get(b_op.bo_arbor,
+						      &find_key_in_tree,
+						      &ut_cb, 0, &kv_op),
+					 &G, &b_op.bo_op_exec);
 
 		for (i = 1; i < 2048; i++) {
-			search_key = key;
+			find_key = key;
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-					      m0_btree_nxt(b_op.bo_arbor,
-							   &search_key_in_tree,
-							   &ut_cb, 0, &kv_op),
-							   &G,
-							   &b_op.bo_op_exec);
+						 m0_btree_nxt(b_op.bo_arbor,
+							      &find_key_in_tree,
+							      &ut_cb, 0,
+							      &kv_op),
+						 &G, &b_op.bo_op_exec);
 		}
 	}
 
 	m0_btree_close(b_op.bo_arbor);
 	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-			      m0_btree_destroy(b_op.bo_arbor, &b_op), &G,
-			      &b_op.bo_op_exec);
+				 m0_btree_destroy(b_op.bo_arbor, &b_op),
+				 &G, &b_op.bo_op_exec);
 	btree_ut_fini();
 }
 
@@ -4011,8 +4014,9 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 	/** Create temp node space and use it as root node for btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-			      m0_btree_create(temp_node, 1024, &btree_type, nt,
-					      tx, &b_op), &G, &b_op.bo_op_exec);
+				 m0_btree_create(temp_node, 1024, &btree_type,
+						 nt, tx, &b_op),
+				 &G, &b_op.bo_op_exec);
 
 	for (i = 1; i <= recs_per_stream; i++) {
 		uint64_t             key;
@@ -4043,10 +4047,10 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 			ut_cb.c_datum      = &put_data;
 
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-					      m0_btree_put(b_op.bo_arbor, tx,
-							   &rec, &ut_cb, 0,
-							   &kv_op),
-					      &G, &kv_op.bo_op_exec);
+						 m0_btree_put(b_op.bo_arbor, tx,
+							      &rec, &ut_cb, 0,
+							      &kv_op),
+						 &G, &kv_op.bo_op_exec);
 		}
 	}
 
@@ -4056,18 +4060,18 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 		struct cb_data       get_data;
 		struct m0_btree_key  get_key;
 		struct m0_bufvec     get_value;
-		m0_bcount_t          ksize              = sizeof key;
-		m0_bcount_t          vsize              = sizeof value;
-		void                *k_ptr              = &key;
-		void                *v_ptr              = &value;
-		uint64_t             search_key;
-		void                *search_key_ptr     = &search_key;
-		m0_bcount_t          search_key_size    = sizeof search_key;
-		struct m0_btree_key  search_key_in_tree;
+		m0_bcount_t          ksize             = sizeof key;
+		m0_bcount_t          vsize             = sizeof value;
+		void                *k_ptr             = &key;
+		void                *v_ptr             = &value;
+		uint64_t             find_key;
+		void                *find_key_ptr      = &find_key;
+		m0_bcount_t          find_key_size     = sizeof find_key;
+		struct m0_btree_key  find_key_in_tree;
 
-		search_key = i;
-		search_key_in_tree.k_data =
-			M0_BUFVEC_INIT_BUF(&search_key_ptr, &search_key_size);
+		find_key = i;
+		find_key_in_tree.k_data =
+			M0_BUFVEC_INIT_BUF(&find_key_ptr, &find_key_size);
 
 		get_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		get_value      = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
@@ -4080,46 +4084,47 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 		ut_cb.c_datum = &get_data;
 
 		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-				      m0_btree_get(b_op.bo_arbor,
-						   &search_key_in_tree,
-						   &ut_cb, 0, &kv_op), &G,
-				      &b_op.bo_op_exec);
+					 m0_btree_get(b_op.bo_arbor,
+						      &find_key_in_tree,
+						      &ut_cb, 0, &kv_op),
+					 &G, &b_op.bo_op_exec);
 	}
 
 	for (i = 1; i <= recs_per_stream; i++) {
-		uint64_t             delete_key;
-		struct m0_btree_key  delete_key_in_tree;
-		void                *delete_key_ptr = &delete_key;
-		m0_bcount_t          delete_key_size = sizeof delete_key;
-		struct cb_data       delete_data;
+		uint64_t             del_key;
+		struct m0_btree_key  del_key_in_tree;
+		void                *p_del_key    = &del_key;
+		m0_bcount_t          del_key_size = sizeof del_key;
+		struct cb_data       del_data;
 		uint32_t             stream_num;
 
-		delete_data = (struct cb_data) { .key = &delete_key_in_tree,
+		del_data = (struct cb_data) { .key = &del_key_in_tree,
 						 .value = NULL,
 						 .check_value = false,
 						};
 
-		delete_key_in_tree.k_data =
-			M0_BUFVEC_INIT_BUF(&delete_key_ptr, &delete_key_size);
+		del_key_in_tree.k_data =
+				M0_BUFVEC_INIT_BUF(&p_del_key, &del_key_size);
 
 		ut_cb.c_act   = btree_kv_del_cb;
-		ut_cb.c_datum = &delete_data;
+		ut_cb.c_datum = &del_data;
 
 		for (stream_num = 0; stream_num < stream_count; stream_num++) {
-			delete_key = i + (stream_num * recs_per_stream);
+			del_key = i + (stream_num * recs_per_stream);
 
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-					      m0_btree_del(b_op.bo_arbor,
-							   &delete_key_in_tree,
-							   &ut_cb, 0, &kv_op),
+						 m0_btree_del(b_op.bo_arbor,
+							      &del_key_in_tree,
+							      &ut_cb, 0,
+							      &kv_op),
 						 &G, &b_op.bo_op_exec);
 		}
 	}
 
 	m0_btree_close(b_op.bo_arbor);
 	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-			      m0_btree_destroy(b_op.bo_arbor, &b_op), &G,
-			      &b_op.bo_op_exec);
+				 m0_btree_destroy(b_op.bo_arbor, &b_op),
+				 &G, &b_op.bo_op_exec);
 	btree_ut_fini();
 }
 
