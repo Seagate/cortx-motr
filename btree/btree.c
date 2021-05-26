@@ -3153,7 +3153,7 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 int64_t btree_destroy_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
-	struct m0_btree_oimpl	*oi = bop->bo_i;
+
 	switch(bop->bo_op.o_sm.sm_state)
 	{
 		case P_INIT:
@@ -3171,9 +3171,8 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 			
 			M0_PRE(node_count(bop->bo_arbor->t_desc->t_root) == 0);
 			bop->bo_i = m0_alloc(sizeof *bop->bo_i);
-			oi = bop->bo_i;
 
-			tree_delete(&oi->i_nop, bop->bo_arbor->t_desc,
+			tree_delete(&bop->bo_i->i_nop, bop->bo_arbor->t_desc,
 				    bop->bo_tx, P_ACT);
 
 			m0_free(bop->bo_arbor);
