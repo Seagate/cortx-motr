@@ -537,6 +537,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BTREE
 #include "lib/trace.h"
 #include "lib/rwlock.h"
+#include "lib/byteorder.h"   /** m0_byteorder_cpu_to_be64() */
 #include "btree/btree.h"
 #include "fid/fid.h"
 #include "format/format.h"   /** m0_format_header ff_fmt */
@@ -3316,6 +3317,13 @@ void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
 	m0_sm_op_init(&bop->bo_op, &btree_put_tick, &bop->bo_op_exec,
 		   &btree_conf, &G);
 }
+
+void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop)
+{
+}
+
 #endif
 
 #ifndef __KERNEL__
@@ -3668,7 +3676,7 @@ static void m0_btree_ut_node_add_del_rec(void)
  * In this unit test we exercise a few tree operations in both valid and invalid
  * conditions.
  */
-static void m0_btree_ut_basic_tree_operations(void)
+static void m0_btree_ut_basic_tree_oper(void)
 {
 	void                   *invalid_addr = (void *)0xbadbadbadbad;
 	struct m0_btree        *btree;
@@ -3695,9 +3703,10 @@ static void m0_btree_ut_basic_tree_operations(void)
 
 	/** Create temp node space*/
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
-			      m0_btree_create(temp_node, 1024, &btree_type, nt,
-			      tx, &b_op), &G, &b_op.bo_op_exec);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+				 m0_btree_create(temp_node, 1024, &btree_type,
+						 nt, tx, &b_op),
+				 &G, &b_op.bo_op_exec);
 
 	m0_btree_close(b_op.bo_arbor);
 
@@ -3707,8 +3716,8 @@ static void m0_btree_ut_basic_tree_operations(void)
 
 	btree = b_op.bo_arbor;
 
-	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G,
-			      &b_op.bo_op_exec);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(btree, &b_op),
+				 &G, &b_op.bo_op_exec);
 
 	/**
 	 * Commenting this line as btree destroy will take care of it.
@@ -3728,15 +3737,16 @@ static void m0_btree_ut_basic_tree_operations(void)
 	/**
 	 * Commenting this case till the time we can gracefully handle failure.
 	 *
-	 * M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G,
-	 *		      &b_op.bo_op_exec);
+	 * M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(btree, &b_op),
+	 *			 &G, &b_op.bo_op_exec);
 	 */
 
 	/** Create a new btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
-			      m0_btree_create(temp_node, 1024, &btree_type, nt,
-					      tx, &b_op), &G, &b_op.bo_op_exec);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+				 m0_btree_create(temp_node, 1024, &btree_type,
+						 nt, tx, &b_op),
+				 &G, &b_op.bo_op_exec);
 
 	/** Close it */
 	m0_btree_close(b_op.bo_arbor);
@@ -3751,8 +3761,8 @@ static void m0_btree_ut_basic_tree_operations(void)
 	m0_btree_open(invalid_addr, 1024, &btree);
 
 	/** Destory it */
-	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G,
-			      &b_op.bo_op_exec);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(btree, &b_op),
+				 &G, &b_op.bo_op_exec);
 
 	/** Attempt to reopen the destroyed tree */
 	m0_btree_open(invalid_addr, 1024, &btree);
@@ -3761,8 +3771,14 @@ static void m0_btree_ut_basic_tree_operations(void)
 }
 
 struct cb_data {
+	/** Key that needs to be stored or retrieved. */
 	struct m0_btree_key *key;
+
+	/** Value associated with the key that is to be stored or retrieved. */
 	struct m0_bufvec    *value;
+
+	/** If value is retrieved (GET) then check if has expected contents. */
+	bool                 check_value;
 };
 
 static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
@@ -3812,6 +3828,31 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	m0_bufvec_cursor_init(&scur, &rec->r_val);
 	m0_bufvec_cursor_copy(&dcur, &scur, vsize);
 
+	if (datum->check_value) {
+		struct m0_bufvec_cursor kcur;
+		struct m0_bufvec_cursor vcur;
+		m0_bcount_t             v_off = 0;
+
+		while (v_off <= vsize) {
+			m0_bufvec_cursor_init(&kcur, &rec->r_key.k_data);
+			m0_bufvec_cursor_init(&vcur, &rec->r_val);
+			m0_bufvec_cursor_move(&vcur, v_off);
+
+			if (m0_bufvec_cursor_cmp(&kcur,&vcur)) {
+				M0_ASSERT(0);
+			}
+			v_off += ksize;
+		}
+	}
+
+	return 0;
+}
+
+static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+{
+
+	M0_ASSERT(rec && rec->r_flags == M0_BSC_KEY_NOT_FOUND);
+
 	return 0;
 }
 
@@ -3819,21 +3860,22 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
  * This unit test exercises the KV operations for both valid and invalid
  * conditions.
  */
-static void m0_btree_ut_basic_kv_operations(void)
+static void m0_btree_ut_basic_kv_oper(void)
 {
 	struct m0_btree_type  btree_type = {	.tt_id = M0_BT_UT_KV_OPS,
 						.ksize = 8,
 						.vsize = 8, };
-	struct m0_be_tx      *tx           = NULL;
-	struct m0_btree_op    b_op = {};
+	struct m0_be_tx      *tx          = NULL;
+	struct m0_btree_op    b_op        = {};
 	void                 *temp_node;
 	int                   i;
 	time_t                curr_time;
 	struct m0_btree_cb    ut_cb;
 	uint64_t              first_key;
 	bool                  first_key_initialized = false;
-	struct m0_btree_op    kv_op = {};
-	const struct node_type *nt = &fixed_format;
+	struct m0_btree_op    kv_op                 = {};
+	const struct node_type *nt                  = &fixed_format;
+
 	M0_ENTRY();
 
 	time(&curr_time);
@@ -3856,9 +3898,10 @@ static void m0_btree_ut_basic_kv_operations(void)
 
 	/** Create temp node space and use it as root node for btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
-			      m0_btree_create(temp_node, 1024, &btree_type, nt,
-					      tx, &b_op), &G, &b_op.bo_op_exec);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+				 m0_btree_create(temp_node, 1024, &btree_type,
+						 nt, tx, &b_op),
+				 &G, &b_op.bo_op_exec);
 
 	for (i = 0; i < 2048; i++) {
 		uint64_t             key;
@@ -3875,7 +3918,7 @@ static void m0_btree_ut_basic_kv_operations(void)
 		 *  again. This is fine as it helps debug the code when insert
 		 *  is called with the same key instead of update function.
 		 */
-		key = value = random();
+		key = value = m0_byteorder_cpu_to_be64(random());
 
 		if (!first_key_initialized) {
 			first_key = key;
@@ -3891,10 +3934,10 @@ static void m0_btree_ut_basic_kv_operations(void)
 		ut_cb.c_act        = btree_kv_put_cb;
 		ut_cb.c_datum      = &put_data;
 
-		M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
-				      m0_btree_put(b_op.bo_arbor, tx, &rec,
-				      		   &ut_cb, 0, &kv_op), &G,
-				      &kv_op.bo_op_exec);
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+					 m0_btree_put(b_op.bo_arbor, tx, &rec,
+						      &ut_cb, 0, &kv_op),
+					 &G, &kv_op.bo_op_exec);
 	}
 
 	{
@@ -3903,14 +3946,14 @@ static void m0_btree_ut_basic_kv_operations(void)
 		struct cb_data       get_data;
 		struct m0_btree_key  get_key;
 		struct m0_bufvec     get_value;
-		m0_bcount_t          ksize     = sizeof key;
-		m0_bcount_t          vsize     = sizeof value;
-		void                *k_ptr    = &key;
-		void                *v_ptr    = &value;
-		uint64_t             search_key;
-		void                *search_key_ptr = &search_key;
-		m0_bcount_t          search_key_size = sizeof search_key;
-		struct m0_btree_key  search_key_in_tree;
+		m0_bcount_t          ksize            = sizeof key;
+		m0_bcount_t          vsize            = sizeof value;
+		void                *k_ptr            = &key;
+		void                *v_ptr            = &value;
+		uint64_t             find_key;
+		void                *find_key_ptr     = &find_key;
+		m0_bcount_t          find_key_size    = sizeof find_key;
+		struct m0_btree_key  find_key_in_tree;
 
 		get_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		get_value      = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
@@ -3921,24 +3964,197 @@ static void m0_btree_ut_basic_kv_operations(void)
 		ut_cb.c_act   = btree_kv_get_cb;
 		ut_cb.c_datum = &get_data;
 
-		search_key = first_key;
+		find_key = first_key;
 
-		search_key_in_tree.k_data =
-			M0_BUFVEC_INIT_BUF(&search_key_ptr, &search_key_size);
+		find_key_in_tree.k_data =
+				M0_BUFVEC_INIT_BUF(&find_key_ptr, &find_key_size);
 
-		M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
-				      m0_btree_get(b_op.bo_arbor,
-						   &search_key_in_tree,
-						   &ut_cb, 0, &kv_op), &G,
-				      &b_op.bo_op_exec);
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+					 m0_btree_get(b_op.bo_arbor,
+						      &find_key_in_tree,
+						      &ut_cb, 0, &kv_op),
+					 &G, &b_op.bo_op_exec);
 
 		for (i = 1; i < 2048; i++) {
-			search_key = key;
-			M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
-					      m0_btree_nxt(b_op.bo_arbor,
-							   &search_key_in_tree,
-							   &ut_cb, 0, &kv_op),
-					      &G, &b_op.bo_op_exec);
+			find_key = key;
+			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+						 m0_btree_nxt(b_op.bo_arbor,
+							      &find_key_in_tree,
+							      &ut_cb, 0,
+							      &kv_op),
+						 &G, &b_op.bo_op_exec);
+		}
+	}
+
+	m0_btree_close(b_op.bo_arbor);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+				 m0_btree_destroy(b_op.bo_arbor, &b_op),
+				 &G, &b_op.bo_op_exec);
+	btree_ut_fini();
+}
+
+#define MIN_STREAM_CNT             5
+#define MAX_STREAM_CNT             20
+
+#define MIN_RECS_PER_STREAM        5
+#define MAX_RECS_PER_STREAM        2048
+
+/**
+ * This unit test exercises the KV operations triggered by multiple streams.
+ */
+static void m0_btree_ut_multi_stream_kv_oper(void)
+{
+	void                   *temp_node;
+	int                     i;
+	time_t                  curr_time;
+	struct m0_btree_cb      ut_cb;
+	struct m0_be_tx        *tx              = NULL;
+	struct m0_btree_op      b_op            = {};
+	uint32_t                stream_count    = 0;
+	uint64_t                recs_per_stream = 0;
+	struct m0_btree_op      kv_op           = {};
+	const struct node_type *nt              = &fixed_format;
+	struct m0_btree_type    btree_type      = {.tt_id = M0_BT_UT_KV_OPS,
+						  .ksize = sizeof(uint64_t),
+						  .vsize = btree_type.ksize*2,
+						  };
+
+	M0_ENTRY();
+
+	time(&curr_time);
+	printf("\nUsing seed %lu", curr_time);
+	srandom(curr_time);
+
+	stream_count = (random() % (MAX_STREAM_CNT - MIN_STREAM_CNT)) +
+			MIN_STREAM_CNT;
+
+	recs_per_stream = (random()%
+			   (MAX_RECS_PER_STREAM - MIN_RECS_PER_STREAM)) +
+			    MIN_RECS_PER_STREAM;
+
+	/** Prepare transaction to capture tree operations. */
+	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
+	m0_be_tx_prep(tx, NULL);
+	btree_ut_init();
+	/**
+	 *  Run valid scenario:
+	 *  1) Create a btree
+	 *  2) Adds records in multiple streams to the created tree.
+	 *  3) Confirms the records are present in the tree.
+	 *  4) Deletes all the records from the tree using multiple streams.
+	 *  5) Close the btree
+	 *  6) Destroy the btree
+	 */
+
+	/** Create temp node space and use it as root node for btree */
+	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+				 m0_btree_create(temp_node, 1024, &btree_type,
+						 nt, tx, &b_op),
+				 &G, &b_op.bo_op_exec);
+
+	for (i = 1; i <= recs_per_stream; i++) {
+		uint64_t             key;
+		uint64_t             value[btree_type.vsize / sizeof(uint64_t)];
+		struct cb_data       put_data;
+		struct m0_btree_rec  rec;
+		m0_bcount_t          ksize  = sizeof key;
+		m0_bcount_t          vsize  = sizeof value;
+		void                *k_ptr  = &key;
+		void                *v_ptr  = &value;
+		uint32_t             stream_num;
+
+		for (stream_num = 0; stream_num < stream_count; stream_num++) {
+			int k;
+
+			key = i + (stream_num * recs_per_stream);
+			key = m0_byteorder_cpu_to_be64(key);
+			for (k = 0; k < ARRAY_SIZE(value);k++) {
+				value[k] = key;
+			}
+
+			rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+			rec.r_val          = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+
+			put_data.key       = &rec.r_key;
+			put_data.value     = &rec.r_val;
+
+			ut_cb.c_act        = btree_kv_put_cb;
+			ut_cb.c_datum      = &put_data;
+
+			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+						 m0_btree_put(b_op.bo_arbor, tx,
+							      &rec, &ut_cb, 0,
+							      &kv_op),
+						 &G, &kv_op.bo_op_exec);
+		}
+	}
+
+	for (i = 1; i <= (recs_per_stream*stream_count); i++) {
+		uint64_t             key;
+		uint64_t             value[btree_type.vsize/sizeof(uint64_t)];
+		struct cb_data       get_data;
+		struct m0_btree_key  get_key;
+		struct m0_bufvec     get_value;
+		m0_bcount_t          ksize             = sizeof key;
+		m0_bcount_t          vsize             = sizeof value;
+		void                *k_ptr             = &key;
+		void                *v_ptr             = &value;
+		uint64_t             find_key;
+		void                *find_key_ptr      = &find_key;
+		m0_bcount_t          find_key_size     = sizeof find_key;
+		struct m0_btree_key  find_key_in_tree;
+
+		find_key = m0_byteorder_cpu_to_be64(i);
+		find_key_in_tree.k_data =
+			M0_BUFVEC_INIT_BUF(&find_key_ptr, &find_key_size);
+
+		get_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+		get_value      = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+
+		get_data.key         = &get_key;
+		get_data.value       = &get_value;
+		get_data.check_value = true;
+
+		ut_cb.c_act   = btree_kv_get_cb;
+		ut_cb.c_datum = &get_data;
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+					 m0_btree_get(b_op.bo_arbor,
+						      &find_key_in_tree,
+						      &ut_cb, 0, &kv_op),
+					 &G, &b_op.bo_op_exec);
+	}
+
+	for (i = 1; i <= recs_per_stream; i++) {
+		uint64_t             del_key;
+		struct m0_btree_key  del_key_in_tree;
+		void                *p_del_key    = &del_key;
+		m0_bcount_t          del_key_size = sizeof del_key;
+		struct cb_data       del_data;
+		uint32_t             stream_num;
+
+		del_data = (struct cb_data) { .key = &del_key_in_tree,
+						 .value = NULL,
+						 .check_value = false,
+						};
+
+		del_key_in_tree.k_data =
+				M0_BUFVEC_INIT_BUF(&p_del_key, &del_key_size);
+
+		ut_cb.c_act   = btree_kv_del_cb;
+		ut_cb.c_datum = &del_data;
+
+		for (stream_num = 0; stream_num < stream_count; stream_num++) {
+			del_key = i + (stream_num * recs_per_stream);
+			del_key = m0_byteorder_cpu_to_be64(del_key);
+
+			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+						 m0_btree_del(b_op.bo_arbor,
+							      &del_key_in_tree,
+							      &ut_cb, 0,
+							      &kv_op),
+						 &G, &b_op.bo_op_exec);
 		}
 	}
 
@@ -3949,9 +4165,9 @@ static void m0_btree_ut_basic_kv_operations(void)
 	 * Due to this, the destroy operation will crash.
 	 *
 	 * 
-	 * M0_BTREE_OP_SYNC_WITH(&b_op.bo_op,
-	 *		      m0_btree_destroy(b_op.bo_arbor, &b_op), &G,
-	 *		      &b_op.bo_op_exec);
+	 * M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+	 *				 m0_btree_destroy(b_op.bo_arbor, &b_op),
+	 *				 &G, &b_op.bo_op_exec);
 	 */
 
 	btree_ut_fini();
@@ -4164,8 +4380,9 @@ struct m0_ut_suite btree_ut = {
 	.ts_tests = {
 		{"node_create_delete",    m0_btree_ut_node_create_delete},
 		{"node_add_del_rec",      m0_btree_ut_node_add_del_rec},
-		{"basic_tree_operations", m0_btree_ut_basic_tree_operations},
-		{"basic_kv_operations",   m0_btree_ut_basic_kv_operations},
+		{"basic_tree_op",         m0_btree_ut_basic_tree_oper},
+		{"basic_kv_ops",          m0_btree_ut_basic_kv_oper},
+		{"multi_stream_kv_op",    m0_btree_ut_multi_stream_kv_oper},
 		{"insert_rec",            m0_btree_ut_insert_record},
 		{NULL, NULL}
 	}
