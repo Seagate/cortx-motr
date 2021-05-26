@@ -1097,8 +1097,8 @@ struct m0_btree_oimpl {
 	unsigned        i_used;
 	/** Array of levels for storing data about each level. **/
 	struct level   *i_level;
-	/** Return code for node operations. */
-	bool		i_rc;
+	/** Store node_find() output. */
+	bool		i_node_found;
 	/** When there will be requirement for new node in case of root
 	 * splitting i_extra_node will be used. **/
 	struct nd      *i_extra_node;
@@ -3254,7 +3254,8 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			lev->l_node = oi->i_nop.no_node;
 			node_slot.s_node = oi->i_nop.no_node;
 			lev->l_seq = lev->l_node->n_seq;
-			oi->i_rc = node_find(&node_slot, &bop->bo_rec.r_key);
+			oi->i_node_found = node_find(&node_slot, 
+						     &bop->bo_rec.r_key);
 			lev->l_idx = node_slot.s_idx;
 
 			if (node_level(node_slot.s_node) > 0) {
@@ -3326,7 +3327,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 		 *  subtree else return key not exist.
 		 */
 		if (bop->bo_flags & OF_EQUAL) {
-			if (oi->i_rc)
+			if (oi->i_node_found)
 				node_rec(&s);
 			else
 				s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
