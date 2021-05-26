@@ -588,16 +588,9 @@ enum op_flags {
 	OF_PREV    = M0_BITS(0),
 	OF_NEXT    = M0_BITS(1),
 	OF_LOCKALL = M0_BITS(2),
-	OF_COOKIE  = M0_BITS(3)
-};
-
-enum btree_rec_flag {
-	/** Btree key should be equal to search key. */
-	BRF_EQUAL = M0_BITS(0),
-	/** Btree key should be greater than or equal to search key. */
-	BRF_SLANT = M0_BITS(1),
-	/** Key does not exist. */
-	BRF_NOENT = M0_BITS(2),
+	OF_COOKIE  = M0_BITS(3),
+	OF_EQUAL   = M0_BITS(4),
+	OF_SLANT   = M0_BITS(5)
 };
 
 enum btree_node_type {
@@ -2353,7 +2346,7 @@ static void lock_op_unlock(struct td *tree)
 	m0_rwlock_write_unlock(&tree->t_lock);
 }
 
-static struct m0_btree_oimpl *alloc(int height)
+static struct m0_btree_oimpl *level_alloc(int height)
 {
 	struct m0_btree_oimpl *oi;
 
@@ -2366,6 +2359,26 @@ static struct m0_btree_oimpl *alloc(int height)
 		oi = NULL;
 	}
 	return oi;
+}
+
+static void level_cleanup(struct m0_btree_oimpl *oi)
+{
+	int i;
+	for (i = 0; i < oi->i_used; ++i) {
+		if (oi->i_level[i].l_node != NULL) {
+			node_put(oi->i_level[i].l_node);
+			oi->i_level[i].l_node = NULL;
+		}
+		if (oi->i_level[i].l_alloc != NULL) {
+			node_put(oi->i_level[i].l_alloc);
+			oi->i_level[i].l_alloc = NULL;
+		}
+	}
+	if (oi->i_extra_node != NULL) {
+		node_put(oi->i_extra_node);
+	}
+	m0_free(oi->i_level);
+	m0_free(oi);
 }
 
 /**
@@ -2762,7 +2775,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 	}
 	case P_SETUP: {
 		bop->bo_arbor->t_height = tree->t_height;
-		bop->bo_i = alloc(bop->bo_arbor->t_height);
+		bop->bo_i = level_alloc(bop->bo_arbor->t_height);
 		if (bop->bo_i == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
 		return P_LOCKALL;
@@ -2931,26 +2944,10 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		return P_CLEANUP;
 		//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 	}
-	case P_CLEANUP: {
-		int i;
-		for (i = 0; i < oi->i_used; ++i) {
-			if (oi->i_level[i].l_node != NULL) {
-				node_put(oi->i_level[i].l_node);
-				oi->i_level[i].l_node = NULL;
-			}
-			if (oi->i_level[i].l_alloc!= NULL) {
-				node_put(oi->i_level[i].l_alloc);
-				oi->i_level[i].l_alloc = NULL;
-			}
-		}
-		if (oi->i_extra_node != NULL) {
-			node_put(oi->i_extra_node);
-		}
-		m0_free(bop->bo_i->i_level);
-		m0_free(bop->bo_i);
+	case P_CLEANUP:
+		level_cleanup(oi);
 		return P_DONE;
 		//return m0_sm_op_ret(&bop->bo_op);
-	}
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
 	};
@@ -3208,7 +3205,7 @@ int  btree_sibling_first_key_get(struct m0_btree_oimpl *oi, struct td *tree,
 			return 0;
 		}
 	}
-	s->s_rec.r_flags |= BRF_NOENT;
+	s->s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
 	return 0;
 
 }
@@ -3235,7 +3232,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			return P_SETUP;
 	case P_SETUP:
 		bop->bo_arbor->t_height = tree->t_height;
-		oi = alloc(tree->t_height);
+		oi = level_alloc(tree->t_height);
 		if (oi == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
 		return P_LOCKALL;
@@ -3317,7 +3314,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 		s.s_idx		     = lev->l_idx;
 		s.s_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&pkey, &ksize);
 		s.s_rec.r_val	     = M0_BUFVEC_INIT_BUF(&pval, &vsize);
-		s.s_rec.r_flags      = 0;
+		s.s_rec.r_flags      = M0_BSC_SUCCESS;
 		/**
 		 *  There are two cases based on the flag set by user :
 		 *  1. Flag BRF_EQUAL: If requested key found return record else
@@ -3328,11 +3325,11 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 		 *  If valid sibling found, return first key of the sibling
 		 *  subtree else return key not exist.
 		 */
-		if (bop->bo_rec.r_flags & BRF_EQUAL) {
+		if (bop->bo_flags & OF_EQUAL) {
 			if (oi->i_rc)
 				node_rec(&s);
 			else
-				s.s_rec.r_flags |= BRF_NOENT;
+				s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
 		} else {
 			if (lev->l_idx < node_count(lev->l_node))
 				node_rec(&s);
@@ -3351,20 +3348,10 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 		return P_CLEANUP;
 		//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 	}
-	case P_CLEANUP: {
-		int i;
-		for (i = 0; i < oi->i_used; ++i) {
-			if (oi->i_level[i].l_node != NULL) {
-				node_put(oi->i_level[i].l_node);
-				oi->i_level[i].l_node = NULL;
-			}
-		}
-		m0_free(bop->bo_i->i_level);
-		m0_free(bop->bo_i);
-
+	case P_CLEANUP:
+		level_cleanup(oi);
 		return P_DONE;
 		//return m0_sm_op_ret(&bop->bo_op);
-	}
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
 	};
@@ -3428,6 +3415,16 @@ void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
 		      &btree_conf, &G);
 }
 
+/**
+ * Looks up for the key/slant key by the given search key in the btree.
+ * The callback routine returns record if key is found else it returns error.
+ *
+ * @param arbor Btree parameteres.`
+ * @param key   Key to be searched in the btree.
+ * @param cb    Callback routine to return operation output.
+ * @param flags Operation specific flags (cookie, slant etc.).
+ * @param bop   Btree operation related parameters.
+ */
 void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, uint64_t flags,
 		  struct m0_btree_op *bop)
@@ -3435,7 +3432,7 @@ void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 	bop->bo_opc = M0_BO_GET;
 	bop->bo_arbor = arbor;
 	bop->bo_rec.r_key = *key;
-	bop->bo_rec.r_flags = flags;
+	bop->bo_flags = flags;
 	bop->bo_cb = *cb;
 	m0_sm_op_init(&bop->bo_op, &btree_get_tick, &bop->bo_op_exec,
 		      &btree_conf, &G);
@@ -4087,7 +4084,7 @@ static void m0_btree_ut_basic_kv_operations(void)
 		M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
 				      m0_btree_get(b_op.bo_arbor,
 						   &search_key_in_tree,
-						   &ut_cb, BRF_EQUAL, &kv_op),
+						   &ut_cb, OF_EQUAL, &kv_op),
 				      &G, &b_op.bo_op_exec);
 
 		for (i = 1; i < 2048; i++) {
