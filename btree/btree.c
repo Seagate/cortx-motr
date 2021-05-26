@@ -3293,6 +3293,13 @@ void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
 	m0_sm_op_init(&bop->bo_op, &btree_put_tick, &bop->bo_op_exec,
 		   &btree_conf, &G);
 }
+
+void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop)
+{
+}
+
 #endif
 
 #ifndef __KERNEL__
@@ -3806,13 +3813,8 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 
 static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
-	struct m0_bufvec_cursor scur;
-	struct m0_bufvec_cursor dcur;
-	m0_bcount_t             ksize;
-	m0_bcount_t             vsize;
-	struct cb_data          *datum = cb->c_datum;
 
-	M0_ASSERT(rec && rec->r_flags == NOT_FOUND);
+	M0_ASSERT(rec && rec->r_flags == M0_BSC_KEY_NOT_FOUND);
 
 	return 0;
 }
@@ -4001,9 +4003,9 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 	 *  1) Create a btree
 	 *  2) Adds records in multiple streams to the created tree.
 	 *  3) Confirms the records are present in the tree.
-	 *  4) Deletes all the records from the tree.
-	 *  4) Close the btree
-	 *  5) Destroy the btree
+	 *  4) Deletes all the records from the tree using multiple streams.
+	 *  5) Close the btree
+	 *  6) Destroy the btree
 	 */
 
 	/** Create temp node space and use it as root node for btree */
@@ -4084,29 +4086,34 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 				      &b_op.bo_op_exec);
 	}
 
-	for (i = 1; i <= (recs_per_stream * stream_count); i++) {
-		struct cb_data       delete_data;
+	for (i = 1; i <= recs_per_stream; i++) {
 		uint64_t             delete_key;
-		void                *delete_key_ptr     = &delete_key;
-		m0_bcount_t          delete_key_size    = sizeof delete_key;
 		struct m0_btree_key  delete_key_in_tree;
+		void                *delete_key_ptr = &delete_key;
+		m0_bcount_t          delete_key_size = sizeof delete_key;
+		struct cb_data       delete_data;
+		uint32_t             stream_num;
 
-		delete_key = i;
+		delete_data = (struct cb_data) { .key = &delete_key_in_tree,
+						 .value = NULL,
+						 .check_value = false,
+						};
+
 		delete_key_in_tree.k_data =
 			M0_BUFVEC_INIT_BUF(&delete_key_ptr, &delete_key_size);
 
-		delete_data.key      = &delete_key;
-		delete_data.value    = NULL;
-		get_data.check_value = false;
-
-		ut_cb.c_act   = btree_kv_get_cb;
+		ut_cb.c_act   = btree_kv_del_cb;
 		ut_cb.c_datum = &delete_data;
 
-		M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
-				      m0_btree_del(b_op.bo_arbor,
-						   &delete_key_in_tree,
-						   &ut_cb, 0, &kv_op), &G,
-				      &b_op.bo_op_exec);
+		for (stream_num = 0; stream_num < stream_count; stream_num++) {
+			delete_key = i + (stream_num * recs_per_stream);
+
+			M0_BTREE_OP_SYNC_WITH(&kv_op.bo_op,
+					      m0_btree_del(b_op.bo_arbor,
+							   &delete_key_in_tree,
+							   &ut_cb, 0, &kv_op), &G,
+					      &b_op.bo_op_exec);
+		}
 	}
 
 	m0_btree_close(b_op.bo_arbor);
