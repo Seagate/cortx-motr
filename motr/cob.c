@@ -1857,7 +1857,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	if ((cr->cr_opcode == M0_EO_GETATTR) &&
 	     m0_fid_is_set(&obj->ob_attr.oa_pver)) {
 		skip_lookup = true;
-		M0_LOG(M0_ALWAYS, "pver "FID_F" is valid, lookup can be skipped",
+		M0_LOG(M0_DEBUG, "pver "FID_F" is valid, lookup can be skipped",
 		       FID_P(&obj->ob_attr.oa_pver));
 	}
 
@@ -1868,7 +1868,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 
 	if (! skip_lookup ) {
 	/* Send requests to services. */
-		M0_LOG(M0_ALWAYS, "proceeding for lookup, cr_opcode: %d", cr->cr_opcode);
+		M0_LOG(M0_DEBUG, "proceeding for lookup, cr_opcode: %d", cr->cr_opcode);
 		rc = cob_req_send(cr);
 		if (rc != 0) {
 			cr->cr_ar.ar_ast.sa_cb = &cob_ast_fail_cr;
@@ -1876,7 +1876,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 			m0_sm_ast_post(cr->cr_op_sm_grp, &cr->cr_ar.ar_ast);
 		}
 	} else {
-		M0_LOG(M0_ALWAYS, "skipped lookup, obj pver is :"FID_F,
+		M0_LOG(M0_DEBUG, "skipped lookup, obj pver is :"FID_F,
 		       FID_P(&obj->ob_attr.oa_pver));
 		/* We are skipping cob lookup here as we have received pver
 		 * and LID from s3, and hence need to move op state

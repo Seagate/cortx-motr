@@ -257,7 +257,7 @@ static int create_object(struct m0_entity *entity)
 	oc = M0_AMB(oc, ops[0], oc_op);
 	oo = M0_AMB(oo, oc, oo_oc);
 	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
-	M0_LOG(M0_ALWAYS, "post create object, obj->ob_attr.oa_pver :"FID_F,
+	M0_LOG(M0_DEBUG, "post create object, obj->ob_attr.oa_pver :"FID_F,
 	       FID_P(&obj->ob_attr.oa_pver));
 
 	if (rc == 0)
@@ -546,15 +546,14 @@ int m0_read(struct m0_container *container,
 	if (rc != 0)
 		goto get_error;
 
-	/* Setting pver here to hardcode value, pool version set here is
-	 * as we received in create operation in obj->oa_attr.
-	 * This piece of code is only for verification purpose at
-	 * motr level, WILL BE REMOVED FROM FINAL PATCH  */
-
+	/* Setting pver here to read_pver received as parameter to this func.
+	 * Caller of this function is expected to pass pver of object tobe
+	 * read, if he knows pver of object.
+	 * */
 	if (read_pver != NULL &&  m0_fid_is_set(read_pver)) {
 		obj.ob_attr.oa_pver.f_container = read_pver->f_container;
 		obj.ob_attr.oa_pver.f_key = read_pver->f_key;
-		M0_LOG(M0_ALWAYS, "m0_read: obj->ob_attr.oa_pver is set to:"FID_F
+		M0_LOG(M0_DEBUG, "m0_read: obj->ob_attr.oa_pver is set to:"FID_F
                        " To predent that, it is received from s3",
 	               FID_P(&obj.ob_attr.oa_pver));
 	}
