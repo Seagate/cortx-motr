@@ -3679,7 +3679,7 @@ static void m0_btree_ut_basic_tree_oper(void)
 
 	/** Create temp node space*/
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	M0_BTREE_OP_SYNC_WITH_RC (&b_op.bo_op,
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 			      m0_btree_create(temp_node, 1024, &btree_type, nt,
 			      tx, &b_op), &G, &b_op.bo_op_exec);
 
@@ -3688,8 +3688,8 @@ static void m0_btree_ut_basic_tree_oper(void)
 	m0_btree_open(temp_node, 1024, &btree);
 
 	m0_btree_close(btree);
-	M0_BTREE_OP_SYNC_WITH_RC (&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G,
-			      &b_op.bo_op_exec);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(btree, &b_op),
+				 &G, &b_op.bo_op_exec);
 
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
@@ -3702,12 +3702,12 @@ static void m0_btree_ut_basic_tree_oper(void)
 	m0_btree_close(btree);
 
 	/** Destroy a non-existent btree */
-	M0_BTREE_OP_SYNC_WITH_RC (&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G,
-			      &b_op.bo_op_exec);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(btree, &b_op),
+				 &G, &b_op.bo_op_exec);
 
 	/** Create a new btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	M0_BTREE_OP_SYNC_WITH_RC (&b_op.bo_op,
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 			      m0_btree_create(temp_node, 1024, &btree_type, nt,
 					      tx, &b_op), &G, &b_op.bo_op_exec);
 
@@ -3724,8 +3724,8 @@ static void m0_btree_ut_basic_tree_oper(void)
 	m0_btree_open(invalid_addr, 1024, &btree);
 
 	/** Destory it */
-	M0_BTREE_OP_SYNC_WITH_RC (&b_op.bo_op, m0_btree_destroy(btree, &b_op), &G,
-			      &b_op.bo_op_exec);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(btree, &b_op),
+				 &G, &b_op.bo_op_exec);
 
 	/** Attempt to reopen the destroyed tree */
 	m0_btree_open(invalid_addr, 1024, &btree);
@@ -3861,7 +3861,7 @@ static void m0_btree_ut_basic_kv_oper(void)
 
 	/** Create temp node space and use it as root node for btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	M0_BTREE_OP_SYNC_WITH_RC (&b_op.bo_op,
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 			      m0_btree_create(temp_node, 1024, &btree_type, nt,
 					      tx, &b_op), &G, &b_op.bo_op_exec);
 
@@ -3896,7 +3896,7 @@ static void m0_btree_ut_basic_kv_oper(void)
 		ut_cb.c_act        = btree_kv_put_cb;
 		ut_cb.c_datum      = &put_data;
 
-		M0_BTREE_OP_SYNC_WITH_RC (&kv_op.bo_op,
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 				      m0_btree_put(b_op.bo_arbor, tx, &rec,
 				      		   &ut_cb, 0, &kv_op), &G,
 				      &kv_op.bo_op_exec);
@@ -3931,7 +3931,7 @@ static void m0_btree_ut_basic_kv_oper(void)
 		search_key_in_tree.k_data =
 			M0_BUFVEC_INIT_BUF(&search_key_ptr, &search_key_size);
 
-		M0_BTREE_OP_SYNC_WITH_RC (&kv_op.bo_op,
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 				      m0_btree_get(b_op.bo_arbor,
 						   &search_key_in_tree,
 						   &ut_cb, 0, &kv_op), &G,
@@ -3939,7 +3939,7 @@ static void m0_btree_ut_basic_kv_oper(void)
 
 		for (i = 1; i < 2048; i++) {
 			search_key = key;
-			M0_BTREE_OP_SYNC_WITH_RC (&kv_op.bo_op,
+			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 					      m0_btree_nxt(b_op.bo_arbor,
 							   &search_key_in_tree,
 							   &ut_cb, 0, &kv_op),
@@ -3949,7 +3949,7 @@ static void m0_btree_ut_basic_kv_oper(void)
 	}
 
 	m0_btree_close(b_op.bo_arbor);
-	M0_BTREE_OP_SYNC_WITH_RC (&b_op.bo_op,
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 			      m0_btree_destroy(b_op.bo_arbor, &b_op), &G,
 			      &b_op.bo_op_exec);
 	btree_ut_fini();
@@ -4010,7 +4010,7 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 
 	/** Create temp node space and use it as root node for btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	M0_BTREE_OP_SYNC_WITH_RC (&b_op.bo_op,
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 			      m0_btree_create(temp_node, 1024, &btree_type, nt,
 					      tx, &b_op), &G, &b_op.bo_op_exec);
 
@@ -4042,7 +4042,7 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 			ut_cb.c_act        = btree_kv_put_cb;
 			ut_cb.c_datum      = &put_data;
 
-			M0_BTREE_OP_SYNC_WITH_RC (&kv_op.bo_op,
+			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 					      m0_btree_put(b_op.bo_arbor, tx,
 							   &rec, &ut_cb, 0,
 							   &kv_op),
@@ -4079,7 +4079,7 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 		ut_cb.c_act   = btree_kv_get_cb;
 		ut_cb.c_datum = &get_data;
 
-		M0_BTREE_OP_SYNC_WITH_RC (&kv_op.bo_op,
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 				      m0_btree_get(b_op.bo_arbor,
 						   &search_key_in_tree,
 						   &ut_cb, 0, &kv_op), &G,
@@ -4108,16 +4108,16 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 		for (stream_num = 0; stream_num < stream_count; stream_num++) {
 			delete_key = i + (stream_num * recs_per_stream);
 
-			M0_BTREE_OP_SYNC_WITH_RC (&kv_op.bo_op,
+			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 					      m0_btree_del(b_op.bo_arbor,
 							   &delete_key_in_tree,
-							   &ut_cb, 0, &kv_op), &G,
-					      &b_op.bo_op_exec);
+							   &ut_cb, 0, &kv_op),
+						 &G, &b_op.bo_op_exec);
 		}
 	}
 
 	m0_btree_close(b_op.bo_arbor);
-	M0_BTREE_OP_SYNC_WITH_RC (&b_op.bo_op,
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 			      m0_btree_destroy(b_op.bo_arbor, &b_op), &G,
 			      &b_op.bo_op_exec);
 	btree_ut_fini();
