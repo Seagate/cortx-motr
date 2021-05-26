@@ -37,7 +37,7 @@
 
 static double double_get(const struct m0_uint128 *v128)
 {
-	return v128->u_lo * 1. + v128->u_hi * (UINT64_MAX + 1.);
+	return v128->u_lo * 1. + v128->u_hi * ((double)UINT64_MAX + 1.);
 }
 
 double m0_net_test_stats_sum(const struct m0_net_test_stats *stats)
