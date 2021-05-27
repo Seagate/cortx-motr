@@ -1,0 +1,2 @@
+/usr/lib64/python2.7/site-packages/motr.so
+/usr/lib64/python2.7/site-packages/motr-1.0-py2.7.egg-info

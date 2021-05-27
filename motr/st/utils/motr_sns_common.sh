@@ -55,8 +55,9 @@ motr_sns_repreb()
 {
 	N=$1
 	K=$2
-	P=$3
-	stride=$4
+	S=$3
+	P=$4
+	stride=$5
 
 	sandbox_init
 
@@ -73,7 +74,7 @@ motr_sns_repreb()
 	}
 	mkdir $MOTR_TRACE_DIR
 
-	motr_service_start $N $K $P $stride
+	motr_service_start $N $K $S $P $stride
 	#Initialise dix
 	dix_init
 
