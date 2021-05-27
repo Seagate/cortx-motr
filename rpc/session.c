@@ -240,6 +240,7 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 	m0_sm_init(&session->s_sm, &session_conf,
 		   M0_RPC_SESSION_INITIALISED,
 		   &conn->c_rpc_machine->rm_sm_grp);
+	m0_sm_state_trace_enable(&session->s_sm);
 	m0_rpc_conn_add_session(conn, session);
 	M0_ASSERT(m0_rpc_session_invariant(session));
 	rc = m0_rpc_item_cache_init(&session->s_reply_cache,
@@ -248,6 +249,7 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 				    &conn->c_rpc_machine->rm_sm_grp.s_lock);
 	if (rc == 0)
 		M0_LOG(M0_INFO, "Session %p INITIALISED", session);
+
 	else
 		M0_LOG(M0_ERROR, "Session %p initialisation failed: %d",
 		       session, rc);
@@ -531,6 +533,10 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
 		    reply->rser_sender_id != SENDER_ID_INVALID) {
 			session->s_session_id = session_id;
 			session_state_set(session, M0_RPC_SESSION_IDLE);
+			M0_MEAS("sm-to-session conn_uuid: "U128X_F
+				" session_id: %" PRIu64" session_sm_id: %"PRIu64,
+				U128_P(&session->s_conn->c_uuid),
+				session->s_session_id, session->s_sm.sm_id);
 		} else {
 			rc = M0_ERR(-EPROTO);
 		}

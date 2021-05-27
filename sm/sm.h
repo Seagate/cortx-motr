@@ -335,6 +335,10 @@ struct m0_sm {
 	 */
 	int32_t                    sm_rc;
 	/**
+           State tracing could be expensive for some state machines.
+         */
+	bool                       sm_state_trace_off;
+	/**
            Sm invariant check could be expensive for some state machines.
          */
 	bool                       sm_invariant_chk_off;
@@ -532,6 +536,8 @@ M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
    @pre conf->scf_state[state].sd_flags & (M0_SDF_TERMINAL | M0_SDF_FINAL)
  */
 M0_INTERNAL void m0_sm_fini(struct m0_sm *mach);
+
+M0_INTERNAL void m0_sm_state_trace_enable(struct m0_sm *mach);
 
 M0_INTERNAL void m0_sm_group_init(struct m0_sm_group *grp);
 M0_INTERNAL void m0_sm_group_fini(struct m0_sm_group *grp);

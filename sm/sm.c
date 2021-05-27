@@ -319,6 +319,7 @@ M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
 	mach->sm_id          = m0_dummy_id_generate();
 	mach->sm_state_epoch = m0_time_now();
 	mach->sm_addb2_stats = NULL;
+	mach->sm_state_trace_off = true;
 	mach->sm_invariant_chk_off = false;
 	m0_chan_init(&mach->sm_chan, &grp->s_lock);
 	M0_POST(sm_invariant0(mach));
@@ -380,6 +381,17 @@ M0_INTERNAL bool m0_sm_conf_is_initialized(const struct m0_sm_conf *conf)
 	return conf->scf_magic == M0_SM_CONF_MAGIC;
 }
 
+M0_INTERNAL void m0_sm_state_trace_enable(struct m0_sm *mach)
+{
+	const struct m0_sm_state_descr *sd = sm_state(mach);
+
+	mach->sm_state_trace_off = false;
+
+	M0_MEAS("state-trace-enable name: \"%s\" sm_id: %"PRIu64
+		" state: %s", mach->sm_conf->scf_name,
+		m0_sm_id_get(mach), sd->sd_name);
+}
+
 M0_INTERNAL int m0_sm_timedwait(struct m0_sm *mach, uint64_t states,
 				m0_time_t deadline)
 {
@@ -434,6 +446,13 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 			       state_get(mach, state)->sd_name);
 		if (sd->sd_ex != NULL)
 			sd->sd_ex(mach);
+
+		if (!mach->sm_state_trace_off) {
+			M0_MEAS("state-set name: \"%s\" sm_id: %"PRIu64
+				" from: %s to: %s", mach->sm_conf->scf_name,
+				m0_sm_id_get(mach), sd->sd_name,
+				state_get(mach, state)->sd_name);
+		}
 
 		/* Update statistics (if enabled). */
 		if (stats != NULL) {
