@@ -2578,6 +2578,7 @@ static int m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 		 */
 
 		/* callback */
+		tgt->s_rec.r_flags = M0_BSC_SUCCESS;
 		int rc = bop->bo_cb.c_act(&bop->bo_cb, &tgt->s_rec);
 		if (rc) {
 			/* If callback failed undo make space, splitted node */
@@ -2796,6 +2797,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
 			struct slot    node_slot = {};
 			struct segaddr child_node_addr;
+			bool           key_exists;
 
 			curr_level->l_node = oi->i_nop.no_node;
 			node_slot.s_node = oi->i_nop.no_node;
@@ -2809,9 +2811,13 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			}*/
 			oi->i_nop.no_node = NULL;
 
-			node_find(&node_slot, &bop->bo_rec.r_key);
+			key_exists = node_find(&node_slot, &bop->bo_rec.r_key);
 			curr_level->l_idx = node_slot.s_idx;
 			if (node_level(node_slot.s_node) > 0) {
+				if (key_exists) {
+					curr_level->l_idx++;
+					node_slot.s_idx++;
+				}
 				node_child(&node_slot, &child_node_addr);
 				if (!address_is_valid(child_node_addr)) {
 					node_op_fini(&oi->i_nop);
@@ -2820,8 +2826,19 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 				oi->i_used++;
 				return node_get(&oi->i_nop, tree,
 						&child_node_addr, P_NEXTDOWN);
-			} else
+			} else {
+				if (key_exists) {
+					struct m0_btree_rec rec;
+					rec.r_flags = M0_BSC_KEY_EXISTS;
+					int rc = bop->bo_cb.c_act(&bop->bo_cb,
+								  &rec);
+					if (rc) {
+						return fail(bop, rc);
+					}
+					return P_CLEANUP;
+				}
 				return P_ALLOC;
+			}
 		} else {
 			node_op_fini(&oi->i_nop);
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
@@ -2928,6 +2945,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			 * explination is provided at P_MAKESPACE stage.
 			 */
 			rec = &node_slot.s_rec;
+			rec->r_flags = M0_BSC_SUCCESS;
 			int rc = bop->bo_cb.c_act(&bop->bo_cb, rec);
 			if (rc) {
 				/* handle if callback fail i.e undo make */
@@ -3973,6 +3991,9 @@ struct cb_data {
 
 static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
+	if (rec->r_flags == M0_BSC_KEY_EXISTS) {
+		return M0_BSC_KEY_EXISTS;
+	}
         struct m0_bufvec_cursor  scur;
 	struct m0_bufvec_cursor  dcur;
 	m0_bcount_t              ksize;
@@ -4177,9 +4198,15 @@ static void m0_btree_ut_basic_kv_oper(void)
 	}
 
 	m0_btree_close(b_op.bo_arbor);
-	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-				 m0_btree_destroy(b_op.bo_arbor, &b_op),
-				 &G, &b_op.bo_op_exec);
+	/**
+	 * Commenting this code as the delete operation is not done here.
+	 * Due to this, the destroy operation will crash.
+	 *
+	 *
+	 * M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+	 *				 m0_btree_destroy(b_op.bo_arbor, &b_op),
+	 *				 &G, &b_op.bo_op_exec);
+	 */
 	btree_ut_fini();
 }
 
@@ -4312,7 +4339,7 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 					 m0_btree_get(b_op.bo_arbor,
 						      &find_key_in_tree,
-						      &ut_cb, 0, &kv_op),
+						      &ut_cb, OF_EQUAL, &kv_op),
 					 &G, &b_op.bo_op_exec);
 	}
 
