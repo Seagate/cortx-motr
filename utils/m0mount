@@ -407,7 +407,7 @@ for dev in \$devs; do
                       sed -e 's/.*partitions//' -e '/^$/d')
 	# if \$dev is a valid block device (zero exit code of partprobe)
 	# and it doesn't contain any partition table (output of partprobe is empy)
-	if [[ \$? -eq 0 && -z \$partitions ]]; then
+	if [[ \$? -eq 0 && -z "\$partitions" ]]; then
 		if [ \$j -eq 0 ]; then
 			echo "Device:" > disks\$f.conf
 			echo "   - id: 0" >> disks\$f.conf

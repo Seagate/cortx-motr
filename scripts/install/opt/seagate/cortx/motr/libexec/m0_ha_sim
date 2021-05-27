@@ -103,10 +103,10 @@ get_dev_id_from_dev_name()
                 exit
         fi
         dev_idx=$(cat /opt/conf.cg | grep "$DEV_PATH" | head -1 | awk '{print $1}' | cut -d '-' -f2)
-        if [ ! -z $dev_idx ]; then
+        if [ ! -z "$dev_idx" ]; then
                 DEVICE_ID=$(cat $CONF_FILE | grep "\^d|1:${dev_idx}," | cut -d : -f 2 | cut -d ')' -f1)
         fi
-        if [ -z $DEVICE_ID ]; then
+        if [ -z "$DEVICE_ID" ]; then
                 echo "Couldn't retrieve device id for $DEV_PATH"
                 exit
         fi
@@ -124,7 +124,7 @@ main()
         get_lnet_nid
         get_ios_endpoints
 
-        if [ -z $DEVICE_ID ] && [ ! -z $DEV_PATH ]; then
+        if [ -z "$DEVICE_ID" ] && [ ! -z "$DEV_PATH" ]; then
                 get_dev_id_from_dev_name
         fi
 
@@ -138,8 +138,8 @@ main()
         fi
 
         if [ $TYPE == "drive" ]; then
-                if [ ! -z $DEV_STATE ]; then
-                        if [ -z $DEVICE_ID ] || [ -z $DEV_STATE ]; then
+                if [ ! -z "$DEV_STATE" ]; then
+                        if [ -z "$DEVICE_ID" ] || [ -z "$DEV_STATE" ]; then
                                 echo "Need device id and state to set disk state"
                                 return 1
                         fi
@@ -149,7 +149,7 @@ main()
                         state_recv=""
                         echo "Getting $DEVICE_ID state to $DEV_STATE"
                         disk_state_get $DEVICE_ID
-                        if [ -z $state_recv ]; then
+                        if [ -z "$state_recv" ]; then
                                 echo "Could not retrieve state for $DEVICE_ID"
                                 return 1
                         fi
@@ -223,14 +223,14 @@ while true; do
         esac
 done
 
-if [ ! -z $DEV_STATE ]; then
+if [ ! -z "$DEV_STATE" ]; then
         if [[ ! $DEV_STATE =~ ^(failed|replaced)$ ]]; then
                 echo "Valid state are only (failed/replaced)"
                 usage
         fi
 fi
 
-if [ ! -z $OPERATION ]; then
+if [ ! -z "$OPERATION" ]; then
         echo "Sub operations are not supported yet"
         usage
 fi

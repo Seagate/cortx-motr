@@ -39,7 +39,7 @@ m0_dixinit()
     [[ -r $kernel_config ]] && source $kernel_config
     [[ -r $user_config ]]   && source $user_config
 
-    [[ -n $MOTR_M0D_DEBUGGER ]] && export M0_DEBUGGER=$MOTR_M0D_DEBUGGER
+    [[ -n "$MOTR_M0D_DEBUGGER" ]] && export M0_DEBUGGER=$MOTR_M0D_DEBUGGER
 
     m0_cas_enabled || {
         m0_log 'CAS service is not enabled, skipping m0dixinit'

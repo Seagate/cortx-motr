@@ -329,7 +329,7 @@ sub validate_subsys
         cas      formation  net     stob
         cm       ha         other   ut
         cob      ioservice  pool    xcode
-        conf     layout     rm
+        conf     layout     rm      dtm0
         console  lib        rpc
         dtm      lnet       sm
     );

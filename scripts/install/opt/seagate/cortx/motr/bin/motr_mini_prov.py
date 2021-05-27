@@ -24,7 +24,6 @@ import re
 import subprocess
 from cortx.utils.conf_store import Conf
 
-MOTR_SYS_FILE = "/etc/sysconfig/motr"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
@@ -126,8 +125,8 @@ def validate_motr_rpm(self):
     sys.stdout.write(f"Checking for {kernel_module}\n")
     validate_file(kernel_module)
 
-    sys.stdout.write(f"Checking for {MOTR_SYS_FILE}\n")
-    validate_file(MOTR_SYS_FILE)
+    sys.stdout.write(f"Checking for {MOTR_SYS_CFG}\n")
+    validate_file(MOTR_SYS_CFG)
 
 
 def motr_config(self):
@@ -183,7 +182,6 @@ def configure_lnet(self):
 def configure_libfabric(self):
     raise MotrError(errno.EINVAL, "libfabric not implemented\n")
 
-
 def swap_on(self):
     cmd = "swapon -a"
     execute_command(self, cmd)
@@ -225,7 +223,6 @@ def add_swap_fstab(self, dev_name):
         swap_on(self)
 
 def del_swap_fstab_by_vg_name(self, vg_name):
-
     swap_off(self)
 
     cmd = f"sed -i '/{vg_name}/d' {FSTAB}"
@@ -234,7 +231,6 @@ def del_swap_fstab_by_vg_name(self, vg_name):
     swap_on(self)
 
 def create_swap(self, swap_dev):
-
     sys.stdout.write(f"Make swap of {swap_dev}\n")
     cmd = f"mkswap -f {swap_dev}"
     execute_command(self, cmd)
@@ -257,7 +253,6 @@ def create_lvm(self, index, metadata_dev):
         5. If not exist, create volume group and lvm
         6. create swap from lvm
     '''
-
     try:
         cmd = f"fdisk -l {metadata_dev}2"
         execute_command(self, cmd)
@@ -265,14 +260,16 @@ def create_lvm(self, index, metadata_dev):
         pass
     else:
         metadata_dev = f"{metadata_dev}2"
+
     try:
         cmd = f"pvdisplay {metadata_dev}"
         out = execute_command(self, cmd)
     except MotrError:
         pass
     else:
-        sys.stdout.write(f"Already volumes are created on {metadata_dev}\n {out[0]}")
-        return
+        sys.stdout.write(f"Volumes are already created on {metadata_dev}\n{out[0]}\n")
+        return False
+
     index = index + 1
     node_name = self.server_node['name']
     vg_name = f"vg_{node_name}_md{index}"
@@ -344,15 +341,27 @@ def create_lvm(self, index, metadata_dev):
     else:
         sys.stdout.write(f"swap size before allocation ={allocated_swap_size_before}M\n")
         sys.stdout.write(f"swap_size after allocation ={allocated_swap_size_after}M\n")
+    return True
 
-def config_lvm(self):
+def calc_lvm_min_size(self, lv_path, lvm_min_size):
+    cmd = f"lvs {lv_path} -o LV_SIZE --noheadings --units b --nosuffix"
+    res = execute_command(self, cmd)
+    lv_size = res[0].rstrip("\n")
+    lv_size = int(lv_size)
+    sys.stdout.write(f"{lv_path} size = {lv_size} \n")
+    if lvm_min_size is None:
+        lvm_min_size = lv_size
+        return lvm_min_size
+    lvm_min_size = min(lv_size, lvm_min_size)
+    return lvm_min_size
+
+def get_cvg_cnt_and_cvg(self):
     try:
         cvg_cnt = self.server_node['storage']['cvg_count']
     except:
         raise MotrError(errno.EINVAL, "cvg_cnt not found\n")
 
     check_type(cvg_cnt, str, "cvg_count")
-
 
     try:
         cvg = self.server_node['storage']['cvg']
@@ -365,8 +374,43 @@ def config_lvm(self):
     # Check if cvg is non empty
     if not cvg:
         raise MotrError(errno.EINVAL, "cvg is empty\n")
+    return cvg_cnt, cvg
 
+def update_bgsize(self):
     dev_count = 0
+    lvm_min_size = None
+
+    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
+    for i in range(int(cvg_cnt)):
+        cvg_item = cvg[i]
+        try:
+            metadata_devices = cvg_item["metadata_devices"]
+        except:
+            raise MotrError(errno.EINVAL, "metadata devices not found\n")
+        check_type(metadata_devices, list, "metadata_devices")
+        sys.stdout.write(f"\nlvm metadata_devices: {metadata_devices}\n\n")
+        for device in metadata_devices:
+            cmd = f"pvs --noheadings {device}"
+            vgname = (execute_command(self, cmd)[0]).split(sep=None)[1]
+            cmd = "lvdisplay | grep \"LV Path\" | grep {} | grep -v swap".format(vgname)
+            lv_list = (execute_command(self, cmd)[0]).replace("LV Path", '').split('\n')[0:-1]
+            len_lv_list = len(lv_list)
+            for i in range(len_lv_list):
+                # lv_list[i] contains initial spaces. So removing these spaces.
+                lv_list[i] = lv_list[i].strip()
+                lv_path = lv_list[i]
+                lvm_min_size = calc_lvm_min_size(self, lv_path, lvm_min_size)
+    if lvm_min_size:
+        sys.stdout.write(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
+        cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
+        execute_command(self, cmd)
+
+def config_lvm(self):
+    dev_count = 0
+    lvm_min_size = None
+    lvm_min_size = None
+
+    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
     for i in range(int(cvg_cnt)):
         cvg_item = cvg[i]
         try:
@@ -377,8 +421,19 @@ def config_lvm(self):
         sys.stdout.write(f"\nlvm metadata_devices: {metadata_devices}\n\n")
 
         for device in metadata_devices:
-            create_lvm(self, dev_count, device)
+            ret = create_lvm(self, dev_count, device)
+            if ret == False:
+                continue
             dev_count += 1
+            lv_md_name = f"lv_raw_md{dev_count}"
+            cmd = f"lvs -o lv_path | grep {lv_md_name}"
+            res = execute_command(self, cmd)
+            lv_path = res[0].rstrip("\n")
+            lvm_min_size = calc_lvm_min_size(self, lv_path, lvm_min_size)
+    if lvm_min_size:
+        sys.stdout.write(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
+        cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
+        execute_command(self, cmd)
 
 def get_lnet_xface() -> str:
     """Get lnet interface."""
@@ -445,7 +500,6 @@ def get_nodes(self):
 
 def lnet_ping(self):
     """Lnet lctl ping on all available nodes in cluster."""
-
     nodes = get_nodes(self)
     # nodes is a list of hostnames
     nids = get_nids(self, nodes)
@@ -488,27 +542,8 @@ def test_lnet(self):
     lnet_ping(self)
 
 def get_metadata_disks_count(self):
-    try:
-        cvg_cnt = self.server_node['storage']['cvg_count']
-    except:
-        raise MotrError(errno.EINVAL, "cvg_cnt not found\n")
-
-    check_type(cvg_cnt, str, "cvg_count")
-
-
-    try:
-        cvg = self.server_node['storage']['cvg']
-    except:
-        raise MotrError(errno.EINVAL, "cvg not found\n")
-
-     # Check if cvg type is list
-    check_type(cvg, list, "cvg")
-
-    # Check if cvg is non empty
-    if not cvg:
-        raise MotrError(errno.EINVAL, "cvg is empty\n")
-
     dev_count = 0
+    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
     for i in range(int(cvg_cnt)):
         cvg_item = cvg[i]
         try:

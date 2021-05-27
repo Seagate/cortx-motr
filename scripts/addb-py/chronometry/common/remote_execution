@@ -24,7 +24,7 @@ function parse_nodes() {
         local srv=$(echo $map | awk -F '=' '{print $1}')
         local cli=$(echo $map | awk -F '=' '{print $2}')
 
-        if [[ -n $srv ]]; then
+        if [[ -n "$srv" ]]; then
             if [[ -z "$SRV_NODES" ]]; then
                 SRV_NODES="$srv"
             else
@@ -32,7 +32,7 @@ function parse_nodes() {
             fi
         fi
 
-        if [[ -n $cli ]]; then
+        if [[ -n "$cli" ]]; then
             if [[ -z "$CLI_NODES" ]]; then
                 CLI_NODES="$cli"
             else
@@ -42,13 +42,13 @@ function parse_nodes() {
 
     done
 
-    if [[ -n $SRV_NODES ]]; then
+    if [[ -n "$SRV_NODES" ]]; then
         EX_SRV="pdsh -S -w $SRV_NODES"
     else
         EX_SRV="eval"
     fi
 
-    if [[ -n $CLI_NODES ]]; then
+    if [[ -n "$CLI_NODES" ]]; then
         EX_CLI="pdsh -S -w $CLI_NODES"
     else
         EX_CLI="eval"
@@ -57,7 +57,7 @@ function parse_nodes() {
 
 function cluster_copy()
 {
-    if [[ -n $SRV_NODES ]]; then
+    if [[ -n "$SRV_NODES" ]]; then
         $EX_SRV scp -r "$1" $(hostname):$2
     else
         eval "local p1=$1"
@@ -68,7 +68,7 @@ function cluster_copy()
 
 function client_copy()
 {
-    if [[ -n $CLI_NODES ]]; then
+    if [[ -n "$CLI_NODES" ]]; then
         $EX_CLI scp -r "$1" $(hostname):$2
     else
         eval "local p1=$1"

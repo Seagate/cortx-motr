@@ -54,7 +54,7 @@ fi
 parse_s3_cred_file $S3_CRED_FILE
 parse_s3_nodes_map $S3_SRV_CLI_MAP
 
-if [ -z $CLI_NODES ]; then
+if [ -z "$CLI_NODES" ]; then
     exit 0
 fi
 
