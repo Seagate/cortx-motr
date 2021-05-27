@@ -32,7 +32,7 @@ _get_cluster_params() {
     IOS_FID=`echo "$status" | grep "\[.*\].*ioservice" | grep ${NODE_IP} \
         | awk '{print $3}'`
 
-    [[ -n $CLUSTER_PROFILE ]]
+    [[ -n "$CLUSTER_PROFILE" ]]
 }
 
 _locals() {
@@ -123,7 +123,7 @@ _set_m0crate_config_file_params() {
         local param_value=${!param_name}
         echo "fill parameter: "$param_name" -> "$param_value
 
-        [[ -n $param_value ]] || {
+        [[ -n "$param_value" ]] || {
             echo "parameter $param_name not found"
             exit 1
         }
@@ -155,7 +155,7 @@ cmd_run() {
                 exit 1
             fi
 
-            if [[ -z $APPS ]]; then
+            if [[ -z "$APPS" ]]; then
                 APPS=1
             fi
 
@@ -165,7 +165,7 @@ cmd_run() {
 
             MOTR_PORTS=`echo $MOTR_PORTS | cut -d " " -f1-${APPS}`
 
-            if [[ -n $USE_MOTR_PORT ]]; then
+            if [[ -n "$USE_MOTR_PORT" ]]; then
                 _warn "using overrided motr port: $USE_MOTR_PORT"
                 MOTR_PORTS=$USE_MOTR_PORT
             fi
@@ -225,7 +225,7 @@ cmd_dump() {
 
     case $1 in
         srv)
-            [[ -n $IOS_FID ]] || {
+            [[ -n "$IOS_FID" ]] || {
                 _warn "Client has no IO service"
                 exit 0
             }

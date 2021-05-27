@@ -253,7 +253,7 @@ eval set -- "$cli_args"
 check_dependencies
 cd $VAGRANT_DIR
 
-[[ -n $1 ]] || die 'A host argument is required, please check' \
+[[ -n "$1" ]] || die 'A host argument is required, please check' \
                    "\`$PROG_NAME --help\` for details."
 
 if [[ -f $1.inventory ]] ; then
@@ -271,7 +271,7 @@ ssh_proxy="--ssh-common-args='-o ProxyCommand=\"$ssh_proxy_cmd\"'"
 cmd=$(cat <<COMMAND_END
 ansible-playbook ${ansible_verbose:+-$ansible_verbose} ${node_type}.yml
     ${tags:+--tags $tags}
-    --skip-tags debuginfo,iscsi-initiator,iscsi-target,nfs-client,nfs-server,reboot,recover-man-pages,ssh,vault-release,xperior${skip_tags:+,$skip_tags}
+    --skip-tags debuginfo,iscsi-initiator,iscsi-target,nfs-client,nfs-server,reboot,recover-man-pages,ssh,xperior${skip_tags:+,$skip_tags}
     --user $remote_user
     ${local_run:-${auth:-$ask_pass}}
     ${remote_hosts:+--extra-vars override_hosts=$remote_hosts --inventory $remote_hosts,}

@@ -167,7 +167,7 @@ static void ut_idx_op_complete(void)
 
 	m0_fi_enable_once("m0_op_stable", "skip_ongoing_io_ref");
 	m0_sm_group_lock(&oi_grp);
-	idx_op_complete(oi);
+	idx_op_ast_complete(&oi_grp, &oi->oi_ar.ar_ast);
 	m0_sm_group_unlock(&oi_grp);
 
 	M0_UT_ASSERT(ent.en_sm.sm_state == M0_ES_OPEN);

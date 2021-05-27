@@ -261,12 +261,14 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 	extern struct m0_be_0type m0_stob_ad_0type;
 	extern struct m0_be_0type m0_be_cob0;
 	extern struct m0_be_0type m0_be_active_record0;
+	extern struct m0_be_0type m0_be_dtm0;
 
 	static struct m0_atomic64        dom_key = { .a_value = 0xbef11e };
 	static const struct m0_be_0type *zts[] = {
 		&m0_stob_ad_0type,
 		&m0_be_cob0,
 		&m0_be_active_record0,
+		&m0_be_dtm0,
 	};
 	struct m0_reqh *reqh = cfg->bc_engine.bec_reqh;
 

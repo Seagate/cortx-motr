@@ -118,7 +118,7 @@ unmount_and_clean()
 		rm -rf $MOTR_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
 	done
 
-        if [ ! -z $multiple_pools ] && [ $multiple_pools == 1 ]; then
+        if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
 		local ios_index=`expr $i + 1`
 		rm -rf $MOTR_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
         fi
