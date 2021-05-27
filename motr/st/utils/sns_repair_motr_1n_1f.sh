@@ -116,7 +116,7 @@ main()
 
 	SINGLE_NODE=1
 
-	motr_service start $multiple_pools $stride $N $K $P || {
+	motr_service start $multiple_pools $stride $N $K $S $P || {
 		echo "Failed to start Motr Service."
 		SINGLE_NODE=0
 		return 1
