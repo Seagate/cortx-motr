@@ -237,6 +237,10 @@ static int create_object(struct m0_entity *entity)
 	int                  rc;
 	struct m0_op        *ops[1] = {NULL};
 
+	struct m0_obj       *obj;
+	struct m0_op_common *oc;
+	struct m0_op_obj    *oo;
+
 	rc = m0_entity_create(NULL, entity, &ops[0]);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -244,6 +248,12 @@ static int create_object(struct m0_entity *entity)
 	m0_op_launch(ops, 1);
 	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
 					M0_OS_STABLE), M0_TIME_NEVER);
+	oc = M0_AMB(oc, ops[0], oc_op);
+	oo = M0_AMB(oo, oc, oo_oc);
+	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
+	M0_LOG(M0_DEBUG, "post create object, obj->ob_attr.oa_pver :"FID_F,
+	       FID_P(&obj->ob_attr.oa_pver));
+
 	if (rc == 0)
 		rc = m0_rc(ops[0]);
 
@@ -454,7 +464,7 @@ int m0_read(struct m0_container *container,
 	    struct m0_uint128 id, char *dest,
 	    uint32_t block_size, uint32_t block_count,
 	    uint64_t offset, int blks_per_io, bool take_locks,
-	    uint32_t flags)
+	    uint32_t flags, struct m0_fid *read_pver)
 {
 	int                           i;
 	int                           j;
@@ -491,6 +501,18 @@ int m0_read(struct m0_container *container,
 	rc = lock_ops->olo_read_lock_get_sync(&obj, &req);
 	if (rc != 0)
 		goto get_error;
+
+	/* Setting pver here to read_pver received as parameter to this func.
+	 * Caller of this function is expected to pass pver of object tobe
+	 * read, if he knows pver of object.
+	 * */
+	if (read_pver != NULL &&  m0_fid_is_set(read_pver)) {
+		obj.ob_attr.oa_pver.f_container = read_pver->f_container;
+		obj.ob_attr.oa_pver.f_key = read_pver->f_key;
+		M0_LOG(M0_DEBUG, "m0_read: obj->ob_attr.oa_pver is set to:"FID_F
+                       " To predent that, it is received from s3",
+	               FID_P(&obj.ob_attr.oa_pver));
+	}
 
 	rc = open_entity(&obj.ob_entity);
 	if (entity_sm_state(&obj) != M0_ES_OPEN || rc != 0)
@@ -929,6 +951,7 @@ int m0_utility_args_init(int argc, char **argv,
 				{"block-count",   required_argument, NULL, 'c'},
 				{"trunc-len",     required_argument, NULL, 't'},
 				{"layout-id",     required_argument, NULL, 'L'},
+				{"pver",          required_argument, NULL, 'v'},
 				{"n_obj",         required_argument, NULL, 'n'},
 				{"msg_size",      required_argument, NULL, 'S'},
 				{"min_queue",     required_argument, NULL, 'q'},
@@ -941,7 +964,7 @@ int m0_utility_args_init(int argc, char **argv,
 				{"no-hole",       no_argument,       NULL, 'N'},
 				{0,               0,                 0,     0 }};
 
-        while ((c = getopt_long(argc, argv, ":l:H:p:P:o:s:c:t:L:n:S:q:b:O:uerhN",
+        while ((c = getopt_long(argc, argv, ":l:H:p:P:o:s:c:t:L:v:n:S:q:b:O:uerhN",
 				l_opts, &option_index)) != -1)
 	{
 		switch (c) {
@@ -1035,6 +1058,12 @@ int m0_utility_args_init(int argc, char **argv,
 							"range: [1-14]\n", c);
 					utility_usage(stderr,
 						      basename(argv[0]));
+					exit(EXIT_FAILURE);
+				  }
+				  continue;
+			case 'v': if (m0_fid_sscanf(optarg,
+						&params->cup_pver) < 0) {
+					utility_usage(stderr, basename(argv[0]));
 					exit(EXIT_FAILURE);
 				  }
 				  continue;
