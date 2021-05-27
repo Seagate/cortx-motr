@@ -537,6 +537,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BTREE
 #include "lib/trace.h"
 #include "lib/rwlock.h"
+#include "lib/byteorder.h"   /** m0_byteorder_cpu_to_be64() */
 #include "btree/btree.h"
 #include "fid/fid.h"
 #include "format/format.h"   /** m0_format_header ff_fmt */
@@ -3737,7 +3738,7 @@ static void m0_btree_ut_basic_tree_oper(void)
 	 * Commenting this case till the time we can gracefully handle failure.
 	 *
 	 * M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(btree, &b_op),
-   *			 &G, &b_op.bo_op_exec);
+	 *			 &G, &b_op.bo_op_exec);
 	 */
 
 	/** Create a new btree */
@@ -3776,7 +3777,7 @@ struct cb_data {
 	/** Value associated with the key that is to be stored or retrieved. */
 	struct m0_bufvec    *value;
 
-	/** If value is retrieved then check if has expected contents. */
+	/** If value is retrieved (GET) then check if has expected contents. */
 	bool                 check_value;
 };
 
@@ -3917,7 +3918,7 @@ static void m0_btree_ut_basic_kv_oper(void)
 		 *  again. This is fine as it helps debug the code when insert
 		 *  is called with the same key instead of update function.
 		 */
-		key = value = random();
+		key = value = m0_byteorder_cpu_to_be64(random());
 
 		if (!first_key_initialized) {
 			first_key = key;
@@ -4067,6 +4068,7 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 			int k;
 
 			key = i + (stream_num * recs_per_stream);
+			key = m0_byteorder_cpu_to_be64(key);
 			for (k = 0; k < ARRAY_SIZE(value);k++) {
 				value[k] = key;
 			}
@@ -4103,7 +4105,7 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 		m0_bcount_t          find_key_size     = sizeof find_key;
 		struct m0_btree_key  find_key_in_tree;
 
-		find_key = i;
+		find_key = m0_byteorder_cpu_to_be64(i);
 		find_key_in_tree.k_data =
 			M0_BUFVEC_INIT_BUF(&find_key_ptr, &find_key_size);
 
@@ -4145,6 +4147,7 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 
 		for (stream_num = 0; stream_num < stream_count; stream_num++) {
 			del_key = i + (stream_num * recs_per_stream);
+			del_key = m0_byteorder_cpu_to_be64(del_key);
 
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 						 m0_btree_del(b_op.bo_arbor,
@@ -4163,8 +4166,8 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 	 *
 	 * 
 	 * M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-   *				 m0_btree_destroy(b_op.bo_arbor, &b_op),
-   *				 &G, &b_op.bo_op_exec);
+	 *				 m0_btree_destroy(b_op.bo_arbor, &b_op),
+	 *				 &G, &b_op.bo_op_exec);
 	 */
 
 	btree_ut_fini();
