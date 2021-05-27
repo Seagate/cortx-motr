@@ -183,17 +183,12 @@ struct m0_fd_perm_cache {
 	uint64_t       *fpc_inverse;
 };
 
-struct m0_fd_cache_info {
-	/** Total number of permutation caches required. */
-	uint64_t  fci_nr;
-	/**
-	 * A sorted  array holding lengths of various permutation caches.
-	 * There are as many caches as total number of nodes
-	 * with distinct degree in a failure domains tree. All nodes of the
-	 * same degree use the same permutation cache in the context of a given
-	 * pdclust layout instance.
-	 */
-	uint64_t *fci_info;
+struct m0_fd_perm_cache_grid {
+
+	/** Height of the grid. */
+	uint32_t                  fcg_height;
+	/** Permutation caches associated with the tree nodes. */
+	struct m0_fd_perm_cache **fcg_cache;
 };
 
 struct m0_fd_tree {
@@ -201,12 +196,8 @@ struct m0_fd_tree {
 	uint16_t                ft_depth;
 	/** Root node associated with the tree. */
 	struct m0_fd_tree_node *ft_root;
-	/** List of struct m0_perm_cache objects associated with the tree */
-	struct m0_tl            ft_perm_cache;
 	/** Total nodes present in a tree. */
 	uint64_t                ft_cnt;
-	/** Holds the information relevant to build a permutation cache.  */
-	struct m0_fd_cache_info ft_cache_info;
 };
 
 struct m0_fd_tree_node {
@@ -339,6 +330,18 @@ M0_INTERNAL int m0_fd_perm_cache_init(struct m0_fd_perm_cache *cache,
 
 /** Frees the internal arrays from the permutation cache. */
 M0_INTERNAL void m0_fd_perm_cache_fini(struct m0_fd_perm_cache *cache);
+
+/**
+ * Creates a permutation cache per node of the failure
+ * domains tree, and stores it in the layout instance.
+ */
+M0_INTERNAL int m0_fd_cache_grid_build(struct m0_layout *layout,
+				       struct m0_pdclust_instance *pi);
+
+/** Frees the memory for cache grid and its members. */
+M0_INTERNAL void m0_fd_cache_grid_destroy(struct m0_layout *layout,
+				         struct m0_pdclust_instance *pi);
+
 
 /** @} end group Failure_Domains */
 /* __MOTR_LAYOUT_FD_H__ */

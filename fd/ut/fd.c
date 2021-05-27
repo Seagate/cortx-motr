@@ -32,7 +32,13 @@
 #include "lib/errno.h"      /* EINVAL */
 #include "conf/ut/common.h" /* m0_conf_ut_ast_thread_init */
 #include "ut/ut.h"          /* M0_UT_ASSERT */
+#include "lib/trace.h"
 
+enum {
+	FID_CNT = 100000,
+	F_SIZE  = 10,
+	DEV_THR = 10,
+};
 /* Conf parameters. */
 
 #ifdef __KERNEL__
@@ -92,6 +98,7 @@ static const char local_conf_str[] = "[35:\
    {0x6a| ((^j|1:32), ^k|1:22, [0])}]";
 #endif
 
+
 struct m0_pdclust_attr pd_attr  = {
 	.pa_N         = la_N,
 	.pa_K         = la_K,
@@ -101,6 +108,15 @@ struct m0_pdclust_attr pd_attr  = {
 		.u_hi = 0,
 		.u_lo = 0,
 	}
+};
+
+struct fd_stats {
+	struct m0_fd_tree           *fs_tree;
+	struct m0_pdclust_src_addr **fs_map;
+	struct m0_pdclust_attr       fs_attr;
+	uint32_t                   **fs_usage;
+	uint32_t                   **fs_incidence;
+	uint32_t                    *fs_where;
 };
 
 struct m0_pdclust_instance pi;
@@ -122,6 +138,14 @@ static bool is_tgt_failed(struct m0_pool_version *pv,
 static void failed_nodes_mark(struct m0_fd_tree *tree, uint32_t level,
 			      uint64_t tol, uint64_t *failed_domains);
 static void fd_tolerance_check(struct m0_pool_version *pv);
+static int fd_stats_init(struct fd_stats *stats,
+			 struct m0_pdclust_attr *pattr,
+			 struct m0_fd_tree *tree);
+static void fd_stats_generate(struct m0_pdclust_instance *pi,
+			      uint32_t groups_nr,
+			      struct fd_stats *stat);
+static void fd_stats_fini(struct fd_stats *stats);
+static bool dev_in_range(uint32_t j, uint32_t range_start, uint32_t range_end);
 
 static void test_fd_mapping_sanity(enum tree_attr ta)
 {
@@ -159,8 +183,6 @@ static void tree_generate(struct m0_pool_version *pv, enum tree_attr ta)
 						       ta);
 			M0_UT_ASSERT(rc == 0);
 		}
-		rc = m0_fd__perm_cache_build(&pv->pv_fd_tree);
-		M0_UT_ASSERT(rc == 0);
 		P = pool_width_calc(&pv->pv_fd_tree);
 		if (G > P)
 			m0_fd_tree_destroy(&pv->pv_fd_tree);
@@ -188,6 +210,227 @@ static uint64_t pool_width_calc(struct m0_fd_tree *tree)
 	return P;
 }
 
+static bool uniformity_check(struct fd_stats *stats)
+{
+
+	struct m0_fd_tree         *tree;
+	struct m0_fd__tree_cursor  cursor_coarse;
+	struct m0_fd__tree_cursor  cursor_fine;
+	struct m0_fd_tree_node    *child;
+	struct m0_fd_tree_node    *node;
+	uint32_t                   start_idx;
+	uint32_t                   end_idx;
+	uint32_t                   dev_max;
+	uint32_t                   min;
+	uint32_t                   max;
+	uint32_t                   total;
+	uint32_t                   avg;
+	uint32_t                   skip_cnt;
+	/** Prospective count for disks participating in repair process. */
+	uint32_t                   co_disks;
+	uint32_t                   i;
+	uint32_t                   j;
+	int                        rc;
+
+	tree = stats->fs_tree;
+	rc = m0_fd__tree_cursor_init(&cursor_coarse, tree, tree->ft_depth - 1);
+	M0_UT_ASSERT(rc == 0);
+	do {
+		node = *(m0_fd__tree_cursor_get(&cursor_coarse));
+		rc = m0_fd__tree_cursor_init_at(&cursor_fine, tree, node, 0);
+		M0_UT_ASSERT(rc == 0);
+		child = *(m0_fd__tree_cursor_get(&cursor_fine));
+		start_idx = child->ftn_abs_idx;
+		rc = m0_fd__tree_cursor_init_at(&cursor_fine, tree, node,
+						node->ftn_child_nr - 1);
+		M0_UT_ASSERT(rc == 0);
+		child = *(m0_fd__tree_cursor_get(&cursor_fine));
+		end_idx = child->ftn_abs_idx;
+		M0_UT_ASSERT(ergo(tree->ft_depth == 1,
+				  (stats->fs_attr.pa_P ==
+				   (end_idx - start_idx + 1))));
+		for (i = start_idx; i < end_idx + 1; ++i) {
+			max = 0;
+			min = UINT32_MAX;
+			total = 0;
+			skip_cnt = 0;
+			for (j = 0; j < stats->fs_attr.pa_P; ++j) {
+				/* Skip if in the same controller. */
+				if (tree->ft_depth > 1 &&
+				    dev_in_range(j, start_idx, end_idx))
+					continue;
+				if (i == j) {
+					++skip_cnt;
+					continue;
+				}
+				if (stats->fs_incidence[i][j] == 0)
+					return false;
+				max = max32u(max, stats->fs_incidence[i][j]);
+				min = min32u(min, stats->fs_incidence[i][j]);
+				total += stats->fs_incidence[i][j];
+			}
+			skip_cnt = tree->ft_depth == 1 ? skip_cnt :
+				skip_cnt + end_idx - start_idx + 1;
+			co_disks = stats->fs_attr.pa_P - skip_cnt;
+			avg = total / co_disks;
+			dev_max = max32u(max - avg, avg - min);
+			M0_UT_ASSERT(dev_max * 100 / avg < DEV_THR);
+			if ((dev_max * 100/ avg ) > DEV_THR) {
+				M0_UT_LOG(M0_FATAL, "\nmax=%d\tmin=%d\tavg=%d",
+					  (int)max, (int)min, (int)avg);
+				return false;
+			}
+		}
+	} while (m0_fd__tree_cursor_next(&cursor_coarse));
+	return true;
+}
+
+static bool dev_in_range(uint32_t j, uint32_t range_start, uint32_t range_end)
+{
+	return j >= range_start && j <= range_end;
+}
+
+
+void fd_uniformity_check(struct m0_pool_version *pv)
+//static void fd_uniformity_check(struct m0_pool_version *pv)
+{
+	struct m0_pdclust_instance pi;
+	struct m0_fid              gfid;
+	struct fd_stats            stats;
+	m0_time_t                  seed;
+	int                        i;
+	int                        rc;
+
+	pi.pi_base.li_l = m0_alloc(sizeof pi.pi_base.li_l[0]);
+	M0_UT_ASSERT(pi.pi_base.li_l != NULL);
+
+	M0_SET0(&stats);
+	seed = m0_time_now();
+	pi.pi_base.li_l->l_pver = pv;
+	rc = fd_stats_init(&stats, &pv->pv_attr, &pv->pv_fd_tree);
+	M0_UT_ASSERT(rc == 0);
+	for (i = 0; i < FID_CNT; ++i) {
+		gfid.f_container = m0_rnd(4300000000, &seed);
+		gfid.f_key = m0_rnd(4353234, &seed);
+		pi.pi_base.li_gfid = gfid;
+		m0_fd_cache_grid_build(pi.pi_base.li_l, &pi);
+		fd_stats_generate(&pi, F_SIZE, &stats);
+		m0_fd_cache_grid_destroy(pi.pi_base.li_l, &pi);
+	}
+	M0_UT_ASSERT(uniformity_check(&stats));
+	fd_stats_fini(&stats);
+	m0_free(pi.pi_base.li_l);
+}
+
+static int fd_stats_init(struct fd_stats *stats,
+			 struct m0_pdclust_attr *pattr,
+			 struct m0_fd_tree *fd_tree)
+{
+	uint32_t i;
+	int      rc = 0;
+
+	stats->fs_incidence = m0_alloc(pattr->pa_P *
+				       sizeof stats->fs_incidence[0]);
+	if (stats->fs_incidence == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+	for (i = 0; i < pattr->pa_P; ++i) {
+		stats->fs_incidence[i] = m0_alloc(pattr->pa_P *
+					sizeof stats->fs_incidence[i][0]);
+		if (stats->fs_incidence[i] == NULL) {
+			rc = -ENOMEM;
+			goto out;
+		}
+	}
+	stats->fs_usage = m0_alloc(pattr->pa_P *
+				   sizeof stats->fs_usage[0]);
+	if (stats->fs_usage == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+	for (i = 0; i < pattr->pa_P; ++i) {
+		stats->fs_usage[i] = m0_alloc((M0_PUT_NR + 1) *
+					       sizeof stats->fs_usage[i][0]);
+		if (stats->fs_usage[i] == NULL) {
+			rc = -ENOMEM;
+			goto out;
+		}
+	}
+	stats->fs_where = m0_alloc((pattr->pa_N + 2 * pattr->pa_K) *
+				   sizeof stats->fs_where[0]);
+	if (stats->fs_where == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+	stats->fs_attr = *pattr;
+	stats->fs_tree = fd_tree;
+out:
+	if (rc != 0)
+		fd_stats_fini(stats);
+	return rc;
+}
+
+static void fd_stats_fini(struct fd_stats *stats)
+{
+	uint32_t i;
+
+	for (i = 0; i < stats->fs_attr.pa_P; ++i) {
+		m0_free(stats->fs_incidence[i]);
+		m0_free(stats->fs_usage[i]);
+	}
+	m0_free(stats->fs_incidence);
+	m0_free(stats->fs_usage);
+	m0_free(stats->fs_where);
+}
+
+enum m0_pdclust_unit_type unit_classify(const struct m0_pdclust_attr *attr,
+				        int unit)
+{
+	if (unit < attr->pa_N)
+		return M0_PUT_DATA;
+	else if (unit < attr->pa_N + attr->pa_K)
+		return M0_PUT_PARITY;
+	else
+		return M0_PUT_SPARE;
+}
+
+static void fd_stats_generate(struct m0_pdclust_instance *pi, uint32_t groups_nr,
+			     struct fd_stats *stat)
+{
+	struct m0_pdclust_src_addr  src;
+	struct m0_pdclust_src_addr  src1;
+	struct m0_pdclust_tgt_addr  tgt;
+	uint32_t                   *where;
+	uint32_t                    group;
+	uint32_t                    unit;
+	uint32_t                    i;
+	uint32_t                    G;
+
+	G = stat->fs_attr.pa_N + 2 * stat->fs_attr.pa_K;
+	for (group = 0; group < groups_nr; ++group) {
+		src.sa_group = group;
+		for (unit = 0; unit < G; ++unit) {
+			src.sa_unit = unit;
+			m0_fd_fwd_map(pi, &src, &tgt);
+			m0_fd_bwd_map(pi, &tgt, &src1);
+			M0_UT_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
+			stat->fs_where[unit] = tgt.ta_obj;
+			stat->fs_usage[tgt.ta_obj][M0_PUT_NR]++;
+			stat->fs_usage[tgt.ta_obj][unit_classify(&stat->fs_attr,
+						                 unit)]++;
+		}
+		where = stat->fs_where;
+		for (unit = 0; unit < G; ++unit) {
+			for (i = 0; i < G; ++i) {
+				if (unit == i)
+					continue;
+				stat->fs_incidence[where[unit]][where[i]]++;
+			}
+		}
+	}
+}
+
 static void fd_mapping_check(struct m0_pool_version *pv)
 {
 	struct m0_pdclust_instance pi;
@@ -209,7 +452,7 @@ static void fd_mapping_check(struct m0_pool_version *pv)
 	seed = m0_time_now();
 	omega = m0_rnd(123456, &seed);
 	pi.pi_base.li_l->l_pver = pv;
-	m0_pdclust_perm_cache_build(pi.pi_base.li_l, &pi);
+	m0_fd_cache_grid_build(pi.pi_base.li_l, &pi);
 	for (row = omega * C; row < (omega + 1) * C; ++row) {
 		src.sa_group = row;
 		for (col = 0; col < pv->pv_fd_tile.ft_G; ++col) {
@@ -232,7 +475,7 @@ static void fd_mapping_check(struct m0_pool_version *pv)
 			++unmapped;
 	}
 	M0_UT_ASSERT(unmapped + pv->pv_fd_tile.ft_cols == P);
-	m0_pdclust_perm_cache_destroy(pi.pi_base.li_l, &pi);
+	m0_fd_cache_grid_destroy(pi.pi_base.li_l, &pi);
 	m0_free(pi.pi_base.li_l);
 }
 
@@ -377,7 +620,7 @@ static void test_pv2fd_conv(void)
 			break;
 		}
 	/*
-	 * We intend to test those cases whenever supported cases are greater
+	 * We intend to test those cases whenever supported failures are greater
 	 * than or equal to the actual failures.
 	 */
 #ifndef __KERNEL__
@@ -386,6 +629,7 @@ static void test_pv2fd_conv(void)
 #else
 	max_failures = 1;
 #endif
+	pool_ver.pv_attr = pv->pv_u.subtree.pvs_attr;
 	for (i = 0; i < max_failures; ++i) {
 		rc = m0_fd_tile_build(pv, &pool_ver, &failure_level);
 		M0_UT_ASSERT(rc == 0);
@@ -394,6 +638,7 @@ static void test_pv2fd_conv(void)
 		memcpy(pool_ver.pv_fd_tol_vec, pv->pv_u.subtree.pvs_tolerance,
 		       M0_CONF_PVER_HEIGHT * sizeof pool_ver.pv_fd_tol_vec[0]);
 		fd_mapping_check(&pool_ver);
+	//	fd_uniformity_check(&pool_ver);
 		fd_tolerance_check(&pool_ver);
 		m0_fd_tree_destroy(&pool_ver.pv_fd_tree);
 		m0_fd_tile_destroy(&pool_ver.pv_fd_tile);
@@ -458,7 +703,7 @@ static void fd_tolerance_check(struct m0_pool_version *pv)
 		seed = m0_time_now();
 		omega = m0_rnd(123456, &seed);
 		pi.pi_base.li_l->l_pver = pv;
-		m0_pdclust_perm_cache_build(pi.pi_base.li_l, &pi);
+		m0_fd_cache_grid_build(pi.pi_base.li_l, &pi);
 		fail_cnt = 0;
 		for (row = omega * C; row < (omega + 1) * C; ++row) {
 			src.sa_group = row;
@@ -473,7 +718,7 @@ static void fd_tolerance_check(struct m0_pool_version *pv)
 			fail_cnt = 0;
 		}
 		m0_free(failed_domains);
-		m0_pdclust_perm_cache_destroy(pi.pi_base.li_l, &pi);
+		m0_fd_cache_grid_destroy(pi.pi_base.li_l, &pi);
 	}
 }
 
@@ -537,13 +782,13 @@ void test_fd_mapping(void)
 }
 
 struct m0_ut_suite failure_domains_ut = {
-	.ts_name  = "failure_domains-ut",
+	.ts_name = "failure_domains-ut",
 	.ts_init  = m0_conf_ut_ast_thread_init,
 	.ts_fini  = m0_conf_ut_ast_thread_fini,
 	.ts_tests = {
 		{"test_ft_mapping", test_ft_mapping},
 		{"test_pv2fd_conv", test_pv2fd_conv},
 		{"test_fd_mapping", test_fd_mapping},
-		{ NULL, NULL }
+		{ NULL, NULL}
 	}
 };
