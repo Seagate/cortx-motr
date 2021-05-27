@@ -45,7 +45,7 @@ MOTR_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'
 #MOTR_M0D_DATA_DIR=/var/motr
 
 #Override default addd stobs location
-#MOTR_M0D_ADDB_STOB_DIR=$MOTR_LOG_DIR
+MOTR_M0D_ADDB_STOB_DIR=/var/motr/m0d-*
 
 #Override default trace files location
 #MOTR_M0D_TRACE_DIR=$MOTR_LOG_DIR
