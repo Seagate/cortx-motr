@@ -204,7 +204,7 @@ END_BODY
     artifacts_urls=$(curl -s "https://circleci.com/api/v1.1/project/github/seagate-ssg/motr/$tag_build_num/artifacts?circle-token=$circleci_token" |
                      jq -r '.[].url')
 
-    [[ -n $artifacts_urls ]] ||
+    [[ -n "$artifacts_urls" ]] ||
         die "unable to get artifacts information for build #$tag_build_num"
 
     for url in $artifacts_urls
@@ -239,7 +239,7 @@ END_BODY
 parse_cli_options "$@"
 eval set -- "$cli_args"
 
-if [[ -z $os_version ]] ; then
+if [[ -z "$os_version" ]] ; then
     echo 'Creating GitHub release'
     create_release
 else

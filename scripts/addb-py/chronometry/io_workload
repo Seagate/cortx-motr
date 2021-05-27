@@ -237,11 +237,11 @@ function save_cli_artifacts() {
     if [[ $app == "m0crate" ]]; then
         client_copy '/tmp/m0crate.log' "$(pwd)/m0crate.%h.log"
 
-        if [[ -z $NO_M0TRACE_DUMPS ]]; then
+        if [[ -z "$NO_M0TRACE_DUMPS" ]]; then
             dump_m0traces
         fi
 
-        if [[ -z $NO_ADDB_DUMPS ]]; then
+        if [[ -z "$NO_ADDB_DUMPS" ]]; then
             M0_SRC_DIR="$MOTR_SRC_DIR" $SCRIPT_DIR/$P0_SCRIPT dump cli
         fi
     fi
@@ -290,7 +290,7 @@ function save_motr_artifacts() {
                         | awk '{print $3}'`
 
     pushd $ios_m0trace_dir
-    if [[ -z $NO_M0TRACE_FILES ]]; then
+    if [[ -z "$NO_M0TRACE_FILES" ]]; then
         set +e
 
         if [[ "$HA_TYPE" == "halon" ]]; then
@@ -313,14 +313,14 @@ function save_motr_artifacts() {
 
         set -e
 
-        if [[ -z $NO_M0TRACE_DUMPS ]]; then
+        if [[ -z "$NO_M0TRACE_DUMPS" ]]; then
             dump_m0traces
         fi
     fi
 
     popd # $ios_m0trace_dir
 
-    if [[ -z $NO_ADDB_STOBS ]] && [[ -z $NO_ADDB_DUMPS ]]; then
+    if [[ -z "$NO_ADDB_STOBS" ]] && [[ -z "$NO_ADDB_DUMPS" ]]; then
         # Dump servers
 
         if [[ "$HA_TYPE" == "halon" ]]; then
@@ -366,7 +366,7 @@ function save_srv_artifacts() {
     popd
 
     # Generate m0play.db
-    if [[ -z $NO_ADDB_STOBS ]] && [[ -z $NO_ADDB_DUMPS ]] && [[ -z $NO_M0PLAY_DB ]]; then
+    if [[ -z "$NO_ADDB_STOBS" ]] && [[ -z "$NO_ADDB_DUMPS" ]] && [[ -z "$NO_M0PLAY_DB" ]]; then
         M0_SRC_DIR="$MOTR_SRC_DIR" $SCRIPT_DIR/$P0_SCRIPT db \
             $m0cli_dir/*/dump* $motr_art_dir/dump*
     fi
@@ -409,7 +409,7 @@ function wait_for_motr_start() {
 }
 
 function override_app_conf() {
-    [[ -z $APPS_OVERRIDED ]] && {
+    [[ -z "$APPS_OVERRIDED" ]] && {
         _info "overriding workload applications"
         APPS=()
         APPS_OVERRIDED=1
@@ -418,7 +418,7 @@ function override_app_conf() {
 }
 
 function override_workload_conf() {
-    [[ -z $CONFS_OVERRIDED ]] && {
+    [[ -z "$CONFS_OVERRIDED" ]] && {
         _info "overriding workload configurations"
         CONFS=()
         CONFS_OVERRIDED=1
@@ -481,7 +481,7 @@ function stop_stat_utils() {
 }
 
 function run_m0crate() {
-    if [[ -z $M0CRATE_APPS ]]; then
+    if [[ -z "$M0CRATE_APPS" ]]; then
         M0CRATE_APPS=1
     fi
 
@@ -537,7 +537,7 @@ function run_tests() {
         echo "conf: "$conf
 
         # In some cases conf may be empty
-        if [[ -z $app ]]; then
+        if [[ -z "$app" ]]; then
             continue
         fi
 

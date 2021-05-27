@@ -49,7 +49,7 @@ info()
 }
 
 # sanity checks
-if [[ -z $1 || -z $2 ]] ; then
+if [[ -z "$1" || -z "$2" ]] ; then
     die "expected 2 arguments, provided $#\n" \
         $(usage)
 fi

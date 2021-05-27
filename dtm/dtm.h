@@ -503,6 +503,7 @@
 
 /* import */
 struct m0_dtm_history_type;
+struct m0_dtm0_dtx;
 
 /* export */
 struct m0_dtm;
@@ -558,6 +559,8 @@ struct m0_dtx {
 	struct m0_be_tx        tx_betx;
 	struct m0_be_tx_credit tx_betx_cred;
 	struct m0_fol_rec      tx_fol_rec;
+	/* It is the real dtx here (at least on the originator side). */
+	struct m0_dtm0_dtx    *tx_dtx;
 };
 
 M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,

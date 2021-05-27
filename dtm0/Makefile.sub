@@ -1,0 +1,31 @@
+nobase_motr_include_HEADERS += \
+                            dtm0/addb2.h \
+                            dtm0/clk_src.h \
+                            dtm0/dtx.h \
+                            dtm0/fop.h \
+                            dtm0/helper.h \
+                            dtm0/service.h \
+                            dtm0/tx_desc.h
+
+
+motr_libmotr_la_SOURCES += \
+                        dtm0/clk_src.c \
+                        dtm0/dtx.c \
+                        dtm0/fop.c \
+                        dtm0/helper.c \
+                        dtm0/service.c \
+                        dtm0/tx_desc.c
+
+
+nodist_motr_libmotr_la_SOURCES += \
+                                  dtm0/clk_src_xc.c \
+                                  dtm0/fop_xc.c \
+                                  dtm0/tx_desc_xc.c
+
+
+XC_FILES += \
+            dtm0/clk_src_xc.h \
+            dtm0/fop_xc.h \
+            dtm0/tx_desc_xc.h
+
+CONFXC_FILES += dtm0/conf.xc
