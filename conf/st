@@ -19,7 +19,7 @@
 #
 
 set -eu
-# set -x
+#set -x
 export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
 ### XXX TODO:
@@ -124,8 +124,8 @@ confdb() {
     flags=4 filename="/dev/sdev5")
 (site-2 racks=[rack-0] pvers=[pver-0])
 (rack-0 encls=[enclosure-0] pvers=[pver-0])
-(enclosure-0 ctrls=[controller-0] pvers=[pver-0])
-(controller-0 node=node-0 drives=[drive-0, drive-1, drive-2, drive-3, drive-4]
+(enclosure-0 node=node-0 ctrls=[controller-0] pvers=[pver-0])
+(controller-0 drives=[drive-0, drive-1, drive-2, drive-3, drive-4]
     pvers=[pver-0])
 (drive-0 dev=sdev-1 pvers=[pver-0])
 (drive-1 dev=sdev-2 pvers=[pver-0])

@@ -529,8 +529,8 @@ function build_conf()
 	PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	local SITE="{0x53| (($SITEID), [1: $RACKID], [$pvers_count: $PVER_IDS])}"
 	local RACK="{0x61| (($RACKID), [1: $ENCLID], [$pvers_count: $PVER_IDS])}"
-	local ENCL="{0x65| (($ENCLID), [1: $CTRLID], [$pvers_count: $PVER_IDS])}"
-	local CTRL="{0x63| (($CTRLID), $NODE, [$NR_DISK_FIDS: $DISK_FIDS],
+	local ENCL="{0x65| (($ENCLID), $NODE, [1: $CTRLID], [$pvers_count: $PVER_IDS])}"
+	local CTRL="{0x63| (($CTRLID), [$NR_DISK_FIDS: $DISK_FIDS],
                             [$pvers_count: $PVER_IDS])}"
 	local POOL="{0x6f| (($POOLID), 0, [3: $PVERID, $PVERFID1, $PVERFID2])}"
 	local PVER="{0x76| (($PVERID), {0| ($nr_data_units, $nr_parity_units,
@@ -586,8 +586,8 @@ function build_conf()
 		local SDEV3="{0x64| (($SDEVID3), $((NR_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop9\")}"
 		local SITE1="{0x53| (($SITEID1), [1: $RACKID1], [1: $PVERID1])}"
 		local RACK1="{0x61| (($RACKID1), [1: $ENCLID1], [1: $PVERID1])}"
-		local ENCL1="{0x65| (($ENCLID1), [1: $CTRLID1], [1: $PVERID1])}"
-		local CTRL1="{0x63| (($CTRLID1), $NODEID1, [3: $DISKID1, $DISKID2, $DISKID3], [1: $PVERID1])}"
+		local ENCL1="{0x65| (($ENCLID1), $NODEID1, [1: $CTRLID1], [1: $PVERID1])}"
+		local CTRL1="{0x63| (($CTRLID1), [3: $DISKID1, $DISKID2, $DISKID3], [1: $PVERID1])}"
                 local DISK1="{0x6b| (($DISKID1), $SDEVID1, [1: $PVERID1])}"
                 local DISK2="{0x6b| (($DISKID2), $SDEVID2, [1: $PVERID1])}"
                 local DISK3="{0x6b| (($DISKID3), $SDEVID3, [1: $PVERID1])}"

@@ -199,13 +199,13 @@ struct m0_confx_rack {
 
 struct m0_confx_enclosure {
 	struct m0_confx_header xe_header;
+	struct m0_fid          xe_node;
 	struct m0_fid_arr      xe_ctrls;
 	struct m0_fid_arr      xe_pvers;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
 struct m0_confx_controller {
 	struct m0_confx_header xc_header;
-	struct m0_fid          xc_node;
 	struct m0_fid_arr      xc_drives;
 	struct m0_fid_arr      xc_pvers;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);

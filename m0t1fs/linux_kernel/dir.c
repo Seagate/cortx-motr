@@ -405,7 +405,11 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		/* Find optimal lid and set it to the inode.*/
 		layout_id = m0_layout_find_by_buffsize(&csb->csb_reqh.rh_ldom,
 							&ci->ci_pver, buffsize);
-		rc = m0t1fs_inode_set_layout_id(ci, &mo, layout_id);
+		if (layout_id > 0)
+			rc = m0t1fs_inode_set_layout_id(ci, &mo, layout_id);
+		else
+			rc = M0_ERR_INFO(layout_id, "Could not find layout_id: "
+					 "rc=%d", layout_id);
 	} else {
 		if (csb->csb_oostore) {
 			rc = -EOPNOTSUPP;

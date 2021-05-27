@@ -351,10 +351,10 @@ static bool is_mds(const struct m0_conf_obj *obj)
 
 /**
  * Fills pc->pc_mds_map[] with service contexts (m0_reqh_service_ctx) of
- * the meta-data services run on the node associated with `ctrl`.
+ * the meta-data services run on the node associated with `encl`.
  */
 static int mds_map_fill(struct m0_pools_common *pc,
-			const struct m0_conf_controller *ctrl)
+			const struct m0_conf_enclosure *encl)
 {
 	struct m0_conf_diter        it;
 	struct m0_reqh_service_ctx *ctx;
@@ -362,10 +362,10 @@ static int mds_map_fill(struct m0_pools_common *pc,
 	uint64_t                    idx = 0;
 	int                         rc;
 
-	M0_ENTRY("ctrl="FID_F" node="FID_F, FID_P(&ctrl->cc_obj.co_id),
-		 FID_P(&ctrl->cc_node->cn_obj.co_id));
+	M0_ENTRY("encl="FID_F" node="FID_F, FID_P(&encl->ce_obj.co_id),
+		 FID_P(&encl->ce_node->cn_obj.co_id));
 
-	rc = m0_conf_diter_init(&it, pc->pc_confc, &ctrl->cc_node->cn_obj,
+	rc = m0_conf_diter_init(&it, pc->pc_confc, &encl->ce_node->cn_obj,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
@@ -384,11 +384,11 @@ static int mds_map_fill(struct m0_pools_common *pc,
 	return M0_RC(rc);
 }
 
-static bool obj_is_controllerv(const struct m0_conf_obj *obj)
+static bool obj_is_enclosurev(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE &&
 	       m0_conf_obj_type(M0_CONF_CAST(obj, m0_conf_objv)->cv_real) ==
-	       &M0_CONF_CONTROLLER_TYPE;
+	       &M0_CONF_ENCLOSURE_TYPE;
 }
 
 static int pool_mds_map_init(struct m0_pools_common *pc)
@@ -413,22 +413,21 @@ static int pool_mds_map_init(struct m0_pools_common *pc)
 				M0_CONF_POOL_PVERS_FID,
 				M0_CONF_PVER_SITEVS_FID,
 				M0_CONF_SITEV_RACKVS_FID,
-				M0_CONF_RACKV_ENCLVS_FID,
-				M0_CONF_ENCLV_CTRLVS_FID);
+				M0_CONF_RACKV_ENCLVS_FID);
 	if (rc != 0)
 		goto end;
 
-	while ((rc = m0_conf_diter_next_sync(&it, obj_is_controllerv)) ==
+	while ((rc = m0_conf_diter_next_sync(&it, obj_is_enclosurev)) ==
 		M0_CONF_DIRNEXT) {
 		objv = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_objv);
 		/*
 		 * XXX BUG: mds_map_fill() overwrites pc->pc_mds_map[].
 		 *
 		 * The bug will bite on cluster configurations that have
-		 * several controller-v objects in the MD pool subtree.
+		 * several enclosure-v objects in the MD pool subtree.
 		 */
 		rc = mds_map_fill(pc, M0_CONF_CAST(objv->cv_real,
-						   m0_conf_controller));
+						   m0_conf_enclosure));
 		if (rc != 0)
 			break;
 	}
@@ -683,8 +682,7 @@ static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 				M0_CONF_PVER_SITEVS_FID,
 				M0_CONF_SITEV_RACKVS_FID,
 				M0_CONF_RACKV_ENCLVS_FID,
-				M0_CONF_ENCLV_CTRLVS_FID,
-				M0_CONF_CTRLV_DRIVEVS_FID);
+				M0_CONF_ENCLV_CTRLVS_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -692,7 +690,7 @@ static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 	 * XXX TODO: Replace m0_conf_diter_next_sync() with
 	 * m0_conf_diter_next().
 	 */
-	while ((rc = m0_conf_diter_next_sync(&it, obj_is_controllerv)) ==
+	while ((rc = m0_conf_diter_next_sync(&it, obj_is_enclosurev)) ==
 		M0_CONF_DIRNEXT) {
 		/* We filter only controllerv objects. */
 		M0_CNT_INC(nr_nodes);
