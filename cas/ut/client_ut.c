@@ -37,6 +37,7 @@
 #include "cas/client.h"
 #include "cas/ctg_store.h"             /* m0_ctg_recs_nr */
 #include "lib/finject.h"
+#include "dtm0/dtx.h"                  /* m0_dtm0_dtx */
 
 #define SERVER_LOG_FILE_NAME       "cas_server.log"
 #define IFID(x, y) M0_FID_TINIT('i', (x), (y))
@@ -418,12 +419,44 @@ static int ut_idx_list(struct cl_ctx             *cctx,
 	return rc;
 }
 
-static int ut_rec_put(struct cl_ctx           *cctx,
-		      struct m0_cas_id        *index,
-		      const struct m0_bufvec  *keys,
-		      const struct m0_bufvec  *values,
-		      struct m0_cas_rec_reply *rep,
-		      uint32_t                 flags)
+static void ut_dtx_init(struct m0_dtx **out, uint64_t version)
+{
+	struct m0_dtm0_dtx *dtx0;
+	int                 rc;
+
+	/* No version => no DTX */
+	if (version == 0) {
+		*out = NULL;
+		return;
+	}
+
+	M0_ALLOC_PTR(dtx0);
+	M0_UT_ASSERT(dtx0 != NULL);
+
+	rc = m0_dtm0_tx_desc_init(&dtx0->dd_txd, 1);
+	M0_UT_ASSERT(rc == 0);
+	dtx0->dd_txd.dtd_id = (struct m0_dtm0_tid) {
+		.dti_ts.dts_phys = version,
+		.dti_fid = g_process_fid,
+	};
+
+	dtx0->dd_ancient_dtx.tx_dtx = dtx0;
+
+	*out = &dtx0->dd_ancient_dtx;
+}
+
+static void ut_dtx_fini(struct m0_dtx *dtx)
+{
+	m0_free(dtx->tx_dtx);
+}
+
+static int ut_rec_common_put(struct cl_ctx                 *cctx,
+			     struct m0_cas_id              *index,
+			     const struct m0_bufvec        *keys,
+			     const struct m0_bufvec        *values,
+			     struct m0_dtx                 *dtx,
+			     struct m0_cas_rec_reply       *rep,
+			     uint32_t                       flags)
 {
 	struct m0_cas_req  req;
 	struct m0_chan    *chan;
@@ -440,7 +473,7 @@ static int ut_rec_put(struct cl_ctx           *cctx,
 	m0_clink_add_lock(chan, &cctx->cl_wait.aw_clink);
 
 	m0_cas_req_lock(&req);
-	rc = m0_cas_put(&req, index, keys, values, NULL, flags);
+	rc = m0_cas_put(&req, index, keys, values, dtx, flags);
 	if (rc == 0) {
 		/* wait results */
 		m0_cas_req_wait(&req, M0_BITS(CASREQ_FINAL), M0_TIME_NEVER);
@@ -456,6 +489,16 @@ static int ut_rec_put(struct cl_ctx           *cctx,
 	return rc;
 }
 
+static int ut_rec_put(struct cl_ctx           *cctx,
+		      struct m0_cas_id        *index,
+		      const struct m0_bufvec  *keys,
+		      const struct m0_bufvec  *values,
+		      struct m0_cas_rec_reply *rep,
+		      uint32_t                 flags)
+{
+	return ut_rec_common_put(cctx, index, keys, values, NULL, rep, flags);
+}
+
 static void ut_get_rep_clear(struct m0_cas_get_reply *rep, uint32_t nr)
 {
 	uint32_t i;
@@ -464,10 +507,10 @@ static void ut_get_rep_clear(struct m0_cas_get_reply *rep, uint32_t nr)
 		m0_free(rep[i].cge_val.b_addr);
 }
 
-static int ut_rec_get(struct cl_ctx           *cctx,
-		      struct m0_cas_id        *index,
-		      const struct m0_bufvec  *keys,
-		      struct m0_cas_get_reply *rep)
+static int ut_rec_get(struct cl_ctx                *cctx,
+		      struct m0_cas_id             *index,
+		      const struct m0_bufvec       *keys,
+		      struct m0_cas_get_reply      *rep)
 {
 	struct m0_cas_req  req;
 	struct m0_chan    *chan;
@@ -568,10 +611,11 @@ static int ut_next_rec(struct cl_ctx            *cctx,
 	return rc;
 }
 
-static int ut_rec_del(struct cl_ctx           *cctx,
-		      struct m0_cas_id        *index,
-		      struct m0_bufvec        *keys,
-		      struct m0_cas_rec_reply *rep)
+static int ut_rec_common_del(struct cl_ctx           *cctx,
+			     struct m0_cas_id        *index,
+			     struct m0_bufvec        *keys,
+			     struct m0_dtx           *dtx,
+			     struct m0_cas_rec_reply *rep)
 {
 	struct m0_cas_req  req;
 	struct m0_chan    *chan;
@@ -588,7 +632,7 @@ static int ut_rec_del(struct cl_ctx           *cctx,
 	m0_clink_add_lock(chan, &cctx->cl_wait.aw_clink);
 
 	m0_cas_req_lock(&req);
-	rc = m0_cas_del(&req, index, keys, NULL, 0);
+	rc = m0_cas_del(&req, index, keys, dtx, 0);
 	if (rc == 0) {
 		/* wait results */
 		m0_cas_req_wait(&req, M0_BITS(CASREQ_FINAL), M0_TIME_NEVER);
@@ -604,6 +648,14 @@ static int ut_rec_del(struct cl_ctx           *cctx,
 	m0_cas_req_fini_lock(&req);
 	m0_clink_fini(&cctx->cl_wait.aw_clink);
 	return rc;
+}
+
+static int ut_rec_del(struct cl_ctx           *cctx,
+		      struct m0_cas_id        *index,
+		      struct m0_bufvec        *keys,
+		      struct m0_cas_rec_reply *rep)
+{
+	return ut_rec_common_del(cctx, index, keys, NULL, rep);
 }
 
 static void idx_create(void)
@@ -1500,27 +1552,71 @@ static void next_multi_bulk(void)
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
-static void put_common(struct m0_bufvec *keys, struct m0_bufvec *values)
+static void put_common_with_ver(struct m0_bufvec *keys,
+				struct m0_bufvec *values,
+				uint64_t          version)
 {
-	struct m0_cas_rec_reply rep[COUNT];
-	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index = {};
-	int                     rc;
+	struct m0_cas_rec_reply *rep;
+	const struct m0_fid      ifid = IFID(2, 3);
+	struct m0_cas_id         index = {};
+	struct m0_dtx           *dtx;
+	int                      rc;
 
 	M0_UT_ASSERT(keys != NULL && values != NULL);
-
-	M0_SET_ARR0(rep);
+	M0_ALLOC_ARR(rep, keys->ov_vec.v_nr);
+	M0_UT_ASSERT(rep != NULL);
 
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
-	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
+
+	ut_dtx_init(&dtx, version);
+
+	rc = ut_rec_common_put(&casc_ut_cctx, &index, keys, values, dtx,
+			       rep, 0);
+
+	ut_dtx_fini(dtx);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr, rep[i].crr_rc == 0));
 
 	/* Remove index. */
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
+	m0_free(rep);
+}
+
+static void put_common(struct m0_bufvec *keys, struct m0_bufvec *values)
+{
+	put_common_with_ver(keys, values, 0);
+}
+
+/*
+ * Put a versioned key-value pair.
+ */
+static void put_dtm0(void)
+{
+	struct m0_bufvec keys;
+	struct m0_bufvec values;
+	int              rc;
+
+	m0_fi_enable("cas_fom_tick", "skip-dtm0-phases");
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+
+	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
+					*(uint64_t*)values.ov_buf[i] = i * i,
+					true));
+	put_common_with_ver(&keys, &values, 1);
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+	m0_fi_disable("cas_fom_tick", "skip-dtm0-phases");
 }
 
 /*
@@ -2103,35 +2199,76 @@ static void upd(void)
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
-static void del_common(struct m0_bufvec *keys, struct m0_bufvec *values)
+static void del_common_with_ver(struct m0_bufvec *keys,
+				struct m0_bufvec *values,
+				uint64_t          version)
 {
-	struct m0_cas_rec_reply rep[COUNT];
-	struct m0_cas_get_reply get_rep[COUNT];
-	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index = {};
-	int                     rc;
+	struct m0_cas_rec_reply *rep;
+	struct m0_cas_get_reply *get_rep;
+	const struct m0_fid      ifid = IFID(2, 3);
+	struct m0_cas_id         index = {};
+	int                      rc;
+	struct m0_dtx           *dtx;
 
-	M0_SET_ARR0(rep);
-	M0_SET_ARR0(get_rep);
+	M0_ALLOC_ARR(rep, keys->ov_vec.v_nr);
+	M0_ALLOC_ARR(get_rep, keys->ov_vec.v_nr);
+
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
 	/* Insert new records */
+	ut_dtx_init(&dtx, version);
 	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
+	ut_dtx_fini(dtx);
 	M0_UT_ASSERT(rc == 0);
 	/* Delete all records */
-	rc = ut_rec_del(&casc_ut_cctx, &index, keys, rep);
+	ut_dtx_init(&dtx, version == 0 ? 0 : version + 1);
+	rc = ut_rec_common_del(&casc_ut_cctx, &index, keys, dtx, rep);
+	ut_dtx_fini(dtx);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr, rep[i].crr_rc == 0));
 	/* check selected values - must be empty*/
 	rc = ut_rec_get(&casc_ut_cctx, &index, keys, get_rep);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_forall(i, COUNT, get_rep[i].cge_rc == -ENOENT));
-	ut_get_rep_clear(get_rep, COUNT);
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr, get_rep[i].cge_rc == -ENOENT));
+	ut_get_rep_clear(get_rep, keys->ov_vec.v_nr);
 
 	/* Remove index. */
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
+	m0_free(rep);
+	m0_free(get_rep);
+}
+
+static void del_common(struct m0_bufvec *keys, struct m0_bufvec *values)
+{
+	del_common_with_ver(keys, values, 0);
+}
+
+static void del_dtm0(void)
+{
+	struct m0_bufvec keys;
+	struct m0_bufvec values;
+	int              rc;
+
+	m0_fi_enable("cas_fom_tick", "skip-dtm0-phases");
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+
+	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
+					*(uint64_t*)values.ov_buf[i] = i * i,
+					true));
+	del_common_with_ver(&keys, &values, 1);
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+	m0_fi_disable("cas_fom_tick", "skip-dtm0-phases");
 }
 
 static void del(void)
@@ -2649,6 +2786,8 @@ struct m0_ut_suite cas_client_ut = {
 		{ "reply-too-large",        reply_too_large,        "Sergey" },
 		{ "recs-fragm",             recs_fragm,             "Sergey" },
 		{ "recs_fragm_fail",        recs_fragm_fail,        "Sergey" },
+		{ "put_dtm0",               put_dtm0,               "Ivan"   },
+		{ "del_dtm0",               del_dtm0,               "Ivan"   },
 		{ NULL, NULL }
 	}
 };
