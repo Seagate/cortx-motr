@@ -158,8 +158,8 @@ stub_confdb() {
 (objv-6 real=drive-3 children=[])
 (site-2 racks=[rack-0] pvers=[pver-0])
 (rack-0 encls=[enclosure-0] pvers=[pver-0])
-(enclosure-0 ctrls=[controller-0] pvers=[pver-0])
-(controller-0 node=node-0 drives=[drive-0, drive-1, drive-2, drive-3] pvers=[pver-0])
+(enclosure-0 node=node-0 ctrls=[controller-0] pvers=[pver-0])
+(controller-0 drives=[drive-0, drive-1, drive-2, drive-3] pvers=[pver-0])
 (drive-0 dev=sdev-1 pvers=[pver-0])
 (drive-1 dev=sdev-2 pvers=[pver-0])
 (drive-2 dev=sdev-3 pvers=[pver-0])
@@ -334,9 +334,9 @@ commands = [
     ('pool_add', tx, fids['pool'], 0),
     ('site_add', tx, fids['site']),
     ('rack_add', tx, fids['rack'], fids['site']),
-    ('enclosure_add', tx, fids['encl'], fids['rack']),
     ('node_add', tx, fids['node'], 256, 2, 10L, 0xff00ff00L, fids['pool']),
-    ('controller_add', tx, fids['ctrl'], fids['encl'], fids['node']),
+    ('enclosure_add', tx, fids['encl'], fids['rack'], fids['node']),
+    ('controller_add', tx, fids['ctrl'], fids['encl']),
     ('drive_add', tx, fids['drive0'], fids['ctrl']),
     ('drive_add', tx, fids['drive1'], fids['ctrl']),
     ('drive_add', tx, fids['drive2'], fids['ctrl']),
