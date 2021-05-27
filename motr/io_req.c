@@ -835,12 +835,14 @@ static int ioreq_iomaps_parity_groups_cal(struct m0_op_io *ioo)
  */
 static int ioreq_iomaps_prepare(struct m0_op_io *ioo)
 {
+	bool                      bufvec = true;
 	int                       rc;
 	uint64_t                  i;
+	struct pargrp_iomap      *iomap;
 	struct m0_pdclust_layout *play;
 	struct m0_ivec_cursor     cursor;
 	struct m0_bufvec_cursor   buf_cursor;
-	bool                      bufvec = true;
+
 	M0_ENTRY("op_io = %p", ioo);
 
 	M0_PRE(ioo != NULL);
@@ -880,8 +882,9 @@ static int ioreq_iomaps_prepare(struct m0_op_io *ioo)
 			rc = -ENOMEM;
 			goto failed;
 		}
+		iomap = ioo->ioo_iomaps[i];
 
-		rc = pargrp_iomap_init(ioo->ioo_iomaps[i], ioo,
+		rc = pargrp_iomap_init(iomap, ioo,
 				       group_id(m0_ivec_cursor_index(&cursor),
 						data_size(play)));
 		if (rc != 0) {
@@ -890,13 +893,12 @@ static int ioreq_iomaps_prepare(struct m0_op_io *ioo)
 		}
 
 		/* @cursor is advanced in the following function */
-		rc = ioo->ioo_iomaps[i]->pi_ops->
-		     pi_populate(ioo->ioo_iomaps[i], &cursor,
-				 bufvec ? &buf_cursor : NULL);
+		rc = iomap->pi_ops->pi_populate(iomap, &cursor,
+						bufvec ? &buf_cursor : NULL);
 		if (rc != 0)
 			goto failed;
-		M0_LOG(M0_INFO, "pargrp_iomap id : %"PRIu64" populated",
-		       ioo->ioo_iomaps[i]->pi_grpid);
+		M0_LOG(M0_INFO, "iomap_id=%"PRIu64" is populated",
+		       iomap->pi_grpid);
 	}
 
 	return M0_RC(0);

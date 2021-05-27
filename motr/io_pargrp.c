@@ -503,26 +503,30 @@ static int pargrp_iomap_populate_pi_ivec(struct pargrp_iomap     *map,
 	return M0_RC(0);
 }
 
-/*
- * Decides whether to undertake read-old approach or read-rest for
- * an RMW IO request based on the number of total pages to be read
- * and written.
+/**
+ * Decides whether to undertake a read-old or read-rest approach for
+ * the parity group RMW IO request based on the total number of pages
+ * to be read and written.
  *
- * In read-old approach the old data and parity units are read and
+ * In read-old approach, the old data and parity units are read and
  * the new parity is calculated incrementally based on the difference
  * between old and new data and parity units.
  *
- * In read-rest approach the rest data units of the group are read
+ * In read-rest approach, the rest data units of the group are read
  * and the new parity is calculated based on them and the new data
  * units to be written.
  *
- * In both approaches the number of units to be written is the same
+ * In both approaches, the number of units to be written is the same
  * (new data units and udpated parity units), so we compare only the
  * number of units (pages) to be read.
  *
  * By default, the segments in index vector pargrp_iomap::pi_ivec
  * are suitable for read-old approach. Hence the index vector is
  * changed only if read-rest approach is selected.
+ *
+ * @param map is the parity group iomap
+ * @param data_pages_nr is the number of data pages in group
+ * @param parity_pages_nr is the number of parity pages in group
  */
 static int pargrp_iomap_select_ro_rr(struct pargrp_iomap *map,
 				     m0_bcount_t data_pages_nr,
@@ -596,27 +600,37 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	grpstart = grpsize * map->pi_grpid;
 	grpend   = grpstart + grpsize;
 
-	M0_ENTRY("[%p] map=%p ivec=%p", ioo, map, cursor->ic_cur.vc_vec);
-
 	/*
 	 * For a write, if this map does not span the whole parity group,
 	 * it is a read-modify-write.
+	 *
+	 * In replicated layout (N == 1) we don't do "rmw". Even if the
+	 * incoming IO does not span the entire data unit, but spans it
+	 * partially (but in quantum of full pages) there is no need to
+	 * read parity pages for update. Because they map directly to
+	 * the respective data pages anyway (in replicated layout they
+	 * are shared to optimise the memory footprint).
+	 *
+	 * If partial page IO was allowed, reading the older copy (either
+	 * of data or parity) would become necessary in order to prepare
+	 * the new page in which incoming IO is merged with older values.
+	 * But partial page modifications are not currently supported.
 	 */
 	if (M0_IN(op->op_code, (M0_OC_FREE, M0_OC_WRITE)) &&
 	    (m0_ivec_cursor_index(cursor) > grpstart ||
-	     m0_ivec_cursor_conti(cursor, grpend) < grpend))
+	     m0_ivec_cursor_conti(cursor, grpend) < grpend) &&
+	    !m0_pdclust_is_replicated(play))
 		rmw = true;
+
+	M0_ENTRY("[%p] map=%p grp=%"PRIu64" [%"PRIu64",+%"PRIu64") rmw=%d",
+		 ioo, map, map->pi_grpid, grpstart, grpsize, !!rmw);
 
 	if (op->op_code == M0_OC_FREE && rmw)
 		map->pi_trunc_partial = true;
 
-	M0_LOG(M0_INFO, "[%p] grp_id=%"PRIu64": %s", ioo, map->pi_grpid,
-	                                             rmw ? "rmw" : "aligned");
 	/* In 'verify mode', read all data units in this parity group */
 	if (op->op_code == M0_OC_READ &&
 	    instance->m0c_config->mc_is_read_verify) {
-		M0_LOG(M0_DEBUG, "[%p] ivec=[%"PRIu64",+%"PRIu64")", ioo,
-		                              grpstart, grpsize);
 		/*
 		 * Full parity group.
 		 * Note: object doesn't have size attribute.
@@ -633,22 +647,9 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 		rc = pargrp_iomap_populate_pi_ivec(map, cursor,
 						   buf_cursor, rmw);
 	if (rc != 0)
-		M0_ERR_INFO(rc, "[%p] failed", ioo);
+		return M0_ERR_INFO(rc, "[%p] failed", ioo);
 
-	/*
-	 * In replicated layout (N == 1) we don't do "rmw". Even if the
-	 * incoming IO does not span the entire data unit, but spans it
-	 * partially (but in quantum of full pages) there is no need to
-	 * read parity pages for update. Because they map directly to
-	 * the respective data pages anyway (in replicated layout they
-	 * are shared to optimise the memory footprint).
-	 *
-	 * If partial page IO was allowed, reading the older copy (either
-	 * of data or parity) would become necessary in order to prepare
-	 * the new page in which incoming IO is merged with older values.
-	 * But partial page modifications are not currently supported.
-	 */
-	if ((rmw || map->pi_trunc_partial) && !m0_pdclust_is_replicated(play)) {
+	if (rmw) {
 		rc = pargrp_iomap_select_ro_rr(map, page_nr(grpsize, obj),
 					       parity_units_page_nr(play, obj));
 		if (rc != 0)
@@ -658,8 +659,8 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	if (map->pi_ioo->ioo_pbuf_type == M0_PBUF_DIR)
 		rc = map->pi_ops->pi_paritybufs_alloc(map);
 	/*
-	 * In case of replicated layout write IO, whether it's a rmw or
-	 * otherwise, parity buffers share a pointer with data buffer.
+	 * In case of replicated layout write IO parity buffers
+	 * share a pointer with data buffer.
 	 */
 	else if (map->pi_ioo->ioo_pbuf_type == M0_PBUF_IND)
 		rc = map->pi_ops->pi_data_replicate(map);
