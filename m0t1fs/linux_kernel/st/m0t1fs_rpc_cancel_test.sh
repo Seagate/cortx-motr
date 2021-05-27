@@ -68,6 +68,7 @@ rcancel_motr_service_start()
 	local N
 	local K
 	local P
+	local S
 	local stride
 	local multiple_pools
 	local rc
@@ -77,17 +78,19 @@ rcancel_motr_service_start()
 	then
 		N=8
 		K=2
+		S=2
 		P=20
 		stride=32
 		multiple_pools=0
 	else
 		N=2
 		K=1
+		S=1
 		P=4
 		stride=16
 		multiple_pools=1
 	fi
-	motr_service start $multiple_pools $stride $N $K $P
+	motr_service start $multiple_pools $stride $N $K $S $P
 	rc=$?
 
 	if [ $rc -ne 0 ]

@@ -7,7 +7,7 @@
 (profile-0 pools=[pool-0])
 
 (pool-0 pver_policy=0 pvers=[pver-0, pver_f-0])
-(pver-0 N=2 K=2 P=10 tolerance=[0, 0, 0, 1, 2] sitevs=[objv-2:0])
+(pver-0 N=2 K=2 S=2 P=10 tolerance=[0, 0, 0, 1, 2] sitevs=[objv-2:0])
 (pver_f-0 id=0xfeed base=pver-0 allowance=[0, 0, 0, 1, 2])
 ## sitevs ------------------------------------------------------------
 (site-2 racks=[rack-0] pvers=[pver-0])
@@ -16,15 +16,15 @@
 (rack-0 encls=[enclosure-0, enclosure-1] pvers=[pver-0])
 (objv-0 real=rack-0 children=[objv-1, objv-8])
 ## enclvs ------------------------------------------------------------
-(enclosure-0 ctrls=[controller-0, controller-1] pvers=[pver-0])
-(enclosure-1 ctrls=[controller-2, controller-3] pvers=[pver-0])
+(enclosure-0 node=node-0 ctrls=[controller-0, controller-1] pvers=[pver-0])
+(enclosure-1 node=node-0 ctrls=[controller-2, controller-3] pvers=[pver-0])
 (objv-1 real=enclosure-0 children=[objv-2, objv-6])
 (objv-8 real=enclosure-1 children=[objv-9, objv-11])
 ## ctrlvs ------------------------------------------------------------
-(controller-0 node=node-0 drives=[drive-0, drive-1, drive-2] pvers=[pver-0])
-(controller-1 node=node-0 drives=[drive-3, drive-4] pvers=[pver-0]) # <<< FAILED
-(controller-2 node=node-0 drives=[drive-5, drive-6, drive-7] pvers=[pver-0])
-(controller-3 node=node-0 drives=[drive-8, drive-9] pvers=[pver-0])
+(controller-0 drives=[drive-0, drive-1, drive-2] pvers=[pver-0])
+(controller-1 drives=[drive-3, drive-4] pvers=[pver-0]) # <<< FAILED
+(controller-2 drives=[drive-5, drive-6, drive-7] pvers=[pver-0])
+(controller-3 drives=[drive-8, drive-9] pvers=[pver-0])
 (objv-2 real=controller-0 children=[objv-3, objv-4, objv-5])
 (objv-6 real=controller-1 children=[objv-7, objv-10])
 (objv-9 real=controller-2 children=[objv-12, objv-13, objv-14])
