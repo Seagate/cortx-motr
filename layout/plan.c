@@ -54,18 +54,46 @@ struct m0_layout_plan {
 	struct m0_layout_instance *lp_layout;
 	/** plan plops linked via ::pl_all_link */
 	struct m0_tl               lp_plops;
+	/** last returned plop via m0_layout_plan_get() */
+	struct m0_layout_plop     *lp_last_plop;
 	/** operation the plan describes */
 	struct m0_op              *lp_op;
 };
+
+static struct m0_layout_plop *
+plop_alloc_init(struct m0_layout_plan *plan, enum m0_layout_plop_type type,
+		struct target_ioreq *ti)
+{
+	struct m0_layout_plop    *plop;
+	struct m0_layout_io_plop *iopl;
+
+	if (M0_IN(type, (M0_LAT_READ, M0_LAT_WRITE))) {
+		M0_ALLOC_PTR(iopl);
+		plop = iopl == NULL ? NULL : &iopl->iop_base;
+	} else
+		M0_ALLOC_PTR(plop);
+	if (plop == NULL)
+		return NULL;
+	pplops_tlink_init_at_tail(plop, &plan->lp_plops);
+	plop->pl_ti = ti;
+	plop->pl_type = type;
+	plop->pl_plan = plan;
+	plop->pl_state = M0_LPS_INIT;
+
+	return plop;
+}
 
 M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 {
 	int                         rc;
 	struct m0_layout_plan      *plan;
+	struct m0_layout_plop      *plop;
+	struct m0_layout_io_plop   *iopl;
 	struct m0_op_common        *oc;
 	struct m0_op_obj           *oo;
 	struct m0_op_io            *ioo;
 	struct m0_layout_instance  *linst;
+	struct target_ioreq        *ti;
 
 	M0_ENTRY("op=%p", op);
 
@@ -97,7 +125,23 @@ M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 
 	rc = ioo->ioo_ops->iro_iomaps_prepare(ioo) ?:
 	     ioo->ioo_nwxfer.nxr_ops->nxo_distribute(&ioo->ioo_nwxfer);
+	if (rc != 0)
+		goto out;
 
+	m0_htable_for(tioreqht, ti, &ioo->ioo_nwxfer.nxr_tioreqs_hash) {
+		plop = plop_alloc_init(plan, M0_LAT_READ, ti);
+		if (plop == NULL) {
+			rc = M0_ERR(-ENOMEM);
+			break;
+		}
+		plop->pl_ent = ti->ti_fid;
+		iopl = container_of(plop, struct m0_layout_io_plop, iop_base);
+		iopl->iop_ext  = ti->ti_ivec;
+		iopl->iop_data = ti->ti_bufvec;
+		iopl->iop_session = ti->ti_session;
+	} m0_htable_endfor;
+
+ out:
 	if (rc != 0) {
 		m0_layout_plan_fini(plan);
 		plan = NULL;
@@ -130,8 +174,11 @@ M0_INTERNAL void m0_layout_plan_fini(struct m0_layout_plan *plan)
 		ioo->ioo_ops->iro_iomaps_destroy(ioo);
 
 	m0_tl_teardown(pplops, &plan->lp_plops, plop) {
-		if (plop->pl_ops->po_fini)
+		if (plop->pl_ops && plop->pl_ops->po_fini)
 			plop->pl_ops->po_fini(plop);
+		/* for each plan_get() plop_done() must be called */
+		M0_ASSERT(M0_IN(plop->pl_state, (M0_LPS_INIT, M0_LPS_DONE)));
+		m0_free(plop);
 	}
 	pplops_tlist_fini(&plan->lp_plops);
 	plan->lp_op = NULL;
@@ -141,14 +188,51 @@ M0_INTERNAL void m0_layout_plan_fini(struct m0_layout_plan *plan)
 }
 
 M0_INTERNAL int m0_layout_plan_get(struct m0_layout_plan *plan, uint64_t colour,
-				   struct m0_layout_plop **out)
+				   struct m0_layout_plop **plop)
 {
+	if (plan == NULL || plop == NULL)
+		return M0_ERR(-EINVAL);
+
 	if (plan->lp_op == NULL)
 		return M0_ERR_INFO(-EINVAL, "plan %p is not built", plan);
+
+	if (plan->lp_last_plop == NULL)
+		*plop = pplops_tlist_head(&plan->lp_plops);
+	else
+		*plop = pplops_tlist_next(&plan->lp_plops, plan->lp_last_plop);
+
+	if (*plop == NULL) {
+		*plop = plop_alloc_init(plan, M0_LAT_DONE, NULL);
+		if (*plop == NULL)
+			return M0_ERR(-ENOMEM);
+	}
+	plan->lp_last_plop = *plop;
 
 	return M0_RC(0);
 }
 
+M0_INTERNAL int m0_layout_plop_start(struct m0_layout_plop *plop)
+{
+	if (plop->pl_state != M0_LPS_INIT)
+		return M0_ERR(-EINVAL);
+
+	plop->pl_state = M0_LPS_STARTED;
+
+	return M0_RC(0);
+}
+
+M0_INTERNAL void m0_layout_plop_done(struct m0_layout_plop *plop)
+{
+	struct m0_layout_plan *plan = plop->pl_plan;
+
+	plop->pl_state = M0_LPS_DONE;
+
+	if (plop->pl_type == M0_LAT_READ) {
+		plop = plop_alloc_init(plan, M0_LAT_OUT_READ, NULL);
+		pplops_tlist_del(plop);
+		pplops_tlist_add_after(plan->lp_last_plop, plop);
+	}
+}
 
 #undef M0_TRACE_SUBSYSTEM
 

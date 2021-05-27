@@ -128,15 +128,8 @@ static void test_plan_build_fini(void)
 	int                         rc;
 	struct m0_client           *cinst = client_inst;
 	struct m0_pool_version     *pv;
-	M0_UNUSED uint64_t                    layout_id;
-	M0_UNUSED struct m0_layout           *layout;
 	struct m0_layout_plan      *plan;
-	M0_UNUSED struct m0_pdclust_layout   *play;
-	M0_UNUSED struct m0_pdclust_instance *pli;
 	struct m0_op               *op = NULL;
-	struct m0_op_common        *oc;
-	struct m0_op_obj           *oo;
-	M0_UNUSED struct m0_op_io            *ioo;
 	struct m0_indexvec          ext;
 	struct m0_bufvec            data;
 	struct m0_bufvec            attr;
@@ -160,15 +153,13 @@ static void test_plan_build_fini(void)
 	rc = m0_obj_op(&obj, M0_OC_READ, &ext, &data, &attr, 0, 0, &op);
 	M0_UT_ASSERT(rc == 0);
 
-	oc = bob_of(op, struct m0_op_common, oc_op, &oc_bobtype);
-	oo = bob_of(oc, struct m0_op_obj, oo_oc, &oo_bobtype);
-	ioo = bob_of(oo, struct m0_op_io, ioo_oo, &ioo_bobtype);
-
+	/* check happy path */
 	plan = m0_layout_plan_build(op);
 	M0_UT_ASSERT(plan != NULL);
 
 	m0_layout_plan_fini(plan);
 
+	/* check error paths */
 	m0_fi_enable_once("pargrp_iomap_init", "no-mem-err");
 	plan = m0_layout_plan_build(op);
 	M0_UT_ASSERT(plan == NULL);
@@ -176,6 +167,84 @@ static void test_plan_build_fini(void)
 	m0_fi_enable_once("target_ioreq_init", "no-mem-err");
 	plan = m0_layout_plan_build(op);
 	M0_UT_ASSERT(plan == NULL);
+
+	m0_op_fini(op);
+	m0_op_free(op);
+
+	m0_entity_fini(&obj.ob_entity);
+
+	m0_bufvec_free(&attr);
+	m0_bufvec_free(&data);
+	m0_indexvec_free(&ext);
+
+	M0_LEAVE();
+}
+
+static void test_plan_get_done(void)
+{
+	int                         rc;
+	struct m0_client           *cinst = client_inst;
+	struct m0_pool_version     *pv;
+	struct m0_layout_plan      *plan;
+	struct m0_op               *op = NULL;
+	struct m0_layout_plop      *plop;
+	struct m0_layout_io_plop   *iopl;
+	struct m0_indexvec          ext;
+	struct m0_bufvec            data;
+	struct m0_bufvec            attr;
+	struct m0_realm             realm;
+	struct m0_obj               obj = {};
+
+	M0_ENTRY();
+
+	M0_UT_ASSERT(m0_indexvec_alloc(&ext, 1) == 0);
+	ext.iv_vec.v_count[0] = UT_DEFAULT_BLOCK_SIZE;
+	M0_UT_ASSERT(m0_bufvec_alloc(&data, 1, UT_DEFAULT_BLOCK_SIZE) == 0);
+	M0_UT_ASSERT(m0_bufvec_alloc(&attr, 1, 1) == 0);
+
+	rc = m0_pool_version_get(&cinst->m0c_pools_common, NULL, &pv);
+	M0_UT_ASSERT(rc == 0);
+	ut_realm_entity_setup(&realm, &obj.ob_entity, cinst);
+	obj.ob_attr.oa_bshift = M0_MIN_BUF_SHIFT;
+	obj.ob_attr.oa_pver   = pv->pv_id;
+	obj.ob_attr.oa_layout_id = M0_DEFAULT_LAYOUT_ID;
+
+	rc = m0_obj_op(&obj, M0_OC_READ, &ext, &data, &attr, 0, 0, &op);
+	M0_UT_ASSERT(rc == 0);
+
+	plan = m0_layout_plan_build(op);
+	M0_UT_ASSERT(plan != NULL);
+
+	rc = m0_layout_plan_get(plan, 0, &plop);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(plop != NULL);
+	M0_UT_ASSERT(plop->pl_type == M0_LAT_READ);
+	M0_UT_ASSERT(plop->pl_ent.f_container != 0 ||
+		     plop->pl_ent.f_key != 0);
+	iopl = container_of(plop, struct m0_layout_io_plop, iop_base);
+	M0_UT_ASSERT(iopl->iop_session != NULL);
+	M0_UT_ASSERT(iopl->iop_ext.iv_index != NULL);
+	M0_UT_ASSERT(m0_vec_count(&iopl->iop_ext.iv_vec) ==
+		                                UT_DEFAULT_BLOCK_SIZE);
+	M0_UT_ASSERT(iopl->iop_data.ov_buf != NULL);
+
+	m0_layout_plop_start(plop);
+	plop->pl_rc = 0;
+	m0_layout_plop_done(plop);
+
+	rc = m0_layout_plan_get(plan, 0, &plop);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(plop != NULL);
+	M0_UT_ASSERT(plop->pl_type == M0_LAT_OUT_READ);
+	m0_layout_plop_done(plop);
+
+	rc = m0_layout_plan_get(plan, 0, &plop);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(plop != NULL);
+	M0_UT_ASSERT(plop->pl_type == M0_LAT_DONE);
+	m0_layout_plop_done(plop);
+
+	m0_layout_plan_fini(plan);
 
 	m0_op_fini(op);
 	m0_op_free(op);
@@ -221,6 +290,7 @@ struct m0_ut_suite layout_access_plan_ut = {
 	.ts_fini  = lap_ut_fini,
 	.ts_tests = {
 		{ "layout-access-plan-build-fini", test_plan_build_fini },
+		{ "layout-access-plan-get-done", test_plan_get_done },
 		{ NULL, NULL }
 	}
 };

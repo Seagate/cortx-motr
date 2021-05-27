@@ -359,6 +359,8 @@ struct m0_layout_plop {
 	enum m0_layout_plop_state        pl_state;
 	/** Plan this plop is part of. */
 	struct m0_layout_plan           *pl_plan;
+	/** target_ioreq this plop corresponds to. */
+	struct target_ioreq             *pl_ti;
 	/**
 	 * Plop colour.
 	 *
@@ -472,11 +474,14 @@ struct m0_layout_inout_plop {
  * @see M0_LAT_WRITE, M0_LAT_READ
  */
 struct m0_layout_io_plop {
-	struct m0_layout_plop iop_base;
+	struct m0_layout_plop  iop_base;
+
+	/** Where to send the io-request. */
+	struct m0_rpc_session *iop_session;
 	/**
 	 * The set of extents to be read or written.
 	 */
-	struct m0_indexvec    iop_ext;
+	struct m0_indexvec     iop_ext;
 	/**
 	 * Data buffers provided by the implementation.
 	 *
@@ -485,7 +490,7 @@ struct m0_layout_io_plop {
 	 * In case of read, the buffers should be populated with the data
 	 * read by the user before calling m0_layout_plop_done().
 	 */
-	struct m0_bufvec      iop_data;
+	struct m0_bufvec       iop_data;
 };
 
 /**
