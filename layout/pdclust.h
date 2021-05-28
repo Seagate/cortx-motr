@@ -37,11 +37,13 @@
  *
  * - N---number of data units in a parity group;
  *
+ * - S---number of spare units in a parity group;
+ *
  * - K---number of parity units in a parity group. Data in an object striped
  *   with a given K can survive a loss of up to K target objects. When a target
  *   object failure is repaired, distributed spare units are used to store
- *   re-constructed data. There are K spare units in each parity group, making
- *   the latter consisting of N+2*K units;
+ *   re-constructed data. There are S spare units in each parity group, making
+ *   the latter consisting of N+K+S units;
  *
  * - P---number of target objects over which layout stripes data, parity and
  *   spare units. A target object is divided into frames of unit size.
@@ -49,12 +51,12 @@
  * Layout maps source units to target frames. This mapping is defined in terms
  * of "tiles" which are groups of frames. A tile can be seen either as an L*P
  * block of frames, L rows of P columns each, each row containing frames with
- * the same offset in every target object, or as a C*(N+2*K) block of C groups,
- * N+2*K frames each. Here L and C are two additional layout parameters selected
- * so that C*(N+2*K) == L*P.
+ * the same offset in every target object, or as a C*(N+K+S) block of C groups,
+ * N+K+S frames each. Here L and C are two additional layout parameters selected
+ * so that C*(N+K+S) == L*P.
  *
- * Looking at a tile as a C*(N+2*K) block, map C consecutive parity groups (each
- * containing N+2*K units) to it, then switch to L*P view and apply a certain
+ * Looking at a tile as a C*(N+K+S) block, map C consecutive parity groups (each
+ * containing N+K+S units) to it, then switch to L*P view and apply a certain
  * permutation (depending on tile number) to columns.
  *
  * HLD explains why resulting layout mapping function possesses a number of
@@ -101,11 +103,11 @@ struct m0_pdclust_attr {
 	/** Number of data units in a parity group. */
 	uint32_t           pa_N;
 
-	/**
-	 * Number of parity units in a parity group. This is also the number of
-	 * spare units in a group.
-	 */
+	/** Number of parity units in a parity group. */
 	uint32_t           pa_K;
+
+	/** Number of spare units in a partiy group. */
+	uint32_t           pa_S;
 
 	/**
 	 * Number of target objects over which this layout stripes the source.
@@ -152,7 +154,7 @@ struct m0_pdclust_layout {
 	 */
 	uint32_t                  pl_C;
 	/**
-	 * Number of "frame rows" in a tile. L * P == C * (N + 2 * K).
+	 * Number of "frame rows" in a tile. L * P == C * (N + K + S).
 	 * @see m0_pdclust_layout::pl_C
 	 */
 	uint32_t                  pl_L;
@@ -273,10 +275,11 @@ M0_INTERNAL int m0_pdclust_build(struct m0_layout_domain *dom,
 				 struct m0_layout_enum *le,
 				 struct m0_pdclust_layout **out);
 
-/** Returns true iff pa_P >= pa_N + 2 * pa_K */
+/** Returns true iff pa_P >= pa_N + pa_K + pa_S */
 M0_INTERNAL bool m0_pdclust_attr_check(const struct m0_pdclust_attr *attr);
 M0_INTERNAL uint32_t m0_pdclust_N(const struct m0_pdclust_layout *pl);
 M0_INTERNAL uint32_t m0_pdclust_K(const struct m0_pdclust_layout *pl);
+M0_INTERNAL uint32_t m0_pdclust_S(const struct m0_pdclust_layout *pl);
 M0_INTERNAL uint32_t m0_pdclust_P(const struct m0_pdclust_layout *pl);
 M0_INTERNAL uint32_t m0_pdclust_size(const struct m0_pdclust_layout *pl);
 M0_INTERNAL uint64_t m0_pdclust_unit_size(const struct m0_pdclust_layout *pl);

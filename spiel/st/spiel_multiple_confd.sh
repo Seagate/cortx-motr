@@ -122,7 +122,7 @@ stub_confdb() {
 (service-8 type=@M0_CST_RMS endpoints=["$M0D3_ENDPOINT"] params=[] sdevs=[])
 (service-9 type=@M0_CST_CONFD endpoints=["$M0D3_ENDPOINT"] params=[] sdevs=[])
 (pool-0 pver_policy=0 pvers=[pver-0, pver_f-11])
-(pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:0])
+(pver-0 N=2 K=1 S=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:0])
 (pver_f-11 id=0 base=pver-0 allowance=[0, 0, 0, 0, 1])
 (objv-2:0 real=site-2 children=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
@@ -130,8 +130,8 @@ stub_confdb() {
 (objv-2 real=controller-0 children=[])
 (site-2 racks=[rack-0] pvers=[pver-0])
 (rack-0 encls=[enclosure-0] pvers=[pver-0])
-(enclosure-0 ctrls=[controller-0] pvers=[pver-0])
-(controller-0 node=node-0 drives=[] pvers=[pver-0])
+(enclosure-0 node=node-0 ctrls=[controller-0] pvers=[pver-0])
+(controller-0 drives=[] pvers=[pver-0])
 (sdev-0 dev_idx=0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")
 EOF

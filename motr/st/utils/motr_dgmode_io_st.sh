@@ -36,6 +36,7 @@ m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
 N=3
 K=3
+S=3
 P=15
 stride=32
 BLOCKSIZE=""
@@ -81,7 +82,7 @@ main()
 
 	mkdir $MOTR_TRACE_DIR
 
-	motr_service_start $N $K $P $stride
+	motr_service_start $N $K $S $P $stride
 
 	#Initialise dix
 	dix_init
