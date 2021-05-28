@@ -36,9 +36,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-/** path to read kmod uuid parameter */
-static const char *kmod_uuid_file = "/sys/module/m0tr/parameters/node_uuid";
-
+/** path to read node uuid parameter */
+static const char *uuid_file = "/etc/machine-id";
 /**
  * Default node uuid which can be used instead of a "real" one, which is
  * obtained from kernel module; this can be handy for some utility applications
@@ -53,7 +52,7 @@ static bool use_default_node_uuid = false;
 
 void m0_kmod_uuid_file_set(const char *path)
 {
-	kmod_uuid_file = path;
+	uuid_file = path;
 }
 
 void m0_node_uuid_string_set(const char *uuid)
@@ -73,24 +72,34 @@ int m0_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 {
 	int fd;
 	int rc = 0;
+	char buf1[M0_UUID_STRLEN + 1];
 
 	if (use_default_node_uuid) {
 		strncpy(buf, default_node_uuid, M0_UUID_STRLEN + 1);
 		buf[M0_UUID_STRLEN] = '\0';
 	} else {
-		fd = open(kmod_uuid_file, O_RDONLY);
+		fd = open(uuid_file, O_RDONLY);
 		if (fd < 0) {
 			return M0_ERR_INFO(-EINVAL,
 			                   "open(\"%s\", O_RDONLY)=%d "
-			                   "errno=%d: is m0tr.ko loaded?",
-					   kmod_uuid_file, fd, errno);
+			                   "errno=%d: ",
+					   uuid_file, fd, errno);
 		}
-		if (read(fd, buf, M0_UUID_STRLEN) == M0_UUID_STRLEN) {
+		if (read(fd, buf1, M0_UUID_STRLEN - 4) == M0_UUID_STRLEN - 4) {
 			rc = 0;
+			strncpy(buf, buf1, 8);
+			strncpy(buf + 8, "-", 1);
+			strncpy(buf + 9, buf1 + 8, 4);
+			strncpy(buf + 13, "-", 1);
+			strncpy(buf + 14, buf1 + 12, 4);
+			strncpy(buf + 18, "-", 1);
+			strncpy(buf + 19, buf1 + 16, 4);
+			strncpy(buf + 23, "-", 1);
+			strncpy(buf + 24, buf1 + 20, 12);
 			buf[M0_UUID_STRLEN] = '\0';
 		} else {
 			rc = M0_ERR_INFO(-EINVAL, "Incorrect data in %s",
-			                 kmod_uuid_file);
+			                 uuid_file);
 		}
 		close(fd);
 	}
