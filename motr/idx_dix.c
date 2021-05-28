@@ -547,7 +547,7 @@ static void cas_next_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 static void dix_build(const struct m0_op_idx *oi,
 		      struct m0_dix          *out)
 {
-	unsigned int   opcode = oi->oi_oc.oc_op.op_code;
+	unsigned int   opcode = OP_IDX2CODE(oi);
 	struct m0_idx *idx = oi->oi_idx;
 
 	M0_SET0(out);

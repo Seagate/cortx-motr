@@ -112,22 +112,22 @@ m0__idx_pool_version_get(struct m0_idx *idx,
 
 	M0_ENTRY();
 
-	cinst = m0__idx_instance(idx);
-
 	if (pv == NULL)
-		return M0_ERR(-ENOENT);
+		return M0_ERR(-EINVAL);
+
+	cinst = m0__idx_instance(idx);
 
 	rc = m0_dix_pool_version_get(&cinst->m0c_pools_common, pv);
 	if (rc != 0)
 		return M0_ERR(rc);
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 /**
  * Gets an index DIX pool version. It is applicable for create
  * index operation.
  *
- * @param oi index operation.
+ * @param[in][out] oi index operation.
  * @return 0 if the operation completes successfully or an error code
  * otherwise.
  */
@@ -149,7 +149,7 @@ static int idx_pool_version_get(struct m0_op_idx *oi)
 		return M0_ERR(rc);
 	idx->in_attr.idx_pver = pv->pv_id;
 
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 /**
@@ -228,9 +228,9 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 
 	if ((opcode == M0_EO_CREATE) && (entity->en_type == M0_ET_IDX)) {
 		rc = idx_pool_version_get(oi);
-		if (rc == 0)
-			idx->in_attr.idx_layout_type = DIX_LTYPE_DESCR;
-		return M0_RC(rc);
+		if (rc != 0)
+			return M0_ERR(rc);
+		idx->in_attr.idx_layout_type = DIX_LTYPE_DESCR;
 	}
 
 	return M0_RC(0);

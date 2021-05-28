@@ -945,7 +945,7 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop);
 M0_INTERNAL bool entity_id_is_valid(const struct m0_uint128 *id);
 
 /**
- * Returns the m0_ client instance, found from the provided index.
+ * Returns the m0_client instance, found from the provided index.
  *
  * @param idx The index to find the instance for.
  * @return A pointer to the m0_client instance.
