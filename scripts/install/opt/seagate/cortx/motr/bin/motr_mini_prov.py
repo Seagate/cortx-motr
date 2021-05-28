@@ -28,9 +28,11 @@ MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
 MOTR_SYS_CFG = "/etc/sysconfig/motr"
+MOTR_WORKLOAD_DIR = "/opt/seagate/cortx/motr/workload"
 FSTAB = "/etc/fstab"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
+
 class MotrError(Exception):
     """ Generic Exception with error code and output """
 
@@ -600,3 +602,18 @@ def pkg_installed(self, pkg):
     else:
         sys.stdout.write(f"{pkg} is not installed\n")
         return False
+
+def test_io(self):
+    mix_workload_path = f"{MOTR_WORKLOAD_DIR}/mix_workload.yaml"
+    m0worklaod_path = f"{MOTR_WORKLOAD_DIR}/m0workload"
+    m0crate_path = f"{MOTR_WORKLOAD_DIR}/m0crate_workload_batch_1_file1.yaml"
+    if (
+        os.path.isfile(m0worklaod_path) and
+        os.path.isfile(mix_workload_path) and
+        os.path.isfile(m0crate_path)
+       ):
+        cmd = f"{m0worklaod_path} -t {mix_workload_path}"
+        out = execute_command(self, cmd, timeout_secs=1000)
+        sys.stdout.write(f"{out[0]}\n")
+    else:
+        sys.stderr.write("workload files are missing\n")
