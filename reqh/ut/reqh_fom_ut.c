@@ -99,8 +99,8 @@ static struct reqh_ut_balloc *getballoc(struct m0_ad_balloc *ballroom)
 	return container_of(ballroom, struct reqh_ut_balloc, rb_ballroom);
 }
 
-static int reqh_ut_balloc_init(struct m0_ad_balloc *ballroom,
-			       struct m0_be_seg *db,
+static int reqh_ut_balloc_init(struct m0_ad_balloc            *ballroom,
+			       struct m0_be_seg               *db,
 			       struct m0_ad_balloc_format_req *req)
 {
 	struct reqh_ut_balloc *rb = getballoc(ballroom);

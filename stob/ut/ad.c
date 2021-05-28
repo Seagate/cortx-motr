@@ -111,8 +111,8 @@ static struct mock_balloc *b2mock(struct m0_ad_balloc *ballroom)
 	return container_of(ballroom, struct mock_balloc, mb_ballroom);
 }
 
-static int mock_balloc_init(struct m0_ad_balloc *ballroom,
-			    struct m0_be_seg *seg,
+static int mock_balloc_init(struct m0_ad_balloc            *ballroom,
+			    struct m0_be_seg               *seg,
 			    struct m0_ad_balloc_format_req *req)
 {
 	return 0;

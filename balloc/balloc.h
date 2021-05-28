@@ -229,7 +229,7 @@ enum {
 	 */
 	BALLOC_DEF_GROUPS_NR            = 64,
 	/** Default db index count */
-	BALLOC_DEF_INDEXES_NR           = 64,
+	BALLOC_DEF_INDEXES_NR           = 1,
 	/** Used as minimal group size */
 	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
 };
@@ -349,16 +349,16 @@ M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb);
    @see         struct ad_balloc_ops
    @pre         out != NULL
  */
-M0_INTERNAL int m0_balloc_create(uint64_t                        cid,
-				struct m0_be_seg                *seg,
-				struct m0_sm_group              *grp,
-				struct m0_ad_balloc_format_req  *cfg,
-				struct m0_balloc               **out);
+M0_INTERNAL int m0_balloc_create(uint64_t                         cid,
+				 struct m0_be_seg                *seg,
+				 struct m0_sm_group              *grp,
+				 struct m0_ad_balloc_format_req  *cfg,
+				 struct m0_balloc               **out);
 
 M0_INTERNAL void m0_balloc_group_desc_init(struct m0_balloc_group_desc *desc);
 
 /* Interfaces for UT */
-M0_INTERNAL void m0_balloc_debug_dump_sb(const char *tag,
+M0_INTERNAL void m0_balloc_debug_dump_sb(const char                  *tag,
 					 struct m0_balloc_super_block *sb);
 M0_INTERNAL void m0_balloc_debug_dump_group_extent(const char *tag,
 						   struct m0_balloc_group_info
