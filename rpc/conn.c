@@ -737,10 +737,11 @@ M0_INTERNAL void m0_rpc_conn_add_session(struct m0_rpc_conn *conn,
 		if (watch->mw_session_added != NULL)
 			watch->mw_session_added(watch, session);
 	} m0_tl_endfor;
-
+#if 0
 	M0_MEAS("conn-to-session conn_uuid: "U128X_F" conn_sm_id: %"
 		PRIu64" session_sm_id: %"PRIu64, U128_P(&conn->c_uuid),
 		conn->c_sm.sm_id, session->s_sm.sm_id);
+#endif
 }
 
 M0_INTERNAL void m0_rpc_conn_remove_session(struct m0_rpc_session *session)
