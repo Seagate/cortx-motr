@@ -321,12 +321,13 @@ motr_service_start()
 {
 	local n=$1
 	local k=$2
-	local p=$3
-	local stride=$4
+	local s=$3
+	local p=$4
+	local stride=$5
 	local multiple_pools=0
 
-	echo "n k p:$N $K $P"
-	motr_service start $multiple_pools $stride $n $k $p
+	echo "n k s p:$N $K $S $P"
+	motr_service start $multiple_pools $stride $n $k $s $p
 	if [ $? -ne 0 ]
 	then
 		echo "Failed to start Motr Service..."

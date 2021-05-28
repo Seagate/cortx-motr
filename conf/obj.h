@@ -112,7 +112,7 @@ struct m0_xcode_type;
  *   "controller-v" -> "drive-v" [label=children];
  *
  *   edge [dir=back, weight=0, style=dashed, arrowhead=normal];
- *   "node" -> controller;
+ *   "node" -> enclosure;
  *   site -> "site-v";
  *   rack -> "rack-v";
  *   enclosure -> "enclosure-v";
@@ -677,6 +677,8 @@ struct m0_conf_rack {
 /** Hardware resource --- enclosure. */
 struct m0_conf_enclosure {
 	struct m0_conf_obj    ce_obj;
+	/** The node this enclosure is associated with. */
+	struct m0_conf_node  *ce_node;
 	/** Controllers in this enclosure. */
 	struct m0_conf_dir   *ce_ctrls;
 /* configuration data (for the application) */
@@ -690,8 +692,6 @@ struct m0_conf_enclosure {
 /** Hardware resource --- controller. */
 struct m0_conf_controller {
 	struct m0_conf_obj    cc_obj;
-	/** The node this controller is associated with. */
-	struct m0_conf_node  *cc_node;
 	/** Storage drives attached to this controller. */
 	struct m0_conf_dir   *cc_drives;
 /* configuration data (for the application) */

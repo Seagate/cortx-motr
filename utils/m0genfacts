@@ -45,6 +45,7 @@ TEMPLATE_FILE_PATH = TOP_SRCDIR.empty? \
 
 DATA_UNITS                 = 8
 PARITY_UNITS               = 2
+SPARE_UNITS                = 2
 BLOCK_SIZE                 = 4096
 MD_REDUNDANCY              = 1
 MIN_RPC_RECVQ_LEN          = 2048
@@ -92,6 +93,7 @@ $options = {
     lnet_transport:         'tcp',
     dataunits:              DATA_UNITS,
     parityunits:            PARITY_UNITS,
+    spareunits:             SPARE_UNITS,
     blocksize:              BLOCK_SIZE,
     mdredundancy:           MD_REDUNDANCY,
     minrpcrecvqlen:         MIN_RPC_RECVQ_LEN,
@@ -121,7 +123,7 @@ usage: #{PROG_NAME} [$options] disk1 disk2 ...
     In a singlenode mode, halon_facts.yaml configuration is created only for
     the current host, which is assigned 'confd', 'storage' and 'm0t1fs' roles.
     In this mode a list of storage devices should be passed as command-line
-    arguments. Size of block devices can be provided via -S|--dev-size option,
+    arguments. Size of block devices can be provided via -D|--dev-size option,
     otherwise it will be queried automatically using `blockdev` command.
 
     In a cluster mode, a simplified cluster configuration should be passed via
@@ -137,6 +139,7 @@ usage: #{PROG_NAME} [$options] disk1 disk2 ...
             disks: [ { host: 'hostD1', filter: 'regex' }, ... ]
             data_units: 8
             parity_units: 2
+            spare_units: 2
             allowed_failures: { site: 0, rack: 0, encl: 0, ctrl: 0, disk: 1 }
 
     'clients', 'client-apps' and 's3servers' sections can be omitted, but not
@@ -157,8 +160,10 @@ usage: #{PROG_NAME} [$options] disk1 disk2 ...
     Default value is #{DATA_UNITS}.
 
     'parity_units' is the number of parity units in a parity group.
-    This is also the number of spare units in a group.  Default value
-    is #{PARITY_UNITS}.
+    Default value is #{PARITY_UNITS}.
+
+    'spare_units' is the number of spare units in a parity group.
+    Default value is #{SPARE_UNITS}.
 
   Options:
 
@@ -228,6 +233,11 @@ END_USAGE
         $options[:parityunits] = val
     end
 
+    opts.on('-S', '--sps NUM',
+            "Number of spare units in parity group, default is #{SPARE_UNITS}") do |val|
+        $options[:spareunits] = val
+    end
+
     opts.on('-b', '--block-size BYTES',
             "Motr block size in bytes, default is #{BLOCK_SIZE}") do |val|
         $options[:blocksize] = val
@@ -238,7 +248,7 @@ END_USAGE
         $options[:mdredundancy] = val
     end
 
-    opts.on('-S', '--dev-size BYTES', 'Blockdevice size in bytes') do |val|
+    opts.on('-D', '--dev-size BYTES', 'Blockdevice size in bytes') do |val|
         $options[:devsize] = val
     end
 
@@ -516,6 +526,7 @@ end
 m0_lnet_transport              = $options[:lnet_transport]
 m0_data_units                  = $options[:dataunits]
 m0_parity_units                = $options[:parityunits]
+m0_spare_units                 = $options[:spareunits]
 m0_block_size                  = $options[:blocksize]
 m0_be_seg_size                 = $options[:besegsize]
 m0_md_redundancy               = $options[:mdredundancy]
@@ -599,6 +610,7 @@ if ARGV.empty?
         end
         pool['data_units'] = $options[:dataunits] if !pool.has_key?('data_units')
         pool['parity_units'] = $options[:parityunits] if !pool.has_key?('parity_units')
+	pool['spare_units'] = $options[:spareunits] if !pool.has_key?('spare_units')
     end
 else
     log 'Generating Halon facts for singlenode'
@@ -669,7 +681,8 @@ cluster_config['pools'].each do |pool|
                 disks: disks,
                 allowed_failures: pool['allowed_failures'],
                 data_units: pool['data_units'],
-                parity_units: pool['parity_units']})
+                parity_units: pool['parity_units'],
+                spare_units: pool['spare_units']})
 end
 
 #

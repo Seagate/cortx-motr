@@ -1853,7 +1853,9 @@ static uint32_t dix_rop_tgt_iter_max(struct m0_dix_req    *req,
 		/* Skip spares when DTM0 is enabled */
 		return ENABLE_DTM0 ?
 			m0_dix_liter_N(iter) + m0_dix_liter_K(iter) :
-			m0_dix_liter_N(iter) + 2 * m0_dix_liter_K(iter);
+			m0_dix_liter_N(iter) +
+			m0_dix_liter_K(iter) +
+			m0_dix_liter_S(iter);
 }
 
 static void dix_rop_tgt_iter_next(const struct m0_dix_req *req,
@@ -1879,7 +1881,7 @@ static int dix_spare_slot_find(struct m0_poolmach_state *pm_state,
 	uint32_t                    i;
 
 	spare_usage_array = pm_state->pst_spare_usage_array;
-	for (i = 0; i < pm_state->pst_max_device_failures; i++) {
+	for (i = 0; i < pm_state->pst_nr_spares; i++) {
 		if (spare_usage_array[i].psu_device_index == failed_tgt) {
 			*spare_slot = i;
 			return 0;

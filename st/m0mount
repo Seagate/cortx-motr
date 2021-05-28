@@ -25,7 +25,7 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 . $M0_SRC_DIR/utils/functions # report_and_exit
 
-$M0_SRC_DIR/utils/m0mount -alvvsL -n 1 -d 2 -k 1 -p 4 -o -m -q
+$M0_SRC_DIR/utils/m0mount -alvvsL -n 1 -d 2 -k 1 -S 1 -p 4 -o -m -q
 rc=$?
 if [ $rc -eq 0 ]; then
     rm -r $SANDBOX_DIR

@@ -34,9 +34,8 @@
     flags=4 filename="/dev/sdev4")
 (site-2 racks=[rack-15] pvers=[pver-24, pver-25])
 (rack-15 encls=[enclosure-16] pvers=[pver-24])
-(enclosure-16 ctrls=[controller-17] pvers=[pver-24])
-(controller-17 node=node-2
-    drives=[drive-18, drive-19, drive-20, drive-21, drive-22]
+(enclosure-16 node=node-2 ctrls=[controller-17] pvers=[pver-24])
+(controller-17 drives=[drive-18, drive-19, drive-20, drive-21, drive-22]
     pvers=[pver-24])
 (drive-18 dev=sdev-10 pvers=[pver-24])
 (drive-19 dev=sdev-11 pvers=[pver-24])
@@ -44,7 +43,7 @@
 (drive-21 dev=sdev-13 pvers=[pver-24])
 (drive-22 dev=sdev-14 pvers=[pver-24])
 (pool-23 pver_policy=0 pvers=[pver-24])
-(pver-24 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:25])
+(pver-24 N=3 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:25])
 (objv-2:25 real=site-2 children=[objv-25])
 (objv-25 real=rack-15 children=[objv-26])
 (objv-26 real=enclosure-16 children=[objv-27])
@@ -56,7 +55,7 @@
 (objv-31 real=drive-21 children=[])
 (objv-32 real=drive-22 children=[])
 (pool-24 pver_policy=0 pvers=[pver-25])
-(pver-25 N=1 K=0 P=1 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:33])
+(pver-25 N=1 K=0 S=0 P=1 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:33])
 (objv-2:33 real=site-2 children=[objv-33])
 (objv-33 real=rack-15 children=[objv-34])
 (objv-34 real=enclosure-16 children=[objv-35])

@@ -60,7 +60,7 @@ static inline int do_init(struct m0_client **instance)
 #define M0T1FS_LAYOUT_P 4
 #define M0T1FS_LAYOUT_N 2
 #define M0T1FS_LAYOUT_K 1
-
+#define M0T1FS_LAYOUT_S 1
 /*Some dummy values to help tests */
 #define DUMMY_PTR 0xdeafdead
 #define UT_DEFAULT_BLOCK_SIZE (1ULL << M0_DEFAULT_BUF_SHIFT)
