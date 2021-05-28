@@ -99,8 +99,8 @@ MOTR_M0D_BESEG_SIZE=8589934592
 #BALLOC GROUP COUNT. default is 64
 MOTR_M0D_BALLOC_GROUP_COUNT=64
 
-#BALLOC No of indexes per device, default 64
-MOTR_M0D_BALLOC_INDEX_COUNT=64
+#BALLOC No of indexes per device, default 1
+MOTR_M0D_BALLOC_INDEX_COUNT=1
 
 # Control data path (stob) direct-IO, by default is 'true'
 #MOTR_M0D_DIRECT_IO=false

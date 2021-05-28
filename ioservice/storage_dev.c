@@ -331,9 +331,9 @@ static void storage_devs_conf_refresh(struct m0_storage_devs *storage_devs,
 		conf_sdev = NULL;
 		rc = m0_conf_sdev_get(confc, &sdev_fid, &conf_sdev) ?:
 				      storage_dev_update_by_conf(dev, conf_sdev,
-				      rctx->rc_balloc_group_nr,
-				      rctx->rc_balloc_index_nr,
-				      storage_devs);
+								 rctx->rc_balloc_group_nr,
+								 rctx->rc_balloc_index_nr,
+								 storage_devs);
 		if (rc != 0)
 			M0_ERR(rc);
 		if (conf_sdev != NULL)

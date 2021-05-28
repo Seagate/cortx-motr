@@ -157,7 +157,7 @@ static bool is_normal(uint64_t alloc_flags);
 static bool is_any(uint64_t alloc_flag);
 
 static int index_hash(struct m0_balloc_super_block *sb,
-			m0_bcount_t block_offset)
+		      m0_bcount_t                   block_offset)
 {
 	return (block_offset - 1) / sb->bsb_groupsize % sb->bsb_indexcount;
 };
@@ -885,9 +885,9 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	  by this parameter.
    @return 0 means success. Otherwise, error number will be returned.
  */
-static int balloc_format(struct m0_balloc                *bal,
-			struct m0_ad_balloc_format_req   *req,
-			struct m0_sm_group               *grp)
+static int balloc_format(struct m0_balloc                 *bal,
+			 struct m0_ad_balloc_format_req   *req,
+			 struct m0_sm_group               *grp)
 {
 	int rc;
 
@@ -3004,10 +3004,10 @@ static const struct m0_ad_balloc_ops balloc_ops = {
 	.bo_reserve_extent = balloc_reserve_extent,
 };
 
-static int balloc_trees_create(struct m0_balloc *bal,
-			struct m0_be_tx         *tx,
-			const struct m0_fid     *fid,
-			m0_bcount_t              indexcount)
+static int balloc_trees_create(struct m0_balloc    *bal,
+			       struct m0_be_tx     *tx,
+			       const struct m0_fid *fid,
+			       m0_bcount_t          indexcount)
 {
 	int rc;
 	int i;
@@ -3045,10 +3045,10 @@ M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb)
 }
 
 M0_INTERNAL int m0_balloc_create(uint64_t			 cid,
-				struct m0_be_seg		*seg,
-				struct m0_sm_group		*grp,
-				struct m0_ad_balloc_format_req	*bcfg,
-				struct m0_balloc		**out)
+				 struct m0_be_seg		*seg,
+				 struct m0_sm_group		*grp,
+				 struct m0_ad_balloc_format_req	*bcfg,
+				 struct m0_balloc		**out)
 {
 	struct m0_balloc       *cb;
 	struct m0_be_btree      btree = {};

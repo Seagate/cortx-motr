@@ -177,7 +177,7 @@ stob_ad_domain2ad(const struct m0_stob_domain *dom)
 }
 
 static void balloc_cfg_get_from_config(struct m0_ad_balloc_format_req *bcfg,
-				  struct ad_domain_cfg *adom_cfg)
+				       struct ad_domain_cfg           *adom_cfg)
 {
 	M0_PRE(adom_cfg != NULL);
 
@@ -196,7 +196,7 @@ static void balloc_cfg_get_from_config(struct m0_ad_balloc_format_req *bcfg,
 }
 
 static void balloc_cfg_get_from_adom(struct m0_ad_balloc_format_req *bcfg,
-				  struct m0_stob_ad_domain  *adom)
+				     struct m0_stob_ad_domain       *adom)
 {
 
 	M0_PRE(adom != NULL);
