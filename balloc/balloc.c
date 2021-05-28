@@ -714,7 +714,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	m0_bcount_t                     i = bgc->bgc_i;
 	m0_bcount_t                     spare_size;
 	int                             rc;
-	int                             it;
+	int                             index_no;
 
 	m0_be_op_active(op);
 
@@ -723,7 +723,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	spare_size = m0_stob_ad_spares_calc(sb->bsb_groupsize);
 	/* Insert non-spare extents. */
 	ext.e_start = i << sb->bsb_gsbits;
-	ext.e_end = ext.e_start + sb->bsb_groupsize - spare_size - 1;
+	ext.e_end = ext.e_start + sb->bsb_groupsize - spare_size;
 	m0_ext_init(&ext);
 	balloc_debug_dump_extent("create...", &ext);
 
@@ -741,7 +741,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	/* Insert extents reserved for spare. */
 	ext.e_start = (i << sb->bsb_gsbits) + sb->bsb_groupsize -
 		spare_size;
-	ext.e_end = ext.e_start + spare_size - 1;
+	ext.e_end = ext.e_start + spare_size;
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
 	index_no = index_hash(sb, ext.e_end);
@@ -1207,7 +1207,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	m0_bindex_t                next_key;
 	m0_bcount_t                i;
 	int			   rc = 0;
-	int                        it;
+	int                        index_no;
 
 	M0_ENTRY("grp=%d non-spare-frags=%d spare-frags=%d",
 		 (int)grp->bgi_groupno, (int)group_fragments_get(grp),
@@ -1235,7 +1235,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 
 	m0_ext_init(&spare_range);
 	normal_range.e_start = grp->bgi_groupno << cb->cb_sb.bsb_gsbits;
-	normal_range.e_end = spare_range.e_start - 1;
+	normal_range.e_end = spare_range.e_start;
 	m0_ext_init(&normal_range);
 
 	index_no = index_hash(&cb->cb_sb, normal_range.e_end);
@@ -1307,7 +1307,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	m0_bcount_t                spare_frags;
 	m0_bindex_t                next_key;
 	int			   rc = 0;
-	int                        it;
+	int                        index_no;
 
 	M0_ENTRY("grp=%d non-spare-frags=%d spare-frags=%d",
 		 (int)grp->bgi_groupno, (int)group_fragments_get(grp),
@@ -1335,7 +1335,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	
 	m0_ext_init(&spare_range);
 	normal_range.e_start = grp->bgi_groupno << cb->cb_sb.bsb_gsbits;
-	normal_range.e_end = spare_range.e_start - 1;
+	normal_range.e_end = spare_range.e_start;
 	m0_ext_init(&normal_range);
 
 	index_no = index_hash(&cb->cb_sb, normal_range.e_end);
