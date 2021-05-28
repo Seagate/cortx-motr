@@ -432,9 +432,9 @@ static char *conf_pver_formulaic_error(const struct m0_conf_pver *fpver,
 	/* Guaranteed by pver_check(). */
 	M0_ASSERT(m0_pdclust_attr_check(base_attr));
 	if (form->pvf_allowance[M0_CONF_PVER_LVL_DRIVES] > base_attr->pa_P -
-	    base_attr->pa_N - 2*base_attr->pa_K)
+	    base_attr->pa_N - base_attr->pa_K - base_attr->pa_S)
 		return m0_vsnprintf(buf, buflen, FID_F": Number of allowed disk"
-				    " failures (%u) > P - N - 2K of base pver",
+				    " failures (%u) > P - N - K - S of base pver",
 				    FID_P(&fpver->pv_obj.co_id),
 				    form->pvf_allowance[
 					    M0_CONF_PVER_LVL_DRIVES]);

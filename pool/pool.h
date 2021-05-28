@@ -282,7 +282,8 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 				     uint32_t pool_width,
 				     uint32_t nodes,
 				     uint32_t nr_data,
-				     uint32_t nr_failures);
+				     uint32_t nr_failures,
+				     uint32_t nr_spare);
 
 /**
  * Gets pool version from in-memory list of pools (pc->pc_pools).

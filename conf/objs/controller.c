@@ -47,16 +47,10 @@ static int
 controller_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	int                               rc;
-	struct m0_conf_obj               *obj;
 	const struct m0_confx_controller *s = XCAST(src);
 	struct m0_conf_controller        *d =
 		M0_CONF_CAST(dest, m0_conf_controller);
 
-	rc = m0_conf_obj_find(dest->co_cache, &s->xc_node, &obj);
-	if (rc != 0)
-		return M0_ERR(rc);
-
-	d->cc_node = M0_CONF_CAST(obj, m0_conf_node);
 	rc = dir_create_and_populate(&d->cc_drives,
 		     &CONF_DIR_ENTRIES(&M0_CONF_CONTROLLER_DRIVES_FID,
 				       &M0_CONF_DRIVE_TYPE, &s->xc_drives),
@@ -76,8 +70,6 @@ controller_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	};
 
 	confx_encode(dest, src);
-	if (s->cc_node != NULL)
-		d->xc_node = s->cc_node->cn_obj.co_id;
 	return M0_RC(conf_dirs_encode(dirs, ARRAY_SIZE(dirs)) ?:
 		     conf_pvers_encode(
 			     &d->xc_pvers,
@@ -91,8 +83,7 @@ static bool controller_match(const struct m0_conf_obj *cached,
 	const struct m0_conf_controller  *obj  =
 		M0_CONF_CAST(cached, m0_conf_controller);
 
-	return m0_fid_eq(&obj->cc_node->cn_obj.co_id, &xobj->xc_node) &&
-	       m0_conf_dir_elems_match(obj->cc_drives, &xobj->xc_drives);
+	return m0_conf_dir_elems_match(obj->cc_drives, &xobj->xc_drives);
 }
 
 static int controller_lookup(const struct m0_conf_obj *parent,
