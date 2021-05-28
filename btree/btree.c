@@ -610,10 +610,9 @@ enum {
 	MAX_NODE_SIZE     = 10, /*node size is a power-of-2 MAX_NODE_SIZE.*/
 	MAX_KEY_SIZE      = 8,
 	MAX_VAL_SIZE      = 8,
-	INTERNAL_VAL_SIZE = 8,
 	MAX_TRIALS        = 3,
 };
-
+#define INTERNAL_NODE_VALUE_SIZE sizeof(void *)
 #if 0
 static int fail(struct m0_btree_op *bop, int rc)
 {
@@ -936,9 +935,9 @@ struct nd {
 	struct segaddr          n_addr;
 	struct td              *n_tree;
 	const struct node_type *n_type;
-	/** if n_skip_inv is true, it will skip some invarient check as it is
-	 * required for some scenarios */
-	bool                    n_skip_inv;
+	/** if n_skip_rec_count_check is true, it will skip invarient check
+	 * record count as it is required for some scenarios */
+	bool                    n_skip_rec_count_check;
 	/**
 	 * The lock that protects the fields below. The fields above are
 	 * read-only after the node is loaded into memory.
@@ -1983,11 +1982,10 @@ static bool ff_rec_is_valid(const struct slot *slot)
 static bool ff_invariant(const struct nd *node)
 {
 	const struct ff_head *h = ff_data(node);
-	if (node->n_skip_inv)
-		return  _0C(h->ff_shift == segaddr_shift(&node->n_addr));
 
 	return  _0C(h->ff_shift == segaddr_shift(&node->n_addr)) &&
-		_0C(ergo(h->ff_level > 0, h->ff_used > 0));
+		_0C(node->n_skip_rec_count_check ||
+		    ergo(h->ff_level > 0, h->ff_used > 0));
 }
 
 static int ff_verify(const struct nd *node)
@@ -2721,9 +2719,12 @@ static int m0_btree_put_makespace_phase(struct m0_btree_op *bop)
  * is responsible to handle this scanario and ultimately root will point out to
  * the two splitted node.
  * @param bop it structure for btree operation which contains all required data
+ * @param new_rec it will contain key and value as address pointing to newly
+ * allocated node at root
  * @return int it return state which needs to get executed next
  */
-static int m0_btree_put_root_split_handle(struct m0_btree_op *bop, struct m0_btree_rec *new_rec)
+static int m0_btree_put_root_split_handle(struct m0_btree_op *bop,
+					  struct m0_btree_rec *new_rec)
 {
 	struct td              *tree       = bop->bo_arbor->t_desc;
 	struct m0_btree_oimpl  *oi         = bop->bo_i;
@@ -2746,8 +2747,7 @@ static int m0_btree_put_root_split_handle(struct m0_btree_op *bop, struct m0_btr
 	 * make i_extra_node as one of the child of existing root
 	 * 1) First copy all contents from root node to extra_node
 	 * 2) add new 2 records at root node:
-	 *      i.for first record, key = bop->bo_rec.r_key,
-	 *         value = bop->bo_rec.r_val
+	 *      i.for first record, key = rec.r_key, value = rec.r_val
 	 *      ii.for second record, key = null, value = segaddr(i_extra_node)
 	 */
 
@@ -2758,12 +2758,12 @@ static int m0_btree_put_root_split_handle(struct m0_btree_op *bop, struct m0_btr
 	node_set_level(curr_level->l_node, curr_max_level + 1);
 
 	/* skip the invarient check for level */
-	oi->i_extra_node->n_skip_inv   = true;
-	curr_level->l_node->n_skip_inv = true;
+	oi->i_extra_node->n_skip_rec_count_check   = true;
+	curr_level->l_node->n_skip_rec_count_check = true;
 
 	node_move(curr_level->l_node, oi->i_extra_node, D_RIGHT, NR_MAX,
 		  bop->bo_tx);
-	oi->i_extra_node->n_skip_inv = false;
+	oi->i_extra_node->n_skip_rec_count_check = false;
 	//M0_ASSERT(node_count(curr_level->l_node) == 0);
 
 	/* 2) add new 2 records at root node. */
@@ -2785,7 +2785,7 @@ static int m0_btree_put_root_split_handle(struct m0_btree_op *bop, struct m0_btr
 			m0_vec_count(&bop->bo_rec.r_val.ov_vec));
 
 	/* if we need to update vec_count for root, update here */
-	curr_level->l_node->n_skip_inv = false;
+	curr_level->l_node->n_skip_rec_count_check = false;
 	node_done(&node_slot, bop->bo_tx, true);
 
 	/* Add second rec at root */
@@ -2823,6 +2823,62 @@ static int m0_btree_put_root_split_handle(struct m0_btree_op *bop, struct m0_btr
 	//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 	return P_CLEANUP;
 }
+
+/**
+ * This function is called when there is overflow and splitting needs to be
+ * done. It is will move some records from right node(l_node) to left
+ * node(l_alloc) and find the appropriate slot for given record. It will store
+ * the node and index for slot at tgt slot as a result. It will
+ *
+ * @param l_alloc It is the newly allocated node, where we want to move record.
+ * @param l_node It is the current node, from where we want to move record.
+ * @param rec It is the given record for which we want to find slot
+ * @param tgt result of record find will get stored in tgt slot
+ * @param tx It represents the transaction of which the current operation is
+ * part of.
+ */
+static void m0_btree_put_split_and_find(struct nd *l_alloc , struct nd *l_node,
+				   struct m0_btree_rec *rec, struct slot *tgt,
+				   struct m0_be_tx *tx)
+{
+	struct slot r_slot ;
+	struct slot l_slot;
+	struct m0_bufvec_cursor  cur_1;
+	struct m0_bufvec_cursor  cur_2;
+	int                      diff;
+	m0_bcount_t              ksize;
+	void                    *p_key;
+	m0_bcount_t              vsize;
+	void                    *p_val;
+	struct m0_btree_rec      temp_rec;
+
+	/* intialised slot for left and right node*/
+	l_slot.s_node = l_alloc;
+	r_slot.s_node = l_node;
+	/* 1)Move some records from current node to new node */
+	l_alloc->n_skip_rec_count_check = true;
+	node_set_level(l_alloc, node_level(l_node));
+
+	node_move(l_node, l_alloc, D_LEFT, NR_EVEN, tx);
+	l_alloc->n_skip_rec_count_check = false;
+
+	/*2) Find appropriate slot for given record */
+	temp_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
+	temp_rec.r_val        = M0_BUFVEC_INIT_BUF(&p_val, &vsize);
+
+	r_slot.s_idx = 0;
+	r_slot.s_rec = temp_rec;
+	node_key(&r_slot);
+
+	m0_bufvec_cursor_init(&cur_1, &rec->r_key.k_data);
+	m0_bufvec_cursor_init(&cur_2, &r_slot.s_rec.r_key.k_data);
+
+	diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+	tgt->s_node = diff < 0 ? l_slot.s_node : r_slot.s_node;
+
+	node_find(tgt, &rec->r_key);
+}
+
 /**
  * This function is responsible to handle the overflow at node at particular
  * level. It will get called when given record is not able to fit in node. This
@@ -2852,178 +2908,105 @@ static int m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 	m0_bcount_t            vsize_1;
 	void                  *p_val_1;
 	struct m0_btree_rec    temp_rec_1;
-	uint64_t               newkey;
 	uint64_t               newvalue;
-	m0_bcount_t            newksize  = sizeof newkey;
-	m0_bcount_t            newvsize  = INTERNAL_VAL_SIZE;
-	void                  *newk_ptr  = &newkey;
+	//void                   *newvalue;
+	m0_bcount_t            newvsize  = INTERNAL_NODE_VALUE_SIZE;
 	void                  *newv_ptr  = &newvalue;
 	struct m0_btree_rec    new_rec;
+	struct slot            tgt;
+	struct slot            node_slot;
+	int                    i;
 
-	/* slot for right node */
-	struct slot r_slot = {
-		.s_node = curr_level->l_node
-	};
-
-	/* slot for left node */
-	struct slot l_slot = {
-		.s_node = curr_level->l_alloc,
-		.s_idx  = 0
-	};
-	struct slot *tgt;
-
-	/* 1)Move some records from current node to new node */
-	curr_level->l_alloc->n_skip_inv = true;
-	node_set_level(curr_level->l_alloc, node_level(curr_level->l_node));
-
-	node_move(curr_level->l_node, curr_level->l_alloc, D_LEFT, NR_EVEN,
-		  bop->bo_tx);
-	curr_level->l_alloc->n_skip_inv = false;
-
-	/*2) Insert given record to appropriate node */
 	temp_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
 	temp_rec.r_val        = M0_BUFVEC_INIT_BUF(&p_val, &vsize);
 
-	r_slot.s_idx = 0;
-	r_slot.s_rec = temp_rec;
-	node_key(&r_slot);
-
-	struct m0_bufvec_cursor cur_1;
-	struct m0_bufvec_cursor cur_2;
-	m0_bufvec_cursor_init(&cur_1, &bop->bo_rec.r_key.k_data);
-	m0_bufvec_cursor_init(&cur_2, &r_slot.s_rec.r_key.k_data);
-
-	int diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
-	tgt = diff < 0 ? &l_slot : &r_slot;
-
-	node_find(tgt, &bop->bo_rec.r_key);
-	tgt->s_rec = bop->bo_rec;
-	node_make (tgt, bop->bo_tx);
-	tgt->s_rec = temp_rec;
-	node_rec(tgt);
-	tgt->s_rec.r_flags = M0_BSC_SUCCESS;
-	int rc = bop->bo_cb.c_act(&bop->bo_cb, &tgt->s_rec);
+	/**
+	 * move records from current node to new node and find slot for given
+	 * record
+	 */
+	m0_btree_put_split_and_find(curr_level->l_alloc, curr_level->l_node,
+			       &bop->bo_rec, &tgt, bop->bo_tx);
+	tgt.s_rec = bop->bo_rec;
+	node_make (&tgt, bop->bo_tx);
+	tgt.s_rec = temp_rec;
+	node_rec(&tgt);
+	tgt.s_rec.r_flags = M0_BSC_SUCCESS;
+	int rc = bop->bo_cb.c_act(&bop->bo_cb, &tgt.s_rec);
 	if (rc) {
-		/* If callback failed undo make space, splitted node */
-		node_del(tgt->s_node, tgt->s_idx, bop->bo_tx);
-		node_done(tgt, bop->bo_tx, true);
+		/* If callback failed, undo make space, splitted node */
+		node_del(tgt.s_node, tgt.s_idx, bop->bo_tx);
+		node_done(&tgt, bop->bo_tx, true);
 		node_fix(curr_level->l_node, bop->bo_tx);
 		node_move(curr_level->l_alloc, curr_level->l_node,
 				D_RIGHT, NR_MAX, bop->bo_tx);
 		lock_op_unlock(bop->bo_arbor->t_desc);
 		return fail(bop, rc);
 	}
-	node_done(tgt, bop->bo_tx, true);
-	node_fix(tgt->s_node, bop->bo_tx);
+	node_done(&tgt, bop->bo_tx, true);
+	node_fix(tgt.s_node, bop->bo_tx);
 
-	/* 3) Initialized new record which will get inserted at parent */
-	new_rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&newk_ptr, &newksize);
-	new_rec.r_val          = M0_BUFVEC_INIT_BUF(&newv_ptr, &newvsize);
-	new_rec.r_key.k_data.ov_vec.v_count[0] = node_keysize(curr_level->l_node);
-	new_rec.r_val.ov_vec.v_count[0] = INTERNAL_VAL_SIZE;
+	/* Initialized new record which will get inserted at parent */
+	node_slot.s_node = curr_level->l_node;
+	node_slot.s_idx = 0;
+	node_slot.s_rec = temp_rec;
+	node_key(&node_slot);
+	new_rec.r_key = node_slot.s_rec.r_key;
 
-	r_slot.s_idx = 0;
-	r_slot.s_rec = temp_rec;
-	node_key(&r_slot);
-	new_rec.r_key = r_slot.s_rec.r_key;
-	//new_rec.r_val.ov_buf[0] = segaddr_addr(&curr_level->l_alloc->n_addr);
-	temp_rec.r_val.ov_buf[0] =  &(curr_level->l_alloc->n_addr);
-	m0_bufvec_copy(&new_rec.r_val,
-			&temp_rec.r_val, INTERNAL_VAL_SIZE);
-
-	r_slot.s_idx = 0;
-	r_slot.s_rec = temp_rec;
-	node_key(&r_slot);
-	//new_rec.r_key = r_slot.s_rec.r_key;
-	m0_bufvec_copy(&new_rec.r_key.k_data, &r_slot.s_rec.r_key.k_data,
-		       m0_vec_count(&r_slot.s_rec.r_key.k_data.ov_vec));
-	//new_rec.r_val.ov_buf[0] = segaddr_addr(&curr_level->l_alloc->n_addr);
-	// temp_rec.r_val.ov_buf[0] =  &(curr_level->l_alloc->n_addr);
-	// m0_bufvec_copy(&new_rec.r_val, &temp_rec.r_val, INTERNAL_VAL_SIZE);
+	new_rec.r_val  = M0_BUFVEC_INIT_BUF(&newv_ptr, &newvsize);
+	new_rec.r_val.ov_vec.v_count[0] = INTERNAL_NODE_VALUE_SIZE;
 	new_rec.r_val.ov_buf[0] =  &(curr_level->l_alloc->n_addr);
-
 	temp_rec_1.r_key.k_data   = M0_BUFVEC_INIT_BUF(&p_key_1, &ksize_1);
 	temp_rec_1.r_val          = M0_BUFVEC_INIT_BUF(&p_val_1, &vsize_1);
-	int i;
+
 	for (i = oi->i_used - 1; i >= 0; i--) {
 		curr_level = &oi->i_level[i];
-		r_slot.s_node = curr_level->l_node;
-		r_slot.s_rec = new_rec;
-		node_find(&r_slot, &new_rec.r_key);
-		if (node_isfit(&r_slot)) {
-			node_make (&r_slot, bop->bo_tx);
-			r_slot.s_rec = temp_rec_1;
-			node_rec(&r_slot);
-			m0_bufvec_copy(&r_slot.s_rec.r_key.k_data,
+		node_slot.s_node = curr_level->l_node;
+		node_slot.s_idx  = curr_level->l_idx;
+		node_slot.s_rec  = new_rec;
+		if (node_isfit(&node_slot)) {
+			node_make(&node_slot, bop->bo_tx);
+			node_slot.s_rec = temp_rec_1;
+			node_rec(&node_slot);
+			m0_bufvec_copy(&node_slot.s_rec.r_key.k_data,
 			       	       &new_rec.r_key.k_data,
 			               m0_vec_count(&new_rec.r_key.k_data.ov_vec));
-			m0_bufvec_copy(&r_slot.s_rec.r_val, &new_rec.r_val,
+			m0_bufvec_copy(&node_slot.s_rec.r_val, &new_rec.r_val,
 				       m0_vec_count(&new_rec.r_val.ov_vec));
 
-			node_done(&r_slot, bop->bo_tx, true);
+			node_done(&node_slot, bop->bo_tx, true);
 			node_fix(curr_level->l_node, bop->bo_tx);
 
 			lock_op_unlock(bop->bo_arbor->t_desc);
 			return P_CLEANUP;
 		}
 
-		l_slot.s_node = curr_level->l_alloc;
-		r_slot.s_node = curr_level->l_node;
-
-		curr_level->l_alloc->n_skip_inv = true;
-		node_set_level(curr_level->l_alloc, node_level(curr_level->l_node));
-
-		node_move(curr_level->l_node, curr_level->l_alloc, D_LEFT, NR_EVEN,
-				bop->bo_tx);
-		curr_level->l_alloc->n_skip_inv = false;
-
-		r_slot.s_idx = 0;
-		r_slot.s_rec = temp_rec_1;
-		node_key(&r_slot);
-
-		struct m0_bufvec_cursor cur_1;
-		struct m0_bufvec_cursor cur_2;
-		m0_bufvec_cursor_init(&cur_1, &new_rec.r_key.k_data);
-		m0_bufvec_cursor_init(&cur_2, &r_slot.s_rec.r_key.k_data);
-
-		int diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
-		tgt = diff < 0 ? &l_slot : &r_slot;
-
-		node_find(tgt, &new_rec.r_key);
-		tgt->s_rec = new_rec;
-		node_make (tgt, bop->bo_tx);
-		tgt->s_rec = temp_rec_1;
-		node_rec(tgt);
-		m0_bufvec_copy(&tgt->s_rec.r_key.k_data,
-			&new_rec.r_key.k_data,
-			m0_vec_count(&new_rec.r_key.k_data.ov_vec));
-		m0_bufvec_copy(&tgt->s_rec.r_val, &new_rec.r_val,
+		m0_btree_put_split_and_find(curr_level->l_alloc,
+					    curr_level->l_node, &new_rec,
+					    &tgt, bop->bo_tx);
+		tgt.s_rec = new_rec;
+		node_make(&tgt, bop->bo_tx);
+		tgt.s_rec = temp_rec_1;
+		node_rec(&tgt);
+		m0_bufvec_copy(&tgt.s_rec.r_key.k_data, &new_rec.r_key.k_data,
+			       m0_vec_count(&new_rec.r_key.k_data.ov_vec));
+		m0_bufvec_copy(&tgt.s_rec.r_val, &new_rec.r_val,
 				m0_vec_count(&new_rec.r_val.ov_vec));
-		//updatee new_rec
-		l_slot.s_idx = node_count(l_slot.s_node);
-		l_slot.s_rec = temp_rec_1;
-		node_key(&l_slot);
-
-		//new_rec.r_key = l_slot.s_rec.r_key;
-		m0_bufvec_copy(&new_rec.r_key.k_data,
-			       &l_slot.s_rec.r_key.k_data,
-			       m0_vec_count(&l_slot.s_rec.r_key.k_data.ov_vec));
-		/* new_rec.r_val.ov_buf[0] = segaddr_addr(&curr_level->l_alloc->n_addr); */
-		// temp_rec_1.r_val.ov_buf[0] =  &(curr_level->l_alloc->n_addr);
-		// m0_bufvec_copy(&new_rec.r_val, &temp_rec_1.r_val,
-		// 	       INTERNAL_VAL_SIZE);
+		node_slot.s_node = curr_level->l_alloc;
+		node_slot.s_idx = node_count(node_slot.s_node);
+		node_slot.s_rec = temp_rec;
+		node_key(&node_slot);
+		new_rec.r_key = node_slot.s_rec.r_key;
 		new_rec.r_val.ov_buf[0] =  &(curr_level->l_alloc->n_addr);
+		//p_val = segaddr_addr(&curr_level->l_alloc->n_addr);
 	}
 
 	oi->i_used  = 0;
-
 	/**
 	 * If we reach root node and splitting is done at root handle spliting
 	 * of root
 	*/
 	return m0_btree_put_root_split_handle(bop, &new_rec);
 }
-
 
 
 /* get_tick for insert operation */
@@ -3168,9 +3151,9 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		}
 		struct slot slot_for_right_node = {
 			.s_node = curr_level->l_node,
-			.s_rec = bop->bo_rec
+			.s_idx  = curr_level->l_idx,
+			.s_rec  = bop->bo_rec
 		};
-		node_find(&slot_for_right_node, &bop->bo_rec.r_key);
 		if(!node_isfit(&slot_for_right_node)) {
 			return m0_btree_put_makespace_phase(bop);
 		}
@@ -3454,7 +3437,7 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 			 *  modified to compulsorily remove the records and get
 			 *  the node count to 0.
 			 */
-			
+
 			M0_PRE(node_count(bop->bo_arbor->t_desc->t_root) == 0);
 			bop->bo_i = m0_alloc(sizeof *bop->bo_i);
 
@@ -3551,7 +3534,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			lev->l_node = oi->i_nop.no_node;
 			node_slot.s_node = oi->i_nop.no_node;
 			lev->l_seq = lev->l_node->n_seq;
-			oi->i_node_found = node_find(&node_slot, 
+			oi->i_node_found = node_find(&node_slot,
 						     &bop->bo_rec.r_key);
 			lev->l_idx = node_slot.s_idx;
 
@@ -4212,8 +4195,8 @@ static void m0_btree_ut_basic_tree_oper(void)
 
 	/**
 	 * Commenting this line as btree destroy will take care of it.
-	 * 
-	 * m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10); 
+	 *
+	 * m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 	 */
 
 	/** Now run some invalid cases */
@@ -4281,6 +4264,7 @@ static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	struct cb_data          *datum = cb->c_datum;
 
 	if (rec->r_flags == M0_BSC_KEY_EXISTS) {
+		printf("KEY EXISTS");
 		return M0_BSC_KEY_EXISTS;
 	}
 
@@ -4309,8 +4293,11 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	m0_bcount_t              vsize;
 	struct cb_data          *datum = cb->c_datum;
 
-	if (rec->r_flags == M0_BSC_KEY_NOT_FOUND)
-             return M0_BSC_KEY_NOT_FOUND;
+	if (rec->r_flags == M0_BSC_KEY_NOT_FOUND) {
+		printf("KEY NOT EXISTS");
+     		return M0_BSC_KEY_NOT_FOUND;
+	}
+
 
 	ksize = m0_vec_count(&datum->key->k_data.ov_vec);
 	M0_PRE(m0_vec_count(&rec->r_key.k_data.ov_vec) <= ksize);
@@ -4668,7 +4655,7 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 	 * Commenting this code as the delete operation is not done here.
 	 * Due to this, the destroy operation will crash.
 	 *
-	 * 
+	 *
 	 * M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 	 *				 m0_btree_destroy(b_op.bo_arbor, &b_op),
 	 *				 &G, &b_op.bo_op_exec);
@@ -4677,7 +4664,6 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 	btree_ut_fini();
 }
 
-#if 0
 /**
  * Commenting this ut as it is not required as a part for test-suite but my
  * required for testing purpose
@@ -4878,7 +4864,7 @@ static void m0_btree_ut_insert_record(void)
 	btree_ut_fini();
 	M0_LEAVE();
 }
-#endif
+
 struct m0_ut_suite btree_ut = {
 	.ts_name = "btree-ut",
 	.ts_yaml_config_string = "{ valgrind: { timeout: 3600 },"
@@ -4894,7 +4880,7 @@ struct m0_ut_suite btree_ut = {
 		{"basic_tree_op",         m0_btree_ut_basic_tree_oper},
 		{"basic_kv_ops",          m0_btree_ut_basic_kv_oper},
 		{"multi_stream_kv_op",    m0_btree_ut_multi_stream_kv_oper},
-		/* {"insert_rec",            m0_btree_ut_insert_record}, */
+		{"insert_rec",            m0_btree_ut_insert_record},
 		{NULL, NULL}
 	}
 };
