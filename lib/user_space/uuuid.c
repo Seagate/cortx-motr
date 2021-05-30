@@ -75,7 +75,7 @@ int m0_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 {
 	int fd;
 	int rc = 0;
-	char buf1[MACHINE_ID_LEN + 1];
+	char mid[MACHINE_ID_LEN + 1];
 
 	M0_BASSERT(MACHINE_ID_LEN == M0_UUID_STRLEN - 4);
 
@@ -90,17 +90,11 @@ int m0_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 			                   "errno=%d: ",
 					   uuid_file, fd, errno);
 		}
-		if (read(fd, buf1, MACHINE_ID_LEN) == MACHINE_ID_LEN) {
+		if (read(fd, mid, MACHINE_ID_LEN) == MACHINE_ID_LEN) {
 			rc = 0;
-			strncpy(buf, buf1, 8);
-			strncpy(buf + 8, "-", 1);
-			strncpy(buf + 9, buf1 + 8, 4);
-			strncpy(buf + 13, "-", 1);
-			strncpy(buf + 14, buf1 + 12, 4);
-			strncpy(buf + 18, "-", 1);
-			strncpy(buf + 19, buf1 + 16, 4);
-			strncpy(buf + 23, "-", 1);
-			strncpy(buf + 24, buf1 + 20, 12);
+			snprintf(buf, 37, "%.8s-%.4s-%.4s-%.4s-%.12s", mid,
+				mid + 8, mid + 8 + 4, mid + 8 + 4 + 4,
+				mid + 8 + 4 + 4 + 4);
 			buf[M0_UUID_STRLEN] = '\0';
 		} else {
 			rc = M0_ERR_INFO(-EINVAL, "Incorrect data in %s",
