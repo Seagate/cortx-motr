@@ -36,6 +36,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+enum {
+	MACHINE_ID_LEN = 32
+};
 /** path to read node uuid parameter */
 static const char *uuid_file = "/etc/machine-id";
 /**
@@ -72,7 +75,9 @@ int m0_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 {
 	int fd;
 	int rc = 0;
-	char buf1[M0_UUID_STRLEN + 1];
+	char buf1[MACHINE_ID_LEN + 1];
+
+	M0_BASSERT(MACHINE_ID_LEN == M0_UUID_STRLEN - 4);
 
 	if (use_default_node_uuid) {
 		strncpy(buf, default_node_uuid, M0_UUID_STRLEN + 1);
@@ -85,7 +90,7 @@ int m0_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 			                   "errno=%d: ",
 					   uuid_file, fd, errno);
 		}
-		if (read(fd, buf1, M0_UUID_STRLEN - 4) == M0_UUID_STRLEN - 4) {
+		if (read(fd, buf1, MACHINE_ID_LEN) == MACHINE_ID_LEN) {
 			rc = 0;
 			strncpy(buf, buf1, 8);
 			strncpy(buf + 8, "-", 1);
