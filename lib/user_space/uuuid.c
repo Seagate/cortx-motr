@@ -92,8 +92,9 @@ int m0_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 		}
 		if (read(fd, mid, MACHINE_ID_LEN) == MACHINE_ID_LEN) {
 			rc = 0;
-			snprintf(buf, 37, "%.8s-%.4s-%.4s-%.4s-%.12s", mid,
-				mid + 8, mid + 8 + 4, mid + 8 + 4 + 4,
+			snprintf(buf, M0_UUID_STRLEN + 1,
+				"%.8s-%.4s-%.4s-%.4s-%.12s",
+				mid, mid + 8, mid + 8 + 4, mid + 8 + 4 + 4,
 				mid + 8 + 4 + 4 + 4);
 			buf[M0_UUID_STRLEN] = '\0';
 		} else {
