@@ -30,38 +30,25 @@
 # because ios need to hash gfid to mds. In COPYTOOL
 # mode, filename is the string format of gfid.
 ###################################################
-file=(
-	0:10000
-	0:10001
-	0:10002
-)
-
-file_size=(
-	500
-	700
-	300
-)
 
 N=3
 K=3
 P=15
-stride=32
-src_bs=10M
-src_count=20
 
 sns_repair_rebalance_quiesce_test()
 {
 	local rc=0
 	local fail_device1=1
 	local fail_device2=9
-	local unit_size=$((stride * 1024))
 
 	echo "Starting SNS repair/rebalance quiesce testing ..."
 
 	local_write $src_bs $src_count || return $?
 
 	for ((i=0; i < ${#file[*]}; i++)) ; do
-		_dd ${file[$i]} $unit_size ${file_size[$i]} || return $?
+		touch_file $MOTR_M0T1FS_MOUNT_DIR/${file[$i]} ${unit_size[$i]}
+		_dd ${file[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]} ||
+			return $?
 		_md5sum ${file[$i]} || return $?
 	done
 

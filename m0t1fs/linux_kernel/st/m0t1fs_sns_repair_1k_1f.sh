@@ -44,10 +44,12 @@ sns_repair_test()
 
 	local_write $src_bs $src_count || return $?
 
-	for i in 0:10{0..2}{1001..1020}; do touch $MOTR_M0T1FS_MOUNT_DIR/$i ; done
-	for i in 0:10{0..2}{1001..1020}; do setfattr -n lid -v 1 $MOTR_M0T1FS_MOUNT_DIR/$i ; done
-	for i in 0:10{0..2}{1001..1020}; do dd if=/dev/zero of=$MOTR_M0T1FS_MOUNT_DIR/$i bs=1K count=1 ; done
-	for i in 0:10{0..2}{1001..1020}; do _md5sum $i || return $? ; done
+	for ((i=0; i < ${#file[*]}; i++)) ; do
+		touch_file $MOTR_M0T1FS_MOUNT_DIR/${file[$i]} ${unit_size[$i]}
+		_dd ${file[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]} ||
+			return $?
+		_md5sum ${file[$i]} || return $?
+	done
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"

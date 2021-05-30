@@ -30,65 +30,19 @@
 # because ios need to hash gfid to mds. In COPYTOOL
 # mode, filename is the string format of gfid.
 ###################################################
-files=(
-	0:10000
-	0:10001
-	0:10002
-	0:10003
-	0:10004
-	0:10005
-	0:10006
-	0:10007
-	0:10008
-	0:10009
-	0:10010
-	0:10011
-)
-
-unit_size=(
-	4
-	8
-	16
-	32
-	64
-	128
-	256
-	512
-	1024
-	2048
-	2048
-	2048
-)
-
-file_size=(
-	500
-	700
-	300
-	0
-	400
-	0
-	600
-	200
-	100
-	60
-	60
-	60
-)
-
 
 N=3
 K=3
 P=15
-stride=32
-src_bs=10M
-src_count=2
 
 verify()
 {
 	echo "verifying ..."
-	for ((i=0; i < ${#files[*]}; i++)) ; do
-		local_read $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
-		read_and_verify ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
+	for ((i=0; i < ${#file[*]}; i++)) ; do
+		local_read $((${unit_size[$i]} * 1024)) ${file_size[$i]} ||
+			return $?
+		read_and_verify ${file[$i]} $((${unit_size[$i]} * 1024)) \
+			${file_size[$i]} || return $?
 	done
 
 	echo "file verification sucess"
@@ -103,9 +57,10 @@ sns_repair_test()
 	local_write $src_bs $src_count || return $?
 
 	echo "Starting SNS repair testing ..."
-	for ((i=0; i < ${#files[*]}; i++)) ; do
-		touch_file $MOTR_M0T1FS_MOUNT_DIR/${files[$i]} ${unit_size[$i]}
-		_dd ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]}
+	for ((i=0; i < ${#file[*]}; i++)) ; do
+		touch_file $MOTR_M0T1FS_MOUNT_DIR/${file[$i]} ${unit_size[$i]}
+		_dd ${file[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]} ||
+			return $?
 	done
 
 	verify || return $?

@@ -21,6 +21,7 @@ prepare_datafiles_and_objects()
 {
 	local rc=0
 
+	echo "creating the source file"
 	dd if=/dev/urandom bs=$src_bs count=$src_count \
 	   of="$MOTR_M0T1FS_TEST_DIR/srcfile" || return $?
 
@@ -29,18 +30,18 @@ prepare_datafiles_and_objects()
 		local us=$((${unit_size[$i]} * 1024))
 
 		MOTR_PARAM="-l ${lnet_nid}:$SNS_MOTR_CLI_EP  \
-			      -H ${lnet_nid}:$HA_EP -p $PROF_OPT \
-			      -P $M0T1FS_PROC_ID -L ${lid} -s ${us} "
+			    -H ${lnet_nid}:$HA_EP -p '$PROF_OPT' \
+			    -P '$M0T1FS_PROC_ID' -L ${lid} -s ${us} "
 
 		echo "creating object ${file[$i]} bs=${us} * c=${file_size[$i]}"
 		dd bs=${us} count=${file_size[$i]}            \
 		   if="$MOTR_M0T1FS_TEST_DIR/srcfile"         \
 		   of="$MOTR_M0T1FS_TEST_DIR/src${file[$i]}"
 
-		$M0_SRC_DIR/motr/st/utils/m0cp ${MOTR_PARAM}     \
-						 -c ${file_size[$i]} \
-						 -o ${file[$i]}      \
-					 "$MOTR_M0T1FS_TEST_DIR/srcfile" || {
+		run "$M0_SRC_DIR/motr/st/utils/m0cp" ${MOTR_PARAM}  \
+						-c ${file_size[$i]} \
+						-o ${file[$i]}      \
+				"$MOTR_M0T1FS_TEST_DIR/srcfile" || {
 			rc=$?
 			echo "Writing object ${file[$i]} failed"
 		}
@@ -58,15 +59,15 @@ motr_read_verify()
 		local us=$((${unit_size[$i]} * 1024))
 
 		MOTR_PARAM="-l ${lnet_nid}:$SNS_MOTR_CLI_EP       \
-			      -H ${lnet_nid}:$HA_EP -p $PROF_OPT      \
-			      -P $M0T1FS_PROC_ID -L ${lid} -s ${us} "
+			      -H ${lnet_nid}:$HA_EP -p '$PROF_OPT' \
+			      -P '$M0T1FS_PROC_ID' -L ${lid} -s ${us} "
 
 		echo "Reading object ${file[$i]} ... and diff ..."
 		rm -f "$MOTR_M0T1FS_TEST_DIR/${file[$i]}"
-		$M0_SRC_DIR/motr/st/utils/m0cat ${MOTR_PARAM}     \
-						  -c ${file_size[$i]} \
-						  -o ${file[$i]}      \
-					"$MOTR_M0T1FS_TEST_DIR/${file[$i]}" || {
+		run "$M0_SRC_DIR/motr/st/utils/m0cat" ${MOTR_PARAM}  \
+						 -c ${file_size[$i]} \
+						 -o ${file[$i]}      \
+				"$MOTR_M0T1FS_TEST_DIR/${file[$i]}" || {
 			rc=$?
 			echo "reading ${file[$i]} failed"
 		}

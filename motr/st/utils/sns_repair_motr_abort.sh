@@ -28,60 +28,10 @@ TOPDIR=`dirname $0`/../../../
 . ${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh
 . ${TOPDIR}/motr/st/utils/sns_repair_common_inc.sh
 
-
-# The following variables 'files', 'unit_size', 'file_size'
-# and 'N', 'K', 'P' will override corresponding variables in
-# m0t1fs_sns_common_inc.sh
-file=(
-	10000:10000
-	10001:10001
-	10002:10002
-	10003:10003
-	10004:10004
-	10005:10005
-	10006:10006
-	10007:10007
-	10008:10008
-	10009:10009
-	10010:10010
-	10011:10011
-)
-
-unit_size=(
-	4
-	8
-	16
-	32
-	64
-	128
-	256
-	512
-	1024
-	2048
-	4096
-	8192
-)
-
-file_size=(
-	500
-	700
-	300
-	0
-	400
-	0
-	600
-	200
-	100
-	60
-	36
-	18
-)
-
-
 N=3
 K=3
 P=15
-src_count=15
+
 export MOTR_CLIENT_ONLY=1
 
 sns_repair_motr_test()
