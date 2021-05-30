@@ -236,7 +236,6 @@ static int create_object(struct m0_entity *entity)
 {
 	int                  rc;
 	struct m0_op        *ops[1] = {NULL};
-
 	struct m0_obj       *obj;
 	struct m0_op_common *oc;
 	struct m0_op_obj    *oo;
@@ -248,14 +247,14 @@ static int create_object(struct m0_entity *entity)
 	m0_op_launch(ops, 1);
 	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
 					M0_OS_STABLE), M0_TIME_NEVER);
+	if (rc == 0)
+		rc = ops[0]->op_rc;
+
 	oc = M0_AMB(oc, ops[0], oc_op);
 	oo = M0_AMB(oo, oc, oo_oc);
 	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
 	M0_LOG(M0_DEBUG, "post create object, obj->ob_attr.oa_pver :"FID_F,
 	       FID_P(&obj->ob_attr.oa_pver));
-
-	if (rc == 0)
-		rc = m0_rc(ops[0]);
 
 	m0_op_fini(ops[0]);
 	m0_op_free(ops[0]);
@@ -510,7 +509,7 @@ int m0_read(struct m0_container *container,
 		obj.ob_attr.oa_pver.f_container = read_pver->f_container;
 		obj.ob_attr.oa_pver.f_key = read_pver->f_key;
 		M0_LOG(M0_DEBUG, "m0_read: obj->ob_attr.oa_pver is set to:"FID_F
-                       " To predent that, it is received from s3",
+                       " To predent that, it is received from application",
 	               FID_P(&obj.ob_attr.oa_pver));
 	}
 

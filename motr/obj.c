@@ -268,7 +268,7 @@ static void obj_namei_cb_launch(struct m0_op_common *oc)
 		 * moved to LAUNCHED --> EXECUTED --> STABLE, so
 		 * skipped m0_sm_move() and resetting rc state to 0
 		 * */
-		rc = 0;
+		(void)rc;
 	}
 
 	M0_LEAVE();
