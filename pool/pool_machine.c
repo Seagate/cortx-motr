@@ -241,6 +241,7 @@ static void state_init(struct m0_poolmach_state   *state,
 		       struct m0_pooldev          *devices_array,
 		       uint32_t                    nr_devices,
 		       struct m0_pool_spare_usage *spare_usage_array,
+		       uint32_t                    nr_spare,
 		       uint32_t                    max_node_failures,
 		       uint32_t                    max_device_failures,
 		       struct m0_poolmach         *pm)
@@ -260,6 +261,7 @@ static void state_init(struct m0_poolmach_state   *state,
 	state->pst_max_node_failures   = max_node_failures;
 	state->pst_max_device_failures = max_device_failures;
 	state->pst_nr_failures         = 0;
+	state->pst_nr_spares           = nr_spare;
 
 	for (i = 0; i < state->pst_nr_nodes; i++) {
 		m0_format_header_pack(&state->pst_nodes_array[i].pn_header,
@@ -292,16 +294,18 @@ static void state_init(struct m0_poolmach_state   *state,
 		m0_format_footer_update(&state->pst_devices_array[i]);
 	}
 
-	for (i = 0; i < state->pst_max_device_failures; i++) {
-		m0_format_header_pack(&state->pst_spare_usage_array[i].psu_header,
-		    &(struct m0_format_tag){
-			.ot_version = M0_POOL_SPARE_USAGE_FORMAT_VERSION,
-			.ot_type    = M0_FORMAT_TYPE_POOL_SPARE_USAGE,
-			.ot_footer_offset =
+	for (i = 0; i < state->pst_nr_spares; i++) {
+		m0_format_header_pack(
+			&state->pst_spare_usage_array[i].psu_header,
+			&(struct m0_format_tag){
+				.ot_version =
+					M0_POOL_SPARE_USAGE_FORMAT_VERSION,
+				.ot_type    = M0_FORMAT_TYPE_POOL_SPARE_USAGE,
+				.ot_footer_offset =
 				offsetof(struct m0_pool_spare_usage, psu_footer)
 		});
 		state->pst_spare_usage_array[i].psu_device_index =
-					POOL_PM_SPARE_SLOT_UNUSED;
+						POOL_PM_SPARE_SLOT_UNUSED;
 		m0_format_footer_update(&state->pst_spare_usage_array[i]);
 	}
 
@@ -330,6 +334,7 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 				 struct m0_pool_version *pver,
 				 uint32_t            nr_nodes,
 				 uint32_t            nr_devices,
+				 uint32_t            nr_spare,
 				 uint32_t            max_node_failures,
 				 uint32_t            max_device_failures)
 {
@@ -341,7 +346,7 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 	M0_ALLOC_PTR(state);
 	M0_ALLOC_ARR(nodes_array, nr_nodes);
 	M0_ALLOC_ARR(devices_array, nr_devices);
-	M0_ALLOC_ARR(spare_usage_array, max_device_failures);
+	M0_ALLOC_ARR(spare_usage_array, nr_spare);
 	if (M0_IN(NULL,
 		  (state, nodes_array, devices_array, spare_usage_array))) {
 		m0_free(state);
@@ -351,7 +356,7 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 		return M0_ERR(-ENOMEM);
 	}
 	state_init(state, nodes_array, nr_nodes, devices_array,
-		   nr_devices, spare_usage_array,
+		   nr_devices, spare_usage_array, nr_spare,
 		   max_node_failures, max_device_failures, pm);
 	poolmach_init(pm, pver, state);
 	return M0_RC(0);
@@ -450,7 +455,7 @@ static void spare_usage_arr_update(struct m0_poolmach *pm,
 	state = pm->pm_state;
 	spare_array = state->pst_spare_usage_array;
 	/* alloc a sns repare spare slot */
-	for (i = 0; i < state->pst_max_device_failures; ++i) {
+	for (i = 0; i < state->pst_nr_spares; ++i) {
 		if (spare_array[i].psu_device_index ==
 		    POOL_PM_SPARE_SLOT_UNUSED) {
 			spare_array[i].psu_device_index = event->pe_index;
@@ -458,8 +463,8 @@ static void spare_usage_arr_update(struct m0_poolmach *pm,
 			break;
 		}
 	}
-	if (i == state->pst_max_device_failures &&
-	    i > 0 /* i == 0 in case of mdpool */) {
+	if (state->pst_nr_spares == 0 || (i == state->pst_nr_spares &&
+	    i > 0 /* i == 0 in case of mdpool */)) {
 		M0_LOG(M0_ERROR, FID_F": No free spare space slot is found,"
 			" this pool version is in DUD state;"
 			" event_index=%d event_state=%d",
@@ -608,7 +613,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 	switch (event->pe_state) {
 	case M0_PNDS_ONLINE:
 		/* clear spare slot usage if it is from rebalancing */
-		for (i = 0; i < state->pst_max_device_failures; i++) {
+		for (i = 0; i < state->pst_nr_spares; i++) {
 			if (spare_array[i].psu_device_index ==
 			    event->pe_index) {
 				M0_ASSERT(M0_IN(spare_array[i].psu_device_state,
@@ -654,7 +659,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 	case M0_PNDS_SNS_REPAIRED:
 	case M0_PNDS_SNS_REBALANCING:
 		/* change the repair spare slot usage */
-		for (i = 0; i < state->pst_max_device_failures; i++) {
+		for (i = 0; i < state->pst_nr_spares; i++) {
 			if (spare_array[i].psu_device_index ==
 			    event->pe_index) {
 				spare_array[i].psu_device_state =
@@ -663,8 +668,8 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 			}
 		}
 
-		if (i == state->pst_max_device_failures &&
-		    i > 0 /* i == 0 in case of mdpool */)
+		if (state->pst_nr_spares == 0 || (i == state->pst_nr_spares &&
+		    i > 0 /* i == 0 in case of mdpool */))
 			M0_LOG(M0_ERROR, FID_F": This pool is in DUD state;"
 			       " event_index=%d event_state=%d",
 			       FID_P(&pm->pm_pver->pv_id),
@@ -783,7 +788,7 @@ M0_INTERNAL bool
 m0_poolmach_device_is_in_spare_usage_array(struct m0_poolmach *pm,
 					   uint32_t device_index)
 {
-	return m0_exists(i, pm->pm_state->pst_max_device_failures,
+	return m0_exists(i, pm->pm_state->pst_nr_spares,
 		(pm->pm_state->pst_spare_usage_array[i].psu_device_index ==
 				device_index));
 }
@@ -813,7 +818,7 @@ M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
 	}
 
 	spare_usage_array = pm->pm_state->pst_spare_usage_array;
-	for (i = 0; i < pm->pm_state->pst_max_device_failures; i++) {
+	for (i = 0; i < pm->pm_state->pst_nr_spares; i++) {
 		if (spare_usage_array[i].psu_device_index == device_index) {
 			M0_ASSERT(M0_IN(spare_usage_array[i].psu_device_state,
 						(M0_PNDS_FAILED,
@@ -1139,7 +1144,7 @@ M0_INTERNAL uint64_t m0_poolmach_nr_dev_failures(struct m0_poolmach *pm)
 	struct m0_pool_spare_usage *spare_array;
 
 	spare_array = pm->pm_state->pst_spare_usage_array;
-	return m0_count(i, pm->pm_state->pst_max_device_failures,
+	return m0_count(i, pm->pm_state->pst_nr_spares,
 			spare_array[i].psu_device_index !=
 			POOL_PM_SPARE_SLOT_UNUSED);
 }
