@@ -941,7 +941,7 @@ composite_sub_io_op_build(struct m0_obj *cobj,
 		goto error;
 	}
 	m0_obj_init(obj, cobj->ob_entity.en_realm,
-			   &sio->si_id, sio->si_lid, 0);
+			   &sio->si_id, sio->si_lid);
 	rc = m0__obj_attr_get_sync(obj);
 	if (rc != 0)
 		goto error;

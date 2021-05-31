@@ -362,7 +362,7 @@ int cr_namei_open(struct m0_workload_io *cwi,
         const struct m0_uint128 *id = &cti->cti_ids[op_index];
 	M0_PRE(obj != NULL);
 	M0_SET0(obj);
-	m0_obj_init(obj, crate_uber_realm(), id, cwi->cwi_layout_id, 0);
+	m0_obj_init(obj, crate_uber_realm(), id, cwi->cwi_layout_id);
 	return m0_entity_open(&obj->ob_entity, &cti->cti_ops[free_slot]);
 }
 
@@ -897,7 +897,7 @@ int cr_task_prep_one(struct m0_workload_io *cwi,
 	for (i = 0; i < cwi->cwi_nr_objs; i++)
 		m0_obj_init(&cti->cti_objs[i],
 				   crate_uber_realm(),
-				   &cti->cti_ids[i], cwi->cwi_layout_id, 0);
+				   &cti->cti_ids[i], cwi->cwi_layout_id);
 
 	M0_ALLOC_ARR(cti->cti_ops, cwi->cwi_max_nr_ops);
 	if (cti->cti_ops == NULL)

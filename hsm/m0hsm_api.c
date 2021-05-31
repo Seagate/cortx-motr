@@ -309,7 +309,7 @@ static int create_obj(struct m0_uint128 id, struct m0_obj *obj,
 	DBG("creating id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
 
 	/* first create the main object with a default layout */
-	m0_obj_init(obj, m0_uber_realm, &id, 9 /* XXX: 1MB */, 0);
+	m0_obj_init(obj, m0_uber_realm, &id, 9 /* XXX: 1MB */);
 			  /* m0_client_layout_id(m0_instance)); */
 
 	rc = open_entity(&obj->ob_entity);
@@ -364,8 +364,7 @@ static int delete_obj(struct m0_uint128 id)
 
 	DBG("deleting id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
 
-	m0_obj_init(&obj, m0_uber_realm, &id,
-		    m0_client_layout_id(m0_instance), 0);
+	m0_obj_init(&obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
 	m0_entity_delete(&obj.ob_entity, &ops[0]);
 
 	m0_op_launch(ops, ARRAY_SIZE(ops));
@@ -396,8 +395,7 @@ static int create_obj_with_layout(struct m0_uint128 id,
 	DBG("creating id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
 
 	/* first create the main object with a default layout */
-	m0_obj_init(obj, m0_uber_realm, &id,
-		    m0_client_layout_id(m0_instance), 0);
+	m0_obj_init(obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
 
 	/* set first operation of batch */
 	m0_entity_create(NULL, &obj->ob_entity, &ops[0]);
@@ -448,10 +446,9 @@ static int delete_obj_set_parent_layout(struct m0_uint128 id,
 	memset(&obj, 0, sizeof(struct m0_obj));
 	memset(&parent_obj, 0, sizeof(struct m0_obj));
 
-	m0_obj_init(&obj, m0_uber_realm, &id,
-			   m0_client_layout_id(m0_instance), 0);
+	m0_obj_init(&obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
 	m0_obj_init(&parent_obj, m0_uber_realm, &parent_id,
-			   m0_client_layout_id(m0_instance), 0);
+			   m0_client_layout_id(m0_instance));
 
 	/* open the entities */
 	rc = open_entity(&obj.ob_entity);
@@ -535,8 +532,7 @@ static int layout_get(struct m0_uint128 id, struct m0_client_layout **layout)
 
 	/* instanciate the object to be handled */
 	M0_SET0(&obj);
-	m0_obj_init(&obj, m0_uber_realm, &id,
-		    m0_client_layout_id(m0_instance), 0);
+	m0_obj_init(&obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
 
 	rc = open_entity(&obj.ob_entity);
 	if (rc)
@@ -582,8 +578,7 @@ static int layout_set(struct m0_uint128 id, struct m0_client_layout *layout)
 
 	/* open the object */
 	memset(&obj, 0, sizeof(obj));
-	m0_obj_init(&obj, m0_uber_realm, &id,
-		    m0_client_layout_id(m0_instance), 0);
+	m0_obj_init(&obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
 
 	rc = open_entity(&obj.ob_entity);
 	if (rc)
@@ -1891,8 +1886,7 @@ int m0hsm_test_write(struct m0_uint128 id, off_t offset, size_t len, int seed)
 	ENTRY;
 
 	/* Set the object entity we want to write */
-	m0_obj_init(&obj, m0_uber_realm, &id,
-		    m0_client_layout_id(m0_instance), 0);
+	m0_obj_init(&obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
 	rc = open_entity(&obj.ob_entity);
 	if (rc)
 		RETURN(rc);
@@ -1911,7 +1905,7 @@ int m0hsm_test_write(struct m0_uint128 id, off_t offset, size_t len, int seed)
 	}
 
 	m0_obj_init(&subobj, m0_uber_realm, &layer->ccr_subobj,
-		    m0_client_layout_id(m0_instance), 0);
+		    m0_client_layout_id(m0_instance));
 	rc = open_entity(&subobj.ob_entity);
 	if (rc)
 		RETURN(rc);
@@ -2062,8 +2056,7 @@ int m0hsm_test_read(struct m0_uint128 id, off_t offset, size_t len)
 	memset(&obj, 0, sizeof(struct m0_obj));
 
 	/* Set the object entity we want to write */
-	m0_obj_init(&obj, m0_uber_realm, &id,
-		    m0_client_layout_id(m0_instance), 0);
+	m0_obj_init(&obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
 
 	io_size = m0_obj_layout_id_to_unit_size(
 			m0_client_layout_id(m0_instance));
@@ -2125,9 +2118,9 @@ static int copy_extent_data(struct m0_uint128 src_id,
 	ENTRY;
 
 	m0_obj_init(&src_obj, m0_uber_realm, &src_id,
-			   m0_client_layout_id(m0_instance), 0);
+			   m0_client_layout_id(m0_instance));
 	m0_obj_init(&tgt_obj, m0_uber_realm, &tgt_id,
-			   m0_client_layout_id(m0_instance), 0);
+			   m0_client_layout_id(m0_instance));
 
 	/* open the entities */
 	rc = open_entity(&src_obj.ob_entity);

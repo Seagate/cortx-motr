@@ -153,7 +153,7 @@ static int m0hsm_write_file(struct m0_uint128 id, const char *path)
 	}
 
 	memset(&obj, 0, sizeof(struct m0_obj));
-	m0_obj_init(&obj, &uber_realm, &id, m0_client_layout_id(instance), 0);
+	m0_obj_init(&obj, &uber_realm, &id, m0_client_layout_id(instance));
 
 	/* open the entity */
 	rc = open_entity(&obj.ob_entity);

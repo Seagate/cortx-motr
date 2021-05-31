@@ -335,7 +335,7 @@ int touch(struct m0_container *container,
 	lock_ops = take_locks ? &lock_enabled_ops : &lock_disabled_ops;
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &id,
-		    m0_client_layout_id(instance), 0);
+		    m0_client_layout_id(instance));
 	rc = lock_ops->olo_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -387,7 +387,7 @@ int m0_write(struct m0_container *container, char *src,
 	lock_ops = take_locks ? &lock_enabled_ops : &lock_disabled_ops;
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &id,
-		    m0_client_layout_id(instance), 0);
+		    m0_client_layout_id(instance));
 	rc = lock_ops->olo_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -528,7 +528,7 @@ int m0_read(struct m0_container *container,
 	/* Read the requisite number of blocks from the entity */
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &container->co_realm, &id,
-		    m0_client_layout_id(instance), 0);
+		    m0_client_layout_id(instance));
 	rc = lock_ops->olo_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -662,7 +662,7 @@ int m0_truncate(struct m0_container *container,
 	/* Read the requisite number of blocks from the entity */
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &container->co_realm, &id,
-		    m0_client_layout_id(instance), 0);
+		    m0_client_layout_id(instance));
 
 	rc = lock_ops->olo_lock_init(&obj);
 	if (rc != 0)
@@ -734,7 +734,7 @@ int m0_unlink(struct m0_container *container,
 	/* Delete an entity */
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &container->co_realm, &id,
-		    m0_client_layout_id(instance), 0);
+		    m0_client_layout_id(instance));
 	rc = lock_ops->olo_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -791,7 +791,7 @@ int m0_write_cc(struct m0_container *container,
 	M0_SET0(&obj);
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &id,
-		    m0_client_layout_id(instance), 0);
+		    m0_client_layout_id(instance));
 	rc = m0_obj_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -869,7 +869,7 @@ int m0_read_cc(struct m0_container *container,
 	/* Read the requisite number of blocks from the entity */
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &container->co_realm, &id,
-			   m0_client_layout_id(instance), 0);
+			   m0_client_layout_id(instance));
 	rc = m0_obj_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;

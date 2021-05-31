@@ -717,7 +717,10 @@ struct m0_obj_attr {
 	/** Pool version fid */
 	struct m0_fid oa_pver;
 
-	/** Size of the object */
+	/** 
+	 * Size of the object. Set this before m0_obj_init() to generate
+	 * optimal layout id during m0_entity_create().
+	 */
 	size_t        oa_obj_size;
 };
 
@@ -1299,15 +1302,15 @@ void m0__dtx_init     (struct m0__dtx             *dtx,
  * The size of data and parity buffer (m0_obj::ob_attr::oa_bshift) is
  * set to default value 'M0_DEFAULT_BUF_SHIFT'.
  *
- * If layout_id == 0, this object will be set with optimal layout id according
- * to the object size provided. If Object size is not set,
- * then this object will be set with default layout id.
+ * If layout_id == 0, then this object will be set with optimal layout id
+ * according to the object size set in m0_obj::ob_attr::oa_obj_size.
+ * If Object size is not set, then this object will be set with
+ * default layout id (See struct m0_obj_attr).
  *
  * @param obj The object to initialise.
  * @param parent The realm operations on this object will be part of.
  * @param id The identifier assigned by the application to this object.
  * @param layout_id The layout id assigned by the application to this object.
- * @param obj_size size of the object.
  *
  * @pre obj != NULL
  * @pre parent != NULL
@@ -1316,8 +1319,7 @@ void m0__dtx_init     (struct m0__dtx             *dtx,
 void m0_obj_init(struct m0_obj           *obj,
 		 struct m0_realm         *parent,
 		 const struct m0_uint128 *id,
-		 uint64_t                 layout_id,
-		 size_t                   obj_size);
+		 uint64_t                 layout_id);
 /**
  * Finalises an obj, leading to finilise entity and to free any additiona
  *  memory allocated to represent it.
