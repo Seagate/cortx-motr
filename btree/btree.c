@@ -2622,7 +2622,7 @@ static int64_t m0_btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_slot.s_rec = temp_rec_2;
 	node_rec(&node_slot);
 
-	p_val = &(oi->i_extra_node->n_addr);
+	temp_rec.r_val.ov_buf[0] = &(oi->i_extra_node->n_addr);
 	m0_bufvec_copy(&node_slot.s_rec.r_val, &temp_rec.r_val,
 		       m0_vec_count(&temp_rec.r_val.ov_vec));
 	/* if we need to update vec_count for root slot, update at this place */
@@ -2925,6 +2925,9 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			 * ksize, vsize for variable key, value needs to be
 			 * discussed yet
 			 * */
+			ksize = -1;
+			vsize = -1;
+			/* initializing ksize, vsize for codacy check */
 		}
 		if (m0_btree_overflow_is_possible(curr_level->l_node, ksize,
 						  vsize))
