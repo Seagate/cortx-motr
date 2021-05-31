@@ -2922,12 +2922,11 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			vsize = node_valsize(curr_level->l_node);
 		} else {
 			/**
-			 * ksize, vsize for variable key, value needs to be
-			 * discussed yet
+			 * @todo : ksize, vsize for variable key:
+			 * get the correct max key size at runtime
 			 * */
-			ksize = -1;
-			vsize = -1;
-			/* initializing ksize, vsize for codacy check */
+			ksize = MAX_KEY_SIZE;
+			vsize = MAX_VAL_SIZE;
 		}
 		if (m0_btree_overflow_is_possible(curr_level->l_node, ksize,
 						  vsize))
