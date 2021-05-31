@@ -558,10 +558,9 @@ static int sb_update(struct m0_balloc *bal, struct m0_sm_group *grp)
 	return M0_RC(rc);
 }
 
-static int balloc_sb_write(
-			struct m0_balloc                *bal,
-			struct m0_ad_balloc_format_req  *req,
-			struct m0_sm_group              *grp)
+static int balloc_sb_write(struct m0_balloc                *bal,
+			   struct m0_ad_balloc_format_req  *req,
+			   struct m0_sm_group              *grp)
 {
 	int				 rc;
 	struct timeval			 now;
@@ -885,9 +884,9 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	  by this parameter.
    @return 0 means success. Otherwise, error number will be returned.
  */
-static int balloc_format(struct m0_balloc                 *bal,
-			 struct m0_ad_balloc_format_req   *req,
-			 struct m0_sm_group               *grp)
+static int balloc_format(struct m0_balloc               *bal,
+			 struct m0_ad_balloc_format_req *req,
+			 struct m0_sm_group             *grp)
 {
 	int rc;
 
@@ -1003,7 +1002,7 @@ static int balloc_init_internal(struct m0_balloc		*bal,
 	}
 
  	M0_LOG(M0_INFO, "groupcount: %llu indexcount: %d blocks_per_group: %d",
-               (unsigned long long)bal->cb_sb.bsb_groupcount,
+	       (unsigned long long)bal->cb_sb.bsb_groupcount,
 	       (int)bal->cb_sb.bsb_indexcount, (int)req->bfr_groupsize);
 	for (i = 0; i < bal->cb_sb.bsb_indexcount; i++) {
 		m0_be_btree_init(&bal->cb_db_group_extents[i], seg, &ge_btree_ops);
@@ -1594,6 +1593,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 	struct m0_balloc_zone_param *zp;
 	int                          rc = 0;
 	m0_bcount_t                  maxchunk;
+	int                          index_no; 
 
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
@@ -1729,6 +1729,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 	m0_bcount_t                  frags = 0;
 	m0_bcount_t                  maxchunk;
 	int                          rc = 0;
+	int                          index_no;
 	int                          found = 0;
 
 	M0_ENTRY();
@@ -3044,11 +3045,11 @@ M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb)
 	cb->cb_ballroom.ab_ops = &balloc_ops;
 }
 
-M0_INTERNAL int m0_balloc_create(uint64_t			 cid,
-				 struct m0_be_seg		*seg,
-				 struct m0_sm_group		*grp,
-				 struct m0_ad_balloc_format_req	*bcfg,
-				 struct m0_balloc		**out)
+M0_INTERNAL int m0_balloc_create(uint64_t                         cid,
+				 struct m0_be_seg                *seg,
+				 struct m0_sm_group              *grp,
+				 struct m0_ad_balloc_format_req	 *bcfg,
+				 struct m0_balloc               **out)
 {
 	struct m0_balloc       *cb;
 	struct m0_be_btree      btree = {};
@@ -3103,6 +3104,7 @@ M0_INTERNAL int m0_balloc_create(uint64_t			 cid,
 				for (i = 0; i < bcfg->bfr_indexcount; i++) {
 					m0_be_btree_fini(&cb->cb_db_group_extents[i]);
 				}
+				m0_be_btree_fini(&cb->cb_db_group_desc);
 			}
 		}
 		m0_be_tx_close_sync(&tx);

@@ -99,24 +99,18 @@ bool balloc_ut_invariant(struct m0_balloc *motr_balloc,
 int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg,
 		       bool is_reserve)
 {
-	struct m0_sm_group     *grp;
-	struct m0_balloc       *motr_balloc;
-	struct m0_dtx           dtx = {};
-	struct m0_be_tx        *tx  = &dtx.tx_betx;
-	struct m0_be_tx_credit  cred;
-	struct m0_ext           ext[MAX];
-	struct m0_ext           tmp   = {};
-	m0_bcount_t             count = 539;
-	m0_bcount_t             spare_size;
-	int                     i     = 0;
-	int                     rc;
-	time_t                  now;
-
-	struct m0_ad_balloc_format_req bcfg;
-
-	time(&now);
-	srand(now);
-
+	struct m0_sm_group             *grp;
+	struct m0_balloc               *motr_balloc;
+	struct m0_dtx                   dtx = {};
+	struct m0_be_tx                *tx  = &dtx.tx_betx;
+	struct m0_be_tx_credit          cred;
+	struct m0_ext                   ext[MAX];
+	struct m0_ext                   tmp   = {};
+	m0_bcount_t                     count = 539;
+	m0_bcount_t                     spare_size;
+	int                             i     = 0;
+	int                             rc;
+	struct m0_ad_balloc_format_req  bcfg;
 
 	bcfg.bfr_fid                   = M0_FID_INIT(0, 1);
 	bcfg.bfr_totalsize             = BALLOC_DEF_CONTAINER_SIZE;
@@ -130,8 +124,8 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg,
 	rc = m0_balloc_create(0, seg, grp, &bcfg, &motr_balloc);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = motr_balloc->cb_ballroom.ab_ops->bo_init
-		(&motr_balloc->cb_ballroom, seg, &bcfg);
+	rc = motr_balloc->cb_ballroom.ab_ops->bo_init(
+		&motr_balloc->cb_ballroom, seg, &bcfg);
 	if (rc != 0)
 		goto out;
 

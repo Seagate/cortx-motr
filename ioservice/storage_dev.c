@@ -307,15 +307,12 @@ static int storage_dev_update_by_conf(struct m0_storage_dev  *dev,
 static void storage_devs_conf_refresh(struct m0_storage_devs *storage_devs,
 				      struct m0_reqh         *reqh)
 {
-	struct m0_confc       *confc = m0_reqh2confc(reqh);
-	struct m0_storage_dev *dev;
-	struct m0_fid          sdev_fid;
-	struct m0_conf_sdev   *conf_sdev;
-	int                    rc;
-
-	struct m0_reqh_context *rctx;
-
-	rctx = m0_cs_reqh_context(reqh);
+	struct m0_confc        *confc = m0_reqh2confc(reqh);
+	struct m0_storage_dev  *dev;
+	struct m0_fid           sdev_fid;
+	struct m0_conf_sdev    *conf_sdev;
+	struct m0_reqh_context *rctx = m0_cs_reqh_context(reqh);
+	int                     rc;
 
 	M0_ENTRY();
 	M0_PRE(storage_devs_is_locked(storage_devs));
@@ -604,13 +601,12 @@ M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
 				     conf_sdev, force, dev));
 }
 
-M0_INTERNAL int m0_storage_dev_new_by_conf(
-				struct m0_storage_devs	 *devs,
-				struct m0_conf_sdev	 *sdev,
-				uint64_t		  group_nr,
-				uint64_t		  index_nr,
-				bool			  force,
-				struct m0_storage_dev	**dev)
+M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs  *devs,
+					   struct m0_conf_sdev	   *sdev,
+					   uint64_t                 group_nr,
+					   uint64_t                 index_nr,
+					   bool                     force,
+					   struct m0_storage_dev  **dev)
 {
 	M0_ENTRY();
 	return M0_RC(storage_dev_new(devs, sdev->sd_dev_idx,
