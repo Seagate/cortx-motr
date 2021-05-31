@@ -2290,11 +2290,9 @@ static void generic_move(struct nd *src, struct nd *tgt,
 /** Insert operation section start point: */
 
 #ifndef __KERNEL__
-static bool m0_btree_overflow_is_possible(const struct nd *node)
+static bool m0_btree_overflow_is_possible(const struct nd *node, int ksize,
+					  int vsize)
 {
-	int ksize = node_keysize(node);
-	int vsize = node_valsize(node);
-
 	return (node_space(node) < ksize + vsize) ? true : false;
 }
 #endif
@@ -2624,7 +2622,7 @@ static int64_t m0_btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_slot.s_rec = temp_rec_2;
 	node_rec(&node_slot);
 
-	temp_rec.r_val.ov_buf[0] = &(oi->i_extra_node->n_addr);
+	p_val = &(oi->i_extra_node->n_addr);
 	m0_bufvec_copy(&node_slot.s_rec.r_val, &temp_rec.r_val,
 		       m0_vec_count(&temp_rec.r_val.ov_vec));
 	/* if we need to update vec_count for root slot, update at this place */
@@ -2808,7 +2806,7 @@ static int64_t m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 		m0_bufvec_copy(&tgt.s_rec.r_key.k_data, &new_rec.r_key.k_data,
 			       m0_vec_count(&new_rec.r_key.k_data.ov_vec));
 		m0_bufvec_copy(&tgt.s_rec.r_val, &new_rec.r_val,
-				m0_vec_count(&new_rec.r_val.ov_vec));
+			       m0_vec_count(&new_rec.r_val.ov_vec));
 		node_slot.s_node = curr_level->l_alloc;
 		node_slot.s_idx = node_count(node_slot.s_node);
 		node_slot.s_rec = temp_rec;
@@ -2889,7 +2887,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			oi->i_nop.no_node = NULL;
 
 			oi->i_key_found = node_find(&node_slot,
-						     &bop->bo_rec.r_key);
+						    &bop->bo_rec.r_key);
 			curr_level->l_idx = node_slot.s_idx;
 			if (node_level(node_slot.s_node) > 0) {
 				if (oi->i_key_found) {
@@ -2911,13 +2909,25 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
 	case P_ALLOC: {
+		int ksize;
+		int vsize;
 		/* Validate curr_level->l_node(i.e.is it still exists or not) */
 		int rc = node_is_valid(curr_level->l_node);
 		if (rc) {
 			node_op_fini(&oi->i_nop);
 			return fail(bop, rc);
 		}
-		if (m0_btree_overflow_is_possible(curr_level->l_node))
+		if (curr_level->l_node->n_type->nt_id == BNT_FIXED_FORMAT) {
+			ksize = node_keysize(curr_level->l_node);
+			vsize = node_valsize(curr_level->l_node);
+		} else {
+			/**
+			 * ksize, vsize for variable key, value needs to be
+			 * discussed yet
+			 * */
+		}
+		if (m0_btree_overflow_is_possible(curr_level->l_node, ksize,
+						  vsize))
 			return m0_btree_put_alloc_phase(bop);
 
 		/* Reset oi->i_used */
@@ -2988,7 +2998,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		};
 		rec = &node_slot.s_rec;
 		rec->r_key.k_data =  M0_BUFVEC_INIT_BUF(&p_key, &ksize);
-		rec->r_val        =  M0_BUFVEC_INIT_BUF(&p_val,&vsize);
+		rec->r_val        =  M0_BUFVEC_INIT_BUF(&p_val, &vsize);
 
 		node_rec(&node_slot);
 
@@ -3001,13 +3011,11 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		 * revert back the changes made on btree. Detailed
 		 * explination is provided at P_MAKESPACE stage.
 		 */
-		//rec = &node_slot.s_rec;
 		rec->r_flags = M0_BSC_SUCCESS;
 		int rc = bop->bo_cb.c_act(&bop->bo_cb, rec);
 		if (rc) {
 			/* handle if callback fail i.e undo make */
-			node_del(node_slot.s_node, node_slot.s_idx,
-					bop->bo_tx);
+			node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
 			node_done(&node_slot, bop->bo_tx, true);
 			node_fix(curr_level->l_node, bop->bo_tx);
 			lock_op_unlock(tree);
@@ -3352,7 +3360,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			node_slot.s_node = oi->i_nop.no_node;
 			lev->l_seq = lev->l_node->n_seq;
 			oi->i_key_found = node_find(&node_slot,
-						     &bop->bo_rec.r_key);
+						    &bop->bo_rec.r_key);
 			lev->l_idx = node_slot.s_idx;
 
 			if (node_level(node_slot.s_node) > 0) {
