@@ -625,12 +625,11 @@ def test_io(self):
     else:
         self.logger.error("workload files are missing\n")
 
-'''
-    Configure motr mini provisioner logger.
-    File to log motr mini prov logs: /var/log/seagate/motr/mini_provisioner.
-    Currently we log to both console and /var/log/seagate/motr/mini_provisioner.
-    Firstly check if /var/log/seagate/motr exist. If not, create it.
-'''
+    # Configure motr mini provisioner logger.
+    # File to log motr mini prov logs: /var/log/seagate/motr/mini_provisioner.
+    # Currently we log to both console and /var/log/seagate/motr/mini_provisioner.
+    # Firstly check if /var/log/seagate/motr exist. If not, create it.
+
 def config_logger(self):
     logger = logging.getLogger(LOGGER)
     if not os.path.exists(LOGDIR):
