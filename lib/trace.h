@@ -171,6 +171,12 @@
 #define M0_ENTRY(...) M0_LOG(M0_CALL, "> " __VA_ARGS__)
 #define M0_LEAVE(...) M0_LOG(M0_CALL, "< " __VA_ARGS__)
 
+#define M0_MEAS(fmt, ...) ({				\
+	m0_time_t __meas_time = m0_time_now();		\
+	M0_LOG(M0_DEBUG, "[MEAS] " fmt " time: "TIME_F,	\
+	       __VA_ARGS__, TIME_P(__meas_time));	\
+})
+
 #define M0_RC(rc) ({                        \
 	typeof(rc) __rc = (rc);             \
 	M0_LOG(M0_CALL, "< rc=%d", __rc);   \
