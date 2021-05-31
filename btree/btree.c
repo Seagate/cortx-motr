@@ -607,12 +607,13 @@ enum {
 };
 
 enum {
-	MAX_NODE_SIZE     = 10, /*node size is a power-of-2 MAX_NODE_SIZE.*/
-	MAX_KEY_SIZE      = 8,
-	MAX_VAL_SIZE      = 8,
-	MAX_TRIALS        = 3,
+	MAX_NODE_SIZE            = 10, /*node size is a power-of-2 this value.*/
+	MAX_KEY_SIZE             = 8,
+	MAX_VAL_SIZE             = 8,
+	MAX_TRIALS               = 3,
+	INTERNAL_NODE_VALUE_SIZE = sizeof(void *),
 };
-#define INTERNAL_NODE_VALUE_SIZE sizeof(void *)
+
 #if 0
 static int fail(struct m0_btree_op *bop, int rc)
 {
@@ -858,11 +859,11 @@ struct node_type {
 	int  (*nt_shift)(const struct nd *node);
 
 	/** Returns size of the key of node. In case of variable key size return
-	 * maximum key size */
+	 * -1. */
 	int  (*nt_keysize)(const struct nd *node);
 
 	/** Returns size of the value of node. In case variable value size
-	 * return maximum value size. */
+	 * return -1. */
 	int  (*nt_valsize)(const struct nd *node);
 
 	/** Returns unique FID for this node */
@@ -935,9 +936,11 @@ struct nd {
 	struct segaddr          n_addr;
 	struct td              *n_tree;
 	const struct node_type *n_type;
+
 	/** if n_skip_rec_count_check is true, it will skip invarient check
 	 * record count as it is required for some scenarios */
 	bool                    n_skip_rec_count_check;
+
 	/**
 	 * The lock that protects the fields below. The fields above are
 	 * read-only after the node is loaded into memory.
@@ -964,14 +967,19 @@ struct node_op {
 	/** Operation to do. */
 	enum node_opcode no_opc;
 	struct m0_sm_op  no_op;
+
 	/** Which tree to operate on. */
 	struct td       *no_tree;
+
 	/** Address of the node withing the segment. */
 	struct segaddr   no_addr;
+
 	/** The node to operate on. */
 	struct nd       *no_node;
+
 	/** Optional transaction. */
 	struct m0_be_tx *no_tx;
+
 	/** Next operation acting on the same node. */
 	struct node_op  *no_next;
 };
@@ -1087,12 +1095,16 @@ struct level {
 	/** nd for required node at currrent level. **/
 	struct nd *l_node;
 	uint64_t   l_seq;
+
 	/** Index for required record from the node. **/
 	unsigned   l_idx;
+
 	/** nd for newly allocated node at the level. **/
 	struct nd *l_alloc;
+
 	/** nd for left sibling of required node at current level. **/
 	struct nd *l_prev;
+
 	/** nd for right sibling of required node at current level. **/
 	struct nd *l_next;
 };
@@ -1106,15 +1118,20 @@ struct level {
 struct m0_btree_oimpl {
 	struct node_op  i_nop;
 	/* struct lock_op  i_lop; */
+
 	/** It will provide current level number. **/
 	unsigned        i_used;
+
 	/** Array of levels for storing data about each level. **/
 	struct level   *i_level;
+
 	/** Store node_find() output. */
 	bool		i_key_found;
+
 	/** When there will be requirement for new node in case of root
 	 * splitting i_extra_node will be used. **/
 	struct nd      *i_extra_node;
+
 	/** Track number of trials done to complete operation. **/
 	unsigned        i_trial;
 };
@@ -2708,7 +2725,6 @@ static int64_t m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 	void                  *p_val_1;
 	struct m0_btree_rec    temp_rec_1;
 	uint64_t               newvalue;
-	//void                   *newvalue;
 	m0_bcount_t            newvsize  = INTERNAL_NODE_VALUE_SIZE;
 	void                  *newv_ptr  = &newvalue;
 	struct m0_btree_rec    new_rec;
@@ -2751,9 +2767,9 @@ static int64_t m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 	node_key(&node_slot);
 	new_rec.r_key = node_slot.s_rec.r_key;
 
+	newvalue      = INTERNAL_NODE_VALUE_SIZE;
+	newv_ptr      = &(curr_level->l_alloc->n_addr);
 	new_rec.r_val = M0_BUFVEC_INIT_BUF(&newv_ptr, &newvsize);
-	new_rec.r_val.ov_vec.v_count[0] = INTERNAL_NODE_VALUE_SIZE;
-	new_rec.r_val.ov_buf[0]   =  &(curr_level->l_alloc->n_addr);
 
 	temp_rec_1.r_key.k_data   = M0_BUFVEC_INIT_BUF(&p_key_1, &ksize_1);
 	temp_rec_1.r_val          = M0_BUFVEC_INIT_BUF(&p_val_1, &vsize_1);
@@ -2798,8 +2814,7 @@ static int64_t m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 		node_slot.s_rec = temp_rec;
 		node_key(&node_slot);
 		new_rec.r_key = node_slot.s_rec.r_key;
-		new_rec.r_val.ov_buf[0] =  &(curr_level->l_alloc->n_addr);
-		/* p_val = segaddr_addr(&curr_level->l_alloc->n_addr);*/
+		newv_ptr = &(curr_level->l_alloc->n_addr);
 	}
 
 	oi->i_used  = 0;
@@ -4461,6 +4476,7 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 
 	btree_ut_fini();
 }
+
 #if 0
 /**
  * Commenting this ut as it is not required as a part for test-suite but my
@@ -4663,6 +4679,7 @@ static void m0_btree_ut_insert_record(void)
 	M0_LEAVE();
 }
 #endif
+
 struct m0_ut_suite btree_ut = {
 	.ts_name = "btree-ut",
 	.ts_yaml_config_string = "{ valgrind: { timeout: 3600 },"
