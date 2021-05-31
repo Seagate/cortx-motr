@@ -324,8 +324,11 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn      *conn,
 	if (rc == 0) {
 		m0_sm_init(&conn->c_sm, &conn_conf, M0_RPC_CONN_INITIALISED,
 			   &machine->rm_sm_grp);
+		m0_sm_state_trace_enable(&conn->c_sm);
 		m0_rpc_machine_add_conn(machine, conn);
 		M0_LOG(M0_INFO, "%p INITIALISED \n", conn);
+		M0_MEAS("conn-sm-to-uuid sm_id: %"PRIu64" uuid: "U128X_F,
+			conn->c_sm.sm_id, U128_P(&conn->c_uuid));
 	}
 
 	M0_POST(ergo(rc == 0, m0_rpc_conn_invariant(conn) &&
@@ -543,8 +546,11 @@ M0_INTERNAL int m0_rpc_rcv_conn_init(struct m0_rpc_conn *conn,
 	if (rc == 0) {
 		m0_sm_init(&conn->c_sm, &conn_conf, M0_RPC_CONN_INITIALISED,
 			   &machine->rm_sm_grp);
+		m0_sm_state_trace_enable(&conn->c_sm);
 		m0_rpc_machine_add_conn(machine, conn);
 		M0_LOG(M0_INFO, "%p INITIALISED \n", conn);
+		M0_MEAS("conn-uuid-to-sm uuid: "U128X_F" sm_id: %"PRIu64,
+			U128_P(&conn->c_uuid), conn->c_sm.sm_id);
 	}
 
 	M0_POST(ergo(rc == 0, m0_rpc_conn_invariant(conn) &&
@@ -731,6 +737,11 @@ M0_INTERNAL void m0_rpc_conn_add_session(struct m0_rpc_conn *conn,
 		if (watch->mw_session_added != NULL)
 			watch->mw_session_added(watch, session);
 	} m0_tl_endfor;
+#if 0
+	M0_MEAS("conn-to-session conn_uuid: "U128X_F" conn_sm_id: %"
+		PRIu64" session_sm_id: %"PRIu64, U128_P(&conn->c_uuid),
+		conn->c_sm.sm_id, session->s_sm.sm_id);
+#endif
 }
 
 M0_INTERNAL void m0_rpc_conn_remove_session(struct m0_rpc_session *session)
