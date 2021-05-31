@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <title>Distributd transaction management in motr</title>
+    
+    <link rel="stylesheet" href="dist/reset.css">
+    <link rel="stylesheet" href="dist/reveal.css">
+    <link rel="stylesheet" href="dist/theme/black.css">
+    
+    <!-- Theme used for syntax highlighted code -->
+    <link rel="stylesheet" href="plugin/highlight/monokai.css">
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+	<section data-markdown>
+	  <textarea data-template>
+	    ## Agenda
+	    * Transactions in general: why? what? how?
+	    * Transactions in motr: why? what? how?
+	  </textarea>
+	</section>
+	<section data-markdown>
+	  <textarea data-template>
+	    ## Transactions in general
+	    * Invented very long time ago
+	    * For data-base systems
+	    * Goals:
+	      - simplify error handling
+	      - simplify concurrency
+	  </textarea>
+	</section>
+      </div>
+    </div>
+    
+    <script src="dist/reveal.js"></script>
+    <script src="plugin/notes/notes.js"></script>
+    <script src="plugin/markdown/markdown.js"></script>
+    <script src="plugin/highlight/highlight.js"></script>
+    <script src="plugin/math/math.js"></script>
+    <script>
+      // More info about initialization & config:
+      // - https://revealjs.com/initialization/
+      // - https://revealjs.com/config/
+      Reveal.initialize({
+	  hash: true,
+	  math: {
+	      mathjax: 'https://cdn.jsdelivr.net/gh/mathjax/mathjax@2.7.8/MathJax.js',
+	      config: 'TeX-AMS_HTML-full',
+	      // pass other options into `MathJax.Hub.Config()`
+	      TeX: { Macros: { RR: "{\\bf R}" } }
+	  },
+	  // Learn about plugins: https://revealjs.com/plugins/
+	  plugins: [ RevealMarkdown, RevealHighlight, RevealNotes, RevealMath ]
+      });
+    </script>
+  </body>
+</html>
