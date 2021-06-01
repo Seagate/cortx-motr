@@ -579,7 +579,12 @@ enum m0_op_obj_flags {
 	 * Write, alloc and free operations wait for the transaction to become
 	 * persistent before returning.
 	 */
-	M0_OOF_SYNC   = 1 << 1
+	M0_OOF_SYNC   = 1 << 1,
+        /**
+         * This flag is to describe that this write is from clovis/motr 
+         * application and not from s3.
+         */
+        M0_OOF_MOTR_APP = 1<<2
 } M0_XCA_ENUM;
 
 /**
@@ -691,6 +696,7 @@ struct m0_entity {
 	/** list of pending transactions. */
 	struct m0_tl        en_pending_tx;
 	struct m0_mutex     en_pending_tx_lock;
+	uint32_t            en_app_type;
 };
 
 /**

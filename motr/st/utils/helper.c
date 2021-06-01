@@ -240,6 +240,7 @@ static int create_object(struct m0_entity *entity)
 	struct m0_op_common *oc;
 	struct m0_op_obj    *oo;
 
+	entity->en_app_type = M0_OOF_MOTR_APP;
 	rc = m0_entity_create(NULL, entity, &ops[0]);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -506,8 +507,7 @@ int m0_read(struct m0_container *container,
 	 * read, if he knows pver of object.
 	 * */
 	if (read_pver != NULL &&  m0_fid_is_set(read_pver)) {
-		obj.ob_attr.oa_pver.f_container = read_pver->f_container;
-		obj.ob_attr.oa_pver.f_key = read_pver->f_key;
+		obj.ob_attr.oa_pver = *read_pver;
 		M0_LOG(M0_DEBUG, "m0_read: obj->ob_attr.oa_pver is set to:"FID_F
                        " To predent that, it is received from application",
 	               FID_P(&obj.ob_attr.oa_pver));

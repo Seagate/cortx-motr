@@ -1863,12 +1863,14 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	/* Set layout id and pver for CREATE op.*/
 	if (cr->cr_opcode == M0_EO_CREATE) {
 		cr->cr_cob_attr->ca_lid = obj->ob_attr.oa_layout_id;
-		/* For create operation setting up pool version locally
-		 * found in pools common, so cob lookup call to server
-		 * can be skipped */
-		obj->ob_attr.oa_pver.f_container = pv->pv_id.f_container;
-		obj->ob_attr.oa_pver.f_key = pv->pv_id.f_key;
-		skip_lookup = true;
+		 if (obj->ob_entity.en_app_type != M0_OOF_MOTR_APP) {
+			/* For create operation setting up pool version locally
+			* found in pools common, so cob lookup call to server
+			* can be skipped */
+			obj->ob_attr.oa_pver.f_container = pv->pv_id.f_container;
+			obj->ob_attr.oa_pver.f_key = pv->pv_id.f_key;
+			skip_lookup = true;
+		 }
 	}
 
 	if (! skip_lookup ) {
