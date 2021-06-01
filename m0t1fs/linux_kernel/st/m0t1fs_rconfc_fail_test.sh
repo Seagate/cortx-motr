@@ -46,12 +46,13 @@ rconfc_fatal_motr_service_start()
 {
 	local N=2
 	local K=1
+	local S=1
 	local P=4
 	local stride=16
 	local multiple_pools=1
 	local rc
 
-	motr_service start $multiple_pools $stride $N $K $P
+	motr_service start $multiple_pools $stride $N $K $S $P
 	rc=$?
 
 	if [ $rc -ne 0 ]
