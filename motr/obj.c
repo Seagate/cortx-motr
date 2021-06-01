@@ -556,25 +556,23 @@ error:
 }
 
 /**
- * Finds and sets optimal layout id according to the object's size.
+ * Finds optimal layout id according to the object's size and
+ * sets it in m0_obj::ob_attr::oa_layout_id if it is not already set.
  */
 static void obj_optimal_lid_set(struct m0_obj *obj,
 				struct m0_layout_domain *ldom)
 {
-	uint64_t                *lid;
+	uint64_t *lid;
 
 	lid = &obj->ob_attr.oa_layout_id;
 
 	/* Find optimal layout id when pver id is set and layout id is not */
-	if (obj->ob_attr.oa_layout_id == 0 &&
-		m0_fid_is_set(&obj->ob_attr.oa_pver)) {
+	if (*lid == 0 && m0_fid_is_set(&obj->ob_attr.oa_pver)) {
 		*lid = m0_layout_find_by_buffsize(ldom, &obj->ob_attr.oa_pver,
 						  obj->ob_attr.oa_obj_size);
 	}
-
 	/* Set default layout id when both layout id and pver id is unset */
-	else if (obj->ob_attr.oa_layout_id <= 0 &&
-			!m0_fid_is_set(&obj->ob_attr.oa_pver)) {
+	else if (*lid == 0 && !m0_fid_is_set(&obj->ob_attr.oa_pver)) {
 		*lid = M0_DEFAULT_LAYOUT_ID;
 	}
 }
