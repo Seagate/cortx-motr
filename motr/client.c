@@ -264,6 +264,14 @@ m0__obj_instance(const struct m0_obj *obj)
 	return m0__entity_instance(&obj->ob_entity);
 }
 
+M0_INTERNAL struct m0_client *
+m0__idx_instance(const struct m0_idx *idx)
+{
+	M0_PRE(idx != NULL);
+
+	return m0__entity_instance(&idx->in_entity);
+}
+
 /**
  * Pick a locality: Motr and the new locality interface(chore) now uses TLS to
  * store data and these data are set when a "motr" thread is created.
