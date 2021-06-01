@@ -224,17 +224,18 @@ show_write_speed()
 # in multiple of full stripes (sum of data units in parity group).
 io_combinations()
 {
-	echo "Test: io_combinations: (N,K,P) = ($2,$3,$1) $4 ..."
+	echo "Test: io_combinations: (N,K,S,P) = ($2,$3,$4,$1) $5 ..."
 
 	pool_width=$1
 	data_units=$2
 	parity_units=$3
-	mode=$4
+	spare_units=$4
+	mode=$5
 
-	p=`expr $data_units + 2 '*' $parity_units`
+	p=`expr $data_units + $parity_units + $spare_units`
 	if [ $p -gt $pool_width ]
 	then
-		echo "Error: pool_width should be >= data_units + 2 * parity_units."
+		echo "Error: pool_width should be >= data_units + parity_units + spare_units."
 		return 1
 	fi
 
@@ -889,12 +890,12 @@ m0t1fs_system_tests()
 		return 1
 	}
 
-	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
+	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY $NR_SPARE || {
 		echo "Failed: IO failed.."
 		return 1
 	}
 
-	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY "oostore"|| {
+	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY $NR_SPARE "oostore"|| {
 		echo "Failed: IO failed oostore mode.."
 		return 1
 	}
