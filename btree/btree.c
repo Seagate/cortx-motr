@@ -1034,7 +1034,8 @@ static void node_op_fini(struct node_op *op);
 static int  node_verify(const struct nd *node);
 #endif
 #ifndef __KERNEL__
-static void node_init(struct node_op *n_op, int ksize, int vsize);
+static void node_init(struct node_op *n_op, int ksize, int vsize,
+		      struct m0_be_tx *tx);
 #endif
 static int  node_count(const struct nd *node);
 static int  node_count_rec(const struct nd *node);
@@ -1072,7 +1073,8 @@ static void node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
 static void node_set_level  (const struct nd *node, uint8_t new_level);
 static void node_move (struct nd *src, struct nd *tgt,
 		       enum dir dir, int nr, struct m0_be_tx *tx);
-static void mem_update(void);
+static void mem_update(struct node_op *op, struct m0_be_tx *tx, void *ptr,
+		       m0_bcount_t size);
 #endif
 
 /**
@@ -1143,12 +1145,15 @@ static uint32_t         trees_loaded = 0;
 static struct m0_rwlock trees_lock;
 
 #ifndef __KERNEL__
-static void node_init(struct node_op *n_op, int ksize, int vsize)
+static void node_init(struct node_op *n_op, int ksize, int vsize,
+		      struct m0_be_tx *tx)
 {
 	const struct node_type *n_type = n_op->no_node->n_type;
 
 	n_type->nt_init(n_op->no_node, segaddr_shift(&n_op->no_node->n_addr),
 			ksize, vsize);
+	if (tx != NULL)
+		mem_update(n_op, tx, n_op->no_node, sizeof *n_op->no_node);
 }
 #endif
 static bool node_invariant(const struct nd *node)
@@ -1337,9 +1342,11 @@ static bool node_shift_is_valid(int shift)
 	return shift >= NODE_SHIFT_MIN && shift < NODE_SHIFT_MIN + 0x10;
 }
 #ifndef __KERNEL__
-static void mem_update(void)
+static void mem_update(struct node_op *op, struct m0_be_tx *tx, void *ptr, 
+		       m0_bcount_t size)
 {
-	//ToDo: Memory update in segment
+	/* ToDo: Update the proper transaction capture mehanism */
+	/* m0_be_tx_capture(tx, &M0_BE_REG(bo_seg, size, ptr)); */
 }
 #endif
 /**
@@ -3229,7 +3236,7 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 		case P_ACT:
 			oi->i_nop.no_node->n_type = data->nt;
 
-			node_init(&oi->i_nop, k_size, v_size);
+			node_init(&oi->i_nop, k_size, v_size, bop->bo_tx);
 
 			m0_rwlock_write_lock(&bop->bo_arbor->t_lock);
 			bop->bo_arbor->t_desc           = oi->i_nop.no_tree;
@@ -3238,7 +3245,7 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 			m0_rwlock_write_unlock(&bop->bo_arbor->t_lock);
 
 			m0_free(oi);
-			mem_update();
+
 			return P_DONE;
 
 		default:
@@ -3270,11 +3277,14 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 
 			tree_delete(&bop->bo_i->i_nop, bop->bo_arbor->t_desc,
 				    bop->bo_tx, P_ACT);
-
+			mem_update(&bop->bo_i->i_nop, bop->bo_tx,
+				   &bop->bo_i->i_nop.no_node,
+				   sizeof(struct nd));
 			m0_free(bop->bo_arbor);
 			m0_free(bop->bo_i);
 			bop->bo_arbor = NULL;
 			bop->bo_i = NULL;
+
 			return P_DONE;
 
 		default:
