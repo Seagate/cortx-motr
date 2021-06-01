@@ -626,6 +626,11 @@ MOTR_SEARCH_LIBS([pthread_create], [c pthread], [PTHREAD_LIBS],
 )
 AC_SUBST([PTHREAD_LIBS])
 
+MOTR_SEARCH_LIBS([MD5_Init], [c crypto], [OPENSSL_LIBS],
+        [MD5_Init cannot be found! Try to install openssl.]
+)
+AC_SUBST([OPENSSL_LIBS])
+
 # check for aio library (io_submit(3) & co.)
 MOTR_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
         [io_getevents cannot be found! Try to install libaio-devel.]
@@ -662,6 +667,7 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
                   sys/socket.h sys/time.h unistd.h])
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
+AC_CHECK_HEADERS([openssl/md5.h], [], [AC_MSG_ERROR([md5.h cannot be found!])])
 AC_CHECK_HEADERS([isa-l.h],   [
 				# check for isa library
 				MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
@@ -1069,6 +1075,7 @@ echo "GALOIS_LIBS    :  \"$GALOIS_LIBS\""
 echo "YAML_LIBS      :  \"$YAML_LIBS\""
 echo "UUID_LIBS      :  \"$UUID_LIBS\""
 echo "ISAL_LIBS      :  \"$ISAL_LIBS\""
+echo "OPENSSL_LIBS   :  \"$OPENSSL_LIBS\""
 echo ""
 echo "Gcc            :  \"$BUILD_GCC\""
 AS_IF([test x$with_lustre != xno],[
