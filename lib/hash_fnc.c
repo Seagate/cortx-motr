@@ -76,7 +76,7 @@ static inline uint64_t rotate(uint64_t val, int shift)
 	return shift == 0 ? val : ((val >> shift) | (val << (64 - shift)));
 }
 
-static inline uint32_t rotate32(uint32_t val, int shift)
+M0_UNUSED static inline uint32_t rotate32(uint32_t val, int shift)
 {
 	return shift == 0 ? val : ((val >> shift) | (val << (32 - shift)));
 }

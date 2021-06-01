@@ -303,7 +303,7 @@ static bool fom_is_blocked(const struct m0_fom *fom)
 }
 
 /* Returns fom from state machine m0_fom::fo_sm_state */
-static inline struct m0_fom *sm2fom(struct m0_sm *sm)
+M0_UNUSED static inline struct m0_fom *sm2fom(struct m0_sm *sm)
 {
 	return container_of(sm, struct m0_fom, fo_sm_state);
 }

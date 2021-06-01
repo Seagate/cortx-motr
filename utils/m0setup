@@ -20,7 +20,7 @@
 
 
 ### set up loop devices and generate genders, disks-*.conf and halon_facts.yaml
-### files for given N K P configuration on a single node
+### files for given N K S P configuration on a single node
 
 #
 # Global vars
@@ -55,8 +55,10 @@ only_list_disks=false
 pool_width=$DEFAULT_POOL_WIDTH
 data_units=2
 parity_units=1
+spare_units=1
 ipool_width=$DEFAULT_IMETA_POOL_WIDTH
 iparity_units=1
+ispare_units=1
 ios_num=1
 ios_num_is_set=false
 loop_img_dir='/var/motr'
@@ -101,6 +103,9 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [options]
 
       --iparity-units num  Number of parity units in parity group for imeta pool.
                            Default is ${iparity_units}.
+
+   -S|--spare-units num    Number of spare units in parity group.
+                           Default is ${spare_units}.
 
    -i|--ios-number num     Number of ioservices to start. Default is ${ios_num}.
                            In 'linuxstob' mode (-z|-Z) it defaults to ${LINUXSTOB_MIN_IOS_NUM}
@@ -191,9 +196,9 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt --options hvclICEGHVAMP:N:K:i:d:m:s:p:z:Z:: \
-                   --longoptions help,verbose,cleanup,init-loop-only,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,client-apps,activate-singlenode-services,mkfs,list-disks,no-cas,no-m0t1fs,pool-width:,data-units:,parity-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,motr-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
-                   --name "$PROG_NAME" -- "$@" )
+    TEMP=$( getopt --options hvclICEGHVAMP:N:K:S:i:d:m:s:p:z:Z:: \
+                   --longoptions help,verbose,cleanup,init-loop-only,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,client-apps,activate-singlenode-services,mkfs,list-disks,no-cas,no-m0t1fs,pool-width:,data-units:,parity-units:,spare-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,motr-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
+                       --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
 
@@ -233,6 +238,7 @@ parse_cli_options()
             -P|--pool-width)    pool_width=$2;        shift 2 ;;
             -N|--data-units)    data_units=$2;        shift 2 ;;
             -K|--parity-units)  parity_units=$2;      shift 2 ;;
+            -S|--spare-units)   spare_units=$2;       shift 2 ;;
             --ipool-width)      ipool_width=$2;       shift 2 ;;
             --parity-units)     iparity_units=$2;     shift 2 ;;
             --no-cas)           cas_enabled=false;    shift   ;;
@@ -426,8 +432,10 @@ $hostname  m0_services=$services
 $hostname  m0_pool_width=$pool_width
 $hostname  m0_data_units=$data_units
 $hostname  m0_parity_units=$parity_units
+$hostname  m0_spare_units=$spare_units
 $hostname  m0_imeta_pool_width=$ipool_width
 $hostname  m0_imeta_parity_units=$iparity_units
+$hostname  m0_imeta_spare_units=$ispare_units
 $hostname  m0_disk_size_in_bytes=$((loop_img_size_gb * 1024**3))
 $hostname  m0_directio=$directio
 $hostname  m0_datadir=$motr_data_dir
@@ -473,7 +481,8 @@ generate_halon_facts()
     debug $disks
 
     $m0genfacts -o "$halon_facts" $motr_opt \
-                -e $net_if -N $data_units -K $parity_units $vopt $disks
+                -e $net_if -N $data_units -K $parity_units -S $spare_units \
+                $vopt $disks
 
     local motr_role_file=/etc/halon/role_maps/motr.ede
     local motr_role_file=/etc/halon/motr_role_mappings
@@ -649,12 +658,12 @@ else
 fi
 
 if $cas_enabled ; then
-    info_msg="[P=$ipool_width N=1 K=$iparity_units] with 1 CAS service, "$info_msg
+    info_msg="[P=$ipool_width N=1 K=$iparity_units S=$ispare_units] with 1 CAS service, "$info_msg
 fi
 
 $only_list_disks ||
-    log "Requested configuration: [P=$pool_width N=$data_units K=$parity_units]" \
-        "with $ios_num ioservice(s), $info_msg"
+    log "Requested configuration: [P=$pool_width N=$data_units K=$parity_units" \
+        "S=$spare_units] with $ios_num ioservice(s), $info_msg"
 
 [[ -d $ETC_MOTR_DIR ]] || {
     warn "'$ETC_MOTR_DIR' doesn't exist, creating.." ;
