@@ -30,7 +30,7 @@ TOPDIR=`dirname $0`/../../../
 
 
 # The following variables 'files', 'unit_size', 'file_size'
-# and 'N', 'K', 'P' will override corresponding variables in
+# and 'N', 'K', 'S', 'P' will override corresponding variables in
 # m0t1fs_sns_common_inc.sh
 file=(
 	10000:10000
