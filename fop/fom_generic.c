@@ -429,7 +429,7 @@ static int fom_tx_commit(struct m0_fom *fom)
  * Resumes fom execution after completing a blocking operation
  * in M0_FOPH_TXN_COMMIT phase.
  */
-M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom)
+M0_INTERNAL int m0_fom_tx_done_wait(struct m0_fom *fom)
 {
 	struct m0_dtx   *dtx = &fom->fo_tx;
 	struct m0_be_tx *tx = m0_fom_tx(fom);
@@ -561,12 +561,12 @@ static const struct fom_phase_desc fpd_table[] = {
 					M0_FOPH_QUEUE_REPLY_WAIT, "queue_reply",
 					M0_BITS(M0_FOPH_QUEUE_REPLY) },
 	[M0_FOPH_QUEUE_REPLY_WAIT] =  { &fom_queue_reply_wait,
-					M0_FOPH_TXN_COMMIT_WAIT,
+					M0_FOPH_TXN_DONE_WAIT,
 					"queue_reply_wait",
 					M0_BITS(M0_FOPH_QUEUE_REPLY_WAIT) },
-	[M0_FOPH_TXN_COMMIT_WAIT] =   { &m0_fom_tx_commit_wait, M0_FOPH_FINISH,
-					"tx_commit_wait",
-					M0_BITS(M0_FOPH_TXN_COMMIT_WAIT) },
+	[M0_FOPH_TXN_DONE_WAIT] =     { &m0_fom_tx_done_wait, M0_FOPH_FINISH,
+					"tx_done_wait",
+					M0_BITS(M0_FOPH_TXN_DONE_WAIT) },
 	[M0_FOPH_TIMEOUT] =	      { &fom_timeout, M0_FOPH_FAILURE,
 					"timeout", M0_BITS(M0_FOPH_TIMEOUT) },
 	[M0_FOPH_FAILURE] =	      { &fom_failure, M0_FOPH_TXN_COMMIT,
@@ -664,17 +664,17 @@ static struct m0_sm_state_descr generic_phases[] = {
 	},
 	[M0_FOPH_QUEUE_REPLY] = {
 		.sd_name      = "queue_reply",
-		.sd_allowed   = M0_BITS(M0_FOPH_TXN_COMMIT_WAIT,
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_DONE_WAIT,
 					M0_FOPH_QUEUE_REPLY_WAIT,
 					M0_FOPH_FINISH)
 	},
 	[M0_FOPH_QUEUE_REPLY_WAIT] = {
 		.sd_name      = "queue_reply_wait",
-		.sd_allowed   = M0_BITS(M0_FOPH_TXN_COMMIT_WAIT,
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_DONE_WAIT,
 					M0_FOPH_FINISH)
 	},
-	[M0_FOPH_TXN_COMMIT_WAIT] = {
-		.sd_name      = "tx_commit_wait",
+	[M0_FOPH_TXN_DONE_WAIT] = {
+		.sd_name      = "tx_done_wait",
 		.sd_allowed   = M0_BITS(M0_FOPH_TXN_INIT, M0_FOPH_FINISH)
 	},
 	[M0_FOPH_TIMEOUT] = {
@@ -753,15 +753,15 @@ struct m0_sm_trans_descr m0_generic_phases_trans[] = {
 	{"tx-opened",  M0_FOPH_TXN_WAIT, M0_FOPH_TYPE_SPECIFIC},
 	{"completed", M0_FOPH_SUCCESS, M0_FOPH_FOL_REC_ADD},
 	{"fol-record-added", M0_FOPH_FOL_REC_ADD, M0_FOPH_TXN_COMMIT},
-	{"tx-commit-start", M0_FOPH_TXN_COMMIT, M0_FOPH_QUEUE_REPLY},
+	{"tx-done-start", M0_FOPH_TXN_COMMIT, M0_FOPH_QUEUE_REPLY},
 	{"reply-queue-wait", M0_FOPH_QUEUE_REPLY, M0_FOPH_QUEUE_REPLY_WAIT},
-	{"tx-commit-wait", M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_COMMIT_WAIT},
+	{"tx-done-wait", M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_DONE_WAIT},
 	{"reply-complete", M0_FOPH_QUEUE_REPLY, M0_FOPH_FINISH},
 	{"reply-wait-finished",
-	 M0_FOPH_QUEUE_REPLY_WAIT, M0_FOPH_TXN_COMMIT_WAIT},
+	 M0_FOPH_QUEUE_REPLY_WAIT, M0_FOPH_TXN_DONE_WAIT},
 	{"reply-wait-finished", M0_FOPH_QUEUE_REPLY_WAIT, M0_FOPH_FINISH},
-	{"next", M0_FOPH_TXN_COMMIT_WAIT, M0_FOPH_TXN_INIT},
-	{"tx-commit-wait-complete", M0_FOPH_TXN_COMMIT_WAIT, M0_FOPH_FINISH},
+	{"next", M0_FOPH_TXN_DONE_WAIT, M0_FOPH_TXN_INIT},
+	{"tx-done-wait-complete", M0_FOPH_TXN_DONE_WAIT, M0_FOPH_FINISH},
 	{"timeout", M0_FOPH_TIMEOUT, M0_FOPH_FAILURE},
 	{"failed", M0_FOPH_FAILURE, M0_FOPH_TXN_COMMIT},
 };
