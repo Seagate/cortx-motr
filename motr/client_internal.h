@@ -33,6 +33,8 @@
 
 #define OP_OBJ2CODE(op_obj) op_obj->oo_oc.oc_op.op_code
 
+#define OP_IDX2CODE(op_idx) op_idx->oi_oc.oc_op.op_code
+
 #define MOCK
 #define CLIENT_FOR_M0T1FS
 
@@ -971,6 +973,15 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 		unsigned char *curr_context,
 		unsigned char *pi_value_without_seed);
 
+
+/**
+ * Returns the m0_client instance, found from the provided index.
+ *
+ * @param idx The index to find the instance for.
+ * @return A pointer to the m0_client instance.
+ */
+M0_INTERNAL struct m0_client *
+m0__idx_instance(const struct m0_idx *idx);
 
 /** @} end of client group */
 
