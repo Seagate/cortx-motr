@@ -243,6 +243,7 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	M0_ASSERT_INFO(ergo(!m0_pdclust_is_replicated(pl), M0_IN(pm_algo,
 					(M0_PARITY_CAL_ALGO_XOR,
+					M0_PARITY_CAL_ALGO_REED_SOLOMON,
 					M0_PARITY_CAL_ALGO_ISA))),
 		       "parity_algo=%d", (int)pm_algo);
 
