@@ -17,8 +17,6 @@
 # For any questions about this software or licensing,
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
-
-
 import subprocess
 import os
 import sys
@@ -32,6 +30,7 @@ import time
 import calendar
 import ast
 import re
+import json
 from datetime import datetime
 from collections import OrderedDict
 
@@ -426,9 +425,10 @@ class TestFramework(object):
         ret = 0
         cmd = '{}sudo hctl status --json'.format(
                '' if self.is_localhost(self.host) else f'ssh {self.host} ')
-        self.cluster_info = ast.literal_eval(self.execute_command_and_get_output(cmd))
+        op = self.execute_command_and_get_output(cmd)
+        self.cluster_info = json.loads(op)
         if (self.cluster_info != None):
-            self.profile_fid = self.cluster_info["profile"]
+            self.profile_fid = self.cluster_info["profiles"][0]['fid']
             nodes_data = self.cluster_info["nodes"]
             for node in nodes_data:
                 nodename = node["name"]
