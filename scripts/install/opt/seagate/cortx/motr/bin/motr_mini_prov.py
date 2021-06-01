@@ -679,10 +679,10 @@ def clean_ivt_data(self):
             execute_command(self, f"rm -rf {dname}")
         self.logger.info(f"Removed below db directories.\n{dnames_db}")
     else:
-        raise MotrError(errno.ENOENT, f"{MOTR_LOG_DIR} does not exist")
+        self.logger.warning(f"{MOTR_LOG_DIR} does not exist")
 
     if os.path.exists(IVT_DIR):
         self.logger.info(f"Removing {IVT_DIR}")
         execute_command(self, f"rm -rf {IVT_DIR}")
     else:
-        raise MotrError(errno.ENOENT, f"{IVT_DIR} does not exist")
+        self.logger.warning(f"{IVT_DIR} does not exist")
