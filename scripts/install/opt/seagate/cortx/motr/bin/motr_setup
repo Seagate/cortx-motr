@@ -52,7 +52,7 @@ class Cmd:
     def usage(prog: str):
         """Print usage instructions"""
 
-        self.logger.warning(
+        sys.stderr.write(
             f"usage: {prog} [-h] <cmd> --config <url> <args>\n"
             f"where:\n"
             f"cmd           post_install, prepare, config, init, test, reset, cleanup,"
