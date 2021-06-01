@@ -1,4 +1,4 @@
-#= <7640000000000001:0>: Number of allowed disk failures (3) > P - N - 2K of base pver
+#= <7640000000000001:0>: Number of allowed disk failures (3) > P - N - K - S of base pver
 (root-0 verno=1 rootfid=(1, 2) mdpool=pool-1 imeta_pver=pver-0
     mdredundancy=1 params=["param-0", "param-1", "param-2"] nodes=[node-0]
     sites=[site-2] pools=[pool-0, pool-1] profiles=[profile-0] fdmi_flt_grps=[])
@@ -29,7 +29,7 @@
 
 (pool-1 pver_policy=0 pvers=[])
 (pool-0 pver_policy=0 pvers=[pver-0, pver_f-0])
-(pver-0 N=1 K=1 P=3 tolerance=[0, 0, 0, 0, 3] sitevs=[objv-5])
+(pver-0 N=1 K=1 S=1 P=3 tolerance=[0, 0, 0, 0, 3] sitevs=[objv-5])
 (pver_f-0 id=0 base=pver-0 allowance=[0, 0, 0, 0, 3])
 ## sites -------------------------------------------------------------
 (site-2 racks=[rack-0] pvers=[pver-0])
@@ -38,10 +38,10 @@
 (rack-0 encls=[enclosure-0] pvers=[pver-0])
 (objv-10 real=rack-0 children=[objv-20])
 ## encls -------------------------------------------------------------
-(enclosure-0 ctrls=[controller-0] pvers=[pver-0])
+(enclosure-0 node=node-0 ctrls=[controller-0] pvers=[pver-0])
 (objv-20 real=enclosure-0 children=[objv-30])
 ## ctrls -------------------------------------------------------------
-(controller-0 node=node-0 drives=[drive-0, drive-1, drive-2] pvers=[pver-0])
+(controller-0 drives=[drive-0, drive-1, drive-2] pvers=[pver-0])
 (objv-30 real=controller-0 children=[objv-40, objv-41, objv-42])
 ## disks -------------------------------------------------------------
 (drive-0 dev=sdev-0 pvers=[pver-0])
