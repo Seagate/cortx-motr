@@ -69,11 +69,16 @@ struct m0_dtm0_service;
 struct m0_dtx;
 
 #ifdef CLIENT_FOR_M0T1FS
+
+/**
+ * motr clients other than S3, may not store pver in meta-data,
+ * thus they have to use md-cob lookup to get pver attribute.
+ */
+#define M0TR_COB_LOOKUP_SKIPPED 3
+
 /**
  * Maximum length for an object's name.
  */
-
-#define M0TR_COB_LOOKUP_SKIPPED 3
 enum {
 	M0_OBJ_NAME_MAX_LEN = 64
 };

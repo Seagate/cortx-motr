@@ -1855,10 +1855,9 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	skip_lookup = false;
 	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
 	if ((cr->cr_opcode == M0_EO_GETATTR) &&
-	     m0_fid_is_set(&obj->ob_attr.oa_pver)) {
+	     m0_fid_is_set(&obj->ob_attr.oa_pver) &&
+	     m0_fid_is_valid(&obj->ob_attr.oa_pver)) {
 		skip_lookup = true;
-		M0_LOG(M0_DEBUG, "pver "FID_F" is valid, lookup can be skipped",
-		       FID_P(&obj->ob_attr.oa_pver));
 	}
 
 	/* Set layout id and pver for CREATE op.*/
@@ -1867,7 +1866,6 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 		/* For create operation setting up pool version locally
 		 * found in pools common, so cob lookup call to server
 		 * can be skipped */
-		M0_LOG(M0_DEBUG, "pool version from pools common pv->pv_id:"FID_F, FID_P(&pv->pv_id));
 		obj->ob_attr.oa_pver.f_container = pv->pv_id.f_container;
 		obj->ob_attr.oa_pver.f_key = pv->pv_id.f_key;
 		skip_lookup = true;
@@ -1875,7 +1873,6 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 
 	if (! skip_lookup ) {
 	/* Send requests to services. */
-		M0_LOG(M0_DEBUG, "proceeding for lookup, cr_opcode: %d", cr->cr_opcode);
 		rc = cob_req_send(cr);
 		if (rc != 0) {
 			cr->cr_ar.ar_ast.sa_cb = &cob_ast_fail_cr;
