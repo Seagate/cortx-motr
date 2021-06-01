@@ -741,6 +741,8 @@ static int entity_namei_op(struct m0_entity *entity,
 		break;
 	case M0_ET_IDX:
 		rc = m0_idx_op_namei(entity, op, opcode);
+		if (rc != 0)
+			goto error;
 		break;
 	default:
 		M0_IMPOSSIBLE("Entity type not yet implemented.");
