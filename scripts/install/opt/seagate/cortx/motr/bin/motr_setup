@@ -232,8 +232,8 @@ def main(argv: dict):
         command.process()
 
     except Exception as e:
-        self.logger.error(f"\n{str(e)}\n\n")
-        self.logger.error(f"{traceback.format_exc()}\n")
+        sys.stderr.write(f"\n{str(e)}\n\n")
+        sys.stderr.write(f"{traceback.format_exc()}\n")
         Cmd.usage(argv[0])
         return errno.EINVAL
 
