@@ -735,4 +735,3 @@ def lnet_self_ping(self):
        if ret != 0:
             return False
     return True
-
