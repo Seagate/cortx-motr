@@ -144,8 +144,9 @@ class ReqhInitArgs(Structure):
 
 # struct m0_pdclust_attr
 class PdclustAttr(Structure):
-    _fields_ = [('pa_N', c_uint32), ('pa_K', c_uint32), ('pa_P', c_uint32),
-                ('pa_unit_size', c_uint64), ('pa_seed', Fid)]
+    _fields_ = [('pa_N', c_uint32), ('pa_K', c_uint32), ('pa_S', c_uint32),
+                ('pa_P', c_uint32), ('pa_unit_size', c_uint64),
+                ('pa_seed', Fid)]
 
 
 # struct m0_spiel_service_info
