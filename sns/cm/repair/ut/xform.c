@@ -438,6 +438,87 @@ static void cp_multi_failures_post(char data, int cnt, int index)
 	m0_semaphore_down(&sem);
 }
 
+static void buf_initialize(struct m0_buf *buf, uint32_t size, uint32_t len)
+{
+	uint32_t j;
+	uint8_t	*arr;
+
+	for (j = 0; j < size; ++j) {
+		M0_ALLOC_ARR(arr, len);
+		M0_UT_ASSERT(arr != NULL);
+		m0_buf_init(&buf[j], arr, len);
+	}
+}
+
+static void buf_free(struct m0_buf *buf, uint32_t count)
+{
+	uint32_t i;
+
+	for (i = 0; i < count; ++i)
+		m0_buf_free(&buf[i]);
+}
+
+static void bufvec2buf(struct m0_buf *buf, struct m0_bufvec *bufvec, uint32_t count)
+{
+	uint32_t  i;
+	uint32_t  j;
+	uint8_t  *buf_data;
+	uint8_t  *bufvec_data;
+
+	for (i = 0; i < count; i++) {
+		buf_data = (uint8_t *)buf[i].b_addr;
+		for (j = 0; j < SEG_NR; ++j) {
+			bufvec_data = (uint8_t *)bufvec[i].ov_buf[j];
+			memcpy(&buf_data[SEG_SIZE * j], bufvec_data, SEG_SIZE);
+		}
+	}
+}
+
+static void buf2bufvec(struct m0_bufvec *bufvec, struct m0_buf *buf, uint32_t count)
+{
+	uint32_t  i;
+	uint32_t  j;
+	uint8_t  *buf_data;
+	uint8_t  *bufvec_data;
+
+	for (i = 0; i < count; i++) {
+		buf_data = (uint8_t *)buf[i].b_addr;
+		for (j = 0; j < SEG_NR; ++j) {
+			bufvec_data = (uint8_t *)bufvec[i].ov_buf[j];
+			memcpy(bufvec_data, &buf_data[SEG_SIZE * j], SEG_SIZE);
+		}
+	}
+}
+
+static void ref_parity_calculate(struct m0_parity_math *math, struct m0_bufvec *bufvec)
+{
+	struct m0_buf *buf;
+	uint32_t       unit_count;
+
+	M0_UT_ASSERT(math != NULL);
+	M0_UT_ASSERT(bufvec != NULL);
+
+	unit_count = math->pmi_data_count + math->pmi_parity_count;
+
+	M0_ALLOC_ARR(buf, unit_count);
+	M0_UT_ASSERT(buf != NULL);
+
+	buf_initialize(buf, unit_count, SEG_NR * SEG_SIZE);
+
+	/* Copy data from buffer vector to m0 buffer */
+	bufvec2buf(buf, bufvec, math->pmi_data_count);
+
+	/* Calculate parity */
+	m0_parity_math_calculate(math, buf, &buf[math->pmi_data_count]);
+
+	/* Copy parity from m0 buffer to buffer vector */
+	buf2bufvec(&bufvec[math->pmi_data_count], &buf[math->pmi_data_count],
+		   math->pmi_parity_count);
+
+	buf_free(buf, unit_count);
+	m0_free(buf);
+}
+
 /*
  * Test to check that multiple copy packets are collected by the
  * transformation function, in case of multiple failures.
@@ -451,6 +532,31 @@ static void test_multi_cp_multi_failures(void)
 	struct m0_sns_cm_file_ctx fctx;
 	struct m0_pool_version    pv;
 	struct m0_poolmach        pm;
+	struct m0_parity_math     math;
+	struct m0_bufvec         *x;
+	char                      data[DATA_NR] = {'r', 's', 't', 'u', 'v'};
+	uint8_t                   failed_idx[MULTI_FAILURES] = {1, 6};
+	uint8_t                  *bufs_in_error;
+	uint32_t                  unit_count = DATA_NR + PARITY_NR;
+	int                       ret;
+
+	M0_ALLOC_ARR(x, unit_count);
+	M0_UT_ASSERT(x != NULL);
+
+	for (i = 0; i < unit_count; i++) {
+		M0_UT_ASSERT(m0_bufvec_alloc_aligned(&x[i], SEG_NR, SEG_SIZE,
+						     M0_0VEC_SHIFT) == 0);
+		M0_UT_ASSERT(x[i].ov_vec.v_nr == SEG_NR);
+	}
+
+	for (i = 0; i < DATA_NR; i++) {
+		bv_populate(&x[i], data[i], SEG_NR, SEG_SIZE);
+	}
+
+	ret = m0_parity_math_init(&math, DATA_NR, PARITY_NR);
+	M0_UT_ASSERT(ret == 0);
+	ref_parity_calculate(&math, x);
+	m0_parity_math_fini(&math);
 
 	m0_fi_enable("m0_sns_cm_tgt_ep", "local-ep");
 	m0_semaphore_init(&sem, 0);
@@ -479,58 +585,68 @@ static void test_multi_cp_multi_failures(void)
 	 * The test case is illustrated as follows.
 	 * N = 5, K = 2
 	 *
-	 * According to RS encoding,
-	 * if d0 = 'r', d1 = 's', d2 = 't', d3 = 'u', d4 = 'v', then
-	 *    p1 = 'w' and p2 = 'p'
+	 * Calculate parity for below data
+	 * d0 = 'r', d1 = 's', d2 = 't', d3 = 'u', d4 = 'v'
+	 *
 	 * Consider,
 	 * D0 = BUF_NR buffers having data = 'r' (index in ag = 0)
 	 * D1 = FAILED                           (index in ag = 1)
 	 * D2 = BUF_NR buffers having data = 't' (index in ag = 2)
 	 * D3 = BUF_NR buffers having data = 'u' (index in ag = 3)
 	 * D4 = BUF_NR buffers having data = 'v' (index in ag = 4)
-	 * P1 = BUF_NR buffers having data = 'w' (index in ag = 5)
+	 * P1 = BUF_NR buffers having parity     (index in ag = 5)
 	 * P2 = FAILED                           (index in ag = 6)
 	 *
 	 * In above case, after recovery, the accumulator buffers should have
 	 * recovered values of D1 and P2 respectively.
 	 */
-	M0_UT_ASSERT(m0_sns_ir_failure_register(&n_acc_buf[0][0].nb_buffer,
-						        1, &n_rag.rag_ir) == 0);
-	n_rag.rag_fc[0].fc_failed_idx = 1;
-	M0_UT_ASSERT(m0_sns_ir_failure_register(&n_acc_buf[1][0].nb_buffer,
-						        6, &n_rag.rag_ir) == 0);
-	n_rag.rag_fc[0].fc_failed_idx = 6;
+
+	for (i = 0; i < MULTI_FAILURES; ++i) {
+		ret = m0_sns_ir_failure_register(&n_acc_buf[i][0].nb_buffer,
+						 failed_idx[i], &n_rag.rag_ir);
+		M0_UT_ASSERT(ret == 0);
+		n_rag.rag_fc[i].fc_failed_idx = failed_idx[i];
+	}
+
 	M0_UT_ASSERT(m0_sns_ir_mat_compute(&n_rag.rag_ir) == 0);
 
-	cp_multi_failures_post('r', 0, 0);
-	cp_multi_failures_post('t', 1, 2);
-	cp_multi_failures_post('u', 2, 3);
-	cp_multi_failures_post('v', 3, 4);
-	cp_multi_failures_post('w', 4, 5);
+	M0_ALLOC_ARR(bufs_in_error, unit_count);
+	M0_UT_ASSERT(bufs_in_error != NULL);
+
+	for (i = 0; i < MULTI_FAILURES; ++i) {
+		bufs_in_error[failed_idx[i]] = 1;
+	}
+
+	for (i = 0, j = 0; i < DATA_NR; ++i, ++j) {
+		while (bufs_in_error[j])
+			j++;
+		cp_multi_failures_post(((char *)(x[j].ov_buf[0]))[0], i, j);
+	}
+	m0_free(bufs_in_error);
 
 	m0_reqh_idle_wait(reqh);
 
-	/* Verify that first accumulator contains recovered data for D1. */
-	bv_alloc_populate(&src, 's', SEG_NR, SEG_SIZE);
-	m0_tl_for(cp_data_buf, &n_rag.rag_fc[0].fc_tgt_acc_cp.sc_base.c_buffers,
-		  nbuf) {
-		bv_compare(&src, &nbuf->nb_buffer, SEG_NR, SEG_SIZE);
-	} m0_tl_endfor;
-	bv_free(&src);
-
-	/* Verify that first accumulator contains recovered data for P2. */
-	bv_alloc_populate(&src, 'p', SEG_NR, SEG_SIZE);
-	m0_tl_for(cp_data_buf, &n_rag.rag_fc[1].fc_tgt_acc_cp.sc_base.c_buffers,
-		  nbuf) {
-		bv_compare(&src, &nbuf->nb_buffer, SEG_NR, SEG_SIZE);
-	} m0_tl_endfor;
-	bv_free(&src);
+	/* Verify that first accumulator contains recovered data for D1 and P2. */
+	for (i = 0; i < MULTI_FAILURES; ++i) {
+		m0_tl_for(cp_data_buf,
+			  &n_rag.rag_fc[i].fc_tgt_acc_cp.sc_base.c_buffers,
+			  nbuf) {
+				bv_compare(&x[failed_idx[i]],
+					   &nbuf->nb_buffer,
+					   SEG_NR, SEG_SIZE);
+		} m0_tl_endfor;
+	}
 
         /*
          * These asserts ensure that all the copy packets have been collected
          * by the transformation function.
          */
         m0_semaphore_fini(&sem);
+
+	for (i = 0; i < unit_count; i++)
+		bv_free(&x[i]);
+
+	m0_free(x);
 
         for (i = 0; i < MULTI_FAIL_MULTI_CP_NR; ++i)
 		for (j = 0; j < BUF_NR; ++j)
