@@ -2122,7 +2122,7 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 		break;
 
 	/* Input block is assumed to be a transformed block, and is
-	 * cummulatively added to a block with index failed_index. */
+	 * cumulatively added to a block with index failed_index. */
 	case M0_SI_BLOCK_REMOTE:
 		if (!is_usable(ir, (struct m0_bitmap*) bitmap,
 			       &blocks[failed_index]))
