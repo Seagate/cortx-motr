@@ -859,12 +859,15 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 
 	M0_PRE(pi != NULL);
 	M0_PRE(curr_context != NULL);
-	M0_PRE(bvec != NULL);
-	M0_PRE(bvec->ov_vec.v_count != NULL);
-	M0_PRE(bvec->ov_buf != NULL);
+	M0_PRE(ergo(bvec != NULL && bvec->ov_vec.v_nr != 0,
+				bvec->ov_vec.v_count != NULL &&
+				bvec->ov_buf != NULL));
 
 	/* This call is for first data unit, need to initialize prev_context */
 	if (flag & M0_PI_CALC_UNIT_ZERO) {
+		memset(pi, 0, sizeof(struct m0_md5_inc_context_pi));
+		pi->hdr.pi_type = M0_PI_TYPE_MD5_INC_CONTEXT;
+		pi->hdr.pi_size = (uint8_t)sizeof(struct m0_md5_inc_context_pi);
 		rc = MD5_Init((MD5_CTX *)&pi->prev_context);
 		if (rc != 1) {
 			return M0_ERR_INFO(rc, "MD5_Init failed.");
@@ -875,15 +878,20 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	memcpy(curr_context, &pi->prev_context, sizeof(MD5_CTX));
 
 
-	/* get the curr context i by updating it*/
-	for (i = 0; i < bvec->ov_vec.v_nr; i++) {
-		rc = MD5_Update((MD5_CTX *)curr_context, bvec->ov_buf[i],
-				bvec->ov_vec.v_count[i]);
-		if (rc != 1) {
-			return M0_ERR_INFO(rc, "MD5_Update failed. curr_context=%p, "
-					"bvec->ov_buf[%d]=%p, bvec->ov_vec.v_count[%u]=%u",
-					curr_context, i, bvec->ov_buf[i], i,
-					(uint32_t)bvec->ov_vec.v_count[i]);
+	/* get the curr context by updating it*/
+	if (bvec != NULL) {
+		for (i = 0; i < bvec->ov_vec.v_nr; i++) {
+			rc = MD5_Update((MD5_CTX *)curr_context, bvec->ov_buf[i],
+					bvec->ov_vec.v_count[i]);
+			if (rc != 1) {
+				return M0_ERR_INFO(rc, "MD5_Update failed."
+						"curr_context=%p, "
+						"bvec->ov_buf[%d]=%p, "
+						"bvec->ov_vec.v_count[%d]=%lu",
+						curr_context, i,
+						bvec->ov_buf[i], i,
+						bvec->ov_vec.v_count[i]);
+			}
 		}
 	}
 
