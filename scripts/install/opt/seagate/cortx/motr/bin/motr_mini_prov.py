@@ -139,6 +139,9 @@ def validate_motr_rpm(self):
 
 
 def motr_config(self):
+    # Just to check if lnet is working properly
+    if not verify_lnet(self):
+       raise MotrError(errno.EINVAL, "lent is not up.")
     is_hw = is_hw_node(self)
     if is_hw:
         self.logger.info(f"Executing {MOTR_CONFIG_SCRIPT}")
@@ -187,6 +190,12 @@ def configure_lnet(self):
         fp.write(lnet_config)
 
     restart_services(self, ["lnet"])
+    # Ping to nid
+    self.logger.info("Doing ping to nids\n")
+    ret = lnet_self_ping(self)
+    if not ret:
+       raise MotrError(errno.EINVAL, "lent self ping failed\n")
+
 
 def configure_libfabric(self):
     raise MotrError(errno.EINVAL, "libfabric not implemented\n")
@@ -686,3 +695,43 @@ def clean_ivt_data(self):
         execute_command(self, f"rm -rf {IVT_DIR}")
     else:
         self.logger.warning(f"{IVT_DIR} does not exist")
+
+def check_services(self, services):
+    for service in services:
+        self.logger.info(f"Checking status of {service} service\n")
+        cmd = f"systemctl status {service}"
+        execute_command(self, cmd)
+        ret = execute_command_without_exception(self, cmd)
+        if ret != 0:
+            return False
+    return True
+
+def verify_lnet(self):
+    self.logger.info("Doing ping to nids.\n")
+    ret = lnet_self_ping(self)
+    if not ret:
+        # Check if lnet is up. If lnet is not up, restart lnet and try ping nid.
+        # Else, ping nid after some delay since lnet is already up.
+        if not check_services(self, ["lnet"]):
+            self.logger.info("lnet is not up. Restaring lnet.\n")
+            restart_services(self, ["lnet"])
+            self.logger.info("Doing ping to nids after 5 seconds.\n")
+        else:
+            self.logger.warning("lnet is up. Doing ping to nids after 5 seconds.\n")
+        execute_command_without_exception(self, "sleep 5")
+        ret = lnet_self_ping(self)
+    return ret
+
+def lnet_self_ping(self):
+    nids = []
+
+    op = execute_command(self, "lctl list_nids")
+    nids.append(op[0].rstrip("\n"))
+    self.logger.info(f"nids= {nids}\n")
+    for nid in nids:
+       cmd = f"lctl ping {nid}"
+       self.logger.info(f"lctl ping on: {nid}\n")
+       ret = execute_command_without_exception(self, cmd)
+       if ret != 0:
+            return False
+    return True
