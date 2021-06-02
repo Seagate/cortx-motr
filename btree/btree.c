@@ -3205,17 +3205,17 @@ int calc_shift(int value)
 
 int64_t btree_create_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
-	struct m0_btree_oimpl 	*oi = bop->bo_i;
-	struct m0_btree_idata 	*data = &bop->b_data;
-	int 			 k_size = data->nt->nt_id == BNT_FIXED_FORMAT ?
-					  data->bt->ksize : (data->nt->nt_id ==
-					  BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE ?
-					  data->bt->ksize : -1);
-	int 			 v_size = data->nt->nt_id == BNT_FIXED_FORMAT ?
-					  data->bt->vsize :(data->nt->nt_id ==
-					  BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE ?
-					  data->bt->vsize : -1);
+	struct m0_btree_op    *bop = M0_AMB(bop, smop, bo_op);
+	struct m0_btree_oimpl *oi = bop->bo_i;
+	struct m0_btree_idata *data = &bop->b_data;
+	int		       k_size = data->nt->nt_id == BNT_FIXED_FORMAT ?
+					data->bt->ksize : (data->nt->nt_id ==
+					BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE ?
+					data->bt->ksize : -1);
+	int		       v_size = data->nt->nt_id == BNT_FIXED_FORMAT ?
+					data->bt->vsize :(data->nt->nt_id ==
+					BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE ?
+					data->bt->vsize : -1);
 
 	switch(bop->bo_op.o_sm.sm_state)
 	{
@@ -3253,9 +3253,16 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 	}
 }
 
+/**
+ * btree_destroy_tick function is the main function used to destroy btree.
+ *
+ * @param smop Represents the state machine operation
+ * @return int64_t It returns the next state to be executed.
+ */
+
 int64_t btree_destroy_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
+	struct m0_btree_op *bop = M0_AMB(bop, smop, bo_op);
 
 	switch(bop->bo_op.o_sm.sm_state)
 	{
@@ -3539,19 +3546,28 @@ void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 		     const struct node_type *nt, struct m0_be_tx *tx,
 		     struct m0_btree_op *bop)
 {
-	bop->b_data.addr	= addr;
-	bop->b_data.num_bytes	= nob;
-	bop->b_data.bt		= bt;
-	bop->b_data.nt		= nt;
+	bop->b_data.addr      = addr;
+	bop->b_data.num_bytes = nob;
+	bop->b_data.bt        = bt;
+	bop->b_data.nt        = nt;
 
 	m0_sm_op_init(&bop->bo_op, &btree_create_tick, &bop->bo_op_exec,
 		      &btree_conf, &G);
 }
 
+/**
+ * m0_btree_destroy is the API which is used by motr to destroy btree.
+ *
+ * @param arbor It is the address of m0_btree allocated by the caller of this
+ * function
+ * @param bop It represents the structure containing all the relevant details
+ * for carrying out btree operations.
+ */
+
 void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
 {
-	bop->bo_arbor	= arbor;
-	bop->bo_tx	= NULL;
+	bop->bo_arbor = arbor;
+	bop->bo_tx    = NULL;
 
 	m0_sm_op_init(&bop->bo_op, &btree_destroy_tick, &bop->bo_op_exec,
 		      &btree_conf, &G);
