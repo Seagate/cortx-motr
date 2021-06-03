@@ -2242,7 +2242,8 @@ static void generic_move(struct nd *src, struct nd *tgt,
 	while (true) {
 		if (nr == 0 || (nr == NR_EVEN &&
 			       (node_space(tgt) <= node_space(src))) ||
-			       (nr == NR_MAX && srcidx == -1))
+			       (nr == NR_MAX && (srcidx == -1 ||
+			       node_count_rec(src) == 0)))
 			break;
 
 		/** Get the record at src index in rec. */
@@ -2424,21 +2425,24 @@ static struct m0_btree_oimpl *level_alloc(int height)
 	return oi;
 }
 
-static void level_cleanup(struct m0_btree_oimpl *oi)
+static void level_cleanup(struct m0_btree_oimpl *oi,
+			  enum m0_btree_opcode bo_opc)
 {
 	int i;
-	for (i = 0; i < oi->i_used; ++i) {
+	for (i = 0; i <= oi->i_used; ++i) {
 		if (oi->i_level[i].l_node != NULL) {
 			node_put(oi->i_level[i].l_node);
 			oi->i_level[i].l_node = NULL;
 		}
-		if (oi->i_level[i].l_alloc != NULL) {
-			node_put(oi->i_level[i].l_alloc);
-			oi->i_level[i].l_alloc = NULL;
-		}
 	}
-	if (oi->i_extra_node != NULL) {
-		node_put(oi->i_extra_node);
+	if (bo_opc == M0_BO_PUT) {
+		for (i = 0; i <= oi->i_used; ++i) {
+			if (oi->i_level[i].l_alloc != NULL) {
+				oi->i_level[i].l_alloc = NULL;
+			}
+		}
+		if (oi->i_extra_node != NULL)
+			oi->i_extra_node = NULL;
 	}
 	m0_free(oi->i_level);
 	m0_free(oi);
@@ -2502,7 +2506,7 @@ static int64_t m0_btree_put_alloc_phase(struct m0_btree_op *bop)
 				return P_ALLOC;
 			} else {
 				node_op_fini(&oi->i_nop);
-				level_cleanup(oi);
+				level_cleanup(oi, bop->bo_opc);
 				return P_INIT;
 			}
 		}
@@ -2527,7 +2531,7 @@ static int64_t m0_btree_put_alloc_phase(struct m0_btree_op *bop)
 			return P_ALLOC;
 		} else {
 			node_op_fini(&oi->i_nop);
-			level_cleanup(oi);
+			level_cleanup(oi, bop->bo_opc);
 			return P_INIT;
 		}
 	}
@@ -2689,6 +2693,24 @@ static void m0_btree_put_split_and_find(struct nd *l_alloc , struct nd *l_node,
 
 	diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
 	tgt->s_node = diff < 0 ? l_slot.s_node : r_slot.s_node;
+
+	/**
+	 * Corner case: If given record needs to be inseted at internal left
+	 * node and if the key of given record is greater than key at last index
+	 * of left record, initialised tgt->s_idx explicitly, as node_find will
+	 * not compare key with last indexed key.
+	 */
+	if (node_level(tgt->s_node) > 0 && tgt->s_node == l_slot.s_node) {
+		l_slot.s_idx = node_count(l_slot.s_node);
+		l_slot.s_rec = temp_rec;
+		node_key(&l_slot);
+		m0_bufvec_cursor_init(&cur_2, &r_slot.s_rec.r_key.k_data);
+		diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+		if (diff > 0) {
+			tgt->s_idx = node_count(l_slot.s_node) + 1;
+			return;
+		}
+	}
 
 	node_find(tgt, &rec->r_key);
 }
@@ -3030,10 +3052,12 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		return P_CLEANUP;
 		//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 	}
-	case P_CLEANUP:
-		level_cleanup(oi);
+	case P_CLEANUP: {
+		oi->i_used = bop->bo_arbor->t_height - 1;
+		level_cleanup(oi, bop->bo_opc);
 		return P_DONE;
 		//return m0_sm_op_ret(&bop->bo_op);
+	}
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
 	};
@@ -3461,7 +3485,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 		//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 	}
 	case P_CLEANUP:
-		level_cleanup(oi);
+		level_cleanup(oi, bop->bo_opc);
 		return P_DONE;
 		//return m0_sm_op_ret(&bop->bo_op);
 	default:
