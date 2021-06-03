@@ -3469,7 +3469,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 	};
 }
 
-int64_t btree_nxt_tick(struct m0_sm_op *smop)
+int64_t btree_iter_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
 	//ToDo: Implement complete destroy tick function.
@@ -3570,11 +3570,22 @@ void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 		      &btree_conf, &G);
 }
 
-void m0_btree_nxt(struct m0_btree *arbor, const struct m0_btree_key *key,
-		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop)
+/**
+ * Iterates through the tree and finds next/previous key of the given search
+ * key based on the flag. The callback routine returns record if key is found 
+ * else it returns error.
+ *
+ * @param arbor Btree parameteres.`
+ * @param key   Key to be searched in the btree.
+ * @param cb    Callback routine to return operation output.
+ * @param flags Operation specific flags (cookie, slant, prev, next etc.).
+ * @param bop   Btree operation related parameters.
+ */
+void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
+		   const struct m0_btree_cb *cb, uint64_t flags,
+		   struct m0_btree_op *bop)
 {
-	m0_sm_op_init(&bop->bo_op, &btree_nxt_tick, &bop->bo_op_exec,
+	m0_sm_op_init(&bop->bo_op, &btree_iter_tick, &bop->bo_op_exec,
 		      &btree_conf, &G);
 }
 
@@ -4286,10 +4297,10 @@ static void m0_btree_ut_basic_kv_oper(void)
 		for (i = 1; i < 2048; i++) {
 			find_key = key;
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-						 m0_btree_nxt(b_op.bo_arbor,
-							      &find_key_in_tree,
-							      &ut_cb, 0,
-							      &kv_op),
+						 m0_btree_iter(b_op.bo_arbor,
+							       &find_key_in_tree,
+							       &ut_cb, OF_NEXT,
+							       &kv_op),
 						 &G, &b_op.bo_op_exec);
 		}
 	}
