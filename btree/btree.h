@@ -113,9 +113,18 @@ enum m0_btree_opcode {
 	M0_BO_GET,
 	M0_BO_PUT,
 	M0_BO_DEL,
-	M0_BO_NXT,
+	M0_BO_ITER,
 
 	M0_BO_NR
+};
+
+enum m0_btree_op_flags {
+	BOF_PREV    = M0_BITS(0),
+	BOF_NEXT    = M0_BITS(1),
+	BOF_LOCKALL = M0_BITS(2),
+	BOF_COOKIE  = M0_BITS(3),
+	BOF_EQUAL   = M0_BITS(4),
+	BOF_SLANT   = M0_BITS(5)
 };
 
 /**
@@ -147,9 +156,9 @@ void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
 void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, uint64_t flags,
 		  struct m0_btree_op *bop);
-void m0_btree_nxt(struct m0_btree *arbor, const struct m0_btree_key *key,
-		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop);
+void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
+		   const struct m0_btree_cb *cb, uint64_t flags,
+		   struct m0_btree_op *bop);
 
 void m0_btree_op_init(struct m0_btree_op *bop, enum m0_btree_opcode *opc,
 		      struct m0_btree *arbor,
