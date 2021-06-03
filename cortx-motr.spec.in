@@ -3,7 +3,12 @@
 %bcond_with debuginfo_sources
 %bcond_with cassandra
 %bcond_with ivt
-%bcond_with isal
+
+# Below line will enable the isal by default. This will add Intel ISA as
+# dependency by default. User can override this by using '--without isal'
+# in makefile to disable it. To change the default value i.e. to disable
+# Intel ISA dependency by default, use '%bcond_with isal'.
+%bcond_without isal
 
 # configure options
 %define with_linux  %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
