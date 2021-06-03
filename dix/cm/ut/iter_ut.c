@@ -43,7 +43,6 @@
 #define NODES         10
 #define DATA_NR       1
 #define FAILURES_NR   3
-#define SPARE_NR      3
 #define DEVS_ID_SHIFT 100
 
 static struct m0_reqh           reqh;
@@ -609,8 +608,7 @@ static void iter_ut_pool_init()
 				      POOL_WIDTH,
 				      NODES,
 				      DATA_NR,
-				      FAILURES_NR,
-				      SPARE_NR);
+				      FAILURES_NR);
 	M0_UT_ASSERT(result == 0);
 	iter_ut_devs_setup();
 	/** @todo Ugly workaround to do finalisation successfully. */

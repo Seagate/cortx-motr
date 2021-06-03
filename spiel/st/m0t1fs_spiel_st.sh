@@ -146,7 +146,7 @@ stub_confdb() {
 (service-5 type=@M0_CST_SSS endpoints=["$M0D1_ENDPOINT"] params=[] sdevs=[])
 (service-6 type=@M0_CST_RMS endpoints=["$M0T1FS_ENDPOINT"] params=[] sdevs=[])
 (pool-0 pver_policy=0 pvers=[pver-0, pver_f-11])
-(pver-0 N=2 K=1 S=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:0])
+(pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:0])
 (pver_f-11 id=0 base=pver-0 allowance=[0, 0, 0, 0, 1])
 (objv-2:0 real=site-2 children=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
@@ -175,7 +175,7 @@ stub_confdb() {
 (sdev-4 dev_idx=3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
     flags=4 filename="/dev/sdev4")
 (pool-1 pver_policy=0 pvers=[pver-10])
-(pver-10 N=1 K=0 S=0 P=1 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:10])
+(pver-10 N=1 K=0 P=1 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:10])
 (objv-2:10 real=site-2 children=[objv-10])
 (objv-10 real=rack-0 children=[objv-11])
 (objv-11 real=enclosure-0 children=[objv-12])
@@ -317,7 +317,7 @@ HEALTH_GOOD, HEALTH_BAD, HEALTH_INACTIVE, HEALTH_UNKNOWN = range(4)
 construct_db() {
     $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
-N, K, S, P = 2, 1, 1, 4
+N, K, P = 2, 1, 4
 mask = c_uint64(3)
 cores = Bitmap(1, pointer(mask))
 
@@ -329,7 +329,7 @@ spiel.tx_open(tx)
 
 commands = [
     ('root_add', tx, Fid(11, 12), fids['mdpool'],
-     Fid(0, 0), 10, ['{0} {1} {2} {3}'.format(P, N, K, S)]),
+     Fid(0, 0), 10, ['{0} {1} {2}'.format(P, N, K)]),
     ('profile_add', tx, fids['profile']),
     ('pool_add', tx, fids['pool'], 0),
     ('site_add', tx, fids['site']),

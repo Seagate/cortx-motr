@@ -38,7 +38,6 @@ MOTR_TRACE_DIR=$SANDBOX_DIR/motr
 
 N=3
 K=2
-S=2
 P=20
 stride=4
 src_file="$MOTR_TEST_DIR/src_file"
@@ -196,7 +195,7 @@ test_rmw()
 		healthy_mode=false
 	fi
 
-	motr_service_start $1 $K $S $P $stride
+	motr_service_start $1 $K $P $stride
 
 	#Initialise dix
 	dix_init
@@ -266,7 +265,7 @@ test_updt_lt_unit_rmw()
 	rm -rf $MOTR_TRACE_DIR
 	mkdir $MOTR_TRACE_DIR
 
-	motr_service_start 1 4 4 $P $stride
+	motr_service_start 1 4 $P $stride
 
 	#Initialise dix
 	dix_init

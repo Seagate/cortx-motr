@@ -470,7 +470,7 @@ main()
 
 	sandbox_init
 
-	motr_service start $multiple_pools $stride $N $K $S $P || {
+	motr_service start $multiple_pools  $stride $N $K $P || {
 		echo "Failed to start Motr Service."
 		return 1
 	}

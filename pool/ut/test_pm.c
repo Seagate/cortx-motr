@@ -38,7 +38,6 @@ enum {
 	PM_TEST_DEFAULT_DEVICE_NUMBER      = 10,
 	PM_TEST_DEFAULT_NODE_NUMBER        = 1,
 	PM_TEST_DEFAULT_MAX_DEVICE_FAILURE = 1,
-	PM_TEST_DEFAULT_SPARE_NUMBER       = 1,
 	PM_TEST_DEFAULT_MAX_NODE_FAILURE   = 1
 };
 
@@ -47,7 +46,7 @@ static struct m0_fid M0_PVER_ID = M0_FID_TINIT('v', 1, 24);
 static struct m0_pool            pool;
 static struct m0_pool_version    pver;
 
-static int pool_pver_init(uint32_t N, uint32_t K, uint32_t S)
+static int pool_pver_init(uint32_t N, uint32_t K)
 {
 	int rc;
 
@@ -56,7 +55,7 @@ static int pool_pver_init(uint32_t N, uint32_t K, uint32_t S)
 	M0_SET0(&pver);
 	rc = m0_pool_version_init(&pver, &M0_PVER_ID, &pool,
 				  PM_TEST_DEFAULT_DEVICE_NUMBER,
-				  PM_TEST_DEFAULT_NODE_NUMBER, N, K, S);
+				  PM_TEST_DEFAULT_NODE_NUMBER, N, K);
 
 	return rc;
 }
@@ -72,8 +71,7 @@ static void pm_test_init_fini(void)
 {
 	int rc;
 
-	rc = pool_pver_init(8, PM_TEST_DEFAULT_MAX_DEVICE_FAILURE,
-			    PM_TEST_DEFAULT_SPARE_NUMBER);
+	rc = pool_pver_init(8, PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
 	M0_UT_ASSERT(rc == 0);
 	pool_pver_fini();
 }
@@ -89,8 +87,7 @@ static void pm_test_transit(void)
 	struct m0_ha_nvec              nvec;
 
 	M0_SET0(&nvec);
-	rc = pool_pver_init(8, PM_TEST_DEFAULT_MAX_DEVICE_FAILURE,
-			    PM_TEST_DEFAULT_SPARE_NUMBER);
+	rc = pool_pver_init(8, PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
 	M0_UT_ASSERT(rc == 0);
 	pm = &pver.pv_mach;
 	m0_poolmach_failvec_apply(pm, &nvec);
@@ -189,7 +186,7 @@ static void pm_test_spare_slot(void)
 	enum m0_pool_nd_state     state;
 	uint32_t                  spare_slot;
 
-	rc = pool_pver_init(6, 2, 2);
+	rc = pool_pver_init(6, 2);
 	M0_UT_ASSERT(rc == 0);
 	pm = &pver.pv_mach;
 
@@ -352,7 +349,7 @@ static void pm_test_multi_fail(void)
 	uint32_t                  spare_slot;
 	int                       rc;
 
-	rc = pool_pver_init(4, 3, 3);
+	rc = pool_pver_init(4, 3);
 	M0_UT_ASSERT(rc == 0);
 	pm = &pver.pv_mach;
 	M0_SET0(&nvec);

@@ -41,8 +41,7 @@
 enum {
 	DIX_M0T1FS_LAYOUT_P = 9,
 	DIX_M0T1FS_LAYOUT_N = 1,
-	DIX_M0T1FS_LAYOUT_K = 3,
-	DIX_M0T1FS_LAYOUT_S = 3
+	DIX_M0T1FS_LAYOUT_K = 3
 };
 
 enum {
@@ -329,9 +328,7 @@ static void layout_check(struct m0_dix_linst *dli)
 	rc = m0_buf_alloc(&key, key_len);
 	M0_UT_ASSERT(rc == 0);
 	memset(key.b_addr, 7, key_len);
-	W = dli->li_pl->pl_attr.pa_N +
-	    dli->li_pl->pl_attr.pa_K +
-	    dli->li_pl->pl_attr.pa_S;
+	W = dli->li_pl->pl_attr.pa_N + 2 * dli->li_pl->pl_attr.pa_K;
 	for (unit = 0; unit < W; ++unit) {
 		m0_dix_target(dli, unit, &key, &id1);
 		m0_dix_target(dli, unit, &key, &id2);
@@ -380,7 +377,6 @@ void pdclust_map(void)
 	pool_ver.pv_attr.pa_N = DIX_M0T1FS_LAYOUT_N;
 	pool_ver.pv_attr.pa_K = DIX_M0T1FS_LAYOUT_K;
 	pool_ver.pv_attr.pa_P = DIX_M0T1FS_LAYOUT_P;
-	pool_ver.pv_attr.pa_S = DIX_M0T1FS_LAYOUT_S;
 	cache_len[0] = DIX_M0T1FS_LAYOUT_P;
 	layout_create(&domain, &pool_ver);
 	/* Init layout. */

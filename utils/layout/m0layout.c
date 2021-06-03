@@ -98,7 +98,6 @@ void layout_demo(struct m0_pdclust_instance *pi,
 	uint32_t                   unit;
 	uint32_t                   N;
 	uint32_t                   K;
-	uint32_t                   S;
 	uint32_t                   P;
 	uint32_t                   W;
 	int                        i;
@@ -109,7 +108,7 @@ void layout_demo(struct m0_pdclust_instance *pi,
 	struct m0_pdclust_src_addr map[R][attr.pa_P];
 	uint32_t                   incidence[attr.pa_P][attr.pa_P];
 	uint32_t                   usage[attr.pa_P][M0_PUT_NR + 1];
-	uint32_t                   where[attr.pa_N + attr.pa_K + attr.pa_S];
+	uint32_t                   where[attr.pa_N + 2*attr.pa_K];
 
 #ifndef __KERNEL__
 	uint64_t                   frame;
@@ -131,8 +130,7 @@ void layout_demo(struct m0_pdclust_instance *pi,
 	N = attr.pa_N;
 	K = attr.pa_K;
 	P = attr.pa_P;
-	S = attr.pa_S;
-	W = N + K + S;
+	W = N + 2*K;
 
 #ifndef __KERNEL__
 	if (print) {
@@ -223,7 +221,6 @@ int main(int argc, char **argv)
 	uint32_t                    N;
 	uint32_t                    K;
 	uint32_t                    P;
-	uint32_t                    S;
 	int                         R;
 	int                         I;
 	int                         rc;
@@ -242,12 +239,11 @@ int main(int argc, char **argv)
 	struct m0_fid               gfid;
 	struct m0_layout_instance  *li;
 	static struct m0            instance;
-	if (argc != 7 && argc != 9) {
+	if (argc != 6 && argc != 8) {
 		printf(
-"\t\tm0layout N K S P R I\nwhere\n"
+"\t\tm0layout N K P R I\nwhere\n"
 "\tN  : number of data units in a parity group\n"
 "\tK  : number of parity units in a parity group\n"
-"\tS  : number of spare uints in a parity group\n"
 "\tP  : number of target objects to stripe over\n"
 "\tR  : number of frames to show in a layout map\n"
 "\tI  : number of groups to iterate over while\n"
@@ -269,10 +265,9 @@ int main(int argc, char **argv)
 	}
 	N = atoi(argv[1]);
 	K = atoi(argv[2]);
-	S = atoi(argv[3]);
-	P = atoi(argv[4]);
-	R = atoi(argv[5]);
-	I = atoi(argv[6]);
+	P = atoi(argv[3]);
+	R = atoi(argv[4]);
+	I = atoi(argv[5]);
 
 	id = 0x4A494E4E49455349; /* "jinniesi" */
 	m0_uint128_init(&seed, M0_PDCLUST_SEED);
@@ -285,7 +280,6 @@ int main(int argc, char **argv)
 	if (rc == 0) {
 		attr.pa_N = N;
 		attr.pa_K = K;
-		attr.pa_S = S;
 		attr.pa_P = P;
 		attr.pa_unit_size = unitsize;
 		attr.pa_seed = seed;
@@ -296,8 +290,8 @@ int main(int argc, char **argv)
 				m0_fid_gob_make(&gfid, 0, 999);
 			else
 				m0_fid_gob_make(&gfid,
-						strtol(argv[7], NULL, 0),
-						strtol(argv[8], NULL, 0));
+						strtol(argv[6], NULL, 0),
+						strtol(argv[7], NULL, 0));
 			/*TODO: Currently in this utility we assume that no
 			 * tolerance is supported for levels higher than disks.
 			 * Hence only single cache is sufficient. In future we

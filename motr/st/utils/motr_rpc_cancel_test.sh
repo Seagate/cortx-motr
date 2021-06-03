@@ -37,7 +37,6 @@ ios2_from_pver0="^s|1:1"
 
 N=3
 K=2
-S=2
 P=15
 stride=4
 
@@ -348,7 +347,7 @@ main()
 	mkdir $MOTR_TRACE_DIR
 
 	echo "Starting motr services"
-	motr_service_start $N $K $S $P $stride
+	motr_service_start $N $K $P $stride
 
 	echo "=========================================================="
 	echo "TC1. Motr RPC cancel during motr write."

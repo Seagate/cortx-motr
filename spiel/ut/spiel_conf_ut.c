@@ -239,7 +239,6 @@ static void spiel_conf_create_conf_with_opt(struct m0_spiel    *spiel,
 	int                           rc;
 	struct m0_pdclust_attr        pdclust_attr = { .pa_N=1,
 						       .pa_K=0,
-						       .pa_S=0,
 						       .pa_P=1};
 	const char                   *params[] = { "11111", "22222", NULL };
 	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
@@ -624,7 +623,6 @@ static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 	int                           rc;
 	struct m0_pdclust_attr        pdclust_attr = { .pa_N=0,
 						       .pa_K=0,
-						       .pa_S=0,
 						       .pa_P=0};
 	const char                   *params[] = { "11111", "22222", NULL };
 	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
@@ -818,10 +816,9 @@ static void spiel_conf_create_pver_tree(struct m0_spiel_tx *tx)
 {
 	int                    rc;
 	struct m0_fid          fake_fid = spiel_obj_fid[SPIEL_UT_OBJ_PROFILE];
-	struct m0_pdclust_attr pdclust_attr = { .pa_N=1, .pa_K=1, .pa_S=1,
-						.pa_P=3};
+	struct m0_pdclust_attr pdclust_attr = { .pa_N=1, .pa_K=1, .pa_P=3};
 	struct m0_pdclust_attr pdclust_attr_invalid = { .pa_N=1, .pa_K=2,
-							.pa_S=2, .pa_P=3};
+							.pa_P=3};
 	uint32_t               tolerance[] = {0, 0, 0, 0, 1};
 	uint32_t               allowance[] = {0, 0, 0, 0, 1};
 

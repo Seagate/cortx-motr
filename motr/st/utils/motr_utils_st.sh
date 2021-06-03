@@ -105,11 +105,10 @@ test_with_N_K()
 
 	N=$1
 	K=$2
-	S=$3
-	P=$4
+	P=$3
 	stride=32
 
-	motr_service_start $N $K $S $P $stride
+	motr_service_start $N $K $P $stride
 	dix_init
 
 	# Test m0client utility
@@ -328,9 +327,8 @@ main()
 
 	N=1
 	K=0
-	S=0
 	P=8
-	test_with_N_K $N $K $S $P
+	test_with_N_K $N $K $P
 	if [ $rc -ne "0" ]
 	then
 		echo "Motr util test with N=$N K=$K failed"
@@ -340,9 +338,8 @@ main()
 
 	N=1
 	K=2
-	S=2
 	P=8
-	test_with_N_K $N $K $S $P
+	test_with_N_K $N $K $P
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -353,9 +350,8 @@ main()
 
 	N=4
 	K=2
-	S=2
 	P=8
-	test_with_N_K $N $K $S $P
+	test_with_N_K $N $K $P
 	rc=$?
 	echo $rc
 	if [ $rc -ne "0" ]

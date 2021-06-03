@@ -469,9 +469,8 @@ m0t1fs_pool_version_assignment()
 	local unit=16 # Kbytes
 	local N=2
 	local K=1
-	local S=1
 	local P=6
-	motr_service start "$multiple_pools" $unit $N $K $S $P
+	motr_service start "$multiple_pools" $unit $N $K $P
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to start Motr Service."
