@@ -116,7 +116,6 @@ CC_REBAL_DELETE_FILES_NR=${#files[*]}
 
 N=3
 K=3
-S=3
 P=15
 stride=64
 src_bs=10M

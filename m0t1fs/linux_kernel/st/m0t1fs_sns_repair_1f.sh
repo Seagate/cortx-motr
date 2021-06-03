@@ -44,7 +44,6 @@ file_size=(
 
 N=2
 K=1
-S=1
 P=4
 stride=32
 src_bs=10M

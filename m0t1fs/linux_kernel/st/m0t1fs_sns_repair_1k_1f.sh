@@ -33,7 +33,6 @@
 
 N=2
 K=1
-S=1
 P=15
 
 sns_repair_test()

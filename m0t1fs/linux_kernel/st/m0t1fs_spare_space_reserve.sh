@@ -30,7 +30,6 @@
 
 N=8
 K=2
-S=2
 P=15
 stride=32
 fail_device1=1
