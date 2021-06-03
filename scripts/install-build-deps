@@ -25,6 +25,7 @@ readonly SELF="$(readlink -f $0)"
 readonly TOP_SRCDIR="${SELF%/*/*}"
 dry_run=
 install_epel=true
+install_isal=true
 
 #
 # Usage
@@ -47,6 +48,8 @@ Usage: $PROG_NAME [-h|--help] [-n|--dry-run]
 
        --no-epel        Skip EPEL repository installation.
 
+       --no-isal        Skip Intel ISA library installtion
+
     -h|--help           Print this help screen.
 USAGE_END
 }
@@ -61,7 +64,7 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt -o hn --long help,dry-run,no-epel -n "$PROG_NAME" -- "$@" )
+    TEMP=$( getopt -o hn --long help,dry-run,no-epel,no-isal -n "$PROG_NAME" -- "$@" )
 
     [[ $? != 0 ]] && help
 
@@ -73,6 +76,7 @@ parse_cli_options()
             -h|--help)          help stdout ;;
             -n|--dry-run)       dry_run=--dry-run ; shift ;;
                --no-epel)       install_epel=false ; shift ;;
+               --no-isal)       install_isal=false ; shift ;;
             --)                 shift; break ;;
             *)                  echo 'getopt: internal error...'; exit 1 ;;
         esac
@@ -134,6 +138,10 @@ fi
 
 if ! $install_epel ; then
     skip_tags+=,epel
+fi
+
+if ! $install_isal ; then
+    skip_tags+=,isa-l
 fi
 
 $TOP_SRCDIR/scripts/setup-node localhost \
