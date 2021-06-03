@@ -887,18 +887,29 @@ static bool ctg_op_cb(struct m0_clink *clink)
 					     ctg_op->co_out_val.b_addr);
 			break;
 		case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
-			/* TODO: Handle the case where co_anchor has been
-			 * cleared because save_inplace detected an attempt
-			 * to PUT an old (version-wise) record
-			 */
-			ctg_memcpy(arena, ctg_op->co_val.b_addr,
-				   ctg_op->co_val.b_nob);
-			if (ctg_is_ordinary(ctg_op->co_ctg))
-				m0_ctg_state_inc_update(tx,
-					ctg_op->co_key.b_nob -
-				       	M0_CAS_CTG_KV_HDR_SIZE +
-					ctg_op->co_val.b_nob);
-			m0_chan_broadcast_lock(ctg_chan);
+			if (arena != NULL) {
+				ctg_memcpy(arena, ctg_op->co_val.b_addr,
+					   ctg_op->co_val.b_nob);
+				if (ctg_is_ordinary(ctg_op->co_ctg))
+					m0_ctg_state_inc_update(tx,
+						ctg_op->co_key.b_nob -
+						M0_CAS_CTG_KV_HDR_SIZE +
+						ctg_op->co_val.b_nob);
+				m0_chan_broadcast_lock(ctg_chan);
+			} else {
+				/*
+				 * We may end up here only if the pair
+				 * is an old pair. In this case, there is
+				 * nothing to do: the memory does not have
+				 * to be updated (because we should not
+				 * overwrite "newer" values with "older
+				 * values), the state counters should not
+				 * be updated (nothing was written), and
+				 * the channel should not be triggered
+				 * (again, nothing has been changed in the
+				 * catalogue).
+				 */
+			}
 			break;
 		case CTG_OP_COMBINE(CO_PUT, CT_META):
 			*(uint64_t *)arena = sizeof(struct m0_cas_ctg *);
@@ -1030,7 +1041,6 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 			       !m0_dtm0_tx_desc_is_none(&cas_op->cg_txd)));
 	}
 
-
 	switch (CTG_OP_COMBINE(opc, ct)) {
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 		anchor->ba_value.b_nob = M0_CAS_CTG_KV_HDR_SIZE +
@@ -1086,7 +1096,6 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		}
 		/* XXX: sneaky fallthrough */
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
-		M0_ASSERT(!use_ver);
 		m0_be_btree_delete(btree, tx, beop, key);
 		break;
 	case CTG_OP_COMBINE(CO_GC, CT_META):

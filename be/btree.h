@@ -66,6 +66,10 @@ struct m0_be_btree {
 	struct m0_be_btree_backlink      bb_backlink;
 	/** Root node of the tree. */
 	struct m0_be_bnode              *bb_root;
+	/* TODO: Consider setting up the field before or after btree_create. */
+#if 0
+	uint64_t                         bb_is_versioned;
+#endif
 	struct m0_format_footer          bb_footer;
 	/*
 	 * volatile-only fields
@@ -76,6 +80,7 @@ struct m0_be_btree {
 	struct m0_be_seg                *bb_seg;
 	/** operation vector, treating keys and values, given by the user */
 	const struct m0_be_btree_kv_ops *bb_ops;
+
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_be_btree_format_version {
@@ -403,6 +408,20 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 				    struct m0_be_op *op,
 				    const struct m0_buf *key);
 
+/*
+ * TODO: Consider an alternative way to provide versioned insert/delete:
+ * Option1:
+ *   Wrap m0_buf structure:
+ *	struct m0_versioned_buf { .version = X, .buf = m0_buf } + container_of
+ *	Pros: an isolated change.
+ *	Cons: requires new types and wrappers.
+ * Option2:
+ *   Use container_of on the transaction:
+ *      m0_dtx::tx_betx + bob_of/container_of => m0_dtm0_dtx => txd => version.
+ *      Pros: no changes in the existing API.
+ *      Cons: may not work with UTs.
+ */
+
 /**
  * Marks an key-value pair as "dead" (deleted).
  * The call does not affect the value stored in the tree,
@@ -694,7 +713,7 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *it);
 /**
  * Tombstone-aware version of cursor_next().
  * The function finds next position in the tree where the pair is alive.
- * TODO: THis function is under construction!
+ * TODO: This function is under construction!
  */
 M0_INTERNAL void m0_be_btree_cursor_alive_next(struct m0_be_btree_cursor *cur);
 
