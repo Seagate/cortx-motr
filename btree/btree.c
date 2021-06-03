@@ -1086,7 +1086,12 @@ struct node_header {
 struct level {
 	/** nd for required node at currrent level. **/
 	struct nd *l_node;
+
+	/** Sequence number of the node */
 	uint64_t   l_seq;
+
+	/** Sequence number of the sibling node */
+	uint64_t   l_sib_seq;
 
 	/** Index for required record from the node. **/
 	unsigned   l_idx;
@@ -1116,12 +1121,6 @@ struct m0_btree_oimpl {
 
 	/** Array of levels for storing data about each level. **/
 	struct level   *i_level;
-
-	/** Sibling node's current level number. **/
-	unsigned        i_sib_used;
-
-	/** Array of levels for storing sibling node's level data. **/
-	struct level   *i_sib_level;
 
 	/** Level from where sibling nodes needs to be loaded. **/
 	int             i_pivot;
@@ -2364,16 +2363,13 @@ static int node_is_valid(const struct nd *node)
  * @param oi which provide all information about traversed nodes.
  * @param tree needed in case of cookie validation.
  * @param cookie provided by the user which needs to get validate if used.
- * @param sibling true if OF_SIBLING flag is set else false.
  * @return bool return true if validation succeed else false.
  */
 static bool path_check(struct m0_btree_oimpl *oi, struct td *tree,
-		       struct m0_bcookie *k_cookie, bool sibling)
+		       struct m0_bcookie *k_cookie)
 {
 	int        total_level = oi->i_used;
-	int	   sib_level   = oi->i_sib_used;
 	struct nd *l_node      = oi->i_level[total_level].l_node;
-	struct nd *s_node;
 
 	if (cookie_is_used())
 		return cookie_is_valid(tree, k_cookie);
@@ -2384,24 +2380,46 @@ static bool path_check(struct m0_btree_oimpl *oi, struct td *tree,
 			//return fail(bop, rc);
 			return false;
 		}
-		if (oi->i_level[total_level].l_seq != l_node->n_seq) {
+		if (oi->i_level[total_level].l_seq != l_node->n_seq)
 			return false;
-		}
 		total_level--;
 	}
-	if (sibling && oi->i_pivot != -1) {
-		s_node = oi->i_sib_level[sib_level].l_node;
-		while (sibling && sib_level > oi->i_pivot) {
-			if (node_is_valid(s_node) != 0) {
-				node_op_fini(&oi->i_nop);
-				//return fail(bop, rc);
-				return false;
-			}
-			if (oi->i_sib_level[sib_level].l_seq != s_node->n_seq) {
-				return false;
-			}
-			sib_level--;
+	return true;
+}
+
+/**
+ * Validates the left or right sibling based on flags.
+ *
+ * @param oi provides traversed nodes information.
+ * @param flags operation flags.
+ * @return bool return true if validation succeeds else false.
+ */
+static bool sibling_node_check(struct m0_btree_oimpl *oi, uint64_t flags)
+{
+	struct nd *l_node;
+
+	if (!(flags & BOF_SIBLING) || (oi->i_pivot == -1))
+		return true;
+
+	if (flags & BOF_NEXT) {
+		l_node = oi->i_level[oi->i_used].l_next;
+		if (node_is_valid(l_node) != 0) {
+			node_op_fini(&oi->i_nop);
+			//return fail(bop, rc);
+			return false;
 		}
+		if (oi->i_level[oi->i_used].l_sib_seq != l_node->n_seq)
+			return false;
+	}
+	if (flags & BOF_PREV) {
+		l_node = oi->i_level[oi->i_used].l_prev;
+		if (node_is_valid(l_node) != 0) {
+			node_op_fini(&oi->i_nop);
+			//return fail(bop, rc);
+			return false;
+		}
+		if (oi->i_level[oi->i_used].l_sib_seq != l_node->n_seq)
+			return false;
 	}
 	return true;
 }
@@ -2426,7 +2444,7 @@ static void lock_op_unlock(struct td *tree)
 	m0_rwlock_write_unlock(&tree->t_lock);
 }
 
-static struct m0_btree_oimpl *level_alloc(int height, bool sibling)
+static struct m0_btree_oimpl *level_alloc(int height)
 {
 	struct m0_btree_oimpl *oi;
 
@@ -2436,15 +2454,7 @@ static struct m0_btree_oimpl *level_alloc(int height, bool sibling)
 	oi->i_level = m0_alloc(height * (sizeof *oi->i_level));
 	if (oi->i_level == NULL) {
 		m0_free(oi);
-		return NULL;
-	}
-	if (sibling) {
-		oi->i_sib_level = m0_alloc(height * (sizeof *oi->i_sib_level));
-		if (oi->i_sib_level == NULL) {
-			m0_free(oi);
-			m0_free(oi->i_level);
-			return NULL;
-		}
+		oi = NULL;
 	}
 	return oi;
 }
@@ -2461,10 +2471,14 @@ static void level_cleanup(struct m0_btree_oimpl *oi)
 			node_put(oi->i_level[i].l_alloc);
 			oi->i_level[i].l_alloc = NULL;
 		}
-		if (oi->i_sib_level && oi->i_sib_level[i].l_node != NULL) {
-			node_put(oi->i_sib_level[i].l_node);
-			oi->i_sib_level[i].l_node = NULL;
-		}
+	}
+	if (oi->i_level[oi->i_used].l_next != NULL) {
+		node_put(oi->i_level[oi->i_used].l_next);
+		oi->i_level[oi->i_used].l_next = NULL;
+	}
+	if (oi->i_level[oi->i_used].l_prev != NULL) {
+		node_put(oi->i_level[oi->i_used].l_prev);
+		oi->i_level[oi->i_used].l_prev = NULL;
 	}
 	if (oi->i_extra_node != NULL) {
 		node_put(oi->i_extra_node);
@@ -2881,7 +2895,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 	}
 	case P_SETUP: {
 		bop->bo_arbor->t_height = tree->t_height;
-		bop->bo_i = level_alloc(bop->bo_arbor->t_height, false);
+		bop->bo_i = level_alloc(bop->bo_arbor->t_height);
 		if (bop->bo_i == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
 		bop->bo_i->i_key_found = false;
@@ -2973,7 +2987,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			return P_CHECK;
 	case P_CHECK: {
 		oi->i_trial++;
-		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie, false)) {
+		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
 			if (oi->i_trial == MAX_TRIALS) {
 				if (bop->bo_flags & BOF_LOCKALL)
 					return fail(bop, -ETOOMANYREFS);
@@ -3320,6 +3334,20 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 	}
 }
 
+/* Based on the flag get the sibling index. */
+static int sibling_index_get(int index, uint64_t flags, bool key_exists)
+{
+	if (flags & BOF_NEXT)
+		return key_exists ? index + 1 : index;
+	return key_exists ? index - 1 : index - 2;
+}
+
+/* Checks if the index is in the range of valid key range for node. */
+static bool index_is_valid(struct level *lev)
+{
+	return (lev->l_idx >= 0) && (lev->l_idx < node_count(lev->l_node));
+}
+
 /**
  *  Search from the leaf + 1 level till the root level and find a node
  *  which has valid sibling. Once found, get the leftmost leaf record from the
@@ -3377,7 +3405,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			return P_SETUP;
 	case P_SETUP:
 		bop->bo_arbor->t_height = tree->t_height;
-		oi = level_alloc(tree->t_height, false);
+		oi = level_alloc(tree->t_height);
 		if (oi == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
 		return P_LOCKALL;
@@ -3430,7 +3458,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			return P_CHECK;
 	case P_CHECK:
 		oi->i_trial++;
-		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie, false)) {
+		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
 			if (oi->i_trial == MAX_TRIALS) {
 				if (bop->bo_flags & BOF_LOCKALL)
 					return fail(bop, -ETOOMANYREFS);
@@ -3507,6 +3535,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 	};
 }
 
+/** Iterator state machine. */
 int64_t btree_iter_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop   = M0_AMB(bop, smop, bo_op);
@@ -3516,7 +3545,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
-		if ((bop->bo_flags & OF_COOKIE) &&
+		if ((bop->bo_flags & BOF_COOKIE) &&
 		    cookie_is_set(&bop->bo_rec.r_key.k_cookie))
 			return P_COOKIE;
 		else
@@ -3528,18 +3557,17 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			return P_SETUP;
 	case P_SETUP:
 		bop->bo_arbor->t_height = tree->t_height;
-		oi = level_alloc(tree->t_height, bop->bo_flags & OF_SIBLING);
+		oi = level_alloc(tree->t_height);
 		if (oi == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
-		oi->i_pivot = -1;
 		return P_LOCKALL;
 	case P_LOCKALL:
-		if (bop->bo_flags & OF_LOCKALL)
-			/* return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN); */
-			return P_LOCK;
+		if (bop->bo_flags & BOF_LOCKALL)
+			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
 		/** Fall through if LOCKALL flag is not set. */
 	case P_DOWN:
-		oi->i_used = 0;
+		oi->i_used  = 0;
+		oi->i_pivot = -1;
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
 				P_NEXTDOWN);
 	case P_NEXTDOWN:
@@ -3552,15 +3580,23 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			s.s_node = oi->i_nop.no_node;
 			lev->l_seq = lev->l_node->n_seq;
 			oi->i_key_found = node_find(&s, &bop->bo_rec.r_key);
-
-			/* Specific to next operation. */
-			if (oi->i_key_found)
-				s.s_idx++;
-
 			lev->l_idx = s.s_idx;
 
 			if (node_level(s.s_node) > 0) {
-				if (lev->l_idx < node_count(lev->l_node))
+				if (oi->i_key_found) {
+					s.s_idx++;
+					lev->l_idx++;
+				}
+				/**
+				 * If sibling flag is set, check if the node
+				 * has valid left or right index based on next
+				 * previous flag. If valid left/right index
+				 * found. mark this level as pivot level.
+				 */
+				if (((bop->bo_flags & BOF_NEXT) &&
+				    (lev->l_idx < node_count(lev->l_node))) ||
+				    ((bop->bo_flags & BOF_PREV) &&
+				    (lev->l_idx > 0)))
 					oi->i_pivot = oi->i_used;
 
 				node_child(&s, &child);
@@ -3572,21 +3608,46 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 				return node_get(&oi->i_nop, tree,
 						&child, P_NEXTDOWN);
 			} else	{
-				if (!(bop->bo_flags & OF_SIBLING) ||
-				    (lev->l_idx < node_count(lev->l_node)) ||
+				/* Get sibling index based on PREV/NEXT flag. */
+				lev->l_idx = sibling_index_get(s.s_idx,
+							       bop->bo_flags,
+							       oi->i_key_found);
+				/**
+				 * In the following cases jump to LOCK state:
+				 * 1. Normal pass without sibling load flag.
+				 * 2. Sibling load flag and found record idx
+				 * is less than number of records in leaf node.
+				 * 3. It is the rightmost record in the btree.
+				 */
+				if (!(bop->bo_flags & BOF_SIBLING) ||
+				    (index_is_valid(lev)) ||
 				    (oi->i_pivot == -1))
 					return P_LOCK;
 
-				/* Load next idx's child node at pivot level. */
-				oi->i_sib_used = oi->i_pivot;
-				s.s_node = oi->i_level[oi->i_pivot].l_node;
-				s.s_idx = oi->i_level[oi->i_pivot].l_idx + 1;
+				/**
+				 * Start traversing the sibling node path.
+				 * If the pivot node is still valid, l
+				 * load sibling idx's child node at pivot level
+				 * else clean up and restart state machine.
+				 */
+				lev = &oi->i_level[oi->i_pivot];
+
+				if (node_is_valid(lev->l_node) != 0) {
+					node_op_fini(&oi->i_nop);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
+				if (lev->l_seq != lev->l_node->n_seq)
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				s.s_node = lev->l_node;
+				s.s_idx = sibling_index_get(lev->l_idx,
+							    bop->bo_flags, true);
 				node_child(&s, &child);
 				if (!address_in_segment(child)) {
 					node_op_fini(&oi->i_nop);
 					return fail(bop, M0_ERR(-EFAULT));
 				}
-				oi->i_sib_used++;
 				return node_get(&oi->i_nop, tree,
 						&child, P_SIBLING);
 			}
@@ -3599,12 +3660,9 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			struct slot    s = {};
 			struct segaddr child;
 
-			lev = &oi->i_sib_level[oi->i_sib_used];
-			lev->l_node = oi->i_nop.no_node;
 			s.s_node = oi->i_nop.no_node;
-			lev->l_seq = lev->l_node->n_seq;
-			/* Specific to next operation. */
-			lev->l_idx = s.s_idx = 0;
+			s.s_idx = bop->bo_flags & BOF_NEXT ? 0 :
+				  node_count(s.s_node) - 1;
 
 			if (node_level(s.s_node) > 0) {
 				node_child(&s, &child);
@@ -3612,11 +3670,20 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 					node_op_fini(&oi->i_nop);
 					return fail(bop, M0_ERR(-EFAULT));
 				}
-				oi->i_sib_used++;
 				return node_get(&oi->i_nop, tree,
 						&child, P_SIBLING);
-			} else
+			} else {
+				lev = &oi->i_level[oi->i_used];
+
+				if (bop->bo_flags & BOF_NEXT) {
+					lev->l_next = oi->i_nop.no_node;
+					lev->l_sib_seq = lev->l_next->n_seq;
+				} else {
+					lev->l_prev = oi->i_nop.no_node;
+					lev->l_sib_seq = lev->l_prev->n_seq;
+				}
 				return P_LOCK;
+			}
 		} else {
 			node_op_fini(&oi->i_nop);
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
@@ -3630,109 +3697,67 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			return P_CHECK;
 	case P_CHECK:
 		oi->i_trial++;
-		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie,
-				bop->bo_flags & OF_SIBLING)) {
+		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie) ||
+		    !sibling_node_check(oi, bop->bo_flags)) {
 			if (oi->i_trial == MAX_TRIALS) {
-				if (bop->bo_flags & OF_LOCKALL)
+				if (bop->bo_flags & BOF_LOCKALL)
 					return fail(bop, -ETOOMANYREFS);
 				else
-					bop->bo_flags |= OF_LOCKALL;
+					bop->bo_flags |= BOF_LOCKALL;
 			}
-			if (bop->bo_arbor->t_height <= tree->t_height) {
-				/* If height increased */
-				//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-				//                    P_INIT);
+			if (bop->bo_arbor->t_height < tree->t_height) {
 				lock_op_unlock(tree);
-				return P_CLEANUP;
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+				                    P_SETUP);
 			} else {
-				/* If height decreased */
 				lock_op_unlock(tree);
 				return P_DOWN;
 			}
 		}
-		/** Fall through if path_check is successful. */
+		/** Fall through if path_check  and sibling_node_check are successful. */
 	case P_ACT: {
 		m0_bcount_t		 ksize;
 		m0_bcount_t		 vsize;
 		void			*pkey;
 		void			*pval;
 		struct slot		 s = {};
-		struct m0_bufvec_cursor  cur1;
-		struct m0_bufvec_cursor  cur2;
 
 		lev = &oi->i_level[oi->i_used];
 
-		s.s_node	     = lev->l_node;
-		s.s_idx		     = lev->l_idx;
 		s.s_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&pkey, &ksize);
 		s.s_rec.r_val	     = M0_BUFVEC_INIT_BUF(&pval, &vsize);
 		s.s_rec.r_flags      = M0_BSC_SUCCESS;
+		s.s_idx		     = lev->l_idx;
 
 		/* Return record if idx fit in the node. */
-		if (lev->l_idx < node_count(lev->l_node)) {
+		if (index_is_valid(lev)) {
+			s.s_node = lev->l_node;
 			node_rec(&s);
-			printf("   1. Key %"PRIu64, 
-			       m0_byteorder_be64_to_cpu(*(uint64_t*)s.s_rec.r_key.k_data.ov_buf[0]));
-			bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
 		} else {
-			/* Handle rightmost key case. */
-			if (oi->i_pivot == -1) {
-				m0_bufvec_cursor_init(&cur2,
-						      &bop->bo_rec.r_key.k_data);
-				s.s_idx = node_count(lev->l_node) - 1;
+			/* Handle rightmost/leftmost key case. */
+			if (oi->i_pivot == -1)
+				s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
+			else if (bop->bo_flags & BOF_SIBLING) {
+			/* Return sibling record based on flag. */
+				s.s_node = bop->bo_flags & BOF_NEXT ?
+					   lev->l_next : lev->l_prev;
+				s.s_idx = bop->bo_flags & BOF_NEXT ? 0 :
+					  node_count(s.s_node) - 1;
 				node_rec(&s);
-				m0_bufvec_cursor_init(&cur1,
-						      &s.s_rec.r_key.k_data);
-				if (m0_bufvec_cursor_cmp(&cur1, &cur2) <= 0)
-					s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
-				printf("   4.Special case Key %"PRIu64"  flag = %d", 
-				       m0_byteorder_be64_to_cpu(*(uint64_t*)s.s_rec.r_key.k_data.ov_buf[0]), s.s_rec.r_flags);
-				bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
-			} else if (bop->bo_flags & OF_SIBLING) {
-				struct slot  snode = {};
-				void	    *skey;
-				void	    *sval;
-				int	     diff;
-				m0_bcount_t  sksize;
-				m0_bcount_t  svsize;
-
-				snode.s_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&skey, &sksize);
-				snode.s_rec.r_val = M0_BUFVEC_INIT_BUF(&sval, &svsize);
-				snode.s_rec.r_flags = M0_BSC_SUCCESS;
-
-				s.s_idx = node_count(lev->l_node) - 1;
-				node_rec(&s);
-				m0_bufvec_cursor_init(&cur1,
-						      &s.s_rec.r_key.k_data);
-				printf("   2.Last Key %"PRIu64, 
-				       m0_byteorder_be64_to_cpu(*(uint64_t*)s.s_rec.r_key.k_data.ov_buf[0]));
-				
-				snode.s_node = oi->i_sib_level[oi->i_sib_used].l_node;
-				snode.s_idx = 0;
-				node_rec(&snode);
-				m0_bufvec_cursor_init(&cur2,
-						      &snode.s_rec.r_key.k_data);
-				printf("   3. Sibling Key %"PRIu64, 
-				       m0_byteorder_be64_to_cpu(*(uint64_t*)snode.s_rec.r_key.k_data.ov_buf[0]));
-
-				diff = m0_bufvec_cursor_cmp(&cur1, &cur2);
-				bop->bo_cb.c_act(&bop->bo_cb, diff > 0 ?
-						 &s.s_rec : &snode.s_rec);
 			} else {
-				bop->bo_flags |= OF_SIBLING;
+			/* Set sibling load flag and traverse sm again. */
+				bop->bo_flags |= BOF_SIBLING;
 				lock_op_unlock(tree);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
 		}
-
+		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
 		lock_op_unlock(tree);
-		/* return P_CLEANUP; */
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 	}
 	case P_CLEANUP:
 		level_cleanup(oi);
-		/* return P_DONE; */
 		return m0_sm_op_ret(&bop->bo_op);
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
@@ -3825,7 +3850,7 @@ void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 
 /**
  * Iterates through the tree and finds next/previous key of the given search
- * key based on the flag. The callback routine returns record if key is found 
+ * key based on the flag. The callback routine returns record if key is found
  * else it returns error.
  *
  * @param arbor Btree parameteres.`
@@ -3838,7 +3863,9 @@ void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
 		   const struct m0_btree_cb *cb, uint64_t flags,
 		   struct m0_btree_op *bop)
 {
-	bop->bo_opc = M0_BO_NXT;
+	M0_PRE(flags & BOF_NEXT || flags & BOF_PREV);
+
+	bop->bo_opc = M0_BO_ITER;
 	bop->bo_arbor = arbor;
 	bop->bo_rec.r_key = *key;
 	bop->bo_flags = flags;
@@ -4433,7 +4460,6 @@ static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	return 0;
 }
 
-static void m0_btree_ut_traversal(struct td *tree);
 /**
  * This unit test exercises the KV operations for both valid and invalid
  * conditions.
@@ -4458,7 +4484,7 @@ static void m0_btree_ut_basic_kv_oper(void)
 
 	time(&curr_time);
 	printf("\nUsing seed %lu", curr_time);
-	srandom(1622525592);
+	srandom(curr_time);
 
 	/** Prepare transaction to capture tree operations. */
 	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
@@ -4481,10 +4507,9 @@ static void m0_btree_ut_basic_kv_oper(void)
 						 nt, tx, &b_op),
 				 &G, &b_op.bo_op_exec);
 
-	for (i = 0; i < 100; i++) {
+	for (i = 0; i < 2048; i++) {
 		uint64_t             key;
 		uint64_t             value;
-		uint64_t             num;
 		struct cb_data       put_data;
 		struct m0_btree_rec  rec;
 		m0_bcount_t          ksize  = sizeof key;
@@ -4497,10 +4522,7 @@ static void m0_btree_ut_basic_kv_oper(void)
 		 *  again. This is fine as it helps debug the code when insert
 		 *  is called with the same key instead of update function.
 		 */
-		num = random() % 20000;
-		key = value = m0_byteorder_cpu_to_be64(num);
-		/* printf("\n Inserting key %"PRIu64"[0x%x] %"PRIu64"[0x%x]", 
-		 *        key, (uint32_t)key, num, (uint32_t)num); */
+		key = value = m0_byteorder_cpu_to_be64(random());
 
 		if (!first_key_initialized) {
 			first_key = key;
@@ -4522,7 +4544,6 @@ static void m0_btree_ut_basic_kv_oper(void)
 					 &G, &kv_op.bo_op_exec);
 	}
 
-		m0_btree_ut_traversal(b_op.bo_arbor->t_desc);
 	{
 		uint64_t             key;
 		uint64_t             value;
@@ -4558,10 +4579,8 @@ static void m0_btree_ut_basic_kv_oper(void)
 						      &ut_cb, BOF_EQUAL, &kv_op),
 					 &G, &b_op.bo_op_exec);
 
-		for (i = 1; i < 75; i++) {
+		for (i = 1; i < 2048; i++) {
 			find_key = key;
-			printf("\n ==== Search Key %"PRIu64" ==== ",
-			       m0_byteorder_be64_to_cpu(*(uint64_t*)find_key_in_tree.k_data.ov_buf[0]));
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 						 m0_btree_iter(b_op.bo_arbor,
 							       &find_key_in_tree,
@@ -4764,7 +4783,7 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 	btree_ut_fini();
 }
 
-#if 1
+#if 0
 /**
  * Commenting this ut as it is not required as a part for test-suite but my
  * required for testing purpose
@@ -4801,7 +4820,7 @@ static void m0_btree_ut_traversal(struct td *tree)
 			{
 				uint64_t key = 0;
 				get_key_at_index(element, j, &key);
-				printf("%"PRIu64"\t", m0_byteorder_be64_to_cpu(key));
+				printf("%"PRIu64"\t", key);
 
 				struct segaddr child_node_addr;
 				struct slot    node_slot = {};
@@ -4852,15 +4871,13 @@ static void m0_btree_ut_traversal(struct td *tree)
 				uint64_t key = 0;
 				uint64_t val = 0;
 				get_rec_at_index(element, j, &key, &val);
-				printf("%"PRIu64"\t", m0_byteorder_be64_to_cpu(key));
+				printf("%"PRIu64",%"PRIu64"\t", key, val);
 			}
 			printf("\n\n");
 		}
 	}
 }
 
-#endif
-#if 0
 /**
  * This test will create tree and insert records it into the created tree
  * using insert function for btree(i.e.btree_put_tick())
