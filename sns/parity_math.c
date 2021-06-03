@@ -42,7 +42,7 @@ enum {
 		(ret) = M0_ERR_INFO(-ENOMEM,					\
 				    "failed to allocate memory for " msg);	\
 	else 									\
-		(ret) = M0_RC_INFO(0, "allocated memory for " msg);		\
+		(ret) = 0;							\
 })
 
 /* Forward declarations */
@@ -94,9 +94,7 @@ static void isal_recover(struct m0_parity_math *math,
 			 struct m0_buf *parity,
 			 struct m0_buf *fails,
 			 enum m0_parity_linsys_algo algo);
-#endif /* ISAL_ENCODE_ENABLED */
 
-#if ISAL_ENCODE_ENABLED
 /**
  * This is wrapper function for Intel ISA API ec_encode_data_update().
  * @param[out] dest_buf - Array of coded output buffers i.e. struct m0_buf
@@ -115,9 +113,7 @@ static void isal_recover(struct m0_parity_math *math,
 static int isal_encode_data_update(struct m0_buf *dest_buf, struct m0_buf *src_buf,
 				   uint32_t vec_idx, uint8_t *g_tbls,
 				   uint32_t data_nr, uint32_t dest_nr);
-#endif /* ISAL_ENCODE_ENABLED */
 
-#if ISAL_ENCODE_ENABLED
 /**
  * Inverts the encoding matrix and generates tables of recovery coefficient
  * codes for lost data.
@@ -136,9 +132,7 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 				    struct m0_buf *failed_idx_buf,
 				    struct m0_buf *alive_idx_buf,
 				    uint8_t *encode_mat, uint8_t *g_tbls);
-#endif /* ISAL_ENCODE_ENABLED */
 
-#if ISAL_ENCODE_ENABLED
 /**
  * Sort the data and parity buffers based on input fail buffer. If buffer is
  * marked as failed, its pointer will be added in frags_out buffer array. If
@@ -165,9 +159,7 @@ static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
 		    uint32_t unit_count, uint32_t data_count,
 		    uint8_t *fail, struct m0_buf *data,
 		    struct m0_buf *parity);
-#endif /* ISAL_ENCODE_ENABLED */
 
-#if ISAL_ENCODE_ENABLED
 /**
  * Sort the indices for failed and non-failed data and parity blocks.
  * @param[in]  fail       - block with flags, if element is '1' then data or parity
@@ -209,9 +201,7 @@ static void fail_idx_isal_recover(struct m0_parity_math *math,
 				  struct m0_buf *data,
 				  struct m0_buf *parity,
 				  const uint32_t failure_index);
-#endif /* ISAL_ENCODE_ENABLED */
 
-#if ISAL_ENCODE_ENABLED
 /**
  * Generate decode matrix for incremental recovery using Intel ISA.
  * @param[in] ir  - Pointer to incremental recovery structure.
@@ -368,9 +358,7 @@ static inline uint32_t ir_blocks_count(const struct m0_sns_ir *ir);
  * @retval    -ENOMEM    Failed to allocate memory
  */
 static int isal_ir_init(struct m0_sns_ir *ir);
-#endif /* ISAL_ENCODE_ENABLED */
 
-#if ISAL_ENCODE_ENABLED
 /**
  * Free fields initialized for incremental recovery using Intel ISA.
  * @param[in] ir - pointer to incremental recovery structure.
@@ -530,9 +518,7 @@ static bool parity_math_invariant(const struct m0_parity_math *math)
 		_0C(math->pmi_data_count >= math->pmi_parity_count) &&
 		_0C(math->pmi_data_count <= SNS_PARITY_MATH_DATA_BLOCKS_MAX);
 }
-#endif /* ISAL_ENCODE_ENABLED */
 
-#if ISAL_ENCODE_ENABLED
 static int isal_encode_data_update(struct m0_buf *dest_buf, struct m0_buf *src_buf,
 				   uint32_t vec_idx, uint8_t *g_tbls,
 				   uint32_t data_nr, uint32_t dest_nr)
@@ -617,81 +603,76 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 	if (parity_count == 1) {
 		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_XOR;
 		return M0_RC(ret);
+	}
 #if ISAL_ENCODE_ENABLED
-	} else {
-		uint32_t total_count = data_count + parity_count;
+	uint32_t total_count = data_count + parity_count;
+	uint32_t tbl_len = data_count * parity_count * 32;
 
-		ALLOC_ARR_INFO(math->pmi_encode_matrix,
-			       (total_count * data_count),
-			       "encode matrix", ret);
-		if (math->pmi_encode_matrix == NULL)
-			goto handle_error;
+	math->pmi_parity_algo = M0_PARITY_CAL_ALGO_ISA;
 
-		ALLOC_ARR_INFO(math->pmi_encode_tbls,
-			       (data_count * parity_count * 32),
-			       "encode coefficient tables", ret);
-		if (math->pmi_encode_tbls == NULL)
-			goto handle_error;
+	ALLOC_ARR_INFO(math->pmi_encode_matrix, (total_count * data_count),
+		       "encode matrix", ret);
+	if (math->pmi_encode_matrix == NULL)
+		goto handle_error;
 
-		ALLOC_ARR_INFO(math->pmi_decode_tbls,
-			       (data_count * parity_count * 32),
-			       "decode coefficient tables", ret);
-		if (math->pmi_decode_tbls == NULL)
-			goto handle_error;
+	ALLOC_ARR_INFO(math->pmi_encode_tbls, tbl_len,
+		       "encode coefficient tables", ret);
+	if (math->pmi_encode_tbls == NULL)
+		goto handle_error;
 
-		/* Generate a matrix of coefficients to be used for encoding. */
-		gf_gen_rs_matrix(math->pmi_encode_matrix, total_count, data_count);
+	ALLOC_ARR_INFO(math->pmi_decode_tbls, tbl_len,
+		       "decode coefficient tables", ret);
+	if (math->pmi_decode_tbls == NULL)
+		goto handle_error;
 
-		/* Initialize tables for fast Erasure Code encode. */
-		ec_init_tables(data_count, parity_count,
-			       &math->pmi_encode_matrix[data_count * data_count],
-			       math->pmi_encode_tbls);
+	/* Generate a matrix of coefficients to be used for encoding. */
+	gf_gen_rs_matrix(math->pmi_encode_matrix, total_count, data_count);
 
-		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_ISA;
-	}
+	/* Initialize tables for fast Erasure Code encode. */
+	ec_init_tables(data_count, parity_count,
+		       &math->pmi_encode_matrix[data_count * data_count],
+		       math->pmi_encode_tbls);
+
 #else
-	} else {
-		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_REED_SOLOMON;
+	math->pmi_parity_algo = M0_PARITY_CAL_ALGO_REED_SOLOMON;
 
-		ret = vandmat_init(&math->pmi_vandmat, data_count,
-				   parity_count);
-		if (ret < 0)
-			goto handle_error;
+	ret = vandmat_init(&math->pmi_vandmat, data_count, parity_count);
+	if (ret < 0)
+		goto handle_error;
 
-		ret = vandmat_norm(&math->pmi_vandmat);
-		if (ret < 0)
-			goto handle_error;
+	ret = vandmat_norm(&math->pmi_vandmat);
+	if (ret < 0)
+		goto handle_error;
 
-		ret = m0_matrix_init(&math->pmi_vandmat_parity_slice,
-				     data_count, parity_count);
-		if (ret < 0)
-			goto handle_error;
+	ret = m0_matrix_init(&math->pmi_vandmat_parity_slice,
+			     data_count, parity_count);
+	if (ret < 0)
+		goto handle_error;
 
-		m0_matrix_submatrix_get(&math->pmi_vandmat,
-				        &math->pmi_vandmat_parity_slice, 0,
-					data_count);
+	m0_matrix_submatrix_get(&math->pmi_vandmat,
+				&math->pmi_vandmat_parity_slice, 0,
+				data_count);
 
-		ret = m0_matvec_init(&math->pmi_data, data_count);
-		if (ret < 0)
-			goto handle_error;
+	ret = m0_matvec_init(&math->pmi_data, data_count);
+	if (ret < 0)
+		goto handle_error;
 
-		ret = m0_matvec_init(&math->pmi_parity, parity_count);
-		if (ret < 0)
-			goto handle_error;
+	ret = m0_matvec_init(&math->pmi_parity, parity_count);
+	if (ret < 0)
+		goto handle_error;
 
-		ret = m0_matvec_init(&math->pmi_sys_vec, math->pmi_data.mv_size);
-		if (ret < 0)
-			goto handle_error;
+	ret = m0_matvec_init(&math->pmi_sys_vec, math->pmi_data.mv_size);
+	if (ret < 0)
+		goto handle_error;
 
-		ret = m0_matvec_init(&math->pmi_sys_res, math->pmi_data.mv_size);
-		if (ret < 0)
-			goto handle_error;
+	ret = m0_matvec_init(&math->pmi_sys_res, math->pmi_data.mv_size);
+	if (ret < 0)
+		goto handle_error;
 
-		ret = m0_matrix_init(&math->pmi_sys_mat, math->pmi_data.mv_size,
-				     math->pmi_data.mv_size);
-		if (ret < 0)
-			goto handle_error;
-	}
+	ret = m0_matrix_init(&math->pmi_sys_mat, math->pmi_data.mv_size,
+			     math->pmi_data.mv_size);
+	if (ret < 0)
+		goto handle_error;
 #endif /* ISAL_ENCODE_ENABLED */
 
 	return M0_RC(ret);
@@ -1231,9 +1212,7 @@ fini:
 
 	return M0_RC(ret);
 }
-#endif /* ISAL_ENCODE_ENABLED */
 
-#if ISAL_ENCODE_ENABLED
 static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
 		     uint32_t unit_count, uint32_t data_count,
 		     uint8_t *fail, struct m0_buf *data,
@@ -1266,9 +1245,7 @@ static bool buf_sort(uint8_t **frags_in, uint8_t **frags_out,
 
 	return M0_RC(true);
 }
-#endif /* ISAL_ENCODE_ENABLED */
 
-#if ISAL_ENCODE_ENABLED
 static bool fails_sort(uint8_t *fail, uint32_t unit_count,
 		       struct m0_buf *failed_idx, struct m0_buf *alive_idx)
 {
@@ -1296,9 +1273,7 @@ static bool fails_sort(uint8_t *fail, uint32_t unit_count,
 
 	return M0_RC(true);
 }
-#endif /* ISAL_ENCODE_ENABLED */
 
-#if ISAL_ENCODE_ENABLED
 static void isal_recover(struct m0_parity_math *math,
 			 struct m0_buf *data,
 			 struct m0_buf *parity,
@@ -2003,9 +1978,7 @@ static void buf2bufvec(struct m0_bufvec *bvec, const struct m0_buf *buf)
 
 	M0_LEAVE();
 }
-#endif /* ISAL_ENCODE_ENABLED */
 
-#if ISAL_ENCODE_ENABLED
 static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 {
 	struct m0_bitmap	*failed_bitmap;
