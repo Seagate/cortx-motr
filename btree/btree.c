@@ -585,15 +585,6 @@ enum base_phase {
 	P_NR
 };
 
-enum op_flags {
-	OF_PREV    = M0_BITS(0),
-	OF_NEXT    = M0_BITS(1),
-	OF_LOCKALL = M0_BITS(2),
-	OF_COOKIE  = M0_BITS(3),
-	OF_EQUAL   = M0_BITS(4),
-	OF_SLANT   = M0_BITS(5)
-};
-
 enum btree_node_type {
 	BNT_FIXED_FORMAT                         = 1,
 	BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE     = 2,
@@ -630,7 +621,7 @@ static int get_tick(struct m0_btree_op *bop)
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
-		if ((flags & OF_COOKIE) && cookie_is_set(&bop->bo_key.k_cookie))
+		if ((flags & BOF_COOKIE) && cookie_is_set(&bop->bo_key.k_cookie))
 			return P_COOKIE;
 		else
 			return P_SETUP;
@@ -645,7 +636,7 @@ static int get_tick(struct m0_btree_op *bop)
 			return fail(bop, M0_ERR(-ENOMEM));
 		return P_LOCKALL;
 	case P_LOCKALL:
-		if (bop->bo_flags & OF_LOCKALL)
+		if (bop->bo_flags & BOF_LOCKALL)
 			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
 	case P_DOWN:
 		oi->i_used = 0;
@@ -681,10 +672,10 @@ static int get_tick(struct m0_btree_op *bop)
 		if (used_cookie || check_path())
 			return P_ACT;
 		if (too_many_restarts) {
-			if (bop->bo_flags & OF_LOCKALL)
+			if (bop->bo_flags & BOF_LOCKALL)
 				return fail(bop, -ETOOMANYREFS);
 			else
-				bop->bo_flags |= OF_LOCKALL;
+				bop->bo_flags |= BOF_LOCKALL;
 		}
 		if (height_increased) {
 			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_INIT);
@@ -2837,7 +2828,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
-		if ((flags & OF_COOKIE) &&
+		if ((flags & BOF_COOKIE) &&
 		    cookie_is_set(&bop->bo_rec.r_key.k_cookie))
 			return P_COOKIE;
 		else
@@ -2859,7 +2850,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		return P_LOCKALL;
 	}
 	case P_LOCKALL:
-		if (bop->bo_flags & OF_LOCKALL) {
+		if (bop->bo_flags & BOF_LOCKALL) {
 			//return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
 			m0_rwlock_write_lock(&tree->t_lock);
 		}
@@ -2946,10 +2937,10 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		oi->i_trial++;
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
 			if (oi->i_trial == MAX_TRIALS) {
-				if (bop->bo_flags & OF_LOCKALL)
+				if (bop->bo_flags & BOF_LOCKALL)
 					return fail(bop, -ETOOMANYREFS);
 				else
-					bop->bo_flags |= OF_LOCKALL;
+					bop->bo_flags |= BOF_LOCKALL;
 			}
 			if (bop->bo_arbor->t_height <= tree->t_height) {
 				/* If height increased */
@@ -3327,7 +3318,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
-		if ((bop->bo_flags & OF_COOKIE) &&
+		if ((bop->bo_flags & BOF_COOKIE) &&
 		    cookie_is_set(&bop->bo_rec.r_key.k_cookie))
 			return P_COOKIE;
 		else
@@ -3344,7 +3335,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			return fail(bop, M0_ERR(-ENOMEM));
 		return P_LOCKALL;
 	case P_LOCKALL:
-		if (bop->bo_flags & OF_LOCKALL)
+		if (bop->bo_flags & BOF_LOCKALL)
 			/* return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN); */
 			return P_LOCK;
 		/** Fall through if LOCKALL flag is not set. */
@@ -3394,10 +3385,10 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 		oi->i_trial++;
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
 			if (oi->i_trial == MAX_TRIALS) {
-				if (bop->bo_flags & OF_LOCKALL)
+				if (bop->bo_flags & BOF_LOCKALL)
 					return fail(bop, -ETOOMANYREFS);
 				else
-					bop->bo_flags |= OF_LOCKALL;
+					bop->bo_flags |= BOF_LOCKALL;
 			}
 			if (bop->bo_arbor->t_height <= tree->t_height) {
 				/* If height increased */
@@ -3437,7 +3428,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 		 *  If valid sibling found, return first key of the sibling
 		 *  subtree else return key not exist.
 		 */
-		if (bop->bo_flags & OF_EQUAL) {
+		if (bop->bo_flags & BOF_EQUAL) {
 			if (oi->i_key_found)
 				node_rec(&s);
 			else
@@ -3469,7 +3460,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 	};
 }
 
-int64_t btree_nxt_tick(struct m0_sm_op *smop)
+int64_t btree_iter_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
 	//ToDo: Implement complete destroy tick function.
@@ -3570,11 +3561,22 @@ void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 		      &btree_conf, &G);
 }
 
-void m0_btree_nxt(struct m0_btree *arbor, const struct m0_btree_key *key,
-		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop)
+/**
+ * Iterates through the tree and finds next/previous key of the given search
+ * key based on the flag. The callback routine returns record if key is found 
+ * else it returns error.
+ *
+ * @param arbor Btree parameteres.`
+ * @param key   Key to be searched in the btree.
+ * @param cb    Callback routine to return operation output.
+ * @param flags Operation specific flags (cookie, slant, prev, next etc.).
+ * @param bop   Btree operation related parameters.
+ */
+void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
+		   const struct m0_btree_cb *cb, uint64_t flags,
+		   struct m0_btree_op *bop)
 {
-	m0_sm_op_init(&bop->bo_op, &btree_nxt_tick, &bop->bo_op_exec,
+	m0_sm_op_init(&bop->bo_op, &btree_iter_tick, &bop->bo_op_exec,
 		      &btree_conf, &G);
 }
 
@@ -4280,16 +4282,16 @@ static void m0_btree_ut_basic_kv_oper(void)
 		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 					 m0_btree_get(b_op.bo_arbor,
 						      &find_key_in_tree,
-						      &ut_cb, OF_EQUAL, &kv_op),
+						      &ut_cb, BOF_EQUAL, &kv_op),
 					 &G, &b_op.bo_op_exec);
 
 		for (i = 1; i < 2048; i++) {
 			find_key = key;
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-						 m0_btree_nxt(b_op.bo_arbor,
-							      &find_key_in_tree,
-							      &ut_cb, 0,
-							      &kv_op),
+						 m0_btree_iter(b_op.bo_arbor,
+							       &find_key_in_tree,
+							       &ut_cb, BOF_NEXT,
+							       &kv_op),
 						 &G, &b_op.bo_op_exec);
 		}
 	}
@@ -4436,7 +4438,7 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 					 m0_btree_get(b_op.bo_arbor,
 						      &find_key_in_tree,
-						      &ut_cb, OF_EQUAL, &kv_op),
+						      &ut_cb, BOF_EQUAL, &kv_op),
 					 &G, &b_op.bo_op_exec);
 	}
 
