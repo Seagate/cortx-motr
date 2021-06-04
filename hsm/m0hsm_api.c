@@ -446,8 +446,7 @@ static int delete_obj_set_parent_layout(struct m0_uint128 id,
 	memset(&obj, 0, sizeof(struct m0_obj));
 	memset(&parent_obj, 0, sizeof(struct m0_obj));
 
-	m0_obj_init(&obj, m0_uber_realm, &id,
-			   m0_client_layout_id(m0_instance));
+	m0_obj_init(&obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
 	m0_obj_init(&parent_obj, m0_uber_realm, &parent_id,
 			   m0_client_layout_id(m0_instance));
 
@@ -1906,7 +1905,7 @@ int m0hsm_test_write(struct m0_uint128 id, off_t offset, size_t len, int seed)
 	}
 
 	m0_obj_init(&subobj, m0_uber_realm, &layer->ccr_subobj,
-			   m0_client_layout_id(m0_instance));
+		    m0_client_layout_id(m0_instance));
 	rc = open_entity(&subobj.ob_entity);
 	if (rc)
 		RETURN(rc);
