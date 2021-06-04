@@ -93,7 +93,7 @@ bin_SCRIPTS        =
 sbin_PROGRAMS      =
 sbin_SCRIPTS       =
 lib_LTLIBRARIES    =
-
+ivt_SCRIPTS        =
 # non-installable/packageable stuff: build helpers, local tests, etc.
 noinst_PROGRAMS    =
 noinst_LTLIBRARIES =
@@ -777,6 +777,17 @@ sbin_SCRIPTS  += utils/m0gendisks \
                  utils/m0setup \
                  utils/m0iscorrupt \
                  utils/m0singlenode
+
+
+ivtdir = /opt/seagate/cortx/motr/workload
+include $(top_srcdir)/scripts/workload/Makefile.sub
+if ENABLE_IVT_TESTS
+ivt_SCRIPTS   += scripts/workload/m0workload \
+                 scripts/workload/create_workload_from_excel \
+                 scripts/workload/sample_workload_excel_test.xls \
+                 scripts/workload/mix_workload.yaml \
+                 scripts/workload/m0crate_workload_batch_1_file1.yaml
+endif
 
 #
 # fdmi/st/echo_plugin
@@ -1603,6 +1614,8 @@ install-tests:
 	@$(MAKE) INSTALL_MOD_DIR=kernel/fs/motr/tests $(KERNEL_MODULES_INSTALL) \
 		 install-binPROGRAMS install-sbinPROGRAMS install-binSCRIPTS \
 		 install-sbinSCRIPTS
+install-ivt:
+	@$(MAKE) install-ivtSCRIPTS
 
 #
 # RPM targets ----------------------------------------- {{{2
@@ -1654,6 +1667,13 @@ __rpm_tests:
 		 --with ut \
 		 $(RPMBUILD_FLAGS)
 
+.PHONY: __rpm_ivt
+__rpm_ivt:
+	rpmbuild -bb $(RPM_SPEC_DIR)/cortx-motr.spec \
+		 --define "_topdir $(RPMBUILD_DIR)" \
+		 --with ivt \
+		 $(RPMBUILD_FLAGS)
+
 .PHONY: __rpm_mock
 __rpm_mock:
 	mock -r motr-mock.cfg --resultdir $(RPM_MOCK_DIR) --init
@@ -1671,6 +1691,7 @@ __rpm_mock:
 .PHONY: rpms
 rpms:
 	$(MAKE) __rpm_pre
+	$(MAKE) __rpm_ivt
 	$(MAKE) __rpm_tests
 	$(MAKE) __rpm
 	$(MAKE) __rpm_srpm
@@ -1686,6 +1707,12 @@ rpms-notests:
 rpms-tests:
 	$(MAKE) __rpm_pre
 	$(MAKE) __rpm_tests
+	$(MAKE) __rpm_post
+
+.PHONY: rpms-ivt
+rpms-ivt:
+	$(MAKE) __rpm_pre
+	$(MAKE) __rpm_ivt
 	$(MAKE) __rpm_post
 
 .PHONY: rpms-mock

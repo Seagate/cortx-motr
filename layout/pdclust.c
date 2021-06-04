@@ -339,7 +339,7 @@ M0_INTERNAL int m0_pdclust_build(struct m0_layout_domain *dom,
 
 M0_INTERNAL bool m0_pdclust_attr_check(const struct m0_pdclust_attr *attr)
 {
-	bool res = (attr->pa_S == 0 || attr->pa_S == attr->pa_K) &&
+	bool res = (attr->pa_S >= 0 && attr->pa_S <= attr->pa_K) &&
 		   attr->pa_P >= attr->pa_N + attr->pa_K + attr->pa_S;
 	if (!res)
 		M0_LOG(M0_ERROR, "Bad pdclust attributes (P < N+K+S and S=0"
