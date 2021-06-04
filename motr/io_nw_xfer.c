@@ -387,6 +387,8 @@ void target_ioreq_fini(struct target_ioreq *ti)
 	m0_free0(&ti->ti_bufvec.ov_vec.v_count);
 	m0_free0(&ti->ti_auxbufvec.ov_buf);
 	m0_free0(&ti->ti_auxbufvec.ov_vec.v_count);
+	m0_free0(&ti->ti_attrbufvec.ov_buf);
+	m0_free0(&ti->ti_attrbufvec.ov_vec.v_count);
 	m0_free0(&ti->ti_pageattrs);
 
 	if (ti->ti_dgvec != NULL)
@@ -468,6 +470,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 {
 	uint32_t                   seg;
 	uint32_t                   tseg;
+	uint32_t                   coff;
 	m0_bindex_t                toff;
 	m0_bindex_t                goff;
 	m0_bindex_t                pgstart;
@@ -481,6 +484,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	struct m0_indexvec        *trunc_ivec = NULL;
 	struct m0_bufvec          *bvec;
 	struct m0_bufvec          *auxbvec;
+	struct m0_bufvec          *attrbvec;
 	enum m0_pdclust_unit_type  unit_type;
 	enum page_attr            *pattr;
 	uint64_t                   cnt;
@@ -513,6 +517,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	toff    = target_offset(frame, play, gob_offset);
 	pgstart = toff;
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
+	coff    = di_cksum_offset(play, gob_offset);
+	M0_LOG(M0_DEBUG, "YJC: coff = %"PRIu32, coff);
 
 	M0_LOG(M0_DEBUG,
 	       "[gpos %"PRIu64", count %"PRIu64"] [%"PRIu64", %"PRIu64"]"
@@ -544,6 +550,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 ioo->ioo_iomap_nr, ioreq_sm_state(ioo), cnt);
 	}
 
+	//YJC_TODO: Move this to above else section during io write
+	attrbvec = &ti->ti_attrbufvec;
 	while (pgstart < toff + count) {
 		pgend = min64u(pgstart + page_size,
 			       toff + count);
@@ -593,6 +601,11 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		M0_ASSERT(addr_is_network_aligned(buf->db_buf.b_addr));
 		bvec->ov_buf[seg] = buf->db_buf.b_addr;
 		bvec->ov_vec.v_count[seg] = COUNT(ivec, seg);
+		attrbvec->ov_buf[seg] = ioo->ioo_attr.ov_buf[coff];
+		attrbvec->ov_vec.v_count[seg] = ioo->ioo_attr.ov_vec.v_count[coff];
+		M0_LOG(M0_DEBUG, "YJC_CKSUM: ioo->cksum = %s target buf cksum = %s gob_offset %"PRIu64 " coff = %d",
+				  (char *)ioo->ioo_attr.ov_buf[coff], (char *)attrbvec->ov_buf[seg], gob_offset, coff);
+		M0_LOG(M0_DEBUG, "YJC: target buffer ov buf = %s", (char *)attrbvec->ov_buf[seg]);
 		if (map->pi_rtype == PIR_READOLD &&
 		    unit_type == M0_PUT_DATA) {
 			M0_ASSERT(buf->db_auxbuf.b_addr != NULL);
@@ -736,6 +749,39 @@ static void irfop_fini(struct ioreq_fop *irfop)
 	M0_LEAVE();
 }
 
+static int m0_bufs_from_bufvec(struct m0_bufs *dest,
+		                    const struct m0_bufvec *src)
+{
+	size_t i;
+
+	M0_SET0(dest);
+
+	if (src == NULL)
+		return 0;
+
+	dest->ab_count = src->ov_vec.v_nr;
+	if (dest->ab_count == 0)
+		return 0;
+
+	M0_ALLOC_ARR(dest->ab_elems, dest->ab_count);
+	if (dest->ab_elems == NULL)
+		return M0_ERR(-ENOMEM);
+
+	M0_LOG(M0_DEBUG, "YJC: copying %d buffers", dest->ab_count);
+	for (i = 0; i < dest->ab_count; ++i) {
+		struct m0_buf *dst = &dest->ab_elems[i];
+		uint32_t count;
+		count = src->ov_vec.v_count[i];
+		dst->b_addr = m0_alloc(count);
+		if (dst->b_addr == NULL)
+			return M0_ERR(-ENOMEM);
+		dst->b_nob = count;
+		memcpy(dst->b_addr, src->ov_buf[i], count);
+	}
+	return 0;
+}
+
+
 /**
  * Assembles io fops for the specified target server.
  * This is heavily based on
@@ -758,6 +804,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	enum page_attr              *pattr;
 	struct m0_bufvec            *bvec;
 	struct m0_bufvec            *auxbvec;
+	struct m0_bufvec            *attrbvec;
 	struct m0_op_io      *ioo;
 	struct m0_obj_attr   *io_attr;
 	struct m0_indexvec          *ivec;
@@ -837,6 +884,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			goto err;
 		}
 
+		//YJC_TODO: handle if fop is more than RPC_MSG_BUF_SIZE
 		iofop = &irfop->irf_iofop;
 		rw_fop = io_rw_get(&iofop->if_fop);
 
@@ -927,6 +975,13 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_fid = ti->ti_fid;
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
+		attrbvec = &ti->ti_attrbufvec;
+		//YJC_TODO: concat all checksum into single buffer instead of collection of buffers
+		rc = m0_bufs_from_bufvec(&rw_fop->crw_di_data_cksum, attrbvec);
+		M0_ASSERT(rc == 0);
+		//YJC_TODO: m0_bufs_print only for debug, needs to be removed
+		m0_bufs_print(&rw_fop->crw_di_data_cksum, "YJC_CKSUM: rw_fop->crw_di_data_cksum");
+
 		if (ioo->ioo_flags & M0_OOF_NOHOLE)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 		if (ioo->ioo_flags & M0_OOF_SYNC)
@@ -1076,6 +1131,15 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 
 	M0_ALLOC_ARR(ti->ti_bufvec.ov_buf, nr);
 	if (ti->ti_bufvec.ov_buf == NULL)
+		goto fail;
+
+	ti->ti_attrbufvec.ov_vec.v_nr = nr;
+	M0_ALLOC_ARR(ti->ti_attrbufvec.ov_vec.v_count, nr);
+	if (ti->ti_attrbufvec.ov_vec.v_count == NULL)
+		goto fail;
+
+	M0_ALLOC_ARR(ti->ti_attrbufvec.ov_buf, nr);
+	if (ti->ti_attrbufvec.ov_buf == NULL)
 		goto fail;
 
 	/*

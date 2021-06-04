@@ -1775,6 +1775,7 @@ static int io_launch(struct m0_fom *fom)
 			uint32_t curr_pos = m0_di_size_get(file,
 						fom_obj->fcrw_curr_size);
 
+			struct   m0_bufs *bufs;
 			di_buf = &rwfop->crw_di_data;
 			if (di_buf != NULL) {
 				struct m0_buf buf = M0_BUF_INIT(di_size,
@@ -1786,6 +1787,10 @@ static int io_launch(struct m0_fom *fom)
 					  mem_ivec, &nb->nb_buffer,
 					  &cksum_data));
 			}
+			bufs = &rwfop->crw_di_data_cksum;
+			//YJC_TODO: concated cksum would be passed from client, replace m0_bufs with m0_buf
+			//YJC_TODO: m0_bufs_print only for debug, needs to be removed
+			m0_bufs_print(bufs, "YJC_CKSUM: rw_fop->crw_di_data_cksum");
 		}
 		stio->si_opcode = m0_is_write_fop(fop) ? SIO_WRITE : SIO_READ;
 

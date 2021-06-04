@@ -75,6 +75,21 @@ struct m0_bufs {
 #define BUF_F    "[%p,%llu]"
 #define BUF_P(p) (p)->b_addr, (unsigned long long)(p)->b_nob
 
+/*
+ * Print all elements in m0_bufs
+ */
+#define m0_bufs_print(bufs, msg) \
+do { \
+	uint32_t i;\
+	for (i = 0; i < (bufs)->ab_count; ++i) { \
+		struct m0_buf *buf = &(bufs)->ab_elems[i]; \
+		if (buf->b_nob > 0) { \
+			M0_LOG(M0_DEBUG, msg " buf[%d]: b_nob = %"PRIu64 "b_addr = %s", \
+				i, buf->b_nob, (char *)buf->b_addr); \
+		} \
+	} \
+}while(0)
+
 /** Initialises struct m0_buf. */
 M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob);
 

@@ -38,6 +38,9 @@
 #include "motr/client_internal.h"
 
 extern struct m0_addb_ctx m0_addb_ctx;
+enum {
+ATTR_SIZE = 128,
+};
 
 static int noop_lock_init(struct m0_obj *obj)
 {
@@ -110,18 +113,36 @@ static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 	 * and initialises the bufvec for us.
 	 */
 
+	fprintf(stderr, "YJC: allocating data and att for %d blocks of size %d\n", block_count, block_size);
+	//block_count = block_size /  lid_size;
 	rc = m0_bufvec_alloc(data, block_count, block_size);
 	if (rc != 0) {
 		m0_indexvec_free(ext);
 		return rc;
 	}
-	rc = m0_bufvec_alloc(attr, block_count, 1);
+	rc = m0_bufvec_alloc(attr, block_count, ATTR_SIZE);
 	if (rc != 0) {
 		m0_indexvec_free(ext);
 		m0_bufvec_free(data);
 		return rc;
 	}
 	return rc;
+}
+
+static int write_dummy_hash_data(struct m0_bufvec *attr)
+{
+       int i;
+       int nr_blocks;
+
+       nr_blocks = attr->ov_vec.v_nr;
+       fprintf(stderr, "YJC: attr buf cnt = %d\n", nr_blocks);
+       for (i = 0; i < nr_blocks; ++i) {
+		sprintf(attr->ov_buf[i], "%s_seg%d", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					       i);
+		attr->ov_vec.v_count[i] = ATTR_SIZE;
+	        fprintf(stderr, "YJC_CKSUM: attr[%d] = %s \n", i, (char *)attr->ov_buf[i]);
+       }
+       return i;
 }
 
 static void prepare_ext_vecs(struct m0_indexvec *ext,
@@ -137,7 +158,8 @@ static void prepare_ext_vecs(struct m0_indexvec *ext,
 		*last_index += block_size;
 
 		/* we don't want any attributes */
-		attr->ov_vec.v_count[i] = 0;
+		//YJC_TODO set count to block_count
+		attr->ov_vec.v_count[i] = 128;
 	}
 }
 
@@ -429,6 +451,9 @@ int m0_write(struct m0_container *container, char *src,
 		/* Read data from source file. */
 		rc = read_data_from_file(fp, &data);
 		M0_ASSERT(rc == bcount);
+		fprintf(stderr, "YJC: writing dummy hash bcount = %d\n",
+		        bcount);
+		write_dummy_hash_data(&attr);
 
 		/* Copy data to the object*/
 		rc = write_data_to_object(&obj, &ext, &data, &attr);
