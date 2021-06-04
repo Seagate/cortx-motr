@@ -473,7 +473,7 @@ static uint64_t units_calc(uint64_t **units, uint64_t level, uint64_t parent_nr,
 
 static uint64_t parity_group_size(const struct m0_pdclust_attr *la_attr)
 {
-	return la_attr->pa_N + 2 * la_attr->pa_K;
+	return la_attr->pa_N + la_attr->pa_K + la_attr->pa_S;
 }
 
 static uint64_t pool_width_calc(uint64_t *children_nr, uint64_t depth)

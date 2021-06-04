@@ -39,8 +39,8 @@ scripts/install-motr-service -u
 rm -rf /etc/motr
 rm -f  "$SYSCONFIG_DIR/motr"
 scripts/install-motr-service -l
-utils/m0setup -v -P 12 -N 2 -K 1 -i 3 -d /var/motr/img -s 128 -c
-utils/m0setup -v -P 12 -N 2 -K 1 -i 3 -d /var/motr/img -s 128
+utils/m0setup -v -P 12 -N 2 -K 1 -S 1 -i 3 -d /var/motr/img -s 128 -c
+utils/m0setup -v -P 12 -N 2 -K 1 -S 1 -i 3 -d /var/motr/img -s 128
 
 # update Motr configuration: turn on fdatasync with '-I' option
 sed -i "s/.*MOTR_M0D_EXTRA_OPTS.*/MOTR_M0D_EXTRA_OPTS='-I'/" \
@@ -73,7 +73,7 @@ echo "Tear down Motr services"
 systemctl stop motr-singlenode
 systemctl stop motr-kernel
 rc=$?
-utils/m0setup -v -P 12 -N 2 -K 1 -i 3 -d /var/motr/img -s 8 -c
+utils/m0setup -v -P 12 -N 2 -K 1 -S 1 -i 3 -d /var/motr/img -s 8 -c
 scripts/install-motr-service -u
 
 if [ $rc -eq 0 ]; then

@@ -1,0 +1,77 @@
+motr:
+  MOTR_LOCAL_ADDR: 192.168.0.95@tcp:12345:4:1
+  MOTR_HA_ADDR: 192.168.0.95@tcp:12345:1:1
+  PROF: 0x7000000000000001:0x2c
+  PROCESS_FID: 0x7200000000000001:0x26
+  LAYOUT_ID: 4
+  IS_OOSTORE: 1
+  IS_READ_VERIFY: 0
+  TM_RECV_QUEUE_MIN_LEN: 2
+  MAX_RPC_MSG_SIZE: 131072
+  IDX_SERVICE_ID: 1
+  ADDB_INIT: 1
+mode:
+  cluster:
+    app: hare
+    cdf: /tmp/CDF.yaml
+    client_index: 1
+  singlenode:
+    config_file: /etc/motr/conf.xc
+    base_port: 200
+sandbox_dir: /var/log/seagate/motr/ivt
+timeout: 120
+workloads:
+  1:
+    batch:
+    - cmnd: dd
+      params: '  if=/dev/urandom  of=/tmp/input150 bs=4k count=786'
+      config_overrides: null
+      timeout: 100
+    - cmnd: m0cp
+      params: ' -s 4k -c 786 -o 10:10  /tmp/input150'
+      config_overrides: null
+      timeout: 100
+    - cmnd: m0cat
+      params: ' -s 4k -c 512 -o 10:10 > /tmp/input150_out'
+      config_overrides: null
+      timeout: 120
+    - cmnd: diff
+      params: '   /tmp/input150     /tmp/input150_out'
+      config_overrides: null
+      timeout: null
+    - cmnd: du
+      params: '  -h  /tmp/input150'
+      config_overrides: null
+      timeout: null
+    - cmnd: du
+      params: '  -h  /tmp/input150_out'
+      config_overrides: null
+      timeout: null
+    - cmnd: m0trunc
+      params: ' -s 4k -c 512 -t 256 -o 10:10'
+      config_overrides: null
+      timeout: null
+    - cmnd: m0unlink
+      params: ' -o 10:10'
+      config_overrides: null
+      timeout: null
+    - cmnd: dd
+      params: '  if=/dev/urandom  of=/tmp/128M bs=4k count=32k'
+      config_overrides: null
+      timeout: 100
+    - cmnd: m0crate
+      params: ' -S /opt/seagate/cortx/motr/workload/m0crate_workload_batch_1_file1.yaml'
+      config_overrides: null
+      timeout: null
+    runs: 2
+  2:
+    batch:
+    - cmnd: m0kv
+      params: '  index create "1:5"'
+      config_overrides: null
+      timeout: 100
+    - cmnd: m0kv
+      params: '  index list "1:5" 2'
+      config_overrides: null
+      timeout: 200
+    runs: 2

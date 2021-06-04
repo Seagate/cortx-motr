@@ -59,6 +59,9 @@ addb_rec_dirs=`ls -d $ADDB_DIR`
 if [ -n "$ADDB_DIR" ]; then
     addb_rec_dirs="$addb_rec_dirs $ADDB_DIR"
 fi
+if [ -z "$ADDB_RECORD_DIR" ]; then
+   ADDB_RECORD_DIR="/var/motr/m0d-*"
+fi
 
 while getopts ":n:" option; do
     case "${option}" in

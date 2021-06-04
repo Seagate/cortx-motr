@@ -70,8 +70,8 @@
  * - to convert a parity group number to a (tile number, group in tile)
  *   pair. This is a conversion of 1-matrix to C-matrix;
  *
- * - to convert a tile from C*(N + 2*K) to L*P form. This is a conversion of
- *   (N + 2*K)-matrix to P-matrix;
+ * - to convert a tile from C*(N + K + S) to L*P form. This is a conversion of
+ *   (N + K + S)-matrix to P-matrix;
  *
  * - to convert a (tile number, frame in tile) pair to a target frame
  *   number. This is a conversion of L-matrix to 1-matrix.
@@ -140,7 +140,7 @@ static bool pdclust_invariant(const struct m0_pdclust_layout *pl)
 	return
 		m0_pdclust_layout_bob_check(pl) &&
 		m0_layout__striped_invariant(&pl->pl_base) &&
-		pl->pl_C * (attr.pa_N + 2 * attr.pa_K) ==
+		pl->pl_C * (attr.pa_N + attr.pa_K + attr.pa_S) ==
 		pl->pl_L * attr.pa_P &&
 		pl->pl_base.sl_enum->le_ops->leo_nr(pl->pl_base.sl_enum) ==
 		attr.pa_P;
@@ -268,16 +268,18 @@ static int pdclust_populate(struct m0_pdclust_layout *pl,
 	uint32_t B;
 	uint32_t N;
 	uint32_t K;
+	uint32_t S;
 	uint32_t P;
 
 	N = attr->pa_N;
 	K = attr->pa_K;
+	S = attr->pa_S;
 	P = attr->pa_P;
 	M0_PRE(pdclust_allocated_invariant(pl));
 	M0_PRE(m0_mutex_is_locked(&pl->pl_base.sl_base.l_lock));
 	M0_PRE(le != NULL);
 
-	if (N + 2 * K > P) {
+	if (N + K + S > P) {
 		M0_LOG(M0_ERROR, "pl %p, attr %p, Invalid attributes, rc %d",
 		       pl, attr, -EPROTO);
 		return M0_ERR(-EPROTO);
@@ -289,9 +291,9 @@ static int pdclust_populate(struct m0_pdclust_layout *pl,
 	m0_layout__striped_populate(&pl->pl_base, le, user_count);
 	pl->pl_attr = *attr;
 
-	/* Select minimal possible B (least common multiple of P and N+2*K). */
-	B = P*(N+2*K)/m0_gcd64(N+2*K, P);
-	pl->pl_C = B/(N+2*K);
+	/* Select minimal possible B (least common multiple of P and N+K+S). */
+	B = P*(N+K+S)/m0_gcd64(N+K+S, P);
+	pl->pl_C = B/(N+K+S);
 	pl->pl_L = B/P;
 
 	M0_POST(pdclust_invariant(pl));
@@ -337,11 +339,13 @@ M0_INTERNAL int m0_pdclust_build(struct m0_layout_domain *dom,
 
 M0_INTERNAL bool m0_pdclust_attr_check(const struct m0_pdclust_attr *attr)
 {
-	bool res = attr->pa_P >= attr->pa_N + 2 * attr->pa_K;
+	bool res = (attr->pa_S >= 0 && attr->pa_S <= attr->pa_K) &&
+		   attr->pa_P >= attr->pa_N + attr->pa_K + attr->pa_S;
 	if (!res)
-		M0_LOG(M0_ERROR, "Bad pdclust attributes (P < N + 2K):"
-		       " P=%"PRIu32" N=%"PRIu32" K=%"PRIu32,
-		       attr->pa_P, attr->pa_N, attr->pa_K);
+		M0_LOG(M0_ERROR, "Bad pdclust attributes (P < N+K+S and S=0"
+		       " or S==K): P=%"PRIu32" N=%"PRIu32" K=%"PRIu32
+		       " S=%"PRIu32, attr->pa_P, attr->pa_N, attr->pa_K,
+		       attr->pa_S);
 	return res;
 }
 
@@ -355,6 +359,11 @@ M0_INTERNAL uint32_t m0_pdclust_K(const struct m0_pdclust_layout *pl)
 	return pl->pl_attr.pa_K;
 }
 
+M0_INTERNAL uint32_t m0_pdclust_S(const struct m0_pdclust_layout *pl)
+{
+	return pl->pl_attr.pa_S;
+}
+
 M0_INTERNAL uint32_t m0_pdclust_P(const struct m0_pdclust_layout *pl)
 {
 	return pl->pl_attr.pa_P;
@@ -362,7 +371,7 @@ M0_INTERNAL uint32_t m0_pdclust_P(const struct m0_pdclust_layout *pl)
 
 M0_INTERNAL uint32_t m0_pdclust_size(const struct m0_pdclust_layout *pl)
 {
-	return m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+	return m0_pdclust_N(pl) + m0_pdclust_K(pl) + m0_pdclust_S(pl);
 }
 
 M0_INTERNAL uint64_t m0_pdclust_unit_size(const struct m0_pdclust_layout *pl)
@@ -697,6 +706,7 @@ M0_INTERNAL void m0_pdclust_instance_map(struct m0_pdclust_instance *pi,
 	struct m0_pdclust_layout *pl;
 	uint32_t                  N;
 	uint32_t                  K;
+	uint32_t                  S;
 	uint32_t                  P;
 	uint32_t                  C;
 	uint32_t                  L;
@@ -712,6 +722,7 @@ M0_INTERNAL void m0_pdclust_instance_map(struct m0_pdclust_instance *pi,
 	pl = pi_to_pl(pi);
 	N = pl->pl_attr.pa_N;
 	K = pl->pl_attr.pa_K;
+	S = pl->pl_attr.pa_S;
 	P = pl->pl_attr.pa_P;
 	C = pl->pl_C;
 	L = pl->pl_L;
@@ -722,10 +733,10 @@ M0_INTERNAL void m0_pdclust_instance_map(struct m0_pdclust_instance *pi,
 	 */
 	m_dec(C, src->sa_group, &omega, &j);
 	/*
-	 * Then, convert from C*(N+2*K) coordinates to L*P coordinates within a
+	 * Then, convert from C*(N+K+S) coordinates to L*P coordinates within a
 	 * tile.
 	 */
-	m_dec(P, m_enc(N + 2*K, j, src->sa_unit), &r, &t);
+	m_dec(P, m_enc(N + K + S, j, src->sa_unit), &r, &t);
 	/* Permute columns */
 	tgt->ta_obj = permute_column(pi, omega, t);
 	/* And translate back from tile to target address. */
@@ -740,6 +751,7 @@ M0_INTERNAL void m0_pdclust_instance_inv(struct m0_pdclust_instance *pi,
 	struct m0_pdclust_layout *pl;
 	uint32_t                  N;
 	uint32_t                  K;
+	uint32_t                  S;
 	uint32_t                  P;
 	uint32_t                  C;
 	uint32_t                  L;
@@ -751,6 +763,7 @@ M0_INTERNAL void m0_pdclust_instance_inv(struct m0_pdclust_instance *pi,
 	pl = pi_to_pl(pi);
 	N = pl->pl_attr.pa_N;
 	K = pl->pl_attr.pa_K;
+	S = pl->pl_attr.pa_S;
 	P = pl->pl_attr.pa_P;
 	C = pl->pl_C;
 	L = pl->pl_L;
@@ -767,7 +780,7 @@ M0_INTERNAL void m0_pdclust_instance_inv(struct m0_pdclust_instance *pi,
 	m_dec(L, tgt->ta_frame, &omega, &r);
 	permute_column(pi, omega, t); /* Force tile cache update */
 	t = pi->pi_tile_cache.tc_inverse[t];
-	m_dec(N + 2*K, m_enc(P, r, t), &j, &src->sa_unit);
+	m_dec(N + K + S, m_enc(P, r, t), &j, &src->sa_unit);
 	src->sa_group = m_enc(C, omega, j);
 }
 
@@ -847,9 +860,9 @@ static int pdclust_instance_build(struct m0_layout           *l,
 
 	M0_ENTRY("lid %llu, gfid "FID_F,
 		 (unsigned long long)l->l_id, FID_P(fid));
-	N  = pl->pl_attr.pa_N;
-	K  = pl->pl_attr.pa_K;
-	P  = pl->pl_attr.pa_P;
+	N = pl->pl_attr.pa_N;
+	K = pl->pl_attr.pa_K;
+	P = pl->pl_attr.pa_P;
 
 	if (M0_FI_ENABLED("mem_err1")) { pi = NULL; goto err1_injected; }
 	M0_ALLOC_PTR(pi);
