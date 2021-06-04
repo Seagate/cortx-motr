@@ -438,85 +438,66 @@ static void cp_multi_failures_post(char data, int cnt, int index)
 	m0_semaphore_down(&sem);
 }
 
-static void buf_initialize(struct m0_buf *buf, uint32_t size, uint32_t len)
+static void buf_initialize(struct m0_buf *bufs, uint32_t count, uint32_t len)
 {
-	uint32_t j;
-	uint8_t	*arr;
+	uint32_t i;
+	int      ret;
 
-	for (j = 0; j < size; ++j) {
-		M0_ALLOC_ARR(arr, len);
-		M0_UT_ASSERT(arr != NULL);
-		m0_buf_init(&buf[j], arr, len);
+	for (i = 0; i < count; ++i) {
+		ret = m0_buf_alloc(&bufs[i], len);
+		M0_UT_ASSERT(ret == 0);
 	}
 }
 
-static void buf_free(struct m0_buf *buf, uint32_t count)
+static void buf_free(struct m0_buf *bufs, uint32_t count)
 {
 	uint32_t i;
 
 	for (i = 0; i < count; ++i)
-		m0_buf_free(&buf[i]);
+		m0_buf_free(&bufs[i]);
 }
 
-static void bufvec2buf(struct m0_buf *buf, struct m0_bufvec *bufvec, uint32_t count)
+static void ref_parity_calculate(struct m0_parity_math *math,
+				 struct m0_bufvec *bufvecs)
 {
-	uint32_t  i;
-	uint32_t  j;
-	uint8_t  *buf_data;
-	uint8_t  *bufvec_data;
-
-	for (i = 0; i < count; i++) {
-		buf_data = (uint8_t *)buf[i].b_addr;
-		for (j = 0; j < SEG_NR; ++j) {
-			bufvec_data = (uint8_t *)bufvec[i].ov_buf[j];
-			memcpy(&buf_data[SEG_SIZE * j], bufvec_data, SEG_SIZE);
-		}
-	}
-}
-
-static void buf2bufvec(struct m0_bufvec *bufvec, struct m0_buf *buf, uint32_t count)
-{
-	uint32_t  i;
-	uint32_t  j;
-	uint8_t  *buf_data;
-	uint8_t  *bufvec_data;
-
-	for (i = 0; i < count; i++) {
-		buf_data = (uint8_t *)buf[i].b_addr;
-		for (j = 0; j < SEG_NR; ++j) {
-			bufvec_data = (uint8_t *)bufvec[i].ov_buf[j];
-			memcpy(bufvec_data, &buf_data[SEG_SIZE * j], SEG_SIZE);
-		}
-	}
-}
-
-static void ref_parity_calculate(struct m0_parity_math *math, struct m0_bufvec *bufvec)
-{
-	struct m0_buf *buf;
-	uint32_t       unit_count;
+	struct m0_bufvec_cursor cur;
+	uint32_t		i;
+	int			ret;
+	struct m0_buf	       *parity_bufs;
+	struct m0_bufvec       *parity_bufvecs;
 
 	M0_UT_ASSERT(math != NULL);
-	M0_UT_ASSERT(bufvec != NULL);
+	M0_UT_ASSERT(bufvecs != NULL);
 
-	unit_count = math->pmi_data_count + math->pmi_parity_count;
+	uint32_t       unit_count = math->pmi_data_count + math->pmi_parity_count;
+	struct m0_buf  bufs[unit_count];
 
-	M0_ALLOC_ARR(buf, unit_count);
-	M0_UT_ASSERT(buf != NULL);
+	memset(bufs, 0, unit_count * sizeof(struct m0_buf));
 
-	buf_initialize(buf, unit_count, SEG_NR * SEG_SIZE);
+	buf_initialize(bufs, unit_count, SEG_NR * SEG_SIZE);
 
 	/* Copy data from buffer vector to m0 buffer */
-	bufvec2buf(buf, bufvec, math->pmi_data_count);
+	for (i = 0; i < math->pmi_data_count; i++) {
+		m0_bufvec_cursor_init(&cur, &bufvecs[i]);
+		ret = m0_bufvec_to_data_copy(&cur, bufs[i].b_addr,
+					     (size_t)bufs[i].b_nob);
+		M0_UT_ASSERT(ret == 0);
+	}
 
 	/* Calculate parity */
-	m0_parity_math_calculate(math, buf, &buf[math->pmi_data_count]);
+	parity_bufs = &bufs[math->pmi_data_count];
+	m0_parity_math_calculate(math, bufs, parity_bufs);
 
 	/* Copy parity from m0 buffer to buffer vector */
-	buf2bufvec(&bufvec[math->pmi_data_count], &buf[math->pmi_data_count],
-		   math->pmi_parity_count);
+	parity_bufvecs = &bufvecs[math->pmi_data_count];
+	for (i = 0; i < math->pmi_parity_count; i++) {
+		m0_bufvec_cursor_init(&cur, &parity_bufvecs[i]);
+		ret = m0_data_to_bufvec_copy(&cur, parity_bufs[i].b_addr,
+					     (size_t)parity_bufs[i].b_nob);
+		M0_UT_ASSERT(ret == 0);
+	}
 
-	buf_free(buf, unit_count);
-	m0_free(buf);
+	buf_free(bufs, unit_count);
 }
 
 /*

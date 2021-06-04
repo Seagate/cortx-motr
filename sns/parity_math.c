@@ -245,16 +245,9 @@ static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
  * @param[in]  bvecs - Array of pointers to m0_bufvec.
  * @param[in]  count - Number of buffers to copy
  */
-static void bufvec_to_buf_copy(struct m0_buf *bufs,
-			       struct m0_bufvec **bvecs,
-			       uint32_t count);
-
-/**
- * Converts a m0_bufvec to m0_buf.
- * @param[out] buf  - Pointer to buffer m0_buf.
- * @param[in]  bvec - Pointer to buffer vector m0_bufvec.
- */
-static void bufvec2buf(struct m0_buf *buf, const struct m0_bufvec *bvec);
+static int bufvec_to_buf_copy(struct m0_buf *bufs,
+			      struct m0_bufvec **bvecs,
+			      uint32_t count);
 
 /**
  * Converts given number of m0_buf to m0_bufvec.
@@ -262,16 +255,9 @@ static void bufvec2buf(struct m0_buf *buf, const struct m0_bufvec *bvec);
  * @param[in]  bufs  - Array of m0_buf.
  * @param[in]  count - Number of buffers to copy
  */
-static void buf_to_bufvec_copy(struct m0_bufvec **bvecs,
-			       const struct m0_buf *bufs,
-			       uint32_t count);
-
-/**
- * Converts a m0_buf to m0_bufvec.
- * @param[out] bvec - Pointer to buffer vector m0_bufvec.
- * @param[in]  buf  - Pointer to buffer m0_buf.
- */
-static void buf2bufvec(struct m0_bufvec *bvec, const struct m0_buf *buf);
+static int buf_to_bufvec_copy(struct m0_bufvec **bvecs,
+			      const struct m0_buf *bufs,
+			      uint32_t count);
 
 /**
  * Core routine to recover failed_block based on available_block using
@@ -1875,108 +1861,50 @@ M0_INTERNAL void m0_sns_ir_fini(struct m0_sns_ir *ir)
 }
 
 #if ISAL_ENCODE_ENABLED
-static void bufvec_to_buf_copy(struct m0_buf *bufs,
-			       struct m0_bufvec **bvecs,
-			       uint32_t count)
+static int bufvec_to_buf_copy(struct m0_buf *bufs,
+			      struct m0_bufvec **bvecs,
+			      uint32_t count)
 {
-	uint32_t j;
-
-	M0_ENTRY("bufs=%p, bvecs=%p, count=%u", bufs, bvecs, count);
-
-	for (j = 0; j < count; ++j)
-		bufvec2buf(&bufs[j], bvecs[j]);
-
-	M0_LEAVE();
-}
-
-static void bufvec2buf(struct m0_buf *buf, const struct m0_bufvec *bvec)
-{
-	struct m0_bufvec_cursor cursor;
-	m0_bcount_t		step;
+	struct m0_bufvec_cursor	cursor;
 	uint32_t		i;
-	uint32_t		idx;
-	uint32_t		copy_bytes;
-	uint8_t		       *buf_data;
-	uint32_t		free_bytes;
-	uint32_t		seg_size;
+	int			ret = 0;
 
-	M0_ENTRY("bvec=%p, buf=%p", bvec, buf);
+	M0_ENTRY("copy count=%u", count);
 
-	m0_bufvec_cursor_init(&cursor, bvec);
-	buf_data = (uint8_t *)buf->b_addr;
-	free_bytes = (uint32_t)buf->b_nob;
+	for (i = 0; i < count; ++i) {
+		m0_bufvec_cursor_init(&cursor, bvecs[i]);
+		ret = m0_bufvec_to_data_copy(&cursor, bufs[i].b_addr,
+					     (size_t)bufs[i].b_nob);
+		if (ret != 0)
+			return M0_ERR_INFO(ret, "Failed to copy data from "
+					   "bufvec=%p to buf=%p. index=%u",
+					   bvecs[i], &bufs[i], i);
+	}
 
-	i = 0;
-	idx = 0;
-	do {
-		seg_size = bvec->ov_vec.v_count[i++];
-
-		/* Get minimum bytes to copy */
-		copy_bytes = min_check(free_bytes, seg_size);
-
-		memcpy(&buf_data[idx],
-		       m0_bufvec_cursor_addr(&cursor),
-		       copy_bytes);
-
-		idx += copy_bytes;
-		free_bytes -= copy_bytes;
-
-		step = m0_bufvec_cursor_step(&cursor);
-	} while (!m0_bufvec_cursor_move(&cursor, step) && (free_bytes != 0));
-
-	M0_LEAVE();
+	return M0_RC(ret);
 }
 
-static void buf_to_bufvec_copy(struct m0_bufvec **bvecs,
-			       const struct m0_buf *bufs,
-			       uint32_t count)
+static int buf_to_bufvec_copy(struct m0_bufvec **bvecs,
+			      const struct m0_buf *bufs,
+			      uint32_t count)
 {
-	uint32_t j;
-
-	M0_ENTRY("bvecs=%p, bufs=%p, count=%u", bvecs, bufs, count);
-
-	for (j = 0; j < count; ++j)
-		buf2bufvec(bvecs[j], &bufs[j]);
-
-	M0_LEAVE();
-}
-
-static void buf2bufvec(struct m0_bufvec *bvec, const struct m0_buf *buf)
-{
-	struct m0_bufvec_cursor cursor;
-	m0_bcount_t		step;
+	struct m0_bufvec_cursor	cursor;
 	uint32_t		i;
-	uint32_t		idx;
-	uint32_t		copy_bytes;
-	uint8_t		       *buf_data;
-	uint32_t		free_bytes;
-	uint32_t		seg_size;
+	int			ret = 0;
 
-	M0_ENTRY("bvec=%p, buf=%p", bvec, buf);
+	M0_ENTRY("copy count=%u", count);
 
-	m0_bufvec_cursor_init(&cursor, bvec);
-	buf_data = (uint8_t *)buf->b_addr;
-	free_bytes = (uint32_t)buf->b_nob;
+	for (i = 0; i < count; ++i) {
+		m0_bufvec_cursor_init(&cursor, bvecs[i]);
+		ret = m0_data_to_bufvec_copy(&cursor, bufs[i].b_addr,
+					     (size_t)bufs[i].b_nob);
+		if (ret != 0)
+			return M0_ERR_INFO(ret, "Failed to copy data from "
+					   "buf=%p to bufvec=%p. index=%u",
+					   bvecs[i], &bufs[i], i);
+	}
 
-	i = 0;
-	idx = 0;
-	do {
-		seg_size = bvec->ov_vec.v_count[i++];
-
-		/* Get minimum bytes to copy */
-		copy_bytes = min_check(free_bytes, seg_size);
-
-		memcpy(m0_bufvec_cursor_addr(&cursor),
-		       &buf_data[idx],
-		       copy_bytes);
-
-		idx += copy_bytes;
-		free_bytes -= copy_bytes;
-
-		step = m0_bufvec_cursor_step(&cursor);
-	} while (!m0_bufvec_cursor_move(&cursor, step) && (free_bytes != 0));
-
-	M0_LEAVE();
+	return M0_RC(ret);
 }
 
 static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
@@ -2017,7 +1945,12 @@ static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 	}
 
 	/* Get data from failed vectors in buffers */
-	bufvec_to_buf_copy(f_bufs, failed_bufvecs, ir->si_failed_nr);
+	ret = bufvec_to_buf_copy(f_bufs, failed_bufvecs, ir->si_failed_nr);
+	if (ret != 0){
+		ret = M0_ERR_INFO(ret, "Failed to get data from failed "
+				  "vectors in buffers.");
+		goto exit;
+	}
 
 	for (i = 0; i < ir->si_alive_nr; i++) {
 		if(ir->si_alive_idx[i] == alive_block->sib_idx) {
@@ -2042,18 +1975,27 @@ static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 	}
 
 	/* Get data from current vector in buffer */
-	bufvec2buf(&alive_buf, alive_bufvec);
+	ret = bufvec_to_buf_copy(&alive_buf, &alive_bufvec, 1);
+	if (ret != 0){
+		ret = M0_ERR_INFO(ret, "Failed to get data from alive "
+				  "vector in buffer.");
+		goto exit;
+	}
 
 	isal_encode_data_update(f_bufs, &alive_buf, curr_idx,
 				ir->si_decode_tbls, ir->si_data_nr,
 				ir->si_failed_nr);
 
-	m0_buf_free(&alive_buf);
 
 	/* Copy recovered data back to buffer vector. */
-	buf_to_bufvec_copy(failed_bufvecs, f_bufs, ir->si_failed_nr);
+	ret = buf_to_bufvec_copy(failed_bufvecs, f_bufs, ir->si_failed_nr);
+	if (ret != 0){
+		ret = M0_ERR_INFO(ret, "Failed to copy recovered data back "
+				  "to buffer vector.");
+	}
 
 exit:
+	m0_buf_free(&alive_buf);
 	for (i = 0; i < ir->si_failed_nr; i++)
 		m0_buf_free(&f_bufs[i]);
 
