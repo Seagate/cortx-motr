@@ -124,7 +124,8 @@ stub_confdb() {
     cat <<EOF
 (root-0 verno=1 rootfid=(11, 22) mdpool=pool-1 imeta_pver=(0, 0)
     mdredundancy=1 params=["pool_width=3", "nr_data_units=1",
-                           "nr_parity_units=1", "unit_size=4096"]
+                           "nr_parity_units=1", "nr_spare_units=1",
+                           "unit_size=4096"]
     nodes=[node-0] sites=[site-2] pools=[pool-0, pool-1]
     profiles=[profile-0] fdmi_flt_grps=[])
 (profile-0 pools=[pool-0, pool-1])
@@ -343,7 +344,7 @@ commands = [
     ('drive_add', tx, fids['drive3'], fids['ctrl']),
     ('drive_add', tx, fids['drive4'], fids['ctrl']),
     ('pver_actual_add', tx, fids['pver'], fids['pool'],
-     PdclustAttr(N, K, P, 1024*1024, Fid(1, 2)), [0, 0, 0, 0, 1]),
+     PdclustAttr(N, K, S, P, 1024*1024, Fid(1, 2)), [0, 0, 0, 0, 1]),
     ('site_v_add', tx, fids['sitev'], fids['pver'], fids['site']),
     ('rack_v_add', tx, fids['rackv'], fids['sitev'], fids['rack']),
     ('enclosure_v_add', tx, fids['enclv'], fids['rackv'], fids['encl']),
@@ -356,7 +357,7 @@ commands = [
     ('profile_pool_add', tx, fids['profile'], fids['pool']),
     ('profile_pool_add', tx, fids['profile'], fids['mdpool']),
     ('pver_actual_add', tx, fids['mdpver'], fids['mdpool'],
-     PdclustAttr(1, 0, 1, 1024*1024, Fid(1, 2)), [0, 0, 0, 0, 1]),
+     PdclustAttr(1, 0, 0, 1, 1024*1024, Fid(1, 2)), [0, 0, 0, 0, 1]),
     ('site_v_add', tx, fids['mdsitev'], fids['mdpver'], fids['site']),
     ('rack_v_add', tx, fids['mdrackv'], fids['mdsitev'], fids['rack']),
     ('enclosure_v_add', tx, fids['mdenclv'], fids['mdrackv'], fids['encl']),
