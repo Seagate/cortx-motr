@@ -387,6 +387,8 @@ void target_ioreq_fini(struct target_ioreq *ti)
 	m0_free0(&ti->ti_bufvec.ov_vec.v_count);
 	m0_free0(&ti->ti_auxbufvec.ov_buf);
 	m0_free0(&ti->ti_auxbufvec.ov_vec.v_count);
+	m0_free0(&ti->ti_attrbufvec.ov_buf);
+	m0_free0(&ti->ti_attrbufvec.ov_vec.v_count);
 	m0_free0(&ti->ti_pageattrs);
 
 	if (ti->ti_dgvec != NULL)
@@ -468,6 +470,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 {
 	uint32_t                   seg;
 	uint32_t                   tseg;
+	uint32_t                   coff;
 	m0_bindex_t                toff;
 	m0_bindex_t                goff;
 	m0_bindex_t                pgstart;
@@ -481,12 +484,14 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	struct m0_indexvec        *trunc_ivec = NULL;
 	struct m0_bufvec          *bvec;
 	struct m0_bufvec          *auxbvec;
+	struct m0_bufvec          *attrbvec;
 	enum m0_pdclust_unit_type  unit_type;
 	enum page_attr            *pattr;
 	uint64_t                   cnt;
 	unsigned int               opcode;
 	m0_bcount_t                grp_size;
 	uint64_t                   page_size;
+	uint32_t               	   ti_idx;
 
 	M0_PRE(tgt != NULL);
 	frame = tgt->ta_frame;
@@ -513,6 +518,9 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	toff    = target_offset(frame, play, gob_offset);
 	pgstart = toff;
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
+	coff    = di_cksum_offset(play, gob_offset);
+	ti_idx = toff / layout_unit_size(play);
+	M0_LOG(M0_DEBUG, "YJC: coff = %"PRIu32, coff);
 
 	M0_LOG(M0_DEBUG,
 	       "[gpos %"PRIu64", count %"PRIu64"] [%"PRIu64", %"PRIu64"]"
@@ -544,6 +552,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 ioo->ioo_iomap_nr, ioreq_sm_state(ioo), cnt);
 	}
 
+	//YJC_TODO: Move this to above else section during io write
+	attrbvec = &ti->ti_attrbufvec;
 	while (pgstart < toff + count) {
 		pgend = min64u(pgstart + page_size,
 			       toff + count);
@@ -616,6 +626,10 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		goff += COUNT(ivec, seg);
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
+	if (unit_type == M0_PUT_DATA) {
+		attrbvec->ov_buf[ti_idx] = ioo->ioo_attr.ov_buf[coff];
+		attrbvec->ov_vec.v_count[ti_idx] = ioo->ioo_attr.ov_vec.v_count[coff];
+	}
 	}
 	M0_LEAVE();
 }
@@ -736,6 +750,49 @@ static void irfop_fini(struct ioreq_fop *irfop)
 	M0_LEAVE();
 }
 
+static int m0_buf_from_bufvec(struct m0_buf *dest,
+		                    const struct m0_bufvec *src)
+{
+	size_t i;
+	size_t count = 0;
+	size_t len = 0;
+	size_t bytes_copied = 0;
+	void *dst;
+
+	M0_SET0(dest);
+
+	if (src == NULL)
+		return 0;
+
+	if (src->ov_vec.v_nr == 0)
+		return 0;
+
+	count = m0_vec_count(&src->ov_vec);
+	//YJC_TODO : Need to free buffer
+	dest->b_addr = m0_alloc(count);
+	if (dest->b_addr == NULL)
+		return M0_ERR(-ENOMEM);
+	dst = dest->b_addr;
+	for (i = 0; i < src->ov_vec.v_nr; i++) {
+		char str[128];
+		len = src->ov_vec.v_count[i];
+		if(len > 0) {
+			snprintf(str, len, "%s", (char *) src->ov_buf[i]);
+			memcpy(dst, src->ov_buf[i], len);
+			dst += len;
+			bytes_copied += len;
+		}
+	}
+	dest->b_nob = bytes_copied;
+	//M0_ASSERT(count == len);
+	//YJC_TODO: remove below two lines, only for debug
+	*((char *)dst) = '\0';
+	++dest->b_nob;
+	M0_LOG(M0_DEBUG, "YJC: copying %d %s buffers", (int)len, (char *)dest->b_addr);
+	return 0;
+}
+
+
 /**
  * Assembles io fops for the specified target server.
  * This is heavily based on
@@ -758,6 +815,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	enum page_attr              *pattr;
 	struct m0_bufvec            *bvec;
 	struct m0_bufvec            *auxbvec;
+	struct m0_bufvec            *attrbvec;
 	struct m0_op_io      *ioo;
 	struct m0_obj_attr   *io_attr;
 	struct m0_indexvec          *ivec;
@@ -837,6 +895,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			goto err;
 		}
 
+		//YJC_TODO: handle if fop is more than RPC_MSG_BUF_SIZE
 		iofop = &irfop->irf_iofop;
 		rw_fop = io_rw_get(&iofop->if_fop);
 
@@ -927,6 +986,16 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_fid = ti->ti_fid;
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
+		if (filter == PA_DATA) {
+			attrbvec = &ti->ti_attrbufvec;
+			rc = m0_buf_from_bufvec(&rw_fop->crw_di_data_cksum, attrbvec);
+			M0_ASSERT(rc == 0);
+			M0_LOG(M0_DEBUG, "YJC_TEST:"FID_F" fop = %p baddr %p %s ", FID_P(&ti->ti_fid), &iofop->if_fop, rw_fop->crw_di_data_cksum.b_addr, (char *)rw_fop->crw_di_data_cksum.b_addr);
+		}
+		/* M0_LOG(M0_DEBUG, "YJC: crw_di_data_cksum ab_count = %d ti_attrbufvec v_nr = %d ",
+				 rw_fop->crw_di_data_cksum.ab_count, attrbvec->ov_vec.v_nr);
+		//m0_bufs_print(&rw_fop->crw_di_data_cksum, "YJC_CKSUM: rw_fop->crw_di_data_cksum");
+		*/
 		if (ioo->ioo_flags & M0_OOF_NOHOLE)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 		if (ioo->ioo_flags & M0_OOF_SYNC)
@@ -1019,6 +1088,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	struct m0_op           *op;
 	struct m0_client       *instance;
 	uint32_t                nr;
+	uint32_t                nr_attr;
 
 	M0_PRE(cobfid  != NULL);
 	M0_ENTRY("target_ioreq %p, nw_xfer_request %p, "FID_F,
@@ -1060,6 +1130,9 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	target_ioreq_bob_init(ti);
 
 	nr = page_nr(size, ioo->ioo_obj);
+	nr_attr = size / m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
+	M0_ASSERT(nr_attr != 0);
+	M0_LOG(M0_DEBUG, "YJC: %"PRIu32 " pages allocated for ivec for size = %"PRIu64, nr, size);
 	rc = m0_indexvec_alloc(&ti->ti_ivec, nr);
 	if (rc != 0)
 		goto out;
@@ -1076,6 +1149,15 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 
 	M0_ALLOC_ARR(ti->ti_bufvec.ov_buf, nr);
 	if (ti->ti_bufvec.ov_buf == NULL)
+		goto fail;
+
+	ti->ti_attrbufvec.ov_vec.v_nr = nr_attr;
+	M0_ALLOC_ARR(ti->ti_attrbufvec.ov_vec.v_count, nr_attr);
+	if (ti->ti_attrbufvec.ov_vec.v_count == NULL)
+		goto fail;
+
+	M0_ALLOC_ARR(ti->ti_attrbufvec.ov_buf, nr_attr);
+	if (ti->ti_attrbufvec.ov_buf == NULL)
 		goto fail;
 
 	/*

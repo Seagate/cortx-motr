@@ -1736,7 +1736,9 @@ static int io_launch(struct m0_fom *fom)
 	 */
 	index -= m0_is_write_fop(fop) ?
 		netbufs_tlist_length(&fom_obj->fcrw_netbuf_list) : 0;
-
+	if (m0_is_write_fop(fop)) {
+		M0_LOG(M0_DEBUG, "YJC_SRV:"FID_F "  %p %s baddr = %p nob= %"PRIu64, FID_P(&rwfop->crw_fid), rwfop, (char *)rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_nob);
+	}
 	m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
 		struct m0_indexvec     *mem_ivec;
 		struct m0_stob_io_desc *stio_desc;
@@ -1774,8 +1776,8 @@ static int io_launch(struct m0_fom *fom)
 			uint32_t di_size = m0_di_size_get(file, ivec_count);
 			uint32_t curr_pos = m0_di_size_get(file,
 						fom_obj->fcrw_curr_size);
-
 			di_buf = &rwfop->crw_di_data;
+
 			if (di_buf != NULL) {
 				struct m0_buf buf = M0_BUF_INIT(di_size,
 						di_buf->b_addr + curr_pos);

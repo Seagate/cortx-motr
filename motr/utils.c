@@ -136,6 +136,13 @@ M0_INTERNAL uint64_t target_offset(uint64_t                  frame,
 		(gob_offset % layout_unit_size(play));
 }
 
+M0_INTERNAL uint32_t di_cksum_offset(struct m0_pdclust_layout *play,
+				   m0_bindex_t               gob_offset)
+{
+	M0_PRE(play != NULL);
+	return (gob_offset / layout_unit_size(play));
+}
+
 M0_INTERNAL uint64_t group_id(m0_bindex_t index, m0_bcount_t dtsize)
 {
 	/* XXX add any PRE()? => update UTs */
