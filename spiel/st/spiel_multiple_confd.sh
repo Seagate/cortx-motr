@@ -98,7 +98,8 @@ stub_confdb() {
     cat <<EOF
 (root-0 verno=1 rootfid=(11, 22) mdpool=pool-0 imeta_pver=(0, 0)
     mdredundancy=2 params=["pool_width=3", "nr_data_units=1",
-                           "nr_parity_units=1", "unit_size=4096"]
+                           "nr_parity_units=1", "nr_spare_units=1",
+                           "unit_size=4096"]
     nodes=[node-0] sites=[site-2] pools=[pool-0]
     profiles=[profile-0] fdmi_flt_grps=[])
 (profile-0 pools=[pool-0])

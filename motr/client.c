@@ -264,6 +264,14 @@ m0__obj_instance(const struct m0_obj *obj)
 	return m0__entity_instance(&obj->ob_entity);
 }
 
+M0_INTERNAL struct m0_client *
+m0__idx_instance(const struct m0_idx *idx)
+{
+	M0_PRE(idx != NULL);
+
+	return m0__entity_instance(&idx->in_entity);
+}
+
 /**
  * Pick a locality: Motr and the new locality interface(chore) now uses TLS to
  * store data and these data are set when a "motr" thread is created.
@@ -396,6 +404,8 @@ void m0_obj_init(struct m0_obj *obj,
 		 const struct m0_uint128 *id,
 		 uint64_t layout_id)
 {
+	size_t obj_size;
+
 	M0_ENTRY();
 
 	M0_PRE(obj != NULL);
@@ -410,7 +420,9 @@ void m0_obj_init(struct m0_obj *obj,
 
 	/* set the blocksize to a reasonable default */
 	obj->ob_attr.oa_bshift = M0_DEFAULT_BUF_SHIFT;
-	obj->ob_attr.oa_layout_id = layout_id ?: M0_DEFAULT_LAYOUT_ID;
+	obj_size = obj->ob_attr.oa_obj_size;
+	obj->ob_attr.oa_layout_id = obj_size == 0 && layout_id == 0 ?
+					M0_DEFAULT_LAYOUT_ID : layout_id;
 
 #ifdef OSYNC
 	m0_mutex_init(&obj->ob_pending_tx_lock);
