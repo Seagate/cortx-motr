@@ -1132,8 +1132,8 @@ int m0_obj_write_lock_get_sync(struct m0_obj *obj,
  * @retval 0 On success.
  */
 int m0_obj_read_lock_get(struct m0_obj *obj,
-				struct m0_rm_lock_req *req,
-				struct m0_clink *clink);
+			 struct m0_rm_lock_req *req,
+			 struct m0_clink *clink);
 
 /**
  * Acquires the read lock for the object.
@@ -1150,7 +1150,7 @@ int m0_obj_read_lock_get(struct m0_obj *obj,
  * @retval 0 On success.
  */
 int m0_obj_read_lock_get_sync(struct m0_obj *obj,
-				     struct m0_rm_lock_req *req);
+			      struct m0_rm_lock_req *req);
 
 /**
  * Releases the RM lock for the object.
