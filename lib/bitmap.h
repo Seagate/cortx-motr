@@ -105,6 +105,11 @@ M0_INTERNAL size_t m0_bitmap_ffz(const struct m0_bitmap *map);
 M0_INTERNAL void m0_bitmap_set(struct m0_bitmap *map, size_t idx, bool val);
 
 /**
+   Reset a bitmap.
+ */
+M0_INTERNAL void m0_bitmap_reset(struct m0_bitmap *map);
+
+/**
    Copies the bit values from one bitmap to another.
    @param dst destination bitmap, must already be initialised.  If dst
    is larger than src, bits beyond src->b_nr are cleared in dst.
