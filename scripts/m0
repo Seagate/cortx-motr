@@ -41,50 +41,6 @@ M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
 SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
 
-# libisal does not need kernel based ST
-ST_LIBISAL_SKIP=(
-            08spiel-sns-repair
-            08spiel-sns-repair-quiesce
-            16sns-repair-multi
-            18sns-repair-quiesce
-            18sns-repair-quiesce-failure
-            19sns-repair-abort
-            22sns-repair-ios-fail
-            23sns-abort-quiesce
-)
-
-# Check which library is used for reed-solomon encode and decode
-_check_rs_library() {
-    is_isal=`whereis libisal | cut -d ':' -f 1 --complement`
-    if [ -z "$is_isal" ]; then
-        is_isal="galois"
-    else
-        is_isal="isal"
-    fi
-
-    echo "$is_isal"
-}
-
-# Check if given st is present in the skip list. Return "true" if present
-# in skip list, else return "false".
-# arg1 : name of st to be checked
-# arg2 : array of st to be skipped
-_check_st_skip_list() {
-    st_name=$1; shift
-    st_skip_list=($@)
-    found_st=false
-
-    for st in "${st_skip_list[@]}"
-    do
-        if [[ "$st" == "$st_name" ]]; then
-            found_st=true
-            break
-        fi
-    done
-
-    echo "$found_st"
-}
-
 # Increase the maximum number of memory map areas a process may have.
 # m0d process may allocate and madvise() at least 2,000,000 memory map areas.
 # See MOTR-2171 for more details.
@@ -195,8 +151,6 @@ cmd_run_st() {
         export M0_SRC_DIR SUDO
     fi
 
-    rs_lib=$(_check_rs_library)
-
     for pattern in ${@:-[0-9][0-9]*}; do
         find "$M0_SRC_DIR/scripts/st.d/" -maxdepth 1 \! -type d -name $pattern \
             -perm /a=x -print | sort |
@@ -205,15 +159,6 @@ cmd_run_st() {
                     echo ${f##*/}
                 else
                     echo "<< ${f##*/} >>" >&2
-
-                    # Check if encode / decode library is Intel ISA
-                    if [ "$rs_lib" == "isal" ]; then
-                        chk=$(_check_st_skip_list ${f##*/} ${ST_LIBISAL_SKIP[@]})
-                        if [[ "$chk" == "true" ]]; then
-                            echo "<< ${f##*/} >> can not be run for libisal" >&2
-                            continue
-                        fi
-                    fi
                     export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
                     _time $f || return $?
                 fi
