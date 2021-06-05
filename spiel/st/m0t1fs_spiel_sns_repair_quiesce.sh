@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+# Copyright (c) 2020-2021 Seagate Technology LLC and/or its Affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
+testname="spiel-sns-repair-quiesce"
 
 . $M0_SRC_DIR/spiel/st/m0t1fs_spiel_sns_common_inc.sh
 
@@ -118,6 +119,8 @@ main()
 {
 	local rc=0
 
+	check_test_skip_list $testname || return $rc
+
 	sandbox_init
 
 	NODE_UUID=`uuidgen`
@@ -156,4 +159,4 @@ main()
 
 trap unprepare EXIT
 main
-report_and_exit spiel-sns-repair-quiesce $?
+report_and_exit $testname $?
