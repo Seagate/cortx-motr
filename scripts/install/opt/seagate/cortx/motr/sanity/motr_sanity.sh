@@ -65,7 +65,7 @@ start_singlenode()
 	# setup motr singlenode
 	m0singlenode activate
 	m0setup -cv -d $SANITY_SANDBOX_DIR -m $SANITY_SANDBOX_DIR
-	m0setup -N 1 -K 0 -P 8 -s 8 -Mv -d $SANITY_SANDBOX_DIR \
+	m0setup -N 1 -K 0 -S 0 -P 8 -s 8 -Mv -d $SANITY_SANDBOX_DIR \
 		-m $SANITY_SANDBOX_DIR --no-m0t1fs
 
 	# start motr

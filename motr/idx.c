@@ -93,6 +93,65 @@ M0_INTERNAL bool m0__idx_op_invariant(struct m0_op_idx *oi)
 		  m0_op_common_bob_check(&oi->oi_oc));
 }
 
+M0_INTERNAL struct m0_idx*
+m0__idx_entity(struct m0_entity *entity)
+{
+	struct m0_idx *idx;
+
+	M0_PRE(entity != NULL);
+
+	return M0_AMB(idx, entity, in_entity);
+}
+
+M0_INTERNAL int
+m0__idx_pool_version_get(struct m0_idx *idx,
+                         struct m0_pool_version **pv)
+{
+	int               rc;
+	struct m0_client *cinst;
+
+	M0_ENTRY();
+
+	if (pv == NULL)
+		return M0_ERR(-EINVAL);
+
+	cinst = m0__idx_instance(idx);
+
+	rc = m0_dix_pool_version_get(&cinst->m0c_pools_common, pv);
+	if (rc != 0)
+		return M0_ERR(rc);
+	return M0_RC(0);
+}
+
+/**
+ * Gets an index DIX pool version. It is applicable for create
+ * index operation.
+ *
+ * @param[in][out] oi index operation.
+ * @return 0 if the operation completes successfully or an error code
+ * otherwise.
+ */
+static int idx_pool_version_get(struct m0_op_idx *oi)
+{
+	int                     rc;
+	struct m0_pool_version *pv;
+	struct m0_idx          *idx;
+
+	M0_ENTRY();
+	M0_PRE(oi != NULL);
+
+	M0_PRE(M0_IN(OP_IDX2CODE(oi), (M0_EO_CREATE)));
+
+	idx = m0__idx_entity(oi->oi_oc.oc_op.op_entity);
+
+	rc = m0__idx_pool_version_get(idx, &pv);
+	if (rc != 0)
+		return M0_ERR(rc);
+	idx->in_attr.idx_pver = pv->pv_id;
+
+	return M0_RC(0);
+}
+
 /**
  * Sets an index operation. Allocates the operation if it has not been pre-
  * allocated.
@@ -166,6 +225,13 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 		M0_ADDB2_ADD(M0_AVI_CLIENT_TO_DIX, cid, did);
 	} else
 		oi->oi_dtx = NULL;
+
+	if ((opcode == M0_EO_CREATE) && (entity->en_type == M0_ET_IDX)) {
+		rc = idx_pool_version_get(oi);
+		if (rc != 0)
+			return M0_ERR(rc);
+		idx->in_attr.idx_layout_type = DIX_LTYPE_DESCR;
+	}
 
 	return M0_RC(0);
 }

@@ -3352,6 +3352,49 @@ static void dgmode_rwvec_dealloc_fini(struct dgmode_rwvec *dg)
 	m0_varr_fini(&dg->dr_pageattrs);
 }
 
+/**
+ * Sets @iomap databufs within a data unit @ext to the degraded write mode.
+ * The unit boundary is ensured by the calling code at nw_xfer_io_distribute().
+ */
+static void databufs_set_dgw_mode(struct pargrp_iomap *iomap,
+				  struct m0_ext *ext)
+{
+	uint32_t         row_start;
+	uint32_t         row_end;
+	uint32_t         row;
+	uint32_t         col;
+	struct data_buf *dbuf;
+
+	page_pos_get(iomap, ext->e_start, &row_start, &col);
+	page_pos_get(iomap, ext->e_end - 1, &row_end, &col);
+
+	for (row = row_start; row <= row_end; ++row) {
+		dbuf = iomap->pi_databufs[row][col];
+		if (dbuf->db_flags & PA_WRITE)
+			dbuf->db_flags |= PA_DGMODE_WRITE;
+	}
+}
+
+/**
+ * Sets @iomap paritybufs for the parity @unit to the degraded write mode.
+ */
+static void paritybufs_set_dgw_mode(struct pargrp_iomap *iomap,
+				    struct m0_pdclust_layout *play,
+				    uint64_t unit)
+{
+	uint32_t         row;
+	uint32_t         col;
+	uint64_t         unit_size = layout_unit_size(play);
+	struct data_buf *dbuf;
+
+	parity_page_pos_get(iomap, unit * unit_size, &row, &col);
+	for (; row < rows_nr(play); ++row) {
+		dbuf = iomap->pi_paritybufs[row][col];
+		if (dbuf->db_flags & PA_WRITE)
+			dbuf->db_flags |= PA_DGMODE_WRITE;
+	}
+}
+
 /*
  * Distributes file data into target_ioreq objects as required and populates
  * target_ioreq::ti_ivv and target_ioreq::ti_bufvec.
@@ -3378,11 +3421,6 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	enum m0_pdclust_unit_type   unit_type;
 	struct m0_pdclust_src_addr  src;
 	struct m0_pdclust_tgt_addr  tgt;
-	uint32_t                    row_start;
-	uint32_t                    row_end;
-	uint32_t                    row;
-	uint32_t                    col;
-	struct data_buf            *dbuf;
 	struct pargrp_iomap        *iomap;
 	struct inode               *inode;
 	struct m0t1fs_sb           *csb;
@@ -3404,9 +3442,8 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 		M0_LOG(M0_DEBUG, "[%p] iomap=%p [grpid=%llu state=%u]",
 		       req, iomap, iomap->pi_grpid, iomap->pi_state);
 
-		/* Cursor for pargrp_iomap::pi_ivv. */
+		/* traverse parity group ivec by units */
 		m0_ivec_varr_cursor_init(&cur, &iomap->pi_ivv);
-
 		while (!m0_ivec_varr_cursor_move(&cur, count)) {
 
 			unit = (m0_ivec_varr_cursor_index(&cur) - pgstart) /
@@ -3414,39 +3451,21 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 
 			u_ext.e_start = pgstart + unit * unit_size;
 			u_ext.e_end   = u_ext.e_start + unit_size;
-			m0_ext_init(&u_ext);
 
 			v_ext.e_start  = m0_ivec_varr_cursor_index(&cur);
 			v_ext.e_end    = v_ext.e_start +
 					  m0_ivec_varr_cursor_step(&cur);
-			m0_ext_init(&v_ext);
 
 			m0_ext_intersection(&u_ext, &v_ext, &r_ext);
-			if (!m0_ext_is_valid(&r_ext)) {
-				count = unit_size;
-				continue;
-			}
+			M0_ASSERT(m0_ext_is_valid(&r_ext));
+			count = m0_ext_length(&r_ext);
 
-			count     = m0_ext_length(&r_ext);
 			unit_type = m0_pdclust_unit_classify(play, unit);
-			if (unit_type == M0_PUT_SPARE ||
-			    unit_type == M0_PUT_PARITY)
-				continue;
-			if (ioreq_sm_state(req) == IRS_DEGRADED_WRITING) {
-				page_pos_get(iomap, r_ext.e_start, &row_start,
-						&col);
-				page_pos_get(iomap, r_ext.e_end - 1, &row_end,
-						&col);
-				dbuf = iomap->pi_databufs[row_start][col];
-				M0_ASSERT(dbuf != NULL);
-				for (row = row_start; row <= row_end; ++row) {
-					dbuf = iomap->pi_databufs[row][col];
-					M0_ASSERT(dbuf != NULL);
-					if (dbuf->db_flags & PA_WRITE)
-						dbuf->db_flags |=
-							PA_DGMODE_WRITE;
-				}
-			}
+			M0_ASSERT(unit_type == M0_PUT_DATA);
+
+			if (ioreq_sm_state(req) == IRS_DEGRADED_WRITING)
+				databufs_set_dgw_mode(iomap, &r_ext);
+
 			src.sa_unit = unit;
 			rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src, &tgt,
 							   &ti);
@@ -3460,13 +3479,13 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			M0_LOG(M0_DEBUG, "[%p] adding data. ti state=%d\n",
 			       req, ti->ti_state);
 			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
-						m0_ext_length(&r_ext),
-						iomap);
+						m0_ext_length(&r_ext), iomap);
 		}
 
 		inode = iomap_to_inode(iomap);
 		csb = M0T1FS_SB(inode->i_sb);
 
+		/* process parity units */
 		if (req->ir_type == IRT_WRITE ||
 		    (req->ir_type == IRT_READ && csb->csb_verify) ||
 		    (ioreq_sm_state(req) == IRS_DEGRADED_READING &&
@@ -3488,27 +3507,18 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 					goto err;
 				}
 
-				parity_page_pos_get(iomap, unit * unit_size,
-						    &row, &col);
-				for (; row < rows_nr(play); ++row) {
-					dbuf = iomap->pi_paritybufs[row][col];
-					M0_ASSERT(dbuf != NULL);
-					M0_ASSERT(ergo(req->ir_type ==
-						       IRT_WRITE,
-						       dbuf->db_flags &
-						       PA_WRITE));
-					if (ioreq_sm_state(req) ==
-					    IRS_DEGRADED_WRITING &&
-					    dbuf->db_flags & PA_WRITE)
-						dbuf->db_flags |=
-							PA_DGMODE_WRITE;
-				}
+				if (ioreq_sm_state(req) == IRS_DEGRADED_WRITING)
+					paritybufs_set_dgw_mode(iomap, play,
+								unit);
+
 				ti->ti_ops->tio_seg_add(ti, &src, &tgt, pgstart,
 							layout_unit_size(play),
 							iomap);
 			}
+
 			if (!csb->csb_oostore || req->ir_type != IRT_WRITE)
 				continue;
+
 			/* Cob create for spares. */
 			for (unit = layout_k(play); unit < 2 * layout_k(play);
 			     ++unit) {

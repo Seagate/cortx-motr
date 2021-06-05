@@ -33,6 +33,7 @@
 
 N=2
 K=1
+S=1
 P=15
 
 sns_repair_test()
@@ -110,7 +111,7 @@ main()
 
 	NODE_UUID=`uuidgen`
 	local multiple_pools=0
-	motr_service start $multiple_pools $stride $N $K $P || {
+	motr_service start $multiple_pools $stride $N $K $S $P || {
 		echo "Failed to start Motr Service."
 		return 1
 	}

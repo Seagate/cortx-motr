@@ -45,8 +45,17 @@ M0_CONF__INVARIANT_DEFINE(enclosure_invariant, m0_conf_enclosure);
 static int
 enclosure_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
-	struct m0_conf_enclosure *d = M0_CONF_CAST(dest, m0_conf_enclosure);
+	int                              rc;
+	struct m0_conf_obj              *obj;
+	struct m0_conf_enclosure        *d = M0_CONF_CAST(dest,
+							  m0_conf_enclosure);
 	const struct m0_confx_enclosure *s = XCAST(src);
+
+	rc = m0_conf_obj_find(dest->co_cache, &s->xe_node, &obj);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	d->ce_node = M0_CONF_CAST(obj, m0_conf_node);
 
 	return M0_RC(dir_create_and_populate(
 			     &d->ce_ctrls,
@@ -67,6 +76,9 @@ enclosure_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	};
 
 	confx_encode(dest, src);
+	if (s->ce_node != NULL)
+		d->xe_node = s->ce_node->cn_obj.co_id;
+
 	return M0_RC(conf_dirs_encode(dirs, ARRAY_SIZE(dirs)) ?:
 		     conf_pvers_encode(
 			     &d->xe_pvers,
@@ -80,7 +92,8 @@ static bool enclosure_match(const struct m0_conf_obj  *cached,
 	const struct m0_conf_enclosure  *obj  =
 		M0_CONF_CAST(cached, m0_conf_enclosure);
 
-	return m0_conf_dir_elems_match(obj->ce_ctrls, &xobj->xe_ctrls);
+	return m0_fid_eq(&obj->ce_node->cn_obj.co_id, &xobj->xe_node) &&
+	       m0_conf_dir_elems_match(obj->ce_ctrls, &xobj->xe_ctrls);
 }
 
 static int enclosure_lookup(const struct m0_conf_obj *parent,

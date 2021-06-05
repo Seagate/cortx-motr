@@ -976,17 +976,18 @@ A pool is a subtree of cluster failure domain tree, which contains root and
 such that its leaves are storage devices.
 
 Examples of pools:
-* the entire cluster is a pool (provided that all leaf failure domains are 
+* the entire cluster can be a pool (provided that all leaf failure domains are 
   storage devices);
 * a single hard-drive together with all its ancestors in the failure domain 
   hierarchy (i.e., service, process, controller, enclosure, rack and the 
-  cluster) is a pool;
-* a rack with all its descendants (and with the cluster root object) is a pool;
-* more generally, any failure domain with all its descendants and ancestors is 
+  cluster) can be a pool;
+* a rack with all its descendants (and with the cluster root object) can be
   a pool;
-* a union of 2 pools is a pool;
-* an intersection of 2 pools is a pool, provided the intersection contains at 
-  least one storage device.
+* more generally, any failure domain with all its descendants and ancestors can 
+  be a pool;
+* a union of 2 pools can be a pool;
+* an intersection of 2 pools can be a pool, provided the intersection contains
+  at least one storage device.
 
 A cluster is divided into pools for administrative reasons. pdclust operations 
 are confined to a particular pool. Let’s restrict our attention to some pool.
