@@ -377,15 +377,17 @@ func (mio *Mio) getOptimalBlockSz(bufSz int) (bsz, gsz int) {
         log.Panic("cannot find the object's pool version")
     }
     pa := &pver.pv_attr
-    if pa.pa_P < pa.pa_N + 2 * pa.pa_K {
+    if pa.pa_P < pa.pa_N + pa.pa_K + pa.pa_S {
         log.Panic("pool width (%v) is less than the parity group size" +
-                  " (%v + 2 * %v == %v), check pool parity configuration",
-                  pa.pa_P, pa.pa_N, pa.pa_K, pa.pa_N + 2 * pa.pa_K)
+                  " (%v + %v + %v == %v), check pool parity configuration",
+                  pa.pa_P, pa.pa_N, pa.pa_K, pa.pa_S,
+                           pa.pa_N + pa.pa_K + pa.pa_S)
     }
     usz := int(C.m0_obj_layout_id_to_unit_size(mio.objLid))
     gsz = usz * int(pa.pa_N) // group size in data units only
     // should be max 2-times pool-width deep, otherwise we may get -E2BIG
-    maxBs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
+    maxBs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N /
+                    (pa.pa_N + pa.pa_K + pa.pa_S))
     maxBs = ((maxBs - 1) / gsz + 1) * gsz // multiple of group size
 
     if bufSz >= maxBs {
