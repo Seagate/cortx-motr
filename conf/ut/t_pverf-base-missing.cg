@@ -35,9 +35,9 @@
     flags=4 filename="/dev/sdev5")
 (site-2 racks=[rack-3] pvers=[pver-0])
 (rack-3 encls=[enclosure-7] pvers=[pver-0])
-(enclosure-7 ctrls=[controller-11] pvers=[pver-0])
-(controller-11 node=node-2
-    drives=[drive-16, drive-75, drive-76, drive-77, drive-78]
+(enclosure-7 node=node-2
+ctrls=[controller-11] pvers=[pver-0])
+(controller-11     drives=[drive-16, drive-75, drive-76, drive-77, drive-78]
     pvers=[pver-0])
 (drive-16 dev=sdev-15 pvers=[pver-0])
 (drive-75 dev=sdev-71 pvers=[pver-0])
@@ -46,7 +46,7 @@
 (drive-78 dev=sdev-74 pvers=[pver-0])
 (pool-3 pver_policy=0 pvers=[])
 (pool-4 pver_policy=0 pvers=[pver-0, pver_f-1])
-(pver-0 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-5])
+(pver-0 N=3 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-5])
 (pver_f-1 id=0 base=pver-3 # no such pver
     allowance=[0, 0, 0, 0, 1])
 (objv-5 real=site-2 children=[objv-12])

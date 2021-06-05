@@ -10,32 +10,36 @@ motr - Motr object stor
 
 DESCRIPTION
 -----------
-Motr object stor ['...to be filled']
+This manpage briefly describes the major binaries and utilities available in
+Motr object stor.
 
 Motr utilities
 ~~~~~~~~~~~~~~
 
-*m0d*::
-  Motr file system service daemon.
+*m0addb2dump*::
+  m0addb2dump utility can be used to examine the diagnostic data collected by
+  the Addb (Analytic and Diagnostic Data-Base) sub-system of Motr.
 
 *m0console*::
-  Blah blah...
+  This is a standalone utility that can be used to connect to a Motr
+  service, send operation requests to it and wait for replies.
 
-*m0addb2dump*::
-  Blah blah...
+*m0d*::
+  Motr service daemon. This command initializes and starts requested Motr
+  service as a daemon process in user space.
 
-*m0tracedump*::
-  Utility to convert binary trace logs to YAML format for further analysis by
-  *m0trace*.
+*m0trace*::
+  Utility to filter, analyze and print in human readable form trace logs in YAML
+  format.
 
 *m0traced*::
   Daemon, which polls trace buffer of *m0tr.ko* or *m0d* and saves trace
   records in binary format into continuous trace file for postmortem analysis by
   *m0tracedump* and *m0trace* utilities.
 
-*m0trace*::
-  Utility to filter, analyze and print in human readable form trace logs in YAML
-  format.
+*m0tracedump*::
+  Utility to convert binary trace logs to YAML format for further analysis by
+  *m0trace*.
 
 
 AUTHORS
@@ -45,7 +49,7 @@ See the Motr distribution AUTHORS file.
 
 BUGS
 ----
-All bugs are added by Motr Team ;)
+No known bugs.
 
 
 RESOURCES
@@ -62,8 +66,7 @@ this release. If not please contact a Seagate representative.
 
 SEE ALSO
 --------
-*m0d*(1) *m0console*(8) *m0addb2dump*(1) *m0tracedump*(1) *m0trace*(1)
-*m0traced*(1)
+*m0addb2dump*(1) *m0console*(8) *m0d*(1) *m0trace*(1) *m0traced*(1) *m0tracedump*(1)
 
 
 MOTR

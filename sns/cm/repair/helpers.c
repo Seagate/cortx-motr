@@ -160,6 +160,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	uint64_t                    data_unit;
 	uint32_t                    N;
 	uint32_t                    K;
+	uint32_t                    S;
 	uint32_t                    j;
 	uint32_t                    spare;
 	struct m0_pdclust_layout   *pl;
@@ -173,8 +174,9 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	N = m0_sns_cm_ag_nr_data_units(pl);
 	K = m0_sns_cm_ag_nr_parity_units(pl);
+	S = m0_sns_cm_ag_nr_spare_units(pl);
 	sa.sa_group = group;
-	for (j = N + K; j < N + 2 * K; ++j) {
+	for (j = N + K; j < N + K + S; ++j) {
 		sa.sa_unit = j;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj))
