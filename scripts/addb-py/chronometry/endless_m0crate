@@ -31,7 +31,7 @@ function main()
     check_required_parameters
     local iter=0
 
-    while [[ -z $TERMINATE_FLAG ]]; do
+    while [[ -z "$TERMINATE_FLAG" ]]; do
         echo -e "============== start iteration $iter ($(date)) ================\n"
         set +e
         USE_MOTR_PORT=$MOTR_PORT \
@@ -80,7 +80,7 @@ done
 
 function check_required_parameters()
 {
-    if [[ -z $WORKLOAD || -z $MOTR_PORT || -z $MOTR_SRC_DIR ]]; then
+    if [[ -z "$WORKLOAD" || -z "$MOTR_PORT" || -z "$MOTR_SRC_DIR" ]]; then
         echo "missed required parameter"
         exit 1
     fi

@@ -26,8 +26,6 @@ set -e
 MOTR_GENDERS_CONF=/etc/motr/genders
 
 # service local variables
-user_config=/etc/sysconfig/motr
-ha_config="/etc/sysconfig/m0t1fs-$2"
 service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 fake_pfid='<0x7200000000000000:0>'
 
@@ -37,7 +35,8 @@ start()
 
     source $service_funcs
 
-    if [[ -n $proc_fid && ! -e $ha_config ]] ; then
+    local ha_config="$sysconfig_dir/m0t1fs-$2"
+    if [[ -n "$proc_fid" && ! -e $ha_config ]] ; then
         m0_exit "service config file '$ha_config' doesn't exist"
     fi
 

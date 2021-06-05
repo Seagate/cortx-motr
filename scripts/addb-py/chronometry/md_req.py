@@ -54,10 +54,12 @@ def graph_build(m_relations, relations, ext_graph: Digraph=None):
 
     if m_relations:
         _graph_add_relations(graph, m_relations, True)
-    _graph_add_relations(graph, relations)
+    if relations:
+        _graph_add_relations(graph, relations)
 
     if ext_graph is None:
-        graph.render(filename='md_graph_{}'.format(relations[0]['client_id']))
+        rel = relations if relations else m_relations
+        graph.render(filename='md_graph_{}'.format(rel[0]['client_id']))
     
     return graph
 
@@ -222,8 +224,13 @@ def get_timelines(client_id: str, grange: int, client_pid: int=None, create_attr
     #print(m_relations)
     #print(relations)
 
+    if not relations and not m_relations:
+        print("Incomplete data for client id {} (pid {})".format(client_id, client_pid))
+        exit(1)
+
     client_id = set([o['client_id'] for o in relations]).pop()
-    dix_id    = set([o['dix_id']    for o in relations]).pop()
+    if relations:
+        dix_id    = set([o['dix_id']    for o in relations]).pop()
     if m_relations:
         m_dix_id  = set([o['mdix_id'] for o in m_relations]).pop()
 
@@ -234,11 +241,12 @@ def get_timelines(client_id: str, grange: int, client_pid: int=None, create_attr
     time_table.append(client_req_d)
     client_start_time=min([t['time'] for t in client_req_d])
 
-    dix_req_d = query2dlist(
-        dix_req.select().where(dix_req.id==dix_id) if client_pid is None else
-        dix_req.select().where((dix_req.id==dix_id)&(dix_req.pid==client_pid)))
-    times_tag_append(dix_req_d, 'op', f"dix {dix_id}")
-    time_table.append(dix_req_d)
+    if relations:
+        dix_req_d = query2dlist(
+            dix_req.select().where(dix_req.id==dix_id) if client_pid is None else
+            dix_req.select().where((dix_req.id==dix_id)&(dix_req.pid==client_pid)))
+        times_tag_append(dix_req_d, 'op', f"dix {dix_id}")
+        time_table.append(dix_req_d)
 
     if m_relations:
         m_dix_req_d = query2dlist(
@@ -248,7 +256,8 @@ def get_timelines(client_id: str, grange: int, client_pid: int=None, create_attr
         time_table.append(m_dix_req_d)
         update_tables_common(m_relations, grange, time_table, client_start_time)
 
-    update_tables_common(relations, grange, time_table, client_start_time)
+    if relations:
+        update_tables_common(relations, grange, time_table, client_start_time)
 
     # process client requests and subrequests
     #time_table=[t for t in time_table if t != []] ### XXX: filter non-exsitent txs!

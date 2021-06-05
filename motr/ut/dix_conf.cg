@@ -9,10 +9,10 @@
 (process-5 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1"
     services=[service-9, service-10, service-20, service-21,
-              service-22, service-23, service-24, service-25, service-26,
-              service-11])
+              service-22, service-23, service-24, service-25, service-126,
+              service-11, service-28])
 (process-6 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[])
+    mem_limit_memlock=0 endpoint="0@lo:12345:34:2" services=[service-26])
 (service-9 type=@M0_CST_IOS endpoints=["0@lo:12345:34:1"] params=[]
     sdevs=[sdev-15, sdev-71, sdev-72, sdev-73, sdev-74])
 (service-10 type=@M0_CST_MDS endpoints=["0@lo:12345:34:1"] params=[]
@@ -25,10 +25,17 @@
     sdevs=[])
 (service-25 type=@M0_CST_SNS_REB endpoints=["0@lo:12345:34:1"] params=[]
     sdevs=[])
-(service-26 type=@M0_CST_DIX_REP endpoints=["0@lo:12345:34:1"] params=[]
+
+(service-26 type=@M0_CST_DTM0 endpoints=["0@lo:12345:34:2"]
+    params=["origin:in-volatile"] sdevs=[])
+(service-28 type=@M0_CST_DTM0 endpoints=["0@lo:12345:34:1"]
+    params=["origin:in-persistent"] sdevs=[])
+
+
+(service-126 type=@M0_CST_DIX_REP endpoints=["0@lo:12345:34:1"] params=[]
     sdevs=[sdev-96, sdev-97])
 (service-11 type=@M0_CST_CAS endpoints=["0@lo:12345:34:1"] params=[]
-    sdevs=[sdev-100, sdev-101, sdev-102])
+    sdevs=[sdev-100])
 (sdev-96 dev_idx=1 iface=4 media=1 bsize=4096 size=0 last_state=3 flags=4
     filename="/var/motr/m0ut/ut-sandbox/d1")
 (sdev-97 dev_idx=2 iface=4 media=1 bsize=4096 size=0 last_state=3 flags=4
@@ -49,26 +56,20 @@
     flags=4 filename="/dev/sdev6")
 (sdev-100 dev_idx=10 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
     flags=4 filename="/dev/sdev100")
-(sdev-101 dev_idx=11 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
-    flags=4 filename="/dev/sdev101")
-(sdev-102 dev_idx=12 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
-    flags=4 filename="/dev/sdev102")
 (site-2 racks=[rack-3, rack-52] pvers=[pver-8, pver-57, pver-100])
 (rack-3 encls=[enclosure-7] pvers=[pver-8, pver-100])
-(enclosure-7 ctrls=[controller-11] pvers=[pver-8, pver-100])
-(controller-11 node=node-2
-    drives=[drive-16, drive-75, drive-76, drive-77, drive-78,
-    drive-100, drive-101, drive-102] pvers=[pver-8, pver-100])
+(enclosure-7 node=node-2
+ctrls=[controller-11] pvers=[pver-8, pver-100])
+(controller-11     drives=[drive-16, drive-75, drive-76, drive-77, drive-78,
+    drive-100] pvers=[pver-8, pver-100])
 (drive-16 dev=sdev-15 pvers=[pver-8])
 (drive-75 dev=sdev-71 pvers=[pver-8])
 (drive-76 dev=sdev-72 pvers=[pver-8])
 (drive-77 dev=sdev-73 pvers=[pver-8])
 (drive-78 dev=sdev-74 pvers=[pver-8])
 (drive-100 dev=sdev-100 pvers=[pver-100])
-(drive-101 dev=sdev-101 pvers=[pver-100])
-(drive-102 dev=sdev-102 pvers=[pver-100])
 (pool-4 pver_policy=0 pvers=[pver-8])
-(pver-8 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:12])
+(pver-8 N=3 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:12])
 (objv-2:12 real=site-2 children=[objv-12])
 (objv-12 real=rack-3 children=[objv-17])
 (objv-17 real=enclosure-7 children=[objv-18])
@@ -82,10 +83,10 @@
 (node-48 memsize=16000 nr_cpu=2 last_state=3 flags=2 processes=[process-49])
 (process-49 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1"
-    services=[service-27, service-28])
+    services=[service-27, service-128])
 (service-27 type=@M0_CST_IOS endpoints=["0@lo:12345:34:1"] params=[]
     sdevs=[sdev-51, sdev-83, sdev-84, sdev-85, sdev-86])
-(service-28 type=@M0_CST_DIX_REP endpoints=["0@lo:12345:34:1"] params=[]
+(service-128 type=@M0_CST_DIX_REP endpoints=["0@lo:12345:34:1"] params=[]
     sdevs=[])
 (sdev-51 dev_idx=6 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev0")
@@ -99,9 +100,9 @@
     flags=4 filename="/dev/sdev4")
 
 (rack-52 encls=[enclosure-53] pvers=[pver-57])
-(enclosure-53 ctrls=[controller-54] pvers=[pver-57])
-(controller-54 node=node-48
-    drives=[drive-55, drive-87, drive-88, drive-89, drive-90]
+(enclosure-53 node=node-48
+ctrls=[controller-54] pvers=[pver-57])
+(controller-54     drives=[drive-55, drive-87, drive-88, drive-89, drive-90]
     pvers=[pver-57])
 (drive-55 dev=sdev-51 pvers=[pver-57])
 (drive-87 dev=sdev-83 pvers=[pver-57])
@@ -110,7 +111,7 @@
 (drive-90 dev=sdev-86 pvers=[pver-57])
 
 (pool-56 pver_policy=0 pvers=[pver-57])
-(pver-57 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:58])
+(pver-57 N=3 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:58])
 (objv-2:58 real=site-2 children=[objv-58])
 (objv-58 real=rack-52 children=[objv-59])
 (objv-59 real=enclosure-53 children=[objv-60])
@@ -124,20 +125,18 @@
 
 
 (pool-100 pver_policy=0 pvers=[pver-100])
-(pver-100 N=1 K=1 P=3 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:100])
+(pver-100 N=1 K=0 S=0 P=1 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:100])
 
 (objv-2:100 real=site-2 children=[objv-100])
 (objv-100 real=rack-3 children=[objv-101])
 (objv-101 real=enclosure-7 children=[objv-102])
 (objv-102 real=controller-11
-    children=[objv-103, objv-104, objv-105])
+    children=[objv-103])
 
 (objv-103 real=drive-100 children=[])
-(objv-104 real=drive-101 children=[])
-(objv-105 real=drive-102 children=[])
 
 (pool-5 pver_policy=0 pvers=[pver-11])
-(pver-11 N=1 K=0 P=1 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:106])
+(pver-11 N=1 K=0 S=0 P=1 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:106])
 
 (objv-2:106 real=site-2 children=[objv-106])
 (objv-106 real=rack-3 children=[objv-107])

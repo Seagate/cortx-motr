@@ -204,7 +204,7 @@ fi
 S3_SRC_DIR=`pwd`
 BUILD_CACHE_DIR=$HOME/.seagate_src_cache
 
-if [[ -z $M0_SRC_DIR ]]; then
+if [[ -z "$M0_SRC_DIR" ]]; then
     M0_SRC_DIR=$S3_SRC_DIR/third_party/motr
 fi
 

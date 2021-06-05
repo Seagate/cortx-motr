@@ -160,10 +160,10 @@ static int alloc_prepare_vecs(struct m0_indexvec *ext,
 static void cleanup_vecs(struct m0_bufvec *data, struct m0_bufvec *attr,
 			        struct m0_indexvec *ext)
 {
-		/* Free bufvec's and indexvec's */
-		m0_indexvec_free(ext);
-		m0_bufvec_free(data);
-		m0_bufvec_free(attr);
+	/* Free bufvec's and indexvec's */
+	m0_indexvec_free(ext);
+	m0_bufvec_free(data);
+	m0_bufvec_free(attr);
 }
 
 int client_init(struct m0_config    *config,
@@ -183,9 +183,7 @@ int client_init(struct m0_config    *config,
 	if (rc != 0)
 		goto err_exit;
 
-	m0_container_init(container,
-			  NULL, &M0_UBER_REALM,
-			  *instance);
+	m0_container_init(container, NULL, &M0_UBER_REALM, *instance);
 	rc = container->co_realm.re_entity.en_sm.sm_rc;
 
 err_exit:
@@ -209,6 +207,7 @@ int m0_obj_id_sscanf(char *idstr, struct m0_uint128 *obj_id)
 	rc = m0_fid_sscanf(idstr, (struct m0_fid *)obj_id);
 	if (rc != 0)
 		fprintf(stderr, "can't m0_fid_sscanf() %s, rc:%d", idstr, rc);
+
 	return rc;
 }
 
@@ -219,19 +218,16 @@ static int open_entity(struct m0_entity *entity)
 
 	rc = m0_entity_open(entity, &ops[0]);
 	if (rc != 0)
-		goto cleanup;
+		return M0_ERR(rc);
 
 	m0_op_launch(ops, 1);
 	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
-					       M0_OS_STABLE),
-			       M0_TIME_NEVER);
+					M0_OS_STABLE), M0_TIME_NEVER);
 	if (rc == 0)
-		rc = ops[0]->op_rc;
+		rc = m0_rc(ops[0]);
 
-cleanup:
 	m0_op_fini(ops[0]);
 	m0_op_free(ops[0]);
-	ops[0] = NULL;
 
 	return rc;
 }
@@ -243,17 +239,14 @@ static int create_object(struct m0_entity *entity)
 
 	rc = m0_entity_create(NULL, entity, &ops[0]);
 	if (rc != 0)
-		goto cleanup;
+		return M0_ERR(rc);
 
 	m0_op_launch(ops, 1);
-	rc = m0_op_wait(ops[0],
-			       M0_BITS(M0_OS_FAILED,
-				       M0_OS_STABLE),
-				       M0_TIME_NEVER);
+	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
+					M0_OS_STABLE), M0_TIME_NEVER);
 	if (rc == 0)
-		rc = ops[0]->op_rc;
+		rc = m0_rc(ops[0]);
 
-cleanup:
 	m0_op_fini(ops[0]);
 	m0_op_free(ops[0]);
 
@@ -269,10 +262,7 @@ static int read_data_from_file(FILE *fp, struct m0_bufvec *data)
 	nr_blocks = data->ov_vec.v_nr;
 	for (i = 0; i < nr_blocks; ++i) {
 		rc = fread(data->ov_buf[i], data->ov_vec.v_count[i], 1, fp);
-		if (rc != 1)
-			break;
-
-		if (feof(fp))
+		if (rc != 1 || feof(fp))
 			break;
 	}
 
@@ -285,37 +275,21 @@ static int write_data_to_object(struct m0_obj *obj,
 				struct m0_bufvec *attr)
 {
 	int                  rc;
-	int                  op_rc;
-	int                  nr_tries = 10;
 	struct m0_op        *ops[1] = {NULL};
 
-again:
+	/* Create write operation */
+	rc = m0_obj_op(obj, M0_OC_WRITE, ext, data, attr, 0, 0, &ops[0]);
+	if (rc != 0)
+		return M0_ERR(rc);
 
-	/* Create the write request */
-	m0_obj_op(obj, M0_OC_WRITE, ext, data, attr, 0, 0, &ops[0]);
-	if (ops[0] == NULL)
-		return M0_ERR(-EINVAL);
-
-	/* Launch the write request*/
 	m0_op_launch(ops, 1);
+	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
+					M0_OS_STABLE), M0_TIME_NEVER);
+	if (rc == 0)
+		rc = m0_rc(ops[0]);
 
-	/* wait */
-	rc = m0_op_wait(ops[0],
-			M0_BITS(M0_OS_FAILED,
-				M0_OS_STABLE),
-			M0_TIME_NEVER);
-	op_rc = ops[0]->op_sm.sm_rc;
-
-	/* fini and release */
 	m0_op_fini(ops[0]);
 	m0_op_free(ops[0]);
-
-	if (op_rc == -EINVAL && nr_tries != 0) {
-		nr_tries--;
-		ops[0] = NULL;
-		sleep(5);
-		goto again;
-	}
 
 	return rc;
 }
@@ -434,8 +408,7 @@ int m0_write(struct m0_container *container, char *src,
 		rc = write_data_to_object(&obj, &ext, &data, &attr);
 		if (rc != 0) {
 			fprintf(stderr, "Writing to object failed!\n");
-			cleanup_vecs(&data, &attr, &ext);
-			goto cleanup;
+			break;
 		}
 		block_count -= bcount;
 	}
@@ -458,38 +431,21 @@ static int read_data_from_object(struct m0_obj *obj,
 				 uint32_t flags)
 {
 	int                  rc;
-	int                  op_rc;
-	int                  nr_tries = 10;
 	struct m0_op        *ops[1] = {NULL};
 
-again:
+	/* Create read operation */
+	rc = m0_obj_op(obj, M0_OC_READ, ext, data, attr, 0, flags, &ops[0]);
+	if (rc != 0)
+		return M0_ERR(rc);
 
-	/* Create the read request */
-	m0_obj_op(obj, M0_OC_READ, ext, data, attr, 0, flags, &ops[0]);
-	if (ops[0] == NULL)
-		return M0_ERR(-EINVAL);
-	M0_ASSERT(ops[0]->op_sm.sm_rc == 0);
-
-	/* Launch the read request*/
 	m0_op_launch(ops, 1);
-
-	/* wait */
 	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
-					       M0_OS_STABLE),
-			       M0_TIME_NEVER);
-	op_rc = ops[0]->op_sm.sm_rc;
+					M0_OS_STABLE), M0_TIME_NEVER);
+	if (rc == 0)
+		rc = m0_rc(ops[0]);
 
-
-	/* fini and release */
 	m0_op_fini(ops[0]);
 	m0_op_free(ops[0]);
-
-	if (op_rc == -EINVAL && nr_tries != 0) {
-		nr_tries--;
-		ops[0] = NULL;
-		sleep(5);
-		goto again;
-	}
 
 	return rc;
 }
@@ -549,8 +505,8 @@ int m0_read(struct m0_container *container,
 		goto cleanup;
 	while (block_count > 0) {
 		bytes_read = 0;
-		bcount = (block_count > blks_per_io)?
-			  blks_per_io:block_count;
+		bcount = (block_count > blks_per_io) ?
+			  blks_per_io : block_count;
 		if (bcount < blks_per_io) {
 			cleanup_vecs(&data, &attr, &ext);
 			rc = alloc_vecs(&ext, &data, &attr, bcount,
@@ -564,8 +520,7 @@ int m0_read(struct m0_container *container,
 		rc = read_data_from_object(&obj, &ext, &data, &attr, flags);
 		if (rc != 0) {
 			fprintf(stderr, "Reading from object failed!\n");
-			cleanup_vecs(&data, &attr, &ext);
-			goto cleanup;
+			break;
 		}
 
 		if (fp != NULL) {
@@ -577,8 +532,7 @@ int m0_read(struct m0_container *container,
 				rc = -EIO;
 				fprintf(stderr, "Writing to destination "
 					"file failed!\n");
-				cleanup_vecs(&data, &attr, &ext);
-				goto cleanup;
+				break;
 			}
 		} else {
 			/* putchar the output */
@@ -608,36 +562,22 @@ static int punch_data_from_object(struct m0_obj *obj,
 				  struct m0_indexvec *ext)
 {
 	int                  rc;
-	int                  op_rc;
-	int                  nr_tries = 10;
 	struct m0_op        *ops[1] = {NULL};
 
-again:
-	/* Create the free request */
-	m0_obj_op(obj, M0_OC_FREE, ext, NULL, NULL, 0, 0, &ops[0]);
+	/* Create free operation */
+	rc = m0_obj_op(obj, M0_OC_FREE, ext, NULL, NULL, 0, 0, &ops[0]);
+	if (rc != 0)
+		return M0_ERR(rc);
 
-	if (ops[0] == NULL)
-		return M0_ERR(-EINVAL);
-	M0_ASSERT(ops[0]->op_sm.sm_rc == 0);
-
-	/* Launch the free request*/
 	m0_op_launch(ops, 1);
+	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
+					M0_OS_STABLE), M0_TIME_NEVER);
+	if (rc == 0)
+		rc = m0_rc(ops[0]);
 
-	/* wait */
-	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED, M0_OS_STABLE),
-			M0_TIME_NEVER);
-	op_rc = ops[0]->op_sm.sm_rc;
-
-	/* fini and release */
 	m0_op_fini(ops[0]);
 	m0_op_free(ops[0]);
 
-	if (op_rc == -EINVAL && nr_tries != 0) {
-		nr_tries--;
-		ops[0] = NULL;
-		sleep(5);
-		goto again;
-	}
 	return rc;
 }
 
@@ -683,8 +623,8 @@ int m0_truncate(struct m0_container *container,
 
 	last_index = trunc_count * block_size;
 	while (trunc_len > 0) {
-		bcount = (trunc_len > blks_per_io)?
-			  blks_per_io:trunc_len;
+		bcount = (trunc_len > blks_per_io) ?
+			  blks_per_io : trunc_len;
 
 		if (bcount < blks_per_io) {
 			m0_indexvec_free(&ext);
@@ -700,8 +640,7 @@ int m0_truncate(struct m0_container *container,
 		rc = punch_data_from_object(&obj, &ext);
 		if (rc != 0) {
 			fprintf(stderr, "Truncate failed!\n");
-			m0_indexvec_free(&ext);
-			goto open_entity_error;
+			break;
 		}
 		trunc_len -= bcount;
 	}
@@ -735,24 +674,26 @@ int m0_unlink(struct m0_container *container,
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &container->co_realm, &id,
 		    m0_client_layout_id(instance));
+
 	rc = lock_ops->olo_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
 	rc = lock_ops->olo_write_lock_get_sync(&obj, &req);
 	if (rc != 0)
 		goto get_error;
+
 	rc = open_entity(&obj.ob_entity);
 	if (entity_sm_state(&obj) != M0_ES_OPEN || rc != 0)
 		goto open_entity_error;
 
 	m0_entity_delete(&obj.ob_entity, &ops[0]);
-	m0_op_launch(ops, 1);
-	rc = m0_op_wait(ops[0],
-			       M0_BITS(M0_OS_FAILED,
-				       M0_OS_STABLE),
-			       M0_TIME_NEVER);
 
-	/* fini and release */
+	m0_op_launch(ops, 1);
+	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
+					M0_OS_STABLE), M0_TIME_NEVER);
+	if (rc == 0)
+		rc = m0_rc(ops[0]);
+
 	m0_op_fini(ops[0]);
 	m0_op_free(ops[0]);
 open_entity_error:
@@ -761,6 +702,7 @@ get_error:
 	lock_ops->olo_lock_fini(&obj);
 init_error:
 	m0_entity_fini(&obj.ob_entity);
+
 	return rc;
 }
 
@@ -792,25 +734,29 @@ int m0_write_cc(struct m0_container *container,
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &id,
 		    m0_client_layout_id(instance));
+
 	rc = m0_obj_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
+
 	rc = m0_obj_write_lock_get_sync(&obj, &req);
 	if (rc != 0)
 		goto get_error;
+
 	fp = fopen(src[(*index)++], "r");
 	if (fp == NULL) {
 		rc = -EPERM;
 		goto file_error;
 	}
+
 	rc = create_object(&obj.ob_entity);
 	if (rc != 0)
 		goto cleanup;
 
 	last_index = 0;
 	while (block_count > 0) {
-		bcount = (block_count > M0_MAX_BLOCK_COUNT)?
-			  M0_MAX_BLOCK_COUNT:block_count;
+		bcount = (block_count > M0_MAX_BLOCK_COUNT) ?
+			  M0_MAX_BLOCK_COUNT : block_count;
 		rc = alloc_prepare_vecs(&ext, &data, &attr, bcount,
 					       block_size, &last_index);
 		if (rc != 0)
@@ -830,8 +776,6 @@ int m0_write_cc(struct m0_container *container,
 		cleanup_vecs(&data, &attr, &ext);
 		block_count -= bcount;
 	}
-
-	/* fini and release */
 cleanup:
 	fclose(fp);
 file_error:
@@ -840,12 +784,13 @@ get_error:
 	m0_obj_lock_fini(&obj);
 init_error:
 	m0_entity_fini(&obj.ob_entity);
+
 	return rc;
 }
 
 int m0_read_cc(struct m0_container *container,
-		   struct m0_uint128 id, char **dest, int *index,
-		   uint32_t block_size, uint32_t block_count)
+	       struct m0_uint128 id, char **dest, int *index,
+	       uint32_t block_size, uint32_t block_count)
 {
 	int                           i;
 	int                           j;
@@ -870,37 +815,39 @@ int m0_read_cc(struct m0_container *container,
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &container->co_realm, &id,
 			   m0_client_layout_id(instance));
+
 	rc = m0_obj_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
+
 	rc = m0_obj_read_lock_get_sync(&obj, &req);
 	if (rc != 0)
 		goto get_error;
+
 	rc = open_entity(&obj.ob_entity);
 	if (entity_sm_state(&obj) != M0_ES_OPEN || rc != 0) {
 		m0_obj_lock_put(&req);
 		goto get_error;
 	}
 
-	/* Create the read request */
-	m0_obj_op(&obj, M0_OC_READ, &ext, &data, &attr, 0, 0, &ops[0]);
-	if (ops[0] == NULL) {
+	/* Create read operation */
+	rc = m0_obj_op(&obj, M0_OC_READ, &ext, &data, &attr, 0, 0, &ops[0]);
+	if (rc != 0) {
 		m0_obj_lock_put(&req);
-		rc = M0_ERR(-EINVAL);
 		goto get_error;
 	}
-	M0_ASSERT(ops[0]->op_sm.sm_rc == 0);
-	m0_op_launch(ops, 1);
 
-	/* wait */
-	rc = m0_op_wait(ops[0],
-			       M0_BITS(M0_OS_FAILED,
-				       M0_OS_STABLE),
-			       M0_TIME_NEVER);
-	M0_ASSERT(rc == 0);
-	M0_ASSERT(ops[0]->op_sm.sm_state == M0_OS_STABLE);
-	M0_ASSERT(ops[0]->op_sm.sm_rc == 0);
+	m0_op_launch(ops, 1);
+	rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
+					M0_OS_STABLE), M0_TIME_NEVER);
+	if (rc == 0)
+		rc = m0_rc(ops[0]);
+
 	m0_obj_lock_put(&req);
+
+	if (rc != 0)
+		goto cleanup;
+
 	if (dest != NULL) {
 		fp = fopen(dest[(*index)++], "w");
 		if (fp == NULL) {
@@ -917,14 +864,13 @@ int m0_read_cc(struct m0_container *container,
 			goto cleanup;
 		}
 	} else {
-	/* putchar the output */
+		/* putchar the output */
 		for (i = 0; i < block_count; ++i) {
 			for (j = 0; j < data.ov_vec.v_count[i]; ++j)
 				putchar(((char *)data.ov_buf[i])[j]);
 		}
 	}
 
-	/* fini and release */
 cleanup:
 	m0_op_fini(ops[0]);
 	m0_op_free(ops[0]);
@@ -933,10 +879,11 @@ get_error:
 init_error:
 	m0_entity_fini(&obj.ob_entity);
 	cleanup_vecs(&data, &attr, &ext);
+
 	return rc;
 }
 
-inline bool bsize_valid(uint64_t blk_size)
+static bool bsize_valid(uint64_t blk_size)
 {
 	return ((blk_size >= BLK_SIZE_4k && blk_size <= BLK_SIZE_32m) &&
 		 !(blk_size % BLK_SIZE_4k));
@@ -1083,10 +1030,9 @@ int m0_utility_args_init(int argc, char **argv,
 			case 'L': conf->mc_layout_id = atoi(optarg);
 				  if (conf->mc_layout_id <= 0 ||
 					conf->mc_layout_id >= 15) {
-					fprintf(stderr, "Invalid Layout Id"
-							"for -%c. "
-							"Valid Range[1-14]\n",
-							c);
+					fprintf(stderr, "Invalid layout id"
+							" for -%c. Valid "
+							"range: [1-14]\n", c);
 					utility_usage(stderr,
 						      basename(argv[0]));
 					exit(EXIT_FAILURE);

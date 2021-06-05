@@ -20,7 +20,7 @@
 
 
 ### set up loop devices and generate genders, disks-*.conf and halon_facts.yaml
-### files for given N K P configuration on a single node
+### files for given N K S P configuration on a single node
 
 #
 # Global vars
@@ -35,13 +35,16 @@ readonly ETC_HALON_DIR='/etc/halon'
 readonly LINUXSTOB_MIN_IOS_NUM=3
 readonly DEFAULT_POOL_WIDTH=8
 readonly DEFAULT_IMETA_POOL_WIDTH=4
-readonly MOTR_SYSCONF='/etc/sysconfig/motr'
+SYSCONF_DIR=/etc/sysconfig
+[ -d $SYSCONF_DIR ] || SYSCONF_DIR=/etc/default
+readonly MOTR_SYSCONF="$SYSCONF_DIR/motr"
 
 # variables
 verbose=false
 do_cleanup=false
 do_loop_cleanup=false
 use_existing_loop_imgs=false
+init_loop_only=false
 do_gendisk=true
 do_genfacts=false
 do_mkfs=false
@@ -52,8 +55,10 @@ only_list_disks=false
 pool_width=$DEFAULT_POOL_WIDTH
 data_units=2
 parity_units=1
+spare_units=1
 ipool_width=$DEFAULT_IMETA_POOL_WIDTH
 iparity_units=1
+ispare_units=1
 ios_num=1
 ios_num_is_set=false
 loop_img_dir='/var/motr'
@@ -98,6 +103,9 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [options]
 
       --iparity-units num  Number of parity units in parity group for imeta pool.
                            Default is ${iparity_units}.
+
+   -S|--spare-units num    Number of spare units in parity group.
+                           Default is ${spare_units}.
 
    -i|--ios-number num     Number of ioservices to start. Default is ${ios_num}.
                            In 'linuxstob' mode (-z|-Z) it defaults to ${LINUXSTOB_MIN_IOS_NUM}
@@ -188,9 +196,9 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt --options hvclICEGHVAMP:N:K:i:d:m:s:p:z:Z:: \
-                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,client-apps,activate-singlenode-services,mkfs,list-disks,no-cas,no-m0t1fs,pool-width:,data-units:,parity-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,motr-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
-                   --name "$PROG_NAME" -- "$@" )
+    TEMP=$( getopt --options hvclICEGHVAMP:N:K:S:i:d:m:s:p:z:Z:: \
+                   --longoptions help,verbose,cleanup,init-loop-only,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,client-apps,activate-singlenode-services,mkfs,list-disks,no-cas,no-m0t1fs,pool-width:,data-units:,parity-units:,spare-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,motr-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
+                       --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
 
@@ -204,6 +212,7 @@ parse_cli_options()
             -l|--list-disks)    only_list_disks=true; shift   ;;
             -I|--no-directio)   directio=false;       shift   ;;
             -C)                 do_cleanup=true;      shift   ;;
+            --init-loop-only)   init_loop_only=true;  shift   ;;
             -E|--use-existing-loop-imgs)
                                 use_existing_loop_imgs=true; shift ;;
             -M|--mkfs)          do_mkfs=true;         shift   ;;
@@ -222,14 +231,15 @@ parse_cli_options()
                                 shift 2 ;;
             -Z|--linuxstob-mode)
                                 linuxstob_mode=true
-                                [[ -n $2 ]] && motr_data_dir=$2
+                                [[ -n "$2" ]] && motr_data_dir=$2
                                 do_gendisk=false
                                 directio=false
                                 shift 2 ;;
             -P|--pool-width)    pool_width=$2;        shift 2 ;;
             -N|--data-units)    data_units=$2;        shift 2 ;;
             -K|--parity-units)  parity_units=$2;      shift 2 ;;
-            --pool-width)       ipool_width=$2;       shift 2 ;;
+            -S|--spare-units)   spare_units=$2;       shift 2 ;;
+            --ipool-width)      ipool_width=$2;       shift 2 ;;
             --parity-units)     iparity_units=$2;     shift 2 ;;
             --no-cas)           cas_enabled=false;    shift   ;;
             -i|--ios-number)    ios_num=$2; ios_num_is_set=true; shift 2 ;;
@@ -342,7 +352,7 @@ cleanup_loop_devices()
         local img_file="$loop_img_dir/disk$i.img"
         if [[ -e $img_file ]] ; then
             local loop_todel=$(losetup -j $img_file -O name | grep loop)
-            if [[ -n $loop_todel ]] ; then
+            if [[ -n "$loop_todel" ]] ; then
                 losetup -d $loop_todel
             fi
         fi
@@ -422,8 +432,10 @@ $hostname  m0_services=$services
 $hostname  m0_pool_width=$pool_width
 $hostname  m0_data_units=$data_units
 $hostname  m0_parity_units=$parity_units
+$hostname  m0_spare_units=$spare_units
 $hostname  m0_imeta_pool_width=$ipool_width
 $hostname  m0_imeta_parity_units=$iparity_units
+$hostname  m0_imeta_spare_units=$ispare_units
 $hostname  m0_disk_size_in_bytes=$((loop_img_size_gb * 1024**3))
 $hostname  m0_directio=$directio
 $hostname  m0_datadir=$motr_data_dir
@@ -434,7 +446,7 @@ GENDERS_END
 $hostname  m0_stob_mode=linux
 GENDERS_END
 
-        if [[ -n $linuxstob_stobs_dir ]] ; then
+        if [[ -n "$linuxstob_stobs_dir" ]] ; then
             cat <<GENDERS_END >> $genders_file
 $hostname  m0_stobdir=$linuxstob_stobs_dir
 GENDERS_END
@@ -463,13 +475,14 @@ generate_halon_facts()
     local net_if=$(ip -oneline -4 address show scope global up | grep -v docker |
                    tail -n 1 | awk '{print $2}')
 
-    [[ -n $disks ]] ||
+    [[ -n "$disks" ]] ||
         die "failed to find disks matching '$pattern' pattern"
 
     debug $disks
 
     $m0genfacts -o "$halon_facts" $motr_opt \
-                -e $net_if -N $data_units -K $parity_units $vopt $disks
+                -e $net_if -N $data_units -K $parity_units -S $spare_units \
+                $vopt $disks
 
     local motr_role_file=/etc/halon/role_maps/motr.ede
     local motr_role_file=/etc/halon/motr_role_mappings
@@ -482,7 +495,7 @@ generate_halon_facts()
         ln $vopt -sf $motr_role_file $motr_role_file
     fi
 
-    local halond_conf=/etc/sysconfig/halond
+    local halond_conf=$SYSCONF_DIR/halond
 
     if [[ ! -e $halond_conf ]] ; then
         log "Generating $halond_conf"
@@ -510,7 +523,7 @@ generate_disk_configs()
     local start_id=1
     local pattern=""
 
-    if [[ -n $disk_pattern ]] ; then
+    if [[ -n "$disk_pattern" ]] ; then
         local disks=( $(m0gendisks -l -d $pool_width -p "$disk_pattern") )
     fi
 
@@ -569,6 +582,11 @@ parse_cli_options "$@"
 [[ $UID -eq 0 ]] ||
     die 'Please, run this script with "root" privileges.'
 
+if $init_loop_only ; then
+    init_loop_devices
+    exit 0
+fi
+
 if $use_m0t1fs ; then
     echo "Enabling m0t1fs in $MOTR_SYSCONF"
     sed -i 's/MOTR_M0T1FS=no/MOTR_M0T1FS=yes/g' $MOTR_SYSCONF
@@ -595,7 +613,7 @@ if $activate_singlenode ; then
     exit 0
 fi
 
-if $only_list_disks && [[ -z $disk_pattern ]] ; then
+if $only_list_disks && [[ -z "$disk_pattern" ]] ; then
     die "-l|--list-disks option requires the -p|--disk-pattern option"
 fi
 
@@ -604,7 +622,7 @@ fi
     mkdir -p "$motr_data_dir" ;
 }
 
-[[ -z $linuxstob_stobs_dir || -d $linuxstob_stobs_dir ]] ||
+[[ -z "$linuxstob_stobs_dir" || -d $linuxstob_stobs_dir ]] ||
     die "Path '$linuxstob_stobs_dir' doesn't exist"
 
 if $linuxstob_mode ; then
@@ -631,7 +649,7 @@ if $do_genfacts && ($do_mkfs || [[ $ios_num -gt 1 ]]) ; then
         "'-i|--ios-number' options"
 fi
 
-if [[ -n $disk_pattern ]] ; then
+if [[ -n "$disk_pattern" ]] ; then
     info_msg="disk pattern $disk_pattern"
 elif $linuxstob_mode ; then
     info_msg="${loop_img_size_gb}GiB linuxstobs in '${linuxstob_stobs_dir:-$motr_data_dir}'"
@@ -640,12 +658,12 @@ else
 fi
 
 if $cas_enabled ; then
-    info_msg="[P=$ipool_width N=1 K=$iparity_units] with 1 CAS service, "$info_msg
+    info_msg="[P=$ipool_width N=1 K=$iparity_units S=$ispare_units] with 1 CAS service, "$info_msg
 fi
 
 $only_list_disks ||
-    log "Requested configuration: [P=$pool_width N=$data_units K=$parity_units]" \
-        "with $ios_num ioservice(s), $info_msg"
+    log "Requested configuration: [P=$pool_width N=$data_units K=$parity_units" \
+        "S=$spare_units] with $ios_num ioservice(s), $info_msg"
 
 [[ -d $ETC_MOTR_DIR ]] || {
     warn "'$ETC_MOTR_DIR' doesn't exist, creating.." ;
@@ -657,7 +675,7 @@ $only_list_disks ||
     mkdir -p "$ETC_HALON_DIR" ;
 }
 
-if [[ -n $disk_pattern ]] ; then
+if [[ -n "$disk_pattern" ]] ; then
     if $only_list_disks ; then
         $(path_of m0gendisks) -l -d $pool_width -p "$disk_pattern"
         exit 0

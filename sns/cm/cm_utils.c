@@ -52,6 +52,7 @@ enum {
 	SNS_DEFAULT_FILE_SIZE = 1 << 17,
 	SNS_DEFAULT_N = 3,
 	SNS_DEFAULT_K = 1,
+	SNS_DEFAULT_S = 1,
 	SNS_DEFAULT_P = 5,
 	SNS_DEFAULT_UNIT_SIZE = 4096,
 	SNS_DEFAULT_LAYOUT_ID = 1
@@ -87,6 +88,7 @@ m0_sns_cm_ut_file_size_layout(struct m0_sns_cm_file_ctx *fctx)
 		lid                 = SNS_DEFAULT_LAYOUT_ID;
 		plattr.pa_N         = SNS_DEFAULT_N;
 		plattr.pa_K         = SNS_DEFAULT_K;
+		plattr.pa_S         = SNS_DEFAULT_S;
 		plattr.pa_P         = SNS_DEFAULT_P;
 		plattr.pa_unit_size = SNS_DEFAULT_UNIT_SIZE;
 		m0_uint128_init(&plattr.pa_seed, "upjumpandpumpim,");
@@ -225,13 +227,14 @@ uint64_t m0_sns_cm_ag_nr_parity_units(const struct m0_pdclust_layout *pl)
 M0_INTERNAL
 uint64_t m0_sns_cm_ag_nr_spare_units(const struct m0_pdclust_layout *pl)
 {
-	return m0_pdclust_K(pl);
+	return m0_pdclust_S(pl);
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_size(const struct m0_pdclust_layout *pl)
 {
-	return m0_sns_cm_ag_nr_data_units(pl) + 2 *
-		m0_sns_cm_ag_nr_parity_units(pl);
+	return m0_sns_cm_ag_nr_data_units(pl) +
+	       m0_sns_cm_ag_nr_parity_units(pl) +
+	       m0_sns_cm_ag_nr_spare_units(pl);
 }
 
 M0_INTERNAL bool m0_sns_cm_is_cob_repaired(struct m0_poolmach *pm,

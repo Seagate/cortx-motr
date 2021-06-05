@@ -38,9 +38,9 @@
     filename="/dev/sdev6")
 (site-2 racks=[rack-3, rack-52] pvers=[pver-8, pver-57])
 (rack-3 encls=[enclosure-7] pvers=[pver-8])
-(enclosure-7 ctrls=[controller-11] pvers=[pver-8])
-(controller-11 node=node-2
-    drives=[drive-16, drive-75, drive-76, drive-77, drive-78]
+(enclosure-7 node=node-2
+ctrls=[controller-11] pvers=[pver-8])
+(controller-11     drives=[drive-16, drive-75, drive-76, drive-77, drive-78]
     pvers=[pver-8])
 (drive-16 dev=sdev-15 pvers=[pver-8])
 (drive-75 dev=sdev-71 pvers=[pver-8])
@@ -48,7 +48,7 @@
 (drive-77 dev=sdev-73 pvers=[pver-8])
 (drive-78 dev=sdev-74 pvers=[pver-8])
 (pool-4 pver_policy=0 pvers=[pver-8])
-(pver-8 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:12])
+(pver-8 N=3 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:12])
 (objv-2:12 real=site-2 children=[objv-12])
 (objv-12 real=rack-3 children=[objv-17])
 (objv-17 real=enclosure-7 children=[objv-18])
@@ -77,9 +77,9 @@
 (sdev-86 dev_idx=9 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev10")
 (rack-52 encls=[enclosure-53] pvers=[pver-57])
-(enclosure-53 ctrls=[controller-54] pvers=[pver-57])
-(controller-54 node=node-48
-    drives=[drive-55, drive-87, drive-88, drive-89, drive-90]
+(enclosure-53 node=node-48
+ctrls=[controller-54] pvers=[pver-57])
+(controller-54     drives=[drive-55, drive-87, drive-88, drive-89, drive-90]
     pvers=[pver-57])
 (drive-55 dev=sdev-51 pvers=[pver-57])
 (drive-87 dev=sdev-83 pvers=[pver-57])
@@ -87,7 +87,7 @@
 (drive-89 dev=sdev-85 pvers=[pver-57])
 (drive-90 dev=sdev-86 pvers=[pver-57])
 (pool-56 pver_policy=0 pvers=[pver-57])
-(pver-57 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:58])
+(pver-57 N=3 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:58])
 (objv-2:58 real=site-2 children=[objv-58])
 (objv-58 real=rack-52 children=[objv-59])
 (objv-59 real=enclosure-53 children=[objv-60])

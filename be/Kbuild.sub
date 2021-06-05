@@ -19,4 +19,5 @@ m0tr_objects += \
                   be/seg_dict.o \
                   be/linux_kernel/stubs.o \
                   be/tx_xc.o \
-                  be/tx_credit.o
+                  be/tx_credit.o \
+                  be/dtm0_log.o
