@@ -116,6 +116,23 @@ struct m0_fdmi_src_dock {
 	struct fdmi_sd_fom    fsdc_sd_fom;
 };
 
+/**
+ * A handler for a specific m0_fdmi_filter_type_id.
+ * It is chosen based on m0_conf_fdmi_filter::ff_filter_id.
+ */
+struct m0_fdmi_sd_filter_type_handler {
+	enum m0_fdmi_filter_type_id   ffth_id;
+	/**
+	 * @return <0 - error code
+	 * @return =0 - false
+	 * @return >0 - true
+	 */
+	int                         (*ffth_handler)
+		(struct m0_fdmi_eval_ctx      *ctx,
+		 struct m0_conf_fdmi_filter   *filter,
+		 struct m0_fdmi_eval_var_info *var_info);
+};
+
 /** Function posts new fdmi data for analysis by FDMI source dock. */
 M0_INTERNAL void m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec);
 
