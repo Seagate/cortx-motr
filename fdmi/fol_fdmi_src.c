@@ -24,6 +24,7 @@
 #include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/finject.h" /* M0_FI_ENABLED */
+#include "lib/string.h"         /* strlen */
 
 #include "fdmi/fdmi.h"
 #include "fdmi/source_dock.h"
@@ -31,7 +32,10 @@
 #include "fdmi/filter.h"
 #include "fdmi/source_dock_internal.h"
 #include "fdmi/module.h"
-#include "fop/fop.h"     /* m0_fop_fol_frag */
+#include "fop/fop.h"            /* m0_fop_fol_frag */
+#include "rpc/rpc_opcodes.h"    /* M0_CAS_PUT_FOP_OPCODE */
+#include "cas/cas.h"            /* m0_cas_op */
+
 
 /**
  * @addtogroup fdmi_fol_src
@@ -592,6 +596,67 @@ M0_INTERNAL int m0_fol_fdmi_post_record(struct m0_fom *fom)
 error_post_record:
 	ffs_tx_dec_refc(be_tx, NULL);
 	return M0_RC(rc);
+}
+
+M0_INTERNAL bool
+m0_fol_fdmi__filter_kv_substring_match(struct m0_buf  *value,
+                                       const char    **substrings)
+{
+	struct m0_buf s;
+	m0_bcount_t   j;
+	bool          match;
+	int           i;
+
+	for (i = 0; substrings[i] != NULL; ++i) {
+		s = M0_BUF_INIT_CONST(strlen(substrings[i]), substrings[i]);
+		if (value->b_nob < s.b_nob)
+			return false;
+		match = false;
+		/* brute-force */
+		for (j = 0; j <= value->b_nob - s.b_nob; ++j) {
+			if (m0_buf_eq(&s, &M0_BUF_INIT(s.b_nob,
+			                               value->b_addr + j))) {
+				match = true;
+				break;
+			}
+		}
+		if (!match)
+			return false;
+	}
+	return true;
+}
+
+M0_INTERNAL int
+m0_fol_fdmi_filter_kv_substring(struct m0_fdmi_eval_ctx      *ctx,
+                                struct m0_conf_fdmi_filter   *filter,
+                                struct m0_fdmi_eval_var_info *var_info)
+{
+	struct m0_fdmi_src_rec *src_rec = var_info->user_data;
+	struct m0_fop_fol_frag *fop_fol_frag;
+	struct m0_fol_frag     *fol_frag;
+	struct m0_fol_rec      *fol_rec;
+	struct m0_cas_rec      *cas_rec;
+	struct m0_cas_op       *cas_op;
+	int                     i;
+
+	fol_rec = container_of(src_rec, struct m0_fol_rec, fr_fdmi_rec);
+	m0_tl_for(m0_rec_frag, &fol_rec->fr_frags, fol_frag) {
+		if (fol_frag->rp_ops->rpo_type != &m0_fop_fol_frag_type)
+			continue;
+		fop_fol_frag = fol_frag->rp_data;
+		if (fop_fol_frag->ffrp_fop_code != M0_CAS_PUT_FOP_OPCODE)
+			continue;
+		cas_op = fop_fol_frag->ffrp_fop;
+		M0_ASSERT(cas_op != NULL);
+		for (i = 0; i < cas_op->cg_rec.cr_nr; ++i) {
+			cas_rec = &cas_op->cg_rec.cr_rec[i];
+			if (m0_fol_fdmi__filter_kv_substring_match(
+				   &cas_rec->cr_val.u.ab_buf,
+				   filter->ff_substrings))
+				return 1;
+		}
+	} m0_tl_endfor;
+	return 0;
 }
 
 /**
