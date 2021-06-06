@@ -23,6 +23,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FDMI
 #include "lib/trace.h"
 
+#include "lib/misc.h"                  /* m0_rnd64 */
 #include "ut/ut.h"
 #include "fop/fom_generic.h"
 #include "fdmi/fdmi.h"
@@ -358,6 +359,80 @@ static void fdmi_fol_test_sudden_fini(void)
 	M0_LEAVE();
 }
 
+enum {
+	FDMI_FOL_TEST_KV_SUBSTRING_FILTER_BUF_SIZE = 0x1000000,
+	FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_NR = 0x10,
+	FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_SIZE = 0x100,
+};
+
+static void fdmi_fol_test_filter_kv_substring_match(struct m0_buf  *value,
+						    const char    **substrings,
+						    bool            expected)
+{
+	bool result = m0_fol_fdmi__filter_kv_substring_match(value, substrings);
+	M0_UT_ASSERT(result == expected);
+}
+
+static void fdmi_fol_test_filter_kv_substring(void)
+{
+	size_t i;
+	struct {
+		char       *value_s;
+		bool        expected;
+		const char *substrings[0x10];
+	} tests[] = {
+		{"value", true,  {NULL}},
+		{"value", true,  {"value", NULL}},
+		{"value", true,  {"valu", NULL}},
+		{"value", false, {"value1", NULL}},
+		{"value", false, {"valu1", NULL}},
+		{"value", true,  {"v", "a", "l", "u", "e", NULL}},
+		{"value", false, {"value", "value1", NULL}},
+		{"value", true,  {"value", "value", NULL}},
+		{"value", true,  {"lue", NULL}},
+		{"value", true,  {"lu", NULL}},
+		{"987 value 123", true,  {"value", NULL}},
+		{"987 value 123", true,  {"value ", NULL}},
+		{"987 value 123", true,  {"987 ", " 123", NULL}},
+		{"987 value 123", false, {"987 123", "value", NULL}},
+		{"987 value 123", false, {"value", "987 123", NULL}},
+		{"", true, {NULL}},
+		{"", true, {"", NULL}},
+		{"", false, {"a", NULL}},
+	};
+	for (i = 0; i < ARRAY_SIZE(tests); ++i) {
+		fdmi_fol_test_filter_kv_substring_match(
+		        &M0_BUF_INITS(tests[i].value_s), tests[i].substrings,
+		        tests[i].expected);
+	}
+}
+
+static void fdmi_fol_test_filter_kv_substring_random(void)
+{
+	struct m0_buf   value = {};
+	m0_bcount_t     j;
+	uint64_t        seed = 1;
+	char          **substrings;
+	int             rc;
+	int             i;
+
+	rc = m0_buf_alloc(&value, FDMI_FOL_TEST_KV_SUBSTRING_FILTER_BUF_SIZE);
+	M0_UT_ASSERT(rc == 0);
+	for (j = 0; j < value.b_nob; ++j)
+		((char *)value.b_addr)[j] = m0_rnd64(&seed) % CHAR_MAX;
+	M0_ALLOC_ARR(substrings, FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_NR);
+	M0_UT_ASSERT(substrings != NULL);
+	for (i = 0; i < FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_NR; ++i) {
+		substrings[i] =
+			m0_alloc(FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_SIZE);
+		M0_UT_ASSERT(substrings[i] != NULL);
+		for (j = 0; j < FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_SIZE; ++j)
+			substrings[i][j] = m0_rnd64(&seed) % (CHAR_MAX - 1) + 1;
+	}
+	fdmi_fol_test_filter_kv_substring_match(
+	        &value, (const char **)substrings, false);
+}
+
 /* ------------------------------------------------------------------
  * Test Suite definition
  * ------------------------------------------------------------------ */
@@ -367,6 +442,10 @@ struct m0_ut_suite fdmi_fol_ut = {
 	.ts_tests = {
 		{ "fdmi-fol-register",  fdmi_fol_check_registered},
 		{ "fdmi-fol-ops",       fdmi_fol_test_basic_ops},
+		{ "fdmi-filter-kv-substring",
+			fdmi_fol_test_filter_kv_substring},
+		{ "fdmi-filter-kv-substring-random",
+			fdmi_fol_test_filter_kv_substring_random},
 		{ NULL, NULL },
 	},
 };
