@@ -286,84 +286,87 @@
  * step 5. RESOLVE: This state will resolve underflow, it will get sibling and
  * 		    perform merging or rebalancing with sibling. Once the
  * 		    underflow is resolved at the node, if there is an underflow
- * 		    at parent node Move to MOVEUP , else move to CEANUP.
+ * 		    at parent node Move to MOVEUP, else move to CEANUP.
  * step 6. MOVEUP: This state moves to the parent node
  *
  *
- * Iteration (NEXT)
+ * Iteration (PREVIOUS or NEXT)
  * ................
  * @verbatim
  *
- *                       INIT
- *                         |
- *                         v
- *                       SETUP <----------------+----------------+
- *                         |                    |                |
- *                         v                    |                |
- *                      LOCKALL<----------------+                |
- *                         |                    |                |
- *                         v                    |                |
- *                       DOWN  <----------------+                |
- *                         |                    |              UNLOCK
- *                         v                    |                |
- *                   +->NEXTDOWN---->LOCK---->CHECK              |
- *                   |   |   |   ^              | <--------+     |
- *                   +---+   v   |              |          |     |
- *                          LOAD-+              +-------+  |     |
- *                                              |       v  |     |
- *                                             ACT----->NEXTKEY  |
- *                                              |        |   ^   |
- *                                              v        |   |   |
- *                                           CLEANUP     v   |   |
- *                                              |       NEXTNODE-+
- *                                              v
- *                                            DONE
+ *			 INIT------->COOKIE
+ * 			   |           | |
+ * 			   +----+ +----+ |
+ * 			        | |      |
+ * 			        v v      |
+ * 			      SETUP<-----+---------------+
+ * 			        |        |               |
+ * 			        v        |               |
+ * 			     LOCKALL<----+-------+       |
+ * 			        |        |       |       |
+ * 			        v        |       |       |
+ * 			      DOWN<------+-----+ |       |
+ * 			+----+  |        |     | |       |
+ * 			|    |  v        v     | |       |
+ * 			+---NEXTDOWN-->LOCK-->CHECK-->CLEANUP
+ * 			 +----+ |        ^      |      ^   |
+ * 			 |    | v        |      v      |   v
+ * 			 +---SIBLING-----+     ACT-----+  DONE
  *
  * @endverbatim
- * Iteration function will return the record for the search key and iteratively
- * the record of subsequent keys as requested by the caller, if returned key is
- * last key in the node , we may need to fetch next node. To fetch keys in next
- * node: first release the LOCK, call Iteration function and pass key as
- * 'last fetched' key and next_sibling_flag= 'True'.
- * If next_sibling_flag == 'True', we will also load the right sibling node
- * which is to the node containing the search key. As we are releasing lock for
- * finding next node, updates such as(insertion of new keys, merging due to
- * deletion) can happen, so to handle such cases, we load both earlier node and
- * node to the right of it
+ *
+ * Iteration operation traverses a tree to find the next or previous key
+ * (depending on the the flag) to the given key. If the next or previous key is
+ * found then the key and its value are returned as the result of operation.
+ * Otherwise, an error flag (key not found) is returned to the caller.
+ *
+ * Iteration also takes a "cookie" as an additional optional parameter. A cookie
+ * (returned by a previous tree operation) is a safe pointer to the leaf node. A
+ * cookie can be tested to check whether it still points to a valid cached leaf
+ * node containing the target key. If the check is successful and the next or
+ * previous key is present in the cached leaf node then return its record
+ * otherwise traverse through the tree to find next or previous tree.
+ *
+ * There are two cases:
+ * case 1: The search key has valid sibling in the leaf node i.e. search key is
+ *	   greater than first key (for previous key search operation) or search
+ *	   key is less than last key (for next key search operation).
+ *	   Return the next/previous key's record to the caller.
+ * case 2: The search key does not have valid sibling in the leaf node i.e.
+ *	   search key is less than or equal to the first key (for previous key
+ *	   search operation) or search key is greater than or equal to last key
+ *	   (for next key search operation).
+ *	   In this case, set a flag (BOF_SIBLING) and start traversing the tree
+ *	   again till the leaf node. If the leaf node has a valid sibling return
+ *	   the record otherwise start loading the sibling nodes from the pivot
+ *	   internal node (i.e. the ancestor node which is closest to leaf node
+ *	   and has a valid sibling).
+ *	   If there is no valid pivot internal node, return error flag (key not
+ *	   found) else return the record of the loaded sibling node.
  *
  * Phases Description:
- * step 1. NEXTDOWN: this state will load nodes searching for the given key,
- *                   but if next_sibling_flag == 'True' then this state will
- * 		     also load the leftmost child nodes during its downward
- * 		     traversal.
- * step 2. LOAD: this function will get called only when value of
- * 		 next_sibling_flag is 'True'.Functionality of this function is
- * 	         to load next node so, it will search and LOAD next sibling
- * step 3. CHECK: check function will check the traversal path for node with key
- * 		  and traversal path for next sibling node if it is also loaded
- *                if traverse path of any of the node has changed, repeat
- * 		  traversal again after UNLOCKING the tree else, if
- * 		  next_sibling_flag == 'True', go to NEXTKEY to fetch next key,
- * 	          else to ACT for callback
- * step 4. ACT: ACT will provide an input as 0 or 1:
- * 		where, 0 ->done 1-> return nextkey
- * step 5. NEXTKEY:
- *         if next_sibling_flag == 'True',
- *             check last key in the current node.
- *                 if it is <= given key, go for next node which was loaded at
- * 		      phase LOAD (step 2) and return first key
- *                 else return key next to last fetched key
- *            and call ACT for further input (1/0)
- *         else
- *             if no keys to return i.e., last returned key was last key in node
- *                 check if next node is loaded.
- *                  if yes go to next node else and return first key from that
- * 		       node
- *                  else call Iteration function and pass key='last fetched key'
- * 		         and next_sibling_flag='True'
- *             else return key == given key, or next to earlier retune key and
- * 		    call ACT for further input (1/0)
- *
+ * NEXTDOWN: This state will load nodes found during tree traversal for the
+ *           search key.It will also update the pivot internal node. On reaching
+ *           the leaf node if the found next/previous key is not valid and
+ *           BOF_SIBLING flag is set, load the sibling index's child node from
+ *           the pivot internal node.
+ * SIBLING: Load the sibling records (first key for next operation or last key
+ *	    for prev operation) from the sibling nodes till leaf node.
+ * CHECK: Check the traversal path for node with key and also the validity of
+ *	  leaf sibling node (if loaded). If the traverse path of any of the node
+ *	  has changed, repeat traversal again after UNLOCKING the tree else go
+ *	  to ACT.
+ * ACT: ACT will perform following actions:
+ *	1. If it has a valid leaf node sibling index (next/prev key index)
+ *	   return record.
+ *	2. If the leaf node sibling index is invalid and pivot node is also
+ *	   invalid, it means we are at the boundary of th btree (i.e. rightmost
+ *	   or leftmost key). Return error flag (key not found).
+ *	3. If the leaf node sibling index is invalid and BOF_SIBLIG flag is not
+ *	   set, set the BOF_SIBLIG and repeat state machine.
+ *	4. If the leaf node sibling index is invalid and BOF_SIBLIG flag is set,
+ *	   return the record (first record for next operation or last record for
+ *	   prev operation) from the sibling node.
  *
  * Data structures
  * ---------------
@@ -1094,7 +1097,7 @@ struct level {
 	uint64_t   l_sib_seq;
 
 	/** Index for required record from the node. **/
-	unsigned   l_idx;
+	int        l_idx;
 
 	/** nd for newly allocated node at the level. **/
 	struct nd *l_alloc;
@@ -1116,7 +1119,7 @@ struct m0_btree_oimpl {
 	struct node_op  i_nop;
 	/* struct lock_op  i_lop; */
 
-	/** It will provide current level number. **/
+	/** Count of entries initialized in l_level array. **/
 	unsigned        i_used;
 
 	/** Array of levels for storing data about each level. **/
@@ -2411,7 +2414,7 @@ static bool sibling_node_check(struct m0_btree_oimpl *oi, uint64_t flags)
 		if (oi->i_level[oi->i_used].l_sib_seq != l_node->n_seq)
 			return false;
 	}
-	if (flags & BOF_PREV) {
+	else if (flags & BOF_PREV) {
 		l_node = oi->i_level[oi->i_used].l_prev;
 		if (node_is_valid(l_node) != 0) {
 			node_op_fini(&oi->i_nop);
@@ -3334,12 +3337,12 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 	}
 }
 
-/* Based on the flag get the sibling index. */
+/* Based on the flag get the next/previous sibling index. */
 static int sibling_index_get(int index, uint64_t flags, bool key_exists)
 {
 	if (flags & BOF_NEXT)
-		return key_exists ? index + 1 : index;
-	return key_exists ? index - 1 : index - 2;
+		return key_exists ? ++index : index;
+	return --index;
 }
 
 /* Checks if the index is in the range of valid key range for node. */
@@ -3588,10 +3591,10 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 					lev->l_idx++;
 				}
 				/**
-				 * If sibling flag is set, check if the node
-				 * has valid left or right index based on next
-				 * previous flag. If valid left/right index
-				 * found. mark this level as pivot level.
+				 * Check if the node has valid left or right
+				 * index based on next previous flag. If valid
+				 * left/right index found. mark this level as
+				 * pivot level.
 				 */
 				if (((bop->bo_flags & BOF_NEXT) &&
 				    (lev->l_idx < node_count(lev->l_node))) ||
@@ -3615,9 +3618,15 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 				/**
 				 * In the following cases jump to LOCK state:
 				 * 1. Normal pass without sibling load flag.
-				 * 2. Sibling load flag and found record idx
-				 * is less than number of records in leaf node.
-				 * 3. It is the rightmost record in the btree.
+				 * 2. Sibling load flag is set and the found key
+				 *    idx is withing the valid index range of
+				 *    the node.
+				 * 3.i_pivot is equal to -1. It means, tree
+				 *   traversal reached at the leaf level without
+				 *   finding any valid sibling in the non-levels.
+				 *   This indicates that the search key is the
+				 *   boundary key (rightmost for NEXT flag and
+				 *   leftmost for PREV flag).
 				 */
 				if (!(bop->bo_flags & BOF_SIBLING) ||
 				    (index_is_valid(lev)) ||
@@ -3634,12 +3643,16 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 
 				if (node_is_valid(lev->l_node) != 0) {
 					node_op_fini(&oi->i_nop);
+					bop->bo_flags |= BOF_LOCKALL;
 					return m0_sm_op_sub(&bop->bo_op,
 							    P_CLEANUP, P_SETUP);
 				}
-				if (lev->l_seq != lev->l_node->n_seq)
+				if (lev->l_seq != lev->l_node->n_seq) {
+					bop->bo_flags |= BOF_LOCKALL;
 					return m0_sm_op_sub(&bop->bo_op,
 							    P_CLEANUP, P_SETUP);
+				}
+
 				s.s_node = lev->l_node;
 				s.s_idx = sibling_index_get(lev->l_idx,
 							    bop->bo_flags, true);
@@ -3661,7 +3674,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			struct segaddr child;
 
 			s.s_node = oi->i_nop.no_node;
-			s.s_idx = bop->bo_flags & BOF_NEXT ? 0 :
+			s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
 				  node_count(s.s_node) - 1;
 
 			if (node_level(s.s_node) > 0) {
@@ -3705,7 +3718,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 				else
 					bop->bo_flags |= BOF_LOCKALL;
 			}
-			if (bop->bo_arbor->t_height < tree->t_height) {
+			if (bop->bo_arbor->t_height != tree->t_height) {
 				lock_op_unlock(tree);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 				                    P_SETUP);
@@ -3714,7 +3727,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 				return P_DOWN;
 			}
 		}
-		/** Fall through if path_check  and sibling_node_check are successful. */
+		/** Fall through if path_check and sibling_node_check are successful. */
 	case P_ACT: {
 		m0_bcount_t		 ksize;
 		m0_bcount_t		 vsize;
