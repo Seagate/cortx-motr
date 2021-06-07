@@ -1104,9 +1104,6 @@ struct level {
 	/** nd for right sibling of required node at current level. **/
 	struct nd *l_next;
 
-	/** if l_alloc_flag = NODE_USED, l_alloc is used,
-	 * if l_alloc_flag = NODE_FREE, l-alloc is freed */
-	uint8_t    l_alloc_flag;
 };
 
 /**
@@ -2446,12 +2443,11 @@ static void level_cleanup(struct m0_btree_oimpl *oi,
 	if (bo_opc == M0_BO_PUT) {
 		for (i = 0; i <= oi->i_used; ++i) {
 			if (oi->i_level[i].l_alloc != NULL) {
-				if(oi->i_level[i].l_alloc_flag)
-					oi->i_level[i].l_alloc = NULL;
+				oi->i_level[i].l_alloc = NULL;
 			}
 		}
-		if (oi->i_extra_node != NULL && oi->i_level[0].l_alloc_flag)
-			oi->i_extra_node = NULL;
+		if (oi->i_extra_node != NULL)
+		 	oi->i_extra_node = NULL;
 	}
 	m0_free(oi->i_level);
 	m0_free(oi);
@@ -2767,7 +2763,6 @@ static int64_t m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 	 * move records from current node to new node and find slot for given
 	 * record
 	 */
-	curr_level->l_alloc_flag = NODE_USED;
 	m0_btree_put_split_and_find(curr_level->l_alloc, curr_level->l_node,
 			       &bop->bo_rec, &tgt, bop->bo_tx);
 	tgt.s_rec = bop->bo_rec;
@@ -2825,9 +2820,10 @@ static int64_t m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 
 			lock_op_unlock(bop->bo_arbor->t_desc);
 			//return P_CLEANUP;
+			oi->i_used = i;
 			return P_FREENODE;
 		}
-		curr_level->l_alloc_flag = NODE_USED;
+
 		m0_btree_put_split_and_find(curr_level->l_alloc,
 					    curr_level->l_node, &new_rec,
 					    &tgt, bop->bo_tx);
@@ -3003,14 +2999,14 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 				else
 					bop->bo_flags |= BOF_LOCKALL;
 			}
-			if (bop->bo_arbor->t_height < tree->t_height) {
-				/* If height increased */
+			if (bop->bo_arbor->t_height != tree->t_height) {
+				/* If height decreased or increased */
 				lock_op_unlock(tree);
 				oi->i_nxt_set = true;
 				oi->i_nxt_state = P_INIT;
 				return P_FREENODE;
 			} else {
-				/* If height decreased or same */
+				/* If height same */
 				bop->bo_arbor->t_height = tree->t_height;
 				lock_op_unlock(tree);
 				return P_DOWN;
@@ -3085,22 +3081,24 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 	}
 	case P_FREENODE: {
 		struct level *lev;
+		struct nd     *temp;
 		do {
 			lev = &oi->i_level[oi->i_used];
-			if (lev->l_alloc == NULL)
-				break;
-			if (!lev->l_alloc_flag) {
-				lev->l_alloc_flag = NODE_FREE;
-				node_free(&oi->i_nop, lev->l_alloc,
+			if (lev->l_alloc) {
+				temp = lev->l_alloc;
+				lev->l_alloc = NULL;
+				node_free(&oi->i_nop, temp,
 					  bop->bo_tx, P_FREENODE);
 			}
-			if (oi->i_used == 0 && lev->l_alloc_flag == NODE_FREE)
-				node_free(&oi->i_nop,oi->i_extra_node,
+			if (oi->i_used == 0 && oi->i_extra_node) {
+				temp = oi->i_extra_node;
+				oi->i_extra_node = NULL;
+				node_free(&oi->i_nop, temp,
 					  bop->bo_tx, P_CLEANUP);
+			}
 			if (oi->i_used == 0)
 				break;
 			oi->i_used--;
-
 		} while( 1);
 		/* Fallthrough */
 	}
@@ -4585,7 +4583,6 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 	btree_ut_fini();
 }
 
-#if 0
 /**
  * Commenting this ut as it is not required as a part for test-suite but my
  * required for testing purpose
@@ -4772,8 +4769,8 @@ static void m0_btree_ut_insert_record(void)
 			bop.bo_op.o_sm.sm_state = nxt;
 		}
 		total_record--;
-		//printf("\n");
-		//m0_btree_ut_traversal(tree);
+		// printf("\n");
+		// m0_btree_ut_traversal(tree);
 	}
 	printf("\n");
 	m0_btree_ut_traversal(tree);
@@ -4786,7 +4783,7 @@ static void m0_btree_ut_insert_record(void)
 	btree_ut_fini();
 	M0_LEAVE();
 }
-#endif
+
 
 
 struct m0_ut_suite btree_ut = {
@@ -4804,7 +4801,7 @@ struct m0_ut_suite btree_ut = {
 		{"basic_tree_op",         m0_btree_ut_basic_tree_oper},
 		{"basic_kv_ops",          m0_btree_ut_basic_kv_oper},
 		{"multi_stream_kv_op",    m0_btree_ut_multi_stream_kv_oper},
-		/* {"insert_rec",            m0_btree_ut_insert_record}, */
+		{"insert_rec",            m0_btree_ut_insert_record},
 		{NULL, NULL}
 	}
 };
