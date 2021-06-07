@@ -2949,7 +2949,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 	case P_ALLOC: {
 		int           ksize;
 		int           vsize;
-		bool          load = false;
+		bool          alloc = false;
 		int           rc;
 		do {
 			lev = &oi->i_level[oi->i_used];
@@ -2976,17 +2976,17 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			if (oi->i_used == 0) {
 				if (lev->l_alloc == NULL ||
 				    oi->i_extra_node == NULL)
-					load = true;
+					alloc = true;
 				break;
 			} else if (lev->l_alloc == NULL) {
-				load = true;
+				alloc = true;
 				break;
 			}
 
 			oi->i_used--;
 		} while (1);
 
-		if (load)
+		if (alloc)
 			return m0_btree_put_alloc_phase(bop);
 		/* Reset oi->i_used */
 		oi->i_used = bop->bo_arbor->t_height - 1;
@@ -5113,7 +5113,7 @@ static void m0_btree_ut_traversal(struct td *tree)
 		}
 	}
 }
-#endif
+
 /**
  * This test will create tree and insert records it into the created tree
  * using insert function for btree(i.e.btree_put_tick())
@@ -5220,7 +5220,7 @@ static void m0_btree_ut_insert_record(void)
 	btree_ut_fini();
 	M0_LEAVE();
 }
-
+#endif
 
 struct m0_ut_suite btree_ut = {
 	.ts_name = "btree-ut",
