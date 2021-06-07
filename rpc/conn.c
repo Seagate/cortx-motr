@@ -327,7 +327,7 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn      *conn,
 		m0_sm_state_trace_enable(&conn->c_sm);
 		m0_rpc_machine_add_conn(machine, conn);
 		M0_LOG(M0_INFO, "%p INITIALISED \n", conn);
-		M0_MEAS("conn-sm-to-uuid sm_id: %"PRIu64" uuid: "U128X_F,
+		M0_MEAS("conn-sm-to-uuid sm_id: %"PRIu64", uuid: \""U128D_F"\"",
 			conn->c_sm.sm_id, U128_P(&conn->c_uuid));
 	}
 
@@ -549,7 +549,7 @@ M0_INTERNAL int m0_rpc_rcv_conn_init(struct m0_rpc_conn *conn,
 		m0_sm_state_trace_enable(&conn->c_sm);
 		m0_rpc_machine_add_conn(machine, conn);
 		M0_LOG(M0_INFO, "%p INITIALISED \n", conn);
-		M0_MEAS("conn-uuid-to-sm uuid: "U128X_F" sm_id: %"PRIu64,
+		M0_MEAS("conn-uuid-to-sm uuid: \""U128D_F"\", sm_id: %"PRIu64,
 			U128_P(&conn->c_uuid), conn->c_sm.sm_id);
 	}
 

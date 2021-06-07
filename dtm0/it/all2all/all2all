@@ -134,6 +134,16 @@ function expected_trace_lines_num()
     return 0
 }
 
+function traces_dump()
+{
+    local fid
+
+    for i in ${!M0D_PIDS[@]} ; do
+        fid=$(echo "${M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
+        $MOTR_ROOT/utils/trace/m0trace -i "${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/m0trace.${M0D_PIDS[i]}" > m0trace_"${fid}".dump
+    done
+}
+
 function processes_status_check()
 {
     local rc=0
@@ -203,7 +213,10 @@ function main()
     wait $cli_pid
 
     stop_cluster
-    
+
+    _info "Dumping traces..."
+    traces_dump
+
     _info "Checking processes exit status..."
     processes_status_check || {
         _err "TEST STATUS: FAIL"

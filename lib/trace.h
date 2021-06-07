@@ -173,8 +173,8 @@
 
 #define M0_MEAS(fmt, ...) ({				\
 	m0_time_t __meas_time = m0_time_now();		\
-	M0_LOG(M0_DEBUG, "[MEAS] " fmt " time: "TIME_F,	\
-	       __VA_ARGS__, TIME_P(__meas_time));	\
+	M0_LOG(M0_DEBUG, "[MEAS] %"PRIu64" " fmt,	\
+	       (uint64_t)__meas_time, __VA_ARGS__);	\
 })
 
 #define M0_RC(rc) ({                        \
