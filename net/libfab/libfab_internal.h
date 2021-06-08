@@ -139,6 +139,15 @@ enum m0_fab__connlink_status {
 };
 
 /**
+ * Represents the interface type in the endpoint name
+ */
+enum m0_fab__ep_iface {
+	FAB_LO,
+	FAB_TCP,
+	FAB_O2IB
+};
+
+/**
  * Libfab structure for event context to be returned in the epoll_wait events
  */
 struct m0_fab__ev_ctx {
@@ -428,8 +437,14 @@ struct m0_fab__conn_data {
 	/** address in network byte format */
 	uint64_t fcd_netaddr;
 	
-	/** address in string format */
-	char     fcd_straddr[LIBFAB_ADDR_STRLEN_MAX];
+	/** portal number */
+	uint16_t fcd_portal;
+	
+	/** transfer machine id */
+	uint16_t fcd_tmid;
+	
+	/** interface type */
+	uint8_t  fcd_iface;
 };
 
 /**

@@ -536,6 +536,29 @@ static void libfab_tm_buf_done(struct m0_fab__tm *ftm)
 }
 
 /**
+ * Constructs an address in string format from the connection data parameters
+ */
+static void libfab_straddr_gen(struct m0_fab__conn_data *cd, char *buf,
+			       uint8_t len, struct m0_fab__ep_name *en)
+{
+	libfab_ep_ntop(cd->fcd_netaddr, en);
+	if (cd->fcd_tmid == 0xFFFF)
+		sprintf(buf, "%s@%s:12345:%d:*",
+			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
+			cd->fcd_iface == FAB_LO ? "lo" : 
+				((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
+			cd->fcd_portal);
+	else
+		sprintf(buf, "%s@%s:12345:%d:%d",
+			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
+			cd->fcd_iface == FAB_LO ? "lo" : 
+			((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
+			cd->fcd_portal, cd->fcd_tmid);
+
+	M0_ASSERT(len >= strlen(buf));
+}
+
+/**
  * Used to handle incoming connection request events
  * 
  * This function is called from the poller thread and there is no action
@@ -554,6 +577,7 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 	struct fi_eq_cm_entry     entry;
 	uint32_t                  event;
 	int                       rc;
+	char                      straddr[LIBFAB_ADDR_STRLEN_MAX] = { '\0' };
 
 	eq = tm->ftm_pep->fep_listen->pep_res.fpr_eq;
 	rc = fi_eq_read(eq, &event, &entry,
@@ -561,8 +585,8 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 	if (rc >= (int)sizeof(entry) && event == FI_CONNREQ) {
 		memset(&en, 0, sizeof(en));
 		cd = (struct m0_fab__conn_data*)entry.data;
-		libfab_ep_ntop(cd->fcd_netaddr, &en);
-		rc = libfab_fab_ep_find(tm, &en, cd->fcd_straddr, &ep);
+		libfab_straddr_gen(cd, straddr, sizeof(straddr), &en);
+		rc = libfab_fab_ep_find(tm, &en, straddr, &ep);
 		if (rc == FI_SUCCESS) {
 			rc = libfab_conn_accept(ep, tm, entry.info);
 			if (rc != FI_SUCCESS)
@@ -1102,7 +1126,8 @@ static int libfab_conn_accept(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 	struct fid_domain        *dp;
 	int                       rc;
 
-	M0_ENTRY("from ep=%s", (char*)ep->fep_name.fen_str_addr);
+	M0_ENTRY("from ep=%s -> tm = %s", (char*)ep->fep_name.fen_str_addr,
+		 (char*)tm->ftm_pep->fep_name.fen_str_addr);
 
 	aep = libfab_aep_get(ep);
 	dp = tm->ftm_fab->fab_dom;
@@ -2059,6 +2084,41 @@ static struct m0_fab__fab *libfab_newfab_init(struct m0_fab__list *fl)
 }
 
 /**
+ * This function fills out the connection data fields with the appropriate
+ * values by parsing the source endpoint address
+ */
+static void libfab_conn_data_fill(struct m0_fab__conn_data *cd,
+				  struct m0_fab__tm *tm)
+{
+	char *h_ptr = tm->ftm_pep->fep_name.fen_str_addr;
+	char *t_ptr;
+	char  str_portal[10]={'\0'};
+	int   len;
+
+	libfab_ep_pton(&tm->ftm_pep->fep_name, &cd->fcd_netaddr);
+	if (strncmp(h_ptr, "0@lo", 4) == 0)
+		cd->fcd_iface = FAB_LO;
+	else {
+		h_ptr = strchr(h_ptr, '@');
+		if (strncmp(h_ptr+1, "tcp", 3) == 0)
+			cd->fcd_iface = FAB_TCP;
+		else
+			cd->fcd_iface = FAB_O2IB;
+	}
+
+	h_ptr = strchr(h_ptr, ':');
+	h_ptr = strchr(h_ptr+1, ':');	/* Skip the pid "12345" */
+	t_ptr = strchr(h_ptr+1, ':');
+	len = t_ptr - (h_ptr+1);
+	strncpy(str_portal, h_ptr+1, len);
+	cd->fcd_portal = atoi(str_portal);
+	if(*(t_ptr+1) == '*')
+		cd->fcd_tmid = 0xFFFF;
+	else
+		cd->fcd_tmid = atoi(t_ptr+1);
+}
+
+/**
  * Send out a connection request to the destination of the network buffer
  * and add given buffer into pending buffers list.
  */
@@ -2075,8 +2135,7 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 	aep = libfab_aep_get(ep);
 	if (aep->aep_tx_state == FAB_NOT_CONNECTED) {
 		dst = libfab_destaddr_get(&ep->fep_name);
-		strcpy(cd.fcd_straddr, ma->ftm_pep->fep_name.fen_str_addr);
-		libfab_ep_pton(&ma->ftm_pep->fep_name, &cd.fcd_netaddr);
+		libfab_conn_data_fill(&cd, ma);
 
 		ret = fi_getopt(&aep->aep_txep->fid, FI_OPT_ENDPOINT,
 				FI_OPT_CM_DATA_SIZE,
@@ -2384,8 +2443,11 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 		else
 			ret = fi_writemsg(aep->aep_txep, &op_msg, op_flag);
 
-		if (ret != FI_SUCCESS)
+		if (ret != FI_SUCCESS) {
+			M0_LOG(M0_ERROR,"bulk-op failed %d b=%p q=%d l_seg=%d",
+			       ret, fb, fb->fb_nb->nb_qtype, loc_sidx);
 			break;
+		}
 
 		if (loc_slen > rem_slen) {
 			rem_sidx++;
