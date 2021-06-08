@@ -453,7 +453,8 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
 	}
 	m0_fop_put(fop);
 
-	M0_MEAS("conn-to-session conn_sm_id: %"PRIu64", session_sm_id: %"PRIu64,
+	M0_MEAS("name: conn-to-session, conn_sm_id: %"PRIu64
+		", session_sm_id: %"PRIu64,
 		conn->c_sm.sm_id, session->s_sm.sm_id);
 
 	M0_POST(ergo(rc != 0, session_state(session) == M0_RPC_SESSION_FAILED));
