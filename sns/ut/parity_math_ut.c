@@ -518,10 +518,11 @@ static void test_parity_math_diff(uint32_t parity_cnt)
 	M0_UT_ASSERT(ret == 0);
 
 	for (i = 0; i < DATA_UNIT_COUNT; ++i) {
-		if (i % 2)
-			M0_UT_ASSERT(m0_parity_math_diff(&math, data_buf_old,
-							 data_buf_new,
-					    		 p_old, i) == 0);
+		if (i % 2) {
+			ret = m0_parity_math_diff(&math, data_buf_old,
+						  data_buf_new, p_old, i);
+			M0_UT_ASSERT(ret == 0);
+		}
 	}
 
 	for(i = 0; i < parity_cnt; ++i) {
@@ -770,6 +771,7 @@ static void parity_calculate(struct m0_parity_math *math, struct m0_bufvec *x,
 {
 	struct m0_buf *x_ser;
 	struct m0_buf *p_ser;
+	int	       ret;
 
 	M0_ALLOC_ARR(x_ser, math->pmi_data_count);
 	M0_UT_ASSERT(x_ser != NULL);
@@ -779,7 +781,8 @@ static void parity_calculate(struct m0_parity_math *math, struct m0_bufvec *x,
 	buf_initialize(p_ser, math->pmi_parity_count, num_seg * seg_size);
 	buf_initialize(x_ser, math->pmi_data_count, num_seg * seg_size);
 	bufvec_buf(x, x_ser, math->pmi_data_count, true);
-	M0_UT_ASSERT(m0_parity_math_calculate(math, x_ser, p_ser) == 0);
+	ret = m0_parity_math_calculate(math, x_ser, p_ser);
+	M0_UT_ASSERT(ret == 0);
 	bufvec_buf(p, p_ser, math->pmi_parity_count, false);
 
 	buf_free(x_ser, math->pmi_data_count);

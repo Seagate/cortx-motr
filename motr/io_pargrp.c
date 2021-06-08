@@ -1160,7 +1160,7 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
  */
 static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 {
-	int                       rc;
+	int                       rc = 0;
 	uint32_t                  row;
 	uint32_t                  col;
 	struct m0_buf            *dbufs;
@@ -1200,8 +1200,6 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 	    || map->pi_rtype == PIR_READREST) {
 		void *zpage;
 
-		rc = 0;
-
 		zpage = m0_alloc_aligned(1ULL<<obj->ob_attr.oa_bshift,
 					  M0_NETBUF_SHIFT);
 		if (zpage == 0) {
@@ -1231,10 +1229,8 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 
 		m0_free_aligned(zpage, 1ULL<<obj->ob_attr.oa_bshift,
 				M0_NETBUF_SHIFT);
-
 		if (rc != 0)
 			goto last;
-
 		M0_LOG(M0_DEBUG, "Parity recalculated for %s",
 		       map->pi_rtype == PIR_READREST ? "read-rest" :
 		       "aligned write");

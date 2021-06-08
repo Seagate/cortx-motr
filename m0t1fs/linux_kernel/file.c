@@ -1505,7 +1505,7 @@ last:
 
 static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 {
-	int                       rc;
+	int                       rc = 0;
 	uint32_t                  row;
 	uint32_t                  col;
 	struct m0_buf            *dbufs;
@@ -1529,8 +1529,6 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 	    || map->pi_rtype == PIR_READREST) {
 
 		unsigned long zpage;
-
-		rc = 0;
 
 		zpage = get_zeroed_page(GFP_KERNEL);
 		if (zpage == 0) {
@@ -1558,10 +1556,8 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 				break;
 		}
 		free_page(zpage);
-
 		if (rc != 0)
 			goto last;
-
 		M0_LOG(M0_DEBUG, "[%p] Parity recalculated for %s",
 		       map->pi_ioreq,
 		       map->pi_rtype == PIR_READREST ? "read-rest" :
