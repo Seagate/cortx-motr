@@ -250,7 +250,9 @@ btree_delete(struct m0_be_btree *t, struct m0_buf *k, int nr_left)
 		M0_UT_ASSERT(rc == 0);
 	}
 
-	rc = M0_BE_OP_SYNC_RET_WITH(&op, m0_be_btree_delete(t, tx, &op, k),
+	rc = M0_BE_OP_SYNC_RET_WITH(&op,
+				    m0_be_btree_delete(t, tx, &op,
+					       &M0_VERBUF_NO_VER_INIT(*k)),
 				    bo_u.u_btree.t_rc);
 
 	if (--nr == 0 || nr_left == 0) {
@@ -281,7 +283,7 @@ static void btree_kill_one(struct m0_be_btree *tree,
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 	rc = M0_BE_OP_SYNC_RET_WITH(&op,
-	    m0_be_btree_kill(tree, tx, &op, key, ver),
+	    m0_be_btree_delete(tree, tx, &op, &M0_VERBUF_INIT(*key, ver)),
 	    bo_u.u_btree.t_rc);
 	M0_UT_ASSERT(rc == 0);
 	m0_be_tx_close_sync(tx);
@@ -296,13 +298,41 @@ static int btree_lookup_alive(struct m0_be_btree *tree,
 	int rc;
 	struct m0_be_btree_anchor  anchor = {};
 	rc = M0_BE_OP_SYNC_RET(op,
-		m0_be_btree_lookup_alive_inplace(tree, &op, key, &anchor),
+		m0_be_btree_lookup_inplace(tree, &op, key, &anchor),
 		bo_u.u_btree.t_rc);
 	if (rc == 0)
 		*val = anchor.ba_value;
 	m0_be_btree_release(NULL, &anchor);
 	return rc;
 }
+
+/*
+ * Uses the cursor API to figure out if a pair with the key exists
+ * in the tree ("dead or alive").
+ */
+static int btree_lookup_any(struct m0_be_btree *tree,
+			    const struct m0_buf *key,
+			    struct m0_buf *val)
+{
+	struct m0_be_btree_cursor *cursor;
+	int                        rc;
+	struct m0_buf              cur_key;
+
+	M0_ALLOC_PTR(cursor);
+
+	m0_be_btree_cursor_init(cursor, tree);
+	rc = M0_BE_OP_SYNC_RET_WITH(&cursor->bc_op,
+			      m0_be_btree_cursor_get(cursor, key, false),
+			      bo_u.u_btree.t_rc);
+	if (rc == 0) {
+		m0_be_btree_cursor_kv_get(cursor, &cur_key, val);
+		M0_UT_ASSERT(m0_buf_eq(&cur_key, key));
+	}
+
+	m0_free(cursor);
+	return rc;
+}
+
 
 static int btree_save_ver(struct m0_be_btree *tree,
 			  const struct m0_buf *key,
@@ -327,7 +357,8 @@ static int btree_save_ver(struct m0_be_btree *tree,
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 	rc = M0_BE_OP_SYNC_RET_WITH(&op,
-		m0_be_btree_save_inplace(tree, tx, &op, key, ver, &anchor,
+		m0_be_btree_save_inplace(tree, tx, &op,
+					 &M0_VERBUF_INIT(*key, ver), &anchor,
 					 overwrite, M0_BITS(M0_BAP_NORMAL)),
 		bo_u.u_btree.t_rc);
 	M0_UT_ASSERT(rc == 0);
@@ -462,6 +493,20 @@ static void btree_delete_test(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	btree_insert(tree, &key, &val, 0);
 }
 
+#define INIT_SBUF(_buf, _arr, _pos) do {				\
+	int _rc = sprintf(_arr, "%0*d", (int) sizeof(_arr) - 1, _pos);	\
+	M0_UT_ASSERT(_rc > 0 && _rc < sizeof(_arr));			\
+	m0_buf_init(_buf, _arr, _rc + 1);				\
+} while(0)
+
+#define INIT_VBUF(_buf, _arr, _pos) do { \
+	size_t _s = (_pos & 1) != 0 ? sizeof(_arr) : sizeof(_arr) / 2;	\
+	int _rc = sprintf(_arr, "%0*d", (int) (_s) - 1, _pos);		\
+	M0_UT_ASSERT(_rc > 0 && _rc < sizeof(_arr));			\
+	m0_buf_init(_buf, _arr, _rc + 1);				\
+} while(0)
+
+
 /* Check if the cursor is pointing at a kv that has the expected data. */
 static void cursor_pos_verify(struct m0_be_btree_cursor *cur, int pos,
 			      bool verify_value)
@@ -472,27 +517,15 @@ static void cursor_pos_verify(struct m0_be_btree_cursor *cur, int pos,
 	struct m0_buf expected_v;
 	char          ev[INSERT_VSIZE * 2];
 	char          ek[INSERT_KSIZE];
-	int           rc;
 
 	m0_be_btree_cursor_kv_get(cur, &actual_k, &actual_v);
 
-	m0_buf_init(&expected_k, ek, INSERT_KSIZE);
-	rc = sprintf(ek, "%0*d", INSERT_KSIZE-1, pos);
-	M0_ASSERT(rc > 0 && rc < sizeof(ek) + 1);
+	INIT_SBUF(&expected_k, ek, pos);
 
 	M0_UT_ASSERT(m0_buf_eq(&actual_k, &expected_k));
 
 	if (verify_value) {
-		if ((pos & 1) == 0) {
-			m0_buf_init(&expected_v, ev, INSERT_VSIZE);
-			rc = sprintf(ev, "%0*d", INSERT_VSIZE - 1, pos);
-			M0_ASSERT(rc > 0 && rc < sizeof(ev) + 1);
-		} else {
-			m0_buf_init(&expected_v, ev, INSERT_VSIZE*2);
-			rc = sprintf(ev, "%0*d", INSERT_VSIZE*2 - 1, pos);
-			M0_ASSERT(rc > 0 && rc < sizeof(ev) + 1);
-		}
-
+		INIT_VBUF(&expected_v, ev, pos);
 		M0_UT_ASSERT(m0_buf_eq(&actual_v, &expected_v));
 	}
 }
@@ -502,7 +535,6 @@ static void cursor_pos_verify(struct m0_be_btree_cursor *cur, int pos,
  * we define them right here. Later on we may consider
  * moving them into the public API.
  */
-#if 1
 static uint64_t value2bpv(struct m0_buf *value, int key_size)
 {
 	uint64_t offset = m0_align(key_size, sizeof(void*)) + sizeof(uint64_t);
@@ -518,7 +550,6 @@ static bool value2tbs(struct m0_buf *value, int key_size)
 {
 	return !!(value2bpv(value, key_size) & (1L << 63));
 }
-#endif
 
 static void btree_tbs_insert_delete(struct m0_be_btree *tree, int pos)
 {
@@ -602,22 +633,13 @@ static void btree_tbs_insert_delete(struct m0_be_btree *tree, int pos)
 	char                      k[INSERT_KSIZE];
 	char                      newv[INSERT_VSIZE*2];
 	char                      oldv[INSERT_VSIZE*2];
-	struct m0_be_btree_anchor anchor;
 
 	for (i = 0; i < ARRAY_SIZE(cases); i++) {
 		tc = &cases[i];
 
-		rc = sprintf(k, "%0*d", INSERT_KSIZE-1, pos);
-		M0_ASSERT(rc > 0 && rc < sizeof(k) + 1);
-		m0_buf_init(&key, k, rc + 1);
-
-		rc = sprintf(oldv, "%0*d", INSERT_VSIZE*2 - 1, pos);
-		M0_ASSERT(rc > 0 && rc < sizeof(oldv) + 1);
-		m0_buf_init(&old_val, oldv, rc + 1);
-
-		rc = sprintf(newv, "%0*d", INSERT_VSIZE-1, pos);
-		M0_ASSERT(rc > 0 && rc < sizeof(newv) + 1);
-		m0_buf_init(&new_val, newv, rc + 1);
+		INIT_SBUF(&key, k, pos);
+		INIT_VBUF(&old_val, oldv, pos);
+		INIT_VBUF(&new_val, newv, pos);
 
 		actual_val = M0_BUF_INIT0;
 
@@ -650,14 +672,10 @@ static void btree_tbs_insert_delete(struct m0_be_btree *tree, int pos)
 		M0_UT_ASSERT(ergo(tc->o_tbs == ALIVE && tc->o_value != EMPTY,
 				  rc == 0));
 
-		M0_SET0(&anchor);
-
 		/* We should end up with something inserted either way. */
-		rc = M0_BE_OP_SYNC_RET(op,
-			m0_be_btree_lookup_inplace(tree, &op, &key, &anchor),
-			bo_u.u_btree.t_rc);
+		rc = btree_lookup_any(tree, &key, &actual_val);
+		M0_UT_ASSERT(rc == 0);
 
-		actual_val = anchor.ba_value;
 		actual_ver = value2version(&actual_val, key.b_nob);
 		is_dead = value2tbs(&actual_val, key.b_nob);
 
@@ -678,10 +696,76 @@ static void btree_tbs_insert_delete(struct m0_be_btree *tree, int pos)
 
 		M0_UT_ASSERT(actual_ver == tc->o_ver);
 		M0_UT_ASSERT(equi(is_dead, tc->o_tbs == DEAD));
-
-		m0_be_btree_release(NULL, &anchor);
 	}
 }
+
+static void btree_tbs_cursor_test(struct m0_be_btree *tree)
+{
+	struct m0_buf             key;
+	struct m0_buf             val;
+	char                      k[INSERT_KSIZE];
+	char                      v[INSERT_VSIZE*2];
+	int                       rc;
+	struct m0_be_btree_cursor cursor = {};
+
+	/* insert 3 entries: [pair1@1, pair2-tombstone@1, pair3@1] */
+
+	/* pair1 */
+	INIT_SBUF(&key, k, 1);
+	INIT_SBUF(&val, v, 1);
+	rc = btree_save_ver(tree, &key, &val, 1, true);
+	M0_UT_ASSERT(rc == 0);
+
+	/* pair2-tombstone */
+	INIT_SBUF(&key, k, 2);
+	btree_kill_one(tree, &key, 1);
+
+	/* pair3 */
+	INIT_SBUF(&key, k, 3);
+	INIT_SBUF(&val, v, 3);
+	rc = btree_save_ver(tree, &key, &val, 1, true);
+	M0_UT_ASSERT(rc == 0);
+
+
+	/* Check if get() finds the first pair. */
+	m0_be_btree_cursor_alive_init(&cursor, tree);
+	INIT_SBUF(&key, k, 1);
+	rc = M0_BE_OP_SYNC_RET_WITH(&cursor.bc_op,
+			      m0_be_btree_cursor_get(&cursor, &key, true),
+			      bo_u.u_btree.t_rc);
+	M0_UT_ASSERT(rc == 0);
+	cursor_pos_verify(&cursor, 1, true);
+	M0_SET0(&cursor.bc_op);
+
+	/* Check if next() skips tombstones. */
+	rc = M0_BE_OP_SYNC_RET_WITH(&cursor.bc_op,
+				      m0_be_btree_cursor_next(&cursor),
+				      bo_u.u_btree.t_rc);
+	M0_UT_ASSERT(rc == 0);
+	cursor_pos_verify(&cursor, 3, true);
+	M0_SET0(&cursor.bc_op);
+
+	/* Let's check if we skip tombstones with SLANT. */
+	m0_be_btree_cursor_alive_init(&cursor, tree);
+	INIT_SBUF(&key, k, 2);
+	rc = M0_BE_OP_SYNC_RET_WITH(&cursor.bc_op,
+			      m0_be_btree_cursor_get(&cursor, &key, true),
+			      bo_u.u_btree.t_rc);
+	M0_UT_ASSERT(rc == 0);
+	cursor_pos_verify(&cursor, 3, true);
+	M0_SET0(&cursor.bc_op);
+
+	/* Ensure an ordinary cursor sees dead pairs */
+	m0_be_btree_cursor_init(&cursor, tree);
+	INIT_SBUF(&key, k, 2);
+	rc = M0_BE_OP_SYNC_RET_WITH(&cursor.bc_op,
+			      m0_be_btree_cursor_get(&cursor, &key, false),
+			      bo_u.u_btree.t_rc);
+	M0_UT_ASSERT(rc == 0);
+	cursor_pos_verify(&cursor, 2, false);
+	M0_SET0(&cursor.bc_op);
+}
+
 
 /*
  * This test case does a small portion of sanity testing of
@@ -691,7 +775,6 @@ static void btree_tbs_insert_delete(struct m0_be_btree *tree, int pos)
  */
 static void btree_tbs_ver_test(struct m0_be_btree *tree)
 {
-
 	struct m0_buf             key;
 	struct m0_buf             val;
 	struct m0_buf             actual_val = {};
@@ -699,26 +782,19 @@ static void btree_tbs_ver_test(struct m0_be_btree *tree)
 	char                      k[INSERT_KSIZE];
 	char                      v[INSERT_VSIZE*2];
 	char                      nextv[INSERT_VSIZE*2];
-	char                      actv[INSERT_VSIZE*2];
 	int                       rc;
-	int                       i;
-	struct m0_be_btree_cursor cursor = {};
 
 	enum { YESTERDAY = 1, TODAY = 2, TOMORROW = 3, };
 
-	m0_buf_init(&key, k, INSERT_KSIZE);
-	m0_buf_init(&val, v, INSERT_VSIZE);
-	m0_buf_init(&nv,  nextv, INSERT_VSIZE);
-	m0_buf_init(&actual_val,  actv, INSERT_VSIZE);
+	INIT_SBUF(&key, k, INSERT_COUNT - 1);
+	INIT_SBUF(&val, v, INSERT_COUNT - 1);
+	INIT_SBUF(&nv, nextv, INSERT_COUNT - 2);
 
-	rc = sprintf(k, "%0*d", INSERT_KSIZE-1, INSERT_COUNT - 1);
-	M0_ASSERT(rc > 0 && rc < sizeof(k) + 1);
-	rc = sprintf(v, "%s", "VALUE00000");
-	M0_ASSERT(rc > 0 && rc < sizeof(v) + 1);
-	rc = sprintf(nextv, "%s", "VALUE11111");
-	M0_ASSERT(rc > 0 && rc < sizeof(nextv) + 1);
+	rc = btree_insert(tree, &key, &val, 0);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(!m0_be_btree_is_empty(tree));
 
-	/* We have a key ... */
+	/* We have a key */
 	rc = M0_BE_OP_SYNC_RET(
 		op, m0_be_btree_lookup(tree, &op, &key, &actual_val),
 		bo_u.u_btree.t_rc);
@@ -750,18 +826,14 @@ static void btree_tbs_ver_test(struct m0_be_btree *tree)
 	/* Delete the record, so that we can play with versions. */
 	rc = btree_delete(tree, &key, 0);
 	M0_UT_ASSERT(rc == 0);
-	rc = M0_BE_OP_SYNC_RET(
-		op, m0_be_btree_lookup(tree, &op, &key, &actual_val),
-		bo_u.u_btree.t_rc);
+	rc = btree_lookup_any(tree, &key, &actual_val);
 	M0_UT_ASSERT(rc == -ENOENT);
 
 	/* Insert (K1,V1)@1 */
 	rc = btree_save_ver(tree, &key, &val, YESTERDAY, true);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = M0_BE_OP_SYNC_RET(
-		op, m0_be_btree_lookup(tree, &op, &key, &actual_val),
-		bo_u.u_btree.t_rc);
+	rc = btree_lookup_any(tree, &key, &actual_val);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_buf_eq(&actual_val, &val));
 
@@ -769,9 +841,7 @@ static void btree_tbs_ver_test(struct m0_be_btree *tree)
 	rc = btree_save_ver(tree, &key, &val, TODAY, true);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = M0_BE_OP_SYNC_RET(
-		op, m0_be_btree_lookup(tree, &op, &key, &actual_val),
-		bo_u.u_btree.t_rc);
+	rc = btree_lookup_any(tree, &key, &actual_val);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_buf_eq(&actual_val, &val));
 
@@ -793,110 +863,6 @@ static void btree_tbs_ver_test(struct m0_be_btree *tree)
 	M0_UT_ASSERT(rc == 0);
 	rc = btree_insert(tree, &key, &val, 0);
 	M0_UT_ASSERT(rc == 0);
-
-	/*
-	 * Now let's try to insert some tombstones. Then
-	 * we will try to iterate over them.
-	 */
-
-	/* Deelete a handful of records somewhere in the middle */
-	for (i = 1; i < 11; i++) {
-		rc = sprintf(k, "%0*d", INSERT_KSIZE-1, i);
-		M0_ASSERT(rc > 0 && rc < sizeof(k) + 1);
-		rc = btree_delete(tree, &key, 0);
-		M0_UT_ASSERT(rc == 0);
-	}
-
-
-	/* insert 3 entries: pair1@1,pair2-tombstone@1,pair3@1 */
-
-	/* pair1 */
-	rc = sprintf(k, "%0*d", INSERT_KSIZE-1, 1);
-	M0_ASSERT(rc > 0 && rc < sizeof(k) + 1);
-	rc = sprintf(v, "%0*d", INSERT_VSIZE*2-1, 1);
-	M0_ASSERT(rc > 0 && rc < sizeof(v) + 1);
-	m0_buf_init(&val, v, INSERT_VSIZE*2);
-	rc = btree_save_ver(tree, &key, &val, 1, true);
-	M0_UT_ASSERT(rc == 0);
-
-	/* pair3 */
-	rc = sprintf(k, "%0*d", INSERT_KSIZE-1, 3);
-	M0_ASSERT(rc > 0 && rc < sizeof(k) + 1);
-	rc = sprintf(v, "%0*d", INSERT_VSIZE*2-1, 3);
-	M0_ASSERT(rc > 0 && rc < sizeof(v) + 1);
-	m0_buf_init(&val, v, INSERT_VSIZE*2);
-	rc = btree_save_ver(tree, &key, &val, 1, true);
-	M0_UT_ASSERT(rc == 0);
-
-	/* pair2-tombstone */
-	rc = sprintf(k, "%0*d", INSERT_KSIZE-1, 2);
-	M0_ASSERT(rc > 0 && rc < sizeof(k) + 1);
-	btree_kill_one(tree, &key, 1);
-
-	/* Now let's try to find pair1@1 and the let's see what we can find. */
-
-	m0_be_btree_cursor_init(&cursor, tree);
-	rc = sprintf(k, "%0*d", INSERT_KSIZE-1, 1);
-	M0_ASSERT(rc > 0 && rc < sizeof(k) + 1);
-	rc = M0_BE_OP_SYNC_RET_WITH(&cursor.bc_op,
-			      m0_be_btree_cursor_alive_get(&cursor, &key, true),
-			      bo_u.u_btree.t_rc);
-	M0_UT_ASSERT(rc == 0);
-	cursor_pos_verify(&cursor, 1, true);
-	M0_SET0(&cursor.bc_op);
-
-	rc = M0_BE_OP_SYNC_RET_WITH(&cursor.bc_op,
-				      m0_be_btree_cursor_alive_next(&cursor),
-				      bo_u.u_btree.t_rc);
-	M0_UT_ASSERT(rc == 0);
-	cursor_pos_verify(&cursor, 3, true);
-	M0_SET0(&cursor.bc_op);
-
-	/* Let's check if we skip tombstones */
-	m0_be_btree_cursor_init(&cursor, tree);
-	rc = sprintf(k, "%0*d", INSERT_KSIZE-1, 2);
-	M0_ASSERT(rc > 0 && rc < sizeof(k) + 1);
-	rc = M0_BE_OP_SYNC_RET_WITH(&cursor.bc_op,
-			      m0_be_btree_cursor_alive_get(&cursor, &key, true),
-			      bo_u.u_btree.t_rc);
-	M0_UT_ASSERT(rc == 0);
-	cursor_pos_verify(&cursor, 3, true);
-	M0_SET0(&cursor.bc_op);
-
-	/* Ensure an ordinary cursor sees dead pairs */
-	m0_be_btree_cursor_init(&cursor, tree);
-	rc = sprintf(k, "%0*d", INSERT_KSIZE-1, 2);
-	M0_ASSERT(rc > 0 && rc < sizeof(k) + 1);
-	rc = M0_BE_OP_SYNC_RET_WITH(&cursor.bc_op,
-			      m0_be_btree_cursor_get(&cursor, &key, false),
-			      bo_u.u_btree.t_rc);
-	M0_UT_ASSERT(rc == 0);
-	cursor_pos_verify(&cursor, 2, false);
-	M0_SET0(&cursor.bc_op);
-
-	/* Do a series of insert-delete tests. */
-	btree_tbs_insert_delete(tree, 1);
-
-	/* Restore the handful of records that we have deleted initialy. */
-	for (i = 1; i < 11; i++) {
-		m0_buf_init(&key, k, INSERT_KSIZE);
-		rc = sprintf(k, "%0*d", INSERT_KSIZE-1, i);
-		M0_ASSERT(rc > 0 && rc < sizeof(k) + 1);
-		rc = btree_delete(tree, &key, 0);
-		M0_UT_ASSERT(M0_IN(rc, (0, -ENOENT)));
-		if ((i & 1) == 0) {
-			m0_buf_init(&val, v, INSERT_VSIZE);
-			rc = sprintf(v, "%0*d", INSERT_VSIZE-1, i);
-			M0_ASSERT(rc > 0 && rc < sizeof(v) + 1);
-		} else {
-			m0_buf_init(&val, v, INSERT_VSIZE*2);
-			rc = sprintf(v, "%0*d", INSERT_VSIZE*2 - 1, i);
-			M0_ASSERT(rc > 0 && rc < sizeof(v) + 1);
-		}
-		rc = btree_insert(tree, &key, &val, 0);
-		M0_UT_ASSERT(rc == 0);
-
-	}
 }
 
 
@@ -987,19 +953,14 @@ static void btree_save_test(struct m0_be_btree *tree)
 	btree_delete(tree, &key, 0);
 }
 
-static struct m0_be_btree *create_tree(void)
+static struct m0_be_btree *btree_empty_create(bool versioned)
 {
 	struct m0_be_tx_credit *cred;
 	struct m0_be_btree     *tree;
 	struct m0_be_tx        *tx;
 	struct m0_buf           key;
-	struct m0_buf           val;
-	char                    k[INSERT_KSIZE];
-	char                    v[INSERT_VSIZE * 2];
-	char                    v2[INSERT_VSIZE * 3];
 	struct m0_be_op        *op;
 	int                     rc;
-	int                     i;
 
 	M0_ENTRY();
 
@@ -1029,6 +990,9 @@ static struct m0_be_btree *create_tree(void)
 	M0_BE_ALLOC_PTR_SYNC(tree, seg, tx);
 	m0_be_btree_init(tree, seg, &kv_ops);
 
+	if (versioned)
+		tree->bb_flags = M0_BITS(M0_BBF_IS_VERSIONED);
+
 	M0_BE_OP_SYNC_WITH(op,
 		   m0_be_btree_create(tree, tx, op, &M0_FID_TINIT('b', 0, 1)));
 	M0_UT_ASSERT(m0_fid_eq(&tree->bb_backlink.bli_fid,
@@ -1046,6 +1010,35 @@ static struct m0_be_btree *create_tree(void)
 	rc = M0_BE_OP_SYNC_RET_WITH(op, m0_be_btree_maxkey(tree, op, &key),
 	                            bo_u.u_btree.t_rc);
 	M0_UT_ASSERT(rc == -ENOENT && key.b_addr == NULL && key.b_nob == 0);
+
+	M0_UT_ASSERT(m0_be_btree_is_empty(tree));
+	return tree;
+}
+
+static struct m0_be_btree *create_tree(void)
+{
+	struct m0_be_tx_credit *cred;
+	struct m0_be_btree     *tree;
+	struct m0_be_tx        *tx;
+	struct m0_buf           key;
+	struct m0_buf           val;
+	char                    k[INSERT_KSIZE];
+	char                    v[INSERT_VSIZE * 2];
+	char                    v2[INSERT_VSIZE * 3];
+	struct m0_be_op        *op;
+	int                     rc;
+	int                     i;
+
+	M0_ENTRY();
+
+	M0_ALLOC_PTR(cred);
+	M0_UT_ASSERT(cred != NULL);
+	M0_ALLOC_PTR(op);
+	M0_UT_ASSERT(op != NULL);
+	M0_ALLOC_PTR(tx);
+	M0_UT_ASSERT(tx != NULL);
+
+	tree = btree_empty_create(false);
 
 	m0_buf_init(&key, k, INSERT_KSIZE);
 	M0_LOG(M0_INFO, "Inserting...");
@@ -1072,7 +1065,6 @@ static struct m0_be_btree *create_tree(void)
 	btree_dbg_print(tree);
 
 	btree_delete_test(tree, tx);
-	btree_tbs_ver_test(tree);
 	btree_save_test(tree);
 	M0_LOG(M0_INFO, "Updating...");
 	m0_be_ut_tx_init(tx, ut_be);
@@ -1392,6 +1384,45 @@ static void check(struct m0_be_btree *tree)
 	btree_dbg_print(tree);
 	m0_be_btree_fini(tree);
 	m0_free(op);
+}
+
+void m0_be_ut_btree_ver_and_tbs(void)
+{
+	struct m0_be_btree *tree0;
+
+	M0_ENTRY();
+	M0_ALLOC_PTR(ut_be);
+	M0_UT_ASSERT(ut_be != NULL);
+
+	M0_ALLOC_PTR(ut_seg);
+	M0_UT_ASSERT(ut_seg != NULL);
+	/* Init BE */
+	m0_be_ut_backend_init(ut_be);
+	m0_be_ut_seg_init(ut_seg, ut_be, 1ULL << 24);
+	seg = ut_seg->bus_seg;
+
+	tree0 = btree_empty_create(true);
+	m0_be_ut_seg_reload(ut_seg);
+	m0_be_btree_init(tree0, seg, &kv_ops);
+
+	/* Do generic testing of the version-aware API. */
+	btree_tbs_ver_test(tree0);
+
+	/* Test the cursor-related API (get/next). */
+	btree_tbs_cursor_test(tree0);
+
+	/* Check a set of insert-delete test cases. */
+	btree_tbs_insert_delete(tree0, 1);
+
+	destroy_tree(tree0);
+	m0_be_ut_seg_reload(ut_seg);
+
+	m0_be_ut_seg_fini(ut_seg);
+	m0_be_ut_backend_fini(ut_be);
+	m0_free(ut_seg);
+	m0_free(ut_be);
+
+	M0_LEAVE();
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -278,6 +278,13 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 	if (ctg == NULL)
 		return M0_ERR(-ENOMEM);
 
+	/* Use versioned btrees for ordinary catalogues when DTM0 is enabled. */
+	if (!m0_fid_eq(&m0_cas_ctidx_fid, cas_fid) &&
+	    !m0_fid_eq(&m0_cas_meta_fid, cas_fid) && ENABLE_DTM0) {
+		/* It will be captured later by m0_be_btree_create. */
+		ctg->cc_tree.bb_flags = M0_BITS(M0_BBF_IS_VERSIONED);
+	}
+
 	ctg_init(ctg, seg);
 	rc = M0_BE_OP_SYNC_RET(op,
 		       m0_be_btree_create(&ctg->cc_tree, tx, &op,
@@ -1017,7 +1024,6 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 	int                        ct     = ctg_op->co_ct;
 	uint64_t                   ver    = 0;
 	uint64_t                   zones;
-	bool                       use_ver = false;
 
 	zones = M0_BITS(M0_BAP_NORMAL) |
 		((ctg_op->co_flags & COF_RESERVE) ? M0_BITS(M0_BAP_REPAIR) : 0);
@@ -1026,9 +1032,7 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 	 * Use the versioned btree API for ordinary CAS operations while
 	 * working in DTM0 environment.
 	 */
-	use_ver = ENABLE_DTM0 && ctg_is_ordinary(ctg_op->co_ctg);
-
-	if (use_ver && cas_op != NULL) {
+	if (ENABLE_DTM0 && ctg_is_ordinary(ctg_op->co_ctg) && cas_op != NULL) {
 		/*
 		 * TODO: We ignore the FID of the originator here. It does not
 		 * allow us to properly order transactions with the same TS
@@ -1037,27 +1041,26 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		 * properly addresed by the user.
 		 */
 		ver = cas_op->cg_txd.dtd_id.dti_ts.dts_phys;
-		M0_ASSERT(ergo(ver != 0,
-			       !m0_dtm0_tx_desc_is_none(&cas_op->cg_txd)));
 	}
 
 	switch (CTG_OP_COMBINE(opc, ct)) {
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 		anchor->ba_value.b_nob = M0_CAS_CTG_KV_HDR_SIZE +
 					 ctg_op->co_val.b_nob;
-		m0_be_btree_save_inplace(btree, tx, beop, key, ver, anchor,
+		m0_be_btree_save_inplace(btree, tx, beop,
+					 &M0_VERBUF_INIT(*key, ver), anchor,
 					 !!(ctg_op->co_flags & COF_OVERWRITE),
 					 zones);
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_META):
-		M0_ASSERT(!use_ver);
+		M0_ASSERT(!m0_be_btree_is_versioned(btree));
 		M0_ASSERT(!(ctg_op->co_flags & COF_OVERWRITE));
 		anchor->ba_value.b_nob = M0_CAS_CTG_KV_HDR_SIZE +
 					 sizeof(struct m0_cas_ctg *);
 		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor, zones);
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_DEAD_INDEX):
-		M0_ASSERT(!use_ver);
+		M0_ASSERT(ver == 0);
 		/*
 		 * No need a value in dead index, but, seems, must put something
 		 * there. Do not fill anything in the callback after
@@ -1067,18 +1070,10 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor, zones);
 		break;
 	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
-		if (use_ver) {
-			m0_be_btree_lookup_alive_inplace(btree, beop, key,
-							 anchor);
-			break;
-		}
-		/* XXX: sneaky fallthrough */
 	case CTG_OP_COMBINE(CO_GET, CT_META):
-		M0_ASSERT(!use_ver);
 		m0_be_btree_lookup_inplace(btree, beop, key, anchor);
 		break;
 	case CTG_OP_COMBINE(CO_MIN, CT_BTREE):
-		M0_ASSERT(!use_ver);
 		m0_be_btree_minkey(btree, beop, &ctg_op->co_out_key);
 		break;
 	case CTG_OP_COMBINE(CO_TRUNC, CT_BTREE):
@@ -1090,33 +1085,15 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		m0_be_btree_destroy(btree, tx, beop);
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-		if (use_ver && ver != 0) {
-			m0_be_btree_kill(btree, tx, beop, key, ver);
-			break;
-		}
-		/* XXX: sneaky fallthrough */
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
-		m0_be_btree_delete(btree, tx, beop, key);
+		m0_be_btree_delete(btree, tx, beop, &M0_VERBUF_INIT(*key, ver));
 		break;
 	case CTG_OP_COMBINE(CO_GC, CT_META):
-		M0_ASSERT(!use_ver);
+		M0_ASSERT(ver == 0);
 		m0_cas_gc_wait_async(beop);
 		break;
 	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
-		if (use_ver) {
-			/* TODO: copy-pasted, merge it with the code below */
-			M0_ASSERT(M0_IN(ctg_op->co_cur_phase,
-					(CPH_GET, CPH_NEXT)));
-			if (ctg_op->co_cur_phase == CPH_GET)
-				m0_be_btree_cursor_alive_get(cur, key,
-					       !!(ctg_op->co_flags & COF_SLANT));
-			else
-				m0_be_btree_cursor_alive_next(cur);
-			break;
-		}
-		/* XXX: sneaky fallthrough */
 	case CTG_OP_COMBINE(CO_CUR, CT_META):
-		M0_ASSERT(!use_ver);
 		M0_ASSERT(ctg_op->co_cur_phase == CPH_GET ||
 			  ctg_op->co_cur_phase == CPH_NEXT);
 		if (ctg_op->co_cur_phase == CPH_GET)
@@ -1418,7 +1395,13 @@ M0_INTERNAL void m0_ctg_cursor_init(struct m0_ctg_op  *ctg_op,
 	ctg_op->co_cur_phase = CPH_INIT;
 	M0_SET0(&ctg_op->co_cur.bc_op);
 
-	m0_be_btree_cursor_init(&ctg_op->co_cur, &ctg_op->co_ctg->cc_tree);
+	if (m0_be_btree_is_versioned(&ctg_op->co_ctg->cc_tree))
+		m0_be_btree_cursor_alive_init(&ctg_op->co_cur,
+					      &ctg_op->co_ctg->cc_tree);
+	else
+		m0_be_btree_cursor_init(&ctg_op->co_cur,
+					&ctg_op->co_ctg->cc_tree);
+
 	ctg_op->co_cur_initialised = true;
 }
 

@@ -56,6 +56,10 @@ struct m0_be_btree_backlink {
 	struct m0_fid    bli_fid;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
+enum m0_bb_flag {
+	M0_BBF_IS_VERSIONED,
+};
+
 /** In-memory B-tree, that can be stored on disk. */
 struct m0_be_btree {
 	/*
@@ -66,10 +70,7 @@ struct m0_be_btree {
 	struct m0_be_btree_backlink      bb_backlink;
 	/** Root node of the tree. */
 	struct m0_be_bnode              *bb_root;
-	/* TODO: Consider setting up the field before or after btree_create. */
-#if 0
-	uint64_t                         bb_is_versioned;
-#endif
+	uint64_t                         bb_flags;
 	struct m0_format_footer          bb_footer;
 	/*
 	 * volatile-only fields
@@ -93,6 +94,31 @@ enum m0_be_btree_format_version {
 	/** Current version, should point to the latest version present */
 	M0_BE_BTREE_FORMAT_VERSION = M0_BE_BTREE_FORMAT_VERSION_1
 };
+
+/** Verbuf is a buffer with a version attached to it.
+ * When a versioned btree is used (see M0_BBF_IS_VERSIONED), some of the
+ * functions that modify the tree (save_inplace and delete) are trying to
+ * cast the given key buffer to this structure.
+ * It is safe as long as no one is going to use a versioned
+ * tree without verbufs for these functions.
+ * @see m0_be_btree_save_inplace
+ * @see m0_be_btree_delete
+ */
+struct m0_verbuf {
+	struct m0_buf vb_buf;
+	uint64_t      vb_ver;
+};
+
+/** Initialise a verbuf with m0_buf buffer and u64 version.
+ * Note, the return type of the macro is "struct m0_buf".
+ */
+#define M0_VERBUF_INIT(__buf, __ver) (((struct m0_verbuf) {	\
+	.vb_buf = (__buf),					\
+	.vb_ver = (__ver),					\
+}).vb_buf)
+
+/** Initialise a verbuf that holds only the buffer but no version at all. */
+#define M0_VERBUF_NO_VER_INIT(__buf) M0_VERBUF_INIT(__buf, 0L)
 
 struct m0_table;
 struct m0_table_ops;
@@ -561,19 +587,12 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree *tree,
  * User has to allocate his own @value buffer and capture node buffer
  * in which @key is inserted.
  *
- * The version (ver) argument enables verion-aware behavior when it is not 0.
- * The old pairs are not updated (ver < stored version) in this case.
- * Note, that the anchor value (ba_value) is zeroed in this case!
- * Also, this function is the only place that is able to clear the
- * tombstone flag so far.
- *
  * @see m0_be_btree_update_inplace()
  */
 M0_INTERNAL void m0_be_btree_save_inplace(struct m0_be_btree        *tree,
 					  struct m0_be_tx           *tx,
 					  struct m0_be_op           *op,
 					  const struct m0_buf       *key,
-					  uint64_t                   ver,
 					  struct m0_be_btree_anchor *anchor,
 					  bool                       overwrite,
 					  uint64_t                   zonemask);
@@ -589,18 +608,6 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
 					    struct m0_be_op *op,
 					    const struct m0_buf *key,
 					    struct m0_be_btree_anchor *anchor);
-
-/**
- * Tombstone-aware version of lookup_inplace().
- * The function returns -ENOENT when the pair found has the tombstone flag set.
- * Otherwise, it works in the same way as the original function.
- */
-M0_INTERNAL
-void m0_be_btree_lookup_alive_inplace(struct m0_be_btree        *tree,
-				      struct m0_be_op           *op,
-				      const struct m0_buf       *key,
-				      struct m0_be_btree_anchor *anchor);
-
 /**
  * Completes m0_be_btree_*_inplace() operation by capturing all affected
  * regions with m0_be_tx_capture() (if needed) and unlocking the tree.
@@ -641,6 +648,8 @@ struct m0_be_btree_cursor {
 	struct m0_be_bnode                   *bc_node;
 	struct m0_be_btree_cursor_stack_entry bc_stack[BTREE_HEIGHT_MAX];
 	struct m0_be_op                       bc_op; /* XXX DELETEME */
+	bool                                  bc_yield_dead;
+	bool                                  bc_yield_alive;
 };
 
 /**
@@ -650,6 +659,14 @@ struct m0_be_btree_cursor {
  */
 M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *it,
 					 struct m0_be_btree *tree);
+
+/** Initialises a cursor that iterates only over alive key-value pairs. */
+M0_INTERNAL void m0_be_btree_cursor_alive_init(struct m0_be_btree_cursor *it,
+					       struct m0_be_btree *tree);
+
+/** Initialises a cursor that iterates only over dead key-value pairs. */
+M0_INTERNAL void m0_be_btree_cursor_dead_init(struct m0_be_btree_cursor *it,
+					      struct m0_be_btree *tree);
 
 /**
  * Finalizes cursor.
@@ -681,20 +698,6 @@ M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *it);
 M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *it,
 					const struct m0_buf *key, bool slant);
 
-/**
- * Tombstone-aware version of cursor_get().
- * The function as as cursor_get but it does not show the user dead pairs
- * (marked with tombstones):
- *	Slant mode: returns an alive pair or the nearest alive pair,
- *		and it returns ENOENT if the tree has no next alive pairs.
- *	Non-slant mode: returns an alive record or ENOENT otherwise.
- * (Note: "returns an alive pair" means "sets the cursor at the position pointed
- * by "key" if the corresponding pair is alive").
- */
-M0_INTERNAL void m0_be_btree_cursor_alive_get(struct m0_be_btree_cursor *cur,
-					      const struct m0_buf *key,
-					      bool slant);
-
 /** Synchronous version of m0_be_btree_cursor_get(). */
 M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *it,
 					    const struct m0_buf *key,
@@ -709,13 +712,6 @@ M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *it,
  * Note: @see m0_be_btree_cursor_get note.
  */
 M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *it);
-
-/**
- * Tombstone-aware version of cursor_next().
- * The function finds next position in the tree where the pair is alive.
- * TODO: This function is under construction!
- */
-M0_INTERNAL void m0_be_btree_cursor_alive_next(struct m0_be_btree_cursor *cur);
 
 /** Synchronous version of m0_be_btree_cursor_next(). */
 M0_INTERNAL int m0_be_btree_cursor_next_sync(struct m0_be_btree_cursor *it);
@@ -768,6 +764,8 @@ M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *it,
  * @pre  tree->bb_root != NULL
  */
 M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree);
+
+M0_INTERNAL bool m0_be_btree_is_versioned(const struct m0_be_btree *tree);
 
 /** @} end of be group */
 #endif /* __MOTR_BE_BTREE_H__ */
