@@ -128,6 +128,17 @@ enum m0_fab__event_type {
 };
 
 /**
+ * Represents the libfabric connection link status for a libfabric endpoint
+ */
+enum m0_fab__connlink_status {
+	FAB_CONNLINK_DOWN              = 0x00,
+	FAB_CONNLINK_TXEP_READY        = 0x01,
+	FAB_CONNLINK_RXEP_READY        = 0x02,
+	FAB_CONNLINK_READY_TO_SEND     = 0x03,
+	FAB_CONNLINK_PENDING_SEND_DONE = 0x07
+};
+
+/**
  * Libfab structure for event context to be returned in the epoll_wait events
  */
 struct m0_fab__ev_ctx {
@@ -268,8 +279,11 @@ struct m0_fab__ep {
 	/** Passive endpoint */
 	struct m0_fab__passive_ep *fep_listen;
 	
-	/** List of buffers to send after connection establishment*/
+	/** List of buffers to send after connection establishment */
 	struct m0_tl               fep_sndbuf;
+
+	/** Flag to denote that the connection link status */
+	uint8_t                    fep_connlink;
 };
 
 /**
@@ -314,6 +328,9 @@ struct m0_fab__tm {
 
 	/** List of pending bulk operations */
 	struct m0_tl                    ftm_bulk;
+
+	/** Timestamp to monitor the interval for checking buffer timeouts */
+	m0_time_t                       ftm_tmout_check;
 };
 
 /**
