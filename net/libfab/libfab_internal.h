@@ -416,6 +416,9 @@ struct m0_fab__buf {
 
 	/** State of the buffer */
 	volatile enum m0_fab__buf_state  fb_state;
+	
+	/** Token used for passive recv buffer */
+	uint32_t                         fb_token;
 };
 
 /**

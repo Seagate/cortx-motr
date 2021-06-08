@@ -44,6 +44,7 @@ static char     *providers[] = { "verbs", "tcp", "sockets" };
 static char     *protf[]  = { "unix", "inet", "inet6" };
 static char     *socktype[] = { "stream", "dgram" };
 static uint64_t  mr_key_idx = 0;
+static uint32_t  buf_token = 0;
 /** 
  * Bitmap of used transfer machine identifiers. 1 is for used,
  * and 0 is for free.
@@ -156,6 +157,7 @@ static int libfab_bulklist_add(struct m0_fab__tm *tm, struct m0_fab__buf *fb,
 				struct m0_fab__active_ep *aep);
 static uint32_t libfab_wr_cnt_get(struct m0_fab__buf *fb);
 static void libfab_bulk_buf_process(struct m0_fab__tm *tm);
+static uint32_t libfab_buf_token_get(void);
 
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
@@ -636,10 +638,31 @@ static void libfab_txep_event_check(struct m0_fab__ep *txep,
 }
 
 /**
+ * This function is used to search for the passive buffer from the list
+ * using the token.
+ */
+static struct m0_fab__buf *libfab_token_buf_find(struct m0_net_transfer_mc *ntm,
+						 uint32_t token)
+{
+	struct m0_net_buffer *nb = NULL;
+	struct m0_fab__buf   *fb = NULL;
+
+	/* Search in passive buffer list of tm */
+	nb = m0_tl_find(m0_net_tm, nb, &ntm->ntm_q[M0_NET_QT_PASSIVE_BULK_RECV],
+			({
+				fb = nb->nb_xprt_private;
+				fb->fb_token == token;
+			}));
+
+	return nb != NULL ? fb : NULL;
+}
+
+/**
  * Check for completion events on the completion queue for the receive endpoint
  */
 static void libfab_rxep_comp_read(struct fid_cq *cq, struct m0_fab__ep *ep)
 {
+	struct m0_fab__buf *fb = NULL;
 	struct m0_fab__buf *buf[FAB_MAX_COMP_READ];
 	m0_bindex_t         len[FAB_MAX_COMP_READ];
 	uint64_t            data[FAB_MAX_COMP_READ];
@@ -656,9 +679,12 @@ static void libfab_rxep_comp_read(struct fid_cq *cq, struct m0_fab__ep *ep)
 				buf[i]->fb_ev_ep = ep;
 				libfab_buf_done(buf[i], 0);
 			}
-			if (data[i] != 0)
-				libfab_buf_done((struct m0_fab__buf*)data[i],
-						0);
+			if (data[i] != 0) {
+				fb = libfab_token_buf_find(ep->fep_nep.nep_tm,
+							   data[i]);
+				if (fb != NULL)
+					libfab_buf_done(fb, 0);
+			}
 		}
 	}
 }
@@ -1551,6 +1577,7 @@ static void libfab_buf_fini(struct m0_fab__buf *buf)
 	}
 	buf->fb_status = 0;
 	buf->fb_length = 0;
+	buf->fb_token = 0;
 	buf->fb_state = FAB_BUF_REGISTERED;
 
 }
@@ -1850,7 +1877,12 @@ static int libfab_bdesc_encode(struct m0_fab__buf *buf)
 
 	fbd = (struct m0_fab__bdesc *)nbd->nbd_data;
 	libfab_ep_pton(&tm->ftm_pep->fep_name, &fbd->fbd_netaddr);
-	fbd->fbd_bufptr = (uint64_t)buf;
+	if (nb->nb_qtype == M0_NET_QT_PASSIVE_BULK_RECV) {
+		buf->fb_token = libfab_buf_token_get();
+		fbd->fbd_bufptr = buf->fb_token;
+	} else
+		fbd->fbd_bufptr = (uint64_t)buf;
+
 	fbd->fbd_iov_cnt = (uint64_t)seg_nr;
 	iov = (struct fi_rma_iov *)(nbd->nbd_data + 
 				    sizeof(struct m0_fab__bdesc));
@@ -2379,6 +2411,14 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 	return M0_RC(ret);
 }
 
+/** 
+ * This function returns a unique token number.
+ */
+static uint32_t libfab_buf_token_get( void )
+{
+	return ++buf_token;
+}
+
 /*============================================================================*/
 
 /** 
@@ -2716,11 +2756,9 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	}
 
 	/* For passive buffers, generate the buffer descriptor. */
-	case M0_NET_QT_PASSIVE_BULK_RECV: {
+	case M0_NET_QT_PASSIVE_BULK_RECV:
 		fbp->fb_length = nb->nb_length;
-		ret = libfab_bdesc_encode(fbp);
-		break;
-	}
+		/* Intentional fall through */
 
 	case M0_NET_QT_PASSIVE_BULK_SEND: {
 		if (m0_net_tm_tlist_is_empty(
