@@ -61,9 +61,9 @@ enum m0_fab__libfab_params {
 	/** Key used for memory registration. */
 	FAB_MR_KEY               = 0xABCD,
 	/** Max number of IOV in read/write command (max number of segments) */
-	FAB_IOV_MAX              = 256,
+	FAB_IOV_MAX              = 64, //256,
 	/** Max segment size for bulk buffers (4k but can be increased) */
-	FAB_MAX_BULK_SEG_SIZE    = 4096,
+	FAB_MAX_BULK_SEG_SIZE    = 65536, //4096,
 	/** 
 	 * Max buffer size = FAB_IOV_MAX x FAB_MAX_SEG_SIZE 
 	 * (1MB but can be increased)
@@ -156,10 +156,32 @@ struct m0_fab__ev_ctx {
 };
 
 /**
- * Libfab structure for list of fabric interfaces in a transfer machine
+ * Libfab structure of buffer hash table.
  */
-struct m0_fab__list {
-	struct m0_tl fl_head;
+struct m0_fab__bufht {
+	/** Magic number for buffer hash table */
+	uint64_t         bht_magic;
+
+	/** Buffer hash table */
+	struct m0_htable bht_hash;
+};
+
+/**
+ * Libfab structure equivalent for network domain
+ */
+struct m0_fab__ndom {
+
+	/** Pointer to the m0net  domain structure */
+	struct m0_net_domain *fnd_ndom;
+
+	/** Lock used betn poller & tm_fini during shutdown */
+	struct m0_mutex fnd_lock;
+
+	/** List of fabric interfaces in a domain */
+	struct m0_tl fnd_fabrics;
+
+	// /** List of deregistered buffers */
+	// struct m0_fab__bufht fnd_bufhash;
 };
 
 /**
@@ -340,6 +362,9 @@ struct m0_fab__tm {
 
 	/** Timestamp to monitor the interval for checking buffer timeouts */
 	m0_time_t                       ftm_tmout_check;
+
+	/** Hash table of buffers associated to the tm */
+	struct m0_fab__bufht            ftm_bufhash;
 };
 
 /**
@@ -358,14 +383,14 @@ struct m0_fab__buf_mr {
  * sent from the passive side to the active side
  */
 struct m0_fab__bdesc {
-	/** Remote buffer iov count */
-	uint64_t fbd_iov_cnt;
-
 	/** Remote node address */
 	uint64_t fbd_netaddr;
-	
-	/** Remote buffer address */
-	uint64_t fbd_bufptr;
+
+	/** Remote buffer iov count */
+	uint32_t fbd_iov_cnt;
+
+	/** Remote buffer token */
+	uint32_t fbd_buftoken;
 };
 
 /**
@@ -378,8 +403,11 @@ struct m0_fab__buf {
 	/** Magic number for list of send buffers */
 	uint64_t                         fb_sndmagic;
 	
+	/** Magic number for buffer hash table */
+	uint64_t                         fb_htmagic;
+	
 	/** Dummy data + network buffer ptr */
-	uint64_t                         fb_dummy[2];
+	uint32_t                         fb_dummy[2];
 	
 	/** Buffer descriptor of the remote node */
 	struct m0_fab__bdesc            *fb_rbd;
@@ -407,6 +435,9 @@ struct m0_fab__buf {
 	
 	/** Link in list of send buffers */
 	struct m0_tlink                  fb_snd_link;
+
+	/** Link in buffer hash table */
+	struct m0_hlink                  fb_htlink;
 
 	/** Buffer completion status */
 	int32_t                          fb_status;

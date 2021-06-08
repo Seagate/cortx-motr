@@ -478,6 +478,7 @@ node_bulk_state_search(enum transfer_state state,
 		if (state_list[i].sta_from == state)
 			return state_list[i].sta_to;
 	}
+
 	M0_IMPOSSIBLE("Invalid 'from' state in net-test bulk testing.");
 	return TS_UNUSED;
 }
@@ -513,6 +514,7 @@ static void node_bulk_state_change_cb(struct node_bulk_ctx *ctx,
 		transition_size = 0;
 		M0_IMPOSSIBLE("Invalid node role in net-test bulk testing");
 	}
+	m0_nanosleep(50, NULL);
 	state = node_bulk_state_search(ctx->nbc_bs[bs_index].bsb_ts,
 				       transition, transition_size);
 	node_bulk_state_change(ctx, bs_index, state);
