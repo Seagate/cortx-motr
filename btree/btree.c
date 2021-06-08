@@ -1102,11 +1102,8 @@ struct level {
 	/** nd for newly allocated node at the level. **/
 	struct nd *l_alloc;
 
-	/** nd for left sibling of required node at current level. **/
-	struct nd *l_prev;
-
-	/** nd for right sibling of required node at current level. **/
-	struct nd *l_next;
+	/** nd for sibling node at current level. **/
+	struct nd *l_sibling;
 };
 
 /**
@@ -2391,7 +2388,7 @@ static bool path_check(struct m0_btree_oimpl *oi, struct td *tree,
 }
 
 /**
- * Validates the left or right sibling based on flags.
+ * Validates the siblig node and its sequence number.
  *
  * @param oi provides traversed nodes information.
  * @param flags operation flags.
@@ -2404,26 +2401,13 @@ static bool sibling_node_check(struct m0_btree_oimpl *oi, uint64_t flags)
 	if (!(flags & BOF_SIBLING) || (oi->i_pivot == -1))
 		return true;
 
-	if (flags & BOF_NEXT) {
-		l_node = oi->i_level[oi->i_used].l_next;
-		if (node_is_valid(l_node) != 0) {
-			node_op_fini(&oi->i_nop);
-			//return fail(bop, rc);
-			return false;
-		}
-		if (oi->i_level[oi->i_used].l_sib_seq != l_node->n_seq)
-			return false;
+	l_node = oi->i_level[oi->i_used].l_sibling;
+	if (node_is_valid(l_node) != 0) {
+		node_op_fini(&oi->i_nop);
+		return false;
 	}
-	else if (flags & BOF_PREV) {
-		l_node = oi->i_level[oi->i_used].l_prev;
-		if (node_is_valid(l_node) != 0) {
-			node_op_fini(&oi->i_nop);
-			//return fail(bop, rc);
-			return false;
-		}
-		if (oi->i_level[oi->i_used].l_sib_seq != l_node->n_seq)
-			return false;
-	}
+	if (oi->i_level[oi->i_used].l_sib_seq != l_node->n_seq)
+		return false;
 	return true;
 }
 
@@ -2475,13 +2459,9 @@ static void level_cleanup(struct m0_btree_oimpl *oi)
 			oi->i_level[i].l_alloc = NULL;
 		}
 	}
-	if (oi->i_level[oi->i_used].l_next != NULL) {
-		node_put(oi->i_level[oi->i_used].l_next);
-		oi->i_level[oi->i_used].l_next = NULL;
-	}
-	if (oi->i_level[oi->i_used].l_prev != NULL) {
-		node_put(oi->i_level[oi->i_used].l_prev);
-		oi->i_level[oi->i_used].l_prev = NULL;
+	if (oi->i_level[oi->i_used].l_sibling != NULL) {
+		node_put(oi->i_level[oi->i_used].l_sibling);
+		oi->i_level[oi->i_used].l_sibling = NULL;
 	}
 	if (oi->i_extra_node != NULL) {
 		node_put(oi->i_extra_node);
@@ -3118,7 +3098,8 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_NEXTDOWN] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_NEXTDOWN",
-		.sd_allowed = M0_BITS(P_NEXTDOWN, P_ALLOC, P_CLEANUP, P_LOCK, P_SIBLING),
+		.sd_allowed = M0_BITS(P_NEXTDOWN, P_ALLOC, P_CLEANUP, P_LOCK,
+				      P_SIBLING),
 	},
 	[P_SIBLING] = {
 		.sd_flags   = 0,
@@ -3687,14 +3668,8 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 						&child, P_SIBLING);
 			} else {
 				lev = &oi->i_level[oi->i_used];
-
-				if (bop->bo_flags & BOF_NEXT) {
-					lev->l_next = oi->i_nop.no_node;
-					lev->l_sib_seq = lev->l_next->n_seq;
-				} else {
-					lev->l_prev = oi->i_nop.no_node;
-					lev->l_sib_seq = lev->l_prev->n_seq;
-				}
+				lev->l_sibling = oi->i_nop.no_node;
+				lev->l_sib_seq = lev->l_sibling->n_seq;
 				return P_LOCK;
 			}
 		} else {
@@ -3752,8 +3727,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 				s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
 			else if (bop->bo_flags & BOF_SIBLING) {
 			/* Return sibling record based on flag. */
-				s.s_node = bop->bo_flags & BOF_NEXT ?
-					   lev->l_next : lev->l_prev;
+				s.s_node = lev->l_sibling;
 				s.s_idx = bop->bo_flags & BOF_NEXT ? 0 :
 					  node_count(s.s_node) - 1;
 				node_rec(&s);
