@@ -3242,9 +3242,9 @@ int calc_shift(int value)
 
 int64_t btree_create_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op     *bop   = M0_AMB(bop, smop, bo_op);
-	struct m0_btree_oimpl  *oi    = bop->bo_i;
-	struct m0_btree_idata  *data  = &bop->b_data;
+	struct m0_btree_op    *bop    = M0_AMB(bop, smop, bo_op);
+	struct m0_btree_oimpl *oi     = bop->bo_i;
+	struct m0_btree_idata *data   = &bop->b_data;
 	int                    k_size = data->bt->ksize == -1 ? MAX_KEY_SIZE :
 					data->bt->ksize;
 	int                    v_size = data->bt->vsize == -1 ? MAX_VAL_SIZE :
@@ -3322,6 +3322,13 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 	}
 }
 
+/**
+ * btree_open_tick function is used to traverse through different states to
+ * facilitate the working of m0_btree_open().
+ *
+ * @param smop Represents the state machine operation
+ * @return int64_t It returns the next state to be executed.
+ */
 int64_t btree_open_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop  = M0_AMB(bop, smop, bo_op);
@@ -3337,6 +3344,7 @@ int64_t btree_open_tick(struct m0_sm_op *smop)
 			if (bop->bo_i == NULL)
 				return M0_ERR(-ENOMEM);
 			oi = bop->bo_i;
+
 			oi->i_nop.no_addr = segaddr_build(bop->b_data.addr, 
 					    calc_shift(bop->b_data.num_bytes));
 
@@ -3614,6 +3622,17 @@ int64_t btree_del_tick(struct m0_sm_op *smop)
 	}
 }
 
+/**
+ * m0_btree_open is the API which is used by motr to fill the m0_btree structure
+ * with the tree descriptor and other detials.
+ *
+ * @param addr It is the address of root node allocated by the caller of this
+ * function
+ * @param nob It is the size of root node.
+ * @param out Pointer of m0_btree which is to be filled with data
+ * @param bop It represents the structure containing all the relevant details
+ * for carrying out btree operations.
+ */
 int  m0_btree_open(void *addr, int nob, struct m0_btree **out, 
 		   struct m0_btree_op *bop)
 {
@@ -4141,16 +4160,17 @@ static void m0_btree_ut_basic_tree_oper(void)
 						 nt, tx, &b_op),
 				 &b_op.bo_sm_group, &b_op.bo_op_exec);
 
-	//m0_btree_close(b_op.bo_arbor);
+	/** m0_btree_close(b_op.bo_arbor); */
 
-	// M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-	// 			 m0_btree_open(temp_node, 1024, &btree, &b_op),
-	// 			 &b_op.bo_sm_group, &b_op.bo_op_exec);
+	/** 
+	 * M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+	 *			 m0_btree_open(temp_node, 1024, &btree, &b_op),
+	 * 			 &b_op.bo_sm_group, &b_op.bo_op_exec);
+	 */
 
-	//m0_btree_close(btree);
+	/** m0_btree_close(btree); */
 
-	//btree = b_op.bo_arbor;
-
+	/** btree = b_op.bo_arbor; */
 	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(b_op.bo_arbor,
 				 &b_op), &b_op.bo_sm_group, &b_op.bo_op_exec);
 
@@ -4163,10 +4183,15 @@ static void m0_btree_ut_basic_tree_oper(void)
 	/** Now run some invalid cases */
 
 	/** Open a non-existent btree */
-	//m0_btree_open(invalid_addr, 1024, &btree, &b_op);
+	/** M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+	 *			     m0_btree_open(invalid_addr, 1024, &btree,
+	 *					   &b_op), &b_op.bo_sm_group,
+	 *			     &b_op.bo_op_exec);
+	 */
+
 
 	/** Close a non-existent btree */
-	//m0_btree_close(btree);
+	/** m0_btree_close(btree); */
 
 	/** Destroy a non-existent btree */
 	/**
@@ -4184,23 +4209,32 @@ static void m0_btree_ut_basic_tree_oper(void)
 				 &b_op.bo_sm_group, &b_op.bo_op_exec);
 
 	/** Close it */
-	//m0_btree_close(b_op.bo_arbor);
+	/** m0_btree_close(b_op.bo_arbor); */
 
 	/** Try closing again */
-	//m0_btree_close(b_op.bo_arbor);
+	/** m0_btree_close(b_op.bo_arbor); */
 
 	/** Re-open it */
-	//m0_btree_open(invalid_addr, 1024, &btree, &b_op);
+	/** M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+	 *			     m0_btree_open(invalid_addr, 1024, &btree,
+	 *					   &b_op), &b_op.bo_sm_group,
+	 *			     &b_op.bo_op_exec);
+	 */
+
 
 	/** Open it again */
-	//m0_btree_open(invalid_addr, 1024, &btree, &b_op);
+	/** m0_btree_open(invalid_addr, 1024, &btree, &b_op); */
 
 	/** Destory it */
 	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(b_op.bo_arbor,
 				 &b_op), &b_op.bo_sm_group, &b_op.bo_op_exec);
 
 	/** Attempt to reopen the destroyed tree */
-	//m0_btree_open(invalid_addr, 1024, &btree, &b_op);
+	/** M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+	 *			     m0_btree_open(invalid_addr, 1024, &btree,
+	 *					   &b_op), &b_op.bo_sm_group,
+	 *			     &b_op.bo_op_exec);
+	 */
 	btree_ut_fini();
 
 }
