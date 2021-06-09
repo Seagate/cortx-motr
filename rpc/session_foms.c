@@ -403,13 +403,9 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 		session_state_set(session, M0_RPC_SESSION_IDLE);
 		reply->rser_session_id = session->s_session_id;
 
-		M0_MEAS("conn-to-session conn_uuid: "U128X_F" conn_sm_id: %"
-			PRIu64" session_sm_id: %"PRIu64, U128_P(&conn->c_uuid),
+		M0_MEAS("name: conn-to-session, conn_sm_id: %"PRIu64
+			", session_sm_id: %"PRIu64,
 			conn->c_sm.sm_id, session->s_sm.sm_id);
-
-		M0_MEAS("session-to-sm conn_uuid: "U128X_F" session_id: %"
-			PRIu64" session_sm_id: %"PRIu64, U128_P(&conn->c_uuid),
-			session->s_session_id, session->s_sm.sm_id);
 	}
 	m0_rpc_machine_unlock(machine);
 
