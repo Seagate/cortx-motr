@@ -76,20 +76,20 @@ enum {
 	BPV_TBS = 1L << (sizeof(uint64_t) * CHAR_BIT - 1),
 
 	/*
-	 * n_inf/p_inf marks non-allowed values of the
-	 * btree_pair_ver::bpv_ver.
+	 * A special value that indicates the lack of version-aware behavior.
+	 * When such a version is provided, the functions transparently
+	 * ignore version comparison and tombstones in btree_save/delete.
 	 */
-	BPV_VER_PINF = UINT64_MAX & ~BPV_TBS,
-	BPV_VER_NINF = 0,
+	BPV_VER_NONE = 0,
 
-	/* The biggest possible value of a version */
-	BPV_VER_MAX = BPV_VER_PINF - 1,
-	/* The lowest possible value of a version */
-	BPV_VER_MIN = BPV_VER_NINF + 1,
+	/* The biggest possible value of a version. */
+	BPV_VER_MAX = (UINT64_MAX & ~BPV_TBS) - 1,
+	/* The lowest possible value of a version. */
+	BPV_VER_MIN = BPV_VER_NONE + 1,
+
+	VER_DATUM_SIZE = sizeof(struct btree_pair_ver),
 };
 
-#define VER_DATUM_SIZE (sizeof(struct btree_pair_ver))
-M0_BASSERT(VER_DATUM_SIZE == sizeof(void *));
 
 static bool bpv_tbs_is_set(const struct btree_pair_ver *bpv)
 {
@@ -111,12 +111,6 @@ static void bpv_tbs_clear(struct btree_pair_ver *bpv)
 	bpv->bpv_ver &= ~BPV_TBS;
 }
 
-static bool bpv_invariant(const struct btree_pair_ver *bpv)
-{
-	return (_0C(bpv_ver_get(bpv) <= BPV_VER_MAX) &&
-		_0C(bpv_ver_get(bpv) >= BPV_VER_MIN));
-}
-
 static void bpv_ver_set(struct btree_pair_ver *bpv, uint64_t ver)
 {
 	bpv->bpv_ver = (bpv->bpv_ver & BPV_TBS) | ver;
@@ -127,7 +121,7 @@ static void bpv_ver_set(struct btree_pair_ver *bpv, uint64_t ver)
  * do not want to consider versions. In this case BPV_NONE could be
  * used to disable the version-aware logic.
  */
-#define BPV_NONE ((struct btree_pair_ver) { .bpv_ver = BPV_VER_NINF })
+#define BPV_NONE ((struct btree_pair_ver) { .bpv_ver = BPV_VER_NONE })
 
 /*
  * Converts a pointer to the start of the key-value pair data into a pointer
@@ -145,13 +139,13 @@ static void bpv_ver_set(struct btree_pair_ver *bpv, uint64_t ver)
 
 static void bpv_init(struct btree_pair_ver *bpv, struct m0_verbuf *vb, bool tbs)
 {
-	if (vb != NULL && vb->vb_ver != 0) {
+	if (vb != NULL && vb->vb_ver != BPV_VER_NONE) {
 		M0_PRE(vb->vb_ver <= BPV_VER_MAX);
 
 		bpv_ver_set(bpv, vb->vb_ver);
 		(tbs ? bpv_tbs_set : bpv_tbs_clear)(bpv);
 
-		M0_POST(bpv_invariant(bpv));
+		M0_POST(equi(bpv_tbs_is_set(bpv), tbs));
 		M0_POST(bpv_ver_get(bpv) == vb->vb_ver);
 	} else
 		*bpv = BPV_NONE;
@@ -162,8 +156,8 @@ static bool bpv_is_none(const struct btree_pair_ver *bpv)
 	return memcmp(bpv, &BPV_NONE, sizeof(*bpv)) == 0;
 }
 
-static bool bpv_gt(struct btree_pair_ver *left,
-		   struct btree_pair_ver *right)
+static bool bpv_gt(const struct btree_pair_ver *left,
+		   const struct btree_pair_ver *right)
 {
 	return bpv_ver_get(left) > bpv_ver_get(right);
 }

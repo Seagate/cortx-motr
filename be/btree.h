@@ -427,45 +427,16 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
  *
  * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
+ * With a versioned tree (see M0_BBF_IS_VERSIONED), this function will try
+ * to AMB 'key' to 'm0_verbuf::v_ver', and if its version is not zero then
+ * it will insert a tombstone on the pair instead of removing this pair.
+ *
  * @see m0_be_btree_insert()
  */
 M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 				    struct m0_be_tx *tx,
 				    struct m0_be_op *op,
 				    const struct m0_buf *key);
-
-/*
- * TODO: Consider an alternative way to provide versioned insert/delete:
- * Option1:
- *   Wrap m0_buf structure:
- *	struct m0_versioned_buf { .version = X, .buf = m0_buf } + container_of
- *	Pros: an isolated change.
- *	Cons: requires new types and wrappers.
- * Option2:
- *   Use container_of on the transaction:
- *      m0_dtx::tx_betx + bob_of/container_of => m0_dtm0_dtx => txd => version.
- *      Pros: no changes in the existing API.
- *      Cons: may not work with UTs.
- */
-
-/**
- * Marks an key-value pair as "dead" (deleted).
- * The call does not affect the value stored in the tree,
- * it only updates the version and it sets the tombstone
- * flag.
- * Note, the user should calculate credits for "insertion" rather than
- * for "deletion" of a key-value pair.
- *
- * @see ::m0_be_btree_lookup_alive_inplace()
- * @see ::m0_be_btree_cursor_alive_get()
- * @see ::m0_be_btree_save_inplace()
- */
-M0_INTERNAL void m0_be_btree_kill(struct m0_be_btree *tree,
-				  struct m0_be_tx *tx,
-				  struct m0_be_op *op,
-				  const struct m0_buf *key,
-				  uint64_t ver);
-
 /**
  * Looks up for a @dest_value by the given @key in btree.
  * The result is copied into provided @dest_value buffer.

@@ -451,13 +451,13 @@ static void ut_dtx_fini(struct m0_dtx *dtx)
 		m0_free(dtx->tx_dtx);
 }
 
-static int ut_rec_common_put(struct cl_ctx                 *cctx,
-			     struct m0_cas_id              *index,
-			     const struct m0_bufvec        *keys,
-			     const struct m0_bufvec        *values,
-			     struct m0_dtx                 *dtx,
-			     struct m0_cas_rec_reply       *rep,
-			     uint32_t                       flags)
+static int ut_rec_common_put(struct cl_ctx           *cctx,
+			     struct m0_cas_id        *index,
+			     const struct m0_bufvec  *keys,
+			     const struct m0_bufvec  *values,
+			     struct m0_dtx           *dtx,
+			     struct m0_cas_rec_reply *rep,
+			     uint32_t                 flags)
 {
 	struct m0_cas_req  req;
 	struct m0_chan    *chan;
@@ -539,10 +539,10 @@ static void ut_get_rep_clear(struct m0_cas_get_reply *rep, uint32_t nr)
 		m0_free(rep[i].cge_val.b_addr);
 }
 
-static int ut_rec_get(struct cl_ctx                *cctx,
-		      struct m0_cas_id             *index,
-		      const struct m0_bufvec       *keys,
-		      struct m0_cas_get_reply      *rep)
+static int ut_rec_get(struct cl_ctx           *cctx,
+		      struct m0_cas_id        *index,
+		      const struct m0_bufvec  *keys,
+		      struct m0_cas_get_reply *rep)
 {
 	struct m0_cas_req  req;
 	struct m0_chan    *chan;
@@ -683,11 +683,11 @@ static int ut_rec_common_del(struct cl_ctx           *cctx,
 }
 
 /* Submits CAS requests separately one-by-one for each key. */
-static int ut_rec_common_del_seq(struct cl_ctx                 *cctx,
-				 struct m0_cas_id              *index,
-				 struct m0_bufvec              *keys,
-				 struct m0_dtx                 *dtx,
-				 struct m0_cas_rec_reply       *rep)
+static int ut_rec_common_del_seq(struct cl_ctx           *cctx,
+				 struct m0_cas_id        *index,
+				 struct m0_bufvec        *keys,
+				 struct m0_dtx           *dtx,
+				 struct m0_cas_rec_reply *rep)
 {
 	struct m0_bufvec k;
 	m0_bcount_t      i;
@@ -1303,7 +1303,7 @@ static void next_common(struct m0_bufvec *keys,
 
 static void del_get_verified(struct m0_cas_id *index,
 			     struct m0_bufvec *keys,
-			     uint64_t version)
+			     uint64_t          version)
 {
 	int                       rc;
 	struct m0_cas_get_reply  *get_rep;
@@ -1330,9 +1330,9 @@ static void del_get_verified(struct m0_cas_id *index,
 
 static void next_verified(struct m0_cas_id *index,
 			  struct m0_bufvec *start_key,
-			  uint32_t requested_keys_nr,
+			  uint32_t          requested_keys_nr,
 			  struct m0_bufvec *expected_keys,
-			  int flags)
+			  int               flags)
 {
 	struct m0_cas_next_reply *next_rep;
 	uint64_t                  rep_count;
@@ -1413,7 +1413,7 @@ static void put_get_verified(struct m0_cas_id *index,
 }
 
 /*
- * Initialize a single-element bufvec using an element taken from
+ * Initialise a single-element bufvec using an element taken from
  * the target bufvec at position specified by __idx:
  * @verbatim
  *   bufvec target = [buf A, buf B, buf C]

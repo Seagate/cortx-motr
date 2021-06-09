@@ -1022,26 +1022,23 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 	struct m0_cas_op          *cas_op = m0_fop_data(ctg_op->co_fom->fo_fop);
 	int                        opc    = ctg_op->co_opcode;
 	int                        ct     = ctg_op->co_ct;
-	uint64_t                   ver    = 0;
+	uint64_t                   ver;
 	uint64_t                   zones;
 
 	zones = M0_BITS(M0_BAP_NORMAL) |
 		((ctg_op->co_flags & COF_RESERVE) ? M0_BITS(M0_BAP_REPAIR) : 0);
 
 	/*
-	 * Use the versioned btree API for ordinary CAS operations while
-	 * working in DTM0 environment.
+	 * NOTE: We ignore the FID of the originator here. It does not
+	 * allow us to properly order transactions with the same TS
+	 * sent from different originators.
 	 */
-	if (ENABLE_DTM0 && ctg_is_ordinary(ctg_op->co_ctg) && cas_op != NULL) {
-		/*
-		 * TODO: We ignore the FID of the originator here. It does not
-		 * allow us to properly order transactions with the same TS
-		 * sent from different originators.
-		 * However, we may rely on the fact that this has to be
-		 * properly addresed by the user.
-		 */
-		ver = cas_op->cg_txd.dtd_id.dti_ts.dts_phys;
-	}
+	ver = cas_op != NULL && m0_be_btree_is_versioned(btree) ?
+		cas_op->cg_txd.dtd_id.dti_ts.dts_phys : 0;
+
+	M0_PRE(ergo(M0_IN(opc, (CO_TRUNC, CO_DROP, CO_GC)), ver == 0));
+	M0_PRE(ergo(CTG_OP_COMBINE(opc, ct) ==
+		    CTG_OP_COMBINE(CO_PUT, CT_DEAD_INDEX), ver == 0));
 
 	switch (CTG_OP_COMBINE(opc, ct)) {
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
@@ -1053,14 +1050,12 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 					 zones);
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_META):
-		M0_ASSERT(!m0_be_btree_is_versioned(btree));
 		M0_ASSERT(!(ctg_op->co_flags & COF_OVERWRITE));
 		anchor->ba_value.b_nob = M0_CAS_CTG_KV_HDR_SIZE +
 					 sizeof(struct m0_cas_ctg *);
 		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor, zones);
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_DEAD_INDEX):
-		M0_ASSERT(ver == 0);
 		/*
 		 * No need a value in dead index, but, seems, must put something
 		 * there. Do not fill anything in the callback after
@@ -1077,11 +1072,9 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		m0_be_btree_minkey(btree, beop, &ctg_op->co_out_key);
 		break;
 	case CTG_OP_COMBINE(CO_TRUNC, CT_BTREE):
-		M0_ASSERT(ver == 0);
 		m0_be_btree_truncate(btree, tx, beop, ctg_op->co_cnt);
 		break;
 	case CTG_OP_COMBINE(CO_DROP, CT_BTREE):
-		M0_ASSERT(ver == 0);
 		m0_be_btree_destroy(btree, tx, beop);
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
@@ -1089,7 +1082,6 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		m0_be_btree_delete(btree, tx, beop, &M0_VERBUF_INIT(*key, ver));
 		break;
 	case CTG_OP_COMBINE(CO_GC, CT_META):
-		M0_ASSERT(ver == 0);
 		m0_cas_gc_wait_async(beop);
 		break;
 	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
@@ -1663,8 +1655,9 @@ M0_INTERNAL void m0_ctg_delete_credit(struct m0_cas_ctg      *ctg,
 				      struct m0_be_tx_credit *accum)
 {
 	m0_be_btree_delete_credit(&ctg->cc_tree, 1, knob, vnob, accum);
-	/* XXX */
-	m0_be_btree_insert_credit(&ctg->cc_tree, 1, knob, vnob, accum);
+	/* A versioned tree may require insert/update. */
+	if (m0_be_btree_is_versioned(&ctg->cc_tree))
+		m0_be_btree_insert_credit(&ctg->cc_tree, 1, knob, vnob, accum);
 }
 
 static void ctg_ctidx_op_credits(struct m0_cas_id       *cid,
