@@ -251,9 +251,8 @@ static void obj_io_cb_launch(struct m0_op_common *oc)
 	M0_PRE_EX(m0_op_io_invariant(ioo));
 
 	rc = ioo->ioo_ops->iro_iomaps_prepare(ioo);
-	if (rc != 0) {
+	if (rc != 0)
 		goto end;
-	}
 
 	rc = ioo->ioo_nwxfer.nxr_ops->nxo_distribute(&ioo->ioo_nwxfer);
 	if (rc != 0) {
@@ -269,16 +268,14 @@ static void obj_io_cb_launch(struct m0_op_common *oc)
 	 * m0t1fs:ioreq_iosm_handle.
 	 */
 	for (ioo->ioo_map_idx = 0; ioo->ioo_map_idx < ioo->ioo_iomap_nr;
-	     ++ioo->ioo_map_idx) {
+	                                            ++ioo->ioo_map_idx) {
 		if (M0_IN(ioo->ioo_iomaps[ioo->ioo_map_idx]->pi_rtype,
-			(PIR_READOLD, PIR_READREST)))
+			  (PIR_READOLD, PIR_READREST)))
 			break;
 	}
 
-	if (M0_IN(oc->oc_op.op_code,
-		  (M0_OC_WRITE, M0_OC_READ)))
-		addb2_add_ioo_attrs(
-			ioo, !!(ioo->ioo_map_idx != ioo->ioo_iomap_nr));
+	if (M0_IN(oc->oc_op.op_code, (M0_OC_WRITE, M0_OC_READ)))
+		addb2_add_ioo_attrs(ioo, ioo->ioo_map_idx != ioo->ioo_iomap_nr);
 
 	ioo->ioo_ast.sa_cb = ioo->ioo_ops->iro_iosm_handle_launch;
 	m0_sm_ast_post(ioo->ioo_oo.oo_sm_grp, &ioo->ioo_ast);

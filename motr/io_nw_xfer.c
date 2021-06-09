@@ -338,20 +338,23 @@ static bool target_ioreq_invariant(const struct target_ioreq *ti)
  */
 M0_INTERNAL bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 {
-	return M0_RC(xfer != NULL &&
-		     _0C(nw_xfer_request_bob_check(xfer)) &&
-		     _0C(xfer->nxr_state < NXS_STATE_NR) &&
-		     _0C(ergo(xfer->nxr_state == NXS_INITIALIZED,
-			     (xfer->nxr_rc == xfer->nxr_bytes) ==
-			     (m0_atomic64_get(&xfer->nxr_iofop_nr) == 0))) &&
-		     _0C(ergo(xfer->nxr_state == NXS_INFLIGHT,
-			      !tioreqht_htable_is_empty(
-			      &xfer->nxr_tioreqs_hash)))&&
-		     _0C(ergo(xfer->nxr_state == NXS_COMPLETE,
-			      m0_atomic64_get(&xfer->nxr_iofop_nr) == 0 &&
-			      m0_atomic64_get(&xfer->nxr_rdbulk_nr) == 0)) &&
-		     m0_htable_forall(tioreqht, tioreq, &xfer->nxr_tioreqs_hash,
-				      target_ioreq_invariant(tioreq)));
+	return xfer != NULL &&
+	       _0C(nw_xfer_request_bob_check(xfer)) &&
+	       _0C(xfer->nxr_state < NXS_STATE_NR) &&
+
+	       _0C(ergo(xfer->nxr_state == NXS_INITIALIZED,
+			xfer->nxr_rc == 0 && xfer->nxr_bytes == 0 &&
+			m0_atomic64_get(&xfer->nxr_iofop_nr) == 0)) &&
+
+	       _0C(ergo(xfer->nxr_state == NXS_INFLIGHT,
+			!tioreqht_htable_is_empty(&xfer->nxr_tioreqs_hash))) &&
+
+	       _0C(ergo(xfer->nxr_state == NXS_COMPLETE,
+			m0_atomic64_get(&xfer->nxr_iofop_nr) == 0 &&
+			m0_atomic64_get(&xfer->nxr_rdbulk_nr) == 0)) &&
+
+	       m0_htable_forall(tioreqht, tioreq, &xfer->nxr_tioreqs_hash,
+				target_ioreq_invariant(tioreq));
 }
 
 /**
@@ -1829,15 +1832,75 @@ out:
 	return M0_RC(rc);
 }
 
+/**
+ * should_spare_be_mapped() decides whether given IO request should be
+ * redirected to the spare unit device or not.
+ *
+ * For normal IO, M0_IN(ioreq_sm_state, (IRS_READING, IRS_WRITING)),
+ * such redirection is not needed, with the exception of read IO case
+ * when the failed device is in REPAIRED state.
+ *
+ * Note: req->ir_sns_state is used only to differentiate between two
+ *       possible use cases during the degraded mode write.
+ *
+ * Here are possible combinations of different parameters on which
+ * the decision is made.
+ *
+ * Input parameters:
+ *
+ * - State of IO request.
+ *   Sample set {IRS_DEGRADED_READING, IRS_DEGRADED_WRITING}
+ *
+ * - State of current device.
+ *   Sample set {M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED}
+ *
+ * - State of SNS repair process with respect to current global fid.
+ *   Sample set {SRS_REPAIR_DONE, SRS_REPAIR_NOTDONE}
+ *
+ * Degraded read case (IRS_DEGRADED_READING):
+ *
+ * 1. device_state == M0_PNDS_SNS_REPAIRING
+ *
+ *    Not redirected. The extent is assigned to the failed device itself
+ *    but it is filtered at the level of io_req_fop.
+ *
+ * 2. device_state == M0_PNDS_SNS_REPAIRED
+ *
+ *    Redirected.
+ *
+ * Degraded write case (IRS_DEGRADED_WRITING):
+ *
+ * 1. device_state == M0_PNDS_SNS_REPAIRED
+ *
+ *    Redirected.
+ *
+ * 2. device_state == M0_PNDS_SNS_REPAIRING &&
+ *    req->ir_sns_state == SRS_REPAIR_DONE
+ *
+ *    Redirected. Repair is finished for the current global fid.
+ *
+ * 3. device_state == M0_PNDS_SNS_REPAIRING &&
+ *    req->ir_sns_state == SRS_REPAIR_NOTDONE
+ *
+ *    Not redirected. Repair is not finished for this global fid yet.
+ *    So we just drop all pages directed towards the failed device.
+ *    The data will be restored by SNS-repair in the due time later.
+ *
+ * 4. device_state == M0_PNDS_SNS_REPAIRED &&
+ *    req->ir_sns_state == SRS_REPAIR_NOTDONE
+ *
+ *    This should not be possible.
+ */
 static bool should_spare_be_mapped(struct m0_op_io *ioo,
-				   enum m0_pool_nd_state device_state)
+				   enum m0_pool_nd_state dev_state)
 {
 	return (M0_IN(ioreq_sm_state(ioo),
-		       (IRS_READING, IRS_DEGRADED_READING)) &&
-		device_state == M0_PNDS_SNS_REPAIRED) ||
+		      (IRS_READING, IRS_DEGRADED_READING)) &&
+		dev_state == M0_PNDS_SNS_REPAIRED)
+	                          ||
 	       (ioreq_sm_state(ioo) == IRS_DEGRADED_WRITING &&
-		(device_state == M0_PNDS_SNS_REPAIRED ||
-		 (device_state == M0_PNDS_SNS_REPAIRING &&
+		(dev_state == M0_PNDS_SNS_REPAIRED ||
+		 (dev_state == M0_PNDS_SNS_REPAIRING &&
 		  ioo->ioo_sns_state == SRS_REPAIR_DONE)));
 
 }
@@ -1848,36 +1911,36 @@ static bool should_spare_be_mapped(struct m0_op_io *ioo,
  * This is heavily based on m0t1fs/linux_kernel/file.c::nw_xfer_tioreq_map
  *
  * @param xfer The network transfer request.
- * @param src The parity group properties.
- * @param tgt The target parameters, contains the specified offset.
- * @param out[out] The retrieved (or allocated) target request.
+ * @param src unit address in the parity groups.
+ * @param tgt[out] unit address in the target devices.
+ * @param tio[out] The retrieved (or allocated) target request.
  * @return 0 for success, -errno otherwise.
  */
 static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 			      const struct m0_pdclust_src_addr *src,
 			      struct m0_pdclust_tgt_addr       *tgt,
-			      struct target_ioreq             **out)
+			      struct target_ioreq             **tio)
 {
 	int                         rc;
 	struct m0_fid               tfid;
 	const struct m0_fid        *gfid;
-	struct m0_op_io     *ioo;
+	struct m0_op_io            *ioo;
 	struct m0_rpc_session      *session;
 	struct m0_pdclust_layout   *play;
 	struct m0_pdclust_instance *play_instance;
-	enum m0_pool_nd_state       device_state;
-	enum m0_pool_nd_state       device_state_prev;
+	enum m0_pool_nd_state       dev_state;
+	enum m0_pool_nd_state       dev_state_prev;
 	uint32_t                    spare_slot;
 	uint32_t                    spare_slot_prev;
 	struct m0_pdclust_src_addr  spare;
 	struct m0_poolmach         *pm;
 
-	M0_ENTRY("nw_xfer_request %p", xfer);
+	M0_ENTRY("nw_xfer_request=%p", xfer);
 
 	M0_PRE(nw_xfer_request_invariant(xfer));
 	M0_PRE(src != NULL);
 	M0_PRE(tgt != NULL);
-	M0_PRE(out != NULL);
+	M0_PRE(tio != NULL);
 
 	ioo = bob_of(xfer, struct m0_op_io, ioo_nwxfer, &ioo_bobtype);
 
@@ -1890,88 +1953,29 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	m0_fd_fwd_map(play_instance, src, tgt);
 	tfid = target_fid(ioo, tgt);
 	M0_LOG(M0_DEBUG, "src_id[%"PRIu64":%"PRIu64"] -> "
-			 "dest_id[%"PRIu64":%"PRIu64"] @ tfid "FID_F,
+			 "dest_id[%"PRIu64":%"PRIu64"] @ tfid="FID_F,
 	       src->sa_group, src->sa_unit, tgt->ta_frame, tgt->ta_obj,
 	       FID_P(&tfid));
 
 	pm = ioo_to_poolmach(ioo);
 	M0_ASSERT(pm != NULL);
-	rc = m0_poolmach_device_state(pm, tgt->ta_obj, &device_state);
+	rc = m0_poolmach_device_state(pm, tgt->ta_obj, &dev_state);
 	if (rc != 0)
 		return M0_RC(rc);
 
 	if (M0_FI_ENABLED("poolmach_client_repaired_device1")) {
 		if (tfid.f_container == 1)
-			device_state = M0_PNDS_SNS_REPAIRED;
+			dev_state = M0_PNDS_SNS_REPAIRED;
 	}
 
-	/*
-	 * Listed here are various possible combinations of different
-	 * parameters. The cumulative result of these values decide
-	 * whether given IO request should be redirected to spare
-	 * or not.
-	 * Note: For normal IO, M0_IN(ioreq_sm_state,
-	 * (IRS_READING, IRS_WRITING)), this redirection is not needed with
-	 * the exception of read IO case where the failed device is in
-	 * REPAIRED state.
-	 * Also, req->ir_sns_state member is used only to differentiate
-	 * between 2 possible use cases during degraded mode write.
-	 * This flag is not used elsewhere.
-	 *
-	 * Parameters:
-	 * - State of IO request.
-	 *   Sample set {IRS_DEGRADED_READING, IRS_DEGRADED_WRITING}
-	 *
-	 * - State of current device.
-	 *   Sample set {M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED}
-	 *
-	 * - State of SNS repair process with respect to current global fid.
-	 *   Sample set {SRS_REPAIR_DONE, SRS_REPAIR_NOTDONE}
-	 *
-	 * Common case:
-	 * req->ir_state == IRS_DEGRADED_READING &&
-	 * M0_IN(req->ir_sns_state, (SRS_REPAIR_DONE || SRS_REPAIR_NOTDONE)
-	 *
-	 * 1. device_state == M0_PNDS_SNS_REPAIRING
-	 *    In this case, data to failed device is not redirected to
-	 *    spare device.
-	 *    The extent is assigned to the failed device itself but
-	 *    it is filtered at the level of io_req_fop.
-	 *
-	 * 2. device_state == M0_PNDS_SNS_REPAIRED
-	 *    Here, data to failed device is redirected to respective spare
-	 *    unit.
-	 *
-	 * Common case:
-	 * req->ir_state == IRS_DEGRADED_WRITING.
-	 *
-	 * 1. device_state   == M0_PNDS_SNS_REPAIRED,
-	 *    In this case, the device repair has finished. Ergo, data is
-	 *    redirected towards respective spare unit.
-	 *
-	 * 2. device_state   == M0_PNDS_SNS_REPAIRING &&
-	 *    req->ir_sns_state == SRS_REPAIR_DONE.
-	 *    In this case, repair has finished for current global fid but
-	 *    has not finished completely. Ergo, data is redirected towards
-	 *    respective spare unit.
-	 *
-	 * 3. device_state   == M0_PNDS_SNS_REPAIRING &&
-	 *    req->ir_sns_state == SRS_REPAIR_NOTDONE.
-	 *    In this case, data to failed device is not redirected to the
-	 *    spare unit since we drop all pages directed towards failed device.
-	 *
-	 * 4. device_state   == M0_PNDS_SNS_REPAIRED &&
-	 *    req->ir_sns_state == SRS_REPAIR_NOTDONE.
-	 *    Unlikely case! What to do in this case?
-	 */
-	M0_LOG(M0_INFO, "[%p] tfid "FID_F ", device state = %d\n",
-	       ioo, FID_P(&tfid), device_state);
-	if (should_spare_be_mapped(ioo, device_state)) {
+	M0_LOG(M0_INFO, "[%p] tfid="FID_F" dev_state=%d\n",
+	                 ioo, FID_P(&tfid), dev_state);
+
+	if (should_spare_be_mapped(ioo, dev_state)) {
 		gfid = &ioo->ioo_oo.oo_fid;
-		rc = m0_sns_repair_spare_map(
-				pm, gfid, play, play_instance, src->sa_group,
-				src->sa_unit, &spare_slot,
-				&spare_slot_prev);
+		rc = m0_sns_repair_spare_map(pm, gfid, play, play_instance,
+					     src->sa_group, src->sa_unit,
+					     &spare_slot, &spare_slot_prev);
 		if (rc != 0)
 			return M0_RC(rc);
 
@@ -1980,31 +1984,30 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 			spare.sa_unit = spare_slot_prev;
 			m0_fd_fwd_map(play_instance, &spare, tgt);
 			tfid = target_fid(ioo, tgt);
-			rc = m0_poolmach_device_state(
-				pm, tgt->ta_obj,
-				&device_state_prev);
+			rc = m0_poolmach_device_state(pm, tgt->ta_obj,
+						      &dev_state_prev);
 			if (rc != 0)
 				return M0_RC(rc);
 		} else
-			device_state_prev = M0_PNDS_SNS_REPAIRED;
+			dev_state_prev = M0_PNDS_SNS_REPAIRED;
 
-		if (device_state_prev == M0_PNDS_SNS_REPAIRED) {
+		if (dev_state_prev == M0_PNDS_SNS_REPAIRED) {
 			spare.sa_unit = spare_slot;
 			m0_fd_fwd_map(play_instance, &spare, tgt);
 			tfid = target_fid(ioo, tgt);
 		}
-		device_state = device_state_prev;
+		dev_state = dev_state_prev;
 	}
+
 	session = target_session(ioo, tfid);
 
 	rc = nw_xfer_tioreq_get(xfer, &tfid, tgt->ta_obj, session,
-				layout_unit_size(play) * ioo->ioo_iomap_nr,
-				out);
+			layout_unit_size(play) * ioo->ioo_iomap_nr, tio);
 
 	if (M0_IN(ioreq_sm_state(ioo), (IRS_DEGRADED_READING,
 					IRS_DEGRADED_WRITING)) &&
-	    device_state != M0_PNDS_SNS_REPAIRED)
-		(*out)->ti_state = device_state;
+	    dev_state != M0_PNDS_SNS_REPAIRED)
+		(*tio)->ti_state = dev_state;
 
 	return M0_RC(rc);
 }
