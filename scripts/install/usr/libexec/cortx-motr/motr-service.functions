@@ -957,7 +957,9 @@ m0_build_local_conf()
     local ipool_width=$(m0_genders_value_of m0_imeta_pool_width)
     local data_units=$(m0_genders_value_of m0_data_units)
     local parity_units=$(m0_genders_value_of m0_parity_units)
+    local spare_units=$(m0_genders_value_of m0_spare_units)
     local iparity_units=$(m0_genders_value_of m0_imeta_parity_units)
+    local ispare_units=$(m0_genders_value_of m0_imeta_spare_units)
 
     local  root='^t|1:0'
     local  prof='^p|1:0'
@@ -993,25 +995,25 @@ m0_build_local_conf()
 
     local site="{0x53| (($siteid), [1: $rackid], [1: $pverid])}"
     local rack="{0x61| (($rackid), [1: $enclid], [1: $pverid])}"
-    local encl="{0x65| (($enclid), [1: $ctrlid], [1: $pverid])}"
+    local encl="{0x65| (($enclid), $node, [1: $ctrlid], [1: $pverid])}"
     local ctrl_pver_fids_str
     m0_cas_enabled && ctrl_pver_fids_str="[2: $pverid, $imetapverid]" || ctrl_pver_fids_str="[1: $pverid]"
-    local ctrl="{0x63| (($ctrlid), $node, $(_build_disk_fids_str 1 20 $pool_width $ipool_width), $ctrl_pver_fids_str)}"
+    local ctrl="{0x63| (($ctrlid), $(_build_disk_fids_str 1 20 $pool_width $ipool_width), $ctrl_pver_fids_str)}"
     local pool="{0x6f| (($poolid), 0, [1: $pverid])}"
-    local pver="{0x76| (($pverid), {0| ($data_units, $parity_units, $pool_width, [5: 0, 0, 0, 0, $parity_units], [1: $sitevid])})}"
+    local pver="{0x76| (($pverid), {0| ($data_units, $parity_units, $spare_units, $pool_width, [5: 0, 0, 0, 0, $parity_units], [1: $sitevid])})}"
     local sitev="{0x6a| (($sitevid), $siteid, [1: $rackvid])}"
     local rackv="{0x6a| (($rackvid), $rackid, [1: $enclvid])}"
     local enclv="{0x6a| (($enclvid), $enclid, [1: $ctrlvid])}"
     local ctrlv="{0x6a| (($ctrlvid), $ctrlid, $(_build_diskv_fids_str $pool_width 1))}"
     local mdpool="{0x6f| (($mdpoolid), 0, [1: $mdpverid])}"
-    local mdpver="{0x76| (($mdpverid), {0| (1, 0, 1, [5: 0, 0, 0, 0, 1], [1: $mdsitevid])})}"
+    local mdpver="{0x76| (($mdpverid), {0| (1, 0, 0, 1, [5: 0, 0, 0, 0, 1], [1: $mdsitevid])})}"
     local mdsitev="{0x6a| (($mdsitevid), $siteid, [1: $mdrackvid])}"
     local mdrackv="{0x6a| (($mdrackvid), $rackid, [1: $mdenclvid])}"
     local mdenclv="{0x6a| (($mdenclvid), $enclid, [1: $mdctrlvid])}"
     local mdctrlv="{0x6a| (($mdctrlvid), $ctrlid, [1: $mddiskvid])}"
     local mddiskv="{0x6a| (($mddiskvid), $diskid, [0])}"
     local imetapool="{0x6f| (($imetapoolid), 0, [1: $imetapverid])}"
-    local imetapver="{0x76| (($imetapverid), {0| (1, $iparity_units, $ipool_width, [5: 0, 0, 0, 0, 1], [1: $imetasitevid])})}"
+    local imetapver="{0x76| (($imetapverid), {0| (1, $iparity_units, $ispare_units, $ipool_width, [5: 0, 0, 0, 0, 1], [1: $imetasitevid])})}"
     local imetasitev="{0x6a| (($imetasitevid), $siteid, [1: $imetarackvid])}"
     local imetarackv="{0x6a| (($imetarackvid), $rackid, [1: $imetaenclvid])}"
     local imetaenclv="{0x6a| (($imetaenclvid), $enclid, [1: $imetactrlvid])}"
@@ -1028,7 +1030,7 @@ m0_build_local_conf()
     local local_conf=$(cat <<CONF_END
 [$(($procs + $services + $pool_width * 3 + 13 + 7 + $cas_objs_nr)):
   {0x74| (($root), 1, (11, 22), $mdpoolid, $imetapverid, 1,
-          [1: "$pool_width $data_units $parity_units"],
+          [1: "$pool_width $data_units $parity_units $spare_units"],
           [1: $node],
           [1: $siteid],
           $(_build_pool_ids_str $poolid $mdpoolid $imetapoolid),

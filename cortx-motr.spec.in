@@ -2,6 +2,7 @@
 %bcond_with ut
 %bcond_with debuginfo_sources
 %bcond_with cassandra
+%bcond_with ivt
 
 # configure options
 %define with_linux  %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
@@ -39,7 +40,7 @@
 %define  configure_cassandra_opts   --with-cassandra
 %endif
 
-%if %{with ut}
+%if %{with ivt} || %{with ut}
 %define  configure_opts  %{configure_ut_opts} %{?configure_cassandra_opts}
 %else
 %define  configure_opts  %{configure_release_opts} %{?configure_cassandra_opts}
@@ -171,15 +172,42 @@ Conflicts: %{name}
 CORTX Motr unit tests (for kernel and user space).
 %endif # with ut
 
+%if %{with ivt}
+%package ivt
+Summary: CORTX Motr IVT
+Group: Development/Kernel
+
+%description ivt
+CORTX Motr IVT.
+%endif # with ivt
+
 %prep
 %setup -q
 
 %build
 %configure %{with_linux} %{with_lustre} %{configure_opts}
+%if !%{with ivt}
 make %{?_smp_mflags}
+%endif
 
 %install
 rm -rf %{buildroot}
+
+%if %{with ivt}
+make DESTDIR=%{buildroot} install-ivt
+
+find %{buildroot} \
+        -name m0workload \
+        -o -name create_workload_from_excel \
+        -o -name sample_workload_excel_test.xls \
+        -o -name mix_workload.yaml \
+        -o -name m0crate_workload_batch_1_file1.yaml |
+    sed -e 's#^%{buildroot}##' >> ivt.files
+
+sort -o ivt.files ivt.files
+find %{buildroot} -type f | sed -e 's#^%{buildroot}##' | sort |
+    comm -13 ivt.files - | sed -e 's#^#%{buildroot}#' > ivt.exclude
+%else
 %if %{with ut}
 
 make DESTDIR=%{buildroot} install-tests
@@ -217,15 +245,16 @@ find %{buildroot}%{_libdir} -name motr.pc | sed -e 's#^%{buildroot}##' >> devel.
 mkdir -p %{buildroot}%{_localstatedir}/motr
 
 %endif # with ut
+%endif # with ivt
 
 # Remove depmod output - it is regenerated during %post
 if [ -e %{buildroot}/lib/modules/%{raw_kernel_ver}/modules.dep ]; then
 	rm %{buildroot}/lib/modules/%{raw_kernel_ver}/modules.*
 fi
 
-
 %files
-%if !%{with ut}
+
+%if !%{with ivt} && !%{with ut}
 %doc AUTHORS README.rst NEWS ChangeLog COPYING
 %{_bindir}/*
 %{_sbindir}/*
@@ -261,13 +290,18 @@ fi
 %exclude /lib/modules/*/kernel/fs/motr/m0net*
 %exclude /lib/modules/*/kernel/fs/motr/m0rpc*
 %exclude /lib/modules/*/kernel/fs/motr/m0ut*
+%exclude /usr/bin/workload*
 %endif # with ut
 
+%if %{with ivt}
+%files ivt -f ivt.files
+%else
 %if %{with ut}
 %files tests-ut -f tests-ut.files
 %else
 %files devel -f devel.files
-%endif
+%endif # with ut
+%endif # with ivt
 
 # See 'post' section comment about '-e' argument.
 %pre -e
@@ -303,6 +337,14 @@ fi
 /sbin/depmod -a
 systemctl daemon-reload
 
+%if %{with ivt}
+%post ivt
+/sbin/depmod -a
+
+%postun ivt
+/sbin/depmod -a
+
+%else
 %if %{with ut}
 
 %post tests-ut
@@ -312,3 +354,4 @@ systemctl daemon-reload
 /sbin/depmod -a
 
 %endif # with ut
+%endif # with ivt

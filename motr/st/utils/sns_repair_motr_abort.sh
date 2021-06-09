@@ -30,6 +30,7 @@ TOPDIR=`dirname $0`/../../../
 
 
 
+S=3
 N=3
 K=3
 P=15
@@ -115,7 +116,7 @@ main()
 
 	NODE_UUID=`uuidgen`
 	local multiple_pools=0
-	motr_service start $multiple_pools $stride $N $K $P || {
+	motr_service start $multiple_pools $stride $N $K $S $P || {
 		echo "Failed to start Motr Service."
 		return 1
 	}

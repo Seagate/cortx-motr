@@ -22,16 +22,24 @@ import errno
 import os
 import re
 import subprocess
+import logging
+import glob
 from cortx.utils.conf_store import Conf
 
-MOTR_SYS_FILE = "/etc/sysconfig/motr"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
 MOTR_SYS_CFG = "/etc/sysconfig/motr"
+MOTR_WORKLOAD_DIR = "/opt/seagate/cortx/motr/workload"
 FSTAB = "/etc/fstab"
+LOGFILE = "/var/log/seagate/motr/mini_provisioner"
+LOGDIR = "/var/log/seagate/motr"
+LOGGER = "mini_provisioner"
+IVT_DIR = "/var/log/seagate/motr/ivt"
+MOTR_LOG_DIR = "/var/motr"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
+
 class MotrError(Exception):
     """ Generic Exception with error code and output """
 
@@ -50,17 +58,17 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
     stdout, stderr = ps.communicate(timeout=timeout_secs);
     stdout = str(stdout, 'utf-8')
     if self._debug or verbose:
-        sys.stdout.write(f"[CMD] {cmd}\n")
-        sys.stdout.write(f"[OUT]\n{stdout}\n")
-        sys.stdout.write(f"[RET] {ps.returncode}\n")
+        self.logger.debug(f"[CMD] {cmd}\n")
+        self.logger.debug(f"[OUT]\n{stdout}\n")
+        self.logger.debug(f"[RET] {ps.returncode}\n")
     if ps.returncode != 0:
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
 
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
-    sys.stdout.write(f"Executing cmd : '{cmd}'\n")
+    self.logger.info(f"Executing cmd : '{cmd}'\n")
     ps = subprocess.run(list(cmd.split(' ')), timeout=timeout_secs)
-    sys.stdout.write(f"ret={ps.returncode}\n")
+    self.logger.info(f"ret={ps.returncode}\n")
     return ps.returncode
 
 def check_type(var, vtype, msg):
@@ -87,7 +95,7 @@ def get_server_node(self):
 
 def restart_services(self, services):
     for service in services:
-        sys.stdout.write(f"Restarting {service} service\n")
+        self.logger.info(f"Restarting {service} service\n")
         cmd = f"systemctl stop {service}"
         execute_command(self, cmd)
         cmd = f"systemctl start {service}"
@@ -123,17 +131,20 @@ def validate_motr_rpm(self):
     check_type(kernel_ver, str, "kernel version")
 
     kernel_module = f"/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
-    sys.stdout.write(f"Checking for {kernel_module}\n")
+    self.logger.info(f"Checking for {kernel_module}\n")
     validate_file(kernel_module)
 
-    sys.stdout.write(f"Checking for {MOTR_SYS_FILE}\n")
-    validate_file(MOTR_SYS_FILE)
+    self.logger.info(f"Checking for {MOTR_SYS_CFG}\n")
+    validate_file(MOTR_SYS_CFG)
 
 
 def motr_config(self):
+    # Just to check if lnet is working properly
+    if not verify_lnet(self):
+       raise MotrError(errno.EINVAL, "lent is not up.")
     is_hw = is_hw_node(self)
     if is_hw:
-        sys.stdout.write(f"Executing {MOTR_CONFIG_SCRIPT}")
+        self.logger.info(f"Executing {MOTR_CONFIG_SCRIPT}")
         execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
 def configure_net(self):
@@ -162,7 +173,7 @@ def configure_lnet(self):
     except:
         raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
 
-    sys.stdout.write(f"Validate private_interfaces[0]: {iface}\n")
+    self.logger.info(f"Validate private_interfaces[0]: {iface}\n")
     cmd = f"ip addr show {iface}"
     execute_command(self, cmd)
 
@@ -173,12 +184,18 @@ def configure_lnet(self):
 
     lnet_config = (f"options lnet networks={iface_type}({iface}) "
                   f"config_on_load=1  lnet_peer_discovery_disabled=1\n")
-    sys.stdout.write(f"lnet config: {lnet_config}")
+    self.logger.info(f"lnet config: {lnet_config}")
 
     with open(LNET_CONF_FILE, "w") as fp:
         fp.write(lnet_config)
 
     restart_services(self, ["lnet"])
+    # Ping to nid
+    self.logger.info("Doing ping to nids\n")
+    ret = lnet_self_ping(self)
+    if not ret:
+       raise MotrError(errno.EINVAL, "lent self ping failed\n")
+
 
 def configure_libfabric(self):
     try:
@@ -226,7 +243,7 @@ def add_swap_fstab(self, dev_name):
                 ret = line.find(dev_name)
                 if ret == 0:
                     swap_found = True
-                    sys.stdout.write(f"Swap entry found: {swap_entry}\n")
+                    self.logger.info(f"Swap entry found: {swap_entry}\n")
     except:
         swap_on(self)
         raise MotrError(errno.EINVAL, f"Cant read f{FSTAB}\n")
@@ -235,14 +252,13 @@ def add_swap_fstab(self, dev_name):
         if not swap_found:
             with open(FSTAB, "a") as fp:
                 fp.write(swap_entry)
-            sys.stdout.write(f"Swap entry added: {swap_entry}\n")
+            self.logger.info(f"Swap entry added: {swap_entry}\n")
     except:
         raise MotrError(errno.EINVAL, f"Cant append f{FSTAB}\n")
     finally:
         swap_on(self)
 
 def del_swap_fstab_by_vg_name(self, vg_name):
-
     swap_off(self)
 
     cmd = f"sed -i '/{vg_name}/d' {FSTAB}"
@@ -251,16 +267,15 @@ def del_swap_fstab_by_vg_name(self, vg_name):
     swap_on(self)
 
 def create_swap(self, swap_dev):
-
-    sys.stdout.write(f"Make swap of {swap_dev}\n")
+    self.logger.info(f"Make swap of {swap_dev}\n")
     cmd = f"mkswap -f {swap_dev}"
     execute_command(self, cmd)
 
-    sys.stdout.write(f"Test {swap_dev} swap device\n")
+    self.logger.info(f"Test {swap_dev} swap device\n")
     cmd = f"test -e {swap_dev}"
     execute_command(self, cmd)
 
-    sys.stdout.write(f"Adding {swap_dev} swap device to {FSTAB}\n")
+    self.logger.info(f"Adding {swap_dev} swap device to {FSTAB}\n")
     add_swap_fstab(self, swap_dev)
 
 
@@ -274,7 +289,6 @@ def create_lvm(self, index, metadata_dev):
         5. If not exist, create volume group and lvm
         6. create swap from lvm
     '''
-
     try:
         cmd = f"fdisk -l {metadata_dev}2"
         execute_command(self, cmd)
@@ -282,14 +296,16 @@ def create_lvm(self, index, metadata_dev):
         pass
     else:
         metadata_dev = f"{metadata_dev}2"
+
     try:
         cmd = f"pvdisplay {metadata_dev}"
         out = execute_command(self, cmd)
     except MotrError:
         pass
     else:
-        sys.stdout.write(f"Already volumes are created on {metadata_dev}\n {out[0]}")
-        return
+        self.logger.warning(f"Volumes are already created on {metadata_dev}\n{out[0]}\n")
+        return False
+
     index = index + 1
     node_name = self.server_node['name']
     vg_name = f"vg_{node_name}_md{index}"
@@ -297,12 +313,12 @@ def create_lvm(self, index, metadata_dev):
     lv_md_name = f"lv_raw_md{index}"
     swap_dev = f"/dev/{vg_name}/{lv_swap_name}"
 
-    sys.stdout.write(f"metadata device: {metadata_dev}\n")
+    self.logger.info(f"metadata device: {metadata_dev}\n")
 
-    sys.stdout.write(f"Checking for {FSTAB}\n")
+    self.logger.info(f"Checking for {FSTAB}\n")
     validate_file(FSTAB)
 
-    sys.stdout.write(f"Checking for {metadata_dev}\n")
+    self.logger.info(f"Checking for {metadata_dev}\n")
     validate_file(metadata_dev)
 
     cmd = f"fdisk -l {metadata_dev}"
@@ -314,7 +330,7 @@ def create_lvm(self, index, metadata_dev):
     except MotrError:
         pass
     else:
-        sys.stdout.write(f"Removing {vg_name} volume group\n")
+        self.logger.info(f"Removing {vg_name} volume group\n")
 
         del_swap_fstab_by_vg_name(self, vg_name)
 
@@ -324,27 +340,27 @@ def create_lvm(self, index, metadata_dev):
         cmd = f"vgremove {vg_name} -ff"
         execute_command(self, cmd)
 
-    sys.stdout.write(f"Creating physical volume from {metadata_dev}\n")
+    self.logger.info(f"Creating physical volume from {metadata_dev}\n")
     cmd = f"pvcreate {metadata_dev} --yes"
     execute_command(self, cmd)
 
-    sys.stdout.write(f"Creating {vg_name} volume group from {metadata_dev}\n")
+    self.logger.info(f"Creating {vg_name} volume group from {metadata_dev}\n")
     cmd = f"vgcreate {vg_name} {metadata_dev}"
     execute_command(self, cmd)
 
-    sys.stdout.write(f"Adding {node_name} tag to {vg_name} volume group\n")
+    self.logger.info(f"Adding {node_name} tag to {vg_name} volume group\n")
     cmd = f"vgchange --addtag {node_name} {vg_name}"
     execute_command(self, cmd)
 
-    sys.stdout.write("Scanning volume group\n")
+    self.logger.info("Scanning volume group\n")
     cmd = "vgscan --cache"
     execute_command(self, cmd)
 
-    sys.stdout.write(f"Creating {lv_swap_name} lvm from {vg_name}\n")
+    self.logger.info(f"Creating {lv_swap_name} lvm from {vg_name}\n")
     cmd = f"lvcreate -n {lv_swap_name} {vg_name} -l 51%VG --yes"
     execute_command(self, cmd)
 
-    sys.stdout.write(f"Creating {lv_md_name} lvm from {vg_name}\n")
+    self.logger.info(f"Creating {lv_md_name} lvm from {vg_name}\n")
     cmd = f"lvcreate -n {lv_md_name} {vg_name} -l 100%FREE --yes"
     execute_command(self, cmd)
 
@@ -359,17 +375,29 @@ def create_lvm(self, index, metadata_dev):
                         f"({allocated_swap_size_before}M) must be less than "
                         f"swap size after allocation({allocated_swap_size_after}M)\n")
     else:
-        sys.stdout.write(f"swap size before allocation ={allocated_swap_size_before}M\n")
-        sys.stdout.write(f"swap_size after allocation ={allocated_swap_size_after}M\n")
+        self.logger.info(f"swap size before allocation ={allocated_swap_size_before}M\n")
+        self.logger.info(f"swap_size after allocation ={allocated_swap_size_after}M\n")
+    return True
 
-def config_lvm(self):
+def calc_lvm_min_size(self, lv_path, lvm_min_size):
+    cmd = f"lvs {lv_path} -o LV_SIZE --noheadings --units b --nosuffix"
+    res = execute_command(self, cmd)
+    lv_size = res[0].rstrip("\n")
+    lv_size = int(lv_size)
+    self.logger.info(f"{lv_path} size = {lv_size} \n")
+    if lvm_min_size is None:
+        lvm_min_size = lv_size
+        return lvm_min_size
+    lvm_min_size = min(lv_size, lvm_min_size)
+    return lvm_min_size
+
+def get_cvg_cnt_and_cvg(self):
     try:
         cvg_cnt = self.server_node['storage']['cvg_count']
     except:
         raise MotrError(errno.EINVAL, "cvg_cnt not found\n")
 
     check_type(cvg_cnt, str, "cvg_count")
-
 
     try:
         cvg = self.server_node['storage']['cvg']
@@ -382,8 +410,13 @@ def config_lvm(self):
     # Check if cvg is non empty
     if not cvg:
         raise MotrError(errno.EINVAL, "cvg is empty\n")
+    return cvg_cnt, cvg
 
+def update_bgsize(self):
     dev_count = 0
+    lvm_min_size = None
+
+    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
     for i in range(int(cvg_cnt)):
         cvg_item = cvg[i]
         try:
@@ -391,11 +424,52 @@ def config_lvm(self):
         except:
             raise MotrError(errno.EINVAL, "metadata devices not found\n")
         check_type(metadata_devices, list, "metadata_devices")
-        sys.stdout.write(f"\nlvm metadata_devices: {metadata_devices}\n\n")
+        self.logger.info(f"\nlvm metadata_devices: {metadata_devices}\n\n")
+        for device in metadata_devices:
+            cmd = f"pvs --noheadings {device}"
+            vgname = (execute_command(self, cmd)[0]).split(sep=None)[1]
+            cmd = "lvdisplay | grep \"LV Path\" | grep {} | grep -v swap".format(vgname)
+            lv_list = (execute_command(self, cmd)[0]).replace("LV Path", '').split('\n')[0:-1]
+            len_lv_list = len(lv_list)
+            for i in range(len_lv_list):
+                # lv_list[i] contains initial spaces. So removing these spaces.
+                lv_list[i] = lv_list[i].strip()
+                lv_path = lv_list[i]
+                lvm_min_size = calc_lvm_min_size(self, lv_path, lvm_min_size)
+    if lvm_min_size:
+        self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
+        cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
+        execute_command(self, cmd)
+
+def config_lvm(self):
+    dev_count = 0
+    lvm_min_size = None
+    lvm_min_size = None
+
+    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
+    for i in range(int(cvg_cnt)):
+        cvg_item = cvg[i]
+        try:
+            metadata_devices = cvg_item["metadata_devices"]
+        except:
+            raise MotrError(errno.EINVAL, "metadata devices not found\n")
+        check_type(metadata_devices, list, "metadata_devices")
+        self.logger.info(f"\nlvm metadata_devices: {metadata_devices}\n\n")
 
         for device in metadata_devices:
-            create_lvm(self, dev_count, device)
+            ret = create_lvm(self, dev_count, device)
+            if ret == False:
+                continue
             dev_count += 1
+            lv_md_name = f"lv_raw_md{dev_count}"
+            cmd = f"lvs -o lv_path | grep {lv_md_name}"
+            res = execute_command(self, cmd)
+            lv_path = res[0].rstrip("\n")
+            lvm_min_size = calc_lvm_min_size(self, lv_path, lvm_min_size)
+    if lvm_min_size:
+        self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
+        cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
+        execute_command(self, cmd)
 
 def get_lnet_xface() -> str:
     """Get lnet interface."""
@@ -433,7 +507,7 @@ def check_pkgs(self, pkgs):
             pass
 
         if ret == 0:
-            sys.stdout.write(f"rpm found: {pkg}\n")
+            self.logger.info(f"rpm found: {pkg}\n")
         else:
             raise MotrError(errno.ENOENT, f"Missing rpm: {pkg}")
 
@@ -462,14 +536,13 @@ def get_nodes(self):
 
 def lnet_ping(self):
     """Lnet lctl ping on all available nodes in cluster."""
-
     nodes = get_nodes(self)
     # nodes is a list of hostnames
     nids = get_nids(self, nodes)
-    sys.stdout.write("lnet pinging on all nodes in cluster\n")
+    self.logger.info("lnet pinging on all nodes in cluster\n")
     for nid in nids:
        cmd = f"lctl ping {nid}"
-       sys.stdout.write(f"lctl ping on: {nid}\n")
+       self.logger.info(f"lctl ping on: {nid}\n")
        execute_command(self, cmd)
 
 def test_lnet(self):
@@ -480,13 +553,13 @@ def test_lnet(self):
         4. lctl ping on all nodes in cluster. motr_setup post_install and prepare
            MUST be performed on all nodes before executing this step.
     '''
-    sys.stdout.write("post_install and prepare phases MUST be performed "
+    self.logger.info("post_install and prepare phases MUST be performed "
                      "on all nodes before executing test phase\n")
     search_lnet_pkgs = ["kmod-lustre-client", "lustre-client"]
     check_pkgs(self, search_lnet_pkgs)
 
     lnet_xface = get_lnet_xface()
-    sys.stdout.write(f"lnet interface found: {lnet_xface}\n")
+    self.logger.info(f"lnet interface found: {lnet_xface}\n")
 
     cmd = f"ip addr show {lnet_xface}"
     cmd_res = execute_command(self, cmd)
@@ -494,11 +567,11 @@ def test_lnet(self):
 
     try:
         ip_addr = ip_addr.split("inet ")[1].split("/")[0]
-        sys.stdout.write(f"lnet interface ip: {ip_addr}\n")
+        self.logger.info(f"lnet interface ip: {ip_addr}\n")
     except:
         raise MotrError(errno.EINVAL, f"Cant parse {lnet_xface} ip addr")
 
-    sys.stdout.write(f"ping on: {ip_addr}\n")
+    self.logger.info(f"ping on: {ip_addr}\n")
     cmd = f"ping -c 3 {ip_addr}"
     execute_command(self, cmd)
 
@@ -509,27 +582,8 @@ def test_libfabric(self):
     check_pkgs(self, search_libfabric_pkgs)
 
 def get_metadata_disks_count(self):
-    try:
-        cvg_cnt = self.server_node['storage']['cvg_count']
-    except:
-        raise MotrError(errno.EINVAL, "cvg_cnt not found\n")
-
-    check_type(cvg_cnt, str, "cvg_count")
-
-
-    try:
-        cvg = self.server_node['storage']['cvg']
-    except:
-        raise MotrError(errno.EINVAL, "cvg not found\n")
-
-     # Check if cvg type is list
-    check_type(cvg, list, "cvg")
-
-    # Check if cvg is non empty
-    if not cvg:
-        raise MotrError(errno.EINVAL, "cvg is empty\n")
-
     dev_count = 0
+    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
     for i in range(int(cvg_cnt)):
         cvg_item = cvg[i]
         try:
@@ -537,7 +591,7 @@ def get_metadata_disks_count(self):
         except:
             raise MotrError(errno.EINVAL, "metadata devices not found\n")
         check_type(metadata_devices, list, "metadata_devices")
-        sys.stdout.write(f"\nlvm metadata_devices: {metadata_devices}\n\n")
+        self.logger.info(f"\nlvm metadata_devices: {metadata_devices}\n\n")
 
         for device in metadata_devices:
             dev_count += 1
@@ -561,16 +615,16 @@ def lvm_exist(self):
             if swap_lv_path in lv_list:
                 continue
             else:
-                sys.stderr.write(f"{swap_lv_path} does not exist. Need to create lvm\n")
+                self.logger.warning(f"{swap_lv_path} does not exist. Need to create lvm\n")
                 return False
         else:
-            sys.stderr.write(f"{md_lv_path} does not exist. Need to create lvm\n")
+            self.logger.warning(f"{md_lv_path} does not exist. Need to create lvm\n")
             return False
     return True
 
 def cluster_up(self):
     cmd = '/usr/bin/hctl status'
-    sys.stdout.write(f"Executing cmd : '{cmd}'\n")
+    self.logger.info(f"Executing cmd : '{cmd}'\n")
     ret = execute_command_without_exception(self, cmd)
     if ret == 0:
         return True
@@ -581,8 +635,125 @@ def pkg_installed(self, pkg):
     cmd = f'/usr/bin/yum list installed {pkg}'
     ret = execute_command_without_exception(self, cmd)
     if ret == 0:
-        sys.stdout.write(f"{pkg} is installed\n")
+        self.logger.info(f"{pkg} is installed\n")
         return True
     else:
-        sys.stdout.write(f"{pkg} is not installed\n")
+        self.logger.error(f"{pkg} is not installed\n")
         return False
+
+def test_io(self):
+    mix_workload_path = f"{MOTR_WORKLOAD_DIR}/mix_workload.yaml"
+    m0worklaod_path = f"{MOTR_WORKLOAD_DIR}/m0workload"
+    m0crate_path = f"{MOTR_WORKLOAD_DIR}/m0crate_workload_batch_1_file1.yaml"
+    if (
+        os.path.isfile(m0worklaod_path) and
+        os.path.isfile(mix_workload_path) and
+        os.path.isfile(m0crate_path)
+       ):
+        cmd = f"{m0worklaod_path} -t {mix_workload_path}"
+        out = execute_command(self, cmd, timeout_secs=1000)
+        self.logger.info(f"{out[0]}\n")
+    else:
+        self.logger.error("workload files are missing\n")
+
+    # Configure motr mini provisioner logger.
+    # File to log motr mini prov logs: /var/log/seagate/motr/mini_provisioner.
+    # Currently we log to both console and /var/log/seagate/motr/mini_provisioner.
+    # Firstly check if /var/log/seagate/motr exist. If not, create it.
+
+def config_logger(self):
+    logger = logging.getLogger(LOGGER)
+    if not os.path.exists(LOGDIR):
+        try:
+            os.makedirs(LOGDIR, exist_ok=True)
+            with open(f'{LOGFILE}', 'w'): pass
+        except:
+            raise MotrError(errno.EINVAL, f"{LOGFILE} creation failed\n")
+    else:
+        if not os.path.exists(LOGFILE):
+            try:
+                with open(f'{LOGFILE}', 'w'): pass
+            except:
+                raise MotrError(errno.EINVAL, f"{LOGFILE} creation failed\n")
+    logging.basicConfig(
+                        format='%(asctime)s - %(levelname)s - %(message)s',
+                        level=logging.DEBUG,
+                        handlers=[
+                                  logging.FileHandler(LOGFILE),
+                                  logging.StreamHandler()
+                                 ]
+                       )
+    return logger
+
+def clean_ivt_data(self):
+    if os.path.exists(MOTR_LOG_DIR):
+        self.logger.info("Removing addb directories")
+        dnames_addb = []
+        pattern="{}/**/addb*".format(MOTR_LOG_DIR)
+        for dname in glob.glob(pattern, recursive=True):
+            dnames_addb.append(dname)
+            execute_command(self, f"rm -rf {dname}")
+        self.logger.info(f"Removed below addb directories.\n{dnames_addb}")
+        self.logger.info("Removing trace files")
+        fnames_trace = []
+        pattern="{}/**/*trace*".format(MOTR_LOG_DIR)
+        for fname in glob.glob(pattern, recursive=True):
+            fnames_trace.append(fname)
+            os.remove(fname)
+        self.logger.info(f"Removed below trace files.\n{fnames_trace}")
+
+        self.logger.info("Removing db directories")
+        dnames_db = []
+        pattern="{}/**/db*".format(MOTR_LOG_DIR)
+        for dname in glob.glob(pattern, recursive=True):
+            dnames_db.append(dname)
+            execute_command(self, f"rm -rf {dname}")
+        self.logger.info(f"Removed below db directories.\n{dnames_db}")
+    else:
+        self.logger.warning(f"{MOTR_LOG_DIR} does not exist")
+
+    if os.path.exists(IVT_DIR):
+        self.logger.info(f"Removing {IVT_DIR}")
+        execute_command(self, f"rm -rf {IVT_DIR}")
+    else:
+        self.logger.warning(f"{IVT_DIR} does not exist")
+
+def check_services(self, services):
+    for service in services:
+        self.logger.info(f"Checking status of {service} service\n")
+        cmd = f"systemctl status {service}"
+        execute_command(self, cmd)
+        ret = execute_command_without_exception(self, cmd)
+        if ret != 0:
+            return False
+    return True
+
+def verify_lnet(self):
+    self.logger.info("Doing ping to nids.\n")
+    ret = lnet_self_ping(self)
+    if not ret:
+        # Check if lnet is up. If lnet is not up, restart lnet and try ping nid.
+        # Else, ping nid after some delay since lnet is already up.
+        if not check_services(self, ["lnet"]):
+            self.logger.info("lnet is not up. Restaring lnet.\n")
+            restart_services(self, ["lnet"])
+            self.logger.info("Doing ping to nids after 5 seconds.\n")
+        else:
+            self.logger.warning("lnet is up. Doing ping to nids after 5 seconds.\n")
+        execute_command_without_exception(self, "sleep 5")
+        ret = lnet_self_ping(self)
+    return ret
+
+def lnet_self_ping(self):
+    nids = []
+
+    op = execute_command(self, "lctl list_nids")
+    nids.append(op[0].rstrip("\n"))
+    self.logger.info(f"nids= {nids}\n")
+    for nid in nids:
+       cmd = f"lctl ping {nid}"
+       self.logger.info(f"lctl ping on: {nid}\n")
+       ret = execute_command_without_exception(self, cmd)
+       if ret != 0:
+            return False
+    return True

@@ -1,6 +1,6 @@
 (root-0 verno=1 rootfid=(0xb, 0x16) mdpool=pool-3 imeta_pver=pver-123
     mdredundancy=0 params=["param-0", "param-1", "param-2"]
-    nodes=[node-4, node-5, node-6, node-7, node-8, node-9, node-10, node-11]
+    nodes=[node-4, node-6, node-7, node-8, node-9, node-10, node-11]
     sites=[site-2] pools=[pool-3] profiles=[profile-0] fdmi_flt_grps=[])
 (profile-0 pools=[pool-3])
 (node-4 memsize=16000 nr_cpu=2 last_state=3 flags=2 processes=[process-14])
@@ -29,32 +29,6 @@
     flags=4 filename="/dev/sdev8")
 (sdev-25 dev_idx=25 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev9")
-(node-5 memsize=16000 nr_cpu=2 last_state=3 flags=2 processes=[process-26])
-(process-26 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-27])
-(service-27 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"] params=[]
-    sdevs=[sdev-28, sdev-29, sdev-30, sdev-31, sdev-32, sdev-33, sdev-34,
-           sdev-35, sdev-36, sdev-37])
-(sdev-28 dev_idx=28 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
-    flags=4 filename="/dev/sdev10")
-(sdev-29 dev_idx=29 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
-    flags=4 filename="/dev/sdev11")
-(sdev-30 dev_idx=30 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
-    flags=4 filename="/dev/sdev12")
-(sdev-31 dev_idx=31 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
-    flags=4 filename="/dev/sdev13")
-(sdev-32 dev_idx=32 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
-    flags=4 filename="/dev/sdev14")
-(sdev-33 dev_idx=33 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
-    flags=4 filename="/dev/sdev15")
-(sdev-34 dev_idx=34 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
-    flags=4 filename="/dev/sdev16")
-(sdev-35 dev_idx=35 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
-    flags=4 filename="/dev/sdev17")
-(sdev-36 dev_idx=36 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
-    flags=4 filename="/dev/sdev18")
-(sdev-37 dev_idx=37 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
-    flags=4 filename="/dev/sdev19")
 (node-6 memsize=16000 nr_cpu=2 last_state=3 flags=2 processes=[process-38])
 (process-38 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-39])
@@ -213,9 +187,9 @@
     flags=4 filename="/dev/sdev79")
 (site-2 racks=[rack-12, rack-13] pvers=[pver-123])
 (rack-12 encls=[enclosure-120, enclosure-121, enclosure-122] pvers=[pver-123])
-(enclosure-120 ctrls=[controller-124, controller-125] pvers=[pver-123])
-(controller-124 node=node-4
-    drives=[drive-126, drive-127, drive-128, drive-129, drive-130, drive-131,
+(enclosure-120 node=node-4
+ctrls=[controller-124, controller-125] pvers=[pver-123])
+(controller-124     drives=[drive-126, drive-127, drive-128, drive-129, drive-130, drive-131,
             drive-132, drive-133, drive-134, drive-135]
     pvers=[pver-123])
 (drive-126 dev=sdev-16 pvers=[pver-123])
@@ -228,23 +202,9 @@
 (drive-133 dev=sdev-23 pvers=[pver-123])
 (drive-134 dev=sdev-24 pvers=[pver-123])
 (drive-135 dev=sdev-25 pvers=[pver-123])
-(controller-125 node=node-5
-    drives=[drive-136, drive-137, drive-138, drive-139, drive-140, drive-141,
-            drive-142, drive-143, drive-144, drive-145]
-    pvers=[pver-123])
-(drive-136 dev=sdev-28 pvers=[pver-123])
-(drive-137 dev=sdev-29 pvers=[pver-123])
-(drive-138 dev=sdev-30 pvers=[pver-123])
-(drive-139 dev=sdev-31 pvers=[pver-123])
-(drive-140 dev=sdev-32 pvers=[pver-123])
-(drive-141 dev=sdev-33 pvers=[pver-123])
-(drive-142 dev=sdev-34 pvers=[pver-123])
-(drive-143 dev=sdev-35 pvers=[pver-123])
-(drive-144 dev=sdev-36 pvers=[pver-123])
-(drive-145 dev=sdev-37 pvers=[pver-123])
-(enclosure-121 ctrls=[controller-146] pvers=[pver-123])
-(controller-146 node=node-6
-    drives=[drive-146, drive-147, drive-148, drive-149, drive-150, drive-151,
+(enclosure-121 node=node-6
+ctrls=[controller-146] pvers=[pver-123])
+(controller-146     drives=[drive-146, drive-147, drive-148, drive-149, drive-150, drive-151,
             drive-152, drive-153, drive-154, drive-155]
     pvers=[pver-123])
 (drive-146 dev=sdev-41 pvers=[pver-123])
@@ -257,9 +217,9 @@
 (drive-153 dev=sdev-48 pvers=[pver-123])
 (drive-154 dev=sdev-49 pvers=[pver-123])
 (drive-155 dev=sdev-50 pvers=[pver-123])
-(enclosure-122 ctrls=[controller-156] pvers=[pver-123])
-(controller-156 node=node-7
-    drives=[drive-156, drive-157, drive-158, drive-159, drive-160, drive-161,
+(enclosure-122 node=node-7
+ctrls=[controller-156] pvers=[pver-123])
+(controller-156     drives=[drive-156, drive-157, drive-158, drive-159, drive-160, drive-161,
             drive-162, drive-163, drive-164, drive-165]
     pvers=[pver-123])
 (drive-156 dev=sdev-52 pvers=[pver-123])
@@ -274,9 +234,9 @@
 (drive-165 dev=sdev-61 pvers=[pver-123])
 (rack-13 encls=[enclosure-166, enclosure-167, enclosure-168, enclosure-169]
     pvers=[pver-123])
-(enclosure-166 ctrls=[controller-170] pvers=[pver-123])
-(controller-170 node=node-8
-    drives=[drive-171, drive-172, drive-173, drive-174, drive-175, drive-176,
+(enclosure-166 node=node-8
+ctrls=[controller-170] pvers=[pver-123])
+(controller-170     drives=[drive-171, drive-172, drive-173, drive-174, drive-175, drive-176,
             drive-177, drive-178, drive-179, drive-180]
     pvers=[pver-123])
 (drive-171 dev=sdev-64 pvers=[pver-123])
@@ -289,9 +249,9 @@
 (drive-178 dev=sdev-71 pvers=[pver-123])
 (drive-179 dev=sdev-72 pvers=[pver-123])
 (drive-180 dev=sdev-73 pvers=[pver-123])
-(enclosure-167 ctrls=[controller-181] pvers=[pver-123])
-(controller-181 node=node-9
-    drives=[drive-182, drive-183, drive-184, drive-185, drive-186, drive-187,
+(enclosure-167 node=node-9
+ctrls=[controller-181] pvers=[pver-123])
+(controller-181     drives=[drive-182, drive-183, drive-184, drive-185, drive-186, drive-187,
             drive-188, drive-189, drive-190, drive-191]
     pvers=[pver-123])
 (drive-181 dev=sdev-76 pvers=[pver-123])
@@ -304,9 +264,9 @@
 (drive-188 dev=sdev-83 pvers=[pver-123])
 (drive-189 dev=sdev-84 pvers=[pver-123])
 (drive-190 dev=sdev-85 pvers=[pver-123])
-(enclosure-168 ctrls=[controller-191] pvers=[pver-123])
-(controller-191 node=node-10
-    drives=[drive-192, drive-193, drive-194, drive-195, drive-196, drive-197,
+(enclosure-168 node=node-10
+ctrls=[controller-191] pvers=[pver-123])
+(controller-191     drives=[drive-192, drive-193, drive-194, drive-195, drive-196, drive-197,
             drive-198, drive-199, drive-200, drive-201]
     pvers=[pver-123])
 (drive-192 dev=sdev-88 pvers=[pver-123])
@@ -319,9 +279,9 @@
 (drive-199 dev=sdev-95 pvers=[pver-123])
 (drive-200 dev=sdev-96 pvers=[pver-123])
 (drive-201 dev=sdev-97 pvers=[pver-123])
-(enclosure-169 ctrls=[controller-202] pvers=[pver-123])
-(controller-202 node=node-11
-    drives=[drive-203, drive-204, drive-205, drive-206, drive-207, drive-208,
+(enclosure-169 node=node-11
+ctrls=[controller-202] pvers=[pver-123])
+(controller-202     drives=[drive-203, drive-204, drive-205, drive-206, drive-207, drive-208,
             drive-209, drive-210, drive-211, drive-212]
     pvers=[pver-123])
 (drive-203 dev=sdev-110 pvers=[pver-123])
@@ -335,10 +295,10 @@
 (drive-211 dev=sdev-118 pvers=[pver-123])
 (drive-212 dev=sdev-119 pvers=[pver-123])
 (pool-3 pver_policy=0 pvers=[pver-123])
-(pver-123 N=8 K=2 P=80 tolerance=[0, 0, 1, 1, 2] sitevs=[objv-2:213])
+(pver-123 N=8 K=2 S=2 P=80 tolerance=[0, 0, 1, 1, 2] sitevs=[objv-2:213])
 (objv-2:213 real=site-2 children=[objv-213, objv-214])
 (objv-213 real=rack-12 children=[objv-215, objv-216, objv-217])
-(objv-215 real=enclosure-120 children=[objv-218, objv-219])
+(objv-215 real=enclosure-120 children=[objv-218])
 (objv-218 real=controller-124
     children=[objv-220, objv-221, objv-222, objv-223, objv-224, objv-225,
               objv-226, objv-227, objv-228, objv-229])
@@ -352,19 +312,6 @@
 (objv-227 real=drive-133 children=[])
 (objv-228 real=drive-134 children=[])
 (objv-229 real=drive-135 children=[])
-(objv-219 real=controller-125
-    children=[objv-230, objv-231, objv-232, objv-233, objv-234, objv-235,
-              objv-236, objv-237, objv-238, objv-239])
-(objv-230 real=drive-136 children=[])
-(objv-231 real=drive-137 children=[])
-(objv-232 real=drive-138 children=[])
-(objv-233 real=drive-139 children=[])
-(objv-234 real=drive-140 children=[])
-(objv-235 real=drive-141 children=[])
-(objv-236 real=drive-142 children=[])
-(objv-237 real=drive-143 children=[])
-(objv-238 real=drive-144 children=[])
-(objv-239 real=drive-145 children=[])
 (objv-216 real=enclosure-121 children=[objv-240])
 (objv-240 real=controller-146
     children=[objv-241, objv-242, objv-243, objv-244, objv-245, objv-246,

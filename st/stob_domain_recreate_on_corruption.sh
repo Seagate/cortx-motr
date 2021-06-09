@@ -80,7 +80,8 @@ stub_confdb() {
     cat <<EOF
 (root-0 verno=1 rootfid=(11, 22) mdpool=pool-0 imeta_pver=pver-0
     mdredundancy=2 params=["pool_width=3", "nr_data_units=1",
-                           "nr_parity_units=1", "unit_size=4096"]
+                           "nr_parity_units=1", "nr_spare_units=1",
+                           "unit_size=4096"]
     nodes=[node-0] sites=[site-2] pools=[pool-0]
     profiles=[profile-0] fdmi_flt_grps=[])
 (profile-0 pools=[pool-0])
@@ -93,7 +94,7 @@ stub_confdb() {
     sdevs=[sdev-0])
 (service-4 type=@M0_CST_CONFD endpoints=["$M0D1_ENDPOINT"] params=[] sdevs=[])
 (pool-0 pver_policy=0 pvers=[pver-0, pver_f-11])
-(pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:0])
+(pver-0 N=2 K=1 S=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:0])
 (pver_f-11 id=0 base=pver-0 allowance=[0, 0, 0, 0, 1])
 (objv-2:0 real=site-2 children=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])

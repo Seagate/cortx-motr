@@ -64,6 +64,7 @@ enum {
 	NR_NODES           = 10,
 	NR_DISKS           = 200,
 	MAX_FAILURES       = 20,
+	NR_SPARE           = 20
 };
 
 static struct m0_rpc_client_ctx cctx = {
@@ -410,7 +411,7 @@ static void test_failvec_fetch(void)
         M0_UT_ASSERT(rc == 0);
         pool_ver.pv_pool = &pool;
         rc = m0_poolmach_init(&pool_mach, &pool_ver, NR_NODES, NR_DISKS,
-                              MAX_FAILURES, MAX_FAILURES);
+                              NR_SPARE, MAX_FAILURES, MAX_FAILURES);
         pool_machine_fid_populate(&pool_mach);
         /* Enqueue events received till fetching the failvec. */
         for (i = 0; i < NR_OVERLAP; ++i) {

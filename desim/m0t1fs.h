@@ -69,6 +69,7 @@ struct m0t1fs_conf {
 	struct m0_pool_version    ct_pool_version;
 	uint32_t                  ct_N;
 	uint32_t                  ct_K;
+	uint32_t                  ct_S;
 	uint64_t                  ct_unitsize;
 	unsigned long             ct_client_step;
 	unsigned long             ct_thread_step;

@@ -1469,10 +1469,12 @@ M0_EXPORTED(m0_spiel_rack_add);
 
 int m0_spiel_enclosure_add(struct m0_spiel_tx  *tx,
 			   const struct m0_fid *fid,
-			   const struct m0_fid *parent)
+			   const struct m0_fid *parent,
+			   const struct m0_fid *node)
 {
 	int                       rc;
 	struct m0_conf_obj       *obj = NULL;
+	struct m0_conf_obj       *node_obj;
 	struct m0_conf_enclosure *enclosure;
 	struct m0_conf_obj       *obj_parent;
 	struct m0_conf_rack      *rack;
@@ -1482,11 +1484,13 @@ int m0_spiel_enclosure_add(struct m0_spiel_tx  *tx,
 	m0_mutex_lock(&tx->spt_lock);
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_ENCLOSURE_TYPE, &obj },
-			      {parent, &M0_CONF_RACK_TYPE, &obj_parent});
+			      {parent, &M0_CONF_RACK_TYPE, &obj_parent},
+			      {node, &M0_CONF_NODE_TYPE, &node_obj});
 	if (rc != 0)
 		goto fail;
 
 	enclosure = M0_CONF_CAST(obj, m0_conf_enclosure);
+	enclosure->ce_node = M0_CONF_CAST(node_obj, m0_conf_node);
 	rc = spiel_enclosure_dirs_create(enclosure);
 	if (rc != 0)
 		goto fail;
@@ -1513,12 +1517,10 @@ M0_EXPORTED(m0_spiel_enclosure_add);
 
 int m0_spiel_controller_add(struct m0_spiel_tx  *tx,
 			    const struct m0_fid *fid,
-			    const struct m0_fid *parent,
-			    const struct m0_fid *node)
+			    const struct m0_fid *parent)
 {
 	int                        rc;
 	struct m0_conf_obj        *obj = NULL;
-	struct m0_conf_obj        *node_obj;
 	struct m0_conf_controller *controller;
 	struct m0_conf_obj        *obj_parent;
 	struct m0_conf_enclosure  *enclosure;
@@ -1528,13 +1530,11 @@ int m0_spiel_controller_add(struct m0_spiel_tx  *tx,
 	m0_mutex_lock(&tx->spt_lock);
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_CONTROLLER_TYPE, &obj },
-			      {parent, &M0_CONF_ENCLOSURE_TYPE, &obj_parent},
-			      {node, &M0_CONF_NODE_TYPE, &node_obj});
+			      {parent, &M0_CONF_ENCLOSURE_TYPE, &obj_parent});
 	if (rc != 0)
 		goto fail;
 
 	controller = M0_CONF_CAST(obj, m0_conf_controller);
-	controller->cc_node = M0_CONF_CAST(node_obj, m0_conf_node);
 	rc = spiel_controller_dirs_create(controller);
 	if (rc != 0)
 		goto fail;

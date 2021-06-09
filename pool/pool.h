@@ -282,7 +282,8 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 				     uint32_t pool_width,
 				     uint32_t nodes,
 				     uint32_t nr_data,
-				     uint32_t nr_failures);
+				     uint32_t nr_failures,
+				     uint32_t nr_spare);
 
 /**
  * Gets pool version from in-memory list of pools (pc->pc_pools).
@@ -367,6 +368,9 @@ m0_pools_common_service_ctx_find(const struct m0_pools_common *pc,
 				 enum m0_conf_service_type type);
 M0_INTERNAL void
 m0_pools_common_service_ctx_connect_sync(struct m0_pools_common *pc);
+
+M0_INTERNAL int m0_dix_pool_version_get(struct m0_pools_common  *pc,
+					struct m0_pool_version **pv);
 
 /**
  * pool node. Data structure representing a node in a pool.

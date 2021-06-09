@@ -359,6 +359,19 @@ AM_CONDITIONAL([ENABLE_UNIT_TESTS],
 AS_IF([test x$enable_unit_tests = xyes],
       AC_SUBST([ENABLE_KERNEL_UNIT_TESTS], [m]))
 
+# ivt-tests {{{3
+AC_ARG_ENABLE([ivt-tests],
+        [AS_HELP_STRING([--disable-ivt-tests], [disable ivt tests])],
+        [], [enable_ivt_tests=yes]
+)
+AM_CONDITIONAL([ENABLE_IVT_TESTS],
+               [test "x$enable_ivt_tests" = xyes])
+AS_IF([test x$enable_ivt_tests = xyes],
+      AC_SUBST([ENABLE_KERNEL_IVT_TESTS], [m]))
+
+
+
+
 # systemd {{{3
 AC_ARG_ENABLE([systemd],
         [AS_HELP_STRING([--disable-systemd],

@@ -144,8 +144,9 @@ class ReqhInitArgs(Structure):
 
 # struct m0_pdclust_attr
 class PdclustAttr(Structure):
-    _fields_ = [('pa_N', c_uint32), ('pa_K', c_uint32), ('pa_P', c_uint32),
-                ('pa_unit_size', c_uint64), ('pa_seed', Fid)]
+    _fields_ = [('pa_N', c_uint32), ('pa_K', c_uint32), ('pa_S', c_uint32),
+                ('pa_P', c_uint32), ('pa_unit_size', c_uint64),
+                ('pa_seed', Fid)]
 
 
 # struct m0_spiel_service_info
@@ -319,15 +320,15 @@ class SpielWrapper:
         return self.motr.m0_spiel_rack_add(spiel_tx.data, byref(fid),
                                            byref(parent))
 
-    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid)
-    def enclosure_add(self, spiel_tx, fid, parent):
-        return self.motr.m0_spiel_enclosure_add(spiel_tx.data, byref(fid),
-                                                byref(parent))
-
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, node=Fid)
-    def controller_add(self, spiel_tx, fid, parent, node):
+    def enclosure_add(self, spiel_tx, fid, parent, node):
+        return self.motr.m0_spiel_enclosure_add(spiel_tx.data, byref(fid),
+                                                byref(parent), byref(node))
+
+    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid)
+    def controller_add(self, spiel_tx, fid, parent):
         return self.motr.m0_spiel_controller_add(spiel_tx.data, byref(fid),
-                                                 byref(parent), byref(node))
+                                                 byref(parent))
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid)
     def drive_add(self, spiel_tx, fid, parent):

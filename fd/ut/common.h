@@ -28,6 +28,7 @@
 enum layout_attr {
 	la_N = 8,
         la_K = 2,
+	la_S = 2
 };
 
 enum tree_ut_attr {
@@ -45,7 +46,7 @@ enum tree_ut_attr {
 	/* Maximum pool width of system. */
 	TUA_MAX_POOL_WIDTH = 5000,
 };
-M0_BASSERT(TUA_CHILD_NR_MAX >= la_N + 2 * la_K &&
+M0_BASSERT(TUA_CHILD_NR_MAX >= la_N + la_K + la_S &&
 	   TUA_MAX_POOL_WIDTH >= TUA_CHILD_NR_MAX);
 
 enum tree_type {

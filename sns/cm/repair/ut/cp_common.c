@@ -66,6 +66,7 @@ struct m0_motr  sctx;
 enum {
 	PDCLUST_N = 8,
 	PDCLUST_K = 2,
+	PDCLUST_S = 2,
 	PDCLUST_P = 24,
 	PDCLUST_UNIT_SIZE = 4096,
 };
@@ -248,6 +249,7 @@ void layout_gen(struct m0_pdclust_layout **pdlay, struct m0_reqh *reqh)
 	pdattr = (struct m0_pdclust_attr) {
 	        .pa_N         = PDCLUST_N,
 	        .pa_K         = PDCLUST_K,
+		.pa_S         = PDCLUST_S,
 	        .pa_P         = PDCLUST_P,
 	        .pa_unit_size = PDCLUST_UNIT_SIZE,
 	};

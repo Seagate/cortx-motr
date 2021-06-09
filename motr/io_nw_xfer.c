@@ -337,20 +337,23 @@ static bool target_ioreq_invariant(const struct target_ioreq *ti)
  */
 M0_INTERNAL bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 {
-	return M0_RC(xfer != NULL &&
-		     _0C(nw_xfer_request_bob_check(xfer)) &&
-		     _0C(xfer->nxr_state < NXS_STATE_NR) &&
-		     _0C(ergo(xfer->nxr_state == NXS_INITIALIZED,
-			     (xfer->nxr_rc == xfer->nxr_bytes) ==
-			     (m0_atomic64_get(&xfer->nxr_iofop_nr) == 0))) &&
-		     _0C(ergo(xfer->nxr_state == NXS_INFLIGHT,
-			      !tioreqht_htable_is_empty(
-			      &xfer->nxr_tioreqs_hash)))&&
-		     _0C(ergo(xfer->nxr_state == NXS_COMPLETE,
-			      m0_atomic64_get(&xfer->nxr_iofop_nr) == 0 &&
-			      m0_atomic64_get(&xfer->nxr_rdbulk_nr) == 0)) &&
-		     m0_htable_forall(tioreqht, tioreq, &xfer->nxr_tioreqs_hash,
-				      target_ioreq_invariant(tioreq)));
+	return xfer != NULL &&
+	       _0C(nw_xfer_request_bob_check(xfer)) &&
+	       _0C(xfer->nxr_state < NXS_STATE_NR) &&
+
+	       _0C(ergo(xfer->nxr_state == NXS_INITIALIZED,
+			xfer->nxr_rc == 0 && xfer->nxr_bytes == 0 &&
+			m0_atomic64_get(&xfer->nxr_iofop_nr) == 0)) &&
+
+	       _0C(ergo(xfer->nxr_state == NXS_INFLIGHT,
+			!tioreqht_htable_is_empty(&xfer->nxr_tioreqs_hash))) &&
+
+	       _0C(ergo(xfer->nxr_state == NXS_COMPLETE,
+			m0_atomic64_get(&xfer->nxr_iofop_nr) == 0 &&
+			m0_atomic64_get(&xfer->nxr_rdbulk_nr) == 0)) &&
+
+	       m0_htable_forall(tioreqht, tioreq, &xfer->nxr_tioreqs_hash,
+				target_ioreq_invariant(tioreq));
 }
 
 /**
@@ -1216,13 +1219,56 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 	return M0_RC(rc);
 }
 
-static void bitmap_reset(struct m0_bitmap *bitmap)
+/**
+ * Sets @iomap databufs within a data unit @ext to the degraded write mode.
+ * The unit boundary is ensured by the calling code at nw_xfer_io_distribute().
+ */
+static void databufs_set_dgw_mode(struct pargrp_iomap *iomap,
+				  struct m0_pdclust_layout *play,
+				  struct m0_ext *ext)
 {
-	int i;
+	uint32_t         row_start;
+	uint32_t         row_end;
+	uint32_t         row;
+	uint32_t         col;
+	m0_bcount_t      grp_off;
+	struct data_buf *dbuf;
 
-	for (i = 0; i < bitmap->b_nr; ++i)
-		m0_bitmap_set(bitmap, i, false);
+	grp_off = data_size(play) * iomap->pi_grpid;
+	page_pos_get(iomap, ext->e_start, grp_off, &row_start, &col);
+	page_pos_get(iomap, ext->e_end - 1, grp_off, &row_end, &col);
+
+	for (row = row_start; row <= row_end; ++row) {
+		dbuf = iomap->pi_databufs[row][col];
+		if (dbuf->db_flags & PA_WRITE)
+			dbuf->db_flags |= PA_DGMODE_WRITE;
+	}
 }
+
+/**
+ * Sets @iomap paritybufs for the parity @unit to the degraded write mode.
+ */
+static void paritybufs_set_dgw_mode(struct pargrp_iomap *iomap,
+				    struct m0_op_io *ioo,
+				    uint64_t unit)
+{
+	uint32_t                  row;
+	uint32_t                  col;
+	struct data_buf          *dbuf;
+	struct m0_pdclust_layout *play = pdlayout_get(ioo);
+	uint64_t                  unit_size = layout_unit_size(play);
+
+	parity_page_pos_get(iomap, unit * unit_size, &row, &col);
+	for (; row < rows_nr(play, ioo->ioo_obj); ++row) {
+		dbuf = iomap->pi_paritybufs[row][col];
+		if (m0_pdclust_is_replicated(play) &&
+		    iomap->pi_databufs[row][0] == NULL)
+			continue;
+		if (dbuf->db_flags & PA_WRITE)
+			dbuf->db_flags |= PA_DGMODE_WRITE;
+	}
+}
+
 /**
  * Distributes file data into target_ioreq objects as required and populates
  * target_ioreq::ti_ivec and target_ioreq::ti_bufvec.
@@ -1233,7 +1279,8 @@ static void bitmap_reset(struct m0_bitmap *bitmap)
  */
 static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 {
-	int                         rc;
+	bool                        do_cobs = true;
+	int                         rc = 0;
 	unsigned int                op_code;
 	uint64_t                    i;
 	uint64_t                    unit;
@@ -1255,27 +1302,42 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	struct m0_pdclust_src_addr  src;
 	struct m0_pdclust_tgt_addr  tgt;
 	struct m0_bitmap            units_spanned;
-	uint32_t                    row_start;
-	uint32_t                    row_end;
-	uint32_t                    row;
-	uint32_t                    col;
-	struct data_buf            *dbuf;
 	struct pargrp_iomap        *iomap;
 	struct m0_client           *instance;
-	m0_bcount_t                 grp_size;
 
 	M0_ENTRY("nw_xfer_request %p", xfer);
 
 	M0_PRE(nw_xfer_request_invariant(xfer));
 
-	ioo       = bob_of(xfer, struct m0_op_io, ioo_nwxfer,
-			   &ioo_bobtype);
+	ioo       = bob_of(xfer, struct m0_op_io, ioo_nwxfer, &ioo_bobtype);
 	op        = &ioo->ioo_oo.oo_oc.oc_op;
 	op_code   = op->op_code,
 	play      = pdlayout_get(ioo);
 	unit_size = layout_unit_size(play);
 	instance  = m0__op_instance(op);
-	rc = m0_bitmap_init(&units_spanned, m0_pdclust_size(play));
+
+	/*
+	 * In non-oostore mode, all cobs are created on object creation.
+	 * In oostore mode, CROW is enabled and cobs are created automatically
+	 * at the server side on the 1st write request. But, because of SNS,
+	 * we need to create cobs for the spare units, and to make sure all cobs
+	 * are created for all units in the parity group touched by the update
+	 * request. See more below.
+	 */
+	if (!m0__is_oostore(instance) || op_code == M0_OC_READ)
+		do_cobs = false;
+	/*
+	 * In replicated layout (N == 1), all units in the parity group are
+	 * always spanned. And there are no spare units, so...
+	 */
+	if (ioo->ioo_pbuf_type == M0_PBUF_IND)
+		do_cobs = false;
+
+	if (do_cobs) {
+		rc = m0_bitmap_init(&units_spanned, m0_pdclust_size(play));
+		if (rc != 0)
+			return M0_ERR(rc);
+	}
 
 	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
 		count        = 0;
@@ -1286,69 +1348,50 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 		M0_LOG(M0_DEBUG, "xfer=%p map=%p [grpid=%"PRIu64" state=%u]",
 				 xfer, iomap, iomap->pi_grpid, iomap->pi_state);
 
-		/* Cursor for pargrp_iomap::pi_ivec. */
+		if (do_cobs)
+			m0_bitmap_reset(&units_spanned);
+
+		/* traverse parity group ivec by units */
 		m0_ivec_cursor_init(&cursor, &iomap->pi_ivec);
-		bitmap_reset(&units_spanned);
-		grp_size = data_size(play) * iomap->pi_grpid;
 		while (!m0_ivec_cursor_move(&cursor, count)) {
 			unit = (m0_ivec_cursor_index(&cursor) - pgstart) /
 				unit_size;
 
 			u_ext.e_start = pgstart + unit * unit_size;
 			u_ext.e_end   = u_ext.e_start + unit_size;
-			m0_ext_init(&u_ext);
 
 			v_ext.e_start  = m0_ivec_cursor_index(&cursor);
 			v_ext.e_end    = v_ext.e_start +
 				m0_ivec_cursor_step(&cursor);
-			m0_ext_init(&v_ext);
 
 			m0_ext_intersection(&u_ext, &v_ext, &r_ext);
-			if (!m0_ext_is_valid(&r_ext)) {
-				count = unit_size;
-				continue;
-			}
+			M0_ASSERT(m0_ext_is_valid(&r_ext));
+			count = m0_ext_length(&r_ext);
 
-			count     = m0_ext_length(&r_ext);
 			unit_type = m0_pdclust_unit_classify(play, unit);
-			if (unit_type == M0_PUT_SPARE ||
-				unit_type == M0_PUT_PARITY)
-				continue;
+			M0_ASSERT(unit_type == M0_PUT_DATA);
 
-			if (ioreq_sm_state(ioo) == IRS_DEGRADED_WRITING) {
-				page_pos_get(iomap, r_ext.e_start, grp_size,
-					     &row_start, &col);
-				page_pos_get(iomap, r_ext.e_end - 1, grp_size,
-					     &row_end, &col);
-				dbuf = iomap->pi_databufs[row_start][col];
-				M0_ASSERT(dbuf != NULL);
-				for (row = row_start; row <= row_end; ++row) {
-					dbuf = iomap->pi_databufs[row][col];
-					M0_ASSERT(dbuf != NULL);
-					if (dbuf->db_flags & PA_WRITE) {
-						dbuf->db_flags |=
-							PA_DGMODE_WRITE;
-						m0_bitmap_set(&units_spanned,
-							      unit, true);
-					}
-				}
-			}
+			if (ioreq_sm_state(ioo) == IRS_DEGRADED_WRITING)
+				databufs_set_dgw_mode(iomap, play, &r_ext);
+
 			src.sa_unit = unit;
 			rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src, &tgt,
 							   &ti);
 			if (rc != 0)
 				goto err;
 
+			if (op_code == M0_OC_WRITE && do_cobs)
+				m0_bitmap_set(&units_spanned, unit, true);
+
 			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
-						m0_ext_length(&r_ext),
-						iomap);
+						m0_ext_length(&r_ext), iomap);
 		}
 
-		M0_ASSERT(ergo(M0_IN(op_code,
-				     (M0_OC_READ, M0_OC_WRITE)),
+		M0_ASSERT(ergo(M0_IN(op_code, (M0_OC_READ, M0_OC_WRITE)),
 			       m0_vec_count(&ioo->ioo_ext.iv_vec) ==
 			       m0_vec_count(&ioo->ioo_data.ov_vec)));
 
+		/* process parity units */
 		if (M0_IN(ioo->ioo_pbuf_type, (M0_PBUF_DIR,
 					       M0_PBUF_IND)) ||
 		    (ioreq_sm_state(ioo) == IRS_DEGRADED_READING &&
@@ -1364,73 +1407,58 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 				if (rc != 0)
 					goto err;
 
-				parity_page_pos_get(iomap, unit * unit_size,
-						    &row, &col);
+				if (ioreq_sm_state(ioo) == IRS_DEGRADED_WRITING)
+					paritybufs_set_dgw_mode(iomap, ioo,
+								unit);
 
-				for (; row < rows_nr(play, ioo->ioo_obj);
-				     ++row) {
-					dbuf = iomap->pi_paritybufs[row][col];
-					M0_ASSERT(dbuf != NULL);
-					if (m0_pdclust_is_replicated(play) &&
-					    iomap->pi_databufs[row][0] == NULL)
-						continue;
-					M0_ASSERT(ergo(op_code ==
-						       M0_OC_WRITE,
-						       dbuf->db_flags &
-						       PA_WRITE));
-					if (ioreq_sm_state(ioo) ==
-					    IRS_DEGRADED_WRITING &&
-					    dbuf->db_flags & PA_WRITE) {
-						dbuf->db_flags |=
-							PA_DGMODE_WRITE;
-						m0_bitmap_set(&units_spanned,
-							      src.sa_unit,
-							      true);
-					}
-				}
+				if (op_code == M0_OC_WRITE && do_cobs)
+					m0_bitmap_set(&units_spanned,
+						      src.sa_unit, true);
+
 				ti->ti_ops->tio_seg_add(ti, &src, &tgt, pgstart,
 							layout_unit_size(play),
 							iomap);
 			}
+
+			if (!do_cobs)
+				continue; /* to next iomap */
+
 			/*
-			 * Since CROW is not enabled in non-oostore mode cobs
-			 * are present across all nodes.
-			 */
-			if (!m0__is_oostore(instance) ||
-			    op_code == M0_OC_READ)
-				continue;
-			/*
-			 * Create cobs for those units not spanned by IO
-			 * request.
+			 * Create cobs for all units not spanned by the
+			 * IO request (data or spare units).
+			 *
+			 * If some data unit is not present in the group (hole
+			 * or not complete last group), we still need to create
+			 * cob for it. Otherwise, during SNS-repair the receiver
+			 * will wait forever for this unit without knowing that
+			 * its size is actually zero.
 			 */
 			for (unit = 0; unit < m0_pdclust_size(play); ++unit) {
 				if (m0_bitmap_get(&units_spanned, unit))
 					continue;
+
 				src.sa_unit = unit;
 				rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src,
 								   &tgt, &ti);
-				if (rc != 0) {
-					M0_LOG(M0_ERROR, "[%p] map %p,"
-					       "nxo_tioreq_map() failed, rc %d"
-						,ioo, iomap, rc);
-				}
+				if (rc != 0)
+					M0_LOG(M0_ERROR, "[%p] map=%p "
+					       "nxo_tioreq_map() failed: rc=%d",
+					       ioo, iomap, rc);
 				/*
 				 * Skip the case when some other parity group
-				 * has spanned the particular target.
+				 * has spanned the particular target already.
 				 */
-				if (ti->ti_req_type != TI_NONE) {
-					m0_bitmap_set(&units_spanned, unit,
-						      true);
+				if (ti->ti_req_type != TI_NONE)
 					continue;
-				}
+
 				ti->ti_req_type = TI_COB_CREATE;
-				m0_bitmap_set(&units_spanned, unit, true);
 			}
-			M0_ASSERT(m0_bitmap_set_nr(&units_spanned) ==
-				  m0_pdclust_size(play));
 		}
 	}
-	m0_bitmap_fini(&units_spanned);
+
+	if (do_cobs)
+		m0_bitmap_fini(&units_spanned);
+
 	M0_ASSERT(ergo(M0_IN(op_code, (M0_OC_READ, M0_OC_WRITE)),
 		       m0_vec_count(&ioo->ioo_ext.iv_vec) ==
 		       m0_vec_count(&ioo->ioo_data.ov_vec)));
@@ -1731,15 +1759,75 @@ out:
 	return M0_RC(rc);
 }
 
+/**
+ * should_spare_be_mapped() decides whether given IO request should be
+ * redirected to the spare unit device or not.
+ *
+ * For normal IO, M0_IN(ioreq_sm_state, (IRS_READING, IRS_WRITING)),
+ * such redirection is not needed, with the exception of read IO case
+ * when the failed device is in REPAIRED state.
+ *
+ * Note: req->ir_sns_state is used only to differentiate between two
+ *       possible use cases during the degraded mode write.
+ *
+ * Here are possible combinations of different parameters on which
+ * the decision is made.
+ *
+ * Input parameters:
+ *
+ * - State of IO request.
+ *   Sample set {IRS_DEGRADED_READING, IRS_DEGRADED_WRITING}
+ *
+ * - State of current device.
+ *   Sample set {M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED}
+ *
+ * - State of SNS repair process with respect to current global fid.
+ *   Sample set {SRS_REPAIR_DONE, SRS_REPAIR_NOTDONE}
+ *
+ * Degraded read case (IRS_DEGRADED_READING):
+ *
+ * 1. device_state == M0_PNDS_SNS_REPAIRING
+ *
+ *    Not redirected. The extent is assigned to the failed device itself
+ *    but it is filtered at the level of io_req_fop.
+ *
+ * 2. device_state == M0_PNDS_SNS_REPAIRED
+ *
+ *    Redirected.
+ *
+ * Degraded write case (IRS_DEGRADED_WRITING):
+ *
+ * 1. device_state == M0_PNDS_SNS_REPAIRED
+ *
+ *    Redirected.
+ *
+ * 2. device_state == M0_PNDS_SNS_REPAIRING &&
+ *    req->ir_sns_state == SRS_REPAIR_DONE
+ *
+ *    Redirected. Repair is finished for the current global fid.
+ *
+ * 3. device_state == M0_PNDS_SNS_REPAIRING &&
+ *    req->ir_sns_state == SRS_REPAIR_NOTDONE
+ *
+ *    Not redirected. Repair is not finished for this global fid yet.
+ *    So we just drop all pages directed towards the failed device.
+ *    The data will be restored by SNS-repair in the due time later.
+ *
+ * 4. device_state == M0_PNDS_SNS_REPAIRED &&
+ *    req->ir_sns_state == SRS_REPAIR_NOTDONE
+ *
+ *    This should not be possible.
+ */
 static bool should_spare_be_mapped(struct m0_op_io *ioo,
-				   enum m0_pool_nd_state device_state)
+				   enum m0_pool_nd_state dev_state)
 {
 	return (M0_IN(ioreq_sm_state(ioo),
-		       (IRS_READING, IRS_DEGRADED_READING)) &&
-		device_state == M0_PNDS_SNS_REPAIRED) ||
+		      (IRS_READING, IRS_DEGRADED_READING)) &&
+		dev_state == M0_PNDS_SNS_REPAIRED)
+	                          ||
 	       (ioreq_sm_state(ioo) == IRS_DEGRADED_WRITING &&
-		(device_state == M0_PNDS_SNS_REPAIRED ||
-		 (device_state == M0_PNDS_SNS_REPAIRING &&
+		(dev_state == M0_PNDS_SNS_REPAIRED ||
+		 (dev_state == M0_PNDS_SNS_REPAIRING &&
 		  ioo->ioo_sns_state == SRS_REPAIR_DONE)));
 
 }
@@ -1750,36 +1838,36 @@ static bool should_spare_be_mapped(struct m0_op_io *ioo,
  * This is heavily based on m0t1fs/linux_kernel/file.c::nw_xfer_tioreq_map
  *
  * @param xfer The network transfer request.
- * @param src The parity group properties.
- * @param tgt The target parameters, contains the specified offset.
- * @param out[out] The retrieved (or allocated) target request.
+ * @param src unit address in the parity groups.
+ * @param tgt[out] unit address in the target devices.
+ * @param tio[out] The retrieved (or allocated) target request.
  * @return 0 for success, -errno otherwise.
  */
 static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 			      const struct m0_pdclust_src_addr *src,
 			      struct m0_pdclust_tgt_addr       *tgt,
-			      struct target_ioreq             **out)
+			      struct target_ioreq             **tio)
 {
 	int                         rc;
 	struct m0_fid               tfid;
 	const struct m0_fid        *gfid;
-	struct m0_op_io     *ioo;
+	struct m0_op_io            *ioo;
 	struct m0_rpc_session      *session;
 	struct m0_pdclust_layout   *play;
 	struct m0_pdclust_instance *play_instance;
-	enum m0_pool_nd_state       device_state;
-	enum m0_pool_nd_state       device_state_prev;
+	enum m0_pool_nd_state       dev_state;
+	enum m0_pool_nd_state       dev_state_prev;
 	uint32_t                    spare_slot;
 	uint32_t                    spare_slot_prev;
 	struct m0_pdclust_src_addr  spare;
 	struct m0_poolmach         *pm;
 
-	M0_ENTRY("nw_xfer_request %p", xfer);
+	M0_ENTRY("nw_xfer_request=%p", xfer);
 
 	M0_PRE(nw_xfer_request_invariant(xfer));
 	M0_PRE(src != NULL);
 	M0_PRE(tgt != NULL);
-	M0_PRE(out != NULL);
+	M0_PRE(tio != NULL);
 
 	ioo = bob_of(xfer, struct m0_op_io, ioo_nwxfer, &ioo_bobtype);
 
@@ -1792,89 +1880,29 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	m0_fd_fwd_map(play_instance, src, tgt);
 	tfid = target_fid(ioo, tgt);
 	M0_LOG(M0_DEBUG, "src_id[%"PRIu64":%"PRIu64"] -> "
-			 "dest_id[%"PRIu64":%"PRIu64"] @ tfid "FID_F,
+			 "dest_id[%"PRIu64":%"PRIu64"] @ tfid="FID_F,
 	       src->sa_group, src->sa_unit, tgt->ta_frame, tgt->ta_obj,
 	       FID_P(&tfid));
 
 	pm = ioo_to_poolmach(ioo);
 	M0_ASSERT(pm != NULL);
-	rc = m0_poolmach_device_state(pm, tgt->ta_obj, &device_state);
+	rc = m0_poolmach_device_state(pm, tgt->ta_obj, &dev_state);
 	if (rc != 0)
 		return M0_RC(rc);
 
 	if (M0_FI_ENABLED("poolmach_client_repaired_device1")) {
 		if (tfid.f_container == 1)
-			device_state = M0_PNDS_SNS_REPAIRED;
+			dev_state = M0_PNDS_SNS_REPAIRED;
 	}
 
-	/*
-	 * Listed here are various possible combinations of different
-	 * parameters. The cumulative result of these values decide
-	 * whether given IO request should be redirected to spare
-	 * or not.
-	 * Note: For normal IO, M0_IN(ioreq_sm_state,
-	 * (IRS_READING, IRS_WRITING)), this redirection is not needed with
-	 * the exception of read IO case where the failed device is in
-	 * REPAIRED state.
-	 * Also, req->ir_sns_state member is used only to differentiate
-	 * between 2 possible use cases during degraded mode write.
-	 * This flag is not used elsewhere.
-	 *
-	 * Parameters:
-	 * - State of IO request.
-	 *   Sample set {IRS_DEGRADED_READING, IRS_DEGRADED_WRITING}
-	 *
-	 * - State of current device.
-	 *   Sample set {M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED}
-	 *
-	 * - State of SNS repair process with respect to current global fid.
-	 *   Sample set {SRS_REPAIR_DONE, SRS_REPAIR_NOTDONE}
-	 *
-	 * Common case:
-	 * req->ir_state == IRS_DEGRADED_READING &&
-	 * M0_IN(req->ir_sns_state, (SRS_REPAIR_DONE || SRS_REPAIR_NOTDONE)
-	 *
-	 * 1. device_state == M0_PNDS_SNS_REPAIRING
-	 *    In this case, data to failed device is not redirected to
-	 *    spare device.
-	 *    The extent is assigned to the failed device itself but
-	 *    it is filtered at the level of io_req_fop.
-	 *
-	 * 2. device_state == M0_PNDS_SNS_REPAIRED
-	 *    Here, data to failed device is redirected to respective spare
-	 *    unit.
-	 *
-	 * Common case:
-	 * req->ir_state == IRS_DEGRADED_WRITING.
-	 *
-	 * 1. device_state   == M0_PNDS_SNS_REPAIRED,
-	 *    In this case, the device repair has finished. Ergo, data is
-	 *    redirected towards respective spare unit.
-	 *
-	 * 2. device_state   == M0_PNDS_SNS_REPAIRING &&
-	 *    req->ir_sns_state == SRS_REPAIR_DONE.
-	 *    In this case, repair has finished for current global fid but
-	 *    has not finished completely. Ergo, data is redirected towards
-	 *    respective spare unit.
-	 *
-	 * 3. device_state   == M0_PNDS_SNS_REPAIRING &&
-	 *    req->ir_sns_state == SRS_REPAIR_NOTDONE.
-	 *    In this case, data to failed device is not redirected to the
-	 *    spare unit since we drop all pages directed towards failed device.
-	 *
-	 * 4. device_state   == M0_PNDS_SNS_REPAIRED &&
-	 *    req->ir_sns_state == SRS_REPAIR_NOTDONE.
-	 *    Unlikely case! What to do in this case?
-	 */
-	M0_LOG(M0_INFO, "[%p] tfid "FID_F ", device state = %d\n",
-	       ioo, FID_P(&tfid), device_state);
-	if (should_spare_be_mapped(ioo, device_state)) {
-		gfid = &ioo->ioo_oo.oo_fid;
-		rc = m0_sns_repair_spare_map(
-				pm, gfid, play, play_instance, src->sa_group,
-				src->sa_unit, &spare_slot,
-				&spare_slot_prev);
+	M0_LOG(M0_INFO, "[%p] tfid="FID_F" dev_state=%d\n",
+	                 ioo, FID_P(&tfid), dev_state);
 
+	if (should_spare_be_mapped(ioo, dev_state)) {
+		gfid = &ioo->ioo_oo.oo_fid;
+		rc = m0_sns_repair_spare_map(pm, gfid, play, play_instance,
+					     src->sa_group, src->sa_unit,
+					     &spare_slot, &spare_slot_prev);
 		if (rc != 0)
 			return M0_RC(rc);
 
@@ -1883,32 +1911,30 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 			spare.sa_unit = spare_slot_prev;
 			m0_fd_fwd_map(play_instance, &spare, tgt);
 			tfid = target_fid(ioo, tgt);
-			rc = m0_poolmach_device_state(
-				pm, tgt->ta_obj,
-				&device_state_prev);
+			rc = m0_poolmach_device_state(pm, tgt->ta_obj,
+						      &dev_state_prev);
 			if (rc != 0)
 				return M0_RC(rc);
-
 		} else
-			device_state_prev = M0_PNDS_SNS_REPAIRED;
+			dev_state_prev = M0_PNDS_SNS_REPAIRED;
 
-		if (device_state_prev == M0_PNDS_SNS_REPAIRED) {
+		if (dev_state_prev == M0_PNDS_SNS_REPAIRED) {
 			spare.sa_unit = spare_slot;
 			m0_fd_fwd_map(play_instance, &spare, tgt);
 			tfid = target_fid(ioo, tgt);
 		}
-		device_state = device_state_prev;
+		dev_state = dev_state_prev;
 	}
+
 	session = target_session(ioo, tfid);
 
 	rc = nw_xfer_tioreq_get(xfer, &tfid, tgt->ta_obj, session,
-				layout_unit_size(play) * ioo->ioo_iomap_nr,
-				out);
+			layout_unit_size(play) * ioo->ioo_iomap_nr, tio);
 
 	if (M0_IN(ioreq_sm_state(ioo), (IRS_DEGRADED_READING,
 					IRS_DEGRADED_WRITING)) &&
-	    device_state != M0_PNDS_SNS_REPAIRED)
-		(*out)->ti_state = device_state;
+	    dev_state != M0_PNDS_SNS_REPAIRED)
+		(*tio)->ti_state = dev_state;
 
 	return M0_RC(rc);
 }

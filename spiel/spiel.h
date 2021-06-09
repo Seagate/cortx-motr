@@ -511,10 +511,12 @@ int m0_spiel_rack_add(struct m0_spiel_tx  *tx,
  * @param tx      spiel transaction
  * @param fid     fid of the enclosure
  * @param parent  fid of the parent rack
+ * @param node    the node this enclosure is associated with
  */
 int m0_spiel_enclosure_add(struct m0_spiel_tx  *tx,
 			   const struct m0_fid *fid,
-			   const struct m0_fid *parent);
+			   const struct m0_fid *parent,
+			   const struct m0_fid *node);
 
 /**
  * Adds controller to the configuration tree of the transaction
@@ -522,12 +524,10 @@ int m0_spiel_enclosure_add(struct m0_spiel_tx  *tx,
  * @param tx      spiel transaction
  * @param fid     fid of the controller
  * @param parent  fid of the parent enclosure
- * @param node    the node this controller is associated with
  */
 int m0_spiel_controller_add(struct m0_spiel_tx  *tx,
 			    const struct m0_fid *fid,
-			    const struct m0_fid *parent,
-			    const struct m0_fid *node);
+			    const struct m0_fid *parent);
 
 /**
  * Adds drive to the configuration tree of the transcation
