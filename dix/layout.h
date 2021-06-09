@@ -271,11 +271,13 @@ M0_INTERNAL uint32_t m0_dix_liter_P(struct m0_dix_layout_iter *iter);
 
 /**
  * Returns number of parity units in a parity group.
- *
- * Number of parity units always equal to number of spare units in current
- * implementation.
  */
 M0_INTERNAL uint32_t m0_dix_liter_K(struct m0_dix_layout_iter *iter);
+
+/**
+ * Returns number of spare units in a parity group.
+ */
+M0_INTERNAL uint32_t m0_dix_liter_S(struct m0_dix_layout_iter *iter);
 
 /**
  * Returns total number of units (datai + parity + spare) in a parity group.

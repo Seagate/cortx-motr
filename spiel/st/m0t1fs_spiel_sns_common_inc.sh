@@ -81,6 +81,7 @@ file_size=(
 
 N=3
 K=3
+S=3
 P=15
 stride=32
 src_bs=10M

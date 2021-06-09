@@ -36,6 +36,7 @@ m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
 N=1
 K=0
+S=0
 P=15
 stride=32
 BLOCKSIZE=""
@@ -66,7 +67,7 @@ raid0_test()
 		P=1
 	fi
 
-	motr_service_start $N $K $P $stride
+	motr_service_start $N $K $S $P $stride
 
 	#Initialise dix
 	dix_init

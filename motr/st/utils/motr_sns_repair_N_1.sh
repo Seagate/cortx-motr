@@ -27,12 +27,13 @@ motr_st_util_dir=$( cd "$(dirname "$0")" ; pwd -P )
 
 N=1
 K=2
+S=2
 P=14
 stride=4
 
 main()
 {
-	motr_sns_repreb $N $K $P $stride
+	motr_sns_repreb $N $K $S $P $stride
 
 	return $rc
 }

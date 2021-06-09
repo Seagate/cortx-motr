@@ -90,7 +90,7 @@ ut_dummy_pdclust_layout_create(struct m0_client *instance)
 	/*
 	 * non-sense values, but they make it work
 	 * invariant check is:
-	 * pl->pl_C * (attr.pa_N + 2 * attr.pa_K) == pl->pl_L * attr.pa_P
+	 * pl->pl_C * (attr.pa_N + attr.pa_K + attr.pa_S) == pl->pl_L * attr.pa_P
 	 */
 	/* these values were extracted from m0t1fs */
 	pl->pl_C = 1;
@@ -98,6 +98,7 @@ ut_dummy_pdclust_layout_create(struct m0_client *instance)
 	pl->pl_attr.pa_P = M0T1FS_LAYOUT_P;
 	pl->pl_attr.pa_N = M0T1FS_LAYOUT_N;
 	pl->pl_attr.pa_K = M0T1FS_LAYOUT_K;
+	pl->pl_attr.pa_S = M0T1FS_LAYOUT_S;
 	pl->pl_attr.pa_unit_size = UT_DEFAULT_BLOCK_SIZE;
 
 	return pl;
@@ -573,12 +574,13 @@ M0_INTERNAL int ut_dummy_poolmach_create(struct m0_pool_version *pv)
 	state->pst_nr_devices          = 5; //nr_devices + 1;
 	state->pst_max_node_failures   = 1;
 	state->pst_max_device_failures = 1;
+	state->pst_nr_spares           = 1;
 
 	M0_ALLOC_ARR(state->pst_nodes_array, state->pst_nr_nodes);
 	M0_ALLOC_ARR(state->pst_devices_array,
 		     state->pst_nr_devices);
 	M0_ALLOC_ARR(state->pst_spare_usage_array,
-		     state->pst_max_device_failures);
+		     state->pst_nr_spares);
 	if (state->pst_nodes_array == NULL ||
 	    state->pst_devices_array == NULL ||
 	    state->pst_spare_usage_array == NULL) {
@@ -601,7 +603,7 @@ M0_INTERNAL int ut_dummy_poolmach_create(struct m0_pool_version *pv)
 		state->pst_devices_array[i].pd_node  = NULL;
 	}
 
-	for (i = 0; i < state->pst_max_device_failures; i++) {
+	for (i = 0; i < state->pst_nr_spares; i++) {
 		/* -1 means that this spare slot is not used */
 		state->pst_spare_usage_array[i].psu_device_index =
 					POOL_PM_SPARE_SLOT_UNUSED;

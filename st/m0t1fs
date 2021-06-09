@@ -282,13 +282,13 @@ trap cleanup EXIT
 
 parse_cli_options "$@"
 
-if ! is_motr_installed && [[ -z $rpm_pkg ]] ; then
+if ! is_motr_installed && [[ -z "$rpm_pkg" ]] ; then
     die 'Motr rpm is not installed, either install desired Motr rpm package' \
         'manually or provide it with -r option for automatic installation' \
         'and removal'
 fi
 
-if [[ -n $rpm_pkg ]] ; then
+if [[ -n "$rpm_pkg" ]] ; then
     install_motr_rpm $rpm_pkg
 else
     m0setup="$M0_SRC_DIR/utils/m0setup"
@@ -350,7 +350,7 @@ for ios_num in 1 ; do
     fi
 done
 
-if $do_cleanup && [[ -n $rpm_pkg ]] ; then
+if $do_cleanup && [[ -n "$rpm_pkg" ]] ; then
     # this ugly 'sleep sync' required to workaround situation when motr-kernel
     # doesn't have enough time to unload modules, due to buggy systemd
     # behaviour, before rpm will remove them

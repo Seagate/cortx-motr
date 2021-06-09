@@ -62,7 +62,7 @@ fi
 bundle_id=${1:-$HOSTNAME}
 dest_dir=${2:-$DEFAULT_DEST_DIR}
 
-if [[ -z $bundle_id || -z $dest_dir ]]; then
+if [[ -z "$bundle_id" || -z "$dest_dir" ]]; then
     die "Invalid argument. Type '$PROG --help' for usage."
 fi
 

@@ -38,6 +38,7 @@ CM_OP_REBALANCE_ABORT=10
 
 export N=2
 export K=1
+export S=1
 export P=4
 stride=32
 src_bs=10M
@@ -458,7 +459,7 @@ wait_for_sns_repair_or_rebalance()
 	done
 
 	op=`echo $status | grep status=3`
-	[[ !  -z  $op  ]] && return 1
+	[[ !  -z  "$op"  ]] && return 1
 
 	return 0
 }

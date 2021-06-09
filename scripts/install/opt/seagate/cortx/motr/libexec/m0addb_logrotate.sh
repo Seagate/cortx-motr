@@ -38,7 +38,7 @@ check_param()
 {
     PARAM=$1
     echo "PARAM: $PARAM"
-    if [[ -n $PARAM ]]; then
+    if [[ -n "$PARAM" ]]; then
         retval="OK"
     else
         echo "PARAM is empty"
@@ -59,12 +59,15 @@ addb_rec_dirs=`ls -d $ADDB_DIR`
 if [ -n "$ADDB_DIR" ]; then
     addb_rec_dirs="$addb_rec_dirs $ADDB_DIR"
 fi
+if [ -z "$ADDB_RECORD_DIR" ]; then
+   ADDB_RECORD_DIR="/var/motr/m0d-*"
+fi
 
 while getopts ":n:" option; do
     case "${option}" in
         n)
             log_dirs_max_count=${OPTARG}
-            if [[ -z ${log_dirs_max_count} ]]; then
+            if [[ -z "${log_dirs_max_count}" ]]; then
               usage
             fi
             ;;

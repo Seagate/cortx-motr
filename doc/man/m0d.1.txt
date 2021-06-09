@@ -5,7 +5,7 @@ include::asciidoc.conf[]
 
 NAME
 ----
-m0d - Motr file system service daemon
+m0d - Motr service daemon
 
 
 SYNOPSIS
@@ -15,30 +15,177 @@ SYNOPSIS
 
 DESCRIPTION
 -----------
-The m0d(1) command initializes and starts requested Motr file system
-service as a daemon process in user space.
+The m0d(1) command initializes and starts requested Motr service as a daemon
+process in user space.
 
 
 OPTIONS
 -------
-'TODO: add all options'
 
-*-x*::
-    List supported transports.
-
-*-l*::
-    List supported services.
-
-*-Q*::
-    Minimum TM Receive queue length.
+Queries:
 
 *-h, --help*::
     Display help screen and exit.
 
+*-l*::
+    List supported services.
 
-DETAILED DESCRIPTION
---------------------
-'Blah-blah...'
+*-v*::
+    Show version information and exit.
+
+*-x*::
+    List supported transports.
+
+Global options:
+
+*-E* num::
+    Number of net buffers used by IOS.
+
+*-F*::
+    Force mkfs to override found filesystem.
+
+*-G* addr::
+    Endpoint address of MD service.
+
+*-H* addr::
+    Endpoint address of HA service.
+
+*-J* num::
+    Number of net buffers used by SNS.
+
+*-M* num::
+    Maximum RPC message size.
+
+*-Q* num::
+    Minimum length of TM receive queue.
+
+*-R* addr::
+    Endpoint address of stats service.
+
+*-Z*::
+    Run as daemon.
+
+*-g*::
+    Disable ADDB storage.
+
+*-i* addr::
+    Add new entry to the list of IOS endpoint addresses.
+
+*-o* str::
+    Enable fault injection point with given name.
+
+*-w* num::
+    Pool width.
+
+
+Request handler options:
+
+*-A* str::
+    ADDB stob file path.
+
+*-B* str::
+    BE primary segment file path.
+
+*-C* num::
+    BE tx reg nr max.
+
+*-D* str::
+    BE stob domain file path (used by UT only).
+
+*-I*::
+    Disable direct I/O for data.
+
+*-K* num::
+    BE tx group reg size max.
+
+*-L* str::
+    BE log file path.
+
+*-N* num::
+    BE tx reg size max.
+
+*-S* str::
+    Stob file path.
+
+*-T* str::
+    Type of storage. Supported types: linux, ad.
+
+*-U*::
+    Use confc API instead of `-d` to obtain device configuration.
+
+*-V* num::
+    BE log size.
+
+*-Y* num::
+    BE tx group freeze timeout max, ms.
+
+*-a*::
+    Preallocate BE segment.
+
+*-b* str::
+    BE seg0 file path.
+
+*-c* str::
+    [optional] Path to the configuration database. Mandatory for confd service.
+
+*-d* str::
+    [optional] Path to device configuration file.
+
+    Device configuration file should contain device id and the corresponding device path.
+    if -U option is specified, disks.conf file is not used.
+    E.g. id: 0,
+         filename: /dev/sda
+    Note that only AD type stob domain can be configured over device.
+
+*-e* addr::
+    Network layer endpoint of a service.
+    Format: <transport>:<address>.
+    Currently supported transport is lnet.
+    lnet takes 4-tuple endpoint address in the form
+	 NID : PID : PortalNumber : TransferMachineIdentifier
+    e.g. lnet:172.18.50.40@o2ib1:12345:34:1
+           .
+    If multiple '-e' options are provided, network transport
+    will have several endpoints, distinguished by transfer machine id
+    (the 4th component of 4-tuple endpoint address in lnet).
+
+*-f* fid::
+    Process fid (mandatory for m0d).
+
+*-j*::
+    Enable fault injection service (FIS).
+
+*-k* num::
+    BE tx group reg nr max.
+
+*-m* num::
+    [optional] Maximum RPC message size.
+    Defaults to the value set with '-M' option.
+
+*-n* num::
+    BE tx group tx nr max.
+
+*-p* num::
+    BE tx group payload size max.
+
+*-q* num::
+    [optional] Minimum length of TM receive queue.
+    Defaults to the value set with '-Q' option.
+
+*-s* num::
+    BE tx payload size max.
+
+*-y* num::
+    BE tx group freeze timeout min, ms.
+
+*-z* num::
+    BE primary segment size in bytes (used by m0mkfs only).
+
+Example:
+    m0d -Q 4 -M 4096 -T linux -D bepath -S stobfile
+        -e lnet:172.18.50.40@o2ib1:12345:34:1
+        -q 8 -m 65536
+        -f '<0x7200000000000001:1>'
 
 
 AUTHORS
@@ -48,7 +195,7 @@ See the Motr distribution AUTHORS file.
 
 BUGS
 ----
-All bugs are added by Motr Team ;)
+No known bugs.
 
 
 RESOURCES

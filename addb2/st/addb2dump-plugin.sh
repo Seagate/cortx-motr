@@ -57,7 +57,7 @@ function check_ext_measurements() {
     local measure_4=$(echo "$ADDB2_DUMP" \
                 | grep -P "\*.*measurement_4\s+param1:\s0x\d+,\sparam2:\s0x\d+")
 
-    [[ -n $measure_1 && -n $measure_2 && -n $measure_3 && -n $measure_4 ]]
+    [[ -n "$measure_1" && -n "$measure_2" && -n "$measure_3" && -n "$measure_4" ]]
 }
 
 

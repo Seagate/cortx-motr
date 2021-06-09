@@ -524,9 +524,9 @@ execute_tests() {
 motr_start() {
 	local rc=0
 	if [ $verbose == 1 ]; then
-		motr_service start $multiple_pools $stride $N $K $P
+		motr_service start $multiple_pools $stride $N $K $S $P
 	else
-		motr_service start $multiple_pools $stride $N $K $P >/dev/null 2>&1
+		motr_service start $multiple_pools $stride $N $K $S $P >/dev/null 2>&1
 	fi
 	rc=$?
 	if [ $rc -ne "0" ]

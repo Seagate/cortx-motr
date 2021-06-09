@@ -351,10 +351,10 @@ static bool is_mds(const struct m0_conf_obj *obj)
 
 /**
  * Fills pc->pc_mds_map[] with service contexts (m0_reqh_service_ctx) of
- * the meta-data services run on the node associated with `ctrl`.
+ * the meta-data services run on the node associated with `encl`.
  */
 static int mds_map_fill(struct m0_pools_common *pc,
-			const struct m0_conf_controller *ctrl)
+			const struct m0_conf_enclosure *encl)
 {
 	struct m0_conf_diter        it;
 	struct m0_reqh_service_ctx *ctx;
@@ -362,10 +362,10 @@ static int mds_map_fill(struct m0_pools_common *pc,
 	uint64_t                    idx = 0;
 	int                         rc;
 
-	M0_ENTRY("ctrl="FID_F" node="FID_F, FID_P(&ctrl->cc_obj.co_id),
-		 FID_P(&ctrl->cc_node->cn_obj.co_id));
+	M0_ENTRY("encl="FID_F" node="FID_F, FID_P(&encl->ce_obj.co_id),
+		 FID_P(&encl->ce_node->cn_obj.co_id));
 
-	rc = m0_conf_diter_init(&it, pc->pc_confc, &ctrl->cc_node->cn_obj,
+	rc = m0_conf_diter_init(&it, pc->pc_confc, &encl->ce_node->cn_obj,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
@@ -384,11 +384,11 @@ static int mds_map_fill(struct m0_pools_common *pc,
 	return M0_RC(rc);
 }
 
-static bool obj_is_controllerv(const struct m0_conf_obj *obj)
+static bool obj_is_enclosurev(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE &&
 	       m0_conf_obj_type(M0_CONF_CAST(obj, m0_conf_objv)->cv_real) ==
-	       &M0_CONF_CONTROLLER_TYPE;
+	       &M0_CONF_ENCLOSURE_TYPE;
 }
 
 static int pool_mds_map_init(struct m0_pools_common *pc)
@@ -413,22 +413,21 @@ static int pool_mds_map_init(struct m0_pools_common *pc)
 				M0_CONF_POOL_PVERS_FID,
 				M0_CONF_PVER_SITEVS_FID,
 				M0_CONF_SITEV_RACKVS_FID,
-				M0_CONF_RACKV_ENCLVS_FID,
-				M0_CONF_ENCLV_CTRLVS_FID);
+				M0_CONF_RACKV_ENCLVS_FID);
 	if (rc != 0)
 		goto end;
 
-	while ((rc = m0_conf_diter_next_sync(&it, obj_is_controllerv)) ==
+	while ((rc = m0_conf_diter_next_sync(&it, obj_is_enclosurev)) ==
 		M0_CONF_DIRNEXT) {
 		objv = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_objv);
 		/*
 		 * XXX BUG: mds_map_fill() overwrites pc->pc_mds_map[].
 		 *
 		 * The bug will bite on cluster configurations that have
-		 * several controller-v objects in the MD pool subtree.
+		 * several enclosure-v objects in the MD pool subtree.
 		 */
 		rc = mds_map_fill(pc, M0_CONF_CAST(objv->cv_real,
-						   m0_conf_controller));
+						   m0_conf_enclosure));
 		if (rc != 0)
 			break;
 	}
@@ -526,22 +525,24 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 				     uint32_t pool_width,
 				     uint32_t nr_nodes,
 				     uint32_t nr_data,
-				     uint32_t nr_failures)
+				     uint32_t nr_failures,
+				     uint32_t nr_spare)
 {
 	int rc;
 
-	M0_ENTRY("pver id:"FID_F"N:%d K:%d P:%d", FID_P(id), nr_data,
-			nr_failures, pool_width);
+	M0_ENTRY("pver id:"FID_F"N:%d K:%d S:%d P:%d", FID_P(id), nr_data,
+			nr_failures, nr_spare, pool_width);
 	pv->pv_id = *id;
 	pv->pv_attr.pa_N = nr_data;
 	pv->pv_attr.pa_K = nr_failures;
+	pv->pv_attr.pa_S = nr_spare;
 	pv->pv_attr.pa_P = pool_width;
 	pv->pv_pool = pool;
 	pv->pv_nr_nodes = nr_nodes;
 
 	rc = m0_poolmach_init(&pv->pv_mach, pv, pv->pv_nr_nodes,
-			      pv->pv_attr.pa_P, pv->pv_nr_nodes,
-			      pv->pv_attr.pa_K);
+			      pv->pv_attr.pa_P, pv->pv_attr.pa_S,
+			      pv->pv_nr_nodes, pv->pv_attr.pa_K);
 	m0_pool_version_bob_init(pv);
 	pool_version_tlink_init(pv);
 	pv->pv_is_dirty = false;
@@ -669,6 +670,40 @@ m0_pool_version_get(struct m0_pools_common  *pc,
 	return M0_RC(rc);
 }
 
+static int dix_pool_version_get_locked(struct m0_pools_common  *pc,
+                                       struct m0_pool_version **pv)
+{
+	struct m0_pool         *pool;
+
+	M0_ENTRY();
+	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
+
+	if (pv == NULL)
+		return M0_ERR(-EINVAL);
+
+	m0_tl_for(pools, &pc->pc_pools, pool) {
+		if (is_dix_pool(pc, pool)) {
+			*pv = m0_pool_clean_pver_find(pool);
+			if (*pv != NULL)
+				return M0_RC(0);
+		}
+	} m0_tl_endfor;
+	return M0_ERR(-ENOENT);
+}
+
+M0_INTERNAL int
+m0_dix_pool_version_get(struct m0_pools_common  *pc,
+                        struct m0_pool_version **pv)
+{
+	int rc;
+
+	M0_ENTRY();
+	m0_mutex_lock(&pc->pc_mutex);
+	rc = dix_pool_version_get_locked(pc, pv);
+	m0_mutex_unlock(&pc->pc_mutex);
+	return M0_RC(rc);
+}
+
 static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 {
 	struct m0_conf_diter  it;
@@ -681,8 +716,7 @@ static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 				M0_CONF_PVER_SITEVS_FID,
 				M0_CONF_SITEV_RACKVS_FID,
 				M0_CONF_RACKV_ENCLVS_FID,
-				M0_CONF_ENCLV_CTRLVS_FID,
-				M0_CONF_CTRLV_DRIVEVS_FID);
+				M0_CONF_ENCLV_CTRLVS_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -690,7 +724,7 @@ static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 	 * XXX TODO: Replace m0_conf_diter_next_sync() with
 	 * m0_conf_diter_next().
 	 */
-	while ((rc = m0_conf_diter_next_sync(&it, obj_is_controllerv)) ==
+	while ((rc = m0_conf_diter_next_sync(&it, obj_is_enclosurev)) ==
 		M0_CONF_DIRNEXT) {
 		/* We filter only controllerv objects. */
 		M0_CNT_INC(nr_nodes);
@@ -720,7 +754,8 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 	rc = m0_pool_version_init(pv, &pver->pv_obj.co_id, pool,
 				  pver->pv_u.subtree.pvs_attr.pa_P, nodes,
 				  pver->pv_u.subtree.pvs_attr.pa_N,
-				  pver->pv_u.subtree.pvs_attr.pa_K) ?:
+				  pver->pv_u.subtree.pvs_attr.pa_K,
+				  pver->pv_u.subtree.pvs_attr.pa_S) ?:
 	     m0_pool_version_device_map_init(pv, pver, pc) ?:
 	     m0_poolmach_init_by_conf(&pv->pv_mach, pver) ?:
 	     m0_poolmach_spare_build(&pv->pv_mach, pool, pver->pv_kind);
@@ -880,13 +915,14 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	return M0_RC(rc);
 }
 
-static bool is_local_rms(const struct m0_conf_service *svc)
+static bool is_local_svc(const struct m0_conf_service *svc,
+			 enum m0_conf_service_type stype)
 {
 	const struct m0_conf_process *proc;
 	struct m0_rpc_machine        *mach;
 	const char                   *local_ep;
 
-	if (svc->cs_type != M0_CST_RMS)
+	if (svc->cs_type != stype)
 		return false;
 	proc = M0_CONF_CAST(m0_conf_obj_grandparent(&svc->cs_obj),
 			    m0_conf_process);
@@ -972,9 +1008,10 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 		 *
 		 * FI services need no service context either.
 		 */
-		if ((!rm_is_set && is_local_rms(svc)) ||
+		if (((!rm_is_set && is_local_svc(svc, M0_CST_RMS)) ||
 		    !M0_IN(svc->cs_type, (M0_CST_CONFD, M0_CST_RMS, M0_CST_HA,
-					  M0_CST_FIS))) {
+					  M0_CST_FIS))) &&
+		    !is_local_svc(svc, M0_CST_DTM0)) {
 			rc = __service_ctx_create(pc, svc, service_connect);
 			if (rc != 0)
 				break;

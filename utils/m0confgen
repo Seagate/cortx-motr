@@ -57,15 +57,15 @@ __copyright__ = """
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
   You may obtain a copy of the License at
- 
+
       http://www.apache.org/licenses/LICENSE-2.0
- 
+
   Unless required by applicable law or agreed to in writing, software
   distributed under the License is distributed on an "AS IS" BASIS,
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
   limitations under the License.
- 
+
   For any questions about this software or licensing,
   please email opensource@seagate.com or cortx-questions@seagate.com.
 
@@ -109,14 +109,14 @@ conf_obj_types = {
     # Hardware:
     'site': ('S', '*racks=[objid] pvers=[objid]'),
     'rack': ('a', '*encls=[objid] pvers=[objid]'),
-    'enclosure': ('e', '*ctrls=[objid] pvers=[objid]'),
-    'controller': ('c', '!node=objid *drives=[objid] pvers=[objid]'),
+    'enclosure': ('e', '!node=objid *ctrls=[objid] pvers=[objid]'),
+    'controller': ('c', '*drives=[objid] pvers=[objid]'),
     'drive': ('k', '!dev=objid pvers=[objid]'),
 
     # Pools:
     'pool': ('o', 'pver_policy=NUMBER *pvers=[objid]'),
     'pver': ('v:0',  # actual pver
-             'N=NUMBER K=NUMBER P=NUMBER tolerance=[NUMBER] *sitevs=[objid]'),
+             'N=NUMBER K=NUMBER S=NUMBER P=NUMBER tolerance=[NUMBER] *sitevs=[objid]'),
     'pver_f': ('v:1',  # formulaic pver
                'id=NUMBER !base=objid allowance=[NUMBER]'),
     'objv': ('j', '!real=objid *children=[objid]'),
@@ -128,7 +128,7 @@ conf_service_types = (
     '_UNUSED', 'MDS', 'IOS', 'CONFD', 'RMS', 'STATS', 'HA', 'SSS',
     'SNS_REP', 'SNS_REB', 'ADDB2', 'CAS', 'DIX_REP', 'DIX_REB',
     'DS1', 'DS2',  # UT-specific
-    'FIS', 'FDMI', 'BE', 'M0T1FS', 'CLIENT', 'ISCS'
+    'FIS', 'FDMI', 'BE', 'M0T1FS', 'CLIENT', 'ISCS', 'DTM0'
 )
 conf_service_types = tuple('M0_CST_' + s for s in conf_service_types)
 
@@ -1380,13 +1380,13 @@ class TestEncoding(unittest.TestCase):
  {"objid": "pool-1", "pver_policy": 0, "pvers": []}
 ]""")
         test([ConfObj(Fid(('v', 1), 8), [
-            ('N', 1), ('K', 1), ('P', 5), ('tolerance', [0, 0, 0, 0, 1]),
+            ('N', 1), ('K', 1), ('S', 1), ('P', 5), ('tolerance', [0, 0, 0, 0, 1]),
             ('sitevs', [Fid(('j', 1), 12)])])],
              """[1:
- {0x76| ((^v|1:8), {0| (1, 1, 5, [5: 0, 0, 0, 0, 1], [1: ^j|1:12])})}]""",
-             '(pver-8 N=1 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-12])',
+ {0x76| ((^v|1:8), {0| (1, 1, 1, 5, [5: 0, 0, 0, 0, 1], [1: ^j|1:12])})}]""",
+             '(pver-8 N=1 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-12])',
              """[
- {"objid": "pver-8", "N": 1, "K": 1, "P": 5, "tolerance": [0, 0, 0, 0, 1],\
+ {"objid": "pver-8", "N": 1, "K": 1, "S": 1, "P": 5, "tolerance": [0, 0, 0, 0, 1],\
  "sitevs": ["objv-12"]}
 ]""")
         test([ConfObj(Fid(0x7640000000000001, 9),
@@ -1417,16 +1417,13 @@ class TestEncoding(unittest.TestCase):
     def test_html(self):
         self.assertEqual(Encoder_html.array_entries(
             ConfObj(Fid(('c', 1), 0),
-                    [('node', Fid(('n', 1), 0)),
-                     ('drives', [Fid(('k', 1), 0), Fid(('k', 1), 1)]),
+                    [('drives', [Fid(('k', 1), 0), Fid(('k', 1), 1)]),
                      ('pvers', [Fid(('v', 1), 13)])])),
                          ("""\
 {"id": "controller-0", "label": "controller-0", "group": "controller",\
- "_attrs": {"node": "node-0", "drives": "[drive-0, drive-1]",\
+ "_attrs": {"drives": "[drive-0, drive-1]",\
  "pvers": "[pver-13]"}}""",
-                          ['{"from": "controller-0", "to": "node-0",'
-                           ' "dashes": true}',
-                           '{"from": "controller-0", "to": "drive-0"}',
+                          ['{"from": "controller-0", "to": "drive-0"}',
                            '{"from": "controller-0", "to": "drive-1"}']))
 
     def test_dot(self):
@@ -1489,9 +1486,9 @@ class TestDecoding(unittest.TestCase):
                          [ConfObj(Fid(('S', 1), 128), [
                              ('racks', [Fid(('a', 1), 0)]), ('pvers', [])])])
         self.assertEqual(decode(
-            '(pver-10 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2])'),
+            '(pver-10 N=2 K=1 S=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2])'),
                          [ConfObj(Fid(('v', 1), 10), [
-                             ('N', 2), ('K', 1), ('P', 4),
+                             ('N', 2), ('K', 1), ('S', 1), ('P', 4),
                              ('tolerance', [0, 0, 0, 0, 1]),
                              ('sitevs', [Fid(('j', 1), 2)])])])
         self.assertEqual(decode(
