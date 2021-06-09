@@ -175,13 +175,13 @@ struct m0_fab__ndom {
 	struct m0_net_domain *fnd_ndom;
 
 	/** Lock used betn poller & tm_fini during shutdown */
-	struct m0_mutex fnd_lock;
+	struct m0_mutex       fnd_lock;
 
 	/** List of fabric interfaces in a domain */
-	struct m0_tl fnd_fabrics;
+	struct m0_tl          fnd_fabrics;
 
-	// /** List of deregistered buffers */
-	// struct m0_fab__bufht fnd_bufhash;
+	/** local ip address */
+	char                  fnd_loc_ip[16];
 };
 
 /**

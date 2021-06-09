@@ -44,7 +44,6 @@
 static char     *providers[] = { "verbs", "tcp", "sockets" };
 static char     *protf[]  = { "unix", "inet", "inet6" };
 static char     *socktype[] = { "stream", "dgram" };
-static char      local_ip[16] = {'\0'};
 static uint64_t  mr_key_idx = 0;
 static uint32_t  buf_token = 0;
 /** 
@@ -90,7 +89,6 @@ M0_HT_DESCR_DEFINE(fab_bufhash, "Hash of bufs", static, struct m0_fab__buf,
 
 M0_HT_DEFINE(fab_bufhash, static, struct m0_fab__buf, uint32_t);
 
-static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name);
 static int libfab_ep_txres_init(struct m0_fab__active_ep *aep,
 				struct m0_fab__tm *tm, void *ctx);
 static int libfab_ep_rxres_init(struct m0_fab__active_ep *aep,
@@ -174,29 +172,8 @@ static void libfab_bulk_buf_process(struct m0_fab__tm *tm);
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
 {
-	struct fi_info *hints;
-	struct fi_info *fi;
-	int             result = 0;
-
-	hints = fi_allocinfo();
-	if( hints == NULL)
-		return M0_ERR(-ENOMEM);
-	hints->fabric_attr->prov_name = providers[0];
-	result = fi_getinfo(FI_VERSION(1,11), NULL, NULL, 0, hints, &fi);
-	if(result == FI_SUCCESS)
-		inet_ntop(AF_INET,
-			  &((struct sockaddr_in *)fi->src_addr)->sin_addr,
-			  local_ip, 16);
-	else
-		strcpy(local_ip, "127.0.0.1");
-
 	m0_net_xprt_register(&m0_net_libfab_xprt);
 	m0_net_xprt_default_set(&m0_net_libfab_xprt);
-
-	hints->fabric_attr->prov_name = NULL;
-	fi_freeinfo(hints);
-	fi_freeinfo(fi);
-
 	return M0_RC(0);
 }
 
@@ -214,7 +191,7 @@ M0_INTERNAL void m0_net_libfab_fini(void)
  */
 static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 				      size_t nodeSize, char *port,
-				      size_t portSize)
+				      size_t portSize, struct m0_fab__ndom *fnd)
 {
 	char     *at = NULL;
 	int       nr;
@@ -225,8 +202,8 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 	unsigned  tmid;
 
 	if (strncmp(name, "0@lo", 4) == 0) {
-		M0_PRE(nodeSize >= ((strlen(local_ip)+1)) );
-		memcpy(node, local_ip, (strlen(local_ip)+1));
+		M0_PRE(nodeSize >= ((strlen(fnd->fnd_loc_ip)+1)) );
+		memcpy(node, fnd->fnd_loc_ip, (strlen(fnd->fnd_loc_ip)+1));
 	} else {
 		at = strchr(name, '@');
 		if (at == NULL || at - name >= nodeSize)
@@ -414,7 +391,8 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
  *                   IPV6 libfab:[4002:db1::1]:4235
  *
  */
-static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name)
+static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
+				 struct m0_fab__ndom *fnd)
 {
 	char *node = ep->fep_name.fen_addr;
 	char *port = ep->fep_name.fen_port;
@@ -436,7 +414,7 @@ static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name)
 	else
 		/* Lnet format. */
 		result = libfab_ep_addr_decode_lnet(name, node, nodeSize, 
-						    port, portSize);
+						    port, portSize, fnd);
 
 	if (result == FI_SUCCESS)
 		strcpy(ep->fep_name.fen_str_addr, name);
@@ -930,10 +908,11 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 			    struct m0_fab__ep_name *epn,
 			    struct m0_net_end_point **epp)
 {
-	struct m0_fab__tm *ma = tm->ntm_xprt_private;
-	struct m0_fab__ep *ep = NULL;
-	char              *wc;
-	int                rc;
+	struct m0_fab__ndom  *fnd = tm->ntm_dom->nd_xprt_private;
+	struct m0_fab__tm    *ma = tm->ntm_xprt_private;
+	struct m0_fab__ep    *ep = NULL;
+	char                 *wc;
+	int                   rc;
 
 	M0_ENTRY("name=%s", name);
 	M0_PRE(name != NULL);
@@ -950,7 +929,7 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 
 	ep->fep_listen = NULL;
 
-	rc = libfab_ep_addr_decode(ep, name);
+	rc = libfab_ep_addr_decode(ep, name, fnd);
 	if (rc != FI_SUCCESS) {
 		libfab_aep_param_free(ep->fep_aep, ma);
 		ep->fep_aep = NULL;
@@ -2568,6 +2547,30 @@ static uint32_t libfab_buf_token_get(struct m0_fab__buf *fb)
 	return ret;
 }
 
+static int libfab_get_local_ip(char *local_ip)
+{
+	struct fi_info *hints;
+	struct fi_info *fi;
+	int             result = 0;
+
+	hints = fi_allocinfo();
+	if( hints == NULL)
+		return M0_ERR(-ENOMEM);
+	hints->fabric_attr->prov_name = providers[0];
+	result = fi_getinfo(FI_VERSION(1,11), NULL, NULL, 0, hints, &fi);
+	if(result == FI_SUCCESS)
+		inet_ntop(AF_INET,
+			  &((struct sockaddr_in *)fi->src_addr)->sin_addr,
+			  local_ip, 16);
+	else
+		strcpy(local_ip, "127.0.0.1");
+
+	hints->fabric_attr->prov_name = NULL;
+	fi_freeinfo(hints);
+	fi_freeinfo(fi);
+	return M0_RC(0);
+}
+
 /*============================================================================*/
 
 /** 
@@ -2577,6 +2580,7 @@ static int libfab_dom_init(const struct m0_net_xprt *xprt,
 			   struct m0_net_domain *dom)
 {
 	struct m0_fab__ndom *fab_ndom;
+	int                  ret = 0;
 
 	M0_ENTRY();
 
@@ -2584,12 +2588,16 @@ static int libfab_dom_init(const struct m0_net_xprt *xprt,
 	if (fab_ndom == NULL)
 		return M0_ERR(-ENOMEM);
 
-	dom->nd_xprt_private = fab_ndom;
-	fab_ndom->fnd_ndom = dom;
-	m0_mutex_init(&fab_ndom->fnd_lock);
-	fab_fabs_tlist_init(&fab_ndom->fnd_fabrics);
-
-	return M0_RC(0);
+	ret = libfab_get_local_ip(fab_ndom->fnd_loc_ip);
+	if (ret != FI_SUCCESS)
+		m0_free(fab_ndom);
+	else {
+		dom->nd_xprt_private = fab_ndom;
+		fab_ndom->fnd_ndom = dom;
+		m0_mutex_init(&fab_ndom->fnd_lock);
+		fab_fabs_tlist_init(&fab_ndom->fnd_fabrics);
+	}
+	return M0_RC(ret);
 }
 
 /** 
@@ -2705,9 +2713,9 @@ static int libfab_ma_start(struct m0_net_transfer_mc *ntm, const char *name)
 	M0_ASSERT(libfab_tm_is_locked(ftm));
 	M0_ALLOC_PTR(ftm->ftm_pep);
 	if (ftm->ftm_pep != NULL) {
-		libfab_ep_addr_decode(ftm->ftm_pep, name);
-		
 		fnd = ntm->ntm_dom->nd_xprt_private;
+		libfab_ep_addr_decode(ftm->ftm_pep, name, fnd);
+
 		ftm->ftm_fab = libfab_newfab_init(fnd);
 		rc = libfab_passive_ep_create(ftm->ftm_pep, ftm);
 		if (rc != FI_SUCCESS)
