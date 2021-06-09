@@ -3728,7 +3728,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			else if (bop->bo_flags & BOF_SIBLING) {
 			/* Return sibling record based on flag. */
 				s.s_node = lev->l_sibling;
-				s.s_idx = bop->bo_flags & BOF_NEXT ? 0 :
+				s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
 					  node_count(s.s_node) - 1;
 				node_rec(&s);
 			} else {
