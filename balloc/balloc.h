@@ -231,7 +231,7 @@ enum {
 	/** Default db index count */
 	BALLOC_DEF_INDEXES_NR           = 1,
 	/** Used as minimal group size */
-	BALLOC_DEF_BLOCKS_PER_GROUP     = 524288,
+	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
 };
 
 /**

@@ -43,7 +43,7 @@
 
 #define BALLOC_DBNAME "./__balloc_db"
 
-#define GROUP_SIZE (BALLOC_DEF_CONTAINER_SIZE / (BALLOC_DEF_BLOCKS_PER_GROUP * \
+#define GROUP_COUNT (BALLOC_DEF_CONTAINER_SIZE / (BALLOC_DEF_BLOCKS_PER_GROUP * \
 						 (1 << BALLOC_DEF_BLOCK_SHIFT)))
 
 #define BALLOC_DEBUG
@@ -116,6 +116,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg,
 	bcfg.bfr_totalsize             = BALLOC_DEF_CONTAINER_SIZE;
 	bcfg.bfr_blocksize             = (1 << BALLOC_DEF_BLOCK_SHIFT);
 	bcfg.bfr_groupsize             = BALLOC_DEF_BLOCKS_PER_GROUP;
+	bcfg.bfr_groupcount            = GROUP_COUNT;
 	bcfg.bfr_indexcount            = BALLOC_DEF_INDEXES_NR;
 	bcfg.bfr_spare_reserved_blocks = m0_stob_ad_spares_calc(
 						BALLOC_DEF_BLOCKS_PER_GROUP);
@@ -130,9 +131,9 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg,
 		goto out;
 
 	prev_free_blocks = motr_balloc->cb_sb.bsb_freeblocks;
-	M0_ALLOC_ARR(prev_group_info_free_blocks, GROUP_SIZE);
+	M0_ALLOC_ARR(prev_group_info_free_blocks, GROUP_COUNT);
 
-	for (i = 0; i < GROUP_SIZE; ++i) {
+	for (i = 0; i < GROUP_COUNT; ++i) {
 		prev_group_info_free_blocks[i] =
 			motr_balloc->cb_group_info[i].bgi_normal.bzp_freeblocks;
 	}
