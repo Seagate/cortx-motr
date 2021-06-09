@@ -1602,7 +1602,7 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 
 				rc = m0_parity_math_diff(parity_math(map->pi_ioreq),
 							 old, dbufs, pbufs, col);
-				if (rc != 0){
+				if (rc != 0) {
 					m0_free(old);
 					goto last;
 				}

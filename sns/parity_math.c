@@ -724,9 +724,9 @@ static int xor_calculate(struct m0_parity_math *math,
 			 const struct m0_buf *data,
 			 struct m0_buf *parity)
 {
-	uint32_t	  ei; /* block element index. */
-	uint32_t	  ui; /* unit index. */
-	uint32_t	  block_size = data[0].b_nob;
+	uint32_t          ei; /* block element index. */
+	uint32_t          ui; /* unit index. */
+	uint32_t          block_size = data[0].b_nob;
 	m0_parity_elem_t  pe;
 
 	if (block_size != parity[0].b_nob)
