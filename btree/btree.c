@@ -1080,11 +1080,6 @@ struct node_header {
 	uint64_t h_opaque;
 };
 
-enum alloc_flags {
-	NODE_USED = 1,
-	NODE_FREE = 2
-};
-
 /**
  * This structure will store information required at particular level
  */
@@ -2350,10 +2345,10 @@ static int fail(struct m0_btree_op *bop, int rc)
 /**
  * checks if given node is still exists
  */
-static int node_is_valid(const struct nd *node)
+static bool node_is_valid(const struct nd *node)
 {
 	/* function definition is yet to be implemented */
-	return 0;
+	return true;
 }
 
 /**
@@ -2376,8 +2371,7 @@ static bool path_check(struct m0_btree_oimpl *oi, struct td *tree,
 		return cookie_is_valid(tree, k_cookie);
 
 	while (total_level >= 0) {
-		int rc = node_is_valid(l_node);
-		if (rc) {
+		if (!node_is_valid(l_node)) {
 			node_op_fini(&oi->i_nop);
 			//return fail(bop, rc);
 			return false;
@@ -2437,6 +2431,11 @@ static void level_cleanup(struct m0_btree_oimpl *oi,
 		if (oi->i_level[i].l_alloc != NULL) {
 			node_put(oi->i_level[i].l_alloc);
 			oi->i_nop.no_opc = NOP_FREE;
+			/**
+			 * node_free() will not cause any I/O delay since this
+			 * node was allocated in P_ALLOC phase in put_tick and
+			 * I/O delay would have happened during the allocation.
+			 */
 			node_free(&oi->i_nop, oi->i_level[i].l_alloc, tx, 0);
 			oi->i_level[i].l_alloc = NULL;
 		}
@@ -2511,6 +2510,7 @@ static int64_t m0_btree_put_alloc_phase(struct m0_btree_op *bop)
 				return P_ALLOC;
 			} else {
 				node_op_fini(&oi->i_nop);
+				oi->i_used = bop->bo_arbor->t_height - 1;
 				level_cleanup(oi, bop->bo_tx);
 				return P_INIT;
 			}
@@ -2536,6 +2536,7 @@ static int64_t m0_btree_put_alloc_phase(struct m0_btree_op *bop)
 			return P_ALLOC;
 		} else {
 			node_op_fini(&oi->i_nop);
+			oi->i_used = bop->bo_arbor->t_height - 1;
 			level_cleanup(oi, bop->bo_tx);
 			return P_INIT;
 		}
@@ -2556,7 +2557,7 @@ static int64_t m0_btree_put_root_split_handle(struct m0_btree_op *bop,
 {
 	struct td              *tree       = bop->bo_arbor->t_desc;
 	struct m0_btree_oimpl  *oi         = bop->bo_i;
-	struct level           *lev        = &oi->i_level[oi->i_used];
+	struct level           *lev        = &oi->i_level[0];
 	m0_bcount_t             ksize;
 	void                   *p_key;
 	m0_bcount_t             vsize;
@@ -2650,7 +2651,6 @@ static int64_t m0_btree_put_root_split_handle(struct m0_btree_op *bop,
 
 	lock_op_unlock(tree);
 	return P_CLEANUP;
-	//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 }
 
 /**
@@ -2801,8 +2801,6 @@ static int64_t m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 	newv_ptr      = &(lev->l_alloc->n_addr);
 	new_rec.r_val = M0_BUFVEC_INIT_BUF(&newv_ptr, &newvsize);
 
-
-
 	temp_rec_1.r_key.k_data   = M0_BUFVEC_INIT_BUF(&p_key_1, &ksize_1);
 	temp_rec_1.r_val          = M0_BUFVEC_INIT_BUF(&p_val_1, &vsize_1);
 
@@ -2831,7 +2829,6 @@ static int64_t m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 
 			lock_op_unlock(bop->bo_arbor->t_desc);
 			return P_CLEANUP;
-			//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 		}
 
 		m0_btree_put_split_and_find(lev->l_alloc,
@@ -2853,7 +2850,6 @@ static int64_t m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 		newv_ptr = &(lev->l_alloc->n_addr);
 	}
 
-	oi->i_used  = 0;
 	/**
 	 * If we reach root node and splitting is done at root handle spliting
 	 * of root
@@ -2950,14 +2946,13 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		int           ksize;
 		int           vsize;
 		bool          alloc = false;
-		int           rc;
 		do {
 			lev = &oi->i_level[oi->i_used];
 			/* Validate lev->l_node */
-			rc = node_is_valid(lev->l_node);
-			if (rc) {
-				node_op_fini(&oi->i_nop);
-				return fail(bop, rc);
+			if (!node_is_valid(lev->l_node)) {
+				oi->i_used = bop->bo_arbor->t_height - 1;
+				level_cleanup(oi, bop->bo_tx);
+				return P_INIT;
 			}
 			if (lev->l_node->n_type->nt_id == BNT_FIXED_FORMAT) {
 				ksize = node_keysize(lev->l_node);
@@ -3014,7 +3009,6 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 					            P_INIT);
 			} else {
 				/* If height same */
-				bop->bo_arbor->t_height = tree->t_height;
 				lock_op_unlock(tree);
 				return P_DOWN;
 			}
@@ -3032,7 +3026,6 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			}
 			lock_op_unlock(tree);
 			return P_CLEANUP;
-			//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 		}
 		struct slot slot_for_right_node = {
 			.s_node = lev->l_node,
@@ -3085,10 +3078,8 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 
 		lock_op_unlock(tree);
 		return P_CLEANUP;
-		//return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 	}
 	case P_CLEANUP: {
-		oi->i_used = bop->bo_arbor->t_height - 1;
 		level_cleanup(oi, bop->bo_tx);
 		return P_DONE;
 		//return m0_sm_op_ret(&bop->bo_op);
@@ -3146,13 +3137,13 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_CHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CHECK",
-		.sd_allowed = M0_BITS(P_MAKESPACE, P_CLEANUP, P_DONE, P_DOWN,
+		.sd_allowed = M0_BITS(P_MAKESPACE, P_CLEANUP, P_DOWN,
 				      P_ACT, P_INIT),
 	},
 	[P_MAKESPACE] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_MAKESPACE",
-		.sd_allowed = M0_BITS(P_CLEANUP, P_DONE, P_ACT),
+		.sd_allowed = M0_BITS(P_CLEANUP, P_ACT),
 	},
 	[P_ACT] = {
 		.sd_flags   = 0,
@@ -3199,14 +3190,12 @@ static struct m0_sm_trans_descr btree_trans[256] = {
 	{ "put/get-check-ft", P_CHECK, P_ACT },
 	{ "put-check-ft-makespace", P_CHECK, P_MAKESPACE },
 	{ "put-check-init", P_CHECK, P_INIT },
-	{ "put-check-done", P_CHECK, P_DONE },
 	{ "put-check-init", P_CHECK, P_INIT },
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
-	{ "put-makespace-done", P_MAKESPACE, P_DONE },
 	{ "put-makespace", P_MAKESPACE, P_ACT },
 	{ "put/get-act", P_ACT, P_CLEANUP },
 	{ "put/get-done", P_CLEANUP, P_DONE },
-	{ "put", P_CLEANUP, P_INIT },
+	{ "put-restart", P_CLEANUP, P_INIT },
 };
 
 static struct m0_sm_conf btree_conf = {
