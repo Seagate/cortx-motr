@@ -1651,7 +1651,7 @@ static const struct node_type fixed_format;
 static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 {
 	struct td *tree = NULL;
-	int        i     = 0;
+	int        i    = 0;
 	uint32_t   offset;
 
 	m0_rwlock_write_lock(&trees_lock);
@@ -2018,7 +2018,12 @@ static void ff_init(const struct nd *node, int shift, int ksize, int vsize,
 	h->ff_shift = shift;
 	h->ff_ksize = ksize;
 	h->ff_vsize = vsize;
-	//m0_be_tx_capture();
+	/**
+	 * ToDo: We need to capture the changes occuring in the header using
+	 * m0_be_tx_capture().
+	 * Capture only those fields where there is any updation instead of the
+	 * whole header.
+	 */
 }
 
 static void ff_fini(const struct nd *node)
@@ -2129,9 +2134,16 @@ static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 	M0_PRE(ff_rec_is_valid(slot));
 	M0_PRE(ff_isfit(slot));
 	memmove(start + rsize, start, rsize * (h->ff_used - slot->s_idx));
-	//m0_be_tx_capture();
+	/**
+	 * ToDo: We need to capture the changes occuring in the memory whose 
+	 * address starts from "start + rsize" and has its respective size using
+	 * m0_be_tx_capture().
+	 */
 	h->ff_used++;
-	//m0_be_tx_capture();
+	/**
+	 * ToDo: We need to capture the changes occuring in the header's ff_used
+	 * field using m0_be_tx_capture().
+	 */
 }
 
 static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
@@ -2196,9 +2208,16 @@ static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	M0_PRE(idx < h->ff_used);
 	M0_PRE(h->ff_used > 0);
 	memmove(start, start + rsize, rsize * (h->ff_used - idx - 1));
-	//m0_be_tx_capture();
+	/**
+	 * ToDo: We need to capture the changes occuring in the memory whose 
+	 * address starts from "start" and has its respective size using
+	 * m0_be_tx_capture().
+	 */
 	h->ff_used--;
-	//m0_be_tx_capture();
+	/**
+	 * ToDo: We need to capture the changes occuring in the header's ff_used
+	 * field using m0_be_tx_capture().
+	 */
 }
 
 static void ff_set_level(const struct nd *node, uint8_t new_level,
@@ -2207,7 +2226,10 @@ static void ff_set_level(const struct nd *node, uint8_t new_level,
 	struct ff_head *h = ff_data(node);
 
 	h->ff_level = new_level;
-	//m0_be_tx_capture();
+	/**
+	 * ToDo: We need to capture the changes occuring in the node-header's 
+	 * ff_level field using m0_be_tx_capture().
+	 */
 }
 
 static void generic_move(struct nd *src, struct nd *tgt,
@@ -2288,8 +2310,18 @@ static void generic_move(struct nd *src, struct nd *tgt,
 	}
 	node_fix(src, tx);
 	node_fix(tgt, tx);
-	//m0_be_tx_capture();
-	//m0_be_tx_capture();
+
+	/**
+	 * ToDo: We need to capture the changes occuring in the "src" node
+	 * using m0_be_tx_capture().
+	 * Only the modified memory from the node needs to be updated.
+	 */
+
+	/**
+	 * ToDo: We need to capture the changes occuring in the "tgt" node
+	 * using m0_be_tx_capture().
+	 * Only the modified memory from the node needs to be updated.
+	 */
 }
 
 /** Insert operation section start point: */
@@ -3279,7 +3311,13 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 
 			tree_delete(&bop->bo_i->i_nop, bop->bo_arbor->t_desc,
 				    bop->bo_tx, P_ACT);
-			//m0_be_tx_capture();
+			/**
+			 * ToDo: We need to capture the changes occuring in the
+			 * root node after tree_descriptor has been freed using
+			 * m0_be_tx_capture().
+			 * Only those fields that have changed need to be
+			 * updated.
+			 */
 			m0_free(bop->bo_arbor);
 			m0_free(bop->bo_i);
 			bop->bo_arbor = NULL;
@@ -4217,7 +4255,7 @@ static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
  */
 static void m0_btree_ut_basic_kv_oper(void)
 {
-	struct m0_btree_type    btree_type = {.tt_id = M0_BT_UT_KV_OPS,
+	struct m0_btree_type    btree_type  = {.tt_id = M0_BT_UT_KV_OPS,
 					      .ksize = 8,
 					      .vsize = 8, };
 	struct m0_be_tx        *tx          = NULL;
@@ -4230,7 +4268,7 @@ static void m0_btree_ut_basic_kv_oper(void)
 	uint64_t                first_key;
 	bool                    first_key_initialized = false;
 	struct m0_btree_op      kv_op                 = {};
-	const struct node_type *nt                   = &fixed_format;
+	const struct node_type *nt                    = &fixed_format;
 
 	M0_ENTRY();
 
