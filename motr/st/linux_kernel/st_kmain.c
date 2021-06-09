@@ -157,7 +157,6 @@ module_init(st_module_init)
 module_exit(st_module_fini)
 
 MODULE_LICENSE("GPL");
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

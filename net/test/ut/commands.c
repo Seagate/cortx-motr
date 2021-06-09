@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -669,7 +669,7 @@ static void commands_node_thread2(struct net_test_cmd_node *node)
 		for (i = 1; i < ARRAY_SIZE(nodes); ++i) {
 			strncat(buf, nodes[i].ntcn_addr, NTC_ADDR_LEN_MAX - 1);
 			if (i != ARRAY_SIZE(nodes) - 1)
-				//strncat(buf, ",", 1); //Nalini
+				/*strncat(buf, ",", 1);*/  /*Nalini*/
 				strcat(buf, ",");
 		}
 		rc = m0_net_test_slist_init(&endpoints, buf, ',');

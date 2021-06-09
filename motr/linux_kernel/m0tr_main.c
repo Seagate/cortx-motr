@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,8 +33,6 @@
 #include "motr/linux_kernel/module.h"
 #include "module/instance.h"  /* m0 */
 
-
-
 M0_INTERNAL int __init motr_init(void)
 {
 	static struct m0     instance;
@@ -42,7 +40,7 @@ M0_INTERNAL int __init motr_init(void)
 	M0_THREAD_ENTER;
 
 #ifndef CONFIG_X86_64
-	start_cycle_counter();  // start  reading the cycle counter
+	start_cycle_counter();  /* start  reading the cycle counter */
 #endif
 	m = m0_motr_ko_get_module();
 	pr_info("motr: init\n");
@@ -59,7 +57,7 @@ M0_INTERNAL void __exit motr_exit(void)
 	M0_THREAD_ENTER;
 	pr_info("motr: cleanup\n");
 #ifndef CONFIG_X86_64
-	finish_cycle_counter();  // stop reading the cycle counter
+	finish_cycle_counter();  /* stop reading the cycle counter */
 #endif
 	m0_fini();
 }
@@ -73,7 +71,6 @@ module_exit(motr_exit);
  * marker is necessary to remove the warnings, keeping this blank to make
  * compiler happy.
  */
-
 /* Added GPL per suggestions to avoid compilation error, may need to be reviewed */
 MODULE_LICENSE("GPL");
 

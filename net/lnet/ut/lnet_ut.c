@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -265,6 +265,15 @@ do {								\
 } while (0)
 #define zUT(x) zvUT(x, 0)
 
+#ifndef PAGE_SHIFT
+  #ifdef  CONFIG_X86_64
+    #define PAGE_SHIFT    12
+  #else /*aarch64*/
+    #define PAGE_SHIFT    16
+  #endif
+  #define PAGE_SIZE	  (1UL << PAGE_SHIFT)
+#endif
+
 enum {
 	UT_BUFS1     = 2,
 	UT_BUFSEGS1  = 4,
@@ -275,9 +284,6 @@ enum {
 	UT_PAGE_SHIFT = PAGE_SHIFT
 };
 
-#ifndef PAGE_SHIFT
-#define PAGE_SHIFT      12
-#endif
 struct ut_data {
 	int                            _debug_;
 	struct m0_net_tm_callbacks     tmcb;
@@ -303,7 +309,7 @@ struct ut_data {
 };
 
 #ifdef __KERNEL__
-//M0_BASSERT(UT_PAGE_SHIFT == PAGE_SHIFT);
+M0_BASSERT(UT_PAGE_SHIFT == PAGE_SHIFT);
 #endif
 
 #define DOM1 (&td->dom1)

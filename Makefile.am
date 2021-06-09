@@ -1587,21 +1587,21 @@ __rpm_post:
 __rpm:
 	rpmbuild -ba $(RPM_SPEC_DIR)/cortx-motr.spec \
 		 --define "_topdir $(RPMBUILD_DIR)" \
-		 --define "CONFIG_X86_64 @ARCH@" \
+		 --define "CONFIG_ARCH_TYPE @ARCH@" \
 		 $(RPMBUILD_FLAGS)
 
 .PHONY: __rpm_srpm
 __rpm_srpm:
 	rpmbuild -bs $(RPM_SPEC_DIR)/cortx-motr.spec \
 		 --define "_topdir $(RPMBUILD_DIR)" \
-		 --define "CONFIG_X86_64 @ARCH@" \
+		 --define "CONFIG_ARCH_TYPE @ARCH@" \
 		 $(RPMBUILD_FLAGS)
 
 .PHONY: __rpm_tests
 __rpm_tests:
 	rpmbuild -bb $(RPM_SPEC_DIR)/cortx-motr.spec \
 		 --define "_topdir $(RPMBUILD_DIR)" \
-		 --define "CONFIG_X86_64 @ARCH@" \
+		 --define "CONFIG_ARCH_TYPE @ARCH@" \
 		 --with ut \
 		 $(RPMBUILD_FLAGS)
 

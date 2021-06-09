@@ -124,21 +124,18 @@ AS_CASE([$host_os],
 )
 
 ARCH=
-
 AC_CANONICAL_HOST
 AS_CASE([$host_cpu],
-  [aarch64], [ARCH=aarch64],
-  [x86_64], [ARCH=x86_64],
-  [AC_MSG_ERROR("No other architecture supported other than x86_64 and aarch64")]
+        [aarch64], [ARCH=aarch64],
+        [x86_64], [ARCH=x86_64],
+        [AC_MSG_ERROR("No other architecture supported other than x86_64 and aarch64")]
 )
 
 AS_IF([test x$ARCH = xx86_64 ],
       [
         AC_DEFINE([CONFIG_X86_64])
-#       ARCH=$arch    
-      ]                                
+      ]
 )
-
 AC_SUBST([ARCH])
 
 

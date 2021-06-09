@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,21 +36,20 @@
 #include "lib/trace.h"
 
 /**
-   Convert bitmap from one format to another. Copy cpumask bitmap to m0_bitmap.
+   @addtogroup processor
 
-   @param dest -> Processors bitmap for Motr programs.
-   @param src -> Processors bitmap used by Linux kernel.
-   @param bmpsz -> Size of cpumask bitmap (src)
+   @section proc-kernel Kernel implementation
 
-   @pre Assumes memory is alloacted for outbmp and it's initialized.
+   This file includes additional data structures and functions for processing
+   processors data - for kernel-mode programs.
+
+   This file will also implement Linux kernel-mode processors interfaces.
 
    @see lib/processor.h
-   @see lib/bitmap.h
+
+   @{
  */
 
-//#ifndef CONFIG_X86_64
-//#error "Only X86_64 platform is supported"
-//#endif
 #ifdef CONFIG_X86_64
 enum {
 	/** Default L1 value */
@@ -107,10 +106,13 @@ static struct m0_list x86_cpus;
 
 /**
    Convert bitmap from one format to another. Copy cpumask bitmap to m0_bitmap.
+
    @param dest -> Processors bitmap for Motr programs.
    @param src -> Processors bitmap used by Linux kernel.
    @param bmpsz -> Size of cpumask bitmap (src)
+
    @pre Assumes memory is alloacted for outbmp and it's initialized.
+
    @see lib/processor.h
    @see lib/bitmap.h
  */
@@ -131,7 +133,9 @@ static void processors_bitmap_copy(struct m0_bitmap *dest,
 
 /**
    Fetch NUMA node id for a given processor.
+
    @param id -> id of the processor for which information is requested.
+
    @return id of the NUMA node to which the processor belongs.
  */
 static inline uint32_t processor_numanodeid_get(m0_processor_nr_t id)
@@ -142,7 +146,9 @@ static inline uint32_t processor_numanodeid_get(m0_processor_nr_t id)
 /**
    Fetch pipeline id for a given processor.
    Curently pipeline id is same as processor id.
+
    @param id -> id of the processor for which information is requested.
+
    @return id of pipeline for the given processor.
  */
 static inline uint32_t processor_pipelineid_get(m0_processor_nr_t id)
@@ -152,8 +158,10 @@ static inline uint32_t processor_pipelineid_get(m0_processor_nr_t id)
 
 /**
    Fetch the default L1 or L2 cache size for a given processor.
+
    @param id -> id of the processor for which information is requested.
    @param cache_level -> cache level (L1 or L2) for which id is requested.
+
    @return size of L1 or L2 cache size, in bytes, for the given processor.
  */
 static size_t processor_cache_sz_get(m0_processor_nr_t id, uint32_t cache_level)
@@ -175,7 +183,9 @@ static size_t processor_cache_sz_get(m0_processor_nr_t id, uint32_t cache_level)
 
 /**
    Obtain cache level for a given INTEL x86 processor.
+
    @param eax -> value in eax register for INTEL x86.
+
    @return cache level of an intel x86 processor.
  */
 static inline uint32_t processor_x86cache_level_get(uint32_t eax)
@@ -186,7 +196,9 @@ static inline uint32_t processor_x86cache_level_get(uint32_t eax)
 
 /**
    Obtain number of processors sharing a given cache.
+
    @param eax -> value in eax register for INTEL x86.
+
    @return number of intel x86 processors sharing the cache (within
            the core or the physical package).
  */
@@ -199,7 +211,9 @@ static inline uint32_t processor_x86cache_shares_get(uint32_t eax)
 /**
    Get the number cache leaves for x86 processor. For Intel use cpuid4
    instruction. For AMD (or other x86 vendors) assume that L2 is supported.
+
    @param id -> id of the processor for which caches leaves are requested.
+
    @return number of caches leaves.
  */
 static uint32_t processor_x86cache_leaves_get(m0_processor_nr_t id)
@@ -233,10 +247,12 @@ static uint32_t processor_x86cache_leaves_get(m0_processor_nr_t id)
 
 /**
    Fetch L1 or L2 cache id for a given x86 processor.
+
    @param id -> id of the processor for which information is requested.
    @param cache_level -> cache level (L1 or L2) for which id is requested.
    @param cache_leaves -> Number of cache leaves (levels) for the given
                           processor.
+
    @return id of L2 cache for the given x86 processor.
  */
 static uint32_t processor_x86_cacheid_get(m0_processor_nr_t id,
@@ -304,8 +320,10 @@ static uint32_t processor_x86_cacheid_get(m0_processor_nr_t id,
 
 /**
    A function to fetch cache size for an AMD x86 processor.
+
    @param id -> id of the processor for which information is requested.
    @param cache_level -> cache level (L1 or L2) for which id is requested.
+
    @return size of cache (in bytes) for the given AMD x86 processor.
  */
 static uint32_t processor_amd_cache_sz_get(m0_processor_nr_t id,
@@ -338,8 +356,10 @@ static uint32_t processor_amd_cache_sz_get(m0_processor_nr_t id,
 /**
    A generic function to fetch cache size for an INTEL x86 processor.
    If Intel CPU does not support CPUID4, use default values.
+
    @param id -> id of the processor for which information is requested.
    @param cache_level -> cache level (L1 or L2) for which id is requested.
+
    @return size of cache (in bytes) for the given INTEL x86 processor.
  */
 static uint32_t processor_intel_cache_sz_get(m0_processor_nr_t id,
@@ -393,8 +413,10 @@ static uint32_t processor_intel_cache_sz_get(m0_processor_nr_t id,
 
 /**
    Fetch L1 or L2 cache size for a given x86 processor.
+
    @param id -> id of the processor for which information is requested.
    @param cache_level -> cache level for which information is requested.
+
    @return size of L1 or L2 cache (in bytes) for the given x86 processor.
  */
 static uint32_t processor_x86_cache_sz_get(m0_processor_nr_t id,
@@ -429,7 +451,9 @@ static uint32_t processor_x86_cache_sz_get(m0_processor_nr_t id,
 
 /**
    Fetch attributes for the x86 processor.
+
    @param arg -> argument passed to this function, a struct processor_node.
+
    @see processor_x86cache_create
    @see smp_call_function_single (Linux kernel)
  */
@@ -463,14 +487,18 @@ static void processor_x86_attrs_get(void *arg)
 
 /**
    Obtain information on the processor with a given id.
+
    @param id -> id of the processor for which information is requested.
    @param pd -> processor descripto structure. Memory for this should be
                 allocated by the calling function. Interface does not allocate
                 memory.
+
    @retval 0 if processor information is found
    @retval -EINVAL if processor information is not found
+
    @pre Memory must be allocated for pd. Interface does not allocate memory.
    @pre m0_processors_init() must be called before calling this function.
+
    @see m0_processor_describe
  */
 static int processor_x86_info_get(m0_processor_nr_t id,
@@ -495,6 +523,7 @@ static int processor_x86_info_get(m0_processor_nr_t id,
 
 /**
    Cache clean-up.
+
    @see m0_processors_fini
    @see m0_list_fini
  */
@@ -518,7 +547,9 @@ static void processor_x86cache_destroy(void)
 
 /**
    Create cache for x86 processors. We have support for Intel and AMD.
+
    This is a blocking call.
+
    @see m0_processors_init
    @see smp_call_function_single (Linux kernel)
  */
@@ -611,7 +642,21 @@ M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 {
 	return smp_processor_id();
 }
-#else    //CONFIG_AARCH64
+#else    /*CONFIG_AARCH64*/
+
+/**
+   Convert bitmap from one format to another. Copy cpumask bitmap to m0_bitmap.
+
+   @param dest -> Processors bitmap for Motr programs.
+   @param src -> Processors bitmap used by Linux kernel.
+   @param bmpsz -> Size of cpumask bitmap (src)
+
+   @pre Assumes memory is alloacted for outbmp and it's initialized.
+   
+   @see lib/processor.h
+   @see lib/bitmap.h
+ */
+
 static void processors_bitmap_copy(struct m0_bitmap *dest,
 				   const cpumask_t *src,
 				   uint32_t bmpsz)

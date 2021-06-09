@@ -19,6 +19,7 @@
  *
  */
 
+
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/fs.h>
@@ -54,17 +55,17 @@ static void kemd_cleanup_module(void);
 static int kemd_open(struct inode *inode, struct file *filp);
 static int kemd_release(struct inode *inode, struct file *filp);
 static ssize_t kemd_read(struct file *filp, char *buf,
-						 size_t len, loff_t *offset);
+			 size_t len, loff_t *offset);
 static ssize_t kemd_write(struct file *filp, const char *buf,
-						  size_t len, loff_t *offset);
+			  size_t len, loff_t *offset);
 
 static struct file_operations kemd_fops = {
-	.owner = THIS_MODULE,
-	.read = kemd_read,
-	.write = kemd_write,
-	.open = kemd_open,
+	.owner   = THIS_MODULE,
+	.read    = kemd_read,
+	.write   = kemd_write,
+	.open    = kemd_open,
 	.release = kemd_release
-	};
+};
 
 static void kemd_dev_destroy(int i)
 {
@@ -127,15 +128,15 @@ void kemd_rbs_free(struct kem_rb *rbs)
 int kemd_rbs_init(struct kem_rb *rbs)
 {
 	struct ke_msg *ptr;
-	int i;
-	int j;
+	int            i;
+	int            j;
 
 	for (i = 0; i < kemd_nr_cpus; i++) {
 		ptr = kzalloc(KEMD_BUFFER_SIZE * sizeof(struct ke_msg),
-					  GFP_KERNEL);
+				GFP_KERNEL);
 		if (ptr == NULL)
 			goto err;
-		rbs[i].kr_buf = ptr;
+		rbs[i].kr_buf  = ptr;
 		rbs[i].kr_size = KEMD_BUFFER_SIZE;
 	}
 	return 0;
@@ -149,7 +150,7 @@ err:
 static int kemd_init_module(void)
 {
 	dev_t devno;
-	int err = 0;
+	int   err = 0;
 
 	kemd_nr_cpus = num_online_cpus();
 
@@ -161,12 +162,12 @@ static int kemd_init_module(void)
 		return -ENOMEM;
 	}
 	err = kemd_rbs_init(kemd_rbs);
-	if (err != 0) {
+	if(err != 0) {
 		printk(KERN_WARNING "Can't allocate kemd_rbs.\n");
 		goto out_rbs;
 	}
 	kemd_devices = kzalloc(kemd_nr_cpus * sizeof(*kemd_devices),
-						   GFP_KERNEL);
+			       GFP_KERNEL);
 	if (kemd_devices == NULL) {
 		printk(KERN_WARNING "Can't allocate mem for kemd_devices.\n");
 		goto out_rbs_inited;
@@ -174,10 +175,11 @@ static int kemd_init_module(void)
 
 	if (kemd_major) {
 		devno = MKDEV(kemd_major, kemd_minor);
-		err = register_chrdev_region(devno, kemd_nr_cpus,KEMD_DEV_NAME);
-	}
-	else{
-		err = alloc_chrdev_region(&devno, kemd_minor,kemd_nr_cpus, KEMD_DEV_NAME);
+		err = register_chrdev_region(devno, kemd_nr_cpus,
+					     KEMD_DEV_NAME);
+	} else {
+		err = alloc_chrdev_region(&devno, kemd_minor,
+					  kemd_nr_cpus, KEMD_DEV_NAME);
 		kemd_major = MAJOR(devno);
 	}
 
@@ -234,7 +236,7 @@ static void kemd_cleanup_module(void)
 
 static int kemd_open(struct inode *inode, struct file *filp)
 {
-	int num;
+	int             num;
 	struct kem_dev *kemd_dev;
 
 	num = NUM(inode->i_rdev);
@@ -262,16 +264,16 @@ static int kemd_release(struct inode *inode, struct file *filp)
 }
 
 static ssize_t kemd_read(struct file *filp, char *buf,
-						 size_t len, loff_t *offset)
+                         size_t len, loff_t *offset)
 {
-	int bytes_read = 0;
+	int             bytes_read = 0;
 	struct kem_dev *kemd_dev;
-	struct kem_rb *rb;
-	struct ke_msg *ent;
-	unsigned int nr_ents;
-	unsigned int nr_written;
-	int i;
-	int err;
+	struct kem_rb  *rb;
+	struct ke_msg  *ent;
+	unsigned int    nr_ents;
+	unsigned int    nr_written;
+	int             i;
+	int             err;
 
 	kemd_dev = (struct kem_dev *)filp->private_data;
 	rb = kemd_dev->kd_rb;
@@ -304,7 +306,7 @@ static ssize_t kemd_read(struct file *filp, char *buf,
 }
 
 static ssize_t kemd_write(struct file *filp, const char *buf,
-						  size_t len, loff_t *off)
+                          size_t len, loff_t *off)
 {
 	return -EINVAL;
 }
