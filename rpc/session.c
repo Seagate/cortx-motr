@@ -453,8 +453,8 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
 	}
 	m0_fop_put(fop);
 
-	M0_MEAS("conn-to-session conn_uuid: "U128X_F" conn_sm_id: %"
-		PRIu64" session_sm_id: %"PRIu64, U128_P(&conn->c_uuid),
+	M0_MEAS("name: conn-to-session, conn_sm_id: %"PRIu64
+		", session_sm_id: %"PRIu64,
 		conn->c_sm.sm_id, session->s_sm.sm_id);
 
 	M0_POST(ergo(rc != 0, session_state(session) == M0_RPC_SESSION_FAILED));
@@ -537,10 +537,6 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
 		    reply->rser_sender_id != SENDER_ID_INVALID) {
 			session->s_session_id = session_id;
 			session_state_set(session, M0_RPC_SESSION_IDLE);
-			M0_MEAS("sm-to-session conn_uuid: "U128X_F
-				" session_id: %" PRIu64" session_sm_id: %"PRIu64,
-				U128_P(&session->s_conn->c_uuid),
-				session->s_session_id, session->s_sm.sm_id);
 		} else {
 			rc = M0_ERR(-EPROTO);
 		}

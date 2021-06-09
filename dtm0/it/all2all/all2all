@@ -163,6 +163,19 @@ function addb_dump()
     $a2d -f "${inpfile}" > "${outfile}"
 }
 
+function traces_dump()
+{
+    local fid
+    local out
+
+    for i in ${!M0D_PIDS[@]} ; do
+        fid=$(echo "${M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
+        out="m0trace_${fid}.dump"
+        _info "Dumping ${out}..."
+        $MOTR_ROOT/utils/trace/m0trace -i "${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/m0trace.${M0D_PIDS[i]}" > "${out}"
+    done
+}
+
 function processes_status_check()
 {
     local rc=0
@@ -210,6 +223,8 @@ function main()
     stop_cluster
 
     addb_dump
+    _info "Dumping traces..."
+    traces_dump
 
     _info "Checking processes exit status..."
     processes_status_check || {

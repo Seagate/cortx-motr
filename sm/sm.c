@@ -387,8 +387,8 @@ M0_INTERNAL void m0_sm_state_trace_enable(struct m0_sm *mach)
 
 	mach->sm_state_trace_off = false;
 
-	M0_MEAS("state-trace-enable name: \"%s\" sm_id: %"PRIu64
-		" state: %s", mach->sm_conf->scf_name,
+	M0_MEAS("conf_name: \"%s\", sm_id: %"PRIu64
+		", state: %s", mach->sm_conf->scf_name,
 		m0_sm_id_get(mach), sd->sd_name);
 }
 
@@ -448,8 +448,8 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 			sd->sd_ex(mach);
 
 		if (!mach->sm_state_trace_off) {
-			M0_MEAS("state-set name: \"%s\" sm_id: %"PRIu64
-				" from: %s to: %s", mach->sm_conf->scf_name,
+			M0_MEAS("conf_name: \"%s\", sm_id: %"PRIu64
+				", from: %s, to: %s", mach->sm_conf->scf_name,
 				m0_sm_id_get(mach), sd->sd_name,
 				state_get(mach, state)->sd_name);
 		}
