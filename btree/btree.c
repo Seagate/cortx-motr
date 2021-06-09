@@ -3242,17 +3242,13 @@ int calc_shift(int value)
 
 int64_t btree_create_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
-	struct m0_btree_oimpl 	*oi = bop->bo_i;
-	struct m0_btree_idata 	*data = &bop->b_data;
-	int 			 k_size = data->nt->nt_id == BNT_FIXED_FORMAT ?
-					  data->bt->ksize : (data->nt->nt_id ==
-					  BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE ?
-					  data->bt->ksize : -1);
-	int 			 v_size = data->nt->nt_id == BNT_FIXED_FORMAT ?
-					  data->bt->vsize :(data->nt->nt_id ==
-					  BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE ?
-					  data->bt->vsize : -1);
+	struct m0_btree_op     *bop   = M0_AMB(bop, smop, bo_op);
+	struct m0_btree_oimpl  *oi    = bop->bo_i;
+	struct m0_btree_idata  *data  = &bop->b_data;
+	int                    k_size = data->bt->ksize == -1 ? MAX_KEY_SIZE :
+					data->bt->ksize;
+	int                    v_size = data->bt->vsize == -1 ? MAX_VAL_SIZE :
+					data->bt->vsize;
 
 	switch(bop->bo_op.o_sm.sm_state)
 	{
@@ -3272,7 +3268,7 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 
 		case P_ACT:
 			oi->i_nop.no_node->n_type = data->nt;
-
+			oi->i_nop.no_tree->t_type = data->bt;
 			node_init(&oi->i_nop, k_size, v_size);
 
 			m0_rwlock_write_lock(&bop->bo_arbor->t_lock);
@@ -3323,6 +3319,78 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 
 		default:
 			return 0;
+	}
+}
+
+int64_t btree_open_tick(struct m0_sm_op *smop)
+{
+	struct m0_btree_op    *bop  = M0_AMB(bop, smop, bo_op);
+	struct td             *tree = NULL;
+	int                    i    = 0;
+	struct m0_btree_oimpl *oi   = bop->bo_i;
+	  
+	switch(bop->bo_op.o_sm.sm_state)
+	{
+		case P_INIT:
+
+			bop->bo_i = m0_alloc(sizeof *bop->bo_i);
+			if (bop->bo_i == NULL)
+				return M0_ERR(-ENOMEM);
+			oi = bop->bo_i;
+			oi->i_nop.no_addr = segaddr_build(bop->b_data.addr, 
+					    calc_shift(bop->b_data.num_bytes));
+
+			m0_rwlock_write_lock(&trees_lock);
+			M0_ASSERT(trees_loaded <= ARRAY_SIZE(trees));
+		
+		/**
+		 *  If existing allocated tree is found then return it after
+		 *  increasing the reference count and capturing the btree data.
+		 */
+			if (&oi->i_nop.no_addr != NULL && trees_loaded) {
+				for (i = 0; i < ARRAY_SIZE(trees); i++) {
+					tree = &trees[i];
+					m0_rwlock_write_lock(&tree->t_lock);
+					if (tree->r_ref != 0) {
+						M0_ASSERT(tree->t_root != NULL);
+						if (tree->t_root->n_addr.as_core
+						== oi->i_nop.no_addr.as_core) {
+
+							tree->r_ref++;
+							bop->b_data.tree->t_desc
+							= tree;
+							bop->b_data.tree->t_lock
+							= tree->t_lock;
+							bop->b_data.tree->
+							t_height = tree->
+								   t_height;
+							bop->b_data.tree->t_type
+							= tree->t_type;
+
+							m0_rwlock_write_unlock(
+							&tree->t_lock);
+							m0_rwlock_write_unlock(
+							&trees_lock);
+							m0_free(oi);
+							return P_DONE;
+						}
+					}
+					m0_rwlock_write_unlock(&tree->t_lock);
+				}	
+			}
+
+			return node_get(&oi->i_nop, tree, &oi->i_nop.no_addr,
+					P_ACT);
+
+		case P_ACT:
+			bop->b_data.tree->t_desc = oi->i_nop.no_tree;
+			bop->b_data.tree->t_lock = oi->i_nop.no_tree->t_lock;
+			m0_free(oi);
+			return P_DONE;
+
+		default:
+			M0_IMPOSSIBLE("Wrong state: %i",
+				      bop->bo_op.o_sm.sm_state);
 	}
 }
 
@@ -3546,8 +3614,17 @@ int64_t btree_del_tick(struct m0_sm_op *smop)
 	}
 }
 
-int  m0_btree_open(void *addr, int nob, struct m0_btree **out)
+int  m0_btree_open(void *addr, int nob, struct m0_btree **out, 
+		   struct m0_btree_op *bop)
 {
+
+	bop->b_data.addr      = addr;
+	bop->b_data.num_bytes = nob;
+	bop->b_data.tree      = *out;
+
+	m0_sm_op_init(&bop->bo_op, &btree_open_tick, &bop->bo_op_exec,
+		      &btree_conf, &bop->bo_sm_group);
+
 	return 0;
 }
 
@@ -4034,8 +4111,8 @@ static void m0_btree_ut_node_add_del_rec(void)
  */
 static void m0_btree_ut_basic_tree_oper(void)
 {
-	void                   *invalid_addr = (void *)0xbadbadbadbad;
-	struct m0_btree        *btree;
+	//void                   *invalid_addr = (void *)0xbadbadbadbad;
+	//struct m0_btree        *btree;
 	struct m0_btree_type    btree_type = {	.tt_id = M0_BT_UT_KV_OPS,
 						.ksize = 8,
 						.vsize = 8, };
@@ -4064,16 +4141,18 @@ static void m0_btree_ut_basic_tree_oper(void)
 						 nt, tx, &b_op),
 				 &b_op.bo_sm_group, &b_op.bo_op_exec);
 
-	m0_btree_close(b_op.bo_arbor);
+	//m0_btree_close(b_op.bo_arbor);
 
-	m0_btree_open(temp_node, 1024, &btree);
+	// M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+	// 			 m0_btree_open(temp_node, 1024, &btree, &b_op),
+	// 			 &b_op.bo_sm_group, &b_op.bo_op_exec);
 
-	m0_btree_close(btree);
+	//m0_btree_close(btree);
 
-	btree = b_op.bo_arbor;
+	//btree = b_op.bo_arbor;
 
-	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(btree, &b_op),
-				 &b_op.bo_sm_group, &b_op.bo_op_exec);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(b_op.bo_arbor,
+				 &b_op), &b_op.bo_sm_group, &b_op.bo_op_exec);
 
 	/**
 	 * Commenting this line as btree destroy will take care of it.
@@ -4084,10 +4163,10 @@ static void m0_btree_ut_basic_tree_oper(void)
 	/** Now run some invalid cases */
 
 	/** Open a non-existent btree */
-	m0_btree_open(invalid_addr, 1024, &btree);
+	//m0_btree_open(invalid_addr, 1024, &btree, &b_op);
 
 	/** Close a non-existent btree */
-	m0_btree_close(btree);
+	//m0_btree_close(btree);
 
 	/** Destroy a non-existent btree */
 	/**
@@ -4105,23 +4184,23 @@ static void m0_btree_ut_basic_tree_oper(void)
 				 &b_op.bo_sm_group, &b_op.bo_op_exec);
 
 	/** Close it */
-	m0_btree_close(b_op.bo_arbor);
+	//m0_btree_close(b_op.bo_arbor);
 
 	/** Try closing again */
-	m0_btree_close(b_op.bo_arbor);
+	//m0_btree_close(b_op.bo_arbor);
 
 	/** Re-open it */
-	m0_btree_open(invalid_addr, 1024, &btree);
+	//m0_btree_open(invalid_addr, 1024, &btree, &b_op);
 
 	/** Open it again */
-	m0_btree_open(invalid_addr, 1024, &btree);
+	//m0_btree_open(invalid_addr, 1024, &btree, &b_op);
 
 	/** Destory it */
-	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(btree, &b_op),
-				 &b_op.bo_sm_group, &b_op.bo_op_exec);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, m0_btree_destroy(b_op.bo_arbor,
+				 &b_op), &b_op.bo_sm_group, &b_op.bo_op_exec);
 
 	/** Attempt to reopen the destroyed tree */
-	m0_btree_open(invalid_addr, 1024, &btree);
+	//m0_btree_open(invalid_addr, 1024, &btree, &b_op);
 	btree_ut_fini();
 
 }
