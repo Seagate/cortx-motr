@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,14 +31,19 @@
 /**
    @addtogroup atomic
 
-   Implementation of atomic operations for Linux user space uses x86_64 assembly
-   language instructions (with gcc syntax). "Lock" prefix is used
-   everywhere---no optimisation for non-SMP configurations in present.
+   Implementation of atomic operations for Linux user space uses x86_64/aarch64 
+   assembly language instructions (with gcc syntax). "Lock" prefix is used
+   everywhere for x86_64 platform where as the aarch64 uses it own set of atomic 
+   assembely instruction to ensure atomicity ---no optimisation for non-SMP 
+   configurations in present.
  */
 
 struct m0_atomic64 {
 	long a_value;
 };
+
+static inline void m0_atomic64_add(struct m0_atomic64 *a, int64_t num);
+static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num);
 
 static inline void m0_atomic64_set(struct m0_atomic64 *a, int64_t num)
 {
@@ -64,9 +69,13 @@ static inline int64_t m0_atomic64_get(const struct m0_atomic64 *a)
  */
 static inline void m0_atomic64_inc(struct m0_atomic64 *a)
 {
+#ifdef CONFIG_X86_64
 	asm volatile("lock incq %0"
 		     : "=m" (a->a_value)
 		     : "m" (a->a_value));
+#else  /*aarch64*/
+	m0_atomic64_add(a, (int64_t)1);
+#endif
 }
 
 /**
@@ -78,9 +87,13 @@ static inline void m0_atomic64_inc(struct m0_atomic64 *a)
  */
 static inline void m0_atomic64_dec(struct m0_atomic64 *a)
 {
+#ifdef CONFIG_X86_64
 	asm volatile("lock decq %0"
 		     : "=m" (a->a_value)
 		     : "m" (a->a_value));
+#else  /*aarch64*/
+	m0_atomic64_sub(a, (int64_t)1);
+#endif
 }
 
 /**
@@ -88,9 +101,22 @@ static inline void m0_atomic64_dec(struct m0_atomic64 *a)
  */
 static inline void m0_atomic64_add(struct m0_atomic64 *a, int64_t num)
 {
+#ifdef CONFIG_X86_64
 	asm volatile("lock addq %1,%0"
 		     : "=m" (a->a_value)
 		     : "er" (num), "m" (a->a_value));
+#else /*aarch64*/
+	long		result;
+	unsigned long	tmp;
+	asm volatile("// atomic64_add \n"		\
+		     "  prfm    pstl1strm, %2\n"	\
+		     "1:ldxr    %0, %2\n"		\
+		     "  add     %0, %0, %3\n"   	\
+		     "  stxr    %w1, %0, %2\n"  	\
+		     "  cbnz    %w1, 1b"		\
+		     : "=&r" (result), "=&r" (tmp), "+Q" (a->a_value) \
+		     : "Ir" (num));
+#endif 
 }
 
 /**
@@ -98,9 +124,23 @@ static inline void m0_atomic64_add(struct m0_atomic64 *a, int64_t num)
  */
 static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num)
 {
+#ifdef CONFIG_X86_64
 	asm volatile("lock subq %1,%0"
 		     : "=m" (a->a_value)
 		     : "er" (num), "m" (a->a_value));
+#else /*aarch64*/
+	long		result;
+	unsigned long	tmp;
+	
+	asm volatile("// atomic64_sub \n"		\
+		     "  prfm    pstl1strm, %2\n"	\
+		     "1:ldxr    %0, %2\n"		\
+		     "  sub     %0, %0, %3\n"   	\
+		     "  stxr    %w1, %0, %2\n"  	\
+		     "  cbnz    %w1, 1b"		\
+		     : "=&r" (result), "=&r" (tmp), "+Q" (a->a_value) \
+		     : "Ir" (num));
+#endif
 }
 
 
@@ -114,6 +154,7 @@ static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num)
 static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
 						  int64_t delta)
 {
+#ifdef CONFIG_X86_64
 	long result;
 
 	result = delta;
@@ -121,6 +162,22 @@ static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
 		     : "+r" (delta), "+m" (a->a_value)
 		     : : "memory");
 	return delta + result;
+#else  /*aarch64*/
+	int64_t		result;
+	uint64_t	tmp;
+
+	asm volatile("// atomic64_add_return \n"	\
+		     "  prfm    pstl1strm, %2\n"	\
+		     "1:ldxr    %0, %2\n"		\
+		     "  add     %0, %0, %3\n"   	\
+		     "  stlxr   %w1, %0, %2\n"  	\
+		     "  cbnz    %w1, 1b\n"		\
+		     "  dmb ish"			\
+		     : "=&r" (result), "=&r" (tmp), "+Q" (a->a_value) \
+		     : "Ir" (delta)  			\
+		     : "memory");
+	return result;
+#endif
 }
 
 /**
@@ -133,31 +190,57 @@ static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
 static inline int64_t m0_atomic64_sub_return(struct m0_atomic64 *a,
 						  int64_t delta)
 {
+#ifdef CONFIG_X86_64
 	return m0_atomic64_add_return(a, -delta);
+#else  /*aarch64*/
+	int64_t		result;
+	uint64_t	tmp;
+
+	asm volatile( "// atomic64_sub_return \n"		\
+		      "  prfm    pstl1strm, %2\n"		\
+		      "1:ldxr    %0, %2\n"			\
+		      "  sub     %0, %0, %3\n"  		\
+		      "  stlxr   %w1, %0, %2\n" 		\
+		      "  cbnz    %w1, 1b\n"			\
+		      "  dmb ish"				\
+		      : "=&r" (result), "=&r" (tmp), "+Q" (a->a_value) \
+		      : "Ir" (delta)				\
+		      : "memory");
+	return result;
+#endif
 }
 
 static inline bool m0_atomic64_inc_and_test(struct m0_atomic64 *a)
 {
+#ifdef CONFIG_X86_64
 	unsigned char result;
 
 	asm volatile("lock incq %0; sete %1"
 		     : "=m" (a->a_value), "=qm" (result)
 		     : "m" (a->a_value) : "memory");
 	return result != 0;
+#else
+	return (m0_atomic64_add_return(a, 1) == 0);
+#endif
 }
 
 static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
 {
+#ifdef CONFIG_X86_64
 	unsigned char result;
 
 	asm volatile("lock decq %0; sete %1"
 		     : "=m" (a->a_value), "=qm" (result)
 		     : "m" (a->a_value) : "memory");
 	return result != 0;
+#else
+	return (m0_atomic64_sub_return(a, 1) == 0);
+#endif
 }
 
 static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval)
 {
+#ifdef CONFIG_X86_64
 	int64_t val;
 
 	M0_CASSERT(8 == sizeof oldval);
@@ -167,11 +250,34 @@ static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval
 		     : "r" (newval), "0" (oldval)
 		     : "memory");
 	return val == oldval;
+#else		 /*aarch64*/
+	unsigned long	tmp;
+	unsigned long	old=0;
+
+	asm volatile("// atomic64_cas_return \n"		\
+		     "  prfm    pstl1strm, %[v]\n"		\
+		     "1:ldxr    %[old], %[v]\n"  		\
+		     "  eor     %[tmp], %[oldval], %[old]\n"	\
+		     "  cbnz    %[tmp], 2f\n"			\
+		     "  stxr    %w[tmp], %[newval], %[v]\n"  	\
+		     "  cbnz    %w[tmp], 1b\n"			\
+		     "  \n" 					\
+		     "2:"					\
+		     : [tmp] "=&r" (tmp), [oldval] "=&r" (oldval), \
+		       [v] "+Q" (*(unsigned long *)loc) 	\
+		     : [old] "Lr" (old), [newval] "r" (newval)  \
+		     :);
+	return old == oldval;// need to be reviewed
+#endif
 }
 
 static inline void m0_mb(void)
 {
+#ifdef CONFIG_X86_64
 	asm volatile("mfence":::"memory");
+#else
+	asm volatile("dsb sy":::"memory");
+#endif
 }
 
 /** @} end of atomic group */

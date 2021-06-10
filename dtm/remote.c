@@ -60,7 +60,7 @@ static struct m0_fop_type rem_rpc_fopt;
 static const struct m0_fop_type_ops rem_rpc_ftype_ops;
 static struct m0_rpc_item_type_ops rem_rpc_itype_ops;
 static const struct m0_rpc_item_ops rem_rpc_item_sender_ops;
-static const struct m0_rpc_item_ops rem_rpc_item_redo_ops;
+M0_UNUSED static const struct m0_rpc_item_ops rem_rpc_item_redo_ops;
 
 M0_INTERNAL void m0_dtm_remote_add(struct m0_dtm_remote *rem,
 				   struct m0_dtm_oper *oper,
@@ -244,7 +244,7 @@ static int rem_rpc_deliver(struct m0_rpc_machine *mach,
 	return 0;
 }
 
-static void rem_rpc_redo_replied(struct m0_rpc_item *item)
+M0_UNUSED static void rem_rpc_redo_replied(struct m0_rpc_item *item)
 {}
 
 static const struct m0_fop_type_ops rem_rpc_ftype_ops = {
@@ -259,7 +259,7 @@ static const struct m0_rpc_item_ops rem_rpc_item_sender_ops = {
 	/* nothing */
 };
 
-static const struct m0_rpc_item_ops rem_rpc_item_redo_ops = {
+M0_UNUSED static const struct m0_rpc_item_ops rem_rpc_item_redo_ops = {
 	.rio_replied = &rem_rpc_redo_replied
 };
 
