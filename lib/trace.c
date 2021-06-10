@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -150,16 +150,24 @@ M0_INTERNAL void m0_trace_fini(void)
 
 
 /*
- * XXX x86_64 version.
+ * XXX x86_64/aarch64 version.
  */
 static inline uint64_t m0_rdtsc(void)
 {
+#ifdef CONFIG_X86_64
 	uint32_t count_hi;
 	uint32_t count_lo;
 
 	__asm__ __volatile__("rdtsc" : "=a"(count_lo), "=d"(count_hi));
 
 	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
+#else   /*aarch64*/
+
+	uint64_t cycle;
+
+	asm volatile("mrs %0, pmccntr_el0" : "=r"(cycle));
+	return cycle;
+#endif
 }
 
 #define NULL_STRING_STUB  "(null)"

@@ -37,7 +37,7 @@
  * marker is necessary to remove the warnings, keeping this blank to make
  * compiler happy.
  */
-MODULE_LICENSE();
+
 
 enum idx_service {
 	IDX_MOTR = 1,
@@ -156,6 +156,7 @@ static void __exit st_module_fini(void)
 module_init(st_module_init)
 module_exit(st_module_fini)
 
+MODULE_LICENSE("GPL");
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

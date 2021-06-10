@@ -123,6 +123,23 @@ AS_CASE([$host_os],
         [AC_MSG_ERROR([Unsupported platform detected!])]
 )
 
+ARCH=
+AC_CANONICAL_HOST
+AS_CASE([$host_cpu],
+        [aarch64], [ARCH=aarch64],
+        [x86_64], [ARCH=x86_64],
+        [AC_MSG_ERROR("No other architecture supported other than x86_64 and aarch64")]
+)
+
+AS_IF([test x$ARCH = xx86_64 ],
+      [
+        AC_DEFINE([CONFIG_X86_64])
+      ]
+)
+AC_SUBST([ARCH])
+
+
+
 #
 # Configuration options --------------------------------------------------- {{{1
 #
@@ -170,6 +187,7 @@ AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
 AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
+AH_TEMPLATE([CONFIG_X86_64],          [])
 
 # enable/disable options ------------------------------ {{{2
 
@@ -949,7 +967,9 @@ M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+' | xargs e
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we
 # use -Werror, which turns warnings into errors, but we still need to be able to
 # use gccxml attributes.
-M0_CFLAGS="-pipe -Wall -Werror -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
+PAGE_SIZE=$(getconf PAGE_SIZE)
+PAGE_SHIFT=$(( $((PAGE_SIZE==4096)) ? 12 :  $(($((PAGE_SIZE==65536)) ? 16 :  14)) ))
+M0_CFLAGS="-pipe -Wall -Werror -Wno-attributes -fno-strict-aliasing -DPAGE_SIZE=$PAGE_SIZE -DPAGE_SHIFT=$PAGE_SHIFT $M0_CFLAGS"
 
 # Prevents gcc from introducing common symbols in object files. These symbols
 # are avoided because they break the compilation toolchain that Parallel
