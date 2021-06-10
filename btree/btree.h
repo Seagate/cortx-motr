@@ -94,12 +94,12 @@ struct m0_btree_cb {
  * This structure is used to hold the data that is passed to m0_tree_create.
  */
 struct m0_btree_idata {
-	void 				*addr;
-	int				 num_bytes;
-	const struct m0_btree_type 	*bt;
-	const struct node_type 		*nt;
-	int 				 ks;
-	int 				 vs;
+	void                       *addr;
+	int                         num_bytes;
+	const struct m0_btree_type *bt;
+	const struct node_type     *nt;
+	int                         ks;
+	int                         vs;
 };
 
 enum m0_btree_rec_type {
