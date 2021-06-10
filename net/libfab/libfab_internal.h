@@ -52,43 +52,46 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  */
 enum m0_fab__libfab_params {
 	/** Fabric memory registration access. */
-	FAB_MR_ACCESS            = (FI_READ | FI_WRITE | FI_RECV | FI_SEND |
-				    FI_REMOTE_READ | FI_REMOTE_WRITE),
+	FAB_MR_ACCESS                  = (FI_READ | FI_WRITE | FI_RECV | FI_SEND |
+				          FI_REMOTE_READ | FI_REMOTE_WRITE),
 	/** Fabric memory registration offset. */
-	FAB_MR_OFFSET            = 0,
+	FAB_MR_OFFSET                  = 0,
 	/** Fabric memory registration flag. */
-	FAB_MR_FLAG              = 0,
+	FAB_MR_FLAG                    = 0,
 	/** Key used for memory registration. */
-	FAB_MR_KEY               = 0xABCD,
-	/** Max number of IOV in read/write command (max number of segments) */
-	FAB_IOV_MAX              = 64, //256,
-	/** Max segment size for bulk buffers (4k but can be increased) */
-	FAB_MAX_BULK_SEG_SIZE    = 65536, //4096,
-	/** 
-	 * Max buffer size = FAB_IOV_MAX x FAB_MAX_SEG_SIZE 
-	 * (1MB but can be increased)
-	*/
-	FAB_MAX_BULK_BUFFER_SIZE = (FAB_IOV_MAX * FAB_MAX_BULK_SEG_SIZE),
+	FAB_MR_KEY                     = 0xABCD,
+	/** Max number of IOV in read/write command for Verbs */
+	FAB_VERBS_IOV_MAX              = 64,
+	/** Max segment size for bulk buffers for Verbs */
+	FAB_VERBS_MAX_BULK_SEG_SIZE    = 65536,
+
+	/** Max number of IOV in read/write command for TCP/Socket provider
+	 * (max number of segments) */
+	FAB_TCP_SOCK_IOV_MAX           = 256,
+	/** Max segment size for bulk buffers for TCP/Socket provider
+	 * (4k but can be increased) */
+	FAB_TCP_SOCK_MAX_BULK_SEG_SIZE = 4096,
+
 	/** Max segment size for rpc buffer ( 1MB but can be changed ) */
-	FAB_MAX_RPC_SEG_SIZE     = (1 << 20),
+	FAB_MAX_RPC_SEG_SIZE           = (1 << 20),
 	/** Max number of segments for rpc buffer */
-	FAB_MAX_RPC_SEG_NR       = 1,
+	FAB_MAX_RPC_SEG_NR             = 1,
 	/** Max number of recevive messages in rpc buffer */
-	FAB_MAX_RPC_RECV_MSG_NR  = 1,
+	FAB_MAX_RPC_RECV_MSG_NR        = 1,
 	/** Dummy data used to notify remote end for read-rma op completions */
-	FAB_DUMMY_DATA           = 0xFABC0DE,
+	FAB_DUMMY_DATA                 = 0xFABC0DE,
 	/** Max number of completion events to read from a completion queue */
-	FAB_MAX_COMP_READ        = 256,
+	FAB_MAX_COMP_READ              = 256,
 	/** Max timeout for waiting on fd in epoll_wait */
-	FAB_WAIT_FD_TMOUT        = 1000,
+	FAB_WAIT_FD_TMOUT              = 1000,
 	/** Max event entries for active endpoint event queue */
-	FAB_MAX_AEP_EQ_EV        = 8,
+	FAB_MAX_AEP_EQ_EV              = 8,
 	/** Max event entries for passive endpoint event queue */
-	FAB_MAX_PEP_EQ_EV        = 256,
+	FAB_MAX_PEP_EQ_EV              = 256,
 	/** Max entries in shared transmit completion queue */
-	FAB_MAX_TX_CQ_EV         = 1024,
+	FAB_MAX_TX_CQ_EV               = 1024,
 	/** Max entries in receive completion queue */
-	FAB_MAX_RX_CQ_EV         = 64,
+	FAB_MAX_RX_CQ_EV               = 64,
 };
 
 /**
@@ -182,6 +185,12 @@ struct m0_fab__ndom {
 
 	/** local ip address */
 	char                  fnd_loc_ip[16];
+
+	/** Number of segments */
+	uint32_t              fnd_seg_nr;
+
+	/** Segments size */
+	uint32_t              fnd_seg_size;
 };
 
 /**
@@ -372,10 +381,10 @@ struct m0_fab__tm {
  */
 struct m0_fab__buf_mr {
 	/** Local memory region (buffer) descriptor */
-	void          *bm_desc[FAB_IOV_MAX];
+	void          **bm_desc;
 	
 	/** Memory region registration */
-	struct fid_mr *bm_mr[FAB_IOV_MAX];
+	struct fid_mr **bm_mr;
 };
 
 /**

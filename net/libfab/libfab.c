@@ -1907,10 +1907,11 @@ static int libfab_bdesc_encode(struct m0_fab__buf *buf)
 	struct m0_net_buffer   *nb = buf->fb_nb;
 	struct m0_fab__tm      *tm = libfab_buf_ma(nb);
 	int                     seg_nr = nb->nb_buffer.ov_vec.v_nr;
+	struct m0_fab__ndom    *nd = nb->nb_dom->nd_xprt_private;
 	int                     i;
 	bool                    is_verbs = libfab_is_verbs(tm);
 
-	M0_PRE(seg_nr <= FAB_IOV_MAX);
+	M0_PRE(seg_nr <= nd->fnd_seg_nr);
 
 	nbd->nbd_len = (sizeof(struct m0_fab__bdesc) +
 			(sizeof(struct fi_rma_iov) * seg_nr));
@@ -1942,12 +1943,13 @@ static void libfab_bdesc_decode(struct m0_fab__buf *fb,
 				struct m0_fab__ep_name *epname)
 {
 	struct m0_net_buffer   *nb = fb->fb_nb;
+	struct m0_fab__ndom    *ndom = nb->nb_dom->nd_xprt_private;
 
 	fb->fb_rbd = (struct m0_fab__bdesc *)(nb->nb_desc.nbd_data);
 	fb->fb_riov = (struct fi_rma_iov *)(nb->nb_desc.nbd_data + 
 					    sizeof(struct m0_fab__bdesc));
 	libfab_ep_ntop(fb->fb_rbd->fbd_netaddr, epname);
-	M0_ASSERT(fb->fb_rbd->fbd_iov_cnt <= FAB_IOV_MAX);
+	M0_ASSERT(fb->fb_rbd->fbd_iov_cnt <= ndom->fnd_seg_nr);
 }
 
 /**
@@ -1962,9 +1964,10 @@ static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp)
 	int                    i;
 	int                    ret = FI_SUCCESS;
 	uint32_t               retry_cnt;
+	struct m0_fab__ndom   *ndom = nb->nb_dom->nd_xprt_private;
 
 	M0_PRE(fbp != NULL && dp != NULL);
-	M0_PRE(seg_nr <= FAB_IOV_MAX);
+	M0_PRE(seg_nr <= ndom->fnd_seg_nr);
 
 	mr = &fbp->fb_mr;
 	if (fbp->fb_dp == dp)
@@ -2543,7 +2546,7 @@ static uint32_t libfab_buf_token_get(struct m0_fab__buf *fb)
 	return ret;
 }
 
-static int libfab_get_local_ip(char *local_ip)
+static int libfab_domain_params_get(struct m0_fab__ndom *fab_ndom)
 {
 	struct fi_info *hints;
 	struct fi_info *fi;
@@ -2554,12 +2557,19 @@ static int libfab_get_local_ip(char *local_ip)
 		return M0_ERR(-ENOMEM);
 	hints->fabric_attr->prov_name = providers[0];
 	result = fi_getinfo(FI_VERSION(1,11), NULL, NULL, 0, hints, &fi);
-	if(result == FI_SUCCESS)
+	if(result == FI_SUCCESS) {
+		/* For Verbs provider */
 		inet_ntop(AF_INET,
 			  &((struct sockaddr_in *)fi->src_addr)->sin_addr,
-			  local_ip, 16);
-	else
-		strcpy(local_ip, "127.0.0.1");
+			  fab_ndom->fnd_loc_ip, 16);
+		fab_ndom->fnd_seg_nr = FAB_VERBS_IOV_MAX;
+		fab_ndom->fnd_seg_size = FAB_VERBS_MAX_BULK_SEG_SIZE;
+	} else {
+		/* For TCP/Socket provider */
+		strcpy(fab_ndom->fnd_loc_ip, "127.0.0.1");
+		fab_ndom->fnd_seg_nr = FAB_TCP_SOCK_IOV_MAX;
+		fab_ndom->fnd_seg_size = FAB_TCP_SOCK_MAX_BULK_SEG_SIZE;
+	}
 
 	hints->fabric_attr->prov_name = NULL;
 	fi_freeinfo(hints);
@@ -2584,7 +2594,7 @@ static int libfab_dom_init(const struct m0_net_xprt *xprt,
 	if (fab_ndom == NULL)
 		return M0_ERR(-ENOMEM);
 
-	ret = libfab_get_local_ip(fab_ndom->fnd_loc_ip);
+	ret = libfab_domain_params_get(fab_ndom);
 	if (ret != FI_SUCCESS)
 		m0_free(fab_ndom);
 	else {
@@ -2810,15 +2820,16 @@ static int libfab_end_point_create(struct m0_net_end_point **epp,
  */
 static void libfab_buf_deregister(struct m0_net_buffer *nb)
 {
-	struct m0_fab__buf *fb = nb->nb_xprt_private;
-	int                 i;
-	int                 ret;
+	struct m0_fab__buf  *fb = nb->nb_xprt_private;
+	struct m0_fab__ndom *nd = nb->nb_dom->nd_xprt_private;
+	int                  i;
+	int                  ret;
 
 	M0_ENTRY("Deregister and free buf = %p", fb);
 	M0_PRE(nb->nb_flags == M0_NET_BUF_REGISTERED &&
 	       libfab_buf_invariant(fb));
 
-	for (i = 0; i < FAB_IOV_MAX; i++) {
+	for (i = 0; i < nd->fnd_seg_nr; i++) {
 		if (fb->fb_mr.bm_mr[i] != NULL) {
 			ret = fi_close(&fb->fb_mr.bm_mr[i]->fid);
 			M0_ASSERT(ret == FI_SUCCESS);
@@ -2828,6 +2839,8 @@ static void libfab_buf_deregister(struct m0_net_buffer *nb)
 
 	libfab_buf_fini(fb);
 	fb->fb_state = FAB_BUF_DEREGISTERED;
+	m0_free(fb->fb_mr.bm_desc);
+	m0_free(fb->fb_mr.bm_mr);
 	m0_free(fb);
 	nb->nb_xprt_private = NULL;
 }
@@ -2841,8 +2854,9 @@ static void libfab_buf_deregister(struct m0_net_buffer *nb)
  */
 static int libfab_buf_register(struct m0_net_buffer *nb)
 {
-	struct m0_fab__buf *fb;
-	int                 ret = 0;
+	struct m0_fab__buf  *fb;
+	struct m0_fab__ndom *nd = nb->nb_dom->nd_xprt_private;
+	int                  ret = 0;
 
 	M0_PRE(nb->nb_xprt_private == NULL);
 	M0_PRE(nb->nb_dom != NULL);
@@ -2850,6 +2864,19 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 	M0_ALLOC_PTR(fb);
 	if (fb == NULL)
 		return M0_ERR(-ENOMEM);
+
+	M0_ALLOC_ARR(fb->fb_mr.bm_desc, nd->fnd_seg_nr);
+	if (fb->fb_mr.bm_desc == NULL) {
+		m0_free(fb);
+		return M0_ERR(-ENOMEM);
+	}
+
+	M0_ALLOC_ARR(fb->fb_mr.bm_mr, nd->fnd_seg_nr);
+	if (fb->fb_mr.bm_mr == NULL) {
+		m0_free(fb->fb_mr.bm_desc);
+		m0_free(fb);
+		return M0_ERR(-ENOMEM);
+	}
 
 	fab_buf_tlink_init(fb);
 	nb->nb_xprt_private = fb;
@@ -3061,7 +3088,9 @@ static void libfab_bev_notify(struct m0_net_transfer_mc *ma,
  */
 static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
 {
-	return FAB_MAX_BULK_BUFFER_SIZE;
+	struct m0_fab__ndom *nd = dom->nd_xprt_private;
+
+	return (m0_bcount_t)(nd->fnd_seg_size * nd->fnd_seg_nr);
 }
 
 /**
@@ -3073,7 +3102,7 @@ static m0_bcount_t libfab_get_max_buf_size(const struct m0_net_domain *dom)
  */
 static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
 {
-	return FAB_MAX_BULK_SEG_SIZE;
+	return ((struct m0_fab__ndom *)dom->nd_xprt_private)->fnd_seg_size;
 }
 
 /**
@@ -3085,9 +3114,8 @@ static m0_bcount_t libfab_get_max_buf_seg_size(const struct m0_net_domain *dom)
  */
 static int32_t libfab_get_max_buf_segments(const struct m0_net_domain *dom)
 {
-	return FAB_IOV_MAX;
+	return ((struct m0_fab__ndom *)dom->nd_xprt_private)->fnd_seg_nr;
 }
-
 /**
  * Maximal number of bytes in a buffer descriptor.
  *
@@ -3097,8 +3125,10 @@ static int32_t libfab_get_max_buf_segments(const struct m0_net_domain *dom)
  */
 static m0_bcount_t libfab_get_max_buf_desc_size(const struct m0_net_domain *dom)
 {
-	return (sizeof(struct m0_fab__bdesc) + 
-		(sizeof(struct fi_rma_iov) * FAB_IOV_MAX));
+	struct m0_fab__ndom *nd = dom->nd_xprt_private;
+
+	return (m0_bcount_t)(sizeof(struct m0_fab__bdesc) + 
+		             (sizeof(struct fi_rma_iov) * nd->fnd_seg_nr));
 }
 
 /**
