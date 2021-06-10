@@ -1282,7 +1282,7 @@ static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 #ifndef __KERNEL__
 static void node_set_level(const struct nd *node, uint8_t new_level)
 {
-	//M0_PRE(node_invariant(node));
+	M0_PRE(node_invariant(node));
 	node->n_type->nt_set_level(node, new_level);
 }
 
@@ -2596,12 +2596,12 @@ static int64_t m0_btree_put_root_split_handle(struct m0_btree_op *bop,
 
 	int curr_max_level = node_level(lev->l_node);
 
-	node_set_level(oi->i_extra_node, curr_max_level);
-	node_set_level(lev->l_node, curr_max_level + 1);
-
 	/* skip the invarient check for level */
 	oi->i_extra_node->n_skip_rec_count_check   = true;
 	lev->l_node->n_skip_rec_count_check = true;
+
+	node_set_level(oi->i_extra_node, curr_max_level);
+	node_set_level(lev->l_node, curr_max_level + 1);
 
 	node_move(lev->l_node, oi->i_extra_node, D_RIGHT, NR_MAX,
 		  bop->bo_tx);
@@ -3608,6 +3608,20 @@ static int64_t m0_btree_del_resolve_underflow(struct m0_btree_op *bop)
 		node_slot.s_idx  = lev->l_idx;
 		node_done(&node_slot, bop->bo_tx, true);
 
+		/**
+		 * once underflow is resolved at child by deleteing child node
+		 * from parent, determine next step:
+		 * If we reach the root node,
+		 * 	if record count > 1, go to P_FREENODE.
+		 *      if record count = 0, set level = 0, height=1, go to
+		 * 	   P_FREENODE.
+		 * 	else record count == 1, break the loop handle root case
+		 * 	     condition.
+		 * else if record count at parent is greater than 0, go to
+		 * 	    P_FREENODE.
+		 * 	else, resolve the underflow at parent reapeat the steps
+		 * 	      in loop.
+		 */
 		if (used_count == 0) {
 			if (node_count_rec(lev->l_node) > 1)
 				flag = true;
@@ -3656,10 +3670,10 @@ static int64_t m0_btree_del_resolve_underflow(struct m0_btree_op *bop)
 	node_move(root_child, lev->l_node, D_RIGHT, NR_MAX, bop->bo_tx);
 
 	M0_ASSERT(node_count_rec(root_child) == 0);
-	lev->l_node->n_skip_rec_count_check = false;
-	oi->i_level[1].l_sib->n_skip_rec_count_check = false;
 	node_set_level(lev->l_node, curr_root_level - 1);
 	tree->t_height--;
+	lev->l_node->n_skip_rec_count_check = false;
+	oi->i_level[1].l_sib->n_skip_rec_count_check = false;
 
 	lock_op_unlock(tree);
 	node_put(oi->i_level[1].l_sib);
@@ -3693,9 +3707,8 @@ static bool child_node_check(struct m0_btree_oimpl *oi)
 
 /**
  * This function will determine if there is requirement of loading root child.
- * If root contains only two record and if any of them is going to get deleted
- * we might want to load the other child of root as well to handle root
- * underflow.
+ * If root contains only two record and if any of them is going to get deleted,
+ * it is required to load the other child of root as well to handle root case.
  *
  * @param bop It will provide all required information about btree operation.
  * @return int8_t return -1 if any ancestor node is not valid. return 1, if
@@ -3724,7 +3737,7 @@ static int8_t root_child_is_req(struct m0_btree_op *bop)
 
 /**
  * This function will get called if root is an internal node and it contains
- * only two record. It will determine if there is requirement for loading root's
+ * only two record. It will check if there is requirement for loading root's
  * other child and accordingly return the next state for execution.
  *
  * @param bop It will provide all required information about btree operation.
@@ -3733,10 +3746,10 @@ static int8_t root_child_is_req(struct m0_btree_op *bop)
 static int64_t handle_root_case(struct m0_btree_op *bop)
 {
 	/**
-	 * if root is internal node and it contains only two records, check if
-	 * any record is going to get deleted if yes we also have to load
-	 * another child of root so that we can copy the content from that child
-	 * at root and decrease the level by one.
+	 * If root is internal node and it contains only two records, check if
+	 * any record is going to be deleted if yes, we also have to load other
+	 * child of root so that we can copy the content from that child at root
+	 * and decrease the level by one.
 	 */
 	struct m0_btree_oimpl *oi = bop->bo_i;
 	int8_t                 load;
@@ -3749,22 +3762,24 @@ static int64_t handle_root_case(struct m0_btree_op *bop)
 	if (load) {
 		struct slot    root_slot = {};
 		struct segaddr root_child;
-		struct level   *root_lev;
-		root_lev = &oi->i_level[0];
+		struct level   *root_lev = &oi->i_level[0];
+
 		root_slot.s_node = root_lev->l_node;
 		root_slot.s_idx  = root_lev->l_idx == 0 ? 1 : 0;
+
 		node_child(&root_slot, &root_child);
 		if (!address_in_segment(root_child)) {
 			node_op_fini(&oi->i_nop);
 			return fail(bop, M0_ERR(-EFAULT));
 		}
+
 		return node_get(&oi->i_nop, bop->bo_arbor->t_desc,
 				&root_child, P_STORE_CHILD);
 	}
 	return P_LOCK;
 }
 
-/* State machine Implementation for delete operation */
+/* State machine implementation for delete operation */
 static int64_t btree_del_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop        = M0_AMB(bop, smop, bo_op);
@@ -3848,7 +3863,12 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 			} else {
 				if (!oi->i_key_found)
 					return P_LOCK;
-
+				/**
+				 * If root is an internal node and it contains
+				 * only two record, if any of the record is
+				 * going to be deleted, load the other child of
+				 * root.
+				 */
 				if (oi->i_used > 0 &&
 				    node_count_rec(oi->i_level[0].l_node) == 2)
 					return handle_root_case(bop);
