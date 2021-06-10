@@ -830,7 +830,8 @@ struct node_type {
 	const struct m0_format_tag  nt_tag;
 
 	/** Initializes newly allocated node */
-	void (*nt_init)(const struct nd *node, int shift, int ksize, int vsize);
+	void (*nt_init)(const struct nd *node, int shift, int ksize, int vsize,
+			struct m0_be_tx *tx);
 
 	/** Cleanup of the node if any before deallocation */
 	void (*nt_fini)(const struct nd *node);
@@ -905,7 +906,8 @@ struct node_type {
 	void (*nt_del)  (const struct nd *node, int idx, struct m0_be_tx *tx);
 
 	/** Updates the level of node */
-	void (*nt_set_level)  (const struct nd *node, uint8_t new_level);
+	void (*nt_set_level)  (const struct nd *node, uint8_t new_level,
+			       struct m0_be_tx *tx);
 
 	/** Moves record(s) between nodes */
 	void (*nt_move) (struct nd *src, struct nd *tgt,
@@ -1026,7 +1028,8 @@ static void node_op_fini(struct node_op *op);
 static int  node_verify(const struct nd *node);
 #endif
 #ifndef __KERNEL__
-static void node_init(struct node_op *n_op, int ksize, int vsize);
+static void node_init(struct node_op *n_op, int ksize, int vsize,
+		      struct m0_be_tx *tx);
 #endif
 static int  node_count(const struct nd *node);
 static int  node_count_rec(const struct nd *node);
@@ -1061,10 +1064,10 @@ static void node_cut  (const struct nd *node, int idx, int size,
 static void node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
 
 #ifndef __KERNEL__
-static void node_set_level  (const struct nd *node, uint8_t new_level);
+static void node_set_level  (const struct nd *node, uint8_t new_level, 
+			     struct m0_be_tx *tx);
 static void node_move (struct nd *src, struct nd *tgt,
 		       enum dir dir, int nr, struct m0_be_tx *tx);
-static void mem_update(void);
 #endif
 
 /**
@@ -1119,7 +1122,7 @@ struct m0_btree_oimpl {
 	struct level   *i_level;
 
 	/** Store node_find() output. */
-	bool		i_key_found;
+	bool            i_key_found;
 
 	/** When there will be requirement for new node in case of root
 	 * splitting i_extra_node will be used. **/
@@ -1137,12 +1140,13 @@ static uint32_t         trees_loaded = 0;
 static struct m0_rwlock trees_lock;
 
 #ifndef __KERNEL__
-static void node_init(struct node_op *n_op, int ksize, int vsize)
+static void node_init(struct node_op *n_op, int ksize, int vsize,
+		      struct m0_be_tx *tx)
 {
 	const struct node_type *n_type = n_op->no_node->n_type;
 
 	n_type->nt_init(n_op->no_node, segaddr_shift(&n_op->no_node->n_addr),
-			ksize, vsize);
+			ksize, vsize, tx);
 }
 #endif
 static bool node_invariant(const struct nd *node)
@@ -1272,10 +1276,11 @@ static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 
 
 #ifndef __KERNEL__
-static void node_set_level(const struct nd *node, uint8_t new_level)
+static void node_set_level(const struct nd *node, uint8_t new_level,
+			   struct m0_be_tx *tx)
 {
 	//M0_PRE(node_invariant(node));
-	node->n_type->nt_set_level(node, new_level);
+	node->n_type->nt_set_level(node, new_level, tx);
 }
 
 static void node_move(struct nd *src, struct nd *tgt,
@@ -1330,12 +1335,7 @@ static bool node_shift_is_valid(int shift)
 {
 	return shift >= NODE_SHIFT_MIN && shift < NODE_SHIFT_MIN + 0x10;
 }
-#ifndef __KERNEL__
-static void mem_update(void)
-{
-	//ToDo: Memory update in segment
-}
-#endif
+
 /**
  * Tells if the segment address is aligned to 512 bytes.
  * This function should be called right after the allocation to make sure that
@@ -1620,7 +1620,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 
 	nxt_state = segops->so_node_alloc(op, tree, size, nt, tx, nxt);
 
-	nt->nt_init(op->no_node, size, ksize, vsize);
+	nt->nt_init(op->no_node, size, ksize, vsize, tx);
 
 	return nxt_state;
 }
@@ -1652,7 +1652,7 @@ static const struct node_type fixed_format;
 static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 {
 	struct td *tree = NULL;
-	int        i     = 0;
+	int        i    = 0;
 	uint32_t   offset;
 
 	m0_rwlock_write_lock(&trees_lock);
@@ -1707,9 +1707,9 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 
 	if (addr) {
 		mem_node_get(op, tree, addr, nxt);
-		tree->t_root		=  op->no_node;
-		tree->t_root->n_addr 	= *addr;
-		tree->t_root->n_tree	=  tree;
+		tree->t_root         =  op->no_node;
+		tree->t_root->n_addr = *addr;
+		tree->t_root->n_tree =  tree;
 		//tree->t_height = tree_height_get(op->no_node);
 	}
 
@@ -1893,7 +1893,8 @@ struct ff_head {
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 
-static void ff_init(const struct nd *node, int shift, int ksize, int vsize);
+static void ff_init(const struct nd *node, int shift, int ksize, int vsize,
+		    struct m0_be_tx *tx);
 static void ff_fini(const struct nd *node);
 static int  ff_count(const struct nd *node);
 static int  ff_count_rec(const struct nd *node);
@@ -1914,7 +1915,8 @@ static void ff_fix(const struct nd *node, struct m0_be_tx *tx);
 static void ff_cut(const struct nd *node, int idx, int size,
 		   struct m0_be_tx *tx);
 static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx);
-static void ff_set_level(const struct nd *node, uint8_t new_level);
+static void ff_set_level(const struct nd *node, uint8_t new_level,
+			 struct m0_be_tx *tx);
 static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 static bool ff_invariant(const struct nd *node);
@@ -2006,7 +2008,8 @@ static int ff_verify(const struct nd *node)
 	return m0_format_footer_verify(h, true);
 }
 
-static void ff_init(const struct nd *node, int shift, int ksize, int vsize)
+static void ff_init(const struct nd *node, int shift, int ksize, int vsize,
+		    struct m0_be_tx *tx)
 {
 	struct ff_head *h   = ff_data(node);
 
@@ -2017,6 +2020,12 @@ static void ff_init(const struct nd *node, int shift, int ksize, int vsize)
 	h->ff_shift = shift;
 	h->ff_ksize = ksize;
 	h->ff_vsize = vsize;
+	/**
+	 * ToDo: We need to capture the changes occuring in the header using
+	 * m0_be_tx_capture().
+	 * Capture only those fields where there is any updation instead of the
+	 * whole header.
+	 */
 }
 
 static void ff_fini(const struct nd *node)
@@ -2127,7 +2136,16 @@ static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 	M0_PRE(ff_rec_is_valid(slot));
 	M0_PRE(ff_isfit(slot));
 	memmove(start + rsize, start, rsize * (h->ff_used - slot->s_idx));
+	/**
+	 * ToDo: We need to capture the changes occuring in the memory whose 
+	 * address starts from "start + rsize" and has its respective size using
+	 * m0_be_tx_capture().
+	 */
 	h->ff_used++;
+	/**
+	 * ToDo: We need to capture the changes occuring in the header's ff_used
+	 * field using m0_be_tx_capture().
+	 */
 }
 
 static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
@@ -2192,14 +2210,28 @@ static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	M0_PRE(idx < h->ff_used);
 	M0_PRE(h->ff_used > 0);
 	memmove(start, start + rsize, rsize * (h->ff_used - idx - 1));
+	/**
+	 * ToDo: We need to capture the changes occuring in the memory whose 
+	 * address starts from "start" and has its respective size using
+	 * m0_be_tx_capture().
+	 */
 	h->ff_used--;
+	/**
+	 * ToDo: We need to capture the changes occuring in the header's ff_used
+	 * field using m0_be_tx_capture().
+	 */
 }
 
-static void ff_set_level(const struct nd *node, uint8_t new_level)
+static void ff_set_level(const struct nd *node, uint8_t new_level,
+			 struct m0_be_tx *tx)
 {
 	struct ff_head *h = ff_data(node);
 
 	h->ff_level = new_level;
+	/**
+	 * ToDo: We need to capture the changes occuring in the node-header's 
+	 * ff_level field using m0_be_tx_capture().
+	 */
 }
 
 static void generic_move(struct nd *src, struct nd *tgt,
@@ -2281,6 +2313,18 @@ static void generic_move(struct nd *src, struct nd *tgt,
 	}
 	node_fix(src, tx);
 	node_fix(tgt, tx);
+
+	/**
+	 * ToDo: We need to capture the changes occuring in the "src" node
+	 * using m0_be_tx_capture().
+	 * Only the modified memory from the node needs to be updated.
+	 */
+
+	/**
+	 * ToDo: We need to capture the changes occuring in the "tgt" node
+	 * using m0_be_tx_capture().
+	 * Only the modified memory from the node needs to be updated.
+	 */
 }
 
 /** Insert operation section start point: */
@@ -2587,8 +2631,8 @@ static int64_t m0_btree_put_root_split_handle(struct m0_btree_op *bop,
 
 	int curr_max_level = node_level(lev->l_node);
 
-	node_set_level(oi->i_extra_node, curr_max_level);
-	node_set_level(lev->l_node, curr_max_level + 1);
+	node_set_level(oi->i_extra_node, curr_max_level, bop->bo_tx);
+	node_set_level(lev->l_node, curr_max_level + 1, bop->bo_tx);
 
 	/* skip the invarient check for level */
 	oi->i_extra_node->n_skip_rec_count_check   = true;
@@ -2686,7 +2730,7 @@ static void m0_btree_put_split_and_find(struct nd *l_alloc , struct nd *l_node,
 	r_slot.s_node = l_node;
 	/* 1)Move some records from current node to new node */
 	l_alloc->n_skip_rec_count_check = true;
-	node_set_level(l_alloc, node_level(l_node));
+	node_set_level(l_alloc, node_level(l_node), tx);
 
 	node_move(l_node, l_alloc, D_LEFT, NR_EVEN, tx);
 	l_alloc->n_skip_rec_count_check = false;
@@ -3165,7 +3209,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 static struct m0_sm_trans_descr btree_trans[256] = {
 	{ "create-init", P_INIT,  P_ACT  },
 	{ "create-act",  P_ACT,   P_DOWN },
-        { "destroy", P_INIT, P_DONE},
+	{ "destroy", P_INIT, P_DONE},
 	{ "put/get-init-cookie", P_INIT, P_COOKIE },
 	{ "put/get-init", P_INIT, P_SETUP },
 	{ "put/get-cookie-valid", P_COOKIE, P_LOCK },
@@ -3220,8 +3264,8 @@ static struct m0_sm_conf btree_conf = {
 
 int calc_shift(int value)
 {
-	unsigned int sample 	= (unsigned int) value;
-	unsigned int pow 	= 0;
+	unsigned int sample = (unsigned int) value;
+	unsigned int pow    = 0;
 
 	while (sample > 0)
 	{
@@ -3242,17 +3286,14 @@ int calc_shift(int value)
 
 int64_t btree_create_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
-	struct m0_btree_oimpl 	*oi = bop->bo_i;
-	struct m0_btree_idata 	*data = &bop->b_data;
-	int 			 k_size = data->nt->nt_id == BNT_FIXED_FORMAT ?
-					  data->bt->ksize : (data->nt->nt_id ==
-					  BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE ?
-					  data->bt->ksize : -1);
-	int 			 v_size = data->nt->nt_id == BNT_FIXED_FORMAT ?
-					  data->bt->vsize :(data->nt->nt_id ==
-					  BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE ?
-					  data->bt->vsize : -1);
+	struct m0_btree_op    *bop = M0_AMB(bop, smop, bo_op);
+	struct m0_btree_oimpl *oi = bop->bo_i;
+	struct m0_btree_idata *data = &bop->b_data;
+	int                    k_size = data->bt->ksize == -1 ? MAX_KEY_SIZE :
+					data->bt->ksize;
+	int                    v_size = data->bt->vsize == -1 ? MAX_VAL_SIZE :
+					data->bt->vsize;
+
 
 	switch(bop->bo_op.o_sm.sm_state)
 	{
@@ -3273,7 +3314,7 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 		case P_ACT:
 			oi->i_nop.no_node->n_type = data->nt;
 
-			node_init(&oi->i_nop, k_size, v_size);
+			node_init(&oi->i_nop, k_size, v_size, bop->bo_tx);
 
 			m0_rwlock_write_lock(&bop->bo_arbor->t_lock);
 			bop->bo_arbor->t_desc           = oi->i_nop.no_tree;
@@ -3282,7 +3323,7 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 			m0_rwlock_write_unlock(&bop->bo_arbor->t_lock);
 
 			m0_free(oi);
-			mem_update();
+
 			return P_DONE;
 
 		default:
@@ -3290,9 +3331,16 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 	}
 }
 
+/**
+ * btree_destroy_tick function is the main function used to destroy btree.
+ *
+ * @param smop Represents the state machine operation
+ * @return int64_t It returns the next state to be executed.
+ */
+
 int64_t btree_destroy_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
+	struct m0_btree_op *bop = M0_AMB(bop, smop, bo_op);
 
 	switch(bop->bo_op.o_sm.sm_state)
 	{
@@ -3314,11 +3362,18 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 
 			tree_delete(&bop->bo_i->i_nop, bop->bo_arbor->t_desc,
 				    bop->bo_tx, P_ACT);
-
+			/**
+			 * ToDo: We need to capture the changes occuring in the
+			 * root node after tree_descriptor has been freed using
+			 * m0_be_tx_capture().
+			 * Only those fields that have changed need to be
+			 * updated.
+			 */
 			m0_free(bop->bo_arbor);
 			m0_free(bop->bo_i);
 			bop->bo_arbor = NULL;
 			bop->bo_i = NULL;
+
 			return P_DONE;
 
 		default:
@@ -3334,7 +3389,7 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 int  btree_sibling_first_key_get(struct m0_btree_oimpl *oi, struct td *tree,
 				 struct slot *s)
 {
-	int	        i;
+	int             i;
 	struct level   *lev;
 	struct segaddr  child;
 
@@ -3461,14 +3516,14 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 		void        *pkey;
 		void        *pval;
 		struct slot  s = {};
-		int	     rc;
+		int          rc;
 
 		lev = &oi->i_level[oi->i_used];
 
-		s.s_node	     = lev->l_node;
-		s.s_idx		     = lev->l_idx;
+		s.s_node             = lev->l_node;
+		s.s_idx              = lev->l_idx;
 		s.s_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&pkey, &ksize);
-		s.s_rec.r_val	     = M0_BUFVEC_INIT_BUF(&pval, &vsize);
+		s.s_rec.r_val        = M0_BUFVEC_INIT_BUF(&pval, &vsize);
 		s.s_rec.r_flags      = M0_BSC_SUCCESS;
 		/**
 		 *  There are two cases based on the flag set by user :
@@ -3514,7 +3569,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 
 int64_t btree_iter_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
+	struct m0_btree_op *bop = M0_AMB(bop, smop, bo_op);
 	//ToDo: Implement complete destroy tick function.
 	switch(bop->bo_op.o_sm.sm_state)
 	{
@@ -3531,7 +3586,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 
 int64_t btree_del_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op 	*bop = M0_AMB(bop, smop, bo_op);
+	struct m0_btree_op *bop = M0_AMB(bop, smop, bo_op);
 	//ToDo: Implement complete destroy tick function.
 	switch(bop->bo_op.o_sm.sm_state)
 	{
@@ -3572,19 +3627,28 @@ void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 		     const struct node_type *nt, struct m0_be_tx *tx,
 		     struct m0_btree_op *bop)
 {
-	bop->b_data.addr	= addr;
-	bop->b_data.num_bytes	= nob;
-	bop->b_data.bt		= bt;
-	bop->b_data.nt		= nt;
+	bop->b_data.addr      = addr;
+	bop->b_data.num_bytes = nob;
+	bop->b_data.bt        = bt;
+	bop->b_data.nt        = nt;
 
 	m0_sm_op_init(&bop->bo_op, &btree_create_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
 }
 
+/**
+ * m0_btree_destroy is the API which is used by motr to destroy btree.
+ *
+ * @param arbor It is the address of m0_btree allocated by the caller of this
+ * function
+ * @param bop It represents the structure containing all the relevant details
+ * for carrying out btree operations.
+ */
+
 void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
 {
-	bop->bo_arbor	= arbor;
-	bop->bo_tx	= NULL;
+	bop->bo_arbor = arbor;
+	bop->bo_tx    = NULL;
 
 	m0_sm_op_init(&bop->bo_op, &btree_destroy_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
@@ -4036,7 +4100,7 @@ static void m0_btree_ut_basic_tree_oper(void)
 {
 	void                   *invalid_addr = (void *)0xbadbadbadbad;
 	struct m0_btree        *btree;
-	struct m0_btree_type    btree_type = {	.tt_id = M0_BT_UT_KV_OPS,
+	struct m0_btree_type    btree_type = {  .tt_id = M0_BT_UT_KV_OPS,
 						.ksize = 8,
 						.vsize = 8, };
 	struct m0_be_tx        *tx = NULL;
@@ -4241,7 +4305,7 @@ static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
  */
 static void m0_btree_ut_basic_kv_oper(void)
 {
-	struct m0_btree_type    btree_type = {.tt_id = M0_BT_UT_KV_OPS,
+	struct m0_btree_type    btree_type  = {.tt_id = M0_BT_UT_KV_OPS,
 					      .ksize = 8,
 					      .vsize = 8, };
 	struct m0_be_tx        *tx          = NULL;
@@ -4254,7 +4318,7 @@ static void m0_btree_ut_basic_kv_oper(void)
 	uint64_t                first_key;
 	bool                    first_key_initialized = false;
 	struct m0_btree_op      kv_op                 = {};
-	const struct node_type *nt                   = &fixed_format;
+	const struct node_type *nt                    = &fixed_format;
 
 	M0_ENTRY();
 
