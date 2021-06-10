@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@
 
 #ifndef __KERNEL__
 #include "lib/user_space/trace.h"
-#include <sys/user.h>    /* PAGE_SIZE */
+#include <sys/user.h>    /* PAGE_SIZE not available in aarch64 case*/
 #endif
 
 /**

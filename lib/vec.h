@@ -519,6 +519,7 @@ struct m0_0vec {
 	m0_bcount_t              z_count;
 };
 
+#ifdef CONFIG_X86_64
 enum {
 	M0_0VEC_SHIFT = 12,
 	M0_0VEC_ALIGN = (1 << M0_0VEC_SHIFT),
@@ -526,6 +527,15 @@ enum {
 	M0_SEG_SHIFT = 12,
 	M0_SEG_SIZE  = 4096,
 };
+#else  /*aarch64*/
+enum {
+	M0_0VEC_SHIFT = 16,
+	M0_0VEC_ALIGN = (1 << M0_0VEC_SHIFT),
+	M0_0VEC_MASK = M0_0VEC_ALIGN - 1,
+	M0_SEG_SHIFT = 16,
+	M0_SEG_SIZE  = 65536,
+};
+#endif
 
 /**
    Initialize a pre-allocated m0_0vec structure.
