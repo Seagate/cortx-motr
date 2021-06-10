@@ -318,7 +318,7 @@
  * Iteration operation traverses a tree to find the next or previous key
  * (depending on the the flag) to the given key. If the next or previous key is
  * found then the key and its value are returned as the result of operation.
- * Otherwise, an error flag (key not found) is returned to the caller.
+ * Otherwise, a flag, indicating boundary keys, is returned.
  *
  * Iteration also takes a "cookie" as an additional optional parameter. A cookie
  * (returned by a previous tree operation) is a safe pointer to the leaf node. A
@@ -327,29 +327,37 @@
  * previous key is present in the cached leaf node then return its record
  * otherwise traverse through the tree to find next or previous tree.
  *
- * There are two cases:
+ * Iterator start traversing the tree till the leaf node to find the
+ * next/previous key to the search key. While traversing down the the tree, it
+ * marks level as pivot if the node at that level has valid sibling. At the end
+ * of the tree traversal, the level which is closest to leaf level and has valid
+ * sibling will be marked as pivot level.
+ *
+ * These are the possible scenarios after tree travesal:
  * case 1: The search key has valid sibling in the leaf node i.e. search key is
  *	   greater than first key (for previous key search operation) or search
  *	   key is less than last key (for next key search operation).
  *	   Return the next/previous key's record to the caller.
- * case 2: The search key does not have valid sibling in the leaf node i.e.
+ * case 2: The pivot level is not updated with any of the non-leaf level. It
+ *         means the search key is rightmost(for next operation) or leftmost(for
+ *	   previous operation). Return a flag indicating the search key is
+ *         boundary key.
+ * case 3: The search key does not have valid sibling in the leaf node i.e.
  *	   search key is less than or equal to the first key (for previous key
  *	   search operation) or search key is greater than or equal to last key
- *	   (for next key search operation).
- *	   In this case, set a flag (BOF_SIBLING) and start traversing the tree
- *	   again till the leaf node. If the leaf node has a valid sibling return
- *	   the record otherwise start loading the sibling nodes from the pivot
- *	   internal node (i.e. the ancestor node which is closest to leaf node
- *	   and has a valid sibling).
- *	   If there is no valid pivot internal node, return error flag (key not
- *	   found) else return the record of the loaded sibling node.
+ *	   (for next key search operation) and pivot level is updated with
+ *	   non-leaf level.
+ *	   In this case, start loading the sibling nodes from the node at pivot
+ *	   level till the leaf level. Return the last record (for previous key
+ *	   operation) or first record (for next operation) from the sibling leaf
+ *	   node.
  *
  * Phases Description:
  * NEXTDOWN: This state will load nodes found during tree traversal for the
  *           search key.It will also update the pivot internal node. On reaching
  *           the leaf node if the found next/previous key is not valid and
- *           BOF_SIBLING flag is set, load the sibling index's child node from
- *           the pivot internal node.
+ *           pivot level is updated, load the sibling index's child node from
+ *           the internal node pivot level.
  * SIBLING: Load the sibling records (first key for next operation or last key
  *	    for prev operation) from the sibling nodes till leaf node.
  * CHECK: Check the traversal path for node with key and also the validity of
@@ -361,12 +369,10 @@
  *	   return record.
  *	2. If the leaf node sibling index is invalid and pivot node is also
  *	   invalid, it means we are at the boundary of th btree (i.e. rightmost
- *	   or leftmost key). Return error flag (key not found).
- *	3. If the leaf node sibling index is invalid and BOF_SIBLIG flag is not
- *	   set, set the BOF_SIBLIG and repeat state machine.
- *	4. If the leaf node sibling index is invalid and BOF_SIBLIG flag is set,
- *	   return the record (first record for next operation or last record for
- *	   prev operation) from the sibling node.
+ *	   or leftmost key). Return flag indicating boundary keys.
+ *	3. If the leaf node sibling index is invalid and pivot level was updated
+ *	   with the non-leaf level, return the record (first record for next
+ *	   operation or last record for prev operation) from the sibling node.
  *
  * Data structures
  * ---------------
@@ -2349,10 +2355,10 @@ static int fail(struct m0_btree_op *bop, int rc)
 /**
  * checks if given node is still exists
  */
-static int node_is_valid(const struct nd *node)
+static bool node_is_valid(const struct nd *node)
 {
 	/* function definition is yet to be implemented */
-	return 0;
+	return true;
 }
 
 /**
@@ -2375,7 +2381,7 @@ static bool path_check(struct m0_btree_oimpl *oi, struct td *tree,
 		return cookie_is_valid(tree, k_cookie);
 
 	while (total_level >= 0) {
-		if (node_is_valid(l_node) != 0) {
+		if (!node_is_valid(l_node)) {
 			node_op_fini(&oi->i_nop);
 			//return fail(bop, rc);
 			return false;
@@ -2388,25 +2394,23 @@ static bool path_check(struct m0_btree_oimpl *oi, struct td *tree,
 }
 
 /**
- * Validates the siblig node and its sequence number.
+ * Validates the sibling node and its sequence number.
  *
  * @param oi provides traversed nodes information.
- * @param flags operation flags.
  * @return bool return true if validation succeeds else false.
  */
-static bool sibling_node_check(struct m0_btree_oimpl *oi, uint64_t flags)
+static bool sibling_node_check(struct m0_btree_oimpl *oi)
 {
-	struct nd *l_node;
+	struct nd *l_sibling = oi->i_level[oi->i_used].l_sibling;
 
-	if (!(flags & BOF_SIBLING) || (oi->i_pivot == -1))
+	if (l_sibling == NULL || oi->i_pivot == -1)
 		return true;
 
-	l_node = oi->i_level[oi->i_used].l_sibling;
-	if (node_is_valid(l_node) != 0) {
+	if (!node_is_valid(l_sibling)) {
 		node_op_fini(&oi->i_nop);
 		return false;
 	}
-	if (oi->i_level[oi->i_used].l_sib_seq != l_node->n_seq)
+	if (oi->i_level[oi->i_used].l_sib_seq != l_sibling->n_seq)
 		return false;
 	return true;
 }
@@ -2938,10 +2942,9 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		int ksize;
 		int vsize;
 		/* Validate curr_level->l_node(i.e.is it still exists or not) */
-		int rc = node_is_valid(curr_level->l_node);
-		if (rc) {
+		if (!node_is_valid(curr_level->l_node)) {
 			node_op_fini(&oi->i_nop);
-			return fail(bop, rc);
+			return fail(bop, M0_ERR(-EFAULT));
 		}
 		if (curr_level->l_node->n_type->nt_id == BNT_FIXED_FORMAT) {
 			ksize = node_keysize(curr_level->l_node);
@@ -3573,9 +3576,11 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 				}
 				/**
 				 * Check if the node has valid left or right
-				 * index based on next previous flag. If valid
-				 * left/right index found. mark this level as
-				 * pivot level.
+				 * index based on previous/next flag. If valid
+				 * left/right index found, mark this level as
+				 * pivot level.The pivot level is the level
+				 * closest to leaf level having valid sibling
+				 * index.
 				 */
 				if (((bop->bo_flags & BOF_NEXT) &&
 				    (lev->l_idx < node_count(lev->l_node))) ||
@@ -3598,31 +3603,31 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 							       oi->i_key_found);
 				/**
 				 * In the following cases jump to LOCK state:
-				 * 1. Normal pass without sibling load flag.
-				 * 2. Sibling load flag is set and the found key
-				 *    idx is withing the valid index range of
-				 *    the node.
-				 * 3.i_pivot is equal to -1. It means, tree
+				 * 1. the found key idx is within the valid
+				 *    index range of the node.
+				 * 2.i_pivot is equal to -1. It means, tree
 				 *   traversal reached at the leaf level without
-				 *   finding any valid sibling in the non-levels.
+				 *   finding any valid sibling in the non-leaf
+				 *   levels.
 				 *   This indicates that the search key is the
 				 *   boundary key (rightmost for NEXT flag and
 				 *   leftmost for PREV flag).
 				 */
-				if (!(bop->bo_flags & BOF_SIBLING) ||
-				    (index_is_valid(lev)) ||
-				    (oi->i_pivot == -1))
+				if (index_is_valid(lev) || oi->i_pivot == -1)
 					return P_LOCK;
 
 				/**
-				 * Start traversing the sibling node path.
-				 * If the pivot node is still valid, l
-				 * load sibling idx's child node at pivot level
-				 * else clean up and restart state machine.
+				 * We are here, it means we want to load
+				 * sibling node of the leaf node.
+				 * Start traversing the sibling node path
+				 * starting from the pivot level. If the node
+				 * at pivot level is still valid, load sibling
+				 * idx's child node else clean up and restart
+				 * state machine.
 				 */
 				lev = &oi->i_level[oi->i_pivot];
 
-				if (node_is_valid(lev->l_node) != 0) {
+				if (!node_is_valid(lev->l_node)) {
 					node_op_fini(&oi->i_nop);
 					bop->bo_flags |= BOF_LOCKALL;
 					return m0_sm_op_sub(&bop->bo_op,
@@ -3636,7 +3641,8 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 
 				s.s_node = lev->l_node;
 				s.s_idx = sibling_index_get(lev->l_idx,
-							    bop->bo_flags, true);
+							    bop->bo_flags,
+							    true);
 				node_child(&s, &child);
 				if (!address_in_segment(child)) {
 					node_op_fini(&oi->i_nop);
@@ -3655,10 +3661,10 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			struct segaddr child;
 
 			s.s_node = oi->i_nop.no_node;
-			s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
-				  node_count(s.s_node) - 1;
 
 			if (node_level(s.s_node) > 0) {
+				s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
+					  node_count(s.s_node);
 				node_child(&s, &child);
 				if (!address_in_segment(child)) {
 					node_op_fini(&oi->i_nop);
@@ -3686,7 +3692,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 	case P_CHECK:
 		oi->i_trial++;
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie) ||
-		    !sibling_node_check(oi, bop->bo_flags)) {
+		    !sibling_node_check(oi)) {
 			if (oi->i_trial == MAX_TRIALS) {
 				if (bop->bo_flags & BOF_LOCKALL)
 					return fail(bop, -ETOOMANYREFS);
@@ -3702,7 +3708,10 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 				return P_DOWN;
 			}
 		}
-		/** Fall through if path_check and sibling_node_check are successful. */
+		/**
+		 * Fall through if path_check and sibling_node_check are
+		 * successful.
+		 */
 	case P_ACT: {
 		m0_bcount_t		 ksize;
 		m0_bcount_t		 vsize;
@@ -3715,37 +3724,29 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 		s.s_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&pkey, &ksize);
 		s.s_rec.r_val	     = M0_BUFVEC_INIT_BUF(&pval, &vsize);
 		s.s_rec.r_flags      = M0_BSC_SUCCESS;
-		s.s_idx		     = lev->l_idx;
 
 		/* Return record if idx fit in the node. */
 		if (index_is_valid(lev)) {
 			s.s_node = lev->l_node;
+			s.s_idx  = lev->l_idx;
 			node_rec(&s);
-		} else {
+		} else if (oi->i_pivot == -1)
 			/* Handle rightmost/leftmost key case. */
-			if (oi->i_pivot == -1)
-				s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
-			else if (bop->bo_flags & BOF_SIBLING) {
+			s.s_rec.r_flags = M0_BSC_KEY_BTREE_BOUNDARY;
+		else {
 			/* Return sibling record based on flag. */
-				s.s_node = lev->l_sibling;
-				s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
-					  node_count(s.s_node) - 1;
-				node_rec(&s);
-			} else {
-			/* Set sibling load flag and traverse sm again. */
-				bop->bo_flags |= BOF_SIBLING;
-				lock_op_unlock(tree);
-				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-						    P_SETUP);
-			}
+			s.s_node = lev->l_sibling;
+			s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
+				  node_count(s.s_node) - 1;
+			node_rec(&s);
 		}
 		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
 		lock_op_unlock(tree);
-		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
+		return P_CLEANUP;
 	}
 	case P_CLEANUP:
 		level_cleanup(oi);
-		return m0_sm_op_ret(&bop->bo_op);
+		return P_DONE;
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
 	};
@@ -4402,8 +4403,9 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	m0_bcount_t              vsize;
 	struct cb_data          *datum = cb->c_datum;
 
-	if (rec->r_flags == M0_BSC_KEY_NOT_FOUND)
-     		return M0_BSC_KEY_NOT_FOUND;
+	if (rec->r_flags == M0_BSC_KEY_NOT_FOUND ||
+	    rec->r_flags == M0_BSC_KEY_BTREE_BOUNDARY)
+     		return rec->r_flags;
 
 	ksize = m0_vec_count(&datum->key->k_data.ov_vec);
 	M0_PRE(m0_vec_count(&rec->r_key.k_data.ov_vec) <= ksize);

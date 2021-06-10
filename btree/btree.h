@@ -125,7 +125,6 @@ enum m0_btree_op_flags {
 	BOF_COOKIE    = M0_BITS(3),
 	BOF_EQUAL     = M0_BITS(4),
 	BOF_SLANT     = M0_BITS(5),
-	BOF_SIBLING   = M0_BITS(6)
 };
 
 /**
@@ -136,6 +135,7 @@ enum m0_btree_status_codes {
 	M0_BSC_SUCCESS = 0,
 	M0_BSC_KEY_EXISTS,
 	M0_BSC_KEY_NOT_FOUND,
+	M0_BSC_KEY_BTREE_BOUNDARY,
 };
 
 enum m0_btree_opflag {
