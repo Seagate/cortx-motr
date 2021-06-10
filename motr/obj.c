@@ -556,6 +556,28 @@ error:
 }
 
 /**
+ * Finds optimal layout id according to the object's size and
+ * sets it in m0_obj::ob_attr::oa_layout_id if it is not already set.
+ */
+static void obj_optimal_lid_set(struct m0_obj *obj,
+				struct m0_layout_domain *ldom)
+{
+	uint64_t *lid;
+
+	lid = &obj->ob_attr.oa_layout_id;
+
+	/* Find optimal layout id when pver id is set and layout id is not */
+	if (*lid == 0 && m0_fid_is_set(&obj->ob_attr.oa_pver)) {
+		*lid = m0_layout_find_by_buffsize(ldom, &obj->ob_attr.oa_pver,
+						  obj->ob_attr.oa_obj_size);
+	}
+	/* Set default layout id when both layout id and pver id is unset */
+	else if (*lid == 0 && !m0_fid_is_set(&obj->ob_attr.oa_pver)) {
+		*lid = M0_DEFAULT_LAYOUT_ID;
+	}
+}
+
+/**
  * Initialises a m0_op_obj (i.e. an operation on an object).
  *
  * @param oo object operation to be initialised.
@@ -563,11 +585,12 @@ error:
  */
 static int obj_op_obj_init(struct m0_op_obj *oo)
 {
-	int                     rc;
-	struct m0_locality     *locality;
-	struct m0_pool_version *pv;
-	struct m0_obj          *obj;
-	struct m0_client       *cinst;
+	int                      rc;
+	struct m0_locality      *locality;
+	struct m0_pool_version  *pv;
+	struct m0_obj           *obj;
+	struct m0_client        *cinst;
+	struct m0_layout_domain *ldom;
 
 	M0_ENTRY();
 	M0_PRE(oo != NULL);
@@ -575,13 +598,17 @@ static int obj_op_obj_init(struct m0_op_obj *oo)
 				       M0_EO_DELETE,
 				       M0_EO_OPEN)));
 
-	/** Get the object's pool version. */
+	/** Get the object's pool version and optimal layout id. */
 	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
+	cinst = m0__obj_instance(obj);
 	if (OP_OBJ2CODE(oo) == M0_EO_CREATE) {
 		rc = m0__obj_pool_version_get(obj, &pv);
 		if (rc != 0)
 			return M0_ERR(rc);
 		oo->oo_pver = pv->pv_id;
+
+		ldom = &cinst->m0c_reqh.rh_ldom;
+		obj_optimal_lid_set(obj, ldom);
 	} else if (OP_OBJ2CODE(oo) == M0_EO_OPEN) {
 		/*
 		 * XXX:Not required to assign pool version for operation other
@@ -590,7 +617,6 @@ static int obj_op_obj_init(struct m0_op_obj *oo)
 		 * and cache it to m0_obj::ob_layout::oa_pver
 		 * MOTR-2871 will fix and verify this issue separately.
 		 */
-			cinst = m0__obj_instance(obj);
 			pv = m0_pool_version_md_get(&cinst->m0c_pools_common);
 			M0_ASSERT(pv != NULL);
 			oo->oo_pver = pv->pv_id;
