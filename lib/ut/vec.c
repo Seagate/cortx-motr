@@ -19,7 +19,6 @@
  *
  */
 
-#include <errno.h>
 
 #include "ut/ut.h"
 #include "lib/vec.h"
@@ -29,6 +28,7 @@
 #include "lib/bitmap.h"
 #include "lib/time.h"
 #include "lib/arith.h"
+#include "lib/errno.h"
 
 static void test_ivec_cursor(void);
 static void test_bufvec_cursor(void);
