@@ -514,7 +514,7 @@ static void node_bulk_state_change_cb(struct node_bulk_ctx *ctx,
 		transition_size = 0;
 		M0_IMPOSSIBLE("Invalid node role in net-test bulk testing");
 	}
-	m0_nanosleep(50, NULL);
+	m0_nanosleep(0, NULL);
 	state = node_bulk_state_search(ctx->nbc_bs[bs_index].bsb_ts,
 				       transition, transition_size);
 	node_bulk_state_change(ctx, bs_index, state);
@@ -952,7 +952,6 @@ static int client_bulk_enqueue(struct node_bulk_ctx *ctx,
 static void client_bulk_dequeue(struct node_bulk_ctx *ctx,
 				size_t buf_index)
 {
-	m0_nanosleep(100, NULL);
 	m0_net_test_network_buffer_dequeue(&ctx->nbc_net, M0_NET_TEST_BUF_BULK,
 					   buf_index);
 }
@@ -1228,12 +1227,10 @@ static void node_bulk_buf_dequeue(struct node_bulk_ctx *ctx)
 	size_t i;
 
 	M0_PRE(ctx != NULL);
-	m0_nanosleep(100, NULL);
 	for (i = 0; i < ctx->nbc_buf_ping_nr; ++i) {
 		m0_net_test_network_buffer_dequeue(&ctx->nbc_net,
 						   M0_NET_TEST_BUF_PING, i);
 	}
-	m0_nanosleep(100, NULL);
 	for (i = 0; i < ctx->nbc_buf_bulk_nr; ++i) {
 		m0_net_test_network_buffer_dequeue(&ctx->nbc_net,
 						   M0_NET_TEST_BUF_BULK, i);
