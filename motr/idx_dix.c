@@ -549,16 +549,25 @@ static void dix_build(const struct m0_op_idx *oi,
 {
 	unsigned int   opcode = OP_IDX2CODE(oi);
 	struct m0_idx *idx = oi->oi_idx;
+	int            rc;
 
 	M0_SET0(out);
 	out->dd_fid = *OI_IFID(oi);
 	/* Pool version and layout type which are passed by consumers like S3 */
 	if (M0_IN(opcode, (M0_IC_GET, M0_IC_PUT, M0_IC_DEL, M0_IC_NEXT))) {
-		if (idx->in_attr.idx_layout_type == DIX_LTYPE_DESCR) {
-			M0_LOG(M0_DEBUG, "Opcode: %u, DIX pool version:"FID_F"",
+		if ((idx->in_attr.idx_layout_type == DIX_LTYPE_DESCR) 
+		    && (m0_fid_is_set(&idx->in_attr.idx_pver))
+		    && (m0_fid_is_valid(&idx->in_attr.idx_pver))) {
+			M0_LOG(M0_ALWAYS, "Opcode: %u, DIX pool version:"FID_F"",
 			       opcode, FID_P(&idx->in_attr.idx_pver));
-			out->dd_layout.dl_type = DIX_LTYPE_DESCR;
-			out->dd_layout.u.dl_desc.ld_pver = idx->in_attr.idx_pver;
+
+			rc = m0_dix_imask_init(&out->dd_layout.u.dl_desc.ld_imask, 
+			     &(struct m0_ext) { .e_start = 0, .e_end = IMASK_INF } , 1);
+			if (rc == 0) {	
+				out->dd_layout.dl_type = DIX_LTYPE_DESCR;
+				out->dd_layout.u.dl_desc.ld_pver = idx->in_attr.idx_pver;
+				out->dd_layout.u.dl_desc.ld_hash_fnc = HASH_FNC_CITY;
+			}
 		}
 	}
 }
@@ -978,9 +987,11 @@ static void dix_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
 	struct m0_dix            dix;
 	int                      rc;
+	struct m0_fid		 dix_pver;
 
 	M0_ENTRY();
 	dix_build(oi, &dix);
+	dix_pver = dix_req->idr_oi->oi_idx->in_attr.idx_pver;
 	/*
 	 * Use default layout for all indices:
 	 * - city hash function;
@@ -991,7 +1002,7 @@ static void dix_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	dix.dd_layout.dl_type = DIX_LTYPE_DESCR;
 	m0_dix_ldesc_init(&dix.dd_layout.u.dl_desc,
 			  &(struct m0_ext) { .e_start = 0, .e_end = IMASK_INF },
-			  1, HASH_FNC_CITY, &dix_inst(oi)->di_index_pver);
+			  1, HASH_FNC_CITY, &dix_pver);
 	m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
 	rc = m0_dix_create(dreq, &dix, 1, NULL, COF_CROW);
 	if (rc != 0)
