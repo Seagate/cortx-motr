@@ -3742,11 +3742,11 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 		}
 		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
 		lock_op_unlock(tree);
-		return P_CLEANUP;
+		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 	}
 	case P_CLEANUP:
 		level_cleanup(oi);
-		return P_DONE;
+		return m0_sm_op_ret(&bop->bo_op);
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
 	};
