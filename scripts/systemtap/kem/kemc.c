@@ -220,7 +220,7 @@ static int kem_init(struct kemc_ctx *ctx, int dev_num,
 		    bool use_stdout, bool use_addb2)
 {
 	struct sigaction sa;
-	int              rc = 0;
+	int		 rc = 0;
 
 	memset(ctx, 0, sizeof(*ctx));
 

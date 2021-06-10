@@ -200,13 +200,13 @@ static int kemd_init_module(void)
 
 	return 0;
 
- out_chrdev:
+out_chrdev:
 	unregister_chrdev_region(devno, kemd_nr_cpus);
- out_devs:
+out_devs:
 	kfree(kemd_devices);
- out_rbs_inited:
+out_rbs_inited:
 	kemd_rbs_free(kemd_rbs);
- out_rbs:
+out_rbs:
 	kfree(kemd_rbs);
 
 	return err;

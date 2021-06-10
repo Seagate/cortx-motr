@@ -1,7 +1,7 @@
 /* -*- C -*- */
 /*
  * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -25,7 +25,7 @@
 #include <linux/init.h>        /* module_init */
 #include <linux/debugfs.h>     /* debugfs_create_dir */
 #include <linux/kernel.h>      /* pr_err */
-
+ 
 #include "lib/thread.h"                           /* M0_THREAD_ENTER */
 #include "utils/linux_kernel/m0ctl_internal.h"
 #include "utils/linux_kernel/finject_debugfs.h"   /* fi_dfs_init */
@@ -126,6 +126,7 @@ void __exit m0ctl_exit(void)
 module_init(m0ctl_init);
 module_exit(m0ctl_exit);
 
+MODULE_LICENSE("GPL");
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

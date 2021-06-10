@@ -1,7 +1,7 @@
 /* -*- C -*- */
 /*
  * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -43,7 +43,7 @@ M0_INTERNAL void cleanup_module(void)
  * marker is necessary to remove the warnings, keeping this blank to make
  * compiler happy.
  */
-MODULE_LICENSE();
+MODULE_LICENSE("GPL");
 
 /*
  *  Local variables:
