@@ -1074,7 +1074,7 @@ static void node_cut  (const struct nd *node, int idx, int size,
 static void node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
 
 #ifndef __KERNEL__
-static void node_set_level  (const struct nd *node, uint8_t new_level, 
+static void node_set_level  (const struct nd *node, uint8_t new_level,
 			     struct m0_be_tx *tx);
 static void node_move (struct nd *src, struct nd *tgt,
 		       enum dir dir, int nr, struct m0_be_tx *tx);
@@ -2151,7 +2151,7 @@ static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 	M0_PRE(ff_isfit(slot));
 	memmove(start + rsize, start, rsize * (h->ff_used - slot->s_idx));
 	/**
-	 * ToDo: We need to capture the changes occuring in the memory whose 
+	 * ToDo: We need to capture the changes occuring in the memory whose
 	 * address starts from "start + rsize" and has its respective size using
 	 * m0_be_tx_capture().
 	 */
@@ -2225,7 +2225,7 @@ static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	M0_PRE(h->ff_used > 0);
 	memmove(start, start + rsize, rsize * (h->ff_used - idx - 1));
 	/**
-	 * ToDo: We need to capture the changes occuring in the memory whose 
+	 * ToDo: We need to capture the changes occuring in the memory whose
 	 * address starts from "start" and has its respective size using
 	 * m0_be_tx_capture().
 	 */
@@ -2243,7 +2243,7 @@ static void ff_set_level(const struct nd *node, uint8_t new_level,
 
 	h->ff_level = new_level;
 	/**
-	 * ToDo: We need to capture the changes occuring in the node-header's 
+	 * ToDo: We need to capture the changes occuring in the node-header's
 	 * ff_level field using m0_be_tx_capture().
 	 */
 }
@@ -3750,6 +3750,12 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 				s.s_idx = sibling_index_get(lev->l_idx,
 							    bop->bo_flags,
 							    true);
+				/**
+				 * We have already checked node and its sequence
+				 * number validity. Do we still need to check
+				 * sibling index validity?
+				 */
+
 				node_child(&s, &child);
 				if (!address_in_segment(child)) {
 					node_op_fini(&oi->i_nop);
@@ -4901,7 +4907,7 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 	 * Commenting this code as the delete operation is not done here.
 	 * Due to this, the destroy operation will crash.
 	 *
-	 * 
+	 *
 	 * M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 	 *				 m0_btree_destroy(b_op.bo_arbor, &b_op),
 	 *				 &b_op.bo_sm_group, &b_op.bo_op_exec);
