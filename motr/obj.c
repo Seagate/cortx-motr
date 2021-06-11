@@ -569,7 +569,7 @@ static void obj_optimal_lid_set(struct m0_obj *obj,
 	/* Find optimal layout id when pver id is set and layout id is not */
 	if (*lid == 0 && m0_fid_is_set(&obj->ob_attr.oa_pver)) {
 		*lid = m0_layout_find_by_buffsize(ldom, &obj->ob_attr.oa_pver,
-						  obj->ob_attr.oa_obj_size);
+						  obj->ob_attr.oa_buf_size);
 	}
 	/* Set default layout id when both layout id and pver id is unset */
 	else if (*lid == 0 && !m0_fid_is_set(&obj->ob_attr.oa_pver)) {
