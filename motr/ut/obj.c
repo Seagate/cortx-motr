@@ -681,7 +681,7 @@ static void ut_test_obj_lid_assign(void)
 	rc = m0_entity_create(NULL, &obj.ob_entity, &ops[0]);
 	M0_UT_ASSERT(obj.ob_attr.oa_layout_id > 0 &&
 			obj.ob_attr.oa_layout_id < 15);
-	M0_UT_ASSERT(rc = -ENOENT);
+	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(ops[0] == NULL);
 
 	ut_m0_client_fini(&instance);
@@ -708,7 +708,7 @@ static void ut_test_m0_entity_create(void)
 			   m0_client_layout_id(instance));
 
 	rc = m0_entity_create(NULL, &obj.ob_entity, &ops[0]);
-	M0_UT_ASSERT(rc = -ENOENT);
+	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(ops[0] == NULL);
 
 	ut_m0_client_fini(&instance);
@@ -736,7 +736,7 @@ static void ut_test_m0_entity_delete(void)
 
 	m0_fi_enable_once("obj_namei_op_init", "fake_msg_size");
 	rc = m0_entity_delete(&obj.ob_entity, &ops[0]);
-	M0_UT_ASSERT(rc = -EMSGSIZE);
+	M0_UT_ASSERT(rc == -EMSGSIZE);
 	M0_UT_ASSERT(ops[0] == NULL);
 
 	ut_m0_client_fini(&instance);
