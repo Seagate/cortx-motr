@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,16 +22,14 @@
  */
 
 
-#include "lib/errno.h"     /* ENOENT */
-#include "lib/vec.h"       /* m0_indexvec_alloc */
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"     /* M0_LOG */
-#include "rpc/rpclib.h"    /* m0_rpc_server_start */
 
+#include "lib/errno.h"     /* ENOENT */
+#include "lib/vec.h"       /* m0_indexvec_alloc */
+#include "rpc/rpclib.h"    /* m0_rpc_server_start */
 #include "ut/ut.h"
 #include "ut/misc.h"
-
 #include "motr/client_internal.h" /* m0_op_obj */
 #include "motr/io.h"              /* m0_op_io */
 #include "motr/ut/client.h"       /* ut_realm_entity_setup */
