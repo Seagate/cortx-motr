@@ -468,7 +468,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 m0_bcount_t                       count,
 				 struct pargrp_iomap              *map)
 {
-	uint32_t                   seg;
+	uint32_t                   seg = 0;
 	uint32_t                   tseg;
 	uint32_t                   coff;
 	m0_bindex_t                toff;
@@ -491,6 +491,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	unsigned int               opcode;
 	m0_bcount_t                grp_size;
 	uint64_t                   page_size;
+	uint32_t               	   ti_idx;
 
 	M0_PRE(tgt != NULL);
 	frame = tgt->ta_frame;
@@ -518,6 +519,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	pgstart = toff;
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
 	coff    = di_cksum_offset(play, gob_offset);
+	ti_idx = toff / layout_unit_size(play);
 	M0_LOG(M0_DEBUG, "YJC: coff = %"PRIu32, coff);
 
 	M0_LOG(M0_DEBUG,
@@ -601,11 +603,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		M0_ASSERT(addr_is_network_aligned(buf->db_buf.b_addr));
 		bvec->ov_buf[seg] = buf->db_buf.b_addr;
 		bvec->ov_vec.v_count[seg] = COUNT(ivec, seg);
-		attrbvec->ov_buf[seg] = ioo->ioo_attr.ov_buf[coff];
-		attrbvec->ov_vec.v_count[seg] = ioo->ioo_attr.ov_vec.v_count[coff];
-		M0_LOG(M0_DEBUG, "YJC_CKSUM: ioo->cksum = %s target buf cksum = %s gob_offset %"PRIu64 " coff = %d",
-				  (char *)ioo->ioo_attr.ov_buf[coff], (char *)attrbvec->ov_buf[seg], gob_offset, coff);
-		M0_LOG(M0_DEBUG, "YJC: target buffer ov buf = %s", (char *)attrbvec->ov_buf[seg]);
 		if (map->pi_rtype == PIR_READOLD &&
 		    unit_type == M0_PUT_DATA) {
 			M0_ASSERT(buf->db_auxbuf.b_addr != NULL);
@@ -630,6 +627,11 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
 	}
+	attrbvec->ov_buf[ti_idx] = ioo->ioo_attr.ov_buf[coff];
+	attrbvec->ov_vec.v_count[ti_idx] = ioo->ioo_attr.ov_vec.v_count[coff];
+	M0_LOG(M0_DEBUG, "YJC_CKSUM: ioo->cksum = %s target buf cksum = %s gob_offset %"PRIu64 " coff = %d",
+			  (char *)ioo->ioo_attr.ov_buf[coff], (char *)attrbvec->ov_buf[ti_idx], gob_offset, coff);
+	M0_LOG(M0_DEBUG, "YJC: target buffer ov buf = %s", (char *)attrbvec->ov_buf[ti_idx]);
 	M0_LEAVE();
 }
 
@@ -749,35 +751,48 @@ static void irfop_fini(struct ioreq_fop *irfop)
 	M0_LEAVE();
 }
 
-static int m0_bufs_from_bufvec(struct m0_bufs *dest,
+static int m0_buf_from_bufvec(struct m0_buf *dest,
 		                    const struct m0_bufvec *src)
 {
-	size_t i;
+	int i;
+	int count = 0;
+	int len_seg = 0;
+	void *dst;
 
 	M0_SET0(dest);
 
 	if (src == NULL)
 		return 0;
 
-	dest->ab_count = src->ov_vec.v_nr;
-	if (dest->ab_count == 0)
+	if (src->ov_vec.v_nr == 0)
 		return 0;
 
-	M0_ALLOC_ARR(dest->ab_elems, dest->ab_count);
-	if (dest->ab_elems == NULL)
+	count = m0_vec_count(&src->ov_vec);
+	//YJC_TODO : Need to free buffer
+	dest->b_addr = m0_alloc(count);
+	if (dest->b_addr == NULL)
 		return M0_ERR(-ENOMEM);
-
-	M0_LOG(M0_DEBUG, "YJC: copying %d buffers", dest->ab_count);
-	for (i = 0; i < dest->ab_count; ++i) {
-		struct m0_buf *dst = &dest->ab_elems[i];
-		uint32_t count;
-		count = src->ov_vec.v_count[i];
-		dst->b_addr = m0_alloc(count);
-		if (dst->b_addr == NULL)
-			return M0_ERR(-ENOMEM);
-		dst->b_nob = count;
-		memcpy(dst->b_addr, src->ov_buf[i], count);
+	dst = dest->b_addr;
+	for (i = 0; i < src->ov_vec.v_nr; ++i) {
+		char str[64];
+		len_seg = src->ov_vec.v_count[i];
+		if (len_seg > 0) {
+			snprintf(str, len_seg, "%s", (char *)src->ov_buf[i]);
+			//YJC_TODO: length shoudl len_seg instead of len_seg -1
+			// this is only for debug because we have string 
+			memcpy(dst, src->ov_buf[i], len_seg - 1);
+			M0_LOG(M0_DEBUG, "YJC buf[%d] = %s", i, (char *)str);
+		}
+		dst += len_seg - 1;
 	}
+	dest->b_nob = count;
+	//M0_ASSERT(count == len_seg);
+	//YJC_TODO: remove below two lines, only for debug
+	do {
+	char str[len_seg];
+	snprintf(str, len_seg, "%s", (char *)dest->b_addr);
+	M0_LOG(M0_DEBUG, "YJC: copying %s buffers", (char *)str);
+	}while(0);
 	return 0;
 }
 
@@ -977,10 +992,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_index = ti->ti_obj;
 		attrbvec = &ti->ti_attrbufvec;
 		//YJC_TODO: concat all checksum into single buffer instead of collection of buffers
-		rc = m0_bufs_from_bufvec(&rw_fop->crw_di_data_cksum, attrbvec);
+		rc = m0_buf_from_bufvec(&rw_fop->crw_di_data_cksum, attrbvec);
 		M0_ASSERT(rc == 0);
 		//YJC_TODO: m0_bufs_print only for debug, needs to be removed
-		m0_bufs_print(&rw_fop->crw_di_data_cksum, "YJC_CKSUM: rw_fop->crw_di_data_cksum");
+		//m0_bufs_print(&rw_fop->crw_di_data_cksum, "YJC_CKSUM: rw_fop->crw_di_data_cksum");
 
 		if (ioo->ioo_flags & M0_OOF_NOHOLE)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
@@ -1074,6 +1089,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	struct m0_op           *op;
 	struct m0_client       *instance;
 	uint32_t                nr;
+	uint32_t                nr_attr;
 
 	M0_PRE(cobfid  != NULL);
 	M0_ENTRY("target_ioreq %p, nw_xfer_request %p, "FID_F,
@@ -1115,6 +1131,9 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	target_ioreq_bob_init(ti);
 
 	nr = page_nr(size, ioo->ioo_obj);
+	nr_attr = size / m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
+	M0_ASSERT(nr_attr != 0);
+	M0_LOG(M0_DEBUG, "YJC: %"PRIu32 " pages allocated for ivec for size = %"PRIu64, nr, size);
 	rc = m0_indexvec_alloc(&ti->ti_ivec, nr);
 	if (rc != 0)
 		goto out;
@@ -1133,12 +1152,12 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	if (ti->ti_bufvec.ov_buf == NULL)
 		goto fail;
 
-	ti->ti_attrbufvec.ov_vec.v_nr = nr;
-	M0_ALLOC_ARR(ti->ti_attrbufvec.ov_vec.v_count, nr);
+	ti->ti_attrbufvec.ov_vec.v_nr = nr_attr;
+	M0_ALLOC_ARR(ti->ti_attrbufvec.ov_vec.v_count, nr_attr);
 	if (ti->ti_attrbufvec.ov_vec.v_count == NULL)
 		goto fail;
 
-	M0_ALLOC_ARR(ti->ti_attrbufvec.ov_buf, nr);
+	M0_ALLOC_ARR(ti->ti_attrbufvec.ov_buf, nr_attr);
 	if (ti->ti_attrbufvec.ov_buf == NULL)
 		goto fail;
 
