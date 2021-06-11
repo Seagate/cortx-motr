@@ -860,6 +860,14 @@ struct node_type {
 	 * return -1. */
 	int  (*nt_valsize)(const struct nd *node);
 
+	/** If predict is set as true, function determines if there is
+	 * possibility of underflow else it determines if there is an underflow
+	 * at node. */
+	bool  (*nt_underflow)(const struct nd *node, bool predict);
+
+	/** Returns true if there is possibility of overflow. */
+	bool  (*nt_overflow)(const struct nd *node);
+
 	/** Returns unique FID for this node */
 	void (*nt_fid)  (const struct nd *node, struct m0_fid *fid);
 
@@ -1038,6 +1046,8 @@ static int  node_level(const struct nd *node);
 static int  node_shift(const struct nd *node);
 static int  node_keysize(const struct nd *node);
 static int  node_valsize(const struct nd *node);
+static bool  node_underflow(const struct nd *node, bool predict);
+static bool  node_overflow(const struct nd *node);
 #endif
 #if 0
 static void node_fid  (const struct nd *node, struct m0_fid *fid);
@@ -1108,7 +1118,7 @@ struct level {
 	struct nd *l_next;
 
 	/** flag for indicating if node needs to get freed. **/
-	bool l_freenode;
+	bool       l_freenode;
 };
 
 /**
@@ -1128,7 +1138,7 @@ struct m0_btree_oimpl {
 	struct level   *i_level;
 
 	/** Store node_find() output. */
-	bool		i_key_found;
+	bool            i_key_found;
 
 	/** When there will be requirement for new node in case of root
 	 * splitting i_extra_node will be used. **/
@@ -1136,6 +1146,9 @@ struct m0_btree_oimpl {
 
 	/** Track number of trials done to complete operation. **/
 	unsigned        i_trial;
+
+	/** Node descriptor for cookie if it is going to be used. **/
+	struct nd      *i_cookie_node;
 };
 
 static struct td        trees[M0_TREE_COUNT];
@@ -1179,6 +1192,7 @@ static int node_space(const struct nd *node)
 	M0_PRE(node_invariant(node));
 	return node->n_type->nt_space(node);
 }
+
 #ifndef __KERNEL__
 static int node_level(const struct nd *node)
 {
@@ -1201,6 +1215,18 @@ static int node_valsize(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
 	return (node->n_type->nt_valsize(node));
+}
+
+static bool  node_underflow(const struct nd *node, bool predict)
+{
+	M0_PRE(node_invariant(node));
+	return node->n_type->nt_underflow(node, predict);
+}
+
+static bool  node_overflow(const struct nd *node)
+{
+	M0_PRE(node_invariant(node));
+	return node->n_type->nt_overflow(node);
 }
 #endif
 #if 0
@@ -1910,6 +1936,8 @@ static int  ff_level(const struct nd *node);
 static int  ff_shift(const struct nd *node);
 static int  ff_valsize(const struct nd *node);
 static int  ff_keysize(const struct nd *node);
+static bool ff_underflow(const struct nd *node, bool predict);
+static bool ff_overflow(const struct nd *node);
 static void ff_fid(const struct nd *node, struct m0_fid *fid);
 static void ff_rec(struct slot *slot);
 static void ff_node_key(struct slot *slot);
@@ -1944,6 +1972,8 @@ static const struct node_type fixed_format = {
 	.nt_shift     = ff_shift,
 	.nt_keysize   = ff_keysize,
 	.nt_valsize   = ff_valsize,
+	.nt_underflow = ff_underflow,
+	.nt_overflow  = ff_overflow,
 	.nt_fid       = ff_fid,
 	.nt_rec       = ff_rec,
 	.nt_key       = ff_node_key,
@@ -2069,6 +2099,20 @@ static int ff_keysize(const struct nd *node)
 static int ff_valsize(const struct nd *node)
 {
 	return ff_data(node)->ff_vsize;
+}
+
+static bool ff_underflow(const struct nd *node, bool predict)
+{
+	uint16_t rec_count = ff_data(node)->ff_used;
+	if (predict)
+		rec_count--;
+	return  rec_count == 0 ? true : false;
+}
+
+static bool ff_overflow(const struct nd *node)
+{
+	struct ff_head *h = ff_data(node);
+	return (ff_space(node) < h->ff_ksize + h->ff_vsize) ? true : false;
 }
 
 static void ff_fid(const struct nd *node, struct m0_fid *fid)
@@ -2293,24 +2337,11 @@ static void generic_move(struct nd *src, struct nd *tgt,
 
 /** Insert operation section start point: */
 
-#ifndef __KERNEL__
+#if 0
 static bool m0_btree_overflow_is_possible(const struct nd *node, int ksize,
 					  int vsize)
 {
 	return (node_space(node) < ksize + vsize) ? true : false;
-}
-#endif
-
-#if 0
-static bool m0_btree_underflow_is_possible(const struct nd *node)
-{
-	/**
-	 * defination of this function can be modified as, MAX_NODE_SIZE can
-	 * vary according to level
-	 */
-	/* calculate remaining space after deletion of key-value */
-	int space = node_space(node) -  MAX_KEY_SIZE - MAX_VAL_SIZE;
-	return space < MIN_NODE_SIZE_UNDERFLOW ? true : false;
 }
 #endif
 
@@ -2331,15 +2362,8 @@ static bool cookie_is_used(void)
 static bool cookie_is_valid(struct td *tree, struct m0_bcookie *k_cookie)
 {
 	/* TBD : function definition */
-	return false;
-}
+	/* if given key is in cookie's last and first key */
 
-/**
- * checks if overflow possible for given cookie
- */
-static bool cookie_overflow_is_possible(void *segaddr)
-{
-	/* TBD : function definition */
 	return false;
 }
 
@@ -2811,7 +2835,6 @@ static int64_t m0_btree_put_makespace_phase(struct m0_btree_op *bop)
 	new_rec.r_val = M0_BUFVEC_INIT_BUF(&newv_ptr, &newvsize);
 
 
-
 	temp_rec_1.r_key.k_data   = M0_BUFVEC_INIT_BUF(&p_key_1, &ksize_1);
 	temp_rec_1.r_val          = M0_BUFVEC_INIT_BUF(&p_val_1, &vsize_1);
 
@@ -2887,14 +2910,12 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			return P_COOKIE;
 		else
 			return P_SETUP;
-	case P_COOKIE: {
-		void *cookie_segaddr = bop->bo_rec.r_key.k_cookie.segaddr;
+	case P_COOKIE:
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie) &&
-		    !cookie_overflow_is_possible(cookie_segaddr))
+		    !node_overflow(oi->i_cookie_node))
 			return P_LOCK;
 		else
 			return P_SETUP;
-	}
 	case P_SETUP: {
 		bop->bo_arbor->t_height = tree->t_height;
 		bop->bo_i = level_alloc(bop->bo_arbor->t_height);
@@ -2954,8 +2975,6 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
 	case P_ALLOC: {
-		int           ksize;
-		int           vsize;
 		bool          alloc = false;
 		do {
 			lev = &oi->i_level[oi->i_used];
@@ -2965,19 +2984,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 				level_cleanup(oi, bop->bo_tx);
 				return P_INIT;
 			}
-			if (lev->l_node->n_type->nt_id == BNT_FIXED_FORMAT) {
-				ksize = node_keysize(lev->l_node);
-				vsize = node_valsize(lev->l_node);
-			} else {
-				/**
-				 * @todo : ksize, vsize for variable key:
-				 * get the correct max key size at runtime
-				 * */
-				ksize = MAX_KEY_SIZE;
-				vsize = MAX_VAL_SIZE;
-			}
-			if (!m0_btree_overflow_is_possible(lev->l_node,
-							   ksize, vsize))
+			if (!node_overflow(lev->l_node))
 				break;
 			if (oi->i_used == 0) {
 				if (lev->l_alloc == NULL ||
@@ -3043,7 +3050,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			.s_idx  = lev->l_idx,
 			.s_rec  = bop->bo_rec
 		};
-		if(!node_isfit(&slot_for_right_node)) {
+		if (!node_isfit(&slot_for_right_node)) {
 			return m0_btree_put_makespace_phase(bop);
 		}
 		node_make (&slot_for_right_node, bop->bo_tx);
@@ -3562,28 +3569,18 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 /* Delete Operation */
 
 /**
- * checks if undeflow possible for given cookie
- */
-static bool cookie_underflow_is_possible(void *segaddr)
-{
-	/* TBD : function definition */
-	return false;
-}
-
-/**
- * This function will get called if there is an underflow at l_node after
+ * This function will get called if there is an underflow at current node after
  * deletion of the record. Currently, underflow condition is defined based on
  * record count. If record count is 0, there will be underflow. To resolve
  * underflow,
  * 1) delete the node from parent.
- * 2) check if there is an underflow at parent due to deletion of it's one of
- *    the child.
+ * 2) check if there is an underflow at parent due to deletion of it's child.
  * 3) if there is an underflow,
- * 	  if, we have reached root, handle underflow at root.
+ *        if, we have reached root, handle underflow at root.
  *        else, repeat steps from step 1.
  *    else, return next phase which needs to be executed.
  *
- * @param bop It will provide all required information about btree operation.
+ * @param bop it will provide all required information about btree operation.
  * @return int64_t it return state which needs to get executed next.
  */
 static int64_t m0_btree_del_resolve_underflow(struct m0_btree_op *bop)
@@ -3637,7 +3634,8 @@ static int64_t m0_btree_del_resolve_underflow(struct m0_btree_op *bop)
 
 		node_fix(node_slot.s_node, bop->bo_tx);
 		/* check if underflow after deletion */
-		if (flag || node_count_rec(lev->l_node) > 0) {
+		if (flag || !node_underflow(lev->l_node, false)) {
+			//node_count_rec(lev->l_node) > 0
 			lev->l_node->n_skip_rec_count_check = false;
 			lock_op_unlock(tree);
 			return P_FREENODE;
@@ -3656,7 +3654,7 @@ static int64_t m0_btree_del_resolve_underflow(struct m0_btree_op *bop)
 	 * 4) free that child node
 	 */
 
-	curr_root_level = node_level(lev->l_node);
+	curr_root_level  = node_level(lev->l_node);
 	root_slot.s_node = lev->l_node;
 	root_slot.s_idx  = 0;
 	lev->l_node->n_skip_rec_count_check = true;
@@ -3707,10 +3705,10 @@ static bool child_node_check(struct m0_btree_oimpl *oi)
 
 /**
  * This function will determine if there is requirement of loading root child.
- * If root contains only two record and if any of them is going to get deleted,
+ * If root contains only two records and if any of them is going to get deleted,
  * it is required to load the other child of root as well to handle root case.
  *
- * @param bop It will provide all required information about btree operation.
+ * @param bop it will provide all required information about btree operation.
  * @return int8_t return -1 if any ancestor node is not valid. return 1, if
  *                loading of child is needed, else return 0;
  */
@@ -3722,34 +3720,33 @@ static int8_t root_child_is_req(struct m0_btree_op *bop)
 	do {
 		if (!node_is_valid(oi->i_level[used_count].l_node))
 			return -1;
-		if(used_count == 0) {
+		if (used_count == 0) {
 			load = 1;
 			break;
 		}
-		if(node_count_rec(oi->i_level[used_count].l_node) > 1)
+		if (!node_underflow(oi->i_level[used_count].l_node, true))
 			break;
 
 		used_count--;
-
-	}while(1);
+	}while (1);
 	return load;
 }
 
 /**
  * This function will get called if root is an internal node and it contains
- * only two record. It will check if there is requirement for loading root's
+ * only two records. It will check if there is requirement for loading root's
  * other child and accordingly return the next state for execution.
  *
- * @param bop It will provide all required information about btree operation.
+ * @param bop it will provide all required information about btree operation.
  * @return int64_t it return state which needs to get executed next.
  */
 static int64_t handle_root_case(struct m0_btree_op *bop)
 {
 	/**
-	 * If root is internal node and it contains only two records, check if
-	 * any record is going to be deleted if yes, we also have to load other
-	 * child of root so that we can copy the content from that child at root
-	 * and decrease the level by one.
+	 * If root is an internal node and it contains only two records, check
+	 * if any record is going to be deleted if yes, we also have to load
+	 * other child of root so that we can copy the content from that child
+	 * at root and decrease the level by one.
 	 */
 	struct m0_btree_oimpl *oi = bop->bo_i;
 	int8_t                 load;
@@ -3788,7 +3785,7 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 	struct m0_btree_oimpl *oi         = bop->bo_i;
 	struct level          *lev;
 
-	if(oi)
+	if (oi)
 		lev = &oi->i_level[oi->i_used];
 
 	switch (bop->bo_op.o_sm.sm_state) {
@@ -3798,14 +3795,12 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 			return P_COOKIE;
 		else
 			return P_SETUP;
-	case P_COOKIE:{
-		void *cookie_segaddr = bop->bo_rec.r_key.k_cookie.segaddr;
+	case P_COOKIE:
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie) &&
-		    !cookie_underflow_is_possible(cookie_segaddr))
+		    !node_underflow(oi->i_cookie_node, true))
 			return P_LOCK;
 		else
 			return P_SETUP;
-	}
 	case P_SETUP: {
 		bop->bo_arbor->t_height = tree->t_height;
 		bop->bo_i = level_alloc(bop->bo_arbor->t_height);
@@ -3924,7 +3919,7 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 
 		if (!oi->i_key_found)
 			rec.r_flags = M0_BSC_KEY_NOT_FOUND;
-		else{
+		else {
 			node_slot.s_node = lev->l_node;
 			node_slot.s_idx  = lev->l_idx;
 			node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
@@ -4087,10 +4082,9 @@ void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
  * @param bop It represents the structure containing all the relevant details
  * for carrying out btree operations.
  */
-void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
-		  const struct m0_btree_rec *rec,
+void m0_btree_put(struct m0_btree *arbor, const struct m0_btree_rec *rec,
 		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop)
+		  struct m0_btree_op *bop, struct m0_be_tx *tx)
 {
 	bop->bo_opc    = M0_BO_PUT;
 	bop->bo_arbor  = arbor;
@@ -4104,9 +4098,9 @@ void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
 		      &btree_conf, &bop->bo_sm_group);
 }
 
-void m0_btree_del(struct m0_btree *arbor, struct m0_be_tx *tx,
-		  const struct m0_btree_key *key, const struct m0_btree_cb *cb,
-		  uint64_t flags, struct m0_btree_op *bop)
+void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop, struct m0_be_tx *tx)
 {
 	bop->bo_opc       = M0_BO_DEL;
 	bop->bo_arbor     = arbor;
@@ -4760,8 +4754,8 @@ static void m0_btree_ut_basic_kv_oper(void)
 		ut_cb.c_datum      = &put_data;
 
 		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-					 m0_btree_put(tree, tx, &rec,
-						      &ut_cb, 0, &kv_op),
+					 m0_btree_put(tree, &rec, &ut_cb, 0,
+					 	      &kv_op, tx),
 					 &kv_op.bo_sm_group, &kv_op.bo_op_exec);
 	}
 
@@ -4917,9 +4911,9 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 			ut_cb.c_datum      = &put_data;
 
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-						 m0_btree_put(tree, tx,
-							      &rec, &ut_cb, 0,
-							      &kv_op),
+						 m0_btree_put(tree, &rec,
+						 	      &ut_cb, 0,
+							      &kv_op, tx),
 						 &kv_op.bo_sm_group,
 						 &kv_op.bo_op_exec);
 		}
@@ -4985,10 +4979,10 @@ static void m0_btree_ut_multi_stream_kv_oper(void)
 			del_key = m0_byteorder_cpu_to_be64(del_key);
 
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-						 m0_btree_del(tree, tx,
+						 m0_btree_del(tree,
 							      &del_key_in_tree,
 							      &ut_cb, 0,
-							      &kv_op),
+							      &kv_op, tx),
 						 &kv_op.bo_sm_group,
 						 &kv_op.bo_op_exec);
 		}
@@ -5167,9 +5161,9 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 				value[i] = value[0];
 
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-						 m0_btree_put(tree, tx,
-							      &rec, &ut_cb,
-							      0, &kv_op),
+						 m0_btree_put(tree, &rec,
+						 	      &ut_cb, 0,
+							      &kv_op, tx),
 						 &kv_op.bo_sm_group,
 						 &kv_op.bo_op_exec);
 			M0_ASSERT(data.flags == 0);
@@ -5247,10 +5241,9 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 				key[i] = key[0];
 
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-						 m0_btree_del(tree, tx,
-						 	      &rec.r_key,
+						 m0_btree_del(tree, &rec.r_key,
 							      &ut_cb, 0,
-							      &kv_op),
+							      &kv_op, tx),
 						 &kv_op.bo_sm_group,
 						 &kv_op.bo_op_exec);
 			del_key = (r % 2 == 0) ? del_key + 1 : del_key - 1;
@@ -5486,7 +5479,7 @@ static void m0_btree_ut_traversal(struct td *tree)
 		int level = node_level(element);
 		if (level > 0) {
 			printf("level : %d =>    ",level);
-			if(level !=lev)
+			if (level !=lev)
 			{
 				lev = level;
 				count =0;
@@ -5523,7 +5516,7 @@ static void m0_btree_ut_traversal(struct td *tree)
 				}
 				queue[rear] = i_nop.no_node;
 			}
-			//store last child:
+			/* store last child: */
 			struct segaddr child_node_addr;
 			struct slot    node_slot = {};
 			node_slot.s_node = element;
@@ -5545,7 +5538,7 @@ static void m0_btree_ut_traversal(struct td *tree)
 			printf("\n\n");
 		} else {
 			printf("level : %d =>",level);
-			if(level !=lev)
+			if (level !=lev)
 			{
 				lev = level;
 				count =0;
@@ -5594,7 +5587,7 @@ static void m0_btree_ut_invariant_check(struct td *tree)
 		}
 		int level = node_level(element);
 		if (level > 0) {
-			if(level !=lev)
+			if (level !=lev)
 			{
 				lev = level;
 				firstkey = true;
@@ -5607,8 +5600,8 @@ static void m0_btree_ut_invariant_check(struct td *tree)
 				get_key_at_index(element, j, &key);
 
 				key = m0_byteorder_be64_to_cpu(key);
-				if(!firstkey){
-					if(key < prevkey){
+				if (!firstkey){
+					if (key < prevkey){
 						printf("***INVARIENT FAIL***");
 						M0_ASSERT(0);
 					}
@@ -5654,7 +5647,7 @@ static void m0_btree_ut_invariant_check(struct td *tree)
 			}
 			queue[rear] = i_nop.no_node;
 		} else {
-			if(level !=lev)
+			if (level !=lev)
 			{
 				lev = level;
 				firstkey = true;
@@ -5669,8 +5662,8 @@ static void m0_btree_ut_invariant_check(struct td *tree)
 
 				key = m0_byteorder_be64_to_cpu(key);
 				val = m0_byteorder_be64_to_cpu(val);
-				if(!firstkey){
-					if(key < prevkey){
+				if (!firstkey){
+					if (key < prevkey){
 						printf("***INVARIENT FAIL***");
 						M0_ASSERT(0);
 					}
@@ -5689,8 +5682,8 @@ static void m0_btree_ut_insert(struct td *tree)
 	m0_bcount_t     ksize = h->ff_ksize;
 	m0_bcount_t     vsize = h->ff_vsize;
 
-	uint64_t total_record = 1000000;
-	uint64_t temp = 1000000;
+	uint64_t total_record = 10000000;
+	uint64_t temp = 10000000;
 
 	uint64_t temp2;
 	bool inc = false;
@@ -5707,16 +5700,13 @@ static void m0_btree_ut_insert(struct td *tree)
 		void                  *p_key;
 		void                  *p_val;
 
-		//key = inc ? temp - total_record : total_record;
-		//val = key + 1;
 		temp2 = inc ? temp - total_record : total_record;
 		key = val = m0_byteorder_cpu_to_be64(temp2);
-		//key = val = m0_byteorder_cpu_to_be64(total_record);
 
 		p_key = &key;
 		p_val = &val;
 
-		//printf("%"PRIu64",",key);
+		/* printf("%"PRIu64",",key); */
 		struct m0_btree_op bop;
 		M0_SET0(&bop);
 		struct m0_btree btree;
@@ -5747,13 +5737,10 @@ static void m0_btree_ut_insert(struct td *tree)
 			bop.bo_op.o_sm.sm_state = nxt;
 		}
 		total_record--;
-		//printf("\n");
-		//m0_btree_ut_traversal(tree);
 	}
 	printf("\nAfter INSERTION");
 	printf("level : %d\n", node_level(tree->t_root));
 	m0_btree_ut_invariant_check(tree);
-	//m0_btree_ut_traversal(tree);
 }
 
 static void m0_btree_ut_delete(struct td *tree)
@@ -5761,8 +5748,8 @@ static void m0_btree_ut_delete(struct td *tree)
 	struct ff_head *h     = ff_data(tree->t_root);
 	m0_bcount_t     ksize = h->ff_ksize;
 
-	uint64_t total_record = 1000000;
-	uint64_t temp = 1000000;
+	uint64_t total_record = 10000000;
+	uint64_t temp = 10000000;
 
 	bool inc = false;
 	uint64_t temp2;
@@ -5774,12 +5761,9 @@ static void m0_btree_ut_delete(struct td *tree)
 		struct m0_btree_cb     ut_cb;
 		void                  *p_key;
 
-		//key = inc ? temp - total_record : total_record;
-		//val = key + 1;
-		//key = val = m0_byteorder_cpu_to_be64(total_record);
 		temp2 = inc ? temp - total_record : total_record;
 		key = m0_byteorder_cpu_to_be64(temp2);
-		//printf("%"PRIu64",",key);
+		/* printf("%"PRIu64",",key); */
 
 		p_key = &key;
 
@@ -5842,7 +5826,6 @@ static void m0_btree_ut_put_del_operation(void)
 
 	M0_SET0(&op);
 
-	// Create a Fixed-Format tree.
 	op.no_opc = NOP_ALLOC;
 
 	tree_create(&op, &tt, 10, NULL, 0);
@@ -5856,11 +5839,12 @@ static void m0_btree_ut_put_del_operation(void)
 
 	m0_btree_ut_insert(tree);
 	m0_btree_ut_delete(tree);
-	//m0_btree_ut_insert(tree);
 
-	// printf("\nAfter AGAIN INSERT ");
-	// m0_btree_ut_traversal(tree);
-	// Done playing with the tree - delete it.
+	/*
+	printf("\nAfter AGAIN INSERT ");
+	m0_btree_ut_traversal(tree);
+	*/
+
 	op.no_opc = NOP_FREE;
 	tree_delete(&op, tree, NULL, 0);
 
@@ -5868,6 +5852,7 @@ static void m0_btree_ut_put_del_operation(void)
 	M0_LEAVE();
 }
 #endif
+
 struct m0_ut_suite btree_ut = {
 	.ts_name = "btree-ut",
 	.ts_yaml_config_string = "{ valgrind: { timeout: 3600 },"
