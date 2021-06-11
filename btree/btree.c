@@ -5265,7 +5265,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 	if (tree_count == 0)
 		tree_count = threads_to_run;
 
-	M0_ASSERT(thread_count >= tree_count);
+	M0_ASSERT(threads_to_run >= tree_count);
 
 	thread_start = false;
 
