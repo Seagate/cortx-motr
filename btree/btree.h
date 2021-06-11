@@ -94,13 +94,13 @@ struct m0_btree_cb {
  * This structure is used to hold the data that is passed to m0_tree_create.
  */
 struct m0_btree_idata {
-	void 				*addr;
-	struct m0_btree			*tree;
-	int				 num_bytes;
-	const struct m0_btree_type 	*bt;
-	const struct node_type 		*nt;
-	int 				 ks;
-	int 				 vs;
+	void                       *addr;
+	struct m0_btree            *tree;
+	int                         num_bytes;
+	const struct m0_btree_type *bt;
+	const struct node_type     *nt;
+	int                         ks;
+	int                         vs;
 };
 
 enum m0_btree_rec_type {
@@ -120,12 +120,12 @@ enum m0_btree_opcode {
 };
 
 enum m0_btree_op_flags {
-	BOF_PREV    = M0_BITS(0),
-	BOF_NEXT    = M0_BITS(1),
-	BOF_LOCKALL = M0_BITS(2),
-	BOF_COOKIE  = M0_BITS(3),
-	BOF_EQUAL   = M0_BITS(4),
-	BOF_SLANT   = M0_BITS(5)
+	BOF_PREV      = M0_BITS(0),
+	BOF_NEXT      = M0_BITS(1),
+	BOF_LOCKALL   = M0_BITS(2),
+	BOF_COOKIE    = M0_BITS(3),
+	BOF_EQUAL     = M0_BITS(4),
+	BOF_SLANT     = M0_BITS(5),
 };
 
 /**
@@ -136,6 +136,7 @@ enum m0_btree_status_codes {
 	M0_BSC_SUCCESS = 0,
 	M0_BSC_KEY_EXISTS,
 	M0_BSC_KEY_NOT_FOUND,
+	M0_BSC_KEY_BTREE_BOUNDARY,
 };
 
 enum m0_btree_opflag {
