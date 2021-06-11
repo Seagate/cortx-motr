@@ -413,7 +413,8 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 {
 	const struct m0_sm_state_descr *sd;
 
-	mach->sm_rc = rc;
+	if (!(strcmp(mach->sm_conf->scf_name, "btree-conf") == 0))
+		mach->sm_rc = rc;
 	/*
 	 * Iterate over a possible chain of state transitions.
 	 *
