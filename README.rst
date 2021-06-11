@@ -6,7 +6,7 @@ Motr
 .. License Badge - https://img.shields.io/badge/License-Apache%202.0-blue.svg
 
 .. image:: https://img.shields.io/badge/License-Apache%202.0-blue.svg
-        :target: https://github.com/pujamudaliar/cortx-motr/blob/main/LICENCE
+        :target: https://github.com/Seagate/cortx-motr/blob/main/LICENCE
         :alt: License Badge
         
 .. Codacy Badge - https://api.codacy.com/project/badge
