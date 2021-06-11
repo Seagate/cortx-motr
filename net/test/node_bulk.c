@@ -478,7 +478,6 @@ node_bulk_state_search(enum transfer_state state,
 		if (state_list[i].sta_from == state)
 			return state_list[i].sta_to;
 	}
-
 	M0_IMPOSSIBLE("Invalid 'from' state in net-test bulk testing.");
 	return TS_UNUSED;
 }

@@ -74,7 +74,9 @@ M0_TL_DEFINE(fab_bulk, static, struct m0_fab__bulk_op);
 
 static uint32_t libfab_bht_func(const struct m0_htable *ht, const void *key)
 {
-	return (*(uint32_t *)key & 0xFF);
+	/* Max number of buckets = M0_NET_QT_NR = 6
+	   The last 3 bits in the token is the bucket id */
+	return (*(uint32_t *)key & 0x7);
 }
 
 static bool libfab_bht_key_eq(const void *key1, const void *key2)
@@ -711,8 +713,7 @@ static void libfab_rxep_comp_read(struct fid_cq *cq, struct m0_fab__ep *ep,
 /**
  * Check for completion events on the completion queue for the transmit endpoint
  */
-static void libfab_txep_comp_read(struct fid_cq *cq,
-				  struct m0_fab__tm *tm)
+static void libfab_txep_comp_read(struct fid_cq *cq, struct m0_fab__tm *tm)
 {
 	struct m0_fab__active_ep *aep;
 	struct m0_fab__buf       *fb = NULL;
@@ -1839,7 +1840,7 @@ static int libfab_check_for_comp(struct fid_cq *cq, uint32_t *ctx,
 	if (ret > 0) {
 		for (i = 0; i < ret; i++) {
 			ctx[i] = entry[i].op_context == NULL ? 0 :
-				*(uint32_t *)entry[i].op_context;
+				 *(uint32_t *)entry[i].op_context;
 			if (len != NULL)
 				len[i] = entry[i].len;
 			if (data != NULL)
@@ -1942,8 +1943,8 @@ static int libfab_bdesc_encode(struct m0_fab__buf *buf)
 static void libfab_bdesc_decode(struct m0_fab__buf *fb, 
 				struct m0_fab__ep_name *epname)
 {
-	struct m0_net_buffer   *nb = fb->fb_nb;
-	struct m0_fab__ndom    *ndom = nb->nb_dom->nd_xprt_private;
+	struct m0_net_buffer *nb = fb->fb_nb;
+	struct m0_fab__ndom  *ndom = nb->nb_dom->nd_xprt_private;
 
 	fb->fb_rbd = (struct m0_fab__bdesc *)(nb->nb_desc.nbd_data);
 	fb->fb_riov = (struct fi_rma_iov *)(nb->nb_desc.nbd_data + 
@@ -2135,11 +2136,11 @@ static void libfab_conn_data_fill(struct m0_fab__conn_data *cd,
 	t_ptr = strchr(h_ptr+1, ':');
 	len = t_ptr - (h_ptr+1);
 	strncpy(str_portal, h_ptr+1, len);
-	cd->fcd_portal = atoi(str_portal);
+	cd->fcd_portal = (uint16_t)atoi(str_portal);
 	if(*(t_ptr+1) == '*')
 		cd->fcd_tmid = 0xFFFF;
 	else
-		cd->fcd_tmid = atoi(t_ptr+1);
+		cd->fcd_tmid = (uint16_t)atoi(t_ptr+1);
 }
 
 /**
@@ -2611,9 +2612,9 @@ static int libfab_dom_init(const struct m0_net_xprt *xprt,
  */
 static void libfab_dom_fini(struct m0_net_domain *dom)
 {
-	struct m0_fab__ndom     *fnd;
-	struct m0_fab__fab      *fab;
-	int                      rc;
+	struct m0_fab__ndom *fnd;
+	struct m0_fab__fab  *fab;
+	int                  rc;
 	
 	M0_ENTRY();
 	libfab_dom_invariant(dom);
@@ -2825,7 +2826,7 @@ static void libfab_buf_deregister(struct m0_net_buffer *nb)
 	int                  i;
 	int                  ret;
 
-	M0_ENTRY("Deregister and free buf = %p", fb);
+	M0_ENTRY("Deregister and free buf = %p q = %d", fb, nb->nb_qtype);
 	M0_PRE(nb->nb_flags == M0_NET_BUF_REGISTERED &&
 	       libfab_buf_invariant(fb));
 
