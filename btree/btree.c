@@ -3306,8 +3306,8 @@ static struct m0_sm_conf btree_conf = {
  * Shift is the exponent of nearest power-of-2 value greater than or equal to
  * number of bytes.
  *
- * @param value It represents the number of bytes
- * @return int returns the shift value.
+ * @param value represents the number of bytes
+ * @return int  returns the shift value.
  */
 
 int calc_shift(int value)
@@ -3328,10 +3328,9 @@ int calc_shift(int value)
  * btree_create_tick function is the main function used to create btree.
  * It traverses through multiple states to perform its operation.
  *
- * @param smop Represents the state machine operation
- * @return int64_t It returns the next state to be executed.
+ * @param smop     represents the state machine operation
+ * @return int64_t returns the next state to be executed.
  */
-
 int64_t btree_create_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop    = M0_AMB(bop, smop, bo_op);
@@ -3348,19 +3347,20 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 			if (!addr_is_aligned(data->addr)) {
 				return M0_ERR(-EFAULT);
 			} else {
+				bop->bo_i = m0_alloc(sizeof *bop->bo_i);
+				if (bop->bo_i == NULL)
+					return M0_ERR(-ENOMEM);
+				oi = bop->bo_i;
+				bop->bo_arbor = m0_alloc(sizeof *bop->bo_arbor);
+				if (bop->bo_arbor == NULL)
+					return M0_ERR(-ENOMEM);
 
-			bop->bo_i = m0_alloc(sizeof *bop->bo_i);
-			if (bop->bo_i == NULL)
-				return M0_ERR(-ENOMEM);
-			oi = bop->bo_i;
-			bop->bo_arbor = m0_alloc(sizeof *bop->bo_arbor);
-			if (bop->bo_arbor == NULL)
-				return M0_ERR(-ENOMEM);
-
-			oi->i_nop.no_addr = segaddr_build(data->addr,
-							  calc_shift(
-							  data->num_bytes));
-			return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
+				oi->i_nop.no_addr = segaddr_build(data->addr,
+								  calc_shift(
+								  data->
+								  num_bytes));
+				return tree_get(&oi->i_nop, &oi->i_nop.no_addr,
+						P_ACT);
 			}
 		case P_ACT:
 			oi->i_nop.no_node->n_type = data->nt;
@@ -3378,17 +3378,17 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 			return P_DONE;
 
 		default:
-			return 0;
+			M0_IMPOSSIBLE("Wrong state: %i",
+				      bop->bo_op.o_sm.sm_state);;
 	}
 }
 
 /**
  * btree_destroy_tick function is the main function used to destroy btree.
  *
- * @param smop Represents the state machine operation
- * @return int64_t It returns the next state to be executed.
+ * @param smop     represents the state machine operation
+ * @return int64_t returns the next state to be executed.
  */
-
 int64_t btree_destroy_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op *bop = M0_AMB(bop, smop, bo_op);
@@ -3428,7 +3428,8 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 			return P_DONE;
 
 		default:
-			return 0;
+			M0_IMPOSSIBLE("Wrong state: %i",
+				      bop->bo_op.o_sm.sm_state);;
 	}
 }
 
@@ -3450,8 +3451,8 @@ static bool index_is_valid(struct level *lev)
  * btree_open_tick function is used to traverse through different states to
  * facilitate the working of m0_btree_open().
  *
- * @param smop Represents the state machine operation
- * @return int64_t It returns the next state to be executed.
+ * @param smop     represents the state machine operation
+ * @return int64_t returns the next state to be executed.
  */
 int64_t btree_open_tick(struct m0_sm_op *smop)
 {
@@ -3460,7 +3461,7 @@ int64_t btree_open_tick(struct m0_sm_op *smop)
 	int                    i    = 0;
 	struct m0_btree_oimpl *oi   = bop->bo_i;
 	struct segaddr         curr_addr;
-	  
+
 	switch(bop->bo_op.o_sm.sm_state)
 	{
 	case P_INIT:
@@ -3475,9 +3476,9 @@ int64_t btree_open_tick(struct m0_sm_op *smop)
 
 			m0_rwlock_write_lock(&trees_lock);
 			M0_ASSERT(trees_loaded <= ARRAY_SIZE(trees));
-		
+
 			/**
-		 	 *  If existing allocated tree is found then return it
+			 *  If existing allocated tree is found then return it
 			 *  after increasing the reference count and capturing
 			 *  the btree data.
 			 */
@@ -3509,7 +3510,7 @@ int64_t btree_open_tick(struct m0_sm_op *smop)
 						}
 					}
 					m0_rwlock_write_unlock(&tree->t_lock);
-				}	
+				}
 			}
 
 			bop->bo_i = m0_alloc(sizeof *bop->bo_i);
@@ -3975,24 +3976,22 @@ int64_t btree_del_tick(struct m0_sm_op *smop)
  * m0_btree_open is the API which is used by motr to fill the m0_btree structure
  * with the tree descriptor and other detials.
  *
- * @param addr It is the address of root node allocated by the caller of this
- * function
- * @param nob It is the size of root node.
- * @param out Pointer of m0_btree which is to be filled with data
- * @param bop It represents the structure containing all the relevant details
- * for carrying out btree operations.
+ * @param addr is the address of root node allocated by the caller of this
+ *             function
+ * @param nob  is the size of root node.
+ * @param out  is the pointer of m0_btree which is to be filled with data
+ * @param bop  represents the structure containing all the relevant details
+ *             for carrying out btree operations.
  */
 int  m0_btree_open(void *addr, int nob, struct m0_btree **out, 
 		   struct m0_btree_op *bop)
 {
-
 	bop->b_data.addr      = addr;
 	bop->b_data.num_bytes = nob;
 	bop->b_data.tree      = *out;
 
 	m0_sm_op_init(&bop->bo_op, &btree_open_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
-
 	return 0;
 }
 
@@ -4005,14 +4004,14 @@ void m0_btree_close(struct m0_btree *arbor)
 /**
  * m0_btree_create is the API which is used by motr to create btree.
  *
- * @param addr It is the address of root node allocated by the caller of this
- * function
- * @param nob It is the size of root node.
- * @param bt It is the type of btree to be created.
- * @param tx It represents the transaction of which the current operation is
- * part of.
- * @param bop It represents the structure containing all the relevant details
- * for carrying out btree operations.
+ * @param addr is the address of root node allocated by the caller of this
+ *             function
+ * @param nob  is the size of root node.
+ * @param bt   is the type of btree to be created.
+ * @param tx   represents the transaction of which the current operation is
+ *             part of.
+ * @param bop  represents the structure containing all the relevant details
+ *             for carrying out btree operations.
  */
 
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
@@ -4031,10 +4030,10 @@ void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 /**
  * m0_btree_destroy is the API which is used by motr to destroy btree.
  *
- * @param arbor It is the address of m0_btree allocated by the caller of this
- * function
- * @param bop It represents the structure containing all the relevant details
- * for carrying out btree operations.
+ * @param arbor is the address of m0_btree allocated by the caller of this
+ *              function
+ * @param bop   represents the structure containing all the relevant details
+ *              for carrying out btree operations.
  */
 
 void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
