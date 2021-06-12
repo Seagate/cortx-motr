@@ -37,6 +37,8 @@
 #include <pthread.h>
 #include <signal.h>           /* signal() to register ctrl + C handler */
 #include <yaml.h>
+#include <sys/mman.h>         /* mmap() */
+#include <unistd.h>           /* getpid() */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
@@ -525,6 +527,7 @@ static bool  dry_run = false;
 static bool  disable_directio = false;
 static bool  signaled = false;
 static bool  resume_scan = false;
+static bool  mmap_be_segment = false;
 
 static const char *offset_file = NULL;
 
@@ -617,7 +620,9 @@ int main(int argc, char **argv)
 		   M0_STRINGARG('d', "segment stob domain path path",
 			LAMBDA(void, (const char *s) {
 				beck_builder.b_dom_path = s;
-			})));
+			})),
+		   M0_FLAGARG('m', "MMAP BE segment file. Useful for "
+			      "developer debugging.", &mmap_be_segment));
 	if (result != 0)
 		errx(EX_USAGE, "Wrong option: %d.", result);
 	if (ut) {
@@ -630,6 +635,9 @@ int main(int argc, char **argv)
 	}
 	if (dry_run)
 		printf("Running in read-only mode.\n");
+
+	if (mmap_be_segment)
+		dry_run = true; /* Force dry run mode when asked to mmap. */
 
 	if (!beck_scanner.s_print_invalid_oids)
 		printf("Will not print INVALID GOB IDs if found since '-e'"
@@ -731,6 +739,21 @@ int main(int argc, char **argv)
 		seg_get(beck_scanner.s_file, &s_seg);
 		beck_scanner.s_seg = &s_seg;
 		beck_scanner.s_max_reg_size = DEFAULT_BE_MAX_TX_REG_SZ;
+
+		if (mmap_be_segment) {
+			mmap(s_seg.bs_addr, s_seg.bs_size, PROT_READ|PROT_WRITE,
+			     MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, 
+			     fileno(beck_scanner.s_file), s_seg.bs_offset);
+
+			printf("BE segment file %s has been mmaped at "
+			       "address %p for %"PRId64" bytes.\n"
+			       "Please attach to process %u to browse BE "
+			       "segment data.\n", spath, s_seg.bs_addr, 
+						s_seg.bs_size, getpid());
+
+			while (1); /* Wait in endless loop for gdb connection */
+		}
+
 	}
 
 	result = scanner_cache_init(&beck_scanner);
