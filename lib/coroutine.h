@@ -270,6 +270,26 @@ M0_INTERNAL void m0_co_context_locals_alloc(struct m0_co_context *context,
 					    uint64_t size);
 M0_INTERNAL void m0_co_context_locals_free(struct m0_co_context *context);
 
+#include "sm/sm.h"         /* m0_sm_group */
+
+struct m0_fom;
+struct m0_co_op {
+	struct m0_sm       co_sm;
+	/* MOTR-787: get rid of explicit locking here, use locality lock! */
+	struct m0_sm_group co_sm_group;
+};
+
+M0_INTERNAL void m0_co_op_init(struct m0_co_op *op);
+M0_INTERNAL void m0_co_op_fini(struct m0_co_op *op);
+
+M0_INTERNAL void m0_co_op_reset(struct m0_co_op *op);
+M0_INTERNAL void m0_co_op_active(struct m0_co_op *op);
+M0_INTERNAL void m0_co_op_done(struct m0_co_op *op);
+
+/* Don't introduce co_op_wait()! co_op intended to be used inside foms. */
+M0_INTERNAL int m0_co_op_tick_ret(struct m0_co_op *op,
+				  struct m0_fom   *fom,
+				  int              next_state);
 
 /** @} end of Coroutine group */
 #endif /* __MOTR_LIB_COROUTINE_H__ */
