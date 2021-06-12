@@ -716,6 +716,12 @@ struct m0_obj_attr {
 
 	/** Pool version fid */
 	struct m0_fid oa_pver;
+
+	/** 
+	 * Size of the object. Set this before m0_obj_init() to generate
+	 * optimal layout id during m0_entity_create().
+	 */
+	size_t        oa_obj_size;
 };
 
 /**
@@ -1132,8 +1138,8 @@ int m0_obj_write_lock_get_sync(struct m0_obj *obj,
  * @retval 0 On success.
  */
 int m0_obj_read_lock_get(struct m0_obj *obj,
-				struct m0_rm_lock_req *req,
-				struct m0_clink *clink);
+			 struct m0_rm_lock_req *req,
+			 struct m0_clink *clink);
 
 /**
  * Acquires the read lock for the object.
@@ -1150,7 +1156,7 @@ int m0_obj_read_lock_get(struct m0_obj *obj,
  * @retval 0 On success.
  */
 int m0_obj_read_lock_get_sync(struct m0_obj *obj,
-				     struct m0_rm_lock_req *req);
+			      struct m0_rm_lock_req *req);
 
 /**
  * Releases the RM lock for the object.
@@ -1309,8 +1315,12 @@ void m0__dtx_init     (struct m0__dtx             *dtx,
  * read, write, alloc and free operations executed on it.
  *
  * The size of data and parity buffer (m0_obj::ob_attr::oa_bshift) is
- * set to default value 'M0_DEFAULT_BUF_SHIFT'. If layout_id == 0, this
- * object will be set with default layout id.
+ * set to default value 'M0_DEFAULT_BUF_SHIFT'.
+ *
+ * If layout_id == 0, then this object will be set with optimal layout id
+ * according to the object size set in m0_obj::ob_attr::oa_obj_size.
+ * If Object size is not set, then this object will be set with
+ * default layout id (See struct m0_obj_attr).
  *
  * @param obj The object to initialise.
  * @param parent The realm operations on this object will be part of.
@@ -1321,10 +1331,10 @@ void m0__dtx_init     (struct m0__dtx             *dtx,
  * @pre parent != NULL
  * @pre id != NULL && m0_uint128_cmp(&M0_ID_APP, id) < 0
  */
-void m0_obj_init(struct m0_obj    *obj,
-			struct m0_realm  *parent,
-			const struct m0_uint128 *id,
-			uint64_t                 layout_id);
+void m0_obj_init(struct m0_obj           *obj,
+		 struct m0_realm         *parent,
+		 const struct m0_uint128 *id,
+		 uint64_t                 layout_id);
 /**
  * Finalises an obj, leading to finilise entity and to free any additiona
  *  memory allocated to represent it.
@@ -1659,6 +1669,7 @@ int m0_entity_sync(struct m0_entity *ent);
  * @return 0 for success, anything else for an error.
  */
 int m0_sync(struct m0_client *m0c, bool wait);
+
 /**
  * Maps a unit size to a layout id defined in Motr.
  *

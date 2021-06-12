@@ -110,7 +110,7 @@ motr_cancel_during_write()
 
 	# Check for session cancelled messages in m0cp logs
 	echo "Check for session cancelled message"
-	rc=`cat $MOTR_TRACE_DIR/m0cp.log | grep 'Cancelled session' | grep -v grep | wc -l`
+	rc=`cat $MOTR_TRACE_DIR/m0cp.log | grep 'rc=-125' | grep -v grep | wc -l`
 	if [ $rc -ne "0" ]
 	then
 		echo "Cancelled $rc fops during write operation"
@@ -192,7 +192,7 @@ motr_cancel_during_read()
 
 	# Check for session cancelled messages into m0cat logs
 	echo "Check for session cancelled message"
-	rc=`cat $MOTR_TRACE_DIR/m0cat.log | grep 'Cancelled session' | grep -v grep | wc -l`
+	rc=`cat $MOTR_TRACE_DIR/m0cat.log | grep 'rc=-125' | grep -v grep | wc -l`
 	if [ $rc -ne "0" ]
 	then
 		echo "Cancelled $rc fops during read operation"
@@ -250,7 +250,7 @@ motr_cancel_during_create()
 
 	# Check for session cancelled messages into m0touch logs
 	echo "Check for session cancelled message"
-	rc=`cat $MOTR_TRACE_DIR/m0touch.log | grep 'Cancelled session' | grep -v grep | wc -l`
+	rc=`cat $MOTR_TRACE_DIR/m0touch.log | grep 'rc=-125' | grep -v grep | wc -l`
 	if [ $rc -ne "0" ]
 	then
 		echo "Cancelled $rc fops during create operation"
@@ -309,7 +309,7 @@ motr_cancel_during_unlink()
 
 	# Check for session cancelled messages into m0unlink logs
 	echo "Check for session cancelled message"
-	rc=`cat $MOTR_TRACE_DIR/m0unlink.log | grep 'Cancelled session' | grep -v grep | wc -l`
+	rc=`cat $MOTR_TRACE_DIR/m0unlink.log | grep 'rc=-125' | grep -v grep | wc -l`
 	if [ $rc -ne "0" ]
 	then
 		echo "Cancelled $rc fops during unlink operation"
@@ -359,7 +359,6 @@ main()
 	then
 		echo "Failed to run the test, Stop motr services and exit"
 		motr_service_stop
-		sandbox_fini
 		return 1
 	fi
 	echo "=========================================================="
@@ -376,7 +375,6 @@ main()
 	then
 		echo "Failed to run the test, Stop motr services and exit"
 		motr_service_stop
-		sandbox_fini
 		return 1
 	fi
 	echo "=========================================================="
@@ -391,7 +389,6 @@ main()
 	then
 		echo "Failed to run the test, Stop motr services and exit"
 		motr_service_stop
-		sandbox_fini
 		return 1
 	fi
 	echo "=========================================================="
@@ -406,7 +403,6 @@ main()
 	then
 		echo "Failed to run the test, Stop motr services and exit"
 		motr_service_stop
-		sandbox_fini
 		return 1
 	fi
 	echo "=========================================================="
