@@ -4923,7 +4923,8 @@ struct btree_ut_thread_info {
 	struct m0_thread   ti_q;             /** Used for thread operations. */
 	struct m0_bitmap   ti_cpu_map;       /** CPU map to run this thread. */
 	uint64_t           ti_key_first;     /** First Key value to use. */
-	uint64_t           ti_key_last;      /** Last Key value to use. */
+	uint64_t           ti_key_count;     /** Keys to use. */
+	uint64_t           ti_key_incr;      /** Key value to increment by. */
 	uint16_t           ti_thread_id;     /** Thread ID <= 65535. */
 	struct m0_btree   *ti_tree;          /** Tree for KV operations */
 	uint16_t           ti_key_size;      /** Key size in bytes. */
@@ -4997,7 +4998,8 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 	struct m0_btree_cb     ut_get_cb;
 	struct cb_data         get_data;
 
-	uint64_t               key_iter;
+	uint64_t               key_iter_start;
+	uint64_t               key_end;
 	struct m0_btree_op     kv_op     = {};
 	struct m0_btree       *tree;
 	struct m0_be_tx       *tx        = NULL;
@@ -5013,7 +5015,9 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, NULL);
 
-	key_iter = ti->ti_key_first;
+	key_iter_start = ti->ti_key_first;
+	key_end        = ti->ti_key_first +
+			 (ti->ti_key_count * ti->ti_key_incr) - ti->ti_key_incr;
 
 	rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 	rec.r_val          = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
@@ -5040,9 +5044,9 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 	while (!thread_start)
 	;
 
-	while (key_iter <= ti->ti_key_last) {
-		uint64_t  key_start;
-		uint64_t  key_end;
+	while (key_iter_start <= key_end) {
+		uint64_t  key_first;
+		uint64_t  key_last;
 		uint64_t  keys_put_count = 0;
 		uint64_t  keys_found_count = 0;
 		int       i;
@@ -5050,25 +5054,25 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 		uint64_t  iter_dir;
 		uint64_t  del_key;
 
-		key_start = key_iter;
+		key_first = key_iter_start;
 		if (ti->ti_random_bursts) {
 			random_r(&ti->ti_random_buf, &r);
-			key_end = (r % (ti->ti_key_last - key_start)) +
-				  key_start;
+			key_last = (r % (key_end - key_first)) + key_first;
 		} else
-			key_end = ti->ti_key_last;
-
-		ut_cb.c_act        = btree_kv_put_cb;
+			key_last = key_end;
 
 		/** PUT keys and their corresponding values in the tree. */
-		while (key_start <= key_end) {
+
+		ut_cb.c_act            = btree_kv_put_cb;
+
+		while (key_first <= key_last) {
 			/**
 			 *  Embed the thread-id in LSB so that different threads
 			 *  will target the same node thus causing race
 			 *  conditions useful to mimic and test btree operations
 			 *  in a loaded system.
 			 */
-			key[0] = (key_start << (sizeof(ti->ti_thread_id) * 8)) +
+			key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
 				ti->ti_thread_id;
 			key[0] = m0_byteorder_cpu_to_be64(key[0]);
 			for (i = 1; i < ARRAY_SIZE(key); i++)
@@ -5087,7 +5091,7 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 			M0_ASSERT(data.flags == 0);
 
 			keys_put_count++;
-			key_start++;
+			key_first += ti->ti_key_incr;
 		}
 
 		/** GET and ITERATE over the keys which we inserted above. */
@@ -5095,11 +5099,11 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 		/**  Randomly decide the iteration direction. */
 		random_r(&ti->ti_random_buf, &r);
 
-		key_start = key_iter;
+		key_first = key_iter_start;
 		if (r % 2) {
 			/** Iterate forward. */
 			iter_dir = BOF_NEXT;
-			key[0] = (key_start <<
+			key[0] = (key_first <<
 				  (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
 			key[0] = m0_byteorder_cpu_to_be64(key[0]);
@@ -5108,13 +5112,15 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 		} else {
 			/** Iterate backward. */
 			iter_dir = BOF_PREV;
-			key[0] = (key_end <<
+			key[0] = (key_last <<
 				  (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
 			key[0] = m0_byteorder_cpu_to_be64(key[0]);
 			for (i = 1; i < ARRAY_SIZE(key); i++)
 				key[i] = key[0];
 		}
+
+		get_data.check_value = true; /** Compare value with key */
 
 		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 					 m0_btree_get(tree,
@@ -5152,8 +5158,8 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 		 */
 		random_r(&ti->ti_random_buf, &r);
 
-		key_start = key_iter;
-		del_key = (r % 2 == 0) ? key_start : key_end;
+		key_first = key_iter_start;
+		del_key = (r % 2 == 0) ? key_first : key_last;
 		ut_cb.c_act        = btree_kv_del_cb;
 		while (keys_found_count) {
 			key[0] = (del_key << (sizeof(ti->ti_thread_id) * 8)) +
@@ -5168,11 +5174,13 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 							      &kv_op),
 						 &kv_op.bo_sm_group,
 						 &kv_op.bo_op_exec);
-			del_key = (r % 2 == 0) ? del_key + 1 : del_key - 1;
+			del_key = (r % 2 == 0) ?
+						del_key + ti->ti_key_incr :
+						del_key - ti->ti_key_incr;
 			keys_found_count--;
 		}
 
-		key_iter = key_end + 1;
+		key_iter_start = key_last + ti->ti_key_incr;
 	}
 
 	/** Free resources. */
@@ -5222,6 +5230,8 @@ static void online_cpu_id_get(uint16_t **cpuid_ptr, uint16_t *cpu_count)
 struct btree_ut_tree_info {
 	struct m0_btree *tree;
 };
+
+#define MAX_RECS_PER_THREAD  100000 /** Records per thread will work with */
 
 /**
  * This test launches multiple threads which launch KV operations against one
@@ -5311,7 +5321,8 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 			cpu = 1;
 
 		ti[i].ti_key_first  = 1;
-		ti[i].ti_key_last    = ti[i].ti_key_first + MAX_RECS_PER_STREAM;
+		ti[i].ti_key_count  = MAX_RECS_PER_THREAD;
+		ti[i].ti_key_incr   = 5;
 		ti[i].ti_thread_id  = i;
 		ti[i].ti_tree       = ut_trees[i % tree_count].tree;
 		ti[i].ti_key_size   = btree_type.ksize;
