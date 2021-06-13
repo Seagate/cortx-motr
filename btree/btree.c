@@ -5151,6 +5151,52 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 
 		M0_ASSERT(keys_found_count == keys_put_count);
 
+		/** Test slant only if possible. If the increment counter is
+		 *  more than 1 we can provide the intermediate value to be got
+		 *  in slant mode.
+		 */
+
+		if (ti->ti_key_incr > 1) {
+			uint64_t  slant_key;
+			uint64_t  got_key;
+
+			M0_ASSERT(key_first >= 1);
+
+			slant_key = key_first - 1;
+			get_data.check_value = false;
+
+			do {
+				key[0] = (slant_key <<
+					  (sizeof(ti->ti_thread_id) * 8)) +
+					 ti->ti_thread_id;
+				key[0] = m0_byteorder_cpu_to_be64(key[0]);
+				for (i = 1; i < ARRAY_SIZE(key); i++)
+					key[i] = key[0];
+
+				M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+							 m0_btree_get(tree,
+								      &rec.r_key,
+								      &ut_get_cb,
+								      BOF_SLANT,
+								      &kv_op),
+							 &kv_op.bo_sm_group,
+							 &kv_op.bo_op_exec);
+
+				/**
+				 *  If multiple threads are running then slant
+				 *  could return us the value which was added
+				 *  by a different thread. We anyways make sure
+				 *  that the got value (without the embedded
+				 *  thread ID) is more than the slant value.
+				 */
+				got_key = m0_byteorder_cpu_to_be64(get_key[0]);
+				got_key >>= (sizeof(ti->ti_thread_id) * 8);
+				M0_ASSERT(got_key == slant_key + 1);
+
+				slant_key += ti->ti_key_incr;
+			} while (slant_key <= key_last);
+		}
+
 		/**
 		 *  DEL the keys which we had created in this iteration. The
 		 *  direction of traversing the delete keys is randomly
