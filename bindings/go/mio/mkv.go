@@ -192,3 +192,5 @@ func (mkv *Mkv) Delete(key []byte) error {
     _, err := mkv.doIdxOp(C.M0_IC_DEL, key, nil, false)
     return err
 }
+
+// vi: sw=4 ts=4 expandtab ai
