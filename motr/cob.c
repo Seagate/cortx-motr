@@ -1808,7 +1808,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	struct cob_req         *cr;
 	struct m0_pool_version *pv;
 	struct m0_op           *op;
-	bool                    skip_lookup;
+	bool                    skip_meta_data;
 
 	M0_ENTRY();
 	M0_PRE(oo != NULL);
@@ -1849,31 +1849,32 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	}
 	cr->cr_cob_attr = cob_attr;
 
-	/* Skip cob lookup if obj.ob_attr.oa_pver is not empty.
-	 * We are assuming here, if pver is not empty that means we
-	 * have received pver from s3 */
-	skip_lookup = false;
+	/** Skip meta-data lookup if obj.ob_attr.oa_pver is not empty.
+	 * pver is not empty that means  calling application has
+	 * capability to store meta-data(pver, LID) and has sent pver
+	 * to open entity.
+	 */
+	skip_meta_data = false;
 	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
 	if ((cr->cr_opcode == M0_EO_GETATTR) &&
 	     m0_fid_is_set(&obj->ob_attr.oa_pver) &&
 	     m0_fid_is_valid(&obj->ob_attr.oa_pver)) {
-		skip_lookup = true;
+		skip_meta_data = true;
 	}
 
 	/* Set layout id and pver for CREATE op.*/
 	if (cr->cr_opcode == M0_EO_CREATE) {
 		cr->cr_cob_attr->ca_lid = obj->ob_attr.oa_layout_id;
-		 if (obj->ob_entity.en_app_type != M0_OOF_MOTR_APP) {
+		 if (obj->ob_entity.en_flags == M0_EOF_META) {
 			/* For create operation setting up pool version locally
 			* found in pools common, so cob lookup call to server
 			* can be skipped */
-			obj->ob_attr.oa_pver.f_container = pv->pv_id.f_container;
-			obj->ob_attr.oa_pver.f_key = pv->pv_id.f_key;
-			skip_lookup = true;
+			obj->ob_attr.oa_pver = pv->pv_id;
+			skip_meta_data = true;
 		 }
 	}
 
-	if (! skip_lookup ) {
+	if (! skip_meta_data ) {
 	/* Send requests to services. */
 		rc = cob_req_send(cr);
 		if (rc != 0) {
@@ -1884,8 +1885,8 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	} else {
 		M0_LOG(M0_DEBUG, "skipped lookup, obj pver is :"FID_F,
 		       FID_P(&obj->ob_attr.oa_pver));
-		/* We are skipping cob lookup here as we have received pver
-		 * and LID from s3, and hence need to move op state
+		/* We are skipping meta-data lookup here as we have received pver
+		 * and LID from application, and hence need to move op state
 		 * LAUNCHED, EXECUTED and STABLE explicitly */
 		m0_sm_move(&cr->cr_op->op_sm, 0, M0_OS_LAUNCHED);
 		m0_sm_group_unlock(&cr->cr_op->op_sm_group);

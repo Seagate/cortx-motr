@@ -240,7 +240,6 @@ static int create_object(struct m0_entity *entity)
 	struct m0_op_common *oc;
 	struct m0_op_obj    *oo;
 
-	entity->en_app_type = M0_OOF_MOTR_APP;
 	rc = m0_entity_create(NULL, entity, &ops[0]);
 	if (rc != 0)
 		return M0_ERR(rc);

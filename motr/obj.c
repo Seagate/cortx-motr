@@ -264,8 +264,8 @@ static void obj_namei_cb_launch(struct m0_op_common *oc)
 	if (rc == 0) {
 		m0_sm_move(&op->op_sm, 0, M0_OS_LAUNCHED);
 	} else if (rc == M0TR_COB_LOOKUP_SKIPPED) {
-		/* This is M0_EO_GETATTR and op state is already
-		 * moved to LAUNCHED --> EXECUTED --> STABLE, so
+		/* This means meta-data lookup is skipped and op state is
+		 * already moved to LAUNCHED --> EXECUTED --> STABLE, so
 		 * skipped m0_sm_move() and resetting rc state to 0
 		 * */
 		(void)rc;
@@ -810,6 +810,8 @@ int m0_entity_create(struct m0_fid *pool,
 	struct m0_obj *obj;
 
 	M0_ENTRY();
+	if ( entity->en_flags & M0_EOF_META )
+		M0_LOG(M0_DEBUG,"EOF_META FLAG is set from application");
 
 	M0_PRE(entity != NULL);
 	M0_PRE(op != NULL);

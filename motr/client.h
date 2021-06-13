@@ -579,12 +579,7 @@ enum m0_op_obj_flags {
 	 * Write, alloc and free operations wait for the transaction to become
 	 * persistent before returning.
 	 */
-	M0_OOF_SYNC   = 1 << 1,
-        /**
-         * This flag is to describe that this write is from clovis/motr 
-         * application and not from s3.
-         */
-        M0_OOF_MOTR_APP = 1<<2
+	M0_OOF_SYNC   = 1 << 1
 } M0_XCA_ENUM;
 
 /**
@@ -595,6 +590,24 @@ enum m0_entity_type {
 	M0_ET_OBJ,
 	M0_ET_IDX
 } M0_XCA_ENUM;
+
+/**
+ * Flags passed to m0_entitiy_create(), m0_entity_open() to specify applications's 
+ * behaviour.
+ */
+ enum m0_entity_flags {
+	/**
+	 * During create if this flag is set, thant means application has
+	 * capability to store meta-data and hence pver and lid will be
+	 * retirned to application to store.
+	 */
+	M0_EOF_META = 1 << 0,
+	/**
+	 * If this flags is set during entity_create() that means application
+	 * do not support update operation.
+	 */
+	M0_EOF_NO_RMW =  1 << 1
+ } M0_XCA_ENUM;
 
 /**
  * Generic client operation structure.
@@ -696,7 +709,7 @@ struct m0_entity {
 	/** list of pending transactions. */
 	struct m0_tl        en_pending_tx;
 	struct m0_mutex     en_pending_tx_lock;
-	uint32_t            en_app_type;
+	uint32_t            en_flags;
 };
 
 /**
