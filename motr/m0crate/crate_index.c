@@ -1384,7 +1384,7 @@ static int create_index(struct m0_uint128 id)
 				rc = ops[0]->op_sm.sm_rc;
 		}
 	} else
-		crlog(CLL_ERROR, "Unable to set delete operation.");
+		crlog(CLL_ERROR, "Unable to set index create operation.");
 
 	/* fini and release */
 	if (ops[0] != NULL) {
