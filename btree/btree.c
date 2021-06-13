@@ -4535,9 +4535,12 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	m0_bcount_t              vsize;
 	struct cb_data          *datum = cb->c_datum;
 
+	/** The caller can look at these flags if he needs to. */
+	datum->flags = rec->r_flags;
+
 	if (rec->r_flags == M0_BSC_KEY_NOT_FOUND ||
 	    rec->r_flags == M0_BSC_KEY_BTREE_BOUNDARY)
-     		return rec->r_flags;
+		return rec->r_flags;
 
 	ksize = m0_vec_count(&datum->key->k_data.ov_vec);
 	M0_PRE(m0_vec_count(&rec->r_key.k_data.ov_vec) <= ksize);
@@ -5055,6 +5058,8 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 		} else
 			key_end = ti->ti_key_last;
 
+		ut_cb.c_act        = btree_kv_put_cb;
+
 		/** PUT keys and their corresponding values in the tree. */
 		while (key_start <= key_end) {
 			/**
@@ -5119,7 +5124,7 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 					 &kv_op.bo_op_exec);
 		keys_found_count++;
 
-		while (get_data.flags != M0_BSC_KEY_NOT_FOUND) {
+		while (1) {
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 						 m0_btree_iter(tree,
 							       &rec.r_key,
@@ -5128,11 +5133,14 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 							       &kv_op),
 						 &kv_op.bo_sm_group,
 						 &kv_op.bo_op_exec);
+			if (get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY)
+				break;
+
 			keys_found_count++;
 
 			/** Copy over the gotten key for the next search. */
-			for (i = 1; i < ARRAY_SIZE(key); i++)
-				key[i] = get_key[0];
+			for (i = 0; i < ARRAY_SIZE(key); i++)
+				key[i] = get_key[i];
 		}
 
 		M0_ASSERT(keys_found_count == keys_put_count);
@@ -5146,6 +5154,7 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 
 		key_start = key_iter;
 		del_key = (r % 2 == 0) ? key_start : key_end;
+		ut_cb.c_act        = btree_kv_del_cb;
 		while (keys_found_count) {
 			key[0] = (del_key << (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
@@ -5225,7 +5234,6 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 {
 	int                          rc;
 	struct btree_ut_thread_info *ti;
-	int                          threads_to_run;
 	int                          i;
 	struct btree_ut_tree_info   *ut_trees;
 	uint16_t                     cpu;
@@ -5258,14 +5266,12 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 	online_cpu_id_get(&cpuid_ptr, &cpu_count);
 
 	if (thread_count == 0)
-		threads_to_run = cpu_count -1; /** Skip Core-0 */
-	else
-		threads_to_run = thread_count;
+		thread_count = cpu_count -1; /** Skip Core-0 */
 
 	if (tree_count == 0)
-		tree_count = threads_to_run;
+		tree_count = thread_count;
 
-	M0_ASSERT(threads_to_run >= tree_count);
+	M0_ASSERT(thread_count >= tree_count);
 
 	thread_start = false;
 
@@ -5287,13 +5293,13 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 		ut_trees[i].tree = b_op.bo_arbor;
 	}
 
-	M0_ALLOC_ARR(ti, threads_to_run);
+	M0_ALLOC_ARR(ti, thread_count);
 	M0_ASSERT(ti != NULL);
 
 	cpu_max = m0_processor_nr_max();
 
 	cpu = 1; /** We skip Core-0 for Linux kernel and other processes. */
-	for (i = 0; i < threads_to_run; i++) {
+	for (i = 0; i < thread_count; i++) {
 		rc = m0_bitmap_init(&ti[i].ti_cpu_map, cpu_max);
 		m0_bitmap_set(&ti[i].ti_cpu_map, cpuid_ptr[cpu], true);
 		cpu++;
@@ -5312,7 +5318,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 		ti[i].ti_value_size = btree_type.vsize;
 	}
 
-	for (i = 0; i < threads_to_run; i++) {
+	for (i = 0; i < thread_count; i++) {
 		rc = M0_THREAD_INIT(&ti[i].ti_q, struct btree_ut_thread_info *,
 				    btree_ut_thread_init,
 				    &btree_ut_thread_kv_oper, &ti[i],
@@ -5323,7 +5329,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 	/** Initialized all the threads by now. Let's get rolling ... */
 	thread_start = true;
 
-	for (i = 0; i < threads_to_run;i++) {
+	for (i = 0; i < thread_count;i++) {
 		m0_thread_join(&ti[i].ti_q);
 		m0_thread_fini(&ti[i].ti_q);
 	}
@@ -5346,6 +5352,11 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 
 	m0_free(ti);
 	btree_ut_fini();
+}
+
+static void m0_btree_ut_st_st_kv_oper(void)
+{
+	btree_ut_num_threads_num_trees_kv_oper(1, 1);
 }
 
 static void m0_btree_ut_mt_st_kv_oper(void)
@@ -5576,6 +5587,8 @@ struct m0_ut_suite btree_ut = {
 		{"basic_tree_op",       m0_btree_ut_basic_tree_oper},
 		{"basic_kv_ops",        m0_btree_ut_basic_kv_oper},
 		{"multi_stream_kv_op",  m0_btree_ut_multi_stream_kv_oper},
+		{"single_thread_single_tree_kv_op",
+					m0_btree_ut_st_st_kv_oper},
 		{"multi_thread_single_tree_kv_op",
 					m0_btree_ut_mt_st_kv_oper},
 		{"multi_thread_multi_tree_kv_op",
