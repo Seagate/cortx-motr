@@ -102,8 +102,8 @@ stub_confdb() {
 (objv-2 real=controller-0 children=[])
 (site-2 racks=[rack-0] pvers=[pver-0])
 (rack-0 encls=[enclosure-0] pvers=[pver-0])
-(enclosure-0 ctrls=[controller-0] pvers=[pver-0])
-(controller-0 node=node-0 drives=[] pvers=[pver-0])
+(enclosure-0 node=node-0 ctrls=[controller-0] pvers=[pver-0])
+(controller-0 drives=[] pvers=[pver-0])
 (sdev-0 dev_idx=0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")
 EOF

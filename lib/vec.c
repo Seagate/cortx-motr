@@ -151,12 +151,20 @@ static int bufvec_alloc(struct m0_bufvec *bufvec,
 	M0_PRE(ergo(shift != 0, seg_size > 0));
 	bufvec->ov_buf = NULL;
 	bufvec->ov_vec.v_nr = num_segs;
+
 	M0_ALLOC_ARR(bufvec->ov_vec.v_count, num_segs);
 	if (bufvec->ov_vec.v_count == NULL)
 		goto fail;
+
 	M0_ALLOC_ARR(bufvec->ov_buf, num_segs);
 	if (bufvec->ov_buf == NULL)
 		goto fail;
+
+	if (M0_FI_ENABLED("empty-fail")) {
+		/* to panic if we try to m0_free() it */
+		bufvec->ov_buf[0] = (void*)1;
+		goto fail;
+	}
 
 	if (seg_size != 0) {
 		void *addr = NULL;
@@ -178,13 +186,19 @@ static int bufvec_alloc(struct m0_bufvec *bufvec,
 
 			if (bufvec->ov_buf[i] == NULL)
 				goto fail;
+			if (M0_FI_ENABLED("buf-alloc-fail"))
+				goto fail;
 			bufvec->ov_vec.v_count[i] = seg_size;
 		}
 	}
 	return 0;
 
 fail:
-	m0_bufvec_free(bufvec);
+	if (seg_size != 0)
+		m0_bufvec_free(bufvec);
+	else
+		m0_bufvec_free2(bufvec);
+
 	return M0_ERR(-ENOMEM);
 }
 
