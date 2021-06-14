@@ -1160,7 +1160,7 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
  */
 static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 {
-	int                       rc;
+	int                       rc = 0;
 	uint32_t                  row;
 	uint32_t                  col;
 	struct m0_buf            *dbufs;
@@ -1221,13 +1221,16 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 				pbufs[col] = map->pi_paritybufs[row][col]->
 					     db_buf;
 
-			m0_parity_math_calculate(parity_math(map->pi_ioo),
-						 dbufs, pbufs);
+			rc = m0_parity_math_calculate(parity_math(map->pi_ioo),
+						      dbufs, pbufs);
+			if (rc != 0)
+				break;
 		}
 
-		rc = 0;
 		m0_free_aligned(zpage, 1ULL<<obj->ob_attr.oa_bshift,
 				M0_NETBUF_SHIFT);
+		if (rc != 0)
+			goto last;
 		M0_LOG(M0_DEBUG, "Parity recalculated for %s",
 		       map->pi_rtype == PIR_READREST ? "read-rest" :
 		       "aligned write");
@@ -1267,13 +1270,15 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 
 				dbufs[col] = map->pi_databufs[row][col]->db_buf;
 				old[col] = map->pi_databufs[row][col]->db_auxbuf;
-				m0_parity_math_diff(parity_math(map->pi_ioo),
-						    old, dbufs, pbufs, col);
+				rc = m0_parity_math_diff(parity_math(map->pi_ioo),
+							 old, dbufs, pbufs, col);
+				if (rc != 0) {
+					m0_free(old);
+					goto last;
+				}
 			}
-
 		}
 		m0_free(old);
-		rc = 0;
 	}
 last:
 	m0_free(dbufs);
@@ -2018,8 +2023,10 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 			parity[col].b_nob  = pagesize;
 		}
 
-		m0_parity_math_recover(parity_math(ioo), data,
-				       parity, &failed, M0_LA_INVERSE);
+		rc = m0_parity_math_recover(parity_math(ioo), data,
+					    parity, &failed, M0_LA_INVERSE);
+		if (rc != 0)
+			goto end;
 	}
 
 #if !ISAL_ENCODE_ENABLED
@@ -2250,8 +2257,10 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 		}
 
 		/* generate parity into new buf */
-		m0_parity_math_calculate(parity_math(map->pi_ioo),
-					 dbufs, pbufs);
+		rc = m0_parity_math_calculate(parity_math(map->pi_ioo),
+					      dbufs, pbufs);
+		if (rc != 0)
+			goto last;
 
 		/* verify the parity */
 		for (col = 0; col < layout_k(play); ++col) {
