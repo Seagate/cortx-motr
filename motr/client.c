@@ -412,6 +412,7 @@ void m0_obj_init(struct m0_obj *obj,
 	M0_PRE(parent != NULL);
 	M0_PRE(id != NULL);
 	M0_PRE(entity_id_is_valid(id));
+	M0_PRE(M0_IS0(&obj->ob_entity));
 	M0_PRE(layout_id < m0_lid_to_unit_map_nr);
 
 	/* Initalise the entity */
