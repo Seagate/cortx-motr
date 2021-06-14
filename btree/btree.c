@@ -4342,10 +4342,10 @@ void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 		     const struct node_type *nt, struct m0_be_tx *tx,
 		     struct m0_btree_op *bop)
 {
-	bop->b_data.addr	= addr;
-	bop->b_data.num_bytes	= nob;
-	bop->b_data.bt		= bt;
-	bop->b_data.nt		= nt;
+	bop->b_data.addr        = addr;
+	bop->b_data.num_bytes   = nob;
+	bop->b_data.bt          = bt;
+	bop->b_data.nt          = nt;
 
 	m0_sm_op_init(&bop->bo_op, &btree_create_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
@@ -4353,8 +4353,8 @@ void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 
 void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
 {
-	bop->bo_arbor	= arbor;
-	bop->bo_tx	= NULL;
+	bop->bo_arbor   = arbor;
+	bop->bo_tx      = NULL;
 
 	m0_sm_op_init(&bop->bo_op, &btree_destroy_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
