@@ -322,6 +322,7 @@ static void test_recovery(const enum m0_parity_cal_algo algo,
 	struct m0_buf         parity_buf[DATA_UNIT_COUNT_MAX];
 	struct m0_buf         fail_buf;
 	struct m0_parity_math *math;
+	int		      ret;
 
 	M0_ALLOC_PTR(math);
 	M0_UT_ASSERT(math != NULL);
@@ -329,8 +330,8 @@ static void test_recovery(const enum m0_parity_cal_algo algo,
 	while (config_generate(&data_count, &parity_count, &buff_size, algo)) {
 		fail_count = data_count + parity_count;
 
-		M0_UT_ASSERT(m0_parity_math_init(math, data_count,
-					         parity_count) == 0);
+		ret = m0_parity_math_init(math, data_count, parity_count);
+		M0_UT_ASSERT(ret == 0);
 
 		for (i = 0; i < data_count; ++i) {
 			m0_buf_init(&data_buf[i], data[i], buff_size);
@@ -339,17 +340,22 @@ static void test_recovery(const enum m0_parity_cal_algo algo,
 
 		m0_buf_init(&fail_buf, fail, buff_size);
 
-		m0_parity_math_calculate(math, data_buf, parity_buf);
+		ret = m0_parity_math_calculate(math, data_buf, parity_buf);
+		M0_UT_ASSERT(ret == 0);
 
 		unit_spoil(buff_size, fail_count, data_count);
 
-		if (rt == FAIL_INDEX)
-			m0_parity_math_fail_index_recover(math, data_buf,
-							  parity_buf,
-							  fail_index_xor);
-		else if (rt == FAIL_VECTOR)
-			m0_parity_math_recover(math, data_buf, parity_buf,
-					       &fail_buf, 0);
+		if (rt == FAIL_INDEX) {
+			ret = m0_parity_math_fail_index_recover(math, data_buf,
+								parity_buf,
+								fail_index_xor);
+			M0_UT_ASSERT(ret == 0);
+		}
+		else if (rt == FAIL_VECTOR) {
+			ret = m0_parity_math_recover(math, data_buf, parity_buf,
+						     &fail_buf, 0);
+			M0_UT_ASSERT(ret == 0);
+		}
 
 		m0_parity_math_fini(math);
 
@@ -376,6 +382,7 @@ static void test_rs_fv_rand_recover(void)
 	struct m0_buf         parity_buf[DATA_UNIT_COUNT_MAX];
 	struct m0_buf         fail_buf;
 	struct m0_parity_math math;
+	int		      ret;
 
 	duc = DATA_UNIT_COUNT_MAX;
 	puc = PARITY_UNIT_COUNT_MAX;
@@ -384,8 +391,8 @@ static void test_rs_fv_rand_recover(void)
 	while (rand_rs_config_generate(&data_count, &parity_count, &buff_size)) {
 		fail_count = data_count + parity_count;
 
-		M0_UT_ASSERT(m0_parity_math_init(&math, data_count,
-					         parity_count) == 0);
+		ret = m0_parity_math_init(&math, data_count, parity_count);
+		M0_UT_ASSERT(ret == 0);
 
 		for (i = 0; i < data_count; ++i) {
 			m0_buf_init(&data_buf[i], data[i], buff_size);
@@ -394,12 +401,14 @@ static void test_rs_fv_rand_recover(void)
 
 		m0_buf_init(&fail_buf, fail, buff_size);
 
-		m0_parity_math_calculate(&math, data_buf, parity_buf);
+		ret = m0_parity_math_calculate(&math, data_buf, parity_buf);
+		M0_UT_ASSERT(ret == 0);
 
 		unit_spoil(buff_size, fail_count, data_count);
 
-		m0_parity_math_recover(&math, data_buf, parity_buf,
-				       &fail_buf, 0);
+		ret = m0_parity_math_recover(&math, data_buf, parity_buf,
+					     &fail_buf, 0);
+		M0_UT_ASSERT(ret == 0);
 
 		m0_parity_math_fini(&math);
 
@@ -503,14 +512,17 @@ static void test_parity_math_diff(uint32_t parity_cnt)
 		m0_buf_init(&p_new[i], arr, UNIT_BUFF_SIZE);
 	}
 
-	m0_parity_math_calculate(&math, data_buf_old, p_old);
-	m0_parity_math_calculate(&math, data_buf_new, p_new);
+	ret = m0_parity_math_calculate(&math, data_buf_old, p_old);
+	M0_UT_ASSERT(ret == 0);
+	ret = m0_parity_math_calculate(&math, data_buf_new, p_new);
+	M0_UT_ASSERT(ret == 0);
 
 	for (i = 0; i < DATA_UNIT_COUNT; ++i) {
-		if (i % 2)
-			m0_parity_math_diff(&math, data_buf_old,
-					    data_buf_new,
-					    p_old, i);
+		if (i % 2) {
+			ret = m0_parity_math_diff(&math, data_buf_old,
+						  data_buf_new, p_old, i);
+			M0_UT_ASSERT(ret == 0);
+		}
 	}
 
 	for(i = 0; i < parity_cnt; ++i) {
@@ -759,6 +771,7 @@ static void parity_calculate(struct m0_parity_math *math, struct m0_bufvec *x,
 {
 	struct m0_buf *x_ser;
 	struct m0_buf *p_ser;
+	int	       ret;
 
 	M0_ALLOC_ARR(x_ser, math->pmi_data_count);
 	M0_UT_ASSERT(x_ser != NULL);
@@ -768,7 +781,8 @@ static void parity_calculate(struct m0_parity_math *math, struct m0_bufvec *x,
 	buf_initialize(p_ser, math->pmi_parity_count, num_seg * seg_size);
 	buf_initialize(x_ser, math->pmi_data_count, num_seg * seg_size);
 	bufvec_buf(x, x_ser, math->pmi_data_count, true);
-	m0_parity_math_calculate(math, x_ser, p_ser);
+	ret = m0_parity_math_calculate(math, x_ser, p_ser);
+	M0_UT_ASSERT(ret == 0);
 	bufvec_buf(p, p_ser, math->pmi_parity_count, false);
 
 	buf_free(x_ser, math->pmi_data_count);
@@ -1135,18 +1149,20 @@ static void sns_ir_nodes_recover(struct sns_ir_node *node, uint32_t node_nr,
 				      true);
 			alive_idx = node[i].sin_alive[j];
 			if (alive_idx < ir.si_data_nr) {
-				m0_sns_ir_recover(&node[i].sin_ir,
-						  &x[alive_idx],
-						  &alive_bitmap, 0,
-						  M0_SI_BLOCK_LOCAL);
+				ret = m0_sns_ir_recover(&node[i].sin_ir,
+							&x[alive_idx],
+							&alive_bitmap, 0,
+						  	M0_SI_BLOCK_LOCAL);
+				M0_UT_ASSERT(ret == 0);
 			}
 			else if (alive_idx >= ir.si_data_nr &&
 				 alive_idx < ir.si_data_nr + ir.si_parity_nr) {
-				m0_sns_ir_recover(&node[i].sin_ir,
-						  &p[alive_idx -
-						  ir.si_data_nr],
-						  &alive_bitmap, 0,
-						  M0_SI_BLOCK_LOCAL);
+				ret = m0_sns_ir_recover(&node[i].sin_ir,
+							&p[alive_idx -
+							ir.si_data_nr],
+							&alive_bitmap, 0,
+							M0_SI_BLOCK_LOCAL);
+				M0_UT_ASSERT(ret == 0);
 			}
 			for (k = 0; k < total_failures; ++k) {
 				m0_bitmap_set(&node[i].sin_bitmap[k],
@@ -1182,10 +1198,11 @@ static void sns_ir_nodes_gather(struct sns_ir_node *node, uint32_t node_nr,
 	/* Add remote blocks */
 	for (i = 1; i < node_nr - 2; ++i) {
 		for (k = 0; k < total_failures; ++k) {
-			m0_sns_ir_recover(&node[0].sin_ir,
-					  &node[i].sin_recov_arr[k],
-					  &node[i].sin_bitmap[k],
-					  failed_arr[k], M0_SI_BLOCK_REMOTE);
+			ret = m0_sns_ir_recover(&node[0].sin_ir,
+						&node[i].sin_recov_arr[k],
+						&node[i].sin_bitmap[k],
+						failed_arr[k], M0_SI_BLOCK_REMOTE);
+			M0_UT_ASSERT(ret == 0);
 		}
 	}
 
@@ -1195,18 +1212,20 @@ static void sns_ir_nodes_gather(struct sns_ir_node *node, uint32_t node_nr,
 				      true);
 			alive_idx = node[0].sin_alive[j];
 			if (alive_idx < ir.si_data_nr) {
-				m0_sns_ir_recover(&node[0].sin_ir,
-						  &x[alive_idx],
-						  &alive_bitmap, 0,
-						  M0_SI_BLOCK_LOCAL);
+				ret = m0_sns_ir_recover(&node[0].sin_ir,
+							&x[alive_idx],
+							&alive_bitmap, 0,
+							M0_SI_BLOCK_LOCAL);
+				M0_UT_ASSERT(ret == 0);
 			}
 			else if (alive_idx >= ir.si_data_nr &&
 				 alive_idx < ir.si_data_nr + ir.si_parity_nr) {
-				m0_sns_ir_recover(&node[0].sin_ir,
-						  &p[alive_idx -
-						  ir.si_data_nr],
-						  &alive_bitmap, 0,
-						  M0_SI_BLOCK_LOCAL);
+				ret = m0_sns_ir_recover(&node[0].sin_ir,
+							&p[alive_idx -
+							ir.si_data_nr],
+							&alive_bitmap, 0,
+							M0_SI_BLOCK_LOCAL);
+				M0_UT_ASSERT(ret == 0);
 			}
 			for (k = 0; k < total_failures; ++k) {
 				m0_bitmap_set(&node[0].sin_bitmap[k],
@@ -1218,10 +1237,11 @@ static void sns_ir_nodes_gather(struct sns_ir_node *node, uint32_t node_nr,
 	/* Add remote blocks */
 	for (i = node_nr - 2; i < node_nr; ++i) {
 		for (k = 0; k < total_failures; ++k) {
-			m0_sns_ir_recover(&node[0].sin_ir,
-					  &node[i].sin_recov_arr[k],
-					  &node[i].sin_bitmap[k],
-					  failed_arr[k], M0_SI_BLOCK_REMOTE);
+			ret = m0_sns_ir_recover(&node[0].sin_ir,
+						&node[i].sin_recov_arr[k],
+						&node[i].sin_bitmap[k],
+						failed_arr[k], M0_SI_BLOCK_REMOTE);
+			M0_UT_ASSERT(ret == 0);
 		}
 	}
 	m0_bitmap_fini(&alive_bitmap);
@@ -1482,11 +1502,14 @@ void parity_math_tb(void)
 
 		m0_buf_init(&fail_buf, fail, buff_size);
 
-		m0_parity_math_calculate(math, data_buf, parity_buf);
+		ret = m0_parity_math_calculate(math, data_buf, parity_buf);
+		M0_ASSERT(ret == 0);
 
 		unit_spoil(buff_size, fail_count, data_count);
 
-		m0_parity_math_recover(math, data_buf, parity_buf, &fail_buf, 0);
+		ret = m0_parity_math_recover(math, data_buf, parity_buf,
+					     &fail_buf, 0);
+		M0_UT_ASSERT(ret == 0);
 
 		m0_parity_math_fini(math);
 	}
