@@ -705,10 +705,16 @@ enum m0_magic_satchel {
 	M0_NET_LIBFAB_FAB_HEAD_MAGIC = 0x33baddadadedef77,
 
 	/* net/libfab.c: fab_bulk list, buf::fab_bulk_magic (le blc baffees) */
-	M0_NET_LIBFAB_BULK_MAGIC = 0x3311b1cbaffee577,
+	M0_NET_LIBFAB_BULK_MAGIC = 0x331eb1cbaffee577,
 
-	/* net/libfab.c: fab_fabs list head (le blc baffess) */
-	M0_NET_LIBFAB_BULK_HEAD_MAGIC = 0x3311b1cbaffe5577,
+	/* net/libfab.c: fab_bulk list head (le blc baffess) */
+	M0_NET_LIBFAB_BULK_HEAD_MAGIC = 0x331eb1cbaffe5577,
+
+	/* net/libfab.c: fab_bufhash magic (de4e9 baffees) */
+	M0_NET_LIBFAB_BUF_HT_MAGIC = 0x33de4e9baffee577,
+
+	/* net/libfab.c: fab_bufhash list head (de4e9 baffess) */
+	M0_NET_LIBFAB_BUF_HT_HEAD_MAGIC = 0x33de4e9baffe5577,
 
 	/* net/net.h: m0_nep list element, endpoint (obsessed loll) */
 	M0_NET_NEP_MAGIC = 0x330b5e55ed101177,

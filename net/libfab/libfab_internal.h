@@ -52,43 +52,48 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  */
 enum m0_fab__libfab_params {
 	/** Fabric memory registration access. */
-	FAB_MR_ACCESS            = (FI_READ | FI_WRITE | FI_RECV | FI_SEND |
-				    FI_REMOTE_READ | FI_REMOTE_WRITE),
+	FAB_MR_ACCESS                  = (FI_READ | FI_WRITE | FI_RECV | FI_SEND |
+				          FI_REMOTE_READ | FI_REMOTE_WRITE),
 	/** Fabric memory registration offset. */
-	FAB_MR_OFFSET            = 0,
+	FAB_MR_OFFSET                  = 0,
 	/** Fabric memory registration flag. */
-	FAB_MR_FLAG              = 0,
+	FAB_MR_FLAG                    = 0,
 	/** Key used for memory registration. */
-	FAB_MR_KEY               = 0xABCD,
-	/** Max number of IOV in read/write command (max number of segments) */
-	FAB_IOV_MAX              = 256,
-	/** Max segment size for bulk buffers (4k but can be increased) */
-	FAB_MAX_BULK_SEG_SIZE    = 4096,
-	/** 
-	 * Max buffer size = FAB_IOV_MAX x FAB_MAX_SEG_SIZE 
-	 * (1MB but can be increased)
-	*/
-	FAB_MAX_BULK_BUFFER_SIZE = (FAB_IOV_MAX * FAB_MAX_BULK_SEG_SIZE),
+	FAB_MR_KEY                     = 0xABCD,
+	/** Max number of IOV in read/write command for Verbs */
+	FAB_VERBS_IOV_MAX              = 64,
+	/** Max segment size for bulk buffers for Verbs */
+	FAB_VERBS_MAX_BULK_SEG_SIZE    = 65536,
+
+	/** Max number of IOV in read/write command for TCP/Socket provider
+	 * (max number of segments) */
+	FAB_TCP_SOCK_IOV_MAX           = 256,
+	/** Max segment size for bulk buffers for TCP/Socket provider
+	 * (4k but can be increased) */
+	FAB_TCP_SOCK_MAX_BULK_SEG_SIZE = 4096,
+
 	/** Max segment size for rpc buffer ( 1MB but can be changed ) */
-	FAB_MAX_RPC_SEG_SIZE     = (1 << 20),
+	FAB_MAX_RPC_SEG_SIZE           = (1 << 20),
 	/** Max number of segments for rpc buffer */
-	FAB_MAX_RPC_SEG_NR       = 1,
+	FAB_MAX_RPC_SEG_NR             = 1,
 	/** Max number of recevive messages in rpc buffer */
-	FAB_MAX_RPC_RECV_MSG_NR  = 1,
+	FAB_MAX_RPC_RECV_MSG_NR        = 1,
 	/** Dummy data used to notify remote end for read-rma op completions */
-	FAB_DUMMY_DATA           = 0xFABC0DE,
+	FAB_DUMMY_DATA                 = 0xFABC0DE,
 	/** Max number of completion events to read from a completion queue */
-	FAB_MAX_COMP_READ        = 256,
+	FAB_MAX_COMP_READ              = 256,
 	/** Max timeout for waiting on fd in epoll_wait */
-	FAB_WAIT_FD_TMOUT        = 1000,
+	FAB_WAIT_FD_TMOUT              = 1000,
 	/** Max event entries for active endpoint event queue */
-	FAB_MAX_AEP_EQ_EV        = 8,
+	FAB_MAX_AEP_EQ_EV              = 8,
 	/** Max event entries for passive endpoint event queue */
-	FAB_MAX_PEP_EQ_EV        = 256,
+	FAB_MAX_PEP_EQ_EV              = 256,
 	/** Max entries in shared transmit completion queue */
-	FAB_MAX_TX_CQ_EV         = 1024,
+	FAB_MAX_TX_CQ_EV               = 1024,
 	/** Max entries in receive completion queue */
-	FAB_MAX_RX_CQ_EV         = 64,
+	FAB_MAX_RX_CQ_EV               = 256,
+	/** Max receive buffers in a shared receive pool */
+	FAB_MAX_SRX_SIZE               = 1024,
 };
 
 /**
@@ -128,6 +133,26 @@ enum m0_fab__event_type {
 };
 
 /**
+ * Represents the libfabric connection link status for a libfabric endpoint
+ */
+enum m0_fab__connlink_status {
+	FAB_CONNLINK_DOWN              = 0x00,
+	FAB_CONNLINK_TXEP_READY        = 0x01,
+	FAB_CONNLINK_RXEP_READY        = 0x02,
+	FAB_CONNLINK_READY_TO_SEND     = 0x03,
+	FAB_CONNLINK_PENDING_SEND_DONE = 0x07
+};
+
+/**
+ * Represents the interface type in the endpoint name
+ */
+enum m0_fab__ep_iface {
+	FAB_LO,
+	FAB_TCP,
+	FAB_O2IB
+};
+
+/**
  * Libfab structure for event context to be returned in the epoll_wait events
  */
 struct m0_fab__ev_ctx {
@@ -136,10 +161,38 @@ struct m0_fab__ev_ctx {
 };
 
 /**
- * Libfab structure for list of fabric interfaces in a transfer machine
+ * Libfab structure of buffer hash table.
  */
-struct m0_fab__list {
-	struct m0_tl fl_head;
+struct m0_fab__bufht {
+	/** Magic number for buffer hash table */
+	uint64_t         bht_magic;
+
+	/** Buffer hash table */
+	struct m0_htable bht_hash;
+};
+
+/**
+ * Libfab structure equivalent for network domain
+ */
+struct m0_fab__ndom {
+
+	/** Pointer to the m0net  domain structure */
+	struct m0_net_domain *fnd_ndom;
+
+	/** Lock used betn poller & tm_fini during shutdown */
+	struct m0_mutex       fnd_lock;
+
+	/** List of fabric interfaces in a domain */
+	struct m0_tl          fnd_fabrics;
+
+	/** local ip address */
+	char                  fnd_loc_ip[16];
+
+	/** Number of segments */
+	uint32_t              fnd_seg_nr;
+
+	/** Segments size */
+	uint32_t              fnd_seg_size;
 };
 
 /**
@@ -268,8 +321,11 @@ struct m0_fab__ep {
 	/** Passive endpoint */
 	struct m0_fab__passive_ep *fep_listen;
 	
-	/** List of buffers to send after connection establishment*/
+	/** List of buffers to send after connection establishment */
 	struct m0_tl               fep_sndbuf;
+
+	/** Flag to denote that the connection link status */
+	uint8_t                    fep_connlink;
 };
 
 /**
@@ -314,6 +370,12 @@ struct m0_fab__tm {
 
 	/** List of pending bulk operations */
 	struct m0_tl                    ftm_bulk;
+
+	/** Timestamp to monitor the interval for checking buffer timeouts */
+	m0_time_t                       ftm_tmout_check;
+
+	/** Hash table of buffers associated to the tm */
+	struct m0_fab__bufht            ftm_bufhash;
 };
 
 /**
@@ -321,10 +383,10 @@ struct m0_fab__tm {
  */
 struct m0_fab__buf_mr {
 	/** Local memory region (buffer) descriptor */
-	void          *bm_desc[FAB_IOV_MAX];
+	void          **bm_desc;
 	
 	/** Memory region registration */
-	struct fid_mr *bm_mr[FAB_IOV_MAX];
+	struct fid_mr **bm_mr;
 };
 
 /**
@@ -332,14 +394,14 @@ struct m0_fab__buf_mr {
  * sent from the passive side to the active side
  */
 struct m0_fab__bdesc {
-	/** Remote buffer iov count */
-	uint64_t fbd_iov_cnt;
-
 	/** Remote node address */
 	uint64_t fbd_netaddr;
-	
-	/** Remote buffer address */
-	uint64_t fbd_bufptr;
+
+	/** Remote buffer iov count */
+	uint32_t fbd_iov_cnt;
+
+	/** Remote buffer token */
+	uint32_t fbd_buftoken;
 };
 
 /**
@@ -352,8 +414,11 @@ struct m0_fab__buf {
 	/** Magic number for list of send buffers */
 	uint64_t                         fb_sndmagic;
 	
+	/** Magic number for buffer hash table */
+	uint64_t                         fb_htmagic;
+	
 	/** Dummy data + network buffer ptr */
-	uint64_t                         fb_dummy[2];
+	uint32_t                         fb_dummy[2];
 	
 	/** Buffer descriptor of the remote node */
 	struct m0_fab__bdesc            *fb_rbd;
@@ -382,6 +447,9 @@ struct m0_fab__buf {
 	/** Link in list of send buffers */
 	struct m0_tlink                  fb_snd_link;
 
+	/** Link in buffer hash table */
+	struct m0_hlink                  fb_htlink;
+
 	/** Buffer completion status */
 	int32_t                          fb_status;
 	
@@ -399,6 +467,9 @@ struct m0_fab__buf {
 
 	/** State of the buffer */
 	volatile enum m0_fab__buf_state  fb_state;
+	
+	/** Token used for passive recv buffer */
+	uint32_t                         fb_token;
 };
 
 /**
@@ -408,8 +479,14 @@ struct m0_fab__conn_data {
 	/** address in network byte format */
 	uint64_t fcd_netaddr;
 	
-	/** address in string format */
-	char     fcd_straddr[LIBFAB_ADDR_STRLEN_MAX];
+	/** portal number */
+	uint16_t fcd_portal;
+	
+	/** transfer machine id */
+	uint16_t fcd_tmid;
+	
+	/** interface type */
+	uint8_t  fcd_iface;
 };
 
 /**

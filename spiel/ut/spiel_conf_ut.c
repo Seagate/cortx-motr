@@ -1762,7 +1762,7 @@ static void spiel_conf_add_svc(void)
  */
 static void spiel_conf_big_db(void)
 {
-#define SVC_EP "192.168.252.132@tcp:12345:41:201"
+#define SVC_EP "0@lo:12345:41:201"
 	struct m0_spiel_tx tx;
 	int                rc;
 	int                i;
