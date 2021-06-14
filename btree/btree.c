@@ -1237,7 +1237,7 @@ static int node_valsize(const struct nd *node)
 
 /**
  * If predict is set as true,
- * 	If predict is 'true' the function returns a possibility of underflow if
+ *        If predict is 'true' the function returns a possibility of underflow if
  *         another record is deleted from this node without addition of any more
  *         records.
  * If predict is 'false' the function returns the node's current underflow
@@ -2139,7 +2139,7 @@ static int ff_valsize(const struct nd *node)
 static bool ff_isunderflow(const struct nd *node, bool predict)
 {
 	int16_t rec_count = ff_data(node)->ff_used;
-	if (predict)
+	if (predict && rec_count != 0)
 		rec_count--;
 	return  rec_count == 0;
 }
@@ -3027,8 +3027,10 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			node_slot.s_node = oi->i_nop.no_node;
 			lev->l_seq = lev->l_node->n_seq;
 			/* Verify node footer */
-			M0_ASSERT(node_verify(lev->l_node));
-
+			if (!node_verify(lev->l_node)) {
+				level_cleanup(oi, bop->bo_tx);
+				return P_SETUP;
+			}
 			oi->i_nop.no_node = NULL;
 
 			oi->i_key_found = node_find(&node_slot,
@@ -3047,7 +3049,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 				oi->i_used++;
 				return node_get(&oi->i_nop, tree,
 						&child_node_addr, P_NEXTDOWN);
-			} else{
+			} else {
 				if (oi->i_key_found)
 					return P_LOCK;
 				return P_ALLOC;
@@ -4163,8 +4165,10 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 			node_slot.s_node = oi->i_nop.no_node;
 			lev->l_seq = lev->l_node->n_seq;
 			/* verify node footer */
-			M0_ASSERT(node_verify(lev->l_node));
-
+			if (!node_verify(lev->l_node)) {
+				level_cleanup(oi, bop->bo_tx);
+				return P_SETUP;
+			}
 			oi->i_nop.no_node = NULL;
 
 			oi->i_key_found = node_find(&node_slot,
@@ -5937,7 +5941,7 @@ static void m0_btree_ut_invariant_check(struct td *tree)
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
 				}
-			} else{
+			} else {
 				if (element->n_ref != 0){
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
@@ -6010,7 +6014,7 @@ static void m0_btree_ut_invariant_check(struct td *tree)
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
 				}
-			} else{
+			} else {
 				if (element->n_ref != 0){
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
