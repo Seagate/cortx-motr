@@ -151,12 +151,12 @@ void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop);
 void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, uint64_t flags,
 		  struct m0_btree_op *bop);
-void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
-		  const struct m0_btree_rec *rec, const struct m0_btree_cb *cb,
-		  uint64_t flags, struct m0_btree_op *bop);
+void m0_btree_put(struct m0_btree *arbor, const struct m0_btree_rec *rec,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop, struct m0_be_tx *tx);
 void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop);
+		  struct m0_btree_op *bop, struct m0_be_tx *tx);
 void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
 		   const struct m0_btree_cb *cb, uint64_t flags,
 		   struct m0_btree_op *bop);
