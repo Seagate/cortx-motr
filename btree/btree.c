@@ -4058,6 +4058,26 @@ void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
                                                                              \
 	} while (0)
 
+#define m0_be_tx_open(tx)                                                    \
+	do {                                                                 \
+                                                                             \
+	} while (0)
+
+#define m0_be_tx_capture(tx,req)                                             \
+	do {                                                                 \
+                                                                             \
+	} while (0)
+
+#define m0_be_tx_close(tx)                                                   \
+	do {                                                                 \
+                                                                             \
+	} while (0)
+
+#define m0_be_tx_fini(tx)                                                    \
+	do {                                                                 \
+                                                                             \
+	} while (0)
+
 static bool btree_ut_initialised = false;
 static void btree_ut_init(void)
 {
@@ -4940,7 +4960,6 @@ struct btree_ut_thread_info {
 	char               *ti_rnd_state_ptr; /** State array used by RNG. */
 };
 
-
 /**
  *  All the threads wait for this variable to turn TRUE.
  *  The main thread sets to TRUE once it has initialized all the threads so
@@ -4952,9 +4971,9 @@ static volatile bool thread_start = false;
 
 /**
  * Thread init function which will do basic setup such as setting CPU affinity
- * for the thread. Any other initialization that might be needed such as
- * resource allocation/initialization needed for the thread handler function
- * can also be done here.
+ * and initializing the RND seed for the thread. Any other initialization that
+ * might be needed such as resource allocation/initialization needed for the
+ * thread handler function can also be done here.
  */
 static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 {
@@ -4976,7 +4995,7 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
  * This routine is a thread handler which launches PUT, GET, ITER and DEL
  * operations on the btree passed as parameter.
  */
-static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
+static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 {
 	uint64_t               key[ti->ti_key_size / sizeof(uint64_t)];
 	uint64_t               value[ti->ti_value_size / sizeof(uint64_t)];
@@ -5073,7 +5092,7 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 			 *  in a loaded system.
 			 */
 			key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
-				ti->ti_thread_id;
+				 ti->ti_thread_id;
 			key[0] = m0_byteorder_cpu_to_be64(key[0]);
 			for (i = 1; i < ARRAY_SIZE(key); i++)
 				key[i] = key[0];
@@ -5128,6 +5147,8 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 						      BOF_EQUAL, &kv_op),
 					 &kv_op.bo_sm_group,
 					 &kv_op.bo_op_exec);
+		M0_ASSERT(get_data.flags == M0_BSC_SUCCESS);
+
 		keys_found_count++;
 
 		while (1) {
@@ -5151,7 +5172,8 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 
 		M0_ASSERT(keys_found_count == keys_put_count);
 
-		/** Test slant only if possible. If the increment counter is
+		/**
+		 *  Test slant only if possible. If the increment counter is
 		 *  more than 1 we can provide the intermediate value to be got
 		 *  in slant mode.
 		 */
@@ -5233,7 +5255,6 @@ static void btree_ut_thread_kv_oper(struct btree_ut_thread_info *ti)
 	m0_free(ti->ti_rnd_state_ptr);
 }
 
-
 /**
  * This function allocates an array pointed by cpuid_ptr and fills it with the
  * CPU ID of the CPUs which are currently online.
@@ -5306,7 +5327,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 	size_t                       cpu_max;
 
 	/**
-	 *  1) Create one btree to be used by all the threads.
+	 *  1) Create btree(s) to be used by all the threads.
 	 *  2) Assign CPU cores to the threads.
 	 *  3) Init and Start the threads which do KV operations.
 	 *  4) Wait till all the threads are done.
@@ -5349,6 +5370,9 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 		ut_trees[i].tree = b_op.bo_arbor;
 	}
 
+	m0_be_tx_close(tx);
+	m0_be_tx_fini(tx);
+
 	M0_ALLOC_ARR(ti, thread_count);
 	M0_ASSERT(ti != NULL);
 
@@ -5378,7 +5402,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 	for (i = 0; i < thread_count; i++) {
 		rc = M0_THREAD_INIT(&ti[i].ti_q, struct btree_ut_thread_info *,
 				    btree_ut_thread_init,
-				    &btree_ut_thread_kv_oper, &ti[i],
+				    &btree_ut_kv_oper_thread_handler, &ti[i],
 				    "Thread-%d", i);
 		M0_ASSERT(rc == 0);
 	}
@@ -5393,6 +5417,16 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 
 	for (i = 0; i < tree_count; i++) {
 		m0_btree_close(ut_trees[i].tree);
+
+		/**
+		 * Commenting this code as the delete operation is not done here.
+		 * Due to this, the destroy operation will crash.
+		 *
+		 * M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+		 *	     m0_btree_destroy(ut_trees[i].tree,
+		 * 	      &b_op),
+		 * 	     &b_op.bo_sm_group, &b_op.bo_op_exec);
+		 */
 	}
 
 	m0_free(ut_trees);
@@ -5424,6 +5458,215 @@ static void m0_btree_ut_mt_st_kv_oper(void)
 static void m0_btree_ut_mt_mt_kv_oper(void)
 {
 	btree_ut_num_threads_num_trees_kv_oper(0, 0);
+}
+
+
+#define MIN_TREE_LOOPS          5000
+#define MAX_TREE_LOOPS          15000
+#define MAX_RECS_FOR_TREE_TEST  100
+
+/**
+ * This routine is a thread handler which primarily involves in creating,
+ * opening, closing and destroying btree. To run out-of-sync with other threads
+ * it also launches PUT, GET, ITER and DEL operations on the btree for a random
+ * count.
+ */
+static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
+{
+	uint64_t               key;
+	uint64_t               value;
+	m0_bcount_t            ksize = sizeof key;
+	m0_bcount_t            vsize = sizeof value;
+	void                  *k_ptr = &key;
+	void                  *v_ptr = &value;
+	struct m0_btree_rec    rec   = {
+				     .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr,
+									&ksize),
+				     .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr,
+									&vsize),
+				     .r_flags      = 0,
+				     };
+	struct cb_data         data  = {
+					.key         = &rec.r_key,
+					.value       = &rec.r_val,
+					.check_value = false,
+					.flags       = 0,
+				       };
+	struct m0_btree_cb     ut_cb   = {
+					  .c_act       = btree_kv_put_cb,
+					  .c_datum     = &data,
+					 };
+	int32_t                loop_count;
+	struct m0_btree_op     kv_op     = {};
+	void                  *temp_node;
+	struct m0_btree_type   btree_type  = {.tt_id = M0_BT_UT_KV_OPS,
+					      .ksize = sizeof(key),
+					      .vsize = sizeof(value),
+					     };
+	const struct node_type *nt         = &fixed_format;
+	struct m0_be_tx        *tx         = NULL;
+
+	random_r(&ti->ti_random_buf, &loop_count);
+	loop_count %= (MAX_TREE_LOOPS - MIN_TREE_LOOPS);
+	loop_count += MIN_TREE_LOOPS;
+
+	/** Create temp node space and use it as root node for btree */
+	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
+
+	while (loop_count--) {
+		struct m0_btree_op  b_op        = {};
+		struct m0_btree    *tree;
+		int32_t             rec_count;
+		uint32_t            i;
+
+		/**
+		 * 1) Create a tree
+		 * 2) Add a few random count of records in the tree.
+		 * 3) Close the tree
+		 * 4) Open the tree
+		 * 5) Confirm the records are present in the tree.
+		 * 6) Close the tree
+		 * 4) Open the tree
+		 * 5) Delete all the records from the tree.
+		 * 6) Close the tree
+		 * 7) Destroy the tree
+		 */
+
+		M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+					 m0_btree_create(temp_node, 1024,
+							 &btree_type, nt, tx,
+							 &b_op),
+					 &b_op.bo_sm_group, &b_op.bo_op_exec);
+
+		tree = b_op.bo_arbor;
+
+		random_r(&ti->ti_random_buf, &rec_count);
+		rec_count %= MAX_RECS_FOR_TREE_TEST;
+		rec_count = rec_count ? : (MAX_RECS_FOR_TREE_TEST / 2);
+
+		for (i = 1; i <= rec_count; i++) {
+			key   = i;
+			value = key;
+
+			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+						 m0_btree_put(tree, tx,
+							      &rec, &ut_cb,
+							      0, &kv_op),
+						 &kv_op.bo_sm_group,
+						 &kv_op.bo_op_exec);
+			M0_ASSERT(data.flags == M0_BSC_SUCCESS);
+		}
+
+		m0_btree_close(tree);
+
+		m0_btree_open(temp_node, 1024, &tree);
+
+		for (i = 1; i <= rec_count; i++) {
+			key   = i;
+			value = key;
+
+			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+						 m0_btree_get(tree, &rec.r_key,
+							      &ut_cb, 0,
+							      &kv_op),
+						 &kv_op.bo_sm_group,
+						 &kv_op.bo_op_exec);
+			M0_ASSERT(data.flags == M0_BSC_SUCCESS);
+		}
+
+		m0_btree_close(tree);
+
+		m0_btree_open(temp_node, 1024, &tree);
+
+		for (i = 1; i <= rec_count; i++) {
+			key   = i;
+			value = key;
+
+			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+						 m0_btree_del(tree, &rec.r_key,
+							      &ut_cb, 0,
+							      &kv_op),
+						 &kv_op.bo_sm_group,
+						 &kv_op.bo_op_exec);
+			M0_ASSERT(data.flags == M0_BSC_SUCCESS);
+		}
+
+		m0_btree_close(tree);
+
+		M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+					 m0_btree_destroy(tree, &b_op),
+					 &b_op.bo_sm_group, &b_op.bo_op_exec);
+	}
+
+	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
+}
+
+static void btree_ut_num_threads_tree_oper(uint32_t thread_count)
+{
+	uint16_t                    *cpuid_ptr;
+	uint16_t                     cpu_count;
+	size_t                       cpu_max;
+	struct btree_ut_thread_info *ti;
+	uint16_t                     cpu;
+	int                          i;
+	int                          rc;
+
+	btree_ut_init();
+	online_cpu_id_get(&cpuid_ptr, &cpu_count);
+
+	if (thread_count == 0)
+		thread_count = cpu_count - 1; /** Skip Core-0 */
+
+	thread_start = false;
+
+	M0_ALLOC_ARR(ti, thread_count);
+	M0_ASSERT(ti != NULL);
+
+	cpu_max = m0_processor_nr_max();
+
+	cpu = 1; /** We skip Core-0 for Linux kernel and other processes. */
+	for (i = 0; i < thread_count; i++) {
+		rc = m0_bitmap_init(&ti[i].ti_cpu_map, cpu_max);
+		m0_bitmap_set(&ti[i].ti_cpu_map, cpuid_ptr[cpu], true);
+		cpu++;
+		if (cpu >= cpu_count)
+			/**
+			 *  Circle around if thread count is higher than the
+			 *  CPU cores in the system.
+			 */
+			cpu = 1;
+
+		ti[i].ti_thread_id  = i;
+	}
+
+	for (i = 0; i < thread_count; i++) {
+		rc = M0_THREAD_INIT(&ti[i].ti_q, struct btree_ut_thread_info *,
+				    btree_ut_thread_init,
+				    &btree_ut_tree_oper_thread_handler, &ti[i],
+				    "Thread-%d", i);
+		M0_ASSERT(rc == 0);
+	}
+
+	/** Initialized all the threads. Now start the chaos ... */
+	thread_start = true;
+
+	for (i = 0; i < thread_count; i++) {
+		m0_thread_join(&ti[i].ti_q);
+		m0_thread_fini(&ti[i].ti_q);
+	}
+
+	m0_free(ti);
+	btree_ut_fini();
+}
+
+static void m0_btree_ut_st_tree_oper(void)
+{
+	btree_ut_num_threads_tree_oper(1);
+}
+
+static void m0_btree_ut_mt_tree_oper(void)
+{
+	btree_ut_num_threads_tree_oper(0);
 }
 
 #if 0
@@ -5650,6 +5893,10 @@ struct m0_ut_suite btree_ut = {
 					m0_btree_ut_mt_st_kv_oper},
 		{"multi_thread_multi_tree_kv_op",
 					m0_btree_ut_mt_mt_kv_oper},
+		{"single_thread_tree_op",
+					m0_btree_ut_st_tree_oper},
+		{"multi_thread_tree_op",
+					m0_btree_ut_mt_tree_oper},
 		/* {"insert_rec",          m0_btree_ut_insert_record}, */
 		{NULL, NULL}
 	}
