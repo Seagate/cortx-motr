@@ -1668,7 +1668,8 @@ static void libfab_buf_complete(struct m0_fab__buf *buf, int32_t status)
 		.nbe_time   = m0_time_now()
 	};
 
-	M0_ENTRY("b=%p q=%d rc=%d", buf, buf->fb_nb->nb_qtype, status);
+	M0_ENTRY("fb=%p nb=%p q=%d rc=%d", buf, nb, buf->fb_nb->nb_qtype, 
+		 status);
 	if (M0_IN(nb->nb_qtype, (M0_NET_QT_MSG_RECV,
 				 M0_NET_QT_PASSIVE_BULK_RECV,
 				 M0_NET_QT_ACTIVE_BULK_RECV))) {
@@ -1709,7 +1710,7 @@ static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 	uint32_t             *ptr;
 	int                   ret;
 
-	M0_ENTRY("b=%p q=%d len=%d rc=%d", buf, nb->nb_qtype,
+	M0_ENTRY("fb=%p nb=%p q=%d len=%d rc=%d", buf, nb, nb->nb_qtype,
 		 (int)buf->fb_length, rc);
 	M0_PRE(libfab_tm_is_locked(ma));
 	/*
@@ -2826,7 +2827,7 @@ static void libfab_buf_deregister(struct m0_net_buffer *nb)
 	int                  i;
 	int                  ret;
 
-	M0_ENTRY("Deregister and free buf = %p q = %d", fb, nb->nb_qtype);
+	M0_ENTRY("fb=%p nb=%p q=%d", fb, nb, nb->nb_qtype);
 	M0_PRE(nb->nb_flags == M0_NET_BUF_REGISTERED &&
 	       libfab_buf_invariant(fb));
 
@@ -2858,6 +2859,8 @@ static int libfab_buf_register(struct m0_net_buffer *nb)
 	struct m0_fab__buf  *fb;
 	struct m0_fab__ndom *nd = nb->nb_dom->nd_xprt_private;
 	int                  ret = 0;
+
+	M0_ENTRY("nb=%p q=%d", nb, nb->nb_qtype);
 
 	M0_PRE(nb->nb_xprt_private == NULL);
 	M0_PRE(nb->nb_dom != NULL);
@@ -2905,7 +2908,8 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	struct fi_msg             op_msg;
 	int                       ret = 0;
 
-	M0_ENTRY("b=%p q=%d l=%"PRIu64, nb, nb->nb_qtype, nb->nb_length);
+	M0_ENTRY("fb=%p nb=%p q=%d l=%"PRIu64, fbp, nb, nb->nb_qtype,
+		 nb->nb_length);
 
 	M0_PRE(libfab_tm_is_locked(ma) && libfab_tm_invariant(ma) &&
 	       libfab_buf_invariant(fbp));
