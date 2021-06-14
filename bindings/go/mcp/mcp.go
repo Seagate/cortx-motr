@@ -16,6 +16,8 @@
  * For any questions about this software or licensing,
  * please email opensource@seagate.com or cortx-questions@seagate.com.
  *
+ * Original author: Andriy Tkachuk <andriy.tkachuk@seagate.com>
+ * Original creation date: 30-Oct-2020
  */
 
 package main
