@@ -599,14 +599,14 @@ enum m0_entity_type {
 	/**
 	 * During create if this flag is set, thant means application has
 	 * capability to store meta-data and hence pver and lid will be
-	 * retirned to application to store.
+	 * returned to application to store.
 	 */
-	M0_EOF_META = 1 << 0,
+	M0_ENF_META = 1 << 0,
 	/**
 	 * If this flags is set during entity_create() that means application
 	 * do not support update operation.
 	 */
-	M0_EOF_NO_RMW =  1 << 1
+	M0_ENF_NO_RMW =  1 << 1
  } M0_XCA_ENUM;
 
 /**

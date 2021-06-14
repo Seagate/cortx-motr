@@ -1865,7 +1865,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	/* Set layout id and pver for CREATE op.*/
 	if (cr->cr_opcode == M0_EO_CREATE) {
 		cr->cr_cob_attr->ca_lid = obj->ob_attr.oa_layout_id;
-		 if (obj->ob_entity.en_flags == M0_EOF_META) {
+		 if (obj->ob_entity.en_flags == M0_ENF_META) {
 			/* For create operation setting up pool version locally
 			* found in pools common, so cob lookup call to server
 			* can be skipped */
@@ -1892,7 +1892,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 		m0_sm_group_unlock(&cr->cr_op->op_sm_group);
 		cob_complete_op(cr->cr_op);
 		m0_sm_group_lock(&cr->cr_op->op_sm_group);
-		rc = M0TR_COB_LOOKUP_SKIPPED;
+		rc = MOTR_MDCOB_LOOKUP_SKIP;
 	}
 
 	return M0_RC(rc);
