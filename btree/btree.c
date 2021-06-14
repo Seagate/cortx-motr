@@ -852,17 +852,23 @@ struct node_type {
 	/** Returns size of the node (as a shift value) */
 	int  (*nt_shift)(const struct nd *node);
 
-	/** Returns size of the key of node. In case of variable key size return
-	 * -1. */
+	/**
+	 * Returns size of the key of node. In case of variable key size return
+	 * -1.
+	 */
 	int  (*nt_keysize)(const struct nd *node);
 
-	/** Returns size of the value of node. In case variable value size
-	 * return -1. */
+	/**
+	 * Returns size of the value of node. In case variable value size
+	 * return -1.
+	 */
 	int  (*nt_valsize)(const struct nd *node);
 
-	/** If predict is set as true, function determines if there is
+	/**
+	 * If predict is set as true, function determines if there is
 	 * possibility of underflow else it determines if there is an underflow
-	 * at node. */
+	 * at node.
+	 */
 	bool  (*nt_isunderflow)(const struct nd *node, bool predict);
 
 	/** Returns true if there is possibility of overflow. */
@@ -925,7 +931,7 @@ struct node_type {
 	bool (*nt_invariant)(const struct nd *node);
 
 	/** Validates node footer */
-	int (*nt_verify)(const struct nd *node);
+	bool (*nt_verify)(const struct nd *node);
 };
 
 /**
@@ -1033,7 +1039,7 @@ static void node_op_fini(struct node_op *op);
 #endif
 #ifndef __KERNEL__
 static void node_init(struct node_op *n_op, int ksize, int vsize);
-static int  node_verify(const struct nd *node);
+static bool node_verify(const struct nd *node);
 #endif
 static int  node_count(const struct nd *node);
 static int  node_count_rec(const struct nd *node);
@@ -1168,7 +1174,7 @@ static bool node_invariant(const struct nd *node)
 	return node->n_type->nt_invariant(node);
 }
 #ifndef __KERNEL__
-static int node_verify(const struct nd *node)
+static bool node_verify(const struct nd *node)
 {
 	return node->n_type->nt_verify(node);
 }
@@ -1216,10 +1222,11 @@ static int node_valsize(const struct nd *node)
 
 /**
  * If predict is set as true,
- * 	function will return true if there is possibility of underflow else
- * 	it will return false.
- * else function will return true if there is an underflow at node else, it will
- *      return false.
+ * 	If predict is 'true' the function returns a possibility of underflow if
+ *         another record is deleted from this node without addition of any more
+ *         records.
+ * If predict is 'false' the function returns the node's current underflow
+ * state.
  */
 static bool  node_isunderflow(const struct nd *node, bool predict)
 {
@@ -1958,7 +1965,7 @@ static void ff_set_level(const struct nd *node, uint8_t new_level);
 static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 static bool ff_invariant(const struct nd *node);
-static int ff_verify(const struct nd *node);
+static bool ff_verify(const struct nd *node);
 /**
  *  Implementation of node which supports fixed format/size for Keys and Values
  *  contained in it.
@@ -2042,14 +2049,14 @@ static bool ff_invariant(const struct nd *node)
 		    ergo(h->ff_level > 0, h->ff_used > 0));
 }
 
-static int ff_verify(const struct nd *node)
+static bool ff_verify(const struct nd *node)
 {
 	/* TBD: implemente function to verify node. */
 	/*
 	const struct ff_head *h = ff_data(node);
 	return m0_format_footer_verify(h, true);
 	*/
-	return 0;
+	return true;
 }
 
 static void ff_init(const struct nd *node, int shift, int ksize, int vsize)
@@ -2470,7 +2477,10 @@ static void level_cleanup(struct m0_btree_oimpl *oi,
 			oi->i_level[i].l_alloc = NULL;
 		}
 	}
-
+	if (oi->i_used > 0 && oi->i_level[1].l_sibling != NULL) {
+		node_put(oi->i_level[1].l_sibling);
+		oi->i_level[1].l_sibling = NULL;
+	}
 	if (oi->i_extra_node != NULL) {
 		node_put(oi->i_extra_node);
 		oi->i_nop.no_opc = NOP_FREE;
@@ -2937,12 +2947,8 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			node_slot.s_node = oi->i_nop.no_node;
 			lev->l_seq = lev->l_node->n_seq;
 			/* Verify node footer */
-			int rc = node_verify(lev->l_node);
-			if (rc)
-			{
-				node_op_fini(&oi->i_nop);
-				return fail(bop, rc);
-			}
+			M0_ASSERT(node_verify(lev->l_node));
+
 			oi->i_nop.no_node = NULL;
 
 			oi->i_key_found = node_find(&node_slot,
@@ -3625,10 +3631,8 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 				node_set_level(lev->l_node, 0);
 				tree->t_height = 1;
 				flag = true;
-			} else {
-				lev->l_node->n_skip_rec_count_check = false;
+			} else
 				break;
-			}
 		}
 
 		node_fix(node_slot.s_node, bop->bo_tx);
@@ -3655,7 +3659,6 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	curr_root_level  = node_level(lev->l_node);
 	root_slot.s_node = lev->l_node;
 	root_slot.s_idx  = 0;
-	lev->l_node->n_skip_rec_count_check = true;
 	node_del(lev->l_node, 0, bop->bo_tx);
 	node_done(&root_slot, bop->bo_tx, true);
 
@@ -3719,7 +3722,8 @@ static int8_t root_child_is_req(struct m0_btree_op *bop)
 		if (!node_is_valid(oi->i_level[used_count].l_node))
 			return -1;
 		if (used_count == 0) {
-			load = 1;
+			if (node_count_rec(oi->i_level[used_count].l_node) == 2)
+				load = 1;
 			break;
 		}
 		if (!node_isunderflow(oi->i_level[used_count].l_node, true))
@@ -3755,8 +3759,8 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 		return P_SETUP;
 	}
 	if (load) {
-		struct slot    root_slot = {};
-		struct segaddr root_child;
+		struct slot     root_slot = {};
+		struct segaddr  root_child;
 		struct level   *root_lev = &oi->i_level[0];
 
 		root_slot.s_node = root_lev->l_node;
@@ -3825,12 +3829,8 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 			node_slot.s_node = oi->i_nop.no_node;
 			lev->l_seq = lev->l_node->n_seq;
 			/* verify node footer */
-			int rc = node_verify(lev->l_node);
-			if (rc)
-			{
-				node_op_fini(&oi->i_nop);
-				return fail(bop, rc);
-			}
+			M0_ASSERT(node_verify(lev->l_node));
+
 			oi->i_nop.no_node = NULL;
 
 			oi->i_key_found = node_find(&node_slot,
