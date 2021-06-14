@@ -1220,6 +1220,7 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 	struct fi_info            *fi;
 	int                        i;
 	int                        rc;
+	int                        rx_size;
 	char                      *addr = NULL;
 	char                      *port = NULL;
 
@@ -1319,8 +1320,11 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 		return M0_RC(rc);
 	}
 
+	rx_size = tm->ftm_fab->fab_fi->rx_attr->size;
+	tm->ftm_fab->fab_fi->rx_attr->size = FAB_MAX_SRX_SIZE;
 	rc = fi_srx_context(tm->ftm_fab->fab_dom, tm->ftm_fab->fab_fi->rx_attr,
 			    &tm->ftm_rctx, NULL);
+	tm->ftm_fab->fab_fi->rx_attr->size = rx_size;
 	if (rc != FI_SUCCESS) {
 		M0_LOG(M0_ERROR," \n fi_srx_context = %d \n ", rc);
 		libfab_pep_param_free(pep, tm);

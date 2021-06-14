@@ -91,7 +91,9 @@ enum m0_fab__libfab_params {
 	/** Max entries in shared transmit completion queue */
 	FAB_MAX_TX_CQ_EV               = 1024,
 	/** Max entries in receive completion queue */
-	FAB_MAX_RX_CQ_EV               = 64,
+	FAB_MAX_RX_CQ_EV               = 256,
+	/** Max receive buffers in a shared receive pool */
+	FAB_MAX_SRX_SIZE               = 1024,
 };
 
 /**
