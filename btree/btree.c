@@ -3437,20 +3437,6 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 	}
 }
 
-/* Based on the flag get the next/previous sibling index. */
-static int sibling_index_get(int index, uint64_t flags, bool key_exists)
-{
-	if (flags & BOF_NEXT)
-		return key_exists ? ++index : index;
-	return --index;
-}
-
-/* Checks if the index is in the range of valid key range for node. */
-static bool index_is_valid(struct level *lev)
-{
-	return (lev->l_idx >= 0) && (lev->l_idx < node_count(lev->l_node));
-}
-
 /**
  * btree_open_tick function is used to traverse through different states to
  * facilitate the working of m0_btree_open().
@@ -3496,6 +3482,20 @@ int64_t btree_open_tick(struct m0_sm_op *smop)
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
 	}
+}
+
+/* Based on the flag get the next/previous sibling index. */
+static int sibling_index_get(int index, uint64_t flags, bool key_exists)
+{
+	if (flags & BOF_NEXT)
+		return key_exists ? ++index : index;
+	return --index;
+}
+
+/* Checks if the index is in the range of valid key range for node. */
+static bool index_is_valid(struct level *lev)
+{
+	return (lev->l_idx >= 0) && (lev->l_idx < node_count(lev->l_node));
 }
 
 /**
