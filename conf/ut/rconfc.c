@@ -45,6 +45,7 @@ static struct m0_semaphore   g_ready_sem;
 static struct m0_semaphore   g_fatal_sem;
 static struct m0_reqh       *ut_reqh;
 static struct m0_net_domain  client_net_dom;
+
 static struct m0_fid         profile = M0_FID_TINIT('p', 1, 0);
 static bool (*ha_clink_cb_orig)(struct m0_clink *clink);
 

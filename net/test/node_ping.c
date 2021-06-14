@@ -630,7 +630,6 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
 		/* update copy of statistics */
 		m0_net_test_nh_sd_copy_locked(&ctx->npc_nh);
 	}
-	m0_nanosleep(100, NULL);
 	/* dequeue all buffers */
 	for (i = 0; i < ctx->npc_buf_nr; ++i) {
 		m0_net_test_network_buffer_dequeue(&ctx->npc_net,

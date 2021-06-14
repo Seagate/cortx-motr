@@ -31,7 +31,7 @@ set -eu
 
 umask 0002
 ulimit -c unlimited
-ulimit -n 4096
+ulimit -n 65536
 
 ## CAUTION! This directory will be removed by superuser.
 RUNDIR=${RUNDIR:-/var/motr/$(id -un)}
