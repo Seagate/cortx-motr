@@ -137,3 +137,5 @@ func main() {
     // might suffer. A tip from https://github.com/golang/go/issues/16474)
     io.CopyBuffer(struct{ io.Writer }{writer}, reader, buf)
 }
+
+// vi: sw=4 ts=4 expandtab ai
