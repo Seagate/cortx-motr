@@ -592,19 +592,19 @@ enum m0_entity_type {
 } M0_XCA_ENUM;
 
 /**
- * Flags passed to m0_entitiy_create(), m0_entity_open() to specify applications's 
- * behaviour.
+ * Flags passed to m0_entitiy_create(), m0_entity_open() to specify
+ * application's behaviour.
  */
  enum m0_entity_flags {
 	/**
 	 * During create if this flag is set in entity->en_flags, that means
 	 * application has capability to store meta-data and hence pver and
-	 * lid can be store in  application's meta-data.
-	 * Before application call to m0_entity_create/open(), applications is
+	 * lid can be stored in  application's meta-data.
+	 * Before calling to m0_entity_create/open(), application is
 	 * expected to set obj>ob_entity->en_flags != M0_ENF_META, so when
 	 * m0_entity_create() returns to application, pool version and layout id
 	 * will be available to application into obj->ob_attr.oa_pver and
-	 * obj->ob_attr.oa_lid respectively and can be store into applications
+	 * obj->ob_attr.oa_lid respectively and can be stored into application's
 	 * meta-data.
 	 *
 	 * For example:
