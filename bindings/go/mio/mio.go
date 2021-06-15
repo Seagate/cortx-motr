@@ -667,3 +667,5 @@ func (mio *Mio) Seek(offset int64, whence int) (int64, error) {
 
     return int64(mio.off), nil
 }
+
+// vi: sw=4 ts=4 expandtab ai

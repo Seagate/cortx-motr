@@ -93,3 +93,5 @@ func main() {
         }
     }
 }
+
+// vi: sw=4 ts=4 expandtab ai
