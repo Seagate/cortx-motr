@@ -86,7 +86,7 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 					    &fid);
 
 			sim_log(s, SLL_TRACE,
-				"%c [%3i:%3i] -> %4u@%3u "FID_F" %6lu\n",
+				"%c [%3i:%3i] -> %4u@%3u "FID_F" %6"PRId64"\n",
 				"DPS"[m0_pdclust_unit_classify(pl, idx)],
 				cl->cc_id, cth->cth_id, obj, srv,
 				FID_P(&fid), tgt.ta_frame);
@@ -147,6 +147,7 @@ static void layout_build(struct m0t1fs_conf *conf)
 
 	pl_attr.pa_N = conf->ct_N;
 	pl_attr.pa_K = conf->ct_K;
+	pl_attr.pa_S = conf->ct_S;
 	pl_attr.pa_P = conf->ct_pool_version.pv_attr.pa_P;
 	pl_attr.pa_unit_size = conf->ct_unitsize;
 	lid = 0x4332543146535349; /* M0T1FSSI */
@@ -181,7 +182,7 @@ M0_INTERNAL void m0t1fs_init(struct sim *s, struct m0t1fs_conf *conf)
 	m0_pool_init(&conf->ct_pool, &p_id, 0);
 	m0_pool_version_init(&conf->ct_pool_version, &pv_id, &conf->ct_pool,
 			     conf->ct_nr_servers * conf->ct_nr_devices,
-			     conf->ct_nr_servers, conf->ct_N, conf->ct_K);
+			     conf->ct_nr_servers, conf->ct_N, conf->ct_K, conf->ct_S);
 	conf->ct_srv = sim_alloc(conf->ct_nr_servers * sizeof conf->ct_srv[0]);
 	for (i = 0; i < conf->ct_nr_servers; ++i) {
 		struct net_srv *srv = &conf->ct_srv[i];

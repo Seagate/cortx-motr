@@ -202,7 +202,8 @@ static void be_ut_alloc_credit_log(struct m0_be_allocator  *a,
 	m0_be_allocator_credit(a, optype, size, shift, &cred);
 	M0_LOG(M0_INFO,
 	       "m0_be_allocator_credit(): "
-	       "optype = %d (%s), size = %lu, shift = %d, credit = "BETXCR_F,
+	       "optype = %d (%s), size = %"PRIi64", shift = %d, "
+	       "credit = "BETXCR_F,
 	       optype, optype_str, size, shift, BETXCR_P(&cred));
 }
 
@@ -249,21 +250,25 @@ enum {
 static void be_ut_alloc_oom_case(struct m0_be_allocator *a,
 				 m0_bcount_t             alloc_size)
 {
-	unsigned   ptrs_nr_max = a->ba_seg->bs_size / alloc_size + 1;
-	unsigned   ptrs_nr     = 0;
-	unsigned   i;
+	uint64_t   ptrs_nr_max = a->ba_seg->bs_size / alloc_size + 1;
+	uint64_t   ptrs_nr     = 0;
+	uint64_t   i;
 	void     **ptrs;
 
 	M0_ALLOC_ARR(ptrs, ptrs_nr_max);
 	M0_UT_ASSERT(ptrs != NULL);
 
-	do {
+	while (true) {
 		M0_UT_ASSERT(ptrs_nr < ptrs_nr_max);
 		M0_BE_UT_TRANSACT(&be_ut_alloc_backend, tx, cred,
 		  m0_be_allocator_credit(a, M0_BAO_ALLOC, alloc_size, 0, &cred),
 		  M0_BE_OP_SYNC(op, m0_be_alloc(a, tx, &op,
 						&ptrs[ptrs_nr], alloc_size)));
-	} while (ptrs[ptrs_nr++] != NULL);
+		if (ptrs[ptrs_nr] == NULL)
+			break;
+
+		++ptrs_nr;
+	}
 
 	M0_UT_ASSERT(ptrs_nr > 1);
 

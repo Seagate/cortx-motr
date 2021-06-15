@@ -93,7 +93,6 @@ static int   max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 static char client_endpoint[M0_NET_LNET_XEP_ADDR_LEN];
 static char server_endpoint[M0_NET_LNET_XEP_ADDR_LEN];
 
-static struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
 
 #ifdef __KERNEL__
 /* Module parameters */
@@ -316,7 +315,7 @@ static int run_client(void)
 
 	m0_ping_fop_init();
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	if (rc != 0)
 		goto fop_fini;
 
@@ -389,8 +388,8 @@ static int run_server(void)
 		"-q", tm_len, "-m", rpc_size,
 	};
 	struct m0_rpc_server_ctx sctx = {
-		.rsx_xprts            = &xprt,
-		.rsx_xprts_nr         = 1,
+		.rsx_xprts            = m0_net_all_xprt_get(),
+		.rsx_xprts_nr         = m0_net_xprt_nr(),
 		.rsx_argv             = argv,
 		.rsx_argc             = ARRAY_SIZE(argv),
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME

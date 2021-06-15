@@ -1,0 +1,126 @@
+{
+  "support": {
+    "user": "cortxub",
+    "password": "ZxHXI1PvK3Wt"
+  },
+  "cortx": {
+    "software": {
+      "csm": {
+        "user": "csm",
+        "secret": "gAAAAABgVIvovcf7C69fTmEw7MYBLQM-aWjo-g49hzzFGFa9KK5e8-nwohdbGyRtOE42GrVEg2uKIL9mf2D1suvBFhoe7DvNow=="
+      },
+      "openldap": {
+        "root": {
+          "user": "admin",
+          "secret": "gAAAAABgVIvpWDrxDqt5HV9deN6CneGO-bKQaGTzha31_WYla-BrhM-pNjNfzgqYWAnXdcwDPZlyrKpvTNkTpkKrw_X_dlFGMQ=="
+        },
+        "sgiam": {
+          "user": "sgiamadmin",
+          "secret": "gAAAAABgVIvp1oc8wt0vvwIs6U9_ghsx1GvJ3w9dFcvwqSW3T_7WjpeEfiC-Vx8qTMKRxDE9ODVxizH6VFXBZf9OvHiIpAraEg=="
+        }
+      },
+      "corosync": {
+        "user": "hacluster",
+        "secret": "gAAAAABgVIvq6g8MN3HDW0fnQ8c9Jm4LvID1eBTiz81D6LipbH_bF02ZZ1AQ5RYw7HcZimovfw6ygIsvAJFvqQ2PTvUhI-AQUA=="
+      }
+    },
+    "release": {
+      "setup": "cortx",
+      "product": "LR2"
+    }
+  },
+  "cluster": {
+    "5c427765-ecf5-4387-bfa4-d6d53494b159": {
+      "name": "cortx_cluster",
+      "site_count": "1",
+      "site": {
+        "storage_set_count": "1"
+      },
+      "network": {
+        "management": {
+          "virtual_host": "None"
+        },
+        "search_domains": "None",
+        "dns_servers": "None"
+      },
+      "storage_set": [
+        {
+          "name": "storage-set-1",
+          "server_nodes": [
+            "7c4fd75dfedd7662e6a39b0a53274922"
+          ],
+          "storage_enclosures": [
+            "encla971a87aace34e05b4747bb3376d6661"
+          ],
+          "data": "4",
+          "parity": "2",
+          "spare": "0"
+        }
+      ]
+    }
+  },
+  "server_node": {
+    "7c4fd75dfedd7662e6a39b0a53274922": {
+      "name": "srvnode-1",
+      "hostname": "ssc-vm-2504.colo.seagate.com",
+      "roles": [
+        "primary",
+        "openldap_server"
+      ],
+      "type": "VM",
+      "bmc": {
+        "ip": "None",
+        "user": "None",
+        "secret": "gAAAAABgVIwTCdnbg4pLbISCt7nKFZ1aVzx31zJAxGJv7-JWrySDlEI8ioIaNV6YiFG-UdjbWFYRsVzMLt3TaqljqYt-BJtQ5A=="
+      },
+      "network": {
+        "management": {
+          "interfaces": [
+            "eth0"
+          ],
+          "gateway": "None",
+          "netmask": "None",
+          "public_fqdn": "srvnode-1.mgmt.public"
+        },
+        "data": {
+          "public_interfaces": [
+            "eth1",
+            "eth2"
+          ],
+          "private_interfaces": [
+            "eth3",
+            "eth4"
+          ],
+          "gateway": "None",
+          "netmask": "None",
+          "public_fqdn": "srvnode-1.data.public",
+          "private_fqdn": "srvnode-1.data.private",
+          "roaming_ip": "None",
+          "interface_type": "tcp",
+          "transport_type": "lnet"
+        }
+      },
+      "storage": {
+        "cvg_count": "1",
+        "cvg": [
+          {
+            "metadata_devices": [
+              "/dev/sdb",
+              "/dev/sdd"
+            ],
+            "data_devices": [
+              "/dev/sdc"
+            ]
+          }
+        ],
+        "enclosure_id": "encla971a87aace34e05b4747bb3376d6661"
+      },
+      "site_id": "1",
+      "rack_id": "1",
+      "node_id": "0",
+      "storage_set_id": "storage-set-1",
+      "cluster_id": "5c427765-ecf5-4387-bfa4-d6d53494b159",
+      "s3_instances": "1"
+    }
+  }
+}

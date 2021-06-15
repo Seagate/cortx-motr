@@ -47,25 +47,25 @@ enum dix_cm_iter_phase {
 	DIX_ITER_INIT    = M0_FOM_PHASE_INIT,
 	DIX_ITER_FINAL   = M0_FOM_PHASE_FINISH,
 	DIX_ITER_STARTED = M0_FOM_PHASE_NR,
-	DIX_ITER_DEL_LOCK,
-	DIX_ITER_CTIDX_START,
-	DIX_ITER_CTIDX_REPOS,
-	DIX_ITER_CTIDX_NEXT,
-	DIX_ITER_NEXT_CCTG,
-	DIX_ITER_META_LOCK,
-	DIX_ITER_CCTG_LOOKUP,
-	DIX_ITER_CCTG_START,
-	DIX_ITER_CCTG_CONT,
-	DIX_ITER_CCTG_CUR_NEXT,
-	DIX_ITER_NEXT_KEY,
-	DIX_ITER_IDLE_START,
-	DIX_ITER_DEL_TX_OPENED,
-	DIX_ITER_DEL_TX_WAIT,
-	DIX_ITER_DEL_TX_DONE,
-	DIX_ITER_IDLE_FIN,
-	DIX_ITER_CCTG_CHECK,
-	DIX_ITER_EOF,
-	DIX_ITER_FAILURE,
+	DIX_ITER_DEL_LOCK,      /*  3 */
+	DIX_ITER_CTIDX_START,   /*  4 */
+	DIX_ITER_CTIDX_REPOS,   /*  5 */
+	DIX_ITER_CTIDX_NEXT,    /*  6 */
+	DIX_ITER_NEXT_CCTG,     /*  7 */
+	DIX_ITER_META_LOCK,     /*  8 */
+	DIX_ITER_CCTG_LOOKUP,   /*  9 */
+	DIX_ITER_CCTG_START,    /* 10 */
+	DIX_ITER_CCTG_CONT,     /* 11 */
+	DIX_ITER_CCTG_CUR_NEXT, /* 12 */
+	DIX_ITER_NEXT_KEY,      /* 13 */
+	DIX_ITER_IDLE_START,    /* 14 */
+	DIX_ITER_DEL_TX_OPENED, /* 15 */
+	DIX_ITER_DEL_TX_WAIT,   /* 16 */
+	DIX_ITER_DEL_TX_DONE,   /* 17 */
+	DIX_ITER_IDLE_FIN,      /* 18 */
+	DIX_ITER_CCTG_CHECK,    /* 19 */
+	DIX_ITER_EOF,           /* 20 */
+	DIX_ITER_FAILURE,       /* 21 */
 };
 
 static struct m0_sm_state_descr dix_cm_iter_phases[] = {
@@ -228,6 +228,7 @@ static void dix_cm_iter_init(struct m0_dix_cm_iter *iter)
 	iter->di_tgts = NULL;
 	iter->di_tgts_cur = 0;
 	iter->di_tgts_nr = 0;
+	iter->di_stop = false;
 
 	M0_SET0(&iter->di_key);
 	M0_SET0(&iter->di_val);
@@ -268,6 +269,8 @@ static void dix_cm_iter_tgts_fini(struct m0_dix_cm_iter *iter)
 
 static void dix_cm_iter_fini(struct m0_dix_cm_iter *iter)
 {
+	M0_ENTRY();
+
 	if (iter->di_cctg != NULL)
 		m0_long_unlock(m0_ctg_lock(iter->di_cctg), &iter->di_lock_link);
 	m0_long_unlock(m0_ctg_lock(m0_ctg_ctidx()), &iter->di_meta_lock_link);
@@ -284,6 +287,7 @@ static void dix_cm_iter_fini(struct m0_dix_cm_iter *iter)
 	m0_ctg_op_fini(&iter->di_ctidx_op);
 	m0_clink_del_lock(&iter->di_meta_clink);
 	m0_clink_fini(&iter->di_meta_clink);
+	M0_LEAVE();
 }
 
 static int dix_cm_iter_failure(struct m0_dix_cm_iter *iter, int rc)
@@ -567,6 +571,7 @@ static int dix_cm_repair_tgts_get(struct m0_dix_layout_iter *iter,
 	uint32_t                    i;
 	uint64_t                    unit;
 	uint64_t                    units_nr;
+	uint64_t                    spare_nr;
 	uint64_t                    spare_id;
 	uint64_t                    tgt_tmp;
 	uint64_t                   *group_tgts;
@@ -575,7 +580,6 @@ static int dix_cm_repair_tgts_get(struct m0_dix_layout_iter *iter,
 	uint32_t                    device_state;
 	uint64_t                   *tgts_loc;
 	uint64_t                    tgts_nr_loc;
-	uint32_t                    max_device_failures;
 	struct m0_pool_spare_usage *spare_usage_array;
 	enum m0_pool_nd_state       state;
 	int                         rc = 0;
@@ -619,11 +623,10 @@ static int dix_cm_repair_tgts_get(struct m0_dix_layout_iter *iter,
 	/*
 	 * Allocate memory for resulting target devices, precise number of
 	 * targets is not determined at this stage, so allocate array of length
-	 * that equals to the maximum number of device failures (i.e. count of
-	 * all spare units in parity group). It guarantees that such number of
-	 * array elements is enough to store resulting targets. Actual number of
-	 * resulting targets will be set at the end of the algo, set it to 0
-	 * initially.
+	 * that equals to the count of all spare units in parity group).
+	 * It guarantees that such number of array elements is enough to store
+	 * resulting targets. Actual number of resulting targets will be set at
+	 * the end of the algo, set it to 0 initially.
 	 */
 	tgts_nr_loc = 0;
 	M0_ALLOC_ARR(tgts_loc, pm->pm_state->pst_max_device_failures);
@@ -635,13 +638,13 @@ static int dix_cm_repair_tgts_get(struct m0_dix_layout_iter *iter,
 	m0_rwlock_read_lock(&pm->pm_lock);
 
 	spare_usage_array = pm->pm_state->pst_spare_usage_array;
-	max_device_failures = pm->pm_state->pst_max_device_failures;
+	spare_nr = pm->pm_state->pst_nr_spares;
 
 	/*
 	 * Go through the spare usage array to determine target devices where
 	 * current key-value record should be reconstructed.
 	 */
-	for (i = 0; i < max_device_failures; i++) {
+	for (i = 0; i < spare_nr; i++) {
 		spare_id = i;
 		device_index = spare_usage_array[spare_id].psu_device_index;
 		device_state = spare_usage_array[spare_id].psu_device_state;
@@ -745,6 +748,7 @@ static void spare_usage_print(struct m0_dix_layout_iter *iter,
 	uint64_t                    tgt;
 	struct m0_pooldev          *global_dev;
 	uint32_t                    max_device_failures;
+	uint32_t                    spare_nr;
 	struct m0_pool_spare_usage *spare_usage_array;
 	enum m0_pool_nd_state       state;
 
@@ -753,11 +757,12 @@ static void spare_usage_print(struct m0_dix_layout_iter *iter,
 
 	spare_usage_array = pm->pm_state->pst_spare_usage_array;
 	max_device_failures = pm->pm_state->pst_max_device_failures;
+	spare_nr = pm->pm_state->pst_nr_spares;
 
 	M0_LOG(M0_DEBUG,
 	       "Spare usage array info (pool dev_id/global dev_id):");
 	M0_LOG(M0_DEBUG, "=============================================");
-	for (i = 0; i < max_device_failures; i++) {
+	for (i = 0; i < spare_nr; i++) {
 		tgt = spare_usage_array[i].psu_device_index;
 		if (tgt != POOL_PM_SPARE_SLOT_UNUSED) {
 			state = spare_usage_array[i].psu_device_state;
@@ -1041,7 +1046,9 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 	struct m0_be_tx       *tx;
 	int                    rc;
 
-	M0_ENTRY("fom %p, dix_cm %p, phase %d", fom, dix_cm, phase);
+	M0_ENTRY("fom %p, dix_cm %p, phase %d(%s)",
+		 fom, dix_cm, phase, m0_fom_phase_name(fom, phase));
+
 	switch (phase) {
 	case DIX_ITER_INIT:
 		dix_cm_iter_init(iter);
@@ -1385,6 +1392,12 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 	}
 	if (result < 0)
 		result = dix_cm_iter_failure(iter, result);
+
+	if (result == M0_FSO_WAIT) {
+		M0_LOG(M0_DEBUG, "iter fom %p current state=%d(%s)",
+				 fom, m0_fom_phase(fom),
+				 m0_fom_phase_name(fom, m0_fom_phase(fom)));
+	}
 	return M0_RC(result);
 }
 
@@ -1490,7 +1503,7 @@ M0_INTERNAL int m0_dix_cm_iter_get(struct m0_dix_cm_iter *iter,
 			M0_CNT_INC(iter->di_tgts_cur);
 		}
 
-		return rc;
+		return M0_RC(rc);
 	}
 }
 

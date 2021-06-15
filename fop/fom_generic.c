@@ -40,6 +40,7 @@
 #include "fop/fom_generic_xc.h"
 #include "addb2/addb2.h"
 #include "addb2/identifier.h"
+#include "dtm0/service.h"	/* m0_dtm0_is_a_volatile_dtm */
 
 /**
    @addtogroup fom
@@ -68,7 +69,7 @@ M0_INTERNAL void m0_fom_mod_rep_fill(struct m0_fop_mod_rep *rep,
 				     struct m0_fom *fom)
 {
 	rep->fmr_remid.tri_txid = m0_fom_tx(fom)->t_id;
-	rep->fmr_remid.tri_locality = fom->fo_ops->fo_home_locality(fom);
+	rep->fmr_remid.tri_locality = fom->fo_loc_idx;
 }
 
 bool m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item)
@@ -98,7 +99,9 @@ M0_EXPORTED(m0_rpc_item_generic_reply_rc);
 
 static bool fom_is_update(const struct m0_fom *fom)
 {
-	return m0_rpc_item_is_update(m0_fop_to_rpc_item(fom->fo_fop));
+	/* The rest of condition will always work for non-DTM0 services. */
+	return !m0_dtm0_is_a_volatile_dtm(fom->fo_service) &&
+		m0_rpc_item_is_update(m0_fop_to_rpc_item(fom->fo_fop));
 }
 
 /**
@@ -343,7 +346,14 @@ static int fom_failure(struct m0_fom *fom)
 
 	if (rc != 0) {
 		M0_LOG(M0_NOTICE, "fom_rc=%d", rc);
-		generic_reply_build(fom);
+		/*
+		 * A local fom does not have request fop or reply fop.
+		 */
+		if (fom->fo_fop != NULL && !fom->fo_local)
+			generic_reply_build(fom);
+		else
+			M0_LOG(M0_NOTICE, "fom_rc=%d. Local FOM has no fop/rpc",
+					 rc);
 	}
 	/*
 	 * If transaction was initialised, but not opened, finalise it.
@@ -443,7 +453,7 @@ M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom)
  * reply fop is cached until the changes are integrated
  * with the server.
  *
- * @pre fom->fo_rep_fop != NULL
+ * @pre fom->fo_rep_fop != NULL if fom is not local
  *
  * @todo Implement write back cache, during which we may perform updates on
  *       local objects and re-integrate with the server later, in that case we
@@ -452,16 +462,20 @@ M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom)
  */
 static int fom_queue_reply(struct m0_fom *fom)
 {
-	M0_PRE(fom->fo_rep_fop != NULL);
+	M0_ENTRY("fom=%p req=%p reply=%p local=%d",
+		  fom, fom->fo_fop, fom->fo_rep_fop, !!fom->fo_local);
+	if (!fom->fo_local) {
+		M0_PRE(fom->fo_rep_fop != NULL);
 
-	M0_LOG(M0_DEBUG, "request %p[%u], reply %p, reply->ri_error %d",
-	       m0_fop_to_rpc_item(fom->fo_fop),
-	       m0_fop_to_rpc_item(fom->fo_fop)->ri_type->rit_opcode,
-	       m0_fop_to_rpc_item(fom->fo_rep_fop),
-	       m0_fop_to_rpc_item(fom->fo_rep_fop)->ri_error);
-	if (!fom->fo_local)
+		M0_LOG(M0_DEBUG, "request %p[%u], reply %p, reply->ri_error %d",
+			m0_fop_to_rpc_item(fom->fo_fop),
+			m0_fop_to_rpc_item(fom->fo_fop)->ri_type->rit_opcode,
+			m0_fop_to_rpc_item(fom->fo_rep_fop),
+			m0_fop_to_rpc_item(fom->fo_rep_fop)->ri_error);
+
 		m0_rpc_reply_post(m0_fop_to_rpc_item(fom->fo_fop),
 				  m0_fop_to_rpc_item(fom->fo_rep_fop));
+	}
 	return M0_FSO_AGAIN;
 }
 

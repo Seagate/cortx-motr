@@ -345,7 +345,8 @@ M0_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
 	M0_PRE_EX(m0_rm_resource_find(rtype, res) == NULL);
 	res->r_type = rtype;
 	res_tlink_init_at(res, &rtype->rt_resources);
-	m0_remotes_tlist_init(&res->r_remote);
+	m0_remotes_tlist_init(&res->r_remotes);
+	m0_mutex_init(&res->r_mutex);
 	m0_owners_tlist_init(&res->r_local);
 	m0_rm_resource_bob_init(res);
 	M0_CNT_INC(rtype->rt_nr_resources);
@@ -365,7 +366,7 @@ M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res)
 	m0_mutex_lock(&rtype->rt_lock);
 	M0_PRE(res->r_ref == 0);
 	M0_PRE_EX(res_tlist_contains(&rtype->rt_resources, res));
-	M0_PRE(m0_remotes_tlist_is_empty(&res->r_remote));
+	M0_PRE(m0_remotes_tlist_is_empty(&res->r_remotes));
 	M0_PRE(m0_owners_tlist_is_empty(&res->r_local));
 	M0_PRE_EX(resource_type_invariant(rtype));
 
@@ -374,7 +375,7 @@ M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res)
 
 	M0_POST_EX(resource_type_invariant(rtype));
 	M0_POST_EX(!res_tlist_contains(&rtype->rt_resources, res));
-	m0_remotes_tlist_fini(&res->r_remote);
+	m0_remotes_tlist_fini(&res->r_remotes);
 	m0_owners_tlist_fini(&res->r_local);
 	m0_rm_resource_bob_fini(res);
 	m0_mutex_unlock(&rtype->rt_lock);
@@ -633,6 +634,7 @@ M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner      *owner,
 	owner_state_set(owner, ROS_ACTIVE);
 	m0_rm_owner_unlock(owner);
 	owner->ro_creditor = creditor;
+
 	m0_cookie_new(&owner->ro_id);
 	m0_mutex_lock(&res->r_type->rt_lock);
 	m0_owners_tlink_init_at_tail(owner, &res->r_local);
@@ -1098,6 +1100,9 @@ M0_INTERNAL void m0_rm_incoming_fini(struct m0_rm_incoming *in)
 {
 	M0_ENTRY();
 	M0_PRE(incoming_invariant(in));
+
+	if (in->rin_remote != NULL)
+		M0_RM_REMOTE_PUT(in->rin_remote);
 	/*
 	 * This is to lock sm group, which in fact is owner group, which in turn
 	 * is resource type group.
@@ -1240,8 +1245,10 @@ M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan         *loan,
 	m0_rm_credit_init(&loan->rl_credit, credit->cr_owner);
 	m0_rm_loan_bob_init(loan);
 	loan->rl_other = creditor;
-	if (loan->rl_other != NULL)
+	if (loan->rl_other != NULL) {
+		M0_RM_REMOTE_GET(loan->rl_other);
 		resource_get(loan->rl_other->rem_resource);
+	}
 
 	return M0_RC(m0_rm_credit_copy(&loan->rl_credit, credit));
 }
@@ -1253,8 +1260,10 @@ M0_INTERNAL void m0_rm_loan_fini(struct m0_rm_loan *loan)
 
 	M0_ENTRY("loan: %p", loan);
 	m0_rm_credit_fini(&loan->rl_credit);
-	if (loan->rl_other != NULL)
+	if (loan->rl_other != NULL) {
 		resource_put(loan->rl_other->rem_resource);
+		M0_RM_REMOTE_PUT(loan->rl_other);
+	}
 	loan->rl_id = 0;
 	m0_rm_loan_bob_fini(loan);
 	M0_LEAVE();
@@ -1283,8 +1292,13 @@ static void pending_outgoing_send(struct m0_rm_owner *owner,
 	M0_LEAVE();
 }
 
+/**
+ * rev_session_clink_cb() sends all revoke requests pending on the
+ * reverse session establishment.
+ */
 static bool rev_session_clink_cb(struct m0_clink *link)
 {
+	int                    rc;
 	struct m0_rm_remote   *remote;
 	struct m0_rm_resource *resource;
 	struct m0_rm_owner    *owner;
@@ -1295,9 +1309,11 @@ static bool rev_session_clink_cb(struct m0_clink *link)
 			rem_rev_sess_clink, &rem_bob);
 	resource = remote->rem_resource;
 
-	if (m0_rpc_session_status(remote->rem_session) != 0)
-		/* The connection has failed. Stop further processing. */
+	rc = m0_rpc_session_status(remote->rem_session);
+	if (rc != 0) {
+		M0_LEAVE("remote rev_session status is not good: rc=%d", rc);
 		return true;
+	}
 
 	/*
 	 * Do not break RM lock ordering.
@@ -1307,6 +1323,18 @@ static bool rev_session_clink_cb(struct m0_clink *link)
 	 * for the same owner is solved by m0_rm_outgoing::rog_sent flag.
 	 */
 	do {
+		/*
+		 * We are holding the channel lock here to which
+		 * rem_rev_sess_clink is linked, so m0_rm_remote_fini() in
+		 * another thread would block at m0_clink_cleanup().
+		 * From another side, that thread might hold the owner lock,
+		 * in which case we will get stuck in the loop here trying to
+		 * take the same. So we do this check to avoid the deadlock.
+		 */
+		if (remote->rem_state == REM_FREED) {
+			M0_LEAVE("remote is finalising");
+			break;
+		}
 		busy = false;
 		m0_mutex_lock(&resource->r_type->rt_lock);
 		m0_tl_for(m0_owners, &resource->r_local, owner) {
@@ -1339,11 +1367,45 @@ m0_rm_remote_find(struct m0_rm_remote_incoming *rem_in)
 {
 	struct m0_cookie      *cookie = &rem_in->ri_rem_owner_cookie;
 	struct m0_rm_resource *res = incoming_to_resource(&rem_in->ri_incoming);
+	struct m0_rm_remote   *rem;
 
 	M0_PRE(cookie != NULL);
 	M0_PRE(res != NULL);
-	return m0_tl_find(m0_remotes, other, &res->r_remote,
-			  m0_cookie_is_eq(&other->rem_cookie, cookie));
+	/* XXX is it scalable? */
+	m0_mutex_lock(&res->r_mutex);
+	rem = m0_tl_find(m0_remotes, other, &res->r_remotes,
+			 m0_cookie_is_eq(&other->rem_cookie, cookie));
+	if (rem != NULL)
+		M0_RM_REMOTE_GET(rem);
+	m0_mutex_unlock(&res->r_mutex);
+	return rem;
+}
+
+static void rm_remote_free(struct m0_ref *ref)
+{
+	struct m0_rm_remote *rem =
+	             container_of(ref, struct m0_rm_remote, rem_refcnt);
+	struct m0_rpc_session *sess = rem->rem_session;
+
+	/*
+	 * Free only those remotes who connected to us asking for
+	 * loans (i.e. debtors).
+	 */
+	M0_LOG(M0_DEBUG, "rem=%p refcnt=%d", rem,
+	       (int)m0_ref_read(&rem->rem_refcnt));
+	if (!m0_remotes_tlink_is_in(rem) || m0_ref_read(&rem->rem_refcnt) > 0)
+		return;
+
+	m0_remotes_tlist_del(rem);
+	m0_rm_remote_fini(rem);
+	m0_free(rem);
+
+	/*
+	 * Note: it seems the session can be NULL only in UTs here.
+	 * (In particular, at rm-ut:fom-funcs.)
+	 */
+	if (sess != NULL)
+		m0_rpc_service_reverse_session_put(sess);
 }
 
 M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote   *rem,
@@ -1359,6 +1421,7 @@ M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote   *rem,
 	m0_clink_init(&rem->rem_rev_sess_clink, rev_session_clink_cb);
 	m0_rm_ha_tracker_init(&rem->rem_tracker, rm_on_remote_death_cb);
 	m0_remotes_tlink_init(rem);
+	m0_ref_init(&rem->rem_refcnt, 0, rm_remote_free);
 	m0_rm_remote_bob_init(rem);
 	resource_get(res);
 	M0_LEAVE();
@@ -1367,29 +1430,33 @@ M0_EXPORTED(m0_rm_remote_init);
 
 M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem)
 {
+	struct m0_chan *conf_exp_chan = NULL;
+
 	M0_ENTRY("remote: %p", rem);
 	M0_PRE(rem != NULL);
 	M0_PRE(M0_IN(rem->rem_state, (REM_INITIALISED,
 				      REM_SERVICE_LOCATED,
 				      REM_OWNER_LOCATED)));
+	rem->rem_state = REM_FREED;
 	/*
 	 * It is possible that reverse session is not yet established,
 	 * because no revoke requests were sent to remote owner.
 	 */
 	m0_clink_cleanup(&rem->rem_rev_sess_clink);
 	m0_clink_fini(&rem->rem_rev_sess_clink);
-	rem->rem_state = REM_FREED;
 	m0_chan_fini_lock(&rem->rem_signal);
 
-	m0_rm_ha_unsubscribe_lock(&rem->rem_tracker);
+	if (m0_clink_is_armed(&rem->rem_tracker.rht_conf_exp))
+		conf_exp_chan = rem->rem_tracker.rht_conf_exp.cl_chan;
+	if (conf_exp_chan == NULL) {
+		m0_rm_ha_unsubscribe_lock(&rem->rem_tracker);
+	} else {
+		m0_chan_lock(conf_exp_chan);
+		m0_rm_ha_unsubscribe_lock(&rem->rem_tracker);
+		m0_chan_unlock(conf_exp_chan);
+	}
 	m0_rm_ha_tracker_fini(&rem->rem_tracker);
-	/*
-	 * Do nothing with rem->rem_session. If it was used to
-	 * borrow credits, then session is managed by user. If
-	 * it was used to revoke credits, then session is stored
-	 * in RPC service rps_rev_conns list and can be used by
-	 * other motr entities.
-	 */
+
 	m0_remotes_tlink_fini(rem);
 	resource_put(rem->rem_resource);
 	m0_rm_remote_bob_fini(rem);
@@ -1484,12 +1551,12 @@ static int cached_credits_remove(struct m0_rm_incoming *in)
 	return M0_RC(rc);
 }
 
-static inline struct m0_rm_resource_type *
+M0_UNUSED static inline struct m0_rm_resource_type *
 credit_to_resource_type(struct m0_rm_credit *credit) {
 	return credit->cr_owner->ro_resource->r_type;
 }
 
-static inline struct m0_rm_resource_type *
+M0_UNUSED static inline struct m0_rm_resource_type *
 rem_incoming_to_resource_type(struct m0_rm_remote_incoming *rem_in) {
 	return credit_to_resource_type(&rem_in->ri_incoming.rin_want);
 }
@@ -1506,6 +1573,15 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 		 (long long unsigned) INCOMING_CREDIT(in));
 	M0_PRE(in->rin_type == M0_RIT_BORROW);
 
+	debtor = m0_rm_remote_find(rem_in);
+	M0_ASSERT(debtor != NULL);
+	/*
+	 * The needed reference is taken at request_pre_process() already.
+	 * So we just compensate the reference from the above
+	 * m0_rm_remote_find() here.
+	 */
+	M0_RM_REMOTE_PUT(debtor);
+
 	/*
 	 * Allocate loan and copy the credit (to be borrowed).
 	 * Clear the credits cache and remove incoming credits from the cache.
@@ -1514,8 +1590,6 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 	 * If there are no pins, sublet within the same group has been
 	 * granted.
 	 */
-	debtor = m0_rm_remote_find(rem_in);
-	M0_ASSERT(debtor != NULL);
 	rc = m0_rm_loan_alloc(&loan, &in->rin_want, debtor) ?:
 		pi_tlist_is_empty(&in->rin_pins) ? 0 :
 		cached_credits_remove(in);
@@ -1617,29 +1691,29 @@ M0_EXPORTED(m0_rm_revoke_commit);
  *
  * This state machine reacts to the following external events:
  *
- *     - an incoming request from a local user;
+ *   - an incoming request from a local user;
  *
- *     - an incoming loan request from another domain;
+ *   - an incoming loan request from another domain;
  *
- *     - an incoming revocation request from another domain;
+ *   - an incoming revocation request from another domain;
  *
- *     - local user releases a pin on a credit (as a by-product of destroying an
- *       incoming request);
+ *   - local user releases a pin on a credit (as a by-product of destroying an
+ *     incoming request);
  *
- *     - completion of an outgoing request to another domain (including a
- *       timeout or a failure).
+ *   - completion of an outgoing request to another domain (including a
+ *     timeout or a failure).
  *
  * Any event is processed in a uniform manner:
  *
- *     - m0_rm_owner::ro_sm_grp Group lock is taken;
+ *   -# m0_rm_owner::ro_sm_grp Group lock is taken;
  *
- *     - m0_rm_owner lists are updated to reflect the event, see details
- *       below. This temporarily violates the owner_invariant();
+ *   -# m0_rm_owner lists are updated to reflect the event, see details
+ *      below. This temporarily violates the owner_invariant();
  *
- *     - owner_balance() is called to restore the invariant, this might create
- *       new imbalances and go through several iterations;
+ *   -# owner_balance() is called to restore the invariant, this might create
+ *      new imbalances and go through several iterations;
  *
- *     - m0_rm_owner::ro_sm_grp Group lock is released.
+ *   -# m0_rm_owner::ro_sm_grp Group lock is released.
  *
  * Event handling is serialised by the owner lock. It is not legal to wait for
  * networking or IO events under this lock.
@@ -2003,44 +2077,48 @@ static void incoming_check(struct m0_rm_incoming *in)
 
 	if (rc > 0) {
 		incoming_state_set(in, RI_WAIT);
-	} else {
-		/**
-		 * @todo
-		 * Here we introduce "thundering herd" problem, potentially
-		 * waking up all requests waiting for reserved credit.
-		 * It is necessary, because rio_conflict() won't be called for
-		 * 'in' if waiting requests are not woken up.
-		 */
-		barrier_pins_del(in);
-
-		if (rc == 0) {
-			M0_ASSERT(incoming_pin_nr(in, M0_RPF_TRACK) == 0);
-			incoming_policy_apply(in);
-			/*
-			 * Transfer the CACHED credits to HELD list. Later
-			 * it may be subsumed by policy functions (or
-			 * vice versa). Credits are held only for local
-			 * request. For remote requests, they are removed
-			 * and converted into loans.
-			 */
-			if (in->rin_type == M0_RIT_LOCAL)
-				rc = cached_credits_hold(in);
-		}
-		/*
-		 * Check if incoming request is complete. When there is
-		 * partial failure (with part of the request failing)
-		 * of incoming request, it's necessary to check that it's
-		 * complete (and there are no outstanding outgoing requests
-		 * pending against it). On partial failure put the request in
-		 * RI_WAIT state.
-		 */
-		if (incoming_is_complete(in))
-			incoming_complete(in, rc);
-		else {
-			in->rin_rc = rc;
-			incoming_state_set(in, RI_WAIT);
-		}
+		M0_LEAVE();
+		return;
 	}
+
+	/**
+	 * @todo
+	 * Here we introduce "thundering herd" problem, potentially
+	 * waking up all requests waiting for reserved credit.
+	 * It is necessary, because rio_conflict() won't be called for
+	 * 'in' if waiting requests are not woken up.
+	 */
+	barrier_pins_del(in);
+
+	if (rc == 0) {
+		M0_ASSERT(incoming_pin_nr(in, M0_RPF_TRACK) == 0);
+		incoming_policy_apply(in);
+		/*
+		 * Transfer the CACHED credits to HELD list. Later
+		 * it may be subsumed by policy functions (or
+		 * vice versa). Credits are held only for local
+		 * request. For remote requests, they are removed
+		 * and converted into loans.
+		 */
+		if (in->rin_type == M0_RIT_LOCAL)
+			rc = cached_credits_hold(in);
+	}
+
+	/*
+	 * Check if incoming request is complete. When there is
+	 * partial failure (with part of the request failing)
+	 * of incoming request, it's necessary to check that it's
+	 * complete (and there are no outstanding outgoing requests
+	 * pending against it). On partial failure put the request in
+	 * RI_WAIT state.
+	 */
+	if (incoming_is_complete(in)) {
+		incoming_complete(in, rc);
+	} else {
+		in->rin_rc = rc;
+		incoming_state_set(in, RI_WAIT);
+	}
+
 	M0_LEAVE();
 }
 
@@ -2605,6 +2683,10 @@ static int cancel_send(struct m0_rm_loan *loan)
 	return M0_RC(rc);
 }
 
+/**
+ * Debit the paid_loan from the list. Add the remnants (if any)
+ * back to the list.
+ */
 M0_INTERNAL int m0_rm_owner_loan_debit(struct m0_rm_owner *owner,
 				       struct m0_rm_loan  *paid_loan,
 				       struct m0_tl       *list)
@@ -2618,33 +2700,31 @@ M0_INTERNAL int m0_rm_owner_loan_debit(struct m0_rm_owner *owner,
 
 	M0_PRE(owner != NULL);
 	M0_PRE(paid_loan != NULL);
-	M0_ENTRY("credit: %llu",
+	M0_ENTRY("loan=%p credit: %llu", paid_loan,
 			(long long unsigned) paid_loan->rl_credit.cr_datum);
 
 	m0_rm_ur_tlist_init(&retain_list);
 	m0_rm_ur_tlist_init(&remove_list);
 	m0_tl_for (m0_rm_ur, list, cr) {
 		if (!cr->cr_ops->cro_intersects(&paid_loan->rl_credit, cr))
-			m0_rm_ur_tlist_move(&retain_list, cr);
-		else {
-			loan = bob_of(cr, struct m0_rm_loan,
-				      rl_credit, &loan_bob);
-			if (!m0_cookie_is_eq(&loan->rl_cookie,
-					     &paid_loan->rl_cookie)) {
-				m0_rm_ur_tlist_move(&retain_list, cr);
-				continue;
-			}
-			rc = remnant_loan_get(loan, &paid_loan->rl_credit,
-					      &remnant_loan);
-			if (rc == 0) {
-				if (credit_is_empty(&remnant_loan->rl_credit)) {
-					m0_rm_ur_tlist_move(&remove_list, cr);
-					m0_rm_ur_tlist_add(&remove_list,
-						&remnant_loan->rl_credit);
-				} else
-					m0_rm_ur_tlist_move(&retain_list, cr);
-			}
-		}
+			continue;
+
+		loan = bob_of(cr, struct m0_rm_loan, rl_credit, &loan_bob);
+
+		if (!m0_cookie_is_eq(&loan->rl_cookie, &paid_loan->rl_cookie))
+			continue;
+
+		rc = remnant_loan_get(loan, &paid_loan->rl_credit,
+				      &remnant_loan);
+		if (rc != 0)
+			break;
+
+		if (credit_is_empty(&remnant_loan->rl_credit))
+		    m0_rm_ur_tlist_add(&remove_list, &remnant_loan->rl_credit);
+		else
+		    m0_rm_ur_tlist_add(&retain_list, &remnant_loan->rl_credit);
+
+		m0_rm_ur_tlist_move(&remove_list, cr);
 	} m0_tl_endfor;
 	/*
 	 * On successful completion, remove the credits from the "remove-list"
@@ -2682,11 +2762,9 @@ M0_INTERNAL int granted_maybe_reserve(struct m0_rm_credit *granted,
 	m0_tl_for(pr, &granted->cr_pins, pin) {
 		M0_ASSERT(m0_rm_pin_bob_check(pin));
 		curr = pin->rp_incoming;
-		if (curr->rin_flags & RIF_RESERVE) {
-			if (best == NULL ||
-			    has_reserve_priority(curr, best))
-				best = curr;
-		}
+		if ((curr->rin_flags & RIF_RESERVE) &&
+		    (best == NULL || has_reserve_priority(curr, best)))
+			best = curr;
 	} m0_tl_endfor;
 
 	if (best == NULL)
@@ -2747,24 +2825,25 @@ M0_INTERNAL int m0_rm_loan_settle(struct m0_rm_owner *owner,
 	M0_PRE(loan != NULL);
 
 	rc = m0_rm_credit_dup(&loan->rl_credit, &cached) ?:
-	     granted_maybe_reserve(&loan->rl_credit, cached);
-	if (rc == 0) {
-		rc = m0_rm_owner_loan_debit(owner, loan, &owner->ro_sublet) ?:
-			loan_check(owner, &owner->ro_sublet, cached);
-		if (rc == 0 && !credit_is_empty(cached)) {
-			/* @todo */
-			cached->cr_group_id = m0_rm_no_group;
-			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
-					   cached);
-			M0_LOG(M0_INFO, "credit cached\n");
-		} else {
-			m0_free(cached);
-			if (rc != 0)
-				M0_LOG(M0_ERROR, "credit removal failed: "
-						 "rc [%d]\n", rc);
-		}
-	} else
-		M0_LOG(M0_ERROR, "credit allocation failed: rc [%d]\n", rc);
+             granted_maybe_reserve(&loan->rl_credit, cached);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "credit allocation failed: rc=%d", rc);
+		return M0_RC(rc);
+	}
+
+	rc = m0_rm_owner_loan_debit(owner, loan, &owner->ro_sublet) ?:
+	     loan_check(owner, &owner->ro_sublet, cached);
+	if (rc != 0 || credit_is_empty(cached)) {
+		m0_free(cached);
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "credit removal failed: rc=%d", rc);
+		return M0_RC(rc);
+	}
+
+	/* @todo */
+	cached->cr_group_id = m0_rm_no_group;
+	m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED], cached);
+	M0_LOG(M0_INFO, "credit cached");
 
 	return M0_RC(rc);
 }
@@ -3232,7 +3311,7 @@ M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
 	struct m0_rm_credit *credit;
 	int		     rc = -ENOMEM;
 
-	M0_ENTRY();
+	M0_ENTRY("src=%p", src_credit);
 	M0_PRE(src_credit != NULL);
 
 	M0_ALLOC_PTR(credit);

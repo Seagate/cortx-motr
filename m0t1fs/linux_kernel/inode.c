@@ -493,11 +493,17 @@ M0_INTERNAL struct inode *m0t1fs_iget(struct super_block *sb,
 	struct inode *inode;
 	unsigned long hash;
 	int           err = 0;
+	struct m0t1fs_sb *csb = M0T1FS_SB(sb);
 
 	M0_ENTRY();
 
 	hash = m0_fid_hash(fid);
 
+	if (m0_pools_common_active_rm_session(&csb->csb_pools_common) == NULL) {
+		err = M0_ERR(-EAGAIN);
+		M0_LEAVE();
+		return ERR_PTR(err);
+	}
 	/*
 	 * Search inode cache for an inode that has matching @fid.
 	 * Use m0t1fs_inode_test() to compare fid_s. If not found, allocate a

@@ -35,7 +35,7 @@ start_stop_m0d()
 	then
 		# Stop m0d
 		echo -n "Stopping m0d on controller ep $IOS_PVER2_EP "
-		m0d_pid=`pgrep -fn lt-m0d.+$IOS_PVER2_EP`
+		m0d_pid=`pgrep -fn m0d.+$IOS_PVER2_EP`
 		kill -TERM $m0d_pid >/dev/null 2>&1
 		# Wait util $m0d_pid is terminated
 		while ps -p $m0d_pid -o s= >/dev/null; do
@@ -469,8 +469,9 @@ m0t1fs_pool_version_assignment()
 	local unit=16 # Kbytes
 	local N=2
 	local K=1
+	local S=1
 	local P=6
-	motr_service start "$multiple_pools" $unit $N $K $P
+	motr_service start "$multiple_pools" $unit $N $K $S $P
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to start Motr Service."

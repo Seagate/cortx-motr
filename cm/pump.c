@@ -54,27 +54,27 @@ enum cm_cp_pump_fom_phase {
 	 * packet FOM, during latter's finalisation, which sets the
 	 * m0_cm_cp_pump::p_fom phase to CPP_ALLOC and calls m0_fom_wakeup().
 	 */
-	CPP_ALLOC = M0_FOM_PHASE_INIT,
-	CPP_FINI  = M0_FOM_PHASE_FINISH,
+	CPP_ALLOC = M0_FOM_PHASE_INIT,   /* 0 */
+	CPP_FINI  = M0_FOM_PHASE_FINISH, /* 1 */
 	/**
 	 * Copy packets allocated in CPP_ALLOC phase are configured in this
 	 * phase.
 	 */
-	CPP_DATA_NEXT,
+	CPP_DATA_NEXT,                   /* 2 */
 	/**
 	 * m0_cm_cp_pump::p_fom is transitioned to CPP_COMPLETE phase, once
 	 * m0_cm_data_next() returns -ENODATA (i.e. there's no more data to
 	 * process for the iterator).
 	 */
-	CPP_COMPLETE,
-	CPP_STOP,
+	CPP_COMPLETE,                    /* 3 */
+	CPP_STOP,                        /* 4 */
 	/**
 	 * Copy machine is notified about the failure, and m0_cm_cp_pump::p_fom
 	 * remains in CPP_FAIL state. Once copy machine handles the failure
 	 * pump FOM is resumed, else stopped if the copy machine operation is to
 	 * be terminated.
 	 */
-	CPP_FAIL,
+	CPP_FAIL,                        /* 5 */
 	CPP_NR
 };
 
@@ -117,6 +117,7 @@ static int cpp_alloc(struct m0_cm_cp_pump *cp_pump)
 {
 	struct m0_cm_cp *cp;
 	struct m0_cm    *cm;
+	M0_ENTRY();
 
 	cm  = pump2cm(cp_pump);
 	cp = cm->cm_ops->cmo_cp_alloc(cm);
@@ -128,7 +129,7 @@ static int cpp_alloc(struct m0_cm_cp_pump *cp_pump)
 		pump_move(cp_pump, 0, CPP_DATA_NEXT);
 	}
 
-	return M0_FSO_AGAIN;
+	return M0_RC(M0_FSO_AGAIN);
 }
 
 static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
@@ -144,7 +145,7 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 	m0_cm_lock(cm);
 	/* This operation might block. */
 	if (M0_FI_ENABLED("enodata")) {
-		rc = -ENODATA;
+		rc = M0_ERR(-ENODATA);
 		goto enodata;
 	}
 	rc = m0_cm_data_next(cm, cp);
@@ -190,21 +191,29 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 {
 	struct m0_cm *cm = pump2cm(cp_pump);
 	int           rc;
+	M0_ENTRY();
 
 	m0_cm_lock(cm);
+	M0_LOG(M0_DEBUG, "aggr in = %"PRIx64 " aggr out= %"PRIx64
+			 " swu complete= %d proxy_nr= %"PRIu64,
+			 cm->cm_aggr_grps_in_nr,
+			 cm->cm_aggr_grps_out_nr,
+			 !!cm->cm_sw_update.swu_is_complete,
+			 cm->cm_proxy_nr);
+
 	if (!m0_cm_aggr_group_tlists_are_empty(cm) ||
 	    !cm->cm_sw_update.swu_is_complete) {
 		if (cm->cm_proxy_nr == 0)
 			m0_cm_frozen_ag_cleanup(cm, NULL);
 		m0_cm_sw_remote_update(cm);
 		m0_cm_unlock(cm);
-		return M0_FSO_WAIT;
+		return M0_RC(M0_FSO_WAIT);
 	}
 
 	rc = m0_cm_complete(cm);
 	m0_cm_unlock(cm);
 	if (rc == -EAGAIN)
-		return M0_FSO_WAIT;
+		return M0_RC(M0_FSO_WAIT);
 
 	m0_clink_del_lock(&cp_pump->p_complete);
 	M0_LOG(M0_DEBUG, "pump completed. Stopping the CM");
@@ -221,6 +230,7 @@ static int cpp_stop(struct m0_cm_cp_pump *cp_pump)
 	struct m0_fom          *p_fom;
 	struct m0_dtx          *dtx;
 	int                     rc;
+	M0_ENTRY();
 
 	p_fom = &cp_pump->p_fom;
 
@@ -235,13 +245,13 @@ static int cpp_stop(struct m0_cm_cp_pump *cp_pump)
 	if (m0_be_tx_state(&dtx->tx_betx) == M0_BTS_FAILED) {
 		rc = dtx->tx_betx.t_sm.sm_rc;
 		pump_move(cp_pump, rc, CPP_FAIL);
-		return rc;
+		return M0_ERR(rc);
 	}
 	if (M0_IN(m0_be_tx_state(&dtx->tx_betx),
 		  (M0_BTS_GROUPING, M0_BTS_OPENING))) {
 		m0_fom_wait_on(p_fom, &dtx->tx_betx.t_sm.sm_chan,
 				&p_fom->fo_cb);
-		return M0_FSO_WAIT;
+		return M0_RC(M0_FSO_WAIT);
 	} else if (dtx->tx_state == M0_DTX_INIT) {
 		m0_dtx_opened(dtx);
 		/*
@@ -257,12 +267,12 @@ static int cpp_stop(struct m0_cm_cp_pump *cp_pump)
 	if (dtx->tx_state != M0_DTX_DONE) {
 		m0_fom_wait_on(p_fom, &dtx->tx_betx.t_sm.sm_chan, &p_fom->fo_cb);
 		m0_dtx_done(dtx);
-		return M0_FSO_WAIT;
+		return M0_RC(M0_FSO_WAIT);
 	} else {
 		if (m0_be_tx_state(&dtx->tx_betx) != M0_BTS_DONE) {
 			m0_fom_wait_on(p_fom, &dtx->tx_betx.t_sm.sm_chan,
 				       &p_fom->fo_cb);
-			return M0_FSO_WAIT;
+			return M0_RC(M0_FSO_WAIT);
 		}
 		m0_dtx_fini(dtx);
 	}
@@ -271,12 +281,13 @@ static int cpp_stop(struct m0_cm_cp_pump *cp_pump)
 	m0_clink_fini(&cp_pump->p_complete);
 	pump_move(cp_pump, 0, CPP_FINI);
 
-	return M0_FSO_WAIT;
+	return M0_RC(M0_FSO_WAIT);
 }
 
 static int cpp_fail(struct m0_cm_cp_pump *cp_pump)
 {
 	struct m0_cm *cm;
+	M0_ENTRY();
 
 	M0_PRE(cp_pump != NULL);
 
@@ -285,7 +296,7 @@ static int cpp_fail(struct m0_cm_cp_pump *cp_pump)
 	m0_cm_abort(cm, m0_fom_rc(&cp_pump->p_fom));
 	m0_cm_unlock(cm);
 	pump_move(cp_pump, 0, CPP_COMPLETE);
-	return M0_FSO_AGAIN;
+	return M0_RC(M0_FSO_AGAIN);
 }
 
 static struct m0_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
@@ -382,6 +393,8 @@ static int cm_cp_pump_fom_tick(struct m0_fom *fom)
 	struct m0_cm_cp_pump *cp_pump;
 	int                   phase = m0_fom_phase(fom);
 	int                   rc;
+	M0_ENTRY("fom=%p phase=%d(%s)",
+		 fom, phase, m0_fom_phase_name(fom, phase));
 
 	cp_pump = bob_of(fom, struct m0_cm_cp_pump, p_fom, &pump_bob);
 	M0_ASSERT(cm_cp_pump_invariant(cp_pump));
@@ -453,13 +466,14 @@ static bool pump_cb(struct m0_clink *link)
 	struct m0_cm_cp_pump *pump = container_of(link, struct m0_cm_cp_pump,
 						  p_complete);
 	struct m0_sm_group   *grp;
+	M0_ENTRY();
 
         grp = &pump->p_fom.fo_loc->fl_group;
         pump->p_wakeup.sa_cb = complete_wakeup;
 	if (pump->p_wakeup.sa_next == NULL)
 		m0_sm_ast_post(grp, &pump->p_wakeup);
 
-	return true;
+	return M0_RC(true);
 }
 
 M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)

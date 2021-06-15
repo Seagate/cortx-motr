@@ -52,7 +52,6 @@
 #include "lib/thread.h"         /* m0_process */
 
 #include "net/net.h"            /* M0_NET_TM_RECV_QUEUE_DEF_LEN */
-#include "net/lnet/lnet.h"      /* m0_net_lnet_xprt */
 #include "net/buffer_pool.h"    /* m0_net_buffer_pool */
 #include "fid/fid.h"            /* m0_fid */
 #include "module/instance.h"    /* m0 */
@@ -713,7 +712,7 @@ static int halon_interface_level_enter(struct m0_module *module)
 		return M0_RC(0);
 	case M0_HALON_INTERFACE_LEVEL_NET_DOMAIN:
 		return M0_RC(m0_net_domain_init(&hii->hii_net_domain,
-		                                &m0_net_lnet_xprt));
+		                                m0_net_xprt_default_get()));
 	case M0_HALON_INTERFACE_LEVEL_NET_BUFFER_POOL:
 		return M0_RC(m0_rpc_net_buffer_pool_setup(
 		                &hii->hii_net_domain, &hii->hii_net_buffer_pool,

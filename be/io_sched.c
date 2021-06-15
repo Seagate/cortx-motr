@@ -107,7 +107,7 @@ static void be_io_sched_launch_next(struct m0_be_io_sched *sched)
 		}
 		if (io != NULL && io->bio_ext.e_start == sched->bis_pos) {
 			sched->bis_io_in_progress = true;
-			M0_LOG(M0_DEBUG, "sched=%p io=%p pos=%lu",
+			M0_LOG(M0_DEBUG, "sched=%p io=%p pos=%"PRId64,
 			       sched, io, sched->bis_pos);
 			m0_be_io_launch(io, &io->bio_sched_op);
 		}

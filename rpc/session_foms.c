@@ -30,6 +30,7 @@
 #include "stob/stob.h"
 #include "net/net.h"
 #include "rpc/rpc_internal.h"
+#include "reqh/reqh_service.h"
 
 /**
    @addtogroup rpc_session
@@ -184,6 +185,7 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	struct m0_rpc_session                *session0;
 	struct m0_rpc_conn                   *conn;
 	struct m0_rpc_conn                   *est_conn;
+	struct m0_fid                        *uniq_fid;
 	static struct m0_fom_timeout         *fom_timeout = NULL;
 	int                                   rc;
 
@@ -207,6 +209,7 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 		/* don't touch not our timer (from resend) */
 		m0_fom_timeout_fini(fom_timeout);
 		m0_free(fom_timeout);
+		fom_timeout = NULL;
 		m0_fi_disable(__func__, "free-timer");
 	}
 
@@ -238,6 +241,7 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 		   See [4] at end of this function. */
 	}
 
+	uniq_fid = &fom->fo_service->rs_service_fid;
 	machine = item->ri_rmachine;
 	m0_rpc_machine_lock(machine);
 	est_conn = m0_rpc_machine_find_conn(machine, item);
@@ -266,7 +270,7 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 		rc = m0_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, machine,
 					  &header->osr_uuid);
 		if (rc == 0) {
-			conn->c_sender_id = m0_rpc_id_generate();
+			conn->c_sender_id = m0_rpc_id_generate(uniq_fid);
 			conn_state_set(conn, M0_RPC_CONN_ACTIVE);
 		}
 	}
@@ -321,6 +325,7 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 	struct m0_rpc_session                   *session;
 	struct m0_rpc_conn                      *conn;
 	struct m0_rpc_machine                   *machine;
+	struct m0_fid                           *uniq_fid;
 	int                                      rc;
 
 	M0_ENTRY("fom: %p", fom);
@@ -388,10 +393,11 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 		rc = M0_RC(-ECONNREFUSED);
 		goto out2;
 	}
+	uniq_fid = &fom->fo_service->rs_service_fid;
 	rc = m0_rpc_session_init_locked(session, conn);
 	if (rc == 0) {
 		do {
-			session->s_session_id = m0_rpc_id_generate();
+			session->s_session_id = m0_rpc_id_generate(uniq_fid);
 		} while (session->s_session_id <= SESSION_ID_MIN ||
 			 session->s_session_id >  SESSION_ID_MAX);
 		session_state_set(session, M0_RPC_SESSION_IDLE);

@@ -44,10 +44,12 @@ SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
 # Increase the maximum number of memory map areas a process may have.
 # m0d process may allocate and madvise() at least 2,000,000 memory map areas.
 # See MOTR-2171 for more details.
-# In WSL /proc/sys/vm/max_map_count is absent. See EOS-7296 for details.
-if [ -f /proc/sys/vm/max_map_count ]; then
-	$SUDO sysctl -q -w vm.max_map_count=30000000
-fi
+incr_mmap() {
+    # In WSL /proc/sys/vm/max_map_count is absent. See EOS-7296 for details.
+    if [ -f /proc/sys/vm/max_map_count ]; then
+        $SUDO sysctl -q -w vm.max_map_count=30000000
+    fi
+}
 
 die() { echo "$@" >&2; exit 1; }
 
@@ -87,6 +89,7 @@ _time() {
 }
 
 rundir_init() {
+    incr_mmap
     $SUDO rm -rf "$RUNDIR"  # Ouch!
     $SUDO mkdir -m 0777 -p "$RUNDIR"
     cd "$RUNDIR"
@@ -129,6 +132,11 @@ cmd_run_kut() {
     $SUDO "$M0_SRC_DIR/ut/m0kut" "$@"
 }
 
+cmd_run_ub() {
+    rundir_init
+    $SUDO "$M0_SRC_DIR/utils/m0run" m0ub -- "$@"
+}
+
 cmd_run_st() {
     local pattern
     local f
@@ -144,7 +152,7 @@ cmd_run_st() {
     fi
     for pattern in ${@:-[0-9][0-9]*}; do
         find "$M0_SRC_DIR/scripts/st.d/" -maxdepth 1 \! -type d -name $pattern \
-            -perm +a=x -print | sort |
+            -perm /a=x -print | sort |
             while read f; do
                 if [ $list_p -eq 1 ]; then
                     echo ${f##*/}
@@ -210,6 +218,9 @@ Commands:
 
     run-kut              Run kernel unit tests.
 
+    run-ub [OPTION]...   Run user-space unit benchmarking.
+                         OPTIONs are passed to 'ut/m0ub'.
+
     run-st [-l] [PATTERN]...
                          Run system tests or list ('-l') their names.
                          Optional arguments specify which tests to run:
@@ -253,7 +264,7 @@ OPTS=
 while [ $# -gt 0 ]; do
     case $1 in
         make|clean|rebuild|run-ut|run-kut|run-st|run-all|dist-check| \
-            check-everything|configure|help)
+            run-ub|check-everything|configure|help)
             [ -z "$CMD" ] || _exec $CMD $OPTS
             CMD=cmd_${1//-/_}
             OPTS=;;

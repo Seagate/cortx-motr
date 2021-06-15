@@ -151,3 +151,6 @@ MOTR_TRACED_KEEP_LOGS_NUM=2
 # for developers to quickly test their local changes w/o creating and installing
 # an rpm package each time.
 #MOTR_DEVEL_WORKDIR_PATH=/home/devvm/motr
+
+#MOTR ADDB Record default record size in bytes (128M)
+MOTR_MOD_ADDB_RECORD_SIZE=1073741824

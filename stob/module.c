@@ -22,7 +22,7 @@
 
 #include "stob/module.h"
 #include "module/instance.h"
-
+#if 0
 M0_UNUSED static int level_stob_enter(struct m0_module *module);
 M0_UNUSED static void level_stob_leave(struct m0_module *module);
 
@@ -43,6 +43,7 @@ M0_UNUSED static void level_stob_leave(struct m0_module *module)
 {
 	m0_stob_types_fini();
 }
+#endif
 
 M0_UNUSED M0_INTERNAL struct m0_stob_module *m0_stob_module__get(void)
 {

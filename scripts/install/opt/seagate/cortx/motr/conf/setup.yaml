@@ -17,26 +17,47 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-core:
-    post_install:
-        script: /usr/sbin/m0provision
-        args:
-            - post_install
-    init:
-        script: /usr/sbin/m0provision
-        args:
-            - init
-    config:
-        script: /usr/sbin/m0provision
-        args:
-            - config
-    test:
-        script: /usr/sbin/m0provision
-        args:
-            - test
-    reset:
-        script: /usr/sbin/m0provision
-        args:
-            - reset
+motr:
+
+  post_install:
+    cmd: /opt/seagate/cortx/motr/bin/motr_setup post_install
+    args: --config $URL
+
+  prepare:
+    cmd: /opt/seagate/cortx/motr/bin/motr_setup prepare
+    args: --config $URL
+
+  init:
+    cmd: /opt/seagate/cortx/motr/bin/motr_setup init
+    args: --config $URL
+
+  config:
+    cmd: /opt/seagate/cortx/motr/bin/motr_setup config
+    args: --config $URL
+
+  test:
+    cmd: /opt/seagate/cortx/motr/bin/motr_setup test
+    args: --config $URL
+
+  reset:
+    cmd: /opt/seagate/cortx/motr/bin/motr_setup reset
+    args: --config $URL
+
+  cleanup:
+    cmd: /opt/seagate/cortx/motr/bin/motr_setup cleanup
+    args: --config $URL
+
+  backup:
+    cmd: /opt/seagate/cortx/motr/bin/motr_setup backup
+    args: --location $END-POINT
+
+  restore:
+    cmd: /opt/seagate/cortx/motr/bin/motr_setup restore
+    args: --location $END-POINT
+
+  upgrade:
+    cmd: /opt/seagate/cortx/motr/bin/motr_setup upgrade
+    args: --config $URL
+
 support_bundle:
     - /opt/seagate/cortx/motr/libexec/m0reportbug-bundler

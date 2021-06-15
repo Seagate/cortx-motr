@@ -1,9 +1,29 @@
 #!/usr/bin/env bash
+#
+# Copyright (c) 2020-2021 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
 # set -x
+SCRIPT_START_TIME="$(date +"%s")"
 PROG=${0##*/}
 # Creating the log file under /var/log/seagate/motr
 now=$(date +"%Y_%m_%d__%H_%M_%S")
-LOG_DIR="/var/log/seagate/motr"
+LOG_DIR="/var/log/seagate/motr/datarecovery"
 mkdir -p $LOG_DIR
 LOG_FILE="$LOG_DIR/motr_data_recovery_$now.log"
 touch $LOG_FILE
@@ -12,6 +32,7 @@ SRC_DIR="$(dirname $(readlink -f $0))"
 # cortx-motr main dir path
 M0_SRC_DIR="${SRC_DIR%/*/*}"
 MD_DIR="/var/motr" # Meta Data Directory
+CRASH_DIR="/var/log/crash" #Crash Directory
 # beck utility path, update this path in get_utility_path() to change path
 BECKTOOL=
 # m0betool utility path, update this path in get_utility_path() to change path
@@ -47,13 +68,21 @@ REMOTE_NODE_RECOVERY_STATE=0 # To determine the recovery state of remote node
 # Path to dir on local node where we can access remote metadata dir if remote node failed
 FAILOVER_MD_DIR=
 beck_only=false # Run only becktool in the script
+clean_snapshot=false # Removes MD_Snapshot if present and create lv_main_swap again
 ESEGV=134 # Error code for segment fault
+EOOM=137 # Out Of Memory Exit code
 RSTATE0=0 # We do not need to perform any actions before starting recovery
 RSTATE2=2 # We need to do only create snapshot before starting recovery
 RSTATE3=3 # We need to do all operations such as fsck, replay logs, create snapshot before starting recovery
-CDF_FILENAME="/var/lib/hare/cluster.yaml" # Cluster defination file needed by prov-m0-reset script
+CDF_FILENAME="/var/lib/hare/cluster.yaml" # Cluster defination file used by prov-m0-reset
 # HA conf argument file needed by prov-m0-reset script
-HA_ARGS_FILENAME="/opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml"
+HA_ARGS_FILENAME="/opt/seagate/cortx/iostack-ha/conf/build-ha-args.yaml"
+SINGLE_NODE_RUNNING=  # Will be set if only one node is running.
+LOCAL_SEG_GEN_ID=0
+REMOTE_SEG_GEN_ID=0
+
+# Add path to utility m0-prov-reset
+PATH=$PATH:/opt/seagate/cortx/ha/conf/script/:.
 
 usage() {
     cat <<EOF
@@ -62,8 +91,10 @@ Usage: $PROG [--option]
 Master script for the motr data recovery.
 
 Optional parameters.
-    --beck-only     Performs only beck utility.
-    -h, --help      Shows this help text and exit.
+    --beck-only      Performs only beck utility. Use this option only when snapshot
+                     is already present on system.
+    --clean-snapshot Removes MD_Snapshot if present and create lv_main_swap again
+    -h, --help       Shows this help text and exit.
 
 ***Exit codes used by functions in script*** :
  - If a function is executed successfully on both local node
@@ -77,6 +108,7 @@ EOF
 TEMP=$(getopt --options h \
               --longoptions help \
               --longoptions beck-only \
+              --longoptions clean-snapshot \
               --name "$PROG" -- "$@" || true)
 
 (($? == 0)) || { echo "show usage"; exit 1; }
@@ -86,7 +118,8 @@ eval set -- "$TEMP"
 while true; do
     case "$1" in
         -h|--help)           usage; exit ;;
-        --beck-only)     beck_only=true; shift ;;
+        --beck-only)         beck_only=true; shift ;;
+        --clean-snapshot)    clean_snapshot=true; shift ;;
         --)                  shift; break ;;
         *)                   break ;;
     esac
@@ -126,23 +159,16 @@ is_ios_running_on_remote_node() {
     fi
 }
 
-# This function will initialize values of local and remote ioservices 
+# This function will initialize values of local and remote ioservices
 # fid variable.
 get_ios_fid() {
-    proc_id=$(/opt/seagate/cortx/hare/bin/consul kv get --recurse \
-              m0conf/nodes/$LOCAL_NODE/processes | grep ios | \
-              awk 'BEGIN {FS="/"} {print $5}')
-    LOCAL_IOS_FID=$(printf '0x7200000000000001:0x%x\n' $proc_id)
+    LOCAL_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$LOCAL_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
+    REMOTE_IOS_FID=$(cat  /etc/sysconfig/m0d-0x7200000000000001\:0x* | grep "$REMOTE_NODE" -B 1 | grep FID | cut -f 2 -d "="| tr -d \')
 
-    proc_id=$(/opt/seagate/cortx/hare/bin/consul kv get --recurse \
-              m0conf/nodes/$REMOTE_NODE/processes | grep ios | \
-              awk 'BEGIN {FS="/"} {print $5}')
-    REMOTE_IOS_FID=$(printf '0x7200000000000001:0x%x\n' $proc_id)
-
-    if [[ $LOCAL_IOS_FID == "0x7200000000000001:0x0" ]] || [[ $REMOTE_IOS_FID == "0x7200000000000001:0x0" ]];then
-        die "Cannot get the ioservice fids from consul, please make sure \
-            cluster is atleast up and consul is running"
+    if [[ $LOCAL_IOS_FID == "" ]] || [[ $REMOTE_IOS_FID == "" ]];then
+        die "Failed to get ioservice FIDs."
     fi
+
 }
 
 # The function will execute command on the local node
@@ -174,14 +200,14 @@ get_utility_path() {
         M0BETOOL=$M0_SRC_DIR/be/tool/m0betool
     else
         # use environmental path for utility e.g. /sbin/m0betool
-        M0BETOOL="m0betool" 
+        M0BETOOL="m0betool"
     fi
 }
 
 # The recovery state for local node in this function is based on the snapshot
 # presence as follows:
 # Recovery state is 3 if snapshot is not present and swap device is present then
-# all steps needed such as run_fsck, replay_logs, remove_swap
+# all steps needed such as run_fsck, replay_logs_and_get_gen_id_of_seg0, remove_swap
 # Recovery state is 2 if snapshot is not present and swap is not present then
 # only create_snapshot is needed
 # Recovery state is 0 if snapshot is already present
@@ -202,7 +228,7 @@ get_recovery_state_of_local_node() {
             if [ $(bc <<< "$MD_SIZE > $SWAP_SIZE") = 1 ]; then
                 die "ERROR: Metadata size is not less than swap size on local node !!"
             fi
-            (( state|=1 )); # run_fsck, replay_logs, remove_swap
+            (( state|=1 )); # run_fsck, replay_logs_and_get_gen_id_of_seg0, remove_swap
         fi
         (( state|=2 ));     # create snapshot
     fi
@@ -214,7 +240,7 @@ get_recovery_state_of_local_node() {
 # The recovery state for remote node in this function is based on the snapshot
 # presence as follows:
 # Recovery state is 3 if snapshot is not present and swap device is present then
-# all steps needed such as run_fsck, replay_logs, remove_swap, create_snapshot
+# all steps needed such as run_fsck, replay_logs_and_get_gen_id_of_seg0, remove_swap, create_snapshot
 # Recovery state is 2 if snapshot is not present and swap is not present then
 # only create_snapshot is needed
 # Recovery state is 0 if snapshot is already present
@@ -223,7 +249,7 @@ get_recovery_state_of_remote_node() {
     [[ $REMOTE_STORAGE_STATUS == 0 ]] && \
     test=$(run_cmd_on_remote_node "lvs -o name $REMOTE_MD_VOLUMEGROUP | grep $SNAPSHOT | awk '{ print \$1}'") || \
     test="$(lvs -o name $REMOTE_MD_VOLUMEGROUP | grep $SNAPSHOT | awk '{ print $1}')"
-    
+
     if [ "$test" != "$SNAPSHOT" ]; then
         [[ $REMOTE_STORAGE_STATUS == 0 ]] && \
         test=$(run_cmd_on_remote_node "lvs -o name $REMOTE_MD_VOLUMEGROUP | grep $SWAP_DEVICE | awk '{ print \$1}'") || \
@@ -247,7 +273,7 @@ get_recovery_state_of_remote_node() {
             if [ $(bc <<< "$MD_SIZE > $SWAP_SIZE") = 1 ]; then
                 die "ERROR: Metadata size is not less than swap size on remote node !!"
             fi
-            (( state|=1 )); # run_fsck, replay_logs, remove_swap
+            (( state|=1 )); # run_fsck, replay_logs_and_get_gen_id_of_seg0, remove_swap
         fi
         (( state|=2 ));     # create snapshot
     fi
@@ -269,10 +295,10 @@ get_cluster_configuration() {
         LOCAL_NODE="srvnode-1"
         REMOTE_NODE="srvnode-2"
         # Path for metadata device for local node
-        LOCAL_MOTR_DEVICE=$(grep left-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+        LOCAL_MOTR_DEVICE=$(grep left-volume $HA_ARGS_FILENAME |\
                             awk '{ print $2 }')
         # Path for metadata device for remote node
-        REMOTE_MOTR_DEVICE=$(grep right-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+        REMOTE_MOTR_DEVICE=$(grep right-volume $HA_ARGS_FILENAME |\
                             awk '{ print $2 }')
 
         FAILOVER_MD_DIR="/var/motr2"
@@ -282,10 +308,10 @@ get_cluster_configuration() {
         LOCAL_NODE="srvnode-2"
         REMOTE_NODE="srvnode-1"
         # Path for metadata device for local node
-        LOCAL_MOTR_DEVICE=$(grep right-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+        LOCAL_MOTR_DEVICE=$(grep right-volume $HA_ARGS_FILENAME |\
                             awk '{ print $2 }')
         # Path for metadata device for remote node
-        REMOTE_MOTR_DEVICE=$(grep left-volume /opt/seagate/cortx/ha/conf/build-ees-ha-args.yaml |\
+        REMOTE_MOTR_DEVICE=$(grep left-volume $HA_ARGS_FILENAME |\
                             awk '{ print $2 }')
 
         FAILOVER_MD_DIR="/var/motr1"
@@ -330,6 +356,8 @@ get_cluster_configuration() {
         REMOTE_STORAGE_STATUS=1
         REMOTE_LV_SWAP_DEVICE="$(lvs -o path $REMOTE_MD_VOLUMEGROUP | grep $SWAP_DEVICE | awk '{ print $1 }' )"
         REMOTE_LV_MD_DEVICE="$(lvs -o path $REMOTE_MD_VOLUMEGROUP | grep $MD_DEVICE | awk '{ print $1 }')"
+        SINGLE_NODE_RUNNING='--single-node'
+
     else
         # remote ios is failed, can't access the remote storage, recovery not possible on this node
         die "***ERROR: Remote ioservice is not running and cannot access the remote storage, \
@@ -382,7 +410,7 @@ reinit_mkfs() {
 
     # command line for reinit cluster with mkfs
     m0drlog "Reinitializing the cluster with mkfs, Please wait may take few minutes"
-    run_cmd_on_local_node "./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --mkfs-only"
+    run_cmd_on_local_node "set M0_RESET_LOG_FILE=$LOG_FILE; prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --mkfs-only $SINGLE_NODE_RUNNING; unset M0_RESET_LOG_FILE"
     [[ $? -eq 0 ]] || die "***ERROR: Cluster reinitialization with mkfs failed***"
     m0drlog "Cluster reinitialization with mkfs is completed"
     sleep 3
@@ -399,9 +427,10 @@ reinit_mkfs() {
 #   will return 3.
 
 # This function will replay the logs on both nodes.
+# This function will also get the generation id from segment 0.
 # If mount has failed after fsck then logs cannot be replayed.
 # arg passed to this function is exit status of run_fsck()
-replay_logs() {
+replay_logs_and_get_gen_id_of_seg0() {
     local exec_status=0
 
     # m0betool and m0beck depend on motr-kernel service so we try to get service up;
@@ -413,6 +442,7 @@ replay_logs() {
             systemctl start motr-kernel.service; exit_code=$?;
             [[ $exit_code == 0 ]] && break; (( cnt+=1 ));
         done
+        sleep 10
         [[ `systemctl is-active motr-kernel.service` == "active" ]] || \
         die "motr-kernel service is not starting on local node, cannot proceed recovery further."
     fi
@@ -423,7 +453,8 @@ replay_logs() {
             run_cmd_on_remote_node "systemctl start motr-kernel.service"; exit_code=$?;
             [[ $exit_code == 0 ]] && break; (( cnt+=1 ));
         done
-        if ! run_cmd_on_remote_node "[[ `systemctl is-active motr-kernel.service` == 'active' ]]";then
+        sleep 10
+        if ! run_cmd_on_remote_node "[[ \`systemctl is-active motr-kernel.service\` == 'active' ]]";then
             die "motr-kernel service is not starting on remote node, cannot proceed recovery further."
         fi
     fi
@@ -434,32 +465,59 @@ replay_logs() {
     if [[ $LOCAL_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
         if [[ $1 == 0 || $1 == 2 ]]; then
             m0drlog "Replaying journal logs on local node"
-            if run_cmd_on_local_node "$M0BETOOL \
-                be_recovery_run $MD_DIR/m0d-$LOCAL_IOS_FID/db"; then
+            if run_cmd_on_local_node "(cd $MD_DIR/datarecovery; $M0BETOOL \
+                be_recovery_run $MD_DIR/m0d-$LOCAL_IOS_FID/db;)"; then
                 m0drlog "Journal logs replayed successfully on local node"
             else
                 m0drlog "ERROR: Journal logs replay failed on local node"
                 (( exec_status|=1));
             fi
+
+            m0drlog "Get generation id of local node from segment 1"
+            LOCAL_SEG_GEN_ID="$($BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:2a -p)"
+            LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+
+            if [[ $LOCAL_SEG_GEN_ID -eq 0 ]]; then
+                m0drlog "Get generation id of local node from segment 0"
+                LOCAL_SEG_GEN_ID="$($BECKTOOL -s $MD_DIR/m0d-$LOCAL_IOS_FID/db/o/100000000000000:29 -p)"
+                LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+            fi
+            echo "segment genid : ($LOCAL_SEG_GEN_ID)"  >  $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id
         else
             m0drlog "ERROR: Mount failed! Can't replay journal logs on local node..."
             (( exec_status|=1));
         fi
+    else
+        if run_cmd_on_local_node "[[ -f $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id ]]"; then
+            LOCAL_SEG_GEN_ID=$(run_cmd_on_local_node  "cat $MD_DIR/m0d-$LOCAL_IOS_FID/gen_id | grep 'segment genid'")
+            LOCAL_SEG_GEN_ID=$(echo $LOCAL_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+        fi
     fi
-
     # Check if the fsck is passed on remote node successfully or not
     # Here arg1 value as 0, states fsck passed on both local and remote node
     # Here arg1 value as 1, states fsck failed on local node but passed on remote node
     if [[ $REMOTE_STORAGE_STATUS == 0 ]] && [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
         if [[ $1 == 0 || $1 == 1 ]]; then
             m0drlog "Replaying journal logs on remote node"
-            if run_cmd_on_remote_node "$M0BETOOL \
-                be_recovery_run $MD_DIR/m0d-$REMOTE_IOS_FID/db"; then
+            if run_cmd_on_remote_node "(cd $MD_DIR/datarecovery; $M0BETOOL \
+                be_recovery_run $MD_DIR/m0d-$REMOTE_IOS_FID/db;)"; then
                 m0drlog "Journal logs replayed successfully on remote node"
             else
                 m0drlog "ERROR: Journal logs replay failed on remote node"
                 (( exec_status|=2));
             fi
+
+            m0drlog "Get generation id of remote node from segment 1"
+            REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node "$BECKTOOL -s $MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:2a -p")
+            REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+
+            if [[ $REMOTE_SEG_GEN_ID -eq 0 ]]; then
+                  m0drlog "Get generation id of remote node from segment 0"
+                  REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node "$BECKTOOL -s $MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:29 -p")
+                  REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+            fi
+
+            run_cmd_on_remote_node "echo \"segment genid : ($REMOTE_SEG_GEN_ID)\"  > $MD_DIR/m0d-$REMOTE_IOS_FID/gen_id"
         else
             m0drlog "ERROR: Mount failed! Can't replay journal logs on remote node..."
             (( exec_status|=2));
@@ -467,45 +525,66 @@ replay_logs() {
     elif [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
         if [[ $1 == 0 || $1 == 1 ]]; then
             m0drlog "Replaying journal logs for remote node from local node"
-            if run_cmd_on_local_node "$M0BETOOL \
-                be_recovery_run $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db"; then
+            if run_cmd_on_local_node "(cd $FAILOVER_MD_DIR/datarecovery; $M0BETOOL \
+                be_recovery_run $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db;)"; then
                 m0drlog "Journal logs replayed successfully for remote node from local node"
             else
                 m0drlog "ERROR: Journal logs replay failed for remote node"
                 (( exec_status|=2));
             fi
+
+            m0drlog "Get generation id of remote node from segment 1"
+            REMOTE_SEG_GEN_ID="$($BECKTOOL -s $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:2a -p)"
+            REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+            if [[ $REMOTE_SEG_GEN_ID -eq 0 ]]; then
+                m0drlog "Get generation id of remote node from segment 0"
+                REMOTE_SEG_GEN_ID="$($BECKTOOL -s $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/db/o/100000000000000:29 -p)"
+                REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+            fi
+            echo "segment genid : ($REMOTE_SEG_GEN_ID)"  >  $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/gen_id
         else
             m0drlog "ERROR: Mount failed! Can't replay journal logs on remote node..."
             (( exec_status|=2));
         fi
+    elif [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
+        if run_cmd_on_remote_node "[[ -f $MD_DIR/m0d-$REMOTE_IOS_FID/gen_id ]]"; then
+            REMOTE_SEG_GEN_ID=$(run_cmd_on_remote_node  "cat $MD_DIR/m0d-$REMOTE_IOS_FID/gen_id | grep 'segment genid'")
+            REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+        fi
+    else
+        if run_cmd_on_local_node "[[ -f $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/gen_id ]]"; then
+            REMOTE_SEG_GEN_ID=$(run_cmd_on_local_node  "cat $FAILOVER_MD_DIR/m0d-$REMOTE_IOS_FID/gen_id | grep 'segment genid'")
+            REMOTE_SEG_GEN_ID=$(echo $REMOTE_SEG_GEN_ID | cut -d "(" -f2 | cut -d ")" -f1)
+        fi
     fi
 
+    [[ $LOCAL_SEG_GEN_ID  -eq 0 ]] && [[ $REMOTE_SEG_GEN_ID -eq 0 ]] && die "Segment header not found"
+    [[ $LOCAL_SEG_GEN_ID  -ne 0 ]] || LOCAL_SEG_GEN_ID=$REMOTE_SEG_GEN_ID
+    [[ $REMOTE_SEG_GEN_ID -ne 0 ]] || REMOTE_SEG_GEN_ID=$LOCAL_SEG_GEN_ID
     return $exec_status
 }
 
-# This function unmount the Metadata device (if it is already mounted) and run fsck tool on it. 
+# This function unmount the Metadata device (if it is already mounted) and run fsck tool on it.
 # After fsck, if mount has failed for Metadata Device then then we format
 # Metadata device with mkfs.ext4 and mount it again.
 run_fsck() {
     local exec_status=0
-    
-    if [[ $LOCAL_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
-        if mountpoint -q $MD_DIR; then
-            if ! umount $MD_DIR; then
-                die "MD Device might be busy on local node, please try shutting \
-                    down cluster and retry"
-            fi
-            m0drlog "Running fsck on local node"
-            run_cmd_on_local_node "timeout 5m fsck -y $LOCAL_MOTR_DEVICE"
-            [[ $? -eq 0 ]] || m0drlog "ERROR: fsck command failed on local node"
-        else
-            m0drlog "MD device is not mounted on local node. Running fsck on local node."
-            run_cmd_on_local_node "timeout 5m fsck -y $LOCAL_MOTR_DEVICE"
-            [[ $? -eq 0 ]] || m0drlog "ERROR: fsck command failed on local node"
+
+    if mountpoint -q $MD_DIR; then
+        if ! umount $MD_DIR; then
+            die "MD Device might be busy on local node, please try shutting \
+                down cluster and retry"
         fi
+        m0drlog "Running fsck on local node"
+        run_cmd_on_local_node "timeout 5m fsck -y $LOCAL_MOTR_DEVICE"
+        [[ $? -eq 0 ]] || m0drlog "ERROR: fsck command failed on local node"
+    else
+        m0drlog "MD device is not mounted on local node. Running fsck on local node."
+        run_cmd_on_local_node "timeout 5m fsck -y $LOCAL_MOTR_DEVICE"
+        [[ $? -eq 0 ]] || m0drlog "ERROR: fsck command failed on local node"
     fi
 
-    if [[ $REMOTE_STORAGE_STATUS == 0 ]] && [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
+    if [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
         if run_cmd_on_remote_node "mountpoint -q $MD_DIR"; then
             if ! run_cmd_on_remote_node "umount $MD_DIR"; then
                 die "MD Device might be busy on remote node, please try shutting \
@@ -519,7 +598,7 @@ run_fsck() {
             run_cmd_on_remote_node "timeout 5m fsck -y $REMOTE_MOTR_DEVICE"
             [[ $? -eq 0 ]] || m0drlog "ERROR : fsck command failed on remote node"
         fi
-    elif [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
+     else
         if run_cmd_on_local_node "mountpoint -q $FAILOVER_MD_DIR"; then
             if ! run_cmd_on_local_node "umount $FAILOVER_MD_DIR"; then
                 die "MD Device of remote node might be busy on local node, please try shutting \
@@ -536,22 +615,29 @@ run_fsck() {
     fi
 
     # Try to mount the metadata device on /var/motr on both nodes
-    if [[ $LOCAL_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
-        if ! run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR"; then
-            run_cmd_on_local_node "mkfs.ext4 $LOCAL_MOTR_DEVICE"
-            run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR"
-            (( exec_status|=1));
-        fi
+    if run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR"; then
+        # create directory "datarecovery" in /var/motr if not exist to store traces
+        run_cmd_on_local_node "mkdir -p $MD_DIR/datarecovery"
+    else
+        run_cmd_on_local_node "mkfs.ext4 $LOCAL_MOTR_DEVICE"
+        run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR"
+        (( exec_status|=1));
     fi
 
-    if [[ $REMOTE_STORAGE_STATUS == 0 ]] && [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
-        if ! run_cmd_on_remote_node "mount $REMOTE_MOTR_DEVICE $MD_DIR"; then
+    if [[ $REMOTE_STORAGE_STATUS == 0 ]] ; then
+        if run_cmd_on_remote_node "mount $REMOTE_MOTR_DEVICE $MD_DIR"; then
+            # create directory "datarecovery" in /var/motr if not exist to store traces
+            run_cmd_on_remote_node "mkdir -p $MD_DIR/datarecovery"
+        else
             run_cmd_on_remote_node "mkfs.ext4 $REMOTE_MOTR_DEVICE"
             run_cmd_on_remote_node "mount $REMOTE_MOTR_DEVICE $MD_DIR"
             (( exec_status|=2));
         fi
-    elif [[ $REMOTE_NODE_RECOVERY_STATE == $RSTATE3 ]]; then
-        if ! run_cmd_on_local_node "mount $REMOTE_MOTR_DEVICE $FAILOVER_MD_DIR"; then
+    else
+        if run_cmd_on_local_node "mount $REMOTE_MOTR_DEVICE $FAILOVER_MD_DIR"; then
+            # create directory "datarecovery" in /var/motr if not exist to store traces
+            run_cmd_on_local_node "mkdir -p $FAILOVER_MD_DIR/datarecovery"
+        else
             run_cmd_on_local_node "mkfs.ext4 $REMOTE_MOTR_DEVICE"
             run_cmd_on_local_node "mount $REMOTE_MOTR_DEVICE $FAILOVER_MD_DIR"
             (( exec_status|=2));
@@ -619,6 +705,7 @@ remove_snapshot() {
     m0drlog "Running remove snapshot on local node"
     run_cmd_on_local_node "pvscan --cache"; # Ensure that volumes configs are synced
     LV_SNAPSHOT="$( lvs -o path $LOCAL_MD_VOLUMEGROUP | grep $SNAPSHOT )"
+
     run_cmd_on_local_node "lvremove -f $LV_SNAPSHOT"
     [[ $? -eq 0 ]] || { (( exec_status|=1)); }
 
@@ -689,12 +776,38 @@ cleanup_stobs_dir() {
     [[ $REMOTE_STORAGE_STATUS -eq 0 ]] || run_cmd_on_local_node "umount $FAILOVER_MD_DIR" > /dev/null
 }
 
-# The return statements between { .. }& are to indicate the exit status of 
+#The following command gives us the file count on the particular node.
+#It takes 3 parameters as input
+#1. filetype : The type of file whose quantity we want to count. Example "m0trace"
+#2. directory : The location where the files of filetype are stored. Example "/var/motr/datarecovery"
+#3. start_time : The time in seconds since epoch when the script has started its execution.
+get_file_count() {
+    local file_type=$1
+    local directory=$2
+    local start_time=$3
+    filecount="$(cd $directory; find . -type f -exec stat  -c "%n %Y" {} \;| sort -n | grep $file_type | awk '{if($2>"'$start_time'") print $2; }' | wc -l)"
+    echo "$filecount"
+}
+
+#The following command is used to remove the latest file generated in the given directory
+#It takes 2 parameters as input
+#1. filetype : The type of file which is to be removed. Example "m0trace"
+#2. directory : The location where the files of filetype are stored. Example "/var/motr/datarecovery"
+remove_last_file_generated() {
+    local file_type=$1
+    local directory=$2
+    filename="$(cd $directory; ls -ltr | grep $file_type | awk '{print $9}' | tail -n 1)"
+    echo "$filename"
+    rm -f "$directory/$filename"
+}
+
+# The return statements between { .. }& are to indicate the exit status of
 # child/background process that is spawned not for the function exit status.
 # This function will run beck tool on both nodes
 run_becktool() {
     local exec_status=0
-
+    max_core_file_count=2
+    max_trace_file_count=3
     # m0betool and m0beck depend on motr-kernel service so we try to get service up;
     # if this service does not start in 3 attempt on local node and remote node
     # then we cannot proceed further in the recovery.
@@ -703,6 +816,7 @@ run_becktool() {
         systemctl start motr-kernel.service; exit_code=$?;
         [[ $exit_code == 0 ]] && break; (( cnt+=1 ));
     done
+    sleep 10
     [[ `systemctl is-active motr-kernel.service` == "active" ]] || \
     die "motr-kernel service is not starting on local node, cannot proceed recovery further."
 
@@ -712,7 +826,8 @@ run_becktool() {
             run_cmd_on_remote_node "systemctl start motr-kernel.service"; exit_code=$?;
             [[ $exit_code == 0 ]] && break; (( cnt+=1 ));
         done
-        if ! run_cmd_on_remote_node "[[ `systemctl is-active motr-kernel.service` == 'active' ]]";then
+        sleep 10
+        if ! run_cmd_on_remote_node "[[ \`systemctl is-active motr-kernel.service\` == 'active' ]]";then
         die "motr-kernel service is not starting on remote node, cannot proceed recovery further."
         fi
     fi
@@ -721,17 +836,23 @@ run_becktool() {
     if ! mountpoint -q $MD_DIR; then
         run_cmd_on_local_node "mount $LOCAL_MOTR_DEVICE $MD_DIR";
         [[ $? -eq 0 ]] || die "Cannot mount metadata device on /var/motr on local node"
+        # create directory "datarecovery" in /var/motr if not exist to store traces
+        run_cmd_on_local_node "mkdir -p $MD_DIR/datarecovery"
     fi
 
     if [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
         if ! run_cmd_on_remote_node "mountpoint -q $MD_DIR"; then
             run_cmd_on_remote_node "mount $REMOTE_MOTR_DEVICE $MD_DIR";
             [[ $? -eq 0 ]] || die "Cannot mount metadata device on /var/motr on remote node"
+            # create directory "datarecovery" in /var/motr if not exist to store traces
+            run_cmd_on_remote_node "mkdir -p $MD_DIR/datarecovery"
         fi
     else
         if ! mountpoint -q $FAILOVER_MD_DIR; then
             run_cmd_on_local_node "mount $REMOTE_MOTR_DEVICE $FAILOVER_MD_DIR"
             [[ $? -eq 0 ]] || die "Cannot mount metadata device on failover dir on local node"
+            # create directory "datarecovery" in /var/motr if not exist to store traces
+            run_cmd_on_local_node "mkdir -p $FAILOVER_MD_DIR/datarecovery"
         fi
     fi
 
@@ -744,14 +865,36 @@ run_becktool() {
         DEST_DOMAIN_DIR="$MD_DIR/m0d-$LOCAL_IOS_FID"
 
         m0drlog "Running Becktool on local node"
-        run_cmd_on_local_node "$BECKTOOL -s $SOURCE_IMAGE \
-                               -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs"
+        run_cmd_on_local_node "(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                               -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $LOCAL_SEG_GEN_ID \
+                               -r $MD_DIR/scan_offset;)"
         cmd_exit_status=$?
-        # restart the execution of command if exit code is ESEGV error
-        while [[ $cmd_exit_status == $ESEGV ]];
+        # restart the execution of command if exit code is ESEGV or OOM error
+        while [[ $cmd_exit_status == $ESEGV ]] || [[ $cmd_exit_status == $EOOM ]];
         do
-            run_cmd_on_local_node "$BECKTOOL -s $SOURCE_IMAGE \
-                                   -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs"
+            #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash( receiving SEGV signal ), to 2 each.
+            core_m0beck_file_count=$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
+            echo "File count value $core_m0beck_file_count"
+
+            if [[ $core_m0beck_file_count -gt $max_core_file_count ]]; then
+                    echo "Deleting core m0beck extra file $core_m0beck_file_count"
+                    rem_file=$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
+                    echo "$rem_file"
+            fi
+            
+            m0trace_file_count=$(get_file_count "m0trace" "$MD_DIR/datarecovery" "$SCRIPT_START_TIME")
+            echo "File count value $m0trace_file_count"
+            if [[ $m0trace_file_count -gt $max_trace_file_count ]]; then
+                    echo "Deleting core m0beck extra file $m0trace_file_count"
+                    rem_file=$(remove_last_file_generated "m0trace" "$MD_DIR/datarecovery")
+                    echo "$rem_file"
+            fi
+            #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
+
+            m0drlog "Restarting Becktool on local node"
+            run_cmd_on_local_node "(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                                   -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs -g $LOCAL_SEG_GEN_ID \
+                                   -r $MD_DIR/scan_offset -R;)"
             cmd_exit_status=$?
         done
 
@@ -771,16 +914,56 @@ run_becktool() {
 
             m0drlog "Running Becktool on remote node"
             # Below statement is for logging purpose
-            echo "Running '$BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs'" >> ${LOG_FILE}
+            echo "Running '(cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                            -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
+                            -g $REMOTE_SEG_GEN_ID -r $MD_DIR/scan_offset;)'" \
+                            >> ${LOG_FILE}
             run_cmd_on_remote_node "bash -s" <<-EOF
-            $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs
+            (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+             -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
+             -g $REMOTE_SEG_GEN_ID -r $MD_DIR/scan_offset;)
 EOF
             cmd_exit_status=$?
-            # restart the execution of command if exit code is ESEGV error
-            while [[ $cmd_exit_status == $ESEGV ]];
+            # restart the execution of command if exit code is ESEGV or OOM error
+            while [[ $cmd_exit_status == $ESEGV ]] || [[ $cmd_exit_status == $EOOM ]];
             do
+
+                #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash ( receiving SEGV signal ), to 2 each.
+                run_cmd_on_remote_node "bash -s" <<EOF
+                $(typeset -f get_file_count)
+                $(typeset -f remove_last_file_generated)
+                export -f get_file_count
+                export -f remove_last_file_generated
+                $(declare -x CRASH_DIR)
+                $(declare -x MD_DIR)
+                $(declare -x SCRIPT_START_TIME)
+                $(declare -x max_core_file_count)
+                $(declare -x max_trace_file_count)
+
+                core_m0beck_file_count=\$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
+                echo "File count value \$core_m0beck_file_count"
+
+                if [[ \$core_m0beck_file_count -gt $max_core_file_count ]]; then
+                        echo "Deleting core m0beck extra file \$core_m0beck_file_count"
+                        rem_file=\$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
+                        echo "\$rem_file"
+                fi
+                
+                m0trace_file_count=\$(get_file_count "m0trace" "$MD_DIR/datarecovery" "$SCRIPT_START_TIME")
+                echo "File count value \$m0trace_file_count"
+                if [[ \$m0trace_file_count -gt $max_trace_file_count ]]; then
+                        echo "Deleting core m0beck extra file \$m0trace_file_count"
+                        rem_file=\$(remove_last_file_generated "m0trace" "$MD_DIR/datarecovery")
+                        echo "\$rem_file"
+                fi
+EOF
+            #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
+
+                m0drlog "Restarting Becktool on remote node"
                 run_cmd_on_remote_node "bash -s" <<-EOF
-                $BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs
+                (cd $MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                 -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
+                 -g $REMOTE_SEG_GEN_ID -r $MD_DIR/scan_offset -R;)
 EOF
                 cmd_exit_status=$?
             done
@@ -795,15 +978,39 @@ EOF
 
             m0drlog "Running Becktool for remote node from local node"
             # Below statement is for logging purpose
-            echo "Running '$BECKTOOL -s $SOURCE_IMAGE -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs'" >> ${LOG_FILE}
-            run_cmd_on_local_node "$BECKTOOL -s $SOURCE_IMAGE \
-                                   -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs"
+            echo "Running '(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                            -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
+                            -g $REMOTE_SEG_GEN_ID -r $FAILOVER_MD_DIR/scan_offset;)'" >> ${LOG_FILE}
+            run_cmd_on_local_node "(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                                    -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
+                                    -g $REMOTE_SEG_GEN_ID -r $FAILOVER_MD_DIR/scan_offset;)"
             cmd_exit_status=$?
-            # restart the execution of command if exit code is ESEGV error
-            while [[ $cmd_exit_status == $ESEGV ]];
+            # restart the execution of command if exit code is ESEGV or OOM error
+            while [[ $cmd_exit_status == $ESEGV ]] || [[ $cmd_exit_status == $EOOM ]];
             do
-                run_cmd_on_local_node "$BECKTOOL -s $SOURCE_IMAGE \
-                                       -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs"
+                #Following is the code to limit the number of core-m0beck and m0trace files, generated due to m0beck crash ( receiving SEGV signal ), to 2 each.
+                core_m0beck_file_count=$(get_file_count "core-m0beck" "$CRASH_DIR" "$SCRIPT_START_TIME")
+                echo "File count value $core_m0beck_file_count"
+
+                if [[ $core_m0beck_file_count -gt $max_core_file_count ]]; then
+                        echo "Deleting core m0beck extra file $core_m0beck_file_count"
+                        rem_file=$(remove_last_file_generated "core-m0beck" "$CRASH_DIR")
+                        echo "$rem_file"
+                fi
+                
+                m0trace_file_count=$(get_file_count "m0trace" "$FAILOVER_MD_DIR/datarecovery" "$SCRIPT_START_TIME")
+                echo "File count value $m0trace_file_count"
+                if [[ $m0trace_file_count -gt $max_trace_file_count ]]; then
+                        echo "Deleting core m0beck extra file $m0trace_file_count"
+                        rem_file=$(remove_last_file_generated "m0trace" "$FAILOVER_MD_DIR/datarecovery")
+                        echo "$rem_file"
+                fi
+                #Code to limit the number of core-m0beck and m0trace files to 2 each ends here.
+
+                m0drlog "Restarting Becktool for remote node from local node"
+                run_cmd_on_local_node "(cd $FAILOVER_MD_DIR/datarecovery; $BECKTOOL -s $SOURCE_IMAGE \
+                                        -d $DEST_DOMAIN_DIR/db -a $DEST_DOMAIN_DIR/stobs \
+                                        -g $REMOTE_SEG_GEN_ID -r $FAILOVER_MD_DIR/scan_offset -R;)"
                 cmd_exit_status=$?
             done
 
@@ -831,6 +1038,7 @@ EOF
                                         die "ERROR: Becktool failed on remote node";
                                       }
             m0drlog "Becktool completed on remote node"
+            cleanup_stobs_dir
             return $exec_status
         else
             pkill -9 m0beck; run_cmd_on_remote_node "pkill -9 m0beck";
@@ -850,6 +1058,7 @@ EOF
                                         die "ERROR: Becktool failed on local node";
                                      }
             m0drlog "Becktool completed on local node"
+            cleanup_stobs_dir
             return $exec_status
         else
             pkill -9 m0beck; ((exec_status|=2));
@@ -862,7 +1071,37 @@ EOF
 
     return $exec_status
 }
+#flush the any outstanding IO
+flush_io(){
 
+    m0drlog "flush outstanding IO from buffers"
+
+    LV_SNAPSHOT="$( lvs -o path $LOCAL_MD_VOLUMEGROUP | grep $SNAPSHOT )"
+    LV_MD_DEVICE="$( lvs -o path $LOCAL_MD_VOLUMEGROUP | grep $MD_DEVICE )"
+
+    run_cmd_on_local_node "blockdev --flushbufs $LV_MD_DEVICE"
+    run_cmd_on_local_node "blockdev --flushbufs $LV_SNAPSHOT"
+
+    if [[ $REMOTE_STORAGE_STATUS == 0 ]]; then
+
+        LV_SNAPSHOT=$(run_cmd_on_remote_node "lvs -o path $REMOTE_MD_VOLUMEGROUP | \
+                        grep $SNAPSHOT" )
+        LV_MD_DEVICE=$(run_cmd_on_remote_node "lvs -o path $REMOTE_MD_VOLUMEGROUP | \
+                        grep $MD_DEVICE" )
+        run_cmd_on_remote_node "blockdev --flushbufs $LV_MD_DEVICE"
+        run_cmd_on_remote_node "blockdev --flushbufs $LV_SNAPSHOT"
+    else
+        LV_SNAPSHOT=$(run_cmd_on_local_node "lvs -o path $REMOTE_MD_VOLUMEGROUP | \
+                        grep $SNAPSHOT" )
+        LV_MD_DEVICE=$(run_cmd_on_local_node "lvs -o path $REMOTE_MD_VOLUMEGROUP | \
+                        grep $MD_DEVICE" )
+        run_cmd_on_local_node "blockdev --flushbufs $LV_MD_DEVICE"
+        run_cmd_on_local_node "blockdev --flushbufs $LV_SNAPSHOT"
+    fi
+
+    m0drlog "Wait 5 minutes to flush any outstanding IO"
+    sleep 5m
+}
 # ------------------------- script start --------------------------------
 
 is_user_root_user # check the script is running with root access
@@ -877,31 +1116,41 @@ is_user_root_user # check the script is running with root access
 # If snapshot is available then we are restarting this process as result of
 # either power failure or some other unknown tool termination during previous
 # run in which case we just continue to use previously created snapshot.
-# If snapshot not available then we create the snapshot now, based on the 
+# If snapshot not available then we create the snapshot now, based on the
 # nodes current state for snaphot functions will execute the commands.
 
 shutdown_services
 
-run_cmd_on_local_node "./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --start-consul"
-
 get_cluster_configuration
 
-run_cmd_on_local_node "./prov-m0-reset $CDF_FILENAME $HA_ARGS_FILENAME --stop-consul"
-
-# Execute becktool only in the script if option --beck-only is set
+# Execute becktool only in the script if option --beck-only is set.
+# Use --beck-only option only when snapshot is already present on the system.
 if $beck_only ; then
     m0drlog "Running only becktool in the recovery script"
     run_becktool
     exit $?
 fi
 
+# Only remove MD_Snapshot if present and create lv_main_swap again
+if $clean_snapshot ; then
+    m0drlog "Removing MD_Snapshot if present and create lv_main_swap again"
+    remove_snapshot                # remove snapshot on both nodes
+    remove_snapshot_status=$?
+    [[ remove_snapshot_status -eq 0 ]] || { die "ERROR: Remove snapshot failed with code $remove_snapshot_status"; }
+
+    create_swap                    # recreate swap on both nodes
+    create_swap_status=$?
+    [[ create_swap_status -eq 0 ]] || { die "ERROR: Create swap failed with code $create_swap_status"; }
+    exit 0
+fi
+
 run_fsck                       # run fsck on both nodes
 run_fsck_status=$?
 [[ run_fsck_status -eq 0 ]] || { m0drlog "ERROR: fsck failed with code $run_fsck_status"; }
 
-replay_logs $run_fsck_status   # replay logs on both nodes
-replay_logs_status=$?
-[[ replay_logs_status -eq 0 ]] || { m0drlog "ERROR: Replay logs failed with code $replay_logs_status"; }
+replay_logs_and_get_gen_id_of_seg0 $run_fsck_status   # replay logs on both nodes
+replay_logs_and_get_gen_id_of_seg0_status=$?
+[[ replay_logs_and_get_gen_id_of_seg0_status -eq 0 ]] || { m0drlog "ERROR: Replay logs failed with code $replay_logs_and_get_gen_id_of_seg0_status"; }
 
 remove_swap                    # remove swap on both nodes
 remove_swap_status=$?
@@ -916,6 +1165,8 @@ reinit_mkfs                    # reinit mkfs only on both nodes
 run_becktool                   # run becktool on both nodes
 run_becktool_status=$?
 [[ run_becktool_status -eq 0 ]] || { die "ERROR: Run becktool failed with code $run_becktool_status"; }
+
+flush_io                        # flush io on both the nodes
 
 remove_snapshot                # remove snapshot on both nodes
 remove_snapshot_status=$?

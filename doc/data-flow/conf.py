@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Mero documentation build configuration file, created by
+# Motr documentation build configuration file, created by
 # sphinx-quickstart on Thu Dec  6 05:14:27 2018.
 #
 # This file is execfile()d with the current directory set to its containing dir.

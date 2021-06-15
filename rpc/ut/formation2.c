@@ -46,6 +46,12 @@ static int frm_ut_init(void)
 {
 	int rc;
 
+	frm = NULL;
+	M0_SET0(&constraints);
+	M0_SET0(&rmachine);
+	M0_SET0(&rchan);
+	M0_SET0(&session);
+
 	twoway_item_type.rit_incoming_conf = incoming_item_sm_conf;
 	twoway_item_type.rit_outgoing_conf = outgoing_item_sm_conf;
 	oneway_item_type.rit_incoming_conf = incoming_item_sm_conf;
@@ -252,6 +258,43 @@ static void check_ready_packet_has_item(struct m0_rpc_item *item)
 	check_frm(FRM_IDLE, 0, 0);
 }
 
+static void perform_test(int deadline, int kind)
+{
+	struct m0_rpc_item *item;
+
+	set_timeout(100);
+	item = new_item(deadline, kind);
+	flags_reset();
+	m0_rpc_frm_enq_item(frm, item);
+	if (deadline == WAITING) {
+		int result;
+
+		M0_UT_ASSERT(!packet_ready_called);
+		check_frm(FRM_BUSY, 1, 0);
+		/* Allow RPC worker to process timeout AST */
+		m0_rpc_machine_unlock(&rmachine);
+		/*
+		 * The original code slept for 2*timeout here. This is
+		 * unreliable and led to spurious assertion failures
+		 * below. Explicitly wait until the item enters an
+		 * appropriate state.
+		 */
+		result = m0_rpc_item_timedwait(item,
+			    M0_BITS(M0_RPC_ITEM_URGENT,
+				    M0_RPC_ITEM_SENDING,
+				    M0_RPC_ITEM_SENT,
+				    M0_RPC_ITEM_WAITING_FOR_REPLY,
+				    M0_RPC_ITEM_REPLIED),
+			    M0_TIME_NEVER);
+		M0_UT_ASSERT(result == 0);
+		m0_rpc_machine_lock(&rmachine);
+	}
+	M0_UT_ASSERT(packet_ready_called);
+	check_ready_packet_has_item(item);
+	m0_rpc_item_fini(item);
+	m0_free(item);
+}
+
 static void frm_test1(void)
 {
 	struct m0_rpc_item *item;
@@ -260,40 +303,6 @@ static void frm_test1(void)
 	 * Waiting item do not trigger immediate formation, but they are
 	 * formed once deadline is passed.
 	 */
-	void perform_test(int deadline, int kind)
-	{
-		set_timeout(100);
-		item = new_item(deadline, kind);
-		flags_reset();
-		m0_rpc_frm_enq_item(frm, item);
-		if (deadline == WAITING) {
-			int result;
-
-			M0_UT_ASSERT(!packet_ready_called);
-			check_frm(FRM_BUSY, 1, 0);
-			/* Allow RPC worker to process timeout AST */
-			m0_rpc_machine_unlock(&rmachine);
-			/*
-			 * The original code slept for 2*timeout here. This is
-			 * unreliable and led to spurious assertion failures
-			 * below. Explicitly wait until the item enters an
-			 * appropriate state.
-			 */
-			result = m0_rpc_item_timedwait(item,
-				    M0_BITS(M0_RPC_ITEM_URGENT,
-					    M0_RPC_ITEM_SENDING,
-					    M0_RPC_ITEM_SENT,
-					    M0_RPC_ITEM_WAITING_FOR_REPLY,
-					    M0_RPC_ITEM_REPLIED),
-				    M0_TIME_NEVER);
-			M0_UT_ASSERT(result == 0);
-			m0_rpc_machine_lock(&rmachine);
-		}
-		M0_UT_ASSERT(packet_ready_called);
-		check_ready_packet_has_item(item);
-		m0_rpc_item_fini(item);
-		m0_free(item);
-	}
 	M0_ENTRY();
 
 	/* Do not let formation trigger because of size limit */
@@ -319,62 +328,61 @@ static void frm_test1(void)
 	M0_LEAVE();
 }
 
+static void perform_test2(int kind)
+{
+	enum { N = 4 };
+	struct m0_rpc_item   *items[N];
+	struct m0_rpc_packet *p;
+	int                   i;
+	m0_bcount_t           item_size;
+
+	for (i = 0; i < N; ++i)
+		items[i] = new_item(WAITING, kind);
+	item_size = m0_rpc_item_size(items[0]);
+	/* include all ready items */
+	frm->f_constraints.fc_max_packet_size = ~0;
+	/*
+	 * set fc_max_nr_bytes_accumulated such that, formation triggers
+	 * when last item from items[] is enqued
+	 */
+	frm->f_constraints.fc_max_nr_bytes_accumulated =
+		(N - 1) * item_size + item_size / 2;
+
+	flags_reset();
+	for (i = 0; i < N - 1; ++i) {
+		m0_rpc_frm_enq_item(frm, items[i]);
+		M0_UT_ASSERT(!packet_ready_called);
+		check_frm(FRM_BUSY, i + 1, 0);
+	}
+	m0_rpc_frm_enq_item(frm, items[N - 1]);
+	M0_UT_ASSERT(packet_ready_called);
+	check_frm(FRM_BUSY, 0, 1);
+
+	p = packet_stack_pop();
+	M0_UT_ASSERT(packet_stack_is_empty());
+	for (i = 0; i < N; ++i)
+		M0_UT_ASSERT(m0_rpc_packet_is_carrying_item(p, items[i]));
+
+	m0_rpc_frm_packet_done(p);
+	check_frm(FRM_IDLE, 0, 0);
+
+	m0_rpc_packet_discard(p);
+	for (i = 0; i < N; ++i) {
+		m0_rpc_item_fini(items[i]);
+		m0_free(items[i]);
+	}
+}
+
 static void frm_test2(void)
 {
 	/* formation triggers when accumulated bytes exceed limit */
-
-	void perform_test(int kind)
-	{
-		enum { N = 4 };
-		struct m0_rpc_item   *items[N];
-		struct m0_rpc_packet *p;
-		int                   i;
-		m0_bcount_t           item_size;
-
-		for (i = 0; i < N; ++i)
-			items[i] = new_item(WAITING, kind);
-		item_size = m0_rpc_item_size(items[0]);
-		/* include all ready items */
-		frm->f_constraints.fc_max_packet_size = ~0;
-		/*
-		 * set fc_max_nr_bytes_accumulated such that, formation triggers
-		 * when last item from items[] is enqued
-		 */
-		frm->f_constraints.fc_max_nr_bytes_accumulated =
-			(N - 1) * item_size + item_size / 2;
-
-		flags_reset();
-		for (i = 0; i < N - 1; ++i) {
-			m0_rpc_frm_enq_item(frm, items[i]);
-			M0_UT_ASSERT(!packet_ready_called);
-			check_frm(FRM_BUSY, i + 1, 0);
-		}
-		m0_rpc_frm_enq_item(frm, items[N - 1]);
-		M0_UT_ASSERT(packet_ready_called);
-		check_frm(FRM_BUSY, 0, 1);
-
-		p = packet_stack_pop();
-		M0_UT_ASSERT(packet_stack_is_empty());
-		for (i = 0; i < N; ++i)
-			M0_UT_ASSERT(
-				m0_rpc_packet_is_carrying_item(p, items[i]));
-
-		m0_rpc_frm_packet_done(p);
-		check_frm(FRM_IDLE, 0, 0);
-
-		m0_rpc_packet_discard(p);
-		for (i = 0; i < N; ++i) {
-			m0_rpc_item_fini(items[i]);
-			m0_free(items[i]);
-		}
-	}
 
 	M0_ENTRY();
 
 	set_timeout(999);
 
-	perform_test(NORMAL);
-	perform_test(ONEWAY);
+	perform_test2(NORMAL);
+	perform_test2(ONEWAY);
 
 	M0_LEAVE();
 }

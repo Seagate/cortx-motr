@@ -132,6 +132,15 @@ M0_INTERNAL void m0_bitmap_set(struct m0_bitmap *map, size_t idx, bool val)
 }
 M0_EXPORTED(m0_bitmap_set);
 
+M0_INTERNAL void m0_bitmap_reset(struct m0_bitmap *map)
+{
+	size_t i;
+
+	for (i = 0; i < M0_BITMAP_WORDS(map->b_nr); i++)
+		map->b_words[i] = 0;
+}
+M0_EXPORTED(m0_bitmap_reset);
+
 M0_INTERNAL void m0_bitmap_copy(struct m0_bitmap *dst,
 				const struct m0_bitmap *src)
 {

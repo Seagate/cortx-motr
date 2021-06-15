@@ -46,6 +46,9 @@ static const struct m0_net_bulk_mem_ops mem_xprt_methods;
 M0_INTERNAL int m0_mem_xprt_init(void)
 {
 	m0_list_init(&mem_domains);
+	m0_net_xprt_register(&m0_net_bulk_mem_xprt);
+	if (m0_net_xprt_default_get() == NULL)
+		m0_net_xprt_default_set(&m0_net_bulk_mem_xprt);
 	return 0;
 }
 
@@ -55,6 +58,7 @@ M0_INTERNAL int m0_mem_xprt_init(void)
 M0_INTERNAL void m0_mem_xprt_fini(void)
 {
 	m0_list_fini(&mem_domains);
+	m0_net_xprt_deregister(&m0_net_bulk_mem_xprt);
 }
 
 /* To reduce global symbols, yet make the code readable, we
@@ -192,7 +196,7 @@ static bool mem_tm_invariant(const struct m0_net_transfer_mc *tm)
    that the domain is not derived, and will then link the domain in a private
    list to facilitate in-memory data transfers between transfer machines.
  */
-static int mem_xo_dom_init(struct m0_net_xprt *xprt,
+static int mem_xo_dom_init(const struct m0_net_xprt *xprt,
 			   struct m0_net_domain *dom)
 {
 	struct m0_net_bulk_mem_domain_pvt *dp;
@@ -430,6 +434,7 @@ static int mem_xo_buf_add(struct m0_net_buffer *nb)
 		break;
 	case M0_NET_QT_PASSIVE_BULK_RECV:
 		nb->nb_length = 0;
+		/* fallthrough */
 	case M0_NET_QT_PASSIVE_BULK_SEND:
 		bp->xb_buf_id = ++dp->xd_buf_id_counter;
 		rc = mem_bmo_desc_create(&nb->nb_desc, tm,
@@ -439,6 +444,7 @@ static int mem_xo_buf_add(struct m0_net_buffer *nb)
 			return M0_RC(rc);
 		break;
 	case M0_NET_QT_ACTIVE_BULK_RECV:
+		/* fallthrough */
 	case M0_NET_QT_ACTIVE_BULK_SEND:
 		wi->xwi_op = M0_NET_XOP_ACTIVE_BULK;
 		break;
@@ -608,7 +614,7 @@ static int mem_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 {
 	struct m0_net_bulk_mem_tm_pvt *tp;
 	struct m0_net_bulk_mem_work_item *wi_st_chg;
-	struct m0_net_xprt *xprt;
+	const struct m0_net_xprt *xprt;
 	int rc = 0;
 	int i;
 
@@ -744,9 +750,14 @@ static const struct m0_net_xprt_ops mem_xo_xprt_ops = {
 	.xo_tm_start                    = mem_xo_tm_start,
 	.xo_tm_stop                     = mem_xo_tm_stop,
 	.xo_get_max_buffer_desc_size    = mem_xo_get_max_buffer_desc_size,
+
+	.xo_rpc_max_seg_size            = default_xo_rpc_max_seg_size,
+	.xo_rpc_max_segs_nr             = default_xo_rpc_max_segs_nr,
+	.xo_rpc_max_msg_size            = default_xo_rpc_max_msg_size,
+	.xo_rpc_max_recv_msgs           = default_xo_rpc_max_recv_msgs,
 };
 
-struct m0_net_xprt m0_net_bulk_mem_xprt = {
+const struct m0_net_xprt m0_net_bulk_mem_xprt = {
 	.nx_name = "bulk-mem",
 	.nx_ops  = &mem_xo_xprt_ops
 };

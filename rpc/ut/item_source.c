@@ -43,13 +43,19 @@
 #include <stdio.h>
 
 static struct m0_rpc_conn *conn;
-static struct m0_rpc_item *item = NULL;
+static struct m0_rpc_item *item;
 static int has_item_calls;
 static int get_item_calls;
 static bool conn_terminating_cb_called;
 
 static int item_source_test_suite_init(void)
 {
+	conn_terminating_cb_called = false;
+	has_item_calls = 0;
+	get_item_calls = 0;
+	conn = NULL;
+	item = NULL;
+
 	m0_rpc_test_fops_init();
 	start_rpc_client_and_server();
 	conn = &cctx.rcx_connection;

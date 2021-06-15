@@ -41,7 +41,8 @@
 enum {
 	DIX_M0T1FS_LAYOUT_P = 9,
 	DIX_M0T1FS_LAYOUT_N = 1,
-	DIX_M0T1FS_LAYOUT_K = 3
+	DIX_M0T1FS_LAYOUT_K = 3,
+	DIX_M0T1FS_LAYOUT_S = 3
 };
 
 enum {
@@ -120,12 +121,9 @@ static char *dix_startup_cmd[] = { "m0d", "-T", "linux",
 static const char *cdbnames[]         = { "dix1" };
 static const char *cl_ep_addrs[]      = { "0@lo:12345:34:2" };
 static const char *srv_ep_addrs[]     = { "0@lo:12345:34:1" };
-static struct m0_net_xprt *cs_xprts[] = { &m0_net_lnet_xprt};
 
 static struct cl_ctx            dix_ut_cctx;
 static struct m0_rpc_server_ctx dix_ut_sctx = {
-		.rsx_xprts            = cs_xprts,
-		.rsx_xprts_nr         = ARRAY_SIZE(cs_xprts),
 		.rsx_argv             = dix_startup_cmd,
 		.rsx_argc             = ARRAY_SIZE(dix_startup_cmd),
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
@@ -331,7 +329,9 @@ static void layout_check(struct m0_dix_linst *dli)
 	rc = m0_buf_alloc(&key, key_len);
 	M0_UT_ASSERT(rc == 0);
 	memset(key.b_addr, 7, key_len);
-	W = dli->li_pl->pl_attr.pa_N + 2 * dli->li_pl->pl_attr.pa_K;
+	W = dli->li_pl->pl_attr.pa_N +
+	    dli->li_pl->pl_attr.pa_K +
+	    dli->li_pl->pl_attr.pa_S;
 	for (unit = 0; unit < W; ++unit) {
 		m0_dix_target(dli, unit, &key, &id1);
 		m0_dix_target(dli, unit, &key, &id2);
@@ -380,6 +380,7 @@ void pdclust_map(void)
 	pool_ver.pv_attr.pa_N = DIX_M0T1FS_LAYOUT_N;
 	pool_ver.pv_attr.pa_K = DIX_M0T1FS_LAYOUT_K;
 	pool_ver.pv_attr.pa_P = DIX_M0T1FS_LAYOUT_P;
+	pool_ver.pv_attr.pa_S = DIX_M0T1FS_LAYOUT_S;
 	cache_len[0] = DIX_M0T1FS_LAYOUT_P;
 	layout_create(&domain, &pool_ver);
 	/* Init layout. */
@@ -1125,13 +1126,15 @@ static void dixc_ut_init(struct m0_rpc_server_ctx *sctx,
 {
 	int rc;
 
+	sctx->rsx_xprts = m0_net_all_xprt_get();
+	sctx->rsx_xprts_nr = m0_net_xprt_nr();
 	M0_SET0(&sctx->rsx_motr_ctx);
 	m0_fi_enable_once("m0_rpc_machine_init", "bulk_cutoff_4K");
 	rc = m0_rpc_server_start(sctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = dix_client_init(cctx, cl_ep_addrs[0],
 			     srv_ep_addrs[0], cdbnames[0],
-			     cs_xprts[0]);
+			     sctx->rsx_xprts[0]);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -1470,6 +1473,9 @@ static void dix_create_dgmode(void)
 	int           i;
 	int           rc;
 
+	if (ENABLE_DTM0)
+		return;
+
 	ut_service_init();
 	for (i = 0; i < indices_nr; i++)
 		dix_index_init(&indices[i], i);
@@ -1566,6 +1572,9 @@ static void dix_delete_dgmode(void)
 	uint32_t      indices_nr = ARRAY_SIZE(indices);
 	int           i;
 	int           rc;
+
+	if (ENABLE_DTM0)
+		return;
 
 	ut_service_init();
 	for (i = 0; i < indices_nr; i++)
@@ -1810,6 +1819,9 @@ static void dix_put_dgmode(void)
 	uint32_t           sdev_id;
 	int                rc;
 
+	if (ENABLE_DTM0)
+		return;
+
 	ut_service_init();
 	dix_predictable_index_init(&index, 1);
 	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
@@ -2004,6 +2016,9 @@ static void dix_get_dgmode(void)
 	enum m0_pool_nd_state s2;
 	struct dix_rep_arr    rep;
 	int                   rc;
+
+	if (ENABLE_DTM0)
+		return;
 
 	ut_service_init();
 	dix_predictable_index_init(&index, 1);
@@ -2225,6 +2240,9 @@ static void dix_next_dgmode(void)
 	uint32_t           recs_nr = COUNT;
 	int                rc;
 
+	if (ENABLE_DTM0)
+		return;
+
 	ut_service_init();
 	dix_index_init(&index, 1);
 	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
@@ -2330,6 +2348,9 @@ static void dix_del_dgmode(void)
 	struct dix_rep_arr rep;
 	uint32_t           sdev_id;
 	int                rc;
+
+	if (ENABLE_DTM0)
+		return;
 
 	ut_service_init();
 	dix_predictable_index_init(&index, 1);

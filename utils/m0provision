@@ -57,7 +57,7 @@ EOF
 do_post_install()
 {
     msg "TOBE implemented."
-    die $ERR_NOT_IMPLEMENTED
+    die 0
 }
 
 do_init()
@@ -68,7 +68,8 @@ do_init()
 
 do_config()
 {
-    /opt/seagate/cortx/motr/config/motr_cfg.sh
+    msg "Update config"
+    /opt/seagate/cortx/motr/libexec/motr_cfg.sh
     RESULT=$?
     die $RESULT
 }
@@ -90,11 +91,13 @@ do_test()
     /opt/seagate/cortx/motr/sanity/cortx_srvc_sanity.sh
     die_if_failed $? "Script [cortx_srvc_sanity.sh] failed."
 
-    /opt/seagate/cortx/motr/config/motr_cfg.sh -d MOTR_M0D_IOS_BESEG_SIZE /etc/sysconfig/motr
+    /opt/seagate/cortx/motr/libexec/motr_cfg.sh -d MOTR_M0D_IOS_BESEG_SIZE /etc/sysconfig/motr
+    /opt/seagate/cortx/motr/libexec/motr_cfg.sh -d MOTR_M0D_BELOG_SIZE /etc/sysconfig/motr
     msg "Executing motr_sanity.sh"
     /opt/seagate/cortx/motr/sanity/motr_sanity.sh
     rc=$?
-    /opt/seagate/cortx/motr/config/motr_cfg.sh -e MOTR_M0D_IOS_BESEG_SIZE /etc/sysconfig/motr
+    /opt/seagate/cortx/motr/libexec/motr_cfg.sh -e MOTR_M0D_IOS_BESEG_SIZE /etc/sysconfig/motr
+    /opt/seagate/cortx/motr/libexec/motr_cfg.sh -e MOTR_M0D_BELOG_SIZE /etc/sysconfig/motr
     die_if_failed $rc "Script [motr_sanity.sh] failed."
 
     die $ERR_SUCCESS

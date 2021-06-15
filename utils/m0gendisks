@@ -156,7 +156,7 @@ parse_cli_options()
             -c)                 only_print_count=true; shift ;;
             -l|--list)          only_print_disks=true; shift ;;
             -o|--output)        outfile=$2; shift 2 ;;
-            -O|--split-output)  split_output=true; [[ -n $2 ]] && outfile2=$2; shift 2 ;;
+            -O|--split-output)  split_output=true; [[ -n "$2" ]] && outfile2=$2; shift 2 ;;
             -s|--split-count)   split_count=$2; shift 2 ;;
             -d|--disk-count)    disk_count=$2; shift 2 ;;
             -S|--start-id)      start_id=$2; shift 2 ;;
@@ -231,8 +231,9 @@ find_available_disks()
         local size=$(blockdev --getsize64 $disk)
         local have_valid_mbr=1
 
-        [[ -z $rotational ]] && rotational=0
-        [[ -z $(partprobe -ds $disk 2>/dev/null) ]] && have_valid_mbr=0
+        [[ -z "$rotational" ]] && rotational=0
+        [[ -z "$(partprobe -ds $disk 2>/dev/null |
+                sed -e 's/.*partitions//' -e '/^$/d')" ]] && have_valid_mbr=0
 
         if [[ $rotational -eq 1 && $size -gt 0 && $have_valid_mbr -eq 0 ]] ; then
             echo $disk
@@ -250,13 +251,13 @@ generate_yaml_config()
     local disks=$1
     local disk_id=$2
 
-    [[ -z $disks ]] && return
+    [[ -z "$disks" ]] && return
 
     info "Generating YAML config"
 
     echo 'Device:'
 
-    [[ -z $disk_id ]] && disk_id=$default_start_id
+    [[ -z "$disk_id" ]] && disk_id=$default_start_id
 
     local disk
     for disk in $disks; do
@@ -276,7 +277,7 @@ set -e
 parse_cli_options "$@"
 eval set -- "$cli_args"
 
-if [[ -n $1 ]] ; then
+if [[ -n "$1" ]] ; then
     old_ifs="$IFS"
     IFS=$'\n'
     disks="$*"
@@ -293,7 +294,7 @@ if $only_print_count ; then
     exit 0
 fi
 
-[[ -z $disks ]] && \
+[[ -z "$disks" ]] && \
     die "No disks available, try to use different disk pattern (option -p)"
 
 if $only_print_disks ; then
@@ -304,7 +305,7 @@ if $only_print_disks ; then
 fi
 
 # limit number of disks
-if [[ -n $disk_count ]] ; then
+if [[ -n "$disk_count" ]] ; then
     [[ $found_disk_cnt -lt $disk_count ]] && \
         die "Not enough disks available: found $found_disk_cnt out of" \
             " $disk_count requested"
@@ -315,8 +316,8 @@ fi
 
 # split disks into two groups
 if $split_output ; then
-    [[ -z $disk_count ]]  && disk_count=$found_disk_cnt
-    [[ -z $split_count ]] && split_count=$((disk_count / 2))
+    [[ -z "$disk_count" ]]  && disk_count=$found_disk_cnt
+    [[ -z "$split_count" ]] && split_count=$((disk_count / 2))
 
     [[ $split_count -ge $disk_count ]] && \
         die "Split count ($split_count) can't be greater or equal to" \

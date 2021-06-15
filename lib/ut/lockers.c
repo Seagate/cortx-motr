@@ -68,12 +68,14 @@ void test_lockers(void)
 	bank_lockers_clear(&federal, key);
 	M0_UT_ASSERT(bank_lockers_is_empty(&federal, key));
 
-	bank_fini(&federal);
 	for (i = 0; i < 1000; ++i) {
 		bank_lockers_free(key1);
 		key1 = bank_lockers_allot();
 		M0_UT_ASSERT(key != key1);
 	}
+	bank_lockers_free(key);
+	bank_lockers_free(key1);
+	bank_fini(&federal);
 }
 M0_EXPORTED(test_lockers);
 

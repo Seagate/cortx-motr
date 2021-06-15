@@ -33,6 +33,8 @@
 
 #define OP_OBJ2CODE(op_obj) op_obj->oo_oc.oc_op.op_code
 
+#define OP_IDX2CODE(op_idx) op_idx->oi_oc.oc_op.op_code
+
 #define MOCK
 #define CLIENT_FOR_M0T1FS
 
@@ -63,6 +65,8 @@
 #include "fop/fop.h"
 
 struct m0_idx_service_ctx;
+struct m0_dtm0_service;
+struct m0_dtx;
 
 #ifdef CLIENT_FOR_M0T1FS
 /**
@@ -146,24 +150,30 @@ struct m0_ast_rc {
  * 'struct m0_op_io' is the last (and biggest/highest) type, it contains
  * the databuf and paritybuf arrays for reading/writing object data.
  *
- *                   +---m0_op_common---+
+ *                   +---m0_op_common-----------+
  *                   |                          |
- *                   |    +-m0_op-+      |
+ *                   |    +-m0_op--------+      |
  *                   |    |              |      |
  *                   |    +--------------+      |
  *                   |                          |
  *                   +--------------------------+
  *
- *               \/_                        _\/
+ *                  \/_                        _\/
  *
- * +m0_op_io---------------+     +m0_op_idx-------+
- * | +m0_op_obj---------+  |     |                       |
- * | |                         |  |     | [m0_op_common] |
- * | |  [m0_op_common]  |  |     |                       |
- * | |                         |  |     +-----------------------+
- * | +-------------------------+  |
- * |                              |
- * +------------------------------+
+ * +m0_op_io---------------+      +m0_op_idx--------------+
+ * | +m0_op_obj---------+  |      |                       |
+ * | |                  |  |      | [m0_op_common]        |
+ * | |  [m0_op_common]  |  |      |                       |
+ * | |                  |  |      +-----------------------+
+ * | +------------------+  |
+ * |                       |
+ * +-----------------------+
+ *
+ *  +m0_op_md---------------+     +m0_op_sync-------------+
+ *  |                       |     |                       |
+ *  | [m0_op_common]        |     | [m0_op_common]        |
+ *  |                       |     |                       |
+ *  +-----------------------+     +-----------------------+
  *
  */
 struct m0_op_common {
@@ -219,6 +229,9 @@ struct m0_op_idx {
 	struct dix_req     *oi_dix_req;
 	/** To know dix req in completion callback */
 	bool                oi_in_completion;
+
+	/** Distributed transaction associated with the operation */
+	struct m0_dtx      *oi_dtx;
 };
 
 /**
@@ -261,12 +274,12 @@ struct m0_op_io {
 	struct m0_fid                     ioo_pver;
 
 	/** @todo: remove this */
-	uint32_t                          ioo_rc;
+	int32_t                           ioo_rc;
 
 	/**
 	 * Array of struct pargrp_iomap pointers.
 	 * Each pargrp_iomap structure describes the part of parity group
-	 * spanned by segments from ::ir_ivec.
+	 * spanned by segments from ::ioo_ext.
 	 */
 	struct pargrp_iomap             **ioo_iomaps;
 
@@ -575,6 +588,8 @@ struct m0_client {
 #endif
 
 	struct m0_htable                        m0c_rm_ctxs;
+
+	struct m0_dtm0_service                 *m0c_dtms;
 };
 
 /** CPUs semaphore - to control CPUs usage by parity calcs. */
@@ -928,6 +943,15 @@ M0_INTERNAL int m0__io_ref_get(struct m0_client *m0c);
 M0_INTERNAL void m0__io_ref_put(struct m0_client *m0c);
 M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop);
 M0_INTERNAL bool entity_id_is_valid(const struct m0_uint128 *id);
+
+/**
+ * Returns the m0_client instance, found from the provided index.
+ *
+ * @param idx The index to find the instance for.
+ * @return A pointer to the m0_client instance.
+ */
+M0_INTERNAL struct m0_client *
+m0__idx_instance(const struct m0_idx *idx);
 
 /** @} end of client group */
 

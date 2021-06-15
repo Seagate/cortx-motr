@@ -748,17 +748,17 @@ fail_locked:
  */
 static void ioreq_iomaps_destroy(struct m0_op_io *ioo)
 {
-	uint64_t id;
+	uint64_t i;
 
 	M0_ENTRY("op_io %p", ioo);
 
 	M0_PRE(ioo != NULL);
 	M0_PRE(ioo->ioo_iomaps != NULL);
 
-	for (id = 0; id < ioo->ioo_iomap_nr; ++id) {
-		if (ioo->ioo_iomaps[id] != NULL) {
-			pargrp_iomap_fini(ioo->ioo_iomaps[id], ioo->ioo_obj);
-			m0_free0(&ioo->ioo_iomaps[id]);
+	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
+		if (ioo->ioo_iomaps[i] != NULL) {
+			pargrp_iomap_fini(ioo->ioo_iomaps[i], ioo->ioo_obj);
+			m0_free0(&ioo->ioo_iomaps[i]);
 		}
 	}
 	m0_free0(&ioo->ioo_iomaps);
@@ -767,6 +767,10 @@ static void ioreq_iomaps_destroy(struct m0_op_io *ioo)
 	M0_LEAVE();
 }
 
+/**
+ * Calculate the exact number of parity groups spanned by the
+ * IO operation, put result at ioo->ioo_iomap_nr.
+ */
 static int ioreq_iomaps_parity_groups_cal(struct m0_op_io *ioo)
 {
 	uint64_t                  seg;
@@ -788,9 +792,9 @@ static int ioreq_iomaps_parity_groups_cal(struct m0_op_io *ioo)
 	M0_ALLOC_ARR(grparray, grparray_sz);
 	if (grparray == NULL)
 		return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory"
-			                    " for int array");
+			                    " for grparray");
 	/*
-	 * Finds out total number of parity groups spanned by
+	 * Finds out the total number of parity groups spanned by
 	 * m0_op_io::ioo_ext.
 	 */
 	for (seg = 0; seg < SEG_NR(&ioo->ioo_ext); ++seg) {
@@ -802,15 +806,14 @@ static int ioreq_iomaps_parity_groups_cal(struct m0_op_io *ioo)
 			/*
 			 * grparray is a temporary array to record found groups.
 			 * Scan this array for [grpstart, grpend].
-			 * If not found, record it in this array and
-			 * increase ir_iomap_nr.
+			 * If not found, we got a new grop, record it and
+			 * increase ioo_iomap_nr.
 			 */
 			for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
 				if (grparray[i] == grp)
 					break;
 			}
-			/* 'grp' is not found. Adding it to @grparray */
-			if (i == ioo->ioo_iomap_nr) {
+			if (i == ioo->ioo_iomap_nr) { /* new grp */
 				M0_ASSERT_INFO(i < grparray_sz,
 					"nr=%"PRIu64" size=%"PRIu64,
 					i , grparray_sz);
@@ -823,6 +826,27 @@ static int ioreq_iomaps_parity_groups_cal(struct m0_op_io *ioo)
 	return M0_RC(0);
 }
 
+static bool is_parity_verify_mode(struct m0_client *instance)
+{
+	return instance->m0c_config->mc_is_read_verify;
+}
+
+static void set_paritybuf_type(struct m0_op_io *ioo)
+{
+
+	struct m0_pdclust_layout *play = pdlayout_get(ioo);
+	struct m0_op             *op = &ioo->ioo_oo.oo_oc.oc_op;
+	struct m0_client         *cinst = m0__op_instance(op);
+
+	if ((m0__is_read_op(op) && is_parity_verify_mode(cinst)) ||
+	    (m0__is_update_op(op) && !m0_pdclust_is_replicated(play)))
+		ioo->ioo_pbuf_type = M0_PBUF_DIR;
+	else if (m0__is_update_op(op) && m0_pdclust_is_replicated(play))
+		ioo->ioo_pbuf_type = M0_PBUF_IND;
+	else
+		ioo->ioo_pbuf_type = M0_PBUF_NONE;
+}
+
 /**
  * Builds the iomaps parity group for all the groups covered this IO request.
  * This is heavily based on m0t1fs/linux_kernel/file.c::ioreq_iomaps_prepare
@@ -832,16 +856,19 @@ static int ioreq_iomaps_parity_groups_cal(struct m0_op_io *ioo)
  */
 static int ioreq_iomaps_prepare(struct m0_op_io *ioo)
 {
+	bool                      bufvec = true;
 	int                       rc;
-	uint64_t                  map;
+	uint64_t                  i;
+	struct pargrp_iomap      *iomap;
 	struct m0_pdclust_layout *play;
 	struct m0_ivec_cursor     cursor;
 	struct m0_bufvec_cursor   buf_cursor;
-	bool                      bufvec = true;
+
 	M0_ENTRY("op_io = %p", ioo);
 
 	M0_PRE(ioo != NULL);
-	play = pdlayout_get(ioo);
+
+	set_paritybuf_type(ioo);
 
 	rc = ioreq_iomaps_parity_groups_cal(ioo);
 	if (rc != 0)
@@ -849,6 +876,9 @@ static int ioreq_iomaps_prepare(struct m0_op_io *ioo)
 
 	if (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_FREE)
 		bufvec = false;
+
+	play = pdlayout_get(ioo);
+
 	M0_LOG(M0_DEBUG, "ioo=%p spanned_groups=%"PRIu64
 			 " [N,K,us]=[%d,%d,%"PRIu64"]",
 			 ioo, ioo->ioo_iomap_nr, layout_n(play),
@@ -869,31 +899,31 @@ static int ioreq_iomaps_prepare(struct m0_op_io *ioo)
 	 * of this loop.
 	 * This is done by pargrp_iomap::pi_ops::pi_populate().
 	 */
-	for (map = 0; !m0_ivec_cursor_move(&cursor, 0); ++map) {
-		M0_ASSERT(map < ioo->ioo_iomap_nr);
-		M0_ASSERT(ioo->ioo_iomaps[map] == NULL);
-		M0_ALLOC_PTR(ioo->ioo_iomaps[map]);
-		if (ioo->ioo_iomaps[map] == NULL) {
+	for (i = 0; !m0_ivec_cursor_move(&cursor, 0); ++i) {
+		M0_ASSERT(i < ioo->ioo_iomap_nr);
+		M0_ASSERT(ioo->ioo_iomaps[i] == NULL);
+		M0_ALLOC_PTR(ioo->ioo_iomaps[i]);
+		if (ioo->ioo_iomaps[i] == NULL) {
 			rc = -ENOMEM;
 			goto failed;
 		}
+		iomap = ioo->ioo_iomaps[i];
 
-		rc = pargrp_iomap_init(ioo->ioo_iomaps[map], ioo,
+		rc = pargrp_iomap_init(iomap, ioo,
 				       group_id(m0_ivec_cursor_index(&cursor),
 						data_size(play)));
 		if (rc != 0) {
-			m0_free0(&ioo->ioo_iomaps[map]);
+			m0_free0(&ioo->ioo_iomaps[i]);
 			goto failed;
 		}
 
 		/* @cursor is advanced in the following function */
-		rc = ioo->ioo_iomaps[map]->pi_ops->
-		     pi_populate(ioo->ioo_iomaps[map], &ioo->ioo_ext, &cursor,
-				 bufvec ? &buf_cursor : NULL);
+		rc = iomap->pi_ops->pi_populate(iomap, &cursor,
+						bufvec ? &buf_cursor : NULL);
 		if (rc != 0)
 			goto failed;
-		M0_LOG(M0_INFO, "pargrp_iomap id : %"PRIu64" populated",
-		       ioo->ioo_iomaps[map]->pi_grpid);
+		M0_LOG(M0_INFO, "iomap_id=%"PRIu64" is populated",
+		       iomap->pi_grpid);
 	}
 
 	return M0_RC(0);
@@ -1117,7 +1147,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 				       enum page_attr filter)
 {
 	int                       rc;
-	uint64_t                  map;
+	uint64_t                  i;
 	m0_bindex_t               grpstart;
 	m0_bindex_t               grpend;
 	m0_bindex_t               pgstart;
@@ -1138,11 +1168,11 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
 	play = pdlayout_get(ioo);
 
-	for (map = 0; map < ioo->ioo_iomap_nr; ++map) {
-		M0_ASSERT_EX(pargrp_iomap_invariant(ioo->ioo_iomaps[map]));
+	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
+		M0_ASSERT_EX(pargrp_iomap_invariant(ioo->ioo_iomaps[i]));
 
 		count    = 0;
-		grpstart = data_size(play) * ioo->ioo_iomaps[map]->pi_grpid;
+		grpstart = data_size(play) * ioo->ioo_iomaps[i]->pi_grpid;
 		grpend   = grpstart + data_size(play);
 
 		while (!m0_ivec_cursor_move(&extcur, count) &&
@@ -1160,7 +1190,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 			* and pgend.
 			*/
 			rc = application_data_copy(
-				ioo->ioo_iomaps[map], ioo->ioo_obj,
+				ioo->ioo_iomaps[i], ioo->ioo_obj,
 				pgstart, pgend, &appdatacur, dir, filter);
 			if (rc != 0)
 				return M0_ERR_INFO(
@@ -1182,17 +1212,18 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
  */
 static int ioreq_parity_recalc(struct m0_op_io *ioo)
 {
-	int      rc = 0;
-	uint64_t map;
+	int                  rc = 0;
+	uint64_t             i;
+	struct pargrp_iomap *iomap;
 
 	M0_ENTRY("io_request : %p", ioo);
 	M0_PRE_EX(m0_op_io_invariant(ioo));
 
 	m0_semaphore_down(&cpus_sem);
 
-	for (map = 0; map < ioo->ioo_iomap_nr; ++map) {
-		rc = ioo->ioo_iomaps[map]->pi_ops->pi_parity_recalc(ioo->
-				ioo_iomaps[map]);
+	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
+		iomap = ioo->ioo_iomaps[i];
+		rc = iomap->pi_ops->pi_parity_recalc(iomap);
 		if (rc != 0)
 			break;
 	}
@@ -1201,7 +1232,7 @@ static int ioreq_parity_recalc(struct m0_op_io *ioo)
 
 	return rc == 0 ? M0_RC(rc) :
 		M0_ERR_INFO(rc, "Parity recalc failed for grpid=%3"PRIu64,
-				 ioo->ioo_iomaps[map]->pi_grpid);
+				 iomap->pi_grpid);
 }
 
 /**
@@ -1215,21 +1246,21 @@ static int ioreq_dgmode_recover(struct m0_op_io *ioo)
 {
 	struct m0_pdclust_layout *play;
 	int                       rc = 0;
-	uint64_t                  cnt;
+	uint64_t                  i;
+	struct pargrp_iomap      *iomap;
 
 	M0_ENTRY();
 	M0_PRE_EX(m0_op_io_invariant(ioo));
 	M0_PRE(ioreq_sm_state(ioo) == IRS_READ_COMPLETE);
 
 	play = pdlayout_get(ioo);
-	for (cnt = 0; cnt < ioo->ioo_iomap_nr; ++cnt) {
-		if (ioo->ioo_iomaps[cnt]->pi_state == PI_DEGRADED) {
-			if (m0_pdclust_is_replicated(play)) {
-				rc = ioo->ioo_iomaps[cnt]->pi_ops->
-				      pi_replica_recover(ioo->ioo_iomaps[cnt]);
-			} else
-				rc = ioo->ioo_iomaps[cnt]->pi_ops->
-					pi_dgmode_recover(ioo->ioo_iomaps[cnt]);
+	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
+		iomap = ioo->ioo_iomaps[i];
+		if (iomap->pi_state == PI_DEGRADED) {
+			if (m0_pdclust_is_replicated(play))
+				rc = iomap->pi_ops->pi_replica_recover(iomap);
+			else
+				rc = iomap->pi_ops->pi_dgmode_recover(iomap);
 			if (rc != 0)
 				return M0_ERR(rc);
 		}
@@ -1349,8 +1380,9 @@ static int device_check(struct m0_op_io *ioo)
 static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 {
 	int                     rc       = 0;
-	uint64_t                id;
+	uint64_t                i;
 	struct nw_xfer_request *xfer;
+	struct pargrp_iomap    *iomap;
 	struct ioreq_fop       *irfop;
 	struct target_ioreq    *ti;
 	enum m0_pool_nd_state   state;
@@ -1452,9 +1484,9 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 				ioo, ioo->ioo_dgmap_nr);
 		if (ioreq_sm_state(ioo) == IRS_READ_COMPLETE)
 			ioreq_sm_state_set_locked(ioo, IRS_DEGRADED_READING);
-		for (id = 0; id < ioo->ioo_iomap_nr; ++id) {
-			rc = ioo->ioo_iomaps[id]->pi_ops->
-			        pi_dgmode_postprocess(ioo->ioo_iomaps[id]);
+		for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
+			iomap = ioo->ioo_iomaps[i];
+			rc = iomap->pi_ops->pi_dgmode_postprocess(iomap);
 			if (rc != 0)
 				break;
 		}
@@ -1608,7 +1640,7 @@ static int ioreq_parity_verify(struct m0_op_io *ioo)
 	struct m0_client         *instance;
 	struct m0_op             *op;
 	int                       rc = 0;
-	uint64_t                  grp;
+	uint64_t                  i;
 
 	M0_ENTRY("m0_op_io : %p", ioo);
 	M0_PRE_EX(m0_op_io_invariant(ioo));
@@ -1617,14 +1649,14 @@ static int ioreq_parity_verify(struct m0_op_io *ioo)
 	instance = m0__op_instance(op);
 	play = pdlayout_get(ioo);
 
-	if (!(op->op_code == M0_OC_READ &&
-	      instance->m0c_config->mc_is_read_verify))
+	if (op->op_code != M0_OC_READ ||
+	    !instance->m0c_config->mc_is_read_verify)
 		return M0_RC(0);
 
 	m0_semaphore_down(&cpus_sem);
 
-	for (grp = 0; grp < ioo->ioo_iomap_nr; ++grp) {
-		iomap = ioo->ioo_iomaps[grp];
+	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
+		iomap = ioo->ioo_iomaps[i];
 		if (iomap->pi_state == PI_DEGRADED) {
 			/* data is recovered from existing data and parity.
 			 * It's meaningless to do parity verification */

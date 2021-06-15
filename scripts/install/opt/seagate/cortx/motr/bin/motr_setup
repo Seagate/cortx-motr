@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+#
+# Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+import sys
+import errno
+import argparse
+import inspect
+import traceback
+
+from cortx.utils.conf_store import Conf
+from motr_mini_prov import *
+
+
+class Cmd:
+    """Setup Command"""
+    _index = "conf"
+
+    def __init__(self, args: dict):
+        self._url = args.config
+        Conf.load(self._index, self._url)
+        self._args = args.args
+        self._debug = args.debug
+        self.server_node = get_server_node(self)
+        self.logger = config_logger(self)
+
+    @property
+    def args(self) -> str:
+        return self._args
+
+    @property
+    def url(self) -> str:
+        return self._url
+
+    @staticmethod
+    def usage(prog: str):
+        """Print usage instructions"""
+
+        sys.stderr.write(
+            f"usage: {prog} [-h] <cmd> --config <url> <args>\n"
+            f"where:\n"
+            f"cmd           post_install, prepare, config, init, test, reset, cleanup,"
+            f" upgarde, backup, restore\n"
+            f"url           Config URL\n")
+
+    @staticmethod
+    def get_command(desc: str, argv: dict):
+        """Return the Command after parsing the command line."""
+        parser = argparse.ArgumentParser(desc)
+        subparsers = parser.add_subparsers()
+        cmds = inspect.getmembers(sys.modules[__name__])
+        cmds = [(x, y) for x, y in cmds
+            if x.endswith("Cmd") and x != "Cmd"]
+        for name, cmd in cmds:
+            cmd.add_args(subparsers, cmd, name)
+        args = parser.parse_args(argv)
+        return args.command(args)
+
+    @staticmethod
+    def add_args(parser: str, cls: str, name: str):
+        """Add Command args for parsing."""
+
+        parser1 = parser.add_parser(cls.name, help=f'setup {name}')
+        parser1.add_argument('--config', type=str, help="Config URL")
+        parser1.add_argument('args', nargs='*', default=[], help='args')
+        parser1.add_argument('--debug', '-d', help='enable debug print',
+                         action="store_true")
+        parser1.set_defaults(command=cls)
+
+class PrepareCmd(Cmd):
+    """Prepare Setup Cmd"""
+    name = "prepare"
+
+    def __init__(self, args: dict):
+        super().__init__(args)
+
+    def process(self):
+        self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
+
+        # If hare is installed and cluster is up then exit otherwise go ahead
+        if pkg_installed(self, "cortx-hare"):
+            if cluster_up(self):
+                self.logger.warning("Cluster is already up...Exiting.\n")
+                return
+        configure_net(self)
+        self.logger.info("SUCCESS\n")
+
+class PostInstallCmd(Cmd):
+    """PostInstall Setup Cmd"""
+    name = "post_install"
+
+    def __init__(self, args: dict):
+        super().__init__(args)
+
+    def process(self):
+        self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
+        validate_motr_rpm(self)
+
+        # Check if lvms are already created.
+        # If not, create it. Otherwise, skip.
+        # If cluster is not up, go ahead. Otherwise, exit.
+        if pkg_installed(self, "cortx-hare"):
+            if cluster_up(self):
+                self.logger.warning("Cluster is already up...Exiting.\n")
+                return
+        if not lvm_exist(self):
+            config_lvm(self)
+        else:
+            self.logger.warning("lvm already exists. "
+                             "Skipping lvm creation.\n")
+            self.logger.warning("Updating bgsize.\n")
+            update_bgsize(self)
+        self.logger.info("SUCCESS\n")
+
+class ConfigCmd(Cmd):
+    """Config Setup Cmd"""
+    name = "config"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
+        motr_config(self)
+        self.logger.info("SUCCESS\n")
+
+class InitCmd(Cmd):
+    """Init Setup Cmd"""
+    name = "init"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
+        self.logger.info("SUCCESS\n")
+
+class TestCmd(Cmd):
+    """Test Setup Cmd"""
+    name = "test"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
+        '''
+           If cortx-hare, cortx-motr-ivt is installed and
+           cluster is up, perform test IO. Else, skip.
+        '''
+        if (
+             pkg_installed(self, "cortx-hare") and
+             pkg_installed(self, "cortx-motr-ivt") and
+             cluster_up(self)
+            ):
+            test_io(self)
+        else:
+            self.logger.warning("Skipping test IO.\n")
+        self.logger.info("SUCCESS\n")
+
+class ResetCmd(Cmd):
+    """Reset Setup Cmd"""
+    name = "reset"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        pass
+
+class CleanupCmd(Cmd):
+    """Cleanup Setup Cmd"""
+    name = "cleanup"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        clean_ivt_data(self)
+        pass
+
+class UpgradeCmd(Cmd):
+    """Upgrade Setup Cmd"""
+    name = "upgrade"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        pass
+
+class BackupCmd(Cmd):
+    """Backup Setup Cmd"""
+    name = "backup"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        pass
+
+class RestoreCmd(Cmd):
+    """Restore Setup Cmd"""
+    name = "restore"
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    def process(self):
+        pass
+
+def main(argv: dict):
+    try:
+        desc = "Motr Setup command"
+        command = Cmd.get_command(desc, argv[1:])
+        command.process()
+
+    except Exception as e:
+        sys.stderr.write(f"\n{str(e)}\n\n")
+        sys.stderr.write(f"{traceback.format_exc()}\n")
+        Cmd.usage(argv[0])
+        return errno.EINVAL
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
+
+

@@ -373,8 +373,8 @@ static int iter_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 				*phase = M0_FOM_PHASE_FINISH;
 				m0_semaphore_up(&iter_sem);
 			} else {
-				m0_fom_timeout_init(&iter_fom_timeout);
-				m0_fom_timeout_wait_on(&iter_fom_timeout, fom, m0_time_from_now(2, 0));
+				m0_fom_timeout_wait_on(&iter_fom_timeout, fom,
+						       m0_time_from_now(2, 0));
 			}
 			rc = M0_FSO_WAIT;
 			break;
@@ -403,6 +403,7 @@ static void iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	M0_UT_ASSERT(pver != NULL);
 	//pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_FAILED);
 	//pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_SNS_REPAIRING);
+	m0_fom_timeout_init(&iter_fom_timeout);
 	M0_FOM_SIMPLE_POST(&iter_fom, reqh, &iter_ut_conf,
 			   &iter_ut_fom_tick, NULL, NULL, 2);
 	m0_semaphore_down(&iter_sem);

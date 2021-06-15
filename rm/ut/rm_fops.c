@@ -32,7 +32,7 @@
 #include "rm/rm_fops.c"          /* To access static APIs. */
 
 static struct m0_rm_loan *test_loan;
-static struct m0_rm_remote remote;
+static struct m0_rm_remote *remote;
 static struct m0_rpc_machine ut_rm_mach;
 
 static void post_borrow_validate(int err);
@@ -76,14 +76,16 @@ static void request_param_init(enum m0_rm_incoming_flags flags)
 			  rm_test_data.rd_owner->ro_resource);
 	m0_cookie_init(&rm_test_data.rd_owner->ro_creditor->rem_cookie,
 		       &rm_test_data.rd_owner->ro_id);
+	/* Never destroy creditors by loans. */
+	m0_ref_get(&rm_test_data.rd_owner->ro_creditor->rem_refcnt);
 	M0_ALLOC_PTR(test_loan);
 	M0_UT_ASSERT(test_loan != NULL);
+	M0_ALLOC_PTR(remote);
+	M0_UT_ASSERT(remote != NULL);
 	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
-	remote.rem_state = REM_FREED;
-	M0_SET0(&remote);
-	m0_rm_remote_init(&remote, rm_test_data.rd_res);
-	m0_cookie_init(&remote.rem_cookie, &rm_test_data.rd_owner->ro_id);
-	m0_rm_loan_init(test_loan, &rm_test_data.rd_credit, &remote);
+	m0_rm_remote_init(remote, rm_test_data.rd_res);
+	m0_cookie_init(&remote->rem_cookie, &rm_test_data.rd_owner->ro_id);
+	m0_rm_loan_init(test_loan, &rm_test_data.rd_credit, remote);
 	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
 }
 
@@ -94,7 +96,7 @@ static void request_param_fini(void)
 {
 	if (test_loan != NULL)
 		m0_rm_loan_fini(test_loan);
-	m0_rm_remote_fini(&remote);
+	m0_rm_remote_fini(remote);
 	m0_free(test_loan);
 	m0_rm_remote_fini(rm_test_data.rd_owner->ro_creditor);
 	m0_free0(&rm_test_data.rd_owner->ro_creditor);
@@ -262,7 +264,7 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 		rm_test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
 		rc = m0_rm_request_out(M0_ROT_REVOKE, &rm_test_data.rd_in,
 				       test_loan, &test_loan->rl_credit,
-				       &remote);
+				       remote);
 		M0_UT_ASSERT(rc == 0);
 		item = rm_reply_create(M0_RIT_REVOKE, err);
 		m0_rm_owner_lock(rm_test_data.rd_owner);
@@ -312,13 +314,13 @@ static void request_test(enum m0_rm_incoming_type reqtype)
 			rm_test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
 			rc = m0_rm_request_out(M0_ROT_BORROW,
 					       &rm_test_data.rd_in, NULL,
-					       &rest, &remote);
+					       &rest, remote);
 			break;
 		case M0_RIT_REVOKE:
 			rm_test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
 			rc = m0_rm_request_out(M0_ROT_REVOKE,
 					       &rm_test_data.rd_in,
-					       test_loan, &rest, &remote);
+					       test_loan, &rest, remote);
 			break;
 		default:
 			M0_IMPOSSIBLE("Invalid RM-FOM type");

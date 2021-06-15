@@ -37,7 +37,7 @@
 M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0types", M0_INTERNAL,
 			   struct m0_be_0type, b0_linkage, b0_magic,
 			   M0_BE_0TYPE_MAGIC, M0_BE_0TYPE_MAGIC);
-M0_TL_DEFINE(zt, static, struct m0_be_0type);
+M0_TL_DEFINE(zt, M0_INTERNAL, struct m0_be_0type);
 
 M0_TL_DESCR_DEFINE(seg, "m0_be_domain::bd_segs", M0_INTERNAL,
 			   struct m0_be_seg, bs_linkage, bs_magic,
@@ -60,11 +60,11 @@ static void be_domain_unlock(struct m0_be_domain *dom)
 	m0_mutex_unlock(&dom->bd_lock);
 }
 
-static int segobj_opt_iterate(struct m0_be_seg         *dict,
-			      const struct m0_be_0type *objtype,
-			      struct m0_buf            *opt,
-			      char                    **suffix,
-			      bool                      begin)
+static int m0_be_segobj_opt_iterate(struct m0_be_seg         *dict,
+					 const struct m0_be_0type *objtype,
+					 struct m0_buf            *opt,
+					 char                    **suffix,
+					 bool                      begin)
 {
 	struct m0_buf *buf;
 	int            rc;
@@ -86,20 +86,20 @@ static int segobj_opt_iterate(struct m0_be_seg         *dict,
 	return M0_RC(rc);
 }
 
-static int segobj_opt_next(struct m0_be_seg         *dict,
-			   const struct m0_be_0type *objtype,
-			   struct m0_buf            *opt,
-			   char                    **suffix)
+M0_INTERNAL int m0_be_segobj_opt_next(struct m0_be_seg         *dict,
+				      const struct m0_be_0type *objtype,
+				      struct m0_buf            *opt,
+				      char                    **suffix)
 {
-	return segobj_opt_iterate(dict, objtype, opt, suffix, false);
+	return m0_be_segobj_opt_iterate(dict, objtype, opt, suffix, false);
 }
 
-static int segobj_opt_begin(struct m0_be_seg         *dict,
-			    const struct m0_be_0type *objtype,
-			    struct m0_buf            *opt,
-			    char                    **suffix)
+M0_INTERNAL int m0_be_segobj_opt_begin(struct m0_be_seg         *dict,
+				       const struct m0_be_0type *objtype,
+				       struct m0_buf            *opt,
+				       char                    **suffix)
 {
-	return segobj_opt_iterate(dict, objtype, opt, suffix, true);
+	return m0_be_segobj_opt_iterate(dict, objtype, opt, suffix, true);
 }
 
 static const char *id_cut(const char *prefix, const char *key)
@@ -129,9 +129,9 @@ static int _0types_visit(struct m0_be_domain *dom, bool init)
 	dict = m0_be_domain_seg0_get(dom);
 
 	m0_tl_for(zt, &dom->bd_0types, objtype) {
-		for (left = segobj_opt_begin(dict, objtype, &opt, &suffix);
+		for (left = m0_be_segobj_opt_begin(dict, objtype, &opt, &suffix);
 		     left > 0 && rc == 0;
-		     left = segobj_opt_next(dict, objtype, &opt, &suffix)) {
+		     left = m0_be_segobj_opt_next(dict, objtype, &opt, &suffix)) {
 			id = id_cut(objtype->b0_name, suffix);
 			rc = init ? objtype->b0_init(dom, id, &opt) :
 				(objtype->b0_fini(dom, id, &opt), 0);
@@ -359,9 +359,9 @@ static const struct m0_be_0type m0_be_0type_seg = {
 	.b0_fini = be_0type_seg_fini,
 };
 
-static void be_domain_log_cleanup(const char           *stob_domain_location,
-				  struct m0_be_log_cfg *log_cfg,
-				  bool                  create)
+M0_INTERNAL void
+be_domain_log_cleanup(const char *stob_domain_location,
+		      struct m0_be_log_cfg *log_cfg, bool create)
 {
 	const char *location_add = "-log";
 	char       *location;

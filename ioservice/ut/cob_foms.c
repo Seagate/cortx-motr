@@ -50,6 +50,8 @@ static struct m0_fom_locality  dummy_loc;
 static struct m0_cob *test_cob = NULL;
 static struct m0_fom_type ft;
 
+static bool cc_cob_create_test_done = false;
+
 static struct m0_fom *cd_fom_alloc();
 static void cd_fom_dealloc(struct m0_fom *fom);
 static void fom_dtx_init(struct m0_fom *fom, struct m0_sm_group *grp,
@@ -124,7 +126,7 @@ static void cobfoms_utinit(void)
 	M0_ALLOC_PTR(cut);
 	M0_UT_ASSERT(cut != NULL);
 
-	cut->cu_xprt = &m0_net_lnet_xprt;
+	cut->cu_xprt = m0_net_xprt_default_get();
 
 	rc = m0_net_domain_init(&cut->cu_nd, cut->cu_xprt);
 	M0_UT_ASSERT(rc == 0);
@@ -814,6 +816,7 @@ static void cob_verify(struct m0_fom *fom, const bool exists)
 	rc = m0_cob_nskey_make(&nskey, &gfid, nskey_bs, nskey_bs_len);
 	M0_UT_ASSERT(rc == 0);
 
+	test_cob = NULL;
 	rc = m0_cob_lookup(cobdom, nskey, 0, &test_cob);
 
 	if (exists) {
@@ -889,7 +892,10 @@ static void cc_cob_create_test()
 	M0_UT_ASSERT(rc == 0);
 	cc->fco_cob_type = M0_COB_MD;
 	rc = cc_cob_create(fom, cc, &attr);
-	M0_UT_ASSERT(rc == 0);
+	if (!cc_cob_create_test_done)
+		M0_UT_ASSERT(rc == 0);
+	else
+		M0_UT_ASSERT(rc == -EEXIST);
 	fom_dtx_done(fom, grp);
 	cc->fco_cob_type = M0_COB_IO;
 	/*
@@ -1295,6 +1301,7 @@ static void cob_create_api_test(void)
 
 	/* Test cc_cob_create() */
 	cc_cob_create_test();
+	cc_cob_create_test_done = true;
 
 	/* Test for cob_ops_fom_tick() */
 	cc_fom_state_test();

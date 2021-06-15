@@ -281,7 +281,7 @@ data:'
                         echo
                         echo "Decoded reply:"
                         echo "$xcode" | $M0_HAGEN_UTILS -d
-                        if [ -z $state_recv ]; then
+                        if [ -z "$state_recv" ]; then
                                 state_recv=$(echo $xcode | $M0_HAGEN_UTILS -d | grep ' state:' | awk '{print $2}')
                         fi
                 fi
@@ -480,7 +480,7 @@ wait_for_sns_repair_or_rebalance()
         done
 
         op=`echo $status | grep status=3`
-        [[ !  -z  $op  ]] && return 1
+        [[ !  -z  "$op"  ]] && return 1
 
         return 0
 }

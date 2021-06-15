@@ -156,51 +156,20 @@ M0_INTERNAL uint64_t page_id(m0_bindex_t offset, struct m0_obj *obj);
 M0_INTERNAL uint64_t layout_unit_size(struct m0_pdclust_layout *play);
 
 /**
- * Determines the number of rows necessary to group the parity layout's
- * unit size, into a number of object:blocks.
+ * Determines the size of data/parity unit in pages.
+ * This is essentially the rows number in the
+ * pargrp_iomap::pi_databufs[row][col] 2-dimentional array,
+ * hence the name.
  *
  * @param play The Parity layout.
  * @param obj The object.
- * @return The number of rows required.
+ * @return The number of pages.
  */
-M0_INTERNAL uint32_t data_row_nr(struct m0_pdclust_layout *play,
-				 struct m0_obj *obj);
+M0_INTERNAL uint32_t rows_nr(struct m0_pdclust_layout *play,
+			     struct m0_obj *obj);
 
 /**
- * Determines the number of columns necessary for data in this parity layout.
- * This is the N parameter of the layout.
- *
- * @param play The Parity layout.
- * @return The number of columns required.
- */
-M0_INTERNAL uint32_t data_col_nr(struct m0_pdclust_layout *play);
-
-/**
- * Determines the number of columns necessary for parity in this parity layout.
- * This is the K parameter of the layout.
- *
- * @param play The Parity layout.
- * @return The number of columns required.
- */
-M0_INTERNAL uint32_t parity_col_nr(struct m0_pdclust_layout *play);
-
-/**
- * Determines the number of parity rows, this should always be the same
- * as the number of data_rows.
- *
- * @param play The Parity layout.
- * @param obj The object.
- * @return The number of rows required.
- */
-/** TODO: This is clearly useless */
-M0_INTERNAL uint32_t parity_row_nr(struct m0_pdclust_layout *play,
-				   struct m0_obj *obj);
-
-/**
- * Determines the size of data in a row of the parity group.
- *
- * @param play The Parity layout.
- * @return The amount of data this row will contain.
+ * Determines the total size of data units in a parity group.
  */
 M0_INTERNAL uint64_t data_size(struct m0_pdclust_layout *play);
 

@@ -80,7 +80,6 @@ enum {
 };
 
 static struct m0_net_domain  client_net_dom;
-static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
 static struct m0_semaphore   sem;
 static struct m0_semaphore   cp_sem;
 static struct m0_semaphore   read_cp_sem;
@@ -793,7 +792,7 @@ static void sender_init()
 
 	sender_cm.cm_sw_update.swu_is_complete = true;
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_rpc_client_start(&cctx);

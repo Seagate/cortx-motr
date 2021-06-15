@@ -34,6 +34,8 @@
 #include "fop/fom_generic.h"          /* m0_rpc_item_generic_reply_rc */
 #include "cob/cob.h"                  /* M0_COB_IO M0_COB_PVER M0_COB_NLINK */
 #include "rpc/addb2.h"
+#include "rpc/item.h"
+#include "rpc/rpc_internal.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"           /* M0_LOG */
@@ -565,7 +567,7 @@ static void ioreq_pgiomap_find(struct m0_op_io     *ioo,
 			       uint64_t            *cursor,
 			       struct pargrp_iomap **out)
 {
-	uint64_t id;
+	uint64_t i;
 
 	M0_PRE(ioo    != NULL);
 	M0_PRE(out    != NULL);
@@ -573,14 +575,14 @@ static void ioreq_pgiomap_find(struct m0_op_io     *ioo,
 	M0_PRE(*cursor < ioo->ioo_iomap_nr);
 	M0_ENTRY("group_id = %3"PRIu64", cursor = %3"PRIu64, grpid, *cursor);
 
-	for (id = *cursor; id < ioo->ioo_iomap_nr; ++id)
-		if (ioo->ioo_iomaps[id]->pi_grpid == grpid) {
-			*out = ioo->ioo_iomaps[id];
-			*cursor = id;
+	for (i = *cursor; i < ioo->ioo_iomap_nr; ++i)
+		if (ioo->ioo_iomaps[i]->pi_grpid == grpid) {
+			*out = ioo->ioo_iomaps[i];
+			*cursor = i;
 			break;
 		}
 
-	M0_POST(id < ioo->ioo_iomap_nr);
+	M0_POST(i < ioo->ioo_iomap_nr);
 	M0_LEAVE();
 }
 
@@ -644,11 +646,11 @@ M0_INTERNAL int ioreq_fop_dgmode_read(struct ioreq_fop *irfop)
 
 static void ioreq_cc_fop_release(struct m0_ref *ref)
 {
-	struct m0_fop *fop;
+	struct m0_fop *fop = M0_AMB(fop, ref, f_ref);
 
-	M0_ENTRY();
-	fop    = M0_AMB(fop, ref, f_ref);
+	M0_ENTRY("fop: %p %s", fop, m0_fop_name(fop));
 	m0_fop_fini(fop);
+	/* no need to free the memory, because it is embedded into ti */
 	M0_LEAVE();
 }
 
@@ -660,6 +662,7 @@ M0_INTERNAL int ioreq_cc_fop_init(struct target_ioreq *ti)
 	struct m0_obj_attr        *io_attr;
 	int                        rc;
 	struct m0_fop_type        *fopt;
+	struct m0_rpc_item        *item;
 
 	fopt = ti->ti_req_type == TI_COB_TRUNCATE ?
 		&m0_fop_cob_truncate_fopt : &m0_fop_cob_create_fopt;
@@ -667,12 +670,14 @@ M0_INTERNAL int ioreq_cc_fop_init(struct target_ioreq *ti)
 	    ti->ti_trunc_ivec.iv_vec.v_nr == 0)
 		return 0;
 	fop = &ti->ti_cc_fop.crf_fop;
+	M0_LOG(M0_DEBUG, "fop=%p", fop);
 	m0_fop_init(fop, fopt, NULL, ioreq_cc_fop_release);
 	rc = m0_fop_data_alloc(fop);
 	if (rc != 0) {
 		m0_fop_fini(fop);
 		goto out;
 	}
+	ti->ti_cc_fop_inited = true;
 	fop->f_item.ri_rmachine = m0_fop_session_machine(ti->ti_session);
 
 	fop->f_item.ri_session         = ti->ti_session;
@@ -712,6 +717,9 @@ M0_INTERNAL int ioreq_cc_fop_init(struct target_ioreq *ti)
 	}
 	m0_atomic64_inc(&ti->ti_nwxfer->nxr_ccfop_nr);
 
+	item = &fop->f_item;
+	M0_LOG(M0_DEBUG, "item="ITEM_FMT" osr_xid=%"PRIu64,
+			  ITEM_ARG(item), item->ri_header.osr_xid);
 out:
 	return M0_RC(rc);
 }

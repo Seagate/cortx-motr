@@ -70,6 +70,8 @@ Where:
 
 -k NUM: Use NUM number of parity units. (default is $NR_PARITY)
 
+-S NUM: Use NUM number of spare units. (default is $NR_SPARE)
+
 -p NUM: Use NUM as pool width. (default is $POOL_WIDTH)
 
 -q: Dont wait after mounting m0t1fs, exit immediately. (default is wait)
@@ -77,7 +79,7 @@ Where:
 .
 }
 
-OPTIONS_STRING="acln:d:k:p:u:qhLsvmo"
+OPTIONS_STRING="acln:d:k:S:p:u:qhLsvmo"
 
 HOSTS_SERVICES=(
 	#somenode1 10.10.10.1@o2ib:12345:41:101
@@ -403,10 +405,11 @@ echo "Device:" > disks.conf
 devs=\`ls $DISKS_PATTERN | grep -v part\`
 
 for dev in \$devs; do
-	partitions=\$(partprobe -ds \$dev 2>/dev/null)
+	partitions=\$(partprobe -ds \$dev 2>/dev/null |
+                      sed -e 's/.*partitions//' -e '/^$/d')
 	# if \$dev is a valid block device (zero exit code of partprobe)
 	# and it doesn't contain any partition table (output of partprobe is empy)
-	if [[ \$? -eq 0 && -z \$partitions ]]; then
+	if [[ \$? -eq 0 && -z "\$partitions" ]]; then
 		if [ \$j -eq 0 ]; then
 			echo "Device:" > disks\$f.conf
 			echo "   - id: 0" >> disks\$f.conf
@@ -422,6 +425,7 @@ for dev in \$devs; do
 done
 exit 0
 EOF
+	chmod +x $SF
 	if [ $H != $THIS_HOST ]; then
 		l_do scp $SF $H:$DISKS_SH
 	else
@@ -432,7 +436,7 @@ EOF
 		return 1
 	fi
 
-	$RUN "(cd $WORK_ARENA && sh $DISKS_SH)"
+	$RUN "(cd $WORK_ARENA && $DISKS_SH)"
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to get disks list on $H
 		return 1
@@ -534,7 +538,7 @@ function start_server ()
 	if [ $I -eq 0 ]; then
 		local DIR=$WORK_ARENA/confd
 		local multiple_pools=0
-		build_conf $NR_DATA $NR_PARITY $POOL_WIDTH $multiple_pools \
+		build_conf $NR_DATA $NR_PARITY $NR_SPARE $POOL_WIDTH $multiple_pools \
 			SERVICES[@]  MDSERVICES[@] > $CONF_FILE
 		if [ $verbosity -gt 0 ] ;then
 			# Just show conf
@@ -819,6 +823,7 @@ setup_params()
 	DISKS_SH_NR=$(expr $POOL_WIDTH / $SERVICES_NR + 1) # +1 for ADDB stob
 
 	NR_PARITY=${NR_PARITY:-1}
+	NR_SPARE=$NR_PARITY
 	# spare_nr == parity_nr, that's why we multiply on 2
 	NR_DATA=${NR_DATA:-$(expr $POOL_WIDTH - $NR_PARITY \* 2)}
 }
@@ -850,8 +855,8 @@ main()
 	}
 
 	local rows=4
-	local groups=$((rows * POOL_WIDTH / (NR_DATA + NR_PARITY*2) + 1))
-	l_do $M0LAYOUT $NR_DATA $NR_PARITY $POOL_WIDTH $rows $groups
+	local groups=$((rows * POOL_WIDTH / (NR_DATA + NR_PARITY + NR_SPARE) + 1))
+	l_do $M0LAYOUT $NR_DATA $NR_PARITY $NR_SPARE $POOL_WIDTH $rows $groups
 	if [ $? -ne 0 ]; then
 		echo ERROR: Parity configuration is incorrect
 		exit 1
@@ -918,6 +923,9 @@ while getopts "$OPTIONS_STRING" OPTION; do
             ;;
         k)
             NR_PARITY="$OPTARG"
+            ;;
+        S)
+            NR_SPARE="$OPTARG"
             ;;
 	p)
             POOL_WIDTH="$OPTARG"

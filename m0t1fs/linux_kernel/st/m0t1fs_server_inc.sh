@@ -153,15 +153,24 @@ mkiosmddevs()
 	done
 }
 
+# Check if any of $pid (could be plural) are running
+checkpid() {
+    local i
+
+    for i in $* ; do
+        [ -d "/proc/$i" ] && return 0
+    done
+    return 1
+}
+
 servers_stop()
 {
-	prog=$1
-
-	source+eu /etc/rc.d/init.d/functions
+	echo "stopping $1 processes..."
+	local prog=$(basename "$1")
 
 	# shutdown services. mds should be stopped last, because
 	# other ioservices may have connections to mdservice.
-	local pids=$(__pids_pidof $prog)
+	local pids=$(pgrep "$prog")
 	echo === pids of services: $pids ===
 	echo "Shutting down services one by one. mdservice is the last."
 	local delay=5
@@ -180,14 +189,14 @@ servers_stop()
 			else
 				sleep 5
 				if checkpid $pid && sleep 5 &&
-					checkpid $pid && sleep $delay &&
-					checkpid $pid ; then
-				kill -KILL $pid &>/dev/null
-				usleep 100000
+				   checkpid $pid && sleep $delay &&
+				   checkpid $pid ; then
+					kill -KILL $pid &>/dev/null
+					sleep 1
+				fi
 			fi
 		fi
-	fi
-	echo "----- $pid stopped --------"
+		echo "----- $pid stopped --------"
 	done
 	return $rc
 }
@@ -198,35 +207,32 @@ motr_service()
 	local unit_size=$UNIT_SIZE
 	local N=$NR_DATA
 	local K=$NR_PARITY
+	local S=$NR_SPARE
 	local P=$POOL_WIDTH
 	local multiple_pools=$2
 	local PROC_FID_CNTR=0x7200000000000001
 	local rc=0
 
-	if [ $# -ge 6 ]
+	if [ $# -ge 7 ]
 	then
 		stride=$3
 		N=$4
 		K=$5
-		P=$6
+		S=$6
+		P=$7
 		unit_size=$((stride * 1024))
 	fi
-	if [ $# -eq 7 ]
+	if [ $# -eq 8 ]
 	then
-		FI_OPTS="-o $7"
+		FI_OPTS="-o $8"
 	fi
 
         prog_mkfs="$M0_SRC_DIR/utils/mkfs/m0mkfs"
         prog_start="$M0_SRC_DIR/motr/m0d"
-        prog_exec="$M0_SRC_DIR/motr/.libs/lt-m0d"
 
 	if echo $(basename $0) | grep -q 'altogether'; then
 		prog_start="${prog_start}-altogether"
-		prog_exec="${prog_exec}-altogether"
 	fi
-	export prog_exec=$prog_exec
-
-	source+eu /etc/rc.d/init.d/functions
 
 	start() {
 		NR_IOS_DEVS=0
@@ -254,7 +260,7 @@ motr_service()
 		local nr_dev_per_ios=$(($P / $nr_ios))
 		local remainder=$(($P % $nr_ios))
 
-		echo "motr_service_start: (N,K,P)=($N,$K,$P) nr_ios=$nr_ios multiple_pools=$multiple_pools"
+		echo "motr_service_start: (N,K,S,P)=($N,$K,$S,$P) nr_ios=$nr_ios multiple_pools=$multiple_pools"
 
 		#create ios devices
 		for ((i=0; i < $nr_ios; i++)) ; do
@@ -303,7 +309,7 @@ EOF
 
 		DIR=$MOTR_M0T1FS_TEST_DIR/confd
 		CONFDB="$DIR/conf.xc"
-		build_conf $N $K $P $multiple_pools | tee $DIR/conf.xc
+		build_conf $N $K $S $P $multiple_pools | tee $DIR/conf.xc
 		common_opts="-D db -S stobs -A linuxstob:addb-stobs \
 			     -w $P -m $MAX_RPC_MSG_SIZE \
 			     -q $TM_MIN_RECV_QUEUE_LEN -N 100663296 -C 262144 -K 100663296 -k 262144"
@@ -513,7 +519,7 @@ EOF
 	}
 
 	stop() {
-		servers_stop $prog_exec || rc=$?
+		servers_stop $prog_start || rc=$?
 		unprepare || rc=$?
 		return $rc
 	}

@@ -28,7 +28,7 @@
     flags=4 filename="/dev/sdev3")
 
 (pool-0 pver_policy=0 pvers=[pver-0])
-(pver-0 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:10])
+(pver-0 N=3 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:10])
 ## sites -------------------------------------------------------------
 (site-2 racks=[rack-0] pvers=[pver-0])
 (objv-2:10 real=site-2 children=[objv-10])
@@ -36,12 +36,12 @@
 (rack-0 encls=[enclosure-0, enclosure-1] pvers=[pver-0])
 (objv-10 real=rack-0 children=[objv-20, objv-21])
 ## encls -------------------------------------------------------------
-(enclosure-0 ctrls=[] pvers=[pver-0])
-(enclosure-1 ctrls=[controller-0] pvers=[pver-0])
+(enclosure-0 node=node-0 ctrls=[] pvers=[pver-0])
+(enclosure-1 node=node-0 ctrls=[controller-0] pvers=[pver-0])
 (objv-20 real=enclosure-0 children=[]) # childless enclv
 (objv-21 real=enclosure-1 children=[objv-30])
 ## ctrls -------------------------------------------------------------
-(controller-0 node=node-0 drives=[drive-0, drive-1, drive-2] pvers=[pver-0])
+(controller-0 drives=[drive-0, drive-1, drive-2] pvers=[pver-0])
 (objv-30 real=controller-0 children=[objv-40, objv-41, objv-42])
 ## disks -------------------------------------------------------------
 (drive-0 dev=sdev-0 pvers=[pver-0])

@@ -90,6 +90,7 @@ int init(struct workload *w)
 	}
 
 	m0_conf.mc_is_addb_init          = conf->is_addb_init;
+	m0_conf.mc_addb_size             = conf->addb_size;
 	m0_conf.mc_is_oostore            = conf->is_oostrore;
 	m0_conf.mc_is_read_verify        = conf->is_read_verify;
 	m0_conf.mc_local_addr            = conf->local_addr;

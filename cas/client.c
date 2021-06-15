@@ -39,7 +39,7 @@
 #include "cas/client.h"
 #include "lib/finject.h"
 #include "cas/cas_addb2.h"
-
+#include "dtm0/dtx.h"   /* struct m0_dtm0_dtx */
 /**
  * @addtogroup cas-client
  * @{
@@ -176,6 +176,7 @@ static int creq_op_alloc(uint64_t           recs_nr,
 	} else {
 		op->cg_rec.cr_nr = recs_nr;
 		op->cg_rec.cr_rec = rec;
+		m0_dtm0_tx_desc_init_none(&op->cg_txd);
 		*out = op;
 	}
 	return M0_RC(0);
@@ -184,6 +185,7 @@ static int creq_op_alloc(uint64_t           recs_nr,
 static void creq_op_free(struct m0_cas_op *op)
 {
 	if (op != NULL) {
+		m0_dtm0_tx_desc_fini(&op->cg_txd);
 		m0_free(op->cg_rec.cr_rec);
 		m0_free(op);
 	}
@@ -393,6 +395,7 @@ static int creq_fop_create(struct m0_cas_req  *req,
 			   struct m0_cas_op   *op)
 {
 	struct m0_fop *fop;
+	M0_ENTRY();
 
 	M0_ALLOC_PTR(fop);
 	if (fop == NULL)
@@ -403,6 +406,7 @@ static int creq_fop_create(struct m0_cas_req  *req,
 	req->ccr_fop = fop;
 	req->ccr_ftype = ftype;
 
+	M0_LEAVE("cas_req=%p fop=%p", req, fop);
 	return 0;
 }
 
@@ -412,6 +416,7 @@ static int creq_fop_create_and_prepare(struct m0_cas_req     *req,
 				       enum m0_cas_req_state *next_state)
 {
 	int rc;
+	M0_ENTRY();
 
 	rc = creq_fop_create(req, ftype, op);
 	if (rc == 0) {
@@ -1609,6 +1614,7 @@ static int cas_req_prep(struct m0_cas_req       *req,
 {
 	struct m0_cas_recv *reply_recv;
 	int                 rc;
+	M0_ENTRY();
 
 	reply_recv = &req->ccr_reply.cgr_rep;
 	M0_ALLOC_ARR(reply_recv->cr_rec, max_replies_nr);
@@ -1655,9 +1661,11 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 		~(COF_CREATE | COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT)) == 0);
 	M0_PRE(m0_cas_id_invariant(index));
 
-	(void)dtx;
 	rc = cas_req_prep(req, index, keys, values, keys->ov_vec.v_nr, flags,
 			  &op);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = m0_dtx0_txd_copy(dtx, &op->cg_txd);
 	if (rc != 0)
 		return M0_ERR(rc);
 	rc = creq_fop_create_and_prepare(req, &cas_put_fopt, op, &next_state);
@@ -1819,9 +1827,11 @@ M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 	M0_PRE(m0_cas_id_invariant(index));
 	M0_PRE(M0_IN(flags, (0, COF_DEL_LOCK, COF_SYNC_WAIT)));
 
-	(void)dtx;
 	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, flags,
 			  &op);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = m0_dtx0_txd_copy(dtx, &op->cg_txd);
 	if (rc != 0)
 		return M0_ERR(rc);
 	rc = creq_fop_create_and_prepare(req, &cas_del_fopt, op, &next_state);

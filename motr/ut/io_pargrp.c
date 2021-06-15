@@ -331,7 +331,7 @@ static void ut_test_pargrp_iomap_populate(void)
 
 	map->pi_ivec.iv_vec.v_nr = 0;
 	m0_ivec_cursor_init(&cursor, &ivec);
-	rc = pargrp_iomap_populate(map, &ivec, &cursor, NULL);
+	rc = pargrp_iomap_populate(map, &cursor, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_indexvec_free(&ivec);
 	map->pi_ivec.iv_vec.v_nr = 0;
@@ -347,7 +347,7 @@ static void ut_test_pargrp_iomap_populate(void)
 	ioo->ioo_data.ov_vec.v_count[0] = 2 * blk_size;
 
 	m0_ivec_cursor_init(&cursor, &ivec);
-	rc = pargrp_iomap_populate(map, &ivec, &cursor, NULL);
+	rc = pargrp_iomap_populate(map, &cursor, NULL);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_indexvec_free(&ivec);
@@ -367,7 +367,7 @@ static void ut_test_pargrp_iomap_populate(void)
 	ioo->ioo_data.ov_vec.v_count[0] = 2 * blk_size;
 
 	m0_ivec_cursor_init(&cursor, &ivec);
-	rc = pargrp_iomap_populate(map, &ivec, &cursor, NULL);
+	rc = pargrp_iomap_populate(map, &cursor, NULL);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_ivec_cursor_index(&cursor) == 2 * blk_size);
 
@@ -389,7 +389,7 @@ static void ut_test_pargrp_iomap_populate(void)
 	ioo->ioo_data.ov_vec.v_count[0] = 4 * blk_size;
 
 	m0_ivec_cursor_init(&cursor, &ivec);
-	rc = pargrp_iomap_populate(map, &ivec, &cursor, NULL);
+	rc = pargrp_iomap_populate(map, &cursor, NULL);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_ivec_cursor_index(&cursor) == 2 * blk_size);
 
@@ -410,7 +410,7 @@ static void ut_test_pargrp_iomap_populate(void)
 	ivec.iv_vec.v_count[0] = blk_size;
 
 	m0_ivec_cursor_init(&cursor, &ivec);
-	rc = pargrp_iomap_populate(map, &ivec, &cursor, NULL);
+	rc = pargrp_iomap_populate(map, &cursor, NULL);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_indexvec_free(&ivec);
@@ -872,7 +872,7 @@ static void ut_free_pargrp_iomap(struct pargrp_iomap *map)
 
 	if (map->pi_paritybufs != NULL) {
 		for (row = 0; row < map->pi_max_row; ++row) {
-			for (col = 0; col < parity_col_nr(play); ++col) {
+			for (col = 0; col < layout_k(play); ++col) {
 				if (map->pi_paritybufs[row][col] != NULL)
 					m0_free(map->pi_paritybufs[row][col]);
 			}
@@ -908,15 +908,12 @@ static void ut_test_pargrp_iomap_init(void)
 	M0_UT_ASSERT(map != NULL);
 
 	rc = pargrp_iomap_init(map, ioo, 1);
-	M0_UT_ASSERT(rc == 0 || rc == -ENOMEM);
-	if (rc == 0) {
-		M0_UT_ASSERT(map->pi_databufs != NULL);
-		for (i = 0; i < map->pi_max_row; i++) {
-			M0_UT_ASSERT(map->pi_databufs[i] != NULL);
-		}
-
-		ut_free_pargrp_iomap(map);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(map->pi_databufs != NULL);
+	for (i = 0; i < map->pi_max_row; i++) {
+		M0_UT_ASSERT(map->pi_databufs[i] != NULL);
 	}
+	ut_free_pargrp_iomap(map);
 	m0_free(map);
 
 	ut_dummy_ioo_delete(ioo, instance);

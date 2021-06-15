@@ -25,7 +25,7 @@
 #include "lib/trace.h"
 #include "fdmi/module.h"
 #include "module/instance.h"
-
+#if 0
 M0_UNUSED static int level_fdmi_enter(struct m0_module *module);
 M0_UNUSED static void level_fdmi_leave(struct m0_module *module);
 
@@ -45,6 +45,7 @@ M0_UNUSED static int level_fdmi_enter(struct m0_module *module)
 static void level_fdmi_leave(struct m0_module *module)
 {
 }
+#endif
 
 M0_INTERNAL struct m0_fdmi_module *m0_fdmi_module__get(void)
 {

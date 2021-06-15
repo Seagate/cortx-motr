@@ -35,7 +35,7 @@ ITER_NR=10
 
 # install "motr" Python module required by m0spiel tool
 cd $M0_SRC_DIR/utils/spiel
-python setup.py install > /dev/null ||
+python2 setup.py install > /dev/null ||
     die 'Cannot install Python "motr" module'
 cd $M0_SRC_DIR
 
@@ -44,8 +44,8 @@ scripts/install-motr-service -u
 rm -rf /etc/motr
 rm -f  /etc/sysconfig/motr
 scripts/install-motr-service -l
-utils/m0setup -v -P 3 -N 1 -K 1 -i 1 -d /var/motr/img -s 8 -c
-utils/m0setup -v -P 3 -N 1 -K 1 -i 1 -d /var/motr/img -s 8
+utils/m0setup -v -P 3 -N 1 -K 1 -S 1 -i 1 -d /var/motr/img -s 8 -c
+utils/m0setup -v -P 3 -N 1 -K 1 -S 1 -i 1 -d /var/motr/img -s 8
 
 # update Motr configuration: set specific dir for test artifacts
 sed -i "s@.*MOTR_LOG_DIR.*@MOTR_LOG_DIR=${SANDBOX_DIR}/log@" \
@@ -131,7 +131,7 @@ fi
 
 cd $M0_SRC_DIR
 scripts/install-motr-service -u
-utils/m0setup -v -P 3 -N 1 -K 1 -i 1 -d /var/motr/img -s 8 -c
+utils/m0setup -v -P 3 -N 1 -K 1 -S 1 -i 1 -d /var/motr/img -s 8 -c
 
 if [ $rc -eq 0 ]; then
     rm -r $SANDBOX_DIR

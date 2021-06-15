@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -144,8 +144,9 @@ class ReqhInitArgs(Structure):
 
 # struct m0_pdclust_attr
 class PdclustAttr(Structure):
-    _fields_ = [('pa_N', c_uint32), ('pa_K', c_uint32), ('pa_P', c_uint32),
-                ('pa_unit_size', c_uint64), ('pa_seed', Fid)]
+    _fields_ = [('pa_N', c_uint32), ('pa_K', c_uint32), ('pa_S', c_uint32),
+                ('pa_P', c_uint32), ('pa_unit_size', c_uint64),
+                ('pa_seed', Fid)]
 
 
 # struct m0_spiel_service_info
@@ -188,7 +189,7 @@ def call(func, *args):
 class SpielWrapper:
     def __init__(self, motr):
         self.motr = CDLL(motr)
-        self.motr.malloc.restype = c_void_p
+        self.motr.m0_alloc.restype = c_void_p
         self.signal_nr = None
         self.signal_cb = None
 
@@ -319,15 +320,15 @@ class SpielWrapper:
         return self.motr.m0_spiel_rack_add(spiel_tx.data, byref(fid),
                                            byref(parent))
 
-    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid)
-    def enclosure_add(self, spiel_tx, fid, parent):
-        return self.motr.m0_spiel_enclosure_add(spiel_tx.data, byref(fid),
-                                                byref(parent))
-
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, node=Fid)
-    def controller_add(self, spiel_tx, fid, parent, node):
+    def enclosure_add(self, spiel_tx, fid, parent, node):
+        return self.motr.m0_spiel_enclosure_add(spiel_tx.data, byref(fid),
+                                                byref(parent), byref(node))
+
+    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid)
+    def controller_add(self, spiel_tx, fid, parent):
         return self.motr.m0_spiel_controller_add(spiel_tx.data, byref(fid),
-                                                 byref(parent), byref(node))
+                                                 byref(parent))
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid)
     def drive_add(self, spiel_tx, fid, parent):
@@ -581,8 +582,13 @@ class SpielWrapper:
 
     def __net_domain_init(self):
         domain = self.__malloc(m0_net_domain__size())
-        xprt = NetXprt.in_dll(self.motr, 'm0_net_lnet_xprt')
-        call(self.motr.m0_net_domain_init, domain, pointer(xprt))
+        self.motr.m0_net_xprt_default_get.restype = c_void_p
+        xprt = self.motr.m0_net_xprt_default_get()
+        if not xprt:
+            xprt = NetXprt.in_dll(self.motr, 'm0_net_lnet_xprt')
+
+        self.motr.m0_net_domain_init.argtypes = [c_void_p, c_void_p]
+        call(self.motr.m0_net_domain_init, domain, xprt)
         self.domain = domain
 
     def __net_buffer_pool_setup(self):
@@ -598,11 +604,9 @@ class SpielWrapper:
         reqh_args.rhia_fid = pointer(Fid(0x7200000000000001, 5))  # process-5
         reqh_args.rhia_mdstore = 1  # dummy value
         call(self.motr.m0_reqh_init, reqh, byref(reqh_args))
-        self.__free(reqh_args)
         self.motr.m0_reqh_start(reqh)
         rms = self.__malloc(m0_reqh_service__size())
-        rms_p = cast(rms, c_void_p)
-        call(self.motr.m0_reqh_service_setup, rms_p, self.motr.m0_rms_type,
+        call(self.motr.m0_reqh_service_setup, rms, self.motr.m0_rms_type,
              reqh, None, byref(spiel_rms_fid))
         self.reqh = reqh
 
@@ -635,12 +639,11 @@ class SpielWrapper:
         self.spiel = spiel
 
     def __malloc(self, size):
-        ptr = self.motr.malloc(size)  # XXX Why don't we use m0_alloc()?
-        memset(ptr, 0, size)
-        return ptr
+        ptr = self.motr.m0_alloc(size)
+        return cast(ptr, c_void_p)
 
     def __free(self, ptr):
-        self.motr.free(ptr)
+        self.motr.m0_free(ptr)
 
 
 class SpielTool:

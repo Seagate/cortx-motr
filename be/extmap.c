@@ -29,6 +29,7 @@
 #include "lib/arith.h"      /* M0_3WAY */
 #include "lib/misc.h"
 #include "lib/finject.h"
+#include "lib/memory.h"
 #include "format/format.h"  /* m0_format_header_pack */
 
 /**
@@ -131,14 +132,19 @@ static struct m0_rwlock *emap_rwlock(struct m0_be_emap *emap)
 
 static void emap_dump(struct m0_be_emap_cursor *it)
 {
-	struct m0_be_emap_cursor scan;
-	struct m0_uint128       *prefix = &it->ec_key.ek_prefix;
-	struct m0_be_emap_seg   *seg    = &scan.ec_seg;
-	int                      i;
-	int                      rc;
+	int                       i;
+	int                       rc;
+	struct m0_be_emap_cursor *scan;
+	struct m0_uint128        *prefix = &it->ec_key.ek_prefix;
+	struct m0_be_emap_seg    *seg;
+
+	M0_ALLOC_PTR(scan);
+	if (scan == NULL)
+		return;
+	seg = &scan->ec_seg;
 
 	m0_rwlock_read_lock(emap_rwlock(it->ec_map));
-	rc = be_emap_lookup(it->ec_map, prefix, 0, &scan);
+	rc = be_emap_lookup(it->ec_map, prefix, 0, scan);
 	M0_ASSERT(rc == 0);
 
 	M0_LOG(M0_DEBUG, U128X_F":", U128_P(prefix));
@@ -150,11 +156,13 @@ static void emap_dump(struct m0_be_emap_cursor *it)
 		       (unsigned long)seg->ee_val);
 		if (m0_be_emap_ext_is_last(&seg->ee_ext))
 			break;
-		rc = be_emap_next(&scan);
+		rc = be_emap_next(scan);
 		M0_ASSERT(rc == 0);
 	}
-	be_emap_close(&scan);
+	be_emap_close(scan);
 	m0_rwlock_read_unlock(emap_rwlock(it->ec_map));
+
+	m0_free(scan);
 }
 
 static void emap_key_init(struct m0_be_emap_key *key)
@@ -179,47 +187,53 @@ static void emap_rec_init(struct m0_be_emap_rec *rec)
 
 M0_INTERNAL int m0_be_emap_dump(struct m0_be_emap *map)
 {
-	struct m0_be_emap_cursor it;
-	struct m0_be_emap_seg *seg;
+	struct m0_be_emap_cursor *it;
+	struct m0_be_emap_seg *seg = NULL;
 	m0_bcount_t            nr_segs = 0;
 	m0_bcount_t            nr_cobs = 0;
 	int                    rc = 0;
 	struct m0_uint128      prefix;
 
+	M0_ALLOC_PTR(it);
+	if (it == NULL)
+		return M0_ERR(-ENOMEM);
+
 	m0_rwlock_read_lock(emap_rwlock(map));
 
 	prefix = M0_UINT128(0, 0);
-	rc = be_emap_lookup(map, &prefix, 0, &it);
+	rc = be_emap_lookup(map, &prefix, 0, it);
 	if (rc == -ESRCH) {
-		prefix = it.ec_seg.ee_pre;
-		rc = be_emap_lookup(map, &prefix, 0, &it);
+		prefix = it->ec_seg.ee_pre;
+		rc = be_emap_lookup(map, &prefix, 0, it);
 	}
-	if (rc != 0) {
-		m0_rwlock_read_unlock(emap_rwlock(map));
-		return M0_ERR(rc);
-	}
+	if (rc != 0)
+		goto err;
 
 	do {
-		seg = m0_be_emap_seg_get(&it);
+		seg = m0_be_emap_seg_get(it);
 		M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
 			  !m0_ext_is_empty(&seg->ee_ext));
 		++nr_segs;
 		if (m0_be_emap_ext_is_last(&seg->ee_ext))
 			++nr_cobs;
-		rc = be_emap_next(&it);
+		rc = be_emap_next(it);
 	} while (rc == 0 || rc == -ESRCH);
 
-	be_emap_close(&it);
-
+	be_emap_close(it);
+ err:
 	m0_rwlock_read_unlock(emap_rwlock(map));
 
-	M0_LOG(M0_DEBUG, "%p %"PRIx64" %u %lu", map,
-	       seg->ee_pre.u_hi, (unsigned)nr_cobs, (unsigned long)nr_segs);
+	if (seg != NULL)
+		M0_LOG(M0_DEBUG, "%p %"PRIx64" %u %lu", map,
+		       seg->ee_pre.u_hi, (unsigned)nr_cobs,
+		       (unsigned long)nr_segs);
+
+	m0_free(it);
 
 	if (rc == -ENOENT)
 		return M0_RC(0);
-	else
-		return M0_ERR(rc);
+
+	return M0_ERR(rc);
 }
 
 static void delete_wrapper(struct m0_be_btree *btree, struct m0_be_tx *tx,
@@ -675,21 +689,34 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 				       struct m0_be_op   *op,
 				 const struct m0_uint128 *prefix)
 {
-	struct m0_be_emap_cursor it;
-	int                      rc;
+	int                       rc = -ENOMEM;
+#ifdef __KERNEL__
+	struct m0_be_emap_cursor *it;
+	M0_ALLOC_PTR(it);
+	if (it == NULL)
+		goto err;
+#else
+	struct m0_be_emap_cursor  it_s;
+	struct m0_be_emap_cursor *it = &it_s;
+#endif
 
 	m0_be_op_active(op);
 
 	m0_rwlock_write_lock(emap_rwlock(map));
-	rc = be_emap_lookup(map, prefix, 0, &it);
+	rc = be_emap_lookup(map, prefix, 0, it);
 	if (rc == 0) {
-		M0_ASSERT(m0_be_emap_ext_is_first(&it.ec_seg.ee_ext) &&
-			  m0_be_emap_ext_is_last(&it.ec_seg.ee_ext));
-		rc = emap_it_pack(&it, delete_wrapper, tx);
-		be_emap_close(&it);
+		M0_ASSERT(m0_be_emap_ext_is_first(&it->ec_seg.ee_ext) &&
+			  m0_be_emap_ext_is_last(&it->ec_seg.ee_ext));
+		rc = emap_it_pack(it, delete_wrapper, tx);
+		be_emap_close(it);
 	}
-	op->bo_u.u_emap.e_rc = rc;
 	m0_rwlock_write_unlock(emap_rwlock(map));
+
+#ifdef __KERNEL__
+	m0_free(it);
+ err:
+#endif
+	op->bo_u.u_emap.e_rc = rc;
 
 	m0_be_op_done(op);
 }
@@ -1032,20 +1059,33 @@ be_emap_invariant_check(struct m0_be_emap_cursor *it)
 static bool
 be_emap_invariant(struct m0_be_emap_cursor *it)
 {
-	struct m0_be_emap_cursor scan;
-	int                      rc;
-	bool                     is_good = true;
+	bool                      is_good = true;
+	int                       rc;
+#ifdef __KERNEL__
+	struct m0_be_emap_cursor *scan;
+
+	M0_ALLOC_PTR(scan);
+	if (scan == NULL)
+		return false;
+#else
+	struct m0_be_emap_cursor  scan_s;
+	struct m0_be_emap_cursor *scan = &scan_s;
+#endif
 
 	m0_rwlock_read_lock(emap_rwlock(it->ec_map));
-	rc = be_emap_lookup(it->ec_map, &it->ec_key.ek_prefix, 0, &scan);
+	rc = be_emap_lookup(it->ec_map, &it->ec_key.ek_prefix, 0, scan);
 	if (rc == 0) {
-		is_good = be_emap_invariant_check(&scan);
-		be_emap_close(&scan);
+		is_good = be_emap_invariant_check(scan);
+		be_emap_close(scan);
 	}
 	m0_rwlock_read_unlock(emap_rwlock(it->ec_map));
 
 	if (!is_good)
 		emap_dump(it);
+
+#ifdef __KERNEL__
+	m0_free(scan);
+#endif
 
 	return is_good;
 }

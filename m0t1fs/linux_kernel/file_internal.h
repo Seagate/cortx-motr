@@ -1157,8 +1157,7 @@ struct nw_xfer_ops {
 	 * @pre   nw_xfer_request_invariant(xfer).
 	 * @post  xfer->nxr_state == NXS_COMPLETE.
 	 */
-	void (*nxo_complete)   (struct nw_xfer_request  *xfer,
-				bool                     rmw);
+	void (*nxo_complete)   (struct nw_xfer_request  *xfer, bool rmw);
 
 	/**
 	 * Dispatches the IO fops created by all member target_ioreq objects
@@ -1172,18 +1171,17 @@ struct nw_xfer_ops {
 
 	/**
 	 * Locates or creates a target_iroeq object which maps to the given
-	 * target address.
-	 * @param src  Source address comprising of parity group number
-	 * and unit number in parity group.
-	 * @param tgt  Target address comprising of frame number and
-	 * target object number.
-	 * @param out  Out parameter containing target_ioreq object.
+	 * source unit address.
+	 *
+	 * @param src       unit address in the parity group.
+	 * @param tgt[out]  unit address in target devices.
+	 * @param tio[out]  target_ioreq object.
 	 * @pre   nw_xfer_request_invariant(xfer).
 	 */
 	int  (*nxo_tioreq_map) (struct nw_xfer_request           *xfer,
 				const struct m0_pdclust_src_addr *src,
 				struct m0_pdclust_tgt_addr       *tgt,
-				struct target_ioreq             **out);
+				struct target_ioreq             **tio);
 };
 
 /**
@@ -1566,9 +1564,9 @@ struct pargrp_iomap_ops {
 	 * read-old approach or read-rest approach.
 	 * pargrp_iomap::pi_rtype will be set to PIR_READOLD or
 	 * PIR_READREST accordingly.
-	 * @param ivec   Source index vector from which pargrp_iomap::pi_ivec
-	 * will be populated. Typically, this is io_request::ir_ivec.
-	 * @param cursor Index vector cursor associated with ivec.
+	 * @param cursor Source index vector cursor from which
+	 *               pargrp_iomap::pi_ivec will be populated.
+	 *               Typically, this is io_request::ir_ivec.
 	 * @pre iomap != NULL && ivec != NULL &&
 	 * m0_vec_count(&ivec->iv_vec) > 0 && cursor != NULL &&
 	 * m0_vec_count(&iomap->iv_vec) == 0
@@ -1576,7 +1574,6 @@ struct pargrp_iomap_ops {
 	 * iomap->pi_databufs != NULL.
 	 */
 	int (*pi_populate)  (struct pargrp_iomap        *iomap,
-			     struct m0_indexvec_varr    *ivv,
 			     struct m0_ivec_varr_cursor *cursor);
 
 	/**
@@ -1797,6 +1794,10 @@ struct target_ioreq {
 
 	/** Fop when the ti_req_type == TI_COB_CREATE. */
 	struct cc_req_fop              ti_cc_fop;
+
+	/** flag to indicate if cc_fop is used */
+	bool                           ti_cc_fop_inited;
+
 	/** Resulting IO fops are sent on this rpc session. */
 	struct m0_rpc_session         *ti_session;
 

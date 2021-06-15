@@ -45,7 +45,7 @@ static struct m0_semaphore   g_ready_sem;
 static struct m0_semaphore   g_fatal_sem;
 static struct m0_reqh       *ut_reqh;
 static struct m0_net_domain  client_net_dom;
-static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
+
 static struct m0_fid         profile = M0_FID_TINIT('p', 1, 0);
 static bool (*ha_clink_cb_orig)(struct m0_clink *clink);
 
@@ -87,8 +87,8 @@ static int rconfc_ut_motr_start(struct m0_rpc_machine    *mach,
 		"-c", M0_UT_PATH("diter.xc")
 	};
 	*rctx = (struct m0_rpc_server_ctx) {
-		.rsx_xprts         = &m0_conf_ut_xprt,
-		.rsx_xprts_nr      = 1,
+		.rsx_xprts         = m0_net_all_xprt_get(),
+		.rsx_xprts_nr      = m0_net_xprt_nr(),
 		.rsx_argv          = argv,
 		.rsx_argc          = ARRAY_SIZE(argv),
 		.rsx_log_file_name = NAME(".log")
@@ -99,7 +99,7 @@ static int rconfc_ut_motr_start(struct m0_rpc_machine    *mach,
 	rc = m0_rpc_server_start(rctx);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ut_rpc_machine_start(mach, m0_conf_ut_xprt,
+	rc = m0_ut_rpc_machine_start(mach, m0_net_xprt_default_get(),
 				     CLIENT_ENDPOINT_ADDR);
 	M0_UT_ASSERT(rc == 0);
 	ut_reqh = mach->rm_reqh;
@@ -247,6 +247,7 @@ static void test_start_failures(void)
 	m0_rconfc_fini(&rconfc);
 
 	m0_fi_enable_once("rconfc_read_lock_complete", "rlock_req_failed");
+	m0_fi_enable_once("_failure_ast_cb", "rlock_req_failed");
 	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
 			    NULL);
 	M0_UT_ASSERT(rc == 0);
@@ -333,6 +334,7 @@ static char *suffix_subst(const char *src, char delim, const char *suffix)
 	return s;
 }
 
+static bool do_fake = true;
 static bool ha_clink_cb_bad_rm(struct m0_clink *clink)
 {
 	struct m0_rconfc               *rconfc = M0_AMB(rconfc, clink,
@@ -345,7 +347,6 @@ static bool ha_clink_cb_bad_rm(struct m0_clink *clink)
 	    ecl->ecl_rep.hae_control != M0_HA_ENTRYPOINT_QUERY) {
 		char       *rm_addr = ecl->ecl_rep.hae_active_rm_ep;
 		char       *rm_fake = NULL;
-		static bool do_fake = true;
 		/*
 		 * The test is to fake the rm addr only once to provide that the
 		 * next time correct rm addr reaches rconfc non-distorted, which
@@ -377,6 +378,7 @@ static void test_fail_retry_rm(void)
 	int                      rc;
 	struct m0_rconfc         rconfc;
 
+	M0_SET0(&rconfc);
 	rc = rconfc_ut_motr_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 
@@ -388,6 +390,7 @@ static void test_fail_retry_rm(void)
 	 * retry. Imitation of the situation when HA reports dead active RM
 	 * endpoint and later reports a connectable one.
 	 */
+	do_fake = true;
 	ha_clink_cb_orig = rconfc.rc_ha_entrypoint_cl.cl_cb;
 	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_bad_rm;
 	rc = m0_rconfc_start_sync(&rconfc);
@@ -413,7 +416,6 @@ static bool ha_clink_cb_bad_confd(struct m0_clink *clink)
 	    ecl->ecl_rep.hae_control == M0_HA_ENTRYPOINT_CONSUME) {
 		const char *confd_addr = ecl->ecl_rep.hae_confd_eps[0];
 		char       *confd_fake = NULL;
-		static bool do_fake = true;
 		/*
 		 * The test is to fake the confd addr only once to provide that
 		 * the next time correct confd addr reaches rconfc
@@ -456,6 +458,7 @@ static void test_fail_retry_confd(void)
 	 * retry. Imitation of the situation when HA reports dead confd
 	 * endpoint and later reports a connectable one.
 	 */
+	do_fake = true;
 	ha_clink_cb_orig = rconfc.rc_ha_entrypoint_cl.cl_cb;
 	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_bad_confd;
 	rc = m0_rconfc_start_sync(&rconfc);
@@ -873,6 +876,8 @@ static void test_quorum_impossible(void)
 	M0_UT_ASSERT(rc == 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
 	M0_UT_ASSERT(ver != M0_CONF_VER_UNKNOWN);
+	if (m0_clink_is_armed(&clink))
+		m0_clink_del_lock(&clink);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 	m0_clink_fini(&clink);
@@ -1338,7 +1343,7 @@ static void test_drain(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_semaphore_init(&g_ready_sem, 0);
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(rc == 0);
@@ -1402,6 +1407,14 @@ static void test_drain(void)
 
 static int rconfc_ut_init(void)
 {
+
+	M0_SET0(&g_expired_sem);
+	M0_SET0(&g_ready_sem);
+	M0_SET0(&g_fatal_sem);
+	ut_reqh = NULL;
+	M0_SET0(&client_net_dom);
+	ha_clink_cb_orig = NULL;
+
 	return m0_conf_ut_ast_thread_init();
 }
 

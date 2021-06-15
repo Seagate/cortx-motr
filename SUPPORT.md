@@ -1,4 +1,4 @@
-Looking for support for CORTX parent or a repository?
+Looking for support for CORTX parent or a repository ?
 
 Consider some of these resources:
 

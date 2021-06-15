@@ -30,7 +30,7 @@ TOPDIR=`dirname $0`/../../../
 
 
 # The following variables 'files', 'unit_size', 'file_size'
-# and 'N', 'K', 'P' will override corresponding variables in
+# and 'N', 'K', 'S', 'P' will override corresponding variables in
 # m0t1fs_sns_common_inc.sh
 file=(
 	10000:10000
@@ -78,6 +78,7 @@ file_size=(
 )
 
 
+S=3
 N=3
 K=3
 P=15
@@ -232,7 +233,7 @@ main()
 
 	NODE_UUID=`uuidgen`
 	local multiple_pools=0
-	motr_service start $multiple_pools $stride $N $K $P || {
+	motr_service start $multiple_pools $stride $N $K $S $P || {
 		echo "Failed to start Motr Service."
 		return 1
 	}

@@ -261,12 +261,14 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 	extern struct m0_be_0type m0_stob_ad_0type;
 	extern struct m0_be_0type m0_be_cob0;
 	extern struct m0_be_0type m0_be_active_record0;
+	extern struct m0_be_0type m0_be_dtm0;
 
 	static struct m0_atomic64        dom_key = { .a_value = 0xbef11e };
 	static const struct m0_be_0type *zts[] = {
 		&m0_stob_ad_0type,
 		&m0_be_cob0,
 		&m0_be_active_record0,
+		&m0_be_dtm0,
 	};
 	struct m0_reqh *reqh = cfg->bc_engine.bec_reqh;
 
@@ -394,6 +396,40 @@ check_mkfs:
 	}
 	if (rc != 0)
 		m0_mutex_fini(&ut_be->but_sgt_lock);
+
+	return rc;
+}
+
+
+M0_INTERNAL int
+m0_be_ut_backend_log_resize(struct m0_be_ut_backend *ut_be,
+			    const struct m0_be_domain_cfg *cfg)
+{
+	struct m0_be_domain     *dom;
+	struct m0_be_domain_cfg *c;
+	int                      rc = 0;
+
+	M0_PRE(cfg != NULL);
+	ut_be->but_dom_cfg = *cfg;
+
+	c = &ut_be->but_dom_cfg;
+	dom = &ut_be->but_dom;
+
+	/* Use m0_be_ut_backend's stob domain location, if possible. */
+	if (ut_be->but_stob_domain_location != NULL)
+		c->bc_stob_domain_location = ut_be->but_stob_domain_location;
+
+	c->bc_mkfs_mode = true;
+
+	c->bc_log.lc_got_space_cb = m0_be_engine_got_log_space_cb;
+	c->bc_log.lc_full_cb      = m0_be_engine_full_log_cb;
+	c->bc_log.lc_lock         = &dom->bd_engine_lock;
+
+	be_domain_log_cleanup(c->bc_stob_domain_location, &c->bc_log, c->bc_mkfs_mode);
+
+	rc = m0_be_log_create(m0_be_domain_log(dom), &c->bc_log);
+
+	m0_be_log_close(m0_be_domain_log(dom));
 
 	return rc;
 }

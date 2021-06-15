@@ -228,7 +228,7 @@
         state: latest
   tags: c76-workarounds
 
-- name: enable persitent storage for journald
+- name: enable persistent storage for journald
   ini_file:
     path:    /etc/systemd/journald.conf
     section: Journal
@@ -295,12 +295,17 @@
     line: '%sudo   ALL=(ALL:ALL) NOPASSWD: ALL'
   when: ansible_os_family == 'Debian'
 
+- name: Check whether we are in development environment
+  shell: grep -q vagrant /etc/passwd
+  register: devenv
+  ignore_errors: yes
+
 - name: add /usr/local/s?bin/ to secure path
   # this is required for tools that are installed in '/usr/local/bin', to
   # be accessible with `sudo`, which uses secure path instead of the usual PATH
   # environment variable; it's enabled only in development environment though
   # (i.e. under Vagrant)
-  when: ansible_user == 'vagrant'
+  when: devenv.rc == 0
   block:
     - name: add /usr/local/s?bin/ to secure path in sudoers
       replace:

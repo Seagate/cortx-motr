@@ -52,7 +52,14 @@ enum config_key_val {
 	CASS_EP,
 	CASS_KEYSPACE,
 	CASS_COL_FAMILY,
-	WORKLOAD,
+	ADDB_INIT,
+	ADDB_SIZE,
+	LOG_LEVEL,
+	/*
+	 * All parameters below are workload-specific,
+	 * anything else should be added above this point.
+	 * The check for index at copy_value() relies on this.
+	 */
 	WORKLOAD_TYPE,
 	SEED,
 	NR_THREADS,
@@ -60,8 +67,6 @@ enum config_key_val {
 	NR_OBJS,
 	NUM_IDX,
 	NUM_KVP,
-	RECORD_SIZE,
-	MAX_RSIZE,
 	PUT,
 	GET,
 	NEXT,
@@ -73,8 +78,11 @@ enum config_key_val {
 	WARMUP_DEL_RATIO,
 	KEY_PREFIX,
 	KEY_ORDER,
+	KEY_SIZE,
+	VALUE_SIZE,
+	MAX_KEY_SIZE,
+	MAX_VALUE_SIZE,
 	INDEX_FID,
-	LOG_LEVEL,
 	THREAD_OPS,
 	BLOCK_SIZE,
 	BLOCKS_PER_OP,
@@ -86,7 +94,6 @@ enum config_key_val {
 	MODE,
 	MAX_NR_OPS,
 	NR_ROUNDS,
-	ADDB_INIT,
 };
 
 struct key_lookup_table {
@@ -108,15 +115,16 @@ struct key_lookup_table lookuptable[] = {
 	{"CASS_CLUSTER_EP", CASS_EP},
 	{"CASS_KEYSPACE", CASS_KEYSPACE},
 	{"CASS_MAX_COL_FAMILY_NUM", CASS_COL_FAMILY},
-	{"WORKLOAD", WORKLOAD},
+	{"ADDB_INIT", ADDB_INIT},
+	{"ADDB_SIZE", ADDB_SIZE},
 	{"WORKLOAD_TYPE", WORKLOAD_TYPE},
 	{"WORKLOAD_SEED", SEED},
 	{"NR_THREADS", NR_THREADS},
 	{"OPS", NUM_OPS},
 	{"NUM_IDX", NUM_IDX},
 	{"NUM_KVP", NUM_KVP},
-	{"RECORD_SIZE", RECORD_SIZE},
-	{"MAX_RSIZE", MAX_RSIZE},
+	{"RECORD_SIZE", VALUE_SIZE},
+	{"MAX_RSIZE", MAX_VALUE_SIZE},
 	{"GET", GET},
 	{"PUT", PUT},
 	{"NEXT", NEXT},
@@ -128,6 +136,10 @@ struct key_lookup_table lookuptable[] = {
 	{"WARMUP_DEL_RATIO", WARMUP_DEL_RATIO},
 	{"KEY_PREFIX", KEY_PREFIX},
 	{"KEY_ORDER", KEY_ORDER},
+	{"KEY_SIZE", KEY_SIZE},
+	{"VALUE_SIZE", VALUE_SIZE},
+	{"MAX_KEY_SIZE", MAX_KEY_SIZE},
+	{"MAX_VALUE_SIZE", MAX_VALUE_SIZE},
 	{"INDEX_FID", INDEX_FID},
 	{"LOG_LEVEL", LOG_LEVEL},
 	{"NR_OBJS", NR_OBJS},
@@ -143,7 +155,6 @@ struct key_lookup_table lookuptable[] = {
 	{"MODE", MODE},
 	{"MAX_NR_OPS", MAX_NR_OPS},
 	{"NR_ROUNDS", NR_ROUNDS},
-	{"ADDB_INIT", ADDB_INIT},
 };
 
 #define NKEYS (sizeof(lookuptable)/sizeof(struct key_lookup_table))
@@ -225,18 +236,21 @@ static int parse_int(const char *value, enum config_key_val tag)
 #define workload_index(t) (t->u.cw_index)
 #define workload_io(t) (t->u.cw_io)
 
+const char conf_section_name[] = "MOTR_CONFIG";
+
 int copy_value(struct workload *load, int max_workload, int *index,
 		char *key, char *value)
 {
+	int                       value_len = strlen(value);
 	struct workload          *w = NULL;
 	struct m0_fid            *obj_fid;
 	struct m0_workload_io    *cw;
 	struct m0_workload_index *ciw;
-	int                       value_len = strlen(value);
 
-	if (!strcmp(value, "MOTR_CONFIG")) {
+	if (m0_streq(value, conf_section_name)) {
 		if (conf != NULL) {
-			cr_log(CLL_ERROR, "YAML file error. More than one config sections");
+			cr_log(CLL_ERROR, "YAML file error: "
+			       "more than one config sections\n");
 			return -EINVAL;
 		}
 
@@ -244,6 +258,18 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		if (conf == NULL)
 			return -ENOMEM;
 	}
+	if (conf == NULL) {
+		cr_log(CLL_ERROR, "YAML file error: %s section is missing\n",
+		       conf_section_name);
+		return -EINVAL;
+	}
+
+	if (get_index_from_key(key) > WORKLOAD_TYPE && *index < 0) {
+		cr_log(CLL_ERROR, "YAML file error: WORKLOAD_TYPE is missing "
+		       "or is not going first in the workload section\n");
+		return -EINVAL;
+	}
+
 	switch(get_index_from_key(key)) {
 		case LOCAL_ADDR:
 			conf->local_addr = m0_alloc(value_len + 1);
@@ -303,7 +329,11 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case CASS_COL_FAMILY:
 			conf->col_family = atoi(value);
 			break;
-		case WORKLOAD:
+		case ADDB_INIT:
+			conf->is_addb_init = atoi(value);
+			break;
+		case ADDB_SIZE:
+			conf->addb_size = getnum(value, "addb size");
 			break;
 		case LOG_LEVEL:
 			conf->log_level = parse_int(value, LOG_LEVEL);
@@ -354,19 +384,6 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			w = &load[*index];
 			ciw = workload_index(w);
 			ciw->num_kvs = atoi(value);
-			break;
-		case RECORD_SIZE:
-			w = &load[*index];
-			ciw = workload_index(w);
-			if (!strcmp(value, "random"))
-				ciw->record_size = -1;
-			else
-				ciw->record_size = parse_int_with_units(value, RECORD_SIZE);
-			break;
-		case MAX_RSIZE:
-			w = &load[*index];
-			ciw = workload_index(w);
-			ciw->max_record_size = parse_int_with_units(value, MAX_RSIZE);
 			break;
 		case PUT:
 			w = &load[*index];
@@ -439,6 +456,41 @@ int copy_value(struct workload *load, int max_workload, int *index,
 				ciw->keys_ordered = false;
 			else
 				parser_emit_error("Unkown key ordering: '%s'", value);
+			break;
+		case KEY_SIZE:
+			w = &load[*index];
+			ciw = workload_index(w);
+			if (strcmp(value, "random") == 0)
+				ciw->key_size = -1;
+			else
+				ciw->key_size = parse_int(value, KEY_SIZE);
+			break;
+		case VALUE_SIZE:
+			w = &load[*index];
+			ciw = workload_index(w);
+			if (strcmp(value, "random") == 0)
+				ciw->value_size = -1;
+			else {
+				ciw->value_size = parse_int(value, VALUE_SIZE);
+				if (strcmp(key, "RECORD_SIZE") == 0) {
+					cr_log(CLL_WARN, "RECORD_SIZE is being deprecated, use KEY_SIZE and VALUE_SIZE.\n");
+					ciw->value_size = ciw->value_size - ciw->key_size;
+				}
+			}
+			break;
+		case MAX_KEY_SIZE:
+			w = &load[*index];
+			ciw = workload_index(w);
+			ciw->max_key_size = parse_int(value, MAX_KEY_SIZE);
+			break;
+		case MAX_VALUE_SIZE:
+			w = &load[*index];
+			ciw = workload_index(w);
+			ciw->max_value_size = parse_int(value, MAX_VALUE_SIZE);
+			if (strcmp(key, "MAX_RSIZE") == 0) {
+				cr_log(CLL_WARN, "MAX_RSIZE is being deprecated, use MAX_KEY_SIZE and MAX_VALUE_SIZE.\n");
+				ciw->max_value_size = ciw->max_value_size - ciw->max_key_size;
+			}
 			break;
 		case INDEX_FID:
 			w = &load[*index];
@@ -531,9 +583,6 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			w = &load[*index];
 			cw = workload_io(w);
 			cw->cwi_rounds = atoi(value);
-			break;
-		case ADDB_INIT:
-			conf->is_addb_init = atoi(value);
 			break;
 		default:
 			break;

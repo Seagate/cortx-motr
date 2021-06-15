@@ -54,15 +54,64 @@ static struct {
 	int num;
 } ut_xprt_pvt;
 
-static bool ut_dom_init_called = false;
-static bool ut_dom_fini_called = false;
-static bool ut_get_max_buffer_segment_size_called = false;
-static bool ut_get_max_buffer_size_called = false;
-static bool ut_get_max_buffer_segments_called = false;
-static bool ut_end_point_create_called = false;
-static bool ut_end_point_release_called = false;
+static bool ut_dom_init_called;
+static bool ut_dom_fini_called;
+static bool ut_get_max_buffer_segment_size_called;
+static bool ut_get_max_buffer_size_called;
+static bool ut_get_max_buffer_segments_called;
+static bool ut_end_point_create_called;
+static bool ut_end_point_release_called;
+static bool ut_tm_confine_called;
+static const struct m0_bitmap *ut_tm_confine_bm;
+static bool ut_buf_register_called;
+static bool ut_buf_deregister_called;
+static bool ut_buf_del_called;
+static bool ut_buf_add_called;
+static bool ut_tm_init_called;
+static bool ut_tm_fini_called;
+static bool ut_tm_start_called;
+static bool ut_tm_stop_called;
+static bool ut_bev_deliver_sync_called;
+static bool ut_bev_deliver_all_called;
+static bool ut_bev_pending_called;
+static int ut_bev_pending_last;
+static bool ut_multi_use_expect_queued;
+static struct m0_net_buffer *ut_multi_use_got_buf;
+static bool ut_bev_notify_called;
+static int ut_tm_event_cb_calls;
 
-static int ut_dom_init(struct m0_net_xprt *xprt,
+static int net_bulk_if_init(void)
+{
+	ut_dom_init_called = false;
+	ut_dom_fini_called = false;
+	ut_get_max_buffer_segment_size_called = false;
+	ut_get_max_buffer_size_called = false;
+	ut_get_max_buffer_segments_called = false;
+	ut_end_point_create_called = false;
+	ut_end_point_release_called = false;
+	ut_tm_confine_called = false;
+	ut_tm_confine_bm = NULL;
+	ut_buf_register_called = false;
+	ut_buf_deregister_called = false;
+	ut_buf_del_called = false;
+	ut_buf_add_called = false;
+	ut_tm_init_called = false;
+	ut_tm_fini_called = false;
+	ut_tm_start_called = false;
+	ut_tm_stop_called = false;
+	ut_bev_deliver_sync_called = false;
+	ut_bev_deliver_all_called = false;
+	ut_bev_pending_called = false;
+	ut_bev_pending_last = 1;
+	ut_multi_use_expect_queued = false;
+	ut_multi_use_got_buf = NULL;
+	ut_bev_notify_called = false;
+	ut_tm_event_cb_calls = 0;
+
+	return 0;
+}
+
+static int ut_dom_init(const struct m0_net_xprt *xprt,
 		       struct m0_net_domain *dom)
 {
 	M0_ASSERT(m0_mutex_is_locked(&m0_net_mutex));
@@ -174,7 +223,6 @@ static int ut_end_point_create(struct m0_net_end_point **epp,
 	return 0;
 }
 
-static bool ut_buf_register_called = false;
 static int ut_buf_register(struct m0_net_buffer *nb)
 {
 	M0_ASSERT(m0_mutex_is_locked(&nb->nb_dom->nd_mutex));
@@ -182,7 +230,6 @@ static int ut_buf_register(struct m0_net_buffer *nb)
 	return 0;
 }
 
-static bool ut_buf_deregister_called = false;
 static void ut_buf_deregister(struct m0_net_buffer *nb)
 {
 	M0_ASSERT(m0_mutex_is_locked(&nb->nb_dom->nd_mutex));
@@ -190,7 +237,6 @@ static void ut_buf_deregister(struct m0_net_buffer *nb)
 	return;
 }
 
-static bool ut_buf_add_called = false;
 static int ut_buf_add(struct m0_net_buffer *nb)
 {
 	M0_UT_ASSERT(m0_mutex_is_locked(&nb->nb_tm->ntm_mutex));
@@ -208,7 +254,6 @@ static int ut_buf_add(struct m0_net_buffer *nb)
 	return 0;
 }
 
-struct m0_thread ut_del_thread;
 static void ut_post_del_thread(struct m0_net_buffer *nb)
 {
 	struct m0_net_buffer_event ev = {
@@ -224,7 +269,7 @@ static void ut_post_del_thread(struct m0_net_buffer *nb)
 	m0_net_buffer_event_post(&ev);
 }
 
-static bool ut_buf_del_called = false;
+struct m0_thread ut_del_thread;
 static void ut_buf_del(struct m0_net_buffer *nb)
 {
 	int rc;
@@ -242,7 +287,6 @@ static void ut_buf_del(struct m0_net_buffer *nb)
 struct ut_tm_pvt {
 	struct m0_net_transfer_mc *tm;
 };
-static bool ut_tm_init_called = false;
 static int ut_tm_init(struct m0_net_transfer_mc *tm)
 {
 	struct ut_tm_pvt *tmp;
@@ -254,7 +298,6 @@ static int ut_tm_init(struct m0_net_transfer_mc *tm)
 	return 0;
 }
 
-static bool ut_tm_fini_called = false;
 static void ut_tm_fini(struct m0_net_transfer_mc *tm)
 {
 	struct ut_tm_pvt *tmp;
@@ -298,11 +341,10 @@ static void ut_post_state_change_ev_thread(int n)
 	m0_net_tm_event_post(&ev);
 }
 
-static bool ut_tm_start_called = false;
 static int ut_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 {
 	int rc;
-	struct m0_net_xprt *xprt;
+	const struct m0_net_xprt *xprt;
 	struct m0_net_end_point *ep;
 
 	M0_UT_ASSERT(m0_mutex_is_locked(&tm->ntm_mutex));
@@ -326,7 +368,6 @@ static int ut_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 	return rc;
 }
 
-static bool ut_tm_stop_called = false;
 static int ut_tm_stop(struct m0_net_transfer_mc *tm, bool cancel)
 {
 	int rc;
@@ -342,8 +383,6 @@ static int ut_tm_stop(struct m0_net_transfer_mc *tm, bool cancel)
 	return rc;
 }
 
-static bool ut_tm_confine_called = false;
-static const struct m0_bitmap *ut_tm_confine_bm;
 static int ut_tm_confine(struct m0_net_transfer_mc *tm,
 			 const struct m0_bitmap *processors)
 {
@@ -353,7 +392,6 @@ static int ut_tm_confine(struct m0_net_transfer_mc *tm,
 	return 0;
 }
 
-static bool ut_bev_deliver_sync_called = false;
 static int ut_bev_deliver_sync(struct m0_net_transfer_mc *tm)
 {
 	M0_UT_ASSERT(m0_mutex_is_locked(&tm->ntm_mutex));
@@ -361,7 +399,6 @@ static int ut_bev_deliver_sync(struct m0_net_transfer_mc *tm)
 	return 0;
 }
 
-static bool ut_bev_deliver_all_called = false;
 static void ut_bev_deliver_all(struct m0_net_transfer_mc *tm)
 {
 	M0_UT_ASSERT(m0_mutex_is_locked(&tm->ntm_mutex));
@@ -369,8 +406,6 @@ static void ut_bev_deliver_all(struct m0_net_transfer_mc *tm)
 	return;
 }
 
-static bool ut_bev_pending_called = false;
-static int ut_bev_pending_last = 1;
 static bool ut_bev_pending(struct m0_net_transfer_mc *tm)
 {
 	M0_UT_ASSERT(m0_mutex_is_locked(&tm->ntm_mutex));
@@ -379,7 +414,6 @@ static bool ut_bev_pending(struct m0_net_transfer_mc *tm)
 	return (bool)ut_bev_pending_last;
 }
 
-static bool ut_bev_notify_called = false;
 static void ut_bev_notify(struct m0_net_transfer_mc *tm, struct m0_chan *chan)
 {
 	M0_UT_ASSERT(m0_mutex_is_locked(&tm->ntm_mutex));
@@ -459,9 +493,9 @@ static void make_desc(struct m0_net_buf_desc *desc)
 }
 
 /* callback subs */
-static int ut_cb_calls[M0_NET_QT_NR];
-static uint64_t num_adds[M0_NET_QT_NR];
-static uint64_t num_dels[M0_NET_QT_NR];
+static int         ut_cb_calls[M0_NET_QT_NR];
+static uint64_t    num_adds[M0_NET_QT_NR];
+static uint64_t    num_dels[M0_NET_QT_NR];
 static m0_bcount_t total_bytes[M0_NET_QT_NR];
 static m0_bcount_t max_bytes[M0_NET_QT_NR];
 
@@ -537,8 +571,6 @@ static void ut_active_bulk_send_cb(const struct m0_net_buffer_event *ev)
 	UT_CB_CALL(M0_NET_QT_ACTIVE_BULK_SEND);
 }
 
-static bool ut_multi_use_expect_queued;
-static struct m0_net_buffer *ut_multi_use_got_buf;
 static void ut_multi_use_cb(const struct m0_net_buffer_event *ev)
 {
 	M0_UT_ASSERT(ev->nbe_buffer != NULL);
@@ -551,7 +583,6 @@ static void ut_multi_use_cb(const struct m0_net_buffer_event *ev)
 	ut_buffer_event_callback(ev, ev->nbe_buffer->nb_qtype, false);
 }
 
-static int ut_tm_event_cb_calls = 0;
 void ut_tm_event_cb(const struct m0_net_tm_event *ev)
 {
 	ut_tm_event_cb_calls++;
@@ -677,6 +708,8 @@ static void test_net_bulk_if(void)
 		num_adds[i] = 0;
 		num_dels[i] = 0;
 		total_bytes[i] = 0;
+		ut_cb_calls[i] = 0;
+		max_bytes[i]   = 0;
 	}
 	m0tt_to_period = m0_time(120, 0); /* 2 min */
 
@@ -712,6 +745,7 @@ static void test_net_bulk_if(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ut_tm_confine_called);
 	M0_UT_ASSERT(ut_tm_confine_bm == procmask);
+	ut_xprt_ops.xo_tm_confine = NULL;
 
 	/* TM start */
 	m0_clink_init(&tmwait, NULL);
@@ -1129,6 +1163,7 @@ static void test_net_bulk_if(void)
 	M0_UT_ASSERT(ut_bev_deliver_sync_called);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(!tm->ntm_bev_auto_deliver);
+	ut_xprt_ops.xo_bev_deliver_sync = NULL;
 
 	/* start the TM */
 	m0_clink_init(&tmwait, NULL);
@@ -1193,7 +1228,7 @@ static void test_net_bulk_if(void)
 
 struct m0_ut_suite m0_net_bulk_if_ut = {
         .ts_name = "net-bulk-if",
-        .ts_init = NULL,
+        .ts_init = net_bulk_if_init,
         .ts_fini = NULL,
         .ts_tests = {
                 { "net_bulk_if", test_net_bulk_if },

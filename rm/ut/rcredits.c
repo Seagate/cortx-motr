@@ -20,6 +20,7 @@
  */
 
 
+#include "lib/trace.h"
 #include "lib/chan.h"
 #include "lib/semaphore.h"
 #include "rm/rm.h"
@@ -887,14 +888,21 @@ static void debtor_death_acceptance_wait(enum rm_server dead,
 
 	res = wctx->rc_test_data.rd_res;
 	m0_cookie_init(&cookie, &sctx->rc_test_data.rd_owner->ro_id);
-	remote = m0_tl_find(m0_remotes, other, &res->r_remote,
+	m0_mutex_lock(&res->r_mutex);
+	remote = m0_tl_find(m0_remotes, other, &res->r_remotes,
 			  m0_cookie_is_eq(&other->rem_cookie, &cookie));
+	if (remote != NULL)
+		M0_RM_REMOTE_GET(remote);
+	m0_mutex_unlock(&res->r_mutex);
+	if (remote == NULL)
+		return;
 	/* Busy loop to wait until remote->rem_dead flag is set */
 	do {
 		m0_sm_group_lock(resource_grp(res));
 		death_accepted = remote->rem_dead;
 		m0_sm_group_unlock(resource_grp(res));
 	} while (!death_accepted);
+	M0_RM_REMOTE_PUT(remote);
 }
 
 static void test_debtor_death(void)

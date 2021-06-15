@@ -101,6 +101,7 @@ SNS_CLI_EP="12345:33:400"
 
 POOL_WIDTH=$(expr ${#IOSEP[*]} \* 5)
 NR_PARITY=2
+NR_SPARE=2
 NR_DATA=3
 UNIT_SIZE=$(expr 1024 \* 1024)
 
@@ -300,7 +301,8 @@ function dix_pver_build()
 	done
 	# conf objects for DIX pool version
 	local DIX_POOL="{0x6f| (($DIX_POOLID), 0, [1: $DIX_PVERID])}"
-	local DIX_PVER="{0x76| (($DIX_PVERID), {0| (1, $DIX_PARITY, $DIX_DEVS_NR,
+	local DIX_PVER="{0x76| (($DIX_PVERID), {0| (1, $DIX_PARITY, $DIX_PARITY,
+                                                    $DIX_DEVS_NR,
                                                     [5: 0, 0, 0, 0, $DIX_PARITY],
                                                     [1: $DIX_SITEVID])})}"
 	local DIX_SITEV="{0x6a| (($DIX_SITEVID), $SITEID, [1: $DIX_RACKVID])}"
@@ -321,10 +323,11 @@ function build_conf()
 {
 	local nr_data_units=$1
 	local nr_parity_units=$2
-	local pool_width=$3
-	local multiple_pools=$4
-	local ioservices=("${!5}")
-	local mdservices=("${!6}")
+	local nr_spare_units=$3
+	local pool_width=$4
+	local multiple_pools=$5
+	local ioservices=("${!6}")
+	local mdservices=("${!7}")
 	local DIX_FID_CON='20'
 	local DIX_PVER_OBJS=
 	local IOS_OBJS_NR=0
@@ -494,7 +497,7 @@ function build_conf()
 	# Add a separate mdpool with a disk from each of the ioservice
 	local nr_ios=${#ioservices[*]}
 	local MDPOOL="{0x6f| (($MDPOOLID), 0, [1: $MDPVERID])}"
-	local MDPVER="{0x76| (($MDPVERID), {0| ($nr_ios, 0, $nr_ios, [5: 0, 0, 0, 0, 1], [1: $MDSITEVID])})}"
+	local MDPVER="{0x76| (($MDPVERID), {0| ($nr_ios, 0, 0, $nr_ios, [5: 0, 0, 0, 0, 1], [1: $MDSITEVID])})}"
 	local MDSITEV="{0x6a| (($MDSITEVID), $SITEID, [1: $MDRACKVID])}"
 	local MDRACKV="{0x6a| (($MDRACKVID), $RACKID, [1: $MDENCLVID])}"
 	local MDENCLV="{0x6a| (($MDENCLVID), $ENCLID, [1: $MDCTRLVID])}"
@@ -526,12 +529,12 @@ function build_conf()
 	PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	local SITE="{0x53| (($SITEID), [1: $RACKID], [$pvers_count: $PVER_IDS])}"
 	local RACK="{0x61| (($RACKID), [1: $ENCLID], [$pvers_count: $PVER_IDS])}"
-	local ENCL="{0x65| (($ENCLID), [1: $CTRLID], [$pvers_count: $PVER_IDS])}"
-	local CTRL="{0x63| (($CTRLID), $NODE, [$NR_DISK_FIDS: $DISK_FIDS],
+	local ENCL="{0x65| (($ENCLID), $NODE, [1: $CTRLID], [$pvers_count: $PVER_IDS])}"
+	local CTRL="{0x63| (($CTRLID), [$NR_DISK_FIDS: $DISK_FIDS],
                             [$pvers_count: $PVER_IDS])}"
 	local POOL="{0x6f| (($POOLID), 0, [3: $PVERID, $PVERFID1, $PVERFID2])}"
 	local PVER="{0x76| (($PVERID), {0| ($nr_data_units, $nr_parity_units,
-                                            $pool_width,
+                                            $nr_spare_units, $pool_width,
                                             [5: 0, 0, 0, 0, $nr_parity_units],
                                             [1: $SITEVID])})}"
 	local PVER_F1="{0x76| (($PVERFID1), {1| (0, $PVERID, [5: 0, 0, 0, 0, 1])})}"
@@ -583,14 +586,14 @@ function build_conf()
 		local SDEV3="{0x64| (($SDEVID3), $((NR_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop9\")}"
 		local SITE1="{0x53| (($SITEID1), [1: $RACKID1], [1: $PVERID1])}"
 		local RACK1="{0x61| (($RACKID1), [1: $ENCLID1], [1: $PVERID1])}"
-		local ENCL1="{0x65| (($ENCLID1), [1: $CTRLID1], [1: $PVERID1])}"
-		local CTRL1="{0x63| (($CTRLID1), $NODEID1, [3: $DISKID1, $DISKID2, $DISKID3], [1: $PVERID1])}"
+		local ENCL1="{0x65| (($ENCLID1), $NODEID1, [1: $CTRLID1], [1: $PVERID1])}"
+		local CTRL1="{0x63| (($CTRLID1), [3: $DISKID1, $DISKID2, $DISKID3], [1: $PVERID1])}"
                 local DISK1="{0x6b| (($DISKID1), $SDEVID1, [1: $PVERID1])}"
                 local DISK2="{0x6b| (($DISKID2), $SDEVID2, [1: $PVERID1])}"
                 local DISK3="{0x6b| (($DISKID3), $SDEVID3, [1: $PVERID1])}"
 
 		local POOL1="{0x6f| (($POOLID1), 0, [1: $PVERID1])}"
-		local PVER1="{0x76| (($PVERID1), {0| (1, 1, 3, [5: 0, 0, 0, 0, 1], [1: $SITEVID1])})}"
+		local PVER1="{0x76| (($PVERID1), {0| (1, 1, 1, 3, [5: 0, 0, 0, 0, 1], [1: $SITEVID1])})}"
 		local SITEV1="{0x6a| (($SITEVID1), $SITEID1, [1: $RACKVID1])}"
 		local RACKV1="{0x6a| (($RACKVID1), $RACKID1, [1: $ENCLVID1])}"
 		local ENCLV1="{0x6a| (($ENCLVID1), $ENCLID1, [1: $CTRLVID1])}"
@@ -621,7 +624,7 @@ function build_conf()
 [$(($IOS_OBJS_NR + $((${#mdservices[*]} * 5)) + $NR_IOS_DEVS + 19
     + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 5 + $DIX_PVER_OBJ_COUNT)):
   {0x74| (($ROOT), 1, (11, 22), $MDPOOLID, $IMETA_PVER, $MD_REDUNDANCY,
-	  [1: \"$pool_width $nr_data_units $nr_parity_units\"],
+	  [1: \"$pool_width $nr_data_units $nr_parity_units $nr_spare_units\"],
 	  [$node_count: $NODES],
 	  [$site_count: $SITES],
 	  [$pool_count: $POOLS],
@@ -696,10 +699,10 @@ service_cas_eps_with_m0tifs_get()
 {
 	local lnet_nid=`sudo lctl list_nids | head -1`
 	local service_eps=(
-		"$lnet_nid:${CASEP[0]}"
-		"$lnet_nid:${CASEP[1]}"
-		"$lnet_nid:${CASEP[2]}"
-		"$lnet_nid:${CASEP[3]}"
+		"$lnet_nid:${IOSEP[0]}"
+		"$lnet_nid:${IOSEP[1]}"
+		"$lnet_nid:${IOSEP[2]}"
+		"$lnet_nid:${IOSEP[3]}"
 		"$lnet_nid:${HA_EP}"
 	)
 	# Return list of endpoints
