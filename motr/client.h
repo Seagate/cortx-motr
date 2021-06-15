@@ -597,14 +597,33 @@ enum m0_entity_type {
  */
  enum m0_entity_flags {
 	/**
-	 * During create if this flag is set, thant means application has
-	 * capability to store meta-data and hence pver and lid will be
-	 * returned to application to store.
+	 * During create if this flag is set in entity->en_flags, that means
+	 * application has capability to store meta-data and hence pver and
+	 * lid can be store in  application's meta-data.
+	 * Before application call to m0_entity_create/open(), applications is
+	 * expected to set obj>ob_entity->en_flags != M0_ENF_META, so when
+	 * m0_entity_create() returns to application, pool version and layout id
+	 * will be available to application into obj->ob_attr.oa_pver and
+	 * obj->ob_attr.oa_lid respectively and can be store into applications
+	 * meta-data.
+	 *
+	 * For example:
+	 * Create workflow would be like:
+	 *   obj->ob_entity.en_flags |= M0_ENF_META;
+	 *   m0_entity_create((NULL, &obj.ob_entity, &ops[0]);
+	 *   //  Save the returned pool version and lid into app_meta_data
+	 *   app_meta_data.pver = obj->ob_attr.oa_pver;
+	 *   app_meta_data.lid = obj->ob_attr.oa_lid;
+	 *
+	 * Read workflow:
+	 *   obj->ob_attr.oa_pver = app_meta_data.pver;
+	 *   obj->ob_attr.oa_lid =  app_meta_data.lid;
+	 *   m0_entity_open(NULL, &obj.ob_entity, &ops[0]);
 	 */
 	M0_ENF_META = 1 << 0,
 	/**
 	 * If this flags is set during entity_create() that means application
-	 * do not support update operation.
+	 * do not support update operation. This flag is not in use yet.
 	 */
 	M0_ENF_NO_RMW =  1 << 1
  } M0_XCA_ENUM;
