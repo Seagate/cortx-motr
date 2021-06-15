@@ -95,6 +95,7 @@ struct m0_btree_cb {
  */
 struct m0_btree_idata {
 	void                       *addr;
+	struct m0_btree            *tree;
 	int                         num_bytes;
 	const struct m0_btree_type *bt;
 	const struct node_type     *nt;
@@ -142,21 +143,22 @@ enum m0_btree_opflag {
 	M0_BOF_UNIQUE = 1 << 0
 };
 
-int  m0_btree_open(void *addr, int nob, struct m0_btree **out);
+int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
+		   struct m0_btree_op *bop);
 void m0_btree_close(struct m0_btree *arbor);
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
-		     const struct node_type *nt, struct m0_be_tx *tx,
-		     struct m0_btree_op *bop);
+		     const struct node_type *nt, struct m0_btree_op *bop,
+		     struct m0_be_tx *tx);
 void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop);
 void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, uint64_t flags,
 		  struct m0_btree_op *bop);
-void m0_btree_put(struct m0_btree *arbor, struct m0_be_tx *tx,
-		  const struct m0_btree_rec *rec, const struct m0_btree_cb *cb,
-		  uint64_t flags, struct m0_btree_op *bop);
+void m0_btree_put(struct m0_btree *arbor, const struct m0_btree_rec *rec,
+		  const struct m0_btree_cb *cb, uint64_t flags,
+		  struct m0_btree_op *bop, struct m0_be_tx *tx);
 void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop);
+		  struct m0_btree_op *bop, struct m0_be_tx *tx);
 void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
 		   const struct m0_btree_cb *cb, uint64_t flags,
 		   struct m0_btree_op *bop);
