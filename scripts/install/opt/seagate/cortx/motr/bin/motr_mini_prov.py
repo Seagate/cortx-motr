@@ -140,8 +140,16 @@ def validate_motr_rpm(self):
 
 def motr_config(self):
     # Just to check if lnet is working properly
-    if not verify_lnet(self):
-       raise MotrError(errno.EINVAL, "lent is not up.")
+    try:
+       transport_type = self.server_node['network']['data']['transport_type']
+    except:
+       raise MotrError(errno.EINVAL, "transport_type not found")
+
+    check_type(transport_type, str, "transport_type")
+
+    if transport_type == "lnet":
+        if not verify_lnet(self):
+            raise MotrError(errno.EINVAL, "lent is not up.")
     is_hw = is_hw_node(self)
     if is_hw:
         self.logger.info(f"Executing {MOTR_CONFIG_SCRIPT}")
