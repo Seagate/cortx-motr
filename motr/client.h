@@ -601,7 +601,7 @@ enum m0_entity_type {
 	 * application has capability to store meta-data and hence pver and
 	 * lid can be stored in  application's meta-data.
 	 * Before calling to m0_entity_create/open(), application is
-	 * expected to set obj>ob_entity->en_flags != M0_ENF_META, so when
+	 * expected to set obj>ob_entity->en_flags |= M0_ENF_META, so when
 	 * m0_entity_create() returns to application, pool version and layout id
 	 * will be available to application into obj->ob_attr.oa_pver and
 	 * obj->ob_attr.oa_lid respectively and can be stored into application's
