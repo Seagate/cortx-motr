@@ -51,6 +51,7 @@
 #include "stob/stob_internal.h"	/* m0_stob__fid_set */
 #include "stob/type.h"		/* m0_stob_type */
 #include "be/domain.h"
+#include "motr/client.h"
 
 /**
  * @addtogroup stobad
@@ -103,6 +104,10 @@ static int stob_ad_seg_free(struct m0_dtx *tx,
 			    uint64_t val);
 static int stob_ad_punch(struct m0_stob *stob, struct m0_indexvec *range,
                          struct m0_dtx *tx);
+
+static void* stob_ad_get_cksum_addr(void *baddr, m0_bindex_t off, uint64_t lid);
+
+static m0_bcount_t stob_ad_get_cksum_nob(uint64_t lid, m0_bcount_t ext_len);
 
 M0_TL_DESCR_DEFINE(ad_domains, "ad stob domains", M0_INTERNAL,
 		   struct ad_domain_map, adm_linkage, adm_magic,
@@ -1539,6 +1544,20 @@ static int stob_ad_seg_free(struct m0_dtx *tx,
 	return val < AET_MIN ? stob_ad_bfree(adom, tx, &tocut) : 0;
 }
 
+static void* stob_ad_get_cksum_addr(void *baddr,
+		m0_bindex_t off, uint64_t lid) {
+
+	int unit_size = m0_obj_layout_id_to_unit_size(lid);
+	return baddr + (off/unit_size);
+}
+
+static m0_bcount_t stob_ad_get_cksum_nob(uint64_t lid,
+		m0_bcount_t ext_len) {
+
+	return ext_len * 128;
+}
+
+
 /**
  * Inserts allocated extent into AD storage object allocation map, possibly
  * overwriting a number of existing extents.
@@ -1589,6 +1608,11 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	 * logical extent of the segment and seg->ee_val is the starting offset
 	 * of the corresponding physical extent.
 	 */
+
+	it.ec_cksum.b_addr = stob_ad_get_cksum_addr(io->si_cksum->b_addr,
+					off, io->si_lid);
+	it.ec_cksum.b_nob  = stob_ad_get_cksum_nob(io->si_lid, m0_ext_length(&todo));
+
 	M0_SET0(&it.ec_op);
 	m0_be_op_init(&it.ec_op);
 	m0_be_emap_paste(&it, &io->si_tx->tx_betx, &todo, ext->e_start,

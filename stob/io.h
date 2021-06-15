@@ -404,6 +404,8 @@ struct m0_stob_io {
 	/** IO launch time. */
 	m0_time_t                   si_start;
 	uint64_t                    si_id;
+	struct m0_buf              *si_cksum;
+	uint64_t                    si_lid;
 };
 
 struct m0_stob_io_op {

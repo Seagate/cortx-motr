@@ -1736,7 +1736,9 @@ static int io_launch(struct m0_fom *fom)
 	 */
 	index -= m0_is_write_fop(fop) ?
 		netbufs_tlist_length(&fom_obj->fcrw_netbuf_list) : 0;
-
+	if (m0_is_write_fop(fop)) {
+			//m0_bufs_print(&rwfop->crw_di_data_cksum, "YJC_CKSUM: rw_fop->crw_di_data_cksum");
+	}
 	m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
 		struct m0_indexvec     *mem_ivec;
 		struct m0_stob_io_desc *stio_desc;
@@ -1750,6 +1752,8 @@ static int io_launch(struct m0_fom *fom)
 		stob        = fom_obj->fcrw_stob;
 		mem_ivec    = &stio->si_stob;
 		stobio_tlink_init(stio_desc);
+		stio->si_cksum = &rwfop->crw_di_data_cksum;
+		stio->si_lid = rwfop->crw_lid;
 
 		M0_ADDB2_ADD(M0_AVI_FOM_TO_STIO, fom->fo_sm_phase.sm_id,
 			     stio->si_id);
@@ -1774,8 +1778,8 @@ static int io_launch(struct m0_fom *fom)
 			uint32_t di_size = m0_di_size_get(file, ivec_count);
 			uint32_t curr_pos = m0_di_size_get(file,
 						fom_obj->fcrw_curr_size);
-
 			di_buf = &rwfop->crw_di_data;
+
 			if (di_buf != NULL) {
 				struct m0_buf buf = M0_BUF_INIT(di_size,
 						di_buf->b_addr + curr_pos);
@@ -1786,6 +1790,8 @@ static int io_launch(struct m0_fom *fom)
 					  mem_ivec, &nb->nb_buffer,
 					  &cksum_data));
 			}
+			//YJC_TODO: concated cksum would be passed from client, replace m0_bufs with m0_buf
+			//YJC_TODO: m0_bufs_print only for debug, needs to be removed
 		}
 		stio->si_opcode = m0_is_write_fop(fop) ? SIO_WRITE : SIO_READ;
 

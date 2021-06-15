@@ -480,6 +480,9 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	struct m0_ext          clip;
 	m0_bcount_t            length[3];
 	typeof(val)            bstart[3] = {};
+	struct m0_buf          cksum[3] = { {0, NULL},
+						{0, NULL},
+						{0, NULL}};
 	m0_bcount_t            consumed;
 	uint64_t               val_orig;
 	struct m0_indexvec     vec = {
@@ -530,22 +533,33 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 
 		bstart[1] = val;
 		val_orig  = seg->ee_val;
+		m0_buf_init(&cksum[1], &it->ec_cksum);
 
 		if (length[0] > 0) {
 			if (cut_left)
 				cut_left(seg, &clip, val_orig);
 			bstart[0] = seg->ee_val;
+			if (seg->ee_di_cksum.b_nob >= length[0]*128) {
+				cksum[0].b_nob = length[0]*128;
+				cksum[0].b_baddr = seg->ee_di_cksum.b_addr;
+			}
 		}
 		if (length[2] > 0) {
 			if (cut_right)
 				cut_right(seg, &clip, val_orig);
 			bstart[2] = seg->ee_val;
+			if (chunk->e_end != AET_HOLE) {
+				cksum[0].b_nob = length[2] * 128;
+				cksum[0].b_baddr = seg->ee_di_cksum.b_addr + clip.e_end*128;
+			}
 		}
+
+
 		if (length[0] == 0 && length[2] == 0 && del)
 			del(seg);
 
 		rc = be_emap_split(it, tx, &vec, length[0] > 0 ?
-						chunk->e_start : ext0.e_start);
+						chunk->e_start : ext0.e_start, cksum);
 		if (rc != 0)
 			break;
 
@@ -671,6 +685,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	m0_format_footer_update(&map->em_key);
 	map->em_rec.er_start = 0;
 	map->em_rec.er_value = val;
+	map->em_rec.er_di_cksum.b_nob = 0;
 	m0_format_footer_update(&map->em_rec);
 
 	++map->em_version;
@@ -859,7 +874,9 @@ be_emap_ksize(const void* k)
 static m0_bcount_t
 be_emap_vsize(const void* d)
 {
-	return sizeof(struct m0_be_emap_rec);
+	M0_ASSERT( d != NULL);
+	return sizeof(struct m0_be_emap_rec) +
+		(struct m0_be_emap_rec *)d->er_di_cksum.b_nob;
 }
 
 static int
@@ -874,20 +891,38 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	const struct m0_be_emap_seg *ext = &it->ec_seg;
 	struct m0_be_emap_key       *key = &it->ec_key;
 	struct m0_be_emap_rec       *rec = &it->ec_rec;
+	struct m0_buf rec_buf;
+	void *dst;
 
 	key->ek_prefix = ext->ee_pre;
 	key->ek_offset = ext->ee_ext.e_end;
 	m0_format_footer_update(key);
+
+	m0_buf_alloc(rec_buf, sizeof(struct m0_be_emap_rec) + ext->ee_di_cksum.b_nob);
+	dst = rec_buf.b_addr;
+
 	rec->er_start  = ext->ee_ext.e_start;
 	rec->er_value  = ext->ee_val;
 	m0_format_footer_update(rec);
+
+	/* I am not very sure of following code */
+	memcpy(dst, (void *)rec, offsetof(struct m0_be_emap_rec, er_value));
+	dst = dst + offsetof(struct m0_be_emap_rec, er_value);
+	if (ext->ee_di_cksum.b_nob != 0) {
+		memcpy(dst, ext->ee_di_cksum.b_addr, ext->ee_di_cksum.b_nob);
+		dst += ext->ee_di_cksum.b_nob;
+	}
+	memcpy(dst, rec->er_footer, sizeof(struct m0_format_footer));
+	
+
 	++it->ec_map->em_version;
 	it->ec_op.bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 		op,
 		btree_func(&it->ec_map->em_mapping, tx, &op, &it->ec_keybuf,
-			   &it->ec_recbuf),
+			   &rec_buf),
 		bo_u.u_btree.t_rc);
 
+	// should I deallocate rec_buf here ??
 	return it->ec_op.bo_u.u_emap.e_rc;
 }
 
@@ -920,6 +955,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		ext->ee_pre         = key->ek_prefix;
 		ext->ee_ext.e_start = rec->er_start;
 		ext->ee_ext.e_end   = key->ek_offset;
+		m0_buf_init(&ext->ee_di_cksum, &rec->er_di_cksum);
 		m0_ext_init(&ext->ee_ext);
 		ext->ee_val         = rec->er_value;
 		if (!emap_it_prefix_ok(it))
@@ -1105,7 +1141,8 @@ static int
 be_emap_split(struct m0_be_emap_cursor *it,
 	      struct m0_be_tx          *tx,
 	      struct m0_indexvec       *vec,
-	      m0_bindex_t               scan)
+	      m0_bindex_t               scan,
+	      struct m0_buf            *cksum)
 {
 	int rc = 0;
 	m0_bcount_t count;
@@ -1116,10 +1153,13 @@ be_emap_split(struct m0_be_emap_cursor *it,
 		count = vec->iv_vec.v_count[i];
 		if (count == 0)
 			continue;
+
 		M0_BE_CREDIT_DEC(M0_BE_CU_EMAP_SPLIT, tx);
 		it->ec_seg.ee_ext.e_start = scan;
 		it->ec_seg.ee_ext.e_end   = scan + count;
 		it->ec_seg.ee_val         = vec->iv_index[i];
+		m0_buf_init(&it->ec_seg.ee_di_cksum, &cksum[i]); 
+
 		if (it->ec_seg.ee_ext.e_end == seg_end)
 			/* The end of original segment is reached:
 			 * just update it instead of deleting and
