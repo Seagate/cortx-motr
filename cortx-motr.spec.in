@@ -45,11 +45,14 @@
 %if %{with cassandra}
 %define  configure_cassandra_opts   --with-cassandra
 %endif
+%if !%{with isal}
+%define  configure_isal_opts   --disable-isal
+%endif
 
 %if %{with ivt} || %{with ut}
-%define  configure_opts  %{configure_ut_opts} %{?configure_cassandra_opts}
+%define  configure_opts  %{configure_ut_opts} %{?configure_cassandra_opts} %{?configure_isal_opts}
 %else
-%define  configure_opts  %{configure_release_opts} %{?configure_cassandra_opts}
+%define  configure_opts  %{configure_release_opts} %{?configure_cassandra_opts} %{?configure_isal_opts}
 %endif
 
 Name:           @PACKAGE@
