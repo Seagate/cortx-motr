@@ -4099,7 +4099,7 @@ static void btree_ut_fini(void)
  * This test will create a few nodes and then delete them before exiting. The
  * main intent of this test is to debug the create and delete nodes functions.
  */
-static void m0_btree_ut_node_create_delete(void)
+static void ut_node_create_delete(void)
 {
 	struct node_op          op;
 	struct m0_btree_type    tt;
@@ -4323,7 +4323,7 @@ void get_key_at_index(struct nd *node, int idx, uint64_t *key)
  * This unit test will create a tree, add a node and then populate the node with
  * some records. It will also confirm the records are in ascending order of Key.
  */
-static void m0_btree_ut_node_add_del_rec(void)
+static void ut_node_add_del_rec(void)
 {
 	struct node_op          op;
 	struct m0_btree_type    tt;
@@ -4404,7 +4404,7 @@ static void m0_btree_ut_node_add_del_rec(void)
  * In this unit test we exercise a few tree operations in both valid and invalid
  * conditions.
  */
-static void m0_btree_ut_basic_tree_oper(void)
+static void ut_basic_tree_oper(void)
 {
 	void                   *invalid_addr = (void *)0xbadbadbadbad;
 	struct m0_btree        *btree;
@@ -4603,7 +4603,7 @@ static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	/** The caller can look at these flags if he needs to. */
 	datum->flags = rec->r_flags;
 
-	M0_ASSERT(rec && rec->r_flags == M0_BSC_KEY_NOT_FOUND);
+	M0_ASSERT(rec && rec->r_flags == M0_BSC_SUCCESS);
 
 	return 0;
 }
@@ -4612,7 +4612,7 @@ static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
  * This unit test exercises the KV operations for both valid and invalid
  * conditions.
  */
-static void m0_btree_ut_basic_kv_oper(void)
+static void ut_basic_kv_oper(void)
 {
 	struct m0_btree_type    btree_type  = {.tt_id = M0_BT_UT_KV_OPS,
 					      .ksize = 8,
@@ -4764,7 +4764,7 @@ static void m0_btree_ut_basic_kv_oper(void)
 /**
  * This unit test exercises the KV operations triggered by multiple streams.
  */
-static void m0_btree_ut_multi_stream_kv_oper(void)
+static void ut_multi_stream_kv_oper(void)
 {
 	void                   *temp_node;
 	int                     i;
@@ -5061,7 +5061,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 	/** Wait till all the threads have been initialised. */
 	while (!thread_start)
-	;
+		;
 
 	while (key_iter_start <= key_end) {
 		uint64_t  key_first;
@@ -5082,7 +5082,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		/** PUT keys and their corresponding values in the tree. */
 
-		ut_cb.c_act            = btree_kv_put_cb;
+		ut_cb.c_act   = btree_kv_put_cb;
+		ut_cb.c_datum = &data;
 
 		while (key_first <= key_last) {
 			/**
@@ -5238,7 +5239,9 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		key_first = key_iter_start;
 		del_key = (r % 2 == 0) ? key_first : key_last;
-		ut_cb.c_act        = btree_kv_del_cb;
+
+		ut_cb.c_act   = btree_kv_del_cb;
+		ut_cb.c_datum = &data;
 		while (keys_found_count) {
 			key[0] = (del_key << (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
@@ -5455,17 +5458,17 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 	btree_ut_fini();
 }
 
-static void m0_btree_ut_st_st_kv_oper(void)
+static void ut_st_st_kv_oper(void)
 {
 	btree_ut_num_threads_num_trees_kv_oper(1, 1);
 }
 
-static void m0_btree_ut_mt_st_kv_oper(void)
+static void ut_mt_st_kv_oper(void)
 {
 	btree_ut_num_threads_num_trees_kv_oper(0, 1);
 }
 
-static void m0_btree_ut_mt_mt_kv_oper(void)
+static void ut_mt_mt_kv_oper(void)
 {
 	btree_ut_num_threads_num_trees_kv_oper(0, 0);
 }
@@ -5520,6 +5523,9 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 	loop_count %= (MAX_TREE_LOOPS - MIN_TREE_LOOPS);
 	loop_count += MIN_TREE_LOOPS;
 
+	while(!thread_start)
+		;
+
 	/** Create temp node space and use it as root node for btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 
@@ -5555,8 +5561,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rec_count = rec_count ? : (MAX_RECS_FOR_TREE_TEST / 2);
 
 		for (i = 1; i <= rec_count; i++) {
-			key   = i;
-			value = key;
+			value = key = i;
 
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 						 m0_btree_put(tree, tx,
@@ -5569,15 +5574,14 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		m0_btree_close(tree);
 
-		m0_btree_open(temp_node, 1024, &tree);
+		M0_ASSERT(m0_btree_open(temp_node, 1024, &tree) == 0);
 
 		for (i = 1; i <= rec_count; i++) {
-			key   = i;
-			value = key;
+			value = key = i;
 
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 						 m0_btree_get(tree, &rec.r_key,
-							      &ut_cb, 0,
+							      &ut_cb, BOF_EQUAL,
 							      &kv_op),
 						 &kv_op.bo_sm_group,
 						 &kv_op.bo_op_exec);
@@ -5586,11 +5590,12 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		m0_btree_close(tree);
 
-		m0_btree_open(temp_node, 1024, &tree);
+		M0_ASSERT(m0_btree_open(temp_node, 1024, &tree) == 0);
 
 		for (i = 1; i <= rec_count; i++) {
-			key   = i;
-			value = key;
+			value = key = i;
+
+			ut_cb.c_act = btree_kv_del_cb;
 
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 						 m0_btree_del(tree, &rec.r_key,
@@ -5669,12 +5674,12 @@ static void btree_ut_num_threads_tree_oper(uint32_t thread_count)
 	btree_ut_fini();
 }
 
-static void m0_btree_ut_st_tree_oper(void)
+static void ut_st_tree_oper(void)
 {
 	btree_ut_num_threads_tree_oper(1);
 }
 
-static void m0_btree_ut_mt_tree_oper(void)
+static void ut_mt_tree_oper(void)
 {
 	btree_ut_num_threads_tree_oper(0);
 }
@@ -5892,21 +5897,16 @@ struct m0_ut_suite btree_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{"node_create_delete",  m0_btree_ut_node_create_delete},
-		{"node_add_del_rec",    m0_btree_ut_node_add_del_rec},
-		{"basic_tree_op",       m0_btree_ut_basic_tree_oper},
-		{"basic_kv_ops",        m0_btree_ut_basic_kv_oper},
-		{"multi_stream_kv_op",  m0_btree_ut_multi_stream_kv_oper},
-		{"single_thread_single_tree_kv_op",
-					m0_btree_ut_st_st_kv_oper},
-		{"multi_thread_single_tree_kv_op",
-					m0_btree_ut_mt_st_kv_oper},
-		{"multi_thread_multi_tree_kv_op",
-					m0_btree_ut_mt_mt_kv_oper},
-		{"single_thread_tree_op",
-					m0_btree_ut_st_tree_oper},
-		{"multi_thread_tree_op",
-					m0_btree_ut_mt_tree_oper},
+		{"node_create_delete",              ut_node_create_delete},
+		{"node_add_del_rec",                ut_node_add_del_rec},
+		{"basic_tree_op",                   ut_basic_tree_oper},
+		{"basic_kv_ops",                    ut_basic_kv_oper},
+		{"multi_stream_kv_op",              ut_multi_stream_kv_oper},
+		{"single_thread_single_tree_kv_op", ut_st_st_kv_oper},
+		{"multi_thread_single_tree_kv_op",  ut_mt_st_kv_oper},
+		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
+		{"single_thread_tree_op",           ut_st_tree_oper},
+		{"multi_thread_tree_op",            ut_mt_tree_oper},
 		/* {"insert_rec",          m0_btree_ut_insert_record}, */
 		{NULL, NULL}
 	}
