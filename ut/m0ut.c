@@ -300,7 +300,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &rpclib_ut, true);
 	m0_ut_add(m, &rpc_conn_pool_ut, true);
 	m0_ut_add(m, &session_ut, true);
-	m0_ut_add(m, &sm_ut, true);
+	m0_ut_add(m, &sm_ut, false);
 	m0_ut_add(m, &snscm_xform_ut, true);
 	m0_ut_add(m, &snscm_storage_ut, true);
 	m0_ut_add(m, &sns_cm_repair_ut, true);
