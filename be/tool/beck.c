@@ -633,11 +633,12 @@ int main(int argc, char **argv)
 		m0_build_info_print();
 		return EX_OK;
 	}
-	if (dry_run)
-		printf("Running in read-only mode.\n");
 
 	if (mmap_be_segment)
 		dry_run = true; /* Force dry run mode when asked to mmap. */
+
+	if (dry_run)
+		printf("Running in read-only mode.\n");
 
 	if (!beck_scanner.s_print_invalid_oids)
 		printf("Will not print INVALID GOB IDs if found since '-e'"
@@ -741,9 +742,17 @@ int main(int argc, char **argv)
 		beck_scanner.s_max_reg_size = DEFAULT_BE_MAX_TX_REG_SZ;
 
 		if (mmap_be_segment) {
-			mmap(s_seg.bs_addr, s_seg.bs_size, PROT_READ|PROT_WRITE,
-			     MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, 
-			     fileno(beck_scanner.s_file), s_seg.bs_offset);
+			void *ret;
+
+			errno = 0;
+			ret = mmap(s_seg.bs_addr, s_seg.bs_size,
+					PROT_READ|PROT_WRITE,
+					MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, 
+			     		fileno(beck_scanner.s_file),
+					s_seg.bs_offset);
+
+			if (ret == MAP_FAILED)
+				err(EXIT_FAILURE, "Failed to mmap memory. Error");
 
 			printf("BE segment file %s has been mmaped at "
 			       "address %p for %"PRId64" bytes.\n"

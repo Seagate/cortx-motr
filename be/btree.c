@@ -1205,7 +1205,7 @@ static void btree_truncate(struct m0_be_btree *btree, struct m0_be_tx *tx,
 {
 	struct m0_be_bnode *node;
 	struct m0_be_bnode *parent;
-	int                 i;
+	unsigned int        i;
 
 	/* Add one more reserve for non-leaf node. */
 	if (limit > 1)
