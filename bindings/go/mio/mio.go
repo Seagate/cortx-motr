@@ -296,7 +296,7 @@ func getOptimalUnitSz(sz uint64, pool *C.struct_m0_fid) (C.ulong, error) {
     if lid <= 0 {
         return 0, fmt.Errorf("could not find layout: rc=%v", lid)
     }
-    return lid, nil
+    return C.ulong(lid), nil
 }
 
 func checkPool(pools []string) (res *C.struct_m0_fid, err error) {
