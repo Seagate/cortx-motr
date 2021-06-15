@@ -5107,7 +5107,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 							      0, &kv_op),
 						 &kv_op.bo_sm_group,
 						 &kv_op.bo_op_exec);
-			M0_ASSERT(data.flags == 0);
+			M0_ASSERT(data.flags == M0_BSC_SUCCESS);
 
 			keys_put_count++;
 			key_first += ti->ti_key_incr;
@@ -5181,11 +5181,21 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		if (ti->ti_key_incr > 1) {
 			uint64_t  slant_key;
 			uint64_t  got_key;
+			struct m0_btree_rec r;
+			struct m0_btree_cb  cb;
 
 			M0_ASSERT(key_first >= 1);
 
 			slant_key = key_first - 1;
 			get_data.check_value = false;
+
+			/** 
+			 *  The following short named variables are used just
+			 *  to maintain the code decorum by limiting code lines
+			 *  within 80 chars..
+			 */
+			r = rec;
+			cb = ut_get_cb;
 
 			do {
 				key[0] = (slant_key <<
@@ -5197,8 +5207,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 				M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 							 m0_btree_get(tree,
-								      &rec.r_key,
-								      &ut_get_cb,
+								      &r.r_key,
+								      &cb,
 								      BOF_SLANT,
 								      &kv_op),
 							 &kv_op.bo_sm_group,
@@ -5343,7 +5353,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 	online_cpu_id_get(&cpuid_ptr, &cpu_count);
 
 	if (thread_count == 0)
-		thread_count = cpu_count -1; /** Skip Core-0 */
+		thread_count = cpu_count - 1; /** Skip Core-0 */
 
 	if (tree_count == 0)
 		tree_count = thread_count;
