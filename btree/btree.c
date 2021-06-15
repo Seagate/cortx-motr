@@ -6073,6 +6073,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					     };
 	const struct node_type *nt         = &fixed_format;
 	struct m0_be_tx        *tx         = NULL;
+	int                     rc;
 
 	random_r(&ti->ti_random_buf, &loop_count);
 	loop_count %= (MAX_TREE_LOOPS - MIN_TREE_LOOPS);
@@ -6103,11 +6104,13 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 * 7) Destroy the tree
 		 */
 
-		M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-					 m0_btree_create(temp_node, 1024,
-							 &btree_type, nt, tx,
-							 &b_op),
-					 &b_op.bo_sm_group, &b_op.bo_op_exec);
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+					      m0_btree_create(temp_node, 1024,
+							      &btree_type, nt,
+							      &b_op, tx),
+					      &b_op.bo_sm_group,
+					      &b_op.bo_op_exec);
+		M0_ASSERT(rc == 0);
 
 		tree = b_op.bo_arbor;
 
@@ -6118,54 +6121,71 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		for (i = 1; i <= rec_count; i++) {
 			value = key = i;
 
-			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-						 m0_btree_put(tree, tx,
-							      &rec, &ut_cb,
-							      0, &kv_op),
-						 &kv_op.bo_sm_group,
-						 &kv_op.bo_op_exec);
-			M0_ASSERT(data.flags == M0_BSC_SUCCESS);
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+						      m0_btree_put(tree, &rec,
+								   &ut_cb, 0,
+								   &kv_op, tx),
+						      &kv_op.bo_sm_group,
+						      &kv_op.bo_op_exec);
+			M0_ASSERT(data.flags == M0_BSC_SUCCESS && rc == 0);
 		}
 
 		m0_btree_close(tree);
 
-		M0_ASSERT(m0_btree_open(temp_node, 1024, &tree) == 0);
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+					      m0_btree_open(temp_node,
+							    1024, &tree,
+							    &kv_op),
+					      &kv_op.bo_sm_group,
+					      &kv_op.bo_op_exec);
+		M0_ASSERT(rc == 0);
 
 		for (i = 1; i <= rec_count; i++) {
 			value = key = i;
 
-			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-						 m0_btree_get(tree, &rec.r_key,
-							      &ut_cb, BOF_EQUAL,
-							      &kv_op),
-						 &kv_op.bo_sm_group,
-						 &kv_op.bo_op_exec);
-			M0_ASSERT(data.flags == M0_BSC_SUCCESS);
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+						      m0_btree_get(tree,
+								   &rec.r_key,
+								   &ut_cb,
+								   BOF_EQUAL,
+								   &kv_op),
+						      &kv_op.bo_sm_group,
+						      &kv_op.bo_op_exec);
+			M0_ASSERT(data.flags == M0_BSC_SUCCESS && rc == 0);
 		}
 
 		m0_btree_close(tree);
 
-		M0_ASSERT(m0_btree_open(temp_node, 1024, &tree) == 0);
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+					      m0_btree_open(temp_node,
+							    1024, &tree,
+							    &kv_op),
+					      &kv_op.bo_sm_group,
+					      &kv_op.bo_op_exec);
+		M0_ASSERT(rc == 0);
 
 		for (i = 1; i <= rec_count; i++) {
 			value = key = i;
 
 			ut_cb.c_act = btree_kv_del_cb;
 
-			M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
-						 m0_btree_del(tree, &rec.r_key,
-							      &ut_cb, 0,
-							      &kv_op),
-						 &kv_op.bo_sm_group,
-						 &kv_op.bo_op_exec);
-			M0_ASSERT(data.flags == M0_BSC_SUCCESS);
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
+						      m0_btree_del(tree,
+								   &rec.r_key,
+								   &ut_cb, 0,
+								   &kv_op, tx),
+						      &kv_op.bo_sm_group,
+						      &kv_op.bo_op_exec);
+			M0_ASSERT(data.flags == M0_BSC_SUCCESS && rc == 0);
 		}
 
 		m0_btree_close(tree);
 
-		M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-					 m0_btree_destroy(tree, &b_op),
-					 &b_op.bo_sm_group, &b_op.bo_op_exec);
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+					      m0_btree_destroy(tree, &b_op),
+					      &b_op.bo_sm_group,
+					      &b_op.bo_op_exec);
+		M0_ASSERT(rc == 0);
 	}
 
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
