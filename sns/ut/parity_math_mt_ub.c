@@ -198,12 +198,14 @@ void tb_thread(struct tb_cfg *cfg)
 		m0_buf_init(&parity_buf[i], cfg->tc_parity[i], buff_size);
 
 
-	m0_parity_math_calculate(&math, data_buf, parity_buf);
+	ret = m0_parity_math_calculate(&math, data_buf, parity_buf);
+	M0_UT_ASSERT(ret == 0);
 
 	m0_buf_init(&fail_buf, cfg->tc_fail, fail_count);
 	unit_spoil(cfg);
 
-	m0_parity_math_recover(&math, data_buf, parity_buf, &fail_buf, 0);
+	ret = m0_parity_math_recover(&math, data_buf, parity_buf, &fail_buf, 0);
+	M0_UT_ASSERT(ret == 0);
 
 	unit_compare(cfg);
 
