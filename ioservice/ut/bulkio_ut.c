@@ -256,7 +256,7 @@ enum fom_state_transition_tests {
 	TEST12
 };
 
-static int                        i = 0;
+static int                        nb_nr = 0;
 static struct m0_net_buffer      *nb_list[64];
 static struct m0_net_buffer_pool *buf_pool;
 static int                        next_write_test = TEST00;
@@ -264,26 +264,26 @@ static int                        next_read_test  = TEST00;
 
 static void empty_buffers_pool(uint32_t colour)
 {
-	i--;
+	nb_nr--;
 	m0_net_buffer_pool_lock(buf_pool);
 	do {
-		nb_list[++i] = m0_net_buffer_pool_get(buf_pool, colour);
-	} while (nb_list[i] != NULL);
+		nb_list[++nb_nr] = m0_net_buffer_pool_get(buf_pool, colour);
+	} while (nb_list[nb_nr] != NULL);
 	m0_net_buffer_pool_unlock(buf_pool);
 }
 
 static void release_one_buffer(uint32_t colour)
 {
 	m0_net_buffer_pool_lock(buf_pool);
-	m0_net_buffer_pool_put(buf_pool, nb_list[--i], colour);
+	m0_net_buffer_pool_put(buf_pool, nb_list[--nb_nr], colour);
 	m0_net_buffer_pool_unlock(buf_pool);
 }
 
 static void fill_buffers_pool(uint32_t colour)
 {
 	m0_net_buffer_pool_lock(buf_pool);
-	while (i > 0)
-		m0_net_buffer_pool_put(buf_pool, nb_list[--i], colour);
+	while (nb_nr > 0)
+		m0_net_buffer_pool_put(buf_pool, nb_list[--nb_nr], colour);
 	m0_net_buffer_pool_unlock(buf_pool);
 }
 
@@ -1624,15 +1624,47 @@ static void bulkio_server_multiple_read_write(void)
 	m0_reqh_idle_wait(reqh);
 }
 
+static void add_buffer_bulk(struct m0_rpc_bulk *rbulk,
+			    enum M0_RPC_OPCODES op,
+			    int                 index)
+{
+	struct m0_rpc_bulk_buf *rbuf;
+	int                     rc;
+	int                     i;
+
+	/*
+	 * Adds a m0_rpc_bulk_buf structure to list of such structures
+	 * in m0_rpc_bulk.
+	 */
+	rc = m0_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, 0, &bp->bp_cnetdom,
+				 NULL, &rbuf);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rbuf != NULL);
+
+	/* Adds io buffers to m0_rpc_bulk_buf structure. */
+	for (i = 0; i < IO_SEGS_NR; ++i) {
+		rc = m0_rpc_bulk_buf_databuf_add(rbuf,
+			 bp->bp_iobuf[index]->nb_buffer.ov_buf[i],
+			 bp->bp_iobuf[index]->nb_buffer.ov_vec.v_count[i],
+			 bp->bp_offsets[0], &bp->bp_cnetdom);
+		M0_UT_ASSERT(rc == 0);
+		bp->bp_offsets[0] +=
+			bp->bp_iobuf[index]->nb_buffer.ov_vec.v_count[i];
+	}
+	bp->bp_offsets[0] += IO_SEG_SIZE;
+
+	rbuf->bb_nbuf->nb_qtype = (op == M0_IOSERVICE_WRITEV_OPCODE) ?
+		M0_NET_QT_PASSIVE_BULK_SEND :
+		M0_NET_QT_PASSIVE_BULK_RECV;
+}
+
 static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 {
 	struct m0_io_fop       **io_fops;
-	struct m0_rpc_bulk_buf	*rbuf;
 	struct m0_rpc_bulk	*rbulk;
 	struct m0_io_fop	*iofop;
 	struct m0_fop_cob_rw	*rw;
 	int                      i;
-	int			 j;
 	int			 rc;
 
 	if (op == M0_IOSERVICE_WRITEV_OPCODE) {
@@ -1663,36 +1695,9 @@ static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 	rw->crw_pver = CONF_PVER_FID;
 	bp->bp_offsets[0] = IO_SEG_START_OFFSET;
 
-	void add_buffer_bulk(int j)
-	{
-		/*
-		 * Adds a m0_rpc_bulk_buf structure to list of such structures
-		 * in m0_rpc_bulk.
-		 */
-		rc = m0_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, 0, &bp->bp_cnetdom,
-					 NULL, &rbuf);
-		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(rbuf != NULL);
 
-		/* Adds io buffers to m0_rpc_bulk_buf structure. */
-		for (i = 0; i < IO_SEGS_NR; ++i) {
-			rc = m0_rpc_bulk_buf_databuf_add(rbuf,
-				 bp->bp_iobuf[j]->nb_buffer.ov_buf[i],
-				 bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i],
-				 bp->bp_offsets[0], &bp->bp_cnetdom);
-			M0_UT_ASSERT(rc == 0);
-			bp->bp_offsets[0] +=
-				bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i];
-		}
-		bp->bp_offsets[0] += IO_SEG_SIZE;
-
-		rbuf->bb_nbuf->nb_qtype = (op == M0_IOSERVICE_WRITEV_OPCODE) ?
-			M0_NET_QT_PASSIVE_BULK_SEND :
-			M0_NET_QT_PASSIVE_BULK_RECV;
-	}
-
-	for (j = 0; j < buf_nr; ++j)
-		add_buffer_bulk(j);
+	for (i = 0; i < buf_nr; ++i)
+		add_buffer_bulk(rbulk, op, i);
 
 	/*
 	 * Allocates memory for array of net buf descriptors and array of
@@ -1757,7 +1762,7 @@ static void bulkio_init(void)
 	const char *caddr = "0@lo:12345:34:*";
 	const char *saddr = "0@lo:12345:34:1";
 
-	i = 0;
+	nb_nr = 0;
 	M0_SET0(&nb_list);
 	buf_pool = NULL;
 	next_write_test = TEST00;
@@ -1788,6 +1793,8 @@ static void bulkio_init(void)
 static void bulkio_fini(void)
 {
 	struct m0_reqh *reqh;
+	int             i;
+
 	for (i = 0; i < IO_FIDS_NR; ++i)
 		m0_file_fini(&bp->bp_file[i]);
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_motr_ctx);

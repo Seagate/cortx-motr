@@ -239,6 +239,7 @@ static void spiel_conf_create_conf_with_opt(struct m0_spiel    *spiel,
 	int                           rc;
 	struct m0_pdclust_attr        pdclust_attr = { .pa_N=1,
 						       .pa_K=0,
+						       .pa_S=0,
 						       .pa_P=1};
 	const char                   *params[] = { "11111", "22222", NULL };
 	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
@@ -281,14 +282,6 @@ static void spiel_conf_create_conf_with_opt(struct m0_spiel    *spiel,
 			           &spiel_obj_fid[SPIEL_UT_OBJ_SITE]);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_enclosure_add(tx, &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
-				        &spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_spiel_enclosure_add(tx, &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE2],
-				        &spiel_obj_fid[SPIEL_UT_OBJ_RACK2]);
-	M0_UT_ASSERT(rc == 0);
-
 	rc = m0_spiel_node_add(tx,
 			       &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
 			       256,
@@ -304,16 +297,25 @@ static void spiel_conf_create_conf_with_opt(struct m0_spiel    *spiel,
 			       10,
 			       0xff00ff00);
 	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_enclosure_add(tx, &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
+				        &spiel_obj_fid[SPIEL_UT_OBJ_RACK],
+				        &spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_enclosure_add(tx, &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE2],
+				        &spiel_obj_fid[SPIEL_UT_OBJ_RACK2],
+				        &spiel_obj_fid[SPIEL_UT_OBJ_NODE2]);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_spiel_controller_add(tx,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER],
-				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
-				     &spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
+				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_controller_add(tx,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER2],
-				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE2],
-				     &spiel_obj_fid[SPIEL_UT_OBJ_NODE2]);
+				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE2]);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_drive_add(tx,
@@ -622,6 +624,7 @@ static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 	int                           rc;
 	struct m0_pdclust_attr        pdclust_attr = { .pa_N=0,
 						       .pa_K=0,
+						       .pa_S=0,
 						       .pa_P=0};
 	const char                   *params[] = { "11111", "22222", NULL };
 	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
@@ -659,11 +662,6 @@ static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 			       &spiel_obj_fid[SPIEL_UT_OBJ_SITE]);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_enclosure_add(tx,
-			FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE], 5),
-			&spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
-	M0_UT_ASSERT(rc == 0);
-
 	rc = m0_spiel_node_add(tx,
 			       FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_NODE], 6),
 			       256,
@@ -672,10 +670,15 @@ static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 			       0xff00ff00);
 	M0_UT_ASSERT(rc == 0);
 
+	rc = m0_spiel_enclosure_add(tx,
+			FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE], 5),
+			&spiel_obj_fid[SPIEL_UT_OBJ_RACK],
+			&spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_spiel_controller_add(tx,
 				     FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER], 7),
-				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
-				     &spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
+				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_drive_add(tx,
@@ -815,9 +818,10 @@ static void spiel_conf_create_pver_tree(struct m0_spiel_tx *tx)
 {
 	int                    rc;
 	struct m0_fid          fake_fid = spiel_obj_fid[SPIEL_UT_OBJ_PROFILE];
-	struct m0_pdclust_attr pdclust_attr = { .pa_N=1, .pa_K=1, .pa_P=3};
+	struct m0_pdclust_attr pdclust_attr = { .pa_N=1, .pa_K=1, .pa_S=1,
+						.pa_P=3};
 	struct m0_pdclust_attr pdclust_attr_invalid = { .pa_N=1, .pa_K=2,
-							.pa_P=3};
+							.pa_S=2, .pa_P=3};
 	uint32_t               tolerance[] = {0, 0, 0, 0, 1};
 	uint32_t               allowance[] = {0, 0, 0, 0, 1};
 
@@ -1151,22 +1155,6 @@ static void spiel_conf_create_fail(void)
 			            &spiel_obj_fid[SPIEL_UT_OBJ_SITE]);
 	M0_UT_ASSERT(rc == 0);
 
-	/* Enclosure */
-	rc = m0_spiel_enclosure_add(&tx,
-				    &fake_fid,
-				    &spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_enclosure_add(&tx,
-				    &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
-				    &fake_fid);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_enclosure_add(&tx,
-				    &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
-				    &spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
-	M0_UT_ASSERT(rc == 0);
-
 	/* Node */
 	rc = m0_spiel_node_add(&tx,
 			       &fake_fid,
@@ -1178,29 +1166,45 @@ static void spiel_conf_create_fail(void)
 			       256, 2, 10, 0xff00ff00);
 	M0_UT_ASSERT(rc == 0);
 
+	/* Enclosure */
+	rc = m0_spiel_enclosure_add(&tx,
+				    &fake_fid,
+				    &spiel_obj_fid[SPIEL_UT_OBJ_RACK],
+				    &spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_enclosure_add(&tx,
+				    &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
+				    &fake_fid,
+				    &spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_enclosure_add(&tx,
+				    &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
+				    &spiel_obj_fid[SPIEL_UT_OBJ_RACK],
+				    &fake_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_enclosure_add(&tx,
+				    &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
+				    &spiel_obj_fid[SPIEL_UT_OBJ_RACK],
+				    &spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
+	M0_UT_ASSERT(rc == 0);
+
 	/* Controller */
 	rc = m0_spiel_controller_add(&tx,
+				     &fake_fid,
+				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_controller_add(&tx,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER],
-				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
 				     &fake_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	rc = m0_spiel_controller_add(&tx,
-				     &fake_fid,
-				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
-				     &spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_controller_add(&tx,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER],
-				     &fake_fid,
-				     &spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_controller_add(&tx,
-				     &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER],
-				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
-				     &spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
+				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
 	M0_UT_ASSERT(rc == 0);
 
 	/* drive */
@@ -1546,14 +1550,14 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	rc = m0_spiel_rack_add(tx, &fid_rack, &fid_site);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_enclosure_add(tx, &fid_enclosure, &fid_rack);
-	M0_UT_ASSERT(rc == 0);
-
 	rc = m0_spiel_node_add(tx, &fid_node, 16000, 2, 3, 2);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_controller_add(tx, &fid_controller, &fid_enclosure,
-				     &fid_node);
+	rc = m0_spiel_enclosure_add(tx, &fid_enclosure, &fid_rack,
+				   &fid_node);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_controller_add(tx, &fid_controller, &fid_enclosure);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_drive_add(tx, &fid_drive1, &fid_controller);

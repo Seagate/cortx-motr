@@ -99,7 +99,7 @@ main()
 	rc=0
 
 	# Start motr services.
-	motr_service_start 1 1 4 4
+	motr_service_start 1 1 1 4 4
 	dix_init
 
 	# Prepare and and run.

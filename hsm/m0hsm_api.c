@@ -446,8 +446,7 @@ static int delete_obj_set_parent_layout(struct m0_uint128 id,
 	memset(&obj, 0, sizeof(struct m0_obj));
 	memset(&parent_obj, 0, sizeof(struct m0_obj));
 
-	m0_obj_init(&obj, m0_uber_realm, &id,
-			   m0_client_layout_id(m0_instance));
+	m0_obj_init(&obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
 	m0_obj_init(&parent_obj, m0_uber_realm, &parent_id,
 			   m0_client_layout_id(m0_instance));
 
@@ -1855,10 +1854,10 @@ uint64_t get_optimal_bs(struct m0_obj *obj, uint64_t obj_sz)
 	pa = &pver->pv_attr;
 	gsz = usz * pa->pa_N;
 	/* max 2-times pool-width deep, otherwise we may get -E2BIG */
-	max_bs = usz * 2 * pa->pa_P * pa->pa_N / (pa->pa_N + 2 * pa->pa_K);
+	max_bs = usz * 2 * pa->pa_P * pa->pa_N / (pa->pa_N + pa->pa_K + pa->pa_S);
 
-	VERB("usz=%lu pool="FID_F" (N,K,P)=(%u,%u,%u) max_bs=%"PRId64"\n", usz,
-	     FID_P(&pver->pv_pool->po_id), pa->pa_N, pa->pa_K, pa->pa_P, max_bs);
+	VERB("usz=%lu pool="FID_F" (N,K,S,P)=(%u,%u,%u,%u) max_bs=%"PRId64"\n", usz,
+	     FID_P(&pver->pv_pool->po_id), pa->pa_N, pa->pa_K, pa->pa_S, pa->pa_P, max_bs);
 
 	if (obj_sz >= max_bs)
 		return max_bs;
@@ -1906,7 +1905,7 @@ int m0hsm_test_write(struct m0_uint128 id, off_t offset, size_t len, int seed)
 	}
 
 	m0_obj_init(&subobj, m0_uber_realm, &layer->ccr_subobj,
-			   m0_client_layout_id(m0_instance));
+		    m0_client_layout_id(m0_instance));
 	rc = open_entity(&subobj.ob_entity);
 	if (rc)
 		RETURN(rc);

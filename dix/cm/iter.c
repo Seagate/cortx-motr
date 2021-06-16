@@ -571,6 +571,7 @@ static int dix_cm_repair_tgts_get(struct m0_dix_layout_iter *iter,
 	uint32_t                    i;
 	uint64_t                    unit;
 	uint64_t                    units_nr;
+	uint64_t                    spare_nr;
 	uint64_t                    spare_id;
 	uint64_t                    tgt_tmp;
 	uint64_t                   *group_tgts;
@@ -579,7 +580,6 @@ static int dix_cm_repair_tgts_get(struct m0_dix_layout_iter *iter,
 	uint32_t                    device_state;
 	uint64_t                   *tgts_loc;
 	uint64_t                    tgts_nr_loc;
-	uint32_t                    max_device_failures;
 	struct m0_pool_spare_usage *spare_usage_array;
 	enum m0_pool_nd_state       state;
 	int                         rc = 0;
@@ -623,11 +623,10 @@ static int dix_cm_repair_tgts_get(struct m0_dix_layout_iter *iter,
 	/*
 	 * Allocate memory for resulting target devices, precise number of
 	 * targets is not determined at this stage, so allocate array of length
-	 * that equals to the maximum number of device failures (i.e. count of
-	 * all spare units in parity group). It guarantees that such number of
-	 * array elements is enough to store resulting targets. Actual number of
-	 * resulting targets will be set at the end of the algo, set it to 0
-	 * initially.
+	 * that equals to the count of all spare units in parity group).
+	 * It guarantees that such number of array elements is enough to store
+	 * resulting targets. Actual number of resulting targets will be set at
+	 * the end of the algo, set it to 0 initially.
 	 */
 	tgts_nr_loc = 0;
 	M0_ALLOC_ARR(tgts_loc, pm->pm_state->pst_max_device_failures);
@@ -639,13 +638,13 @@ static int dix_cm_repair_tgts_get(struct m0_dix_layout_iter *iter,
 	m0_rwlock_read_lock(&pm->pm_lock);
 
 	spare_usage_array = pm->pm_state->pst_spare_usage_array;
-	max_device_failures = pm->pm_state->pst_max_device_failures;
+	spare_nr = pm->pm_state->pst_nr_spares;
 
 	/*
 	 * Go through the spare usage array to determine target devices where
 	 * current key-value record should be reconstructed.
 	 */
-	for (i = 0; i < max_device_failures; i++) {
+	for (i = 0; i < spare_nr; i++) {
 		spare_id = i;
 		device_index = spare_usage_array[spare_id].psu_device_index;
 		device_state = spare_usage_array[spare_id].psu_device_state;
@@ -749,6 +748,7 @@ static void spare_usage_print(struct m0_dix_layout_iter *iter,
 	uint64_t                    tgt;
 	struct m0_pooldev          *global_dev;
 	uint32_t                    max_device_failures;
+	uint32_t                    spare_nr;
 	struct m0_pool_spare_usage *spare_usage_array;
 	enum m0_pool_nd_state       state;
 
@@ -757,11 +757,12 @@ static void spare_usage_print(struct m0_dix_layout_iter *iter,
 
 	spare_usage_array = pm->pm_state->pst_spare_usage_array;
 	max_device_failures = pm->pm_state->pst_max_device_failures;
+	spare_nr = pm->pm_state->pst_nr_spares;
 
 	M0_LOG(M0_DEBUG,
 	       "Spare usage array info (pool dev_id/global dev_id):");
 	M0_LOG(M0_DEBUG, "=============================================");
-	for (i = 0; i < max_device_failures; i++) {
+	for (i = 0; i < spare_nr; i++) {
 		tgt = spare_usage_array[i].psu_device_index;
 		if (tgt != POOL_PM_SPARE_SLOT_UNUSED) {
 			state = spare_usage_array[i].psu_device_state;

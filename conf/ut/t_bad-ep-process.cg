@@ -1,6 +1,6 @@
 #= <7200000000000001:1>: Invalid endpoint: 999.18.1.1@tcp:12345:40:401
 (root-0 verno=1 rootfid=profile-0 mdpool=pool-0 imeta_pver=(0, 0)
-    mdredundancy=1 params=["82 8 2"] nodes=[node-0] sites=[site-2]
+    mdredundancy=1 params=["82 8 2 2"] nodes=[node-0] sites=[site-2]
     pools=[pool-0] profiles=[profile-0] fdmi_flt_grps=[])
 (profile-0 pools=[pool-0])
 (node-0 memsize=64230 nr_cpu=20 last_state=0 flags=0
