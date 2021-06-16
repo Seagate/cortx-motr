@@ -16,6 +16,8 @@
  * For any questions about this software or licensing,
  * please email opensource@seagate.com or cortx-questions@seagate.com.
  *
+ * Original author: Andriy Tkachuk <andriy.tkachuk@seagate.com>
+ * Original creation date: 30-Oct-2020
  */
 
 // Package mio implements io.Reader/io.Writer interface over
@@ -225,7 +227,7 @@ func (mio *Mio) open(sz uint64) error {
     pv := C.m0_pool_version_find(&C.instance.m0c_pools_common,
                                  &mio.obj.ob_attr.oa_pver)
     if pv == nil {
-        return fmt.Errorf("cannot find pool version")
+        return errors.New("cannot find pool version")
     }
     mio.objPool = pv.pv_pool.po_id
 
@@ -240,11 +242,11 @@ func (mio *Mio) open(sz uint64) error {
 // must be specified when openning object for reading. Otherwise,
 // nothing will be read. (Motr doesn't store objects metadata
 // along with the objects.)
-func (mio *Mio) Open(id string, anySz ...uint64) (err error) {
+func (mio *Mio) Open(id string, anySz ...uint64) error {
     if mio.obj != nil {
         return errors.New("object is already opened")
     }
-    err = mio.objNew(id)
+    err := mio.objNew(id)
     if err != nil {
         return err
     }
@@ -294,7 +296,7 @@ func getOptimalUnitSz(sz uint64, pool *C.struct_m0_fid) (C.ulong, error) {
     if lid <= 0 {
         return 0, fmt.Errorf("could not find layout: rc=%v", lid)
     }
-    return lid, nil
+    return C.ulong(lid), nil
 }
 
 func checkPool(pools []string) (res *C.struct_m0_fid, err error) {
@@ -375,16 +377,18 @@ func (mio *Mio) getOptimalBlockSz(bufSz int) (bsz, gsz int) {
         log.Panic("cannot find the object's pool version")
     }
     pa := &pver.pv_attr
-    if pa.pa_P < pa.pa_N + 2 * pa.pa_K {
+    if pa.pa_P < pa.pa_N + pa.pa_K + pa.pa_S {
         log.Panic("pool width (%v) is less than the parity group size" +
-                  " (%v + 2 * %v == %v), check pool parity configuration",
-                  pa.pa_P, pa.pa_N, pa.pa_K, pa.pa_N + 2 * pa.pa_K)
+                  " (%v + %v + %v == %v), check pool parity configuration",
+                  pa.pa_P, pa.pa_N, pa.pa_K, pa.pa_S,
+                           pa.pa_N + pa.pa_K + pa.pa_S)
     }
     usz := int(C.m0_obj_layout_id_to_unit_size(mio.objLid))
-    gsz = usz * int(pa.pa_N) /* group size in data units only */
-    /* should be max 2-times pool-width deep, otherwise we may get -E2BIG */
-    maxBs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
-    maxBs = ((maxBs - 1) / gsz + 1) * gsz /* multiple of group size */
+    gsz = usz * int(pa.pa_N) // group size in data units only
+    // should be max 2-times pool-width deep, otherwise we may get -E2BIG
+    maxBs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N /
+                    (pa.pa_N + pa.pa_K + pa.pa_S))
+    maxBs = ((maxBs - 1) / gsz + 1) * gsz // multiple of group size
 
     if bufSz >= maxBs {
         return maxBs, gsz
@@ -663,3 +667,5 @@ func (mio *Mio) Seek(offset int64, whence int) (int64, error) {
 
     return int64(mio.off), nil
 }
+
+// vi: sw=4 ts=4 expandtab ai
