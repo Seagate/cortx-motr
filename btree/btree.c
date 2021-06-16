@@ -5310,11 +5310,21 @@ static void ut_basic_kv_oper(void)
 	btree_ut_fini();
 }
 
-#define MIN_STREAM_CNT             5
-#define MAX_STREAM_CNT             20
 
-#define MIN_RECS_PER_STREAM        5
-#define MAX_RECS_PER_STREAM        2048
+enum {
+	MIN_STREAM_CNT         = 5,
+	MAX_STREAM_CNT         = 20,
+
+	MIN_RECS_PER_STREAM    = 5,
+	MAX_RECS_PER_STREAM    = 2048,
+
+	MAX_RECS_PER_THREAD    = 100000, /** Records count for each thread */
+
+	MIN_TREE_LOOPS         = 5000,
+	MAX_TREE_LOOPS         = 15000,
+	MAX_RECS_FOR_TREE_TEST = 100,
+};
+
 
 /**
  * This unit test exercises the KV operations triggered by multiple streams.
@@ -5862,11 +5872,6 @@ static void online_cpu_id_get(uint16_t **cpuid_ptr, uint16_t *cpu_count)
 	}
 }
 
-struct btree_ut_tree_info {
-	struct m0_btree *tree;
-};
-
-#define MAX_RECS_PER_THREAD  100000 /** Records per thread will work with */
 
 /**
  * This test launches multiple threads which launch KV operations against one
@@ -5877,22 +5882,23 @@ struct btree_ut_tree_info {
 static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 						   uint32_t tree_count)
 {
-	int                          rc;
-	struct btree_ut_thread_info *ti;
-	int                          i;
-	struct btree_ut_tree_info   *ut_trees;
-	uint16_t                     cpu;
-	void                        *temp_node;
-	struct m0_btree_op           b_op        = {};
-	struct m0_be_tx             *tx          = NULL;
-	const struct node_type      *nt          = &fixed_format;
-	struct m0_btree_type         btree_type  = {.tt_id = M0_BT_UT_KV_OPS,
-						    .ksize = sizeof(uint64_t),
-						    .vsize = btree_type.ksize*2,
-						   };
-	uint16_t                    *cpuid_ptr;
-	uint16_t                     cpu_count;
-	size_t                       cpu_max;
+	int                           rc;
+	struct btree_ut_thread_info  *ti;
+	int                           i;
+	struct m0_btree             **ut_trees;
+	uint16_t                      cpu;
+	void                         *temp_node;
+	struct m0_btree_op            b_op         = {};
+	struct m0_be_tx              *tx           = NULL;
+	const struct node_type       *nt           = &fixed_format;
+	const uint32_t                ksize_to_use = sizeof(uint64_t);
+	struct m0_btree_type          btree_type   = {.tt_id = M0_BT_UT_KV_OPS,
+				         	     .ksize = ksize_to_use,
+				         	     .vsize = ksize_to_use*2,
+				         	    };
+	uint16_t                     *cpuid_ptr;
+	uint16_t                      cpu_count;
+	size_t                        cpu_max;
 
 	/**
 	 *  1) Create btree(s) to be used by all the threads.
@@ -5935,7 +5941,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 							 tx),
 					 &b_op.bo_sm_group, &b_op.bo_op_exec);
 
-		ut_trees[i].tree = b_op.bo_arbor;
+		ut_trees[i] = b_op.bo_arbor;
 	}
 
 	m0_be_tx_close(tx);
@@ -5962,7 +5968,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 		ti[i].ti_key_count  = MAX_RECS_PER_THREAD;
 		ti[i].ti_key_incr   = 5;
 		ti[i].ti_thread_id  = i;
-		ti[i].ti_tree       = ut_trees[i % tree_count].tree;
+		ti[i].ti_tree       = ut_trees[i % tree_count];
 		ti[i].ti_key_size   = btree_type.ksize;
 		ti[i].ti_value_size = btree_type.vsize;
 	}
@@ -5984,7 +5990,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 	}
 
 	for (i = 0; i < tree_count; i++) {
-		m0_btree_close(ut_trees[i].tree);
+		m0_btree_close(ut_trees[i]);
 
 		/**
 		 * Commenting this code as the delete operation is not done here.
@@ -6029,9 +6035,6 @@ static void ut_mt_mt_kv_oper(void)
 }
 
 
-#define MIN_TREE_LOOPS          5000
-#define MAX_TREE_LOOPS          15000
-#define MAX_RECS_FOR_TREE_TEST  100
 
 /**
  * This routine is a thread handler which primarily involves in creating,
@@ -6118,6 +6121,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rec_count %= MAX_RECS_FOR_TREE_TEST;
 		rec_count = rec_count ? : (MAX_RECS_FOR_TREE_TEST / 2);
 
+		ut_cb.c_act = btree_kv_put_cb;
 		for (i = 1; i <= rec_count; i++) {
 			value = key = i;
 
@@ -6140,6 +6144,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					      &kv_op.bo_op_exec);
 		M0_ASSERT(rc == 0);
 
+		ut_cb.c_act = btree_kv_get_cb;
 		for (i = 1; i <= rec_count; i++) {
 			value = key = i;
 
@@ -6164,10 +6169,9 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					      &kv_op.bo_op_exec);
 		M0_ASSERT(rc == 0);
 
+		ut_cb.c_act = btree_kv_del_cb;
 		for (i = 1; i <= rec_count; i++) {
 			value = key = i;
-
-			ut_cb.c_act = btree_kv_del_cb;
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 						      m0_btree_del(tree,
