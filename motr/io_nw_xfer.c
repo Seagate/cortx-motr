@@ -761,8 +761,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	enum page_attr              *pattr;
 	struct m0_bufvec            *bvec;
 	struct m0_bufvec            *auxbvec;
-	struct m0_op_io      *ioo;
-	struct m0_obj_attr   *io_attr;
+	struct m0_op_io             *ioo;
+	struct m0_obj_attr          *io_attr;
 	struct m0_indexvec          *ivec;
 	struct ioreq_fop            *irfop;
 	struct m0_net_domain        *ndom;

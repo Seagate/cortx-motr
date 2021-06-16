@@ -198,9 +198,9 @@ M0_INTERNAL int m0_layout_plan_get(struct m0_layout_plan *plan, uint64_t colour,
 		return M0_ERR_INFO(-EINVAL, "plan %p is not built", plan);
 
 	if (plan->lp_last_plop == NULL)
-		*plop = pplops_tlist_head(&plan->lp_plops);
+		*plop = pplops_tlist_tail(&plan->lp_plops);
 	else
-		*plop = pplops_tlist_next(&plan->lp_plops, plan->lp_last_plop);
+		*plop = pplops_tlist_prev(&plan->lp_plops, plan->lp_last_plop);
 
 	if (*plop == NULL) {
 		*plop = plop_alloc_init(plan, M0_LAT_DONE, NULL);
