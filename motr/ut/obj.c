@@ -708,6 +708,10 @@ static void ut_test_m0_entity_create(void)
 			   m0_client_layout_id(instance));
 
 	rc = m0_entity_create(NULL, &obj.ob_entity, &ops[0]);
+	/*
+	 * The layouts are not initialized. So we can not find layout with the
+	 * specified lid.
+	 */
 	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(ops[0] == NULL);
 

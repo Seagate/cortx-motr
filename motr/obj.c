@@ -411,7 +411,7 @@ m0__obj_layout_instance_build(struct m0_client *cinst,
 	 */
 	layout = m0_layout_find(&cinst->m0c_reqh.rh_ldom, layout_id);
 	if (layout == NULL) {
-		rc = -EINVAL;
+		rc = M0_ERR(-EINVAL);
 		goto out;
 	}
 
@@ -524,18 +524,20 @@ static int obj_namei_op_init(struct m0_entity *entity,
 
 	/* Get a layout instance for the object. */
 	lid = m0_pool_version2layout_id(&oo->oo_pver,
-				 	m0__obj_layout_id_get(oo));
+					m0__obj_layout_id_get(oo));
 	rc = m0__obj_layout_instance_build(cinst, lid,
 					   &oo->oo_fid, &linst);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_ERR(rc);
 		goto error;
+	}
 	oo->oo_layout_instance = linst;
 
 #ifdef CLIENT_FOR_M0T1FS
 	/* Set the object's parent's fid. */
 	if (!m0_fid_is_set(&cinst->m0c_root_fid) ||
 	    !m0_fid_is_valid(&cinst->m0c_root_fid)) {
-		rc = -EINVAL;
+		rc = M0_ERR(-EINVAL);
 		goto error;
 	}
 	oo->oo_pfid = cinst->m0c_root_fid;
@@ -543,8 +545,10 @@ static int obj_namei_op_init(struct m0_entity *entity,
 	/* Generate a valid oo_name. */
 	obj_name = m0_alloc(M0_OBJ_NAME_MAX_LEN);
 	rc = obj_fid_make_name(obj_name, M0_OBJ_NAME_MAX_LEN, &oo->oo_fid);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_ERR(rc);
 		goto error;
+	}
 	m0_buf_init(&oo->oo_name, obj_name, strlen(obj_name));
 #endif
 	M0_ASSERT(rc == 0);
