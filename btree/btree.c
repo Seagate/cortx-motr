@@ -3459,8 +3459,7 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 		if (bop->bo_i == NULL)
 			return M0_ERR(-ENOMEM);
 
-		tree_delete(&bop->bo_i->i_nop, bop->bo_arbor->t_desc,
-			    bop->bo_tx, P_ACT);
+		tree_put(bop->bo_arbor->t_desc);
 		/**
 		 * ToDo: We need to capture the changes occuring in the
 		 * root node after tree_descriptor has been freed using
@@ -3558,7 +3557,7 @@ int  btree_sibling_first_key_get(struct m0_btree_oimpl *oi, struct td *tree,
 		if (lev->l_idx < node_count(lev->l_node)) {
 			s->s_node = oi->i_nop.no_node = lev->l_node;
 			s->s_idx = lev->l_idx + 1;
-			while (i-- >= 0) {
+			while (i != oi->i_used) {
 				node_child(s, &child);
 				if (!address_in_segment(child))
 					return M0_ERR(-EFAULT);
@@ -3566,6 +3565,7 @@ int  btree_sibling_first_key_get(struct m0_btree_oimpl *oi, struct td *tree,
 					 &child, P_CLEANUP);
 				s->s_idx = 0;
 				s->s_node = oi->i_nop.no_node;
+				i++;
 			}
 			node_rec(s);
 			return 0;
@@ -4396,7 +4396,7 @@ int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
 
 void m0_btree_close(struct m0_btree *arbor)
 {
-	if (arbor->t_desc->r_ref != 0)
+	if (arbor->t_desc->r_ref > 1)
 		arbor->t_desc->r_ref --;
 }
 
@@ -4940,7 +4940,7 @@ static void ut_basic_tree_oper(void)
 						      ), &b_op.bo_sm_group,
 				      &b_op.bo_op_exec);
 	M0_ASSERT(rc == 0);
-	/** m0_btree_close(b_op.bo_arbor); */
+	m0_btree_close(b_op.bo_arbor);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 				      m0_btree_open(temp_node, 1024, &btree,
@@ -4953,11 +4953,7 @@ static void ut_basic_tree_oper(void)
 				      m0_btree_destroy(b_op.bo_arbor, &b_op),
 				      &b_op.bo_sm_group, &b_op.bo_op_exec);
 	M0_ASSERT(rc == 0);
-	/**
-	 * Commenting this line as btree destroy will take care of it.
-	 *
-	 * m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
-	 */
+	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
 	/** Now run some invalid cases */
 
@@ -5038,6 +5034,7 @@ static void ut_basic_tree_oper(void)
 				      m0_btree_destroy(b_op.bo_arbor, &b_op),
 				      &b_op.bo_sm_group, &b_op.bo_op_exec);
 	M0_ASSERT(rc == 0);
+	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 	/** Attempt to reopen the destroyed tree */
 
 	/**
@@ -5937,7 +5934,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 
 		M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 					 m0_btree_create(temp_node, 1024,
-							 &btree_type,nt, &b_op,
+							 &btree_type, nt, &b_op,
 							 tx),
 					 &b_op.bo_sm_group, &b_op.bo_op_exec);
 
@@ -6082,7 +6079,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 	loop_count %= (MAX_TREE_LOOPS - MIN_TREE_LOOPS);
 	loop_count += MIN_TREE_LOOPS;
 
-	while(!thread_start)
+	while (!thread_start)
 		;
 
 	/** Create temp node space and use it as root node for btree */
