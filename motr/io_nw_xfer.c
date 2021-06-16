@@ -468,7 +468,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 m0_bcount_t                       count,
 				 struct pargrp_iomap              *map)
 {
-	uint32_t                   seg = 0;
+	uint32_t                   seg;
 	uint32_t                   tseg;
 	uint32_t                   coff;
 	m0_bindex_t                toff;
@@ -626,12 +626,11 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		goff += COUNT(ivec, seg);
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
+	if (unit_type == M0_PUT_DATA) {
+		attrbvec->ov_buf[ti_idx] = ioo->ioo_attr.ov_buf[coff];
+		attrbvec->ov_vec.v_count[ti_idx] = ioo->ioo_attr.ov_vec.v_count[coff];
 	}
-	attrbvec->ov_buf[ti_idx] = ioo->ioo_attr.ov_buf[coff];
-	attrbvec->ov_vec.v_count[ti_idx] = ioo->ioo_attr.ov_vec.v_count[coff];
-	M0_LOG(M0_DEBUG, "YJC_CKSUM: ioo->cksum = %s target buf cksum = %s gob_offset %"PRIu64 " coff = %d",
-			  (char *)ioo->ioo_attr.ov_buf[coff], (char *)attrbvec->ov_buf[ti_idx], gob_offset, coff);
-	M0_LOG(M0_DEBUG, "YJC: target buffer ov buf = %s", (char *)attrbvec->ov_buf[ti_idx]);
+	}
 	M0_LEAVE();
 }
 
@@ -754,9 +753,10 @@ static void irfop_fini(struct ioreq_fop *irfop)
 static int m0_buf_from_bufvec(struct m0_buf *dest,
 		                    const struct m0_bufvec *src)
 {
-	int i;
-	int count = 0;
-	int len_seg = 0;
+	size_t i;
+	size_t count = 0;
+	size_t len = 0;
+	size_t bytes_copied = 0;
 	void *dst;
 
 	M0_SET0(dest);
@@ -773,26 +773,22 @@ static int m0_buf_from_bufvec(struct m0_buf *dest,
 	if (dest->b_addr == NULL)
 		return M0_ERR(-ENOMEM);
 	dst = dest->b_addr;
-	for (i = 0; i < src->ov_vec.v_nr; ++i) {
-		char str[64];
-		len_seg = src->ov_vec.v_count[i];
-		if (len_seg > 0) {
-			snprintf(str, len_seg, "%s", (char *)src->ov_buf[i]);
-			//YJC_TODO: length shoudl len_seg instead of len_seg -1
-			// this is only for debug because we have string 
-			memcpy(dst, src->ov_buf[i], len_seg - 1);
-			M0_LOG(M0_DEBUG, "YJC buf[%d] = %s", i, (char *)str);
+	for (i = 0; i < src->ov_vec.v_nr; i++) {
+		char str[128];
+		len = src->ov_vec.v_count[i];
+		if(len > 0) {
+			snprintf(str, len, "%s", (char *) src->ov_buf[i]);
+			memcpy(dst, src->ov_buf[i], len);
+			dst += len;
+			bytes_copied += len;
 		}
-		dst += len_seg - 1;
 	}
-	dest->b_nob = count;
-	//M0_ASSERT(count == len_seg);
+	dest->b_nob = bytes_copied;
+	//M0_ASSERT(count == len);
 	//YJC_TODO: remove below two lines, only for debug
-	do {
-	char str[len_seg];
-	snprintf(str, len_seg, "%s", (char *)dest->b_addr);
-	M0_LOG(M0_DEBUG, "YJC: copying %s buffers", (char *)str);
-	}while(0);
+	*((char *)dst) = '\0';
+	++dest->b_nob;
+	M0_LOG(M0_DEBUG, "YJC: copying %d %s buffers", (int)len, (char *)dest->b_addr);
 	return 0;
 }
 
@@ -990,13 +986,16 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_fid = ti->ti_fid;
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
-		attrbvec = &ti->ti_attrbufvec;
-		//YJC_TODO: concat all checksum into single buffer instead of collection of buffers
-		rc = m0_buf_from_bufvec(&rw_fop->crw_di_data_cksum, attrbvec);
-		M0_ASSERT(rc == 0);
-		//YJC_TODO: m0_bufs_print only for debug, needs to be removed
+		if (filter == PA_DATA) {
+			attrbvec = &ti->ti_attrbufvec;
+			rc = m0_buf_from_bufvec(&rw_fop->crw_di_data_cksum, attrbvec);
+			M0_ASSERT(rc == 0);
+			M0_LOG(M0_DEBUG, "YJC_TEST:"FID_F" fop = %p baddr %p %s ", FID_P(&ti->ti_fid), &iofop->if_fop, rw_fop->crw_di_data_cksum.b_addr, (char *)rw_fop->crw_di_data_cksum.b_addr);
+		}
+		/* M0_LOG(M0_DEBUG, "YJC: crw_di_data_cksum ab_count = %d ti_attrbufvec v_nr = %d ",
+				 rw_fop->crw_di_data_cksum.ab_count, attrbvec->ov_vec.v_nr);
 		//m0_bufs_print(&rw_fop->crw_di_data_cksum, "YJC_CKSUM: rw_fop->crw_di_data_cksum");
-
+		*/
 		if (ioo->ioo_flags & M0_OOF_NOHOLE)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 		if (ioo->ioo_flags & M0_OOF_SYNC)

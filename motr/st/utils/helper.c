@@ -113,7 +113,6 @@ static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 	 * and initialises the bufvec for us.
 	 */
 
-	fprintf(stderr, "YJC: allocating data and att for %d blocks of size %d\n", block_count, block_size);
 	//block_count = block_size /  lid_size;
 	rc = m0_bufvec_alloc(data, block_count, block_size);
 	if (rc != 0) {
@@ -137,13 +136,11 @@ static int write_dummy_hash_data(struct m0_uint128 id, struct m0_bufvec *attr)
        int len;
 
        nr_blocks = attr->ov_vec.v_nr;
-       fprintf(stderr, "YJC: attr buf cnt = %d\n", nr_blocks);
        for (i = 0; i < nr_blocks; ++i) {
 		sprintf(str, U128X_F"seg%d", U128_P(&id), i);
 		len = strlen(str);
 		memcpy(attr->ov_buf[i], str, len);
-		attr->ov_vec.v_count[i] = len + 1;
-	        fprintf(stderr, "YJC_CKSUM: attr[%d] = %s len = %d\n", i, (char *)attr->ov_buf[i], len);
+		attr->ov_vec.v_count[i] = len;
        }
        return i;
 }
@@ -443,6 +440,7 @@ int m0_write(struct m0_container *container, char *src,
 			  blks_per_io:block_count;
 		if (bcount < blks_per_io) {
 			cleanup_vecs(&data, &attr, &ext);
+			fprintf(stderr, "YJC: MOTR_APP allocating data and attr for %d blocks of size %d\n", bcount, block_size);
 			rc = alloc_vecs(&ext, &data, &attr, bcount,
 					block_size);
 			if (rc != 0)
@@ -454,8 +452,6 @@ int m0_write(struct m0_container *container, char *src,
 		/* Read data from source file. */
 		rc = read_data_from_file(fp, &data);
 		M0_ASSERT(rc == bcount);
-		fprintf(stderr, "YJC: writing dummy hash bcount = %d\n",
-		        bcount);
 		write_dummy_hash_data(id, &attr);
 
 		/* Copy data to the object*/

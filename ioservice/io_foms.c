@@ -1737,7 +1737,7 @@ static int io_launch(struct m0_fom *fom)
 	index -= m0_is_write_fop(fop) ?
 		netbufs_tlist_length(&fom_obj->fcrw_netbuf_list) : 0;
 	if (m0_is_write_fop(fop)) {
-			m0_bufs_print(&rwfop->crw_di_data_cksum, "YJC_CKSUM: rw_fop->crw_di_data_cksum");
+		M0_LOG(M0_DEBUG, "YJC_SRV:"FID_F "  %p %s baddr = %p nob= %"PRIu64, FID_P(&rwfop->crw_fid), rwfop, (char *)rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_nob);
 	}
 	m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
 		struct m0_indexvec     *mem_ivec;
@@ -1788,8 +1788,6 @@ static int io_launch(struct m0_fom *fom)
 					  mem_ivec, &nb->nb_buffer,
 					  &cksum_data));
 			}
-			//YJC_TODO: concated cksum would be passed from client, replace m0_bufs with m0_buf
-			//YJC_TODO: m0_bufs_print only for debug, needs to be removed
 		}
 		stio->si_opcode = m0_is_write_fop(fop) ? SIO_WRITE : SIO_READ;
 
