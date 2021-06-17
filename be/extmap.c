@@ -201,7 +201,7 @@ static void emap_rec_init(struct m0_be_emap_rec *rec)
 			.ot_version = M0_BE_EMAP_REC_FORMAT_VERSION,
 			.ot_type    = M0_FORMAT_TYPE_BE_EMAP_REC,
 			.ot_footer_offset = sizeof(struct m0_be_emap_rec) +
-					    rec->er_di_cksum.b_nob - sizeof(m0_format_footer);
+					    rec->er_di_cksum.b_nob - sizeof(struct m0_format_footer)
 	});
 	m0_format_footer_update(rec);
 }
@@ -961,8 +961,8 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	}
 	else
 	{	
-		rec_buf = rec;
-		rec_buf->b_addr = NULL;
+		rec_buf->b_nob = sizeof(struct m0_be_emap_rec);
+		rec_buf->b_addr = (void *)(rec);
 	}
 
 	// Update footer

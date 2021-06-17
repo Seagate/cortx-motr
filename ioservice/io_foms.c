@@ -1758,7 +1758,7 @@ static int io_launch(struct m0_fom *fom)
 		stob        = fom_obj->fcrw_stob;
 		mem_ivec    = &stio->si_stob;
 		stobio_tlink_init(stio_desc);
-		stio->si_cksum = &rwfop->crw_di_data_cksum;
+		m0_buf_init(&stio->si_cksum, rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_nob);
 		stio->si_lid = rwfop->crw_lid;
 
 		M0_ADDB2_ADD(M0_AVI_FOM_TO_STIO, fom->fo_sm_phase.sm_id,
