@@ -142,6 +142,8 @@ struct m0_co_context {
 	uint64_t                      mc_frame;
 	/** true if stack is unwinding */
 	bool                          mc_yield;
+	/** code returned from M0_CO_END() macro, set in M0_CO_YIELD() */
+	int                           mc_co_end_ret;
 	/** current frame pointer during reentering */
 	uint64_t                      mc_yield_frame;
 	/** simple pool allocator for locals */
@@ -152,9 +154,9 @@ struct m0_co_context {
  * M0_CO_START()/M0_CO_END() wrap coroutine call and provide means to control
  * the control flow of it.
  */
-#define M0_CO_START(context)						  \
-({									  \
-	M0_ASSERT((context)->mc_yield_frame == 0);			  \
+#define M0_CO_START(context)                                              \
+({                                                                        \
+	M0_ASSERT((context)->mc_yield_frame == 0);                        \
 })
 
 /**
@@ -164,7 +166,7 @@ struct m0_co_context {
  */
 #define M0_CO_END(context)                                                \
 ({                                                                        \
-	int rc = ((context)->mc_yield ? -EAGAIN : 0);                     \
+	int rc = ((context)->mc_yield ? (context)->mc_co_end_ret : 0);    \
 	if (rc == 0) {                                                    \
 		M0_ASSERT((context)->mc_frame == 0);                      \
 		M0_ASSERT((context)->mc_yield_frame == 0);                \
@@ -243,12 +245,13 @@ save:   (function);                                                       \
  *
  * @param _context -- @see m0_co_context
  */
-#define M0_CO_YIELD(context)                                              \
+#define M0_CO_YIELD_RC(context, rc)                                       \
 ({                                                                        \
 	__label__ save;                                                   \
 	M0_LOG(M0_CALL, "M0_CO_YIELD: context=%p yeild=%d",               \
 	       context, !!context->mc_yield);                             \
 	context->mc_yield = true;                                         \
+	context->mc_co_end_ret = (rc);                                    \
 	M0_ASSERT(context->mc_frame < M0_MCC_STACK_NR);                   \
 	context->mc_stack[context->mc_frame++] = &&save;                  \
 	return;                                                           \
@@ -259,6 +262,8 @@ save:                                                                     \
 	context->mc_yield_frame = 0;                                      \
 	context->mc_frame--;                                              \
 })
+
+#define M0_CO_YIELD(context) M0_CO_YIELD_RC(context, -EAGAIN)
 
 
 M0_INTERNAL int m0_co_context_init(struct m0_co_context *context);
