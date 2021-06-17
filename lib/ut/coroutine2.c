@@ -29,6 +29,7 @@
 #include "fop/fom.h"		/* m0_fom_phase_set */
 #include "fop/fom_generic.h"	/* M0_FOPH_FINISH */
 #include "fop/fom_simple.h"
+#include "fop/fom_long_lock.h"
 
 #define F M0_CO_FRAME_DATA
 
@@ -65,12 +66,9 @@ struct test_tree {
 	int delete;
 };
 
-static void crud(struct m0_co_context *context,
-		 struct test_tree *tree, int k, int v);
-static void insert(struct m0_co_context *context,
-		   struct test_tree *tree, int k, int v);
-static void delete(struct m0_co_context *context,
-		   struct test_tree *tree, int k);
+static void crud(struct m0_fom *fom, struct test_tree *tree, int k, int v);
+static void insert(struct m0_fom *fom, struct test_tree *tree, int k, int v);
+static void delete(struct m0_fom *fom, struct test_tree *tree, int k);
 
 static struct m0_semaphore ready;
 static struct m0_semaphore insert1;
@@ -80,9 +78,36 @@ static struct m0_semaphore delete2;
 
 static struct m0_fom_simple simple_fom;
 static struct m0_co_context fom_context = {};
-static struct test_tree     fom_tree = {};
 static struct m0_co_op      fom_op = {};
 
+/* Simple FOM data */
+static struct test_tree     fom_tree = {};
+static struct m0_long_lock  fom_lock = {};
+
+/* IRL shall be initialised in a specific FOM alloc/init procedure */
+static struct m0_fom_co_context specific_fom_context = {
+	.ccf_context = &fom_context,
+	.ccf_op      = &fom_op,
+};
+
+/* handy getters, can be a part of coroutine lib */
+static struct m0_co_context *CO(struct m0_fom *fom)
+{
+	M0_ASSERT(fom->fo_ops->fo_co_context != NULL);
+	return fom->fo_ops->fo_co_context(fom)->ccf_context;
+}
+
+static struct m0_co_op *OP(struct m0_fom *fom)
+{
+	M0_ASSERT(fom->fo_ops->fo_co_context != NULL);
+	return fom->fo_ops->fo_co_context(fom)->ccf_op;
+}
+
+/* FOM context handler */
+static struct m0_fom_co_context *cont(const struct m0_fom *fom)
+{
+	return &specific_fom_context;
+}
 
 static void coroutine_fom_run(void)
 {
@@ -101,44 +126,73 @@ static void coroutine_fom_run(void)
 	m0_semaphore_down(&ready);
 }
 
+static void fom_context_set(void)
+{
+	/* A hackerish way to setup coroutine context getter. IRL shall be
+	 * defined along with FOM ops vector */
+	struct m0_fom_ops *ops = (struct m0_fom_ops *) simple_fom.si_fom.fo_ops;
+	ops->fo_co_context = cont;
+}
+
 static int coroutine_fom_tick(struct m0_fom *fom, int *x, int *__unused)
 {
 	int key = 1;
 	int val = 2;
 	int rc;
 
-	m0_co_op_reset(&fom_op);
+	fom_context_set();
+	m0_co_op_reset(OP(fom));
 
-	M0_CO_START(&fom_context);
-	crud(&fom_context, &fom_tree, key, val);
-	rc = M0_CO_END(&fom_context);
+	M0_CO_START(CO(fom));
+	crud(fom, &fom_tree, key, val);
+	rc = M0_CO_END(CO(fom));
 
-	if (rc == -EAGAIN)
-		return m0_co_op_tick_ret(&fom_op, fom, m0_fom_phase(fom));
+	if (rc == -EAGAIN) /* m0_co_op case */
+		return m0_co_op_tick_ret(OP(fom), fom, m0_fom_phase(fom));
+	else if (M0_IN(rc, (M0_FSO_WAIT, M0_FSO_AGAIN))) { /* long_lock case */
+		return rc;
+	}
 
 	m0_semaphore_up(&ready);
 	return -1;
 }
-
-static void crud(struct m0_co_context *context,
-		struct test_tree *tree, int k, int v)
+#define LR M0_FOM_LONG_LOCK_RETURN
+static void crud(struct m0_fom *fom, struct test_tree *tree, int k, int v)
 {
-	M0_CO_REENTER(context);
+	M0_CO_REENTER(CO(fom),
+		      struct m0_long_lock_link llink;
+		);
 
 	M0_LOG(M0_DEBUG, "tree=%p tree.delete=%d, tree.insert=%d k=%d",
 	       tree, tree->delete, tree->insert, k);
 
-	M0_CO_FUN(context, insert(context, tree, k, v));
+	/*
+	 * This part pretends to take a long lock. In the reality it takes it
+	 * only once, no concurrency expected. Use the following code as an
+	 * example to implement your own.
+	 */
+	m0_long_lock_link_init(&F(llink), fom, NULL);
+	M0_CO_YIELD_RC(CO(fom),
+		       LR(m0_long_write_lock(&fom_lock,
+					     &F(llink),
+					     m0_fom_phase(fom))));
 
-	M0_CO_FUN(context, delete(context, tree, k));
+	m0_long_write_unlock(&fom_lock, &F(llink));
+	m0_long_lock_link_fini(&F(llink));
 
-	M0_UT_ASSERT(tree->delete + tree->insert == 4);
+	/*
+	 * Updates pretended tree object asuming two blocking points to simulate
+	 * paged inside insert() and delete().
+	 */
+	M0_CO_FUN(CO(fom), insert(fom, tree, k, v));
+	M0_CO_FUN(CO(fom), delete(fom, tree, k));
+	M0_UT_ASSERT(tree->delete + tree->insert == 22);
 }
+#undef LR
 
-static void insert(struct m0_co_context *context,
-		   struct test_tree *tree, int k, int v)
+static void insert(struct m0_fom *fom, struct test_tree *tree, int k, int v)
 {
-	M0_CO_REENTER(context,
+	M0_CO_REENTER(CO(fom),
 		      int         rc;
 		      char        c;
 		      long long   i;
@@ -152,36 +206,35 @@ static void insert(struct m0_co_context *context,
 
 	M0_LOG(M0_DEBUG, "yield");
 	tree->insert++;
-	m0_co_op_active(&fom_op);
+	m0_co_op_active(OP(fom));
 	m0_semaphore_up(&insert1);
-	M0_CO_YIELD(context);
+	M0_CO_YIELD(CO(fom));
 
 	M0_LOG(M0_DEBUG, "yield");
 	tree->insert++;
-	m0_co_op_active(&fom_op);
+	m0_co_op_active(OP(fom));
 	m0_semaphore_up(&insert2);
-	M0_CO_YIELD(context);
+	M0_CO_YIELD(CO(fom));
 }
 
-static void delete(struct m0_co_context *context,
-		   struct test_tree *tree, int k)
+static void delete(struct m0_fom *fom, struct test_tree *tree, int k)
 {
-	M0_CO_REENTER(context);
+	M0_CO_REENTER(CO(fom));
 
 	M0_LOG(M0_DEBUG, "tree=%p tree.delete=%d, tree.insert=%d",
 	       tree, tree->delete, tree->insert);
 
 	M0_LOG(M0_DEBUG, "yield");
-	tree->delete++;
-	m0_co_op_active(&fom_op);
+	tree->delete += 10;
+	m0_co_op_active(OP(fom));
 	m0_semaphore_up(&delete1);
-	M0_CO_YIELD(context);
+	M0_CO_YIELD(CO(fom));
 
 	M0_LOG(M0_DEBUG, "yield");
-	tree->delete++;
-	m0_co_op_active(&fom_op);
+	tree->delete += 10;
+	m0_co_op_active(OP(fom));
 	m0_semaphore_up(&delete2);
-	M0_CO_YIELD(context);
+	M0_CO_YIELD(CO(fom));
 }
 
 static void test_run(void)
@@ -201,28 +254,26 @@ void m0_test_coroutine2(void)
 	int rc;
 
 	m0_semaphore_init(&ready, 0);
-
 	m0_semaphore_init(&insert1, 0);
 	m0_semaphore_init(&insert2, 0);
 	m0_semaphore_init(&delete1, 0);
 	m0_semaphore_init(&delete2, 0);
+	m0_long_lock_init(&fom_lock);
 
 	m0_co_op_init(&fom_op);
-
 	rc = m0_co_context_init(&fom_context);
 	M0_UT_ASSERT(rc == 0);
-
 
 	test_run();
 
 	m0_co_context_fini(&fom_context);
 	m0_co_op_fini(&fom_op);
 
+	m0_long_lock_fini(&fom_lock);
 	m0_semaphore_init(&delete2, 0);
 	m0_semaphore_init(&delete1, 0);
 	m0_semaphore_init(&insert2, 0);
 	m0_semaphore_init(&insert1, 0);
-
 	m0_semaphore_init(&ready, 0);
 }
 
