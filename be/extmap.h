@@ -211,6 +211,7 @@ struct m0_be_emap_cursor {
 	struct m0_buf             ec_keybuf;
 	struct m0_buf             ec_recbuf;
 	struct m0_uint128         ec_prefix;
+	/** Points to checksum info received in IO FOP (write operation) */
 	struct m0_buf             ec_cksum;
 	struct m0_be_op           ec_op;
 };

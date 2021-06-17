@@ -982,16 +982,26 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		it->ec_key = *key;
 		it->ec_rec = *rec;
 		if (rec->er_di_cksum.b_nob) {
+			/* Layout/format of emap-record (if checksum is present) which gets 
+			 * written:
+			 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
+			 * It gets stored as contigious buffer, so making er_di_cksum to 
+			 * point to CS-Array (Checksum Array) 
+			 */
 			it->ec_rec.er_di_cksum.b_addr = recbuf.b_addr +
-				offsetof(struct m0_be_emap_rec, er_di_cksum.b_nob);
-			it->ec_rec.er_footer = *(struct m0_format_footer *)(recbuf.b_addr +
-				offsetof(struct m0_be_emap_rec, er_di_cksum.b_nob) +
-				rec->er_di_cksum.b_nob);
+				offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr);
+			
+			/* Footer needs update as it gets pushed after checksum array during
+			 * write and while reading CS Array is pointer
+			 */
+			it->ec_rec.er_footer = *(struct m0_format_footer *)(
+				it->ec_rec.er_di_cksum.b_addr + rec->er_di_cksum.b_nob);
 		}
 		else {
+			/* As no CS Array make pointer null, in this case footer will be 
+			 * correctly copied in it->ec_rec
+			 */
 			it->ec_rec.er_di_cksum.b_addr = NULL;
-			it->ec_rec.er_footer = *(struct m0_format_footer *)(recbuf.b_addr +
-				offsetof(struct m0_be_emap_rec, er_di_cksum.b_nob));
 		}
 		emap_key_init(&it->ec_key);
 		emap_rec_init(&it->ec_rec);
