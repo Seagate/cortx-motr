@@ -929,22 +929,43 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	key_print(key);
 	rec->er_start  = ext->ee_ext.e_start;
 	rec->er_value  = ext->ee_val;
-	m0_buf_init(&rec->er_di_cksum, ext->ee_di_cksum.b_addr, ext->ee_di_cksum.b_nob);
-	emap_rec_init(&it->ec_rec);
-	m0_format_footer_update(rec);
-	rec_print(rec);
+	rec->er_di_cksum = ext->ee_di_cksum;	
+	emap_rec_init(rec);
 
-	len = offsetof(struct m0_be_emap_rec, er_di_cksum.b_nob) +
-		       rec->er_di_cksum.b_nob + sizeof(struct m0_format_footer);
-	if ((rc = m0_buf_alloc(rec_buf, len)) != 0) {
-		return rc;
+	/* Layout/format of emap-record (if checksum is present) which gets 
+	 * written:
+	 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
+	 * It gets stored as contigious buffer, so making er_di_cksum to 
+	 * point to CS-Array (Checksum Array) 
+	 */
+	if( rec->er_di_cksum.b_nob )
+	{
+		/* Total size of buffer needed for storing emap extent */
+		len = offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr) +
+			       rec->er_di_cksum.b_nob + sizeof(struct m0_format_footer);
+		if ((rc = m0_buf_alloc(rec_buf, len)) != 0) {
+			return rc;
+		}
+
+		/* Copy emap record till checksum buf start */
+		len = offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr);
+		memcpy(rec_buf->b_addr, (void *)rec, len);		
+		/* Copy checksum array into emap record */
+		memcpy(rec_buf->b_addr + len, rec->er_di_cksum.b_addr, rec->er_di_cksum.b_nob);		
+		
+		/* Footer will be generated next */
 	}
-	len = offsetof(struct m0_be_emap_rec, er_di_cksum.b_nob);
-	memcpy(rec_buf->b_addr, (void *)rec, len);
-	memcpy(rec_buf->b_addr + len, rec->er_di_cksum.b_addr, rec->er_di_cksum.b_nob);
-	len += rec->er_di_cksum.b_nob;
-	memcpy(rec_buf->b_addr + len, (void *)&rec->er_footer, sizeof(struct m0_format_footer));
+	else
+	{	
+		rec_buf = rec;
+		rec_buf->b_addr = NULL;
+	}
 
+	// Update footer
+	m0_format_footer_update( rec_buf );
+	
+	rec_print(rec);
+	
 	++it->ec_map->em_version;
 	it->ec_op.bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 		op,
@@ -1213,6 +1234,7 @@ be_emap_split(struct m0_be_emap_cursor *it,
 		it->ec_seg.ee_ext.e_start = scan;
 		it->ec_seg.ee_ext.e_end   = scan + count;
 		it->ec_seg.ee_val         = vec->iv_index[i];
+		it->ec_seg.ee_di_cksum    = cksum[i];
 		extent_print(&it->ec_seg.ee_ext);
 		if (it->ec_seg.ee_ext.e_end == seg_end)
 			/* The end of original segment is reached:
