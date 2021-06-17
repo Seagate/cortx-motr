@@ -555,13 +555,14 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 
 		bstart[1] = val;
 		val_orig  = seg->ee_val;
-		m0_buf_init(&cksum[1], it->ec_cksum.b_addr, it->ec_cksum.b_nob);
+		cksum[1] = it->ec_cksum;
 
 		if (length[0] > 0) {
 			if (cut_left)
 				cut_left(seg, &clip, val_orig);
 			bstart[0] = seg->ee_val;
 			if (bstart[0] != AET_HOLE) {
+				// TODO: Update this code with proper values
 				M0_ASSERT(seg->ee_di_cksum.b_nob >= length[0]*128);
 				cksum[0].b_nob = length[0]*128;
 				cksum[0].b_addr = seg->ee_di_cksum.b_addr;
@@ -573,6 +574,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 			bstart[2] = seg->ee_val;
 			if (bstart[2] != AET_HOLE) {
 				int total_len = length[0] + length[1] + length[2];
+				// TODO: Update this code with proper values				
 				M0_ASSERT(seg->ee_di_cksum.b_nob == total_len * 128);
 				cksum[2].b_nob = length[2] * 128;
 				cksum[2].b_addr = seg->ee_di_cksum.b_addr +
@@ -1009,7 +1011,8 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 			 * written:
 			 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
 			 * It gets stored as contigious buffer, so making er_di_cksum to 
-			 * point to CS-Array (Checksum Array) 
+			 * point to CS-Array (Checksum Array)
+			 * TODO: Change this to allocate IO FOP and copy
 			 */
 			it->ec_rec.er_di_cksum.b_addr = recbuf.b_addr +
 				offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr);

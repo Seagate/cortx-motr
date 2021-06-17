@@ -1609,7 +1609,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	 */
 
 	it.ec_cksum.b_addr = stob_ad_get_cksum_addr(io->si_cksum->b_addr,
-			off, io->si_lid);
+			off, io->si_unit_sz);
 	it.ec_cksum.b_nob  = stob_ad_get_cksum_nob(m0_ext_length(&todo));
 
 	M0_SET0(&it.ec_op);

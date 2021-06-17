@@ -405,8 +405,9 @@ struct m0_stob_io {
 	m0_time_t                   si_start;
 	uint64_t                    si_id;
 
-	struct m0_buf              *si_cksum;
-	uint64_t                    si_lid;
+	/* This checksum should be for stob IO */
+	struct m0_buf               si_cksum;
+	uint64_t                    si_unit_sz;
 };
 
 struct m0_stob_io_op {
