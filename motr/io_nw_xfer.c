@@ -476,7 +476,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	m0_bindex_t                pgstart;
 	m0_bindex_t                pgend;
 	struct data_buf           *buf;
-	struct m0_op_io    *ioo;
+	struct m0_op_io           *ioo;
 	struct m0_pdclust_layout  *play;
 	uint64_t                   frame;
 	uint64_t                   unit;
@@ -502,6 +502,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	M0_PRE(ti != NULL);
 	M0_PRE(map != NULL);
 	M0_PRE(target_ioreq_invariant(ti));
+
+	ti->ti_goff = gob_offset;
 
 	ioo = bob_of(ti->ti_nwxfer, struct m0_op_io,
 		     ioo_nwxfer, &ioo_bobtype);

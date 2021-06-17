@@ -140,6 +140,7 @@ M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 		iopl->iop_ext  = ti->ti_ivec;
 		iopl->iop_data = ti->ti_bufvec;
 		iopl->iop_session = ti->ti_session;
+		iopl->iop_goff = ti->ti_goff;
 	} m0_htable_endfor;
 
  out:

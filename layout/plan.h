@@ -482,6 +482,10 @@ struct m0_layout_io_plop {
 	 * The set of extents to be read or written.
 	 */
 	struct m0_indexvec     iop_ext;
+
+	/** Global object offset. */
+	m0_bindex_t            iop_goff;
+
 	/**
 	 * Data buffers provided by the implementation.
 	 *
