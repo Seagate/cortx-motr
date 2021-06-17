@@ -569,6 +569,18 @@ static void dix_build(const struct m0_op_idx *oi,
 				out->dd_layout.u.dl_desc.ld_hash_fnc = HASH_FNC_CITY;
 			}
 		}
+	} else if (M0_IN(opcode, (M0_EO_CREATE))) {
+		/*
+		 * Use default layout for all indices:
+		 * - city hash function;
+		 * - infinity identity mask (use key as is);
+		 * - default pool version (the same as for root index).
+		 * In future client user will be able to pass layout as an argument.
+		 */
+		out->dd_layout.dl_type = DIX_LTYPE_DESCR;
+		m0_dix_ldesc_init(&out->dd_layout.u.dl_desc,
+				  &(struct m0_ext) { .e_start = 0, .e_end = IMASK_INF },
+				  1, HASH_FNC_CITY, &idx->in_attr.idx_pver);
 	}
 }
 
@@ -987,22 +999,9 @@ static void dix_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
 	struct m0_dix            dix;
 	int                      rc;
-	struct m0_fid		 dix_pver;
 
 	M0_ENTRY();
 	dix_build(oi, &dix);
-	dix_pver = dix_req->idr_oi->oi_idx->in_attr.idx_pver;
-	/*
-	 * Use default layout for all indices:
-	 * - city hash function;
-	 * - infinity identity mask (use key as is);
-	 * - default pool version (the same as for root index).
-	 * In future client user will be able to pass layout as an argument.
-	 */
-	dix.dd_layout.dl_type = DIX_LTYPE_DESCR;
-	m0_dix_ldesc_init(&dix.dd_layout.u.dl_desc,
-			  &(struct m0_ext) { .e_start = 0, .e_end = IMASK_INF },
-			  1, HASH_FNC_CITY, &dix_pver);
 	m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
 	rc = m0_dix_create(dreq, &dix, 1, NULL, COF_CROW);
 	if (rc != 0)

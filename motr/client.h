@@ -766,7 +766,7 @@ struct m0_client_layout {
 struct m0_idx_attr {
 	/** DIX pool layout type. */
 	uint32_t      idx_layout_type;
-	/** DIX pool version type. */
+	/** DIX pool version. */
 	struct m0_fid idx_pver;
 };
 
