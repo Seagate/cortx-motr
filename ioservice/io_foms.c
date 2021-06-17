@@ -1176,6 +1176,7 @@ M0_INTERNAL int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	stobio_tlist_init(&fom_obj->fcrw_stio_list);
 	stobio_tlist_init(&fom_obj->fcrw_done_list);
 
+	M0_LOG(M0_DEBUG, "fcrw_total_ioivec_cnt = %"PRIu64, fom_obj->fcrw_total_ioivec_cnt);
 	M0_LOG(M0_DEBUG, "fom=%p : op=%s, desc=%d gfid"FID_F"cob fid"FID_F
 	       "pver"FID_F, fom, m0_is_read_fop(fop) ? "READ" : "WRITE",
 	       rwfop->crw_desc.id_nr, FID_P(&rwfop->crw_gfid),
@@ -1692,6 +1693,7 @@ static int io_launch(struct m0_fom *fom)
 	struct m0_net_buffer    *nb;
 	struct m0_fop_cob_rw    *rwfop;
 	struct m0_file          *file = NULL;
+	//struct m0_bufs          *bufs;
 	uint32_t                 index;
 
 	M0_PRE(fom != NULL);
@@ -1736,9 +1738,13 @@ static int io_launch(struct m0_fom *fom)
 	 */
 	index -= m0_is_write_fop(fop) ?
 		netbufs_tlist_length(&fom_obj->fcrw_netbuf_list) : 0;
+
+	//bufs = &rwfop->crw_di_data_cksum;
 	if (m0_is_write_fop(fop)) {
-		M0_LOG(M0_DEBUG, "YJC_SRV:"FID_F "  %p %s baddr = %p nob= %"PRIu64, FID_P(&rwfop->crw_fid), rwfop, (char *)rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_nob);
+		M0_LOG(M0_DEBUG, "YJC: todo dummy messages %s", (char *)rwfop->crw_di_data_cksum.b_addr);
+		//m0_bufs_print(&rwfop->crw_di_data_cksum, "YJC_CKSUM: rwfop->crw_di_data_cksum");
 	}
+
 	m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
 		struct m0_indexvec     *mem_ivec;
 		struct m0_stob_io_desc *stio_desc;
@@ -1752,6 +1758,8 @@ static int io_launch(struct m0_fom *fom)
 		stob        = fom_obj->fcrw_stob;
 		mem_ivec    = &stio->si_stob;
 		stobio_tlink_init(stio_desc);
+		stio->si_cksum = &rwfop->crw_di_data_cksum;
+		stio->si_lid = rwfop->crw_lid;
 
 		M0_ADDB2_ADD(M0_AVI_FOM_TO_STIO, fom->fo_sm_phase.sm_id,
 			     stio->si_id);
@@ -1776,8 +1784,12 @@ static int io_launch(struct m0_fom *fom)
 			uint32_t di_size = m0_di_size_get(file, ivec_count);
 			uint32_t curr_pos = m0_di_size_get(file,
 						fom_obj->fcrw_curr_size);
-			di_buf = &rwfop->crw_di_data;
+			//struct   m0_buf  *buf_a;
+			//char             *msg;
+			//int               i = 0;
 
+
+			di_buf = &rwfop->crw_di_data;
 			if (di_buf != NULL) {
 				struct m0_buf buf = M0_BUF_INIT(di_size,
 						di_buf->b_addr + curr_pos);
@@ -1788,6 +1800,12 @@ static int io_launch(struct m0_fom *fom)
 					  mem_ivec, &nb->nb_buffer,
 					  &cksum_data));
 			}
+			/* for (i=0; i<bufs->ab_count; i++) {
+				buf_a = &bufs->ab_elems[i];
+				msg = (char *)buf_a->b_addr;
+				M0_LOG(M0_DEBUG, "YJC: print cksum buffer[%d] %s", i, msg);
+			} */
+			//m0_bufvec_print(rwfop->crw_di_data_cksum);
 		}
 		stio->si_opcode = m0_is_write_fop(fop) ? SIO_WRITE : SIO_READ;
 

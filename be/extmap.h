@@ -191,6 +191,7 @@ struct m0_be_emap_seg {
 	struct m0_ext     ee_ext;
 	/** Value associated with the extent. */
 	uint64_t          ee_val;
+	struct m0_buf     ee_di_cksum;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /**
@@ -210,6 +211,7 @@ struct m0_be_emap_cursor {
 	struct m0_buf             ec_keybuf;
 	struct m0_buf             ec_recbuf;
 	struct m0_uint128         ec_prefix;
+	struct m0_buf             ec_cksum;
 	struct m0_be_op           ec_op;
 };
 
