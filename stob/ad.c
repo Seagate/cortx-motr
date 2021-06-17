@@ -1810,6 +1810,9 @@ static void stob_ad_wext_fini(struct stob_ad_write_ext *wext)
  *
  * - updates extent map for this AD object with allocated extents
  *   (ad_write_map()).
+ *
+ * @param src - Cursor for buffer-extent (object data)
+ *
  */
 static int stob_ad_write_prepare(struct m0_stob_io        *io,
 				 struct m0_stob_ad_domain *adom,
@@ -1828,6 +1831,7 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 
 	M0_PRE(io->si_opcode == SIO_WRITE);
 	M0_ADDB2_ADD(M0_AVI_STOB_IO_REQ, io->si_id, M0_AVI_AD_WR_PREPARE);
+	/* Get total size of buffer */
 	todo = m0_vec_count(&io->si_user.ov_vec);
 	M0_ENTRY("op=%d sz=%lu", io->si_opcode, (unsigned long)todo);
 	back = &aio->ai_back;
@@ -1839,12 +1843,14 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 
 		M0_ADDB2_ADD(M0_AVI_STOB_IO_REQ, io->si_id,
 			     M0_AVI_AD_BALLOC_START);
+		/* Get the balloc extent (returned in wext->we_ext) */
 		rc = stob_ad_balloc(adom, io->si_tx, todo, &wext->we_ext,
 				    aio->ai_balloc_flags);
 		M0_ADDB2_ADD(M0_AVI_STOB_IO_REQ, io->si_id,
 			     M0_AVI_AD_BALLOC_END);
 		if (rc != 0)
 			break;
+		/* Get balloc extent length */
 		got = m0_ext_length(&wext->we_ext);
 		M0_ASSERT(todo >= got);
 		M0_LOG(M0_DEBUG, "got=%"PRId64": " EXT_F,
@@ -1856,6 +1862,9 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 				rc = M0_ERR(-ENOSPC);
 				break;
 			}
+			/* More balloc extent needed so allocate node stob_ad_write_ext
+			 * and add it to link list, so that stob_ad_balloc can populate it
+			 */
 			M0_ALLOC_PTR(next);
 			if (next != NULL) {
 				wext->we_next = next;
@@ -1873,17 +1882,22 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 	if (rc == 0) {
 		uint32_t frags;
 
+		/* Init cursor for balloc extents */
 		stob_ad_wext_cursor_init(&wc, &head);
+		/* Find num of frag based on boundaries of balloc-extents & buffer-extents */
 		frags = stob_ad_write_count(src, &wc);
+		/* Alloc and init bufvec back->si_user & si_stob based on fragment */
 		rc = stob_ad_vec_alloc(io->si_obj, back, frags);
 		if (rc == 0) {
 			struct m0_ivec_cursor dst;
-			/* reset src */
+			/* reset src - buffer-extent*/
 			m0_vec_cursor_init(src, &io->si_user.ov_vec);
-			/* reset wc */
+			/* reset wc - balloc-extent */
 			stob_ad_wext_cursor_init(&wc, &head);
+			/* Populate bufvec back->si_user & si_stob based on fragment */
 			stob_ad_write_back_fill(io, back, src, &wc);
 
+			/* Init cursor for COB-offset-extent */
 			m0_ivec_cursor_init(&dst, &io->si_stob);
 			stob_ad_wext_cursor_init(&wc, &head);
 			frags = max_check(bfrags, stob_ad_write_map_count(adom,
