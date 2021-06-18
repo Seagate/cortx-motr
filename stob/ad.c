@@ -107,7 +107,9 @@ static int stob_ad_punch(struct m0_stob *stob, struct m0_indexvec *range,
 
 static void* stob_ad_get_cksum_addr(void *baddr, m0_bindex_t off, uint64_t lid);
 
-static m0_bcount_t stob_ad_get_cksum_nob(m0_bcount_t ext_len);
+
+static m0_bcount_t stob_ad_get_cksum_nob( m0_bcount_t ext_len, m0_bindex_t off, 
+										uint64_t unit_sz );
 
 M0_TL_DESCR_DEFINE(ad_domains, "ad stob domains", M0_INTERNAL,
 		   struct ad_domain_map, adm_linkage, adm_magic,
