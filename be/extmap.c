@@ -963,8 +963,10 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 		rec_buf->b_addr = (void *)(rec);
 	}
 
-	/* Update header fields and footer checksum */	
-	emap_rec_init( rec_buf );
+	/* Update header fields and footer checksum, the rec->b_addr has m0_be_emap_rec
+	 * populated
+	 */	
+	emap_rec_init( (struct m0_be_emap_rec *)rec_buf->b_addr );
 	
 	rec_print(rec);
 	
@@ -1035,7 +1037,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		ext->ee_ext.e_end   = key->ek_offset;
 		m0_ext_init(&ext->ee_ext);
 		ext->ee_val         = rec->er_value;
-		m0_buf_init(&ext->ee_di_cksum, rec->er_di_cksum.b_addr, rec->er_di_cksum.b_nob);
+		ext->ee_di_cksum	= rec->er_di_cksum;
 		if (!emap_it_prefix_ok(it))
 			rc = -ESRCH;
 	}
