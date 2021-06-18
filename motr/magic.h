@@ -1204,6 +1204,13 @@ enum m0_magic_satchel {
 	M0_BE_DTM0_LOG_MAGIX = 0x33d73010600077,
 	/* be/dtm0_log.c::dlr_link (dtm0 log rec) */
 	M0_BE_DTM0_LOG_REC_MAGIX = 0x33d73010673c77,
+/* BTREE */	
+	/* nd::n_magic (classic idea) */
+	M0_BTREE_ND_LIST_MAGIC = 0x33c1a551c1dea77,
+
+	/* node descriptor list head magic (soleless boss) */
+	M0_BTREE_ND_LIST_HEAD_MAGIC = 0x33501e1e55b05577,
+
 };
 
 #endif /* __MOTR_MAGIC_H__ */
