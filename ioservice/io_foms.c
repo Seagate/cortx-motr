@@ -1759,7 +1759,8 @@ static int io_launch(struct m0_fom *fom)
 		mem_ivec    = &stio->si_stob;
 		stobio_tlink_init(stio_desc);
 		m0_buf_init(&stio->si_cksum, rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_nob);
-		stio->si_lid = rwfop->crw_lid;
+		// TODO: Yeshpal pass unit size		
+		stio->si_unit_sz = rwfop->crw_lid;
 
 		M0_ADDB2_ADD(M0_AVI_FOM_TO_STIO, fom->fo_sm_phase.sm_id,
 			     stio->si_id);
