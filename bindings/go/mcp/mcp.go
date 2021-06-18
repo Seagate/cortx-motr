@@ -16,6 +16,8 @@
  * For any questions about this software or licensing,
  * please email opensource@seagate.com or cortx-questions@seagate.com.
  *
+ * Original author: Andriy Tkachuk <andriy.tkachuk@seagate.com>
+ * Original creation date: 30-Oct-2020
  */
 
 package main
@@ -135,3 +137,5 @@ func main() {
     // might suffer. A tip from https://github.com/golang/go/issues/16474)
     io.CopyBuffer(struct{ io.Writer }{writer}, reader, buf)
 }
+
+// vi: sw=4 ts=4 expandtab ai

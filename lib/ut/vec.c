@@ -28,6 +28,7 @@
 #include "lib/bitmap.h"
 #include "lib/time.h"
 #include "lib/arith.h"
+#include "lib/errno.h"
 
 static void test_ivec_cursor(void);
 static void test_bufvec_cursor(void);
@@ -113,6 +114,10 @@ void test_vec(void)
 	M0_UT_ASSERT(bv.ov_vec.v_nr == 0);
 	M0_UT_ASSERT(bv.ov_buf == NULL);
 	m0_bufvec_free(&bv);    /* no-op */
+	m0_fi_enable_once("bufvec_alloc", "buf-alloc-fail");
+	M0_UT_ASSERT(m0_bufvec_alloc(&bv, NR, M0_SEG_SIZE) == -ENOMEM);
+	m0_fi_enable_once("bufvec_alloc", "empty-fail");
+	M0_UT_ASSERT(m0_bufvec_empty_alloc(&bv, NR) == -ENOMEM);
 	M0_UT_ASSERT(m0_bufvec_alloc(&bv, NR2, M0_SEG_SIZE) == 0);
 	M0_UT_ASSERT(bv.ov_vec.v_nr == NR2);
 	for (i = 0; i < NR2; ++i)

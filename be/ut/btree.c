@@ -610,6 +610,7 @@ static void truncate_tree(struct m0_be_btree *tree)
 	struct m0_buf           key;
 	char                    k[INSERT_KSIZE];
 	int                     rc;
+	int                     i;
 
 	M0_ENTRY();
 
@@ -627,8 +628,12 @@ static void truncate_tree(struct m0_be_btree *tree)
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 	btree_dbg_print(tree);
-	M0_BE_OP_SYNC_WITH(op, m0_be_btree_truncate(tree, tx,
-							op, INSERT_COUNT));
+	M0_ASSERT(INSERT_COUNT % 5 == 0);
+	for (i = 0; i < INSERT_COUNT; i+=5) {
+		M0_SET0(op);
+		M0_BE_OP_SYNC_WITH(op, m0_be_btree_truncate(tree, tx,
+							    op, 5));
+	}
 	M0_UT_ASSERT(m0_be_btree_is_empty(tree));
 	M0_BE_FREE_PTR_SYNC(tree, seg, tx);
 	m0_be_tx_close_sync(tx); /* Make things persistent. */
