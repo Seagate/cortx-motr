@@ -1608,7 +1608,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	 * of the corresponding physical extent.
 	 */
 
-	it.ec_cksum.b_addr = stob_ad_get_cksum_addr(io->si_cksum->b_addr,
+	it.ec_cksum.b_addr = stob_ad_get_cksum_addr(io->si_cksum.b_addr,
 			off, io->si_unit_sz);
 	it.ec_cksum.b_nob  = stob_ad_get_cksum_nob(m0_ext_length(&todo));
 
