@@ -1545,16 +1545,22 @@ static int stob_ad_seg_free(struct m0_dtx *tx,
 }
 
 static void* stob_ad_get_cksum_addr(void *baddr,
-		                    m0_bindex_t off, uint64_t lid) {
+		                    m0_bindex_t off, uint64_t unit_sz) {
 
-	int unit_size = m0_obj_layout_id_to_unit_size(lid);
-	return baddr + (off/unit_size);
+	/* Unit size we get from layout id m0_obj_layout_id_to_unit_size(lid)
+	 * Assuming baddr is corresponding to 0 DU offset.
+	 */
+	return baddr + (off/unit_sz);
 }
 
-static m0_bcount_t stob_ad_get_cksum_nob(m0_bcount_t ext_len)
+static m0_bcount_t stob_ad_get_cksum_nob( m0_bcount_t ext_len, m0_bindex_t off, 
+										uint64_t unit_sz )
 {
-	// extent lenght is in multiple of unit size
-	return ext_len * 128;
+	/* Compute how many DU given extent spans: 
+	 * Num DU = Extent End DU Index - Extent Start DU Index + 1
+	 * Number of bytes : Num DU * Size of PI 
+	 */
+	return ( (off + ext_len)/unit_sz - off/unit_sz + 1) * 128;
 }
 
 /**
@@ -1608,9 +1614,12 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	 * of the corresponding physical extent.
 	 */
 
+
+	/* Compute checksum units info which belong to this extent (COB off & Sz) */
 	it.ec_cksum.b_addr = stob_ad_get_cksum_addr(io->si_cksum.b_addr,
 			off, io->si_unit_sz);
-	it.ec_cksum.b_nob  = stob_ad_get_cksum_nob(m0_ext_length(&todo));
+	it.ec_cksum.b_nob  = stob_ad_get_cksum_nob(m0_ext_length(&todo),
+			off, io->si_unit_sz);
 
 	M0_SET0(&it.ec_op);
 	m0_be_op_init(&it.ec_op);
