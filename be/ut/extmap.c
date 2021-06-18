@@ -199,6 +199,7 @@ static void test_lookup(void)
 	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
 	M0_UT_ASSERT(m0_be_emap_ext_is_last(&seg->ee_ext));
 	M0_UT_ASSERT(seg->ee_val == 42);
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
 
 	m0_be_emap_close(&it);
 
@@ -207,6 +208,7 @@ static void test_lookup(void)
 	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
 	M0_UT_ASSERT(m0_be_emap_ext_is_last(&seg->ee_ext));
 	M0_UT_ASSERT(seg->ee_val == 42);
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
 
 	m0_be_emap_close(&it);
 

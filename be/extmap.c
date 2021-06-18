@@ -274,7 +274,9 @@ m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db)
 	});
 	m0_rwlock_init(emap_rwlock(map));
 	m0_buf_init(&map->em_key_buf, &map->em_key, sizeof map->em_key);
-	m0_buf_init(&map->em_val_buf, &map->em_rec, sizeof map->em_rec);
+	m0_buf_init(&map->em_val_buf, &map->em_rec,
+			offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr) +
+			sizeof(struct m0_format_footer));
 	emap_key_init(&map->em_key);
 	emap_rec_init(&map->em_rec);
 	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops);
@@ -714,6 +716,8 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	map->em_rec.er_start = 0;
 	map->em_rec.er_value = val;
 	map->em_rec.er_di_cksum.b_nob = 0;
+	map->em_rec.er_di_cksum.b_addr = NULL;
+	emap_rec_init(&map->em_rec);
 	rec_print(&map->em_rec);
 	m0_format_footer_update(&map->em_rec);
 
@@ -905,7 +909,7 @@ be_emap_ksize(const void* k)
 static m0_bcount_t
 be_emap_vsize(const void* d)
 {
-	return offsetof(struct m0_be_emap_rec, er_di_cksum.b_nob) +
+	return offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr) +
 		((struct m0_be_emap_rec *)d)->er_di_cksum.b_nob +
 		sizeof((struct m0_be_emap_rec *) 0)->er_footer;
 }
@@ -1052,7 +1056,9 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 			 struct m0_be_emap        *map)
 {
 	m0_buf_init(&it->ec_keybuf, &it->ec_key, sizeof it->ec_key);
-	m0_buf_init(&it->ec_recbuf, &it->ec_rec, sizeof it->ec_rec);
+	m0_buf_init(&it->ec_recbuf, &it->ec_rec,
+			offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr) +
+			sizeof(struct m0_format_footer));
 
 	emap_key_init(&it->ec_key);
 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
