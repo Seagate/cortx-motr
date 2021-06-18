@@ -1705,6 +1705,8 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 
 	if (node->n_ref == 0)
 		return segops->so_node_free(op, node, tx, nxt);
+
+	node->n_free = true;
 	return nxt;
 }
 
@@ -3089,13 +3091,13 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 
 			/**
 			 * Header verification is required to determine that
-			 * the node (lev->l_node) which is pointed by current
+			 * the node(lev->l_node) which is pointed by current
 			 * thread is not freed by any other thread till current
 			 * thread reaches NEXTDOWN phase.
 			 *
-			 * Footer verification is required to detrmine that
-			 * no other thread is working on the same node
-			 * (lev->l_node) which is pointed by current thread.
+			 * Footer verification is required to detrmine that no
+			 * other thread which has lock is working on the same
+			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			if (!node_header_verify(lev->l_node) ||
 			    !node_footer_verify(lev->l_node)) {
@@ -3699,13 +3701,13 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 
 			/**
 			 * Header verification is required to determine that
-			 * the node (lev->l_node) which is pointed by current
+			 * the node(lev->l_node) which is pointed by current
 			 * thread is not freed by any other thread till current
 			 * thread reaches NEXTDOWN phase.
 			 *
-			 * Footer verification is required to detrmine that
-			 * no other thread is working on the same node
-			 * (lev->l_node) which is pointed by current thread.
+			 * Footer verification is required to detrmine that no
+			 * other thread which has lock is working on the same
+			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			if (!node_header_verify(lev->l_node) ||
 			    !node_footer_verify(lev->l_node)) {
@@ -3866,13 +3868,13 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 
 			/**
 			 * Header verification is required to determine that
-			 * the node (lev->l_node) which is pointed by current
+			 * the node(lev->l_node) which is pointed by current
 			 * thread is not freed by any other thread till current
 			 * thread reaches NEXTDOWN phase.
 			 *
-			 * Footer verification is required to detrmine that
-			 * no other thread is working on the same node
-			 * (lev->l_node) which is pointed by current thread.
+			 * Footer verification is required to detrmine that no
+			 * other thread which has lock is working on the same
+			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			if (!node_header_verify(lev->l_node) ||
 			    !node_footer_verify(lev->l_node)) {
@@ -3985,13 +3987,13 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 
 			/**
 			 * Header verification is required to determine that
-			 * the node (lev->l_node) which is pointed by current
+			 * the node(lev->l_node) which is pointed by current
 			 * thread is not freed by any other thread till current
-			 * thread reaches NEXTDOWN phase.
+			 * thread reaches P_SIBLING phase.
 			 *
-			 * Footer verification is required to detrmine that
-			 * no other thread is working on the same node
-			 * (lev->l_node) which is pointed by current thread.
+			 * Footer verification is required to detrmine that no
+			 * other thread which has lock is working on the same
+			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			if (!node_header_verify(s.s_node) ||
 			    !node_footer_verify(s.s_node)) {
@@ -4349,13 +4351,13 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 
 			/**
 			 * Header verification is required to determine that
-			 * the node (lev->l_node) which is pointed by current
+			 * the node(lev->l_node) which is pointed by current
 			 * thread is not freed by any other thread till current
 			 * thread reaches NEXTDOWN phase.
 			 *
-			 * Footer verification is required to detrmine that
-			 * no other thread is working on the same node
-			 * (lev->l_node) which is pointed by current thread.
+			 * Footer verification is required to detrmine that no
+			 * other thread which has lock is working on the same
+			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			if (!node_header_verify(lev->l_node) ||
 			    !node_footer_verify(lev->l_node)) {
@@ -6409,12 +6411,12 @@ static void ut_mt_tree_oper(void)
  * Commenting this ut as it is not required as a part for test-suite but my
  * required for testing purpose
 **/
-
+#if 0
 /**
  * This function is for traversal of tree in breadth-first order and it will
  * print level and key-value pair for each node.
  */
-static void m0_btree_ut_traversal(struct td *tree)
+static void ut_traversal(struct td *tree)
 {
 	struct nd *root = tree->t_root;
 	struct nd *queue[1000000];
@@ -6528,7 +6530,7 @@ static void m0_btree_ut_traversal(struct td *tree)
  * This function will check if the keys of records present in the nodes at each
  * level are in increasing order or not.
  */
-static void m0_btree_ut_invariant_check(struct td *tree)
+static void ut_invariant_check(struct td *tree)
 {
 	struct nd *root = tree->t_root;
 	struct nd *queue[1000000];
@@ -6662,7 +6664,7 @@ static void m0_btree_ut_invariant_check(struct td *tree)
 	}
 }
 
-static void m0_btree_ut_insert(struct td *tree)
+static void ut_insert(struct td *tree)
 {
 	struct ff_head *h     = ff_data(tree->t_root);
 	m0_bcount_t     ksize = h->ff_ksize;
@@ -6734,10 +6736,10 @@ static void m0_btree_ut_insert(struct td *tree)
 	}
 	printf("\nAfter INSERTION");
 	printf("level : %d\n", node_level(tree->t_root));
-	m0_btree_ut_invariant_check(tree);
+	ut_invariant_check(tree);
 }
 
-static void m0_btree_ut_delete(struct td *tree)
+static void ut_delete(struct td *tree)
 {
 	struct ff_head *h     = ff_data(tree->t_root);
 	m0_bcount_t     ksize = h->ff_ksize;
@@ -6802,21 +6804,21 @@ static void m0_btree_ut_delete(struct td *tree)
 
 		/*printf("%"PRIu64",",temp2);
 		printf("\n**********After Deletion****************");
-		m0_btree_ut_traversal(tree);
-		m0_btree_ut_invariant_check(tree);*/
+		ut_traversal(tree);
+		ut_invariant_check(tree);*/
 		M0_ASSERT(tree->t_height == node_level(tree->t_root) + 1);
 
 	}
 	printf("\nAfter Deletion");
-	m0_btree_ut_traversal(tree);
-	m0_btree_ut_invariant_check(tree);
+	ut_traversal(tree);
+	ut_invariant_check(tree);
 }
 
 /**
  * This ut will put records in the tree and delete those records in sequencial
  * manner.
  */
-static void m0_btree_ut_put_del_operation(void)
+static void ut_put_del_operation(void)
 {
 	struct node_op          op;
 	struct m0_btree_type    tt;
@@ -6839,12 +6841,12 @@ static void m0_btree_ut_put_del_operation(void)
 
 	tree->t_height = 1;
 
-	m0_btree_ut_insert(tree);
-	m0_btree_ut_delete(tree);
+	ut_insert(tree);
+	ut_delete(tree);
 
 	/*
 	printf("\nAfter AGAIN INSERT ");
-	m0_btree_ut_traversal(tree);
+	ut_traversal(tree);
 	*/
 
 	op.no_opc = NOP_FREE;
@@ -6853,7 +6855,7 @@ static void m0_btree_ut_put_del_operation(void)
 	btree_ut_fini();
 	M0_LEAVE();
 }
-
+#endif
 
 struct m0_ut_suite btree_ut = {
 	.ts_name = "btree-ut",
@@ -6875,8 +6877,7 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
 		{"single_thread_tree_op",           ut_st_tree_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
-		/* {"insert_rec",          m0_btree_ut_insert_record}, */
-		{"btree_kv_add_del",    m0_btree_ut_put_del_operation},
+		/* {"btree_kv_add_del",                ut_put_del_operation}, */
 		{NULL, NULL}
 	}
 };
