@@ -145,7 +145,7 @@ enum m0_btree_opflag {
 
 int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
 		   struct m0_btree_op *bop);
-void m0_btree_close(struct m0_btree *arbor);
+void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 		     const struct node_type *nt, struct m0_btree_op *bop,
 		     struct m0_be_tx *tx);
