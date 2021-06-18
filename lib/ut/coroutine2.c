@@ -149,9 +149,8 @@ static int coroutine_fom_tick(struct m0_fom *fom, int *x, int *__unused)
 
 	if (rc == -EAGAIN) /* m0_co_op case */
 		return m0_co_op_tick_ret(OP(fom), fom, m0_fom_phase(fom));
-	else if (M0_IN(rc, (M0_FSO_WAIT, M0_FSO_AGAIN))) { /* long_lock case */
+	else if (M0_IN(rc, (M0_FSO_WAIT, M0_FSO_AGAIN)))  /* long_lock case */
 		return rc;
-	}
 
 	m0_semaphore_up(&ready);
 	return -1;

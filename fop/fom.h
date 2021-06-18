@@ -234,8 +234,6 @@ struct m0_long_lock;
 struct m0_loc_thread;
 /* defined in lib/coroutine.h */
 struct m0_fom_co_context;
-struct m0_co_context;
-struct m0_co_op;
 
 
 #define FOM_PHASE_DEBUG (1)
@@ -690,18 +688,6 @@ struct m0_fom_ops {
 	 * with the given FOM.
 	 */
 	struct m0_fom_co_context* (*fo_co_context)(const struct m0_fom *fom);
-};
-
-/**
- * Holds coroutine context and corresponding synchronisation objects needed to
- * unblock the FOM. Lifetime of the structure and objects it points to have the
- * same length as FOM itself and the user shall guarantee this.
- *
- * Also can be extended with m0_fom_long_lock and/or m0_chan pointers.
- */
-struct m0_fom_co_context {
-	struct m0_co_context *ccf_context;
-	struct m0_co_op      *ccf_op;
 };
 
 /**

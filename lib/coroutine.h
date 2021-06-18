@@ -278,6 +278,20 @@ M0_INTERNAL void m0_co_context_locals_free(struct m0_co_context *context);
 #include "sm/sm.h"         /* m0_sm_group */
 
 struct m0_fom;
+struct m0_co_op;
+
+/**
+ * Holds coroutine context and corresponding synchronisation objects needed to
+ * unblock the FOM. Lifetime of the structure and objects it points to have the
+ * same length as FOM itself and the user shall guarantee this.
+ *
+ * Also can be extended with m0_fom_long_lock and/or m0_chan pointers.
+ */
+struct m0_fom_co_context {
+	struct m0_co_context *ccf_context;
+	struct m0_co_op      *ccf_op;
+};
+
 struct m0_co_op {
 	struct m0_sm       co_sm;
 	/* MOTR-787: get rid of explicit locking here, use locality lock! */
