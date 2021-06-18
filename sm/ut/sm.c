@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -628,9 +628,11 @@ static void ast_wait(void)
 	m0_mutex_fini(&wait_guard);
 }
 
-static struct m0_sm_state_descr permissive_states[16] = {};
+#define MAX_PERMISSIVE_STATES       15
+#define MAX_PERMISSIVE_TRANS  (MAX_PERMISSIVE_STATES * MAX_PERMISSIVE_STATES)
+static struct m0_sm_state_descr permissive_states[MAX_PERMISSIVE_STATES] = {};
 
-static struct m0_sm_trans_descr permissive_trans[256] = {};
+static struct m0_sm_trans_descr permissive_trans[MAX_PERMISSIVE_TRANS] = {};
 
 static struct m0_sm_conf permissive = {
 	.scf_name      = "permissive-conf",
@@ -1025,15 +1027,17 @@ static int init(void)
 	heads = 0;
 	tails = 0;
 
-	M0_UT_ASSERT(ARRAY_SIZE(permissive_states) == 16);
-	M0_UT_ASSERT(ARRAY_SIZE(permissive_trans) == 16*16);
+	M0_UT_ASSERT(ARRAY_SIZE(permissive_states) == MAX_PERMISSIVE_STATES);
+	M0_UT_ASSERT(ARRAY_SIZE(permissive_trans) == MAX_PERMISSIVE_TRANS);
 
-	for (i = 0; i < 16; ++i) {
+	for (i = 0; i < MAX_PERMISSIVE_STATES; ++i) {
 		permissive_states[i] = (struct m0_sm_state_descr)
 			{ M0_SDF_INITIAL|M0_SDF_FINAL, "0",
-			  NULL, NULL, NULL, 0xffff };
-		for (j = 0; j < 16; ++j) {
-			permissive_trans[i*16 + j] =
+			  NULL, NULL, NULL,
+			  ((1 << MAX_PERMISSIVE_STATES) - 1)
+			};
+		for (j = 0; j < MAX_PERMISSIVE_STATES; ++j) {
+			permissive_trans[i*MAX_PERMISSIVE_STATES + j] =
 				(struct m0_sm_trans_descr){ "", i, j };
 		}
 	}
