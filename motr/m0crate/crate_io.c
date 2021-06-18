@@ -343,7 +343,8 @@ int cr_namei_create(struct m0_workload_io *cwi,
 		    int                    obj_idx,
 		    int                    op_index)
 {
-	return m0_entity_create(NULL, &obj->ob_entity,
+	printf("TESTSTSTS %" PRIu64 "\n", (&cwi->cwi_pool_id)->f_container);	
+	return m0_entity_create(&cwi->cwi_pool_id, &obj->ob_entity,
 			        &cti->cti_ops[free_slot]);
 }
 
