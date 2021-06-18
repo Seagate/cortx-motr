@@ -1558,9 +1558,11 @@ static m0_bcount_t stob_ad_get_cksum_nob( m0_bcount_t ext_len, m0_bindex_t off,
 {
 	/* Compute how many DU given extent spans: 
 	 * Num DU = Extent End DU Index - Extent Start DU Index + 1
+	 * e.g. off = 1, ext_len = (4K - 1) and unit_sz = 4K, will compute 2 DU
 	 * Number of bytes : Num DU * Size of PI 
+	 * TODO: Replace 128
 	 */
-	return ( (off + ext_len)/unit_sz - off/unit_sz + 1) * 128;
+	return ( (off + ext_len)/unit_sz - (off/unit_sz) + 1 ) * 128;
 }
 
 /**
