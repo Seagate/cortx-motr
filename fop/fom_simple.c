@@ -41,8 +41,7 @@
 
 static const struct m0_fom_type_ops fom_simple_ft_ops;
 static struct m0_reqh_service_type fom_simple_rstype;
-/* removed const qualifier to make lib/coroutine2 test happy */
-static /* const */ struct m0_fom_ops fom_simple_ops;
+static const struct m0_fom_ops fom_simple_ops;
 static struct m0_sm_conf fom_simple_conf;
 
 M0_EXTERN struct m0_sm_conf fom_states_conf;
@@ -145,7 +144,7 @@ static void fom_simple_fini(struct m0_fom *fom)
 		simpleton->si_free(simpleton);
 }
 
-static /* const */ struct m0_fom_ops fom_simple_ops = {
+static const struct m0_fom_ops fom_simple_ops = {
 	.fo_fini          = &fom_simple_fini,
 	.fo_tick          = &fom_simple_tick,
 	.fo_home_locality = &fom_simple_locality_get

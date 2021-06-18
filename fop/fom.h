@@ -232,9 +232,6 @@ struct m0_long_lock;
 
 /* defined in fom.c */
 struct m0_loc_thread;
-/* defined in lib/coroutine.h */
-struct m0_fom_co_context;
-
 
 #define FOM_PHASE_DEBUG (1)
 
@@ -682,12 +679,6 @@ struct m0_fom_ops {
 	 * Invoked from fom.c::hung_fom_notify().
 	 */
 	void (*fo_hung_notify)(const struct m0_fom *fom);
-
-	/**
-	 * Optional method, if not NULL, returns coroutine context associated
-	 * with the given FOM.
-	 */
-	struct m0_fom_co_context* (*fo_co_context)(const struct m0_fom *fom);
 };
 
 /**

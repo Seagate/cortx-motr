@@ -31,7 +31,6 @@
 #include "fop/fom_simple.h"
 #include "fop/fom_long_lock.h"
 
-#define F M0_CO_FRAME_DATA
 
 extern struct m0_reqh *m0_ut__reqh_init(void);
 extern        void     m0_ut__reqh_fini(void);
@@ -76,7 +75,7 @@ static struct m0_semaphore insert2;
 static struct m0_semaphore delete1;
 static struct m0_semaphore delete2;
 
-static struct m0_fom_simple simple_fom;
+static struct m0_fom_simple fom_simple;
 static struct m0_co_context fom_context = {};
 static struct m0_co_op      fom_op = {};
 
@@ -84,29 +83,20 @@ static struct m0_co_op      fom_op = {};
 static struct test_tree     fom_tree = {};
 static struct m0_long_lock  fom_lock = {};
 
-/* IRL shall be initialised in a specific FOM alloc/init procedure */
-static struct m0_fom_co_context specific_fom_context = {
-	.ccf_context = &fom_context,
-	.ccf_op      = &fom_op,
-};
-
 /* handy getters, can be a part of coroutine lib */
+#define F M0_CO_FRAME_DATA
+#define LR M0_FOM_LONG_LOCK_RETURN
+
 static struct m0_co_context *CO(struct m0_fom *fom)
 {
-	M0_ASSERT(fom->fo_ops->fo_co_context != NULL);
-	return fom->fo_ops->fo_co_context(fom)->ccf_context;
+	/* Take the context from the specific_fom structure in real scenarios */
+	return &fom_context;
 }
 
 static struct m0_co_op *OP(struct m0_fom *fom)
 {
-	M0_ASSERT(fom->fo_ops->fo_co_context != NULL);
-	return fom->fo_ops->fo_co_context(fom)->ccf_op;
-}
-
-/* FOM context handler */
-static struct m0_fom_co_context *cont(const struct m0_fom *fom)
-{
-	return &specific_fom_context;
+	/* Take the op from the specific_fom structure in real scenarios */
+	return &fom_op;
 }
 
 static void coroutine_fom_run(void)
@@ -126,21 +116,12 @@ static void coroutine_fom_run(void)
 	m0_semaphore_down(&ready);
 }
 
-static void fom_context_set(void)
-{
-	/* A hackerish way to setup coroutine context getter. IRL shall be
-	 * defined along with FOM ops vector */
-	struct m0_fom_ops *ops = (struct m0_fom_ops *) simple_fom.si_fom.fo_ops;
-	ops->fo_co_context = cont;
-}
-
 static int coroutine_fom_tick(struct m0_fom *fom, int *x, int *__unused)
 {
 	int key = 1;
 	int val = 2;
 	int rc;
 
-	fom_context_set();
 	m0_co_op_reset(OP(fom));
 
 	M0_CO_START(CO(fom));
@@ -155,7 +136,7 @@ static int coroutine_fom_tick(struct m0_fom *fom, int *x, int *__unused)
 	m0_semaphore_up(&ready);
 	return -1;
 }
-#define LR M0_FOM_LONG_LOCK_RETURN
+
 static void crud(struct m0_fom *fom, struct test_tree *tree, int k, int v)
 {
 	M0_CO_REENTER(CO(fom),
@@ -187,18 +168,10 @@ static void crud(struct m0_fom *fom, struct test_tree *tree, int k, int v)
 	M0_CO_FUN(CO(fom), delete(fom, tree, k));
 	M0_UT_ASSERT(tree->delete + tree->insert == 22);
 }
-#undef LR
 
 static void insert(struct m0_fom *fom, struct test_tree *tree, int k, int v)
 {
-	M0_CO_REENTER(CO(fom),
-		      int         rc;
-		      char        c;
-		      long long   i;
-		);
-	F(rc) = 0;
-	F(i) = 0x5011D57A7E;
-	F(c) = '8';
+	M0_CO_REENTER(CO(fom));
 
 	M0_LOG(M0_DEBUG, "tree=%p tree.delete=%d, tree.insert=%d k=%d v=%d",
 	       tree, tree->delete, tree->insert, k, v);
@@ -241,8 +214,8 @@ static void test_run(void)
 	struct m0_reqh *reqh = m0_ut__reqh_init();
 	(void) reqh;
 
-	M0_SET0(&simple_fom);
-	M0_FOM_SIMPLE_POST(&simple_fom, reqh, &coroutine2_conf,
+	M0_SET0(&fom_simple);
+	M0_FOM_SIMPLE_POST(&fom_simple, reqh, &coroutine2_conf,
 			   &coroutine_fom_tick, NULL, NULL, 1);
 	coroutine_fom_run();
 	m0_ut__reqh_fini();
@@ -275,6 +248,9 @@ void m0_test_coroutine2(void)
 	m0_semaphore_init(&insert1, 0);
 	m0_semaphore_init(&ready, 0);
 }
+
+#undef F
+#undef LR
 
 /*
  *  Local variables:
