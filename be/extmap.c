@@ -933,9 +933,6 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	rec->er_value  = ext->ee_val;
 	rec->er_di_cksum = ext->ee_di_cksum;	
 
-	/* As record structure updated, now format header can be updated */
-	emap_rec_init(rec);
-
 	/* Layout/format of emap-record (if checksum is present) which gets 
 	 * written:
 	 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
@@ -944,12 +941,13 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	 */
 	if( rec->er_di_cksum.b_nob )
 	{
-		/* Total size of buffer needed for storing emap extent */
+		/* Total size of buffer needed for storing emap extent & assign */
 		len = offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr) +
 			       rec->er_di_cksum.b_nob + sizeof(struct m0_format_footer);
 		if ((rc = m0_buf_alloc(rec_buf, len)) != 0) {
 			return rc;
 		}
+		rec_buf->b_nob = len;
 
 		/* Copy emap record till checksum buf start */
 		len = offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr);
@@ -957,7 +955,7 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 		/* Copy checksum array into emap record */
 		memcpy(rec_buf->b_addr + len, rec->er_di_cksum.b_addr, rec->er_di_cksum.b_nob);		
 		
-		/* Footer will be generated next */
+		/* Header and Footer will be updated */
 	}
 	else
 	{	
@@ -965,8 +963,8 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 		rec_buf->b_addr = (void *)(rec);
 	}
 
-	// Update footer
-	m0_format_footer_update( rec_buf );
+	/* Update header fields and footer checksum */	
+	emap_rec_init( rec_buf );
 	
 	rec_print(rec);
 	
@@ -976,8 +974,9 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 		btree_func(&it->ec_map->em_mapping, tx, &op, &it->ec_keybuf,
 			   rec_buf),
 		bo_u.u_btree.t_rc);
-
-	m0_buf_free(rec_buf);
+	
+	if( rec->er_di_cksum.b_nob )
+		m0_buf_free(rec_buf);
 
 	return it->ec_op.bo_u.u_emap.e_rc;
 }
