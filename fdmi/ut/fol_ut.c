@@ -200,6 +200,21 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	M0_UT_ASSERT(betx->t_ref == 1);
 	m0_sm_conf_init(&ffs_ut_sm_conf);
 	m0_sm_init(&betx->t_sm, &ffs_ut_sm_conf, FFS_UT_FOM_INIT, grp);
+	/*
+	 * XXX
+	 * This UT has many flaws and it makes a lot of assumption about what is
+	 * initialised in BE tx and what is not. It must be rewritten in a way
+	 * that properly initialises foms and BE transactions and moves them
+	 * from state to state using interfaces and not just "m0_sm_init() to
+	 * make invariant pass, so this 'test' could 'test' something".
+	 *
+	 * The following assignment is added just because another invariant was
+	 * added and this UT failed, because the UT doesn't use interfaces from
+	 * be/tx.h for BE transaction in the way it should.
+	 *
+	 * This code could be used as an example of how to not to write tests.
+	 */
+	betx->t_sm.sm_state = M0_BTS_LOGGED;
 	m0_fol_rec_init(fol_rec, NULL);
 
 	/* FOM ini */
