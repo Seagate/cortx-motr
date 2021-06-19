@@ -475,14 +475,15 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 
 M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
 				  struct m0_be_tx          *tx,
-				  struct m0_indexvec       *vec)
+				  struct m0_indexvec       *vec,
+				  struct m0_buf            *cksum)
 {
 	M0_PRE(m0_vec_count(&vec->iv_vec) == m0_ext_length(&it->ec_seg.ee_ext));
 	M0_INVARIANT_EX(be_emap_invariant(it));
 
 	m0_be_op_active(&it->ec_op);
 	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
-	be_emap_split(it, tx, vec, it->ec_seg.ee_ext.e_start, NULL);
+	be_emap_split(it, tx, vec, it->ec_seg.ee_ext.e_start, cksum);
 	m0_rwlock_write_unlock(emap_rwlock(it->ec_map));
 	m0_be_op_done(&it->ec_op);
 
@@ -926,7 +927,7 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	const struct m0_be_emap_seg *ext = &it->ec_seg;
 	struct m0_be_emap_key       *key = &it->ec_key;
 	struct m0_be_emap_rec       *rec = &it->ec_rec;
-	struct m0_buf *rec_buf = NULL;
+	struct m0_buf rec_buf  = {};
 	int len, rc;
 
 	key->ek_prefix = ext->ee_pre;
@@ -943,34 +944,35 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	 * It gets stored as contigious buffer, so making er_di_cksum to 
 	 * point to CS-Array (Checksum Array) 
 	 */
-	if( rec->er_di_cksum.b_nob )
+	if ( rec->er_di_cksum.b_nob )
 	{
+		rec_buf.b_nob = 0;
+		rec_buf.b_addr = NULL;
 		/* Total size of buffer needed for storing emap extent & assign */
 		len = offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr) +
 			       rec->er_di_cksum.b_nob + sizeof(struct m0_format_footer);
-		if ((rc = m0_buf_alloc(rec_buf, len)) != 0) {
+		if ((rc = m0_buf_alloc(&rec_buf, len)) != 0) {
 			return rc;
 		}
-		rec_buf->b_nob = len;
 
 		/* Copy emap record till checksum buf start */
 		len = offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr);
-		memcpy(rec_buf->b_addr, (void *)rec, len);		
+		memcpy(rec_buf.b_addr, (void *)rec, len);		
 		/* Copy checksum array into emap record */
-		memcpy(rec_buf->b_addr + len, rec->er_di_cksum.b_addr, rec->er_di_cksum.b_nob);		
+		memcpy(rec_buf.b_addr + len, rec->er_di_cksum.b_addr, rec->er_di_cksum.b_nob);		
 		
 		/* Header and Footer will be updated */
 	}
 	else
 	{	
-		rec_buf->b_nob = sizeof(struct m0_be_emap_rec);
-		rec_buf->b_addr = (void *)(rec);
+		rec_buf.b_nob = sizeof(struct m0_be_emap_rec);
+		rec_buf.b_addr = (void *)(rec);
 	}
 
 	/* Update header fields and footer checksum, the rec->b_addr has m0_be_emap_rec
 	 * populated
 	 */	
-	emap_rec_init( (struct m0_be_emap_rec *)rec_buf->b_addr );
+	emap_rec_init( (struct m0_be_emap_rec *)rec_buf.b_addr );
 	
 	rec_print(rec);
 	
@@ -978,11 +980,11 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	it->ec_op.bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 		op,
 		btree_func(&it->ec_map->em_mapping, tx, &op, &it->ec_keybuf,
-			   rec_buf),
+			   &rec_buf),
 		bo_u.u_btree.t_rc);
 	
-	if( rec->er_di_cksum.b_nob )
-		m0_buf_free(rec_buf);
+	if (rec->er_di_cksum.b_nob)
+		m0_buf_free(&rec_buf);
 
 	return it->ec_op.bo_u.u_emap.e_rc;
 }

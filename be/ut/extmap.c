@@ -236,9 +236,20 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 		.iv_index = val
 	};
 
+	struct m0_buf          cksum[4] = { {0, NULL},
+					    {0, NULL},
+					    {0, NULL},
+					    {0, NULL}};
+
 	rc = be_emap_lookup(emap, &prefix, offset, &it);
 	M0_UT_ASSERT(rc == 0);
 
+	m0_buf_alloc(&cksum[0], 128);
+	m0_buf_alloc(&cksum[1], 64);
+
+	memset(cksum[0].b_addr, 'A', cksum[0].b_nob);
+	memset(cksum[1].b_addr, 'B', cksum[1].b_nob);
+	
 	M0_LOG(M0_INFO, "off=%lu nr=%d", (unsigned long)offset, nr);
 	for (i = 0; i < nr; ++i) {
 		m0_bcount_t seglen;
@@ -252,7 +263,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 		len[ARRAY_SIZE(len) - 1] = seglen - total;
 		M0_SET0(it_op);
 		m0_be_op_init(it_op);
-		m0_be_emap_split(&it, &tx2, &vec);
+		m0_be_emap_split(&it, &tx2, &vec, cksum);
 		m0_be_op_wait(it_op);
 		M0_UT_ASSERT(it.ec_op.bo_u.u_emap.e_rc == 0);
 		m0_be_op_fini(it_op);
@@ -261,6 +272,8 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 	}
 
 	m0_be_emap_close(&it);
+	m0_buf_free(&cksum[0]);
+	m0_buf_free(&cksum[1]);
 	if (commit)
 		checkpoint();
 }

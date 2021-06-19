@@ -307,7 +307,8 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
  */
 M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
 				  struct m0_be_tx          *tx,
-				  struct m0_indexvec       *vec);
+				  struct m0_indexvec       *vec,
+				  struct m0_buf            *cksum);
 
 /**
    Paste segment (ext, val) into the map, deleting or truncating overlapping
