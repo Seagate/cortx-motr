@@ -335,6 +335,18 @@ struct m0_be_log_record {
 	/** Pointer to the previous record inside log */
 	m0_bindex_t          lgr_prev_pos;
 	m0_bcount_t          lgr_prev_size;
+	/**
+	 * BE log header flh_discarded pointer during
+	 * m0_be_log_record_io_prepare(). It should be set to a value that has
+	 * already became persistent.
+	 *
+	 * Use case: discard FOL records (sent as FDMI records) at FDMI plugin.
+	 * This value allows to filter out FDMI records that are never going to
+	 * be resent because BE log records before this pointer are never going
+	 * to be recovered (they are already fully written to BE segments and BE
+	 * log header is updated to reflect that).
+	 */
+	m0_bindex_t          lgr_log_header_discarded;
 
 	uint64_t             lgr_magic;
 	struct m0_tlink      lgr_linkage;
@@ -448,6 +460,18 @@ m0_be_log_record_io_bufvec(struct m0_be_log_record *record,
 M0_INTERNAL void m0_be_log_record_io_launch(struct m0_be_log_record *record,
 					    struct m0_be_op         *op);
 
+
+/** Returns absolute position of this log record in BE log */
+M0_INTERNAL m0_bindex_t
+m0_be_log_record_position(const struct m0_be_log_record *record);
+
+/**
+ * Returns BE log discarded pointer before or at the time the record was
+ * written to the log.
+ */
+M0_INTERNAL m0_bindex_t
+m0_be_log_record_discarded(const struct m0_be_log_record *record);
+
 /**
  * Reserves space for a log record. Reserved size can be bigger than actual
  * size of the log record.
@@ -480,6 +504,8 @@ M0_INTERNAL int m0_be_log_header_read(struct m0_be_log            *log,
 
 struct m0_be_log_record_iter {
 	struct m0_be_fmt_log_record_header lri_header;
+	/** @see lgr_log_header_discarded */
+	m0_bindex_t                        lri_log_header_discarded;
 	struct m0_tlink                    lri_linkage;
 	uint64_t                           lri_magic;
 };
