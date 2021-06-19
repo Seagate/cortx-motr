@@ -74,6 +74,41 @@
  *   still implement the counter -- to put in a work-around for future
  *   expansion.)
  *
+ * @section FDMI FOL records pruning on plugin side
+ *
+ * FDMI FOL records may be persisted on FDMI plugin side. In this case FDMI
+ * plugin must handle duplicates (because the process with FDMI source may
+ * restart before receiving "the message had been received" confirmation from
+ * FDMI plugin). In case if the source of FDMI records is CAS there might also
+ * be duplicates (FDMI FOL records about the same KV operation, but from
+ * different CASes due to N-way replication of KV pairs in DIX), and they
+ * must also be deduplicated.
+ *
+ * One of the deduplication approaches is to have some kind of persistence on
+ * FDMI plugin side. Every record is looked up in this persistence and if there
+ * is a match then it's a duplicate.
+ *
+ * The persistence couldn't grow indefinitely, so there should be a way to prune
+ * it. One obvious thing would be to prune records after some timeout, but
+ * delayed DTM recovery may make this timeout very high (days, weeks or more).
+ * Another approach is to prune the records after it's known for sure that they
+ * are not going to be resent again.
+ *
+ * Current implementation uses m0_fol_rec_header::rh_lsn to send lsn for each
+ * FDMI FOL record to FDMI plugin. This lsn (log sequence number) is a
+ * monotonically non-decreasing number that represents position of BE
+ * transaction in BE log. FOL record is stored along with other BE tx data in BE
+ * log and therefore has the same lsn as the corresponding BE tx. Several
+ * transactions may have the same lsn in the current implementation, but there
+ * is a limit on a number of transactions with the same lsn.
+ * m0_fol_rec_header::rh_lsn_discarded is an lsn, for which every other
+ * transaction with lsn less than rh_lsn_discarded is never going to be sent
+ * again from the same BE domain (in the configurations that we are using
+ * currently it's equivalent to the Motr process that uses this BE domain). It
+ * means that every FDMI FOL record which has all rh_lsn less than corresponding
+ * rh_lsn_discarded for its BE domain could be discarded from deduplication
+ * persistence because there is nothing in the cluster that is going to send
+ * FDMI FOL record about this operation.
  * @{
  */
 
@@ -584,6 +619,8 @@ M0_INTERNAL void m0_fol_fdmi_post_record(struct m0_fom *fom)
 	ffs_tx_inc_refc(be_tx, NULL);
 
 	/* Post record. */
+	m0_be_tx_lsn_get(be_tx, &dtx->tx_fol_rec.fr_header.rh_lsn,
+	                 &dtx->tx_fol_rec.fr_header.rh_lsn_discarded);
 	dtx->tx_fol_rec.fr_fdmi_rec.fsr_src  = m->fdm_s.fdms_ffs_ctx.ffsc_src;
 	dtx->tx_fol_rec.fr_fdmi_rec.fsr_dryrun = false;
 	dtx->tx_fol_rec.fr_fdmi_rec.fsr_data = NULL;
