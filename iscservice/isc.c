@@ -76,7 +76,7 @@ struct m0_sm_state_descr isc_fom_phases[] = {
 	},
 	[ISC_COMP_LAUNCH] = {
 		.sd_name = "comp-launch",
-		.sd_allowed = M0_BITS(ISC_RET_VAL)
+		.sd_allowed = M0_BITS(ISC_RET_VAL, M0_FOPH_FAILURE)
 	},
 	[ISC_RET_VAL] = {
 		.sd_name = "ret-val",
@@ -136,12 +136,17 @@ static int isc_comp_launch(struct m0_isc_comp_req *comp_req, struct m0_fom *fom,
 	result = comp->ic_op(&comp_req->icr_args, &comp_req->icr_result,
 			     &comp_req->icr_comp_data, &rc);
 	M0_ASSERT(M0_IN(result, (M0_FSO_AGAIN, M0_FSO_WAIT)));
+	M0_LOG(M0_DEBUG, "ic_op(): rc=%d", rc);
 	/*
 	 * In case a re-invocation of a computation is necessary, phase
 	 * is not changed.
 	 */
 	if (rc == -EAGAIN)
 		return result;
+
+	if (rc != 0)
+		goto err;
+
 	/*
 	 * In case result is conveyed using rpc bulk adjust the
 	 * memory alignment of result.
@@ -156,13 +161,19 @@ static int isc_comp_launch(struct m0_isc_comp_req *comp_req, struct m0_fom *fom,
 	}
 
 	if (M0_FI_ENABLED("oom")) {
-		m0_buf_free(&comp_req->icr_result);
 		rc = M0_ERR(-ENOMEM);
+		goto err;
 	}
 	m0_fom_phase_set(fom, next_phase);
 	/* Override only if computation was successful. */
 	comp_req->icr_rc = comp_req->icr_rc ?: rc;
+
 	return result;
+ err:
+	if (comp_req->icr_result.b_nob > 0)
+		m0_buf_free(&comp_req->icr_result);
+	comp_req->icr_rc = rc;
+	return M0_FSO_AGAIN;
 }
 
 static void isc_comp_prepare(struct m0_isc_comp_req *comp_req,
@@ -220,12 +231,14 @@ static int isc_fom_tick(struct m0_fom *fom)
 	case ISC_COMP_LAUNCH:
 		result = isc_comp_launch(comp_req, fom, ISC_RET_VAL);
 		reply_isc->fir_rc = comp_req->icr_rc;
+		if (comp_req->icr_rc != 0)
+			isc_comp_cleanup(fom, M0_ERR(comp_req->icr_rc),
+					 M0_FOPH_FAILURE);
 		break;
 	case ISC_RET_VAL:
 		m0_rpc_at_init(&reply_isc->fir_ret);
-		result =
-		  m0_rpc_at_reply(&fop_isc->fi_ret, &reply_isc->fir_ret,
-				  comp_res, fom, ISC_RET_VAL_DONE);
+		result = m0_rpc_at_reply(&fop_isc->fi_ret, &reply_isc->fir_ret,
+					 comp_res, fom, ISC_RET_VAL_DONE);
 		break;
 	case ISC_RET_VAL_DONE:
 		rc = m0_rpc_at_reply_rc(&reply_isc->fir_ret);
@@ -382,7 +395,7 @@ struct m0_sm_state_descr comp_exec_fom_states[] = {
 	},
 	[EP_EXEC] = {
 		.sd_name = "launch-computation",
-		.sd_allowed = M0_BITS(EP_COMPLETE)
+		.sd_allowed = M0_BITS(EP_COMPLETE, EP_FAIL)
 	},
 	[EP_COMPLETE] = {
 		.sd_name = "computation-completes",
@@ -423,6 +436,9 @@ static int ce_fom_tick(struct m0_fom *fom)
 		break;
 	case EP_EXEC:
 		result = isc_comp_launch(comp_req, fom, EP_COMPLETE);
+		if (comp_req->icr_rc != 0)
+			isc_comp_cleanup(fom, M0_ERR(comp_req->icr_rc),
+					 EP_FAIL);
 		break;
 	case EP_FAIL:
 		m0_fom_phase_set(fom, EP_FINI);
