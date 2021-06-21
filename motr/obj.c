@@ -519,18 +519,20 @@ static int obj_namei_op_init(struct m0_entity *entity,
 
 	/* Get a layout instance for the object. */
 	lid = m0_pool_version2layout_id(&oo->oo_pver,
-				 	m0__obj_layout_id_get(oo));
+					m0__obj_layout_id_get(oo));
 	rc = m0__obj_layout_instance_build(cinst, lid,
 					   &oo->oo_fid, &linst);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_ERR(rc);
 		goto error;
+	}
 	oo->oo_layout_instance = linst;
 
 #ifdef CLIENT_FOR_M0T1FS
 	/* Set the object's parent's fid. */
 	if (!m0_fid_is_set(&cinst->m0c_root_fid) ||
 	    !m0_fid_is_valid(&cinst->m0c_root_fid)) {
-		rc = -EINVAL;
+		rc = M0_ERR(-EINVAL);
 		goto error;
 	}
 	oo->oo_pfid = cinst->m0c_root_fid;
@@ -538,8 +540,10 @@ static int obj_namei_op_init(struct m0_entity *entity,
 	/* Generate a valid oo_name. */
 	obj_name = m0_alloc(M0_OBJ_NAME_MAX_LEN);
 	rc = obj_fid_make_name(obj_name, M0_OBJ_NAME_MAX_LEN, &oo->oo_fid);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_ERR(rc);
 		goto error;
+	}
 	m0_buf_init(&oo->oo_name, obj_name, strlen(obj_name));
 #endif
 	M0_ASSERT(rc == 0);
@@ -564,7 +568,7 @@ static void obj_optimal_lid_set(struct m0_obj *obj,
 	/* Find optimal layout id when pver id is set and layout id is not */
 	if (*lid == 0 && m0_fid_is_set(&obj->ob_attr.oa_pver)) {
 		*lid = m0_layout_find_by_buffsize(ldom, &obj->ob_attr.oa_pver,
-						  obj->ob_attr.oa_obj_size);
+						  obj->ob_attr.oa_buf_size);
 	}
 	/* Set default layout id when both layout id and pver id is unset */
 	else if (*lid == 0 && !m0_fid_is_set(&obj->ob_attr.oa_pver)) {
