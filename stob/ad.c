@@ -108,8 +108,8 @@ static int stob_ad_punch(struct m0_stob *stob, struct m0_indexvec *range,
 static void* stob_ad_get_cksum_addr(void *baddr, m0_bindex_t off, uint64_t lid);
 
 
-static m0_bcount_t stob_ad_get_cksum_nob( m0_bcount_t ext_len, m0_bindex_t off, 
-										uint64_t unit_sz );
+static m0_bcount_t stob_ad_get_cksum_nob( m0_bindex_t ext_len, m0_bindex_t off, 
+										m0_bindex_t unit_sz );
 
 M0_TL_DESCR_DEFINE(ad_domains, "ad stob domains", M0_INTERNAL,
 		   struct ad_domain_map, adm_linkage, adm_magic,
@@ -1555,23 +1555,23 @@ static void* stob_ad_get_cksum_addr(void *baddr,
 	return baddr + (off/unit_sz);
 }
 
-static m0_bcount_t stob_ad_get_cksum_nob( m0_bcount_t ext_len, m0_bindex_t off, 
-										uint64_t unit_sz )
+static m0_bcount_t stob_ad_get_cksum_nob( m0_bindex_t ext_len, m0_bindex_t off, 
+										m0_bindex_t unit_sz )
 {
 	/* Compute how many DU Start in a given extent spans: 
 	 * Illustration below shows how extents can be received w.r.t unit size (4)
 	 *    | Unit 0 || Unit 1 || Unit 2 || Unit 3 || Unit 4 ||
 	 * 1. | e1 | 			  	=> 1 (0,2)(off,ext_len)  
-	 * 2. |   e2   |		  	=> 1 (0,3) ending on unit 0
-	 * 2. |   e2    |		  	=> 1 (0,4) ending on unit 1 start
-	 * 3.        |  e3 |	  	=> 1 (2,5)
-	 * 4.  | e4 | 			  	=> 0 (2,3) within unit 0	
-	 * 5.          |         |  => 1 (3,4)
-	 * 6.          |          | => 2 (3,5) ending on unit 2 start 
+	 * 2. |   e2   |		  	=> 1 (0,4) ending on unit 0
+	 * 3. |   e2    |		  	=> 1 (0,5) ending on unit 1 start
+	 * 4.        |  e3     |	=> 1 (2,5)
+	 * 5.  | e4 | 			  	=> 0 (1,3) within unit 0	
+	 * 6.          |         |  => 1 (3,5) ending on unit 1 end
+	 * 7.          |          | => 2 (3,6) ending on unit 2 start 
 	 * To compute how many DU start we need to find the DU Index of
 	 * start and end. 
 	 */
-	m0_bcount_t cs_nob = ( (off + ext_len)/unit_sz - off/unit_sz );
+	m0_bcount_t cs_nob = ( (off + ext_len - 1)/unit_sz - off/unit_sz );
 
 	// Add handling for case 1 and 5	
 	if( (off % unit_sz) == 0 ) 
