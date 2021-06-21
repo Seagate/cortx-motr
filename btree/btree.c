@@ -1223,6 +1223,7 @@ static struct m0_rwlock trees_lock;
  * list tail.
  */
 static struct m0_tl     btree_lru_nds;
+
 /**
  * LRU list lock.
  * It is used as protection while manipulating the lru_list.
