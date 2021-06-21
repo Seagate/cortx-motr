@@ -557,6 +557,7 @@
 #include "lib/misc.h"
 #include "lib/assert.h"
 #include "ut/ut.h"          /** struct m0_ut_suite */
+#include "lib/tlist.h"     /** m0_tl */
 
 #ifndef __KERNEL__
 #include <stdlib.h>
@@ -575,7 +576,6 @@ struct m0_btree {
 	const struct m0_btree_type *t_type;
 	unsigned                    t_height;
 	struct td                  *t_desc;
-	struct m0_rwlock            t_lock;
 };
 
 enum base_phase {
@@ -801,7 +801,13 @@ struct td {
 	struct m0_rwlock            t_lock;
 	struct nd                  *t_root;
 	int                         t_height;
-	int                         r_ref;
+	int                         t_ref;
+	/**
+	 * Active node descriptor list contains the node descriptors that are
+	 * currently in use by the tree.
+	 * Node descriptors are linked through nd:n_linkage to this list.
+	 */
+	struct m0_tl                t_active_nds;
 };
 
 /** Special values that can be passed to node_move() as 'nr' parameter. */
@@ -963,6 +969,9 @@ struct nd {
 	/** if n_skip_rec_count_check is true, it will skip invarient check
 	 * record count as it is required for some scenarios */
 	bool                    n_skip_rec_count_check;
+	/** Linkage into node descriptor list. ndlist_tl, td::t_active_nds. */
+	struct m0_tlink	        n_linkage;
+	uint64_t                n_magic;
 
 	/**
 	 * The lock that protects the fields below. The fields above are
@@ -970,6 +979,8 @@ struct nd {
 	 */
 	struct m0_rwlock        n_lock;
 	int                     n_ref;
+	/** Transaction reference count. */
+	int                     n_txref;
 	uint64_t                n_seq;
 	struct node_op         *n_op;
 
@@ -1188,6 +1199,24 @@ static uint64_t         trees_in_use[ARRAY_SIZE_FOR_BITS(M0_TREE_COUNT,
 static uint32_t         trees_loaded = 0;
 static struct m0_rwlock trees_lock;
 
+/**
+ * Node descriptor LRU list.
+ * Following actions will be performed on node descriptors:
+ * 1. If nds are not active, they will be  moved from td::t_active_nds to
+ * btree_lru_nds list head.
+ * 2. If the nds in btree_lru_nds become active, they will be moved to
+ * td::t_active_nds.
+ * 3. Based on certain conditions, the nds can be freed from btree_lru_nds
+ * list tail.
+ */
+static struct m0_tl     btree_lru_nds;
+static struct m0_rwlock lru_lock;
+
+M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
+		   n_linkage, n_magic, M0_BTREE_ND_LIST_MAGIC,
+		   M0_BTREE_ND_LIST_HEAD_MAGIC);
+M0_TL_DEFINE(ndlist, static, struct nd);
+
 #ifndef __KERNEL__
 static void node_init(struct node_op *n_op, int ksize, int vsize,
 		      struct m0_be_tx *tx)
@@ -1399,6 +1428,10 @@ int m0_btree_mod_init(void)
 		return 0;
 	} else
 		return M0_ERR(-ENOMEM);
+
+	/** Initialtise lru list and lock. */
+	ndlist_tlist_init(&btree_lru_nds);
+	m0_rwlock_init(&lru_lock);
 }
 
 void m0_btree_mod_fini(void)
@@ -1756,11 +1789,11 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 		for (i = 0; i < ARRAY_SIZE(trees); i++) {
 			tree = &trees[i];
 			m0_rwlock_write_lock(&tree->t_lock);
-			if (tree->r_ref != 0) {
+			if (tree->t_ref != 0) {
 				M0_ASSERT(tree->t_root != NULL);
 				if (tree->t_root->n_addr.as_core ==
 				    addr->as_core) {
-					tree->r_ref++;
+					tree->t_ref++;
 					op->no_node = tree->t_root;
 					op->no_tree = tree;
 					m0_rwlock_write_unlock(&tree->t_lock);
@@ -1787,12 +1820,12 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 		}
 	}
 
-	M0_ASSERT(tree != NULL && tree->r_ref == 0);
+	M0_ASSERT(tree != NULL && tree->t_ref == 0);
 
 	m0_rwlock_init(&tree->t_lock);
 
 	m0_rwlock_write_lock(&tree->t_lock);
-	tree->r_ref++;
+	tree->t_ref++;
 
 	if (addr) {
 		mem_node_get(op, tree, addr, nxt);
@@ -1851,12 +1884,12 @@ static void mem_tree_put(struct td *tree)
 {
 	m0_rwlock_write_lock(&tree->t_lock);
 
-	M0_ASSERT(tree->r_ref > 0);
+	M0_ASSERT(tree->t_ref > 0);
 	M0_ASSERT(tree->t_root != NULL);
 
-	tree->r_ref--;
+	tree->t_ref--;
 
-	if (tree->r_ref == 0) {
+	if (tree->t_ref == 0) {
 		int i;
 		int array_offset;
 		int bit_offset_in_array;
@@ -3506,11 +3539,23 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 		oi->i_nop.no_tree->t_type = data->bt;
 		node_init(&oi->i_nop, k_size, v_size, bop->bo_tx);
 
-		m0_rwlock_write_lock(&bop->bo_arbor->t_lock);
 		bop->bo_arbor->t_desc           = oi->i_nop.no_tree;
 		bop->bo_arbor->t_type           = data->bt;
+
+		m0_rwlock_write_lock(&bop->bo_arbor->t_desc->t_lock);
 		bop->bo_arbor->t_desc->t_height = 1;
-		m0_rwlock_write_unlock(&bop->bo_arbor->t_lock);
+		/** Initialtise active nd list for this tree. */
+		ndlist_tlist_init(&bop->bo_arbor->t_desc->t_active_nds);
+		/**
+		 * Deliberately increasing the ref count of root node, so that
+		 * it is never freed (except for in btree_destroy). Add root
+		 * node to active nd list.
+		 */
+		bop->bo_arbor->t_desc->t_root->n_ref++;
+		ndlist_tlink_init_at(bop->bo_arbor->t_desc->t_root,
+				     &bop->bo_arbor->t_desc->t_active_nds);
+
+		m0_rwlock_write_unlock(&bop->bo_arbor->t_desc->t_lock);
 
 		m0_free(oi);
 		bop->bo_i = NULL;
@@ -3608,7 +3653,6 @@ int64_t btree_open_tick(struct m0_sm_op *smop)
 		bop->b_data.tree->t_type   = oi->i_nop.no_tree->t_type;
 		bop->b_data.tree->t_height = oi->i_nop.no_tree->t_height;
 		bop->b_data.tree->t_desc   = oi->i_nop.no_tree;
-		bop->b_data.tree->t_lock   = oi->i_nop.no_tree->t_lock;
 		m0_free(oi);
 		return P_DONE;
 
@@ -4556,8 +4600,8 @@ int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
 
 void m0_btree_close(struct m0_btree *arbor)
 {
-	if (arbor->t_desc->r_ref > 1)
-		arbor->t_desc->r_ref --;
+	if (arbor->t_desc->t_ref > 1)
+		arbor->t_desc->t_ref --;
 }
 
 /**
@@ -4784,7 +4828,7 @@ static void ut_node_create_delete(void)
 
 	tree = op.no_tree;
 
-	M0_ASSERT(tree->r_ref == 1);
+	M0_ASSERT(tree->t_ref == 1);
 	M0_ASSERT(tree->t_root != NULL);
 	M0_ASSERT(trees_loaded == 1);
 
@@ -4806,7 +4850,7 @@ static void ut_node_create_delete(void)
 	/* Get another reference to the same tree. */
 	tree_get(&op, &tree->t_root->n_addr, 0);
 	tree_clone = op.no_tree;
-	M0_ASSERT(tree_clone->r_ref == 2);
+	M0_ASSERT(tree_clone->t_ref == 2);
 	M0_ASSERT(tree->t_root == tree_clone->t_root);
 	M0_ASSERT(trees_loaded == 1);
 
@@ -5132,7 +5176,7 @@ static void ut_basic_tree_oper(void)
 	/** Close a non-existent btree */
 	/**
 	 * The following close function are not called as the open operation
-	 * being called before this doesnt increase the r_ref variable for
+	 * being called before this doesnt increase the t_ref variable for
 	 * given tree descriptor.
 	 *
 	 * m0_btree_close(btree); */
@@ -5156,7 +5200,7 @@ static void ut_basic_tree_oper(void)
 	/** Close it */
 	/**
 	 * The following 2 close functions are not used as there is no open
-	 * operation being called before this. Hence, the r_ref variable for
+	 * operation being called before this. Hence, the t_ref variable for
 	 * tree descriptor has not increased.
 	 *
 	 * m0_btree_close(b_op.bo_arbor);
@@ -6849,7 +6893,7 @@ static void ut_put_del_operation(void)
 
 	tree = op.no_tree;
 
-	M0_ASSERT(tree->r_ref == 1);
+	M0_ASSERT(tree->t_ref == 1);
 	M0_ASSERT(tree->t_root != NULL);
 
 	tree->t_height = 1;
