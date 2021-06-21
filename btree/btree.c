@@ -558,6 +558,7 @@
 #include "lib/assert.h"
 #include "ut/ut.h"          /** struct m0_ut_suite */
 #include "lib/tlist.h"     /** m0_tl */
+#include "lib/time.h"
 
 #ifndef __KERNEL__
 #include <stdlib.h>
@@ -980,6 +981,7 @@ struct nd {
 	int                     n_txref;
 	uint64_t                n_seq;
 	struct node_op         *n_op;
+	m0_time_t               start_time;
 };
 
 enum node_opcode {
@@ -3236,7 +3238,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "P_INIT",
-		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT, P_DONE),
+		.sd_allowed = M0_BITS(P_INIT, P_COOKIE, P_SETUP, P_ACT, P_DONE),
 	},
 	[P_COOKIE] = {
 		.sd_flags   = 0,
@@ -3321,6 +3323,7 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "open/create-init", P_INIT, P_ACT  },
 	{ "open/create-act", P_ACT, P_DONE },
 	{ "destroy", P_INIT, P_DONE},
+	{ "close-init", P_INIT, P_INIT},
 	{ "put/get-init-cookie", P_INIT, P_COOKIE },
 	{ "put/get-init", P_INIT, P_SETUP },
 	{ "put/get-cookie-valid", P_COOKIE, P_LOCK },
@@ -3504,7 +3507,7 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 		if (bop->bo_i == NULL)
 			return M0_ERR(-ENOMEM);
 
-		if(bop->bo_arbor->t_desc->r_ref > 0)
+		if(bop->bo_arbor->t_desc->t_ref > 0)
 			tree_put(bop->bo_arbor->t_desc);
 		/**
 		 * ToDo: We need to capture the changes occuring in the
@@ -3563,7 +3566,7 @@ int64_t btree_open_tick(struct m0_sm_op *smop)
 		bop->b_data.tree->t_type   = oi->i_nop.no_tree->t_type;
 		bop->b_data.tree->t_height = oi->i_nop.no_tree->t_height;
 		bop->b_data.tree->t_desc   = oi->i_nop.no_tree;
-		bop->b_data.tree->t_lock   = oi->i_nop.no_tree->t_lock;
+		//bop->b_data.tree->t_lock   = oi->i_nop.no_tree->t_lock;
 
 		bop->bo_arbor->t_desc           = oi->i_nop.no_tree;
 		bop->bo_arbor->t_type           = bop->b_data.bt;
@@ -3586,19 +3589,42 @@ int64_t btree_open_tick(struct m0_sm_op *smop)
  */
 int64_t btree_close_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op    *bop  = M0_AMB(bop, smop, bo_op);
+	struct m0_btree_op    *bop     = M0_AMB(bop, smop, bo_op);
 	//struct m0_btree_oimpl *oi   = bop->bo_i;
-	struct m0_btree       *tree = bop->b_data.tree;
-	
+	//struct m0_btree       *tree    = bop->b_data.tree;
+	struct m0_btree       *tree    = bop->bo_arbor;
+	struct nd             *nd_head = ndlist_tlist_head(&tree->t_desc->
+							   t_active_nds);
+	struct nd             *nd_curr;
+
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
-		if (tree->t_desc->r_ref == 1) { 
-			if (node_level(tree->t_desc->t_root) > 0) {
-				
-			}
-			node_put(tree->t_desc->t_root);
-		}
+	if (tree->t_desc->t_ref > 1) {
 		tree_put(tree->t_desc);
+	} else if (tree->t_desc->t_ref == 1) {
+		nd_curr = nd_head;
+		if(nd_curr->start_time == 0)
+			nd_curr->start_time = m0_time_now();
+		do {
+			if (tree->t_desc == nd_curr->n_tree)
+			{
+				node_put(nd_curr);
+				if (nd_curr->n_ref > 0) {
+					if (m0_time_seconds(m0_time_now() - nd_curr->start_time) > 5)
+						return M0_ERR(-ETIMEDOUT);
+					return P_INIT;
+				}
+			}
+			nd_curr = ndlist_tlist_next(&tree->t_desc->t_active_nds,
+						    nd_curr);
+			if(nd_curr != NULL)
+				nd_curr->start_time = 0;
+		} while (nd_curr != NULL);
+		tree_put(tree->t_desc);
+	} else {
+		return M0_ERR(-ECANCELED);
+	}
+	
 		return P_DONE;
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
@@ -4478,7 +4504,8 @@ void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop)
 	// if (arbor->t_desc->r_ref > 1)
 	// 	arbor->t_desc->r_ref --;
 	
-	bop->b_data.tree = arbor;
+	//bop->b_data.tree = arbor;
+	bop->bo_arbor = arbor;
 	m0_sm_op_init(&bop->bo_op, &btree_close_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
 }
@@ -4992,6 +5019,7 @@ static void ut_basic_tree_oper(void)
 {
 	/** void                   *invalid_addr = (void *)0xbadbadbadbad; */
 	struct m0_btree        *btree;
+	struct m0_btree        *temp_btree;
 	struct m0_btree_type    btree_type = {  .tt_id = M0_BT_UT_KV_OPS,
 						.ksize = 8,
 						.vsize = 8, };
@@ -5028,7 +5056,7 @@ static void ut_basic_tree_oper(void)
 				      m0_btree_close(b_op.bo_arbor, &b_op),
 				      &b_op.bo_sm_group, &b_op.bo_op_exec);
 	M0_ASSERT(rc == 0);
-
+	temp_btree = b_op.bo_arbor;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 				      m0_btree_open(temp_node, 1024, &btree,
 						    &b_op), &b_op.bo_sm_group,
@@ -5039,7 +5067,7 @@ static void ut_basic_tree_oper(void)
 				      m0_btree_close(btree, &b_op),
 				      &b_op.bo_sm_group, &b_op.bo_op_exec);
 	M0_ASSERT(rc == 0);
-
+	b_op.bo_arbor = temp_btree;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 				      m0_btree_destroy(b_op.bo_arbor, &b_op),
 				      &b_op.bo_sm_group, &b_op.bo_op_exec);
