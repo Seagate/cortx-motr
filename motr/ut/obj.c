@@ -658,6 +658,35 @@ static void ut_test_entity_namei_op_delete(void)
 	ut_entity_namei_op(M0_EO_DELETE);
 }
 
+static void ut_test_obj_lid_assign(void)
+{
+	struct m0_obj     obj;
+	struct m0_entity  ent;
+	struct m0_realm   realm;
+	struct m0_op     *ops[1] = {NULL};
+	struct m0_client *instance = NULL;
+	int               rc;
+
+	/* init */
+	rc = ut_m0_client_init(&instance);
+	M0_UT_ASSERT(rc == 0);
+
+	ut_realm_entity_setup(&realm, &ent, instance);
+	ent.en_realm = &realm;
+
+	memset(&obj, 0, sizeof obj);
+	obj.ob_attr.oa_buf_size = 40960;
+	m0_obj_init(&obj, &realm, &ent.en_id, 0);
+
+	rc = m0_entity_create(NULL, &obj.ob_entity, &ops[0]);
+	M0_UT_ASSERT(obj.ob_attr.oa_layout_id > 0 &&
+			obj.ob_attr.oa_layout_id < 15);
+	M0_UT_ASSERT(rc == -EINVAL);
+	M0_UT_ASSERT(ops[0] == NULL);
+
+	ut_m0_client_fini(&instance);
+}
+
 static void ut_test_m0_entity_create(void)
 {
 	struct m0_obj            obj;
@@ -679,7 +708,11 @@ static void ut_test_m0_entity_create(void)
 			   m0_client_layout_id(instance));
 
 	rc = m0_entity_create(NULL, &obj.ob_entity, &ops[0]);
-	M0_UT_ASSERT(rc = -ENOENT);
+	/*
+	 * The layouts are not initialized. So we can not find layout with the
+	 * specified lid.
+	 */
+	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(ops[0] == NULL);
 
 	ut_m0_client_fini(&instance);
@@ -707,7 +740,7 @@ static void ut_test_m0_entity_delete(void)
 
 	m0_fi_enable_once("obj_namei_op_init", "fake_msg_size");
 	rc = m0_entity_delete(&obj.ob_entity, &ops[0]);
-	M0_UT_ASSERT(rc = -EMSGSIZE);
+	M0_UT_ASSERT(rc == -EMSGSIZE);
 	M0_UT_ASSERT(ops[0] == NULL);
 
 	ut_m0_client_fini(&instance);
@@ -1592,6 +1625,13 @@ struct m0_ut_suite ut_suite_obj = {
 		/* Finalising a namespace object operation. */
 		{ "obj_namei_cb_fini",
 			&ut_test_obj_namei_cb_fini},
+
+		/*
+		 * Assignment of optimal layout id for object accoriding to
+		 * initial buffer size.
+		 */
+		{ "obj_optimal_lid_set",
+			&ut_test_obj_lid_assign},
 	}
 };
 
