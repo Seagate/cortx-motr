@@ -1088,8 +1088,8 @@ static int64_t    node_free(struct node_op *op, struct nd *node,
 static void node_op_fini(struct node_op *op);
 #endif
 #ifndef __KERNEL__
-static void node_init(struct node_op *n_op, int ksize, int vsize,
-		      struct m0_be_tx *tx);
+static void node_init(struct segaddr *addr, int ksize, int vsize,
+		      const struct node_type *nt, struct m0_be_tx *tx);
 static bool node_verify(const struct nd *node);
 #endif
 static int  node_count(const struct nd *node);
@@ -1234,17 +1234,12 @@ M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 		   M0_BTREE_ND_LIST_HEAD_MAGIC);
 M0_TL_DEFINE(ndlist, static, struct nd);
 
-#ifndef __KERNEL__
-static void node_init(struct node_op *n_op, int ksize, int vsize,
-		      struct m0_be_tx *tx)
+static void node_init(struct segaddr *addr, int ksize, int vsize,
+		      const struct node_type *nt, struct m0_be_tx *tx)
 {
-	const struct node_type *n_type = n_op->no_node->n_type;
-
-	n_type->nt_init(&n_op->no_node->n_addr,
-			segaddr_shift(&n_op->no_node->n_addr),
-			ksize, vsize, n_type->nt_id, tx);
+	nt->nt_init(addr, segaddr_shift(addr), ksize, vsize, nt->nt_id, tx);
 }
-#endif
+
 static bool node_invariant(const struct nd *node)
 {
 	return node->n_type->nt_invariant(node);
@@ -1779,7 +1774,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 
 	nxt_state = segops->so_node_alloc(op, tree, size, nt, tx, nxt);
 
-	nt->nt_init(&op->no_addr, size, ksize, vsize, nt->nt_id, tx);
+	node_init(&op->no_addr, ksize, vsize, nt, tx);
 
         nxt_state = node_get(op, tree, &op->no_addr, nxt_state);
 
@@ -3147,7 +3142,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 }
 
 /* get_tick for insert operation */
-static int64_t btree_put_tick(struct m0_sm_op *smop)
+static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop        = M0_AMB(bop, smop, bo_op);
 	struct td             *tree       = bop->bo_arbor->t_desc;
@@ -3583,7 +3578,8 @@ int64_t btree_create_tick(struct m0_sm_op *smop)
 	case P_ACT:
 		oi->i_nop.no_node->n_type = data->nt;
 		oi->i_nop.no_tree->t_type = data->bt;
-		node_init(&oi->i_nop, k_size, v_size, bop->bo_tx);
+		node_init(&oi->i_nop.no_addr, k_size, v_size,
+			  oi->i_nop.no_node->n_type, bop->bo_tx);
 
 		bop->bo_arbor->t_desc           = oi->i_nop.no_tree;
 		bop->bo_arbor->t_type           = data->bt;
@@ -3758,7 +3754,7 @@ int  btree_sibling_first_key_get(struct m0_btree_oimpl *oi, struct td *tree,
 }
 
 /** Tree GET (lookup) state machine. */
-static int64_t btree_get_tick(struct m0_sm_op *smop)
+static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop   = M0_AMB(bop, smop, bo_op);
 	struct td             *tree  = bop->bo_arbor->t_desc;
@@ -3908,7 +3904,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 }
 
 /** Iterator state machine. */
-int64_t btree_iter_tick(struct m0_sm_op *smop)
+int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop   = M0_AMB(bop, smop, bo_op);
 	struct td             *tree  = bop->bo_arbor->t_desc;
@@ -4351,7 +4347,7 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 }
 
 /* State machine implementation for delete operation */
-static int64_t btree_del_tick(struct m0_sm_op *smop)
+static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop        = M0_AMB(bop, smop, bo_op);
 	struct td             *tree       = bop->bo_arbor->t_desc;
@@ -4635,7 +4631,7 @@ void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 	bop->bo_rec.r_key = *key;
 	bop->bo_flags = flags;
 	bop->bo_cb = *cb;
-	m0_sm_op_init(&bop->bo_op, &btree_get_tick, &bop->bo_op_exec,
+	m0_sm_op_init(&bop->bo_op, &btree_get_kv_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
 }
 
@@ -4661,7 +4657,7 @@ void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
 	bop->bo_rec.r_key = *key;
 	bop->bo_flags = flags;
 	bop->bo_cb = *cb;
-	m0_sm_op_init(&bop->bo_op, &btree_iter_tick, &bop->bo_op_exec,
+	m0_sm_op_init(&bop->bo_op, &btree_iter_kv_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
 }
 
@@ -4694,7 +4690,7 @@ void m0_btree_put(struct m0_btree *arbor, const struct m0_btree_rec *rec,
 	bop->bo_flags  = flags;
 	bop->bo_i      = NULL;
 
-	m0_sm_op_init(&bop->bo_op, &btree_put_tick, &bop->bo_op_exec,
+	m0_sm_op_init(&bop->bo_op, &btree_put_kv_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
 }
 
@@ -4710,7 +4706,7 @@ void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
 	bop->bo_flags     = flags;
 	bop->bo_i         = NULL;
 
-	m0_sm_op_init(&bop->bo_op, &btree_del_tick, &bop->bo_op_exec,
+	m0_sm_op_init(&bop->bo_op, &btree_del_kv_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
 }
 
@@ -6757,7 +6753,7 @@ static void m0_btree_ut_insert(struct td *tree)
 		bop.bo_cb = ut_cb;
 
 		while (1) {
-			int64_t nxt = btree_put_tick(&bop.bo_op);
+			int64_t nxt = btree_put_kv_tick(&bop.bo_op);
 			if (nxt == P_DONE )
 				break;
 			bop.bo_op.o_sm.sm_state = nxt;
@@ -6822,7 +6818,7 @@ static void m0_btree_ut_delete(struct td *tree)
 		bop.bo_cb = ut_cb;
 
 		while (1) {
-			int64_t nxt = btree_del_tick(&bop.bo_op);
+			int64_t nxt = btree_del_kv_tick(&bop.bo_op);
 
 			if (nxt == P_DONE )
 			{
