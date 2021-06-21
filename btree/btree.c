@@ -976,10 +976,10 @@ struct nd {
 	/**
 	 * flag for indicating if node needs to get freed. This flag is set by
 	 * node_free() when it cannot free the node as reference count of node
-	 * has yet to be '0'. When the reference count goes to '0' because of
+	 * is non-zero. When the reference count goes to '0' because of
 	 * subsequent node_put's the node will then get freed.
 	 */
-	bool                    n_delayed_freed;
+	bool                    n_delayed_free;
 };
 
 enum node_opcode {
@@ -1142,9 +1142,9 @@ struct level {
 	struct nd *l_alloc;
 
 	/**
-	 * This is the flag for indicating if node needs to get freed. This flag
-	 * will get set during delete operation and it will get used by
-	 * P_FREENODE phase for determine if node needs to get freed.
+	 * This is the flag for indicating if node needs to get freed. Currently
+	 * this flag is set in delete operation and is used by P_FREENODE phase
+	 * for determine if node needs to be freed.
 	 */
 	bool       l_freenode;
 };
@@ -1665,7 +1665,7 @@ static void node_put(struct nd *node, struct m0_be_tx *tx){
 	M0_PRE(node != NULL);
 	segops->so_node_put(node);
 
-	if (node->n_delayed_freed && node->n_ref == 0) {
+	if (node->n_delayed_free && node->n_ref == 0) {
 		op.no_opc  = NOP_FREE;
 		segops->so_node_free(&op, node, tx, 0);
 	}
@@ -1718,7 +1718,7 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	if (node->n_ref == 0)
 		return segops->so_node_free(op, node, tx, nxt);
 
-	node->n_delayed_freed = true;
+	node->n_delayed_free = true;
 	return nxt;
 }
 
@@ -1893,7 +1893,7 @@ static int64_t mem_node_get(struct node_op *op, struct td *tree,
 
 	op->no_node = segaddr_addr(addr) + (1ULL << segaddr_shift(addr));
 
-	if (op->no_node->n_delayed_freed) {
+	if (op->no_node->n_delayed_free) {
 		op->no_op.o_sm.sm_rc = EACCES;
 		return nxt_state;
 	}
