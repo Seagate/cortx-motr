@@ -413,7 +413,7 @@ void m0_obj_init(struct m0_obj *obj,
 	M0_PRE(parent != NULL);
 	M0_PRE(id != NULL);
 	M0_PRE(entity_id_is_valid(id));
-	M0_PRE(M0_IS0(obj));
+	M0_PRE(M0_IS0(&obj->ob_entity));
 	M0_PRE(layout_id < m0_lid_to_unit_map_nr);
 
 	/* Initalise the entity */
@@ -421,7 +421,7 @@ void m0_obj_init(struct m0_obj *obj,
 
 	/* set the blocksize to a reasonable default */
 	obj->ob_attr.oa_bshift = M0_DEFAULT_BUF_SHIFT;
-	obj_size = obj->ob_attr.oa_obj_size;
+	obj_size = obj->ob_attr.oa_buf_size;
 	obj->ob_attr.oa_layout_id = obj_size == 0 && layout_id == 0 ?
 					M0_DEFAULT_LAYOUT_ID : layout_id;
 

@@ -767,11 +767,11 @@ struct m0_obj_attr {
 	/** Pool version fid */
 	struct m0_fid oa_pver;
 
-	/** 
-	 * Size of the object. Set this before m0_obj_init() to generate
+	/**
+	 * Buffer size for object IO. Set this before m0_obj_init() to generate
 	 * optimal layout id during m0_entity_create().
 	 */
-	size_t        oa_obj_size;
+	size_t        oa_buf_size;
 };
 
 /**
@@ -1439,7 +1439,7 @@ void m0__dtx_init     (struct m0__dtx             *dtx,
  * set to default value 'M0_DEFAULT_BUF_SHIFT'.
  *
  * If layout_id == 0, then this object will be set with optimal layout id
- * according to the object size set in m0_obj::ob_attr::oa_obj_size.
+ * according to the object size set in m0_obj::ob_attr::oa_buf_size.
  * If Object size is not set, then this object will be set with
  * default layout id (See struct m0_obj_attr).
  *
