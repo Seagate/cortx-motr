@@ -3606,15 +3606,23 @@ int64_t btree_close_tick(struct m0_sm_op *smop)
 		if(nd_curr->start_time == 0)
 			nd_curr->start_time = m0_time_now();
 		do {
-			if (tree->t_desc == nd_curr->n_tree)
-			{
-				node_put(nd_curr);
-				if (nd_curr->n_ref > 0) {
-					if (m0_time_seconds(m0_time_now() - nd_curr->start_time) > 5)
+			node_put(nd_curr);
+			if (nd_curr->n_ref > 0) {
+				if (nd_curr == tree->t_desc->t_root &&
+				   nd_curr->n_ref == 1) {
+					nd_curr->start_time = 0;
+					node_put(nd_curr);
+				}
+				else {
+					if (m0_time_seconds(m0_time_now() -
+					    nd_curr->start_time) > 5) {
+						nd_curr->start_time = 0;
 						return M0_ERR(-ETIMEDOUT);
+					}
 					return P_INIT;
 				}
 			}
+
 			nd_curr = ndlist_tlist_next(&tree->t_desc->t_active_nds,
 						    nd_curr);
 			if(nd_curr != NULL)
