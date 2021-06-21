@@ -3566,11 +3566,6 @@ int64_t btree_open_tick(struct m0_sm_op *smop)
 		bop->b_data.tree->t_type   = oi->i_nop.no_tree->t_type;
 		bop->b_data.tree->t_height = oi->i_nop.no_tree->t_height;
 		bop->b_data.tree->t_desc   = oi->i_nop.no_tree;
-		//bop->b_data.tree->t_lock   = oi->i_nop.no_tree->t_lock;
-
-		bop->bo_arbor->t_desc           = oi->i_nop.no_tree;
-		bop->bo_arbor->t_type           = bop->b_data.bt;
-		bop->bo_arbor->t_desc->t_height = 1;
 
 		m0_free(oi);
 		return P_DONE;
@@ -3590,8 +3585,6 @@ int64_t btree_open_tick(struct m0_sm_op *smop)
 int64_t btree_close_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop     = M0_AMB(bop, smop, bo_op);
-	//struct m0_btree_oimpl *oi   = bop->bo_i;
-	//struct m0_btree       *tree    = bop->b_data.tree;
 	struct m0_btree       *tree    = bop->bo_arbor;
 	struct nd             *nd_head = ndlist_tlist_head(&tree->t_desc->
 							   t_active_nds);
@@ -3609,11 +3602,15 @@ int64_t btree_close_tick(struct m0_sm_op *smop)
 			node_put(nd_curr);
 			if (nd_curr->n_ref > 0) {
 				if (nd_curr == tree->t_desc->t_root &&
-				   nd_curr->n_ref == 1) {
+				    nd_curr->n_ref == 1) {
 					nd_curr->start_time = 0;
 					node_put(nd_curr);
 				}
 				else {
+					/** This code is meant for debugging.
+					 *  In future, this case needs to be
+					 *  handled in a better way.
+					 */
 					if (m0_time_seconds(m0_time_now() -
 					    nd_curr->start_time) > 5) {
 						nd_curr->start_time = 0;
@@ -3625,14 +3622,14 @@ int64_t btree_close_tick(struct m0_sm_op *smop)
 
 			nd_curr = ndlist_tlist_next(&tree->t_desc->t_active_nds,
 						    nd_curr);
-			if(nd_curr != NULL)
+			if (nd_curr != NULL)
 				nd_curr->start_time = 0;
 		} while (nd_curr != NULL);
 		tree_put(tree->t_desc);
 	} else {
 		return M0_ERR(-ECANCELED);
 	}
-	
+
 		return P_DONE;
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
@@ -3711,8 +3708,8 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			return P_SETUP;
 	case P_SETUP:
 		bop->bo_arbor->t_height = tree->t_height;
-		oi = level_alloc(tree->t_height);
-		if (oi == NULL)
+		bop->bo_i = level_alloc(tree->t_height);
+		if (bop->bo_i == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
 		return P_LOCKALL;
 	case P_LOCKALL:
@@ -3861,8 +3858,8 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			return P_SETUP;
 	case P_SETUP:
 		bop->bo_arbor->t_height = tree->t_height;
-		oi = level_alloc(tree->t_height);
-		if (oi == NULL)
+		bop->bo_i = level_alloc(tree->t_height);
+		if (bop->bo_i == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
 		return P_LOCKALL;
 	case P_LOCKALL:
