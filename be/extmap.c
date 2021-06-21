@@ -918,18 +918,18 @@ be_emap_vsize(const void* d)
 
 static int
 emap_it_pack(struct m0_be_emap_cursor *it,
-	     void (*btree_func)(struct m0_be_btree *btree,
-				struct m0_be_tx    *tx,
-				struct m0_be_op    *op,
-			  const struct m0_buf      *key,
-			  const struct m0_buf      *val),
-	     struct m0_be_tx *tx)
+		void (*btree_func)(struct m0_be_btree *btree,
+			struct m0_be_tx    *tx,
+			struct m0_be_op    *op,
+			const struct m0_buf      *key,
+			const struct m0_buf      *val),
+		struct m0_be_tx *tx)
 {
 	const struct m0_be_emap_seg *ext = &it->ec_seg;
 	struct m0_be_emap_key       *key = &it->ec_key;
 	struct m0_be_emap_rec       *rec = &it->ec_rec;
 	struct m0_buf rec_buf  = {};
-	int len, rc;
+	int len, offset, rc;
 
 	key->ek_prefix = ext->ee_pre;
 	key->ek_offset = ext->ee_ext.e_end;
@@ -937,55 +937,53 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	key_print(key);
 	rec->er_start  = ext->ee_ext.e_start;
 	rec->er_value  = ext->ee_val;
-	rec->er_di_cksum = ext->ee_di_cksum;	
-
-	/* Layout/format of emap-record (if checksum is present) which gets 
-	 * written:
-	 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
-	 * It gets stored as contigious buffer, so making er_di_cksum to 
-	 * point to CS-Array (Checksum Array) 
-	 */
-	if ( rec->er_di_cksum.b_nob )
-	{
-		rec_buf.b_nob = 0;
-		rec_buf.b_addr = NULL;
-		/* Total size of buffer needed for storing emap extent & assign */
-		len = offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr) +
-			       rec->er_di_cksum.b_nob + sizeof(struct m0_format_footer);
-		if ((rc = m0_buf_alloc(&rec_buf, len)) != 0) {
-			return rc;
-		}
-
-		/* Copy emap record till checksum buf start */
-		len = offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr);
-		memcpy(rec_buf.b_addr, (void *)rec, len);		
-		/* Copy checksum array into emap record */
-		memcpy(rec_buf.b_addr + len, rec->er_di_cksum.b_addr, rec->er_di_cksum.b_nob);		
-		
-		/* Header and Footer will be updated */
-	}
-	else
-	{	
-		rec_buf.b_nob = sizeof(struct m0_be_emap_rec);
-		rec_buf.b_addr = (void *)(rec);
-	}
+	rec->er_di_cksum = ext->ee_di_cksum;
 
 	/* Update header fields and footer checksum, the rec->b_addr has m0_be_emap_rec
 	 * populated
-	 */	
-	emap_rec_init( (struct m0_be_emap_rec *)rec_buf.b_addr );
-	
+	 */
+
+	emap_rec_init(rec);
+
+	/* Layout/format of emap-record (if checksum is present) which gets
+	 * written:
+	 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
+	 * It gets stored as contigious buffer, so making er_di_cksum to
+	 * point to CS-Array (Checksum Array)
+	 */
+	rec_buf.b_nob = 0;
+	rec_buf.b_addr = NULL;
+	/* Total size of buffer needed for storing emap extent & assign */
+	len = offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr) +
+		rec->er_di_cksum.b_nob + sizeof(struct m0_format_footer);
+	if ((rc = m0_buf_alloc(&rec_buf, len)) != 0) {
+		return rc;
+	}
+
+	/* Copy emap record till checksum buf start */
+	len = offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr);
+	offset = 0;
+	memcpy(rec_buf.b_addr+offset, (void *)rec, len);
+	offset += len;
+	/* Copy checksum array into emap record */
+	if (rec->er_di_cksum.b_nob > 0) {
+		memcpy(rec_buf.b_addr + offset, rec->er_di_cksum.b_addr, rec->er_di_cksum.b_nob);
+		offset += rec->er_di_cksum.b_nob;
+	}
+	/* Header and Footer will be copied */
+	memcpy(rec_buf.b_addr + offset, (void *)&rec->er_footer, sizeof(struct m0_format_footer));
+	offset += sizeof(struct m0_format_footer);
+
 	rec_print(rec);
-	
+
 	++it->ec_map->em_version;
 	it->ec_op.bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
-		op,
-		btree_func(&it->ec_map->em_mapping, tx, &op, &it->ec_keybuf,
-			   &rec_buf),
-		bo_u.u_btree.t_rc);
-	
-	if (rec->er_di_cksum.b_nob)
-		m0_buf_free(&rec_buf);
+			op,
+			btree_func(&it->ec_map->em_mapping, tx, &op, &it->ec_keybuf,
+				&rec_buf),
+			bo_u.u_btree.t_rc);
+
+	m0_buf_free(&rec_buf);
 
 	return it->ec_op.bo_u.u_emap.e_rc;
 }
