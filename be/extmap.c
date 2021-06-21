@@ -718,6 +718,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	map->em_rec.er_value = val;
 	map->em_rec.er_di_cksum.b_nob = 0;
 	map->em_rec.er_di_cksum.b_addr = NULL;
+	map->em_rec.er_di_cksum.b_addr = NULL;
 	emap_rec_init(&map->em_rec);
 	rec_print(&map->em_rec);
 	m0_format_footer_update(&map->em_rec);
@@ -1035,6 +1036,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 			 * correctly copied in it->ec_rec
 			 */
 			it->ec_rec.er_di_cksum.b_addr = NULL;
+			it->ec_rec.er_di_cksum.b_nob  = 0;
 		}
 		emap_key_init(&it->ec_key);
 		emap_rec_init(&it->ec_rec);
@@ -1043,7 +1045,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		ext->ee_ext.e_end   = key->ek_offset;
 		m0_ext_init(&ext->ee_ext);
 		ext->ee_val         = rec->er_value;
-		ext->ee_di_cksum	= rec->er_di_cksum;
+		ext->ee_di_cksum	= it->ec_rec.er_di_cksum;
 		if (!emap_it_prefix_ok(it))
 			rc = -ESRCH;
 	}
