@@ -1178,6 +1178,9 @@ struct m0_btree_oimpl {
 
 	/** Node descriptor for cookie if it is going to be used. **/
 	struct nd      *i_cookie_node;
+
+	/** Flag for indicating if operation is aquiring lock or not. **/
+	bool            i_lock_aquired;
 };
 
 static struct td        trees[M0_TREE_COUNT];
@@ -2531,24 +2534,21 @@ static bool sibling_node_check(struct m0_btree_oimpl *oi)
 	return true;
 }
 
-static bool locked(struct td *tree)
-{
-	return false;
-}
-
 static int64_t lock_op_init(struct m0_sm_op *bo_op, struct node_op  *i_nop,
-			    struct td       *tree, int nxt)
+			    struct td *tree, struct m0_btree_oimpl *oi, int nxt)
 {
 	/** parameters which has passed but not will be used while state machine
 	 *  implementation for  locks
 	 */
 	m0_rwlock_write_lock(&tree->t_lock);
+	oi->i_lock_aquired = true;
 	return nxt;
 }
 
-static void lock_op_unlock(struct td *tree)
+static void lock_op_unlock(struct td *tree, struct m0_btree_oimpl *oi)
 {
 	m0_rwlock_write_unlock(&tree->t_lock);
+	oi->i_lock_aquired = false;
 }
 
 static void level_alloc(struct m0_btree_oimpl *oi, int height)
@@ -2792,7 +2792,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_put(oi->i_extra_node);
 	oi->i_extra_node = NULL;
 
-	lock_op_unlock(tree);
+	lock_op_unlock(tree, oi);
 	return P_CLEANUP;
 }
 
@@ -2927,7 +2927,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		node_fix(lev->l_node, bop->bo_tx);
 		node_move(lev->l_alloc, lev->l_node, D_RIGHT,
 		          NR_MAX, bop->bo_tx);
-		lock_op_unlock(bop->bo_arbor->t_desc);
+		lock_op_unlock(bop->bo_arbor->t_desc, oi);
 		return fail(bop, rc);
 	}
 	node_done(&tgt, bop->bo_tx, true);
@@ -2970,7 +2970,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			node_done(&node_slot, bop->bo_tx, true);
 			node_fix(lev->l_node, bop->bo_tx);
 
-			lock_op_unlock(bop->bo_arbor->t_desc);
+			lock_op_unlock(bop->bo_arbor->t_desc, oi);
 			return P_CLEANUP;
 		}
 
@@ -3009,7 +3009,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 	struct level          *lev;
 
 	switch (bop->bo_op.o_sm.sm_state) {
-	case P_INIT: {
+	case P_INIT:
 		if (oi == NULL) {
 			bop->bo_i = m0_alloc(sizeof *oi);
 			if (bop->bo_i == NULL)
@@ -3020,7 +3020,6 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			return P_COOKIE;
 		else
 			return P_SETUP;
-	}
 	case P_COOKIE:
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie) &&
 		    !node_isoverflow(oi->i_cookie_node))
@@ -3036,10 +3035,8 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		return P_LOCKALL;
 	}
 	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL) {
-			/* return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN); */
-			m0_rwlock_write_lock(&tree->t_lock);
-		}
+		if (bop->bo_flags & BOF_LOCKALL)
+			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
 		/* Fall through to the next stage */
 	case P_DOWN:
 		oi->i_used = 0;
@@ -3119,9 +3116,9 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		return P_LOCK;
 	}
 	case P_LOCK:
-		if (!locked(tree))
+		if (!oi->i_lock_aquired)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-					    bop->bo_arbor->t_desc, P_CHECK);
+					    bop->bo_arbor->t_desc, oi, P_CHECK);
 		else
 			return P_CHECK;
 	case P_CHECK: {
@@ -3135,12 +3132,12 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			}
 			if (bop->bo_arbor->t_height != tree->t_height) {
 				/* If height decreased or increased */
-				lock_op_unlock(tree);
+				lock_op_unlock(tree, oi);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 					            P_INIT);
 			} else {
 				/* If height same */
-				lock_op_unlock(tree);
+				lock_op_unlock(tree, oi);
 				return P_DOWN;
 			}
 		}
@@ -3152,10 +3149,10 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			rec.r_flags = M0_BSC_KEY_EXISTS;
 			int rc = bop->bo_cb.c_act(&bop->bo_cb, &rec);
 			if (rc) {
-				lock_op_unlock(tree);
+				lock_op_unlock(tree, oi);
 				return fail(bop, rc);
 			}
-			lock_op_unlock(tree);
+			lock_op_unlock(tree, oi);
 			return P_CLEANUP;
 		}
 
@@ -3205,13 +3202,13 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
 			node_done(&node_slot, bop->bo_tx, true);
 			node_fix(lev->l_node, bop->bo_tx);
-			lock_op_unlock(tree);
+			lock_op_unlock(tree, oi);
 			return fail(bop, rc);
 		}
 		node_done(&node_slot, bop->bo_tx, true);
 		node_fix(lev->l_node, bop->bo_tx);
 
-		lock_op_unlock(tree);
+		lock_op_unlock(tree, oi);
 		return P_CLEANUP;
 	}
 	case P_CLEANUP: {
@@ -3219,11 +3216,10 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		return P_FINI;
 		/* return m0_sm_op_ret(&bop->bo_op); */
 	}
-	case P_FINI : {
+	case P_FINI :
 		if(oi)
 			m0_free(oi);
 		return P_DONE;
-	}
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
 	};
@@ -3636,7 +3632,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 	struct level          *lev;
 
 	switch (bop->bo_op.o_sm.sm_state) {
-	case P_INIT: {
+	case P_INIT:
 		if (oi == NULL) {
 			bop->bo_i = m0_alloc(sizeof *oi);
 			if (bop->bo_i == NULL)
@@ -3647,7 +3643,6 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			return P_COOKIE;
 		else
 			return P_SETUP;
-	}
 	case P_COOKIE:
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie))
 			return P_LOCK;
@@ -3661,8 +3656,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 		return P_LOCKALL;
 	case P_LOCKALL:
 		if (bop->bo_flags & BOF_LOCKALL)
-			/* return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN); */
-			return P_LOCK;
+			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
 		/** Fall through if LOCKALL flag is not set. */
 	case P_DOWN:
 		oi->i_used = 0;
@@ -3701,9 +3695,9 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
 	case P_LOCK:
-		if (!locked(tree))
+		if (!oi->i_lock_aquired)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-					    bop->bo_arbor->t_desc, P_CHECK);
+					    bop->bo_arbor->t_desc, oi, P_CHECK);
 		else
 			return P_CHECK;
 	case P_CHECK:
@@ -3717,12 +3711,12 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			}
 			if (bop->bo_arbor->t_height != tree->t_height) {
 				/* If height increased */
-				lock_op_unlock(tree);
+				lock_op_unlock(tree, oi);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 				                    P_INIT);
 			} else {
 				/* If height decreased */
-				lock_op_unlock(tree);
+				lock_op_unlock(tree, oi);
 				return P_DOWN;
 			}
 		}
@@ -3771,7 +3765,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 
 		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
 
-		lock_op_unlock(tree);
+		lock_op_unlock(tree, oi);
 		return P_CLEANUP;
 	}
 	case P_CLEANUP: {
@@ -3779,11 +3773,10 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 		return P_FINI;
 		/* return m0_sm_op_ret(&bop->bo_op); */
 	}
-	case P_FINI : {
+	case P_FINI :
 		if(oi)
 			m0_free(oi);
 		return P_DONE;
-	}
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
 	};
@@ -3962,9 +3955,9 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 		}
 
 	case P_LOCK:
-		if (!locked(tree))
+		if (!oi->i_lock_aquired)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-					    bop->bo_arbor->t_desc, P_CHECK);
+					    bop->bo_arbor->t_desc, oi, P_CHECK);
 		else
 			return P_CHECK;
 	case P_CHECK:
@@ -3978,11 +3971,11 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 					bop->bo_flags |= BOF_LOCKALL;
 			}
 			if (bop->bo_arbor->t_height != tree->t_height) {
-				lock_op_unlock(tree);
+				lock_op_unlock(tree, oi);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 				                    P_SETUP);
 			} else {
-				lock_op_unlock(tree);
+				lock_op_unlock(tree, oi);
 				return P_DOWN;
 			}
 		}
@@ -4019,7 +4012,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			node_rec(&s);
 		}
 		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
-		lock_op_unlock(tree);
+		lock_op_unlock(tree, oi);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
 	}
 	case P_CLEANUP:
@@ -4102,7 +4095,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		/* check if underflow after deletion */
 		if (flag || !node_isunderflow(lev->l_node, false)) {
 			lev->l_node->n_skip_rec_count_check = false;
-			lock_op_unlock(tree);
+			lock_op_unlock(tree, oi);
 			return P_FREENODE;
 		}
 		lev->l_node->n_skip_rec_count_check = false;
@@ -4137,7 +4130,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	lev->l_node->n_skip_rec_count_check = false;
 	oi->i_level[1].l_sibling->n_skip_rec_count_check = false;
 
-	lock_op_unlock(tree);
+	lock_op_unlock(tree, oi);
 	node_put(oi->i_level[1].l_sibling);
 	oi->i_level[1].l_sibling = NULL;
 	return node_free(&oi->i_nop, root_child, bop->bo_tx, P_FREENODE);
@@ -4277,10 +4270,8 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 		return P_LOCKALL;
 	}
 	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL) {
-			/* return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN); */
-			m0_rwlock_write_lock(&tree->t_lock);
-		}
+		if (bop->bo_flags & BOF_LOCKALL)
+			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
 		/* Fall through to the next stage */
 	case P_DOWN:
 		oi->i_used = 0;
@@ -4347,9 +4338,9 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 		/* Fall through to the next step */
 	}
 	case P_LOCK:
-		if (!locked(tree))
+		if (!oi->i_lock_aquired)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-					    bop->bo_arbor->t_desc, P_CHECK);
+					    bop->bo_arbor->t_desc, oi, P_CHECK);
 		else
 			return P_CHECK;
 	case P_CHECK: {
@@ -4364,12 +4355,12 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 			}
 			if (bop->bo_arbor->t_height != tree->t_height) {
 				/* If height has changed */
-				lock_op_unlock(tree);
+				lock_op_unlock(tree, oi);
 				level_cleanup(oi, bop->bo_tx);
 				return P_INIT;
 			} else {
 				/* If height is same */
-				lock_op_unlock(tree);
+				lock_op_unlock(tree, oi);
 				return P_DOWN;
 			}
 		}
@@ -4398,7 +4389,7 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 		}
 		int rc = bop->bo_cb.c_act(&bop->bo_cb, &rec);
 		if (rc) {
-			lock_op_unlock(tree);
+			lock_op_unlock(tree, oi);
 			return fail(bop, rc);
 		}
 
@@ -4407,13 +4398,13 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 			    !node_isunderflow(lev->l_node, false)) {
 				/* No Underflow */
 				lev->l_node->n_skip_rec_count_check = false;
-				lock_op_unlock(tree);
+				lock_op_unlock(tree, oi);
 				return P_CLEANUP;
 			}
 			lev->l_node->n_skip_rec_count_check = false;
 			return btree_del_resolve_underflow(bop);
 		}
-		lock_op_unlock(tree);
+		lock_op_unlock(tree, oi);
 		return P_CLEANUP;
 	}
 	case P_FREENODE : {
