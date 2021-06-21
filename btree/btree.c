@@ -848,8 +848,8 @@ struct node_type {
 	const struct m0_format_tag  nt_tag;
 
 	/** Initializes newly allocated node */
-	void (*nt_init)(const struct nd *node, int shift, int ksize, int vsize,
-			uint32_t ntype, struct m0_be_tx *tx);
+	void (*nt_init)(const struct segaddr *addr, int shift, int ksize,
+			int vsize, uint32_t ntype, struct m0_be_tx *tx);
 
 	/** Cleanup of the node if any before deallocation */
 	void (*nt_fini)(const struct nd *node);
@@ -952,10 +952,19 @@ struct node_type {
 	bool (*nt_verify)(const struct nd *node);
 
 	/** Saves opaque data. */
-	void (*nt_set_opaque)(const struct nd *node);
+	void (*nt_opaque_set)(const struct segaddr *addr, void *opaque);
 
 	/** Gets opaque data. */
-	uint64_t (*nt_get_opaque)(const struct segaddr *addr);
+	void* (*nt_opaque_get)(const struct segaddr *addr);
+
+	/** Gets node type from segment. */
+	uint32_t (*nt_ntype_get)(const struct segaddr *addr);
+
+	/** Gets key size from segment. */
+	/* uint16_t (*nt_ksize_get)(const struct segaddr *addr); */
+
+	/** Gets value size from segment. */
+	/* uint16_t (*nt_valsize_get)(const struct segaddr *addr); */
 };
 
 /**
@@ -981,8 +990,20 @@ struct nd {
 	 * read-only after the node is loaded into memory.
 	 */
 	struct m0_rwlock        n_lock;
+	/**
+	 * Node refernce count. n_ref count indicates the number of times this
+	 * node is fetched for different operations (KV delete, put, get etc.).
+	 * If the n_ref count is non-zero the node should be in active node
+	 * descriptor list. Once n_ref count reaches, it means the node is not
+	 * in use by any operation and is safe to move to glbal lru list.
+	 */
 	int                     n_ref;
-	/** Transaction reference count. */
+	/**
+	 * Transaction reference count.A non-zero txref value indicates
+	 * the active transactions for this node. Once the txref count goes to
+	 * '0' the segment data in the mmapped memory can be released if the
+	 * kernel starts to run out of physical memory in the system.
+	 */
 	int                     n_txref;
 	uint64_t                n_seq;
 	struct node_op         *n_op;
@@ -1061,8 +1082,6 @@ static struct nd *node_try  (struct td *tree, struct segaddr *addr);
 static int64_t    node_alloc(struct node_op *op, struct td *tree, int size,
 			     const struct node_type *nt, int ksize, int vsize,
 			     struct m0_be_tx *tx, int nxt);
-/* static void nd_alloc(struct node_op *op, struct td *tree,
- *                      const struct node_type *nt); */
 #ifndef __KERNEL__
 static int64_t    node_free(struct node_op *op, struct nd *node,
 			    struct m0_be_tx *tx, int nxt);
@@ -1204,6 +1223,10 @@ static struct m0_rwlock trees_lock;
  * list tail.
  */
 static struct m0_tl     btree_lru_nds;
+/**
+ * LRU list lock.
+ * It is used as protection while manipulating the lru_list.
+ */
 static struct m0_rwlock lru_lock;
 
 M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
@@ -1217,7 +1240,8 @@ static void node_init(struct node_op *n_op, int ksize, int vsize,
 {
 	const struct node_type *n_type = n_op->no_node->n_type;
 
-	n_type->nt_init(n_op->no_node, segaddr_shift(&n_op->no_node->n_addr),
+	n_type->nt_init(&n_op->no_node->n_addr,
+			segaddr_shift(&n_op->no_node->n_addr),
 			ksize, vsize, n_type->nt_id, tx);
 }
 #endif
@@ -1645,26 +1669,6 @@ static void tree_put(struct td *tree)
 static const struct node_type fixed_format;
 
 /**
- * Allocate and initialise node descriptor.
- */
-static void nd_alloc(struct node_op *op, struct td *tree, struct segaddr *addr,
-		     const struct node_type *nt)
-{
-	struct nd *node;
-
-	node = m0_alloc(sizeof *node);
-	M0_ASSERT(node != NULL);
-	node->n_addr = *addr;
-	node->n_tree = tree;
-	node->n_type = nt;
-	node->n_seq  = 0;
-	node->n_ref  = 1;
-	m0_rwlock_init(&node->n_lock);
-	op->no_node = node;
-	nt->nt_set_opaque(node);
-}
-
-/**
  * This function loads the node descriptor for the node at segaddr in memory.
  * If a node descriptor pointing to this node is already loaded in memory then
  * this function will increment the reference count in the node descriptor
@@ -1684,15 +1688,16 @@ static void nd_alloc(struct node_op *op, struct td *tree, struct segaddr *addr,
 static int64_t node_get(struct node_op *op, struct td *tree,
 			struct segaddr *addr, int nxt)
 {
-	int               nxt_state;
+	int                     nxt_state;
 	const struct node_type *nt;
+	struct nd              *node;
 
 	nxt_state =  segops->so_node_get(op, tree, addr, nxt);
 	/**
 	 * TODO : Add following AIs after decoupling of node descriptor and
 	 * segment code.
 	 * 1. Get node_header::h_node_type segment address
-	 *	ntype = segaddr_ntype_get(addr);
+	 *	ntype = nt_ntype_get(addr);
 	 * 2.Add node_header::h_node_type (enum btree_node_type) to struct
 	 * node_type mapping. Use this mapping to get the node_type structure.
 	 */
@@ -1701,16 +1706,25 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	 * implemented
 	 * */
 	nt = &fixed_format;
-	op->no_node = (void *)nt->nt_get_opaque(addr);
+	op->no_node = nt->nt_opaque_get(addr);
 	if (op->no_node != NULL &&
-	    op->no_node->n_addr.as_core == addr->as_core) {
+	    op->no_node->n_addr.as_core == addr->as_core)
 		op->no_node->n_ref++;
-		return nxt_state;
+	else {
+		/**
+		 * If node descriptor is not present allocate a new one
+		 * and assign to node. */
+		node = m0_alloc(sizeof *node);
+		M0_ASSERT(node != NULL);
+		node->n_addr = *addr;
+		node->n_tree = tree;
+		node->n_type = nt;
+		node->n_seq  = 0;
+		node->n_ref  = 1;
+		m0_rwlock_init(&node->n_lock);
+		op->no_node = node;
+		nt->nt_opaque_set(addr, node);
 	}
-
-	/** If node descriptor is not present allocate and assign to node. */
-	nd_alloc(op, tree, addr, nt);
-
 	return nxt_state;
 }
 
@@ -1765,8 +1779,9 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 
 	nxt_state = segops->so_node_alloc(op, tree, size, nt, tx, nxt);
 
-        nd_alloc(op, tree, &op->no_addr, nt);
-	nt->nt_init(op->no_node, size, ksize, vsize, nt->nt_id, tx);
+	nt->nt_init(&op->no_addr, size, ksize, vsize, nt->nt_id, tx);
+
+        nxt_state = node_get(op, tree, &op->no_addr, nxt_state);
 
 	return nxt_state;
 }
@@ -1798,9 +1813,11 @@ static int64_t mem_node_free(struct node_op *op, int shift,
 
 static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 {
-	struct td *tree = NULL;
-	int        i    = 0;
-	uint32_t   offset;
+	struct td              *tree = NULL;
+	int                     i    = 0;
+	uint32_t                offset;
+	struct nd              *node = NULL;
+	const struct node_type *nt;
 
 	m0_rwlock_write_lock(&trees_lock);
 
@@ -1810,24 +1827,35 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	 *  If existing allocated tree is found then return it after increasing
 	 *  the reference count.
 	 */
-	if (addr != NULL && trees_loaded)
-		for (i = 0; i < ARRAY_SIZE(trees); i++) {
-			tree = &trees[i];
+	if (addr != NULL && trees_loaded) {
+	/**
+	 * TODO : Add following AIs after decoupling of node descriptor and
+	 * segment code.
+	 * 1. Get node_header::h_node_type segment address
+	 *	ntype = segaddr_ntype_get(addr);
+	 * 2.Add node_header::h_node_type (enum btree_node_type) to struct
+	 * node_type mapping. Use this mapping to get the node_type structure.
+	 */
+	/**
+	 * Temporarily taking fixed_format as nt. Remove this once above AI is
+	 * implemented
+	 * */
+		nt = &fixed_format;
+		node = nt->nt_opaque_get(addr);
+		if (node != NULL && node->n_tree != NULL) {
+			tree = node->n_tree;
 			m0_rwlock_write_lock(&tree->t_lock);
-			if (tree->t_ref != 0) {
-				M0_ASSERT(tree->t_root != NULL);
-				if (tree->t_root->n_addr.as_core ==
-				    addr->as_core) {
-					tree->t_ref++;
-					op->no_node = tree->t_root;
-					op->no_tree = tree;
-					m0_rwlock_write_unlock(&tree->t_lock);
-					m0_rwlock_write_unlock(&trees_lock);
-					return nxt;
-				}
+			if (tree->t_root->n_addr.as_core == addr->as_core) {
+				tree->t_ref++;
+				op->no_node = tree->t_root;
+				op->no_tree = tree;
+				m0_rwlock_write_unlock(&tree->t_lock);
+				m0_rwlock_write_unlock(&trees_lock);
+				return nxt;
 			}
 			m0_rwlock_write_unlock(&tree->t_lock);
 		}
+	}
 
 	/** Assign a free tree descriptor to this tree. */
 	for (i = 0; i < ARRAY_SIZE(trees_in_use); i++) {
@@ -1940,13 +1968,6 @@ static int64_t mem_node_get(struct node_op *op, struct td *tree,
 {
 	int                     nxt_state = nxt;
 
-	/**
-	 *  In this implementation we assume to have the node descritors for
-	 *  ALL the nodes present in memory. If the tree pointer is NULL then
-	 *  we load the tree in memory before returning the node descriptor to
-	 * the caller.
-	 */
-
 	if (tree == NULL) {
 		nxt_state = mem_tree_get(op, addr, nxt);
 	}
@@ -2015,15 +2036,15 @@ static const struct seg_ops mem_seg_ops = {
  *  Structure of the node in persistent store.
  */
 struct ff_head {
-	struct m0_format_header ff_fmt;   /*< Node Header */
-	struct node_header      ff_seg;   /*< Node type information */
-	uint16_t                ff_used;  /*< Count of records */
-	uint8_t                 ff_shift; /*< Node size as pow-of-2 */
-	uint8_t                 ff_level; /*< Level in Btree */
-	uint16_t                ff_ksize; /*< Size of key in bytes */
-	uint16_t                ff_vsize; /*< Size of value in bytes */
-	struct m0_format_footer ff_foot;  /*< Node Footer */
-	uint64_t                ff_opaque; /*< node descriptor address */
+	struct m0_format_header  ff_fmt;   /*< Node Header */
+	struct node_header       ff_seg;   /*< Node type information */
+	uint16_t                 ff_used;  /*< Count of records */
+	uint8_t                  ff_shift; /*< Node size as pow-of-2 */
+	uint8_t                  ff_level; /*< Level in Btree */
+	uint16_t                 ff_ksize; /*< Size of key in bytes */
+	uint16_t                 ff_vsize; /*< Size of value in bytes */
+	struct m0_format_footer  ff_foot;  /*< Node Footer */
+	void                    *ff_opaque; /*< opaque data */
 	/**
 	 *  This space is used to host the Keys and Values upto the size of the
 	 *  node
@@ -2031,7 +2052,7 @@ struct ff_head {
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 
-static void ff_init(const struct nd *node, int shift, int ksize, int vsize,
+static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 		    uint32_t ntype, struct m0_be_tx *tx);
 static void ff_fini(const struct nd *node);
 static int  ff_count(const struct nd *node);
@@ -2061,8 +2082,12 @@ static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 static bool ff_invariant(const struct nd *node);
 static bool ff_verify(const struct nd *node);
-static void ff_set_opaque(const struct nd *node);
-static uint64_t ff_get_opaque(const struct segaddr *addr);
+static void ff_opaque_set(const struct segaddr *addr, void *opaque);
+static void *ff_opaque_get(const struct segaddr *addr);
+uint32_t ff_ntype_get(const struct segaddr *addr);
+/* uint16_t ff_ksize_get(const struct segaddr *addr); */
+/* uint16_t ff_valsize_get(const struct segaddr *addr);  */
+
 /**
  *  Implementation of node which supports fixed format/size for Keys and Values
  *  contained in it.
@@ -2097,8 +2122,11 @@ static const struct node_type fixed_format = {
 	.nt_move        = generic_move,
 	.nt_invariant   = ff_invariant,
 	.nt_verify      = ff_verify,
-	.nt_set_opaque  = ff_set_opaque,
-	.nt_get_opaque  = ff_get_opaque,
+	.nt_opaque_set  = ff_opaque_set,
+	.nt_opaque_get  = ff_opaque_get,
+	.nt_ntype_get   = ff_ntype_get,
+	/* .nt_ksize_get   = ff_ksize_get, */
+	/* .nt_valsize_get = ff_valsize_get, */
 };
 
 
@@ -2109,13 +2137,14 @@ static const struct node_type fixed_format = {
  *
  * @return Node type.
  */
-uint32_t segaddr_ntype_get(const struct segaddr *addr)
+uint32_t ff_ntype_get(const struct segaddr *addr)
 {
 	struct node_header *h  =  segaddr_addr(addr) +
 				  sizeof(struct m0_format_header);
 	return h->h_node_type;
 }
 
+#if 0
 /**
  * Returns the key size stored at segment address.
  *
@@ -2123,7 +2152,7 @@ uint32_t segaddr_ntype_get(const struct segaddr *addr)
  *
  * @return key size
  */
-uint16_t segaddr_ksize_get(const struct segaddr *addr)
+uint16_t ff_ksize_get(const struct segaddr *addr)
 {
 	struct ff_head *h  =  segaddr_addr(addr);
 	return h->ff_ksize;
@@ -2136,11 +2165,12 @@ uint16_t segaddr_ksize_get(const struct segaddr *addr)
  *
  * @return value size
  */
-uint16_t segaddr_valsize_get(const struct segaddr *addr)
+uint16_t ff_valsize_get(const struct segaddr *addr)
 {
 	struct ff_head *h  =  segaddr_addr(addr);
 	return h->ff_vsize;
 }
+#endif
 
 static struct ff_head *ff_data(const struct nd *node)
 {
@@ -2199,10 +2229,10 @@ static bool ff_verify(const struct nd *node)
 	return true;
 }
 
-static void ff_init(const struct nd *node, int shift, int ksize, int vsize,
+static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 		    uint32_t ntype, struct m0_be_tx *tx)
 {
-	struct ff_head *h   = ff_data(node);
+	struct ff_head *h   = segaddr_addr(addr);
 
 	M0_PRE(ksize != 0);
 	M0_PRE(vsize != 0);
@@ -2440,13 +2470,13 @@ static void ff_set_level(const struct nd *node, uint8_t new_level,
 	 */
 }
 
-static void ff_set_opaque(const struct nd *node)
+static void ff_opaque_set(const struct  segaddr *addr, void *opaque)
 {
-	struct ff_head *h = ff_data(node);
-	h->ff_opaque = (uint64_t)node;
+	struct ff_head *h = segaddr_addr(addr);
+	h->ff_opaque = opaque;
 }
 
-static uint64_t ff_get_opaque(const struct segaddr *addr)
+static void *ff_opaque_get(const struct segaddr *addr)
 {
 	struct ff_head *h = segaddr_addr(addr);
 	return h->ff_opaque;
@@ -3749,8 +3779,8 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			return P_SETUP;
 	case P_SETUP:
 		bop->bo_arbor->t_height = tree->t_height;
-		oi = level_alloc(tree->t_height);
-		if (oi == NULL)
+		bop->bo_i = level_alloc(tree->t_height);
+		if (bop->bo_i == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
 		return P_LOCKALL;
 	case P_LOCKALL:
@@ -3899,8 +3929,8 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			return P_SETUP;
 	case P_SETUP:
 		bop->bo_arbor->t_height = tree->t_height;
-		oi = level_alloc(tree->t_height);
-		if (oi == NULL)
+		bop->bo_i = level_alloc(tree->t_height);
+		if (bop->bo_i == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
 		return P_LOCKALL;
 	case P_LOCKALL:
@@ -5339,7 +5369,7 @@ static void ut_basic_kv_oper(void)
 
 	time(&curr_time);
 	printf("\nUsing seed %lu", curr_time);
-	srandom(1624028034);
+	srandom(curr_time);
 
 	/** Prepare transaction to capture tree operations. */
 	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
@@ -5395,8 +5425,6 @@ static void ut_basic_kv_oper(void)
 		ut_cb.c_act        = btree_kv_put_cb;
 		ut_cb.c_datum      = &put_data;
 
-		if (i == 61)
-			printf("Nikhil %d ->", i);
 		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 					 m0_btree_put(tree, &rec, &ut_cb, 0,
 						      &kv_op, tx),
