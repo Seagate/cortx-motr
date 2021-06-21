@@ -943,10 +943,10 @@ struct node_type {
 	bool (*nt_invariant)(const struct nd *node);
 
 	/** Validates node footer */
-	bool (*nt_footer_verify)(const struct nd *node);
+	bool (*nt_verify)(const struct nd *node);
 
 	/** Validates node header*/
-	bool (*nt_header_verify)(const struct nd *node);
+	bool (*nt_isvalid)(const struct nd *node);
 };
 
 /**
@@ -973,8 +973,13 @@ struct nd {
 	uint64_t                n_seq;
 	struct node_op         *n_op;
 
-	/* flag for indicating if node needs to get freed. */
-	bool                    n_free;
+	/**
+	 * flag for indicating if node needs to get freed. This flag is set by
+	 * node_free() when it cannot free the node as reference count of node
+	 * has yet to be '0'. When the reference count goes to '0' because of
+	 * subsequent node_put's the node will then get freed.
+	 */
+	bool                    n_delayed_freed;
 };
 
 enum node_opcode {
@@ -1058,7 +1063,7 @@ static void node_op_fini(struct node_op *op);
 #ifndef __KERNEL__
 static void node_init(struct node_op *n_op, int ksize, int vsize,
 		      struct m0_be_tx *tx);
-static bool node_footer_verify(const struct nd *node);
+static bool node_verify(const struct nd *node);
 #endif
 static int  node_count(const struct nd *node);
 static int  node_count_rec(const struct nd *node);
@@ -1135,6 +1140,13 @@ struct level {
 
 	/** nd for newly allocated node at the level. **/
 	struct nd *l_alloc;
+
+	/**
+	 * This is the flag for indicating if node needs to get freed. This flag
+	 * will get set during delete operation and it will get used by
+	 * P_FREENODE phase for determine if node needs to get freed.
+	 */
+	bool       l_freenode;
 };
 
 /**
@@ -1191,14 +1203,14 @@ static bool node_invariant(const struct nd *node)
 	return node->n_type->nt_invariant(node);
 }
 #ifndef __KERNEL__
-static bool node_footer_verify(const struct nd *node)
+static bool node_verify(const struct nd *node)
 {
-	return node->n_type->nt_footer_verify(node);
+	return node->n_type->nt_verify(node);
 }
 
-static bool node_header_verify(const struct nd *node)
+static bool node_isvalid(const struct nd *node)
 {
-	return node->n_type->nt_header_verify(node);
+	return node->n_type->nt_isvalid(node);
 }
 
 #endif
@@ -1653,7 +1665,7 @@ static void node_put(struct nd *node, struct m0_be_tx *tx){
 	M0_PRE(node != NULL);
 	segops->so_node_put(node);
 
-	if (node->n_free && node->n_ref == 0) {
+	if (node->n_delayed_freed && node->n_ref == 0) {
 		op.no_opc  = NOP_FREE;
 		segops->so_node_free(&op, node, tx, 0);
 	}
@@ -1706,7 +1718,7 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	if (node->n_ref == 0)
 		return segops->so_node_free(op, node, tx, nxt);
 
-	node->n_free = true;
+	node->n_delayed_freed = true;
 	return nxt;
 }
 
@@ -1880,6 +1892,12 @@ static int64_t mem_node_get(struct node_op *op, struct td *tree,
 	}
 
 	op->no_node = segaddr_addr(addr) + (1ULL << segaddr_shift(addr));
+
+	if (op->no_node->n_delayed_freed) {
+		op->no_op.o_sm.sm_rc = EACCES;
+		return nxt_state;
+	}
+	
 	op->no_node->n_ref++;
 	return nxt_state;
 }
@@ -2009,8 +2027,8 @@ static void ff_set_level(const struct nd *node, uint8_t new_level,
 static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 static bool ff_invariant(const struct nd *node);
-static bool ff_footer_verify(const struct nd *node);
-static bool ff_header_verify(const struct nd *node);
+static bool ff_verify(const struct nd *node);
+static bool ff_isvalid(const struct nd *node);
 /**
  *  Implementation of node which supports fixed format/size for Keys and Values
  *  contained in it.
@@ -2019,33 +2037,33 @@ static const struct node_type fixed_format = {
 	.nt_id          = BNT_FIXED_FORMAT,
 	.nt_name        = "m0_bnode_fixed_format",
 	//.nt_tag,
-	.nt_init          = ff_init,
-	.nt_fini          = ff_fini,
-	.nt_count         = ff_count,
-	.nt_count_rec     = ff_count_rec,
-	.nt_space         = ff_space,
-	.nt_level         = ff_level,
-	.nt_shift         = ff_shift,
-	.nt_keysize       = ff_keysize,
-	.nt_valsize       = ff_valsize,
-	.nt_isunderflow   = ff_isunderflow,
-	.nt_isoverflow    = ff_isoverflow,
-	.nt_fid           = ff_fid,
-	.nt_rec           = ff_rec,
-	.nt_key           = ff_node_key,
-	.nt_child         = ff_child,
-	.nt_isfit         = ff_isfit,
-	.nt_done          = ff_done,
-	.nt_make          = ff_make,
-	.nt_find          = ff_find,
-	.nt_fix           = ff_fix,
-	.nt_cut           = ff_cut,
-	.nt_del           = ff_del,
-	.nt_set_level     = ff_set_level,
-	.nt_move          = generic_move,
-	.nt_invariant     = ff_invariant,
-	.nt_footer_verify = ff_footer_verify,
-	.nt_header_verify = ff_header_verify,
+	.nt_init        = ff_init,
+	.nt_fini        = ff_fini,
+	.nt_count       = ff_count,
+	.nt_count_rec   = ff_count_rec,
+	.nt_space       = ff_space,
+	.nt_level       = ff_level,
+	.nt_shift       = ff_shift,
+	.nt_keysize     = ff_keysize,
+	.nt_valsize     = ff_valsize,
+	.nt_isunderflow = ff_isunderflow,
+	.nt_isoverflow  = ff_isoverflow,
+	.nt_fid         = ff_fid,
+	.nt_rec         = ff_rec,
+	.nt_key         = ff_node_key,
+	.nt_child       = ff_child,
+	.nt_isfit       = ff_isfit,
+	.nt_done        = ff_done,
+	.nt_make        = ff_make,
+	.nt_find        = ff_find,
+	.nt_fix         = ff_fix,
+	.nt_cut         = ff_cut,
+	.nt_del         = ff_del,
+	.nt_set_level   = ff_set_level,
+	.nt_move        = generic_move,
+	.nt_invariant   = ff_invariant,
+	.nt_verify      = ff_verify,
+	.nt_isvalid     = ff_isvalid,
 };
 
 static struct ff_head *ff_data(const struct nd *node)
@@ -2095,14 +2113,14 @@ static bool ff_invariant(const struct nd *node)
 		    ergo(h->ff_level > 0, h->ff_used > 0));
 }
 
-static bool ff_footer_verify(const struct nd *node)
+static bool ff_verify(const struct nd *node)
 {
 	const struct ff_head *h = ff_data(node);
 
 	return m0_format_footer_verify(h, true) == 0;
 }
 
-static bool ff_header_verify(const struct nd *node)
+static bool ff_isvalid(const struct nd *node)
 {
 	const struct ff_head *h   = ff_data(node);
 	struct m0_format_tag  tag;
@@ -2129,8 +2147,8 @@ static void ff_init(const struct nd *node, int shift, int ksize, int vsize,
 	h->ff_vsize = vsize;
 
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
-		.ot_version = M0_BE_BNODE_FORMAT_VERSION,
-		.ot_type    = M0_FORMAT_TYPE_BE_BNODE,
+		.ot_version       = M0_BE_BNODE_FORMAT_VERSION,
+		.ot_type          = M0_FORMAT_TYPE_BE_BNODE,
 		.ot_footer_offset = offsetof(struct ff_head, ff_foot)
 	});
 	m0_format_footer_update(h);
@@ -2148,11 +2166,10 @@ static void ff_fini(const struct nd *node)
 	struct ff_head *h = ff_data(node);
 
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
-		.ot_version = 0,
-		.ot_type    = 0,
+		.ot_version       = 0,
+		.ot_type          = 0,
 		.ot_footer_offset = offsetof(struct ff_head, ff_foot)
 	});
-	m0_format_footer_update(h);
 }
 
 static int ff_count(const struct nd *node)
@@ -2501,10 +2518,6 @@ static int fail(struct m0_btree_op *bop, int rc)
 }
 
 /**
- * checks if given node is still exists
- */
-
-/**
  * This function will validate the cookie or path traversed by the operation and
  * return result. If if cookie is used it will validate cookie else check for
  * traversed path.
@@ -2524,7 +2537,7 @@ static bool path_check(struct m0_btree_oimpl *oi, struct td *tree,
 		return cookie_is_valid(tree, k_cookie);
 
 	while (total_level >= 0) {
-		if (!node_header_verify(l_node)) {
+		if (!node_isvalid(l_node)) {
 			node_op_fini(&oi->i_nop);
 			return false;
 		}
@@ -2548,7 +2561,7 @@ static bool sibling_node_check(struct m0_btree_oimpl *oi)
 	if (l_sibling == NULL || oi->i_pivot == -1)
 		return true;
 
-	if (!node_header_verify(l_sibling)) {
+	if (!node_isvalid(l_sibling)) {
 		node_op_fini(&oi->i_nop);
 		return false;
 	}
@@ -3099,8 +3112,8 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_header_verify(lev->l_node) ||
-			    !node_footer_verify(lev->l_node)) {
+			if (!node_isvalid(lev->l_node) ||
+			    !node_verify(lev->l_node)) {
 				level_cleanup(oi, bop->bo_tx);
 				return P_SETUP;
 			}
@@ -3139,7 +3152,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			 * Verify header to dertmine if lev->l_node is still
 			 * exists.
 			 */
-			if (!node_header_verify(lev->l_node)) {
+			if (!node_isvalid(lev->l_node)) {
 				oi->i_used = bop->bo_arbor->t_height - 1;
 				level_cleanup(oi, bop->bo_tx);
 				return P_INIT;
@@ -3576,8 +3589,8 @@ int64_t btree_open_tick(struct m0_sm_op *smop)
 		 * ToDo:
 		 * Here, we need to add a check to enforce the
 		 * requirement that nodes are valid.
-		 * 
-		 * Once the function node_header_verify() is implemented properly,
+		 *
+		 * Once the function node_isvalid() is implemented properly,
 		 * we need to add the check here.
 		 */
 
@@ -3709,8 +3722,8 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_header_verify(lev->l_node) ||
-			    !node_footer_verify(lev->l_node)) {
+			if (!node_isvalid(lev->l_node) ||
+			    !node_verify(lev->l_node)) {
 				level_cleanup(oi, bop->bo_tx);
 				return P_SETUP;
 			}
@@ -3876,8 +3889,8 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_header_verify(lev->l_node) ||
-			    !node_footer_verify(lev->l_node)) {
+			if (!node_isvalid(lev->l_node) ||
+			    !node_verify(lev->l_node)) {
 				level_cleanup(oi, bop->bo_tx);
 				return P_SETUP;
 			}
@@ -3943,8 +3956,8 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 				 */
 				lev = &oi->i_level[oi->i_pivot];
 
-				if (!node_header_verify(lev->l_node) ||
-				    !node_footer_verify(lev->l_node)) {
+				if (!node_isvalid(lev->l_node) ||
+				    !node_verify(lev->l_node)) {
 					node_op_fini(&oi->i_nop);
 					bop->bo_flags |= BOF_LOCKALL;
 					return m0_sm_op_sub(&bop->bo_op,
@@ -3995,8 +4008,8 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_header_verify(s.s_node) ||
-			    !node_footer_verify(s.s_node)) {
+			if (!node_isvalid(s.s_node) ||
+			    !node_verify(s.s_node)) {
 				level_cleanup(oi, bop->bo_tx);
 				return P_SETUP;
 			}
@@ -4121,7 +4134,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	struct nd              *root_child;
 
 	do {
-		lev->l_node->n_free = true;
+		lev->l_freenode = true;
 		used_count--;
 		lev = &oi->i_level[used_count];
 		node_del(lev->l_node, lev->l_idx, bop->bo_tx);
@@ -4216,7 +4229,7 @@ static bool child_node_check(struct m0_btree_oimpl *oi)
 	l_node = oi->i_level[1].l_sibling;
 
 	if (l_node) {
-		if (!node_header_verify(l_node))
+		if (!node_isvalid(l_node))
 			return false;
 		if (oi->i_level[1].l_sib_seq != l_node->n_seq)
 			return false;
@@ -4239,7 +4252,7 @@ static int8_t root_child_is_req(struct m0_btree_op *bop)
 	int8_t                 load = 0;
 	int                    used_count = oi->i_used;
 	do {
-		if (!node_header_verify(oi->i_level[used_count].l_node))
+		if (!node_isvalid(oi->i_level[used_count].l_node))
 			return -1;
 		if (used_count == 0) {
 			if (node_count_rec(oi->i_level[used_count].l_node) == 2)
@@ -4359,8 +4372,8 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_header_verify(lev->l_node) ||
-			    !node_footer_verify(lev->l_node)) {
+			if (!node_isvalid(lev->l_node) ||
+			    !node_verify(lev->l_node)) {
 				level_cleanup(oi, bop->bo_tx);
 				return P_SETUP;
 			}
@@ -4409,7 +4422,7 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 		 * exists.
 		 */
 		oi->i_level[1].l_sibling = oi->i_nop.no_node;
-		if (!node_header_verify(oi->i_level[1].l_sibling)) {
+		if (!node_isvalid(oi->i_level[1].l_sibling)) {
 			level_cleanup(oi, bop->bo_tx);
 			return P_SETUP;
 		}
@@ -4492,7 +4505,7 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 		int64_t    nxt = P_FREENODE;
 
 		lev = &oi->i_level[oi->i_used];
-		if (lev->l_node->n_free) {
+		if (lev->l_freenode) {
 			if (oi->i_used == 0) {
 				oi->i_used = bop->bo_arbor->t_height - 1;
 				nxt = P_CLEANUP;
@@ -4529,7 +4542,7 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
  * @param bop  represents the structure containing all the relevant details
  *             for carrying out btree operations.
  */
-int  m0_btree_open(void *addr, int nob, struct m0_btree **out, 
+int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
 		   struct m0_btree_op *bop)
 {
 	bop->b_data.addr      = addr;
@@ -5096,7 +5109,7 @@ static void ut_basic_tree_oper(void)
 	M0_ASSERT(rc == 0);
 	m0_btree_close(btree);
 
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, 
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 				      m0_btree_destroy(b_op.bo_arbor, &b_op),
 				      &b_op.bo_sm_group, &b_op.bo_op_exec);
 	M0_ASSERT(rc == 0);
@@ -5106,8 +5119,8 @@ static void ut_basic_tree_oper(void)
 
 	/** Open a non-existent btree */
 	/**
-	 * ToDo: This condition needs to be uncommented once the check for 
-	 * node_header_verify is properly implemented in btree_open_tick.
+	 * ToDo: This condition needs to be uncommented once the check for
+	 * node_isvalid is properly implemented in btree_open_tick.
 	 *
 	 * rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 	 *                             m0_btree_open(invalid_addr, 1024, &btree,
@@ -5141,11 +5154,11 @@ static void ut_basic_tree_oper(void)
 				      &b_op.bo_op_exec);
 	M0_ASSERT(rc == 0);
 	/** Close it */
-	/** 
+	/**
 	 * The following 2 close functions are not used as there is no open
 	 * operation being called before this. Hence, the r_ref variable for
 	 * tree descriptor has not increased.
-	 * 
+	 *
 	 * m0_btree_close(b_op.bo_arbor);
 	 */
 
@@ -5154,8 +5167,8 @@ static void ut_basic_tree_oper(void)
 
 	/** Re-open it */
 	/**
-	 * ToDo: This condition needs to be uncommented once the check for 
-	 * node_header_verify is properly implemented in btree_open_tick.
+	 * ToDo: This condition needs to be uncommented once the check for
+	 * node_isvalid is properly implemented in btree_open_tick.
 	 *
 	 * rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 	 *                             m0_btree_open(invalid_addr, 1024, &btree,
@@ -5166,8 +5179,8 @@ static void ut_basic_tree_oper(void)
 
 	/** Open it again */
 	/**
-	 * ToDo: This condition needs to be uncommented once the check for 
-	 * node_header_verify is properly implemented in btree_open_tick.
+	 * ToDo: This condition needs to be uncommented once the check for
+	 * node_isvalid is properly implemented in btree_open_tick.
 	 *
 	 * rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 	 *                             m0_btree_open(invalid_addr, 1024, &btree,
@@ -5177,7 +5190,7 @@ static void ut_basic_tree_oper(void)
 	 */
 
 	/** Destory it */
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op, 
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 				      m0_btree_destroy(b_op.bo_arbor, &b_op),
 				      &b_op.bo_sm_group, &b_op.bo_op_exec);
 	M0_ASSERT(rc == 0);
@@ -5185,8 +5198,8 @@ static void ut_basic_tree_oper(void)
 	/** Attempt to reopen the destroyed tree */
 
 	/**
-	 * ToDo: This condition needs to be uncommented once the check for 
-	 * node_header_verify is properly implemented in btree_open_tick.
+	 * ToDo: This condition needs to be uncommented once the check for
+	 * node_isvalid is properly implemented in btree_open_tick.
 	 *
 	 * rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 	 *                             m0_btree_open(invalid_addr, 1024, &btree,
@@ -5899,7 +5912,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			slant_key = key_first - 1;
 			get_data.check_value = false;
 
-			/** 
+			/**
 			 *  The following short named variables are used just
 			 *  to maintain the code decorum by limiting code lines
 			 *  within 80 chars..
