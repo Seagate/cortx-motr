@@ -167,6 +167,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	/* Check errors in an IO request's reply. */
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rw_reply = io_rw_rep_get(reply_fop);
+	m0_bufs_print(&rw_reply->rwr_di_data_cksum, "YJC_CKSUM: rw_reply->rwr_di_data_cksum");
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
 			 "sns state = %d", ioo, req_item,

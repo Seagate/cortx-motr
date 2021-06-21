@@ -612,6 +612,10 @@ static int nbuf_release_done(struct m0_fom *fom, int still_required);
 
 static void io_fom_addb2_descr(struct m0_fom *fom);
 
+enum {
+	CKSUM_COUNT = 4
+};
+
 /**
  * I/O FOM operation vector.
  */
@@ -1686,13 +1690,14 @@ M0_INTERNAL uint64_t m0_io_size(struct m0_stob_io *sio, uint32_t bshift)
  */
 static int io_launch(struct m0_fom *fom)
 {
-	int                      rc;
-	struct m0_fop           *fop;
-	struct m0_io_fom_cob_rw *fom_obj;
-	struct m0_net_buffer    *nb;
-	struct m0_fop_cob_rw    *rwfop;
-	struct m0_file          *file = NULL;
-	uint32_t                 index;
+	int                         rc;
+	struct m0_fop              *fop;
+	struct m0_io_fom_cob_rw    *fom_obj;
+	struct m0_net_buffer       *nb;
+	struct m0_fop_cob_rw       *rwfop;
+	struct m0_fop_cob_rw_reply *rwrep;
+	struct m0_file             *file = NULL;
+	uint32_t                    index;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1709,6 +1714,7 @@ static int io_launch(struct m0_fom *fom)
 
 	fop   = fom->fo_fop;
 	rwfop = io_rw_get(fop);
+	rwrep = io_rw_rep_get(fom->fo_rep_fop);
 
 	rc = io_fom_cob2file(fom, &rwfop->crw_fid, &file);
 	if (rc != 0)
@@ -1815,6 +1821,18 @@ static int io_launch(struct m0_fom *fom)
 					 "id "FID_F" rc = %d",
 					 FID_P(&stob->so_id.si_fid), rc);
 			break;
+		}
+		if (m0_is_read_fop(fom->fo_fop)) {
+			const char        **cksum;
+			int                 i;
+
+			M0_ALLOC_ARR(cksum, CKSUM_COUNT);
+			for (i = 0; i < CKSUM_COUNT; i++) {
+				cksum[i] = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+			}
+			cksum[CKSUM_COUNT] = NULL;
+			m0_bufs_from_strings(&rwrep->rwr_di_data_cksum, cksum);
+			rwrep->rwr_ivec = rwfop->crw_ivec;
 		}
 		/*
 		 * XXX: @todo: This makes sense for oostore mode as
