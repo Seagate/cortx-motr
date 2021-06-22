@@ -327,21 +327,21 @@ static m0_bcount_t stob_ad_get_cksum_sz( void *baddr )
 	return 128;
 }
 
-M0_INTERNAL m0_stob_ad_get_checksum_addr(void *b_addr, m0_bindex_t off, 
+M0_INTERNAL void * m0_stob_ad_get_checksum_addr(void *b_addr, m0_bindex_t off, 
 							m0_bindex_t base_off, m0_bindex_t unit_sz )
 {
 	m0_bcount_t cs_size = stob_ad_get_cksum_sz( b_addr );
+
 	return b_addr + m0_extent_get_unit_offset(off, base_off, unit_sz) *
 					cs_size;	
-	
 }
 
-M0_INTERNAL m0_stob_ad_get_checksum_nob(void *b_addr, m0_bindex_t off, 
-							m0_bindex_t base_off, m0_bindex_t unit_sz )
+M0_INTERNAL m0_bcount_t m0_stob_ad_get_checksum_nob(void *b_addr, m0_bindex_t ext_start, 
+							m0_bindex_t ext_length, m0_bindex_t unit_sz )
 {
 	m0_bcount_t cs_size = stob_ad_get_cksum_sz( b_addr );
-	return m0_extent_get_num_unit_start(off, m0_ext_length(&todo),
-							io->si_unit_sz) * cs_size;
+	
+	return m0_extent_get_num_unit_start(ext_start, ext_length, unit_sz) * cs_size;
 }
 
 static void stob_ad_domain_cfg_create_free(void *cfg_create)
@@ -1583,7 +1583,6 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 {
 	int                    result;
 	int                    rc = 0;
-	m0_bcount_t            cs_size;
 	struct m0_be_emap_cursor  it = {};
 	/* an extent in the logical name-space to be mapped to ext. */
 	struct m0_ext          todo = {
