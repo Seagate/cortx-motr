@@ -105,12 +105,6 @@ static int stob_ad_seg_free(struct m0_dtx *tx,
 static int stob_ad_punch(struct m0_stob *stob, struct m0_indexvec *range,
                          struct m0_dtx *tx);
 
-static void* stob_ad_get_cksum_addr(void *baddr, m0_bindex_t off, uint64_t lid);
-
-
-static m0_bcount_t stob_ad_get_cksum_nob( m0_bindex_t ext_len, m0_bindex_t off, 
-										m0_bindex_t unit_sz );
-
 M0_TL_DESCR_DEFINE(ad_domains, "ad stob domains", M0_INTERNAL,
 		   struct ad_domain_map, adm_linkage, adm_magic,
 		   M0_AD_DOMAINS_MAGIC, M0_AD_DOMAINS_HEAD_MAGIC);
@@ -1546,39 +1540,11 @@ static int stob_ad_seg_free(struct m0_dtx *tx,
 	return val < AET_MIN ? stob_ad_bfree(adom, tx, &tocut) : 0;
 }
 
-static void* stob_ad_get_cksum_addr(void *baddr,
-		                    m0_bindex_t off, uint64_t unit_sz) {
-
-	/* Unit size we get from layout id m0_obj_layout_id_to_unit_size(lid)
-	 * Assuming baddr is corresponding to 0 DU offset.
-	 */
-	return baddr + (off/unit_sz);
-}
-
-static m0_bcount_t stob_ad_get_cksum_nob( m0_bindex_t ext_len, m0_bindex_t off, 
-										m0_bindex_t unit_sz )
+static m0_bcount_t stob_ad_get_cksum_sz( void *baddr )
 {
-	/* Compute how many DU Start in a given extent spans: 
-	 * Illustration below shows how extents can be received w.r.t unit size (4)
-	 *    | Unit 0 || Unit 1 || Unit 2 || Unit 3 || Unit 4 ||
-	 * 1. | e1 | 			  	=> 1 (0,2)(off,ext_len)  
-	 * 2. |   e2   |		  	=> 1 (0,4) ending on unit 0
-	 * 3. |   e2    |		  	=> 1 (0,5) ending on unit 1 start
-	 * 4.        |  e3     |	=> 1 (2,5)
-	 * 5.  | e4 | 			  	=> 0 (1,3) within unit 0	
-	 * 6.          |         |  => 1 (3,5) ending on unit 1 end
-	 * 7.          |          | => 2 (3,6) ending on unit 2 start 
-	 * To compute how many DU start we need to find the DU Index of
-	 * start and end. 
-	 */
-	m0_bcount_t cs_nob = ( (off + ext_len - 1)/unit_sz - off/unit_sz );
-
-	// Add handling for case 1 and 5	
-	if( (off % unit_sz) == 0 ) 
-		cs_nob++;
-
-	// TODO: Add function to get checksum size instead of 128
-	return (cs_nob * 128);
+	// TODO: Move this function to utility function for computing md5 checksum
+	// This function should get the size of checksum from header 
+	return 128;
 }
 
 /**
@@ -1600,6 +1566,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 {
 	int                    result;
 	int                    rc = 0;
+	m0_bcount_t            cs_size;
 	struct m0_be_emap_cursor  it = {};
 	/* an extent in the logical name-space to be mapped to ext. */
 	struct m0_ext          todo = {
@@ -1632,12 +1599,13 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	 * of the corresponding physical extent.
 	 */
 
-
 	/* Compute checksum units info which belong to this extent (COB off & Sz) */
-	it.ec_cksum.b_addr = stob_ad_get_cksum_addr(io->si_cksum.b_addr,
-			off, io->si_unit_sz);
-	it.ec_cksum.b_nob  = stob_ad_get_cksum_nob(m0_ext_length(&todo),
-			off, io->si_unit_sz);
+	cs_size = stob_ad_get_cksum_sz( io->si_cksum.b_addr );
+	it.ec_cksum.b_addr = io->si_cksum.b_addr + 
+							m0_extent_get_unit_offset(off, 0, io->si_unit_sz) *
+							cs_size;	
+	it.ec_cksum.b_nob  = m0_extent_get_num_unit_start(off, m0_ext_length(&todo),
+							io->si_unit_sz) * cs_size;
 
 	M0_SET0(&it.ec_op);
 	m0_be_op_init(&it.ec_op);
