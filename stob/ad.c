@@ -320,6 +320,30 @@ M0_INTERNAL m0_bcount_t m0_stob_ad_spares_calc(m0_bcount_t grp_blocks)
 #endif
 }
 
+static m0_bcount_t stob_ad_get_cksum_sz( void *baddr )
+{
+	// TODO: Move this function to utility function for computing md5 checksum
+	// This function should get the size of checksum from header 
+	return 128;
+}
+
+M0_INTERNAL m0_stob_ad_get_checksum_addr(void *b_addr, m0_bindex_t off, 
+							m0_bindex_t base_off, m0_bindex_t unit_sz )
+{
+	m0_bcount_t cs_size = stob_ad_get_cksum_sz( b_addr );
+	return b_addr + m0_extent_get_unit_offset(off, base_off, unit_sz) *
+					cs_size;	
+	
+}
+
+M0_INTERNAL m0_stob_ad_get_checksum_nob(void *b_addr, m0_bindex_t off, 
+							m0_bindex_t base_off, m0_bindex_t unit_sz )
+{
+	m0_bcount_t cs_size = stob_ad_get_cksum_sz( b_addr );
+	return m0_extent_get_num_unit_start(off, m0_ext_length(&todo),
+							io->si_unit_sz) * cs_size;
+}
+
 static void stob_ad_domain_cfg_create_free(void *cfg_create)
 {
 	m0_free(cfg_create);
@@ -1540,13 +1564,6 @@ static int stob_ad_seg_free(struct m0_dtx *tx,
 	return val < AET_MIN ? stob_ad_bfree(adom, tx, &tocut) : 0;
 }
 
-static m0_bcount_t stob_ad_get_cksum_sz( void *baddr )
-{
-	// TODO: Move this function to utility function for computing md5 checksum
-	// This function should get the size of checksum from header 
-	return 128;
-}
-
 /**
  * Inserts allocated extent into AD storage object allocation map, possibly
  * overwriting a number of existing extents.
@@ -1600,13 +1617,11 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	 */
 
 	/* Compute checksum units info which belong to this extent (COB off & Sz) */
-	cs_size = stob_ad_get_cksum_sz( io->si_cksum.b_addr );
-	it.ec_cksum.b_addr = io->si_cksum.b_addr + 
-							m0_extent_get_unit_offset(off, 0, io->si_unit_sz) *
-							cs_size;	
-	it.ec_cksum.b_nob  = m0_extent_get_num_unit_start(off, m0_ext_length(&todo),
-							io->si_unit_sz) * cs_size;
-
+	it.ec_cksum.b_addr = m0_stob_ad_get_checksum_addr( io->si_cksum.b_addr,
+							off, 0, io->si_unit_sz);
+	it.ec_cksum.b_nob  = m0_stob_ad_get_checksum_nob(io->si_cksum.b_addr, 
+							off, m0_ext_length(&todo), io->si_unit_sz);
+	
 	M0_SET0(&it.ec_op);
 	m0_be_op_init(&it.ec_op);
 	m0_be_emap_paste(&it, &io->si_tx->tx_betx, &todo, ext->e_start,
