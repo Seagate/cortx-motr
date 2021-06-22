@@ -375,6 +375,38 @@ M0_INTERNAL void m0_key_val_null_set(struct m0_key_val *kv)
 	m0_key_val_init(kv, &M0_KEY_VAL_NULL.kv_key, &M0_KEY_VAL_NULL.kv_val);
 }
 
+M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start( m0_bindex_t ext_start,
+						m0_bindex_t ext_len, m0_bindex_t unit_sz )
+{
+	/* Compute how many unit starts in a given extent spans: 
+	 * Illustration below shows how extents can be received w.r.t unit size (4)
+	 *    | Unit 0 || Unit 1 || Unit 2 || Unit 3 || Unit 4 ||
+	 * 1. | e1 | 			  	=> 1 (0,2)(ext_start,ext_len)  
+	 * 2. |   e2   |		  	=> 1 (0,4) ending on unit 0
+	 * 3. |   e2    |		  	=> 1 (0,5) ending on unit 1 start
+	 * 4.        |  e3     |	=> 1 (2,5)
+	 * 5.  | e4 | 			  	=> 0 (1,3) within unit 0	
+	 * 6.          |         |  => 1 (3,5) ending on unit 1 end
+	 * 7.          |          | => 2 (3,6) ending on unit 2 start 
+	 * To compute how many DU start we need to find the DU Index of
+	 * start and end. 
+	 */
+	m0_bcount_t cs_nob = ( (ext_start + ext_len - 1)/unit_sz - ext_start/unit_sz );
+
+	// Add handling for case 1 and 5	
+	if( (ext_start % unit_sz) == 0 ) 
+		cs_nob++;
+
+	return cs_nob;
+}
+
+M0_INTERNAL m0_bcount_t m0_extent_get_unit_offset( m0_bindex_t off, 
+							m0_bindex_t base_off, m0_bindex_t unit_sz)
+{
+	/* Unit size we get from layout id using m0_obj_layout_id_to_unit_size(lid) */
+	return (off - base_off)/unit_sz;
+}
+
 M0_INTERNAL void *m0_vote_majority_get(struct m0_key_val *arr, uint32_t len,
 				       bool (*cmp)(const struct m0_buf *,
 					           const struct m0_buf *),

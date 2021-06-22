@@ -108,6 +108,7 @@ struct m0_be_emap_rec {
 	   Value associated with the segment.
 	 */
 	uint64_t                er_value;
+	struct m0_buf           er_di_cksum;
 	struct m0_format_footer er_footer;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
