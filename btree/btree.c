@@ -1044,8 +1044,8 @@ static int64_t tree_delete(struct node_op *op, struct td *tree,
 static void    tree_put   (struct td *tree);
 #ifndef __KERNEL__
 static int64_t    node_get  (struct node_op *op, struct td *tree,
-			     struct segaddr *addr, int nxt);
-static void       node_put  (struct nd *node);
+			     struct segaddr *addr, bool lock_aquired, int nxt);
+static void       node_put  (struct nd *node, bool lock_aquired);
 #endif
 
 
@@ -1549,8 +1549,9 @@ struct seg_ops {
 				     struct m0_be_tx *tx, int nxt);
 	void       (*so_tree_put)(struct td *tree);
 	int64_t    (*so_node_get)(struct node_op *op, struct td *tree,
-			          struct segaddr *addr, int nxt);
-	void       (*so_node_put)(struct nd *node);
+			          struct segaddr *addr, bool lock_aquired,
+				  int nxt);
+	void       (*so_node_put)(struct nd *node, bool lock_aquired);
 	struct nd *(*so_node_try)(struct td *tree, struct segaddr *addr);
 	int64_t    (*so_node_alloc)(struct node_op *op, struct td *tree,
 				    int shift, const struct node_type *nt,
@@ -1656,8 +1657,8 @@ static void tree_put(struct td *tree)
  * @return next state
  */
 static int64_t node_get(struct node_op *op, struct td *tree,
-			struct segaddr *addr, int nxt){
-	return segops->so_node_get(op, tree, addr, nxt);
+			struct segaddr *addr, bool lock_aquired, int nxt){
+	return segops->so_node_get(op, tree, addr, lock_aquired, nxt);
 }
 
 
@@ -1674,9 +1675,9 @@ static int64_t node_get(struct node_op *op, struct td *tree,
  *
  * @return next state
  */
-static void node_put(struct nd *node){
+static void node_put(struct nd *node, bool lock_aquired){
 	M0_PRE(node != NULL);
-	segops->so_node_put(node);
+	segops->so_node_put(node, lock_aquired);
 }
 #endif
 
@@ -1732,7 +1733,7 @@ static void node_op_fini(struct node_op *op)
 #endif
 
 static int64_t mem_node_get(struct node_op *op, struct td *tree,
-			    struct segaddr *addr, int nxt);
+			    struct segaddr *addr, bool lock_aquired, int nxt);
 static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
 			      const struct node_type *nt, struct m0_be_tx *tx,
 			      int nxt);
@@ -1797,7 +1798,7 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	tree->t_ref++;
 
 	if (addr) {
-		mem_node_get(op, tree, addr, nxt);
+		mem_node_get(op, tree, addr, true, nxt);
 		tree->t_root         =  op->no_node;
 		tree->t_root->n_addr = *addr;
 		tree->t_root->n_tree =  tree;
@@ -1878,7 +1879,7 @@ static void mem_tree_put(struct td *tree)
 }
 
 static int64_t mem_node_get(struct node_op *op, struct td *tree,
-			    struct segaddr *addr, int nxt)
+			    struct segaddr *addr, bool lock_aquired, int nxt)
 {
 	int nxt_state = nxt;
 
@@ -1898,7 +1899,7 @@ static int64_t mem_node_get(struct node_op *op, struct td *tree,
 	return nxt_state;
 }
 
-static void mem_node_put(struct nd *node)
+static void mem_node_put(struct nd *node, bool lock_aquired)
 {
 	/**
 	 * This implementation does not perform any action, but the final one
@@ -2463,21 +2464,6 @@ static bool cookie_is_valid(struct td *tree, struct m0_bcookie *k_cookie)
 	return false;
 }
 
-static int64_t lock_op_init(struct m0_sm_op *bo_op, struct node_op  *i_nop,
-			    struct td *tree, int nxt)
-{
-	/** parameters which has passed but not will be used while state machine
-	 *  implementation for  locks
-	 */
-	m0_rwlock_write_lock(&tree->t_lock);
-	return nxt;
-}
-
-static void lock_op_unlock(struct td *tree)
-{
-	m0_rwlock_write_unlock(&tree->t_lock);
-}
-
 static int fail(struct m0_btree_op *bop, int rc)
 {
 	bop->bo_op.o_sm.sm_rc = rc;
@@ -2546,6 +2532,21 @@ static bool sibling_node_check(struct m0_btree_oimpl *oi)
 	return true;
 }
 
+static int64_t lock_op_init(struct m0_sm_op *bo_op, struct node_op  *i_nop,
+			    struct td *tree, int nxt)
+{
+	/** parameters which has passed but not will be used while state machine
+	 *  implementation for  locks
+	 */
+	m0_rwlock_write_lock(&tree->t_lock);
+	return nxt;
+}
+
+static void lock_op_unlock(struct td *tree)
+{
+	m0_rwlock_write_unlock(&tree->t_lock);
+}
+
 static void level_alloc(struct m0_btree_oimpl *oi, int height)
 {
 	oi->i_level = m0_alloc(height * (sizeof *oi->i_level));
@@ -2557,11 +2558,11 @@ static void level_cleanup(struct m0_btree_oimpl *oi,
 	int i;
 	for (i = 0; i <= oi->i_used; ++i) {
 		if (oi->i_level[i].l_node != NULL) {
-			node_put(oi->i_level[i].l_node);
+			node_put(oi->i_level[i].l_node, false);
 			oi->i_level[i].l_node = NULL;
 		}
 		if (oi->i_level[i].l_alloc != NULL) {
-			node_put(oi->i_level[i].l_alloc);
+			node_put(oi->i_level[i].l_alloc, false);
 			oi->i_nop.no_opc = NOP_FREE;
 			/**
 			 * node_free() will not cause any I/O delay since this
@@ -2573,15 +2574,15 @@ static void level_cleanup(struct m0_btree_oimpl *oi,
 		}
 	}
 	if (oi->i_used > 0 && oi->i_level[1].l_sibling != NULL) {
-		node_put(oi->i_level[1].l_sibling);
+		node_put(oi->i_level[1].l_sibling, false);
 		oi->i_level[1].l_sibling = NULL;
 	}
 	if (oi->i_level[oi->i_used].l_sibling != NULL) {
-		node_put(oi->i_level[oi->i_used].l_sibling);
+		node_put(oi->i_level[oi->i_used].l_sibling, false);
 		oi->i_level[oi->i_used].l_sibling = NULL;
 	}
 	if (oi->i_extra_node != NULL) {
-		node_put(oi->i_extra_node);
+		node_put(oi->i_extra_node, false);
 		oi->i_nop.no_opc = NOP_FREE;
 		node_free(&oi->i_nop, oi->i_extra_node, tx, 0);
 		oi->i_extra_node = NULL;
@@ -2649,6 +2650,8 @@ static int64_t btree_put_alloc_phase(struct m0_btree_op *bop)
 			} else {
 				node_op_fini(&oi->i_nop);
 				oi->i_used = bop->bo_arbor->t_height - 1;
+				if (bop->bo_flags & BOF_LOCKALL)
+					lock_op_unlock(tree);
 				level_cleanup(oi, bop->bo_tx);
 				return P_SETUP;
 			}
@@ -2675,6 +2678,8 @@ static int64_t btree_put_alloc_phase(struct m0_btree_op *bop)
 		} else {
 			node_op_fini(&oi->i_nop);
 			oi->i_used = bop->bo_arbor->t_height - 1;
+			if (bop->bo_flags & BOF_LOCKALL)
+				lock_op_unlock(tree);
 			level_cleanup(oi, bop->bo_tx);
 			return P_SETUP;
 		}
@@ -2782,9 +2787,9 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	tree->t_height++;
 
 
-	node_put(lev->l_alloc);
+	node_put(lev->l_alloc, true);
 	lev->l_alloc = NULL;
-	node_put(oi->i_extra_node);
+	node_put(oi->i_extra_node, true);
 	oi->i_extra_node = NULL;
 
 	lock_op_unlock(tree);
@@ -2943,7 +2948,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	temp_rec_1.r_val          = M0_BUFVEC_INIT_BUF(&p_val_1, &vsize_1);
 
 	for (i = oi->i_used - 1; i >= 0; i--) {
-		node_put(lev->l_alloc);
+		node_put(lev->l_alloc, true);
 		lev->l_alloc = NULL;
 
 		lev = &oi->i_level[i];
@@ -3035,13 +3040,17 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 					    bop->bo_arbor->t_desc, P_DOWN);
 		/* Fall through to the next stage */
-	case P_DOWN:
+	case P_DOWN: {
+		bool lock_aquired = bop->bo_flags & BOF_LOCKALL;
 		oi->i_used = 0;
+
 		/* Load root node. */
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
-				P_NEXTDOWN);
+				lock_aquired, P_NEXTDOWN);
+	}
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			bool lock_aquired        = bop->bo_flags & BOF_LOCKALL;
 			struct slot    node_slot = {};
 			struct segaddr child_node_addr;
 
@@ -3071,7 +3080,8 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 				}
 				oi->i_used++;
 				return node_get(&oi->i_nop, tree,
-						&child_node_addr, P_NEXTDOWN);
+						&child_node_addr, lock_aquired,
+						P_NEXTDOWN);
 			} else {
 				if (oi->i_key_found)
 					return P_LOCK;
@@ -3602,7 +3612,7 @@ int  btree_sibling_first_key_get(struct m0_btree_oimpl *oi, struct td *tree,
 				if (!address_in_segment(child))
 					return M0_ERR(-EFAULT);
 				node_get(&oi->i_nop, tree,
-					 &child, P_CLEANUP);
+					 &child, true, P_CLEANUP);
 				s->s_idx = 0;
 				s->s_node = oi->i_nop.no_node;
 				i++;
@@ -3653,12 +3663,15 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 				            bop->bo_arbor->t_desc, P_DOWN);
 		/** Fall through if LOCKALL flag is not set. */
-	case P_DOWN:
+	case P_DOWN: {
+		bool lock_aquired = bop->bo_flags & BOF_LOCKALL;
 		oi->i_used = 0;
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
-				P_NEXTDOWN);
+				lock_aquired, P_NEXTDOWN);
+	}
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			bool           lock_aquired;
 			struct slot    node_slot = {};
 			struct segaddr child;
 
@@ -3681,8 +3694,9 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
-				return node_get(&oi->i_nop, tree,
-						&child, P_NEXTDOWN);
+				lock_aquired = bop->bo_flags & BOF_LOCKALL;
+				return node_get(&oi->i_nop, tree, &child,
+						lock_aquired, P_NEXTDOWN);
 			} else
 				return P_LOCK;
 		} else {
@@ -3707,7 +3721,7 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 				/* If height has changed. */
 				lock_op_unlock(tree);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-				                    P_INIT);
+				                    P_SETUP);
 			} else {
 				/* If height is same. */
 				lock_op_unlock(tree);
@@ -3811,16 +3825,20 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 				            bop->bo_arbor->t_desc, P_DOWN);
 		/** Fall through if LOCKALL flag is not set. */
-	case P_DOWN:
+	case P_DOWN: {
+		bool lock_aquired = bop->bo_flags & BOF_LOCKALL;
 		oi->i_used  = 0;
 		oi->i_pivot = -1;
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
-				P_NEXTDOWN);
+				lock_aquired, P_NEXTDOWN);
+	}
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			bool           lock_aquired;
 			struct slot    s = {};
 			struct segaddr child;
 
+			lock_aquired = bop->bo_flags & BOF_LOCKALL;
 			lev = &oi->i_level[oi->i_used];
 			lev->l_node = oi->i_nop.no_node;
 			s.s_node = oi->i_nop.no_node;
@@ -3853,8 +3871,8 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
-				return node_get(&oi->i_nop, tree,
-						&child, P_NEXTDOWN);
+				return node_get(&oi->i_nop, tree, &child,
+						lock_aquired, P_NEXTDOWN);
 			} else	{
 				/* Get sibling index based on PREV/NEXT flag. */
 				lev->l_idx = sibling_index_get(s.s_idx,
@@ -3913,8 +3931,8 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 					node_op_fini(&oi->i_nop);
 					return fail(bop, M0_ERR(-EFAULT));
 				}
-				return node_get(&oi->i_nop, tree,
-						&child, P_SIBLING);
+				return node_get(&oi->i_nop, tree, &child,
+						lock_aquired, P_SIBLING);
 			}
 		} else {
 			node_op_fini(&oi->i_nop);
@@ -3922,6 +3940,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 		}
 	case P_SIBLING:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			bool           lock_aquired;
 			struct slot    s = {};
 			struct segaddr child;
 
@@ -3935,8 +3954,9 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 					node_op_fini(&oi->i_nop);
 					return fail(bop, M0_ERR(-EFAULT));
 				}
-				return node_get(&oi->i_nop, tree,
-						&child, P_SIBLING);
+				lock_aquired = bop->bo_flags & BOF_LOCKALL;
+				return node_get(&oi->i_nop, tree, &child,
+						lock_aquired, P_SIBLING);
 			} else {
 				lev = &oi->i_level[oi->i_used];
 				lev->l_sibling = oi->i_nop.no_node;
@@ -4124,7 +4144,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	oi->i_level[1].l_sibling->n_skip_rec_count_check = false;
 
 	lock_op_unlock(tree);
-	node_put(oi->i_level[1].l_sibling);
+	node_put(oi->i_level[1].l_sibling, false);
 	oi->i_level[1].l_sibling = NULL;
 	return node_free(&oi->i_nop, root_child, bop->bo_tx, P_FREENODE);
 }
@@ -4201,6 +4221,7 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 	 */
 	struct m0_btree_oimpl *oi = bop->bo_i;
 	int8_t                 load;
+	bool                   lock_aquired = bop->bo_flags & BOF_LOCKALL;
 
 	load = root_child_is_req(bop);
 	if (load == -1) {
@@ -4222,7 +4243,7 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 		}
 
 		return node_get(&oi->i_nop, bop->bo_arbor->t_desc,
-				&root_child, P_STORE_CHILD);
+				&root_child, lock_aquired, P_STORE_CHILD);
 	}
 	return P_LOCK;
 }
@@ -4268,13 +4289,16 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 					    bop->bo_arbor->t_desc, P_DOWN);
 		/* Fall through to the next stage */
-	case P_DOWN:
+	case P_DOWN: {
+		bool lock_aquired = bop->bo_flags & BOF_LOCKALL;
 		oi->i_used = 0;
 		/* Load root node. */
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
-				P_NEXTDOWN);
+				lock_aquired, P_NEXTDOWN);
+	}
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			bool           lock_aquired;
 			struct slot    node_slot = {};
 			struct segaddr child_node_addr;
 
@@ -4305,8 +4329,10 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
+				lock_aquired = bop->bo_flags & BOF_LOCKALL;
 				return node_get(&oi->i_nop, tree,
-						&child_node_addr, P_NEXTDOWN);
+						&child_node_addr, lock_aquired,
+						P_NEXTDOWN);
 			} else {
 				if (!oi->i_key_found)
 					return P_LOCK;
@@ -4409,7 +4435,7 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 			M0_ASSERT(oi->i_used > 0);
 			oi->i_used --;
 			node = lev->l_node;
-			node_put(lev->l_node);
+			node_put(lev->l_node, false);
 			lev->l_node = NULL;
 			oi->i_nop.no_opc = NOP_FREE;
 			return node_free(&oi->i_nop, node,
@@ -6326,7 +6352,7 @@ static void ut_mt_tree_oper(void)
  * Commenting this ut as it is not required as a part for test-suite but my
  * required for testing purpose
 **/
-
+#if 0
 /**
  * This function is for traversal of tree in breadth-first order and it will
  * print level and key-value pair for each node.
@@ -6381,8 +6407,8 @@ static void ut_traversal(struct td *tree)
 				struct node_op  i_nop;
 				i_nop.no_opc = NOP_LOAD;
 				node_get(&i_nop, tree, &child_node_addr,
-					 P_NEXTDOWN);
-				node_put(i_nop.no_node);
+					 false, P_NEXTDOWN);
+				node_put(i_nop.no_node, false);
 				if (front == -1) {
 					front = 0;
 				}
@@ -6402,8 +6428,9 @@ static void ut_traversal(struct td *tree)
 			node_child(&node_slot, &child_node_addr);
 			struct node_op  i_nop;
 			i_nop.no_opc = NOP_LOAD;
-			node_get(&i_nop, tree, &child_node_addr, P_NEXTDOWN);
-			node_put(i_nop.no_node);
+			node_get(&i_nop, tree, &child_node_addr, false,
+				 P_NEXTDOWN);
+			node_put(i_nop.no_node, false);
 			if (front == -1) {
 				front = 0;
 			}
@@ -6473,7 +6500,7 @@ static void ut_invariant_check(struct td *tree)
 			}
 			int total_count = node_count(element);
 			if (level == max_level){
-				if (element->n_ref != 1){
+				if (element->n_ref != 2){
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
 				}
@@ -6507,8 +6534,8 @@ static void ut_invariant_check(struct td *tree)
 				struct node_op  i_nop;
 				i_nop.no_opc = NOP_LOAD;
 				node_get(&i_nop, tree, &child_node_addr,
-					 P_NEXTDOWN);
-				node_put(i_nop.no_node);
+					 false, P_NEXTDOWN);
+				node_put(i_nop.no_node, false);
 				if (front == -1) {
 					front = 0;
 				}
@@ -6527,8 +6554,9 @@ static void ut_invariant_check(struct td *tree)
 			node_child(&node_slot, &child_node_addr);
 			struct node_op  i_nop;
 			i_nop.no_opc = NOP_LOAD;
-			node_get(&i_nop, tree, &child_node_addr, P_NEXTDOWN);
-			node_put(i_nop.no_node);
+			node_get(&i_nop, tree, &child_node_addr, false,
+			         P_NEXTDOWN);
+			node_put(i_nop.no_node, false);
 			if (front == -1) {
 				front = 0;
 			}
@@ -6546,7 +6574,7 @@ static void ut_invariant_check(struct td *tree)
 			}
 			int total_count = node_count(element);
 			if (level == max_level){
-				if (element->n_ref != 1){
+				if (element->n_ref != 2){
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
 				}
@@ -6579,199 +6607,11 @@ static void ut_invariant_check(struct td *tree)
 	}
 }
 
-static void ut_insert(struct td *tree)
-{
-	struct ff_head *h     = ff_data(tree->t_root);
-	m0_bcount_t     ksize = h->ff_ksize;
-	m0_bcount_t     vsize = h->ff_vsize;
-
-	uint64_t total_record = 1000000;
-	uint64_t temp = 1000000;
-
-	uint64_t temp2;
-	bool inc = false;
-
-	tree->t_height = 1;
-	while (total_record) {
-		uint64_t               key;
-		uint64_t               val;
-
-		struct cb_data         put_data;
-		struct m0_btree_key    put_key;
-		struct m0_bufvec       put_value;
-		struct m0_btree_cb     ut_cb;
-		void                  *p_key;
-		void                  *p_val;
-
-		temp2 = inc ? temp - total_record : total_record;
-		key = val = m0_byteorder_cpu_to_be64(temp2);
-
-		p_key = &key;
-		p_val = &val;
-
-		/* printf("%"PRIu64",",key); */
-		struct m0_btree_op bop;
-		M0_SET0(&bop);
-		struct m0_btree btree;
-		M0_SET0(&btree);
-
-		bop.bo_op.o_sm.sm_state = P_INIT;
-		bop.bo_arbor = &btree;
-		bop.bo_arbor->t_desc = tree;
-		bop.bo_opc = M0_BO_PUT;
-
-		bop.bo_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
-		bop.bo_rec.r_val        = M0_BUFVEC_INIT_BUF(&p_val, &vsize);
-
-		put_key.k_data     = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
-		put_value          = M0_BUFVEC_INIT_BUF(&p_val, &vsize);
-
-		put_data.key       = &put_key;
-		put_data.value     = &put_value;
-
-		ut_cb.c_act   = btree_kv_put_cb;
-		ut_cb.c_datum = &put_data;
-		bop.bo_cb = ut_cb;
-
-		while (1) {
-			int64_t nxt = btree_put_tick(&bop.bo_op);
-			if (nxt == P_DONE )
-				break;
-			bop.bo_op.o_sm.sm_state = nxt;
-		}
-
-		if (bop.bo_op.o_sm.sm_rc == M0_BSC_KEY_EXISTS) {
-			printf("M0_BSC_KEY_EXISTS");
-		} else if (bop.bo_op.o_sm.sm_rc!=0)
-		{
-			printf("bop->bo_op.o_sm.sm_rc  not 0");
-		}
-
-		total_record--;
-	}
-	printf("\nAfter INSERTION");
-	printf("level : %d\n", node_level(tree->t_root));
-	ut_invariant_check(tree);
-}
-
-static void ut_delete(struct td *tree)
-{
-	struct ff_head *h     = ff_data(tree->t_root);
-	m0_bcount_t     ksize = h->ff_ksize;
-
-	uint64_t total_record = 1000000;
-	uint64_t temp = 1000000;
-
-	bool inc = false;
-	uint64_t temp2;
-	while (total_record) {
-		uint64_t               key;
-
-		struct cb_data         put_data;
-		struct m0_btree_key    put_key;
-		struct m0_btree_cb     ut_cb;
-		void                  *p_key;
-
-		temp2 = inc ? temp - total_record : total_record;
-		key = m0_byteorder_cpu_to_be64(temp2);
-		/* printf("%"PRIu64",",key); */
-
-		p_key = &key;
-
-		struct m0_btree_op bop;
-		M0_SET0(&bop);
-		struct m0_btree btree;
-		M0_SET0(&btree);
-
-		bop.bo_op.o_sm.sm_state = P_INIT;
-		bop.bo_arbor = &btree;
-		bop.bo_arbor->t_desc = tree;
-		bop.bo_opc = M0_BO_DEL;
-
-		bop.bo_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
-
-		put_key.k_data     = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
-
-		put_data.key       = &put_key;
-
-		ut_cb.c_act   = btree_kv_del_cb;
-		ut_cb.c_datum = &put_data;
-		bop.bo_cb = ut_cb;
-
-		while (1) {
-			int64_t nxt = btree_del_tick(&bop.bo_op);
-
-			if (nxt == P_DONE )
-			{
-				break;
-			}
-			bop.bo_op.o_sm.sm_state = nxt;
-		}
-
-		if (bop.bo_op.o_sm.sm_rc == M0_BSC_KEY_NOT_FOUND) {
-			printf("M0_BSC_KEY_NOT_FOUND");
-		} else if (bop.bo_op.o_sm.sm_rc!=0)
-		{
-			printf("bop->bo_op.o_sm.sm_rc  not 0");
-		}
-
-		total_record--;
-
-		/*printf("%"PRIu64",",temp2);
-		printf("\n**********After Deletion****************");
-		ut_traversal(tree);
-		ut_invariant_check(tree);*/
-		M0_ASSERT(tree->t_height == node_level(tree->t_root) + 1);
-
-	}
-	printf("\nAfter Deletion");
-	ut_traversal(tree);
-	ut_invariant_check(tree);
-}
-
 /**
  * This ut will put records in the tree and delete those records in sequencial
  * manner.
  */
 static void ut_put_del_operation(void)
-{
-	struct node_op          op;
-	struct m0_btree_type    tt;
-	struct td              *tree;
-
-	M0_ENTRY();
-
-	btree_ut_init();
-
-	M0_SET0(&op);
-
-	op.no_opc = NOP_ALLOC;
-
-	tree_create(&op, &tt, 10, NULL, 0);
-
-	tree = op.no_tree;
-
-	M0_ASSERT(tree->t_ref == 1);
-	M0_ASSERT(tree->t_root != NULL);
-
-	tree->t_height = 1;
-
-	ut_insert(tree);
-	ut_delete(tree);
-
-	/*
-	printf("\nAfter AGAIN INSERT ");
-	ut_traversal(tree);
-	*/
-
-	op.no_opc = NOP_FREE;
-	tree_delete(&op, tree, NULL, 0);
-
-	btree_ut_fini();
-	M0_LEAVE();
-}
-
-static void ut_basic_kv_oper_2(void)
 {
 	struct m0_btree_type    btree_type = {.tt_id = M0_BT_UT_KV_OPS,
 					      .ksize = 8,
@@ -6782,9 +6622,10 @@ static void ut_basic_kv_oper_2(void)
 	void                   *temp_node;
 	int                     i;
 	struct m0_btree_cb      ut_cb;
-	struct m0_btree_op      kv_op                 = {};
+	struct m0_btree_op      kv_op                = {};
 	const struct node_type *nt                   = &fixed_format;
-
+	int                     total_records        = 1000000;
+	bool                    inc;
 	M0_ENTRY();
 
 	/** Prepare transaction to capture tree operations. */
@@ -6809,7 +6650,7 @@ static void ut_basic_kv_oper_2(void)
 				 &b_op.bo_sm_group, &b_op.bo_op_exec);
 
 	tree = b_op.bo_arbor;
-
+	inc = false;
 	for (i = 0; i < 1000000; i++) {
 		uint64_t             key;
 		uint64_t             value;
@@ -6825,7 +6666,8 @@ static void ut_basic_kv_oper_2(void)
 		 *  again. This is fine as it helps debug the code when insert
 		 *  is called with the same key instead of update function.
 		 */
-		key = value = m0_byteorder_cpu_to_be64(i);
+		int temp = inc ? total_records - i : i;
+		key = value = m0_byteorder_cpu_to_be64(temp);
 
 		rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val          = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
@@ -6840,14 +6682,18 @@ static void ut_basic_kv_oper_2(void)
 					 m0_btree_put(tree, &rec, &ut_cb, 0,
 						      &kv_op, tx),
 					 &kv_op.bo_sm_group, &kv_op.bo_op_exec);
-
+		if (put_data.flags == M0_BSC_KEY_EXISTS) {
+			printf("M0_BSC_KEY_EXISTS ");
+		}
 
 	}
 	printf("level : %d\n", node_level(tree->t_desc->t_root));
+	ut_invariant_check(tree->t_desc);
+	inc = false;
 	for (i = 0; i < 1000000; i++) {
 		uint64_t             key;
 		uint64_t             value;
-		struct cb_data       put_data;
+		struct cb_data       del_data;
 		struct m0_btree_rec  rec;
 		m0_bcount_t          ksize  = sizeof key;
 		m0_bcount_t          vsize  = sizeof value;
@@ -6859,21 +6705,25 @@ static void ut_basic_kv_oper_2(void)
 		 *  again. This is fine as it helps debug the code when insert
 		 *  is called with the same key instead of update function.
 		 */
-		key = value = m0_byteorder_cpu_to_be64(i);
+		int temp = inc ? total_records - i : i;
+		key = value = m0_byteorder_cpu_to_be64(temp);
 
 		rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val          = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
 
-		put_data.key       = &rec.r_key;
-		put_data.value     = &rec.r_val;
+		del_data.key       = &rec.r_key;
+		del_data.value     = &rec.r_val;
 
 		ut_cb.c_act        = btree_kv_del_cb;
-		ut_cb.c_datum      = &put_data;
+		ut_cb.c_datum      = &del_data;
 
 		M0_BTREE_OP_SYNC_WITH_RC(&kv_op.bo_op,
 					 m0_btree_del(tree, &rec.r_key,
 						      &ut_cb, 0, &kv_op, tx),
 					 &kv_op.bo_sm_group, &kv_op.bo_op_exec);
+		if (del_data.flags == M0_BSC_KEY_NOT_FOUND) {
+			printf("M0_BSC_KEY_NOT_FOUND ");
+		}
 
 
 	}
@@ -6891,7 +6741,7 @@ static void ut_basic_kv_oper_2(void)
 	 */
 	btree_ut_fini();
 }
-
+#endif
 struct m0_ut_suite btree_ut = {
 	.ts_name = "btree-ut",
 	.ts_yaml_config_string = "{ valgrind: { timeout: 3600 },"
@@ -6912,8 +6762,7 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
 		{"single_thread_tree_op",           ut_st_tree_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
-		{"ut_basic_kv_oper_2",              ut_basic_kv_oper_2},
-		{"btree_kv_add_del",                ut_put_del_operation},
+		/* {"btree_kv_add_del",                ut_put_del_operation}, */
 		{NULL, NULL}
 	}
 };
