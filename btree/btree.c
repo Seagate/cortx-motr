@@ -990,14 +990,16 @@ struct nd {
 	 * read-only after the node is loaded into memory.
 	 */
 	struct m0_rwlock        n_lock;
+
 	/**
 	 * Node refernce count. n_ref count indicates the number of times this
 	 * node is fetched for different operations (KV delete, put, get etc.).
 	 * If the n_ref count is non-zero the node should be in active node
 	 * descriptor list. Once n_ref count reaches, it means the node is not
-	 * in use by any operation and is safe to move to glbal lru list.
+	 * in use by any operation and is safe to move to global lru list.
 	 */
 	int                     n_ref;
+
 	/**
 	 * Transaction reference count.A non-zero txref value indicates
 	 * the active transactions for this node. Once the txref count goes to
@@ -1005,6 +1007,7 @@ struct nd {
 	 * kernel starts to run out of physical memory in the system.
 	 */
 	int                     n_txref;
+
 	uint64_t                n_seq;
 	struct node_op         *n_op;
 };
@@ -1226,7 +1229,8 @@ static struct m0_tl     btree_lru_nds;
 
 /**
  * LRU list lock.
- * It is used as protection while manipulating the lru_list.
+ * It is used as protection for lru_list from multiple threads
+ * modifying the list at the same time and causing corruption.
  */
 static struct m0_rwlock lru_lock;
 
@@ -1877,7 +1881,10 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	tree->t_ref++;
 
 	if (addr) {
+		m0_rwlock_write_unlock(&tree->t_lock);
 		node_get(op, tree, addr, nxt);
+		m0_rwlock_write_lock(&tree->t_lock);
+
 		tree->t_root         =  op->no_node;
 		tree->t_root->n_addr = *addr;
 		tree->t_root->n_tree =  tree;
@@ -2032,14 +2039,14 @@ static const struct seg_ops mem_seg_ops = {
  *  Structure of the node in persistent store.
  */
 struct ff_head {
-	struct m0_format_header  ff_fmt;   /*< Node Header */
-	struct node_header       ff_seg;   /*< Node type information */
-	uint16_t                 ff_used;  /*< Count of records */
-	uint8_t                  ff_shift; /*< Node size as pow-of-2 */
-	uint8_t                  ff_level; /*< Level in Btree */
-	uint16_t                 ff_ksize; /*< Size of key in bytes */
-	uint16_t                 ff_vsize; /*< Size of value in bytes */
-	struct m0_format_footer  ff_foot;  /*< Node Footer */
+	struct m0_format_header  ff_fmt;    /*< Node Header */
+	struct node_header       ff_seg;    /*< Node type information */
+	uint16_t                 ff_used;   /*< Count of records */
+	uint8_t                  ff_shift;  /*< Node size as pow-of-2 */
+	uint8_t                  ff_level;  /*< Level in Btree */
+	uint16_t                 ff_ksize;  /*< Size of key in bytes */
+	uint16_t                 ff_vsize;  /*< Size of value in bytes */
+	struct m0_format_footer  ff_foot;   /*< Node Footer */
 	void                    *ff_opaque; /*< opaque data */
 	/**
 	 *  This space is used to host the Keys and Values upto the size of the
@@ -2766,7 +2773,7 @@ static int64_t btree_put_alloc_phase(struct m0_btree_op *bop)
 		if ((oi->i_extra_node == NULL || lev->l_alloc == NULL)) {
 			/**
 			 * If we reach root node and there is possibility of
-			 * overflow at root,allocate two nodes: l_alloc,
+			 * overflow at root, allocate two nodes: l_alloc,
 			 * i_extra_node. i)l_alloc is required in case of
 			 * splitting operation of root ii)i_extra_node is
 			 * required if splitting is done at root node so to have
@@ -2952,7 +2959,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
  * @param tx It represents the transaction of which the current operation is
  * part of.
  */
-static void btree_put_split_and_find(struct nd *l_alloc , struct nd *l_node,
+static void btree_put_split_and_find(struct nd *l_alloc, struct nd *l_node,
 				     struct m0_btree_rec *rec,
 				     struct slot *tgt, struct m0_be_tx *tx)
 {
@@ -3331,7 +3338,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		 * for inserting a record, callback will be called.
 		 * Callback will be provided with the record. It is
 		 * user's responsibility to fill the value as well as
-		 * key in the given record. if callback failed,we will
+		 * key in the given record. if callback failed, we will
 		 * revert back the changes made on btree. Detailed
 		 * explination is provided at P_MAKESPACE stage.
 		 */
@@ -6474,17 +6481,17 @@ static void m0_btree_ut_traversal(struct td *tree)
 		printf("\n");
 		int level = node_level(element);
 		if (level > 0) {
-			printf("level : %d =>    ",level);
-			if (level !=lev)
+			printf("level : %d =>    ", level);
+			if (level != lev)
 			{
 				lev = level;
 				count =0;
 
 			}
-			printf("count : %d =>\n",count++);
+			printf("count : %d =>\n", count++);
 			int total_count = node_count(element);
 			int j;
-			for(j=0 ; j < total_count; j++)
+			for (j=0 ; j < total_count; j++)
 			{
 				uint64_t key = 0;
 				get_key_at_index(element, j, &key);
@@ -6535,17 +6542,17 @@ static void m0_btree_ut_traversal(struct td *tree)
 			queue[rear] = i_nop.no_node;
 			printf("\n\n");
 		} else {
-			printf("level : %d =>",level);
-			if (level !=lev)
+			printf("level : %d =>", level);
+			if (level != lev)
 			{
 				lev = level;
 				count =0;
 
 			}
-			printf("count : %d =>\n",count++);
+			printf("count : %d =>\n", count++);
 			int total_count = node_count(element);
 			int j;
-			for(j=0 ; j < total_count; j++)
+			for (j=0 ; j < total_count; j++)
 			{
 				uint64_t key = 0;
 				uint64_t val = 0;
@@ -6586,32 +6593,32 @@ static void m0_btree_ut_invariant_check(struct td *tree)
 		}
 		int level = node_level(element);
 		if (level > 0) {
-			if (level !=lev)
+			if (level != lev)
 			{
 				lev = level;
 				firstkey = true;
 			}
 			int total_count = node_count(element);
-			if (level == max_level){
-				if (element->n_ref != 1){
+			if (level == max_level) {
+				if (element->n_ref != 1) {
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
 				}
 			} else {
-				if (element->n_ref != 0){
+				if (element->n_ref != 0) {
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
 				}
 			}
 			int j;
-			for(j=0 ; j < total_count; j++)
+			for (j=0 ; j < total_count; j++)
 			{
 				uint64_t key = 0;
 				get_key_at_index(element, j, &key);
 
 				key = m0_byteorder_be64_to_cpu(key);
-				if (!firstkey){
-					if (key < prevkey){
+				if (!firstkey) {
+					if (key < prevkey) {
 						printf("***INVARIENT FAIL***");
 						M0_ASSERT(0);
 					}
@@ -6659,25 +6666,25 @@ static void m0_btree_ut_invariant_check(struct td *tree)
 			}
 			queue[rear] = i_nop.no_node;
 		} else {
-			if (level !=lev)
+			if (level != lev)
 			{
 				lev = level;
 				firstkey = true;
 			}
 			int total_count = node_count(element);
-			if (level == max_level){
-				if (element->n_ref != 1){
+			if (level == max_level) {
+				if (element->n_ref != 1) {
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
 				}
 			} else {
-				if (element->n_ref != 0){
+				if (element->n_ref != 0) {
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
 				}
 			}
 			int j;
-			for(j=0 ; j < total_count; j++)
+			for (j=0 ; j < total_count; j++)
 			{
 				uint64_t key = 0;
 				uint64_t val = 0;
@@ -6685,8 +6692,8 @@ static void m0_btree_ut_invariant_check(struct td *tree)
 
 				key = m0_byteorder_be64_to_cpu(key);
 				val = m0_byteorder_be64_to_cpu(val);
-				if (!firstkey){
-					if (key < prevkey){
+				if (!firstkey) {
+					if (key < prevkey) {
 						printf("***INVARIENT FAIL***");
 						M0_ASSERT(0);
 					}
@@ -6729,7 +6736,7 @@ static void m0_btree_ut_insert(struct td *tree)
 		p_key = &key;
 		p_val = &val;
 
-		/* printf("%"PRIu64",",key); */
+		/* printf("%"PRIu64",", key); */
 		struct m0_btree_op bop;
 		M0_SET0(&bop);
 		struct m0_btree btree;
@@ -6755,14 +6762,14 @@ static void m0_btree_ut_insert(struct td *tree)
 
 		while (1) {
 			int64_t nxt = btree_put_kv_tick(&bop.bo_op);
-			if (nxt == P_DONE )
+			if (nxt == P_DONE)
 				break;
 			bop.bo_op.o_sm.sm_state = nxt;
 		}
 
 		if (bop.bo_op.o_sm.sm_rc == M0_BSC_KEY_EXISTS) {
 			printf("M0_BSC_KEY_EXISTS");
-		} else if (bop.bo_op.o_sm.sm_rc!=0)
+		} else if (bop.bo_op.o_sm.sm_rc != 0)
 		{
 			printf("bop->bo_op.o_sm.sm_rc  not 0");
 		}
@@ -6794,7 +6801,7 @@ static void m0_btree_ut_delete(struct td *tree)
 
 		temp2 = inc ? temp - total_record : total_record;
 		key = m0_byteorder_cpu_to_be64(temp2);
-		/* printf("%"PRIu64",",key); */
+		/* printf("%"PRIu64",", key); */
 
 		p_key = &key;
 
@@ -6821,7 +6828,7 @@ static void m0_btree_ut_delete(struct td *tree)
 		while (1) {
 			int64_t nxt = btree_del_kv_tick(&bop.bo_op);
 
-			if (nxt == P_DONE )
+			if (nxt == P_DONE)
 			{
 				break;
 			}
@@ -6830,14 +6837,14 @@ static void m0_btree_ut_delete(struct td *tree)
 
 		if (bop.bo_op.o_sm.sm_rc == M0_BSC_KEY_NOT_FOUND) {
 			printf("M0_BSC_KEY_NOT_FOUND");
-		} else if (bop.bo_op.o_sm.sm_rc!=0)
+		} else if (bop.bo_op.o_sm.sm_rc != 0)
 		{
 			printf("bop->bo_op.o_sm.sm_rc  not 0");
 		}
 
 		total_record--;
 
-		/*printf("%"PRIu64",",temp2);
+		/*printf("%"PRIu64",", temp2);
 		printf("\n**********After Deletion****************");
 		m0_btree_ut_traversal(tree);
 		m0_btree_ut_invariant_check(tree);*/
