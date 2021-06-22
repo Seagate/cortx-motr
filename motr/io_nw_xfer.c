@@ -1276,11 +1276,12 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 		rc = target_ioreq_init(ti, xfer, fid, ta_obj, session, size);
 		if (rc == 0) {
 			tioreqht_htable_add(&xfer->nxr_tioreqs_hash, ti);
-			M0_LOG(M0_INFO, "New target_ioreq added for "FID_F,
-			       FID_P(fid));
-		}
-		else
+			M0_LOG(M0_INFO, "New target_ioreq %p added for "FID_F,
+			                ti, FID_P(fid));
+		} else {
 			m0_free(ti);
+			return M0_ERR_INFO(rc, "target_ioreq_init() failed");
+		}
 	}
 
 	if (ti->ti_dgvec == NULL && M0_IN(ioreq_sm_state(ioo),
