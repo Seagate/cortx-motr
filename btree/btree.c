@@ -982,6 +982,7 @@ struct nd {
 	/** if n_skip_rec_count_check is true, it will skip invarient check
 	 * record count as it is required for some scenarios */
 	bool                    n_skip_rec_count_check;
+
 	/** Linkage into node descriptor list. ndlist_tl, td::t_active_nds. */
 	struct m0_tlink	        n_linkage;
 	uint64_t                n_magic;
@@ -3628,7 +3629,7 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op *bop = M0_AMB(bop, smop, bo_op);
-
+	int rc = 0;
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
 		M0_PRE(bop->bo_arbor != NULL);
@@ -3646,6 +3647,8 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 
 		if(bop->bo_arbor->t_desc->t_ref > 0)
 			tree_put(bop->bo_arbor->t_desc);
+		else
+			rc = M0_ERR(-EINVAL);
 		/**
 		 * ToDo: We need to capture the changes occuring in the
 		 * root node after tree_descriptor has been freed using
@@ -3656,7 +3659,13 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 		m0_free(bop->bo_arbor);
 		bop->bo_arbor = NULL;
 
-		return P_DONE;
+		/** The check for rc has added to gracefully handle the case
+		 *  where the t_ref is 0. If we had put an assert there, then
+		 * we will face memory leakage in terms of bop->bo_arbor.
+		 */
+		if(rc == 0)
+			return P_DONE;
+		return rc;
 
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
@@ -3731,35 +3740,31 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 		tree_put(tree->t_desc);
 	} else if (tree->t_desc->t_ref == 1) {
 		nd_curr = nd_head;
-		if(nd_curr->n_starttime == 0)
+		if (nd_curr->n_starttime == 0)
 			nd_curr->n_starttime = m0_time_now();
-		do {
-			node_put(nd_curr);
-			if (nd_curr->n_ref > 0) {
-				if (nd_curr == tree->t_desc->t_root &&
-				    nd_curr->n_ref == 1) {
-					nd_curr->n_starttime = 0;
-					node_put(nd_curr);
-				}
-				else {
-					/** This code is meant for debugging.
-					 *  In future, this case needs to be
-					 *  handled in a better way.
-					 */
-					if (m0_time_seconds(m0_time_now() -
-					    nd_curr->n_starttime) > 5) {
-						nd_curr->n_starttime = 0;
-						return M0_ERR(-ETIMEDOUT);
-					}
-					return P_INIT;
-				}
-			}
-
-			nd_curr = ndlist_tlist_next(&tree->t_desc->t_active_nds,
-						    nd_curr);
-			if (nd_curr != NULL)
+		if (ndlist_tlist_length(&tree->t_desc->t_active_nds) > 1) {
+			/** This code is meant for debugging.
+			 *  In future, this case needs to be
+			 *  handled in a better way.
+			 */
+			if (m0_time_seconds(m0_time_now() -
+			    nd_curr->n_starttime) > 5) {
 				nd_curr->n_starttime = 0;
-		} while (nd_curr != NULL);
+				return M0_ERR(-ETIMEDOUT);
+			}
+			return P_INIT;
+		} else if (nd_curr == tree->t_desc->t_root) {
+			if (nd_curr->n_ref > 1) {
+				if (m0_time_seconds(m0_time_now() -
+				    nd_curr->n_starttime) > 5) {
+					nd_curr->n_starttime = 0;
+					return M0_ERR(-ETIMEDOUT);
+				}
+			} else {
+				nd_curr->n_starttime = 0;
+				node_put(nd_curr);
+			}
+		}
 		tree_put(tree->t_desc);
 	} else {
 		return M0_ERR(-ECANCELED);
@@ -5210,7 +5215,7 @@ static void ut_basic_tree_oper(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
 				      m0_btree_destroy(b_op.bo_arbor, &b_op),
 				      &b_op.bo_sm_group, &b_op.bo_op_exec);
-	M0_ASSERT(rc == 0);
+	M0_ASSERT(rc == -EINVAL);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
 	/** Now run some invalid cases */
@@ -6465,7 +6470,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					      m0_btree_destroy(tree, &b_op),
 					      &b_op.bo_sm_group,
 					      &b_op.bo_op_exec);
-		M0_ASSERT(rc == 0);
+		M0_ASSERT(rc == -EINVAL);
 	}
 
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
