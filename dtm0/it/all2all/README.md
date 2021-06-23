@@ -45,12 +45,13 @@ sudo ./all2all
 ## Hare usage
 
 Hare is used for cluster bootstrap and shutdown. Firstly
-it needs to be patched by the hare.patch in current directory
+it needs to be cloned locally and switched to dtm-0 branch
 to make it able to generate clusted configuration that includes
-DTM0 service. First copy hare.patch file to the hare folder and run 
-following command from hare directory for applying patch.
+DTM0 service with required parameters.
 ```sh
-patch -p1 < hare.patch
+git clone git@github.com:Seagate/cortx-hare.git
+cd cortx-hare
+git checkout dtm-0
 ```
 After above step hare should be built and installed into the system 
 (see [README.md](https://github.com/Seagate/cortx-hare/blob/main/README.md) in the root of Hare repo).
