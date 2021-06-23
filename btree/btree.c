@@ -1044,8 +1044,8 @@ static int64_t tree_delete(struct node_op *op, struct td *tree,
 static void    tree_put   (struct td *tree);
 #ifndef __KERNEL__
 static int64_t    node_get  (struct node_op *op, struct td *tree,
-			     struct segaddr *addr, bool lock_aquired, int nxt);
-static void       node_put  (struct nd *node, bool lock_aquired);
+			     struct segaddr *addr, bool lock_acquired, int nxt);
+static void       node_put  (struct nd *node, bool lock_acquired);
 #endif
 
 
@@ -1549,9 +1549,9 @@ struct seg_ops {
 				     struct m0_be_tx *tx, int nxt);
 	void       (*so_tree_put)(struct td *tree);
 	int64_t    (*so_node_get)(struct node_op *op, struct td *tree,
-			          struct segaddr *addr, bool lock_aquired,
+			          struct segaddr *addr, bool lock_acquired,
 				  int nxt);
-	void       (*so_node_put)(struct nd *node, bool lock_aquired);
+	void       (*so_node_put)(struct nd *node, bool lock_acquired);
 	struct nd *(*so_node_try)(struct td *tree, struct segaddr *addr);
 	int64_t    (*so_node_alloc)(struct node_op *op, struct td *tree,
 				    int shift, const struct node_type *nt,
@@ -1657,8 +1657,8 @@ static void tree_put(struct td *tree)
  * @return next state
  */
 static int64_t node_get(struct node_op *op, struct td *tree,
-			struct segaddr *addr, bool lock_aquired, int nxt){
-	return segops->so_node_get(op, tree, addr, lock_aquired, nxt);
+			struct segaddr *addr, bool lock_acquired, int nxt){
+	return segops->so_node_get(op, tree, addr, lock_acquired, nxt);
 }
 
 
@@ -1675,9 +1675,9 @@ static int64_t node_get(struct node_op *op, struct td *tree,
  *
  * @return next state
  */
-static void node_put(struct nd *node, bool lock_aquired){
+static void node_put(struct nd *node, bool lock_acquired){
 	M0_PRE(node != NULL);
-	segops->so_node_put(node, lock_aquired);
+	segops->so_node_put(node, lock_acquired);
 }
 #endif
 
@@ -1733,7 +1733,7 @@ static void node_op_fini(struct node_op *op)
 #endif
 
 static int64_t mem_node_get(struct node_op *op, struct td *tree,
-			    struct segaddr *addr, bool lock_aquired, int nxt);
+			    struct segaddr *addr, bool lock_acquired, int nxt);
 static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
 			      const struct node_type *nt, struct m0_be_tx *tx,
 			      int nxt);
@@ -1879,7 +1879,7 @@ static void mem_tree_put(struct td *tree)
 }
 
 static int64_t mem_node_get(struct node_op *op, struct td *tree,
-			    struct segaddr *addr, bool lock_aquired, int nxt)
+			    struct segaddr *addr, bool lock_acquired, int nxt)
 {
 	int nxt_state = nxt;
 
@@ -1899,7 +1899,7 @@ static int64_t mem_node_get(struct node_op *op, struct td *tree,
 	return nxt_state;
 }
 
-static void mem_node_put(struct nd *node, bool lock_aquired)
+static void mem_node_put(struct nd *node, bool lock_acquired)
 {
 	/**
 	 * This implementation does not perform any action, but the final one
@@ -3041,16 +3041,16 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 					    bop->bo_arbor->t_desc, P_DOWN);
 		/* Fall through to the next stage */
 	case P_DOWN: {
-		bool lock_aquired = bop->bo_flags & BOF_LOCKALL;
+		bool lock_acquired = bop->bo_flags & BOF_LOCKALL;
 		oi->i_used = 0;
 
 		/* Load root node. */
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
-				lock_aquired, P_NEXTDOWN);
+				lock_acquired, P_NEXTDOWN);
 	}
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			bool lock_aquired        = bop->bo_flags & BOF_LOCKALL;
+			bool lock_acquired        = bop->bo_flags & BOF_LOCKALL;
 			struct slot    node_slot = {};
 			struct segaddr child_node_addr;
 
@@ -3080,7 +3080,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 				}
 				oi->i_used++;
 				return node_get(&oi->i_nop, tree,
-						&child_node_addr, lock_aquired,
+						&child_node_addr, lock_acquired,
 						P_NEXTDOWN);
 			} else {
 				if (oi->i_key_found)
@@ -3664,14 +3664,14 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 				            bop->bo_arbor->t_desc, P_DOWN);
 		/** Fall through if LOCKALL flag is not set. */
 	case P_DOWN: {
-		bool lock_aquired = bop->bo_flags & BOF_LOCKALL;
+		bool lock_acquired = bop->bo_flags & BOF_LOCKALL;
 		oi->i_used = 0;
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
-				lock_aquired, P_NEXTDOWN);
+				lock_acquired, P_NEXTDOWN);
 	}
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			bool           lock_aquired;
+			bool           lock_acquired;
 			struct slot    node_slot = {};
 			struct segaddr child;
 
@@ -3694,9 +3694,9 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
-				lock_aquired = bop->bo_flags & BOF_LOCKALL;
+				lock_acquired = bop->bo_flags & BOF_LOCKALL;
 				return node_get(&oi->i_nop, tree, &child,
-						lock_aquired, P_NEXTDOWN);
+						lock_acquired, P_NEXTDOWN);
 			} else
 				return P_LOCK;
 		} else {
@@ -3826,19 +3826,19 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 				            bop->bo_arbor->t_desc, P_DOWN);
 		/** Fall through if LOCKALL flag is not set. */
 	case P_DOWN: {
-		bool lock_aquired = bop->bo_flags & BOF_LOCKALL;
+		bool lock_acquired = bop->bo_flags & BOF_LOCKALL;
 		oi->i_used  = 0;
 		oi->i_pivot = -1;
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
-				lock_aquired, P_NEXTDOWN);
+				lock_acquired, P_NEXTDOWN);
 	}
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			bool           lock_aquired;
+			bool           lock_acquired;
 			struct slot    s = {};
 			struct segaddr child;
 
-			lock_aquired = bop->bo_flags & BOF_LOCKALL;
+			lock_acquired = bop->bo_flags & BOF_LOCKALL;
 			lev = &oi->i_level[oi->i_used];
 			lev->l_node = oi->i_nop.no_node;
 			s.s_node = oi->i_nop.no_node;
@@ -3872,7 +3872,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 				}
 				oi->i_used++;
 				return node_get(&oi->i_nop, tree, &child,
-						lock_aquired, P_NEXTDOWN);
+						lock_acquired, P_NEXTDOWN);
 			} else	{
 				/* Get sibling index based on PREV/NEXT flag. */
 				lev->l_idx = sibling_index_get(s.s_idx,
@@ -3932,7 +3932,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				return node_get(&oi->i_nop, tree, &child,
-						lock_aquired, P_SIBLING);
+						lock_acquired, P_SIBLING);
 			}
 		} else {
 			node_op_fini(&oi->i_nop);
@@ -3940,7 +3940,7 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 		}
 	case P_SIBLING:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			bool           lock_aquired;
+			bool           lock_acquired;
 			struct slot    s = {};
 			struct segaddr child;
 
@@ -3954,9 +3954,9 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 					node_op_fini(&oi->i_nop);
 					return fail(bop, M0_ERR(-EFAULT));
 				}
-				lock_aquired = bop->bo_flags & BOF_LOCKALL;
+				lock_acquired = bop->bo_flags & BOF_LOCKALL;
 				return node_get(&oi->i_nop, tree, &child,
-						lock_aquired, P_SIBLING);
+						lock_acquired, P_SIBLING);
 			} else {
 				lev = &oi->i_level[oi->i_used];
 				lev->l_sibling = oi->i_nop.no_node;
@@ -4221,7 +4221,7 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 	 */
 	struct m0_btree_oimpl *oi = bop->bo_i;
 	int8_t                 load;
-	bool                   lock_aquired = bop->bo_flags & BOF_LOCKALL;
+	bool                   lock_acquired = bop->bo_flags & BOF_LOCKALL;
 
 	load = root_child_is_req(bop);
 	if (load == -1) {
@@ -4243,7 +4243,7 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 		}
 
 		return node_get(&oi->i_nop, bop->bo_arbor->t_desc,
-				&root_child, lock_aquired, P_STORE_CHILD);
+				&root_child, lock_acquired, P_STORE_CHILD);
 	}
 	return P_LOCK;
 }
@@ -4290,15 +4290,15 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 					    bop->bo_arbor->t_desc, P_DOWN);
 		/* Fall through to the next stage */
 	case P_DOWN: {
-		bool lock_aquired = bop->bo_flags & BOF_LOCKALL;
+		bool lock_acquired = bop->bo_flags & BOF_LOCKALL;
 		oi->i_used = 0;
 		/* Load root node. */
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
-				lock_aquired, P_NEXTDOWN);
+				lock_acquired, P_NEXTDOWN);
 	}
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			bool           lock_aquired;
+			bool           lock_acquired;
 			struct slot    node_slot = {};
 			struct segaddr child_node_addr;
 
@@ -4329,9 +4329,9 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
-				lock_aquired = bop->bo_flags & BOF_LOCKALL;
+				lock_acquired = bop->bo_flags & BOF_LOCKALL;
 				return node_get(&oi->i_nop, tree,
-						&child_node_addr, lock_aquired,
+						&child_node_addr, lock_acquired,
 						P_NEXTDOWN);
 			} else {
 				if (!oi->i_key_found)
