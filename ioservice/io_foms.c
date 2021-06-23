@@ -27,6 +27,7 @@
 #include "lib/assert.h"
 #include "lib/misc.h"    /* M0_BITS */
 #include "lib/finject.h"
+#include "lib/string.h"  /* strcat() */
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
 #include "fop/fop.h"
@@ -611,10 +612,6 @@ static int net_buffer_release(struct m0_fom *);
 static int nbuf_release_done(struct m0_fom *fom, int still_required);
 
 static void io_fom_addb2_descr(struct m0_fom *fom);
-
-enum {
-	CKSUM_COUNT = 4
-};
 
 /**
  * I/O FOM operation vector.
@@ -1266,6 +1263,12 @@ static int io_prepare(struct m0_fom *fom)
 				 device_state);
 		rc = M0_RC(-EIO);
 	}
+	if (m0_is_read_fop(fom->fo_fop)) {
+		rwrep->rwr_di_data_cksum = M0_BUF_INITS("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+		M0_LOG(M0_ALWAYS, "READ YJC_SRV: %p CKSUM: %s baddr = %p nob= %"PRIu64, rwrep, (char *)rwrep->rwr_di_data_cksum.b_addr, rwrep->rwr_di_data_cksum.b_addr, rwrep->rwr_di_data_cksum.b_nob);
+
+		rwrep->rwr_ivec = rwfop->crw_ivec;
+	}
 out:
 	if (rc != 0)
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
@@ -1695,7 +1698,6 @@ static int io_launch(struct m0_fom *fom)
 	struct m0_io_fom_cob_rw    *fom_obj;
 	struct m0_net_buffer       *nb;
 	struct m0_fop_cob_rw       *rwfop;
-	struct m0_fop_cob_rw_reply *rwrep;
 	struct m0_file             *file = NULL;
 	uint32_t                    index;
 
@@ -1714,7 +1716,6 @@ static int io_launch(struct m0_fom *fom)
 
 	fop   = fom->fo_fop;
 	rwfop = io_rw_get(fop);
-	rwrep = io_rw_rep_get(fom->fo_rep_fop);
 
 	rc = io_fom_cob2file(fom, &rwfop->crw_fid, &file);
 	if (rc != 0)
@@ -1743,7 +1744,7 @@ static int io_launch(struct m0_fom *fom)
 	index -= m0_is_write_fop(fop) ?
 		netbufs_tlist_length(&fom_obj->fcrw_netbuf_list) : 0;
 	if (m0_is_write_fop(fop)) {
-		M0_LOG(M0_DEBUG, "YJC_SRV:"FID_F "  %p %s baddr = %p nob= %"PRIu64, FID_P(&rwfop->crw_fid), rwfop, (char *)rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_nob);
+		M0_LOG(M0_ALWAYS, "WRITE YJC_SRV:"FID_F "  %p CKSUM: %s baddr = %p nob= %"PRIu64, FID_P(&rwfop->crw_fid), rwfop, (char *)rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_nob);
 	}
 	m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
 		struct m0_indexvec     *mem_ivec;
@@ -1821,18 +1822,6 @@ static int io_launch(struct m0_fom *fom)
 					 "id "FID_F" rc = %d",
 					 FID_P(&stob->so_id.si_fid), rc);
 			break;
-		}
-		if (m0_is_read_fop(fom->fo_fop)) {
-			const char        **cksum;
-			int                 i;
-
-			M0_ALLOC_ARR(cksum, CKSUM_COUNT);
-			for (i = 0; i < CKSUM_COUNT; i++) {
-				cksum[i] = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
-			}
-			cksum[CKSUM_COUNT] = NULL;
-			m0_bufs_from_strings(&rwrep->rwr_di_data_cksum, cksum);
-			rwrep->rwr_ivec = rwfop->crw_ivec;
 		}
 		/*
 		 * XXX: @todo: This makes sense for oostore mode as
