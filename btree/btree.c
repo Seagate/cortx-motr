@@ -1055,7 +1055,8 @@ static void    tree_put   (struct td *tree);
 #ifndef __KERNEL__
 static int64_t    node_get  (struct node_op *op, struct td *tree,
 			     struct segaddr *addr, int nxt);
-static void       node_put  (struct nd *node, struct m0_be_tx *tx);
+static void       node_put  (struct node_op *op, struct nd *node,
+			     struct m0_be_tx *tx);
 #endif
 
 
@@ -1692,16 +1693,14 @@ static int64_t node_get(struct node_op *op, struct td *tree,
  *
  * @return next state
  */
-static void node_put(struct nd *node, struct m0_be_tx *tx){
-	struct node_op op;
+static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
+{
 
 	M0_PRE(node != NULL);
 	segops->so_node_put(node);
 
-	if (node->n_delayed_free && node->n_ref == 0) {
-		op.no_opc  = NOP_FREE;
-		segops->so_node_free(&op, node, tx, 0);
-	}
+	if (node->n_delayed_free && node->n_ref == 0)
+		segops->so_node_free(op, node, tx, 0);
 }
 #endif
 
@@ -2644,7 +2643,7 @@ static void level_cleanup(struct m0_btree_oimpl *oi,
 	int i;
 	for (i = 0; i <= oi->i_used; ++i) {
 		if (oi->i_level[i].l_node != NULL) {
-			node_put(oi->i_level[i].l_node, tx);
+			node_put(&oi->i_nop, oi->i_level[i].l_node, tx);
 			oi->i_level[i].l_node = NULL;
 		}
 		if (oi->i_level[i].l_alloc != NULL) {
@@ -2659,11 +2658,11 @@ static void level_cleanup(struct m0_btree_oimpl *oi,
 		}
 	}
 	if (oi->i_used > 0 && oi->i_level[1].l_sibling != NULL) {
-		node_put(oi->i_level[1].l_sibling, tx);
+		node_put(&oi->i_nop, oi->i_level[1].l_sibling, tx);
 		oi->i_level[1].l_sibling = NULL;
 	}
 	if (oi->i_level[oi->i_used].l_sibling != NULL) {
-		node_put(oi->i_level[oi->i_used].l_sibling, tx);
+		node_put(&oi->i_nop, oi->i_level[oi->i_used].l_sibling, tx);
 		oi->i_level[oi->i_used].l_sibling = NULL;
 	}
 	if (oi->i_extra_node != NULL) {
@@ -2868,9 +2867,9 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	tree->t_height++;
 
 
-	node_put(lev->l_alloc, bop->bo_tx);
+	node_put(&oi->i_nop, lev->l_alloc, bop->bo_tx);
 	lev->l_alloc = NULL;
-	node_put(oi->i_extra_node, bop->bo_tx);
+	node_put(&oi->i_nop, oi->i_extra_node, bop->bo_tx);
 	oi->i_extra_node = NULL;
 
 	lock_op_unlock(tree);
@@ -3029,7 +3028,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	temp_rec_1.r_val          = M0_BUFVEC_INIT_BUF(&p_val_1, &vsize_1);
 
 	for (i = oi->i_used - 1; i >= 0; i--) {
-		node_put(lev->l_alloc, bop->bo_tx);
+		node_put(&oi->i_nop, lev->l_alloc, bop->bo_tx);
 		lev->l_alloc = NULL;
 
 		lev = &oi->i_level[i];
@@ -4053,10 +4052,9 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			if (!node_isvalid(s.s_node) ||
-			    !node_verify(s.s_node)) {
-				level_cleanup(oi, bop->bo_tx);
-				return P_SETUP;
-			}
+			    !node_verify(s.s_node))
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_SETUP);
 
 			if (node_level(s.s_node) > 0) {
 				s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
@@ -6524,7 +6522,7 @@ static void ut_traversal(struct td *tree)
 				i_nop.no_opc = NOP_LOAD;
 				node_get(&i_nop, tree, &child_node_addr,
 					 P_NEXTDOWN);
-				node_put(i_nop.no_node, NULL);
+				node_put(&i_nop, i_nop.no_node, NULL);
 				if (front == -1) {
 					front = 0;
 				}
@@ -6545,7 +6543,7 @@ static void ut_traversal(struct td *tree)
 			struct node_op  i_nop;
 			i_nop.no_opc = NOP_LOAD;
 			node_get(&i_nop, tree, &child_node_addr, P_NEXTDOWN);
-			node_put(i_nop.no_node, NULL);
+			node_put(&i_nop, i_nop.no_node, NULL);
 			if (front == -1) {
 				front = 0;
 			}
@@ -6650,7 +6648,7 @@ static void ut_invariant_check(struct td *tree)
 				i_nop.no_opc = NOP_LOAD;
 				node_get(&i_nop, tree, &child_node_addr,
 					 P_NEXTDOWN);
-				node_put(i_nop.no_node, NULL);
+				node_put(&i_nop, i_nop.no_node, NULL);
 				if (front == -1) {
 					front = 0;
 				}
@@ -6670,7 +6668,7 @@ static void ut_invariant_check(struct td *tree)
 			struct node_op  i_nop;
 			i_nop.no_opc = NOP_LOAD;
 			node_get(&i_nop, tree, &child_node_addr, P_NEXTDOWN);
-			node_put(i_nop.no_node, NULL);
+			node_put(&i_nop, i_nop.no_node, NULL);
 			if (front == -1) {
 				front = 0;
 			}
