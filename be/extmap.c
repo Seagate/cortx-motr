@@ -200,7 +200,7 @@ static void emap_rec_init(struct m0_be_emap_rec *rec)
 	m0_format_header_pack(&rec->er_header, &(struct m0_format_tag){
 			.ot_version = M0_BE_EMAP_REC_FORMAT_VERSION,
 			.ot_type    = M0_FORMAT_TYPE_BE_EMAP_REC,
-			.ot_footer_offset = sizeof(struct m0_be_emap_rec) + rec->er_cs_nob
+			.ot_footer_offset = offsetof(struct m0_be_emap_rec, er_footer) + rec->er_cs_nob
 	});
 	m0_format_footer_update(rec);
 }
@@ -1017,7 +1017,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		memcpy(it->ec_recbuf.b_addr, recbuf.b_addr, recbuf.b_nob );
 		rec = it->ec_recbuf.b_addr;		
 		it->ec_rec = *rec;
-		
+
 		ext->ee_pre         = key->ek_prefix;
 		ext->ee_ext.e_start = rec->er_start;
 		ext->ee_ext.e_end   = key->ek_offset;
