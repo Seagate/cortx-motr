@@ -948,10 +948,10 @@ struct node_type {
 	/** Validates node composition */
 	bool (*nt_invariant)(const struct nd *node);
 
-	/** Validates node footer */
+	/** 'Does a thorough validation */
 	bool (*nt_verify)(const struct nd *node);
 
-	/** Validates node header*/
+	/** Does minimal (or basic) validation */
 	bool (*nt_isvalid)(const struct nd *node);
 };
 
@@ -1154,7 +1154,7 @@ struct level {
 	struct nd *l_alloc;
 
 	/**
-	 * This is the flag for indicating if node needs to get freed. Currently
+	 * This is the flag for indicating if node needs to be freed. Currently
 	 * this flag is set in delete operation and is used by P_FREENODE phase
 	 * for determine if node needs to be freed.
 	 */
@@ -3135,12 +3135,12 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			lev->l_seq = lev->l_node->n_seq;
 
 			/**
-			 * Header verification is required to determine that
-			 * the node(lev->l_node) which is pointed by current
-			 * thread is not freed by any other thread till current
-			 * thread reaches NEXTDOWN phase.
+			 * Node validation is required to determine that the
+			 * node(lev->l_node) which is pointed by current thread
+			 * is not freed by any other thread till current thread
+			 * reaches NEXTDOWN phase.
 			 *
-			 * Footer verification is required to detrmine that no
+			 * Node verification is required to determine that no
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
@@ -3181,7 +3181,7 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		do {
 			lev = &oi->i_level[oi->i_used];
 			/**
-			 * Verify header to dertmine if lev->l_node is still
+			 * Validate node to dertmine if lev->l_node is still
 			 * exists.
 			 */
 			if (!node_isvalid(lev->l_node)) {
@@ -3756,12 +3756,12 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			lev->l_seq = lev->l_node->n_seq;
 
 			/**
-			 * Header verification is required to determine that
-			 * the node(lev->l_node) which is pointed by current
-			 * thread is not freed by any other thread till current
-			 * thread reaches NEXTDOWN phase.
+			 * Node validation is required to determine that the
+			 * node(lev->l_node) which is pointed by current thread
+			 * is not freed by any other thread till current thread
+			 * reaches NEXTDOWN phase.
 			 *
-			 * Footer verification is required to detrmine that no
+			 * Node verification is required to determine that no
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
@@ -3923,12 +3923,12 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			lev->l_seq = lev->l_node->n_seq;
 
 			/**
-			 * Header verification is required to determine that
-			 * the node(lev->l_node) which is pointed by current
-			 * thread is not freed by any other thread till current
-			 * thread reaches NEXTDOWN phase.
+			 * Node validation is required to determine that the
+			 * node(lev->l_node) which is pointed by current thread
+			 * is not freed by any other thread till current thread
+			 * reaches NEXTDOWN phase.
 			 *
-			 * Footer verification is required to detrmine that no
+			 * Node verification is required to determine that no
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
@@ -4042,12 +4042,12 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			s.s_node = oi->i_nop.no_node;
 
 			/**
-			 * Header verification is required to determine that
-			 * the node(lev->l_node) which is pointed by current
-			 * thread is not freed by any other thread till current
-			 * thread reaches P_SIBLING phase.
+			 * Node validation is required to determine that the
+			 * node(lev->l_node) which is pointed by current thread
+			 * is not freed by any other thread till current thread
+			 * reaches NEXTDOWN phase.
 			 *
-			 * Footer verification is required to detrmine that no
+			 * Node verification is required to determine that no
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
@@ -4405,12 +4405,12 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 			lev->l_seq = lev->l_node->n_seq;
 
 			/**
-			 * Header verification is required to determine that
-			 * the node(lev->l_node) which is pointed by current
-			 * thread is not freed by any other thread till current
-			 * thread reaches NEXTDOWN phase.
+			 * Node validation is required to determine that the
+			 * node(lev->l_node) which is pointed by current thread
+			 * is not freed by any other thread till current thread
+			 * reaches NEXTDOWN phase.
 			 *
-			 * Footer verification is required to detrmine that no
+			 * Node verification is required to determine that no
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
@@ -4459,10 +4459,7 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
 	case P_STORE_CHILD: {
-		/**
-		 * Verify header to dertmine if lev->l_node is still
-		 * exists.
-		 */
+		/*Validate node to dertmine if lev->l_node is still exists. */
 		oi->i_level[1].l_sibling = oi->i_nop.no_node;
 		if (!node_isvalid(oi->i_level[1].l_sibling)) {
 			level_cleanup(oi, bop->bo_tx);
