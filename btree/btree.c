@@ -3355,7 +3355,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_SIBLING] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_SIBLING",
-		.sd_allowed = M0_BITS(P_SIBLING, P_LOCK, P_SETUP),
+		.sd_allowed = M0_BITS(P_SIBLING, P_LOCK, P_CLEANUP),
 	},
 	[P_ALLOC] = {
 		.sd_flags   = 0,
@@ -3429,7 +3429,7 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "get-nextdown-next", P_NEXTDOWN, P_LOCK},
 	{ "iter-sibling-repeat", P_SIBLING, P_SIBLING },
 	{ "iter-sibling-next", P_SIBLING, P_LOCK },
-	{ "iter-sibling-failed", P_SIBLING, P_SETUP },
+	{ "iter-sibling-failed", P_SIBLING, P_CLEANUP },
 	{ "put-alloc-repeat", P_ALLOC, P_ALLOC },
 	{ "put-alloc-next", P_ALLOC, P_LOCK },
 	{ "put-alloc-failed", P_ALLOC, P_CLEANUP },
