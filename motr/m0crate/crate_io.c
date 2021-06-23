@@ -343,8 +343,9 @@ int cr_namei_create(struct m0_workload_io *cwi,
 		    int                    obj_idx,
 		    int                    op_index)
 {
-	return m0_entity_create(&cwi->cwi_pool_id, &obj->ob_entity,
-			        &cti->cti_ops[free_slot]);
+	return m0_entity_create((m0_fid_is_set(&cwi->cwi_pool_id) && 
+                                m0_fid_is_valid(&cwi->cwi_pool_id)) ? &cwi->cwi_pool_id : NULL,
+                                &obj->ob_entity, &cti->cti_ops[free_slot]);
 }
 
 /**

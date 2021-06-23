@@ -55,13 +55,13 @@ enum config_key_val {
 	ADDB_INIT,
 	ADDB_SIZE,
 	LOG_LEVEL,
-	POOL_FID,
 	/*
 	 * All parameters below are workload-specific,
 	 * anything else should be added above this point.
 	 * The check for index at copy_value() relies on this.
 	 */
 	WORKLOAD_TYPE,
+	POOL_FID,
 	SEED,
 	NR_THREADS,
 	NUM_OPS,
