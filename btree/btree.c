@@ -1001,7 +1001,7 @@ struct nd {
 	int                     n_ref;
 
 	/**
-	 * Transaction reference count.A non-zero txref value indicates
+	 * Transaction reference count. A non-zero txref value indicates
 	 * the active transactions for this node. Once the txref count goes to
 	 * '0' the segment data in the mmapped memory can be released if the
 	 * kernel starts to run out of physical memory in the system.
