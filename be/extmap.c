@@ -273,9 +273,7 @@ m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db)
 	});
 	m0_rwlock_init(emap_rwlock(map));
 	m0_buf_init(&map->em_key_buf, &map->em_key, sizeof map->em_key);
-	m0_buf_init(&map->em_val_buf, &map->em_rec,
-			offsetof(struct m0_be_emap_rec, er_di_cksum.b_addr) +
-			sizeof(struct m0_format_footer));
+	m0_buf_init(&map->em_val_buf, &map->em_rec, sizeof map->em_rec );
 	emap_key_init(&map->em_key);
 	emap_rec_init(&map->em_rec);
 	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops);
@@ -715,9 +713,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	m0_format_footer_update(&map->em_key);
 	map->em_rec.er_start = 0;
 	map->em_rec.er_value = val;
-	map->em_rec.er_di_cksum.b_nob = 0;
-	map->em_rec.er_di_cksum.b_addr = NULL;
-	map->em_rec.er_di_cksum.b_addr = NULL;
+	map->em_rec.er_cs_nob = 0;
 	emap_rec_init(&map->em_rec);
 	rec_print(&map->em_rec);
 	m0_format_footer_update(&map->em_rec);
@@ -928,7 +924,7 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	struct m0_be_emap_rec       *rec = &it->ec_rec;
 	struct m0_buf rec_buf  = {};
 	struct m0_be_emap_rec       *rec_buf_ptr;
-	int len, offset, rc;
+	int len, rc;
 
 	key->ek_prefix = ext->ee_pre;
 	key->ek_offset = ext->ee_ext.e_end;
@@ -952,7 +948,7 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	}
 
 	/* Copy emap record till checksum buf start */
-	rec_buf_ptr = (m0_be_emap_rec *)rec_buf.b_addr;
+	rec_buf_ptr = (struct m0_be_emap_rec *)rec_buf.b_addr;
 	*rec_buf_ptr = *rec;
 	
 	/* Copy checksum array into emap record */
@@ -1022,7 +1018,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		ext->ee_ext.e_end   = key->ek_offset;
 		m0_ext_init(&ext->ee_ext);
 		ext->ee_val         = rec->er_value;
-		ext->ee_di_cksum.b_nob  = rec->er_cs_nob	
+		ext->ee_di_cksum.b_nob  = rec->er_cs_nob;	
 		ext->ee_di_cksum.b_addr = (void *)&rec->er_footer;
  		if (!emap_it_prefix_ok(it))
 			rc = -ESRCH;
