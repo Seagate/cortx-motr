@@ -335,6 +335,14 @@ enomem:
 	return -ENOMEM;
 }
 
+static struct m0_fid * check_fid(struct m0_fid *id)
+{
+    if (m0_fid_is_set(id) && m0_fid_is_valid(id))
+        return id;
+    else
+        return NULL;
+}
+
 int cr_namei_create(struct m0_workload_io *cwi,
 		    struct m0_task_io     *cti,
 		    struct m0_op_context  *op_ctx,
@@ -343,8 +351,8 @@ int cr_namei_create(struct m0_workload_io *cwi,
 		    int                    obj_idx,
 		    int                    op_index)
 {
-	return m0_entity_create((m0_fid_is_set(&cwi->cwi_pool_id) && 
-                                m0_fid_is_valid(&cwi->cwi_pool_id)) ? &cwi->cwi_pool_id : NULL,
+
+	return m0_entity_create(check_fid(&cwi->cwi_pool_id),
                                 &obj->ob_entity, &cti->cti_ops[free_slot]);
 }
 
