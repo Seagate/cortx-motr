@@ -937,8 +937,7 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	/* Layout/format of emap-record (if checksum is present) which gets
 	 * written:
 	 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
-	 * It gets stored as contigious buffer, so making er_di_cksum to
-	 * point to CS-Array (Checksum Array)
+	 * It gets stored as contigious buffer, so allocating buffer
 	 */
 	 
 	/* Total size of buffer needed for storing emap extent & assign */
@@ -955,8 +954,6 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	if (rec->er_cs_nob ) {
 		memcpy( (void *)&rec_buf_ptr->er_footer, 
 				ext->ee_di_cksum.b_addr, rec->er_cs_nob );
-		
-		rec_buf_ptr->er_footer = rec->er_footer;
 	}
 
 	emap_rec_init(rec_buf_ptr);
@@ -993,33 +990,42 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 	rc = op->bo_u.u_btree.t_rc;
 	if (rc == 0) {
 		m0_be_btree_cursor_kv_get(&it->ec_cursor, &keybuf, &recbuf);
+
+		/* Key operation */
 		key = keybuf.b_addr;
-		rec = recbuf.b_addr;
 		it->ec_key = *key;
-		it->ec_rec = *rec;
-		if (rec->er_cs_nob) {
-			/* Layout/format of emap-record (if checksum is present) which gets 
-			 * written:
-			 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
-			 * It gets stored as contigious buffer, so making er_di_cksum to 
-			 * point to CS-Array (Checksum Array)
-			 */			 
-			/* Footer needs update as it gets pushed after checksum array during
-			 * write and while reading CS Array is pointer
-			 */
-			it->ec_rec.er_footer = *(struct m0_format_footer *)(
-				(void *)&it->ec_rec.er_footer + rec->er_cs_nob );
+
+		/* Record operation */
+		if(it->ec_recbuf.b_addr != NULL)
+		{
+			m0_buf_free(&it->ec_recbuf );
 		}
 		
-		emap_key_init(&it->ec_key);
-		emap_rec_init(&it->ec_rec);
+		/* Layout/format of emap-record (if checksum is present) which gets
+		 * written:
+		 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
+		 * It gets stored as contigious buffer, so allocating buffer
+		 */
+		if ( (rc = m0_buf_alloc(&it->ec_recbuf, recbuf.b_nob)) != 0) {
+			return rc;
+		}
+		
+		/* Copying record buffer and loading into it->ec_rec, note record 
+		 * will have incorrect footer in case of b_nob, but it->ec_recbuf
+		 * will have all correct values.
+		 */
+		memcpy(it->ec_recbuf.b_addr, recbuf.b_addr, recbuf.b_nob );
+		rec = it->ec_recbuf.b_addr;		
+		it->ec_rec = *rec;
+		
 		ext->ee_pre         = key->ek_prefix;
 		ext->ee_ext.e_start = rec->er_start;
 		ext->ee_ext.e_end   = key->ek_offset;
 		m0_ext_init(&ext->ee_ext);
 		ext->ee_val         = rec->er_value;
 		ext->ee_di_cksum.b_nob  = rec->er_cs_nob;	
-		ext->ee_di_cksum.b_addr = (void *)&rec->er_footer;
+		ext->ee_di_cksum.b_addr = (void *)( rec->er_cs_nob ? 
+								&rec->er_footer : NULL;
  		if (!emap_it_prefix_ok(it))
 			rc = -ESRCH;
 	}
@@ -1034,8 +1040,11 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 			 struct m0_be_emap        *map)
 {
 	m0_buf_init(&it->ec_keybuf, &it->ec_key, sizeof it->ec_key);
-	m0_buf_init(&it->ec_recbuf, &it->ec_rec, sizeof it->ec_rec);
 
+	/* As EMAP record will now be variable we can't assign fix space */
+	it->ec_recbuf.b_nob = 0;
+	it->ec_recbuf.b_addr = NULL;
+	
 	emap_key_init(&it->ec_key);
 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
@@ -1049,6 +1058,10 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 
 static void be_emap_close(struct m0_be_emap_cursor *it)
 {
+	if(it->ec_recbuf.b_addr != NULL ) {
+	   m0_buf_free(&it->ec_recbuf);
+	}
+
 	m0_be_btree_cursor_fini(&it->ec_cursor);
 }
 
@@ -1132,7 +1145,7 @@ be_emap_invariant_check(struct m0_be_emap_cursor *it)
 			return false;
 		if (!_0C(m0_format_footer_verify(&it->ec_key, true) == 0))
 			return false;
-		if (!_0C(m0_format_footer_verify(&it->ec_rec, true) == 0))
+		if (!_0C(m0_format_footer_verify(&it->ec_recbuf.b_addr, true) == 0))
 			return false;
 		reached = it->ec_seg.ee_ext.e_end;
 		total += m0_ext_length(&it->ec_seg.ee_ext);
