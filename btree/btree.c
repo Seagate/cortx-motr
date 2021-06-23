@@ -6195,6 +6195,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 		ti[i].ti_tree       = ut_trees[i % tree_count];
 		ti[i].ti_key_size   = btree_type.ksize;
 		ti[i].ti_value_size = btree_type.vsize;
+		ti[i].ti_random_bursts = (thread_count > 1);
 	}
 
 	for (i = 0; i < thread_count; i++) {
