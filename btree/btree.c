@@ -2555,6 +2555,14 @@ static void level_alloc(struct m0_btree_oimpl *oi, int height)
 static void level_cleanup(struct m0_btree_oimpl *oi,
 			  struct m0_be_tx *tx)
 {
+	/**
+	 * This function assumes the thread is unlocked when level_cleanup runs.
+	 * As with current implementation, there is no such need to call
+	 * level_cleanup in lock mode. In future, if there is such need,
+	 * flag needs to be passed as parameter to this function indicating lock
+	 * is aquired or not by thread as this flag will be needed by node_put
+	 * operation to determine if lock is already aquired by thread.
+	 */
 	int i;
 	for (i = 0; i <= oi->i_used; ++i) {
 		if (oi->i_level[i].l_node != NULL) {
