@@ -46,7 +46,7 @@ package mio
 // #cgo LDFLAGS: -L../../../motr/.libs -Wl,-rpath=../../../motr/.libs -lmotr
 // #include <stdlib.h>
 // #include "lib/types.h"
-// #include "lib/trace.h"
+// #include "lib/trace.h"   /* m0_trace_set_mmapped_buffer */
 // #include "motr/client.h"
 // #include "motr/layout.h" /* m0c_pools_common */
 //
@@ -285,20 +285,6 @@ func bits(values ...C.ulong) (res C.ulong) {
     return res
 }
 
-func getOptimalUnitSz(sz uint64, pool *C.struct_m0_fid) (C.ulong, error) {
-    var pver *C.struct_m0_pool_version
-    rc := C.m0_pool_version_get(&C.instance.m0c_pools_common, pool, &pver)
-    if rc != 0 {
-        return 0, fmt.Errorf("m0_pool_version_get() failed: %v", rc)
-    }
-    lid := C.m0_layout_find_by_buffsize(&C.instance.m0c_reqh.rh_ldom,
-                                        &pver.pv_id, C.ulong(sz))
-    if lid <= 0 {
-        return 0, fmt.Errorf("could not find layout: rc=%v", lid)
-    }
-    return C.ulong(lid), nil
-}
-
 func checkPool(pools []string) (res *C.struct_m0_fid, err error) {
     for _, pool := range pools {
         if pool == "" {
@@ -332,11 +318,11 @@ func (mio *Mio) Create(id string, sz uint64, anyPool ...string) error {
         return err
     }
 
-    lid, err := getOptimalUnitSz(sz, pool)
-    if err != nil {
-        return fmt.Errorf("failed to figure out object unit size: %v", err)
+    lid := C.m0_layout_find_by_objsz(C.instance, pool, C.ulong(sz))
+    if lid <= 0 {
+        return fmt.Errorf("could not find layout: rc=%v", lid)
     }
-    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, lid)
+    C.m0_obj_init(mio.obj, &C.container.co_realm, &mio.objID, C.ulong(lid))
 
     var op *C.struct_m0_op
     rc := C.m0_entity_create(pool, &mio.obj.ob_entity, &op)
