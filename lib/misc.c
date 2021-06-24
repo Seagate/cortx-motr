@@ -392,7 +392,7 @@ M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start( m0_bindex_t ext_start,
 	 * To compute how many DU start we need to find the DU Index of
 	 * start and end. 
 	 */
-	m0_bcount_t cs_nob; = ( (ext_start + ext_len - 1)/unit_sz - ext_start/unit_sz );
+	m0_bcount_t cs_nob = ( (ext_start + ext_len - 1)/unit_sz - ext_start/unit_sz );
 
 	// TODO: Remove this and add assert
 	if( !unit_sz )
