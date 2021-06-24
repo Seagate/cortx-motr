@@ -3002,11 +3002,13 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 /* get_tick for insert operation */
 static int64_t btree_put_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op    *bop        = M0_AMB(bop, smop, bo_op);
-	struct td             *tree       = bop->bo_arbor->t_desc;
-	uint64_t               flags      = bop->bo_flags;
-	struct m0_btree_oimpl *oi         = bop->bo_i;
+	struct m0_btree_op    *bop            = M0_AMB(bop, smop, bo_op);
+	struct td             *tree           = bop->bo_arbor->t_desc;
+	uint64_t               flags          = bop->bo_flags;
+	struct m0_btree_oimpl *oi             = bop->bo_i;
+	bool                   lock_acquired  = bop->bo_flags & BOF_LOCKALL;
 	struct level          *lev;
+
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
@@ -3040,17 +3042,13 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 					    bop->bo_arbor->t_desc, P_DOWN);
 		/* Fall through to the next stage */
-	case P_DOWN: {
-		bool lock_acquired = bop->bo_flags & BOF_LOCKALL;
+	case P_DOWN:
 		oi->i_used = 0;
-
 		/* Load root node. */
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
 				lock_acquired, P_NEXTDOWN);
-	}
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			bool lock_acquired        = bop->bo_flags & BOF_LOCKALL;
 			struct slot    node_slot = {};
 			struct segaddr child_node_addr;
 
@@ -3123,19 +3121,21 @@ static int64_t btree_put_tick(struct m0_sm_op *smop)
 		return P_LOCK;
 	}
 	case P_LOCK:
-		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-				    bop->bo_arbor->t_desc, P_CHECK);
+		if (!lock_acquired)
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+					    bop->bo_arbor->t_desc, P_CHECK);
+		else
+			return P_CHECK;
 	case P_CHECK:
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
+			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
 				if (bop->bo_flags & BOF_LOCKALL) {
 					lock_op_unlock(bop->bo_arbor->t_desc);
 					return fail(bop, -ETOOMANYREFS);
 				} else
 					bop->bo_flags |= BOF_LOCKALL;
-			} else
-				oi->i_trial++;
-
+			}
 			if (bop->bo_arbor->t_height != tree->t_height) {
 				/* If height has changed. */
 				lock_op_unlock(tree);
@@ -3629,9 +3629,10 @@ int  btree_sibling_first_key_get(struct m0_btree_oimpl *oi, struct td *tree,
 /** Tree GET (lookup) state machine. */
 static int64_t btree_get_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op    *bop   = M0_AMB(bop, smop, bo_op);
-	struct td             *tree  = bop->bo_arbor->t_desc;
-	struct m0_btree_oimpl *oi    = bop->bo_i;
+	struct m0_btree_op    *bop            = M0_AMB(bop, smop, bo_op);
+	struct td             *tree           = bop->bo_arbor->t_desc;
+	struct m0_btree_oimpl *oi             = bop->bo_i;
+	bool                   lock_acquired  = bop->bo_flags & BOF_LOCKALL;
 	struct level          *lev;
 
 	switch (bop->bo_op.o_sm.sm_state) {
@@ -3663,15 +3664,12 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 				            bop->bo_arbor->t_desc, P_DOWN);
 		/** Fall through if LOCKALL flag is not set. */
-	case P_DOWN: {
-		bool lock_acquired = bop->bo_flags & BOF_LOCKALL;
+	case P_DOWN:
 		oi->i_used = 0;
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
 				lock_acquired, P_NEXTDOWN);
-	}
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			bool           lock_acquired;
 			struct slot    node_slot = {};
 			struct segaddr child;
 
@@ -3694,7 +3692,6 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
-				lock_acquired = bop->bo_flags & BOF_LOCKALL;
 				return node_get(&oi->i_nop, tree, &child,
 						lock_acquired, P_NEXTDOWN);
 			} else
@@ -3704,19 +3701,21 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
 	case P_LOCK:
-		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-				    bop->bo_arbor->t_desc, P_CHECK);
+		if(!lock_acquired)
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+					    bop->bo_arbor->t_desc, P_CHECK);
+		else
+			return P_CHECK;
 	case P_CHECK:
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
+			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
 				if (bop->bo_flags & BOF_LOCKALL) {
 					lock_op_unlock(bop->bo_arbor->t_desc);
 					return fail(bop, -ETOOMANYREFS);
 				} else
 					bop->bo_flags |= BOF_LOCKALL;
-			} else
-				oi->i_trial++;
-
+			}
 			if (bop->bo_arbor->t_height != tree->t_height) {
 				/* If height has changed. */
 				lock_op_unlock(tree);
@@ -3791,9 +3790,10 @@ static int64_t btree_get_tick(struct m0_sm_op *smop)
 /** Iterator state machine. */
 int64_t btree_iter_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op    *bop   = M0_AMB(bop, smop, bo_op);
-	struct td             *tree  = bop->bo_arbor->t_desc;
-	struct m0_btree_oimpl *oi    = bop->bo_i;
+	struct m0_btree_op    *bop            = M0_AMB(bop, smop, bo_op);
+	struct td             *tree           = bop->bo_arbor->t_desc;
+	struct m0_btree_oimpl *oi             = bop->bo_i;
+	bool                   lock_acquired  = bop->bo_flags & BOF_LOCKALL;
 	struct level          *lev;
 
 	switch (bop->bo_op.o_sm.sm_state) {
@@ -3825,20 +3825,16 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 				            bop->bo_arbor->t_desc, P_DOWN);
 		/** Fall through if LOCKALL flag is not set. */
-	case P_DOWN: {
-		bool lock_acquired = bop->bo_flags & BOF_LOCKALL;
+	case P_DOWN:
 		oi->i_used  = 0;
 		oi->i_pivot = -1;
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
 				lock_acquired, P_NEXTDOWN);
-	}
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			bool           lock_acquired;
 			struct slot    s = {};
 			struct segaddr child;
 
-			lock_acquired = bop->bo_flags & BOF_LOCKALL;
 			lev = &oi->i_level[oi->i_used];
 			lev->l_node = oi->i_nop.no_node;
 			s.s_node = oi->i_nop.no_node;
@@ -3940,7 +3936,6 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 		}
 	case P_SIBLING:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			bool           lock_acquired;
 			struct slot    s = {};
 			struct segaddr child;
 
@@ -3954,7 +3949,6 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 					node_op_fini(&oi->i_nop);
 					return fail(bop, M0_ERR(-EFAULT));
 				}
-				lock_acquired = bop->bo_flags & BOF_LOCKALL;
 				return node_get(&oi->i_nop, tree, &child,
 						lock_acquired, P_SIBLING);
 			} else {
@@ -3969,20 +3963,22 @@ int64_t btree_iter_tick(struct m0_sm_op *smop)
 		}
 
 	case P_LOCK:
-		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-				    bop->bo_arbor->t_desc, P_CHECK);
+		if (!lock_acquired)
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+					    bop->bo_arbor->t_desc, P_CHECK);
+		else
+			return P_CHECK;
 	case P_CHECK:
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie) ||
 		    !sibling_node_check(oi)) {
+			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
 				if (bop->bo_flags & BOF_LOCKALL) {
 					lock_op_unlock(tree);
 					return fail(bop, -ETOOMANYREFS);
 				} else
 					bop->bo_flags |= BOF_LOCKALL;
-			} else
-				oi->i_trial++;
-
+			}
 			if (bop->bo_arbor->t_height != tree->t_height) {
 				lock_op_unlock(tree);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
@@ -4219,9 +4215,9 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 	 * other child of root so that we can copy the content from that child
 	 * at root and decrease the level by one.
 	 */
-	struct m0_btree_oimpl *oi = bop->bo_i;
-	int8_t                 load;
+	struct m0_btree_oimpl *oi            = bop->bo_i;
 	bool                   lock_acquired = bop->bo_flags & BOF_LOCKALL;
+	int8_t                 load;
 
 	load = root_child_is_req(bop);
 	if (load == -1) {
@@ -4251,10 +4247,11 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 /* State machine implementation for delete operation */
 static int64_t btree_del_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op    *bop        = M0_AMB(bop, smop, bo_op);
-	struct td             *tree       = bop->bo_arbor->t_desc;
-	uint64_t               flags      = bop->bo_flags;
-	struct m0_btree_oimpl *oi         = bop->bo_i;
+	struct m0_btree_op    *bop            = M0_AMB(bop, smop, bo_op);
+	struct td             *tree           = bop->bo_arbor->t_desc;
+	uint64_t               flags          = bop->bo_flags;
+	struct m0_btree_oimpl *oi             = bop->bo_i;
+	bool                   lock_acquired  = bop->bo_flags & BOF_LOCKALL;
 	struct level          *lev;
 
 	switch (bop->bo_op.o_sm.sm_state) {
@@ -4289,16 +4286,13 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 					    bop->bo_arbor->t_desc, P_DOWN);
 		/* Fall through to the next stage */
-	case P_DOWN: {
-		bool lock_acquired = bop->bo_flags & BOF_LOCKALL;
+	case P_DOWN:
 		oi->i_used = 0;
 		/* Load root node. */
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
 				lock_acquired, P_NEXTDOWN);
-	}
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			bool           lock_acquired;
 			struct slot    node_slot = {};
 			struct segaddr child_node_addr;
 
@@ -4329,7 +4323,6 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
-				lock_acquired = bop->bo_flags & BOF_LOCKALL;
 				return node_get(&oi->i_nop, tree,
 						&child_node_addr, lock_acquired,
 						P_NEXTDOWN);
@@ -4359,20 +4352,22 @@ static int64_t btree_del_tick(struct m0_sm_op *smop)
 		/* Fall through to the next step */
 	}
 	case P_LOCK:
-		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-				    bop->bo_arbor->t_desc, P_CHECK);
+		if (!lock_acquired)
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+					    bop->bo_arbor->t_desc, P_CHECK);
+		else
+			return P_CHECK;
 	case P_CHECK:
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie) ||
 		    !child_node_check(oi)) {
+			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
 				if (bop->bo_flags & BOF_LOCKALL) {
 					lock_op_unlock(tree);
 					return fail(bop, -ETOOMANYREFS);
 				} else
 					bop->bo_flags |= BOF_LOCKALL;
-			} else
-				oi->i_trial++;
-
+			}
 			if (bop->bo_arbor->t_height != tree->t_height) {
 				/* If height has changed. */
 				lock_op_unlock(tree);
