@@ -563,9 +563,9 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 			bstart[0] = seg->ee_val;
 			if (bstart[0] != AET_HOLE) {
 				// TODO: Update this code with proper values
-				M0_ASSERT(seg->ee_di_cksum.b_nob >= length[0]*128);
-				cksum[0].b_nob = length[0]*128;
-				cksum[0].b_addr = seg->ee_di_cksum.b_addr;
+				//M0_ASSERT(seg->ee_di_cksum.b_nob >= length[0]*128);
+				//cksum[0].b_nob = length[0]*128;
+				//cksum[0].b_addr = seg->ee_di_cksum.b_addr;
 			}
 		}
 		if (length[2] > 0) {
@@ -573,12 +573,12 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 				cut_right(seg, &clip, val_orig);
 			bstart[2] = seg->ee_val;
 			if (bstart[2] != AET_HOLE) {
-				int total_len = length[0] + length[1] + length[2];
+				//int total_len = length[0] + length[1] + length[2];
 				// TODO: Update this code with proper values				
-				M0_ASSERT(seg->ee_di_cksum.b_nob == total_len * 128);
-				cksum[2].b_nob = length[2] * 128;
-				cksum[2].b_addr = seg->ee_di_cksum.b_addr +
-						   (length[0] + length[1])*128;
+				//M0_ASSERT(seg->ee_di_cksum.b_nob == total_len * 128);
+				//cksum[2].b_nob = length[2] * 128;
+				//cksum[2].b_addr = seg->ee_di_cksum.b_addr +
+				//		   (length[0] + length[1])*128;
 			}
 		}
 		if (length[0] == 0 && length[2] == 0 && del)
@@ -998,7 +998,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		/* Record operation */
 		if(it->ec_recbuf.b_addr != NULL)
 		{
-			m0_buf_free(&it->ec_recbuf );
+			m0_buf_free(&it->ec_recbuf);
 		}
 		
 		/* Layout/format of emap-record (if checksum is present) which gets
@@ -1022,10 +1022,9 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		ext->ee_ext.e_start = rec->er_start;
 		ext->ee_ext.e_end   = key->ek_offset;
 		m0_ext_init(&ext->ee_ext);
-		ext->ee_val         = rec->er_value;
-		ext->ee_di_cksum.b_nob  = rec->er_cs_nob;	
-		ext->ee_di_cksum.b_addr = (void *)( rec->er_cs_nob ? 
-								&rec->er_footer : NULL;
+		ext->ee_val         = rec->er_value;		
+		ext->ee_di_cksum.b_addr = rec->er_cs_nob ? 
+								 (void *)&rec->er_footer : NULL;
  		if (!emap_it_prefix_ok(it))
 			rc = -ESRCH;
 	}
@@ -1039,16 +1038,11 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 			 m0_bindex_t               offset,
 			 struct m0_be_emap        *map)
 {
+	/* As EMAP record will now be variable we can't assign fix space */
 	m0_buf_init(&it->ec_keybuf, &it->ec_key, sizeof it->ec_key);
 
-	/* As EMAP record will now be variable we can't assign fix space */
-	it->ec_recbuf.b_nob = 0;
-	it->ec_recbuf.b_addr = NULL;
-	
-	emap_key_init(&it->ec_key);
 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
-	emap_rec_init(&it->ec_rec);
 
 	it->ec_map = map;
 	it->ec_version = map->em_version;
@@ -1145,7 +1139,7 @@ be_emap_invariant_check(struct m0_be_emap_cursor *it)
 			return false;
 		if (!_0C(m0_format_footer_verify(&it->ec_key, true) == 0))
 			return false;
-		if (!_0C(m0_format_footer_verify(&it->ec_recbuf.b_addr, true) == 0))
+		if (!_0C(m0_format_footer_verify(it->ec_recbuf.b_addr, true) == 0))
 			return false;
 		reached = it->ec_seg.ee_ext.e_end;
 		total += m0_ext_length(&it->ec_seg.ee_ext);
