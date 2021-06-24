@@ -49,6 +49,7 @@
 #include "ioservice/fid_convert.h" /* m0_fid_convert_cob2stob */
 #include "balloc/balloc.h"         /* M0_BALLOC_NORMAL_ZONE */
 #include "stob/addb2.h"            /* M0_AVI_STOB_IO_REQ */
+#include "layout/layout.h"         /* m0_lid_to_unit_map */
 
 /**
    @page DLD-bulk-server DLD of Bulk Server
@@ -1759,8 +1760,6 @@ static int io_launch(struct m0_fom *fom)
 		mem_ivec    = &stio->si_stob;
 		stobio_tlink_init(stio_desc);
 		m0_buf_init(&stio->si_cksum, rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_nob);
-		// TODO: Yeshpal pass unit size		
-		stio->si_unit_sz = rwfop->crw_lid;
 
 		M0_ADDB2_ADD(M0_AVI_FOM_TO_STIO, fom->fo_sm_phase.sm_id,
 			     stio->si_id);
@@ -2081,6 +2080,12 @@ static int stob_io_create(struct m0_fom *fom)
 		rc = m0_indexvec_split(&fom_obj->fcrw_io.si_stob, count, todo,
 				       /* fom_obj->fcrw_bshift */ 0,
 				       &stio->si_stob);
+		//YJC_TODO: count should be aligned to unit_size
+		stio->si_cksum_sz = rwfop->crw_cksum_size;
+		stio->si_cksum.b_addr = rwfop->crw_di_data_cksum.b_addr + (count * stio->si_cksum_sz);
+		stio->si_cksum.b_nob = todo * stio->si_cksum_sz;
+		stio->si_unit_sz = m0_lid_to_unit_map[rwfop->crw_lid] >> fom_obj->fcrw_bshift;
+
 		if (rc != 0)
 			break;
 		count += todo;

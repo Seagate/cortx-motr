@@ -991,6 +991,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			rc = m0_buf_from_bufvec(&rw_fop->crw_di_data_cksum, attrbvec);
 			M0_ASSERT(rc == 0);
 			M0_LOG(M0_DEBUG, "YJC_TEST:"FID_F" fop = %p baddr %p %s ", FID_P(&ti->ti_fid), &iofop->if_fop, rw_fop->crw_di_data_cksum.b_addr, (char *)rw_fop->crw_di_data_cksum.b_addr);
+			rw_fop->crw_cksum_size = CKSUM_SIZE;
 		}
 		/* M0_LOG(M0_DEBUG, "YJC: crw_di_data_cksum ab_count = %d ti_attrbufvec v_nr = %d ",
 				 rw_fop->crw_di_data_cksum.ab_count, attrbvec->ov_vec.v_nr);
