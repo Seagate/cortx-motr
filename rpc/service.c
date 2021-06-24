@@ -86,7 +86,7 @@ static void rpc_service_fini(struct m0_reqh_service *service)
 static int
 rpc_service_fop_accept(struct m0_reqh_service *service, struct m0_fop *fop)
 {
-	return 0;
+       return M0_RC(0);
 }
 
 static const struct m0_reqh_service_ops rpc_ops = {

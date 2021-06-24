@@ -505,9 +505,17 @@ static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_PRE(m0_fom_invariant(fom));
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_INIT);
+	
+	if (m0_reqh_service_state_get(fom->fo_service) != M0_RST_STOPPED)
+		m0_fom_locality_inc(fom);
 
+        if (m0_reqh_service_state_get(fom->fo_service) == M0_RST_STOPPED ||
+            m0_reqh_state_get(m0_fom_reqh(fom)) == M0_REQH_ST_STOPPED) {
+		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
+		m0_fom_fini(fom);
+		return;
+        }
 	addb2_introduce(fom);
-	m0_fom_locality_inc(fom);
 	fom_ready(fom);
 }
 

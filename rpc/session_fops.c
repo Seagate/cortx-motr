@@ -42,7 +42,8 @@
 static struct m0_sm_state_descr m0_rpc_fom_sess_conn_term_phases[] = {
 	[M0_RPC_CONN_SESS_TERMINATE_INIT] = {
 		.sd_name      = "m0_rpc_fom_sess_conn_term_phases init",
-		.sd_allowed   = M0_BITS(M0_RPC_CONN_SESS_TERMINATE_WAIT),
+		.sd_allowed   = M0_BITS(M0_RPC_CONN_SESS_TERMINATE_WAIT,
+					M0_RPC_CONN_SESS_TERMINATE_DONE),
 		.sd_flags     = M0_SDF_INITIAL
 	},
 	[M0_RPC_CONN_SESS_TERMINATE_WAIT] = {

@@ -464,7 +464,8 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 						 &m0_cas_service_type,
 #endif
 		                                 &m0_ha_link_service_type,
-		                                 &m0_ha_entrypoint_service_type)))
+		                                 &m0_ha_entrypoint_service_type)) &&
+						 m0_reqh_service_state_get(svc) == M0_RST_STARTED)
 			return M0_RC(0);
 		return M0_ERR(-EAGAIN);
 	}
