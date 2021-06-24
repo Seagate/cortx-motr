@@ -43,6 +43,7 @@
 #include "ioservice/storage_dev.h" /* m0_storage_dev_stob_find */
 #include "cob/cob.h"               /* m0_cob_create */
 #include "motr/magic.h"
+#include "motr/client.h"
 #include "motr/setup.h"            /* m0_cs_storage_devs_get */
 #include "pool/pool.h"
 #include "ioservice/io_addb2.h"
@@ -612,6 +613,10 @@ static int net_buffer_release(struct m0_fom *);
 static int nbuf_release_done(struct m0_fom *fom, int still_required);
 
 static void io_fom_addb2_descr(struct m0_fom *fom);
+
+enum {
+	CKSUM_SIZE = 192
+};
 
 /**
  * I/O FOM operation vector.
@@ -1195,6 +1200,7 @@ static int io_prepare(struct m0_fom *fom)
 	struct m0_fop_cob_rw_reply  *rwrep;
 	enum m0_pool_nd_state        device_state = 0;
 	int                          rc;
+	uint64_t                     io_units;
 	struct m0_pools_common      *pc;
 
 	M0_ENTRY("fom=%p", fom);
@@ -1264,8 +1270,19 @@ static int io_prepare(struct m0_fom *fom)
 		rc = M0_RC(-EIO);
 	}
 	if (m0_is_read_fop(fom->fo_fop)) {
-		rwrep->rwr_di_data_cksum = M0_BUF_INITS("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
-		M0_LOG(M0_ALWAYS, "READ YJC_SRV: %p CKSUM: %s baddr = %p nob= %"PRIu64, rwrep, (char *)rwrep->rwr_di_data_cksum.b_addr, rwrep->rwr_di_data_cksum.b_addr, rwrep->rwr_di_data_cksum.b_nob);
+		uint64_t io_cnt;
+		uint64_t  unit_size;
+		io_cnt = m0_io_count(&rwfop->crw_ivec);
+		unit_size = m0_obj_layout_id_to_unit_size(rwfop->crw_lid);
+		io_units = io_cnt < unit_size ? 1 : io_cnt / unit_size;
+		m0_buf_alloc(&rwrep->rwr_di_data_cksum, io_units * CKSUM_SIZE);
+		memset(rwrep->rwr_di_data_cksum.b_addr, 'B',
+			io_units * CKSUM_SIZE);
+		M0_LOG(M0_ALWAYS, "READ YJC_SRV: %p CKSUM: %.8s baddr = %p "
+				"nob = %"PRIu64" IO_CNT: %"PRIu64" UNIT_SZ: %"PRIu64,
+				rwrep, (char *)rwrep->rwr_di_data_cksum.b_addr,
+				rwrep->rwr_di_data_cksum.b_addr,
+				rwrep->rwr_di_data_cksum.b_nob, io_cnt, unit_size);
 
 		rwrep->rwr_ivec = rwfop->crw_ivec;
 	}
