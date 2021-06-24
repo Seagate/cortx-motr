@@ -922,12 +922,6 @@ struct node_type {
 	bool (*nt_find) (struct slot *slot, const struct m0_btree_key *key);
 
 	/**
-	 * Updates the sequence counter to the current timestamp. This function
-	 * can be called whenever there is change in node.
-	 */
-	void (*nt_seq_cnt_update)  (struct nd *node);
-
-	/**
 	 *  All the changes to the node have completed. Any post processing can
 	 *  be done here.
 	 */
@@ -1377,10 +1371,14 @@ static bool node_find(struct slot *slot, const struct m0_btree_key *key)
 }
 #endif
 
+/**
+ * Increment the sequence counter by one. This function needs to called whenever
+ * there is change in node.
+ */
 static void node_seq_cnt_update(struct nd *node)
 {
 	M0_PRE(node_invariant(node));
-	node->n_type->nt_seq_cnt_update(node);
+	node->n_seq++;
 }
 
 static void node_fix(const struct nd *node, struct m0_be_tx *tx)
@@ -2088,7 +2086,6 @@ static bool ff_isfit(struct slot *slot);
 static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified);
 static void ff_make(struct slot *slot, struct m0_be_tx *tx);
 static bool ff_find(struct slot *slot, const struct m0_btree_key *key);
-static void ff_seq_cnt_update(struct nd *node);
 static void ff_fix(const struct nd *node, struct m0_be_tx *tx);
 static void ff_cut(const struct nd *node, int idx, int size,
 		   struct m0_be_tx *tx);
@@ -2132,7 +2129,6 @@ static const struct node_type fixed_format = {
 	.nt_done            = ff_done,
 	.nt_make            = ff_make,
 	.nt_find            = ff_find,
-	.nt_seq_cnt_update  = ff_seq_cnt_update,
 	.nt_fix             = ff_fix,
 	.nt_cut             = ff_cut,
 	.nt_del             = ff_del,
@@ -2443,11 +2439,6 @@ static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
 	slot->s_idx = j;
 
 	return (i == j);
-}
-
-static void ff_seq_cnt_update(struct nd *node)
-{
-	node->n_seq++;
 }
 
 static void ff_fix(const struct nd *node, struct m0_be_tx *tx)
@@ -6959,7 +6950,6 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
 		{"single_thread_tree_op",           ut_st_tree_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
-		/* {"insert_rec",          m0_btree_ut_insert_record}, */
 		/* {"btree_kv_add_del",    m0_btree_ut_put_del_operation}, */
 		{NULL, NULL}
 	}
