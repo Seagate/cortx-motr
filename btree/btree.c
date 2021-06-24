@@ -1732,7 +1732,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		node->n_addr = *addr;
 		node->n_tree = tree;
 		node->n_type = nt;
-		node->n_seq  = 0;
+		node->n_seq  = m0_time_now();
 		node->n_ref  = 1;
 		m0_rwlock_init(&node->n_lock);
 		op->no_node = node;
@@ -2447,7 +2447,7 @@ static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
 
 static void ff_seq_cnt_update(struct nd *node)
 {
-	node->n_seq = m0_time_now();
+	node->n_seq++;
 }
 
 static void ff_fix(const struct nd *node, struct m0_be_tx *tx)
