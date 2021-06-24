@@ -1044,6 +1044,9 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
 
+	it->ec_recbuf.b_addr = NULL;
+	it->ec_recbuf.b_nob = 0;	
+
 	it->ec_map = map;
 	it->ec_version = map->em_version;
 	m0_be_btree_cursor_init(&it->ec_cursor, &map->em_mapping);

@@ -378,6 +378,9 @@ M0_INTERNAL void m0_key_val_null_set(struct m0_key_val *kv)
 M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start( m0_bindex_t ext_start,
 						m0_bindex_t ext_len, m0_bindex_t unit_sz )
 {
+	if( !unit_sz )
+		return 0;
+
 	/* Compute how many unit starts in a given extent spans: 
 	 * Illustration below shows how extents can be received w.r.t unit size (4)
 	 *    | Unit 0 || Unit 1 || Unit 2 || Unit 3 || Unit 4 ||
@@ -403,8 +406,15 @@ M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start( m0_bindex_t ext_start,
 M0_INTERNAL m0_bcount_t m0_extent_get_unit_offset( m0_bindex_t off, 
 							m0_bindex_t base_off, m0_bindex_t unit_sz)
 {
-	/* Unit size we get from layout id using m0_obj_layout_id_to_unit_size(lid) */
-	return (off - base_off)/unit_sz;
+	if( unit_sz )
+	{
+		/* Unit size we get from layout id using m0_obj_layout_id_to_unit_size(lid) */
+		return (off - base_off)/unit_sz;
+	}
+	else
+	{
+		return 0;
+	}
 }
 
 M0_INTERNAL void *m0_vote_majority_get(struct m0_key_val *arr, uint32_t len,
