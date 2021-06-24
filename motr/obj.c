@@ -411,7 +411,7 @@ m0__obj_layout_instance_build(struct m0_client *cinst,
 	 */
 	layout = m0_layout_find(&cinst->m0c_reqh.rh_ldom, layout_id);
 	if (layout == NULL) {
-		rc = -EINVAL;
+		rc = M0_ERR(-EINVAL);
 		goto out;
 	}
 
@@ -524,18 +524,20 @@ static int obj_namei_op_init(struct m0_entity *entity,
 
 	/* Get a layout instance for the object. */
 	lid = m0_pool_version2layout_id(&oo->oo_pver,
-				 	m0__obj_layout_id_get(oo));
+					m0__obj_layout_id_get(oo));
 	rc = m0__obj_layout_instance_build(cinst, lid,
 					   &oo->oo_fid, &linst);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_ERR(rc);
 		goto error;
+	}
 	oo->oo_layout_instance = linst;
 
 #ifdef CLIENT_FOR_M0T1FS
 	/* Set the object's parent's fid. */
 	if (!m0_fid_is_set(&cinst->m0c_root_fid) ||
 	    !m0_fid_is_valid(&cinst->m0c_root_fid)) {
-		rc = -EINVAL;
+		rc = M0_ERR(-EINVAL);
 		goto error;
 	}
 	oo->oo_pfid = cinst->m0c_root_fid;
@@ -543,8 +545,10 @@ static int obj_namei_op_init(struct m0_entity *entity,
 	/* Generate a valid oo_name. */
 	obj_name = m0_alloc(M0_OBJ_NAME_MAX_LEN);
 	rc = obj_fid_make_name(obj_name, M0_OBJ_NAME_MAX_LEN, &oo->oo_fid);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_ERR(rc);
 		goto error;
+	}
 	m0_buf_init(&oo->oo_name, obj_name, strlen(obj_name));
 #endif
 	M0_ASSERT(rc == 0);
@@ -556,6 +560,28 @@ error:
 }
 
 /**
+ * Finds optimal layout id according to the object's size and
+ * sets it in m0_obj::ob_attr::oa_layout_id if it is not already set.
+ */
+static void obj_optimal_lid_set(struct m0_obj *obj,
+				struct m0_layout_domain *ldom)
+{
+	uint64_t *lid;
+
+	lid = &obj->ob_attr.oa_layout_id;
+
+	/* Find optimal layout id when pver id is set and layout id is not */
+	if (*lid == 0 && m0_fid_is_set(&obj->ob_attr.oa_pver)) {
+		*lid = m0_layout_find_by_buffsize(ldom, &obj->ob_attr.oa_pver,
+						  obj->ob_attr.oa_buf_size);
+	}
+	/* Set default layout id when both layout id and pver id is unset */
+	else if (*lid == 0 && !m0_fid_is_set(&obj->ob_attr.oa_pver)) {
+		*lid = M0_DEFAULT_LAYOUT_ID;
+	}
+}
+
+/**
  * Initialises a m0_op_obj (i.e. an operation on an object).
  *
  * @param oo object operation to be initialised.
@@ -563,11 +589,12 @@ error:
  */
 static int obj_op_obj_init(struct m0_op_obj *oo)
 {
-	int                     rc;
-	struct m0_locality     *locality;
-	struct m0_pool_version *pv;
-	struct m0_obj          *obj;
-	struct m0_client       *cinst;
+	int                      rc;
+	struct m0_locality      *locality;
+	struct m0_pool_version  *pv;
+	struct m0_obj           *obj;
+	struct m0_client        *cinst;
+	struct m0_layout_domain *ldom;
 
 	M0_ENTRY();
 	M0_PRE(oo != NULL);
@@ -575,13 +602,17 @@ static int obj_op_obj_init(struct m0_op_obj *oo)
 				       M0_EO_DELETE,
 				       M0_EO_OPEN)));
 
-	/** Get the object's pool version. */
+	/** Get the object's pool version and optimal layout id. */
 	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
+	cinst = m0__obj_instance(obj);
 	if (OP_OBJ2CODE(oo) == M0_EO_CREATE) {
 		rc = m0__obj_pool_version_get(obj, &pv);
 		if (rc != 0)
 			return M0_ERR(rc);
 		oo->oo_pver = pv->pv_id;
+
+		ldom = &cinst->m0c_reqh.rh_ldom;
+		obj_optimal_lid_set(obj, ldom);
 	} else if (OP_OBJ2CODE(oo) == M0_EO_OPEN) {
 		/*
 		 * XXX:Not required to assign pool version for operation other
@@ -590,7 +621,6 @@ static int obj_op_obj_init(struct m0_op_obj *oo)
 		 * and cache it to m0_obj::ob_layout::oa_pver
 		 * MOTR-2871 will fix and verify this issue separately.
 		 */
-			cinst = m0__obj_instance(obj);
 			pv = m0_pool_version_md_get(&cinst->m0c_pools_common);
 			M0_ASSERT(pv != NULL);
 			oo->oo_pver = pv->pv_id;
@@ -741,6 +771,8 @@ static int entity_namei_op(struct m0_entity *entity,
 		break;
 	case M0_ET_IDX:
 		rc = m0_idx_op_namei(entity, op, opcode);
+		if (rc != 0)
+			goto error;
 		break;
 	default:
 		M0_IMPOSSIBLE("Entity type not yet implemented.");

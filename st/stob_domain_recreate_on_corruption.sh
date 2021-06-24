@@ -78,7 +78,8 @@ stub_confdb() {
     cat <<EOF
 (root-0 verno=1 rootfid=(11, 22) mdpool=pool-0 imeta_pver=pver-0
     mdredundancy=2 params=["pool_width=3", "nr_data_units=1",
-                           "nr_parity_units=1", "unit_size=4096"]
+                           "nr_parity_units=1", "nr_spare_units=1",
+                           "unit_size=4096"]
     nodes=[node-0] sites=[site-2] pools=[pool-0]
     profiles=[profile-0] fdmi_flt_grps=[])
 (profile-0 pools=[pool-0])
@@ -99,8 +100,8 @@ stub_confdb() {
 (objv-2 real=controller-0 children=[])
 (site-2 racks=[rack-0] pvers=[pver-0])
 (rack-0 encls=[enclosure-0] pvers=[pver-0])
-(enclosure-0 ctrls=[controller-0] pvers=[pver-0])
-(controller-0 node=node-0 drives=[] pvers=[pver-0])
+(enclosure-0 node=node-0 ctrls=[controller-0] pvers=[pver-0])
+(controller-0 drives=[] pvers=[pver-0])
 (sdev-0 dev_idx=0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")
 EOF

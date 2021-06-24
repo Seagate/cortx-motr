@@ -538,7 +538,7 @@ function start_server ()
 	if [ $I -eq 0 ]; then
 		local DIR=$WORK_ARENA/confd
 		local multiple_pools=0
-		build_conf $NR_DATA $NR_PARITY $POOL_WIDTH $multiple_pools \
+		build_conf $NR_DATA $NR_PARITY $NR_SPARE $POOL_WIDTH $multiple_pools \
 			SERVICES[@]  MDSERVICES[@] > $CONF_FILE
 		if [ $verbosity -gt 0 ] ;then
 			# Just show conf
