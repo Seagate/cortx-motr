@@ -3629,7 +3629,8 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op *bop = M0_AMB(bop, smop, bo_op);
-	int rc = 0;
+	int                 rc  = 0;
+
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
 		M0_PRE(bop->bo_arbor != NULL);
@@ -3735,40 +3736,40 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 	struct nd             *nd_curr;
 
 	switch (bop->bo_op.o_sm.sm_state) {
-	case P_INIT:
-	if (tree->t_desc->t_ref > 1) {
-		tree_put(tree->t_desc);
-	} else if (tree->t_desc->t_ref == 1) {
-		nd_curr = nd_head;
-		if (nd_curr->n_starttime == 0)
-			nd_curr->n_starttime = m0_time_now();
-		if (ndlist_tlist_length(&tree->t_desc->t_active_nds) > 1) {
-			/** This code is meant for debugging.
-			 *  In future, this case needs to be
-			 *  handled in a better way.
-			 */
-			if (m0_time_seconds(m0_time_now() -
-			    nd_curr->n_starttime) > 5) {
-				nd_curr->n_starttime = 0;
-				return M0_ERR(-ETIMEDOUT);
-			}
-			return P_INIT;
-		} else if (nd_curr == tree->t_desc->t_root) {
-			if (nd_curr->n_ref > 1) {
+		case P_INIT:
+		if (tree->t_desc->t_ref > 1)
+			tree_put(tree->t_desc);
+		else if (tree->t_desc->t_ref == 1) {
+			nd_curr = nd_head;
+			if (nd_curr->n_starttime == 0)
+				nd_curr->n_starttime = m0_time_now();
+			if (ndlist_tlist_length(&tree->t_desc->t_active_nds) >
+			    1) {
+				/** This code is meant for debugging.
+				 *  In future, this case needs to be
+				 *  handled in a better way.
+				 */
 				if (m0_time_seconds(m0_time_now() -
-				    nd_curr->n_starttime) > 5) {
+					nd_curr->n_starttime) > 5) {
 					nd_curr->n_starttime = 0;
 					return M0_ERR(-ETIMEDOUT);
 				}
-			} else {
-				nd_curr->n_starttime = 0;
-				node_put(nd_curr);
+				return P_INIT;
+			} else if (nd_curr == tree->t_desc->t_root) {
+				if (nd_curr->n_ref > 1) {
+					if (m0_time_seconds(m0_time_now() -
+						nd_curr->n_starttime) > 5) {
+						nd_curr->n_starttime = 0;
+						return M0_ERR(-ETIMEDOUT);
+					}
+				} else {
+					nd_curr->n_starttime = 0;
+					node_put(nd_curr);
+				}
 			}
-		}
-		tree_put(tree->t_desc);
-	} else {
-		return M0_ERR(-ECANCELED);
-	}
+			tree_put(tree->t_desc);
+		} else
+			return M0_ERR(-ECANCELED);
 
 		return P_DONE;
 	default:
