@@ -1022,7 +1022,8 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		ext->ee_ext.e_start = rec->er_start;
 		ext->ee_ext.e_end   = key->ek_offset;
 		m0_ext_init(&ext->ee_ext);
-		ext->ee_val         = rec->er_value;		
+		ext->ee_val         = rec->er_value;
+		ext->ee_di_cksum.b_nob  = rec->er_cs_nob;
 		ext->ee_di_cksum.b_addr = rec->er_cs_nob ? 
 								 (void *)&rec->er_footer : NULL;
  		if (!emap_it_prefix_ok(it))
