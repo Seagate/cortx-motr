@@ -1183,13 +1183,14 @@ static int stob_ad_cursors_init(struct m0_stob_io *io,
 {
 	int rc;
 
+	it->ec_recbuf.b_nob = 0;
+	it->ec_recbuf.b_addr = NULL;
+
 	rc = stob_ad_cursor(adom, io->si_obj, io->si_stob.iv_index[0], it);
 	if (rc == 0) {
 		m0_vec_cursor_init(src, &io->si_user.ov_vec);
 		m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
 		m0_be_emap_caret_init(map, it, io->si_stob.iv_index[0]);
-		it->ec_recbuf.b_nob = 0;
-		it->ec_recbuf.b_addr = NULL;
 	}
 	return M0_RC(rc);
 }
