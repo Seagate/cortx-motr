@@ -928,7 +928,7 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 
 	key->ek_prefix = ext->ee_pre;
 	key->ek_offset = ext->ee_ext.e_end;
-	m0_format_footer_update(key);
+	emap_key_init(key);
 	key_print(key);
 	rec->er_start  = ext->ee_ext.e_start;
 	rec->er_value  = ext->ee_val;
