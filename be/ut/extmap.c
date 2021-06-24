@@ -285,7 +285,7 @@ static void test_split(void)
 
 static int test_print(void)
 {
-	int i;
+	int i, j;
 	int rc;
 
 	rc = be_emap_lookup(emap, &prefix, 0, &it);
@@ -298,6 +298,18 @@ static int test_print(void)
 		       (unsigned long)seg->ee_ext.e_end,
 		       (unsigned long)m0_ext_length(&seg->ee_ext),
 		       (unsigned long)seg->ee_val);
+
+		M0_LOG(M0_DEBUG,"Number of bytes for checksum %lu", (unsigned long)seg->ee_di_cksum.b_nob);
+
+		if (seg->ee_di_cksum.b_nob > 0) {
+			char array[seg->ee_di_cksum.b_nob + 1];
+			for (j = 0; j < seg->ee_di_cksum.b_nob; j++) {
+				array[j] = *(char *)(seg->ee_di_cksum.b_addr + j);
+			}
+			array[j] = '\0';
+			M0_LOG(M0_DEBUG, "checksum value %s", (char *)array);
+		}
+
 		if (m0_be_emap_ext_is_last(&seg->ee_ext))
 			break;
 		M0_SET0(it_op);
@@ -376,6 +388,7 @@ static void test_paste(void)
 {
 	int		 rc;
 	struct m0_ext	 e;
+	struct m0_buf   cksum = {};
 
 	rc = be_emap_lookup(emap, &prefix, 0, &it);
 	M0_UT_ASSERT(rc == 0);
@@ -383,9 +396,13 @@ static void test_paste(void)
 	e.e_start = 10;
 	e.e_end   = 20;
 
+	m0_buf_alloc(&cksum, 10*128);
+	memset(cksum.b_addr, 'C', cksum.b_nob);
+
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	M0_SET0(it_op);
 	m0_be_op_init(it_op);
+	m0_buf_init(&it.ec_cksum, cksum.b_addr, cksum.b_nob);
 	m0_be_emap_paste(&it, &tx2, &e, 12, NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
@@ -401,6 +418,8 @@ static void test_paste(void)
 
 	M0_UT_ASSERT(seg->ee_ext.e_start ==  0);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == 10);
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == cksum.b_nob);
+	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum.b_addr, cksum.b_nob) == 0);
 
 	rc = be_emap_lookup(emap, &prefix, 10, &it);
 	M0_UT_ASSERT(rc == 0);
@@ -417,6 +436,11 @@ static void test_paste(void)
 
 	rc = be_emap_lookup(emap, &prefix, 0, &it);
 	M0_UT_ASSERT(rc == 0);
+
+
+	m0_buf_free(&cksum);
+	it.ec_cksum.b_nob = 0;
+	it.ec_cksum.b_addr = NULL;
 
 	e.e_start = 5;
 	e.e_end   = 25;
