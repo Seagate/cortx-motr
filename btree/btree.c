@@ -1185,7 +1185,7 @@ struct level {
 	/**
 	 * This is the flag for indicating if node needs to be freed. Currently
 	 * this flag is set in delete operation and is used by P_FREENODE phase
-	 * for determine if node needs to be freed.
+	 * to determine if the node should be freed.
 	 */
 	bool       l_freenode;
 };
