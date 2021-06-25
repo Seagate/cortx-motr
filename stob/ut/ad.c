@@ -431,7 +431,7 @@ start_again:
 
 	for (i = 0; i < nr; i++) {
 		struct m0_stob_ad_domain *adom;
-		struct m0_be_emap_cursor  it;
+		struct m0_be_emap_cursor  it = {};
 		struct m0_ext            *ext;
 		adom = stob_ad_domain2ad(m0_stob_dom_get(obj_fore));
 		rc = stob_ad_cursor(adom, obj_fore, stob_vi[i], &it);

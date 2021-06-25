@@ -731,7 +731,7 @@ static int stob_ad_punch_credit(struct m0_stob *stob,
 	struct m0_ivec_cursor     cur;
 	int                       rc = 0;
 	struct m0_be_tx_credit    cred;
-	struct m0_be_emap_cursor  it;
+	struct m0_be_emap_cursor  it = {};
 	struct m0_be_emap_seg    *seg = NULL;
 	struct m0_be_engine      *eng;
 	struct m0_stob_ad_domain *adom;
