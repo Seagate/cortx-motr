@@ -42,6 +42,8 @@
  #include "motr/setup.h"          /* m0_cs_storage_devs_get */
  #include "ioservice/storage_dev.h"
 #endif
+#include "balloc/balloc.h"        /* BALLOC_DEF_BLOCKS_PER_GROUP */
+
 
 extern struct m0_reqh_service_type m0_ios_type;
 
@@ -632,7 +634,10 @@ static int sss_device_stob_attach(struct m0_fom *fom)
 	 * block since it is possibly long operation.
 	 */
 	m0_fom_block_enter(fom);
-	rc = m0_storage_dev_new_by_conf(devs, sdev, false, &dev_new);
+	rc = m0_storage_dev_new_by_conf(devs, sdev,
+					BALLOC_DEF_GROUPS_NR,
+					BALLOC_DEF_INDEXES_NR,
+					false, &dev_new);
 	m0_fom_block_leave(fom);
 	if (rc == 0) {
 		m0_storage_devs_lock(devs);
