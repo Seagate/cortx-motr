@@ -2071,7 +2071,7 @@ static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
 	struct m0_stob_domain    *dom  = m0_stob_domain_find(&arp->arp_dom_id);
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 	struct m0_be_emap_seg    *old_data = arp->arp_seg.ps_old_data;
-	struct m0_be_emap_cursor  it;
+	struct m0_be_emap_cursor  it = {};
 	int		          i;
 	int		          rc = 0;
 
