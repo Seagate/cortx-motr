@@ -3497,7 +3497,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_TIMECHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_TIMECHECK",
-		.sd_allowed = M0_BITS(P_INIT),
+		.sd_allowed = M0_BITS(P_TIMECHECK, P_ACT),
 	},
 	[P_DONE] = {
 		.sd_flags   = M0_SDF_TERMINAL,
@@ -3507,11 +3507,11 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 };
 
 static struct m0_sm_trans_descr btree_trans[] = {
-	{ "open/create-init", P_INIT, P_ACT  },
-	{ "open/create-act", P_ACT, P_DONE },
+	{ "open/create/close-init", P_INIT, P_ACT  },
+	{ "open/create/close-act", P_ACT, P_DONE },
 	{ "destroy", P_INIT, P_DONE},
 	{ "close-init-timecheck", P_INIT, P_TIMECHECK},
-	{ "close-timecheck-init", P_TIMECHECK, P_INIT},
+	{ "close-timecheck-act", P_TIMECHECK, P_ACT},
 	{ "put/get-init-cookie", P_INIT, P_COOKIE },
 	{ "put/get-init", P_INIT, P_SETUP },
 	{ "put/get-cookie-valid", P_COOKIE, P_LOCK },
@@ -3777,31 +3777,24 @@ int64_t btree_open_tree_tick(struct m0_sm_op *smop)
 int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop     = M0_AMB(bop, smop, bo_op);
-	struct m0_btree       *tree    = bop->bo_arbor;
-	struct td             *td_curr = tree->t_desc;
+	struct td             *td_curr = bop->bo_arbor->t_desc;
 	struct nd             *nd_head = ndlist_tlist_head(&td_curr->
 							   t_active_nds);
-	struct nd             *nd_curr;
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
+		M0_ASSERT(td_curr->t_ref != 0);
 		if (td_curr->t_ref > 1)
 			tree_put(td_curr);
 		else if (td_curr->t_ref == 1) {
-			nd_curr = nd_head;
 			if (td_curr->t_starttime == 0)
 				td_curr->t_starttime = m0_time_now();
 
 			if (ndlist_tlist_length(&td_curr->t_active_nds) > 1)
 				return P_TIMECHECK;
-			else if (nd_curr == td_curr->t_root)
-				node_put(nd_curr);
-
-			td_curr->t_starttime = 0;
-			tree_put(td_curr);
-		} else
-			return M0_ERR(-ECANCELED);
-		return P_DONE;
+			else
+				return P_ACT;
+		}
 
 	case P_TIMECHECK:
 		/**
@@ -3812,7 +3805,17 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 			td_curr->t_starttime = 0;
 			return M0_ERR(-ETIMEDOUT);
 		}
-		return P_INIT;
+		if (ndlist_tlist_length(&td_curr->t_active_nds) > 1)
+			return P_TIMECHECK;
+		return P_ACT;
+
+	case P_ACT:
+		if (nd_head == td_curr->t_root)
+			node_put(nd_head);
+
+		td_curr->t_starttime = 0;
+		tree_put(td_curr);
+		return P_DONE;
 
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
