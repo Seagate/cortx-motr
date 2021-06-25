@@ -398,6 +398,7 @@ ut_dummy_ioo_create(struct m0_client *instance, int num_io_maps)
 	/* Set entity */
 	ioo->ioo_obj = ut_dummy_obj_create();
 	ioo->ioo_oo.oo_oc.oc_op.op_entity = &ioo->ioo_obj->ob_entity;
+	ioo->ioo_obj->ob_attr.oa_layout_id = M0_DEFAULT_LAYOUT_ID;
 
 	/* IO extends */
 	rc = m0_indexvec_alloc(&ioo->ioo_ext, 1);
@@ -410,6 +411,12 @@ ut_dummy_ioo_create(struct m0_client *instance, int num_io_maps)
 	ioo->ioo_data.ov_vec.v_count[0] = UT_DEFAULT_BLOCK_SIZE;
 	M0_ALLOC_ARR(ioo->ioo_data.ov_buf, 1);
 	M0_ALLOC_ARR(ioo->ioo_data.ov_buf[0], 1);
+
+	ioo->ioo_attr.ov_vec.v_nr = 1;
+	M0_ALLOC_ARR(ioo->ioo_attr.ov_vec.v_count, 1);
+	ioo->ioo_attr.ov_vec.v_count[0] = CKSUM_SIZE;
+	M0_ALLOC_ARR(ioo->ioo_attr.ov_buf, 1);
+	M0_ALLOC_ARR(ioo->ioo_attr.ov_buf[0], 1);
 
 	/* failed sessions*/
 	M0_ALLOC_ARR(ioo->ioo_failed_session, 1);
