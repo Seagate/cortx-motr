@@ -596,6 +596,7 @@ enum base_phase {
 	P_FREENODE,
 	P_CLEANUP,
 	P_COOKIE,
+	P_TIMECHECK,
 	P_NR
 };
 
@@ -795,6 +796,7 @@ struct segnode;
  */
 struct td {
 	const struct m0_btree_type *t_type;
+
 	/**
 	 * The lock that protects the fields below. The fields above are
 	 * read-only after the tree root is loaded into memory.
@@ -803,6 +805,15 @@ struct td {
 	struct nd                  *t_root;
 	int                         t_height;
 	int                         t_ref;
+
+	/**
+	 * Start time is basically used in tree close to calculate certain time-
+	 * frame for other threads to complete their operation when tree_close
+	 * is called. This is used when the nd_active list has more members than
+	 * expected.
+	 */
+	m0_time_t               t_starttime;
+
 	/**
 	 * Active node descriptor list contains the node descriptors that are
 	 * currently in use by the tree.
@@ -1012,14 +1023,6 @@ struct nd {
 
 	uint64_t                n_seq;
 	struct node_op         *n_op;
-
-	/**
-	 * Start time is basically used in tree close to calculate certain time-
-	 * frame for other threads to complete their operation when tree_close
-	 * is called. This is used when the nd_active list has more members than
-	 * expected.
-	 */
-	m0_time_t               n_starttime;
 };
 
 enum node_opcode {
@@ -1898,6 +1901,7 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 		tree->t_root         =  op->no_node;
 		tree->t_root->n_addr = *addr;
 		tree->t_root->n_tree =  tree;
+		tree->t_starttime    =  0;
 		//tree->t_height = tree_height_get(op->no_node);
 	}
 
@@ -3386,7 +3390,8 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "P_INIT",
-		.sd_allowed = M0_BITS(P_INIT, P_COOKIE, P_SETUP, P_ACT, P_DONE),
+		.sd_allowed = M0_BITS(P_INIT, P_COOKIE, P_SETUP, P_ACT,
+				      P_TIMECHECK, P_DONE),
 	},
 	[P_COOKIE] = {
 		.sd_flags   = 0,
@@ -3459,6 +3464,11 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CLEANUP",
 		.sd_allowed = M0_BITS(P_SETUP, P_DONE, P_INIT),
+	},
+	[P_TIMECHECK] = {
+		.sd_flags   = 0,
+		.sd_name    = "P_TIMECHECK",
+		.sd_allowed = M0_BITS(P_INIT),
 	},
 	[P_DONE] = {
 		.sd_flags   = M0_SDF_TERMINAL,
@@ -3741,44 +3751,39 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 	struct nd             *nd_head = ndlist_tlist_head(&tree->t_desc->
 							   t_active_nds);
 	struct nd             *nd_curr;
+	struct td             *td_curr = tree->t_desc;
 
 	switch (bop->bo_op.o_sm.sm_state) {
-		case P_INIT:
-		if (tree->t_desc->t_ref > 1)
-			tree_put(tree->t_desc);
-		else if (tree->t_desc->t_ref == 1) {
+	case P_INIT:
+		if (td_curr->t_ref > 1)
+			tree_put(td_curr);
+		else if (td_curr->t_ref == 1) {
 			nd_curr = nd_head;
-			if (nd_curr->n_starttime == 0)
-				nd_curr->n_starttime = m0_time_now();
-			if (ndlist_tlist_length(&tree->t_desc->t_active_nds) >
-			    1) {
-				/** This code is meant for debugging.
-				 *  In future, this case needs to be
-				 *  handled in a better way.
-				 */
-				if (m0_time_seconds(m0_time_now() -
-					nd_curr->n_starttime) > 5) {
-					nd_curr->n_starttime = 0;
-					return M0_ERR(-ETIMEDOUT);
-				}
-				return P_INIT;
-			} else if (nd_curr == tree->t_desc->t_root) {
-				if (nd_curr->n_ref > 1) {
-					if (m0_time_seconds(m0_time_now() -
-						nd_curr->n_starttime) > 5) {
-						nd_curr->n_starttime = 0;
-						return M0_ERR(-ETIMEDOUT);
-					}
-				} else {
-					nd_curr->n_starttime = 0;
+			if (td_curr->t_starttime == 0)
+				td_curr->t_starttime = m0_time_now();
+
+			if (ndlist_tlist_length(&td_curr->t_active_nds) > 1)
+				return P_TIMECHECK;
+			else if (nd_curr == td_curr->t_root)
 					node_put(nd_curr);
-				}
-			}
-			tree_put(tree->t_desc);
+
+			td_curr->t_starttime = 0;
+			tree_put(td_curr);
 		} else
 			return M0_ERR(-ECANCELED);
-
 		return P_DONE;
+
+	case P_TIMECHECK:
+		/**
+		 * This code is meant for debugging.In future, this case needs 
+		 * to be handled in a better way.
+		 */
+		if (m0_time_seconds(m0_time_now() - td_curr->t_starttime) > 5) {
+			td_curr->t_starttime = 0;
+			return M0_ERR(-ETIMEDOUT);
+		}
+		return P_INIT;
+
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
 	}
