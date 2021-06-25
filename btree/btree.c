@@ -3748,10 +3748,10 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop     = M0_AMB(bop, smop, bo_op);
 	struct m0_btree       *tree    = bop->bo_arbor;
-	struct nd             *nd_head = ndlist_tlist_head(&tree->t_desc->
+	struct td             *td_curr = tree->t_desc;
+	struct nd             *nd_head = ndlist_tlist_head(&td_curr->
 							   t_active_nds);
 	struct nd             *nd_curr;
-	struct td             *td_curr = tree->t_desc;
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
