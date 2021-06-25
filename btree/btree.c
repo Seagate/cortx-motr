@@ -1012,6 +1012,13 @@ struct nd {
 
 	uint64_t                n_seq;
 	struct node_op         *n_op;
+
+	/**
+	 * Start time is basically used in tree close to calculate certain time-
+	 * frame for other threads to complete their operation when tree_close
+	 * is called. This is used when the nd_active list has more members than
+	 * expected.
+	 */
 	m0_time_t               n_starttime;
 };
 
@@ -3722,7 +3729,7 @@ int64_t btree_open_tree_tick(struct m0_sm_op *smop)
 
 /**
  * btree_close_tree_tick function is used to traverse through different states to
- * facilitate the working of m0_btree_open().
+ * facilitate the working of m0_btree_close().
  *
  * @param smop     represents the state machine operation
  * @return int64_t returns the next state to be executed.
