@@ -3768,8 +3768,8 @@ int64_t btree_open_tree_tick(struct m0_sm_op *smop)
 }
 
 /**
- * btree_close_tree_tick function is used to traverse through different states to
- * facilitate the working of m0_btree_close().
+ * btree_close_tree_tick function is used to traverse through different states
+ * to facilitate the working of m0_btree_close().
  *
  * @param smop     represents the state machine operation
  * @return int64_t returns the next state to be executed.
@@ -3795,7 +3795,7 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 			if (ndlist_tlist_length(&td_curr->t_active_nds) > 1)
 				return P_TIMECHECK;
 			else if (nd_curr == td_curr->t_root)
-					node_put(nd_curr);
+				node_put(nd_curr);
 
 			td_curr->t_starttime = 0;
 			tree_put(td_curr);
@@ -3805,7 +3805,7 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 
 	case P_TIMECHECK:
 		/**
-		 * This code is meant for debugging.In future, this case needs 
+		 * This code is meant for debugging. In future, this case needs
 		 * to be handled in a better way.
 		 */
 		if (m0_time_seconds(m0_time_now() - td_curr->t_starttime) > 5) {
