@@ -1581,8 +1581,7 @@ struct seg_ops {
 				     struct m0_be_tx *tx, int nxt);
 	void       (*so_tree_put)(struct td *tree);
 	int64_t    (*so_node_get)(struct node_op *op, struct td *tree,
-			          struct segaddr *addr, bool lock_acquired,
-				  int nxt);
+			          struct segaddr *addr, int nxt);
 	void       (*so_node_put)(struct nd *node, bool lock_acquired);
 	struct nd *(*so_node_try)(struct td *tree, struct segaddr *addr);
 	int64_t    (*so_node_alloc)(struct node_op *op, struct td *tree,
@@ -1695,7 +1694,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	const struct node_type *nt;
 	struct nd              *node;
 
-	nxt_state =  segops->so_node_get(op, tree, addr, lock_acquired, nxt);
+	nxt_state =  segops->so_node_get(op, tree, addr, nxt);
 	/**
 	 * TODO : Add following AIs after decoupling of node descriptor and
 	 * segment code.
@@ -1808,7 +1807,7 @@ static void node_op_fini(struct node_op *op)
 #endif
 
 static int64_t mem_node_get(struct node_op *op, struct td *tree,
-			    struct segaddr *addr, bool lock_acquired, int nxt);
+			    struct segaddr *addr, int nxt);
 static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
 			      const struct node_type *nt, struct m0_be_tx *tx,
 			      int nxt);
@@ -1886,7 +1885,7 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 
 	if (addr) {
 		m0_rwlock_write_unlock(&tree->t_lock);
-		node_get(op, tree, addr, true, nxt);
+		node_get(op, tree, addr, false, nxt);
 		m0_rwlock_write_lock(&tree->t_lock);
 
 		tree->t_root         =  op->no_node;
@@ -1971,7 +1970,7 @@ static void mem_tree_put(struct td *tree)
 }
 
 static int64_t mem_node_get(struct node_op *op, struct td *tree,
-			    struct segaddr *addr, bool lock_acquired, int nxt)
+			    struct segaddr *addr, int nxt)
 {
 	int                     nxt_state = nxt;
 
@@ -2800,7 +2799,7 @@ static int64_t btree_put_alloc_phase(struct m0_btree_op *bop)
 			} else {
 				node_op_fini(&oi->i_nop);
 				oi->i_used = bop->bo_arbor->t_height - 1;
-				if (bop->bo_flags & BOF_LOCKALL)
+				if (lock_acquired)
 					lock_op_unlock(tree);
 				level_cleanup(oi, bop->bo_tx);
 				return P_SETUP;
@@ -2829,7 +2828,7 @@ static int64_t btree_put_alloc_phase(struct m0_btree_op *bop)
 		} else {
 			node_op_fini(&oi->i_nop);
 			oi->i_used = bop->bo_arbor->t_height - 1;
-			if (bop->bo_flags & BOF_LOCKALL)
+			if (lock_acquired)
 				lock_op_unlock(tree);
 			level_cleanup(oi, bop->bo_tx);
 			return P_SETUP;
@@ -3192,7 +3191,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		if (bop->bo_flags & BOF_LOCKALL)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 					    bop->bo_arbor->t_desc, P_DOWN);
-		/* Fall through to the next stage */
+		/** Fall through if LOCKALL flag is not set. */
 	case P_DOWN:
 		oi->i_used = 0;
 		/* Load root node. */
@@ -3275,8 +3274,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		if (!lock_acquired)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 					    bop->bo_arbor->t_desc, P_CHECK);
-		else
-			return P_CHECK;
+		/** Fall through if LOCK is already acquired. */
 	case P_CHECK:
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
 			oi->i_trial++;
@@ -3298,7 +3296,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				return P_LOCKALL;
 			}
 		}
-		/* Fall through to the next step i.e. P_MAKESPACE */
+		/** Fall through if path_check is successful. */
 	case P_MAKESPACE: {
 		if (oi->i_key_found) {
 			struct m0_btree_rec rec;
@@ -3321,7 +3319,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		if (!node_isfit(&slot_for_right_node))
 			return btree_put_makespace_phase(bop);
 		node_make (&slot_for_right_node, bop->bo_tx);
-		/** Fallthrough to the P_ACT  **/
+		/** Fall through if there is no overflow.  **/
 	}
 	case P_ACT: {
 		m0_bcount_t          ksize;
@@ -3402,7 +3400,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_LOCKALL] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_LOCKALL",
-		.sd_allowed = M0_BITS(P_LOCK, P_DOWN, P_NEXTDOWN),
+		.sd_allowed = M0_BITS(P_DOWN, P_NEXTDOWN),
 	},
 	[P_DOWN] = {
 		.sd_flags   = 0,
@@ -3428,23 +3426,24 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_STORE_CHILD] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_STORE_CHILD",
-		.sd_allowed = M0_BITS(P_LOCK, P_CHECK),
+		.sd_allowed = M0_BITS(P_CHECK, P_CLEANUP, P_LOCKALL,
+				      P_FREENODE),
 	},
 	[P_LOCK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_LOCK",
-		.sd_allowed = M0_BITS(P_CHECK),
+		.sd_allowed = M0_BITS(P_CHECK, P_CLEANUP, P_LOCKALL,
+				      P_FREENODE),
 	},
 	[P_CHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CHECK",
-		.sd_allowed = M0_BITS(P_MAKESPACE, P_CLEANUP, P_DOWN, P_ACT,
-				      P_FREENODE, P_INIT),
+		.sd_allowed = M0_BITS(P_CLEANUP, P_LOCKALL, P_FREENODE),
 	},
 	[P_MAKESPACE] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_MAKESPACE",
-		.sd_allowed = M0_BITS(P_CLEANUP, P_ACT),
+		.sd_allowed = M0_BITS(P_CLEANUP),
 	},
 	[P_ACT] = {
 		.sd_flags   = 0,
@@ -3483,7 +3482,6 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "put/get-cookie-invalid", P_COOKIE, P_SETUP },
 	{ "put/get-setup", P_SETUP, P_LOCKALL },
 	{ "put/get-setup-failed", P_SETUP, P_CLEANUP },
-	{ "put/get-lockall-lock", P_LOCKALL, P_LOCK },
 	{ "put/get-lockall", P_LOCKALL, P_DOWN },
 	{ "put/get-lockall-ft", P_LOCKALL, P_NEXTDOWN},
 	{ "put/get-down", P_DOWN, P_NEXTDOWN },
@@ -3501,14 +3499,16 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "put-alloc-next", P_ALLOC, P_LOCK },
 	{ "put-alloc-failed", P_ALLOC, P_CLEANUP },
 	{ "put-alloc-fail", P_ALLOC, P_INIT },
-	{ "del-load-lock", P_STORE_CHILD, P_LOCK },
-	{ "del-load-check", P_STORE_CHILD, P_CHECK },
+	{ "del-child-check", P_STORE_CHILD, P_CHECK },
+	{ "del-child-check-ht-changed", P_STORE_CHILD, P_CLEANUP },
+	{ "del-child-check-ht-same", P_STORE_CHILD, P_LOCKALL },
+	{ "del-child-check-act-free", P_STORE_CHILD, P_FREENODE },
 	{ "put/get-lock", P_LOCK, P_CHECK },
-	{ "put/get-check-height-inc", P_CHECK, P_CLEANUP },
-	{ "put/get-check-height-decr", P_CHECK, P_DOWN },
-	{ "put/get-check-ft", P_CHECK, P_ACT },
-	{ "put-check-ft-makespace", P_CHECK, P_MAKESPACE },
-	{ "put-check-init", P_CHECK, P_INIT },
+	{ "put/get-lock-check-ht-changed", P_LOCK, P_CLEANUP },
+	{ "put/get-lock-check-ht-same", P_LOCK, P_LOCKALL },
+	{ "del-check-act-free", P_LOCK, P_FREENODE },
+	{ "put/get-check-height-changed", P_CHECK, P_CLEANUP },
+	{ "put/get-check-height-same", P_CHECK, P_LOCKALL },
 	{ "del-act-free", P_CHECK, P_FREENODE },
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
 	{ "put-makespace", P_MAKESPACE, P_ACT },
@@ -3856,8 +3856,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 		if(!lock_acquired)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 					    bop->bo_arbor->t_desc, P_CHECK);
-		else
-			return P_CHECK;
+		/** Fall through if LOCK is already acquired. */
 	case P_CHECK:
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
 			oi->i_trial++;
@@ -4118,8 +4117,7 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 		if (!lock_acquired)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 					    bop->bo_arbor->t_desc, P_CHECK);
-		else
-			return P_CHECK;
+		/** Fall through if LOCK is already acquired. */
 	case P_CHECK:
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie) ||
 		    !sibling_node_check(oi)) {
@@ -4437,7 +4435,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		if (bop->bo_flags & BOF_LOCKALL)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 					    bop->bo_arbor->t_desc, P_DOWN);
-		/* Fall through to the next stage */
+		/** Fall through if LOCKALL flag is not set. */
 	case P_DOWN:
 		oi->i_used = 0;
 		/* Load root node. */
@@ -4507,8 +4505,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		if (!lock_acquired)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 					    bop->bo_arbor->t_desc, P_CHECK);
-		else
-			return P_CHECK;
+		/* Fall through to the next step */
 	case P_CHECK:
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie) ||
 		    !child_node_check(oi)) {
@@ -4531,7 +4528,10 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 				return P_LOCKALL;
 			}
 		}
-		/* Fall through to the next step */
+		/**
+		 * Fall through if path_check and child_node_check are
+		 * successful.
+		 */
 	case P_ACT: {
 		struct m0_btree_rec rec;
 		struct slot         node_slot;
