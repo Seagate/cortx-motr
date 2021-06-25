@@ -1128,6 +1128,7 @@ static void node_cut  (const struct nd *node, int idx, int size,
 		       struct m0_be_tx *tx);
 #endif
 static void node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
+static void node_refcnt_update(struct nd *node, bool increment);
 
 #ifndef __KERNEL__
 static void node_set_level  (const struct nd *node, uint8_t new_level,
@@ -1391,6 +1392,19 @@ static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	node->n_type->nt_del(node, idx, tx);
 }
 
+/**
+ * Updates the node reference count
+ *
+ * @param node The node descriptor whose ref count needs to be updated.
+ * @param increment If true increase ref count.
+ *		    If false decrease ref count.
+ */
+static void node_refcnt_update(struct nd *node, bool increment)
+{
+	m0_rwlock_write_lock(&node->n_lock);
+	increment ? node->n_ref++ : node->n_ref--;
+	m0_rwlock_write_unlock(&node->n_lock);
+}
 
 #ifndef __KERNEL__
 static void node_set_level(const struct nd *node, uint8_t new_level,
@@ -1717,6 +1731,8 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 			 * The node descriptor is in LRU list. Remove from lru
 			 * list and add to trees active list
 			 */
+			node_refcnt_update(op->no_node, true);
+
 			m0_rwlock_write_lock(&lru_lock);
 			M0_ASSERT_EX(ndlist_tlist_contains(&btree_lru_nds,
 							   op->no_node));
@@ -1732,8 +1748,8 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 			 * details Refer comment in node_put().
 			 */
 			op->no_node->n_tree = tree;
-		}
-		op->no_node->n_ref++;
+		} else
+			node_refcnt_update(op->no_node, true);
 	} else {
 		/**
 		 * If node descriptor is not present allocate a new one
@@ -1822,11 +1838,15 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 {
 	int shift = node->n_type->nt_shift(node);
 
-	node->n_ref--;
+	node_refcnt_update(node, false);
+
 	ndlist_tlink_del_fini(node);
 
 	node->n_type->nt_fini(node);
+
+	m0_rwlock_fini(&node->n_lock);
 	m0_free(node);
+
 	return segops->so_node_free(op, shift, tx, nxt);
 }
 
@@ -2016,7 +2036,7 @@ static int64_t mem_node_get(struct node_op *op, struct td *tree,
 
 static void mem_node_put(struct nd *node, struct td *tree)
 {
-	node->n_ref--;
+	node_refcnt_update(node, false);
 	if (node->n_ref == 0) {
 		/**
 		 * The node descriptor is in tree's active list. Remove from
@@ -3686,7 +3706,7 @@ int64_t btree_destroy_tick(struct m0_sm_op *smop)
 
 		/**
 		 * TODO: Currently putting it here, call it inside
-		 * tree_*() function once desctroy tick is implemented
+		 * tree_*() function once destroy tick is implemented
 		 * completely.
 		 */
 		ndlist_tlink_del_fini(bop->bo_arbor->t_desc->t_root);
@@ -4631,6 +4651,7 @@ void m0_btree_lrulist_purge(uint64_t count)
 		prev = ndlist_tlist_prev(&btree_lru_nds, node);
 		if (node->n_txref == 0) {
 			ndlist_tlink_del_fini(node);
+			m0_rwlock_fini(&node->n_lock);
 			m0_free(node);
 		}
 		node = prev;
