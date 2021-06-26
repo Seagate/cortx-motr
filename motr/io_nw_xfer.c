@@ -930,8 +930,14 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_fid = ti->ti_fid;
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
-		if (ioo->ioo_flags & M0_OOF_NOHOLE)
-			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
+		/* @todo In case of partially spanned units in a parity group,
+		 * degraded read expects zero-filled units from server side.
+		 * No hole case needs to be handled, which was added during
+		 * data recovery, as some extents may be corrupted. With DI
+		 * enabled this can be handled in R2.
+		 * if (ioo->ioo_flags & M0_OOF_NOHOLE)
+		 * 		rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
+		 */
 		if (ioo->ioo_flags & M0_OOF_SYNC)
 			rw_fop->crw_flags |= M0_IO_FLAG_SYNC;
 		io_attr = m0_io_attr(ioo);
