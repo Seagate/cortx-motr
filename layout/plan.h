@@ -375,10 +375,10 @@ struct m0_layout_plop {
 	/**
 	 * Linkage in the ::lp_plops list of all plops in the plan.
 	 */
-	struct m0_tlink                  pl_all_link;
+	struct m0_tlink                  pl_linkage;
 	/**
 	 * List of plops this plop depends on,
-	 * linked via m0_layout_plop_relation::plr_dep_link.
+	 * linked via m0_layout_plop_rel::plr_dep_link.
 	 *
 	 * User can use this list to track the dependencies between plops
 	 * to execute and call m0_layout_plop_done() on them in the
@@ -388,7 +388,7 @@ struct m0_layout_plop {
 	struct m0_tl                     pl_deps;
 	/**
 	 * List of plops that depend on this plop (dependants),
-	 * linked via m0_layout_plop_relation::plr_rdep_link.
+	 * linked via m0_layout_plop_rel::plr_rdep_link.
 	 */
 	struct m0_tl                     pl_rdeps;
 	/**
@@ -411,15 +411,17 @@ struct m0_layout_plop {
 /**
  * Helper structure to implement m:n relations between plops.
  */
-struct m0_layout_plop_relation {
+struct m0_layout_plop_rel {
 	/** Target dependency in this relation (see pl_deps list). */
 	struct m0_layout_plop *plr_dep;
 	/** Dependant plop in this relation (see pl_rdeps list). */
 	struct m0_layout_plop *plr_rdep;
-	/** pl_deps list link. */
-	struct m0_tlink        plr_dep_link;
-	/** pl_rdeps list link. */
-	struct m0_tlink        plr_rdep_link;
+	/** Deps lists links magic. */
+	uint64_t               plr_magix;
+	/** pl_deps list linkage. */
+	struct m0_tlink        plr_dep_linkage;
+	/** pl_rdeps list linkage. */
+	struct m0_tlink        plr_rdep_linkage;
 };
 
 /**
@@ -518,6 +520,12 @@ struct m0_layout_fun_plop {
 	int                 (*fp_fun)(struct m0_layout_fun_plop *plop);
 	void                 *fp_datum;
 };
+
+M0_TL_DESCR_DECLARE(pldeps, M0_EXTERN);
+M0_TL_DECLARE(pldeps, M0_EXTERN, struct m0_layout_plop_rel);
+
+M0_TL_DESCR_DECLARE(plrdeps, M0_EXTERN);
+M0_TL_DECLARE(plrdeps, M0_EXTERN, struct m0_layout_plop_rel);
 
 /**
  * Constructs the plan describing how the given @op is to be executed.

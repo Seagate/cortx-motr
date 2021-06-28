@@ -187,6 +187,7 @@ static void test_plan_get_done(void)
 	struct m0_op               *op = NULL;
 	struct m0_layout_plop      *plop;
 	struct m0_layout_io_plop   *iopl;
+	struct m0_layout_plop_rel  *plrel;
 	struct m0_indexvec          ext;
 	struct m0_bufvec            data;
 	struct m0_bufvec            attr;
@@ -195,10 +196,13 @@ static void test_plan_get_done(void)
 
 	M0_ENTRY();
 
-	M0_UT_ASSERT(m0_indexvec_alloc(&ext, 1) == 0);
+	M0_UT_ASSERT(m0_indexvec_alloc(&ext, 2) == 0);
 	ext.iv_vec.v_count[0] = UT_DEFAULT_BLOCK_SIZE;
-	M0_UT_ASSERT(m0_bufvec_alloc(&data, 1, UT_DEFAULT_BLOCK_SIZE) == 0);
-	M0_UT_ASSERT(m0_bufvec_alloc(&attr, 1, 1) == 0);
+	ext.iv_vec.v_count[1] = UT_DEFAULT_BLOCK_SIZE;
+	ext.iv_index[0] = 0;
+	ext.iv_index[1] = UT_DEFAULT_BLOCK_SIZE;
+	M0_UT_ASSERT(m0_bufvec_alloc(&data, 2, UT_DEFAULT_BLOCK_SIZE) == 0);
+	M0_UT_ASSERT(m0_bufvec_alloc(&attr, 2, 1) == 0);
 
 	rc = m0_pool_version_get(&cinst->m0c_pools_common, NULL, &pv);
 	M0_UT_ASSERT(rc == 0);
@@ -213,6 +217,7 @@ static void test_plan_get_done(void)
 	plan = m0_layout_plan_build(op);
 	M0_UT_ASSERT(plan != NULL);
 
+	/* 1st unit */
 	rc = m0_layout_plan_get(plan, 0, &plop);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(plop != NULL);
@@ -222,6 +227,7 @@ static void test_plan_get_done(void)
 	iopl = container_of(plop, struct m0_layout_io_plop, iop_base);
 	M0_UT_ASSERT(iopl->iop_session != NULL);
 	M0_UT_ASSERT(iopl->iop_ext.iv_index != NULL);
+	M0_UT_ASSERT(iopl->iop_goff == 0);
 	M0_UT_ASSERT(m0_vec_count(&iopl->iop_ext.iv_vec) ==
 		                                UT_DEFAULT_BLOCK_SIZE);
 	M0_UT_ASSERT(iopl->iop_data.ov_buf != NULL);
@@ -234,6 +240,39 @@ static void test_plan_get_done(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(plop != NULL);
 	M0_UT_ASSERT(plop->pl_type == M0_LAT_OUT_READ);
+	plrel = pldeps_tlist_head(&plop->pl_deps);
+	M0_UT_ASSERT(plrel != NULL);
+	M0_UT_ASSERT(plrel->plr_dep == &iopl->iop_base);
+	M0_UT_ASSERT(plrel->plr_rdep == plop);
+	m0_layout_plop_done(plop);
+
+	/* 2nd unit */
+	rc = m0_layout_plan_get(plan, 0, &plop);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(plop != NULL);
+	M0_UT_ASSERT(plop->pl_type == M0_LAT_READ);
+	M0_UT_ASSERT(plop->pl_ent.f_container != 0 ||
+		     plop->pl_ent.f_key != 0);
+	iopl = container_of(plop, struct m0_layout_io_plop, iop_base);
+	M0_UT_ASSERT(iopl->iop_session != NULL);
+	M0_UT_ASSERT(iopl->iop_ext.iv_index != NULL);
+	M0_UT_ASSERT(iopl->iop_goff == UT_DEFAULT_BLOCK_SIZE);
+	M0_UT_ASSERT(m0_vec_count(&iopl->iop_ext.iv_vec) ==
+		                                UT_DEFAULT_BLOCK_SIZE);
+	M0_UT_ASSERT(iopl->iop_data.ov_buf != NULL);
+
+	m0_layout_plop_start(plop);
+	plop->pl_rc = 0;
+	m0_layout_plop_done(plop);
+
+	rc = m0_layout_plan_get(plan, 0, &plop);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(plop != NULL);
+	M0_UT_ASSERT(plop->pl_type == M0_LAT_OUT_READ);
+	plrel = pldeps_tlist_head(&plop->pl_deps);
+	M0_UT_ASSERT(plrel != NULL);
+	M0_UT_ASSERT(plrel->plr_dep == &iopl->iop_base);
+	M0_UT_ASSERT(plrel->plr_rdep == plop);
 	m0_layout_plop_done(plop);
 
 	rc = m0_layout_plan_get(plan, 0, &plop);

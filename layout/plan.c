@@ -40,10 +40,19 @@
 #include "layout/plan.h"
 
 M0_TL_DESCR_DEFINE(pplops, "plan plops",
-		   M0_INTERNAL, struct m0_layout_plop, pl_all_link, pl_magix,
+		   M0_INTERNAL, struct m0_layout_plop, pl_linkage, pl_magix,
 		   M0_LAYOUT_PLAN_PLOP_MAGIC, M0_LAYOUT_PPLOPS_HMAGIC);
 M0_TL_DEFINE(pplops, M0_INTERNAL, struct m0_layout_plop);
 
+M0_TL_DESCR_DEFINE(pldeps, "plop deps", M0_INTERNAL,
+		   struct m0_layout_plop_rel, plr_dep_linkage, plr_magix,
+		   M0_LAYOUT_PLAN_PLOPR_MAGIC, M0_LAYOUT_PPLD_HMAGIC);
+M0_TL_DEFINE(pldeps, M0_INTERNAL, struct m0_layout_plop_rel);
+
+M0_TL_DESCR_DEFINE(plrdeps, "plop rdeps", M0_INTERNAL,
+		   struct m0_layout_plop_rel, plr_rdep_linkage, plr_magix,
+		   M0_LAYOUT_PLAN_PLOPR_MAGIC, M0_LAYOUT_PPLRD_HMAGIC);
+M0_TL_DEFINE(plrdeps, M0_INTERNAL, struct m0_layout_plop_rel);
 
 /**
  * Layout access plan structure.
@@ -51,14 +60,16 @@ M0_TL_DEFINE(pplops, M0_INTERNAL, struct m0_layout_plop);
  * Created by m0_layout_plan_build() and destroyed by m0_layout_plan_fini().
  */
 struct m0_layout_plan {
-	/** layout instance the plan belongs to */
+	/** Layout instance the plan belongs to. */
 	struct m0_layout_instance *lp_layout;
-	/** plan plops linked via ::pl_all_link */
+	/** Plan plops linked via ::pl_linkage. */
 	struct m0_tl               lp_plops;
-	/** last returned plop via m0_layout_plan_get() */
+	/** Last returned plop via m0_layout_plan_get(). */
 	struct m0_layout_plop     *lp_last_plop;
-	/** operation the plan describes */
+	/** Operation the plan describes. */
 	struct m0_op              *lp_op;
+	/** Lock for protecting concurrent plan_get() calls. */
+	struct m0_mutex            lp_lock;
 };
 
 static struct m0_layout_plop *
@@ -68,6 +79,8 @@ plop_alloc_init(struct m0_layout_plan *plan, enum m0_layout_plop_type type,
 	struct m0_layout_plop    *plop;
 	struct m0_layout_io_plop *iopl;
 
+	M0_PRE(m0_mutex_is_locked(&plan->lp_lock));
+
 	if (M0_IN(type, (M0_LAT_READ, M0_LAT_WRITE))) {
 		M0_ALLOC_PTR(iopl);
 		plop = iopl == NULL ? NULL : &iopl->iop_base;
@@ -75,13 +88,42 @@ plop_alloc_init(struct m0_layout_plan *plan, enum m0_layout_plop_type type,
 		M0_ALLOC_PTR(plop);
 	if (plop == NULL)
 		return NULL;
-	pplops_tlink_init_at_tail(plop, &plan->lp_plops);
+
+	pplops_tlink_init_at(plop, &plan->lp_plops);
 	plop->pl_ti = ti;
 	plop->pl_type = type;
 	plop->pl_plan = plan;
 	plop->pl_state = M0_LPS_INIT;
+	pplops_tlist_init(&plop->pl_deps);
+	pplops_tlist_init(&plop->pl_rdeps);
 
 	return plop;
+}
+
+static int add_plops_relation(struct m0_layout_plop *rdep,
+			      struct m0_layout_plop *dep)
+{
+	struct m0_layout_plop_rel *plrel;
+
+	M0_ALLOC_PTR(plrel);
+	if (plrel == NULL)
+		return M0_ERR(-ENOMEM);
+
+	plrel->plr_dep = dep;
+	plrel->plr_rdep = rdep;
+	pldeps_tlink_init_at_tail(plrel, &rdep->pl_deps);
+	plrdeps_tlink_init_at_tail(plrel, &dep->pl_rdeps);
+
+	return 0;
+}
+
+static void del_plops_relation(struct m0_layout_plop_rel *rel)
+{
+	if (rel != NULL) {
+		pldeps_tlink_del_fini(rel);
+		plrdeps_tlink_del_fini(rel);
+		m0_free(rel);
+	}
 }
 
 M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
@@ -89,6 +131,7 @@ M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 	int                         rc;
 	struct m0_layout_plan      *plan;
 	struct m0_layout_plop      *plop;
+	struct m0_layout_plop      *plop_out;
 	struct m0_layout_io_plop   *iopl;
 	struct m0_op_common        *oc;
 	struct m0_op_obj           *oo;
@@ -120,6 +163,8 @@ M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 		return NULL;
 	}
 
+	m0_mutex_init(&plan->lp_lock);
+
 	pplops_tlist_init(&plan->lp_plops);
 	plan->lp_op = op;
 	plan->lp_layout = linst;
@@ -129,9 +174,16 @@ M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 	if (rc != 0)
 		goto out;
 
+	m0_mutex_lock(&plan->lp_lock);
+
 	m0_htable_for(tioreqht, ti, &ioo->ioo_nwxfer.nxr_tioreqs_hash) {
-		plop = plop_alloc_init(plan, M0_LAT_READ, ti);
-		if (plop == NULL) {
+		/*
+		 * ti reqs go in reverse order (by ti_goff) in this loop,
+		 * so we need to add OUT_READ plop 1st to the list.
+		 */
+		plop_out = plop_alloc_init(plan, M0_LAT_OUT_READ, NULL);
+		plop     = plop_alloc_init(plan, M0_LAT_READ, ti);
+		if (plop == NULL || plop_out == NULL) {
 			rc = M0_ERR(-ENOMEM);
 			break;
 		}
@@ -141,7 +193,12 @@ M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 		iopl->iop_data = ti->ti_bufvec;
 		iopl->iop_session = ti->ti_session;
 		iopl->iop_goff = ti->ti_goff;
+		rc = add_plops_relation(plop_out, plop);
+		if (rc != 0)
+			break;
 	} m0_htable_endfor;
+
+	m0_mutex_unlock(&plan->lp_lock);
 
  out:
 	if (rc != 0) {
@@ -167,6 +224,8 @@ M0_INTERNAL void m0_layout_plan_fini(struct m0_layout_plan *plan)
 	oo = bob_of(oc, struct m0_op_obj, oo_oc, &oo_bobtype);
 	ioo = bob_of(oo, struct m0_op_io, ioo_oo, &ioo_bobtype);
 
+	m0_mutex_lock(&plan->lp_lock);
+
 	m0_htable_for(tioreqht, ti, &ioo->ioo_nwxfer.nxr_tioreqs_hash) {
 		tioreqht_htable_del(&ioo->ioo_nwxfer.nxr_tioreqs_hash, ti);
 		target_ioreq_fini(ti);
@@ -178,12 +237,17 @@ M0_INTERNAL void m0_layout_plan_fini(struct m0_layout_plan *plan)
 	m0_tl_teardown(pplops, &plan->lp_plops, plop) {
 		if (plop->pl_ops && plop->pl_ops->po_fini)
 			plop->pl_ops->po_fini(plop);
-		/* for each plan_get() plop_done() must be called */
+		/* For each plan_get(), plop_done() must be called. */
 		M0_ASSERT(M0_IN(plop->pl_state, (M0_LPS_INIT, M0_LPS_DONE)));
+		del_plops_relation(pldeps_tlist_head(&plop->pl_deps));
 		m0_free(plop);
 	}
 	pplops_tlist_fini(&plan->lp_plops);
 	plan->lp_op = NULL;
+
+	m0_mutex_unlock(&plan->lp_lock);
+	m0_mutex_fini(&plan->lp_lock);
+
 	m0_free(plan);
 
 	M0_LEAVE();
@@ -192,31 +256,37 @@ M0_INTERNAL void m0_layout_plan_fini(struct m0_layout_plan *plan)
 M0_INTERNAL int m0_layout_plan_get(struct m0_layout_plan *plan, uint64_t colour,
 				   struct m0_layout_plop **plop)
 {
-	if (plan == NULL || plop == NULL)
-		return M0_ERR(-EINVAL);
+	M0_PRE(plan != NULL);
+	M0_PRE(plop != NULL);
+	M0_PRE(plan->lp_op != NULL);
 
-	if (plan->lp_op == NULL)
-		return M0_ERR_INFO(-EINVAL, "plan %p is not built", plan);
+	m0_mutex_lock(&plan->lp_lock);
 
 	if (plan->lp_last_plop == NULL)
-		*plop = pplops_tlist_tail(&plan->lp_plops);
+		*plop = pplops_tlist_head(&plan->lp_plops);
 	else
-		*plop = pplops_tlist_prev(&plan->lp_plops, plan->lp_last_plop);
+		*plop = pplops_tlist_next(&plan->lp_plops, plan->lp_last_plop);
 
 	if (*plop == NULL) {
 		*plop = plop_alloc_init(plan, M0_LAT_DONE, NULL);
-		if (*plop == NULL)
+		if (*plop == NULL) {
+			m0_mutex_unlock(&plan->lp_lock);
 			return M0_ERR(-ENOMEM);
+		}
 	}
 	plan->lp_last_plop = *plop;
+
+	m0_mutex_unlock(&plan->lp_lock);
 
 	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_layout_plop_start(struct m0_layout_plop *plop)
 {
-	if (plop->pl_state != M0_LPS_INIT)
-		return M0_ERR(-EINVAL);
+	M0_PRE(plop->pl_state == M0_LPS_INIT);
+	/* All the dependencies for this plop must be done. */
+	M0_PRE(m0_tl_forall(pplops, scan, &plop->pl_deps,
+			    scan->pl_state == M0_LPS_DONE));
 
 	plop->pl_state = M0_LPS_STARTED;
 
@@ -225,15 +295,8 @@ M0_INTERNAL int m0_layout_plop_start(struct m0_layout_plop *plop)
 
 M0_INTERNAL void m0_layout_plop_done(struct m0_layout_plop *plop)
 {
-	struct m0_layout_plan *plan = plop->pl_plan;
-
+	M0_PRE(plop->pl_state != M0_LPS_DONE);
 	plop->pl_state = M0_LPS_DONE;
-
-	if (plop->pl_type == M0_LAT_READ) {
-		plop = plop_alloc_init(plan, M0_LAT_OUT_READ, NULL);
-		pplops_tlist_del(plop);
-		pplops_tlist_add_after(plan->lp_last_plop, plop);
-	}
 }
 
 #undef M0_TRACE_SUBSYSTEM

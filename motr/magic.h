@@ -574,6 +574,15 @@ enum m0_magic_satchel {
 	/* pplops_tlist::head_magic (biblical flea) */
 	M0_LAYOUT_PPLOPS_HMAGIC = 0x33b1b11ca1f1ea77,
 
+	/* m0_layout_plop_rel::plr_magix (biblical fold) */
+	M0_LAYOUT_PLAN_PLOPR_MAGIC = 0x33b1b11ca1f01d77,
+
+	/* pldeps_tlist::head_magic (biblical floe) */
+	M0_LAYOUT_PPLD_HMAGIC = 0x33b1b11ca1f10e77,
+
+	/* plrdeps_tlist::head_magic (biblical foal) */
+	M0_LAYOUT_PPLRD_HMAGIC = 0x33b1b11ca1f0a177,
+
 /* Net */
 	/* m0_net_domain::nd_magix (acidic access) */
 	M0_NET_DOMAIN_MAGIC = 0x33ac1d1cacce5577,
