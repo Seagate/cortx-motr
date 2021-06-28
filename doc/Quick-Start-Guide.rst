@@ -12,8 +12,8 @@ The prerequisite that is necessary to install the Motr component is mentioned be
 
 - **Ansible** is needed::
 
-    sudo yum install epel-release # Install EPEL yum repo
-    sudo yum install ansible
+    sudo yum install -y epel-release # Install EPEL yum repo
+    sudo yum install -y ansible
 
 Get the Sources
 ===============
