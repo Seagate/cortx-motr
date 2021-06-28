@@ -5153,8 +5153,8 @@ static void ut_basic_tree_oper(void)
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	btree = m0_alloc(sizeof *btree);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-						      &btree_type, nt, &b_op,
-						      tx));
+							     &btree_type, nt,
+							     &b_op, tx));
 	M0_ASSERT(rc == 0);
 	m0_btree_close(b_op.bo_arbor);
 
@@ -5199,8 +5199,8 @@ static void ut_basic_tree_oper(void)
 	/** Create a new btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-						      &btree_type, nt, &b_op,
-						      tx));
+							     &btree_type, nt,
+							     &b_op, tx));
 	M0_ASSERT(rc == 0);
 	/** Close it */
 	/**
@@ -5231,8 +5231,8 @@ static void ut_basic_tree_oper(void)
 	 * node_is_valid is properly implemented in btree_open_tick.
 	 *
 	 * rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-	 *                             m0_btree_open(invalid_addr, 1024, &btree,
-	 *                                           &b_op));
+	 *      			 m0_btree_open(invalid_addr, 1024,
+	 *      				       &btree, &b_op));
 	 * M0_ASSERT(rc == -EFAULT);
 	 */
 
@@ -5248,8 +5248,8 @@ static void ut_basic_tree_oper(void)
 	 * node_is_valid is properly implemented in btree_open_tick.
 	 *
 	 * rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-	 *                             m0_btree_open(invalid_addr, 1024, &btree,
-	 *                                           &b_op));
+	 *      			 m0_btree_open(invalid_addr, 1024,
+	 *      				       &btree, &b_op));
 	 * M0_ASSERT(rc == -EFAULT);
 	 */
 
