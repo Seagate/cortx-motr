@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
  */
 
 
+#include "lib/vec.h"
 #include "lib/locality.h"
 #include "lib/finject.h"
 #include "ioservice/io_service.h"
@@ -460,10 +461,9 @@ static void buf_free(struct m0_buf *bufs, uint32_t count)
 static void ref_parity_calculate(struct m0_parity_math *math,
 				 struct m0_bufvec *bufvecs)
 {
-	struct m0_bufvec_cursor cur;
-	uint32_t		i;
-	int			ret;
-	struct m0_buf	       *parity_bufs;
+	uint32_t                i;
+	int                     ret;
+	struct m0_buf          *parity_bufs;
 	struct m0_bufvec       *parity_bufvecs;
 
 	M0_UT_ASSERT(math != NULL);
@@ -472,15 +472,13 @@ static void ref_parity_calculate(struct m0_parity_math *math,
 	uint32_t       unit_count = math->pmi_data_count + math->pmi_parity_count;
 	struct m0_buf  bufs[unit_count];
 
-	memset(bufs, 0, unit_count * sizeof(struct m0_buf));
+	M0_SET_ARR0(bufs);
 
 	buf_initialize(bufs, unit_count, SEG_NR * SEG_SIZE);
 
 	/* Copy data from buffer vector to m0 buffer */
 	for (i = 0; i < math->pmi_data_count; i++) {
-		m0_bufvec_cursor_init(&cur, &bufvecs[i]);
-		ret = m0_bufvec_to_data_copy(&cur, bufs[i].b_addr,
-					     (size_t)bufs[i].b_nob);
+		ret = m0_bufvec_to_buf_copy(&bufs[i], &bufvecs[i]);
 		M0_UT_ASSERT(ret == 0);
 	}
 
@@ -491,9 +489,8 @@ static void ref_parity_calculate(struct m0_parity_math *math,
 	/* Copy parity from m0 buffer to buffer vector */
 	parity_bufvecs = &bufvecs[math->pmi_data_count];
 	for (i = 0; i < math->pmi_parity_count; i++) {
-		m0_bufvec_cursor_init(&cur, &parity_bufvecs[i]);
-		ret = m0_data_to_bufvec_copy(&cur, parity_bufs[i].b_addr,
-					     (size_t)parity_bufs[i].b_nob);
+		ret = m0_buf_to_bufvec_copy(&parity_bufvecs[i],
+					    &parity_bufs[i]);
 		M0_UT_ASSERT(ret == 0);
 	}
 

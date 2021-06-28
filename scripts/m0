@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2020-2021 Seagate Technology LLC and/or its Affiliates
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -150,7 +150,6 @@ cmd_run_st() {
         # Export variables for system tests.
         export M0_SRC_DIR SUDO
     fi
-
     for pattern in ${@:-[0-9][0-9]*}; do
         find "$M0_SRC_DIR/scripts/st.d/" -maxdepth 1 \! -type d -name $pattern \
             -perm /a=x -print | sort |
