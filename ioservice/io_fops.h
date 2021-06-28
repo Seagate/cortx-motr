@@ -332,6 +332,9 @@ struct m0_fop_cob_rw_reply {
 
 	/** Returned values for an UPDATE operation */
 	struct m0_fop_mod_rep   rwr_mod_rep;
+
+   /** di checksum  */
+   struct m0_buf	   	   crw_di_data_cksum;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**

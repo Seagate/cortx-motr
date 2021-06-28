@@ -862,6 +862,10 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 	struct m0_fom           *fom   = cb->fc_fom;
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_stob_io_desc  *stio_desc;
+   struct m0_fop_cob_rw_reply  *rwrep;
+	struct m0_fop_cob_rw *rwfop;
+   struct m0_stob_io *stio;
+
 
 	M0_PRE(m0_fom_group_is_locked(fom));
 	M0_ASSERT(m0_fom_phase(fom) == M0_FOPH_IO_STOB_WAIT);
@@ -870,6 +874,13 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+
+   // update checksum count in reply fop
+   stio = &stio_desc->siod_stob_io;
+   rwrep = io_rw_rep_get(fom->fo_rep_fop);
+	rwfop = io_rw_get(fom->fo_fop);
+   rwrep->crw_di_data_cksum.b_nob += stio->si_cksum_put;
+	M0_ASSERT(rwrep->crw_di_data_cksum.b_nob <= rwfop->crw_di_data_cksum.b_nob);	
 
 	M0_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
 	if (fom_obj->fcrw_num_stobio_launched == 0)
@@ -2052,6 +2063,9 @@ static int stob_io_create(struct m0_fom *fom)
 	struct m0_fop_cob_rw    *rwfop;
 	struct m0_stob_io_desc  *siod;
 	struct m0_stob_io       *stio;
+   struct m0_fop_cob_rw_reply *rw_replyfop;
+   m0_bindex_t unit_size;
+   m0_bindex_t off;
 
 	M0_PRE(fom != NULL);
 
@@ -2062,6 +2076,29 @@ static int stob_io_create(struct m0_fom *fom)
 		return M0_ERR(-ENOMEM);
 
 	rwfop = io_rw_get(fom->fo_fop);
+   rw_replyfop = io_rw_rep_get(fom->fo_rep_fop);
+   unit_size = m0_lid_to_unit_map[rwfop->crw_lid];
+   if(m0_is_read_fop(fom->fo_fop))
+   {
+      // allocate checksum memory for complete fop
+      m0_bindex_t io_length = m0_vec_count(&fom_obj->fcrw_io.si_stob.iv_vec);
+      rwfop->crw_di_data_cksum.b_nob = m0_stob_ad_get_checksum_nob(io_length,fom_obj->fcrw_io.si_stob.iv_index[0], unit_size, rwfop->crw_cksum_size );
+      rwfop->crw_di_data_cksum.b_addr = m0_alloc(rwfop->crw_di_data_cksum.b_nob);
+      if(rwfop->crw_di_data_cksum.b_addr == NULL)
+      {
+         m0_free(fom_obj->fcrw_stio);
+         return M0_ERR(-ENOMEM);	
+      }
+      
+      // Also store address in response fop; read path should increment b_nob as the checksum is being added in buffer
+      rw_replyfop->crw_di_data_cksum.b_addr =	rwfop->crw_di_data_cksum.b_addr;
+      rw_replyfop->crw_di_data_cksum.b_nob = 0;
+   }
+   else
+   {
+      rw_replyfop->crw_di_data_cksum.b_nob	= 0;
+      rw_replyfop->crw_di_data_cksum.b_addr = NULL;
+   }
 
 	for (i = 0; i < fom_obj->fcrw_ndesc; ++i) {
 		siod = &fom_obj->fcrw_stio[i];
@@ -2080,13 +2117,22 @@ static int stob_io_create(struct m0_fom *fom)
 		rc = m0_indexvec_split(&fom_obj->fcrw_io.si_stob, count, todo,
 				       /* fom_obj->fcrw_bshift */ 0,
 				       &stio->si_stob);
+
+      off = fom_obj->fcrw_io.si_stob.iv_index[0] + count;
 		stio->si_cksum_sz = rwfop->crw_cksum_size;
-		//stio->si_unit_sz = m0_obj_layout_id_to_unit_size(rwfop->crw_lid);
-		stio->si_unit_sz = m0_lid_to_unit_map[rwfop->crw_lid];
+		stio->si_unit_sz = unit_size;
+
+      // Increment this value as cksum is put into buffer
+      stio->si_cksum_put = 0;
+      
+      // assign checksum buffer to repsective stob;
+      stio->si_cksum.b_nob =  	 m0_extent_get_checksum_nob(off, todo, 		  stio->si_unit_sz, stio->si_cksum_sz);
+      stio->si_cksum.b_addr = m0_extent_get_checksum_addr(rwfop->crw_di_data_cksum.b_addr, off, fom_obj->fcrw_io.si_stob.iv_index[0], stio->si_unit_sz, stio->si_cksum_sz);
+#if 0
 		//YJC_TODO: create proper indexing
 		stio->si_cksum.b_addr = rwfop->crw_di_data_cksum.b_addr + (((count << fom_obj->fcrw_bshift) / stio->si_unit_sz) * stio->si_cksum_sz);
 		stio->si_cksum.b_nob = ((todo << fom_obj->fcrw_bshift )/ stio->si_unit_sz ) * stio->si_cksum_sz;
-
+#endif
 		if (rc != 0)
 			break;
 		count += todo;
@@ -2315,6 +2361,13 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 
 	fop = fom->fo_fop;
 	rw = io_rw_get(fop);
+
+	if(m0_is_read_fop(fop))
+   {
+      if(rw->crw_di_data_cksum.b_addr)
+         m0_buf_free(&rw->crw_di_data_cksum);
+   }
+
 	M0_LOG(M0_DEBUG, "FOM fini: fom=%p op=%s@"FID_F", nbytes=%lu", fom,
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", FID_P(&rw->crw_fid),
 	       (unsigned long)(fom_obj->fcrw_count << fom_obj->fcrw_bshift));

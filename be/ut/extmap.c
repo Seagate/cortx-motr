@@ -399,11 +399,11 @@ static void test_paste(void)
 	M0_UT_ASSERT(rc == 0);
 
 	e.e_start = 10;
-	e.e_end   = 50;
+	e.e_end   = 20;
 
 	m0_buf_alloc(&cksum, (EXTMAP_UT_CS_SIZE * m0_ext_length(&e))/EXTMAP_UT_UNIT_SIZE);
 	memset(cksum.b_addr, 'C', cksum.b_nob);
-
+        it.ec_unit_size = EXTMAP_UT_UNIT_SIZE;
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	M0_SET0(it_op);
 	m0_be_op_init(it_op);
@@ -422,15 +422,15 @@ static void test_paste(void)
 	M0_UT_ASSERT(rc == 0);
 
 	M0_UT_ASSERT(seg->ee_ext.e_start ==  0);
-	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_start );
+	M0_UT_ASSERT(seg->ee_ext.e_end   == 10 );
 	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
 
-	rc = be_emap_lookup(emap, &prefix, e.e_start, &it);
+	rc = be_emap_lookup(emap, &prefix, 10, &it);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == cksum.b_nob);
 	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum.b_addr, cksum.b_nob) == 0);
 
-	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_start);
+	M0_UT_ASSERT(seg->ee_ext.e_start == 10);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_end );
 	M0_UT_ASSERT(seg->ee_val         == 12);
 
