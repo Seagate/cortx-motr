@@ -253,7 +253,7 @@ M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math);
  *                         b_nob elements.
  * @param[in]     fails  - block with flags, treated as uint8_t block with
  *                         b_nob elements, if element is '1' then data or
- *                         parityblock with given index is treated as broken.
+ *                         parity block with given index is treated as broken.
  * @param[in]     algo   - algorithm for recovery of data in case reed solomon
  *                         encoding is used.
  * @pre m0_parity_math_init() succeeded.
