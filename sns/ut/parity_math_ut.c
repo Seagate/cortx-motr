@@ -340,17 +340,14 @@ static void test_recovery(const enum m0_parity_cal_algo algo,
 
 		m0_buf_init(&fail_buf, fail, buff_size);
 
-		ret = m0_parity_math_calculate(math, data_buf, parity_buf);
-		M0_UT_ASSERT(ret == 0);
+		m0_parity_math_calculate(math, data_buf, parity_buf);
 
 		unit_spoil(buff_size, fail_count, data_count);
 
-		if (rt == FAIL_INDEX) {
-			ret = m0_parity_math_fail_index_recover(math, data_buf,
-								parity_buf,
-								fail_index_xor);
-			M0_UT_ASSERT(ret == 0);
-		}
+		if (rt == FAIL_INDEX)
+			m0_parity_math_fail_index_recover(math, data_buf,
+							  parity_buf,
+							  fail_index_xor);
 		else if (rt == FAIL_VECTOR) {
 			ret = m0_parity_math_recover(math, data_buf, parity_buf,
 						     &fail_buf, 0);
@@ -401,8 +398,7 @@ static void test_rs_fv_rand_recover(void)
 
 		m0_buf_init(&fail_buf, fail, buff_size);
 
-		ret = m0_parity_math_calculate(&math, data_buf, parity_buf);
-		M0_UT_ASSERT(ret == 0);
+		m0_parity_math_calculate(&math, data_buf, parity_buf);
 
 		unit_spoil(buff_size, fail_count, data_count);
 
@@ -512,10 +508,8 @@ static void test_parity_math_diff(uint32_t parity_cnt)
 		m0_buf_init(&p_new[i], arr, UNIT_BUFF_SIZE);
 	}
 
-	ret = m0_parity_math_calculate(&math, data_buf_old, p_old);
-	M0_UT_ASSERT(ret == 0);
-	ret = m0_parity_math_calculate(&math, data_buf_new, p_new);
-	M0_UT_ASSERT(ret == 0);
+	m0_parity_math_calculate(&math, data_buf_old, p_old);
+	m0_parity_math_calculate(&math, data_buf_new, p_new);
 
 	for (i = 0; i < DATA_UNIT_COUNT; ++i) {
 		if (i % 2) {
@@ -771,7 +765,6 @@ static void parity_calculate(struct m0_parity_math *math, struct m0_bufvec *x,
 {
 	struct m0_buf *x_ser;
 	struct m0_buf *p_ser;
-	int	       ret;
 
 	M0_ALLOC_ARR(x_ser, math->pmi_data_count);
 	M0_UT_ASSERT(x_ser != NULL);
@@ -781,8 +774,7 @@ static void parity_calculate(struct m0_parity_math *math, struct m0_bufvec *x,
 	buf_initialize(p_ser, math->pmi_parity_count, num_seg * seg_size);
 	buf_initialize(x_ser, math->pmi_data_count, num_seg * seg_size);
 	bufvec_buf(x, x_ser, math->pmi_data_count, true);
-	ret = m0_parity_math_calculate(math, x_ser, p_ser);
-	M0_UT_ASSERT(ret == 0);
+	m0_parity_math_calculate(math, x_ser, p_ser);
 	bufvec_buf(p, p_ser, math->pmi_parity_count, false);
 
 	buf_free(x_ser, math->pmi_data_count);
@@ -833,7 +825,7 @@ static void direct_recover(struct m0_parity_math *math,  struct m0_bufvec *x,
 
 	ret = m0_matvec_init(&r, ir.si_failed_data_nr);
 #else
-	ret = m0_matvec_init(&r, ir.si_failed_nr);
+	ret = m0_matvec_init(&r, ir.si_rs.rs_failed_nr);
 #endif /* !ISAL_ENCODE_ENABLED */
 	M0_UT_ASSERT(ret == 0);
 
@@ -910,10 +902,10 @@ static void rhs_prepare(const struct m0_sns_ir *ir, struct m0_matvec *des,
 	}
 }
 
+#if ISAL_ENCODE_ENABLED
 static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
 			struct m0_matvec *r)
 {
-#if ISAL_ENCODE_ENABLED
 	uint8_t **src;
 	uint8_t **dest;
 	uint32_t i;
@@ -930,19 +922,11 @@ static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
 	for (i = 0; i < r->mv_size; i++)
 		dest[i] = (uint8_t *)&r->mv_vector[i];
 
-	ec_encode_data(1, b->mv_size, r->mv_size, ir->si_decode_tbls, src, dest);
+	ec_encode_data(1, b->mv_size, r->mv_size,
+		       ir->si_rs.rs_decode_tbls, src, dest);
 
 	m0_free(src);
 	m0_free(dest);
-#else
-	const struct m0_matrix *rm = &ir->si_data_recovery_mat;
-
-	if (ir->si_failed_data_nr != 0) {
-		M0_UT_ASSERT(rm->m_width == ir->si_data_nr);
-		M0_UT_ASSERT(rm->m_height == ir->si_failed_data_nr);
-		m0_matrix_vec_multiply(rm, b, r, m0_parity_mul, m0_parity_add);
-	}
-#endif /* ISAL_ENCODE_ENABLED */
 }
 
 static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
@@ -951,7 +935,35 @@ static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
 	uint32_t i;
 	uint32_t j;
 
-#if !ISAL_ENCODE_ENABLED
+	for (j = 0; j < ir->si_rs.rs_failed_nr; j++) {
+		i = failed_arr[j];
+		if (i < ir->si_data_nr)
+			if ((uint8_t)*m0_matvec_elem_get(r, j) !=
+				(((uint8_t **)x[i].ov_buf)[0])[0])
+				return false;
+	}
+
+	return true;
+}
+#else
+static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
+			struct m0_matvec *r)
+{
+	const struct m0_matrix *rm = &ir->si_data_recovery_mat;
+
+	if (ir->si_failed_data_nr != 0) {
+		M0_UT_ASSERT(rm->m_width == ir->si_data_nr);
+		M0_UT_ASSERT(rm->m_height == ir->si_failed_data_nr);
+		m0_matrix_vec_multiply(rm, b, r, m0_parity_mul, m0_parity_add);
+	}
+}
+
+static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
+		    const struct m0_bufvec *x, const struct m0_matvec *r)
+{
+	uint32_t i;
+	uint32_t j;
+
 	for (i = 0, j = 0; j < ir->si_failed_data_nr && i <
 	     ir->si_data_nr; ++i) {
 		if (failed_arr[j] == i) {
@@ -961,18 +973,10 @@ static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
 			++j;
 		}
 	}
-#else
-	for (j = 0; j < ir->si_failed_nr; j++) {
-		i = failed_arr[j];
-		if (i < ir->si_data_nr)
-			if ((uint8_t)*m0_matvec_elem_get(r, j) !=
-				(((uint8_t **)x[i].ov_buf)[0])[0])
-				return false;
-	}
-#endif /* !ISAL_ENCODE_ENABLED */
 
 	return true;
 }
+#endif /* ISAL_ENCODE_ENABLED */
 
 static void test_incr_recov(void)
 {
@@ -1502,8 +1506,7 @@ void parity_math_tb(void)
 
 		m0_buf_init(&fail_buf, fail, buff_size);
 
-		ret = m0_parity_math_calculate(math, data_buf, parity_buf);
-		M0_ASSERT(ret == 0);
+		m0_parity_math_calculate(math, data_buf, parity_buf);
 
 		unit_spoil(buff_size, fail_count, data_count);
 
