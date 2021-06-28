@@ -422,6 +422,19 @@ M0_INTERNAL m0_bcount_t m0_extent_get_unit_offset( m0_bindex_t off,
 	}
 }
 
+M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr, m0_bindex_t off, 
+							m0_bindex_t base_off, m0_bindex_t unit_sz, m0_bcount_t cs_size )
+{	
+	return b_addr + m0_extent_get_unit_offset(off, base_off, unit_sz) *
+					cs_size;	
+}
+
+M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob( m0_bindex_t ext_start, 
+							m0_bindex_t ext_length, m0_bindex_t unit_sz, m0_bcount_t cs_size )
+{	
+	return m0_extent_get_num_unit_start(ext_start, ext_length, unit_sz) * cs_size;
+}
+
 M0_INTERNAL void *m0_vote_majority_get(struct m0_key_val *arr, uint32_t len,
 				       bool (*cmp)(const struct m0_buf *,
 					           const struct m0_buf *),
