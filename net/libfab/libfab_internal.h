@@ -61,11 +61,11 @@ enum m0_fab__libfab_params {
 	/** Key used for memory registration. */
 	FAB_MR_KEY                     = 0xABCD,
 	/** Max number of IOV in read/write command for Verbs */
-	FAB_VERBS_IOV_MAX              = 1, //64,
+	FAB_VERBS_IOV_MAX              = 1,
 	/** Max segment size for bulk buffers for Verbs */
-	FAB_VERBS_MAX_BULK_SEG_SIZE    = 1048576, //65536,
+	FAB_VERBS_MAX_BULK_SEG_SIZE    = 1048576,
 	/** Max number of active work requests for Verbs */
-	FAB_VERBS_MAX_QUEUE_SIZE       = 224, //256,
+	FAB_VERBS_MAX_QUEUE_SIZE       = 224,
 
 	/** Max number of IOV in read/write command for TCP/Socket provider
 	 * (max number of segments) */
@@ -87,7 +87,7 @@ enum m0_fab__libfab_params {
 	/** Max number of completion events to read from a completion queue */
 	FAB_MAX_COMP_READ              = 256,
 	/** Max timeout for waiting on fd in epoll_wait */
-	FAB_WAIT_FD_TMOUT              = 100, //1000,
+	FAB_WAIT_FD_TMOUT              = 100,
 	/** Max event entries for active endpoint event queue */
 	FAB_MAX_AEP_EQ_EV              = 8,
 	/** Max event entries for passive endpoint event queue */
@@ -97,7 +97,7 @@ enum m0_fab__libfab_params {
 	/** Max entries in receive completion queue */
 	FAB_MAX_RX_CQ_EV               = 256,
 	/** Max receive buffers in a shared receive pool */
-	FAB_MAX_SRX_SIZE               = 4096, //1024,
+	FAB_MAX_SRX_SIZE               = 4096,
 };
 
 /**
@@ -474,9 +474,6 @@ struct m0_fab__buf {
 	
 	/** Token used for passive recv buffer */
 	uint32_t                         fb_token;
-
-	/** Timestamp for buf add */
-	m0_time_t                        fb_add_ts;
 };
 
 /**
