@@ -157,9 +157,9 @@ static bool is_normal(uint64_t alloc_flags);
 static bool is_any(uint64_t alloc_flag);
 
 static int index_hash(struct m0_balloc_super_block *sb,
-		      m0_bcount_t                   block_offset)
+		      m0_bcount_t                   ext_end)
 {
-	return (block_offset - 1) / sb->bsb_groupsize % sb->bsb_indexcount;
+	return (ext_end - 1) / sb->bsb_groupsize % sb->bsb_indexcount;
 };
 
 static void balloc_debug_dump_extent(const char *tag, struct m0_ext *ex)
@@ -399,8 +399,8 @@ static int balloc_group_info_init(struct m0_balloc_group_info *gi,
 				 normal_zone_size,
 				 spare_zone_size, 0, 0, 0);
 #endif
-		M0_LOG(M0_INFO, "cb_db_group_desc loading grpNo : %llu  freeblk : %llu",
-			(unsigned long long)gd.bgd_groupno,
+		M0_LOG(M0_INFO, "cb_db_group_desc loading grpNo : %llu  "
+			"freeblk: %llu", (unsigned long long)gd.bgd_groupno,
 			(unsigned long long)gd.bgd_freeblocks);
 		m0_mutex_init(bgi_mutex(gi));
 	}
@@ -1001,11 +1001,13 @@ static int balloc_init_internal(struct m0_balloc		*bal,
 		goto out;
 	}
 
- 	M0_LOG(M0_INFO, "groupcount: %llu indexcount: %d blocks_per_group: %d",
+ 	M0_LOG(M0_INFO, "groupcount: %llu indexcount: %d "
+		"blocks_per_group: %d",
 	       (unsigned long long)bal->cb_sb.bsb_groupcount,
 	       (int)bal->cb_sb.bsb_indexcount, (int)req->bfr_groupsize);
 	for (i = 0; i < bal->cb_sb.bsb_indexcount; i++) {
-		m0_be_btree_init(&bal->cb_db_group_extents[i], seg, &ge_btree_ops);
+		m0_be_btree_init(&bal->cb_db_group_extents[i], seg,
+				 &ge_btree_ops);
 	}
 
 	M0_ALLOC_ARR(bal->cb_group_info, bal->cb_sb.bsb_groupcount);
