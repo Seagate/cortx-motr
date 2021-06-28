@@ -1358,8 +1358,6 @@ static int net_buffer_acquire(struct m0_fom *fom)
 		    m0_fom_wait_on(fom, &bpdesc->rios_bp_wait, &fom->fo_cb);
 		    m0_fom_phase_set(fom, M0_FOPH_IO_FOM_BUFFER_WAIT);
 		    m0_net_buffer_pool_unlock(pool);
-	// M0_LOG(M0_ALWAYS, "required=%d acquired=%d", required_net_bufs,
-	//        acquired_net_bufs);
 		    M0_LEAVE();
 		    return M0_FSO_WAIT;
 	    } else if (nb == NULL) {

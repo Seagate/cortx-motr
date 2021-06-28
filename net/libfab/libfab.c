@@ -74,7 +74,7 @@ M0_TL_DEFINE(fab_bulk, static, struct m0_fab__bulk_op);
 
 static uint32_t libfab_bht_func(const struct m0_htable *ht, const void *key)
 {
-	/* Max number of buckets = FAB_MAX_NR_BUCKETS = 8
+	/* Max number of buckets = 7
 	   The last 3 bits in the token is the bucket id */
 	return (*(uint32_t *)key & 0x7);
 }
