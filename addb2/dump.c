@@ -1131,8 +1131,8 @@ struct m0_addb2__id_intrp ids[] = {
 
 	{ M0_AVI_RPC_LOCK,        "rpc-machine-lock", { &ptr } },
 	{ M0_AVI_RPC_REPLIED,     "rpc-replied",      { &ptr, &rpcop } },
-	{ M0_AVI_RPC_OUT_PHASE,   "rpc-out-phase",    { &rpc_out, SKIP2 } },
-	{ M0_AVI_RPC_IN_PHASE,    "rpc-in-phase",    { &rpc_in, SKIP2 } },
+	{ M0_AVI_RPC_OUT_STATE,   "rpc-out-state",    { &rpc_out, SKIP2 } },
+	{ M0_AVI_RPC_IN_STATE,    "rpc-in-state",    { &rpc_in, SKIP2 } },
 	{ M0_AVI_RPC_ITEM_ID_ASSIGN, "rpc-item-id-assign",
 	  { &dec, &dec, &dec, &dec }, { "id", "opcode", "xid", "session_id" } },
 	{ M0_AVI_RPC_ITEM_ID_FETCH, "rpc-item-id-fetch",

@@ -469,6 +469,11 @@ static void addb2_introduce(struct m0_fom *fom)
 		fom->fo_sm_state.sm_addb2_stats =
 			m0_locality_data(fom_states_conf.scf_addb2_key - 1);
 
+	if (!fom->fo_sm_trace_off) {
+		m0_sm_state_trace_enable(&fom->fo_sm_phase);
+		m0_sm_state_trace_enable(&fom->fo_sm_state);
+	}
+
 	req = fom->fo_fop != NULL ? &fom->fo_fop->f_item : NULL;
 
 	fom_addb2_push(fom);
@@ -496,6 +501,26 @@ static void addb2_introduce(struct m0_fom *fom)
 		     state_sm_id);
 	if (fom->fo_ops->fo_addb2_descr != NULL)
 		fom->fo_ops->fo_addb2_descr(fom);
+
+	if (!fom->fo_sm_trace_off) {
+		M0_MEAS("name: fom-descr, service: \""FID_F"\", "
+			"sender: %"PRId64", "
+			"req-opcode: %"PRIu32", rep-opcode: %"PRIu32", "
+			"local: none, rpc_sm_id: %"PRIu64", "
+			"fom_sm_id: %"PRIu64", fom_state_sm_id: %"PRIu64,
+			FID_P(&fom->fo_service->rs_service_fid),
+			sender_id,
+			req != NULL ? req->ri_type->rit_opcode : 0,
+			fom->fo_rep_fop != NULL ?
+			fom->fo_rep_fop->f_item.ri_type->rit_opcode : 0,
+			item_sm_id,
+			phase_sm_id,
+			state_sm_id);
+
+		m0_sm_state_trace_enable(&fom->fo_sm_phase);
+		m0_sm_state_trace_enable(&fom->fo_sm_state);
+	}
+
 	m0_addb2_pop(M0_AVI_FOM);
 }
 
@@ -1382,6 +1407,7 @@ void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 	fom->fo_ops	    = ops;
 	fom->fo_transitions = 0;
 	fom->fo_local	    = false;
+	fom->fo_sm_trace_off = true;
 	m0_fom_callback_init(&fom->fo_cb);
 	runq_tlink_init(fom);
 
@@ -1650,7 +1676,7 @@ static struct m0_sm_trans_descr fom_trans[M0_FOS_TRANS_NR] = {
 };
 
 M0_INTERNAL struct m0_sm_conf fom_states_conf = {
-	.scf_name      = "FOM states",
+	.scf_name      = "fom-state",
 	.scf_nr_states = ARRAY_SIZE(fom_states),
 	.scf_state     = fom_states,
 	.scf_trans_nr  = ARRAY_SIZE(fom_trans),
@@ -1759,6 +1785,12 @@ M0_INTERNAL struct m0_reqh *m0_fom2reqh(const struct m0_fom *fom)
 	M0_PRE(fom != NULL && fom->fo_service != NULL);
 	return fom->fo_service->rs_reqh;
 }
+
+M0_INTERNAL void m0_fom_phase_trace_enable(struct m0_fom *fom)
+{
+	fom->fo_sm_trace_off = false;
+}
+
 
 #undef M0_TRACE_SUBSYSTEM
 

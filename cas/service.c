@@ -682,6 +682,7 @@ static int cas_fom_create(struct m0_fop *fop,
 		repdata->cgr_rep.cr_rec = repv;
 		m0_fom_init(fom0, &fop->f_type->ft_fom_type,
 			    &cas_fom_ops, fop, repfop, reqh);
+		m0_fom_phase_trace_enable(fom0);
 		m0_long_lock_link_init(&fom->cf_lock, fom0,
 				       &fom->cf_lock_addb2);
 		m0_long_lock_link_init(&fom->cf_meta, fom0,

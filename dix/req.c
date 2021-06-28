@@ -133,7 +133,7 @@ static struct m0_sm_trans_descr dix_req_trans[] = {
 };
 
 struct m0_sm_conf dix_req_sm_conf = {
-	.scf_name      = "dix_req",
+	.scf_name      = "dix-req-state",
 	.scf_nr_states = ARRAY_SIZE(dix_req_states),
 	.scf_state     = dix_req_states,
 	.scf_trans_nr  = ARRAY_SIZE(dix_req_trans),
@@ -178,6 +178,8 @@ static void dix_to_cas_map(const struct m0_dix_req *dreq,
 	uint64_t did = m0_sm_id_get(&dreq->dr_sm);
 	uint64_t cid = m0_sm_id_get(&creq->ccr_sm);
 	M0_ADDB2_ADD(M0_AVI_DIX_TO_CAS, did, cid);
+	M0_MEAS("name: dix-to-cas, dix_id: %"PRIu64
+		", cas_id: %"PRIu64, did, cid);
 }
 
 
@@ -216,6 +218,7 @@ static void dix_req_init(struct m0_dix_req  *req,
 	req->dr_is_meta = meta;
 	m0_sm_init(&req->dr_sm, &dix_req_sm_conf, DIXREQ_INIT, grp);
 	m0_sm_addb2_counter_init(&req->dr_sm);
+	m0_sm_state_trace_enable(&req->dr_sm);
 }
 
 M0_INTERNAL void m0_dix_mreq_init(struct m0_dix_req  *req,
@@ -280,6 +283,8 @@ static void dix_to_mdix_map(const struct m0_dix_req *req,
 	uint64_t rid = m0_sm_id_get(&req->dr_sm);
 	uint64_t mid = m0_sm_id_get(&mreq->dmr_req.dr_sm);
 	M0_ADDB2_ADD(M0_AVI_DIX_TO_MDIX, rid, mid);
+	M0_MEAS("name: dix-to-mdix, dix_id: %"PRIu64
+		", mdix_id: %"PRIu64, rid, mid);
 }
 
 static void dix_layout_find_ast_cb(struct m0_sm_group *grp,

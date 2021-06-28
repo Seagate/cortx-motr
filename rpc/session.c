@@ -123,7 +123,7 @@ static struct m0_sm_state_descr session_states[] = {
 };
 
 static const struct m0_sm_conf session_conf = {
-	.scf_name      = "Session states",
+	.scf_name      = "session-state",
 	.scf_nr_states = ARRAY_SIZE(session_states),
 	.scf_state     = session_states
 };

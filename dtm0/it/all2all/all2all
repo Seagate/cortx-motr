@@ -19,7 +19,7 @@ M0D_ENDPOINTS=()
 M0D_FIDS_DEC=()
 M0D_FIDS_HEX=()
 M0D_PIDS=()
-
+CLI_PID=
 M0D_CLI_FID_DEC=
 
 POOL_WIDTH=4
@@ -145,6 +145,10 @@ function traces_dump()
         _info "Dumping ${out}..."
         $MOTR_ROOT/utils/trace/m0trace -i "${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/m0trace.${M0D_PIDS[i]}" > "${out}"
     done
+
+    out="m0trace_${CLI_PID}.dump"
+    _info "Dumping ${out}..."
+    $MOTR_ROOT/utils/trace/m0trace -i "$PWD/m0trace.${CLI_PID}" > "${out}"
 }
 
 function processes_status_check()
@@ -172,8 +176,6 @@ function fail()
 
 function main()
 {
-    local cli_pid
-
     ${MOTR_UTILS_DIR}/m0setup --init-loop-only -s 1 -d ${TEST_ROOT} --pool-width ${POOL_WIDTH} --ipool-width ${IPOOL_WIDTH}
 
     _info "Bootstrapping the cluster using Hare..."
@@ -208,12 +210,12 @@ function main()
 
     _info "Run the client..."
     $MOTR_ROOT/motr/m0crate/m0crate -S $M0CRATE_CFG &
-    cli_pid=$!
+    CLI_PID=$!
     sleep 3
     _info "Sending client is ONLINE..."
     ha_msg_send_cli_online
     _info "Wait for client..."
-    wait $cli_pid
+    wait $CLI_PID
 
     stop_cluster
 
