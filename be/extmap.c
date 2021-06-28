@@ -31,7 +31,6 @@
 #include "lib/finject.h"
 #include "lib/memory.h"
 #include "format/format.h"  /* m0_format_header_pack */
-#include "stob/ad.h"
 
 /**
    @addtogroup extmap
@@ -504,6 +503,8 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	struct m0_buf          cksum[3] = { {0, NULL},
 					    {0, NULL},
 					    {0, NULL}};
+	m0_bcount_t chunk_cs_count = 0;
+	m0_bcount_t checksum_unit_size = 0;
 
 	m0_bcount_t            consumed;
 	uint64_t               val_orig;
@@ -540,6 +541,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	 */
 
 	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
+
 	while (!m0_ext_is_empty(ext)) {
 		m0_ext_intersection(ext, chunk, &clip);
 		M0_LOG(M0_DEBUG, "ext="EXT_F" chunk="EXT_F" clip="EXT_F,
@@ -557,28 +559,31 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		val_orig  = seg->ee_val;
 		cksum[1] = it->ec_cksum;
 
+      if(seg->ee_di_cksum.b_nob)
+      {
+         // Compute checksum unit size for given segment
+         chunk_cs_count = m0_extent_get_num_unit_start( chunk->e_start, m0_ext_length(chunk), it->ec_unit_size);
+         M0_ASSERT(chunk_cs_count);
+         checksum_unit_size = seg->ee_di_cksum.b_nob/chunk_cs_count;
+         M0_ASSERT(checksum_unit_size);
+      }
+
 		if (length[0] > 0) {
 			if (cut_left)
 				cut_left(seg, &clip, val_orig);
 			bstart[0] = seg->ee_val;
-			if (bstart[0] != AET_HOLE) {
-				// TODO: Update this code with proper values
-				//M0_ASSERT(seg->ee_di_cksum.b_nob >= length[0]*128);
-				//cksum[0].b_nob = length[0]*128;
-				//cksum[0].b_addr = seg->ee_di_cksum.b_addr;
+			if (seg->ee_di_cksum.b_nob) {			 
+				  cksum[0].b_nob = m0_extent_get_checksum_nob(chunk->e_start, length[0], it->ec_unit_size, checksum_unit_size);
+              cksum[0].b_addr = seg->ee_di_cksum.b_addr;                      
 			}
 		}
 		if (length[2] > 0) {
 			if (cut_right)
 				cut_right(seg, &clip, val_orig);
 			bstart[2] = seg->ee_val;
-			if (bstart[2] != AET_HOLE) {
-				//int total_len = length[0] + length[1] + length[2];
-				// TODO: Update this code with proper values				
-				//M0_ASSERT(seg->ee_di_cksum.b_nob == total_len * 128);
-				//cksum[2].b_nob = length[2] * 128;
-				//cksum[2].b_addr = seg->ee_di_cksum.b_addr +
-				//		   (length[0] + length[1])*128;
+			if (seg->ee_di_cksum.b_nob) {
+				cksum[2].b_nob = m0_extent_get_checksum_nob(clip.e_end, length[2], it->ec_unit_size, checksum_unit_size);
+				cksum[2].b_addr =    m0_extent_get_checksum_addr( seg->ee_di_cksum.b_addr, clip.e_end, chunk->e_start, it->ec_unit_size, checksum_unit_size);	
 			}
 		}
 		if (length[0] == 0 && length[2] == 0 && del)
@@ -933,6 +938,7 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	rec->er_start  = ext->ee_ext.e_start;
 	rec->er_value  = ext->ee_val;
 	rec->er_cs_nob = ext->ee_di_cksum.b_nob;
+	rec->er_unit_size = it->ec_unit_size;
 
 	/* Layout/format of emap-record (if checksum is present) which gets
 	 * written:
@@ -1026,6 +1032,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		ext->ee_di_cksum.b_nob  = rec->er_cs_nob;
 		ext->ee_di_cksum.b_addr = rec->er_cs_nob ? 
 								 (void *)&rec->er_footer : NULL;
+		it->ec_unit_size = rec->er_unit_size;
  		if (!emap_it_prefix_ok(it))
 			rc = -ESRCH;
 	}
@@ -1231,6 +1238,7 @@ be_emap_split(struct m0_be_emap_cursor *it,
 		it->ec_seg.ee_ext.e_end   = scan + count;
 		it->ec_seg.ee_val         = vec->iv_index[i];
 		it->ec_seg.ee_di_cksum    = cksum[i];
+		
 		extent_print(&it->ec_seg.ee_ext);
 		if (it->ec_seg.ee_ext.e_end == seg_end)
 			/* The end of original segment is reached:

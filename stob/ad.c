@@ -1612,6 +1612,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 							off, 0, io->si_unit_sz, io->si_cksum_sz);
 	it.ec_cksum.b_nob  = m0_stob_ad_get_checksum_nob( off, m0_ext_length(&todo), 
 							io->si_unit_sz, io->si_cksum_sz);
+	it.ec_unit_size = io->si_unit_sz;
 	
 	M0_SET0(&it.ec_op);
 	m0_be_op_init(&it.ec_op);

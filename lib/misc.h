@@ -488,6 +488,18 @@ M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start( m0_bindex_t ext_start,
 M0_INTERNAL m0_bcount_t m0_extent_get_unit_offset( m0_bindex_t off, 
 							m0_bindex_t base_off, m0_bindex_t unit_sz);
 
+/**
+ * Calculates checksum address for a cob segment and unit size
+ */
+M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr, m0_bindex_t off, 
+							m0_bindex_t base_off, m0_bindex_t unit_sz, m0_bcount_t cs_size);
+
+/**
+ * Calculates checksum nob for a cob segment and unit size
+ */
+M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob(m0_bindex_t ext_start, m0_bindex_t ext_length,
+							 m0_bindex_t unit_sz, m0_bcount_t cs_size);
+
 M0_EXTERN const struct m0_key_val M0_KEY_VAL_NULL;
 
 /**

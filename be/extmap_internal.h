@@ -109,7 +109,10 @@ struct m0_be_emap_rec {
 	 */
 	uint64_t                er_value;
 	
-	m0_bcount_t 			er_cs_nob;
+	/** unit_size */
+	m0_bindex_t				er_unit_size;
+	/** checksum buffer size */
+	uint32_t 			er_cs_nob;
 	struct m0_format_footer er_footer;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
