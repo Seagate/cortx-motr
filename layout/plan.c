@@ -132,6 +132,7 @@ M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 	struct m0_layout_plan      *plan;
 	struct m0_layout_plop      *plop;
 	struct m0_layout_plop      *plop_out;
+	struct m0_layout_plop      *plop_done;
 	struct m0_layout_io_plop   *iopl;
 	struct m0_op_common        *oc;
 	struct m0_op_obj           *oo;
@@ -176,13 +177,23 @@ M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 
 	m0_mutex_lock(&plan->lp_lock);
 
+	plop_done = plop_alloc_init(plan, M0_LAT_DONE, NULL);
+	if (plop_done == NULL) {
+		rc = M0_ERR(-ENOMEM);
+		goto out;
+	}
+
 	m0_htable_for(tioreqht, ti, &ioo->ioo_nwxfer.nxr_tioreqs_hash) {
 		/*
 		 * ti reqs go in reverse order (by ti_goff) in this loop,
 		 * so we need to add OUT_READ plop 1st to the list.
 		 */
 		plop_out = plop_alloc_init(plan, M0_LAT_OUT_READ, NULL);
-		plop     = plop_alloc_init(plan, M0_LAT_READ, ti);
+		rc = add_plops_relation(plop_done, plop_out);
+		if (rc != 0)
+			break;
+
+		plop = plop_alloc_init(plan, M0_LAT_READ, ti);
 		if (plop == NULL || plop_out == NULL) {
 			rc = M0_ERR(-ENOMEM);
 			break;
@@ -267,13 +278,6 @@ M0_INTERNAL int m0_layout_plan_get(struct m0_layout_plan *plan, uint64_t colour,
 	else
 		*plop = pplops_tlist_next(&plan->lp_plops, plan->lp_last_plop);
 
-	if (*plop == NULL) {
-		*plop = plop_alloc_init(plan, M0_LAT_DONE, NULL);
-		if (*plop == NULL) {
-			m0_mutex_unlock(&plan->lp_lock);
-			return M0_ERR(-ENOMEM);
-		}
-	}
 	plan->lp_last_plop = *plop;
 
 	m0_mutex_unlock(&plan->lp_lock);
