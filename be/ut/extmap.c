@@ -33,6 +33,9 @@
 #include "be/ut/helper.h"
 #include "be/extmap.h"
 
+#define EXTMAP_UT_UNIT_SIZE 10
+#define EXTMAP_UT_CS_SIZE   16 
+
 static struct m0_be_ut_backend be_ut_emap_backend;
 static struct m0_be_ut_seg     be_ut_emap_seg;
 
@@ -154,6 +157,8 @@ static void test_init(void)
 	m0_uint128_init(&prefix, "some random iden");
 	seg = m0_be_emap_seg_get(&it);
 	it_op = m0_be_emap_op(&it);
+	
+	it.ec_unit_size = EXTMAP_UT_UNIT_SIZE;
 
 	m0_free(cfg);
 
@@ -226,7 +231,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 {
 	int i;
 	int rc;
-	m0_bcount_t len[] = { 100, 2, 0, 0 };
+	m0_bcount_t len[] = { 100, 50, 0, 0 };
 	uint64_t    val[] = { 1,   2, 3, 4 };
 	struct m0_indexvec vec = {
 		.iv_vec = {
@@ -234,7 +239,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 			.v_count = len
 		},
 		.iv_index = val
-	};
+	};	
 
 	struct m0_buf          cksum[4] = { {0, NULL},
 					    {0, NULL},
@@ -244,8 +249,8 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 	rc = be_emap_lookup(emap, &prefix, offset, &it);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_buf_alloc(&cksum[0], 128);
-	m0_buf_alloc(&cksum[1], 64);
+	m0_buf_alloc(&cksum[0], (EXTMAP_UT_CS_SIZE * len[0])/EXTMAP_UT_UNIT_SIZE);
+	m0_buf_alloc(&cksum[1], (EXTMAP_UT_CS_SIZE * len[1])/EXTMAP_UT_UNIT_SIZE);
 
 	memset(cksum[0].b_addr, 'A', cksum[0].b_nob);
 	memset(cksum[1].b_addr, 'B', cksum[1].b_nob);
@@ -258,7 +263,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 		seglen = m0_ext_length(&seg->ee_ext);
 		M0_LOG(M0_DEBUG, "%3i: seglen=%llx", i,
 					(unsigned long long)seglen);
-		total  = 102; /* 100 + 2, the sum of elements in len[]. */
+		total  = len[0]+len[1]; /* 100 + 50, the sum of elements in len[]. */
 		M0_UT_ASSERT(seglen > total);
 		len[ARRAY_SIZE(len) - 1] = seglen - total;
 		M0_SET0(it_op);
@@ -394,9 +399,9 @@ static void test_paste(void)
 	M0_UT_ASSERT(rc == 0);
 
 	e.e_start = 10;
-	e.e_end   = 20;
+	e.e_end   = 50;
 
-	m0_buf_alloc(&cksum, 10*128);
+	m0_buf_alloc(&cksum, (EXTMAP_UT_CS_SIZE * m0_ext_length(e))/EXTMAP_UT_UNIT_SIZE);
 	memset(cksum.b_addr, 'C', cksum.b_nob);
 
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
@@ -408,7 +413,7 @@ static void test_paste(void)
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 	m0_be_op_fini(it_op);
 
-	M0_UT_ASSERT(seg->ee_ext.e_start == 20);
+	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_end);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
 
 	test_print();
