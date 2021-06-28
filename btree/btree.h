@@ -143,22 +143,137 @@ enum m0_btree_opflag {
 	M0_BOF_UNIQUE = 1 << 0
 };
 
+
+/**
+ * Btree functions related to tree management
+ */
+
+
+/**
+ * Opens the tree and returns the pointer to m0_btree which is used for
+ * subsequent operations related to this btree.
+ *
+ * @param addr is the address of exsiting root node in BE segment.
+ * @param nob is the size of the root node in BE segment.
+ * @param out has the handle to the opened btree used in subsequent operations.
+ * @param bop is consumed by the m0_btree_open for its operation.
+ *
+ * @return 0 if successful.
+ */
 int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
 		   struct m0_btree_op *bop);
+
+/**
+ * Closes the opened or created tree represented by arbor. Once the close
+ * completes no further actions should be triggered for this btree until the
+ * btree is opened again by calling m0_btree_open()
+ *
+ * If some of the nodes for this btree are still active in different threads or
+ * FOMs then this function waits till all the active nodes of this btree have
+ * been 'PUT' or destroyed.
+ *
+ * @param arbor is the btree which needs to be closed.
+ */
 void m0_btree_close(struct m0_btree *arbor);
+
+/**
+ * Creates a new btree with the root node created at the address passed as the
+ * parameter. The space of size nob for this root node is assumed to be
+ * allocated, in the BE segment, by the caller. This function initializes and
+ * uses this space for holding the root node of this newly created tree. The
+ * routine return the pointer to m0_btree which is used for subsequent
+ * operations related to this btree.
+ * m0_btree_create(), if successful, returns the tree handle which can be used
+ * for subsequent tree operations without having to call m0_tree_open().
+ *
+ * @param addr is the address of exsiting root node in BE segment.
+ * @param nob is the size of the root node in BE segment.
+ * @param bt provides more information about the btree to be created.
+ * @param nt provides the node type which will be attached to this btree.
+ * @param bop is consumed by the m0_btree_create for its operation. It contains
+ *        the field bo_arbor which holds the tree pointer to be used by the
+ *        caller after the call completes.
+ * @param tx pointer to the transaction struture to capture BE segment changes.
+ */
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 		     const struct node_type *nt, struct m0_btree_op *bop,
 		     struct m0_be_tx *tx);
+
+/**
+ * Destroys the opened or created tree represented by arbor. Once the destroy
+ * completes no further actions should be triggered for this btree as this tree
+ * should be assumed to be deleted.
+ * This routine expects all the nodes of this tree to have been deleted and no
+ * records to be present in this btree.
+ *
+ * @param arbor is the btree which needs to be closed.
+ * @param bop is consumed by the m0_btree_destroy for its operation.
+ */
 void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop);
+
+/**
+ * Searches for the key/slant key provided as the search key. The callback
+ * routine is called when the search yields the key/slant key and the location
+ * of this key/slant key is passed to the callback.
+ * The callback is NOT supposed to modify this record since these changes will
+ * not get captured in any transaction and hence m0_btree_put() should be called
+ * by the caller instead.
+ *
+ * @param arbor is the pointer to btree.
+ * @param key   is the Key to be searched in the btree.
+ * @param cb    Callback routine to be called on search success.
+ * @param flags Operation specific flags (cookie, slant etc.).
+ * @param bop   Btree operation related parameters.
+ */
 void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, uint64_t flags,
 		  struct m0_btree_op *bop);
+
+/**
+ * Inserts the record in the tree. The callback is called with the location
+ * where the new key and value should be inserted in the tree.
+ *
+ * @param arbor is the pointer to btree.
+ * @param rec   represents the record which needs to get inserted. Note that,
+ *              user may or may not provide valid value but record should be
+ *              provided with valid key, key size and value size as this
+ *              information is needed for correct operation.
+ * @param cb    routine to be called to PUT the record.
+ * @param flags
+ * @param bop   Btree operation related parameters.
+ * @param tx    represents the transaction of which the current operation is
+ *              part of.
+ */
 void m0_btree_put(struct m0_btree *arbor, const struct m0_btree_rec *rec,
 		  const struct m0_btree_cb *cb, uint64_t flags,
 		  struct m0_btree_op *bop, struct m0_be_tx *tx);
+
+/**
+ * Deletes the record in the tree. The callback is called with the location
+ * where the original key and value should are present in the tree.
+ *
+ * @param arbor is the pointer to btree.
+ * @param key   points to the Key whose record is to be deleted from the tree.
+ * @param flags
+ * @param bop   Btree operation related parameters.
+ * @param tx    represents the transaction of which the current operation is
+ *              part of.
+ */
 void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, uint64_t flags,
 		  struct m0_btree_op *bop, struct m0_be_tx *tx);
+
+/**
+ * Iterates through the tree and finds next/previous key from the given search
+ * key based on the flag. The callback routine is provided with the record of
+ * the next/previous Key which was found in the tree.
+ *
+ * @param arbor Btree parameteres.`
+ * @param key   Key to be searched in the btree.
+ * @param cb    Callback routine to return operation output.
+ * @param flags Operation specific flags (cookie, slant, prev, next etc.).
+ * @param bop   Btree operation related parameters.
+ */
 void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
 		   const struct m0_btree_cb *cb, uint64_t flags,
 		   struct m0_btree_op *bop);

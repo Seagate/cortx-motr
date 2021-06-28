@@ -4586,17 +4586,6 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 	};
 }
 
-/**
- * m0_btree_open is the API which is used by motr to fill the m0_btree structure
- * with the tree descriptor and other detials.
- *
- * @param addr is the address of root node allocated by the caller of this
- *             function
- * @param nob  is the size of root node.
- * @param out  is the pointer of m0_btree which is to be filled with data
- * @param bop  represents the structure containing all the relevant details
- *             for carrying out btree operations.
- */
 int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
 		   struct m0_btree_op *bop)
 {
@@ -4614,19 +4603,6 @@ void m0_btree_close(struct m0_btree *arbor)
 	if (arbor->t_desc->t_ref > 1)
 		arbor->t_desc->t_ref --;
 }
-
-/**
- * m0_btree_create is the API which is used by motr to create btree.
- *
- * @param addr It is the address of root node allocated by the caller of this
- * function
- * @param nob It is the size of root node.
- * @param bt It is the type of btree to be created.
- * @param tx It represents the transaction of which the current operation is
- * part of.
- * @param bop It represents the structure containing all the relevant details
- * for carrying out btree operations.
- */
 
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 		     const struct node_type *nt, struct m0_btree_op *bop,
@@ -4650,16 +4626,6 @@ void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop)
 		      &btree_conf, &bop->bo_sm_group);
 }
 
-/**
- * Looks up for the key/slant key by the given search key in the btree.
- * The callback routine returns record if key is found else it returns error.
- *
- * @param arbor Btree parameteres.`
- * @param key   Key to be searched in the btree.
- * @param cb    Callback routine to return operation output.
- * @param flags Operation specific flags (cookie, slant etc.).
- * @param bop   Btree operation related parameters.
- */
 void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, uint64_t flags,
 		  struct m0_btree_op *bop)
@@ -4673,17 +4639,6 @@ void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
 		      &btree_conf, &bop->bo_sm_group);
 }
 
-/**
- * Iterates through the tree and finds next/previous key of the given search
- * key based on the flag. The callback routine returns record if key is found
- * else it returns error.
- *
- * @param arbor Btree parameteres.`
- * @param key   Key to be searched in the btree.
- * @param cb    Callback routine to return operation output.
- * @param flags Operation specific flags (cookie, slant, prev, next etc.).
- * @param bop   Btree operation related parameters.
- */
 void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
 		   const struct m0_btree_cb *cb, uint64_t flags,
 		   struct m0_btree_op *bop)
@@ -4699,23 +4654,6 @@ void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
 		      &btree_conf, &bop->bo_sm_group);
 }
 
-/**
- * m0_btree_put is the API which is used by motr to put the given record into
- * the btree.
- *
- * @param arbor It provides all the required data about the tree in which user
- * wants to insert record.
- * @param tx It represents the transaction of which the current operation is
- * part of.
- * @param rec It represents the record which needs to get inserted. Note that,
- * user may or may not provide valid value but record should be provided with
- * valid key, key size and value size as it is needed for operation.
- * @param cb It represents callback which will get called by the operation to
- * allow user to insert key and record at provided place.
- * @param flags
- * @param bop It represents the structure containing all the relevant details
- * for carrying out btree operations.
- */
 void m0_btree_put(struct m0_btree *arbor, const struct m0_btree_rec *rec,
 		  const struct m0_btree_cb *cb, uint64_t flags,
 		  struct m0_btree_op *bop, struct m0_be_tx *tx)
