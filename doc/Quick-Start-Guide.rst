@@ -31,7 +31,7 @@ Build
 
 2. Check the Lustre network interface configuration::
 
-    vi /etc/modprobe.d/lnet.conf
+    sudo vi /etc/modprobe.d/lnet.conf
 
    Use ``ip a`` command to get a list of network interfaces.
    Then modify ``lnet.conf`` to use one of the listed network interfaces.
@@ -117,7 +117,7 @@ Troubleshooting
 - If the pip installation fails while installing build dependencies,
   run the following commands::
 
-    python -m pip uninstall pip setuptools
+    sudo python -m pip uninstall pip setuptools
     sudo scripts/install-build-deps
 
 - If an installation failure occurs due to the dependency of ``pip3`` ,
