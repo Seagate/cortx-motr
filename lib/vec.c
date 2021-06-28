@@ -1298,6 +1298,36 @@ m0_ivec_varr_cursor_conti(const struct m0_ivec_varr_cursor *cur,
 }
 M0_EXPORTED(m0_ivec_varr_cursor_conti);
 
+M0_INTERNAL int m0_bufvec_to_buf_copy(struct m0_buf *buf,
+				      const struct m0_bufvec *bvec)
+{
+	struct m0_bufvec_cursor cursor;
+	int                     ret;
+
+	M0_PRE(buf  != NULL);
+	M0_PRE(bvec != NULL);
+
+	m0_bufvec_cursor_init(&cursor, bvec);
+	ret = m0_bufvec_to_data_copy(&cursor, buf->b_addr, (size_t)buf->b_nob);
+
+	return (ret == 0) ? ret : M0_ERR(ret);
+}
+
+M0_INTERNAL int m0_buf_to_bufvec_copy(struct m0_bufvec *bvec,
+				      const struct m0_buf *buf)
+{
+	struct m0_bufvec_cursor cursor;
+	int                     ret;
+
+	M0_PRE(bvec != NULL);
+	M0_PRE(buf  != NULL);
+
+	m0_bufvec_cursor_init(&cursor, bvec);
+	ret = m0_data_to_bufvec_copy(&cursor, buf->b_addr, (size_t)buf->b_nob);
+
+	return (ret == 0) ? ret : M0_ERR(ret);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of vec group */
