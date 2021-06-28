@@ -992,8 +992,11 @@ struct nd {
 	struct td              *n_tree;
 	const struct node_type *n_type;
 
-	/** if n_skip_rec_count_check is true, it will skip invarient check
-	 * record count as it is required for some scenarios */
+	/**
+	 * Skip record count invariant check. If n_skip_rec_count_check is true,
+	 * it will skip invariant check record count as it is required for some
+	 * scenarios.
+	 */
 	bool                    n_skip_rec_count_check;
 
 	/** Linkage into node descriptor list. ndlist_tl, td::t_active_nds. */
@@ -3763,37 +3766,32 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op *bop = M0_AMB(bop, smop, bo_op);
 
-	switch (bop->bo_op.o_sm.sm_state) {
-	case P_INIT:
-		M0_PRE(bop->bo_arbor != NULL);
-		M0_PRE(bop->bo_arbor->t_desc != NULL);
-		M0_PRE(node_invariant(bop->bo_arbor->t_desc->t_root));
+	M0_PRE(bop->bo_op.o_sm.sm_state == P_INIT);
+	M0_PRE(bop->bo_arbor != NULL);
+	M0_PRE(bop->bo_arbor->t_desc != NULL);
+	M0_PRE(node_invariant(bop->bo_arbor->t_desc->t_root));
 
-		/** The following pre-condition is currently a
-		 *  compulsion as the delete routine has not been
-		 *  implemented yet.
-		 *  Once it is implemented, this pre-condition can be
-		 *  modified to compulsorily remove the records and get
-		 *  the node count to 0.
-		 */
-		M0_PRE(node_count(bop->bo_arbor->t_desc->t_root) == 0);
+	/** The following pre-condition is currently a
+	 *  compulsion as the delete routine has not been
+	 *  implemented yet.
+	 *  Once it is implemented, this pre-condition can be
+	 *  modified to compulsorily remove the records and get
+	 *  the node count to 0.
+	 */
+	M0_PRE(node_count(bop->bo_arbor->t_desc->t_root) == 0);
 
-		tree_put(bop->bo_arbor->t_desc);
-		/**
-		 * ToDo: We need to capture the changes occuring in the
-		 * root node after tree_descriptor has been freed using
-		 * m0_be_tx_capture().
-		 * Only those fields that have changed need to be
-		 * updated.
-		 */
-		m0_free(bop->bo_arbor);
-		bop->bo_arbor = NULL;
+	tree_put(bop->bo_arbor->t_desc);
+	/**
+	 * ToDo: We need to capture the changes occuring in the
+	 * root node after tree_descriptor has been freed using
+	 * m0_be_tx_capture().
+	 * Only those fields that have changed need to be
+	 * updated.
+	 */
+	m0_free(bop->bo_arbor);
+	bop->bo_arbor = NULL;
 
-		return P_DONE;
-
-	default:
-		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
-	}
+	return P_DONE;
 }
 
 /**
@@ -3863,7 +3861,7 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 		if (td_curr->t_ref > 1) {
 			tree_put(td_curr);
 			return P_DONE;
-		} else if (td_curr->t_ref == 1) {
+		} else {
 			if (td_curr->t_starttime == 0)
 				td_curr->t_starttime = m0_time_now();
 
@@ -3888,7 +3886,7 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 
 	case P_ACT:
 		if (nd_head == td_curr->t_root)
-			node_put(nd_head);
+			node_put(nd_head->n_op, nd_head, bop->bo_tx);
 
 		td_curr->t_starttime = 0;
 		tree_put(td_curr);
