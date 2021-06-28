@@ -1662,13 +1662,15 @@ static void reed_solomon_encode(struct m0_parity_math *math,
 	uint32_t          pi; /* parity unit index. */
 	uint32_t          di; /* data unit index. */
 	m0_parity_elem_t  mat_elem;
-	uint32_t          block_size = data[0].b_nob;
+	uint32_t          block_size;
 
 	M0_ENTRY();
 
 	M0_PRE(parity_math_invariant(math));
 	M0_PRE(data != NULL);
 	M0_PRE(parity != NULL);
+
+	block_size = data[0].b_nob;
 
 	for (di = 1; di < math->pmi_data_count; ++di)
 		BLOCK_SIZE_ASSERT_INFO(block_size, di, data);
