@@ -3676,7 +3676,6 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op *bop = M0_AMB(bop, smop, bo_op);
-	int                 rc  = 0;
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
@@ -3693,10 +3692,7 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 		 */
 		M0_PRE(node_count(bop->bo_arbor->t_desc->t_root) == 0);
 
-		if(bop->bo_arbor->t_desc->t_ref > 0)
-			tree_put(bop->bo_arbor->t_desc);
-		else
-			rc = M0_ERR(-EINVAL);
+		tree_put(bop->bo_arbor->t_desc);
 		/**
 		 * ToDo: We need to capture the changes occuring in the
 		 * root node after tree_descriptor has been freed using
@@ -3711,9 +3707,7 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 		 *  where the t_ref is 0. If we had put an assert there, then
 		 * we will face memory leakage in terms of bop->bo_arbor.
 		 */
-		if(rc == 0)
-			return P_DONE;
-		return rc;
+		return P_DONE;
 
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
@@ -5259,10 +5253,15 @@ static void ut_basic_tree_oper(void)
 				      &b_op.bo_sm_group, &b_op.bo_op_exec);
 	M0_ASSERT(rc == 0);
 	b_op.bo_arbor = temp_btree;
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-				      m0_btree_destroy(b_op.bo_arbor, &b_op),
-				      &b_op.bo_sm_group, &b_op.bo_op_exec);
-	M0_ASSERT(rc == -EINVAL);
+
+	if (b_op.bo_arbor->t_desc->t_ref > 0) {
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+					      m0_btree_destroy(b_op.bo_arbor,
+							       &b_op),
+					      &b_op.bo_sm_group,
+					      &b_op.bo_op_exec);
+		M0_ASSERT(rc == 0);
+	}
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
 	/** Now run some invalid cases */
@@ -5340,10 +5339,14 @@ static void ut_basic_tree_oper(void)
 	 */
 
 	/** Destory it */
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-				      m0_btree_destroy(b_op.bo_arbor, &b_op),
-				      &b_op.bo_sm_group, &b_op.bo_op_exec);
-	M0_ASSERT(rc == 0);
+	if (b_op.bo_arbor->t_desc->t_ref > 0) {
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+					      m0_btree_destroy(b_op.bo_arbor,
+							       &b_op),
+					      &b_op.bo_sm_group,
+					      &b_op.bo_op_exec);
+		M0_ASSERT(rc == 0);
+	}
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 	/** Attempt to reopen the destroyed tree */
 
@@ -5608,15 +5611,14 @@ static void ut_basic_kv_oper(void)
 				      m0_btree_close(tree, &b_op),
 				      &b_op.bo_sm_group, &b_op.bo_op_exec);
 	M0_ASSERT(rc == 0);
-	/**
-	 * Commenting this code as the delete operation is not done here.
-	 * Due to this, the destroy operation will crash.
-	 *
-	 *
-	 * M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-	 *				 m0_btree_destroy(b_op.bo_arbor, &b_op),
-	 *				 &b_op.bo_sm_group, &b_op.bo_op_exec);
-	 */
+
+	if (b_op.bo_arbor->t_desc->t_ref > 0) {
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+					      m0_btree_destroy(tree, &b_op),
+					      &b_op.bo_sm_group,
+					      &b_op.bo_op_exec);
+		M0_ASSERT(rc == 0);
+	}
 	btree_ut_fini();
 }
 
@@ -5804,15 +5806,13 @@ static void ut_multi_stream_kv_oper(void)
 				      &b_op.bo_sm_group, &b_op.bo_op_exec);
 	M0_ASSERT(rc == 0);
 
-	/**
-	 * Commenting this code as the delete operation is not done here.
-	 * Due to this, the destroy operation will crash.
-	 *
-	 *
-	 * M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-	 *				 m0_btree_destroy(b_op.bo_arbor, &b_op),
-	 *				 &b_op.bo_sm_group, &b_op.bo_op_exec);
-	 */
+	if (b_op.bo_arbor->t_desc->t_ref > 0) {
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+					      m0_btree_destroy(tree, &b_op),
+					      &b_op.bo_sm_group,
+					      &b_op.bo_op_exec);
+		M0_ASSERT(rc == 0);
+	}
 
 	btree_ut_fini();
 }
@@ -6513,12 +6513,15 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					      &b_op.bo_sm_group,
 					      &b_op.bo_op_exec);
 		M0_ASSERT(rc == 0);
-
-		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
-					      m0_btree_destroy(tree, &b_op),
-					      &b_op.bo_sm_group,
-					      &b_op.bo_op_exec);
-		M0_ASSERT(rc == -EINVAL);
+		
+		if (b_op.bo_arbor->t_desc->t_ref > 0) {
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op.bo_op,
+						      m0_btree_destroy(tree, 
+								       &b_op),
+						      &b_op.bo_sm_group,
+						      &b_op.bo_op_exec);
+			M0_ASSERT(rc == 0);
+		}
 	}
 
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
