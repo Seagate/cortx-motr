@@ -50,7 +50,6 @@
 enum m0_parity_cal_algo {
 	M0_PARITY_CAL_ALGO_XOR,
 	M0_PARITY_CAL_ALGO_REED_SOLOMON,
-	M0_PARITY_CAL_ALGO_ISA,
 	M0_PARITY_CAL_ALGO_NR
 };
 
@@ -101,41 +100,59 @@ struct m0_sns_ir_block {
 	enum m0_sns_ir_block_status  sib_status;
 };
 
+#if ISAL_ENCODE_ENABLED
+/**
+ * Holds information specific to Reed Solomon implementation using Intel ISA.
+ */
+struct m0_reed_solomon {
+	/* Pointer to sets of arrays of input coefficients used
+	 * to encode or decode data.*/
+	uint8_t		 *rs_encode_matrix;
+	/* Pointer to concatenated output tables for encode. */
+	uint8_t		 *rs_encode_tbls;
+	/* Pointer to concatenated output tables for decode. */
+	uint8_t		 *rs_decode_tbls;
+	/* Number of failed blocks. */
+	uint32_t	  rs_failed_nr;
+	/* Array holding indices of all failed blocks. */
+	uint8_t		 *rs_failed_idx;
+	/* Array holding indices of all alive blocks. */
+	uint8_t		 *rs_alive_idx;
+	/* Array of buffer pointers to be used as source for encoding or
+	 * recovery. */
+	uint8_t		**rs_bufs_in;
+	/* Array of buffer pointers to be used as destination for encoding or
+	 * recovery. */
+	uint8_t		**rs_bufs_out;
+};
+#endif /* ISAL_ENCODE_ENABLED */
+
 /**
    Holds information about system configuration i.e., data and parity units
    data blocks and failure flags.
  */
 struct m0_parity_math {
-	enum m0_parity_cal_algo	pmi_parity_algo;
+	enum m0_parity_cal_algo	     pmi_parity_algo;
 
-	uint32_t		pmi_data_count;
-	uint32_t		pmi_parity_count;
+	uint32_t		     pmi_data_count;
+	uint32_t		     pmi_parity_count;
 #if !ISAL_ENCODE_ENABLED
 	/* structures used for parity calculation and recovery */
-	struct m0_matvec	pmi_data;
-	struct m0_matvec	pmi_parity;
-#endif /* !ISAL_ENCODE_ENABLED */
+	struct m0_matvec	     pmi_data;
+	struct m0_matvec	     pmi_parity;
 	/* Vandermonde matrix */
-	struct m0_matrix	pmi_vandmat;
+	struct m0_matrix	     pmi_vandmat;
 	/* Submatrix of Vandermonde matrix used to compute parity. */
-	struct m0_matrix	pmi_vandmat_parity_slice;
+	struct m0_matrix	     pmi_vandmat_parity_slice;
 	/* structures used for non-incremental recovery */
-	struct m0_matrix	pmi_sys_mat;
-#if !ISAL_ENCODE_ENABLED
-	struct m0_matvec	pmi_sys_vec;
-	struct m0_matvec	pmi_sys_res;
-	struct m0_linsys	pmi_sys;
-#endif /* !ISAL_ENCODE_ENABLED */
+	struct m0_matrix	     pmi_sys_mat;
+	struct m0_matvec	     pmi_sys_vec;
+	struct m0_matvec	     pmi_sys_res;
+	struct m0_linsys	     pmi_sys;
 	/* Data recovery matrix that's inverse of pmi_sys_mat. */
-	struct m0_matrix	pmi_recov_mat;
-#if ISAL_ENCODE_ENABLED
-	/* Pointer to sets of arrays of input coefficients used
-	 * to encode or decode data.*/
-	uint8_t		       *pmi_encode_matrix;
-	/* Pointer to concatenated output tables for encode */
-	uint8_t		       *pmi_encode_tbls;
-	/* Pointer to concatenated output tables for decode */
-	uint8_t		       *pmi_decode_tbls;
+	struct m0_matrix	     pmi_recov_mat;
+#else
+	struct m0_reed_solomon	     pmi_rs;
 #endif /* ISAL_ENCODE_ENABLED */
 };
 
@@ -143,39 +160,25 @@ struct m0_parity_math {
 struct m0_sns_ir {
 	uint32_t		si_data_nr;
 	uint32_t		si_parity_nr;
-#if !ISAL_ENCODE_ENABLED
-	uint32_t		si_failed_data_nr;
-#endif /* !ISAL_ENCODE_ENABLED */
 	uint32_t		si_alive_nr;
 	/* Number of blocks from a parity group that are available locally
 	 * on a node. */
 	uint32_t		si_local_nr;
 	/* Array holding all blocks */
 	struct m0_sns_ir_block *si_blocks;
-	/* Vandermonde matrix used during RS encoding */
 #if !ISAL_ENCODE_ENABLED
+	uint32_t		si_failed_data_nr;
+	/* Vandermonde matrix used during RS encoding */
 	struct m0_matrix	si_vandmat;
 	/* Recovery matrix for failed data blocks */
 	struct m0_matrix	si_data_recovery_mat;
-#endif /* !ISAL_ENCODE_ENABLED */
 	/* Recovery matrix for failed parity blocks. This is same as
 	 * math::pmi_vandmat_parity_slice.
 	 */
 	struct m0_matrix	si_parity_recovery_mat;
-
-#if ISAL_ENCODE_ENABLED
-	/* Pointer to sets of arrays of input coefficients used
-	 * to encode or decode data.*/
-	uint8_t		       *si_encode_matrix;
-	/* Pointer to concatenated output tables for decode */
-	uint8_t		       *si_decode_tbls;
-	/* Number of failed blocks */
-	uint32_t		si_failed_nr;
-	/* Array holding indices of all failed blocks */
-	uint8_t		       *si_failed_idx;
-	/* Array holding indices of all alive blocks */
-	uint8_t		       *si_alive_idx;
-#endif /* ISAL_ENCODE_ENABLED */
+#else
+	struct m0_reed_solomon	si_rs;
+#endif /* !ISAL_ENCODE_ENABLED */
 };
 
 /**
@@ -200,9 +203,9 @@ M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math);
                         b_nob elements.
    @pre m0_parity_math_init() succeeded.
  */
-M0_INTERNAL int m0_parity_math_calculate(struct m0_parity_math *math,
-					 struct m0_buf *data,
-					 struct m0_buf *parity);
+M0_INTERNAL void m0_parity_math_calculate(struct m0_parity_math *math,
+					  struct m0_buf *data,
+					  struct m0_buf *parity);
 
 /**
  * Calculates parity in a differential manner.
@@ -228,15 +231,14 @@ M0_INTERNAL int m0_parity_math_diff(struct m0_parity_math *math,
  * @param[in]  data_ind_changed - index of data unit recently changed.
  * @pre m0_parity_math_init() succeeded.
  */
-M0_INTERNAL int m0_parity_math_refine(struct m0_parity_math *math,
-				      struct m0_buf *data,
-				      struct m0_buf *parity,
-				      uint32_t data_ind_changed);
+M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
+				       struct m0_buf *data,
+				       struct m0_buf *parity,
+				       uint32_t data_ind_changed);
 
 #if !ISAL_ENCODE_ENABLED
 M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
 					uint8_t *fail);
-
 
 M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math);
 #endif /* !ISAL_ENCODE_ENABLED */
@@ -249,7 +251,7 @@ M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math);
  *                         b_nob elements.
  * @param[in,out] parity - parity block, treated as uint8_t block with
  *                         b_nob elements.
- * @param[in]     fail   - block with flags, treated as uint8_t block with
+ * @param[in]     fails  - block with flags, treated as uint8_t block with
  *                         b_nob elements, if element is '1' then data or
  *                         parityblock with given index is treated as broken.
  * @param[in]     algo   - algorithm for recovery of data in case reed solomon
@@ -259,7 +261,7 @@ M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math);
 M0_INTERNAL int m0_parity_math_recover(struct m0_parity_math *math,
 				       struct m0_buf *data,
 				       struct m0_buf *parity,
-				       struct m0_buf *fail,
+				       struct m0_buf *fails,
 				       enum m0_parity_linsys_algo algo);
 
 /**
@@ -271,11 +273,11 @@ M0_INTERNAL int m0_parity_math_recover(struct m0_parity_math *math,
  * @param failure_index - Index of the failed block.
    @pre m0_parity_math_init() succeeded.
  */
-M0_INTERNAL int m0_parity_math_fail_index_recover(struct m0_parity_math *math,
-						  struct m0_buf *data,
-						  struct m0_buf *parity,
-						  const uint32_t
-						  failure_index);
+M0_INTERNAL void m0_parity_math_fail_index_recover(struct m0_parity_math *math,
+						   struct m0_buf *data,
+						   struct m0_buf *parity,
+						   const uint32_t
+						   failure_index);
 
 /**
  * XORs the source and destination buffers and stores the output in destination

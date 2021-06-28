@@ -1462,10 +1462,8 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 			}
 		}
 		/* generate parity into new buf */
-		rc = m0_parity_math_calculate(parity_math(map->pi_ioreq),
-					      dbufs, pbufs);
-		if (rc != 0)
-			goto last;
+		m0_parity_math_calculate(parity_math(map->pi_ioreq),
+					 dbufs, pbufs);
 
 		/* verify the parity */
 		for (col = 0; col < layout_k(play); ++col) {
@@ -1548,14 +1546,10 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 				pbufs[col] = map->pi_paritybufs[row][col]->
 					     db_buf;
 
-			rc = m0_parity_math_calculate(parity_math(map->pi_ioreq),
-						      dbufs, pbufs);
-			if (rc != 0)
-				break;
+			m0_parity_math_calculate(parity_math(map->pi_ioreq),
+						 dbufs, pbufs);
 		}
 		free_page(zpage);
-		if (rc != 0)
-			goto last;
 		M0_LOG(M0_DEBUG, "[%p] Parity recalculated for %s",
 		       map->pi_ioreq,
 		       map->pi_rtype == PIR_READREST ? "read-rest" :
