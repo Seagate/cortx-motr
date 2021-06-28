@@ -94,8 +94,8 @@ plop_alloc_init(struct m0_layout_plan *plan, enum m0_layout_plop_type type,
 	plop->pl_type = type;
 	plop->pl_plan = plan;
 	plop->pl_state = M0_LPS_INIT;
-	pplops_tlist_init(&plop->pl_deps);
-	pplops_tlist_init(&plop->pl_rdeps);
+	pldeps_tlist_init(&plop->pl_deps);
+	plrdeps_tlist_init(&plop->pl_rdeps);
 
 	return plop;
 }
@@ -289,8 +289,8 @@ M0_INTERNAL int m0_layout_plop_start(struct m0_layout_plop *plop)
 {
 	M0_PRE(plop->pl_state == M0_LPS_INIT);
 	/* All the dependencies for this plop must be done. */
-	M0_PRE(m0_tl_forall(pplops, scan, &plop->pl_deps,
-			    scan->pl_state == M0_LPS_DONE));
+	M0_PRE(m0_tl_forall(pldeps, rel, &plop->pl_deps,
+			    rel->plr_dep->pl_state == M0_LPS_DONE));
 
 	plop->pl_state = M0_LPS_STARTED;
 
@@ -299,7 +299,7 @@ M0_INTERNAL int m0_layout_plop_start(struct m0_layout_plop *plop)
 
 M0_INTERNAL void m0_layout_plop_done(struct m0_layout_plop *plop)
 {
-	M0_PRE(plop->pl_state != M0_LPS_DONE);
+	M0_PRE(plop->pl_state == M0_LPS_STARTED);
 	plop->pl_state = M0_LPS_DONE;
 }
 

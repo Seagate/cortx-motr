@@ -244,6 +244,7 @@ static void test_plan_get_done(void)
 	M0_UT_ASSERT(plrel != NULL);
 	M0_UT_ASSERT(plrel->plr_dep == &iopl->iop_base);
 	M0_UT_ASSERT(plrel->plr_rdep == plop);
+	m0_layout_plop_start(plop);
 	m0_layout_plop_done(plop);
 
 	/* 2nd unit */
@@ -273,12 +274,14 @@ static void test_plan_get_done(void)
 	M0_UT_ASSERT(plrel != NULL);
 	M0_UT_ASSERT(plrel->plr_dep == &iopl->iop_base);
 	M0_UT_ASSERT(plrel->plr_rdep == plop);
+	m0_layout_plop_start(plop);
 	m0_layout_plop_done(plop);
 
 	rc = m0_layout_plan_get(plan, 0, &plop);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(plop != NULL);
 	M0_UT_ASSERT(plop->pl_type == M0_LAT_DONE);
+	m0_layout_plop_start(plop);
 	m0_layout_plop_done(plop);
 
 	m0_layout_plan_fini(plan);
