@@ -3506,8 +3506,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "P_INIT",
-		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT, P_TIMECHECK,
-				      P_DONE),
+		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT, P_DONE),
 	},
 	[P_COOKIE] = {
 		.sd_flags   = 0,
@@ -3584,7 +3583,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_TIMECHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_TIMECHECK",
-		.sd_allowed = M0_BITS(P_TIMECHECK, P_DONE),
+		.sd_allowed = M0_BITS(P_TIMECHECK),
 	},
 	[P_DONE] = {
 		.sd_flags   = M0_SDF_TERMINAL,
@@ -3596,9 +3595,8 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 static struct m0_sm_trans_descr btree_trans[] = {
 	{ "open/create/close-init", P_INIT, P_ACT  },
 	{ "open/create/close-act", P_ACT, P_DONE },
-	{ "destroy", P_INIT, P_DONE},
-	{ "close-init-timecheck", P_INIT, P_TIMECHECK},
-	{ "close-timecheck-done", P_TIMECHECK, P_DONE},
+	{ "close/destroy", P_INIT, P_DONE},
+	{ "close-timecheck-repeat", P_TIMECHECK, P_TIMECHECK},
 	{ "put/get-init-cookie", P_INIT, P_COOKIE },
 	{ "put/get-init", P_INIT, P_SETUP },
 	{ "put/get-cookie-valid", P_COOKIE, P_LOCK },
@@ -3861,27 +3859,23 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 		if (td_curr->t_ref > 1) {
 			tree_put(td_curr);
 			return P_DONE;
-		} else {
-			if (td_curr->t_starttime == 0)
-				td_curr->t_starttime = m0_time_now();
-
-			if (ndlist_tlist_length(&td_curr->t_active_nds) > 1)
-				return P_TIMECHECK;
-			else
-				return P_ACT;
 		}
+		td_curr->t_starttime = m0_time_now();
+		/** Fallthrough to P_TIMECHECK */
 
 	case P_TIMECHECK:
 		/**
 		 * This code is meant for debugging. In future, this case needs
 		 * to be handled in a better way.
 		 */
-		if (m0_time_seconds(m0_time_now() - td_curr->t_starttime) > 5) {
+		if (ndlist_tlist_length(&td_curr->t_active_nds) > 1) {
+			if (m0_time_seconds(m0_time_now() - 
+					    td_curr->t_starttime) > 5) {
 			td_curr->t_starttime = 0;
 			return M0_ERR(-ETIMEDOUT);
-		}
-		if (ndlist_tlist_length(&td_curr->t_active_nds) > 1)
+			}
 			return P_TIMECHECK;
+		}
 		/** Fallthrough to P_ACT */
 
 	case P_ACT:
