@@ -199,7 +199,7 @@ static int cs_dix_put_one(struct m0_dix           *index,
 	rc = m0_dix_layout_iter_init(&iter, &index->dd_fid, ldom, pver,
 				     &index->dd_layout.u.dl_desc, &key);
 	M0_ASSERT(rc == 0);
-	iter_max = pver->pv_attr.pa_N + 2 * pver->pv_attr.pa_K;
+	iter_max = pver->pv_attr.pa_N + pver->pv_attr.pa_K + pver->pv_attr.pa_S;
 	m0_dix_layout_iter_reset(&iter);
 	for (i = 0; i < iter_max; ++i) {
 		is_spare = m0_dix_liter_unit_classify(&iter,
