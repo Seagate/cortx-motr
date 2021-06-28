@@ -422,22 +422,24 @@ static void test_paste(void)
 	M0_UT_ASSERT(rc == 0);
 
 	M0_UT_ASSERT(seg->ee_ext.e_start ==  0);
-	M0_UT_ASSERT(seg->ee_ext.e_end   == 10);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_start );
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+
+	rc = be_emap_lookup(emap, &prefix, e.e_start, &it);
+	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == cksum.b_nob);
 	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum.b_addr, cksum.b_nob) == 0);
 
-	rc = be_emap_lookup(emap, &prefix, 10, &it);
-	M0_UT_ASSERT(rc == 0);
-
-	M0_UT_ASSERT(seg->ee_ext.e_start == 10);
-	M0_UT_ASSERT(seg->ee_ext.e_end   == 20);
+	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_start);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_end );
 	M0_UT_ASSERT(seg->ee_val         == 12);
 
-	rc = be_emap_lookup(emap, &prefix, 20, &it);
+	rc = be_emap_lookup(emap, &prefix, e.e_end, &it);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_UT_ASSERT(seg->ee_ext.e_start == 20);
+	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_end );
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
 
 	rc = be_emap_lookup(emap, &prefix, 0, &it);
 	M0_UT_ASSERT(rc == 0);
