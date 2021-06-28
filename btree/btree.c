@@ -3497,7 +3497,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_TIMECHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_TIMECHECK",
-		.sd_allowed = M0_BITS(P_TIMECHECK, P_ACT),
+		.sd_allowed = M0_BITS(P_TIMECHECK, P_DONE),
 	},
 	[P_DONE] = {
 		.sd_flags   = M0_SDF_TERMINAL,
@@ -3511,7 +3511,7 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "open/create/close-act", P_ACT, P_DONE },
 	{ "destroy", P_INIT, P_DONE},
 	{ "close-init-timecheck", P_INIT, P_TIMECHECK},
-	{ "close-timecheck-act", P_TIMECHECK, P_ACT},
+	{ "close-timecheck-done", P_TIMECHECK, P_DONE},
 	{ "put/get-init-cookie", P_INIT, P_COOKIE },
 	{ "put/get-init", P_INIT, P_SETUP },
 	{ "put/get-cookie-valid", P_COOKIE, P_LOCK },
@@ -3703,10 +3703,6 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 		m0_free(bop->bo_arbor);
 		bop->bo_arbor = NULL;
 
-		/** The check for rc has added to gracefully handle the case
-		 *  where the t_ref is 0. If we had put an assert there, then
-		 * we will face memory leakage in terms of bop->bo_arbor.
-		 */
 		return P_DONE;
 
 	default:
@@ -3778,9 +3774,10 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
 		M0_ASSERT(td_curr->t_ref != 0);
-		if (td_curr->t_ref > 1)
+		if (td_curr->t_ref > 1) {
 			tree_put(td_curr);
-		else if (td_curr->t_ref == 1) {
+			return P_DONE;
+		} else if (td_curr->t_ref == 1) {
 			if (td_curr->t_starttime == 0)
 				td_curr->t_starttime = m0_time_now();
 
@@ -3801,7 +3798,7 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 		}
 		if (ndlist_tlist_length(&td_curr->t_active_nds) > 1)
 			return P_TIMECHECK;
-		return P_ACT;
+		/** Fallthrough to P_ACT */
 
 	case P_ACT:
 		if (nd_head == td_curr->t_root)
