@@ -1242,6 +1242,35 @@ static int stob_ad_vec_alloc(struct m0_stob *obj,
 	return M0_RC(rc);
 }
 
+static void  emap_get_checksum_for_fragment(struct m0_stob_io *io, struct m0_be_emap_cursor *it, m0_bindex_t off, m0_bindex_t frag)
+{
+   m0_bindex_t io_start = io->si_stob.iv_index[0];
+   m0_bindex_t unit_size = io->si_unit_sz;
+   m0_bcount_t cksum_unit_size = io->si_cksum_sz;
+   m0_bcount_t checksum_nob;
+   void * dst, *src;
+      
+   checksum_nob = m0_extent_get_checksum_nob(off, frag, unit_size, cksum_unit_size);
+   if(checksum_nob)
+   {
+      // get the destination: checksum address to copy in client buffer
+      dst = m0_extent_get_checksum_addr(io->si_cksum.b_addr, off, io_start, unit_size, cksum_unit_size);
+      
+      // we are looking at checksum which need to be added:
+      
+      //get the source: checksum address from segment
+      src =  m0_extent_get_checksum_addr(it->ec_cksum.b_addr, off, io_start, unit_size, cksum_unit_size);         
+      
+      // copy from source to client buffer
+      memcpy(dst, src, checksum_nob);
+
+		// update checksum fill count for stio
+      io->si_cksum_put += checksum_nob;
+		M0_ASSERT(io->si_cksum_put <= io->si_cksum.b_nob);
+   }		
+}
+
+
 /**
  * Constructs back IO for read.
  *
@@ -1334,8 +1363,12 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 			return M0_ERR(-EOVERFLOW);
 
 		frags++;
+
 		if (seg->ee_val < AET_MIN)
-			frags_not_empty++;
+      {
+         emap_get_checksum_for_fragment(io, it, off, frag_size);
+         frags_not_empty++;
+      }
 
 		eosrc = m0_vec_cursor_move(src, frag_size);
 		eodst = m0_vec_cursor_move(dst, frag_size);
