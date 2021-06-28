@@ -401,7 +401,7 @@ static void test_paste(void)
 	e.e_start = 10;
 	e.e_end   = 50;
 
-	m0_buf_alloc(&cksum, (EXTMAP_UT_CS_SIZE * m0_ext_length(e))/EXTMAP_UT_UNIT_SIZE);
+	m0_buf_alloc(&cksum, (EXTMAP_UT_CS_SIZE * m0_ext_length(&e))/EXTMAP_UT_UNIT_SIZE);
 	memset(cksum.b_addr, 'C', cksum.b_nob);
 
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
