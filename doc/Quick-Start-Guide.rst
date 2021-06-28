@@ -117,7 +117,7 @@ Troubleshooting
 - If the pip installation fails while installing build dependencies,
   run the following commands::
 
-    python -m pip uninstall pip setuptools
+    sudo python -m pip uninstall pip setuptools
     sudo scripts/install-build-deps
 
 - If an installation failure occurs due to the dependency of ``pip3`` ,
