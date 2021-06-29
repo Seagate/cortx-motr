@@ -3893,7 +3893,7 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 
 	case P_ACT:
 		if (nd_head == td_curr->t_root)
-			node_put(nd_head->n_op, nd_head, bop->bo_tx);
+			node_put(nd_head->n_op, nd_head, false, bop->bo_tx);
 
 		td_curr->t_starttime = 0;
 		tree_put(td_curr);
