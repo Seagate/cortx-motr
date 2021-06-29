@@ -174,7 +174,7 @@ int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
  *
  * @param arbor is the btree which needs to be closed.
  */
-void m0_btree_close(struct m0_btree *arbor);
+void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
 
 /**
  * Creates a new btree with the root node created at the address passed as the
