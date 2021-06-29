@@ -306,7 +306,7 @@ static void test_write(int nr, struct m0_dtx *tx)
 	io.si_stob.iv_vec.v_count = stob_vc;
 	io.si_stob.iv_index = stob_vi;
 
-	io.si_unit_sz  = buf_size * 2;
+	io.si_unit_sz  = (buf_size >> block_shift) * 2;
 	io.si_cksum_sz = AD_CS_SZ;
 	cs_sz = ( m0_vec_count(&io.si_stob.iv_vec) * io.si_cksum_sz )/io.si_unit_sz;
 	m0_buf_alloc( &io.si_cksum, cs_sz);		

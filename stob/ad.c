@@ -344,7 +344,6 @@ M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io, m0_bindex
 			b_addr +=  m0_extent_get_checksum_nob(ext.e_start, io->si_stob.iv_vec.v_count[i], io->si_unit_sz, io->si_cksum_sz);
 			M0_ASSERT(b_addr <=io->si_cksum.b_addr + io->si_cksum.b_nob  );
 		}
-		M0_ASSERT(cksum_addr != NULL);
 	}
 	return cksum_addr;
 }
