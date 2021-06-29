@@ -2783,6 +2783,7 @@ static void level_alloc(struct m0_btree_oimpl *oi, int height)
 static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 {
 	/**
+	 * This function assumes the thread is unlocked when level_cleanup runs.
 	 * If ever there arises a need to call level_cleanup() with the lock
 	 * owned by the calling thread then this routine will need some changes
 	 * such as accepting a parameter which would tell us if the lock is
