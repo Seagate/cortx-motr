@@ -45,8 +45,10 @@
    @{
  */
 
+#define AD_ADIEU_CS_SZ 16
+
 enum {
-	NR    = 3,
+	NR    = 4,
 	NR_SORT = 256,
 	MIN_BUF_SIZE = 4096,
 	MIN_BUF_SIZE_IN_BLOCKS = 4,
@@ -160,6 +162,10 @@ static void test_write(int i)
 	io.si_stob.iv_vec.v_nr = i;
 	io.si_stob.iv_vec.v_count = user_vec;
 	io.si_stob.iv_index = stob_vec;
+
+	io.si_unit_sz  = buf_size * 2;
+	io.si_cksum_sz = AD_ADIEU_CS_SZ;	
+	io.si_cksum = ( m0_vec_count(&io.si_stob.iv_vec) * io.si_cksum_sz )/io.si_unit_sz;	
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);

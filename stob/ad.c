@@ -327,26 +327,26 @@ M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io, m0_bindex
 	struct m0_ext ext;
 	int i;
 	
-   // Get the checksum nobs consumed till reaching the off in given io
-   for (i = 0; i < io->si_stob.iv_vec.v_nr; i++)
-   {
-      ext.e_start = io->si_stob.iv_index[i];
-      ext.e_end = io->si_stob.iv_index[i] + io->si_stob.iv_vec.v_count[i];
-      
-      if(m0_ext_is_in(&ext, off))
-      {
-         cksum_addr = m0_extent_get_checksum_addr(b_addr, off, ext.e_start, io->si_unit_sz,io->si_cksum_sz);
-         break;
-      }
-      else
-      {
-         // off is beyond the current extent, increment the b_addr;
+	// Get the checksum nobs consumed till reaching the off in given io
+	for (i = 0; i < io->si_stob.iv_vec.v_nr; i++)
+	{
+		ext.e_start = io->si_stob.iv_index[i];
+		ext.e_end = io->si_stob.iv_index[i] + io->si_stob.iv_vec.v_count[i];
+
+		if(m0_ext_is_in(&ext, off))
+		{
+			cksum_addr = m0_extent_get_checksum_addr(b_addr, off, ext.e_start, io->si_unit_sz,io->si_cksum_sz);
+			break;
+		}
+		else
+		{
+			// off is beyond the current extent, increment the b_addr;
 			b_addr +=  m0_extent_get_checksum_nob(ext.e_start, io->si_stob.iv_vec.v_count[i], io->si_unit_sz, io->si_cksum_sz);
 			M0_ASSERT(b_addr <=io->si_cksum.b_addr + io->si_cksum.b_nob  );
-      }
-	  M0_ASSERT(cksum_addr != NULL);
-   }
-   return cksum_addr;
+		}
+		M0_ASSERT(cksum_addr != NULL);
+	}
+	return cksum_addr;
 }
 
 static void stob_ad_domain_cfg_create_free(void *cfg_create)
