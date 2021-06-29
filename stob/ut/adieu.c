@@ -144,7 +144,7 @@ static void test_adieu_fini(void)
 
 static void test_write(int i)
 {
-	int		    rc;
+	int		    rc, cs_sz;
 	struct m0_fol_frag *fol_frag;
 
 	M0_ALLOC_PTR(fol_frag);
@@ -164,8 +164,10 @@ static void test_write(int i)
 	io.si_stob.iv_index = stob_vec;
 
 	io.si_unit_sz  = buf_size * 2;
-	io.si_cksum_sz = AD_ADIEU_CS_SZ;	
-	io.si_cksum = ( m0_vec_count(&io.si_stob.iv_vec) * io.si_cksum_sz )/io.si_unit_sz;	
+	io.si_cksum_sz = AD_ADIEU_CS_SZ;
+	cs_sz = ( m0_vec_count(&io.si_stob.iv_vec) * io.si_cksum_sz )/io.si_unit_sz;
+	m0_buf_alloc( io.si_cksum, cs_sz);		
+	memset(io.si_cksum.b_addr, 'A', io.si_cksum.b_nob);
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
