@@ -1853,6 +1853,7 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 	if (node->n_delayed_free && node->n_ref == 0) {
 		ndlist_tlink_del_fini(node);
 		m0_rwlock_fini(&node->n_lock);
+		op->no_addr = node->n_addr;
 		m0_free(node);
 		segops->so_node_free(op, shift, tx, 0);
 	}
@@ -1908,6 +1909,7 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	if (node->n_ref == 0) {
 		ndlist_tlink_del_fini(node);
 		m0_rwlock_fini(&node->n_lock);
+		op->no_addr = node->n_addr;
 		m0_free(node);
 		return segops->so_node_free(op, shift, tx, nxt);
 	}
@@ -3556,7 +3558,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		return P_CLEANUP;
 	}
 	case P_CLEANUP: {
-		level_cleanup(oi,  bop->bo_tx);
+		level_cleanup(oi, bop->bo_tx);
 		return P_DONE;
 		/* return m0_sm_op_ret(&bop->bo_op); */
 	}
