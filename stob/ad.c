@@ -320,17 +320,33 @@ M0_INTERNAL m0_bcount_t m0_stob_ad_spares_calc(m0_bcount_t grp_blocks)
 #endif
 }
 
-M0_INTERNAL void * m0_stob_ad_get_checksum_addr(void *b_addr, m0_bindex_t off, 
-							m0_bindex_t base_off, m0_bindex_t unit_sz, m0_bcount_t cs_size )
+M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io, m0_bindex_t off )
 {	
-	return b_addr + m0_extent_get_unit_offset(off, base_off, unit_sz) *
-					cs_size;	
-}
-
-M0_INTERNAL m0_bcount_t m0_stob_ad_get_checksum_nob( m0_bindex_t ext_start, 
-							m0_bindex_t ext_length, m0_bindex_t unit_sz, m0_bcount_t cs_size )
-{	
-	return m0_extent_get_num_unit_start(ext_start, ext_length, unit_sz) * cs_size;
+	void * b_addr = io->si_cksum.b_addr;
+	void *cksum_addr = NULL;
+	struct m0_ext ext;
+	int i;
+	
+   // Get the checksum nobs consumed till reaching the off in given io
+   for (i = 0; i < io->si_stob.iv_vec.v_nr; i++)
+   {
+      ext.e_start = io->si_stob.iv_index[i];
+      ext.e_end = io->si_stob.iv_index[i] + io->si_stob.iv_vec.v_count[i];
+      
+      if(m0_ext_is_in(&ext, off))
+      {
+         cksum_addr = m0_extent_get_checksum_addr(b_addr, off, ext.e_start, io->si_unit_sz,io->si_cksum_sz);
+         break;
+      }
+      else
+      {
+         // off is beyond the current extent, increment the b_addr;
+			b_addr +=  m0_extent_get_checksum_nob(ext.e_start, io->si_stob.iv_vec.v_count[i], io->si_unit_sz, io->si_cksum_sz);
+			M0_ASSERT(b_addr <=io->si_cksum.b_addr + io->si_cksum.b_nob  );
+      }
+   }
+   M0_ASSERT(cksum_addr != NULL);
+   return cksum_addr;
 }
 
 static void stob_ad_domain_cfg_create_free(void *cfg_create)
@@ -1244,7 +1260,6 @@ static int stob_ad_vec_alloc(struct m0_stob *obj,
 
 static void  emap_get_checksum_for_fragment(struct m0_stob_io *io, struct m0_be_emap_cursor *it, m0_bindex_t off, m0_bindex_t frag)
 {
-   m0_bindex_t io_start = io->si_stob.iv_index[0];
    m0_bindex_t unit_size = io->si_unit_sz;
    m0_bcount_t cksum_unit_size = io->si_cksum_sz;
    m0_bcount_t checksum_nob;
@@ -1253,13 +1268,12 @@ static void  emap_get_checksum_for_fragment(struct m0_stob_io *io, struct m0_be_
    checksum_nob = m0_extent_get_checksum_nob(off, frag, unit_size, cksum_unit_size);
    if(checksum_nob)
    {
+   	// we are looking at checksum which need to be added:
       // get the destination: checksum address to copy in client buffer
-      dst = m0_extent_get_checksum_addr(io->si_cksum.b_addr, off, io_start, unit_size, cksum_unit_size);
-      
-      // we are looking at checksum which need to be added:
+      dst = m0_stob_ad_get_checksum_addr(io, off);
       
       //get the source: checksum address from segment
-      src =  m0_extent_get_checksum_addr(it->ec_cksum.b_addr, off, io_start, unit_size, cksum_unit_size);         
+      src =  m0_extent_get_checksum_addr(it->ec_cksum.b_addr, off, it->ec_rec.er_start, unit_size, cksum_unit_size);         
       
       // copy from source to client buffer
       memcpy(dst, src, checksum_nob);
@@ -1641,9 +1655,8 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	 */
 
 	/* Compute checksum units info which belong to this extent (COB off & Sz) */
-	it.ec_cksum.b_addr = m0_stob_ad_get_checksum_addr( io->si_cksum.b_addr,
-							off, 0, io->si_unit_sz, io->si_cksum_sz);
-	it.ec_cksum.b_nob  = m0_stob_ad_get_checksum_nob( off, m0_ext_length(&todo), 
+	it.ec_cksum.b_addr = m0_stob_ad_get_checksum_addr( io, 			off);
+	it.ec_cksum.b_nob  = m0_extent_get_checksum_nob( off, m0_ext_length(&todo), 
 							io->si_unit_sz, io->si_cksum_sz);
 	it.ec_unit_size = io->si_unit_sz;
 	
