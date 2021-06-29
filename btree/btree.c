@@ -3871,8 +3871,8 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 		if (ndlist_tlist_length(&td_curr->t_active_nds) > 1) {
 			if (m0_time_seconds(m0_time_now() - 
 					    td_curr->t_starttime) > 5) {
-			td_curr->t_starttime = 0;
-			return M0_ERR(-ETIMEDOUT);
+				td_curr->t_starttime = 0;
+				return M0_ERR(-ETIMEDOUT);
 			}
 			return P_TIMECHECK;
 		}
