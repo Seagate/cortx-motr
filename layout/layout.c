@@ -827,7 +827,7 @@ M0_INTERNAL int64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
 			     * Performance degrades for units bigger than
 			     * 4 * LNET_MAX_PAYLOAD (4MB atm), as tests show.
 			     */
-			    m0_lid_to_unit_map[i] > 4 * LNET_MAX_PAYLOAD)
+			    m0_lid_to_unit_map[i] >= 4 * LNET_MAX_PAYLOAD)
 				break;
 			m0_ref_put(&l->l_ref);
 		}
