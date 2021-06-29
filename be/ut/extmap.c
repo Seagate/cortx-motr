@@ -41,7 +41,6 @@ static struct m0_be_ut_seg     be_ut_emap_seg;
 
 static struct m0_be_tx          tx1;
 static struct m0_be_tx          tx2;
-static struct m0_be_tx          tx3;
 static struct m0_be_emap       *emap;
 static struct m0_uint128        prefix;
 static struct m0_be_emap_cursor it;
@@ -154,13 +153,6 @@ static void test_init(void)
 	M0_BE_OP_SYNC(op, m0_be_emap_create(emap, &tx2, &op,
 					    &M0_FID_INIT(0,1)));
 
-	m0_be_ut_tx_init(&tx3, &be_ut_emap_backend);
-	m0_be_tx_prep(&tx3, &cred);
-	rc = m0_be_tx_open_sync(&tx3);
-	M0_UT_ASSERT(rc == 0);
-	M0_BE_OP_SYNC(op, m0_be_emap_create(emap, &tx3, &op,
-					    &M0_FID_INIT(0,2)));
-
 	m0_uint128_init(&prefix, "some random iden");
 	seg = m0_be_emap_seg_get(&it);
 	it_op = m0_be_emap_op(&it);
@@ -177,10 +169,6 @@ static void test_fini(void)
 	M0_BE_OP_SYNC(op, m0_be_emap_destroy(emap, &tx2, &op));
 	m0_be_tx_close_sync(&tx2);
 	m0_be_tx_fini(&tx2);
-
-	M0_BE_OP_SYNC(op, m0_be_emap_destroy(emap, &tx3, &op));
-	m0_be_tx_close_sync(&tx3);
-	m0_be_tx_fini(&tx3);
 
 	emap_be_free(&tx1);
 
@@ -543,7 +531,7 @@ static void test_paste_checksum_validation(void)
 	M0_SET0(it_op);
 	m0_be_op_init(it_op);
 	m0_buf_init(&it.ec_cksum, cksum[0].b_addr, cksum[0].b_nob);
-	m0_be_emap_paste(&it, &tx3, &e0, e_val[0], NULL, NULL, NULL);
+	m0_be_emap_paste(&it, &tx2, &e0, e_val[0], NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 	m0_be_op_fini(it_op);
@@ -588,7 +576,7 @@ static void test_paste_checksum_validation(void)
 	M0_SET0(it_op);
 	m0_be_op_init(it_op);
 	m0_buf_init(&it.ec_cksum, cksum[1].b_addr, cksum[1].b_nob);
-	m0_be_emap_paste(&it, &tx3, &e1, e_val[1], NULL, NULL, NULL);
+	m0_be_emap_paste(&it, &tx2, &e1, e_val[1], NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 	m0_be_op_fini(it_op);
@@ -631,7 +619,6 @@ void m0_be_ut_emap(void)
 {
 	test_init();
 	test_obj_init(&tx2);
-	test_obj_init(&tx3);
 	test_lookup();
 	test_split();
 	test_print();
@@ -640,7 +627,6 @@ void m0_be_ut_emap(void)
 	test_paste();
 	test_paste_checksum_validation();
 	test_obj_fini(&tx2);
-	test_obj_fini(&tx3);
 	test_fini();
 }
 
