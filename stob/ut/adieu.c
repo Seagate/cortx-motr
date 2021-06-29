@@ -144,7 +144,7 @@ static void test_adieu_fini(void)
 
 static void test_write(int i)
 {
-	int		    rc, cs_sz, i;
+	int		    rc, cs_sz, cs_idx;
 	struct m0_fol_frag *fol_frag;
 	char   cs_char = 'B';
 
@@ -169,9 +169,9 @@ static void test_write(int i)
 	cs_sz = ( m0_vec_count(&io.si_stob.iv_vec) * io.si_cksum_sz )/io.si_unit_sz;
 	m0_buf_alloc( &io.si_cksum, cs_sz);		
 
-	for( i = 0; i < cs_sz; i = i + (cs_sz/io.si_cksum_sz)  )
+	for( cs_idx = 0; cs_idx < cs_sz; cs_idx = cs_idx + (cs_sz/io.si_cksum_sz)  )
 	{
-		memset(io.si_cksum.b_addr + i, cs_char, (cs_sz/io.si_cksum_sz));
+		memset(io.si_cksum.b_addr + cs_idx, cs_char, (cs_sz/io.si_cksum_sz));
 		cs_char++;
 	}
 

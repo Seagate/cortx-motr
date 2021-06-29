@@ -285,7 +285,7 @@ static void test_write(int nr, struct m0_dtx *tx)
 	struct m0_sm_group *grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	struct m0_fol_frag *fol_frag;
 	bool		    is_local_tx = false;
-	int		    rc, cs_sz, i;
+	int		    rc, cs_sz, cs_idx;
 	char   cs_char = 'A';
 
 	/* @Note: This Fol record part object is not freed and shows as leak,
@@ -312,9 +312,9 @@ static void test_write(int nr, struct m0_dtx *tx)
 	cs_sz = ( m0_vec_count(&io.si_stob.iv_vec) * io.si_cksum_sz )/io.si_unit_sz;
 	m0_buf_alloc( &io.si_cksum, cs_sz);		
 
-	for( i = 0; i < cs_sz; i = i + (cs_sz/io.si_cksum_sz)  )
+	for( cs_idx = 0; cs_idx < cs_sz; cs_idx = cs_idx + (cs_sz/io.si_cksum_sz)  )
 	{
-		memset(io.si_cksum.b_addr + i, cs_char, (cs_sz/io.si_cksum_sz));
+		memset(io.si_cksum.b_addr + cs_idx, cs_char, (cs_sz/io.si_cksum_sz));
 		cs_char++;
 	}
 	
