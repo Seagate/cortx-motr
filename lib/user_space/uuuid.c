@@ -39,7 +39,10 @@
 enum {
 	MACHINE_ID_LEN = 32
 };
-/** path to read node uuid parameter */
+/**
+ * The default path to read node uuid parameter is "etc/machine-id".
+ * It can be updated in the function m0_kmod_uuid_file_set().
+*/
 static const char *uuid_file = "/etc/machine-id";
 /**
  * Default node uuid which can be used instead of a "real" one, which is

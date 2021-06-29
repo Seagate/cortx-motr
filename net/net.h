@@ -90,6 +90,14 @@ struct m0_net_buffer_event;
 struct m0_net_buffer_callbacks;
 struct m0_net_qstats;
 
+#ifdef ENABLE_LIBFAB
+#define M0_NET_XPRT_PREFIX_DEFAULT "libfab"
+#define USE_LIBFAB                 1
+#else
+#define M0_NET_XPRT_PREFIX_DEFAULT "lnet"
+#define USE_LIBFAB                 0
+#endif
+
 /**
    Constructor for the network library
  */

@@ -31,14 +31,10 @@
 #include "cas/cas_xc.h"
 
 #define M0_FID(c_, k_)  { .f_container = c_, .f_key = k_ }
-#define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
-#ifdef ENABLE_LIBFAB
-#define SERVER_ENDPOINT         "libfab:" SERVER_ENDPOINT_ADDR
-#else
-#define SERVER_ENDPOINT         "lnet:" SERVER_ENDPOINT_ADDR
-#endif
-#define DTM0_UT_CONF_PROCESS    "<0x7200000000000001:5>"
-#define DTM0_UT_LOG             "dtm0_ut_server.log"
+#define SERVER_ENDPOINT_ADDR   "0@lo:12345:34:1"
+#define SERVER_ENDPOINT        M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
+#define DTM0_UT_CONF_PROCESS   "<0x7200000000000001:5>"
+#define DTM0_UT_LOG            "dtm0_ut_server.log"
 
 enum { MAX_RPCS_IN_FLIGHT = 10,
        NUM_CAS_RECS = 10,

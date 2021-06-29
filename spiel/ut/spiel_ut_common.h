@@ -32,11 +32,7 @@
 #include "rm/rm_service.h"    /* m0_rms_type */
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
-#ifdef ENABLE_LIBFAB
-#define SERVER_ENDPOINT      "libfab:" SERVER_ENDPOINT_ADDR
-#else
-#define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
-#endif
+#define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
 
 struct m0_spiel;

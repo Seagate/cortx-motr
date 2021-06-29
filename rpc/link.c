@@ -150,7 +150,7 @@ static int rpc_link_conn_terminate(struct m0_rpc_link *rlink)
 	if (rc == -ECANCELED)
 		return M0_FSO_AGAIN; /* no need to fail in the case */
 	if (rc != 0) {
-		M0_LOG(M0_DEBUG, "Connection termination failed (rlink=%p)",
+		M0_LOG(M0_ERROR, "Connection termination failed (rlink=%p)",
 		       rlink);
 	}
 	return rc == 0 ? M0_FSO_AGAIN : rc;

@@ -185,11 +185,8 @@ motr_libmotr_la_CPPFLAGS  = -DM0_TARGET='libmotr' $(AM_CPPFLAGS)
 motr_libmotr_la_LDFLAGS   = -version-info @LT_VERSION@ -pthread $(AM_LDFLAGS)
 motr_libmotr_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
                             @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ @GALOIS_LIBS@ \
-                            @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@ @ISAL_LIBS@
-
-if ENABLE_LIBFAB
-motr_libmotr_la_LIBADD += @LIBFAB_LIBS@
-endif
+                            @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@ @ISAL_LIBS@ \
+                            @LIBFAB_LIBS@
 
 # install directory for public libmotr headers
 motr_includedir             = $(includedir)/motr
@@ -250,9 +247,7 @@ include $(top_srcdir)/net/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/Makefile.sub
 include $(top_srcdir)/net/lnet/Makefile.sub
 include $(top_srcdir)/net/sock/Makefile.sub
-if ENABLE_LIBFAB
 include $(top_srcdir)/net/libfab/Makefile.sub
-endif
 include $(top_srcdir)/pool/Makefile.sub
 include $(top_srcdir)/reqh/Makefile.sub
 include $(top_srcdir)/rm/Makefile.sub

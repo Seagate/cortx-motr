@@ -37,11 +37,7 @@ static struct m0_reqh            ut_reqh;
 static char *sargs[] = {"m0d", "-T", "linux",
 			"-D", "cs_sdb", "-S", "cs_stob",
 			"-A", "linuxstob:cs_addb_stob",
-#ifdef ENABLE_LIBFAB
-			"-e", "libfab:0@lo:12345:34:1",
-#else
-			"-e", "lnet:0@lo:12345:34:1",
-#endif
+			"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
 			"-H", "0@lo:12345:34:1",
 			"-w", "10",
 			"-c", M0_SRC_PATH("reqh/ut/service_ctx.xc")

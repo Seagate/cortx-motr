@@ -24,6 +24,9 @@
 
 #ifndef __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__
 #define __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__
+
+#ifdef ENABLE_LIBFAB
+
 #include <netinet/in.h>                  /* INET_ADDRSTRLEN */
 
 #include "rdma/fabric.h"
@@ -510,6 +513,8 @@ struct m0_fab__bulk_op {
 	/** Link for list of bulk buffers */
 	struct m0_tlink            fbl_link;
 };
+
+#endif /* ENABLE_LIBFAB */
 
 /** @} end of netlibfab group */
 #endif /* __MOTR_NET_LIBFAB_LIBFAB_INTERNAL_H__ */

@@ -27,6 +27,9 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
 #include "lib/trace.h"          /* M0_ENTRY() */
+
+#ifdef ENABLE_LIBFAB
+
 #include <netinet/in.h>         /* INET_ADDRSTRLEN */
 #include <arpa/inet.h>          /* inet_pton, htons */
 #include <sched.h>              /* sched_yield */
@@ -3282,6 +3285,21 @@ struct m0_net_xprt m0_net_libfab_xprt = {
 	.nx_ops  = &libfab_xprt_ops
 };
 M0_EXPORTED(m0_net_libfab_xprt);
+
+#else /* ENABLE_LIBFAB */
+
+/* libfab init and fini() : initialized in motr init */
+M0_INTERNAL int m0_net_libfab_init(void)
+{
+	return M0_RC(0);
+}
+
+M0_INTERNAL void m0_net_libfab_fini(void)
+{
+	
+}
+
+#endif /* ENABLE_LIBFAB */
 
 #undef M0_TRACE_SUBSYSTEM
 

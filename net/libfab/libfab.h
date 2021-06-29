@@ -25,12 +25,14 @@
 #ifndef __MOTR_NET_LIBFAB_LIBFAB_H__
 #define __MOTR_NET_LIBFAB_LIBFAB_H__
 
-
-extern struct m0_net_xprt m0_net_libfab_xprt;
-
 M0_INTERNAL int  m0_net_libfab_init(void);
 M0_INTERNAL void m0_net_libfab_fini(void);
 
+#ifdef ENABLE_LIBFAB
+extern struct m0_net_xprt m0_net_libfab_xprt;
+
+
+#endif /* ENABLE_LIBFAB */
 /**
  * @defgroup netlibfab
  *

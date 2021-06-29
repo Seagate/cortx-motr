@@ -78,18 +78,16 @@ struct cl_ctx {
 
 enum { MAX_RPCS_IN_FLIGHT = 10 };
 /* Configures motr environment with given parameters. */
-static char *cas_startup_cmd[] = { "m0d", "-T", "linux",
-                                "-D", "cs_sdb", "-S", "cs_stob",
-                                "-A", "linuxstob:cs_addb_stob",
-#ifdef ENABLE_LIBFAB
-                                "-e", "libfab:0@lo:12345:34:1",
-#else
-                                "-e", "lnet:0@lo:12345:34:1",
-#endif
-                                "-H", "0@lo:12345:34:1",
-				"-w", "10", "-F",
-				"-f", M0_UT_CONF_PROCESS,
-				"-c", M0_SRC_PATH("cas/ut/conf.xc")};
+static char *cas_startup_cmd[] = {
+	"m0d", "-T", "linux",
+	"-D", "cs_sdb", "-S", "cs_stob",
+	"-A", "linuxstob:cs_addb_stob",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-H", "0@lo:12345:34:1",
+	"-w", "10", "-F",
+	"-f", M0_UT_CONF_PROCESS,
+	"-c", M0_SRC_PATH("cas/ut/conf.xc")
+};
 
 static const char         *cdbnames[] = { "cas1" };
 static const char      *cl_ep_addrs[] = { "0@lo:12345:34:2" };

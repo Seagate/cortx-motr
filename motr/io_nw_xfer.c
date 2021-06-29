@@ -887,10 +887,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				offset = INDEX(ivec, seg);
 				
 				/*
-				 * Accommodate multiple pages in a single
-				 * net buffer segment, if they are consecutive
-				 * pages
-				 */
+				* Accommodate multiple pages in a single
+				* net buffer segment, if they are consecutive
+				* pages.
+				*/
 				segnext = seg + 1;
 				while (segnext < SEG_NR(ivec) &&
 				       xfer_len < max_seg_size) {
@@ -905,8 +905,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					    (m0_bcount_t)bufnext) {
 						xfer_len += COUNT(ivec, ++seg);
 						segnext = seg + 1;
-					}
-					else
+					} else
 						break;
 				}
 

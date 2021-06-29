@@ -23,9 +23,7 @@
 #include "module/instance.h"
 #include "net/lnet/lnet.h"     /* m0_net_lnet_xprt */
 #ifndef __KERNEL__
-#ifdef ENABLE_LIBFAB
 #include "net/libfab/libfab.h" /* m0_net_libfab_xprt */
-#endif /* ENABLE_LIBFAB */
 #include "net/sock/sock.h"
 #endif /* __KERNEL__ */
 #include "net/net.h"
