@@ -46,7 +46,7 @@
 #define AD_CS_SZ 16
 
 enum {
-	NR                     = 4,
+	NR                     = 8,
 	MIN_BUF_SIZE           = 4096,
 	MIN_BUF_SIZE_IN_BLOCKS = 4,
 	SEG_SIZE               = 1 << 24,
@@ -285,7 +285,8 @@ static void test_write(int nr, struct m0_dtx *tx)
 	struct m0_sm_group *grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	struct m0_fol_frag *fol_frag;
 	bool		    is_local_tx = false;
-	int		    rc, cs_sz;
+	int		    rc, cs_sz, i;
+	char   cs_char = 'A';
 
 	/* @Note: This Fol record part object is not freed and shows as leak,
 	 * as it is passed as embedded object in other places.
@@ -306,11 +307,16 @@ static void test_write(int nr, struct m0_dtx *tx)
 	io.si_stob.iv_vec.v_count = stob_vc;
 	io.si_stob.iv_index = stob_vi;
 
-	io.si_unit_sz  = (buf_size >> block_shift) * 2;
+	io.si_unit_sz  = (buf_size >> block_shift);
 	io.si_cksum_sz = AD_CS_SZ;
 	cs_sz = ( m0_vec_count(&io.si_stob.iv_vec) * io.si_cksum_sz )/io.si_unit_sz;
 	m0_buf_alloc( &io.si_cksum, cs_sz);		
-	memset(io.si_cksum.b_addr, 'B', io.si_cksum.b_nob);
+
+	for( i = 0; i < cs_sz; i = i + (cs_sz/io.si_cksum_sz)  )
+	{
+		memset(io.si_cksum.b_addr + i, cs_char, (cs_sz/io.si_cksum_sz));
+		cs_char++;
+	}
 	
 	rc = m0_stob_io_private_setup(&io, obj_fore);
 	M0_UT_ASSERT(rc == 0);
@@ -346,6 +352,7 @@ static void test_write(int nr, struct m0_dtx *tx)
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 
+	m0_buf_free(&io.si_cksum);
 	m0_stob_io_fini(&io);
 }
 

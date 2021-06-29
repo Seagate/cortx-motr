@@ -48,7 +48,7 @@
 #define AD_ADIEU_CS_SZ 16
 
 enum {
-	NR    = 4,
+	NR    = 8,
 	NR_SORT = 256,
 	MIN_BUF_SIZE = 4096,
 	MIN_BUF_SIZE_IN_BLOCKS = 4,
@@ -144,8 +144,9 @@ static void test_adieu_fini(void)
 
 static void test_write(int i)
 {
-	int		    rc, cs_sz;
+	int		    rc, cs_sz, i;
 	struct m0_fol_frag *fol_frag;
+	char   cs_char = 'B';
 
 	M0_ALLOC_PTR(fol_frag);
 	M0_UB_ASSERT(fol_frag != NULL);
@@ -163,11 +164,16 @@ static void test_write(int i)
 	io.si_stob.iv_vec.v_count = user_vec;
 	io.si_stob.iv_index = stob_vec;
 
-	io.si_unit_sz  = (buf_size >> block_shift) * 2;
+	io.si_unit_sz  = (buf_size >> block_shift);
 	io.si_cksum_sz = AD_ADIEU_CS_SZ;
 	cs_sz = ( m0_vec_count(&io.si_stob.iv_vec) * io.si_cksum_sz )/io.si_unit_sz;
 	m0_buf_alloc( &io.si_cksum, cs_sz);		
-	memset(io.si_cksum.b_addr, 'A', io.si_cksum.b_nob);
+
+	for( i = 0; i < cs_sz; i = i + (cs_sz/io.si_cksum_sz)  )
+	{
+		memset(io.si_cksum.b_addr + i, cs_char, (cs_sz/io.si_cksum_sz));
+		cs_char++;
+	}
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
@@ -183,6 +189,7 @@ static void test_write(int i)
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 
+	m0_buf_free(&io.si_cksum);
 	m0_stob_io_fini(&io);
 }
 
