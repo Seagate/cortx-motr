@@ -344,8 +344,8 @@ M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io, m0_bindex
 			b_addr +=  m0_extent_get_checksum_nob(ext.e_start, io->si_stob.iv_vec.v_count[i], io->si_unit_sz, io->si_cksum_sz);
 			M0_ASSERT(b_addr <=io->si_cksum.b_addr + io->si_cksum.b_nob  );
       }
+	  M0_ASSERT(cksum_addr != NULL);
    }
-   M0_ASSERT(cksum_addr != NULL);
    return cksum_addr;
 }
 
@@ -1655,8 +1655,8 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	 */
 
 	/* Compute checksum units info which belong to this extent (COB off & Sz) */
-	it.ec_cksum.b_addr = m0_stob_ad_get_checksum_addr( io, 			off);
-	it.ec_cksum.b_nob  = m0_extent_get_checksum_nob( off, m0_ext_length(&todo), 
+	it.ec_cksum.b_addr = m0_stob_ad_get_checksum_addr(io, off);
+	it.ec_cksum.b_nob  = m0_extent_get_checksum_nob(off, m0_ext_length(&todo), 
 							io->si_unit_sz, io->si_cksum_sz);
 	it.ec_unit_size = io->si_unit_sz;
 	
