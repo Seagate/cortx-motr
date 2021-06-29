@@ -150,6 +150,7 @@ static void test_init(void)
 	m0_be_tx_prep(&tx2, &cred);
 	rc = m0_be_tx_open_sync(&tx2);
 	M0_UT_ASSERT(rc == 0);
+
 	M0_BE_OP_SYNC(op, m0_be_emap_create(emap, &tx2, &op,
 					    &M0_FID_INIT(0,1)));
 
@@ -167,6 +168,7 @@ static void test_init(void)
 static void test_fini(void)
 {
 	M0_BE_OP_SYNC(op, m0_be_emap_destroy(emap, &tx2, &op));
+
 	m0_be_tx_close_sync(&tx2);
 	m0_be_tx_fini(&tx2);
 
@@ -505,6 +507,9 @@ static void test_paste(void)
 	m0_be_emap_close(&it);
 }
 
+#define EPVC 0
+
+#if EPVC	
 static void test_paste_checksum_validation(void)
 {
 	int		 rc;
@@ -614,6 +619,7 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
 	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
 }
+#endif
 
 void m0_be_ut_emap(void)
 {
@@ -625,7 +631,9 @@ void m0_be_ut_emap(void)
 	test_next_prev();
 	test_merge();
 	test_paste();
+#if EPVC	
 	test_paste_checksum_validation();
+#endif
 	test_obj_fini(&tx2);
 	test_fini();
 }
@@ -761,3 +769,4 @@ struct m0_ut_suite m0_be_ut_emap = {
  *  scroll-step: 1
  *  End:
  */
+
