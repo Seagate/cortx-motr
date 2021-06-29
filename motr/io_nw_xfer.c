@@ -482,6 +482,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	uint64_t                   unit;
 	struct m0_indexvec        *ivec;
 	struct m0_indexvec        *trunc_ivec = NULL;
+	struct m0_indexvec        *coff_ivec;
 	struct m0_bufvec          *bvec;
 	struct m0_bufvec          *auxbvec;
 	struct m0_bufvec          *attrbvec;
@@ -554,6 +555,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 
 	//YJC_TODO: Move this to above else section during io write
 	attrbvec = &ti->ti_attrbufvec;
+	coff_ivec = &ti->ti_coff_ivec;
 	while (pgstart < toff + count) {
 		pgend = min64u(pgstart + page_size,
 			       toff + count);
@@ -626,10 +628,14 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		goff += COUNT(ivec, seg);
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
-	if (unit_type == M0_PUT_DATA) {
-		attrbvec->ov_buf[ti_idx] = ioo->ioo_attr.ov_buf[coff];
-		attrbvec->ov_vec.v_count[ti_idx] = ioo->ioo_attr.ov_vec.v_count[coff];
-	}
+		if (unit_type == M0_PUT_DATA && opcode == M0_OC_WRITE) {
+			BUFVI(attrbvec, ti_idx) = BUFVI(&ioo->ioo_attr, coff);
+			BUFVC(attrbvec, ti_idx) = BUFVC(&ioo->ioo_attr, coff);
+		} else if (unit_type == M0_PUT_DATA && opcode == M0_OC_READ) {
+			INDEX(coff_ivec, ti_idx) = coff;
+			COUNT(coff_ivec, ti_idx) = layout_unit_size(play);
+			coff_ivec->iv_vec.v_nr++;
+		}
 	}
 	M0_LEAVE();
 }
@@ -816,8 +822,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	struct m0_bufvec            *bvec;
 	struct m0_bufvec            *auxbvec;
 	struct m0_bufvec            *attrbvec;
-	struct m0_op_io      *ioo;
-	struct m0_obj_attr   *io_attr;
+	struct m0_op_io             *ioo;
+	struct m0_obj_attr          *io_attr;
 	struct m0_indexvec          *ivec;
 	struct ioreq_fop            *irfop;
 	struct m0_net_domain        *ndom;
@@ -1136,6 +1142,11 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	rc = m0_indexvec_alloc(&ti->ti_ivec, nr);
 	if (rc != 0)
 		goto out;
+	if (op->op_code == M0_OC_READ) {
+		rc = m0_indexvec_alloc(&ti->ti_coff_ivec, nr);
+		if (rc != 0)
+			goto fail;
+	}
 	if (op->op_code == M0_OC_FREE) {
 		rc = m0_indexvec_alloc(&ti->ti_trunc_ivec, nr);
 		if (rc != 0)
@@ -1191,6 +1202,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	return M0_RC(0);
 fail:
 	m0_indexvec_free(&ti->ti_ivec);
+	m0_indexvec_free(&ti->ti_coff_ivec);
 	if (op->op_code == M0_OC_FREE)
 		m0_indexvec_free(&ti->ti_trunc_ivec);
 	m0_free(ti->ti_bufvec.ov_vec.v_count);

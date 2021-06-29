@@ -335,7 +335,10 @@ struct m0_fop_cob_rw_reply {
 	/** Returned values for an UPDATE operation */
 	struct m0_fop_mod_rep   rwr_mod_rep;
 
+	/** Extents represting IO performed for this reply's request fop */
 	struct m0_io_indexvec   rwr_ivec;
+
+	/** Buffer containing checksum from server during READ operation */
 	struct m0_buf	        rwr_di_data_cksum;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
@@ -410,7 +413,7 @@ struct m0_fop_cob_rw {
 	uint64_t                  crw_flags;
 	/** Checksum and tag values for the input data blocks. */
 	struct m0_buf		  crw_di_data;
-	struct m0_buf	   	  crw_di_data_cksum;
+	struct m0_buf             crw_di_data_cksum;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
