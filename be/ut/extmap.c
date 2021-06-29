@@ -144,7 +144,7 @@ static void test_init(void)
 	m0_be_emap_credit(emap, M0_BEO_DELETE, 1, &cred);
 	m0_forall(i, 5, m0_be_emap_credit(emap, M0_BEO_SPLIT, 3, &cred), true);
 	m0_be_emap_credit(emap, M0_BEO_MERGE, 5 * 3, &cred);
-	m0_be_emap_credit(emap, M0_BEO_PASTE, 3, &cred);
+	m0_be_emap_credit(emap, M0_BEO_PASTE, 3 * 5, &cred);
 
 	m0_be_ut_tx_init(&tx2, &be_ut_emap_backend);
 	m0_be_tx_prep(&tx2, &cred);
@@ -507,14 +507,11 @@ static void test_paste(void)
 	m0_be_emap_close(&it);
 }
 
-#define EPVC 0
-
-#if EPVC	
 static void test_paste_checksum_validation(void)
 {
 	int		 rc;
 	int e_val[3];
-	struct m0_ext	 e1, e0, e;
+	struct m0_ext	 e3, e1, e0, e;
 	struct m0_ext	 es0;
 	struct m0_buf   cksum[3] = {};
 
@@ -618,8 +615,30 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_end );
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
 	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+
+	/* Cleanup code otherwise object delete code gives assert */		
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
+	
+	e.e_start = 0;
+	e.e_end   = M0_BINDEX_MAX + 1;
+	e3 = e;
+
+	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
+	M0_SET0(it_op);
+	m0_be_op_init(it_op);
+	m0_buf_init(&it.ec_cksum, NULL, 0);
+	m0_be_emap_paste(&it, &tx2, &e3, M0_BINDEX_MAX + 1, NULL, NULL, NULL);
+	m0_be_op_wait(it_op);
+	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+	m0_be_op_fini(it_op);
+
+	M0_UT_ASSERT(seg->ee_ext.e_start   == 0 );
+	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+
+	m0_be_emap_close(&it);
 }
-#endif
 
 void m0_be_ut_emap(void)
 {
@@ -631,9 +650,7 @@ void m0_be_ut_emap(void)
 	test_next_prev();
 	test_merge();
 	test_paste();
-#if EPVC	
 	test_paste_checksum_validation();
-#endif
 	test_obj_fini(&tx2);
 	test_fini();
 }
