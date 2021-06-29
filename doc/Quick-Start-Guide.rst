@@ -146,6 +146,36 @@ Troubleshooting
        sudo systemctl restart lnet
        sudo lctl list_nids
 
+- If you see error::
+
+    rmmod: ERROR: Module m0tr is in use or rmmod: ERROR: Module galois is in use by: m0tr
+    
+  or::
+  
+    insmod: ERROR: could not insert module /root/cortx-motr/extra-libs/galois/src/linux_kernel/galois.ko: File exists Error unloading /root/cortx-motr/m0tr.ko.
+    
+  This happens because previous runs may have exited abruptly or because the runs was forcefully stopped using ctrl+c. To resolve it, do the following:
+  
+  1. List the modules::
+  
+       $ [root@localhost ~]# lsmod
+         Module                  Size  Used by
+         m0ctl                  48916  0
+         m0tr                13901353  1 m0ctl
+         galois                 22944  1 m0tr
+         ksocklnd              183608  0
+         lnet                  586401  3 m0tr,ksocklnd
+     
+     (Note: lsmod o/p displays list of modules along with ``m0ctl``, ``m0tr`` and ``galios``.)
+       
+  2. Remove the modules in order::
+   
+       $ [root@localhost ~]# rmmod m0ctl
+       $ [root@localhost ~]# rmmod m0tr
+       $ [root@localhost ~]# rmmod galois
+       
+  You might not be able to see which module is using ``m0tr``. In this case, reboot should solve the problem.
+
 Build the documentation
 =======================
 
