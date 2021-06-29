@@ -41,6 +41,7 @@ static struct m0_be_ut_seg     be_ut_emap_seg;
 
 static struct m0_be_tx          tx1;
 static struct m0_be_tx          tx2;
+static struct m0_be_tx          tx3;
 static struct m0_be_emap       *emap;
 static struct m0_uint128        prefix;
 static struct m0_be_emap_cursor it;
@@ -507,17 +508,130 @@ static void test_paste(void)
 	m0_be_emap_close(&it);
 }
 
+static void test_paste_checksum_validation(void)
+{
+	int		 rc;
+	int e_val[3];
+	struct m0_ext	 e1, e0, e;
+	struct m0_ext	 es0;
+	struct m0_buf   cksum[3] = {};
+
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(seg->ee_ext.e_start == 0);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
+
+	e.e_start = 50;
+	e.e_end   = 100;
+	es0 = e0 = e;
+	e_val[0] = 12;
+
+	m0_buf_alloc(&cksum[0], (EXTMAP_UT_CS_SIZE * m0_ext_length(&e))/EXTMAP_UT_UNIT_SIZE);
+	memset(cksum[0].b_addr, 'A', cksum[0].b_nob);
+    it.ec_unit_size = EXTMAP_UT_UNIT_SIZE;
+
+	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
+	M0_SET0(it_op);
+	m0_be_op_init(it_op);
+	m0_buf_init(&it.ec_cksum, cksum[0].b_addr, cksum[0].b_nob);
+	m0_be_emap_paste(&it, &tx3, &e0, e_val[0], NULL, NULL, NULL);
+	m0_be_op_wait(it_op);
+	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+	m0_be_op_fini(it_op);
+	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_end);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
+
+	test_print();
+
+	/* Segment 0 lookup */
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(seg->ee_ext.e_start ==  0);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_start );
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+
+	/* Segment 1 - Pasted Chunk lookup */
+	rc = be_emap_lookup(emap, &prefix, e.e_start, &it);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_start);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_end );
+	M0_UT_ASSERT(seg->ee_val         == e_val[0]);
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == cksum[0].b_nob);
+	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum[0].b_addr, cksum[0].b_nob) == 0);
+
+	/* Segment 2 - End Chunk lookup */
+	rc = be_emap_lookup(emap, &prefix, e.e_end, &it);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_end );
+	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+
+	e.e_start = 100;
+	e.e_end   = 150;
+	e1 = e;
+	e_val[1] = 11;
+
+	m0_buf_alloc(&cksum[1], (EXTMAP_UT_CS_SIZE * m0_ext_length(&e))/EXTMAP_UT_UNIT_SIZE);
+	memset(cksum[1].b_addr, 'B', cksum[1].b_nob);
+    it.ec_unit_size = EXTMAP_UT_UNIT_SIZE;
+
+	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
+	M0_SET0(it_op);
+	m0_be_op_init(it_op);
+	m0_buf_init(&it.ec_cksum, cksum[1].b_addr, cksum[1].b_nob);
+	m0_be_emap_paste(&it, &tx3, &e1, e_val[1], NULL, NULL, NULL);
+	m0_be_op_wait(it_op);
+	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+	m0_be_op_fini(it_op);
+	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_end);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
+
+	/* Segment 0 lookup : Hole */
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(seg->ee_ext.e_start ==  0);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == es0.e_start );
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+
+	/* Segment 1 - Pasted Chunk lookup : CS = A */
+	rc = be_emap_lookup(emap, &prefix, es0.e_start, &it);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(seg->ee_ext.e_start == es0.e_start);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == es0.e_end );
+	M0_UT_ASSERT(seg->ee_val         == e_val[0]);
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == cksum[0].b_nob);
+	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum[0].b_addr, cksum[0].b_nob) == 0);
+
+	/* Segment 2 - Pasted Chunk lookup : CS = B */
+	rc = be_emap_lookup(emap, &prefix, e.e_start, &it);
+	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_start);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_end );
+	M0_UT_ASSERT(seg->ee_val         == e_val[1]);
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == cksum[1].b_nob);
+	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum[1].b_addr, cksum[1].b_nob) == 0);
+
+	/* Segment 3 - End Chunk lookup */
+	rc = be_emap_lookup(emap, &prefix, e.e_end, &it);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_end );
+	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
+	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+}
+
 void m0_be_ut_emap(void)
 {
 	test_init();
 	test_obj_init(&tx2);
+	test_obj_init(&tx3);
 	test_lookup();
 	test_split();
 	test_print();
 	test_next_prev();
 	test_merge();
 	test_paste();
+	test_paste_checksum_validation();
 	test_obj_fini(&tx2);
+	test_obj_fini(&tx3);
 	test_fini();
 }
 
