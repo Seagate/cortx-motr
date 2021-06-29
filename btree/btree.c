@@ -1829,8 +1829,10 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 			 */
 
 			m0_rwlock_write_lock(&lru_lock);
-			/* M0_ASSERT_EX(ndlist_tlist_contains(&btree_lru_nds,
-			 *                                    op->no_node)); */
+			/**
+			 * M0_ASSERT_EX(ndlist_tlist_contains(&btree_lru_nds,
+			 *                                    op->no_node));
+			 */
 			ndlist_tlist_del(op->no_node);
 			m0_rwlock_write_unlock(&lru_lock);
 
@@ -1847,16 +1849,29 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		m0_rwlock_write_unlock(&op->no_node->n_lock);
 	} else {
 		/**
-		 * If node descriptor is not present allocate a new one
-		 * and assign to node.
-		 */
-		/**
-		 * TODO: Adding lru_lock to protect from multiple threads 
-		 * allocating more than one node descriptors for the same node. 
-		 * Replace it with a different global lock once hash 
+		 * TODO: Adding lru_lock to protect from multiple threads
+		 * allocating more than one node descriptors for the same node.
+		 * Replace it with a different global lock once hash
 		 * functionality is implemented.
 		 */
 		m0_rwlock_write_lock(&lru_lock);
+		/**
+		 * If node descriptor is already allocated for the node, no need
+		 * to allocate node descriptor again.
+		 */
+		op->no_node = nt->nt_opaque_get(addr);
+		if (op->no_node != NULL &&
+		    op->no_node->n_addr.as_core == addr->as_core) {
+			m0_rwlock_write_lock(&op->no_node->n_lock);
+			node_refcnt_update(op->no_node, true);
+			m0_rwlock_write_unlock(&op->no_node->n_lock);
+			m0_rwlock_write_unlock(&lru_lock);
+			return nxt_state;
+		}
+		/**
+		 * If node descriptor is not present allocate a new one
+		 * and assign to node.
+		 */
 		node = m0_alloc(sizeof *node);
 		/**
 		 * TODO: If Node-alloc fails, free up any node descriptor from
@@ -1888,8 +1903,10 @@ static int64_t node_get(struct node_op *op, struct td *tree,
  * the reference count reaches '0' then the node descriptor is moved to LRU
  * list.
  *
+ * @param op load operation to perform.
  * @param node node descriptor.
- * @param tree pointer to tree.
+ * @param lock_acquired true if lock is already taken else false.
+ * @param tx changes will be captured in this transaction.
  *
  */
 static void node_put(struct node_op *op, struct nd *node, bool lock_acquired,
@@ -2165,7 +2182,6 @@ static void mem_node_put(struct nd *node, bool lock_acquired)
 		 * active list and add to lru list
 		 */
 		tree_lock(node->n_tree, lock_acquired);
-		/* M0_ASSERT_EX(ndlist_tlist_contains(&node->n_tree->t_active_nds, node)); */
 		ndlist_tlist_del(node);
 		tree_unlock(node->n_tree, lock_acquired);
 		node->n_seq = 0;
@@ -3997,7 +4013,7 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 		 * to be handled in a better way.
 		 */
 		if (ndlist_tlist_length(&td_curr->t_active_nds) > 1) {
-			if (m0_time_seconds(m0_time_now() - 
+			if (m0_time_seconds(m0_time_now() -
 					    td_curr->t_starttime) > 5) {
 				td_curr->t_starttime = 0;
 				return M0_ERR(-ETIMEDOUT);
@@ -5521,7 +5537,7 @@ static void ut_basic_tree_oper(void)
 							     &btree_type, nt,
 							     &b_op, tx));
 	M0_ASSERT(rc == 0);
-	
+
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(b_op.bo_arbor,
 							    &b_op));
 	M0_ASSERT(rc == 0);
@@ -6733,7 +6749,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_close(tree, &b_op));
 		M0_ASSERT(rc == 0);
-		
+
 		if (b_op.bo_arbor->t_desc->t_ref > 0) {
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 						      m0_btree_destroy(tree,
