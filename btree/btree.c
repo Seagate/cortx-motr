@@ -1082,6 +1082,9 @@ static int64_t tree_delete(struct node_op *op, struct td *tree,
 			   struct m0_be_tx *tx, int nxt);
 #endif
 static void    tree_put   (struct td *tree);
+static void    tree_lock(struct td *tree, bool lock_acquired);
+static void    tree_unlock(struct td *tree, bool lock_acquired);
+
 static int64_t    node_get  (struct node_op *op, struct td *tree,
 			     struct segaddr *addr, bool lock_acquired, int nxt);
 #ifndef __KERNEL__
@@ -1434,12 +1437,8 @@ static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
  */
 static void node_refcnt_update(struct nd *node, bool increment)
 {
-	m0_rwlock_write_lock(&node->n_lock);
-
 	M0_ASSERT(ergo(!increment, node->n_ref != 0));
 	increment ? node->n_ref++ : node->n_ref--;
-
-	m0_rwlock_write_unlock(&node->n_lock);
 }
 
 #ifndef __KERNEL__
@@ -1726,6 +1725,32 @@ static void tree_put(struct td *tree)
 	segops->so_tree_put(tree);
 }
 
+/**
+ * Takes tree lock if lock is already not taken by P_LOCKALL state.
+ *
+ * @param tree tree descriptor.
+ * @param lock_acquired true if lock is already taken else false.
+ *
+ */
+static void tree_lock(struct td *tree, bool lock_acquired)
+{
+	if (!lock_acquired)
+		m0_rwlock_write_lock(&tree->t_lock);
+}
+
+/**
+ * Unlocks tree lock if lock is already not taken by P_LOCKALL state..
+ *
+ * @param tree tree descriptor.
+ * @param lock_acquired true if lock is already taken else false.
+ *
+ */
+static void tree_unlock(struct td *tree, bool lock_acquired)
+{
+	if (!lock_acquired)
+		m0_rwlock_write_unlock(&tree->t_lock);
+}
+
 static const struct node_type fixed_format;
 
 /**
@@ -1751,6 +1776,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	int                     nxt_state;
 	const struct node_type *nt;
 	struct nd              *node;
+	bool                    in_lrulist;
 
 	nxt_state =  segops->so_node_get(op, tree, addr, nxt);
 
@@ -1771,16 +1797,20 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	if (op->no_node != NULL &&
 	    op->no_node->n_addr.as_core == addr->as_core) {
 
+		m0_rwlock_write_lock(&op->no_node->n_lock);
 		if (op->no_node->n_delayed_free) {
 			op->no_op.o_sm.sm_rc = EACCES;
+			m0_rwlock_write_unlock(&op->no_node->n_lock);
 			return nxt_state;
 		}
-		if (op->no_node->n_ref == 0) {
+
+		in_lrulist = op->no_node->n_ref == 0;
+		node_refcnt_update(op->no_node, true);
+		if (in_lrulist) {
 			/**
 			 * The node descriptor is in LRU list. Remove from lru
 			 * list and add to trees active list
 			 */
-			node_refcnt_update(op->no_node, true);
 
 			m0_rwlock_write_lock(&lru_lock);
 			/* M0_ASSERT_EX(ndlist_tlist_contains(&btree_lru_nds,
@@ -1788,17 +1818,17 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 			ndlist_tlist_del(op->no_node);
 			m0_rwlock_write_unlock(&lru_lock);
 
-			m0_rwlock_write_lock(&tree->t_lock);
+			tree_lock(tree, lock_acquired);
 			ndlist_tlist_add(&tree->t_active_nds, op->no_node);
-			m0_rwlock_write_unlock(&tree->t_lock);
+			tree_unlock(tree, lock_acquired);
 			/**
 			 * Update nd::n_tree  to point to tree descriptor as we
 			 * as we had set it to NULL in node_put(). For more
 			 * details Refer comment in node_put().
 			 */
 			op->no_node->n_tree = tree;
-		} else
-			node_refcnt_update(op->no_node, true);
+		}
+		m0_rwlock_write_unlock(&op->no_node->n_lock);
 	} else {
 		/**
 		 * If node descriptor is not present allocate a new one
@@ -1824,13 +1854,12 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		node->n_ref  = 1;
 		m0_rwlock_init(&node->n_lock);
 		op->no_node = node;
+		nt->nt_opaque_set(addr, node);
 		m0_rwlock_write_unlock(&lru_lock);
 
-		nt->nt_opaque_set(addr, node);
-
-		m0_rwlock_write_lock(&tree->t_lock);
+		tree_lock(tree, lock_acquired);
 		ndlist_tlink_init_at(op->no_node, &tree->t_active_nds);
-		m0_rwlock_write_unlock(&tree->t_lock);
+		tree_unlock(tree, lock_acquired);
 	}
 
 	return nxt_state;
@@ -1907,7 +1936,10 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 {
 	int shift = node->n_type->nt_shift(node);
 
+	m0_rwlock_write_lock(&node->n_lock);
 	node_refcnt_update(node, false);
+	node->n_delayed_free = true;
+	m0_rwlock_write_unlock(&node->n_lock);
 	node->n_type->nt_fini(node);
 
 	if (node->n_ref == 0) {
@@ -1918,7 +1950,6 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 		return segops->so_node_free(op, shift, tx, nxt);
 	}
 
-	node->n_delayed_free = true;
 	return nxt;
 }
 
@@ -2108,16 +2139,17 @@ static int64_t mem_node_get(struct node_op *op, struct td *tree,
 
 static void mem_node_put(struct nd *node, bool lock_acquired)
 {
+	m0_rwlock_write_lock(&node->n_lock);
 	node_refcnt_update(node, false);
 	if (node->n_ref == 0) {
 		/**
 		 * The node descriptor is in tree's active list. Remove from
 		 * active list and add to lru list
 		 */
-		m0_rwlock_write_lock(&node->n_tree->t_lock);
+		tree_lock(node->n_tree, lock_acquired);
 		/* M0_ASSERT_EX(ndlist_tlist_contains(&node->n_tree->t_active_nds, node)); */
 		ndlist_tlist_del(node);
-		m0_rwlock_write_unlock(&node->n_tree->t_lock);
+		tree_unlock(node->n_tree, lock_acquired);
 		node->n_seq = 0;
 
 		m0_rwlock_write_lock(&lru_lock);
@@ -2131,6 +2163,7 @@ static void mem_node_put(struct nd *node, bool lock_acquired)
 		 */
 		node->n_tree = NULL;
 	}
+	m0_rwlock_write_unlock(&node->n_lock);
 }
 
 static struct nd *mem_node_try(struct td *tree, struct segaddr *addr)
