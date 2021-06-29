@@ -507,6 +507,16 @@ static void test_paste(void)
 	m0_be_emap_close(&it);
 }
 
+/* This UT will write : 
+ * 1. 50 - 100 with CS = A
+ * 2.100 - 150 with CS = B
+ * 3. 80 - 130 with CS = P
+ * Validate the segement written along with checksum value
+ * Using this as reference other cases can be created e.g.
+ * - 50 - 100 with CS = A and then 70 -  90 with CS = P
+ * - 50 - 100 with CS = A and then 90 - 120 with CS = P
+ * - 50 - 100 with CS = A and then 20 -  70 with CS = P
+ */
 static void test_paste_checksum_validation(void)
 {
 	int		 rc;
@@ -712,9 +722,9 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
 	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
 
-	m0_buf_free( cksum[0] );
-	m0_buf_free( cksum[1] );
-	m0_buf_free( cksum[2] );
+	m0_buf_free( &cksum[0] );
+	m0_buf_free( &cksum[1] );
+	m0_buf_free( &cksum[2] );
 	m0_be_emap_close(&it);
 }
 
