@@ -1098,6 +1098,9 @@ static int64_t tree_delete(struct node_op *op, struct td *tree,
 			   struct m0_be_tx *tx, int nxt);
 #endif
 static void    tree_put   (struct td *tree);
+static void    tree_lock(struct td *tree, bool lock_acquired);
+static void    tree_unlock(struct td *tree, bool lock_acquired);
+
 static int64_t    node_get  (struct node_op *op, struct td *tree,
 			     struct segaddr *addr, bool lock_acquired, int nxt);
 #ifndef __KERNEL__
@@ -1113,9 +1116,9 @@ static struct nd *node_try  (struct td *tree, struct segaddr *addr);
 static int64_t    node_alloc(struct node_op *op, struct td *tree, int size,
 			     const struct node_type *nt, int ksize, int vsize,
 			     bool lock_aquired, struct m0_be_tx *tx, int nxt);
-#ifndef __KERNEL__
 static int64_t    node_free(struct node_op *op, struct nd *node,
 			    struct m0_be_tx *tx, int nxt);
+#ifndef __KERNEL__
 static void node_op_fini(struct node_op *op);
 #endif
 #ifndef __KERNEL__
@@ -1157,6 +1160,7 @@ static void node_cut  (const struct nd *node, int idx, int size,
 		       struct m0_be_tx *tx);
 #endif
 static void node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
+static void node_refcnt_update(struct nd *node, bool increment);
 
 #ifndef __KERNEL__
 static void node_set_level  (const struct nd *node, uint8_t new_level,
@@ -1440,6 +1444,18 @@ static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	node->n_type->nt_del(node, idx, tx);
 }
 
+/**
+ * Updates the node reference count
+ *
+ * @param node The node descriptor whose ref count needs to be updated.
+ * @param increment If true increase ref count.
+ *		    If false decrease ref count.
+ */
+static void node_refcnt_update(struct nd *node, bool increment)
+{
+	M0_ASSERT(ergo(!increment, node->n_ref != 0));
+	increment ? node->n_ref++ : node->n_ref--;
+}
 
 #ifndef __KERNEL__
 static void node_set_level(const struct nd *node, uint8_t new_level,
@@ -1483,20 +1499,30 @@ int m0_btree_mod_init(void)
 	trees_loaded = 0;
 	m0_rwlock_init(&trees_lock);
 
+	/** Initialtise lru list and lock. */
+	ndlist_tlist_init(&btree_lru_nds);
+	m0_rwlock_init(&lru_lock);
+
 	M0_ALLOC_PTR(m);
 	if (m != NULL) {
 		m0_get()->i_moddata[M0_MODULE_BTREE] = m;
 		return 0;
 	} else
 		return M0_ERR(-ENOMEM);
-
-	/** Initialtise lru list and lock. */
-	ndlist_tlist_init(&btree_lru_nds);
-	m0_rwlock_init(&lru_lock);
 }
 
 void m0_btree_mod_fini(void)
 {
+	struct nd* node;
+
+	if (!ndlist_tlist_is_empty(&btree_lru_nds))
+		m0_tl_teardown(ndlist, &btree_lru_nds, node) {
+			ndlist_tlink_fini(node);
+			m0_rwlock_fini(&node->n_lock);
+			m0_free(node);
+		}
+	ndlist_tlist_fini(&btree_lru_nds);
+	m0_rwlock_fini(&lru_lock);
 	m0_rwlock_fini(&trees_lock);
 	m0_free(mod_get());
 }
@@ -1715,6 +1741,32 @@ static void tree_put(struct td *tree)
 	segops->so_tree_put(tree);
 }
 
+/**
+ * Takes tree lock if lock is already not taken by P_LOCKALL state.
+ *
+ * @param tree tree descriptor.
+ * @param lock_acquired true if lock is already taken else false.
+ *
+ */
+static void tree_lock(struct td *tree, bool lock_acquired)
+{
+	if (!lock_acquired)
+		m0_rwlock_write_lock(&tree->t_lock);
+}
+
+/**
+ * Unlocks tree lock if lock is already not taken by P_LOCKALL state..
+ *
+ * @param tree tree descriptor.
+ * @param lock_acquired true if lock is already taken else false.
+ *
+ */
+static void tree_unlock(struct td *tree, bool lock_acquired)
+{
+	if (!lock_acquired)
+		m0_rwlock_write_unlock(&tree->t_lock);
+}
+
 static const struct node_type fixed_format;
 
 /**
@@ -1740,6 +1792,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	int                     nxt_state;
 	const struct node_type *nt;
 	struct nd              *node;
+	bool                    in_lrulist;
 
 	nxt_state =  segops->so_node_get(op, tree, addr, nxt);
 
@@ -1759,16 +1812,72 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	op->no_node = nt->nt_opaque_get(addr);
 	if (op->no_node != NULL &&
 	    op->no_node->n_addr.as_core == addr->as_core) {
-		    if (op->no_node->n_delayed_free) {
-			    op->no_op.o_sm.sm_rc = EACCES;
-				return nxt_state;
+
+		m0_rwlock_write_lock(&op->no_node->n_lock);
+		if (op->no_node->n_delayed_free) {
+			op->no_op.o_sm.sm_rc = EACCES;
+			m0_rwlock_write_unlock(&op->no_node->n_lock);
+			return nxt_state;
 		}
-		op->no_node->n_ref++;
-	    } else {
+
+		in_lrulist = op->no_node->n_ref == 0;
+		node_refcnt_update(op->no_node, true);
+		if (in_lrulist) {
+			/**
+			 * The node descriptor is in LRU list. Remove from lru
+			 * list and add to trees active list
+			 */
+
+			m0_rwlock_write_lock(&lru_lock);
+			/**
+			 * M0_ASSERT_EX(ndlist_tlist_contains(&btree_lru_nds,
+			 *                                    op->no_node));
+			 */
+			ndlist_tlist_del(op->no_node);
+			m0_rwlock_write_unlock(&lru_lock);
+
+			tree_lock(tree, lock_acquired);
+			ndlist_tlist_add(&tree->t_active_nds, op->no_node);
+			tree_unlock(tree, lock_acquired);
+			/**
+			 * Update nd::n_tree  to point to tree descriptor as we
+			 * as we had set it to NULL in node_put(). For more
+			 * details Refer comment in node_put().
+			 */
+			op->no_node->n_tree = tree;
+		}
+		m0_rwlock_write_unlock(&op->no_node->n_lock);
+	} else {
+		/**
+		 * TODO: Adding lru_lock to protect from multiple threads
+		 * allocating more than one node descriptors for the same node.
+		 * Replace it with a different global lock once hash
+		 * functionality is implemented.
+		 */
+		m0_rwlock_write_lock(&lru_lock);
+		/**
+		 * If node descriptor is already allocated for the node, no need
+		 * to allocate node descriptor again.
+		 */
+		op->no_node = nt->nt_opaque_get(addr);
+		if (op->no_node != NULL &&
+		    op->no_node->n_addr.as_core == addr->as_core) {
+			m0_rwlock_write_lock(&op->no_node->n_lock);
+			node_refcnt_update(op->no_node, true);
+			m0_rwlock_write_unlock(&op->no_node->n_lock);
+			m0_rwlock_write_unlock(&lru_lock);
+			return nxt_state;
+		}
 		/**
 		 * If node descriptor is not present allocate a new one
-		 * and assign to node. */
+		 * and assign to node.
+		 */
 		node = m0_alloc(sizeof *node);
+		/**
+		 * TODO: If Node-alloc fails, free up any node descriptor from
+		 * lru list and add assign to node. Unmap and map back the node
+		 * segment. Take up with BE segment task.
+		 */
 		M0_ASSERT(node != NULL);
 		node->n_addr = *addr;
 		node->n_tree = tree;
@@ -1778,6 +1887,11 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		m0_rwlock_init(&node->n_lock);
 		op->no_node = node;
 		nt->nt_opaque_set(addr, node);
+		m0_rwlock_write_unlock(&lru_lock);
+
+		tree_lock(tree, lock_acquired);
+		ndlist_tlink_init_at(op->no_node, &tree->t_active_nds);
+		tree_unlock(tree, lock_acquired);
 	}
 
 	return nxt_state;
@@ -1785,17 +1899,15 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 
 #ifndef __KERNEL__
 /**
- * This function decrements the reference count for this node and if the
- * reference count reaches '0' then the node is made available for future
- * mode_get requests.
+ * This function decrements the reference count for this node descriptor and if
+ * the reference count reaches '0' then the node descriptor is moved to LRU
+ * list.
  *
  * @param op load operation to perform.
- * @param tree pointer to tree whose node is to be loaded or NULL if tree has
- *             not been loaded.
- * @param addr node address in the segment.
- * @param nxt state to return on successful completion
+ * @param node node descriptor.
+ * @param lock_acquired true if lock is already taken else false.
+ * @param tx changes will be captured in this transaction.
  *
- * @return next state
  */
 static void node_put(struct node_op *op, struct nd *node, bool lock_acquired,
 		     struct m0_be_tx *tx)
@@ -1804,8 +1916,13 @@ static void node_put(struct node_op *op, struct nd *node, bool lock_acquired,
 	int        shift = node->n_type->nt_shift(node);
 	segops->so_node_put(node, lock_acquired);
 
-	if (node->n_delayed_free && node->n_ref == 0)
+	if (node->n_delayed_free && node->n_ref == 0) {
+		ndlist_tlink_del_fini(node);
+		m0_rwlock_fini(&node->n_lock);
+		op->no_addr = node->n_addr;
+		m0_free(node);
 		segops->so_node_free(op, shift, tx, 0);
+	}
 }
 #endif
 
@@ -1848,24 +1965,29 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 	return nxt_state;
 }
 
-#ifndef __KERNEL__
 static int64_t node_free(struct node_op *op, struct nd *node,
 			 struct m0_be_tx *tx, int nxt)
 {
 	int shift = node->n_type->nt_shift(node);
-	node->n_ref--;
+
+	m0_rwlock_write_lock(&node->n_lock);
+	node_refcnt_update(node, false);
+	node->n_delayed_free = true;
+	m0_rwlock_write_unlock(&node->n_lock);
 	node->n_type->nt_fini(node);
 
 	if (node->n_ref == 0) {
+		ndlist_tlink_del_fini(node);
+		m0_rwlock_fini(&node->n_lock);
 		op->no_addr = node->n_addr;
 		m0_free(node);
 		return segops->so_node_free(op, shift, tx, nxt);
 	}
 
-	node->n_delayed_free = true;
 	return nxt;
 }
 
+#ifndef __KERNEL__
 static void node_op_fini(struct node_op *op)
 {
 	segops->so_node_op_fini(op);
@@ -1949,6 +2071,8 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 
 	m0_rwlock_write_lock(&tree->t_lock);
 	tree->t_ref++;
+	/** Initialtise active nd list for this tree. */
+	ndlist_tlist_init(&tree->t_active_nds);
 
 	if (addr) {
 		m0_rwlock_write_unlock(&tree->t_lock);
@@ -2000,11 +2124,10 @@ static int64_t mem_tree_delete(struct node_op *op, struct td *tree,
 			       struct m0_be_tx *tx, int nxt)
 {
 	struct nd *root = tree->t_root;
-	int        shift = root->n_type->nt_shift(root);
 
 	op->no_tree = tree;
 	op->no_node = root;
-	mem_node_free(op, shift, tx, nxt);
+	node_free(op, op->no_node, tx, nxt);
 	tree_put(tree);
 	return nxt;
 }
@@ -2030,6 +2153,7 @@ static void mem_tree_put(struct td *tree)
 		bit_offset_in_array = i % sizeof(trees_in_use[0]);
 		trees_in_use[array_offset] &= ~(1ULL << bit_offset_in_array);
 		trees_loaded--;
+		ndlist_tlist_fini(&tree->t_active_nds);
 		m0_rwlock_write_unlock(&tree->t_lock);
 		m0_rwlock_fini(&tree->t_lock);
 		m0_rwlock_write_unlock(&trees_lock);
@@ -2050,13 +2174,30 @@ static int64_t mem_node_get(struct node_op *op, struct td *tree,
 
 static void mem_node_put(struct nd *node, bool lock_acquired)
 {
-	/**
-	 * This implementation does not perform any action, but the final one
-	 * should decrement the reference count of the node and if this
-	 * reference count goes to '0' then detach this node descriptor from the
-	 * existing node and make this node descriptor available for 'node_get'.
-	 */
-	node->n_ref--;
+	m0_rwlock_write_lock(&node->n_lock);
+	node_refcnt_update(node, false);
+	if (node->n_ref == 0) {
+		/**
+		 * The node descriptor is in tree's active list. Remove from
+		 * active list and add to lru list
+		 */
+		tree_lock(node->n_tree, lock_acquired);
+		ndlist_tlist_del(node);
+		tree_unlock(node->n_tree, lock_acquired);
+		node->n_seq = 0;
+
+		m0_rwlock_write_lock(&lru_lock);
+		ndlist_tlist_add(&btree_lru_nds, node);
+		m0_rwlock_write_unlock(&lru_lock);
+		/**
+		 * In case tree desriptor gets deallocated while node sits in
+		 * the LRU list, we do not want node descriptor to point to an
+		 * invalid tree descriptor. Hence setting nd::n_tree to NULL, it
+		 * will again be populated in node_get().
+		 */
+		node->n_tree = NULL;
+	}
+	m0_rwlock_write_unlock(&node->n_lock);
 }
 
 static struct nd *mem_node_try(struct td *tree, struct segaddr *addr)
@@ -2822,15 +2963,11 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 			node_free(&oi->i_nop, oi->i_level[i].l_alloc, tx, 0);
 			oi->i_level[i].l_alloc = NULL;
 		}
-	}
-	if (oi->i_used > 0 && oi->i_level[1].l_sibling != NULL) {
-		node_put(&oi->i_nop, oi->i_level[1].l_sibling, false, tx);
-		oi->i_level[1].l_sibling = NULL;
-	}
-	if (oi->i_level[oi->i_used].l_sibling != NULL) {
-		node_put(&oi->i_nop, oi->i_level[oi->i_used].l_sibling,
-			 false, tx);
-		oi->i_level[oi->i_used].l_sibling = NULL;
+		if (oi->i_level[i].l_sibling != NULL) {
+			node_put(&oi->i_nop, oi->i_level[i].l_sibling, false,
+				 tx);
+			oi->i_level[i].l_sibling = NULL;
+		}
 	}
 	if (oi->i_extra_node != NULL) {
 		oi->i_nop.no_opc = NOP_FREE;
@@ -3037,8 +3174,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	/* Increase height by one */
 	tree->t_height++;
 
-
-	node_put(&oi->i_nop, lev->l_alloc,true ,bop->bo_tx);
+	node_put(&oi->i_nop, lev->l_alloc, true, bop->bo_tx);
 	lev->l_alloc = NULL;
 	node_put(&oi->i_nop, oi->i_extra_node, true, bop->bo_tx);
 	oi->i_extra_node = NULL;
@@ -3731,31 +3867,20 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 
 		oi->i_nop.no_addr = segaddr_build(data->addr, calc_shift(data->
 							      num_bytes));
+		node_init(&oi->i_nop.no_addr, k_size, v_size, data->nt,
+			  bop->bo_tx);
 
 		return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
 
 	case P_ACT:
 		oi->i_nop.no_node->n_type = data->nt;
 		oi->i_nop.no_tree->t_type = data->bt;
-		node_init(&oi->i_nop.no_addr, k_size, v_size,
-			  oi->i_nop.no_node->n_type, bop->bo_tx);
 
 		bop->bo_arbor->t_desc           = oi->i_nop.no_tree;
 		bop->bo_arbor->t_type           = data->bt;
 
 		m0_rwlock_write_lock(&bop->bo_arbor->t_desc->t_lock);
 		bop->bo_arbor->t_desc->t_height = 1;
-		/** Initialtise active nd list for this tree. */
-		ndlist_tlist_init(&bop->bo_arbor->t_desc->t_active_nds);
-		/**
-		 * Deliberately increasing the ref count of root node, so that
-		 * it is never freed (except for in btree_destroy). Add root
-		 * node to active nd list.
-		 */
-		bop->bo_arbor->t_desc->t_root->n_ref++;
-		ndlist_tlink_init_at(bop->bo_arbor->t_desc->t_root,
-				     &bop->bo_arbor->t_desc->t_active_nds);
-
 		m0_rwlock_write_unlock(&bop->bo_arbor->t_desc->t_lock);
 
 		m0_free(oi);
@@ -3790,6 +3915,12 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 	 *  the node count to 0.
 	 */
 	M0_PRE(node_count(bop->bo_arbor->t_desc->t_root) == 0);
+	/**
+	 * TODO: Currently putting it here, call it inside
+	 * tree_*() function once destroy tick is implemented
+	 * completely.
+	 */
+	ndlist_tlink_del_fini(bop->bo_arbor->t_desc->t_root);
 
 	tree_put(bop->bo_arbor->t_desc);
 	/**
@@ -3882,7 +4013,7 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 		 * to be handled in a better way.
 		 */
 		if (ndlist_tlist_length(&td_curr->t_active_nds) > 1) {
-			if (m0_time_seconds(m0_time_now() - 
+			if (m0_time_seconds(m0_time_now() -
 					    td_curr->t_starttime) > 5) {
 				td_curr->t_starttime = 0;
 				return M0_ERR(-ETIMEDOUT);
@@ -3939,11 +4070,12 @@ int  btree_sibling_first_key_get(struct m0_btree_oimpl *oi, struct td *tree,
 				node_child(s, &child);
 				if (!address_in_segment(child))
 					return M0_ERR(-EFAULT);
+				i++;
 				node_get(&oi->i_nop, tree,
 					 &child, true, P_CLEANUP);
 				s->s_idx = 0;
 				s->s_node = oi->i_nop.no_node;
-				i++;
+				oi->i_level[i].l_sibling = oi->i_nop.no_node;
 			}
 			node_rec(s);
 			return 0;
@@ -4045,7 +4177,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
 	case P_LOCK:
-		if(!lock_acquired)
+		if (!lock_acquired)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 					    bop->bo_arbor->t_desc, P_CHECK);
 		/** Fall through if LOCK is already acquired. */
@@ -4287,6 +4419,7 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 					node_op_fini(&oi->i_nop);
 					return fail(bop, M0_ERR(-EFAULT));
 				}
+				oi->i_pivot++;
 				return node_get(&oi->i_nop, tree, &child,
 						lock_acquired, P_SIBLING);
 			}
@@ -4299,7 +4432,25 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			struct slot    s = {};
 			struct segaddr child;
 
+			lev = &oi->i_level[oi->i_pivot];
+			lev->l_sibling = oi->i_nop.no_node;
 			s.s_node = oi->i_nop.no_node;
+			lev->l_sib_seq = lev->l_sibling->n_seq;
+
+			/**
+			 * Node validation is required to determine that the
+			 * node(lev->l_node) which is pointed by current thread
+			 * is not freed by any other thread till current thread
+			 * reaches NEXTDOWN phase.
+			 *
+			 * Node verification is required to determine that no
+			 * other thread which has lock is working on the same
+			 * node(lev->l_node) which is pointed by current thread.
+			 */
+			if (!node_isvalid(s.s_node) ||
+			    !node_verify(s.s_node))
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_SETUP);
 
 			/**
 			 * Node validation is required to determine that the
@@ -4324,14 +4475,11 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 					node_op_fini(&oi->i_nop);
 					return fail(bop, M0_ERR(-EFAULT));
 				}
+				oi->i_pivot++;
 				return node_get(&oi->i_nop, tree, &child,
 						lock_acquired, P_SIBLING);
-			} else {
-				lev = &oi->i_level[oi->i_used];
-				lev->l_sibling = oi->i_nop.no_node;
-				lev->l_sib_seq = lev->l_sibling->n_seq;
+			} else
 				return P_LOCK;
-			}
 		} else {
 			node_op_fini(&oi->i_nop);
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
@@ -4836,6 +4984,45 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
 	};
+}
+
+#if 0
+/**
+ * TODO: This task should be covered with transaction task.
+ * Assign this callback to m0_be_tx::t_filler in m0_be_tx_init(). The callback
+ * should get called after transaction commit.
+ */
+static void btree_tx_commit_cb(struct m0_be_tx *tx, void *payload)
+{
+	struct nd *node = payload;
+	M0_ASSERT(node->n_txref != 0);
+	node->n_txref--;
+}
+#endif
+/**
+ * TODO: Call this function to free up node descriptor from LRU list.
+ * A daemon should run in parallel to check the health of the system. If it
+ * requires more memory the node descriptors can be freed from LRU list.
+ *
+ * @param count number of node descriptors to be freed.
+ */
+void m0_btree_lrulist_purge(uint64_t count)
+{
+	struct nd* node;
+	struct nd* prev;
+
+	m0_rwlock_write_lock(&lru_lock);
+	node = ndlist_tlist_tail(&btree_lru_nds);
+	for (;  node != NULL && count > 0; count --) {
+		prev = ndlist_tlist_prev(&btree_lru_nds, node);
+		if (node->n_txref == 0) {
+			ndlist_tlink_del_fini(node);
+			m0_rwlock_fini(&node->n_lock);
+			m0_free(node);
+		}
+		node = prev;
+	}
+	m0_rwlock_write_unlock(&lru_lock);
 }
 
 int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
@@ -5350,7 +5537,7 @@ static void ut_basic_tree_oper(void)
 							     &btree_type, nt,
 							     &b_op, tx));
 	M0_ASSERT(rc == 0);
-	
+
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(b_op.bo_arbor,
 							    &b_op));
 	M0_ASSERT(rc == 0);
@@ -6562,7 +6749,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_close(tree, &b_op));
 		M0_ASSERT(rc == 0);
-		
+
 		if (b_op.bo_arbor->t_desc->t_ref > 0) {
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 						      m0_btree_destroy(tree,
@@ -7049,9 +7236,9 @@ struct m0_ut_suite btree_ut = {
 		{"basic_kv_ops",                    ut_basic_kv_oper},
 		{"multi_stream_kv_op",              ut_multi_stream_kv_oper},
 		{"single_thread_single_tree_kv_op", ut_st_st_kv_oper},
+		{"single_thread_tree_op",           ut_st_tree_oper},
 		{"multi_thread_single_tree_kv_op",  ut_mt_st_kv_oper},
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
-		{"single_thread_tree_op",           ut_st_tree_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
 		/* {"btree_kv_add_del",                ut_put_del_operation}, */
 		{NULL, NULL}
