@@ -1802,6 +1802,12 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		 * If node descriptor is not present allocate a new one
 		 * and assign to node.
 		 */
+		/**
+		 * TODO: Adding lru_lock to protect from two threads allocating
+		 * two node descriptors for the same node. Replace it with a
+		 * different global lock once hash functionality is implemented.
+		 */
+		m0_rwlock_write_lock(&lru_lock);
 		node = m0_alloc(sizeof *node);
 		/**
 		 * TODO: If Node-alloc fails, free up any node descriptor from
@@ -1809,15 +1815,14 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		 * segment. Take up with BE segment task.
 		 */
 		M0_ASSERT(node != NULL);
-		m0_rwlock_init(&node->n_lock);
-		m0_rwlock_write_lock(&node->n_lock);
 		node->n_addr = *addr;
 		node->n_tree = tree;
 		node->n_type = nt;
 		node->n_seq  = m0_time_now();
 		node->n_ref  = 1;
+		m0_rwlock_init(&node->n_lock);
 		op->no_node = node;
-		m0_rwlock_write_unlock(&node->n_lock);
+		m0_rwlock_write_unlock(&lru_lock);
 
 		nt->nt_opaque_set(addr, node);
 
