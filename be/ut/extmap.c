@@ -151,9 +151,15 @@ static void test_init(void)
 	m0_be_tx_prep(&tx2, &cred);
 	rc = m0_be_tx_open_sync(&tx2);
 	M0_UT_ASSERT(rc == 0);
-
 	M0_BE_OP_SYNC(op, m0_be_emap_create(emap, &tx2, &op,
 					    &M0_FID_INIT(0,1)));
+
+	m0_be_ut_tx_init(&tx3, &be_ut_emap_backend);
+	m0_be_tx_prep(&tx3, &cred);
+	rc = m0_be_tx_open_sync(&tx3);
+	M0_UT_ASSERT(rc == 0);
+	M0_BE_OP_SYNC(op, m0_be_emap_create(emap, &tx3, &op,
+					    &M0_FID_INIT(0,2)));
 
 	m0_uint128_init(&prefix, "some random iden");
 	seg = m0_be_emap_seg_get(&it);
@@ -169,9 +175,12 @@ static void test_init(void)
 static void test_fini(void)
 {
 	M0_BE_OP_SYNC(op, m0_be_emap_destroy(emap, &tx2, &op));
-
 	m0_be_tx_close_sync(&tx2);
 	m0_be_tx_fini(&tx2);
+
+	M0_BE_OP_SYNC(op, m0_be_emap_destroy(emap, &tx3, &op));
+	m0_be_tx_close_sync(&tx3);
+	m0_be_tx_fini(&tx3);
 
 	emap_be_free(&tx1);
 
