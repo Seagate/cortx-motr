@@ -66,6 +66,7 @@ M0_INTERNAL struct m0_obj *ut_dummy_obj_create(void)
 	struct m0_obj *ret;
 	M0_ALLOC_PTR(ret);
 	ret->ob_attr.oa_bshift = UT_DEFAULT_BLOCK_SHIFT;
+	ret->ob_attr.oa_layout_id = M0_DEFAULT_LAYOUT_ID;
 	return ret;
 }
 

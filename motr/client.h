@@ -986,9 +986,9 @@ M0_BASSERT(M0_PI_TYPE_MAX <= 8);
 
 struct m0_pi_hdr {
 	/* type of protection algorithm being used */
-	uint8_t pi_type;
+	uint8_t pi_type : 8;
 	/*size of PI Structure in multiple of  32 bytes*/
-	uint8_t pi_size;
+	uint8_t pi_size : 8;
 };
 
 struct m0_md5_pi {
@@ -1935,6 +1935,19 @@ int m0_client_calculate_pi(struct m0_generic_pi *pi,
 		enum m0_pi_calc_flag flag,
 		unsigned char *curr_context,
 		unsigned char *pi_value_without_seed);
+
+/**
+ * Calculates checksum for data sent and compare it with checksum value sent.
+ * If newly calculated checksum on data and checksum sent matches, return
+ * true else return false.
+ * @param[IN] pi This ia an already calculated checksum value structure.
+ * @param[IN] seed This seed is required to calculate checksum
+ * @param[IN] bvec buffer vector which contains pointers to data on which
+ *                 checksum is to be calculated.
+ */
+bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
+				   struct m0_pi_seed *seed,
+				   struct m0_bufvec *bvec);
 
 //** @} end of client group */
 
