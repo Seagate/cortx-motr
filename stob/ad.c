@@ -345,6 +345,7 @@ M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io, m0_bindex
 			M0_ASSERT(b_addr <=io->si_cksum.b_addr + io->si_cksum.b_nob  );
 		}
 	}
+	M0_ASSERT(cksum_addr != NULL);
 	return cksum_addr;
 }
 
@@ -1262,6 +1263,7 @@ static void  emap_get_checksum_for_fragment(struct m0_stob_io *io, struct m0_be_
    m0_bindex_t unit_size = io->si_unit_sz;
    m0_bcount_t cksum_unit_size = io->si_cksum_sz;
    m0_bcount_t checksum_nob;
+	struct m0_be_emap_seg *ext = &it->ec_seg;
    void * dst, *src;
       
    checksum_nob = m0_extent_get_checksum_nob(off, frag, unit_size, cksum_unit_size);
@@ -1272,7 +1274,7 @@ static void  emap_get_checksum_for_fragment(struct m0_stob_io *io, struct m0_be_
       dst = m0_stob_ad_get_checksum_addr(io, off);
       
       //get the source: checksum address from segment
-      src =  m0_extent_get_checksum_addr(it->ec_cksum.b_addr, off, it->ec_rec.er_start, unit_size, cksum_unit_size);         
+      src =  m0_extent_get_checksum_addr(ext->ee_di_cksum.b_addr, off, ext->ee_ext.e_start, unit_size, cksum_unit_size);         
       
       // copy from source to client buffer
       memcpy(dst, src, checksum_nob);
