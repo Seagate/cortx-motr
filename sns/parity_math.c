@@ -514,10 +514,10 @@ M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
 	m0_parity_math_calculate(math, data, parity);
 }
 
-#if !ISAL_ENCODE_ENABLED
 M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
 					uint8_t *fail)
 {
+#if !ISAL_ENCODE_ENABLED
 	int rc;
 
 	recovery_mat_fill(math, fail,
@@ -528,13 +528,17 @@ M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
 	rc = m0_matrix_invert(&math->pmi_sys_mat, &math->pmi_recov_mat);
 
 	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
+#else
+	return 0;
+#endif /* !ISAL_ENCODE_ENABLED */
 }
 
 M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math)
 {
+#if !ISAL_ENCODE_ENABLED
 	m0_matrix_fini(&math->pmi_recov_mat);
-}
 #endif /* !ISAL_ENCODE_ENABLED */
+}
 
 M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
 					   const struct m0_buf *src)
@@ -558,10 +562,10 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 
 	M0_SET0(ir);
 
-	ir->si_data_nr		   = math->pmi_data_count;
-	ir->si_parity_nr	   = math->pmi_parity_count;
-	ir->si_local_nr		   = local_nr;
-	ir->si_alive_nr 	   = ir_blocks_count(ir);
+	ir->si_data_nr   = math->pmi_data_count;
+	ir->si_parity_nr = math->pmi_parity_count;
+	ir->si_local_nr  = local_nr;
+	ir->si_alive_nr  = ir_blocks_count(ir);
 
 	ret = ir_si_blocks_init(ir);
 	if (ret != 0) {
