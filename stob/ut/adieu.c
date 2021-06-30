@@ -48,7 +48,7 @@
 #define AD_ADIEU_CS_SZ 16
 
 enum {
-	NR    = 8,
+	NR    = 4,
 	NR_SORT = 256,
 	MIN_BUF_SIZE = 4096,
 	MIN_BUF_SIZE_IN_BLOCKS = 4,
@@ -183,7 +183,7 @@ static void test_write(int i)
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 
-	m0_buf_free(&io.si_cksum);
+    m0_buf_free(&io.si_cksum);
 	m0_stob_io_fini(&io);
 }
 

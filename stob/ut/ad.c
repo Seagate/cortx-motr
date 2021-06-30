@@ -46,7 +46,7 @@
 #define AD_CS_SZ 16
 
 enum {
-	NR                     = 8,
+	NR                     = 4,
 	MIN_BUF_SIZE           = 4096,
 	MIN_BUF_SIZE_IN_BLOCKS = 4,
 	SEG_SIZE               = 1 << 24,
@@ -346,7 +346,7 @@ static void test_write(int nr, struct m0_dtx *tx)
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 
-	m0_buf_free(&io.si_cksum);
+    m0_buf_free(&io.si_cksum);
 	m0_stob_io_fini(&io);
 }
 
