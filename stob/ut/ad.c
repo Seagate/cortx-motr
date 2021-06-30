@@ -306,11 +306,21 @@ static void test_write(int nr, struct m0_dtx *tx)
 	io.si_stob.iv_vec.v_count = stob_vc;
 	io.si_stob.iv_index = stob_vi;
 
-	io.si_unit_sz  = (buf_size >> block_shift) * 2;
+	io.si_unit_sz  = (buf_size >> block_shift);
 	io.si_cksum_sz = AD_CS_SZ;
 	cs_sz = ( m0_vec_count(&io.si_stob.iv_vec) * io.si_cksum_sz )/io.si_unit_sz;
 	m0_buf_alloc( &io.si_cksum, cs_sz);		
-	memset(io.si_cksum.b_addr, 'A', io.si_cksum.b_nob);
+	/* Copy different value in each chunk */
+	{
+		int cs_idx;
+		char   cs_char = 'A';
+		
+		for( cs_idx = 0; cs_idx < cs_sz; cs_idx = cs_idx + io.si_cksum_sz )
+		{
+			memset(io.si_cksum.b_addr + cs_idx, cs_char, io.si_cksum_sz);
+			cs_char++;
+		}
+	}
 	
 	rc = m0_stob_io_private_setup(&io, obj_fore);
 	M0_UT_ASSERT(rc == 0);
