@@ -86,6 +86,7 @@
 #include "lib/trace.h"
 
 #include "motr/magic.h"
+#include "motr/client_internal.h"
 #include "layout/layout_internal.h"
 #include "layout/layout.h"
 #include "pool/pool.h" /* M0_TL_DESCR_DECLARE(pools, M0_EXTERN) */
@@ -826,7 +827,7 @@ M0_INTERNAL int64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
 			     * Performance degrades for units bigger than
 			     * 4 * LNET_MAX_PAYLOAD (4MB atm), as tests show.
 			     */
-			    m0_lid_to_unit_map[i] > 4 * LNET_MAX_PAYLOAD)
+			    m0_lid_to_unit_map[i] >= 4 * LNET_MAX_PAYLOAD)
 				break;
 			m0_ref_put(&l->l_ref);
 		}
@@ -845,6 +846,16 @@ M0_INTERNAL int64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
 		return M0_ERR_INFO(-EINVAL, "Something went really bad, "
 				   "wrong pver (%p)?", pver);
 	return i;
+}
+
+M0_INTERNAL int64_t m0_layout_find_by_objsz(struct m0_client *cli,
+					    struct m0_fid *pool, size_t sz)
+{
+	struct m0_pool_version *pver;
+
+	return m0_pool_version_get(&cli->m0c_pools_common, pool, &pver) ?:
+	       m0_layout_find_by_buffsize(&cli->m0c_reqh.rh_ldom,
+					  &pver->pv_id, sz);
 }
 
 M0_INTERNAL struct m0_layout *m0_layout_find(struct m0_layout_domain *dom,
