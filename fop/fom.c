@@ -1791,7 +1791,6 @@ M0_INTERNAL void m0_fom_phase_trace_enable(struct m0_fom *fom)
 	fom->fo_sm_trace_off = false;
 }
 
-
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} endgroup fom */
