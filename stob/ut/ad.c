@@ -60,6 +60,7 @@ static struct m0_stob_io io;
 static m0_bcount_t user_vc[NR];
 static m0_bcount_t stob_vc[NR];
 static char *user_buf[NR];
+static char *user_cs_buf[NR];
 static char *read_buf[NR];
 static char *zero_buf[NR];
 static char *user_bufs[NR];

@@ -559,14 +559,14 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		val_orig  = seg->ee_val;
 		cksum[1] = it->ec_cksum;
 
-      if(seg->ee_di_cksum.b_nob)
-      {
-         // Compute checksum unit size for given segment
-         chunk_cs_count = m0_extent_get_num_unit_start( chunk->e_start, m0_ext_length(chunk), it->ec_unit_size);
-         M0_ASSERT(chunk_cs_count);
-         checksum_unit_size = seg->ee_di_cksum.b_nob/chunk_cs_count;
-         M0_ASSERT(checksum_unit_size);
-      }
+		if(seg->ee_di_cksum.b_nob)
+		{
+			// Compute checksum unit size for given segment
+			chunk_cs_count = m0_extent_get_num_unit_start( chunk->e_start, m0_ext_length(chunk), it->ec_unit_size);
+			M0_ASSERT(chunk_cs_count);
+			checksum_unit_size = seg->ee_di_cksum.b_nob/chunk_cs_count;
+			M0_ASSERT(checksum_unit_size);
+		}
 
 		if (length[0] > 0) {
 			if (cut_left)

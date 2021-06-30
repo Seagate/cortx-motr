@@ -876,10 +876,10 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 	{
 		struct m0_fop_cob_rw_reply	*rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		
-		/* The si_cksum_read will get updated in function stob_ad_read_prepare 
+		/* The si_cksum_nob_read will get updated in function stob_ad_read_prepare 
 		 * for every emap segment read with non-zero CS, this value gets updated
 		 */
-	    rwrep->rwr_cksum_nob_read += stio_desc->siod_stob_io.si_cksum_read;
+	    rwrep->rwr_cksum_nob_read += stio_desc->siod_stob_io.si_cksum_nob_read;
 		
 		M0_ASSERT( rwrep->rwr_cksum_nob_read <=
 				   rwrep->crw_di_data_cksum.b_nob );
@@ -2127,12 +2127,12 @@ static int stob_io_create(struct m0_fom *fom)
 		stio->si_cksum_sz = rwfop->crw_cksum_size;
 		stio->si_unit_sz = unit_size;
 
-		/* This function emap_get_checksum_for_fragment update this values.
+		/* This function stob_ad_get_checksum_for_fragment update this values.
 		 * It is read checksum and its compared against the expeted checksum
 		 * nob (si_cksum.b_nob). Increment this value as cksum is put into 
 		 * buffer
 		 */
-		stio->si_cksum_read = 0;
+		stio->si_cksum_nob_read = 0;
       
 		// Get the cksum nob expected for given stio
 		stio->si_cksum.b_nob = 0;
@@ -2146,8 +2146,16 @@ static int stob_io_create(struct m0_fom *fom)
 		}
 
 		// assign checksum buffer to repsective stob;
-		stio->si_cksum.b_addr = rw_replyfop->crw_di_data_cksum.b_addr + 
-									curr_cksum_nob;
+		if( m0_is_read_fop(fom->fo_fop) )
+		{
+			stio->si_cksum.b_addr = rw_replyfop->crw_di_data_cksum.b_addr + 
+										curr_cksum_nob;
+		}
+		else
+		{
+			stio->si_cksum.b_addr = rwfop->crw_di_data_cksum.b_addr + 
+										curr_cksum_nob;
+		}
 
 		// Increment the current cksum count;
 		curr_cksum_nob += stio->si_cksum.b_nob; 
