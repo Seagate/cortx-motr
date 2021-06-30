@@ -152,12 +152,8 @@ M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 	ioo = bob_of(oo, struct m0_op_io, ioo_oo, &ioo_bobtype);
 
 	linst = oo->oo_layout_instance;
-	if (linst == NULL) {
-		M0_LOG(M0_ERROR, "layout instance is not initialised, "
-		                 "was object opened?");
-		return NULL;
-	}
-
+	M0_ASSERT_INFO(linst != NULL, "layout instance is not initialised, "
+	                              "was object opened?");
 	M0_ALLOC_PTR(plan);
 	if (plan == NULL) {
 		M0_LOG(M0_ERROR, "failed to allocate memory for the plan");
@@ -175,6 +171,10 @@ M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 	if (rc != 0)
 		goto out;
 
+	/*
+	 * There is no concurrency at this stage yet, but we take
+	 * the lock here for the same of check at plop_alloc_init().
+	 */
 	m0_mutex_lock(&plan->lp_lock);
 
 	plop_done = plop_alloc_init(plan, M0_LAT_DONE, NULL);
@@ -235,6 +235,13 @@ M0_INTERNAL void m0_layout_plan_fini(struct m0_layout_plan *plan)
 	oo = bob_of(oc, struct m0_op_obj, oo_oc, &oo_bobtype);
 	ioo = bob_of(oo, struct m0_op_io, ioo_oo, &ioo_bobtype);
 
+	/*
+	 * There should not be any concurrency by this stage already.
+	 * But if there is any (which is a bug) - we want it to be
+	 * caught properly with the assert below which checks pl_state.
+	 * So we want this check to be atomic with any possible plop
+	 * changes going in parallel (which is, again, a logical bug).
+	 */
 	m0_mutex_lock(&plan->lp_lock);
 
 	m0_htable_for(tioreqht, ti, &ioo->ioo_nwxfer.nxr_tioreqs_hash) {
