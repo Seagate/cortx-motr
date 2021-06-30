@@ -1,0 +1,186 @@
+#+OPTIONS: num:nil toc:nil
+#+REVEAL_TRANS: linear
+#+REVEAL_THEME: solarized
+#+REVEAL_ROOT: file:///Users/anatoliy/Private/reveal.js
+#+Title: DTM0 start/stop demo
+#+Author: DTM0 Team, Anatoliy
+
+
+* Roadmap
+#+REVEAL_HTML: <div style="font-size: 90%;">
+#+begin_src
+Milestones:
+
+ - [DONE] [happy]    DTM0 happy path scenario;
+ - [DONE] [ststp]    DTM0 start/stop scenarios;
+ - [TODO] [recovery] DTM0 recovery scenarios (depends on “HA messages”);
+ - [TODO] [s3-int]   Basic S3 integration (depends on DTM0);
+ - [TODO] [test]     DTM0 test;
+ - [TODO] [deploy]   DTM0 basic deployment;
+ - [TODO] (future)   Metadata update (depends on basic S3 integration);
+ - [TODO] (future)   DTM0 for IO.
+#+end_src
+
+#+BEGIN_SRC python :exports none
+import wavedrom
+svg = wavedrom.render("""
+{"signal": [
+ { "name": "motr",  "wave": "5.5=.xxxx=.=..", "data": "happy ststp recovery test deploy",
+                    "node": "...a.c...e" },
+ { "name": "hare",  "wave": "=.xxxxxxxxxxxx", "data": "ha-msg",
+                    "node": "..b..........." },
+ { "name": "  s3",  "wave": "xxxx=.xxxxxxxx", "data": "s3-int",
+                    "node": "....d.f....." }
+],
+ "edge": ["b-~>a", "c~->f", "f~->e", "a~->d"]
+}""")
+svg.saveas("demo1.svg")
+#+END_SRC
+
+#+ATTR_HTML: :width 90%
+[[./demo1.svg]]
+
+* Scope
+#+begin_src
+DTM0 start/stop scenario.
+   - Goals:
+     - Define the scope for HARE and Motr/DTM0 teams related to
+       integration of DTM0 and HARE. Produce a spec.
+     - To have a system tests covering the following scenarios:
+       - Basic start/stop with DTM0 services reconnect.
+
+   - Features:
+     - DTM0-link;
+     - Debug tools and instrumentation;
+     - Tombstones PoC;
+
+   - Deliverable:
+     - Code and demo reviewed by Nikita and management.
+     - Recorded review results.
+#+end_src
+
+* Contributors
+#+REVEAL_HTML: <div style="font-size: 90%;">
+#+begin_src
+
+- Anatoliy:
+ - Coordination, resolving dependencies,
+   team presentation, communication with other teams, design.
+
+- Ivan:
+ - Tombstones+versions in btree: LLD, implementation, testing.
+ - Replacing event-based connections with on-demand
+   coroutine-based connections.
+
+- Sergey:
+ - Design and implementation of instrumentation based on m0traces.
+ - Instrumentation of RPC connections and sessions.
+ - Visualization of connections and sessions as a timelines
+ - PoC for m0trace instrumentation for MD path.
+ - Migration to the latest Hare in the DTM0 integration test.
+
+- Mehul:
+ - Pruning daemon design.
+
+#+end_src
+* What components added or updated?
+#+ATTR_HTML: :width 45% :align right
+[[./component-readiness-2.png]]
+#+begin_src
+- [CANCELED] connection manager;
+- [REMOVED]  m0ham mock used for
+             connections previously;
+
+- [DONE] dtm0 link connection
+         manager;
+- [DONE] tombstones;
+- [DONE] addb2/trace tools
+         and instrumentation;
+- [DONE] overall integration
+         effort for happy path;
+- [DONE] integration test.
+
+NOTE: other components are not
+      listed here.
+#+end_src
+
+* Integration test
+#+REVEAL_HTML: <div style="font-size: 40%;">
+#+begin_src
+# fetch sources
+git checkout git@github.com:Seagate/cortx-motr.git
+cd cortx-motr
+# make
+time { MAKE_OPTS=-j64 CONFIGURE_OPTS=--enable-dtm0\ --disable-altogether-mode\ --enable-debug\ --with-trace-ubuf-size=32 ./scripts/m0 rebuild || echo FAIL; }
+cd dtm0/it/all2all
+# run the test
+./all2all
+--->  Removing loop devices
+--->  Removing file images
+--->  Creating 6 file images, 1GiB each, in '/var/motr/all2all_test'
+--->  Setting up loop devices
+INFO: Bootstrapping the cluster using Hare...
+...
+2021-06-29 19:53:06: Waiting for the RC Leader to get elected..... OK
+2021-06-29 19:53:09: Starting Motr (phase1, mkfs)... OK
+2021-06-29 19:53:17: Starting Motr (phase1, m0d)... OK
+2021-06-29 19:53:19: Starting Motr (phase2, mkfs)... OK
+2021-06-29 19:53:39: Starting Motr (phase2, m0d)... OK
+2021-06-29 19:53:49: Checking health of services... OK
+INFO: m0d PIDs: 13268 13448 13637
+INFO: Create m0crate configuration...
+INFO: Run the client...
+...
+dbg: dix: Generated k=:<7b48e3cf35d00b85:9>,v=HaI3zCSvZbLWIUn1xApRU5fpRgZQahNPrvTY5Lu4Vf1D7oC
+trace: dix: Executed op: put
+info: dix: End of operations.
+trace: dix: ops remaining: [0, 0, 0, 0]
+dbg: dix: len = 10, map = {1111111111}
+result: total_s, 0.426271, avg_time_per_op_ns, 42627138.0, key_size_bytes, 16, value_size_bytes, 48, ops, 10
+result: PUT, total_time_s, 0.420006, avg_time_per_op_ns, 42000597.0, ops, 10
+result: GET, total_time_s, 0.000000, avg_time_per_op_ns, 0.0, ops, 0
+result: NEXT, total_time_s, 0.000000, avg_time_per_op_ns, 0.0, ops, 0
+result: DEL, total_time_s, 0.000000, avg_time_per_op_ns, 0.0, ops, 0
+
+Total: time=[0:426271380] ([0:042627138] per op) ops=10
+PUT: [0:420005973] ([0:042000597] per op) ops=10
+info: done workload 0
+info: ---------------------------------------
+INFO: Client pid: 14050
+Stopping m0d@0x7200000000000001:0xc (ios) at localhost...
+Stopping m0d@0x7200000000000001:0x1a (ios) at localhost...
+Stopping m0d@0x7200000000000001:0x28 (ios) at localhost...
+Stopped m0d@0x7200000000000001:0xc (ios) at localhost
+Stopped m0d@0x7200000000000001:0x28 (ios) at localhost
+Stopped m0d@0x7200000000000001:0x1a (ios) at localhost
+Stopping m0d@0x7200000000000001:0x9 (confd) at localhost...
+Stopped m0d@0x7200000000000001:0x9 (confd) at localhost
+Stopping hare-hax at localhost...
+Stopped hare-hax at localhost
+Making sure that RC leader can be re-elected next time
+Stopping hare-consul-agent at localhost...
+Stopped hare-consul-agent at localhost
+Shutting down RC Leader at localhost...
+...
+INFO: Dumping /var/motr/m0d-0x7200000000000001:0x28/addb-stobs-13637/o/100000000000000:2 -> /tmp/a2a-addb-out/addb_28.dump ...
+INFO: Dumping /home/ivan/dev/dtm/ref/dtm0/it/all2all/addb_14050/o/100000000000000:2 -> /tmp/a2a-addb-out/addb_36.dump ...
+INFO: Checking processes exit status...
+INFO: TEST STATUS: PASSED
+#+end_src
+* Analysis (1)
+#+ATTR_HTML: :width 100%
+[[./analysis-dtm0-21.png]]
+* Analysis (2)
+#+ATTR_HTML: :width 100%
+[[./analysis-dtm0-2.png]]
+* Questions?
+#+begin_src
+- Anatoliy <anatoliy.bilenko@seagate.com>
+#+end_src
+
+#+REVEAL_HTML: <div style="font-size: 63%;">
+#+begin_src
+- [ref#1] https://github.com/Seagate/cortx-motr/blob/documentation/doc/dev/dtm/dtm-hld.org
+- [ref#2] https://github.com/Seagate/cortx-motr/blob/documentation/doc/dev/dtm/dtm0-demo-happy.path.org
+- [ref#3] https://github.com/Seagate/cortx-motr/blob/documentation/doc/dev/dtm/dtm0-demo-start-stop.org
+#+end_src
