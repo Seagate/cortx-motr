@@ -1107,6 +1107,62 @@ static int application_data_copy(struct pargrp_iomap      *map,
 	return M0_RC(0);
 }
 
+static bool verify_checksum(struct m0_op_io *ioo, m0_bcount_t grp_io_count,
+			    struct m0_bufvec_cursor *ck_datacur,
+			    struct m0_ivec_cursor *ck_extcur,
+			    int *attr_idx)
+{
+	struct m0_md5_inc_context_pi pi;
+	struct m0_pi_seed seed;
+	struct m0_bufvec user_data;
+	struct m0_bufvec_cursor datacur;
+	int usz, rc;
+	unsigned char curr_context;
+
+	usz = m0_obj_layout_id_to_unit_size(
+			m0__obj_lid(ioo->ioo_obj));
+
+	M0_ASSERT(grp_io_count%usz == 0);
+
+	rc = m0_bufvec_alloc(&user_data, 1, usz);
+
+	pi.hdr.pi_type = M0_PI_TYPE_MD5_INC_CONTEXT;
+	seed.obj_id = ioo->ioo_oo.oo_fid;
+
+	while (grp_io_count) {
+		m0_bufvec_cursor_init(&datacur, &user_data);
+		m0_bufvec_cursor_copy(&datacur, ck_datacur, usz);
+		M0_ASSERT(!m0_bufvec_cursor_move(ck_datacur, usz));
+		
+		// I will need global offset here, not sure about following 2 lines of code
+		seed.data_unit_offset = m0_ivec_cursor_index(ck_extcur)/usz;
+		M0_ASSERT(!m0_ivec_cursor_move(ck_extcur, usz));
+
+		rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
+				&seed, &user_data, M0_PI_CALC_UNIT_ZERO,
+				&curr_context, NULL);
+		if (rc != 0) {
+			break;
+		}
+		M0_ASSERT(*attr_idx < ioo->ioo_attr.ov_vec.v_nr);
+#ifndef __KERNEL__
+		if (memcmp(pi.pi_value, ioo->ioo_attr.ov_buf[*attr_idx],
+				ioo->ioo_attr.ov_vec.v_count[*attr_idx]) != 0) {
+			break;
+		}
+#endif
+		grp_io_count -= usz;
+		*attr_idx = *attr_idx + 1;
+	}
+
+	m0_bufvec_free(&user_data);
+
+	if (grp_io_count <= 0)
+		return true;
+	else
+		return false;
+}
+
 /**
  * Copies the file-data between the iomap buffers and the application-provided
  * buffers, one row at a time.
@@ -1128,9 +1184,13 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 	m0_bindex_t               pgstart;
 	m0_bindex_t               pgend;
 	m0_bcount_t               count;
+	m0_bcount_t               grp_io_count;
 	struct m0_bufvec_cursor   appdatacur;
+	struct m0_bufvec_cursor   ck_datacur;
 	struct m0_ivec_cursor     extcur;
-	struct m0_pdclust_layout *play;
+	struct m0_ivec_cursor     ck_extcur;
+	struct m0_pdclust_layout  *play;
+	int                       attr_idx = 0;
 
 	M0_ENTRY("op_io : %p, %s application. filter = 0x%x", ioo,
 		 dir == CD_COPY_FROM_APP ? (char *)"from" : (char *)"to",
@@ -1141,12 +1201,17 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 
 	m0_bufvec_cursor_init(&appdatacur, &ioo->ioo_data);
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
+
+	m0_bufvec_cursor_init(&ck_datacur, &ioo->ioo_data);
+	m0_ivec_cursor_init(&ck_extcur, &ioo->ioo_ext);
+
 	play = pdlayout_get(ioo);
 
 	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
 		M0_ASSERT_EX(pargrp_iomap_invariant(ioo->ioo_iomaps[i]));
 
 		count    = 0;
+		grp_io_count = 0;
 		grpstart = data_size(play) * ioo->ioo_iomaps[i]->pi_grpid;
 		grpend   = grpstart + data_size(play);
 
@@ -1158,6 +1223,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 						   m0__page_size(ioo)),
 				       pgstart + m0_ivec_cursor_step(&extcur));
 			count = pgend - pgstart;
+			grp_io_count += count;
 
 			/*
 			* This takes care of finding correct page from
@@ -1172,6 +1238,13 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 					rc, "[%p] Copy failed (pgstart=%" PRIu64
 					" pgend=%" PRIu64 ")",
 					ioo, pgstart, pgend);
+		}
+
+		if (dir == CD_COPY_TO_APP) {
+			if (!verify_checksum(ioo, grp_io_count, &ck_datacur,
+					&ck_extcur, &attr_idx)) {
+				return M0_RC(-EIO);
+			}
 		}
 	}
 
