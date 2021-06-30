@@ -411,8 +411,8 @@ struct m0_stob_io {
 	m0_bindex_t                 si_unit_sz;
 	/* Size of single unit of checksum e.g md5 checksum with digest has 128 byte size */
 	m0_bcount_t                 si_cksum_sz;
-	/*size of checksum actually put into buffer*/
-	m0_bcount_t si_cksum_put;
+	/* Size of checksum actually put into buffer*/
+	m0_bcount_t si_cksum_read;
 };
 
 struct m0_stob_io_op {

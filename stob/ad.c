@@ -1280,8 +1280,8 @@ static void  emap_get_checksum_for_fragment(struct m0_stob_io *io, struct m0_be_
       memcpy(dst, src, checksum_nob);
 
 		// update checksum fill count for stio
-      io->si_cksum_put += checksum_nob;
-		M0_ASSERT(io->si_cksum_put <= io->si_cksum.b_nob);
+      io->si_cksum_read += checksum_nob;
+		M0_ASSERT(io->si_cksum_read <= io->si_cksum.b_nob);
    }		
 }
 
@@ -1380,10 +1380,10 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 		frags++;
 
 		if (seg->ee_val < AET_MIN)
-      {
-         emap_get_checksum_for_fragment(io, it, off, frag_size);
-         frags_not_empty++;
-      }
+		{
+			emap_get_checksum_for_fragment(io, it, off, frag_size);
+			frags_not_empty++;
+		}
 
 		eosrc = m0_vec_cursor_move(src, frag_size);
 		eodst = m0_vec_cursor_move(dst, frag_size);
