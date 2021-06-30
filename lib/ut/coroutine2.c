@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2017-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ static struct m0_co_op *OP(struct m0_fom *fom)
 	return &fom_op;
 }
 
-static void coroutine_fom_run(void)
+static void wait_for_coroutine_fom(void)
 {
 	m0_semaphore_down(&insert1);
 	m0_co_op_done(&fom_op);
@@ -217,7 +217,7 @@ static void test_run(void)
 	M0_SET0(&fom_simple);
 	M0_FOM_SIMPLE_POST(&fom_simple, reqh, &coroutine2_conf,
 			   &coroutine_fom_tick, NULL, NULL, 1);
-	coroutine_fom_run();
+	wait_for_coroutine_fom();
 	m0_ut__reqh_fini();
 }
 
@@ -225,6 +225,7 @@ void m0_test_coroutine2(void)
 {
 	int rc;
 
+	M0_SET0(&fom_tree);
 	m0_semaphore_init(&ready, 0);
 	m0_semaphore_init(&insert1, 0);
 	m0_semaphore_init(&insert2, 0);
