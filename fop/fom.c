@@ -507,7 +507,7 @@ static void addb2_introduce(struct m0_fom *fom)
 		M0_MEAS("name: fom-descr, service: \""FID_F"\", "
 			"sender: %"PRId64", "
 			"req-opcode: %s, rep-opcode: %s, "
-			"local: None, rpc_sm_id: %"PRIu64", "
+			"local: none, rpc_sm_id: %"PRIu64", "
 			"fom_sm_id: %"PRIu64", fom_state_sm_id: %"PRIu64,
 			FID_P(&fom->fo_service->rs_service_fid),
 			sender_id,
