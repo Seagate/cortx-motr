@@ -180,6 +180,7 @@ struct mock_balloc mb = {
 static void init_vecs()
 {
 	int i;
+	char cs_char = 'A';
 
 	for (i = 0; i < NR; ++i) {
 		user_bufs[i] = m0_stob_addr_pack(user_buf[i], block_shift);
@@ -188,6 +189,19 @@ static void init_vecs()
 		stob_vc[i] = buf_size >> block_shift;
 		stob_vi[i] = (buf_size * (2 * i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
+	}
+
+	// Allocate contigious buffer for i/p checksums
+	memset( user_cksm_buf[0], cs_char++, AD_CS_SZ);	
+	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
+		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_CS_SZ; 	
+		memset( user_cksm_buf[i], cs_char++, AD_CS_SZ);
+	}
+
+	memset( read_cksm_buf[0], 0, AD_CS_SZ);	
+	for (i = 1; i < ARRAY_SIZE(read_cksm_buf); ++i) {
+		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_CS_SZ; 	
+		memset( read_cksm_buf[i], 0, AD_CS_SZ);
 	}
 }
 
@@ -198,7 +212,6 @@ static int test_ad_init(bool use_small_credits)
 	int               i;
 	int               rc;
 	struct m0_stob_id stob_id;
-	char cs_char = 'A';
 
 	rc = m0_stob_domain_create("linuxstob:./__s", "directio=true",
 				    0xc0de, NULL, &dom_back);
@@ -244,15 +257,9 @@ static int test_ad_init(bool use_small_credits)
 		user_buf[i] = m0_alloc_aligned(buf_size, block_shift);
 		M0_ASSERT(user_buf[i] != NULL);
 	}
-
-	// Allocate contigious buffer for i/p checksums
+	
 	user_cksm_buf[0] = m0_alloc(AD_CS_SZ * ARRAY_SIZE(user_cksm_buf));
 	M0_ASSERT(user_cksm_buf[0] != NULL);
-	memset( user_cksm_buf[0], cs_char++, AD_CS_SZ);	
-	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
-		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_CS_SZ; 	
-		memset( user_cksm_buf[i], cs_char++, AD_CS_SZ);
-	}
 	
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i) {
 		read_buf[i] = m0_alloc_aligned(buf_size, block_shift);
@@ -262,11 +269,6 @@ static int test_ad_init(bool use_small_credits)
 	// Allocate contigious buffer for o/p checksums 
 	read_cksm_buf[0] = m0_alloc(AD_CS_SZ * ARRAY_SIZE(read_cksm_buf));
 	M0_ASSERT(read_cksm_buf[0] != NULL);
-	memset( read_cksm_buf[0], 0, AD_CS_SZ);	
-	for (i = 1; i < ARRAY_SIZE(read_cksm_buf); ++i) {
-		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_CS_SZ; 	
-		memset( read_cksm_buf[i], 0, AD_CS_SZ);
-	}
 
 	for (i = 0; i < ARRAY_SIZE(zero_buf); ++i) {
 		zero_buf[i] = m0_alloc_aligned(buf_size, block_shift);
@@ -493,6 +495,7 @@ static void test_ad_rw_unordered()
 	for (i = NR/2; i < NR; ++i) {
 		stob_vi[i-(NR/2)] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i-(NR/2)], ('a' + i)|1, buf_size);
+		memset(user_cksm_buf[i-(NR/2)], ('A' + i)|1, AD_CS_SZ);		
 	}
 	test_write(NR/2, NULL);
 
@@ -500,6 +503,7 @@ static void test_ad_rw_unordered()
 	for (i = 0; i < NR/2; ++i) {
 		stob_vi[i] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
+		memset(user_cksm_buf[i], ('A' + i)|1, AD_CS_SZ);
 	}
 	test_write(NR/2, NULL);
 
@@ -507,6 +511,7 @@ static void test_ad_rw_unordered()
 	for (i = 0; i < NR; ++i) {
 		stob_vi[i] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
+		memset(user_cksm_buf[i], ('a' + i)|1, AD_CS_SZ);
 	}
 
 	/* This generates unordered offsets for back stob io */
