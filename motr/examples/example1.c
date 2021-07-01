@@ -36,7 +36,7 @@
  * Please change the configuration according to you development environment.
  *
  * How to run:
- * LD_LIBRARY_PATH=/work/cortx-motr/motr/.libs/                              \
+ * export LD_LIBRARY_PATH=/work/cortx-motr/motr/.libs/                              \
  * ./example1 172.16.154.179@tcp:12345:34:1 172.16.154.179@tcp:12345:33:1000 \
  *         "<0x7000000000000001:0>" "<0x7200000000000001:64>" 12345670
  */
