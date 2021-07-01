@@ -511,7 +511,7 @@ static void test_ad_rw_unordered()
 	for (i = 0; i < NR; ++i) {
 		stob_vi[i] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
-		memset(user_cksm_buf[i], ('a' + i)|1, AD_CS_SZ);
+		memset(user_cksm_buf[i], ('A' + i)|1, AD_CS_SZ);
 	}
 
 	/* This generates unordered offsets for back stob io */
@@ -550,13 +550,14 @@ static void punch_test(void)
 {
 	int i;
 
+	memset(read_cksm_buf[0], 'Z', ARRAY_SIZE(read_cksm_buf) * AD_CS_SZ);
 	for (i = 1; i <= NR; ++i) {
 		int j;
 		test_punch(i);
 		test_read(i);
 		for (j = 0; j < i; ++j) {			
 			M0_ASSERT(memcmp(zero_buf[j], read_buf[j], buf_size) == 0);
-			M0_ASSERT(memcmp(user_cksm_buf[j], zero_buf[j], AD_CS_SZ) == 0);
+			M0_ASSERT(memcmp(read_cksm_buf[j], zero_buf[j], AD_CS_SZ) == 0);
 		}
 			
 	}
