@@ -514,12 +514,12 @@ static void addb2_introduce(struct m0_fom *fom)
 			req != NULL ?
 			m0_xcode_enum_print(
 				&m0_xc_M0_RPC_OPCODES_enum,
-				req->ri_type->rit_opcode, NULL) : "None",
+				req->ri_type->rit_opcode, NULL) : "none",
 			fom->fo_rep_fop != NULL ?
 			m0_xcode_enum_print(
 				&m0_xc_M0_RPC_OPCODES_enum,
 				fom->fo_rep_fop->f_item.ri_type->rit_opcode,
-				NULL) : "None",
+				NULL) : "none",
 			item_sm_id,
 			phase_sm_id,
 			state_sm_id);
