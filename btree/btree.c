@@ -4477,22 +4477,12 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 
-			/**
-			 * Node validation is required to determine that the
-			 * node(lev->l_node) which is pointed by current thread
-			 * is not freed by any other thread till current thread
-			 * reaches NEXTDOWN phase.
-			 *
-			 * Node verification is required to determine that no
-			 * other thread which has lock is working on the same
-			 * node(lev->l_node) which is pointed by current thread.
-			 */
-			if (!node_isvalid(s.s_node) ||
-			    !node_verify(s.s_node))
-				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-						    P_SETUP);
-
 			if (node_level(s.s_node) > 0) {
+				if (oi->i_pivot == oi->i_height - 1) {
+					/* If height of tree increased. */
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
 				s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
 					  node_count(s.s_node);
 				node_child(&s, &child);
