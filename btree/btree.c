@@ -1266,11 +1266,11 @@ static struct m0_tl     btree_lru_nds;
 struct m0_tl btree_active_nds;
 
 /**
- * LRU list lock.
- * It is used as protection for lru_list from multiple threads
- * modifying the list at the same time and causing corruption.
+ * node descriptor list lock.
+ * It protects node descriptor movement between lru node descriptor list and
+ * active node descriptor list.
  */
-static struct m0_rwlock lru_lock;
+static struct m0_rwlock list_lock;
 
 M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 		   n_linkage, n_magic, M0_BTREE_ND_LIST_MAGIC,
@@ -1503,7 +1503,7 @@ int m0_btree_mod_init(void)
 	/** Initialtise lru list, active list and lock. */
 	ndlist_tlist_init(&btree_lru_nds);
 	ndlist_tlist_init(&btree_active_nds);
-	m0_rwlock_init(&lru_lock);
+	m0_rwlock_init(&list_lock);
 
 	M0_ALLOC_PTR(m);
 	if (m != NULL) {
@@ -1533,7 +1533,7 @@ void m0_btree_mod_fini(void)
 		}
 	ndlist_tlist_fini(&btree_active_nds);
 
-	m0_rwlock_fini(&lru_lock);
+	m0_rwlock_fini(&list_lock);
 	m0_rwlock_fini(&trees_lock);
 	m0_free(mod_get());
 }
@@ -1810,12 +1810,12 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		if (in_lrulist) {
 			/**
 			 * The node descriptor is in LRU list. Remove from lru
-			 * list and add to trees active list
+			 * list and add to active list.
 			 */
-			m0_rwlock_write_lock(&lru_lock);
+			m0_rwlock_write_lock(&list_lock);
 			ndlist_tlist_del(op->no_node);
 			ndlist_tlist_add(&btree_active_nds, op->no_node);
-			m0_rwlock_write_unlock(&lru_lock);
+			m0_rwlock_write_unlock(&list_lock);
 			/**
 			 * Update nd::n_tree  to point to tree descriptor as we
 			 * as we had set it to NULL in node_put(). For more
@@ -1826,12 +1826,12 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		m0_rwlock_write_unlock(&op->no_node->n_lock);
 	} else {
 		/**
-		 * TODO: Adding lru_lock to protect from multiple threads
+		 * TODO: Adding list_lock to protect from multiple threads
 		 * allocating more than one node descriptors for the same node.
 		 * Replace it with a different global lock once hash
 		 * functionality is implemented.
 		 */
-		m0_rwlock_write_lock(&lru_lock);
+		m0_rwlock_write_lock(&list_lock);
 		/**
 		 * If node descriptor is already allocated for the node, no need
 		 * to allocate node descriptor again.
@@ -1842,7 +1842,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 			m0_rwlock_write_lock(&op->no_node->n_lock);
 			node_refcnt_update(op->no_node, true);
 			m0_rwlock_write_unlock(&op->no_node->n_lock);
-			m0_rwlock_write_unlock(&lru_lock);
+			m0_rwlock_write_unlock(&list_lock);
 			return nxt_state;
 		}
 		/**
@@ -1864,11 +1864,8 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		m0_rwlock_init(&node->n_lock);
 		op->no_node = node;
 		nt->nt_opaque_set(addr, node);
-		m0_rwlock_write_unlock(&lru_lock);
-
-		m0_rwlock_write_lock(&lru_lock);
 		ndlist_tlink_init_at(op->no_node, &btree_active_nds);
-		m0_rwlock_write_unlock(&lru_lock);
+		m0_rwlock_write_unlock(&list_lock);
 	}
 
 	return nxt_state;
@@ -1893,9 +1890,9 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 
 	m0_rwlock_read_lock(&node->n_lock);
 	if (node->n_delayed_free && node->n_ref == 0) {
-		m0_rwlock_write_lock(&lru_lock);
+		m0_rwlock_write_lock(&list_lock);
 		ndlist_tlink_del_fini(node);
-		m0_rwlock_write_unlock(&lru_lock);
+		m0_rwlock_write_unlock(&list_lock);
 		m0_rwlock_read_unlock(&node->n_lock);
 		m0_rwlock_fini(&node->n_lock);
 		op->no_addr = node->n_addr;
@@ -1940,7 +1937,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 
 	node_init(&op->no_addr, ksize, vsize, nt, tx);
 
-        nxt_state = node_get(op, tree, &op->no_addr, nxt_state);
+	nxt_state = node_get(op, tree, &op->no_addr, nxt_state);
 
 	return nxt_state;
 }
@@ -1956,9 +1953,9 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	node->n_type->nt_fini(node);
 
 	if (node->n_ref == 0) {
-		m0_rwlock_write_lock(&lru_lock);
+		m0_rwlock_write_lock(&list_lock);
 		ndlist_tlink_del_fini(node);
-		m0_rwlock_write_unlock(&lru_lock);
+		m0_rwlock_write_unlock(&list_lock);
 		m0_rwlock_write_unlock(&node->n_lock);
 		m0_rwlock_fini(&node->n_lock);
 		op->no_addr = node->n_addr;
@@ -2160,10 +2157,10 @@ static void mem_node_put(struct nd *node)
 		 * The node descriptor is in tree's active list. Remove from
 		 * active list and add to lru list
 		 */
-		m0_rwlock_write_lock(&lru_lock);
+		m0_rwlock_write_lock(&list_lock);
 		ndlist_tlist_del(node);
 		ndlist_tlist_add(&btree_lru_nds, node);
-		m0_rwlock_write_unlock(&lru_lock);
+		m0_rwlock_write_unlock(&list_lock);
 		node->n_seq = 0;
 		/**
 		 * In case tree desriptor gets deallocated while node sits in
@@ -3895,9 +3892,9 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 	 * TODO: Currently just deleting the tree root node, as the assumption
 	 * is tree will only have root node at this point.
 	 */
-	m0_rwlock_write_lock(&lru_lock);
+	m0_rwlock_write_lock(&list_lock);
 	ndlist_tlink_del_fini(bop->bo_arbor->t_desc->t_root);
-	m0_rwlock_write_unlock(&lru_lock);
+	m0_rwlock_write_unlock(&list_lock);
 
 	/**
 	 * ToDo: We need to capture the changes occuring in the
@@ -3971,8 +3968,6 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 	struct m0_btree_op *bop  = M0_AMB(bop, smop, bo_op);
 	struct td          *tree = bop->bo_arbor->t_desc;
 	struct nd          *node;
-	struct nd          *root;
-	uint64_t	    active_node_count = 0;
 
 	M0_PRE(tree->t_ref != 0);
 
@@ -3983,43 +3978,33 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 			return P_DONE;
 		}
 		tree->t_starttime = m0_time_now();
+		/** put tree's root node. */
+		node_put(tree->t_root->n_op, tree->t_root, bop->bo_tx);
 		/** Fallthrough to P_TIMECHECK */
-
 	case P_TIMECHECK:
 		/**
 		 * This code is meant for debugging. In future, this case needs
 		 * to be handled in a better way.
 		 */
-		m0_rwlock_read_lock(&lru_lock);
+		m0_rwlock_read_lock(&list_lock);
 		m0_tl_for(ndlist, &btree_active_nds, node) {
 			if (node->n_tree == tree && node->n_ref > 0) {
-				root = node;
-				active_node_count++;
-				if (active_node_count > 1) {
-					if (m0_time_seconds(m0_time_now() -
-							    tree->t_starttime)
-					    > 5) {
-						m0_rwlock_read_unlock(&lru_lock);
-						tree->t_starttime = 0;
-						return M0_ERR(-ETIMEDOUT);
-					}
-					m0_rwlock_read_unlock(&lru_lock);
-					return P_TIMECHECK;
+				if (m0_time_seconds(m0_time_now() -
+						    tree->t_starttime) > 5) {
+					m0_rwlock_read_unlock(&list_lock);
+					tree->t_starttime = 0;
+					return M0_ERR(-ETIMEDOUT);
 				}
+				m0_rwlock_read_unlock(&list_lock);
+				return P_TIMECHECK;
 			}
 		} m0_tl_endfor;
-		m0_rwlock_write_unlock(&lru_lock);
+		m0_rwlock_read_unlock(&list_lock);
 		/** Fallthrough to P_ACT */
-
 	case P_ACT:
-		M0_ASSERT(active_node_count == 1 && root == tree->t_root);
-		if (root == tree->t_root)
-			node_put(root->n_op, root, bop->bo_tx);
-
 		tree->t_starttime = 0;
 		tree_put(tree);
 		return P_DONE;
-
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
 	}
@@ -4998,7 +4983,7 @@ void m0_btree_lrulist_purge(uint64_t count)
 	struct nd* node;
 	struct nd* prev;
 
-	m0_rwlock_write_lock(&lru_lock);
+	m0_rwlock_write_lock(&list_lock);
 	node = ndlist_tlist_tail(&btree_lru_nds);
 	for (;  node != NULL && count > 0; count --) {
 		prev = ndlist_tlist_prev(&btree_lru_nds, node);
@@ -5009,7 +4994,7 @@ void m0_btree_lrulist_purge(uint64_t count)
 		}
 		node = prev;
 	}
-	m0_rwlock_write_unlock(&lru_lock);
+	m0_rwlock_write_unlock(&list_lock);
 }
 
 int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
