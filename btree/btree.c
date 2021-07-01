@@ -1241,6 +1241,8 @@ struct m0_btree_oimpl {
 	/** Track number of trials done to complete operation. **/
 	unsigned        i_trial;
 
+	unsigned        i_height;
+
 	/** Node descriptor for cookie if it is going to be used. **/
 	struct nd      *i_cookie_node;
 
@@ -1472,6 +1474,18 @@ static void node_move(struct nd *src, struct nd *tgt,
 	M0_PRE(node_invariant(tgt));
 	M0_IN(dir,(D_LEFT, D_RIGHT));
 	tgt->n_type->nt_move(src, tgt, dir, nr, tx);
+}
+#endif
+
+#ifndef __KERNEL__
+static void n_lock_op_lock(struct nd *node)
+{
+	m0_rwlock_write_lock(&node->n_lock);
+}
+
+static void n_lock_op_unlock(struct nd *node)
+{
+	m0_rwlock_write_unlock(&node->n_lock);
 }
 #endif
 
@@ -2987,6 +3001,7 @@ static bool address_in_segment(struct segaddr addr)
 	return true;
 }
 
+
 /**
  * This function will be called when there is possiblity of overflow at required
  * node present at particular level. TO handle the overflow this function will
@@ -3124,6 +3139,9 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_set_level(oi->i_extra_node, curr_max_level, bop->bo_tx);
 	node_set_level(lev->l_node, curr_max_level + 1, bop->bo_tx);
 
+	n_lock_op_lock(lev->l_alloc);
+	n_lock_op_lock(oi->i_extra_node);
+
 	node_move(lev->l_node, oi->i_extra_node, D_RIGHT, NR_MAX,
 		  bop->bo_tx);
 	oi->i_extra_node->n_skip_rec_count_check = false;
@@ -3174,7 +3192,10 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	/* Increase height by one */
 	tree->t_height++;
 
-	node_put(&oi->i_nop, lev->l_alloc, true, bop->bo_tx);
+	n_lock_op_unlock(lev->l_alloc);
+	n_lock_op_unlock(oi->i_extra_node);
+
+	node_put(&oi->i_nop, lev->l_alloc, bop->bo_tx);
 	lev->l_alloc = NULL;
 	node_put(&oi->i_nop, oi->i_extra_node, true, bop->bo_tx);
 	oi->i_extra_node = NULL;
@@ -3299,6 +3320,9 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	 * move records from current node to new node and find slot for given
 	 * record
 	 */
+	n_lock_op_lock(lev->l_alloc);
+	n_lock_op_lock(lev->l_node);
+
 	btree_put_split_and_find(lev->l_alloc, lev->l_node,
 				 &bop->bo_rec, &tgt, bop->bo_tx);
 	tgt.s_rec = bop->bo_rec;
@@ -3325,6 +3349,9 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 				    node_seq_cnt_update(lev->l_alloc);
 	node_fix(tgt.s_node, bop->bo_tx);
 
+	n_lock_op_unlock(lev->l_alloc);
+	n_lock_op_unlock(lev->l_node);
+
 	/* Initialized new record which will get inserted at parent */
 	node_slot.s_node = lev->l_node;
 	node_slot.s_idx = 0;
@@ -3349,6 +3376,9 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		node_slot.s_rec  = new_rec;
 		if (node_isfit(&node_slot)) {
 			struct m0_btree_rec *rec;
+
+			n_lock_op_lock(lev->l_node);
+
 			node_make(&node_slot, bop->bo_tx);
 			node_slot.s_rec = temp_rec_1;
 			node_rec(&node_slot);
@@ -3363,9 +3393,13 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			node_seq_cnt_update(lev->l_node);
 			node_fix(lev->l_node, bop->bo_tx);
 
+			n_lock_op_unlock(lev->l_node);
 			lock_op_unlock(bop->bo_arbor->t_desc);
 			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 		}
+
+		n_lock_op_lock(lev->l_alloc);
+		n_lock_op_lock(lev->l_node);
 
 		btree_put_split_and_find(lev->l_alloc, lev->l_node, &new_rec,
 					 &tgt, bop->bo_tx);
@@ -3382,6 +3416,9 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 					    node_seq_cnt_update(lev->l_alloc);
 		node_fix(tgt.s_node, bop->bo_tx);
+
+		n_lock_op_unlock(lev->l_alloc);
+		n_lock_op_unlock(lev->l_node);
 
 		node_slot.s_node = lev->l_alloc;
 		node_slot.s_idx = node_count(node_slot.s_node);
@@ -3454,6 +3491,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			lev = &oi->i_level[oi->i_used];
 			lev->l_node = oi->i_nop.no_node;
 			node_slot.s_node = oi->i_nop.no_node;
+
+			n_lock_op_lock(lev->l_node);
 			lev->l_seq = lev->l_node->n_seq;
 
 			/**
@@ -3466,9 +3505,10 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node) ||
-			    !node_verify(lev->l_node)) {
-				m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
+			if (!node_isvalid(lev->l_node)) {
+				n_lock_op_unlock(lev->l_node);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_SETUP);
 			}
 			oi->i_nop.no_node = NULL;
 
@@ -3476,20 +3516,30 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 						    &bop->bo_rec.r_key);
 			lev->l_idx = node_slot.s_idx;
 			if (node_level(node_slot.s_node) > 0) {
+				if (oi->i_used == oi->i_height - 1) {
+					/* If height of tree increased. */
+					n_lock_op_unlock(lev->l_node);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
+
 				if (oi->i_key_found) {
 					lev->l_idx++;
 					node_slot.s_idx++;
 				}
 				node_child(&node_slot, &child_node_addr);
 				if (!address_in_segment(child_node_addr)) {
+					n_lock_op_unlock(lev->l_node);
 					node_op_fini(&oi->i_nop);
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
+				n_lock_op_unlock(lev->l_node);
 				return node_get(&oi->i_nop, tree,
 						&child_node_addr, lock_acquired,
 						P_NEXTDOWN);
 			} else {
+				n_lock_op_unlock(lev->l_node);
 				if (oi->i_key_found)
 					return P_LOCK;
 				return P_ALLOC;
@@ -3579,6 +3629,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		};
 		if (!node_isfit(&slot_for_right_node))
 			return btree_put_makespace_phase(bop);
+
+		n_lock_op_lock(lev->l_node);
 		node_make (&slot_for_right_node, bop->bo_tx);
 		/** Fall through if there is no overflow.  **/
 	}
@@ -3625,6 +3677,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		node_seq_cnt_update(lev->l_node);
 		node_fix(lev->l_node, bop->bo_tx);
 
+		n_lock_op_unlock(lev->l_node);
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	}
@@ -3640,6 +3693,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	};
 }
 /* Insert operation section end point */
+
+
 #endif
 #ifndef __KERNEL__
 //static struct m0_sm_group G;
@@ -4591,6 +4646,8 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		lev->l_freenode = true;
 		used_count--;
 		lev = &oi->i_level[used_count];
+		n_lock_op_lock(lev->l_node);
+
 		node_del(lev->l_node, lev->l_idx, bop->bo_tx);
 		lev->l_node->n_skip_rec_count_check = true;
 		node_slot.s_node = lev->l_node;
@@ -4623,6 +4680,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		}
 		node_seq_cnt_update(lev->l_node);
 		node_fix(node_slot.s_node, bop->bo_tx);
+		n_lock_op_unlock(lev->l_node);
 		/* check if underflow after deletion */
 		if (flag || !node_isunderflow(lev->l_node, false)) {
 			lev->l_node->n_skip_rec_count_check = false;
@@ -4651,6 +4709,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 
 	/* l_sib is node below root which is root's only child */
 	root_child = oi->i_level[1].l_sibling;
+	n_lock_op_lock(root_child);
 	root_child->n_skip_rec_count_check = true;
 
 	node_set_level(lev->l_node, curr_root_level - 1, bop->bo_tx);
@@ -4661,6 +4720,9 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 
 	lev->l_node->n_skip_rec_count_check = false;
 	oi->i_level[1].l_sibling->n_skip_rec_count_check = false;
+
+	n_lock_op_unlock(lev->l_node);
+	n_lock_op_unlock(root_child);
 
 	lock_op_unlock(tree);
 	oi->i_level[1].l_sibling = NULL;
@@ -4748,7 +4810,7 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 		struct slot     root_slot = {};
 		struct segaddr  root_child;
 		struct level   *root_lev = &oi->i_level[0];
-
+		/*TBD: check if node_lock of node_count check is needed. */
 		root_slot.s_node = root_lev->l_node;
 		root_slot.s_idx  = root_lev->l_idx == 0 ? 1 : 0;
 
@@ -4819,6 +4881,8 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			lev = &oi->i_level[oi->i_used];
 			lev->l_node = oi->i_nop.no_node;
 			node_slot.s_node = oi->i_nop.no_node;
+
+			n_lock_op_lock(lev->l_node);
 			lev->l_seq = lev->l_node->n_seq;
 
 			/**
@@ -4831,9 +4895,11 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node) ||
-			    !node_verify(lev->l_node))
-				m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
+			if (!node_isvalid(lev->l_node)) {
+				n_lock_op_unlock(lev->l_node);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_SETUP);
+			}
 
 			oi->i_nop.no_node = NULL;
 
@@ -4842,6 +4908,13 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			lev->l_idx = node_slot.s_idx;
 
 			if (node_level(node_slot.s_node) > 0) {
+				if (oi->i_used == oi->i_height - 1) {
+					/* If height of tree increased. */
+					n_lock_op_unlock(lev->l_node);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
+
 				if (oi->i_key_found) {
 					lev->l_idx++;
 					node_slot.s_idx++;
@@ -4849,14 +4922,17 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 				node_child(&node_slot, &child_node_addr);
 
 				if (!address_in_segment(child_node_addr)) {
+					n_lock_op_unlock(lev->l_node);
 					node_op_fini(&oi->i_nop);
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
+				n_lock_op_unlock(lev->l_node);
 				return node_get(&oi->i_nop, tree,
 						&child_node_addr, lock_acquired,
 						P_NEXTDOWN);
 			} else {
+				n_lock_op_unlock(lev->l_node);
 				if (!oi->i_key_found)
 					return P_LOCK;
 				/**
@@ -4929,11 +5005,16 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			lev = &oi->i_level[oi->i_used];
 			node_slot.s_node = lev->l_node;
 			node_slot.s_idx  = lev->l_idx;
+
+			n_lock_op_lock(lev->l_node);
+
 			node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
 			lev->l_node->n_skip_rec_count_check = true;
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(node_slot.s_node, bop->bo_tx);
+
+			n_lock_op_unlock(lev->l_node);
 
 			rec.r_flags = M0_BSC_SUCCESS;
 		}
