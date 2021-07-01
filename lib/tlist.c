@@ -236,7 +236,6 @@ M0_INTERNAL void *m0_tlist_prev(const struct m0_tl_descr *d,
 M0_INTERNAL bool m0_tlist_invariant(const struct m0_tl_descr *d,
 				    const struct m0_tl *list)
 {
-#if 0	
 	const struct m0_list_link *head;
 	struct m0_list_link       *scan;
 
@@ -254,7 +253,6 @@ M0_INTERNAL bool m0_tlist_invariant(const struct m0_tl_descr *d,
 		if (!M0_CHECK_EX(m0_tlink_invariant(d, amb(d, scan))))
 			return false;
 	}
-#endif
 	return true;
 }
 
@@ -263,7 +261,6 @@ M0_INTERNAL bool m0_tlist_invariant_ext(const struct m0_tl_descr *d,
 					bool (*check)(const void *, void *),
 					void *datum)
 {
-#if 0	
 	if (m0_tlist_invariant(d, list)) {
 		void *obj;
 
@@ -272,7 +269,6 @@ M0_INTERNAL bool m0_tlist_invariant_ext(const struct m0_tl_descr *d,
 				return false;
 		} m0_tlist_endfor;
 	}
-#endif
 	return true;
 }
 

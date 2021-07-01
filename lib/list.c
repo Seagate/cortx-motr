@@ -47,7 +47,6 @@ M0_EXPORTED(m0_list_is_empty);
 
 M0_INTERNAL bool m0_list_link_invariant(const struct m0_list_link *link)
 {
-#if 0
 	struct m0_list_link *scan;
 
 	if ((link->ll_next == link) != (link->ll_prev == link)) {
@@ -65,7 +64,6 @@ M0_INTERNAL bool m0_list_link_invariant(const struct m0_list_link *link)
 			return false;
 		}
 	}
-#endif
 	return true;
 }
 
