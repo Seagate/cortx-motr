@@ -191,7 +191,7 @@ static void test_write(int i)
 	io.si_unit_sz  = (buf_size >> block_shift);
 	io.si_cksum_sz = AD_ADIEU_CS_SZ;
 	// Checksum for i buf_size blocks
-	io.si_cksum.b_addr = user_cksm_buf[i-1];
+	io.si_cksum.b_addr = user_cksm_buf[0];
 	io.si_cksum.b_nob  = ( i * AD_ADIEU_CS_SZ );
 
 	m0_clink_init(&clink, NULL);
@@ -208,7 +208,6 @@ static void test_write(int i)
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 
-    m0_buf_free(&io.si_cksum);
 	m0_stob_io_fini(&io);
 }
 
@@ -231,7 +230,7 @@ static void test_read(int i)
 	io.si_unit_sz  = (buf_size >> block_shift);
 	io.si_cksum_sz = AD_ADIEU_CS_SZ;
 	// Checksum for i buf_size blocks
-	io.si_cksum.b_addr = read_cksm_buf[i-1];
+	io.si_cksum.b_addr = read_cksm_buf[0];
 	io.si_cksum.b_nob  = ( i * AD_ADIEU_CS_SZ );
 
 	m0_clink_init(&clink, NULL);
