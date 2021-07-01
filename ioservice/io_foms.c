@@ -2073,8 +2073,8 @@ static int stob_io_create(struct m0_fom *fom)
     if(m0_is_read_fop(fom->fo_fop))
     {
     	/* For read this is not used so making it NULL */
-		M0_ASSERT(rwfop->crw_di_data_cksum.b_nob == 0);
-		M0_ASSERT(rwfop->crw_di_data_cksum.b_addr == NULL);
+		//M0_ASSERT(rwfop->crw_di_data_cksum.b_nob == 0);
+		//M0_ASSERT(rwfop->crw_di_data_cksum.b_addr == NULL);
 
 		/* Init tracker variable, this gets updated in stobio_complete_cb */
 		rw_replyfop->rwr_cksum_nob_read = 0;
@@ -2395,14 +2395,6 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	fop = fom->fo_fop;
 	rw = io_rw_get(fop);
 
-	if(m0_is_read_fop(fop))
-	{
-		struct m0_fop_cob_rw_reply *rw_replyfop = io_rw_rep_get(fom->fo_rep_fop);
-		
-		if(rw_replyfop->crw_di_data_cksum.b_addr)
-			m0_buf_free(&rw->crw_di_data_cksum);
-	}
-
 	M0_LOG(M0_DEBUG, "FOM fini: fom=%p op=%s@"FID_F", nbytes=%lu", fom,
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", FID_P(&rw->crw_fid),
 	       (unsigned long)(fom_obj->fcrw_count << fom_obj->fcrw_bshift));
@@ -2443,6 +2435,15 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 		m0_indexvec_free(&fom_obj->fcrw_io.si_stob);
 	if (fom_obj->fcrw_stio != NULL)
 		stob_io_destroy(fom);
+
+	if(m0_is_read_fop(fop))
+	{
+		struct m0_fop_cob_rw_reply *rw_replyfop = io_rw_rep_get(fom->fo_rep_fop);
+		
+		if(rw_replyfop->crw_di_data_cksum.b_addr)
+			m0_buf_free(&rw->crw_di_data_cksum);
+	}
+	
 	m0_fom_fini(fom);
 	m0_free(fom_obj);
 }

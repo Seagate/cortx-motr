@@ -69,7 +69,9 @@ static const char perf_path[] = "./__s/backstore/o/100000000000000:2";
 static struct m0_stob_io io;
 static m0_bcount_t user_vec[NR];
 static char *user_buf[NR];
+static char *user_cksm_buf[NR];
 static char *read_buf[NR];
+static char *read_cksm_buf[NR];
 static char *user_bufs[NR];
 static char *read_bufs[NR];
 static m0_bindex_t stob_vec[NR];
@@ -85,6 +87,7 @@ static int test_adieu_init(const char *location,
 	int               i;
 	int               rc;
 	struct m0_stob_id stob_id;
+	char   cs_char = 'a';
 
 	rc = m0_stob_domain_create(location,
 				   NULL, M0_STOB_UT_DOMAIN_KEY, dom_cfg, &dom);
@@ -110,9 +113,27 @@ static int test_adieu_init(const char *location,
 		M0_ASSERT(user_buf[i] != NULL);
 	}
 
+	// Allocate contigious buffer for i/p checksums
+	user_cksm_buf[0] = m0_alloc(AD_ADIEU_CS_SZ * ARRAY_SIZE(user_cksm_buf));
+	M0_ASSERT(user_cksm_buf[0] != NULL);
+	memset( user_cksm_buf[0], cs_char++, AD_ADIEU_CS_SZ);	
+	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
+		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_ADIEU_CS_SZ; 	
+		memset( user_cksm_buf[i], cs_char++, AD_ADIEU_CS_SZ);
+	}
+	
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i) {
 		read_buf[i] = m0_alloc_aligned(buf_size, block_shift);
 		M0_ASSERT(read_buf[i] != NULL);
+	}
+
+	// Allocate contigious buffer for o/p checksums 
+	read_cksm_buf[0] = m0_alloc(AD_ADIEU_CS_SZ * ARRAY_SIZE(read_cksm_buf));
+	M0_ASSERT(read_cksm_buf[0] != NULL);
+	memset( read_cksm_buf[0], 0, AD_ADIEU_CS_SZ);	
+	for (i = 1; i < ARRAY_SIZE(read_cksm_buf); ++i) {
+		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_ADIEU_CS_SZ; 	
+		memset( read_cksm_buf[i], 0, AD_ADIEU_CS_SZ);
 	}
 
 	for (i = 0; i < NR; ++i) {
@@ -138,8 +159,12 @@ static void test_adieu_fini(void)
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i)
 		m0_free(user_buf[i]);
 
+	m0_free(user_cksm_buf[0]);
+
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i)
 		m0_free(read_buf[i]);
+
+	m0_free(read_cksm_buf[0]);
 }
 
 static void test_write(int i)
@@ -165,19 +190,9 @@ static void test_write(int i)
 
 	io.si_unit_sz  = (buf_size >> block_shift);
 	io.si_cksum_sz = AD_ADIEU_CS_SZ;
-	cs_sz = ( m0_vec_count(&io.si_stob.iv_vec) * io.si_cksum_sz )/io.si_unit_sz;
-	m0_buf_alloc( &io.si_cksum, cs_sz);		
-	/* Copy different value in each chunk */
-	{
-		int cs_idx;
-		char   cs_char = 'B';
-		
-		for( cs_idx = 0; cs_idx < cs_sz; cs_idx = cs_idx + io.si_cksum_sz )
-		{
-			memset(io.si_cksum.b_addr + cs_idx, cs_char, io.si_cksum_sz);
-			cs_char++;
-		}
-	}
+	// Checksum for i buf_size blocks
+	io.si_cksum.b_addr = user_cksm_buf[i];
+	io.si_cksum.b_nob  = ( i * AD_ADIEU_CS_SZ );
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
@@ -215,8 +230,9 @@ static void test_read(int i)
 
 	io.si_unit_sz  = (buf_size >> block_shift);
 	io.si_cksum_sz = AD_ADIEU_CS_SZ;
-	cs_sz = ( m0_vec_count(&io.si_stob.iv_vec) * io.si_cksum_sz )/io.si_unit_sz;
-	m0_buf_alloc( &io.si_cksum, cs_sz);	
+	// Checksum for i buf_size blocks
+	io.si_cksum.b_addr = read_cksm_buf[i];
+	io.si_cksum.b_nob  = ( i * AD_ADIEU_CS_SZ );
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
@@ -271,6 +287,7 @@ static void test_adieu(const char *path)
 	for (i = 1; i < NR; ++i) {
 		test_read(i);
 		M0_ASSERT(memcmp(user_buf[i - 1], read_buf[i - 1], buf_size) == 0);
+		M0_ASSERT(memcmp(user_cksm_buf[i - 1], read_cksm_buf[i - 1], AD_ADIEU_CS_SZ) == 0);
 	}
 }
 
