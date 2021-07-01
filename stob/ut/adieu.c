@@ -169,7 +169,7 @@ static void test_adieu_fini(void)
 
 static void test_write(int i)
 {
-	int		    rc, cs_sz;
+	int		    rc;
 	struct m0_fol_frag *fol_frag;
 
 	M0_ALLOC_PTR(fol_frag);
@@ -191,7 +191,7 @@ static void test_write(int i)
 	io.si_unit_sz  = (buf_size >> block_shift);
 	io.si_cksum_sz = AD_ADIEU_CS_SZ;
 	// Checksum for i buf_size blocks
-	io.si_cksum.b_addr = user_cksm_buf[i];
+	io.si_cksum.b_addr = user_cksm_buf[i-1];
 	io.si_cksum.b_nob  = ( i * AD_ADIEU_CS_SZ );
 
 	m0_clink_init(&clink, NULL);
@@ -214,7 +214,7 @@ static void test_write(int i)
 
 static void test_read(int i)
 {
-	int rc, cs_sz;
+	int rc;
 
 	m0_stob_io_init(&io);
 
@@ -231,7 +231,7 @@ static void test_read(int i)
 	io.si_unit_sz  = (buf_size >> block_shift);
 	io.si_cksum_sz = AD_ADIEU_CS_SZ;
 	// Checksum for i buf_size blocks
-	io.si_cksum.b_addr = read_cksm_buf[i];
+	io.si_cksum.b_addr = read_cksm_buf[i-1];
 	io.si_cksum.b_nob  = ( i * AD_ADIEU_CS_SZ );
 
 	m0_clink_init(&clink, NULL);
