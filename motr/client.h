@@ -917,6 +917,8 @@ enum
 
 enum m0_pi_calc_flag {
 
+	/* NO PI FLAG */
+	M0_PI_NO_FLAG = 0,
 	/* PI calculation for data unit 0 */
 	M0_PI_CALC_UNIT_ZERO = 1 << 0,
 	/* Skip PI final value calculation */
@@ -1853,7 +1855,7 @@ void m0_client_layout_free(struct m0_client_layout *layout);
  *                 not want seeding.
  *                 NOTE: seed is always NULL, non-null value sent at the last chunk of motr unit
  * @param[IN] m0_bufvec Set of buffers for which checksum is computed. Normally
- *                      this set of vectors will make one data unit.
+ *                      this set of vectors will make one data unit. It can be NULL as well.
  * @param[IN] flag If flag is M0_PI_CALC_UNIT_ZERO, it means this api is called for 
  *                 first data unit and init functionality should be invoked such as MD5_Init.
  * @param[OUT] curr_context context of data unit N, will be required to calculate checksum for
