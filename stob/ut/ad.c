@@ -533,7 +533,7 @@ static void test_ad(void)
 		test_read(i);
 		for (j = 0; j < i; ++j) {					
 			M0_ASSERT(memcmp(user_buf[j], read_buf[j], buf_size) == 0);
-	 		M0_ASSERT(memcmp(user_cksm_buf[i], read_cksm_buf[i], AD_CS_SZ) == 0);
+	 		M0_ASSERT(memcmp(user_cksm_buf[j], read_cksm_buf[j], AD_CS_SZ) == 0);
 		}
 	}
 }
@@ -551,7 +551,7 @@ static void punch_test(void)
 		test_read(i);
 		for (j = 0; j < i; ++j) {			
 			M0_ASSERT(memcmp(zero_buf[j], read_buf[j], buf_size) == 0);
-			M0_ASSERT(memcmp(user_cksm_buf[i], zero_buf[i], AD_CS_SZ) == 0);
+			M0_ASSERT(memcmp(user_cksm_buf[j], zero_buf[j], AD_CS_SZ) == 0);
 		}
 			
 	}
