@@ -50,6 +50,7 @@
 #include "sm/sm.h"
 #include "rpc/rpc_machine.h"
 #include "rpc/rpc_opcodes.h"
+#include "rpc/rpc_opcodes_xc.h" /* m0_xc_M0_RPC_OPCODES_enum */
 #include "fdmi/fol_fdmi_src.h"
 #include "motr/iem.h"
 
@@ -505,14 +506,20 @@ static void addb2_introduce(struct m0_fom *fom)
 	if (!fom->fo_sm_trace_off) {
 		M0_MEAS("name: fom-descr, service: \""FID_F"\", "
 			"sender: %"PRId64", "
-			"req-opcode: %"PRIu32", rep-opcode: %"PRIu32", "
-			"local: none, rpc_sm_id: %"PRIu64", "
+			"req-opcode: %s, rep-opcode: %s, "
+			"local: None, rpc_sm_id: %"PRIu64", "
 			"fom_sm_id: %"PRIu64", fom_state_sm_id: %"PRIu64,
 			FID_P(&fom->fo_service->rs_service_fid),
 			sender_id,
-			req != NULL ? req->ri_type->rit_opcode : 0,
+			req != NULL ?
+			m0_xcode_enum_print(
+				&m0_xc_M0_RPC_OPCODES_enum,
+				req->ri_type->rit_opcode, NULL) : "None",
 			fom->fo_rep_fop != NULL ?
-			fom->fo_rep_fop->f_item.ri_type->rit_opcode : 0,
+			m0_xcode_enum_print(
+				&m0_xc_M0_RPC_OPCODES_enum,
+				fom->fo_rep_fop->f_item.ri_type->rit_opcode,
+				NULL) : "None",
 			item_sm_id,
 			phase_sm_id,
 			state_sm_id);
