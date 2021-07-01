@@ -6223,6 +6223,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		if (ti->ti_random_bursts) {
 			random_r(&ti->ti_random_buf, &r);
 			key_last = (r % (key_end - key_first)) + key_first;
+			key_last = (key_last / ti->ti_key_incr) * ti->ti_key_incr
+				   + ti->ti_key_first;
 		} else
 			key_last = key_end;
 
@@ -6311,7 +6313,13 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				key[i] = get_key[i];
 		}
 
-		M0_ASSERT(keys_found_count == keys_put_count);
+		/**
+		 * For single thread, keys_found_count should be equal to
+		 * keys_put_count. But for multi-thread, multiple threads can
+		 * put records, hence keys_found_count will be greater than
+		 * keys_put_count.
+		 */
+		M0_ASSERT(keys_found_count >= keys_put_count);
 
 		/**
 		 *  Test slant only if possible. If the increment counter is
@@ -6380,7 +6388,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		ut_cb.c_act   = btree_kv_del_cb;
 		ut_cb.c_datum = &data;
-		while (keys_found_count) {
+		while (keys_put_count) {
 			key[0] = (del_key << (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
 			key[0] = m0_byteorder_cpu_to_be64(key[0]);
