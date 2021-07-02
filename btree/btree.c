@@ -6402,7 +6402,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			del_key = (r % 2 == 0) ?
 						del_key + ti->ti_key_incr :
 						del_key - ti->ti_key_incr;
-			keys_found_count--;
+			keys_put_count--;
 		}
 
 		key_iter_start = key_last + ti->ti_key_incr;
