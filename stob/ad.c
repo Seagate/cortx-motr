@@ -18,7 +18,7 @@
  *
  */
 
-#include <stdio.h>
+
 #include "balloc/balloc.h"
 
 #include "be/extmap.h"
@@ -1286,7 +1286,6 @@ static void  stob_ad_get_checksum_for_fragment(struct m0_stob_io *io, struct m0_
 	void * dst, *src;
       
 	checksum_nob = m0_extent_get_checksum_nob(off, frag_sz, unit_size, cksum_unit_size);
-	printf("\n\rRead:off:%ld, frag_sz:%ld, us:%ld, cs_nob:%ld",off, frag_sz, unit_size, checksum_nob);  
 	if(checksum_nob)
 	{
 		// we are looking at checksum which need to be added:
@@ -1680,11 +1679,9 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	it.ec_cksum.b_nob  = m0_extent_get_checksum_nob(off, m0_ext_length(&todo), 
 							io->si_unit_sz, io->si_cksum_sz);
 	it.ec_unit_size = io->si_unit_sz;
-	printf("\n\rWrite:off:%ld, frag_sz:%ld, cs_nob:%ld",off, m0_ext_length(&todo), it.ec_cksum.b_nob);  
 	
 	M0_SET0(&it.ec_op);
 	m0_be_op_init(&it.ec_op);
-
 	m0_be_emap_paste(&it, &io->si_tx->tx_betx, &todo, ext->e_start,
 	 LAMBDA(void, (struct m0_be_emap_seg *seg) {
 			/* handle extent deletion. */
