@@ -3144,7 +3144,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_set_level(oi->i_extra_node, curr_max_level, bop->bo_tx);
 	node_set_level(lev->l_node, curr_max_level + 1, bop->bo_tx);
 
-	n_lock_op_lock(lev->l_alloc);
+	n_lock_op_lock(lev->l_node);
 	n_lock_op_lock(oi->i_extra_node);
 
 	node_move(lev->l_node, oi->i_extra_node, D_RIGHT, NR_MAX,
@@ -3197,11 +3197,11 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	/* Increase height by one */
 	tree->t_height++;
 
-	n_lock_op_unlock(lev->l_alloc);
+	n_lock_op_unlock(lev->l_node);
 	n_lock_op_unlock(oi->i_extra_node);
 
-	node_put(&oi->i_nop, lev->l_alloc, true, bop->bo_tx);
-	lev->l_alloc = NULL;
+	node_put(&oi->i_nop, lev->l_node, true, bop->bo_tx);
+	lev->l_node = NULL;
 	node_put(&oi->i_nop, oi->i_extra_node, true, bop->bo_tx);
 	oi->i_extra_node = NULL;
 
@@ -3371,10 +3371,10 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	temp_rec_1.r_key.k_data   = M0_BUFVEC_INIT_BUF(&p_key_1, &ksize_1);
 	temp_rec_1.r_val          = M0_BUFVEC_INIT_BUF(&p_val_1, &vsize_1);
 
-	for (i = oi->i_used - 1; i >= 0; i--) {
-		node_put(&oi->i_nop, lev->l_alloc, true, bop->bo_tx);
-		lev->l_alloc = NULL;
+	node_put(&oi->i_nop, lev->l_alloc, true, bop->bo_tx);
+	lev->l_alloc = NULL;
 
+	for (i = oi->i_used - 1; i >= 0; i--) {
 		lev = &oi->i_level[i];
 		node_slot.s_node = lev->l_node;
 		node_slot.s_idx  = lev->l_idx;
@@ -3431,6 +3431,9 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		node_key(&node_slot);
 		new_rec.r_key = node_slot.s_rec.r_key;
 		newv_ptr = &(lev->l_alloc->n_addr);
+
+		node_put(&oi->i_nop, lev->l_alloc, true, bop->bo_tx);
+		lev->l_alloc = NULL;
 	}
 
 	/**
