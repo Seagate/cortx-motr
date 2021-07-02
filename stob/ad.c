@@ -357,7 +357,9 @@ M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io, m0_bindex
 			M0_ASSERT(b_addr <=io->si_cksum.b_addr + io->si_cksum.b_nob  );
 		}
 	}
-	M0_ASSERT(cksum_addr != NULL);
+
+	// TODO: Enable this once PARITY support is added ?
+	// M0_ASSERT(cksum_addr != NULL);
 	return cksum_addr;
 }
 

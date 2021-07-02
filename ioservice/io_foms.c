@@ -882,7 +882,7 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 	    rwrep->rwr_cksum_nob_read += stio_desc->siod_stob_io.si_cksum_nob_read;
 		
 		M0_ASSERT( rwrep->rwr_cksum_nob_read <=
-				   rwrep->rwr_cksum_nob_read.b_nob );
+				   rwrep->rwr_di_data_cksum.b_nob );
 	}
 	
 	M0_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
