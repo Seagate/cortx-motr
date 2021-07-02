@@ -3789,7 +3789,8 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "P_INIT",
-		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT, P_DONE),
+		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT, P_TIMECHECK,
+				      P_DONE),
 	},
 	[P_COOKIE] = {
 		.sd_flags   = 0,
@@ -3885,6 +3886,7 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "open/create/close-init", P_INIT, P_ACT  },
 	{ "open/create/close-act", P_ACT, P_DONE },
 	{ "close/destroy", P_INIT, P_DONE},
+	{ "close-init-timecheck", P_INIT, P_TIMECHECK},
 	{ "close-timecheck-repeat", P_TIMECHECK, P_TIMECHECK},
 	{ "put/get-init-cookie", P_INIT, P_COOKIE },
 	{ "put/get-init", P_INIT, P_SETUP },
