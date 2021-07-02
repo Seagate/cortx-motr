@@ -336,8 +336,8 @@ struct m0_fop_cob_rw_reply {
 	/** Returned values for an UPDATE operation */
 	struct m0_fop_mod_rep   rwr_mod_rep;
 
-   /** TODO: make it rwr di checksum  */
-   struct m0_buf	   	    crw_di_data_cksum;
+   /** Checksum data returned to client during Read operation */
+   struct m0_buf	   	    rwr_di_data_cksum;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
@@ -412,7 +412,7 @@ struct m0_fop_cob_rw {
 	/** Checksum and tag values for the input data blocks. */
 	m0_bcount_t               crw_cksum_size;
 	struct m0_buf		  	  crw_di_data;
-	/** Checksum value used for write operation for read it will be unused NULL */
+	/** Checksum value used for write operation for read it will be unused */
 	struct m0_buf	   	  	  crw_di_data_cksum;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
