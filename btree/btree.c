@@ -3200,8 +3200,6 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	n_lock_op_unlock(lev->l_node);
 	n_lock_op_unlock(oi->i_extra_node);
 
-	node_put(&oi->i_nop, lev->l_node, true, bop->bo_tx);
-	lev->l_node = NULL;
 	node_put(&oi->i_nop, oi->i_extra_node, true, bop->bo_tx);
 	oi->i_extra_node = NULL;
 
@@ -3524,13 +3522,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 						    &bop->bo_rec.r_key);
 			lev->l_idx = node_slot.s_idx;
 			if (node_level(node_slot.s_node) > 0) {
-				if (oi->i_used == oi->i_height - 1) {
-					/* If height of tree increased. */
-					n_lock_op_unlock(lev->l_node);
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP, P_SETUP);
-				}
-
 				if (oi->i_key_found) {
 					lev->l_idx++;
 					node_slot.s_idx++;
@@ -3542,6 +3533,14 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
+
+				if (oi->i_used >= oi->i_height) {
+					/* If height of tree increased. */
+					oi->i_used = oi->i_height - 1;
+					n_lock_op_unlock(lev->l_node);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
 				n_lock_op_unlock(lev->l_node);
 				return node_get(&oi->i_nop, tree,
 						&child_node_addr, lock_acquired,
@@ -4225,13 +4224,6 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			lev->l_idx = node_slot.s_idx;
 
 			if (node_level(node_slot.s_node) > 0) {
-				if (oi->i_used == oi->i_height - 1) {
-					/* If height of tree increased. */
-					n_lock_op_unlock(lev->l_node);
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP, P_SETUP);
-				}
-
 				if (oi->i_key_found) {
 					node_slot.s_idx++;
 					lev->l_idx++;
@@ -4243,6 +4235,13 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
+				if (oi->i_used >= oi->i_height) {
+					/* If height of tree increased. */
+					oi->i_used = oi->i_height - 1;
+					n_lock_op_unlock(lev->l_node);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
 				n_lock_op_unlock(lev->l_node);
 				return node_get(&oi->i_nop, tree, &child,
 						lock_acquired, P_NEXTDOWN);
@@ -4415,13 +4414,6 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			lev->l_idx = s.s_idx;
 
 			if (node_level(s.s_node) > 0) {
-				if (oi->i_used == oi->i_height - 1) {
-					/* If height of tree increased. */
-					n_lock_op_unlock(lev->l_node);
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP, P_SETUP);
-				}
-
 				if (oi->i_key_found) {
 					s.s_idx++;
 					lev->l_idx++;
@@ -4447,6 +4439,13 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
+				if (oi->i_used >= oi->i_height) {
+					/* If height of tree increased. */
+					oi->i_used = oi->i_height - 1;
+					n_lock_op_unlock(lev->l_node);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
 				n_lock_op_unlock(lev->l_node);
 				return node_get(&oi->i_nop, tree, &child,
 						lock_acquired, P_NEXTDOWN);
@@ -4551,12 +4550,6 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			}
 
 			if (node_level(s.s_node) > 0) {
-				if (oi->i_pivot == oi->i_height - 1) {
-					/* If height of tree increased. */
-					n_lock_op_unlock(lev->l_sibling);
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP, P_SETUP);
-				}
 				s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
 					  node_count(s.s_node);
 				node_child(&s, &child);
@@ -4566,6 +4559,12 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_pivot++;
+				if (oi->i_pivot >= oi->i_height) {
+					/* If height of tree increased. */
+					n_lock_op_unlock(lev->l_sibling);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
 				n_lock_op_unlock(lev->l_sibling);
 				return node_get(&oi->i_nop, tree, &child,
 						lock_acquired, P_SIBLING);
@@ -4847,7 +4846,7 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 		struct slot     root_slot = {};
 		struct segaddr  root_child;
 		struct level   *root_lev = &oi->i_level[0];
-		/*TBD: check if node_lock of node_count check is needed. */
+		/* TBD: check if node_lock or node_count check is needed. */
 		root_slot.s_node = root_lev->l_node;
 		root_slot.s_idx  = root_lev->l_idx == 0 ? 1 : 0;
 
@@ -4945,13 +4944,6 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			lev->l_idx = node_slot.s_idx;
 
 			if (node_level(node_slot.s_node) > 0) {
-				if (oi->i_used == oi->i_height - 1) {
-					/* If height of tree increased. */
-					n_lock_op_unlock(lev->l_node);
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP, P_SETUP);
-				}
-
 				if (oi->i_key_found) {
 					lev->l_idx++;
 					node_slot.s_idx++;
@@ -4964,6 +4956,13 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
+				if (oi->i_used >= oi->i_height) {
+					/* If height of tree increased. */
+					oi->i_used = oi->i_height - 1;
+					n_lock_op_unlock(lev->l_node);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
 				n_lock_op_unlock(lev->l_node);
 				return node_get(&oi->i_nop, tree,
 						&child_node_addr, lock_acquired,
@@ -4989,13 +4988,24 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
 	case P_STORE_CHILD: {
-		/*Validate node to dertmine if lev->l_node is still exists. */
-		oi->i_level[1].l_sibling = oi->i_nop.no_node;
-		if (!node_isvalid(oi->i_level[1].l_sibling))
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
-		/* store child of the root. */
-		oi->i_level[1].l_sib_seq = oi->i_nop.no_node->n_seq;
-		/* Fall through to the next step */
+		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			oi->i_level[1].l_sibling = oi->i_nop.no_node;
+			n_lock_op_lock(oi->i_level[1].l_sibling);
+
+			if (!node_isvalid(oi->i_level[1].l_sibling)) {
+				n_lock_op_unlock(oi->i_level[1].l_sibling);
+ 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_SETUP);
+			}
+			/* store child of the root. */
+			oi->i_level[1].l_sib_seq = oi->i_nop.no_node->n_seq;
+
+			n_lock_op_unlock(oi->i_level[1].l_sibling);
+			/* Fall through to the next step */
+		} else {
+			node_op_fini(&oi->i_nop);
+			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+		}
 	}
 	case P_LOCK:
 		if (!lock_acquired)
@@ -7099,7 +7109,7 @@ static void ut_invariant_check(struct td *tree)
 			}
 			int total_count = node_count(element);
 			if (level == max_level){
-				if (element->n_ref != 2){
+				if (element->n_ref > 2){
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
 				}
@@ -7173,7 +7183,7 @@ static void ut_invariant_check(struct td *tree)
 			}
 			int total_count = node_count(element);
 			if (level == max_level){
-				if (element->n_ref != 2){
+				if (element->n_ref > 2){
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
 				}
@@ -7281,6 +7291,8 @@ static void ut_put_del_operation(void)
 						      &kv_op, tx));
 		if (put_data.flags == M0_BSC_KEY_EXISTS) {
 			printf("M0_BSC_KEY_EXISTS ");
+		} else {
+			M0_ASSERT(put_data.flags == M0_BSC_SUCCESS);
 		}
 
 	}
@@ -7319,13 +7331,16 @@ static void ut_put_del_operation(void)
 						      &ut_cb, 0, &kv_op, tx));
 		if (del_data.flags == M0_BSC_KEY_NOT_FOUND) {
 			printf("M0_BSC_KEY_NOT_FOUND ");
+		} else {
+			M0_ASSERT(del_data.flags == M0_BSC_SUCCESS);
 		}
+
 
 
 	}
 	printf("\n After deletion:\n");
 	ut_traversal(tree->t_desc);
-	m0_btree_close(tree);
+	//m0_btree_close(tree);
 	/**
 	 * Commenting this code as the delete operation is not done here.
 	 * Due to this, the destroy operation will crash.
@@ -7338,6 +7353,7 @@ static void ut_put_del_operation(void)
 	btree_ut_fini();
 }
 #endif
+
 struct m0_ut_suite btree_ut = {
 	.ts_name = "btree-ut",
 	.ts_yaml_config_string = "{ valgrind: { timeout: 3600 },"
