@@ -482,6 +482,8 @@ start_again:
 		M0_ASSERT(ext->e_start <= stob_vi[i]);
 		M0_ASSERT(ext->e_end   >= stob_vi[i] + stob_vc[i]);
 		M0_ASSERT(it.ec_seg.ee_val == AET_HOLE);
+		M0_ASSERT(it.ec_seg.ee_di_cksum.b_addr == NULL);
+		M0_ASSERT(it.ec_seg.ee_di_cksum.b_nob == 0);
 		m0_be_emap_close(&it);
 	}
 }
@@ -557,7 +559,6 @@ static void punch_test(void)
 		test_read(i);
 		for (j = 0; j < i; ++j) {			
 			M0_ASSERT(memcmp(zero_buf[j], read_buf[j], buf_size) == 0);
-			M0_ASSERT(memcmp(read_cksm_buf[j], zero_buf[j], AD_CS_SZ) == 0);
 		}
 			
 	}
