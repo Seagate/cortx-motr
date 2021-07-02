@@ -3480,12 +3480,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 						    &bop->bo_rec.r_key);
 			lev->l_idx = node_slot.s_idx;
 			if (node_level(node_slot.s_node) > 0) {
-				if (oi->i_used == oi->i_height - 1) {
-					/* If height of tree increased. */
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP, P_SETUP);
-				}
-
 				if (oi->i_key_found) {
 					lev->l_idx++;
 					node_slot.s_idx++;
@@ -3496,6 +3490,12 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
+				if (oi->i_used >= oi->i_height) {
+					/* If height of tree increased. */
+					oi->i_used = oi->i_height - 1;
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
 				return node_get(&oi->i_nop, tree,
 						&child_node_addr, lock_acquired,
 						P_NEXTDOWN);
@@ -4170,12 +4170,6 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			lev->l_idx = node_slot.s_idx;
 
 			if (node_level(node_slot.s_node) > 0) {
-				if (oi->i_used == oi->i_height - 1) {
-					/* If height of tree increased. */
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP, P_SETUP);
-				}
-
 				if (oi->i_key_found) {
 					node_slot.s_idx++;
 					lev->l_idx++;
@@ -4186,6 +4180,12 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
+				if (oi->i_used >= oi->i_height) {
+					/* If height of tree increased. */
+					oi->i_used = oi->i_height - 1;
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
 				return node_get(&oi->i_nop, tree, &child,
 						lock_acquired, P_NEXTDOWN);
 			} else
@@ -4353,12 +4353,6 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			lev->l_idx = s.s_idx;
 
 			if (node_level(s.s_node) > 0) {
-				if (oi->i_used == oi->i_height - 1) {
-					/* If height of tree increased. */
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP, P_SETUP);
-				}
-
 				if (oi->i_key_found) {
 					s.s_idx++;
 					lev->l_idx++;
@@ -4383,6 +4377,12 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
+				if (oi->i_used >= oi->i_height) {
+					/* If height of tree increased. */
+					oi->i_used = oi->i_height - 1;
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
 				return node_get(&oi->i_nop, tree, &child,
 						lock_acquired, P_NEXTDOWN);
 			} else	{
@@ -4478,11 +4478,6 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 						    P_SETUP);
 
 			if (node_level(s.s_node) > 0) {
-				if (oi->i_pivot == oi->i_height - 1) {
-					/* If height of tree increased. */
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP, P_SETUP);
-				}
 				s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
 					  node_count(s.s_node);
 				node_child(&s, &child);
@@ -4491,6 +4486,11 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_pivot++;
+				if (oi->i_pivot >= oi->i_height) {
+					/* If height of tree increased. */
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
 				return node_get(&oi->i_nop, tree, &child,
 						lock_acquired, P_SIBLING);
 			} else
@@ -4858,12 +4858,6 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			lev->l_idx = node_slot.s_idx;
 
 			if (node_level(node_slot.s_node) > 0) {
-				if (oi->i_used == oi->i_height - 1) {
-					/* If height of tree increased. */
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP, P_SETUP);
-				}
-
 				if (oi->i_key_found) {
 					lev->l_idx++;
 					node_slot.s_idx++;
@@ -4875,6 +4869,12 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
+				if (oi->i_used >= oi->i_height) {
+					/* If height of tree increased. */
+					oi->i_used = oi->i_height - 1;
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
 				return node_get(&oi->i_nop, tree,
 						&child_node_addr, lock_acquired,
 						P_NEXTDOWN);
