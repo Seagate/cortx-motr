@@ -865,47 +865,47 @@ struct node_type {
 			int vsize, uint32_t ntype, struct m0_be_tx *tx);
 
 	/** Cleanup of the node if any before deallocation */
-	void (*nt_fini)(const struct nd *node);
+	void (*nt_fini)(const struct segaddr *addr);
 
 	/** Returns count of keys in the node */
-	int  (*nt_count)(const struct nd *node);
+	int  (*nt_count)(const struct segaddr *addr);
 
 	/** Returns count of records/values in the node*/
-	int  (*nt_count_rec)(const struct nd *node);
+	int  (*nt_count_rec)(const struct segaddr *addr);
 
 	/** Returns the space (in bytes) available in the node */
-	int  (*nt_space)(const struct nd *node);
+	int  (*nt_space)(const struct segaddr *addr);
 
 	/** Returns level of this node in the btree */
-	int  (*nt_level)(const struct nd *node);
+	int  (*nt_level)(const struct segaddr *addr);
 
 	/** Returns size of the node (as a shift value) */
-	int  (*nt_shift)(const struct nd *node);
+	int  (*nt_shift)(const struct segaddr *addr);
 
 	/**
 	 * Returns size of the key of node. In case of variable key size return
 	 * -1.
 	 */
-	int  (*nt_keysize)(const struct nd *node);
+	int  (*nt_keysize)(const struct segaddr *addr);
 
 	/**
 	 * Returns size of the value of node. In case variable value size
 	 * return -1.
 	 */
-	int  (*nt_valsize)(const struct nd *node);
+	int  (*nt_valsize)(const struct segaddr *addr);
 
 	/**
 	 * If predict is set as true, function determines if there is
 	 * possibility of underflow else it determines if there is an underflow
 	 * at node.
 	 */
-	bool  (*nt_isunderflow)(const struct nd *node, bool predict);
+	bool  (*nt_isunderflow)(const struct segaddr *addr, bool predict);
 
 	/** Returns true if there is possibility of overflow. */
-	bool  (*nt_isoverflow)(const struct nd *node);
+	bool  (*nt_isoverflow)(const struct segaddr *addr);
 
 	/** Returns unique FID for this node */
-	void (*nt_fid)  (const struct nd *node, struct m0_fid *fid);
+	void (*nt_fid)  (const struct segaddr *addr, struct m0_fid *fid);
 
 	/** Returns record (KV pair) for specific index. */
 	void (*nt_rec)  (struct slot *slot);
@@ -938,20 +938,21 @@ struct node_type {
 	 *  All the changes to the node have completed. Any post processing can
 	 *  be done here.
 	 */
-	void (*nt_fix)  (const struct nd *node, struct m0_be_tx *tx);
+	void (*nt_fix)  (const struct segaddr *addr, struct m0_be_tx *tx);
 
 	/**
 	 *  Changes the size of the value (increase or decrease) for the
 	 *  specified key
 	 */
-	void (*nt_cut)  (const struct nd *node, int idx, int size,
+	void (*nt_cut)  (const struct segaddr *addr, int idx, int size,
 			 struct m0_be_tx *tx);
 
 	/** Deletes the record from the node at specific index */
-	void (*nt_del)  (const struct nd *node, int idx, struct m0_be_tx *tx);
+	void (*nt_del)  (const struct segaddr *addr, int idx, 
+			 struct m0_be_tx *tx);
 
 	/** Updates the level of node */
-	void (*nt_set_level)  (const struct nd *node, uint8_t new_level,
+	void (*nt_set_level)  (const struct segaddr *addr, uint8_t new_level,
 			       struct m0_be_tx *tx);
 
 	/** Moves record(s) between nodes */
@@ -959,13 +960,13 @@ struct node_type {
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 
 	/** Validates node composition */
-	bool (*nt_invariant)(const struct nd *node);
+	bool (*nt_invariant)(const struct segaddr *addr, bool check);
 
 	/** 'Does a thorough validation */
-	bool (*nt_verify)(const struct nd *node);
+	bool (*nt_verify)(const struct segaddr *addr);
 
 	/** Does minimal (or basic) validation */
-	bool (*nt_isvalid)(const struct nd *node);
+	bool (*nt_isvalid)(const struct segaddr *addr);
 	/** Saves opaque data. */
 	void (*nt_opaque_set)(const struct segaddr *addr, void *opaque);
 
@@ -1124,18 +1125,27 @@ static void node_op_fini(struct node_op *op);
 #ifndef __KERNEL__
 static void node_init(struct segaddr *addr, int ksize, int vsize,
 		      const struct node_type *nt, struct m0_be_tx *tx);
-static bool node_verify(const struct nd *node);
+static bool node_verify(struct segaddr *addr, const struct node_type *nt);
 #endif
-static int  node_count(const struct nd *node);
-static int  node_count_rec(const struct nd *node);
-static int  node_space(const struct nd *node);
+static int  node_count(struct segaddr *addr, const struct node_type *nt,
+		       bool check);
+static int  node_count_rec(struct segaddr *addr, const struct node_type *nt,
+			   bool check);
+static int  node_space(struct segaddr *addr, const struct node_type *nt,
+		       bool check);
 #ifndef __KERNEL__
-static int  node_level(const struct nd *node);
-static int  node_shift(const struct nd *node);
-static int  node_keysize(const struct nd *node);
-static int  node_valsize(const struct nd *node);
-static bool  node_isunderflow(const struct nd *node, bool predict);
-static bool  node_isoverflow(const struct nd *node);
+static int  node_level(struct segaddr *addr, const struct node_type *nt,
+		       bool check);
+static int  node_shift(struct segaddr *addr, const struct node_type *nt,
+		       bool check);
+static int  node_keysize(struct segaddr *addr, const struct node_type *nt,
+			 bool check);
+static int  node_valsize(struct segaddr *addr, const struct node_type *nt,
+			 bool check);
+static bool node_isunderflow(struct segaddr *addr, const struct node_type *nt,
+			     bool predict, bool check);
+static bool node_isoverflow(struct segaddr *addr, const struct node_type *nt,
+			    bool check);
 #endif
 #if 0
 static void node_fid  (const struct nd *node, struct m0_fid *fid);
@@ -1154,16 +1164,19 @@ static void node_make (struct slot *slot, struct m0_be_tx *tx);
 static bool node_find (struct slot *slot, const struct m0_btree_key *key);
 #endif
 static void node_seq_cnt_update (struct nd *node);
-static void node_fix  (const struct nd *node, struct m0_be_tx *tx);
+static void node_fix  (struct segaddr *addr, const struct node_type *nt,
+		       bool check, struct m0_be_tx *tx);
 #if 0
 static void node_cut  (const struct nd *node, int idx, int size,
 		       struct m0_be_tx *tx);
 #endif
-static void node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
+static void node_del  (struct segaddr *addr, const struct node_type *nt,
+		       int idx, bool check, struct m0_be_tx *tx);
 static void node_refcnt_update(struct nd *node, bool increment);
 
 #ifndef __KERNEL__
-static void node_set_level  (const struct nd *node, uint8_t new_level,
+static void node_set_level  (struct segaddr *addr, const struct node_type *nt,
+			     bool check, uint8_t new_level,
 			     struct m0_be_tx *tx);
 static void node_move (struct nd *src, struct nd *tgt,
 		       enum dir dir, int nr, struct m0_be_tx *tx);
@@ -1282,61 +1295,69 @@ static void node_init(struct segaddr *addr, int ksize, int vsize,
 	nt->nt_init(addr, segaddr_shift(addr), ksize, vsize, nt->nt_id, tx);
 }
 
-static bool node_invariant(const struct nd *node)
+static bool node_invariant(struct segaddr *addr, const struct node_type *nt,
+			   bool check)
 {
-	return node->n_type->nt_invariant(node);
+	return nt->nt_invariant(addr, check);
 }
 #ifndef __KERNEL__
-static bool node_verify(const struct nd *node)
+static bool node_verify(struct segaddr *addr, const struct node_type *nt)
 {
-	return node->n_type->nt_verify(node);
+	return nt->nt_verify(addr);
 }
 
-static bool node_isvalid(const struct nd *node)
+static bool node_isvalid(struct segaddr *addr, const struct node_type *nt)
 {
-	return node->n_type->nt_isvalid(node);
+	return nt->nt_isvalid(addr);
 }
 
 #endif
-static int node_count(const struct nd *node)
+static int node_count(struct segaddr *addr, const struct node_type *nt,
+		      bool check)
 {
-	M0_PRE(node_invariant(node));
-	return node->n_type->nt_count(node);
+	M0_PRE(node_invariant(addr, nt, check));
+	return nt->nt_count(addr);
 }
 
-static int node_count_rec(const struct nd *node)
+static int node_count_rec(struct segaddr *addr, const struct node_type *nt,
+			  bool check)
 {
-	M0_PRE(node_invariant(node));
-	return node->n_type->nt_count_rec(node);
+	M0_PRE(node_invariant(addr, nt, check));
+	return nt->nt_count_rec(addr);
 }
-static int node_space(const struct nd *node)
+static int node_space(struct segaddr *addr, const struct node_type *nt,
+		      bool check)
 {
-	M0_PRE(node_invariant(node));
-	return node->n_type->nt_space(node);
+	M0_PRE(node_invariant(addr, nt, check));
+	return nt->nt_space(addr);
 }
 
 #ifndef __KERNEL__
-static int node_level(const struct nd *node)
+static int node_level(struct segaddr *addr, const struct node_type *nt,
+		      bool check)
 {
-	M0_PRE(node_invariant(node));
-	return (node->n_type->nt_level(node));
+	M0_PRE(node_invariant(addr, nt, check));
+	return (nt->nt_level(addr));
 }
 
-static int node_shift(const struct nd *node)
+static int node_shift(struct segaddr *addr, const struct node_type *nt,
+		      bool check)
 {
-	M0_PRE(node_invariant(node));
-	return (node->n_type->nt_shift(node));
+	M0_PRE(node_invariant(addr, nt, check));
+	return (nt->nt_shift(addr));
 }
-static int node_keysize(const struct nd *node)
+static int node_keysize(struct segaddr *addr, const struct node_type *nt,
+			bool check)
 {
-	M0_PRE(node_invariant(node));
-	return (node->n_type->nt_keysize(node));
+	M0_PRE(node_invariant(addr, nt, check));
+	return (nt->nt_keysize(addr));
 }
 
-static int node_valsize(const struct nd *node)
+static int node_valsize(struct segaddr *addr, const struct node_type *nt,
+			bool check)
 {
-	M0_PRE(node_invariant(node));
-	return (node->n_type->nt_valsize(node));
+	M0_PRE(node_invariant(addr, nt, check));
+	return (nt->nt_valsize(addr));
 }
 
 /**
@@ -1347,68 +1368,84 @@ static int node_valsize(const struct nd *node)
  * If predict is 'false' the function returns the node's current underflow
  * state.
  */
-static bool  node_isunderflow(const struct nd *node, bool predict)
+static bool  node_isunderflow(struct segaddr *addr, const struct node_type *nt,
+			      bool predict, bool check)
 {
-	M0_PRE(node_invariant(node));
-	return node->n_type->nt_isunderflow(node, predict);
+	M0_PRE(node_invariant(addr, nt, check));
+	return nt->nt_isunderflow(addr, predict);
 }
 
-static bool  node_isoverflow(const struct nd *node)
+static bool  node_isoverflow(struct segaddr *addr, const struct node_type *nt,
+			     bool check)
 {
-	M0_PRE(node_invariant(node));
-	return node->n_type->nt_isoverflow(node);
+	M0_PRE(node_invariant(addr, nt, check));
+	return nt->nt_isoverflow(addr);
 }
 #endif
 #if 0
 static void node_fid(const struct nd *node, struct m0_fid *fid)
 {
-	M0_PRE(node_invariant(node));
+	M0_PRE(node_invariant(addr, nt, check));
 	node->n_type->nt_fid(node, fid);
 }
 #endif
 
 static void node_rec(struct slot *slot)
 {
-	M0_PRE(node_invariant(slot->s_node));
+	struct segaddr *temp_addr = (struct segaddr *)&slot->s_node->n_addr;
+	M0_PRE(node_invariant(temp_addr, slot->s_node->n_type,
+			      slot->s_node->n_skip_rec_count_check));
 	slot->s_node->n_type->nt_rec(slot);
 }
 
 #ifndef __KERNEL__
 static void node_key(struct slot *slot)
 {
-	M0_PRE(node_invariant(slot->s_node));
+	struct segaddr *temp_addr = (struct segaddr *)&slot->s_node->n_addr;
+	M0_PRE(node_invariant(temp_addr, slot->s_node->n_type,
+			      slot->s_node->n_skip_rec_count_check));
 	slot->s_node->n_type->nt_key(slot);
 }
 
 static void node_child(struct slot *slot, struct segaddr *addr)
 {
-	M0_PRE(node_invariant(slot->s_node));
+	struct segaddr *temp_addr = (struct segaddr *)&slot->s_node->n_addr;
+	M0_PRE(node_invariant(temp_addr, slot->s_node->n_type,
+			      slot->s_node->n_skip_rec_count_check));
 	slot->s_node->n_type->nt_child(slot, addr);
 }
 #endif
 
 static bool node_isfit(struct slot *slot)
 {
-	M0_PRE(node_invariant(slot->s_node));
+	struct segaddr *temp_addr = (struct segaddr *)&slot->s_node->n_addr;
+	M0_PRE(node_invariant(temp_addr, slot->s_node->n_type,
+			      slot->s_node->n_skip_rec_count_check));
 	return slot->s_node->n_type->nt_isfit(slot);
 }
 
 static void node_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
 {
-	M0_PRE(node_invariant(slot->s_node));
+	struct segaddr *temp_addr = (struct segaddr *)&slot->s_node->n_addr;
+	M0_PRE(node_invariant(temp_addr, slot->s_node->n_type,
+			      slot->s_node->n_skip_rec_count_check));
 	slot->s_node->n_type->nt_done(slot, tx, modified);
 }
 
 static void node_make(struct slot *slot, struct m0_be_tx *tx)
 {
-	M0_PRE(node_invariant(slot->s_node));
+	struct segaddr *temp_addr = (struct segaddr *)&slot->s_node->n_addr;
+	M0_PRE(node_invariant(temp_addr, slot->s_node->n_type,
+			      slot->s_node->n_skip_rec_count_check));
 	slot->s_node->n_type->nt_make(slot, tx);
 }
 
 #ifndef __KERNEL__
 static bool node_find(struct slot *slot, const struct m0_btree_key *key)
 {
-	M0_PRE(node_invariant(slot->s_node));
+	struct segaddr *temp_addr = (struct segaddr *)&slot->s_node->n_addr;
+	M0_PRE(node_invariant(temp_addr, slot->s_node->n_type,
+			      slot->s_node->n_skip_rec_count_check));
 	return slot->s_node->n_type->nt_find(slot, key);
 }
 #endif
@@ -1419,14 +1456,16 @@ static bool node_find(struct slot *slot, const struct m0_btree_key *key)
  */
 static void node_seq_cnt_update(struct nd *node)
 {
-	M0_PRE(node_invariant(node));
+	M0_PRE(node_invariant(&node->n_addr, node->n_type,
+			      node->n_skip_rec_count_check));
 	node->n_seq++;
 }
 
-static void node_fix(const struct nd *node, struct m0_be_tx *tx)
+static void node_fix(struct segaddr *addr, const struct node_type *nt, 
+		     bool check, struct m0_be_tx *tx)
 {
-	M0_PRE(node_invariant(node));
-	node->n_type->nt_fix(node, tx);
+	M0_PRE(node_invariant(addr, nt, check));
+	nt->nt_fix(addr, tx);
 }
 
 #if 0
@@ -1438,10 +1477,11 @@ static void node_cut(const struct nd *node, int idx, int size,
 }
 #endif
 
-static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
+static void node_del(struct segaddr *addr, const struct node_type *nt, int idx,
+		     bool check, struct m0_be_tx *tx)
 {
-	M0_PRE(node_invariant(node));
-	node->n_type->nt_del(node, idx, tx);
+	M0_PRE(node_invariant(addr, nt, check));
+	nt->nt_del(addr, idx, tx);
 }
 
 /**
@@ -1458,18 +1498,20 @@ static void node_refcnt_update(struct nd *node, bool increment)
 }
 
 #ifndef __KERNEL__
-static void node_set_level(const struct nd *node, uint8_t new_level,
-			   struct m0_be_tx *tx)
+static void node_set_level(struct segaddr *addr, const struct node_type *nt,
+			   bool check, uint8_t new_level, struct m0_be_tx *tx)
 {
-	M0_PRE(node_invariant(node));
-	node->n_type->nt_set_level(node, new_level, tx);
+	M0_PRE(node_invariant(addr, nt, check));
+	nt->nt_set_level(addr, new_level, tx);
 }
 
 static void node_move(struct nd *src, struct nd *tgt,
 		      enum dir dir, int nr, struct m0_be_tx *tx)
 {
-	M0_PRE(node_invariant(src));
-	M0_PRE(node_invariant(tgt));
+	M0_PRE(node_invariant(&src->n_addr, src->n_type,
+			      src->n_skip_rec_count_check));
+	M0_PRE(node_invariant(&tgt->n_addr, tgt->n_type,
+			      tgt->n_skip_rec_count_check));
 	M0_IN(dir,(D_LEFT, D_RIGHT));
 	tgt->n_type->nt_move(src, tgt, dir, nr, tx);
 }
@@ -1913,7 +1955,7 @@ static void node_put(struct node_op *op, struct nd *node, bool lock_acquired,
 		     struct m0_be_tx *tx)
 {
 	M0_PRE(node != NULL);
-	int        shift = node->n_type->nt_shift(node);
+	int        shift = node->n_type->nt_shift(&node->n_addr);
 	segops->so_node_put(node, lock_acquired);
 
 	if (node->n_delayed_free && node->n_ref == 0) {
@@ -1968,13 +2010,13 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 static int64_t node_free(struct node_op *op, struct nd *node,
 			 struct m0_be_tx *tx, int nxt)
 {
-	int shift = node->n_type->nt_shift(node);
+	int shift = node->n_type->nt_shift(&node->n_addr);
 
 	m0_rwlock_write_lock(&node->n_lock);
 	node_refcnt_update(node, false);
 	node->n_delayed_free = true;
 	m0_rwlock_write_unlock(&node->n_lock);
-	node->n_type->nt_fini(node);
+	node->n_type->nt_fini(&node->n_addr);
 
 	if (node->n_ref == 0) {
 		ndlist_tlink_del_fini(node);
@@ -2279,17 +2321,17 @@ enum m0_be_bnode_format_version {
 
 static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 		    uint32_t ntype, struct m0_be_tx *tx);
-static void ff_fini(const struct nd *node);
-static int  ff_count(const struct nd *node);
-static int  ff_count_rec(const struct nd *node);
-static int  ff_space(const struct nd *node);
-static int  ff_level(const struct nd *node);
-static int  ff_shift(const struct nd *node);
-static int  ff_valsize(const struct nd *node);
-static int  ff_keysize(const struct nd *node);
-static bool ff_isunderflow(const struct nd *node, bool predict);
-static bool ff_isoverflow(const struct nd *node);
-static void ff_fid(const struct nd *node, struct m0_fid *fid);
+static void ff_fini(const struct segaddr *addr);
+static int  ff_count(const struct segaddr *addr);
+static int  ff_count_rec(const struct segaddr *addr);
+static int  ff_space(const struct segaddr *addr);
+static int  ff_level(const struct segaddr *addr);
+static int  ff_shift(const struct segaddr *addr);
+static int  ff_valsize(const struct segaddr *addr);
+static int  ff_keysize(const struct segaddr *addr);
+static bool ff_isunderflow(const struct segaddr *addr, bool predict);
+static bool ff_isoverflow(const struct segaddr *addr);
+static void ff_fid(const struct segaddr *addr, struct m0_fid *fid);
 static void ff_rec(struct slot *slot);
 static void ff_node_key(struct slot *slot);
 static void ff_child(struct slot *slot, struct segaddr *addr);
@@ -2297,17 +2339,17 @@ static bool ff_isfit(struct slot *slot);
 static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified);
 static void ff_make(struct slot *slot, struct m0_be_tx *tx);
 static bool ff_find(struct slot *slot, const struct m0_btree_key *key);
-static void ff_fix(const struct nd *node, struct m0_be_tx *tx);
-static void ff_cut(const struct nd *node, int idx, int size,
+static void ff_fix(const struct segaddr *addr, struct m0_be_tx *tx);
+static void ff_cut(const struct segaddr *addr, int idx, int size,
 		   struct m0_be_tx *tx);
-static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx);
-static void ff_set_level(const struct nd *node, uint8_t new_level,
+static void ff_del(const struct segaddr *addr, int idx, struct m0_be_tx *tx);
+static void ff_set_level(const struct segaddr *addr, uint8_t new_level,
 			 struct m0_be_tx *tx);
 static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
-static bool ff_invariant(const struct nd *node);
-static bool ff_verify(const struct nd *node);
-static bool ff_isvalid(const struct nd *node);
+static bool ff_invariant(const struct segaddr *addr, bool check);
+static bool ff_verify(const struct segaddr *addr);
+static bool ff_isvalid(const struct segaddr *addr);
 static void ff_opaque_set(const struct segaddr *addr, void *opaque);
 static void *ff_opaque_get(const struct segaddr *addr);
 uint32_t ff_ntype_get(const struct segaddr *addr);
@@ -2404,9 +2446,9 @@ static struct ff_head *ff_data(const struct nd *node)
 	return segaddr_addr(&node->n_addr);
 }
 
-static void *ff_key(const struct nd *node, int idx)
+static void *ff_key(const struct segaddr *addr, int idx)
 {
-	struct ff_head *h    = ff_data(node);
+	struct ff_head *h   = segaddr_addr(addr);
 	void           *area = h + 1;
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
@@ -2414,9 +2456,9 @@ static void *ff_key(const struct nd *node, int idx)
 	return area + (h->ff_ksize + h->ff_vsize) * idx;
 }
 
-static void *ff_val(const struct nd *node, int idx)
+static void *ff_val(const struct segaddr *addr, int idx)
 {
-	struct ff_head *h    = ff_data(node);
+	struct ff_head *h   = segaddr_addr(addr);
 	void           *area = h + 1;
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
@@ -2437,25 +2479,25 @@ static bool ff_rec_is_valid(const struct slot *slot)
 	   _0C(val_is_valid);
 }
 
-static bool ff_invariant(const struct nd *node)
+static bool ff_invariant(const struct segaddr *addr, bool check)
 {
-	const struct ff_head *h = ff_data(node);
+	const struct ff_head *h  = segaddr_addr(addr);
 
-	return  _0C(h->ff_shift == segaddr_shift(&node->n_addr)) &&
-		_0C(node->n_skip_rec_count_check ||
+	return  _0C(h->ff_shift == segaddr_shift(addr)) &&
+		_0C(check ||
 		    ergo(h->ff_level > 0, h->ff_used > 0));
 }
 
-static bool ff_verify(const struct nd *node)
+static bool ff_verify(const struct segaddr *addr)
 {
-	const struct ff_head *h = ff_data(node);
+	const struct ff_head *h   = segaddr_addr(addr);
 
 	return m0_format_footer_verify(h, true) == 0;
 }
 
-static bool ff_isvalid(const struct nd *node)
+static bool ff_isvalid(const struct segaddr *addr)
 {
-	const struct ff_head *h   = ff_data(node);
+	const struct ff_head *h   = segaddr_addr(addr);
 	struct m0_format_tag  tag;
 
 	m0_format_header_unpack(&tag, &h->ff_fmt);
@@ -2495,9 +2537,9 @@ static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 	 */
 }
 
-static void ff_fini(const struct nd *node)
+static void ff_fini(const struct segaddr *addr)
 {
-	struct ff_head *h = ff_data(node);
+	struct ff_head *h   = segaddr_addr(addr);;
 
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
 		.ot_version       = 0,
@@ -2506,61 +2548,68 @@ static void ff_fini(const struct nd *node)
 	});
 }
 
-static int ff_count(const struct nd *node)
+static int ff_count(const struct segaddr *addr)
 {
-	int used = ff_data(node)->ff_used;
-	if (ff_data(node)->ff_level > 0)
+	struct ff_head *h   = segaddr_addr(addr);
+	int used = h->ff_used;
+	if (h->ff_level > 0)
 		used --;
 	return used;
 }
 
-static int ff_count_rec(const struct nd *node)
+static int ff_count_rec(const struct segaddr *addr)
 {
-	return ff_data(node)->ff_used;
+	struct ff_head *h   = segaddr_addr(addr);
+	return h->ff_used;
 }
 
-static int ff_space(const struct nd *node)
+static int ff_space(const struct segaddr *addr)
 {
-	struct ff_head *h = ff_data(node);
+	struct ff_head *h   = segaddr_addr(addr);
 	return (1ULL << h->ff_shift) - sizeof *h -
 		(h->ff_ksize + h->ff_vsize) * h->ff_used;
 }
 
-static int ff_level(const struct nd *node)
+static int ff_level(const struct segaddr *addr)
 {
-	return ff_data(node)->ff_level;
+	struct ff_head *h   = segaddr_addr(addr);
+	return h->ff_level;
 }
 
-static int ff_shift(const struct nd *node)
+static int ff_shift(const struct segaddr *addr)
 {
-	return ff_data(node)->ff_shift;
+	struct ff_head *h   = segaddr_addr(addr);
+	return h->ff_shift;
 }
 
-static int ff_keysize(const struct nd *node)
+static int ff_keysize(const struct segaddr *addr)
 {
-	return ff_data(node)->ff_ksize;
+	struct ff_head *h   = segaddr_addr(addr);
+	return h->ff_ksize;
 }
 
-static int ff_valsize(const struct nd *node)
+static int ff_valsize(const struct segaddr *addr)
 {
-	return ff_data(node)->ff_vsize;
+	struct ff_head *h   = segaddr_addr(addr);
+	return h->ff_vsize;
 }
 
-static bool ff_isunderflow(const struct nd *node, bool predict)
+static bool ff_isunderflow(const struct segaddr *addr, bool predict)
 {
-	int16_t rec_count = ff_data(node)->ff_used;
+	struct ff_head *h   = segaddr_addr(addr);
+	int16_t rec_count = h->ff_used;
 	if (predict && rec_count != 0)
 		rec_count--;
 	return  rec_count == 0;
 }
 
-static bool ff_isoverflow(const struct nd *node)
+static bool ff_isoverflow(const struct segaddr *addr)
 {
-	struct ff_head *h = ff_data(node);
-	return (ff_space(node) < h->ff_ksize + h->ff_vsize) ? true : false;
+	struct ff_head *h   = segaddr_addr(addr);
+	return (ff_space(addr) < h->ff_ksize + h->ff_vsize) ? true : false;
 }
 
-static void ff_fid(const struct nd *node, struct m0_fid *fid)
+static void ff_fid(const struct segaddr *addr, struct m0_fid *fid)
 {
 }
 
@@ -2575,7 +2624,8 @@ static void ff_rec(struct slot *slot)
 
 	slot->s_rec.r_val.ov_vec.v_nr = 1;
 	slot->s_rec.r_val.ov_vec.v_count[0] = h->ff_vsize;
-	slot->s_rec.r_val.ov_buf[0] = ff_val(slot->s_node, slot->s_idx);
+	slot->s_rec.r_val.ov_buf[0] = ff_val(&slot->s_node->n_addr,
+					     slot->s_idx);
 	ff_node_key(slot);
 	M0_POST(ff_rec_is_valid(slot));
 }
@@ -2590,7 +2640,8 @@ static void ff_node_key(struct slot *slot)
 
 	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
 	slot->s_rec.r_key.k_data.ov_vec.v_count[0] = h->ff_ksize;
-	slot->s_rec.r_key.k_data.ov_buf[0] = ff_key(slot->s_node, slot->s_idx);
+	slot->s_rec.r_key.k_data.ov_buf[0] = ff_key(&slot->s_node->n_addr,
+						    slot->s_idx);
 }
 
 static void ff_child(struct slot *slot, struct segaddr *addr)
@@ -2599,7 +2650,7 @@ static void ff_child(struct slot *slot, struct segaddr *addr)
 	struct ff_head  *h    = ff_data(node);
 
 	M0_PRE(slot->s_idx < h->ff_used);
-	*addr = *(struct segaddr *)ff_val(node, slot->s_idx);
+	*addr = *(struct segaddr *)ff_val(&node->n_addr, slot->s_idx);
 }
 
 static bool ff_isfit(struct slot *slot)
@@ -2607,7 +2658,7 @@ static bool ff_isfit(struct slot *slot)
 	struct ff_head *h = ff_data(slot->s_node);
 
 	M0_PRE(ff_rec_is_valid(slot));
-	return h->ff_ksize + h->ff_vsize <= ff_space(slot->s_node);
+	return h->ff_ksize + h->ff_vsize <= ff_space(&slot->s_node->n_addr);
 }
 
 static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
@@ -2623,7 +2674,7 @@ static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 	const struct nd *node  = slot->s_node;
 	struct ff_head  *h     = ff_data(node);
 	int              rsize = h->ff_ksize + h->ff_vsize;
-	void            *start = ff_key(node, slot->s_idx);
+	void            *start = ff_key(&node->n_addr, slot->s_idx);
 
 	M0_PRE(ff_rec_is_valid(slot));
 	M0_PRE(ff_isfit(slot));
@@ -2642,9 +2693,14 @@ static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 
 static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
 {
-	struct ff_head          *h     = ff_data(slot->s_node);
-	int                      i     = -1;
-	int                      j     = node_count(slot->s_node);
+	struct ff_head          *h         = ff_data(slot->s_node);
+	int                      i         = -1;
+	struct segaddr          *temp_addr = (struct segaddr *)
+					     &slot->s_node->n_addr;
+	int                      j         = node_count(temp_addr,
+							slot->s_node->n_type,
+							slot->s_node->
+							n_skip_rec_count_check);
 	struct m0_btree_key      key;
 	void                    *p_key;
 	m0_bcount_t              ksize = h->ff_ksize;
@@ -2661,7 +2717,7 @@ static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
 	while (i + 1 < j) {
 		m = (i + j) / 2;
 
-		key.k_data.ov_buf[0] = ff_key(slot->s_node, m);
+		key.k_data.ov_buf[0] = ff_key(&slot->s_node->n_addr, m);
 
 		m0_bufvec_cursor_init(&cur_1, &key.k_data);
 		m0_bufvec_cursor_init(&cur_2, &find_key->k_data);
@@ -2683,23 +2739,24 @@ static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
 	return (i == j);
 }
 
-static void ff_fix(const struct nd *node, struct m0_be_tx *tx)
+static void ff_fix(const struct segaddr *addr, struct m0_be_tx *tx)
 {
-	struct ff_head *h = ff_data(node);
+	struct ff_head *h = segaddr_addr(addr);
 	m0_format_footer_update(h);
 }
 
-static void ff_cut(const struct nd *node, int idx, int size,
+static void ff_cut(const struct segaddr *addr, int idx, int size,
 		   struct m0_be_tx *tx)
 {
-	M0_PRE(size == ff_data(node)->ff_vsize);
+	struct ff_head *h = segaddr_addr(addr);
+	M0_PRE(size == h->ff_vsize);
 }
 
-static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
+static void ff_del(const struct segaddr *addr, int idx, struct m0_be_tx *tx)
 {
-	struct ff_head *h     = ff_data(node);
+	struct ff_head *h     = segaddr_addr(addr);
 	int             rsize = h->ff_ksize + h->ff_vsize;
-	void           *start = ff_key(node, idx);
+	void           *start = ff_key(addr, idx);
 
 	M0_PRE(idx < h->ff_used);
 	M0_PRE(h->ff_used > 0);
@@ -2716,10 +2773,10 @@ static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	 */
 }
 
-static void ff_set_level(const struct nd *node, uint8_t new_level,
+static void ff_set_level(const struct segaddr *addr, uint8_t new_level,
 			 struct m0_be_tx *tx)
 {
-	struct ff_head *h = ff_data(node);
+	struct ff_head *h  = segaddr_addr(addr);
 
 	h->ff_level = new_level;
 	/**
@@ -2766,17 +2823,24 @@ static void generic_move(struct nd *src, struct nd *tgt,
 
 	M0_PRE(src != tgt);
 
-	last_idx_src = node_count_rec(src);
-	last_idx_tgt = node_count_rec(tgt);
+	last_idx_src = node_count_rec(&src->n_addr, src->n_type,
+				      src->n_skip_rec_count_check);
+	last_idx_tgt = node_count_rec(&tgt->n_addr, tgt->n_type,
+				      tgt->n_skip_rec_count_check);
 
 	srcidx = dir == D_LEFT ? 0 : last_idx_src - 1;
 	tgtidx = dir == D_LEFT ? last_idx_tgt : 0;
 
 	while (true) {
 		if (nr == 0 || (nr == NR_EVEN &&
-			       (node_space(tgt) <= node_space(src))) ||
+			       (node_space(&tgt->n_addr, tgt->n_type,
+					   tgt->n_skip_rec_count_check) <=
+				node_space(&src->n_addr, src->n_type,
+					   src->n_skip_rec_count_check))) ||
 			       (nr == NR_MAX && (srcidx == -1 ||
-			       node_count_rec(src) == 0)))
+			        node_count_rec(&src->n_addr, src->n_type,
+					       src->n_skip_rec_count_check)
+					       == 0)))
 			break;
 
 		/** Get the record at src index in rec. */
@@ -2808,7 +2872,8 @@ static void generic_move(struct nd *src, struct nd *tgt,
 			       m0_vec_count(&rec.s_rec.r_key.k_data.ov_vec));
 		m0_bufvec_copy(&tmp.s_rec.r_val, &rec.s_rec.r_val,
 			       m0_vec_count(&rec.s_rec.r_val.ov_vec));
-		node_del(src, srcidx, tx);
+		node_del(&src->n_addr, src->n_type, srcidx,
+			 src->n_skip_rec_count_check, tx);
 		if (nr > 0)
 			nr--;
 		node_done(&tmp, tx, true);
@@ -2818,9 +2883,9 @@ static void generic_move(struct nd *src, struct nd *tgt,
 			srcidx--;
 	}
 	node_seq_cnt_update(src);
-	node_fix(src, tx);
+	node_fix(&src->n_addr, src->n_type, src->n_skip_rec_count_check, tx);
 	node_seq_cnt_update(tgt);
-	node_fix(tgt, tx);
+	node_fix(&tgt->n_addr, tgt->n_type, tgt->n_skip_rec_count_check, tx);
 
 	/**
 	 * ToDo: We need to capture the changes occuring in the "src" node
@@ -2885,7 +2950,7 @@ static bool path_check(struct m0_btree_oimpl *oi, struct td *tree,
 
 	while (total_level >= 0) {
 		l_node = oi->i_level[total_level].l_node;
-		if (!node_isvalid(l_node)) {
+		if (!node_isvalid(&l_node->n_addr, l_node->n_type)) {
 			node_op_fini(&oi->i_nop);
 			return false;
 		}
@@ -2909,7 +2974,7 @@ static bool sibling_node_check(struct m0_btree_oimpl *oi)
 	if (l_sibling == NULL || oi->i_pivot == -1)
 		return true;
 
-	if (!node_isvalid(l_sibling)) {
+	if (!node_isvalid(&l_sibling->n_addr, l_sibling->n_type)) {
 		node_op_fini(&oi->i_nop);
 		return false;
 	}
@@ -3016,9 +3081,20 @@ static int64_t btree_put_alloc_phase(struct m0_btree_op *bop)
 			 * Depending on the level of node, shift can be updated.
 			 */
 			if (oi->i_nop.no_node == NULL) {
-				int ksize = node_keysize(lev->l_node);
-				int vsize = node_valsize(lev->l_node);
-				int shift = node_shift(lev->l_node);
+				int ksize = node_keysize(&lev->l_node->n_addr,
+							 lev->l_node->n_type,
+							 lev->l_node->
+							 n_skip_rec_count_check)
+							 ;
+				int vsize = node_valsize(&lev->l_node->n_addr,
+							 lev->l_node->n_type,
+							 lev->l_node->
+							 n_skip_rec_count_check)
+							 ;
+				int shift = node_shift(&lev->l_node->n_addr,
+						       lev->l_node->n_type,
+						       lev->l_node->
+						       n_skip_rec_count_check);
 				oi->i_nop.no_opc = NOP_ALLOC;
 				return node_alloc(&oi->i_nop, tree,
 						  shift,
@@ -3049,9 +3125,18 @@ static int64_t btree_put_alloc_phase(struct m0_btree_op *bop)
 		return P_LOCK;
 	} else {
 		if (oi->i_nop.no_node == NULL) {
-			int ksize = node_keysize(lev->l_node);
-			int vsize = node_valsize(lev->l_node);
-			int shift = node_shift(lev->l_node);
+			int ksize = node_keysize(&lev->l_node->n_addr,
+						 lev->l_node->n_type,
+						 lev->l_node->
+						 n_skip_rec_count_check);
+			int vsize = node_valsize(&lev->l_node->n_addr,
+						 lev->l_node->n_type,
+						 lev->l_node->
+						 n_skip_rec_count_check);
+			int shift = node_shift(&lev->l_node->n_addr,
+					       lev->l_node->n_type,
+					       lev->l_node->
+					       n_skip_rec_count_check);
 			oi->i_nop.no_opc = NOP_ALLOC;
 			return node_alloc(&oi->i_nop, tree, shift,
 					  lev->l_node->n_type, ksize,
@@ -3115,14 +3200,20 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	 *      ii.for second record, key = null, value = segaddr(i_extra_node)
 	 */
 
-	int curr_max_level = node_level(lev->l_node);
+	int curr_max_level = node_level(&lev->l_node->n_addr,
+					lev->l_node->n_type,
+					lev->l_node->n_skip_rec_count_check);
 
 	/* skip the invarient check for level */
 	oi->i_extra_node->n_skip_rec_count_check   = true;
 	lev->l_node->n_skip_rec_count_check = true;
 
-	node_set_level(oi->i_extra_node, curr_max_level, bop->bo_tx);
-	node_set_level(lev->l_node, curr_max_level + 1, bop->bo_tx);
+	node_set_level(&oi->i_extra_node->n_addr, oi->i_extra_node->n_type,
+		       oi->i_extra_node->n_skip_rec_count_check, curr_max_level,
+		       bop->bo_tx);
+	node_set_level(&lev->l_node->n_addr, lev->l_node->n_type,
+		       lev->l_node->n_skip_rec_count_check, curr_max_level + 1,
+		       bop->bo_tx);
 
 	node_move(lev->l_node, oi->i_extra_node, D_RIGHT, NR_MAX,
 		  bop->bo_tx);
@@ -3169,7 +3260,8 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 
 	node_done(&node_slot, bop->bo_tx, true);
 	node_seq_cnt_update(lev->l_node);
-	node_fix(lev->l_node, bop->bo_tx);
+	node_fix(&lev->l_node->n_addr, lev->l_node->n_type,
+		 lev->l_node->n_skip_rec_count_check, bop->bo_tx);
 
 	/* Increase height by one */
 	tree->t_height++;
@@ -3210,13 +3302,18 @@ static void btree_put_split_and_find(struct nd *l_alloc, struct nd *l_node,
 	m0_bcount_t              vsize;
 	void                    *p_val;
 	struct m0_btree_rec      temp_rec;
+	struct segaddr          *temp_addr;
 
 	/* intialised slot for left and right node*/
 	l_slot.s_node = l_alloc;
 	r_slot.s_node = l_node;
 	/* 1)Move some records from current node to new node */
 	l_alloc->n_skip_rec_count_check = true;
-	node_set_level(l_alloc, node_level(l_node), tx);
+	node_set_level(&l_alloc->n_addr, l_alloc->n_type,
+		       l_alloc->n_skip_rec_count_check,
+		       node_level(&l_node->n_addr, l_node->n_type,
+				  l_node->n_skip_rec_count_check),
+		       tx);
 
 	node_move(l_node, l_alloc, D_LEFT, NR_EVEN, tx);
 	l_alloc->n_skip_rec_count_check = false;
@@ -3241,14 +3338,24 @@ static void btree_put_split_and_find(struct nd *l_alloc, struct nd *l_node,
 	 * of left record, initialised tgt->s_idx explicitly, as node_find will
 	 * not compare key with last indexed key.
 	 */
-	if (node_level(tgt->s_node) > 0 && tgt->s_node == l_slot.s_node) {
-		l_slot.s_idx = node_count(l_slot.s_node);
+	temp_addr = (struct segaddr *)&tgt->s_node->n_addr;
+	if (node_level(temp_addr, tgt->s_node->n_type,
+		       tgt->s_node->n_skip_rec_count_check) > 0 && 
+	    tgt->s_node == l_slot.s_node) {
+		temp_addr = (struct segaddr *)&l_slot.s_node->n_addr;
+		l_slot.s_idx = node_count(temp_addr, l_slot.s_node->n_type,
+					  l_slot.s_node->
+					  n_skip_rec_count_check);
 		l_slot.s_rec = temp_rec;
 		node_key(&l_slot);
 		m0_bufvec_cursor_init(&cur_2, &l_slot.s_rec.r_key.k_data);
 		diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
 		if (diff > 0) {
-			tgt->s_idx = node_count(l_slot.s_node) + 1;
+			temp_addr = (struct segaddr *)&l_slot.s_node->n_addr;
+			tgt->s_idx = node_count(temp_addr,
+						l_slot.s_node->n_type,
+						l_slot.s_node->
+						n_skip_rec_count_check) + 1;
 			return;
 		}
 	}
@@ -3291,6 +3398,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	struct slot            tgt;
 	struct slot            node_slot;
 	int                    i;
+	struct segaddr *temp_addr;
 
 	temp_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
 	temp_rec.r_val        = M0_BUFVEC_INIT_BUF(&p_val, &vsize);
@@ -3309,11 +3417,14 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	int rc = bop->bo_cb.c_act(&bop->bo_cb, &tgt.s_rec);
 	if (rc) {
 		/* If callback failed, undo make space, splitted node */
-		node_del(tgt.s_node, tgt.s_idx, bop->bo_tx);
+		temp_addr = (struct segaddr *)&tgt.s_node->n_addr;
+		node_del(temp_addr, tgt.s_node->n_type, tgt.s_idx,
+			 tgt.s_node->n_skip_rec_count_check, bop->bo_tx);
 		node_done(&tgt, bop->bo_tx, true);
 		tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 					    node_seq_cnt_update(lev->l_alloc);
-		node_fix(lev->l_node, bop->bo_tx);
+		node_fix(&lev->l_node->n_addr, lev->l_node->n_type,
+			 lev->l_node->n_skip_rec_count_check, bop->bo_tx);
 
 		node_move(lev->l_alloc, lev->l_node, D_RIGHT,
 		          NR_MAX, bop->bo_tx);
@@ -3323,7 +3434,9 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	node_done(&tgt, bop->bo_tx, true);
 	tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 				    node_seq_cnt_update(lev->l_alloc);
-	node_fix(tgt.s_node, bop->bo_tx);
+	temp_addr = (struct segaddr *)&tgt.s_node->n_addr;
+	node_fix(temp_addr, tgt.s_node->n_type,
+		 tgt.s_node->n_skip_rec_count_check, bop->bo_tx);
 
 	/* Initialized new record which will get inserted at parent */
 	node_slot.s_node = lev->l_node;
@@ -3361,7 +3474,9 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
-			node_fix(lev->l_node, bop->bo_tx);
+			node_fix(&lev->l_node->n_addr, lev->l_node->n_type,
+				 lev->l_node->n_skip_rec_count_check,
+				 bop->bo_tx);
 
 			lock_op_unlock(bop->bo_arbor->t_desc);
 			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
@@ -3381,10 +3496,16 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		node_done(&tgt, bop->bo_tx, true);
 		tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 					    node_seq_cnt_update(lev->l_alloc);
-		node_fix(tgt.s_node, bop->bo_tx);
+		temp_addr = (struct segaddr *)&tgt.s_node->n_addr;
+		node_fix(temp_addr, tgt.s_node->n_type,
+			 tgt.s_node->n_skip_rec_count_check, bop->bo_tx);
 
 		node_slot.s_node = lev->l_alloc;
-		node_slot.s_idx = node_count(node_slot.s_node);
+		temp_addr = (struct segaddr *)&node_slot.s_node->n_addr;
+		node_slot.s_idx = node_count(temp_addr,
+					     node_slot.s_node->n_type,
+					     node_slot.s_node->
+					     n_skip_rec_count_check);
 		node_slot.s_rec = temp_rec;
 		node_key(&node_slot);
 		new_rec.r_key = node_slot.s_rec.r_key;
@@ -3424,7 +3545,9 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			return P_SETUP;
 	case P_COOKIE:
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie) &&
-		    !node_isoverflow(oi->i_cookie_node))
+		    !node_isoverflow(&oi->i_cookie_node->n_addr,
+				     oi->i_cookie_node->n_type,
+				     oi->i_cookie_node->n_skip_rec_count_check))
 			return P_LOCK;
 		else
 			return P_SETUP;
@@ -3450,7 +3573,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
 			struct slot    node_slot = {};
 			struct segaddr child_node_addr;
-
+			struct segaddr *temp_addr;
 			lev = &oi->i_level[oi->i_used];
 			lev->l_node = oi->i_nop.no_node;
 			node_slot.s_node = oi->i_nop.no_node;
@@ -3466,8 +3589,10 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node) ||
-			    !node_verify(lev->l_node)) {
+			if (!node_isvalid(&lev->l_node->n_addr,
+					  lev->l_node->n_type) ||
+			    !node_verify(&lev->l_node->n_addr,
+					 lev->l_node->n_type)) {
 				m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 			}
 			oi->i_nop.no_node = NULL;
@@ -3475,7 +3600,11 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			oi->i_key_found = node_find(&node_slot,
 						    &bop->bo_rec.r_key);
 			lev->l_idx = node_slot.s_idx;
-			if (node_level(node_slot.s_node) > 0) {
+
+			temp_addr = (struct segaddr *)&node_slot.s_node->n_addr;
+			if (node_level(temp_addr, node_slot.s_node->n_type,
+				       node_slot.s_node->n_skip_rec_count_check)
+			    > 0) {
 				if (oi->i_key_found) {
 					lev->l_idx++;
 					node_slot.s_idx++;
@@ -3506,11 +3635,15 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			 * Validate node to dertmine if lev->l_node is still
 			 * exists.
 			 */
-			if (!node_isvalid(lev->l_node)) {
+			if (!node_isvalid(&lev->l_node->n_addr,
+					  lev->l_node->n_type)) {
 				oi->i_used = bop->bo_arbor->t_height - 1;
 				m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 			}
-			if (!node_isoverflow(lev->l_node))
+			if (!node_isoverflow(&lev->l_node->n_addr,
+					     lev->l_node->n_type,
+					     lev->l_node->
+					     n_skip_rec_count_check))
 				break;
 			if (oi->i_used == 0) {
 				if (lev->l_alloc == NULL ||
@@ -3589,6 +3722,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		void                *p_val;
 		struct m0_btree_rec *rec;
 		struct slot          node_slot;
+		struct segaddr      *temp_addr;
 
 		lev = &oi->i_level[oi->i_used];
 
@@ -3614,16 +3748,23 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		int rc = bop->bo_cb.c_act(&bop->bo_cb, rec);
 		if (rc) {
 			/* handle if callback fail i.e undo make */
-			node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
+			temp_addr = (struct segaddr *)&node_slot.s_node->n_addr;
+			node_del(temp_addr, node_slot.s_node->n_type,
+				 node_slot.s_idx,
+				 node_slot.s_node->n_skip_rec_count_check,
+				 bop->bo_tx);
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
-			node_fix(lev->l_node, bop->bo_tx);
+			node_fix(&lev->l_node->n_addr, lev->l_node->n_type,
+				 lev->l_node->n_skip_rec_count_check,
+				 bop->bo_tx);
 			lock_op_unlock(tree);
 			return fail(bop, rc);
 		}
 		node_done(&node_slot, bop->bo_tx, true);
 		node_seq_cnt_update(lev->l_node);
-		node_fix(lev->l_node, bop->bo_tx);
+		node_fix(&lev->l_node->n_addr, lev->l_node->n_type,
+			 lev->l_node->n_skip_rec_count_check, bop->bo_tx);
 
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
@@ -3905,7 +4046,10 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 	M0_PRE(bop->bo_op.o_sm.sm_state == P_INIT);
 	M0_PRE(bop->bo_arbor != NULL);
 	M0_PRE(bop->bo_arbor->t_desc != NULL);
-	M0_PRE(node_invariant(bop->bo_arbor->t_desc->t_root));
+	M0_PRE(node_invariant(&bop->bo_arbor->t_desc->t_root->n_addr,
+			      bop->bo_arbor->t_desc->t_root->n_type,
+			      bop->bo_arbor->t_desc->t_root->
+			      n_skip_rec_count_check));
 
 	/** The following pre-condition is currently a
 	 *  compulsion as the delete routine has not been
@@ -3914,7 +4058,10 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 	 *  modified to compulsorily remove the records and get
 	 *  the node count to 0.
 	 */
-	M0_PRE(node_count(bop->bo_arbor->t_desc->t_root) == 0);
+	M0_PRE(node_count(&bop->bo_arbor->t_desc->t_root->n_addr,
+			  bop->bo_arbor->t_desc->t_root->n_type,
+			  bop->bo_arbor->t_desc->t_root->
+			  n_skip_rec_count_check) == 0);
 	/**
 	 * TODO: Currently putting it here, call it inside
 	 * tree_*() function once destroy tick is implemented
@@ -4046,7 +4193,11 @@ static int sibling_index_get(int index, uint64_t flags, bool key_exists)
 /* Checks if the index is in the range of valid key range for node. */
 static bool index_is_valid(struct level *lev)
 {
-	return (lev->l_idx >= 0) && (lev->l_idx < node_count(lev->l_node));
+	return (lev->l_idx >= 0) && (lev->l_idx <
+				     node_count(&lev->l_node->n_addr,
+						lev->l_node->n_type,
+						lev->l_node->
+						n_skip_rec_count_check));
 }
 
 /**
@@ -4063,7 +4214,10 @@ int  btree_sibling_first_key_get(struct m0_btree_oimpl *oi, struct td *tree,
 
 	for (i = oi->i_used - 1; i >= 0; i--) {
 		lev = &oi->i_level[i];
-		if (lev->l_idx < node_count(lev->l_node)) {
+		if (lev->l_idx < node_count(&lev->l_node->n_addr,
+					    lev->l_node->n_type,
+					    lev->l_node->
+					    n_skip_rec_count_check)) {
 			s->s_node = oi->i_nop.no_node = lev->l_node;
 			s->s_idx = lev->l_idx + 1;
 			while (i != oi->i_used) {
@@ -4132,6 +4286,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
 			struct slot    node_slot = {};
 			struct segaddr child;
+			struct segaddr *temp_addr;
 
 			lev = &oi->i_level[oi->i_used];
 			lev->l_node = oi->i_nop.no_node;
@@ -4148,16 +4303,20 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node) ||
-			    !node_verify(lev->l_node)) {
+			if (!node_isvalid(&lev->l_node->n_addr,
+					  lev->l_node->n_type) ||
+			    !node_verify(&lev->l_node->n_addr,
+					 lev->l_node->n_type)) {
 				m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 			}
 
 			oi->i_key_found = node_find(&node_slot,
 						    &bop->bo_rec.r_key);
 			lev->l_idx = node_slot.s_idx;
-
-			if (node_level(node_slot.s_node) > 0) {
+			temp_addr = (struct segaddr *)&node_slot.s_node->n_addr;
+			if (node_level(temp_addr, node_slot.s_node->n_type,
+				       node_slot.s_node->n_skip_rec_count_check)
+			    > 0) {
 				if (oi->i_key_found) {
 					node_slot.s_idx++;
 					lev->l_idx++;
@@ -4234,7 +4393,10 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			else
 				s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
 		} else {
-			if (lev->l_idx < node_count(lev->l_node))
+			if (lev->l_idx < node_count(&lev->l_node->n_addr,
+						    lev->l_node->n_type,
+						    lev->l_node->
+						    n_skip_rec_count_check))
 				node_rec(&s);
 			else {
 				rc = btree_sibling_first_key_get(oi, tree, &s);
@@ -4309,6 +4471,7 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
 			struct slot    s = {};
 			struct segaddr child;
+			struct segaddr *temp_addr;
 
 			lev = &oi->i_level[oi->i_used];
 			lev->l_node = oi->i_nop.no_node;
@@ -4325,15 +4488,18 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node) ||
-			    !node_verify(lev->l_node)) {
+			if (!node_isvalid(&lev->l_node->n_addr,
+					  lev->l_node->n_type) ||
+			    !node_verify(&lev->l_node->n_addr,
+					  lev->l_node->n_type)) {
 				m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 			}
 
 			oi->i_key_found = node_find(&s, &bop->bo_rec.r_key);
 			lev->l_idx = s.s_idx;
-
-			if (node_level(s.s_node) > 0) {
+			temp_addr = (struct segaddr *)&s.s_node->n_addr;
+			if (node_level(temp_addr, s.s_node->n_type,
+				       s.s_node->n_skip_rec_count_check) > 0) {
 				if (oi->i_key_found) {
 					s.s_idx++;
 					lev->l_idx++;
@@ -4346,8 +4512,13 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				 * closest to leaf level having valid sibling
 				 * index.
 				 */
+				temp_addr = (struct segaddr *)&lev->l_node->
+							      n_addr;
 				if (((bop->bo_flags & BOF_NEXT) &&
-				    (lev->l_idx < node_count(lev->l_node))) ||
+				    (lev->l_idx < node_count(temp_addr,
+						  lev->l_node->n_type,
+						  lev->l_node->
+						  n_skip_rec_count_check))) ||
 				    ((bop->bo_flags & BOF_PREV) &&
 				    (lev->l_idx > 0)))
 					oi->i_pivot = oi->i_used;
@@ -4391,8 +4562,10 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				 */
 				lev = &oi->i_level[oi->i_pivot];
 
-				if (!node_isvalid(lev->l_node) ||
-				    !node_verify(lev->l_node)) {
+				if (!node_isvalid(&lev->l_node->n_addr,
+						  lev->l_node->n_type) ||
+				    !node_verify(&lev->l_node->n_addr,
+						 lev->l_node->n_type)) {
 					node_op_fini(&oi->i_nop);
 					bop->bo_flags |= BOF_LOCKALL;
 					return m0_sm_op_sub(&bop->bo_op,
@@ -4431,6 +4604,7 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
 			struct slot    s = {};
 			struct segaddr child;
+			struct segaddr *temp_addr;
 
 			lev = &oi->i_level[oi->i_pivot];
 			lev->l_sibling = oi->i_nop.no_node;
@@ -4447,8 +4621,9 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(s.s_node) ||
-			    !node_verify(s.s_node))
+			temp_addr = (struct segaddr *)&s.s_node->n_addr;
+			if (!node_isvalid(temp_addr, s.s_node->n_type) ||
+			    !node_verify(temp_addr, s.s_node->n_type))
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 
@@ -4462,14 +4637,20 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(s.s_node) ||
-			    !node_verify(s.s_node))
+			temp_addr = (struct segaddr *)&s.s_node->n_addr;
+			if (!node_isvalid(temp_addr, s.s_node->n_type) ||
+			    !node_verify(temp_addr, s.s_node->n_type))
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 
-			if (node_level(s.s_node) > 0) {
+			temp_addr = (struct segaddr *)&s.s_node->n_addr;
+			if (node_level(temp_addr, s.s_node->n_type,
+				       s.s_node->n_skip_rec_count_check) > 0) {
+				temp_addr = (struct segaddr *)&s.s_node->n_addr;
 				s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
-					  node_count(s.s_node);
+					  node_count(temp_addr,
+					  s.s_node->n_type,
+					  s.s_node->n_skip_rec_count_check);
 				node_child(&s, &child);
 				if (!address_in_segment(child)) {
 					node_op_fini(&oi->i_nop);
@@ -4520,6 +4701,7 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 		void			*pkey;
 		void			*pval;
 		struct slot		 s = {};
+		struct segaddr          *temp_addr;
 
 		lev = &oi->i_level[oi->i_used];
 
@@ -4538,8 +4720,10 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 		else {
 			/* Return sibling record based on flag. */
 			s.s_node = lev->l_sibling;
+			temp_addr = (struct segaddr *)&s.s_node->n_addr;
 			s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
-				  node_count(s.s_node) - 1;
+				  node_count(temp_addr, s.s_node->n_type,
+				  s.s_node->n_skip_rec_count_check) - 1;
 			node_rec(&s);
 		}
 		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
@@ -4586,12 +4770,13 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	int                     curr_root_level;
 	struct slot             root_slot;
 	struct nd              *root_child;
-
+	struct segaddr         *temp_addr;
 	do {
 		lev->l_freenode = true;
 		used_count--;
 		lev = &oi->i_level[used_count];
-		node_del(lev->l_node, lev->l_idx, bop->bo_tx);
+		node_del(&lev->l_node->n_addr, lev->l_node->n_type, lev->l_idx,
+			 lev->l_node->n_skip_rec_count_check, bop->bo_tx);
 		lev->l_node->n_skip_rec_count_check = true;
 		node_slot.s_node = lev->l_node;
 		node_slot.s_idx  = lev->l_idx;
@@ -4612,19 +4797,31 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		 *            in loop.
 		 */
 		if (used_count == 0) {
-			if (node_count_rec(lev->l_node) > 1)
+			if (node_count_rec(&lev->l_node->n_addr,
+					   lev->l_node->n_type,
+					   lev->l_node->n_skip_rec_count_check)
+			    > 1)
 				flag = true;
-			else if (node_count_rec(lev->l_node) == 0) {
-				node_set_level(lev->l_node, 0, bop->bo_tx);
+			else if (node_count_rec(&lev->l_node->n_addr,
+				 lev->l_node->n_type,
+				 lev->l_node->n_skip_rec_count_check) == 0) {
+				node_set_level(&lev->l_node->n_addr,
+				lev->l_node->n_type,
+				lev->l_node->n_skip_rec_count_check, 0,
+				bop->bo_tx);
 				tree->t_height = 1;
 				flag = true;
 			} else
 				break;
 		}
 		node_seq_cnt_update(lev->l_node);
-		node_fix(node_slot.s_node, bop->bo_tx);
+		temp_addr = (struct segaddr *)&node_slot.s_node->n_addr;
+		node_fix(temp_addr, node_slot.s_node->n_type,
+			 node_slot.s_node->n_skip_rec_count_check, bop->bo_tx);
 		/* check if underflow after deletion */
-		if (flag || !node_isunderflow(lev->l_node, false)) {
+		if (flag || !node_isunderflow(&lev->l_node->n_addr,
+			     lev->l_node->n_type, false,
+			     lev->l_node->n_skip_rec_count_check)) {
 			lev->l_node->n_skip_rec_count_check = false;
 			lock_op_unlock(tree);
 			return P_FREENODE;
@@ -4643,21 +4840,26 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	 * 4) free that child node
 	 */
 
-	curr_root_level  = node_level(lev->l_node);
+	curr_root_level  = node_level(&lev->l_node->n_addr, lev->l_node->n_type,
+				      lev->l_node->n_skip_rec_count_check);
 	root_slot.s_node = lev->l_node;
 	root_slot.s_idx  = 0;
-	node_del(lev->l_node, 0, bop->bo_tx);
+	node_del(&lev->l_node->n_addr, lev->l_node->n_type, 0,
+		 lev->l_node->n_skip_rec_count_check, bop->bo_tx);
 	node_done(&root_slot, bop->bo_tx, true);
 
 	/* l_sib is node below root which is root's only child */
 	root_child = oi->i_level[1].l_sibling;
 	root_child->n_skip_rec_count_check = true;
 
-	node_set_level(lev->l_node, curr_root_level - 1, bop->bo_tx);
+	node_set_level(&lev->l_node->n_addr, lev->l_node->n_type,
+		       lev->l_node->n_skip_rec_count_check, curr_root_level - 1,
+		       bop->bo_tx);
 	tree->t_height--;
 
 	node_move(root_child, lev->l_node, D_RIGHT, NR_MAX, bop->bo_tx);
-	M0_ASSERT(node_count_rec(root_child) == 0);
+	M0_ASSERT(node_count_rec(&root_child->n_addr, root_child->n_type,
+		  root_child->n_skip_rec_count_check) == 0);
 
 	lev->l_node->n_skip_rec_count_check = false;
 	oi->i_level[1].l_sibling->n_skip_rec_count_check = false;
@@ -4683,7 +4885,7 @@ static bool child_node_check(struct m0_btree_oimpl *oi)
 	l_node = oi->i_level[1].l_sibling;
 
 	if (l_node) {
-		if (!node_isvalid(l_node))
+		if (!node_isvalid(&l_node->n_addr, l_node->n_type))
 			return false;
 		if (oi->i_level[1].l_sib_seq != l_node->n_seq)
 			return false;
@@ -4706,14 +4908,23 @@ static int8_t root_child_is_req(struct m0_btree_op *bop)
 	int8_t                 load = 0;
 	int                    used_count = oi->i_used;
 	do {
-		if (!node_isvalid(oi->i_level[used_count].l_node))
+		if (!node_isvalid(&oi->i_level[used_count].l_node->n_addr,
+		    oi->i_level[used_count].l_node->n_type))
 			return -1;
 		if (used_count == 0) {
-			if (node_count_rec(oi->i_level[used_count].l_node) == 2)
+			if (node_count_rec(
+			    &oi->i_level[used_count].l_node->n_addr,
+			    oi->i_level[used_count].l_node->n_type,
+			    oi->i_level[used_count].l_node->
+			    n_skip_rec_count_check) == 2)
 				load = 1;
 			break;
 		}
-		if (!node_isunderflow(oi->i_level[used_count].l_node, true))
+		if (!node_isunderflow(&oi->i_level[used_count].l_node->n_addr,
+				      oi->i_level[used_count].l_node->n_type,
+				      true,
+				      oi->i_level[used_count].l_node->
+				      n_skip_rec_count_check))
 			break;
 
 		used_count--;
@@ -4789,7 +5000,9 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			return P_SETUP;
 	case P_COOKIE:
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie) &&
-		    !node_isunderflow(oi->i_cookie_node, true))
+		    !node_isunderflow(&oi->i_cookie_node->n_addr,
+		     oi->i_cookie_node->n_type, true,
+		     oi->i_cookie_node->n_skip_rec_count_check))
 			return P_LOCK;
 		else
 			return P_SETUP;
@@ -4815,6 +5028,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
 			struct slot    node_slot = {};
 			struct segaddr child_node_addr;
+			struct segaddr *temp_addr;
 
 			lev = &oi->i_level[oi->i_used];
 			lev->l_node = oi->i_nop.no_node;
@@ -4831,8 +5045,10 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node) ||
-			    !node_verify(lev->l_node))
+			if (!node_isvalid(&lev->l_node->n_addr,
+					  lev->l_node->n_type) ||
+			    !node_verify(&lev->l_node->n_addr,
+					 lev->l_node->n_type))
 				m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 
 			oi->i_nop.no_node = NULL;
@@ -4841,7 +5057,10 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 						    &bop->bo_rec.r_key);
 			lev->l_idx = node_slot.s_idx;
 
-			if (node_level(node_slot.s_node) > 0) {
+			temp_addr = (struct segaddr *)&node_slot.s_node->n_addr;
+			if (node_level(temp_addr, node_slot.s_node->n_type,
+				       node_slot.s_node->n_skip_rec_count_check)
+			     > 0) {
 				if (oi->i_key_found) {
 					lev->l_idx++;
 					node_slot.s_idx++;
@@ -4866,7 +5085,11 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 				 * root.
 				 */
 				if (oi->i_used > 0 &&
-				    node_count_rec(oi->i_level[0].l_node) == 2)
+				    node_count_rec(
+				    &oi->i_level[0].l_node->n_addr,
+				    oi->i_level[0].l_node->n_type,
+				    oi->i_level[0].l_node->
+				    n_skip_rec_count_check) == 2)
 					return root_case_handle(bop);
 
 				return P_LOCK;
@@ -4878,7 +5101,8 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 	case P_STORE_CHILD: {
 		/*Validate node to dertmine if lev->l_node is still exists. */
 		oi->i_level[1].l_sibling = oi->i_nop.no_node;
-		if (!node_isvalid(oi->i_level[1].l_sibling))
+		if (!node_isvalid(&oi->i_level[1].l_sibling->n_addr,
+				  oi->i_level[1].l_sibling->n_type))
 			m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 		/* store child of the root. */
 		oi->i_level[1].l_sib_seq = oi->i_nop.no_node->n_seq;
@@ -4918,6 +5142,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 	case P_ACT: {
 		struct m0_btree_rec rec;
 		struct slot         node_slot;
+		struct segaddr     *temp_addr;
 		/**
 		 *  if key exists, delete the key, if there is an underflow, go
 		 *  to resolve function else return P_CLEANUP.
@@ -4929,11 +5154,18 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			lev = &oi->i_level[oi->i_used];
 			node_slot.s_node = lev->l_node;
 			node_slot.s_idx  = lev->l_idx;
-			node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
+			temp_addr = (struct segaddr *)&node_slot.s_node->n_addr;
+			node_del(temp_addr, node_slot.s_node->n_type,
+				 node_slot.s_idx,
+				 node_slot.s_node->n_skip_rec_count_check,
+				 bop->bo_tx);
 			lev->l_node->n_skip_rec_count_check = true;
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
-			node_fix(node_slot.s_node, bop->bo_tx);
+			temp_addr = (struct segaddr *)&node_slot.s_node->n_addr;
+			node_fix(temp_addr, node_slot.s_node->n_type,
+				 node_slot.s_node->n_skip_rec_count_check,
+				 bop->bo_tx);
 
 			rec.r_flags = M0_BSC_SUCCESS;
 		}
@@ -4945,7 +5177,9 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 
 		if (oi->i_key_found) {
 			if (oi->i_used == 0 ||
-			    !node_isunderflow(lev->l_node, false)) {
+			    !node_isunderflow(&lev->l_node->n_addr,
+			     lev->l_node->n_type, false,
+			     lev->l_node->n_skip_rec_count_check)) {
 				/* No Underflow */
 				lev->l_node->n_skip_rec_count_check = false;
 				lock_op_unlock(tree);
@@ -5294,7 +5528,8 @@ static bool add_rec(struct nd *node,
 	slot.s_rec.r_val.ov_vec.v_nr           = 1;
 	slot.s_rec.r_val.ov_vec.v_count        = &vsize;
 
-	if (node_count(node) != 0) {
+	if (node_count(&node->n_addr, node->n_type,
+		       node->n_skip_rec_count_check) != 0) {
 		if (!node_isfit(&slot))
 			return false;
 		find_key.k_data.ov_vec.v_nr = 1;
@@ -5345,12 +5580,14 @@ static void get_next_rec_to_add(struct nd *node, uint64_t *key,  uint64_t *val)
 		proposed_key %= 256;
 		p_key = &proposed_key;
 
-		if (node_count(node) == 0)
+		if (node_count(&node->n_addr, node->n_type,
+			       node->n_skip_rec_count_check) == 0)
 			break;
 		node_find(&slot, &find_key);
 		node_rec(&slot);
 
-		if (slot.s_idx >= node_count(node))
+		if (slot.s_idx >= node_count(&node->n_addr, node->n_type,
+					     node->n_skip_rec_count_check))
 			break;
 
 		found_key = *(uint64_t *)p_key;
@@ -5377,7 +5614,8 @@ void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
 	slot.s_node = node;
 	slot.s_idx  = idx;
 
-	M0_ASSERT(idx<node_count(node));
+	M0_ASSERT(idx<node_count(&node->n_addr, node->n_type,
+				 node->n_skip_rec_count_check));
 
 	slot.s_rec.r_key.k_data.ov_vec.v_nr = 1;
 	slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
@@ -5406,7 +5644,8 @@ void get_key_at_index(struct nd *node, int idx, uint64_t *key)
 	slot.s_node = node;
 	slot.s_idx  = idx;
 
-	M0_ASSERT(idx<node_count(node));
+	M0_ASSERT(idx<node_count(&node->n_addr, node->n_type,
+				 node->n_skip_rec_count_check));
 
 	slot.s_rec.r_key.k_data.ov_vec.v_nr = 1;
 	slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
@@ -5466,23 +5705,33 @@ static void ut_node_add_del_rec(void)
 			get_next_rec_to_add(node1, &key, &val);
 			if (!add_rec(node1, key, val))
 				break;
-			M0_ASSERT(++i == node_count(node1));
+			M0_ASSERT(++i == node_count(&node1->n_addr,
+					 node1->n_type,
+					 node1->n_skip_rec_count_check));
 		}
 
 		/** Confirm all the records are in ascending value of key. */
 		get_rec_at_index(node1, 0, &prev_key, NULL);
-		for (i = 1; i < node_count(node1); i++) {
+		for (i = 1; i < node_count(&node1->n_addr, node1->n_type,
+				node1->n_skip_rec_count_check); i++) {
 			get_rec_at_index(node1, i, &curr_key, NULL);
 			M0_ASSERT(prev_key < curr_key);
 			prev_key = curr_key;
 		}
 
 		/** Delete all the records from the node. */
-		i = node_count(node1) - 1;
-		while (node_count(node1) != 0) {
-			int j = rand() % node_count(node1);
-			node_del(node1, j, NULL);
-			M0_ASSERT(i-- == node_count(node1));
+		i = node_count(&node1->n_addr, node1->n_type,
+			       node1->n_skip_rec_count_check) - 1;
+		while (node_count(&node1->n_addr, node1->n_type,
+				  node1->n_skip_rec_count_check) != 0) {
+			int j = rand() % node_count(&node1->n_addr,
+					 node1->n_type,
+					 node1->n_skip_rec_count_check);
+			node_del(&node1->n_addr, node1->n_type, j,
+				 node1->n_skip_rec_count_check, NULL);
+			M0_ASSERT(i-- == node_count(&node1->n_addr,
+					 node1->n_type, 
+					 node1->n_skip_rec_count_check));
 		}
 	}
 
