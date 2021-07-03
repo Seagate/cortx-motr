@@ -35,6 +35,9 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"           /* M0_LOG */
+#ifndef __KERNEL__
+#include <openssl/md5.h>
+#endif /* __KERNEL__ */
 
 /*
  * CPU usage threshold for parity calculation which is introuduced by
@@ -1107,60 +1110,137 @@ static int application_data_copy(struct pargrp_iomap      *map,
 	return M0_RC(0);
 }
 
+/* This function calculates and verify md5_inc_digest checksum for 
+ * one data unit size. Allocates a buffer of page size, copy data
+ * worth page size to this buffer and iteratively calculates 
+ * seeded checksum. Verify this checksum with on disk checksum
+ */
+static bool verify_one_unit_md5_inc_context(struct m0_op_io *ioo,
+					    struct m0_bufvec_cursor *ck_datacur,
+					    struct m0_ivec_cursor *ck_extcur,
+					    int attr_idx)
+{
+	bool res = false;
+#ifndef __KERNEL__
+	struct m0_pi_seed seed;
+	struct m0_bufvec user_data;
+	struct m0_bufvec_cursor datacur;
+	int usz, rc, count;
+	unsigned char curr_context;
+	uint64_t pg_size;
+	struct m0_md5_inc_context_pi *pi_ondisk;
+	struct m0_md5_inc_context_pi pi;
+
+	usz = m0_obj_layout_id_to_unit_size(
+			m0__obj_lid(ioo->ioo_obj));
+
+	pg_size = m0__page_size(ioo);
+	rc = m0_bufvec_alloc(&user_data, 1, pg_size);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "buffer allocation failed, rc %d", rc);
+		return false;
+	}
+
+	count = 0;
+
+	while (count < usz) {
+		m0_bufvec_cursor_init(&datacur, &user_data);
+		m0_bufvec_cursor_copy(&datacur, ck_datacur, pg_size);
+
+		M0_ASSERT(!m0_bufvec_cursor_move(ck_datacur, pg_size));
+		M0_ASSERT(!m0_ivec_cursor_move(ck_extcur, pg_size));
+
+		if (count == 0) {
+			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
+					NULL, &user_data,
+					M0_PI_CALC_UNIT_ZERO|M0_PI_SKIP_CALC_FINAL,
+					&curr_context, NULL);
+		}
+		else {
+			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
+					NULL, &user_data, M0_PI_SKIP_CALC_FINAL,
+					&curr_context, NULL);
+		}
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "md5 inc context checksum calculation failed, rc %d", rc);
+			break;
+		}
+		memcpy(pi.prev_context, &curr_context, sizeof(MD5_CTX));
+		count += pg_size;
+	}
+
+	seed.data_unit_offset = m0_ivec_cursor_index(ck_extcur)/usz;
+	seed.obj_id = ioo->ioo_oo.oo_fid;
+
+	rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
+			&seed, NULL, 0,
+			&curr_context, NULL);
+	if (rc == 0) {
+
+		M0_ASSERT(attr_idx < ioo->ioo_attr.ov_vec.v_nr);
+
+		pi_ondisk = (struct m0_md5_inc_context_pi *)ioo->ioo_attr.ov_buf[attr_idx];
+		if (memcmp(pi.pi_value, pi_ondisk->pi_value, MD5_DIGEST_LENGTH) == 0) {
+			res = true;
+		}
+	}
+
+	m0_bufvec_free(&user_data);
+#endif
+	return res;
+}
+
+static bool verify_one_unit_cksum(int pi_type, struct m0_op_io *ioo,
+			          struct m0_bufvec_cursor *ck_datacur,
+			          struct m0_ivec_cursor *ck_extcur,
+			          int attr_idx)
+{
+	bool res = true;
+	/* calculate and verify checksum as per cksum type */
+	switch(pi_type) {
+		case M0_PI_TYPE_MD5_INC_CONTEXT:
+			{
+				res = verify_one_unit_md5_inc_context(ioo,
+								      ck_datacur,
+								      ck_extcur,
+								      attr_idx);
+			}
+		default:
+			res = false;
+	}
+	return res;
+}
+
 static bool verify_checksum(struct m0_op_io *ioo, m0_bcount_t grp_io_count,
 			    struct m0_bufvec_cursor *ck_datacur,
 			    struct m0_ivec_cursor *ck_extcur,
 			    int *attr_idx)
 {
-	struct m0_md5_inc_context_pi pi;
-	struct m0_pi_seed seed;
-	struct m0_bufvec user_data;
-	struct m0_bufvec_cursor datacur;
-	int usz, rc;
-	unsigned char curr_context;
+	struct m0_generic_pi *pi_ondisk;
+	int usz;
+	bool res;
 
 	usz = m0_obj_layout_id_to_unit_size(
 			m0__obj_lid(ioo->ioo_obj));
 
+	// Assumption is that all read are multiple of data unit size
 	M0_ASSERT(grp_io_count%usz == 0);
 
-	rc = m0_bufvec_alloc(&user_data, 1, usz);
-
-	pi.hdr.pi_type = M0_PI_TYPE_MD5_INC_CONTEXT;
-	seed.obj_id = ioo->ioo_oo.oo_fid;
-
 	while (grp_io_count) {
-		m0_bufvec_cursor_init(&datacur, &user_data);
-		m0_bufvec_cursor_copy(&datacur, ck_datacur, usz);
-		M0_ASSERT(!m0_bufvec_cursor_move(ck_datacur, usz));
-		
-		// I will need global offset here, not sure about following 2 lines of code
-		seed.data_unit_offset = m0_ivec_cursor_index(ck_extcur)/usz;
-		M0_ASSERT(!m0_ivec_cursor_move(ck_extcur, usz));
 
-		rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-				&seed, &user_data, M0_PI_CALC_UNIT_ZERO,
-				&curr_context, NULL);
-		if (rc != 0) {
+		pi_ondisk = ioo->ioo_attr.ov_buf[*attr_idx];
+		/* verify checksum for one data unit at a time */ 
+		res = verify_one_unit_cksum(pi_ondisk->hdr.pi_type, ioo,
+					    ck_datacur, ck_extcur, *attr_idx);
+		if (!res) {
 			break;
 		}
 		M0_ASSERT(*attr_idx < ioo->ioo_attr.ov_vec.v_nr);
-#ifndef __KERNEL__
-		if (memcmp(pi.pi_value, ioo->ioo_attr.ov_buf[*attr_idx],
-				ioo->ioo_attr.ov_vec.v_count[*attr_idx]) != 0) {
-			break;
-		}
-#endif
 		grp_io_count -= usz;
 		*attr_idx = *attr_idx + 1;
 	}
 
-	m0_bufvec_free(&user_data);
-
-	if (grp_io_count <= 0)
-		return true;
-	else
-		return false;
+	return res;
 }
 
 /**
@@ -1241,6 +1321,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		}
 
 		if (dir == CD_COPY_TO_APP) {
+			/* verify the checksum for ith group data */
 			if (!verify_checksum(ioo, grp_io_count, &ck_datacur,
 					&ck_extcur, &attr_idx)) {
 				return M0_RC(-EIO);
