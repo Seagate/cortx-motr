@@ -112,6 +112,33 @@ static void buf_to_bufvec_copy(struct m0_buf *buf, struct m0_bufvec *bufvec,
 	BUFVC(bufvec, index) = count;
 }
 
+static void print_ivec(struct m0_indexvec *ivec, struct m0_indexvec *ti_ivec)
+{
+	uint64_t                     count;
+	uint32_t                     unit;
+	uint32_t                     unit_size;
+	struct m0_ivec_cursor        cursor_tivec;
+	struct m0_ivec_cursor        cursor;
+
+	count     = 0;
+	unit_size = 4096;
+	m0_ivec_cursor_init(&cursor, ivec);
+	if (ti_ivec != NULL)
+		m0_ivec_cursor_init(&cursor_tivec, ti_ivec);
+
+	while (!m0_ivec_cursor_move(&cursor, count)) {
+		unit = m0_ivec_cursor_index(&cursor) / unit_size;
+		//count = m0_ivec_cursor_step(&cursor);
+		count = unit_size;
+		if (ti_ivec != NULL) {
+			M0_LOG(M0_DEBUG, "YJC_IVEC: index = %"PRIu64 " tioff = %"PRIu64" unit = %u count = %"PRIu64, m0_ivec_cursor_index(&cursor), m0_ivec_cursor_index(&cursor_tivec), unit, count);
+			m0_ivec_cursor_move(&cursor_tivec, CKSUM_SIZE);
+		} else {
+			M0_LOG(M0_DEBUG, "YJC_IVEC: index = %"PRIu64 " unit = %u count = %"PRIu64, m0_ivec_cursor_index(&cursor), unit, count);
+		}
+	}
+}
+
 static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 				       struct target_ioreq *ti,
 				       struct m0_op_io *ioo,
@@ -124,6 +151,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	uint64_t            ti_seg;
 	uint64_t            rep_seg = 0;
 
+	print_ivec(rep_ivec, &ti->ti_coff_ivec);
 	while (rep_seg < SEG_NR(rep_ivec)) {
 		rep_index = INDEX(rep_ivec, rep_seg);
 		ti_seg = 0;
