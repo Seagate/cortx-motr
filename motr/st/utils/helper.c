@@ -139,7 +139,7 @@ static int write_dummy_hash_data(struct m0_uint128 id, struct m0_bufvec *attr, s
        for (i = 0; i < nr_blocks; ++i) {
 	        char *str = data->ov_buf[i];
 	        char *cksum = attr->ov_buf[i];
-		memset(attr->ov_buf[i], 'A' + i, ATTR_SIZE);
+		memcpy(attr->ov_buf[i], data->ov_buf[i], ATTR_SIZE);
 		fprintf(stderr, "YJC: data[%d] = %.8s cksum = %.8s\t",i, str, cksum);
 		attr->ov_vec.v_count[i] = ATTR_SIZE;
        }
