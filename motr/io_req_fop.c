@@ -105,7 +105,7 @@ static void buf_to_bufvec_copy(struct m0_buf *buf, struct m0_bufvec *bufvec,
 			       m0_bindex_t index, m0_bcount_t count,
 			       m0_bindex_t buf_offset)
 {
-	void *data = buf->b_addr + buf_offset;
+	void *data = buf->b_addr + (buf_offset * CKSUM_SIZE);
 	memcpy(BUFVI(bufvec, index), data, count);
 	M0_LOG(M0_DEBUG,"YJC: index = %"PRIu64 " count = %"PRIu64" off = %"PRIu64,
 			 index, count, buf_offset);
@@ -139,34 +139,67 @@ static void print_ivec(struct m0_indexvec *ivec, struct m0_indexvec *ti_ivec)
 	}
 }
 
+static void copy_buffer(struct m0_indexvec *ivec, struct m0_indexvec *ti_ivec, struct m0_buf *buf, struct m0_op_io *ioo)
+{
+	uint64_t                     count;
+	uint32_t                     unit;
+	uint32_t                     unit_size;
+	struct m0_ivec_cursor        cursor_tivec;
+	struct m0_ivec_cursor        cursor;
+
+	count     = 0;
+	unit_size = 4096;
+	m0_ivec_cursor_init(&cursor, ivec);
+	m0_ivec_cursor_init(&cursor_tivec, ti_ivec);
+
+	while (!m0_ivec_cursor_move(&cursor, count)) {
+		unit = m0_ivec_cursor_index(&cursor) / unit_size;
+		//count = m0_ivec_cursor_step(&cursor);
+		count = unit_size;
+		M0_LOG(M0_DEBUG, "YJC_IVEC: index = %"PRIu64 " tioff = %"PRIu64" unit = %u count = %"PRIu64, m0_ivec_cursor_index(&cursor), m0_ivec_cursor_index(&cursor_tivec), unit, count);
+		buf_to_bufvec_copy(buf, &ioo->ioo_attr,
+				m0_ivec_cursor_index(&cursor_tivec),
+				CKSUM_SIZE,
+			//	COUNT(coff_ivec, ci_seg),
+				unit);
+		m0_ivec_cursor_move(&cursor_tivec, CKSUM_SIZE);
+	}
+}
+
 static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 				       struct target_ioreq *ti,
 				       struct m0_op_io *ioo,
 				       struct m0_buf *buf)
 {
 	struct m0_indexvec *coff_ivec = &ti->ti_coff_ivec;
-	struct m0_indexvec *ti_ivec = &ti->ti_ivec;
-	m0_bindex_t         rep_index;
-	m0_bindex_t         ti_index;
-	uint64_t            ti_seg;
-	uint64_t            rep_seg = 0;
+	//struct m0_indexvec *ti_ivec = &ti->ti_ivec;
+	m0_bindex_t                   ti_seg;
+	m0_bindex_t                   ci_seg;
+	uint64_t                     count;
+	uint32_t                     unit_size;
+	struct m0_ivec_cursor        cursor_civec;
+	struct m0_ivec_cursor        cursor;
 
+	copy_buffer(rep_ivec, &ti->ti_coff_ivec, buf, ioo);
+	m0_client_bufvec_print(&ioo->ioo_attr, &ioo->ioo_data, "YJC_Rep_attr", 1);
+	return;
 	print_ivec(rep_ivec, &ti->ti_coff_ivec);
-	while (rep_seg < SEG_NR(rep_ivec)) {
-		rep_index = INDEX(rep_ivec, rep_seg);
-		ti_seg = 0;
-		while (ti_seg < SEG_NR(ti_ivec)) {
-			ti_index = INDEX(ti_ivec, ti_seg);
-			if (rep_index == ti_index) {
-				buf_to_bufvec_copy(buf, &ioo->ioo_attr,
-						INDEX(coff_ivec, ti_seg),
-						COUNT(coff_ivec, ti_seg),
-						rep_index);
-				break;
-			}
-			ti_seg++;
-		}
-		rep_seg++;
+	count     = 0;
+	unit_size = 4096;
+	m0_ivec_cursor_init(&cursor, rep_ivec);
+	m0_ivec_cursor_init(&cursor_civec, coff_ivec);
+
+	while (!m0_ivec_cursor_move(&cursor, count)) {
+		ti_seg = m0_ivec_cursor_index(&cursor) / unit_size;
+		ci_seg = m0_ivec_cursor_index(&cursor_civec);
+		//count = m0_ivec_cursor_step(&cursor);
+		count = unit_size;
+		buf_to_bufvec_copy(buf, &ioo->ioo_attr,
+				INDEX(coff_ivec, ci_seg),
+				CKSUM_SIZE,
+			//	COUNT(coff_ivec, ci_seg),
+				ti_seg);
+		m0_ivec_cursor_move(&cursor_civec, CKSUM_SIZE);
 	}
 }
 

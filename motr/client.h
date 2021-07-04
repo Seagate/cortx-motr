@@ -622,6 +622,32 @@ do { \
 			seg, vec->v_count[seg], dst[0], dst[1]); \
 }while(0)
 
+#define m0_cksum_print(buf, seg, dbuf, msg) \
+do { \
+	struct m0_vec *vec = &(buf)->ov_vec; \
+	char *dst = (char *)(buf)->ov_buf[seg]; \
+	char *data = (char *)(dbuf)->ov_buf[seg]; \
+	M0_LOG(M0_DEBUG, msg " count[%d] = %"PRIu64 \
+			" cksum = %c%c data = %c%c", \
+			seg, vec->v_count[seg], dst[0], dst[1], data[0],data[1]); \
+}while(0)
+
+/**
+ * Prints all vector in bufvec
+ */
+#define m0_client_bufvec_print(buf, dbuf, msg, print_data) \
+do { \
+	uint32_t i;\
+	struct m0_vec *vec = &(buf)->ov_vec; \
+	for (i = 0; i < vec->v_nr; ++i) { \
+		if (print_data) \
+			m0_cksum_print((buf), i, (dbuf), msg); \
+		else \
+			m0_buf_print((buf), i, msg); \
+	} \
+}while(0)
+
+
 /** M0_LOG(M0_DEBUG, "YJC %s: buf[%d] = %x%x%x%x%x%x%x%x", msg, seg, dst[0], dst[1], dst[2], dst[3], dst[4], dst[5], dst[6],dst[7]); \ */
 
 /**
