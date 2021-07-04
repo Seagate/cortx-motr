@@ -75,36 +75,6 @@ struct m0_bufs {
 #define BUF_F    "[%p,%llu]"
 #define BUF_P(p) (p)->b_addr, (unsigned long long)(p)->b_nob
 
-/*
- * Print all elements in m0_bufs
- */
-#define m0_bufs_print(bufs, msg) \
-do { \
-	uint32_t i;\
-	uint32_t count=0; \
-	uint32_t idx = 0; \
-	for (i = 0; i < (bufs)->ab_count; i++) { \
-		M0_ASSERT_EX(count + (bufs)->ab_elems[i].b_nob >= count); \
-		count += (bufs)->ab_elems[i].b_nob; \
-	} \
-	M0_ASSERT(count != 0); \
-	do { char arr[count + 1]; \
-	for (i = 0, idx = 0; i < (bufs)->ab_count; ++i) { \
-		struct m0_buf *buf = &(bufs)->ab_elems[i]; \
-		if (buf->b_nob > 0) { \
-			char str[buf->b_nob + 10]; \
-			int len = (buf->b_nob) - 1; \
-			memcpy(arr + idx, buf->b_addr, len); \
-			snprintf(str, buf->b_nob, "%s", (char *)buf->b_addr); \
-			M0_LOG(M0_DEBUG, "YJC_TEST1: %s", (char *)str); \
-			idx += len; \
-		} \
-	} \
-	M0_LOG(M0_DEBUG, msg " buf[%d]: b_nob = %"PRIu32 " b_addr = %s", \
-		(bufs)->ab_count, count, (char *)arr); \
-        }while(0); \
-}while(0)
-
 /** Initialises struct m0_buf. */
 M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob);
 

@@ -779,9 +779,6 @@ int m0_obj_op(struct m0_obj       *obj,
 		.ia_mask   = mask,
 		.ia_flags  = flags
 	};
-	M0_LOG(M0_DEBUG, "YJC_DBUG: buf[0] = %s", (char *)attr->ov_buf[0]);
-	m0_buf_print(attr, 0, "attr");
-	m0_bufvec_print(attr, "ioo->ia_attr");
 
 	M0_ASSERT(obj->ob_layout->ml_ops->lo_io_build != NULL);
 	rc = obj->ob_layout->ml_ops->lo_io_build(&io_args, op);

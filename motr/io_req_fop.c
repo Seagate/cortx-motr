@@ -107,39 +107,11 @@ static void buf_to_bufvec_copy(struct m0_buf *buf, struct m0_bufvec *bufvec,
 {
 	void *data = buf->b_addr + (buf_offset * CKSUM_SIZE);
 	memcpy(BUFVI(bufvec, index), data, count);
-	M0_LOG(M0_DEBUG,"YJC: index = %"PRIu64 " count = %"PRIu64" off = %"PRIu64,
-			 index, count, buf_offset);
 	BUFVC(bufvec, index) = count;
 }
 
-static void print_ivec(struct m0_indexvec *ivec, struct m0_indexvec *ti_ivec)
-{
-	uint64_t                     count;
-	uint32_t                     unit;
-	uint32_t                     unit_size;
-	struct m0_ivec_cursor        cursor_tivec;
-	struct m0_ivec_cursor        cursor;
-
-	count     = 0;
-	unit_size = 4096;
-	m0_ivec_cursor_init(&cursor, ivec);
-	if (ti_ivec != NULL)
-		m0_ivec_cursor_init(&cursor_tivec, ti_ivec);
-
-	while (!m0_ivec_cursor_move(&cursor, count)) {
-		unit = m0_ivec_cursor_index(&cursor) / unit_size;
-		//count = m0_ivec_cursor_step(&cursor);
-		count = unit_size;
-		if (ti_ivec != NULL) {
-			M0_LOG(M0_DEBUG, "YJC_IVEC: index = %"PRIu64 " tioff = %"PRIu64" unit = %u count = %"PRIu64, m0_ivec_cursor_index(&cursor), m0_ivec_cursor_index(&cursor_tivec), unit, count);
-			m0_ivec_cursor_move(&cursor_tivec, CKSUM_SIZE);
-		} else {
-			M0_LOG(M0_DEBUG, "YJC_IVEC: index = %"PRIu64 " unit = %u count = %"PRIu64, m0_ivec_cursor_index(&cursor), unit, count);
-		}
-	}
-}
-
-static void copy_buffer(struct m0_indexvec *ivec, struct m0_indexvec *ti_ivec, struct m0_buf *buf, struct m0_op_io *ioo)
+static void copy_buffer(struct m0_indexvec *ivec, struct m0_indexvec *ti_ivec,
+			struct m0_buf *buf, struct m0_op_io *ioo)
 {
 	uint64_t                     count;
 	uint32_t                     unit;
@@ -154,13 +126,10 @@ static void copy_buffer(struct m0_indexvec *ivec, struct m0_indexvec *ti_ivec, s
 
 	while (!m0_ivec_cursor_move(&cursor, count)) {
 		unit = m0_ivec_cursor_index(&cursor) / unit_size;
-		//count = m0_ivec_cursor_step(&cursor);
 		count = unit_size;
-		M0_LOG(M0_DEBUG, "YJC_IVEC: index = %"PRIu64 " tioff = %"PRIu64" unit = %u count = %"PRIu64, m0_ivec_cursor_index(&cursor), m0_ivec_cursor_index(&cursor_tivec), unit, count);
 		buf_to_bufvec_copy(buf, &ioo->ioo_attr,
 				m0_ivec_cursor_index(&cursor_tivec),
 				CKSUM_SIZE,
-			//	COUNT(coff_ivec, ci_seg),
 				unit);
 		m0_ivec_cursor_move(&cursor_tivec, CKSUM_SIZE);
 	}
@@ -171,36 +140,8 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 				       struct m0_op_io *ioo,
 				       struct m0_buf *buf)
 {
-	struct m0_indexvec *coff_ivec = &ti->ti_coff_ivec;
-	//struct m0_indexvec *ti_ivec = &ti->ti_ivec;
-	m0_bindex_t                   ti_seg;
-	m0_bindex_t                   ci_seg;
-	uint64_t                     count;
-	uint32_t                     unit_size;
-	struct m0_ivec_cursor        cursor_civec;
-	struct m0_ivec_cursor        cursor;
-
 	copy_buffer(rep_ivec, &ti->ti_coff_ivec, buf, ioo);
-	m0_client_bufvec_print(&ioo->ioo_attr, &ioo->ioo_data, "YJC_Rep_attr", 1);
 	return;
-	print_ivec(rep_ivec, &ti->ti_coff_ivec);
-	count     = 0;
-	unit_size = 4096;
-	m0_ivec_cursor_init(&cursor, rep_ivec);
-	m0_ivec_cursor_init(&cursor_civec, coff_ivec);
-
-	while (!m0_ivec_cursor_move(&cursor, count)) {
-		ti_seg = m0_ivec_cursor_index(&cursor) / unit_size;
-		ci_seg = m0_ivec_cursor_index(&cursor_civec);
-		//count = m0_ivec_cursor_step(&cursor);
-		count = unit_size;
-		buf_to_bufvec_copy(buf, &ioo->ioo_attr,
-				INDEX(coff_ivec, ci_seg),
-				CKSUM_SIZE,
-			//	COUNT(coff_ivec, ci_seg),
-				ti_seg);
-		m0_ivec_cursor_move(&cursor_civec, CKSUM_SIZE);
-	}
 }
 
 /**
@@ -280,10 +221,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		application_attribute_copy(&rep_attr_ivec, tioreq, ioo,
 					   &rw_reply->rwr_di_data_cksum);
 
-//		M0_LOG(M0_DEBUG, "YJC_CLIENT: %p CKSUM: %.8s baddr: %p nob: %"PRIu64,
-//			rw_reply, (char *)rw_reply->rwr_di_data_cksum.b_addr,
-//			rw_reply->rwr_di_data_cksum.b_addr,
-//			rw_reply->rwr_di_data_cksum.b_nob);
 	}
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "

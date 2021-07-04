@@ -875,16 +875,16 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
     if( m0_is_read_fop(fom->fo_fop) )
 	{
 		struct m0_fop_cob_rw_reply	*rwrep = io_rw_rep_get(fom->fo_rep_fop);
-		
-		/* The si_cksum_nob_read will get updated in function stob_ad_read_prepare 
+
+		/* The si_cksum_nob_read will get updated in function stob_ad_read_prepare
 		 * for every emap segment read with non-zero CS, this value gets updated
 		 */
 	    rwrep->rwr_cksum_nob_read += stio_desc->siod_stob_io.si_cksum_nob_read;
-		
+
 		M0_ASSERT( rwrep->rwr_cksum_nob_read <=
 				   rwrep->rwr_di_data_cksum.b_nob );
 	}
-	
+
 	M0_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
 	if (fom_obj->fcrw_num_stobio_launched == 0)
 		m0_fom_ready(fom);
@@ -1753,12 +1753,6 @@ static int io_launch(struct m0_fom *fom)
 	index -= m0_is_write_fop(fop) ?
 		netbufs_tlist_length(&fom_obj->fcrw_netbuf_list) : 0;
 
-	if (m0_is_write_fop(fop)) {
-		M0_LOG(M0_DEBUG, "YJC: todo dummy messages %s", (char *)rwfop->crw_di_data_cksum.b_addr);
-		// To print buffers use this function
-		// m0_bufs_print(&rwfop->crw_di_data_cksum, "YJC_CKSUM: rwfop->crw_di_data_cksum");
-	}
-
 	m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
 		struct m0_indexvec     *mem_ivec;
 		struct m0_stob_io_desc *stio_desc;
@@ -2057,7 +2051,7 @@ static int stob_io_create(struct m0_fom *fom)
     struct m0_fop_cob_rw_reply *rw_replyfop;
     m0_bindex_t unit_size;
     m0_bindex_t curr_cksum_nob = 0;
-  
+
 	M0_PRE(fom != NULL);
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
@@ -2079,27 +2073,27 @@ static int stob_io_create(struct m0_fom *fom)
 
 		/* Init tracker variable, this gets updated in stobio_complete_cb */
 		rw_replyfop->rwr_cksum_nob_read = 0;
-		
+
 		/* Compute nob based on the COB extents */
-    	rw_replyfop->rwr_di_data_cksum.b_nob = 0;		
-      	for (i = 0; i < fom_obj->fcrw_io.si_stob.iv_vec.v_nr; i++) 
+    	rw_replyfop->rwr_di_data_cksum.b_nob = 0;
+      	for (i = 0; i < fom_obj->fcrw_io.si_stob.iv_vec.v_nr; i++)
 	   	{
-        	rw_replyfop->rwr_di_data_cksum.b_nob += 
-				m0_extent_get_checksum_nob(fom_obj->fcrw_io.si_stob.iv_index[i], 
+        	rw_replyfop->rwr_di_data_cksum.b_nob +=
+				m0_extent_get_checksum_nob(fom_obj->fcrw_io.si_stob.iv_index[i],
 										   fom_obj->fcrw_io.si_stob.iv_vec.v_count[i],
 										   unit_size,
-										   rwfop->crw_cksum_size);  
-      	}	
+										   rwfop->crw_cksum_size);
+      	}
 
-		// Its expected to receive atleast on unit start in a fop 
+		// Its expected to receive atleast on unit start in a fop
 		M0_ASSERT(rw_replyfop->rwr_di_data_cksum.b_nob > 0);
 
-		if( m0_buf_alloc( &rw_replyfop->rwr_di_data_cksum, 
+		if( m0_buf_alloc( &rw_replyfop->rwr_di_data_cksum,
 			  		       rw_replyfop->rwr_di_data_cksum.b_nob) != 0 )
        	{
          	m0_free(fom_obj->fcrw_stio);
-         	return M0_ERR(-ENOMEM);	
-      	}      
+         	return M0_ERR(-ENOMEM);
+      	}
 	}
 	else
 	{

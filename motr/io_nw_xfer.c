@@ -115,6 +115,7 @@ static uint32_t io_di_size(struct m0_op_io *ioo)
 		return M0_RC(0);
 
 	rc = di_ops->do_out_shift(file) * M0_DI_ELEMENT_SIZE;
+	rc += CKSUM_SIZE;
 
 	return M0_RC(rc);
 }
@@ -482,10 +483,10 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	uint64_t                   unit;
 	struct m0_indexvec        *ivec;
 	struct m0_indexvec        *trunc_ivec = NULL;
-	struct m0_indexvec        *coff_ivec;
+	struct m0_indexvec        *coff_ivec = NULL;
 	struct m0_bufvec          *bvec;
 	struct m0_bufvec          *auxbvec;
-	struct m0_bufvec          *attrbvec;
+	struct m0_bufvec          *attrbvec = NULL;
 	enum m0_pdclust_unit_type  unit_type;
 	enum page_attr            *pattr;
 	uint64_t                   cnt;
@@ -520,7 +521,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	pgstart = toff;
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
 	coff    = di_cksum_offset(play, gob_offset);
-	ti_idx = toff / layout_unit_size(play);
+	ti_idx  = toff / layout_unit_size(play);
 	M0_LOG(M0_DEBUG, "YJC: coff = %"PRIu32 " toff = %"PRIu64 " goff = %"PRIu64,
 		          coff, toff, goff);
 
@@ -547,6 +548,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		trunc_ivec  = &ti->ti_trunc_ivec;
 		bvec  = &ti->ti_bufvec;
 		auxbvec = &ti->ti_auxbufvec;
+		attrbvec = &ti->ti_attrbufvec;
+		coff_ivec = &ti->ti_coff_ivec;
 		pattr = ti->ti_pageattrs;
 		cnt = page_nr(ioo->ioo_iomap_nr * layout_unit_size(play) *
 			      layout_n(play), ioo->ioo_obj);
@@ -554,9 +557,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 ioo->ioo_iomap_nr, ioreq_sm_state(ioo), cnt);
 	}
 
-	//YJC_TODO: Move this to above else section during io write
-	attrbvec = &ti->ti_attrbufvec;
-	coff_ivec = &ti->ti_coff_ivec;
 	while (pgstart < toff + count) {
 		pgend = min64u(pgstart + page_size,
 			       toff + count);
@@ -629,10 +629,10 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		goff += COUNT(ivec, seg);
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
-		if (unit_type == M0_PUT_DATA && opcode == M0_OC_WRITE) {
+		if (attrbvec != NULL && unit_type == M0_PUT_DATA && opcode == M0_OC_WRITE) {
 			BUFVI(attrbvec, ti_idx) = BUFVI(&ioo->ioo_attr, coff);
 			BUFVC(attrbvec, ti_idx) = BUFVC(&ioo->ioo_attr, coff);
-		} else if (unit_type == M0_PUT_DATA && opcode == M0_OC_READ) {
+		} else if (coff_ivec != NULL && unit_type == M0_PUT_DATA && opcode == M0_OC_READ) {
 			INDEX(coff_ivec, ti_idx) = coff;
 			COUNT(coff_ivec, ti_idx) = CKSUM_SIZE;
 			coff_ivec->iv_vec.v_nr++;
@@ -781,21 +781,15 @@ static int m0_buf_from_bufvec(struct m0_buf *dest,
 		return M0_ERR(-ENOMEM);
 	dst = dest->b_addr;
 	for (i = 0; i < src->ov_vec.v_nr; i++) {
-		char str[128];
 		len = src->ov_vec.v_count[i];
 		if(len > 0) {
-			snprintf(str, len, "%s", (char *) src->ov_buf[i]);
 			memcpy(dst, src->ov_buf[i], len);
 			dst += len;
 			bytes_copied += len;
 		}
 	}
 	dest->b_nob = bytes_copied;
-	//M0_ASSERT(count == len);
-	//YJC_TODO: remove below two lines, only for debug
-	*((char *)dst) = '\0';
-	++dest->b_nob;
-	M0_LOG(M0_DEBUG, "YJC: copying %d %s buffers", (int)len, (char *)dest->b_addr);
+	M0_ASSERT(count == bytes_copied);
 	return 0;
 }
 
@@ -902,7 +896,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			goto err;
 		}
 
-		//YJC_TODO: handle if fop is more than RPC_MSG_BUF_SIZE
 		iofop = &irfop->irf_iofop;
 		rw_fop = io_rw_get(&iofop->if_fop);
 
@@ -995,15 +988,12 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_index = ti->ti_obj;
 		if (filter == PA_DATA) {
 			attrbvec = &ti->ti_attrbufvec;
-			rc = m0_buf_from_bufvec(&rw_fop->crw_di_data_cksum, attrbvec);
+			rc = m0_buf_from_bufvec(&rw_fop->crw_di_data_cksum,
+					        attrbvec);
 			M0_ASSERT(rc == 0);
-			M0_LOG(M0_DEBUG, "YJC_TEST:"FID_F" fop = %p baddr %p %s ", FID_P(&ti->ti_fid), &iofop->if_fop, rw_fop->crw_di_data_cksum.b_addr, (char *)rw_fop->crw_di_data_cksum.b_addr);
 			rw_fop->crw_cksum_size = CKSUM_SIZE;
 		}
-		/* M0_LOG(M0_DEBUG, "YJC: crw_di_data_cksum ab_count = %d ti_attrbufvec v_nr = %d ",
-				 rw_fop->crw_di_data_cksum.ab_count, attrbvec->ov_vec.v_nr);
-		//m0_bufs_print(&rw_fop->crw_di_data_cksum, "YJC_CKSUM: rw_fop->crw_di_data_cksum");
-		*/
+
 		if (ioo->ioo_flags & M0_OOF_NOHOLE)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 		if (ioo->ioo_flags & M0_OOF_SYNC)
@@ -1140,7 +1130,6 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	nr = page_nr(size, ioo->ioo_obj);
 	nr_attr = size / m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
 	M0_ASSERT(nr_attr != 0);
-	M0_LOG(M0_DEBUG, "YJC: %"PRIu32 " pages allocated for ivec for size = %"PRIu64, nr, size);
 	rc = m0_indexvec_alloc(&ti->ti_ivec, nr);
 	if (rc != 0)
 		goto out;
