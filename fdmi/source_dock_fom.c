@@ -196,6 +196,7 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 	int                    rc;
 
 	M0_ENTRY();
+	M0_PRE(!src_dock->fsdc_started);
 
 	m0_semaphore_init(&sd_fom->fsf_shutdown, 0);
 	rpc_mach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
@@ -224,6 +225,7 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 	pending_fops_tlist_init(&sd_fom->fsf_pending_fops);
 	m0_fom_init(fom, &fdmi_sd_fom_type, &fdmi_sd_fom_ops, NULL, NULL, reqh);
 	m0_fom_queue(fom);
+	src_dock->fsdc_started = true;
 	return M0_RC(0);
 }
 
@@ -269,6 +271,8 @@ M0_INTERNAL void
 m0_fdmi__src_dock_fom_stop(struct m0_fdmi_src_dock *src_dock)
 {
 	M0_ENTRY();
+	M0_PRE(src_dock->fsdc_started);
+	src_dock->fsdc_started = false;
 
 	/* Wake up FOM, so it can stop itself */
 	m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
