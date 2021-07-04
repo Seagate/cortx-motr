@@ -605,6 +605,25 @@ enum m0_entity_type {
 enum {
 	CKSUM_SIZE = 16,
 };
+
+#if 0
+#define print_buf(buf, seg, msg) \
+do { char *dst = (char *)(buf)->ov_buf[seg]; \
+M0_LOG(M0_DEBUG, "YJC : %s buf[%d] = %c", msg, seg, dst[0]); \
+}while
+#endif
+
+#define m0_buf_print(buf, seg, msg) \
+do { \
+	struct m0_vec *vec = &(buf)->ov_vec; \
+	char *dst = (char *)(buf)->ov_buf[seg]; \
+	M0_LOG(M0_DEBUG, msg " count[%d] = %"PRIu64 \
+			"ov buf = %c%c", \
+			seg, vec->v_count[seg], dst[0], dst[1]); \
+}while(0)
+
+/** M0_LOG(M0_DEBUG, "YJC %s: buf[%d] = %x%x%x%x%x%x%x%x", msg, seg, dst[0], dst[1], dst[2], dst[3], dst[4], dst[5], dst[6],dst[7]); \ */
+
 /**
  * Generic client operation structure.
  */

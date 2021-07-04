@@ -214,12 +214,16 @@ M0_INTERNAL int m0_bufvec_extend(struct m0_bufvec *bufvec,
 do { \
 	uint32_t i;\
 	struct m0_vec *vec = &(buf)->ov_vec; \
+	int len = m0_vec_count(vec); \
+	char str[len + 1]; \
 	for (i = 0; i < vec->v_nr; ++i) { \
 		if (vec->v_count[i] > 0) { \
 			M0_LOG(M0_DEBUG, msg " count[%d] = %"PRIu64 "ov buf = %s", \
 				i, vec->v_count[i], (char *)(buf)->ov_buf[i]); \
+			memcpy(str, (buf)->ov_buf[i], CKSUM_SIZE); \
 		} \
 	} \
+	M0_LOG(M0_DEBUG, "YJC_DBUG: cksum = %s", (char *)str); \
 }while(0)
 
 /**
