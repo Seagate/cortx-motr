@@ -218,6 +218,8 @@ M0_INTERNAL void m0_io_fop_destroy(struct m0_fop *fop);
 
 M0_INTERNAL bool m0_is_read_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_write_fop(const struct m0_fop *fop);
+M0_INTERNAL bool m0_is_read_rep(const struct m0_fop *fop);
+M0_INTERNAL bool m0_is_write_rep(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_io_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_io_fop_rep(const struct m0_fop *fop);
 M0_INTERNAL struct m0_fop_cob_rw *io_rw_get(struct m0_fop *fop);

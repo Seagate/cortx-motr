@@ -798,12 +798,19 @@ struct target_ioreq {
 	struct m0_indexvec             ti_trunc_ivec;
 
 	/**
+	 * Index vector containing segment number of attribute bufvec 
+	 * m0_op_io::ioo_attr for this target.
+	 */
+	struct m0_indexvec             ti_coff_ivec;
+
+	/**
 	 * Buffer vector corresponding to index vector above.
 	 * This buffer is in sync with ::ti_ivec.
 	 */
 	struct m0_bufvec               ti_bufvec;
 	struct m0_bufvec               ti_auxbufvec;
 	struct m0_bufvec               ti_attrbufvec;
+
 
 	/**
 	 * Degraded mode read/write IO vector.

@@ -101,6 +101,47 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop)
 	return &ioo->ioo_flock;
 }
 
+static void buf_to_bufvec_copy(struct m0_buf *buf, struct m0_bufvec *bufvec,
+			       m0_bindex_t index, m0_bcount_t count,
+			       m0_bindex_t buf_offset)
+{
+	void *data = buf->b_addr + buf_offset;
+	memcpy(BUFVI(bufvec, index), data, count);
+	M0_LOG(M0_DEBUG,"YJC: index = %"PRIu64 " count = %"PRIu64" off = %"PRIu64,
+			 index, count, buf_offset);
+	BUFVC(bufvec, index) = count;
+}
+
+static void application_attribute_copy(struct m0_indexvec *rep_ivec,
+				       struct target_ioreq *ti,
+				       struct m0_op_io *ioo,
+				       struct m0_buf *buf)
+{
+	struct m0_indexvec *coff_ivec = &ti->ti_coff_ivec;
+	struct m0_indexvec *ti_ivec = &ti->ti_ivec;
+	m0_bindex_t         rep_index;
+	m0_bindex_t         ti_index;
+	uint64_t            ti_seg;
+	uint64_t            rep_seg = 0;
+
+	while (rep_seg < SEG_NR(rep_ivec)) {
+		rep_index = INDEX(rep_ivec, rep_seg);
+		ti_seg = 0;
+		while (ti_seg < SEG_NR(ti_ivec)) {
+			ti_index = INDEX(ti_ivec, ti_seg);
+			if (rep_index == ti_index) {
+				buf_to_bufvec_copy(buf, &ioo->ioo_attr,
+						INDEX(coff_ivec, ti_seg),
+						COUNT(coff_ivec, ti_seg),
+						rep_index);
+				break;
+			}
+			ti_seg++;
+		}
+		rep_seg++;
+	}
+}
+
 /**
  * AST-Callback for the rpc layer when it receives a reply fop.
  * This is heavily based on m0t1fs/linux_kernel/file.c::io_bottom_half
@@ -125,7 +166,9 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_rpc_item          *reply_item;
 	struct m0_rpc_bulk	    *rbulk;
 	struct m0_fop_cob_rw_reply  *rw_reply;
+	struct m0_indexvec           rep_attr_ivec;
 	struct m0_fop_generic_reply *gen_rep;
+	struct m0_fop_cob_rw        *rwfop;
 
 	M0_ENTRY("sm_group %p sm_ast %p", grp, ast);
 
@@ -150,6 +193,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	/* Check errors in rpc items of an IO reqest and its reply. */
 	rbulk      = &iofop->if_rbulk;
 	req_item   = &iofop->if_fop.f_item;
+	rwfop      = io_rw_get(&iofop->if_fop);
 	reply_item = req_item->ri_reply;
 	rc         = req_item->ri_error;
 	if (reply_item != NULL) {
@@ -167,6 +211,19 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	/* Check errors in an IO request's reply. */
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rw_reply = io_rw_rep_get(reply_fop);
+	if (m0_is_read_rep(reply_fop) && op->op_code == M0_OC_READ) {
+		m0_indexvec_wire2mem(&rwfop->crw_ivec,
+					rwfop->crw_ivec.ci_nr, 0,
+					&rep_attr_ivec);
+
+		application_attribute_copy(&rep_attr_ivec, tioreq, ioo,
+					   &rw_reply->rwr_di_data_cksum);
+
+//		M0_LOG(M0_DEBUG, "YJC_CLIENT: %p CKSUM: %.8s baddr: %p nob: %"PRIu64,
+//			rw_reply, (char *)rw_reply->rwr_di_data_cksum.b_addr,
+//			rw_reply->rwr_di_data_cksum.b_addr,
+//			rw_reply->rwr_di_data_cksum.b_nob);
+	}
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
 			 "sns state = %d", ioo, req_item,
