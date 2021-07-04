@@ -192,6 +192,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	/* get ops */
 	dock = m0_fdmi_src_dock_get();
 	M0_UT_ASSERT(dock != NULL);
+	dock->fsdc_started = true;
 	src_ctx = m0_fdmi__src_ctx_get(M0_FDMI_REC_TYPE_FOL);
 	M0_UT_ASSERT(src_ctx != NULL);
 	src_reg = &src_ctx->fsc_src;
@@ -354,6 +355,8 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 
 	/* system fini */
 	m0_be_ut_backend_fini(&ut_be);
+
+	dock->fsdc_started = false;
 
 	M0_LEAVE();
 }
