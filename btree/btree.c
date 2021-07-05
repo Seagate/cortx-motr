@@ -3139,14 +3139,14 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	int curr_max_level = node_level(lev->l_node);
 
 	/* skip the invarient check for level */
-	oi->i_extra_node->n_skip_rec_count_check   = true;
+	n_lock_op_lock(lev->l_node);
+	n_lock_op_lock(oi->i_extra_node);
+
+	oi->i_extra_node->n_skip_rec_count_check = true;
 	lev->l_node->n_skip_rec_count_check = true;
 
 	node_set_level(oi->i_extra_node, curr_max_level, bop->bo_tx);
 	node_set_level(lev->l_node, curr_max_level + 1, bop->bo_tx);
-
-	n_lock_op_lock(lev->l_node);
-	n_lock_op_lock(oi->i_extra_node);
 
 	node_move(lev->l_node, oi->i_extra_node, D_RIGHT, NR_MAX,
 		  bop->bo_tx);
@@ -4717,14 +4717,16 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		}
 		node_seq_cnt_update(lev->l_node);
 		node_fix(node_slot.s_node, bop->bo_tx);
-		n_lock_op_unlock(lev->l_node);
+
 		/* check if underflow after deletion */
 		if (flag || !node_isunderflow(lev->l_node, false)) {
 			lev->l_node->n_skip_rec_count_check = false;
+			n_lock_op_unlock(lev->l_node);
 			lock_op_unlock(tree);
 			return P_FREENODE;
 		}
 		lev->l_node->n_skip_rec_count_check = false;
+		n_lock_op_unlock(lev->l_node);
 
 	} while (1);
 
@@ -5061,13 +5063,11 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(node_slot.s_node, bop->bo_tx);
-
-			n_lock_op_unlock(lev->l_node);
-
 			rec.r_flags = M0_BSC_SUCCESS;
 		}
 		int rc = bop->bo_cb.c_act(&bop->bo_cb, &rec);
 		if (rc) {
+			M0_ASSERT(!oi->i_key_found);
 			lock_op_unlock(tree);
 			return fail(bop, rc);
 		}
@@ -5077,11 +5077,13 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			    !node_isunderflow(lev->l_node, false)) {
 				/* No Underflow */
 				lev->l_node->n_skip_rec_count_check = false;
+				n_lock_op_unlock(lev->l_node);
 				lock_op_unlock(tree);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_FINI);
 			}
 			lev->l_node->n_skip_rec_count_check = false;
+			n_lock_op_unlock(lev->l_node);
 			return btree_del_resolve_underflow(bop);
 		}
 		lock_op_unlock(tree);
