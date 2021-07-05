@@ -157,7 +157,7 @@ static bool is_normal(uint64_t alloc_flags);
 static bool is_any(uint64_t alloc_flag);
 
 static int index_hash(struct m0_balloc_super_block *sb,
-		      m0_bcount_t                   ext_end)
+		      m0_bindex_t                   ext_end)
 {
 	return (ext_end - 1) / sb->bsb_groupsize % sb->bsb_indexcount;
 };

@@ -349,9 +349,10 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 			cfg->adg_index_nr = BALLOC_DEF_INDEXES_NR;
 		cfg->adg_spare_blocks_per_group =
 			m0_stob_ad_spares_calc(grp_blocks);
-		M0_LOG(M0_DEBUG, "device size %"PRId64, cfg->adg_container_size);
-		M0_LOG(M0_INFO, "device has %"PRId64" of group size %"PRId64,
-			cfg->adg_group_nr, cfg->adg_blocks_per_group);
+		M0_LOG(M0_INFO, "device size %"PRId64, cfg->adg_container_size);
+		M0_LOG(M0_INFO, "device has total %"PRId64" groups, "
+			"each with size %"PRId64, cfg->adg_group_nr,
+			cfg->adg_blocks_per_group);
 		*cfg_create = cfg;
 	}
 	return M0_RC(rc);
