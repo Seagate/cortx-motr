@@ -1243,6 +1243,7 @@ struct m0_btree_oimpl {
 	/** Track number of trials done to complete operation. **/
 	unsigned        i_trial;
 
+	/** Used to store height of tree at the beginning of any operation **/
 	unsigned        i_height;
 
 	/** Node descriptor for cookie if it is going to be used. **/
