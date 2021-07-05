@@ -502,13 +502,12 @@ int m0_read(struct m0_container *container,
 		goto get_error;
 
 	/* Setting pver here to read_pver received as parameter to this func.
-	 * Caller of this function is expected to pass pver of object tobe
+	 * Caller of this function is expected to pass pver of object to be
 	 * read, if he knows pver of object.
 	 * */
 	if (read_pver != NULL &&  m0_fid_is_set(read_pver)) {
 		obj.ob_attr.oa_pver = *read_pver;
-		M0_LOG(M0_DEBUG, "m0_read: obj->ob_attr.oa_pver is set to:"FID_F
-                       " To predent that, it is received from application",
+		M0_LOG(M0_DEBUG, "obj->ob_attr.oa_pver is set to:"FID_F,
 	               FID_P(&obj.ob_attr.oa_pver));
 	}
 
