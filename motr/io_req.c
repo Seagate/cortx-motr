@@ -1120,12 +1120,11 @@ static bool verify_one_unit_md5_inc_context(struct m0_op_io *ioo,
 					    struct m0_ivec_cursor *ck_extcur,
 					    int attr_idx)
 {
-	bool res = false;
+	bool res = true;
 #ifndef __KERNEL__
 	struct m0_pi_seed seed;
-	struct m0_bufvec user_data;
-	struct m0_bufvec_cursor datacur;
-	int usz, rc, count;
+	struct m0_bufvec user_data = {};
+	int usz, rc, count, i;
 	unsigned char curr_context;
 	uint64_t pg_size;
 	struct m0_md5_inc_context_pi *pi_ondisk;
@@ -1135,57 +1134,49 @@ static bool verify_one_unit_md5_inc_context(struct m0_op_io *ioo,
 			m0__obj_lid(ioo->ioo_obj));
 
 	pg_size = m0__page_size(ioo);
-	rc = m0_bufvec_alloc(&user_data, 1, pg_size);
+	count = usz/pg_size;
+
+	rc = m0_bufvec_alloc(&user_data, count, 0);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "buffer allocation failed, rc %d", rc);
 		return false;
 	}
 
 	count = 0;
-
+	i = 0;
 	while (count < usz) {
-		m0_bufvec_cursor_init(&datacur, &user_data);
-		m0_bufvec_cursor_copy(&datacur, ck_datacur, pg_size);
-
-		M0_ASSERT(!m0_bufvec_cursor_move(ck_datacur, pg_size));
-		M0_ASSERT(!m0_ivec_cursor_move(ck_extcur, pg_size));
-
-		if (count == 0) {
-			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-					NULL, &user_data,
-					M0_PI_CALC_UNIT_ZERO|M0_PI_SKIP_CALC_FINAL,
-					&curr_context, NULL);
-		}
-		else {
-			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-					NULL, &user_data, M0_PI_SKIP_CALC_FINAL,
-					&curr_context, NULL);
-		}
-		if (rc != 0) {
-			M0_LOG(M0_ERROR, "md5 inc context checksum calculation failed, rc %d", rc);
-			break;
-		}
-		memcpy(pi.prev_context, &curr_context, sizeof(MD5_CTX));
+		user_data.ov_vec.v_count[i] = pg_size;
+		user_data.ov_buf[i] = m0_bufvec_cursor_addr(ck_datacur);
+		i++;
 		count += pg_size;
+		M0_ASSERT(!m0_bufvec_cursor_move(ck_datacur, pg_size));
 	}
 
 	seed.data_unit_offset = m0_ivec_cursor_index(ck_extcur)/usz;
 	seed.obj_id = ioo->ioo_oo.oo_fid;
 
+	M0_ASSERT(!m0_ivec_cursor_move(ck_extcur, usz));
+
+	pi_ondisk = (struct m0_md5_inc_context_pi *)ioo->ioo_attr.ov_buf[attr_idx];
+	pi.hdr.pi_type = pi_ondisk->hdr.pi_type;
+
 	rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-			&seed, NULL, 0,
+			&seed, &user_data, M0_PI_CALC_UNIT_ZERO,
 			&curr_context, NULL);
-	if (rc == 0) {
-
-		M0_ASSERT(attr_idx < ioo->ioo_attr.ov_vec.v_nr);
-
-		pi_ondisk = (struct m0_md5_inc_context_pi *)ioo->ioo_attr.ov_buf[attr_idx];
-		if (memcmp(pi.pi_value, pi_ondisk->pi_value, MD5_DIGEST_LENGTH) == 0) {
-			res = true;
-		}
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "md5 inc context checksum calculation failed, rc %d", rc);
+		res = false;
+		goto exit;
 	}
 
+	M0_ASSERT(attr_idx < ioo->ioo_attr.ov_vec.v_nr);
+
+	if (memcmp(pi.pi_value, pi_ondisk->pi_value, MD5_DIGEST_LENGTH) != 0) {
+		res = false;
+	}
+exit:
 	m0_bufvec_free(&user_data);
+
 #endif
 	return res;
 }
