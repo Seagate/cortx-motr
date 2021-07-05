@@ -3512,11 +3512,18 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node)) {
+
+			lev->l_node->n_skip_rec_count_check = true;
+			if ((oi->i_used > 0 &&
+			     node_count_rec(lev->l_node) == 0) ||
+			     !node_isvalid(lev->l_node)) {
+				lev->l_node->n_skip_rec_count_check = false;
 				n_lock_op_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
+			lev->l_node->n_skip_rec_count_check = false;
+
 			oi->i_nop.no_node = NULL;
 
 			oi->i_key_found = node_find(&node_slot,
@@ -4214,11 +4221,16 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node)) {
+			lev->l_node->n_skip_rec_count_check = true;
+			if ((oi->i_used > 0 &&
+			     node_count_rec(lev->l_node) == 0) ||
+			     !node_isvalid(lev->l_node)) {
+				lev->l_node->n_skip_rec_count_check = false;
 				n_lock_op_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
+			lev->l_node->n_skip_rec_count_check = false;
 
 			oi->i_key_found = node_find(&node_slot,
 						    &bop->bo_rec.r_key);
@@ -4405,11 +4417,16 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node)) {
+			lev->l_node->n_skip_rec_count_check = true;
+			if ((oi->i_used > 0 &&
+			     node_count_rec(lev->l_node) == 0) ||
+			     !node_isvalid(lev->l_node)) {
+				lev->l_node->n_skip_rec_count_check = false;
 				n_lock_op_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
+			lev->l_node->n_skip_rec_count_check = false;
 
 			oi->i_key_found = node_find(&s, &bop->bo_rec.r_key);
 			lev->l_idx = s.s_idx;
@@ -4483,14 +4500,18 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				 */
 				lev = &oi->i_level[oi->i_pivot];
 				n_lock_op_lock(lev->l_node);
-
-				if (!node_isvalid(lev->l_node)) {
+				lev->l_node->n_skip_rec_count_check = true;
+				if ((oi->i_pivot > 0 &&
+				     node_count_rec(lev->l_node) == 0) ||
+				     !node_isvalid(lev->l_node)) {
 					n_lock_op_unlock(lev->l_node);
 					node_op_fini(&oi->i_nop);
 					bop->bo_flags |= BOF_LOCKALL;
+					lev->l_node->n_skip_rec_count_check = false;
 					return m0_sm_op_sub(&bop->bo_op,
 							    P_CLEANUP, P_SETUP);
 				}
+				lev->l_node->n_skip_rec_count_check = false;
 				if (lev->l_seq != lev->l_node->n_seq) {
 					n_lock_op_unlock(lev->l_node);
 					bop->bo_flags |= BOF_LOCKALL;
@@ -4544,11 +4565,16 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(s.s_node)) {
+			lev->l_sibling->n_skip_rec_count_check = true;
+			if ((oi->i_pivot > 0 &&
+			     node_count_rec(s.s_node) == 0) ||
+			     !node_isvalid(s.s_node)) {
+				lev->l_sibling->n_skip_rec_count_check = false;
 				n_lock_op_unlock(lev->l_sibling);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
+			lev->l_sibling->n_skip_rec_count_check = false;
 
 			if (node_level(s.s_node) > 0) {
 				s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
@@ -4849,16 +4875,23 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 		struct slot     root_slot = {};
 		struct segaddr  root_child;
 		struct level   *root_lev = &oi->i_level[0];
-		/* TBD: check if node_lock or node_count check is needed. */
+
+		n_lock_op_lock(root_lev->l_node);
+
+		if (oi->i_level[0].l_seq != root_lev->l_seq) {
+			n_lock_op_unlock(root_lev->l_node);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
+		}
 		root_slot.s_node = root_lev->l_node;
 		root_slot.s_idx  = root_lev->l_idx == 0 ? 1 : 0;
 
 		node_child(&root_slot, &root_child);
 		if (!address_in_segment(root_child)) {
+			n_lock_op_unlock(root_lev->l_node);
 			node_op_fini(&oi->i_nop);
 			return fail(bop, M0_ERR(-EFAULT));
 		}
-
+		n_lock_op_unlock(root_lev->l_node);
 		return node_get(&oi->i_nop, bop->bo_arbor->t_desc,
 				&root_child, lock_acquired, P_STORE_CHILD);
 	}
@@ -4934,11 +4967,16 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node)) {
+			lev->l_node->n_skip_rec_count_check = true;
+			if ((oi->i_used > 0 &&
+			     node_count_rec(lev->l_node) == 0) ||
+			     !node_isvalid(lev->l_node)) {
+				lev->l_node->n_skip_rec_count_check = false;
 				n_lock_op_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
+			lev->l_node->n_skip_rec_count_check = false;
 
 			oi->i_nop.no_node = NULL;
 
@@ -4992,18 +5030,25 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		}
 	case P_STORE_CHILD: {
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			oi->i_level[1].l_sibling = oi->i_nop.no_node;
-			n_lock_op_lock(oi->i_level[1].l_sibling);
+			struct nd *root_child;
 
-			if (!node_isvalid(oi->i_level[1].l_sibling)) {
-				n_lock_op_unlock(oi->i_level[1].l_sibling);
+			oi->i_level[1].l_sibling = oi->i_nop.no_node;
+			root_child = oi->i_level[1].l_sibling;
+			n_lock_op_lock(root_child);
+
+			root_child->n_skip_rec_count_check = true;
+			if (node_count_rec(root_child) == 0 ||
+			    !node_isvalid(root_child)){
+				root_child->n_skip_rec_count_check = false;
+				n_lock_op_unlock(root_child);
  				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
+			root_child->n_skip_rec_count_check = false;
 			/* store child of the root. */
 			oi->i_level[1].l_sib_seq = oi->i_nop.no_node->n_seq;
 
-			n_lock_op_unlock(oi->i_level[1].l_sibling);
+			n_lock_op_unlock(root_child);
 			/* Fall through to the next step */
 		} else {
 			node_op_fini(&oi->i_nop);
