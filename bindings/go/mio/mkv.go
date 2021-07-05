@@ -50,6 +50,10 @@ func (mkv *Mkv) idxNew(id string) (err error) {
     if err != nil {
         return err
     }
+    if (mkv.idxID.u_hi >> 56) != 0x78 {
+        return fmt.Errorf("index fid must start with 0x78 in MSByte" +
+                          ", for example: 0x7800000000000123:0x...")
+    }
     mkv.idx = (*C.struct_m0_idx)(C.calloc(1, C.sizeof_struct_m0_idx))
     return nil
 }
