@@ -1135,6 +1135,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 		goto out;
 	if (op->op_code == M0_OC_READ) {
 		rc = m0_indexvec_alloc(&ti->ti_coff_ivec, nr);
+		ti->ti_coff_ivec.iv_vec.v_nr = 0;
 		if (rc != 0)
 			goto fail;
 	}
@@ -1193,11 +1194,14 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	return M0_RC(0);
 fail:
 	m0_indexvec_free(&ti->ti_ivec);
-	m0_indexvec_free(&ti->ti_coff_ivec);
+	if (op->op_code == M0_OC_READ)
+		m0_indexvec_free(&ti->ti_coff_ivec);
 	if (op->op_code == M0_OC_FREE)
 		m0_indexvec_free(&ti->ti_trunc_ivec);
 	m0_free(ti->ti_bufvec.ov_vec.v_count);
 	m0_free(ti->ti_bufvec.ov_buf);
+	m0_free(ti->ti_attrbufvec.ov_vec.v_count);
+	m0_free(ti->ti_attrbufvec.ov_buf);
 	m0_free(ti->ti_auxbufvec.ov_vec.v_count);
 	m0_free(ti->ti_auxbufvec.ov_buf);
 

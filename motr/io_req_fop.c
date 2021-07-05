@@ -105,34 +105,11 @@ static void buf_to_bufvec_copy(struct m0_buf *buf, struct m0_bufvec *bufvec,
 			       m0_bindex_t index, m0_bcount_t count,
 			       m0_bindex_t buf_offset)
 {
-	void *data = buf->b_addr + (buf_offset * CKSUM_SIZE);
+	void *data;
+
+	data = buf->b_addr + (buf_offset * CKSUM_SIZE);
 	memcpy(BUFVI(bufvec, index), data, count);
 	BUFVC(bufvec, index) = count;
-}
-
-static void copy_buffer(struct m0_indexvec *ivec, struct m0_indexvec *ti_ivec,
-			struct m0_buf *buf, struct m0_op_io *ioo)
-{
-	uint64_t                     count;
-	uint32_t                     unit;
-	uint32_t                     unit_size;
-	struct m0_ivec_cursor        cursor_tivec;
-	struct m0_ivec_cursor        cursor;
-
-	count     = 0;
-	unit_size = 4096;
-	m0_ivec_cursor_init(&cursor, ivec);
-	m0_ivec_cursor_init(&cursor_tivec, ti_ivec);
-
-	while (!m0_ivec_cursor_move(&cursor, count)) {
-		unit = m0_ivec_cursor_index(&cursor) / unit_size;
-		count = unit_size;
-		buf_to_bufvec_copy(buf, &ioo->ioo_attr,
-				m0_ivec_cursor_index(&cursor_tivec),
-				CKSUM_SIZE,
-				unit);
-		m0_ivec_cursor_move(&cursor_tivec, CKSUM_SIZE);
-	}
 }
 
 static void application_attribute_copy(struct m0_indexvec *rep_ivec,
@@ -140,8 +117,36 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 				       struct m0_op_io *ioo,
 				       struct m0_buf *buf)
 {
-	copy_buffer(rep_ivec, &ti->ti_coff_ivec, buf, ioo);
-	return;
+	uint64_t                count;
+	uint32_t                unit;
+	uint32_t                unit_size;
+	uint32_t                ti_seg;
+	m0_bindex_t             rep_index;
+	m0_bindex_t             ti_index;
+	struct m0_ivec_cursor   cursor;
+	struct m0_indexvec     *ti_ivec = &ti->ti_ivec;
+	struct m0_indexvec     *coff_ivec = &ti->ti_coff_ivec;
+
+	count     = 0;
+	unit_size = 4096;
+	m0_ivec_cursor_init(&cursor, rep_ivec);
+
+	while (!m0_ivec_cursor_move(&cursor, count)) {
+		rep_index = m0_ivec_cursor_index(&cursor);
+		unit = rep_index / unit_size;
+		count = unit_size;
+		ti_seg = 0;
+		while (ti_seg < SEG_NR(ti_ivec)) {
+			ti_index = INDEX(ti_ivec, ti_seg);
+			if (rep_index == ti_index) {
+				buf_to_bufvec_copy(buf, &ioo->ioo_attr,
+						INDEX(coff_ivec, ti_seg),
+						CKSUM_SIZE, unit);
+		                break;
+		        }
+		        ti_seg++;
+		}
+	}
 }
 
 /**
@@ -221,6 +226,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		application_attribute_copy(&rep_attr_ivec, tioreq, ioo,
 					   &rw_reply->rwr_di_data_cksum);
 
+		m0_indexvec_free(&rep_attr_ivec);
 	}
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
