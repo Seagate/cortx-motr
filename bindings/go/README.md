@@ -62,5 +62,8 @@ cd motr/bindings/go/mcp && go build && go install
 The binary will be installed to your `GOBIN` directory
 (check with `go env GOBIN`).
 
+If `go env GOBIN` doesn't show any output, check your `GOPATH` directory with `go env GOPATH`. 
+You can find the binary installed under `GOPATH/bin` directory.
+
 See the usage example at this discussion thread -
 https://github.com/Seagate/cortx-motr/discussions/285.
