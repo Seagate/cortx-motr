@@ -6222,9 +6222,13 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		key_first = key_iter_start;
 		if (ti->ti_random_bursts) {
 			random_r(&ti->ti_random_buf, &r);
-			key_last = (r % (key_end - key_first)) + key_first;
-			key_last = (key_last / ti->ti_key_incr) * ti->ti_key_incr
-				   + ti->ti_key_first;
+			if (key_first == key_end)
+				key_last = key_end;
+			else
+				key_last = (r % (key_end - key_first)) +
+					   key_first;
+			key_last = (key_last / ti->ti_key_incr) *
+				   ti->ti_key_incr + ti->ti_key_first;
 		} else
 			key_last = key_end;
 
