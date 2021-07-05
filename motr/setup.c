@@ -888,6 +888,8 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 					 */
 					size = 1024ULL *1024 * 256;
 				rc = m0_storage_dev_new(devs, cid, f_path, size,
+							rctx->rc_balloc_group_nr,
+							rctx->rc_balloc_index_nr,
 							conf_sdev, force, &dev);
 				if (rc == 0) {
 					/*
@@ -911,7 +913,9 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 		}
 	} else if (stob->s_ad_disks_init || M0_FI_ENABLED("init_via_conf")) {
 		M0_LOG(M0_DEBUG, "conf config");
-		rc = cs_conf_storage_init(stob, devs, force);
+		rc = cs_conf_storage_init(stob, devs,
+					  rctx->rc_balloc_group_nr,
+					  rctx->rc_balloc_index_nr, force);
 	} else {
 		/*
 		 * This is special case for tests. We don't have configured
@@ -926,10 +930,15 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 		if (type == M0_STORAGE_DEV_TYPE_AD)
 			rc = m0_storage_dev_new(devs,
 						M0_AD_STOB_DOM_KEY_DEFAULT,
-						NULL, size, NULL, force, &dev);
+						NULL, size,
+						rctx->rc_balloc_group_nr,
+						rctx->rc_balloc_index_nr,
+						NULL, force, &dev);
 		else
 			rc = m0_storage_dev_new(devs, M0_SDEV_CID_DEFAULT,
-						stob_path, size, NULL,
+						stob_path, size,
+						rctx->rc_balloc_group_nr,
+						rctx->rc_balloc_index_nr, NULL,
 						force, &dev);
 		if (rc == 0) {
 			/* see m0_storage_dev_attach() above */
@@ -2230,6 +2239,16 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				LAMBDA(void, (void)
 				{
 					rctx->rc_be_seg_preallocate = true;
+				})),
+			M0_NUMBERARG('O', "balloc no of groups per ad stob",
+				LAMBDA(void, (int64_t nr)
+				{
+					rctx->rc_balloc_group_nr = nr;
+				})),
+			M0_NUMBERARG('X', "BE balloc no of index in balloc db",
+				LAMBDA(void, (int64_t nr)
+				{
+					rctx->rc_balloc_index_nr = nr;
 				})),
 			M0_STRINGARG('c', "Path to the configuration database",
 				LAMBDA(void, (const char *s)

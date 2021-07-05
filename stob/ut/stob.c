@@ -32,6 +32,7 @@
 #include "stob/ad.h"		/* m0_stob_ad_cfg_make */
 #include "stob/domain.h"
 #include "stob/stob.h"
+#include "balloc/balloc.h"     /* BALLOC_DEF_BLOCK_SHIFT */
 
 enum {
 	M0_STOB_UT_STOB_NR          = 0x04,
@@ -287,7 +288,9 @@ void m0_stob_ut_stob_ad(void)
 	stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(stob != NULL);
 
-	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg, m0_stob_id_get(stob), 0);
+	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg, m0_stob_id_get(stob), 0,
+			    BALLOC_DEF_GROUPS_NR,
+			    BALLOC_DEF_INDEXES_NR);
 	M0_UT_ASSERT(dom_cfg != NULL);
 	m0_stob_ad_init_cfg_make(&dom_init_cfg, &ut_be.but_dom);
 	M0_UT_ASSERT(dom_init_cfg != NULL);

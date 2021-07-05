@@ -43,7 +43,7 @@
 
 #define BALLOC_DBNAME "./__balloc_db"
 
-#define GROUP_SIZE (BALLOC_DEF_CONTAINER_SIZE / (BALLOC_DEF_BLOCKS_PER_GROUP * \
+#define GROUP_COUNT (BALLOC_DEF_CONTAINER_SIZE / (BALLOC_DEF_BLOCKS_PER_GROUP * \
 						 (1 << BALLOC_DEF_BLOCK_SHIFT)))
 
 #define BALLOC_DEBUG
@@ -99,38 +99,41 @@ bool balloc_ut_invariant(struct m0_balloc *motr_balloc,
 int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg,
 		       bool is_reserve)
 {
-	struct m0_sm_group     *grp;
-	struct m0_balloc       *motr_balloc;
-	struct m0_dtx           dtx = {};
-	struct m0_be_tx        *tx  = &dtx.tx_betx;
-	struct m0_be_tx_credit  cred;
-	struct m0_ext           ext[MAX];
-	struct m0_ext           tmp   = {};
-	m0_bcount_t             count = 539;
-	m0_bcount_t             spare_size;
-	int                     i     = 0;
-	int                     rc;
-	time_t                  now;
+	struct m0_sm_group             *grp;
+	struct m0_balloc               *motr_balloc;
+	struct m0_dtx                   dtx = {};
+	struct m0_be_tx                *tx  = &dtx.tx_betx;
+	struct m0_be_tx_credit          cred;
+	struct m0_ext                   ext[MAX];
+	struct m0_ext                   tmp   = {};
+	m0_bcount_t                     count = 539;
+	m0_bcount_t                     spare_size;
+	int                             i     = 0;
+	int                             rc;
+	struct m0_ad_balloc_format_req  bcfg;
 
-	time(&now);
-	srand(now);
+	bcfg.bfr_fid                   = M0_FID_INIT(0, 1);
+	bcfg.bfr_totalsize             = BALLOC_DEF_CONTAINER_SIZE;
+	bcfg.bfr_blocksize             = (1 << BALLOC_DEF_BLOCK_SHIFT);
+	bcfg.bfr_groupsize             = BALLOC_DEF_BLOCKS_PER_GROUP;
+	bcfg.bfr_groupcount            = GROUP_COUNT;
+	bcfg.bfr_indexcount            = BALLOC_DEF_INDEXES_NR;
+	bcfg.bfr_spare_reserved_blocks = m0_stob_ad_spares_calc(
+						BALLOC_DEF_BLOCKS_PER_GROUP);
 
 	grp = m0_be_ut_backend_sm_group_lookup(ut_be);
-	rc = m0_balloc_create(0, seg, grp, &motr_balloc, &M0_FID_INIT(0, 1));
+	rc = m0_balloc_create(0, seg, grp, &bcfg, &motr_balloc);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = motr_balloc->cb_ballroom.ab_ops->bo_init
-		(&motr_balloc->cb_ballroom, seg, BALLOC_DEF_BLOCK_SHIFT,
-		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
-		 m0_stob_ad_spares_calc(BALLOC_DEF_BLOCKS_PER_GROUP));
-
+	rc = motr_balloc->cb_ballroom.ab_ops->bo_init(
+		&motr_balloc->cb_ballroom, seg, &bcfg);
 	if (rc != 0)
 		goto out;
 
 	prev_free_blocks = motr_balloc->cb_sb.bsb_freeblocks;
-	M0_ALLOC_ARR(prev_group_info_free_blocks, GROUP_SIZE);
+	M0_ALLOC_ARR(prev_group_info_free_blocks, GROUP_COUNT);
 
-	for (i = 0; i < GROUP_SIZE; ++i) {
+	for (i = 0; i < GROUP_COUNT; ++i) {
 		prev_group_info_free_blocks[i] =
 			motr_balloc->cb_group_info[i].bgi_normal.bzp_freeblocks;
 	}
