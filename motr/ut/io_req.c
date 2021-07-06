@@ -936,6 +936,9 @@ static void ut_test_ioreq_application_data_copy(void)
 	rc = m0_bufvec_alloc(&ioo->ioo_data, 6, UT_DEFAULT_BLOCK_SIZE);
 	M0_UT_ASSERT(rc == 0);
 
+	rc = m0_bufvec_alloc(&ioo->ioo_attr, 6, UT_DEFAULT_BLOCK_SIZE);
+	M0_UT_ASSERT(rc == 0);
+
 	/* extents and buffers must be the same size */
 	ioo->ioo_ext.iv_index[0] = 0;
 	ioo->ioo_ext.iv_vec.v_count[0] = 6 * UT_DEFAULT_BLOCK_SIZE;
@@ -950,7 +953,12 @@ static void ut_test_ioreq_application_data_copy(void)
 
 	/* Check multiple blocks of data are copied */
 	for (i = 0; i < ioo->ioo_data.ov_vec.v_nr; i++)
-		memset(ioo->ioo_data.ov_buf[i], 0, ioo->ioo_data.ov_vec.v_count[i]);
+		memset(ioo->ioo_data.ov_buf[i], 0,
+			ioo->ioo_data.ov_vec.v_count[i]);
+
+	for (i = 0; i < ioo->ioo_attr.ov_vec.v_nr; i++)
+		memset(ioo->ioo_attr.ov_buf[i], 0,
+			ioo->ioo_attr.ov_vec.v_count[i]);
 
 	for (k = 0; k < ioo->ioo_iomap_nr; k++) {
 		struct pargrp_iomap *map = ioo->ioo_iomaps[k];
@@ -986,6 +994,7 @@ static void ut_test_ioreq_application_data_copy(void)
 	M0_UT_ASSERT(rc == 0);
 
 	m0_bufvec_free(&ioo->ioo_data);
+	m0_bufvec_free(&ioo->ioo_attr);
 	ioo->ioo_data = stashed;
 	ut_dummy_ioo_delete(ioo, instance);
 }

@@ -623,7 +623,6 @@ do { \
 	M0_LOG(M0_DEBUG, msg " count[%d] = %"PRIu64 \
 			" cksum = %c%c data = %c%c", \
 			seg, vec->v_count[seg], dst[0], dst[1], data[0],data[1]); \
-	M0_ASSERT(memcmp((buf)->ov_buf[seg], (dbuf)->ov_buf[seg], CKSUM_SIZE) == 0); \
 }while(0)
 
 /**
