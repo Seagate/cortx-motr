@@ -1483,7 +1483,6 @@ static void node_move(struct nd *src, struct nd *tgt,
 }
 #endif
 
-#ifndef __KERNEL__
 static void node_lock(struct nd *node)
 {
 	m0_rwlock_write_lock(&node->n_lock);
@@ -1493,7 +1492,6 @@ static void node_unlock(struct nd *node)
 {
 	m0_rwlock_write_unlock(&node->n_lock);
 }
-#endif
 
 static struct mod *mod_get(void)
 {
@@ -1833,10 +1831,10 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	if (op->no_node != NULL &&
 	    op->no_node->n_addr.as_core == addr->as_core) {
 
-		m0_rwlock_write_lock(&op->no_node->n_lock);
+		node_lock(op->no_node);
 		if (op->no_node->n_delayed_free) {
 			op->no_op.o_sm.sm_rc = EACCES;
-			m0_rwlock_write_unlock(&op->no_node->n_lock);
+			node_unlock(op->no_node);
 			return nxt_state;
 		}
 
@@ -1866,7 +1864,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 			 */
 			op->no_node->n_tree = tree;
 		}
-		m0_rwlock_write_unlock(&op->no_node->n_lock);
+		node_unlock(op->no_node);
 	} else {
 		/**
 		 * TODO: Adding lru_lock to protect from multiple threads
@@ -1882,9 +1880,9 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		op->no_node = nt->nt_opaque_get(addr);
 		if (op->no_node != NULL &&
 		    op->no_node->n_addr.as_core == addr->as_core) {
-			m0_rwlock_write_lock(&op->no_node->n_lock);
+			node_lock(op->no_node);
 			node_refcnt_update(op->no_node, true);
-			m0_rwlock_write_unlock(&op->no_node->n_lock);
+			node_unlock(op->no_node);
 			m0_rwlock_write_unlock(&lru_lock);
 			return nxt_state;
 		}
@@ -1990,10 +1988,10 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 {
 	int shift = node->n_type->nt_shift(node);
 
-	m0_rwlock_write_lock(&node->n_lock);
+	node_lock(node);
 	node_refcnt_update(node, false);
 	node->n_delayed_free = true;
-	m0_rwlock_write_unlock(&node->n_lock);
+	node_unlock(node);
 	node->n_type->nt_fini(node);
 
 	if (node->n_ref == 0) {
@@ -2194,7 +2192,7 @@ static int64_t mem_node_get(struct node_op *op, struct td *tree,
 
 static void mem_node_put(struct nd *node, bool lock_acquired)
 {
-	m0_rwlock_write_lock(&node->n_lock);
+	node_lock(node);
 	node_refcnt_update(node, false);
 	if (node->n_ref == 0) {
 		/**
@@ -2217,7 +2215,7 @@ static void mem_node_put(struct nd *node, bool lock_acquired)
 		 */
 		node->n_tree = NULL;
 	}
-	m0_rwlock_write_unlock(&node->n_lock);
+	node_unlock(node);
 }
 
 static struct nd *mem_node_try(struct td *tree, struct segaddr *addr)
@@ -3639,7 +3637,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			return btree_put_makespace_phase(bop);
 
 		node_lock(lev->l_node);
-		node_make (&slot_for_right_node, bop->bo_tx);
+		node_make(&slot_for_right_node, bop->bo_tx);
 		/** Fall through if there is no overflow.  **/
 	}
 	case P_ACT: {
