@@ -231,8 +231,6 @@ M0_INTERNAL uint64_t m0_process(void)
 M0_INTERNAL int m0_thread_arch_adopt(struct m0_thread *thread,
 				     struct m0 *instance, bool full)
 {
-	M0_PRE(M0_IS0(thread));
-
 	thread->t_tls.tls_self = thread;
 	tls = &thread->t_tls;
 	m0_set(instance);

@@ -869,6 +869,8 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 	struct m0_clink        *clink  = &th->lt_clink;
 	struct m0_fom_locality *loc    = th->lt_loc;
 
+	m0_thread_tls()->tls_loc = &loc->fl_locality;
+
 	while (1) {
 		/*
 		 * start idle, wait for work to do. The clink was registered

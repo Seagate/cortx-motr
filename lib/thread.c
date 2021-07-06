@@ -126,8 +126,6 @@ M0_INTERNAL struct m0_thread *m0_thread_self(void)
 
 M0_INTERNAL int m0_thread_adopt(struct m0_thread *thread, struct m0 *instance)
 {
-	M0_PRE(M0_IS0(thread));
-
 	return m0_thread_arch_adopt(thread, instance, true);
 }
 
