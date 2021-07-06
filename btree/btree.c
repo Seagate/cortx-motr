@@ -3549,16 +3549,13 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
 			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
-				if (bop->bo_flags & BOF_LOCKALL) {
-					lock_op_unlock(bop->bo_arbor->t_desc);
-					return fail(bop, -ETOOMANYREFS);
-				} else {
-					bop->bo_flags |= BOF_LOCKALL;
-					lock_op_unlock(tree);
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP,
-							    P_LOCKALL);
-				}
+				M0_ASSERT_INFO((bop->bo_flags & BOF_LOCKALL) ==
+					       0, "Put record failure in tree"
+					       "lock mode");
+				bop->bo_flags |= BOF_LOCKALL;
+				lock_op_unlock(tree);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_LOCKALL);
 			}
 			if (oi->i_height != tree->t_height) {
 				/* If height has changed. */
@@ -4201,16 +4198,13 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
 			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
-				if (bop->bo_flags & BOF_LOCKALL) {
-					lock_op_unlock(bop->bo_arbor->t_desc);
-					return fail(bop, -ETOOMANYREFS);
-				} else {
-					bop->bo_flags |= BOF_LOCKALL;
-					lock_op_unlock(tree);
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP,
-							    P_LOCKALL);
-				}
+				M0_ASSERT_INFO((bop->bo_flags & BOF_LOCKALL) ==
+					       0, "Get record failure in tree"
+					       "lock mode");
+				bop->bo_flags |= BOF_LOCKALL;
+				lock_op_unlock(tree);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_LOCKALL);
 			}
 			if (oi->i_height != tree->t_height) {
 				/* If height has changed. */
@@ -4512,16 +4506,13 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 		    !sibling_node_check(oi)) {
 			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
-				if (bop->bo_flags & BOF_LOCKALL) {
-					lock_op_unlock(tree);
-					return fail(bop, -ETOOMANYREFS);
-				} else {
-					bop->bo_flags |= BOF_LOCKALL;
-					lock_op_unlock(tree);
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP,
-							    P_LOCKALL);
-				}
+				M0_ASSERT_INFO((bop->bo_flags & BOF_LOCKALL) ==
+					       0, "Iterator failure in tree"
+					       "lock mode");
+				bop->bo_flags |= BOF_LOCKALL;
+				lock_op_unlock(tree);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_LOCKALL);
 			}
 			if (oi->i_height != tree->t_height) {
 				lock_op_unlock(tree);
@@ -4921,16 +4912,13 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		    !child_node_check(oi)) {
 			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
-				if (bop->bo_flags & BOF_LOCKALL) {
-					lock_op_unlock(tree);
-					return fail(bop, -ETOOMANYREFS);
-				} else {
-					bop->bo_flags |= BOF_LOCKALL;
-					lock_op_unlock(tree);
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP,
-							    P_LOCKALL);
-				}
+				M0_ASSERT_INFO((bop->bo_flags & BOF_LOCKALL) ==
+					       0, "Delete record failure in"
+					       "tree lock mode");
+				bop->bo_flags |= BOF_LOCKALL;
+				lock_op_unlock(tree);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_LOCKALL);
 			}
 			if (oi->i_height != tree->t_height) {
 				/* If height has changed. */
