@@ -629,10 +629,28 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		goff += COUNT(ivec, seg);
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
-		if (attrbvec != NULL && unit_type == M0_PUT_DATA && opcode == M0_OC_WRITE) {
+		if (attrbvec != NULL && unit_type == M0_PUT_DATA &&
+			opcode == M0_OC_WRITE) {
+			/**
+			 * Storing attributes from application into target's
+			 * attribute bufvec according to target offset. ti_idx
+			 * is target offset converted to segment index of
+			 * target's attribute bufvec.
+			 */
 			BUFVI(attrbvec, ti_idx) = BUFVI(&ioo->ioo_attr, coff);
 			BUFVC(attrbvec, ti_idx) = BUFVC(&ioo->ioo_attr, coff);
-		} else if (coff_ivec != NULL && unit_type == M0_PUT_DATA && opcode == M0_OC_READ) {
+		} else if (coff_ivec != NULL && unit_type == M0_PUT_DATA &&
+				opcode == M0_OC_READ) {
+			/**
+			 * Storing the values of coff(checksum offset) into the
+			 * coff_ivec according to target offset. This creates a
+			 * mapping between target offset and cheksum offset.
+			 *
+			 * Ex: seg 0 of target_ioreq::ti_ivec contains target
+			 * offset and seg 0 of target_ioreq::ti_coff_ivec
+			 * contains checksum offset for the said target offset.
+			 */
+
 			INDEX(coff_ivec, ti_idx) = coff;
 			COUNT(coff_ivec, ti_idx) = CKSUM_SIZE;
 			coff_ivec->iv_vec.v_nr++;

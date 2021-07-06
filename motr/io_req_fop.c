@@ -101,6 +101,9 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop)
 	return &ioo->ioo_flock;
 }
 
+/**
+ * Copies correct part of attribute buffer to client's attribute bufvec.
+ */
 static void buf_to_bufvec_copy(struct m0_buf *buf, struct m0_bufvec *bufvec,
 			       m0_bindex_t index, m0_bcount_t count,
 			       m0_bindex_t buf_offset)
@@ -112,6 +115,15 @@ static void buf_to_bufvec_copy(struct m0_buf *buf, struct m0_bufvec *bufvec,
 	BUFVC(bufvec, index) = count;
 }
 
+/**
+ * Populates client application's attribute bufvec from the attribute buffer
+ * received from reply fop.
+ *
+ * @param rep_ivec m0_indexvec representing the extents spanned by IO.
+ * @param ti       target_ioreq structure for this reply's taregt.
+ * @param ioo      Object's context for client's internal workings.
+ * @param buf      buffer contaiing attributes received from server.
+ */
 static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 				       struct target_ioreq *ti,
 				       struct m0_op_io *ioo,
@@ -128,6 +140,22 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 
 	unit_size = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
 	m0_ivec_cursor_init(&cursor, rep_ivec);
+
+	/**
+	 * Cursor iterating over segments spanned by this IO. At each iteration
+	 * index of reply fop is matched with all the target offsets stored in
+	 * target_ioreq::ti_ivec, once matched, the checksum offset is
+	 * retrieved from target_ioreq::ti_coff_ivec for the corresponding
+	 * target offset.
+	 *
+	 * The checksum offset represents the correct segemnt of
+	 * m0_op_io::ioo_attr which needs to be populated for the current
+	 * target offset(represented by rep_index).
+	 *
+	 * The current segment number is stored in rep_seg which represents the
+	 * offset from where the data is to be transferred from attribute
+	 * buffer to application's bufvec.
+	 */
 
 	while (!m0_ivec_cursor_move(&cursor, unit_size)) {
 		rep_index = m0_ivec_cursor_index(&cursor);
@@ -216,6 +244,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	/* Check errors in an IO request's reply. */
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rw_reply = io_rw_rep_get(reply_fop);
+
+	/* Copy attributes to client if reply received from read operation */
 	if (m0_is_read_rep(reply_fop) && op->op_code == M0_OC_READ) {
 		m0_indexvec_wire2mem(&rwfop->crw_ivec,
 					rwfop->crw_ivec.ci_nr, 0,
