@@ -117,35 +117,33 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 				       struct m0_op_io *ioo,
 				       struct m0_buf *buf)
 {
-	uint64_t                count;
-	uint32_t                unit;
 	uint32_t                unit_size;
 	uint32_t                ti_seg;
+	uint32_t                rep_seg = 0;
 	m0_bindex_t             rep_index;
 	m0_bindex_t             ti_index;
 	struct m0_ivec_cursor   cursor;
 	struct m0_indexvec     *ti_ivec = &ti->ti_ivec;
 	struct m0_indexvec     *coff_ivec = &ti->ti_coff_ivec;
 
-	count     = 0;
-	unit_size = 4096;
+	unit_size = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
 	m0_ivec_cursor_init(&cursor, rep_ivec);
 
-	while (!m0_ivec_cursor_move(&cursor, count)) {
+	while (!m0_ivec_cursor_move(&cursor, unit_size)) {
 		rep_index = m0_ivec_cursor_index(&cursor);
-		unit = rep_index / unit_size;
-		count = unit_size;
 		ti_seg = 0;
+		M0_ASSERT((rep_seg * CKSUM_SIZE) < buf->b_nob);
 		while (ti_seg < SEG_NR(ti_ivec)) {
 			ti_index = INDEX(ti_ivec, ti_seg);
 			if (rep_index == ti_index) {
 				buf_to_bufvec_copy(buf, &ioo->ioo_attr,
 						INDEX(coff_ivec, ti_seg),
-						CKSUM_SIZE, unit);
+						CKSUM_SIZE, rep_seg);
 		                break;
 		        }
 		        ti_seg++;
 		}
+		rep_seg++;
 	}
 }
 

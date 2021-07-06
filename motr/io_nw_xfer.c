@@ -493,7 +493,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	unsigned int               opcode;
 	m0_bcount_t                grp_size;
 	uint64_t                   page_size;
-	uint32_t               	   ti_idx;
+	uint32_t                   ti_idx;
 
 	M0_PRE(tgt != NULL);
 	frame = tgt->ta_frame;
