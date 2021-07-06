@@ -1662,6 +1662,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 			bo_u.u_emap.e_rc);
 	if (result != 0)
 		return M0_RC(result);
+
 	/*
 	 * Insert a new segment into extent map, overwriting parts of the map.
 	 *
@@ -1675,11 +1676,20 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	 * logical extent of the segment and seg->ee_val is the starting offset
 	 * of the corresponding physical extent.
 	 */
-
-	/* Compute checksum units info which belong to this extent (COB off & Sz) */
-	it.ec_cksum.b_addr = m0_stob_ad_get_checksum_addr(io, off);
-	it.ec_cksum.b_nob  = m0_extent_get_checksum_nob(off, m0_ext_length(&todo), 
+	if(io->si_cksum.b_nob != 0) 
+	{
+		
+		/* Compute checksum units info which belong to this extent (COB off & Sz) */
+		it.ec_cksum.b_addr = m0_stob_ad_get_checksum_addr(io, off);
+		it.ec_cksum.b_nob  = m0_extent_get_checksum_nob(off, m0_ext_length(&todo), 
 							io->si_unit_sz, io->si_cksum_sz);
+ 	}
+	else
+	{
+		it.ec_cksum.b_addr = NULL;
+		it.ec_cksum.b_nob = 0;
+	}	
+	
 	it.ec_unit_size = io->si_unit_sz;
 	
 	M0_SET0(&it.ec_op);
