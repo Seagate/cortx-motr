@@ -168,6 +168,13 @@ struct m0_fol_rec_header {
 	 * @note The update might be for a different node.
 	 */
 	struct m0_update_id rh_self;
+	/** BE lsn for the record. @see m0_be_tx::t_lsn */
+	uint64_t            rh_lsn;
+	/**
+	 * @see m0_be_tx::t_lsn_discarded and
+	 * fdmi/fol_fdmi_src.c:"FDMI FOL records pruning on plugin side".
+	 */
+	uint64_t            rh_lsn_discarded;
 	uint64_t            rh_magic;
 } M0_XCA_RECORD;
 

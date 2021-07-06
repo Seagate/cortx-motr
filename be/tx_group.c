@@ -148,6 +148,8 @@ M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr)
 {
 	struct m0_be_tx *tx;
 	m0_bcount_t      size_reserved = 0;
+	m0_bindex_t      log_position;
+	m0_bindex_t      log_discarded;
 
 	M0_ENTRY("gr=%p recovering=%d", gr, (int)gr->tg_recovering);
 
@@ -160,6 +162,14 @@ M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr)
 		} M0_BE_TX_GROUP_TX_ENDFOR;
 		m0_be_group_format_log_use(&gr->tg_od, size_reserved);
 	}
+	log_position = m0_be_group_format_log_position(&gr->tg_od);
+	log_discarded = m0_be_group_format_log_discarded(&gr->tg_od);
+	M0_ASSERT_INFO(log_position >= log_discarded,
+	               "log_position=%"PRIu64" log_discarded=%"PRIu64,
+	               log_position, log_discarded);
+	M0_BE_TX_GROUP_TX_FORALL(gr, tx) {
+		m0_be_tx_lsn_set(tx, log_position, log_discarded);
+	} M0_BE_TX_GROUP_TX_ENDFOR;
 	m0_be_tx_group_fom_handle(&gr->tg_fom);
 
 	M0_LEAVE();

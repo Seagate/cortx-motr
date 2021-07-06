@@ -451,6 +451,18 @@ m0_be_group_format_log_reserved_size(struct m0_be_log       *log,
 	return m0_be_log_reserved_size(log, lio_size, 2);
 }
 
+M0_INTERNAL m0_bindex_t
+m0_be_group_format_log_position(const struct m0_be_group_format *gft)
+{
+	return m0_be_log_record_position(&gft->gft_log_record);
+}
+
+M0_INTERNAL m0_bindex_t
+m0_be_group_format_log_discarded(const struct m0_be_group_format *gft)
+{
+	return m0_be_log_record_discarded(&gft->gft_log_record);
+}
+
 M0_INTERNAL void
 m0_be_group_format_log_use(struct m0_be_group_format *gft,
 			   m0_bcount_t                size_reserved)

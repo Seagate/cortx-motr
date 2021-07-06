@@ -184,6 +184,14 @@ m0_be_group_format_log_reserved_size(struct m0_be_log       *log,
 M0_INTERNAL void
 m0_be_group_format_log_use(struct m0_be_group_format *gft,
 			   m0_bcount_t                size_reserved);
+
+/** Returns absolutute position of this group in BE log */
+M0_INTERNAL m0_bindex_t
+m0_be_group_format_log_position(const struct m0_be_group_format *gft);
+/** Returns BE log discarded pointer at m0_be_group_format_log_use() time. */
+M0_INTERNAL m0_bindex_t
+m0_be_group_format_log_discarded(const struct m0_be_group_format *gft);
+
 M0_INTERNAL void
 m0_be_group_format_recovery_prepare(struct m0_be_group_format *gft,
 				    struct m0_be_log          *log);
