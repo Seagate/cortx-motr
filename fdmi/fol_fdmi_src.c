@@ -104,6 +104,96 @@
  * rh_lsn_discarded for its BE domain could be discarded from deduplication
  * persistence because there is nothing in the cluster that is going to send
  * FDMI FOL record about this operation.
+ *
+ * @section FDMI FOL records resend
+ *
+ * There are 2 major cases here:
+ *
+ * 1. FDMI plugin restarts, FDMI source is not. In this case FDMI source needs
+ *    to resend everything FDMI plugin hasn't confirmed consumption for. This
+ *    could be done by FDMI source dock fom by indefinitely resending FDMI
+ *    records until either FDMI plugin confirms consumption or FDMI plugin
+ *    process fails permanently.
+ * 2. FDMI source restarts. The following description is about this case.
+ *
+ * FDMI source may restart unexpectedly (crash/restart) or it might restart
+ * gracefully (graceful shutdown/startup). In either case there may be FDMI FOL
+ * records that don't have consumption confirmation from FDMI plugin. Current
+ * implementation takes BE tx reference until there is such confirmation from
+ * FDMI plugin. BE tx reference taken means in this case that BE tx wouldn't be
+ * discarded from BE log until the reference is put. BE recovery recovers all
+ * transactions that were not discarded, which is very useful for FDMI FOL
+ * record resend case: if all FOL records for such recovered transactions are
+ * resent as FDMI FOL records then there will be no FDMI FOL record missing on
+ * FDMI plugin side regardless whether FDMI source restarts or not, how and how
+ * many times it restarts.
+ *
+ * It leads to an obvious solution: just send all FOL records as FDMI FOL
+ * records during BE recovery.
+ *
+ * There are several ways this task could be done.
+ *
+ * @subsection Original FOM for each FOL record
+ *
+ * For each FOL record an orignal fom is created. A flag about being created
+ * during BE recovery is passed to each such fom, so fom wouldn't do it's usual
+ * action. It will transition through generic phases that involve BE tx. After
+ * BE tx goes to M0_BTS_LOGGED phases a generic phase executes
+ * m0_fom_fdmi_record_post(), which would send FDMI record to FDMI plugin as
+ * usual.
+ *
+ * @subsection Special FOM for each FOL record
+ *
+ * A special FOM would be created for each recovered BE tx. The purpose of the
+ * fom would be post FDMI record with the FOL record for this BE tx and then
+ * wait until consumption of the FDMI record is acklowledged.
+ *
+ * @subsection Post FDMI records for every BE tx
+ *
+ * FDMI FOL record for every recovered BE tx is posted as usual. FDMI source
+ * dock fom would make a queue of all the records and it would send them and
+ * wait for consumption acknowledgement as usual.
+ *
+ * @subsection A special BE recovery FOM phase
+ *
+ * A special phase that indicates that this fom is created during BE recovery is
+ * added to each fom and is initial phase in case if the fom is created during
+ * BE recovery. This allows each fom to handle BE recovery as it sees fit.
+ * Default generic phase sequence would post FDMI FOL record in the same way
+ * it's done currently for normal FOM phase sequence.
+ *
+ * @subsection Implementation details
+ *
+ * - Motr process should be able to send FDMI fops during BE recovery. BE
+ *   recovery happens before DTM recovery, so at this stage only HA and Motr
+ *   configuration should be brought up (along with their dependencies). It
+ *   means that ioservice and DIX would be down at that time;
+ * - FOL record shouldn't be discarded until it's consumed by FDMI plugin.
+ *   Currently FOL record is in BE tx payload, so this requriement means that BE
+ *   tx shouldn't be discarded from BE log before FDMI FOL record is consumed by
+ *   FDMI plugin. It has several side effects:
+ *   - current implementation recovers BE tx groups one by one, and the next
+ *     group is recovered only after references to all transactions from the
+ *     previous BE tx group are put. It means that FDMI plugin must consume all
+ *     the records before the next BE tx group is recovered. Which doesn't sound
+ *     complex on it's own, but there is a use case when it becomes critical:
+ *   - if FDMI plugin needs to save FDMI record in a distributed index which is
+ *     located on the same set of Motr processes as FDMI source, then we may
+ *     have a deadlock even during usual cluster startup after non-clean
+ *     shutdown: BE recovery would have some transactions on every participating
+ *     server, so DIX wouldn't be operational. And FDMI plugin would require DIX
+ *     to be at least somehow operational to consume FDMI records. This could be
+ *     solved by allowing to have all BE tx groups to be recovered at the same
+ *     time (which would require some rework in BE grouping and BE tx group
+ *     fom), but even in this case we may get a deadlock if BE log is full. This
+ *     could be solved by always having some part of BE log to be allocted to BE
+ *     recovery activities, but with multiple subsequent failures during BE
+ *     recovery even this part of the log may get full. It could be solved by
+ *     preallocating space in BE segment to copy BE tx payloads from BE log to
+ *     handle this particular case, but hey, we only want to resend FDMI records
+ *     during BE recovery and record them to DIX in FDMI plugin and now we have
+ *     to do several major changes to Motr components archivecture already.
+ *
  * @{
  */
 
