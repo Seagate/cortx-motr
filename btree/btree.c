@@ -1888,19 +1888,19 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 	int        shift = node->n_type->nt_shift(node);
 	segops->so_node_put(node);
 
-	m0_rwlock_read_lock(&node->n_lock);
+	m0_rwlock_write_lock(&node->n_lock);
 	if (node->n_delayed_free && node->n_ref == 0) {
 		m0_rwlock_write_lock(&list_lock);
 		ndlist_tlink_del_fini(node);
 		m0_rwlock_write_unlock(&list_lock);
-		m0_rwlock_read_unlock(&node->n_lock);
+		m0_rwlock_write_unlock(&node->n_lock);
 		m0_rwlock_fini(&node->n_lock);
 		op->no_addr = node->n_addr;
 		m0_free(node);
 		segops->so_node_free(op, shift, tx, 0);
 		return;
 	}
-	m0_rwlock_read_unlock(&node->n_lock);
+	m0_rwlock_write_unlock(&node->n_lock);
 }
 #endif
 
@@ -3986,20 +3986,19 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 		 * This code is meant for debugging. In future, this case needs
 		 * to be handled in a better way.
 		 */
-		m0_rwlock_read_lock(&list_lock);
+		m0_rwlock_write_lock(&list_lock);
 		m0_tl_for(ndlist, &btree_active_nds, node) {
 			if (node->n_tree == tree && node->n_ref > 0) {
 				if (m0_time_seconds(m0_time_now() -
 						    tree->t_starttime) > 5) {
-					m0_rwlock_read_unlock(&list_lock);
-					tree->t_starttime = 0;
-					return M0_ERR(-ETIMEDOUT);
+					M0_LOG(M0_ERROR, "tree close timeout");
+					M0_ASSERT(false);
 				}
-				m0_rwlock_read_unlock(&list_lock);
+				m0_rwlock_write_unlock(&list_lock);
 				return P_TIMECHECK;
 			}
 		} m0_tl_endfor;
-		m0_rwlock_read_unlock(&list_lock);
+		m0_rwlock_write_unlock(&list_lock);
 		/** Fallthrough to P_ACT */
 	case P_ACT:
 		tree->t_starttime = 0;
