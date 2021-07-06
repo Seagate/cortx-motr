@@ -557,11 +557,11 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case POOL_FID:
 			w = &load[*index];
-                        cw = workload_io(w);
-                        if (0 != m0_fid_sscanf(value, &cw->cwi_pool_id)) {
-                                parser_emit_error("Unable to parse fid: %s", value);
-                        }
-                        break;
+			cw = workload_io(w);
+			if (0 != m0_fid_sscanf(value, &cw->cwi_pool_id)) {
+				parser_emit_error("Unable to parse fid: %s", value);
+			}
+			break;
 		case OPCODE:
 			w = &load[*index];
 			cw = workload_io(w);

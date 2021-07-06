@@ -337,10 +337,10 @@ enomem:
 
 static struct m0_fid * check_fid(struct m0_fid *id)
 {
-    if (m0_fid_is_set(id) && m0_fid_is_valid(id))
-        return id;
-    else
-        return NULL;
+	if (m0_fid_is_set(id) && m0_fid_is_valid(id))
+		return id;
+	else
+		return NULL;
 }
 
 int cr_namei_create(struct m0_workload_io *cwi,
