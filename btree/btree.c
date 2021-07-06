@@ -3429,12 +3429,12 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie) &&
 		    !node_isoverflow(oi->i_cookie_node))
 			return P_LOCK;
-		/** Fall through if cookie is invalid or node overflow. */
+		else
+			return P_SETUP;
 	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-					    bop->bo_arbor->t_desc, P_SETUP);
-		/** Fall through if LOCKALL flag is not set. */
+		M0_ASSERT(bop->bo_flags & BOF_LOCKALL);
+		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+				    bop->bo_arbor->t_desc, P_SETUP);
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
@@ -3664,7 +3664,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_COOKIE] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_COOKIE",
-		.sd_allowed = M0_BITS(P_LOCK),
+		.sd_allowed = M0_BITS(P_LOCK, P_SETUP),
 	},
 	[P_SETUP] = {
 		.sd_flags   = 0,
@@ -3759,6 +3759,7 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "kvop-init-cookie", P_INIT, P_COOKIE },
 	{ "kvop-init", P_INIT, P_SETUP },
 	{ "kvop-cookie-valid", P_COOKIE, P_LOCK },
+	{ "kvop-cookie-invalid", P_COOKIE, P_SETUP },
 	{ "kvop-setup-failed", P_SETUP, P_CLEANUP },
 	{ "kvop-setup-down-fallthrough", P_SETUP, P_NEXTDOWN },
 	{ "kvop-lockall", P_LOCKALL, P_SETUP },
@@ -4118,12 +4119,12 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 	case P_COOKIE:
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie))
 			return P_LOCK;
-		/** Fall through if cookie is invalid. */
+		else
+			return P_SETUP;
 	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-				            bop->bo_arbor->t_desc, P_SETUP);
-		/** Fall through if LOCKALL flag is not set. */
+		M0_ASSERT(bop->bo_flags & BOF_LOCKALL);
+		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+				    bop->bo_arbor->t_desc, P_SETUP);
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
@@ -4302,12 +4303,12 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 	case P_COOKIE:
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie))
 			return P_LOCK;
-		/** Fall through if cookie is valid. */
+		else
+			return P_SETUP;
 	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-				            bop->bo_arbor->t_desc, P_SETUP);
-		/** Fall through if LOCKALL flag is not set. */
+		M0_ASSERT(bop->bo_flags & BOF_LOCKALL);
+		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+				    bop->bo_arbor->t_desc, P_SETUP);
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
@@ -4804,12 +4805,12 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie) &&
 		    !node_isunderflow(oi->i_cookie_node, true))
 			return P_LOCK;
-		/** Fall though if node is invalid or node underflow. */
+		else
+			return P_SETUP;
 	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-					    bop->bo_arbor->t_desc, P_SETUP);
-		/** Fall through if LOCKALL flag is not set. */
+		M0_ASSERT(bop->bo_flags & BOF_LOCKALL);
+		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+				    bop->bo_arbor->t_desc, P_SETUP);
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
