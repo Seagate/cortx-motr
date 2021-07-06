@@ -1,7 +1,11 @@
 Using HSM
 =========
 
-HSM stands for Hierarchical Storage Management. m0hsm tool allows to
+HSM stands for Hierarchical Storage Management. The concept and design are discussed
+in this paper: [Hierarchical Storage Management - SAGE 2016](https://github.com/Seagate/cortx/blob/main/doc/PDFs/2016_February_SAGE_WP3_HSM_for_SAGE_Concept_and_Architecture_v1_for_open_use_compressed.pdf).
+
+
+The m0hsm tool available in this directory allows to
 create composite objects in Motr, write/read to/from them and move them
 between the tiers (pools). Here is how to use the tool:
 
