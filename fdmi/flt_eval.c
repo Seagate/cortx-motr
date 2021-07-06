@@ -29,6 +29,8 @@
 #include "fdmi/filter.h"
 #include "fdmi/flt_eval.h"
 
+#include "conf/obj.h"           /* m0_conf_fdmi_filter */
+
 static int eval_or(struct m0_fdmi_flt_operands *opnds,
                    struct m0_fdmi_flt_operand  *res)
 {
@@ -179,8 +181,8 @@ static int eval_flt_node(struct m0_fdmi_eval_ctx    *ctx,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_fdmi_eval_flt(struct m0_fdmi_eval_ctx *ctx,
-                                 struct m0_fdmi_filter   *flt,
+M0_INTERNAL int m0_fdmi_eval_flt(struct m0_fdmi_eval_ctx      *ctx,
+                                 struct m0_conf_fdmi_filter   *filter,
                                  struct m0_fdmi_eval_var_info *var_info)
 {
 	int                        rc;
@@ -188,7 +190,7 @@ M0_INTERNAL int m0_fdmi_eval_flt(struct m0_fdmi_eval_ctx *ctx,
 
 	M0_ENTRY();
 
-	rc = eval_flt_node(ctx, flt->ff_root, &res, var_info);
+	rc = eval_flt_node(ctx, filter->ff_filter.ff_root, &res, var_info);
 
 	if (rc == 0) {
 		M0_ASSERT(res.ffo_type == M0_FF_OPND_BOOL);

@@ -119,6 +119,7 @@ static int filterc_send_notif_get_next(struct m0_filterc_iter      *iter,
 		m0_fdmi_filter_root_set(flt, root);
 
 		M0_ALLOC_ARR(conf_flt->ff_endpoints, 1);
+		conf_flt->ff_type = M0_FDMI_FILTER_TYPE_TREE;
 		conf_flt->ff_endpoints[0] = g_rpc_env.ep_addr_remote;
 		conf_flt->ff_filter_id = g_fid;
 		*out = conf_flt;
