@@ -3429,21 +3429,19 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie) &&
 		    !node_isoverflow(oi->i_cookie_node))
 			return P_LOCK;
-		else
-			return P_SETUP;
-	case P_SETUP: {
+		/** Fall through if cookie is invalid or node overflow. */
+	case P_LOCKALL:
+		if (bop->bo_flags & BOF_LOCKALL)
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+					    bop->bo_arbor->t_desc, P_SETUP);
+		/** Fall through if LOCKALL flag is not set. */
+	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
 		if (oi->i_level == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
 		bop->bo_i->i_key_found = false;
-		return P_LOCKALL;
-	}
-	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-					    bop->bo_arbor->t_desc, P_DOWN);
-		/** Fall through if LOCKALL flag is not set. */
+		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
 		/* Load root node. */
@@ -3554,8 +3552,13 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				if (bop->bo_flags & BOF_LOCKALL) {
 					lock_op_unlock(bop->bo_arbor->t_desc);
 					return fail(bop, -ETOOMANYREFS);
-				} else
+				} else {
 					bop->bo_flags |= BOF_LOCKALL;
+					lock_op_unlock(tree);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP,
+							    P_LOCKALL);
+				}
 			}
 			if (oi->i_height != tree->t_height) {
 				/* If height has changed. */
@@ -3565,7 +3568,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			} else {
 				/* If height is same. */
 				lock_op_unlock(tree);
-				return P_LOCKALL;
+				return P_DOWN;
 			}
 		}
 		/** Fall through if path_check is successful. */
@@ -3664,17 +3667,17 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_COOKIE] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_COOKIE",
-		.sd_allowed = M0_BITS(P_LOCK, P_SETUP),
+		.sd_allowed = M0_BITS(P_LOCK),
 	},
 	[P_SETUP] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_SETUP",
-		.sd_allowed = M0_BITS(P_LOCKALL, P_CLEANUP),
+		.sd_allowed = M0_BITS(P_CLEANUP, P_NEXTDOWN),
 	},
 	[P_LOCKALL] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_LOCKALL",
-		.sd_allowed = M0_BITS(P_DOWN, P_NEXTDOWN),
+		.sd_allowed = M0_BITS(P_SETUP),
 	},
 	[P_DOWN] = {
 		.sd_flags   = 0,
@@ -3712,7 +3715,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_CHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CHECK",
-		.sd_allowed = M0_BITS(P_CLEANUP, P_LOCKALL, P_FREENODE),
+		.sd_allowed = M0_BITS(P_CLEANUP, P_DOWN, P_FREENODE),
 	},
 	[P_MAKESPACE] = {
 		.sd_flags   = 0,
@@ -3732,7 +3735,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_CLEANUP] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CLEANUP",
-		.sd_allowed = M0_BITS(P_SETUP, P_FINI, P_INIT),
+		.sd_allowed = M0_BITS(P_SETUP, P_LOCKALL, P_FINI),
 	},
 	[P_FINI] = {
 		.sd_flags   = 0,
@@ -3756,52 +3759,48 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "open/create/close-act", P_ACT, P_DONE },
 	{ "close/destroy", P_INIT, P_DONE},
 	{ "close-timecheck-repeat", P_TIMECHECK, P_TIMECHECK},
-	{ "put/get-init-cookie", P_INIT, P_COOKIE },
-	{ "put/get-init", P_INIT, P_SETUP },
-	{ "put/get-cookie-valid", P_COOKIE, P_LOCK },
-	{ "put/get-cookie-invalid", P_COOKIE, P_SETUP },
-	{ "put/get-setup", P_SETUP, P_LOCKALL },
-	{ "put/get-setup-failed", P_SETUP, P_CLEANUP },
-	{ "put/get-lockall", P_LOCKALL, P_DOWN },
-	{ "put/get-lockall-ft", P_LOCKALL, P_NEXTDOWN},
-	{ "put/get-down", P_DOWN, P_NEXTDOWN },
-	{ "put/get-nextdown-repeat", P_NEXTDOWN, P_NEXTDOWN },
+	{ "kvop-init-cookie", P_INIT, P_COOKIE },
+	{ "kvop-init", P_INIT, P_SETUP },
+	{ "kvop-cookie-valid", P_COOKIE, P_LOCK },
+	{ "kvop-setup-failed", P_SETUP, P_CLEANUP },
+	{ "kvop-setup-down-fallthrough", P_SETUP, P_NEXTDOWN },
+	{ "kvop-lockall", P_LOCKALL, P_SETUP },
+	{ "kvop-down", P_DOWN, P_NEXTDOWN },
+	{ "kvop-nextdown-repeat", P_NEXTDOWN, P_NEXTDOWN },
 	{ "put-nextdown-next", P_NEXTDOWN, P_ALLOC },
 	{ "del-nextdown-load", P_NEXTDOWN, P_STORE_CHILD },
 	{ "get-nextdown-next", P_NEXTDOWN, P_LOCK },
 	{ "iter-nextdown-sibling", P_NEXTDOWN, P_SIBLING },
-	{ "put/get-nextdown-failed", P_NEXTDOWN, P_CLEANUP },
-	{ "put/get-nextdown-setup", P_NEXTDOWN, P_SETUP},
-	{ "get-nextdown-next", P_NEXTDOWN, P_LOCK},
+	{ "kvop-nextdown-failed", P_NEXTDOWN, P_CLEANUP },
+	{ "kvop-nextdown-setup", P_NEXTDOWN, P_SETUP},
 	{ "iter-sibling-repeat", P_SIBLING, P_SIBLING },
 	{ "iter-sibling-next", P_SIBLING, P_LOCK },
 	{ "iter-sibling-failed", P_SIBLING, P_CLEANUP },
 	{ "put-alloc-repeat", P_ALLOC, P_ALLOC },
 	{ "put-alloc-next", P_ALLOC, P_LOCK },
 	{ "put-alloc-failed", P_ALLOC, P_CLEANUP },
-	{ "put-alloc-fail", P_ALLOC, P_INIT },
 	{ "del-child-check", P_STORE_CHILD, P_CHECK },
 	{ "del-child-check-ht-changed", P_STORE_CHILD, P_CLEANUP },
 	{ "del-child-check-ht-same", P_STORE_CHILD, P_LOCKALL },
 	{ "del-child-check-act-free", P_STORE_CHILD, P_FREENODE },
-	{ "put/get-lock", P_LOCK, P_CHECK },
-	{ "put/get-lock-check-ht-changed", P_LOCK, P_CLEANUP },
-	{ "put/get-lock-check-ht-same", P_LOCK, P_LOCKALL },
+	{ "kvop-lock", P_LOCK, P_CHECK },
+	{ "kvop-lock-check-ht-changed", P_LOCK, P_CLEANUP },
+	{ "kvop-lock-check-ht-same", P_LOCK, P_LOCKALL },
 	{ "del-check-act-free", P_LOCK, P_FREENODE },
-	{ "put/get-check-height-changed", P_CHECK, P_CLEANUP },
-	{ "put/get-check-height-same", P_CHECK, P_LOCKALL },
+	{ "kvop-check-height-changed", P_CHECK, P_CLEANUP },
+	{ "kvop-check-height-same", P_CHECK, P_DOWN },
 	{ "del-act-free", P_CHECK, P_FREENODE },
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
 	{ "put-makespace", P_MAKESPACE, P_ACT },
-	{ "put/get-act", P_ACT, P_CLEANUP },
+	{ "kvop-act", P_ACT, P_CLEANUP },
 	{ "del-act", P_ACT, P_FREENODE },
 	{ "del-freenode-repeat", P_FREENODE, P_FREENODE },
 	{ "del-freenode-cleanup", P_FREENODE, P_CLEANUP },
 	{ "del-freenode-fini", P_FREENODE, P_FINI},
-	{ "iter-cleanup-setup", P_CLEANUP, P_SETUP },
-	{ "put/get-done", P_CLEANUP, P_FINI },
-	{ "put/get-fini", P_FINI, P_DONE },
-	{ "put-restart", P_CLEANUP, P_SETUP },
+	{ "kvop-cleanup-setup", P_CLEANUP, P_SETUP },
+	{ "kvop-lockall", P_CLEANUP, P_LOCKALL },
+	{ "kvop-done", P_CLEANUP, P_FINI },
+	{ "kvop-fini", P_FINI, P_DONE },
 };
 
 static struct m0_sm_conf btree_conf = {
@@ -4122,19 +4121,18 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 	case P_COOKIE:
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie))
 			return P_LOCK;
-		else
-			return P_SETUP;
+		/** Fall through if cookie is invalid. */
+	case P_LOCKALL:
+		if (bop->bo_flags & BOF_LOCKALL)
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+				            bop->bo_arbor->t_desc, P_SETUP);
+		/** Fall through if LOCKALL flag is not set. */
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
 		if (oi->i_level == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
-		return P_LOCKALL;
-	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-				            bop->bo_arbor->t_desc, P_DOWN);
-		/** Fall through if LOCKALL flag is not set. */
+		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
@@ -4206,8 +4204,13 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				if (bop->bo_flags & BOF_LOCKALL) {
 					lock_op_unlock(bop->bo_arbor->t_desc);
 					return fail(bop, -ETOOMANYREFS);
-				} else
+				} else {
 					bop->bo_flags |= BOF_LOCKALL;
+					lock_op_unlock(tree);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP,
+							    P_LOCKALL);
+				}
 			}
 			if (oi->i_height != tree->t_height) {
 				/* If height has changed. */
@@ -4217,7 +4220,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			} else {
 				/* If height is same. */
 				lock_op_unlock(tree);
-				return P_LOCKALL;
+				return P_DOWN;
 			}
 		}
 		/** Fall through if path_check is successful. */
@@ -4305,19 +4308,18 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 	case P_COOKIE:
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie))
 			return P_LOCK;
-		else
-			return P_SETUP;
+		/** Fall through if cookie is valid. */
+	case P_LOCKALL:
+		if (bop->bo_flags & BOF_LOCKALL)
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+				            bop->bo_arbor->t_desc, P_SETUP);
+		/** Fall through if LOCKALL flag is not set. */
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
 		if (oi->i_level == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
-		return P_LOCKALL;
-	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-				            bop->bo_arbor->t_desc, P_DOWN);
-		/** Fall through if LOCKALL flag is not set. */
+		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used  = 0;
 		oi->i_pivot = -1;
@@ -4513,8 +4515,13 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				if (bop->bo_flags & BOF_LOCKALL) {
 					lock_op_unlock(tree);
 					return fail(bop, -ETOOMANYREFS);
-				} else
+				} else {
 					bop->bo_flags |= BOF_LOCKALL;
+					lock_op_unlock(tree);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP,
+							    P_LOCKALL);
+				}
 			}
 			if (oi->i_height != tree->t_height) {
 				lock_op_unlock(tree);
@@ -4522,7 +4529,7 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				                    P_SETUP);
 			} else {
 				lock_op_unlock(tree);
-				return P_LOCKALL;
+				return P_DOWN;
 			}
 		}
 		/**
@@ -4806,21 +4813,19 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie) &&
 		    !node_isunderflow(oi->i_cookie_node, true))
 			return P_LOCK;
-		else
-			return P_SETUP;
-	case P_SETUP: {
+		/** Fall though if node is invalid or node underflow. */
+	case P_LOCKALL:
+		if (bop->bo_flags & BOF_LOCKALL)
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+					    bop->bo_arbor->t_desc, P_SETUP);
+		/** Fall through if LOCKALL flag is not set. */
+	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
 		if (oi->i_level == NULL)
 			return fail(bop, M0_ERR(-ENOMEM));
 		bop->bo_i->i_key_found = false;
-		return P_LOCKALL;
-	}
-	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-					    bop->bo_arbor->t_desc, P_DOWN);
-		/** Fall through if LOCKALL flag is not set. */
+		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
 		/* Load root node. */
@@ -4919,8 +4924,13 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 				if (bop->bo_flags & BOF_LOCKALL) {
 					lock_op_unlock(tree);
 					return fail(bop, -ETOOMANYREFS);
-				} else
+				} else {
 					bop->bo_flags |= BOF_LOCKALL;
+					lock_op_unlock(tree);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP,
+							    P_LOCKALL);
+				}
 			}
 			if (oi->i_height != tree->t_height) {
 				/* If height has changed. */
@@ -4930,7 +4940,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			} else {
 				/* If height is same. */
 				lock_op_unlock(tree);
-				return P_LOCKALL;
+				return P_DOWN;
 			}
 		}
 		/**
