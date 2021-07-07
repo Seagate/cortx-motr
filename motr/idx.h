@@ -46,7 +46,10 @@
  *     - DEL: given a set of keys, delete the matching records from the index;
  *
  *     - NEXT: given a set of keys, return the records with the next (in the
- *       ascending key order) keys from the index.
+ *       ascending key order) keys from the index. If the user doesn't specify 
+ *       the start key, then start key is treated as the smallest possible key
+ *       of the index. If start key doesn't exist in the index, then retrieved
+ *       records will start with the smallest key following the starting key.
  *
  * @todo Currently, the user can specify only one start key for NEXT operation,
  * not a set.
