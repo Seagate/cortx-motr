@@ -31,6 +31,7 @@
 #  include "lib/linux_kernel/thread.h"
 #endif
 #include "lib/semaphore.h"
+#include "lib/processor.h"
 
 #include "lib/list.h"
 #include "addb2/counter.h"               /* m0_addb2_sensor */
@@ -67,7 +68,7 @@ struct m0_thread_tls {
 	struct m0_thread_arch_tls  tls_arch;
 	struct m0_addb2_mach      *tls_addb2_mach;
 	struct m0_thread          *tls_self;
-	struct m0_locality        *tls_loc;
+	m0_processor_nr_t          tls_loc;
 	struct m0_addb2_sensor     tls_clock;
 };
 

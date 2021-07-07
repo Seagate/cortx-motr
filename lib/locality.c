@@ -146,17 +146,11 @@ M0_INTERNAL void m0_locality_fini(struct m0_locality *loc)
 M0_INTERNAL struct m0_locality *m0_locality_here(void)
 {
 	struct locality_global *glob = loc_glob();
-	struct m0_locality     *loc;
 
 	if (glob->lg_dom == NULL || m0_thread_self() == &glob->lg_ast_thread)
 		return &glob->lg_fallback;
-	else {
-		loc = m0_thread_tls()->tls_loc;
-		if (loc == NULL) /* unlikely, see loc_handler_thread() */
-			loc = m0_thread_tls()->tls_loc =
-				m0_locality_get(m0_processor_id_get());
-		return loc;
-	}
+	else
+		return m0_locality_get(m0_thread_tls()->tls_loc);
 }
 
 M0_INTERNAL struct m0_locality *m0_locality_get(uint64_t value)

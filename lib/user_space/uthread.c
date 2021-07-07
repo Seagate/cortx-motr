@@ -130,15 +130,21 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 				  const struct m0_bitmap *processors)
 {
 	size_t    idx;
+	ssize_t   idx1 = -1;
 	size_t    nr_bits = min64u(processors->b_nr, CPU_SETSIZE);
 	cpu_set_t cpuset;
 
 	CPU_ZERO(&cpuset);
 
 	for (idx = 0; idx < nr_bits; ++idx) {
-		if (m0_bitmap_get(processors, idx))
+		if (m0_bitmap_get(processors, idx)) {
 			CPU_SET(idx, &cpuset);
+			if (idx1 == -1)
+				idx1 = idx;
+		}
 	}
+	if (idx1 != -1)
+		q->t_tls.tls_loc = idx1;
 
 	return -pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
 }
