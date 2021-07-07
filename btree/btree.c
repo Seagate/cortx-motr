@@ -4500,10 +4500,10 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				if ((oi->i_pivot > 0 &&
 				     node_count_rec(lev->l_node) == 0) ||
 				     !node_isvalid(lev->l_node)) {
+					lev->l_node->n_skip_rec_count_check = false;
 					node_unlock(lev->l_node);
 					node_op_fini(&oi->i_nop);
 					bop->bo_flags |= BOF_LOCKALL;
-					lev->l_node->n_skip_rec_count_check = false;
 					return m0_sm_op_sub(&bop->bo_op,
 							    P_CLEANUP, P_SETUP);
 				}
