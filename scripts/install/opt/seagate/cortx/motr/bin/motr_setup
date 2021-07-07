@@ -123,8 +123,6 @@ class PostInstallCmd(Cmd):
             config_lvm(self)
         else:
             self.logger.error("There are LVM configurations present on the system\n")
-            sys.exit()
-        self.logger.info("SUCCESS\n")
 
 class ConfigCmd(Cmd):
     """Config Setup Cmd"""
