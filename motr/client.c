@@ -1067,6 +1067,34 @@ int m0_client_calculate_pi(struct m0_generic_pi *pi,
 
 M0_EXPORTED(m0_client_calculate_pi);
 
+bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
+				   struct m0_pi_seed *seed,
+				   struct m0_bufvec *bvec)
+{
+	switch(pi->hdr.pi_type) {
+		case M0_PI_TYPE_MD5_INC_CONTEXT:
+			{
+#ifndef __KERNEL__
+				struct m0_md5_inc_context_pi md5_ctx_pi;
+				md5_ctx_pi.hdr.pi_type =
+					M0_PI_TYPE_MD5_INC_CONTEXT;
+				m0_calculate_md5_inc_context(&md5_ctx_pi,
+						seed, bvec, M0_PI_CALC_UNIT_ZERO,
+						NULL, NULL);
+				if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pi_value,
+							md5_ctx_pi.pi_value,
+							MD5_DIGEST_LENGTH) == 0)
+					return true;
+#endif
+			}
+
+	}
+
+	return false;
+}
+
+M0_EXPORTED(m0_calc_verify_cksum_one_unit);
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*
