@@ -868,44 +868,44 @@ struct node_type {
 	void (*nt_fini)(const struct nd *node);
 
 	/** Returns count of keys in the node */
-	int  (*nt_count)(const struct nd *node);
+	int  (*nt_count)(const struct segaddr *addr);
 
 	/** Returns count of records/values in the node*/
-	int  (*nt_count_rec)(const struct nd *node);
+	int  (*nt_count_rec)(const struct segaddr *addr);
 
 	/** Returns the space (in bytes) available in the node */
-	int  (*nt_space)(const struct nd *node);
+	int  (*nt_space)(const struct segaddr *addr);
 
 	/** Returns level of this node in the btree */
-	int  (*nt_level)(const struct nd *node);
+	int  (*nt_level)(const struct segaddr *addr);
 
 	/** Returns size of the node (as a shift value) */
-	int  (*nt_shift)(const struct nd *node);
+	int  (*nt_shift)(const struct segaddr *addr);
 
 	/**
 	 * Returns size of the key of node. In case of variable key size return
 	 * -1.
 	 */
-	int  (*nt_keysize)(const struct nd *node);
+	int  (*nt_keysize)(const struct segaddr *addr);
 
 	/**
 	 * Returns size of the value of node. In case variable value size
 	 * return -1.
 	 */
-	int  (*nt_valsize)(const struct nd *node);
+	int  (*nt_valsize)(const struct segaddr *addr);
 
 	/**
 	 * If predict is set as true, function determines if there is
 	 * possibility of underflow else it determines if there is an underflow
 	 * at node.
 	 */
-	bool  (*nt_isunderflow)(const struct nd *node, bool predict);
+	bool  (*nt_isunderflow)(const struct segaddr *addr, bool predict);
 
 	/** Returns true if there is possibility of overflow. */
-	bool  (*nt_isoverflow)(const struct nd *node);
+	bool  (*nt_isoverflow)(const struct segaddr *addr);
 
 	/** Returns unique FID for this node */
-	void (*nt_fid)  (const struct nd *node, struct m0_fid *fid);
+	void (*nt_fid)  (const struct segaddr *addr, struct m0_fid *fid);
 
 	/** Returns record (KV pair) for specific index. */
 	void (*nt_rec)  (struct slot *slot);
@@ -938,20 +938,20 @@ struct node_type {
 	 *  All the changes to the node have completed. Any post processing can
 	 *  be done here.
 	 */
-	void (*nt_fix)  (const struct nd *node, struct m0_be_tx *tx);
+	void (*nt_fix)  (const struct segaddr *addr, struct m0_be_tx *tx);
 
 	/**
 	 *  Changes the size of the value (increase or decrease) for the
 	 *  specified key
 	 */
-	void (*nt_cut)  (const struct nd *node, int idx, int size,
+	void (*nt_cut)  (const struct segaddr *addr, int idx, int size,
 			 struct m0_be_tx *tx);
 
 	/** Deletes the record from the node at specific index */
-	void (*nt_del)  (const struct nd *node, int idx, struct m0_be_tx *tx);
+	void (*nt_del)  (const struct segaddr *addr, int idx, struct m0_be_tx *tx);
 
 	/** Updates the level of node */
-	void (*nt_set_level)  (const struct nd *node, uint8_t new_level,
+	void (*nt_set_level)  (const struct  segaddr *addr, uint8_t new_level,
 			       struct m0_be_tx *tx);
 
 	/** Moves record(s) between nodes */
@@ -962,10 +962,10 @@ struct node_type {
 	bool (*nt_invariant)(const struct nd *node);
 
 	/** 'Does a thorough validation */
-	bool (*nt_verify)(const struct nd *node);
+	bool (*nt_verify)(const struct segaddr *addr);
 
 	/** Does minimal (or basic) validation */
-	bool (*nt_isvalid)(const struct nd *node);
+	bool (*nt_isvalid)(const struct segaddr *addr);
 	/** Saves opaque data. */
 	void (*nt_opaque_set)(const struct segaddr *addr, void *opaque);
 
@@ -1289,54 +1289,54 @@ static bool node_invariant(const struct nd *node)
 #ifndef __KERNEL__
 static bool node_verify(const struct nd *node)
 {
-	return node->n_type->nt_verify(node);
+	return node->n_type->nt_verify(&node->n_addr);
 }
 
 static bool node_isvalid(const struct nd *node)
 {
-	return node->n_type->nt_isvalid(node);
+	return node->n_type->nt_isvalid(&node->n_addr);
 }
 
 #endif
 static int node_count(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
-	return node->n_type->nt_count(node);
+	return node->n_type->nt_count(&node->n_addr);
 }
 
 static int node_count_rec(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
-	return node->n_type->nt_count_rec(node);
+	return node->n_type->nt_count_rec(&node->n_addr);
 }
 static int node_space(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
-	return node->n_type->nt_space(node);
+	return node->n_type->nt_space(&node->n_addr);
 }
 
 #ifndef __KERNEL__
 static int node_level(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
-	return (node->n_type->nt_level(node));
+	return (node->n_type->nt_level(&node->n_addr));
 }
 
 static int node_shift(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
-	return (node->n_type->nt_shift(node));
+	return (node->n_type->nt_shift(&node->n_addr));
 }
 static int node_keysize(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
-	return (node->n_type->nt_keysize(node));
+	return (node->n_type->nt_keysize(&node->n_addr));
 }
 
 static int node_valsize(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
-	return (node->n_type->nt_valsize(node));
+	return (node->n_type->nt_valsize(&node->n_addr));
 }
 
 /**
@@ -1350,13 +1350,13 @@ static int node_valsize(const struct nd *node)
 static bool  node_isunderflow(const struct nd *node, bool predict)
 {
 	M0_PRE(node_invariant(node));
-	return node->n_type->nt_isunderflow(node, predict);
+	return node->n_type->nt_isunderflow(&node->n_addr, predict);
 }
 
 static bool  node_isoverflow(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
-	return node->n_type->nt_isoverflow(node);
+	return node->n_type->nt_isoverflow(&node->n_addr);
 }
 #endif
 #if 0
@@ -1426,7 +1426,7 @@ static void node_seq_cnt_update(struct nd *node)
 static void node_fix(const struct nd *node, struct m0_be_tx *tx)
 {
 	M0_PRE(node_invariant(node));
-	node->n_type->nt_fix(node, tx);
+	node->n_type->nt_fix(&node->n_addr, tx);
 }
 
 #if 0
@@ -1441,7 +1441,7 @@ static void node_cut(const struct nd *node, int idx, int size,
 static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 {
 	M0_PRE(node_invariant(node));
-	node->n_type->nt_del(node, idx, tx);
+	node->n_type->nt_del(&node->n_addr, idx, tx);
 }
 
 /**
@@ -1462,7 +1462,7 @@ static void node_set_level(const struct nd *node, uint8_t new_level,
 			   struct m0_be_tx *tx)
 {
 	M0_PRE(node_invariant(node));
-	node->n_type->nt_set_level(node, new_level, tx);
+	node->n_type->nt_set_level(&node->n_addr, new_level, tx);
 }
 
 static void node_move(struct nd *src, struct nd *tgt,
@@ -1653,20 +1653,13 @@ struct seg_ops {
 	int64_t    (*so_tree_delete)(struct node_op *op, struct td *tree,
 				     struct m0_be_tx *tx, int nxt);
 	void       (*so_tree_put)(struct td *tree);
-	int64_t    (*so_node_get)(struct node_op *op, struct td *tree,
-			          struct segaddr *addr, int nxt);
 	void       (*so_node_put)(struct nd *node, bool lock_acquired);
 	struct nd *(*so_node_try)(struct td *tree, struct segaddr *addr);
-	int64_t    (*so_node_alloc)(struct node_op *op, struct td *tree,
-				    int shift, const struct node_type *nt,
-				    struct m0_be_tx *tx, int nxt);
-	int64_t    (*so_node_free)(struct node_op *op, int shift,
-				   struct m0_be_tx *tx, int nxt);
 	void       (*so_node_op_fini)(struct node_op *op);
 };
 
 static struct seg_ops *segops;
-
+static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt);
 /**
  * Locates a tree descriptor whose root node points to the node at addr and
  * return this tree to the caller.
@@ -1794,7 +1787,10 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	struct nd              *node;
 	bool                    in_lrulist;
 
-	nxt_state =  segops->so_node_get(op, tree, addr, nxt);
+	nxt_state = nxt;
+	if (tree == NULL) {
+		nxt_state = mem_tree_get(op, addr, nxt);
+	}
 
 	/**
 	 * TODO : Add following AIs after decoupling of node descriptor and
@@ -1913,7 +1909,7 @@ static void node_put(struct node_op *op, struct nd *node, bool lock_acquired,
 		     struct m0_be_tx *tx)
 {
 	M0_PRE(node != NULL);
-	int        shift = node->n_type->nt_shift(node);
+	int        shift = node->n_type->nt_shift(&node->n_addr);
 	segops->so_node_put(node, lock_acquired);
 
 	if (node->n_delayed_free && node->n_ref == 0) {
@@ -1921,7 +1917,7 @@ static void node_put(struct node_op *op, struct nd *node, bool lock_acquired,
 		m0_rwlock_fini(&node->n_lock);
 		op->no_addr = node->n_addr;
 		m0_free(node);
-		segops->so_node_free(op, shift, tx, 0);
+		m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift, shift);
 	}
 }
 #endif
@@ -1954,13 +1950,20 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 			  const struct node_type *nt, int ksize, int vsize,
 			  bool lock_aquired, struct m0_be_tx *tx, int nxt)
 {
-	int        nxt_state;
+	int        nxt_state = nxt;
+	void      *area;
+	int        actual_size = 1ULL << size;
 
-	nxt_state = segops->so_node_alloc(op, tree, size, nt, tx, nxt);
+	M0_PRE(op->no_opc == NOP_ALLOC);
+	M0_PRE(node_shift_is_valid(size));
+	area = m0_alloc_aligned(actual_size, size);
+	M0_ASSERT(area != NULL);
+	op->no_addr = segaddr_build(area, size);
+	op->no_tree = tree;
 
 	node_init(&op->no_addr, ksize, vsize, nt, tx);
 
-        nxt_state = node_get(op, tree, &op->no_addr, lock_aquired, nxt_state);
+	nxt_state = node_get(op, tree, &op->no_addr, lock_aquired, nxt_state);
 
 	return nxt_state;
 }
@@ -1968,7 +1971,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 static int64_t node_free(struct node_op *op, struct nd *node,
 			 struct m0_be_tx *tx, int nxt)
 {
-	int shift = node->n_type->nt_shift(node);
+	int shift = node->n_type->nt_shift(&node->n_addr);
 
 	m0_rwlock_write_lock(&node->n_lock);
 	node_refcnt_update(node, false);
@@ -1981,7 +1984,8 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 		m0_rwlock_fini(&node->n_lock);
 		op->no_addr = node->n_addr;
 		m0_free(node);
-		return segops->so_node_free(op, shift, tx, nxt);
+		m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift,
+				shift);
 	}
 
 	return nxt;
@@ -1994,14 +1998,6 @@ static void node_op_fini(struct node_op *op)
 }
 
 #endif
-
-static int64_t mem_node_get(struct node_op *op, struct td *tree,
-			    struct segaddr *addr, int nxt);
-static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
-			      const struct node_type *nt, struct m0_be_tx *tx,
-			      int nxt);
-static int64_t mem_node_free(struct node_op *op, int shift,
-			     struct m0_be_tx *tx, int nxt);
 
 static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 {
@@ -2161,16 +2157,6 @@ static void mem_tree_put(struct td *tree)
 	m0_rwlock_write_unlock(&tree->t_lock);
 }
 
-static int64_t mem_node_get(struct node_op *op, struct td *tree,
-			    struct segaddr *addr, int nxt)
-{
-	int                     nxt_state = nxt;
-
-	if (tree == NULL) {
-		nxt_state = mem_tree_get(op, addr, nxt);
-	}
-	return nxt_state;
-}
 
 static void mem_node_put(struct nd *node, bool lock_acquired)
 {
@@ -2205,31 +2191,6 @@ static struct nd *mem_node_try(struct td *tree, struct segaddr *addr)
 	return NULL;
 }
 
-static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
-			      const struct node_type *nt, struct m0_be_tx *tx,
-			      int nxt)
-{
-	void          *area;
-	int            size = 1ULL << shift;
-
-	M0_PRE(op->no_opc == NOP_ALLOC);
-	M0_PRE(node_shift_is_valid(shift));
-	area = m0_alloc_aligned(size, shift);
-	M0_ASSERT(area != NULL);
-	op->no_addr = segaddr_build(area, shift);
-	op->no_tree = tree;
-	return nxt;
-}
-
-static int64_t mem_node_free(struct node_op *op, int shift,
-			     struct m0_be_tx *tx, int nxt)
-{
-	m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift, shift);
-	/* m0_free_aligned(((void *)node) - (1ULL << shift),
-	 *                 sizeof *node + (1ULL << shift), shift); */
-	return nxt;
-}
-
 static void mem_node_op_fini(struct node_op *op)
 {
 }
@@ -2239,11 +2200,8 @@ static const struct seg_ops mem_seg_ops = {
 	.so_tree_create  = &mem_tree_create,
 	.so_tree_delete  = &mem_tree_delete,
 	.so_tree_put     = &mem_tree_put,
-	.so_node_get     = &mem_node_get,
 	.so_node_put     = &mem_node_put,
 	.so_node_try     = &mem_node_try,
-	.so_node_alloc   = &mem_node_alloc,
-	.so_node_free    = &mem_node_free,
 	.so_node_op_fini = &mem_node_op_fini
 };
 
@@ -2280,16 +2238,16 @@ enum m0_be_bnode_format_version {
 static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 		    uint32_t ntype, struct m0_be_tx *tx);
 static void ff_fini(const struct nd *node);
-static int  ff_count(const struct nd *node);
-static int  ff_count_rec(const struct nd *node);
-static int  ff_space(const struct nd *node);
-static int  ff_level(const struct nd *node);
-static int  ff_shift(const struct nd *node);
-static int  ff_valsize(const struct nd *node);
-static int  ff_keysize(const struct nd *node);
-static bool ff_isunderflow(const struct nd *node, bool predict);
-static bool ff_isoverflow(const struct nd *node);
-static void ff_fid(const struct nd *node, struct m0_fid *fid);
+static int  ff_count(const struct segaddr *addr);
+static int  ff_count_rec(const struct segaddr *addr);
+static int  ff_space(const struct segaddr *addr);
+static int  ff_level(const struct segaddr *addr);
+static int  ff_shift(const struct segaddr *addr);
+static int  ff_valsize(const struct segaddr *addr);
+static int  ff_keysize(const struct segaddr *addr);
+static bool ff_isunderflow(const struct segaddr *addr, bool predict);
+static bool ff_isoverflow(const struct segaddr *addr);
+static void ff_fid(const struct segaddr *addr, struct m0_fid *fid);
 static void ff_rec(struct slot *slot);
 static void ff_node_key(struct slot *slot);
 static void ff_child(struct slot *slot, struct segaddr *addr);
@@ -2297,17 +2255,17 @@ static bool ff_isfit(struct slot *slot);
 static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified);
 static void ff_make(struct slot *slot, struct m0_be_tx *tx);
 static bool ff_find(struct slot *slot, const struct m0_btree_key *key);
-static void ff_fix(const struct nd *node, struct m0_be_tx *tx);
-static void ff_cut(const struct nd *node, int idx, int size,
+static void ff_fix(const struct segaddr *addr, struct m0_be_tx *tx);
+static void ff_cut(const struct segaddr *addr, int idx, int size,
 		   struct m0_be_tx *tx);
-static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx);
-static void ff_set_level(const struct nd *node, uint8_t new_level,
+static void ff_del(const struct segaddr *addr, int idx, struct m0_be_tx *tx);
+static void ff_set_level(const struct  segaddr *addr, uint8_t new_level,
 			 struct m0_be_tx *tx);
 static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 static bool ff_invariant(const struct nd *node);
-static bool ff_verify(const struct nd *node);
-static bool ff_isvalid(const struct nd *node);
+static bool ff_verify(const struct segaddr *addr);
+static bool ff_isvalid(const struct segaddr *addr);
 static void ff_opaque_set(const struct segaddr *addr, void *opaque);
 static void *ff_opaque_get(const struct segaddr *addr);
 uint32_t ff_ntype_get(const struct segaddr *addr);
@@ -2404,9 +2362,9 @@ static struct ff_head *ff_data(const struct nd *node)
 	return segaddr_addr(&node->n_addr);
 }
 
-static void *ff_key(const struct nd *node, int idx)
+static void *ff_key(const struct segaddr *addr, int idx)
 {
-	struct ff_head *h    = ff_data(node);
+	struct ff_head *h  = segaddr_addr(addr);
 	void           *area = h + 1;
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
@@ -2414,9 +2372,9 @@ static void *ff_key(const struct nd *node, int idx)
 	return area + (h->ff_ksize + h->ff_vsize) * idx;
 }
 
-static void *ff_val(const struct nd *node, int idx)
+static void *ff_val(const struct segaddr *addr, int idx)
 {
-	struct ff_head *h    = ff_data(node);
+	struct ff_head *h = segaddr_addr(addr);
 	void           *area = h + 1;
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
@@ -2446,16 +2404,15 @@ static bool ff_invariant(const struct nd *node)
 		    ergo(h->ff_level > 0, h->ff_used > 0));
 }
 
-static bool ff_verify(const struct nd *node)
+static bool ff_verify(const struct segaddr *addr)
 {
-	const struct ff_head *h = ff_data(node);
-
+	const struct ff_head *h = segaddr_addr(addr);
 	return m0_format_footer_verify(h, true) == 0;
 }
 
-static bool ff_isvalid(const struct nd *node)
+static bool ff_isvalid(const struct segaddr *addr)
 {
-	const struct ff_head *h   = ff_data(node);
+	const struct ff_head *h = segaddr_addr(addr);
 	struct m0_format_tag  tag;
 
 	m0_format_header_unpack(&tag, &h->ff_fmt);
@@ -2506,61 +2463,68 @@ static void ff_fini(const struct nd *node)
 	});
 }
 
-static int ff_count(const struct nd *node)
+static int ff_count(const struct segaddr *addr)
 {
-	int used = ff_data(node)->ff_used;
-	if (ff_data(node)->ff_level > 0)
+	struct ff_head *h = segaddr_addr(addr);
+	int used = h->ff_used;
+	if (h->ff_level > 0)
 		used --;
 	return used;
 }
 
-static int ff_count_rec(const struct nd *node)
+static int ff_count_rec(const struct segaddr *addr)
 {
-	return ff_data(node)->ff_used;
+	struct ff_head *h = segaddr_addr(addr);
+	return h->ff_used;
 }
 
-static int ff_space(const struct nd *node)
+static int ff_space(const struct segaddr *addr)
 {
-	struct ff_head *h = ff_data(node);
+	struct ff_head *h = segaddr_addr(addr);
 	return (1ULL << h->ff_shift) - sizeof *h -
 		(h->ff_ksize + h->ff_vsize) * h->ff_used;
 }
 
-static int ff_level(const struct nd *node)
+static int ff_level(const struct segaddr *addr)
 {
-	return ff_data(node)->ff_level;
+	struct ff_head *h = segaddr_addr(addr);
+	return h->ff_level;
 }
 
-static int ff_shift(const struct nd *node)
+static int ff_shift(const struct segaddr *addr)
 {
-	return ff_data(node)->ff_shift;
+	struct ff_head *h = segaddr_addr(addr);
+	return h->ff_shift;
 }
 
-static int ff_keysize(const struct nd *node)
+static int ff_keysize(const struct segaddr *addr)
 {
-	return ff_data(node)->ff_ksize;
+	struct ff_head *h = segaddr_addr(addr);
+	return h->ff_ksize;
 }
 
-static int ff_valsize(const struct nd *node)
+static int ff_valsize(const struct segaddr *addr)
 {
-	return ff_data(node)->ff_vsize;
+	struct ff_head *h = segaddr_addr(addr);
+	return h->ff_vsize;
 }
 
-static bool ff_isunderflow(const struct nd *node, bool predict)
+static bool ff_isunderflow(const struct segaddr *addr, bool predict)
 {
-	int16_t rec_count = ff_data(node)->ff_used;
+	struct ff_head *h = segaddr_addr(addr);
+	int16_t rec_count = h->ff_used;
 	if (predict && rec_count != 0)
 		rec_count--;
 	return  rec_count == 0;
 }
 
-static bool ff_isoverflow(const struct nd *node)
+static bool ff_isoverflow(const struct segaddr *addr)
 {
-	struct ff_head *h = ff_data(node);
-	return (ff_space(node) < h->ff_ksize + h->ff_vsize) ? true : false;
+	struct ff_head *h = segaddr_addr(addr);
+	return (ff_space(addr) < h->ff_ksize + h->ff_vsize) ? true : false;
 }
 
-static void ff_fid(const struct nd *node, struct m0_fid *fid)
+static void ff_fid(const struct segaddr *addr, struct m0_fid *fid)
 {
 }
 
@@ -2575,7 +2539,7 @@ static void ff_rec(struct slot *slot)
 
 	slot->s_rec.r_val.ov_vec.v_nr = 1;
 	slot->s_rec.r_val.ov_vec.v_count[0] = h->ff_vsize;
-	slot->s_rec.r_val.ov_buf[0] = ff_val(slot->s_node, slot->s_idx);
+	slot->s_rec.r_val.ov_buf[0] = ff_val(&slot->s_node->n_addr, slot->s_idx);
 	ff_node_key(slot);
 	M0_POST(ff_rec_is_valid(slot));
 }
@@ -2590,7 +2554,7 @@ static void ff_node_key(struct slot *slot)
 
 	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
 	slot->s_rec.r_key.k_data.ov_vec.v_count[0] = h->ff_ksize;
-	slot->s_rec.r_key.k_data.ov_buf[0] = ff_key(slot->s_node, slot->s_idx);
+	slot->s_rec.r_key.k_data.ov_buf[0] = ff_key(&slot->s_node->n_addr, slot->s_idx);
 }
 
 static void ff_child(struct slot *slot, struct segaddr *addr)
@@ -2599,7 +2563,7 @@ static void ff_child(struct slot *slot, struct segaddr *addr)
 	struct ff_head  *h    = ff_data(node);
 
 	M0_PRE(slot->s_idx < h->ff_used);
-	*addr = *(struct segaddr *)ff_val(node, slot->s_idx);
+	*addr = *(struct segaddr *)ff_val(&node->n_addr, slot->s_idx);
 }
 
 static bool ff_isfit(struct slot *slot)
@@ -2607,7 +2571,7 @@ static bool ff_isfit(struct slot *slot)
 	struct ff_head *h = ff_data(slot->s_node);
 
 	M0_PRE(ff_rec_is_valid(slot));
-	return h->ff_ksize + h->ff_vsize <= ff_space(slot->s_node);
+	return h->ff_ksize + h->ff_vsize <= ff_space(&slot->s_node->n_addr);
 }
 
 static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
@@ -2623,7 +2587,7 @@ static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 	const struct nd *node  = slot->s_node;
 	struct ff_head  *h     = ff_data(node);
 	int              rsize = h->ff_ksize + h->ff_vsize;
-	void            *start = ff_key(node, slot->s_idx);
+	void            *start = ff_key(&node->n_addr, slot->s_idx);
 
 	M0_PRE(ff_rec_is_valid(slot));
 	M0_PRE(ff_isfit(slot));
@@ -2661,7 +2625,7 @@ static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
 	while (i + 1 < j) {
 		m = (i + j) / 2;
 
-		key.k_data.ov_buf[0] = ff_key(slot->s_node, m);
+		key.k_data.ov_buf[0] = ff_key(&slot->s_node->n_addr, m);
 
 		m0_bufvec_cursor_init(&cur_1, &key.k_data);
 		m0_bufvec_cursor_init(&cur_2, &find_key->k_data);
@@ -2683,23 +2647,24 @@ static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
 	return (i == j);
 }
 
-static void ff_fix(const struct nd *node, struct m0_be_tx *tx)
+static void ff_fix(const struct segaddr *addr, struct m0_be_tx *tx)
 {
-	struct ff_head *h = ff_data(node);
+	struct ff_head *h = segaddr_addr(addr);
 	m0_format_footer_update(h);
 }
 
-static void ff_cut(const struct nd *node, int idx, int size,
+static void ff_cut(const struct segaddr *addr, int idx, int size,
 		   struct m0_be_tx *tx)
 {
-	M0_PRE(size == ff_data(node)->ff_vsize);
+	struct ff_head *h = segaddr_addr(addr);
+	M0_PRE(size == h->ff_vsize);
 }
 
-static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
+static void ff_del(const struct segaddr *addr, int idx, struct m0_be_tx *tx)
 {
-	struct ff_head *h     = ff_data(node);
+	struct ff_head *h  = segaddr_addr(addr);
 	int             rsize = h->ff_ksize + h->ff_vsize;
-	void           *start = ff_key(node, idx);
+	void           *start = ff_key(addr, idx);
 
 	M0_PRE(idx < h->ff_used);
 	M0_PRE(h->ff_used > 0);
@@ -2716,10 +2681,10 @@ static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	 */
 }
 
-static void ff_set_level(const struct nd *node, uint8_t new_level,
+static void ff_set_level(const struct  segaddr *addr, uint8_t new_level,
 			 struct m0_be_tx *tx)
 {
-	struct ff_head *h = ff_data(node);
+	struct ff_head *h = segaddr_addr(addr);
 
 	h->ff_level = new_level;
 	/**
