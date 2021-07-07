@@ -378,7 +378,7 @@ struct m0_layout_plop {
 	struct m0_tlink                  pl_linkage;
 	/**
 	 * List of plops this plop depends on,
-	 * linked via m0_layout_plop_rel::plr_dep_link.
+	 * linked via m0_layout_plop_rel::plr_dep_linkage.
 	 *
 	 * User can use this list to track the dependencies between plops
 	 * to execute and call m0_layout_plop_done() on them in the
@@ -388,7 +388,7 @@ struct m0_layout_plop {
 	struct m0_tl                     pl_deps;
 	/**
 	 * List of plops that depend on this plop (dependants),
-	 * linked via m0_layout_plop_rel::plr_rdep_link.
+	 * linked via m0_layout_plop_rel::plr_rdep_linkage.
 	 */
 	struct m0_tl                     pl_rdeps;
 	/**

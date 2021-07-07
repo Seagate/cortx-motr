@@ -117,13 +117,20 @@ static int add_plops_relation(struct m0_layout_plop *rdep,
 	return 0;
 }
 
-static void del_plops_relation(struct m0_layout_plop_rel *rel)
+static void del_plop_relations(struct m0_layout_plop *plop)
 {
-	if (rel != NULL) {
-		pldeps_tlink_del_fini(rel);
+	struct m0_layout_plop_rel *rel;
+
+	m0_tl_teardown(pldeps, &plop->pl_deps, rel) {
 		plrdeps_tlink_del_fini(rel);
 		m0_free(rel);
 	}
+	m0_tl_teardown(plrdeps, &plop->pl_rdeps, rel) {
+		pldeps_tlink_del_fini(rel);
+		m0_free(rel);
+	}
+	pldeps_tlist_fini(&plop->pl_deps);
+	plrdeps_tlist_fini(&plop->pl_rdeps);
 }
 
 M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
@@ -257,11 +264,10 @@ M0_INTERNAL void m0_layout_plan_fini(struct m0_layout_plan *plan)
 			plop->pl_ops->po_fini(plop);
 		/* For each plan_get(), plop_done() must be called. */
 		M0_ASSERT(M0_IN(plop->pl_state, (M0_LPS_INIT, M0_LPS_DONE)));
-		del_plops_relation(pldeps_tlist_head(&plop->pl_deps));
+		del_plop_relations(plop);
 		m0_free(plop);
 	}
 	pplops_tlist_fini(&plan->lp_plops);
-	plan->lp_op = NULL;
 
 	m0_mutex_unlock(&plan->lp_lock);
 	m0_mutex_fini(&plan->lp_lock);
