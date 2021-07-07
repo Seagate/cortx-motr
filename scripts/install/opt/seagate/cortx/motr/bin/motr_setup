@@ -123,7 +123,7 @@ class PostInstallCmd(Cmd):
             config_lvm(self)
         else:
             self.logger.error("There are LVM configurations present on the system. "
-                              "Please wipe them and re-run the step.\n")
+                              "Skipping LVM creation.\n")
 
 class ConfigCmd(Cmd):
     """Config Setup Cmd"""
