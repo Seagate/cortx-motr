@@ -27,6 +27,7 @@
 #include "lib/assert.h"
 #include "lib/misc.h"    /* M0_BITS */
 #include "lib/finject.h"
+#include "lib/string.h"  /* strcat() */
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
 #include "fop/fop.h"
@@ -42,6 +43,7 @@
 #include "ioservice/storage_dev.h" /* m0_storage_dev_stob_find */
 #include "cob/cob.h"               /* m0_cob_create */
 #include "motr/magic.h"
+#include "motr/client.h"
 #include "motr/setup.h"            /* m0_cs_storage_devs_get */
 #include "pool/pool.h"
 #include "ioservice/io_addb2.h"
@@ -611,6 +613,10 @@ static int net_buffer_release(struct m0_fom *);
 static int nbuf_release_done(struct m0_fom *fom, int still_required);
 
 static void io_fom_addb2_descr(struct m0_fom *fom);
+
+enum {
+	CKSUM_SIZE = 192
+};
 
 /**
  * I/O FOM operation vector.
@@ -1192,6 +1198,7 @@ static int io_prepare(struct m0_fom *fom)
 	struct m0_fop_cob_rw_reply  *rwrep;
 	enum m0_pool_nd_state        device_state = 0;
 	int                          rc;
+	uint64_t                     io_units;
 	struct m0_pools_common      *pc;
 
 	M0_ENTRY("fom=%p", fom);
@@ -1259,6 +1266,23 @@ static int io_prepare(struct m0_fom *fom)
 				 rwfop->crw_index,
 				 device_state);
 		rc = M0_RC(-EIO);
+	}
+	if (m0_is_read_fop(fom->fo_fop)) {
+		uint64_t io_cnt;
+		uint64_t  unit_size;
+		io_cnt = m0_io_count(&rwfop->crw_ivec);
+		unit_size = m0_obj_layout_id_to_unit_size(rwfop->crw_lid);
+		io_units = io_cnt < unit_size ? 1 : io_cnt / unit_size;
+		m0_buf_alloc(&rwrep->rwr_di_data_cksum, io_units * CKSUM_SIZE);
+		memset(rwrep->rwr_di_data_cksum.b_addr, 'B',
+			io_units * CKSUM_SIZE);
+		M0_LOG(M0_ALWAYS, "READ YJC_SRV: %p CKSUM: %.8s baddr = %p "
+				"nob = %"PRIu64" IO_CNT: %"PRIu64" UNIT_SZ: %"PRIu64,
+				rwrep, (char *)rwrep->rwr_di_data_cksum.b_addr,
+				rwrep->rwr_di_data_cksum.b_addr,
+				rwrep->rwr_di_data_cksum.b_nob, io_cnt, unit_size);
+
+		rwrep->rwr_ivec = rwfop->crw_ivec;
 	}
 out:
 	if (rc != 0)
@@ -1681,13 +1705,13 @@ M0_INTERNAL uint64_t m0_io_size(struct m0_stob_io *sio, uint32_t bshift)
  */
 static int io_launch(struct m0_fom *fom)
 {
-	int                      rc;
-	struct m0_fop           *fop;
-	struct m0_io_fom_cob_rw *fom_obj;
-	struct m0_net_buffer    *nb;
-	struct m0_fop_cob_rw    *rwfop;
-	struct m0_file          *file = NULL;
-	uint32_t                 index;
+	int                         rc;
+	struct m0_fop              *fop;
+	struct m0_io_fom_cob_rw    *fom_obj;
+	struct m0_net_buffer       *nb;
+	struct m0_fop_cob_rw       *rwfop;
+	struct m0_file             *file = NULL;
+	uint32_t                    index;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1731,7 +1755,9 @@ static int io_launch(struct m0_fom *fom)
 	 */
 	index -= m0_is_write_fop(fop) ?
 		netbufs_tlist_length(&fom_obj->fcrw_netbuf_list) : 0;
-
+	if (m0_is_write_fop(fop)) {
+		M0_LOG(M0_ALWAYS, "WRITE YJC_SRV:"FID_F "  %p CKSUM: %s baddr = %p nob= %"PRIu64, FID_P(&rwfop->crw_fid), rwfop, (char *)rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_addr, rwfop->crw_di_data_cksum.b_nob);
+	}
 	m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
 		struct m0_indexvec     *mem_ivec;
 		struct m0_stob_io_desc *stio_desc;
@@ -1769,8 +1795,8 @@ static int io_launch(struct m0_fom *fom)
 			uint32_t di_size = m0_di_size_get(file, ivec_count);
 			uint32_t curr_pos = m0_di_size_get(file,
 						fom_obj->fcrw_curr_size);
-
 			di_buf = &rwfop->crw_di_data;
+
 			if (di_buf != NULL) {
 				struct m0_buf buf = M0_BUF_INIT(di_size,
 						di_buf->b_addr + curr_pos);

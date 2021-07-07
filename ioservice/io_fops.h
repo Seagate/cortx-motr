@@ -218,6 +218,8 @@ M0_INTERNAL void m0_io_fop_destroy(struct m0_fop *fop);
 
 M0_INTERNAL bool m0_is_read_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_write_fop(const struct m0_fop *fop);
+M0_INTERNAL bool m0_is_read_rep(const struct m0_fop *fop);
+M0_INTERNAL bool m0_is_write_rep(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_io_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_io_fop_rep(const struct m0_fop *fop);
 M0_INTERNAL struct m0_fop_cob_rw *io_rw_get(struct m0_fop *fop);
@@ -332,6 +334,12 @@ struct m0_fop_cob_rw_reply {
 
 	/** Returned values for an UPDATE operation */
 	struct m0_fop_mod_rep   rwr_mod_rep;
+
+	/** Extents represting IO performed for this reply's request fop */
+	struct m0_io_indexvec   rwr_ivec;
+
+	/** Buffer containing checksum from server during READ operation */
+	struct m0_buf	        rwr_di_data_cksum;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
@@ -405,6 +413,7 @@ struct m0_fop_cob_rw {
 	uint64_t                  crw_flags;
 	/** Checksum and tag values for the input data blocks. */
 	struct m0_buf		  crw_di_data;
+	struct m0_buf             crw_di_data_cksum;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
