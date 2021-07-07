@@ -982,7 +982,7 @@ enum m0_pi_calc_flag {
 	M0_PI_CALC_UNIT_ZERO = 1 << 0,
 	/* Skip PI final value calculation */
 	M0_PI_SKIP_CALC_FINAL = 1 << 1
-
+	
 };
 
 M0_BASSERT(M0_PI_TYPE_MAX <= 8);
@@ -1912,19 +1912,19 @@ void m0_client_layout_free(struct m0_client_layout *layout);
  *                    data unit N-1 unit's context via prev_context field in PI type struct.
  *                    This api will calculate unit N's context and set value in curr_context.
  *                    IN values - pi_type, pi_size, prev_context
- *                    OUT values - pi_value, prev_context for first data unit.
+ *                    OUT values - pi_value, prev_context for first data unit. 
  * @param[IN] seed seed value (obj_id+data_unit_offset) required to calculate
- *                 the checksum. If this pointer is NULL that means either
+ *                 the checksum. If this pointer is NULL that means either 
  *                 this checksum calculation is meant for KV or user does
  *                 not want seeding.
  *                 NOTE: seed is always NULL, non-null value sent at the last chunk of motr unit
  * @param[IN] m0_bufvec Set of buffers for which checksum is computed. Normally
  *                      this set of vectors will make one data unit.
- * @param[IN] flag If flag is M0_PI_CALC_UNIT_ZERO, it means this api is called for
+ * @param[IN] flag If flag is M0_PI_CALC_UNIT_ZERO, it means this api is called for 
  *                 first data unit and init functionality should be invoked such as MD5_Init.
  * @param[OUT] curr_context context of data unit N, will be required to calculate checksum for
  *                         next data unit, N+1. This api will calculate and set value for this field.
- *                         NOTE: curr_context always have unseeded and non finalised context value
+ *                         NOTE: curr_context always have unseeded and non finalised context value 
  *                         and sending this parameter is mandatory.
  * @param[OUT] pi_value_without_seed Caller may need checksum value without seed and with seed.
  *                                   With seed checksum is set in pi_value of PI type struct.
