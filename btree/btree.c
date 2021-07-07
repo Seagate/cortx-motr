@@ -1671,9 +1671,6 @@ struct seg_ops {
 	int64_t    (*so_tree_delete)(struct node_op *op, struct td *tree,
 				     struct m0_be_tx *tx, int nxt);
 	void       (*so_tree_put)(struct td *tree);
-	void       (*so_node_put)(struct nd *node, bool lock_acquired);
-	struct nd *(*so_node_try)(struct td *tree, struct segaddr *addr);
-	void       (*so_node_op_fini)(struct node_op *op);
 };
 
 static struct seg_ops *segops;
@@ -1928,7 +1925,30 @@ static void node_put(struct node_op *op, struct nd *node, bool lock_acquired,
 {
 	M0_PRE(node != NULL);
 	int        shift = node->n_type->nt_shift(&node->n_addr);
-	segops->so_node_put(node, lock_acquired);
+	node_lock(node);
+	node_refcnt_update(node, false);
+	if (node->n_ref == 0) {
+		/**
+		 * The node descriptor is in tree's active list. Remove from
+		 * active list and add to lru list
+		 */
+		tree_lock(node->n_tree, lock_acquired);
+		ndlist_tlist_del(node);
+		tree_unlock(node->n_tree, lock_acquired);
+		node->n_seq = 0;
+
+		m0_rwlock_write_lock(&lru_lock);
+		ndlist_tlist_add(&btree_lru_nds, node);
+		m0_rwlock_write_unlock(&lru_lock);
+		/**
+		 * In case tree desriptor gets deallocated while node sits in
+		 * the LRU list, we do not want node descriptor to point to an
+		 * invalid tree descriptor. Hence setting nd::n_tree to NULL, it
+		 * will again be populated in node_get().
+		 */
+		node->n_tree = NULL;
+	}
+	node_unlock(node);
 
 	if (node->n_delayed_free && node->n_ref == 0) {
 		ndlist_tlink_del_fini(node);
@@ -1942,7 +1962,7 @@ static void node_put(struct node_op *op, struct nd *node, bool lock_acquired,
 
 # if 0
 static struct nd *node_try(struct td *tree, struct segaddr *addr){
-	return segops->so_node_try(tree, addr);
+	return NULL;
 }
 #endif
 
@@ -2012,7 +2032,6 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 #ifndef __KERNEL__
 static void node_op_fini(struct node_op *op)
 {
-	segops->so_node_op_fini(op);
 }
 
 #endif
@@ -2176,51 +2195,13 @@ static void mem_tree_put(struct td *tree)
 }
 
 
-static void mem_node_put(struct nd *node, bool lock_acquired)
-{
-	node_lock(node);
-	node_refcnt_update(node, false);
-	if (node->n_ref == 0) {
-		/**
-		 * The node descriptor is in tree's active list. Remove from
-		 * active list and add to lru list
-		 */
-		tree_lock(node->n_tree, lock_acquired);
-		ndlist_tlist_del(node);
-		tree_unlock(node->n_tree, lock_acquired);
-		node->n_seq = 0;
 
-		m0_rwlock_write_lock(&lru_lock);
-		ndlist_tlist_add(&btree_lru_nds, node);
-		m0_rwlock_write_unlock(&lru_lock);
-		/**
-		 * In case tree desriptor gets deallocated while node sits in
-		 * the LRU list, we do not want node descriptor to point to an
-		 * invalid tree descriptor. Hence setting nd::n_tree to NULL, it
-		 * will again be populated in node_get().
-		 */
-		node->n_tree = NULL;
-	}
-	node_unlock(node);
-}
-
-static struct nd *mem_node_try(struct td *tree, struct segaddr *addr)
-{
-	return NULL;
-}
-
-static void mem_node_op_fini(struct node_op *op)
-{
-}
 
 static const struct seg_ops mem_seg_ops = {
 	.so_tree_get     = &mem_tree_get,
 	.so_tree_create  = &mem_tree_create,
 	.so_tree_delete  = &mem_tree_delete,
 	.so_tree_put     = &mem_tree_put,
-	.so_node_put     = &mem_node_put,
-	.so_node_try     = &mem_node_try,
-	.so_node_op_fini = &mem_node_op_fini
 };
 
 /**
