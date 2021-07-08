@@ -865,7 +865,7 @@ struct node_type {
 			int vsize, uint32_t ntype, struct m0_be_tx *tx);
 
 	/** Cleanup of the node if any before deallocation */
-	void (*nt_fini)(const struct nd *node);
+	void (*nt_fini)(const struct segaddr *addr);
 
 	/** Returns count of keys in the node */
 	int  (*nt_count)(const struct segaddr *addr);
@@ -948,7 +948,8 @@ struct node_type {
 			 struct m0_be_tx *tx);
 
 	/** Deletes the record from the node at specific index */
-	void (*nt_del)  (const struct segaddr *addr, int idx, struct m0_be_tx *tx);
+	void (*nt_del)  (const struct segaddr *addr, int idx,
+			 struct m0_be_tx *tx);
 
 	/** Updates the level of node */
 	void (*nt_set_level)  (const struct  segaddr *addr, uint8_t new_level,
@@ -1925,6 +1926,7 @@ static void node_put(struct node_op *op, struct nd *node, bool lock_acquired,
 {
 	M0_PRE(node != NULL);
 	int        shift = node->n_type->nt_shift(&node->n_addr);
+
 	node_lock(node);
 	node_refcnt_update(node, false);
 	if (node->n_ref == 0) {
@@ -1955,7 +1957,8 @@ static void node_put(struct node_op *op, struct nd *node, bool lock_acquired,
 		m0_rwlock_fini(&node->n_lock);
 		op->no_addr = node->n_addr;
 		m0_free(node);
-		m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift, shift);
+		m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift,
+				shift);
 	}
 }
 #endif
@@ -2015,7 +2018,7 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	node_refcnt_update(node, false);
 	node->n_delayed_free = true;
 	node_unlock(node);
-	node->n_type->nt_fini(node);
+	node->n_type->nt_fini(&node->n_addr);
 
 	if (node->n_ref == 0) {
 		ndlist_tlink_del_fini(node);
@@ -2236,7 +2239,7 @@ enum m0_be_bnode_format_version {
 
 static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 		    uint32_t ntype, struct m0_be_tx *tx);
-static void ff_fini(const struct nd *node);
+static void ff_fini(const struct segaddr *addr);
 static int  ff_count(const struct segaddr *addr);
 static int  ff_count_rec(const struct segaddr *addr);
 static int  ff_space(const struct segaddr *addr);
@@ -2451,9 +2454,9 @@ static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 	 */
 }
 
-static void ff_fini(const struct nd *node)
+static void ff_fini(const struct segaddr *addr)
 {
-	struct ff_head *h = ff_data(node);
+	struct ff_head *h = segaddr_addr(addr);
 
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
 		.ot_version       = 0,
@@ -2538,7 +2541,8 @@ static void ff_rec(struct slot *slot)
 
 	slot->s_rec.r_val.ov_vec.v_nr = 1;
 	slot->s_rec.r_val.ov_vec.v_count[0] = h->ff_vsize;
-	slot->s_rec.r_val.ov_buf[0] = ff_val(&slot->s_node->n_addr, slot->s_idx);
+	slot->s_rec.r_val.ov_buf[0] = ff_val(&slot->s_node->n_addr,
+					     slot->s_idx);
 	ff_node_key(slot);
 	M0_POST(ff_rec_is_valid(slot));
 }
@@ -2553,7 +2557,8 @@ static void ff_node_key(struct slot *slot)
 
 	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
 	slot->s_rec.r_key.k_data.ov_vec.v_count[0] = h->ff_ksize;
-	slot->s_rec.r_key.k_data.ov_buf[0] = ff_key(&slot->s_node->n_addr, slot->s_idx);
+	slot->s_rec.r_key.k_data.ov_buf[0] = ff_key(&slot->s_node->n_addr,
+						    slot->s_idx);
 }
 
 static void ff_child(struct slot *slot, struct segaddr *addr)
