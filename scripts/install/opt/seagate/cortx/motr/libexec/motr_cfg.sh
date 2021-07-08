@@ -212,7 +212,7 @@ do_m0provision_action()
     if [ ! -x /usr/sbin/lvs ]; then
         err "lvs command not available."
     else
-        MD_DEVICES=($(lvs -o lv_path 2>/dev/null | grep "lv_raw_metadata" | grep srvnode  | sort -u))
+        MD_DEVICES=($(lvs -o lv_path 2>/dev/null | grep "lv_raw_md" | grep srvnode  | sort -u))
 
         for i in "${MD_DEVICES[@]}";
         do
