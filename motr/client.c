@@ -853,6 +853,9 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 
 	/* This call is for first data unit, need to initialize prev_context */
 	if (flag & M0_PI_CALC_UNIT_ZERO) {
+		memset(pi, 0, sizeof(struct m0_md5_inc_context_pi));
+		pi->hdr.pi_type = M0_PI_TYPE_MD5_INC_CONTEXT;
+		pi->hdr.pi_size = sizeof(struct m0_md5_inc_context_pi);
 		rc = MD5_Init((MD5_CTX *)&pi->prev_context);
 		if (rc != 1) {
 			return M0_ERR_INFO(rc, "MD5_Init failed.");
@@ -1076,11 +1079,13 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 			{
 #ifndef __KERNEL__
 				struct m0_md5_inc_context_pi md5_ctx_pi;
+				unsigned char *curr_context = m0_alloc(sizeof(MD5_CTX));
 				md5_ctx_pi.hdr.pi_type =
 					M0_PI_TYPE_MD5_INC_CONTEXT;
 				m0_calculate_md5_inc_context(&md5_ctx_pi,
 						seed, bvec, M0_PI_CALC_UNIT_ZERO,
-						NULL, NULL);
+						curr_context, NULL);
+				m0_free(curr_context);
 				if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pi_value,
 							md5_ctx_pi.pi_value,
 							MD5_DIGEST_LENGTH) == 0)
