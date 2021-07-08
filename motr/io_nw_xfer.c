@@ -932,8 +932,13 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_fid = ti->ti_fid;
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
-		if (ioo->ioo_flags & M0_OOF_NOHOLE)
+		/* In case of partially spanned units in a parity group,
+		 * degraded read expects zero-filled units from server side.
+		 */
+		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
+		    ioo->ioo_flags & M0_OOF_NOHOLE)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
+
 		if (ioo->ioo_flags & M0_OOF_SYNC)
 			rw_fop->crw_flags |= M0_IO_FLAG_SYNC;
 		io_attr = m0_io_attr(ioo);
@@ -1351,11 +1356,12 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			if (rc != 0)
 				goto err;
 
-			if (op_code == M0_OC_WRITE && do_cobs)
-				m0_bitmap_set(&units_spanned, unit, true);
-
 			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
 						m0_ext_length(&r_ext), iomap);
+			if (op_code == M0_OC_WRITE && do_cobs &&
+			    ti->ti_req_type == TI_READ_WRITE)
+				m0_bitmap_set(&units_spanned, unit, true);
+
 		}
 
 		M0_ASSERT(ergo(M0_IN(op_code, (M0_OC_READ, M0_OC_WRITE)),

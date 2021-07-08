@@ -592,6 +592,43 @@ enum m0_entity_type {
 } M0_XCA_ENUM;
 
 /**
+ * Flags passed to m0_entitiy_create(), m0_entity_open() to specify
+ * application's behaviour.
+ */
+ enum m0_entity_flags {
+	/**
+	 * During create if this flag is set in entity->en_flags, that means
+	 * application has capability to store meta-data and hence pver and
+	 * lid can be stored in  application's meta-data.
+	 * Before calling to m0_entity_create/open(), application is
+	 * expected to set obj>ob_entity->en_flags |= M0_ENF_META, so when
+	 * m0_entity_create() returns to application, pool version and layout id
+	 * will be available to application into obj->ob_attr.oa_pver and
+	 * obj->ob_attr.oa_lid respectively and can be stored into application's
+	 * meta-data.
+	 *
+	 * For example:
+	 * Create workflow would be like:
+	 *   obj->ob_entity.en_flags |= M0_ENF_META;
+	 *   m0_entity_create((NULL, &obj.ob_entity, &ops[0]);
+	 *   //  Save the returned pool version and lid into app_meta_data
+	 *   app_meta_data.pver = obj->ob_attr.oa_pver;
+	 *   app_meta_data.lid = obj->ob_attr.oa_lid;
+	 *
+	 * Read workflow:
+	 *   obj->ob_attr.oa_pver = app_meta_data.pver;
+	 *   obj->ob_attr.oa_lid =  app_meta_data.lid;
+	 *   m0_entity_open(NULL, &obj.ob_entity, &ops[0]);
+	 */
+	M0_ENF_META = 1 << 0,
+	/**
+	 * If this flags is set during entity_create() that means application
+	 * do not support update operation. This flag is not in use yet.
+	 */
+	M0_ENF_NO_RMW =  1 << 1
+ } M0_XCA_ENUM;
+
+/**
  * Generic client operation structure.
  */
 struct m0_op {
@@ -691,6 +728,7 @@ struct m0_entity {
 	/** list of pending transactions. */
 	struct m0_tl        en_pending_tx;
 	struct m0_mutex     en_pending_tx_lock;
+	uint32_t            en_flags;
 };
 
 /**
@@ -764,9 +802,9 @@ struct m0_client_layout {
  *
  */
 struct m0_idx_attr {
-	/** DIX pool layout type. */
+	/** DIX pool layout type. Please refer to enum dix_layout_type. */
 	uint32_t      idx_layout_type;
-	/** DIX pool version type. */
+	/** DIX pool version. */
 	struct m0_fid idx_pver;
 };
 

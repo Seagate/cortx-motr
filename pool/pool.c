@@ -728,7 +728,7 @@ static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 	 */
 	while ((rc = m0_conf_diter_next_sync(&it, obj_is_enclosurev)) ==
 		M0_CONF_DIRNEXT) {
-		/* We filter only controllerv objects. */
+		/* We filter only enclosurev objects. */
 		M0_CNT_INC(nr_nodes);
 	}
 
