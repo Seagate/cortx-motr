@@ -22,6 +22,8 @@ optional arguments:
   -512k            Induce 512K bytes error in Metadata
   -huge            Induce Huge amount of corruption in Metadata
   -seed SEED       Seed for generating Random errors corruption
+  -emap COBFID     Induce Error in Emap specified by Cob Id
+  -list_emap       Display all Emap keys with device id
 
 How to run the script:
 1. Find the location of your metadata and note it down.
@@ -64,3 +66,10 @@ How to run the script:
     example: error_injection.py -v -m <metadata path>
 	
 12. Use -seed for recreation of any random scenario which is -rn, -gmd, -dmd, -a, -512k, -huge.
+
+13. For injecting error in particular Emap Record checksum based on Cob fid.
+    example: error_injection.py -m <metadata path> -emap <cob fid>
+    e.g. cob fid = 43000000000000ab:cd
+
+14. To display all Emap Keys and Emap Records with Device ID
+    example: error_injection.py -m <metadata path> -list_emap
