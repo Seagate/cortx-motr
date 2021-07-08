@@ -2941,6 +2941,22 @@ static void level_alloc(struct m0_btree_oimpl *oi, int height)
 	oi->i_level = m0_alloc(height * (sizeof *oi->i_level));
 }
 
+static void level_put(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
+{
+	int i;
+	for (i = 0; i <= oi->i_used; ++i) {
+		if (oi->i_level[i].l_node != NULL) {
+			node_put(&oi->i_nop, oi->i_level[i].l_node, false, tx);
+			oi->i_level[i].l_node = NULL;
+		}
+		if (oi->i_level[i].l_sibling != NULL) {
+			node_put(&oi->i_nop, oi->i_level[i].l_sibling, false,
+				 tx);
+			oi->i_level[i].l_sibling = NULL;
+		}
+	}
+}
+
 static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 {
 	/**
@@ -2951,11 +2967,11 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 	 * already taken by this thread.
 	 */
 	int i;
+
+	/** Put all the nodes back. */
+	level_put(oi, tx);
+	/** Free up allocated nodes. */
 	for (i = 0; i <= oi->i_used; ++i) {
-		if (oi->i_level[i].l_node != NULL) {
-			node_put(&oi->i_nop, oi->i_level[i].l_node, false, tx);
-			oi->i_level[i].l_node = NULL;
-		}
 		if (oi->i_level[i].l_alloc != NULL) {
 			oi->i_nop.no_opc = NOP_FREE;
 			/**
@@ -2966,18 +2982,12 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 			node_free(&oi->i_nop, oi->i_level[i].l_alloc, tx, 0);
 			oi->i_level[i].l_alloc = NULL;
 		}
-		if (oi->i_level[i].l_sibling != NULL) {
-			node_put(&oi->i_nop, oi->i_level[i].l_sibling, false,
-				 tx);
-			oi->i_level[i].l_sibling = NULL;
-		}
 	}
 	if (oi->i_extra_node != NULL) {
 		oi->i_nop.no_opc = NOP_FREE;
 		node_free(&oi->i_nop, oi->i_extra_node, tx, 0);
 		oi->i_extra_node = NULL;
 	}
-
 	m0_free(oi->i_level);
 }
 
@@ -3561,10 +3571,11 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				/* If height has changed. */
 				lock_op_unlock(tree);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-					            P_SETUP);
+				                    P_SETUP);
 			} else {
-				/* If height is same. */
+				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
+				level_put(oi, bop->bo_tx);
 				return P_DOWN;
 			}
 		}
@@ -4213,8 +4224,9 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 				                    P_SETUP);
 			} else {
-				/* If height is same. */
+				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
+				level_put(oi, bop->bo_tx);
 				return P_DOWN;
 			}
 		}
@@ -4520,7 +4532,9 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 				                    P_SETUP);
 			} else {
+				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
+				level_put(oi, bop->bo_tx);
 				return P_DOWN;
 			}
 		}
@@ -4927,8 +4941,9 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 					            P_SETUP);
 			} else {
-				/* If height is same. */
+				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
+				level_put(oi, bop->bo_tx);
 				return P_DOWN;
 			}
 		}
