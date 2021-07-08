@@ -960,7 +960,7 @@ struct node_type {
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 
 	/** Validates node composition */
-	bool (*nt_invariant)(const struct nd *node);
+	bool (*nt_invariant)(const struct segaddr *addr);
 
 	/** 'Does a thorough validation */
 	bool (*nt_verify)(const struct segaddr *addr);
@@ -1290,7 +1290,7 @@ static void node_init(struct segaddr *addr, int ksize, int vsize,
 
 static bool node_invariant(const struct nd *node)
 {
-	return node->n_type->nt_invariant(node);
+	return node->n_type->nt_invariant(&node->n_addr);
 }
 
 #if 0
@@ -2265,7 +2265,7 @@ static void ff_set_level(const struct  segaddr *addr, uint8_t new_level,
 			 struct m0_be_tx *tx);
 static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
-static bool ff_invariant(const struct nd *node);
+static bool ff_invariant(const struct segaddr *addr);
 static bool ff_verify(const struct segaddr *addr);
 static bool ff_isvalid(const struct segaddr *addr);
 static void ff_opaque_set(const struct segaddr *addr, void *opaque);
@@ -2397,13 +2397,11 @@ static bool ff_rec_is_valid(const struct slot *slot)
 	   _0C(val_is_valid);
 }
 
-static bool ff_invariant(const struct nd *node)
+static bool ff_invariant(const struct segaddr *addr)
 {
-	const struct ff_head *h = ff_data(node);
+	const struct ff_head *h = segaddr_addr(addr);
 
-	return  _0C(h->ff_shift == segaddr_shift(&node->n_addr)) &&
-		_0C(node->n_skip_rec_count_check ||
-		    ergo(h->ff_level > 0, h->ff_used > 0));
+	return  _0C(h->ff_shift == segaddr_shift(addr));
 }
 
 static bool ff_verify(const struct segaddr *addr)
