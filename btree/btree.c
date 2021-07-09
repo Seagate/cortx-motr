@@ -3511,9 +3511,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			 */
 
 			lev->l_node->n_skip_rec_count_check = true;
-			if ((oi->i_used > 0 &&
-			     node_count_rec(lev->l_node) == 0) ||
-			     !node_isvalid(lev->l_node)) {
+			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
+			    node_count_rec(lev->l_node) == 0)) {
 				lev->l_node->n_skip_rec_count_check = false;
 				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
@@ -4218,9 +4217,8 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			lev->l_node->n_skip_rec_count_check = true;
-			if ((oi->i_used > 0 &&
-			     node_count_rec(lev->l_node) == 0) ||
-			     !node_isvalid(lev->l_node)) {
+			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
+			    node_count_rec(lev->l_node) == 0)) {
 				lev->l_node->n_skip_rec_count_check = false;
 				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
@@ -4414,9 +4412,8 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			lev->l_node->n_skip_rec_count_check = true;
-			if ((oi->i_used > 0 &&
-			     node_count_rec(lev->l_node) == 0) ||
-			     !node_isvalid(lev->l_node)) {
+			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
+			    node_count_rec(lev->l_node) == 0)) {
 				lev->l_node->n_skip_rec_count_check = false;
 				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
@@ -4497,9 +4494,9 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				lev = &oi->i_level[oi->i_pivot];
 				node_lock(lev->l_node);
 				lev->l_node->n_skip_rec_count_check = true;
-				if ((oi->i_pivot > 0 &&
-				     node_count_rec(lev->l_node) == 0) ||
-				     !node_isvalid(lev->l_node)) {
+				if (!node_isvalid(lev->l_node) ||
+				    (oi->i_pivot > 0 &&
+				     node_count_rec(lev->l_node) == 0)) {
 					lev->l_node->n_skip_rec_count_check = false;
 					node_unlock(lev->l_node);
 					node_op_fini(&oi->i_nop);
@@ -4562,9 +4559,8 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			lev->l_sibling->n_skip_rec_count_check = true;
-			if ((oi->i_pivot > 0 &&
-			     node_count_rec(s.s_node) == 0) ||
-			     !node_isvalid(s.s_node)) {
+			if (!node_isvalid(s.s_node) || (oi->i_pivot > 0 &&
+			    node_count_rec(s.s_node) == 0)) {
 				lev->l_sibling->n_skip_rec_count_check = false;
 				node_unlock(lev->l_sibling);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
@@ -4874,7 +4870,8 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 
 		node_lock(root_lev->l_node);
 
-		if (oi->i_level[0].l_seq != root_lev->l_seq) {
+		if (!node_isvalid(root_lev->l_node) ||
+		    oi->i_level[0].l_seq != root_lev->l_seq) {
 			node_unlock(root_lev->l_node);
 			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 		}
@@ -4964,9 +4961,8 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			lev->l_node->n_skip_rec_count_check = true;
-			if ((oi->i_used > 0 &&
-			     node_count_rec(lev->l_node) == 0) ||
-			     !node_isvalid(lev->l_node)) {
+			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
+			    node_count_rec(lev->l_node) == 0)) {
 				lev->l_node->n_skip_rec_count_check = false;
 				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
@@ -5033,8 +5029,8 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			node_lock(root_child);
 
 			root_child->n_skip_rec_count_check = true;
-			if (node_count_rec(root_child) == 0 ||
-			    !node_isvalid(root_child)){
+			if (!node_isvalid(root_child) ||
+			    node_count_rec(root_child) == 0 ){
 				root_child->n_skip_rec_count_check = false;
 				node_unlock(root_child);
  				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
