@@ -4492,13 +4492,11 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				if (!node_isvalid(lev->l_node)) {
 					node_unlock(lev->l_node);
 					node_op_fini(&oi->i_nop);
-					bop->bo_flags |= BOF_LOCKALL;
 					return m0_sm_op_sub(&bop->bo_op,
 							    P_CLEANUP, P_SETUP);
 				}
 				if (lev->l_seq != lev->l_node->n_seq) {
 					node_unlock(lev->l_node);
-					bop->bo_flags |= BOF_LOCKALL;
 					return m0_sm_op_sub(&bop->bo_op,
 							    P_CLEANUP, P_SETUP);
 				}
