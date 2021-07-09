@@ -61,8 +61,8 @@ static struct m0_rpc_server_ctx lap_ut_sctx = {
 
 static int lap_ut_server_start(void)
 {
-	lap_ut_sctx.rsx_xprts         = m0_net_all_xprt_get();
-	lap_ut_sctx.rsx_xprts_nr      = m0_net_xprt_nr();
+	lap_ut_sctx.rsx_xprts    = m0_net_all_xprt_get();
+	lap_ut_sctx.rsx_xprts_nr = m0_net_xprt_nr();
 
 	return m0_rpc_server_start(&lap_ut_sctx);
 }
@@ -90,7 +90,7 @@ static struct m0_config client_conf = {
 	.mc_idx_service_conf      = &dix_conf,
 };
 
-static int lap_ut_client_start()
+static int lap_ut_client_start(void)
 {
 	int rc;
 
@@ -112,7 +112,7 @@ static int lap_ut_client_start()
 	return 0;
 }
 
-static void lap_ut_client_stop()
+static void lap_ut_client_stop(void)
 {
 	m0_fi_enable_once("ha_fini", "skip-ha-fini");
 	m0_fi_enable_once("initlift_addb2", "no-addb2");
@@ -302,7 +302,7 @@ static void test_plan_get_done(void)
  * Note: In test_init() and test_fini(), need to use M0_ASSERT()
  * instead of M0_UT_ASSERT().
  */
-static int lap_ut_init()
+static int lap_ut_init(void)
 {
 	int rc;
 
@@ -315,7 +315,7 @@ static int lap_ut_init()
 	return 0;
 }
 
-static int lap_ut_fini()
+static int lap_ut_fini(void)
 {
 	lap_ut_client_stop();
 	lap_ut_server_stop();
