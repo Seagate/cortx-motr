@@ -1186,6 +1186,9 @@ be_emap_invariant(struct m0_be_emap_cursor *it)
 	struct m0_be_emap_cursor *scan = &scan_s;
 #endif
 
+	scan->ec_keybuf.b_addr = NULL;
+	scan->ec_keybuf.b_nob  = 0;
+
 	m0_rwlock_read_lock(emap_rwlock(it->ec_map));
 	rc = be_emap_lookup(it->ec_map, &it->ec_key.ek_prefix, 0, scan);
 	if (rc == 0) {
