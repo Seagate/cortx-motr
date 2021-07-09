@@ -3027,7 +3027,7 @@ static int64_t btree_put_alloc_phase(struct m0_btree_op *bop)
 			lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 	}
-	
+
 	if (oi->i_pivot == 0) {
 		if ((oi->i_extra_node == NULL || lev->l_alloc == NULL)) {
 			/**
@@ -3565,7 +3565,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			if (!node_isoverflow(lev->l_node)) {
 				if (oi->i_nop.no_node != NULL) {
 					oi->i_nop.no_opc = NOP_FREE;
-					node_free(&oi->i_nop, oi->i_nop.no_node, 
+					node_free(&oi->i_nop, oi->i_nop.no_node,
 						  bop->bo_tx, 0);
 				}
 				break;
