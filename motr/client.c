@@ -867,6 +867,7 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	if (flag & M0_PI_CALC_UNIT_ZERO) {
 		memset(pi, 0, sizeof(struct m0_md5_inc_context_pi));
 		pi->hdr.pi_type = M0_PI_TYPE_MD5_INC_CONTEXT;
+		pi->hdr.pi_size = (uint8_t)sizeof(struct m0_md5_inc_context_pi);
 		rc = MD5_Init((MD5_CTX *)&pi->prev_context);
 		if (rc != 1) {
 			return M0_ERR_INFO(rc, "MD5_Init failed.");
