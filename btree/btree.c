@@ -1254,7 +1254,7 @@ static struct m0_rwlock trees_lock;
 /**
  * Node descriptor LRU list.
  * Following actions will be performed on node descriptors:
- * 1. If nds are not active, they will be  moved from btree_active_nds to
+ * 1. If nds are not active, they will be moved from btree_active_nds to
  * btree_lru_nds list head.
  * 2. If the nds in btree_lru_nds become active, they will be moved to
  * btree_active_nds list head.
