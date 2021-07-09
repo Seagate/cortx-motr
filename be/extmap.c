@@ -752,6 +752,12 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 	struct m0_be_emap_cursor *it = &it_s;
 #endif
 
+	/* Clear record buffer before lookup as it will use m0_buf for allocation
+	 * and saving the variable size record having checksum
+	 */
+	it->ec_recbuf.b_addr = NULL;
+	it->ec_recbuf.b_nob  = 0;
+	
 	m0_be_op_active(op);
 
 	m0_rwlock_write_lock(emap_rwlock(map));
