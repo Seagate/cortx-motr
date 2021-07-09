@@ -2966,7 +2966,7 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 	 * already taken by this thread.
 	 */
 	int i;
-	for (i = 0; i <= oi->i_used; ++i) {
+	for (i = 0; i < oi->i_height; ++i) {
 		if (oi->i_level[i].l_node != NULL) {
 			node_put(&oi->i_nop, oi->i_level[i].l_node, false, tx);
 			oi->i_level[i].l_node = NULL;
@@ -3018,10 +3018,17 @@ static int64_t btree_put_alloc_phase(struct m0_btree_op *bop)
 {
 	struct td             *tree           = bop->bo_arbor->t_desc;
 	struct m0_btree_oimpl *oi             = bop->bo_i;
-	struct level          *lev            = &oi->i_level[oi->i_used];
+	struct level          *lev            = &oi->i_level[oi->i_pivot];
 	bool                   lock_acquired  = bop->bo_flags & BOF_LOCKALL;
 
-	if (oi->i_used == 0) {
+	if (oi->i_nop.no_op.o_sm.sm_rc != 0) {
+		node_op_fini(&oi->i_nop);
+		if (lock_acquired)
+			lock_op_unlock(tree);
+		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
+	}
+	
+	if (oi->i_pivot == 0) {
 		if ((oi->i_extra_node == NULL || lev->l_alloc == NULL)) {
 			/**
 			 * If we reach root node and there is possibility of
@@ -3044,26 +3051,14 @@ static int64_t btree_put_alloc_phase(struct m0_btree_op *bop)
 						  ksize, vsize, lock_acquired,
 						  bop->bo_tx, P_ALLOC);
 			}
-			if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-				if (oi->i_extra_node == NULL)
-					oi->i_extra_node = oi->i_nop.no_node;
-				else
-					lev->l_alloc = oi->i_nop.no_node;
+			if (oi->i_extra_node == NULL)
+				oi->i_extra_node = oi->i_nop.no_node;
+			else
+				lev->l_alloc = oi->i_nop.no_node;
 
-				oi->i_nop.no_node = NULL;
-
-				return P_ALLOC;
-			} else {
-				node_op_fini(&oi->i_nop);
-				oi->i_used = oi->i_height - 1;
-				if (lock_acquired)
-					lock_op_unlock(tree);
-				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-					            P_SETUP);
-			}
+			oi->i_nop.no_node = NULL;
+			return P_ALLOC;
 		}
-		/* Reset oi->i_used */
-		oi->i_used = oi->i_height - 1;
 		return P_LOCK;
 	} else {
 		if (oi->i_nop.no_node == NULL) {
@@ -3076,18 +3071,10 @@ static int64_t btree_put_alloc_phase(struct m0_btree_op *bop)
 					  vsize, lock_acquired,
 					  bop->bo_tx, P_ALLOC);
 		}
-		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			lev->l_alloc = oi->i_nop.no_node;
-			oi->i_nop.no_node = NULL;
-			oi->i_used--;
-			return P_ALLOC;
-		} else {
-			node_op_fini(&oi->i_nop);
-			oi->i_used = oi->i_height - 1;
-			if (lock_acquired)
-				lock_op_unlock(tree);
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
-		}
+		lev->l_alloc = oi->i_nop.no_node;
+		oi->i_nop.no_node = NULL;
+		oi->i_pivot--;
+		return P_ALLOC;
 	}
 }
 
@@ -3547,6 +3534,11 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				node_unlock(lev->l_node);
 				if (oi->i_key_found)
 					return P_LOCK;
+				/**
+				 * i_pivot will be used for P_ALLOC phase for
+				 * traversing the levels.
+				 **/
+				oi->i_pivot = oi->i_used;
 				return P_ALLOC;
 			}
 		} else {
@@ -3556,19 +3548,29 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	case P_ALLOC: {
 		bool alloc = false;
 		do {
-			lev = &oi->i_level[oi->i_used];
+			lev = &oi->i_level[oi->i_pivot];
 			/**
 			 * Validate node to dertmine if lev->l_node is still
 			 * exists.
 			 */
 			if (!node_isvalid(lev->l_node)) {
-				oi->i_used = oi->i_height - 1;
+				if (oi->i_nop.no_node != NULL) {
+					oi->i_nop.no_opc = NOP_FREE;
+					node_free(&oi->i_nop, oi->i_nop.no_node,
+						  bop->bo_tx, 0);
+				}
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-			if (!node_isoverflow(lev->l_node))
+			if (!node_isoverflow(lev->l_node)) {
+				if (oi->i_nop.no_node != NULL) {
+					oi->i_nop.no_opc = NOP_FREE;
+					node_free(&oi->i_nop, oi->i_nop.no_node, 
+						  bop->bo_tx, 0);
+				}
 				break;
-			if (oi->i_used == 0) {
+			}
+			if (oi->i_pivot == 0) {
 				if (lev->l_alloc == NULL ||
 				    oi->i_extra_node == NULL)
 					alloc = true;
@@ -3578,13 +3580,12 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				break;
 			}
 
-			oi->i_used--;
+			oi->i_pivot--;
 		} while (1);
 
 		if (alloc)
 			return btree_put_alloc_phase(bop);
-		/* Reset oi->i_used */
-		oi->i_used = oi->i_height - 1;
+
 		return P_LOCK;
 	}
 	case P_LOCK:
