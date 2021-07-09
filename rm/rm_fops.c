@@ -357,7 +357,7 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 				  struct m0_rm_credit     *credit,
 				  struct m0_rm_remote     *other)
 {
-	struct rm_out *outreq;
+	struct rm_out *outreq = NULL;
 	int            rc;
 
 	M0_ENTRY("sending request type: %d for incoming: %p credit value: %llu",
