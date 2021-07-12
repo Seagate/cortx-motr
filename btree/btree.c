@@ -2863,6 +2863,21 @@ static void level_alloc(struct m0_btree_oimpl *oi, int height)
 	oi->i_level = m0_alloc(height * (sizeof *oi->i_level));
 }
 
+static void level_put(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
+{
+	int i;
+	for (i = 0; i <= oi->i_used; ++i) {
+		if (oi->i_level[i].l_node != NULL) {
+			node_put(&oi->i_nop, oi->i_level[i].l_node, tx);
+			oi->i_level[i].l_node = NULL;
+		}
+		if (oi->i_level[i].l_sibling != NULL) {
+			node_put(&oi->i_nop, oi->i_level[i].l_sibling, tx);
+			oi->i_level[i].l_sibling = NULL;
+		}
+	}
+}
+
 static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 {
 	/**
@@ -2873,11 +2888,11 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 	 * already taken by this thread.
 	 */
 	int i;
-	for (i = 0; i <= oi->i_used; ++i) {
-		if (oi->i_level[i].l_node != NULL) {
-			node_put(&oi->i_nop, oi->i_level[i].l_node, tx);
-			oi->i_level[i].l_node = NULL;
-		}
+
+	/** Put all the nodes back. */
+	level_put(oi, tx);
+	/** Free up allocated nodes. */
+	for (i = 0; i < oi->i_height; ++i) {
 		if (oi->i_level[i].l_alloc != NULL) {
 			oi->i_nop.no_opc = NOP_FREE;
 			/**
@@ -2888,17 +2903,12 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 			node_free(&oi->i_nop, oi->i_level[i].l_alloc, tx, 0);
 			oi->i_level[i].l_alloc = NULL;
 		}
-		if (oi->i_level[i].l_sibling != NULL) {
-			node_put(&oi->i_nop, oi->i_level[i].l_sibling, tx);
-			oi->i_level[i].l_sibling = NULL;
-		}
 	}
 	if (oi->i_extra_node != NULL) {
 		oi->i_nop.no_opc = NOP_FREE;
 		node_free(&oi->i_nop, oi->i_extra_node, tx, 0);
 		oi->i_extra_node = NULL;
 	}
-
 	m0_free(oi->i_level);
 }
 
@@ -3375,19 +3385,20 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			return P_LOCK;
 		else
 			return P_SETUP;
-	case P_SETUP: {
+	case P_LOCKALL:
+		M0_ASSERT(bop->bo_flags & BOF_LOCKALL);
+		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+				    bop->bo_arbor->t_desc, P_SETUP);
+	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL)
+		if (oi->i_level == NULL) {
+			if (lock_acquired)
+				lock_op_unlock(tree);
 			return fail(bop, M0_ERR(-ENOMEM));
+		}
 		bop->bo_i->i_key_found = false;
-		return P_LOCKALL;
-	}
-	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-					    bop->bo_arbor->t_desc, P_DOWN);
-		/** Fall through if LOCKALL flag is not set. */
+		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
 		/* Load root node. */
@@ -3501,21 +3512,24 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
 			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
-				if (bop->bo_flags & BOF_LOCKALL) {
-					lock_op_unlock(bop->bo_arbor->t_desc);
-					return fail(bop, -ETOOMANYREFS);
-				} else
-					bop->bo_flags |= BOF_LOCKALL;
+				M0_ASSERT_INFO((bop->bo_flags & BOF_LOCKALL) ==
+					       0, "Put record failure in tree"
+					       "lock mode");
+				bop->bo_flags |= BOF_LOCKALL;
+				lock_op_unlock(tree);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_LOCKALL);
 			}
 			if (oi->i_height != tree->t_height) {
 				/* If height has changed. */
 				lock_op_unlock(tree);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-					            P_SETUP);
+						    P_SETUP);
 			} else {
-				/* If height is same. */
+				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
-				return P_LOCKALL;
+				level_put(oi, bop->bo_tx);
+				return P_DOWN;
 			}
 		}
 		/** Fall through if path_check is successful. */
@@ -3624,12 +3638,12 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_SETUP] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_SETUP",
-		.sd_allowed = M0_BITS(P_LOCKALL, P_CLEANUP),
+		.sd_allowed = M0_BITS(P_CLEANUP, P_NEXTDOWN),
 	},
 	[P_LOCKALL] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_LOCKALL",
-		.sd_allowed = M0_BITS(P_DOWN, P_NEXTDOWN),
+		.sd_allowed = M0_BITS(P_SETUP),
 	},
 	[P_DOWN] = {
 		.sd_flags   = 0,
@@ -3667,7 +3681,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_CHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CHECK",
-		.sd_allowed = M0_BITS(P_CLEANUP, P_LOCKALL, P_FREENODE),
+		.sd_allowed = M0_BITS(P_CLEANUP, P_DOWN, P_FREENODE),
 	},
 	[P_MAKESPACE] = {
 		.sd_flags   = 0,
@@ -3687,7 +3701,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_CLEANUP] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CLEANUP",
-		.sd_allowed = M0_BITS(P_SETUP, P_FINI, P_INIT),
+		.sd_allowed = M0_BITS(P_SETUP, P_LOCKALL, P_FINI),
 	},
 	[P_FINI] = {
 		.sd_flags   = 0,
@@ -3712,52 +3726,49 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "close/destroy", P_INIT, P_DONE},
 	{ "close-init-timecheck", P_INIT, P_TIMECHECK},
 	{ "close-timecheck-repeat", P_TIMECHECK, P_TIMECHECK},
-	{ "put/get-init-cookie", P_INIT, P_COOKIE },
-	{ "put/get-init", P_INIT, P_SETUP },
-	{ "put/get-cookie-valid", P_COOKIE, P_LOCK },
-	{ "put/get-cookie-invalid", P_COOKIE, P_SETUP },
-	{ "put/get-setup", P_SETUP, P_LOCKALL },
-	{ "put/get-setup-failed", P_SETUP, P_CLEANUP },
-	{ "put/get-lockall", P_LOCKALL, P_DOWN },
-	{ "put/get-lockall-ft", P_LOCKALL, P_NEXTDOWN},
-	{ "put/get-down", P_DOWN, P_NEXTDOWN },
-	{ "put/get-nextdown-repeat", P_NEXTDOWN, P_NEXTDOWN },
+	{ "kvop-init-cookie", P_INIT, P_COOKIE },
+	{ "kvop-init", P_INIT, P_SETUP },
+	{ "kvop-cookie-valid", P_COOKIE, P_LOCK },
+	{ "kvop-cookie-invalid", P_COOKIE, P_SETUP },
+	{ "kvop-setup-failed", P_SETUP, P_CLEANUP },
+	{ "kvop-setup-down-fallthrough", P_SETUP, P_NEXTDOWN },
+	{ "kvop-lockall", P_LOCKALL, P_SETUP },
+	{ "kvop-down", P_DOWN, P_NEXTDOWN },
+	{ "kvop-nextdown-repeat", P_NEXTDOWN, P_NEXTDOWN },
 	{ "put-nextdown-next", P_NEXTDOWN, P_ALLOC },
 	{ "del-nextdown-load", P_NEXTDOWN, P_STORE_CHILD },
 	{ "get-nextdown-next", P_NEXTDOWN, P_LOCK },
 	{ "iter-nextdown-sibling", P_NEXTDOWN, P_SIBLING },
-	{ "put/get-nextdown-failed", P_NEXTDOWN, P_CLEANUP },
-	{ "put/get-nextdown-setup", P_NEXTDOWN, P_SETUP},
-	{ "get-nextdown-next", P_NEXTDOWN, P_LOCK},
+	{ "kvop-nextdown-failed", P_NEXTDOWN, P_CLEANUP },
+	{ "kvop-nextdown-setup", P_NEXTDOWN, P_SETUP},
 	{ "iter-sibling-repeat", P_SIBLING, P_SIBLING },
 	{ "iter-sibling-next", P_SIBLING, P_LOCK },
 	{ "iter-sibling-failed", P_SIBLING, P_CLEANUP },
 	{ "put-alloc-repeat", P_ALLOC, P_ALLOC },
 	{ "put-alloc-next", P_ALLOC, P_LOCK },
 	{ "put-alloc-failed", P_ALLOC, P_CLEANUP },
-	{ "put-alloc-fail", P_ALLOC, P_INIT },
 	{ "del-child-check", P_STORE_CHILD, P_CHECK },
 	{ "del-child-check-ht-changed", P_STORE_CHILD, P_CLEANUP },
 	{ "del-child-check-ht-same", P_STORE_CHILD, P_LOCKALL },
 	{ "del-child-check-act-free", P_STORE_CHILD, P_FREENODE },
-	{ "put/get-lock", P_LOCK, P_CHECK },
-	{ "put/get-lock-check-ht-changed", P_LOCK, P_CLEANUP },
-	{ "put/get-lock-check-ht-same", P_LOCK, P_LOCKALL },
+	{ "kvop-lock", P_LOCK, P_CHECK },
+	{ "kvop-lock-check-ht-changed", P_LOCK, P_CLEANUP },
+	{ "kvop-lock-check-ht-same", P_LOCK, P_LOCKALL },
 	{ "del-check-act-free", P_LOCK, P_FREENODE },
-	{ "put/get-check-height-changed", P_CHECK, P_CLEANUP },
-	{ "put/get-check-height-same", P_CHECK, P_LOCKALL },
+	{ "kvop-check-height-changed", P_CHECK, P_CLEANUP },
+	{ "kvop-check-height-same", P_CHECK, P_DOWN },
 	{ "del-act-free", P_CHECK, P_FREENODE },
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
 	{ "put-makespace", P_MAKESPACE, P_ACT },
-	{ "put/get-act", P_ACT, P_CLEANUP },
+	{ "kvop-act", P_ACT, P_CLEANUP },
 	{ "del-act", P_ACT, P_FREENODE },
 	{ "del-freenode-repeat", P_FREENODE, P_FREENODE },
 	{ "del-freenode-cleanup", P_FREENODE, P_CLEANUP },
 	{ "del-freenode-fini", P_FREENODE, P_FINI},
-	{ "iter-cleanup-setup", P_CLEANUP, P_SETUP },
-	{ "put/get-done", P_CLEANUP, P_FINI },
-	{ "put/get-fini", P_FINI, P_DONE },
-	{ "put-restart", P_CLEANUP, P_SETUP },
+	{ "kvop-cleanup-setup", P_CLEANUP, P_SETUP },
+	{ "kvop-lockall", P_CLEANUP, P_LOCKALL },
+	{ "kvop-done", P_CLEANUP, P_FINI },
+	{ "kvop-fini", P_FINI, P_DONE },
 };
 
 static struct m0_sm_conf btree_conf = {
@@ -4082,17 +4093,19 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			return P_LOCK;
 		else
 			return P_SETUP;
+	case P_LOCKALL:
+		M0_ASSERT(bop->bo_flags & BOF_LOCKALL);
+		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+				    bop->bo_arbor->t_desc, P_SETUP);
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL)
+		if (oi->i_level == NULL) {
+			if (lock_acquired)
+				lock_op_unlock(tree);
 			return fail(bop, M0_ERR(-ENOMEM));
-		return P_LOCKALL;
-	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-				            bop->bo_arbor->t_desc, P_DOWN);
-		/** Fall through if LOCKALL flag is not set. */
+		}
+		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
@@ -4168,11 +4181,13 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
 			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
-				if (bop->bo_flags & BOF_LOCKALL) {
-					lock_op_unlock(bop->bo_arbor->t_desc);
-					return fail(bop, -ETOOMANYREFS);
-				} else
-					bop->bo_flags |= BOF_LOCKALL;
+				M0_ASSERT_INFO((bop->bo_flags & BOF_LOCKALL) ==
+					       0, "Get record failure in tree"
+					       "lock mode");
+				bop->bo_flags |= BOF_LOCKALL;
+				lock_op_unlock(tree);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_LOCKALL);
 			}
 			if (oi->i_height != tree->t_height) {
 				/* If height has changed. */
@@ -4180,9 +4195,10 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 				                    P_SETUP);
 			} else {
-				/* If height is same. */
+				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
-				return P_LOCKALL;
+				level_put(oi, bop->bo_tx);
+				return P_DOWN;
 			}
 		}
 		/** Fall through if path_check is successful. */
@@ -4272,17 +4288,19 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			return P_LOCK;
 		else
 			return P_SETUP;
+	case P_LOCKALL:
+		M0_ASSERT(bop->bo_flags & BOF_LOCKALL);
+		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+				    bop->bo_arbor->t_desc, P_SETUP);
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL)
+		if (oi->i_level == NULL) {
+			if (lock_acquired)
+				lock_op_unlock(tree);
 			return fail(bop, M0_ERR(-ENOMEM));
-		return P_LOCKALL;
-	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-				            bop->bo_arbor->t_desc, P_DOWN);
-		/** Fall through if LOCKALL flag is not set. */
+		}
+		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used  = 0;
 		oi->i_pivot = -1;
@@ -4392,13 +4410,11 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				if (!node_isvalid(lev->l_node)) {
 					node_unlock(lev->l_node);
 					node_op_fini(&oi->i_nop);
-					bop->bo_flags |= BOF_LOCKALL;
 					return m0_sm_op_sub(&bop->bo_op,
 							    P_CLEANUP, P_SETUP);
 				}
 				if (lev->l_seq != lev->l_node->n_seq) {
 					node_unlock(lev->l_node);
-					bop->bo_flags |= BOF_LOCKALL;
 					return m0_sm_op_sub(&bop->bo_op,
 							    P_CLEANUP, P_SETUP);
 				}
@@ -4492,19 +4508,23 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 		    !sibling_node_check(oi)) {
 			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
-				if (bop->bo_flags & BOF_LOCKALL) {
-					lock_op_unlock(tree);
-					return fail(bop, -ETOOMANYREFS);
-				} else
-					bop->bo_flags |= BOF_LOCKALL;
+				M0_ASSERT_INFO((bop->bo_flags & BOF_LOCKALL) ==
+					       0, "Iterator failure in tree"
+					       "lock mode");
+				bop->bo_flags |= BOF_LOCKALL;
+				lock_op_unlock(tree);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_LOCKALL);
 			}
 			if (oi->i_height != tree->t_height) {
 				lock_op_unlock(tree);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 				                    P_SETUP);
 			} else {
+				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
-				return P_LOCKALL;
+				level_put(oi, bop->bo_tx);
+				return P_DOWN;
 			}
 		}
 		/**
@@ -4798,19 +4818,20 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			return P_LOCK;
 		else
 			return P_SETUP;
-	case P_SETUP: {
+	case P_LOCKALL:
+		M0_ASSERT(bop->bo_flags & BOF_LOCKALL);
+		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+				    bop->bo_arbor->t_desc, P_SETUP);
+	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL)
+		if (oi->i_level == NULL) {
+			if (lock_acquired)
+				lock_op_unlock(tree);
 			return fail(bop, M0_ERR(-ENOMEM));
+		}
 		bop->bo_i->i_key_found = false;
-		return P_LOCKALL;
-	}
-	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-					    bop->bo_arbor->t_desc, P_DOWN);
-		/** Fall through if LOCKALL flag is not set. */
+		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
 		/* Load root node. */
@@ -4923,11 +4944,13 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		    !child_node_check(oi)) {
 			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
-				if (bop->bo_flags & BOF_LOCKALL) {
-					lock_op_unlock(tree);
-					return fail(bop, -ETOOMANYREFS);
-				} else
-					bop->bo_flags |= BOF_LOCKALL;
+				M0_ASSERT_INFO((bop->bo_flags & BOF_LOCKALL) ==
+					       0, "Delete record failure in"
+					       "tree lock mode");
+				bop->bo_flags |= BOF_LOCKALL;
+				lock_op_unlock(tree);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_LOCKALL);
 			}
 			if (oi->i_height != tree->t_height) {
 				/* If height has changed. */
@@ -4935,9 +4958,10 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 					            P_SETUP);
 			} else {
-				/* If height is same. */
+				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
-				return P_LOCKALL;
+				level_put(oi, bop->bo_tx);
+				return P_DOWN;
 			}
 		}
 		/**
@@ -6130,6 +6154,7 @@ struct btree_ut_thread_info {
 	uint16_t           ti_key_size;      /** Key size in bytes. */
 	uint16_t           ti_value_size;    /** Value size in bytes. */
 	bool               ti_random_bursts; /** Burstiness in IO pattern. */
+	uint64_t           ti_rng_seed_base; /** Base used for RNG seed. */
 
 	/**
 	 *  The fields below are used by the thread functions (init and func)
@@ -6152,8 +6177,8 @@ static volatile bool thread_start = false;
 /**
  * Thread init function which will do basic setup such as setting CPU affinity
  * and initializing the RND seed for the thread. Any other initialization that
- * might be needed such as resource allocation/initialization needed for the
- * thread handler function can also be done here.
+ * might be needed such as resource allocation/initialization for the thread
+ * handler function can also be done here.
  */
 static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 {
@@ -6163,7 +6188,7 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 	}
 
 	M0_SET0(&ti->ti_random_buf);
-	initstate_r(ti->ti_thread_id + 1, ti->ti_rnd_state_ptr, 64,
+	initstate_r(ti->ti_rng_seed_base, ti->ti_rnd_state_ptr, 64,
 		    &ti->ti_random_buf);
 
 	srandom_r(ti->ti_thread_id + 1, &ti->ti_random_buf);
@@ -6172,7 +6197,7 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 }
 
 /**
- * This routine is a thread handler which launches PUT, GET, ITER and DEL
+ * This routine is a thread handler which launches PUT, GET, ITER, SLANT and DEL
  * operations on the btree passed as parameter.
  */
 static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
@@ -6516,6 +6541,13 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 	uint16_t                     *cpuid_ptr;
 	uint16_t                      cpu_count;
 	size_t                        cpu_max;
+	time_t                        curr_time;
+
+	M0_ENTRY();
+
+	time(&curr_time);
+	M0_LOG(M0_INFO, "Using seed %lu", curr_time);
+	srandom(curr_time);
 
 	/**
 	 *  1) Create btree(s) to be used by all the threads.
@@ -6588,6 +6620,9 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 		ti[i].ti_key_size   = btree_type.ksize;
 		ti[i].ti_value_size = btree_type.vsize;
 		ti[i].ti_random_bursts = (thread_count > 1);
+		do {
+			ti[i].ti_rng_seed_base = random();
+		} while (ti[i].ti_rng_seed_base == 0);
 	}
 
 	for (i = 0; i < thread_count; i++) {
@@ -6634,6 +6669,8 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 
 	m0_free(ti);
 	btree_ut_fini();
+
+	M0_LEAVE();
 }
 
 static void ut_st_st_kv_oper(void)
