@@ -470,9 +470,9 @@ int m0_fop_type_addb2_instrument(struct m0_fop_type *type)
 				 mask | (M0_AFC_PHASE << 8)) : 0) ?:
 		m0_sm_addb2_init(&ft->ft_state_conf, M0_AVI_STATE,
 				 mask | (M0_AFC_STATE << 8)) ?:
-		m0_sm_addb2_init(&rt->rit_outgoing_conf, M0_AVI_RPC_OUT_PHASE,
+		m0_sm_addb2_init(&rt->rit_outgoing_conf, M0_AVI_RPC_OUT_STATE,
 				 mask | (M0_AFC_RPC_OUT << 8)) ?:
-		m0_sm_addb2_init(&rt->rit_incoming_conf, M0_AVI_RPC_IN_PHASE,
+		m0_sm_addb2_init(&rt->rit_incoming_conf, M0_AVI_RPC_IN_STATE,
 				 mask | (M0_AFC_RPC_IN << 8));
 }
 

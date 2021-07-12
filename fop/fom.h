@@ -522,6 +522,7 @@ struct m0_fom {
 	struct m0_sm              fo_sm_phase;
 	/** State machine for FOM states. */
 	struct m0_sm              fo_sm_state;
+	bool                      fo_sm_trace_off;
 	/** Thread executing current phase transition. */
 	struct m0_loc_thread     *fo_thread;
 	/**
@@ -896,6 +897,11 @@ M0_INTERNAL struct m0_reqh *m0_fom2reqh(const struct m0_fom *fom);
  */
 M0_INTERNAL int m0_fom_timedwait(struct m0_fom *fom, uint64_t phases,
 				 m0_time_t deadline);
+
+/**
+ * Enables phases and states tracing to use them for timelines.
+ */
+M0_INTERNAL void m0_fom_phase_trace_enable(struct m0_fom *fom);
 
 #endif /* __MOTR_FOP_FOM_H__ */
 /** @} end of fom group */

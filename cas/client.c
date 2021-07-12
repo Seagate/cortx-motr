@@ -131,7 +131,7 @@ static struct m0_sm_trans_descr cas_req_trans[] = {
 };
 
 struct m0_sm_conf cas_req_sm_conf = {
-	.scf_name      = "cas_req",
+	.scf_name      = "cas-req-state",
 	.scf_nr_states = ARRAY_SIZE(cas_req_states),
 	.scf_state     = cas_req_states,
 	.scf_trans_nr  = ARRAY_SIZE(cas_req_trans),
@@ -149,6 +149,8 @@ static void cas_to_rpc_map(const struct m0_cas_req  *creq,
 	uint64_t cid = m0_sm_id_get(&creq->ccr_sm);
 	uint64_t iid = m0_sm_id_get(&item->ri_sm);
 	M0_ADDB2_ADD(M0_AVI_CAS_TO_RPC, cid, iid);
+	M0_MEAS("name: cas-to-rpc, cas_id: %"PRIu64
+		", rpc_id: %"PRIu64, cid, iid);
 }
 
 
@@ -202,6 +204,7 @@ M0_INTERNAL void m0_cas_req_init(struct m0_cas_req     *req,
 	req->ccr_sess = sess;
 	m0_sm_init(&req->ccr_sm, &cas_req_sm_conf, CASREQ_INIT, grp);
 	m0_sm_addb2_counter_init(&req->ccr_sm);
+	m0_sm_state_trace_enable(&req->ccr_sm);
 	M0_LEAVE();
 }
 

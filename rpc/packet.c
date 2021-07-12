@@ -347,6 +347,13 @@ M0_INTERNAL int m0_rpc_packet_encode_using_cursor(struct m0_rpc_packet *packet,
 				     (uint64_t)item->ri_type->rit_opcode,
 				     item->ri_header.osr_xid,
 				     item->ri_header.osr_session_id);
+			M0_MEAS("name: rpc-item-id-assign, id: %"PRIu64
+				", opcode: %"PRIu64", xid: %"PRId64
+				", session_id: %"PRId64,
+				item_sm_id,
+				(uint64_t)item->ri_type->rit_opcode,
+				item->ri_header.osr_xid,
+				item->ri_header.osr_session_id);
 
 			rc = item_encode(item, cursor);
 			if (rc != 0)

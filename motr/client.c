@@ -143,7 +143,7 @@ struct m0_sm_trans_descr m0_op_trans[] = {
  * Configuration structure for the client operation state machine.
  */
 struct m0_sm_conf m0_op_conf = {
-	.scf_name = "op-conf",
+	.scf_name = "op-state",
 	.scf_nr_states = ARRAY_SIZE(m0_op_phases),
 	.scf_state = m0_op_phases,
 	.scf_trans = m0_op_trans,
@@ -831,6 +831,7 @@ M0_INTERNAL int m0_op_init(struct m0_op *op,
 	m0_sm_group_init(grp);
 	m0_sm_init(&op->op_sm, conf, M0_OS_INITIALISED, grp);
 	m0_sm_addb2_counter_init(&op->op_sm);
+	m0_sm_state_trace_enable(&op->op_sm);
 
 	M0_ASSERT(IS_IN_ARRAY(op->op_code, opcount));
 	op->op_count = opcount[op->op_code]++; /* XXX lock! */

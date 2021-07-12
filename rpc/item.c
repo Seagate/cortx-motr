@@ -268,7 +268,7 @@ static struct m0_sm_state_descr outgoing_item_states[] = {
 };
 
 const struct m0_sm_conf outgoing_item_sm_conf = {
-	.scf_name      = "Outgoing-RPC-Item-sm",
+	.scf_name      = "rpc-out-state",
 	.scf_nr_states = ARRAY_SIZE(outgoing_item_states),
 	.scf_state     = outgoing_item_states,
 };
@@ -306,7 +306,7 @@ static struct m0_sm_state_descr incoming_item_states[] = {
 };
 
 const struct m0_sm_conf incoming_item_sm_conf = {
-	.scf_name      = "Incoming-RPC-Item-sm",
+	.scf_name      = "rpc-in-state",
 	.scf_nr_states = ARRAY_SIZE(incoming_item_states),
 	.scf_state     = incoming_item_states,
 };
@@ -715,6 +715,7 @@ M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
 	m0_sm_init(&item->ri_sm, conf, M0_RPC_ITEM_INITIALISED,
 		   &item->ri_rmachine->rm_sm_grp);
 	m0_sm_addb2_counter_init(&item->ri_sm);
+	m0_sm_state_trace_enable(&item->ri_sm);
 }
 
 M0_INTERNAL void m0_rpc_item_sm_fini(struct m0_rpc_item *item)
@@ -1230,6 +1231,12 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 		     (uint64_t)item->ri_type->rit_opcode,
 		     item->ri_header.osr_xid,
 		     item->ri_header.osr_session_id);
+	M0_MEAS("name: rpc-item-id-fetch, id: %"PRIu64", opcode: %"PRIu64
+		", xid: %"PRId64", session_id: %"PRId64,
+		item_sm_id,
+		(uint64_t)item->ri_type->rit_opcode,
+		item->ri_header.osr_xid,
+		item->ri_header.osr_session_id);
 
 	++machine->rm_stats.rs_nr_rcvd_items;
 

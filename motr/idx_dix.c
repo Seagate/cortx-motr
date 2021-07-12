@@ -632,6 +632,8 @@ static void to_dix_map(const struct m0_op *op,
 	uint64_t cid = m0_sm_id_get(&op->op_sm);
 	uint64_t did = m0_sm_id_get(&req->dr_sm);
 	M0_ADDB2_ADD(M0_AVI_CLIENT_TO_DIX, cid, did);
+	M0_MEAS("name: client-to-dix, client_id: %"PRIu64
+		", dix_id: %"PRIu64, cid, did);
 }
 
 static int dix_req_create(struct m0_op_idx  *oi,
