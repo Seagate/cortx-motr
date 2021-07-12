@@ -6209,6 +6209,7 @@ struct btree_ut_thread_info {
 	uint16_t           ti_key_size;      /** Key size in bytes. */
 	uint16_t           ti_value_size;    /** Value size in bytes. */
 	bool               ti_random_bursts; /** Burstiness in IO pattern. */
+	uint64_t           ti_rng_seed_base; /** Base used for RNG seed. */
 
 	/**
 	 *  The fields below are used by the thread functions (init and func)
@@ -6231,8 +6232,8 @@ static volatile bool thread_start = false;
 /**
  * Thread init function which will do basic setup such as setting CPU affinity
  * and initializing the RND seed for the thread. Any other initialization that
- * might be needed such as resource allocation/initialization needed for the
- * thread handler function can also be done here.
+ * might be needed such as resource allocation/initialization for the thread
+ * handler function can also be done here.
  */
 static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 {
@@ -6242,7 +6243,7 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 	}
 
 	M0_SET0(&ti->ti_random_buf);
-	initstate_r(ti->ti_thread_id + 1, ti->ti_rnd_state_ptr, 64,
+	initstate_r(ti->ti_rng_seed_base, ti->ti_rnd_state_ptr, 64,
 		    &ti->ti_random_buf);
 
 	srandom_r(ti->ti_thread_id + 1, &ti->ti_random_buf);
@@ -6251,7 +6252,7 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 }
 
 /**
- * This routine is a thread handler which launches PUT, GET, ITER and DEL
+ * This routine is a thread handler which launches PUT, GET, ITER, SLANT and DEL
  * operations on the btree passed as parameter.
  */
 static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
@@ -6595,6 +6596,13 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 	uint16_t                     *cpuid_ptr;
 	uint16_t                      cpu_count;
 	size_t                        cpu_max;
+	time_t                        curr_time;
+
+	M0_ENTRY();
+
+	time(&curr_time);
+	M0_LOG(M0_INFO, "Using seed %lu", curr_time);
+	srandom(curr_time);
 
 	/**
 	 *  1) Create btree(s) to be used by all the threads.
@@ -6667,6 +6675,9 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 		ti[i].ti_key_size   = btree_type.ksize;
 		ti[i].ti_value_size = btree_type.vsize;
 		ti[i].ti_random_bursts = (thread_count > 1);
+		do {
+			ti[i].ti_rng_seed_base = random();
+		} while (ti[i].ti_rng_seed_base == 0);
 	}
 
 	for (i = 0; i < thread_count; i++) {
@@ -6713,6 +6724,8 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 
 	m0_free(ti);
 	btree_ut_fini();
+
+	M0_LEAVE();
 }
 
 static void ut_st_st_kv_oper(void)
