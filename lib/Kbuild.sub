@@ -9,6 +9,7 @@ m0tr_objects += lib/assert.o \
                   lib/buf_xc.o \
                   lib/chan.o \
                   lib/combinations.o \
+                  lib/coroutine.o \
                   lib/cond.o \
                   lib/cookie.o \
                   lib/cookie_xc.o \
