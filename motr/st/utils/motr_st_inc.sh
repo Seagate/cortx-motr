@@ -229,7 +229,7 @@ io_conduct()
                           -p '$MOTR_PROF_OPT' -P '$MOTR_PROC_FID' \
                           -o $source"
 		cmd_exec="${motr_st_util_dir}/m0cat"
-		cmd_args="$cmd_args -s $BLOCKSIZE -c $BLOCKCOUNT"
+		cmd_args="$cmd_args -s $BLOCKSIZE -c $BLOCKCOUNT -L 3"
 
 		if [[ $verify == "true" ]]; then
 			cmd_args+=" -r"
@@ -241,7 +241,7 @@ io_conduct()
                           -p '$MOTR_PROF_OPT' -P '$MOTR_PROC_FID' \
                           -o $dest $source"
 		cmd_exec="${motr_st_util_dir}/m0cp"
-		cmd_args="$cmd_args -s $BLOCKSIZE -c $BLOCKCOUNT"
+		cmd_args="$cmd_args -s $BLOCKSIZE -c $BLOCKCOUNT -L 3"
 
 		if [ $verify == "true" ]
 		then
