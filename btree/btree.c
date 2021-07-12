@@ -585,7 +585,8 @@ enum base_phase {
 	P_DOWN = M0_SOS_NR,
 	P_NEXTDOWN,
 	P_SIBLING,
-	P_ALLOC,
+	P_ALLOC_REQUIRE,
+	P_ALLOC_STORE,
 	P_STORE_CHILD,
 	P_SETUP,
 	P_LOCKALL,
@@ -1232,6 +1233,8 @@ struct m0_btree_oimpl {
 
 	/** Level from where sibling nodes needs to be loaded. **/
 	int             i_pivot;
+
+	int             i_alloc;
 
 	/** Store node_find() output. */
 	bool            i_key_found;
@@ -3006,79 +3009,6 @@ static bool address_in_segment(struct segaddr addr)
 }
 
 /**
- * This function will be called when there is possiblity of overflow at required
- * node present at particular level. TO handle the overflow this function will
- * allocate new nodes. It will store of newly allocated node in l_alloc and
- * i_extra_node(for root node).
- *
- * @param bop structure for btree operation which contains all required data.
- * @return int64_t return state which needs to get executed next.
- */
-static int64_t btree_put_alloc_phase(struct m0_btree_op *bop)
-{
-	struct td             *tree           = bop->bo_arbor->t_desc;
-	struct m0_btree_oimpl *oi             = bop->bo_i;
-	struct level          *lev            = &oi->i_level[oi->i_pivot];
-	bool                   lock_acquired  = bop->bo_flags & BOF_LOCKALL;
-
-	if (oi->i_nop.no_op.o_sm.sm_rc != 0) {
-		node_op_fini(&oi->i_nop);
-		if (lock_acquired)
-			lock_op_unlock(tree);
-		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
-	}
-
-	if (oi->i_pivot == 0) {
-		if ((oi->i_extra_node == NULL || lev->l_alloc == NULL)) {
-			/**
-			 * If we reach root node and there is possibility of
-			 * overflow at root, allocate two nodes: l_alloc,
-			 * i_extra_node. i)l_alloc is required in case of
-			 * splitting operation of root ii)i_extra_node is
-			 * required if splitting is done at root node so to have
-			 * pointers to these splitted nodes at root level, there
-			 * will be need for new node.
-			 * Depending on the level of node, shift can be updated.
-			 */
-			if (oi->i_nop.no_node == NULL) {
-				int ksize = node_keysize(lev->l_node);
-				int vsize = node_valsize(lev->l_node);
-				int shift = node_shift(lev->l_node);
-				oi->i_nop.no_opc = NOP_ALLOC;
-				return node_alloc(&oi->i_nop, tree,
-						  shift,
-						  lev->l_node->n_type,
-						  ksize, vsize, lock_acquired,
-						  bop->bo_tx, P_ALLOC);
-			}
-			if (oi->i_extra_node == NULL)
-				oi->i_extra_node = oi->i_nop.no_node;
-			else
-				lev->l_alloc = oi->i_nop.no_node;
-
-			oi->i_nop.no_node = NULL;
-			return P_ALLOC;
-		}
-		return P_LOCK;
-	} else {
-		if (oi->i_nop.no_node == NULL) {
-			int ksize = node_keysize(lev->l_node);
-			int vsize = node_valsize(lev->l_node);
-			int shift = node_shift(lev->l_node);
-			oi->i_nop.no_opc = NOP_ALLOC;
-			return node_alloc(&oi->i_nop, tree, shift,
-					  lev->l_node->n_type, ksize,
-					  vsize, lock_acquired,
-					  bop->bo_tx, P_ALLOC);
-		}
-		lev->l_alloc = oi->i_nop.no_node;
-		oi->i_nop.no_node = NULL;
-		oi->i_pivot--;
-		return P_ALLOC;
-	}
-}
-
-/**
  * This function gets called when splitting is done at root node. This function
  * is responsible to handle this scanario and ultimately root will point out to
  * the two splitted node.
@@ -3535,58 +3465,65 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				if (oi->i_key_found)
 					return P_LOCK;
 				/**
-				 * i_pivot will be used for P_ALLOC phase for
-				 * traversing the levels.
+				 * i_alloc will be used for P_ALLOC_REQUIRE and
+				 * P_ALLOC_STORE phase to indicate current level
+				 * index.
 				 **/
-				oi->i_pivot = oi->i_used;
-				return P_ALLOC;
+				oi->i_alloc = oi->i_used;
+				return P_ALLOC_REQUIRE;
 			}
 		} else {
 			node_op_fini(&oi->i_nop);
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
-	case P_ALLOC: {
-		bool alloc = false;
+	case P_ALLOC_REQUIRE:{
 		do {
-			lev = &oi->i_level[oi->i_pivot];
-			/**
-			 * Validate node to dertmine if lev->l_node is still
-			 * exists.
-			 */
+			lev = &oi->i_level[oi->i_alloc];
 			if (!node_isvalid(lev->l_node)) {
-				if (oi->i_nop.no_node != NULL) {
-					oi->i_nop.no_opc = NOP_FREE;
-					node_free(&oi->i_nop, oi->i_nop.no_node,
-						  bop->bo_tx, 0);
-				}
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-			if (!node_isoverflow(lev->l_node)) {
-				if (oi->i_nop.no_node != NULL) {
-					oi->i_nop.no_opc = NOP_FREE;
-					node_free(&oi->i_nop, oi->i_nop.no_node,
-						  bop->bo_tx, 0);
-				}
+			if (!node_isoverflow(lev->l_node))
 				break;
+			if ((oi->i_alloc == 0 &&
+			     (lev->l_alloc == NULL || oi->i_extra_node ==NULL)) ||
+			    (oi->i_alloc > 0 && lev->l_alloc == NULL)) {
+				int ksize = node_keysize(lev->l_node);
+				int vsize = node_valsize(lev->l_node);
+				int shift = node_shift(lev->l_node);
+				oi->i_nop.no_opc = NOP_ALLOC;
+				return node_alloc(&oi->i_nop, tree,
+						  shift,lev->l_node->n_type,
+						  ksize, vsize, lock_acquired,
+						  bop->bo_tx, P_ALLOC_STORE);
+
 			}
-			if (oi->i_pivot == 0) {
-				if (lev->l_alloc == NULL ||
-				    oi->i_extra_node == NULL)
-					alloc = true;
-				break;
-			} else if (lev->l_alloc == NULL) {
-				alloc = true;
-				break;
-			}
-
-			oi->i_pivot--;
-		} while (1);
-
-		if (alloc)
-			return btree_put_alloc_phase(bop);
-
+			oi->i_alloc--;
+		} while (oi->i_alloc >= 0);
 		return P_LOCK;
+	}
+	case P_ALLOC_STORE: {
+		lev = &oi->i_level[oi->i_alloc];
+		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			if (oi->i_alloc == 0) {
+				if (lev->l_alloc == NULL) {
+					lev->l_alloc = oi->i_nop.no_node;
+					return P_ALLOC_REQUIRE;
+
+				} else {
+					oi->i_extra_node = oi->i_nop.no_node;
+					return P_LOCK;
+				}
+			}
+			lev->l_alloc = oi->i_nop.no_node;
+			oi->i_alloc--;
+			return P_ALLOC_REQUIRE;
+		} else {
+			if (lock_acquired)
+				lock_op_unlock(tree);
+			node_op_fini(&oi->i_nop);
+			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+		}
 	}
 	case P_LOCK:
 		if (!lock_acquired)
@@ -3734,7 +3671,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_NEXTDOWN] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_NEXTDOWN",
-		.sd_allowed = M0_BITS(P_NEXTDOWN, P_ALLOC, P_STORE_CHILD,
+		.sd_allowed = M0_BITS(P_NEXTDOWN, P_ALLOC_REQUIRE, P_STORE_CHILD,
 				      P_CLEANUP, P_SETUP, P_LOCK, P_SIBLING),
 	},
 	[P_SIBLING] = {
@@ -3742,10 +3679,15 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 		.sd_name    = "P_SIBLING",
 		.sd_allowed = M0_BITS(P_SIBLING, P_LOCK, P_CLEANUP),
 	},
-	[P_ALLOC] = {
+	[P_ALLOC_REQUIRE] = {
 		.sd_flags   = 0,
-		.sd_name    = "P_ALLOC",
-		.sd_allowed = M0_BITS(P_ALLOC, P_LOCK, P_CLEANUP, P_SETUP),
+		.sd_name    = "P_ALLOC_REQUIRE",
+		.sd_allowed = M0_BITS(P_ALLOC_STORE, P_LOCK, P_CLEANUP, P_SETUP),
+	},
+	[P_ALLOC_STORE] = {
+		.sd_flags   = 0,
+		.sd_name    = "P_ALLOC_STORE",
+		.sd_allowed = M0_BITS(P_ALLOC_REQUIRE, P_LOCK, P_CLEANUP),
 	},
 	[P_STORE_CHILD] = {
 		.sd_flags   = 0,
@@ -3816,7 +3758,7 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "put/get-lockall-ft", P_LOCKALL, P_NEXTDOWN},
 	{ "put/get-down", P_DOWN, P_NEXTDOWN },
 	{ "put/get-nextdown-repeat", P_NEXTDOWN, P_NEXTDOWN },
-	{ "put-nextdown-next", P_NEXTDOWN, P_ALLOC },
+	{ "put-nextdown-next", P_NEXTDOWN, P_ALLOC_REQUIRE },
 	{ "del-nextdown-load", P_NEXTDOWN, P_STORE_CHILD },
 	{ "get-nextdown-next", P_NEXTDOWN, P_LOCK },
 	{ "iter-nextdown-sibling", P_NEXTDOWN, P_SIBLING },
@@ -3826,10 +3768,12 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "iter-sibling-repeat", P_SIBLING, P_SIBLING },
 	{ "iter-sibling-next", P_SIBLING, P_LOCK },
 	{ "iter-sibling-failed", P_SIBLING, P_CLEANUP },
-	{ "put-alloc-repeat", P_ALLOC, P_ALLOC },
-	{ "put-alloc-next", P_ALLOC, P_LOCK },
-	{ "put-alloc-failed", P_ALLOC, P_CLEANUP },
-	{ "put-alloc-fail", P_ALLOC, P_INIT },
+	{ "put-alloc-load", P_ALLOC_REQUIRE, P_ALLOC_STORE },
+	{ "put-alloc-next", P_ALLOC_REQUIRE, P_LOCK },
+	{ "put-alloc-fail", P_ALLOC_REQUIRE, P_CLEANUP },
+	{ "put-allocstore-require", P_ALLOC_STORE, P_ALLOC_REQUIRE },
+	{ "put-allocstore-next", P_ALLOC_STORE, P_LOCK },
+	{ "put-allocstore-fail", P_ALLOC_STORE, P_CLEANUP },
 	{ "del-child-check", P_STORE_CHILD, P_CHECK },
 	{ "del-child-check-ht-changed", P_STORE_CHILD, P_CLEANUP },
 	{ "del-child-check-ht-same", P_STORE_CHILD, P_LOCKALL },
@@ -7386,7 +7330,7 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_single_tree_kv_op",  ut_mt_st_kv_oper},
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
-		/* {"btree_kv_add_del",                ut_put_del_operation}, */
+		/* {"btree_kv_add_del",                ut_put_del_operation},*/
 		{NULL, NULL}
 	}
 };
