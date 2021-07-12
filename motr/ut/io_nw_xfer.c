@@ -599,8 +599,7 @@ M0_INTERNAL int m0_io_nw_xfer_ut_init(void)
 	M0_UT_ASSERT(rc == 0);
 
 	ut_layout_domain_fill(dummy_instance);
-	dummy_pdclust_layout =
-		ut_dummy_pdclust_layout_create(dummy_instance);
+	dummy_pdclust_layout = ut_dummy_pdclust_layout_create(dummy_instance);
 	M0_UT_ASSERT(dummy_pdclust_layout != NULL);
 
 	return 0;

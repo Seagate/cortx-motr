@@ -81,8 +81,7 @@ ut_dummy_pdclust_layout_create(struct m0_client *instance)
 
 	M0_ALLOC_PTR(pl);
 	m0_pdclust_layout_bob_init(pl);
-	ut_striped_layout_init(&pl->pl_base,
-			       &instance->m0c_reqh.rh_ldom);
+	ut_striped_layout_init(&pl->pl_base, &instance->m0c_reqh.rh_ldom);
 
 	/* pointless but required by the compiler */
 	m0_pdclust_layout_bob_check(pl);
