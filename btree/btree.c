@@ -958,7 +958,7 @@ struct node_type {
 	bool (*nt_verify)(const struct nd *node);
 
 	/** Does minimal (or basic) validation */
-	bool (*nt_isvalid)(const struct nd *node);
+	bool (*nt_isvalid)(const struct segaddr *addr);
 	/** Saves opaque data. */
 	void (*nt_opaque_set)(const struct segaddr *addr, void *opaque);
 
@@ -1303,7 +1303,7 @@ static bool node_verify(const struct nd *node)
 #ifndef __KERNEL__
 static bool node_isvalid(const struct nd *node)
 {
-	return node->n_type->nt_isvalid(node);
+	return node->n_type->nt_isvalid(&node->n_addr);
 }
 
 #endif
@@ -1812,8 +1812,6 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	 * implemented
 	 * */
 	nt = &fixed_format;
-	op->no_node = nt->nt_opaque_get(addr);
-
 	/**
 	 * TODO: Adding list_lock to protect from multiple threads
 	 * accessing the same node descriptor concurrently.
@@ -1821,6 +1819,17 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	 * functionality is implemented.
 	 */
 	m0_rwlock_write_lock(&list_lock);
+	/**
+	 * If the node was deleted before node_get can acquire list_lock, then
+	 * restart the tick funcions.
+	 */
+	if (!nt->nt_isvalid(addr)) {
+		op->no_op.o_sm.sm_rc = ECHILD;
+		m0_rwlock_write_unlock(&list_lock);
+		return nxt_state;
+	}
+	op->no_node = nt->nt_opaque_get(addr);
+
 	if (op->no_node != NULL &&
 	    op->no_node->n_addr.as_core == addr->as_core) {
 
@@ -1925,6 +1934,7 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 			m0_rwlock_fini(&node->n_lock);
 			op->no_addr = node->n_addr;
 			shift = node->n_type->nt_shift(node);
+			node->n_type->nt_fini(node);
 			m0_free(node);
 			m0_rwlock_write_unlock(&list_lock);
 			segops->so_node_free(op, shift, tx, 0);
@@ -1981,12 +1991,12 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	m0_rwlock_write_lock(&list_lock);
 	node_refcnt_update(node, false);
 	node->n_delayed_free = true;
-	node->n_type->nt_fini(node);
 
 	if (node->n_ref == 0) {
 		ndlist_tlink_del_fini(node);
 		m0_rwlock_fini(&node->n_lock);
 		op->no_addr = node->n_addr;
+		node->n_type->nt_fini(node);
 		m0_free(node);
 		m0_rwlock_write_unlock(&list_lock);
 		return segops->so_node_free(op, shift, tx, nxt);
@@ -2288,7 +2298,7 @@ static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 static bool ff_invariant(const struct nd *node);
 static bool ff_verify(const struct nd *node);
-static bool ff_isvalid(const struct nd *node);
+static bool ff_isvalid(const struct segaddr *addr);
 static void ff_opaque_set(const struct segaddr *addr, void *opaque);
 static void *ff_opaque_get(const struct segaddr *addr);
 uint32_t ff_ntype_get(const struct segaddr *addr);
@@ -2434,9 +2444,9 @@ static bool ff_verify(const struct nd *node)
 	return m0_format_footer_verify(h, true) == 0;
 }
 
-static bool ff_isvalid(const struct nd *node)
+static bool ff_isvalid(const struct segaddr *addr)
 {
-	const struct ff_head *h   = ff_data(node);
+	struct ff_head       *h = segaddr_addr(addr);
 	struct m0_format_tag  tag;
 
 	m0_format_header_unpack(&tag, &h->ff_fmt);
@@ -3454,6 +3464,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			return fail(bop, M0_ERR(-ENOMEM));
 		}
 		bop->bo_i->i_key_found = false;
+		oi->i_nop.no_op.o_sm.sm_rc = 0;
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
@@ -3523,7 +3534,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			}
 		} else {
 			node_op_fini(&oi->i_nop);
-			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 		}
 	case P_ALLOC: {
 		bool alloc = false;
@@ -4160,6 +4171,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				lock_op_unlock(tree);
 			return fail(bop, M0_ERR(-ENOMEM));
 		}
+		oi->i_nop.no_op.o_sm.sm_rc = 0;
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
@@ -4225,7 +4237,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			}
 		} else {
 			node_op_fini(&oi->i_nop);
-			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 		}
 	case P_LOCK:
 		if (!lock_acquired)
@@ -4355,6 +4367,7 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				lock_op_unlock(tree);
 			return fail(bop, M0_ERR(-ENOMEM));
 		}
+		oi->i_nop.no_op.o_sm.sm_rc = 0;
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used  = 0;
@@ -4497,7 +4510,7 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			}
 		} else {
 			node_op_fini(&oi->i_nop);
-			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 		}
 	case P_SIBLING:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
@@ -4551,7 +4564,7 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			}
 		} else {
 			node_op_fini(&oi->i_nop);
-			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 		}
 	case P_LOCK:
 		if (!lock_acquired)
@@ -4886,6 +4899,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			return fail(bop, M0_ERR(-ENOMEM));
 		}
 		bop->bo_i->i_key_found = false;
+		oi->i_nop.no_op.o_sm.sm_rc = 0;
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
@@ -4967,7 +4981,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			}
 		} else {
 			node_op_fini(&oi->i_nop);
-			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 		}
 	case P_STORE_CHILD: {
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
@@ -6368,6 +6382,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			for (i = 1; i < ARRAY_SIZE(value); i++)
 				value[i] = value[0];
 
+			M0_SET0(&kv_op);
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						 m0_btree_put(tree, &rec,
 							      &ut_cb, 0,
@@ -6406,6 +6421,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		get_data.check_value = true; /** Compare value with key */
 
+		M0_SET0(&kv_op);
 		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					 m0_btree_get(tree,
 						      &rec.r_key, &ut_get_cb,
@@ -6415,6 +6431,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		keys_found_count++;
 
 		while (1) {
+			M0_SET0(&kv_op);
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						 m0_btree_iter(tree,
 							       &rec.r_key,
@@ -6472,6 +6489,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				for (i = 1; i < ARRAY_SIZE(key); i++)
 					key[i] = key[0];
 
+				M0_SET0(&kv_op);
 				M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 							 m0_btree_get(tree,
 								      &r.r_key,
@@ -6513,6 +6531,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			for (i = 1; i < ARRAY_SIZE(key); i++)
 				key[i] = key[0];
 
+			M0_SET0(&kv_op);
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						 m0_btree_del(tree, &rec.r_key,
 							      &ut_cb, 0,
