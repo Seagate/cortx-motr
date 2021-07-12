@@ -3448,8 +3448,11 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL)
+		if (oi->i_level == NULL) {
+			if (lock_acquired)
+				lock_op_unlock(tree);
 			return fail(bop, M0_ERR(-ENOMEM));
+		}
 		bop->bo_i->i_key_found = false;
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
@@ -3577,7 +3580,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				/* If height has changed. */
 				lock_op_unlock(tree);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-				                    P_SETUP);
+						    P_SETUP);
 			} else {
 				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
@@ -4152,8 +4155,11 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL)
+		if (oi->i_level == NULL) {
+			if (lock_acquired)
+				lock_op_unlock(tree);
 			return fail(bop, M0_ERR(-ENOMEM));
+		}
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
@@ -4344,8 +4350,11 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL)
+		if (oi->i_level == NULL) {
+			if (lock_acquired)
+				lock_op_unlock(tree);
 			return fail(bop, M0_ERR(-ENOMEM));
+		}
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used  = 0;
@@ -4871,8 +4880,11 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL)
+		if (oi->i_level == NULL) {
+			if (lock_acquired)
+				lock_op_unlock(tree);
 			return fail(bop, M0_ERR(-ENOMEM));
+		}
 		bop->bo_i->i_key_found = false;
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
