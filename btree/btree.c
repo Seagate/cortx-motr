@@ -1762,29 +1762,6 @@ static void tree_put(struct td *tree)
 
 static const struct node_type fixed_format;
 
-static int64_t seg_node_alloc(struct node_op *op, struct td *tree, int shift,
-			      const struct node_type *nt, struct m0_be_tx *tx,
-			      int nxt)
-{
-	void          *area;
-	int            size = 1ULL << shift;
-
-	M0_PRE(op->no_opc == NOP_ALLOC);
-	M0_PRE(node_shift_is_valid(shift));
-	area = m0_alloc_aligned(size, shift);
-	M0_ASSERT(area != NULL);
-	op->no_addr = segaddr_build(area, shift);
-	op->no_tree = tree;
-	return nxt;
-}
-
-static void seg_node_free(struct node_op *op, int shift, struct m0_be_tx *tx,
-			     int nxt)
-{
-	m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift, shift);
-	/** Capture in transaction */
-}
-
 /**
  * This function loads the node descriptor for the node at segaddr in memory.
  * If a node descriptor pointing to this node is already loaded in memory then
@@ -1939,7 +1916,9 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 			shift = node->n_type->nt_shift(node);
 			m0_free(node);
 			m0_rwlock_write_unlock(&list_lock);
-			seg_node_free(op, shift, tx, 0);
+			m0_free_aligned(segaddr_addr(&op->no_addr),
+					1ULL << shift, shift);
+			/** Capture in transaction */
 			return;
 		}
 	}
@@ -1972,9 +1951,19 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 			  const struct node_type *nt, int ksize, int vsize,
 			  struct m0_be_tx *tx, int nxt)
 {
-	int        nxt_state;
+	int            nxt_state = nxt;
+	void          *area;
+	int            actual_size = 1ULL << size;
 
-	nxt_state = seg_node_alloc(op, tree, size, nt, tx, nxt);
+	M0_PRE(op->no_opc == NOP_ALLOC);
+	M0_PRE(node_shift_is_valid(size));
+
+	area = m0_alloc_aligned(actual_size, size);
+
+	M0_ASSERT(area != NULL);
+
+	op->no_addr = segaddr_build(area, size);
+	op->no_tree = tree;
 
 	node_init(&op->no_addr, ksize, vsize, nt, tx);
 
@@ -1999,7 +1988,9 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 		op->no_addr = node->n_addr;
 		m0_free(node);
 		m0_rwlock_write_unlock(&list_lock);
-		seg_node_free(op, shift, tx, nxt);
+		m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift,
+				shift);
+		/** Capture in transaction */
 		return nxt;
 	}
 	m0_rwlock_write_unlock(&list_lock);
