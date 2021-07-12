@@ -4559,8 +4559,8 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			lev->l_sibling->n_skip_rec_count_check = true;
-			if (!node_isvalid(s.s_node) || (oi->i_pivot > 0 &&
-			    node_count_rec(s.s_node) == 0)) {
+			if (!node_isvalid(lev->l_sibling) || (oi->i_pivot > 0 &&
+			    node_count_rec(lev->l_sibling) == 0)) {
 				lev->l_sibling->n_skip_rec_count_check = false;
 				node_unlock(lev->l_sibling);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
@@ -4871,7 +4871,7 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 		node_lock(root_lev->l_node);
 
 		if (!node_isvalid(root_lev->l_node) ||
-		    oi->i_level[0].l_seq != root_lev->l_seq) {
+		    root_lev->l_node->n_seq != root_lev->l_seq) {
 			node_unlock(root_lev->l_node);
 			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 		}
