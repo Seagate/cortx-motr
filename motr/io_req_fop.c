@@ -19,7 +19,6 @@
  *
  */
 
-
 #include "motr/client.h"
 #include "motr/client_internal.h"
 #include "motr/addb.h"
@@ -104,16 +103,6 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop)
 /**
  * Copies correct part of attribute buffer to client's attribute bufvec.
  */
-static void buf_to_bufvec_copy(struct m0_buf *buf, struct m0_bufvec *bufvec,
-			       m0_bindex_t index, m0_bcount_t count,
-			       m0_bindex_t buf_offset)
-{
-	void *data;
-
-	data = buf->b_addr + (buf_offset * CKSUM_SIZE);
-	memcpy(BUFVI(bufvec, index), data, count);
-	BUFVC(bufvec, index) = count;
-}
 
 /**
  * Populates client application's attribute bufvec from the attribute buffer
@@ -129,18 +118,63 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 				       struct m0_op_io *ioo,
 				       struct m0_buf *buf)
 {
-	uint32_t                unit_size;
-	uint32_t                ti_seg;
-	uint32_t                rep_seg = 0;
+	uint32_t                unit_size, off;
 	m0_bindex_t             rep_index;
 	m0_bindex_t             ti_index;
-	struct m0_ivec_cursor   cursor;
+	m0_bindex_t             coff_index;
+	struct m0_ivec_cursor   rep_cursor;
+	struct m0_ivec_cursor   ti_cursor;
+	struct m0_ivec_cursor   ti_coff_cursor;
 	struct m0_indexvec     *ti_ivec = &ti->ti_ivec;
 	struct m0_indexvec     *coff_ivec = &ti->ti_coff_ivec;
 
-	unit_size = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
-	m0_ivec_cursor_init(&cursor, rep_ivec);
+	void *dst = ioo->ioo_attr.ov_buf[0];
+	void *src = buf->b_addr;
 
+	if(!buf->b_nob)
+	{
+		return;
+	}
+	unit_size = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
+
+	m0_ivec_cursor_init(&rep_cursor, rep_ivec);
+	m0_ivec_cursor_init(&ti_cursor, ti_ivec);
+	m0_ivec_cursor_init(&ti_coff_cursor, coff_ivec);
+	
+	rep_index = m0_ivec_cursor_index(&rep_cursor);
+        ti_index = 	m0_ivec_cursor_index(&ti_cursor);
+	coff_index =m0_ivec_cursor_index(&ti_coff_cursor); 
+
+	// Move rep_curosr on unit boundary
+	off = rep_index % unit_size; 	
+	if(off)
+	{
+		if(m0_ivec_cursor_move(&rep_cursor, unit_size - off))
+		{
+			rep_index = m0_ivec_cursor_index(&rep_cursor);
+		}
+		else
+		{
+			return;
+		}
+	}
+	M0_ASSERT(ti_index <= rep_index);
+	// move ti index to rep index
+	if(ti_index != rep_index)
+	{
+		if(m0_ivec_cursor_move(&ti_cursor, rep_index - ti_index) && 
+			m0_ivec_cursor_move(&ti_coff_cursor, rep_index - ti_index))
+		{
+			ti_index = m0_ivec_cursor_index(&ti_cursor);
+			coff_index =m0_ivec_cursor_index(&ti_coff_cursor); 	
+		}
+		else
+		{
+			return;
+		}
+	}
+	M0_ASSERT(rep_index == ti_index);		
+	
 	/**
 	 * Cursor iterating over segments spanned by this IO. At each iteration
 	 * index of reply fop is matched with all the target offsets stored in
@@ -157,22 +191,28 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	 * buffer to application's bufvec.
 	 */
 
-	while (!m0_ivec_cursor_move(&cursor, unit_size)) {
-		rep_index = m0_ivec_cursor_index(&cursor);
-		ti_seg = 0;
-		M0_ASSERT((rep_seg * CKSUM_SIZE) < buf->b_nob);
-		while (ti_seg < SEG_NR(ti_ivec)) {
-			ti_index = INDEX(ti_ivec, ti_seg);
-			if (rep_index == ti_index) {
-				buf_to_bufvec_copy(buf, &ioo->ioo_attr,
-						INDEX(coff_ivec, ti_seg),
-						CKSUM_SIZE, rep_seg);
-		                break;
-		        }
-		        ti_seg++;
-		}
-		rep_seg++;
-	}
+	 do {
+			rep_index = m0_ivec_cursor_index(&rep_cursor);
+			ti_index = m0_ivec_cursor_index(&ti_cursor);
+	 		coff_index =m0_ivec_cursor_index(&ti_coff_cursor); 
+			M0_ASSERT(rep_index == ti_index);
+			M0_ASSERT(src < (buf->b_addr + buf->b_nob));
+			M0_ASSERT(coff_index <= ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr-1] + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]);
+			dst = m0_extent_vec_get_checksum_addr( &ioo->ioo_attr,
+   							coff_index,
+   								&ioo->ioo_ext,
+   								unit_size, CKSUM_SIZE);
+   							//ioo->ioo_attr.ov_vec.v_count[0]);
+			M0_ASSERT(dst != NULL);
+
+			M0_LOG(M0_ERROR, "VCP:  %lx, %lx, %lx, %x, %p ...",(unsigned long)rep_index,(unsigned long)ti_index,(unsigned long)coff_index, unit_size, dst);		
+	       if(dst != NULL)
+		memcpy(dst, src, CKSUM_SIZE);
+	      src +=  CKSUM_SIZE;
+	
+	}while (!m0_ivec_cursor_move(&rep_cursor, unit_size) &&
+					     !m0_ivec_cursor_move(&ti_cursor, unit_size) &&
+					     !m0_ivec_cursor_move(&ti_coff_cursor, unit_size));
 }
 
 /**

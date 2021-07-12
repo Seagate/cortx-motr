@@ -32,6 +32,7 @@
 #include "fid/fid.h"             /* m0_fid */
 #include "rpc/rpclib.h"          /* m0_rpc_ */
 #include "lib/ext.h"             /* struct m0_ext */
+#include "lib/misc.h"            /* m0_extent_vec_get_checksum_addr */
 #include "fop/fom_generic.h"     /* m0_rpc_item_generic_reply_rc */
 #include "sns/parity_repair.h"   /* m0_sns_repair_spare_map*/
 #include "fd/fd.h"               /* m0_fd_fwd_map m0_fd_bwd_map */
@@ -115,7 +116,9 @@ static uint32_t io_di_size(struct m0_op_io *ioo)
 		return M0_RC(0);
 
 	rc = di_ops->do_out_shift(file) * M0_DI_ELEMENT_SIZE;
-	rc += CKSUM_SIZE;
+
+	// Assuming 
+	rc += ioo->ioo_attr.ov_vec.v_count[0];
 
 	return M0_RC(rc);
 }
@@ -391,8 +394,10 @@ void target_ioreq_fini(struct target_ioreq *ti)
 	m0_free0(&ti->ti_bufvec.ov_vec.v_count);
 	m0_free0(&ti->ti_auxbufvec.ov_buf);
 	m0_free0(&ti->ti_auxbufvec.ov_vec.v_count);
-	m0_free0(&ti->ti_attrbufvec.ov_buf);
-	m0_free0(&ti->ti_attrbufvec.ov_vec.v_count);
+#if 0
+	if(opcode == M0_OC_WRITE)
+		m0_buf_free(&ti->ti_attrbuf);
+#endif
 	m0_free0(&ti->ti_pageattrs);
 
 	if (ti->ti_dgvec != NULL)
@@ -474,11 +479,11 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 {
 	uint32_t                   seg;
 	uint32_t                   tseg;
-	uint32_t                   coff;
 	m0_bindex_t                toff;
 	m0_bindex_t                goff;
 	m0_bindex_t                pgstart;
 	m0_bindex_t                pgend;
+	m0_bindex_t                unit_sz;                  
 	struct data_buf           *buf;
 	struct m0_op_io    *ioo;
 	struct m0_pdclust_layout  *play;
@@ -489,14 +494,15 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	struct m0_indexvec        *coff_ivec = NULL;
 	struct m0_bufvec          *bvec;
 	struct m0_bufvec          *auxbvec;
-	struct m0_bufvec          *attrbvec = NULL;
 	enum m0_pdclust_unit_type  unit_type;
 	enum page_attr            *pattr;
 	uint64_t                   cnt;
 	unsigned int               opcode;
 	m0_bcount_t                grp_size;
+	m0_bcount_t                cs_sz;
 	uint64_t                   page_size;
-	uint32_t                   ti_idx;
+	void 					  *dst_attr = NULL;	
+	uint32_t 				   b_nob;
 
 	M0_PRE(tgt != NULL);
 	frame = tgt->ta_frame;
@@ -511,7 +517,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	M0_PRE(target_ioreq_invariant(ti));
 
 	ioo = bob_of(ti->ti_nwxfer, struct m0_op_io,
-		     ioo_nwxfer, &ioo_bobtype);
+		     ioo_nwxfer, &ioo_bobtype);		
 	opcode = ioo->ioo_oo.oo_oc.oc_op.op_code;
 	play = pdlayout_get(ioo);
 
@@ -520,13 +526,14 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	unit_type = m0_pdclust_unit_classify(play, unit);
 	M0_ASSERT(M0_IN(unit_type, (M0_PUT_DATA, M0_PUT_PARITY)));
 
+	// TODO: How to get shift opertion to make it sector based
+	unit_sz = layout_unit_size(play);
+	cs_sz 	= ioo->ioo_attr.ov_vec.v_count[0];
 	toff    = target_offset(frame, play, gob_offset);
 	pgstart = toff;
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
-	coff    = di_cksum_offset(play, gob_offset);
-	ti_idx  = toff / layout_unit_size(play);
-	M0_LOG(M0_DEBUG, "YJC: coff = %"PRIu32 " toff = %"PRIu64 " goff = %"PRIu64,
-		          coff, toff, goff);
+	M0_LOG(M0_DEBUG, "YJC: count = %"PRIu64 " toff = %"PRIu64 " goff = %"PRIu64,
+		          count, toff, goff);
 
 	M0_LOG(M0_DEBUG,
 	       "[gpos %"PRIu64", count %"PRIu64"] [%"PRIu64", %"PRIu64"]"
@@ -551,7 +558,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		trunc_ivec  = &ti->ti_trunc_ivec;
 		bvec  = &ti->ti_bufvec;
 		auxbvec = &ti->ti_auxbufvec;
-		attrbvec = &ti->ti_attrbufvec;
+		dst_attr = ti->ti_attrbuf.b_addr;
 		coff_ivec = &ti->ti_coff_ivec;
 		pattr = ti->ti_pageattrs;
 		cnt = page_nr(ioo->ioo_iomap_nr * layout_unit_size(play) *
@@ -629,19 +636,21 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 INDEX(ivec, seg), COUNT(ivec, seg),
 				 FID_P(&ti->ti_fid), pattr[seg]);
 
-		goff += COUNT(ivec, seg);
-		++ivec->iv_vec.v_nr;
-		pgstart = pgend;
-		if (attrbvec != NULL && unit_type == M0_PUT_DATA &&
-			opcode == M0_OC_WRITE) {
-			/**
-			 * Storing attributes from application into target's
-			 * attribute bufvec according to target offset. ti_idx
-			 * is target offset converted to segment index of
-			 * target's attribute bufvec.
-			 */
-			BUFVI(attrbvec, ti_idx) = BUFVI(&ioo->ioo_attr, coff);
-			BUFVC(attrbvec, ti_idx) = BUFVC(&ioo->ioo_attr, coff);
+		if(dst_attr != NULL && unit_type == M0_PUT_DATA && opcode == M0_OC_WRITE) {
+			void *src_attr;	
+			
+			// Assuming v_count has checksum size
+			src_attr = m0_extent_vec_get_checksum_addr( &ioo->ioo_attr, goff, &ioo->ioo_ext, unit_sz, cs_sz);
+
+			b_nob = m0_extent_get_checksum_nob( goff, COUNT(ivec, seg), unit_sz, cs_sz );
+			if( b_nob )
+			{
+
+			  M0_LOG(M0_ERROR,"vcp:src_Attr = %p , b-nob = 0x%x..", src_attr, b_nob); 
+				memcpy(dst_attr + ti->ti_cksum_copied, src_attr, b_nob);
+			}
+ 			   ti->ti_cksum_copied += b_nob;
+			   M0_ASSERT(ti->ti_cksum_copied <= ti->ti_attrbuf.b_nob);
 		} else if (coff_ivec != NULL && unit_type == M0_PUT_DATA &&
 				opcode == M0_OC_READ) {
 			/**
@@ -653,11 +662,16 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			 * offset and seg 0 of target_ioreq::ti_coff_ivec
 			 * contains checksum offset for the said target offset.
 			 */
-
-			INDEX(coff_ivec, ti_idx) = coff;
-			COUNT(coff_ivec, ti_idx) = CKSUM_SIZE;
+			INDEX(coff_ivec, seg) = goff;
+			COUNT(coff_ivec, seg) = COUNT(ivec, seg);
 			coff_ivec->iv_vec.v_nr++;
+		M0_LOG(M0_ERROR,"vcp:%lx %lx %lx %lx", (unsigned long)INDEX(coff_ivec, seg), (unsigned long) COUNT(coff_ivec, seg),(unsigned long)INDEX(ivec, seg), 
+										(unsigned long) COUNT(ivec, seg));
 		}
+
+		goff += COUNT(ivec, seg);
+		++ivec->iv_vec.v_nr;
+		pgstart = pgend;		
 	}
 	M0_LEAVE();
 }
@@ -778,42 +792,6 @@ static void irfop_fini(struct ioreq_fop *irfop)
 	M0_LEAVE();
 }
 
-static int m0_buf_from_bufvec(struct m0_buf *dest,
-		                    const struct m0_bufvec *src)
-{
-	size_t i;
-	size_t count = 0;
-	size_t len = 0;
-	size_t bytes_copied = 0;
-	void *dst;
-
-	M0_SET0(dest);
-
-	if (src == NULL)
-		return 0;
-
-	if (src->ov_vec.v_nr == 0)
-		return 0;
-
-	count = m0_vec_count(&src->ov_vec);
-	//YJC_TODO : Need to free buffer
-	dest->b_addr = m0_alloc(count);
-	if (dest->b_addr == NULL)
-		return M0_ERR(-ENOMEM);
-	dst = dest->b_addr;
-	for (i = 0; i < src->ov_vec.v_nr; i++) {
-		len = src->ov_vec.v_count[i];
-		if(len > 0) {
-			memcpy(dst, src->ov_buf[i], len);
-			dst += len;
-			bytes_copied += len;
-		}
-	}
-	dest->b_nob = bytes_copied;
-	M0_ASSERT(count == bytes_copied);
-	return 0;
-}
-
 
 /**
  * Assembles io fops for the specified target server.
@@ -837,7 +815,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	enum page_attr              *pattr;
 	struct m0_bufvec            *bvec;
 	struct m0_bufvec            *auxbvec;
-	struct m0_bufvec            *attrbvec;
 	struct m0_op_io             *ioo;
 	struct m0_obj_attr          *io_attr;
 	struct m0_indexvec          *ivec;
@@ -1008,11 +985,22 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
 		if (filter == PA_DATA) {
-			attrbvec = &ti->ti_attrbufvec;
-			rc = m0_buf_from_bufvec(&rw_fop->crw_di_data_cksum,
-					        attrbvec);
-			M0_ASSERT(rc == 0);
-			rw_fop->crw_cksum_size = CKSUM_SIZE;
+			if(m0_is_write_fop(&iofop->if_fop))
+				{
+				rw_fop->crw_di_data_cksum.b_addr = ti->ti_attrbuf.b_addr;
+				rw_fop->crw_di_data_cksum.b_nob = ti->ti_cksum_copied;
+				}
+				else
+				{
+					rw_fop->crw_di_data_cksum.b_addr = NULL;
+					 rw_fop->crw_di_data_cksum.b_nob = 0;
+				}		
+                            rw_fop->crw_cksum_size = ioo->ioo_attr.ov_vec.v_count[0];
+		}
+		else {
+			rw_fop->crw_di_data_cksum.b_addr = NULL;
+			rw_fop->crw_di_data_cksum.b_nob  = 0;
+			rw_fop->crw_cksum_size = 0;
 		}
 
 		if (ioo->ioo_flags & M0_OOF_NOHOLE)
@@ -1107,7 +1095,6 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	struct m0_op           *op;
 	struct m0_client       *instance;
 	uint32_t                nr;
-	uint32_t                nr_attr;
 
 	M0_PRE(cobfid  != NULL);
 	M0_ENTRY("target_ioreq %p, nw_xfer_request %p, "FID_F,
@@ -1149,17 +1136,17 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	target_ioreq_bob_init(ti);
 
 	nr = page_nr(size, ioo->ioo_obj);
-	nr_attr = size / m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
-	M0_ASSERT(nr_attr != 0);
 	rc = m0_indexvec_alloc(&ti->ti_ivec, nr);
 	if (rc != 0)
 		goto out;
+	
 	if (op->op_code == M0_OC_READ) {
 		rc = m0_indexvec_alloc(&ti->ti_coff_ivec, nr);
 		ti->ti_coff_ivec.iv_vec.v_nr = 0;
 		if (rc != 0)
 			goto fail;
 	}
+	
 	if (op->op_code == M0_OC_FREE) {
 		rc = m0_indexvec_alloc(&ti->ti_trunc_ivec, nr);
 		if (rc != 0)
@@ -1175,15 +1162,19 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	if (ti->ti_bufvec.ov_buf == NULL)
 		goto fail;
 
-	ti->ti_attrbufvec.ov_vec.v_nr = nr_attr;
-	M0_ALLOC_ARR(ti->ti_attrbufvec.ov_vec.v_count, nr_attr);
-	if (ti->ti_attrbufvec.ov_vec.v_count == NULL)
-		goto fail;
-
-	M0_ALLOC_ARR(ti->ti_attrbufvec.ov_buf, nr_attr);
-	if (ti->ti_attrbufvec.ov_buf == NULL)
-		goto fail;
-
+	if ( op->op_code == M0_OC_WRITE ) {
+			uint32_t b_nob;
+			ti->ti_attrbuf.b_addr = NULL;
+			b_nob = (size * ioo->ioo_attr.ov_vec.v_count[0]) / m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
+		    rc = m0_buf_alloc(&ti->ti_attrbuf, b_nob);
+			if (rc != 0)
+				goto fail;
+			ti->ti_cksum_copied = 0;
+		}
+	else {
+		ti->ti_attrbuf.b_addr = NULL;
+		ti->ti_attrbuf.b_nob = 0;
+	}
 	/*
 	 * For READOLD method, an extra bufvec is needed to remember
 	 * the addresses of auxillary buffers so those auxillary
@@ -1221,8 +1212,6 @@ fail:
 		m0_indexvec_free(&ti->ti_trunc_ivec);
 	m0_free(ti->ti_bufvec.ov_vec.v_count);
 	m0_free(ti->ti_bufvec.ov_buf);
-	m0_free(ti->ti_attrbufvec.ov_vec.v_count);
-	m0_free(ti->ti_attrbufvec.ov_buf);
 	m0_free(ti->ti_auxbufvec.ov_vec.v_count);
 	m0_free(ti->ti_auxbufvec.ov_buf);
 
@@ -1457,6 +1446,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			if (op_code == M0_OC_WRITE && do_cobs)
 				m0_bitmap_set(&units_spanned, unit, true);
 
+	
 			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
 						m0_ext_length(&r_ext), iomap);
 		}

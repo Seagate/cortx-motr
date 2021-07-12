@@ -1199,7 +1199,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 					ioo, pgstart, pgend);
 		}
 	}
-	m0_client_bufvec_print(&ioo->ioo_attr, &ioo->ioo_data, "YJC_REP", 1);
+	//m0_client_bufvec_print(&ioo->ioo_attr, &ioo->ioo_data, "YJC_REP", 1);
 
 	return M0_RC(0);
 }

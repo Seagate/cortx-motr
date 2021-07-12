@@ -807,8 +807,8 @@ struct target_ioreq {
 	 */
 	struct m0_bufvec               ti_bufvec;
 	struct m0_bufvec               ti_auxbufvec;
-	struct m0_bufvec               ti_attrbufvec;
-
+	struct m0_buf                  ti_attrbuf;
+	m0_bcount_t							 ti_cksum_copied;
 
 	/**
 	 * Degraded mode read/write IO vector.

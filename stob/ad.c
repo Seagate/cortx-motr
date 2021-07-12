@@ -51,7 +51,6 @@
 #include "stob/stob_internal.h"	/* m0_stob__fid_set */
 #include "stob/type.h"		/* m0_stob_type */
 #include "be/domain.h"
-#include "motr/client.h"
 
 /**
  * @addtogroup stobad
