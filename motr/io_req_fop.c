@@ -171,7 +171,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
 			 "sns state = %d", ioo, req_item,
 			 req_item->ri_type->rit_opcode, rc, ioo->ioo_sns_state);
-
+	actual_bytes = rw_reply->rwr_count;
 	rc = gen_rep->gr_rc;
 	rc = rc ?: rw_reply->rwr_rc;
 	irfop->irf_reply_rc = rc;

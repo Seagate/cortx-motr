@@ -577,7 +577,6 @@ static int obj_op_init(struct m0_obj      *obj,
 		oc->oc_cb_cancel = obj_io_cb_cancel;
 		oc->oc_cb_fini = obj_io_cb_fini;
 		oc->oc_cb_free = obj_io_cb_free;
-
 		break;
 	default:
 		M0_IMPOSSIBLE("Not implememented yet");
@@ -585,17 +584,15 @@ static int obj_op_init(struct m0_obj      *obj,
 	}
 
 	/* Convert the client:object-id to a motr:fid */
-	m0_fid_gob_make(&oo->oo_fid,
-			obj->ob_entity.en_id.u_hi, obj->ob_entity.en_id.u_lo);
+	m0_fid_gob_make(&oo->oo_fid, obj->ob_entity.en_id.u_hi,
+			             obj->ob_entity.en_id.u_lo);
 	M0_ASSERT(m0_pool_version_find(&cinst->m0c_pools_common,
 				       &obj->ob_attr.oa_pver) != NULL);
 	oo->oo_pver = m0__obj_pver(obj);
 	layout_id = m0_pool_version2layout_id(&oo->oo_pver,
-			m0__obj_layout_id_get(oo));
-	rc = m0__obj_layout_instance_build(cinst, layout_id,
-						  &oo->oo_fid,
-						  &oo->oo_layout_instance);
-
+					      m0__obj_layout_id_get(oo));
+	rc = m0__obj_layout_instance_build(cinst, layout_id, &oo->oo_fid,
+					   &oo->oo_layout_instance);
 	if (rc != 0) {
 		/*
 		 * Setting the callbacks to NULL so the m0_op_fini()

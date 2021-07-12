@@ -2383,6 +2383,8 @@ M0_INTERNAL int pargrp_iomap_init(struct pargrp_iomap  *map,
 	rc = pargrp_iomap_bufs_alloc(&map->pi_databufs,
 				     rows_nr(play, ioo->ioo_obj),
 				     layout_n(play));
+	if (M0_FI_ENABLED("no-mem-err"))
+		rc = -ENOMEM;
 	if (rc != 0)
 		goto fail;
 	/*
