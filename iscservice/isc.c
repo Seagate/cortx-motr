@@ -98,12 +98,10 @@ static size_t fom_home_locality(const struct m0_fom *fom)
 	size_t             hash;
 
 	M0_ENTRY("fom=%p cob="FID_F, fom, FID_P(&fi->fi_cob));
-
 	hash = m0_fid_hash(&fi->fi_cob);
-
 	M0_LEAVE("hash=%zx", hash);
 
-	return m0_fid_hash(&fi->fi_cob);
+	return hash;
 }
 
 static struct m0_rpc_machine *fom_rmach(const struct m0_fom *fom)
