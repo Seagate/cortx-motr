@@ -486,6 +486,30 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
 	M0_ASSERT_EX(be_emap_invariant(it));
 }
 
+/* This function will paste the extent (ext) into all the existing overlapping
+ * extent. It is assumed that cursor is correctly placed so ext is part of 
+ * cursor-segment (it->ec_seg).
+ *
+ * 1. Finds the overlap of current-segment with extent (ext)
+ * 2. Based on the overlap 3 sub-segment gets created (term left/right w.r.t area of 
+ *    current segment left after removing clip area)
+ *    a. Left   sub-seg : Overlap of start of cur-seg  with ext  
+ *        			      |  cur-seg  |            
+ *                             | clip - ext | 
+ *                        |Left| => [curr-seg:Start - clip:Start]
+ *    b. Middle sub-seg : If ext part (to be pasted) fully overlapes with curr-seg (clip)
+ *    c. Right  sub-seg : Overalp of end of cur-seg with ext 
+ *        			      |  cur-seg  |            
+ *                | clip - ext | 
+ *                             |Right | => [clip:End - curr-seg:End]
+ * 3. EMAP operation for these three segments are performed (not all may be needed)
+ * 4. If part of extent (after removing clip) is remaining then new segment is read 
+ *    (be_emap_next) and again above operations are performed
+ *
+ * For checksum operation : 
+ * a. Left Opn  : Will reduce the checksum number of byte from checksum of left segment
+ * b. Right Opn : Will update checksum new start and size
+ */
 M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 				  struct m0_be_tx          *tx,
 				  struct m0_ext            *ext,
@@ -539,7 +563,6 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	 * invariant until the loop exits (the map is "porous" during that
 	 * time).
 	 */
-
 	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
 
 	while (!m0_ext_is_empty(ext)) {
@@ -573,8 +596,8 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 				cut_left(seg, &clip, val_orig);
 			bstart[0] = seg->ee_val;
 			if (seg->ee_di_cksum.b_nob) {			 
-				  cksum[0].b_nob = m0_extent_get_checksum_nob(chunk->e_start, length[0], it->ec_unit_size, checksum_unit_size);
-              cksum[0].b_addr = seg->ee_di_cksum.b_addr;                      
+				cksum[0].b_nob = m0_extent_get_checksum_nob(chunk->e_start, length[0], it->ec_unit_size, checksum_unit_size);
+				cksum[0].b_addr = seg->ee_di_cksum.b_addr;                      
 			}
 		}
 		if (length[2] > 0) {
@@ -582,8 +605,8 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 				cut_right(seg, &clip, val_orig);
 			bstart[2] = seg->ee_val;
 			if (seg->ee_di_cksum.b_nob) {
-				cksum[2].b_nob = m0_extent_get_checksum_nob(clip.e_end, length[2], it->ec_unit_size, checksum_unit_size);
-				cksum[2].b_addr =    m0_extent_get_checksum_addr( seg->ee_di_cksum.b_addr, clip.e_end, chunk->e_start, it->ec_unit_size, checksum_unit_size);	
+				cksum[2].b_nob  = m0_extent_get_checksum_nob(clip.e_end, length[2], it->ec_unit_size, checksum_unit_size);
+				cksum[2].b_addr = m0_extent_get_checksum_addr( seg->ee_di_cksum.b_addr, clip.e_end, chunk->e_start, it->ec_unit_size, checksum_unit_size);	
 			}
 		}
 		if (length[0] == 0 && length[2] == 0 && del)
