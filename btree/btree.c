@@ -3420,53 +3420,51 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		return P_LOCK;
 	}
 	case P_ALLOC_STORE: {
-		lev = &oi->i_level[oi->i_alloc_lev];
-		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			if (oi->i_alloc_lev == 0) {
-				/**
-				 * If we are at root node and if there is
-				 * possibility of overflow at root node,
-				 * allocate two nodes for l_alloc and
-				 * oi->extra_node, as both nodes will
-				 * be used in case of root overflow.
-				 */
-				if (lev->l_alloc == NULL) {
-					int ksize;
-					int vsize;
-					int shift;
-					lev->l_alloc = oi->i_nop.no_node;
-
-					if (!node_isvalid(lev->l_node)) {
-						return m0_sm_op_sub(&bop->bo_op,
-								    P_CLEANUP,
-								    P_SETUP);
-					}
-					ksize = node_keysize(lev->l_node);
-					vsize = node_valsize(lev->l_node);
-					shift = node_shift(lev->l_node);
-					oi->i_nop.no_opc = NOP_ALLOC;
-					return node_alloc(&oi->i_nop, tree,
-							  shift,
-							  lev->l_node->n_type,
-							  ksize, vsize,
-							  bop->bo_tx,
-							  P_ALLOC_STORE);
-
-				} else if (oi->i_extra_node == NULL) {
-					oi->i_extra_node = oi->i_nop.no_node;
-					return P_LOCK;
-				} else
-					M0_ASSERT(0);
-			}
-			lev->l_alloc = oi->i_nop.no_node;
-			oi->i_alloc_lev--;
-			return P_ALLOC_REQUIRE;
-		} else {
+		if (oi->i_nop.no_op.o_sm.sm_rc != 0) {
 			if (lock_acquired)
 				lock_op_unlock(tree);
 			node_op_fini(&oi->i_nop);
 			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
 		}
+		lev = &oi->i_level[oi->i_alloc_lev];
+
+		if (oi->i_alloc_lev == 0) {
+			/**
+			 * If we are at root node and if there is possibility of
+			 * overflow at root node, allocate two nodes for l_alloc
+			 * and oi->extra_node, as both nodes will be used in
+			 * case of root overflow.
+			 */
+			if (lev->l_alloc == NULL) {
+				int ksize;
+				int vsize;
+				int shift;
+				lev->l_alloc = oi->i_nop.no_node;
+
+				if (!node_isvalid(lev->l_node)) {
+					return m0_sm_op_sub(&bop->bo_op,
+								P_CLEANUP,
+								P_SETUP);
+				}
+				ksize = node_keysize(lev->l_node);
+				vsize = node_valsize(lev->l_node);
+				shift = node_shift(lev->l_node);
+				oi->i_nop.no_opc = NOP_ALLOC;
+				return node_alloc(&oi->i_nop, tree,
+						  shift, lev->l_node->n_type,
+						  ksize, vsize, bop->bo_tx,
+						  P_ALLOC_STORE);
+
+			} else if (oi->i_extra_node == NULL) {
+				oi->i_extra_node = oi->i_nop.no_node;
+				return P_LOCK;
+			} else
+				M0_ASSERT(0);
+		}
+
+		lev->l_alloc = oi->i_nop.no_node;
+		oi->i_alloc_lev--;
+		return P_ALLOC_REQUIRE;
 	}
 	case P_LOCK:
 		if (!lock_acquired)
