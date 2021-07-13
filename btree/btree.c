@@ -3380,7 +3380,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				if (oi->i_key_found)
 					return P_LOCK;
 				/**
-				 * Initialized i_alloc_lev to level of leaf
+				 * Initialize i_alloc_lev to level of leaf
 				 * node.
 				 */
 				oi->i_alloc_lev = oi->i_used;
@@ -3393,10 +3393,10 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	case P_ALLOC_REQUIRE:{
 		do {
 			lev = &oi->i_level[oi->i_alloc_lev];
-			if (!node_isvalid(lev->l_node)) {
+			if (!node_isvalid(lev->l_node))
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
-			}
+
 			if (!node_isoverflow(lev->l_node))
 				break;
 			if (lev->l_alloc == NULL || (oi->i_alloc_lev == 0 &&
@@ -3410,7 +3410,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				int shift = node_shift(lev->l_node);
 				oi->i_nop.no_opc = NOP_ALLOC;
 				return node_alloc(&oi->i_nop, tree,
-						  shift,lev->l_node->n_type,
+						  shift, lev->l_node->n_type,
 						  ksize, vsize, bop->bo_tx,
 						  P_ALLOC_STORE);
 
@@ -3452,7 +3452,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 							  bop->bo_tx,
 							  P_ALLOC_STORE);
 
-				} else if (oi->i_extra_node == NULL){
+				} else if (oi->i_extra_node == NULL) {
 					oi->i_extra_node = oi->i_nop.no_node;
 					return P_LOCK;
 				} else
