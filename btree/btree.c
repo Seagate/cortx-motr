@@ -1234,7 +1234,9 @@ struct m0_btree_oimpl {
 	/** Level from where sibling nodes needs to be loaded. **/
 	int             i_pivot;
 
-	int             i_alloc;
+	/** i_alloc_lev will be used for P_ALLOC_REQUIRE and P_ALLOC_STORE phase
+	 * to indicate current level index. **/
+	int             i_alloc_lev;
 
 	/** Store node_find() output. */
 	bool            i_key_found;
@@ -3465,11 +3467,10 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				if (oi->i_key_found)
 					return P_LOCK;
 				/**
-				 * i_alloc will be used for P_ALLOC_REQUIRE and
-				 * P_ALLOC_STORE phase to indicate current level
-				 * index.
-				 **/
-				oi->i_alloc = oi->i_used;
+				 * Initialized i_alloc_lev to level of leaf
+				 * node.
+				 */
+				oi->i_alloc_lev = oi->i_used;
 				return P_ALLOC_REQUIRE;
 			}
 		} else {
@@ -3478,16 +3479,19 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		}
 	case P_ALLOC_REQUIRE:{
 		do {
-			lev = &oi->i_level[oi->i_alloc];
+			lev = &oi->i_level[oi->i_alloc_lev];
 			if (!node_isvalid(lev->l_node)) {
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
 			if (!node_isoverflow(lev->l_node))
 				break;
-			if ((oi->i_alloc == 0 &&
-			     (lev->l_alloc == NULL || oi->i_extra_node ==NULL)) ||
-			    (oi->i_alloc > 0 && lev->l_alloc == NULL)) {
+			if (lev->l_alloc == NULL || (oi->i_alloc_lev == 0 &&
+			    oi->i_extra_node == NULL)) {
+				/**
+				 * Depending on the level of node, shift can be
+				 * updated.
+				 */
 				int ksize = node_keysize(lev->l_node);
 				int vsize = node_valsize(lev->l_node);
 				int shift = node_shift(lev->l_node);
@@ -3498,25 +3502,52 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 						  bop->bo_tx, P_ALLOC_STORE);
 
 			}
-			oi->i_alloc--;
-		} while (oi->i_alloc >= 0);
+			oi->i_alloc_lev--;
+		} while (oi->i_alloc_lev >= 0);
 		return P_LOCK;
 	}
 	case P_ALLOC_STORE: {
-		lev = &oi->i_level[oi->i_alloc];
+		lev = &oi->i_level[oi->i_alloc_lev];
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			if (oi->i_alloc == 0) {
+			if (oi->i_alloc_lev == 0) {
+				/**
+				 * If we are at root node and if there is
+				 * possibility of overflow at root node,
+				 * allocate two nodes for l_alloc and
+				 * oi->extra_node, as both nodes will
+				 * be used in case of root overflow.
+				 */
 				if (lev->l_alloc == NULL) {
+					int ksize;
+					int vsize;
+					int shift;
 					lev->l_alloc = oi->i_nop.no_node;
-					return P_ALLOC_REQUIRE;
 
-				} else {
+					if (!node_isvalid(lev->l_node)) {
+						return m0_sm_op_sub(&bop->bo_op,
+								    P_CLEANUP,
+								    P_SETUP);
+					}
+					ksize = node_keysize(lev->l_node);
+					vsize = node_valsize(lev->l_node);
+					shift = node_shift(lev->l_node);
+					oi->i_nop.no_opc = NOP_ALLOC;
+					return node_alloc(&oi->i_nop, tree,
+							  shift,
+							  lev->l_node->n_type,
+							  ksize, vsize,
+							  lock_acquired,
+							  bop->bo_tx,
+							  P_ALLOC_STORE);
+
+				} else if (oi->i_extra_node == NULL){
 					oi->i_extra_node = oi->i_nop.no_node;
 					return P_LOCK;
-				}
+				} else
+					M0_ASSERT(0);
 			}
 			lev->l_alloc = oi->i_nop.no_node;
-			oi->i_alloc--;
+			oi->i_alloc_lev--;
 			return P_ALLOC_REQUIRE;
 		} else {
 			if (lock_acquired)
@@ -3682,12 +3713,13 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_ALLOC_REQUIRE] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_ALLOC_REQUIRE",
-		.sd_allowed = M0_BITS(P_ALLOC_STORE, P_LOCK, P_CLEANUP, P_SETUP),
+		.sd_allowed = M0_BITS(P_ALLOC_STORE, P_LOCK, P_CLEANUP),
 	},
 	[P_ALLOC_STORE] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_ALLOC_STORE",
-		.sd_allowed = M0_BITS(P_ALLOC_REQUIRE, P_LOCK, P_CLEANUP),
+		.sd_allowed = M0_BITS(P_ALLOC_REQUIRE, P_ALLOC_STORE, P_LOCK,
+				      P_CLEANUP),
 	},
 	[P_STORE_CHILD] = {
 		.sd_flags   = 0,
@@ -3772,6 +3804,7 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "put-alloc-next", P_ALLOC_REQUIRE, P_LOCK },
 	{ "put-alloc-fail", P_ALLOC_REQUIRE, P_CLEANUP },
 	{ "put-allocstore-require", P_ALLOC_STORE, P_ALLOC_REQUIRE },
+	{ "put-allocstore-repeat", P_ALLOC_STORE, P_ALLOC_STORE },
 	{ "put-allocstore-next", P_ALLOC_STORE, P_LOCK },
 	{ "put-allocstore-fail", P_ALLOC_STORE, P_CLEANUP },
 	{ "del-child-check", P_STORE_CHILD, P_CHECK },
