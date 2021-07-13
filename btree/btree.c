@@ -3618,8 +3618,9 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_NEXTDOWN] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_NEXTDOWN",
-		.sd_allowed = M0_BITS(P_NEXTDOWN, P_ALLOC_REQUIRE, P_STORE_CHILD,
-				      P_CLEANUP, P_SETUP, P_LOCK, P_SIBLING),
+		.sd_allowed = M0_BITS(P_NEXTDOWN, P_ALLOC_REQUIRE,
+				      P_STORE_CHILD, P_SIBLING, P_CLEANUP,
+				      P_LOCK),
 	},
 	[P_SIBLING] = {
 		.sd_flags   = 0,
@@ -3711,7 +3712,6 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "get-nextdown-next", P_NEXTDOWN, P_LOCK },
 	{ "iter-nextdown-sibling", P_NEXTDOWN, P_SIBLING },
 	{ "kvop-nextdown-failed", P_NEXTDOWN, P_CLEANUP },
-	{ "kvop-nextdown-setup", P_NEXTDOWN, P_SETUP},
 	{ "iter-sibling-repeat", P_SIBLING, P_SIBLING },
 	{ "iter-sibling-next", P_SIBLING, P_LOCK },
 	{ "iter-sibling-failed", P_SIBLING, P_CLEANUP },
