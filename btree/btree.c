@@ -2325,7 +2325,7 @@ static struct ff_head *ff_data(const struct nd *node)
 
 static void *ff_key(const struct nd *node, int idx)
 {
-	struct ff_head *h  = ff_data(node);
+	struct ff_head *h    = ff_data(node);
 	void           *area = h + 1;
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
@@ -2335,7 +2335,7 @@ static void *ff_key(const struct nd *node, int idx)
 
 static void *ff_val(const struct nd *node, int idx)
 {
-	struct ff_head *h = ff_data(node);
+	struct ff_head *h    = ff_data(node);
 	void           *area = h + 1;
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
@@ -2346,7 +2346,7 @@ static void *ff_val(const struct nd *node, int idx)
 static bool ff_rec_is_valid(const struct slot *slot)
 {
 	struct ff_head *h = ff_data(slot->s_node);
-	bool   val_is_valid;
+	bool            val_is_valid;
 	val_is_valid = h->ff_level > 0 ?
 		       m0_vec_count(&slot->s_rec.r_val.ov_vec) <= h->ff_vsize :
 		       m0_vec_count(&slot->s_rec.r_val.ov_vec) == h->ff_vsize;
@@ -2613,7 +2613,7 @@ static void ff_cut(const struct nd *node, int idx, int size,
 
 static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 {
-	struct ff_head *h  = ff_data(node);
+	struct ff_head *h     = ff_data(node);
 	int             rsize = h->ff_ksize + h->ff_vsize;
 	void           *start = ff_key(node, idx);
 
