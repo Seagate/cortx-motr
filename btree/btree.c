@@ -778,9 +778,11 @@ enum {
 	NODE_SHIFT_MIN = 9,
 };
 
-static struct segaddr segaddr_build(const void *addr, int shift);
-static void          *segaddr_addr (const struct segaddr *addr);
-static int            segaddr_shift(const struct segaddr *addr);
+static struct segaddr  segaddr_build(const void *addr, int shift);
+static void           *segaddr_addr (const struct segaddr *addr);
+static int             segaddr_shift(const struct segaddr *addr);
+static uint32_t        segaddr_ntype_get(const struct segaddr *addr);
+static bool            segaddr_header_isvalid(const struct segaddr *addr);
 
 /**
  * B-tree node in a segment.
@@ -964,9 +966,6 @@ struct node_type {
 
 	/** Gets opaque data. */
 	void* (*nt_opaque_get)(const struct segaddr *addr);
-
-	/** Gets node type from segment. */
-	uint32_t (*nt_ntype_get)(const struct segaddr *addr);
 
 	/** Gets key size from segment. */
 	/* uint16_t (*nt_ksize_get)(const struct segaddr *addr); */
@@ -1634,6 +1633,23 @@ static int segaddr_shift(const struct segaddr *addr)
 	return (addr->as_core & 0xf) + NODE_SHIFT_MIN;
 }
 
+/**
+ * Returns the node type stored at segment address.
+ *
+ * @param seg_addr points to the formatted segment address.
+ *
+ * @return Node type.
+ */
+uint32_t segaddr_ntype_get(const struct segaddr *addr)
+{
+	struct node_header *h  =  segaddr_addr(addr) +
+				  sizeof(struct m0_format_header);
+
+	/** Modify M0_PRE as and when more node type support is addedd. */
+	M0_PRE(h->h_node_type == BNT_FIXED_FORMAT);
+	return h->h_node_type;
+}
+
 #if 0
 static void node_type_register(const struct node_type *nt)
 {
@@ -1772,6 +1788,13 @@ static void tree_put(struct td *tree)
 
 static const struct node_type fixed_format;
 
+static const struct node_type *btree_node_format[] = {
+	[BNT_FIXED_FORMAT]                        = &fixed_format,
+	[BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE]    = NULL,
+	[BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE]    = NULL,
+	[BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE] = NULL,
+};
+
 /**
  * This function loads the node descriptor for the node at segaddr in memory.
  * If a node descriptor pointing to this node is already loaded in memory then
@@ -1796,22 +1819,10 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	const struct node_type *nt;
 	struct nd              *node;
 	bool                    in_lrulist;
+	uint32_t                ntype;
 
 	nxt_state =  segops->so_node_get(op, tree, addr, nxt);
 
-	/**
-	 * TODO : Add following AIs after decoupling of node descriptor and
-	 * segment code.
-	 * 1. Get node_header::h_node_type segment address
-	 *	ntype = nt_ntype_get(addr);
-	 * 2.Add node_header::h_node_type (enum btree_node_type) to struct
-	 * node_type mapping. Use this mapping to get the node_type structure.
-	 */
-	/**
-	 * Temporarily taking fixed_format as nt. Remove this once above AI is
-	 * implemented
-	 * */
-	nt = &fixed_format;
 	/**
 	 * TODO: Adding list_lock to protect from multiple threads
 	 * accessing the same node descriptor concurrently.
@@ -1823,18 +1834,21 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	 * If the node was deleted before node_get can acquire list_lock, then
 	 * restart the tick funcions.
 	 */
-	if (!nt->nt_isvalid(addr)) {
-		op->no_op.o_sm.sm_rc = ECHILD;
+	if (!segaddr_header_isvalid(addr)) {
+		op->no_op.o_sm.sm_rc = M0_ERR(-ECHILD);
 		m0_rwlock_write_unlock(&list_lock);
 		return nxt_state;
 	}
+	ntype = segaddr_ntype_get(addr);
+	nt = btree_node_format[ntype];
+
 	op->no_node = nt->nt_opaque_get(addr);
 
 	if (op->no_node != NULL &&
 	    op->no_node->n_addr.as_core == addr->as_core) {
 
 		if (op->no_node->n_delayed_free) {
-			op->no_op.o_sm.sm_rc = EACCES;
+			op->no_op.o_sm.sm_rc = M0_ERR(-EACCES);
 			m0_rwlock_write_unlock(&list_lock);
 			return nxt_state;
 		}
@@ -2028,6 +2042,7 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	uint32_t                offset;
 	struct nd              *node = NULL;
 	const struct node_type *nt;
+	uint32_t                ntype;
 
 	m0_rwlock_write_lock(&trees_lock);
 
@@ -2038,19 +2053,8 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	 *  the reference count.
 	 */
 	if (addr != NULL && trees_loaded) {
-	/**
-	 * TODO : Add following AIs after decoupling of node descriptor and
-	 * segment code.
-	 * 1. Get node_header::h_node_type segment address
-	 *	ntype = segaddr_ntype_get(addr);
-	 * 2.Add node_header::h_node_type (enum btree_node_type) to struct
-	 * node_type mapping. Use this mapping to get the node_type structure.
-	 */
-	/**
-	 * Temporarily taking fixed_format as nt. Remove this once above AI is
-	 * implemented
-	 * */
-		nt = &fixed_format;
+		ntype = segaddr_ntype_get(addr);
+		nt = btree_node_format[ntype];
 		node = nt->nt_opaque_get(addr);
 		if (node != NULL && node->n_tree != NULL) {
 			tree = node->n_tree;
@@ -2298,10 +2302,8 @@ static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 static bool ff_invariant(const struct nd *node);
 static bool ff_verify(const struct nd *node);
-static bool ff_isvalid(const struct segaddr *addr);
 static void ff_opaque_set(const struct segaddr *addr, void *opaque);
 static void *ff_opaque_get(const struct segaddr *addr);
-uint32_t ff_ntype_get(const struct segaddr *addr);
 /* uint16_t ff_ksize_get(const struct segaddr *addr); */
 /* uint16_t ff_valsize_get(const struct segaddr *addr);  */
 
@@ -2338,29 +2340,13 @@ static const struct node_type fixed_format = {
 	.nt_set_level       = ff_set_level,
 	.nt_move            = generic_move,
 	.nt_invariant       = ff_invariant,
-	.nt_isvalid         = ff_isvalid,
+	.nt_isvalid         = segaddr_header_isvalid,
 	.nt_verify          = ff_verify,
 	.nt_opaque_set      = ff_opaque_set,
 	.nt_opaque_get      = ff_opaque_get,
-	.nt_ntype_get       = ff_ntype_get,
 	/* .nt_ksize_get    = ff_ksize_get, */
 	/* .nt_valsize_get  = ff_valsize_get, */
 };
-
-
-/**
- * Returns the node type stored at segment address.
- *
- * @param seg_addr points to the formatted segment address.
- *
- * @return Node type.
- */
-uint32_t ff_ntype_get(const struct segaddr *addr)
-{
-	struct node_header *h  =  segaddr_addr(addr) +
-				  sizeof(struct m0_format_header);
-	return h->h_node_type;
-}
 
 #if 0
 /**
@@ -2444,7 +2430,7 @@ static bool ff_verify(const struct nd *node)
 	return m0_format_footer_verify(h, true) == 0;
 }
 
-static bool ff_isvalid(const struct segaddr *addr)
+static bool segaddr_header_isvalid(const struct segaddr *addr)
 {
 	struct ff_head       *h = segaddr_addr(addr);
 	struct m0_format_tag  tag;
