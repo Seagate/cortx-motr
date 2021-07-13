@@ -55,6 +55,7 @@ fdmi_filter_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 	char                              *flt_root_str;
 	struct m0_fdmi_flt_node           *flt_root;
 	struct m0_conf_obj                *node;
+	struct m0_conf_obj                *dix_pver;
 	struct m0_conf_fdmi_filter        *d;
 	const struct m0_confx_fdmi_filter *s;
 	int                                rc;
@@ -64,28 +65,56 @@ fdmi_filter_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 	d = M0_CONF_CAST(dest, m0_conf_fdmi_filter);
 	s = XCAST(src);
 
-	rc = m0_conf_obj_find(dest->co_cache, &s->xf_node, &node);
+	d->ff_type = s->xf_type;
+	d->ff_filter_id = s->xf_filter_id;
+	rc = m0_bufs_to_strings(&d->ff_endpoints, &s->xf_endpoints);
 	if (rc != 0)
 		return M0_ERR(rc);
-	flt_root_str = m0_buf_strdup(&s->xf_filter_root);
-	if (flt_root_str == NULL)
-		return M0_ERR(-ENOMEM);
-	M0_ALLOC_PTR(flt_root);
-	if (flt_root == NULL) {
-		m0_free(flt_root_str);
-		return M0_ERR(-ENOMEM);
-	}
-	m0_fdmi_filter_root_set(&d->ff_filter, flt_root);
-	rc = m0_fdmi_flt_node_parse(flt_root_str, flt_root);
-	if (rc == 0) {
-		d->ff_filter_id = s->xf_filter_id;
+	switch (d->ff_type) {
+	case M0_FDMI_FILTER_TYPE_TREE:
+		rc = m0_conf_obj_find(dest->co_cache, &s->xf_node, &node);
+		if (rc != 0) {
+			m0_strings_free(d->ff_endpoints);
+			return M0_ERR(rc);
+		}
 		d->ff_node = M0_CONF_CAST(node, m0_conf_node);
-		rc = m0_bufs_to_strings(&d->ff_endpoints, &s->xf_endpoints);
-	} else {
-		M0_ASSERT(d->ff_filter.ff_root == flt_root);
-		m0_free0(&d->ff_filter.ff_root);
+		flt_root_str = m0_buf_strdup(&s->xf_filter_root);
+		if (flt_root_str == NULL) {
+			m0_strings_free(d->ff_endpoints);
+			return M0_ERR(-ENOMEM);
+		}
+		M0_ALLOC_PTR(flt_root);
+		if (flt_root == NULL) {
+			m0_free(flt_root_str);
+			m0_strings_free(d->ff_endpoints);
+			return M0_ERR(-ENOMEM);
+		}
+		m0_fdmi_filter_root_set(&d->ff_filter, flt_root);
+		rc = m0_fdmi_flt_node_parse(flt_root_str, flt_root);
+		if (rc != 0) {
+			M0_ASSERT(d->ff_filter.ff_root == flt_root);
+			m0_free0(&d->ff_filter.ff_root);
+			m0_strings_free(d->ff_endpoints);
+		}
+		m0_free(flt_root_str);
+		break;
+	case M0_FDMI_FILTER_TYPE_KV_SUBSTRING:
+		rc = m0_conf_obj_find(dest->co_cache, &s->xf_dix_pver,
+				      &dix_pver);
+		if (rc != 0) {
+			m0_strings_free(d->ff_endpoints);
+			return M0_ERR(rc);
+		}
+		d->ff_dix_pver = M0_CONF_CAST(dix_pver, m0_conf_pver);
+		rc = m0_bufs_to_strings(&d->ff_substrings, &s->xf_substrings);
+		if (rc != 0) {
+			m0_strings_free(d->ff_endpoints);
+			return M0_ERR(rc);
+		}
+		break;
+	default:
+		M0_IMPOSSIBLE("unknown FDMI filter type %"PRIu32, d->ff_type);
 	}
-	m0_free(flt_root_str);
 	return M0_RC(rc);
 }
 
@@ -99,18 +128,31 @@ fdmi_filter_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 
 	M0_ENTRY();
 	confx_encode(dest, src);
+	d->xf_type = s->ff_type;
+	d->xf_filter_id = s->ff_filter_id;
 	rc = m0_bufs_from_strings(&d->xf_endpoints, s->ff_endpoints);
 	if (rc != 0)
-		return M0_ERR(-ENOMEM);
-	d->xf_filter_id = s->ff_filter_id;
-	d->xf_node = s->ff_node->cn_obj.co_id;
-	rc = m0_fdmi_flt_node_print(s->ff_filter.ff_root, &str);
-	if (rc == 0) {
+		return M0_ERR(rc);
+	switch (s->ff_type) {
+	case M0_FDMI_FILTER_TYPE_TREE:
+		d->xf_node = s->ff_node->cn_obj.co_id;
+		rc = m0_fdmi_flt_node_print(s->ff_filter.ff_root, &str);
+		if (rc != 0) {
+			m0_bufs_free(&d->xf_endpoints);
+			return M0_ERR(rc);
+		}
 		rc = m0_buf_copy(&d->xf_filter_root, &M0_BUF_INITS(str));
 		m0_free(str);
-	} else {
-		m0_bufs_free(&d->xf_endpoints);
+		break;
+	case M0_FDMI_FILTER_TYPE_KV_SUBSTRING:
+		d->xf_dix_pver = s->ff_dix_pver->pv_obj.co_id;
+		rc = m0_bufs_from_strings(&d->xf_substrings, s->ff_substrings);
+		break;
+	default:
+		M0_IMPOSSIBLE("unknown FDMI filter type %"PRIu32, s->ff_type);
 	}
+	if (rc != 0)
+		m0_bufs_free(&d->xf_endpoints);
 	return M0_RC(rc);
 }
 
@@ -124,7 +166,9 @@ static bool fdmi_filter_match(const struct m0_conf_obj *cached,
 	M0_PRE(xobj->xf_endpoints.ab_count != 0);
 
 	return m0_bufs_streq(&xobj->xf_endpoints, obj->ff_endpoints) &&
-		m0_fid_eq(&obj->ff_node->cn_obj.co_id, &xobj->xf_node);
+		m0_bufs_streq(&xobj->xf_substrings, obj->ff_substrings) &&
+		m0_fid_eq(&obj->ff_node->cn_obj.co_id, &xobj->xf_node) &&
+		m0_fid_eq(&obj->ff_dix_pver->pv_obj.co_id, &xobj->xf_dix_pver);
 }
 
 static void fdmi_filter_delete(struct m0_conf_obj *obj)
@@ -132,6 +176,7 @@ static void fdmi_filter_delete(struct m0_conf_obj *obj)
 	struct m0_conf_fdmi_filter *x = M0_CONF_CAST(obj, m0_conf_fdmi_filter);
 
 	m0_strings_free(x->ff_endpoints);
+	m0_strings_free(x->ff_substrings);
 	m0_fdmi_filter_fini(&x->ff_filter);
 	m0_conf_fdmi_filter_bob_fini(x);
 	m0_free(x);

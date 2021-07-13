@@ -71,6 +71,16 @@
  * operations. */
 
 /**
+ * FDMI filter type id.
+ */
+enum m0_fdmi_filter_type_id {
+	/** Tree-based filter */
+	M0_FDMI_FILTER_TYPE_TREE = 1,
+	/** Substring-based filter for CAS kv pairs */
+	M0_FDMI_FILTER_TYPE_KV_SUBSTRING,
+};
+
+/**
  * Filter operation code
  *
  * Specifies what operation should be applied to operands.
