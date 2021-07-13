@@ -144,6 +144,7 @@ extern void m0_be_ut_alloc_spare(void);
 extern void m0_be_ut_list(void);
 extern void m0_be_ut_btree_create_destroy(void);
 extern void m0_be_ut_btree_create_truncate(void);
+extern void m0_be_ut_btree_ver_and_tbs(void);
 extern void m0_be_ut_emap(void);
 extern void m0_be_ut_seg_dict(void);
 extern void m0_be_ut_seg0_test(void);
@@ -266,7 +267,8 @@ struct m0_ut_suite be_ut = {
 		{ "list",                    m0_be_ut_list                    },
 		{ "btree-create_destroy",    m0_be_ut_btree_create_destroy    },
 		{ "btree-create_truncate",   m0_be_ut_btree_create_truncate   },
-		{ "seg_dict",                m0_be_ut_seg_dict                },
+		{ "btree-create_truncate",   m0_be_ut_btree_create_truncate   },
+		{ "btree-ver_and_tbs",       m0_be_ut_btree_ver_and_tbs       },
 #ifndef __KERNEL__
 		{ "seg0",                    m0_be_ut_seg0_test               },
 #endif /* __KERNEL__ */
