@@ -94,14 +94,9 @@ struct m0_sm_state_descr isc_fom_phases[] = {
 
 static size_t fom_home_locality(const struct m0_fom *fom)
 {
-	struct m0_fop_isc *fi = m0_fop_data(fom->fo_fop);
-	size_t             hash;
+	struct m0_isc_comp_req *comp_req = M0_AMB(comp_req, fom, icr_fom);
 
-	M0_ENTRY("fom=%p cob="FID_F, fom, FID_P(&fi->fi_cob));
-	hash = m0_fid_hash(&fi->fi_cob);
-	M0_LEAVE("hash=%zx", hash);
-
-	return hash;
+	return m0_fid_hash(&comp_req->icr_comp_fid);
 }
 
 static struct m0_rpc_machine *fom_rmach(const struct m0_fom *fom)
