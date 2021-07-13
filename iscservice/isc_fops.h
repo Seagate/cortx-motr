@@ -55,11 +55,10 @@ extern const struct m0_rpc_item_type m0_rpc_item_type_isc_rep;
 struct m0_fop_isc {
 	/** An identifier of the computation registered with the service. */
 	struct m0_fid        fi_comp_id;
-	/** A component object to perform the computation on. */
-	struct m0_fid        fi_cob;
 	/**
-	 * An array holding the relevant arguments for the computation,
-	 * like index vector for I/O on the cob.
+	 * An array holding the relevant arguments for the computation.
+	 * This might involve gfid, cob fid, and few other parameters
+	 * relevant to the required computation.
 	 */
 	struct m0_rpc_at_buf fi_args;
 	/**

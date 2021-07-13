@@ -630,8 +630,6 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom)
 
 	dom = m0_fom_dom();
 	loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
-	M0_LOG(M0_DEBUG, "fom=%p locs_nr=%zu loc_idx=%zu", fom,
-	       dom->fd_localities_nr, loc_idx);
 	M0_ASSERT(loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = dom->fd_localities[loc_idx];
 	fom->fo_loc_idx = loc_idx;
