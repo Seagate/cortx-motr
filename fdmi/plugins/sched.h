@@ -52,11 +52,4 @@ struct sched_conf {
 	struct m0_fid  fdmi_plugin_fid;
 } c_params;
 
-static struct m0_semaphore	sched_sem;
-static struct m0_config	m0_conf = {};
-static struct m0_client	*m0c = NULL;
-static struct m0_container	container = {};
-static struct m0_idx_dix_config	dix_conf = {};
-static struct m0_realm	uber_realm = {};
-
 #endif /*  __MOTR_FDMI_PLUGINS_SCHED_H__ */

@@ -1,31 +1,48 @@
 /* -*- C -*- */
 /*
-* Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*
-* For any questions about this software or licensing,
-* please email opensource@seagate.com or cortx-questions@seagate.com.
-*
-*/
+ * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * For any questions about this software or licensing,
+ * please email opensource@seagate.com or cortx-questions@seagate.com.
+ *
+ */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FDMI
 
+#include <unistd.h>
+#include <fcntl.h>
 #include "fdmi/plugins/sched.h"
-/*
+
+#define FDMI_PLUGIN_EP "/etc/fdmi_plugin_ep"
+
+static struct m0_semaphore sched_sem;
+static struct m0_config	m0_conf = {};
+static struct m0_client	*m0c = NULL;
+static struct m0_idx_dix_config	dix_conf = {};
+
+const struct m0_fdmi_pd_ops *pdo;
+static struct m0_reqh_service *sched_fdmi_service = NULL;
+
+#define MAX_LEN 8192
+static char buffer[MAX_LEN];
+
+
+#if 0
 M0_INTERNAL void m0_save_m0_xcode_type(int fd, char tab[], const struct m0_xcode_type *xf_type)
 {
-	if (xf_type == NULL )
+	if (xf_type == NULL)
 		return;
 	int buffer_len = 4096;
 	char buffer[buffer_len];
@@ -71,6 +88,7 @@ M0_INTERNAL void m0_save_m0_xcode_type(int fd, char tab[], const struct m0_xcode
 	write(fd, buffer, strlen(buffer));
 
 }
+
 M0_INTERNAL void m0_save_m0_fol_rec(struct m0_fol_rec *rec, const char *prefix)
 {
 	char filename[32];
@@ -81,6 +99,7 @@ M0_INTERNAL void m0_save_m0_fol_rec(struct m0_fol_rec *rec, const char *prefix)
 	sprintf(filename, "/tmp/fol_rec_%s_%p_%d", prefix, rec, fc);
 	M0_ENTRY("m0_save_m0_fol_rec fol rec=%p\n ", rec);
 	++fc;
+
 	//open the file
 	fd = open(filename, O_WRONLY | O_CREAT);
 
@@ -179,13 +198,13 @@ M0_INTERNAL void m0_save_m0_fol_rec(struct m0_fol_rec *rec, const char *prefix)
 			sprintf(buffer, "\n\t\t\t\t\t\tcr_key: %lu bytes ", cas_op->cg_rec.cr_rec[i].cr_key.u.ab_buf.b_nob);
 			write(fd, buffer, strlen(buffer));
 			write(fd, cas_op->cg_rec.cr_rec[i].cr_key.u.ab_buf.b_addr,
-				cas_op->cg_rec.cr_rec[i].cr_key.u.ab_buf.b_nob);
+			      cas_op->cg_rec.cr_rec[i].cr_key.u.ab_buf.b_nob);
 			sprintf(buffer, "\n\t\t\t\t\t\tcr_val: %lu bytes ", cas_op->cg_rec.cr_rec[i].cr_val.u.ab_buf.b_nob);
 			write(fd, buffer, strlen(buffer));
 			write(fd, cas_op->cg_rec.cr_rec[i].cr_val.u.ab_buf.b_addr,
-				 cas_op->cg_rec.cr_rec[i].cr_val.u.ab_buf.b_nob);
+			      cas_op->cg_rec.cr_rec[i].cr_val.u.ab_buf.b_nob);
 			M0_LOG(M0_DEBUG, "op = %p key: %lu value=%lu ", cas_op, cas_op->cg_rec.cr_rec[i].cr_key.u.ab_buf.b_nob,
-			cas_op->cg_rec.cr_rec[i].cr_val.u.ab_buf.b_nob);
+			       cas_op->cg_rec.cr_rec[i].cr_val.u.ab_buf.b_nob);
 		}
 		sprintf(buffer, "\n\t\t\t\t\t}\n"); //struct m0_cas_recv
 		write(fd, buffer, strlen(buffer));
@@ -209,7 +228,7 @@ M0_INTERNAL void m0_save_m0_fol_rec(struct m0_fol_rec *rec, const char *prefix)
 	} m0_tl_endfor;
 	sprintf(buffer, "\t}\n");
 
-	//struct m0_fdmi_src_rec
+        //struct m0_fdmi_src_rec
 	sprintf(buffer, "\tstruct m0_fdmi_src_rec {\n");
 	write(fd, buffer, strlen(buffer));
 	sprintf(buffer, "\t\tfsr_magic: %lu\n",rec->fr_fdmi_rec.fsr_magic);
@@ -235,77 +254,49 @@ M0_INTERNAL void m0_save_m0_fol_rec(struct m0_fol_rec *rec, const char *prefix)
 	close(fd);
 	M0_LEAVE("fol rec ptr=%p\n", rec);
 }
-*/
+#endif
 
-#define MAX_LEN 8192
-
-char buffer[MAX_LEN];
 M0_INTERNAL char *to_hex(void *addr, int len)
 {
-	int i;
-	int j;
+	int i, j;
 	if ((2 * len) > MAX_LEN) {
-		m0_console_printf( "to_hex() failed with (2 * len) > MAX_LEN\n");
+		fprintf(stderr, "to_hex() failed with (2 * len) > MAX_LEN\n");
 		return NULL;
 	}
-	for(i = 0, j = 0; i < (2 * len) && j < len; ++j) {
+	for(i = 0, j = 0; i < (2 * len) && j < len; ++j)
 		i += sprintf(buffer + i, "%02x", ((char *)addr)[j]);
-	}
 	buffer[2 * len - 2] = '\0';
 	return buffer;
 }
-/*
-const char hexmap[] = {'0', '1', '2', '3', '4', '5', '6', '7',
-                           '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-char *to_hex(char *addr, int len)
-{
-	int i;
-    char *buffer = (char *) malloc(2 * len);
-	if (buffer == NULL) {
-		m0_console_printf( "malloc failed\n");
-		return NULL;
-	}
-    //bzero(buffer, 2*len);
-	for (i = 0; i < len; ++i) {
-		buffer[2 * i]     = hexmap[(addr[i] & 0xF0) >> 4];
-		buffer[2 * i + 1] = hexmap[addr[i] & 0x0F];
-	}
-	buffer[2 * len - 2] = '\0';
-	m0_console_printf(" 2 * i: %d len: %d\n", 2 * i, len);
-	return buffer;
-}
-*/
 
 M0_INTERNAL void m0_dump_m0_fol_rec_to_json(struct m0_fol_rec *rec)
 {
+	struct m0_fol_frag *frag;
 	int i;
 
-	//m0_fol_frag:rp_link to this list
-	struct m0_fol_frag     *frag;
 	m0_tl_for(m0_rec_frag, &rec->fr_frags, frag) {
-
 		struct m0_fop_fol_frag *fp_frag = frag->rp_data;
 		struct m0_cas_op *cas_op = fp_frag->ffrp_fop;
 		struct m0_cas_recv cg_rec = cas_op->cg_rec;
 		struct m0_cas_rec *cr_rec = cg_rec.cr_rec;
 
-		/*
-		m0_console_printf("cas op opcode: %d\n", cas_op->cg_opcode);
-		*/
 		for (i = 0; i < cg_rec.cr_nr; i++) {
 			int len = 0;
 
 			m0_console_printf("{ ");
 
 			len = sizeof(struct m0_fid);
-			m0_console_printf("\"fid\": \"%s\", ", to_hex((void *)&cas_op->cg_id.ci_fid, len));
+			m0_console_printf("\"fid\": \"%s\", ",
+					  to_hex((void *)&cas_op->cg_id.ci_fid, len));
 
 			len = cr_rec[i].cr_key.u.ab_buf.b_nob;
-			m0_console_printf("\"cr_key\": \"%s\", ", to_hex(cr_rec[i].cr_key.u.ab_buf.b_addr, len));
+			m0_console_printf("\"cr_key\": \"%s\", ",
+					  to_hex(cr_rec[i].cr_key.u.ab_buf.b_addr, len));
 
 			len = cr_rec[i].cr_val.u.ab_buf.b_nob;
 			if (len > 0) {
-				m0_console_printf("\"cr_val\": \"%s\"", to_hex(cr_rec[i].cr_val.u.ab_buf.b_addr, len));
+				m0_console_printf("\"cr_val\": \"%s\"",
+						  to_hex(cr_rec[i].cr_val.u.ab_buf.b_addr, len));
 			} else {
 				m0_console_printf("\"cr_val\": \"0\"");
 			}
@@ -317,7 +308,7 @@ M0_INTERNAL void m0_dump_m0_fol_rec_to_json(struct m0_fol_rec *rec)
 
 static void usage(void)
 {
-	m0_console_printf(
+	fprintf(stderr,
 		"Usage: m0sched "
 		"-l local_addr -h ha_addr -p profile_fid -f process_fid "
 		"-g fdmi_plugin_fid\n"
@@ -334,86 +325,80 @@ static void usage(void)
  * @retval 0      Success.
  * @retval -Exxx  Error.
  */
-
-static int
-sched_args_parse(struct sched_conf *params, int argc, char ** argv)
+static int sched_args_parse(struct sched_conf *params, int argc, char ** argv)
 {
-	int    rc = 0;
+	int rc = 0;
 
 	params->local_addr 	= NULL;
 	params->ha_addr    	= NULL;
 	params->profile_fid     = NULL;
 	params->process_fid   	= NULL;
+	params->fdmi_plugin_fid_s = NULL;
 
 	rc = M0_GETOPTS("m0sched", argc, argv,
 			M0_HELPARG('?'),
 			M0_VOIDARG('i', "more verbose help",
-					LAMBDA(void, (void) {
-						usage();
-						exit(0);
-					})),
+				   LAMBDA(void, (void) {
+						   usage();
+						   exit(0);
+					   })),
 			M0_STRINGARG('l', "Local endpoint address",
-					LAMBDA(void, (const char *string) {
-					params->local_addr = (char*)string;
-					})),
+				     LAMBDA(void, (const char *string) {
+						     params->local_addr = (char*)string;
+					     })),
 			M0_STRINGARG('h', "HA address",
-					LAMBDA(void, (const char *str) {
-						params->ha_addr = (char*)str;
-					})),
+				     LAMBDA(void, (const char *str) {
+						     params->ha_addr = (char*)str;
+					     })),
 			M0_STRINGARG('f', "Process FID",
-					LAMBDA(void, (const char *str) {
-						params->process_fid = (char*)str;
-					})),
-			M0_STRINGARG('p', "Profile options for Client",
-					LAMBDA(void, (const char *str) {
-						params->profile_fid = (char*)str;
-					})),
+				     LAMBDA(void, (const char *str) {
+						     params->process_fid = (char*)str;
+					     })),
+			M0_STRINGARG('p', "Profile options for client",
+				     LAMBDA(void, (const char *str) {
+						     params->profile_fid = (char*)str;
+					     })),
 			M0_STRINGARG('g', "FDMI plugin fid",
-					LAMBDA(void, (const char *str) {
-						params->fdmi_plugin_fid_s =
-							(char*)str;
-					})));
+				     LAMBDA(void, (const char *str) {
+						     params->fdmi_plugin_fid_s =
+							     (char*)str;
+					     })));
 	if (rc != 0)
 		return M0_ERR(rc);
-	rc = m0_fid_sscanf(params->fdmi_plugin_fid_s, &params->fdmi_plugin_fid);
-	if (rc != 0) {
-		return M0_ERR_INFO(rc, "invalid format: fdmi_plugin_fid=%s",
-		                   params->fdmi_plugin_fid_s);
-	}
-	/* All mandatory params must be defined. */
+
+        /* All mandatory params must be defined. */
 	if (rc == 0 &&
 	    (params->local_addr == NULL || params->ha_addr == NULL ||
 	     params->profile_fid == NULL || params->process_fid == NULL ||
 	     params->fdmi_plugin_fid_s == NULL)) {
 		usage();
-		rc = M0_ERR(-EINVAL);
+		return M0_ERR(-EINVAL);
+	}
+
+	rc = m0_fid_sscanf(params->fdmi_plugin_fid_s, &params->fdmi_plugin_fid);
+	if (rc != 0) {
+		rc = M0_ERR_INFO(rc, "Invalid fdmi plugin fid format: fdmi_plugin_fid=%s",
+				 params->fdmi_plugin_fid_s);
 	}
 
 	return rc;
 }
 
 static int classify_handle_fdmi_rec_not(struct m0_uint128 *rec_id,
-                    struct m0_buf fdmi_rec,
-                    struct m0_fid filter_id)
+					struct m0_buf fdmi_rec,
+					struct m0_fid filter_id)
 {
-	int rc = 0;
 	struct m0_fol_rec fol_rec;
 
 	m0_fol_rec_init(&fol_rec, NULL);
 	m0_fol_rec_decode(&fol_rec, &fdmi_rec);
-
 	m0_dump_m0_fol_rec_to_json(&fol_rec);
-
 	m0_fol_rec_fini(&fol_rec);
-
-	return rc;
+	return 0;
 }
 
-const struct m0_fdmi_pd_ops *pdo;
-
-static struct m0_reqh_service *sched_fdmi_service;
-
-static int fdmi_service_start(struct m0_client *m0c){
+static int fdmi_service_start(struct m0_client *m0c)
+{
 	struct m0_reqh *reqh = &m0c->m0c_reqh;
 	struct m0_reqh_service_type *stype;
 	bool start_service = false;
@@ -422,79 +407,84 @@ static int fdmi_service_start(struct m0_client *m0c){
 	stype = m0_reqh_service_type_find("M0_CST_FDMI");
 	if (stype == NULL) {
 		M0_LOG(M0_ERROR, "FDMI service type is not found.");
-		return M0_ERR_INFO(-EINVAL, "Unknown reqh service type: fdmi");
+		return M0_ERR_INFO(-EINVAL, "Unknown reqh service type: M0_CST_FDMI");
 	}
 
 	sched_fdmi_service = m0_reqh_service_find(stype, reqh);
 	if (sched_fdmi_service == NULL) {
 		rc = m0_reqh_service_allocate(&sched_fdmi_service, &m0_fdmi_service_type, NULL);
-		M0_POST(rc == 0);
+		if (rc != 0)
+			return M0_RC_INFO(rc, "Failed to allocate FDMI service.");
 		m0_reqh_service_init(sched_fdmi_service, reqh, NULL);
 		start_service = true;
 	}
 
-	if (start_service) {
-		rc = m0_reqh_service_start(sched_fdmi_service);
-		M0_POST(rc == 0);
-	}
+	if (start_service)
+        	rc = m0_reqh_service_start(sched_fdmi_service);
 	return M0_RC(rc);
+}
+
+static void fdmi_service_stop(struct m0_client *m0c)
+{
+	if (sched_fdmi_service != NULL) {
+		m0_reqh_service_stop(sched_fdmi_service);
+		sched_fdmi_service = NULL;
+	}
 }
 
 static int init_fdmi_plugin(struct sched_conf *conf)
 {
-    int rc;
+	int rc;
 
-    pdo = m0_fdmi_plugin_dock_api_get();
-    const struct m0_fdmi_filter_desc fd;
+	pdo = m0_fdmi_plugin_dock_api_get();
+	const struct m0_fdmi_filter_desc fd;
 
-    const static struct m0_fdmi_plugin_ops pcb = {
-        .po_fdmi_rec = classify_handle_fdmi_rec_not
-    };
+	const static struct m0_fdmi_plugin_ops pcb = {
+		.po_fdmi_rec = classify_handle_fdmi_rec_not
+	};
 
-    /* printf("Registering classify plugin."); */
-    rc = pdo->fpo_register_filter(&conf->fdmi_plugin_fid, &fd, &pcb);
-    printf("Plugin registration rc: %d\n", rc);
-    if (rc < 0)
-        goto end_fdmi_init;
+	rc = pdo->fpo_register_filter(&conf->fdmi_plugin_fid, &fd, &pcb);
+	fprintf(stderr, "Plugin registration failed: rc=%d\n", rc);
+	if (rc != 0)
+		return rc;
 
-    /* printf("Classify rc: %d", rc); */
-    pdo->fpo_enable_filters(true, &conf->fdmi_plugin_fid, 1);
- end_fdmi_init:
-    return rc;
+	pdo->fpo_enable_filters(true, &conf->fdmi_plugin_fid, 1);
+	return rc;
 }
-static void deinit_plugin(struct sched_conf *conf)
+
+static void fini_fdmi_plugin(struct sched_conf *conf)
 {
 	pdo->fpo_enable_filters(false, &conf->fdmi_plugin_fid, 1);
 	pdo->fpo_deregister_plugin(&conf->fdmi_plugin_fid, 1);
-
 }
 
-#include <unistd.h>
-#include <fcntl.h>
+#if 0
+static int write_plugin_endpoint(char *fdmi_plugin_ep) {
+	int fd;
+	int rc;
 
-#define FDMI_PLUGIN_EP "/etc/fdmi_plugin_ep"
+	fd = open(FDMI_PLUGIN_EP, O_CREAT | O_WRONLY, 0666);
+	if (fd < 0) {
+		fprintf(stderr, "Failed to open %s: error=%d\n", FDMI_PLUGIN_EP, errno);
+		return errno;
+	}
 
-static void write_plugin_endpoint(char *fdmi_plugin_ep) {
-    int fd;
-    int rc;
-    fd = open(FDMI_PLUGIN_EP, O_CREAT | O_WRONLY, 0666);
-    if (fd < 0) {
-        m0_console_printf("open failed in write_plugin_endpoint\n");
-        return;
-    }
-
-    rc = write(fd, fdmi_plugin_ep, strlen(fdmi_plugin_ep));
-    if (rc < 0) {
-        m0_console_printf("write failed in write_plugin_endpoint\n");
-        return;
-    }
-    m0_console_printf("%s written to %s\n", fdmi_plugin_ep, FDMI_PLUGIN_EP);
-    close(fd);
+	rc = write(fd, fdmi_plugin_ep, strlen(fdmi_plugin_ep));
+	if (rc != 0) {
+		fprintf(stderr, "Failed to write to %s\n", FDMI_PLUGIN_EP);
+		close(fd);
+		return rc;
+	}
+	fprintf(stderr, "%s written to %s\n", fdmi_plugin_ep, FDMI_PLUGIN_EP);
+	close(fd);
+	return rc;
 }
+#endif
 
 static int sched_init(struct sched_conf *conf)
 {
 	int rc;
+
 	m0_conf.mc_local_addr            = conf->local_addr;
 	m0_conf.mc_ha_addr               = conf->ha_addr;
 	m0_conf.mc_profile               = conf->profile_fid;
@@ -509,60 +499,46 @@ static int sched_init(struct sched_conf *conf)
 	dix_conf.kc_create_meta 	 = false;
 	m0_conf.mc_idx_service_conf 	 = &dix_conf;
 
-	write_plugin_endpoint(conf->local_addr);
-
 	/* Client instance */
 	rc = m0_client_init(&m0c, &m0_conf, true);
-	if (rc != 0) {
-		fprintf(stderr, "Failed to initialise Client: %d\n", rc);
-		goto do_exit;
-	}
+	if (rc != 0)
+		return rc;
 
 	M0_POST(m0c != NULL);
 
 	rc = fdmi_service_start(m0c);
-	if (rc !=0)
-		goto do_exit;
-
-	/* And finally, client root realm */
-	m0_container_init(&container,
-				 NULL, &M0_UBER_REALM,
-				 m0c);
-
-	rc = container.co_realm.re_entity.en_sm.sm_rc;
 	if (rc != 0) {
-		fprintf(stderr, "Failed to open uber realm\n");
-		goto do_exit;
+		m0_client_fini(m0c, true);
+		return rc;
 	}
 
-	M0_POST(container.co_realm.re_instance != NULL);
-	uber_realm = container.co_realm;
 	rc = init_fdmi_plugin(conf);
-	if (rc !=0)
-		goto do_exit;
-do_exit:
+	if (rc != 0) {
+		fdmi_service_stop(m0c);
+		m0_client_fini(m0c, true);
+	}
 	return rc;
 }
 
 static void sched_fini(struct sched_conf *conf)
 {
-	deinit_plugin(conf);
-	//m0_reqh_service_stop(sched_fdmi_service);
+	fini_fdmi_plugin(conf);
+
+	/* Client stops its services including FDMI */
 	m0_client_fini(m0c, true);
 }
-/*
- * ---------------------------------------------------------------------
- * signal handling
- */
 
+/*
+ * Signals handling
+ */
 static void sched_sighandler(int signum)
 {
-	m0_console_printf("m0sched Interrupted by signal %d\n", signum);
+	fprintf(stderr, "m0sched interrupted by signal %d\n", signum);
 	m0_semaphore_up(&sched_sem);
-	/* Restore default handlers. */
+
+        /* Restore default handlers. */
 	signal(SIGINT, SIG_DFL);
 	signal(SIGTERM, SIG_DFL);
-
 }
 
 static int sched_sighandler_init(void)
@@ -571,6 +547,7 @@ static int sched_sighandler_init(void)
 	int              rc;
 
 	sigemptyset(&sa.sa_mask);
+
 	/* Block these signals while the handler runs. */
 	sigaddset(&sa.sa_mask, SIGINT);
 	sigaddset(&sa.sa_mask, SIGTERM);
@@ -579,46 +556,58 @@ static int sched_sighandler_init(void)
 	return rc == 0 ? 0 : M0_ERR(errno);
 }
 
-void print_params(struct sched_conf *params) {
-	printf("local: %s\n", params->local_addr);
-	printf("ha: %s\n", params->ha_addr);
-	printf("prof: %s\n", params->profile_fid);
-	printf("process: %s\n", params->process_fid);
+static void print_params(struct sched_conf *params)
+{
+	fprintf(stderr,
+		"Starting params:\n"
+		"  local_ep: %s\n"
+		"  hare_ep : %s\n"
+		"  profile_fid : %s\n"
+		"  process_fid : %s\n"
+		"  plugin_fid  : %s\n",
+		params->local_addr, params->ha_addr,
+		params->profile_fid, params->process_fid,
+		params->fdmi_plugin_fid_s);
 }
 
 int main(int argc, char **argv)
 {
 	int rc = 0;
+
 	if (argc == 1) {
-		fprintf(stderr, "Arguments are not provided.\n");
+		usage();
 		exit(EXIT_FAILURE);
 	}
+
 	rc = sched_args_parse(&c_params, argc, argv);
 	if (rc != 0) {
-		fprintf(stderr, "Sched args parse failed\n");
+		fprintf(stderr, "Args parse failed\n");
 		return M0_ERR(errno);
 	}
+
 	rc = m0_semaphore_init(&sched_sem, 0);
 	if (rc != 0)
 		return M0_ERR(errno);
 
-	//print_params(&c_params);
-
 	rc = sched_init(&c_params);
 	if (rc != 0) {
-		sched_fini(&c_params);
-		return M0_ERR(errno);
+		rc = M0_ERR(errno);
+		goto sem_fini;
 	}
 
 	rc = sched_sighandler_init();
 	if (rc != 0)
-		goto sem_fini;
-	/* main thread loop */
-	fprintf(stdout, "m0sched waiting for signal...\n");
+		goto sched_fini;
+
+        /* Main thread loop */
+	print_params(&c_params);
+	fprintf(stderr, "m0sched waiting for signal...\n");
 	m0_semaphore_down(&sched_sem);
+
+sched_fini:
+	sched_fini(&c_params);
 sem_fini:
 	m0_semaphore_fini(&sched_sem);
-	sched_fini(&c_params);
 	return M0_RC(rc < 0 ? -rc : rc);
 }
 
