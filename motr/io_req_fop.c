@@ -230,7 +230,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 		src += cs_sz;
 
 		/* Source is m0_buf and we have to copy all the checksum one at a time */
-		M0_ASSERT(src < (buf->b_addr + buf->b_nob));
+		M0_ASSERT(src <= (buf->b_addr + buf->b_nob));
 		
 	} while (!m0_ivec_cursor_move(&rep_cursor, unit_size) &&
 		     !m0_ivec_cursor_move(&ti_cob_cursor, unit_size) &&

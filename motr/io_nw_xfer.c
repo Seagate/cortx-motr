@@ -913,8 +913,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			goto err;
 		}
 		delta += io_seg_size();
-		/* Add the size for checksum nob */
-		delta += ti->ti_attrbuf.b_nob;
+		/* Add the size for checksum generated  */
+		delta += ti->ti_cksum_copied;
 
 		/*
 		* Adds io segments and io descriptor only if it fits within
@@ -1185,6 +1185,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	else {
 		ti->ti_attrbuf.b_addr = NULL;
 		ti->ti_attrbuf.b_nob = 0;
+		ti->ti_cksum_copied = 0;
 	}
 	/*
 	 * For READOLD method, an extra bufvec is needed to remember
