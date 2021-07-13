@@ -39,7 +39,7 @@
 
 extern struct m0_addb_ctx m0_addb_ctx;
 enum {
-ATTR_SIZE = CKSUM_SIZE,
+ATTR_SIZE = 16,
 };
 
 static int noop_lock_init(struct m0_obj *obj)
@@ -373,7 +373,6 @@ int m0_write(struct m0_container *container, char *src,
 	struct m0_client             *instance;
 	struct m0_rm_lock_req         req;
 	const struct m0_obj_lock_ops *lock_ops;
-	int i;
 	/* Open source file */
 	fp = fopen(src, "r");
 	if (fp == NULL)
@@ -421,10 +420,8 @@ int m0_write(struct m0_container *container, char *src,
 					ATTR_SIZE );
 			if (rc != 0)
 				goto cleanup;
-
-		for(i = 0; i < 256; i++)
-	      	fprintf(stderr,"\n\rwrite: attr.ov_buf[%d] = %p",i, attr.ov_buf[i]);		
 		}
+
 		prepare_ext_vecs(&ext, &attr, bcount,
 				 block_size, &last_index);
 
@@ -485,7 +482,7 @@ int m0_read(struct m0_container *container,
 	    uint64_t offset, int blks_per_io, bool take_locks,
 	    uint32_t flags)
 {
-	int                           i,attr_nr;
+	int                           i;
 	int                           j;
 	int                           rc;
 	uint64_t                      last_index = 0;
@@ -542,12 +539,7 @@ int m0_read(struct m0_container *container,
 		if (bcount < blks_per_io) {
 			cleanup_vecs(&data, &attr, &ext);
 			rc = alloc_vecs(&ext, &data, &attr, bcount,
-					block_size, m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id), ATTR_SIZE );
-			
-	attr_nr = (bcount*block_size)/m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id);
-	 fprintf(stderr,"\n\rread: attr_nr = %d bcount = 0x%x, bsize = 0x%x, unit_size = 0x%x",attr_nr, bcount, block_size, m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id));
-	for(i = 0; i < attr_nr; i++)
-	      fprintf(stderr,"\n\rread: attr.ov_buf[%d] = %p",i, attr.ov_buf[i]);		
+					block_size, m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id), ATTR_SIZE );			
 			if (rc != 0)
 				goto cleanup;
 		}

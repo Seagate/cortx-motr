@@ -601,11 +601,6 @@ enum m0_entity_type {
 	M0_ET_IDX
 } M0_XCA_ENUM;
 
-//YJC_TODO : Replace this code with cksum size helper api.
-enum {
-	CKSUM_SIZE = 16,
-};
-
 #define m0_buf_print(buf, seg, msg) \
 do { \
 	struct m0_vec *vec = &(buf)->ov_vec; \

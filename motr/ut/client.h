@@ -28,6 +28,11 @@
 #include "motr/client.h"
 #include "layout/layout.h"      /* m0_layout */
 
+// UT Checksum size
+enum {
+	CKSUM_SIZE = 16,
+};
+
 extern struct m0_config default_config;
 #define M0_DEFAULT_EP          "0@lo:12345:45:101"
 #define M0_DEFAULT_HA_ADDR     "0@lo:12345:66:1"

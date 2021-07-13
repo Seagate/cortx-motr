@@ -220,7 +220,7 @@ do { \
 		if (vec->v_count[i] > 0) { \
 			M0_LOG(M0_DEBUG, msg " count[%d] = %"PRIu64 "ov buf = %s", \
 				i, vec->v_count[i], (char *)(buf)->ov_buf[i]); \
-			memcpy(str, (buf)->ov_buf[i], CKSUM_SIZE); \
+			memcpy(str, (buf)->ov_buf[i], 16); \
 		} \
 	} \
 	M0_LOG(M0_DEBUG, "YJC_DBUG: cksum = %s", (char *)str); \
