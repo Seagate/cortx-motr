@@ -1295,7 +1295,7 @@ static bool node_invariant(const struct nd *node)
 #if 0
 static bool node_verify(const struct nd *node)
 {
-	return node->n_type->nt_verify(node);
+	return node->n_type->nt_verify(&node->n_addr);
 }
 #endif
 
@@ -1698,20 +1698,10 @@ struct seg_ops {
 	int64_t    (*so_tree_delete)(struct node_op *op, struct td *tree,
 				     struct m0_be_tx *tx, int nxt);
 	void       (*so_tree_put)(struct td *tree);
-	int64_t    (*so_node_get)(struct node_op *op, struct td *tree,
-			          struct segaddr *addr, int nxt);
-	void       (*so_node_put)(struct nd *node);
-	struct nd *(*so_node_try)(struct td *tree, struct segaddr *addr);
-	int64_t    (*so_node_alloc)(struct node_op *op, struct td *tree,
-				    int shift, const struct node_type *nt,
-				    struct m0_be_tx *tx, int nxt);
-	int64_t    (*so_node_free)(struct node_op *op, int shift,
-				   struct m0_be_tx *tx, int nxt);
-	void       (*so_node_op_fini)(struct node_op *op);
 };
 
 static struct seg_ops *segops;
-
+static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt);
 /**
  * Locates a tree descriptor whose root node points to the node at addr and
  * return this tree to the caller.
@@ -1815,13 +1805,14 @@ static const struct node_type *btree_node_format[] = {
 static int64_t node_get(struct node_op *op, struct td *tree,
 			struct segaddr *addr, int nxt)
 {
-	int                     nxt_state;
 	const struct node_type *nt;
 	struct nd              *node;
 	bool                    in_lrulist;
 	uint32_t                ntype;
 
-	nxt_state =  segops->so_node_get(op, tree, addr, nxt);
+	if (tree == NULL) {
+		nxt = mem_tree_get(op, addr, nxt);
+	}
 
 	/**
 	 * TODO: Adding list_lock to protect from multiple threads
@@ -1837,7 +1828,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	if (!segaddr_header_isvalid(addr)) {
 		op->no_op.o_sm.sm_rc = M0_ERR(-ECHILD);
 		m0_rwlock_write_unlock(&list_lock);
-		return nxt_state;
+		return nxt;
 	}
 	ntype = segaddr_ntype_get(addr);
 	nt = btree_node_format[ntype];
@@ -1850,7 +1841,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		if (op->no_node->n_delayed_free) {
 			op->no_op.o_sm.sm_rc = M0_ERR(-EACCES);
 			m0_rwlock_write_unlock(&list_lock);
-			return nxt_state;
+			return nxt;
 		}
 
 		in_lrulist = op->no_node->n_ref == 0;
@@ -1879,7 +1870,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		    op->no_node->n_addr.as_core == addr->as_core) {
 			node_refcnt_update(op->no_node, true);
 			m0_rwlock_write_unlock(&list_lock);
-			return nxt_state;
+			return nxt;
 		}
 		/**
 		 * If node descriptor is not present allocate a new one
@@ -1904,7 +1895,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		ndlist_tlink_init_at(op->no_node, &btree_active_nds);
 	}
 	m0_rwlock_write_unlock(&list_lock);
-	return nxt_state;
+	return nxt;
 }
 
 #ifndef __KERNEL__
@@ -1923,8 +1914,6 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 	int shift;
 
 	M0_PRE(node != NULL);
-
-	segops->so_node_put(node);
 
 	m0_rwlock_write_lock(&list_lock);
 	node_refcnt_update(node, false);
@@ -1951,7 +1940,9 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 			node->n_type->nt_fini(node);
 			m0_free(node);
 			m0_rwlock_write_unlock(&list_lock);
-			segops->so_node_free(op, shift, tx, 0);
+			m0_free_aligned(segaddr_addr(&op->no_addr),
+					1ULL << shift, shift);
+			/** Capture in transaction */
 			return;
 		}
 	}
@@ -1961,11 +1952,9 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 
 # if 0
 static struct nd *node_try(struct td *tree, struct segaddr *addr){
-	return segops->so_node_try(tree, addr);
+	return NULL;
 }
 #endif
-
-
 
 /**
  * Allocates node in the segment and a node-descriptor if all the resources are
@@ -1986,9 +1975,19 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 			  const struct node_type *nt, int ksize, int vsize,
 			  struct m0_be_tx *tx, int nxt)
 {
-	int        nxt_state;
+	int            nxt_state = nxt;
+	void          *area;
+	int            actual_size = 1ULL << size;
 
-	nxt_state = segops->so_node_alloc(op, tree, size, nt, tx, nxt);
+	M0_PRE(op->no_opc == NOP_ALLOC);
+	M0_PRE(node_shift_is_valid(size));
+
+	area = m0_alloc_aligned(actual_size, size);
+
+	M0_ASSERT(area != NULL);
+
+	op->no_addr = segaddr_build(area, size);
+	op->no_tree = tree;
 
 	node_init(&op->no_addr, ksize, vsize, nt, tx);
 
@@ -2013,7 +2012,10 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 		node->n_type->nt_fini(node);
 		m0_free(node);
 		m0_rwlock_write_unlock(&list_lock);
-		return segops->so_node_free(op, shift, tx, nxt);
+		m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift,
+				shift);
+		/** Capture in transaction */
+		return nxt;
 	}
 	m0_rwlock_write_unlock(&list_lock);
 	return nxt;
@@ -2022,18 +2024,9 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 #ifndef __KERNEL__
 static void node_op_fini(struct node_op *op)
 {
-	segops->so_node_op_fini(op);
 }
 
 #endif
-
-static int64_t mem_node_get(struct node_op *op, struct td *tree,
-			    struct segaddr *addr, int nxt);
-static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
-			      const struct node_type *nt, struct m0_be_tx *tx,
-			      int nxt);
-static int64_t mem_node_free(struct node_op *op, int shift,
-			     struct m0_be_tx *tx, int nxt);
 
 static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 {
@@ -2180,66 +2173,11 @@ static void mem_tree_put(struct td *tree)
 	m0_rwlock_write_unlock(&tree->t_lock);
 }
 
-static int64_t mem_node_get(struct node_op *op, struct td *tree,
-			    struct segaddr *addr, int nxt)
-{
-	int                     nxt_state = nxt;
-
-	if (tree == NULL) {
-		nxt_state = mem_tree_get(op, addr, nxt);
-	}
-	return nxt_state;
-}
-
-static void mem_node_put(struct nd *node)
-{
-}
-
-static struct nd *mem_node_try(struct td *tree, struct segaddr *addr)
-{
-	return NULL;
-}
-
-static int64_t mem_node_alloc(struct node_op *op, struct td *tree, int shift,
-			      const struct node_type *nt, struct m0_be_tx *tx,
-			      int nxt)
-{
-	void          *area;
-	int            size = 1ULL << shift;
-
-	M0_PRE(op->no_opc == NOP_ALLOC);
-	M0_PRE(node_shift_is_valid(shift));
-	area = m0_alloc_aligned(size, shift);
-	M0_ASSERT(area != NULL);
-	op->no_addr = segaddr_build(area, shift);
-	op->no_tree = tree;
-	return nxt;
-}
-
-static int64_t mem_node_free(struct node_op *op, int shift,
-			     struct m0_be_tx *tx, int nxt)
-{
-	m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift, shift);
-	/* m0_free_aligned(((void *)node) - (1ULL << shift),
-	 *                 sizeof *node + (1ULL << shift), shift); */
-	return nxt;
-}
-
-static void mem_node_op_fini(struct node_op *op)
-{
-}
-
 static const struct seg_ops mem_seg_ops = {
 	.so_tree_get     = &mem_tree_get,
 	.so_tree_create  = &mem_tree_create,
 	.so_tree_delete  = &mem_tree_delete,
 	.so_tree_put     = &mem_tree_put,
-	.so_node_get     = &mem_node_get,
-	.so_node_put     = &mem_node_put,
-	.so_node_try     = &mem_node_try,
-	.so_node_alloc   = &mem_node_alloc,
-	.so_node_free    = &mem_node_free,
-	.so_node_op_fini = &mem_node_op_fini
 };
 
 /**
@@ -2404,7 +2342,7 @@ static void *ff_val(const struct nd *node, int idx)
 static bool ff_rec_is_valid(const struct slot *slot)
 {
 	struct ff_head *h = ff_data(slot->s_node);
-	bool   val_is_valid;
+	bool            val_is_valid;
 	val_is_valid = h->ff_level > 0 ?
 		       m0_vec_count(&slot->s_rec.r_val.ov_vec) <= h->ff_vsize :
 		       m0_vec_count(&slot->s_rec.r_val.ov_vec) == h->ff_vsize;
@@ -2418,15 +2356,12 @@ static bool ff_invariant(const struct nd *node)
 {
 	const struct ff_head *h = ff_data(node);
 
-	return  _0C(h->ff_shift == segaddr_shift(&node->n_addr)) &&
-		_0C(node->n_skip_rec_count_check ||
-		    ergo(h->ff_level > 0, h->ff_used > 0));
+	return  _0C(h->ff_shift == segaddr_shift(&node->n_addr));
 }
 
 static bool ff_verify(const struct nd *node)
 {
 	const struct ff_head *h = ff_data(node);
-
 	return m0_format_footer_verify(h, true) == 0;
 }
 
@@ -3479,11 +3414,17 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node)) {
+
+			lev->l_node->n_skip_rec_count_check = true;
+			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
+			    node_count_rec(lev->l_node) == 0)) {
+				lev->l_node->n_skip_rec_count_check = false;
 				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
+			lev->l_node->n_skip_rec_count_check = false;
+
 			oi->i_nop.no_node = NULL;
 
 			oi->i_key_found = node_find(&node_slot,
@@ -3777,6 +3718,7 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "open/create/close-init", P_INIT, P_ACT  },
 	{ "open/create/close-act", P_ACT, P_DONE },
 	{ "close/destroy", P_INIT, P_DONE},
+	{ "close-init-timecheck", P_INIT, P_TIMECHECK},
 	{ "close-timecheck-repeat", P_TIMECHECK, P_TIMECHECK},
 	{ "kvop-init-cookie", P_INIT, P_COOKIE },
 	{ "kvop-init", P_INIT, P_SETUP },
@@ -4185,11 +4127,15 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node)) {
+			lev->l_node->n_skip_rec_count_check = true;
+			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
+			    node_count_rec(lev->l_node) == 0)) {
+				lev->l_node->n_skip_rec_count_check = false;
 				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
+			lev->l_node->n_skip_rec_count_check = false;
 
 			oi->i_key_found = node_find(&node_slot,
 						    &bop->bo_rec.r_key);
@@ -4382,11 +4328,15 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node)) {
+			lev->l_node->n_skip_rec_count_check = true;
+			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
+			    node_count_rec(lev->l_node) == 0)) {
+				lev->l_node->n_skip_rec_count_check = false;
 				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
+			lev->l_node->n_skip_rec_count_check = false;
 
 			oi->i_key_found = node_find(&s, &bop->bo_rec.r_key);
 			lev->l_idx = s.s_idx;
@@ -4460,13 +4410,17 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				 */
 				lev = &oi->i_level[oi->i_pivot];
 				node_lock(lev->l_node);
-
-				if (!node_isvalid(lev->l_node)) {
+				lev->l_node->n_skip_rec_count_check = true;
+				if (!node_isvalid(lev->l_node) ||
+				    (oi->i_pivot > 0 &&
+				     node_count_rec(lev->l_node) == 0)) {
+					lev->l_node->n_skip_rec_count_check = false;
 					node_unlock(lev->l_node);
 					node_op_fini(&oi->i_nop);
 					return m0_sm_op_sub(&bop->bo_op,
 							    P_CLEANUP, P_SETUP);
 				}
+				lev->l_node->n_skip_rec_count_check = false;
 				if (lev->l_seq != lev->l_node->n_seq) {
 					node_unlock(lev->l_node);
 					return m0_sm_op_sub(&bop->bo_op,
@@ -4519,11 +4473,15 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(s.s_node)) {
+			lev->l_sibling->n_skip_rec_count_check = true;
+			if (!node_isvalid(lev->l_sibling) || (oi->i_pivot > 0 &&
+			    node_count_rec(lev->l_sibling) == 0)) {
+				lev->l_sibling->n_skip_rec_count_check = false;
 				node_unlock(lev->l_sibling);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
+			lev->l_sibling->n_skip_rec_count_check = false;
 
 			if (node_level(s.s_node) > 0) {
 				s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
@@ -4827,16 +4785,24 @@ static int64_t root_case_handle(struct m0_btree_op *bop)
 		struct slot     root_slot = {};
 		struct segaddr  root_child;
 		struct level   *root_lev = &oi->i_level[0];
-		/* TBD: check if node_lock or node_count check is needed. */
+
+		node_lock(root_lev->l_node);
+
+		if (!node_isvalid(root_lev->l_node) ||
+		    root_lev->l_node->n_seq != root_lev->l_seq) {
+			node_unlock(root_lev->l_node);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
+		}
 		root_slot.s_node = root_lev->l_node;
 		root_slot.s_idx  = root_lev->l_idx == 0 ? 1 : 0;
 
 		node_child(&root_slot, &root_child);
 		if (!address_in_segment(root_child)) {
+			node_unlock(root_lev->l_node);
 			node_op_fini(&oi->i_nop);
 			return fail(bop, M0_ERR(-EFAULT));
 		}
-
+		node_unlock(root_lev->l_node);
 		return node_get(&oi->i_nop, bop->bo_arbor->t_desc,
 				&root_child, P_STORE_CHILD);
 	}
@@ -4914,11 +4880,15 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			if (!node_isvalid(lev->l_node)) {
+			lev->l_node->n_skip_rec_count_check = true;
+			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
+			    node_count_rec(lev->l_node) == 0)) {
+				lev->l_node->n_skip_rec_count_check = false;
 				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
+			lev->l_node->n_skip_rec_count_check = false;
 
 			oi->i_nop.no_node = NULL;
 
@@ -4971,18 +4941,25 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		}
 	case P_STORE_CHILD: {
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			oi->i_level[1].l_sibling = oi->i_nop.no_node;
-			node_lock(oi->i_level[1].l_sibling);
+			struct nd *root_child;
 
-			if (!node_isvalid(oi->i_level[1].l_sibling)) {
-				node_unlock(oi->i_level[1].l_sibling);
+			oi->i_level[1].l_sibling = oi->i_nop.no_node;
+			root_child = oi->i_level[1].l_sibling;
+			node_lock(root_child);
+
+			root_child->n_skip_rec_count_check = true;
+			if (!node_isvalid(root_child) ||
+			    node_count_rec(root_child) == 0 ){
+				root_child->n_skip_rec_count_check = false;
+				node_unlock(root_child);
  				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
+			root_child->n_skip_rec_count_check = false;
 			/* store child of the root. */
 			oi->i_level[1].l_sib_seq = oi->i_nop.no_node->n_seq;
 
-			node_unlock(oi->i_level[1].l_sibling);
+			node_unlock(root_child);
 			/* Fall through to the next step */
 		} else {
 			node_op_fini(&oi->i_nop);
