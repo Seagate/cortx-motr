@@ -528,7 +528,7 @@
  * size - size of all structure members
  * alignment - power of two, byte alignment
  */
-#define M0_CALC_PAD(size, alignment) ( size%alignment ?(size/alignment + 1 ) * alignment - size : 0)
+#define M0_CALC_PAD(size, alignment) ( size%alignment ? (((size/alignment + 1 ) * alignment) - size) : 0)
 
 /**
  * Operation codes for entity, object and index.
@@ -997,7 +997,7 @@ struct m0_md5_pi {
 	/* protection value computed for the current data*/
 	unsigned char pi_value[MD5_DIGEST_LENGTH];
 	/* structure should be 32 byte aligned */
-	char pad[M0_CALC_PAD(sizeof(struct m0_pi_hdr)+ MD5_DIGEST_LENGTH, 32)];
+	char pad[M0_CALC_PAD((sizeof(struct m0_pi_hdr)+ MD5_DIGEST_LENGTH), 32)];
 #endif
 };
 
@@ -1014,8 +1014,8 @@ struct m0_md5_inc_context_pi {
 	 */
 	unsigned char pi_value[MD5_DIGEST_LENGTH];
 	/* structure should be 32 byte aligned */
-	char pad[M0_CALC_PAD(sizeof(struct m0_pi_hdr)+ sizeof(MD5_CTX)+
-			MD5_DIGEST_LENGTH, 32)];
+	char pad[M0_CALC_PAD((sizeof(struct m0_pi_hdr)+ sizeof(MD5_CTX)+
+			MD5_DIGEST_LENGTH), 32)];
 #endif
 };
 

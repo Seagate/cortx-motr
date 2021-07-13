@@ -2037,6 +2037,7 @@ static int stob_io_create(struct m0_fom *fom)
 {
 	int                      rc = 0;
 	int                      i;
+	int                      j;
 	m0_bcount_t              todo;
 	m0_bcount_t              count = 0;
 	struct m0_io_fom_cob_rw *fom_obj;
@@ -2109,10 +2110,12 @@ static int stob_io_create(struct m0_fom *fom)
 
 		todo = rwfop->crw_desc.id_descs[i].bdd_used >>
 			fom_obj->fcrw_bshift;
-		M0_LOG(M0_DEBUG, "i=%d todo=%u", i, (unsigned)todo);
+		M0_LOG(M0_DEBUG, "i=%d todo=%u, count=%"PRIu64, i, (unsigned)todo, count);
 		rc = m0_indexvec_split(&fom_obj->fcrw_io.si_stob, count, todo,
 				       /* fom_obj->fcrw_bshift */ 0,
 				       &stio->si_stob);
+		if (rc != 0)
+			break;
 		if( rwfop->crw_cksum_size)
 		{
 			stio->si_cksum_sz = rwfop->crw_cksum_size;
@@ -2127,11 +2130,11 @@ static int stob_io_create(struct m0_fom *fom)
 
 			// Get the cksum nob expected for given stio
 			stio->si_cksum.b_nob = 0;
-			for (i = 0; i < stio->si_stob.iv_vec.v_nr; i++)
+			for (j = 0; j < stio->si_stob.iv_vec.v_nr; j++)
 			{
 				stio->si_cksum.b_nob += 
-					m0_extent_get_checksum_nob(stio->si_stob.iv_index[i],
-											   stio->si_stob.iv_vec.v_count[i],
+					m0_extent_get_checksum_nob(stio->si_stob.iv_index[j],
+											   stio->si_stob.iv_vec.v_count[j],
 											   unit_size,
 											   stio->si_cksum_sz );
 			}
@@ -2152,8 +2155,6 @@ static int stob_io_create(struct m0_fom *fom)
 			curr_cksum_nob += stio->si_cksum.b_nob;
 		}
 		
-		if (rc != 0)
-			break;
 		count += todo;
 	}
 

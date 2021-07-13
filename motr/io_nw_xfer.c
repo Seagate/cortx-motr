@@ -480,6 +480,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	uint32_t                   tseg;
 	m0_bindex_t                toff;
 	m0_bindex_t                goff;
+	m0_bindex_t                goff_end;
 	m0_bindex_t                pgstart;
 	m0_bindex_t                pgend;
 	m0_bindex_t                unit_sz;                  
@@ -634,8 +635,9 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 " with flags 0x%x: ", seg,
 				 INDEX(ivec, seg), COUNT(ivec, seg),
 				 FID_P(&ti->ti_fid), pattr[seg]);
-
-		if(dst_attr != NULL && unit_type == M0_PUT_DATA && opcode == M0_OC_WRITE) {
+		/** Ignore hole because of data size not alligned pool width */
+		goff_end = ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr - 1] + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr - 1]; 
+		if(dst_attr != NULL && unit_type == M0_PUT_DATA && opcode == M0_OC_WRITE && goff < goff_end) {
 			void *src_attr;	
 			
 			/* This we can do as page_size <= unit_sz */
@@ -664,7 +666,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			}
 			
 		} else if (goff_ivec != NULL && unit_type == M0_PUT_DATA &&
-				opcode == M0_OC_READ) {
+				opcode == M0_OC_READ && goff < goff_end) {
 			/**
 			 * Storing the values of goff(checksum offset) into the
 			 * goff_ivec according to target offset. This creates a
