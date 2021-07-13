@@ -108,6 +108,27 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop)
  * Populates client application's attribute bufvec from the attribute buffer
  * received from reply fop.
  *
+ *     | CS0 | CS1 | CS2 | CS3 | CS4 | CS5 | CS6 |
+ *
+ *  1. rep_ivec* will be COB offset received from target
+ *     | rep_index[0] || rep_index[1] || rep_index[2] |
+ *     
+ *  2. ti_ivec will be COB offset while sending 
+ *     | ti_index[0] || ti_index[1] || ti_index[2] || ti_index[3] |     
+ *     *Note: rep_ivec will be subset of ti_ivec
+ * 
+ *  3. ti_goff_ivec will be GOB offset while sending 
+ *     Note: rep_ivec will be subset of ti_ivec
+ *
+ * Steps:
+ *   1. Bring reply ivec to start of unit
+ *   2. Then move cursor of ti_vec so that it matches rep_ivec start.
+ *      Move the ti_goff_ivec for by the same size
+ *      Note: This will make all vec aligned 
+ *   3. Then iterate over rep_ivec one unit at a time till we process all 
+ *      extents, get corresponding GOB offset and use GOB Offset and GOB 
+ *      Extents (ioo_ext) to locate the checksum add and copy one checksum
+ *      to the application checksum buffer.
  * @param rep_ivec m0_indexvec representing the extents spanned by IO.
  * @param ti       target_ioreq structure for this reply's taregt.
  * @param ioo      Object's context for client's internal workings.
@@ -118,68 +139,71 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 				       struct m0_op_io *ioo,
 				       struct m0_buf *buf)
 {
-	uint32_t                unit_size, off;
+	uint32_t                unit_size, off, cs_sz;
 	m0_bindex_t             rep_index;
-	m0_bindex_t             ti_index;
-	m0_bindex_t             coff_index;
+	m0_bindex_t             ti_cob_index;
+	m0_bindex_t             ti_goff_index;
 	struct m0_ivec_cursor   rep_cursor;
-	struct m0_ivec_cursor   ti_cursor;
-	struct m0_ivec_cursor   ti_coff_cursor;
+	struct m0_ivec_cursor   ti_cob_cursor;
+	struct m0_ivec_cursor   ti_goff_cursor;
 	struct m0_indexvec     *ti_ivec = &ti->ti_ivec;
-	struct m0_indexvec     *coff_ivec = &ti->ti_coff_ivec;
+	struct m0_indexvec     *ti_goff_ivec = &ti->ti_goff_ivec;
 
 	void *dst = ioo->ioo_attr.ov_buf[0];
 	void *src = buf->b_addr;
 
 	if(!buf->b_nob)
 	{
+		/* Return as no checksum is present */
 		return;
 	}
+	
 	unit_size = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
+	cs_sz = ioo->ioo_attr.ov_vec.v_count[0];
 
 	m0_ivec_cursor_init(&rep_cursor, rep_ivec);
-	m0_ivec_cursor_init(&ti_cursor, ti_ivec);
-	m0_ivec_cursor_init(&ti_coff_cursor, coff_ivec);
+	m0_ivec_cursor_init(&ti_cob_cursor, ti_ivec);
+	m0_ivec_cursor_init(&ti_goff_cursor, ti_goff_ivec);
 	
-	rep_index = m0_ivec_cursor_index(&rep_cursor);
-        ti_index = 	m0_ivec_cursor_index(&ti_cursor);
-	coff_index =m0_ivec_cursor_index(&ti_coff_cursor); 
+	rep_index 	= m0_ivec_cursor_index(&rep_cursor);
+    ti_cob_index 	= m0_ivec_cursor_index(&ti_cob_cursor);
+	ti_goff_index 	= m0_ivec_cursor_index(&ti_goff_cursor); 
 
-	// Move rep_curosr on unit boundary
+	/* Move rep_cursor on unit boundary */
 	off = rep_index % unit_size; 	
 	if(off)
 	{
-		if(m0_ivec_cursor_move(&rep_cursor, unit_size - off))
+		if( m0_ivec_cursor_move(&rep_cursor, unit_size - off) )
 		{
 			rep_index = m0_ivec_cursor_index(&rep_cursor);
 		}
 		else
 		{
-			return;
+			M0_ASSERT(false);
 		}
 	}
-	M0_ASSERT(ti_index <= rep_index);
-	// move ti index to rep index
-	if(ti_index != rep_index)
+	M0_ASSERT(ti_cob_index <= rep_index);
+	
+	/* Move ti index to rep index */
+	if(ti_cob_index != rep_index)
 	{
-		if(m0_ivec_cursor_move(&ti_cursor, rep_index - ti_index) && 
-			m0_ivec_cursor_move(&ti_coff_cursor, rep_index - ti_index))
+		if( m0_ivec_cursor_move(&ti_cob_cursor,  rep_index - ti_cob_index) && 
+			m0_ivec_cursor_move(&ti_goff_cursor, rep_index - ti_cob_index) )
 		{
-			ti_index = m0_ivec_cursor_index(&ti_cursor);
-			coff_index =m0_ivec_cursor_index(&ti_coff_cursor); 	
+			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
+			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor); 	
 		}
 		else
 		{
-			return;
+			M0_ASSERT(false);
 		}
 	}
-	M0_ASSERT(rep_index == ti_index);		
 	
 	/**
 	 * Cursor iterating over segments spanned by this IO. At each iteration
 	 * index of reply fop is matched with all the target offsets stored in
 	 * target_ioreq::ti_ivec, once matched, the checksum offset is
-	 * retrieved from target_ioreq::ti_coff_ivec for the corresponding
+	 * retrieved from target_ioreq::ti_goff_ivec for the corresponding
 	 * target offset.
 	 *
 	 * The checksum offset represents the correct segemnt of
@@ -190,29 +214,27 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	 * offset from where the data is to be transferred from attribute
 	 * buffer to application's bufvec.
 	 */
-
 	 do {
-			rep_index = m0_ivec_cursor_index(&rep_cursor);
-			ti_index = m0_ivec_cursor_index(&ti_cursor);
-	 		coff_index =m0_ivec_cursor_index(&ti_coff_cursor); 
-			M0_ASSERT(rep_index == ti_index);
-			M0_ASSERT(src < (buf->b_addr + buf->b_nob));
-			M0_ASSERT(coff_index <= ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr-1] + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]);
-			dst = m0_extent_vec_get_checksum_addr( &ioo->ioo_attr,
-   							coff_index,
-   								&ioo->ioo_ext,
-   								unit_size, CKSUM_SIZE);
-   							//ioo->ioo_attr.ov_vec.v_count[0]);
-			M0_ASSERT(dst != NULL);
+		rep_index = m0_ivec_cursor_index(&rep_cursor);
+		ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
+ 		ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor); 
+		
+		M0_ASSERT(rep_index == ti_cob_index);
+		/* GOB offset should be in span of application provided GOB extent */
+		M0_ASSERT(ti_goff_index <= ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr-1] + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]);
 
-			M0_LOG(M0_ERROR, "VCP:  %lx, %lx, %lx, %x, %p ...",(unsigned long)rep_index,(unsigned long)ti_index,(unsigned long)coff_index, unit_size, dst);		
-	       if(dst != NULL)
-		memcpy(dst, src, CKSUM_SIZE);
-	      src +=  CKSUM_SIZE;
-	
-	}while (!m0_ivec_cursor_move(&rep_cursor, unit_size) &&
-					     !m0_ivec_cursor_move(&ti_cursor, unit_size) &&
-					     !m0_ivec_cursor_move(&ti_coff_cursor, unit_size));
+		dst = m0_extent_vec_get_checksum_addr( &ioo->ioo_attr,
+							ti_goff_index, &ioo->ioo_ext, unit_size, cs_sz );
+		
+		memcpy(dst, src, cs_sz);
+		src += cs_sz;
+
+		/* Source is m0_buf and we have to copy all the checksum one at a time */
+		M0_ASSERT(src < (buf->b_addr + buf->b_nob));
+		
+	} while (!m0_ivec_cursor_move(&rep_cursor, unit_size) &&
+		     !m0_ivec_cursor_move(&ti_cob_cursor, unit_size) &&
+		     !m0_ivec_cursor_move(&ti_goff_cursor, unit_size));
 }
 
 /**

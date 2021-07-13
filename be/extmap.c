@@ -964,6 +964,7 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 		return rc;
 	}
 
+
 	/* Copy emap record till checksum buf start */
 	rec_buf_ptr = (struct m0_be_emap_rec *)rec_buf.b_addr;
 	*rec_buf_ptr = *rec;
@@ -972,6 +973,9 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	if (rec->er_cs_nob ) {
 		memcpy( (void *)&rec_buf_ptr->er_footer, 
 				ext->ee_di_cksum.b_addr, rec->er_cs_nob );
+
+		// TODO: How to manage the credit inc/dec ?		
+		// M0_BE_CREDIT_INC(rec->er_cs_nob, M0_BE_CU_BTREE_INSERT, tx->t_prepared);
 	}
 
 	emap_rec_init(rec_buf_ptr);

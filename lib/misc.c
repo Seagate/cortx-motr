@@ -436,67 +436,28 @@ M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob( m0_bindex_t ext_start,
 {	
 	return m0_extent_get_num_unit_start(ext_start, ext_length, unit_sz) * cs_size;
 }
-#if 1
-M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *b_addr_vec, m0_bindex_t off, 
-							void *cob_vec, m0_bindex_t unit_sz, m0_bcount_t cs_sz )
+
+/* This function will get checksum address for application provided checksum buffer
+ * Checksum is corresponding to on offset (e.g gob offset) & its extent and this 
+ * function helps to locate exact address for the above.
+ * Checksum is stored in contigious buffer: cksum_buf_vec, while COB extents may
+ * not be contigious e.g.
+ * Assuming each extent has two DU, so two checksum. 
+ *     | CS0 | CS1 | CS2 | CS3 | CS4 | CS5 | CS6 |
+ *     | iv_index[0] |   | iv_index[1] | iv_index[2] |   | iv_index[3] |     
+ * Now if we have an offset for CS3 then after first travesal b_addr will point to
+ * start of CS2 and then it will land in m0_ext_is_in and will compute correct 
+ * addr for CS3.
+ */
+M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec, m0_bindex_t off, 
+							void *ivec, m0_bindex_t unit_sz, m0_bcount_t cs_sz )
 {
 	void *cksum_addr = NULL;
 	struct m0_ext ext;
-	struct m0_indexvec *vec = (struct m0_indexvec *)cob_vec;
-	struct m0_bufvec *cksum_vec = (struct m0_bufvec *)b_addr_vec;
+	struct m0_indexvec *vec = (struct m0_indexvec *)ivec;
+	struct m0_bufvec *cksum_vec = (struct m0_bufvec *)cksum_buf_vec;
+	struct m0_bufvec_cursor   cksum_cursor;
 	int attr_nob = 0;
-	bool off_found = false;
-	int i;
-	/* Get the checksum nobs consumed till reaching the off in given io */
-	for (i = 0; i < vec->iv_vec.v_nr; i++)
-	{
-		ext.e_start = vec->iv_index[i];
-		ext.e_end = vec->iv_index[i] + vec->iv_vec.v_count[i];
-
-		if(m0_ext_is_in(&ext, off))
-		{
-			attr_nob += ( m0_extent_get_unit_offset(off, ext.e_start, unit_sz) * cs_sz);
-			off_found = true;
-			break;
-		}
-		else
-		{
-			/* off is beyond the current extent, increment the b_addr */
-			attr_nob +=  m0_extent_get_checksum_nob(ext.e_start, 
-			                		vec->iv_vec.v_count[i], unit_sz, cs_sz);
-		}
-	}
-
-	M0_ASSERT(off_found);
-	if(off_found)
-	{
-		struct m0_bufvec_cursor   cksum_cursor;
-		// get the checksum_addr
-		m0_bufvec_cursor_init(&cksum_cursor, cksum_vec);
-		if(!attr_nob)
-		{
-			cksum_addr = m0_bufvec_cursor_addr(&cksum_cursor);		
-		}
-		else
-		{
-			m0_bufvec_cursor_move(&cksum_cursor, attr_nob);
-			cksum_addr = m0_bufvec_cursor_addr(&cksum_cursor);
-		}
-	}
-
-	//M0__LOG(M0_ERROR,"vcp:off_found = %d , attr_nob = 0x%x..", off_found, attr_nob);
-
-	// TODO: Enable this later once working!
-	M0_ASSERT(cksum_addr != NULL);
-	return cksum_addr;
-}
-#else
-M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *b_addr, m0_bindex_t off, 
-							void *cob_vec, m0_bindex_t unit_sz, m0_bcount_t cs_sz )
-{
-	void *cksum_addr = NULL;
-	struct m0_ext ext;
-	struct m0_indexvec *vec = (struct m0_indexvec *)cob_vec;
 	int i;
 	
 	/* Get the checksum nobs consumed till reaching the off in given io */
@@ -505,25 +466,37 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *b_addr, m0_bindex_t off
 		ext.e_start = vec->iv_index[i];
 		ext.e_end = vec->iv_index[i] + vec->iv_vec.v_count[i];
 
+		/* We construct current extent e.g for iv_index[0] and check if offset is 
+		 * within the span of current extent
+  		 *	| iv_index[0] || iv_index[1] | iv_index[2] || iv_index[3] | 
+  		 */
 		if(m0_ext_is_in(&ext, off))
 		{
-			cksum_addr = m0_extent_get_checksum_addr(b_addr, off, ext.e_start, 
-											unit_sz, cs_sz);
+			attr_nob += ( m0_extent_get_unit_offset(off, ext.e_start, unit_sz) * cs_sz);
 			break;
 		}
 		else
 		{
-			/* off is beyond the current extent, increment the b_addr */
-			b_addr +=  m0_extent_get_checksum_nob(ext.e_start, 
+			/* off is not in the current extent, so account increment the b_addr */
+			attr_nob +=  m0_extent_get_checksum_nob(ext.e_start, 
 			                		vec->iv_vec.v_count[i], unit_sz, cs_sz);
 		}
 	}
 
-	// TODO: Enable this later once working!
-	// 	// M0_ASSERT(cksum_addr != NULL);
-	 		return cksum_addr;
+	/* Assert to make sure the the offset is lying within the extent */
+	M0_ASSERT(i < vec->iv_vec.v_nr );
+
+	// get the checksum_addr
+	m0_bufvec_cursor_init(&cksum_cursor, cksum_vec);
+
+	if( attr_nob )
+	{
+		m0_bufvec_cursor_move(&cksum_cursor, attr_nob);	
+	}
+	cksum_addr = m0_bufvec_cursor_addr(&cksum_cursor);
+	
+	return cksum_addr;
 }
-#endif						
 
 M0_INTERNAL void *m0_vote_majority_get(struct m0_key_val *arr, uint32_t len,
 				       bool (*cmp)(const struct m0_buf *,
