@@ -1180,12 +1180,16 @@ static bool verify_checksum(struct m0_op_io *ioo)
 			i++;
 		}
 
-		seed.data_unit_offset = m0_ivec_cursor_index(&extcur)/usz;
-		seed.obj_id = ioo->ioo_oo.oo_fid;
-		pi_ondisk = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[attr_idx];
+		if (ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
 
-		if (!m0_calc_verify_cksum_one_unit(pi_ondisk, &seed, &user_data))
-			return false;
+			seed.data_unit_offset = m0_ivec_cursor_index(&extcur)/usz;
+			seed.obj_id = ioo->ioo_oo.oo_fid;
+
+			pi_ondisk = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[attr_idx];
+
+			if (!m0_calc_verify_cksum_one_unit(pi_ondisk, &seed, &user_data))
+				return false;
+		}
 
 		attr_idx++;
 		m0_ivec_cursor_move(&extcur, usz);
