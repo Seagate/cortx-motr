@@ -6345,7 +6345,6 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			for (i = 1; i < ARRAY_SIZE(value); i++)
 				value[i] = value[0];
 
-			M0_SET0(&kv_op);
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						 m0_btree_put(tree, &rec,
 							      &ut_cb, 0,
@@ -6384,7 +6383,6 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		get_data.check_value = true; /** Compare value with key */
 
-		M0_SET0(&kv_op);
 		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					 m0_btree_get(tree,
 						      &rec.r_key, &ut_get_cb,
@@ -6394,7 +6392,6 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		keys_found_count++;
 
 		while (1) {
-			M0_SET0(&kv_op);
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						 m0_btree_iter(tree,
 							       &rec.r_key,
@@ -6452,7 +6449,6 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				for (i = 1; i < ARRAY_SIZE(key); i++)
 					key[i] = key[0];
 
-				M0_SET0(&kv_op);
 				M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 							 m0_btree_get(tree,
 								      &r.r_key,
@@ -6494,7 +6490,6 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			for (i = 1; i < ARRAY_SIZE(key); i++)
 				key[i] = key[0];
 
-			M0_SET0(&kv_op);
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						 m0_btree_del(tree, &rec.r_key,
 							      &ut_cb, 0,
