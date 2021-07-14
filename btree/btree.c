@@ -3214,8 +3214,8 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 				     struct m0_btree_rec *rec,
 				     struct slot *tgt, struct m0_be_tx *tx)
 {
-	struct slot right_slot ;
-	struct slot left_slot;
+	struct slot              right_slot;
+	struct slot              left_slot;
 	struct m0_bufvec_cursor  cur_1;
 	struct m0_bufvec_cursor  cur_2;
 	int                      diff;
