@@ -204,7 +204,7 @@ static void test_lookup(void)
 	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
 	M0_UT_ASSERT(m0_be_emap_ext_is_last(&seg->ee_ext));
 	M0_UT_ASSERT(seg->ee_val == 42);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
 	m0_be_emap_close(&it);
 
@@ -213,7 +213,7 @@ static void test_lookup(void)
 	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
 	M0_UT_ASSERT(m0_be_emap_ext_is_last(&seg->ee_ext));
 	M0_UT_ASSERT(seg->ee_val == 42);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
 	m0_be_emap_close(&it);
 
@@ -304,12 +304,12 @@ static int test_print(void)
 		       (unsigned long)m0_ext_length(&seg->ee_ext),
 		       (unsigned long)seg->ee_val);
 
-		M0_LOG(M0_DEBUG,"Number of bytes for checksum %lu", (unsigned long)seg->ee_di_cksum.b_nob);
+		M0_LOG(M0_DEBUG,"Number of bytes for checksum %lu", (unsigned long)seg->ee_cksum_buf.b_nob);
 
-		if (seg->ee_di_cksum.b_nob > 0) {
-			char array[seg->ee_di_cksum.b_nob + 1];
-			for (j = 0; j < seg->ee_di_cksum.b_nob; j++) {
-				array[j] = *(char *)(seg->ee_di_cksum.b_addr + j);
+		if (seg->ee_cksum_buf.b_nob > 0) {
+			char array[seg->ee_cksum_buf.b_nob + 1];
+			for (j = 0; j < seg->ee_cksum_buf.b_nob; j++) {
+				array[j] = *(char *)(seg->ee_cksum_buf.b_addr + j);
 			}
 			array[j] = '\0';
 			M0_LOG(M0_DEBUG, "checksum value %s", (char *)array);
@@ -409,7 +409,7 @@ static void test_paste(void)
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	M0_SET0(it_op);
 	m0_be_op_init(it_op);
-	m0_buf_init(&it.ec_cksum, cksum.b_addr, cksum.b_nob);
+	m0_buf_init(&it.ec_app_cksum_buf, cksum.b_addr, cksum.b_nob);
 	m0_be_emap_paste(&it, &tx2, &e1, e_val, NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
@@ -425,12 +425,12 @@ static void test_paste(void)
 
 	M0_UT_ASSERT(seg->ee_ext.e_start ==  0);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_start );
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
 	rc = be_emap_lookup(emap, &prefix, e.e_start, &it);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == cksum.b_nob);
-	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum.b_addr, cksum.b_nob) == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == cksum.b_nob);
+	M0_UT_ASSERT(memcmp(seg->ee_cksum_buf.b_addr, cksum.b_addr, cksum.b_nob) == 0);
 
 	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_start);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_end );
@@ -441,14 +441,14 @@ static void test_paste(void)
 
 	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_end );
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
 	rc = be_emap_lookup(emap, &prefix, 0, &it);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_buf_free(&cksum);
-	it.ec_cksum.b_nob = 0;
-	it.ec_cksum.b_addr = NULL;
+	it.ec_app_cksum_buf.b_nob = 0;
+	it.ec_app_cksum_buf.b_addr = NULL;
 
 	e.e_start = 5;
 	e.e_end   = 25;
@@ -545,7 +545,7 @@ static void test_paste_checksum_validation(void)
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	M0_SET0(it_op);
 	m0_be_op_init(it_op);
-	m0_buf_init(&it.ec_cksum, cksum[idx].b_addr, cksum[idx].b_nob);
+	m0_buf_init(&it.ec_app_cksum_buf, cksum[idx].b_addr, cksum[idx].b_nob);
 	m0_be_emap_paste(&it, &tx2, &e_temp[idx], e_val[idx], NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
@@ -560,7 +560,7 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(seg->ee_ext.e_start ==  0);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_start );
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
 	/* Segment 1 - Pasted Chunk lookup */
 	rc = be_emap_lookup(emap, &prefix, e.e_start, &it);
@@ -568,15 +568,15 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_start);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_end );
 	M0_UT_ASSERT(seg->ee_val         == e_val[idx]);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == cksum[idx].b_nob);
-	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum[idx].b_addr, cksum[idx].b_nob) == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == cksum[idx].b_nob);
+	M0_UT_ASSERT(memcmp(seg->ee_cksum_buf.b_addr, cksum[idx].b_addr, cksum[idx].b_nob) == 0);
 
 	/* Segment 2 - End Chunk lookup */
 	rc = be_emap_lookup(emap, &prefix, e.e_end, &it);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_end );
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
 	/* 
 	 * New segment paste operation 1
@@ -595,7 +595,7 @@ static void test_paste_checksum_validation(void)
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	M0_SET0(it_op);
 	m0_be_op_init(it_op);
-	it.ec_cksum = cksum[idx];
+	it.ec_app_cksum_buf = cksum[idx];
 	m0_be_emap_paste(&it, &tx2, &e_temp[idx], e_val[idx], NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
@@ -608,7 +608,7 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(seg->ee_ext.e_start ==  0);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == es[0].e_start );
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
 	/* Segment 1 - Pasted Chunk lookup : CS = A */
 	rc = be_emap_lookup(emap, &prefix, es[0].e_start, &it);
@@ -616,23 +616,23 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_start == es[0].e_start);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == es[0].e_end );
 	M0_UT_ASSERT(seg->ee_val         == e_val[0]);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == cksum[0].b_nob);
-	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum[0].b_addr, cksum[0].b_nob) == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == cksum[0].b_nob);
+	M0_UT_ASSERT(memcmp(seg->ee_cksum_buf.b_addr, cksum[0].b_addr, cksum[0].b_nob) == 0);
 
 	/* Segment 2 - Pasted Chunk lookup : CS = B */
 	rc = be_emap_lookup(emap, &prefix, e.e_start, &it);
 	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_start);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_end );
 	M0_UT_ASSERT(seg->ee_val         == e_val[idx]);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == cksum[idx].b_nob);
-	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum[idx].b_addr, cksum[idx].b_nob) == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == cksum[idx].b_nob);
+	M0_UT_ASSERT(memcmp(seg->ee_cksum_buf.b_addr, cksum[idx].b_addr, cksum[idx].b_nob) == 0);
 
 	/* Segment 3 - End Chunk lookup */
 	rc = be_emap_lookup(emap, &prefix, e.e_end, &it);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_end );
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
 	/* 
 	 * New segment overwrite paste operation 
@@ -654,7 +654,7 @@ static void test_paste_checksum_validation(void)
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	M0_SET0(it_op);
 	m0_be_op_init(it_op);
-	it.ec_cksum = cksum[idx];
+	it.ec_app_cksum_buf = cksum[idx];
 	m0_be_emap_paste(&it, &tx2, &e_temp[idx], e_val[idx], NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
@@ -667,7 +667,7 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(seg->ee_ext.e_start ==  0);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == es[0].e_start );
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
 	/* Segment 1 - Pasted Chunk lookup : CS = A */
 	rc = be_emap_lookup(emap, &prefix, es[0].e_start, &it);
@@ -675,16 +675,16 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_start == es[0].e_start);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == es[2].e_start );
 	M0_UT_ASSERT(seg->ee_val         == e_val[0]);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == ((cksum[0].b_nob)* (es[2].e_start - es[0].e_start))/(es[0].e_end - es[0].e_start) );
-	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum[0].b_addr, seg->ee_di_cksum.b_nob) == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == ((cksum[0].b_nob)* (es[2].e_start - es[0].e_start))/(es[0].e_end - es[0].e_start) );
+	M0_UT_ASSERT(memcmp(seg->ee_cksum_buf.b_addr, cksum[0].b_addr, seg->ee_cksum_buf.b_nob) == 0);
 
 	/* Segment 2 - Pasted Chunk lookup : CS = P */
 	rc = be_emap_lookup(emap, &prefix, e.e_start, &it);
 	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_start);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_end );
 	M0_UT_ASSERT(seg->ee_val         == e_val[idx]);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == cksum[idx].b_nob);
-	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum[idx].b_addr, cksum[idx].b_nob) == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == cksum[idx].b_nob);
+	M0_UT_ASSERT(memcmp(seg->ee_cksum_buf.b_addr, cksum[idx].b_addr, cksum[idx].b_nob) == 0);
 
 	/* Segment 3 - Pasted Chunk lookup : CS = B */
 	rc = be_emap_lookup(emap, &prefix, es[2].e_end, &it);
@@ -692,15 +692,15 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_start == es[2].e_end );
 	M0_UT_ASSERT(seg->ee_ext.e_end   == es[1].e_end );
 	M0_UT_ASSERT(seg->ee_val         == e_val[1]);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == ((cksum[1].b_nob)* (es[1].e_end - es[2].e_end))/(es[1].e_end - es[1].e_start) );
-	M0_UT_ASSERT(memcmp(seg->ee_di_cksum.b_addr, cksum[1].b_addr, seg->ee_di_cksum.b_nob) == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == ((cksum[1].b_nob)* (es[1].e_end - es[2].e_end))/(es[1].e_end - es[1].e_start) );
+	M0_UT_ASSERT(memcmp(seg->ee_cksum_buf.b_addr, cksum[1].b_addr, seg->ee_cksum_buf.b_nob) == 0);
 
 	/* Segment 4 - End Chunk lookup */
 	rc = be_emap_lookup(emap, &prefix, es[1].e_end, &it);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(seg->ee_ext.e_start == es[1].e_end );
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
 	/* Cleanup code otherwise object delete code gives assert */		
 	rc = be_emap_lookup(emap, &prefix, 0, &it);
@@ -712,7 +712,7 @@ static void test_paste_checksum_validation(void)
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	M0_SET0(it_op);
 	m0_be_op_init(it_op);
-	m0_buf_init(&it.ec_cksum, NULL, 0);
+	m0_buf_init(&it.ec_app_cksum_buf, NULL, 0);
 	m0_be_emap_paste(&it, &tx2, &e, M0_BINDEX_MAX + 1, NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
@@ -720,7 +720,7 @@ static void test_paste_checksum_validation(void)
 
 	M0_UT_ASSERT(seg->ee_ext.e_start   == 0 );
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
-	M0_UT_ASSERT(seg->ee_di_cksum.b_nob == 0);
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
 	m0_buf_free( &cksum[0] );
 	m0_buf_free( &cksum[1] );

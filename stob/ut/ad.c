@@ -482,8 +482,8 @@ start_again:
 		M0_ASSERT(ext->e_start <= stob_vi[i]);
 		M0_ASSERT(ext->e_end   >= stob_vi[i] + stob_vc[i]);
 		M0_ASSERT(it.ec_seg.ee_val == AET_HOLE);
-		M0_ASSERT(it.ec_seg.ee_di_cksum.b_addr == NULL);
-		M0_ASSERT(it.ec_seg.ee_di_cksum.b_nob == 0);
+		M0_ASSERT(it.ec_seg.ee_cksum_buf.b_addr == NULL);
+		M0_ASSERT(it.ec_seg.ee_cksum_buf.b_nob == 0);
 		m0_be_emap_close(&it);
 	}
 }

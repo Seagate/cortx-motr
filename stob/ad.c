@@ -1294,7 +1294,7 @@ static void  stob_ad_get_checksum_for_fragment(struct m0_stob_io *io, struct m0_
 		dst = m0_stob_ad_get_checksum_addr(io, off);
       
 		//get the source: checksum address from segment
-		src = m0_extent_get_checksum_addr(ext->ee_di_cksum.b_addr, off, 
+		src = m0_extent_get_checksum_addr(ext->ee_cksum_buf.b_addr, off, 
 							ext->ee_ext.e_start, unit_size, cksum_unit_size);
 
 		// copy from source to client buffer
@@ -1679,14 +1679,14 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	{
 		
 		/* Compute checksum units info which belong to this extent (COB off & Sz) */
-		it.ec_cksum.b_addr = m0_stob_ad_get_checksum_addr(io, off);
-		it.ec_cksum.b_nob  = m0_extent_get_checksum_nob(off, m0_ext_length(&todo), 
+		it.ec_app_cksum_buf.b_addr = m0_stob_ad_get_checksum_addr(io, off);
+		it.ec_app_cksum_buf.b_nob  = m0_extent_get_checksum_nob(off, m0_ext_length(&todo), 
 							io->si_unit_sz, io->si_cksum_sz);
  	}
 	else
 	{
-		it.ec_cksum.b_addr = NULL;
-		it.ec_cksum.b_nob = 0;
+		it.ec_app_cksum_buf.b_addr = NULL;
+		it.ec_app_cksum_buf.b_nob = 0;
 	}	
 	
 	it.ec_unit_size = io->si_unit_sz;
