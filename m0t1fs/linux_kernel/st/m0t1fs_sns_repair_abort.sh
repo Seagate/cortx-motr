@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+# Copyright (c) 2020-2021 Seagate Technology LLC and/or its Affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -83,6 +83,8 @@ P=15
 stride=32
 src_bs=10M
 src_count=2
+
+testname="sns-repair-abort"
 
 verify()
 {
@@ -171,6 +173,8 @@ main()
 {
 	local rc=0
 
+	check_test_skip_list $testname || return $rc
+
 	sandbox_init
 
 	NODE_UUID=`uuidgen`
@@ -205,4 +209,4 @@ main()
 
 trap unprepare EXIT
 main
-report_and_exit sns-repair-abort $?
+report_and_exit $testname $?

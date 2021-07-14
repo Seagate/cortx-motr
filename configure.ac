@@ -662,25 +662,6 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
                   sys/socket.h sys/time.h unistd.h])
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
-AC_CHECK_HEADERS([isa-l.h],   [
-				# check for isa library
-				MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
-						[ec_encode_data cannot be found! \
-						 Try to install Intel ISA library package.]
-				)
-				AC_SUBST([ISAL_LIBS])
-
-				# define MACROs
-				AC_DEFINE([HAVE_ISAL])
-				AM_CONDITIONAL([HAVE_ISAL], [true])
-				AC_MSG_NOTICE([INTEL ISA-L Headers Available])
-			      ],
-			      [
-				AM_CONDITIONAL([HAVE_ISAL], [false])
-				AC_MSG_NOTICE([No INTEL ISA-L Headers])
-			      ]
-		)
-
 
 
 AC_HEADER_STDBOOL
@@ -809,6 +790,44 @@ AS_IF([test x$with_lustre != xno],[
        MOTR_LINUX_WRITE_BEGIN_END
        MOTR_LINUX_SENDFILE
 ])
+
+#
+# Checking Intel ISA library --------------------------------------------------------- {{{1
+#
+AC_ARG_ENABLE([isal],
+        [AS_HELP_STRING([--disable-isal],
+                        [Disable use Intel ISA. Instead use Galois library.])],
+        [],[enable_isal=yes]
+)
+
+AM_CONDITIONAL([HAVE_ISAL],
+               [test "x$enable_isal" = xyes])
+
+
+AS_IF([test x$enable_isal = xyes],
+      [
+              AC_CHECK_HEADERS([isa-l.h],
+              [
+                      # check for isa library
+                      MOTR_SEARCH_LIBS(
+                              [ec_encode_data], [c isal], [ISAL_LIBS],
+                              [ec_encode_data cannot be found! \
+                               Try to install Intel ISA library package.]
+                      )
+                      AC_SUBST([ISAL_LIBS])
+
+                      # define MACROs
+                      AC_DEFINE([HAVE_ISAL])
+                      # AM_CONDITIONAL([HAVE_ISAL], [true])
+                      AC_MSG_NOTICE([INTEL ISA-L Headers Available])
+              ],
+              [
+                      AM_CONDITIONAL([HAVE_ISAL], [false])
+                      AC_MSG_NOTICE([No INTEL ISA-L Headers])
+              ])
+      ]
+)
+
 
 #
 # Checking Lustre --------------------------------------------------------- {{{1
@@ -1068,7 +1087,9 @@ echo "PROFILER_LIBS  :  \"$PROFILER_LIBS\""
 echo "GALOIS_LIBS    :  \"$GALOIS_LIBS\""
 echo "YAML_LIBS      :  \"$YAML_LIBS\""
 echo "UUID_LIBS      :  \"$UUID_LIBS\""
+AS_IF([test x$enable_isal = xyes],[
 echo "ISAL_LIBS      :  \"$ISAL_LIBS\""
+])
 echo ""
 echo "Gcc            :  \"$BUILD_GCC\""
 AS_IF([test x$with_lustre != xno],[

@@ -14,6 +14,9 @@ M0_MODULE_TRACE_MASK='!all'
 M0_TRACE_PRINT_CONTEXT=short
 M0_TRACE_LEVEL='fatal+'
 
+# Get Intel ISA library
+ISAL_LIBS=@ISAL_LIBS@
+
 MODPARAMS[m0tr.ko]="node_uuid=${NODE_UUID:-$NULL_UUID}"
 
 MODPARAMS[m0ut.ko]="node_uuid=${NODE_UUID:-$NULL_UUID} \
@@ -25,6 +28,18 @@ MODPARAMS[m0ut.ko]="node_uuid=${NODE_UUID:-$NULL_UUID} \
 
 # to make command output parsing predictable
 export LC_MESSAGES=C
+
+# libisal does not need kernel based ST
+LIBISAL_TESTS_SKIPLIST=(
+	"spiel-sns-repair"
+	"spiel-sns-repair-quiesce"
+	"sns-repair-mf"
+	"sns-repair-rebalance-quiesce"
+	"failure-after-sns-repair-rebalance-quiesce"
+	"sns-repair-abort"
+	"sns-repair-ios-fail"
+	"sns-repair-abort-repair-quiesce-rebalance-quiesce"
+)
 
 abort()
 {
@@ -79,4 +94,34 @@ modunload()
 		}
 	done
 	return $rc
+}
+
+# Check if given testname is present in the skip list.
+# Return 1 if present in skip list, else return 0.
+# arg1 : name of test to be checked
+# arg2 : array of tests to be skipped
+_check_skip_list() {
+    testname=$1; shift
+    test_skip_list=($@)
+
+    for test in "${test_skip_list[@]}"
+    do
+        if [[ "$test" == "$testname" ]]; then
+            return 1
+        fi
+    done
+}
+
+check_test_skip_list()
+{
+	# Check if we are using Intel ISA library
+	if [ ! -z "$ISAL_LIBS" ]; then
+		_check_skip_list $1 ${LIBISAL_TESTS_SKIPLIST[@]}
+		if [[ "$?" != 0 ]]; then
+			echo =================================================
+			echo == SKIP this test when we are using Intel ISA ===
+			echo =================================================
+			return 1
+		fi
+	fi
 }
