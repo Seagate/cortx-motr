@@ -987,13 +987,6 @@ struct nd {
 	const struct node_type *n_type;
 
 	/**
-	 * Skip record count invariant check. If n_skip_rec_count_check is true,
-	 * it will skip invariant check record count as it is required for some
-	 * scenarios.
-	 */
-	bool                    n_skip_rec_count_check;
-
-	/**
 	 * Linkage into node descriptor list.
 	 * ndlist_tl, btree_active_nds, btree_lru_nds.
 	 */
@@ -2361,7 +2354,9 @@ static bool ff_invariant(const struct nd *node)
 {
 	const struct ff_head *h = ff_data(node);
 
-	return  _0C(h->ff_shift == segaddr_shift(&node->n_addr));
+	return  _0C(h->ff_seg.h_node_type == BNT_FIXED_FORMAT) &&
+		_0C(h->ff_ksize != 0) && (h->ff_vsize != 0) &&
+		_0C(h->ff_shift == segaddr_shift(&node->n_addr));
 }
 
 static bool ff_verify(const struct nd *node)
@@ -2980,17 +2975,12 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_lock(lev->l_node);
 	node_lock(oi->i_extra_node);
 
-	/* skip the invarient check for level */
-	oi->i_extra_node->n_skip_rec_count_check = true;
-	lev->l_node->n_skip_rec_count_check = true;
-
 	node_set_level(oi->i_extra_node, curr_max_level, bop->bo_tx);
 	node_set_level(lev->l_node, curr_max_level + 1, bop->bo_tx);
 
 	node_move(lev->l_node, oi->i_extra_node, D_RIGHT, NR_MAX,
 		  bop->bo_tx);
 	M0_ASSERT(node_count_rec(lev->l_node) == 0);
-	oi->i_extra_node->n_skip_rec_count_check = false;
 
 	/* 2) add new 2 records at root node. */
 
@@ -3008,7 +2998,6 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	COPY_RECORD(&node_slot.s_rec, &bop->bo_rec);
 	/* if we need to update vec_count for node, update here */
 
-	lev->l_node->n_skip_rec_count_check = false;
 	node_done(&node_slot, bop->bo_tx, true);
 
 	/* Add second rec at root */
@@ -3080,11 +3069,9 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 
 	/* 1)Move some records from current node to new node */
 
-	allocated_node->n_skip_rec_count_check = true;
 	node_set_level(allocated_node, node_level(current_node), tx);
 
 	node_move(current_node, allocated_node, D_LEFT, NR_EVEN, tx);
-	allocated_node->n_skip_rec_count_check = false;
 
 	/*2) Find appropriate slot for given record */
 
@@ -3339,15 +3326,12 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
 
-			lev->l_node->n_skip_rec_count_check = true;
 			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
 			    node_count_rec(lev->l_node) == 0)) {
-				lev->l_node->n_skip_rec_count_check = false;
 				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-			lev->l_node->n_skip_rec_count_check = false;
 
 			oi->i_nop.no_node = NULL;
 
@@ -4106,15 +4090,12 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			lev->l_node->n_skip_rec_count_check = true;
 			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
 			    node_count_rec(lev->l_node) == 0)) {
-				lev->l_node->n_skip_rec_count_check = false;
 				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-			lev->l_node->n_skip_rec_count_check = false;
 
 			oi->i_key_found = node_find(&node_slot,
 						    &bop->bo_rec.r_key);
@@ -4307,15 +4288,12 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			lev->l_node->n_skip_rec_count_check = true;
 			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
 			    node_count_rec(lev->l_node) == 0)) {
-				lev->l_node->n_skip_rec_count_check = false;
 				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-			lev->l_node->n_skip_rec_count_check = false;
 
 			oi->i_key_found = node_find(&s, &bop->bo_rec.r_key);
 			lev->l_idx = s.s_idx;
@@ -4389,17 +4367,14 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				 */
 				lev = &oi->i_level[oi->i_pivot];
 				node_lock(lev->l_node);
-				lev->l_node->n_skip_rec_count_check = true;
 				if (!node_isvalid(lev->l_node) ||
 				    (oi->i_pivot > 0 &&
 				     node_count_rec(lev->l_node) == 0)) {
-					lev->l_node->n_skip_rec_count_check = false;
 					node_unlock(lev->l_node);
 					node_op_fini(&oi->i_nop);
 					return m0_sm_op_sub(&bop->bo_op,
 							    P_CLEANUP, P_SETUP);
 				}
-				lev->l_node->n_skip_rec_count_check = false;
 				if (lev->l_seq != lev->l_node->n_seq) {
 					node_unlock(lev->l_node);
 					return m0_sm_op_sub(&bop->bo_op,
@@ -4452,15 +4427,12 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			lev->l_sibling->n_skip_rec_count_check = true;
 			if (!node_isvalid(lev->l_sibling) || (oi->i_pivot > 0 &&
 			    node_count_rec(lev->l_sibling) == 0)) {
-				lev->l_sibling->n_skip_rec_count_check = false;
 				node_unlock(lev->l_sibling);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-			lev->l_sibling->n_skip_rec_count_check = false;
 
 			if (node_level(s.s_node) > 0) {
 				s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
@@ -4602,7 +4574,6 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		node_lock(lev->l_node);
 
 		node_del(lev->l_node, lev->l_idx, bop->bo_tx);
-		lev->l_node->n_skip_rec_count_check = true;
 		node_slot.s_node = lev->l_node;
 		node_slot.s_idx  = lev->l_idx;
 		node_done(&node_slot, bop->bo_tx, true);
@@ -4633,16 +4604,13 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		}
 		node_seq_cnt_update(lev->l_node);
 		node_fix(node_slot.s_node, bop->bo_tx);
+		node_unlock(lev->l_node);
 
 		/* check if underflow after deletion */
 		if (flag || !node_isunderflow(lev->l_node, false)) {
-			lev->l_node->n_skip_rec_count_check = false;
-			node_unlock(lev->l_node);
 			lock_op_unlock(tree);
 			return P_FREENODE;
 		}
-		lev->l_node->n_skip_rec_count_check = false;
-		node_unlock(lev->l_node);
 
 	} while (1);
 
@@ -4665,16 +4633,12 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	/* l_sib is node below root which is root's only child */
 	root_child = oi->i_level[1].l_sibling;
 	node_lock(root_child);
-	root_child->n_skip_rec_count_check = true;
 
 	node_set_level(lev->l_node, curr_root_level - 1, bop->bo_tx);
 	tree->t_height--;
 
 	node_move(root_child, lev->l_node, D_RIGHT, NR_MAX, bop->bo_tx);
 	M0_ASSERT(node_count_rec(root_child) == 0);
-
-	lev->l_node->n_skip_rec_count_check = false;
-	oi->i_level[1].l_sibling->n_skip_rec_count_check = false;
 
 	node_unlock(lev->l_node);
 	node_unlock(root_child);
@@ -4859,15 +4823,12 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			 * other thread which has lock is working on the same
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
-			lev->l_node->n_skip_rec_count_check = true;
 			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
 			    node_count_rec(lev->l_node) == 0)) {
-				lev->l_node->n_skip_rec_count_check = false;
 				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-			lev->l_node->n_skip_rec_count_check = false;
 
 			oi->i_nop.no_node = NULL;
 
@@ -4926,15 +4887,12 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			root_child = oi->i_level[1].l_sibling;
 			node_lock(root_child);
 
-			root_child->n_skip_rec_count_check = true;
 			if (!node_isvalid(root_child) ||
 			    node_count_rec(root_child) == 0 ){
-				root_child->n_skip_rec_count_check = false;
 				node_unlock(root_child);
  				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-			root_child->n_skip_rec_count_check = false;
 			/* store child of the root. */
 			oi->i_level[1].l_sib_seq = oi->i_nop.no_node->n_seq;
 
@@ -4997,10 +4955,10 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			node_lock(lev->l_node);
 
 			node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
-			lev->l_node->n_skip_rec_count_check = true;
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(node_slot.s_node, bop->bo_tx);
+			node_unlock(lev->l_node);
 			rec.r_flags = M0_BSC_SUCCESS;
 		}
 		int rc = bop->bo_cb.c_act(&bop->bo_cb, &rec);
@@ -5014,14 +4972,10 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			if (oi->i_used == 0 ||
 			    !node_isunderflow(lev->l_node, false)) {
 				/* No Underflow */
-				lev->l_node->n_skip_rec_count_check = false;
-				node_unlock(lev->l_node);
 				lock_op_unlock(tree);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_FINI);
 			}
-			lev->l_node->n_skip_rec_count_check = false;
-			node_unlock(lev->l_node);
 			return btree_del_resolve_underflow(bop);
 		}
 		lock_op_unlock(tree);
