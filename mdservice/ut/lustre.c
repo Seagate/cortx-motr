@@ -103,7 +103,7 @@ static uint16_t lustre_get_valid(uint16_t valid)
 static void lustre_copy_body(struct m0_fop_cob *body,
                              const struct m0_md_lustre_logrec *rec)
 {
-	struct m0_md_lustre_fid fid;
+        struct m0_md_lustre_fid fid;
 
         body->b_index = rec->cr_index;
         if (rec->cr_valid & M0_LA_SIZE)
