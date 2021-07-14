@@ -858,7 +858,8 @@ struct node_type {
 
 	/** Initializes newly allocated node */
 	void (*nt_init)(const struct segaddr *addr, int shift, int ksize,
-			int vsize, uint32_t ntype, struct m0_be_tx *tx);
+			int vsize, uint32_t ntype, uint32_t ttype,
+			struct m0_be_tx *tx);
 
 	/** Cleanup of the node if any before deallocation */
 	void (*nt_fini)(const struct nd *node);
@@ -957,7 +958,10 @@ struct node_type {
 	/** Validates node composition */
 	bool (*nt_invariant)(const struct nd *node);
 
-	/** 'Does a thorough validation */
+	/** Validates key order within node */
+	bool (*nt_expensive_invariant)(const struct nd *node);
+
+	/** Does a thorough validation */
 	bool (*nt_verify)(const struct nd *node);
 
 	/** Does minimal (or basic) validation */
@@ -1101,7 +1105,9 @@ static struct nd *node_try  (struct td *tree, struct segaddr *addr);
 #endif
 
 static int64_t    node_alloc(struct node_op *op, struct td *tree, int size,
-			     const struct node_type *nt, int ksize, int vsize,
+			     const struct node_type *nt,
+			     const struct m0_btree_type *bt,
+			     int ksize, int vsize,
 			     struct m0_be_tx *tx, int nxt);
 static int64_t    node_free(struct node_op *op, struct nd *node,
 			    struct m0_be_tx *tx, int nxt);
@@ -1110,7 +1116,8 @@ static void node_op_fini(struct node_op *op);
 #endif
 #ifndef __KERNEL__
 static void node_init(struct segaddr *addr, int ksize, int vsize,
-		      const struct node_type *nt, struct m0_be_tx *tx);
+		      const struct node_type *nt,
+		      const struct m0_btree_type *bt, struct m0_be_tx *tx);
 #endif
 #if 0
 static bool node_verify(const struct nd *node);
@@ -1280,14 +1287,21 @@ M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 M0_TL_DEFINE(ndlist, static, struct nd);
 
 static void node_init(struct segaddr *addr, int ksize, int vsize,
-		      const struct node_type *nt, struct m0_be_tx *tx)
+		      const struct node_type *nt,
+		      const struct m0_btree_type *bt,struct m0_be_tx *tx)
 {
-	nt->nt_init(addr, segaddr_shift(addr), ksize, vsize, nt->nt_id, tx);
+	nt->nt_init(addr, segaddr_shift(addr), ksize, vsize, nt->nt_id,
+		    bt->tt_id, tx);
 }
 
 static bool node_invariant(const struct nd *node)
 {
 	return node->n_type->nt_invariant(node);
+}
+
+static bool node_expensive_invariant(const struct nd *node)
+{
+	return node->n_type->nt_expensive_invariant(node);
 }
 
 #if 0
@@ -1432,6 +1446,7 @@ static void node_seq_cnt_update(struct nd *node)
 static void node_fix(const struct nd *node, struct m0_be_tx *tx)
 {
 	M0_PRE(node_invariant(node));
+	M0_PRE(node_expensive_invariant(node));
 	node->n_type->nt_fix(node, tx);
 }
 
@@ -1970,7 +1985,8 @@ static struct nd *node_try(struct td *tree, struct segaddr *addr){
  * @return int64_t
  */
 static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
-			  const struct node_type *nt, int ksize, int vsize,
+			  const struct node_type *nt,
+			  const struct m0_btree_type *bt, int ksize, int vsize,
 			  struct m0_be_tx *tx, int nxt)
 {
 	int            nxt_state = nxt;
@@ -1987,7 +2003,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 	op->no_addr = segaddr_build(area, size);
 	op->no_tree = tree;
 
-	node_init(&op->no_addr, ksize, vsize, nt, tx);
+	node_init(&op->no_addr, ksize, vsize, nt, bt, tx);
 
 	nxt_state = node_get(op, tree, &op->no_addr, nxt_state);
 
@@ -2121,7 +2137,7 @@ static int64_t mem_tree_create(struct node_op *op, struct m0_btree_type *tt,
 	tree_get(op, NULL, nxt);
 
 	tree = op->no_tree;
-	node_alloc(op, tree, rootshift, &fixed_format, 8, 8, NULL, nxt);
+	node_alloc(op, tree, rootshift, &fixed_format, tt, 8, 8, NULL, nxt);
 
 	m0_rwlock_write_lock(&tree->t_lock);
 	tree->t_root = op->no_node;
@@ -2209,7 +2225,7 @@ enum m0_be_bnode_format_version {
 };
 
 static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
-		    uint32_t ntype, struct m0_be_tx *tx);
+		    uint32_t ntype, uint32_t ttype, struct m0_be_tx *tx);
 static void ff_fini(const struct nd *node);
 static int  ff_count(const struct nd *node);
 static int  ff_count_rec(const struct nd *node);
@@ -2237,6 +2253,7 @@ static void ff_set_level(const struct nd *node, uint8_t new_level,
 static void generic_move(struct nd *src, struct nd *tgt,
 			 enum dir dir, int nr, struct m0_be_tx *tx);
 static bool ff_invariant(const struct nd *node);
+static bool ff_expensive_invariant(const struct nd *node);
 static bool ff_verify(const struct nd *node);
 static void ff_opaque_set(const struct segaddr *addr, void *opaque);
 static void *ff_opaque_get(const struct segaddr *addr);
@@ -2248,40 +2265,41 @@ static void *ff_opaque_get(const struct segaddr *addr);
  *  contained in it.
  */
 static const struct node_type fixed_format = {
-	.nt_id              = BNT_FIXED_FORMAT,
-	.nt_name            = "m0_bnode_fixed_format",
+	.nt_id                    = BNT_FIXED_FORMAT,
+	.nt_name                  = "m0_bnode_fixed_format",
 	//.nt_tag,
-	.nt_init            = ff_init,
-	.nt_fini            = ff_fini,
-	.nt_count           = ff_count,
-	.nt_count_rec       = ff_count_rec,
-	.nt_space           = ff_space,
-	.nt_level           = ff_level,
-	.nt_shift           = ff_shift,
-	.nt_keysize         = ff_keysize,
-	.nt_valsize         = ff_valsize,
-	.nt_isunderflow     = ff_isunderflow,
-	.nt_isoverflow      = ff_isoverflow,
-	.nt_fid             = ff_fid,
-	.nt_rec             = ff_rec,
-	.nt_key             = ff_node_key,
-	.nt_child           = ff_child,
-	.nt_isfit           = ff_isfit,
-	.nt_done            = ff_done,
-	.nt_make            = ff_make,
-	.nt_find            = ff_find,
-	.nt_fix             = ff_fix,
-	.nt_cut             = ff_cut,
-	.nt_del             = ff_del,
-	.nt_set_level       = ff_set_level,
-	.nt_move            = generic_move,
-	.nt_invariant       = ff_invariant,
-	.nt_isvalid         = segaddr_header_isvalid,
-	.nt_verify          = ff_verify,
-	.nt_opaque_set      = ff_opaque_set,
-	.nt_opaque_get      = ff_opaque_get,
-	/* .nt_ksize_get    = ff_ksize_get, */
-	/* .nt_valsize_get  = ff_valsize_get, */
+	.nt_init                  = ff_init,
+	.nt_fini                  = ff_fini,
+	.nt_count                 = ff_count,
+	.nt_count_rec             = ff_count_rec,
+	.nt_space                 = ff_space,
+	.nt_level                 = ff_level,
+	.nt_shift                 = ff_shift,
+	.nt_keysize               = ff_keysize,
+	.nt_valsize               = ff_valsize,
+	.nt_isunderflow           = ff_isunderflow,
+	.nt_isoverflow            = ff_isoverflow,
+	.nt_fid                   = ff_fid,
+	.nt_rec                   = ff_rec,
+	.nt_key                   = ff_node_key,
+	.nt_child                 = ff_child,
+	.nt_isfit                 = ff_isfit,
+	.nt_done                  = ff_done,
+	.nt_make                  = ff_make,
+	.nt_find                  = ff_find,
+	.nt_fix                   = ff_fix,
+	.nt_cut                   = ff_cut,
+	.nt_del                   = ff_del,
+	.nt_set_level             = ff_set_level,
+	.nt_move                  = generic_move,
+	.nt_invariant             = ff_invariant,
+	.nt_expensive_invariant   = ff_expensive_invariant,
+	.nt_isvalid               = segaddr_header_isvalid,
+	.nt_verify                = ff_verify,
+	.nt_opaque_set            = ff_opaque_set,
+	.nt_opaque_get            = ff_opaque_get,
+	/* .nt_ksize_get          = ff_ksize_get, */
+	/* .nt_valsize_get        = ff_valsize_get, */
 };
 
 #if 0
@@ -2350,11 +2368,49 @@ static bool ff_rec_is_valid(const struct slot *slot)
 	   _0C(val_is_valid);
 }
 
+static bool ff_expensive_invariant(const struct nd *node)
+{
+	struct ff_head *h = ff_data(node);
+	struct m0_btree_key      key_prev;
+	struct m0_btree_key      key_next;
+	struct m0_bufvec_cursor  cur_prev;
+	struct m0_bufvec_cursor  cur_next;
+	void                    *p_key_prev;
+	m0_bcount_t              ksize_prev = h->ff_ksize;
+	void                    *p_key_next;
+	m0_bcount_t              ksize_next = h->ff_ksize;
+	int                      count = node_count(node);
+	int                      i;
+	int                      diff;
+	if (count <= 1)
+		return true;
+
+
+	key_prev.k_data = M0_BUFVEC_INIT_BUF(&p_key_prev, &ksize_prev);
+	key_next.k_data = M0_BUFVEC_INIT_BUF(&p_key_next, &ksize_next);
+
+	p_key_prev = ff_key(node, 0);
+
+	for (i = 1 ; i < count; i++) {
+		p_key_next = ff_key(node, i);
+
+		m0_bufvec_cursor_init(&cur_prev, &key_prev.k_data);
+		m0_bufvec_cursor_init(&cur_next, &key_next.k_data);
+		diff = m0_bufvec_cursor_cmp(&cur_prev, &cur_next);
+		if (diff >= 0)
+			return false;
+		p_key_prev = p_key_next;
+	}
+
+	return true;
+}
+
 static bool ff_invariant(const struct nd *node)
 {
 	const struct ff_head *h = ff_data(node);
 
 	return  _0C(h->ff_seg.h_node_type == BNT_FIXED_FORMAT) &&
+		_0C(h->ff_seg.h_tree_type == node->n_tree->t_type->tt_id) &&
 		_0C(h->ff_ksize != 0) && (h->ff_vsize != 0) &&
 		_0C(h->ff_shift == segaddr_shift(&node->n_addr));
 }
@@ -2379,7 +2435,7 @@ static bool segaddr_header_isvalid(const struct segaddr *addr)
 }
 
 static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
-		    uint32_t ntype, struct m0_be_tx *tx)
+		    uint32_t ntype, uint32_t ttype, struct m0_be_tx *tx)
 {
 	struct ff_head *h   = segaddr_addr(addr);
 
@@ -2391,6 +2447,7 @@ static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 	h->ff_ksize           = ksize;
 	h->ff_vsize           = vsize;
 	h->ff_seg.h_node_type = ntype;
+	h->ff_seg.h_tree_type = ttype;
 
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
 		.ot_version       = M0_BE_BNODE_FORMAT_VERSION,
@@ -3165,6 +3222,9 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 
 		node_move(lev->l_alloc, lev->l_node, D_RIGHT,
 		          NR_MAX, bop->bo_tx);
+
+		node_unlock(lev->l_alloc);
+		node_unlock(lev->l_node);
 		lock_op_unlock(bop->bo_arbor->t_desc);
 		return fail(bop, rc);
 	}
@@ -3397,8 +3457,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				oi->i_nop.no_opc = NOP_ALLOC;
 				return node_alloc(&oi->i_nop, tree,
 						  shift, lev->l_node->n_type,
-						  ksize, vsize, bop->bo_tx,
-						  P_ALLOC_STORE);
+						  tree->t_type, ksize, vsize,
+						  bop->bo_tx, P_ALLOC_STORE);
 
 			}
 			oi->i_alloc_lev--;
@@ -3438,8 +3498,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				oi->i_nop.no_opc = NOP_ALLOC;
 				return node_alloc(&oi->i_nop, tree,
 						  shift, lev->l_node->n_type,
-						  ksize, vsize, bop->bo_tx,
-						  P_ALLOC_STORE);
+						  tree->t_type, ksize, vsize,
+						  bop->bo_tx, P_ALLOC_STORE);
 
 			} else if (oi->i_extra_node == NULL) {
 				oi->i_extra_node = oi->i_nop.no_node;
@@ -3542,6 +3602,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(lev->l_node, bop->bo_tx);
+
+			node_unlock(lev->l_node);
 			lock_op_unlock(tree);
 			return fail(bop, rc);
 		}
@@ -3803,7 +3865,7 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 		oi->i_nop.no_addr = segaddr_build(data->addr, calc_shift(data->
 							      num_bytes));
 		node_init(&oi->i_nop.no_addr, k_size, v_size, data->nt,
-			  bop->bo_tx);
+			  data->bt, bop->bo_tx);
 
 		return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
 
@@ -5250,11 +5312,11 @@ static void ut_node_create_delete(void)
 
 	// Add a few nodes to the created tree.
 	op1.no_opc = NOP_ALLOC;
-	node_alloc(&op1, tree, 10, nt, 8, 8, NULL, 0);
+	node_alloc(&op1, tree, 10, nt, &tt, 8, 8, NULL, 0);
 	node1 = op1.no_node;
 
 	op2.no_opc = NOP_ALLOC;
-	node_alloc(&op2,  tree, 10, nt, 8, 8, NULL, 0);
+	node_alloc(&op2,  tree, 10, nt, &tt, 8, 8, NULL, 0);
 	node2 = op2.no_node;
 
 	op1.no_opc = NOP_FREE;
@@ -5477,7 +5539,7 @@ static void ut_node_add_del_rec(void)
 	tree = op.no_tree;
 
 	op1.no_opc = NOP_ALLOC;
-	node_alloc(&op1, tree, 10, nt, 8, 8, NULL, 0);
+	node_alloc(&op1, tree, 10, nt, &tt, 8, 8, NULL, 0);
 	node1 = op1.no_node;
 
 	while (run_loop--) {
@@ -6937,7 +6999,6 @@ static void ut_traversal(struct td *tree)
 				i_nop.no_opc = NOP_LOAD;
 				node_get(&i_nop, tree, &child_node_addr,
 					 P_NEXTDOWN);
-				node_put(&i_nop, i_nop.no_node, NULL);
 				if (front == -1) {
 					front = 0;
 				}
@@ -6958,7 +7019,6 @@ static void ut_traversal(struct td *tree)
 			struct node_op  i_nop;
 			i_nop.no_opc = NOP_LOAD;
 			node_get(&i_nop, tree, &child_node_addr, P_NEXTDOWN);
-			node_put(&i_nop, i_nop.no_node, NULL);
 			if (front == -1) {
 				front = 0;
 			}
@@ -6993,6 +7053,10 @@ static void ut_traversal(struct td *tree)
 
 			}
 			printf("\n\n");
+		}
+		if (element != root) {
+			struct node_op  i_nop;
+			node_put(&i_nop, element, NULL);
 		}
 	}
 }
@@ -7033,7 +7097,7 @@ static void ut_invariant_check(struct td *tree)
 					M0_ASSERT(0);
 				}
 			} else {
-				if (element->n_ref != 0) {
+				if (element->n_ref != 1) {
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
 				}
@@ -7063,7 +7127,6 @@ static void ut_invariant_check(struct td *tree)
 				i_nop.no_opc = NOP_LOAD;
 				node_get(&i_nop, tree, &child_node_addr,
 					 P_NEXTDOWN);
-				node_put(&i_nop, i_nop.no_node, NULL);
 				if (front == -1) {
 					front = 0;
 				}
@@ -7074,6 +7137,7 @@ static void ut_invariant_check(struct td *tree)
 				}
 				queue[rear] = i_nop.no_node;
 			}
+			/* store last child: */
 			struct segaddr child_node_addr;
 			struct slot    node_slot = {};
 			node_slot.s_node = element;
@@ -7083,7 +7147,6 @@ static void ut_invariant_check(struct td *tree)
 			struct node_op  i_nop;
 			i_nop.no_opc = NOP_LOAD;
 			node_get(&i_nop, tree, &child_node_addr, P_NEXTDOWN);
-			node_put(&i_nop, i_nop.no_node, NULL);
 			if (front == -1) {
 				front = 0;
 			}
@@ -7106,7 +7169,7 @@ static void ut_invariant_check(struct td *tree)
 					M0_ASSERT(0);
 				}
 			} else {
-				if (element->n_ref != 0) {
+				if (element->n_ref != 1) {
 					printf("***INVARIENT FAIL***");
 					M0_ASSERT(0);
 				}
@@ -7130,6 +7193,10 @@ static void ut_invariant_check(struct td *tree)
 				prevkey = key;
 				firstkey = false;
 			}
+		}
+		if (element != root) {
+			struct node_op  i_nop;
+			node_put(&i_nop, element, NULL);
 		}
 	}
 }
@@ -7216,6 +7283,8 @@ static void ut_put_del_operation(void)
 	}
 	printf("level : %d\n", node_level(tree->t_desc->t_root));
 	ut_invariant_check(tree->t_desc);
+	M0_ASSERT(node_expensive_invariant(tree->t_desc->t_root));
+
 	inc = false;
 	for (i = 0; i < 1000000; i++) {
 		uint64_t             key;
@@ -7292,7 +7361,7 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_single_tree_kv_op",  ut_mt_st_kv_oper},
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
-		/* {"btree_kv_add_del",                ut_put_del_operation},*/
+		/* {"btree_kv_add_del",                ut_put_del_operation}, */
 		{NULL, NULL}
 	}
 };
