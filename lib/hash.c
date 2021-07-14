@@ -276,34 +276,24 @@ M0_INTERNAL uint64_t m0_htable_size(const struct m0_htable *htable)
 	return len;
 }
 
-/*
- * Improved version of well-known djb2 hash-function.
- *
- * Here is an example of what it does with a big number
- * which changes only slightly from the beginning or end:
- *
- * hash 8aee7dc0513403da -> 612cbbc11beedeed
- * hash 7aee7dc0513403da -> 7f5a5f634d50c0ba
- * hash 7aee7dc0513403db -> af729f8afb4348f8
- */
-static uint64_t hash(void *buf, int n)
-{
-	uint64_t hash = 5381;
-	unsigned char *p;
-
-	for (p = buf; n-- > 0; p++) {
-		hash += ((unsigned long long)*p << 32) | *p;
-		hash *= 2971215073;
-		hash >>= 16;
-		hash *= 2971215073;
-	}
-
-	return hash;
-}
-
 M0_INTERNAL uint64_t m0_hash(uint64_t x)
 {
-	return hash(&x, sizeof(x));
+	uint64_t y;
+
+	y = x;
+	y <<= 18;
+	x -= y;
+	y <<= 33;
+	x -= y;
+	y <<= 3;
+	x += y;
+	y <<= 3;
+	x -= y;
+	y <<= 4;
+	x += y;
+	y <<= 2;
+
+	return x + y;
 }
 
 #undef M0_TRACE_SUBSYSTEM
