@@ -133,12 +133,8 @@ static int write_dummy_hash_data(struct m0_uint128 id, struct m0_bufvec *attr, s
         unsigned char dummy_cksum = 'a';
 	M0_ASSERT(data != NULL);
 	nr_unit = attr->ov_vec.v_nr;
-	fprintf(stderr, "YJC: creating %d cksumbuffer of size = %d", nr_unit, ATTR_SIZE);
 	for (i = 0; i < nr_unit; ++i) {
-		//char *str = data->ov_buf[i];
-		//char *cksum = attr->ov_buf[i];
 		memset(attr->ov_buf[i], dummy_cksum++, ATTR_SIZE);
-		//fprintf(stderr, "YJC: data[%d] = %.8s cksum = %.8s\t",i, str, cksum);
 		attr->ov_vec.v_count[i] = ATTR_SIZE;
 	}
 	
@@ -414,7 +410,6 @@ int m0_write(struct m0_container *container, char *src,
 			  blks_per_io:block_count;
 		if (bcount < blks_per_io) {
 			cleanup_vecs(&data, &attr, &ext);
-			fprintf(stderr, "YJC: MOTR_APP allocating data and attr for %d blocks of size %d\n", bcount, block_size);
 			rc = alloc_vecs(&ext, &data, &attr, bcount,
 					block_size, m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id),
 					ATTR_SIZE );

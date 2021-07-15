@@ -480,7 +480,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	uint32_t                   tseg;
 	m0_bindex_t                toff;
 	m0_bindex_t                goff;
-	m0_bindex_t                goff_end;
 	m0_bindex_t                pgstart;
 	m0_bindex_t                pgend;
 	m0_bindex_t                unit_sz;                  
@@ -501,6 +500,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	m0_bcount_t                grp_size;
 	m0_bcount_t                cs_sz;
 	uint64_t                   page_size;
+	struct m0_ext              goff_span_ext;
+	bool                       is_goff_in_range;
 	void 					  *dst_attr = NULL;	
 	uint32_t 				   b_nob;
 
@@ -531,8 +532,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	toff    = target_offset(frame, play, gob_offset);
 	pgstart = toff;
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
-	M0_LOG(M0_DEBUG, "YJC: count = %"PRIu64 " toff = %"PRIu64 " goff = %"PRIu64,
-		          count, toff, goff);
 
 	M0_LOG(M0_DEBUG,
 	       "[gpos %"PRIu64", count %"PRIu64"] [%"PRIu64", %"PRIu64"]"
@@ -636,8 +635,10 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 INDEX(ivec, seg), COUNT(ivec, seg),
 				 FID_P(&ti->ti_fid), pattr[seg]);
 		/** Ignore hole because of data size not alligned pool width */
-		goff_end = ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr - 1] + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr - 1]; 
-		if(dst_attr != NULL && unit_type == M0_PUT_DATA && opcode == M0_OC_WRITE && goff < goff_end) {
+		goff_span_ext.e_start = ioo->ioo_ext.iv_index[0];
+		goff_span_ext.e_end = ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr - 1] + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr - 1]; 
+		is_goff_in_range = m0_ext_is_in(&goff_span_ext, goff);
+		if(dst_attr != NULL && unit_type == M0_PUT_DATA && opcode == M0_OC_WRITE && is_goff_in_range) {
 			void *src_attr;	
 			
 			/* This we can do as page_size <= unit_sz */
@@ -651,22 +652,22 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 *		 goff should lie within that span
 				 */
 				src_attr = m0_extent_vec_get_checksum_addr( &ioo->ioo_attr, goff, 
-												&ioo->ioo_ext, unit_sz, cs_sz);
+						&ioo->ioo_ext, unit_sz, cs_sz);
 				M0_ASSERT(b_nob == cs_sz);
 				memcpy(dst_attr + ti->ti_cksum_copied, src_attr, b_nob);
-				
+
 				/* Track checksum copied as we need to do overallocation for
 				 * ti_attrbuf for traget and while sending FOP we use this
 				 * counter to send the actual checksum size.
 				 */
-	 		    ti->ti_cksum_copied += b_nob;
-				
+				ti->ti_cksum_copied += b_nob;
+
 				/* Make sure we are not exceeding the allocated buffer size */
-			    M0_ASSERT(ti->ti_cksum_copied <= ti->ti_attrbuf.b_nob);
+				M0_ASSERT(ti->ti_cksum_copied <= ti->ti_attrbuf.b_nob);
 			}
 			
 		} else if (goff_ivec != NULL && unit_type == M0_PUT_DATA &&
-				opcode == M0_OC_READ && goff < goff_end) {
+				opcode == M0_OC_READ && is_goff_in_range) {
 			/**
 			 * Storing the values of goff(checksum offset) into the
 			 * goff_ivec according to target offset. This creates a
@@ -802,7 +803,6 @@ static void irfop_fini(struct ioreq_fop *irfop)
 
 	M0_LEAVE();
 }
-
 
 /**
  * Assembles io fops for the specified target server.
@@ -1002,14 +1002,17 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			if(m0_is_write_fop(&iofop->if_fop))	{
 				rw_fop->crw_di_data_cksum.b_addr = ti->ti_attrbuf.b_addr;
 				rw_fop->crw_di_data_cksum.b_nob = ti->ti_cksum_copied;
+				rw_fop->crw_is_data_fop = 1;
 			}
 			else {
 				rw_fop->crw_di_data_cksum.b_addr = NULL;
 				rw_fop->crw_di_data_cksum.b_nob = 0;
+				rw_fop->crw_is_data_fop = 2;
 			}		
-            rw_fop->crw_cksum_size = ioo->ioo_attr.ov_vec.v_count[0];
+			rw_fop->crw_cksum_size = ioo->ioo_attr.ov_vec.v_count[0];
 		}
 		else {
+			rw_fop->crw_is_data_fop = 0;
 			rw_fop->crw_di_data_cksum.b_addr = NULL;
 			rw_fop->crw_di_data_cksum.b_nob  = 0;
 			rw_fop->crw_cksum_size = 0;

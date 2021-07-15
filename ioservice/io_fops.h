@@ -411,6 +411,8 @@ struct m0_fop_cob_rw {
 	struct m0_io_indexvec     crw_ivec;
 	/** Miscellaneous flags. */
 	uint64_t                  crw_flags;
+	uint64_t                  crw_dummy_id;
+	int                       crw_is_data_fop;
 	/** Checksum and tag values for the input data blocks. */
 	m0_bcount_t               crw_cksum_size;
 	struct m0_buf		  	  crw_di_data;

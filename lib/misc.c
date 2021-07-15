@@ -427,6 +427,8 @@ M0_INTERNAL m0_bcount_t m0_extent_get_unit_offset( m0_bindex_t off,
 M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr, m0_bindex_t off, 
 							m0_bindex_t base_off, m0_bindex_t unit_sz, m0_bcount_t cs_size )
 {	
+	if(unit_sz == 0 || cs_size == 0)
+		return 0;
 	return b_addr + m0_extent_get_unit_offset(off, base_off, unit_sz) *
 					cs_size;	
 }
@@ -434,6 +436,8 @@ M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr, m0_bindex_t off,
 M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob( m0_bindex_t ext_start, 
 							m0_bindex_t ext_length, m0_bindex_t unit_sz, m0_bcount_t cs_size )
 {	
+	if(unit_sz == 0 || cs_size == 0)
+		return 0;
 	return m0_extent_get_num_unit_start(ext_start, ext_length, unit_sz) * cs_size;
 }
 
@@ -484,7 +488,7 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec, m0_binde
 	}
 
 	/* Assert to make sure the the offset is lying within the extent */
-	M0_ASSERT(i < vec->iv_vec.v_nr );
+	M0_ASSERT(i <= vec->iv_vec.v_nr );
 
 	// get the checksum_addr
 	m0_bufvec_cursor_init(&cksum_cursor, cksum_vec);

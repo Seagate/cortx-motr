@@ -692,7 +692,7 @@ int m0_obj_op(struct m0_obj       *obj,
 	struct m0_io_args          io_args;
 	enum m0_client_layout_type type;
 
-	M0_ENTRY("YJC: obj_id: " U128X_F "opcode = %s", U128_P(&obj->ob_entity.en_id),
+	M0_ENTRY("YJC: obj_id: " U128X_F " opcode = %s", U128_P(&obj->ob_entity.en_id),
 		 opcode == M0_OC_READ ? "read" : opcode == M0_OC_WRITE ? "write" :  \
 		 opcode == M0_OC_FREE ? "free" : "Not known");
 	M0_PRE(obj != NULL);

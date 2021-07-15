@@ -865,8 +865,6 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 
 	/* This call is for first data unit, need to initialize prev_context */
 	if (flag & M0_PI_CALC_UNIT_ZERO) {
-		memset(pi, 0, sizeof(struct m0_md5_inc_context_pi));
-		pi->hdr.pi_type = M0_PI_TYPE_MD5_INC_CONTEXT;
 		pi->hdr.pi_size = sizeof(struct m0_md5_inc_context_pi);
 		rc = MD5_Init((MD5_CTX *)&pi->prev_context);
 		if (rc != 1) {
@@ -1088,31 +1086,44 @@ int m0_client_calculate_pi(struct m0_generic_pi *pi,
 M0_EXPORTED(m0_client_calculate_pi);
 
 bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
-				   struct m0_pi_seed *seed,
-				   struct m0_bufvec *bvec)
+                                   struct m0_pi_seed *seed,
+                                   struct m0_bufvec *bvec)
 {
-	switch(pi->hdr.pi_type) {
-		case M0_PI_TYPE_MD5_INC_CONTEXT:
-			{
+        switch(pi->hdr.pi_type) {
+                case M0_PI_TYPE_MD5_INC_CONTEXT:
+                        {
 #ifndef __KERNEL__
-				struct m0_md5_inc_context_pi md5_ctx_pi;
-				unsigned char *curr_context = m0_alloc(sizeof(MD5_CTX));
-				md5_ctx_pi.hdr.pi_type =
-					M0_PI_TYPE_MD5_INC_CONTEXT;
-				m0_calculate_md5_inc_context(&md5_ctx_pi,
-						seed, bvec, M0_PI_CALC_UNIT_ZERO,
-						curr_context, NULL);
-				m0_free(curr_context);
-				if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pi_value,
-							md5_ctx_pi.pi_value,
-							MD5_DIGEST_LENGTH) == 0)
-					return true;
+                                struct m0_md5_inc_context_pi md5_ctx_pi;
+                                unsigned char *curr_context = m0_alloc(sizeof(MD5_CTX));
+				memset(&md5_ctx_pi, 0, sizeof(struct m0_md5_inc_context_pi));
+                                if (curr_context == NULL) {
+                                        return false;
+                                }
+				memcpy(md5_ctx_pi.prev_context,
+						((struct m0_md5_inc_context_pi *)pi)->prev_context,
+						sizeof(MD5_CTX));
+
+
+                                md5_ctx_pi.hdr.pi_type =
+                                        M0_PI_TYPE_MD5_INC_CONTEXT;
+                                m0_client_calculate_pi((struct m0_generic_pi *)&md5_ctx_pi,
+                                                seed, bvec, M0_PI_NO_FLAG,
+                                                curr_context, NULL);
+                                m0_free(curr_context);
+                                if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pi_value,
+                                                        md5_ctx_pi.pi_value,
+                                                        MD5_DIGEST_LENGTH) == 0)
+                                        return true;
 #endif
-			}
+                        }
 
-	}
+ 
 
-	return false;
+        }
+
+ 
+
+        return false;
 }
 
 M0_EXPORTED(m0_calc_verify_cksum_one_unit);

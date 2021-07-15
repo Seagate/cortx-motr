@@ -1012,8 +1012,8 @@ M0_INTERNAL int ioreq_fop_init(struct ioreq_fop    *fop,
 		 * Diable the flag to force ioservice to return -ENOENT for
 		 * non-existing objects. (Temporary solution)
 		 */
+		rwfop = io_rw_get(&fop->irf_iofop.if_fop);
 		if (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ) {
-			rwfop = io_rw_get(&fop->irf_iofop.if_fop);
 			rwfop->crw_flags &= ~M0_IO_FLAG_CROW;
 		}
 
@@ -1022,6 +1022,7 @@ M0_INTERNAL int ioreq_fop_init(struct ioreq_fop    *fop,
 		 * callback on receiving a reply.
 		 */
 		fop->irf_iofop.if_fop.f_item.ri_ops = &item_ops;
+		rwfop->crw_dummy_id = m0_dummy_id_generate();
 	}
 
 	M0_POST(ergo(rc == 0, ioreq_fop_invariant(fop)));

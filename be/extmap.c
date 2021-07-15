@@ -131,24 +131,6 @@ static struct m0_rwlock *emap_rwlock(struct m0_be_emap *emap)
 	return &emap->em_lock.bl_u.rwlock;
 }
 
-#define key_print(k) \
-do {\
-	M0_LOG(M0_DEBUG, "YJC: ek_prefix = "U128X_F " ek_offset= %"PRIu64" ", U128_P(&(k)->ek_prefix), (k)->ek_offset); \
-}while(0)
-
-#define rec_print(r) \
-do { \
-        M0_LOG(M0_DEBUG, "YJC: er_start=%"PRIu64" "  "er_value=%"PRIu64, \
-			 (r)->er_start, (r)->er_value); \
-}while(0)
-
-#define extent_print(e) \
-do {\
-        M0_LOG(M0_DEBUG, "YJC: e_start=%"PRIu64" "  "e_end=%"PRIu64, \
-			 (e)->e_start, (e)->e_end); \
-}while(0)
-
-
 static void emap_dump(struct m0_be_emap_cursor *it)
 {
 	int                       i;
@@ -749,13 +731,11 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	m0_rwlock_write_lock(emap_rwlock(map));
 	map->em_key.ek_prefix = *prefix;
 	map->em_key.ek_offset = M0_BINDEX_MAX + 1;
-	key_print(&map->em_key);
 	m0_format_footer_update(&map->em_key);
 	map->em_rec.er_start = 0;
 	map->em_rec.er_value = val;
 	map->em_rec.er_cksum_nob = 0;
 	emap_rec_init(&map->em_rec);
-	rec_print(&map->em_rec);
 	m0_format_footer_update(&map->em_rec);
 
 	++map->em_version;
@@ -981,7 +961,6 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	key->ek_prefix = ext->ee_pre;
 	key->ek_offset = ext->ee_ext.e_end;
 	emap_key_init(key);
-	key_print(key);
 	rec->er_start  = ext->ee_ext.e_start;
 	rec->er_value  = ext->ee_val;
 	rec->er_cksum_nob = ext->ee_cksum_buf.b_nob;
@@ -1106,7 +1085,6 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 	it->ec_map = map;
 	it->ec_version = map->em_version;
 	m0_be_btree_cursor_init(&it->ec_cursor, &map->em_mapping);
-	key_print(&it->ec_key);
 }
 
 static void be_emap_close(struct m0_be_emap_cursor *it)
@@ -1300,7 +1278,6 @@ be_emap_split(struct m0_be_emap_cursor *it,
 		it->ec_seg.ee_val         = vec->iv_index[i];
 		it->ec_seg.ee_cksum_buf   = cksum[i];
 		
-		extent_print(&it->ec_seg.ee_ext);
 		if (it->ec_seg.ee_ext.e_end == seg_end)
 			/* The end of original segment is reached:
 			 * just update it instead of deleting and
