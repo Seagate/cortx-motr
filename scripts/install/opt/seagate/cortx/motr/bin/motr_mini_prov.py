@@ -736,3 +736,71 @@ def lnet_self_ping(self):
        if ret != 0:
             return False
     return True
+
+
+def bseg_sz_from_motr_conf_file(self):
+    with open(MOTR_SYS_CFG) as fp:
+        for line in fp:
+            # Skip comments and blank lines
+            if line.startswith(('#', '\n')):
+                continue
+            # Entries are in key=val form
+            key, val = line.partition("=")[::2]
+            key = key.strip()
+            val = val.strip()
+            if key == "MOTR_M0D_IOS_BESEG_SIZE":
+                return int(val)
+
+    self.logger.warning(f"Not found MOTR_M0D_IOS_BESEG_SIZE in {MOTR_SYS_CFG}")
+    return None
+
+def get_lvm_min_swap_size(self):
+    lvm_min_size = None
+    lv_list = execute_command(self, "lvdisplay | grep \"LV Path\" | awk \'{ print $3 }\'")[0].split('\n')
+    lv_list = lv_list[0:len(lv_list)-1]
+    matched_lv_path = []
+    pat = 'vg_srvnode-\d_md\d/lv_raw_md\d'
+    for lv_path in lv_list:
+        if re.search(pat, lv_path):
+            matched_lv_path.append(lv_path)
+            lvm_min_size = calc_lvm_min_size(self, lv_path, lvm_min_size)
+    if lvm_min_size and matched_lv_path:
+        self.logger.info(f"LV min size ({lvm_min_size}) got from minimum size of {matched_lv_path}")
+    return lvm_min_size, matched_lv_path
+
+'''
+   Here we check if stale entries of LVs are there in system.
+   Stale entries may occur after reimaging the node
+   We first read MOTR_M0D_IOS_BESEG_SIZE from /etc/sysconfig/motr.
+   If MOTR_M0D_IOS_BESEG_SIZE does not exist in /etc/sysconfig/motr, return False.
+   Check if entries of format exist /dev/vg_srvnode-1_md2/lv_raw_md2 in lvm.
+   If exist, get minimum size of them.
+   If no such entry exist, return True. It means no stale entries.
+   If entries exist, compare min size of LV with value of MOTR_M0D_IOS_BESEG_SIZE from /etc/sysconfig/motr
+   If not equal, it means stale entries are there, return False. Else, return True.
+'''
+def validate_bseg_sz(self):
+    lvm_min_size, lv_list = get_lvm_min_swap_size(self)
+    bseg_from_motr_conf = bseg_sz_from_motr_conf_file(self)
+
+    if not bseg_from_motr_conf:
+        return False
+
+    # Not found any stale LV entries.
+    if not lvm_min_size:
+        return True
+
+    # Found some stale LV entries
+    self.logger.info(f"lvm_min_size = {lvm_min_size}")
+    self.logger.info(f"bseg_from_motr_conf = {bseg_from_motr_conf}")
+    if lvm_min_size != bseg_from_motr_conf:
+        self.logger.warning(f"MOTR_M0D_IOS_BESEG_SIZE({bseg_from_motr_conf}) "
+                          "is not updated"
+                          "with minimum size of follwoing md LVs \n"
+                          f"{lv_list}\n"
+                          "This refelcts above LV entries are not valid and "
+                          "might be remained even after reimage")
+        return False
+    else:
+        self.logger.info("No stale entries. We might be running post_install multiple times after first successfull post_install")
+        return True

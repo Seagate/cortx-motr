@@ -124,6 +124,10 @@ class PostInstallCmd(Cmd):
         else:
             self.logger.error("There are LVM configurations present on the system. "
                               "Skipping LVM creation.\n")
+            self.logger.info("Checking if MOTR_M0D_IOS_BESEG_SIZE in /etc/sysconfig/motr is correctly updated")
+            if not validate_bseg_sz(self):
+                self.logger.error("Invalid LVM configuration exist\n")
+                return
 
 class ConfigCmd(Cmd):
     """Config Setup Cmd"""
