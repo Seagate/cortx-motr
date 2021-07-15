@@ -1183,7 +1183,8 @@ static bool verify_checksum(struct m0_op_io *ioo)
 		if (ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
 
 			seed.data_unit_offset = m0_ivec_cursor_index(&extcur)/usz;
-			seed.obj_id = ioo->ioo_oo.oo_fid;
+			seed.obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
+			seed.obj_id.f_key       = ioo->ioo_obj->ob_entity.en_id.u_lo;
 
 			pi_ondisk = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[attr_idx];
 
@@ -1278,7 +1279,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 
 	}
 
-	if (dir == CD_COPY_TO_APP) {
+	if (dir == CD_COPY_TO_APP && ioo->ioo_attr.ov_vec.v_nr != 0) {
 		/* verify the checksum for data read */
 		if (!verify_checksum(ioo)) {
 			return M0_RC(-EIO);

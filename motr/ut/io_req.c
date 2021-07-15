@@ -984,7 +984,9 @@ static void ut_test_ioreq_application_data_copy(void)
 	rc = m0_bufvec_empty_alloc(&user_data, 1);
 	M0_UT_ASSERT(rc == 0);
 
-	seed.obj_id = ioo->ioo_oo.oo_fid;
+	seed.obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
+	seed.obj_id.f_key = ioo->ioo_obj->ob_entity.en_id.u_lo;
+	
 	curr_context = m0_alloc(sizeof(MD5_CTX));
 
 	for (k = 0; k < ioo->ioo_iomap_nr; k++) {
