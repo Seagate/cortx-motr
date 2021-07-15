@@ -2424,7 +2424,7 @@ static bool segaddr_header_isvalid(const struct segaddr *addr)
 	struct ff_head       *h = segaddr_addr(addr);
 	struct m0_format_tag  tag;
 
-	if (h->ff_fmt.hd_magic == 0)
+	if (h->ff_fmt.hd_magic != M0_FORMAT_HEADER_MAGIC)
 		return false;
 
 	m0_format_header_unpack(&tag, &h->ff_fmt);
