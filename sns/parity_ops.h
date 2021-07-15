@@ -29,8 +29,6 @@
 
 #if ISAL_ENCODE_ENABLED
 #include <isa-l.h>
-#else
-#include "galois/galois.h"
 #endif /* ISAL_ENCODE_ENABLED */
 #include "lib/assert.h"
 
@@ -39,8 +37,10 @@
 
 typedef int m0_parity_elem_t;
 
+#if 0 /* NA_FOR_INTEL_ISA */
 M0_INTERNAL int m0_parity_init(void);
 M0_INTERNAL void m0_parity_fini(void);
+#endif /* NA_FOR_INTEL_ISA */
 
 M0_INTERNAL m0_parity_elem_t m0_parity_pow(m0_parity_elem_t x,
 					   m0_parity_elem_t p);
@@ -60,8 +60,7 @@ static inline m0_parity_elem_t m0_parity_mul(m0_parity_elem_t x, m0_parity_elem_
 #if ISAL_ENCODE_ENABLED
 	return gf_mul(x, y);
 #else
-	/* return galois_single_multiply(x, y, M0_PARITY_GALOIS_W); */
-	return galois_multtable_multiply(x, y, M0_PARITY_GALOIS_W);
+	return 0;
 #endif /* ISAL_ENCODE_ENABLED */
 }
 
@@ -70,8 +69,7 @@ static inline m0_parity_elem_t m0_parity_div(m0_parity_elem_t x, m0_parity_elem_
 #if ISAL_ENCODE_ENABLED
 	return gf_mul(x, gf_inv(y));
 #else
-	/* return galois_single_divide(x, y, M0_PARITY_GALOIS_W); */
-	return galois_multtable_divide(x, y, M0_PARITY_GALOIS_W);
+	return 0;
 #endif /* ISAL_ENCODE_ENABLED */
 }
 
