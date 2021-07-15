@@ -1741,16 +1741,11 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 	M0_ENTRY();
 
 	rc = m0_dtx_fol_add(&fom->fo_tx);
-	if (rc != 0)
-		goto done;
 
 #ifndef __KERNEL__
-	rc = m0_fol_fdmi_post_record(fom);
-	if (rc != 0)
-		goto done;
+	if (rc == 0)
+		m0_fol_fdmi_post_record(fom);
 #endif
-
-done:
 	return M0_RC(rc);
 }
 
