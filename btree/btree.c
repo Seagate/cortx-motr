@@ -1293,10 +1293,12 @@ static bool node_invariant(const struct nd *node)
 	return node->n_type->nt_invariant(node);
 }
 
+#ifndef __KERNEL__
 static bool node_expensive_invariant(const struct nd *node)
 {
 	return node->n_type->nt_expensive_invariant(node);
 }
+#endif
 
 #if 0
 static bool node_verify(const struct nd *node)
@@ -1440,7 +1442,6 @@ static void node_seq_cnt_update(struct nd *node)
 static void node_fix(const struct nd *node, struct m0_be_tx *tx)
 {
 	M0_PRE(node_invariant(node));
-	M0_PRE(node_expensive_invariant(node));
 	node->n_type->nt_fix(node, tx);
 }
 
@@ -2361,44 +2362,50 @@ static bool ff_rec_is_valid(const struct slot *slot)
 	   _0C(val_is_valid);
 }
 
-static bool ff_expensive_invariant(const struct nd *node)
+static bool ff_iskey_smaller(const struct nd *node, int prev_key_idx,
+			int next_key_idx)
 {
-	struct ff_head *h = ff_data(node);
+	struct ff_head          *h;
 	struct m0_btree_key      key_prev;
 	struct m0_btree_key      key_next;
 	struct m0_bufvec_cursor  cur_prev;
 	struct m0_bufvec_cursor  cur_next;
 	void                    *p_key_prev;
-	m0_bcount_t              ksize_prev = h->ff_ksize;
+	m0_bcount_t              ksize_prev;
 	void                    *p_key_next;
-	m0_bcount_t              ksize_next = h->ff_ksize;
-	int                      count = node_count(node);
-	int                      i;
+	m0_bcount_t              ksize_next;
 	int                      diff;
-	if (count <= 1)
-		return true;
+
+	h          = ff_data(node);
+	ksize_prev = h->ff_ksize;
+	ksize_next = h->ff_ksize;
 
 	key_prev.k_data = M0_BUFVEC_INIT_BUF(&p_key_prev, &ksize_prev);
 	key_next.k_data = M0_BUFVEC_INIT_BUF(&p_key_next, &ksize_next);
 
-	p_key_prev = ff_key(node, 0);
+	p_key_prev = ff_key(node, prev_key_idx);
+	p_key_next = ff_key(node, next_key_idx);
 
-	for (i = 1 ; i < count; i++) {
-		p_key_next = ff_key(node, i);
-
-		m0_bufvec_cursor_init(&cur_prev, &key_prev.k_data);
-		m0_bufvec_cursor_init(&cur_next, &key_next.k_data);
-		diff = m0_bufvec_cursor_cmp(&cur_prev, &cur_next);
-		if (diff >= 0)
-			return false;
-		p_key_prev = p_key_next;
-	}
+	m0_bufvec_cursor_init(&cur_prev, &key_prev.k_data);
+	m0_bufvec_cursor_init(&cur_next, &key_next.k_data);
+	diff = m0_bufvec_cursor_cmp(&cur_prev, &cur_next);
+	if (diff >= 0)
+		return false;
 	return true;
+
+}
+
+static bool ff_expensive_invariant(const struct nd *node)
+{
+	int count = node_count(node);
+	return _0C(ergo(count > 1, m0_forall(i, count - 1,
+					     ff_iskey_smaller(node, i, i+1))));
 }
 
 static bool ff_invariant(const struct nd *node)
 {
 	const struct ff_head *h = ff_data(node);
+
 	/* TBD: add check for h_tree_type after initializing it in node_init. */
 	return  _0C(h->ff_fmt.hd_magic == M0_FORMAT_HEADER_MAGIC) &&
 		_0C(h->ff_seg.h_node_type == BNT_FIXED_FORMAT) &&
@@ -6344,7 +6351,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			keys_put_count++;
 			key_first += ti->ti_key_incr;
 		}
-
+		M0_ASSERT(node_expensive_invariant(tree->t_desc->t_root));
 		/** GET and ITERATE over the keys which we inserted above. */
 
 		/**  Randomly decide the iteration direction. */
@@ -6938,7 +6945,7 @@ static void ut_mt_tree_oper(void)
  * Commenting this ut as it is not required as a part for test-suite but my
  * required for testing purpose
 **/
-
+#if 0
 /**
  * This function is for traversal of tree in breadth-first order and it will
  * print level and key-value pair for each node.
@@ -7334,7 +7341,7 @@ static void ut_put_del_operation(void)
 	 */
 	btree_ut_fini();
 }
-
+#endif
 
 struct m0_ut_suite btree_ut = {
 	.ts_name = "btree-ut",
@@ -7356,7 +7363,7 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_single_tree_kv_op",  ut_mt_st_kv_oper},
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
-		{"btree_kv_add_del",                ut_put_del_operation},
+		/* {"btree_kv_add_del",                ut_put_del_operation}, */
 		{NULL, NULL}
 	}
 };
