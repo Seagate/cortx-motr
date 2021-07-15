@@ -858,8 +858,7 @@ struct node_type {
 
 	/** Initializes newly allocated node */
 	void (*nt_init)(const struct segaddr *addr, int shift, int ksize,
-			int vsize, uint32_t ntype, uint32_t ttype,
-			struct m0_be_tx *tx);
+			int vsize, uint32_t ntype, struct m0_be_tx *tx);
 
 	/** Cleanup of the node if any before deallocation */
 	void (*nt_fini)(const struct nd *node);
@@ -1105,9 +1104,7 @@ static struct nd *node_try  (struct td *tree, struct segaddr *addr);
 #endif
 
 static int64_t    node_alloc(struct node_op *op, struct td *tree, int size,
-			     const struct node_type *nt,
-			     const struct m0_btree_type *bt,
-			     int ksize, int vsize,
+			     const struct node_type *nt, int ksize, int vsize,
 			     struct m0_be_tx *tx, int nxt);
 static int64_t    node_free(struct node_op *op, struct nd *node,
 			    struct m0_be_tx *tx, int nxt);
@@ -1116,8 +1113,7 @@ static void node_op_fini(struct node_op *op);
 #endif
 #ifndef __KERNEL__
 static void node_init(struct segaddr *addr, int ksize, int vsize,
-		      const struct node_type *nt,
-		      const struct m0_btree_type *bt, struct m0_be_tx *tx);
+		      const struct node_type *nt, struct m0_be_tx *tx);
 #endif
 #if 0
 static bool node_verify(const struct nd *node);
@@ -1287,11 +1283,9 @@ M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 M0_TL_DEFINE(ndlist, static, struct nd);
 
 static void node_init(struct segaddr *addr, int ksize, int vsize,
-		      const struct node_type *nt,
-		      const struct m0_btree_type *bt,struct m0_be_tx *tx)
+		      const struct node_type *nt, struct m0_be_tx *tx)
 {
-	nt->nt_init(addr, segaddr_shift(addr), ksize, vsize, nt->nt_id,
-		    bt->tt_id, tx);
+	nt->nt_init(addr, segaddr_shift(addr), ksize, vsize, nt->nt_id, tx);
 }
 
 static bool node_invariant(const struct nd *node)
@@ -1985,8 +1979,7 @@ static struct nd *node_try(struct td *tree, struct segaddr *addr){
  * @return int64_t
  */
 static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
-			  const struct node_type *nt,
-			  const struct m0_btree_type *bt, int ksize, int vsize,
+			  const struct node_type *nt, int ksize, int vsize,
 			  struct m0_be_tx *tx, int nxt)
 {
 	int            nxt_state = nxt;
@@ -2003,7 +1996,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int size,
 	op->no_addr = segaddr_build(area, size);
 	op->no_tree = tree;
 
-	node_init(&op->no_addr, ksize, vsize, nt, bt, tx);
+	node_init(&op->no_addr, ksize, vsize, nt, tx);
 
 	nxt_state = node_get(op, tree, &op->no_addr, nxt_state);
 
@@ -2137,7 +2130,7 @@ static int64_t mem_tree_create(struct node_op *op, struct m0_btree_type *tt,
 	tree_get(op, NULL, nxt);
 
 	tree = op->no_tree;
-	node_alloc(op, tree, rootshift, &fixed_format, tt, 8, 8, NULL, nxt);
+	node_alloc(op, tree, rootshift, &fixed_format, 8, 8, NULL, nxt);
 
 	m0_rwlock_write_lock(&tree->t_lock);
 	tree->t_root = op->no_node;
@@ -2225,7 +2218,7 @@ enum m0_be_bnode_format_version {
 };
 
 static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
-		    uint32_t ntype, uint32_t ttype, struct m0_be_tx *tx);
+		    uint32_t ntype, struct m0_be_tx *tx);
 static void ff_fini(const struct nd *node);
 static int  ff_count(const struct nd *node);
 static int  ff_count_rec(const struct nd *node);
@@ -2385,7 +2378,6 @@ static bool ff_expensive_invariant(const struct nd *node)
 	if (count <= 1)
 		return true;
 
-
 	key_prev.k_data = M0_BUFVEC_INIT_BUF(&p_key_prev, &ksize_prev);
 	key_next.k_data = M0_BUFVEC_INIT_BUF(&p_key_next, &ksize_next);
 
@@ -2401,16 +2393,14 @@ static bool ff_expensive_invariant(const struct nd *node)
 			return false;
 		p_key_prev = p_key_next;
 	}
-
 	return true;
 }
 
 static bool ff_invariant(const struct nd *node)
 {
 	const struct ff_head *h = ff_data(node);
-
+	/* TBD: add check the h_tree_type after population of tree type. */
 	return  _0C(h->ff_seg.h_node_type == BNT_FIXED_FORMAT) &&
-		_0C(h->ff_seg.h_tree_type == node->n_tree->t_type->tt_id) &&
 		_0C(h->ff_ksize != 0) && (h->ff_vsize != 0) &&
 		_0C(h->ff_shift == segaddr_shift(&node->n_addr));
 }
@@ -2435,7 +2425,7 @@ static bool segaddr_header_isvalid(const struct segaddr *addr)
 }
 
 static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
-		    uint32_t ntype, uint32_t ttype, struct m0_be_tx *tx)
+		    uint32_t ntype, struct m0_be_tx *tx)
 {
 	struct ff_head *h   = segaddr_addr(addr);
 
@@ -2447,7 +2437,6 @@ static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 	h->ff_ksize           = ksize;
 	h->ff_vsize           = vsize;
 	h->ff_seg.h_node_type = ntype;
-	h->ff_seg.h_tree_type = ttype;
 
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
 		.ot_version       = M0_BE_BNODE_FORMAT_VERSION,
@@ -3457,8 +3446,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				oi->i_nop.no_opc = NOP_ALLOC;
 				return node_alloc(&oi->i_nop, tree,
 						  shift, lev->l_node->n_type,
-						  tree->t_type, ksize, vsize,
-						  bop->bo_tx, P_ALLOC_STORE);
+						  ksize, vsize, bop->bo_tx,
+						  P_ALLOC_STORE);
 
 			}
 			oi->i_alloc_lev--;
@@ -3498,8 +3487,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				oi->i_nop.no_opc = NOP_ALLOC;
 				return node_alloc(&oi->i_nop, tree,
 						  shift, lev->l_node->n_type,
-						  tree->t_type, ksize, vsize,
-						  bop->bo_tx, P_ALLOC_STORE);
+						  ksize, vsize, bop->bo_tx,
+						  P_ALLOC_STORE);
 
 			} else if (oi->i_extra_node == NULL) {
 				oi->i_extra_node = oi->i_nop.no_node;
@@ -3865,7 +3854,7 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 		oi->i_nop.no_addr = segaddr_build(data->addr, calc_shift(data->
 							      num_bytes));
 		node_init(&oi->i_nop.no_addr, k_size, v_size, data->nt,
-			  data->bt, bop->bo_tx);
+			  bop->bo_tx);
 
 		return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
 
@@ -5312,11 +5301,11 @@ static void ut_node_create_delete(void)
 
 	// Add a few nodes to the created tree.
 	op1.no_opc = NOP_ALLOC;
-	node_alloc(&op1, tree, 10, nt, &tt, 8, 8, NULL, 0);
+	node_alloc(&op1, tree, 10, nt, 8, 8, NULL, 0);
 	node1 = op1.no_node;
 
 	op2.no_opc = NOP_ALLOC;
-	node_alloc(&op2,  tree, 10, nt, &tt, 8, 8, NULL, 0);
+	node_alloc(&op2,  tree, 10, nt, 8, 8, NULL, 0);
 	node2 = op2.no_node;
 
 	op1.no_opc = NOP_FREE;
@@ -5539,7 +5528,7 @@ static void ut_node_add_del_rec(void)
 	tree = op.no_tree;
 
 	op1.no_opc = NOP_ALLOC;
-	node_alloc(&op1, tree, 10, nt, &tt, 8, 8, NULL, 0);
+	node_alloc(&op1, tree, 10, nt, 8, 8, NULL, 0);
 	node1 = op1.no_node;
 
 	while (run_loop--) {
@@ -6943,7 +6932,7 @@ static void ut_mt_tree_oper(void)
  * Commenting this ut as it is not required as a part for test-suite but my
  * required for testing purpose
 **/
-#if 0
+
 /**
  * This function is for traversal of tree in breadth-first order and it will
  * print level and key-value pair for each node.
@@ -7339,7 +7328,7 @@ static void ut_put_del_operation(void)
 	 */
 	btree_ut_fini();
 }
-#endif
+
 
 struct m0_ut_suite btree_ut = {
 	.ts_name = "btree-ut",
@@ -7361,7 +7350,7 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_single_tree_kv_op",  ut_mt_st_kv_oper},
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
-		/* {"btree_kv_add_del",                ut_put_del_operation}, */
+		{"btree_kv_add_del",                ut_put_del_operation},
 		{NULL, NULL}
 	}
 };
