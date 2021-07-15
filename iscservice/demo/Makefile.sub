@@ -1,0 +1,20 @@
+iscservice_demo_libm0isc_la_SOURCES = \
+                                    iscservice/demo/libdemo.h \
+                                    iscservice/demo/libdemo.c \
+                                    iscservice/demo/common.c \
+                                    iscservice/demo/common.h
+
+iscservice_demo_m0iscdemo_SOURCES = iscservice/demo/libdemo.h \
+                                    iscservice/demo/util.h \
+                                    iscservice/demo/util.c \
+                                    iscservice/demo/common.c \
+                                    iscservice/demo/common.h \
+                                    iscservice/demo/main.c
+
+iscservice_demo_m0iscreg_SOURCES  = iscservice/demo/reglib.c \
+                                    iscservice/demo/util.h \
+                                    iscservice/demo/util.c
+
+nodist_motr_libmotr_la_SOURCES   += \
+                                    iscservice/demo/libdemo_xc.c
+XC_FILES                         += iscservice/demo/libdemo_xc.h

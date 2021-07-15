@@ -901,6 +901,24 @@ hsm_m0hsm_LDADD        = $(top_builddir)/motr/libmotr.la @LIBEDIT_LIBS@
 include $(top_srcdir)/hsm/Makefile.sub
 
 ################################################################################
+# isc/libm0isc.so,m0iscdemo,m0iscreg ------------------------------------ {{{2
+#
+
+lib_LTLIBRARIES          += iscservice/demo/libm0isc.la
+iscservice_demo_libm0isc_la_CPPFLAGS = -DM0_TARGET='libm0isc' $(AM_CPPFLAGS)
+iscservice_demo_libm0isc_la_LDFLAGS  = -version-info 1:0:0 $(AM_LDFLAGS)
+
+bin_PROGRAMS += iscservice/demo/m0iscdemo
+iscservice_demo_m0iscdemo_CPPFLAGS = -DM0_TARGET='m0iscdemo' $(AM_CPPFLAGS)
+iscservice_demo_m0iscdemo_LDADD = $(top_builddir)/motr/libmotr.la @LIBEDIT_LIBS@
+
+bin_PROGRAMS += iscservice/demo/m0iscreg
+iscservice_demo_m0iscreg_CPPFLAGS = -DM0_TARGET='m0iscreg' $(AM_CPPFLAGS)
+iscservice_demo_m0iscreg_LDADD  = $(top_builddir)/motr/libmotr.la @LIBEDIT_LIBS@
+
+include $(top_srcdir)/iscservice/demo/Makefile.sub
+
+################################################################################
 #                        Init scripts and config files                      {{{1
 ################################################################################
 
@@ -1093,6 +1111,7 @@ EXTRA_DIST += \
               ioservice/Kbuild.sub \
               ioservice/ut/Kbuild.sub \
               iscservice/Kbuild.sub \
+              iscservice/demo/Kbuild.sub \
               iscservice/ut/Kbuild.sub \
               layout/Kbuild.sub \
               layout/ut/Kbuild.sub \
