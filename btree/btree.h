@@ -193,11 +193,12 @@ void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
  * @param bop is consumed by the m0_btree_create for its operation. It contains
  *        the field bo_arbor which holds the tree pointer to be used by the
  *        caller after the call completes.
+ * @param seg points to the BE segment which will host the nodes of the tree.
  * @param tx pointer to the transaction struture to capture BE segment changes.
  */
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 		     const struct node_type *nt, struct m0_btree_op *bop,
-		     struct m0_be_tx *tx);
+		     struct m0_be_seg *seg, struct m0_be_tx *tx);
 
 /**
  * Destroys the opened or created tree represented by arbor. Once the destroy
@@ -208,8 +209,10 @@ void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
  *
  * @param arbor is the btree which needs to be closed.
  * @param bop is consumed by the m0_btree_destroy for its operation.
+ * @param tx pointer to the transaction structure to capture BE segment changes.
  */
-void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop);
+void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop,
+		      struct m0_be_tx *tx);
 
 /**
  * Searches for the key/slant key provided as the search key. The callback
