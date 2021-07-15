@@ -2399,8 +2399,9 @@ static bool ff_expensive_invariant(const struct nd *node)
 static bool ff_invariant(const struct nd *node)
 {
 	const struct ff_head *h = ff_data(node);
-	/* TBD: add check the h_tree_type after population of tree type. */
-	return  _0C(h->ff_seg.h_node_type == BNT_FIXED_FORMAT) &&
+	/* TBD: add check for h_tree_type after initializing it in node_init. */
+	return  _0C(h->ff_fmt.hd_magic == M0_FORMAT_HEADER_MAGIC) &&
+		_0C(h->ff_seg.h_node_type == BNT_FIXED_FORMAT) &&
 		_0C(h->ff_ksize != 0) && (h->ff_vsize != 0) &&
 		_0C(h->ff_shift == segaddr_shift(&node->n_addr));
 }
@@ -2415,6 +2416,9 @@ static bool segaddr_header_isvalid(const struct segaddr *addr)
 {
 	struct ff_head       *h = segaddr_addr(addr);
 	struct m0_format_tag  tag;
+
+	if (h->ff_fmt.hd_magic == 0)
+		return false;
 
 	m0_format_header_unpack(&tag, &h->ff_fmt);
 	if (tag.ot_version != M0_BE_BNODE_FORMAT_VERSION ||
@@ -2462,6 +2466,8 @@ static void ff_fini(const struct nd *node)
 		.ot_type          = 0,
 		.ot_footer_offset = offsetof(struct ff_head, ff_foot)
 	});
+
+	h->ff_fmt.hd_magic = 0;
 }
 
 static int ff_count(const struct nd *node)
