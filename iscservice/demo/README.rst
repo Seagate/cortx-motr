@@ -1,0 +1,96 @@
+Preparing computations library
+==============================
+
+Computations from an external library cannot be linked directly with
+a Motr instance. The library is supposed to have an entry function named
+``void motr_lib_init(void)``. All the computations in the library must
+have the following signature::
+
+  int comp(struct m0_buf *args, struct m0_buf *out,
+           struct m0_isc_comp_private *comp_data, int *rc)
+
+See demo/libdemo.c for examples.
+
+Loading the library
+===================
+
+With ``spiel`` command (see spiel/spiel.h and demo/util.h) the library
+can be loaded with any running Motr instance. A helper function
+``m0util_isc_api_register`` takes the library path which is (IMPORTANT!)
+expected to be the same across all the nodes running Motr.
+``m0iscreg`` utility takes the path as an input and loads the library
+into all the remote Motr instances.
+
+On successful loading of the library, the output will look like this::
+
+  $ ./m0iscreg $PWD/libdemo.so
+  m0iscreg success
+
+Demo computations
+=================
+
+Currently, we demonstrate three simple computations: ``ping``, ``min`` and
+``max``. ``m0iscdemo`` utility can be used to invoke the computations and
+see the result::
+
+  $ ./m0iscdemo
+
+  Usage: m0iscdemo [-v[v]] COMP OBJ LEN
+
+    Supported COMPutations: ping, min, max.
+
+    OBJ is two uint64 numbers in format: hi:lo.
+    LEN is the length of object (in KiB).
+
+To build the utility and ``libdemo.so`` library, run::
+
+  make isc-all
+
+Following are the steps to run the demo.
+
+Prepare rc-files
+----------------
+
+In order to start the demo programs, the rc-startup files must be created
+for each of them: ``~/.m0util/m0iscdemorc/$(hostname)`` and
+``~/.m0util/m0iscreg/$(hostname)`` with the configuration parameters
+needed to connect to Motr, for example::
+
+  $ cat ~/.m0util/m0iscdemorc/centos79
+  HA_ENDPOINT_ADDR = 192.168.180.171@tcp:12345:1:1
+  PROFILE_FID   = 0x7000000000000001:0x50
+  M0_POOL_TIER1 = 0x6f00000000000001:0x2f
+  LOCAL_ENDPOINT_ADDR0 = 192.168.180.171@tcp:12345:4:1
+  LOCAL_PROC_FID0      = 0x7200000000000001:0x29
+
+The values for these parameters can be taken from the output of
+``hctl status`` command.
+
+ping
+----
+
+This functionality pings all the ISC services spanned by the object units.
+For each unit a separate ping request is sent, so the utility prints
+"Hello-World@<service-fid>" reply each of these requests.
+
+Here is an example for the object with 1MB units::
+
+  $ ./m0iscdemo ping 123:12371 4096
+  Hello-world @192.168.180.171@tcp:12345:2:2
+  Hello-world @192.168.180.171@tcp:12345:2:2
+  Hello-world @192.168.180.171@tcp:12345:2:2
+  Hello-world @192.168.180.171@tcp:12345:2:2
+
+Note: the object length (or the amount to read) must be specified, as Motr
+does not store the objects lengths in their metadata.
+
+min / max
+---------
+
+Write an object with a real numbers strings delimited by the newline.
+The min/max in-storage computation can then be done on such object::
+
+  $ ./m0iscdemo max 123:12371 4096
+  idx=132151 val=32767.627900
+  $ ./m0iscdemo min 123:12371 4096
+  idx=180959 val=0.134330

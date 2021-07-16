@@ -227,7 +227,7 @@ find %{buildroot} \
     sed -e 's#^%{buildroot}##' >> tests-ut.files
 
 sort -o tests-ut.files tests-ut.files
-find %{buildroot} -type f | sed -e 's#^%{buildroot}##' | sort |
+find %{buildroot} -type f -o -type l | sed -e 's#^%{buildroot}##' | sort |
     comm -13 tests-ut.files - | sed -e 's#^#%{buildroot}#' > tests-ut.exclude
 xargs -a tests-ut.exclude rm -rv
 
@@ -290,7 +290,7 @@ fi
 %exclude /lib/modules/*/kernel/fs/motr/m0rpc*
 %exclude /lib/modules/*/kernel/fs/motr/m0ut*
 %exclude /usr/bin/workload*
-%endif # with ut
+%endif
 
 %if %{with ivt}
 %files ivt -f ivt.files
