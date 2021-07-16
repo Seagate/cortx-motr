@@ -10,5 +10,5 @@ staleLabel: needs-attention
 # Comment to post when marking an issue as stale. Set to `false` to disable
 markComment: >
     This issue/pull request has been marked as `needs attention` as it has been left pending without new activity for 4 days.
-    Tagging @huanghua78 @atulsdeshmukh2312 for appropriate assignment.
+    Tagging @huanghua78 @atulsdeshmukh2312 @mehjoshi for appropriate assignment.
     Sorry for the delay & Thank you for contributing to CORTX. We will get back to you as soon as possible.
