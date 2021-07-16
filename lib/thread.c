@@ -68,6 +68,7 @@ int m0_thread_init(struct m0_thread *q, int (*init)(void *),
 	 * of `q'. */
 	q->t_tls.tls_m0_instance = m0_get();
 	q->t_tls.tls_self = q;
+	q->t_tls.tls_loc = m0_processor_id_get();
 
 	result = m0_thread_init_impl(q, q->t_namebuf);
 	if (result != 0)
@@ -126,8 +127,6 @@ M0_INTERNAL struct m0_thread *m0_thread_self(void)
 
 M0_INTERNAL int m0_thread_adopt(struct m0_thread *thread, struct m0 *instance)
 {
-	M0_PRE(M0_IS0(thread));
-
 	return m0_thread_arch_adopt(thread, instance, true);
 }
 
