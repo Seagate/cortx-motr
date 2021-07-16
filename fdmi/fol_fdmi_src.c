@@ -543,15 +543,31 @@ M0_INTERNAL int m0_fol_fdmi_src_deinit(void)
 
 M0_INTERNAL int m0_fol_fdmi_post_record(struct m0_fom *fom)
 {
-	struct m0_fdmi_module *m = m0_fdmi_module__get();
-	struct m0_dtx         *dtx;
-	struct m0_be_tx       *be_tx;
-	int                    rc;
+	struct m0_fdmi_src_dock *src_dock = m0_fdmi_src_dock_get();
+	struct m0_fdmi_module   *m = m0_fdmi_module__get();
+	struct m0_dtx           *dtx;
+	struct m0_be_tx         *be_tx;
+	int                      rc;
 
 	M0_ENTRY("fom: %p", fom);
 
 	M0_ASSERT(fom != NULL);
 	M0_ASSERT(m->fdm_s.fdms_ffs_ctx.ffsc_src->fs_record_post != NULL);
+
+	if (!src_dock->fsdc_started) {
+		/*
+		 * It should really be M0_ASSERT() here, because posting FDMI
+		 * records when there is nothing running to process them is a
+		 * bug (FDMI ensures guaranteed delivery and it's impossible if
+		 * there is nothing running that could take care of delivery.
+		 *
+		 * But the current codebase is not ready for such change.
+		 * Let's mark is as just another "Phase 2" TODO.
+		 */
+		M0_LOG(M0_ERROR, "src dock fom is not running");
+		/* the error couldn't be handled anyway */
+		return 0;
+	}
 
 	/**
 	 * There is no "unpost record" method, so we have to prepare
