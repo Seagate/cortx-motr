@@ -541,17 +541,31 @@ M0_INTERNAL int m0_fol_fdmi_src_deinit(void)
  * Entry point for FOM to start FDMI processing
  * ------------------------------------------------------------------ */
 
-M0_INTERNAL int m0_fol_fdmi_post_record(struct m0_fom *fom)
+M0_INTERNAL void m0_fol_fdmi_post_record(struct m0_fom *fom)
 {
-	struct m0_fdmi_module *m = m0_fdmi_module__get();
-	struct m0_dtx         *dtx;
-	struct m0_be_tx       *be_tx;
-	int                    rc;
+	struct m0_fdmi_src_dock *src_dock = m0_fdmi_src_dock_get();
+	struct m0_fdmi_module   *m = m0_fdmi_module__get();
+	struct m0_dtx           *dtx;
+	struct m0_be_tx         *be_tx;
 
 	M0_ENTRY("fom: %p", fom);
 
 	M0_ASSERT(fom != NULL);
 	M0_ASSERT(m->fdm_s.fdms_ffs_ctx.ffsc_src->fs_record_post != NULL);
+
+	if (!src_dock->fsdc_started) {
+		/*
+		 * It should really be M0_ASSERT() here, because posting FDMI
+		 * records when there is nothing running to process them is a
+		 * bug (FDMI ensures guaranteed delivery and it's impossible if
+		 * there is nothing running that could take care of delivery.
+		 *
+		 * But the current codebase is not ready for such change.
+		 * Let's mark is as just another "Phase 2" TODO.
+		 */
+		M0_LOG(M0_ERROR, "src dock fom is not running");
+		return;
+	}
 
 	/**
 	 * There is no "unpost record" method, so we have to prepare
@@ -570,15 +584,10 @@ M0_INTERNAL int m0_fol_fdmi_post_record(struct m0_fom *fom)
 	dtx->tx_fol_rec.fr_fdmi_rec.fsr_dryrun = false;
 	dtx->tx_fol_rec.fr_fdmi_rec.fsr_data = NULL;
 
-	rc = M0_FDMI_SOURCE_POST_RECORD(&dtx->tx_fol_rec.fr_fdmi_rec);
-	if (rc < 0) {
-		M0_LOG(M0_ERROR, "Failed to post FDMI record.");
-		goto error_post_record;
-	} else {
-		M0_ENTRY("Posted FDMI rec, src_rec %p, rec id " U128X_F,
-			 &dtx->tx_fol_rec.fr_fdmi_rec,
-			 U128_P(&dtx->tx_fol_rec.fr_fdmi_rec.fsr_rec_id));
-	}
+	M0_FDMI_SOURCE_POST_RECORD(&dtx->tx_fol_rec.fr_fdmi_rec);
+	M0_LOG(M0_DEBUG, "M0_FDMI_SOURCE_POST_RECORD fr_fdmi_rec=%p "
+	       "fsr_rec_id="U128X_F, &dtx->tx_fol_rec.fr_fdmi_rec,
+	       U128_P(&dtx->tx_fol_rec.fr_fdmi_rec.fsr_rec_id));
 
 	/* Aftermath. */
 
@@ -588,10 +597,7 @@ M0_INTERNAL int m0_fol_fdmi_post_record(struct m0_fom *fom)
 	 * done before the M0_FDMI_SOURCE_POST_RECORD call above.
 	 */
 
-	return M0_RC(rc);
-error_post_record:
-	ffs_tx_dec_refc(be_tx, NULL);
-	return M0_RC(rc);
+	M0_LEAVE();
 }
 
 /**

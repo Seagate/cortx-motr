@@ -215,6 +215,7 @@ static void casc_ut_fini(struct m0_rpc_server_ctx *sctx,
 			 struct cl_ctx            *cctx)
 {
 	cas_client_fini(cctx);
+	m0_reqh_idle_wait(&sctx->rsx_motr_ctx.cc_reqh_ctx.rc_reqh);
 	m0_rpc_server_stop(sctx);
 }
 

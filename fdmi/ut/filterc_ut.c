@@ -281,8 +281,7 @@ static void filterc_connect_to_confd(void)
 		.fsr_data    = g_fdmi_data,
 	};
 
-	rc = M0_FDMI_SOURCE_POST_RECORD(&g_src_rec);
-	M0_UT_ASSERT(rc == 0);
+	M0_FDMI_SOURCE_POST_RECORD(&g_src_rec);
 
 	m0_mutex_lock(&cond_mutex);
 	m0_cond_wait(&match_cond);

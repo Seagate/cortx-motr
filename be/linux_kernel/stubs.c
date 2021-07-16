@@ -162,6 +162,10 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 {
 }
 
+M0_INTERNAL void m0_be_tx_get(struct m0_be_tx *tx)
+{
+}
+
 M0_INTERNAL void m0_be_tx_put(struct m0_be_tx *tx)
 {
 }

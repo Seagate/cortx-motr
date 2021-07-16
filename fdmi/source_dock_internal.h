@@ -116,11 +116,8 @@ struct m0_fdmi_src_dock {
 	struct fdmi_sd_fom    fsdc_sd_fom;
 };
 
-/**
- * Function posts new fdmi data for analysis by FDMI source dock.
- * @return Returns 0 on success, error code otherwise.
- */
-M0_INTERNAL int m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec);
+/** Function posts new fdmi data for analysis by FDMI source dock. */
+M0_INTERNAL void m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec);
 
 /**
  * Function generates new fdmi record ID unque across the cluster.
