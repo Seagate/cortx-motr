@@ -89,7 +89,6 @@ include $(src)/graph/Kbuild.sub
 include $(src)/ha/Kbuild.sub
 include $(src)/ioservice/Kbuild.sub
 include $(src)/iscservice/Kbuild.sub
-include $(src)/iscservice/demo/Kbuild.sub
 include $(src)/layout/Kbuild.sub
 include $(src)/lib/Kbuild.sub
 include $(src)/mdservice/Kbuild.sub
