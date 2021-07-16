@@ -270,6 +270,13 @@ stop_singlenode()
     for i in $(jobs -p) ; do
         wait $i
     done
+    echo '----------------------------------------------------------'
+    echo "${GREEN}NOTE${NC}: Sometimes motr-server-ha can ${RED}FAIL${NC} during shutdown of the service, due to"
+    echo "order in which services are being stopped and their interdependency."
+    echo "${RED}FAILURE${NC} of motr-server-ha during shutdown is expected, as it is a dummy HA"
+    echo "and does not know the logic and events generated in other services."
+    echo "This will not be an issue with clustered environment, as HAX will have control over the services."
+    echo '----------------------------------------------------------'
 }
 
 singlenode_status()
