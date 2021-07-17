@@ -56,9 +56,8 @@
 #  include "module/instance.h"  /* m0 */
 #endif
 
-#define TRANSPORT_NAME       "lnet"
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
-#define SERVER_ENDPOINT      TRANSPORT_NAME ":" SERVER_ENDPOINT_ADDR
+#define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 
 #define SERVER_DB_FILE_NAME        "m0rpcping_server.db"
 #define SERVER_STOB_FILE_NAME      "m0rpcping_server.stob"
@@ -412,7 +411,7 @@ static int run_server(void)
 	 * Prepend transport name to the beginning of endpoint,
 	 * as required by motr-setup.
 	 */
-	strcpy(server_endpoint, TRANSPORT_NAME ":");
+	strcpy(server_endpoint, M0_NET_XPRT_PREFIX_DEFAULT":");
 
 	rc = build_endpoint_addr(
 		EP_SERVER, server_endpoint + strlen(server_endpoint),

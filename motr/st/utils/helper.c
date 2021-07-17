@@ -110,7 +110,7 @@ static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 	 * and initialises the bufvec for us.
 	 */
 
-	rc = m0_bufvec_alloc(data, block_count, block_size);
+	rc = m0_bufvec_alloc_aligned(data, block_count, block_size, PAGE_SHIFT);
 	if (rc != 0) {
 		m0_indexvec_free(ext);
 		return rc;

@@ -531,8 +531,16 @@ static void net_test_command_ut(size_t nr)
 	barrier_with_nodes();				/* barrier #5.0 */
 	commands_ut_recv_all(nr, M0_TIME_NEVER);
 	flags_reset(nr);
-	commands_ut_recv_all(nr, timeout_get_abs());
-	M0_UT_ASSERT(is_flags_set(nr, false));
+
+	if (!USE_LIBFAB) {
+		/* 
+		   In case of libfab, connection oriented endpoints are used.
+		   Hence, buffer timeouts are not observed.
+		*/
+		commands_ut_recv_all(nr, timeout_get_abs());
+		M0_UT_ASSERT(is_flags_set(nr, false));
+	}
+
 	barrier_with_nodes();				/* barrier #5.1 */
 	/*
 	   Test #6: console sends all types of commands to every node.

@@ -394,13 +394,13 @@ void m0_net_test_client_server_bulk_ut(void)
 	 * - 8 concurrent buffers on each test server
 	 * - 64 test messages x 1MiB per message
 	 * - 8(16) network buffers for network buffer descriptors
-	 *   on the test client(server) with 4KiB per buffer and
+	 *   on the test client(server) with 16KiB per buffer and
 	 *   64k maximum buffer descriptors in buffer
 	 */
 	net_test_client_server("0@lo", M0_NET_TEST_TYPE_BULK,
 			       2, 2, 2, 8,
 			       64, 0x100000,
-			       8, 16, 0x1000, 0x10000);
+			       8, 16, 0x4000, 0x10000);
 }
 void m0_net_test_xprt_dymanic_reg_dereg_ut(void)
 {

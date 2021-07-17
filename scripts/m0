@@ -31,6 +31,7 @@ set -eu
 
 umask 0002
 ulimit -c unlimited
+ulimit -n 4096
 
 ## CAUTION! This directory will be removed by superuser.
 RUNDIR=${RUNDIR:-/var/motr/$(id -un)}
@@ -40,6 +41,65 @@ M0_SRC_DIR="$(readlink -f $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
 SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
+
+## By default libfab is used as transport
+## to change use NET_XPT=lnet along with m0 script
+_transport_select() {
+
+    NET_XPT=${NET_XPT:-libfab}
+    echo $NET_XPT
+    touch $M0_SRC_DIR/scripts/st.d/net_xpt
+    echo $NET_XPT > $M0_SRC_DIR/scripts/st.d/net_xpt
+}
+
+# libfab doesnot need kernel based ST
+_libfab_st_list() {
+    st_name=$1
+    found_st=false
+    st_libfab_skip=(06conf
+                    07mount
+                    07mount-fail
+                    08spiel
+                    08spiel-sns-repair
+                    08spiel-sns-repair-quiesce
+                    10pver-assign
+                    11m0t1fs
+                    11m0t1fs-rconfc-fail
+                    12fsync
+                    12fwait
+                    13dgmode-io
+                    14poolmach
+                    15sns-repair-shutdown
+                    15sns-repair-single
+                    16sns-repair-multi
+                    17sns-repair-concurrent-io
+                    18sns-repair-quiesce
+                    18sns-repair-quiesce-failure
+                    19sns-repair-abort
+                    20rpc-session-cancel
+                    21fsync-single-node
+                    22sns-repair-ios-fail
+                    23sns-abort-quiesce
+                    23spiel-dix-repair
+                    23spiel-dix-repair-quiesce
+                    26motr-user-kernel-tests
+                    34sns-repair-1n-1f
+                    40motr-dgmode
+                    45motr-rmw
+                    51kem)
+    i=0
+    while [ $i -lt ${#st_libfab_skip[@]} ]
+    do
+        if [[ "${st_libfab_skip[$i]}" == "$st_name" ]]; then
+            found_st=true
+            break
+        fi
+
+        i=`expr $i + 1`
+    done
+
+    echo "$found_st"
+}
 
 # Increase the maximum number of memory map areas a process may have.
 # m0d process may allocate and madvise() at least 2,000,000 memory map areas.
@@ -141,6 +201,9 @@ cmd_run_st() {
     local pattern
     local f
     local list_p=0
+    local trans
+
+    trans=$(_transport_select)
 
     if [ "${1:-}" = '-l' ]; then
         list_p=1
@@ -158,6 +221,13 @@ cmd_run_st() {
                     echo ${f##*/}
                 else
                     echo "<< ${f##*/} >>" >&2
+                    if [[ "$trans" == "libfab" ]]; then
+                        chk=$(_libfab_st_list ${f##*/})
+                        if [[ "$chk" == "true" ]]; then
+                            echo "<< ${f##*/} >> can not be run for libfab" >&2
+                            continue
+                        fi
+                    fi
                     export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
                     _time $f || return $?
                 fi
@@ -253,6 +323,7 @@ Commands:
 Environment variables:
     CONFIGURE_OPTS      Extra options for './configure' command.
     MAKE_OPTS           Extra options for 'make' command.
+    NET_XPT             Extra option for changing default libfab transport
 
 Motr sources: $M0_SRC_DIR
 UT output:    $RUNDIR

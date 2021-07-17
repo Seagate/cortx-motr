@@ -36,9 +36,10 @@
 */
 
 enum {
-	M0_NET_BULK_MEM_MAX_BUFFER_SIZE     = (1 << 19),
 	M0_NET_BULK_MEM_MAX_SEGMENT_SIZE    = (1 << 18),
-	M0_NET_BULK_MEM_MAX_BUFFER_SEGMENTS = 256,
+	M0_NET_BULK_MEM_MAX_BUFFER_SEGMENTS = 16,
+	/** Max buffer size = max_seg_nr x max_seg_size */
+	M0_NET_BULK_MEM_MAX_BUFFER_SIZE     = (1 << 22),
 };
 
 /**

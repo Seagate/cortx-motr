@@ -42,6 +42,8 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 . $M0_SRC_DIR/utils/functions # die, opcode, sandbox_init, report_and_exit
 
+XPRT=$(m0_default_xpt)
+
 CONFDB_PATH=$M0_SRC_DIR/ut/diter.xc
 if [ "$(perl -wse 'print int(rand(2))')" -eq 0 ]; then  # 0.5 probability
 	CONFDB_m0d="-c $CONFDB_PATH"
@@ -176,7 +178,7 @@ endpoint() {
 
 m0d_start() {
 	local MKFS_OPTS="-T linux -D sss_st.db -S sss_st.stob
--A linuxstob:sss_st-addb.stob -e lnet:$(endpoint $SERVER_TMID)
+-A linuxstob:sss_st-addb.stob -e $XPRT:$(endpoint $SERVER_TMID)
 -H $(endpoint $SERVER_TMID) -c $CONFDB_PATH"
 	local M0D_OPT='-w 4 -m 163840 -q 16'
 

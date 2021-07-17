@@ -181,6 +181,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		m0_reqh_service_ctx_from_session(reply_item->ri_session),
 		&ioo->ioo_obj->ob_entity, op, &rw_reply->rwr_mod_rep.fmr_remid);
 
+	actual_bytes = rw_reply->rwr_count;
 ref_dec:
 	/* For whatever reason, io didn't complete successfully.
 	 * Reduce expected read bulk count */

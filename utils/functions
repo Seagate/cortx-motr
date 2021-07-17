@@ -104,3 +104,25 @@ lnet_up() {
     export M0D3_ENDPOINT="$LNET_NID:12345:34:1003"
     export SPIEL_ENDPOINT="$LNET_NID:12345:34:2001"
 }
+
+## Adding function to identify the default available transport layer
+m0_default_xpt()
+{
+    local trans
+    local user
+    user=$(cat $M0_SRC_DIR/scripts/st.d/net_xpt)
+    if [[ "$user" == "libfab" ]]; then
+        trans=$(whereis fi_info | cut -d ':' -f2)
+        $trans > /dev/null
+        if [[ $? -eq 0 ]]; then
+             trans=libfab
+        else
+             echo 'libfab is not installed. lnet is selected' >&2
+             trans=lnet
+        fi
+    else
+        trans=lnet
+    fi
+
+    echo $trans
+}

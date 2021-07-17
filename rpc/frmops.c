@@ -271,9 +271,9 @@ static void bufvec_geometry(struct m0_net_domain *ndom,
 
 	M0_ENTRY();
 
-	max_buf_size     = m0_net_domain_get_max_buffer_size(ndom);
-	max_segment_size = m0_net_domain_get_max_buffer_segment_size(ndom);
-	max_nr_segments  = m0_net_domain_get_max_buffer_segments(ndom);
+	max_buf_size     = m0_rpc_max_msg_size(ndom, 0);
+	max_segment_size = m0_rpc_max_seg_size(ndom);
+	max_nr_segments  = m0_rpc_max_segs_nr(ndom);
 
 	M0_LOG(M0_DEBUG,
 		"max_buf_size: %llu max_segment_size: %llu max_nr_seg: %d",

@@ -89,7 +89,8 @@ motr_read_verify()
 
 motr_delete_objects()
 {
-	for ((i=0; i < 7; i++)) ; do
+	local half=$(( ${#file[*]} / 2 ))
+	for ((i=0; i < $half; i++)) ; do
 		echo "Deleting object ${file[$i]} "
 		local lid=${unit2id_map[${unit_size[$i]}]}
 		local us=$((${unit_size[$i]} * 1024))

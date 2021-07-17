@@ -45,6 +45,8 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 . $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
 
+XPRT=$(m0_default_xpt)
+
 start() {
     set +e
     mount | grep debugfs > /dev/null
@@ -196,7 +198,7 @@ m0d_start() {
     local conf_file=conf.xc
     local opts="-f $PROCESS_M0D
 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -F -D db -T AD -S stobs
--A linuxstob:addb-stobs -e lnet:$M0D1_ENDPOINT -c $conf_file -w 3"
+-A linuxstob:addb-stobs -e $XPRT:$M0D1_ENDPOINT -c $conf_file -w 3"
 
     $conf_generator | $M0_SRC_DIR/utils/m0confgen >$conf_file ||
         error 'm0confgen failed'

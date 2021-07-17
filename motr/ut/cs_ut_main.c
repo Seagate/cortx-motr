@@ -22,6 +22,7 @@
 
 #include "motr/setup.c"
 
+#include "net/bulk_mem.h"  /* m0_net_bulk_mem_xprt */
 #include "ut/cs_fop.h"     /* CS_UT_SERVICE1 */
 #include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
@@ -31,7 +32,7 @@
 #include "net/bulk_mem.h"     /* m0_net_bulk_mem_xprt */
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
-#define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
+#define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 
 extern const struct m0_tl_descr ndoms_descr;
 
@@ -190,8 +191,6 @@ static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
 static const char *cdbnames[]     = { "cdb1",               "cdb2" };
 static const char *cl_ep_addrs[]  = { "0@lo:12345:34:2",    "127.0.0.1:34569" };
 static const char *srv_ep_addrs[] = { SERVER_ENDPOINT_ADDR, "127.0.0.1:35678" };
-static const struct m0_net_xprt *xprts[] = { &m0_net_lnet_xprt,
-						&m0_net_bulk_mem_xprt};
 
 enum { MAX_RPCS_IN_FLIGHT = 10 };
 
@@ -287,21 +286,24 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	int rc;
 	int i;
 	int stype;
+	struct m0_net_xprt *xprts[] = { 
+		m0_net_xprt_default_get(),
+		(struct m0_net_xprt *)&m0_net_bulk_mem_xprt
+	};
 	struct m0_rpc_server_ctx sctx = {
+		.rsx_xprts         = xprts,
+		.rsx_xprts_nr      = ARRAY_SIZE(xprts),
 		.rsx_argv          = cs_argv,
 		.rsx_argc          = cs_argc,
 		.rsx_log_file_name = SERVER_LOG_FILE_NAME
 	};
-
-	sctx.rsx_xprts = m0_net_all_xprt_get();
-	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < cctx_nr; ++i) {
 		rc = cs_ut_client_init(&cctx[i], cl_ep_addrs[i],
 					srv_ep_addrs[i], cdbnames[i],
-					xprts[i]);
+					sctx.rsx_xprts[i]);
 		M0_UT_ASSERT(rc == 0);
 	}
 
@@ -320,15 +322,18 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 {
 	int rc;
+	struct m0_net_xprt *xprts[] = { 
+		m0_net_xprt_default_get(),
+		(struct m0_net_xprt *)&m0_net_bulk_mem_xprt
+	};
 	struct m0_rpc_server_ctx sctx = {
+		.rsx_xprts         = xprts,
+		.rsx_xprts_nr      = ARRAY_SIZE(xprts),
 		.rsx_argv          = cs_argv,
 		.rsx_argc          = cs_argc,
 		.rsx_log_file_name = SERVER_LOG_FILE_NAME
 	};
 
-	sctx.rsx_xprts = m0_net_all_xprt_get();
-	sctx.rsx_xprts_nr = m0_net_xprt_nr();
-	
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc != 0);
 

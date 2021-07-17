@@ -58,8 +58,8 @@
 #include <getopt.h>           /* getopt_long */
 #include <unistd.h>           /* isatty */
 
-#define HAM_SERVER_EP_DEFAULT   "0@lo:12345:63:100"
-#define HAM_CLIENT_EP_DEFAULT   "0@lo:12345:63:101"
+#define HAM_SERVER_EP_DEFAULT   "0@lo:12345:43:100"
+#define HAM_CLIENT_EP_DEFAULT   "0@lo:12345:43:101"
 #define HAM_SERVER_WAIT_DEFAULT 0
 
 enum ham_mode { HM_CONNECT, HM_LISTEN, HM_SELF_CHECK };

@@ -701,6 +701,36 @@ enum m0_magic_satchel {
 	/* net/sock.c: buf list head (bad dada decaf) */
 	M0_NET_SOCK_BUF_HEAD_MAGIC = 0x33baddadadecaf77,
 
+	/* net/libfab.c: buf list element, buf::b_magix (fed ace dedcde) */
+	M0_NET_LIBFAB_BUF_MAGIC = 0x33fedacededcde77,
+
+	/* net/libfab.c: buf list head (bad dada dadaf) */
+	M0_NET_LIBFAB_BUF_HEAD_MAGIC = 0x33baddadadadaf77,
+
+	/* net/libfab.c: snd_buf list, buf::fb_sndmagic (fed ace deeade) */
+	M0_NET_LIBFAB_SNDBUF_MAGIC = 0x33fedacedeeade77,
+
+	/* net/libfab.c: snd_buf list head (bad dada deeef) */
+	M0_NET_LIBFAB_SNDBUF_HEAD_MAGIC = 0x33baddadadeeef77,
+
+	/* net/libfab.c: fab_fabs list, fab::fab_magic (fed ace dedade) */
+	M0_NET_LIBFAB_FAB_MAGIC = 0x33fedacededade77,
+
+	/* net/libfab.c: fab_fabs list head (bad dada dedef) */
+	M0_NET_LIBFAB_FAB_HEAD_MAGIC = 0x33baddadadedef77,
+
+	/* net/libfab.c: fab_bulk list, buf::fab_bulk_magic (le blc baffees) */
+	M0_NET_LIBFAB_BULK_MAGIC = 0x331eb1cbaffee577,
+
+	/* net/libfab.c: fab_bulk list head (le blc baffess) */
+	M0_NET_LIBFAB_BULK_HEAD_MAGIC = 0x331eb1cbaffe5577,
+
+	/* net/libfab.c: fab_bufhash magic (de4e9 baffees) */
+	M0_NET_LIBFAB_BUF_HT_MAGIC = 0x33de4e9baffee577,
+
+	/* net/libfab.c: fab_bufhash list head (de4e9 baffess) */
+	M0_NET_LIBFAB_BUF_HT_HEAD_MAGIC = 0x33de4e9baffe5577,
+
 	/* net/net.h: m0_nep list element, endpoint (obsessed loll) */
 	M0_NET_NEP_MAGIC = 0x330b5e55ed101177,
 

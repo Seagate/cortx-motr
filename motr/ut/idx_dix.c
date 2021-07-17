@@ -51,14 +51,16 @@ enum {
 	BATCH_SZ = 128,
 };
 
-static char *cas_startup_cmd[] = { "m0d", "-T", "linux",
-                                "-D", "cs_sdb", "-S", "cs_stob",
-                                "-A", "linuxstob:cs_addb_stob",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-H", "0@lo:12345:34:1",
-				"-w", "10", "-F",
-				"-f", M0_UT_CONF_PROCESS,
-				"-c", M0_SRC_PATH("motr/ut/dix_conf.xc")};
+static char *cas_startup_cmd[] = {
+	"m0d", "-T", "linux",
+	"-D", "cs_sdb", "-S", "cs_stob",
+	"-A", "linuxstob:cs_addb_stob",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-H", "0@lo:12345:34:1",
+	"-w", "10", "-F",
+	"-f", M0_UT_CONF_PROCESS,
+	"-c", M0_SRC_PATH("motr/ut/dix_conf.xc")
+};
 
 static const char         *local_ep_addr = "0@lo:12345:34:2";
 static const char         *srv_ep_addr   = { "0@lo:12345:34:1" };
