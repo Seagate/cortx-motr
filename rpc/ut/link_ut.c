@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@
 #include "fop/fop.h"
 #include "sss/ss_fops.h"
 #include "ha/ut/helper.h"
+#include "lib/coroutine.h"
 
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 
@@ -355,7 +356,7 @@ static void ut_req(struct m0_rpc_session *sess, const char *name, uint32_t cmd)
 	m0_fop_put_lock(fop);
 }
 
-void rlut_connect_async()
+void rlut_connect_async(void)
 {
 	struct m0_rpc_machine *mach;
 	struct m0_rpc_link    *rlink;
@@ -377,7 +378,7 @@ void rlut_connect_async()
 
 	m0_rpc_link_connect_async(rlink,
 				  m0_time_from_now(RLUT_SESS_TIMEOUT, 0),
-				  &clink);
+				  &clink, NULL);
 	rc = m0_rpc_session_timedwait(&rlink->rlk_sess, M0_BITS(M0_RPC_SESSION_IDLE),
 				      M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
@@ -392,10 +393,64 @@ void rlut_connect_async()
 	clink.cl_is_oneshot = true;
 	m0_rpc_link_disconnect_async(rlink,
 				     m0_time_from_now(RLUT_SESS_TIMEOUT, 0),
-				     &clink);
+				     &clink,
+				     NULL);
 	m0_chan_wait(&clink);
 	M0_UT_ASSERT(rc == 0 && !m0_rpc_link_is_connected(rlink));
 	m0_clink_fini(&clink);
+
+	m0_rpc_link_fini(rlink);
+	m0_free(rlink);
+	stop_rpc_client_and_server();
+}
+
+/*
+ * This test case uses ::m0_co_op instead of ::m0_clink to await on completion
+ * of the internal connect/disconnect machinery. co_op is/will be used
+ * in the coroutine context (see M0_CO_FUN and so on).
+ *
+ * NOTE: already tried to generalise rlut_connect_async() with no luck therefore
+ * rlut_connect_async_op() was introduced.
+ */
+void rlut_connect_async_op(void)
+{
+	struct m0_rpc_machine *mach;
+	struct m0_rpc_link    *rlink;
+	struct m0_co_op        op = {}; /* co_init() expects zeroed op */
+	const char            *remote_ep;
+	int                    rc;
+
+	start_rpc_client_and_server();
+	mach = &cctx.rcx_rpc_machine;
+	remote_ep = cctx.rcx_remote_addr;
+
+	M0_ALLOC_PTR(rlink);
+	M0_UT_ASSERT(rlink != NULL);
+	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
+			      RLUT_MAX_RPCS_IN_FLIGHT);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_co_op_init(&op);
+	m0_rpc_link_connect_async(rlink,
+				  m0_time_from_now(RLUT_SESS_TIMEOUT, 0),
+				  NULL, &op);
+	rc = m0_rpc_session_timedwait(&rlink->rlk_sess,
+				      M0_BITS(M0_RPC_SESSION_IDLE),
+				      M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	ut_req(&rlink->rlk_sess, "M0_CST_IOS", M0_SERVICE_STATUS);
+
+	m0_co_op_wait(&op);
+	M0_UT_ASSERT(rc == 0 && m0_rpc_link_is_connected(rlink));
+
+	m0_co_op_reset(&op);
+	m0_rpc_link_disconnect_async(rlink,
+				     m0_time_from_now(RLUT_SESS_TIMEOUT, 0),
+				     NULL,
+				     &op);
+	m0_co_op_wait(&op);
+	M0_UT_ASSERT(rc == 0 && !m0_rpc_link_is_connected(rlink));
+	m0_co_op_fini(&op);
 
 	m0_rpc_link_fini(rlink);
 	m0_free(rlink);
@@ -410,6 +465,7 @@ struct m0_ut_suite link_lib_ut = {
 		{ "remote-delay",        rlut_remote_delay       },
 		{ "reset",               rlut_reset              },
 		{ "connect-async",       rlut_connect_async      },
+		{ "connect-async-op",    rlut_connect_async_op   },
 		{ NULL, NULL }
 	}
 };

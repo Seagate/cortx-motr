@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -2125,7 +2125,8 @@ static void rconfc_conductor_drained(struct m0_rconfc *rconfc)
 	rconfc->rc_conductor_clink.cl_is_oneshot = true;
 	m0_rpc_link_disconnect_async(&rconfc->rc_confc.cc_rlink,
 				     m0_rpc__down_timeout(),
-				     &rconfc->rc_conductor_clink);
+				     &rconfc->rc_conductor_clink,
+				     NULL);
 	M0_LEAVE();
 }
 

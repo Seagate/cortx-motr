@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2017-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2017-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -269,7 +269,8 @@ M0_INTERNAL int m0_rpc_conn_pool_get_async(
 			m0_rpc_link_connect_async(
 				&item->cpi_rpc_link,
 				pool->cp_timeout,
-				&item->cpi_clink);
+				&item->cpi_clink,
+				NULL);
 			rc = -EBUSY;
 		}
 	} else {

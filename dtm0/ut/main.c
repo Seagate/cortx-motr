@@ -24,6 +24,7 @@
 #include "dtm0/helper.h"
 #include "dtm0/service.h"
 #include "dtm0/tx_desc.h"
+#include "be/dtm0_log.h"
 #include "net/net.h"
 #include "rpc/rpclib.h"
 #include "ut/ut.h"
@@ -39,6 +40,8 @@
 enum { MAX_RPCS_IN_FLIGHT = 10,
        NUM_CAS_RECS = 10,
 };
+
+struct m0_reqh  *dtm0_cli_srv_reqh;
 
 static struct m0_fid cli_srv_fid = M0_FID(0x7300000000000001, 0x1a);
 static struct m0_fid srv_dtm0_fid = M0_FID(0x7300000000000001, 0x1c);
@@ -75,6 +78,9 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 
 	struct m0_dtm0_clk_src dcs;
 	struct m0_dtm0_ts      now;
+	struct m0_dtm0_service *dtm0 = m0_dtm0_service_find(dtm0_cli_srv_reqh);
+	struct m0_be_dtm0_log  *log = dtm0->dos_log;
+
 
 
 	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
@@ -86,6 +92,7 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 	M0_UT_ASSERT(rc == 0);
 
 	txr.dtd_ps.dtp_pa[0].p_fid = srv_dtm0_fid;
+	/* txr.dtd_ps.dtp_pa[0].p_state = M0_DTPS_INIT; */
 	txr.dtd_id = (struct m0_dtm0_tid) {
 		.dti_ts = now,
 		.dti_fid = cli_srv_fid
@@ -93,10 +100,14 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 	fop = m0_fop_alloc_at(cl_rpc_session,
 			      &dtm0_req_fop_fopt);
 	req = m0_fop_data(fop);
-	req->dtr_msg = DMT_EXECUTE;
+	req->dtr_msg = DTM_EXECUTE;
 	req->dtr_txr = txr;
-	rc = m0_rpc_post_sync(fop, cl_rpc_session,
-			      &dtm0_req_fop_rpc_item_ops,
+	/*
+	 * TODO: Use a blocking version of m0_dtm0_req_post instead of
+	 * m0_rpc_post_sync.
+	 */
+	M0_ASSERT(0);
+	rc = m0_rpc_post_sync(fop, cl_rpc_session, NULL,
 			      M0_TIME_IMMEDIATELY);
 	M0_UT_ASSERT(rc == 0);
 	rep = reply(fop->f_item.ri_reply);
@@ -104,13 +115,50 @@ static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
 
 	M0_ASSERT(m0_dtm0_ts__invariant(&reply_data.dti_ts));
 
-	M0_UT_ASSERT(m0_dtm0_tid_cmp(&dcs, &txr.dtd_id, &reply_data) == M0_DTS_EQ);
+	M0_UT_ASSERT(m0_dtm0_tid_cmp(&dcs, &txr.dtd_id, &reply_data) ==
+		     M0_DTS_EQ);
+	m0_fop_put_lock(fop);
 
+	/* Test PERSISTENT message */
+	rc = m0_dtm0_tx_desc_init(&txr, 1);
+	M0_UT_ASSERT(rc == 0);
+	txr.dtd_ps.dtp_pa[0].p_fid = srv_dtm0_fid;
+	txr.dtd_ps.dtp_pa[0].p_state = M0_DTPS_INPROGRESS;
+	txr.dtd_id = (struct m0_dtm0_tid) {
+		.dti_ts = now,
+		.dti_fid = cli_srv_fid
+	};
+	fop = m0_fop_alloc_at(cl_rpc_session,
+			      &dtm0_req_fop_fopt);
+	req = m0_fop_data(fop);
+	req->dtr_msg = DTM_PERSISTENT;
+	req->dtr_txr = txr;
+
+	m0_mutex_lock(&log->dl_lock);
+	rc = m0_be_dtm0_log_update(log, NULL, &txr, &(struct m0_buf){});
+	m0_mutex_unlock(&log->dl_lock);
+	M0_UT_ASSERT(rc == 0);
+
+	/*
+	 * TODO: Use a blocking version of m0_dtm0_req_post instead of
+	 * m0_rpc_post_sync.
+	 */
+	M0_ASSERT(0);
+	rc = m0_rpc_post_sync(fop, cl_rpc_session, NULL, M0_TIME_IMMEDIATELY);
+	M0_UT_ASSERT(rc == 0);
+	rep = reply(fop->f_item.ri_reply);
+	reply_data = rep->dr_txr.dtd_id;
+
+	M0_ASSERT(m0_dtm0_ts__invariant(&reply_data.dti_ts));
+
+	M0_UT_ASSERT(m0_dtm0_tid_cmp(&dcs, &txr.dtd_id, &reply_data) ==
+		     M0_DTS_EQ);
 	m0_fop_put_lock(fop);
 }
 
 static void dtm0_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
-				const char *srv_ep_addr, struct m0_net_xprt *xprt)
+				const char *srv_ep_addr,
+				struct m0_net_xprt *xprt)
 {
 	int                       rc;
 	struct m0_rpc_client_ctx *cl_ctx;
@@ -143,7 +191,9 @@ static void dtm0_ut_client_fini(struct cl_ctx *cctx)
 	m0_net_domain_fini(&cctx->cl_ndom);
 }
 
-static void dtm0_ut_service(void)
+
+/* TODO: This test is disabled until full-fledged DTM0 RPC link is ready. */
+void dtm0_ut_service(void)
 {
 	int rc;
 	struct cl_ctx            cctx = {};
@@ -175,6 +225,8 @@ static void dtm0_ut_service(void)
 					     false);
 	M0_UT_ASSERT(rc == 0);
 
+	dtm0_cli_srv_reqh = &cctx.cl_ctx.rcx_reqh;
+
 	dtm0_ut_send_fops(&cctx.cl_ctx.rcx_session);
 
 	rc = m0_dtm0_service_process_disconnect(srv_srv, &cli_srv_fid);
@@ -194,7 +246,7 @@ struct record
 	uint64_t value;
 };
 
-static void cas_xcode_test()
+static void cas_xcode_test(void)
 {
 	struct record recs[NUM_CAS_RECS];
 	struct m0_cas_rec cas_recs[NUM_CAS_RECS];
@@ -222,7 +274,8 @@ static void cas_xcode_test()
 	};
 
 	/* Fill array with pair: [key, value]. */
-	m0_forall(i, NUM_CAS_RECS-1, (recs[i].key = i, recs[i].value = i * i, true));
+	m0_forall(i, NUM_CAS_RECS-1,
+		  (recs[i].key = i, recs[i].value = i * i, true));
 
 	for (i = 0; i < NUM_CAS_RECS - 1; i++) {
 		cas_recs[i] = (struct m0_cas_rec){
@@ -241,12 +294,14 @@ static void cas_xcode_test()
 	while (cas_recs[op_in.cg_rec.cr_nr].cr_rc != ~0ULL)
 		++ op_in.cg_rec.cr_nr;
 
-	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, &op_in), &buf, &len);
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, &op_in),
+				     &buf, &len);
 	M0_UT_ASSERT(rc == 0);
 	M0_ALLOC_PTR(op_out);
-    M0_UT_ASSERT(op_out != NULL);
-    rc = m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(m0_cas_op_xc, op_out), buf, len);
-    M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(op_out != NULL);
+	rc = m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(m0_cas_op_xc, op_out),
+				       buf, len);
+	M0_UT_ASSERT(rc == 0);
 
     m0_xcode_free_obj(&M0_XCODE_OBJ(m0_cas_op_xc, op_out));
 }
@@ -254,8 +309,7 @@ static void cas_xcode_test()
 struct m0_ut_suite dtm0_ut = {
         .ts_name = "dtm0-ut",
         .ts_tests = {
-                { "service", dtm0_ut_service },
-                { "xcode", cas_xcode_test },
+                { "xcode",   cas_xcode_test },
 		{ NULL, NULL },
 	}
 };

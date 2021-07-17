@@ -253,6 +253,7 @@ M0_INTERNAL int m0_be_dtm0_log_alloc(struct m0_be_dtm0_log **log);
  * @return 0 on success. Anything else is a failure.
  */
 M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
+				    struct m0_be_seg       *seg,
 				    struct m0_dtm0_clk_src *cs,
 				    bool                    is_plog);
 

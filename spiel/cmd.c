@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2015-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2015-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1729,7 +1729,7 @@ static void spiel_process_disconnect_async(struct spiel_proc_item *proc)
 	m0_clink_init(&proc->spi_rlink_wait, spiel_proc_item_disconnect_cb);
 	proc->spi_rlink_wait.cl_is_oneshot = true;
 	m0_rpc_link_disconnect_async(&proc->spi_rlink, conn_timeout,
-				     &proc->spi_rlink_wait);
+				     &proc->spi_rlink_wait, NULL);
 	M0_LEAVE();
 }
 
@@ -1881,7 +1881,7 @@ static void spiel_process__health_async(struct _fs_stats_ctx    *fsx,
 	m0_clink_init(&proc->spi_rlink_wait, spiel_proc_item_rlink_cb);
 	proc->spi_rlink_wait.cl_is_oneshot = true;
 	m0_rpc_link_connect_async(&proc->spi_rlink, conn_timeout,
-				  &proc->spi_rlink_wait);
+				  &proc->spi_rlink_wait, NULL);
 	M0_LEAVE();
 	return;
 err:

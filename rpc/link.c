@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2014-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2014-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@
 #include "rpc/link.h"
 #include "rpc/session_internal.h"     /* m0_rpc_session_fini_locked */
 #include "rpc/conn_internal.h"        /* m0_rpc_conn_remove_session */
+#include "lib/coroutine.h"            /* m0_co_op */
 
 /**
  * @addtogroup rpc_link
@@ -61,7 +62,7 @@ struct rpc_link_state_transition {
 	const char *rlst_st_desc;
 };
 
-typedef void (*rpc_link_cb_t)(struct m0_rpc_link*, m0_time_t, struct m0_clink*);
+typedef void (*rpc_link_cb_t)(struct m0_rpc_link*, m0_time_t, struct m0_clink*, struct m0_co_op*);
 
 static int    rpc_link_conn_fom_tick(struct m0_fom *fom);
 static void   rpc_link_conn_fom_fini(struct m0_fom *fom);
@@ -470,6 +471,10 @@ static void rpc_link_fom_fini_common(struct m0_fom *fom, bool connected)
 	m0_fom_fini(fom);
 	rlink->rlk_connected = connected && (rlink->rlk_rc == 0);
 	m0_chan_broadcast_lock(&rlink->rlk_wait);
+	if (rlink->rlk_op != NULL) {
+		m0_co_op_done(rlink->rlk_op);
+		rlink->rlk_op = NULL;
+	}
 
 	M0_LEAVE();
 }
@@ -612,6 +617,7 @@ M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 
 	rlink->rlk_connected = false;
 	rlink->rlk_rc        = 0;
+	rlink->rlk_op        = NULL;
 
 	rc = m0_net_end_point_create(&net_ep, &mach->rm_tm, ep);
 	if (rc == 0) {
@@ -668,6 +674,7 @@ M0_INTERNAL void m0_rpc_link_reset(struct m0_rpc_link *rlink)
 
 static void rpc_link_fom_queue(struct m0_rpc_link *rlink,
 			       struct m0_clink *wait_clink,
+			       struct m0_co_op *wait_op,
 			       const struct m0_fom_type *fom_type,
 			       const struct m0_fom_ops *fom_ops)
 {
@@ -679,6 +686,11 @@ static void rpc_link_fom_queue(struct m0_rpc_link *rlink,
 	rlink->rlk_rc = 0;
 	if (wait_clink != NULL)
 		m0_clink_add_lock(&rlink->rlk_wait, wait_clink);
+	if (wait_op != NULL) {
+		rlink->rlk_op = wait_op;
+		m0_co_op_active(rlink->rlk_op);
+	}
+
 	M0_SET0(&rlink->rlk_fom);
 	m0_fom_init(&rlink->rlk_fom, fom_type, fom_ops, NULL, NULL,
 		    mach->rm_reqh);
@@ -697,7 +709,7 @@ static int rpc_link_call_sync(struct m0_rpc_link *rlink,
 
 	m0_clink_init(&clink, NULL);
 	clink.cl_is_oneshot = true;
-	cb(rlink, abs_timeout, &clink);
+	cb(rlink, abs_timeout, &clink, NULL);
 	m0_chan_wait(&clink);
 	m0_clink_fini(&clink);
 
@@ -706,13 +718,14 @@ static int rpc_link_call_sync(struct m0_rpc_link *rlink,
 
 M0_INTERNAL void m0_rpc_link_connect_async(struct m0_rpc_link *rlink,
 					   m0_time_t abs_timeout,
-					   struct m0_clink *wait_clink)
+					   struct m0_clink *wait_clink,
+					   struct m0_co_op *wait_op)
 {
 	M0_ENTRY("rlink=%p", rlink);
 	M0_PRE(!rlink->rlk_connected);
 	M0_PRE(rlink->rlk_rc == 0);
 	rlink->rlk_timeout = abs_timeout;
-	rpc_link_fom_queue(rlink, wait_clink, &rpc_link_conn_fom_type,
+	rpc_link_fom_queue(rlink, wait_clink, wait_op, &rpc_link_conn_fom_type,
 			   &rpc_link_conn_fom_ops);
 	M0_LEAVE();
 }
@@ -726,13 +739,14 @@ M0_INTERNAL int m0_rpc_link_connect_sync(struct m0_rpc_link *rlink,
 
 M0_INTERNAL void m0_rpc_link_disconnect_async(struct m0_rpc_link *rlink,
 					      m0_time_t abs_timeout,
-					      struct m0_clink *wait_clink)
+					      struct m0_clink *wait_clink,
+					      struct m0_co_op *wait_op)
 {
 	M0_ENTRY("rlink=%p", rlink);
 	M0_PRE(rlink->rlk_connected);
 	M0_PRE(rlink->rlk_rc == 0);
 	rlink->rlk_timeout = abs_timeout;
-	rpc_link_fom_queue(rlink, wait_clink, &rpc_link_disc_fom_type,
+	rpc_link_fom_queue(rlink, wait_clink, wait_op, &rpc_link_disc_fom_type,
 			   &rpc_link_disc_fom_ops);
 	M0_LEAVE();
 }

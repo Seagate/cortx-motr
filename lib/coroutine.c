@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2017-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2017-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -247,6 +247,18 @@ M0_INTERNAL int m0_co_op_tick_ret(struct m0_co_op *op,
 	return ret;
 }
 M0_EXPORTED(m0_co_op_tick_ret);
+
+M0_INTERNAL void m0_co_op_wait(struct m0_co_op *op)
+{
+	struct m0_sm *sm = &op->co_sm;
+	int           rc;
+
+	m0_sm_group_lock(&op->co_sm_group);
+	rc = m0_sm_timedwait(sm, M0_BITS(COR_DONE), M0_TIME_NEVER);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
+	m0_sm_group_unlock(&op->co_sm_group);
+}
+M0_EXPORTED(m0_co_op_wait);
 
 #undef M0_TRACE_SUBSYSTEM
 

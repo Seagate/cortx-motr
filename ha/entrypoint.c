@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2016-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2016-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -550,7 +550,7 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 		m0_rpc_link_reset(&ecl->ecl_rlink);
 		m0_rpc_link_connect_async(&ecl->ecl_rlink,
 					  m0_time_from_now(ECL_TIMEOUT, 0),
-					  &ecl->ecl_rlink_wait);
+					  &ecl->ecl_rlink_wait, NULL);
 		next_state = M0_HEC_CONNECT_WAIT;
 		rc = M0_FSO_WAIT;
 		break;
@@ -628,7 +628,7 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 			   M0_TIME_IMMEDIATELY :
 			   m0_time_from_now(ECL_TIMEOUT, 0);
 		m0_rpc_link_disconnect_async(&ecl->ecl_rlink, deadline,
-					     &ecl->ecl_rlink_wait);
+					     &ecl->ecl_rlink_wait, NULL);
 		next_state = M0_HEC_DISCONNECT_WAIT;
 		rc = M0_FSO_WAIT;
 		break;

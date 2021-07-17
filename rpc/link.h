@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2014-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2014-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@
 #include "rpc/session.h"
 
 struct m0_rpc_machine;
+struct m0_co_op;
 
 /**
    @defgroup rpc_link RPC link
@@ -51,6 +52,8 @@ struct m0_rpc_link {
 	struct m0_fom_callback rlk_fomcb;
 	struct m0_chan         rlk_wait;
 	struct m0_mutex        rlk_wait_mutex;
+	/**< `future'-alike object, provided by the user */
+	struct m0_co_op       *rlk_op;
 	m0_time_t              rlk_timeout;
 	bool                   rlk_connected;
 };
@@ -93,10 +96,14 @@ M0_INTERNAL void m0_rpc_link_reset(struct m0_rpc_link *rlink);
  *
  * @param wait_clink If not NULL, signalled when session is established. Must
  *		     be 'oneshot'.
+ *
+ * @param wait_op If not NULL, transited with m0_co_done() to DONE when link
+ * gets connected.
  */
 M0_INTERNAL void m0_rpc_link_connect_async(struct m0_rpc_link *rlink,
 					   m0_time_t abs_timeout,
-					   struct m0_clink *wait_clink);
+					   struct m0_clink *wait_clink,
+					   struct m0_co_op *wait_op);
 M0_INTERNAL int m0_rpc_link_connect_sync(struct m0_rpc_link *rlink,
 					 m0_time_t abs_timeout);
 /**
@@ -104,10 +111,14 @@ M0_INTERNAL int m0_rpc_link_connect_sync(struct m0_rpc_link *rlink,
  *
  * @param wait_clink If not NULL, signalled when connection is terminated. Must
  *		     be 'oneshot'.
+ *
+ * @param wait_op If not NULL, transited with m0_co_done() to DONE when link
+ * gets connected.
  */
 M0_INTERNAL void m0_rpc_link_disconnect_async(struct m0_rpc_link *rlink,
 					      m0_time_t abs_timeout,
-					      struct m0_clink *wait_clink);
+					      struct m0_clink *wait_clink,
+					      struct m0_co_op *wait_op);
 M0_INTERNAL int m0_rpc_link_disconnect_sync(struct m0_rpc_link *rlink,
 					    m0_time_t abs_timeout);
 

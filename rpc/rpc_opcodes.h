@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -355,6 +355,7 @@ enum M0_RPC_OPCODES {
 	M0_FDMI_PLUGIN_DOCK_OPCODE          = 1070,
 	M0_FDMI_SOURCE_DOCK_OPCODE          = 1071,
 	M0_ISCSERVICE_EXEC_OPCODE           = 1072,
+	M0_DTM0_RLINK_OPCODE                = 1073,
 
 	M0_OPCODES_NR                       = 2048
 } M0_XCA_ENUM;

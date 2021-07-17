@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -185,7 +185,7 @@ m0_rpc_service_reverse_session_get(struct m0_reqh_service   *service,
 	if (rc == 0) {
 		m0_rpc_link_connect_async(&revc->rcf_rlink,
 				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
-				clink);
+					  clink, NULL);
 		*session = &revc->rcf_rlink.rlk_sess;
 		rev_conn_tlink_init_at_tail(revc, &svc->rps_rev_conns);
 	}
@@ -233,7 +233,8 @@ m0_rpc_service_reverse_session_put(struct m0_rpc_session *sess)
 		revc->rcf_disc_wait.cl_is_oneshot = true;
 		m0_rpc_link_disconnect_async(&revc->rcf_rlink,
 				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
-				&revc->rcf_disc_wait);
+				&revc->rcf_disc_wait,
+				NULL);
 	}
 
 	M0_LEAVE();
@@ -261,7 +262,8 @@ m0_rpc_service_reverse_sessions_cleanup(struct m0_reqh_service *service)
 			revc->rcf_disc_wait.cl_is_oneshot = true;
 			m0_rpc_link_disconnect_async(&revc->rcf_rlink,
 				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
-				&revc->rcf_disc_wait);
+				&revc->rcf_disc_wait,
+				NULL);
 		}
 	} m0_tlist_endfor;
 	m0_tl_teardown(rev_conn, &svc->rps_rev_conns, revc) {

@@ -1654,12 +1654,12 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 }
 
-static void dix_rop_one_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+static void dix_rop_one_completed(struct m0_dix_cas_rop *crop)
 {
-	struct m0_dix_cas_rop *crop = ast->sa_datum;
 	struct m0_dix_req     *dreq = crop->crp_parent;
 	struct m0_dix_rop_ctx *rop;
 
+	M0_ENTRY();
 	M0_PRE(!dreq->dr_is_meta);
 	M0_PRE(M0_IN(dreq->dr_type, (DIX_PUT, DIX_DEL)));
 	M0_PRE(dreq->dr_dtx != NULL);
@@ -1671,16 +1671,14 @@ static void dix_rop_one_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast
 	m0_dtx0_executed(dreq->dr_dtx, crop->crp_pa_idx);
 
 	if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
-		*ast = (struct m0_sm_ast) {
-			.sa_cb    =  dix_rop_completed,
+		rop->dg_ast = (struct m0_sm_ast) {
+			.sa_cb = dix_rop_completed,
 			.sa_datum = dreq,
 		};
-		/*
-		 * Bypass the forkq because the dtx and dreq have
-		 * the same sm group.
-		 */
-		dix_rop_completed(grp, ast);
+		m0_sm_ast_post(dix_req_smgrp(dreq), &rop->dg_ast);
 	}
+
+	M0_LEAVE();
 }
 
 static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
@@ -1712,13 +1710,9 @@ static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 		M0_PRE(rop->dg_completed_nr <= rop->dg_cas_reqs_nr);
 
 		if (dreq->dr_dtx != NULL) {
-			rop->dg_ast = (struct m0_sm_ast) {
-				.sa_cb = dix_rop_one_completed,
-				.sa_datum = crop,
-			};
 			M0_ASSERT(dix_req_smgrp(dreq) ==
 				  dreq->dr_dtx->tx_dtx->dd_sm.sm_grp);
-			m0_sm_ast_post(dix_req_smgrp(dreq), &rop->dg_ast);
+			dix_rop_one_completed(crop);
 		} else {
 			if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
 				rop->dg_ast = (struct m0_sm_ast) {
