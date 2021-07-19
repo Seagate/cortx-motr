@@ -3087,7 +3087,6 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_done(&node_slot, bop->bo_tx, true);
 	node_seq_cnt_update(lev->l_node);
 	node_fix(lev->l_node, bop->bo_tx);
-	btree_callback_add(oi->i_callback, lev->l_node);
 	btree_callback_add(oi->i_callback, oi->i_extra_node);
 
 	/* Increase height by one */
@@ -4740,6 +4739,9 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 
 	node_move(root_child, lev->l_node, D_RIGHT, NR_MAX, bop->bo_tx);
 	M0_ASSERT(node_count_rec(root_child) == 0);
+
+	btree_callback_add(oi->i_callback, lev->l_node);
+	btree_callback_add(oi->i_callback, root_child);
 
 	lev->l_node->n_skip_rec_count_check = false;
 	oi->i_level[1].l_sibling->n_skip_rec_count_check = false;
