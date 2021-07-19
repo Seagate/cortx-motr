@@ -2362,8 +2362,7 @@ static bool ff_rec_is_valid(const struct slot *slot)
 	   _0C(val_is_valid);
 }
 
-static bool ff_iskey_smaller(const struct nd *node, int prev_key_idx,
-			int next_key_idx)
+static bool ff_iskey_smaller(const struct nd *node, int cur_key_idx)
 {
 	struct ff_head          *h;
 	struct m0_btree_key      key_prev;
@@ -2375,6 +2374,8 @@ static bool ff_iskey_smaller(const struct nd *node, int prev_key_idx,
 	void                    *p_key_next;
 	m0_bcount_t              ksize_next;
 	int                      diff;
+	int                      prev_key_idx = cur_key_idx;
+	int                      next_key_idx = cur_key_idx + 1;
 
 	h          = ff_data(node);
 	ksize_prev = h->ff_ksize;
@@ -2399,7 +2400,7 @@ static bool ff_expensive_invariant(const struct nd *node)
 {
 	int count = node_count(node);
 	return _0C(ergo(count > 1, m0_forall(i, count - 1,
-					     ff_iskey_smaller(node, i, i+1))));
+					     ff_iskey_smaller(node, i))));
 }
 
 static bool ff_invariant(const struct nd *node)
@@ -2409,7 +2410,7 @@ static bool ff_invariant(const struct nd *node)
 	/* TBD: add check for h_tree_type after initializing it in node_init. */
 	return  _0C(h->ff_fmt.hd_magic == M0_FORMAT_HEADER_MAGIC) &&
 		_0C(h->ff_seg.h_node_type == BNT_FIXED_FORMAT) &&
-		_0C(h->ff_ksize != 0) && (h->ff_vsize != 0) &&
+		_0C(h->ff_ksize != 0) && _0C(h->ff_vsize != 0) &&
 		_0C(h->ff_shift == segaddr_shift(&node->n_addr));
 }
 
@@ -2471,7 +2472,7 @@ static void ff_fini(const struct nd *node)
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
 		.ot_version       = 0,
 		.ot_type          = 0,
-		.ot_footer_offset = offsetof(struct ff_head, ff_foot)
+		.ot_footer_offset = 0
 	});
 
 	h->ff_fmt.hd_magic = 0;
