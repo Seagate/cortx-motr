@@ -215,6 +215,8 @@ install_files()
         run "ln -sf ${v} $M0_SRC_DIR/$file $dir"
     done
 
+    run "ln -sf ${v} $M0_SRC_DIR/utils/m0reportbug /usr/sbin"
+
     $dry_run || {
         [[ -x /usr/bin/systemctl ]] && systemctl daemon-reload
     }
