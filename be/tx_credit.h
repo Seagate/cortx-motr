@@ -84,6 +84,8 @@ struct m0_be_tx_credit {
 	m0_bcount_t tc_reg_nr;
 	/** Total size of memory needed for the same. */
 	m0_bcount_t tc_reg_size;
+	/** Number of callbacks associated with the transaction */
+	m0_bcount_t tc_cb_nr;
 	/** Used to track who uses the credit and how much. */
 	unsigned    tc_balance[M0_BE_CU_NR];
 };
@@ -91,8 +93,10 @@ struct m0_be_tx_credit {
 /* invalid m0_be_tx_credit value */
 extern const struct m0_be_tx_credit m0_be_tx_credit_invalid;
 
-#define M0_BE_TX_CREDIT(nr, size) \
-	(struct m0_be_tx_credit){ .tc_reg_nr = (nr), .tc_reg_size = (size) }
+#define M0_BE_TX_CB_CREDIT(nr, size, cb_count)				    \
+	(struct m0_be_tx_credit){ .tc_reg_nr = (nr), .tc_reg_size = (size), \
+	.tc_cb_nr = (cb_count)}
+#define M0_BE_TX_CREDIT(nr, size) M0_BE_TX_CB_CREDIT(nr, size, 0)
 
 #define M0_BE_TX_CREDIT_TYPE(type) M0_BE_TX_CREDIT(1, sizeof(type))
 #define M0_BE_TX_CREDIT_PTR(ptr)   M0_BE_TX_CREDIT(1, sizeof *(ptr))
