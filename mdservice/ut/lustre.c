@@ -131,8 +131,10 @@ static void lustre_copy_body(struct m0_fop_cob *body,
         body->b_version = rec->cr_version;
         body->b_flags = rec->cr_flags;
         body->b_valid = lustre_get_valid(rec->cr_valid);
-        fid = rec->cr_tfid; lustre_copy_fid(&body->b_tfid, &fid);
-        fid = rec->cr_pfid; lustre_copy_fid(&body->b_pfid, &fid);
+        fid = rec->cr_tfid;
+        lustre_copy_fid(&body->b_tfid, &fid);
+        fid = rec->cr_pfid;
+        lustre_copy_fid(&body->b_pfid, &fid);
 }
 
 static int lustre_create_fop(struct m0_fop *fop, void *data)
