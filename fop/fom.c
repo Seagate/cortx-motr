@@ -52,6 +52,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "fdmi/fol_fdmi_src.h"
 #include "motr/iem.h"
+#include "ioservice/io_fops.h"
 
 /**
  * @addtogroup fom
@@ -625,11 +626,27 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom)
 {
 	struct m0_fom_domain *dom;
 	size_t                loc_idx;
+	struct m0_fid 	      *si_fid;
 
 	M0_PRE(fom != NULL);
 
 	dom = m0_fom_dom();
-	loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
+
+	if((fom->fo_fop != NULL) && m0_is_io_fop(fom->fo_fop))
+	{
+		struct m0_fop_cob_rw    *rwfop;
+		rwfop = io_rw_get(fom->fo_fop);
+		si_fid = &rwfop->crw_fid;
+		loc_idx = m0_fid_hash(si_fid) % dom->fd_localities_nr;
+		// M0_LOG(M0_ALWAYS, "KC inside if fid_hash = %"PRIu64,m0_fid_hash(si_fid));
+		// M0_LOG(M0_ALWAYS,"KC inside if si_fid = %"PRIu64":%"PRIu64 ,si_fid->f_container, si_fid->f_key);
+	}
+	else
+	{
+		loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
+		// M0_LOG(M0_ALWAYS, "KC inside else fid_hash");
+	}
+
 	M0_ASSERT(loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = dom->fd_localities[loc_idx];
 	fom->fo_loc_idx = loc_idx;

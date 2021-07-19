@@ -110,10 +110,12 @@ enum { AD_PATHLEN = 4096 };
 
 /** Defines hash table size for struct m0_be_emap. This size should be pow of 2.
  */
-enum { EMAP_HT_SIZE = 128 };
+#define   EMAP_HT_SIZE  m0_fom_dom()->fd_localities_nr
 
 struct m0_perf_ht {
         struct m0_be_emap       sad_adata;
+	int			obj_insert_cnt;
+	int			obj_delete_cnt;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_stob_ad_domain {
@@ -134,7 +136,7 @@ struct m0_stob_ad_domain {
 	 * m0_be_emap has it's own volatile-only fields, so it can't be placed
 	 * before the m0_format_footer, where only persistent fields allowed
 	 */
-	struct m0_perf_ht 	sad_adata_ht[EMAP_HT_SIZE];
+	struct m0_perf_ht 	*sad_adata_ht;
 	/*
 	 * volatile-only fields
 	 */
