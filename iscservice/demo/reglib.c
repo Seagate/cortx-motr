@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2017-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,21 +16,10 @@
  *
  * For any questions about this software or licensing,
  * please email opensource@seagate.com or cortx-questions@seagate.com.
- *
- * Original author:  Ganesan Umanesan <ganesan.umanesan@seagate.com>
- * Original creation date: 10-Jan-2017
  */
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <libgen.h>
 #include "util.h"
-#include "fid/fid.h"
-#include "lib/buf.h"
-#include "lib/misc.h"
-#include "iscservice/isc.h"
-#include "rpc/link.h"
 
 char *prog;
 

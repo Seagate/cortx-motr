@@ -913,11 +913,11 @@ iscservice_demo_libm0isc_la_LDFLAGS  = -version-info 1:0:0 $(AM_LDFLAGS)
 
 bin_PROGRAMS += iscservice/demo/m0iscdemo
 iscservice_demo_m0iscdemo_CPPFLAGS = -DM0_TARGET='m0iscdemo' $(AM_CPPFLAGS)
-iscservice_demo_m0iscdemo_LDADD = $(top_builddir)/motr/libmotr.la @LIBEDIT_LIBS@
+iscservice_demo_m0iscdemo_LDADD = $(top_builddir)/motr/libmotr.la
 
 bin_PROGRAMS += iscservice/demo/m0iscreg
 iscservice_demo_m0iscreg_CPPFLAGS = -DM0_TARGET='m0iscreg' $(AM_CPPFLAGS)
-iscservice_demo_m0iscreg_LDADD  = $(top_builddir)/motr/libmotr.la @LIBEDIT_LIBS@
+iscservice_demo_m0iscreg_LDADD  = $(top_builddir)/motr/libmotr.la
 
 include $(top_srcdir)/iscservice/demo/Makefile.sub
 

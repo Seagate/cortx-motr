@@ -19,16 +19,16 @@
 
 #include "lib/trace.h"      /* M0_LOG */
 #include "lib/memory.h"     /* m0_alloc */
-#include "lib/misc.h"       /* m0_full_name_hash */
-#include "fid/fid.h"        /* m0_fid */
-#include "lib/buf.h"        /* m0_buf */
 #include "lib/string.h"     /* m0_strdup */
-#include "iscservice/isc.h" /* m0_isc_comp_register */
+#include "lib/misc.h"       /* m0_full_name_hash */
+#include "lib/buf.h"        /* m0_buf */
+#include "fid/fid.h"        /* m0_fid */
 #include "fop/fom.h"        /* M0_FSO_AGAIN */
 #include "stob/io.h"        /* m0_stob_io_init */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_cob2stob */
 #include "ioservice/storage_dev.h" /* m0_storage_dev_stob_find */
 #include "motr/setup.h"     /* m0_cs_storage_devs_get */
+#include "iscservice/isc.h" /* m0_isc_comp_register */
 
 #include "util.h"
 #include "common.h"

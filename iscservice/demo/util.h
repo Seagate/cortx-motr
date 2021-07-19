@@ -24,15 +24,8 @@
 #ifndef __MOTR_ISCSERVICE_DEMO_UTIL_H__
 #define __MOTR_ISCSERVICE_DEMO_UTIL_H__
 
-#include <stdint.h>
-#include <string.h>
-#include <errno.h>
-#include "motr/client.h"
-#include "lib/types.h" /* uint32_t */
-#include "lib/list.h"
-#include "iscservice/isc.h"
-#include "rpc/rpc_machine.h"
-
+#include "motr/client.h"     /* m0_entity */
+#include "iscservice/isc.h"  /* m0_fop_isc */
 
 extern bool m0trace_on;
 

@@ -19,20 +19,13 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <unistd.h>
-#include <errno.h>
+#include <unistd.h>           /* gethostname */
 
-#include "lib/types.h"
-#include "lib/semaphore.h"
-#include "lib/trace.h"
-#include "lib/mutex.h"
-#include "lib/buf.h"
-#include "rpc/rpclib.h"
+#include "lib/semaphore.h"    /* m0_semaphore */
+#include "lib/trace.h"        /* m0_trace_set_mmapped_buffer */
+#include "rpc/rpclib.h"       /* m0_rpc_post_sync */
 #include "motr/client.h"
-#include "motr/client_internal.h"
+#include "motr/client_internal.h" /* m0_reqh */
 #include "conf/helpers.h"     /* m0_confc_root_open */
 #include "conf/diter.h"       /* m0_conf_diter_next_sync */
 #include "conf/obj_ops.h"     /* M0_CONF_DIRNEXT */
