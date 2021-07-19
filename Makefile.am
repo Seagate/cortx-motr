@@ -1133,7 +1133,6 @@ EXTRA_DIST += \
               sm/Kbuild.sub \
               sm/ut/Kbuild.sub \
               sns/Kbuild.sub \
-              sns/ut/Kbuild.sub \
               spiel/Kbuild.sub \
               sss/Kbuild.sub \
               stats/Kbuild.sub \
