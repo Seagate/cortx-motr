@@ -1259,8 +1259,6 @@ struct m0_btree_oimpl {
 
 };
 
-static uint32_t         trees_loaded = 0;
-static struct m0_rwlock trees_lock;
 
 /**
  * Node descriptor LRU list.
@@ -1524,9 +1522,6 @@ int m0_btree_mod_init(void)
 {
 	struct mod *m;
 
-	trees_loaded = 0;
-	m0_rwlock_init(&trees_lock);
-
 	/** Initialtise lru list, active list and lock. */
 	ndlist_tlist_init(&btree_lru_nds);
 	ndlist_tlist_init(&btree_active_nds);
@@ -1561,7 +1556,6 @@ void m0_btree_mod_fini(void)
 	ndlist_tlist_fini(&btree_active_nds);
 
 	m0_rwlock_fini(&list_lock);
-	m0_rwlock_fini(&trees_lock);
 	m0_free(mod_get());
 }
 
@@ -1743,13 +1737,11 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	const struct node_type *nt;
 	uint32_t                ntype;
 
-	m0_rwlock_write_lock(&trees_lock);
-
 	/**
 	 *  If existing allocated tree is found then return it after increasing
 	 *  the reference count.
 	 */
-	if (addr != NULL && trees_loaded) {
+	if (addr != NULL) {
 		ntype = segaddr_ntype_get(addr);
 		nt = btree_node_format[ntype];
 		node = nt->nt_opaque_get(addr);
@@ -1761,7 +1753,6 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 				op->no_node = tree->t_root;
 				op->no_tree = tree;
 				m0_rwlock_write_unlock(&tree->t_lock);
-				m0_rwlock_write_unlock(&trees_lock);
 				return nxt;
 			}
 			m0_rwlock_write_unlock(&tree->t_lock);
@@ -1774,7 +1765,6 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	 */
 	tree = m0_alloc(sizeof *tree);
 	M0_ASSERT(tree != NULL && tree->t_ref == 0);
-	trees_loaded++;
 
 	m0_rwlock_init(&tree->t_lock);
 
@@ -1798,8 +1788,6 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	//op->no_addr = tree->t_root->n_addr;
 
 	m0_rwlock_write_unlock(&tree->t_lock);
-
-	m0_rwlock_write_unlock(&trees_lock);
 
 	return nxt;
 }
@@ -1858,12 +1846,8 @@ static void tree_put(struct td *tree)
 	tree->t_ref--;
 
 	if (tree->t_ref == 0) {
-		m0_rwlock_write_lock(&trees_lock);
-		M0_ASSERT(trees_loaded > 0);
-		trees_loaded--;
 		m0_rwlock_write_unlock(&tree->t_lock);
 		m0_rwlock_fini(&tree->t_lock);
-		m0_rwlock_write_unlock(&trees_lock);
 		m0_free(tree);
 		return;
 	}
@@ -5336,8 +5320,6 @@ static void ut_node_create_delete(void)
 
 	M0_SET0(&op);
 
-	M0_ASSERT(trees_loaded == 0);
-
 	// Create a Fixed-Format tree.
 	op.no_opc = NOP_ALLOC;
 	tree_create(&op, &tt, 10, NULL, 0);
@@ -5346,7 +5328,6 @@ static void ut_node_create_delete(void)
 
 	M0_ASSERT(tree->t_ref == 1);
 	M0_ASSERT(tree->t_root != NULL);
-	M0_ASSERT(trees_loaded == 1);
 
 	// Add a few nodes to the created tree.
 	op1.no_opc = NOP_ALLOC;
@@ -5368,16 +5349,12 @@ static void ut_node_create_delete(void)
 	tree_clone = op.no_tree;
 	M0_ASSERT(tree_clone->t_ref == 2);
 	M0_ASSERT(tree->t_root == tree_clone->t_root);
-	M0_ASSERT(trees_loaded == 1);
-
 
 	tree_put(tree_clone);
-	M0_ASSERT(trees_loaded == 1);
 
 	// Done playing with the tree - delete it.
 	op.no_opc = NOP_FREE;
 	tree_delete(&op, tree, NULL, 0);
-	M0_ASSERT(trees_loaded == 0);
 
 	btree_ut_fini();
 	M0_LEAVE();
