@@ -450,7 +450,6 @@ static void be_tx_state_move_ast(struct m0_be_tx *tx, enum m0_be_tx_state state)
 	}
 }
 
-#define ARRAY_ALLOC_NZ(arr, nr) ((arr) = m0_alloc_nz((nr) * sizeof ((arr)[0])))
 static int be_tx_memory_allocate(struct m0_be_tx *tx)
 {
 	int rc;
@@ -471,7 +470,7 @@ static int be_tx_memory_allocate(struct m0_be_tx *tx)
 			       tx, BETXCR_P(&tx->t_prepared), rc);
 		} else if (tx->t_prepared.tc_cb_nr != 0) {
 			tx->t_callback_nr = 0;
-			ARRAY_ALLOC_NZ(tx->t_callback, tx->t_prepared.tc_cb_nr);
+			M0_ALLOC_ARR(tx->t_callback, tx->t_prepared.tc_cb_nr);
 			if (tx->t_callback == NULL) {
 				m0_free0(&tx->t_payload.b_addr);
 				m0_be_reg_area_fini(&tx->t_reg_area);
@@ -484,7 +483,6 @@ static int be_tx_memory_allocate(struct m0_be_tx *tx)
 	}
 	return M0_RC(rc);
 }
-#undef ARRAY_ALLOC_NZ
 
 static void be_tx_gc(struct m0_be_tx *tx)
 {
