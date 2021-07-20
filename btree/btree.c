@@ -6079,6 +6079,9 @@ enum {
 	MIN_TREE_LOOPS         = 5000,
 	MAX_TREE_LOOPS         = 15000,
 	MAX_RECS_FOR_TREE_TEST = 100,
+
+	RANDOM_TREE_COUNT      = -1,
+	RANDOM_THREAD_COUNT    = -1,
 };
 
 
@@ -6644,8 +6647,8 @@ static void online_cpu_id_get(uint16_t **cpuid_ptr, uint16_t *cpu_count)
  * is launched. If tree_count is passed as '0' then one tree per thread is
  * created.
  */
-static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
-						   uint32_t tree_count)
+static void btree_ut_num_threads_num_trees_kv_oper(int32_t thread_count,
+						   int32_t tree_count)
 {
 	int                           rc;
 	struct btree_ut_thread_info  *ti;
@@ -6690,9 +6693,29 @@ static void btree_ut_num_threads_num_trees_kv_oper(uint32_t thread_count,
 
 	if (thread_count == 0)
 		thread_count = cpu_count - 1; /** Skip Core-0 */
+	else if (thread_count == RANDOM_THREAD_COUNT) {
+		thread_count = 1;
+		if (cpu_count > 2) {
+			/**
+			 *  Avoid the extreme cases i.e. thread_count
+			 *  cannot be 1 or cpu_count - 1
+			 */
+			thread_count = (random() % (cpu_count - 2)) + 1;
+		}
+	}
 
 	if (tree_count == 0)
 		tree_count = thread_count;
+	else if (tree_count == RANDOM_THREAD_COUNT) {
+		tree_count = 1;
+		if (thread_count > 2) {
+			/**
+			 *  Avoid the extreme cases i.e. tree_count
+			 *  cannot be 1 or thread_count
+			 */
+			tree_count = (random() % (thread_count - 1)) + 1;
+		}
+	}
 
 	M0_ASSERT(thread_count >= tree_count);
 
@@ -6811,7 +6834,11 @@ static void ut_mt_mt_kv_oper(void)
 	btree_ut_num_threads_num_trees_kv_oper(0, 0);
 }
 
-
+static void ut_rt_rt_kv_oper(void)
+{
+	btree_ut_num_threads_num_trees_kv_oper(RANDOM_THREAD_COUNT,
+					       RANDOM_TREE_COUNT);
+}
 
 /**
  * This routine is a thread handler which primarily involves in creating,
@@ -7463,6 +7490,7 @@ struct m0_ut_suite btree_ut = {
 		{"single_thread_tree_op",           ut_st_tree_oper},
 		{"multi_thread_single_tree_kv_op",  ut_mt_st_kv_oper},
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
+		{"random_threads_and_trees_kv_op",  ut_rt_rt_kv_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
 		/* {"btree_kv_add_del",                ut_put_del_operation}, */
 		{NULL, NULL}
