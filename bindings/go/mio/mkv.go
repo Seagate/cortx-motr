@@ -45,12 +45,19 @@ type Mkv struct {
     idx    *C.struct_m0_idx
 }
 
+func uint128_to_fid(u C.struct_m0_uint128) (f C.struct_m0_fid) {
+    f.f_container = u.u_hi
+    f.f_key       = u.u_lo
+    return f
+}
+
 func (mkv *Mkv) idxNew(id string) (err error) {
     mkv.idxID, err = ScanID(id)
     if err != nil {
         return err
     }
-    if (mkv.idxID.u_hi >> 56) != 0x78 {
+    fid := uint128_to_fid(mkv.idxID)
+    if C.m0_fid_tget(&fid) != C.m0_dix_fid_type.ft_id {
         return fmt.Errorf("index fid must start with 0x78 in MSByte" +
                           ", for example: 0x7800000000000123:0x...")
     }
