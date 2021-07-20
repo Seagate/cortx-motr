@@ -1263,7 +1263,7 @@ struct m0_btree_oimpl {
 	struct nd      *i_cookie_node;
 
 	/**
-	 * Array of node_capture structures which holds nodes that need to be
+	 * Array of node_capture structures which hold nodes that need to be
 	 * captured in transactions. This array is populated when the nodes are
 	 * modified as a part of KV operations. The nodes in this array are
 	 * later captured in P_CAPTURE state of the KV_tick() function.
@@ -3058,7 +3058,7 @@ static void btree_callback_add(struct m0_btree_oimpl *oi, struct nd *addr,
 			arr[i].nc_idx  = start_idx;
 			break;
 		}
-		if (arr[i].nc_node == addr) {
+		else if (arr[i].nc_node == addr) {
 			arr[i].nc_idx = arr[i].nc_idx < start_idx ?
 				        arr[i].nc_idx : start_idx;
 			break;
@@ -3449,7 +3449,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
-		memset(oi->i_capture, 0, sizeof *oi->i_capture);
+		M0_SET0(&oi->i_capture);
 		/* Load root node. */
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
 				P_NEXTDOWN);
@@ -4957,7 +4957,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
-		memset(oi->i_capture, 0, sizeof *oi->i_capture);
+		M0_SET0(&oi->i_capture);
 		/* Load root node. */
 		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
 				P_NEXTDOWN);
