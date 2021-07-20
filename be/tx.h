@@ -270,6 +270,13 @@ enum m0_be_tx_state {
 	M0_BTS_NR
 };
 
+typedef void (*m0_be_callback_t)(void *data);
+
+struct m0_be_callback {
+	void             *tc_data;
+	m0_be_callback_t  tc_func;
+};
+
 /*
  * NOTE: Call-backs of this type must be asynchronous, because they can be
  * called from state transition functions.
@@ -422,6 +429,10 @@ struct m0_be_tx {
 	 * in second phase of FDMI work.
 	 */
 	struct m0_sm_ast       t_fdmi_put_ast;
+	/** Total number of callbacks. */
+	uint64_t               t_callback_nr;
+	/** Callbacks to be invoked on tx commit. */
+	struct m0_be_callback *t_callback;
 };
 
 /**
