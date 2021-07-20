@@ -1213,18 +1213,18 @@ struct level {
 /**
  * Node Capture Structure.
  *
- * This stucture will store the addresse of node descriptor and index of record
+ * This stucture will store the address of node descriptor and index of record
  * which will be used for capturing transaction.
  */
 struct node_capture {
 	/**
-	 * Addresse of node descriptor which needs to be captured in
+	 * Address of node descriptor which needs to be captured in
 	 * transaction.
 	 */
-	void      *c_node;
+	struct nd  *c_node;
 
 	 /* Starting index from where record may have been added or deleted. */
-	int        c_idx;
+	int         c_idx;
 };
 
 /**
@@ -1267,10 +1267,10 @@ struct m0_btree_oimpl {
 	struct nd      *i_cookie_node;
 
 	/**
-	 * Array of node_capture which will store information about nodes which
-	 * needs be captured in transaction. This will be used by transaction
-	 * engine for callbacks on transaction commit. Array size is the worst
-	 * case based on btree_callback_credit() calculation.
+	 * Array of node_capture structures which holds nodes that need to be
+	 * captured in transactions. This array is populated when the nodes are
+	 * modified as a part of KV operations. The nodes in this array are
+	 * later captured in P_CAPTURE state of the KV_tick() function.
 	 */
 	struct node_capture   i_capture[BTREE_CALLBACK_CREDIT];
 
@@ -2989,19 +2989,25 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 /**
  * Adds unique node descriptor address to m0_btree_oimpl::i_capture structure.
  */
-static void btree_callback_add(struct node_capture *arr, void *addr)
+static void btree_callback_add(struct m0_btree_oimpl *oi, struct nd *addr,
+			       int start_idx)
 {
-	int i;
+	struct node_capture *arr = oi->i_capture;
+	int                  i;
 
 	M0_PRE(addr != NULL);
 
 	for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
 		if (arr[i].c_node == NULL) {
 			arr[i].c_node = addr;
+			arr[i].c_idx  = start_idx;
 			break;
 		}
-		if (arr[i].c_node == addr)
+		if (arr[i].c_node == addr) {
+			arr[i].c_idx = arr[i].c_idx < start_idx ?
+				       arr[i].c_idx : start_idx;
 			break;
+		}
 	}
 }
 
@@ -3104,7 +3110,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_done(&node_slot, bop->bo_tx, true);
 	node_seq_cnt_update(lev->l_node);
 	node_fix(lev->l_node, bop->bo_tx);
-	btree_callback_add(oi->i_capture, oi->i_extra_node);
+	btree_callback_add(oi, oi->i_extra_node, 0);
 
 	/* Increase height by one */
 	tree->t_height++;
@@ -3236,8 +3242,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	btree_put_split_and_find(lev->l_alloc, lev->l_node,
 				 &bop->bo_rec, &tgt, bop->bo_tx);
 
-	btree_callback_add(oi->i_capture, lev->l_alloc);
-	btree_callback_add(oi->i_capture, lev->l_node);
+	btree_callback_add(oi, lev->l_alloc, 0);
+	btree_callback_add(oi, lev->l_node, 0);
 
 	tgt.s_rec = bop->bo_rec;
 	node_make (&tgt, bop->bo_tx);
@@ -3300,7 +3306,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(lev->l_node, bop->bo_tx);
-			btree_callback_add(oi->i_capture, lev->l_node);
+			btree_callback_add(oi, lev->l_node, lev->l_idx);
 
 			node_unlock(lev->l_node);
 			lock_op_unlock(bop->bo_arbor->t_desc);
@@ -3312,8 +3318,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 
 		btree_put_split_and_find(lev->l_alloc, lev->l_node, &new_rec,
 					 &tgt, bop->bo_tx);
-		btree_callback_add(oi->i_capture, lev->l_alloc);
-		btree_callback_add(oi->i_capture, lev->l_node);
+		btree_callback_add(oi, lev->l_alloc, 0);
+		btree_callback_add(oi, lev->l_node, 0);
 		tgt.s_rec = new_rec;
 		node_make(&tgt, bop->bo_tx);
 		tgt.s_rec = REC_INIT(&p_key_1, &ksize_1, &p_val_1, &vsize_1);
@@ -3639,14 +3645,14 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(lev->l_node, bop->bo_tx);
-			btree_callback_add(oi->i_capture, lev->l_node);
+			btree_callback_add(oi, lev->l_node, lev->l_idx);
 			lock_op_unlock(tree);
 			return fail(bop, rc);
 		}
 		node_done(&node_slot, bop->bo_tx, true);
 		node_seq_cnt_update(lev->l_node);
 		node_fix(lev->l_node, bop->bo_tx);
-		btree_callback_add(oi->i_capture, lev->l_node);
+		btree_callback_add(oi, lev->l_node, lev->l_idx);
 
 		node_unlock(lev->l_node);
 		lock_op_unlock(tree);
@@ -4716,7 +4722,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		}
 		node_seq_cnt_update(lev->l_node);
 		node_fix(node_slot.s_node, bop->bo_tx);
-		btree_callback_add(oi->i_capture, lev->l_node);
+		btree_callback_add(oi, lev->l_node, lev->l_idx);
 
 		/* check if underflow after deletion */
 		if (flag || !node_isunderflow(lev->l_node, false)) {
@@ -4757,8 +4763,8 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	node_move(root_child, lev->l_node, D_RIGHT, NR_MAX, bop->bo_tx);
 	M0_ASSERT(node_count_rec(root_child) == 0);
 
-	btree_callback_add(oi->i_capture, lev->l_node);
-	btree_callback_add(oi->i_capture, root_child);
+	btree_callback_add(oi, lev->l_node, 0);
+	btree_callback_add(oi, root_child, 0);
 
 	lev->l_node->n_skip_rec_count_check = false;
 	oi->i_level[1].l_sibling->n_skip_rec_count_check = false;
@@ -5089,7 +5095,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(node_slot.s_node, bop->bo_tx);
-			btree_callback_add(oi->i_capture, lev->l_node);
+			btree_callback_add(oi, lev->l_node, lev->l_idx);
 			rec.r_flags = M0_BSC_SUCCESS;
 		}
 		int rc = bop->bo_cb.c_act(&bop->bo_cb, &rec);
