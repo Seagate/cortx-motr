@@ -594,6 +594,7 @@ enum base_phase {
 	P_CHECK,
 	P_MAKESPACE,
 	P_ACT,
+	P_CAPTURE,
 	P_FREENODE,
 	P_CLEANUP,
 	P_FINI,
@@ -1515,6 +1516,11 @@ static void node_move(struct nd *src, struct nd *tgt,
 	M0_PRE(node_invariant(tgt));
 	M0_IN(dir,(D_LEFT, D_RIGHT));
 	tgt->n_type->nt_move(src, tgt, dir, nr, tx);
+}
+
+static void node_capture(struct slot *slot, struct m0_be_tx *tx)
+{
+
 }
 
 static void node_lock(struct nd *node)
@@ -3158,6 +3164,10 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_done(&node_slot, bop->bo_tx, true);
 	node_seq_cnt_update(lev->l_node);
 	node_fix(lev->l_node, bop->bo_tx);
+	/**
+	 * Note : not capturing l_node as it must have already been captured in
+	 * btree_put_makespace_phase().
+	 */
 	btree_callback_add(oi, oi->i_extra_node, 0);
 
 	/* Increase height by one */
@@ -3169,8 +3179,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_put(&oi->i_nop, oi->i_extra_node, bop->bo_tx);
 	oi->i_extra_node = NULL;
 
-	lock_op_unlock(tree);
-	return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
+	return P_CAPTURE;
 }
 
 /**
@@ -3288,9 +3297,6 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	btree_put_split_and_find(lev->l_alloc, lev->l_node,
 				 &bop->bo_rec, &tgt, bop->bo_tx);
 
-	btree_callback_add(oi, lev->l_alloc, 0);
-	btree_callback_add(oi, lev->l_node, 0);
-
 	tgt.s_rec = bop->bo_rec;
 	node_make (&tgt, bop->bo_tx);
 	tgt.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
@@ -3317,6 +3323,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 				    node_seq_cnt_update(lev->l_alloc);
 	node_fix(tgt.s_node, bop->bo_tx);
+	btree_callback_add(oi, lev->l_alloc, 0);
+	btree_callback_add(oi, lev->l_node, 0);
 
 	node_unlock(lev->l_alloc);
 	node_unlock(lev->l_node);
@@ -3358,8 +3366,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			btree_callback_add(oi, lev->l_node, lev->l_idx);
 
 			node_unlock(lev->l_node);
-			lock_op_unlock(bop->bo_arbor->t_desc);
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
+			return P_CAPTURE;
 		}
 
 		node_lock(lev->l_alloc);
@@ -3367,8 +3374,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 
 		btree_put_split_and_find(lev->l_alloc, lev->l_node, &new_rec,
 					 &tgt, bop->bo_tx);
-		btree_callback_add(oi, lev->l_alloc, 0);
-		btree_callback_add(oi, lev->l_node, 0);
+
 		tgt.s_rec = new_rec;
 		node_make(&tgt, bop->bo_tx);
 		tgt.s_rec = REC_INIT(&p_key_1, &ksize_1, &p_val_1, &vsize_1);
@@ -3379,6 +3385,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 					    node_seq_cnt_update(lev->l_alloc);
 		node_fix(tgt.s_node, bop->bo_tx);
+		btree_callback_add(oi, lev->l_alloc, 0);
+		btree_callback_add(oi, lev->l_node, 0);
 
 		node_unlock(lev->l_alloc);
 		node_unlock(lev->l_node);
@@ -3691,7 +3699,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(lev->l_node, bop->bo_tx);
-			btree_callback_add(oi, lev->l_node, lev->l_idx);
 
 			node_unlock(lev->l_node);
 			lock_op_unlock(tree);
@@ -3703,6 +3710,21 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		btree_callback_add(oi, lev->l_node, lev->l_idx);
 
 		node_unlock(lev->l_node);
+		return P_CAPTURE;
+	}
+	case P_CAPTURE: {
+		struct node_capture *arr = oi->i_capture;
+		struct slot          node_slot;
+		int                  i;
+
+		for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
+			if (arr[i].nc_node == NULL)
+				break;
+			node_slot.s_node = arr[i].nc_node;
+			node_slot.s_idx  = arr[i].nc_idx;
+			node_capture(&node_slot, bop->bo_tx);
+		}
+
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	}
@@ -3782,13 +3804,13 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_LOCK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_LOCK",
-		.sd_allowed = M0_BITS(P_CHECK, P_CLEANUP, P_LOCKALL,
+		.sd_allowed = M0_BITS(P_CHECK, P_CAPTURE, P_CLEANUP, P_LOCKALL,
 				      P_FREENODE),
 	},
 	[P_CHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CHECK",
-		.sd_allowed = M0_BITS(P_CLEANUP, P_DOWN, P_FREENODE),
+		.sd_allowed = M0_BITS(P_CAPTURE, P_CLEANUP, P_DOWN, P_FREENODE),
 	},
 	[P_MAKESPACE] = {
 		.sd_flags   = 0,
@@ -3798,7 +3820,12 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_ACT] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_ACT",
-		.sd_allowed = M0_BITS(P_FREENODE, P_CLEANUP, P_DONE),
+		.sd_allowed = M0_BITS(P_FREENODE, P_CAPTURE, P_CLEANUP, P_DONE),
+	},
+	[P_CAPTURE] = {
+		.sd_flags   = 0,
+		.sd_name    = "P_CAPTURE",
+		.sd_allowed = M0_BITS(P_CLEANUP),
 	},
 	[P_FREENODE] = {
 		.sd_flags   = 0,
@@ -3864,14 +3891,18 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "kvop-lock", P_LOCK, P_CHECK },
 	{ "kvop-lock-check-ht-changed", P_LOCK, P_CLEANUP },
 	{ "kvop-lock-check-ht-same", P_LOCK, P_LOCKALL },
+	{ "put-lock-ft-capture", P_LOCK, P_CAPTURE },
 	{ "del-check-act-free", P_LOCK, P_FREENODE },
 	{ "kvop-check-height-changed", P_CHECK, P_CLEANUP },
 	{ "kvop-check-height-same", P_CHECK, P_DOWN },
+	{ "put-check-ft-capture", P_CHECK, P_CAPTURE },
 	{ "del-act-free", P_CHECK, P_FREENODE },
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
 	{ "put-makespace", P_MAKESPACE, P_ACT },
 	{ "kvop-act", P_ACT, P_CLEANUP },
+	{ "put-act", P_ACT, P_CAPTURE },
 	{ "del-act", P_ACT, P_FREENODE },
+	{ "put-capture", P_CAPTURE, P_CLEANUP},
 	{ "del-freenode-repeat", P_FREENODE, P_FREENODE },
 	{ "del-freenode-cleanup", P_FREENODE, P_CLEANUP },
 	{ "del-freenode-fini", P_FREENODE, P_FINI},
