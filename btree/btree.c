@@ -3057,8 +3057,7 @@ static void btree_callback_add(struct m0_btree_oimpl *oi, struct nd *addr,
 			arr[i].nc_node = addr;
 			arr[i].nc_idx  = start_idx;
 			break;
-		}
-		else if (arr[i].nc_node == addr) {
+		} else if (arr[i].nc_node == addr) {
 			arr[i].nc_idx = arr[i].nc_idx < start_idx ?
 				        arr[i].nc_idx : start_idx;
 			break;
