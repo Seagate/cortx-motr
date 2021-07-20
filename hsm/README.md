@@ -1,13 +1,16 @@
 Using HSM
 =========
 
-HSM stands for Hierarchical Storage Management. The concept and design are discussed
-in this paper: [Hierarchical Storage Management - SAGE 2016](https://github.com/Seagate/cortx/blob/main/doc/PDFs/2016_February_SAGE_WP3_HSM_for_SAGE_Concept_and_Architecture_v1_for_open_use_compressed.pdf).
+HSM stands for Hierarchical Storage Management. The concept and design are discussed in this paper: [Hierarchical Storage Management - SAGE 2016](https://github.com/Seagate/cortx/blob/main/doc/PDFs/2016_February_SAGE_WP3_HSM_for_SAGE_Concept_and_Architecture_v1_for_open_use_compressed.pdf).
+
+For more information, see:
+
+- [D3.1 HSM for SAGE: Concept and Architecture Report](https://github.com/Seagate/cortx-motr/blob/main/doc/PDF/SAGE_WP3_HSM_for_SAGE_Concept_and_Architecture_v1_Submitted_PUBLIC.pdf)
+- [D3.5 HSM for SAGE: Validation Readiness Report](https://github.com/Seagate/cortx-motr/blob/main/doc/PDF/SAGE_D35_HSM_validation_readiness_PUBLIC.pdf)
+- [D3.9 HSM for SAGE: Final Validation Report](https://github.com/Seagate/cortx-motr/blob/main/doc/PDF/SAGE_D3.9_HSM_final_v1.1_PUBLIC.pdf)
 
 
-The m0hsm tool available in this directory allows to
-create composite objects in Motr, write/read to/from them and move them
-between the tiers (pools). Here is how to use the tool:
+The m0hsm tool available in this directory allows to create composite objects in Motr, write/read to/from them and move them between the tiers (pools). Here is how to use the tool:
 
 1. Set the following environment variables:
 

@@ -663,7 +663,7 @@ static int idx_mock_init(void *svc)
 	if (rc == 0)
 		goto idx_htable;
 
-	if ( errno != ENOENT) {
+	if (errno != ENOENT) {
 		rc = -errno;
 		goto exit;
 	}

@@ -94,9 +94,10 @@ struct m0_sm_state_descr isc_fom_phases[] = {
 
 static size_t fom_home_locality(const struct m0_fom *fom)
 {
-	struct m0_isc_comp_req *comp_req = M0_AMB(comp_req, fom, icr_fom);
+	static int cnt = 0;
 
-	return m0_fid_hash(&comp_req->icr_comp_fid);
+	/* Distribute all reqs evenly among all available localities. */
+	return cnt++;
 }
 
 static struct m0_rpc_machine *fom_rmach(const struct m0_fom *fom)

@@ -1238,20 +1238,17 @@ M0_INTERNAL int ut_io_pargrp_init(void)
 	M0_UT_ASSERT(rc == 0);
 
 	ut_layout_domain_fill(dummy_instance);
-	dummy_pdclust_layout =
-		ut_dummy_pdclust_layout_create(dummy_instance);
+	dummy_pdclust_layout = ut_dummy_pdclust_layout_create(dummy_instance);
 	M0_UT_ASSERT(dummy_pdclust_layout != NULL);
 
-	ut_dummy_poolmach_create(
-		dummy_instance->m0c_pools_common.pc_cur_pver);
+	ut_dummy_poolmach_create(dummy_instance->m0c_pools_common.pc_cur_pver);
 
 	return 0;
 }
 
 M0_INTERNAL int ut_io_pargrp_fini(void)
 {
-	ut_dummy_poolmach_delete(
-		dummy_instance->m0c_pools_common.pc_cur_pver);
+	ut_dummy_poolmach_delete(dummy_instance->m0c_pools_common.pc_cur_pver);
 	dummy_instance->m0c_pools_common.pc_cur_pver = NULL;
 	ut_layout_domain_empty(dummy_instance);
 	ut_m0_client_fini(&dummy_instance);
