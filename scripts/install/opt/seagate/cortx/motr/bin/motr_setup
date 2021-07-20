@@ -122,11 +122,8 @@ class PostInstallCmd(Cmd):
         if not lvm_exist(self):
             config_lvm(self)
         else:
-            self.logger.warning("lvm already exists. "
-                             "Skipping lvm creation.\n")
-            self.logger.warning("Updating bgsize.\n")
-            update_bgsize(self)
-        self.logger.info("SUCCESS\n")
+            self.logger.error("There are LVM configurations present on the system. "
+                              "Skipping LVM creation.\n")
 
 class ConfigCmd(Cmd):
     """Config Setup Cmd"""

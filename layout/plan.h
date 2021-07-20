@@ -233,6 +233,7 @@
 #include "lib/tlist.h"
 #include "lib/vec.h"
 
+struct m0_op;
 struct m0_layout;
 struct m0_layout_plan;
 struct m0_layout_plop;
@@ -358,6 +359,8 @@ struct m0_layout_plop {
 	enum m0_layout_plop_state        pl_state;
 	/** Plan this plop is part of. */
 	struct m0_layout_plan           *pl_plan;
+	/** target_ioreq this plop corresponds to. */
+	struct target_ioreq             *pl_ti;
 	/**
 	 * Plop colour.
 	 *
@@ -367,13 +370,15 @@ struct m0_layout_plop {
 	 * their colours.
 	 */
 	uint64_t                         pl_colour;
+	/** Plops list link magic. */
+	uint64_t                         pl_magix;
 	/**
-	 * Linkage in the list of all plops in the plan.
+	 * Linkage in the ::lp_plops list of all plops in the plan.
 	 */
-	struct m0_tlink                  pl_all_link;
+	struct m0_tlink                  pl_linkage;
 	/**
 	 * List of plops this plop depends on,
-	 * linked via m0_layout_plop_relation::plr_dep_link.
+	 * linked via m0_layout_plop_rel::plr_dep_linkage.
 	 *
 	 * User can use this list to track the dependencies between plops
 	 * to execute and call m0_layout_plop_done() on them in the
@@ -383,7 +388,7 @@ struct m0_layout_plop {
 	struct m0_tl                     pl_deps;
 	/**
 	 * List of plops that depend on this plop (dependants),
-	 * linked via m0_layout_plop_relation::plr_rdep_link.
+	 * linked via m0_layout_plop_rel::plr_rdep_linkage.
 	 */
 	struct m0_tl                     pl_rdeps;
 	/**
@@ -406,15 +411,17 @@ struct m0_layout_plop {
 /**
  * Helper structure to implement m:n relations between plops.
  */
-struct m0_layout_plop_relation {
+struct m0_layout_plop_rel {
 	/** Target dependency in this relation (see pl_deps list). */
 	struct m0_layout_plop *plr_dep;
 	/** Dependant plop in this relation (see pl_rdeps list). */
 	struct m0_layout_plop *plr_rdep;
-	/** pl_deps list link. */
-	struct m0_tlink        plr_dep_link;
-	/** pl_rdeps list link. */
-	struct m0_tlink        plr_rdep_link;
+	/** Deps lists links magic. */
+	uint64_t               plr_magix;
+	/** pl_deps list linkage. */
+	struct m0_tlink        plr_dep_linkage;
+	/** pl_rdeps list linkage. */
+	struct m0_tlink        plr_rdep_linkage;
 };
 
 /**
@@ -469,11 +476,18 @@ struct m0_layout_inout_plop {
  * @see M0_LAT_WRITE, M0_LAT_READ
  */
 struct m0_layout_io_plop {
-	struct m0_layout_plop iop_base;
+	struct m0_layout_plop  iop_base;
+
+	/** Where to send the io-request. */
+	struct m0_rpc_session *iop_session;
 	/**
 	 * The set of extents to be read or written.
 	 */
-	struct m0_indexvec    iop_ext;
+	struct m0_indexvec     iop_ext;
+
+	/** Global object offset. */
+	m0_bindex_t            iop_goff;
+
 	/**
 	 * Data buffers provided by the implementation.
 	 *
@@ -482,7 +496,7 @@ struct m0_layout_io_plop {
 	 * In case of read, the buffers should be populated with the data
 	 * read by the user before calling m0_layout_plop_done().
 	 */
-	struct m0_bufvec      iop_data;
+	struct m0_bufvec       iop_data;
 };
 
 /**
@@ -507,20 +521,24 @@ struct m0_layout_fun_plop {
 	void                 *fp_datum;
 };
 
+M0_TL_DESCR_DECLARE(pldeps, M0_EXTERN);
+M0_TL_DECLARE(pldeps, M0_EXTERN, struct m0_layout_plop_rel);
+
+M0_TL_DESCR_DECLARE(plrdeps, M0_EXTERN);
+M0_TL_DECLARE(plrdeps, M0_EXTERN, struct m0_layout_plop_rel);
+
 /**
- * Constructs the plan describing how the given operation is to be executed for
- * the given layout.
+ * Constructs the plan describing how the given @op is to be executed.
  */
-M0_EXTERN struct m0_layout_plan *
-m0_layout_plan_build(struct m0_layout_instance *layout,
-		     struct m0_op *op);
+M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op);
+
 /**
  * Finalises the plan.
  *
  * This causes invocation of m0_layout_plop_ops::po_fini() for all still
  * existing plops.
  */
-M0_EXTERN void m0_layout_plan_fini(struct m0_layout_plan *plan);
+M0_INTERNAL void m0_layout_plan_fini(struct m0_layout_plan *plan);
 
 enum {
 	M0_LAYOUT_PLOT_ANYCOLOUR = ~0ULL
@@ -534,8 +552,8 @@ enum {
  * If colour is equal to M0_LAYOUT_PLOT_ANYCOLOUR, any ready plop is returned,
  * otherwise only a plop with the matching colour.
  */
-M0_EXTERN int m0_layout_plan_get(struct m0_layout_plan *plan, uint64_t colour,
-				 struct m0_layout_plop **out);
+M0_INTERNAL int m0_layout_plan_get(struct m0_layout_plan *plan, uint64_t colour,
+				   struct m0_layout_plop **out);
 
 /**
  * Instructs the implementation that the user starts processing of the plop.
@@ -543,7 +561,7 @@ M0_EXTERN int m0_layout_plan_get(struct m0_layout_plan *plan, uint64_t colour,
  * @retval -EINVAL if the plop cannot be processed anymore for some reason.
  *                 For example, if it was cancelled by the plan already.
  */
-M0_EXTERN int m0_layout_plop_start(struct m0_layout_plop *plop);
+M0_INTERNAL int m0_layout_plop_start(struct m0_layout_plop *plop);
 
 /**
  * Instructs the implementation that the user completed processing of the plop.
@@ -553,7 +571,7 @@ M0_EXTERN int m0_layout_plop_start(struct m0_layout_plop *plop);
  * If plop->pl_rc is non 0, the implementation might attempt to update the plan
  * to mask or correct the failure.
  */
-M0_EXTERN void m0_layout_plop_done(struct m0_layout_plop *plop);
+M0_INTERNAL void m0_layout_plop_done(struct m0_layout_plop *plop);
 
 /**
  * Signals the implementation that operation execution should be aborted.
@@ -561,7 +579,7 @@ M0_EXTERN void m0_layout_plop_done(struct m0_layout_plop *plop);
  * Operation abort might affect access plan. The user still has to drain the
  * plan and execute all received plops until a DONE plop is produced.
  */
-M0_EXTERN void m0_layout_plan_abort(struct m0_layout_plan *plan);
+M0_INTERNAL void m0_layout_plan_abort(struct m0_layout_plan *plan);
 
 /** @} end of layout group */
 #endif /* __MOTR_LAYOUT_PLAN_H__ */
