@@ -632,13 +632,13 @@ enum {
 
 #undef M0_BTREE_TX_CAPTURE
 #define M0_BTREE_TX_CAPTURE(tx, seg, ptr, size)                              \
-	({                                                                   \
+	do {                                                                   \
 		typeof(size) __size = (size);                                \
 		(tx) = (tx);                                                 \
 		(seg) = (seg);                                               \
 		(ptr) = (ptr);                                               \
 		(__size) = (__size);                                         \
-	})
+	} while (0)
 
 #undef M0_BE_ALLOC_ALIGN_BUF_SYNC
 #define M0_BE_ALLOC_ALIGN_BUF_SYNC(buf, shift, seg, tx)                      \
@@ -902,7 +902,7 @@ enum {
 };
 
 /** Direction of move in node_move(). */
-enum dir {
+enum direction {
 	/** Move (from right to) left. */
 	D_LEFT = 1,
 	/** Move (from left to) right. */
@@ -1022,7 +1022,7 @@ struct node_type {
 
 	/** Moves record(s) between nodes */
 	void (*nt_move) (struct nd *src, struct nd *tgt,
-			 enum dir dir, int nr, struct m0_be_tx *tx);
+			 enum direction dir, int nr, struct m0_be_tx *tx);
 
 	/** Validates node composition */
 	bool (*nt_invariant)(const struct nd *node);
@@ -1238,8 +1238,8 @@ static void node_refcnt_update(struct nd *node, bool increment);
 #ifndef __KERNEL__
 static void node_set_level  (const struct nd *node, uint8_t new_level,
 			     struct m0_be_tx *tx);
-static void node_move (struct nd *src, struct nd *tgt, enum dir dir, int nr,
-		       struct m0_be_tx *tx);
+static void node_move (struct nd *src, struct nd *tgt, enum direction dir,
+		       int nr, struct m0_be_tx *tx);
 #endif
 
 static void node_capture(struct slot *slot, struct m0_be_tx *tx);
@@ -1558,8 +1558,8 @@ static void node_set_level(const struct nd *node, uint8_t new_level,
 	node->n_type->nt_set_level(node, new_level, tx);
 }
 
-static void node_move(struct nd *src, struct nd *tgt, enum dir dir, int nr,
-		      struct m0_be_tx *tx)
+static void node_move(struct nd *src, struct nd *tgt, enum direction dir,
+		      int nr, struct m0_be_tx *tx)
 {
 	M0_PRE(node_invariant(src));
 	M0_PRE(node_invariant(tgt));
@@ -2336,7 +2336,7 @@ static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx);
 static void ff_set_level(const struct nd *node, uint8_t new_level,
 			 struct m0_be_tx *tx);
 static void generic_move(struct nd *src, struct nd *tgt,
-			 enum dir dir, int nr, struct m0_be_tx *tx);
+			 enum direction dir, int nr, struct m0_be_tx *tx);
 static bool ff_invariant(const struct nd *node);
 static bool ff_verify(const struct nd *node);
 static void ff_opaque_set(const struct segaddr *addr, void *opaque);
@@ -2738,7 +2738,7 @@ static void *ff_opaque_get(const struct segaddr *addr)
 }
 
 static void generic_move(struct nd *src, struct nd *tgt,
-			 enum dir dir, int nr, struct m0_be_tx *tx)
+			 enum direction dir, int nr, struct m0_be_tx *tx)
 {
 	struct slot  rec;
 	struct slot  tmp;
@@ -2823,7 +2823,7 @@ static void generic_move(struct nd *src, struct nd *tgt,
 static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 {
 	struct ff_head   *h     = ff_data(slot->s_node);
-	int               rsize  = h->ff_ksize + h->ff_vsize;
+	int               rsize = h->ff_ksize + h->ff_vsize;
 	void             *start = ff_key(slot->s_node, slot->s_idx);
 	struct m0_be_seg *seg   = slot->s_node->n_tree->t_seg;
 	m0_bcount_t       hsize = sizeof(*h) - sizeof(h->ff_opaque);
@@ -2835,7 +2835,8 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 	 *  header modifications need to be persisted.
 	 */
 	if (h->ff_used > slot->s_idx)
-		M0_BTREE_TX_CAPTURE(tx, seg, start, rsize * (h->ff_used - slot->s_idx));
+		M0_BTREE_TX_CAPTURE(tx, seg, start, 
+				    rsize * (h->ff_used - slot->s_idx));
 	else if (h->ff_opaque == NULL)
 		/**
 		 *  This will happen when the node is initialized in which case
