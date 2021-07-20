@@ -1221,10 +1221,10 @@ struct node_capture {
 	 * Address of node descriptor which needs to be captured in
 	 * transaction.
 	 */
-	struct nd  *c_node;
+	struct nd  *nc_node;
 
 	 /* Starting index from where record may have been added or deleted. */
-	int         c_idx;
+	int         nc_idx;
 };
 
 /**
@@ -2998,14 +2998,14 @@ static void btree_callback_add(struct m0_btree_oimpl *oi, struct nd *addr,
 	M0_PRE(addr != NULL);
 
 	for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
-		if (arr[i].c_node == NULL) {
-			arr[i].c_node = addr;
-			arr[i].c_idx  = start_idx;
+		if (arr[i].nc_node == NULL) {
+			arr[i].nc_node = addr;
+			arr[i].nc_idx  = start_idx;
 			break;
 		}
-		if (arr[i].c_node == addr) {
-			arr[i].c_idx = arr[i].c_idx < start_idx ?
-				       arr[i].c_idx : start_idx;
+		if (arr[i].nc_node == addr) {
+			arr[i].nc_idx = arr[i].nc_idx < start_idx ?
+				        arr[i].nc_idx : start_idx;
 			break;
 		}
 	}
