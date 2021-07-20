@@ -309,6 +309,17 @@ static void be_tx_make_reg_d(struct m0_be_tx        *tx,
 	M0_POST(m0_be_reg__invariant(&rd->rd_reg));
 }
 
+M0_INTERNAL void m0_be_tx_cb_capture(struct m0_be_tx *tx, void *addr,
+				     m0_be_callback_t func)
+{
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
+	M0_PRE(tx->t_callback != NULL);
+
+	tx->t_callback[tx->t_callback_nr].tc_data = addr;
+	tx->t_callback[tx->t_callback_nr].tc_func = func;
+	tx->t_callback_nr++;
+}
+
 M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
 				  const struct m0_be_reg *reg)
 {
@@ -457,6 +468,17 @@ static int be_tx_memory_allocate(struct m0_be_tx *tx)
 			m0_free0(&tx->t_payload.b_addr);
 			M0_LOG(M0_ERROR, "tx=%p t_prepared="BETXCR_F" rc=%d",
 			       tx, BETXCR_P(&tx->t_prepared), rc);
+		} else if (tx->t_prepared.tc_cb_nr != 0) {
+			tx->t_callback_nr = 0;
+			M0_ALLOC_ARR(tx->t_callback, tx->t_prepared.tc_cb_nr);
+			if (tx->t_callback == NULL) {
+				m0_free0(&tx->t_payload.b_addr);
+				m0_be_reg_area_fini(&tx->t_reg_area);
+				rc = -ENOMEM;
+				M0_LOG(M0_ERROR, "tx=%p tc_cb_nr=%"PRIu64" "
+				       "rc=%d", tx, tx->t_prepared.tc_cb_nr,
+				       rc);
+			}
 		}
 	}
 	return M0_RC(rc);
