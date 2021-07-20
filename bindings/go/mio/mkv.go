@@ -58,8 +58,9 @@ func (mkv *Mkv) idxNew(id string) (err error) {
     }
     fid := uint128_to_fid(mkv.idxID)
     if C.m0_fid_tget(&fid) != C.m0_dix_fid_type.ft_id {
-        return fmt.Errorf("index fid must start with 0x78 in MSByte" +
-                          ", for example: 0x7800000000000123:0x...")
+        return fmt.Errorf("index fid must start with 0x%x in MSByte" +
+                          ", for example: 0x%x00000000000123:0x...",
+                          C.m0_dix_fid_type.ft_id, C.m0_dix_fid_type.ft_id)
     }
     mkv.idx = (*C.struct_m0_idx)(C.calloc(1, C.sizeof_struct_m0_idx))
     return nil
