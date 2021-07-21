@@ -3305,9 +3305,6 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_unlock(lev->l_node);
 	node_unlock(oi->i_extra_node);
 
-	// node_put(&oi->i_nop, oi->i_extra_node, bop->bo_tx);
-	// oi->i_extra_node = NULL;
-
 	return P_CAPTURE;
 }
 
