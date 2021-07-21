@@ -19,38 +19,79 @@
  */
 
 #include <stdio.h>
+#include <unistd.h>  /* getopt */
+
 #include "util.h"
 
 char *prog;
 
-/* main */
+const char *help_str = "\
+\n\
+Usage: %s OPTIONS libpath\n\
+\n\
+   -e <addr>  endpoint address\n\
+   -x <addr>  ha-agent (hax) endpoint address\n\
+   -f <fid>   process fid\n\
+   -p <fid>   profile fid\n\
+\n";
+
+static void usage()
+{
+	fprintf(stderr, help_str, prog);
+	exit(1);
+}
+
 int main(int argc, char **argv)
 {
-	int rc = 0;
+	int              rc;
+	int              opt;
+	struct m0_config conf = {};
 
 	prog = basename(strdup(argv[0]));
 
-	/* check input */
-	if (argc != 2) {
-		fprintf(stderr,"Usage:\n");
-		fprintf(stderr,"%s libpath\n", prog);
-		return -1;
+	while ((opt = getopt(argc, argv, ":he:x:f:p:")) != -1) {
+		switch (opt) {
+		case 'e':
+			conf.mc_local_addr = optarg;
+			break;
+		case 'x':
+			conf.mc_ha_addr = optarg;
+			break;
+		case 'f':
+			conf.mc_process_fid = optarg;
+			break;
+		case 'p':
+			conf.mc_profile = optarg;
+			break;
+		case 'h':
+			usage();
+			break;
+		default:
+			fprintf(stderr, "unknown option: %c\n", optopt);
+			usage();
+			break;
+		}
 	}
 
-	m0util_setrc(prog);
+	if (conf.mc_local_addr == NULL || conf.mc_ha_addr == NULL ||
+	    conf.mc_process_fid == NULL || conf.mc_profile == NULL) {
+		fprintf(stderr, "mandatory parameter is missing\n");
+		usage();
+	}
+	if (argc - optind < 1)
+		usage();
 
-	/* initialize resources */
-	rc = m0util_init(0);
+	rc = isc_init(&conf);
 	if (rc != 0) {
-		fprintf(stderr,"error! m0util_init() failed: %d\n", rc);
+		fprintf(stderr,"error! isc_init() failed: %d\n", rc);
 		return -2;
 	}
-	rc = m0util_isc_api_register(argv[1]);
+	rc = isc_api_register(argv[optind]);
 	if ( rc != 0)
 		fprintf(stderr, "error! loading of library from %s failed. \n",
 			argv[1]);
 	/* free resources*/
-	m0util_free();
+	isc_free();
 
 	/* success */
 	if (rc == 0)

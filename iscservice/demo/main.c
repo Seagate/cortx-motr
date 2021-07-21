@@ -55,23 +55,6 @@ static int op_type_parse(const char *op_name)
 
 }
 
-static uint32_t isc_services_count(void)
-{
-	struct m0_fid start_fid = M0_FID0;
-	struct m0_fid proc_fid;
-	uint32_t      svc_nr = 0;
-	int           rc = 0;
-
-	while (rc == 0) {
-		rc = m0util_isc_nxt_svc_get(&start_fid, &proc_fid,
-					    M0_CST_ISCS);
-		if (rc == 0)
-			++svc_nr;
-		start_fid = proc_fid;
-	}
-	return svc_nr;
-}
-
 static int minmax_input_prepare(struct m0_buf *out, struct m0_fid *comp_fid,
 				struct m0_layout_io_plop *iop,
 				uint32_t *reply_len, enum isc_comp_type type)
@@ -99,9 +82,9 @@ static int minmax_input_prepare(struct m0_buf *out, struct m0_fid *comp_fid,
 	m0_buf_free(&buf);
 
 	if (type == ICT_MIN)
-		m0util_isc_fid_get("comp_min", comp_fid);
+		isc_fid_get("comp_min", comp_fid);
 	else
-		m0util_isc_fid_get("comp_max", comp_fid);
+		isc_fid_get("comp_max", comp_fid);
 
 	*reply_len = CBL_DEFAULT_MAX;
 
@@ -119,7 +102,7 @@ static int ping_input_prepare(struct m0_buf *buf, struct m0_fid *comp_fid,
 		return -ENOMEM;
 
 	m0_buf_init(buf, greeting, strlen(greeting));
-	m0util_isc_fid_get("hello_world", comp_fid);
+	isc_fid_get("hello_world", comp_fid);
 	*reply_len = CBL_DEFAULT_MAX;
 
 	return 0;
@@ -321,14 +304,22 @@ char *prog;
 
 const char *help_str = "\
 \n\
-Usage: %s [-v[v]] COMP OBJ LEN\n\
+Usage: %s OPTIONS COMP OBJ_ID LEN\n\
 \n\
-  Supported COMPutations: ping, min, max.\n\
+ Supported COMPutations: ping, min, max\n\
 \n\
-  OBJ is two uint64 numbers in format: hi:lo.\n\
-  LEN is the length of object (in KiB).\n\
+ OBJ_ID is two uint64 numbers in hi:lo format (dec or hex)\n\
+ LEN    is the length of object (in KiB)\n\
 \n\
-  -v increase verbosity.\n\
+ Motr-related mandatory options:\n\
+   -e <addr>  endpoint address\n\
+   -x <addr>  ha-agent (hax) endpoint address\n\
+   -f <fid>   process fid\n\
+   -p <fid>   profile fid\n\
+\n\
+ Other non-mandatory options:\n\
+   -v  increase verbosity (-vv to increase even more)\n\
+   -h  this help\n\
 \n";
 
 static void usage()
@@ -363,7 +354,7 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 	int                    rc;
 	int                    reqs_nr = 0;
 	uint32_t               reply_len;
-	struct m0util_isc_req *req;
+	struct isc_req *req;
 	struct m0_layout_plop *plop = NULL;
 	struct m0_layout_plop *prev_plop;
 	struct m0_layout_io_plop *iopl;
@@ -409,7 +400,7 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 			fprintf(stderr, "input preparation failed: %d\n", rc);
 			break;
 		}
-		rc = m0util_isc_req_prepare(req, &buf, &comp_fid, iopl,
+		rc = isc_req_prepare(req, &buf, &comp_fid, iopl,
 					    reply_len);
 		if (rc != 0) {
 			m0_buf_free(&buf);
@@ -419,7 +410,7 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 			break;
 		}
 
-		rc = m0util_isc_req_send(req);
+		rc = isc_req_send(req);
 		conn_addr = m0_rpc_conn_addr(iopl->iop_session->s_conn);
 		if (rc != 0) {
 			fprintf(stderr, "error from %s received: rc=%d\n",
@@ -434,7 +425,7 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 		m0_semaphore_down(&isc_sem);
 
 	/* process the replies */
-	m0util_isc_reqs_teardown(req) {
+	isc_reqs_teardown(req) {
 		iopl = M0_AMB(iopl, req->cir_plop, iop_base);
 		DBG2("req=%d goff=%lu\n", ++reqs_nr, iopl->iop_goff);
 		if (rc == 0 && req->cir_rc == 0) {
@@ -445,9 +436,25 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 						  out_args, op_type);
 		}
 		m0_layout_plop_done(req->cir_plop);
-		m0util_isc_req_fini(req);
+		isc_req_fini(req);
 		m0_free(req);
 	}
+
+	return rc;
+}
+
+static int open_entity(struct m0_entity *entity)
+{
+	int                  rc;
+	struct m0_op *op = NULL;
+
+	m0_entity_open(entity, &op);
+	m0_op_launch(&op, 1);
+	rc = m0_op_wait(op, M0_BITS(M0_OS_FAILED,
+					       M0_OS_STABLE),
+			       M0_TIME_NEVER) ?: m0_rc(op);
+	m0_op_fini(op);
+	m0_op_free(op);
 
 	return rc;
 }
@@ -455,13 +462,14 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 int main(int argc, char **argv)
 {
 	int                    rc;
-	int                    opt;     /* options */
+	int                    opt;
 	struct m0_op          *op = NULL;
 	struct m0_layout_plan *plan;
 	struct m0_uint128      obj_id;
 	struct m0_indexvec     ext;
 	struct m0_bufvec       data;
 	struct m0_bufvec       attr;
+	struct m0_config       conf = {};
 	int                    op_type;
 	int                    unit_sz;
 	int                    units_nr;
@@ -472,10 +480,25 @@ int main(int argc, char **argv)
 
 	prog = basename(strdup(argv[0]));
 
-	while ((opt = getopt(argc, argv, ":v")) != -1) {
+	while ((opt = getopt(argc, argv, ":vhe:x:f:p:")) != -1) {
 		switch (opt) {
+		case 'e':
+			conf.mc_local_addr = optarg;
+			break;
+		case 'x':
+			conf.mc_ha_addr = optarg;
+			break;
+		case 'f':
+			conf.mc_process_fid = optarg;
+			break;
+		case 'p':
+			conf.mc_profile = optarg;
+			break;
 		case 'v':
 			trace_level++;
+			break;
+		case 'h':
+			usage();
 			break;
 		default:
 			fprintf(stderr, "unknown option: %c\n", optopt);
@@ -484,10 +507,13 @@ int main(int argc, char **argv)
 		}
 	}
 
+	if (conf.mc_local_addr == NULL || conf.mc_ha_addr == NULL ||
+	    conf.mc_process_fid == NULL || conf.mc_profile == NULL) {
+		fprintf(stderr, "mandatory parameter is missing\n");
+		usage();
+	}
 	if (argc - optind < 3)
 		usage();
-
-	m0util_setrc(prog);
 
 	op_type = op_type_parse(argv[optind]);
 	if (op_type == -EINVAL)
@@ -503,14 +529,9 @@ int main(int argc, char **argv)
 
 	m0trace_on = true;
 
-	rc = m0util_init(0);
+	rc = isc_init(&conf);
 	if (rc != 0) {
-		fprintf(stderr,"m0util_init() failed: %d\n", rc);
-		usage();
-	}
-
-	if (isc_services_count() == 0) {
-		fprintf(stderr, "ISC services are not started\n");
+		fprintf(stderr,"isc_init() failed: %d\n", rc);
 		usage();
 	}
 
@@ -523,7 +544,7 @@ int main(int argc, char **argv)
 		usage();
 	}
 
-	bs = m0util_m0gs(&obj, 0);
+	bs = isc_m0gs(&obj);
 	if (bs == 0) {
 		fprintf(stderr, "cannot figure out bs to use\n");
 		usage();
@@ -562,7 +583,7 @@ int main(int argc, char **argv)
 	}
 
 	/* free resources*/
-	m0util_free();
+	isc_free();
 
 	return rc;
 }

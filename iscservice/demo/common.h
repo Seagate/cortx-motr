@@ -25,7 +25,7 @@
 #define __MOTR_ISCSERVICE_DEMO_COMMON_H__
 
 /** Gets computation fid from the function name. */
-void m0util_isc_fid_get(const char *f_name, struct m0_fid *fid);
+void isc_fid_get(const char *f_name, struct m0_fid *fid);
 
 #endif /* __MOTR_ISCSERVICE_DEMO_COMMON_H__ */
 

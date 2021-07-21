@@ -16,7 +16,7 @@ Loading the library
 
 With ``spiel`` command (see spiel/spiel.h and demo/util.h) the library
 can be loaded with any running Motr instance. A helper function
-``m0util_isc_api_register`` takes the library path which is (IMPORTANT!)
+``isc_api_register`` takes the library path which is (IMPORTANT!)
 expected to be the same across all the nodes running Motr.
 ``m0iscreg`` utility takes the path as an input and loads the library
 into all the remote Motr instances.
@@ -52,11 +52,11 @@ Prepare rc-files
 ----------------
 
 In order to start the demo programs, the rc-startup files must be created
-for each of them: ``~/.m0util/m0iscdemorc/$(hostname)`` and
-``~/.m0util/m0iscreg/$(hostname)`` with the configuration parameters
+for each of them: ``~/.m0isc/m0iscdemorc/$(hostname)`` and
+``~/.m0isc/m0iscreg/$(hostname)`` with the configuration parameters
 needed to connect to Motr, for example::
 
-  $ cat ~/.m0util/m0iscdemorc/centos79
+  $ cat ~/.m0isc/m0iscdemorc/centos79
   HA_ENDPOINT_ADDR = 192.168.180.171@tcp:12345:1:1
   PROFILE_FID   = 0x7000000000000001:0x50
   M0_POOL_TIER1 = 0x6f00000000000001:0x2f

@@ -335,7 +335,7 @@ static void comp_reg(const char *f_name, int (*ftn)(struct m0_buf *arg_in,
 	struct m0_fid comp_fid;
 	int           rc;
 
-	m0util_isc_fid_get(f_name, &comp_fid);
+	isc_fid_get(f_name, &comp_fid);
 	rc = m0_isc_comp_register(ftn, f_name, &comp_fid);
 	if (rc == -EEXIST)
 		fprintf(stderr, "Computation already exists");

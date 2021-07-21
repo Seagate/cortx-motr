@@ -30,49 +30,32 @@
 extern bool m0trace_on;
 
 /**
- * Initialise Object Store
- *
- * idx selects which local endpoint and proc fid to use from the
- * startup configuration file at $HOME/.m0util/ (starts from 0).
+ * Initialise Motr-related stuff.
  */
-int m0util_init(int idx);
-int m0util_free(void);
-
-/**
- * Open m0-entity (object)
- *
- * @retval 0 on success
- */
-int open_entity(struct m0_entity *entity);
+int  isc_init(struct m0_config *);
+void isc_free(void);
 
 /**
  * Return parity group size for object.
  */
-uint64_t m0util_m0gs(struct m0_obj *obj, int tier);
-
-int m0util_setrc(char *progname);
-
-/**
- * Loads a library in all available m0ds.
- */
+uint64_t isc_m0gs(struct m0_obj *obj);
 
 /* Import */
 struct m0_fid;
-struct m0util_isc_req;
+struct isc_req;
 struct m0_buf;
 struct m0_rpc_link;
-enum m0_conf_service_type;
-
 struct m0_layout_io_plop;
+enum   m0_conf_service_type;
 
-enum m0util_buffer_len {
+enum isc_buffer_len {
 	/** 32K */
 	CBL_DEFAULT_MAX = M0_RPC_DEF_MAX_RPC_MSG_SIZE >> 2,
 	CBL_DEFAULT_MIN = 256,
 };
 
 /** A request holding all parameters relevant to a computation. */
-struct m0util_isc_req {
+struct isc_req {
 	/** Buffer to store returned result. */
 	struct m0_buf          cir_result;
 	/** Error code for the computation. */
@@ -83,8 +66,6 @@ struct m0util_isc_req {
 	struct m0_fop_isc      cir_isc_fop;
 	/** A generic fop for ISC service. */
 	struct m0_fop          cir_fop;
-	/** Semaphore to signal the reply to. */
-	struct m0_semaphore   *cir_sem;
 	/** plop this request corresponds to. */
 	struct m0_layout_plop *cir_plop;
 	/** all reqs list link */
@@ -94,10 +75,10 @@ struct m0util_isc_req {
 extern struct m0_semaphore isc_sem;
 extern struct m0_list      isc_reqs;
 
-#define m0util_isc_reqs_teardown(req) \
+#define isc_reqs_teardown(req) \
   while (!m0_list_is_empty(&isc_reqs) && \
          (req = m0_list_entry(isc_reqs.l_head, \
-                              struct m0util_isc_req, cir_link)) && \
+                              struct isc_req, cir_link)) && \
          (m0_list_del(&req->cir_link), true))
 
 /**
@@ -105,24 +86,10 @@ extern struct m0_list      isc_reqs;
  * It assumes that library is located at identical path on all
  * Motr instances.
  * */
-int m0util_isc_api_register(const char *libpath);
+int isc_api_register(const char *libpath);
 
 /** RPC link for ISC service specified by the fid. */
-struct m0_rpc_link * m0util_isc_rpc_link_get(struct m0_fid *svc_fid);
-
-/**
- * Returns the fid of next service of given type in configuration.
- * @param[in]  svc_fid Represents the current service fid. In order
- *		       to fetch the fid of the first service of given
- *		       this should be set to M0_FID0.
- * @param[in]  s_type  Type of the service being searched for. eg. M0_CST_ISC
- *                     for ISC service. See more types in conf/schema.h
- * @param[out] nxt_fid "fid" associated with the next service.
- * @retval     0       When the next service is found.
- * @retval    -ENOENT  When no service is found.
- */
-int m0util_isc_nxt_svc_get(struct m0_fid *svcc_fid, struct m0_fid *nxt_fid,
-			    enum m0_conf_service_type s_type);
+struct m0_rpc_link * isc_rpc_link_get(struct m0_fid *svc_fid);
 
 /**
  * Prepares a request using provided parameters.
@@ -132,7 +99,7 @@ int m0util_isc_nxt_svc_get(struct m0_fid *svcc_fid, struct m0_fid *nxt_fid,
  * @param[in] reply_len Expected length of reply buffer. This is allowed to
  *                      be greater than the actual length of reply.
  */
-int m0util_isc_req_prepare(struct m0util_isc_req *, struct m0_buf *args,
+int isc_req_prepare(struct isc_req *, struct m0_buf *args,
 			   const struct m0_fid *comp,
 			   struct m0_layout_io_plop *iopl, uint32_t reply_len);
 
@@ -142,18 +109,12 @@ int m0util_isc_req_prepare(struct m0util_isc_req *, struct m0_buf *args,
  * The received reply is populated at req->cir_result.
  * The error code is returned at req->cir_rc.
  */
-int m0util_isc_req_send(struct m0util_isc_req *req);
-
-/**
- * Sends a request and waits till reply is received. The received reply is
- * populated in req->cir_result. The error code is returned at req->cir_rc.
- */
-int m0util_isc_req_send_sync(struct m0util_isc_req *req);
+int isc_req_send(struct isc_req *req);
 
 /**
  * Finalizes the request, including input and result buffers.
  */
-void m0util_isc_req_fini(struct m0util_isc_req *req);
+void isc_req_fini(struct isc_req *req);
 
 extern unsigned unit_size; /* in KiBs, default 4 */
 extern struct m0_realm uber_realm;

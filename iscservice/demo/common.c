@@ -23,7 +23,7 @@
 #include "lib/misc.h"
 #include "fid/fid.h"
 
-void m0util_isc_fid_get(const char *f_name, struct m0_fid *fid)
+void isc_fid_get(const char *f_name, struct m0_fid *fid)
 {
 	uint32_t f_key = m0_full_name_hash((const unsigned char*)f_name,
 					    strlen(f_name));
