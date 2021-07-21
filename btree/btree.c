@@ -3860,17 +3860,16 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	}
 	case P_CAPTURE: {
 		struct node_capture_info *arr = oi->i_capture;
-		/* struct slot               node_slot; */
+		struct slot               node_slot;
 		int                       i;
 
 		for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
 			if (arr[i].nc_node == NULL)
 				break;
-			/*
+
 			node_slot.s_node = arr[i].nc_node;
 			node_slot.s_idx  = arr[i].nc_idx;
 			node_capture(&node_slot, bop->bo_tx);
-			*/
 		}
 
 		lock_op_unlock(tree);
