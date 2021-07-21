@@ -46,6 +46,8 @@ blk_size=$((stride * 1024))
 half_blk=$((blk_size / 2))
 OOSTORE=${1-1}
 
+testname="degraded-mode-IO"
+
 valid_count_get()
 {
 	local j=$((RANDOM%9))
@@ -877,6 +879,8 @@ failure_modes_test()
 
 main()
 {
+	check_test_skip_list $testname || return 0
+
 	sandbox_init
 
 	echo '*********************************************************'
@@ -979,4 +983,4 @@ main()
 
 trap unprepare EXIT
 main
-report_and_exit degraded-mode-IO $?
+report_and_exit $testname $?

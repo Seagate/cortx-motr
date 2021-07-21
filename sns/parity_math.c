@@ -1569,12 +1569,10 @@ static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 #else
 static void reed_solomon_fini(struct m0_parity_math *math)
 {
-	M0_IMPOSSIBLE("Operation not supported in kernel space");
 }
 
 static int reed_solomon_init(struct m0_parity_math *math)
 {
-	M0_IMPOSSIBLE("Operation not supported in kernel space");
 	return 0;
 }
 
@@ -1582,7 +1580,6 @@ static void reed_solomon_encode(struct m0_parity_math *math,
 				const struct m0_buf *data,
 				struct m0_buf *parity)
 {
-	M0_IMPOSSIBLE("Operation not supported in kernel space");
 }
 
 static int reed_solomon_diff(struct m0_parity_math *math,
@@ -1591,7 +1588,6 @@ static int reed_solomon_diff(struct m0_parity_math *math,
 			     struct m0_buf         *parity,
 			     uint32_t               index)
 {
-	M0_IMPOSSIBLE("Operation not supported in kernel space");
 	return 0;
 }
 
@@ -1601,36 +1597,30 @@ static int reed_solomon_recover(struct m0_parity_math *math,
 				struct m0_buf *fails,
 				enum m0_parity_linsys_algo algo)
 {
-	M0_IMPOSSIBLE("Operation not supported in kernel space");
 	return 0;
 }
 
 static void ir_rs_init(const struct m0_parity_math *math, struct m0_sns_ir *ir)
 {
-	M0_IMPOSSIBLE("Operation not supported in kernel space");
 }
 
 static void ir_failure_register(struct m0_sns_ir *ir, uint32_t failed_index)
 {
-	M0_IMPOSSIBLE("Operation not supported in kernel space");
 }
 
 static int ir_mat_compute(struct m0_sns_ir *ir)
 {
-	M0_IMPOSSIBLE("Operation not supported in kernel space");
 	return 0;
 }
 
 static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 {
-	M0_IMPOSSIBLE("Operation not supported in kernel space");
 	return 0;
 }
 
 static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 				     uint32_t block_idx)
 {
-	M0_IMPOSSIBLE("Operation not supported in kernel space");
 	return 0;
 }
 #endif /* ISAL_ENCODE_ENABLED */
