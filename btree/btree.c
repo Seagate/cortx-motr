@@ -849,7 +849,9 @@ enum {
 	NODE_SHIFT_MIN = 9,
 };
 
+#ifndef __KERNEL__
 static struct segaddr  segaddr_build(const void *addr, int shift);
+#endif
 static void           *segaddr_addr (const struct segaddr *addr);
 static int             segaddr_shift(const struct segaddr *addr);
 static uint32_t        segaddr_ntype_get(const struct segaddr *addr);
@@ -1158,8 +1160,8 @@ struct slot {
 	struct m0_btree_rec  s_rec;
 };
 
-static int64_t tree_get   (struct node_op *op, struct segaddr *addr, int nxt);
 #ifndef __KERNEL__
+static int64_t tree_get   (struct node_op *op, struct segaddr *addr, int nxt);
 #if 0
 static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
 			   int rootshift, struct m0_be_tx *tx, int nxt);
@@ -1181,12 +1183,12 @@ static void       node_put  (struct node_op *op, struct nd *node,
 static struct nd *node_try  (struct td *tree, struct segaddr *addr);
 #endif
 
-static int64_t    node_alloc(struct node_op *op, struct td *tree, int shift,
-			     const struct node_type *nt, int ksize, int vsize,
-			     struct m0_be_tx *tx, int nxt);
 static int64_t    node_free(struct node_op *op, struct nd *node,
 			    struct m0_be_tx *tx, int nxt);
 #ifndef __KERNEL__
+static int64_t    node_alloc(struct node_op *op, struct td *tree, int shift,
+			     const struct node_type *nt, int ksize, int vsize,
+			     struct m0_be_tx *tx, int nxt);
 static void node_op_fini(struct node_op *op);
 #endif
 #ifndef __KERNEL__
@@ -1238,9 +1240,9 @@ static void node_set_level  (const struct nd *node, uint8_t new_level,
 			     struct m0_be_tx *tx);
 static void node_move (struct nd *src, struct nd *tgt, enum direction dir,
 		       int nr, struct m0_be_tx *tx);
-#endif
 
 static void node_capture(struct slot *slot, struct m0_be_tx *tx);
+#endif
 /**
  * Common node header.
  *
@@ -1387,6 +1389,7 @@ M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 		   M0_BTREE_ND_LIST_HEAD_MAGIC);
 M0_TL_DEFINE(ndlist, static, struct nd);
 
+#ifndef __KERNEL__
 static void node_init(struct segaddr *addr, int ksize, int vsize,
 		      const struct node_type *nt, struct m0_be_seg *seg,
 		      struct m0_be_tx *tx)
@@ -1394,6 +1397,7 @@ static void node_init(struct segaddr *addr, int ksize, int vsize,
 	nt->nt_init(addr, segaddr_shift(addr), ksize, vsize, nt->nt_id, seg,
 		    tx);
 }
+#endif
 
 static bool node_invariant(const struct nd *node)
 {
@@ -1675,6 +1679,7 @@ void m0_btree_mod_fini(void)
 	m0_free(mod_get());
 }
 
+#ifndef __KERNEL__
 static bool node_shift_is_valid(int shift)
 {
 	return shift >= NODE_SHIFT_MIN && shift < NODE_SHIFT_MIN + 0x10;
@@ -1693,6 +1698,7 @@ static bool addr_is_aligned(const void *addr)
 {
 	return ((size_t)addr & ((1ULL << NODE_SHIFT_MIN) - 1)) == 0;
 }
+#endif
 
 /**
  * Validates the segment address (of node).
@@ -1707,6 +1713,7 @@ static bool segaddr_is_valid(const struct segaddr *seg_addr)
 	return (0xff000000000001f0ull & seg_addr->as_core) == 0;
 }
 
+#ifndef __KERNEL__
 /**
  * Returns a segaddr formatted segment address.
  *
@@ -1726,6 +1733,7 @@ static struct segaddr segaddr_build(const void *addr, int shift)
 	M0_POST(segaddr_shift(&sa) == shift);
 	return sa;
 }
+#endif
 
 /**
  * Returns the CPU addressable pointer from the formatted segment address.
@@ -1824,6 +1832,7 @@ struct seg_ops {
 
 static struct seg_ops *segops;
 static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt);
+#ifndef __KERNEL__
 /**
  * Locates a tree descriptor whose root node points to the node at addr and
  * return this tree to the caller.
@@ -1849,7 +1858,6 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	return nxt_state;
 }
 
-#ifndef __KERNEL__
 
 #if 0
 /**
@@ -2080,6 +2088,32 @@ static struct nd *node_try(struct td *tree, struct segaddr *addr){
 }
 #endif
 
+static int64_t node_free(struct node_op *op, struct nd *node,
+			 struct m0_be_tx *tx, int nxt)
+{
+	int shift = node->n_type->nt_shift(node);
+
+	m0_rwlock_write_lock(&list_lock);
+	node_refcnt_update(node, false);
+	node->n_delayed_free = true;
+
+	if (node->n_ref == 0) {
+		ndlist_tlink_del_fini(node);
+		m0_rwlock_fini(&node->n_lock);
+		op->no_addr = node->n_addr;
+		node->n_type->nt_fini(node, tx);
+		m0_free(node);
+		m0_rwlock_write_unlock(&list_lock);
+		m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift,
+				shift);
+		/** Capture in transaction */
+		return nxt;
+	}
+	m0_rwlock_write_unlock(&list_lock);
+	return nxt;
+}
+
+#ifndef __KERNEL__
 /**
  * Allocates node in the segment and a node-descriptor if all the resources are
  * available.
@@ -2123,32 +2157,6 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int shift,
 	return nxt_state;
 }
 
-static int64_t node_free(struct node_op *op, struct nd *node,
-			 struct m0_be_tx *tx, int nxt)
-{
-	int shift = node->n_type->nt_shift(node);
-
-	m0_rwlock_write_lock(&list_lock);
-	node_refcnt_update(node, false);
-	node->n_delayed_free = true;
-
-	if (node->n_ref == 0) {
-		ndlist_tlink_del_fini(node);
-		m0_rwlock_fini(&node->n_lock);
-		op->no_addr = node->n_addr;
-		node->n_type->nt_fini(node, tx);
-		m0_free(node);
-		m0_rwlock_write_unlock(&list_lock);
-		m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift,
-				shift);
-		/** Capture in transaction */
-		return nxt;
-	}
-	m0_rwlock_write_unlock(&list_lock);
-	return nxt;
-}
-
-#ifndef __KERNEL__
 static void node_op_fini(struct node_op *op)
 {
 }
@@ -6213,7 +6221,6 @@ static void ut_multi_stream_kv_oper(void)
 	int                     i;
 	time_t                  curr_time;
 	struct m0_btree_cb      ut_cb;
-	struct m0_be_tx_credit  cred;
 	struct m0_be_tx        *tx              = NULL;
 	struct m0_be_tx_credit  cred            = {};
 	struct m0_btree_op      b_op            = {};
