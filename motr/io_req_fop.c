@@ -171,7 +171,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
 			 "sns state = %d", ioo, req_item,
 			 req_item->ri_type->rit_opcode, rc, ioo->ioo_sns_state);
-
+	actual_bytes = rw_reply->rwr_count;
 	rc = gen_rep->gr_rc;
 	rc = rc ?: rw_reply->rwr_rc;
 	irfop->irf_reply_rc = rc;
@@ -567,7 +567,7 @@ static void ioreq_pgiomap_find(struct m0_op_io     *ioo,
 			       uint64_t            *cursor,
 			       struct pargrp_iomap **out)
 {
-	uint64_t id;
+	uint64_t i;
 
 	M0_PRE(ioo    != NULL);
 	M0_PRE(out    != NULL);
@@ -575,14 +575,14 @@ static void ioreq_pgiomap_find(struct m0_op_io     *ioo,
 	M0_PRE(*cursor < ioo->ioo_iomap_nr);
 	M0_ENTRY("group_id = %3"PRIu64", cursor = %3"PRIu64, grpid, *cursor);
 
-	for (id = *cursor; id < ioo->ioo_iomap_nr; ++id)
-		if (ioo->ioo_iomaps[id]->pi_grpid == grpid) {
-			*out = ioo->ioo_iomaps[id];
-			*cursor = id;
+	for (i = *cursor; i < ioo->ioo_iomap_nr; ++i)
+		if (ioo->ioo_iomaps[i]->pi_grpid == grpid) {
+			*out = ioo->ioo_iomaps[i];
+			*cursor = i;
 			break;
 		}
 
-	M0_POST(id < ioo->ioo_iomap_nr);
+	M0_POST(i < ioo->ioo_iomap_nr);
 	M0_LEAVE();
 }
 

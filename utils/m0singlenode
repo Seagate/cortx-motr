@@ -180,12 +180,14 @@ get_param_of()
 
 start_singlenode()
 {
-    log 'Starting LNet'
-    # in some situations 'lnet' service can be started but lnet modules may be
+    # In some situations 'lnet' service can be started but lnet modules may be
     # unloaded so systemd won't know it needs to load them them back, in such
     # condition other services that depend on lnet will fail on start; the
-    # workaround is to re-load lnet modules, which is done by 'restart'
-    systemctl restart lnet
+    # workaround is to re-load lnet modules, which is done by 'restart'.
+    # If lnet module is already loaded, there is no need to reload it,
+    # just make sure the lnet.service is started.
+    lsmod | grep -q lnet && systemctl start lnet || {
+        log 'Starting LNet'; systemctl restart lnet; }
 
     log 'Starting motr-singlenode services'
     systemctl start motr-singlenode &
@@ -268,6 +270,13 @@ stop_singlenode()
     for i in $(jobs -p) ; do
         wait $i
     done
+    echo '----------------------------------------------------------'
+    echo "${GREEN}NOTE${NC}: Sometimes motr-server-ha can ${RED}FAIL${NC} during shutdown of the service, due to"
+    echo "order in which services are being stopped and their interdependency."
+    echo "${RED}FAILURE${NC} of motr-server-ha during shutdown is expected, as it is a dummy HA"
+    echo "and does not know the logic and events generated in other services."
+    echo "This will not be an issue with clustered environment, as HAX will have control over the services."
+    echo '----------------------------------------------------------'
 }
 
 singlenode_status()

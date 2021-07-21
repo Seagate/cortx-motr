@@ -26,8 +26,6 @@ set -e
 MOTR_GENDERS_CONF=/etc/motr/genders
 
 # service local variables
-user_config=/etc/sysconfig/motr
-kernel_config=/etc/sysconfig/motr-kernel
 service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 
 

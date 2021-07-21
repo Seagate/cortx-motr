@@ -18,7 +18,6 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-
 motr_st_util_dir=$(dirname $(readlink -f $0))
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
@@ -48,7 +47,7 @@ clean()
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
 	done
 
-        if [ ! -z $multiple_pools ] && [ $multiple_pools == 1 ]; then
+        if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
 		local ios_index=`expr $i + 1`
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
         fi

@@ -16,6 +16,8 @@
  * For any questions about this software or licensing,
  * please email opensource@seagate.com or cortx-questions@seagate.com.
  *
+ * Original author: Andriy Tkachuk <andriy.tkachuk@seagate.com>
+ * Original creation date: 30-Oct-2020
  */
 
 package main
@@ -26,7 +28,7 @@ import (
     "fmt"
     "flag"
     "log"
-    "../mio"
+    "motr/mio"
 )
 
 func usage() {
@@ -122,7 +124,7 @@ func main() {
     } else if dst == "-" {
         writer = os.Stdout
     } else {
-        file, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE, 0655)
+        file, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE, 0644)
         if err != nil {
             log.Fatalf("failed to open file %v: %v", dst, err)
         }
@@ -135,3 +137,5 @@ func main() {
     // might suffer. A tip from https://github.com/golang/go/issues/16474)
     io.CopyBuffer(struct{ io.Writer }{writer}, reader, buf)
 }
+
+// vi: sw=4 ts=4 expandtab ai

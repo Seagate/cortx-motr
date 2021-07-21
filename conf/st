@@ -19,7 +19,7 @@
 #
 
 set -eu
-# set -x
+#set -x
 export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
 ### XXX TODO:
@@ -81,7 +81,8 @@ confdb() {
     cat <<EOF
 (root-0 verno=1 rootfid=(11, 22) mdpool=pool-0 imeta_pver=(0, 0)
     mdredundancy=2 params=["pool_width=3", "nr_data_units=1",
-                           "nr_parity_units=1", "unit_size=4096"]
+                           "nr_parity_units=1", "nr_spare_units=1",
+                           "unit_size=4096"]
     nodes=[node-0] sites=[site-2] pools=[pool-0]
     profiles=[profile-0] fdmi_flt_grps=[])
 (profile-0 pools=[pool-0])
@@ -123,8 +124,8 @@ confdb() {
     flags=4 filename="/dev/sdev5")
 (site-2 racks=[rack-0] pvers=[pver-0])
 (rack-0 encls=[enclosure-0] pvers=[pver-0])
-(enclosure-0 ctrls=[controller-0] pvers=[pver-0])
-(controller-0 node=node-0 drives=[drive-0, drive-1, drive-2, drive-3, drive-4]
+(enclosure-0 node=node-0 ctrls=[controller-0] pvers=[pver-0])
+(controller-0 drives=[drive-0, drive-1, drive-2, drive-3, drive-4]
     pvers=[pver-0])
 (drive-0 dev=sdev-1 pvers=[pver-0])
 (drive-1 dev=sdev-2 pvers=[pver-0])
@@ -132,7 +133,7 @@ confdb() {
 (drive-3 dev=sdev-4 pvers=[pver-0])
 (drive-4 dev=sdev-5 pvers=[pver-0])
 (pool-0 pver_policy=0 pvers=[pver-0])
-(pver-0 N=1 K=1 P=3 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:0])
+(pver-0 N=1 K=1 S=1 P=3 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:0])
 (objv-2:0 real=site-2 children=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
 (objv-1 real=enclosure-0 children=[objv-2])
@@ -161,7 +162,7 @@ services_start() {
         error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
 }
 
-services_stop() { killall -q lt-m0d && wait || true; }
+services_stop() { pkill m0d && wait || true; }
 
 _mount() {
     mount -t m0t1fs \
@@ -173,7 +174,7 @@ _spiel_setup() {
     local rc=0
 
     cd $M0_SRC_DIR/utils/spiel
-    python setup.py "$@" || rc=$?
+    python2 setup.py "$@" || rc=$?
     cd - >/dev/null
     return $rc
 }
@@ -182,7 +183,9 @@ spiel() {
     local files=$SANDBOX_DIR/installed-files
     case "$*" in
         init)
-            _spiel_setup -q install --home $SANDBOX_DIR --record $files;;
+            _spiel_setup -q install --home $SANDBOX_DIR \
+                         --install-lib $SANDBOX_DIR/lib64/python \
+                         --record $files;;
         run)
             PYTHONPATH=$SANDBOX_DIR/lib64/python \
                       $M0_SRC_DIR/utils/spiel/m0spiel \

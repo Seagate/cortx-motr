@@ -14,6 +14,12 @@
 set -e
 set -E
 
+sysconfig_dir='/etc/sysconfig'
+[ -d /etc/sysconfig ] || sysconfig_dir='/etc/default'
+user_config=$sysconfig_dir/motr
+kernel_config=$sysconfig_dir/motr-kernel
+ha_config="$sysconfig_dir/m0d-${1#m0d-}"
+
 _error_handler()
 {
     kill -TERM $$
@@ -83,7 +89,7 @@ _trap_munge()
     local cmd=$1
     local signal=$2
 
-    [[ -n $cmd && -n $signal ]] || {
+    [[ -n "$cmd" && -n "$signal" ]] || {
         m0_exit "$FUNCNAME: not enough arguments provided"
     }
 
@@ -169,7 +175,7 @@ m0_load_modules()
         local qlen=${MOTR_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}
         local ep=$(m0_get_kmod_ep)
 
-        [[ -n $uuid ]] || m0_exit 'MOTR_NODE_UUID is missing, check /etc/sysconfig/motr-kernel file'
+        [[ -n "$uuid" ]] || m0_exit 'MOTR_NODE_UUID is missing, check /etc/sysconfig/motr-kernel file'
 
         m0tr_params="$m0tr_params node_uuid=$uuid"
         m0tr_params="$m0tr_params local_addr=$ep"
@@ -248,11 +254,11 @@ m0_get_lnet_nid()
 
     local lnid
     # if $node is empty, then query is for current node
-    if [[ -z $node || $node == $(hostname -s) ]] ; then
+    if [[ -z "$node" || $node == $(hostname -s) ]] ; then
         lnid=${MOTR_NODE_LNID:=$(m0_genders_value_of m0_lnet_nid)}
-        if [[ -z $lnid || $lnid == auto ]] ; then
+        if [[ -z "$lnid" || $lnid == auto ]] ; then
             lnid=$(lctl list_nids | head -n1)
-            [[ -z $lnid ]] && \
+            [[ -z "$lnid" ]] && \
                 m0_exit 'Failed to auto-detect Lnet NID, please check that' \
                         ' lnet service is running'
         fi
@@ -336,7 +342,7 @@ m0_get_ep_of()
     # services managed by Halong get their endpoints from the per-service config
     # file
     if [[ $service == m0d-* ]] ; then
-        [[ -n $MOTR_M0D_EP ]] ||
+        [[ -n "$MOTR_M0D_EP" ]] ||
             m0_exit "MOTR_M0D_EP isn't set for $service service"
         echo $MOTR_M0D_EP
         return
@@ -414,10 +420,10 @@ m0_get_proc_fid_for()
 
     nidx=$(_word_index "$(m0_get_nodes)" ${node:-$(hostname -s)})
 
-    if [[ -n $nidx ]] ; then
+    if [[ -n "$nidx" ]] ; then
         sidx=$(_word_index "$(m0_get_services)" $service)
 
-        if [[ -n $sidx ]] ; then
+        if [[ -n "$sidx" ]] ; then
             ((--sidx)) || true
             proc_fid=$(printf 0x%x:%d $((0x7200000000000000+$nidx)) $sidx)
         else
@@ -494,53 +500,53 @@ m0_get_core_params()
 
     if m0_genders_has_variable m0_be_tx_group_tx_nr_max ; then
         optional_params+=" -n $(m0_genders_value_of m0_be_tx_group_tx_nr_max)"
-    elif [[ -n $MOTR_M0D_BETXGR_TX_NR_MAX ]]; then
+    elif [[ -n "$MOTR_M0D_BETXGR_TX_NR_MAX" ]]; then
         optional_params+=" -n $MOTR_M0D_BETXGR_TX_NR_MAX"
     fi
 
     if m0_genders_has_variable m0_be_tx_group_reg_nr_max ; then
         optional_params+=" -k $(m0_genders_value_of m0_be_tx_group_reg_nr_max)"
-    elif [[ -n $MOTR_M0D_BETXGR_REG_NR_MAX ]]; then
+    elif [[ -n "$MOTR_M0D_BETXGR_REG_NR_MAX" ]]; then
         optional_params+=" -k $MOTR_M0D_BETXGR_REG_NR_MAX"
     fi
 
     if m0_genders_has_variable m0_be_tx_group_reg_size_max ; then
         optional_params+=" -K $(m0_genders_value_of m0_be_tx_group_reg_size_max)"
-    elif [[ -n $MOTR_M0D_BETXGR_REG_SIZE_MAX ]]; then
+    elif [[ -n "$MOTR_M0D_BETXGR_REG_SIZE_MAX" ]]; then
         optional_params+=" -K $MOTR_M0D_BETXGR_REG_SIZE_MAX"
     fi
 
     if m0_genders_has_variable m0_be_tx_group_payload_size_max ; then
         optional_params+=" -p $(m0_genders_value_of m0_be_tx_group_payload_size_max)"
-    elif [[ -n $MOTR_M0D_BETXGR_PAYLOAD_SIZE_MAX ]]; then
+    elif [[ -n "$MOTR_M0D_BETXGR_PAYLOAD_SIZE_MAX" ]]; then
         optional_params+=" -p $MOTR_M0D_BETXGR_PAYLOAD_SIZE_MAX"
     fi
 
-    if [[ -n $MOTR_M0D_BETX_REG_NR_MAX ]]; then
+    if [[ -n "$MOTR_M0D_BETX_REG_NR_MAX" ]]; then
         optional_params+=" -C $MOTR_M0D_BETX_REG_NR_MAX"
     fi
 
-    if [[ -n $MOTR_M0D_BETX_REG_SIZE_MAX ]]; then
+    if [[ -n "$MOTR_M0D_BETX_REG_SIZE_MAX" ]]; then
         optional_params+=" -N $MOTR_M0D_BETX_REG_SIZE_MAX"
     fi
 
-    if [[ -n $MOTR_M0D_BETX_PAYLOAD_SIZE_MAX ]]; then
+    if [[ -n "$MOTR_M0D_BETX_PAYLOAD_SIZE_MAX" ]]; then
         optional_params+=" -s $MOTR_M0D_BETX_PAYLOAD_SIZE_MAX"
     fi
 
-    if [[ -n $MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MIN ]]; then
+    if [[ -n "$MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MIN" ]]; then
         optional_params+=" -y $MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MIN"
     fi
 
-    if [[ -n $MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MAX ]]; then
+    if [[ -n "$MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MAX" ]]; then
         optional_params+=" -Y $MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MAX"
     fi
 
-    if [[ -n $MOTR_M0D_IOS_BUFFER_POOL_SIZE ]]; then
+    if [[ -n "$MOTR_M0D_IOS_BUFFER_POOL_SIZE" ]]; then
         optional_params+=" -E $MOTR_M0D_IOS_BUFFER_POOL_SIZE"
     fi
 
-    if [[ -n $MOTR_M0D_SNS_BUFFER_POOL_SIZE ]]; then
+    if [[ -n "$MOTR_M0D_SNS_BUFFER_POOL_SIZE" ]]; then
         optional_params+=" -J $MOTR_M0D_SNS_BUFFER_POOL_SIZE"
     fi
 
@@ -552,7 +558,7 @@ m0_get_core_params()
     local qlen=${MOTR_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}
     local directio=${MOTR_M0D_DIRECT_IO:-$(m0_genders_value_of m0_directio)}
 
-    if [[ -n $directio ]] && ! $directio ; then
+    if [[ -n "$directio" ]] && ! $directio ; then
         # disable direct-IO
         optional_params+=' -I'
     fi
@@ -934,7 +940,9 @@ m0_build_local_conf()
     local ipool_width=$(m0_genders_value_of m0_imeta_pool_width)
     local data_units=$(m0_genders_value_of m0_data_units)
     local parity_units=$(m0_genders_value_of m0_parity_units)
+    local spare_units=$(m0_genders_value_of m0_spare_units)
     local iparity_units=$(m0_genders_value_of m0_imeta_parity_units)
+    local ispare_units=$(m0_genders_value_of m0_imeta_spare_units)
 
     local  root='^t|1:0'
     local  prof='^p|1:0'
@@ -970,25 +978,25 @@ m0_build_local_conf()
 
     local site="{0x53| (($siteid), [1: $rackid], [1: $pverid])}"
     local rack="{0x61| (($rackid), [1: $enclid], [1: $pverid])}"
-    local encl="{0x65| (($enclid), [1: $ctrlid], [1: $pverid])}"
+    local encl="{0x65| (($enclid), $node, [1: $ctrlid], [1: $pverid])}"
     local ctrl_pver_fids_str
     m0_cas_enabled && ctrl_pver_fids_str="[2: $pverid, $imetapverid]" || ctrl_pver_fids_str="[1: $pverid]"
-    local ctrl="{0x63| (($ctrlid), $node, $(_build_disk_fids_str 1 20 $pool_width $ipool_width), $ctrl_pver_fids_str)}"
+    local ctrl="{0x63| (($ctrlid), $(_build_disk_fids_str 1 20 $pool_width $ipool_width), $ctrl_pver_fids_str)}"
     local pool="{0x6f| (($poolid), 0, [1: $pverid])}"
-    local pver="{0x76| (($pverid), {0| ($data_units, $parity_units, $pool_width, [5: 0, 0, 0, 0, $parity_units], [1: $sitevid])})}"
+    local pver="{0x76| (($pverid), {0| ($data_units, $parity_units, $spare_units, $pool_width, [5: 0, 0, 0, 0, $parity_units], [1: $sitevid])})}"
     local sitev="{0x6a| (($sitevid), $siteid, [1: $rackvid])}"
     local rackv="{0x6a| (($rackvid), $rackid, [1: $enclvid])}"
     local enclv="{0x6a| (($enclvid), $enclid, [1: $ctrlvid])}"
     local ctrlv="{0x6a| (($ctrlvid), $ctrlid, $(_build_diskv_fids_str $pool_width 1))}"
     local mdpool="{0x6f| (($mdpoolid), 0, [1: $mdpverid])}"
-    local mdpver="{0x76| (($mdpverid), {0| (1, 0, 1, [5: 0, 0, 0, 0, 1], [1: $mdsitevid])})}"
+    local mdpver="{0x76| (($mdpverid), {0| (1, 0, 0, 1, [5: 0, 0, 0, 0, 1], [1: $mdsitevid])})}"
     local mdsitev="{0x6a| (($mdsitevid), $siteid, [1: $mdrackvid])}"
     local mdrackv="{0x6a| (($mdrackvid), $rackid, [1: $mdenclvid])}"
     local mdenclv="{0x6a| (($mdenclvid), $enclid, [1: $mdctrlvid])}"
     local mdctrlv="{0x6a| (($mdctrlvid), $ctrlid, [1: $mddiskvid])}"
     local mddiskv="{0x6a| (($mddiskvid), $diskid, [0])}"
     local imetapool="{0x6f| (($imetapoolid), 0, [1: $imetapverid])}"
-    local imetapver="{0x76| (($imetapverid), {0| (1, $iparity_units, $ipool_width, [5: 0, 0, 0, 0, 1], [1: $imetasitevid])})}"
+    local imetapver="{0x76| (($imetapverid), {0| (1, $iparity_units, $ispare_units, $ipool_width, [5: 0, 0, 0, 0, 1], [1: $imetasitevid])})}"
     local imetasitev="{0x6a| (($imetasitevid), $siteid, [1: $imetarackvid])}"
     local imetarackv="{0x6a| (($imetarackvid), $rackid, [1: $imetaenclvid])}"
     local imetaenclv="{0x6a| (($imetaenclvid), $enclid, [1: $imetactrlvid])}"
@@ -1005,7 +1013,7 @@ m0_build_local_conf()
     local local_conf=$(cat <<CONF_END
 [$(($procs + $services + $pool_width * 3 + 13 + 7 + $cas_objs_nr)):
   {0x74| (($root), 1, (11, 22), $mdpoolid, $imetapverid, 1,
-          [1: "$pool_width $data_units $parity_units"],
+          [1: "$pool_width $data_units $parity_units $spare_units"],
           [1: $node],
           [1: $siteid],
           $(_build_pool_ids_str $poolid $mdpoolid $imetapoolid),

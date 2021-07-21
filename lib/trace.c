@@ -214,7 +214,12 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 
 	struct m0_trace_rec_header *header;
 	struct m0_trace_buf_header *tbh = m0_logbuf_header;
+#ifdef __clang__
+	/* Approximation of the stack pointer for clang compiler. */
+	unsigned long               sp = (unsigned long)&tbh;
+#else
 	register unsigned long      sp asm("sp"); /* stack pointer */
+#endif /* __clang__ */
 
 #ifdef ENABLE_RESTRICTED_TRACE_MODE
 	/* discard records with verbosity level higher than allowed */
@@ -941,11 +946,11 @@ M0_INTERNAL void m0_trace_buf_header_init(struct m0_trace_buf_header *tbh, size_
 	m0_atomic64_set(&tbh->tbh_rec_cnt, 0);
 
 	strncpy(tbh->tbh_motr_version, bi->bi_version_string,
-		sizeof tbh->tbh_motr_version);
+		sizeof tbh->tbh_motr_version - 1);
 	strncpy(tbh->tbh_motr_git_describe, bi->bi_git_describe,
-		sizeof tbh->tbh_motr_git_describe);
+		sizeof tbh->tbh_motr_git_describe - 1);
 	strncpy(tbh->tbh_motr_kernel_ver, bi->bi_kernel,
-		sizeof tbh->tbh_motr_kernel_ver);
+		sizeof tbh->tbh_motr_kernel_ver - 1);
 
 	m0_arch_trace_buf_header_init(tbh);
 }

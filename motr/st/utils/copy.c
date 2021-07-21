@@ -102,7 +102,7 @@ int main(int argc, char **argv)
 
 	rc = client_init(&conf, &container, &m0_instance);
 	if (rc < 0) {
-		fprintf(stderr, "init failed! rc = %d\n", rc);
+		fprintf(stderr, "Client init failed: rc=%d\n", rc);
 		exit(EXIT_FAILURE);
 	}
 
@@ -116,21 +116,19 @@ int main(int argc, char **argv)
 		      cp_param.cup_update_mode);
 	if (rc < 0) {
 		if (rc == -EEXIST) {
-			fprintf(stderr, "Object id: " U128X_F "exists. "
-					"To update an existing object, "
-					"use -u=start index! rc = %d\n",
-					 U128_P(&cp_param.cup_id),
-					 rc);
+			fprintf(stderr, "Object "U128X_F" already exists: "
+					"rc=%d. To update an existing object, "
+					"use -u=start index.\n",
+					U128_P(&cp_param.cup_id), rc);
 		} else {
-			fprintf(stderr, "m0_write failed! Object id "
-					U128X_F "rc = %d\n",
-					U128_P(&cp_param.cup_id),rc);
+			fprintf(stderr, "Object "U128X_F" write failed: rc=%d\n"
+					, U128_P(&cp_param.cup_id), rc);
 		}
 	}
 
 	client_fini(m0_instance);
 
-	return rc;
+	return rc == 0 ? 0 : 1;
 }
 
 /*

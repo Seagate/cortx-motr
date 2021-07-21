@@ -1020,6 +1020,7 @@ static int align_bufvec(struct m0_fom    *fom,
 			m0_bcount_t       ivec_count,
 			uint32_t          bshift)
 {
+	int         rc;
 	int         i;
 	m0_bcount_t blk;
 	bool        all4k = true;
@@ -1035,14 +1036,11 @@ static int align_bufvec(struct m0_fom    *fom,
 	}
 	if (i == ibuf->ov_vec.v_nr)
 		return M0_ERR(-EPROTO);
-	M0_ALLOC_ARR(obuf->ov_vec.v_count, i + 1);
-	M0_ALLOC_ARR(obuf->ov_buf, i + 1);
-	if (obuf->ov_vec.v_count == NULL || obuf->ov_buf == NULL) {
-		m0_free(obuf->ov_vec.v_count);
-		m0_free(obuf->ov_buf);
-		return M0_ERR(-ENOMEM);
-	}
-	obuf->ov_vec.v_nr = i + 1;
+
+	rc = m0_bufvec_empty_alloc(obuf, i + 1);
+	if (rc != 0)
+		return M0_ERR(rc);
+
 	/* Align bufvec before copying to bufvec from stob io */
 	for (i = 0; i < obuf->ov_vec.v_nr; ++i) {
 		blk = min64u(ibuf->ov_vec.v_count[i] >> bshift, ivec_count);
@@ -1533,12 +1531,14 @@ static int zero_copy_initiate(struct m0_fom *fom)
 
 		used_size = rwfop->crw_desc.id_descs[fom_obj->
 						fcrw_curr_desc_index].bdd_used;
-#ifdef ENABLE_LUSTRE
-		segs_nr = used_size / max_seg_size;
-#else
-		segs_nr = 1;
-		(void)max_seg_size;
-#endif
+
+		if (dom->nd_xprt == &m0_net_lnet_xprt) {
+			segs_nr = used_size / max_seg_size;
+		} else {
+			segs_nr = 1;
+			(void)max_seg_size;
+		}
+
 		M0_LOG(M0_DEBUG, "segs_nr %d", segs_nr);
 
 		/*
@@ -1648,12 +1648,9 @@ static int zero_copy_finish(struct m0_fom *fom)
 
 static void stio_desc_fini(struct m0_stob_io_desc *stio_desc)
 {
-	struct m0_stob_io *stio = &stio_desc->siod_stob_io;
-
 	if (stobio_tlink_is_in(stio_desc))
 		stobio_tlist_remove(stio_desc);
-	m0_free(stio->si_user.ov_vec.v_count);
-	m0_free(stio->si_user.ov_buf);
+	m0_bufvec_free2(&stio_desc->siod_stob_io.si_user);
 }
 
 M0_INTERNAL uint64_t m0_io_size(struct m0_stob_io *sio, uint32_t bshift)
@@ -2244,7 +2241,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 
 	if (m0_is_write_fop(fom->fo_fop) &&
 	    m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_WAIT &&
-	    fom->fo_tx.tx_state == 0) {
+	    fom->fo_tx.tx_state == M0_DTX_INVALID) {
 		m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
 		return M0_RC(M0_FSO_AGAIN);
 	}

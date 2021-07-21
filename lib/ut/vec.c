@@ -28,6 +28,7 @@
 #include "lib/bitmap.h"
 #include "lib/time.h"
 #include "lib/arith.h"
+#include "lib/errno.h"
 
 static void test_ivec_cursor(void);
 static void test_bufvec_cursor(void);
@@ -57,10 +58,13 @@ void test_vec(void)
 	m0_bcount_t  sum1;
 	m0_bcount_t  step;
 	bool         eov;
-	void        *buf[NR2] = {};
+	void       **buf;
 
 	struct m0_vec_cursor c;
 	struct m0_bufvec     bv;
+
+	M0_ALLOC_ARR(buf, NR2);
+	M0_UT_ASSERT(buf != NULL);
 
 	for (count = 0, it = 1, sum0 = i = 0; i < ARRAY_SIZE(segs); ++i) {
 		segs[i] = count * it;
@@ -110,6 +114,10 @@ void test_vec(void)
 	M0_UT_ASSERT(bv.ov_vec.v_nr == 0);
 	M0_UT_ASSERT(bv.ov_buf == NULL);
 	m0_bufvec_free(&bv);    /* no-op */
+	m0_fi_enable_once("bufvec_alloc", "buf-alloc-fail");
+	M0_UT_ASSERT(m0_bufvec_alloc(&bv, NR, M0_SEG_SIZE) == -ENOMEM);
+	m0_fi_enable_once("bufvec_alloc", "empty-fail");
+	M0_UT_ASSERT(m0_bufvec_empty_alloc(&bv, NR) == -ENOMEM);
 	M0_UT_ASSERT(m0_bufvec_alloc(&bv, NR2, M0_SEG_SIZE) == 0);
 	M0_UT_ASSERT(bv.ov_vec.v_nr == NR2);
 	for (i = 0; i < NR2; ++i)
@@ -147,38 +155,40 @@ void test_vec(void)
 
 static void test_indexvec_varr_cursor(void)
 {
-	struct m0_indexvec_varr ivv;
+	struct m0_indexvec_varr *ivv;
 	struct m0_ivec_varr_cursor ivc;
 	m0_bcount_t  c;
 	int          nr;
 	int          rc;
 
-	M0_SET0(&ivv);
-	rc = m0_indexvec_varr_alloc(&ivv, 4);
+	M0_ALLOC_PTR(ivv);
+	M0_UT_ASSERT(ivv != NULL);
+
+	M0_SET0(ivv);
+	rc = m0_indexvec_varr_alloc(ivv, 4);
 	M0_UT_ASSERT(rc == 0);
 
 	/* data initialization begins */
-	*(m0_bindex_t*)(m0_varr_ele_get(&ivv.iv_index, 0)) = 0;
-	*(m0_bindex_t*)(m0_varr_ele_get(&ivv.iv_index, 1)) = 1;
-	*(m0_bindex_t*)(m0_varr_ele_get(&ivv.iv_index, 2)) = 2;
-	*(m0_bindex_t*)(m0_varr_ele_get(&ivv.iv_index, 3)) = 8;
-
-	*(m0_bcount_t*)(m0_varr_ele_get(&ivv.iv_count, 0)) = 2;
-	*(m0_bcount_t*)(m0_varr_ele_get(&ivv.iv_count, 1)) = 3; /*overlapping*/
-	*(m0_bcount_t*)(m0_varr_ele_get(&ivv.iv_count, 2)) = 1; /*overlapping*/
-	*(m0_bcount_t*)(m0_varr_ele_get(&ivv.iv_count, 3)) = 4;
+	*(m0_bindex_t*)(m0_varr_ele_get(&ivv->iv_index, 0)) = 0;
+	*(m0_bindex_t*)(m0_varr_ele_get(&ivv->iv_index, 1)) = 1;
+	*(m0_bindex_t*)(m0_varr_ele_get(&ivv->iv_index, 2)) = 2;
+	*(m0_bindex_t*)(m0_varr_ele_get(&ivv->iv_index, 3)) = 8;
+	*(m0_bcount_t*)(m0_varr_ele_get(&ivv->iv_count, 0)) = 2;
+	*(m0_bcount_t*)(m0_varr_ele_get(&ivv->iv_count, 1)) = 3; /*overlapping*/
+	*(m0_bcount_t*)(m0_varr_ele_get(&ivv->iv_count, 2)) = 1; /*overlapping*/
+	*(m0_bcount_t*)(m0_varr_ele_get(&ivv->iv_count, 3)) = 4;
 	/* data initialization ends */
 
-	m0_varr_for(&ivv.iv_count, uint64_t *, i, countp) {
+	m0_varr_for(&ivv->iv_count, uint64_t *, i, countp) {
 		/*printf("data[%d] = %d\n", (int)i, (int)*(uint64_t*)countp);*/
 	} m0_varr_endfor;
-	m0_varr_for(&ivv.iv_index, uint64_t *, i, indexp) {
+	m0_varr_for(&ivv->iv_index, uint64_t *, i, indexp) {
 		/*printf("data[%d] = %d\n", (int)i, (int)*(uint64_t*)indexp);*/
 	} m0_varr_endfor;
 
 	/* test move */
-	m0_ivec_varr_cursor_init(&ivc, &ivv);
-	M0_UT_ASSERT(ivc.vc_ivv    == &ivv);
+	m0_ivec_varr_cursor_init(&ivc, ivv);
+	M0_UT_ASSERT(ivc.vc_ivv    == ivv);
 	M0_UT_ASSERT(ivc.vc_seg    == 0);
 	M0_UT_ASSERT(ivc.vc_offset == 0);
 
@@ -226,7 +236,7 @@ static void test_indexvec_varr_cursor(void)
 	M0_UT_ASSERT( m0_ivec_varr_cursor_move (&ivc, 4)  ); /* at the end*/
 
 	/* test move_to */
-	m0_ivec_varr_cursor_init(&ivc, &ivv);
+	m0_ivec_varr_cursor_init(&ivc, ivv);
 	M0_UT_ASSERT(!m0_ivec_varr_cursor_move_to(&ivc, 1));
 	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 1);
 	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 1);
@@ -239,7 +249,7 @@ static void test_indexvec_varr_cursor(void)
 	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 2);
 	M0_UT_ASSERT( m0_ivec_varr_cursor_move_to(&ivc, 12)); /* at the end*/
 
-	m0_ivec_varr_cursor_init(&ivc, &ivv);
+	m0_ivec_varr_cursor_init(&ivc, ivv);
 	c = 0;
 	nr = 0;
 	while (!m0_ivec_varr_cursor_move(&ivc, c)) {
@@ -248,8 +258,10 @@ static void test_indexvec_varr_cursor(void)
 	}
 	M0_UT_ASSERT(nr == 4);
 
-	m0_indexvec_varr_free(&ivv);
+	m0_indexvec_varr_free(ivv);
+	m0_free(ivv);
 }
+
 static void test_ivec_cursor(void)
 {
 	int                   nr;

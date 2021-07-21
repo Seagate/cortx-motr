@@ -21,7 +21,6 @@
 
 
 #include "ioservice/io_service.h"        /* m0_ios_cdom_get */
-#include "net/lnet/lnet.h"               /* m0_net_lnet_xprt */
 #include "motr/setup.h"                  /* m0_motr */
 #include "sns/cm/repair/ut/cp_common.h"  /* cs_fini */
 #include "ut/misc.h"                     /* M0_UT_PATH */
@@ -52,15 +51,12 @@ char      *sns_cm_ut_svc_linux[] = { "m0d", "-T", "LINUX",
 				     "-H", "0@lo:12345:34:1",
 				     "-c", M0_UT_PATH("conf.xc")};
 
-struct m0_net_xprt *sr_xprts[] = {
-        &m0_net_lnet_xprt,
-};
-
 FILE           *lfile;
 struct m0_motr  sctx;
 enum {
 	PDCLUST_N = 8,
 	PDCLUST_K = 2,
+	PDCLUST_S = 2,
 	PDCLUST_P = 24,
 	PDCLUST_UNIT_SIZE = 4096,
 };
@@ -179,7 +175,8 @@ static int cs_init_setup_env(struct m0_motr *sctx, int stob_type)
 	lfile = fopen(log_file_name, "w+");
 	M0_ASSERT(lfile != NULL);
 
-	rc = m0_cs_init(sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile, true);
+	rc = m0_cs_init(sctx, m0_net_all_xprt_get(), m0_net_xprt_nr(),
+			lfile, true);
 	if (rc != 0)
 		return rc;
 
@@ -242,6 +239,7 @@ void layout_gen(struct m0_pdclust_layout **pdlay, struct m0_reqh *reqh)
 	pdattr = (struct m0_pdclust_attr) {
 	        .pa_N         = PDCLUST_N,
 	        .pa_K         = PDCLUST_K,
+		.pa_S         = PDCLUST_S,
 	        .pa_P         = PDCLUST_P,
 	        .pa_unit_size = PDCLUST_UNIT_SIZE,
 	};

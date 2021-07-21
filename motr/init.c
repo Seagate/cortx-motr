@@ -43,6 +43,7 @@
 #include "dtm/dtm.h"
 #include "fol/fol.h"
 #include "dtm/dtm.h"
+#include "dtm0/service.h"
 #include "reqh/reqh.h"
 #include "lib/timer.h"
 #include "fid/fid.h"
@@ -184,11 +185,11 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fom_generic_init, &m0_fom_generic_fini, "fom-generic" },
 	/* addb2-net must be after rpc, because it initialises a fop type. */
 	{ &m0_addb2_net_module_init, &m0_addb2_net_module_fini, "addb2-net" },
+	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
+	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 #ifndef __KERNEL__
 	{ &m0_net_sock_mod_init, &m0_net_sock_mod_fini, "net/sock" },
 #endif
-	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
-	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
 	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },
 	{ &m0_stob_mod_init,    &m0_stob_mod_fini,    "stob" },
 #ifndef __KERNEL__
@@ -235,7 +236,8 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fis_register,     &m0_fis_unregister,   FI_SERVICE_NAME },
 #ifndef __KERNEL__
 	{ &m0_fdmi_init,         &m0_fdmi_fini,         "fdmi" },
-	{ &m0_fol_fdmi_src_init, &m0_fol_fdmi_src_fini, "fol_fdmi_source" }
+	{ &m0_fol_fdmi_src_init, &m0_fol_fdmi_src_fini, "fol_fdmi_source" },
+	{ &m0_dtm0_stype_init,   &m0_dtm0_stype_fini,   "dtm0"},
 #endif
 };
 

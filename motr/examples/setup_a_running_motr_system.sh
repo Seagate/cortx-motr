@@ -75,7 +75,7 @@ main()
 	sandbox_init
 
 	local multiple_pools=0
-	motr_service start "$multiple_pools" "$stride" "$N" "$K" "$P" || {
+	motr_service start "$multiple_pools" "$stride" "$N" "$K" "$S" "$P" || {
 		echo "Failed to start Motr Service."
 		return 1
 	}

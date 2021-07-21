@@ -60,7 +60,7 @@ if spiel.rconfc_start():
 start() {
     # install "motr" Python module required by m0spiel tool
     cd $M0_SRC_DIR/utils/spiel
-    python setup.py install --record $INSTALLED_FILES > /dev/null ||
+    python2 setup.py install --record $INSTALLED_FILES > /dev/null ||
         die 'Cannot install Python "motr" module'
     sandbox_init
     _init
@@ -71,7 +71,7 @@ stop() {
     local rc=${1:-$?}
 
     trap - EXIT
-    killall -q lt-m0d && wait || rc=$?
+    pkill m0d && wait || rc=$?
     _fini
     if [ $rc -eq 0 ]; then
         sandbox_fini
@@ -98,7 +98,8 @@ stub_confdb() {
     cat <<EOF
 (root-0 verno=1 rootfid=(11, 22) mdpool=pool-0 imeta_pver=(0, 0)
     mdredundancy=2 params=["pool_width=3", "nr_data_units=1",
-                           "nr_parity_units=1", "unit_size=4096"]
+                           "nr_parity_units=1", "nr_spare_units=1",
+                           "unit_size=4096"]
     nodes=[node-0] sites=[site-2] pools=[pool-0]
     profiles=[profile-0] fdmi_flt_grps=[])
 (profile-0 pools=[pool-0])
@@ -122,7 +123,7 @@ stub_confdb() {
 (service-8 type=@M0_CST_RMS endpoints=["$M0D3_ENDPOINT"] params=[] sdevs=[])
 (service-9 type=@M0_CST_CONFD endpoints=["$M0D3_ENDPOINT"] params=[] sdevs=[])
 (pool-0 pver_policy=0 pvers=[pver-0, pver_f-11])
-(pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:0])
+(pver-0 N=2 K=1 S=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:0])
 (pver_f-11 id=0 base=pver-0 allowance=[0, 0, 0, 0, 1])
 (objv-2:0 real=site-2 children=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
@@ -130,8 +131,8 @@ stub_confdb() {
 (objv-2 real=controller-0 children=[])
 (site-2 racks=[rack-0] pvers=[pver-0])
 (rack-0 encls=[enclosure-0] pvers=[pver-0])
-(enclosure-0 ctrls=[controller-0] pvers=[pver-0])
-(controller-0 node=node-0 drives=[] pvers=[pver-0])
+(enclosure-0 node=node-0 ctrls=[controller-0] pvers=[pver-0])
+(controller-0 drives=[] pvers=[pver-0])
 (sdev-0 dev_idx=0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")
 EOF

@@ -41,7 +41,6 @@
 static struct m0_reqh_service *iscs;
 static struct m0_rpc_server_ctx isc_ut_sctx;
 static struct m0_rpc_client_ctx isc_ut_cctx;
-static struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain isc_ut_client_ndom;
 static uint32_t cc_type;
 static const char *SERVER_LOGFILE = "isc_ut.log";
@@ -91,7 +90,7 @@ static const struct m0_rpc_item_ops isc_item_ops = {
 enum funct_type {
 	/* Neither receives i/p buffer nor returns anything. */
 	FT_NEITHER_IO,
-	/* Receives no i/p buffer, returns o/p buffer. */
+	/* Receives no i/p buffer, returns error. */
 	FT_NO_INPUT,
 	/* Receives i/p buffer, returns nothing. */
 	FT_NO_OUTPUT,
@@ -145,8 +144,8 @@ int isc_ut_server_start(void)
 	int rc = 0;
 
 	M0_SET0(&isc_ut_sctx);
-	isc_ut_sctx.rsx_xprts         = &xprt;
-	isc_ut_sctx.rsx_xprts_nr      = 1;
+	isc_ut_sctx.rsx_xprts         = m0_net_all_xprt_get();
+	isc_ut_sctx.rsx_xprts_nr      = m0_net_xprt_nr();
 	isc_ut_sctx.rsx_argv          = isc_ut_server_args;
 	isc_ut_sctx.rsx_argc          = ARRAY_SIZE(isc_ut_server_args);
 	isc_ut_sctx.rsx_log_file_name = SERVER_LOGFILE;
@@ -175,7 +174,7 @@ static void isc_ut_client_start(void)
 	int rc;
 
 	M0_SET0(&isc_ut_cctx);
-	rc = m0_net_domain_init(&isc_ut_client_ndom, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(&isc_ut_client_ndom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 	isc_ut_cctx.rcx_remote_addr = SERVER_ENDPOINT_ADDR;
 	isc_ut_cctx.rcx_max_rpcs_in_flight = 10;
@@ -245,17 +244,11 @@ static int string_update(struct m0_buf *in, struct m0_buf *out,
 static int strguess(struct m0_buf *in, struct m0_buf *out,
 		    struct m0_isc_comp_private *comp_data, int *rc)
 {
-	char *out_str;
-
-	if (!m0_buf_streq(in, fixed_str)) {
-		out_str = m0_strdup(fixed_str);
-		if (out_str != NULL) {
-			m0_buf_init(out, (void *)out_str, strlen(out_str));
-			*rc = M0_ERR(-EINVAL);
-		} else
-			*rc = M0_ERR(-ENOMEM);
-	} else
+	if (!m0_buf_streq(in, fixed_str))
+		*rc = M0_ERR(-EINVAL);
+	else
 		*rc = 0;
+
 	return M0_FSO_AGAIN;
 }
 
@@ -377,8 +370,7 @@ static void test_comp_launch(void)
 	rc = isc_ut_server_start();
 	M0_UT_ASSERT(rc == 0);
 	reqh = m0_cs_reqh_get(&isc_ut_sctx.rsx_motr_ctx);
-	svc_isc =
-	  m0_reqh_service_find(&m0_iscs_type, reqh);
+	svc_isc = m0_reqh_service_find(&m0_iscs_type, reqh);
 	M0_UT_ASSERT(svc_isc != NULL);
 	fid_get("null_computation", &fid);
 	/* Test a local invocation of computation. */
@@ -768,7 +760,6 @@ static void remote_invocation(struct m0_fid *fid, int exp_rc, uint32_t f_type, u
 		break;
 	case FT_NO_INPUT:
 		M0_UT_ASSERT(ret_rc == 0);
-		M0_UT_ASSERT(m0_buf_streq(&recv_buf, fixed_str));
 		break;
 	case FT_BOTH_IO:
 		for (i = 0; i < recv_buf.b_nob; ++i) {
@@ -837,7 +828,7 @@ static void test_comp_signature(void)
 	cra.cra_comp = strguess;
 	comp_remote_invoke(&cra, FT_NO_OUTPUT);
 
-	/* no-i/p and o/p */
+	/* no-i/p and o/p err */
 	cra.cra_name = m0_strdup("strguess");
 	cra.cra_comp = strguess;
 	comp_remote_invoke(&cra, FT_NO_INPUT);

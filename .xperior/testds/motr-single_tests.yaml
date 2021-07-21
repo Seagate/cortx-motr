@@ -206,7 +206,7 @@ Tests:
     sandbox  : /var/motr/sandbox.17sss-st-test
     groupname: 03motr-single-node
     polltime : 30
-    timeout  : 240
+    timeout  : 600
 
   - id       : 18m0mount-test
     script   : m0mount
@@ -236,7 +236,7 @@ Tests:
     sandbox  : /var/motr/sandbox.20pool-version-test
     groupname: 02motr-single-node
     polltime : 30
-    timeout  : 660
+    timeout  : 900
 
   - id       : 21spiel-test
     script   : m0t1fs_spiel_st.sh
@@ -541,7 +541,7 @@ Tests:
     sandbox  : /var/motr/sandbox.51kem
     groupname: 02motr-single-node
     polltime : 30
-    timeout  : 480
+    timeout  : 900
 
   - id       : 52singlenode-sanity
     script   : sanity.sh

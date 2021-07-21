@@ -30,6 +30,7 @@
 
 N=8
 K=2
+S=2
 P=15
 stride=32
 fail_device1=1
@@ -87,7 +88,7 @@ main()
 	NODE_UUID=`uuidgen`
 	local multiple_pools=0
 	local FI_OPTS="cs_storage_devs_init:spare_reserve:always"
-	motr_service start $multiple_pools $stride $N $K $P $FI_OPTS || {
+	motr_service start $multiple_pools $stride $N $K $S $P $FI_OPTS || {
 		echo "Failed to start Motr Service."
 		return 1
 	}

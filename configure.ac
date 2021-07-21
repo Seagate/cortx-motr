@@ -136,7 +136,7 @@ AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
-AH_TEMPLATE([ENABLE_CASTXML],         [Use CastXML instead of GCC-XML])
+AH_TEMPLATE([ENABLE_GCCXML],          [Use deprecated GCC-XML instead of CastXML])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
 AH_TEMPLATE([ENABLE_RELEASE],         [Enable release mode (this has the same effect as --disable-dev-mode).])
@@ -152,6 +152,7 @@ AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
 AH_TEMPLATE([ENABLE_FREE_POISON],     [Poison freed memory for debugging.])
 AH_TEMPLATE([ENABLE_DETAILED_BACKTRACE],[Enable detailed backtraces on crash using gdb.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
+AH_TEMPLATE([ENABLE_DTM0],            [Enable DTM0 mode.])
 AH_TEMPLATE([M0_BE_SEGMENT_SIZE],     [BE segment size in MiB.])
 AH_TEMPLATE([M0_TRACE_KBUF_SIZE],     [Kernel space trace buffer size in MiB.])
 AH_TEMPLATE([M0_TRACE_UBUF_SIZE],     [User space trace buffer size in MiB.])
@@ -315,6 +316,15 @@ AC_ARG_ENABLE([m0_asserts],
 AS_IF([test x$enable_m0_asserts = xno],
       AC_DEFINE([M0_NDEBUG]))
 
+# dtm0 {{{3
+AC_ARG_ENABLE([dtm0],
+        AS_HELP_STRING([--enable-dtm0],[enable DTM0 mode]),
+        [], [enable_dtm0=no]
+)
+AS_IF([test x$enable_dtm0 = xyes],
+      AC_DEFINE([ENABLE_DTM0], [1]),
+      AC_DEFINE([ENABLE_DTM0], [0]))
+
 # expensive-checks {{{3
 AC_ARG_ENABLE([expensive_checks],
         AS_HELP_STRING([--disable-expensive-checks],[disable expensive checks]),
@@ -348,6 +358,19 @@ AM_CONDITIONAL([ENABLE_UNIT_TESTS],
 AS_IF([test x$enable_unit_tests = xyes],
       AC_SUBST([ENABLE_KERNEL_UNIT_TESTS], [m]))
 
+# ivt-tests {{{3
+AC_ARG_ENABLE([ivt-tests],
+        [AS_HELP_STRING([--disable-ivt-tests], [disable ivt tests])],
+        [], [enable_ivt_tests=yes]
+)
+AM_CONDITIONAL([ENABLE_IVT_TESTS],
+               [test "x$enable_ivt_tests" = xyes])
+AS_IF([test x$enable_ivt_tests = xyes],
+      AC_SUBST([ENABLE_KERNEL_IVT_TESTS], [m]))
+
+
+
+
 # systemd {{{3
 AC_ARG_ENABLE([systemd],
         [AS_HELP_STRING([--disable-systemd],
@@ -355,16 +378,12 @@ AC_ARG_ENABLE([systemd],
         [], [enable_systemd=yes]
 )
 
-# CastXML {{{3
-AC_ARG_ENABLE([castxml],
-        [AS_HELP_STRING([--enable-castxml],
-                        [use CastXML instead of GCC-XML])],
-        [], [enable_castxml=no]
+# GCC-XML {{{3
+AC_ARG_ENABLE([gccxml],
+        [AS_HELP_STRING([--enable-gccxml],
+                        [use deprecated GCC-XML instead of CastXML])],
+        [], [enable_gccxml=no]
 )
-AS_IF([test x$enable_castxml = xyes],
-      AC_DEFINE([ENABLE_CASTXML]))
-AM_CONDITIONAL([ENABLE_CASTXML],
-               [test x$enable_castxml = xyes])
 
 # argument options ------------------------------------ {{{2
 
@@ -465,7 +484,7 @@ AC_ARG_WITH([lustre],
         [AS_HELP_STRING([--with-lustre=path],
                         [set path to lustre headers or built sources dir, default is /usr/src/lustre-*])],
         [LUSTRE=$with_lustre],
-        [LUSTRE=/usr/src/`ls /usr/src | grep lustre- | tail -1`]
+        [LUSTRE=`ls -td /usr/src/lustre-* 2>/dev/null | head -1`]
 )
 AS_IF([test -z "$LUSTRE" || test "x$with_lustre" != "xno" && ! test -d "$LUSTRE/"],
       [AC_MSG_ERROR([Lustre headers not found! Please, install lustre-devel \
@@ -507,21 +526,25 @@ AC_PROG_SED
 AC_PROG_LN_S
 AC_PROG_INSTALL
 
-AS_IF([test x$enable_castxml = xyes],
-      [cxxxml_name=castxml],
+AC_CHECK_PROG(cxxxml_name, castxml, castxml, gccxml)
+AS_IF([test x$enable_gccxml = xyes],
       [cxxxml_name=gccxml]
 )
+AS_IF([test x$cxxxml_name = xgccxml],
+      AC_DEFINE([ENABLE_GCCXML]))
+AM_CONDITIONAL([ENABLE_GCCXML],
+               [test x$cxxxml_name = xgccxml])
 
-# gccxml is required by xcode/m0gccxml2xcode script
+# castxml is required by xcode/m0gccxml2xcode script
 AC_PATH_PROG(CXXXML, $cxxxml_name,, [/usr/bin$PATH_SEPARATOR$PATH])
-AS_IF([test -z $CXXXML],
-      AC_MSG_ERROR([$cxxxml_name is not found: it can be installed from gccxml \
+AS_IF([test -z "$CXXXML"],
+      AC_MSG_ERROR([$cxxxml_name is not found: it can be installed from $cxxxml_name \
 package on Red Hat based systems])
 )
 
-# c++ compiler is required by gccxml
+# c++ compiler is required by gccxml/castxml
 AC_CHECK_PROG(CXX, g++, g++)
-AS_IF([test -z $CXX],
+AS_IF([test -z "$CXX"],
       AC_MSG_ERROR([g++ is not found: it can be installed from gcc-c++ package \
 on Red Hat based systems])
 )
@@ -564,14 +587,14 @@ perl-File-Slurp package on Red Hat based systems])
 AX_PYTHON_MODULE([ply], die_if_absent)
 
 AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
-AS_IF([test -z $POD2MAN],
+AS_IF([test -z "$POD2MAN"],
       AC_MSG_ERROR([pod2man is not found please install perl])
 )
 
 AC_CHECK_PROG(DOXYGEN, doxygen, doxygen, doxygen)
 
 AC_CHECK_PROG(A2X, a2x, a2x)
-AS_IF([test -z $A2X],
+AS_IF([test -z "$A2X"],
       AC_MSG_ERROR([a2x is not found please install asciidoc])
 )
 
@@ -582,7 +605,7 @@ unset BASH
 # bash shell is required by Makefile.am to build kernel modules
 # see 'build-kernel-modules' make target for more details
 AC_CHECK_PROG(BASH, bash, bash)
-AS_IF([test -z $BASH],
+AS_IF([test -z "$BASH"],
       AC_MSG_ERROR([bash is not found: it can be installed from bash package on \
 Red Hat based systems])
 )
@@ -899,7 +922,7 @@ AS_IF([test x$enable_frame_pointers = xyes],
 AS_IF([test x$enable_profiler = xyes],
       [AC_DEFINE([ENABLE_PROFILER])
        AC_CHECK_PROG(PPROF, pprof, pprof)
-       AS_IF([test -z $PPROF],
+       AS_IF([test -z "$PPROF"],
              AC_MSG_ERROR([pprof not found. Try to 'yum install pprof'.]))
        MOTR_SEARCH_LIBS([ProfilerStart], [c profiler], [PROFILER_LIBS],
                         [libprofiler not found. Try to \

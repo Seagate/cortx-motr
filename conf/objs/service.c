@@ -55,10 +55,17 @@ service_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 	rc = m0_bufs_to_strings(&d->cs_endpoints, &s->xs_endpoints);
 	if (rc != 0)
 		return M0_ERR(rc);
+	rc = m0_bufs_to_strings(&d->cs_params, &s->xs_params);
+	if (rc != 0) {
+		m0_strings_free(d->cs_endpoints);
+		return M0_RC(rc);
+	}
 	rc = m0_conf_dir_new(dest, &M0_CONF_SERVICE_SDEVS_FID,
 			     &M0_CONF_SDEV_TYPE, &s->xs_sdevs, &d->cs_sdevs);
-	if (rc != 0)
+	if (rc != 0) {
 		m0_strings_free(d->cs_endpoints);
+		m0_strings_free(d->cs_params);
+	}
 	return M0_RC(rc);
 }
 
@@ -75,9 +82,18 @@ service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	rc = m0_bufs_from_strings(&d->xs_endpoints, s->cs_endpoints);
 	if (rc != 0)
 		return M0_ERR(-ENOMEM);
-	rc = arrfid_from_dir(&d->xs_sdevs, s->cs_sdevs);
-	if (rc != 0)
+
+	rc = m0_bufs_from_strings(&d->xs_params, s->cs_params);
+	if (rc != 0) {
 		m0_bufs_free(&d->xs_endpoints);
+		return M0_ERR(-ENOMEM);
+	}
+
+	rc = arrfid_from_dir(&d->xs_sdevs, s->cs_sdevs);
+	if (rc != 0) {
+		m0_bufs_free(&d->xs_endpoints);
+		m0_bufs_free(&d->xs_params);
+	}
 	return M0_RC(rc);
 }
 
@@ -119,6 +135,7 @@ static void service_delete(struct m0_conf_obj *obj)
 	struct m0_conf_service *x = M0_CONF_CAST(obj, m0_conf_service);
 
 	m0_strings_free(x->cs_endpoints);
+	m0_strings_free(x->cs_params);
 	m0_conf_service_bob_fini(x);
 	m0_free(x);
 }

@@ -135,7 +135,8 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
 	struct m0_conf_obj        *root;
 	struct m0_conf_obj        *drive_obj;
 	struct m0_conf_obj        *ctrl_obj;
-	struct m0_conf_controller *ctrl;
+	struct m0_conf_obj        *encl_obj;
+	struct m0_conf_enclosure  *encl;
 	struct m0_conf_obj        *node_obj;
 	int                        rc;
 
@@ -167,9 +168,10 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
 					M0_CONF_CONTROLLER_DRIVES_FID, *drive);
 
 		if (rc == 0) {
-			ctrl = M0_CONF_CAST(ctrl_obj, m0_conf_controller);
+			encl_obj = m0_conf_obj_grandparent(ctrl_obj);
+			encl = M0_CONF_CAST(encl_obj, m0_conf_enclosure);
 			rc = m0_confc_open_by_fid_sync(confc,
-					       &ctrl->cc_node->cn_obj.co_id,
+					       &encl->ce_node->cn_obj.co_id,
 					       &node_obj);
 			if (rc == 0) {
 				spiel_node_process_endpoint_add(spc, node_obj,
@@ -1836,6 +1838,7 @@ static bool spiel_proc_item_rlink_cb(struct m0_clink *clink)
 	item->ri_ops            = &spiel_process_health_ops;
 	item->ri_session        = &proc->spi_rlink.rlk_sess;
 	item->ri_prio           = M0_RPC_ITEM_PRIO_MID;
+	item->ri_nr_sent_max    = 5;
 	m0_fop_get(fop);
 	rc = M0_FI_ENABLED("rpc_post") ? -ENOTCONN : m0_rpc_post(item);
 	if (rc != 0) {

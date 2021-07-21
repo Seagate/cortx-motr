@@ -568,6 +568,21 @@ enum m0_magic_satchel {
 	/* m0_layout_linear_enum::lla_magic (boldface blob) */
 	M0_LAYOUT_LINEAR_ENUM_MAGIC = 0x33b01dfaceb10b77,
 
+	/* m0_layout_plop::pl_magix (biblical flee) */
+	M0_LAYOUT_PLAN_PLOP_MAGIC = 0x33b1b11ca1f1ee77,
+
+	/* pplops_tlist::head_magic (biblical flea) */
+	M0_LAYOUT_PPLOPS_HMAGIC = 0x33b1b11ca1f1ea77,
+
+	/* m0_layout_plop_rel::plr_magix (biblical fold) */
+	M0_LAYOUT_PLAN_PLOPR_MAGIC = 0x33b1b11ca1f01d77,
+
+	/* pldeps_tlist::head_magic (biblical floe) */
+	M0_LAYOUT_PPLD_HMAGIC = 0x33b1b11ca1f10e77,
+
+	/* plrdeps_tlist::head_magic (biblical foal) */
+	M0_LAYOUT_PPLRD_HMAGIC = 0x33b1b11ca1f0a177,
+
 /* Net */
 	/* m0_net_domain::nd_magix (acidic access) */
 	M0_NET_DOMAIN_MAGIC = 0x33ac1d1cacce5577,
@@ -1099,6 +1114,13 @@ enum m0_magic_satchel {
 	M0_DIX_ROP_HEAD_MAGIC  = 0x33ba51c0ff10ad77,
 	/** struct m0_dix_cm::dcm_magic (dixdixdixdix) */
 	M0_DIX_CM_MAGIC        = 0x33d18d18d18d1877,
+/* DTM0 */
+	/** m0_bob_type::bt_magix (zodiacal bass) */
+	M0_DTM0_SVC_MAGIC       = 0x3320d1aca1ba5577,
+	/** dtm0_process:dop_magic (sellable self) */
+	M0_DTM0_PROC_MAGIC      = 0x335e1f5e11ab1e77,
+	/** dopr_tlist head magic (cocobolo flea) */
+	M0_DTM0_PROC_HEAD_MAGIC = 0x33c0c0b010f1ea77,
 /* FDMI */
 	/* m0_reqh_fdmi_service::rfdms_magic (abide dazzled) */
 	M0_FDMS_REQH_SVC_MAGIC = 0x33ab1deda221ed77,
@@ -1138,6 +1160,11 @@ enum m0_magic_satchel {
 	M0_FDMI_SRC_DOCK_PENDING_FOP_MAGIC = 0xf1eece0ff1ce,
 	/* pending_fops list head magic (feosol obsess) */
 	M0_FDMI_SRC_DOCK_PENDING_FOP_HEAD_MAGIC = 0xfe05010b5e55,
+/* DTM0 */
+	/* be/dtm0_log.c::dlr_tlink (be fifo head) */
+	M0_BE_DTM0_LOG_MAGIX = 0x33d73010600077,
+	/* be/dtm0_log.c::dlr_link (dtm0 log rec) */
+	M0_BE_DTM0_LOG_REC_MAGIX = 0x33d73010673c77,
 };
 
 #endif /* __MOTR_MAGIC_H__ */

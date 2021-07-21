@@ -21,6 +21,7 @@
 
 #include <linux/version.h> /* LINUX_VERSION_CODE */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#include <linux/cred.h>
 #include <linux/uidgid.h>  /* from_kuid */
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,0)
@@ -334,6 +335,14 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 
 	M0_THREAD_ENTER;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,0)
+	/*
+	 * XXX: this is for oostore objects whose xattr name
+	 * is empty here (for some reason, I could not figure out why).
+	 * Interesting that in normal (non-oostore) mode it works fine.
+	 */
+	name = handler->name;
+#endif
 	M0_ENTRY("Setting %.*s's xattr %s=%.*s", dentry->d_name.len,
 		 (char*)dentry->d_name.name, name, (int)size, (char *)value);
 
@@ -396,7 +405,11 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		/* Find optimal lid and set it to the inode.*/
 		layout_id = m0_layout_find_by_buffsize(&csb->csb_reqh.rh_ldom,
 							&ci->ci_pver, buffsize);
-		rc = m0t1fs_inode_set_layout_id(ci, &mo, layout_id);
+		if (layout_id > 0)
+			rc = m0t1fs_inode_set_layout_id(ci, &mo, layout_id);
+		else
+			rc = M0_ERR_INFO(layout_id, "Could not find layout_id: "
+					 "rc=%d", layout_id);
 	} else {
 		if (csb->csb_oostore) {
 			rc = -EOPNOTSUPP;
@@ -445,6 +458,10 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 	struct m0_fop              *rep_fop = NULL;
 	M0_THREAD_ENTER;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,0)
+	/* XXX: see comment for the same code above at m0t1fs_setxattr(). */
+	name = handler->name;
+#endif
 	M0_ENTRY("Getting %.*s's xattr %s", dentry->d_name.len,
 		 (char*)dentry->d_name.name, name);
 	rc = m0t1fs_fs_conf_lock(csb);
@@ -2477,27 +2494,33 @@ M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,0)
 const struct xattr_handler m0t1fs_xattr_lid = {
-	.prefix = "lid",
+	.name   = "lid",
 	.flags  = 0,
 	.get    = m0t1fs_getxattr,
 	.set    = m0t1fs_setxattr,
 };
 
+const struct xattr_handler m0t1fs_xattr_pver = {
+	.name   = "pver",
+	.flags  = 0,
+	.get    = m0t1fs_getxattr,
+};
+
 const struct xattr_handler m0t1fs_xattr_writesize = {
-	.prefix = "writesize",
+	.name   = "writesize",
 	.flags  = 0,
 	.get    = m0t1fs_getxattr,
 	.set    = m0t1fs_setxattr,
 };
 static const struct xattr_handler m0t1fs_xattr_fid_lid = {
-	.prefix = "fid_lid",
+	.name   = "fid_lid",
 	.flags  = 0,
 	.get    = m0t1fs_fid_getxattr,
 	.set    = m0t1fs_fid_setxattr,
 };
 
 static const struct xattr_handler m0t1fs_xattr_fid_writesize = {
-	.prefix = "fid_writesize",
+	.name   = "fid_writesize",
 	.flags  = 0,
 	.get    = m0t1fs_fid_getxattr,
 	.set    = m0t1fs_fid_setxattr,
@@ -2508,6 +2531,7 @@ const struct xattr_handler *m0t1fs_xattr_handlers[] = {
 	&m0t1fs_xattr_writesize,
 	&m0t1fs_xattr_fid_lid,
 	&m0t1fs_xattr_fid_writesize,
+	&m0t1fs_xattr_pver,
 	NULL
 };
 #endif

@@ -118,7 +118,7 @@ unmount_and_clean()
 		rm -rf $MOTR_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
 	done
 
-        if [ ! -z $multiple_pools ] && [ $multiple_pools == 1 ]; then
+        if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
 		local ios_index=`expr $i + 1`
 		rm -rf $MOTR_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
         fi
@@ -224,17 +224,18 @@ show_write_speed()
 # in multiple of full stripes (sum of data units in parity group).
 io_combinations()
 {
-	echo "Test: io_combinations: (N,K,P) = ($2,$3,$1) $4 ..."
+	echo "Test: io_combinations: (N,K,S,P) = ($2,$3,$4,$1) $5 ..."
 
 	pool_width=$1
 	data_units=$2
 	parity_units=$3
-	mode=$4
+	spare_units=$4
+	mode=$5
 
-	p=`expr $data_units + 2 '*' $parity_units`
+	p=`expr $data_units + $parity_units + $spare_units`
 	if [ $p -gt $pool_width ]
 	then
-		echo "Error: pool_width should be >= data_units + 2 * parity_units."
+		echo "Error: pool_width should be >= data_units + parity_units + spare_units."
 		return 1
 	fi
 
@@ -794,26 +795,26 @@ m0t1fs_big_bs_io_test()
 # This test does large file creation and write with large block-size.
 # It also checks the disk space usage before and after the written,
 # and after file deletion. This check is to verify balloc alloc/free.
-# This test writes 8GB data. It requires at least 8GB disk space in test dir.
+# This test writes 4GB of data. It requires at least 7GB of disk space.
 m0t1fs_test_MOTR_2099()
 {
 	local rc=0
 	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR || rc=1
 
-	df $MOTR_M0T1FS_MOUNT_DIR -h
+	df $MOTR_M0T1FS_MOUNT_DIR
 	used_before=`df $MOTR_M0T1FS_MOUNT_DIR --output=used | tail -n 1`
-	for i in 0:00{0..9}{0..3}; do
-		# This is to create 40 files, 200MB for each, 8GB in total.
+	for i in 0:00{0..9}{0..1}; do
+		# This is to create 20 files, 200MB each, 8GB in total.
 		m0t1fs_file=$MOTR_M0T1FS_MOUNT_DIR/${i}
 		touch_file $m0t1fs_file 8192 && run "dd if=/dev/zero of=$m0t1fs_file bs=200M count=1" || rc=1
 	done
-	df $MOTR_M0T1FS_MOUNT_DIR -h
+	df $MOTR_M0T1FS_MOUNT_DIR
 	used_after=`df $MOTR_M0T1FS_MOUNT_DIR --output=used | tail -n 1`
-	for i in 0:00{0..9}{0..3}; do
+	for i in 0:00{0..9}{0..1}; do
 		m0t1fs_file=$MOTR_M0T1FS_MOUNT_DIR/${i}
 		rm -f $m0t1fs_file
 	done
-	df $MOTR_M0T1FS_MOUNT_DIR -h
+	df $MOTR_M0T1FS_MOUNT_DIR
 	used_delete=`df $MOTR_M0T1FS_MOUNT_DIR --output=used | tail -n 1`
 	echo "used_before used_after used_delete $used_before $used_after $used_delete"
 	if [ $used_before -ne $used_delete ] ; then
@@ -821,7 +822,7 @@ m0t1fs_test_MOTR_2099()
 		rc=1
 	fi
 
-	total_blocks=`expr 200 \* 40 \* 1024` #in 1K blocks
+	total_blocks=`expr 200 \* 20 \* 1024` #in 1K blocks
 	echo "total_blocks = $total_blocks"
 	if [ $used_after -le $total_blocks ] ; then
 		echo "Are you kidding? The used blocks are less than expected."
@@ -889,12 +890,12 @@ m0t1fs_system_tests()
 		return 1
 	}
 
-	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
+	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY $NR_SPARE || {
 		echo "Failed: IO failed.."
 		return 1
 	}
 
-	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY "oostore"|| {
+	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY $NR_SPARE "oostore"|| {
 		echo "Failed: IO failed oostore mode.."
 		return 1
 	}

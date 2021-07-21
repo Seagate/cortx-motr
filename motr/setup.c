@@ -66,6 +66,7 @@
 #include "ioservice/io_service.h"  /* m0_ios_net_buffer_pool_size_set */
 #include "stob/linux.h"
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
+#include "dtm0/helper.h"        /* m0_dtm0_log_create */
 
 /**
    @addtogroup m0d
@@ -296,7 +297,7 @@ static bool cs_endpoint_is_duplicate(const struct m0_reqh_context *rctx,
 static int cs_endpoint_validate(struct m0_motr *cctx, const char *ep,
 				const char *xprt_name)
 {
-	struct m0_net_xprt *xprt;
+	struct m0_net_xprt *xprt = NULL;
 
 	M0_ENTRY();
 	M0_PRE(cctx != NULL);
@@ -307,6 +308,8 @@ static int cs_endpoint_validate(struct m0_motr *cctx, const char *ep,
 	xprt = cs_xprt_lookup(xprt_name, cctx->cc_xprts, cctx->cc_xprts_nr);
 	if (xprt == NULL)
 		return M0_RC(-EINVAL);
+	if (m0_net_xprt_default_get() == NULL)
+		m0_net_xprt_default_set(xprt);
 
 	return M0_RC(cs_endpoint_is_duplicate(&cctx->cc_reqh_ctx, xprt, ep) ?
 		     -EADDRINUSE : 0);
@@ -1320,7 +1323,8 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx, bool erase)
 		rc = m0_mdstore_destroy(&rctx->rc_mdstore, grp, bedom);
 
 	rc = rc ?: m0_mdstore_create(&rctx->rc_mdstore, grp, &rctx->rc_cdom_id,
-				     bedom, rctx->rc_beseg);
+				     bedom, rctx->rc_beseg)
+		?: m0_dtm0_log_create(grp, bedom, rctx->rc_beseg);
 	if (rc != 0)
 		goto end;
 	dom = rctx->rc_mdstore.md_dom;
@@ -2244,10 +2248,10 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				})),
 			M0_STRINGARG('A', "ADDB storage domain location",
 				LAMBDA(void, (const char *s)
-				{    
+				{
                                         char tmp_buf[128];
                                         sprintf(tmp_buf, "%s-%d", s, (int)m0_pid());
-                                        rctx->rc_addb_stlocation = strdup(tmp_buf);	
+                                        rctx->rc_addb_stlocation = strdup(tmp_buf);
 				})),
 			M0_STRINGARG('d', "Device configuration file",
 				LAMBDA(void, (const char *s)
