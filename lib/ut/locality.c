@@ -64,7 +64,7 @@ static void fom_simple_svc_start(void)
 	M0_POST(m0_reqh_service_invariant(service));
 }
 
-static void _reqh_init(void)
+struct m0_reqh *m0_ut__reqh_init(void)
 {
 	int result;
 
@@ -78,9 +78,10 @@ static void _reqh_init(void)
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_start(&reqh);
 	fom_simple_svc_start();
+	return &reqh;
 }
 
-static void _reqh_fini(void)
+void m0_ut__reqh_fini(void)
 {
 	m0_reqh_shutdown(&reqh);
 	m0_reqh_services_terminate(&reqh);
@@ -209,7 +210,7 @@ void test_locality(void)
 	int                  nr;
 
 	m0_mutex_init(&lock);
-	_reqh_init();
+	m0_ut__reqh_init();
 	for (i = 0; i < ARRAY_SIZE(sem); ++i) {
 		m0_semaphore_init(&sem[i], 0);
 		ast[i].sa_cb = &_cb0;
@@ -270,7 +271,7 @@ void test_locality(void)
 	for (i = 0; i < ARRAY_SIZE(sem); ++i)
 		m0_semaphore_fini(&sem[i]);
 	m0_bitmap_fini(&online);
-	_reqh_fini();
+	m0_ut__reqh_fini();
 	m0_mutex_fini(&lock);
 }
 M0_EXPORTED(test_locality);
@@ -394,7 +395,7 @@ void test_locality_chore(void)
 	M0_UT_ASSERT(result == -ENOSYS);
 	m0_locality_data_free(key0);
 	has0 = false;
-	_reqh_init();
+	m0_ut__reqh_init();
 	ops.co_enter = &enter;
 	entered = left = ticked = 0;
 	M0_SET0(&chore);
@@ -410,7 +411,7 @@ void test_locality_chore(void)
 	m0_fi_enable_once("m0_alloc", "keep_quiet");
 	result = m0_locality_data_alloc(1ULL << 60, NULL, NULL, NULL);
 	M0_UT_ASSERT(result == -ENOMEM);
-	_reqh_fini();
+	m0_ut__reqh_fini();
 	m0_locality_data_free(key);
 	m0_mutex_fini(&lock);
 }

@@ -31,22 +31,8 @@
 /**
  * A client index is a key-value store.
  *
- * An index stores records, each record consisting of a key and a value. Keys
- * and values within the same index can be of variable size. Keys are ordered by
- * the lexicographic ordering of their bit-level representation. Records are
- * ordered by the key ordering. Keys are unique within an index.
- *
- * There are 4 types of index operations:
- *
- *     - GET: given a set of keys, return the matching records from the index;
- *
- *     - PUT: given a set of records, place them in the index, overwriting
- *       existing records if necessary, inserting new records otherwise;
- *
- *     - DEL: given a set of keys, delete the matching records from the index;
- *
- *     - NEXT: given a set of keys, return the records with the next (in the
- *       ascending key order) keys from the index.
+ * For detailed description and usage of the client key-value store, please
+ * read motr/client.h.
  *
  * @todo Currently, the user can specify only one start key for NEXT operation,
  * not a set.

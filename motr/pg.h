@@ -781,6 +781,9 @@ struct target_ioreq {
 	/** Linkage to link in to nw_xfer_request::nxr_tioreqs_hash table. */
 	struct m0_hlink                ti_link;
 
+	/** Offest in the global object. Has meaning for data units only. */
+	m0_bindex_t                    ti_goff;
+
 	/**
 	 * Index vector containing IO segments with cob offsets and
 	 * their length.
