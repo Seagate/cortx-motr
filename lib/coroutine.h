@@ -142,6 +142,8 @@ struct m0_co_context {
 	uint64_t                      mc_frame;
 	/** true if stack is unwinding */
 	bool                          mc_yield;
+	/** code returned from M0_CO_END() macro, set in M0_CO_YIELD() */
+	int                           mc_co_end_ret;
 	/** current frame pointer during reentering */
 	uint64_t                      mc_yield_frame;
 	/** simple pool allocator for locals */
@@ -152,9 +154,9 @@ struct m0_co_context {
  * M0_CO_START()/M0_CO_END() wrap coroutine call and provide means to control
  * the control flow of it.
  */
-#define M0_CO_START(context)						  \
-({									  \
-	M0_ASSERT((context)->mc_yield_frame == 0);			  \
+#define M0_CO_START(context)                                              \
+({                                                                        \
+	M0_ASSERT((context)->mc_yield_frame == 0);                        \
 })
 
 /**
@@ -164,7 +166,7 @@ struct m0_co_context {
  */
 #define M0_CO_END(context)                                                \
 ({                                                                        \
-	int rc = ((context)->mc_yield ? -EAGAIN : 0);                     \
+	int rc = ((context)->mc_yield ? (context)->mc_co_end_ret : 0);    \
 	if (rc == 0) {                                                    \
 		M0_ASSERT((context)->mc_frame == 0);                      \
 		M0_ASSERT((context)->mc_yield_frame == 0);                \
@@ -243,12 +245,13 @@ save:   (function);                                                       \
  *
  * @param _context -- @see m0_co_context
  */
-#define M0_CO_YIELD(context)                                              \
+#define M0_CO_YIELD_RC(context, rc)                                       \
 ({                                                                        \
 	__label__ save;                                                   \
 	M0_LOG(M0_CALL, "M0_CO_YIELD: context=%p yeild=%d",               \
 	       context, !!context->mc_yield);                             \
 	context->mc_yield = true;                                         \
+	context->mc_co_end_ret = (rc);                                    \
 	M0_ASSERT(context->mc_frame < M0_MCC_STACK_NR);                   \
 	context->mc_stack[context->mc_frame++] = &&save;                  \
 	return;                                                           \
@@ -260,6 +263,8 @@ save:                                                                     \
 	context->mc_frame--;                                              \
 })
 
+#define M0_CO_YIELD(context) M0_CO_YIELD_RC(context, -EAGAIN)
+
 
 M0_INTERNAL int m0_co_context_init(struct m0_co_context *context);
 M0_INTERNAL void m0_co_context_fini(struct m0_co_context *context);
@@ -270,6 +275,27 @@ M0_INTERNAL void m0_co_context_locals_alloc(struct m0_co_context *context,
 					    uint64_t size);
 M0_INTERNAL void m0_co_context_locals_free(struct m0_co_context *context);
 
+#include "sm/sm.h"         /* m0_sm_group */
+
+struct m0_fom;
+
+struct m0_co_op {
+	struct m0_sm       co_sm;
+	/* MOTR-787: get rid of explicit locking here, use locality lock! */
+	struct m0_sm_group co_sm_group;
+};
+
+M0_INTERNAL void m0_co_op_init(struct m0_co_op *op);
+M0_INTERNAL void m0_co_op_fini(struct m0_co_op *op);
+
+M0_INTERNAL void m0_co_op_reset(struct m0_co_op *op);
+M0_INTERNAL void m0_co_op_active(struct m0_co_op *op);
+M0_INTERNAL void m0_co_op_done(struct m0_co_op *op);
+
+/* Don't introduce co_op_wait()! co_op intended to be used inside foms. */
+M0_INTERNAL int m0_co_op_tick_ret(struct m0_co_op *op,
+				  struct m0_fom   *fom,
+				  int              next_state);
 
 /** @} end of Coroutine group */
 #endif /* __MOTR_LIB_COROUTINE_H__ */

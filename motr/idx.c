@@ -231,6 +231,8 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 		if (rc != 0)
 			return M0_ERR(rc);
 		idx->in_attr.idx_layout_type = DIX_LTYPE_DESCR;
+		M0_LOG(M0_DEBUG, "DIX pool version at index create: "FID_F"",
+		       FID_P(&idx->in_attr.idx_pver));
 	}
 
 	return M0_RC(0);

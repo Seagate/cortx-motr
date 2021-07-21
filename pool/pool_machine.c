@@ -75,12 +75,12 @@ static struct m0_clink *ready_clink(struct m0_poolmach_state *state)
 	return &state->pst_conf_ready.bc_u.clink;
 }
 
-static bool is_controllerv_or_diskv(const struct m0_conf_obj *obj)
+static bool is_enclosurev_or_diskv(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE &&
 		M0_IN(m0_conf_obj_type(
 			      M0_CONF_CAST(obj, m0_conf_objv)->cv_real),
-		      (&M0_CONF_CONTROLLER_TYPE, &M0_CONF_DRIVE_TYPE));
+		      (&M0_CONF_ENCLOSURE_TYPE, &M0_CONF_DRIVE_TYPE));
 }
 
 static int poolmach_state_update(struct m0_poolmach_state *st,
@@ -92,7 +92,7 @@ static int poolmach_state_update(struct m0_poolmach_state *st,
 
 	M0_ENTRY(FID_F, FID_P(&objv_real->co_id));
 
-	if (m0_conf_obj_type(objv_real) == &M0_CONF_CONTROLLER_TYPE) {
+	if (m0_conf_obj_type(objv_real) == &M0_CONF_ENCLOSURE_TYPE) {
 		st->pst_nodes_array[*idx_nodes].pn_id = objv_real->co_id;
 		M0_CNT_INC(*idx_nodes);
 	} else if (m0_conf_obj_type(objv_real) == &M0_CONF_DRIVE_TYPE) {
@@ -210,7 +210,7 @@ M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	while ((rc = m0_conf_diter_next_sync(&it, is_controllerv_or_diskv)) ==
+	while ((rc = m0_conf_diter_next_sync(&it, is_enclosurev_or_diskv)) ==
 	       M0_CONF_DIRNEXT) {
 		rc = poolmach_state_update(pm->pm_state,
 			M0_CONF_CAST(m0_conf_diter_result(&it),
@@ -1112,10 +1112,23 @@ M0_INTERNAL void m0_poolmach_event_list_dump_locked(struct m0_poolmach *pm)
 	struct m0_tl                  *head = &pm->pm_state->pst_events_list;
 	struct m0_poolmach_event_link *scan;
 	struct m0_poolmach_event      *e;
+	struct m0_tl                  *qhead = &pm->pm_state->pst_event_queue;
+	struct poolmach_equeue_link   *qscan;
         uint32_t                       i;
 
 	m0_tl_for (poolmach_events, head, scan) {
 		e = &scan->pel_event;
+		i = e->pe_index;
+		if (e->pe_type == M0_POOL_DEVICE &&
+		    !M0_IN(pm->pm_state->pst_devices_array[i].pd_state,
+		    (M0_PNDS_UNKNOWN, M0_PNDS_OFFLINE, M0_PNDS_ONLINE)))
+			M0_LOG(M0_INFO, "device[%d] "FID_F" state=%d", i,
+			       FID_P(&pm->pm_state->pst_devices_array[i].pd_id),
+			       e->pe_state);
+	} m0_tl_endfor;
+
+	m0_tl_for (poolmach_equeue, qhead, qscan) {
+		e = &qscan->pel_event;
 		i = e->pe_index;
 		if (e->pe_type == M0_POOL_DEVICE &&
 		    !M0_IN(pm->pm_state->pst_devices_array[i].pd_state,
