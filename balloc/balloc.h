@@ -145,6 +145,12 @@ struct m0_lext {
 	struct m0_ext       le_ext;
 };
 
+/** Linked ld_group_info list */
+struct m0_lld_group_info {
+	struct m0_balloc_group_info *lgi;
+	struct m0_list_link          lg_link;
+};
+
 /**
    In-memory data structure for group
  */
@@ -157,6 +163,10 @@ struct m0_balloc_group_info {
 	struct m0_balloc_zone_param  bgi_spare;
 	/** Array of group extents */
 	struct m0_lext              *bgi_extents;
+	/** Last loaded time */
+	uint64_t                     bgi_loaded_time;
+	/** Last used time */
+	uint64_t                     bgi_used_time;
 	/** per-group lock */
 	struct m0_be_mutex           bgi_mutex;
 };
@@ -246,6 +256,8 @@ struct m0_balloc {
 
 	/** array of group info */
 	struct m0_balloc_group_info *cb_group_info;
+	/** Loaded in-memory m0_balloc_group_info */
+	struct m0_list               ld_group_info;
 	/** super block lock */
 	struct m0_be_mutex           cb_sb_mutex;
 	struct m0_be_seg            *cb_be_seg;
@@ -377,6 +389,8 @@ M0_INTERNAL void m0_balloc_debug_dump_group(const char *tag,
 M0_INTERNAL void m0_balloc_lock_group(struct m0_balloc_group_info *grp);
 M0_INTERNAL int m0_balloc_trylock_group(struct m0_balloc_group_info *grp);
 M0_INTERNAL void m0_balloc_unlock_group(struct m0_balloc_group_info *grp);
+
+M0_INTERNAL void m0_balloc_release_memory(struct m0_balloc *cb);
 
 /** @} end of balloc */
 

@@ -318,6 +318,7 @@ M0_INTERNAL int m0_balloc_release_extents(struct m0_balloc_group_info *grp)
 	extents_release(grp, M0_BALLOC_SPARE_ZONE);
 	extents_release(grp, M0_BALLOC_NORMAL_ZONE);
 	m0_free0(&grp->bgi_extents);
+	grp->bgi_extents = NULL;
 	return 0;
 }
 
@@ -428,6 +429,91 @@ static int balloc_group_info_load(struct m0_balloc *bal)
 	return M0_RC(rc);
 }
 
+static void balloc_lld_ginfo_add(struct m0_balloc *bal,
+				 struct m0_balloc_group_info *gi)
+{
+	struct m0_lld_group_info *lg_info;
+
+	M0_ALLOC_PTR(lg_info);
+	m0_list_link_init(&lg_info->lg_link);
+	lg_info->lgi = gi;
+	m0_list_add(&bal->ld_group_info, &lg_info->lg_link);
+}
+
+static void balloc_lld_ginfo_del(struct m0_balloc *bal,
+                                 struct m0_balloc_group_info *gi)
+{
+	struct m0_lld_group_info *wi;
+
+	m0_list_for_each_entry(&bal->ld_group_info, wi,
+			       struct m0_lld_group_info, lg_link) {
+		if (wi->lgi == gi) {
+			m0_list_del(&wi->lg_link);
+			m0_free(wi);
+			break;
+		}
+	}
+}
+
+static int time_cmp(const void *g0, const void *g1)
+{
+        const struct m0_balloc_group_info *xg0 = (struct m0_balloc_group_info *)g0;
+        const struct m0_balloc_group_info *xg1 = (struct m0_balloc_group_info *)g1;
+
+        return xg0->bgi_used_time > xg1->bgi_used_time;
+}
+
+static int  unload_group_count(int total, int percentile)
+{
+	return (int) ((total * percentile) / 100);
+}
+
+static void m0_balloc_release_memory_helper(struct m0_balloc *bal)
+{
+	struct m0_balloc_group_info *arr[bal->cb_sb.bsb_groupcount];
+	struct m0_lld_group_info    *wi;
+	int                          m_count        = 0;
+	int                          deducted_count = 0;
+	int                          ic;
+	m0_list_for_each_entry(&bal->ld_group_info, wi,
+			       struct m0_lld_group_info, lg_link) {
+		arr[m_count] = wi->lgi;
+		m_count++;
+	}
+	qsort(arr, m_count - 1, sizeof arr[0], &time_cmp);
+
+	deducted_count = unload_group_count(m_count, 70);
+	M0_LOG(M0_INFO, "Total loaded group_info: %d need to unload: %d",
+		m_count, deducted_count);
+	if (m_count - deducted_count <= 4) {
+		 M0_LOG(M0_INFO, "remaining = %d in memory group_info is"
+			"too small, Not unloading any group",
+			m_count - deducted_count);
+		return;
+	}
+	for(ic  = 0; ic < deducted_count; ic++) {
+		M0_LOG(M0_INFO, "Unloading start on : %d", (int)arr[ic]->bgi_groupno);
+		m0_balloc_lock_group(arr[ic]);
+		m0_balloc_release_extents(arr[ic]);
+		m0_balloc_unlock_group(arr[ic]);
+		balloc_lld_ginfo_del(bal, arr[ic]);
+	}
+}
+
+static void balloc_lld_ginfo_fini(struct m0_balloc *bal)
+{
+	struct m0_list_link      *link;
+	struct m0_lld_group_info *wi;
+
+	 while (!m0_list_is_empty(&bal->ld_group_info)) {
+		link = m0_list_first(&bal->ld_group_info);
+		wi = m0_list_entry(link, struct m0_lld_group_info, lg_link);
+		m0_list_del(&wi->lg_link);
+		m0_free(wi);
+	}
+	 m0_list_fini(&bal->ld_group_info);
+}
+
 /**
    finalization of the balloc environment.
  */
@@ -451,7 +537,7 @@ static void balloc_fini_internal(struct m0_balloc *bal)
 
 	m0_be_btree_fini(&bal->cb_db_group_extents);
 	m0_be_btree_fini(&bal->cb_db_group_desc);
-
+	balloc_lld_ginfo_fini(bal);
 	M0_LEAVE();
 }
 
@@ -964,6 +1050,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 	bal->cb_be_seg = seg;
 	bal->cb_group_info = NULL;
 	m0_mutex_init(&bal->cb_sb_mutex.bm_u.mutex);
+	m0_list_init(&bal->ld_group_info);
 
 	m0_be_btree_init(&bal->cb_db_group_desc, seg, &gd_btree_ops);
 	m0_be_btree_init(&bal->cb_db_group_extents, seg, &ge_btree_ops);
@@ -1196,7 +1283,13 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 
 	if (grp->bgi_extents != NULL) {
 		M0_LOG(M0_DEBUG, "Already loaded");
+		grp->bgi_used_time   = cb->cb_sb->bsb_write_time;
 		return M0_RC(0);
+	} else {
+		grp->bgi_loaded_time = cb->cb_sb->bsb_write_time;
+		grp->bgi_used_time   = cb->cb_sb->bsb_write_time;
+		balloc_lld_ginfo_add(cb, grp);
+		balloc_lld_ginfo_del(cb, grp);
 	}
 
 	M0_ALLOC_ARR(grp->bgi_extents, group_fragments_get(grp) +
@@ -1292,7 +1385,13 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 
 	if (grp->bgi_extents != NULL) {
 		M0_LOG(M0_DEBUG, "Already loaded");
+		grp->bgi_used_time   = cb->cb_sb.bsb_write_time;
 		return M0_RC(0);
+	} else {
+		grp->bgi_loaded_time = cb->cb_sb.bsb_write_time;
+		grp->bgi_used_time   = cb->cb_sb.bsb_write_time;
+		balloc_lld_ginfo_add(cb, grp);
+		balloc_lld_ginfo_del(cb, grp);
 	}
 
 	if (group_fragments_get(grp) +
@@ -3068,6 +3167,11 @@ M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 		m0_balloc_init(*out);
 
 	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_balloc_release_memory(struct m0_balloc *cb)
+{
+	m0_balloc_release_memory_helper(cb);
 }
 
 #undef M0_TRACE_SUBSYSTEM
