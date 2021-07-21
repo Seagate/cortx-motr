@@ -631,16 +631,28 @@ enum {
 #define M0_BTREE_TX_CAPTURE(tx, seg, ptr, size)                              \
 			   m0_be_tx_capture(tx, &M0_BE_REG(seg, size, ptr))
 
+#define M0_BTREE_TX_CB_CAPTURE(tx, node, cb)                                 \
+			      m0_be_tx_cb_capture(tx, node, cb)
+
 #if AVOID_BE_SEGMENT
 
 #undef M0_BTREE_TX_CAPTURE
 #define M0_BTREE_TX_CAPTURE(tx, seg, ptr, size)                              \
-	do {                                                                   \
+	do {                                                                 \
 		typeof(size) __size = (size);                                \
 		(tx) = (tx);                                                 \
 		(seg) = (seg);                                               \
 		(ptr) = (ptr);                                               \
 		(__size) = (__size);                                         \
+	} while (0)
+
+#undef M0_BTREE_TX_CB_CAPTURE
+#define M0_BTREE_TX_CB_CAPTURE(tx, node, cb)                                 \
+	do {                                                                 \
+		typeof(cb) __cb = (cb);                                      \
+		(tx)   = (tx);                                               \
+		(node) = (node);                                             \
+		(__cb) = (__cb);                                             \
 	} while (0)
 
 #undef M0_BE_ALLOC_ALIGN_BUF_SYNC
@@ -2020,14 +2032,15 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		 * segment. Take up with BE segment task.
 		 */
 		M0_ASSERT(node != NULL);
-		node->n_addr = *addr;
-		node->n_tree = tree;
-		node->n_type = nt;
-		node->n_seq  = m0_time_now();
-		node->n_ref  = 1;
+		node->n_addr         = *addr;
+		node->n_tree         = tree;
+		node->n_type         = nt;
+		node->n_seq          = m0_time_now();
+		node->n_ref          = 1;
+		node->n_txref        = 0;
 		node->n_delayed_free = false;
 		m0_rwlock_init(&node->n_lock);
-		op->no_node = node;
+		op->no_node          = node;
 		nt->nt_opaque_set(addr, node);
 		ndlist_tlink_init_at(op->no_node, &btree_active_nds);
 	}
@@ -3184,6 +3197,41 @@ static bool address_in_segment(struct segaddr addr)
 }
 
 /**
+ * Callback to be invoked on transaction commit.
+ */
+static void btree_tx_commit_cb(void *payload)
+{
+	struct nd *node = payload;
+
+	node_lock(node);
+	M0_ASSERT(node->n_txref != 0);
+	node->n_txref--;
+	node_unlock(node);
+}
+
+static void btree_tx_node_capture(struct m0_btree_oimpl *oi,
+				  struct m0_be_tx *tx)
+{
+	struct node_capture_info *arr = oi->i_capture;
+	/* struct slot          node_slot; */
+	int                       i;
+
+	for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
+		if (arr[i].nc_node == NULL)
+			break;
+		/**
+		 * node_slot.s_node = arr[i].nc_node;
+		 * node_slot.s_idx  = arr[i].nc_idx;
+		 * node_capture(&node_slot, bop->bo_tx);
+		 */
+		node_lock(arr[i].nc_node);
+		arr[i].nc_node->n_txref++;
+		node_unlock(arr[i].nc_node);
+		M0_BTREE_TX_CB_CAPTURE(tx, arr[i].nc_node, &btree_tx_commit_cb);
+	}
+}
+
+/**
  * This function gets called when splitting is done at root node. This function
  * is responsible to handle this scanario and ultimately root will point out to
  * the two splitted node.
@@ -3835,24 +3883,10 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		node_unlock(lev->l_node);
 		return P_CAPTURE;
 	}
-	case P_CAPTURE: {
-		struct node_capture_info *arr = oi->i_capture;
-		/* struct slot               node_slot; */
-		int                       i;
-
-		for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
-			if (arr[i].nc_node == NULL)
-				break;
-			/*
-			node_slot.s_node = arr[i].nc_node;
-			node_slot.s_idx  = arr[i].nc_idx;
-			node_capture(&node_slot, bop->bo_tx);
-			*/
-		}
-
+	case P_CAPTURE:
+		btree_tx_node_capture(oi, bop->bo_tx);
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
-	}
 	case P_CLEANUP:
 		level_cleanup(oi, bop->bo_tx);
 		return m0_sm_op_ret(&bop->bo_op);
@@ -5210,7 +5244,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			node_lock(root_child);
 
 			if (!node_isvalid(root_child) ||
-			    node_count_rec(root_child) == 0 ){
+			    node_count_rec(root_child) == 0) {
 				node_unlock(root_child);
  				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
@@ -5302,9 +5336,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			if (oi->i_used == 0 ||
 			    !node_isunderflow(lev->l_node, false)) {
 				/* No Underflow */
-				lock_op_unlock(tree);
-				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-						    P_FINI);
+				return P_CAPTURE;
 			}
 			return btree_del_resolve_underflow(bop);
 		}
@@ -5327,6 +5359,10 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		oi->i_used = oi->i_height - 1;
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	}
+	case P_CAPTURE:
+		btree_tx_node_capture(oi, bop->bo_tx);
+		lock_op_unlock(tree);
+		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	case P_CLEANUP :
 		level_cleanup(oi, bop->bo_tx);
 		return m0_sm_op_ret(&bop->bo_op);
@@ -5339,19 +5375,6 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 	};
 }
 
-#if 0
-/**
- * TODO: This task should be covered with transaction task.
- * Assign this callback to m0_be_tx::t_filler in m0_be_tx_init(). The callback
- * should get called after transaction commit.
- */
-static void btree_tx_commit_cb(struct m0_be_tx *tx, void *payload)
-{
-	struct nd *node = payload;
-	M0_ASSERT(node->n_txref != 0);
-	node->n_txref--;
-}
-#endif
 /**
  * TODO: Call this function to free up node descriptor from LRU list.
  * A daemon should run in parallel to check the health of the system. If it

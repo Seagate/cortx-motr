@@ -507,6 +507,8 @@ M0_INTERNAL void m0_be_tx_payload_prep(struct m0_be_tx *tx, m0_bcount_t size);
 M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx);
 M0_INTERNAL void m0_be_tx_exclusive_open(struct m0_be_tx *tx);
 
+M0_INTERNAL void m0_be_tx_cb_capture(struct m0_be_tx *tx, void *addr,
+				     m0_be_callback_t func);
 M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
 				  const struct m0_be_reg *reg);
 M0_INTERNAL void m0_be_tx_uncapture(struct m0_be_tx        *tx,
