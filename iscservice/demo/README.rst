@@ -23,8 +23,25 @@ into all the remote Motr instances.
 
 On successful loading of the library, the output will look like this::
 
-  $ ./m0iscreg $PWD/libdemo.so
+  $ m0iscreg -e 192.168.180.171@tcp:12345:4:1 \
+             -x 192.168.180.171@tcp:12345:1:1 \
+             -f 0x7200000000000001:0x2c \
+             -p 0x7000000000000001:0x50 $PWD/libdemo.so
   m0iscreg success
+
+The four options are standard ones to connect to Motr::
+
+  $ m0iscreg -h
+
+  Usage: m0iscreg OPTIONS libpath
+
+     -e <addr>  endpoint address
+     -x <addr>  ha-agent (hax) endpoint address
+     -f <fid>   process fid
+     -p <fid>   profile fid
+
+The values for them can be taken from the output of ``hctl status``
+command. (We'll refer to them as ``<motr-opts>`` below.)
 
 Demo computations
 =================
@@ -33,38 +50,16 @@ Currently, we demonstrate three simple computations: ``ping``, ``min`` and
 ``max``. ``m0iscdemo`` utility can be used to invoke the computations and
 see the result::
 
-  $ ./m0iscdemo
+  $ m0iscdemo -h
 
-  Usage: m0iscdemo [-v[v]] COMP OBJ LEN
+  Usage: m0iscdemo OPTIONS COMP OBJ_ID LEN
 
-    Supported COMPutations: ping, min, max.
+   Supported COMPutations: ping, min, max
 
-    OBJ is two uint64 numbers in format: hi:lo.
-    LEN is the length of object (in KiB).
-
-To build the utility and ``libdemo.so`` library, run::
-
-  make isc-all
+   OBJ_ID is two uint64 numbers in hi:lo format (dec or hex)
+   LEN    is the length of object (in KiB)
 
 Following are the steps to run the demo.
-
-Prepare rc-files
-----------------
-
-In order to start the demo programs, the rc-startup files must be created
-for each of them: ``~/.m0isc/m0iscdemorc/$(hostname)`` and
-``~/.m0isc/m0iscreg/$(hostname)`` with the configuration parameters
-needed to connect to Motr, for example::
-
-  $ cat ~/.m0isc/m0iscdemorc/centos79
-  HA_ENDPOINT_ADDR = 192.168.180.171@tcp:12345:1:1
-  PROFILE_FID   = 0x7000000000000001:0x50
-  M0_POOL_TIER1 = 0x6f00000000000001:0x2f
-  LOCAL_ENDPOINT_ADDR0 = 192.168.180.171@tcp:12345:4:1
-  LOCAL_PROC_FID0      = 0x7200000000000001:0x29
-
-The values for these parameters can be taken from the output of
-``hctl status`` command.
 
 ping
 ----
@@ -75,7 +70,7 @@ For each unit a separate ping request is sent, so the utility prints
 
 Here is an example for the object with 1MB units::
 
-  $ ./m0iscdemo ping 123:12371 4096
+  $ m0iscdemo <motr-opts> ping 123:12371 4096
   Hello-world @192.168.180.171@tcp:12345:2:2
   Hello-world @192.168.180.171@tcp:12345:2:2
   Hello-world @192.168.180.171@tcp:12345:2:2
@@ -90,7 +85,7 @@ min / max
 Write an object with a real numbers strings delimited by the newline.
 The min/max in-storage computation can then be done on such object::
 
-  $ ./m0iscdemo max 123:12371 4096
+  $ m0iscdemo <motr-opts> max 123:12371 4096
   idx=132151 val=32767.627900
-  $ ./m0iscdemo min 123:12371 4096
+  $ m0iscdemo <motr-opts> min 123:12371 4096
   idx=180959 val=0.134330
