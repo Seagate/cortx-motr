@@ -1213,7 +1213,7 @@ struct level {
  * This stucture will store the address of node descriptor and index of record
  * which will be used for capturing transaction.
  */
-struct node_capture {
+struct node_to_capture {
 	/**
 	 * Address of node descriptor which needs to be captured in
 	 * transaction.
@@ -1231,37 +1231,37 @@ struct node_capture {
  * used while executing the given operation.
  */
 struct m0_btree_oimpl {
-	struct node_op  i_nop;
+	struct node_op          i_nop;
 	/* struct lock_op  i_lop; */
 
 	/** Count of entries initialized in l_level array. **/
-	unsigned        i_used;
+	unsigned                i_used;
 
 	/** Array of levels for storing data about each level. **/
-	struct level   *i_level;
+	struct level           *i_level;
 
 	/** Level from where sibling nodes needs to be loaded. **/
-	int             i_pivot;
+	int                     i_pivot;
 
 	/** i_alloc_lev will be used for P_ALLOC_REQUIRE and P_ALLOC_STORE phase
 	 * to indicate current level index. **/
-	int             i_alloc_lev;
+	int                     i_alloc_lev;
 
 	/** Store node_find() output. */
-	bool            i_key_found;
+	bool                    i_key_found;
 
 	/** When there will be requirement for new node in case of root
 	 * splitting i_extra_node will be used. **/
-	struct nd      *i_extra_node;
+	struct nd              *i_extra_node;
 
 	/** Track number of trials done to complete operation. **/
-	unsigned        i_trial;
+	unsigned                i_trial;
 
 	/** Used to store height of tree at the beginning of any operation **/
-	unsigned        i_height;
+	unsigned                i_height;
 
 	/** Node descriptor for cookie if it is going to be used. **/
-	struct nd      *i_cookie_node;
+	struct nd              *i_cookie_node;
 
 	/**
 	 * Array of node_capture structures which hold nodes that need to be
@@ -1269,7 +1269,7 @@ struct m0_btree_oimpl {
 	 * modified as a part of KV operations. The nodes in this array are
 	 * later captured in P_CAPTURE state of the KV_tick() function.
 	 */
-	struct node_capture   i_capture[BTREE_CALLBACK_CREDIT];
+	struct node_to_capture   i_capture[BTREE_CALLBACK_CREDIT];
 
 };
 
@@ -3050,11 +3050,11 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 /**
  * Adds unique node descriptor address to m0_btree_oimpl::i_capture structure.
  */
-static void btree_callback_add(struct m0_btree_oimpl *oi, struct nd *addr,
+static void btree_node_capture(struct m0_btree_oimpl *oi, struct nd *addr,
 			       int start_idx)
 {
-	struct node_capture *arr = oi->i_capture;
-	int                  i;
+	struct node_to_capture *arr = oi->i_capture;
+	int                     i;
 
 	M0_PRE(addr != NULL);
 
@@ -3168,7 +3168,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	 * Note : not capturing l_node as it must have already been captured in
 	 * btree_put_makespace_phase().
 	 */
-	btree_callback_add(oi, oi->i_extra_node, 0);
+	btree_node_capture(oi, oi->i_extra_node, 0);
 
 	/* Increase height by one */
 	tree->t_height++;
@@ -3323,8 +3323,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 				    node_seq_cnt_update(lev->l_alloc);
 	node_fix(tgt.s_node, bop->bo_tx);
-	btree_callback_add(oi, lev->l_alloc, 0);
-	btree_callback_add(oi, lev->l_node, 0);
+	btree_node_capture(oi, lev->l_alloc, 0);
+	btree_node_capture(oi, lev->l_node, 0);
 
 	node_unlock(lev->l_alloc);
 	node_unlock(lev->l_node);
@@ -3363,7 +3363,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(lev->l_node, bop->bo_tx);
-			btree_callback_add(oi, lev->l_node, lev->l_idx);
+			btree_node_capture(oi, lev->l_node, lev->l_idx);
 
 			node_unlock(lev->l_node);
 			return P_CAPTURE;
@@ -3385,8 +3385,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 					    node_seq_cnt_update(lev->l_alloc);
 		node_fix(tgt.s_node, bop->bo_tx);
-		btree_callback_add(oi, lev->l_alloc, 0);
-		btree_callback_add(oi, lev->l_node, 0);
+		btree_node_capture(oi, lev->l_alloc, 0);
+		btree_node_capture(oi, lev->l_node, 0);
 
 		node_unlock(lev->l_alloc);
 		node_unlock(lev->l_node);
@@ -3707,15 +3707,15 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		node_done(&node_slot, bop->bo_tx, true);
 		node_seq_cnt_update(lev->l_node);
 		node_fix(lev->l_node, bop->bo_tx);
-		btree_callback_add(oi, lev->l_node, lev->l_idx);
+		btree_node_capture(oi, lev->l_node, lev->l_idx);
 
 		node_unlock(lev->l_node);
 		return P_CAPTURE;
 	}
 	case P_CAPTURE: {
-		struct node_capture *arr = oi->i_capture;
-		struct slot          node_slot;
-		int                  i;
+		struct node_to_capture *arr = oi->i_capture;
+		struct slot             node_slot;
+		int                     i;
 
 		for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
 			if (arr[i].nc_node == NULL)
@@ -4788,7 +4788,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		}
 		node_seq_cnt_update(lev->l_node);
 		node_fix(node_slot.s_node, bop->bo_tx);
-		btree_callback_add(oi, lev->l_node, lev->l_idx);
+		btree_node_capture(oi, lev->l_node, lev->l_idx);
 
 		node_unlock(lev->l_node);
 
@@ -4826,8 +4826,8 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	node_move(root_child, lev->l_node, D_RIGHT, NR_MAX, bop->bo_tx);
 	M0_ASSERT(node_count_rec(root_child) == 0);
 
-	btree_callback_add(oi, lev->l_node, 0);
-	btree_callback_add(oi, root_child, 0);
+	btree_node_capture(oi, lev->l_node, 0);
+	btree_node_capture(oi, root_child, 0);
 
 	node_unlock(lev->l_node);
 	node_unlock(root_child);
@@ -5148,7 +5148,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(node_slot.s_node, bop->bo_tx);
-			btree_callback_add(oi, lev->l_node, lev->l_idx);
+			btree_node_capture(oi, lev->l_node, lev->l_idx);
 
 			node_unlock(lev->l_node);
 
