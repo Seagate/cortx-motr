@@ -434,6 +434,7 @@ static void fd_stats_generate(struct m0_pdclust_instance *pi, uint32_t groups_nr
 
 static void fd_mapping_check(struct m0_pool_version *pv)
 {
+	int                        rc;
 	struct m0_pdclust_instance pi;
 	uint64_t                   C;
 	m0_time_t                  seed;
@@ -453,7 +454,8 @@ static void fd_mapping_check(struct m0_pool_version *pv)
 	seed = m0_time_now();
 	omega = m0_rnd(123456, &seed);
 	pi.pi_base.li_l->l_pver = pv;
-	m0_fd_cache_grid_build(pi.pi_base.li_l, &pi);
+	rc = m0_fd_cache_grid_build(pi.pi_base.li_l, &pi);
+	M0_UT_ASSERT(rc == 0);
 	for (row = omega * C; row < (omega + 1) * C; ++row) {
 		src.sa_group = row;
 		for (col = 0; col < pv->pv_fd_tile.ft_G; ++col) {
