@@ -3811,15 +3811,17 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	}
 	case P_CAPTURE: {
 		struct node_capture_info *arr = oi->i_capture;
-		struct slot               node_slot;
+		/* struct slot               node_slot; */
 		int                       i;
 
 		for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
 			if (arr[i].nc_node == NULL)
 				break;
+			/*
 			node_slot.s_node = arr[i].nc_node;
 			node_slot.s_idx  = arr[i].nc_idx;
 			node_capture(&node_slot, bop->bo_tx);
+			*/
 		}
 
 		lock_op_unlock(tree);
@@ -7728,8 +7730,6 @@ struct m0_ut_suite btree_ut = {
 	.ts_init = ut_btree_suite_init,
 	.ts_fini = ut_btree_suite_fini,
 	.ts_tests = {
-		{"node_create_delete",              ut_node_create_delete},
-		{"node_add_del_rec",                ut_node_add_del_rec},
 		{"basic_tree_op",                   ut_basic_tree_oper},
 		{"basic_kv_ops",                    ut_basic_kv_oper},
 		{"multi_stream_kv_op",              ut_multi_stream_kv_oper},
@@ -7739,6 +7739,8 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
 		{"random_threads_and_trees_kv_op",  ut_rt_rt_kv_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
+		{"node_create_delete",              ut_node_create_delete},
+		{"node_add_del_rec",                ut_node_add_del_rec},
 		/* {"btree_kv_add_del",                ut_put_del_operation}, */
 		{NULL, NULL}
 	}
