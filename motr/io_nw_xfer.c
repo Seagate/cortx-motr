@@ -476,7 +476,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	m0_bindex_t                pgstart;
 	m0_bindex_t                pgend;
 	struct data_buf           *buf;
-	struct m0_op_io    *ioo;
+	struct m0_op_io           *ioo;
 	struct m0_pdclust_layout  *play;
 	uint64_t                   frame;
 	uint64_t                   unit;
@@ -502,6 +502,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	M0_PRE(ti != NULL);
 	M0_PRE(map != NULL);
 	M0_PRE(target_ioreq_invariant(ti));
+
+	ti->ti_goff = gob_offset;
 
 	ioo = bob_of(ti->ti_nwxfer, struct m0_op_io,
 		     ioo_nwxfer, &ioo_bobtype);
@@ -761,8 +763,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	enum page_attr              *pattr;
 	struct m0_bufvec            *bvec;
 	struct m0_bufvec            *auxbvec;
-	struct m0_op_io      *ioo;
-	struct m0_obj_attr   *io_attr;
+	struct m0_op_io             *ioo;
+	struct m0_obj_attr          *io_attr;
 	struct m0_indexvec          *ivec;
 	struct ioreq_fop            *irfop;
 	struct m0_net_domain        *ndom;
@@ -930,8 +932,13 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_fid = ti->ti_fid;
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
-		if (ioo->ioo_flags & M0_OOF_NOHOLE)
+		/* In case of partially spanned units in a parity group,
+		 * degraded read expects zero-filled units from server side.
+		 */
+		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
+		    ioo->ioo_flags & M0_OOF_NOHOLE)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
+
 		if (ioo->ioo_flags & M0_OOF_SYNC)
 			rw_fop->crw_flags |= M0_IO_FLAG_SYNC;
 		io_attr = m0_io_attr(ioo);
@@ -1097,6 +1104,8 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	if (ti->ti_auxbufvec.ov_buf == NULL)
 		goto fail;
 
+	if (M0_FI_ENABLED("no-mem-err"))
+		goto fail;
 	M0_ALLOC_ARR(ti->ti_pageattrs, nr);
 	if (ti->ti_pageattrs == NULL)
 		goto fail;
@@ -1347,11 +1356,12 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			if (rc != 0)
 				goto err;
 
-			if (op_code == M0_OC_WRITE && do_cobs)
-				m0_bitmap_set(&units_spanned, unit, true);
-
 			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
 						m0_ext_length(&r_ext), iomap);
+			if (op_code == M0_OC_WRITE && do_cobs &&
+			    ti->ti_req_type == TI_READ_WRITE)
+				m0_bitmap_set(&units_spanned, unit, true);
+
 		}
 
 		M0_ASSERT(ergo(M0_IN(op_code, (M0_OC_READ, M0_OC_WRITE)),

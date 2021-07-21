@@ -419,13 +419,12 @@ static void ut_test_round_up(void)
  */
 static void ut_test_pdlayout_get(void)
 {
-	struct m0_client         *instance = NULL;
+	struct m0_client         *instance = dummy_instance;
 	struct m0_op_io          *ioo;
 	struct m0_pdclust_layout *pl;
 	struct m0_pdclust_layout *aux;
 
 	/* init */
-	instance = dummy_instance;
 	ioo = ut_dummy_ioo_create(instance, 1);
 
 	/* Base case. */
@@ -498,10 +497,7 @@ static void ut_disable_resource_manager(struct m0_client *instance)
 static void ut_test_rm_domain_get(void)
 {
 	struct m0_rm_domain *dom;
-	struct m0_client    *instance = NULL;
-
-	/* Init. */
-	instance = dummy_instance;
+	struct m0_client    *instance = dummy_instance;
 
 	/* Base case. */
 	dom = rm_domain_get(instance);
@@ -538,13 +534,10 @@ static void ut_test_obj_io_cb_launch(void)
 {
 	struct m0_op_common     *oc;
 	struct m0_op_io         *ioo;
-	struct m0_client        *instance = NULL;
+	struct m0_client        *instance = dummy_instance;
 	struct m0_realm          realm;
 	struct nw_xfer_ops      *nxr_ops;
 	struct m0_op_io_ops     *op_io_ops;
-
-	/* Initialise. */
-	instance = dummy_instance;
 
 	/* Base case. */
 	ioo = ut_dummy_ioo_create(instance, 1);
@@ -590,11 +583,9 @@ static void ut_test_obj_io_cb_fini(void)
 static void ut_test_m0_op_io_invariant(void)
 {
 	struct m0_op_io  *ioo;
-	struct m0_client *instance = NULL;
+	struct m0_client *instance = dummy_instance;
 	bool              ret;
 
-	/* initialise client */
-	instance = dummy_instance;
 	//ut_layout_domain_fill(instance);
 
 	/* Base case. */
@@ -711,12 +702,9 @@ static void ut_test_m0_obj_op(void)
 	struct m0_indexvec ext;
 	struct m0_bufvec   data;
 	struct m0_bufvec   attr;
-	struct m0_op      *op;
-	struct m0_client  *instance = NULL;
+	struct m0_op      *op = NULL;
+	struct m0_client  *instance = dummy_instance;
 	struct m0_op_io   *ioop;
-
-	/* Keep gcc quiet during debug build */
-	M0_SET0(&op);
 
 	/* auxiliary structs */
 	rc = m0_indexvec_alloc(&ext, 1);
@@ -727,8 +715,6 @@ static void ut_test_m0_obj_op(void)
 	rc = m0_bufvec_alloc(&attr, 1, 1);
 	M0_UT_ASSERT(rc == 0);
 
-	/* initialise client */
-	instance = dummy_instance;
 	M0_SET0(&obj);
 	ut_realm_entity_setup(&realm, &obj.ob_entity, instance);
 	obj.ob_attr.oa_bshift = M0_MIN_BUF_SHIFT;
@@ -738,7 +724,6 @@ static void ut_test_m0_obj_op(void)
 	m0_fi_enable_once("tolerance_of_level", "fake_tolerance_of_level");
 
 	/* Base case: no assert for READ */
-	op = NULL;
 	rc = m0_obj_op(&obj, M0_OC_READ, &ext, &data, &attr, 0, 0, &op);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(op->op_size >= sizeof *ioop);
@@ -751,8 +736,7 @@ static void ut_test_m0_obj_op(void)
 	m0_op_bob_init(&ioop->ioo_oo.oo_oc.oc_op);
 
 	M0_UT_ASSERT(op->op_code == M0_OC_READ);
-	M0_UT_ASSERT(ioop->ioo_oo.oo_oc.oc_cb_launch ==
-		     obj_io_cb_launch);
+	M0_UT_ASSERT(ioop->ioo_oo.oo_oc.oc_cb_launch == obj_io_cb_launch);
 	M0_UT_ASSERT(ioop->ioo_oo.oo_oc.oc_cb_fini == obj_io_cb_fini);
 	M0_UT_ASSERT(ioop->ioo_oo.oo_oc.oc_cb_free == obj_io_cb_free);
 	M0_UT_ASSERT(ioop->ioo_obj == &obj);
@@ -760,7 +744,6 @@ static void ut_test_m0_obj_op(void)
 
 	m0_op_fini(op);
 	m0_op_free(op);
-	op = NULL;
 
 	/* Free the {index,buf}vec that we have used for these tests. */
 	m0_bufvec_free(&attr);
@@ -784,8 +767,7 @@ M0_INTERNAL int m0_io_ut_init(void)
 	M0_UT_ASSERT(rc == 0);
 
 	ut_layout_domain_fill(dummy_instance);
-	dummy_pdclust_layout =
-		ut_dummy_pdclust_layout_create(dummy_instance);
+	dummy_pdclust_layout = ut_dummy_pdclust_layout_create(dummy_instance);
 	M0_UT_ASSERT(dummy_pdclust_layout != NULL);
 
 	ut_enable_resource_manager(dummy_instance);

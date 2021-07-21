@@ -2241,7 +2241,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 
 	if (m0_is_write_fop(fom->fo_fop) &&
 	    m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_WAIT &&
-	    fom->fo_tx.tx_state == 0) {
+	    fom->fo_tx.tx_state == M0_DTX_INVALID) {
 		m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
 		return M0_RC(M0_FSO_AGAIN);
 	}
