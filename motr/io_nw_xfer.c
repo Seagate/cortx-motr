@@ -1009,7 +1009,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				rw_fop->crw_di_data_cksum.b_nob = 0;
 				rw_fop->crw_is_data_fop = 2;
 			}		
-			rw_fop->crw_cksum_size = ioo->ioo_attr.ov_vec.v_count[0];
+			rw_fop->crw_cksum_size = read_in_write ? 0 : ioo->ioo_attr.ov_vec.v_count[0];
 		}
 		else {
 			rw_fop->crw_is_data_fop = 0;

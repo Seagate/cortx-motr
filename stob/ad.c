@@ -1401,7 +1401,9 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 
 		if (seg->ee_val < AET_MIN)
 		{
-			stob_ad_get_checksum_for_fragment(io, it, off, frag_size);
+			/* For RMW case, ignore cksum read from fragments */
+			if (io->si_cksum_sz && io->si_unit_sz) 
+				stob_ad_get_checksum_for_fragment(io, it, off, frag_size);
 			frags_not_empty++;
 		}
 

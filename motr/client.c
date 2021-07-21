@@ -1089,41 +1089,44 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
                                    struct m0_pi_seed *seed,
                                    struct m0_bufvec *bvec)
 {
-        switch(pi->hdr.pi_type) {
-                case M0_PI_TYPE_MD5_INC_CONTEXT:
-                        {
+	switch(pi->hdr.pi_type) {
+		case M0_PI_TYPE_MD5_INC_CONTEXT:
+		{
 #ifndef __KERNEL__
-                                struct m0_md5_inc_context_pi md5_ctx_pi;
-                                unsigned char *curr_context = m0_alloc(sizeof(MD5_CTX));
+				struct m0_md5_inc_context_pi md5_ctx_pi;
+				unsigned char *curr_context = m0_alloc(sizeof(MD5_CTX));
 				memset(&md5_ctx_pi, 0, sizeof(struct m0_md5_inc_context_pi));
-                                if (curr_context == NULL) {
-                                        return false;
-                                }
+				if (curr_context == NULL) {
+					return false;
+				}
 				memcpy(md5_ctx_pi.prev_context,
 						((struct m0_md5_inc_context_pi *)pi)->prev_context,
 						sizeof(MD5_CTX));
 
 
-                                md5_ctx_pi.hdr.pi_type =
-                                        M0_PI_TYPE_MD5_INC_CONTEXT;
-                                m0_client_calculate_pi((struct m0_generic_pi *)&md5_ctx_pi,
-                                                seed, bvec, M0_PI_NO_FLAG,
-                                                curr_context, NULL);
-                                m0_free(curr_context);
-                                if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pi_value,
-                                                        md5_ctx_pi.pi_value,
-                                                        MD5_DIGEST_LENGTH) == 0)
-                                        return true;
-#endif
-                        }
-
- 
-
-        }
-
- 
-
-        return false;
+				md5_ctx_pi.hdr.pi_type =
+					M0_PI_TYPE_MD5_INC_CONTEXT;
+				m0_client_calculate_pi((struct m0_generic_pi *)&md5_ctx_pi,
+						seed, bvec, M0_PI_NO_FLAG,
+						curr_context, NULL);
+				m0_free(curr_context);
+				if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pi_value,
+							md5_ctx_pi.pi_value,
+							MD5_DIGEST_LENGTH) == 0) {
+					return true;
+				}
+				else {
+					M0_LOG(M0_DEBUG, "checksum fail "
+							"f_container %"PRIx64"f_key %"PRIx64
+							"data_unit_offset %"PRIx64,
+							seed->obj_id.f_container,
+							seed->obj_id.f_key,
+							seed->data_unit_offset);
+				}
+#endif				
+		}
+	}
+	return false;
 }
 
 M0_EXPORTED(m0_calc_verify_cksum_one_unit);
