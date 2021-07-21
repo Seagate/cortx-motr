@@ -135,12 +135,12 @@ struct m0_be_allocator {
 	 * Entire segment except m0_be_seg_hdr is used as a memory
 	 * for allocations.
 	 */
-	struct m0_be_seg	      *ba_seg;
+	struct m0_be_seg              *ba_seg;
 	/**
 	 * Lock protects allocator lists and allocator chunks
 	 * (but not allocated memory).
 	 */
-	struct m0_mutex		       ba_lock;
+	struct m0_mutex                ba_lock;
 	/** Internal allocator data. It is stored inside the segment. */
 	struct m0_be_allocator_header *ba_h[M0_BAP_NR];
 };
@@ -319,8 +319,8 @@ M0_INTERNAL void m0_be_alloc_stats_capture(struct m0_be_allocator *a,
  * It is a wrapper around m0_be_alloc().
  * @see m0_be_alloc(), M0_ALLOC_ARR().
  */
-#define M0_BE_ALLOC_ARR(arr, nr, seg, tx, op)				\
-		m0_be_alloc(m0_be_seg_allocator(seg), (tx), (op),	\
+#define M0_BE_ALLOC_ARR(arr, nr, seg, tx, op)                           \
+		m0_be_alloc(m0_be_seg_allocator(seg), (tx), (op),       \
 			    (void **)&(arr), (nr) * sizeof((arr)[0]))
 
 /**
@@ -329,48 +329,69 @@ M0_INTERNAL void m0_be_alloc_stats_capture(struct m0_be_allocator *a,
  * It is a wrapper around m0_be_alloc().
  * @see m0_be_alloc(), M0_ALLOC_PTR(), M0_BE_ALLOC_ARR().
  */
-#define M0_BE_ALLOC_PTR(ptr, seg, tx, op)				\
+#define M0_BE_ALLOC_PTR(ptr, seg, tx, op)                               \
 		M0_BE_ALLOC_ARR((ptr), 1, (seg), (tx), (op))
 
-#define M0_BE_ALLOC_ARR_SYNC(arr, nr, seg, tx)				\
-		M0_BE_OP_SYNC(__op,					\
-			      M0_BE_ALLOC_ARR((arr), (nr), (seg), (tx), &__op))
+#define M0_BE_ALLOC_ARR_SYNC(arr, nr, seg, tx)                          \
+		M0_BE_OP_SYNC(__op,                                     \
+			      M0_BE_ALLOC_ARR((arr), (nr), (seg), (tx), \
+			      &__op))
 
-#define M0_BE_ALLOC_PTR_SYNC(ptr, seg, tx)				\
-		M0_BE_OP_SYNC(__op, M0_BE_ALLOC_PTR((ptr), (seg), (tx), &__op))
+#define M0_BE_ALLOC_PTR_SYNC(ptr, seg, tx)                              \
+		M0_BE_OP_SYNC(__op, M0_BE_ALLOC_PTR((ptr), (seg), (tx), \
+		&__op))
 
-#define M0_BE_FREE_PTR(ptr, seg, tx, op)				\
+#define M0_BE_FREE_PTR(ptr, seg, tx, op)                                \
 		m0_be_free(m0_be_seg_allocator(seg), (tx), (op), (ptr))
 
-#define M0_BE_FREE_PTR_SYNC(ptr, seg, tx)				\
-		M0_BE_OP_SYNC(__op, M0_BE_FREE_PTR((ptr), (seg), (tx), &__op))
+#define M0_BE_FREE_PTR_SYNC(ptr, seg, tx)                               \
+		M0_BE_OP_SYNC(__op,                                     \
+			      M0_BE_FREE_PTR((ptr), (seg), (tx), &__op))
 
-#define M0_BE_ALLOC_BUF(buf, seg, tx, op)				\
-		m0_be_alloc(m0_be_seg_allocator(seg), (tx), (op),	\
+#define M0_BE_ALLOC_BUF(buf, seg, tx, op)                               \
+		m0_be_alloc(m0_be_seg_allocator(seg), (tx), (op),       \
 			    &(buf)->b_addr, (buf)->b_nob)
 
-#define M0_BE_ALLOC_BUF_SYNC(buf, seg, tx)				\
-		M0_BE_OP_SYNC(__op, M0_BE_ALLOC_BUF((buf), (seg), (tx), &__op))
+#define M0_BE_ALLOC_ALIGN_BUF(buf, shift, seg, tx, op)                  \
+		m0_be_alloc_aligned(m0_be_seg_allocator(seg), (tx),     \
+				    (op), &(buf)->b_addr, (buf)->b_nob, \
+				    shift, M0_BITS(M0_BAP_NORMAL))
 
-#define M0_BE_ALLOC_CREDIT_PTR(ptr, seg, accum)				\
-		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
-				       M0_BAO_ALLOC, sizeof *(ptr), 0, (accum))
+#define M0_BE_ALLOC_BUF_SYNC(buf, seg, tx)                              \
+		M0_BE_OP_SYNC(__op, M0_BE_ALLOC_BUF((buf), (seg),       \
+						    (tx), &__op))
 
-#define M0_BE_FREE_CREDIT_PTR(ptr, seg, accum)				\
-		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
-				       M0_BAO_FREE, sizeof *(ptr), 0, (accum))
+#define M0_BE_ALLOC_ALIGN_BUF_SYNC(buf, shift, seg, tx)                 \
+		M0_BE_OP_SYNC(__op,                                     \
+			      M0_BE_ALLOC_ALIGN_BUF((buf), (shift),     \
+						    (seg), (tx), &__op))
 
-#define M0_BE_ALLOC_CREDIT_ARR(arr, nr, seg, accum)				\
-		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
-				       M0_BAO_ALLOC, (nr) * sizeof((arr)[0]), 0, (accum))
+#define M0_BE_ALLOC_CREDIT_PTR(ptr, seg, accum)                         \
+		m0_be_allocator_credit(m0_be_seg_allocator(seg),        \
+				       M0_BAO_ALLOC, sizeof *(ptr),     \
+				       0, (accum))
 
-#define M0_BE_FREE_CREDIT_ARR(arr, nr, seg, accum)				\
-		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
-				       M0_BAO_FREE, (nr) * sizeof((arr)[0]), 0, (accum))
+#define M0_BE_FREE_CREDIT_PTR(ptr, seg, accum)                          \
+		m0_be_allocator_credit(m0_be_seg_allocator(seg),        \
+				       M0_BAO_FREE, sizeof *(ptr),      \
+				       0, (accum))
 
-#define M0_BE_ALLOC_CREDIT_BUF(buf, seg, accum)				\
-		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
-				       M0_BAO_ALLOC, (buf)->b_nob, 0, (accum))
+#define M0_BE_ALLOC_CREDIT_ARR(arr, nr, seg, accum)                     \
+		m0_be_allocator_credit(m0_be_seg_allocator(seg),        \
+				       M0_BAO_ALLOC,                    \
+				       (nr) * sizeof((arr)[0]),         \
+				       0, (accum))
+
+#define M0_BE_FREE_CREDIT_ARR(arr, nr, seg, accum)                      \
+		m0_be_allocator_credit(m0_be_seg_allocator(seg),        \
+				       M0_BAO_FREE,                     \
+				       (nr) * sizeof((arr)[0]),         \
+				       0, (accum))
+
+#define M0_BE_ALLOC_CREDIT_BUF(buf, seg, accum)                         \
+		m0_be_allocator_credit(m0_be_seg_allocator(seg),        \
+				       M0_BAO_ALLOC, (buf)->b_nob, 0,   \
+				       (accum))
 
 
 /** @} end of be group */
