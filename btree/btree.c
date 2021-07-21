@@ -1409,7 +1409,6 @@ static bool node_invariant(const struct nd *node)
 /**
  * This function is implemented for debugging purpose and should get called in
  * node lock mode.
- * TBD : This function needs to be removed when debugging is done.
  */
 static bool node_expensive_invariant(const struct nd *node)
 {
@@ -3276,6 +3275,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	/* Increase height by one */
 	tree->t_height++;
 
+	/* TBD : This check needs to be removed when debugging is done. */
 	M0_ASSERT(node_expensive_invariant(lev->l_node));
 	M0_ASSERT(node_expensive_invariant(oi->i_extra_node));
 	node_unlock(lev->l_node);
@@ -3431,6 +3431,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	btree_node_capture_enlist(oi, lev->l_alloc, 0);
 	btree_node_capture_enlist(oi, lev->l_node, 0);
 
+	/* TBD : This check needs to be removed when debugging is done. */
 	M0_ASSERT(node_expensive_invariant(lev->l_alloc));
 	M0_ASSERT(node_expensive_invariant(lev->l_node));
 	node_unlock(lev->l_alloc);
@@ -3472,6 +3473,10 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			node_fix(lev->l_node, bop->bo_tx);
 			btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
 
+			/**
+			 * TBD : This check needs to be removed when debugging
+			 * is done.
+			 */
 			M0_ASSERT(node_expensive_invariant(lev->l_node));
 			node_unlock(lev->l_node);
 			return P_CAPTURE;
@@ -3496,6 +3501,10 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		btree_node_capture_enlist(oi, lev->l_alloc, 0);
 		btree_node_capture_enlist(oi, lev->l_node, 0);
 
+		/**
+		 * TBD : This check needs to be removed when debugging is
+		 * done.
+		 */
 		M0_ASSERT(node_expensive_invariant(lev->l_alloc));
 		M0_ASSERT(node_expensive_invariant(lev->l_node));
 		node_unlock(lev->l_alloc);
@@ -3818,6 +3827,10 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		node_fix(lev->l_node, bop->bo_tx);
 		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
 
+		/**
+		 * TBD : This check needs to be removed when debugging is
+		 * done.
+		 */
 		M0_ASSERT(node_expensive_invariant(lev->l_node));
 		node_unlock(lev->l_node);
 		return P_CAPTURE;
@@ -4903,6 +4916,10 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		node_fix(node_slot.s_node, bop->bo_tx);
 		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
 
+		/**
+		 * TBD : This check needs to be removed when debugging is
+		 * done.
+		 */
 		M0_ASSERT(node_expensive_invariant(lev->l_node));
 		node_unlock(lev->l_node);
 
@@ -4942,6 +4959,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	btree_node_capture_enlist(oi, lev->l_node, 0);
 	btree_node_capture_enlist(oi, root_child, 0);
 
+	/* TBD : This check needs to be removed when debugging is done. */
 	M0_ASSERT(node_expensive_invariant(lev->l_node));
 	node_unlock(lev->l_node);
 	node_unlock(root_child);
@@ -5264,6 +5282,10 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			node_fix(node_slot.s_node, bop->bo_tx);
 			btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
 
+			/**
+			 * TBD : This check needs to be removed when debugging
+			 * is done.
+			 */
 			M0_ASSERT(node_expensive_invariant(lev->l_node));
 			node_unlock(lev->l_node);
 
