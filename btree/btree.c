@@ -597,6 +597,7 @@ enum base_phase {
 	P_CHECK,
 	P_MAKESPACE,
 	P_ACT,
+	P_CAPTURE,
 	P_FREENODE,
 	P_CLEANUP,
 	P_FINI,
@@ -1292,7 +1293,7 @@ struct level {
  * This stucture will store the address of node descriptor and index of record
  * which will be used for capturing transaction.
  */
-struct node_capture {
+struct node_capture_info {
 	/**
 	 * Address of node descriptor which needs to be captured in
 	 * transaction.
@@ -1310,37 +1311,37 @@ struct node_capture {
  * used while executing the given operation.
  */
 struct m0_btree_oimpl {
-	struct node_op  i_nop;
+	struct node_op             i_nop;
 	/* struct lock_op  i_lop; */
 
 	/** Count of entries initialized in l_level array. **/
-	unsigned        i_used;
+	unsigned                   i_used;
 
 	/** Array of levels for storing data about each level. **/
-	struct level   *i_level;
+	struct level              *i_level;
 
 	/** Level from where sibling nodes needs to be loaded. **/
-	int             i_pivot;
+	int                        i_pivot;
 
 	/** i_alloc_lev will be used for P_ALLOC_REQUIRE and P_ALLOC_STORE phase
 	 * to indicate current level index. **/
-	int             i_alloc_lev;
+	int                        i_alloc_lev;
 
 	/** Store node_find() output. */
-	bool            i_key_found;
+	bool                       i_key_found;
 
 	/** When there will be requirement for new node in case of root
 	 * splitting i_extra_node will be used. **/
-	struct nd      *i_extra_node;
+	struct nd                 *i_extra_node;
 
 	/** Track number of trials done to complete operation. **/
-	unsigned        i_trial;
+	unsigned                   i_trial;
 
 	/** Used to store height of tree at the beginning of any operation **/
-	unsigned        i_height;
+	unsigned                   i_height;
 
 	/** Node descriptor for cookie if it is going to be used. **/
-	struct nd      *i_cookie_node;
+	struct nd                 *i_cookie_node;
 
 	/**
 	 * Array of node_capture structures which hold nodes that need to be
@@ -1348,7 +1349,7 @@ struct m0_btree_oimpl {
 	 * modified as a part of KV operations. The nodes in this array are
 	 * later captured in P_CAPTURE state of the KV_tick() function.
 	 */
-	struct node_capture   i_capture[BTREE_CALLBACK_CREDIT];
+	struct node_capture_info   i_capture[BTREE_CALLBACK_CREDIT];
 
 };
 
@@ -2917,7 +2918,7 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 	void             *start = ff_key(slot->s_node, slot->s_idx);
 	struct m0_be_seg *seg   = slot->s_node->n_tree->t_seg;
 	m0_bcount_t       hsize = sizeof(*h) - sizeof(h->ff_opaque);
- 
+
 	/**
 	 *  Capture starting from the location where new record may have been
 	 *  added or deleted. Capture till the last record. If the deleted
@@ -2925,7 +2926,7 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 	 *  header modifications need to be persisted.
 	 */
 	if (h->ff_used > slot->s_idx)
-		M0_BTREE_TX_CAPTURE(tx, seg, start, 
+		M0_BTREE_TX_CAPTURE(tx, seg, start,
 				    rsize * (h->ff_used - slot->s_idx));
 	else if (h->ff_opaque == NULL)
 		/**
@@ -3148,11 +3149,11 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 /**
  * Adds unique node descriptor address to m0_btree_oimpl::i_capture structure.
  */
-static void btree_callback_add(struct m0_btree_oimpl *oi, struct nd *addr,
-			       int start_idx)
+static void btree_node_capture_enlist(struct m0_btree_oimpl *oi,
+				      struct nd *addr, int start_idx)
 {
-	struct node_capture *arr = oi->i_capture;
-	int                  i;
+	struct node_capture_info *arr = oi->i_capture;
+	int                       i;
 
 	M0_PRE(addr != NULL);
 
@@ -3261,7 +3262,11 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_done(&node_slot, bop->bo_tx, true);
 	node_seq_cnt_update(lev->l_node);
 	node_fix(lev->l_node, bop->bo_tx);
-	btree_callback_add(oi, oi->i_extra_node, 0);
+	/**
+	 * Note : not capturing l_node as it must have already been captured in
+	 * btree_put_makespace_phase().
+	 */
+	btree_node_capture_enlist(oi, oi->i_extra_node, 0);
 
 	/* Increase height by one */
 	tree->t_height++;
@@ -3272,8 +3277,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_put(&oi->i_nop, oi->i_extra_node, bop->bo_tx);
 	oi->i_extra_node = NULL;
 
-	lock_op_unlock(tree);
-	return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
+	return P_CAPTURE;
 }
 
 /**
@@ -3391,9 +3395,6 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	btree_put_split_and_find(lev->l_alloc, lev->l_node, &bop->bo_rec, &tgt,
 				 bop->bo_seg, bop->bo_tx);
 
-	btree_callback_add(oi, lev->l_alloc, 0);
-	btree_callback_add(oi, lev->l_node, 0);
-
 	tgt.s_rec = bop->bo_rec;
 	node_make (&tgt, bop->bo_tx);
 	tgt.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
@@ -3420,6 +3421,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 				    node_seq_cnt_update(lev->l_alloc);
 	node_fix(tgt.s_node, bop->bo_tx);
+	btree_node_capture_enlist(oi, lev->l_alloc, 0);
+	btree_node_capture_enlist(oi, lev->l_node, 0);
 
 	node_unlock(lev->l_alloc);
 	node_unlock(lev->l_node);
@@ -3458,11 +3461,10 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(lev->l_node, bop->bo_tx);
-			btree_callback_add(oi, lev->l_node, lev->l_idx);
+			btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
 
 			node_unlock(lev->l_node);
-			lock_op_unlock(bop->bo_arbor->t_desc);
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
+			return P_CAPTURE;
 		}
 
 		node_lock(lev->l_alloc);
@@ -3470,8 +3472,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 
 		btree_put_split_and_find(lev->l_alloc, lev->l_node, &new_rec,
 					 &tgt, bop->bo_seg, bop->bo_tx);
-		btree_callback_add(oi, lev->l_alloc, 0);
-		btree_callback_add(oi, lev->l_node, 0);
+
 		tgt.s_rec = new_rec;
 		node_make(&tgt, bop->bo_tx);
 		tgt.s_rec = REC_INIT(&p_key_1, &ksize_1, &p_val_1, &vsize_1);
@@ -3482,6 +3483,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 					    node_seq_cnt_update(lev->l_alloc);
 		node_fix(tgt.s_node, bop->bo_tx);
+		btree_node_capture_enlist(oi, lev->l_alloc, 0);
+		btree_node_capture_enlist(oi, lev->l_node, 0);
 
 		node_unlock(lev->l_alloc);
 		node_unlock(lev->l_node);
@@ -3793,7 +3796,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(lev->l_node, bop->bo_tx);
-			btree_callback_add(oi, lev->l_node, lev->l_idx);
 
 			node_unlock(lev->l_node);
 			lock_op_unlock(tree);
@@ -3802,9 +3804,26 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		node_done(&node_slot, bop->bo_tx, true);
 		node_seq_cnt_update(lev->l_node);
 		node_fix(lev->l_node, bop->bo_tx);
-		btree_callback_add(oi, lev->l_node, lev->l_idx);
+		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
 
 		node_unlock(lev->l_node);
+		return P_CAPTURE;
+	}
+	case P_CAPTURE: {
+		struct node_capture_info *arr = oi->i_capture;
+		/* struct slot               node_slot; */
+		int                       i;
+
+		for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
+			if (arr[i].nc_node == NULL)
+				break;
+			/*
+			node_slot.s_node = arr[i].nc_node;
+			node_slot.s_idx  = arr[i].nc_idx;
+			node_capture(&node_slot, bop->bo_tx);
+			*/
+		}
+
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	}
@@ -3884,13 +3903,13 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_LOCK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_LOCK",
-		.sd_allowed = M0_BITS(P_CHECK, P_CLEANUP, P_LOCKALL,
+		.sd_allowed = M0_BITS(P_CHECK, P_CAPTURE, P_CLEANUP, P_LOCKALL,
 				      P_FREENODE),
 	},
 	[P_CHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CHECK",
-		.sd_allowed = M0_BITS(P_CLEANUP, P_DOWN, P_FREENODE),
+		.sd_allowed = M0_BITS(P_CAPTURE, P_CLEANUP, P_DOWN, P_FREENODE),
 	},
 	[P_MAKESPACE] = {
 		.sd_flags   = 0,
@@ -3900,7 +3919,12 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_ACT] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_ACT",
-		.sd_allowed = M0_BITS(P_FREENODE, P_CLEANUP, P_DONE),
+		.sd_allowed = M0_BITS(P_FREENODE, P_CAPTURE, P_CLEANUP, P_DONE),
+	},
+	[P_CAPTURE] = {
+		.sd_flags   = 0,
+		.sd_name    = "P_CAPTURE",
+		.sd_allowed = M0_BITS(P_CLEANUP),
 	},
 	[P_FREENODE] = {
 		.sd_flags   = 0,
@@ -3966,14 +3990,18 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "kvop-lock", P_LOCK, P_CHECK },
 	{ "kvop-lock-check-ht-changed", P_LOCK, P_CLEANUP },
 	{ "kvop-lock-check-ht-same", P_LOCK, P_LOCKALL },
+	{ "put-lock-ft-capture", P_LOCK, P_CAPTURE },
 	{ "del-check-act-free", P_LOCK, P_FREENODE },
 	{ "kvop-check-height-changed", P_CHECK, P_CLEANUP },
 	{ "kvop-check-height-same", P_CHECK, P_DOWN },
+	{ "put-check-ft-capture", P_CHECK, P_CAPTURE },
 	{ "del-act-free", P_CHECK, P_FREENODE },
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
 	{ "put-makespace", P_MAKESPACE, P_ACT },
 	{ "kvop-act", P_ACT, P_CLEANUP },
+	{ "put-act", P_ACT, P_CAPTURE },
 	{ "del-act", P_ACT, P_FREENODE },
+	{ "put-capture", P_CAPTURE, P_CLEANUP},
 	{ "del-freenode-repeat", P_FREENODE, P_FREENODE },
 	{ "del-freenode-cleanup", P_FREENODE, P_CLEANUP },
 	{ "del-freenode-fini", P_FREENODE, P_FINI},
@@ -4860,7 +4888,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		}
 		node_seq_cnt_update(lev->l_node);
 		node_fix(node_slot.s_node, bop->bo_tx);
-		btree_callback_add(oi, lev->l_node, lev->l_idx);
+		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
 
 		node_unlock(lev->l_node);
 
@@ -4898,8 +4926,8 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	node_move(root_child, lev->l_node, D_RIGHT, NR_MAX, bop->bo_tx);
 	M0_ASSERT(node_count_rec(root_child) == 0);
 
-	btree_callback_add(oi, lev->l_node, 0);
-	btree_callback_add(oi, root_child, 0);
+	btree_node_capture_enlist(oi, lev->l_node, 0);
+	btree_node_capture_enlist(oi, root_child, 0);
 
 	node_unlock(lev->l_node);
 	node_unlock(root_child);
@@ -5220,7 +5248,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(node_slot.s_node, bop->bo_tx);
-			btree_callback_add(oi, lev->l_node, lev->l_idx);
+			btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
 
 			node_unlock(lev->l_node);
 
@@ -7702,8 +7730,6 @@ struct m0_ut_suite btree_ut = {
 	.ts_init = ut_btree_suite_init,
 	.ts_fini = ut_btree_suite_fini,
 	.ts_tests = {
-		{"node_create_delete",              ut_node_create_delete},
-		{"node_add_del_rec",                ut_node_add_del_rec},
 		{"basic_tree_op",                   ut_basic_tree_oper},
 		{"basic_kv_ops",                    ut_basic_kv_oper},
 		{"multi_stream_kv_op",              ut_multi_stream_kv_oper},
@@ -7713,6 +7739,8 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
 		{"random_threads_and_trees_kv_op",  ut_rt_rt_kv_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
+		{"node_create_delete",              ut_node_create_delete},
+		{"node_add_del_rec",                ut_node_add_del_rec},
 		/* {"btree_kv_add_del",                ut_put_del_operation}, */
 		{NULL, NULL}
 	}
