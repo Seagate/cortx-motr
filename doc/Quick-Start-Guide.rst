@@ -146,6 +146,8 @@ Troubleshooting
        sudo systemctl restart lnet
        sudo lctl list_nids
 
+- For other errors, please check our `FAQs <https://github.com/Seagate/cortx/blob/master/doc/Build-Installation-FAQ.md>`_.
+
 Build the documentation
 =======================
 
