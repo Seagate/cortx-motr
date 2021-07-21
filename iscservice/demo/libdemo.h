@@ -33,18 +33,18 @@
 #include "xcode/xcode_attr.h"
 
 /**
- * Holds the result of min and max computations.
+ * Holds the result of min and max computations over the unit.
  *
- * The left and right cuts of the values which cross
- * the units boundaries should be glued by the client code
- * and included in the final computation also.
+ * The left and right cuts of the values which cross the units
+ * boundaries should be glued by the client code and included
+ * in the final computation.
  */
 struct mm_result {
 	/** Index of the resulting element. */
 	uint64_t      mr_idx;
-	/** Total number of elements. */
+	/** Total number of elements in the unit. */
 	uint64_t      mr_nr;
-	/** The resulting value of the computation. */
+	/** The resulting value of the computation over the unit. */
 	double        mr_val;
 	/** Right cut of the boundary value on the left side of unit. */
 	struct m0_buf mr_lbuf;
