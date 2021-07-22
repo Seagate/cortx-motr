@@ -550,7 +550,6 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 	
 	M0_PRE(seg != NULL);
 	M0_PRE(strlen(location_data) < ARRAY_SIZE(adom->sad_path));
-	M0_PRE(m0_is_po2(EMAP_HT_SIZE));
 
 	adom = stob_ad_domain_locate(location_data);
 	if (adom != NULL)
