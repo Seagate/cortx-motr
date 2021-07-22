@@ -3237,17 +3237,17 @@ static void btree_tx_node_capture(struct m0_btree_oimpl *oi,
 				  struct m0_be_tx *tx)
 {
 	struct node_capture_info *arr = oi->i_capture;
-	/* struct slot          node_slot; */
+	struct slot          node_slot;
 	int                       i;
 
 	for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
 		if (arr[i].nc_node == NULL)
 			break;
-		/**
-		 * node_slot.s_node = arr[i].nc_node;
-		 * node_slot.s_idx  = arr[i].nc_idx;
-		 * node_capture(&node_slot, bop->bo_tx);
-		 */
+
+		node_slot.s_node = arr[i].nc_node;
+		node_slot.s_idx  = arr[i].nc_idx;
+		node_capture(&node_slot, tx);
+
 		node_lock(arr[i].nc_node);
 		arr[i].nc_node->n_txref++;
 		node_unlock(arr[i].nc_node);
