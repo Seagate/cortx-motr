@@ -52,9 +52,11 @@ struct mm_result {
 	struct m0_buf mr_rbuf;
 } M0_XCA_RECORD;
 
-/** Arguments to the target ISC service. */
+/** Computation request arguments to the target ISC service. */
 struct isc_targs {
+	/** Cob fid where the unit is located. */
 	struct m0_fid         ist_cob;
+	/** Unit whereabouts in the cob. */
 	struct m0_io_indexvec ist_ioiv;
 } M0_XCA_RECORD;
 

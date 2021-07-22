@@ -20,16 +20,9 @@
 
 #include <stdio.h>
 
-#include "lib/semaphore.h"    /* m0_semaphore */
 #include "lib/trace.h"        /* m0_trace_set_mmapped_buffer */
-#include "rpc/rpclib.h"       /* m0_rpc_post_sync */
-#include "motr/client.h"
-#include "motr/client_internal.h" /* m0_reqh */
-#include "conf/helpers.h"     /* m0_confc_root_open */
-#include "conf/diter.h"       /* m0_conf_diter_next_sync */
-#include "conf/obj_ops.h"     /* M0_CONF_DIRNEXT */
-#include "spiel/spiel.h"      /* m0_spiel_process_lib_load */
-#include "reqh/reqh.h"        /* m0_reqh */
+#include "rpc/rpclib.h"       /* M0_RPCLIB_MAX_RETRIES */
+#include "motr/client_internal.h" /* m0_client */
 #include "layout/plan.h"      /* m0_layout_io_plop */
 
 #include "iscservice/isc.h"
@@ -48,10 +41,8 @@ enum {
 };
 
 /* static variables */
-static struct m0_client        *m0_instance = NULL;
 static struct m0_container      container;
 static struct m0_idx_dix_config dix_conf = {};
-static struct m0_spiel          spiel_inst;
 
 /* global variables */
 struct m0_realm     uber_realm;
@@ -63,12 +54,12 @@ struct m0_list      isc_reqs;
 /**
  * Return parity group size for object.
  */
-uint64_t isc_m0gs(struct m0_obj *obj)
+uint64_t isc_m0gs(struct m0_obj *obj, struct m0_client *cinst)
 {
 	unsigned long           usz; /* unit size */
 	struct m0_pool_version *pver;
 
-	pver = m0_pool_version_find(&m0_instance->m0c_pools_common,
+	pver = m0_pool_version_find(&cinst->m0c_pools_common,
 				    &obj->ob_attr.oa_pver);
 	if (pver == NULL) {
 		ERR("invalid object pool version: "FID_F"\n",
@@ -122,116 +113,14 @@ uint64_t set_exts(struct m0_indexvec *ext, uint64_t off, uint64_t bsz)
 	return i * bsz;
 }
 
-static int spiel_prepare(struct m0_spiel *spiel, struct m0_fid *profile)
-{
-	struct m0_reqh *reqh = &m0_instance->m0c_reqh;
-	char            profile_str[M0_FID_STR_LEN];
-	int             rc;
-
-	rc = m0_spiel_init(spiel, reqh);
-	if (rc != 0) {
-		fprintf(stderr, "error! spiel initialisation failed.\n");
-		return rc;
-	}
-
-	snprintf(profile_str, M0_FID_STR_LEN, FID_F, FID_P(profile));
-	rc = m0_spiel_cmd_profile_set(spiel, profile_str);
-	if (rc != 0) {
-		fprintf(stderr, "error! spiel initialisation failed.\n");
-		return rc;
-	}
-	rc = m0_spiel_rconfc_start(spiel, NULL);
-	if (rc != 0) {
-		fprintf(stderr, "error! starting of rconfc failed in spiel failed.\n");
-		return rc;
-	}
-
-	return 0;
-}
-
-static void isc_spiel_destroy(struct m0_spiel *spiel)
-{
-	m0_spiel_rconfc_stop(spiel);
-	m0_spiel_fini(spiel);
-}
-
-static bool conf_obj_is_svc(const struct m0_conf_obj *obj)
-{
-	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
-}
-
-/*
- * Loads a library into m0d instances.
- */
-int isc_api_register(const char *libpath)
-{
-	int                     rc;
-	struct m0_reqh         *reqh = &m0_instance->m0c_reqh;
-	struct m0_confc        *confc;
-	struct m0_conf_root    *root;
-	struct m0_conf_process *proc;
-	struct m0_conf_service *svc;
-	struct m0_conf_diter    it;
-
-	rc = spiel_prepare(&spiel_inst, &m0_instance->m0c_profile_fid);
-	if (rc != 0) {
-		fprintf(stderr, "error! spiel initialization failed");
-		return rc;
-	}
-
-	confc = m0_reqh2confc(reqh);
-	rc = m0_confc_root_open(confc, &root);
-	if (rc != 0) {
-		isc_spiel_destroy(&spiel_inst);
-		return rc;
-	}
-
-	rc = m0_conf_diter_init(&it, confc,
-				&root->rt_obj,
-				M0_CONF_ROOT_NODES_FID,
-				M0_CONF_NODE_PROCESSES_FID,
-				M0_CONF_PROCESS_SERVICES_FID);
-	if (rc != 0) {
-		m0_confc_close(&root->rt_obj);
-		isc_spiel_destroy(&spiel_inst);
-		return rc;
-	}
-
-	while (M0_CONF_DIRNEXT ==
-	       (rc = m0_conf_diter_next_sync(&it, conf_obj_is_svc))) {
-
-		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
-		if (svc->cs_type != M0_CST_ISCS)
-			continue;
-		proc = M0_CONF_CAST(m0_conf_obj_grandparent(&svc->cs_obj),
-				    m0_conf_process);
-		rc = m0_spiel_process_lib_load(&spiel_inst, &proc->pc_obj.co_id,
-					       libpath);
-		if (rc != 0) {
-			fprintf(stderr, "error! loading the library %s failed "
-				        "for process "FID_F": rc=%d\n", libpath,
-					FID_P(&proc->pc_obj.co_id), rc);
-			m0_conf_diter_fini(&it);
-			m0_confc_close(&root->rt_obj);
-			isc_spiel_destroy(&spiel_inst);
-			return rc;
-		}
-	}
-	m0_conf_diter_fini(&it);
-	m0_confc_close(&root->rt_obj);
-	isc_spiel_destroy(&spiel_inst);
-
-	return 0;
-}
-
 int isc_req_prepare(struct isc_req *req, struct m0_buf *args,
-			   const struct m0_fid *comp_fid,
-			   struct m0_layout_io_plop *iop, uint32_t reply_len)
+		    const struct m0_fid *comp_fid,
+		    struct m0_layout_io_plop *iop, uint32_t reply_len)
 {
+	int                    rc;
 	struct m0_rpc_session *sess = iop->iop_session;
-	struct m0_fop_isc  *fop_isc = &req->cir_isc_fop;
-	struct m0_fop      *arg_fop = &req->cir_fop;
-	int                 rc;
+	struct m0_fop_isc     *fop_isc = &req->cir_isc_fop;
+	struct m0_fop         *arg_fop = &req->cir_fop;
 
 	req->cir_plop = &iop->iop_base;
 	fop_isc->fi_comp_id = *comp_fid;
@@ -263,7 +152,7 @@ void isc_req_replied(struct m0_rpc_item *item)
 	struct m0_fop         *fop = M0_AMB(fop, item, f_item);
 	struct m0_fop         *reply_fop;
 	struct m0_fop_isc_rep *isc_reply;
-	struct isc_req *req = M0_AMB(req, fop, cir_fop);
+	struct isc_req        *req = M0_AMB(req, fop, cir_fop);
 	const char *addr = m0_rpc_conn_addr(req->cir_rpc_sess->s_conn);
 
 	if (item->ri_error != 0) {
@@ -362,7 +251,7 @@ void isc_req_fini(struct isc_req *req)
 /*
  * init client resources.
  */
-int isc_init(struct m0_config *conf)
+int isc_init(struct m0_config *conf, struct m0_client **cinst)
 {
 	int   rc;
 
@@ -384,13 +273,13 @@ int isc_init(struct m0_config *conf)
 	if (!m0trace_on)
 		m0_trace_set_mmapped_buffer(false);
 
-	rc = m0_client_init(&m0_instance, conf, true);
+	rc = m0_client_init(cinst, conf, true);
 	if (rc != 0) {
 		fprintf(stderr, "failed to initilise the Client API\n");
 		return rc;
 	}
 
-	m0_container_init(&container, NULL, &M0_UBER_REALM, m0_instance);
+	m0_container_init(&container, NULL, &M0_UBER_REALM, *cinst);
 	rc = container.co_realm.re_entity.en_sm.sm_rc;
 	if (rc != 0) {
 		fprintf(stderr,"failed to open uber realm\n");
@@ -403,13 +292,9 @@ int isc_init(struct m0_config *conf)
 	return 0;
 }
 
-/*
- * isc_free()
- * free client resources.
- */
-void isc_free(void)
+void isc_fini(struct m0_client *cinst)
 {
-	m0_client_fini(m0_instance, true);
+	m0_client_fini(cinst, true);
 }
 
 /*

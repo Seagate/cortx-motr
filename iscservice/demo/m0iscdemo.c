@@ -18,15 +18,16 @@
  * please email opensource@seagate.com or cortx-questions@seagate.com.
  */
 
-#include <unistd.h>      /* getopt */
+#include <unistd.h>       /* getopt */
 
-#include "lib/memory.h"  /* m0_alloc m0_free */
-#include "rpc/conn.h"    /* m0_rpc_conn_addr */
-#include "rpc/session.h"    /* iop_session */
+#include "lib/memory.h"   /* m0_alloc m0_free */
+#include "rpc/conn.h"     /* m0_rpc_conn_addr */
+#include "rpc/session.h"  /* iop_session */
 #include "xcode/xcode.h"
-#include "conf/schema.h" /* M0_CST_ISCS */
-#include "layout/layout.h"  /* M0_DEFAULT_LAYOUT_ID */
+#include "conf/schema.h"  /* M0_CST_ISCS */
+#include "layout/layout.h" /* M0_DEFAULT_LAYOUT_ID */
 #include "layout/plan.h"  /* m0_layout_plan_build */
+#include "motr/client.h"
 
 #include "util.h"
 #include "common.h"
@@ -463,6 +464,7 @@ int main(int argc, char **argv)
 {
 	int                    rc;
 	int                    opt;
+	struct m0_client      *cinst;
 	struct m0_op          *op = NULL;
 	struct m0_layout_plan *plan;
 	struct m0_uint128      obj_id;
@@ -529,7 +531,7 @@ int main(int argc, char **argv)
 
 	m0trace_on = true;
 
-	rc = isc_init(&conf);
+	rc = isc_init(&conf, &cinst);
 	if (rc != 0) {
 		fprintf(stderr,"isc_init() failed: %d\n", rc);
 		usage();
@@ -544,7 +546,7 @@ int main(int argc, char **argv)
 		usage();
 	}
 
-	bs = isc_m0gs(&obj);
+	bs = isc_m0gs(&obj, cinst);
 	if (bs == 0) {
 		fprintf(stderr, "cannot figure out bs to use\n");
 		usage();
@@ -582,10 +584,9 @@ int main(int argc, char **argv)
 		free_segs(&data, &ext, &attr);
 	}
 
-	/* free resources*/
-	isc_free();
+	isc_fini(cinst);
 
-	return rc;
+	return rc != 0 ? 1 : 0;
 }
 
 /*

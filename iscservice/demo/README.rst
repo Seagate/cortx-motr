@@ -16,7 +16,7 @@ Loading the library
 
 With ``spiel`` command (see spiel/spiel.h and demo/util.h) the library
 can be loaded with any running Motr instance. A helper function
-``isc_api_register`` takes the library path which is (IMPORTANT!)
+``m0_isc_lib_register`` takes the library path which is (IMPORTANT!)
 expected to be the same across all the nodes running Motr.
 ``m0iscreg`` utility takes the path as an input and loads the library
 into all the remote Motr instances.

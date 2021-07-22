@@ -19,8 +19,8 @@
  */
 
 #include <stdio.h>
-#include <unistd.h>  /* getopt */
-
+#include <unistd.h>               /* getopt */
+#include "motr/client_internal.h" /* m0_client */
 #include "util.h"
 
 char *prog;
@@ -43,9 +43,10 @@ static void usage()
 
 int main(int argc, char **argv)
 {
-	int              rc;
-	int              opt;
-	struct m0_config conf = {};
+	int               rc;
+	int               opt;
+	struct m0_client *cinst;
+	struct m0_config  conf = {};
 
 	prog = basename(strdup(argv[0]));
 
@@ -81,24 +82,24 @@ int main(int argc, char **argv)
 	if (argc - optind < 1)
 		usage();
 
-	rc = isc_init(&conf);
+	rc = isc_init(&conf, &cinst);
 	if (rc != 0) {
 		fprintf(stderr,"error! isc_init() failed: %d\n", rc);
-		return -2;
+		return 2;
 	}
-	rc = isc_api_register(argv[optind]);
-	if ( rc != 0)
-		fprintf(stderr, "error! loading of library from %s failed. \n",
-			argv[1]);
-	/* free resources*/
-	isc_free();
 
-	/* success */
+	rc = m0_isc_lib_register(argv[optind], &cinst->m0c_profile_fid,
+				 &cinst->m0c_reqh);
+	if (rc != 0)
+		fprintf(stderr, "error! loading of library from %s failed.\n",
+			argv[1]);
+
+	isc_fini(cinst);
+
 	if (rc == 0)
 		fprintf(stderr,"%s success\n", prog);
-	else
-		fprintf(stderr,"%s fail\n", prog);
-	return rc;
+
+	return rc != 0 ? 1 : 0;
 }
 
 /*

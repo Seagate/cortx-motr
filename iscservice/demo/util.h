@@ -24,21 +24,9 @@
 #ifndef __MOTR_ISCSERVICE_DEMO_UTIL_H__
 #define __MOTR_ISCSERVICE_DEMO_UTIL_H__
 
-#include "motr/client.h"     /* m0_entity */
 #include "iscservice/isc.h"  /* m0_fop_isc */
 
 extern bool m0trace_on;
-
-/**
- * Initialise Motr-related stuff.
- */
-int  isc_init(struct m0_config *);
-void isc_free(void);
-
-/**
- * Return parity group size for object.
- */
-uint64_t isc_m0gs(struct m0_obj *obj);
 
 /* Import */
 struct m0_fid;
@@ -46,6 +34,9 @@ struct isc_req;
 struct m0_buf;
 struct m0_rpc_link;
 struct m0_layout_io_plop;
+struct m0_obj;
+struct m0_config;
+struct m0_client;
 enum   m0_conf_service_type;
 
 enum isc_buffer_len {
@@ -75,18 +66,22 @@ struct isc_req {
 extern struct m0_semaphore isc_sem;
 extern struct m0_list      isc_reqs;
 
+/**
+ * Initialise Motr-related stuff.
+ */
+int  isc_init(struct m0_config*, struct m0_client**);
+void isc_fini(struct m0_client*);
+
+/**
+ * Return parity group size for object.
+ */
+uint64_t isc_m0gs(struct m0_obj*, struct m0_client*);
+
 #define isc_reqs_teardown(req) \
   while (!m0_list_is_empty(&isc_reqs) && \
          (req = m0_list_entry(isc_reqs.l_head, \
                               struct isc_req, cir_link)) && \
          (m0_list_del(&req->cir_link), true))
-
-/**
- * Loads a library to all Motr instances hosting an ISC service.
- * It assumes that library is located at identical path on all
- * Motr instances.
- * */
-int isc_api_register(const char *libpath);
 
 /** RPC link for ISC service specified by the fid. */
 struct m0_rpc_link * isc_rpc_link_get(struct m0_fid *svc_fid);

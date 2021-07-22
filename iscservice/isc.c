@@ -23,18 +23,22 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ISCS
 #include "lib/trace.h"
 
+#include "lib/hash.h"
+#include "lib/memory.h"
+#include "lib/chan.h"
+#include "lib/finject.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc_machine.h"
+#include "conf/helpers.h"     /* m0_confc_root_open */
+#include "conf/diter.h"       /* m0_conf_diter_next_sync */
+#include "conf/obj_ops.h"     /* M0_CONF_DIRNEXT */
+#include "spiel/spiel.h"      /* m0_spiel_process_lib_load */
 #include "iscservice/isc.h"
 #include "iscservice/isc_service.h"
-#include "lib/hash.h"
-#include "lib/memory.h"
-#include "lib/chan.h"
-#include "lib/finject.h"
 
 static void isc_comp_cleanup(struct m0_fom *fom, int rc, int next_phase);
 static int comp_ref_get(struct m0_htable *comp_ht, struct m0_isc_comp_req *req);
@@ -678,6 +682,108 @@ M0_INTERNAL int m0_isc_comp_state_probe(const struct m0_fid *fid)
 
 	M0_LEAVE();
 	return state;
+}
+
+static int isc_spiel_prepare(struct m0_spiel *spiel, struct m0_fid *profile,
+			     struct m0_reqh *reqh)
+{
+	int  rc;
+	char profile_str[M0_FID_STR_LEN];
+
+	rc = m0_spiel_init(spiel, reqh);
+	if (rc != 0)
+		return M0_ERR_INFO(rc, "spiel initialisation failed");
+
+	snprintf(profile_str, M0_FID_STR_LEN, FID_F, FID_P(profile));
+	rc = m0_spiel_cmd_profile_set(spiel, profile_str);
+	if (rc != 0) {
+		m0_spiel_fini(spiel);
+		return M0_ERR_INFO(rc, "invalid profile: %s",
+				   (char*)profile_str);
+	}
+
+	rc = m0_spiel_rconfc_start(spiel, NULL);
+	if (rc != 0) {
+		m0_spiel_fini(spiel);
+		return M0_ERR_INFO(rc, "rconfc startup failed");
+	}
+
+	return 0;
+}
+
+static void isc_spiel_destroy(struct m0_spiel *spiel)
+{
+	m0_spiel_rconfc_stop(spiel);
+	m0_spiel_fini(spiel);
+}
+
+static bool conf_obj_is_svc(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
+}
+
+M0_INTERNAL int m0_isc_lib_register(const char *libpath, struct m0_fid *profile,
+				    struct m0_reqh *reqh)
+{
+	int                     rc;
+	struct m0_confc        *confc;
+	struct m0_conf_root    *root = NULL;
+	struct m0_conf_process *proc;
+	struct m0_conf_service *svc;
+	struct m0_conf_diter    it;
+	struct m0_spiel        *spiel_inst;
+
+	M0_ALLOC_PTR(spiel_inst);
+	if (spiel_inst == NULL)
+		return M0_ERR(-ENOMEM);
+
+	rc = isc_spiel_prepare(spiel_inst, profile, reqh);
+	if (rc != 0) {
+		m0_free(spiel_inst);
+		return M0_ERR_INFO(rc, "spiel initialization failed");
+	}
+
+	confc = m0_reqh2confc(reqh);
+	rc = m0_confc_root_open(confc, &root);
+	if (rc != 0) {
+		rc = M0_ERR_INFO(rc, "configuration open failed");
+		goto out;
+	}
+
+	rc = m0_conf_diter_init(&it, confc,
+				&root->rt_obj,
+				M0_CONF_ROOT_NODES_FID,
+				M0_CONF_NODE_PROCESSES_FID,
+				M0_CONF_PROCESS_SERVICES_FID);
+	if (rc != 0)
+		goto out;
+
+	while (M0_CONF_DIRNEXT ==
+	       (rc = m0_conf_diter_next_sync(&it, conf_obj_is_svc))) {
+
+		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
+		if (svc->cs_type != M0_CST_ISCS)
+			continue;
+		proc = M0_CONF_CAST(m0_conf_obj_grandparent(&svc->cs_obj),
+				    m0_conf_process);
+		rc = m0_spiel_process_lib_load(spiel_inst, &proc->pc_obj.co_id,
+					       libpath);
+		if (rc != 0) {
+			rc = M0_ERR_INFO(rc, "loading of %s library failed "
+					     "for process "FID_F, libpath,
+					     FID_P(&proc->pc_obj.co_id));
+			break;
+		}
+	}
+
+	m0_conf_diter_fini(&it);
+ out:
+	if (root != NULL)
+		m0_confc_close(&root->rt_obj);
+	isc_spiel_destroy(spiel_inst);
+	m0_free(spiel_inst);
+
+	return rc;
 }
 
 #undef M0_TRACE_SUBSYSTEM
