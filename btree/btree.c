@@ -1992,7 +1992,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	if (op->no_node != NULL &&
 	    op->no_node->n_addr.as_core == addr->as_core) {
 
-		if (op->no_node->n_be_node_valid) {
+		if (!op->no_node->n_be_node_valid) {
 			op->no_op.o_sm.sm_rc = M0_ERR(-EACCES);
 			m0_rwlock_write_unlock(&list_lock);
 			return nxt;
@@ -2043,7 +2043,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		node->n_seq           = m0_time_now();
 		node->n_ref           = 1;
 		node->n_txref         = 0;
-		node->n_be_node_valid = false;
+		node->n_be_node_valid = true;
 		m0_rwlock_init(&node->n_lock);
 		op->no_node           = node;
 		nt->nt_opaque_set(addr, node);
@@ -2087,7 +2087,7 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 		 */
 		node->n_tree = NULL;
 
-		if (node->n_be_node_valid) {
+		if (!node->n_be_node_valid) {
 			ndlist_tlink_del_fini(node);
 			m0_rwlock_fini(&node->n_lock);
 			op->no_addr = node->n_addr;
@@ -2118,7 +2118,7 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 
 	m0_rwlock_write_lock(&list_lock);
 	node_refcnt_update(node, false);
-	node->n_be_node_valid = true;
+	node->n_be_node_valid = false;
 
 	if (node->n_ref == 0) {
 		ndlist_tlink_del_fini(node);
