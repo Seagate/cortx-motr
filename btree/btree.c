@@ -7652,6 +7652,7 @@ static void ut_put_del_operation(void)
 					      .ksize = 8,
 					      .vsize = 8, };
 	struct m0_be_tx        *tx          = NULL;
+	struct m0_be_seg       *seg         = NULL;
 	struct m0_btree_op      b_op        = {};
 	struct m0_btree        *tree;
 	void                   *temp_node;
@@ -7681,7 +7682,7 @@ static void ut_put_del_operation(void)
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				 m0_btree_create(temp_node, 1024, &btree_type,
-						 nt, &b_op, tx));
+						 nt, &b_op, seg, tx));
 
 	tree = b_op.bo_arbor;
 	inc = false;
