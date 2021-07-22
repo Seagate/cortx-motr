@@ -1292,6 +1292,13 @@ struct level {
 	struct nd *l_alloc;
 
 	/**
+	 * Flag for indicating if l_alloc has been used or not. This flag is
+	 * used by level_cleanup. If flag is set, node_put() will be called else
+	 * node_free() will get called for l_alloc.
+	 */
+	bool      i_alloc_in_use;
+
+	/**
 	 * This is the flag for indicating if node needs to be freed. Currently
 	 * this flag is set in delete operation and is used by P_FREENODE phase
 	 * to determine if the node should be freed.
@@ -3145,20 +3152,37 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 	/** Free up allocated nodes. */
 	for (i = 0; i < oi->i_height; ++i) {
 		if (oi->i_level[i].l_alloc != NULL) {
-			oi->i_nop.no_opc = NOP_FREE;
-			/**
-			 * node_free() will not cause any I/O delay since this
-			 * node was allocated in P_ALLOC phase in put_tick and
-			 * I/O delay would have happened during the allocation.
-			 */
-			node_free(&oi->i_nop, oi->i_level[i].l_alloc, tx, 0);
-			oi->i_level[i].l_alloc = NULL;
+			if (oi->i_level[i].i_alloc_in_use)
+				node_put(&oi->i_nop, oi->i_level[i].l_alloc,
+					 tx);
+			else {
+				oi->i_nop.no_opc = NOP_FREE;
+				/**
+				 * node_free() will not cause any I/O delay
+				 * since this node was allocated in P_ALLOC
+				 * phase in put_tick and I/O delay would have
+				 * happened during the allocation.
+				 */
+				node_free(&oi->i_nop, oi->i_level[i].l_alloc,
+					  tx, 0);
+				oi->i_level[i].l_alloc = NULL;
+			}
 		}
 	}
+
 	if (oi->i_extra_node != NULL) {
-		oi->i_nop.no_opc = NOP_FREE;
-		node_free(&oi->i_nop, oi->i_extra_node, tx, 0);
-		oi->i_extra_node = NULL;
+		/**
+		 * extra_node will be used only if root splitting is done due to
+		 * overflow at root node. Therefore, extra_node must have been
+		 * used if l_alloc at root level is used.
+		 */
+		if (oi->i_level[0].i_alloc_in_use)
+			node_put(&oi->i_nop, oi->i_extra_node, tx);
+		else {
+			oi->i_nop.no_opc = NOP_FREE;
+			node_free(&oi->i_nop, oi->i_extra_node, tx, 0);
+			oi->i_extra_node = NULL;
+		}
 	}
 	m0_free(oi->i_level);
 }
@@ -3213,17 +3237,17 @@ static void btree_tx_node_capture(struct m0_btree_oimpl *oi,
 				  struct m0_be_tx *tx)
 {
 	struct node_capture_info *arr = oi->i_capture;
-	/* struct slot          node_slot; */
+	struct slot          node_slot;
 	int                       i;
 
 	for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
 		if (arr[i].nc_node == NULL)
 			break;
-		/**
-		 * node_slot.s_node = arr[i].nc_node;
-		 * node_slot.s_idx  = arr[i].nc_idx;
-		 * node_capture(&node_slot, bop->bo_tx);
-		 */
+
+		node_slot.s_node = arr[i].nc_node;
+		node_slot.s_idx  = arr[i].nc_idx;
+		node_capture(&node_slot, tx);
+
 		node_lock(arr[i].nc_node);
 		arr[i].nc_node->n_txref++;
 		node_unlock(arr[i].nc_node);
@@ -3328,9 +3352,6 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	M0_ASSERT(node_expensive_invariant(oi->i_extra_node));
 	node_unlock(lev->l_node);
 	node_unlock(oi->i_extra_node);
-
-	node_put(&oi->i_nop, oi->i_extra_node, bop->bo_tx);
-	oi->i_extra_node = NULL;
 
 	return P_CAPTURE;
 }
@@ -3447,6 +3468,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	node_lock(lev->l_alloc);
 	node_lock(lev->l_node);
 
+	lev->i_alloc_in_use = true;
+
 	btree_put_split_and_find(lev->l_alloc, lev->l_node, &bop->bo_rec, &tgt,
 				 bop->bo_seg, bop->bo_tx);
 
@@ -3466,6 +3489,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 
 		node_move(lev->l_alloc, lev->l_node, D_RIGHT,
 		          NR_MAX, bop->bo_tx);
+		lev->i_alloc_in_use = false;
 
 		node_unlock(lev->l_alloc);
 		node_unlock(lev->l_node);
@@ -3495,9 +3519,6 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	newvalue      = INTERNAL_NODE_VALUE_SIZE;
 	newv_ptr      = &(lev->l_alloc->n_addr);
 	new_rec.r_val = M0_BUFVEC_INIT_BUF(&newv_ptr, &newvsize);
-
-	node_put(&oi->i_nop, lev->l_alloc, bop->bo_tx);
-	lev->l_alloc = NULL;
 
 	for (i = oi->i_used - 1; i >= 0; i--) {
 		lev = &oi->i_level[i];
@@ -3533,6 +3554,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		node_lock(lev->l_alloc);
 		node_lock(lev->l_node);
 
+		lev->i_alloc_in_use = true;
+
 		btree_put_split_and_find(lev->l_alloc, lev->l_node, &new_rec,
 					 &tgt, bop->bo_seg, bop->bo_tx);
 
@@ -3564,9 +3587,6 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		node_key(&node_slot);
 		new_rec.r_key = node_slot.s_rec.r_key;
 		newv_ptr = &(lev->l_alloc->n_addr);
-
-		node_put(&oi->i_nop, lev->l_alloc, bop->bo_tx);
-		lev->l_alloc = NULL;
 	}
 
 	/**
