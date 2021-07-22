@@ -1114,12 +1114,10 @@ struct nd {
 	struct node_op         *n_op;
 
 	/**
-	 * flag for indicating if node needs to get freed. This flag is set by
-	 * node_free() when it cannot free the node as reference count of node
-	 * is non-zero. When the reference count goes to '0' because of
-	 * subsequent node_put's the node will then get freed.
+	 * flag for indicating if node on BE segment is valid or not, but it
+	 * does not indicated anything about node descriptor validity.
 	 */
-	bool                    n_delayed_free;
+	bool                    n_be_node_valid;
 };
 
 enum node_opcode {
@@ -2017,7 +2015,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	if (op->no_node != NULL &&
 	    op->no_node->n_addr.as_core == addr->as_core) {
 
-		if (op->no_node->n_delayed_free) {
+		if (!op->no_node->n_be_node_valid) {
 			op->no_op.o_sm.sm_rc = M0_ERR(-EACCES);
 			m0_rwlock_write_unlock(&list_lock);
 			return nxt;
@@ -2062,15 +2060,15 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		 * segment. Take up with BE segment task.
 		 */
 		M0_ASSERT(node != NULL);
-		node->n_addr         = *addr;
-		node->n_tree         = tree;
-		node->n_type         = nt;
-		node->n_seq          = m0_time_now();
-		node->n_ref          = 1;
-		node->n_txref        = 0;
-		node->n_delayed_free = false;
+		node->n_addr          = *addr;
+		node->n_tree          = tree;
+		node->n_type          = nt;
+		node->n_seq           = m0_time_now();
+		node->n_ref           = 1;
+		node->n_txref         = 0;
+		node->n_be_node_valid = true;
 		m0_rwlock_init(&node->n_lock);
-		op->no_node          = node;
+		op->no_node           = node;
 		nt->nt_opaque_set(addr, node);
 		ndlist_tlink_init_at(op->no_node, &btree_active_nds);
 	}
@@ -2112,7 +2110,7 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 		 */
 		node->n_tree = NULL;
 
-		if (node->n_delayed_free) {
+		if (!node->n_be_node_valid) {
 			ndlist_tlink_del_fini(node);
 			m0_rwlock_fini(&node->n_lock);
 			op->no_addr = node->n_addr;
@@ -2144,7 +2142,7 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	m0_rwlock_write_lock(&list_lock);
 	node_lock(node);
 	node_refcnt_update(node, false);
-	node->n_delayed_free = true;
+	node->n_be_node_valid = false;
 
 	if (node->n_ref == 0) {
 		ndlist_tlink_del_fini(node);
@@ -3259,7 +3257,7 @@ static void btree_tx_commit_cb(void *payload)
 	node_unlock(node);
 }
 
-static void btree_tx_node_capture(struct m0_btree_oimpl *oi,
+static void btree_tx_nodes_capture(struct m0_btree_oimpl *oi,
 				  struct m0_be_tx *tx)
 {
 	struct node_capture_info *arr = oi->i_capture;
@@ -3939,7 +3937,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		return P_CAPTURE;
 	}
 	case P_CAPTURE:
-		btree_tx_node_capture(oi, bop->bo_tx);
+		btree_tx_nodes_capture(oi, bop->bo_tx);
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	case P_CLEANUP:
@@ -5414,7 +5412,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		 * TBD: uncomment function call below once node_free changes
 		 * done.
 		 */
-		/* btree_tx_node_capture(oi, bop->bo_tx); */
+		/* btree_tx_nodes_capture(oi, bop->bo_tx); */
 		return P_FREENODE;
 	case P_FREENODE : {
 		int i;
