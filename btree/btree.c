@@ -1256,7 +1256,9 @@ static void node_capture(struct slot *slot, struct m0_be_tx *tx);
 #endif
 static void node_lock(struct nd *node);
 static void node_unlock(struct nd *node);
+#ifndef __KERNEL__
 static void node_fini(const struct nd *node, struct m0_be_tx *tx);
+#endif
 /**
  * Common node header.
  *
@@ -1657,11 +1659,12 @@ static void node_unlock(struct nd *node)
 	m0_rwlock_write_unlock(&node->n_lock);
 }
 
+#ifndef __KERNEL__
 static void node_fini(const struct nd *node, struct m0_be_tx *tx)
 {
 	node->n_type->nt_fini(node, tx);
 }
-
+#endif
 static struct mod *mod_get(void)
 {
 	return m0_get()->i_moddata[M0_MODULE_BTREE];
@@ -2089,7 +2092,6 @@ static int64_t node_get(struct node_op *op, struct td *tree,
  */
 static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 {
-	int shift;
 
 	M0_PRE(node != NULL);
 
@@ -2110,16 +2112,11 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 		 */
 		node->n_tree = NULL;
 
-		if (!node->n_be_node_valid) {
+		if (!node->n_be_node_valid && node->n_txref == 0) {
 			ndlist_tlink_del_fini(node);
 			m0_rwlock_fini(&node->n_lock);
-			op->no_addr = node->n_addr;
-			shift = node->n_type->nt_shift(node);
-			node_fini(node, tx);
 			m0_free(node);
 			m0_rwlock_write_unlock(&list_lock);
-			m0_free_aligned(segaddr_addr(&op->no_addr),
-					1ULL << shift, shift);
 			/** Capture in transaction */
 			return;
 		}
@@ -2143,17 +2140,15 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	node_lock(node);
 	node_refcnt_update(node, false);
 	node->n_be_node_valid = false;
+	op->no_addr = node->n_addr;
+	m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift, shift);
 
-	if (node->n_ref == 0) {
+	if (node->n_ref == 0 && node->n_txref == 0) {
 		ndlist_tlink_del_fini(node);
 		node_unlock(node);
 		m0_rwlock_fini(&node->n_lock);
-		op->no_addr = node->n_addr;
-		node_fini(node, tx);
 		m0_free(node);
 		m0_rwlock_write_unlock(&list_lock);
-		m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift,
-				shift);
 		/** Capture in transaction */
 		return nxt;
 	}
@@ -2648,7 +2643,6 @@ static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 static void ff_fini(const struct nd *node, struct m0_be_tx *tx)
 {
 	struct ff_head *h = ff_data(node);
-
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
 		.ot_version       = 0,
 		.ot_type          = 0,
@@ -3187,6 +3181,7 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 				 * phase in put_tick and I/O delay would have
 				 * happened during the allocation.
 				 */
+				node_fini(oi->i_level[i].l_alloc, tx);
 				node_free(&oi->i_nop, oi->i_level[i].l_alloc,
 					  tx, 0);
 				oi->i_level[i].l_alloc = NULL;
@@ -3204,6 +3199,7 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 			node_put(&oi->i_nop, oi->i_extra_node, tx);
 		else {
 			oi->i_nop.no_opc = NOP_FREE;
+			node_fini(oi->i_extra_node, tx);
 			node_free(&oi->i_nop, oi->i_extra_node, tx, 0);
 			oi->i_extra_node = NULL;
 		}
@@ -5001,16 +4997,18 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		node_seq_cnt_update(lev->l_node);
 		node_fix(node_slot.s_node, bop->bo_tx);
 		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
-		node_underflow = node_isunderflow(lev->l_node, false);
-		if (used_count != 0 && node_underflow) {
-			//node_fini(lev->l_node, bop->bo_tx);
-			lev->l_freenode = true;
-		}
 		/**
 		 * TBD : This check needs to be removed when debugging is
 		 * done.
 		 */
 		M0_ASSERT(node_expensive_invariant(lev->l_node));
+
+		node_underflow = node_isunderflow(lev->l_node, false);
+		if (used_count != 0 && node_underflow) {
+			node_fini(lev->l_node, bop->bo_tx);
+			lev->l_freenode = true;
+		}
+
 		node_unlock(lev->l_node);
 
 		/* check if underflow after deletion */
@@ -5385,17 +5383,17 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			node_seq_cnt_update(lev->l_node);
 			node_fix(node_slot.s_node, bop->bo_tx);
 			btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
-			node_underflow = node_isunderflow(lev->l_node, false);
-			if (oi->i_used != 0  && node_underflow) {
-				//node_fini(lev->l_node, bop->bo_tx);
-				lev->l_freenode = true;
-			}
-
 			/**
 			 * TBD : This check needs to be removed when debugging
 			 * is done.
 			 */
 			M0_ASSERT(node_expensive_invariant(lev->l_node));
+			node_underflow = node_isunderflow(lev->l_node, false);
+			if (oi->i_used != 0  && node_underflow) {
+				node_fini(lev->l_node, bop->bo_tx);
+				lev->l_freenode = true;
+			}
+
 			node_unlock(lev->l_node);
 
 			rec.r_flags = M0_BSC_SUCCESS;
@@ -5417,11 +5415,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		M0_ASSERT(0);
 	}
 	case P_CAPTURE:
-		/**
-		 * TBD: uncomment function call below once node_free changes
-		 * done.
-		 */
-		/* btree_tx_nodes_capture(oi, bop->bo_tx); */
+		btree_tx_nodes_capture(oi, bop->bo_tx);
 		return P_FREENODE;
 	case P_FREENODE : {
 		int i;
