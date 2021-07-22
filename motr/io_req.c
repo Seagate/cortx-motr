@@ -32,6 +32,7 @@
 #include "rpc/rpclib.h"          /* m0_rpc_client_connect */
 #include "lib/ext.h"             /* struct m0_ext */
 #include "lib/misc.h"            /* M0_KEY_VAL_NULL */
+#include "lib/cksum.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"           /* M0_LOG */
