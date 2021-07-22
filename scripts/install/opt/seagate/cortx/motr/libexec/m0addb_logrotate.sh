@@ -53,14 +53,15 @@ log_dirs_max_count=2
 # have hard coded the log path, 
 # Need to get it from config file 
 ADDB_RECORD_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_ADDB_STOB_DIR" | cut -d '=' -f2)
+if [ -z "$ADDB_RECORD_DIR" ]; then
+   ADDB_RECORD_DIR="/var/motr/m0d-*"
+fi
+
 ADDB_DIR="${ADDB_RECORD_DIR%\'}"
 ADDB_DIR="${ADDB_DIR#\'}"
 addb_rec_dirs=`ls -d $ADDB_DIR`
 if [ -n "$ADDB_DIR" ]; then
     addb_rec_dirs="$addb_rec_dirs $ADDB_DIR"
-fi
-if [ -z "$ADDB_RECORD_DIR" ]; then
-   ADDB_RECORD_DIR="/var/motr/m0d-*"
 fi
 
 while getopts ":n:" option; do
