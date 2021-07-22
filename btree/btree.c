@@ -3243,7 +3243,7 @@ static void btree_tx_commit_cb(void *payload)
 	node_unlock(node);
 }
 
-static void btree_tx_node_capture(struct m0_btree_oimpl *oi,
+static void btree_tx_nodes_capture(struct m0_btree_oimpl *oi,
 				  struct m0_be_tx *tx)
 {
 	struct node_capture_info *arr = oi->i_capture;
@@ -3914,7 +3914,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		return P_CAPTURE;
 	}
 	case P_CAPTURE:
-		btree_tx_node_capture(oi, bop->bo_tx);
+		btree_tx_nodes_capture(oi, bop->bo_tx);
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	case P_CLEANUP:
@@ -5373,7 +5373,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		 * TBD: uncomment function call below once node_free changes
 		 * done.
 		 */
-		/* btree_tx_node_capture(oi, bop->bo_tx); */
+		/* btree_tx_nodes_capture(oi, bop->bo_tx); */
 		return P_FREENODE;
 	case P_FREENODE : {
 		int i;
