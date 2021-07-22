@@ -253,6 +253,8 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 	 * m0_be_tx::t_reg_area should be finalized after m0_be_tx::t_sm.
 	 */
 	m0_sm_fini(&tx->t_sm);
+	if (tx->t_prepared.tc_cb_nr != 0)
+		m0_free0(&tx->t_callback);
 	m0_be_reg_area_fini(&tx->t_reg_area);
 	m0_free(tx->t_payload.b_addr);
 }
