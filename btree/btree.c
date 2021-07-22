@@ -4962,9 +4962,9 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	int                     curr_root_level;
 	struct slot             root_slot;
 	struct nd              *root_child;
+	bool                    node_underflow;
 
 	do {
-		lev->l_freenode = true;
 		used_count--;
 		lev = &oi->i_level[used_count];
 		node_lock(lev->l_node);
@@ -5001,7 +5001,11 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		node_seq_cnt_update(lev->l_node);
 		node_fix(node_slot.s_node, bop->bo_tx);
 		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
-
+		node_underflow = node_isunderflow(lev->l_node, false);
+		if (used_count != 0 && node_underflow) {
+			//node_fini(lev->l_node, bop->bo_tx);
+			lev->l_freenode = true;
+		}
 		/**
 		 * TBD : This check needs to be removed when debugging is
 		 * done.
@@ -5010,7 +5014,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		node_unlock(lev->l_node);
 
 		/* check if underflow after deletion */
-		if (flag || !node_isunderflow(lev->l_node, false))
+		if (flag || !node_underflow)
 			return P_CAPTURE;
 
 	} while (1);
@@ -5361,6 +5365,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 	case P_ACT: {
 		struct m0_btree_rec rec;
 		struct slot         node_slot;
+		bool                node_underflow;
 		/**
 		 *  if key exists, delete the key, if there is an underflow, go
 		 *  to resolve function else return P_CLEANUP.
@@ -5380,6 +5385,11 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			node_seq_cnt_update(lev->l_node);
 			node_fix(node_slot.s_node, bop->bo_tx);
 			btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
+			node_underflow = node_isunderflow(lev->l_node, false);
+			if (oi->i_used != 0  && node_underflow) {
+				//node_fini(lev->l_node, bop->bo_tx);
+				lev->l_freenode = true;
+			}
 
 			/**
 			 * TBD : This check needs to be removed when debugging
@@ -5398,8 +5408,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		}
 
 		if (oi->i_key_found) {
-			if (oi->i_used == 0 ||
-			    !node_isunderflow(lev->l_node, false)) {
+			if (oi->i_used == 0 ||  !node_underflow) {
 				/* No Underflow */
 				return P_CAPTURE;
 			}
