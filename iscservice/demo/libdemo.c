@@ -290,13 +290,23 @@ int compute_minmax(enum op op, struct m0_isc_comp_private *pdata,
 	return M0_FSO_AGAIN;
 }
 
+/**
+ * Do the computation of min/max.
+ *
+ * This function is called two times by the ISC-implementation.
+ * The 1st time we start the I/O to read the data from the object
+ * unit, and return M0_FSO_WAIT and -EAGAIN in rc argument as an
+ * indication that the function should be called again when the
+ * data is ready. When I/O is complete and the data is ready, the
+ * function is called again so we can actually do the computation.
+ */
 int do_minmax(enum op op, struct m0_buf *in, struct m0_buf *out,
 	      struct m0_isc_comp_private *data, int *rc)
 {
 	int                res;
 	struct m0_stob_io *stio = (struct m0_stob_io *)data->icp_data;
 
-	if (stio == NULL) {
+	if (stio == NULL) { /* 1st call */
 		M0_ALLOC_PTR(stio);
 		if (stio == NULL) {
 			*rc = -ENOMEM;
@@ -315,6 +325,20 @@ int do_minmax(enum op op, struct m0_buf *in, struct m0_buf *out,
 	return res;
 }
 
+/**
+ * Compute minimum value in the unit data.
+ *
+ * The computation function interface is defined at isc.h:
+ * the arguments and result are xcoded at @in and @out buffers,
+ * @comp_data contains private data for the computation which
+ * is preserved between the two calls of this function (before
+ * reading the data from the storage device and after the read
+ * is finished). @rc contains the result of the computation.
+ *
+ * @return M0_FSO_WAIT after read I/O is started
+ *                     (rc should be == -EAGAIN also)
+ * @return M0_FSO_AGAIN after the computation is complete
+ */
 int comp_min(struct m0_buf *in, struct m0_buf *out,
 	     struct m0_isc_comp_private *comp_data, int *rc)
 {
