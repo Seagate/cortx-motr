@@ -1284,7 +1284,7 @@ struct level {
 	 * used by level_cleanup. If flag is set, node_put() will be called else
 	 * node_free() will get called for l_alloc.
 	 */
-	bool      _alloc_in_use;
+	bool      i_alloc_in_use;
 
 	/**
 	 * This is the flag for indicating if node needs to be freed. Currently
@@ -3139,7 +3139,7 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 	/** Free up allocated nodes. */
 	for (i = 0; i < oi->i_height; ++i) {
 		if (oi->i_level[i].l_alloc != NULL) {
-			if (oi->i_level[i]._alloc_in_use)
+			if (oi->i_level[i].i_alloc_in_use)
 				node_put(&oi->i_nop, oi->i_level[i].l_alloc,
 					 tx);
 			else {
@@ -3163,7 +3163,7 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 		 * overflow at root node. Therefore, extra_node must have been
 		 * used if l_alloc at root level is used.
 		 */
-		if (oi->i_level[0]._alloc_in_use)
+		if (oi->i_level[0].i_alloc_in_use)
 			node_put(&oi->i_nop, oi->i_extra_node, tx);
 		else {
 			oi->i_nop.no_opc = NOP_FREE;
@@ -3420,7 +3420,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	node_lock(lev->l_alloc);
 	node_lock(lev->l_node);
 
-	lev->_alloc_in_use = true;
+	lev->i_alloc_in_use = true;
 
 	btree_put_split_and_find(lev->l_alloc, lev->l_node, &bop->bo_rec, &tgt,
 				 bop->bo_seg, bop->bo_tx);
@@ -3441,7 +3441,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 
 		node_move(lev->l_alloc, lev->l_node, D_RIGHT,
 		          NR_MAX, bop->bo_tx);
-		lev->_alloc_in_use = false;
+		lev->i_alloc_in_use = false;
 
 		node_unlock(lev->l_alloc);
 		node_unlock(lev->l_node);
@@ -3506,7 +3506,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		node_lock(lev->l_alloc);
 		node_lock(lev->l_node);
 
-		lev->_alloc_in_use = true;
+		lev->i_alloc_in_use = true;
 
 		btree_put_split_and_find(lev->l_alloc, lev->l_node, &new_rec,
 					 &tgt, bop->bo_seg, bop->bo_tx);
