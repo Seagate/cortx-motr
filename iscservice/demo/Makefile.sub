@@ -11,7 +11,7 @@ iscservice_demo_m0iscdemo_SOURCES = iscservice/demo/libdemo.h \
                                     iscservice/demo/util.c \
                                     iscservice/demo/common.c \
                                     iscservice/demo/common.h \
-                                    iscservice/demo/m0iscdemo.c
+                                    iscservice/demo/iscdemo.c
 nodist_iscservice_demo_m0iscdemo_SOURCES = \
                                     iscservice/demo/libdemo_xc.c
 
