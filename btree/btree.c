@@ -1368,6 +1368,16 @@ struct m0_btree_oimpl {
 	 */
 	struct node_capture_info   i_capture[BTREE_CALLBACK_CREDIT];
 
+	/**
+	 * Flag for indicating if root child needs to be freed. After deleting
+	 * record from root node, if root node is an internal node and it
+	 * contains only one child, we copy all records from that child node to
+	 * root node, decrease the height of tree and set this flag. This flag
+	 * will be used by P_FREENODE to determine if child node needs to be
+	 * freed.
+	*/
+	bool                       i_root_child_free;
+
 };
 
 static struct td        trees[M0_TREE_COUNT];
@@ -3231,7 +3241,7 @@ static void btree_tx_commit_cb(void *payload)
 	node_unlock(node);
 }
 
-static void btree_tx_node_capture(struct m0_btree_oimpl *oi,
+static void btree_tx_nodes_capture(struct m0_btree_oimpl *oi,
 				  struct m0_be_tx *tx)
 {
 	struct node_capture_info *arr = oi->i_capture;
@@ -3902,7 +3912,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		return P_CAPTURE;
 	}
 	case P_CAPTURE:
-		btree_tx_node_capture(oi, bop->bo_tx);
+		btree_tx_nodes_capture(oi, bop->bo_tx);
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	case P_CLEANUP:
@@ -3997,17 +4007,17 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_ACT] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_ACT",
-		.sd_allowed = M0_BITS(P_FREENODE, P_CAPTURE, P_CLEANUP, P_DONE),
+		.sd_allowed = M0_BITS(P_CAPTURE, P_CLEANUP, P_DONE),
 	},
 	[P_CAPTURE] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CAPTURE",
-		.sd_allowed = M0_BITS(P_CLEANUP),
+		.sd_allowed = M0_BITS(P_FREENODE, P_CLEANUP),
 	},
 	[P_FREENODE] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_FREENODE",
-		.sd_allowed = M0_BITS(P_FREENODE, P_CLEANUP, P_FINI),
+		.sd_allowed = M0_BITS(P_CLEANUP, P_FINI),
 	},
 	[P_CLEANUP] = {
 		.sd_flags   = 0,
@@ -4077,10 +4087,9 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
 	{ "put-makespace", P_MAKESPACE, P_ACT },
 	{ "kvop-act", P_ACT, P_CLEANUP },
-	{ "put-act", P_ACT, P_CAPTURE },
-	{ "del-act", P_ACT, P_FREENODE },
+	{ "put-del-act", P_ACT, P_CAPTURE },
 	{ "put-capture", P_CAPTURE, P_CLEANUP},
-	{ "del-freenode-repeat", P_FREENODE, P_FREENODE },
+	{ "del-capture-freenode", P_CAPTURE, P_FREENODE},
 	{ "del-freenode-cleanup", P_FREENODE, P_CLEANUP },
 	{ "del-freenode-fini", P_FREENODE, P_FINI},
 	{ "kvop-cleanup-setup", P_CLEANUP, P_SETUP },
@@ -4976,10 +4985,8 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		node_unlock(lev->l_node);
 
 		/* check if underflow after deletion */
-		if (flag || !node_isunderflow(lev->l_node, false)) {
-			lock_op_unlock(tree);
-			return P_FREENODE;
-		}
+		if (flag || !node_isunderflow(lev->l_node, false))
+			return P_CAPTURE;
 
 	} while (1);
 
@@ -5010,15 +5017,14 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	M0_ASSERT(node_count_rec(root_child) == 0);
 	btree_node_capture_enlist(oi, lev->l_node, 0);
 	btree_node_capture_enlist(oi, root_child, 0);
+	oi->i_root_child_free = true;
 
 	/* TBD : This check needs to be removed when debugging is done. */
 	M0_ASSERT(node_expensive_invariant(lev->l_node));
 	node_unlock(lev->l_node);
 	node_unlock(root_child);
 
-	lock_op_unlock(tree);
-	oi->i_level[1].l_sibling = NULL;
-	return node_free(&oi->i_nop, root_child, bop->bo_tx, P_FREENODE);
+	return P_CAPTURE;
 }
 
 /**
@@ -5358,29 +5364,38 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			}
 			return btree_del_resolve_underflow(bop);
 		}
-		lock_op_unlock(tree);
-		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
-	}
-	case P_FREENODE : {
-		struct nd *node;
-
-		lev = &oi->i_level[oi->i_used];
-		if (lev->l_freenode) {
-			M0_ASSERT(oi->i_used > 0);
-			oi->i_used --;
-			node = lev->l_node;
-			lev->l_node = NULL;
-			oi->i_nop.no_opc = NOP_FREE;
-			return node_free(&oi->i_nop, node,
-					 bop->bo_tx, P_FREENODE);
-		}
-		oi->i_used = oi->i_height - 1;
-		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
+		M0_ASSERT(0);
 	}
 	case P_CAPTURE:
-		btree_tx_node_capture(oi, bop->bo_tx);
+		/**
+		 * TBD: uncomment function call below once node_free changes
+		 * done.
+		 */
+		/* btree_tx_nodes_capture(oi, bop->bo_tx); */
+		return P_FREENODE;
+	case P_FREENODE : {
+		int i;
+		for (i = oi->i_used; i >= 0; i--) {
+			lev = &oi->i_level[i];
+			if (lev->l_freenode) {
+				M0_ASSERT(oi->i_used > 0);
+				oi->i_nop.no_opc = NOP_FREE;
+				node_free(&oi->i_nop, lev->l_node,
+					  bop->bo_tx, 0);
+				lev->l_node = NULL;
+			} else
+				break;
+		}
+		if (oi->i_root_child_free) {
+			lev = &oi->i_level[1];
+			oi->i_nop.no_opc = NOP_FREE;
+			node_free(&oi->i_nop, lev->l_sibling, bop->bo_tx, 0);
+			lev->l_sibling = NULL;
+		}
+
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
+	}
 	case P_CLEANUP :
 		level_cleanup(oi, bop->bo_tx);
 		return m0_sm_op_ret(&bop->bo_op);
@@ -7635,6 +7650,7 @@ static void ut_put_del_operation(void)
 					      .ksize = 8,
 					      .vsize = 8, };
 	struct m0_be_tx        *tx          = NULL;
+	struct m0_be_seg       *seg         = NULL;
 	struct m0_btree_op      b_op        = {};
 	struct m0_btree        *tree;
 	void                   *temp_node;
@@ -7664,7 +7680,7 @@ static void ut_put_del_operation(void)
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				 m0_btree_create(temp_node, 1024, &btree_type,
-						 nt, &b_op, tx));
+						 nt, &b_op, seg, tx));
 
 	tree = b_op.bo_arbor;
 	inc = false;
