@@ -32,14 +32,6 @@
 #define DEBUG 0
 #endif
 
-enum {
-	MAX_M0_BUFSZ = 128*1024*1024, /* max bs for object store I/O  */
-	MAX_POOLS = 16,
-	MAX_RCFILE_NAME_LEN = 512,
-	MAX_CONF_STR_LEN = 128,
-	MAX_CONF_PARAMS = 32,
-};
-
 /* static variables */
 static struct m0_container      container;
 static struct m0_idx_dix_config dix_conf = {};
@@ -131,6 +123,7 @@ int isc_req_prepare(struct isc_req *req, struct m0_buf *args,
 		fprintf(stderr, "error! m0_rpc_at_add() failed with %d\n", rc);
 		return rc;
 	}
+
 	/* Initialise the reply RPC AT buffer to be received.*/
 	m0_rpc_at_init(&fop_isc->fi_ret);
 	rc = m0_rpc_at_recv(&fop_isc->fi_ret, sess->s_conn, reply_len, false);
@@ -140,6 +133,7 @@ int isc_req_prepare(struct isc_req *req, struct m0_buf *args,
 		fprintf(stderr, "error! m0_rpc_at_recv() failed with %d\n", rc);
 		return rc;
 	}
+
 	m0_fop_init(arg_fop, &m0_fop_isc_fopt, fop_isc, m0_fop_release);
 	req->cir_rpc_sess = sess;
 
@@ -161,6 +155,7 @@ void isc_req_replied(struct m0_rpc_item *item)
 			"No reply from %s: rc=%d.\n", addr, item->ri_error);
 		goto err;
 	}
+
 	reply_fop = m0_rpc_item_to_fop(req->cir_fop.f_item.ri_reply);
 	isc_reply = (struct m0_fop_isc_rep *)m0_fop_data(reply_fop);
 	rc = req->cir_rc = isc_reply->fir_rc;
@@ -171,6 +166,7 @@ void isc_req_replied(struct m0_rpc_item *item)
 			fprintf(stderr, "Was isc .so library is loaded?\n");
 		goto err;
 	}
+
 	rc = m0_rpc_at_rep_get(&req->cir_isc_fop.fi_ret, &isc_reply->fir_ret,
 			       &req->cir_result);
 	if (rc != 0)
@@ -226,11 +222,9 @@ int isc_req_send(struct isc_req *req)
 
 static void fop_fini_lock(struct m0_fop *fop)
 {
-	struct m0_rpc_machine *mach = m0_fop_rpc_machine(fop);
-
-	m0_rpc_machine_lock(mach);
+	m0_rpc_machine_lock(m0_fop_rpc_machine(fop));
 	m0_fop_fini(fop);
-	m0_rpc_machine_unlock(mach);
+	m0_rpc_machine_unlock(m0_fop_rpc_machine(fop));
 }
 
 void isc_req_fini(struct isc_req *req)
@@ -257,18 +251,11 @@ int isc_init(struct m0_config *conf, struct m0_client **cinst)
 
 	conf->mc_is_oostore            = true;
 	conf->mc_is_read_verify        = false;
-#if 0
-	/* set to default values */
 	conf->mc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	conf->mc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
-#endif
-	/* set to Sage cluster specific values */
-	conf->mc_tm_recv_queue_min_len = 64;
-	conf->mc_max_rpc_msg_size      = 65536;
 	conf->mc_layout_id             = 0;
-
-	conf->mc_idx_service_id   = M0_IDX_DIX;
-	conf->mc_idx_service_conf = &dix_conf;
+	conf->mc_idx_service_id        = M0_IDX_DIX;
+	conf->mc_idx_service_conf      = &dix_conf;
 
 	if (!m0trace_on)
 		m0_trace_set_mmapped_buffer(false);

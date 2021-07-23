@@ -124,7 +124,9 @@ static int input_prepare(struct m0_buf *buf, struct m0_fid *comp_fid,
 	return -EINVAL;
 }
 
-/* Compute the final result from two results received from the server. */
+/**
+ * Compute the final result from two results received from the server.
+ */
 static struct mm_result *
 op_result(struct mm_result *x, struct mm_result *y, enum isc_comp_type op_type)
 {
@@ -167,7 +169,7 @@ op_result(struct mm_result *x, struct mm_result *y, enum isc_comp_type op_type)
 	/*
 	 * It may happen that there will be two values in the buffer (when
 	 * the split happens right around the delimiter), so we should try
-	 * to read it too and account it in the final computation.
+	 * to read it and account it in the final computation too.
 	 */
 	val2 = val1;
 	rc = sscanf(buf + len, "%lf", &val2);
@@ -210,6 +212,9 @@ static void set_idx(struct mm_result *res, enum elm_order e)
 		res->mr_idx = res->mr_nr;
 }
 
+/**
+ * Process the first or the last values in the first or last results.
+ */
 static void check_edge_val(struct mm_result *res, enum elm_order e,
 			   enum isc_comp_type type)
 {
@@ -363,9 +368,8 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 	int                    rc;
 	int                    reqs_nr = 0;
 	uint32_t               reply_len;
-	struct isc_req *req;
+	struct isc_req        *req;
 	struct m0_layout_plop *plop = NULL;
-	struct m0_layout_plop *prev_plop;
 	struct m0_layout_io_plop *iopl;
 	static void           *out_args = NULL; /* computation output */
 	const char            *conn_addr = NULL;
@@ -378,7 +382,6 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 			fprintf(stderr, "request allocation failed\n");
 			break;
 		}
-		prev_plop = plop;
 		rc = m0_layout_plan_get(plan, 0, &plop);
 		if (rc != 0) {
 			fprintf(stderr, "failed to get plop: rc=%d\n", rc);
@@ -388,29 +391,26 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 		if (plop->pl_type == M0_LAT_DONE)
 			break;
 
-		if (plop->pl_type == M0_LAT_OUT_READ) {
-			/* XXX just to be sure, for now only */
-			M0_ASSERT(prev_plop != NULL &&
-				  prev_plop->pl_type == M0_LAT_READ);
-			continue;
-		}
+		if (plop->pl_type == M0_LAT_OUT_READ)
+			continue; /* XXX not used atm */
 
-		M0_ASSERT(plop->pl_type == M0_LAT_READ); /* XXX for now */
+		M0_ASSERT(plop->pl_type == M0_LAT_READ);
+
 		m0_layout_plop_start(plop);
 
 		iopl = container_of(plop, struct m0_layout_io_plop, iop_base);
 
 		DBG("req=%d goff=%lu segs=%d\n", reqs_nr, iopl->iop_goff,
 		                                 iopl->iop_ext.iv_vec.v_nr);
-		/* Prepare arguments for computation. */
+		/* Prepare arguments for the computation. */
 		rc = input_prepare(&buf, &comp_fid, iopl, &reply_len, op_type);
 		if (rc != 0) {
 			m0_layout_plop_done(plop);
 			fprintf(stderr, "input preparation failed: %d\n", rc);
 			break;
 		}
-		rc = isc_req_prepare(req, &buf, &comp_fid, iopl,
-					    reply_len);
+
+		rc = isc_req_prepare(req, &buf, &comp_fid, iopl, reply_len);
 		if (rc != 0) {
 			m0_buf_free(&buf);
 			m0_layout_plop_done(plop);
@@ -429,11 +429,11 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 		reqs_nr++;
 	}
 
-	/* wait for all the replies */
+	/* Wait for all the replies. */
 	while (reqs_nr-- > 0)
 		m0_semaphore_down(&isc_sem);
 
-	/* process the replies */
+	/* Process the replies. */
 	isc_reqs_teardown(req) {
 		iopl = M0_AMB(iopl, req->cir_plop, iop_base);
 		DBG2("req=%d goff=%lu\n", ++reqs_nr, iopl->iop_goff);
@@ -459,9 +459,8 @@ static int open_entity(struct m0_entity *entity)
 
 	m0_entity_open(entity, &op);
 	m0_op_launch(&op, 1);
-	rc = m0_op_wait(op, M0_BITS(M0_OS_FAILED,
-					       M0_OS_STABLE),
-			       M0_TIME_NEVER) ?: m0_rc(op);
+	rc = m0_op_wait(op, M0_BITS(M0_OS_FAILED, M0_OS_STABLE),
+			M0_TIME_NEVER) ?: m0_rc(op);
 	m0_op_fini(op);
 	m0_op_free(op);
 

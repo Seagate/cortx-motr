@@ -27,8 +27,6 @@
 #include "iscservice/isc.h"  /* m0_fop_isc */
 #include "rpc/rpc_machine.h" /* M0_RPC_DEF_MAX_RPC_MSG_SIZE */
 
-extern bool m0trace_on;
-
 /* Import */
 struct m0_fid;
 struct isc_req;
@@ -64,6 +62,7 @@ struct isc_req {
 	struct m0_list_link    cir_link;
 };
 
+extern struct m0_realm     uber_realm;
 extern struct m0_semaphore isc_sem;
 extern struct m0_list      isc_reqs;
 
@@ -84,11 +83,9 @@ uint64_t isc_m0gs(struct m0_obj*, struct m0_client*);
                               struct isc_req, cir_link)) && \
          (m0_list_del(&req->cir_link), true))
 
-/** RPC link for ISC service specified by the fid. */
-struct m0_rpc_link * isc_rpc_link_get(struct m0_fid *svc_fid);
-
 /**
  * Prepares a request using provided parameters.
+ *
  * @param[in] args      Holds arguments for the computation.
  * @param[in] comp      The unique fid associated with the computation.
  * @param[in] iopl      IO plop associated with the request.
@@ -96,12 +93,14 @@ struct m0_rpc_link * isc_rpc_link_get(struct m0_fid *svc_fid);
  *                      be greater than the actual length of reply.
  */
 int isc_req_prepare(struct isc_req *, struct m0_buf *args,
-			   const struct m0_fid *comp,
-			   struct m0_layout_io_plop *iopl, uint32_t reply_len);
+		    const struct m0_fid *comp,
+		    struct m0_layout_io_plop *iopl, uint32_t reply_len);
 
 /**
- * Sends a request asynchronously. The request is added to the
- * isc_reqs list. On reply receipt, isc_sem(aphore) is up-ped.
+ * Sends a request asynchronously.
+ *
+ * The request is added to the isc_reqs list maintaining the order by
+ * the object unit offset. On reply receipt, isc_sem(aphore) is up-ped.
  * The received reply is populated at req->cir_result.
  * The error code is returned at req->cir_rc.
  */
@@ -112,16 +111,14 @@ int isc_req_send(struct isc_req *req);
  */
 void isc_req_fini(struct isc_req *req);
 
-extern unsigned unit_size; /* in KiBs, default 4 */
-extern struct m0_realm uber_realm;
-
 int alloc_segs(struct m0_bufvec *data, struct m0_indexvec *ext,
 	       struct m0_bufvec *attr, uint64_t bsz, uint32_t cnt);
 void free_segs(struct m0_bufvec *data, struct m0_indexvec *ext,
 	       struct m0_bufvec *attr);
 uint64_t set_exts(struct m0_indexvec *ext, uint64_t off, uint64_t bsz);
 
-extern int trace_level;
+extern bool  m0trace_on;
+extern int   trace_level;
 extern char *prog;
 
 enum {
@@ -147,7 +144,6 @@ enum {
     ERR("bsz(%lu) must divide m0bs(%lu)\n", (bsz), (m0bs)); \
     return -EINVAL; \
   }
-
 
 #endif /* __MOTR_ISCSERVICE_DEMO_UTIL_H__ */
 
