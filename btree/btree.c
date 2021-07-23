@@ -1456,9 +1456,8 @@ static bool node_verify(const struct nd *node)
 #ifndef __KERNEL__
 /**
  * This function should get called in node_lock or tree_lock mode. As, it deals
- * with header update and n_be_node_valid flag check which will get modified
- * only node_fini() in node lock mode or node_free() in tree_lock and node_lock
- * mode.
+ * with header and n_be_node_valid flag which will get updated in node_fini()
+ * and node_free() respectively in tree_lock or node_lock mode only.
  */
 static bool node_isvalid(const struct nd *node)
 {
@@ -3239,6 +3238,13 @@ static void btree_tx_commit_cb(void *payload)
 	node_lock(node);
 	M0_ASSERT(node->n_txref != 0);
 	node->n_txref--;
+	if (!node->n_be_node_valid && node->n_txref == 0) {
+		ndlist_tlink_del_fini(node);
+		node_unlock(node);
+		m0_rwlock_fini(&node->n_lock);
+		m0_free(node);
+		return;
+	}
 	node_unlock(node);
 }
 
