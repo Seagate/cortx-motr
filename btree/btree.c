@@ -1244,8 +1244,6 @@ static void node_cut  (const struct nd *node, int idx, int size,
 		       struct m0_be_tx *tx);
 #endif
 static void node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
-static void node_refcnt_update(struct nd *node, bool increment);
-
 #ifndef __KERNEL__
 static void node_set_level  (const struct nd *node, uint8_t new_level,
 			     struct m0_be_tx *tx);
@@ -1596,19 +1594,6 @@ static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 {
 	M0_PRE(node_invariant(node));
 	node->n_type->nt_del(node, idx, tx);
-}
-
-/**
- * Updates the node reference count
- *
- * @param node The node descriptor whose ref count needs to be updated.
- * @param increment If true increase ref count.
- *		    If false decrease ref count.
- */
-static void node_refcnt_update(struct nd *node, bool increment)
-{
-	M0_ASSERT(ergo(!increment, node->n_ref != 0));
-	increment ? node->n_ref++ : node->n_ref--;
 }
 
 #ifndef __KERNEL__
@@ -2063,7 +2048,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		}
 
 		in_lrulist = op->no_node->n_ref == 0;
-		node_refcnt_update(op->no_node, true);
+		op->no_node->n_ref++;
 		if (in_lrulist) {
 			/**
 			 * The node descriptor is in LRU list. Remove from lru
@@ -2086,7 +2071,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		op->no_node = nt->nt_opaque_get(addr);
 		if (op->no_node != NULL &&
 		    op->no_node->n_addr.as_core == addr->as_core) {
-			node_refcnt_update(op->no_node, true);
+			op->no_node->n_ref++;
 			m0_rwlock_write_unlock(&list_lock);
 			return nxt;
 		}
@@ -2135,7 +2120,7 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 	M0_PRE(node != NULL);
 
 	m0_rwlock_write_lock(&list_lock);
-	node_refcnt_update(node, false);
+	node->n_ref--;
 	if (node->n_ref == 0) {
 		/**
 		 * The node descriptor is in tree's active list. Remove from
@@ -2181,7 +2166,7 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	int shift = node->n_type->nt_shift(node);
 
 	m0_rwlock_write_lock(&list_lock);
-	node_refcnt_update(node, false);
+	node->n_ref--;
 	node->n_be_node_valid = false;
 
 	if (node->n_ref == 0) {
