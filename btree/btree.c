@@ -3681,6 +3681,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 
 			node_lock(lev->l_node);
 			lev->l_seq = oi->i_nop.no_node->n_seq;
+			oi->i_nop.no_node = NULL;
 
 			/**
 			 * Node validation is required to determine that the
@@ -3699,8 +3700,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-
-			oi->i_nop.no_node = NULL;
 
 			oi->i_key_found = node_find(&node_slot,
 						    &bop->bo_rec.r_key);
@@ -3800,6 +3799,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				int vsize;
 				int shift;
 				lev->l_alloc = oi->i_nop.no_node;
+				oi->i_nop.no_node = NULL;
 				node_lock(lev->l_node);
 				if (!node_isvalid(lev->l_node)) {
 					node_unlock(lev->l_node);
@@ -3819,6 +3819,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 
 			} else if (oi->i_extra_node == NULL) {
 				oi->i_extra_node = oi->i_nop.no_node;
+				oi->i_nop.no_node = NULL;
 				return P_LOCK;
 			} else
 				M0_ASSERT(0);
@@ -5232,6 +5233,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 
 			node_lock(lev->l_node);
 			lev->l_seq = oi->i_nop.no_node->n_seq;
+			oi->i_nop.no_node = NULL;
 
 			/**
 			 * Node validation is required to determine that the
@@ -5249,8 +5251,6 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-
-			oi->i_nop.no_node = NULL;
 
 			oi->i_key_found = node_find(&node_slot,
 						    &bop->bo_rec.r_key);
@@ -5314,14 +5314,15 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			root_child = oi->i_level[1].l_sibling;
 			node_lock(root_child);
 
+			oi->i_level[1].l_sib_seq = oi->i_nop.no_node->n_seq;
+			oi->i_nop.no_node = NULL;
+
 			if (!node_isvalid(root_child) ||
 			    node_count_rec(root_child) == 0) {
 				node_unlock(root_child);
  				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-			/* store child of the root. */
-			oi->i_level[1].l_sib_seq = oi->i_nop.no_node->n_seq;
 
 			node_unlock(root_child);
 			/* Fall through to the next step */
