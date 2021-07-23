@@ -224,10 +224,13 @@ struct m0_confx_fdmi_flt_grp {
 
 struct m0_confx_fdmi_filter {
 	struct m0_confx_header xf_header;
+	uint32_t               xf_type;
 	struct m0_fid          xf_filter_id;
 	/* String representation of FDMI filter root. */
 	struct m0_buf          xf_filter_root;
 	struct m0_fid          xf_node;
+	struct m0_fid          xf_dix_pver;
+	struct m0_bufs         xf_substrings;
 	struct m0_bufs         xf_endpoints;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
