@@ -1455,7 +1455,7 @@ static bool node_verify(const struct nd *node)
 
 #ifndef __KERNEL__
 /**
- * This function should get called in node_lock mode only.
+ * This function should be called after acquiring node lock.
  */
 static bool node_isvalid(const struct nd *node)
 {
