@@ -3985,19 +3985,17 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_STORE_CHILD] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_STORE_CHILD",
-		.sd_allowed = M0_BITS(P_CHECK, P_CLEANUP, P_LOCKALL,
-				      P_FREENODE),
+		.sd_allowed = M0_BITS(P_CHECK, P_CLEANUP, P_DOWN, P_CAPTURE),
 	},
 	[P_LOCK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_LOCK",
-		.sd_allowed = M0_BITS(P_CHECK, P_CAPTURE, P_CLEANUP, P_LOCKALL,
-				      P_FREENODE),
+		.sd_allowed = M0_BITS(P_CHECK, P_CAPTURE, P_CLEANUP),
 	},
 	[P_CHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CHECK",
-		.sd_allowed = M0_BITS(P_CAPTURE, P_CLEANUP, P_DOWN, P_FREENODE),
+		.sd_allowed = M0_BITS(P_CAPTURE, P_CLEANUP, P_DOWN),
 	},
 	[P_MAKESPACE] = {
 		.sd_flags   = 0,
@@ -4073,17 +4071,14 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "put-allocstore-fail", P_ALLOC_STORE, P_CLEANUP },
 	{ "del-child-check", P_STORE_CHILD, P_CHECK },
 	{ "del-child-check-ht-changed", P_STORE_CHILD, P_CLEANUP },
-	{ "del-child-check-ht-same", P_STORE_CHILD, P_LOCKALL },
-	{ "del-child-check-act-free", P_STORE_CHILD, P_FREENODE },
+	{ "del-child-check-ht-same", P_STORE_CHILD, P_DOWN },
+	{ "del-child-check-ft", P_STORE_CHILD, P_CAPTURE },
 	{ "kvop-lock", P_LOCK, P_CHECK },
 	{ "kvop-lock-check-ht-changed", P_LOCK, P_CLEANUP },
-	{ "kvop-lock-check-ht-same", P_LOCK, P_LOCKALL },
 	{ "put-lock-ft-capture", P_LOCK, P_CAPTURE },
-	{ "del-check-act-free", P_LOCK, P_FREENODE },
 	{ "kvop-check-height-changed", P_CHECK, P_CLEANUP },
 	{ "kvop-check-height-same", P_CHECK, P_DOWN },
 	{ "put-check-ft-capture", P_CHECK, P_CAPTURE },
-	{ "del-act-free", P_CHECK, P_FREENODE },
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
 	{ "put-makespace", P_MAKESPACE, P_ACT },
 	{ "kvop-act", P_ACT, P_CLEANUP },
@@ -5280,7 +5275,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			/* Fall through to the next step */
 		} else {
 			node_op_fini(&oi->i_nop);
-			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 		}
 	}
 	case P_LOCK:
