@@ -1458,12 +1458,16 @@ static bool node_verify(const struct nd *node)
 #ifndef __KERNEL__
 /**
  * This function should get called in node_lock or tree_lock mode. As, it deals
- * with header update which will get modified only in tree_lock and node_lock
+ * with header update and n_be_node_valid flag check which will get modified
+ * only node_fini() in node lock mode or node_free() in tree_lock and node_lock
  * mode.
  */
 static bool node_isvalid(const struct nd *node)
 {
-	return node->n_type->nt_isvalid(&node->n_addr);
+	if (node->n_be_node_valid)
+		return node->n_type->nt_isvalid(&node->n_addr);
+
+	return false;
 }
 
 #endif
