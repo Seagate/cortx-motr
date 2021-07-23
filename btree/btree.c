@@ -2106,7 +2106,6 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 			m0_rwlock_fini(&node->n_lock);
 			m0_free(node);
 			m0_rwlock_write_unlock(&list_lock);
-			/** Capture in transaction */
 			return;
 		}
 	}
@@ -2131,6 +2130,7 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	node->n_be_node_valid = false;
 	op->no_addr = node->n_addr;
 	m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift, shift);
+	/** Capture in transaction */
 
 	if (node->n_ref == 0 && node->n_txref == 0) {
 		ndlist_tlink_del_fini(node);
@@ -3789,8 +3789,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				if (!node_isvalid(lev->l_node)) {
 					node_unlock(lev->l_node);
 					return m0_sm_op_sub(&bop->bo_op,
-								P_CLEANUP,
-								P_SETUP);
+							    P_CLEANUP, P_SETUP);
 				}
 				ksize = node_keysize(lev->l_node);
 				vsize = node_valsize(lev->l_node);
@@ -5391,7 +5390,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		}
 
 		if (oi->i_key_found) {
-			if (oi->i_used == 0 ||  !node_underflow) {
+			if (oi->i_used == 0 || !node_underflow) {
 				/* No Underflow */
 				return P_CAPTURE;
 			}
