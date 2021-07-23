@@ -25,6 +25,7 @@
 #define __MOTR_ISCSERVICE_DEMO_UTIL_H__
 
 #include "iscservice/isc.h"  /* m0_fop_isc */
+#include "rpc/rpc_machine.h" /* M0_RPC_DEF_MAX_RPC_MSG_SIZE */
 
 extern bool m0trace_on;
 

@@ -25,9 +25,6 @@
 #include "fid/fid.h"        /* m0_fid */
 #include "fop/fom.h"        /* M0_FSO_AGAIN */
 #include "stob/io.h"        /* m0_stob_io_init */
-#include "ioservice/fid_convert.h" /* m0_fid_convert_cob2stob */
-#include "ioservice/storage_dev.h" /* m0_storage_dev_stob_find */
-#include "motr/setup.h"     /* m0_cs_storage_devs_get */
 #include "iscservice/isc.h" /* m0_isc_comp_register */
 
 #include "util.h"
@@ -66,70 +63,11 @@ int hello_world(struct m0_buf *in, struct m0_buf *out,
 
 enum op {MIN, MAX};
 
-static void stio_fini(struct m0_stob_io *stio, struct m0_stob *stob)
+int launch_io(struct m0_isc_comp_private *pdata, struct m0_buf *in, int *rc)
 {
-	m0_indexvec_free(&stio->si_stob);
-	m0_free(stio->si_user.ov_buf[0]);
-	m0_bufvec_free2(&stio->si_user);
-	m0_stob_io_fini(stio);
-	m0_storage_dev_stob_put(m0_cs_storage_devs_get(), stob);
-}
-
-static void bufvec_pack(struct m0_bufvec *bv, uint32_t shift)
-{
-	uint32_t i;
-
-	for (i = 0; i < bv->ov_vec.v_nr; i++) {
-		bv->ov_vec.v_count[i] >>= shift;
-		bv->ov_buf[i] = m0_stob_addr_pack(bv->ov_buf[i], shift);
-	}
-}
-
-static void bufvec_open(struct m0_bufvec *bv, uint32_t shift)
-{
-	uint32_t i;
-
-	for (i = 0; i < bv->ov_vec.v_nr; i++) {
-		bv->ov_vec.v_count[i] <<= shift;
-		bv->ov_buf[i] = m0_stob_addr_open(bv->ov_buf[i], shift);
-	}
-}
-
-static int bufvec_alloc_init(struct m0_bufvec *bv, struct m0_io_indexvec *iiv,
-			     uint32_t shift)
-{
-	int   rc;
-	int   i;
-	char *p;
-
-	p = m0_alloc_aligned(m0_io_count(iiv), shift);
-	if (p == NULL)
-		return M0_ERR_INFO(-ENOMEM, "failed to allocate buf");
-
-	rc = m0_bufvec_empty_alloc(bv, iiv->ci_nr);
-	if (rc != 0) {
-		m0_free(p);
-		return M0_ERR_INFO(rc, "failed to allocate bufvec");
-	}
-
-	for (i = 0; i < iiv->ci_nr; i++) {
-		bv->ov_buf[i] = p;
-		bv->ov_vec.v_count[i] = iiv->ci_iosegs[i].ci_count;
-		p += iiv->ci_iosegs[i].ci_count;
-	}
-
-	return 0;
-}
-
-int launch_stob_io(struct m0_isc_comp_private *pdata,
-		   struct m0_buf *in, int *rc)
-{
-	uint32_t           shift = 0;
 	struct m0_stob_io *stio = (struct m0_stob_io *)pdata->icp_data;
 	struct m0_fom     *fom = pdata->icp_fom;
 	struct isc_targs   ta = {};
-	struct m0_stob_id  stob_id;
-	struct m0_stob    *stob = NULL;
 
 	*rc = m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(isc_targs_xc, &ta),
 					in->b_addr, in->b_nob);
@@ -138,67 +76,8 @@ int launch_stob_io(struct m0_isc_comp_private *pdata,
 		return M0_FSO_AGAIN;
 	}
 
-	if (ta.ist_ioiv.ci_nr == 0) {
-		M0_LOG(M0_ERROR, "no io segments given");
-		*rc = -EINVAL;
-		goto err;
-	}
-
-	m0_stob_io_init(stio);
-	stio->si_opcode = SIO_READ;
-
-	m0_fid_convert_cob2stob(&ta.ist_cob, &stob_id);
-	*rc = m0_storage_dev_stob_find(m0_cs_storage_devs_get(),
-				       &stob_id, &stob);
+	*rc = m0_isc_io_launch(stio, &ta.ist_cob, &ta.ist_ioiv, fom);
 	if (*rc != 0) {
-		M0_LOG(M0_ERROR, "failed to find stob by cob="FID_F": rc=%d",
-		       FID_P(&ta.ist_cob), *rc);
-		goto err;
-	}
-
-	shift = m0_stob_block_shift(stob);
-
-	*rc = m0_indexvec_wire2mem(&ta.ist_ioiv, ta.ist_ioiv.ci_nr,
-				   shift, &stio->si_stob);
-	if (*rc != 0) {
-		M0_LOG(M0_ERROR, "failed to make cob ivec: rc=%d", *rc);
-		goto err;
-	}
-
-	*rc = bufvec_alloc_init(&stio->si_user, &ta.ist_ioiv, shift);
-	if (*rc != 0) {
-		M0_LOG(M0_ERROR, "failed to allocate bufvec: rc=%d", *rc);
-		goto err;
-	}
-
-	bufvec_pack(&stio->si_user, shift);
-
-	*rc = m0_stob_io_private_setup(stio, stob);
-	if (*rc != 0) {
-		M0_LOG(M0_ERROR, "failed to setup adio for stob="FID_F": rc=%d",
-		       FID_P(&stob->so_id.si_fid), *rc);
-		goto err;
-	}
-
-	/* make sure the fom is waked up on I/O completion */
-	m0_mutex_lock(&stio->si_mutex);
-	m0_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
-	m0_mutex_unlock(&stio->si_mutex);
-
-	*rc = m0_stob_io_prepare_and_launch(stio, stob, NULL, NULL);
-	if (*rc != 0) {
-		M0_LOG(M0_ERROR, "failed to launch io for stob="FID_F": rc=%d",
-		       FID_P(&stob->so_id.si_fid), *rc);
-		m0_mutex_lock(&stio->si_mutex);
-		m0_fom_callback_cancel(&fom->fo_cb);
-		m0_mutex_unlock(&stio->si_mutex);
-	}
- err:
-	if (*rc != 0) {
-		if (stob != NULL) {
-			bufvec_open(&stio->si_user, shift);
-			stio_fini(stio, stob);
-		}
 		/*
 		 * EAGAIN has a special meaning in the calling isc code,
 		 * so make sure we don't return it by accident.
@@ -217,19 +96,20 @@ int compute_minmax(enum op op, struct m0_isc_comp_private *pdata,
 {
 	int               i = 0;
 	int               n;
-	uint32_t          shift;
 	double            val;
 	FILE             *f;
 	char             *p;
+	m0_bcount_t       len;
 	struct mm_result  res = {};
 	struct m0_buf     buf = M0_BUF_INIT0;
-	struct m0_stob_io *stio = (struct m0_stob_io *)pdata->icp_data;
 
-	shift = m0_stob_block_shift(stio->si_obj);
-	bufvec_open(&stio->si_user, shift);
-	p = stio->si_user.ov_buf[0];
+	len = m0_isc_io_res((struct m0_stob_io *)pdata->icp_data, &p);
+	if (len < 0) {
+		*rc = M0_ERR_INFO((int)len, "failed to read data");
+		return M0_FSO_AGAIN;
+	}
 
-	f = fmemopen(p, stio->si_count << shift, "r");
+	f = fmemopen(p, len, "r");
 	if (f == NULL) {
 		*rc = M0_ERR(-errno);
 		return M0_FSO_AGAIN;
@@ -313,12 +193,12 @@ int do_minmax(enum op op, struct m0_buf *in, struct m0_buf *out,
 			return M0_FSO_AGAIN;
 		}
 		data->icp_data = stio;
-		res = launch_stob_io(data, in, rc);
+		res = launch_io(data, in, rc);
 		if (*rc != -EAGAIN)
 			m0_free(stio);
 	} else {
 		res = compute_minmax(op, data, out, rc);
-		stio_fini(stio, stio->si_obj);
+		m0_isc_io_fini(stio);
 		m0_free(stio);
 	}
 

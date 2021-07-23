@@ -279,6 +279,27 @@ M0_INTERNAL int m0_isc_comp_state_probe(const struct m0_fid *fid);
 M0_INTERNAL int m0_isc_lib_register(const char *libpath, struct m0_fid *profile,
                                     struct m0_reqh *reqh);
 
+/**
+ * Launches read I/O on the @cob at @iv.
+ * Wakes up @fom when the data is ready.
+ */
+M0_INTERNAL int m0_isc_io_launch(struct m0_stob_io *stio,
+				 struct m0_fid *cob,
+				 struct m0_io_indexvec *iv,
+				 struct m0_fom *fom);
+
+/**
+ * Retrieves the read I/O result after m0_isc_io_launch() into @buf.
+ *
+ * @retval number of bytes read or -error 
+ */
+M0_INTERNAL int64_t m0_isc_io_res(struct m0_stob_io *stio, char **buf);
+
+/**
+ * Releases the I/O data structures.
+ */
+M0_INTERNAL void m0_isc_io_fini(struct m0_stob_io *stio);
+
 /** @} end of iscservice */
 /* __MOTR_ISC_H__ */
 #endif
