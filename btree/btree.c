@@ -1252,6 +1252,11 @@ static void node_move (struct nd *src, struct nd *tgt, enum direction dir,
 
 static void node_capture(struct slot *slot, struct m0_be_tx *tx);
 #endif
+static void node_lock(struct nd *node);
+static void node_unlock(struct nd *node);
+#ifndef __KERNEL__
+static void node_fini(const struct nd *node, struct m0_be_tx *tx);
+#endif
 /**
  * Common node header.
  *
@@ -1449,9 +1454,15 @@ static bool node_verify(const struct nd *node)
 #endif
 
 #ifndef __KERNEL__
+/**
+ * This function should be called after acquiring node lock.
+ */
 static bool node_isvalid(const struct nd *node)
 {
-	return node->n_type->nt_isvalid(&node->n_addr);
+	if (node->n_be_node_valid)
+		return node->n_type->nt_isvalid(&node->n_addr);
+
+	return false;
 }
 
 #endif
@@ -1622,6 +1633,7 @@ static void node_capture(struct slot *slot, struct m0_be_tx *tx)
 {
 	slot->s_node->n_type->nt_capture(slot, tx);
 }
+#endif
 
 static void node_lock(struct nd *node)
 {
@@ -1632,8 +1644,13 @@ static void node_unlock(struct nd *node)
 {
 	m0_rwlock_write_unlock(&node->n_lock);
 }
-#endif
 
+#ifndef __KERNEL__
+static void node_fini(const struct nd *node, struct m0_be_tx *tx)
+{
+	node->n_type->nt_fini(node, tx);
+}
+#endif
 static struct mod *mod_get(void)
 {
 	return m0_get()->i_moddata[M0_MODULE_BTREE];
@@ -1987,8 +2004,10 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	if (op->no_node != NULL &&
 	    op->no_node->n_addr.as_core == addr->as_core) {
 
+		node_lock(op->no_node);
 		if (!op->no_node->n_be_node_valid) {
 			op->no_op.o_sm.sm_rc = M0_ERR(-EACCES);
+			node_unlock(op->no_node);
 			m0_rwlock_write_unlock(&list_lock);
 			return nxt;
 		}
@@ -2009,6 +2028,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 			 */
 			op->no_node->n_tree = tree;
 		}
+		node_unlock(op->no_node);
 	} else {
 		/**
 		 * If node descriptor is already allocated for the node, no need
@@ -2017,7 +2037,9 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		op->no_node = nt->nt_opaque_get(addr);
 		if (op->no_node != NULL &&
 		    op->no_node->n_addr.as_core == addr->as_core) {
+			node_lock(op->no_node);
 			op->no_node->n_ref++;
+			node_unlock(op->no_node);
 			m0_rwlock_write_unlock(&list_lock);
 			return nxt;
 		}
@@ -2061,11 +2083,11 @@ static int64_t node_get(struct node_op *op, struct td *tree,
  */
 static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 {
-	int shift;
 
 	M0_PRE(node != NULL);
 
 	m0_rwlock_write_lock(&list_lock);
+	node_lock(node);
 	node->n_ref--;
 	if (node->n_ref == 0) {
 		/**
@@ -2082,20 +2104,16 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 		 */
 		node->n_tree = NULL;
 
-		if (!node->n_be_node_valid) {
+		if (!node->n_be_node_valid && node->n_txref == 0) {
 			ndlist_tlink_del_fini(node);
+			node_unlock(node);
 			m0_rwlock_fini(&node->n_lock);
-			op->no_addr = node->n_addr;
-			shift = node->n_type->nt_shift(node);
-			node->n_type->nt_fini(node, tx);
 			m0_free(node);
 			m0_rwlock_write_unlock(&list_lock);
-			m0_free_aligned(segaddr_addr(&op->no_addr),
-					1ULL << shift, shift);
-			/** Capture in transaction */
 			return;
 		}
 	}
+	node_unlock(node);
 	m0_rwlock_write_unlock(&list_lock);
 }
 #endif
@@ -2112,21 +2130,23 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	int shift = node->n_type->nt_shift(node);
 
 	m0_rwlock_write_lock(&list_lock);
+	node_lock(node);
 	node->n_ref--;
 	node->n_be_node_valid = false;
+	op->no_addr = node->n_addr;
+	m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift, shift);
+	/** Capture in transaction */
 
-	if (node->n_ref == 0) {
+	if (node->n_ref == 0 && node->n_txref == 0) {
 		ndlist_tlink_del_fini(node);
+		node_unlock(node);
 		m0_rwlock_fini(&node->n_lock);
-		op->no_addr = node->n_addr;
-		node->n_type->nt_fini(node, tx);
 		m0_free(node);
 		m0_rwlock_write_unlock(&list_lock);
-		m0_free_aligned(segaddr_addr(&op->no_addr), 1ULL << shift,
-				shift);
 		/** Capture in transaction */
 		return nxt;
 	}
+	node_unlock(node);
 	m0_rwlock_write_unlock(&list_lock);
 	return nxt;
 }
@@ -2617,7 +2637,6 @@ static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 static void ff_fini(const struct nd *node, struct m0_be_tx *tx)
 {
 	struct ff_head *h = ff_data(node);
-
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
 		.ot_version       = 0,
 		.ot_type          = 0,
@@ -3061,12 +3080,17 @@ static bool path_check(struct m0_btree_oimpl *oi, struct td *tree,
 
 	while (total_level >= 0) {
 		l_node = oi->i_level[total_level].l_node;
+		node_lock(l_node);
 		if (!node_isvalid(l_node)) {
+			node_unlock(l_node);
 			node_op_fini(&oi->i_nop);
 			return false;
 		}
-		if (oi->i_level[total_level].l_seq != l_node->n_seq)
+		if (oi->i_level[total_level].l_seq != l_node->n_seq) {
+			node_unlock(l_node);
 			return false;
+		}
+		node_unlock(l_node);
 		total_level--;
 	}
 	return true;
@@ -3085,12 +3109,17 @@ static bool sibling_node_check(struct m0_btree_oimpl *oi)
 	if (l_sibling == NULL || oi->i_pivot == -1)
 		return true;
 
+	node_lock(l_sibling);
 	if (!node_isvalid(l_sibling)) {
+		node_unlock(l_sibling);
 		node_op_fini(&oi->i_nop);
 		return false;
 	}
-	if (oi->i_level[oi->i_used].l_sib_seq != l_sibling->n_seq)
+	if (oi->i_level[oi->i_used].l_sib_seq != l_sibling->n_seq) {
+		node_unlock(l_sibling);
 		return false;
+	}
+	node_unlock(l_sibling);
 	return true;
 }
 
@@ -3156,6 +3185,7 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 				 * phase in put_tick and I/O delay would have
 				 * happened during the allocation.
 				 */
+				node_fini(oi->i_level[i].l_alloc, tx);
 				node_free(&oi->i_nop, oi->i_level[i].l_alloc,
 					  tx, 0);
 				oi->i_level[i].l_alloc = NULL;
@@ -3173,6 +3203,7 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 			node_put(&oi->i_nop, oi->i_extra_node, tx);
 		else {
 			oi->i_nop.no_opc = NOP_FREE;
+			node_fini(oi->i_extra_node, tx);
 			node_free(&oi->i_nop, oi->i_extra_node, tx, 0);
 			oi->i_extra_node = NULL;
 		}
@@ -3223,6 +3254,13 @@ static void btree_tx_commit_cb(void *payload)
 	node_lock(node);
 	M0_ASSERT(node->n_txref != 0);
 	node->n_txref--;
+	if (!node->n_be_node_valid && node->n_ref == 0 && node->n_txref == 0) {
+		ndlist_tlink_del_fini(node);
+		node_unlock(node);
+		m0_rwlock_fini(&node->n_lock);
+		m0_free(node);
+		return;
+	}
 	node_unlock(node);
 }
 
@@ -3650,6 +3688,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 
 			node_lock(lev->l_node);
 			lev->l_seq = oi->i_nop.no_node->n_seq;
+			oi->i_nop.no_node = NULL;
 
 			/**
 			 * Node validation is required to determine that the
@@ -3668,8 +3707,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-
-			oi->i_nop.no_node = NULL;
 
 			oi->i_key_found = node_find(&node_slot,
 						    &bop->bo_rec.r_key);
@@ -3715,12 +3752,17 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	case P_ALLOC_REQUIRE:{
 		do {
 			lev = &oi->i_level[oi->i_alloc_lev];
-			if (!node_isvalid(lev->l_node))
+			node_lock(lev->l_node);
+			if (!node_isvalid(lev->l_node)) {
+				node_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
+			}
 
-			if (!node_isoverflow(lev->l_node))
+			if (!node_isoverflow(lev->l_node)) {
+				node_unlock(lev->l_node);
 				break;
+			}
 			if (lev->l_alloc == NULL || (oi->i_alloc_lev == 0 &&
 			    oi->i_extra_node == NULL)) {
 				/**
@@ -3731,12 +3773,14 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				int vsize = node_valsize(lev->l_node);
 				int shift = node_shift(lev->l_node);
 				oi->i_nop.no_opc = NOP_ALLOC;
+				node_unlock(lev->l_node);
 				return node_alloc(&oi->i_nop, tree,
 						  shift, lev->l_node->n_type,
 						  ksize, vsize, bop->bo_tx,
 						  P_ALLOC_STORE);
 
 			}
+			node_unlock(lev->l_node);
 			oi->i_alloc_lev--;
 		} while (oi->i_alloc_lev >= 0);
 		return P_LOCK;
@@ -3762,16 +3806,18 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				int vsize;
 				int shift;
 				lev->l_alloc = oi->i_nop.no_node;
-
+				oi->i_nop.no_node = NULL;
+				node_lock(lev->l_node);
 				if (!node_isvalid(lev->l_node)) {
+					node_unlock(lev->l_node);
 					return m0_sm_op_sub(&bop->bo_op,
-								P_CLEANUP,
-								P_SETUP);
+							    P_CLEANUP, P_SETUP);
 				}
 				ksize = node_keysize(lev->l_node);
 				vsize = node_valsize(lev->l_node);
 				shift = node_shift(lev->l_node);
 				oi->i_nop.no_opc = NOP_ALLOC;
+				node_unlock(lev->l_node);
 				return node_alloc(&oi->i_nop, tree,
 						  shift, lev->l_node->n_type,
 						  ksize, vsize, bop->bo_tx,
@@ -3779,6 +3825,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 
 			} else if (oi->i_extra_node == NULL) {
 				oi->i_extra_node = oi->i_nop.no_node;
+				oi->i_nop.no_node = NULL;
 				return P_LOCK;
 			} else
 				M0_ASSERT(0);
@@ -4917,9 +4964,9 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	int                     curr_root_level;
 	struct slot             root_slot;
 	struct nd              *root_child;
+	bool                    node_underflow;
 
 	do {
-		lev->l_freenode = true;
 		used_count--;
 		lev = &oi->i_level[used_count];
 		node_lock(lev->l_node);
@@ -4956,16 +5003,22 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		node_seq_cnt_update(lev->l_node);
 		node_fix(node_slot.s_node, bop->bo_tx);
 		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
-
 		/**
 		 * TBD : This check needs to be removed when debugging is
 		 * done.
 		 */
 		M0_ASSERT(node_expensive_invariant(lev->l_node));
+
+		node_underflow = node_isunderflow(lev->l_node, false);
+		if (used_count != 0 && node_underflow) {
+			node_fini(lev->l_node, bop->bo_tx);
+			lev->l_freenode = true;
+		}
+
 		node_unlock(lev->l_node);
 
 		/* check if underflow after deletion */
-		if (flag || !node_isunderflow(lev->l_node, false))
+		if (flag || !node_underflow)
 			return P_CAPTURE;
 
 	} while (1);
@@ -5023,10 +5076,16 @@ static bool child_node_check(struct m0_btree_oimpl *oi)
 	l_node = oi->i_level[1].l_sibling;
 
 	if (l_node) {
-		if (!node_isvalid(l_node))
+		node_lock(l_node);
+		if (!node_isvalid(l_node)) {
+			node_unlock(l_node);
 			return false;
-		if (oi->i_level[1].l_sib_seq != l_node->n_seq)
+		}
+		if (oi->i_level[1].l_sib_seq != l_node->n_seq) {
+			node_unlock(l_node);
 			return false;
+		}
+		node_unlock(l_node);
 	}
 	return true;
 }
@@ -5042,20 +5101,29 @@ static bool child_node_check(struct m0_btree_oimpl *oi)
  */
 static int8_t root_child_is_req(struct m0_btree_op *bop)
 {
-	struct m0_btree_oimpl *oi = bop->bo_i;
-	int8_t                 load = 0;
+	struct m0_btree_oimpl *oi         = bop->bo_i;
+	int8_t                 load       = 0;
 	int                    used_count = oi->i_used;
+	struct level          *lev;
+
 	do {
-		if (!node_isvalid(oi->i_level[used_count].l_node))
+		lev = &oi->i_level[used_count];
+		node_lock(lev->l_node);
+		if (!node_isvalid(lev->l_node)) {
+			node_unlock(lev->l_node);
 			return -1;
+		}
 		if (used_count == 0) {
-			if (node_count_rec(oi->i_level[used_count].l_node) == 2)
+			if (node_count_rec(lev->l_node) == 2)
 				load = 1;
+			node_unlock(lev->l_node);
 			break;
 		}
-		if (!node_isunderflow(oi->i_level[used_count].l_node, true))
+		if (!node_isunderflow(lev->l_node, true)) {
+			node_unlock(lev->l_node);
 			break;
-
+		}
+		node_unlock(lev->l_node);
 		used_count--;
 	}while (1);
 	return load;
@@ -5172,6 +5240,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 
 			node_lock(lev->l_node);
 			lev->l_seq = oi->i_nop.no_node->n_seq;
+			oi->i_nop.no_node = NULL;
 
 			/**
 			 * Node validation is required to determine that the
@@ -5189,8 +5258,6 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-
-			oi->i_nop.no_node = NULL;
 
 			oi->i_key_found = node_find(&node_slot,
 						    &bop->bo_rec.r_key);
@@ -5229,9 +5296,16 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 				 * going to be deleted, load the other child of
 				 * root.
 				 */
-				if (oi->i_used > 0 &&
-				    node_count_rec(oi->i_level[0].l_node) == 2)
-					return root_case_handle(bop);
+				if (oi->i_used > 0) {
+					struct nd *root_node;
+					root_node = oi->i_level[0].l_node;
+					node_lock(root_node);
+					if (node_count_rec(root_node) == 2) {
+						node_unlock(root_node);
+						return root_case_handle(bop);
+					}
+					node_unlock(root_node);
+				}
 
 				return P_LOCK;
 			}
@@ -5247,14 +5321,15 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			root_child = oi->i_level[1].l_sibling;
 			node_lock(root_child);
 
+			oi->i_level[1].l_sib_seq = oi->i_nop.no_node->n_seq;
+			oi->i_nop.no_node = NULL;
+
 			if (!node_isvalid(root_child) ||
 			    node_count_rec(root_child) == 0) {
 				node_unlock(root_child);
  				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
 			}
-			/* store child of the root. */
-			oi->i_level[1].l_sib_seq = oi->i_nop.no_node->n_seq;
 
 			node_unlock(root_child);
 			/* Fall through to the next step */
@@ -5300,6 +5375,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 	case P_ACT: {
 		struct m0_btree_rec rec;
 		struct slot         node_slot;
+		bool                node_underflow;
 		/**
 		 *  if key exists, delete the key, if there is an underflow, go
 		 *  to resolve function else return P_CLEANUP.
@@ -5319,12 +5395,17 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			node_seq_cnt_update(lev->l_node);
 			node_fix(node_slot.s_node, bop->bo_tx);
 			btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
-
 			/**
 			 * TBD : This check needs to be removed when debugging
 			 * is done.
 			 */
 			M0_ASSERT(node_expensive_invariant(lev->l_node));
+			node_underflow = node_isunderflow(lev->l_node, false);
+			if (oi->i_used != 0  && node_underflow) {
+				node_fini(lev->l_node, bop->bo_tx);
+				lev->l_freenode = true;
+			}
+
 			node_unlock(lev->l_node);
 
 			rec.r_flags = M0_BSC_SUCCESS;
@@ -5337,8 +5418,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		}
 
 		if (oi->i_key_found) {
-			if (oi->i_used == 0 ||
-			    !node_isunderflow(lev->l_node, false)) {
+			if (oi->i_used == 0 || !node_underflow) {
 				/* No Underflow */
 				return P_CAPTURE;
 			}
@@ -5347,11 +5427,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		M0_ASSERT(0);
 	}
 	case P_CAPTURE:
-		/**
-		 * TBD: uncomment function call below once node_free changes
-		 * done.
-		 */
-		/* btree_tx_nodes_capture(oi, bop->bo_tx); */
+		btree_tx_nodes_capture(oi, bop->bo_tx);
 		return P_FREENODE;
 	case P_FREENODE : {
 		int i;
