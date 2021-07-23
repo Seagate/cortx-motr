@@ -1455,9 +1455,7 @@ static bool node_verify(const struct nd *node)
 
 #ifndef __KERNEL__
 /**
- * This function should get called in node_lock or tree_lock mode. As, it deals
- * with header and n_be_node_valid flag which will get updated in node_fini()
- * and node_free() respectively in tree_lock or node_lock mode only.
+ * This function should get called in node_lock mode only.
  */
 static bool node_isvalid(const struct nd *node)
 {
@@ -2006,8 +2004,10 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	if (op->no_node != NULL &&
 	    op->no_node->n_addr.as_core == addr->as_core) {
 
+		node_lock(op->no_node);
 		if (!op->no_node->n_be_node_valid) {
 			op->no_op.o_sm.sm_rc = M0_ERR(-EACCES);
+			node_unlock(op->no_node);
 			m0_rwlock_write_unlock(&list_lock);
 			return nxt;
 		}
@@ -2028,6 +2028,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 			 */
 			op->no_node->n_tree = tree;
 		}
+		node_unlock(op->no_node);
 	} else {
 		/**
 		 * If node descriptor is already allocated for the node, no need
@@ -2036,7 +2037,9 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		op->no_node = nt->nt_opaque_get(addr);
 		if (op->no_node != NULL &&
 		    op->no_node->n_addr.as_core == addr->as_core) {
+			node_lock(op->no_node);
 			op->no_node->n_ref++;
+			node_unlock(op->no_node);
 			m0_rwlock_write_unlock(&list_lock);
 			return nxt;
 		}
@@ -2084,6 +2087,7 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 	M0_PRE(node != NULL);
 
 	m0_rwlock_write_lock(&list_lock);
+	node_lock(node);
 	node->n_ref--;
 	if (node->n_ref == 0) {
 		/**
@@ -2102,12 +2106,14 @@ static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
 
 		if (!node->n_be_node_valid && node->n_txref == 0) {
 			ndlist_tlink_del_fini(node);
+			node_unlock(node);
 			m0_rwlock_fini(&node->n_lock);
 			m0_free(node);
 			m0_rwlock_write_unlock(&list_lock);
 			return;
 		}
 	}
+	node_unlock(node);
 	m0_rwlock_write_unlock(&list_lock);
 }
 #endif
@@ -3074,12 +3080,17 @@ static bool path_check(struct m0_btree_oimpl *oi, struct td *tree,
 
 	while (total_level >= 0) {
 		l_node = oi->i_level[total_level].l_node;
+		node_lock(l_node);
 		if (!node_isvalid(l_node)) {
+			node_unlock(l_node);
 			node_op_fini(&oi->i_nop);
 			return false;
 		}
-		if (oi->i_level[total_level].l_seq != l_node->n_seq)
+		if (oi->i_level[total_level].l_seq != l_node->n_seq) {
+			node_unlock(l_node);
 			return false;
+		}
+		node_unlock(l_node);
 		total_level--;
 	}
 	return true;
@@ -3098,12 +3109,17 @@ static bool sibling_node_check(struct m0_btree_oimpl *oi)
 	if (l_sibling == NULL || oi->i_pivot == -1)
 		return true;
 
+	node_lock(l_sibling);
 	if (!node_isvalid(l_sibling)) {
+		node_unlock(l_sibling);
 		node_op_fini(&oi->i_nop);
 		return false;
 	}
-	if (oi->i_level[oi->i_used].l_sib_seq != l_sibling->n_seq)
+	if (oi->i_level[oi->i_used].l_sib_seq != l_sibling->n_seq) {
+		node_unlock(l_sibling);
 		return false;
+	}
+	node_unlock(l_sibling);
 	return true;
 }
 
@@ -3238,7 +3254,7 @@ static void btree_tx_commit_cb(void *payload)
 	node_lock(node);
 	M0_ASSERT(node->n_txref != 0);
 	node->n_txref--;
-	if (!node->n_be_node_valid && node->n_txref == 0) {
+	if (!node->n_be_node_valid && node->n_ref == 0 && node->n_txref == 0) {
 		ndlist_tlink_del_fini(node);
 		node_unlock(node);
 		m0_rwlock_fini(&node->n_lock);
@@ -5060,10 +5076,16 @@ static bool child_node_check(struct m0_btree_oimpl *oi)
 	l_node = oi->i_level[1].l_sibling;
 
 	if (l_node) {
-		if (!node_isvalid(l_node))
+		node_lock(l_node);
+		if (!node_isvalid(l_node)) {
+			node_unlock(l_node);
 			return false;
-		if (oi->i_level[1].l_sib_seq != l_node->n_seq)
+		}
+		if (oi->i_level[1].l_sib_seq != l_node->n_seq) {
+			node_unlock(l_node);
 			return false;
+		}
+		node_unlock(l_node);
 	}
 	return true;
 }
