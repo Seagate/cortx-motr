@@ -1139,6 +1139,8 @@ static int application_data_copy(struct pargrp_iomap      *map,
  */
 static bool verify_checksum(struct m0_op_io *ioo)
 {
+
+#ifndef __KERNEL__
 	struct m0_pi_seed seed;
 	struct m0_bufvec user_data = {};
 	int usz, rc, count, i;
@@ -1213,7 +1215,6 @@ static bool verify_checksum(struct m0_op_io *ioo)
 			seed.obj_id.f_key       = ioo->ioo_obj->ob_entity.en_id.u_lo;
 
 			pi_ondisk = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[attr_idx];
-
 			if (!m0_calc_verify_cksum_one_unit(pi_ondisk, &seed, &user_data)) {
 				return false;
 			}
@@ -1235,6 +1236,8 @@ static bool verify_checksum(struct m0_op_io *ioo)
 		M0_ASSERT(0);
 		return true;
 	}
+#endif
+	return true;
 }
 
 /**

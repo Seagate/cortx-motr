@@ -25,7 +25,6 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
-//#include "lib/finject.h"
 
 
 M0_INTERNAL int m0_calculate_md5_inc_context(
@@ -231,8 +230,10 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 				}
 			}
 	}
+
+	return true;
 #endif
-	return false;
+
 }
 
 M0_EXPORTED(m0_calc_verify_cksum_one_unit);
