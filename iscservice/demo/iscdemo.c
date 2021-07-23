@@ -124,14 +124,15 @@ static int input_prepare(struct m0_buf *buf, struct m0_fid *comp_fid,
 	return -EINVAL;
 }
 
+/* Compute the final result from two results received from the server. */
 static struct mm_result *
 op_result(struct mm_result *x, struct mm_result *y, enum isc_comp_type op_type)
 {
-	int               rc;
-	int               len;
-	char             *buf;
-	double            x_rval;
-	double            y_lval;
+	int     rc;
+	int     len;
+	char   *buf;
+	double  val1;
+	double  val2;
 
 	len = x->mr_rbuf.b_nob + y->mr_lbuf.b_nob;
 	buf = malloc(x->mr_rbuf.b_nob + y->mr_lbuf.b_nob + 1);
@@ -141,13 +142,17 @@ op_result(struct mm_result *x, struct mm_result *y, enum isc_comp_type op_type)
 		return NULL;
 	}
 
+	/*
+	 * Glue two edge buffers from the two results and read the value
+	 * from it. This value must be accounted in the final computation.
+	 */
 	memcpy(buf, x->mr_rbuf.b_addr, x->mr_rbuf.b_nob);
 	buf[x->mr_rbuf.b_nob] = '\0';
 	DBG2("xrbuf=%s\n", buf);
 	memcpy(buf + x->mr_rbuf.b_nob, y->mr_lbuf.b_addr, y->mr_lbuf.b_nob);
 	buf[x->mr_rbuf.b_nob + y->mr_lbuf.b_nob] = '\0';
 
-	rc = sscanf(buf, "%lf%n", &x_rval, &len);
+	rc = sscanf(buf, "%lf%n", &val1, &len);
 	if (rc < 1) {
 		fprintf(stderr, "failed to read the resulting xr-value\n");
 		m0_free(buf);
@@ -157,13 +162,17 @@ op_result(struct mm_result *x, struct mm_result *y, enum isc_comp_type op_type)
 	y->mr_idx += x->mr_nr;
 	y->mr_nr  += x->mr_nr;
 
-	DBG2("buf=%s x_rval=%lf\n", buf, x_rval);
+	DBG2("buf=%s val1=%lf\n", buf, val1);
 
-	rc = sscanf(buf + len, "%lf", &y_lval);
-	if (rc < 1) {
-		y_lval = x_rval;
-	} else {
-		DBG2("y_lval=%lf\n", y_lval);
+	/*
+	 * It may happen that there will be two values in the buffer (when
+	 * the split happens right around the delimiter), so we should try
+	 * to read it too and account it in the final computation.
+	 */
+	val2 = val1;
+	rc = sscanf(buf + len, "%lf", &val2);
+	if (rc == 1) {
+		DBG2("val2=%lf\n", val2);
 		y->mr_idx++;
 		y->mr_nr++;
 	}
@@ -171,17 +180,16 @@ op_result(struct mm_result *x, struct mm_result *y, enum isc_comp_type op_type)
 	DBG2("xval=%lf yval=%lf\n", x->mr_val, y->mr_val);
 
 	if (ICT_MIN == op_type)
-		y->mr_val = min3(min_check(x->mr_val, y->mr_val),
-				 x_rval, y_lval);
+		y->mr_val = min3(min_check(x->mr_val, y->mr_val), val1, val2);
 	else
-		y->mr_val = max3(max_check(x->mr_val, y->mr_val),
-				 x_rval, y_lval);
+		y->mr_val = max3(max_check(x->mr_val, y->mr_val), val1, val2);
 
+	/* Update the resulting value index. */
 	if (y->mr_val == x->mr_val)
 		y->mr_idx = x->mr_idx;
-	else if (y->mr_val == x_rval)
+	else if (y->mr_val == val1)
 		y->mr_idx = x->mr_nr;
-	else if (y->mr_val == y_lval)
+	else if (y->mr_val == val2)
 		y->mr_idx = x->mr_nr + 1;
 
 	m0_free(buf);
@@ -464,7 +472,7 @@ int main(int argc, char **argv)
 {
 	int                    rc;
 	int                    opt;
-	struct m0_client      *cinst;
+	struct m0_client      *cinst = NULL;
 	struct m0_op          *op = NULL;
 	struct m0_layout_plan *plan;
 	struct m0_uint128      obj_id;

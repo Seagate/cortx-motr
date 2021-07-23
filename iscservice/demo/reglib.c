@@ -45,7 +45,7 @@ int main(int argc, char **argv)
 {
 	int               rc;
 	int               opt;
-	struct m0_client *cinst;
+	struct m0_client *cinst = NULL;
 	struct m0_config  conf = {};
 
 	prog = basename(strdup(argv[0]));
