@@ -2226,7 +2226,7 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 			M0_ASSERT(offset != 0);
 			offset--;
 			trees_in_use[i] |= (1ULL << offset);
-			offset += (i * sizeof trees_in_use[0]);
+			offset += (i * (sizeof trees_in_use[0]) * 8);
 			tree = &trees[offset];
 			trees_loaded++;
 			break;
@@ -2317,8 +2317,8 @@ static void mem_tree_put(struct td *tree)
 		m0_rwlock_write_lock(&trees_lock);
 		M0_ASSERT(trees_loaded > 0);
 		i = tree - &trees[0];
-		array_offset = i / sizeof(trees_in_use[0]);
-		bit_offset_in_array = i % sizeof(trees_in_use[0]);
+		array_offset = i / (sizeof(trees_in_use[0]) * 8);
+		bit_offset_in_array = i % (sizeof(trees_in_use[0]) * 8);
 		trees_in_use[array_offset] &= ~(1ULL << bit_offset_in_array);
 		trees_loaded--;
 		m0_rwlock_write_unlock(&tree->t_lock);
