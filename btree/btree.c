@@ -2241,7 +2241,7 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 			M0_ASSERT(offset != 0);
 			offset--;
 			trees_in_use[i] |= (1ULL << offset);
-			offset += (i * sizeof trees_in_use[0]);
+			offset += (i * (sizeof trees_in_use[0]) * 8);
 			tree = &trees[offset];
 			trees_loaded++;
 			break;
