@@ -1474,6 +1474,7 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 
 	M0_LOG(M0_DEBUG, "[%p] dgmap_nr=%u is in dgmode",
 			 ioo, ioo->ioo_dgmap_nr);
+	ioo->ioo_pbuf_type = M0_PBUF_DIR;
 	/*
 	 * Starts processing the pages again if any of the parity groups
 	 * spanned by input IO-request is in degraded mode.
