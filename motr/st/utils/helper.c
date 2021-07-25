@@ -38,6 +38,9 @@
 #include "motr/client_internal.h"
 
 extern struct m0_addb_ctx m0_addb_ctx;
+enum {
+ATTR_SIZE = 16,
+};
 
 static int noop_lock_init(struct m0_obj *obj)
 {
@@ -97,7 +100,7 @@ static inline uint32_t entity_sm_state(struct m0_obj *obj)
 
 static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 		      struct m0_bufvec *attr, uint32_t block_count,
-		      uint32_t block_size)
+		      uint32_t block_size, uint32_t unit_sz, uint32_t cs_sz)
 {
 	int      rc;
 
@@ -109,19 +112,33 @@ static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 	 * this allocates <block_count> * <block_size>  buffers for data,
 	 * and initialises the bufvec for us.
 	 */
-
 	rc = m0_bufvec_alloc(data, block_count, block_size);
 	if (rc != 0) {
 		m0_indexvec_free(ext);
 		return rc;
 	}
-	rc = m0_bufvec_alloc(attr, block_count, 1);
+	rc = m0_bufvec_alloc(attr, (block_count * block_size)/unit_sz, cs_sz);
 	if (rc != 0) {
 		m0_indexvec_free(ext);
 		m0_bufvec_free(data);
 		return rc;
 	}
 	return rc;
+}
+
+static int write_dummy_hash_data(struct m0_uint128 id, struct m0_bufvec *attr, struct m0_bufvec *data)
+{
+	int i;
+	int nr_unit;
+        unsigned char dummy_cksum = 'a';
+	M0_ASSERT(data != NULL);
+	nr_unit = attr->ov_vec.v_nr;
+	for (i = 0; i < nr_unit; ++i) {
+		memset(attr->ov_buf[i], dummy_cksum++, ATTR_SIZE);
+		attr->ov_vec.v_count[i] = ATTR_SIZE;
+	}
+	
+	return i;
 }
 
 static void prepare_ext_vecs(struct m0_indexvec *ext,
@@ -135,21 +152,21 @@ static void prepare_ext_vecs(struct m0_indexvec *ext,
 		ext->iv_index[i] = *last_index;
 		ext->iv_vec.v_count[i] = block_size;
 		*last_index += block_size;
-
-		/* we don't want any attributes */
-		attr->ov_vec.v_count[i] = 0;
 	}
+
+	for( i=0; i < attr->ov_vec.v_nr; i++) 
+		attr->ov_vec.v_count[i] = ATTR_SIZE;
 }
 
 static int alloc_prepare_vecs(struct m0_indexvec *ext,
 			      struct m0_bufvec *data,
 			      struct m0_bufvec *attr,
 			      uint32_t block_count, uint32_t block_size,
-			      uint64_t *last_index)
+			      uint64_t *last_index, uint32_t unit_sz, uint32_t cs_sz)
 {
 	int      rc;
 
-	rc = alloc_vecs(ext, data, attr, block_count, block_size);
+	rc = alloc_vecs(ext, data, attr, block_count, block_size, unit_sz, cs_sz);
 	if (rc == 0) {
 		prepare_ext_vecs(ext, attr, block_count,
 				 block_size, last_index);
@@ -361,7 +378,6 @@ int m0_write(struct m0_container *container, char *src,
 	struct m0_client             *instance;
 	struct m0_rm_lock_req         req;
 	const struct m0_obj_lock_ops *lock_ops;
-
 	/* Open source file */
 	fp = fopen(src, "r");
 	if (fp == NULL)
@@ -392,7 +408,9 @@ int m0_write(struct m0_container *container, char *src,
 	if (blks_per_io == 0)
 		blks_per_io = M0_MAX_BLOCK_COUNT;
 
-	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size);
+	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size,
+					m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id),
+					ATTR_SIZE );
 	if (rc != 0)
 		goto cleanup;
 
@@ -402,16 +420,19 @@ int m0_write(struct m0_container *container, char *src,
 		if (bcount < blks_per_io) {
 			cleanup_vecs(&data, &attr, &ext);
 			rc = alloc_vecs(&ext, &data, &attr, bcount,
-					block_size);
+					block_size, m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id),
+					ATTR_SIZE );
 			if (rc != 0)
 				goto cleanup;
 		}
+
 		prepare_ext_vecs(&ext, &attr, bcount,
 				 block_size, &last_index);
 
 		/* Read data from source file. */
 		rc = read_data_from_file(fp, &data);
 		M0_ASSERT(rc == bcount);
+		write_dummy_hash_data(id, &attr, &data);
 
 		/* Copy data to the object*/
 		rc = write_data_to_object(&obj, &ext, &data, &attr);
@@ -479,7 +500,7 @@ int m0_read(struct m0_container *container,
 	uint32_t                      bcount;
 	const struct m0_obj_lock_ops *lock_ops;
 	uint64_t                      bytes_read;
-
+	
 	lock_ops = take_locks ? &lock_enabled_ops : &lock_disabled_ops;
 
 	/* If input file is not given, write to stdout */
@@ -519,9 +540,12 @@ int m0_read(struct m0_container *container,
 
 	if (blks_per_io == 0)
 		blks_per_io = M0_MAX_BLOCK_COUNT;
-	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size);
+	
+	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size,
+					m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id), ATTR_SIZE );
 	if (rc != 0)
 		goto cleanup;
+	
 	while (block_count > 0) {
 		bytes_read = 0;
 		bcount = (block_count > blks_per_io) ?
@@ -529,7 +553,7 @@ int m0_read(struct m0_container *container,
 		if (bcount < blks_per_io) {
 			cleanup_vecs(&data, &attr, &ext);
 			rc = alloc_vecs(&ext, &data, &attr, bcount,
-					block_size);
+					block_size, m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id), ATTR_SIZE );			
 			if (rc != 0)
 				goto cleanup;
 		}
@@ -777,7 +801,8 @@ int m0_write_cc(struct m0_container *container,
 		bcount = (block_count > M0_MAX_BLOCK_COUNT) ?
 			  M0_MAX_BLOCK_COUNT : block_count;
 		rc = alloc_prepare_vecs(&ext, &data, &attr, bcount,
-					       block_size, &last_index);
+					       block_size, &last_index, m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id),
+					       ATTR_SIZE );
 		if (rc != 0)
 			goto cleanup;
 
@@ -825,7 +850,8 @@ int m0_read_cc(struct m0_container *container,
 	struct m0_rm_lock_req  req;
 
 	rc = alloc_prepare_vecs(&ext, &data, &attr, block_count,
-				       block_size, &last_index);
+				       block_size, &last_index, m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id),
+					   ATTR_SIZE );
 	if (rc != 0)
 		return rc;
 	instance = container->co_realm.re_instance;

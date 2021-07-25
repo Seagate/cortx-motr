@@ -66,6 +66,7 @@ M0_INTERNAL struct m0_obj *ut_dummy_obj_create(void)
 	struct m0_obj *ret;
 	M0_ALLOC_PTR(ret);
 	ret->ob_attr.oa_bshift = UT_DEFAULT_BLOCK_SHIFT;
+	ret->ob_attr.oa_layout_id = M0_DEFAULT_LAYOUT_ID;
 	return ret;
 }
 
@@ -398,6 +399,7 @@ ut_dummy_ioo_create(struct m0_client *instance, int num_io_maps)
 	/* Set entity */
 	ioo->ioo_obj = ut_dummy_obj_create();
 	ioo->ioo_oo.oo_oc.oc_op.op_entity = &ioo->ioo_obj->ob_entity;
+	ioo->ioo_obj->ob_attr.oa_layout_id = M0_DEFAULT_LAYOUT_ID;
 
 	/* IO extends */
 	rc = m0_indexvec_alloc(&ioo->ioo_ext, 1);
@@ -410,6 +412,12 @@ ut_dummy_ioo_create(struct m0_client *instance, int num_io_maps)
 	ioo->ioo_data.ov_vec.v_count[0] = UT_DEFAULT_BLOCK_SIZE;
 	M0_ALLOC_ARR(ioo->ioo_data.ov_buf, 1);
 	M0_ALLOC_ARR(ioo->ioo_data.ov_buf[0], 1);
+
+	ioo->ioo_attr.ov_vec.v_nr = 1;
+	M0_ALLOC_ARR(ioo->ioo_attr.ov_vec.v_count, 1);
+	ioo->ioo_attr.ov_vec.v_count[0] = CKSUM_SIZE;
+	M0_ALLOC_ARR(ioo->ioo_attr.ov_buf, 1);
+	M0_ALLOC_ARR(ioo->ioo_attr.ov_buf[0], 1);
 
 	/* failed sessions*/
 	M0_ALLOC_ARR(ioo->ioo_failed_session, 1);
@@ -532,6 +540,8 @@ M0_INTERNAL struct target_ioreq *ut_dummy_target_ioreq_create(void)
 	ti->ti_nwxfer = (struct nw_xfer_request *)DUMMY_PTR;
 	ti->ti_bufvec.ov_buf = (void **)DUMMY_PTR;
 	ti->ti_auxbufvec.ov_buf = (void **)DUMMY_PTR;
+	ti->ti_ivec.iv_index = (void *)DUMMY_PTR;
+	ti->ti_goff_ivec.iv_index = (void *)DUMMY_PTR;
 	m0_fid_set(&ti->ti_fid, 0, 1);
 	iofops_tlist_init(&ti->ti_iofops);
 	tioreqht_tlink_init(ti);

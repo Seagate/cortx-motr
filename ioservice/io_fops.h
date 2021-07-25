@@ -218,6 +218,8 @@ M0_INTERNAL void m0_io_fop_destroy(struct m0_fop *fop);
 
 M0_INTERNAL bool m0_is_read_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_write_fop(const struct m0_fop *fop);
+M0_INTERNAL bool m0_is_read_rep(const struct m0_fop *fop);
+M0_INTERNAL bool m0_is_write_rep(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_io_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_io_fop_rep(const struct m0_fop *fop);
 M0_INTERNAL struct m0_fop_cob_rw *io_rw_get(struct m0_fop *fop);
@@ -330,8 +332,14 @@ struct m0_fop_cob_rw_reply {
 	 */
 	uint32_t                rwr_repair_done;
 
+	/** Total number of checksum bytes read by FOP till now for debug only */
+	uint32_t                rwr_cksum_nob_read;
+
 	/** Returned values for an UPDATE operation */
 	struct m0_fop_mod_rep   rwr_mod_rep;
+
+   /** Checksum data returned to client during Read operation */
+   struct m0_buf	   	    rwr_di_data_cksum;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
@@ -403,8 +411,13 @@ struct m0_fop_cob_rw {
 	struct m0_io_indexvec     crw_ivec;
 	/** Miscellaneous flags. */
 	uint64_t                  crw_flags;
+	uint64_t                  crw_dummy_id;
+	int                       crw_is_data_fop;
 	/** Checksum and tag values for the input data blocks. */
-	struct m0_buf		  crw_di_data;
+	m0_bcount_t               crw_cksum_size;
+	struct m0_buf		  	  crw_di_data;
+	/** Checksum value used for write operation for read it will be unused */
+	struct m0_buf	   	  	  crw_di_data_cksum;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
