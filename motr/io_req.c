@@ -1132,6 +1132,110 @@ static int application_data_copy(struct pargrp_iomap      *map,
 	return M0_RC(0);
 }
 
+/* This function calculates and verify checksum for data read.
+ * It divides the data in multiple units and call the client api
+ * to verify checksum for each data unit.
+ */
+static bool verify_checksum(struct m0_op_io *ioo)
+{
+	struct m0_pi_seed seed;
+	struct m0_bufvec user_data = {};
+	int usz, rc, count, i;
+	struct m0_generic_pi *pi_ondisk;
+	struct m0_bufvec_cursor   datacur;
+	struct m0_bufvec_cursor   tmp_datacur;
+	struct m0_ivec_cursor     extcur;
+	uint32_t nr_seg;
+	int attr_idx = 0;
+	m0_bcount_t bytes;
+	
+	usz = m0_obj_layout_id_to_unit_size(
+			m0__obj_lid(ioo->ioo_obj));
+
+	m0_bufvec_cursor_init(&datacur, &ioo->ioo_data);
+	m0_bufvec_cursor_init(&tmp_datacur, &ioo->ioo_data);
+	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
+
+	while ( !m0_bufvec_cursor_move(&datacur, 0) &&
+		!m0_ivec_cursor_move(&extcur, 0) &&
+		attr_idx < ioo->ioo_attr.ov_vec.v_nr){
+
+		/* calculate number of segments required for 1 data unit */
+		nr_seg = 0;
+		count = usz;
+		while (count > 0) {
+			nr_seg++;
+			bytes = m0_bufvec_cursor_step(&tmp_datacur);
+			if (bytes < count) {
+				m0_bufvec_cursor_move(&tmp_datacur, bytes);
+				count -= bytes;
+			}
+			else {
+				m0_bufvec_cursor_move(&tmp_datacur, count);
+				count = 0;
+			}
+		}
+
+		/* allocate an empty buf vec */
+		rc = m0_bufvec_empty_alloc(&user_data, nr_seg);
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "buffer allocation failed, rc %d", rc);
+			return false;
+		}
+
+		/* populate the empty buf vec with data pointers
+		 * and create 1 data unit worth of buf vec
+		 */
+		i = 0;
+		count = usz;
+		while (count > 0) {
+			bytes = m0_bufvec_cursor_step(&datacur);
+			if (bytes < count) {
+				user_data.ov_vec.v_count[i] = bytes;
+				user_data.ov_buf[i] = m0_bufvec_cursor_addr(&datacur);
+				m0_bufvec_cursor_move(&datacur, bytes);
+				count -= bytes;
+			}
+			else {
+				user_data.ov_vec.v_count[i] = count;
+				user_data.ov_buf[i] = m0_bufvec_cursor_addr(&datacur);
+				m0_bufvec_cursor_move(&datacur, count);
+				count = 0;
+			}
+			i++;
+		}
+
+		if (ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
+
+			seed.data_unit_offset   = m0_ivec_cursor_index(&extcur);
+			seed.obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
+			seed.obj_id.f_key       = ioo->ioo_obj->ob_entity.en_id.u_lo;
+
+			pi_ondisk = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[attr_idx];
+
+			if (!m0_calc_verify_cksum_one_unit(pi_ondisk, &seed, &user_data)) {
+				return false;
+			}
+		}
+
+		attr_idx++;
+		m0_ivec_cursor_move(&extcur, usz);
+
+		m0_bufvec_free2(&user_data);
+	}
+
+	if (m0_bufvec_cursor_move(&datacur, 0) &&
+	    m0_ivec_cursor_move(&extcur, 0) &&
+	    attr_idx == ioo->ioo_attr.ov_vec.v_nr) {
+		return true;
+	}
+	else {
+	/* something wrong, we terminated early */
+		M0_ASSERT(0);
+		return true;
+	}
+}
+
 /**
  * Copies the file-data between the iomap buffers and the application-provided
  * buffers, one row at a time.
@@ -1155,7 +1259,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 	m0_bcount_t               count;
 	struct m0_bufvec_cursor   appdatacur;
 	struct m0_ivec_cursor     extcur;
-	struct m0_pdclust_layout *play;
+	struct m0_pdclust_layout  *play;
 
 	M0_ENTRY("op_io : %p, %s application. filter = 0x%x", ioo,
 		 dir == CD_COPY_FROM_APP ? (char *)"from" : (char *)"to",
@@ -1166,6 +1270,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 
 	m0_bufvec_cursor_init(&appdatacur, &ioo->ioo_data);
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
+
 	play = pdlayout_get(ioo);
 
 	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
@@ -1197,6 +1302,15 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 					rc, "[%p] Copy failed (pgstart=%" PRIu64
 					" pgend=%" PRIu64 ")",
 					ioo, pgstart, pgend);
+		}
+
+	}
+
+	if (dir == CD_COPY_TO_APP) {
+		/* verify the checksum for data read */
+		if (!verify_checksum(ioo)) {
+			M0_LOG(M0_ERROR, "CKSUM_FAILED");
+			return M0_RC(-EIO);
 		}
 	}
 
