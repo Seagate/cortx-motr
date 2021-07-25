@@ -66,21 +66,25 @@ parser.add_argument('-huge', action='store_true', default=False, dest='hugeCorru
                     help='Induce Huge amount of corruption in Metadata')
 parser.add_argument('-seed', action='store', default=0, type=float, dest='seed',
                     help='Seed is used to initialize the "random" library: to initialize the random generation')
+parser.add_argument('-emap', action='store', dest='corrupt_emap', help='Induce Error in Emap specified by Cob Id')
+parser.add_argument('-list_emap', action='store_true', default=False, dest='list_emap', help='Display all Emap keys with device id')
 
 args = parser.parse_args()
 
 results = parser.parse_args()
-logger.info('Induce Random Error        = {!r}'.format(args.random))
-logger.info('Number of Error induce     = {!r}'.format(args.noOfErr))
-logger.info('Record Type                = {!r}'.format(args.Record_Type))
-logger.info('Metadata file path         = {!r}'.format(args.mfile))
-logger.info('Verify Record entries      = {!r}'.format(args.verify))
-logger.info('Induce Error in All Record = {!r}'.format(args.allErr))
-logger.info('Induce Error in GMD Record = {!r}'.format(args.allGMD))
-logger.info('Induce Error in DMD Record = {!r}'.format(args.allDMD))
-logger.info('Induce 512k errors         = {!r}'.format(args.err512k))
-logger.info('Induce huge errors         = {!r}'.format(args.hugeCorruption))
-logger.info('Seed for random number     = {!r}'.format(args.seed))
+logger.info('Induce Random Error            = {!r}'.format(args.random))
+logger.info('Number of Error induce         = {!r}'.format(args.noOfErr))
+logger.info('Record Type                    = {!r}'.format(args.Record_Type))
+logger.info('Metadata file path             = {!r}'.format(args.mfile))
+logger.info('Verify Record entries          = {!r}'.format(args.verify))
+logger.info('Induce Error in All Record     = {!r}'.format(args.allErr))
+logger.info('Induce Error in GMD Record     = {!r}'.format(args.allGMD))
+logger.info('Induce Error in DMD Record     = {!r}'.format(args.allDMD))
+logger.info('Induce 512k errors             = {!r}'.format(args.err512k))
+logger.info('Induce huge errors             = {!r}'.format(args.hugeCorruption))
+logger.info('Seed for random number         = {!r}'.format(args.seed))
+logger.info('Induce Error in emap by Cob Id = {!r}'.format(args.corrupt_emap))
+logger.info('List all Emap Keys and Records = {!r}'.format(args.list_emap))
 
 filename = args.mfile
 recordType = args.Record_Type
@@ -157,7 +161,7 @@ def ReadTypeSize(byte):  # Ex: 0001(ver) 0009(type) 00003dd8(size)
 
 def EditMetadata(offset):
     with open(filename, 'r+b') as wbfr:
-        logger.info("** Corrupting 8byte of Metadata at offset {} with b'1111222244443333' **".format(hex(offset)))
+        logger.info("** Corrupting 8byte of Metadata at offset {} with b'1111222244443333' **".format(offset))
         wbfr.seek(offset)
         wbfr.write(b'\x33\x33\x44\x44\x22\x22\x11\x11')
         wbfr.seek(offset)
@@ -169,7 +173,25 @@ def ReadMetadata(offset):
     with open(filename, "rb") as mdata:
         mdata.seek(offset)
         data = binascii.hexlify((mdata.read(8))[::-1])
-        logger.info("** Metadata at offset {} is {}".format(hex(offset), data))
+        if data == footer:
+            return True, data
+        else:
+            return False, data
+
+# This function returns complete data with list format in 8 bytes chunks,
+# starting after header and until footer for record
+def ReadCompleteRecord(offset):
+    curr_record = []
+    while 1:
+        footerFound, data=ReadMetadata(offset)
+        if footerFound:
+            break
+        curr_record.append(data.decode('utf-8'))
+        offset = offset + 8 # check next 8 bytes
+
+    # Convert list to hex representation
+    curr_record = [ hex(int(i, 16)) for i in curr_record]
+    return curr_record, offset # Return record data and footer offset
 
 def ReadBeBNode(offset):
     llist = BeBnodeTypeKeys[offset]
@@ -351,6 +373,77 @@ def Induce512kbError():
                     count = count + 1
     return count
 
+# This function take stob_f_container, stob_f_key and returns cob_f_cotainer, cob_f_key and device_id
+def ConvertAdstob2Cob(stob_f_container, stob_f_key):
+    M0_FID_DEVICE_ID_OFFSET = 32
+    M0_FID_DEVICE_ID_MASK = 72057589742960640
+    M0_FID_TYPE_MASK = 72057594037927935
+
+    # m0_fid_tassume()
+    tid = int(67) # Char 'C' Ascii Value
+    cob_f_container = ((tid << (64 - 8 )) | (int(stob_f_container, 16) & M0_FID_TYPE_MASK))
+    cob_f_key = int(stob_f_key, 16)
+    device_id = (int(cob_f_container) & M0_FID_DEVICE_ID_MASK) >> M0_FID_DEVICE_ID_OFFSET
+
+    return cob_f_container, cob_f_key, device_id
+
+# This function take cob_f_cotainer, cob_f_key and returns stob_f_container, stob_f_key
+def ConvertCobAdstob(cob_f_container, cob_f_key):
+    M0_FID_DEVICE_ID_OFFSET = 32
+    M0_FID_DEVICE_ID_MASK = 72057589742960640
+    M0_FID_TYPE_MASK = 72057594037927935
+
+    device_id = (int(cob_f_container, 16) & M0_FID_DEVICE_ID_MASK) >> M0_FID_DEVICE_ID_OFFSET
+    # m0_fid_tassume()
+    tid = 2 # STOB_TYPE_AD = 0x02
+    stob_f_container = ((tid << (64 - 8 )) | (int(cob_f_container, 16) & M0_FID_TYPE_MASK))
+    stob_f_key = int(cob_f_key, 16)
+
+    return stob_f_container, stob_f_key
+
+# This function corrupt Emap Record specified by Cob Id
+def CorruptEmap(recordType, stob_f_container, stob_f_key):
+    read_metadata_file()
+    lookupList = recordDict[recordType]
+    logger.info("Offset List of {} = {} ".format(recordType, lookupList))
+
+    for offset in lookupList:
+        print()
+        emap_key_data, offset = ReadCompleteRecord(offset)
+        if (hex(stob_f_container) in emap_key_data) and (hex(stob_f_key) in emap_key_data) and ("0xffffffffffffffff" not in emap_key_data):
+            # 16 bytes of BE_EMAP_KEY (footer) + 16 bytes of BE_EMAP_REC(header) gives offset of corresponding BE_EMAP_REC
+            rec_offset = offset + 32
+            emap_rec_data, rec_offset = ReadCompleteRecord(rec_offset)
+            logger.info("** Metadata at offset {}, BE_EMAP_KEY ek_prefix = {}:{}, ek_offset = {}".format(offset-24,
+                        emap_key_data[0], emap_key_data[1], emap_key_data[2]))
+            logger.info("** Metadata at offset {}, BE_EMAP_REC er_start = {}, er_value = {}, er_unit_size = {}, er_cs_nob = {}, checksum = {}".format(
+                        offset+32, emap_rec_data[0], emap_rec_data[1], emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:],))
+            # Check er_cs_nob and if it is not 0 then go and corrupt last checksum 8 bytes
+            if emap_rec_data[3] != "0x0":
+                EditMetadata(rec_offset-8)
+
+def ListAllEmapPerDevice():
+    print("Listing all emap keys and emap records with device id")
+    recordType = "BE_EMAP_KEY"
+    read_metadata_file()
+    lookupList = recordDict[recordType]
+    logger.info(lookupList)
+
+    for offset in lookupList:
+        print()
+        emap_key_data , offset = ReadCompleteRecord(offset)
+        stob_f_container_hex = emap_key_data[0]
+        stob_f_key_hex = emap_key_data[1]
+        cob_f_container, cob_f_key, device_id = ConvertAdstob2Cob(stob_f_container_hex, stob_f_key_hex)
+        # 16 bytes of BE_EMAP_KEY (footer) + 16 bytes of BE_EMAP_REC(header) gives offset of Corresponding BE_EMAP_REC
+        emap_rec_offset = offset + 32
+        emap_rec_data, rec_offset = ReadCompleteRecord(emap_rec_offset)
+
+        logger.info("** Metadata at offset {}, BE_EMAP_KEY ek_prefix = {}:{}, ek_offset = {}, Device ID = {}".format(offset,
+                    emap_key_data[0], emap_key_data[1], emap_key_data[2], device_id))
+        logger.info("** Metadata at offset {}, BE_EMAP_REC er_start = {}, er_value = {}, er_unit_size = {}, er_cs_nob = {}, checksum = {}".format(
+                    emap_rec_offset, emap_rec_data[0], emap_rec_data[1], emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:],))
+
 
 def VerifyLengthOfRecord(recordDict):
     count = 0
@@ -384,7 +477,9 @@ def read_metadata_file():
                 i = int(size, 16) + i - 16
                 metadata.seek(i)
             # Not parsing the whole file for few test as It will take many hours, depending on metadata size
-            if not args.verify:
+            if (args.verify == True) or (args.list_emap == True):
+                pass # we will read complete metadata file in case of -v or -list_emap option
+            else:
                 if i > 111280000:  # Increase this number for reading more location in metadata
                     break
 
@@ -414,6 +509,16 @@ elif args.allGMD:
 
 elif args.allDMD:
     noOfErrs = InduceErrInDMDRecords()
+
+elif args.corrupt_emap:
+    _f_container, _f_key = args.corrupt_emap.split(":")
+    cob_f_container = hex(int(_f_container, 16))
+    cob_f_key = hex(int(_f_key, 16))
+    stob_f_container, stob_f_key = ConvertCobAdstob(cob_f_container, cob_f_key)
+    CorruptEmap("BE_EMAP_KEY", stob_f_container, stob_f_key)
+
+elif args.list_emap:
+    ListAllEmapPerDevice()
 
 if not args.verify:
     logger.info("Number of errors induced by script: {}".format(noOfErrs))

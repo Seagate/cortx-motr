@@ -43,6 +43,8 @@
    @{
  */
 
+#define AD_CS_SZ 16
+
 enum {
 	NR                     = 4,
 	MIN_BUF_SIZE           = 4096,
@@ -58,7 +60,9 @@ static struct m0_stob_io io;
 static m0_bcount_t user_vc[NR];
 static m0_bcount_t stob_vc[NR];
 static char *user_buf[NR];
+static char *user_cksm_buf[NR];
 static char *read_buf[NR];
+static char *read_cksm_buf[NR];
 static char *zero_buf[NR];
 static char *user_bufs[NR];
 static char *read_bufs[NR];
@@ -176,6 +180,7 @@ struct mock_balloc mb = {
 static void init_vecs()
 {
 	int i;
+	char cs_char = 'A';
 
 	for (i = 0; i < NR; ++i) {
 		user_bufs[i] = m0_stob_addr_pack(user_buf[i], block_shift);
@@ -184,6 +189,19 @@ static void init_vecs()
 		stob_vc[i] = buf_size >> block_shift;
 		stob_vi[i] = (buf_size * (2 * i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
+	}
+
+	// Allocate contigious buffer for i/p checksums
+	memset( user_cksm_buf[0], cs_char++, AD_CS_SZ);	
+	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
+		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_CS_SZ; 	
+		memset( user_cksm_buf[i], cs_char++, AD_CS_SZ);
+	}
+
+	memset( read_cksm_buf[0], 0, AD_CS_SZ);	
+	for (i = 1; i < ARRAY_SIZE(read_cksm_buf); ++i) {
+		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_CS_SZ; 	
+		memset( read_cksm_buf[i], 0, AD_CS_SZ);
 	}
 }
 
@@ -239,11 +257,18 @@ static int test_ad_init(bool use_small_credits)
 		user_buf[i] = m0_alloc_aligned(buf_size, block_shift);
 		M0_ASSERT(user_buf[i] != NULL);
 	}
-
+	
+	user_cksm_buf[0] = m0_alloc(AD_CS_SZ * ARRAY_SIZE(user_cksm_buf));
+	M0_ASSERT(user_cksm_buf[0] != NULL);
+	
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i) {
 		read_buf[i] = m0_alloc_aligned(buf_size, block_shift);
 		M0_ASSERT(read_buf[i] != NULL);
 	}
+
+	// Allocate contigious buffer for o/p checksums 
+	read_cksm_buf[0] = m0_alloc(AD_CS_SZ * ARRAY_SIZE(read_cksm_buf));
+	M0_ASSERT(read_cksm_buf[0] != NULL);
 
 	for (i = 0; i < ARRAY_SIZE(zero_buf); ++i) {
 		zero_buf[i] = m0_alloc_aligned(buf_size, block_shift);
@@ -269,9 +294,13 @@ static int test_ad_fini(void)
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i)
 		m0_free(user_buf[i]);
 
+	m0_free(user_cksm_buf[0]);
+
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i)
 		m0_free(read_buf[i]);
 
+	m0_free(read_cksm_buf[0]);
+	
 	for (i = 0; i < ARRAY_SIZE(zero_buf); ++i)
 		m0_free(zero_buf[i]);
 
@@ -303,6 +332,13 @@ static void test_write(int nr, struct m0_dtx *tx)
 	io.si_stob.iv_vec.v_nr = nr;
 	io.si_stob.iv_vec.v_count = stob_vc;
 	io.si_stob.iv_index = stob_vi;
+
+	io.si_unit_sz  = (buf_size >> block_shift);
+	io.si_cksum_sz = AD_CS_SZ;
+	// Checksum for i buf_size blocks
+	io.si_cksum.b_addr = user_cksm_buf[0];
+	io.si_cksum.b_nob  = ( nr * AD_CS_SZ );
+	
 	rc = m0_stob_io_private_setup(&io, obj_fore);
 	M0_UT_ASSERT(rc == 0);
 	m0_stob_ad_balloc_set(&io, M0_BALLOC_NORMAL_ZONE);
@@ -355,6 +391,12 @@ static void test_read(int nr)
 	io.si_stob.iv_vec.v_nr = nr;
 	io.si_stob.iv_vec.v_count = stob_vc;
 	io.si_stob.iv_index = stob_vi;
+
+	io.si_unit_sz  = (buf_size >> block_shift);
+	io.si_cksum_sz = AD_CS_SZ;
+	// Checksum for i buf_size blocks
+	io.si_cksum.b_addr = read_cksm_buf[0];
+	io.si_cksum.b_nob  = ( nr * AD_CS_SZ );
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
@@ -431,7 +473,7 @@ start_again:
 
 	for (i = 0; i < nr; i++) {
 		struct m0_stob_ad_domain *adom;
-		struct m0_be_emap_cursor  it;
+		struct m0_be_emap_cursor  it = {};
 		struct m0_ext            *ext;
 		adom = stob_ad_domain2ad(m0_stob_dom_get(obj_fore));
 		rc = stob_ad_cursor(adom, obj_fore, stob_vi[i], &it);
@@ -440,6 +482,8 @@ start_again:
 		M0_ASSERT(ext->e_start <= stob_vi[i]);
 		M0_ASSERT(ext->e_end   >= stob_vi[i] + stob_vc[i]);
 		M0_ASSERT(it.ec_seg.ee_val == AET_HOLE);
+		M0_ASSERT(it.ec_seg.ee_cksum_buf.b_addr == NULL);
+		M0_ASSERT(it.ec_seg.ee_cksum_buf.b_nob == 0);
 		m0_be_emap_close(&it);
 	}
 }
@@ -453,6 +497,7 @@ static void test_ad_rw_unordered()
 	for (i = NR/2; i < NR; ++i) {
 		stob_vi[i-(NR/2)] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i-(NR/2)], ('a' + i)|1, buf_size);
+		memset(user_cksm_buf[i-(NR/2)], ('A' + i)|1, AD_CS_SZ);		
 	}
 	test_write(NR/2, NULL);
 
@@ -460,6 +505,7 @@ static void test_ad_rw_unordered()
 	for (i = 0; i < NR/2; ++i) {
 		stob_vi[i] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
+		memset(user_cksm_buf[i], ('A' + i)|1, AD_CS_SZ);
 	}
 	test_write(NR/2, NULL);
 
@@ -467,12 +513,16 @@ static void test_ad_rw_unordered()
 	for (i = 0; i < NR; ++i) {
 		stob_vi[i] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
+		memset(user_cksm_buf[i], ('A' + i)|1, AD_CS_SZ);
 	}
 
 	/* This generates unordered offsets for back stob io */
 	test_read(NR);
 	for (i = 0; i < NR; ++i)
+	{
 		M0_ASSERT(memcmp(user_buf[i], read_buf[i], buf_size) == 0);
+		M0_ASSERT(memcmp(user_cksm_buf[i], read_cksm_buf[i], AD_CS_SZ) == 0);
+	}
 }
 
 /**
@@ -488,8 +538,10 @@ static void test_ad(void)
 	for (i = 1; i <= NR; ++i) {
 		int j;
 		test_read(i);
-		for (j = 0; j < i; ++j)
+		for (j = 0; j < i; ++j) {					
 			M0_ASSERT(memcmp(user_buf[j], read_buf[j], buf_size) == 0);
+	 		M0_ASSERT(memcmp(user_cksm_buf[j], read_cksm_buf[j], AD_CS_SZ) == 0);
+		}
 	}
 }
 
@@ -500,12 +552,15 @@ static void punch_test(void)
 {
 	int i;
 
+	memset(read_cksm_buf[0], 'Z', ARRAY_SIZE(read_cksm_buf) * AD_CS_SZ);
 	for (i = 1; i <= NR; ++i) {
 		int j;
 		test_punch(i);
 		test_read(i);
-		for (j = 0; j < i; ++j)
+		for (j = 0; j < i; ++j) {			
 			M0_ASSERT(memcmp(zero_buf[j], read_buf[j], buf_size) == 0);
+		}
+			
 	}
 }
 

@@ -19,7 +19,6 @@
  *
  */
 
-
 #pragma once
 
 #ifndef __MOTR_LIB_MISC_H__
@@ -37,6 +36,7 @@
 #include "lib/types.h"
 #include "lib/assert.h"           /* M0_CASSERT */
 #include "lib/buf.h"              /* m0_buf */
+//#include "lib/vec.h"              /* m0_indexvec */
 
 #define _QUOTE(s) #s
 #define M0_QUOTE(s) _QUOTE(s)
@@ -475,6 +475,33 @@ M0_INTERNAL bool m0_key_val_is_null(struct m0_key_val *kv);
  * Initialises a key to M0_KEY_VAL_NULL.
  */
 M0_INTERNAL void m0_key_val_null_set(struct m0_key_val *kv);
+
+/**
+ * Function to get number of units starting in a given extent range.
+ */
+M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start( m0_bindex_t ext_start,
+							m0_bindex_t ext_len, m0_bindex_t unit_sz );
+
+/**
+ * Function returns offset for a given unit size
+ */
+M0_INTERNAL m0_bcount_t m0_extent_get_unit_offset( m0_bindex_t off, 
+							m0_bindex_t base_off, m0_bindex_t unit_sz);
+
+/**
+ * Calculates checksum address for a cob segment and unit size
+ */
+M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr, m0_bindex_t off, 
+							m0_bindex_t base_off, m0_bindex_t unit_sz, m0_bcount_t cs_size);
+
+/**
+ * Calculates checksum nob for a cob segment and unit size
+ */
+M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob(m0_bindex_t ext_start, m0_bindex_t ext_length,
+							 m0_bindex_t unit_sz, m0_bcount_t cs_size);
+
+M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *b_addr, m0_bindex_t off, 
+							void *vec, m0_bindex_t unit_sz, m0_bcount_t cs_sz );
 
 M0_EXTERN const struct m0_key_val M0_KEY_VAL_NULL;
 
