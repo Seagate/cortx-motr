@@ -336,7 +336,7 @@ struct m0_be_log_record {
 	m0_bindex_t          lgr_prev_pos;
 	m0_bcount_t          lgr_prev_size;
 	/**
-	 * BE log header flh_discarded pointer during
+	 * BE log header flh_discarded pointer is updated during
 	 * m0_be_log_record_io_prepare(). It should be set to a value that has
 	 * already became persistent.
 	 *

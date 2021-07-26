@@ -188,6 +188,7 @@ m0_be_group_format_log_use(struct m0_be_group_format *gft,
 /** Returns absolutute position of this group in BE log */
 M0_INTERNAL m0_bindex_t
 m0_be_group_format_log_position(const struct m0_be_group_format *gft);
+
 /** Returns BE log discarded pointer at m0_be_group_format_log_use() time. */
 M0_INTERNAL m0_bindex_t
 m0_be_group_format_log_discarded(const struct m0_be_group_format *gft);

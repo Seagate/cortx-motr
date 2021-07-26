@@ -139,12 +139,12 @@
  *
  * @subsection Original FOM for each FOL record
  *
- * For each FOL record an orignal fom is created. A flag about being created
- * during BE recovery is passed to each such fom, so fom wouldn't do it's usual
- * action. It will transition through generic phases that involve BE tx. After
- * BE tx goes to M0_BTS_LOGGED phases a generic phase executes
- * m0_fom_fdmi_record_post(), which would send FDMI record to FDMI plugin as
- * usual.
+ * For each FOL record an orignal fom is created. A flag is passed to each of
+ * such fom, indicating that it is created during BE recovery, so the fom
+ * wouldn't do its usual action. It will transition through generic phases that
+ * involve BE tx. After BE tx goes to M0_BTS_LOGGED phases a generic phase
+ * executes m0_fom_fdmi_record_post(), which would send FDMI record to FDMI
+ * plugin as usual.
  *
  * @subsection Special FOM for each FOL record
  *
@@ -160,9 +160,9 @@
  *
  * @subsection A special BE recovery FOM phase
  *
- * A special phase that indicates that this fom is created during BE recovery is
- * added to each fom and is initial phase in case if the fom is created during
- * BE recovery. This allows each fom to handle BE recovery as it sees fit.
+ * A special phase, indicating that this fom is created during BE recovery, is
+ * added to each fom and is the initial phase if the fom is created during BE
+ * recovery. This allows each fom to handle BE recovery as it sees fit.
  * Default generic phase sequence would post FDMI FOL record in the same way
  * it's done currently for normal FOM phase sequence.
  *

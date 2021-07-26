@@ -224,7 +224,8 @@ struct m0_confx_fdmi_flt_grp {
 
 struct m0_confx_fdmi_filter {
 	struct m0_confx_header xf_header;
-	uint32_t               xf_type;
+	uint32_t               xf_type M0_XCA_FENUM(
+		enum m0_fdmi_filter_type_id);
 	struct m0_fid          xf_filter_id;
 	/* String representation of FDMI filter root. */
 	struct m0_buf          xf_filter_root;
