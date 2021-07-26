@@ -29,6 +29,7 @@
 #include "lib/memory.h"               /* m0_alloc, m0_free */
 #include "lib/errno.h"                /* ENOMEM */
 #include "lib/atomic.h"               /* m0_atomic_{inc,dec,get} */
+#include "lib/cksum_utils.h"
 #include "rpc/rpc_machine_internal.h" /* m0_rpc_machine_lock */
 #include "fop/fom_generic.h"          /* m0_rpc_item_generic_reply_rc */
 #include "cob/cob.h"                  /* M0_COB_IO M0_COB_PVER M0_COB_NLINK */
