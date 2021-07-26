@@ -27,6 +27,7 @@
 #include "lib/assert.h"
 #include "sns/parity_ops.h"
 
+#if 0 /* NA_FOR_INTEL_ISA */
 M0_INTERNAL void m0_parity_fini(void)
 {
 #if !ISAL_ENCODE_ENABLED
@@ -42,6 +43,7 @@ M0_INTERNAL int m0_parity_init(void)
 #endif /* !ISAL_ENCODE_ENABLED */
 	return 0;
 }
+#endif /* NA_FOR_INTEL_ISA */
 
 M0_INTERNAL m0_parity_elem_t m0_parity_pow(m0_parity_elem_t x,
 					   m0_parity_elem_t p)

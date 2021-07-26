@@ -39,6 +39,9 @@ LIBISAL_TESTS_SKIPLIST=(
 	"sns-repair-abort"
 	"sns-repair-ios-fail"
 	"sns-repair-abort-repair-quiesce-rebalance-quiesce"
+	# Temporary skip
+	"m0t1fs"
+	"degraded-mode-IO"
 )
 
 abort()
