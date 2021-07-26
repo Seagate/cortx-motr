@@ -156,13 +156,6 @@ static void fail_idx_reed_solomon_recover(struct m0_parity_math *math,
 static void ir_rs_init(const struct m0_parity_math *math, struct m0_sns_ir *ir);
 
 /**
- * Free fields initialized for incremental recovery.
- * It has two separate implementations for using Galois and Intel ISA library.
- * @param[in] ir - pointer to incremental recovery structure.
- */
-static void ir_rs_fini(struct m0_sns_ir *ir);
-
-/**
  * This function registers failed index.
  * It has two separate implementations for using Galois and Intel ISA library.
  * @param[in, out] ir           - pointer to incremental recovery structure.
@@ -190,17 +183,6 @@ static int ir_mat_compute(struct m0_sns_ir *ir);
  * @retval    0            - success otherwise failure
  */
 static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block);
-
-
-/**
- * Recovery of each failed block depends upon subset of alive blocks.
- * This routine prepares a bitmap indicating this dependency. If a bit at
- *  location 'x' is set 'true' then it implies that f_block has no dependency
- *  on block with index 'x'.
- * It has two separate implementations for using Galois and Intel ISA library.
- */
-static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
-				      struct m0_sns_ir *ir);
 
 /**
  * Returns last usable block index.
@@ -300,7 +282,18 @@ static void buf_sort(struct m0_reed_solomon *rs, uint32_t total_count,
 static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 				    struct m0_reed_solomon *rs);
 
-#else
+/**
+ * Recovery of each failed block depends upon subset of alive blocks.
+ * This routine prepares a bitmap indicating this dependency. If a bit at
+ *  location 'x' is set 'true' then it implies that f_block has no dependency
+ *  on block with index 'x'.
+ * It has two separate implementations for using Galois and Intel ISA library.
+ */
+static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
+				      struct m0_sns_ir *ir);
+#endif /* ISAL_ENCODE_ENABLED */
+
+#if 0 /* NA_FOR_INTEL_ISA */
 /* Fills 'mat' with data passed to recovery algorithm. */
 static void recovery_mat_fill(struct m0_parity_math *math,
 			      uint8_t *fail, uint32_t unit_count, /* in. */
@@ -382,7 +375,7 @@ static inline const struct m0_matrix* recovery_mat_get(const struct m0_sns_ir
 						       *ir,
 						       uint32_t failed_idx);
 
-#endif /* ISAL_ENCODE_ENABLED */
+#endif /* NA_FOR_INTEL_ISA */
 
 static void (*calculate[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
 						const struct m0_buf *data,
@@ -514,10 +507,10 @@ M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
 	m0_parity_math_calculate(math, data, parity);
 }
 
+#if 0 /* NA_FOR_INTEL_ISA */
 M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
 					uint8_t *fail)
 {
-#if !ISAL_ENCODE_ENABLED
 	int rc;
 
 	recovery_mat_fill(math, fail,
@@ -528,17 +521,13 @@ M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
 	rc = m0_matrix_invert(&math->pmi_sys_mat, &math->pmi_recov_mat);
 
 	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
-#else
-	return 0;
-#endif /* !ISAL_ENCODE_ENABLED */
 }
 
 M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math)
 {
-#if !ISAL_ENCODE_ENABLED
 	m0_matrix_fini(&math->pmi_recov_mat);
-#endif /* !ISAL_ENCODE_ENABLED */
 }
+#endif /* NA_FOR_INTEL_ISA */
 
 M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
 					   const struct m0_buf *src)
@@ -628,8 +617,6 @@ M0_INTERNAL void m0_sns_ir_fini(struct m0_sns_ir *ir)
 		if (ir->si_blocks[i].sib_bitmap.b_words != NULL)
 			m0_bitmap_fini(&ir->si_blocks[i].sib_bitmap);
 
-	ir_rs_fini(ir);
-
 	m0_free(ir->si_blocks);
 	M0_LEAVE();
 }
@@ -693,13 +680,13 @@ M0_INTERNAL int m0_sns_ir_recover(struct m0_sns_ir *ir,
 			break;
 		gfaxpy(blocks[failed_index].sib_addr, bufvec,
 		       1);
-#if !ISAL_ENCODE_ENABLED
+#if 0 /* NA_FOR_INTEL_ISA */
 		dependency_bitmap_update(&blocks[failed_index],
 					 bitmap);
 		if (is_data(ir, failed_index) && are_failures_mixed(ir) &&
 		    ir->si_local_nr != 0)
 			forward_rectification(ir, bufvec, failed_index);
-#endif /* !ISAL_ENCODE_ENABLED */
+#endif /* NA_FOR_INTEL_ISA */
 		break;
 	}
 
@@ -719,7 +706,7 @@ static int gmul(int x, int y)
 	return m0_parity_mul(x, y);
 }
 
-#if !ISAL_ENCODE_ENABLED
+#if 0 /* NA_FOR_INTEL_ISA */
 static int gsub(int x, int y)
 {
 	return m0_parity_sub(x, y);
@@ -734,7 +721,7 @@ static int gpow(int x, int p)
 {
 	return m0_parity_pow(x, p);
 }
-#endif
+#endif /* NA_FOR_INTEL_ISA */
 
 static uint32_t fails_count(uint8_t *fail, uint32_t unit_count)
 {
@@ -1254,10 +1241,6 @@ static void ir_rs_init(const struct m0_parity_math *math, struct m0_sns_ir *ir)
 	M0_LEAVE();
 }
 
-static void ir_rs_fini(struct m0_sns_ir *ir)
-{
-}
-
 static void ir_failure_register(struct m0_sns_ir *ir, uint32_t failed_index)
 {
 	M0_ENTRY("ir=%p, failed_index=%u", ir, failed_index);
@@ -1583,8 +1566,67 @@ static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 {
 	return ir->si_rs.rs_alive_idx[ir->si_data_nr - 1];
 }
-
 #else
+static void reed_solomon_fini(struct m0_parity_math *math)
+{
+}
+
+static int reed_solomon_init(struct m0_parity_math *math)
+{
+	return 0;
+}
+
+static void reed_solomon_encode(struct m0_parity_math *math,
+				const struct m0_buf *data,
+				struct m0_buf *parity)
+{
+}
+
+static int reed_solomon_diff(struct m0_parity_math *math,
+			     struct m0_buf         *old,
+			     struct m0_buf         *new,
+			     struct m0_buf         *parity,
+			     uint32_t               index)
+{
+	return 0;
+}
+
+static int reed_solomon_recover(struct m0_parity_math *math,
+				struct m0_buf *data,
+				struct m0_buf *parity,
+				struct m0_buf *fails,
+				enum m0_parity_linsys_algo algo)
+{
+	return 0;
+}
+
+static void ir_rs_init(const struct m0_parity_math *math, struct m0_sns_ir *ir)
+{
+}
+
+static void ir_failure_register(struct m0_sns_ir *ir, uint32_t failed_index)
+{
+}
+
+static int ir_mat_compute(struct m0_sns_ir *ir)
+{
+	return 0;
+}
+
+static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
+{
+	return 0;
+}
+
+static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
+				     uint32_t block_idx)
+{
+	return 0;
+}
+#endif /* ISAL_ENCODE_ENABLED */
+
+
+#if 0 /* NA_FOR_INTEL_ISA */
 static void reed_solomon_fini(struct m0_parity_math *math)
 {
 	M0_ENTRY();
@@ -2245,7 +2287,7 @@ static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 	return last_usable_bid;
 }
 
-#endif /* ISAL_ENCODE_ENABLED */
+#endif /* NA_FOR_INTEL_ISA */
 
 #undef M0_TRACE_SUBSYSTEM
 

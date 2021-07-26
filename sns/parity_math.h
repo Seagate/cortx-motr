@@ -85,7 +85,7 @@ struct m0_sns_ir_block {
 	 * blocks required for its recovery.
 	 */
 	struct m0_bitmap	     sib_bitmap;
-#if !ISAL_ENCODE_ENABLED
+#if 0 /* NA_FOR_INTEL_ISA */
 	/* Column associated with the block within
 	 * m0_parity_math::pmi_data_recovery_mat. This field is meaningful
 	 * when status of a block is M0_SI_BLOCK_ALIVE.
@@ -95,12 +95,11 @@ struct m0_sns_ir_block {
 	 * The field is meaningful when status of a block is M0_SI_BLOCK_FAILED.
 	 */
 	uint32_t		     sib_recov_mat_row;
-#endif /* !ISAL_ENCODE_ENABLED */
+#endif /* NA_FOR_INTEL_ISA */
 	/* Indicates whether a block is available, failed or restored. */
 	enum m0_sns_ir_block_status  sib_status;
 };
 
-#if ISAL_ENCODE_ENABLED
 /**
  * Holds information specific to Reed Solomon implementation using Intel ISA.
  */
@@ -125,7 +124,6 @@ struct m0_reed_solomon {
 	 * recovery. */
 	uint8_t		**rs_bufs_out;
 };
-#endif /* ISAL_ENCODE_ENABLED */
 
 /**
    Holds information about system configuration i.e., data and parity units
@@ -136,7 +134,7 @@ struct m0_parity_math {
 
 	uint32_t		     pmi_data_count;
 	uint32_t		     pmi_parity_count;
-#if !ISAL_ENCODE_ENABLED
+#if 0 /* NA_FOR_INTEL_ISA */
 	/* structures used for parity calculation and recovery */
 	struct m0_matvec	     pmi_data;
 	struct m0_matvec	     pmi_parity;
@@ -151,9 +149,8 @@ struct m0_parity_math {
 	struct m0_linsys	     pmi_sys;
 	/* Data recovery matrix that's inverse of pmi_sys_mat. */
 	struct m0_matrix	     pmi_recov_mat;
-#else
+#endif /* NA_FOR_INTEL_ISA */
 	struct m0_reed_solomon	     pmi_rs;
-#endif /* ISAL_ENCODE_ENABLED */
 };
 
 /* Holds information essential for incremental recovery. */
@@ -166,7 +163,7 @@ struct m0_sns_ir {
 	uint32_t		si_local_nr;
 	/* Array holding all blocks */
 	struct m0_sns_ir_block *si_blocks;
-#if !ISAL_ENCODE_ENABLED
+#if 0 /* NA_FOR_INTEL_ISA */
 	uint32_t		si_failed_data_nr;
 	/* Vandermonde matrix used during RS encoding */
 	struct m0_matrix	si_vandmat;
@@ -176,9 +173,8 @@ struct m0_sns_ir {
 	 * math::pmi_vandmat_parity_slice.
 	 */
 	struct m0_matrix	si_parity_recovery_mat;
-#else
+#endif /* NA_FOR_INTEL_ISA */
 	struct m0_reed_solomon	si_rs;
-#endif /* !ISAL_ENCODE_ENABLED */
 };
 
 /**
@@ -236,10 +232,12 @@ M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
 				       struct m0_buf *parity,
 				       uint32_t data_ind_changed);
 
+#if 0 /* NA_FOR_INTEL_ISA */
 M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
 					uint8_t *fail);
 
 M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math);
+#endif /* NA_FOR_INTEL_ISA */
 
 /**
  * Recovers data units' data words from single or multiple errors.
