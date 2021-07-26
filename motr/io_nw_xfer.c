@@ -29,6 +29,7 @@
 #include "lib/memory.h"          /* m0_alloc, m0_free */
 #include "lib/errno.h"           /* ENOMEM */
 #include "lib/finject.h"         /* M0_FI_ */
+#include "lib/cksum_utils.h"
 #include "fid/fid.h"             /* m0_fid */
 #include "rpc/rpclib.h"          /* m0_rpc_ */
 #include "lib/ext.h"             /* struct m0_ext */
@@ -409,6 +410,11 @@ void target_ioreq_fini(struct target_ioreq *ti)
 		m0_fop_put_lock(&ti->ti_cc_fop.crf_fop);
 	}
 
+	if ( opcode == M0_OC_WRITE ) {
+		m0_buf_free( &ti->ti_attrbuf );		
+		m0_free( (void *)ti->ti_cksum_seg_b_nob );
+	}
+
 	m0_free(ti);
 	M0_LEAVE();
 }
@@ -498,7 +504,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	uint64_t                   cnt;
 	unsigned int               opcode;
 	m0_bcount_t                grp_size;
-	m0_bcount_t                cs_sz;
 	uint64_t                   page_size;
 	struct m0_ext              goff_span_ext;
 	bool                       is_goff_in_range;
@@ -530,7 +535,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	M0_ASSERT(M0_IN(unit_type, (M0_PUT_DATA, M0_PUT_PARITY)));
 
 	unit_sz = layout_unit_size(play);
-	cs_sz 	= ioo->ioo_attr.ov_vec.v_count[0];
 	toff    = target_offset(frame, play, gob_offset);
 	pgstart = toff;
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
@@ -639,10 +643,13 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		/** Ignore hole because of data size not alligned pool width */
 		goff_span_ext.e_start = ioo->ioo_ext.iv_index[0];
 		goff_span_ext.e_end = ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr - 1] + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr - 1]; 
-		is_goff_in_range = m0_ext_is_in(&goff_span_ext, goff);
+		/* If ioo_attr struct is not allocated then skip checksum computation */
+		is_goff_in_range = m0_ext_is_in(&goff_span_ext, goff) && ioo->ioo_attr.ov_vec.v_nr;
 		if(dst_attr != NULL && unit_type == M0_PUT_DATA && opcode == M0_OC_WRITE && is_goff_in_range) {
 			void *src_attr;	
-			
+			m0_bcount_t 			   cs_sz;
+
+			cs_sz	= ioo->ioo_attr.ov_vec.v_count[0];		
 			/* This we can do as page_size <= unit_sz */
 			b_nob = m0_extent_get_checksum_nob( goff, COUNT(ivec, seg), unit_sz, cs_sz );
 			if( b_nob )
@@ -667,6 +674,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				/* Make sure we are not exceeding the allocated buffer size */
 				M0_ASSERT(ti->ti_cksum_copied <= ti->ti_attrbuf.b_nob);
 			}
+
+			ti->ti_cksum_seg_b_nob[seg] = b_nob;
 			
 		} else if (goff_ivec != NULL && unit_type == M0_PUT_DATA &&
 				opcode == M0_OC_READ && is_goff_in_range) {
@@ -824,6 +833,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	uint32_t                     bbsegs;
 	uint32_t                     maxsize;
 	uint32_t                     delta;
+	uint32_t                     fop_cksm_nob;
+	uint32_t                     dispatched_cksm_nob = 0;	
 	enum page_attr               rw;
 	enum page_attr              *pattr;
 	struct m0_bufvec            *bvec;
@@ -906,6 +917,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			m0_free(irfop);
 			goto err;
 		}
+		fop_cksm_nob = 0;
 
 		iofop = &irfop->irf_iofop;
 		rw_fop = io_rw_get(&iofop->if_fop);
@@ -916,9 +928,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			m0_free(irfop);
 			goto err;
 		}
-		delta += io_seg_size();
-		/* Add the size for checksum generated  */
-		delta += ti->ti_cksum_copied;
+		delta += io_seg_size();	
+
 
 		/*
 		* Adds io segments and io descriptor only if it fits within
@@ -942,9 +953,17 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				    auxbvec != NULL &&
 				    auxbvec->ov_buf[seg] != NULL)
 					buf = auxbvec->ov_buf[seg];
-				else
+				else {
 					buf = bvec->ov_buf[seg];
-
+					
+					/* Add the size for checksum generated for every segment, skip parity */				
+					if( (filter == PA_DATA) &&
+						(ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE) ) {
+						delta += ti->ti_cksum_seg_b_nob[seg];
+						fop_cksm_nob += ti->ti_cksum_seg_b_nob[seg];
+					}
+				}
+				
 				rc = m0_rpc_bulk_buf_databuf_add(rbuf,
 					buf, COUNT(ivec, seg),
 					INDEX(ivec, seg), ndom);
@@ -961,6 +980,12 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					bbsegs = 0;
 
 					delta -= io_seg_size() - io_di_size(ioo);
+					
+					if( (filter == PA_DATA) &&
+						(ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE) ) {
+						delta -= ti->ti_cksum_seg_b_nob[seg];
+						fop_cksm_nob -= ti->ti_cksum_seg_b_nob[seg];
+					}
 
 					/*
 					 * Buffer must be 4k aligned to be
@@ -1004,20 +1029,37 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		 */
 		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
 		    ioo->ioo_flags & M0_OOF_NOHOLE)
+			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 
 		/* Assign the checksum buffer for traget */
 		if(filter == PA_DATA) {
-			if(m0_is_write_fop(&iofop->if_fop))	{
-				rw_fop->crw_di_data_cksum.b_addr = ti->ti_attrbuf.b_addr;
-				rw_fop->crw_di_data_cksum.b_nob = ti->ti_cksum_copied;
+			if(m0_is_write_fop(&iofop->if_fop))	{				
+				M0_ASSERT(fop_cksm_nob != 0);
+				/* RPC layer to free crw_di_data_cksum */	
+				if( m0_buf_alloc(&rw_fop->crw_di_data_cksum, fop_cksm_nob) != 0 )
+					goto fini_fop;
+				
+				memcpy( rw_fop->crw_di_data_cksum.b_addr, 
+						ti->ti_attrbuf.b_addr + dispatched_cksm_nob,
+						fop_cksm_nob );			
+				dispatched_cksm_nob += fop_cksm_nob;
+				M0_ASSERT(dispatched_cksm_nob <= ti->ti_cksum_copied);
 				rw_fop->crw_is_data_fop = 1;
-			}
-			else {
+		}
+		else {
 				rw_fop->crw_di_data_cksum.b_addr = NULL;
 				rw_fop->crw_di_data_cksum.b_nob = 0;
 				rw_fop->crw_is_data_fop = 2;
-			}		
-			rw_fop->crw_cksum_size = read_in_write ? 0 : ioo->ioo_attr.ov_vec.v_count[0];
+				if(!read_in_write)
+					M0_ASSERT(ioo->ioo_attr.ov_vec.v_count[0]);
+			}
+			
+			rw_fop->crw_cksum_size = ( read_in_write || !(ioo->ioo_attr.ov_vec.v_nr) )  ? 
+										0 : ioo->ioo_attr.ov_vec.v_count[0];
+			
+			M0_LOG(M0_DEBUG, "YJC %"PRIu64 ": read_in_write = %s crw_cksum_size = %"PRIu64 " v_count[0] =%"PRIu64,
+					   rw_fop->crw_dummy_id, read_in_write ? "true" : "false", rw_fop->crw_cksum_size,
+					   ioo->ioo_attr.ov_vec.v_count[0]);
 		}
 		else {
 			rw_fop->crw_is_data_fop = 0;
@@ -1184,6 +1226,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	if (ti->ti_bufvec.ov_buf == NULL)
 		goto fail;
 
+	/* Memory allocation for checksum computation */
 	if ( op->op_code == M0_OC_WRITE ) {
 		uint32_t b_nob;
 		
@@ -1193,11 +1236,13 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 		if (rc != 0)
 			goto fail;
 		ti->ti_cksum_copied = 0;
+		M0_ALLOC_ARR(ti->ti_cksum_seg_b_nob, nr);
 	}
 	else {
 		ti->ti_attrbuf.b_addr = NULL;
 		ti->ti_attrbuf.b_nob = 0;
 		ti->ti_cksum_copied = 0;
+		ti->ti_cksum_seg_b_nob = NULL;
 	}
 	/*
 	 * For READOLD method, an extra bufvec is needed to remember

@@ -27,6 +27,7 @@
 #include "motr/client.h"
 #include "motr/client_internal.h"
 #include "motr/ut/client.h"
+#include "lib/cksum.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"          /* M0_LOG */

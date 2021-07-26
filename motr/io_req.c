@@ -32,6 +32,7 @@
 #include "rpc/rpclib.h"          /* m0_rpc_client_connect */
 #include "lib/ext.h"             /* struct m0_ext */
 #include "lib/misc.h"            /* M0_KEY_VAL_NULL */
+#include "lib/cksum.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"           /* M0_LOG */
@@ -1308,7 +1309,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 
 	if (dir == CD_COPY_TO_APP) {
 		/* verify the checksum for data read */
-		if (!verify_checksum(ioo)) {
+		if ( ioo->ioo_attr.ov_vec.v_nr && !verify_checksum(ioo)) {
 			M0_LOG(M0_ERROR, "CKSUM_FAILED");
 			return M0_RC(-EIO);
 		}
