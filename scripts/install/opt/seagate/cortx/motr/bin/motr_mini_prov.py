@@ -39,6 +39,7 @@ IVT_DIR = "/var/log/seagate/motr/ivt"
 MOTR_LOG_DIR = "/var/motr"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
+MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -664,33 +665,27 @@ def config_logger(self):
                        )
     return logger
 
-def clean_ivt_data(self):
-    if os.path.exists(MOTR_LOG_DIR):
-        self.logger.info("Removing addb directories")
-        dnames_addb = []
-        pattern="{}/**/addb*".format(MOTR_LOG_DIR)
-        for dname in glob.glob(pattern, recursive=True):
-            dnames_addb.append(dname)
+def remove_dirs(self, log_dir, patterns):
+    if len(patterns) == 0:
+        self.logger.info(f"Removing {log_dir}")
+        execute_command(self, f"rm -rf {log_dir}")
+        return
+    for pattern in patterns:
+        temp_dir = []
+        self.logger.info(f"Removing {pattern} directories from {log_dir}")
+        search_pat = "{}/**/{}*".format(log_dir, pattern)
+        for dname in glob.glob(search_pat, recursive=True):
+            temp_dir.append(dname)
             execute_command(self, f"rm -rf {dname}")
-        self.logger.info(f"Removed below addb directories.\n{dnames_addb}")
-        self.logger.info("Removing trace files")
-        fnames_trace = []
-        pattern="{}/**/*trace*".format(MOTR_LOG_DIR)
-        for fname in glob.glob(pattern, recursive=True):
-            fnames_trace.append(fname)
-            os.remove(fname)
-        self.logger.info(f"Removed below trace files.\n{fnames_trace}")
+        self.logger.info(f"Removed below directories.\n{temp_dir}")
 
-        self.logger.info("Removing db directories")
-        dnames_db = []
-        pattern="{}/**/db*".format(MOTR_LOG_DIR)
-        for dname in glob.glob(pattern, recursive=True):
-            dnames_db.append(dname)
-            execute_command(self, f"rm -rf {dname}")
-        self.logger.info(f"Removed below db directories.\n{dnames_db}")
-    else:
-        self.logger.warning(f"{MOTR_LOG_DIR} does not exist")
-
+def remove_data(self):
+    patterns=["addb", "*trace", "db", "s3server"]
+    for log_dir in MOTR_LOG_DIRS:
+        if os.path.exists(log_dir):
+            remove_dirs(self, log_dir, patterns)
+        else:
+            self.logger.warning(f"{log_dir} does not exist")
     if os.path.exists(IVT_DIR):
         self.logger.info(f"Removing {IVT_DIR}")
         execute_command(self, f"rm -rf {IVT_DIR}")
