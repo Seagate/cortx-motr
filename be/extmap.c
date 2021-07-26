@@ -30,6 +30,7 @@
 #include "lib/misc.h"
 #include "lib/finject.h"
 #include "lib/memory.h"
+#include "lib/cksum_utils.h"
 #include "format/format.h"  /* m0_format_header_pack */
 
 /**

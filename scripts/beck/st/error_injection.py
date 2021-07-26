@@ -67,24 +67,31 @@ parser.add_argument('-huge', action='store_true', default=False, dest='hugeCorru
 parser.add_argument('-seed', action='store', default=0, type=float, dest='seed',
                     help='Seed is used to initialize the "random" library: to initialize the random generation')
 parser.add_argument('-emap', action='store', dest='corrupt_emap', help='Induce Error in Emap specified by Cob Id')
-parser.add_argument('-list_emap', action='store_true', default=False, dest='list_emap', help='Display all Emap keys with device id')
+parser.add_argument('-list_emap', action='store_true', default=False, dest='list_emap',
+                    help='Display all Emap keys with device id')
+parser.add_argument('-parse_size', action='store', dest='parse_size', type=int,
+                    help='Limit for metadata parsing size in bytes for list_emap and verify option')
+parser.add_argument('-offset', action='store', default=0, type=int, dest='seek_offset',
+                    help='Starting offset of metadata file in multiple of 8 bytes')
 
 args = parser.parse_args()
 
 results = parser.parse_args()
-logger.info('Induce Random Error            = {!r}'.format(args.random))
-logger.info('Number of Error induce         = {!r}'.format(args.noOfErr))
-logger.info('Record Type                    = {!r}'.format(args.Record_Type))
-logger.info('Metadata file path             = {!r}'.format(args.mfile))
-logger.info('Verify Record entries          = {!r}'.format(args.verify))
-logger.info('Induce Error in All Record     = {!r}'.format(args.allErr))
-logger.info('Induce Error in GMD Record     = {!r}'.format(args.allGMD))
-logger.info('Induce Error in DMD Record     = {!r}'.format(args.allDMD))
-logger.info('Induce 512k errors             = {!r}'.format(args.err512k))
-logger.info('Induce huge errors             = {!r}'.format(args.hugeCorruption))
-logger.info('Seed for random number         = {!r}'.format(args.seed))
-logger.info('Induce Error in emap by Cob Id = {!r}'.format(args.corrupt_emap))
-logger.info('List all Emap Keys and Records = {!r}'.format(args.list_emap))
+logger.info('Induce Random Error             = {!r}'.format(args.random))
+logger.info('Number of Error induce          = {!r}'.format(args.noOfErr))
+logger.info('Record Type                     = {!r}'.format(args.Record_Type))
+logger.info('Metadata file path              = {!r}'.format(args.mfile))
+logger.info('Verify Record entries           = {!r}'.format(args.verify))
+logger.info('Induce Error in All Record      = {!r}'.format(args.allErr))
+logger.info('Induce Error in GMD Record      = {!r}'.format(args.allGMD))
+logger.info('Induce Error in DMD Record      = {!r}'.format(args.allDMD))
+logger.info('Induce 512k errors              = {!r}'.format(args.err512k))
+logger.info('Induce huge errors              = {!r}'.format(args.hugeCorruption))
+logger.info('Seed for random number          = {!r}'.format(args.seed))
+logger.info('Induce Error in emap by Cob Id  = {!r}'.format(args.corrupt_emap))
+logger.info('List all Emap Keys and Records  = {!r}'.format(args.list_emap))
+logger.info('Limit for parsing size in bytes = {!r}'.format(args.parse_size))
+logger.info('Metadata seek offset in bytes multiple of 8 bytes  = {!r}'.format(args.seek_offset))
 
 filename = args.mfile
 recordType = args.Record_Type
@@ -408,7 +415,6 @@ def CorruptEmap(recordType, stob_f_container, stob_f_key):
     logger.info("Offset List of {} = {} ".format(recordType, lookupList))
 
     for offset in lookupList:
-        print()
         emap_key_data, offset = ReadCompleteRecord(offset)
         if (hex(stob_f_container) in emap_key_data) and (hex(stob_f_key) in emap_key_data) and ("0xffffffffffffffff" not in emap_key_data):
             # 16 bytes of BE_EMAP_KEY (footer) + 16 bytes of BE_EMAP_REC(header) gives offset of corresponding BE_EMAP_REC
@@ -421,6 +427,8 @@ def CorruptEmap(recordType, stob_f_container, stob_f_key):
             # Check er_cs_nob and if it is not 0 then go and corrupt last checksum 8 bytes
             if emap_rec_data[3] != "0x0":
                 EditMetadata(rec_offset-8)
+                print()
+
 
 def ListAllEmapPerDevice():
     print("Listing all emap keys and emap records with device id")
@@ -458,6 +466,7 @@ def VerifyLengthOfRecord(recordDict):
 def read_metadata_file():
     with open(filename, "rb") as metadata:
         i: int = 0
+        metadata.seek(args.seek_offset)
         while 1:
             byte = metadata.read(8)
             i = i + 8
@@ -478,7 +487,11 @@ def read_metadata_file():
                 metadata.seek(i)
             # Not parsing the whole file for few test as It will take many hours, depending on metadata size
             if (args.verify == True) or (args.list_emap == True):
-                pass # we will read complete metadata file in case of -v or -list_emap option
+                if args.parse_size:
+                    if i > args.parse_size:  # This will parse metadata file util specified parse_size for list_emap and verify option
+                        break
+                else:
+                    pass # we will read complete metadata file in case of -v or -list_emap option
             else:
                 if i > 111280000:  # Increase this number for reading more location in metadata
                     break

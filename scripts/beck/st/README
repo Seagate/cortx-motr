@@ -73,3 +73,6 @@ How to run the script:
 
 14. To display all Emap Keys and Emap Records with Device ID
     example: error_injection.py -m <metadata path> -list_emap
+
+15. To display all Emap Keys and Emap Records with Device ID starting from metadata offset and till metadata offset
+    example: error_injection.py -m <metadata path> -list_emap -offset 0 -parse_size 1048576
