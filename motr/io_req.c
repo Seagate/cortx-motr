@@ -1474,6 +1474,11 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 
 	M0_LOG(M0_DEBUG, "[%p] dgmap_nr=%u is in dgmode",
 			 ioo, ioo->ioo_dgmap_nr);
+	/*
+	 * Setting parity buffer type to M0_PBUF_DIR, So that it will free the
+	 * buffer allocated for dgread path. This buffer will be freed in
+	 * pargrp_iomap_fini() --> data_buf_dealloc_fini()
+	 */
 	ioo->ioo_pbuf_type = M0_PBUF_DIR;
 	/*
 	 * Starts processing the pages again if any of the parity groups
