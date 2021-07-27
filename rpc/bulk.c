@@ -75,7 +75,7 @@ static void rpc_bulk_buf_fini(struct m0_rpc_bulk_buf *rbuf)
 {
 	struct m0_net_buffer *nbuf = rbuf->bb_nbuf;
 
-	M0_ENTRY("bulk_buf: %p", rbuf);
+	M0_ENTRY("bulk_buf: %p nb=%p", rbuf, nbuf);
 	M0_PRE(rbuf != NULL);
 	M0_PRE(!(nbuf->nb_flags & M0_NET_BUF_QUEUED));
 
