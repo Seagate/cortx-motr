@@ -753,6 +753,14 @@ m0traces() {
              find $dir -type f -name m0trace.\* |
                  last_modified "${M0TRACES_M0D_MAX:-}"
          done
+         find . -maxdepth 1 -type d -name m0u\* | while read dir; do
+             find $dir -type f -name m0trace.\* |
+                 last_modified "${M0TRACES_MAX:-}"
+         done
+         find . -maxdepth 1 -type d -name systest-\* | while read dir; do
+             find $dir -type f -name m0trace.\* |
+                 last_modified "${M0TRACES_MAX:-}"
+         done
      } | cut -c3- | sort -u | while read path; do
          _tracedump $path $outdir
      done)

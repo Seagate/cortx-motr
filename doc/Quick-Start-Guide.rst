@@ -151,7 +151,14 @@ Troubleshooting
 Build the documentation
 =======================
 
-To create Motr documentation files, in Motr folder run::
+To create Motr documentation files, make sure you first install ``latex`` and ``ghostscript``::
+
+    sudo yum install doxygen
+    sudo yum install texlive-pdftex texlive-latex-bin texlive-texconfig* texlive-latex* texlive-metafont* texlive-cmap* texlive-ec texlive-fncychap* texlive-pdftex-def texlive-fancyhdr* texlive-titlesec* texlive-multirow texlive-framed* texlive-wrapfig* texlive-parskip* texlive-caption texlive-ifluatex* texlive-collection-fontsrecommended texlive-collection-latexrecommended
+    sudo yum install ghostscript
+
+
+Then in Motr folder run::
 
     make doc
 
