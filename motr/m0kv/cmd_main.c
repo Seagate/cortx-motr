@@ -139,7 +139,7 @@ static int opts_get(struct params *par, int *argc, char ***argv)
 
 	if ( *argc <= 2 ) {
 		usage();
-		exit(EXIT_FAILURE);;
+		exit(EXIT_FAILURE);
 	}
 
 	/* All mandatory params must be defined. */
@@ -147,7 +147,7 @@ static int opts_get(struct params *par, int *argc, char ***argv)
 	    (par->cp_local_addr == NULL || par->cp_ha_addr == NULL ||
 	     par->cp_prof == NULL || par->cp_proc_fid == NULL)) {
 		usage();
-		exit(EXIT_FAILURE);;
+		rc = M0_ERR(-EINVAL);
 	}
 
 	if (is_str)
