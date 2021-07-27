@@ -592,6 +592,43 @@ enum m0_entity_type {
 } M0_XCA_ENUM;
 
 /**
+ * Flags passed to m0_entitiy_create(), m0_entity_open() to specify
+ * application's behaviour.
+ */
+ enum m0_entity_flags {
+	/**
+	 * During create if this flag is set in entity->en_flags, that means
+	 * application has capability to store meta-data and hence pver and
+	 * lid can be stored in  application's meta-data.
+	 * Before calling to m0_entity_create/open(), application is
+	 * expected to set obj>ob_entity->en_flags |= M0_ENF_META, so when
+	 * m0_entity_create() returns to application, pool version and layout id
+	 * will be available to application into obj->ob_attr.oa_pver and
+	 * obj->ob_attr.oa_lid respectively and can be stored into application's
+	 * meta-data.
+	 *
+	 * For example:
+	 * Create workflow would be like:
+	 *   obj->ob_entity.en_flags |= M0_ENF_META;
+	 *   m0_entity_create((NULL, &obj.ob_entity, &ops[0]);
+	 *   //  Save the returned pool version and lid into app_meta_data
+	 *   app_meta_data.pver = obj->ob_attr.oa_pver;
+	 *   app_meta_data.lid = obj->ob_attr.oa_lid;
+	 *
+	 * Read workflow:
+	 *   obj->ob_attr.oa_pver = app_meta_data.pver;
+	 *   obj->ob_attr.oa_lid =  app_meta_data.lid;
+	 *   m0_entity_open(NULL, &obj.ob_entity, &ops[0]);
+	 */
+	M0_ENF_META = 1 << 0,
+	/**
+	 * If this flags is set during entity_create() that means application
+	 * do not support update operation. This flag is not in use yet.
+	 */
+	M0_ENF_NO_RMW =  1 << 1
+ } M0_XCA_ENUM;
+
+/**
  * Generic client operation structure.
  */
 struct m0_op {
@@ -611,7 +648,7 @@ struct m0_op {
 	/** Operation state machine. */
 	struct m0_sm                   op_sm;
 	/** Application-supplied call-backs. */
-	const struct m0_op_ops *op_cbs;
+	const struct m0_op_ops        *op_cbs;
 	/** The entity this operation is on. */
 	struct m0_entity              *op_entity;
 	/** Caching dead-line. */
@@ -691,6 +728,7 @@ struct m0_entity {
 	/** list of pending transactions. */
 	struct m0_tl        en_pending_tx;
 	struct m0_mutex     en_pending_tx_lock;
+	uint32_t            en_flags;
 };
 
 /**
@@ -716,6 +754,12 @@ struct m0_obj_attr {
 
 	/** Pool version fid */
 	struct m0_fid oa_pver;
+
+	/**
+	 * Buffer size for object IO. Set this before m0_obj_init() to generate
+	 * optimal layout id during m0_entity_create().
+	 */
+	size_t        oa_buf_size;
 };
 
 /**
@@ -751,6 +795,20 @@ struct m0_client_layout {
 };
 
 /**
+ * Index attributes.
+ * 
+ * This is supplied by an application and return by the implementation
+ * when an index is created.
+ *
+ */
+struct m0_idx_attr {
+	/** DIX pool layout type. Please refer to enum dix_layout_type. */
+	uint32_t      idx_layout_type;
+	/** DIX pool version. */
+	struct m0_fid idx_pver;
+};
+
+/**
  * Index is an ordered key-value store.
  *
  * A record is a key-value pair. A new record can be inserted in an index,
@@ -768,7 +826,8 @@ struct m0_client_layout {
  *   m0_cas_index_fid_type type.
  */
 struct m0_idx {
-	struct m0_entity in_entity;
+	struct m0_entity   in_entity;
+	struct m0_idx_attr in_attr;
 };
 
 #define	M0_COMPOSITE_EXTENT_INF (0xffffffffffffffff)
@@ -1117,8 +1176,8 @@ int m0_obj_write_lock_get_sync(struct m0_obj *obj,
  * @retval 0 On success.
  */
 int m0_obj_read_lock_get(struct m0_obj *obj,
-				struct m0_rm_lock_req *req,
-				struct m0_clink *clink);
+			 struct m0_rm_lock_req *req,
+			 struct m0_clink *clink);
 
 /**
  * Acquires the read lock for the object.
@@ -1135,7 +1194,7 @@ int m0_obj_read_lock_get(struct m0_obj *obj,
  * @retval 0 On success.
  */
 int m0_obj_read_lock_get_sync(struct m0_obj *obj,
-				     struct m0_rm_lock_req *req);
+			      struct m0_rm_lock_req *req);
 
 /**
  * Releases the RM lock for the object.
@@ -1294,8 +1353,12 @@ void m0__dtx_init     (struct m0__dtx             *dtx,
  * read, write, alloc and free operations executed on it.
  *
  * The size of data and parity buffer (m0_obj::ob_attr::oa_bshift) is
- * set to default value 'M0_DEFAULT_BUF_SHIFT'. If layout_id == 0, this
- * object will be set with default layout id.
+ * set to default value 'M0_DEFAULT_BUF_SHIFT'.
+ *
+ * If layout_id == 0, then this object will be set with optimal layout id
+ * according to the object size set in m0_obj::ob_attr::oa_buf_size.
+ * If Object size is not set, then this object will be set with
+ * default layout id (See struct m0_obj_attr).
  *
  * @param obj The object to initialise.
  * @param parent The realm operations on this object will be part of.
@@ -1306,10 +1369,10 @@ void m0__dtx_init     (struct m0__dtx             *dtx,
  * @pre parent != NULL
  * @pre id != NULL && m0_uint128_cmp(&M0_ID_APP, id) < 0
  */
-void m0_obj_init(struct m0_obj    *obj,
-			struct m0_realm  *parent,
-			const struct m0_uint128 *id,
-			uint64_t                 layout_id);
+void m0_obj_init(struct m0_obj           *obj,
+		 struct m0_realm         *parent,
+		 const struct m0_uint128 *id,
+		 uint64_t                 layout_id);
 /**
  * Finalises an obj, leading to finilise entity and to free any additiona
  *  memory allocated to represent it.
@@ -1644,6 +1707,7 @@ int m0_entity_sync(struct m0_entity *ent);
  * @return 0 for success, anything else for an error.
  */
 int m0_sync(struct m0_client *m0c, bool wait);
+
 /**
  * Maps a unit size to a layout id defined in Motr.
  *

@@ -72,6 +72,7 @@ struct m0_utility_param {
 	char             *cup_file;
 	int               cup_blks_per_io;
 	bool              cup_update_mode;
+	struct m0_fid     cup_pver;
 	uint32_t          flags;
 };
 
@@ -122,7 +123,7 @@ int m0_write(struct m0_container *container,
 int m0_read(struct m0_container *container,
 	    struct m0_uint128 id, char *dest, uint32_t block_size,
 	    uint32_t block_count, uint64_t offset, int blks_per_io,
-	    bool take_locks, uint32_t flags);
+	    bool take_locks, uint32_t flags, struct m0_fid *read_pver);
 
 int m0_truncate(struct m0_container *container,
 		struct m0_uint128 id, uint32_t block_size,

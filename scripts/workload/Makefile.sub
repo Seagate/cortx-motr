@@ -1,0 +1,5 @@
+EXTRA_DIST += scripts/workload/m0workload \
+              scripts/workload/create_workload_from_excel \
+              scripts/workload/sample_workload_excel_test.xls \
+              scripts/workload/mix_workload.yaml \
+              scripts/workload/m0crate_workload_batch_1_file1.yaml

@@ -138,7 +138,7 @@ static void dix_hash(struct m0_dix_ldesc *ldesc,
 
 static bool unit_is_valid(struct m0_pdclust_attr *attr, uint64_t unit)
 {
-	return unit < attr->pa_N + 2 * attr->pa_K;
+	return unit < attr->pa_N + attr->pa_K + attr->pa_S;
 }
 
 M0_INTERNAL void m0_dix_target(struct m0_dix_linst *inst,
@@ -238,7 +238,7 @@ int m0_dix_layout_iter_init(struct m0_dix_layout_iter *iter,
 	M0_ASSERT_INFO(pd_attr->pa_N == 1,
 		       "N=%u. Only layouts with N=1 are supported.",
 		       pver->pv_attr.pa_N);
-	iter->dit_W = pd_attr->pa_N + 2 * pd_attr->pa_K;
+	iter->dit_W = pd_attr->pa_N + pd_attr->pa_K + pd_attr->pa_S;
 	iter->dit_unit = 0;
 	return M0_RC(rc);
 }
@@ -277,6 +277,11 @@ M0_INTERNAL uint32_t m0_dix_liter_P(struct m0_dix_layout_iter *iter)
 M0_INTERNAL uint32_t m0_dix_liter_K(struct m0_dix_layout_iter *iter)
 {
 	return iter->dit_linst.li_pl->pl_attr.pa_K;
+}
+
+M0_INTERNAL uint32_t m0_dix_liter_S(struct m0_dix_layout_iter *iter)
+{
+	return iter->dit_linst.li_pl->pl_attr.pa_S;
 }
 
 M0_INTERNAL uint32_t m0_dix_liter_spare_offset(struct m0_dix_layout_iter *iter)

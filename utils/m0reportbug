@@ -46,6 +46,7 @@ RECOVERY_SCRIPT_DIR=/opt/seagate/cortx/motr/libexec    # dir containing recovery
 RECOVERY_LOG_DIR=/var/log/seagate/motr/datarecovery    # dir containing recovery log/logs
 LIVE_CORE_DIR=/var/log/seagate/motr
 M0TR_M0D_TRACE_DIR=/var/log/seagate/motr/trace
+MOTR_MINI_PROV_LOG_DIR=/var/log/seagate/motr/mini_provisioner
 
 readonly START_DIR=$PWD
 
@@ -347,6 +348,11 @@ misc_files() {
         mkdir -p $outdir/recovery
         cp ${RECOVERY_LOG_DIR}/motr_data_recovery* $outdir/recovery/
     fi
+
+    if [ -f ${MOTR_MINI_PROV_LOG_DIR} ]; then
+        cp ${MOTR_MINI_PROV_LOG_DIR} $outdir/
+    fi
+
 
 }
 
@@ -746,6 +752,14 @@ m0traces() {
          find . -maxdepth 1 -type d -name m0d-\* | while read dir; do
              find $dir -type f -name m0trace.\* |
                  last_modified "${M0TRACES_M0D_MAX:-}"
+         done
+         find . -maxdepth 1 -type d -name m0u\* | while read dir; do
+             find $dir -type f -name m0trace.\* |
+                 last_modified "${M0TRACES_MAX:-}"
+         done
+         find . -maxdepth 1 -type d -name systest-\* | while read dir; do
+             find $dir -type f -name m0trace.\* |
+                 last_modified "${M0TRACES_MAX:-}"
          done
      } | cut -c3- | sort -u | while read path; do
          _tracedump $path $outdir

@@ -391,6 +391,7 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 	char *cp = strchr(ep_addr, ':');
 	char *endp;
 	size_t n = cp - ep_addr;
+	uint64_t nid;
 	int rc;
 
 	M0_ENTRY("ep_addr=%s", ep_addr);
@@ -399,9 +400,10 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 		return M0_ERR(-EINVAL);
 	strncpy(nidstr, ep_addr, n);
 	nidstr[n] = 0;
-	rc = nlx_core_nidstr_decode(lcdom, nidstr, &cepa->cepa_nid);
+	rc = nlx_core_nidstr_decode(lcdom, nidstr, &nid);
 	if (rc != 0)
 		return M0_RC(rc);
+	cepa->cepa_nid = nid;
 	++cp;
 	cepa->cepa_pid = m0_strtou32(cp, &endp, 10);
 	if (*endp != ':')

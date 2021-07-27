@@ -266,7 +266,7 @@ static int shuffle_tests(struct st_suite *suite)
 	return 0;
 }
 
-static inline const char *skipspaces(const char *str)
+M0_UNUSED static inline const char *skipspaces(const char *str)
 {
 	while (isspace(*str))
 		++str;

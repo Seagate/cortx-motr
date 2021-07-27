@@ -134,6 +134,7 @@
 
 struct m0_bufvec_cursor;
 struct m0_be_tx;
+struct m0_client;
 
 /* export */
 struct m0_layout_domain;
@@ -741,11 +742,23 @@ M0_INTERNAL struct m0_layout *m0_layout_find(struct m0_layout_domain *dom,
  * If buffer is too small then returns the first very lid. If too large then
  * returns the layout id describing biggest possible unit_size.
  *
- * Always returns valid layout id.
+ * Returns -EINVAL if cannot find the right layout.
  */
-M0_INTERNAL uint64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
-						struct m0_fid *pver,
-						size_t buffsize);
+M0_INTERNAL int64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
+					       struct m0_fid *pver,
+					       size_t buffsize);
+
+/**
+ * Find optimal layout id by pool_id and supposed object size. It's
+ * another variant of m0_layout_find_by_buffsize() which might be easier
+ * to use. The returned layout id can be passed straight away to the
+ * m0_obj_init().
+ *
+ * Returns -EINVAL if cannot find the right layout.
+ */
+M0_INTERNAL int64_t m0_layout_find_by_objsz(struct m0_client *cli,
+					    struct m0_fid *pool, size_t sz);
+
 /**
  * Acquires an additional reference on the layout object.
  * @see m0_layout_put()

@@ -34,8 +34,9 @@ m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 . $motr_st_util_dir/motr_local_conf.sh
 . $motr_st_util_dir/motr_st_inc.sh
 
-N=3
-K=3
+N=6
+K=2
+S=0
 P=15
 stride=32
 BLOCKSIZE=""
@@ -68,8 +69,8 @@ main()
 	dest_file="$MOTR_TEST_DIR/motr_dest"
 	rc=0
 
-	BLOCKSIZE=4096
-	BLOCKCOUNT=25
+	BLOCKSIZE=16384 #4096
+	BLOCKCOUNT=3
 	echo "dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file"
 	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file \
               2> $MOTR_TEST_LOGFILE || {
@@ -81,7 +82,7 @@ main()
 
 	mkdir $MOTR_TRACE_DIR
 
-	motr_service_start $N $K $P $stride
+	motr_service_start $N $K $S $P $stride
 
 	#Initialise dix
 	dix_init
