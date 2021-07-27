@@ -113,6 +113,7 @@ enum m0_btree_opcode {
 	M0_BO_DESTROY,
 	M0_BO_GET,
 	M0_BO_PUT,
+	M0_BO_UPDATE,
 	M0_BO_DEL,
 	M0_BO_ITER,
 
