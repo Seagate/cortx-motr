@@ -190,6 +190,17 @@ class CleanupCmd(Cmd):
         super().__init__(args)
 
     def process(self):
+        if (len(self._args) > 1):
+            self.logger.error(f"Invalid number of arguments of 'cleanup'\n")
+            self.logger.error(f"usage: <prog> [-h] <cmd> --config <url> <args>\n")
+            self.logger.error(f"Ex: /opt/seagate/cortx/motr/bin/motr_setup cleanup --config <config_url> [pre-factory]")
+            return
+        if pkg_installed(self, "cortx-hare"):
+            if cluster_up(self):
+                self.logger.warning("Cluster is already up...Exiting.\n")
+                return
+        if (len(self._args) == 1) and (self._args[0] == "pre-factory"):
+            lvm_clean(self)
         pass
 
 class UpgradeCmd(Cmd):

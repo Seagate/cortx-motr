@@ -731,3 +731,32 @@ def lnet_self_ping(self):
        if ret != 0:
             return False
     return True
+
+def lvm_clean(self):
+    vol_grps=execute_command(self, "vgs|grep vg_srvnode|awk '{print $1}'")[0].split('\n')[0:-1]
+    if (len(vol_grps) == 0):
+        self.logger.info("No cortx volume groups (e.g. vg_srvnode-1_md1) are found \n")
+        return
+    self.logger.info("Executing swapoff -a")
+    swap_off(self)
+    self.logger.info(f"Removing cortx LVM entries from {FSTAB}")
+    execute_command(self, f"sed -i.bak '/vg_srvnode/d' {FSTAB}")
+    for vg in vol_grps:
+        cmd = f"pvs|grep {vg} |" "awk '{print $1}'"
+        pv_names = execute_command(self, cmd)[0].split('\n')[0:-1]
+        cmd = f"lvs|grep {vg} |" "awk '{print $1}'"
+        lv_names = execute_command(self, cmd)[0].split('\n')[0:-1]
+
+        for lv in lv_names:
+            lv_path = f"/dev/{vg}/{lv}"
+            self.logger.info(f"Executing lvchange -an {lv_path}")
+            execute_command(self, f"lvchange -an {lv_path}")
+            self.logger.info(f"Executing lvremove {lv_path}")
+            execute_command(self, f"lvremove {lv_path}")
+        self.logger.info(f"Executing vgchange -an {vg}")
+        execute_command(self, f"vgchange -an {vg}")
+        self.logger.info(f"Executing vgremove {vg}")
+        execute_command(self, f"vgremove {vg}")
+        for pv in pv_names:
+            self.logger.info(f"pvremove {pv}")
+            execute_command(self, f"pvremove {pv}")
