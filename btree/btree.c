@@ -1848,18 +1848,8 @@ static const struct node_type *btree_node_format[] = {
 	[BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE] = NULL,
 };
 #endif
-struct seg_ops {
-#if 0
-	int64_t    (*so_tree_create)(struct node_op *op,
-	                             struct m0_btree_type *tt,
-				     int rootshift, struct m0_be_tx *tx,
-				     int nxt);
-#endif
-
-};
 
 #ifndef __KERNEL__
-static struct seg_ops *segops;
 
 /**
  * Locates a tree descriptor whose root node points to the node at addr and
@@ -1997,6 +1987,9 @@ static void tree_put(struct td *tree)
 	tree->t_ref--;
 
 	if (tree->t_ref == 0) {
+		node_lock(tree->t_root);
+		tree->t_root->n_tree = NULL;
+		node_unlock(tree->t_root);
 		m0_rwlock_write_unlock(&tree->t_lock);
 		m0_rwlock_fini(&tree->t_lock);
 		m0_free(tree);
@@ -2255,35 +2248,6 @@ static void node_op_fini(struct node_op *op)
 #endif
 
 
-#if 0
-static int64_t mem_tree_create(struct node_op *op, struct m0_btree_type *tt,
-			       int rootshift, struct m0_be_tx *tx, int nxt)
-{
-	struct td *tree;
-
-	/**
-	 * Creates root node and then assigns a tree descriptor for this root
-	 * node.
-	 */
-
-	tree_get(op, NULL, nxt);
-
-	tree = op->no_tree;
-	node_alloc(op, tree, rootshift, &fixed_format, 8, 8, tx, nxt);
-
-	m0_rwlock_write_lock(&tree->t_lock);
-	tree->t_root = op->no_node;
-	tree->t_type = tt;
-	m0_rwlock_write_unlock(&tree->t_lock);
-
-	return nxt;
-}
-#endif
-
-
-static const struct seg_ops mem_seg_ops = {
-	/* .so_tree_create  = &mem_tree_create, */
-};
 
 /**
  *  Structure of the node in persistent store.
@@ -5577,7 +5541,7 @@ static bool                     btree_ut_initialised = false;
 static void btree_ut_init(void)
 {
 	if (!btree_ut_initialised) {
-		segops = (struct seg_ops *)&mem_seg_ops;
+		//segops = (struct seg_ops *)&mem_seg_ops;
 		m0_btree_mod_init();
 		btree_ut_initialised = true;
 	}
@@ -5585,7 +5549,7 @@ static void btree_ut_init(void)
 
 static void btree_ut_fini(void)
 {
-	segops = NULL;
+	//segops = NULL;
 	m0_btree_mod_fini();
 	btree_ut_initialised = false;
 }
