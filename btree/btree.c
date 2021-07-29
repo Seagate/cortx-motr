@@ -595,7 +595,7 @@ enum base_phase {
 	P_LOCKALL,
 	P_LOCK,
 	P_CHECK,
-	P_DECIDE_NXT,
+	P_SANITY_CHECK,
 	P_MAKESPACE,
 	P_ACT,
 	P_CAPTURE,
@@ -3875,16 +3875,11 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			}
 		}
 		/** Fall through if path_check is successful. */
-	case P_DECIDE_NXT: {
-		if (bop->bo_opc == M0_BO_PUT) {
-			if (oi->i_key_found)
-				return P_ACT;
-			else
-				return  P_MAKESPACE;
-		} else {
-			M0_ASSERT(bop->bo_opc == M0_BO_UPDATE);
+	case P_SANITY_CHECK: {
+		if (bop->bo_opc == M0_BO_PUT && !oi->i_key_found)
+			return  P_MAKESPACE;
+		else
 			return P_ACT;
-		}
 	}
 	case P_MAKESPACE: {
 		M0_ASSERT(!oi->i_key_found);
@@ -3917,7 +3912,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		else
 			rec.r_flags = M0_BSC_SUCCESS;
 
-		if (rec.r_flags) {
+		if (rec.r_flags != M0_BSC_SUCCESS) {
 			rc = bop->bo_cb.c_act(&bop->bo_cb, &rec);
 			M0_ASSERT(rc != M0_BSC_SUCCESS);
 			lock_op_unlock(tree);
@@ -4061,9 +4056,9 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 		.sd_allowed = M0_BITS(P_CAPTURE, P_MAKESPACE, P_ACT, P_CLEANUP,
 				      P_DOWN),
 	},
-	[P_DECIDE_NXT] = {
+	[P_SANITY_CHECK] = {
 		.sd_flags   = 0,
-		.sd_name    = "P_DECIDE_NXT",
+		.sd_name    = "P_SANITY_CHECK",
 		.sd_allowed = M0_BITS(P_MAKESPACE, P_ACT),
 	},
 	[P_MAKESPACE] = {
@@ -4152,8 +4147,8 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "put-check-ft-capture", P_CHECK, P_CAPTURE },
 	{ "put-check-ft-makespace", P_LOCK, P_MAKESPACE },
 	{ "put-check-ft-act", P_LOCK, P_ACT },
-	{ "put-decide_nxt-makespace", P_DECIDE_NXT, P_MAKESPACE },
-	{ "put-decide_nxt-act", P_DECIDE_NXT, P_ACT },
+	{ "put-decide_nxt-makespace", P_SANITY_CHECK, P_MAKESPACE },
+	{ "put-decide_nxt-act", P_SANITY_CHECK, P_ACT },
 	{ "put-makespace-capture", P_MAKESPACE, P_CAPTURE },
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
 	{ "kvop-act", P_ACT, P_CLEANUP },
