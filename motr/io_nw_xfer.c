@@ -29,6 +29,7 @@
 #include "lib/memory.h"          /* m0_alloc, m0_free */
 #include "lib/errno.h"           /* ENOMEM */
 #include "lib/finject.h"         /* M0_FI_ */
+#include "lib/cksum_utils.h"
 #include "fid/fid.h"             /* m0_fid */
 #include "rpc/rpclib.h"          /* m0_rpc_ */
 #include "lib/ext.h"             /* struct m0_ext */

@@ -170,8 +170,8 @@ int m0_client_calculate_pi(struct m0_generic_pi *pi,
 		unsigned char *curr_context,
 		unsigned char *pi_value_without_seed)
 {
-	M0_ENTRY();
 	int rc = 0;
+	M0_ENTRY();
 #ifndef __KERNEL__
 	switch(pi->hdr.pi_type) {
 
@@ -233,6 +233,7 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 
 	return true;
 #endif
+	return true;
 
 }
 

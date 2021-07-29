@@ -1140,7 +1140,6 @@ static int application_data_copy(struct pargrp_iomap      *map,
 static bool verify_checksum(struct m0_op_io *ioo)
 {
 
-#ifndef __KERNEL__
 	struct m0_pi_seed seed;
 	struct m0_bufvec user_data = {};
 	int usz, rc, count, i;
@@ -1236,7 +1235,6 @@ static bool verify_checksum(struct m0_op_io *ioo)
 		M0_ASSERT(0);
 		return true;
 	}
-#endif
 	return true;
 }
 

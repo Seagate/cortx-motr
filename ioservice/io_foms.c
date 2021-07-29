@@ -27,6 +27,7 @@
 #include "lib/assert.h"
 #include "lib/misc.h"    /* M0_BITS */
 #include "lib/finject.h"
+#include "lib/cksum_utils.h"
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
 #include "fop/fop.h"

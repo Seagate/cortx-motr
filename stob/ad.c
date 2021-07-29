@@ -34,6 +34,7 @@
 #include "lib/locality.h"	/* m0_locality0_get */
 #include "lib/memory.h"
 #include "lib/string.h"
+#include "lib/cksum_utils.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADSTOB
 #include "lib/trace.h"		/* M0_LOG */
 

@@ -45,6 +45,7 @@ nobase_motr_include_HEADERS += lib/arith.h \
                                lib/varr_private.h \
                                lib/vec.h \
                                lib/cksum.h \
+                               lib/cksum_utils.h \
                                lib/user_space/getopts.h \
                                lib/user_space/misc.h \
                                lib/user_space/mutex.h \
@@ -97,6 +98,7 @@ motr_libmotr_la_SOURCES += lib/assert.c \
                            lib/varr.c \
                            lib/vec.c \
                            lib/cksum.c \
+                           lib/cksum_utils.c \
                            lib/user_space/finject_init.c \
                            lib/user_space/fs.c \
                            lib/user_space/memory.c \
