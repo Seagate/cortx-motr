@@ -3887,11 +3887,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		}
 	}
 	case P_MAKESPACE: {
-		if (oi->i_key_found) {
-			oi->i_nop.no_op.o_sm.sm_rc = M0_BSC_KEY_EXISTS;
-			return P_ACT;
-		}
-
+		M0_ASSERT(!oi->i_key_found);
 		lev = &oi->i_level[oi->i_used];
 		struct slot slot_for_right_node = {
 			.s_node = lev->l_node,
@@ -3903,7 +3899,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 
 		node_lock(lev->l_node);
 		node_make(&slot_for_right_node, bop->bo_tx);
-		return P_ACT;
+		/** Fall through if there is no overflow.  **/
 	}
 	case P_ACT: {
 		m0_bcount_t          ksize;
@@ -4056,12 +4052,14 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_LOCK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_LOCK",
-		.sd_allowed = M0_BITS(P_CHECK, P_MAKESPACE, P_ACT, P_CAPTURE, P_CLEANUP),
+		.sd_allowed = M0_BITS(P_CHECK, P_MAKESPACE, P_ACT, P_CAPTURE,
+				      P_CLEANUP),
 	},
 	[P_CHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_CHECK",
-		.sd_allowed = M0_BITS(P_CAPTURE, P_MAKESPACE, P_ACT, P_CLEANUP, P_DOWN),
+		.sd_allowed = M0_BITS(P_CAPTURE, P_MAKESPACE, P_ACT, P_CLEANUP,
+				      P_DOWN),
 	},
 	[P_DECIDE_NXT] = {
 		.sd_flags   = 0,
@@ -4071,7 +4069,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_MAKESPACE] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_MAKESPACE",
-		.sd_allowed = M0_BITS(P_ACT, P_CAPTURE, P_CLEANUP),
+		.sd_allowed = M0_BITS(P_CAPTURE, P_CLEANUP),
 	},
 	[P_ACT] = {
 		.sd_flags   = 0,
@@ -4147,11 +4145,17 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "kvop-lock", P_LOCK, P_CHECK },
 	{ "kvop-lock-check-ht-changed", P_LOCK, P_CLEANUP },
 	{ "put-lock-ft-capture", P_LOCK, P_CAPTURE },
+	{ "put-lock-ft-makespace", P_LOCK, P_MAKESPACE },
+	{ "put-lock-ft-act", P_LOCK, P_ACT },
 	{ "kvop-check-height-changed", P_CHECK, P_CLEANUP },
 	{ "kvop-check-height-same", P_CHECK, P_DOWN },
 	{ "put-check-ft-capture", P_CHECK, P_CAPTURE },
+	{ "put-check-ft-makespace", P_LOCK, P_MAKESPACE },
+	{ "put-check-ft-act", P_LOCK, P_ACT },
+	{ "put-decide_nxt-makespace", P_DECIDE_NXT, P_MAKESPACE },
+	{ "put-decide_nxt-act", P_DECIDE_NXT, P_ACT },
+	{ "put-makespace-capture", P_MAKESPACE, P_CAPTURE },
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
-	{ "put-makespace", P_MAKESPACE, P_ACT },
 	{ "kvop-act", P_ACT, P_CLEANUP },
 	{ "put-del-act", P_ACT, P_CAPTURE },
 	{ "put-capture", P_CAPTURE, P_CLEANUP},
