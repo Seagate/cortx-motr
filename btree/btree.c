@@ -2992,6 +2992,41 @@ static void btree_callback_credit(struct m0_be_tx_credit *accum)
 {
 	accum->tc_cb_nr += BTREE_CALLBACK_CREDIT;
 }
+
+/**
+ * This function will calculate credits required to update @nr nodes and it will
+ * add those credits in @accum.
+ */
+static void btree_node_update_credit(const struct m0_btree  *tree,
+				     struct m0_be_tx_credit *accum,
+				     m0_bcount_t             nr)
+{
+	struct m0_be_tx_credit cred = {};
+ 	m0_bcount_t             node_size;
+	int                     shift;
+
+	shift     = node_shift(tree->t_desc->t_root);
+	node_size =  1ULL << shift;
+
+	cred = M0_BE_TX_CREDIT(1, node_size);
+
+	m0_be_tx_credit_mac(accum, &cred, nr);
+}
+
+/**
+ * This function will calculate credits required to perform  @nr update kv
+ * operation and it will add those credits in @accum.
+ */
+static void m0_btree_update_credit(const struct m0_btree  *tree,
+				   struct m0_be_tx_credit *accum,
+				   m0_bcount_t             nr)
+{
+	struct m0_be_tx_credit cred = {};
+
+	btree_node_update_credit(tree, &cred, 1);
+	m0_be_tx_credit_mac(accum, &cred, nr);
+}
+
 #endif
 
 /**
@@ -7836,6 +7871,37 @@ static void ut_put_del_operation(void)
 	btree_ut_fini();
 }
 #endif
+static void ut_credit_calculation()
+{
+	struct m0_btree_type    btree_type = {.tt_id = M0_BT_UT_KV_OPS,
+					.ksize = 8,
+					.vsize = 8, };
+	struct m0_be_tx        *tx          = NULL;
+	struct m0_be_seg       *seg         = NULL;
+	struct m0_btree_op      b_op        = {};
+	struct m0_btree        *tree;
+	void                   *temp_node;
+	const struct node_type *nt          = &fixed_format;
+	struct m0_be_tx_credit  accum       = {};
+
+	M0_ENTRY();
+
+	/** Prepare transaction to capture tree operations. */
+	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
+	m0_be_tx_prep(tx, NULL);
+	btree_ut_init();
+
+	/** Create temp node space and use it as root node for btree */
+	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				 m0_btree_create(temp_node, 1024, &btree_type,
+						 nt, &b_op, seg, tx));
+
+	tree = b_op.bo_arbor;
+	m0_btree_update_credit(tree, &accum, i);
+	btree_ut_fini();
+
+}
 
 static int ut_btree_suite_init(void)
 {
@@ -7890,6 +7956,7 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
 		{"node_create_delete",              ut_node_create_delete},
 		{"node_add_del_rec",                ut_node_add_del_rec},
+		{"credit_calculation",              ut_credit_calculation},
 		/* {"btree_kv_add_del",                ut_put_del_operation}, */
 		{NULL, NULL}
 	}
