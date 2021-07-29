@@ -294,9 +294,9 @@ static void *minmax_output_prepare(struct m0_buf *result,
 }
 
 /**
- * Apart from processing the output this can deserialize the buffer into
- * a structure relevant to the result of invoked computation.
- * and return the same.
+ * Deserialize the buffer at @result and do the final computation,
+ * taking into account the previous result @out, and return the new one.
+ * @last indicates the last result to be processed.
  */
 static void* output_process(struct m0_buf *result, bool last,
 			    void *out, enum isc_comp_type type)
@@ -433,7 +433,7 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 		m0_semaphore_down(&isc_sem);
 
 	/* Process the replies. */
-	isc_reqs_teardown(req) {
+	m0_list_teardown(&isc_reqs, req, struct isc_req, cir_link) {
 		iopl = M0_AMB(iopl, req->cir_plop, iop_base);
 		DBG2("req=%d goff=%lu\n", ++reqs_nr, iopl->iop_goff);
 		if (rc == 0 && req->cir_rc == 0) {

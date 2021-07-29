@@ -77,12 +77,6 @@ void isc_fini(struct m0_client*);
  */
 uint64_t isc_m0gs(struct m0_obj*, struct m0_client*);
 
-#define isc_reqs_teardown(req) \
-  while (!m0_list_is_empty(&isc_reqs) && \
-         (req = m0_list_entry(isc_reqs.l_head, \
-                              struct isc_req, cir_link)) && \
-         (m0_list_del(&req->cir_link), true))
-
 /**
  * Prepares a request using provided parameters.
  *

@@ -219,9 +219,11 @@ int isc_req_send(struct isc_req *req)
 
 static void fop_fini_lock(struct m0_fop *fop)
 {
-	m0_rpc_machine_lock(m0_fop_rpc_machine(fop));
+	struct m0_rpc_machine *rmach = m0_fop_rpc_machine(fop);
+
+	m0_rpc_machine_lock(rmach);
 	m0_fop_fini(fop);
-	m0_rpc_machine_unlock(m0_fop_rpc_machine(fop));
+	m0_rpc_machine_unlock(rmach);
 }
 
 void isc_req_fini(struct isc_req *req)
