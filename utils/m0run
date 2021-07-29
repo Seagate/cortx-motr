@@ -341,6 +341,9 @@ unload_modules()
 # exit immediately if one the commands exits with a non-zero status
 set -e
 
+echo "rinkudebug from m0run, delebrate exit for testing"
+exit 5
+
 parse_cli_options "$@"
 eval set -- "$cli_args"
 

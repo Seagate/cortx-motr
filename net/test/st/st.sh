@@ -60,6 +60,9 @@ fi
 
 
 sandbox_init
+echo "Delebrately doing an exit for testing"
+exit 2
+
 export TEST_RUN_TIME=5
 echo "transfer machines endpoint prefix is $LNET_PREFIX"
 
