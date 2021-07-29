@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 			usage();
 			break;
 		default:
-			fprintf(stderr, "unknown option: %c\n", optopt);
+			ERR("unknown option: %c\n", optopt);
 			usage();
 			break;
 		}
@@ -76,7 +76,7 @@ int main(int argc, char **argv)
 
 	if (conf.mc_local_addr == NULL || conf.mc_ha_addr == NULL ||
 	    conf.mc_process_fid == NULL || conf.mc_profile == NULL) {
-		fprintf(stderr, "mandatory parameter is missing\n");
+		ERR("mandatory parameter is missing\n");
 		usage();
 	}
 	if (argc - optind < 1)
@@ -84,20 +84,19 @@ int main(int argc, char **argv)
 
 	rc = isc_init(&conf, &cinst);
 	if (rc != 0) {
-		fprintf(stderr,"error! isc_init() failed: %d\n", rc);
+		ERR("isc_init() failed: %d\n", rc);
 		return 2;
 	}
 
 	rc = m0_isc_lib_register(argv[optind], &cinst->m0c_profile_fid,
 				 &cinst->m0c_reqh);
 	if (rc != 0)
-		fprintf(stderr, "error! loading of library from %s failed.\n",
-			argv[1]);
+		ERR("loading of library failed: rc=%d\n", rc);
 
 	isc_fini(cinst);
 
 	if (rc == 0)
-		fprintf(stderr,"%s success\n", prog);
+		printf("%s success\n", prog);
 
 	return rc != 0 ? 1 : 0;
 }

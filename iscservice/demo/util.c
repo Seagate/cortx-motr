@@ -120,7 +120,7 @@ int isc_req_prepare(struct isc_req *req, struct m0_buf *args,
 	rc = m0_rpc_at_add(&fop_isc->fi_args, args, sess->s_conn);
 	if (rc != 0) {
 		m0_rpc_at_fini(&fop_isc->fi_args);
-		fprintf(stderr, "error! m0_rpc_at_add() failed with %d\n", rc);
+		ERR("m0_rpc_at_add() failed with %d\n", rc);
 		return rc;
 	}
 
@@ -130,7 +130,7 @@ int isc_req_prepare(struct isc_req *req, struct m0_buf *args,
 	if (rc != 0) {
 		m0_rpc_at_fini(&fop_isc->fi_args);
 		m0_rpc_at_fini(&fop_isc->fi_ret);
-		fprintf(stderr, "error! m0_rpc_at_recv() failed with %d\n", rc);
+		ERR("m0_rpc_at_recv() failed with %d\n", rc);
 		return rc;
 	}
 
@@ -151,8 +151,7 @@ void isc_req_replied(struct m0_rpc_item *item)
 
 	if (item->ri_error != 0) {
 		req->cir_rc = item->ri_error;
-		fprintf(stderr,
-			"No reply from %s: rc=%d.\n", addr, item->ri_error);
+		ERR("No reply from %s: rc=%d.\n", addr, item->ri_error);
 		goto err;
 	}
 
@@ -160,18 +159,16 @@ void isc_req_replied(struct m0_rpc_item *item)
 	isc_reply = (struct m0_fop_isc_rep *)m0_fop_data(reply_fop);
 	rc = req->cir_rc = isc_reply->fir_rc;
 	if (rc != 0) {
-		fprintf(stderr,
-			"Got error in reply from %s: rc=%d.\n", addr, rc);
+		ERR("Got error in reply from %s: rc=%d.\n", addr, rc);
 		if (rc == -ENOENT)
-			fprintf(stderr, "Was isc .so library is loaded?\n");
+			ERR("Was isc .so library is loaded?\n");
 		goto err;
 	}
 
 	rc = m0_rpc_at_rep_get(&req->cir_isc_fop.fi_ret, &isc_reply->fir_ret,
 			       &req->cir_result);
 	if (rc != 0)
-		fprintf(stderr,
-			"rpc_at_rep_get() from %s failed: rc=%d\n", addr, rc);
+		ERR("rpc_at_rep_get() from %s failed: rc=%d\n", addr, rc);
  err:
 	m0_semaphore_up(&isc_sem);
 }
@@ -262,14 +259,14 @@ int isc_init(struct m0_config *conf, struct m0_client **cinst)
 
 	rc = m0_client_init(cinst, conf, true);
 	if (rc != 0) {
-		fprintf(stderr, "failed to initilise the Client API\n");
+		ERR("failed to initilise the Client API\n");
 		return rc;
 	}
 
 	m0_container_init(&container, NULL, &M0_UBER_REALM, *cinst);
 	rc = container.co_realm.re_entity.en_sm.sm_rc;
 	if (rc != 0) {
-		fprintf(stderr,"failed to open uber realm\n");
+		ERR("failed to open uber realm\n");
 		return rc;
 	}
 	uber_realm = container.co_realm;

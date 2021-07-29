@@ -65,7 +65,7 @@ static int minmax_input_prepare(struct m0_buf *out, struct m0_fid *comp_fid,
 	struct isc_targs ta = {};
 
 	if (iop->iop_ext.iv_vec.v_nr == 0) {
-		fprintf(stderr, "at least 1 segment required\n");
+		ERR("at least 1 segment is required\n");
 		return -EINVAL;
 	}
 	ta.ist_cob = iop->iop_base.pl_ent;
@@ -139,8 +139,7 @@ op_result(struct mm_result *x, struct mm_result *y, enum isc_comp_type op_type)
 	len = x->mr_rbuf.b_nob + y->mr_lbuf.b_nob;
 	buf = malloc(x->mr_rbuf.b_nob + y->mr_lbuf.b_nob + 1);
 	if (buf == NULL) {
-		fprintf(stderr, "failed to allocate %d of memory for result\n",
-			                            len);
+		ERR("failed to allocate %d of memory for result\n", len);
 		return NULL;
 	}
 
@@ -156,7 +155,7 @@ op_result(struct mm_result *x, struct mm_result *y, enum isc_comp_type op_type)
 
 	rc = sscanf(buf, "%lf%n", &val1, &len);
 	if (rc < 1) {
-		fprintf(stderr, "failed to read the resulting xr-value\n");
+		ERR("failed to read the resulting xr-value\n");
 		m0_free(buf);
 		return NULL;
 	}
@@ -227,7 +226,7 @@ static void check_edge_val(struct mm_result *res, enum elm_order e,
 		buf = res->mr_rbuf.b_addr;
 
 	if (sscanf(buf, "%lf", &val) < 1) {
-		fprintf(stderr, "failed to parse egde value=%s\n", buf);
+		ERR("failed to parse egde value=%s\n", buf);
 		return;
 	}
 
@@ -264,7 +263,7 @@ static void *minmax_output_prepare(struct m0_buf *result,
 	rc = m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(mm_result_xc, &new),
 				       result->b_addr, result->b_nob);
 	if (rc != 0) {
-		fprintf(stderr, "failed to parse result: rc=%d\n", rc);
+		ERR("failed to parse result: rc=%d\n", rc);
 		goto out;
 	}
 	if (prev == NULL) {
@@ -379,12 +378,12 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 	for (;;) {
 		M0_ALLOC_PTR(req);
 		if (req == NULL) {
-			fprintf(stderr, "request allocation failed\n");
+			ERR("request allocation failed\n");
 			break;
 		}
 		rc = m0_layout_plan_get(plan, 0, &plop);
 		if (rc != 0) {
-			fprintf(stderr, "failed to get plop: rc=%d\n", rc);
+			ERR("failed to get plop: rc=%d\n", rc);
 			usage();
 		}
 
@@ -406,7 +405,7 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 		rc = input_prepare(&buf, &comp_fid, iopl, &reply_len, op_type);
 		if (rc != 0) {
 			m0_layout_plop_done(plop);
-			fprintf(stderr, "input preparation failed: %d\n", rc);
+			ERR("input preparation failed: %d\n", rc);
 			break;
 		}
 
@@ -415,14 +414,14 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 			m0_buf_free(&buf);
 			m0_layout_plop_done(plop);
 			m0_free(req);
-			fprintf(stderr, "request preparation failed: %d\n", rc);
+			ERR("request preparation failed: %d\n", rc);
 			break;
 		}
 
 		rc = isc_req_send(req);
 		conn_addr = m0_rpc_conn_addr(iopl->iop_session->s_conn);
 		if (rc != 0) {
-			fprintf(stderr, "error from %s received: rc=%d\n",
+			ERR("error from %s received: rc=%d\n",
 				conn_addr, rc);
 			break;
 		}
@@ -510,7 +509,7 @@ int main(int argc, char **argv)
 			usage();
 			break;
 		default:
-			fprintf(stderr, "unknown option: %c\n", optopt);
+			ERR("unknown option: %c\n", optopt);
 			usage();
 			break;
 		}
@@ -518,7 +517,7 @@ int main(int argc, char **argv)
 
 	if (conf.mc_local_addr == NULL || conf.mc_ha_addr == NULL ||
 	    conf.mc_process_fid == NULL || conf.mc_profile == NULL) {
-		fprintf(stderr, "mandatory parameter is missing\n");
+		ERR("mandatory parameter is missing\n");
 		usage();
 	}
 	if (argc - optind < 3)
@@ -531,7 +530,7 @@ int main(int argc, char **argv)
 		usage();
 	len = atoll(argv[optind + 2]);
 	if (len < 4) {
-		fprintf(stderr, "object length should be at least 4K\n");
+		ERR("object length should be at least 4K\n");
 		usage();
 	}
 	len *= 1024;
@@ -549,13 +548,13 @@ int main(int argc, char **argv)
 	m0_obj_init(&obj, &uber_realm, &obj_id, M0_DEFAULT_LAYOUT_ID);
 	rc = open_entity(&obj.ob_entity);
 	if (rc != 0) {
-		fprintf(stderr, "failed to open object: rc=%d\n", rc);
+		ERR("failed to open object: rc=%d\n", rc);
 		usage();
 	}
 
 	bs = isc_m0gs(&obj, cinst);
 	if (bs == 0) {
-		fprintf(stderr, "cannot figure out bs to use\n");
+		ERR("cannot figure out bs to use\n");
 		usage();
 	}
 	unit_sz = m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id);
@@ -568,20 +567,20 @@ int main(int argc, char **argv)
 
 		rc = alloc_segs(&data, &ext, &attr, unit_sz, units_nr);
 		if (rc != 0) {
-			fprintf(stderr, "failed to alloc_segs: rc=%d\n", rc);
+			ERR("failed to alloc_segs: rc=%d\n", rc);
 			usage();
 		}
 		set_exts(&ext, off, unit_sz);
 
 		rc = m0_obj_op(&obj, M0_OC_READ, &ext, &data, &attr, 0, 0, &op);
 		if (rc != 0) {
-			fprintf(stderr, "failed to create op: rc=%d\n", rc);
+			ERR("failed to create op: rc=%d\n", rc);
 			usage();
 		}
 
 		plan = m0_layout_plan_build(op);
 		if (plan == NULL) {
-			fprintf(stderr, "failed to build access plan\n");
+			ERR("failed to build access plan\n");
 			usage();
 		}
 
