@@ -3740,7 +3740,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				if (bop->bo_opc == M0_BO_UPDATE) {
 					/**
 					 * TBD : Revisit  this part, while
-					 * implmenting UPDATE operatoion for
+					 * implmenting UPDATE operation for
 					 * variable value size.
 					 */
 					return P_LOCK;
