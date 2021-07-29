@@ -43,6 +43,9 @@ The four options are standard ones to connect to Motr::
 The values for them can be taken from the output of ``hctl status``
 command. (We'll refer to them as ``<motr-opts>`` below.)
 
+Note: ``m0iscreg`` utility can be used to load any future ISC-library
+without modifications.
+
 Demo computations
 =================
 
@@ -77,7 +80,13 @@ Here is an example for the object with 1MB units::
   Hello-world @192.168.180.171@tcp:12345:2:2
 
 Note: the object length (or the amount to read) must be specified, as Motr
-does not store the objects lengths in their metadata.
+does not store the objects lengths in their metadata. In the example above,
+4MB length was specified for the object with 1MB units, so 4 ping requests
+were sent and, as result, 4 replies were printed as a result.
+
+The cluster configuration in the above example consisted of a single node
+only, so all the units were located on the same node. That's why the
+endpoints addresses in the replies are identical.
 
 min / max
 ---------
