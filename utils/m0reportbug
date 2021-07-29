@@ -18,9 +18,13 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-set -eu
+set -o errtrace
+set -o functrace
+
+#set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
+trap 'echo "ERR trap called in ${FUNCNAME-main context}. As $BASH_COMMAND failed with error code $?"' ERR
 
 ### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ### When modifying this script, please increment VERSION and add new
