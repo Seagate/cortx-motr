@@ -173,7 +173,6 @@ void isc_req_replied(struct m0_rpc_item *item)
 		fprintf(stderr,
 			"rpc_at_rep_get() from %s failed: rc=%d\n", addr, rc);
  err:
-	m0_fop_put(&req->cir_fop);
 	m0_semaphore_up(&isc_sem);
 }
 
@@ -187,6 +186,10 @@ static void ireqs_list_add_in_order(struct isc_req *req)
 	struct m0_layout_io_plop *pl1;
 	struct m0_layout_io_plop *pl2 = M0_AMB(pl2, req->cir_plop, iop_base);
 
+	/*
+	 * No protection of the list is needed here as isc_req_send()
+	 * is called from the same thread.
+	 */
 	m0_list_for_each_entry(&isc_reqs, r, struct isc_req, cir_link) {
 		pl1 = M0_AMB(pl1, r->cir_plop, iop_base);
 		if (pl1->iop_goff > pl2->iop_goff)
@@ -207,13 +210,10 @@ int isc_req_send(struct isc_req *req)
 	item->ri_nr_sent_max = M0_RPCLIB_MAX_RETRIES;
 	item->ri_ops      = &isc_item_ops;
 
-	m0_fop_get(&req->cir_fop);
 	rc = m0_rpc_post(item);
-	if (rc != 0) {
-		fprintf(stderr, "Failed to send request to %s: rc=%d\n",
-			m0_rpc_conn_addr(req->cir_rpc_sess->s_conn), rc);
-		m0_fop_put(&req->cir_fop);
-	}
+	if (rc != 0)
+		ERR("Failed to send request to %s: rc=%d\n",
+		    m0_rpc_conn_addr(req->cir_rpc_sess->s_conn), rc);
 
 	ireqs_list_add_in_order(req);
 

@@ -103,6 +103,9 @@ int isc_req_prepare(struct isc_req *, struct m0_buf *args,
  * the object unit offset. On reply receipt, isc_sem(aphore) is up-ped.
  * The received reply is populated at req->cir_result.
  * The error code is returned at req->cir_rc.
+ *
+ * Note: the isc_reqs list is unprotected, so all the requests should
+ * be sent from the same thread.
  */
 int isc_req_send(struct isc_req *req);
 
