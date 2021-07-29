@@ -81,20 +81,33 @@ struct m0_ctg_store {
 
 /* Data schema for CAS catalogues { */
 
-/** Generalised key: versioned counted opaque data. */
+/** Generalised key: counted opaque data. */
 struct generic_key {
+	/* Actual length of gk_data array. */
 	uint64_t gk_length;
 	uint8_t  gk_data[0];
 };
 M0_BASSERT(sizeof(struct generic_key) == M0_CAS_CTG_KEY_HDR_SIZE);
 
+/**
+ * CAS record version and tombstone encoded in on-disk format.
+ * Format:
+ *     MSB                             LSB
+ *     +----------------+----------------+
+ *     | 1 bit          | 63 bits        |
+ *     |<- tombstone -> | <- timestamp ->|
+ *     +----------------+----------------+
+ *
+ * @see ::CRV_TBS.
+ */
 struct cas_rec_ver {
 	uint64_t  crv_encoded;
 };
 M0_BASSERT(sizeof(struct cas_rec_ver) == 8);
 
-/** Generalised value: counted opaque data. */
+/** Generalised value: versioned counted opaque data. */
 struct generic_value {
+	/* Actual length of gv_data array. */
 	uint64_t           gv_length;
 	struct cas_rec_ver gv_version;
 	uint8_t            gv_data[0];
@@ -183,6 +196,10 @@ static m0_bcount_t ctg_ksize (const void *key);
 static m0_bcount_t ctg_vsize (const void *val);
 static int         ctg_cmp   (const void *key0, const void *key1);
 
+static int versioned_put_sync        (struct m0_ctg_op *ctg_op);
+static int versioned_get_sync        (struct m0_ctg_op *op);
+static int versioned_cursor_next_sync(struct m0_ctg_op *op);
+static int versioned_cursor_get_sync (struct m0_ctg_op *op);
 
 /**
  * Mutex to provide thread-safety for catalogue store singleton initialisation.
@@ -217,20 +234,22 @@ static int ctg_berc(struct m0_ctg_op *ctg_op)
 	return ctg_beop(ctg_op)->bo_u.u_btree.t_rc;
 }
 
-void ctg_berc_set_sync(struct m0_ctg_op *ctg_op, int rc)
-{
-	struct m0_be_op *beop   = ctg_beop(ctg_op);
-	m0_be_op_active(beop);
-	m0_be_op_rc_set(beop, rc);
-	/*ctg_beop(ctg_op)->bo_u.u_btree.t_rc = rc;*/
-	m0_be_op_done(beop);
-}
-
+/**
+ * Returns the number of bytes required to store the given "value"
+ * in on-disk format.
+ */
 static m0_bcount_t ctg_vbuf_packed_size(const struct m0_buf *value)
 {
 	return sizeof(struct generic_value) + value->b_nob;
 }
 
+/**
+ * Packs a user-provided value into on-disk representation.
+ * @param src A value to be packed (in-memory representation).
+ * @param dst A buffer to be filled with user data and on-disk format-specific
+ *            information.
+ * @param crv Encoded version of the value.
+ */
 static void ctg_vbuf_pack(struct m0_buf            *dst,
 			  const struct m0_buf      *src,
 			  const struct cas_rec_ver *crv)
@@ -242,28 +261,10 @@ static void ctg_vbuf_pack(struct m0_buf            *dst,
 	memcpy(&value->gv_data, src->b_addr, src->b_nob);
 }
 
-static void ensure_ctg_is_versioned(const struct m0_cas_ctg *ctg)
-{
-	struct m0_format_tag tag = {};
-
-	M0_ENTRY();
-
-	m0_format_header_unpack(&tag, &ctg->cc_head);
-	if (tag.ot_version != M0_CAS_CTG_FORMAT_VERSION) {
-		if (tag.ot_version == M0_CAS_CTG_FORMAT_VERSION_1 &&
-		    M0_CAS_CTG_FORMAT_VERSION == M0_CAS_CTG_FORMAT_VERSION_2) {
-			M0_LOG(M0_FATAL, "Your KVS (CAS) requires key-value "
-			       "versioning feature, but your on-disk metadata "
-			       "has the old (1) format. Please upgrade on-disk "
-			       " metadata.");
-			M0_ASSERT_INFO(false, "Version mismatch (CAS format).");
-		}
-	}
-
-	M0_LEAVE();
-}
-
-/** Create a new m0_buf filled with CAS-specific data (length). */
+/*
+ * Create a new m0_buf filled with CAS-specific data (length).
+ * Note: the function allocates a new buffer.
+ */
 static int ctg_kbuf_get(struct m0_buf *dst, const struct m0_buf *src)
 {
 	struct generic_key *key;
@@ -286,17 +287,18 @@ static int ctg_kbuf_get(struct m0_buf *dst, const struct m0_buf *src)
 enum {
 	/* Tombstone flag: marks a dead kv pair. We use the MSB here. */
 	CRV_TBS = 1L << (sizeof(uint64_t) * CHAR_BIT - 1),
-
 	/*
-	 * A special value that indicates the lack of version-aware behavior.
-	 * When such a version is provided, the functions transparently
-	 * ignore version comparison and tombstones in btree_save/delete.
+	 * A special value for the empty version.
+	 * A record with the empty version is always overwritten by any
+	 * PUT or DEL operation that has a valid non-empty version.
+	 * A PUT or DEL operation with the empty version always ignores
+	 * the version-aware behavior: records are actually removed by DEL,
+	 * and overwritten by PUT, no matter what was stored in the catalogue.
 	 */
 	CRV_VER_NONE = 0,
-
-	/* The biggest possible value of a version. */
+	/* The maximum possible value of a version. */
 	CRV_VER_MAX = (UINT64_MAX & ~CRV_TBS) - 1,
-	/* The lowest possible value of a version. */
+	/* The minimum possible value of a version. */
 	CRV_VER_MIN = CRV_VER_NONE + 1,
 };
 
@@ -310,7 +312,6 @@ static void crv_tbs_set(struct cas_rec_ver *crv)
 {
 	crv->crv_encoded |= CRV_TBS;
 }
-
 
 static void crv_tbs_clear(struct cas_rec_ver *crv)
 {
@@ -341,10 +342,19 @@ static void crv_init(struct cas_rec_ver *crv, uint64_t version, bool tbs)
 
 #define CRV_INIT_NONE ((struct cas_rec_ver) { .crv_encoded = CRV_VER_NONE })
 
-static bool crv_gt(const struct cas_rec_ver *left,
+/*
+ * Compare two versions.
+ *   Note, tombstones are checked at the end which means that if there are two
+ * different operations with the same version (for example, PUT@10 and DEL@10)
+ * then the operation that puts the tombstone (DEL@10) is always considered
+ * to be "newer" than the other one. It helps to ensure operations have the
+ * same order on any server despite the order of execution.
+ */
+static int crv_cmp(const struct cas_rec_ver *left,
 		   const struct cas_rec_ver *right)
 {
-	return crv_version_get(left) > crv_version_get(right);
+	return M0_3WAY(crv_version_get(left), crv_version_get(right)) ?:
+		M0_3WAY(crv_tbs_is_set(left), crv_tbs_is_set(right));
 }
 
 static bool crv_is_none(const struct cas_rec_ver *crv)
@@ -352,12 +362,20 @@ static bool crv_is_none(const struct cas_rec_ver *crv)
 	return memcmp(crv, &CRV_INIT_NONE, sizeof(*crv)) == 0;
 }
 
+/*
+ * 100:a == alive record with version 100
+ * 123:d == dead record with version 123
+ */
+#define CRV_F "%" PRIu64 ":%c"
+#define CRV_P(__crv) crv_version_get(__crv), crv_tbs_is_set(__crv) ? 'd' : 'a'
+
 /**
- * Unpack an an on-disk value datum into an in-memory datum.
+ * Unpack an an on-disk value data into an in-memory format.
  * The function makes "buf" to point to the user-specific data associated
  * with the value (see ::generic_value::gv_data).
  * @param[out] Optional storage for the version of the record.
  * @return 0 or else -EPROTO if on-disk/on-wire buffer has invalid length.
+ * @see ::ctg_vbuf_pack.
  */
 static int ctg_vbuf_unpack(struct m0_buf *buf, struct cas_rec_ver *crv)
 {
@@ -443,39 +461,45 @@ static int ctg_kbuf_unpack(struct m0_buf *buf)
 	.lv_layout = *(__layout),                           \
 }
 
-static m0_bcount_t ctg_ksize(const void *key)
+static m0_bcount_t ctg_ksize(const void *opaque_key)
 {
-	/* TODO: use generic_key */
-	/* Size is stored in the header. */
-	return M0_CAS_CTG_KEY_HDR_SIZE + *(const uint64_t *)key;
+	const struct generic_key *key = opaque_key;
+	M0_PRE(key != NULL);
+	return sizeof(*key) + key->gk_length;
 }
 
-static m0_bcount_t ctg_vsize(const void *val)
+static m0_bcount_t ctg_vsize(const void *opaque_val)
 {
-	/* TODO: use generic_value */
-	return M0_CAS_CTG_VAL_HDR_SIZE + *(const uint64_t *)val;
+	const struct generic_value *val = opaque_val;
+	M0_PRE(val != NULL);
+	return sizeof(*val) + val->gv_length;
 }
 
-static int ctg_cmp(const void *key0, const void *key1)
+static int ctg_cmp(const void *opaque_key_left, const void *opaque_key_right)
 {
-	m0_bcount_t       knob0   = ctg_ksize(key0);
-	m0_bcount_t       knob1   = ctg_ksize(key1);
-	const m0_bcount_t hdr_nob = M0_CAS_CTG_KEY_HDR_SIZE;
-	/**
-	 * @todo Cannot assert on on-disk data, but no interface to report
-	 * errors from here.
+	const struct generic_key *left  = opaque_key_left;
+	const struct generic_key *right = opaque_key_right;
+
+	M0_PRE(left != NULL);
+	M0_PRE(right != NULL);
+
+	/*
+	 * XXX: Origianally, there was an assertion to ensure on-disk data
+	 * is correct, and it looked like that:
+	 *     u64 len  = *(u64 *)key;
+	 *     u64 knob = 8 + len;
+	 *     assert(knob >= 8);
+	 * The problem here is that "len" is always >= 0 (because it is a u64).
+	 * Therefore, the assertion knob >= 8 is always true as well.
 	 */
-	M0_ASSERT(knob0 >= hdr_nob);
-	M0_ASSERT(knob1 >= hdr_nob);
 
-	return memcmp(key0 + hdr_nob, key1 + hdr_nob,
-		      min_check(knob0, knob1) - hdr_nob) ?:
-		M0_3WAY(knob0, knob1);
+	return memcmp(left->gk_data, right->gk_data,
+		      min_check(left->gk_length, right->gk_length)) ?:
+		M0_3WAY(left->gk_length, right->gk_length);
 }
 
 static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg)
 {
-	ensure_ctg_is_versioned(ctg);
 	m0_format_header_pack(&ctg->cc_head, &(struct m0_format_tag){
 		.ot_version = M0_CAS_CTG_FORMAT_VERSION,
 		.ot_type    = M0_FORMAT_TYPE_CAS_CTG,
@@ -587,13 +611,6 @@ M0_INTERNAL int m0_ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
 	return M0_RC(rc);
 }
 
-/*
- * NOTE:
- * If passed catalogue is NULL then it is a stub for meta-catalogue
- * inside itself, inserting records in it is prohibited. This stub
- * is used to generalise listing catalogues operation.
- * Insert real catalogue otherwise (catalogue is not NULL).
- */
 M0_INTERNAL int m0_ctg__meta_insert(struct m0_be_btree  *meta,
 				    const struct m0_fid *fid,
 				    struct m0_cas_ctg   *ctg,
@@ -605,6 +622,18 @@ M0_INTERNAL int m0_ctg__meta_insert(struct m0_be_btree  *meta,
 	struct m0_buf              value = M0_BUF_INIT_PTR(&val_data);
 	struct m0_be_btree_anchor  anchor = {};
 	int                        rc;
+
+	/*
+	 * NOTE: ctg may be equal to NULL.
+	 * Meta-catalogue is a catalogue. Also, it keeps a list of all
+	 * catalogues. In order to avoid paradoxes, we allow this function to
+	 * accept an empty pointer when the meta-catalogue is trying to
+	 * insert itself into the list (see ::ctg_meta_selfadd).
+	 * It also helps to generalise listing of catalogues
+	 * (see ::m0_ctg_try_init).
+	 */
+	M0_PRE(ergo(ctg == NULL,
+		    m0_fid_eq(fid, &m0_cas_meta_fid)));
 
 	anchor.ba_value.b_nob = value.b_nob;
 	rc = M0_BE_OP_SYNC_RET(op,
@@ -1275,11 +1304,6 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 	return ctg_op_tick_ret(ctg_op, next_phase);
 }
 
-static int versioned_record_put_sync(struct m0_ctg_op *ctg_op);
-static int alive_record_get_sync(struct m0_ctg_op *op);
-static int alive_cursor_next_sync(struct m0_ctg_op *op);
-static int alive_cursor_get_sync(struct m0_ctg_op *op);
-
 static int ctg_op_exec_versioned(struct m0_ctg_op *ctg_op, int next_phase)
 {
 	int                        rc;
@@ -1295,16 +1319,16 @@ static int ctg_op_exec_versioned(struct m0_ctg_op *ctg_op, int next_phase)
 	switch (CTG_OP_COMBINE(opc, ct)) {
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-		rc = versioned_record_put_sync(ctg_op);
+		rc = versioned_put_sync(ctg_op);
 		break;
 	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
-		rc = alive_record_get_sync(ctg_op);
+		rc = versioned_get_sync(ctg_op);
 		break;
 	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
 		if (ctg_op->co_cur_phase == CPH_GET)
-			rc = alive_cursor_get_sync(ctg_op);
+			rc = versioned_cursor_get_sync(ctg_op);
 		else
-			rc = alive_cursor_next_sync(ctg_op);
+			rc = versioned_cursor_next_sync(ctg_op);
 		break;
 	default:
 		M0_IMPOSSIBLE("The other operations are not allowed here.");
@@ -2413,7 +2437,12 @@ static void ctg_op_version_get(const struct m0_ctg_op *ctg_op,
 	}
 }
 
-static int versioned_record_put_sync(struct m0_ctg_op *ctg_op)
+/*
+ * Synchronously inserts/updates a key-value record considering the version
+ * and the tombstone that were specified in the operation ("new_version")
+ * and the version+tombstone that were stored in btree ("old_version").
+ */
+static int versioned_put_sync(struct m0_ctg_op *ctg_op)
 {
 	struct m0_buf             *key    = &ctg_op->co_key;
 	struct m0_be_btree        *btree  = &ctg_op->co_ctg->cc_tree;
@@ -2451,24 +2480,20 @@ static int versioned_record_put_sync(struct m0_ctg_op *ctg_op)
 	/* The tree is long-locked anyway. */
 	m0_be_btree_release(NULL, anchor);
 
-	if (!M0_IN(rc, (0, -ENOENT))) {
-		 /* Trace unexpected errors. */
-		rc = M0_ERR(rc);
-		goto out;
-	}
+	if (!M0_IN(rc, (0, -ENOENT)))
+		return M0_ERR(rc);
 
 	/*
-	 * Skip PUT op if the existing record is "newer" (version-wise) than
-	 * the record to be PUT.
+	 * Skip overwrite op if the existing record is "newer" (version-wise)
+	 * than the record to be inserted. Note, <= 0 means that we filter out
+	 * the operations with the exact same version and tombstone.
 	 */
-	if (!crv_is_none(&old_version) && crv_gt(&old_version, &new_version)) {
-		rc = M0_RC(0);
-		goto out;
-	}
+	if (!crv_is_none(&old_version) &&
+	    crv_cmp(&new_version, &old_version) <= 0)
+		return M0_RC(0);
 
-	M0_LOG(M0_DEBUG, "Overwriting %" PRIu64 ":%d with %" PRIu64 ":%d.",
-	       crv_version_get(&old_version), !!crv_tbs_is_set(&old_version),
-	       crv_version_get(&new_version), !!crv_tbs_is_set(&new_version));
+	M0_LOG(M0_DEBUG, "Overwriting " CRV_F " with " CRV_F ".",
+	       CRV_P(&old_version), CRV_P(&new_version));
 
 	anchor->ba_value.b_nob = ctg_vbuf_packed_size(&ctg_op->co_val);
 	rc = M0_BE_OP_SYNC_RET(op,
@@ -2485,11 +2510,15 @@ static int versioned_record_put_sync(struct m0_ctg_op *ctg_op)
 		/* TODO: it is too pessimistic. */
 		m0_ctg_state_inc_update(tx, key->b_nob + ctg_op->co_val.b_nob);
 	}
-out:
+
 	return M0_RC(rc);
 }
 
-static int alive_record_get_sync(struct m0_ctg_op *ctg_op)
+/*
+ * Gets an alive record (without tombstone set) in btree.
+ * Returns -ENOENT if tombstone is set.
+ */
+static int versioned_get_sync(struct m0_ctg_op *ctg_op)
 {
 	struct m0_be_btree        *btree  = &ctg_op->co_ctg->cc_tree;
 	struct m0_be_btree_anchor *anchor = &ctg_op->co_anchor;
@@ -2513,7 +2542,11 @@ static int alive_record_get_sync(struct m0_ctg_op *ctg_op)
 	return M0_RC(rc);
 }
 
-static int alive_cursor_next_sync(struct m0_ctg_op *ctg_op)
+/*
+ * Synchronously advances the cursor until it reaches an alive
+ * key-value pair (without tombstone set) or the end of the tree.
+ */
+static int versioned_cursor_next_sync(struct m0_ctg_op *ctg_op)
 {
 	struct m0_be_op           *beop   = ctg_beop(ctg_op);
 	struct cas_rec_ver         ver    = CRV_INIT_NONE;
@@ -2540,7 +2573,19 @@ static int alive_cursor_next_sync(struct m0_ctg_op *ctg_op)
 	return M0_RC(rc);
 }
 
-static int alive_cursor_get_sync(struct m0_ctg_op *ctg_op)
+/*
+ * Positions the cursor at the alive record that corresponds to the
+ * specified key or at the alive record next to the specified key
+ * depending on the slant flag:
+ *   Non-slant:
+ *     record_at(key) is alive: returns the record.
+ *     record_at(key) has tombstone: returns -ENOENT.
+ *   Slant:
+ *     record_at(key) is alive: returns the record.
+ *     record_at(key) has tombstone: finds next alive record.
+ * See the ::next_ver UT for examples.
+ */
+static int versioned_cursor_get_sync(struct m0_ctg_op *ctg_op)
 {
 	struct m0_be_op           *beop   = ctg_beop(ctg_op);
 	struct cas_rec_ver         ver    = CRV_INIT_NONE;
@@ -2565,7 +2610,7 @@ static int alive_cursor_get_sync(struct m0_ctg_op *ctg_op)
 	m0_be_op_reset(beop);
 
 	if (rc == -EAGAIN)
-		rc = alive_cursor_next_sync(ctg_op);
+		rc = versioned_cursor_next_sync(ctg_op);
 
 	return M0_RC(rc);
 }

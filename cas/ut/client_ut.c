@@ -1529,11 +1529,19 @@ static void del_get_verified(struct m0_cas_id *index,
 	M0_BUFVEC_INIT_BUF((__bufvec)->ov_buf + (__idx), \
 			   (__bufvec)->ov_vec.v_count + (__idx))
 
+#define M0_BUFVEC_SUB(__bufvec, __idx, __count)	(struct m0_bufvec) {	\
+	.ov_vec = {							\
+		.v_nr = (__count),					\
+		.v_count = (__bufvec)->ov_vec.v_count + (__idx),	\
+	},								\
+	.ov_buf = (__bufvec)->ov_buf + (__idx)				\
+}
+
 /*
  * A test case where we are verifying that NEXT works well with
  * combinations of PUT and DEL.
  */
-void next_ver(void)
+static void next_ver(void)
 {
 	enum { V_PAST, V_FUTURE, V_NR };
 	struct m0_bufvec        keys;
@@ -1607,6 +1615,14 @@ void next_ver(void)
 
 	/*
 	 * Case:
+	 * Requesting NEXT(SLANT) record with with last dead key should
+	 * return -ENOENT.
+	 */
+	next_verified(&index, &M0_BUFVEC_SLICE(&kodd, kodd.ov_vec.v_nr - 1), 1,
+		      NULL, COF_SLANT | COF_VERSIONED);
+
+	/*
+	 * Case:
 	 * Requesting one record with NEXT(SLANT|EXECLUDE_START_KEY) with
 	 * start key equal to the first alive record should return one single
 	 * pair with the next alive record.
@@ -1622,7 +1638,7 @@ void next_ver(void)
 	/*
 	 * Case:
 	 * Requesting one record with NEXT(SLANT) should yield no keys at all
-	 * on an empty index (ENOENT).
+	 * (ENOENT) on an index that does not have alive records.
 	 */
 	next_verified(&index, &M0_BUFVEC_SLICE(&keys, 0), 1, NULL,
 		      COF_VERSIONED);
@@ -1630,10 +1646,31 @@ void next_ver(void)
 	/*
 	 * Case:
 	 * When version-awre behavior is disabled (no COF_VERSIONED),
-	 * NEXT should yield all the keys that were inserted initially.
+	 * NEXT should yield all the keys that were inserted initially even
+	 * if all of them have tombstones.
 	 */
 	next_verified(&index, &M0_BUFVEC_SLICE(&keys, 0),
 		      keys.ov_vec.v_nr, &keys, 0);
+
+	/* Now insert a non-versioned record at the "end". */
+	del_get_verified(&index, &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 1),
+			 0, 0, 0);
+	put_get_verified(&index, &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 1),
+			 &M0_BUFVEC_SLICE(&values, values.ov_vec.v_nr - 1),
+			 &M0_BUFVEC_SLICE(&values, values.ov_vec.v_nr - 1),
+			 0, 0, 0);
+	/*
+	 * Case:
+	 * A record without version should be treaten as an alive record.
+	 * Requesting one record with NEXT(SLANT) with stat key equal to the
+	 * last dead record should the non-versioned record.
+	 * However, if SLANT was not set it should still return ENOENT.
+	 */
+	next_verified(&index, &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 2), 1,
+		      &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 1),
+		      COF_SLANT | COF_VERSIONED);
+	next_verified(&index, &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 2), 1,
+		      NULL , COF_VERSIONED);
 
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&values);
@@ -2002,7 +2039,11 @@ static void put_overwrite_ver(void)
 	struct m0_cas_rec_reply  rep[1];
 	const struct m0_fid      ifid = IFID(2, 3);
 
-	M0_UT_ASSERT((UINT64_MAX / COUNT) > (1L << V_NR));
+	/*
+	 * For every i-th key we have V_NR values from i to i << (V_NR - 1).
+	 * Ensure it will not overflow.
+	 */
+	M0_CASSERT((UINT64_MAX / COUNT) > (1L << V_NR));
 
 	m0_fi_enable("cas_fom_tick", "skip-dtm0-phases");
 	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
@@ -2019,36 +2060,60 @@ static void put_overwrite_ver(void)
 
 	for (i = 0; i < keys.ov_vec.v_nr; i++) {
 		*(uint64_t*)keys.ov_buf[i] = i;
-		for (j = 0; j < V_NR; j++) {
+		for (j = 0; j < V_NR; j++)
 			*(uint64_t*)vals[j].ov_buf[i] = i << j;
-			M0_UT_ASSERT(keys.ov_vec.v_nr == vals[j].ov_vec.v_nr);
-		}
 	}
 
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
 
-	/* PUT@now */
-	put_get_verified(&index, &keys, vals + V_NOW, vals + V_NOW,
-			 version[V_NOW],
-			 COF_VERSIONED | COF_OVERWRITE,
+	/* PUT at "now". */
+	put_get_verified(&index, &keys, &vals[V_NOW], &vals[V_NOW],
+			 version[V_NOW], COF_VERSIONED | COF_OVERWRITE,
 			 COF_VERSIONED);
 
-	/* PUT@future */
-	put_get_verified(&index, &keys, vals + V_FUTURE, vals + V_FUTURE,
-			 version[V_FUTURE],
-			 COF_VERSIONED | COF_OVERWRITE,
+	/* PUT at "future" (overwrites "now"). */
+	put_get_verified(&index, &keys, &vals[V_FUTURE], &vals[V_FUTURE],
+			 version[V_FUTURE], COF_VERSIONED | COF_OVERWRITE,
 			 COF_VERSIONED);
 
-	/* PUT@past (values should not be changed) */
-	put_get_verified(&index, &keys, vals + V_PAST, vals + V_FUTURE,
-			 version[V_PAST],
-			 COF_VERSIONED | COF_OVERWRITE,
+	/* PUT at "past" (values should not be changed) */
+	put_get_verified(&index, &keys, &vals[V_PAST], &vals[V_FUTURE],
+			 version[V_PAST], COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+
+	/* However, empty version disables the versioned behavior. */
+	put_get_verified(&index, &keys, &vals[V_PAST], &vals[V_PAST],
+			 version[V_NONE], COF_VERSIONED | COF_OVERWRITE,
 			 COF_VERSIONED);
 
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
+
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+	index.ci_fid = ifid;
+
+	/*
+	 * Insertion of a pair without COF_OVERWRITE flag set disables
+	 * the versioned behavior even if the version was specified.
+	 * Let's insert some values first.
+	 */
+	put_get_verified(&index, &keys, &vals[V_FUTURE], &vals[V_FUTURE],
+			 version[V_FUTURE], COF_VERSIONED, COF_VERSIONED);
+	/*
+	 * And now let's check if they are overwritten. We expect that
+	 * the values will be overwritten because the previous operation
+	 * inserted the records but did not set their versions.
+	 */
+	put_get_verified(&index, &keys, &vals[V_PAST], &vals[V_PAST],
+			 version[V_PAST], COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+
 	for (j = 0; j < V_NR; j++)
 		m0_bufvec_free(&vals[j]);
 	m0_bufvec_free(&keys);
@@ -3210,38 +3275,30 @@ enum named_op {
 
 /* PUT or DEL operation with a human-readable version description. */
 struct cas_ver_op {
-	enum named_version ver;
-	enum named_op      op;
-	uint64_t           key;
-	uint64_t           value;
+	enum named_version       ver;
+	enum named_op            op;
+	const struct m0_bufvec  *keys;
+	const struct m0_bufvec  *values;
 };
 
 struct put_del_ver_case {
+	/* An operation to be executed first. */
 	struct cas_ver_op  before;
+	/* Second operation that happen right after the first one. */
 	struct cas_ver_op  after;
-	enum named_outcome outcome;
 };
 
 static void cas_ver_op_execute(const struct cas_ver_op *cvop,
 			       struct m0_cas_id        *index)
 {
-	m0_bcount_t      nr_bytes = sizeof(cvop->key);
-	uint64_t         version = cvop->ver;
-	const void *key_data = &cvop->key;
-	const void *val_data = &cvop->value;
-	const struct m0_bufvec keys =
-		M0_BUFVEC_INIT_BUF((void **) &key_data, &nr_bytes);
-	const struct m0_bufvec values =
-		M0_BUFVEC_INIT_BUF((void **) &val_data, &nr_bytes);
-	M0_CASSERT(sizeof(cvop->key) == sizeof(cvop->value));
-
 	switch (cvop->op) {
 	case PUT:
-		ut_rec_common_put_verified(index, &keys, &values, version,
+		ut_rec_common_put_verified(index, cvop->keys, cvop->values,
+					   cvop->ver,
 					   COF_VERSIONED | COF_OVERWRITE);
 		break;
 	case DEL:
-		ut_rec_common_del_verified(index, &keys, version,
+		ut_rec_common_del_verified(index, cvop->keys, cvop->ver,
 					   COF_VERSIONED);
 		break;
 	case NOP:
@@ -3258,9 +3315,9 @@ static void put_del_ver_case_execute(const struct put_del_ver_case *c,
 }
 
 /*
- * Versions are not exposed via CAS client API but
- * we can make an educated guess by executing a set of destructive operations
- * to verify the following properties:
+ * Versions are not exposed via CAS client API but we can make an educated
+ * guess by executing a set of destructive operations to verify
+ * the following properties:
  *  Put a tombstone:
  *   DEL@version
  *   has_tombstone => true
@@ -3278,6 +3335,7 @@ static void ensure_has_version(struct m0_cas_id *index,
 	int                      rc;
 	struct m0_cas_get_reply *get_rep;
 	struct m0_bufvec         values;
+	bool                     tombstones;
 
 	M0_ALLOC_ARR(get_rep, keys->ov_vec.v_nr);
 	M0_UT_ASSERT(get_rep != NULL);
@@ -3290,6 +3348,8 @@ static void ensure_has_version(struct m0_cas_id *index,
 	rc = get_reply2bufvec(get_rep, keys->ov_vec.v_nr, &values);
 	M0_UT_ASSERT(rc == 0);
 	m0_free(get_rep);
+	/* Save the existing tombstones (assuming all-or-nothing). */
+	tombstones = has_tombstones(index, keys);
 
 	ut_rec_common_del_verified(index, keys, version, COF_VERSIONED);
 	M0_UT_ASSERT(has_tombstones(index, keys));
@@ -3307,105 +3367,133 @@ static void ensure_has_version(struct m0_cas_id *index,
 	ut_rec_common_put_verified(index, keys, &values, version,
 				   COF_VERSIONED | COF_OVERWRITE);
 	M0_UT_ASSERT(!has_tombstones(index, keys));
+	/* Restore the existing tombstones. */
+	if (tombstones) {
+		ut_rec_common_del_verified(index, keys, version,
+					   COF_VERSIONED);
+		M0_UT_ASSERT(has_tombstones(index, keys));
+	}
+}
+
+static enum named_outcome outcome(const struct put_del_ver_case *c)
+{
+	const struct cas_ver_op *before = &c->before;
+	const struct cas_ver_op *after  = &c->after;
+	const struct cas_ver_op *winner;
+
+	/* Get the operation with the "latest" version. */
+	if (before->ver == FUTURE)
+		winner = before;
+	else if (after->ver == FUTURE)
+		winner = after;
+	else
+		M0_IMPOSSIBLE("Did you forget to add an op with FUTURE?");
+
+	if (winner->op == DEL)
+		return TOMBSTONE;
+	else if (winner == before)
+		return PRESERVED;
+	else
+		return OVERWRITTEN;
 }
 
 static void put_del_ver_case_verify(const struct put_del_ver_case *c,
 				    struct m0_cas_id              *index)
 {
-	m0_bcount_t            nr_bytes = sizeof(c->before.key);
-	const void *key_data = &c->before.key;
-	const struct m0_bufvec keys =
-		M0_BUFVEC_INIT_BUF((void **) &key_data, &nr_bytes);
-	const void *before_val_data = &c->before.value;
-	const struct m0_bufvec before_values =
-		M0_BUFVEC_INIT_BUF((void **) &before_val_data, &nr_bytes);
-	const void *after_val_data = &c->after.value;
-	const struct m0_bufvec after_values =
-		M0_BUFVEC_INIT_BUF((void **) &after_val_data, &nr_bytes);
+	const struct m0_bufvec *keys = c->before.keys;
+	const struct m0_bufvec *before_values = c->before.values;
+	const struct m0_bufvec *after_values = c->after.values;
 
-	switch (c->outcome) {
+	switch (outcome(c)) {
 	case TOMBSTONE:
-		M0_UT_ASSERT(has_tombstones(index, &keys));
-		M0_UT_ASSERT(!has_values(index, &keys, &before_values,
+		M0_UT_ASSERT(has_tombstones(index, keys));
+		M0_UT_ASSERT(!has_values(index, keys, before_values,
 				       COF_VERSIONED));
-		M0_UT_ASSERT(!has_values(index, &keys, &after_values,
+		M0_UT_ASSERT(!has_values(index, keys, after_values,
 				       COF_VERSIONED));
 		break;
 	case OVERWRITTEN:
-		M0_UT_ASSERT(!has_tombstones(index, &keys));
+		M0_UT_ASSERT(!has_tombstones(index, keys));
 		/*
 		 * The values should be overwritten no matter what behavior we
 		 * have specified.
 		 */
-		M0_UT_ASSERT(has_values(index, &keys, &after_values, 0));
-		M0_UT_ASSERT(has_values(index, &keys, &after_values,
+		M0_UT_ASSERT(has_values(index, keys, after_values, 0));
+		M0_UT_ASSERT(has_values(index, keys, after_values,
 				       COF_VERSIONED));
-		M0_UT_ASSERT(!has_values(index, &keys, &before_values, 0));
-		M0_UT_ASSERT(!has_values(index, &keys, &before_values,
+		M0_UT_ASSERT(!has_values(index, keys, before_values, 0));
+		M0_UT_ASSERT(!has_values(index, keys, before_values,
 				       COF_VERSIONED));
 		break;
 	case PRESERVED:
-		M0_UT_ASSERT(!has_tombstones(index, &keys));
+		M0_UT_ASSERT(!has_tombstones(index, keys));
 		/*
 		 * The values should be preserved, and it should be visible
 		 * even if the versioned behavior was not requested by GET
 		 * operation.
 		 */
-		M0_UT_ASSERT(has_values(index, &keys, &before_values, 0));
-		M0_UT_ASSERT(has_values(index, &keys, &before_values,
+		M0_UT_ASSERT(has_values(index, keys, before_values, 0));
+		M0_UT_ASSERT(has_values(index, keys, before_values,
 				       COF_VERSIONED));
-		M0_UT_ASSERT(!has_values(index, &keys, &after_values, 0));
-		M0_UT_ASSERT(!has_values(index, &keys, &after_values,
+		M0_UT_ASSERT(!has_values(index, keys, after_values, 0));
+		M0_UT_ASSERT(!has_values(index, keys, after_values,
 				       COF_VERSIONED));
 		break;
 	}
 
-	ensure_has_version(index, &keys, FUTURE);
-
-	/* Wipe out the records at the end of the iteration. */
-	ut_rec_common_del_verified(index, &keys, 0, 0);
+	ensure_has_version(index, keys, FUTURE);
 }
 
 static void put_del_ver(void)
 {
-#define BEFORE(_what, _when)         \
-	.before = {                  \
-		.ver   = _when,      \
-		.op    = _what,      \
-		.key   = 1,          \
-		.value = 1,          \
+	const uint64_t           key = 1;
+	const uint64_t           before_value = 1;
+	const uint64_t           after_value  = 2;
+	const m0_bcount_t        nr_bytes = sizeof(key);
+	const void              *key_data = &key;
+	const void              *before_val_data = &before_value;
+	const void              *after_val_data = &after_value;
+	const struct m0_bufvec   keys =
+		M0_BUFVEC_INIT_BUF((void **) &key_data,
+				   (m0_bcount_t *) &nr_bytes);
+	const struct m0_bufvec   before_values =
+		M0_BUFVEC_INIT_BUF((void **) &before_val_data,
+				   (m0_bcount_t *) &nr_bytes);
+	const struct m0_bufvec   after_values =
+		M0_BUFVEC_INIT_BUF((void **) &after_val_data,
+				   (m0_bcount_t *) &nr_bytes);
+
+#define BEFORE(_what, _when)              \
+	.before = {                       \
+		.ver   = _when,           \
+		.op    = _what,           \
+		.keys   = &keys,          \
+		.values = &before_values, \
 	},
 
-#define AFTER(_what, _when)         \
-	.after = {                  \
-		.ver   = _when,     \
-		.op    = _what,     \
-		.key   = 1,         \
-		.value = 2,         \
+#define AFTER(_what, _when)              \
+	.after = {                       \
+		.ver    = _when,         \
+		.op     = _what,         \
+		.keys   = &keys,         \
+		.values = &after_values, \
 	},
 
-#define OUTCOME(_result) .outcome = _result,
+	const struct put_del_ver_case cases[] = {
+		{ BEFORE(PUT, PAST)   AFTER(DEL, FUTURE) },
+		{ BEFORE(PUT, PAST)   AFTER(PUT, FUTURE) },
 
-	/*
-	 * TODO: the outcome could be inferred from the newest operation:
-	 * PUT@FUTURE is always preserved or overwritten (depending on the pos).
-	 * DEL@FUTURE always keeps the tombstone intact.
-	 */
-	static const struct put_del_ver_case cases[] = {
-		{ BEFORE(PUT, PAST)   AFTER(DEL, FUTURE) OUTCOME(TOMBSTONE)   },
-		{ BEFORE(PUT, PAST)   AFTER(PUT, FUTURE) OUTCOME(OVERWRITTEN) },
+		{ BEFORE(PUT, FUTURE) AFTER(PUT, PAST)   },
+		{ BEFORE(PUT, FUTURE) AFTER(DEL, PAST)   },
 
-		{ BEFORE(PUT, FUTURE) AFTER(PUT, PAST)   OUTCOME(PRESERVED)   },
-		{ BEFORE(PUT, FUTURE) AFTER(DEL, PAST)   OUTCOME(PRESERVED)   },
+		{ BEFORE(DEL, FUTURE) AFTER(DEL, PAST)   },
+		{ BEFORE(DEL, FUTURE) AFTER(PUT, PAST)   },
 
-		{ BEFORE(DEL, FUTURE) AFTER(DEL, PAST)   OUTCOME(TOMBSTONE)   },
-		{ BEFORE(DEL, FUTURE) AFTER(PUT, PAST)   OUTCOME(TOMBSTONE)   },
+		{ BEFORE(DEL, PAST)   AFTER(DEL, FUTURE) },
+		{ BEFORE(DEL, PAST)   AFTER(PUT, FUTURE) },
 
-		{ BEFORE(DEL, PAST)   AFTER(DEL, FUTURE) OUTCOME(TOMBSTONE)   },
-		{ BEFORE(DEL, PAST)   AFTER(PUT, FUTURE) OUTCOME(OVERWRITTEN) },
-
-		{ BEFORE(NOP, PAST)   AFTER(DEL, FUTURE) OUTCOME(TOMBSTONE)   },
-		{ BEFORE(NOP, PAST)   AFTER(PUT, FUTURE) OUTCOME(OVERWRITTEN) },
+		{ BEFORE(NOP, PAST)   AFTER(DEL, FUTURE) },
+		{ BEFORE(NOP, PAST)   AFTER(PUT, FUTURE) },
 	};
 #undef BEFORE
 #undef AFTER
@@ -3427,13 +3515,13 @@ static void put_del_ver(void)
 	for (i = 0; i < ARRAY_SIZE(cases); ++i) {
 		put_del_ver_case_execute(&cases[i], &index);
 		put_del_ver_case_verify(&cases[i],  &index);
+		ut_rec_common_del_verified(&index, cases[i].before.keys, 0, 0);
 	}
 
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 	m0_fi_disable("cas_fom_tick", "skip-dtm0-phases");
-
 }
 
 struct m0_ut_suite cas_client_ut = {

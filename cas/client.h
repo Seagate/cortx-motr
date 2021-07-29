@@ -473,8 +473,14 @@ M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 			   struct m0_cas_id       *index,
 			   const struct m0_bufvec *keys);
 
-/** Versioned version of m0_cas_get.
- * Returns a value only if it is "alive" (see ::COF_VERSIONED).
+/**
+ * A version-aware version of m0_cas_get.
+ * It returns the value associated with the given key only this value
+ * does not have a tombstone set (i.e., it was not removed).
+ * Ssee ::COF_VERSIONED.
+ *
+ * TODO: This function will be disolved once ::m0_cas_get gets an extra
+ * argument (flags).
  */
 M0_INTERNAL int m0_cas_versioned_get(struct m0_cas_req      *req,
 				     struct m0_cas_id       *index,

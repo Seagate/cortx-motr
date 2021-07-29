@@ -1848,12 +1848,7 @@ M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 	M0_PRE(keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_cas_id_invariant(index));
-	/*
-	 * FIXME: Are we sure it has to be "M0_IN"? In other words,
-	 * is it possibe to specify two flags?
-	 * We should probably use "any-of" rather than "only-one-of".
-	 */
-	M0_PRE(M0_IN(flags, (0, COF_DEL_LOCK, COF_SYNC_WAIT, COF_VERSIONED)));
+	M0_PRE((flags & ~(COF_DEL_LOCK | COF_SYNC_WAIT | COF_VERSIONED)) == 0);
 
 	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, flags,
 			  &op);
