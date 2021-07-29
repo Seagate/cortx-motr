@@ -15,21 +15,35 @@ chain including Hare, m0d processes and client process
 works and client can write key/value pairs with DTX
 enabled.
 
-What the test does:
- - bootstraps the cluster of 3 m0d processes using Hare
- - checks that no any handling of HA messages is done by
-   DTM0 service
- - sends HA TRANSIENT messages to m0d's to trigger HA messages
-   handling by DTM0 services
- - checks that all DTM0 services are ready to handle HA
-   messages
- - sends HA ONLINE messages to m0d's to trigger connections
-   logic
- - checks that all m0d's are connected with each other
- - run the m0crate to write key/value pairs
- - sends HA client ONLINE messages to m0d's to trigger
-   connections from m0d's to the client
- - waits for m0crate completion
+What the test did initially:
+-   bootstraps the cluster of 3 m0d processes using Hare
+
+-   checks that no any handling of HA messages is done by
+    DTM0 service
+
+-   sends HA TRANSIENT messages to m0d's to trigger HA messages
+    handling by DTM0 services
+
+-   checks that all DTM0 services are ready to handle HA messages
+
+-   sends HA ONLINE messages to m0d's to trigger connections logic
+
+-   checks that all m0d's are connected with each other
+
+-   run the m0crate to write key/value pairs
+
+-   sends HA client ONLINE messages to m0d's to trigger
+    connections from m0d's to the client
+
+-   waits for m0crate completion
+
+Although some of the code that did it is still preserved in the script,
+at this moment we execute a simplified version of the original script:
+-   bootstraps the cluster of 3 m0d processes using Hare
+
+-   run the m0crate to write key/value pairs
+
+-   waits for m0crate completion
 
 ## Command to run this test
 ```sh
@@ -39,12 +53,13 @@ sudo ./all2all
 ## Hare usage
 
 Hare is used for cluster bootstrap and shutdown. Firstly
-it needs to be patched by the hare.patch in current directory
-to make it able to generate clusted configuration that includes
-DTM0 service. First copy hare.patch file to the hare folder and run 
-following command from hare directory for applying patch.
+it needs to be cloned locally and switched to dtm-0 branch
+to make it able to generate cluster configuration that includes
+DTM0 service with required parameters.
 ```sh
-patch -p1 < hare.patch
+git clone git@github.com:Seagate/cortx-hare.git
+cd cortx-hare
+git checkout dtm-0
 ```
 After above step hare should be built and installed into the system 
 (see [README.md](https://github.com/Seagate/cortx-hare/blob/main/README.md) in the root of Hare repo).
@@ -55,7 +70,7 @@ If test fails at the stage where it starts Motr processes, please check if /etc/
 the lnet service is running on. If interfaces do not match then refer [this](https://github.com/Seagate/cortx-hare/blob/main/README.md#data_iface)
 
 ### 2. Test is stuck at starting motr process for first phase
-If the test is stuck at "Starting Motr (phase1, mkfs)... " like shown below, then there is possbility that 
+If the test is stuck at "Starting Motr (phase1, mkfs)... " like shown below, then there is possibility that
 you have pulled latest code for cortx-motr and rebuilt it, but not rebuilt the hare code again.
 
 ```sh
