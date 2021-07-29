@@ -116,6 +116,7 @@ extern void m0_be_ut_tx_concurrent_excl(void);
 extern void m0_be_ut_tx_force(void);
 extern void m0_be_ut_tx_gc(void);
 extern void m0_be_ut_tx_payload(void);
+extern void m0_be_ut_tx_callback(void);
 
 extern void m0_be_ut_tx_bulk_usecase(void);
 extern void m0_be_ut_tx_bulk_empty(void);
@@ -237,6 +238,7 @@ struct m0_ut_suite be_ut = {
 // XXX		{ "tx-force",                m0_be_ut_tx_force                },
 		{ "tx-fast",                 m0_be_ut_tx_fast                 },
 		{ "tx-payload",              m0_be_ut_tx_payload              },
+		{ "tx-callback",             m0_be_ut_tx_callback             },
 		{ "tx-concurrent",           m0_be_ut_tx_concurrent           },
 		{ "tx-concurrent-excl",      m0_be_ut_tx_concurrent_excl      },
 		{ "tx_bulk-usecase",         m0_be_ut_tx_bulk_usecase         },
