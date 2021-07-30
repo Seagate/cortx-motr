@@ -673,13 +673,17 @@ def remove_dirs(self, log_dir, patterns):
     for pattern in patterns:
         temp_dir = []
         self.logger.info(f"Removing {pattern} directories from {log_dir}")
+
+        # Search directories for files/dirs with pattern in their names and remove it.
+        # e.g. removes addb* dirs from /var/motr
+        # search_pat=/var/motr/**/addb*
         search_pat = "{}/**/{}*".format(log_dir, pattern)
         for dname in glob.glob(search_pat, recursive=True):
             temp_dir.append(dname)
             execute_command(self, f"rm -rf {dname}")
         self.logger.info(f"Removed below directories.\n{temp_dir}")
 
-def remove_data(self):
+def remove_logs(self):
     patterns=["addb", "*trace", "db", "s3server"]
     for log_dir in MOTR_LOG_DIRS:
         if os.path.exists(log_dir):

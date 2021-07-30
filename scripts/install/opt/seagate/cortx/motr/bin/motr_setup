@@ -179,7 +179,7 @@ class ResetCmd(Cmd):
         super().__init__(args)
 
     def process(self):
-        remove_data(self)
+        remove_logs(self)
         pass
 
 class CleanupCmd(Cmd):
