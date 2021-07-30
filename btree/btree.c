@@ -6260,6 +6260,7 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 		m0_bufvec_cursor_init(&vcur, &rec->r_val);
 		vsize = sizeof(value);
 		while (v_off < vsize) {
+
 			m0_bufvec_cursor_copyfrom(&vcur, &value, vsize);
 			if (key != value)
 				check_failed = true;
@@ -6922,11 +6923,10 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		/** Modify at least 20% of the values which have been inserted. */
 
-		key_first = key_iter_start;
+		key_first     = key_iter_start;
 		ut_cb.c_act   = btree_kv_update_cb;
 		ut_cb.c_datum = &data;
 
-		key_first = key_iter_start;
 		while (key_first <= key_last) {
 			/**
 			 *  Embed the thread-id in LSB so that different threads
@@ -6958,7 +6958,6 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 			key_first += (ti->ti_key_incr * 5);
 		}
-
 
 		/** GET and ITERATE over the keys which we inserted above. */
 
