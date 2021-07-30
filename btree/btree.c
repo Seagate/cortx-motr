@@ -3889,9 +3889,9 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			rc = M0_BSC_SUCCESS;
 
 		if (rc != M0_BSC_SUCCESS) {
-			oi->i_sm_rc = rc;
+			oi->i_sm_rc = M0_ERR(-EPERM);
 			lock_op_unlock(tree);
-			return fail(bop, M0_ERR(-rc));
+			return fail(bop, M0_ERR(-EPERM));
 		}
 		if (bop->bo_opc == M0_BO_PUT)
 			return  P_MAKESPACE;
@@ -3981,8 +3981,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		M0_ASSERT(oi);
 		int rc = oi->i_sm_rc;
 		m0_free(oi);
-		if (rc)
-			return M0_ERR(-rc);
+		if (rc != M0_BSC_SUCCESS)
+			return rc;
 		return P_DONE;
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
@@ -7932,7 +7932,7 @@ static void ut_put_update_del_operation(void)
 								       0,
 								       &kv_op,
 						      		       tx));
-			M0_ASSERT(rc == M0_ERR(-M0_BSC_KEY_EXISTS));
+			M0_ASSERT(rc == M0_ERR(-EPERM));
 		}
 
 	}
@@ -7972,7 +7972,7 @@ static void ut_put_update_del_operation(void)
 					 m0_btree_update(tree, &rec, &ut_cb, 0,
 							 &kv_op, tx));
 		if (rc) {
-			M0_ASSERT(rc == M0_ERR(-M0_BSC_KEY_NOT_FOUND));
+			M0_ASSERT(rc ==M0_ERR(-EPERM));
 			printf("M0_BSC_KEY_NOT_FOUND ");
 		}
 
