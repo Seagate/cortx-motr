@@ -6251,16 +6251,35 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 		struct m0_bufvec_cursor kcur;
 		struct m0_bufvec_cursor vcur;
 		m0_bcount_t             v_off = 0;
+		bool                    check_failed = false;
+		uint64_t                key;
+		uint64_t                value;
 
-		while (v_off <= vsize) {
-			m0_bufvec_cursor_init(&kcur, &rec->r_key.k_data);
+		m0_bufvec_cursor_init(&kcur, &rec->r_key.k_data);
+		m0_bufvec_cursor_copyfrom(&kcur, &key, sizeof(key));
+		m0_bufvec_cursor_init(&vcur, &rec->r_val);
+		vsize = sizeof(value);
+		while (v_off < vsize) {
+			m0_bufvec_cursor_copyfrom(&vcur, &value, vsize);
+			if (key != value)
+				check_failed = true;
+			v_off += vsize;
+		}
+
+		/**
+		 * If check_failed then maybe this entry was updated in which
+		 * case we use the complement of the key for comparison.
+		 */
+		if (check_failed) {
 			m0_bufvec_cursor_init(&vcur, &rec->r_val);
-			m0_bufvec_cursor_move(&vcur, v_off);
-
-			if (m0_bufvec_cursor_cmp(&kcur, &vcur)) {
-				M0_ASSERT(0);
+			v_off = 0;
+			key = ~key;
+			while (v_off < vsize) {
+				m0_bufvec_cursor_copyfrom(&vcur, &value, vsize);
+				if (key != value)
+					M0_ASSERT(0);
+				v_off += vsize;
 			}
-			v_off += ksize;
 		}
 	}
 
@@ -6286,9 +6305,7 @@ static int btree_kv_update_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 
 	/** The caller can look at these flags if he needs to. */
 	datum->flags = rec->r_flags;
-
-	if (rec->r_flags == M0_BSC_KEY_NOT_FOUND)
-		return M0_BSC_KEY_NOT_FOUND;
+	M0_ASSERT(datum->flags == M0_BSC_SUCCESS);
 
 	vsize = m0_vec_count(&datum->value->ov_vec);
 	M0_ASSERT(m0_vec_count(&rec->r_val.ov_vec) >= vsize);
@@ -6593,10 +6610,11 @@ static void ut_multi_stream_kv_oper(void)
 			rc = m0_be_tx_open_sync(tx);
 			M0_ASSERT(rc == 0);
 
-			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						 m0_btree_put(tree, &rec,
-							      &ut_cb, 0,
-							      &kv_op, tx));
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_put(tree, &rec,
+								   &ut_cb, 0,
+								   &kv_op, tx));
+			M0_ASSERT(rc == M0_BSC_SUCCESS);
 			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
 		}
@@ -6851,6 +6869,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		int32_t   r;
 		uint64_t  iter_dir;
 		uint64_t  del_key;
+		int       rc;
 
 		key_first = key_iter_start;
 		if (ti->ti_random_bursts) {
@@ -6890,22 +6909,24 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 			btree_callback_credit(&cred);
 
-			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						 m0_btree_put(tree, &rec,
-							      &ut_cb, 0,
-							      &kv_op, tx));
-			M0_ASSERT(data.flags == M0_BSC_SUCCESS);
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_put(tree, &rec,
+								   &ut_cb, 0,
+								   &kv_op, tx));
+			M0_ASSERT(rc == M0_BSC_SUCCESS &&
+				  data.flags == M0_BSC_SUCCESS);
 
 			keys_put_count++;
 			key_first += ti->ti_key_incr;
 		}
 
-		/** UPDATE record which we inserted above. */
+		/** Modify at least 20% of the values which have been inserted. */
 
 		key_first = key_iter_start;
 		ut_cb.c_act   = btree_kv_update_cb;
 		ut_cb.c_datum = &data;
 
+		key_first = key_iter_start;
 		while (key_first <= key_last) {
 			/**
 			 *  Embed the thread-id in LSB so that different threads
@@ -6919,20 +6940,23 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			for (i = 1; i < ARRAY_SIZE(key); i++)
 				key[i] = key[0];
 
-			value[0] = key[0];
+			value[0] = ~key[0];
 			for (i = 1; i < ARRAY_SIZE(value); i++)
 				value[i] = value[0];
 
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 			btree_callback_credit(&cred);
 
-			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						 m0_btree_update(tree, &rec,
-								 &ut_cb, 0,
-								 &kv_op, tx));
-			M0_ASSERT(data.flags == M0_BSC_SUCCESS);
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_update(tree,
+								      &rec,
+								      &ut_cb, 0,
+								      &kv_op,
+								      tx));
+			M0_ASSERT(rc == M0_BSC_SUCCESS &&
+				  data.flags == M0_BSC_SUCCESS);
 
-			key_first += ti->ti_key_incr;
+			key_first += (ti->ti_key_incr * 5);
 		}
 
 
@@ -7427,7 +7451,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 						      m0_btree_put(tree, &rec,
 								   &ut_cb, 0,
 								   &kv_op, tx));
-			M0_ASSERT(data.flags == M0_BSC_SUCCESS && rc == 0);
+			M0_ASSERT(data.flags == M0_BSC_SUCCESS &&
+				  rc == M0_BSC_SUCCESS);
 		}
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
@@ -7566,7 +7591,7 @@ static void ut_mt_tree_oper(void)
  * Commenting this ut as it is not required as a part for test-suite but my
  * required for testing purpose
 **/
-
+#if 0
 /**
  * This function is for traversal of tree in breadth-first order and it will
  * print level and key-value pair for each node.
@@ -7842,7 +7867,7 @@ static void ut_put_update_del_operation(void)
 	struct m0_btree_cb      ut_cb;
 	struct m0_btree_op      kv_op                = {};
 	const struct node_type *nt                   = &fixed_format;
-	int                     total_records        = 1000;
+	int                     total_records        = 1000000;
 	bool                    inc;
 	M0_ENTRY();
 
@@ -7868,7 +7893,7 @@ static void ut_put_update_del_operation(void)
 
 	tree = b_op.bo_arbor;
 	inc = false;
-	for (i = 0; i < 1000; i++) {
+	for (i = 0; i < 1000000; i++) {
 		uint64_t             key;
 		uint64_t             value;
 		struct cb_data       put_data;
@@ -7898,9 +7923,17 @@ static void ut_put_update_del_operation(void)
 		int rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					 m0_btree_put(tree, &rec, &ut_cb, 0,
 						      &kv_op, tx));
-		if (rc) {
-			M0_ASSERT(rc = M0_ERR(-M0_BSC_KEY_EXISTS));
-			printf("M0_BSC_KEY_EXISTS ");
+		M0_ASSERT(rc == M0_BSC_SUCCESS);
+
+		if (i >= total_records - 5) {
+			int rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+							  m0_btree_put(tree,
+							  	       &rec,
+								       &ut_cb,
+								       0,
+								       &kv_op,
+						      		       tx));
+			M0_ASSERT(rc == M0_ERR(-M0_BSC_KEY_EXISTS));
 		}
 
 	}
@@ -7908,7 +7941,7 @@ static void ut_put_update_del_operation(void)
 	M0_ASSERT(node_expensive_invariant(tree->t_desc->t_root));
 
 	inc = false;
-	for (i = 0; i < 1000; i++) {
+	for (i = 0; i < 1000000; i++) {
 		uint64_t             key;
 		uint64_t             value;
 		struct cb_data       update_data;
@@ -7940,7 +7973,7 @@ static void ut_put_update_del_operation(void)
 					 m0_btree_update(tree, &rec, &ut_cb, 0,
 							 &kv_op, tx));
 		if (rc) {
-			M0_ASSERT(rc = M0_ERR(-M0_BSC_KEY_NOT_FOUND));
+			M0_ASSERT(rc == M0_ERR(-M0_BSC_KEY_NOT_FOUND));
 			printf("M0_BSC_KEY_NOT_FOUND ");
 		}
 
@@ -7950,7 +7983,7 @@ static void ut_put_update_del_operation(void)
 	M0_ASSERT(node_expensive_invariant(tree->t_desc->t_root));
 
 	inc = false;
-	for (i = 0; i < 1000; i++) {
+	for (i = 0; i < 1000000; i++) {
 		uint64_t             key;
 		uint64_t             value;
 		struct cb_data       del_data;
@@ -8003,7 +8036,7 @@ static void ut_put_update_del_operation(void)
 	 */
 	btree_ut_fini();
 }
-
+#endif
 
 static int ut_btree_suite_init(void)
 {
@@ -8058,7 +8091,7 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
 		{"node_create_delete",              ut_node_create_delete},
 		{"node_add_del_rec",                ut_node_add_del_rec},
-		{"btree_kv_add_upd_del",            ut_put_update_del_operation},
+		/* {"btree_kv_add_upd_del",            ut_put_update_del_operation}, */
 		{NULL, NULL}
 	}
 };
