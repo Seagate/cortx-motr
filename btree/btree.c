@@ -3876,17 +3876,15 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		}
 		/** Fall through if path_check is successful. */
 	case P_SANITY_CHECK: {
-		int  rc;
+		int  rc = 0;
 		if (bop->bo_opc == M0_BO_PUT && oi->i_key_found)
-			rc = M0_BSC_KEY_EXISTS;
+			rc = EEXIST;
 		else if (bop->bo_opc == M0_BO_UPDATE && !oi->i_key_found)
-			rc = M0_BSC_KEY_NOT_FOUND;
-		else
-			rc = M0_BSC_SUCCESS;
+			rc = ENOENT;
 
-		if (rc != M0_BSC_SUCCESS) {
+		if (rc) {
 			lock_op_unlock(tree);
-			return fail(bop, M0_ERR(-EPERM));
+			return fail(bop, rc);
 		}
 		if (bop->bo_opc == M0_BO_PUT)
 			return  P_MAKESPACE;
@@ -7925,7 +7923,7 @@ static void ut_put_update_del_operation(void)
 								       0,
 								       &kv_op,
 						      		       tx));
-			M0_ASSERT(rc == M0_ERR(-EPERM));
+			M0_ASSERT(rc == EEXIST);
 		}
 
 	}
@@ -7965,7 +7963,7 @@ static void ut_put_update_del_operation(void)
 					 m0_btree_update(tree, &rec, &ut_cb, 0,
 							 &kv_op, tx));
 		if (rc) {
-			M0_ASSERT(rc ==M0_ERR(-EPERM));
+			M0_ASSERT(rc == ENOENT);
 			printf("M0_BSC_KEY_NOT_FOUND ");
 		}
 

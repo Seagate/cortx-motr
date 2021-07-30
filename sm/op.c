@@ -118,7 +118,6 @@ bool m0_sm_op_tick(struct m0_sm_op *op)
 {
 	int64_t               result;
 	bool                  wait;
-	bool                  fail = false;
 	struct m0_sm_op_exec *ceo = op->o_ceo;
 
 	M0_ASSERT(op_invariant(op));
@@ -142,7 +141,6 @@ bool m0_sm_op_tick(struct m0_sm_op *op)
 		} else
 			result = op->o_tick(op);
 		if (result < 0) {
-			fail = true;
 			op->o_sm.sm_rc = result;
 			result = M0_SOS_DONE;
 		} else if (result == M0_SMOP_SAME) {
@@ -152,7 +150,7 @@ bool m0_sm_op_tick(struct m0_sm_op *op)
 		}
 		wait = (result & M0_SMOP_WAIT) != 0;
 		M0_ASSERT(ergo(wait, ceo->oe_vec->eo_is_armed(ceo)));
-		if (fail || op->o_sm.sm_rc != 0)
+		if (op->o_sm.sm_rc != 0)
 			m0_sm_state_and_rc_set(&op->o_sm,
 					       result & ~M0_SMOP_WAIT,
 					       op->o_sm.sm_rc);
