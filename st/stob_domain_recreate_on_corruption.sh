@@ -68,12 +68,16 @@ stop() {
 
 _init() {
     lnet_up
-    m0_modules_insert
+    if [ "$XPRT" = "lnet" ]; then
+        m0_modules_insert
+    fi
     mkdir -p $SANDBOX_DIR/confd
 }
 
 _fini() {
-    m0_modules_remove
+    if [ "$XPRT" = "lnet" ]; then
+        m0_modules_remove
+    fi
 }
 
 stub_confdb() {

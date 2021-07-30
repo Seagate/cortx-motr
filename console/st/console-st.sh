@@ -48,10 +48,12 @@ XPRT=$(m0_default_xpt)
 
 start_server()
 {
-	modprobe lnet
-	modload_galois
-	echo 8 >/proc/sys/kernel/printk
-	modload
+	if [ "$XPRT" = "lnet" ]; then
+		modprobe lnet
+		modload_galois
+		echo 8 >/proc/sys/kernel/printk
+		modload
+	fi
 
 	_use_systemctl=0
 
@@ -133,8 +135,10 @@ EOF
 stop_server()
 {
 	{ pkill -KILL $(basename "$SERVER") && wait; } || true
-	modunload
-	modunload_galois
+	if [ "$XPRT" = "lnet" ]; then
+		modunload
+		modunload_galois
+	fi
 }
 
 check_reply()
