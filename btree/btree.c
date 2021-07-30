@@ -1382,9 +1382,6 @@ struct m0_btree_oimpl {
 	*/
 	bool                       i_root_child_free;
 
-	/* Retrun code for the operation. */
-	int                        i_sm_rc;
-
 };
 
 static struct td        trees[M0_TREE_COUNT];
@@ -3674,7 +3671,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		}
 		bop->bo_i->i_key_found = false;
 		oi->i_nop.no_op.o_sm.sm_rc = 0;
-		oi->i_sm_rc = M0_BSC_SUCCESS;
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
@@ -3889,7 +3885,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			rc = M0_BSC_SUCCESS;
 
 		if (rc != M0_BSC_SUCCESS) {
-			oi->i_sm_rc = M0_ERR(-EPERM);
 			lock_op_unlock(tree);
 			return fail(bop, M0_ERR(-EPERM));
 		}
@@ -3972,6 +3967,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	}
 	case P_CAPTURE:
 		btree_tx_nodes_capture(oi, bop->bo_tx);
+		bop->bo_op.o_sm.sm_rc = M0_BSC_SUCCESS;
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	case P_CLEANUP:
@@ -3979,10 +3975,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		return m0_sm_op_ret(&bop->bo_op);
 	case P_FINI :
 		M0_ASSERT(oi);
-		int rc = oi->i_sm_rc;
 		m0_free(oi);
-		if (rc != M0_BSC_SUCCESS)
-			return rc;
 		return P_DONE;
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
