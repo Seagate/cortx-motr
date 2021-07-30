@@ -6183,16 +6183,35 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 		struct m0_bufvec_cursor kcur;
 		struct m0_bufvec_cursor vcur;
 		m0_bcount_t             v_off = 0;
+		bool                    check_failed = false;
+		uint64_t                key;
+		uint64_t                value;
 
-		while (v_off <= vsize) {
-			m0_bufvec_cursor_init(&kcur, &rec->r_key.k_data);
+		m0_bufvec_cursor_init(&kcur, &rec->r_key.k_data);
+		m0_bufvec_cursor_copyfrom(&kcur, &key, sizeof(key));
+		m0_bufvec_cursor_init(&vcur, &rec->r_val);
+		vsize = sizeof(value);
+		while (v_off < vsize) {
+
+			m0_bufvec_cursor_copyfrom(&vcur, &value, vsize);
+			if (key != value)
+				check_failed = true;
+			v_off += vsize;
+		}
+
+		/** 
+		 * If check_failed then maybe this entry was updated in which
+		 * case we use the complement of the key for comparison.
+		 */
+		if (check_failed) {
 			m0_bufvec_cursor_init(&vcur, &rec->r_val);
-			m0_bufvec_cursor_move(&vcur, v_off);
-
-			if (m0_bufvec_cursor_cmp(&kcur, &vcur)) {
-				M0_ASSERT(0);
+			v_off = 0;
+			key = ~key;
+			while (v_off < vsize) {
+				m0_bufvec_cursor_copyfrom(&vcur, &value, vsize);
+				if (key != value)
+					M0_ASSERT(0);
 			}
-			v_off += ksize;
 		}
 	}
 
@@ -6808,6 +6827,40 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			keys_put_count++;
 			key_first += ti->ti_key_incr;
 		}
+
+#if 0
+		/** Modify at least 20% of the values which have been inserted. */
+		key_first = key_iter_start;
+		while (key_first <= key_last) {
+			/**
+			 *  Embed the thread-id in LSB so that different threads
+			 *  will target the same node thus causing race
+			 *  conditions useful to mimic and test btree operations
+			 *  in a loaded system.
+			 */
+			key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+				 ti->ti_thread_id;
+			key[0] = m0_byteorder_cpu_to_be64(key[0]);
+			for (i = 1; i < ARRAY_SIZE(key); i++)
+				key[i] = key[0];
+
+			value[0] = ~key[0];
+			for (i = 1; i < ARRAY_SIZE(value); i++)
+				value[i] = value[0];
+
+			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+			btree_callback_credit(&cred);
+
+			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						 m0_btree_put(tree, &rec,
+							      &ut_cb, 0,
+							      &kv_op, tx));
+			M0_ASSERT(data.flags == M0_BSC_SUCCESS);
+
+			key_first += (ti->ti_key_incr * 5);
+		}
+#endif
+
 		/** GET and ITERATE over the keys which we inserted above. */
 
 		/**  Randomly decide the iteration direction. */
