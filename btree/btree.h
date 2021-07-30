@@ -115,6 +115,8 @@ enum m0_btree_opcode {
 	M0_BO_PUT,
 	M0_BO_DEL,
 	M0_BO_ITER,
+	M0_BO_MINKEY,
+	M0_BO_MAXKEY,
 
 	M0_BO_NR
 };
@@ -280,6 +282,28 @@ void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
 void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
 		   const struct m0_btree_cb *cb, uint64_t flags,
 		   struct m0_btree_op *bop);
+
+/**
+ * Returns the records corresponding to minimum key of the btree.
+ *
+ * @param arbor Btree parameteres.`
+ * @param cb    Callback routine to return operation output.
+ * @param flags Operation specific flags (cookie, lockall etc.).
+ * @param bop   Btree operation related parameters.
+ */
+void m0_btree_minkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
+		     uint64_t flags, struct m0_btree_op *bop);
+
+/**
+ * Returns the records corresponding to maximum key of the btree.
+ *
+ * @param arbor Btree parameteres.`
+ * @param cb    Callback routine to return operation output.
+ * @param flags Operation specific flags (cookie, lockall etc.).
+ * @param bop   Btree operation related parameters.
+ */
+void m0_btree_maxkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
+		     uint64_t flags, struct m0_btree_op *bop);
 
 void m0_btree_op_init(struct m0_btree_op *bop, enum m0_btree_opcode *opc,
 		      struct m0_btree *arbor,

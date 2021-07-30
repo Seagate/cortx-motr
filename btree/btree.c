@@ -4936,6 +4936,170 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 	};
 }
 
+/** Get min/max key state machine. */
+int64_t btree_min_max_kv_tick(struct m0_sm_op *smop)
+{
+	struct m0_btree_op    *bop            = M0_AMB(bop, smop, bo_op);
+	struct td             *tree           = bop->bo_arbor->t_desc;
+	struct m0_btree_oimpl *oi             = bop->bo_i;
+	bool                   lock_acquired  = bop->bo_flags & BOF_LOCKALL;
+	struct level          *lev;
+
+	switch (bop->bo_op.o_sm.sm_state) {
+	case P_INIT:
+		M0_ASSERT(bop->bo_opc == M0_BO_MINKEY ||
+			  bop->bo_opc == M0_BO_MAXKEY);
+		M0_ASSERT(bop->bo_i == NULL);
+		bop->bo_i = m0_alloc(sizeof *oi);
+		if (bop->bo_i == NULL) {
+			bop->bo_op.o_sm.sm_rc = M0_ERR(-ENOMEM);
+			return P_DONE;
+		}
+		if ((bop->bo_flags & BOF_COOKIE) &&
+		    cookie_is_set(&bop->bo_rec.r_key.k_cookie))
+			return P_COOKIE;
+		else
+			return P_SETUP;
+	case P_COOKIE:
+		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie))
+			return P_LOCK;
+		else
+			return P_SETUP;
+	case P_LOCKALL:
+		M0_ASSERT(bop->bo_flags & BOF_LOCKALL);
+		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+				    bop->bo_arbor->t_desc, P_SETUP);
+	case P_SETUP:
+		oi->i_height = tree->t_height;
+		level_alloc(oi, oi->i_height);
+		if (oi->i_level == NULL) {
+			if (lock_acquired)
+				lock_op_unlock(tree);
+			return fail(bop, M0_ERR(-ENOMEM));
+		}
+		oi->i_nop.no_op.o_sm.sm_rc = 0;
+		/** Fall through to P_DOWN. */
+	case P_DOWN:
+		oi->i_used  = 0;
+		return node_get(&oi->i_nop, tree, &tree->t_root->n_addr,
+				P_NEXTDOWN);
+	case P_NEXTDOWN:
+		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
+			struct slot    s = {};
+			struct segaddr child;
+
+			lev = &oi->i_level[oi->i_used];
+			lev->l_node = oi->i_nop.no_node;
+			s.s_node = oi->i_nop.no_node;
+
+			node_lock(lev->l_node);
+			lev->l_seq = lev->l_node->n_seq;
+
+			/**
+			 * Node validation is required to determine that the
+			 * node(lev->l_node) which is pointed by current thread
+			 * is not freed by any other thread till current thread
+			 * reaches NEXTDOWN phase.
+			 */
+			if (!node_isvalid(lev->l_node) || (oi->i_used > 0 &&
+			    node_count_rec(lev->l_node) == 0)) {
+				node_unlock(lev->l_node);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_SETUP);
+			}
+			if (node_level(s.s_node) > 0) {
+				s.s_idx = bop->bo_opc == M0_BO_MINKEY ? 0 :
+					  node_count(s.s_node);
+				node_child(&s, &child);
+				if (!address_in_segment(child)) {
+					node_unlock(lev->l_node);
+					node_op_fini(&oi->i_nop);
+					return fail(bop, M0_ERR(-EFAULT));
+				}
+				oi->i_used++;
+				if (oi->i_used >= oi->i_height) {
+					/* If height of tree increased. */
+					oi->i_used = oi->i_height - 1;
+					node_unlock(lev->l_node);
+					return m0_sm_op_sub(&bop->bo_op,
+							    P_CLEANUP, P_SETUP);
+				}
+				node_unlock(lev->l_node);
+				return node_get(&oi->i_nop, tree, &child,
+						P_NEXTDOWN);
+			} else	{
+				node_unlock(lev->l_node);
+				return P_LOCK;
+			}
+		} else {
+			node_op_fini(&oi->i_nop);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
+		}
+	case P_LOCK:
+		if (!lock_acquired)
+			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
+					    bop->bo_arbor->t_desc, P_CHECK);
+		/** Fall through if LOCK is already acquired. */
+	case P_CHECK:
+		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
+			oi->i_trial++;
+			if (oi->i_trial >= MAX_TRIALS) {
+				M0_ASSERT_INFO((bop->bo_flags & BOF_LOCKALL) ==
+					       0, "Min/Max key failure in tree"
+					       "lock mode");
+				bop->bo_flags |= BOF_LOCKALL;
+				lock_op_unlock(tree);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+						    P_LOCKALL);
+			}
+			if (oi->i_height != tree->t_height) {
+				lock_op_unlock(tree);
+				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
+				                    P_SETUP);
+			} else {
+				/* If height is same, put back all the nodes. */
+				lock_op_unlock(tree); level_put(oi, bop->bo_tx);
+				return P_DOWN;
+			}
+		}
+		/** Fall through if path_check is successful.  */
+	case P_ACT: {
+		m0_bcount_t  ksize;
+		m0_bcount_t  vsize;
+		void	    *pkey;
+		void	    *pval;
+		struct slot  s = {};
+		int          count;
+
+		lev = &oi->i_level[oi->i_used];
+		s.s_node        = lev->l_node;
+		count = node_count(s.s_node);
+
+		if (count > 0) {
+			s.s_rec	= REC_INIT(&pkey, &ksize, &pval, &vsize);
+			s.s_rec.r_flags = M0_BSC_SUCCESS;
+			s.s_idx = bop->bo_opc == M0_BO_MINKEY ? 0 : count - 1;
+			node_rec(&s);
+		} else
+			/** Only root node is present and it is empty. */
+			s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
+
+		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
+		lock_op_unlock(tree);
+		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
+	}
+	case P_CLEANUP:
+		level_cleanup(oi, bop->bo_tx);
+		return m0_sm_op_ret(&bop->bo_op);
+	case P_FINI:
+		M0_ASSERT(oi);
+		m0_free(oi);
+		return P_DONE;
+	default:
+		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
+	};
+}
+
 /* Delete Operation */
 
 /**
@@ -5600,6 +5764,36 @@ void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
 	bop->bo_i         = NULL;
 
 	m0_sm_op_init(&bop->bo_op, &btree_del_kv_tick, &bop->bo_op_exec,
+		      &btree_conf, &bop->bo_sm_group);
+}
+
+void m0_btree_minkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
+		     uint64_t flags, struct m0_btree_op *bop)
+{
+	bop->bo_opc       = M0_BO_MINKEY;
+	bop->bo_arbor     = arbor;
+	bop->bo_flags     = flags;
+	bop->bo_cb        = *cb;
+	bop->bo_tx        = NULL;
+	bop->bo_seg       = NULL;
+	bop->bo_i         = NULL;
+
+	m0_sm_op_init(&bop->bo_op, &btree_min_max_kv_tick, &bop->bo_op_exec,
+		      &btree_conf, &bop->bo_sm_group);
+}
+
+void m0_btree_maxkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
+		     uint64_t flags, struct m0_btree_op *bop)
+{
+	bop->bo_opc       = M0_BO_MAXKEY;
+	bop->bo_arbor     = arbor;
+	bop->bo_flags     = flags;
+	bop->bo_cb        = *cb;
+	bop->bo_tx        = NULL;
+	bop->bo_seg       = NULL;
+	bop->bo_i         = NULL;
+
+	m0_sm_op_init(&bop->bo_op, &btree_min_max_kv_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
 }
 
@@ -6412,6 +6606,8 @@ static void ut_multi_stream_kv_oper(void)
 						  };
 	int                     rc;
 	struct m0_buf           buf;
+	uint64_t                maxkey = 0;
+	uint64_t                minkey = UINT64_MAX;
 	M0_ENTRY();
 
 	time(&curr_time);
@@ -6483,6 +6679,11 @@ static void ut_multi_stream_kv_oper(void)
 			btree_callback_credit(&cred);
 
 			key = i + (stream_num * recs_per_stream);
+			if (key < minkey)
+				minkey = key;
+			if (key > maxkey)
+				maxkey = key;
+
 			key = m0_byteorder_cpu_to_be64(key);
 			for (k = 0; k < ARRAY_SIZE(value);k++) {
 				value[k] = key;
@@ -6509,6 +6710,39 @@ static void ut_multi_stream_kv_oper(void)
 			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
 		}
+	}
+
+	{
+		/** Min/Max key verification test. */
+		uint64_t             key;
+		uint64_t             value[btree_type.vsize/sizeof(uint64_t)];
+		struct cb_data       get_data;
+		struct m0_btree_key  get_key;
+		struct m0_bufvec     get_value;
+		m0_bcount_t          ksize             = sizeof key;
+		m0_bcount_t          vsize             = sizeof value;
+		void                *k_ptr             = &key;
+		void                *v_ptr             = &value;
+
+		get_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+		get_value      = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+
+		get_data.key         = &get_key;
+		get_data.value       = &get_value;
+		get_data.check_value = true;
+
+		ut_cb.c_act   = btree_kv_get_cb;
+		ut_cb.c_datum = &get_data;
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_minkey(tree, &ut_cb, 0,
+							 &kv_op));
+		M0_ASSERT(minkey == m0_byteorder_be64_to_cpu(key));
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_maxkey(tree, &ut_cb, 0,
+							 &kv_op));
+		M0_ASSERT(maxkey == m0_byteorder_be64_to_cpu(key));
 	}
 
 	/**
