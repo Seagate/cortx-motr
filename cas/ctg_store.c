@@ -441,14 +441,15 @@ static int ctg_kbuf_unpack(struct m0_buf *buf)
 }
 
 #define FID_KEY_INIT(__fid) (struct fid_key) { \
-	.fk_gkey = { \
+	.fk_gkey = {                           \
 		.gk_length = sizeof(*(__fid)), \
-	}, \
-	.fk_fid = *(__fid), \
+	},                                     \
+	.fk_fid = *(__fid),                    \
 }
 
 #define GENERIC_VALUE_INIT(__size) (struct generic_value) { \
-	.gv_length = __size,                                \
+	.gv_length  = __size,                               \
+	.gv_version = CRV_INIT_NONE,                        \
 }
 
 #define META_VALUE_INIT(__ctg_ptr) (struct meta_value) {  \
@@ -464,14 +465,12 @@ static int ctg_kbuf_unpack(struct m0_buf *buf)
 static m0_bcount_t ctg_ksize(const void *opaque_key)
 {
 	const struct generic_key *key = opaque_key;
-	M0_PRE(key != NULL);
 	return sizeof(*key) + key->gk_length;
 }
 
 static m0_bcount_t ctg_vsize(const void *opaque_val)
 {
 	const struct generic_value *val = opaque_val;
-	M0_PRE(val != NULL);
 	return sizeof(*val) + val->gv_length;
 }
 
@@ -479,9 +478,6 @@ static int ctg_cmp(const void *opaque_key_left, const void *opaque_key_right)
 {
 	const struct generic_key *left  = opaque_key_left;
 	const struct generic_key *right = opaque_key_right;
-
-	M0_PRE(left != NULL);
-	M0_PRE(right != NULL);
 
 	/*
 	 * XXX: Origianally, there was an assertion to ensure on-disk data
@@ -1131,14 +1127,6 @@ static bool ctg_op_cb(struct m0_clink *clink)
 		case CTG_OP_COMBINE(CO_PUT, CT_META):
 			fk = ctg_op->co_key.b_addr;
 			mv = ctg_op->co_anchor.ba_value.b_addr;
-			/*
-			 * XXX: Why do we have a special CO_MEM_PLACE
-			 * that just allocates a datum for imask but
-			 * here we have an allocation (m0_cas_ctg object)
-			 * and tree creation (m0_cas_ctg::cc_tree) in
-			 * a single call that is called when PUT is almost
-			 * done? Shouldn't it be done beforehand?
-			 */
 			rc = m0_ctg_create(cas_seg(tx->t_engine->eng_domain),
 					   tx, &ctg, &fk->fk_fid);
 			if (rc == 0) {
@@ -2088,17 +2076,17 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 	/* The key is a component catalogue FID. */
 	struct fid_key             key_data = FID_KEY_INIT(&cid->ci_fid);
 	struct m0_buf              key = M0_BUF_INIT_PTR(&key_data);
-	struct layout_value        value_data;
+	struct layout_value        value_data =
+		LAYOUT_VALUE_INIT(&cid->ci_layout);
 	struct m0_buf              value = M0_BUF_INIT_PTR(&value_data);
 	struct m0_cas_ctg         *ctidx  = m0_ctg_ctidx();
 	struct m0_be_btree_anchor  anchor = {};
 	struct m0_dix_layout      *layout;
 	struct m0_ext             *im_range;
-	const struct m0_dix_imask *imask;
+	const struct m0_dix_imask *imask = &cid->ci_layout.u.dl_desc.ld_imask;
 	m0_bcount_t                size;
 	int                        rc;
 
-	value_data = LAYOUT_VALUE_INIT(&cid->ci_layout);
 	anchor.ba_value.b_nob = value.b_nob;
 	/** @todo Make it asynchronous. */
 	rc = M0_BE_OP_SYNC_RET(op,
@@ -2107,7 +2095,8 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 		bo_u.u_btree.t_rc);
 	if (rc == 0) {
 		m0_buf_memcpy(&anchor.ba_value, &value);
-		imask = &cid->ci_layout.u.dl_desc.ld_imask;
+		layout = &((struct layout_value *)
+			   anchor.ba_value.b_addr)->lv_layout;
 		if (!m0_dix_imask_is_empty(imask)) {
 			/*
 			 * Alloc memory in BE segment for imask ranges
@@ -2123,8 +2112,6 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 					 cas_seg(tx->t_engine->eng_domain),
 					 size, im_range));
 			/* Assign newly allocated imask ranges. */
-			layout = &((struct layout_value *)
-				   anchor.ba_value.b_addr)->lv_layout;
 			layout->u.dl_desc.ld_imask.im_range = im_range;
 		}
 		m0_chan_broadcast_lock(&ctidx->cc_chan.bch_chan);
