@@ -1382,6 +1382,9 @@ struct m0_btree_oimpl {
 	*/
 	bool                       i_root_child_free;
 
+	/* Retrun code for the operation. */
+	int                        i_sm_rc;
+
 };
 
 static struct td        trees[M0_TREE_COUNT];
@@ -3671,6 +3674,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		}
 		bop->bo_i->i_key_found = false;
 		oi->i_nop.no_op.o_sm.sm_rc = 0;
+		oi->i_sm_rc = M0_BSC_SUCCESS;
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
 		oi->i_used = 0;
@@ -3876,7 +3880,20 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		}
 		/** Fall through if path_check is successful. */
 	case P_SANITY_CHECK: {
-		if (bop->bo_opc == M0_BO_PUT && !oi->i_key_found)
+		int  rc;
+		if (bop->bo_opc == M0_BO_PUT && oi->i_key_found)
+			rc = M0_BSC_KEY_EXISTS;
+		else if (bop->bo_opc == M0_BO_UPDATE && !oi->i_key_found)
+			rc = M0_BSC_KEY_NOT_FOUND;
+		else
+			rc = M0_BSC_SUCCESS;
+
+		if (rc != M0_BSC_SUCCESS) {
+			oi->i_sm_rc = rc;
+			lock_op_unlock(tree);
+			return fail(bop, M0_ERR(-rc));
+		}
+		if (bop->bo_opc == M0_BO_PUT)
 			return  P_MAKESPACE;
 		else
 			return P_ACT;
@@ -3901,23 +3918,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		void                *p_key;
 		m0_bcount_t          vsize;
 		void                *p_val;
-		struct m0_btree_rec  rec;
 		struct slot          node_slot;
 		int                  rc;
-
-		if (bop->bo_opc == M0_BO_PUT && oi->i_key_found)
-			rec.r_flags = M0_BSC_KEY_EXISTS;
-		else if (bop->bo_opc == M0_BO_UPDATE && !oi->i_key_found)
-			rec.r_flags = M0_BSC_KEY_NOT_FOUND;
-		else
-			rec.r_flags = M0_BSC_SUCCESS;
-
-		if (rec.r_flags != M0_BSC_SUCCESS) {
-			rc = bop->bo_cb.c_act(&bop->bo_cb, &rec);
-			M0_ASSERT(rc != M0_BSC_SUCCESS);
-			lock_op_unlock(tree);
-			return fail(bop, rc);
-		}
 
 		lev = &oi->i_level[oi->i_used];
 
@@ -3977,7 +3979,10 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		return m0_sm_op_ret(&bop->bo_op);
 	case P_FINI :
 		M0_ASSERT(oi);
+		int rc = oi->i_sm_rc;
 		m0_free(oi);
+		if (rc)
+			return M0_ERR(-rc);
 		return P_DONE;
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
@@ -4059,7 +4064,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_SANITY_CHECK] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_SANITY_CHECK",
-		.sd_allowed = M0_BITS(P_MAKESPACE, P_ACT),
+		.sd_allowed = M0_BITS(P_MAKESPACE, P_ACT, P_CLEANUP),
 	},
 	[P_MAKESPACE] = {
 		.sd_flags   = 0,
@@ -4147,8 +4152,9 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "put-check-ft-capture", P_CHECK, P_CAPTURE },
 	{ "put-check-ft-makespace", P_LOCK, P_MAKESPACE },
 	{ "put-check-ft-act", P_LOCK, P_ACT },
-	{ "put-decide_nxt-makespace", P_SANITY_CHECK, P_MAKESPACE },
-	{ "put-decide_nxt-act", P_SANITY_CHECK, P_ACT },
+	{ "put-sanity-makespace", P_SANITY_CHECK, P_MAKESPACE },
+	{ "put-sanity-act", P_SANITY_CHECK, P_ACT },
+	{ "put-sanity-cleanup", P_SANITY_CHECK, P_CLEANUP},
 	{ "put-makespace-capture", P_MAKESPACE, P_CAPTURE },
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
 	{ "kvop-act", P_ACT, P_CLEANUP },
@@ -5642,8 +5648,8 @@ void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
 }
 
 void m0_btree_update(struct m0_btree *arbor, const struct m0_btree_rec *rec,
-		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop, struct m0_be_tx *tx)
+		     const struct m0_btree_cb *cb, uint64_t flags,
+		     struct m0_btree_op *bop, struct m0_be_tx *tx)
 {
 	bop->bo_opc    = M0_BO_UPDATE;
 	bop->bo_arbor  = arbor;
@@ -6193,9 +6199,7 @@ static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 
 	/** The caller can look at these flags if he needs to. */
 	datum->flags = rec->r_flags;
-
-	if (rec->r_flags == M0_BSC_KEY_EXISTS)
-		return M0_BSC_KEY_EXISTS;
+	M0_ASSERT(datum->flags == M0_BSC_SUCCESS);
 
 	ksize = m0_vec_count(&datum->key->k_data.ov_vec);
 	M0_ASSERT(m0_vec_count(&rec->r_key.k_data.ov_vec) >= ksize);
@@ -7562,7 +7566,7 @@ static void ut_mt_tree_oper(void)
  * Commenting this ut as it is not required as a part for test-suite but my
  * required for testing purpose
 **/
-#if 0
+
 /**
  * This function is for traversal of tree in breadth-first order and it will
  * print level and key-value pair for each node.
@@ -7838,7 +7842,7 @@ static void ut_put_update_del_operation(void)
 	struct m0_btree_cb      ut_cb;
 	struct m0_btree_op      kv_op                = {};
 	const struct node_type *nt                   = &fixed_format;
-	int                     total_records        = 1000000;
+	int                     total_records        = 1000;
 	bool                    inc;
 	M0_ENTRY();
 
@@ -7864,7 +7868,7 @@ static void ut_put_update_del_operation(void)
 
 	tree = b_op.bo_arbor;
 	inc = false;
-	for (i = 0; i < 1000000; i++) {
+	for (i = 0; i < 1000; i++) {
 		uint64_t             key;
 		uint64_t             value;
 		struct cb_data       put_data;
@@ -7891,13 +7895,12 @@ static void ut_put_update_del_operation(void)
 		ut_cb.c_act        = btree_kv_put_cb;
 		ut_cb.c_datum      = &put_data;
 
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+		int rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					 m0_btree_put(tree, &rec, &ut_cb, 0,
 						      &kv_op, tx));
-		if (put_data.flags == M0_BSC_KEY_EXISTS) {
+		if (rc) {
+			M0_ASSERT(rc = M0_ERR(-M0_BSC_KEY_EXISTS));
 			printf("M0_BSC_KEY_EXISTS ");
-		} else {
-			M0_ASSERT(put_data.flags == M0_BSC_SUCCESS);
 		}
 
 	}
@@ -7905,7 +7908,7 @@ static void ut_put_update_del_operation(void)
 	M0_ASSERT(node_expensive_invariant(tree->t_desc->t_root));
 
 	inc = false;
-	for (i = 0; i < 1000000; i++) {
+	for (i = 0; i < 1000; i++) {
 		uint64_t             key;
 		uint64_t             value;
 		struct cb_data       update_data;
@@ -7927,19 +7930,18 @@ static void ut_put_update_del_operation(void)
 		rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val          = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
 
-		update_data.key       = &rec.r_key;
-		update_data.value     = &rec.r_val;
+		update_data.key    = &rec.r_key;
+		update_data.value  = &rec.r_val;
 
 		ut_cb.c_act        = btree_kv_update_cb;
 		ut_cb.c_datum      = &update_data;
 
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+		int rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					 m0_btree_update(tree, &rec, &ut_cb, 0,
 							 &kv_op, tx));
-		if (update_data.flags == M0_BSC_KEY_NOT_FOUND) {
+		if (rc) {
+			M0_ASSERT(rc = M0_ERR(-M0_BSC_KEY_NOT_FOUND));
 			printf("M0_BSC_KEY_NOT_FOUND ");
-		} else {
-			M0_ASSERT(update_data.flags == M0_BSC_SUCCESS);
 		}
 
 	}
@@ -7948,7 +7950,7 @@ static void ut_put_update_del_operation(void)
 	M0_ASSERT(node_expensive_invariant(tree->t_desc->t_root));
 
 	inc = false;
-	for (i = 0; i < 1000000; i++) {
+	for (i = 0; i < 1000; i++) {
 		uint64_t             key;
 		uint64_t             value;
 		struct cb_data       del_data;
@@ -8001,7 +8003,7 @@ static void ut_put_update_del_operation(void)
 	 */
 	btree_ut_fini();
 }
-#endif
+
 
 static int ut_btree_suite_init(void)
 {
@@ -8056,7 +8058,7 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
 		{"node_create_delete",              ut_node_create_delete},
 		{"node_add_del_rec",                ut_node_add_del_rec},
-		/* {"btree_kv_add_upd_del",            ut_put_update_del_operation},*/
+		{"btree_kv_add_upd_del",            ut_put_update_del_operation},
 		{NULL, NULL}
 	}
 };
