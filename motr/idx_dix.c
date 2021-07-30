@@ -578,17 +578,12 @@ static void dix_build(const struct m0_op_idx *oi,
 		 */
 		out->dd_layout.dl_type = DIX_LTYPE_DESCR;
 
-		if (oi->oi_flags & M0_ENF_META) {
-			m0_dix_ldesc_init(&out->dd_layout.u.dl_desc,
-				          &(struct m0_ext) { .e_start = 0,
-				          .e_end = IMASK_INF }, 1, HASH_FNC_CITY,
-				          &idx->in_attr.idx_pver);
-		} else {
-			m0_dix_ldesc_init(&out->dd_layout.u.dl_desc,
-					  &(struct m0_ext) { .e_start = 0,
-					  .e_end = IMASK_INF }, 1, HASH_FNC_CITY,
-					  &dix_inst(oi)->di_index_pver);
-		}
+		m0_dix_ldesc_init(&out->dd_layout.u.dl_desc,
+				  &(struct m0_ext) { .e_start = 0,
+				  .e_end = IMASK_INF }, 1, HASH_FNC_CITY,
+				  (oi->oi_flags & M0_ENF_META) ?
+				  &idx->in_attr.idx_pver :
+				  &dix_inst(oi)->di_index_pver);
 	}
 }
 
