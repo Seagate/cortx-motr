@@ -6857,7 +6857,6 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 							      &kv_op, tx));
 			M0_ASSERT(data.flags == M0_BSC_SUCCESS);
 
-			keys_put_count++;
 			key_first += (ti->ti_key_incr * 5);
 		}
 #endif
