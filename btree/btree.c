@@ -4255,12 +4255,13 @@ int64_t btree_open_tree_tick(struct m0_sm_op *smop)
 		/**
 		 * When tree_open() is called after tree_close() and the tree
 		 * descriptor associated with the tree is freed during the
-		 * tree_close(), we will get a new tree_descriptor which wont
+		 * tree_close(), we will get a new tree_descriptor which won't
 		 * contain the tree_height. This data is then filled using the
 		 * tree's t_height.
 		 */
 		if (oi->i_nop.no_tree->t_height == 0)
-			oi->i_nop.no_tree->t_height = bop->b_data.tree->t_height;
+			oi->i_nop.no_tree->t_height = bop->b_data.tree->
+						      t_height;
 
 		bop->b_data.tree->t_type   = oi->i_nop.no_tree->t_type;
 		bop->b_data.tree->t_desc   = oi->i_nop.no_tree;
