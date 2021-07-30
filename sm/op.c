@@ -152,7 +152,7 @@ bool m0_sm_op_tick(struct m0_sm_op *op)
 		}
 		wait = (result & M0_SMOP_WAIT) != 0;
 		M0_ASSERT(ergo(wait, ceo->oe_vec->eo_is_armed(ceo)));
-		if (fail || op->o_sm.sm_rc!= 0)
+		if (fail || op->o_sm.sm_rc != 0)
 			m0_sm_state_and_rc_set(&op->o_sm,
 					       result & ~M0_SMOP_WAIT,
 					       op->o_sm.sm_rc);
