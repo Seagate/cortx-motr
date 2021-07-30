@@ -1910,7 +1910,7 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 			tree->t_ref = 1;
 			tree->t_starttime = 0;
 			tree->t_root = node;
-
+			tree->t_height = node_level(node) + 1;
 			node_lock(node);
 			node->n_tree = tree;
 			node_unlock(node);
@@ -4152,10 +4152,10 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 
 		bop->bo_arbor->t_desc           = oi->i_nop.no_tree;
 		bop->bo_arbor->t_type           = data->bt;
-		bop->bo_arbor->t_height         = 1;
+		bop->bo_arbor->t_height         = node_level(oi->i_nop.no_node) + 1;
 
 		m0_rwlock_write_lock(&bop->bo_arbor->t_desc->t_lock);
-		bop->bo_arbor->t_desc->t_height = 1;
+		bop->bo_arbor->t_desc->t_height = bop->bo_arbor->t_height;
 		m0_rwlock_write_unlock(&bop->bo_arbor->t_desc->t_lock);
 
 		m0_free(oi);
@@ -4252,19 +4252,9 @@ int64_t btree_open_tree_tick(struct m0_sm_op *smop)
 		if (!oi->i_nop.no_tree->t_type)
 			oi->i_nop.no_tree->t_type = bop->b_data.bt;
 
-		/**
-		 * When tree_open() is called after tree_close() and the tree
-		 * descriptor associated with the tree is freed during the
-		 * tree_close(), we will get a new tree_descriptor which won't
-		 * contain the tree_height. This data is then filled using the
-		 * tree's t_height.
-		 */
-		if (oi->i_nop.no_tree->t_height == 0)
-			oi->i_nop.no_tree->t_height = bop->b_data.tree->
-						      t_height;
-
 		bop->b_data.tree->t_type   = oi->i_nop.no_tree->t_type;
 		bop->b_data.tree->t_desc   = oi->i_nop.no_tree;
+		bop->b_data.tree->t_height = oi->i_nop.no_tree->t_height;
 
 		m0_free(oi);
 		return P_DONE;
@@ -5497,7 +5487,7 @@ void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop,
 		bop->bo_seg = arbor->t_desc->t_seg;
 	else
 		bop->bo_seg = NULL;
- 
+
 	m0_sm_op_init(&bop->bo_op, &btree_destroy_tree_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
 }
