@@ -245,7 +245,7 @@ static int rem_rpc_deliver(struct m0_rpc_machine *mach,
 }
 
 M0_UNUSED static void rem_rpc_redo_replied(struct m0_rpc_item *item)
-{}
+{;}
 
 static const struct m0_fop_type_ops rem_rpc_ftype_ops = {
 	/* nothing */
