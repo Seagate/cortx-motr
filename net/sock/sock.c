@@ -3984,6 +3984,14 @@ const struct m0_net_xprt m0_net_sock_xprt = {
 };
 M0_EXPORTED(m0_net_sock_xprt);
 
+#ifndef ENABLE_LUSTRE
+const struct m0_net_xprt m0_net_lnet_xprt = {
+	.nx_name = "lnet",
+	.nx_ops  = &xprt_ops
+};
+M0_EXPORTED(m0_net_lnet_xprt);
+#endif /* ENABLE_LUSTRE */
+
 M0_INTERNAL int m0_net_sock_mod_init(void)
 {
 	int result;
