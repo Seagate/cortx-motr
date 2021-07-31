@@ -13,13 +13,19 @@ Motr builds. Some unit tests run. Some unit tests fail. Many things are much
 slower than on Linux. Network works over net/sock/sock.[ch]. Storage io (stob)
 works, but is single threaded and very inefficient.
 
-====================
-Tested configuration
-====================
+=====================
+Tested configurations
+=====================
 
-macOS Sierra (10.12.6).
+Sierra:
 
-clang: Apple LLVM version 9.0.0 (clang-900.0.39.2).
+    macOS 10.12.6
+    clang: Apple LLVM version 9.0.0 (clang-900.0.39.2).
+
+Catalina:
+
+    macOS 10.15.7
+    clang: Apple clang version 12.0.0 (clang-1200.0.32.29)
 
 The port was built and tested with command line tools (cc, lldb, etc.).
 
