@@ -116,7 +116,7 @@ static void wait_for_coroutine_fom(void)
 	m0_semaphore_down(&ready);
 }
 
-static int coroutine_fom_tick(struct m0_fom *fom, int *x, int *__unused)
+static int coroutine_fom_tick(struct m0_fom *fom, int *x, int *__unused_)
 {
 	int key = 1;
 	int val = 2;
