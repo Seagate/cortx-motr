@@ -204,7 +204,6 @@ static void timer_locality_default_test()
 static unsigned long locality_test_callback(unsigned long data)
 {
 	M0_ASSERT(data >= 0);
-	M0_ASSERT(test_locality_tid == m0_tid());
 #if !defined(M0_DARWIN) /* No hard timers on Darwin. */
 	M0_ASSERT(test_locality_tid == m0_tid());
 #endif
