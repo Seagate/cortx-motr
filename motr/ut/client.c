@@ -275,6 +275,7 @@ M0_INTERNAL int ut_m0_client_init(struct m0_client **instance)
 	if (rc == 0) {
 		sm = &(*instance)->m0c_initlift_sm;
 		(*instance)->m0c_initlift_direction = STARTUP;
+		pc = &(*instance)->m0c_pools_common;
 
 		for (i = IL_UNINITIALISED + 1; i <= IL_RPC;
 		     /*i <= IL_AST_THREAD;*/ i++) {
@@ -304,8 +305,8 @@ M0_INTERNAL int ut_m0_client_init(struct m0_client **instance)
 		pv->pv_pool = pool;
 		pool_version_tlink_init_at_tail(pv, &pool->po_vers);
 
-		(*instance)->m0c_pools_common.pc_cur_pver = pv;
-		(*instance)->m0c_pools_common.pc_confc = (struct m0_confc *)DUMMY_PTR;
+		pc->pc_cur_pver = pv;
+		pc->pc_confc = (struct m0_confc *)DUMMY_PTR;
 
 		M0_ALLOC_PTR(mdpv);
 		M0_UT_ASSERT(mdpv != NULL);
