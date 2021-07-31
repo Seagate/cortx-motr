@@ -99,20 +99,26 @@ run()
 }
 
 
-run N xcode-select --install
+xcode-select -p >/dev/null || run N xcode-select --install
+brew help >/dev/null 2>/dev/null || /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+run N brew install autoconf
+run N brew install automake
+run N brew install libtool
 run N brew install coreutils
 run N brew install grep # GNU grep with -P option.
+run N brew install gnu-sed
+run Y ln -fs /usr/local/opt/gnu-sed/bin/gsed /usr/local/bin/sed
+run N brew install gnu-getopt
+run Y ln -fs /usr/local/opt/gnu-getopt/bin/getopt /usr/local/bin
 run N brew install castxml
 run Y perl -MCPAN -e 'install YAML::XS'
 run Y perl -MCPAN -e 'install File::Find::Rule'
 run Y perl -MCPAN -e 'install IO::All'
 run Y perl -MCPAN -e 'install MCE'
 run Y perl -MCPAN -e 'install Sereal'
-run N brew link python@3.8
+run N brew link python@3.9
 run N pip3 install ply
 run N brew install asciidoc
 run N brew install libyaml
 run N brew install gawk
-run N brew install gnu-sed
-run N brew install gnu-getopt
-run N brew install valgrind
+#run N brew install valgrind
