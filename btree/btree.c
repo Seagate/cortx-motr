@@ -3878,9 +3878,9 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	case P_SANITY_CHECK: {
 		int  rc = 0;
 		if (bop->bo_opc == M0_BO_PUT && oi->i_key_found)
-			rc = EEXIST;
+			rc = M0_BSC_KEY_EXISTS;
 		else if (bop->bo_opc == M0_BO_UPDATE && !oi->i_key_found)
-			rc = ENOENT;
+			rc = M0_BSC_KEY_NOT_FOUND;
 
 		if (rc) {
 			lock_op_unlock(tree);
@@ -7967,7 +7967,7 @@ static void ut_put_update_del_operation(void)
 								       0,
 								       &kv_op,
 						      		       tx));
-			M0_ASSERT(rc == EEXIST);
+			M0_ASSERT(rc == M0_BSC_KEY_EXISTS);
 		}
 
 	}
@@ -8007,7 +8007,7 @@ static void ut_put_update_del_operation(void)
 					 m0_btree_update(tree, &rec, &ut_cb, 0,
 							 &kv_op, tx));
 		if (rc) {
-			M0_ASSERT(rc == ENOENT);
+			M0_ASSERT(rc == M0_BSC_KEY_NOT_FOUND);
 			printf("M0_BSC_KEY_NOT_FOUND ");
 		}
 
