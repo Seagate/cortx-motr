@@ -6165,7 +6165,6 @@ static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	return rec->r_flags;
 }
 
-#if 0
 /**
  * This unit test exercises the KV operations for both valid and invalid
  * conditions.
@@ -6301,15 +6300,41 @@ static void ut_basic_kv_oper(void)
 		}
 	}
 
-	// rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
-	// M0_ASSERT(rc == 0);
+	srandom(curr_time);
+	for (i = 0; i < 2048; i++) {
+		uint64_t             key;
+		struct cb_data       delete_data;
+		struct m0_btree_rec  rec;
+		m0_bcount_t          ksize  = sizeof key;
+		void                *k_ptr  = &key;
+
+		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+		btree_callback_credit(&cred);
+
+		/**
+		*  There is a very low possibility of hitting the same key
+		*  again. This is fine as it helps debug the code when insert
+		*  is called with the same key instead of update function.
+		*/
+		key = m0_byteorder_cpu_to_be64(random());
+
+		rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+
+		delete_data.key       = &rec.r_key;
+
+		ut_cb.c_act        = btree_kv_del_cb;
+		ut_cb.c_datum      = &delete_data;
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_del(tree, &rec.r_key,
+								&ut_cb, 0,
+								&kv_op, tx));
+	}
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
 	M0_ASSERT(rc == 0);
 
 	btree_ut_fini();
 }
-#endif
 
 #if (AVOID_BE_SEGMENT == 1)
 enum {
@@ -7818,7 +7843,7 @@ struct m0_ut_suite btree_ut = {
 	.ts_tests = {
 		{"basic_tree_op_cp",                ut_basic_tree_oper_cp},
 		//{"basic_tree_op_icp",               ut_basic_tree_oper_icp},
-		//{"basic_kv_ops",                    ut_basic_kv_oper},
+		{"basic_kv_ops",                    ut_basic_kv_oper},
 		{"multi_stream_kv_op",              ut_multi_stream_kv_oper},
 		{"single_thread_single_tree_kv_op", ut_st_st_kv_oper},
 		{"single_thread_tree_op",           ut_st_tree_oper},
