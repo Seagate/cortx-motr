@@ -42,10 +42,6 @@
 #include "stob/ad.h"      /* m0_stob_ad_spares_calc */
 
 #define BALLOC_DBNAME "./__balloc_db"
-
-#define GROUP_COUNT (BALLOC_DEF_CONTAINER_SIZE / (BALLOC_DEF_BLOCKS_PER_GROUP * \
-						 (1 << BALLOC_DEF_BLOCK_SHIFT)))
-
 #define BALLOC_DEBUG
 
 static const int    MAX     = 10;
@@ -97,7 +93,7 @@ bool balloc_ut_invariant(struct m0_balloc *motr_balloc,
  *         -errno on failure.
  */
 int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg,
-		       bool is_reserve)
+		       struct m0_ad_balloc_format_req *bcfg, bool is_reserve)
 {
 	struct m0_sm_group             *grp;
 	struct m0_balloc               *motr_balloc;
@@ -110,30 +106,23 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg,
 	m0_bcount_t                     spare_size;
 	int                             i     = 0;
 	int                             rc;
-	struct m0_ad_balloc_format_req  bcfg;
-
-	bcfg.bfr_fid                   = M0_FID_INIT(0, 1);
-	bcfg.bfr_totalsize             = BALLOC_DEF_CONTAINER_SIZE;
-	bcfg.bfr_blocksize             = (1 << BALLOC_DEF_BLOCK_SHIFT);
-	bcfg.bfr_groupsize             = BALLOC_DEF_BLOCKS_PER_GROUP;
-	bcfg.bfr_groupcount            = GROUP_COUNT;
-	bcfg.bfr_indexcount            = BALLOC_DEF_INDEXES_NR;
-	bcfg.bfr_spare_reserved_blocks = m0_stob_ad_spares_calc(
-						BALLOC_DEF_BLOCKS_PER_GROUP);
 
 	grp = m0_be_ut_backend_sm_group_lookup(ut_be);
-	rc = m0_balloc_create(0, seg, grp, &bcfg, &motr_balloc);
+	rc = m0_balloc_create(0, seg, grp, bcfg, &motr_balloc);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = motr_balloc->cb_ballroom.ab_ops->bo_init(
-		&motr_balloc->cb_ballroom, seg, &bcfg);
+		&motr_balloc->cb_ballroom, seg, bcfg);
 	if (rc != 0)
 		goto out;
 
-	prev_free_blocks = motr_balloc->cb_sb.bsb_freeblocks;
-	M0_ALLOC_ARR(prev_group_info_free_blocks, GROUP_COUNT);
+	M0_UT_ASSERT(motr_balloc->cb_sb.bsb_groupcount == bcfg->bfr_groupcount);
+	M0_UT_ASSERT(motr_balloc->cb_sb.bsb_indexcount == bcfg->bfr_indexcount);
 
-	for (i = 0; i < GROUP_COUNT; ++i) {
+	prev_free_blocks = motr_balloc->cb_sb.bsb_freeblocks;
+	M0_ALLOC_ARR(prev_group_info_free_blocks, bcfg->bfr_groupcount);
+
+	for (i = 0; i < motr_balloc->cb_sb.bsb_groupcount; ++i) {
 		prev_group_info_free_blocks[i] =
 			motr_balloc->cb_group_info[i].bgi_normal.bzp_freeblocks;
 	}
@@ -263,43 +252,117 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg,
 
 out:
 	m0_free(prev_group_info_free_blocks);
-
 	M0_LOG(M0_INFO, "done. status = %d", rc);
 	return rc;
 }
 
-void test_balloc()
+void prepare_balloc_config(struct m0_ad_balloc_format_req *bcfg,
+			   m0_bcount_t totalsize,
+			   m0_bcount_t groupsize,
+			   m0_bcount_t indexcount)
 {
-	struct m0_be_ut_backend	 ut_be;
-	struct m0_be_ut_seg	 ut_seg;
-	int			 rc;
+	m0_bcount_t grp_count;
 
+	/*
+ 	 * group size is counted depending on BALLOC_DEF_GROUPS_NR.
+ 	 * Group size must be power of 2.
+ 	 */ 
+	groupsize = 1 << m0_log2(groupsize);
+	groupsize = max64u(groupsize, BALLOC_DEF_BLOCKS_PER_GROUP);
+	grp_count = m0_balloc_group_count(totalsize,
+					   (1 << BALLOC_DEF_BLOCK_SHIFT),
+					   groupsize);
+
+	bcfg->bfr_fid                   = M0_FID_INIT(0, 1);
+	bcfg->bfr_totalsize             = totalsize;
+	bcfg->bfr_blocksize             = (1 << BALLOC_DEF_BLOCK_SHIFT);
+	bcfg->bfr_groupsize             = groupsize;
+	bcfg->bfr_groupcount            = grp_count;
+	bcfg->bfr_indexcount            = indexcount;
+	bcfg->bfr_spare_reserved_blocks = m0_stob_ad_spares_calc(
+						groupsize);
+}
+
+void test_balloc_helper(struct m0_ad_balloc_format_req  *bcfg, bool is_reserve)
+{
+	struct m0_be_ut_backend	        ut_be;
+	struct m0_be_ut_seg	        ut_seg;
+	int			        rc;
 	M0_SET0(&ut_be);
 	/* Init BE */
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
-	rc = test_balloc_ut_ops(&ut_be, ut_seg.bus_seg, false);
+	rc = test_balloc_ut_ops(&ut_be, ut_seg.bus_seg, bcfg, is_reserve);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 }
 
+void test_balloc()
+{
+
+	struct m0_ad_balloc_format_req  bcfg;
+
+	prepare_balloc_config(&bcfg, BALLOC_DEF_CONTAINER_SIZE,
+			      BALLOC_DEF_BLOCKS_PER_GROUP,
+			      BALLOC_DEF_INDEXES_NR);
+	test_balloc_helper(&bcfg, false);	
+}
+
 void test_reserve_extent()
 {
-	struct m0_be_ut_backend	 ut_be;
-	struct m0_be_ut_seg	 ut_seg;
-	int			 rc;
+	struct m0_ad_balloc_format_req  bcfg;
 
-	M0_SET0(&ut_be);
-	/* Init BE */
-	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
-	rc = test_balloc_ut_ops(&ut_be, ut_seg.bus_seg, true);
-	M0_UT_ASSERT(rc == 0);
+	prepare_balloc_config(&bcfg, BALLOC_DEF_CONTAINER_SIZE,
+			      BALLOC_DEF_BLOCKS_PER_GROUP,
+			      BALLOC_DEF_INDEXES_NR);
+	test_balloc_helper(&bcfg, true);	
+}
 
-	m0_be_ut_seg_fini(&ut_seg);
-	m0_be_ut_backend_fini(&ut_be);
+void test_balloc_group_size()
+{
+	struct m0_ad_balloc_format_req  bcfg;
+	int                             iter;
+
+	/* Test various group size */
+	for (iter = 0; iter <= 4; iter++) {
+		prepare_balloc_config(&bcfg, BALLOC_DEF_CONTAINER_SIZE,
+				      BALLOC_DEF_BLOCKS_PER_GROUP * (1 << iter),
+				      BALLOC_DEF_INDEXES_NR);
+		test_balloc_helper(&bcfg, false);	
+	}
+}
+
+void test_balloc_group_size_zero()
+{
+	struct m0_ad_balloc_format_req  bcfg;
+	prepare_balloc_config(&bcfg, BALLOC_DEF_CONTAINER_SIZE,
+			      0, BALLOC_DEF_INDEXES_NR);
+	test_balloc_helper(&bcfg, false);
+}
+
+void test_balloc_group_size_max()
+{
+
+	struct m0_ad_balloc_format_req  bcfg;
+	prepare_balloc_config(&bcfg, BALLOC_DEF_CONTAINER_SIZE,
+			      BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_INDEXES_NR);
+	test_balloc_helper(&bcfg, false);
+}
+
+void test_balloc_index_count()
+{
+	struct m0_ad_balloc_format_req  bcfg;
+	int                             iter;
+
+	/* Test various group size */
+	for (iter = 1; iter <= 6; iter++) {
+		prepare_balloc_config(&bcfg, BALLOC_DEF_CONTAINER_SIZE,
+				      BALLOC_DEF_BLOCKS_PER_GROUP,
+				      BALLOC_DEF_INDEXES_NR *(1 << iter));
+		test_balloc_helper(&bcfg, false);	
+	}
 }
 
 struct m0_ut_suite balloc_ut = {
@@ -307,8 +370,12 @@ struct m0_ut_suite balloc_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
         .ts_tests = {
-		{ "balloc", test_balloc},
+		{ "balloc defult test", test_balloc},
 		{ "reserve blocks for extmap", test_reserve_extent},
+		{ "balloc different group size", test_balloc_group_size},
+		{ "balloc default group count[group_size = 0]", test_balloc_group_size_zero},
+		{ "balloc deafult group count[group_size = MAX]", test_balloc_group_size_max},
+		{ "balloc different index counts", test_balloc_index_count},
 		{ NULL, NULL }
         }
 };
