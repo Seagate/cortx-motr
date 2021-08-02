@@ -6912,6 +6912,28 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			key_first += ti->ti_key_incr;
 		}
 
+		/**
+		 * Execute one error case where we PUT a key which already
+		 * exists in the btree.
+		 */
+		key_first = key_iter_start;
+		if ((key_last - key_first) > (ti->ti_key_incr * 2))
+			key_first += ti->ti_key_incr;
+		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+			 ti->ti_thread_id;
+		key[0] = m0_byteorder_cpu_to_be64(key[0]);
+		for (i = 1; i < ARRAY_SIZE(key); i++)
+			key[i] = key[0];
+		/** Skip initializing the value as this is an error case */
+
+		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+		btree_callback_credit(&cred);
+
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_put(tree, &rec, &ut_cb,
+							   0, &kv_op, tx));
+		M0_ASSERT(rc == M0_BSC_KEY_EXISTS);
+
 		/** Modify at least 20% of the values which have been inserted. */
 
 		key_first     = key_iter_start;
@@ -6949,6 +6971,28 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 			key_first += (ti->ti_key_incr * 5);
 		}
+
+		/**
+		 * Execute one error case where we UPDATE a key that does not
+		 * exist in the btree.
+		 */
+		key_first = key_iter_start;
+		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+			 (typeof(ti->ti_thread_id))-1;
+		key[0] = m0_byteorder_cpu_to_be64(key[0]);
+		for (i = 1; i < ARRAY_SIZE(key); i++)
+			key[i] = key[0];
+		/** Skip initializing the value as this is an error case */
+
+		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+		btree_callback_credit(&cred);
+
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_update(tree, &rec,
+							      &ut_cb, 0,
+							      &kv_op, tx));
+		M0_ASSERT(rc == M0_BSC_KEY_NOT_FOUND);
+
 
 		/** GET and ITERATE over the keys which we inserted above. */
 
