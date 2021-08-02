@@ -84,7 +84,7 @@ extern struct m0_reqh_service_type m0_ss_svc_type;
  */
 enum {
 	/** Multiplier of a repair zone safety coefficient. */
-	M0_BC_REPAIR_ZONE_SAFETY_MUL = 3,
+	M0_BC_REPAIR_ZONE_SAFETY_MUL = 1,
 	/** Divider of a repair zone safety coefficient. */
 	M0_BC_REPAIR_ZONE_SAFETY_DIV = 2
 };
