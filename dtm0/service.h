@@ -29,6 +29,7 @@
 #include "dtm0/clk_src.h"
 
 struct m0_be_dtm0_log;
+struct dtm0_req_fop;
 
 enum m0_dtm0_service_origin {
 	DTM0_UNKNOWN = 0,
@@ -75,6 +76,9 @@ M0_INTERNAL bool m0_dtm0_is_a_persistent_dtm(struct m0_reqh_service *service);
 
 M0_INTERNAL struct m0_dtm0_service *
 m0_dtm0_service_find(const struct m0_reqh *reqh);
+
+/** Get the DTM0 service this FOM belongs to. */
+M0_INTERNAL struct m0_dtm0_service *m0_dtm0_fom2service(struct m0_fom *fom);
 
 M0_INTERNAL bool m0_dtm0_in_ut(void);
 
