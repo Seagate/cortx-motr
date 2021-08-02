@@ -548,7 +548,8 @@
 #include "lib/rwlock.h"
 #include "lib/thread.h"     /** struct m0_thread */
 #include "lib/bitmap.h"     /** struct m0_bitmap */
-#include "lib/byteorder.h"   /** m0_byteorder_cpu_to_be64() */
+#include "lib/byteorder.h"  /** m0_byteorder_cpu_to_be64() */
+#include "lib/atomic.h"     /** m0_atomic64_set() */
 #include "btree/btree.h"
 #include "fid/fid.h"
 #include "format/format.h"   /** m0_format_header ff_fmt */
@@ -6847,7 +6848,48 @@ struct btree_ut_thread_info {
  *  for the same btree nodes to work on thus exercising possible race
  *  conditions.
  */
-static volatile bool thread_start = false;
+static int64_t thread_run;
+
+
+static struct m0_atomic64 threads_quiesced;
+static struct m0_atomic64 threads_running;
+
+#define  UT_START_THREADS()                                                   \
+	thread_run = true
+
+#define  UT_STOP_THREADS()                                                    \
+	thread_run = false
+
+#define UT_THREAD_WAIT()                                                      \
+	do {                                                                  \
+		while (!thread_run)                                            \
+			;                                                     \
+	} while (0)
+
+#define UT_THREAD_QUIESCE_IF_REQUESTED()                                      \
+	do {                                                                  \
+		if (!thread_run) {                                            \
+			m0_atomic64_inc(&threads_quiesced);                   \
+			UT_THREAD_WAIT();                                     \
+			m0_atomic64_dec(&threads_quiesced);                   \
+		}                                                             \
+	} while (0)
+
+#define UT_REQUEST_PEER_THREADS_TO_QUIESCE()                                  \
+	do {                                                                  \
+		bool try_again;                                               \
+		do {                                                          \
+			try_again = false;                                    \
+			if (m0_atomic64_cas(&thread_run, true, false)) {      \
+				while (m0_atomic64_get(&threads_quiesced) <    \
+				      m0_atomic64_get(&threads_running) - 1)  \
+					;                                     \
+			} else {                                              \
+				UT_THREAD_QUIESCE_IF_REQUESTED();             \
+				try_again = true;                             \
+			}                                                     \
+		} while (try_again);                                          \
+	} while (0)
 
 /**
  * Thread init function which will do basic setup such as setting CPU affinity
@@ -6941,8 +6983,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 	tree                   = ti->ti_tree;
 
 	/** Wait till all the threads have been initialised. */
-	while (!thread_start)
-		;
+	UT_THREAD_WAIT();
+	m0_atomic64_inc(&threads_running);
 
 	while (key_iter_start <= key_end) {
 		uint64_t  key_first;
@@ -7002,6 +7044,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 			keys_put_count++;
 			key_first += ti->ti_key_incr;
+
+			UT_THREAD_QUIESCE_IF_REQUESTED();
 		}
 
 		/**
@@ -7137,6 +7181,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			/** Copy over the gotten key for the next search. */
 			for (i = 0; i < ARRAY_SIZE(key); i++)
 				key[i] = get_key[i];
+
+			UT_THREAD_QUIESCE_IF_REQUESTED();
 		}
 
 		/**
@@ -7146,6 +7192,87 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 * keys_put_count.
 		 */
 		M0_ASSERT(keys_found_count >= keys_put_count);
+
+		/**
+		 * Test for MIN and MAX keys. 
+		 * Testing is difficult since multiple threads will be adding
+		 * or deleting keys from the btree at any time. To get around 
+		 * this we first quiesce all the threads and then work with
+		 * the current btree to find out the MIN and the MAX values.
+		 * To confirm if the values are MIN and MAX we will iterate
+		 * the PREV and NEXT values for both MIN key and MAX key.
+		 * In case of MIN key the PREV iterator should FAIL but NEXT
+		 * iterator should succeed. Conversely for MAX key the PREV
+		 * iterator should succeed while the NEXT iterator should fail.
+		 */
+		UT_REQUEST_PEER_THREADS_TO_QUIESCE();
+
+		/** 
+		 * Fill a value in the buffer which we know cannot be the
+		 * MIN key
+		 */
+		get_key[0] = key_last + 1;
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_minkey(tree, &ut_get_cb, 0,
+							 &kv_op));
+		M0_ASSERT(get_data.flags == M0_BSC_SUCCESS);
+
+		for (i = 0; i < ARRAY_SIZE(key); i += sizeof(key[0]))
+			key[i] = get_key[i];
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_iter(tree, &rec.r_key,
+						       &ut_get_cb, BOF_NEXT,
+						       &kv_op));
+		M0_ASSERT((get_data.flags == M0_BSC_SUCCESS) ||
+			  (get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY &&
+			   key_iter_start == key_last));
+		/** 
+		 * The second condition in the above assert is rare but can
+		 * happen if only one Key is present in the btree. We presume
+		 * that no Keys from other other threads are currently present
+		 * in the btree and also the current thread  added just one
+		 * key in this iteration.
+		 */
+
+		for (i = 0; i < ARRAY_SIZE(key); i += sizeof(key[0]))
+			get_key[i] = key[i];
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_iter(tree, &rec.r_key,
+						       &ut_get_cb, BOF_PREV,
+						       &kv_op));
+		M0_ASSERT(get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY);
+
+		get_key[0] = key_iter_start - 1;
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_maxkey(tree, &ut_get_cb, 0,
+							 &kv_op));
+		M0_ASSERT(get_data.flags == M0_BSC_SUCCESS);
+
+		for (i = 0; i < ARRAY_SIZE(key); i += sizeof(key[0]))
+			key[i] = get_key[i];
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_iter(tree, &rec.r_key,
+						       &ut_get_cb, BOF_PREV,
+						       &kv_op));
+		M0_ASSERT((get_data.flags == M0_BSC_SUCCESS) ||
+			  (get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY &&
+			   key_iter_start == key_last));
+
+		for (i = 0; i < ARRAY_SIZE(key); i += sizeof(key[0]))
+			get_key[i] = key[i];
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_iter(tree, &rec.r_key,
+						       &ut_get_cb, BOF_NEXT,
+						       &kv_op));
+		M0_ASSERT(get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY);
+
+		UT_START_THREADS();
 
 		/**
 		 *  Test slant only if possible. If the increment counter is
@@ -7199,6 +7326,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				M0_ASSERT(got_key == slant_key + 1);
 
 				slant_key += ti->ti_key_incr;
+
+				UT_THREAD_QUIESCE_IF_REQUESTED();
 			} while (slant_key <= key_last);
 		}
 
@@ -7232,11 +7361,16 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 						del_key + ti->ti_key_incr :
 						del_key - ti->ti_key_incr;
 			keys_put_count--;
+
+			UT_THREAD_QUIESCE_IF_REQUESTED();
 		}
 
 		key_iter_start = key_last + ti->ti_key_incr;
+
+		UT_THREAD_QUIESCE_IF_REQUESTED();
 	}
 
+	m0_atomic64_dec(&threads_running);
 	/** Free resources. */
 	m0_free(ti->ti_rnd_state_ptr);
 }
@@ -7360,7 +7494,9 @@ static void btree_ut_num_threads_num_trees_kv_oper(int32_t thread_count,
 
 	M0_ASSERT(thread_count >= tree_count);
 
-	thread_start = false;
+	UT_STOP_THREADS();
+	m0_atomic64_set(&threads_running, 0);
+	m0_atomic64_set(&threads_quiesced, 0);
 
 	M0_ALLOC_ARR(ut_trees, tree_count);
 	M0_ASSERT(ut_trees != NULL);
@@ -7421,7 +7557,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(int32_t thread_count,
 	}
 
 	/** Initialized all the threads by now. Let's get rolling ... */
-	thread_start = true;
+	UT_START_THREADS();
 
 	for (i = 0; i < thread_count;i++) {
 		m0_thread_join(&ti[i].ti_q);
@@ -7529,8 +7665,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 	loop_count %= (MAX_TREE_LOOPS - MIN_TREE_LOOPS);
 	loop_count += MIN_TREE_LOOPS;
 
-	while (!thread_start)
-		;
+	UT_THREAD_WAIT();
+	m0_atomic64_inc(&threads_running);
 
 	/** Create temp node space and use it as root node for btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
@@ -7642,6 +7778,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		}
 	}
 
+	m0_atomic64_dec(&threads_running);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 }
 
@@ -7661,7 +7798,9 @@ static void btree_ut_num_threads_tree_oper(uint32_t thread_count)
 	if (thread_count == 0)
 		thread_count = cpu_count - 1; /** Skip Core-0 */
 
-	thread_start = false;
+	UT_STOP_THREADS();
+	m0_atomic64_set(&threads_running, 0);
+	m0_atomic64_set(&threads_quiesced, 0);
 
 	M0_ALLOC_ARR(ti, thread_count);
 	M0_ASSERT(ti != NULL);
@@ -7692,7 +7831,7 @@ static void btree_ut_num_threads_tree_oper(uint32_t thread_count)
 	}
 
 	/** Initialized all the threads. Now start the chaos ... */
-	thread_start = true;
+	UT_START_THREADS();
 
 	for (i = 0; i < thread_count; i++) {
 		m0_thread_join(&ti[i].ti_q);
