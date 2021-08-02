@@ -32,20 +32,25 @@ service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 start()
 {
     source $service_funcs
+    local XPRT=$(m0_get_motr_transport)
+    if [ "$XPRT" == "lnet" ]; then
+        [[ -r $kernel_config ]] && source $kernel_config
+        [[ -r $user_config   ]] && source $user_config
 
-    [[ -r $kernel_config ]] && source $kernel_config
-    [[ -r $user_config   ]] && source $user_config
-
-    m0_load_modules
+        m0_load_modules
+    fi
 }
 
 stop()
 {
     source $service_funcs
+    local XPRT=$(m0_get_motr_transport)
+    if [ "$XPRT" == "lnet" ]; then
 
-    [ -r $user_config ] && source $user_config
+        [ -r $user_config ] && source $user_config
 
-    m0_unload_modules
+        m0_unload_modules
+    fi
 }
 
 
