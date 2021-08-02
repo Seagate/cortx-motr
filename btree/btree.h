@@ -27,6 +27,7 @@
 #include "lib/types.h"
 #include "lib/vec.h"
 #include "xcode/xcode_attr.h"
+#include "lib/errno.h"
 
 /**
  * @defgroup btree
@@ -113,6 +114,7 @@ enum m0_btree_opcode {
 	M0_BO_DESTROY,
 	M0_BO_GET,
 	M0_BO_PUT,
+	M0_BO_UPDATE,
 	M0_BO_DEL,
 	M0_BO_ITER,
 
@@ -134,8 +136,8 @@ enum m0_btree_op_flags {
  */
 enum m0_btree_status_codes {
 	M0_BSC_SUCCESS = 0,
-	M0_BSC_KEY_EXISTS,
-	M0_BSC_KEY_NOT_FOUND,
+	M0_BSC_KEY_EXISTS = EEXIST,
+	M0_BSC_KEY_NOT_FOUND = ENOENT,
 	M0_BSC_KEY_BTREE_BOUNDARY,
 };
 
