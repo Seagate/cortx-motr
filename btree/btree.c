@@ -6993,6 +6993,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				value[i] = value[0];
 
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+			m0_btree_update_credit(tree, &cred, 1);
 			btree_callback_credit(&cred);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -8106,41 +8107,6 @@ static void ut_put_update_del_operation(void)
 	btree_ut_fini();
 }
 #endif
-/**
- * This ut can be removed once implementation of update operation is done and
- * m0_btree_update_credit is called before executing update operation.
- */
-static void ut_credit_calculation()
-{
-	struct m0_btree_type    btree_type = {.tt_id = M0_BT_UT_KV_OPS,
-					.ksize = 8,
-					.vsize = 8, };
-	struct m0_be_tx        *tx          = NULL;
-	struct m0_be_seg       *seg         = NULL;
-	struct m0_btree_op      b_op        = {};
-	struct m0_btree        *tree;
-	void                   *temp_node;
-	const struct node_type *nt          = &fixed_format;
-	struct m0_be_tx_credit  accum       = {};
-
-	M0_ENTRY();
-
-	/** Prepare transaction to capture tree operations. */
-	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
-	m0_be_tx_prep(tx, NULL);
-	btree_ut_init();
-
-	/** Create temp node space and use it as root node for btree */
-	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				 m0_btree_create(temp_node, 1024, &btree_type,
-						 nt, &b_op, seg, tx));
-
-	tree = b_op.bo_arbor;
-	m0_btree_update_credit(tree, &accum, 1);
-	btree_ut_fini();
-
-}
 
 static int ut_btree_suite_init(void)
 {
@@ -8195,7 +8161,6 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
 		{"node_create_delete",              ut_node_create_delete},
 		{"node_add_del_rec",                ut_node_add_del_rec},
-		{"credit_calculation",              ut_credit_calculation},
 		/* {"btree_kv_add_upd_del",            ut_put_update_del_operation}, */
 		{NULL, NULL}
 	}
