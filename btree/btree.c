@@ -548,7 +548,8 @@
 #include "lib/rwlock.h"
 #include "lib/thread.h"     /** struct m0_thread */
 #include "lib/bitmap.h"     /** struct m0_bitmap */
-#include "lib/byteorder.h"   /** m0_byteorder_cpu_to_be64() */
+#include "lib/byteorder.h"  /** m0_byteorder_cpu_to_be64() */
+#include "lib/atomic.h"     /** m0_atomic64_set() */
 #include "btree/btree.h"
 #include "fid/fid.h"
 #include "format/format.h"   /** m0_format_header ff_fmt */
@@ -1433,7 +1434,7 @@ static int node_init(struct segaddr *addr, int ksize, int vsize,
 		     struct m0_be_tx *tx, int nxt)
 {
 	/**
-	 * node_access() will ensure that we have node data loaded in our memory 
+	 * node_access() will ensure that we have node data loaded in our memory
 	 * before initialisation.
 	 */
 	nxt = node_access(addr, segaddr_shift(addr), nxt);
@@ -2277,7 +2278,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int shift,
 	 * TODO: Consider adding a state here to return in case we might need to
 	 * visit node_init() again to complete its execution.
 	 */
-	
+
 	nxt_state = node_get(op, tree, &op->no_addr, nxt_state);
 
 	return nxt_state;
@@ -2947,23 +2948,19 @@ static void btree_node_alloc_credit(const struct m0_btree  *tree,
 }
 
 /**
- * This function will calculate credits required to update @nr nodes and it will
- * add those credits to @accum.
+ * This function will calculate credits required to update node and it will add
+ * those credits to @accum.
  */
 static void btree_node_update_credit(const struct m0_btree  *tree,
-				     struct m0_be_tx_credit *accum,
-				     m0_bcount_t             nr)
+				     struct m0_be_tx_credit *accum)
 {
-	struct m0_be_tx_credit cred = {};
  	m0_bcount_t             node_size;
 	int                     shift;
 
 	shift     = node_shift(tree->t_desc->t_root);
 	node_size =  1ULL << shift;
 
-	cred = M0_BE_TX_CREDIT(1, node_size);
-
-	m0_be_tx_credit_mac(accum, &cred, nr);
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, node_size));
 }
 
 /**
@@ -2975,7 +2972,11 @@ static void btree_node_split_credit(const struct m0_btree  *tree,
 {
 	btree_node_alloc_credit(tree, accum);
 	/* credits to update two nodes : existing and newly allocated. */
-	btree_node_update_credit(tree, accum, 2);
+	struct m0_be_tx_credit cred = {};
+	btree_node_update_credit(tree, &cred);
+	m0_be_tx_credit_mul(&cred, 2);
+
+	m0_be_tx_credit_add(accum, &cred);
 }
 
 /**
@@ -2996,7 +2997,7 @@ static void btree_put_credit(const struct m0_btree  *tree,
 	 * to be inceased.
 	*/
 	btree_node_alloc_credit(tree, accum);
-	btree_node_update_credit(tree, accum, 1);
+	btree_node_update_credit(tree, accum);
 }
 
 /**
@@ -3010,6 +3011,20 @@ static void m0_btree_put_credit(const struct m0_btree  *tree,
 	struct m0_be_tx_credit cred = {};
 
 	btree_put_credit(tree, &cred);
+	m0_be_tx_credit_mac(accum, &cred, nr);
+}
+
+/**
+ * This function will calculate credits required to perform  @nr update kv
+ * operation and it will add those credits to @accum.
+ */
+static void m0_btree_update_credit(const struct m0_btree  *tree,
+				   struct m0_be_tx_credit *accum,
+				   m0_bcount_t             nr)
+{
+	struct m0_be_tx_credit cred = {};
+
+	btree_node_update_credit(tree, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
@@ -4465,8 +4480,8 @@ static bool index_is_valid(struct level *lev)
  *  which has valid sibling. Once found, get the leftmost leaf record from the
  *  sibling subtree.
  */
-int  btree_sibling_first_key_get(struct m0_btree_oimpl *oi, struct td *tree,
-				 struct slot *s)
+int  btree_sibling_first_key(struct m0_btree_oimpl *oi, struct td *tree,
+			     struct slot *s)
 {
 	int             i;
 	struct level   *lev;
@@ -4496,7 +4511,10 @@ int  btree_sibling_first_key_get(struct m0_btree_oimpl *oi, struct td *tree,
 
 }
 
-/** Tree GET (lookup) state machine. */
+/**
+ * State machine for fetching exact key / slant key / min key or max key from
+ * the tree.
+ */
 static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop            = M0_AMB(bop, smop, bo_op);
@@ -4507,6 +4525,9 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
+		M0_ASSERT(bop->bo_opc == M0_BO_GET ||
+			  bop->bo_opc == M0_BO_MINKEY ||
+			  bop->bo_opc == M0_BO_MAXKEY);
 		M0_ASSERT(bop->bo_i == NULL);
 		bop->bo_i = m0_alloc(sizeof *oi);
 		if (bop->bo_i == NULL) {
@@ -4543,12 +4564,12 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				P_NEXTDOWN);
 	case P_NEXTDOWN:
 		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			struct slot    node_slot = {};
+			struct slot    s = {};
 			struct segaddr child;
 
 			lev = &oi->i_level[oi->i_used];
 			lev->l_node = oi->i_nop.no_node;
-			node_slot.s_node = oi->i_nop.no_node;
+			s.s_node = oi->i_nop.no_node;
 
 			node_lock(lev->l_node);
 			lev->l_seq = lev->l_node->n_seq;
@@ -4570,16 +4591,23 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 						    P_SETUP);
 			}
 
-			oi->i_key_found = node_find(&node_slot,
-						    &bop->bo_rec.r_key);
-			lev->l_idx = node_slot.s_idx;
+			if (bop->bo_opc == M0_BO_GET) {
+				oi->i_key_found = node_find(&s,
+							    &bop->bo_rec.r_key);
+				lev->l_idx = s.s_idx;
+			}
 
-			if (node_level(node_slot.s_node) > 0) {
-				if (oi->i_key_found) {
-					node_slot.s_idx++;
-					lev->l_idx++;
-				}
-				node_child(&node_slot, &child);
+			if (node_level(s.s_node) > 0) {
+				if (bop->bo_opc == M0_BO_GET) {
+					if (oi->i_key_found) {
+						s.s_idx++;
+						lev->l_idx++;
+					}
+				} else
+					s.s_idx = bop->bo_opc == M0_BO_MINKEY ?
+						  0 : node_count(s.s_node);
+
+				node_child(&s, &child);
 				if (!address_in_segment(child)) {
 					node_unlock(lev->l_node);
 					node_op_fini(&oi->i_nop);
@@ -4641,16 +4669,18 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 		void        *pval;
 		struct slot  s = {};
 		int          rc;
+		int          count;
 
 		lev = &oi->i_level[oi->i_used];
 
-		s.s_node             = lev->l_node;
-		s.s_idx              = lev->l_idx;
-		s.s_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&pkey, &ksize);
-		s.s_rec.r_val        = M0_BUFVEC_INIT_BUF(&pval, &vsize);
-		s.s_rec.r_flags      = M0_BSC_SUCCESS;
+		s.s_node        = lev->l_node;
+		s.s_idx         = lev->l_idx;
+		s.s_rec	        = REC_INIT(&pkey, &ksize, &pval, &vsize);
+		s.s_rec.r_flags = M0_BSC_SUCCESS;
+
+		count = node_count(s.s_node);
 		/**
-		 *  There are two cases based on the flag set by user :
+		 *  There are two cases based on the flag set by user for GET OP
 		 *  1. Flag BRF_EQUAL: If requested key found return record else
 		 *  return key not exist.
 		 *  2. Flag BRF_SLANT: If the key index(found during P_NEXTDOWN)
@@ -4659,21 +4689,33 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 		 *  If valid sibling found, return first key of the sibling
 		 *  subtree else return key not exist.
 		 */
-		if (bop->bo_flags & BOF_EQUAL) {
-			if (oi->i_key_found)
-				node_rec(&s);
-			else
-				s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
-		} else {
-			if (lev->l_idx < node_count(lev->l_node))
-				node_rec(&s);
-			else {
-				rc = btree_sibling_first_key_get(oi, tree, &s);
-				if (rc != 0) {
-					node_op_fini(&oi->i_nop);
-					return fail(bop, rc);
+		if (bop->bo_opc == M0_BO_GET) {
+			if (bop->bo_flags & BOF_EQUAL) {
+				if (oi->i_key_found)
+					node_rec(&s);
+				else
+					s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
+			} else {
+				if (lev->l_idx < count)
+					node_rec(&s);
+				else {
+					rc = btree_sibling_first_key(oi, tree,
+								     &s);
+					if (rc != 0) {
+						node_op_fini(&oi->i_nop);
+						return fail(bop, rc);
+					}
 				}
 			}
+		} else {
+			/** MIN/MAX key operation. */
+			if (count > 0) {
+				s.s_idx = bop->bo_opc == M0_BO_MINKEY ? 0 :
+					  count - 1;
+				node_rec(&s);
+			} else
+				/** Only root node is present and is empty. */
+				s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
 		}
 
 		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
@@ -5682,6 +5724,36 @@ void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
 		      &btree_conf, &bop->bo_sm_group);
 }
 
+void m0_btree_minkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
+		     uint64_t flags, struct m0_btree_op *bop)
+{
+	bop->bo_opc       = M0_BO_MINKEY;
+	bop->bo_arbor     = arbor;
+	bop->bo_flags     = flags;
+	bop->bo_cb        = *cb;
+	bop->bo_tx        = NULL;
+	bop->bo_seg       = NULL;
+	bop->bo_i         = NULL;
+
+	m0_sm_op_init(&bop->bo_op, &btree_get_kv_tick, &bop->bo_op_exec,
+		      &btree_conf, &bop->bo_sm_group);
+}
+
+void m0_btree_maxkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
+		     uint64_t flags, struct m0_btree_op *bop)
+{
+	bop->bo_opc       = M0_BO_MAXKEY;
+	bop->bo_arbor     = arbor;
+	bop->bo_flags     = flags;
+	bop->bo_cb        = *cb;
+	bop->bo_tx        = NULL;
+	bop->bo_seg       = NULL;
+	bop->bo_i         = NULL;
+
+	m0_sm_op_init(&bop->bo_op, &btree_get_kv_tick, &bop->bo_op_exec,
+		      &btree_conf, &bop->bo_sm_group);
+}
+
 void m0_btree_update(struct m0_btree *arbor, const struct m0_btree_rec *rec,
 		     const struct m0_btree_cb *cb, uint64_t flags,
 		     struct m0_btree_op *bop, struct m0_be_tx *tx)
@@ -6163,7 +6235,7 @@ static void ut_basic_tree_oper_icp(void)
 	/**
 	 *  Run a invalid scenario which:
 	 *  1) Attempts to create a btree with invalid address
-	 * 
+	 *
 	 * This scenario is invalid because the root node address is incorrect.
 	 * In this case m0_btree_create() will return -EFAULT.
 	 */
@@ -6174,7 +6246,7 @@ static void ut_basic_tree_oper_icp(void)
 	/**
 	 *  Run a invalid scenario which:
 	 *  1) Attempts to open a btree with invalid address
-	 * 
+	 *
 	 * This scenario is invalid because the root node address is incorrect.
 	 * In this case m0_btree_open() will return -EFAULT.
 	 */
@@ -6187,7 +6259,7 @@ static void ut_basic_tree_oper_icp(void)
 	 *  1) Creates a btree
 	 *  2) Opens the btree
 	 *  3) Destroys the btree
-	 * 
+	 *
 	 * This scenario is invalid because we are trying to destroy a tree that
 	 * has not been closed. Thus, we should get -EPERM error from
 	 * m0_btree_destroy().
@@ -6215,7 +6287,7 @@ static void ut_basic_tree_oper_icp(void)
 	 *  1) Creates a btree
 	 *  2) Close the btree
 	 *  3) Again Attempt to close the btree
-	 * 
+	 *
 	 * This scenario is invalid because we are trying to destroy a tree that
 	 * has been already destroyed. Thus, we should get -EINVAL error from
 	 * m0_btree_destroy().
@@ -6623,6 +6695,8 @@ static void ut_multi_stream_kv_oper(void)
 						  };
 	int                     rc;
 	struct m0_buf           buf;
+	uint64_t                maxkey = 0;
+	uint64_t                minkey = UINT64_MAX;
 	M0_ENTRY();
 
 	time(&curr_time);
@@ -6695,6 +6769,11 @@ static void ut_multi_stream_kv_oper(void)
 			btree_callback_credit(&cred);
 
 			key = i + (stream_num * recs_per_stream);
+			if (key < minkey)
+				minkey = key;
+			if (key > maxkey)
+				maxkey = key;
+
 			key = m0_byteorder_cpu_to_be64(key);
 			for (k = 0; k < ARRAY_SIZE(value);k++) {
 				value[k] = key;
@@ -6722,6 +6801,39 @@ static void ut_multi_stream_kv_oper(void)
 			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
 		}
+	}
+
+	{
+		/** Min/Max key verification test. */
+		uint64_t             key;
+		uint64_t             value[btree_type.vsize/sizeof(uint64_t)];
+		struct cb_data       get_data;
+		struct m0_btree_key  get_key;
+		struct m0_bufvec     get_value;
+		m0_bcount_t          ksize             = sizeof key;
+		m0_bcount_t          vsize             = sizeof value;
+		void                *k_ptr             = &key;
+		void                *v_ptr             = &value;
+
+		get_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+		get_value      = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+
+		get_data.key         = &get_key;
+		get_data.value       = &get_value;
+		get_data.check_value = true;
+
+		ut_cb.c_act   = btree_kv_get_cb;
+		ut_cb.c_datum = &get_data;
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_minkey(tree, &ut_cb, 0,
+							 &kv_op));
+		M0_ASSERT(minkey == m0_byteorder_be64_to_cpu(key));
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_maxkey(tree, &ut_cb, 0,
+							 &kv_op));
+		M0_ASSERT(maxkey == m0_byteorder_be64_to_cpu(key));
 	}
 
 	/**
@@ -6861,7 +6973,48 @@ struct btree_ut_thread_info {
  *  for the same btree nodes to work on thus exercising possible race
  *  conditions.
  */
-static volatile bool thread_start = false;
+static int64_t thread_run;
+
+
+static struct m0_atomic64 threads_quiesced;
+static struct m0_atomic64 threads_running;
+
+#define  UT_START_THREADS()                                                   \
+	thread_run = true
+
+#define  UT_STOP_THREADS()                                                    \
+	thread_run = false
+
+#define UT_THREAD_WAIT()                                                      \
+	do {                                                                  \
+		while (!thread_run)                                            \
+			;                                                     \
+	} while (0)
+
+#define UT_THREAD_QUIESCE_IF_REQUESTED()                                      \
+	do {                                                                  \
+		if (!thread_run) {                                            \
+			m0_atomic64_inc(&threads_quiesced);                   \
+			UT_THREAD_WAIT();                                     \
+			m0_atomic64_dec(&threads_quiesced);                   \
+		}                                                             \
+	} while (0)
+
+#define UT_REQUEST_PEER_THREADS_TO_QUIESCE()                                  \
+	do {                                                                  \
+		bool try_again;                                               \
+		do {                                                          \
+			try_again = false;                                    \
+			if (m0_atomic64_cas(&thread_run, true, false)) {      \
+				while (m0_atomic64_get(&threads_quiesced) <    \
+				      m0_atomic64_get(&threads_running) - 1)  \
+					;                                     \
+			} else {                                              \
+				UT_THREAD_QUIESCE_IF_REQUESTED();             \
+				try_again = true;                             \
+			}                                                     \
+		} while (try_again);                                          \
+	} while (0)
 
 /**
  * Thread init function which will do basic setup such as setting CPU affinity
@@ -6955,8 +7108,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 	tree                   = ti->ti_tree;
 
 	/** Wait till all the threads have been initialised. */
-	while (!thread_start)
-		;
+	UT_THREAD_WAIT();
+	m0_atomic64_inc(&threads_running);
 
 	while (key_iter_start <= key_end) {
 		uint64_t  key_first;
@@ -7017,6 +7170,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 			keys_put_count++;
 			key_first += ti->ti_key_incr;
+
+			UT_THREAD_QUIESCE_IF_REQUESTED();
 		}
 
 		/**
@@ -7066,6 +7221,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				value[i] = value[0];
 
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+			m0_btree_update_credit(tree, &cred, 1);
 			btree_callback_credit(&cred);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -7153,6 +7309,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			/** Copy over the gotten key for the next search. */
 			for (i = 0; i < ARRAY_SIZE(key); i++)
 				key[i] = get_key[i];
+
+			UT_THREAD_QUIESCE_IF_REQUESTED();
 		}
 
 		/**
@@ -7162,6 +7320,87 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 * keys_put_count.
 		 */
 		M0_ASSERT(keys_found_count >= keys_put_count);
+
+		/**
+		 * Test for MIN and MAX keys.
+		 * Testing is difficult since multiple threads will be adding
+		 * or deleting keys from the btree at any time. To get around
+		 * this we first quiesce all the threads and then work with
+		 * the current btree to find out the MIN and the MAX values.
+		 * To confirm if the values are MIN and MAX we will iterate
+		 * the PREV and NEXT values for both MIN key and MAX key.
+		 * In case of MIN key the PREV iterator should FAIL but NEXT
+		 * iterator should succeed. Conversely for MAX key the PREV
+		 * iterator should succeed while the NEXT iterator should fail.
+		 */
+		UT_REQUEST_PEER_THREADS_TO_QUIESCE();
+
+		/**
+		 * Fill a value in the buffer which we know cannot be the
+		 * MIN key
+		 */
+		get_key[0] = key_last + 1;
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_minkey(tree, &ut_get_cb, 0,
+							 &kv_op));
+		M0_ASSERT(get_data.flags == M0_BSC_SUCCESS);
+
+		for (i = 0; i < ARRAY_SIZE(key); i += sizeof(key[0]))
+			key[i] = get_key[i];
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_iter(tree, &rec.r_key,
+						       &ut_get_cb, BOF_NEXT,
+						       &kv_op));
+		M0_ASSERT((get_data.flags == M0_BSC_SUCCESS) ||
+			  (get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY &&
+			   key_iter_start == key_last));
+		/**
+		 * The second condition in the above assert is rare but can
+		 * happen if only one Key is present in the btree. We presume
+		 * that no Keys from other other threads are currently present
+		 * in the btree and also the current thread  added just one
+		 * key in this iteration.
+		 */
+
+		for (i = 0; i < ARRAY_SIZE(key); i += sizeof(key[0]))
+			get_key[i] = key[i];
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_iter(tree, &rec.r_key,
+						       &ut_get_cb, BOF_PREV,
+						       &kv_op));
+		M0_ASSERT(get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY);
+
+		get_key[0] = key_iter_start - 1;
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_maxkey(tree, &ut_get_cb, 0,
+							 &kv_op));
+		M0_ASSERT(get_data.flags == M0_BSC_SUCCESS);
+
+		for (i = 0; i < ARRAY_SIZE(key); i += sizeof(key[0]))
+			key[i] = get_key[i];
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_iter(tree, &rec.r_key,
+						       &ut_get_cb, BOF_PREV,
+						       &kv_op));
+		M0_ASSERT((get_data.flags == M0_BSC_SUCCESS) ||
+			  (get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY &&
+			   key_iter_start == key_last));
+
+		for (i = 0; i < ARRAY_SIZE(key); i += sizeof(key[0]))
+			get_key[i] = key[i];
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					 m0_btree_iter(tree, &rec.r_key,
+						       &ut_get_cb, BOF_NEXT,
+						       &kv_op));
+		M0_ASSERT(get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY);
+
+		UT_START_THREADS();
 
 		/**
 		 *  Test slant only if possible. If the increment counter is
@@ -7215,6 +7454,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				M0_ASSERT(got_key == slant_key + 1);
 
 				slant_key += ti->ti_key_incr;
+
+				UT_THREAD_QUIESCE_IF_REQUESTED();
 			} while (slant_key <= key_last);
 		}
 
@@ -7248,11 +7489,16 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 						del_key + ti->ti_key_incr :
 						del_key - ti->ti_key_incr;
 			keys_put_count--;
+
+			UT_THREAD_QUIESCE_IF_REQUESTED();
 		}
 
 		key_iter_start = key_last + ti->ti_key_incr;
+
+		UT_THREAD_QUIESCE_IF_REQUESTED();
 	}
 
+	m0_atomic64_dec(&threads_running);
 	/** Free resources. */
 	m0_free(ti->ti_rnd_state_ptr);
 }
@@ -7376,7 +7622,9 @@ static void btree_ut_num_threads_num_trees_kv_oper(int32_t thread_count,
 
 	M0_ASSERT(thread_count >= tree_count);
 
-	thread_start = false;
+	UT_STOP_THREADS();
+	m0_atomic64_set(&threads_running, 0);
+	m0_atomic64_set(&threads_quiesced, 0);
 
 	M0_ALLOC_ARR(ut_trees, tree_count);
 	M0_ASSERT(ut_trees != NULL);
@@ -7437,7 +7685,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(int32_t thread_count,
 	}
 
 	/** Initialized all the threads by now. Let's get rolling ... */
-	thread_start = true;
+	UT_START_THREADS();
 
 	for (i = 0; i < thread_count;i++) {
 		m0_thread_join(&ti[i].ti_q);
@@ -7529,8 +7777,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 	loop_count %= (MAX_TREE_LOOPS - MIN_TREE_LOOPS);
 	loop_count += MIN_TREE_LOOPS;
 
-	while (!thread_start)
-		;
+	UT_THREAD_WAIT();
+	m0_atomic64_inc(&threads_running);
 
 	/** Create temp node space and use it as root node for btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
@@ -7634,6 +7882,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		M0_ASSERT(rc == 0);
 	}
 
+	m0_atomic64_dec(&threads_running);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 }
 
@@ -7653,7 +7902,9 @@ static void btree_ut_num_threads_tree_oper(uint32_t thread_count)
 	if (thread_count == 0)
 		thread_count = cpu_count - 1; /** Skip Core-0 */
 
-	thread_start = false;
+	UT_STOP_THREADS();
+	m0_atomic64_set(&threads_running, 0);
+	m0_atomic64_set(&threads_quiesced, 0);
 
 	M0_ALLOC_ARR(ti, thread_count);
 	M0_ASSERT(ti != NULL);
@@ -7684,7 +7935,7 @@ static void btree_ut_num_threads_tree_oper(uint32_t thread_count)
 	}
 
 	/** Initialized all the threads. Now start the chaos ... */
-	thread_start = true;
+	UT_START_THREADS();
 
 	for (i = 0; i < thread_count; i++) {
 		m0_thread_join(&ti[i].ti_q);

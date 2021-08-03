@@ -1109,6 +1109,72 @@ void m0_be_ut_tx_payload(void)
 
 #undef TX_PAYLOAD_TEST
 
+/** Backend UT for transaction callback. */
+enum { BE_UT_TX_CB_NR = 10 };
+struct be_ut_tx_cb_data{
+	int      index;
+	uint64_t data;
+};
+struct be_ut_tx_cb_data cb_data[BE_UT_TX_CB_NR];
+
+static void be_ut_tx_cb_credit(struct m0_be_tx_credit *accum)
+{
+	accum->tc_cb_nr += BE_UT_TX_CB_NR;
+}
+
+static void be_ut_tx_commit_cb(void *datum)
+{
+	struct be_ut_tx_cb_data *cd = datum;
+
+	M0_UT_ASSERT(cd->index < BE_UT_TX_CB_NR);
+	M0_UT_ASSERT(cb_data[cd->index].data == cd->data);
+}
+
+void m0_be_ut_tx_callback(void)
+{
+	struct m0_be_ut_backend ut_be;
+	struct m0_be_ut_seg     ut_seg;
+	struct m0_be_seg       *seg;
+	struct m0_be_tx_credit  credit = M0_BE_TX_CREDIT_TYPE(uint64_t);
+	struct m0_be_tx         tx;
+	uint64_t               *data;
+	uint64_t                seed = 0;
+	int                     rc;
+	int                     i;
+
+	M0_SET0(&ut_be);
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20);
+	seg = ut_seg.bus_seg;
+
+	m0_be_ut_tx_init(&tx, &ut_be);
+
+	be_ut_tx_cb_credit(&credit);
+	m0_be_tx_prep(&tx, &credit);
+
+	m0_be_tx_open(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+
+	data = (uint64_t *) (seg->bs_addr + seg->bs_reserved);
+	*data = 0x101;
+	for (i = 0; i < BE_UT_TX_CB_NR; i++) {
+		cb_data[i].index = i;
+		cb_data[i].data  = m0_rnd64(&seed);
+		m0_be_tx_cb_capture(&tx, &cb_data[i], &be_ut_tx_commit_cb);
+	}
+	m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, data));
+
+	m0_be_tx_close(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_tx_fini(&tx);
+
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of be group */
