@@ -1415,7 +1415,14 @@ static int be_repair_zone_pcnt_get(struct m0_reqh *reqh,
 			       &croot->rt_imeta_pver)) {
 			continue;
 		}
-		*repair_zone_pcnt = pver_obj->pv_u.subtree.pvs_attr.pa_K *
+		/**
+		 * Replaced K/P with S/P and safety coefficient 3/2 with 1/2
+		 * TODO: These changes should work fine as long as we
+		 * are using replication for DIX (i.e., N = 1). We need
+		 * to work on this formula for N > 1. Filed a Bug EOS-23309
+		 * to track it.
+		 */
+		*repair_zone_pcnt = pver_obj->pv_u.subtree.pvs_attr.pa_S *
 			100 /
 			pver_obj->pv_u.subtree.pvs_attr.pa_P *
 			M0_BC_REPAIR_ZONE_SAFETY_MUL /
