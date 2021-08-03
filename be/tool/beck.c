@@ -3047,7 +3047,6 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 	struct m0_uint128         prefix;
 	int			  id;
 	struct m0_fid 		  fid;
-	uint16_t		  ht_idx;
 
 	m0_mutex_lock(&beck_builder.b_coblock);
 

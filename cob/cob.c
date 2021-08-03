@@ -682,10 +682,8 @@ M0_INTERNAL uint16_t cob_get_hash(struct m0_fid * fid)
     uint16_t idx;
 
     prefix_hash = m0_fid_hash(fid);
-
-    idx = (uint16_t)(prefix_hash % (uint64_t)(COB_HT_SIZE));
+    idx = prefix_hash % min_check((uint64_t)m0_fom_dom()->fd_localities_nr, (uint64_t)COB_HT_SIZE);
     return idx;
-
 }
 
 
