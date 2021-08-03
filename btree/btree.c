@@ -2008,6 +2008,7 @@ static int64_t tree_delete(struct node_op *op, struct td *tree,
  */
 static void tree_put(struct td *tree)
 {
+	m0_rwlock_write_lock(&list_lock);
 	m0_rwlock_write_lock(&tree->t_lock);
 	M0_ASSERT(tree->t_ref > 0);
 	M0_ASSERT(tree->t_root != NULL);
@@ -2020,10 +2021,13 @@ static void tree_put(struct td *tree)
 		node_unlock(tree->t_root);
 		m0_rwlock_write_unlock(&tree->t_lock);
 		m0_rwlock_fini(&tree->t_lock);
+		m0_rwlock_write_unlock(&list_lock);
 		m0_free0(&tree);
 		return;
 	}
 	m0_rwlock_write_unlock(&tree->t_lock);
+	m0_rwlock_write_unlock(&list_lock);
+
 }
 
 /**
