@@ -666,12 +666,17 @@ def config_logger(self):
     return logger
 
 def remove_dirs(self, log_dir, patterns):
+    if not os.path.exists(os.path.dirname(log_dir)):
+        self.logger.warning(f"{log_dir} does not exist")
+        return
+
     if len(patterns) == 0:
         self.logger.info(f"Removing {log_dir}")
         execute_command(self, f"rm -rf {log_dir}")
         return
+
     for pattern in patterns:
-        temp_dir = []
+        removed_dirs = []
         self.logger.info(f"Removing {pattern} directories from {log_dir}")
 
         # Search directories for files/dirs with pattern in their names and remove it.
@@ -679,12 +684,12 @@ def remove_dirs(self, log_dir, patterns):
         # search_pat=/var/motr/**/addb*
         search_pat = "{}/**/{}*".format(log_dir, pattern)
         for dname in glob.glob(search_pat, recursive=True):
-            temp_dir.append(dname)
+            removed_dirs.append(dname)
             execute_command(self, f"rm -rf {dname}")
-        self.logger.info(f"Removed below directories.\n{temp_dir}")
+        self.logger.info(f"Removed below directories.\n{removed_dirs}")
 
 def remove_logs(self):
-    patterns=["addb", "*trace", "db", "s3server"]
+    patterns=["addb", "*trace"]
     for log_dir in MOTR_LOG_DIRS:
         if os.path.exists(log_dir):
             remove_dirs(self, log_dir, patterns)
